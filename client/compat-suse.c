@@ -43,6 +43,7 @@
 #include <wicked/bonding.h>
 #include <wicked/bridge.h>
 #include <wicked/vlan.h>
+#include <wicked/macvlan.h>
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
 
@@ -1549,6 +1550,67 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 }
 
 /*
+ * MACVLAN is recognized by MACVLAN_DEVICE entry.
+ */
+static int
+try_macvlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	ni_macvlan_t *macvlan = NULL;
+	const char *macvlan_dev = NULL;
+	const char *macvlan_mode = NULL;
+	const char *macvlan_flags = NULL;
+
+	if ((macvlan_dev = ni_sysconfig_get_value(sc, "MACVLAN_DEVICE")) == NULL)
+		return 1;
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config contains macvlan variables",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
+
+	dev->link.type = NI_IFTYPE_MACVLAN;
+	macvlan = ni_netdev_get_macvlan(dev);
+
+	if (!strcmp(dev->name, macvlan_dev)) {
+		ni_error("ifcfg-%s: MACVLAN_DEVICE=\"%s\" self-reference",
+			dev->name, macvlan_dev);
+		return -1;
+	}
+
+	if ((macvlan_mode = ni_sysconfig_get_value(sc, "MACVLAN_MODE")) != NULL) {
+		unsigned int mode;
+		if (!ni_macvlan_name_to_mode(macvlan_mode, &mode)) {
+			ni_error("ifcfg-%s: Unsupported MACVLAN_MODE=\"%s\"",
+				dev->name, macvlan_mode);
+			return -1;
+		}
+		macvlan->mode = mode;
+	} else {
+		/* Default case. */
+		macvlan->mode = NI_MACVLAN_MODE_VEPA;
+	}
+
+	if ((macvlan_flags = ni_sysconfig_get_value(sc, "MACVLAN_FLAGS")) != NULL) {
+		unsigned int flags;
+		if (!ni_macvlan_name_to_flag(macvlan_flags, &flags)) {
+			ni_error("ifcfg-%s: Unsupported MACVLAN_FLAGS=\"%s\"",
+				dev->name, macvlan_flags);
+			return -1;
+		}
+		macvlan->flags = flags;
+	} else {
+		/* Default case. */
+		macvlan->flags = 0;
+	}
+
+	ni_string_dup(&dev->link.lowerdev.name, macvlan_dev);
+
+	return 0;
+}
+
+/*
  * Handle Wireless devices
  */
 static ni_bool_t
@@ -2657,6 +2719,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	    try_bonding(sc, compat)    < 0 ||
 	    try_bridge(sc, compat)     < 0 ||
 	    try_vlan(sc, compat)       < 0 ||
+	    try_macvlan(sc, compat)    < 0 ||
 	    try_tunnel(sc, compat)     < 0 ||
 	    try_wireless(sc, compat)   < 0 ||
 	    try_infiniband(sc, compat) < 0 ||
