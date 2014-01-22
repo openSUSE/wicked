@@ -4,7 +4,6 @@
 #
 [Unit]
 Description=wicked managed network in stage %i
-Requisite=wickedd.service
 #Wants=network.target
 #Before=network.target
 After=wickedd.service
