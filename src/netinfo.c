@@ -704,19 +704,33 @@ ni_addrconf_lease_free(ni_addrconf_lease_t *lease)
 	free(lease);
 }
 
+static void
+ni_addrconf_lease_dhcp4_destroy(struct ni_addrconf_lease_dhcp *dhcp4)
+{
+	if (dhcp4) {
+		ni_string_free(&dhcp4->message);
+		ni_string_free(&dhcp4->bootfile);
+		ni_string_free(&dhcp4->rootpath);
+	}
+}
+
+static void
+ni_addrconf_lease_dhcp6_destroy(struct ni_addrconf_lease_dhcp6 *dhcp6)
+{
+	if (dhcp6) {
+		ni_dhcp6_status_destroy(&dhcp6->status);
+		ni_dhcp6_ia_list_destroy(&dhcp6->ia_list);
+	}
+}
+
 void
 ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 {
 	ni_string_free(&lease->owner);
 	ni_string_free(&lease->hostname);
-	ni_string_free(&lease->netbios_scope);
-	ni_string_array_destroy(&lease->log_servers);
-	ni_string_array_destroy(&lease->ntp_servers);
-	ni_string_array_destroy(&lease->netbios_name_servers);
-	ni_string_array_destroy(&lease->netbios_dd_servers);
-	ni_string_array_destroy(&lease->slp_servers);
-	ni_string_array_destroy(&lease->slp_scopes);
+
 	ni_address_list_destroy(&lease->addrs);
+	ni_route_tables_destroy(&lease->routes);
 
 	if (lease->nis) {
 		ni_nis_info_free(lease->nis);
@@ -727,19 +741,26 @@ ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 		lease->resolver = NULL;
 	}
 
+	ni_string_array_destroy(&lease->log_servers);
+	ni_string_array_destroy(&lease->ntp_servers);
+	ni_string_array_destroy(&lease->netbios_name_servers);
+	ni_string_array_destroy(&lease->netbios_dd_servers);
+	ni_string_free(&lease->netbios_scope);
+	ni_string_array_destroy(&lease->slp_servers);
+	ni_string_array_destroy(&lease->slp_scopes);
+	ni_string_array_destroy(&lease->sip_servers);
+	ni_string_array_destroy(&lease->lpr_servers);
+
 	switch (lease->type) {
 	case NI_ADDRCONF_DHCP:
 
 		switch (lease->family) {
 		case AF_INET:
-			ni_string_free(&lease->dhcp.message);
-			ni_string_free(&lease->dhcp.bootfile);
-			ni_string_free(&lease->dhcp.rootpath);
+			ni_addrconf_lease_dhcp4_destroy(&lease->dhcp);
 			break;
 
 		case AF_INET6:
-			ni_dhcp6_status_destroy(&lease->dhcp6.status);
-			ni_dhcp6_ia_list_destroy(&lease->dhcp6.ia_list);
+			ni_addrconf_lease_dhcp6_destroy(&lease->dhcp6);
 			break;
 
 		default: ;
