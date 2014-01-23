@@ -38,7 +38,7 @@ enum {
 
 /*
  * Leases obtained through a dynamic addrconf protocol,
- * such as DHCP, DHCPv6, IPv4LL, or IBFT.
+ * such as DHCPv4, DHCPv6, IPv4LL, or IBFT.
  */
 enum {
 	NI_ADDRCONF_STATE_NONE,
@@ -101,7 +101,7 @@ struct ni_addrconf_lease {
 
 	/* Information specific to some addrconf protocol */
 	union {
-	    struct ni_addrconf_lease_dhcp {
+	    struct ni_addrconf_lease_dhcp4 {
 		struct in_addr		serveraddress;
 		char			servername[64];
 		char			client_id[64];
@@ -118,7 +118,7 @@ struct ni_addrconf_lease {
 		char *			message;
 		char *			bootfile;
 		char *			rootpath;
-	    } dhcp;
+	    } dhcp4;
 	    struct ni_addrconf_lease_dhcp6 {
 		ni_opaque_t		client_id;
 		ni_opaque_t		server_id;

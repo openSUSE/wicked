@@ -23,14 +23,14 @@
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/objectmodel.h>
-#include "dhcp.h"
+#include "dhcp4/dhcp.h"
 
 static ni_dhcp4_request_t *	ni_objectmodel_dhcp4_request_from_dict(const ni_dbus_variant_t *);
-static void			__ni_objectmodel_dhcp_device_release(ni_dbus_object_t *);
+static void			__ni_objectmodel_dhcp4_device_release(ni_dbus_object_t *);
 
 static ni_dbus_class_t		ni_objectmodel_dhcp4dev_class = {
 	.name		= "dhcp4-device",
-	.destroy	= __ni_objectmodel_dhcp_device_release,
+	.destroy	= __ni_objectmodel_dhcp4_device_release,
 	.superclass	= &ni_objectmodel_addrconf_device_class,
 };
 
@@ -53,7 +53,7 @@ ni_objectmodel_dhcp4_init(void)
  * If @server is non-NULL, register the object with a canonical object path
  */
 static ni_dbus_object_t *
-__ni_objectmodel_build_dhcp4_device_object(ni_dbus_server_t *server, ni_dhcp_device_t *dev)
+__ni_objectmodel_build_dhcp4_device_object(ni_dbus_server_t *server, ni_dhcp4_device_t *dev)
 {
 	ni_dbus_object_t *object;
 	char object_path[256];
@@ -67,10 +67,10 @@ __ni_objectmodel_build_dhcp4_device_object(ni_dbus_server_t *server, ni_dhcp_dev
 		snprintf(object_path, sizeof(object_path), "Interface/%d", dev->link.ifindex);
 		object = ni_dbus_server_register_object(server, object_path,
 						&ni_objectmodel_dhcp4dev_class,
-						ni_dhcp_device_get(dev));
+						ni_dhcp4_device_get(dev));
 	} else {
 		object = ni_dbus_object_new(&ni_objectmodel_dhcp4dev_class, NULL,
-						ni_dhcp_device_get(dev));
+						ni_dhcp4_device_get(dev));
 	}
 
 	if (object == NULL)
@@ -86,7 +86,7 @@ __ni_objectmodel_build_dhcp4_device_object(ni_dbus_server_t *server, ni_dhcp_dev
  * and add the appropriate dbus services
  */
 ni_dbus_object_t *
-ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *server, ni_dhcp_device_t *dev)
+ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *server, ni_dhcp4_device_t *dev)
 {
 	return __ni_objectmodel_build_dhcp4_device_object(server, dev);
 }
@@ -94,10 +94,10 @@ ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *server, ni_dhcp_device_t 
 /*
  * Extract the dhcp4_device handle from a dbus object
  */
-static ni_dhcp_device_t *
+static ni_dhcp4_device_t *
 ni_objectmodel_unwrap_dhcp4_device(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_dhcp_device_t *dev = ni_dbus_object_get_handle(object);
+	ni_dhcp4_device_t *dev = ni_dbus_object_get_handle(object);
 
 	if (ni_dbus_object_isa(object, &ni_objectmodel_dhcp4dev_class))
 		return dev;
@@ -111,15 +111,15 @@ ni_objectmodel_unwrap_dhcp4_device(const ni_dbus_object_t *object, DBusError *er
 }
 
 /*
- * Destroy a dbus object wrapping a dhcp_device.
+ * Destroy a dbus object wrapping a dhcp4_device.
  */
 void
-__ni_objectmodel_dhcp_device_release(ni_dbus_object_t *object)
+__ni_objectmodel_dhcp4_device_release(ni_dbus_object_t *object)
 {
-	ni_dhcp_device_t *dev = ni_objectmodel_unwrap_dhcp4_device(object, NULL);
+	ni_dhcp4_device_t *dev = ni_objectmodel_unwrap_dhcp4_device(object, NULL);
 
 	ni_assert(dev != NULL);
-	ni_dhcp_device_put(dev);
+	ni_dhcp4_device_put(dev);
 	object->handle = NULL;
 }
 
@@ -134,7 +134,7 @@ __ni_objectmodel_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_metho
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_dhcp_device_t *dev;
+	ni_dhcp4_device_t *dev;
 	ni_uuid_t req_uuid = NI_UUID_INIT;
 	ni_dhcp4_request_t *req = NULL;
 	dbus_bool_t ret = FALSE;
@@ -172,18 +172,18 @@ __ni_objectmodel_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_metho
 	}
 	req->uuid = req_uuid;
 
-	if ((rv = ni_dhcp_acquire(dev, req)) < 0) {
+	if ((rv = ni_dhcp4_acquire(dev, req)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"cannot configure interface %s: %s", dev->ifname,
 				ni_strerror(rv));
 		goto failed;
 	}
 
-	/* We've now initiated the DHCP exchange. It will complete
+	/* We've now initiated the DHCP4 exchange. It will complete
 	 * asynchronously, and when done, we will emit a signal that
 	 * notifies the sender of its results. */
 
-	ni_dhcp_device_set_request(dev, req);
+	ni_dhcp4_device_set_request(dev, req);
 	return TRUE;
 
 failed:
@@ -194,14 +194,14 @@ failed:
 
 /*
  * Interface.drop(void)
- * Drop a DHCP lease
+ * Drop a DHCP4 lease
  */
 static dbus_bool_t
 __ni_objectmodel_dhcp4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_dhcp_device_t *dev;
+	ni_dhcp4_device_t *dev;
 	dbus_bool_t ret = FALSE;
 	ni_uuid_t uuid;
 	int rv;
@@ -213,7 +213,7 @@ __ni_objectmodel_dhcp4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t
 
 	memset(&uuid, 0, sizeof(uuid));
 	if (argc == 1) {
-		/* Extract the lease uuid and pass that along to ni_dhcp_release.
+		/* Extract the lease uuid and pass that along to ni_dhcp4_release.
 		 * This makes sure we don't cancel the wrong lease.
 		 */
 		if (!ni_dbus_variant_get_uuid(&argv[0], &uuid)) {
@@ -222,9 +222,9 @@ __ni_objectmodel_dhcp4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t
 		}
 	}
 
-	if ((rv = ni_dhcp_release(dev, &uuid)) < 0) {
+	if ((rv = ni_dhcp4_release(dev, &uuid)) < 0) {
 		ni_dbus_set_error_from_code(error, rv,
-				"Unable to drop DHCP lease for interface %s", dev->ifname);
+				"Unable to drop DHCP4 lease for interface %s", dev->ifname);
 		goto failed;
 	}
 
@@ -370,9 +370,9 @@ ni_objectmodel_dhcp4_request_from_dict(const ni_dbus_variant_t *dict)
  * Property name
  */
 static void *
-ni_objectmodel_get_dhcp_device(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
+ni_objectmodel_get_dhcp4_device(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
-	ni_dhcp_device_t *dev;
+	ni_dhcp4_device_t *dev;
 
 	dev = ni_objectmodel_unwrap_dhcp4_device(object, error);
 	return dev;
@@ -388,7 +388,7 @@ __ni_objectmodel_dhcp4_get_request(const ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_dbus_object_t *dummy;
-	ni_dhcp_device_t *dev;
+	ni_dhcp4_device_t *dev;
 	
 	if (!(dev = ni_objectmodel_unwrap_dhcp4_device(object, error)))
 		return FALSE;
@@ -408,7 +408,7 @@ __ni_objectmodel_dhcp4_set_request(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_dbus_object_t *dummy;
-	ni_dhcp_device_t *dev;
+	ni_dhcp4_device_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_dhcp4_device(object, error)))
 		return FALSE;
@@ -424,7 +424,7 @@ __ni_objectmodel_dhcp4_set_request(ni_dbus_object_t *object,
 #define DHCP4DEV_PROPERTY(type, __name, rw) \
 	NI_DBUS_PROPERTY(type, __name, __ni_objectmodel_dhcp4, rw)
 #define DHCP4DEV_STRING_PROPERTY(dbus_name, member_name, rw) \
-	NI_DBUS_GENERIC_STRING_PROPERTY(dhcp_device, dbus_name, member_name, rw)
+	NI_DBUS_GENERIC_STRING_PROPERTY(dhcp4_device, dbus_name, member_name, rw)
 #define DHCP4DEV_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_dhcp4, rw)
 

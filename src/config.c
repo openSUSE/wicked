@@ -32,7 +32,7 @@ static const char *__ni_ifconfig_source_types[] = {
 	NULL
 };
 
-static ni_bool_t	ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *, xml_node_t *);
+static ni_bool_t	ni_config_parse_addrconf_dhcp4(struct ni_config_dhcp4 *, xml_node_t *);
 static ni_bool_t	ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *, xml_node_t *);
 static void		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static void		ni_config_parse_fslocation(ni_config_fslocation_t *, xml_node_t *);
@@ -56,7 +56,7 @@ ni_config_new()
 	conf = xcalloc(1, sizeof(*conf));
 
 	conf->addrconf.default_allow_update = ~0;
-	conf->addrconf.dhcp.allow_update = ~0;
+	conf->addrconf.dhcp4.allow_update = ~0;
 	conf->addrconf.dhcp6.allow_update = ~0;
 	conf->addrconf.autoip.allow_update = ~0;
 
@@ -150,8 +150,8 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 				if (!strcmp(gchild->name, "default-allow-update"))
 					ni_config_parse_update_targets(&conf->addrconf.default_allow_update, gchild);
 
-				if (!strcmp(gchild->name, "dhcp")
-				 && !ni_config_parse_addrconf_dhcp(&conf->addrconf.dhcp, gchild))
+				if (!strcmp(gchild->name, "dhcp4")
+				 && !ni_config_parse_addrconf_dhcp4(&conf->addrconf.dhcp4, gchild))
 					goto failed;
 
 				if (!strcmp(gchild->name, "dhcp6")
@@ -246,7 +246,7 @@ too_long:
 }
 
 ni_bool_t
-ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *dhcp, xml_node_t *node)
+ni_config_parse_addrconf_dhcp4(struct ni_config_dhcp4 *dhcp4, xml_node_t *node)
 {
 	xml_node_t *child;
 
@@ -254,22 +254,22 @@ ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *dhcp, xml_node_t *node)
 		const char *attrval;
 
 		if (!strcmp(child->name, "vendor-class"))
-			ni_string_dup(&dhcp->vendor_class, child->cdata);
+			ni_string_dup(&dhcp4->vendor_class, child->cdata);
 		if (!strcmp(child->name, "lease-time") && child->cdata)
-			dhcp->lease_time = strtoul(child->cdata, NULL, 0);
+			dhcp4->lease_time = strtoul(child->cdata, NULL, 0);
 		if (!strcmp(child->name, "ignore-server")
 		 && (attrval = xml_node_get_attr(child, "ip")) != NULL)
-			ni_string_array_append(&dhcp->ignore_servers, attrval);
+			ni_string_array_append(&dhcp4->ignore_servers, attrval);
 		if (!strcmp(child->name, "prefer-server")
 		 && (attrval = xml_node_get_attr(child, "ip")) != NULL) {
 			ni_server_preference_t *pref;
 
-			if (dhcp->num_preferred_servers >= NI_DHCP_SERVER_PREFERENCES_MAX) {
+			if (dhcp4->num_preferred_servers >= NI_DHCP_SERVER_PREFERENCES_MAX) {
 				ni_warn("config: too many <prefer-server> elements");
 				continue;
 			}
 
-			pref = &dhcp->preferred_server[dhcp->num_preferred_servers++];
+			pref = &dhcp4->preferred_server[dhcp4->num_preferred_servers++];
 			if (ni_sockaddr_parse(&pref->address, attrval, AF_INET) < 0) {
 				ni_error("config: unable to parse <prefer-server ip=\"%s\"",
 						attrval);
@@ -294,7 +294,7 @@ ni_config_parse_addrconf_dhcp(struct ni_config_dhcp *dhcp, xml_node_t *node)
 			}
 		}
 		if (!strcmp(child->name, "allow-update"))
-			ni_config_parse_update_targets(&dhcp->allow_update, child);
+			ni_config_parse_update_targets(&dhcp4->allow_update, child);
 	}
 	return TRUE;
 }
@@ -940,7 +940,7 @@ ni_config_addrconf_update_mask(ni_config_t *conf, ni_addrconf_mode_t type)
 
 	switch (type) {
 	case NI_ADDRCONF_DHCP:
-		update_mask &= conf->addrconf.dhcp.allow_update;
+		update_mask &= conf->addrconf.dhcp4.allow_update;
 		break;
 
 	default: ;

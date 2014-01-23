@@ -705,7 +705,7 @@ ni_addrconf_lease_free(ni_addrconf_lease_t *lease)
 }
 
 static void
-ni_addrconf_lease_dhcp4_destroy(struct ni_addrconf_lease_dhcp *dhcp4)
+ni_addrconf_lease_dhcp4_destroy(struct ni_addrconf_lease_dhcp4 *dhcp4)
 {
 	if (dhcp4) {
 		ni_string_free(&dhcp4->message);
@@ -756,7 +756,7 @@ ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 
 		switch (lease->family) {
 		case AF_INET:
-			ni_addrconf_lease_dhcp4_destroy(&lease->dhcp);
+			ni_addrconf_lease_dhcp4_destroy(&lease->dhcp4);
 			break;
 
 		case AF_INET6:

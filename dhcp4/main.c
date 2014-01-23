@@ -87,10 +87,10 @@ static void		dhcp4_supplicant(void);
 static void		dhcp4_recover_addrconf(const char *);
 static void		dhcp4_discover_devices(ni_dbus_server_t *);
 static void		dhcp4_interface_event(ni_netdev_t *, ni_event_t);
-static void		dhcp4_protocol_event(enum ni_dhcp_event, const ni_dhcp_device_t *, ni_addrconf_lease_t *);
+static void		dhcp4_protocol_event(enum ni_dhcp4_event, const ni_dhcp4_device_t *, ni_addrconf_lease_t *);
 
 // Hack
-extern ni_dbus_object_t *ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *, ni_dhcp_device_t *);
+extern ni_dbus_object_t *ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *, ni_dhcp4_device_t *);
 
 static int		dhcp4_test_status;
 static int		dhcp4_test_run(const char *ifname, const char *request,	unsigned int timeout);
@@ -258,7 +258,7 @@ main(int argc, char **argv)
 }
 
 static void
-dhcp4_test_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev,
+dhcp4_test_protocol_event(enum ni_dhcp4_event ev, const ni_dhcp4_device_t *dev,
 		ni_addrconf_lease_t *lease)
 {
 	ni_debug_dhcp("%s(ev=%u, dev=%s[%u], config-uuid=%s)", __func__, ev,
@@ -266,7 +266,7 @@ dhcp4_test_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev,
 			dev->config ? ni_uuid_print(&dev->config->uuid) : "<none>");
 
 	switch (ev) {
-	case NI_DHCP_EVENT_ACQUIRED:
+	case NI_DHCP4_EVENT_ACQUIRED:
 		if (lease && lease->state == NI_ADDRCONF_STATE_GRANTED) {
 			ni_leaseinfo_dump(stdout, lease, dev->ifname, NULL);
 			dhcp4_test_status = 0;
@@ -286,7 +286,7 @@ dhcp4_test_req_xml_init(ni_dhcp4_request_t *req, xml_document_t *doc)
 	if (xml && !xml->name && xml->children)
 		xml = xml->children;
 
-	/* TODO: parse using /ipv4:dhcp/request xml schema? */
+	/* TODO: parse using /ipv4:dhcp4/request xml schema? */
 	if (!xml || !ni_string_eq(xml->name, "request")) {
 		ni_error("Invalid dhcp4 request xml '%s'",
 				xml ? xml_node_location(xml) : NULL);
@@ -359,7 +359,7 @@ dhcp4_test_run(const char *ifname, const char *request, unsigned int timeout)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
-	ni_dhcp_device_t *dev;
+	ni_dhcp4_device_t *dev;
 	ni_dhcp4_request_t *req;
 	int rv;
 
@@ -379,10 +379,10 @@ dhcp4_test_run(const char *ifname, const char *request, unsigned int timeout)
 		break;
 	}
 
-	if (!(dev = ni_dhcp_device_new(ifp->name, &ifp->link)))
+	if (!(dev = ni_dhcp4_device_new(ifp->name, &ifp->link)))
 		ni_fatal("Cannot allocate dhcp4 client for '%s'", ifname);
 
-	ni_dhcp_set_event_handler(dhcp4_test_protocol_event);
+	ni_dhcp4_set_event_handler(dhcp4_test_protocol_event);
 
 	if (!(req = ni_dhcp4_request_new())) {
 		ni_error("Cannot allocate dhcp4 request");
@@ -395,8 +395,8 @@ dhcp4_test_run(const char *ifname, const char *request, unsigned int timeout)
 	if (timeout != -1U)
 		req->acquire_timeout = timeout;
 
-	if ((rv = ni_dhcp_acquire(dev, req)) < 0) {
-		ni_error("%s: DHCPv6 acquire request %s failed: %s",
+	if ((rv = ni_dhcp4_acquire(dev, req)) < 0) {
+		ni_error("%s: DHCP4v6 acquire request %s failed: %s",
 				dev->ifname, ni_uuid_print(&req->uuid),
 				ni_strerror(rv));
 		goto failure;
@@ -414,7 +414,7 @@ dhcp4_test_run(const char *ifname, const char *request, unsigned int timeout)
 	ni_socket_deactivate_all();
 
 failure:
-	ni_dhcp_device_put(dev);
+	ni_dhcp4_device_put(dev);
 	ni_dhcp4_request_free(req);
 	return dhcp4_test_status;
 }
@@ -448,7 +448,7 @@ dhcp4_recover_lease(ni_netdev_t *ifp)
 		ni_debug_wicked("%s: removing stale %s/%s lease file", ifp->name,
 				ni_addrconf_type_to_name(lease->type),
 				ni_addrfamily_type_to_name(lease->family));
-		ni_addrconf_lease_file_remove(ifp->name, NI_ADDRCONF_DHCP, afi->family);
+		ni_addrconf_lease_file_remove(ifp->name, NI_ADDRCONF_DHCP afi->family);
 		ni_addrconf_lease_free(lease);
 		return;
 	}
@@ -501,7 +501,7 @@ dhcp4_register_services(ni_dbus_server_t *server)
 
 	dhcp4_discover_devices(server);
 
-	ni_dhcp_set_event_handler(dhcp4_protocol_event);
+	ni_dhcp4_set_event_handler(dhcp4_protocol_event);
 }
 
 /*
@@ -510,10 +510,10 @@ dhcp4_register_services(ni_dbus_server_t *server)
 static ni_bool_t
 dhcp4_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 {
-	ni_dhcp_device_t *dev;
+	ni_dhcp4_device_t *dev;
 	ni_bool_t rv = FALSE;
 
-	dev = ni_dhcp_device_new(ifp->name, &ifp->link);
+	dev = ni_dhcp4_device_new(ifp->name, &ifp->link);
 	if (!dev) {
 		ni_error("Cannot allocate dhcp4 device for '%s' and index %u",
 			ifp->name, ifp->link.ifindex);
@@ -528,7 +528,7 @@ dhcp4_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 
 	/* either register dhcp4 device was successful and obtained
 	 * an own reference or we can drop ours here anyway ... */
-	ni_dhcp_device_put(dev);
+	ni_dhcp4_device_put(dev);
 
 	return rv;
 }
@@ -539,9 +539,9 @@ dhcp4_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 static void
 dhcp4_device_destroy(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 {
-	ni_dhcp_device_t *dev;
+	ni_dhcp4_device_t *dev;
 
-	if ((dev = ni_dhcp_device_by_index(ifp->link.ifindex)) != NULL) {
+	if ((dev = ni_dhcp4_device_by_index(ifp->link.ifindex)) != NULL) {
 		ni_debug_dhcp("%s: Destroying dhcp4 device with index %u",
 				ifp->name, ifp->link.ifindex);
 		ni_dbus_server_unregister_object(server, dev);
@@ -639,7 +639,7 @@ void
 dhcp4_interface_event(ni_netdev_t *ifp, ni_event_t event)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_dhcp_device_t *dev;
+	ni_dhcp4_device_t *dev;
 	ni_netdev_t *ofp;
 
 	switch (event) {
@@ -663,9 +663,9 @@ dhcp4_interface_event(ni_netdev_t *ifp, ni_event_t event)
 	case NI_EVENT_DEVICE_UP:
 	case NI_EVENT_LINK_DOWN:
 	case NI_EVENT_LINK_UP:
-		dev = ni_dhcp_device_by_index(ifp->link.ifindex);
+		dev = ni_dhcp4_device_by_index(ifp->link.ifindex);
 		if (dev != NULL)
-			ni_dhcp_device_event(dev, ifp, event);
+			ni_dhcp4_device_event(dev, ifp, event);
 		break;
 
 	case NI_EVENT_DEVICE_DOWN:
@@ -673,9 +673,9 @@ dhcp4_interface_event(ni_netdev_t *ifp, ni_event_t event)
 		 * we shouldn't pretend we're still owning this device. So forget
 		 * all leases and shut up. */
 		ni_debug_dhcp("device %s went down: discard any leases", ifp->name);
-		dev = ni_dhcp_device_by_index(ifp->link.ifindex);
+		dev = ni_dhcp4_device_by_index(ifp->link.ifindex);
 		if (dev != NULL)
-			ni_dhcp_device_stop(dev);
+			ni_dhcp4_device_stop(dev);
 		break;
 
 	default: ;
@@ -683,7 +683,7 @@ dhcp4_interface_event(ni_netdev_t *ifp, ni_event_t event)
 }
 
 void
-dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev, ni_addrconf_lease_t *lease)
+dhcp4_protocol_event(enum ni_dhcp4_event ev, const ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 {
 	ni_dbus_variant_t argv[4];
 	ni_dbus_object_t *dev_object;
@@ -721,7 +721,7 @@ dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev, ni_addr
 	}
 
 	switch (ev) {
-	case NI_DHCP_EVENT_ACQUIRED:
+	case NI_DHCP4_EVENT_ACQUIRED:
 		if (lease == NULL) {
 			ni_error("BUG: cannot send %s event without a lease handle",
 					NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL);
@@ -732,13 +732,13 @@ dhcp4_protocol_event(enum ni_dhcp_event ev, const ni_dhcp_device_t *dev, ni_addr
 				argc, argv);
 		break;
 
-	case NI_DHCP_EVENT_RELEASED:
+	case NI_DHCP4_EVENT_RELEASED:
 		ni_dbus_server_send_signal(dhcp4_dbus_server, dev_object,
 				NI_OBJECTMODEL_ADDRCONF_INTERFACE, NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL,
 				argc, argv);
 		break;
 
-	case NI_DHCP_EVENT_LOST:
+	case NI_DHCP4_EVENT_LOST:
 		ni_dbus_server_send_signal(dhcp4_dbus_server, dev_object,
 				NI_OBJECTMODEL_ADDRCONF_INTERFACE, NI_OBJECTMODEL_LEASE_LOST_SIGNAL,
 				argc, argv);
@@ -772,6 +772,6 @@ dhcp4_recover_addrconf(const char *filename)
 
 	/* Now loop over all devices that have a request associated with them,
 	 * and kickstart those. */
-	ni_dhcp_restart_leases();
+	ni_dhcp4_restart_leases();
 }
 

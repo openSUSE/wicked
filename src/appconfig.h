@@ -74,17 +74,17 @@ typedef struct ni_config {
 	unsigned int		recv_max;
 
 	struct {
-	    unsigned int	default_allow_update;
+	    unsigned int		default_allow_update;
 
-	    struct ni_config_dhcp {
-	        unsigned int	allow_update;
-		char *		vendor_class;
-		unsigned int	lease_time;
-		ni_string_array_t ignore_servers;
+	    struct ni_config_dhcp4 {
+	        unsigned int		allow_update;
+		char *			vendor_class;
+		unsigned int		lease_time;
+		ni_string_array_t	ignore_servers;
 
-		unsigned int	num_preferred_servers;
-		ni_server_preference_t preferred_server[NI_DHCP_SERVER_PREFERENCES_MAX];
-	    } dhcp;
+		unsigned int		num_preferred_servers;
+		ni_server_preference_t	preferred_server[NI_DHCP_SERVER_PREFERENCES_MAX];
+	    } dhcp4;
 
 	    struct ni_config_dhcp6 {
 		char *			default_duid;

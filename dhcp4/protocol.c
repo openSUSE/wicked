@@ -1,9 +1,9 @@
 /*
- * Build and parse DHCP packets
+ * Build and parse DHCP4 packets
  *
  * Copyright (C) 2010-2012, Olaf Kirch <okir@suse.de>
  *
- * Heavily inspired by dhcpcd, which was written by Roy Marples <roy@marples.name>
+ * Heavily inspired by dhcp4cd, which was written by Roy Marples <roy@marples.name>
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -38,25 +38,25 @@
 #include <wicked/socket.h>
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
-#include "dhcp.h"
-#include "protocol.h"
+#include "dhcp4/dhcp.h"
+#include "dhcp4/protocol.h"
 #include "buffer.h"
 #include "socket_priv.h"
 
-static void	ni_dhcp_socket_recv(ni_socket_t *);
+static void	ni_dhcp4_socket_recv(ni_socket_t *);
 
 /*
- * Open a DHCP socket for send and receive
+ * Open a DHCP4 socket for send and receive
  */
 int
-ni_dhcp_socket_open(ni_dhcp_device_t *dev)
+ni_dhcp4_socket_open(ni_dhcp4_device_t *dev)
 {
 	ni_capture_protinfo_t prot_info;
 	ni_capture_t *capture;
 
 	/* We need to bind to a port, otherwise Linux will generate
 	 * ICMP_UNREACHABLE messages telling the server that there's
-	 * no DHCP client listening at all.
+	 * no DHCP4 client listening at all.
 	 *
 	 * We don't actually use this fd at all, instead using our packet
 	 * filter socket.
@@ -87,7 +87,7 @@ ni_dhcp_socket_open(ni_dhcp_device_t *dev)
 
 		memset(&sin, 0, sizeof(sin));
 		sin.sin_family = AF_INET;
-		sin.sin_port = htons(DHCP_CLIENT_PORT);
+		sin.sin_port = htons(DHCP4_CLIENT_PORT);
 		if (bind(fd, (struct sockaddr *) &sin, sizeof(sin)) == -1) {
 			ni_error("bind: %m");
 			close(fd);
@@ -100,7 +100,7 @@ ni_dhcp_socket_open(ni_dhcp_device_t *dev)
 	memset(&prot_info, 0, sizeof(prot_info));
 	prot_info.eth_protocol = ETHERTYPE_IP;
 	prot_info.ip_protocol = IPPROTO_UDP;
-	prot_info.ip_port = DHCP_CLIENT_PORT;
+	prot_info.ip_port = DHCP4_CLIENT_PORT;
 
 	if ((capture = dev->capture) != NULL) {
 		if (ni_capture_is_valid(capture, ETHERTYPE_IP))
@@ -110,7 +110,7 @@ ni_dhcp_socket_open(ni_dhcp_device_t *dev)
 		dev->capture = NULL;
 	}
 
-	dev->capture = ni_capture_open(&dev->system, &prot_info, ni_dhcp_socket_recv);
+	dev->capture = ni_capture_open(&dev->system, &prot_info, ni_dhcp4_socket_recv);
 	if (!dev->capture)
 		return -1;
 
@@ -120,18 +120,18 @@ ni_dhcp_socket_open(ni_dhcp_device_t *dev)
 
 /*
  * This callback is invoked from the socket code when we
- * detect an incoming DHCP packet on the raw socket.
+ * detect an incoming DHCP4 packet on the raw socket.
  */
 static void
-ni_dhcp_socket_recv(ni_socket_t *sock)
+ni_dhcp4_socket_recv(ni_socket_t *sock)
 {
 	ni_capture_t *capture = sock->user_data;
 	ni_buffer_t buf;
 
 	if (ni_capture_recv(capture, &buf) >= 0) {
-		ni_dhcp_device_t *dev = ni_capture_get_user_data(capture);
+		ni_dhcp4_device_t *dev = ni_capture_get_user_data(capture);
 
-		ni_dhcp_fsm_process_dhcp_packet(dev, &buf);
+		ni_dhcp4_fsm_process_dhcp4_packet(dev, &buf);
 	}
 }
 
@@ -139,7 +139,7 @@ ni_dhcp_socket_recv(ni_socket_t *sock)
  * Inline functions for setting/retrieving options from a buffer
  */
 static inline void
-ni_dhcp_option_put(ni_buffer_t *bp, int code, const void *data, size_t len)
+ni_dhcp4_option_put(ni_buffer_t *bp, int code, const void *data, size_t len)
 {
 	ni_buffer_putc(bp, code);
 	ni_buffer_putc(bp, len);
@@ -147,45 +147,45 @@ ni_dhcp_option_put(ni_buffer_t *bp, int code, const void *data, size_t len)
 }
 
 static inline void
-ni_dhcp_option_put_empty(ni_buffer_t *bp, int code)
+ni_dhcp4_option_put_empty(ni_buffer_t *bp, int code)
 {
-	ni_dhcp_option_put(bp, code, NULL, 0);
+	ni_dhcp4_option_put(bp, code, NULL, 0);
 }
 
 static inline void
-ni_dhcp_option_put8(ni_buffer_t *bp, int code, unsigned char value)
+ni_dhcp4_option_put8(ni_buffer_t *bp, int code, unsigned char value)
 {
-	ni_dhcp_option_put(bp, code, &value, 1);
+	ni_dhcp4_option_put(bp, code, &value, 1);
 }
 
 static inline void
-ni_dhcp_option_put16(ni_buffer_t *bp, int code, uint16_t value)
+ni_dhcp4_option_put16(ni_buffer_t *bp, int code, uint16_t value)
 {
 	value = htons(value);
-	ni_dhcp_option_put(bp, code, &value, 2);
+	ni_dhcp4_option_put(bp, code, &value, 2);
 }
 
 static inline void
-ni_dhcp_option_put32(ni_buffer_t *bp, int code, uint32_t value)
+ni_dhcp4_option_put32(ni_buffer_t *bp, int code, uint32_t value)
 {
 	value = htonl(value);
-	ni_dhcp_option_put(bp, code, &value, 4);
+	ni_dhcp4_option_put(bp, code, &value, 4);
 }
 
 static inline void
-ni_dhcp_option_put_ipv4(ni_buffer_t *bp, int code, struct in_addr addr)
+ni_dhcp4_option_put_ipv4(ni_buffer_t *bp, int code, struct in_addr addr)
 {
-	ni_dhcp_option_put(bp, code, &addr, 4);
+	ni_dhcp4_option_put(bp, code, &addr, 4);
 }
 
 static inline void
-ni_dhcp_option_puts(ni_buffer_t *bp, int code, const char *string)
+ni_dhcp4_option_puts(ni_buffer_t *bp, int code, const char *string)
 {
-	ni_dhcp_option_put(bp, code, string, strlen(string));
+	ni_dhcp4_option_put(bp, code, string, strlen(string));
 }
 
 static inline unsigned int
-ni_dhcp_option_begin(ni_buffer_t *bp, int code)
+ni_dhcp4_option_begin(ni_buffer_t *bp, int code)
 {
 	ni_buffer_putc(bp, code);
 	ni_buffer_putc(bp, 0);
@@ -193,29 +193,29 @@ ni_dhcp_option_begin(ni_buffer_t *bp, int code)
 }
 
 static inline void
-ni_dhcp_option_end(ni_buffer_t *bp, unsigned int pos)
+ni_dhcp4_option_end(ni_buffer_t *bp, unsigned int pos)
 {
 	if (pos == 0 || pos > bp->size) {
-		ni_error("ni_dhcp_option_end: bad offset!");
+		ni_error("ni_dhcp4_option_end: bad offset!");
 	} else {
 		bp->base[pos-1] = bp->tail - pos;
 	}
 }
 
 static int
-ni_dhcp_option_next(ni_buffer_t *bp, ni_buffer_t *optbuf)
+ni_dhcp4_option_next(ni_buffer_t *bp, ni_buffer_t *optbuf)
 {
 	unsigned char code, count;
 
 	if (bp->underflow)
 		return -1;
 	if (bp->head == bp->tail)
-		return DHCP_END;
+		return DHCP4_END;
 	if (bp->tail - bp->head < 2)
 		goto underflow;
 
 	code = bp->base[bp->head++];
-	if (code != DHCP_PAD && code != DHCP_END) {
+	if (code != DHCP4_PAD && code != DHCP4_END) {
 		count = bp->base[bp->head++];
 		if (bp->tail - bp->head < count)
 			goto underflow;
@@ -232,7 +232,7 @@ underflow:
 }
 
 static int
-ni_dhcp_option_get_sockaddr(ni_buffer_t *bp, ni_sockaddr_t *addr)
+ni_dhcp4_option_get_sockaddr(ni_buffer_t *bp, ni_sockaddr_t *addr)
 {
 	struct sockaddr_in *sin = &addr->sin;
 
@@ -242,13 +242,13 @@ ni_dhcp_option_get_sockaddr(ni_buffer_t *bp, ni_sockaddr_t *addr)
 }
 
 static int
-ni_dhcp_option_get_ipv4(ni_buffer_t *bp, struct in_addr *addr)
+ni_dhcp4_option_get_ipv4(ni_buffer_t *bp, struct in_addr *addr)
 {
 	return ni_buffer_get(bp, addr, 4);
 }
 
 static int
-ni_dhcp_option_get16(ni_buffer_t *bp, uint16_t *var)
+ni_dhcp4_option_get16(ni_buffer_t *bp, uint16_t *var)
 {
 	if (ni_buffer_get(bp, var, 2) < 0)
 		return -1;
@@ -257,7 +257,7 @@ ni_dhcp_option_get16(ni_buffer_t *bp, uint16_t *var)
 }
 
 static int
-ni_dhcp_option_get32(ni_buffer_t *bp, uint32_t *var)
+ni_dhcp4_option_get32(ni_buffer_t *bp, uint32_t *var)
 {
 	if (ni_buffer_get(bp, var, 4) < 0)
 		return -1;
@@ -266,7 +266,7 @@ ni_dhcp_option_get32(ni_buffer_t *bp, uint32_t *var)
 }
 
 static int
-ni_dhcp_option_get_string(ni_buffer_t *bp, char **var, unsigned int *lenp)
+ni_dhcp4_option_get_string(ni_buffer_t *bp, char **var, unsigned int *lenp)
 {
 	unsigned int len = ni_buffer_count(bp);
 
@@ -284,39 +284,39 @@ ni_dhcp_option_get_string(ni_buffer_t *bp, char **var, unsigned int *lenp)
 }
 
 int
-ni_dhcp_build_message(const ni_dhcp_device_t *dev,
+ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 			unsigned int msg_code,
 			const ni_addrconf_lease_t *lease,
 			ni_buffer_t *msgbuf)
 {
-	const ni_dhcp_config_t *options = dev->config;
+	const ni_dhcp4_config_t *options = dev->config;
 	struct in_addr src_addr, dst_addr;
-	ni_dhcp_message_t *message = NULL;
+	ni_dhcp4_message_t *message = NULL;
 
 	if (!options || !lease)
 		return -1;
 
-	if (IN_LINKLOCAL(ntohl(lease->dhcp.address.s_addr))) {
+	if (IN_LINKLOCAL(ntohl(lease->dhcp4.address.s_addr))) {
 		ni_error("cannot request a link local address");
 		goto failed;
 	}
 
 	src_addr.s_addr = dst_addr.s_addr = 0;
 	switch (msg_code) {
-	case DHCP_DISCOVER:
-		if (lease->dhcp.serveraddress.s_addr != 0)
+	case DHCP4_DISCOVER:
+		if (lease->dhcp4.serveraddress.s_addr != 0)
 			return -1;
 		break;
 
-	case DHCP_REQUEST:
-	case DHCP_RELEASE:
-	case DHCP_INFORM:
-		if (lease->dhcp.address.s_addr == 0 || lease->dhcp.serveraddress.s_addr == 0)
+	case DHCP4_REQUEST:
+	case DHCP4_RELEASE:
+	case DHCP4_INFORM:
+		if (lease->dhcp4.address.s_addr == 0 || lease->dhcp4.serveraddress.s_addr == 0)
 			return -1;
 
-		if (dev->fsm.state != NI_DHCP_STATE_REQUESTING) {
-			src_addr = lease->dhcp.address;
-			dst_addr = lease->dhcp.serveraddress;
+		if (dev->fsm.state != NI_DHCP4_STATE_REQUESTING) {
+			src_addr = lease->dhcp4.address;
+			dst_addr = lease->dhcp4.serveraddress;
 		}
 		break;
 	}
@@ -327,22 +327,22 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 	/* Build the message */
 	message = ni_buffer_push_tail(msgbuf, sizeof(*message));
 
-	message->op = DHCP_BOOTREQUEST;
+	message->op = DHCP4_BOOTREQUEST;
 	message->hwtype = dev->system.hwaddr.type;
-	message->xid = dev->dhcp.xid;
+	message->xid = dev->dhcp4.xid;
 	message->cookie = htonl(MAGIC_COOKIE);
-	message->secs = htons(ni_dhcp_device_uptime(dev, 0xFFFF));
+	message->secs = htons(ni_dhcp4_device_uptime(dev, 0xFFFF));
 
-	if (dev->fsm.state == NI_DHCP_STATE_BOUND
-	 || dev->fsm.state == NI_DHCP_STATE_RENEWING
-	 || dev->fsm.state == NI_DHCP_STATE_REBINDING)
-		message->ciaddr = lease->dhcp.address.s_addr;
+	if (dev->fsm.state == NI_DHCP4_STATE_BOUND
+	 || dev->fsm.state == NI_DHCP4_STATE_RENEWING
+	 || dev->fsm.state == NI_DHCP4_STATE_REBINDING)
+		message->ciaddr = lease->dhcp4.address.s_addr;
 
 	switch (dev->system.hwaddr.type) {
 	case ARPHRD_ETHER:
 	case ARPHRD_IEEE802:
 		if (dev->system.hwaddr.len > sizeof(message->chaddr)) {
-			ni_error("dhcp cannot handle hwaddress length %u",
+			ni_error("dhcp4 cannot handle hwaddress length %u",
 					dev->system.hwaddr.len);
 			goto failed;
 		}
@@ -358,46 +358,46 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 		break;
 
 	default:
-		ni_error("dhcp: unknown hardware type 0x%x", dev->system.hwaddr.type);
+		ni_error("dhcp4: unknown hardware type 0x%x", dev->system.hwaddr.type);
 	}
 
-	ni_dhcp_option_put8(msgbuf, DHCP_MESSAGETYPE, msg_code);
+	ni_dhcp4_option_put8(msgbuf, DHCP4_MESSAGETYPE, msg_code);
 
-	if (msg_code == DHCP_REQUEST)
-		ni_dhcp_option_put16(msgbuf, DHCP_MAXMESSAGESIZE, dev->system.mtu);
+	if (msg_code == DHCP4_REQUEST)
+		ni_dhcp4_option_put16(msgbuf, DHCP4_MAXMESSAGESIZE, dev->system.mtu);
 
-	ni_dhcp_option_put(msgbuf, DHCP_CLIENTID,
+	ni_dhcp4_option_put(msgbuf, DHCP4_CLIENTID,
 			options->raw_client_id.data,
 			options->raw_client_id.len);
 
-	if (msg_code != DHCP_DECLINE && msg_code != DHCP_RELEASE) {
+	if (msg_code != DHCP4_DECLINE && msg_code != DHCP4_RELEASE) {
 		if (options->userclass.len > 0)
-			ni_dhcp_option_put(msgbuf, DHCP_USERCLASS,
+			ni_dhcp4_option_put(msgbuf, DHCP4_USERCLASS,
 					options->userclass.data,
 					options->userclass.len);
 
 		if (options->classid && options->classid[0])
-			ni_dhcp_option_puts(msgbuf, DHCP_CLASSID, options->classid);
+			ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 
-	if (msg_code == DHCP_DISCOVER || msg_code == DHCP_REQUEST) {
-		if (lease->dhcp.address.s_addr)
-			ni_dhcp_option_put_ipv4(msgbuf, DHCP_ADDRESS, lease->dhcp.address);
-		if (lease->dhcp.lease_time != 0)
-			ni_dhcp_option_put32(msgbuf, DHCP_LEASETIME, lease->dhcp.lease_time);
+	if (msg_code == DHCP4_DISCOVER || msg_code == DHCP4_REQUEST) {
+		if (lease->dhcp4.address.s_addr)
+			ni_dhcp4_option_put_ipv4(msgbuf, DHCP4_ADDRESS, lease->dhcp4.address);
+		if (lease->dhcp4.lease_time != 0)
+			ni_dhcp4_option_put32(msgbuf, DHCP4_LEASETIME, lease->dhcp4.lease_time);
 	}
 
-	if (msg_code == DHCP_REQUEST) {
-		if (lease->dhcp.serveraddress.s_addr)
-			ni_dhcp_option_put_ipv4(msgbuf, DHCP_SERVERIDENTIFIER, lease->dhcp.serveraddress);
+	if (msg_code == DHCP4_REQUEST) {
+		if (lease->dhcp4.serveraddress.s_addr)
+			ni_dhcp4_option_put_ipv4(msgbuf, DHCP4_SERVERIDENTIFIER, lease->dhcp4.serveraddress);
 	}
 
-	if (msg_code == DHCP_DISCOVER || msg_code == DHCP_INFORM || msg_code == DHCP_REQUEST) {
+	if (msg_code == DHCP4_DISCOVER || msg_code == DHCP4_INFORM || msg_code == DHCP4_REQUEST) {
 		unsigned int params_begin;
 
 		if (options->hostname && options->hostname[0]) {
 			if (options->fqdn == FQDN_DISABLE) {
-				ni_dhcp_option_puts(msgbuf, DHCP_HOSTNAME, options->hostname);
+				ni_dhcp4_option_puts(msgbuf, DHCP4_HOSTNAME, options->hostname);
 			} else {
 				/* IETF DHC-FQDN option(81)
 				 * http://tools.ietf.org/html/rfc4702#section-2.1
@@ -411,7 +411,7 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 				 * N: 1 => Client requests Server to not
 				 *         update DNS
 				 */
-				ni_buffer_putc(msgbuf, DHCP_FQDN);
+				ni_buffer_putc(msgbuf, DHCP4_FQDN);
 				ni_buffer_putc(msgbuf, strlen(options->hostname) + 3);
 				ni_buffer_putc(msgbuf, options->fqdn & 0x9);
 				ni_buffer_putc(msgbuf, 0);	/* from server for PTR RR */
@@ -420,64 +420,64 @@ ni_dhcp_build_message(const ni_dhcp_device_t *dev,
 			}
 		}
 
-		params_begin = ni_dhcp_option_begin(msgbuf, DHCP_PARAMETERREQUESTLIST);
+		params_begin = ni_dhcp4_option_begin(msgbuf, DHCP4_PARAMETERREQUESTLIST);
 
-		if (msg_code == DHCP_DISCOVER) {
-			/* dhcpcd says we should include just a single option
+		if (msg_code == DHCP4_DISCOVER) {
+			/* dhcp4cd says we should include just a single option
 			 * in discovery packets.
 			 * I'm not convinced this is right, but let's do it
 			 * this way.
 			 */
-			ni_buffer_putc(msgbuf, DHCP_DNSSERVER);
+			ni_buffer_putc(msgbuf, DHCP4_DNSSERVER);
 		} else {
-			if (msg_code != DHCP_INFORM) {
-				ni_buffer_putc(msgbuf, DHCP_RENEWALTIME);
-				ni_buffer_putc(msgbuf, DHCP_REBINDTIME);
+			if (msg_code != DHCP4_INFORM) {
+				ni_buffer_putc(msgbuf, DHCP4_RENEWALTIME);
+				ni_buffer_putc(msgbuf, DHCP4_REBINDTIME);
 			}
-			ni_buffer_putc(msgbuf, DHCP_NETMASK);
-			ni_buffer_putc(msgbuf, DHCP_BROADCAST);
+			ni_buffer_putc(msgbuf, DHCP4_NETMASK);
+			ni_buffer_putc(msgbuf, DHCP4_BROADCAST);
 
-			if (options->flags & DHCP_DO_CSR)
-				ni_buffer_putc(msgbuf, DHCP_CSR);
-			if (options->flags & DHCP_DO_MSCSR)
-				ni_buffer_putc(msgbuf, DHCP_MSCSR);
+			if (options->flags & DHCP4_DO_CSR)
+				ni_buffer_putc(msgbuf, DHCP4_CSR);
+			if (options->flags & DHCP4_DO_MSCSR)
+				ni_buffer_putc(msgbuf, DHCP4_MSCSR);
 
 			/* RFC 3442 states classless static routes should be
 			 * before routers and static routes as classless static
 			 * routes override them both */
-			ni_buffer_putc(msgbuf, DHCP_STATICROUTE);
-			ni_buffer_putc(msgbuf, DHCP_ROUTERS);
-			ni_buffer_putc(msgbuf, DHCP_HOSTNAME);
-			ni_buffer_putc(msgbuf, DHCP_DNSSEARCH);
-			ni_buffer_putc(msgbuf, DHCP_DNSDOMAIN);
-			ni_buffer_putc(msgbuf, DHCP_DNSSERVER);
+			ni_buffer_putc(msgbuf, DHCP4_STATICROUTE);
+			ni_buffer_putc(msgbuf, DHCP4_ROUTERS);
+			ni_buffer_putc(msgbuf, DHCP4_HOSTNAME);
+			ni_buffer_putc(msgbuf, DHCP4_DNSSEARCH);
+			ni_buffer_putc(msgbuf, DHCP4_DNSDOMAIN);
+			ni_buffer_putc(msgbuf, DHCP4_DNSSERVER);
 
-			if (options->flags & DHCP_DO_NIS) {
-				ni_buffer_putc(msgbuf, DHCP_NISDOMAIN);
-				ni_buffer_putc(msgbuf, DHCP_NISSERVER);
+			if (options->flags & DHCP4_DO_NIS) {
+				ni_buffer_putc(msgbuf, DHCP4_NISDOMAIN);
+				ni_buffer_putc(msgbuf, DHCP4_NISSERVER);
 			}
-			if (options->flags & DHCP_DO_NTP)
-				ni_buffer_putc(msgbuf, DHCP_NTPSERVER);
-			ni_buffer_putc(msgbuf, DHCP_MTU);
-			ni_buffer_putc(msgbuf, DHCP_ROOTPATH);
-			ni_buffer_putc(msgbuf, DHCP_SIPSERVER);
-			ni_buffer_putc(msgbuf, DHCP_LPRSERVER);
-			ni_buffer_putc(msgbuf, DHCP_LOGSERVER);
-			ni_buffer_putc(msgbuf, DHCP_NETBIOSNAMESERVER);
-			ni_buffer_putc(msgbuf, DHCP_NETBIOSDDSERVER);
-			ni_buffer_putc(msgbuf, DHCP_NETBIOSNODETYPE);
-			ni_buffer_putc(msgbuf, DHCP_NETBIOSSCOPE);
+			if (options->flags & DHCP4_DO_NTP)
+				ni_buffer_putc(msgbuf, DHCP4_NTPSERVER);
+			ni_buffer_putc(msgbuf, DHCP4_MTU);
+			ni_buffer_putc(msgbuf, DHCP4_ROOTPATH);
+			ni_buffer_putc(msgbuf, DHCP4_SIPSERVER);
+			ni_buffer_putc(msgbuf, DHCP4_LPRSERVER);
+			ni_buffer_putc(msgbuf, DHCP4_LOGSERVER);
+			ni_buffer_putc(msgbuf, DHCP4_NETBIOSNAMESERVER);
+			ni_buffer_putc(msgbuf, DHCP4_NETBIOSDDSERVER);
+			ni_buffer_putc(msgbuf, DHCP4_NETBIOSNODETYPE);
+			ni_buffer_putc(msgbuf, DHCP4_NETBIOSSCOPE);
 		}
 
-		ni_dhcp_option_end(msgbuf, params_begin);
+		ni_dhcp4_option_end(msgbuf, params_begin);
 	}
-	ni_buffer_putc(msgbuf, DHCP_END);
+	ni_buffer_putc(msgbuf, DHCP4_END);
 
 #ifdef BOOTP_MESSAGE_LENGTH_MIN
-	ni_buffer_pad(msgbuf, BOOTP_MESSAGE_LENGTH_MIN, DHCP_PAD);
+	ni_buffer_pad(msgbuf, BOOTP_MESSAGE_LENGTH_MIN, DHCP4_PAD);
 #endif
 
-	if (ni_capture_build_udp_header(msgbuf, src_addr, DHCP_CLIENT_PORT, dst_addr, DHCP_SERVER_PORT) < 0) {
+	if (ni_capture_build_udp_header(msgbuf, src_addr, DHCP4_CLIENT_PORT, dst_addr, DHCP4_SERVER_PORT) < 0) {
 		ni_error("unable to build packet header");
 		goto failed;
 	}
@@ -492,7 +492,7 @@ failed:
  * Decode an RFC3397 DNS search order option.
  */
 static int
-ni_dhcp_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list, const char *what)
+ni_dhcp4_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list, const char *what)
 {
 	ni_stringbuf_t namebuf = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned char *base = ni_buffer_head(optbuf);
@@ -575,7 +575,7 @@ failure:
  * Decode a CIDR list option.
  */
 static int
-ni_dhcp_decode_csr(ni_buffer_t *bp, ni_route_array_t *routes)
+ni_dhcp4_decode_csr(ni_buffer_t *bp, ni_route_array_t *routes)
 {
 	while (ni_buffer_count(bp) && !bp->underflow) {
 		ni_sockaddr_t destination, gateway;
@@ -593,7 +593,7 @@ ni_dhcp_decode_csr(ni_buffer_t *bp, ni_route_array_t *routes)
 			ni_buffer_get(bp, &prefix, (prefix_len + 7) / 8);
 		ni_sockaddr_set_ipv4(&destination, prefix, 0);
 
-		if (ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
+		if (ni_dhcp4_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
 		rp = ni_route_create(prefix_len, &destination, &gateway, 0, NULL);
@@ -607,12 +607,12 @@ ni_dhcp_decode_csr(ni_buffer_t *bp, ni_route_array_t *routes)
 }
 
 static int
-ni_dhcp_decode_address_list(ni_buffer_t *bp, ni_string_array_t *list)
+ni_dhcp4_decode_address_list(ni_buffer_t *bp, ni_string_array_t *list)
 {
 	while (ni_buffer_count(bp) && !bp->underflow) {
 		struct in_addr addr;
 
-		if (ni_dhcp_option_get_ipv4(bp, &addr) < 0)
+		if (ni_dhcp4_option_get_ipv4(bp, &addr) < 0)
 			return -1;
 		ni_string_array_append(list, inet_ntoa(addr));
 	}
@@ -624,7 +624,7 @@ ni_dhcp_decode_address_list(ni_buffer_t *bp, ni_string_array_t *list)
 }
 
 static int
-ni_dhcp_decode_sipservers(ni_buffer_t *bp, ni_string_array_t *list)
+ni_dhcp4_decode_sipservers(ni_buffer_t *bp, ni_string_array_t *list)
 {
 	int encoding;
 
@@ -635,10 +635,10 @@ ni_dhcp_decode_sipservers(ni_buffer_t *bp, ni_string_array_t *list)
 		return -1;
 
 	case 0:
-		return ni_dhcp_decode_dnssearch(bp, list, "sip-server name");
+		return ni_dhcp4_decode_dnssearch(bp, list, "sip-server name");
 
 	case 1:
-		return ni_dhcp_decode_address_list(bp, list);
+		return ni_dhcp4_decode_address_list(bp, list);
 
 	default:
 		ni_error("unknown sip encoding %d", encoding);
@@ -691,18 +691,18 @@ guess_prefix_len_sockaddr(const ni_sockaddr_t *ap)
 }
 
 /*
- * DHCP_STATICROUTE
+ * DHCP4_STATICROUTE
  * List of network/gateway pairs.
  */
 static int
-ni_dhcp_decode_static_routes(ni_buffer_t *bp, ni_route_array_t *routes)
+ni_dhcp4_decode_static_routes(ni_buffer_t *bp, ni_route_array_t *routes)
 {
 	while (ni_buffer_count(bp) && !bp->underflow) {
 		ni_sockaddr_t destination, gateway;
 		ni_route_t *rp;
 
-		if (ni_dhcp_option_get_sockaddr(bp, &destination) < 0
-		 || ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
+		if (ni_dhcp4_option_get_sockaddr(bp, &destination) < 0
+		 || ni_dhcp4_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
 		rp = ni_route_create(guess_prefix_len_sockaddr(&destination),
@@ -716,18 +716,18 @@ ni_dhcp_decode_static_routes(ni_buffer_t *bp, ni_route_array_t *routes)
 }
 
 /*
- * DHCP_ROUTERS (3)
+ * DHCP4_ROUTERS (3)
  * List of gateways for default route
  */
 static int
-ni_dhcp_decode_routers(ni_buffer_t *bp, ni_route_array_t *routes)
+ni_dhcp4_decode_routers(ni_buffer_t *bp, ni_route_array_t *routes)
 {
 	ni_sockaddr_t gateway;
 
 	while (ni_buffer_count(bp) && !bp->underflow) {
 		ni_route_t *rp;
 
-		if (ni_dhcp_option_get_sockaddr(bp, &gateway) < 0)
+		if (ni_dhcp4_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
 		rp = ni_route_create(0, NULL, &gateway, 0, NULL);
@@ -738,12 +738,12 @@ ni_dhcp_decode_routers(ni_buffer_t *bp, ni_route_array_t *routes)
 }
 
 static int
-ni_dhcp_option_get_domain(ni_buffer_t *bp, char **var, const char *what)
+ni_dhcp4_option_get_domain(ni_buffer_t *bp, char **var, const char *what)
 {
 	unsigned int len;
 	char *tmp = NULL;
 
-	if (ni_dhcp_option_get_string(bp, &tmp, &len) < 0)
+	if (ni_dhcp4_option_get_string(bp, &tmp, &len) < 0)
 		return -1;
 
 	if (!ni_check_domain_name(tmp, len, 0)) {
@@ -760,12 +760,12 @@ ni_dhcp_option_get_domain(ni_buffer_t *bp, char **var, const char *what)
 }
 
 static int
-ni_dhcp_option_get_pathname(ni_buffer_t *bp, char **var, const char *what)
+ni_dhcp4_option_get_pathname(ni_buffer_t *bp, char **var, const char *what)
 {
 	unsigned int len;
 	char *tmp = NULL;
 
-	if (ni_dhcp_option_get_string(bp, &tmp, &len) < 0)
+	if (ni_dhcp4_option_get_string(bp, &tmp, &len) < 0)
 		return -1;
 
 	if (!ni_check_pathname(tmp, len)) {
@@ -782,12 +782,12 @@ ni_dhcp_option_get_pathname(ni_buffer_t *bp, char **var, const char *what)
 }
 
 static int
-ni_dhcp_option_get_printable(ni_buffer_t *bp, char **var, const char *what)
+ni_dhcp4_option_get_printable(ni_buffer_t *bp, char **var, const char *what)
 {
 	unsigned int len;
 	char *tmp = NULL;
 
-	if (ni_dhcp_option_get_string(bp, &tmp, &len) < 0)
+	if (ni_dhcp4_option_get_string(bp, &tmp, &len) < 0)
 		return -1;
 
 	if (!ni_check_printable(tmp, len)) {
@@ -804,7 +804,7 @@ ni_dhcp_option_get_printable(ni_buffer_t *bp, char **var, const char *what)
 }
 
 static int
-ni_dhcp_option_get_netbios_type(ni_buffer_t *bp, unsigned int *type)
+ni_dhcp4_option_get_netbios_type(ni_buffer_t *bp, unsigned int *type)
 {
 	unsigned int len = ni_buffer_count(bp);
 
@@ -826,13 +826,13 @@ ni_dhcp_option_get_netbios_type(ni_buffer_t *bp, unsigned int *type)
 }
 
 /*
- * Parse a DHCP response.
- * FIXME: RFC2131 states that the server is allowed to split a DHCP option into
+ * Parse a DHCP4 response.
+ * FIXME: RFC2131 states that the server is allowed to split a DHCP4 option into
  * several (partial) options if the total length exceeds 255 octets. We don't
  * handle this yet.
  */
 int
-ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, ni_addrconf_lease_t **leasep)
+ni_dhcp4_parse_response(const ni_dhcp4_message_t *message, ni_buffer_t *options, ni_addrconf_lease_t **leasep)
 {
 	ni_buffer_t overload_buf;
 	ni_addrconf_lease_t *lease;
@@ -856,9 +856,9 @@ ni_dhcp_parse_response(const ni_dhcp_message_t *message, ni_buffer_t *options, n
 	lease->family = AF_INET;
 	lease->time_acquired = time(NULL);
 
-	lease->dhcp.address.s_addr = message->yiaddr;
-	lease->dhcp.serveraddress.s_addr = message->siaddr;
-	lease->dhcp.address.s_addr = message->yiaddr;
+	lease->dhcp4.address.s_addr = message->yiaddr;
+	lease->dhcp4.serveraddress.s_addr = message->siaddr;
+	lease->dhcp4.address.s_addr = message->yiaddr;
 
 parse_more:
 	/* Loop as long as we still have data in the buffer. */
@@ -866,13 +866,13 @@ parse_more:
 		ni_buffer_t buf;
 		int option;
 
-		option = ni_dhcp_option_next(options, &buf);
+		option = ni_dhcp4_option_next(options, &buf);
 
-		//ni_debug_dhcp("handle option %s (%d)", ni_dhcp_option_name(option), option);
-		if (option == DHCP_PAD)
+		//ni_debug_dhcp("handle option %s (%d)", ni_dhcp4_option_name(option), option);
+		if (option == DHCP4_PAD)
 			continue;
 
-		if (option == DHCP_END)
+		if (option == DHCP4_END)
 			break;
 
 		if (option < 0)
@@ -884,150 +884,150 @@ parse_more:
 		}
 
 		switch (option) {
-		case DHCP_MESSAGETYPE:
+		case DHCP4_MESSAGETYPE:
 			msg_type = ni_buffer_getc(&buf);
 			if (msg_type < 0)
 				goto error;
 			continue;
-		case DHCP_ADDRESS:
-			ni_dhcp_option_get_ipv4(&buf, &lease->dhcp.address);
+		case DHCP4_ADDRESS:
+			ni_dhcp4_option_get_ipv4(&buf, &lease->dhcp4.address);
 			break;
-		case DHCP_NETMASK:
-			ni_dhcp_option_get_ipv4(&buf, &lease->dhcp.netmask);
+		case DHCP4_NETMASK:
+			ni_dhcp4_option_get_ipv4(&buf, &lease->dhcp4.netmask);
 			break;
-		case DHCP_BROADCAST:
-			ni_dhcp_option_get_ipv4(&buf, &lease->dhcp.broadcast);
+		case DHCP4_BROADCAST:
+			ni_dhcp4_option_get_ipv4(&buf, &lease->dhcp4.broadcast);
 			break;
-		case DHCP_SERVERIDENTIFIER:
-			ni_dhcp_option_get_ipv4(&buf, &lease->dhcp.serveraddress);
+		case DHCP4_SERVERIDENTIFIER:
+			ni_dhcp4_option_get_ipv4(&buf, &lease->dhcp4.serveraddress);
 			break;
-		case DHCP_LEASETIME:
-			ni_dhcp_option_get32(&buf, &lease->dhcp.lease_time);
+		case DHCP4_LEASETIME:
+			ni_dhcp4_option_get32(&buf, &lease->dhcp4.lease_time);
 			break;
-		case DHCP_RENEWALTIME:
-			ni_dhcp_option_get32(&buf, &lease->dhcp.renewal_time);
+		case DHCP4_RENEWALTIME:
+			ni_dhcp4_option_get32(&buf, &lease->dhcp4.renewal_time);
 			break;
-		case DHCP_REBINDTIME:
-			ni_dhcp_option_get32(&buf, &lease->dhcp.rebind_time);
+		case DHCP4_REBINDTIME:
+			ni_dhcp4_option_get32(&buf, &lease->dhcp4.rebind_time);
 			break;
-		case DHCP_MTU:
-			ni_dhcp_option_get16(&buf, &lease->dhcp.mtu);
+		case DHCP4_MTU:
+			ni_dhcp4_option_get16(&buf, &lease->dhcp4.mtu);
 			/* Minimum legal mtu is 68 accoridng to
 			 * RFC 2132. In practise it's 576 which is the
 			 * minimum maximum message size. */
-			if (lease->dhcp.mtu < MTU_MIN) {
+			if (lease->dhcp4.mtu < MTU_MIN) {
 				ni_debug_dhcp("MTU %u is too low, minimum is %d; ignoring",
-						lease->dhcp.mtu, MTU_MIN);
-				lease->dhcp.mtu = 0;
+						lease->dhcp4.mtu, MTU_MIN);
+				lease->dhcp4.mtu = 0;
 			}
 			break;
-		case DHCP_HOSTNAME:
-			ni_dhcp_option_get_domain(&buf, &lease->hostname,
+		case DHCP4_HOSTNAME:
+			ni_dhcp4_option_get_domain(&buf, &lease->hostname,
 							"hostname");
 			break;
-		case DHCP_DNSDOMAIN:
-			ni_dhcp_option_get_domain(&buf, &dnsdomain,
+		case DHCP4_DNSDOMAIN:
+			ni_dhcp4_option_get_domain(&buf, &dnsdomain,
 							"dns-domain");
 			break;
-		case DHCP_MESSAGE:
-			ni_dhcp_option_get_printable(&buf, &lease->dhcp.message,
-							"dhcp-message");
+		case DHCP4_MESSAGE:
+			ni_dhcp4_option_get_printable(&buf, &lease->dhcp4.message,
+							"dhcp4-message");
 			break;
-		case DHCP_ROOTPATH:
-			ni_dhcp_option_get_pathname(&buf, &lease->dhcp.rootpath,
+		case DHCP4_ROOTPATH:
+			ni_dhcp4_option_get_pathname(&buf, &lease->dhcp4.rootpath,
 							"root-path");
 			break;
-		case DHCP_NISDOMAIN:
-			ni_dhcp_option_get_domain(&buf, &nisdomain,
+		case DHCP4_NISDOMAIN:
+			ni_dhcp4_option_get_domain(&buf, &nisdomain,
 							"nis-domain");
 			break;
-		case DHCP_NETBIOSNODETYPE:
-			ni_dhcp_option_get_netbios_type(&buf, &lease->netbios_type);
+		case DHCP4_NETBIOSNODETYPE:
+			ni_dhcp4_option_get_netbios_type(&buf, &lease->netbios_type);
 			break;
-		case DHCP_NETBIOSSCOPE:
-			ni_dhcp_option_get_domain(&buf, &lease->netbios_scope,
+		case DHCP4_NETBIOSSCOPE:
+			ni_dhcp4_option_get_domain(&buf, &lease->netbios_scope,
 							"netbios-scope");
 			break;
-		case DHCP_DNSSERVER:
-			ni_dhcp_decode_address_list(&buf, &dns_servers);
+		case DHCP4_DNSSERVER:
+			ni_dhcp4_decode_address_list(&buf, &dns_servers);
 			break;
-		case DHCP_NTPSERVER:
-			ni_dhcp_decode_address_list(&buf, &lease->ntp_servers);
+		case DHCP4_NTPSERVER:
+			ni_dhcp4_decode_address_list(&buf, &lease->ntp_servers);
 			break;
-		case DHCP_NISSERVER:
-			ni_dhcp_decode_address_list(&buf, &nis_servers);
+		case DHCP4_NISSERVER:
+			ni_dhcp4_decode_address_list(&buf, &nis_servers);
 			break;
-		case DHCP_LPRSERVER:
-			ni_dhcp_decode_address_list(&buf, &lease->lpr_servers);
+		case DHCP4_LPRSERVER:
+			ni_dhcp4_decode_address_list(&buf, &lease->lpr_servers);
 			break;
-		case DHCP_LOGSERVER:
-			ni_dhcp_decode_address_list(&buf, &lease->log_servers);
+		case DHCP4_LOGSERVER:
+			ni_dhcp4_decode_address_list(&buf, &lease->log_servers);
 			break;
-		case DHCP_NETBIOSNAMESERVER:
-			ni_dhcp_decode_address_list(&buf, &lease->netbios_name_servers);
+		case DHCP4_NETBIOSNAMESERVER:
+			ni_dhcp4_decode_address_list(&buf, &lease->netbios_name_servers);
 			break;
-		case DHCP_NETBIOSDDSERVER:
-			ni_dhcp_decode_address_list(&buf, &lease->netbios_dd_servers);
+		case DHCP4_NETBIOSDDSERVER:
+			ni_dhcp4_decode_address_list(&buf, &lease->netbios_dd_servers);
 			break;
-		case DHCP_DNSSEARCH:
-			ni_dhcp_decode_dnssearch(&buf, &dns_search, "dns-search domain");
+		case DHCP4_DNSSEARCH:
+			ni_dhcp4_decode_dnssearch(&buf, &dns_search, "dns-search domain");
 			break;
 
-		case DHCP_CSR:
-		case DHCP_MSCSR:
+		case DHCP4_CSR:
+		case DHCP4_MSCSR:
 			ni_route_array_destroy(&classless_routes);
-			if (ni_dhcp_decode_csr(&buf, &classless_routes) < 0)
+			if (ni_dhcp4_decode_csr(&buf, &classless_routes) < 0)
 				goto error;
 			break;
 
-		case DHCP_SIPSERVER:
-			ni_dhcp_decode_sipservers(&buf, &lease->sip_servers);
+		case DHCP4_SIPSERVER:
+			ni_dhcp4_decode_sipservers(&buf, &lease->sip_servers);
 			break;
 
-		case DHCP_STATICROUTE:
+		case DHCP4_STATICROUTE:
 			ni_route_array_destroy(&static_routes);
-			if (ni_dhcp_decode_static_routes(&buf, &static_routes) < 0)
+			if (ni_dhcp4_decode_static_routes(&buf, &static_routes) < 0)
 				goto error;
 			break;
 
-		case DHCP_ROUTERS:
+		case DHCP4_ROUTERS:
 			ni_route_array_destroy(&default_routes);
-			if (ni_dhcp_decode_routers(&buf, &default_routes) < 0)
+			if (ni_dhcp4_decode_routers(&buf, &default_routes) < 0)
 				goto error;
 			break;
 
-		case DHCP_OPTIONSOVERLOADED:
+		case DHCP4_OPTIONSOVERLOADED:
 			if (options != &overload_buf) {
 				opt_overload = ni_buffer_getc(&buf);
 			} else {
-				ni_debug_dhcp("DHCP: ignoring OVERLOAD option in overloaded data");
+				ni_debug_dhcp("DHCP4: ignoring OVERLOAD option in overloaded data");
 				(void) ni_buffer_getc(&buf);
 			}
 			break;
 
-		case DHCP_FQDN:
+		case DHCP4_FQDN:
 			/* We ignore replies about FQDN */
 			break;
 
 		default:
-			ni_debug_dhcp("ignoring unsupported DHCP code %u", option);
+			ni_debug_dhcp("ignoring unsupported DHCP4 code %u", option);
 			break;
 		}
 
 		if (buf.underflow) {
-			ni_debug_dhcp("unable to parse DHCP option %s: too short",
-					ni_dhcp_option_name(option));
+			ni_debug_dhcp("unable to parse DHCP4 option %s: too short",
+					ni_dhcp4_option_name(option));
 			goto error;
 		} else if (ni_buffer_count(&buf)) {
-			ni_debug_dhcp("excess data in DHCP option %s - %u bytes left",
-					ni_dhcp_option_name(option),
+			ni_debug_dhcp("excess data in DHCP4 option %s - %u bytes left",
+					ni_dhcp4_option_name(option),
 					ni_buffer_count(&buf));
 		}
 
 	}
 
 	if (options->underflow) {
-		ni_debug_dhcp("unable to parse DHCP response: truncated packet");
+		ni_debug_dhcp("unable to parse DHCP4 response: truncated packet");
 		goto error;
 	}
 
@@ -1035,17 +1035,17 @@ parse_more:
 		const void *more_data = NULL;
 		size_t size = 0;
 
-		if (opt_overload & DHCP_OVERLOAD_BOOTFILE) {
+		if (opt_overload & DHCP4_OVERLOAD_BOOTFILE) {
 			use_bootfile = 0;
 			more_data = message->bootfile;
 			size = sizeof(message->bootfile);
-			opt_overload &= ~DHCP_OVERLOAD_BOOTFILE;
+			opt_overload &= ~DHCP4_OVERLOAD_BOOTFILE;
 		} else
-		if (opt_overload & DHCP_OVERLOAD_SERVERNAME) {
+		if (opt_overload & DHCP4_OVERLOAD_SERVERNAME) {
 			use_bootserver = 0;
 			more_data = message->servername;
 			size = sizeof(message->servername);
-			opt_overload &= ~DHCP_OVERLOAD_SERVERNAME;
+			opt_overload &= ~DHCP4_OVERLOAD_SERVERNAME;
 		} else {
 			opt_overload = 0;
 		}
@@ -1060,13 +1060,13 @@ parse_more:
 		char tmp[sizeof(message->servername)];
 		size_t len;
 
-		assert(sizeof(lease->dhcp.servername) == sizeof(message->servername));
+		assert(sizeof(lease->dhcp4.servername) == sizeof(message->servername));
 		memcpy(tmp, message->servername, sizeof(tmp));
 		tmp[sizeof(tmp)-1] = '\0';
 
 		len = ni_string_len(tmp);
 		if (ni_check_domain_name(tmp, len, 0)) {
-			memcpy(lease->dhcp.servername, tmp, sizeof(lease->dhcp.servername));
+			memcpy(lease->dhcp4.servername, tmp, sizeof(lease->dhcp4.servername));
 		} else {
 			ni_debug_dhcp("Discarded suspect boot-server name: %s",
 					ni_print_suspect(tmp, len));
@@ -1080,7 +1080,7 @@ parse_more:
 		tmp[sizeof(tmp)-1] = '\0';
 		len = ni_string_len(tmp);
 		if (ni_check_pathname(tmp, len)) {
-			ni_string_dup(&lease->dhcp.bootfile, tmp);
+			ni_string_dup(&lease->dhcp4.bootfile, tmp);
 		} else {
 			ni_debug_dhcp("Discarded suspect boot-file name: %s",
 					ni_print_suspect(tmp, len));
@@ -1088,13 +1088,13 @@ parse_more:
 	}
 
 	/* Fill in any missing fields */
-	if (!lease->dhcp.netmask.s_addr) {
-		unsigned int pfxlen = guess_prefix_len(lease->dhcp.address);
+	if (!lease->dhcp4.netmask.s_addr) {
+		unsigned int pfxlen = guess_prefix_len(lease->dhcp4.address);
 
-		lease->dhcp.netmask.s_addr = htonl(~(0xFFFFFFFF >> pfxlen));
+		lease->dhcp4.netmask.s_addr = htonl(~(0xFFFFFFFF >> pfxlen));
 	}
-	if (!lease->dhcp.broadcast.s_addr) {
-		lease->dhcp.broadcast.s_addr = lease->dhcp.address.s_addr | ~lease->dhcp.netmask.s_addr;
+	if (!lease->dhcp4.broadcast.s_addr) {
+		lease->dhcp4.broadcast.s_addr = lease->dhcp4.address.s_addr | ~lease->dhcp4.netmask.s_addr;
 	}
 
 	if (classless_routes.count) {
@@ -1131,20 +1131,20 @@ parse_more:
 		lease->nis = nis;
 	}
 
-	if (lease->dhcp.address.s_addr) {
+	if (lease->dhcp4.address.s_addr) {
 		ni_sockaddr_t local_addr;
 		ni_address_t *ap;
 
 		memset(&local_addr, 0, sizeof(local_addr));
 		local_addr.sin.sin_family = AF_INET;
-		local_addr.sin.sin_addr = lease->dhcp.address;
+		local_addr.sin.sin_addr = lease->dhcp4.address;
 		ap = ni_address_new(AF_INET,
-				__count_net_bits(ntohl(lease->dhcp.netmask.s_addr)),
+				__count_net_bits(ntohl(lease->dhcp4.netmask.s_addr)),
 				&local_addr, &lease->addrs);
 
 		memset(&ap->bcast_addr, 0, sizeof(ap->bcast_addr));
 		ap->bcast_addr.sin.sin_family = AF_INET;
-		ap->bcast_addr.sin.sin_addr = lease->dhcp.broadcast;
+		ap->bcast_addr.sin.sin_addr = lease->dhcp4.broadcast;
 	}
 
 	*leasep = lease;
@@ -1170,116 +1170,116 @@ error:
 }
 
 /*
- * Map DHCP options to names
+ * Map DHCP4 options to names
  */
-static const char *__dhcp_option_names[256] = {
- [DHCP_PAD]			= "DHCP_PAD",
- [DHCP_NETMASK]			= "DHCP_NETMASK",
- [DHCP_TIMEROFFSET]		= "DHCP_TIMEROFFSET",
- [DHCP_ROUTERS]			= "DHCP_ROUTERS",
- [DHCP_TIMESERVER]		= "DHCP_TIMESERVER",
- [DHCP_NAMESERVER]		= "DHCP_NAMESERVER",
- [DHCP_DNSSERVER]		= "DHCP_DNSSERVER",
- [DHCP_LOGSERVER]		= "DHCP_LOGSERVER",
- [DHCP_COOKIESERVER]		= "DHCP_COOKIESERVER",
- [DHCP_LPRSERVER]		= "DHCP_LPRSERVER",
- [DHCP_IMPRESSSERVER]		= "DHCP_IMPRESSSERVER",
- [DHCP_RLSSERVER]		= "DHCP_RLSSERVER",
- [DHCP_HOSTNAME]		= "DHCP_HOSTNAME",
- [DHCP_BOOTFILESIZE]		= "DHCP_BOOTFILESIZE",
- [DHCP_MERITDUMPFILE]		= "DHCP_MERITDUMPFILE",
- [DHCP_DNSDOMAIN]		= "DHCP_DNSDOMAIN",
- [DHCP_SWAPSERVER]		= "DHCP_SWAPSERVER",
- [DHCP_ROOTPATH]		= "DHCP_ROOTPATH",
- [DHCP_EXTENTIONSPATH]		= "DHCP_EXTENTIONSPATH",
- [DHCP_IPFORWARDING]		= "DHCP_IPFORWARDING",
- [DHCP_NONLOCALSOURCEROUTING]	= "DHCP_NONLOCALSOURCEROUTING",
- [DHCP_POLICYFILTER]		= "DHCP_POLICYFILTER",
- [DHCP_MAXDGRAMREASMSIZE]	= "DHCP_MAXDGRAMREASMSIZE",
- [DHCP_DEFAULTIPTTL]		= "DHCP_DEFAULTIPTTL",
- [DHCP_PATHMTUAGINGTIMEOUT]	= "DHCP_PATHMTUAGINGTIMEOUT",
- [DHCP_PATHMTUPLATEAUTABLE]	= "DHCP_PATHMTUPLATEAUTABLE",
- [DHCP_MTU]			= "DHCP_MTU",
- [DHCP_ALLSUBNETSLOCAL]		= "DHCP_ALLSUBNETSLOCAL",
- [DHCP_BROADCAST]		= "DHCP_BROADCAST",
- [DHCP_MASKDISCOVERY]		= "DHCP_MASKDISCOVERY",
- [DHCP_MASKSUPPLIER]		= "DHCP_MASKSUPPLIER",
- [DHCP_ROUTERDISCOVERY]		= "DHCP_ROUTERDISCOVERY",
- [DHCP_ROUTERSOLICITATIONADDR]	= "DHCP_ROUTERSOLICITATIONADDR",
- [DHCP_STATICROUTE]		= "DHCP_STATICROUTE",
- [DHCP_TRAILERENCAPSULATION]	= "DHCP_TRAILERENCAPSULATION",
- [DHCP_ARPCACHETIMEOUT]		= "DHCP_ARPCACHETIMEOUT",
- [DHCP_ETHERNETENCAPSULATION]	= "DHCP_ETHERNETENCAPSULATION",
- [DHCP_TCPDEFAULTTTL]		= "DHCP_TCPDEFAULTTTL",
- [DHCP_TCPKEEPALIVEINTERVAL]	= "DHCP_TCPKEEPALIVEINTERVAL",
- [DHCP_TCPKEEPALIVEGARBAGE]	= "DHCP_TCPKEEPALIVEGARBAGE",
- [DHCP_NISDOMAIN]		= "DHCP_NISDOMAIN",
- [DHCP_NISSERVER]		= "DHCP_NISSERVER",
- [DHCP_NTPSERVER]		= "DHCP_NTPSERVER",
- [DHCP_VENDORSPECIFICINFO]	= "DHCP_VENDORSPECIFICINFO",
- [DHCP_NETBIOSNAMESERVER]	= "DHCP_NETBIOSNAMESERVER",
- [DHCP_NETBIOSDDSERVER]		= "DHCP_NETBIOSDDSERVER",
- [DHCP_NETBIOSNODETYPE]		= "DHCP_NETBIOSNODETYPE",
- [DHCP_NETBIOSSCOPE]		= "DHCP_NETBIOSSCOPE",
- [DHCP_XFONTSERVER]		= "DHCP_XFONTSERVER",
- [DHCP_XDISPLAYMANAGER]		= "DHCP_XDISPLAYMANAGER",
- [DHCP_ADDRESS]			= "DHCP_ADDRESS",
- [DHCP_LEASETIME]		= "DHCP_LEASETIME",
- [DHCP_OPTIONSOVERLOADED]	= "DHCP_OPTIONSOVERLOADED",
- [DHCP_MESSAGETYPE]		= "DHCP_MESSAGETYPE",
- [DHCP_SERVERIDENTIFIER]	= "DHCP_SERVERIDENTIFIER",
- [DHCP_PARAMETERREQUESTLIST]	= "DHCP_PARAMETERREQUESTLIST",
- [DHCP_MESSAGE]			= "DHCP_MESSAGE",
- [DHCP_MAXMESSAGESIZE]		= "DHCP_MAXMESSAGESIZE",
- [DHCP_RENEWALTIME]		= "DHCP_RENEWALTIME",
- [DHCP_REBINDTIME]		= "DHCP_REBINDTIME",
- [DHCP_CLASSID]			= "DHCP_CLASSID",
- [DHCP_CLIENTID]		= "DHCP_CLIENTID",
- [DHCP_USERCLASS]		= "DHCP_USERCLASS",
- [DHCP_FQDN]			= "DHCP_FQDN",
- [DHCP_DNSSEARCH]		= "DHCP_DNSSEARCH",
- [DHCP_SIPSERVER]		= "DHCP_SIPSERVER",
- [DHCP_CSR]			= "DHCP_CSR",
- [DHCP_MSCSR]			= "DHCP_MSCSR",
- [DHCP_END]			= "DHCP_END",
+static const char *__dhcp4_option_names[256] = {
+ [DHCP4_PAD]			= "DHCP4_PAD",
+ [DHCP4_NETMASK]			= "DHCP4_NETMASK",
+ [DHCP4_TIMEROFFSET]		= "DHCP4_TIMEROFFSET",
+ [DHCP4_ROUTERS]			= "DHCP4_ROUTERS",
+ [DHCP4_TIMESERVER]		= "DHCP4_TIMESERVER",
+ [DHCP4_NAMESERVER]		= "DHCP4_NAMESERVER",
+ [DHCP4_DNSSERVER]		= "DHCP4_DNSSERVER",
+ [DHCP4_LOGSERVER]		= "DHCP4_LOGSERVER",
+ [DHCP4_COOKIESERVER]		= "DHCP4_COOKIESERVER",
+ [DHCP4_LPRSERVER]		= "DHCP4_LPRSERVER",
+ [DHCP4_IMPRESSSERVER]		= "DHCP4_IMPRESSSERVER",
+ [DHCP4_RLSSERVER]		= "DHCP4_RLSSERVER",
+ [DHCP4_HOSTNAME]		= "DHCP4_HOSTNAME",
+ [DHCP4_BOOTFILESIZE]		= "DHCP4_BOOTFILESIZE",
+ [DHCP4_MERITDUMPFILE]		= "DHCP4_MERITDUMPFILE",
+ [DHCP4_DNSDOMAIN]		= "DHCP4_DNSDOMAIN",
+ [DHCP4_SWAPSERVER]		= "DHCP4_SWAPSERVER",
+ [DHCP4_ROOTPATH]		= "DHCP4_ROOTPATH",
+ [DHCP4_EXTENTIONSPATH]		= "DHCP4_EXTENTIONSPATH",
+ [DHCP4_IPFORWARDING]		= "DHCP4_IPFORWARDING",
+ [DHCP4_NONLOCALSOURCEROUTING]	= "DHCP4_NONLOCALSOURCEROUTING",
+ [DHCP4_POLICYFILTER]		= "DHCP4_POLICYFILTER",
+ [DHCP4_MAXDGRAMREASMSIZE]	= "DHCP4_MAXDGRAMREASMSIZE",
+ [DHCP4_DEFAULTIPTTL]		= "DHCP4_DEFAULTIPTTL",
+ [DHCP4_PATHMTUAGINGTIMEOUT]	= "DHCP4_PATHMTUAGINGTIMEOUT",
+ [DHCP4_PATHMTUPLATEAUTABLE]	= "DHCP4_PATHMTUPLATEAUTABLE",
+ [DHCP4_MTU]			= "DHCP4_MTU",
+ [DHCP4_ALLSUBNETSLOCAL]		= "DHCP4_ALLSUBNETSLOCAL",
+ [DHCP4_BROADCAST]		= "DHCP4_BROADCAST",
+ [DHCP4_MASKDISCOVERY]		= "DHCP4_MASKDISCOVERY",
+ [DHCP4_MASKSUPPLIER]		= "DHCP4_MASKSUPPLIER",
+ [DHCP4_ROUTERDISCOVERY]		= "DHCP4_ROUTERDISCOVERY",
+ [DHCP4_ROUTERSOLICITATIONADDR]	= "DHCP4_ROUTERSOLICITATIONADDR",
+ [DHCP4_STATICROUTE]		= "DHCP4_STATICROUTE",
+ [DHCP4_TRAILERENCAPSULATION]	= "DHCP4_TRAILERENCAPSULATION",
+ [DHCP4_ARPCACHETIMEOUT]		= "DHCP4_ARPCACHETIMEOUT",
+ [DHCP4_ETHERNETENCAPSULATION]	= "DHCP4_ETHERNETENCAPSULATION",
+ [DHCP4_TCPDEFAULTTTL]		= "DHCP4_TCPDEFAULTTTL",
+ [DHCP4_TCPKEEPALIVEINTERVAL]	= "DHCP4_TCPKEEPALIVEINTERVAL",
+ [DHCP4_TCPKEEPALIVEGARBAGE]	= "DHCP4_TCPKEEPALIVEGARBAGE",
+ [DHCP4_NISDOMAIN]		= "DHCP4_NISDOMAIN",
+ [DHCP4_NISSERVER]		= "DHCP4_NISSERVER",
+ [DHCP4_NTPSERVER]		= "DHCP4_NTPSERVER",
+ [DHCP4_VENDORSPECIFICINFO]	= "DHCP4_VENDORSPECIFICINFO",
+ [DHCP4_NETBIOSNAMESERVER]	= "DHCP4_NETBIOSNAMESERVER",
+ [DHCP4_NETBIOSDDSERVER]		= "DHCP4_NETBIOSDDSERVER",
+ [DHCP4_NETBIOSNODETYPE]		= "DHCP4_NETBIOSNODETYPE",
+ [DHCP4_NETBIOSSCOPE]		= "DHCP4_NETBIOSSCOPE",
+ [DHCP4_XFONTSERVER]		= "DHCP4_XFONTSERVER",
+ [DHCP4_XDISPLAYMANAGER]		= "DHCP4_XDISPLAYMANAGER",
+ [DHCP4_ADDRESS]			= "DHCP4_ADDRESS",
+ [DHCP4_LEASETIME]		= "DHCP4_LEASETIME",
+ [DHCP4_OPTIONSOVERLOADED]	= "DHCP4_OPTIONSOVERLOADED",
+ [DHCP4_MESSAGETYPE]		= "DHCP4_MESSAGETYPE",
+ [DHCP4_SERVERIDENTIFIER]	= "DHCP4_SERVERIDENTIFIER",
+ [DHCP4_PARAMETERREQUESTLIST]	= "DHCP4_PARAMETERREQUESTLIST",
+ [DHCP4_MESSAGE]			= "DHCP4_MESSAGE",
+ [DHCP4_MAXMESSAGESIZE]		= "DHCP4_MAXMESSAGESIZE",
+ [DHCP4_RENEWALTIME]		= "DHCP4_RENEWALTIME",
+ [DHCP4_REBINDTIME]		= "DHCP4_REBINDTIME",
+ [DHCP4_CLASSID]			= "DHCP4_CLASSID",
+ [DHCP4_CLIENTID]		= "DHCP4_CLIENTID",
+ [DHCP4_USERCLASS]		= "DHCP4_USERCLASS",
+ [DHCP4_FQDN]			= "DHCP4_FQDN",
+ [DHCP4_DNSSEARCH]		= "DHCP4_DNSSEARCH",
+ [DHCP4_SIPSERVER]		= "DHCP4_SIPSERVER",
+ [DHCP4_CSR]			= "DHCP4_CSR",
+ [DHCP4_MSCSR]			= "DHCP4_MSCSR",
+ [DHCP4_END]			= "DHCP4_END",
 };
 
 const char *
-ni_dhcp_option_name(unsigned int option)
+ni_dhcp4_option_name(unsigned int option)
 {
 	static char namebuf[64];
 	const char *name = NULL;
 
 	if (option < 256)
-		name = __dhcp_option_names[option];
+		name = __dhcp4_option_names[option];
 	if (!name) {
-		snprintf(namebuf, sizeof(namebuf), "DHCP_OPTION_<%u>", option);
+		snprintf(namebuf, sizeof(namebuf), "DHCP4_OPTION_<%u>", option);
 		name = namebuf;
 	}
 	return name;
 }
 
-static const char *	__dhcp_message_names[16] = {
- [DHCP_DISCOVER] =	"DHCP_DISCOVER",
- [DHCP_OFFER] =		"DHCP_OFFER",
- [DHCP_REQUEST] =	"DHCP_REQUEST",
- [DHCP_DECLINE] =	"DHCP_DECLINE",
- [DHCP_ACK] =		"DHCP_ACK",
- [DHCP_NAK] =		"DHCP_NAK",
- [DHCP_RELEASE] =	"DHCP_RELEASE",
- [DHCP_INFORM] =	"DHCP_INFORM",
+static const char *	__dhcp4_message_names[16] = {
+ [DHCP4_DISCOVER] =	"DHCP4_DISCOVER",
+ [DHCP4_OFFER] =		"DHCP4_OFFER",
+ [DHCP4_REQUEST] =	"DHCP4_REQUEST",
+ [DHCP4_DECLINE] =	"DHCP4_DECLINE",
+ [DHCP4_ACK] =		"DHCP4_ACK",
+ [DHCP4_NAK] =		"DHCP4_NAK",
+ [DHCP4_RELEASE] =	"DHCP4_RELEASE",
+ [DHCP4_INFORM] =	"DHCP4_INFORM",
 };
 
 const char *
-ni_dhcp_message_name(unsigned int code)
+ni_dhcp4_message_name(unsigned int code)
 {
 	static char namebuf[64];
 	const char *name = NULL;
 
 	if (code < 16)
-		name = __dhcp_message_names[code];
+		name = __dhcp4_message_names[code];
 	if (!name) {
-		snprintf(namebuf, sizeof(namebuf), "DHCP_MSG_<%u>", code);
+		snprintf(namebuf, sizeof(namebuf), "DHCP4_MSG_<%u>", code);
 		name = namebuf;
 	}
 	return name;

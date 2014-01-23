@@ -377,16 +377,16 @@ __ni_leaseinfo_dhcp4_dump(FILE *out, const ni_addrconf_lease_t *lease,
 
 #if 0
 	/* serveraddress */
-	ni_sockaddr_set_ipv4(&sa, lease->dhcp.serveraddress, 0);
-	__ni_leaseinfo_print_string(out, prefix, "DHCPSID",
+	ni_sockaddr_set_ipv4(&sa, lease->dhcp4.serveraddress, 0);
+	__ni_leaseinfo_print_string(out, prefix, "SID",
 				ni_sockaddr_print(&sa), NULL, 0);
 
-	__ni_leaseinfo_print_string(out, prefix, "DHCPSNAME",
-				lease->dhcp.servername,
+	__ni_leaseinfo_print_string(out, prefix, "SNAME",
+				lease->dhcp4.servername,
 				NULL, 0);
 
 	__ni_leaseinfo_print_string(out, prefix, "CLIENTID",
-				lease->dhcp.client_id,
+				lease->dhcp4.client_id,
 				"", 0);
 #endif
 
@@ -395,39 +395,39 @@ __ni_leaseinfo_dhcp4_dump(FILE *out, const ni_addrconf_lease_t *lease,
 	 * Address and netmask specified as part of generic dump, so not
 	 * duplicating here.
 	 */
-	ni_sockaddr_set_ipv4(&sa, lease->dhcp.broadcast, 0);
+	ni_sockaddr_set_ipv4(&sa, lease->dhcp4.broadcast, 0);
 	if (ni_sockaddr_is_specified(&sa)) {
 		__ni_leaseinfo_print_string(out, prefix, "BROADCAST",
 					ni_sockaddr_print(&sa), NULL, 0);
 	}
 
 #if 0
-	if (lease->dhcp.mtu) {
+	if (lease->dhcp4.mtu) {
 		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
 			(&key, prefix, "MTU", 0),
-			lease->dhcp.mtu);
+			lease->dhcp4.mtu);
 	}
 
 	__ni_leaseinfo_print_string(out, prefix, "LEASETIME",
-				__ni_leaseinfo_strftime(lease->dhcp.lease_time),
+				__ni_leaseinfo_strftime(lease->dhcp4.lease_time),
 				NULL, 0);
 	__ni_leaseinfo_print_string(out, prefix, "RENEWALTIME",
-				__ni_leaseinfo_strftime(lease->dhcp.renewal_time),
+				__ni_leaseinfo_strftime(lease->dhcp4.renewal_time),
 				NULL, 0);
 	__ni_leaseinfo_print_string(out, prefix, "REBINDTIME",
-				__ni_leaseinfo_strftime(lease->dhcp.rebind_time),
+				__ni_leaseinfo_strftime(lease->dhcp4.rebind_time),
 				NULL, 0);
 
 	__ni_leaseinfo_print_string(out, prefix, "MESSAGE",
-				lease->dhcp.message,
+				lease->dhcp4.message,
 				NULL, 0);
 
 	__ni_leaseinfo_print_string(out, prefix, "BOOTFILE",
-				lease->dhcp.bootfile,
+				lease->dhcp4.bootfile,
 				NULL, 0);
 
 	__ni_leaseinfo_print_string(out, prefix, "ROOTPATH",
-				lease->dhcp.rootpath,
+				lease->dhcp4.rootpath,
 				NULL, 0);
 #endif
 
@@ -448,7 +448,7 @@ __ni_leaseinfo_dhcp6_dump(FILE *out, const ni_addrconf_lease_t *lease,
 				ni_print_hex(lease->dhcp6.client_id.data,
 					     lease->dhcp6.client_id.len),
 				"", 0);
-	__ni_leaseinfo_print_string(out, prefix, "DHCP6SNAME",
+	__ni_leaseinfo_print_string(out, prefix, "SNAME",
 				ni_print_hex(lease->dhcp6.server_id.data,
 					     lease->dhcp6.server_id.len),
 				NULL, 0);
@@ -457,7 +457,7 @@ __ni_leaseinfo_dhcp6_dump(FILE *out, const ni_addrconf_lease_t *lease,
 		lease->dhcp6.server_pref);
 
 	ni_sockaddr_set_ipv6(&sa, lease->dhcp6.server_addr, 0);
-	__ni_leaseinfo_print_string(out, prefix, "DHCP6SID",
+	__ni_leaseinfo_print_string(out, prefix, "SID",
 				ni_sockaddr_print(&sa), NULL, 0);
 
 	if (lease->dhcp6.rapid_commit)
@@ -467,9 +467,9 @@ __ni_leaseinfo_dhcp6_dump(FILE *out, const ni_addrconf_lease_t *lease,
 	/* dhcp6 status */
 	if (lease->dhcp6.status) {
 		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
-			(&key, prefix, "DHCP6STATUSCODE", 0),
+			(&key, prefix, "STATUSCODE", 0),
 			lease->dhcp6.status->code);
-		__ni_leaseinfo_print_string(out, prefix, "DHCP6STATUSMESSAGE",
+		__ni_leaseinfo_print_string(out, prefix, "STATUSMESSAGE",
 					lease->dhcp6.status->message,
 					NULL, 0);
 	}

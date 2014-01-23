@@ -1,122 +1,122 @@
 /*
- * Build and parse DHCP packets
+ * Build and parse DHCP4 packets
  *
  * Copyright (C) 2010-2012, Olaf Kirch <okir@suse.de>
  *
  * Heavily inspired by dhcpcd, which was written by Roy Marples <roy@marples.name>
  */
 
-#ifndef __WICKED_DHCP_PROTOCOL_H__
-#define __WICKED_DHCP_PROTOCOL_H__
+#ifndef __WICKED_DHCP4_PROTOCOL_H__
+#define __WICKED_DHCP4_PROTOCOL_H__
 
 #include <netinet/in.h>
 #include <stdint.h>
 #include <wicked/netinfo.h>
 
-/* Max MTU - defines dhcp option length */
+/* Max MTU - defines dhcp4 option length */
 #define MTU_MAX             1500
 #define MTU_MIN             576
 
-/* UDP port numbers for DHCP */
-#define DHCP_SERVER_PORT    67
-#define DHCP_CLIENT_PORT    68
+/* UDP port numbers for DHCP4 */
+#define DHCP4_SERVER_PORT    67
+#define DHCP4_CLIENT_PORT    68
 
-#define DHCP_DEFAULT_LEASETIME	3600
+#define DHCP4_DEFAULT_LEASETIME	3600
 
 #define MAGIC_COOKIE        0x63825363
 #define BROADCAST_FLAG      0x8000
 
-/* DHCP message OP code */
-#define DHCP_BOOTREQUEST    1
-#define DHCP_BOOTREPLY      2
+/* DHCP4 message OP code */
+#define DHCP4_BOOTREQUEST    1
+#define DHCP4_BOOTREPLY      2
 
-/* DHCP message type */
-#define DHCP_DISCOVER       1
-#define DHCP_OFFER          2
-#define DHCP_REQUEST        3
-#define DHCP_DECLINE        4
-#define DHCP_ACK            5
-#define DHCP_NAK            6
-#define DHCP_RELEASE        7
-#define DHCP_INFORM         8
+/* DHCP4 message type */
+#define DHCP4_DISCOVER       1
+#define DHCP4_OFFER          2
+#define DHCP4_REQUEST        3
+#define DHCP4_DECLINE        4
+#define DHCP4_ACK            5
+#define DHCP4_NAK            6
+#define DHCP4_RELEASE        7
+#define DHCP4_INFORM         8
 
-/* DHCP options */
-enum DHCP_OPTIONS {
-	DHCP_PAD                    = 0,
-	DHCP_NETMASK                = 1,
-	DHCP_TIMEROFFSET            = 2,
-	DHCP_ROUTERS                = 3,
-	DHCP_TIMESERVER             = 4,
-	DHCP_NAMESERVER             = 5,
-	DHCP_DNSSERVER              = 6,
-	DHCP_LOGSERVER              = 7,
-	DHCP_COOKIESERVER           = 8,
-	DHCP_LPRSERVER              = 9,
-	DHCP_IMPRESSSERVER          = 10,
-	DHCP_RLSSERVER              = 11,
-	DHCP_HOSTNAME               = 12,
-	DHCP_BOOTFILESIZE           = 13,
-	DHCP_MERITDUMPFILE          = 14,
-	DHCP_DNSDOMAIN              = 15,
-	DHCP_SWAPSERVER             = 16,
-	DHCP_ROOTPATH               = 17,
-	DHCP_EXTENTIONSPATH         = 18,
-	DHCP_IPFORWARDING           = 19,
-	DHCP_NONLOCALSOURCEROUTING  = 20,
-	DHCP_POLICYFILTER           = 21,
-        DHCP_MAXDGRAMREASMSIZE      = 22,
-	DHCP_DEFAULTIPTTL           = 23,
-	DHCP_PATHMTUAGINGTIMEOUT    = 24,
-	DHCP_PATHMTUPLATEAUTABLE    = 25,
-	DHCP_MTU                    = 26,
-	DHCP_ALLSUBNETSLOCAL        = 27,
-	DHCP_BROADCAST              = 28,
-	DHCP_MASKDISCOVERY          = 29,
-	DHCP_MASKSUPPLIER           = 30,
-	DHCP_ROUTERDISCOVERY        = 31,
-	DHCP_ROUTERSOLICITATIONADDR = 32,
-	DHCP_STATICROUTE            = 33,
-	DHCP_TRAILERENCAPSULATION   = 34,
-	DHCP_ARPCACHETIMEOUT        = 35,
-	DHCP_ETHERNETENCAPSULATION  = 36,
-	DHCP_TCPDEFAULTTTL          = 37,
-	DHCP_TCPKEEPALIVEINTERVAL   = 38,
-	DHCP_TCPKEEPALIVEGARBAGE    = 39,
-	DHCP_NISDOMAIN              = 40,
-	DHCP_NISSERVER              = 41,
-	DHCP_NTPSERVER              = 42,
-	DHCP_VENDORSPECIFICINFO     = 43,
-	DHCP_NETBIOSNAMESERVER      = 44,
-	DHCP_NETBIOSDDSERVER        = 45,
-	DHCP_NETBIOSNODETYPE        = 46,
-	DHCP_NETBIOSSCOPE           = 47,
-	DHCP_XFONTSERVER            = 48,
-	DHCP_XDISPLAYMANAGER        = 49,
-	DHCP_ADDRESS                = 50,
-	DHCP_LEASETIME              = 51,
-	DHCP_OPTIONSOVERLOADED      = 52,
-	DHCP_MESSAGETYPE            = 53,
-	DHCP_SERVERIDENTIFIER       = 54,
-	DHCP_PARAMETERREQUESTLIST   = 55,
-	DHCP_MESSAGE                = 56,
-	DHCP_MAXMESSAGESIZE         = 57,
-	DHCP_RENEWALTIME            = 58,
-	DHCP_REBINDTIME             = 59,
-	DHCP_CLASSID                = 60,
-	DHCP_CLIENTID               = 61,
-	DHCP_USERCLASS              = 77,  /* RFC 3004 */
-	DHCP_SLPSERVERS             = 78,  /* RFC 2610 */
-	DHCP_SLPSCOPES              = 79,
-	DHCP_FQDN                   = 81,
-	DHCP_DNSSEARCH              = 119, /* RFC 3397 */
-	DHCP_SIPSERVER              = 120, /* RFC 3361 */
-	DHCP_CSR                    = 121, /* RFC 3442 */
-	DHCP_MSCSR                  = 249, /* MS code for RFC 3442 */
-	DHCP_END                    = 255
+/* DHCP4 options */
+enum DHCP4_OPTIONS {
+	DHCP4_PAD                    = 0,
+	DHCP4_NETMASK                = 1,
+	DHCP4_TIMEROFFSET            = 2,
+	DHCP4_ROUTERS                = 3,
+	DHCP4_TIMESERVER             = 4,
+	DHCP4_NAMESERVER             = 5,
+	DHCP4_DNSSERVER              = 6,
+	DHCP4_LOGSERVER              = 7,
+	DHCP4_COOKIESERVER           = 8,
+	DHCP4_LPRSERVER              = 9,
+	DHCP4_IMPRESSSERVER          = 10,
+	DHCP4_RLSSERVER              = 11,
+	DHCP4_HOSTNAME               = 12,
+	DHCP4_BOOTFILESIZE           = 13,
+	DHCP4_MERITDUMPFILE          = 14,
+	DHCP4_DNSDOMAIN              = 15,
+	DHCP4_SWAPSERVER             = 16,
+	DHCP4_ROOTPATH               = 17,
+	DHCP4_EXTENTIONSPATH         = 18,
+	DHCP4_IPFORWARDING           = 19,
+	DHCP4_NONLOCALSOURCEROUTING  = 20,
+	DHCP4_POLICYFILTER           = 21,
+	DHCP4_MAXDGRAMREASMSIZE      = 22,
+	DHCP4_DEFAULTIPTTL           = 23,
+	DHCP4_PATHMTUAGINGTIMEOUT    = 24,
+	DHCP4_PATHMTUPLATEAUTABLE    = 25,
+	DHCP4_MTU                    = 26,
+	DHCP4_ALLSUBNETSLOCAL        = 27,
+	DHCP4_BROADCAST              = 28,
+	DHCP4_MASKDISCOVERY          = 29,
+	DHCP4_MASKSUPPLIER           = 30,
+	DHCP4_ROUTERDISCOVERY        = 31,
+	DHCP4_ROUTERSOLICITATIONADDR = 32,
+	DHCP4_STATICROUTE            = 33,
+	DHCP4_TRAILERENCAPSULATION   = 34,
+	DHCP4_ARPCACHETIMEOUT        = 35,
+	DHCP4_ETHERNETENCAPSULATION  = 36,
+	DHCP4_TCPDEFAULTTTL          = 37,
+	DHCP4_TCPKEEPALIVEINTERVAL   = 38,
+	DHCP4_TCPKEEPALIVEGARBAGE    = 39,
+	DHCP4_NISDOMAIN              = 40,
+	DHCP4_NISSERVER              = 41,
+	DHCP4_NTPSERVER              = 42,
+	DHCP4_VENDORSPECIFICINFO     = 43,
+	DHCP4_NETBIOSNAMESERVER      = 44,
+	DHCP4_NETBIOSDDSERVER        = 45,
+	DHCP4_NETBIOSNODETYPE        = 46,
+	DHCP4_NETBIOSSCOPE           = 47,
+	DHCP4_XFONTSERVER            = 48,
+	DHCP4_XDISPLAYMANAGER        = 49,
+	DHCP4_ADDRESS                = 50,
+	DHCP4_LEASETIME              = 51,
+	DHCP4_OPTIONSOVERLOADED      = 52,
+	DHCP4_MESSAGETYPE            = 53,
+	DHCP4_SERVERIDENTIFIER       = 54,
+	DHCP4_PARAMETERREQUESTLIST   = 55,
+	DHCP4_MESSAGE                = 56,
+	DHCP4_MAXMESSAGESIZE         = 57,
+	DHCP4_RENEWALTIME            = 58,
+	DHCP4_REBINDTIME             = 59,
+	DHCP4_CLASSID                = 60,
+	DHCP4_CLIENTID               = 61,
+	DHCP4_USERCLASS              = 77,  /* RFC 3004 */
+	DHCP4_SLPSERVERS             = 78,  /* RFC 2610 */
+	DHCP4_SLPSCOPES              = 79,
+	DHCP4_FQDN                   = 81,
+	DHCP4_DNSSEARCH              = 119, /* RFC 3397 */
+	DHCP4_SIPSERVER              = 120, /* RFC 3361 */
+	DHCP4_CSR                    = 121, /* RFC 3442 */
+	DHCP4_MSCSR                  = 249, /* MS code for RFC 3442 */
+	DHCP4_END                    = 255
 };
 
-#define DHCP_OVERLOAD_BOOTFILE		0x01
-#define DHCP_OVERLOAD_SERVERNAME	0x02
+#define DHCP4_OVERLOAD_BOOTFILE		0x01
+#define DHCP4_OVERLOAD_SERVERNAME	0x02
 
 /* SetFQDNHostName values - lsnybble used in flags
  * byte (see buildmsg.c), hsnybble to create order
@@ -129,14 +129,14 @@ enum FQQN {
 	FQDN_BOTH       = 0x31
 };
 
-/* Sizes for DHCP options */
-#define DHCP_CHADDR_LEN         16
+/* Sizes for DHCP4 options */
+#define DHCP4_CHADDR_LEN         16
 #define SERVERNAME_LEN          64
 #define BOOTFILE_LEN            128
 
 #define BOOTP_MESSAGE_LENGTH_MIN 300
 
-struct ni_dhcp_message {
+struct ni_dhcp4_message {
 	unsigned char		op;		/* message type */
 	unsigned char		hwtype;		/* hardware address type */
 	unsigned char		hwlen;		/* hardware address length */
@@ -148,10 +148,10 @@ struct ni_dhcp_message {
 	uint32_t		yiaddr;		/* 'your' client IP address */
 	uint32_t		siaddr;		/* should be zero in client's messages */
 	uint32_t		giaddr;		/* should be zero in client's messages */
-	unsigned char		chaddr[DHCP_CHADDR_LEN]; /* client's hardware address */
+	unsigned char		chaddr[DHCP4_CHADDR_LEN]; /* client's hardware address */
 	unsigned char		servername[SERVERNAME_LEN]; /* server host name */
 	unsigned char		bootfile[BOOTFILE_LEN]; /* boot file name */
-	uint32_t		cookie;		/* DHCP magic cookie */
+	uint32_t		cookie;		/* DHCP4 magic cookie */
 };
 
 /* Work out if we have a private address or not
@@ -173,7 +173,7 @@ struct ni_dhcp_message {
 # define IN_LINKLOCAL(addr) ((addr & IN_CLASSB_NET) == LINKLOCAL_ADDR)
 #endif
 
-extern const char *	ni_dhcp_message_name(unsigned int);
-extern const char *	ni_dhcp_option_name(unsigned int);
+extern const char *	ni_dhcp4_message_name(unsigned int);
+extern const char *	ni_dhcp4_option_name(unsigned int);
 
-#endif /* __WICKED_DHCP_PROTOCOL_H__ */
+#endif /* __WICKED_DHCP4_PROTOCOL_H__ */

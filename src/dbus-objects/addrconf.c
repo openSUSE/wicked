@@ -510,7 +510,7 @@ static ni_dbus_addrconf_forwarder_t dhcp4_forwarder = {
 	.addrfamily	= AF_INET,
 	.addrconf	= NI_ADDRCONF_DHCP,
 	.class = {
-		.name	= "netif-dhcp-forwarder",
+		.name	= "netif-dhcp4-forwarder",
 	}
 };
 
