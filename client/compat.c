@@ -127,11 +127,19 @@ ni_compat_netdev_by_hwaddr(ni_compat_netdev_array_t *array, const ni_hwaddr_t *h
 void
 ni_compat_netdev_free(ni_compat_netdev_t *compat)
 {
-	ni_netdev_put(compat->dev);
+	if (compat) {
+		if (compat->dev)
+			ni_netdev_put(compat->dev);
 
-	/* FIXME: clean up the rest */
+		ni_string_free(&compat->dhcp4.hostname);
+		ni_string_free(&compat->dhcp4.client_id);
+		ni_string_free(&compat->dhcp4.vendor_class);
 
-	free(compat);
+		ni_string_free(&compat->dhcp6.hostname);
+		ni_string_free(&compat->dhcp6.client_id);
+
+		free(compat);
+	}
 }
 
 void
