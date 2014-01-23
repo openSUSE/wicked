@@ -28,9 +28,9 @@
 
 #include <stdlib.h>
 
-#include <wicked/macvlan.h>
 #include <wicked/netinfo.h>
 #include <wicked/util.h>
+#include <wicked/macvlan.h>
 #include "util_priv.h"
 
 
@@ -112,5 +112,27 @@ ni_bool_t
 ni_macvlan_name_to_flag(const char *name, unsigned int *flag)
 {
 	return ni_parse_uint_mapped(name, __map_macvlan_flags, flag) == 0;
+}
+
+const char *
+ni_macvlan_flag_bit_name(unsigned int bit)
+{
+	return bit < 32 ? ni_macvlan_flag_to_name(1 << bit) : NULL;
+}
+
+ni_bool_t
+ni_macvlan_flags_to_names(unsigned int flags, ni_string_array_t *names)
+{
+	const ni_intmap_t *map;
+
+	if (!names)
+		return FALSE;
+
+	ni_string_array_destroy(names);
+	for (map = __map_macvlan_flags; map->name; ++map) {
+		if (flags & map->value)
+			ni_string_array_append(names, map->name);
+	}
+	return TRUE;
 }
 

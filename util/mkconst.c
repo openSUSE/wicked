@@ -23,6 +23,7 @@
 #include <wicked/bonding.h>
 #include <wicked/route.h>
 #include <wicked/infiniband.h>
+#include <wicked/macvlan.h>
 #include <wicked/vlan.h>
 #include <wicked/lldp.h>
 
@@ -78,6 +79,8 @@ static struct generic_map	generic_maps[] = {
 	MAP(VLAN_PROTOCOL, ni_vlan_protocol_to_name),
 	MAP(LLDP_DESTINATION, ni_lldp_destination_type_to_name),
 	MAP(LLDP_SYSTEM_CAPABILITY, ni_lldp_system_capability_type_to_name),
+	MAP(MACVLAN_MODE, ni_macvlan_mode_to_name),
+	MAP(MACVLAN_FLAG, ni_macvlan_flag_bit_name),
 
 	{ NULL }
 };

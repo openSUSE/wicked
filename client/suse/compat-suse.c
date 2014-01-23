@@ -1545,6 +1545,7 @@ try_macvlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	const char *macvlan_dev = NULL;
 	const char *macvlan_mode = NULL;
 	const char *macvlan_flags = NULL;
+	const char *err;
 
 	if ((macvlan_dev = ni_sysconfig_get_value(sc, "MACVLAN_DEVICE")) == NULL)
 		return 1;
@@ -1564,6 +1565,7 @@ try_macvlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		return -1;
 	}
 
+	macvlan->mode = NI_MACVLAN_MODE_VEPA;
 	if ((macvlan_mode = ni_sysconfig_get_value(sc, "MACVLAN_MODE")) != NULL) {
 		unsigned int mode;
 		if (!ni_macvlan_name_to_mode(macvlan_mode, &mode)) {
@@ -1572,24 +1574,29 @@ try_macvlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			return -1;
 		}
 		macvlan->mode = mode;
-	} else {
-		/* Default case. */
-		macvlan->mode = NI_MACVLAN_MODE_VEPA;
 	}
 
+	macvlan->flags = 0;
 	if ((macvlan_flags = ni_sysconfig_get_value(sc, "MACVLAN_FLAGS")) != NULL) {
-		unsigned int flags;
-		if (!ni_macvlan_name_to_flag(macvlan_flags, &flags)) {
-			ni_error("ifcfg-%s: Unsupported MACVLAN_FLAGS=\"%s\"",
-				dev->name, macvlan_flags);
-			return -1;
+		ni_string_array_t flags = NI_STRING_ARRAY_INIT;
+		unsigned int i, flag;
+
+		ni_string_split(&flags, macvlan_flags, " \t", 0);
+		for (i = 0; i < flags.count; ++i) {
+			if (!ni_macvlan_name_to_flag(flags.data[i], &flag)) {
+				ni_error("ifcfg-%s: Unsupported MACVLAN_FLAGS=\"%s\"",
+					dev->name, macvlan_flags);
+				return -1;
+			}
+			macvlan->flags |= flag;
 		}
-		macvlan->flags = flags;
-	} else {
-		/* Default case. */
-		macvlan->flags = 0;
+		ni_string_array_destroy(&flags);
 	}
 
+	if ((err = ni_macvlan_validate(macvlan))) {
+		ni_error("ifcfg-%s: %s", dev->name, err);
+		return -1;
+	}
 	ni_string_dup(&dev->link.lowerdev.name, macvlan_dev);
 
 	return 0;

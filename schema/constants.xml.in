@@ -186,3 +186,12 @@
 <define name="builtin-lldp-system-capabilities" type="uint32" constraint="bitmap">
   <@@LLDP_SYSTEM_CAPABILITY_NAME@@ bit="@@LLDP_SYSTEM_CAPABILITY_VALUE@@"/>
 </define>
+
+<!-- Built-in macvlan mode and flag bit names -->
+<define name="builtin-macvlan-mode" type="uint32" constraint="enum">
+  <@@MACVLAN_MODE_NAME@@ value="@@MACVLAN_MODE_VALUE@@"/>
+</define>
+<define name="builtin-macvlan-flag-bits" type="uint16" constraint="bitmap">
+  <@@MACVLAN_FLAG_NAME@@ bit="@@MACVLAN_FLAG_VALUE@@"/>
+</define>
+

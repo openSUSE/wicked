@@ -53,5 +53,7 @@ extern ni_bool_t	ni_macvlan_name_to_mode(const char *, unsigned int *);
 
 extern const char *	ni_macvlan_flag_to_name(unsigned int);
 extern ni_bool_t	ni_macvlan_name_to_flag(const char *, unsigned int *);
+extern const char *	ni_macvlan_flag_bit_name(unsigned int);
+extern ni_bool_t	ni_macvlan_flags_to_names(unsigned int, ni_string_array_t *);
 
 #endif /* __WICKED_MACVLAN_H__ */

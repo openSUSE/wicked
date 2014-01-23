@@ -435,7 +435,17 @@ __ni_compat_generate_macvlan(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 	xml_node_new_element("device", child, compat->dev->link.lowerdev.name);
 	xml_node_new_element("mode", child, ni_macvlan_mode_to_name(macvlan->mode));
 	if (macvlan->flags) {
-		xml_node_new_element("flags", child, ni_macvlan_flag_to_name(macvlan->flags));
+		ni_string_array_t names = NI_STRING_ARRAY_INIT;
+		xml_node_t *flags = NULL;
+		unsigned int i;
+
+		ni_macvlan_flags_to_names(macvlan->flags, &names);
+		for (i = 0; i < names.count; ++i) {
+			if (flags == NULL)
+				flags = xml_node_new("flags", child);
+			xml_node_new(names.data[i], flags);
+		}
+		ni_string_array_destroy(&names);
 	}
 
 	return TRUE;

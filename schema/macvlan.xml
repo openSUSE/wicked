@@ -17,18 +17,11 @@
   <device type="string">
     <meta:netif-reference shared="true"/>
     <meta:require check="netif-child-state" op="newDevice" min-state="device-exists" />
-    <!-- meta:require check="netif-child-state" op="linkUp"    min-state="device-up" / -->
-    <!-- meta:require check="netif-child-state" op="login"     min-state="link-authenticated" / -->
+    <meta:require check="netif-child-state" op="linkUp"    min-state="device-up" />
+    <meta:require check="netif-child-state" op="login"     min-state="link-authenticated" />
   </device>
-  <mode type="uint32" constraint="enum">
-    <private      value="1"/>
-    <vepa         value="2"/>
-    <pass-through value="4"/>
-    <bridge       value="8"/>
-  </mode>
-  <flags type="uint16" constraint="bitmap">
-    <nopromisc    bit="1"/>
-  </flags>
+  <mode  type="builtin-macvlan-mode"/>
+  <flags type="builtin-macvlan-flag-bits"/>
  </define>
 
  <!-- The same properties are returned in interface state reports -->
