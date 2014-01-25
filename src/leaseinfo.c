@@ -153,15 +153,18 @@ __ni_leaseinfo_print_addrs(FILE *out, const char *prefix, ni_address_t *addrs,
 	unsigned int i;
 	char *buf = NULL;
 
-	for (i = 0, ap = addrs; ap; ++i, ap = ap->next) {
+	for (i = 0, ap = addrs; ap; ap = ap->next) {
 		if (family != AF_UNSPEC && family != ap->local_addr.ss_family)
 			continue;
 
 		switch (ap->local_addr.ss_family) {
 		case AF_INET:
-			__ni_leaseinfo_print_string(out, prefix, "IPADDR",
+			ni_string_printf(&buf, "%s/%u",
 						ni_sockaddr_print(&ap->local_addr),
-						NULL, i);
+						ap->prefixlen);
+			__ni_leaseinfo_print_string(out, prefix, "IPADDR",
+						buf, NULL, i);
+			ni_string_free(&buf);
 
 			ni_sockaddr_build_netmask(ap->family,ap->prefixlen, &sa);
 			__ni_leaseinfo_print_string(out, prefix, "NETMASK",
@@ -175,17 +178,24 @@ __ni_leaseinfo_print_addrs(FILE *out, const char *prefix, ni_address_t *addrs,
 			__ni_leaseinfo_print_string(out, prefix, "PREFIXLEN",
 						buf, NULL, i);
 			ni_string_free(&buf);
+
+			++i;
 			break;
 
 		case AF_INET6:
-			__ni_leaseinfo_print_string(out, prefix, "IPADDR",
+			ni_string_printf(&buf, "%s/%u",
 						ni_sockaddr_print(&ap->local_addr),
-						NULL, i);
+						ap->prefixlen);
+			__ni_leaseinfo_print_string(out, prefix, "IPADDR",
+						buf, NULL, i);
+			ni_string_free(&buf);
 
 			ni_string_printf(&buf, "%u", ap->prefixlen);
 			__ni_leaseinfo_print_string(out, prefix, "PREFIXLEN",
 						buf, NULL, i);
 			ni_string_free(&buf);
+
+			++i;
 			break;
 
 		default:
