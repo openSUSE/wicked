@@ -134,7 +134,13 @@ checksum_partial(uint32_t sum, const void *data, uint16_t len)
 	}
 
 	if (len == 1) {
-		sum += ntohs(u.c[0]) << 8;
+		union {
+			uint8_t c[2];
+			uint16_t s;
+		} bs;
+		bs.c[0] = u.c[0];
+		bs.c[1] = 0;
+		sum += bs.s;
 	}
 	return sum;
 }
@@ -167,8 +173,14 @@ ipudp_checksum(const struct ip *iph, const struct udphdr *uhp,
 		.uh_ulen = uhp->uh_ulen,
 	};
 	uint32_t csum;
+	union {
+		uint8_t c[2];
+		uint16_t s;
+	} bs;
+	bs.c[0] = 0;
+	bs.c[1] = IPPROTO_UDP;
 
-	csum = checksum_partial((IPPROTO_UDP << 8) + uh.uh_ulen, &iph->ip_src, 2* sizeof(iph->ip_src));
+	csum = checksum_partial(bs.s + uh.uh_ulen, &iph->ip_src, 2* sizeof(iph->ip_src));
 	csum = checksum_partial(csum, data, length);
 	csum = checksum_partial(csum, &uh, sizeof(uh));
 
