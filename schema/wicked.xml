@@ -15,7 +15,7 @@
 <include name="infiniband.xml"/>
 <include name="interface.xml"/>
 <include name="wireless.xml"/>
-<include name="modem.xml"/>
+<!-- <include name="modem.xml"/> -->
 <include name="ppp.xml"/>
 <include name="firewall.xml"/>
 <include name="addrconf.xml"/>
