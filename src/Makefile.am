@@ -4,6 +4,7 @@ MAINTAINERCLEANFILES		= Makefile.in
 
 wicked_lib_LTLIBRARIES		= libwicked.la
 noinst_LTLIBRARIES		= libwicked-dbus-objects.la	\
+				  libwicked-dhcp4.la		\
 				  libwicked-dhcp6.la		\
 				  libwicked-client.la
 
@@ -27,8 +28,10 @@ libwicked_la_LDFLAGS		= -lm			\
 				  $(LIBWICKED_LTLINK_VERSION)
 
 libwicked_la_LIBADD		= libwicked-dbus-objects.la	\
+				  libwicked-dhcp4.la		\
 				  libwicked-dhcp6.la		\
 				  libwicked-client.la
+
 libwicked_la_SOURCES		= \
 	address.c		\
 	arp.c			\
@@ -50,7 +53,6 @@ libwicked_la_SOURCES		= \
 	dbus-object.c		\
 	dbus-server.c		\
 	dbus-xml.c		\
-	dhcp-lease.c		\
 	errors.c		\
 	ethernet.c		\
 	extension.c		\
@@ -122,6 +124,10 @@ libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/tun.c	\
 	dbus-objects/vlan.c	\
 	dbus-objects/wireless.c
+
+libwicked_dhcp4_la_CFLAGS		= $(libwicked_la_CFLAGS)
+libwicked_dhcp4_la_SOURCES		= \
+	dhcp4/lease.c
 
 libwicked_dhcp6_la_CFLAGS		= $(libwicked_la_CFLAGS)
 libwicked_dhcp6_la_SOURCES		= \
