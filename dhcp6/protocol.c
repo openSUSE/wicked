@@ -612,7 +612,7 @@ ni_dhcp6_option_put_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_addr_t *iadr, unsign
 		if (ni_buffer_put(&data, &iadr->addr, sizeof(iadr->addr)) < 0)
 			goto failure;
 	} else {
-		option = NI_DHCP6_OPTION_IAADDR;
+		option = NI_DHCP6_OPTION_IA_ADDRESS;
 #if 1
 		ni_debug_dhcp("%s.%s: %s, preferred_lft: %u, valid_lft: %u",
 				ni_dhcp6_option_name(iatype),
@@ -2255,7 +2255,7 @@ __ni_dhcp6_option_parse_ia_options(ni_buffer_t *bp,  ni_dhcp6_ia_t *ia)
 #endif
 
 		switch (option) {
-		case NI_DHCP6_OPTION_IAADDR:
+		case NI_DHCP6_OPTION_IA_ADDRESS:
 			if (ia->type == NI_DHCP6_OPTION_IA_PD)
 				goto failure;
 
