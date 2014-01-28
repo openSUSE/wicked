@@ -42,7 +42,8 @@
 #include <wicked/leaseinfo.h>
 
 #include "dhcp6/dbus-api.h"
-#include "dhcp6/duid.h"
+#include "duid.h"
+
 
 #define CONFIG_DHCP6_STATE_FILE	"dhcp6-state.xml"
 

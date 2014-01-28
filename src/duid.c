@@ -30,7 +30,7 @@
 
 #include <wicked/logging.h>
 
-#include <dhcp6/duid.h>
+#include "duid.h"
 #include "util_priv.h"
 
 

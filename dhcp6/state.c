@@ -34,7 +34,8 @@
 #include <wicked/util.h>
 #include <wicked/xml.h>
 
-#include "dhcp6/duid.h"
+#include "duid.h"
+
 
 #define CONFIG_DHCP6_DUID_NODE	"default-duid"
 #define CONFIG_DHCP6_DUID_FILE	"dhcp6-duid.xml"

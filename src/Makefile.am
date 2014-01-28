@@ -53,6 +53,7 @@ libwicked_la_SOURCES		= \
 	dbus-object.c		\
 	dbus-server.c		\
 	dbus-xml.c		\
+	duid.c			\
 	errors.c		\
 	ethernet.c		\
 	extension.c		\
@@ -154,6 +155,7 @@ EXTRA_DIST			= \
 	dbus-server.h		\
 	debug.h			\
 	dhcp6/options.h		\
+	duid.h			\
 	ipv6_priv.h		\
 	kernel.h		\
 	lldp-priv.h             \

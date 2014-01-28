@@ -38,11 +38,10 @@
 #include "dhcp6/dhcp6.h"
 #include "dhcp6/device.h"
 #include "dhcp6/protocol.h"
-#include "dhcp6/duid.h"
 #include "dhcp6/fsm.h"
-
 #include "appconfig.h"
 #include "util_priv.h"
+#include "duid.h"
 
 
 /*

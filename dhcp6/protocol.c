@@ -32,7 +32,6 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <ctype.h>
-
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -49,13 +48,12 @@
 #include "dhcp6/dhcp6.h"
 #include "dhcp6/device.h"
 #include "dhcp6/protocol.h"
-#include "dhcp6/duid.h"
 #include "dhcp6/fsm.h"
-
-#include "buffer.h"
 #include "socket_priv.h"
 #include "netinfo_priv.h"
+#include "buffer.h"
 #include "debug.h"
+#include "duid.h"
 
 
 /*
