@@ -159,6 +159,15 @@ xml_node_new_element(const char *ident, xml_node_t *parent, const char *cdata)
 	return node;
 }
 
+xml_node_t *
+xml_node_new_element_uint(const char *ident, xml_node_t *parent, unsigned int value)
+{
+	xml_node_t *node = xml_node_new(ident, parent);
+
+	xml_node_set_uint(node, value);
+	return node;
+}
+
 /*
  * Clone an XML node and all its descendants
  */
