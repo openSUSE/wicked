@@ -88,8 +88,10 @@ struct ni_addrconf_lease {
 	ni_nis_info_t *		nis;
 	ni_resolver_info_t *	resolver;
 
-	ni_string_array_t	log_servers;
 	ni_string_array_t	ntp_servers;
+	ni_string_array_t	nds_servers;
+	ni_string_array_t	nds_context;
+	char *			nds_tree;
 	ni_string_array_t	netbios_name_servers;
 	ni_string_array_t	netbios_dd_servers;
 	char *			netbios_scope;
@@ -98,6 +100,7 @@ struct ni_addrconf_lease {
 	ni_string_array_t	slp_scopes;
 	ni_string_array_t	sip_servers;
 	ni_string_array_t	lpr_servers;
+	ni_string_array_t	log_servers;
 
 	/* Information specific to some addrconf protocol */
 	union {
