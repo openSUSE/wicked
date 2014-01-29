@@ -212,10 +212,13 @@ run_interface_server(void)
 	if (!dbus_server)
 		ni_fatal("Cannot create server, giving up.");
 
+	/* FIXME: ModemManager changed to ModemManager1 - new API*/
+#if 0
 	if (!opt_no_modem_manager) {
 		if (!ni_modem_manager_init(handle_modem_event))
 			ni_error("unable to initialize modem manager client");
 	}
+#endif
 
 	schema = ni_objectmodel_init(dbus_server);
 	if (schema == NULL)
