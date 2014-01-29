@@ -132,6 +132,7 @@ libwicked_dhcp4_la_SOURCES		= \
 
 libwicked_dhcp6_la_CFLAGS		= $(libwicked_la_CFLAGS)
 libwicked_dhcp6_la_SOURCES		= \
+	dhcp6/lease.c		\
 	dhcp6/options.c
 
 libwicked_client_la_CFLAGS		= $(libwicked_la_CFLAGS)
@@ -154,10 +155,13 @@ EXTRA_DIST			= \
 	dbus-objects/model.h	\
 	dbus-server.h		\
 	debug.h			\
+	dhcp4/lease.h		\
+	dhcp6/lease.h		\
 	dhcp6/options.h		\
 	duid.h			\
 	ipv6_priv.h		\
 	kernel.h		\
+	leasefile.h		\
 	lldp-priv.h             \
 	modem-manager.h		\
 	modprobe.h		\
