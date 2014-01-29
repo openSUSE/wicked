@@ -281,9 +281,9 @@ ni_addrconf_lease_smb_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 {
 	unsigned int count = 0;
 
-	if (__ni_string_array_to_xml(&lease->netbios_name_servers, "nbns-server", node) == 0)
+	if (__ni_string_array_to_xml(&lease->netbios_name_servers, "name-server", node) == 0)
 		count++;
-	if (__ni_string_array_to_xml(&lease->netbios_dd_servers, "nmdd-server", node) == 0)
+	if (__ni_string_array_to_xml(&lease->netbios_dd_servers, "dd-server", node) == 0)
 		count++;
 	if (!ni_string_empty(lease->netbios_scope)) {
 		count++;
