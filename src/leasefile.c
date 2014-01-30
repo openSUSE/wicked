@@ -28,8 +28,11 @@
 #include "config.h"
 #endif
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <limits.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -354,14 +357,17 @@ __ni_addrconf_lease_dhcp_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *no
 }
 
 int
-ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *root)
+ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t **result)
 {
 	xml_node_t *node;
 	int ret = -1;
 
-	if (!lease || !root)
+	if (!lease || !result) {
+		errno = EINVAL;
 		return -1;
+	}
 
+	*result = NULL; /* initialize... */
 	node = xml_node_new(NI_ADDRCONF_LEASE_XML_NODE, NULL);
 	switch (lease->type) {
 	case NI_ADDRCONF_DHCP:
@@ -371,17 +377,19 @@ ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *root)
 		if ((ret = __ni_addrconf_lease_dhcp_to_xml(lease, node)) != 0)
 			break;
 
-		xml_node_add_child(root, node);
-		return 0;
+		break;
 
 	case NI_ADDRCONF_STATIC:
 	case NI_ADDRCONF_AUTOCONF:
 	case NI_ADDRCONF_INTRINSIC:
-		return 1;	/* unsupported / skip */
+		ret = 1;	/* unsupported / skip */
+		break;
 	default: ;		/* fall through error */
 	}
 
-	if (ret) {
+	if (ret == 0) {
+		*result = node;
+	} else {
 		xml_node_free(node);
 	}
 	return ret;
@@ -750,11 +758,7 @@ ni_addrconf_lease_from_xml(ni_addrconf_lease_t **leasep, const xml_node_t *root)
 	if (!node || !leasep)
 		return ret;
 
-	if (*leasep) {
-		ni_addrconf_lease_free(*leasep);
-		*leasep = NULL;
-	}
-
+	*leasep = NULL; /* initialize... */
 	if (!(lease  = ni_addrconf_lease_new(__NI_ADDRCONF_MAX, AF_UNSPEC)))
 		return ret;
 
@@ -810,37 +814,68 @@ ni_addrconf_lease_file_read(const char *ifname, int type, int family)
 int
 ni_addrconf_lease_file_write(const char *ifname, ni_addrconf_lease_t *lease)
 {
+	char tempname[PATH_MAX] = {'\0'};
 	const char *filename;
 	xml_node_t *xml = NULL;
-	FILE *fp;
+	FILE *fp = NULL;
+	int ret = -1;
+	int fd;
 
 	filename = __ni_addrconf_lease_file_path(lease->type, lease->family, ifname);
 	if (lease->state == NI_ADDRCONF_STATE_RELEASED) {
-		ni_debug_dhcp("removing %s", filename);
+		ni_debug_dhcp("Removing lease file '%s'", filename);
 		return unlink(filename);
 	}
 
-	ni_debug_dhcp("writing lease to %s", filename);
-	if (ni_netcf_lease_to_xml(lease, NULL, &xml) < 0) {
-		ni_error("cannot store lease: unable to represent lease as XML");
+	ni_debug_dhcp("Preparing xml lease data for '%s'", filename);
+	if ((ret = ni_addrconf_lease_to_xml(lease, &xml)) != 0) {
+		if (ret > 0) {
+			ni_debug_dhcp("Skipped, %s:%s leases are disabled",
+		                        ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type));
+		} else {
+			ni_error("Unable to represent %s:%s lease as XML",
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type));
+		}
 		goto failed;
 	}
 
-	if ((fp = fopen(filename, "w")) == NULL) {
-		ni_error("unable to open %s for writing: %m", filename);
+	snprintf(tempname, sizeof(tempname), "%s.XXXXXX", filename);
+	if ((fd = mkstemp(tempname)) < 0) {
+		ni_error("Cannot create temporary lease file '%s': %m", tempname);
+		tempname[0] = '\0';
+		ret = -1;
+		goto failed;
+	}
+	if ((fp = fdopen(fd, "we")) == NULL) {
+		ret = -1;
+		close(fd);
+		ni_error("Cannot reopen temporary lease file '%s': %m", tempname);
 		goto failed;
 	}
 
+	ni_debug_dhcp("Writing lease to temporary file for '%s'", filename);
 	xml_node_print(xml, fp);
 	fclose(fp);
-
 	xml_node_free(xml);
+
+	if ((ret = rename(tempname, filename)) != 0) {
+		ni_error("Unable to rename temporary lease file '%s' to '%s': %m",
+				tempname, filename);
+		goto failed;
+	}
+
+	ni_debug_dhcp("Lease written to file '%s'", filename);
 	return 0;
 
 failed:
+	if (fp)
+		fclose(fp);
 	if (xml)
 		xml_node_free(xml);
-	unlink(filename);
+	if (tempname[0])
+		unlink(tempname);
 	return -1;
 }
 
@@ -850,40 +885,41 @@ failed:
 ni_addrconf_lease_t *
 ni_addrconf_lease_file_read(const char *ifname, int type, int family)
 {
-	ni_addrconf_lease_t *lease;
+	ni_addrconf_lease_t *lease = NULL;
 	const char *filename;
 	xml_node_t *xml = NULL, *lnode;
 	FILE *fp;
 
 	filename = __ni_addrconf_lease_file_path(type, family, ifname);
 
-	ni_debug_dhcp("reading lease from %s", filename);
-	if ((fp = fopen(filename, "r")) == NULL) {
+	ni_debug_dhcp("Reading lease from %s", filename);
+	if ((fp = fopen(filename, "re")) == NULL) {
 		if (errno != ENOENT)
-			ni_error("unable to open %s for reading: %m", filename);
+			ni_error("Unable to open %s for reading: %m", filename);
 		return NULL;
 	}
 
-	xml = xml_node_scan(fp);
+	xml = xml_node_scan(fp, filename);
 	fclose(fp);
 
 	if (xml == NULL) {
-		ni_error("unable to parse %s", filename);
+		ni_error("Unable to parse %s", filename);
 		return NULL;
 	}
 
-	if (xml->name == NULL)
-		lnode = xml->children;
+	/* find the lease node already here, so we can report it */
+	if (!ni_string_eq(xml->name, NI_ADDRCONF_LEASE_XML_NODE))
+		lnode = xml_node_get_child(xml, NI_ADDRCONF_LEASE_XML_NODE);
 	else
 		lnode = xml;
-	if (!lnode || !lnode->name || strcmp(lnode->name, "lease")) {
-		ni_error("%s: does not contain a lease", filename);
+	if (!lnode) {
+		ni_error("File '%s' does not contain a valid lease", filename);
 		xml_node_free(xml);
 		return NULL;
 	}
 
-	if (ni_netcf_xml_to_lease(lnode, &lease) < 0) {
-		ni_error("%s: unable to parse lease xml", filename);
+	if (ni_addrconf_lease_from_xml(&lease, xml) < 0) {
+		ni_error("Unable to parse xml lease file '%s'", filename);
 		xml_node_free(xml);
 		return NULL;
 	}
@@ -912,10 +948,9 @@ __ni_addrconf_lease_file_path(int type, int family, const char *ifname)
 	static char pathname[PATH_MAX];
 
 	snprintf(pathname, sizeof(pathname), "%s/lease-%s-%s-%s.xml",
-			ni_config_statedir(),
+			ni_config_storedir(), ifname,
 			ni_addrconf_type_to_name(type),
-			ni_addrfamily_type_to_name(family),
-			ifname);
+			ni_addrfamily_type_to_name(family));
 	return pathname;
 }
 
