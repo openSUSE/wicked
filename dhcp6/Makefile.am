@@ -17,7 +17,6 @@ wickedd_dhcp6_LDADD	= $(top_builddir)/src/libwicked.la
 wickedd_dhcp6_SOURCES	= \
 	dbus-api.c	\
 	device.c	\
-	duid.c		\
 	fsm.c		\
 	main.c		\
 	protocol.c	\
@@ -27,7 +26,6 @@ EXTRA_DIST			= \
 	dbus-api.h	\
 	device.h	\
 	dhcp6.h		\
-	duid.h		\
 	fsm.h		\
 	protocol.h
 

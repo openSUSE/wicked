@@ -18,8 +18,8 @@
  *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  *	Boston, MA 02110-1301 USA.
  */
-#ifndef __WICKED_DHCP6_DUID_H__
-#define __WICKED_DHCP6_DUID_H__
+#ifndef __WICKED_DUID_H__
+#define __WICKED_DUID_H__
 
 #include <wicked/types.h>
 #include <wicked/util.h>
@@ -30,6 +30,7 @@
  *      not including the type code.
  *
  * http://tools.ietf.org/html/rfc3315#section-9.1
+ * http://tools.ietf.org/html/rfc4361
  */
 #define NI_DUID_TYPE_LEN	sizeof(uint16_t)
 #define NI_DUID_DATA_LEN	128
@@ -72,4 +73,4 @@ static inline const char *	ni_duid_print_hex(const ni_opaque_t *duid)
 	return ni_print_hex(duid->data, duid->len);
 }
 
-#endif /* __WICKED_DHCP6_DUID_H__ */
+#endif /* __WICKED_DUID_H__ */

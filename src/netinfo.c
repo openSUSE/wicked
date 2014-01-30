@@ -741,8 +741,10 @@ ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 		lease->resolver = NULL;
 	}
 
-	ni_string_array_destroy(&lease->log_servers);
 	ni_string_array_destroy(&lease->ntp_servers);
+	ni_string_array_destroy(&lease->nds_servers);
+	ni_string_array_destroy(&lease->nds_context);
+	ni_string_free(&lease->nds_tree);
 	ni_string_array_destroy(&lease->netbios_name_servers);
 	ni_string_array_destroy(&lease->netbios_dd_servers);
 	ni_string_free(&lease->netbios_scope);
@@ -750,6 +752,7 @@ ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 	ni_string_array_destroy(&lease->slp_scopes);
 	ni_string_array_destroy(&lease->sip_servers);
 	ni_string_array_destroy(&lease->lpr_servers);
+	ni_string_array_destroy(&lease->log_servers);
 
 	switch (lease->type) {
 	case NI_ADDRCONF_DHCP:

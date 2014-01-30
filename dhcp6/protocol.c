@@ -32,7 +32,6 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <ctype.h>
-
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -49,13 +48,12 @@
 #include "dhcp6/dhcp6.h"
 #include "dhcp6/device.h"
 #include "dhcp6/protocol.h"
-#include "dhcp6/duid.h"
 #include "dhcp6/fsm.h"
-
-#include "buffer.h"
 #include "socket_priv.h"
 #include "netinfo_priv.h"
+#include "buffer.h"
 #include "debug.h"
+#include "duid.h"
 
 
 /*
@@ -612,7 +610,7 @@ ni_dhcp6_option_put_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_addr_t *iadr, unsign
 		if (ni_buffer_put(&data, &iadr->addr, sizeof(iadr->addr)) < 0)
 			goto failure;
 	} else {
-		option = NI_DHCP6_OPTION_IAADDR;
+		option = NI_DHCP6_OPTION_IA_ADDRESS;
 #if 1
 		ni_debug_dhcp("%s.%s: %s, preferred_lft: %u, valid_lft: %u",
 				ni_dhcp6_option_name(iatype),
@@ -2255,7 +2253,7 @@ __ni_dhcp6_option_parse_ia_options(ni_buffer_t *bp,  ni_dhcp6_ia_t *ia)
 #endif
 
 		switch (option) {
-		case NI_DHCP6_OPTION_IAADDR:
+		case NI_DHCP6_OPTION_IA_ADDRESS:
 			if (ia->type == NI_DHCP6_OPTION_IA_PD)
 				goto failure;
 
@@ -2872,94 +2870,6 @@ ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, const struct in6_addr *send
 }
 
 
-/*
- * Map DHCP6 options to names
- */
-static const char *__dhcp6_option_names[__NI_DHCP6_OPTION_MAX] = {
-	[NI_DHCP6_OPTION_CLIENTID]          =	"client-id",
-	[NI_DHCP6_OPTION_SERVERID]          =	"server-id",
-	[NI_DHCP6_OPTION_IA_NA]             =	"ia-na",
-	[NI_DHCP6_OPTION_IA_TA]             =	"ia-ta",
-	[NI_DHCP6_OPTION_IAADDR]            =	"ia-addr",
-	[NI_DHCP6_OPTION_ORO]               =	"oro",
-	[NI_DHCP6_OPTION_PREFERENCE]        =	"preference",
-	[NI_DHCP6_OPTION_ELAPSED_TIME]      =	"elapsed-time",
-	[NI_DHCP6_OPTION_RELAY_MSG]         =	"relay-msg",
-	[NI_DHCP6_OPTION_AUTH]              =	"auth",
-	[NI_DHCP6_OPTION_UNICAST]           =	"unicast",
-	[NI_DHCP6_OPTION_STATUS_CODE]       =	"status-code",
-	[NI_DHCP6_OPTION_RAPID_COMMIT]      =	"rapid-commit",
-	[NI_DHCP6_OPTION_USER_CLASS]        =	"user-class",
-	[NI_DHCP6_OPTION_VENDOR_CLASS]      =	"vendor-class",
-	[NI_DHCP6_OPTION_VENDOR_OPTS]       =	"vendor-opts",
-	[NI_DHCP6_OPTION_INTERFACE_ID]      =	"interface-id",
-	[NI_DHCP6_OPTION_RECONF_MSG]        =	"reconf-msg",
-	[NI_DHCP6_OPTION_RECONF_ACCEPT]     =	"reconf-accept",
-	[NI_DHCP6_OPTION_SIP_SERVER_D]      =	"sip-server-names",
-	[NI_DHCP6_OPTION_SIP_SERVER_A]      =	"sip-server-addresses",
-	[NI_DHCP6_OPTION_DNS_SERVERS]       =	"dns-servers",
-	[NI_DHCP6_OPTION_DNS_DOMAINS]       =	"dns-domains",
-	[NI_DHCP6_OPTION_IA_PD]             =	"ia-pd",
-	[NI_DHCP6_OPTION_IA_PREFIX]         =	"ia-prefix",
-	[NI_DHCP6_OPTION_NIS_SERVERS]       =	"nis-servers",
-	[NI_DHCP6_OPTION_NISP_SERVERS]      =	"nisplus-servers",
-	[NI_DHCP6_OPTION_NIS_DOMAIN_NAME]   =	"nis-domain",
-	[NI_DHCP6_OPTION_NISP_DOMAIN_NAME]  =	"nisplus-domain",
-	[NI_DHCP6_OPTION_SNTP_SERVERS]      =	"sntp-servers",
-	[NI_DHCP6_OPTION_INFO_REFRESH_TIME] =	"info-refresh-time",
-	[NI_DHCP6_OPTION_BCMCS_SERVER_D]    =	"bcms-domains",
-	[NI_DHCP6_OPTION_BCMCS_SERVER_A]    =	"bcms-servers",
-	[NI_DHCP6_OPTION_GEOCONF_CIVIC]     =	"geoconf-civic",
-	[NI_DHCP6_OPTION_REMOTE_ID]         =	"remote-id",
-	[NI_DHCP6_OPTION_SUBSCRIBER_ID]     =	"subscriber-id",
-	[NI_DHCP6_OPTION_FQDN]              =	"fqdn",
-	[NI_DHCP6_OPTION_PANA_AGENT]        =	"pana-agent",
-	[NI_DHCP6_OPTION_POSIX_TIMEZONE]    =	"posix-timezone",
-	[NI_DHCP6_OPTION_POSIX_TIMEZONEDB]  =	"posix-timezonedb",
-	[NI_DHCP6_OPTION_ERO]               =	"ero",
-	[NI_DHCP6_OPTION_LQ_QUERY]          =	"lq-query",
-	[NI_DHCP6_OPTION_CLIENT_DATA]       =	"client-data",
-	[NI_DHCP6_OPTION_CLT_TIME]          =	"clt-time",
-	[NI_DHCP6_OPTION_LQ_RELAY_DATA]     =	"lq-relay-data",
-	[NI_DHCP6_OPTION_LQ_CLIENT_LINK]    =	"lq-cient-link",
-	[NI_DHCP6_OPTION_MIP6_HNINF]        =	"mip6-hninf",
-	[NI_DHCP6_OPTION_MIP6_RELAY]        =	"mip6-relay",
-	[NI_DHCP6_OPTION_V6_LOST]           =	"v6-lost",
-	[NI_DHCP6_OPTION_CAPWAP_AC_V6]      =	"capwap-ac-v6",
-	[NI_DHCP6_OPTION_RELAY_ID]          =	"relay-id",
-	[NI_DHCP6_OPTION_MOS_ADDRESSES]     =	"mos-addresses",
-	[NI_DHCP6_OPTION_MOS_DOMAINS]       =	"mos-domains",
-	[NI_DHCP6_OPTION_NTP_SERVER]        =	"ntp-server",
-	[NI_DHCP6_OPTION_V6_ACCESS_DOMAIN]  =	"v6-access-domain",
-	[NI_DHCP6_OPTION_SIP_UA_CS_LIST]    =	"sip-ua-cs-list",
-	[NI_DHCP6_OPTION_BOOTFILE_URL]      =	"bootfile-url",
-	[NI_DHCP6_OPTION_BOOTFILE_PARAM]    =	"bootfile-param",
-	[NI_DHCP6_OPTION_CLIENT_ARCH_TYPE]  =	"client-arch-type",
-	[NI_DHCP6_OPTION_NII]               =	"nii",
-	[NI_DHCP6_OPTION_GEOLOCATION]       =	"geolocation",
-	[NI_DHCP6_OPTION_AFTR_NAME]         =	"aftr-name",
-	[NI_DHCP6_OPTION_ERP_LOCAL_DOMAIN]  =	"erp-local-domain",
-	[NI_DHCP6_OPTION_RSOO]              =	"rsoo",
-	[NI_DHCP6_OPTION_PD_EXCLUDE]        =	"pd-exclude",
-	[NI_DHCP6_OPTION_VSS]               =	"vss",
-};
-
-const char *
-ni_dhcp6_option_name(unsigned int option)
-{
-	static char namebuf[64];
-	const char *name = NULL;
-
-	if (option < __NI_DHCP6_OPTION_MAX)
-		name = __dhcp6_option_names[option];
-
-	if (!name) {
-		snprintf(namebuf, sizeof(namebuf), "[%u]", option);
-		name = namebuf;
-	}
-	return name;
-}
-
 static const char *	__dhcp6_message_names[__NI_DHCP6_MSG_TYPE_MAX] = {
 	[NI_DHCP6_SOLICIT] =		"SOLICIT",
 	[NI_DHCP6_ADVERTISE] =		"ADVERTISE",
@@ -3001,32 +2911,6 @@ ni_dhcp6_message_xid(unsigned int header_xid)
 {
 	return ntohl(header_xid) & NI_DHCP6_XID_MASK;
 }
-
-static const char *	__dhcp6_status_codes[__NI_DHCP6_STATUS_MAX] = {
-	[NI_DHCP6_STATUS_SUCCESS]	= "Success",
-	[NI_DHCP6_STATUS_FAILURE]	= "UnspecFail",
-	[NI_DHCP6_STATUS_NOADDRS]	= "NoAddrsAvail",
-	[NI_DHCP6_STATUS_NOBINDING]	= "NoBinding",
-	[NI_DHCP6_STATUS_NOTONLINK]	= "NotOnLink",
-	[NI_DHCP6_STATUS_USEMULTICAST]	= "UseMulticast",
-};
-
-const char *
-ni_dhcp6_status_name(unsigned int code)
-{
-	static char namebuf[64];
-	const char *name = NULL;
-
-	if (code < __NI_DHCP6_STATUS_MAX)
-		name = __dhcp6_status_codes[code];
-
-	if (!name) {
-		snprintf(namebuf, sizeof(namebuf), "[%u]", code);
-		name = namebuf;
-	}
-	return name;
-}
-
 
 /*
  * ni_timeout_t settings we're using in the timing table
