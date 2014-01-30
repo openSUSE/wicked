@@ -6,11 +6,24 @@ AC_INIT([wicked], esyscmd([tr -d '\n' < VERSION]),
 	[https://github.com/openSUSE/wicked])
 AM_INIT_AUTOMAKE([foreign dist-bzip2 no-dist-gzip])
 
-# at the moment we just use the package version...
-AC_SUBST(LIBWICKED_SOFILE_VERSION, ${PACKAGE_VERSION})
-AC_SUBST(LIBWICKED_SONAME_VERSION, ${PACKAGE_VERSION%%.*})
-AC_SUBST(LIBWICKED_LTLINK_VERSION, "-version-number ${PACKAGE_VERSION//./:}")
-AC_SUBST(LIBWICKED_PACKAGE_SUFFIX, ${LIBWICKED_SONAME_VERSION//./_})
+#
+# At the moment we just use the package version and use
+# libwicked-$major.so as a "wicked incarnation".
+# The minor number is used in the soname behind the .so
+# signaling a backward incompatibility and the last digit
+# in the version is for compatible additions.
+# An optional last digit is added to the lib only and is
+# reserved for fixes (even usually a patch is used then).
+#
+# Note: consider libwicked as an internal helper lib.
+#
+FIX_VERSION="0"
+API_VERSION="${PACKAGE_VERSION%%.*}"
+LIB_VERSION="${PACKAGE_VERSION#*.}.${FIX_VERSION}"
+AC_SUBST(LIBWICKED_SOFILE_VERSION, "${LIB_VERSION}")
+AC_SUBST(LIBWICKED_SONAME_VERSION, "${API_VERSION}")
+AC_SUBST(LIBWICKED_LTLINK_VERSION, "-release ${API_VERSION} -version-number ${LIB_VERSION//./:}")
+AC_SUBST(LIBWICKED_PACKAGE_SUFFIX, "-${API_VERSION}-${LIB_VERSION%%.*}")
 
 #AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_SRCDIR([src/config.c])
