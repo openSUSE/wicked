@@ -39,6 +39,7 @@ static dbus_bool_t	ni_dbus_serialize_xml_struct(xml_node_t *, const ni_xs_type_t
 static dbus_bool_t	ni_dbus_serialize_xml_union(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_array(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_dict(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
+static dbus_bool_t	ni_dbus_serialize_xml_bitmap(const xml_node_t *, const ni_xs_scalar_info_t *, unsigned long *);
 static dbus_bool_t	ni_dbus_deserialize_xml(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static dbus_bool_t	ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static dbus_bool_t	ni_dbus_deserialize_xml_struct(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
@@ -537,22 +538,51 @@ static dbus_bool_t
 ni_dbus_serialize_xml_bitmap(const xml_node_t *node, const ni_xs_scalar_info_t *scalar_info, unsigned long *result)
 {
 	const ni_intmap_t *bits = scalar_info->constraint.bitmap->bits;
+	ni_string_array_t bit_name_arr = NI_STRING_ARRAY_INIT;
 	unsigned long value = 0;
+	unsigned int i;
+	unsigned int bb;
 	xml_node_t *child;
+	dbus_bool_t ret = TRUE;
 
-	for (child = node->children; child; child = child->next) {
-		unsigned int bb;
+	if (!node)
+		return FALSE;
 
-		if (ni_parse_uint_mapped(child->name, bits, &bb) < 0 || bb >= 32) {
-			ni_error("%s: unknown or bad bit value <%s>", xml_node_location(node), child->name);
-			return FALSE;
+	if (!node->children) {
+		/* Data is of the form:
+		 *   <node>flag1,...,flagN</node>
+		 */
+		ni_string_split(&bit_name_arr, node->cdata, " ,|\t\n", 0);
+	} else {
+		/* Data is of the form:
+		 *   <node>
+		 *     <flag1/>
+		 *     ...
+		 *     <flagN/>
+		 *   </node>
+		 */
+		for (child = node->children; child; child = child->next)
+			ni_string_array_append(&bit_name_arr, child->name);
+	}
+
+	for (i = 0; i < bit_name_arr.count && ret; ++i) {
+		if (ni_parse_uint_mapped(bit_name_arr.data[i], bits, &bb) < 0 ||
+			bb >= 32) {
+			ni_error("%s: unknown or bad bit value <%s>",
+				xml_node_location(node),
+				bit_name_arr.data[i]);
+			ret = FALSE;
 		}
 
+		/* May left shift past width of value if bb >= 32, but as ret
+		 * will be FALSE assignment to result will not happen. */
 		value |= 1 << bb;
 	}
 
-	*result = value;
-	return TRUE;
+	ni_string_array_destroy(&bit_name_arr);
+	*result = ret ? value : *result;
+
+	return ret;
 }
 
 static dbus_bool_t
@@ -697,6 +727,7 @@ ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *var, const ni_xs_type_t *type,
 
 	if (scalar_info->constraint.bitmap) {
 		const ni_intmap_t *bits = scalar_info->constraint.bitmap->bits;
+		ni_string_array_t bit_name_arr = NI_STRING_ARRAY_INIT;
 		unsigned long value = 0;
 		unsigned int bb;
 
@@ -704,17 +735,21 @@ ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *var, const ni_xs_type_t *type,
 			return FALSE;
 
 		for (bb = 0; bb < 32; ++bb) {
-			const char *bitname;
+			const char *bit_name;
 
 			if ((value & (1 << bb)) == 0)
 				continue;
 
-			if ((bitname = ni_format_uint_mapped(bb, bits)) != NULL) {
-				xml_node_new(bitname, node);
-			} else {
+			if ((bit_name = ni_format_uint_mapped(bb, bits)) != NULL)
+				ni_string_array_append(&bit_name_arr, bit_name);
+			else
 				ni_warn("unable to represent bit%u in <%s>", bb, node->name);
-			}
 		}
+
+		if (!ni_string_join(&node->cdata, &bit_name_arr, ", "))
+			ni_debug_dbus("Empty bit names string obtained.");
+
+		ni_string_array_destroy(&bit_name_arr);
 
 		return TRUE;
 	}
