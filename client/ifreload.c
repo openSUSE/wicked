@@ -191,6 +191,10 @@ usage:
 			if (ni_ifcheck_worker_config_matches(w))
 				continue;
 
+			/* Mark persistend when requested */
+			if (opt_persistent)
+				w->client_state.persistent = TRUE;
+
 			/* Remember all changed devices */
 			ni_ifworker_array_append(&marked, w);
 
@@ -246,9 +250,6 @@ usage:
 			status = NI_WICKED_RC_ERROR;
 			goto cleanup;
 		}
-
-		/* Mark persistend when requested */
-		ni_fsm_set_client_state(fsm, opt_persistent);
 
 		/* Execute the up run */
 		if (ni_fsm_schedule(fsm) != 0)

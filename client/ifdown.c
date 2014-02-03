@@ -53,7 +53,8 @@ ni_do_ifdown(int argc, char **argv)
 		{ NULL }
 	};
 	ni_ifmatcher_t ifmatch;
-	ni_uint_range_t target_range = { .min = NI_FSM_STATE_DEVICE_DOWN, .max = __NI_FSM_STATE_MAX - 2};
+	ni_ifmarker_t ifmarker;
+	ni_ifworker_array_t ifmarked;
 	unsigned int nmarked, max_state = NI_FSM_STATE_DEVICE_DOWN;
 	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_fsm_t *fsm;
@@ -65,16 +66,22 @@ ni_do_ifdown(int argc, char **argv)
 
 	/* Allow ifdown only on non-persistent interfaces previously configured by ifup */
 	memset(&ifmatch, 0, sizeof(ifmatch));
+	memset(&ifmarker, 0, sizeof(ifmarker));
+	memset(&ifmarked, 0, sizeof(ifmarked));
+
 	ifmatch.require_configured = TRUE;
 	ifmatch.allow_persistent = FALSE;
 	ifmatch.require_config = FALSE;
+
+	ifmarker.target_range.min = NI_FSM_STATE_DEVICE_DOWN;
+	ifmarker.target_range.max = __NI_FSM_STATE_MAX - 2;
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifdown_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_FORCE:
 			if (!ni_ifworker_state_from_name(optarg, &max_state) ||
-			    !ni_ifworker_state_in_range(&target_range, max_state)) {
+			    !ni_ifworker_state_in_range(&ifmarker.target_range, max_state)) {
 				ni_error("ifdown: wrong force option \"%s\"", optarg);
 				goto usage;
 			}
@@ -114,7 +121,7 @@ ni_do_ifdown(int argc, char **argv)
 		default:
 		case OPT_HELP:
 usage:
-			ni_fsm_fill_state_string(&sb, &target_range);
+			ni_fsm_fill_state_string(&sb, &ifmarker.target_range);
 			fprintf(stderr,
 				"wicked [options] ifdown [ifdown-options] <ifname ...>|all\n"
 				"\nSupported ifdown-options:\n"
@@ -141,8 +148,8 @@ usage:
 		goto usage;
 	}
 
-	target_range.min = NI_FSM_STATE_NONE;
-	target_range.max = max_state;
+	ifmarker.target_range.min = NI_FSM_STATE_NONE;
+	ifmarker.target_range.max = max_state;
 
 	if (!ni_fsm_create_client(fsm))
 		/* Severe error we always explicitly return */
@@ -150,11 +157,17 @@ usage:
 
 	ni_fsm_refresh_state(fsm);
 
+	/* Get workers that match given criteria */
 	nmarked = 0;
 	while (optind < argc) {
 		ifmatch.name = argv[optind++];
-		nmarked += ni_fsm_mark_matching_workers(fsm, &ifmatch, &target_range);
+		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
 	}
+
+	/* Mark and start selected workers */
+	if (ifmarked.count)
+		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
+
 	if (nmarked == 0) {
 		printf("ifdown: no matching interfaces\n");
 		status = NI_WICKED_RC_SUCCESS;
@@ -174,6 +187,7 @@ usage:
 			status = NI_LSB_RC_SUCCESS;
 	}
 
+	ni_ifworker_array_destroy(&ifmarked);
 	return status;
 }
 

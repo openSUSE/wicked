@@ -62,6 +62,7 @@ ni_do_ifup(int argc, char **argv)
 {
 	enum  { OPT_HELP, OPT_IFCONFIG, OPT_IFPOLICY, OPT_CONTROL_MODE, OPT_STAGE,
 		OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_FORCE, OPT_PERSISTENT };
+
 	static struct option ifup_options[] = {
 		{ "help",	no_argument,       NULL,	OPT_HELP },
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
@@ -75,15 +76,13 @@ ni_do_ifup(int argc, char **argv)
 		{ "persistent",	no_argument, NULL,	OPT_PERSISTENT },
 		{ NULL }
 	};
-	ni_uint_range_t state_range = { .min = NI_FSM_STATE_ADDRCONF_UP, .max = __NI_FSM_STATE_MAX };
+
+	ni_ifmatcher_t ifmatch;
+	ni_ifmarker_t ifmarker;
+	ni_ifworker_array_t ifmarked;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	const char *opt_ifpolicy = NULL;
-	const char *opt_control_mode = NULL;
-	const char *opt_boot_stage = NULL;
-	const char *opt_skip_origin = NULL;
 	ni_bool_t opt_force = FALSE;
-	ni_bool_t opt_skip_active = FALSE;
-	ni_bool_t opt_persistent = FALSE;
 	unsigned int nmarked, i;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
@@ -91,6 +90,18 @@ ni_do_ifup(int argc, char **argv)
 	fsm = ni_fsm_new();
 	ni_assert(fsm);
 	ni_fsm_require_register_type("reachable", ni_ifworker_reachability_check_new);
+
+	memset(&ifmatch, 0, sizeof(ifmatch));
+	memset(&ifmarker, 0, sizeof(ifmarker));
+	memset(&ifmarked, 0, sizeof(ifmarked));
+
+	/* Allow ifup on all interfaces we have config for */
+	ifmatch.require_configured = FALSE;
+	ifmatch.allow_persistent = TRUE;
+	ifmatch.require_config = TRUE;
+
+	ifmarker.target_range.min = NI_FSM_STATE_ADDRCONF_UP;
+	ifmarker.target_range.max = __NI_FSM_STATE_MAX;
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
@@ -104,11 +115,11 @@ ni_do_ifup(int argc, char **argv)
 			break;
 
 		case OPT_CONTROL_MODE:
-			opt_control_mode = optarg;
+			ifmatch.mode = optarg;
 			break;
 
 		case OPT_STAGE:
-			opt_boot_stage = optarg;
+			ifmatch.boot_stage= optarg;
 			break;
 
 		case OPT_TIMEOUT:
@@ -123,11 +134,11 @@ ni_do_ifup(int argc, char **argv)
 			break;
 
 		case OPT_SKIP_ORIGIN:
-			opt_skip_origin = optarg;
+			ifmatch.skip_origin = optarg;
 			break;
 
 		case OPT_SKIP_ACTIVE:
-			opt_skip_active = 1;
+			ifmatch.skip_active = TRUE;
 			break;
 
 		case OPT_FORCE:
@@ -135,7 +146,7 @@ ni_do_ifup(int argc, char **argv)
 			break;
 
 		case OPT_PERSISTENT:
-			opt_persistent = TRUE;
+			ifmarker.persistent = TRUE;
 			break;
 
 		default:
@@ -216,31 +227,23 @@ usage:
 		goto cleanup;
 	}
 
-	ni_fsm_set_client_state(fsm, opt_persistent);
-
+	/* Get workers that match given criteria */
 	nmarked = 0;
 	while (optind < argc) {
-		static ni_ifmatcher_t ifmatch;
-
-		memset(&ifmatch, 0, sizeof(ifmatch));
 		ifmatch.name = argv[optind++];
-		/* Allow ifup on all interfaces we have config for */
-		ifmatch.require_configured = FALSE;
-		ifmatch.allow_persistent = TRUE;
-		ifmatch.require_config = TRUE;
-		ifmatch.skip_active = opt_skip_active;
-		ifmatch.skip_origin = opt_skip_origin;
 
 		if (!strcmp(ifmatch.name, "boot")) {
 			ifmatch.name = "all";
 			ifmatch.mode = "boot";
-		} else {
-			ifmatch.mode = opt_control_mode;
-			ifmatch.boot_stage = opt_boot_stage;
 		}
 
-		nmarked += ni_fsm_mark_matching_workers(fsm, &ifmatch, &state_range);
+		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
 	}
+
+	/* Mark and start selected workers */
+	if (ifmarked.count)
+		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
+
 	if (nmarked == 0) {
 		printf("ifup: no matching interfaces\n");
 		status = NI_WICKED_RC_SUCCESS;
@@ -261,6 +264,7 @@ usage:
 	}
 
 cleanup:
+	ni_ifworker_array_destroy(&ifmarked);
 	ni_string_array_destroy(&opt_ifconfig);
 	return status;
 }

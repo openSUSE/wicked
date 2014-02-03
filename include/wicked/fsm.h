@@ -231,6 +231,10 @@ typedef struct ni_ifmatcher {
 				skip_active        : 1;
 } ni_ifmatcher_t;
 
+typedef struct ni_ifmarker {
+	ni_uint_range_t	target_range;
+	unsigned int	persistent	: 1;
+} ni_ifmarker_t;
 
 extern ni_fsm_t *		ni_fsm_new(void);
 extern void			ni_fsm_free(ni_fsm_t *);
@@ -245,14 +249,13 @@ extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
 extern xml_location_t *	ni_fsm_policy_location(const ni_fsm_policy_t *);
 extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *tstamp);
 
-extern void			ni_fsm_set_client_state(ni_fsm_t *, ni_bool_t);
 extern ni_dbus_client_t *	ni_fsm_create_client(ni_fsm_t *);
 extern void			ni_fsm_refresh_state(ni_fsm_t *);
 extern unsigned int		ni_fsm_schedule(ni_fsm_t *);
 extern ni_bool_t		ni_fsm_do(ni_fsm_t *fsm, long *timeout_p);
 extern void			ni_fsm_mainloop(ni_fsm_t *);
 extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, ni_ifworker_array_t *);
-extern unsigned int		ni_fsm_mark_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, const ni_uint_range_t *);
+extern unsigned int		ni_fsm_mark_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_ifmarker_t *);
 extern unsigned int		ni_fsm_start_matching_workers(ni_fsm_t *, ni_ifworker_array_t *);
 extern void			ni_fsm_reset_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_uint_range_t *, ni_bool_t);
 extern int			ni_fsm_build_hierarchy(ni_fsm_t *);
