@@ -1029,45 +1029,6 @@ ni_objectmodel_get_netdev(const ni_dbus_object_t *object, ni_bool_t write_access
 }
 
 /*
- * Property Interface.hwaddr
- */
-static dbus_bool_t
-__ni_objectmodel_netif_get_hwaddr(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	ni_netdev_t *ifp;
-
-	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
-		return FALSE;
-
-	ni_dbus_variant_set_byte_array(result, ifp->link.hwaddr.data, ifp->link.hwaddr.len);
-	return TRUE;
-}
-
-static dbus_bool_t
-__ni_objectmodel_netif_set_hwaddr(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	ni_netdev_t *ifp;
-	unsigned int addrlen;
-
-	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
-		return FALSE;
-
-	if (!ni_dbus_variant_get_byte_array_minmax(argument,
-				ifp->link.hwaddr.data, &addrlen,
-				0, sizeof(ifp->link.hwaddr.data)))
-		return FALSE;
-
-	ifp->link.hwaddr.len = addrlen;
-	return TRUE;
-}
-
-/*
  * Property Interface.addrs
  * This one is rather complex
  */
@@ -1292,9 +1253,6 @@ static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
 	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE,
 				client-state, client_state,
 				__ni_objectmodel_netif, RO),
-
-	/* This should really go to the link layer classes */
-	NETIF_PROPERTY_SIGNATURE(NI_DBUS_BYTE_ARRAY_SIGNATURE, hwaddr, RO),
 
 	/* addresses and routes is an array of dicts */
 	NETIF_PROPERTY_SIGNATURE(NI_DBUS_DICT_ARRAY_SIGNATURE, addresses, RO),
