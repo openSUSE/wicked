@@ -1180,21 +1180,35 @@ try_ethernet(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
 	ni_ethernet_t *eth;
-	const char *value;
+	const char *lladdr = NULL;
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN)
+		return 1;
+
+	if ((lladdr = ni_sysconfig_get_value(sc, "LLADDR")) != NULL) {
+		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, lladdr) < 0) {
+			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
+				dev->name, lladdr);
+			return -1;
+		}
+		dev->link.type = NI_IFTYPE_ETHERNET;
+	}
 
 	/* FIXME: this is an array ETHTOOL_OPTIONS[SUFFIX] */
-	if ((value = ni_sysconfig_get_value(sc, "ETHTOOL_OPTIONS")) != NULL) {
+	if (ni_sysconfig_get_value(sc, "ETHTOOL_OPTIONS") != NULL) {
 		/* ETHTOOL_OPTIONS comes in two flavors
 		 *   - starting with a dash: this is "-$option ifname $stuff"
 		 *   - otherwise: this is a paramater to be passed to "-s ifname"
 		 */
 		/* FIXME: parse and translate to xml */
-		(void)value;
 		(void)dev;
 		(void)eth;
+		dev->link.type = NI_IFTYPE_ETHERNET;
 	}
 
-	return 1; /* We do not set type to ethernet (yet) */
+	if (dev->link.type == NI_IFTYPE_ETHERNET)
+		return 0;
+	return 1; /* We do not set type to ethernet */
 }
 
 /*
@@ -1463,6 +1477,7 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	const char *etherdev = NULL;
 	const char *vlanprot = NULL;
 	const char *vlantag = NULL;
+	const char *lladdr = NULL;
 	unsigned int tag = 0;
 	size_t len;
 
@@ -1531,6 +1546,14 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ni_string_dup(&dev->link.lowerdev.name, etherdev);
 	vlan->tag = tag;
 
+	if ((lladdr = ni_sysconfig_get_value(sc, "LLADDR")) != NULL) {
+		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, lladdr) < 0) {
+			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
+				dev->name, lladdr);
+			return -1;
+		}
+	}
+
 	return 0;
 }
 
@@ -1545,6 +1568,7 @@ try_macvlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	const char *macvlan_dev = NULL;
 	const char *macvlan_mode = NULL;
 	const char *macvlan_flags = NULL;
+	const char *lladdr = NULL;
 	const char *err;
 
 	if ((macvlan_dev = ni_sysconfig_get_value(sc, "MACVLAN_DEVICE")) == NULL)
@@ -1598,6 +1622,14 @@ try_macvlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		return -1;
 	}
 	ni_string_dup(&dev->link.lowerdev.name, macvlan_dev);
+
+	if ((lladdr = ni_sysconfig_get_value(sc, "LLADDR")) != NULL) {
+		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, lladdr) < 0) {
+			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
+				dev->name, lladdr);
+			return -1;
+		}
+	}
 
 	return 0;
 }
@@ -2700,13 +2732,6 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	ni_sysconfig_get_integer(sc, "MTU", &dev->link.mtu);
 
-	if ((value = ni_sysconfig_get_value(sc, "LLADDR")) != NULL
-	 && ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, value) < 0) {
-		ni_warn("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
-				dev->name, value);
-	}
-
-
 	if (try_loopback(sc, compat)   < 0 ||
 	    try_bonding(sc, compat)    < 0 ||
 	    try_bridge(sc, compat)     < 0 ||
@@ -2715,6 +2740,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	    try_tunnel(sc, compat)     < 0 ||
 	    try_wireless(sc, compat)   < 0 ||
 	    try_infiniband(sc, compat) < 0 ||
+	    /* keep ethernet the last one */
 	    try_ethernet(sc, compat)   < 0)
 		return FALSE;
 

@@ -76,8 +76,13 @@ static int	__ni_netdev_update_addrs(ni_netdev_t *dev,
 static int	__ni_netdev_update_routes(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_route_table_t *cfg_route_list);
-static int	__ni_rtnl_link_create_vlan(const char *, const ni_vlan_t *, unsigned int);
-static int	__ni_rtnl_link_create_macvlan(const char *, const ni_macvlan_t *, unsigned int);
+
+static int	__ni_rtnl_link_create(const ni_netdev_t *cfg);
+static int	__ni_rtnl_link_change(ni_netdev_t *dev, const ni_netdev_t *cfg);
+
+static int	__ni_rtnl_link_change_mtu(ni_netdev_t *dev, unsigned int mtu);
+static int	__ni_rtnl_link_change_hwaddr(ni_netdev_t *dev, const ni_hwaddr_t *hwaddr);
+
 static int	__ni_rtnl_link_up(const ni_netdev_t *, const ni_netdev_req_t *);
 static int	__ni_rtnl_link_down(const ni_netdev_t *, int);
 static int	__ni_rtnl_send_deladdr(ni_netdev_t *, const ni_address_t *);
@@ -302,10 +307,10 @@ int
 ni_system_vlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 						ni_netdev_t **dev_ret)
 {
-	ni_netdev_t *dev, *lowerdev;
+	ni_netdev_t *dev;
 
-	if (!nc || !dev_ret || !cfg || !cfg->name
-	||  !cfg->vlan || !cfg->link.lowerdev.name)
+	if (!nc || !dev_ret || !cfg || !cfg->name || !cfg->vlan
+	||  !cfg->link.lowerdev.name || !cfg->link.lowerdev.index)
 		return -1;
 
 	*dev_ret = NULL;
@@ -318,15 +323,8 @@ ni_system_vlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 		return -NI_ERROR_DEVICE_EXISTS;
 	}
 
-	lowerdev = ni_netdev_by_name(nc, cfg->link.lowerdev.name);
-	if (!lowerdev || !lowerdev->link.ifindex) {
-		ni_error("Cannot create VLAN interface %s: lower interface %s does not exist",
-				cfg->name, cfg->link.lowerdev.name);
-		return -NI_ERROR_DEVICE_NOT_KNOWN;
-	}
-
 	ni_debug_ifconfig("%s: creating VLAN device", cfg->name);
-	if (__ni_rtnl_link_create_vlan(cfg->name, cfg->vlan, lowerdev->link.ifindex)) {
+	if (__ni_rtnl_link_create(cfg)) {
 		ni_error("unable to create vlan interface %s", cfg->name);
 		return -1;
 	}
@@ -342,6 +340,18 @@ ni_system_vlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 
 	*dev_ret = dev;
 	return 0;
+}
+
+int
+ni_system_vlan_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	return __ni_rtnl_link_change(dev, cfg);
+}
+
+int
+ni_system_macvlan_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	return __ni_rtnl_link_change(dev, cfg);
 }
 
 /*
@@ -364,10 +374,11 @@ int
 ni_system_macvlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 						ni_netdev_t **dev_ret)
 {
-	ni_netdev_t *dev, *lowerdev;
+	ni_netdev_t *dev;
 
-	if (!nc || !dev_ret || !cfg || !cfg->name
-	||  !cfg->macvlan || !cfg->link.lowerdev.name)
+	if (!nc || !dev_ret || !cfg || !cfg->name || !cfg->macvlan
+	||  !cfg->link.lowerdev.name || !cfg->link.lowerdev.index)
+		return -1;
 
 	*dev_ret = NULL;
 
@@ -385,15 +396,8 @@ ni_system_macvlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 		return -NI_ERROR_DEVICE_EXISTS;
 	}
 
-	lowerdev = ni_netdev_by_name(nc, cfg->link.lowerdev.name);
-	if (!lowerdev || !lowerdev->link.ifindex) {
-		ni_error("Cannot create macvlan %s: cannot find lower interface %s",
-				cfg->name, cfg->link.lowerdev.name);
-		return -NI_ERROR_DEVICE_NOT_KNOWN;
-	}
-
 	ni_debug_ifconfig("%s: creating macvlan interface", cfg->name);
-	if (__ni_rtnl_link_create_macvlan(cfg->name, cfg->macvlan, lowerdev->link.ifindex)) {
+	if (__ni_rtnl_link_create(cfg)) {
 		ni_error("unable to create macvlan interface %s", cfg->name);
 		return -1;
 	}
@@ -829,13 +833,15 @@ ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t
  * Set up an ethernet device
  */
 int
-ni_system_ethernet_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ethernet_t *dev_cfg)
+ni_system_ethernet_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
 {
-	if (__ni_system_ethernet_update(dev, dev_cfg) < 0) {
+	if (!dev || !cfg || !cfg->ethernet)
+		return -1;
+
+	if (__ni_system_ethernet_update(dev, cfg->ethernet) < 0) {
 		ni_error("%s: failed to update ethernet device settings", dev->name);
 		return -1;
 	}
-
 	return 0;
 }
 
@@ -1185,44 +1191,122 @@ ni_system_ipv6_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ipv6_devconf
 	return rv;
 }
 
+int
+ni_system_hwaddr_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_hwaddr_t *hwaddr)
+{
+	(void)nc;
+
+	if (hwaddr->len) {
+		if (hwaddr->type != dev->link.hwaddr.type) {
+			ni_debug_ifconfig("%s: hwaddr type %s does not match device type %s",
+				dev->name,
+				ni_arphrd_type_to_name(hwaddr->type),
+				ni_arphrd_type_to_name(dev->link.hwaddr.type));
+			return -1;
+		}
+
+		if (dev->link.hwaddr.len != hwaddr->len) {
+			ni_debug_ifconfig("%s: hwaddr len %u does not match device len %u",
+					dev->name, hwaddr->len, dev->link.hwaddr.len);
+			return -1;
+		}
+
+		if (ni_link_address_equal(hwaddr, &dev->link.hwaddr))
+			return 0;
+
+		return __ni_rtnl_link_change_hwaddr(dev, hwaddr);
+	}
+	return 1;
+}
+
+int
+ni_system_mtu_change(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int mtu)
+{
+	(void)nc;
+
+	if (mtu) {
+		if (mtu == dev->link.mtu)
+			return 0;
+
+		return __ni_rtnl_link_change_mtu(dev, mtu);
+	}
+	return 1;
+}
+
 /*
- * Create a VLAN interface via netlink
+ * __ni_rtnl_link_create/change utilities
  */
 static int
-__ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned int lowerdev_index)
+__ni_rtnl_link_put_ifname(struct nl_msg *msg,	const char *ifname)
+{
+	size_t len;
+
+	len = ni_string_len(ifname) + 1;
+	if (len == 1 || len > IFNAMSIZ) {
+		ni_error("\"%s\" is not a valid device name", ifname);
+		return -1;
+	}
+
+	NLA_PUT_STRING(msg, IFLA_IFNAME, ifname);
+	return 0;
+
+nla_put_failure:
+	return -1;
+}
+
+static int
+__ni_rtnl_link_put_hwaddr(struct nl_msg *msg,	const ni_hwaddr_t *hwaddr)
+{
+	if (hwaddr->len) {
+		NLA_PUT(msg, IFLA_ADDRESS, hwaddr->len, hwaddr->data);
+	}
+	return 0;
+
+nla_put_failure:
+	return -1;
+}
+
+static int
+__ni_rtnl_link_put_mtu(struct nl_msg *msg,	unsigned int mtu)
+{
+	if (mtu) {
+		NLA_PUT_U32(msg, IFLA_MTU, mtu);
+	}
+	return 0;
+
+nla_put_failure:
+	return -1;
+}
+
+static int
+__ni_rtnl_link_put_vlan(struct nl_msg *msg,	const ni_netdev_t *cfg)
 {
 	struct nlattr *linkinfo;
-	struct nlattr *data;
-	struct ifinfomsg ifi;
-	struct nl_msg *msg;
-	int len;
+	struct nlattr *infodata;
 
-	memset(&ifi, 0, sizeof(ifi));
-	ifi.ifi_family = AF_UNSPEC;
-
-	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_CREATE | NLM_F_EXCL);
-
-	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
-		goto nla_put_failure;
+	if (!cfg->link.lowerdev.index || !cfg->vlan)
+		return -1;
 
 	/* VLAN:
 	 *  INFO_KIND must be "vlan"
 	 *  INFO_DATA must contain VLAN_ID
 	 *  LINK must contain the link ID of the real ethernet device
 	 */
-	ni_debug_ifconfig("__ni_rtnl_link_create(%s, vlan, %u, %u)",
-			ifname, vlan->tag, lowerdev_index);
+	ni_debug_ifconfig("%s(%s, vlan, %u, %s[%u])",
+			__func__, cfg->name, cfg->vlan->tag,
+			cfg->link.lowerdev.name,
+			cfg->link.lowerdev.index);
 
 	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
 		return -1;
 	NLA_PUT_STRING(msg, IFLA_INFO_KIND, "vlan");
 
-	if (!(data = nla_nest_start(msg, IFLA_INFO_DATA)))
+	if (!(infodata = nla_nest_start(msg, IFLA_INFO_DATA)))
 		return -1;
 
-	NLA_PUT_U16(msg, IFLA_VLAN_ID, vlan->tag);
+	NLA_PUT_U16(msg, IFLA_VLAN_ID, cfg->vlan->tag);
 #ifdef HAVE_IFLA_VLAN_PROTOCOL
-	switch (vlan->protocol) {
+	switch (cfg->vlan->protocol) {
 	case NI_VLAN_PROTOCOL_8021Q:
 		NLA_PUT_U16(msg, IFLA_VLAN_PROTOCOL, htons(ETH_P_8021Q));
 		break;
@@ -1232,58 +1316,23 @@ __ni_rtnl_link_create_vlan(const char *ifname, const ni_vlan_t *vlan, unsigned i
 		break;
 	}
 #endif
-	nla_nest_end(msg, data);
+	nla_nest_end(msg, infodata);
 	nla_nest_end(msg, linkinfo);
 
 	/* Note, IFLA_LINK must be outside of IFLA_LINKINFO */
-	NLA_PUT_U32(msg, IFLA_LINK, lowerdev_index);
+	NLA_PUT_U32(msg, IFLA_LINK, cfg->link.lowerdev.index);
 
-	len = ni_string_len(ifname) + 1;
-	if (len == 1 || len > IFNAMSIZ) {
-		ni_error("\"%s\" is not a valid device identifier", ifname);
-		return -1;
-	}
-	NLA_PUT_STRING(msg, IFLA_IFNAME, ifname);
-
-	if (ni_nl_talk(msg, NULL) < 0)
-		goto failed;
-
-	ni_debug_ifconfig("successfully created interface %s", ifname);
-	nlmsg_free(msg);
 	return 0;
 
 nla_put_failure:
-	ni_error("failed to encode netlink attr");
-failed:
-	nlmsg_free(msg);
 	return -1;
 }
 
-/*
- * Create a macvlan interface via netlink
- */
 static int
-__ni_rtnl_link_create_macvlan(const char *ifname, const ni_macvlan_t *cfg,
-				unsigned int phys_ifindex)
+__ni_rtnl_link_put_macvlan(struct nl_msg *msg,	const ni_netdev_t *cfg)
 {
 	struct nlattr *linkinfo;
 	struct nlattr *infodata;
-	struct ifinfomsg ifi;
-	struct nl_msg *msg;
-	size_t len;
-
-	len = ni_string_len(ifname);
-	if (!len || len >= IFNAMSIZ) {
-		ni_error("\"%s\" is not a valid device identifier", ifname);
-		return -1;
-	}
-
-	memset(&ifi, 0, sizeof(ifi));
-	ifi.ifi_family = AF_UNSPEC;
-
-	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_CREATE | NLM_F_EXCL);
-	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
-		goto nla_put_failure;
 
 	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
 		goto nla_put_failure;
@@ -1292,26 +1341,200 @@ __ni_rtnl_link_create_macvlan(const char *ifname, const ni_macvlan_t *cfg,
 	if (!(infodata = nla_nest_start(msg, IFLA_INFO_DATA)))
 		goto nla_put_failure;
 
-	if (cfg->mode)
-		NLA_PUT_U32(msg, IFLA_MACVLAN_MODE, cfg->mode);
-	if (cfg->flags)
-		NLA_PUT_U16(msg, IFLA_MACVLAN_FLAGS, cfg->flags);
+	if (cfg->macvlan->mode)
+		NLA_PUT_U32(msg, IFLA_MACVLAN_MODE, cfg->macvlan->mode);
+	if (cfg->macvlan->flags)
+		NLA_PUT_U16(msg, IFLA_MACVLAN_FLAGS, cfg->macvlan->flags);
 
 	nla_nest_end(msg, infodata);
 	nla_nest_end(msg, linkinfo);
 
-	NLA_PUT_U32(msg, IFLA_LINK, phys_ifindex);
-	NLA_PUT_STRING(msg, IFLA_IFNAME, ifname);
+	/* Note, IFLA_LINK must be outside of IFLA_LINKINFO */
+	NLA_PUT_U32(msg, IFLA_LINK, cfg->link.lowerdev.index);
+
+	return 0;
+
+nla_put_failure:
+	return -1;
+}
+
+
+static int
+__ni_rtnl_link_create(const ni_netdev_t *cfg)
+{
+	struct ifinfomsg ifi;
+	struct nl_msg *msg;
+
+	if (!cfg || ni_string_empty(cfg->name))
+		return -1;
+
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+
+	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_CREATE | NLM_F_EXCL);
+	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	if (__ni_rtnl_link_put_ifname(msg, cfg->name) < 0)
+		goto nla_put_failure;
+
+	switch (cfg->link.type) {
+	case NI_IFTYPE_VLAN:
+		if (__ni_rtnl_link_put_vlan(msg, cfg) < 0)
+			goto nla_put_failure;
+
+		if (__ni_rtnl_link_put_hwaddr(msg, &cfg->link.hwaddr) < 0)
+			goto nla_put_failure;
+
+		break;
+
+	case NI_IFTYPE_MACVLAN:
+		if (__ni_rtnl_link_put_macvlan(msg, cfg) < 0)
+			goto nla_put_failure;
+
+		if (__ni_rtnl_link_put_hwaddr(msg, &cfg->link.hwaddr) < 0)
+			goto nla_put_failure;
+
+		break;
+
+	default:
+		/* unknown one, case not (yet) there... */
+		ni_error("BUG: unable to create %s interface", cfg->name);
+		goto failed;
+	}
 
 	if (ni_nl_talk(msg, NULL) < 0)
 		goto failed;
 
-	ni_debug_ifconfig("successfully created macvlan interface %s", ifname);
+	ni_debug_ifconfig("successfully created interface %s", cfg->name);
 	nlmsg_free(msg);
 	return 0;
 
 nla_put_failure:
-	ni_error("failed to encode netlink attr for macvlan %s", ifname);
+	ni_error("failed to encode netlink message to create %s", cfg->name);
+failed:
+	nlmsg_free(msg);
+	return -1;
+}
+
+int
+__ni_rtnl_link_change(ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	struct ifinfomsg ifi;
+	struct nl_msg *msg;
+
+	if (!dev || !cfg)
+		return -1;
+
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+	ifi.ifi_index = dev->link.ifindex;
+
+	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST);
+	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	if (!ni_netdev_link_is_up(dev)) {
+		if (cfg->name && __ni_rtnl_link_put_ifname(msg, cfg->name) < 0)
+			goto nla_put_failure;
+	}
+
+	switch (cfg->link.type) {
+	case NI_IFTYPE_VLAN:
+		if (__ni_rtnl_link_put_vlan(msg, cfg) < 0)
+			goto nla_put_failure;
+		break;
+
+	case NI_IFTYPE_MACVLAN:
+		if (__ni_rtnl_link_put_macvlan(msg, cfg) < 0)
+			goto nla_put_failure;
+		break;
+
+	default:
+		break;
+	}
+
+	if (ni_nl_talk(msg, NULL) < 0)
+		goto failed;
+
+	ni_debug_ifconfig("successfully modified interface %s", cfg->name);
+	nlmsg_free(msg);
+	return 0;
+
+nla_put_failure:
+	ni_error("failed to encode netlink message to change %s", dev->name);
+failed:
+	nlmsg_free(msg);
+	return -1;
+}
+
+int
+__ni_rtnl_link_change_hwaddr(ni_netdev_t *dev, const ni_hwaddr_t *hwaddr)
+{
+	struct ifinfomsg ifi;
+	struct nl_msg *msg;
+
+	if (!dev || !hwaddr)
+		return -1;
+
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+	ifi.ifi_index = dev->link.ifindex;
+
+	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST);
+	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	if (__ni_rtnl_link_put_hwaddr(msg, hwaddr) < 0)
+		goto nla_put_failure;
+
+	if (ni_nl_talk(msg, NULL) < 0)
+		goto failed;
+
+	ni_debug_ifconfig("successfully modified interface %s hwaddr %s",
+			dev->name, ni_link_address_print(hwaddr));
+	nlmsg_free(msg);
+	return 0;
+
+nla_put_failure:
+	ni_error("failed to encode netlink attr to modify interface %s hwaddr",
+			dev->name);
+failed:
+	nlmsg_free(msg);
+	return -1;
+}
+
+int
+__ni_rtnl_link_change_mtu(ni_netdev_t *dev, unsigned int mtu)
+{
+	struct ifinfomsg ifi;
+	struct nl_msg *msg;
+
+	if (!dev || !mtu)
+		return -1;
+
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+	ifi.ifi_index = dev->link.ifindex;
+
+	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST);
+	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	if (__ni_rtnl_link_put_mtu(msg, mtu) < 0)
+		goto nla_put_failure;
+
+	if (ni_nl_talk(msg, NULL) < 0)
+		goto failed;
+
+	ni_debug_ifconfig("successfully modified interface %s mtu to %u",
+			dev->name, mtu);
+	nlmsg_free(msg);
+	return 0;
+
+nla_put_failure:
+	ni_error("failed to encode netlink attr to modify interface %s mtu",
+			dev->name);
 failed:
 	nlmsg_free(msg);
 	return -1;
@@ -1392,13 +1615,6 @@ __ni_rtnl_link_up(const ni_netdev_t *dev, const ni_netdev_req_t *cfg)
 
 		if (cfg->txqlen && cfg->txqlen != dev->link.txqlen)
 			NLA_PUT_U32(msg, IFLA_TXQLEN, cfg->txqlen);
-
-#if 0
-		/* Need different way to set hwaddr */
-		if (cfg->link.hwaddr.type != NI_IFTYPE_UNKNOWN && cfg->link.hwaddr.len != 0
-		 && !ni_link_address_equal(&cfg->link.hwaddr, &dev->link.hwaddr))
-			NLA_PUT(msg, IFLA_ADDRESS, cfg->link.hwaddr.len, cfg->link.hwaddr.data);
-#endif
 
 		if (cfg->alias && !ni_string_eq(dev->link.alias, cfg->alias))
 			NLA_PUT_STRING(msg, IFLA_IFALIAS, cfg->alias);

@@ -20,12 +20,21 @@
     <meta:require check="netif-child-state" op="linkUp"    min-state="device-up" />
     <meta:require check="netif-child-state" op="login"     min-state="link-authenticated" />
   </device>
-  <mode  type="builtin-macvlan-mode"/>
-  <flags type="builtin-macvlan-flag-bits"/>
+  <address  type="ethernet-address"/>
+  <mode     type="builtin-macvlan-mode"/>
+  <flags    type="builtin-macvlan-flag-bits"/>
  </define>
 
  <!-- The same properties are returned in interface state reports -->
  <define name="properties" type="macvlan:configuration"/>
+
+ <method name="changeDevice">
+  <arguments>
+   <config type="macvlan:configuration">
+    <meta:mapping document-node="/macvlan" skip-unless-present="true" />
+   </config>
+  </arguments>
+ </method>
 
  <method name="deleteDevice">
    <!-- no arguments, no return code -->

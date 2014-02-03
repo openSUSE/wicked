@@ -417,6 +417,10 @@ __ni_compat_generate_vlan(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	child = xml_node_create(ifnode, "vlan");
 
 	xml_node_new_element("device", child, compat->dev->link.lowerdev.name);
+	if (compat->dev->link.hwaddr.len) {
+		xml_node_new_element("address", child,
+			ni_link_address_print(&compat->dev->link.hwaddr));
+	}
 	xml_node_new_element("protocol", child, ni_vlan_protocol_to_name(vlan->protocol));
 	xml_node_new_element("tag", child, ni_sprint_uint(vlan->tag));
 	return TRUE;
@@ -433,6 +437,10 @@ __ni_compat_generate_macvlan(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 	child = xml_node_create(ifnode, "macvlan");
 
 	xml_node_new_element("device", child, compat->dev->link.lowerdev.name);
+	if (compat->dev->link.hwaddr.len) {
+		xml_node_new_element("address", child,
+				ni_link_address_print(&compat->dev->link.hwaddr));
+	}
 	xml_node_new_element("mode", child, ni_macvlan_mode_to_name(macvlan->mode));
 	if (macvlan->flags) {
 		ni_string_array_t names = NI_STRING_ARRAY_INIT;
