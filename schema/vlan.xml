@@ -3,10 +3,7 @@
   -->
 <service name="vlan" interface="org.opensuse.Network.VLAN" object-class="netif-vlan">
  <description>
-   This link-layer service is provided by all VLAN devices. Since there isn't a lot
-   to tune about a VLAN once it has been created, this DBus interface doesn't offer
-   a changeDevice() method.
-
+   This link-layer service is provided by all VLAN devices.
    VLAN devices can be created through the org.opensuse.Network.VLAN.Factory factory interface.
  </description>
 
@@ -18,12 +15,21 @@
     <meta:require check="netif-child-state" op="login" min-state="link-authenticated" />
     <meta:require check="netif-child-state" op="linkUp" min-state="link-up" />
   </device>
+  <address  type="ethernet-address"/>
   <protocol type="builtin-vlan-protocol"/>
   <tag type="uint16"/>
  </define>
 
  <!-- the properties of a VLAN device: -->
  <define name="properties" type="linkinfo"/>
+
+ <method name="changeDevice">
+  <arguments>
+   <config type="vlan:linkinfo">
+    <meta:mapping document-node="/vlan" skip-unless-present="true"/>
+   </config>
+  </arguments>
+ </method>
 
  <method name="deleteDevice">
    <!-- no arguments, no return code -->

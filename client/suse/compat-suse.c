@@ -1175,26 +1175,171 @@ try_infiniband(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 /*
  * Handle Ethernet devices
  */
+static inline void
+ni_parse_ethtool_onoff(const char *input, ni_ether_tristate_t *flag)
+{
+	if (ni_string_eq(input, "on")) {
+		*flag = NI_ETHERNET_SETTING_ENABLE;
+	} else
+	if (ni_string_eq(input, "off")) {
+		*flag = NI_ETHERNET_SETTING_DISABLE;
+	}
+}
+
+static void
+try_add_ethtool_common(ni_netdev_t *dev, const char *opt, const char *val)
+{
+	static const ni_intmap_t __ethtool_speed_map[] = {
+		{ "10",		10	},
+		{ "100",	100	},
+		{ "1000",	1000	},
+		{ "2500",	2500	},
+		{ "10000",	10000	},
+		{ NULL,		0	}
+	};
+	static const ni_intmap_t __ethtool_port_map[] = {
+		{ "tp",		NI_ETHERNET_PORT_TP	},
+		{ "aui",	NI_ETHERNET_PORT_AUI	},
+		{ "bnc",	NI_ETHERNET_PORT_BNC	},
+		{ "mii",	NI_ETHERNET_PORT_MII	},
+		{ "fibre",	NI_ETHERNET_PORT_FIBRE	},
+		{ NULL,		0			},
+	};
+	ni_ethernet_t *eth = ni_netdev_get_ethernet(dev);
+	unsigned int tmp;
+
+	if (ni_string_eq(opt, "speed")) {
+		if (ni_parse_uint_mapped(val, __ethtool_speed_map, &tmp) == 0)
+			eth->link_speed = tmp;
+	} else
+	if (ni_string_eq(opt, "port")) {
+		if (ni_parse_uint_mapped(val, __ethtool_port_map, &tmp) == 0)
+			eth->port_type = tmp;
+	} else
+	if (ni_string_eq(opt, "duplex")) {
+		if (ni_string_eq(val, "half")) {
+			eth->duplex = NI_ETHERNET_DUPLEX_HALF;
+		} else
+		if (ni_string_eq(val, "full")) {
+			eth->duplex = NI_ETHERNET_DUPLEX_FULL;
+		}
+	} else
+	if (ni_string_eq(opt, "autoneg")) {
+		ni_parse_ethtool_onoff(val, &eth->autoneg_enable);
+	}
+}
+
+static void
+try_add_ethtool_offload(ni_netdev_t *dev, const char *opt, const char *val)
+{
+	ni_ethernet_t *eth = ni_netdev_get_ethernet(dev);
+	if (ni_string_eq(opt, "rx")) {
+		ni_parse_ethtool_onoff(val, &eth->offload.rx_csum);
+	} else
+	if (ni_string_eq(opt, "tx")) {
+		ni_parse_ethtool_onoff(val, &eth->offload.tx_csum);
+	} else
+	if (ni_string_eq(opt, "sg")) {
+		ni_parse_ethtool_onoff(val, &eth->offload.scatter_gather);
+	} else
+	if (ni_string_eq(opt, "tso")) {
+		ni_parse_ethtool_onoff(val, &eth->offload.tso);
+	} else
+	if (ni_string_eq(opt, "ufo")) {
+		ni_parse_ethtool_onoff(val, &eth->offload.ufo);
+	} else
+	if (ni_string_eq(opt, "gso")) {
+		ni_parse_ethtool_onoff(val, &eth->offload.gso);
+	} else
+	if (ni_string_eq(opt, "gro")) {
+		ni_parse_ethtool_onoff(val, &eth->offload.gro);
+	} else
+	if (ni_string_eq(opt, "lro")) {
+		ni_parse_ethtool_onoff(val, &eth->offload.lro);
+	}
+}
+
+static void
+try_add_ethtool_options(ni_netdev_t *dev, const char *type,
+			ni_string_array_t *opts, unsigned int start)
+{
+	unsigned int i;
+
+	if (ni_string_eq(type, "-K") || ni_string_eq(type, "--offload")) {
+		for (i = start; (i + 1) < opts->count; i+=2) {
+			try_add_ethtool_offload(dev, opts->data[i],
+						opts->data[i + 1]);
+		}
+	} else
+	if (ni_string_eq(type, "-s") || ni_string_eq(type, "--change")) {
+		for (i = start; (i + 1) < opts->count; i+=2) {
+			try_add_ethtool_common(dev, opts->data[i],
+						opts->data[i + 1]);
+		}
+	}
+}
+
+static ni_bool_t
+try_add_ethtool_vars(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
+{
+	ni_string_array_t opts = NI_STRING_ARRAY_INIT;
+	const char *type;
+	ni_var_t *var;
+
+	var = __find_indexed_variable(sc, "ETHTOOL_OPTIONS", suffix);
+	if (!var || ni_string_empty(var->value))
+		return TRUE; /* do not abort, just take next suffix */
+
+	dev->link.type = NI_IFTYPE_ETHERNET;
+	if (!ni_netdev_get_ethernet(dev))
+		return FALSE;
+
+	/*
+	 * ETHTOOL_OPTIONS comes in two flavors
+	 *   - starting with a dash: this is "-$option ifname $stuff"
+	 *   - otherwise: this is a paramater to be passed to "-s ifname"
+	 */
+	if (ni_string_split(&opts, var->value, " \t", 0) >= 2) {
+		type = opts.data[0];
+		if (*type == '-') {
+			try_add_ethtool_options(dev, type, &opts, 2);
+		} else {
+			try_add_ethtool_options(dev, "-s", &opts, 0);
+		}
+	}
+	ni_string_array_destroy(&opts);
+	return TRUE;
+}
+
 static int
 try_ethernet(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
-	ni_ethernet_t *eth;
-	const char *value;
+	const char *lladdr = NULL;
 
-	/* FIXME: this is an array ETHTOOL_OPTIONS[SUFFIX] */
-	if ((value = ni_sysconfig_get_value(sc, "ETHTOOL_OPTIONS")) != NULL) {
-		/* ETHTOOL_OPTIONS comes in two flavors
-		 *   - starting with a dash: this is "-$option ifname $stuff"
-		 *   - otherwise: this is a paramater to be passed to "-s ifname"
-		 */
-		/* FIXME: parse and translate to xml */
-		(void)value;
-		(void)dev;
-		(void)eth;
+	if (dev->link.type != NI_IFTYPE_UNKNOWN)
+		return 1;
+
+	if ((lladdr = ni_sysconfig_get_value(sc, "LLADDR")) != NULL) {
+		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, lladdr) < 0) {
+			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
+				dev->name, lladdr);
+			return -1;
+		}
+		dev->link.type = NI_IFTYPE_ETHERNET;
+		if (!ni_netdev_get_ethernet(dev))
+			return FALSE;
 	}
 
-	return 1; /* We do not set type to ethernet (yet) */
+	/* process ETHTOOL_OPTIONS[SUFFIX] array */
+	if (__process_indexed_variables(sc, dev, "ETHTOOL_OPTIONS",
+					try_add_ethtool_vars) < 0) {
+		ni_error("ifcfg-%s: Cannot parse ETHTOOL_OPTIONS variables",
+				dev->name);
+		return -1;
+	}
+
+	return dev->link.type == NI_IFTYPE_ETHERNET ? 0 : 1;
 }
 
 /*
@@ -1463,6 +1608,7 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	const char *etherdev = NULL;
 	const char *vlanprot = NULL;
 	const char *vlantag = NULL;
+	const char *lladdr = NULL;
 	unsigned int tag = 0;
 	size_t len;
 
@@ -1531,6 +1677,14 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ni_string_dup(&dev->link.lowerdev.name, etherdev);
 	vlan->tag = tag;
 
+	if ((lladdr = ni_sysconfig_get_value(sc, "LLADDR")) != NULL) {
+		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, lladdr) < 0) {
+			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
+				dev->name, lladdr);
+			return -1;
+		}
+	}
+
 	return 0;
 }
 
@@ -1545,6 +1699,7 @@ try_macvlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	const char *macvlan_dev = NULL;
 	const char *macvlan_mode = NULL;
 	const char *macvlan_flags = NULL;
+	const char *lladdr = NULL;
 	const char *err;
 
 	if ((macvlan_dev = ni_sysconfig_get_value(sc, "MACVLAN_DEVICE")) == NULL)
@@ -1598,6 +1753,14 @@ try_macvlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		return -1;
 	}
 	ni_string_dup(&dev->link.lowerdev.name, macvlan_dev);
+
+	if ((lladdr = ni_sysconfig_get_value(sc, "LLADDR")) != NULL) {
+		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, lladdr) < 0) {
+			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
+				dev->name, lladdr);
+			return -1;
+		}
+	}
 
 	return 0;
 }
@@ -2700,13 +2863,6 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	ni_sysconfig_get_integer(sc, "MTU", &dev->link.mtu);
 
-	if ((value = ni_sysconfig_get_value(sc, "LLADDR")) != NULL
-	 && ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, value) < 0) {
-		ni_warn("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
-				dev->name, value);
-	}
-
-
 	if (try_loopback(sc, compat)   < 0 ||
 	    try_bonding(sc, compat)    < 0 ||
 	    try_bridge(sc, compat)     < 0 ||
@@ -2715,6 +2871,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	    try_tunnel(sc, compat)     < 0 ||
 	    try_wireless(sc, compat)   < 0 ||
 	    try_infiniband(sc, compat) < 0 ||
+	    /* keep ethernet the last one */
 	    try_ethernet(sc, compat)   < 0)
 		return FALSE;
 

@@ -18,8 +18,12 @@ extern int		ni_system_interface_link_monitor(ni_netdev_t *);
 extern int		ni_system_interface_stats_refresh(ni_netconfig_t *, ni_netdev_t *);
 extern int		ni_system_ipv4_setup(ni_netconfig_t *, ni_netdev_t *, const ni_ipv4_devconf_t *);
 extern int		ni_system_ipv6_setup(ni_netconfig_t *, ni_netdev_t *, const ni_ipv6_devconf_t *);
+extern int		ni_system_mtu_change(ni_netconfig_t *, ni_netdev_t *,
+				unsigned int mtu);
+extern int		ni_system_hwaddr_change(ni_netconfig_t *, ni_netdev_t *,
+				const ni_hwaddr_t *);
 extern int		ni_system_ethernet_setup(ni_netconfig_t *, ni_netdev_t *,
-				const ni_ethernet_t *);
+				const ni_netdev_t *);
 extern int		ni_system_infiniband_setup(ni_netconfig_t *, ni_netdev_t *,
 				const ni_netdev_t *);
 extern int		ni_system_infiniband_child_create(ni_netconfig_t *,
@@ -27,9 +31,13 @@ extern int		ni_system_infiniband_child_create(ni_netconfig_t *,
 extern int		ni_system_infiniband_child_delete(ni_netdev_t *);
 extern int		ni_system_vlan_create(ni_netconfig_t *,
 				const ni_netdev_t *, ni_netdev_t **);
+extern int		ni_system_vlan_change(ni_netconfig_t *, ni_netdev_t *,
+				const ni_netdev_t *);
 extern int		ni_system_vlan_delete(ni_netdev_t *);
 extern int		ni_system_macvlan_create(ni_netconfig_t *,
 				const ni_netdev_t *, ni_netdev_t **);
+extern int		ni_system_macvlan_change(ni_netconfig_t *, ni_netdev_t *,
+				const ni_netdev_t *);
 extern int		ni_system_macvlan_delete(ni_netdev_t *);
 extern int		ni_system_bridge_create(ni_netconfig_t *, const char *,
 				const ni_bridge_t *, ni_netdev_t **);

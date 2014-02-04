@@ -7,6 +7,8 @@
 #include "config.h"
 #endif
 
+#include <net/if_arp.h>
+
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/ethernet.h>
@@ -43,9 +45,25 @@ ni_objectmodel_ethernet_setup(ni_dbus_object_t *object, const ni_dbus_method_t *
 		goto out;
 	}
 
-	if (ni_system_ethernet_setup(nc, ifp, cfg->ethernet) < 0) {
+	if (ni_system_ethernet_setup(nc, ifp, cfg) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to set up ethernet device");
 		goto out;
+	}
+
+	/*
+	 * MAC change on "UP" interfaces tends to fail or
+	 * cases all sort of quite strange side effects...
+	 */
+	if (ni_netdev_device_is_up(ifp)) {
+		ni_debug_objectmodel("Skipping hardware address change on %s: "
+				"device is up", ifp->name);
+	} else {
+		if (cfg->link.hwaddr.type == ARPHRD_VOID)
+			cfg->link.hwaddr.type = ARPHRD_ETHER;
+		if (ni_system_hwaddr_change(nc, ifp, &cfg->link.hwaddr) < 0) {
+			ni_error("Unable to change hwaddr on ethernet interface %s",
+				ifp->name);
+		}
 	}
 
 	rv = TRUE;

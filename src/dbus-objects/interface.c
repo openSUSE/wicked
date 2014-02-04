@@ -698,6 +698,7 @@ ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
+	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_netdev_t *dev;
 	ni_netdev_req_t *req = NULL;
 	dbus_bool_t ret = FALSE;
@@ -715,8 +716,37 @@ ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	req = ni_netdev_req_new();
 	if (!ni_objectmodel_unmarshal_netdev_request(req, &argv[0], error))
 		goto failed;
-	req->ifflags = NI_IFF_LINK_UP | NI_IFF_NETWORK_UP;
 
+	if (req->mtu) {
+		if (dev->link.lowerdev.index) {
+			ni_netdev_t *lower;
+
+			lower = ni_netdev_by_index(nc, dev->link.lowerdev.index);
+			if (lower && req->mtu > lower->link.mtu) {
+				ni_info("Lowering requested %s mtu %u to lower device mtu %u",
+					dev->name, req->mtu, lower->link.mtu);
+				req->mtu = lower->link.mtu;
+			}
+		}
+
+		/*
+		 * MTU change on device-up interfaces quite often causes either
+		 * error -16 (busy) or sets all upper interfaces LOWERLAYERDOWN.
+		 */
+		if (ni_netdev_device_is_up(dev)) {
+			ni_debug_objectmodel("Skipping MTU change on %s: device is up",
+					dev->name);
+			req->mtu = 0;
+		}
+
+		if (req->mtu != dev->link.mtu &&
+		    ni_system_mtu_change(nc, dev, req->mtu) < 0) {
+			ni_info("Unable to set %s MTU to %u", dev->name, req->mtu);
+		}
+		req->mtu = 0;
+	}
+
+	req->ifflags = NI_IFF_LINK_UP | NI_IFF_NETWORK_UP;
 	if ((rv = ni_system_interface_link_change(dev, req)) < 0) {
 		ni_dbus_set_error_from_code(error, rv,
 				"failed to configure interface %s", dev->name);
@@ -1029,45 +1059,6 @@ ni_objectmodel_get_netdev(const ni_dbus_object_t *object, ni_bool_t write_access
 }
 
 /*
- * Property Interface.hwaddr
- */
-static dbus_bool_t
-__ni_objectmodel_netif_get_hwaddr(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	ni_netdev_t *ifp;
-
-	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
-		return FALSE;
-
-	ni_dbus_variant_set_byte_array(result, ifp->link.hwaddr.data, ifp->link.hwaddr.len);
-	return TRUE;
-}
-
-static dbus_bool_t
-__ni_objectmodel_netif_set_hwaddr(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	ni_netdev_t *ifp;
-	unsigned int addrlen;
-
-	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
-		return FALSE;
-
-	if (!ni_dbus_variant_get_byte_array_minmax(argument,
-				ifp->link.hwaddr.data, &addrlen,
-				0, sizeof(ifp->link.hwaddr.data)))
-		return FALSE;
-
-	ifp->link.hwaddr.len = addrlen;
-	return TRUE;
-}
-
-/*
  * Property Interface.addrs
  * This one is rather complex
  */
@@ -1292,9 +1283,6 @@ static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
 	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE,
 				client-state, client_state,
 				__ni_objectmodel_netif, RO),
-
-	/* This should really go to the link layer classes */
-	NETIF_PROPERTY_SIGNATURE(NI_DBUS_BYTE_ARRAY_SIGNATURE, hwaddr, RO),
 
 	/* addresses and routes is an array of dicts */
 	NETIF_PROPERTY_SIGNATURE(NI_DBUS_DICT_ARRAY_SIGNATURE, addresses, RO),
