@@ -164,20 +164,13 @@ __ni_compat_ethtool_tristate(const char *name, xml_node_t *node, ni_ether_trista
 		xml_node_new_element(name, node, "disable");
 }
 
-static ni_bool_t
-__ni_compat_generate_ethernet(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+static void
+__ni_compat_generate_eth_node(xml_node_t *child, const ni_ethernet_t *eth)
 {
-	const ni_netdev_t *dev = compat->dev;
-	ni_ethernet_t *eth = dev->ethernet;
-	xml_node_t *child, *offload;
+	xml_node_t *offload;
 	const char *ptr;
 
-	child = xml_node_new("ethernet", ifnode);
-	if (dev->link.hwaddr.len) {
-		xml_node_new_element("address", child,
-			ni_link_address_print(&dev->link.hwaddr));
-	}
-	/* generate offload and other information */
+	/* generate common <ethernet> node settings */
 	if (eth->link_speed) {
 		xml_node_new_element_uint("link-speed", child, eth->link_speed);
 	}
@@ -193,6 +186,7 @@ __ni_compat_generate_ethernet(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 	}
 	__ni_compat_ethtool_tristate("autoneg-enable", child, eth->autoneg_enable);
 
+	/* generate offload and other information */
 	offload = xml_node_new("offload", NULL);
 	__ni_compat_ethtool_tristate("rx-csum", offload, eth->offload.rx_csum);
 	__ni_compat_ethtool_tristate("tx-csum", offload, eth->offload.tx_csum);
@@ -206,7 +200,23 @@ __ni_compat_generate_ethernet(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 		xml_node_add_child(child, offload);
 	else
 		xml_node_free(offload);
+}
 
+static ni_bool_t
+__ni_compat_generate_ethernet(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	const ni_netdev_t *dev = compat->dev;
+	xml_node_t *child;
+
+	child = xml_node_new("ethernet", ifnode);
+	if (dev->link.hwaddr.len) {
+		xml_node_new_element("address", child,
+			ni_link_address_print(&dev->link.hwaddr));
+	}
+
+	if (dev->ethernet) {
+		__ni_compat_generate_eth_node(child, dev->ethernet);
+	}
 	return TRUE;
 }
 

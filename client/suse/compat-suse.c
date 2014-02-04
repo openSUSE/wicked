@@ -1327,6 +1327,8 @@ try_ethernet(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			return -1;
 		}
 		dev->link.type = NI_IFTYPE_ETHERNET;
+		if (!ni_netdev_get_ethernet(dev))
+			return FALSE;
 	}
 
 	/* process ETHTOOL_OPTIONS[SUFFIX] array */
