@@ -40,8 +40,7 @@ ni_ethernet_free(ni_ethernet_t *ethernet)
  * Translate between port types and strings
  */
 static ni_intmap_t	__ni_ethernet_port_types[] = {
-	{ "default",		NI_ETHERNET_PORT_DEFAULT	},
-	{ "twisted-pair",	NI_ETHERNET_PORT_TP	},
+	{ "tp",			NI_ETHERNET_PORT_TP	},
 	{ "aui",		NI_ETHERNET_PORT_AUI	},
 	{ "bnc",		NI_ETHERNET_PORT_BNC	},
 	{ "mii",		NI_ETHERNET_PORT_MII	},

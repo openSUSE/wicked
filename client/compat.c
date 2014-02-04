@@ -154,17 +154,58 @@ ni_compat_netdev_client_info_set(ni_netdev_t *dev, const char *filename)
 /*
  * Functions for generating XML
  */
+static void
+__ni_compat_ethtool_tristate(const char *name, xml_node_t *node, ni_ether_tristate_t flag)
+{
+	if (flag == NI_ETHERNET_SETTING_ENABLE)
+		xml_node_new_element(name, node, "enable");
+	else
+	if (flag == NI_ETHERNET_SETTING_DISABLE)
+		xml_node_new_element(name, node, "disable");
+}
+
 static ni_bool_t
 __ni_compat_generate_ethernet(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	const ni_netdev_t *dev = compat->dev;
-	xml_node_t *child;
+	ni_ethernet_t *eth = dev->ethernet;
+	xml_node_t *child, *offload;
+	const char *ptr;
 
 	child = xml_node_new("ethernet", ifnode);
-	if (dev->link.hwaddr.len)
-		xml_node_new_element("address", child, ni_link_address_print(&dev->link.hwaddr));
-
+	if (dev->link.hwaddr.len) {
+		xml_node_new_element("address", child,
+			ni_link_address_print(&dev->link.hwaddr));
+	}
 	/* generate offload and other information */
+	if (eth->link_speed) {
+		xml_node_new_element_uint("link-speed", child, eth->link_speed);
+	}
+	if (eth->port_type != NI_ETHERNET_PORT_DEFAULT &&
+	    (ptr = ni_ethernet_port_type_to_name(eth->port_type))) {
+		xml_node_new_element("port-type", child, ptr);
+	}
+	if (eth->duplex == NI_ETHERNET_DUPLEX_HALF) {
+		xml_node_new_element("duplex", child, "half");
+	} else
+	if (eth->duplex == NI_ETHERNET_DUPLEX_FULL) {
+		xml_node_new_element("duplex", child, "full");
+	}
+	__ni_compat_ethtool_tristate("autoneg-enable", child, eth->autoneg_enable);
+
+	offload = xml_node_new("offload", NULL);
+	__ni_compat_ethtool_tristate("rx-csum", offload, eth->offload.rx_csum);
+	__ni_compat_ethtool_tristate("tx-csum", offload, eth->offload.tx_csum);
+	__ni_compat_ethtool_tristate("scatter-gather", child, eth->offload.scatter_gather);
+	__ni_compat_ethtool_tristate("tso", offload, eth->offload.tso);
+	__ni_compat_ethtool_tristate("ufo", offload, eth->offload.ufo);
+	__ni_compat_ethtool_tristate("gso", offload, eth->offload.gso);
+	__ni_compat_ethtool_tristate("gro", offload, eth->offload.gro);
+	__ni_compat_ethtool_tristate("lro", offload, eth->offload.lro);
+	if (offload->children)
+		xml_node_add_child(child, offload);
+	else
+		xml_node_free(offload);
 
 	return TRUE;
 }
