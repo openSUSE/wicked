@@ -1018,15 +1018,8 @@ ni_ifworker_set_config_client_state(ni_ifworker_t *w, xml_node_t *client_state_n
 	}
 
 	/* only persistent value is taken into account - the rest is ignored */
-	if (!w->client_state.persistent || client_state.persistent) {
-		w->client_state.persistent = client_state.persistent;
-		ni_debug_application("%s: setting client-state persistent to %s as per %s file",
-			w->name, ni_format_boolean(client_state.persistent), w->config.origin);
-	}
-	else {
-		ni_warn("%s: attempt to disable persistent mode by %s file",
-			w->name, w->config.origin);
-	}
+	NI_CLIENT_STATE_SET_CONTROL_FLAG(w->client_state.persistent,
+		TRUE, client_state.persistent);
 
 	return TRUE;
 }
@@ -1765,26 +1758,24 @@ ni_ifworkers_flatten(ni_ifworker_array_t *array)
  * requires that the underlying ethernet device at least has brought up the link.
  */
 unsigned int
-ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, const ni_uint_range_t *target_range)
+ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const ni_ifmarker_t *marker)
 {
-	ni_ifworker_array_t marked = { 0, NULL };
 	unsigned int i, count = 0;
 
-	if (!ni_fsm_get_matching_workers(fsm, match, &marked))
-		return 0;
+	ni_ifworkers_check_loops(fsm, marked);
 
-	ni_ifworkers_check_loops(fsm, &marked);
+	/* Mark all our primary devices with the requested marker values */
+	for (i = 0; i < marked->count; ++i) {
+		ni_ifworker_t *w = marked->data[i];
+		ni_client_state_t *cs = &w->client_state;
 
-	/* Mark all our primary devices with the requested target state */
-	for (i = 0; i < marked.count; ++i) {
-		ni_ifworker_t *w = marked.data[i];
-
-		w->target_range = *target_range;
+		w->target_range = marker->target_range;
+		NI_CLIENT_STATE_SET_CONTROL_FLAG(cs->persistent,
+			marker->persistent == TRUE, TRUE);
 	}
 
-	count = ni_fsm_start_matching_workers(fsm, &marked);
+	count = ni_fsm_start_matching_workers(fsm, marked);
 	ni_debug_application("marked %u interfaces", count);
-	ni_ifworker_array_destroy(&marked);
 	return count;
 }
 
@@ -1808,11 +1799,8 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 		if ((rv = ni_ifworker_start(fsm, w, fsm->worker_timeout)) < 0)
 			return rv;
 
-		if (w->target_state != NI_FSM_STATE_NONE) {
-			if (!ni_client_state_is_valid(&w->client_state))
-				ni_client_state_set_state(&w->client_state, w->fsm.state);
+		if (w->target_state != NI_FSM_STATE_NONE)
 			count++;
-		}
 	}
 	return count;
 }
@@ -1921,6 +1909,7 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 {
 	unsigned int min_state = w->target_range.min;
 	unsigned int max_state = w->target_range.max;
+	unsigned int cur_state = w->fsm.state;
 	unsigned int j;
 	int rv;
 
@@ -1971,8 +1960,16 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 				ni_ifworker_state_name(w->fsm.state),
 				ni_ifworker_state_name(w->target_state));
 
-	if (w->target_state != NI_FSM_STATE_NONE)
+	if (w->target_state != NI_FSM_STATE_NONE) {
+		ni_client_state_t *cs = &w->client_state;
+
+		if (!ni_client_state_is_valid(cs)) {
+			ni_client_state_set_state(cs, cur_state);
+			NI_CLIENT_STATE_SET_CONTROL_FLAG(cs->persistent,
+				cur_state >= NI_FSM_STATE_LINK_UP, TRUE);
+		}
 		ni_ifworker_set_timeout(w, timeout);
+	}
 
 	/* For each of the DBus calls we will execute on this device,
 	 * check whether there are constraints on child devices that
@@ -3464,26 +3461,6 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	}
 
 done: ;
-}
-
-void
-ni_fsm_set_client_state(ni_fsm_t *fsm, ni_bool_t opt_persistent)
-{
-	unsigned int i;
-
-	ni_assert(fsm);
-	for (i = 0; i < fsm->workers.count; ++i) {
-		ni_ifworker_t *w = fsm->workers.data[i];
-
-		if (!ni_client_state_is_valid(&w->client_state)) {
-			ni_client_state_set_state(&w->client_state, w->fsm.state);
-			if (!w->client_state.persistent)
-				w->client_state.persistent = (w->fsm.state >= NI_FSM_STATE_LINK_UP);
-		}
-
-		if (opt_persistent)
-			w->client_state.persistent = TRUE;
-	}
 }
 
 ni_dbus_client_t *

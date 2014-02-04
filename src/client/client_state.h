@@ -67,4 +67,19 @@ ni_client_state_print_timeval(const struct timeval *tv, char **str)
 			(unsigned long)tv->tv_usec);
 }
 
+#define NI_CLIENT_STATE_SET_CONTROL_FLAG(flag, cond, value) \
+	do { \
+		if (!(cond)) \
+			break; \
+		if (value) {\
+			flag = TRUE; \
+			ni_debug_application("%s: set %s control flag to TRUE", \
+				__func__, #flag); \
+		} \
+		else if (flag) {\
+			ni_fatal("%s: attempt to switch off %s control flag", \
+				__func__, #flag); \
+		} \
+	} while(0)
+
 #endif
