@@ -116,6 +116,8 @@ opt_rootdir=""
 opt_fw_path=""
 # load iscsi_ibft
 opt_modprobe=""
+# list only mode
+opt_listonly="no"
 #set -- `getopt r:p: "$@"`
 while [ $# -gt 0 -a "$1" != "--" ]; do
 	opt=$1; shift;
@@ -123,6 +125,7 @@ while [ $# -gt 0 -a "$1" != "--" ]; do
 	-r)	opt_rootdir=$1; shift;;
 	-p)	opt_fw_path=$1; shift;;
 	-m)	opt_modprobe=$1; shift;;
+	-l)	opt_listonly=yes;;
 	*)	echo "$err_base: Bad command line option \"$opt\"" >&2; exit 1;;
 	esac
 done
@@ -158,8 +161,20 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 	nic_name=$2
 
 	nic_vlan=`ibft_getattr "$nicpath/vlan"`
-	nic_mac=`ibft_getattr "$nicpath/mac"`
+	if [ "X$opt_listonly" = "Xyes" ] ; then
+		if [ -n "$nic_vlan" -a $((nic_vlan)) -gt 0 ]; then
+			vlan_ifname=`get_vlan_ifname "$nic_vlan" "$nic_name" 2>/dev/null`
+			if test "x$vlan_ifname" = x ; then
+				vlan_ifname="${nic_name}.${nic_vlan}"
+			fi
+			echo "$vlan_ifname $nic_name"
+		else
+			echo "$nic_name"
+		fi
+		continue
+	fi
 
+	nic_mac=`ibft_getattr "$nicpath/mac"`
 	nic_ipaddr=`ibft_getattr "$nicpath/ip-addr"`
 	nic_prefixlen=""
 
