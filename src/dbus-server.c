@@ -75,7 +75,8 @@ ni_dbus_server_free(ni_dbus_server_t *server)
 		__ni_dbus_object_free(server->root_object);
 	server->root_object = NULL;
 
-	ni_dbus_connection_free(server->connection);
+	if (server->connection)
+		ni_dbus_connection_free(server->connection);
 	server->connection = NULL;
 
 	free(server);

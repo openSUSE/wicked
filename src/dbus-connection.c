@@ -214,6 +214,9 @@ ni_dbus_connection_free(ni_dbus_connection_t *dbc)
 {
 	ni_dbus_sigaction_t *sig;
 
+	if (!dbc)
+		return;
+
 	NI_TRACE_ENTER();
 
 	while (dbc->async_client_calls) {

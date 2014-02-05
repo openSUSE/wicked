@@ -75,8 +75,13 @@ ni_dbus_client_free(ni_dbus_client_t *dbc)
 {
 	NI_TRACE_ENTER();
 
-	ni_dbus_connection_free(dbc->connection);
+	if (!dbc)
+		return;
+
+	if (dbc->connection)
+		ni_dbus_connection_free(dbc->connection);
 	dbc->connection = NULL;
+
 	ni_string_free(&dbc->bus_name);
 	free(dbc);
 }
