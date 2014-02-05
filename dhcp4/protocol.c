@@ -556,7 +556,7 @@ ni_dhcp4_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list, const ch
 			if (ni_check_domain_name(namebuf.string, len, 0)) {
 				ni_string_array_append(list, namebuf.string);
 			} else {
-				ni_debug_dhcp("Discarded suspect %s: '%s'", what,
+				ni_warn("Discarded suspect %s: '%s'", what,
 					ni_print_suspect(namebuf.string, len));
 			}
 		}
@@ -747,7 +747,7 @@ ni_dhcp4_option_get_domain(ni_buffer_t *bp, char **var, const char *what)
 		return -1;
 
 	if (!ni_check_domain_name(tmp, len, 0)) {
-		ni_debug_dhcp("Discarded suspect %s: '%s'", what,
+		ni_warn("Discarded suspect %s: '%s'", what,
 			ni_print_suspect(tmp, len));
 		free(tmp);
 		return -1;
@@ -776,7 +776,7 @@ ni_dhcp4_option_get_domain_list(ni_buffer_t *bp, ni_string_array_t *var,
 	 * using a dns-search option...
 	 */
 	if (!ni_string_split(&list, tmp, " ", 0)) {
-		ni_debug_dhcp("Discarded suspect %s: '%s'", what,
+		ni_warn("Discarded suspect %s: '%s'", what,
 				ni_print_suspect(tmp, len));
 		free(tmp);
 		return -1;
@@ -784,7 +784,7 @@ ni_dhcp4_option_get_domain_list(ni_buffer_t *bp, ni_string_array_t *var,
 	for (i = 0; i < list.count; ++i) {
 		const char *dom = list.data[i];
 		if (!ni_check_domain_name(dom, ni_string_len(dom), 0)) {
-			ni_debug_dhcp("Discarded suspect %s: '%s'", what,
+			ni_warn("Discarded suspect %s: '%s'", what,
 				ni_print_suspect(tmp, len));
 			ni_string_array_destroy(&list);
 			free(tmp);
@@ -792,8 +792,8 @@ ni_dhcp4_option_get_domain_list(ni_buffer_t *bp, ni_string_array_t *var,
 		}
 	}
 	if (list.count != 1) {
-		ni_debug_dhcp("Abuse of %s option to provide a list: '%s'",
-				what, tmp);
+		ni_warn("Abuse of %s option to provide a list: '%s'",
+			what, tmp);
 	}
 	free(tmp);
 	ni_string_array_move(var, &list);
@@ -810,7 +810,7 @@ ni_dhcp4_option_get_pathname(ni_buffer_t *bp, char **var, const char *what)
 		return -1;
 
 	if (!ni_check_pathname(tmp, len)) {
-		ni_debug_dhcp("Discarded suspect %s: '%s'", what,
+		ni_warn("Discarded suspect %s: '%s'", what,
 			ni_print_suspect(tmp, len));
 		free(tmp);
 		return -1;
@@ -832,7 +832,7 @@ ni_dhcp4_option_get_printable(ni_buffer_t *bp, char **var, const char *what)
 		return -1;
 
 	if (!ni_check_printable(tmp, len)) {
-		ni_debug_dhcp("Discarded non-printable %s: '%s'", what,
+		ni_warn("Discarded non-printable %s: '%s'", what,
 			ni_print_suspect(tmp, len));
 		free(tmp);
 		return -1;
@@ -1109,8 +1109,8 @@ parse_more:
 		if (ni_check_domain_name(tmp, len, 0)) {
 			memcpy(lease->dhcp4.servername, tmp, sizeof(lease->dhcp4.servername));
 		} else {
-			ni_debug_dhcp("Discarded suspect boot-server name: '%s'",
-					ni_print_suspect(tmp, len));
+			ni_warn("Discarded suspect boot-server name: '%s'",
+				ni_print_suspect(tmp, len));
 		}
 	}
 	if (use_bootfile && message->bootfile[0]) {
@@ -1123,8 +1123,8 @@ parse_more:
 		if (ni_check_pathname(tmp, len)) {
 			ni_string_dup(&lease->dhcp4.bootfile, tmp);
 		} else {
-			ni_debug_dhcp("Discarded suspect boot-file name: '%s'",
-					ni_print_suspect(tmp, len));
+			ni_warn("Discarded suspect boot-file name: '%s'",
+				ni_print_suspect(tmp, len));
 		}
 	}
 
