@@ -114,17 +114,17 @@ function get_vlan_ifname
 opt_rootdir=""
 # relative ibft node
 opt_fw_path=""
-# load iscsi_ibft
-opt_modprobe=""
 # list only mode
 opt_listonly="no"
+# [always] load iscsi_ibft
+opt_modprobe="iscsi_ibft"
 #set -- `getopt r:p: "$@"`
 while [ $# -gt 0 -a "$1" != "--" ]; do
 	opt=$1; shift;
 	case $opt in
 	-r)	opt_rootdir=$1;			shift;;
 	-p)	opt_fw_path=$1;			shift;;
-	-m)	opt_modprobe=${1:-iscsi_ibft};	shift;;
+	-m)	opt_modprobe=$1;		shift;;
 	-l)	opt_listonly=yes		;;
 	*)	echo "$err_base: Bad command line option \"$opt\"" >&2; exit 1;;
 	esac
@@ -134,7 +134,7 @@ IBFT_NICS="ethernet"
 IBFT_PATH="/sys/firmware/ibft"
 IBFT_ROOT="${opt_rootdir}/sys/firmware/ibft"
 if test ! -d "$IBFT_ROOT" -a "X$opt_modprobe" != "X" ; then
-	modprobe -qs ${opt_modprobe} &>/dev/null || :
+	modprobe -qs -- "${opt_modprobe}" &>/dev/null || :
 fi
 for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 	[ "X$nicpath" != "X" -a -d "$nicpath" ]     || continue
