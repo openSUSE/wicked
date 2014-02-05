@@ -108,6 +108,9 @@ enum DHCP4_OPTIONS {
 	DHCP4_SLPSERVERS             = 78,  /* RFC 2610 */
 	DHCP4_SLPSCOPES              = 79,
 	DHCP4_FQDN                   = 81,
+	DHCP4_NDS_SERVER             = 85,  /* RFC 2241 */
+	DHCP4_NDS_TREE               = 86,  /* RFC 2241 */
+	DHCP4_NDS_CTX                = 87,  /* RFC 2241 */
 	DHCP4_DNSSEARCH              = 119, /* RFC 3397 */
 	DHCP4_SIPSERVER              = 120, /* RFC 3361 */
 	DHCP4_CSR                    = 121, /* RFC 3442 */

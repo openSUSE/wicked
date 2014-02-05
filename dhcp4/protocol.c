@@ -397,7 +397,8 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 
 		if (options->hostname && options->hostname[0]) {
 			if (options->fqdn == FQDN_DISABLE) {
-				ni_dhcp4_option_puts(msgbuf, DHCP4_HOSTNAME, options->hostname);
+				ni_dhcp4_option_puts(msgbuf, DHCP4_HOSTNAME,
+							options->hostname);
 			} else {
 				/* IETF DHC-FQDN option(81)
 				 * http://tools.ietf.org/html/rfc4702#section-2.1
@@ -421,54 +422,65 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 		}
 
 		params_begin = ni_dhcp4_option_begin(msgbuf, DHCP4_PARAMETERREQUESTLIST);
+		if (msg_code != DHCP4_INFORM) {
+			ni_buffer_putc(msgbuf, DHCP4_RENEWALTIME);
+			ni_buffer_putc(msgbuf, DHCP4_REBINDTIME);
+		}
+		ni_buffer_putc(msgbuf, DHCP4_NETMASK);
+		ni_buffer_putc(msgbuf, DHCP4_BROADCAST);
+		ni_buffer_putc(msgbuf, DHCP4_MTU);
 
-		if (msg_code == DHCP4_DISCOVER) {
-			/* dhcp4cd says we should include just a single option
-			 * in discovery packets.
-			 * I'm not convinced this is right, but let's do it
-			 * this way.
-			 */
-			ni_buffer_putc(msgbuf, DHCP4_DNSSERVER);
-		} else {
-			if (msg_code != DHCP4_INFORM) {
-				ni_buffer_putc(msgbuf, DHCP4_RENEWALTIME);
-				ni_buffer_putc(msgbuf, DHCP4_REBINDTIME);
-			}
-			ni_buffer_putc(msgbuf, DHCP4_NETMASK);
-			ni_buffer_putc(msgbuf, DHCP4_BROADCAST);
-
-			if (options->flags & DHCP4_DO_CSR)
-				ni_buffer_putc(msgbuf, DHCP4_CSR);
-			if (options->flags & DHCP4_DO_MSCSR)
-				ni_buffer_putc(msgbuf, DHCP4_MSCSR);
-
-			/* RFC 3442 states classless static routes should be
-			 * before routers and static routes as classless static
-			 * routes override them both */
+		if (options->flags & DHCP4_DO_CSR) {
+			ni_buffer_putc(msgbuf, DHCP4_CSR);
+		}
+		if (options->flags & DHCP4_DO_MSCSR) {
+			ni_buffer_putc(msgbuf, DHCP4_MSCSR);
+		}
+		/* RFC 3442 states classless static routes should be
+		 * before routers and static routes as classless static
+		 * routes override them both */
+		if (options->flags & DHCP4_DO_GATEWAY) {
 			ni_buffer_putc(msgbuf, DHCP4_STATICROUTE);
 			ni_buffer_putc(msgbuf, DHCP4_ROUTERS);
+		}
+		if (options->flags & DHCP4_DO_HOSTNAME) {
 			ni_buffer_putc(msgbuf, DHCP4_HOSTNAME);
+		}
+		if (options->flags & DHCP4_DO_RESOLVER) {
 			ni_buffer_putc(msgbuf, DHCP4_DNSSEARCH);
 			ni_buffer_putc(msgbuf, DHCP4_DNSDOMAIN);
 			ni_buffer_putc(msgbuf, DHCP4_DNSSERVER);
-
-			if (options->flags & DHCP4_DO_NIS) {
-				ni_buffer_putc(msgbuf, DHCP4_NISDOMAIN);
-				ni_buffer_putc(msgbuf, DHCP4_NISSERVER);
-			}
-			if (options->flags & DHCP4_DO_NTP)
-				ni_buffer_putc(msgbuf, DHCP4_NTPSERVER);
-			ni_buffer_putc(msgbuf, DHCP4_MTU);
+		}
+		if (options->flags & DHCP4_DO_NIS) {
+			ni_buffer_putc(msgbuf, DHCP4_NISDOMAIN);
+			ni_buffer_putc(msgbuf, DHCP4_NISSERVER);
+		}
+		if (options->flags & DHCP4_DO_NTP) {
+			ni_buffer_putc(msgbuf, DHCP4_NTPSERVER);
+		}
+		if (options->flags & DHCP4_DO_ROOT) {
 			ni_buffer_putc(msgbuf, DHCP4_ROOTPATH);
-			ni_buffer_putc(msgbuf, DHCP4_SIPSERVER);
+		}
+		if (options->flags & DHCP4_DO_LPR) {
 			ni_buffer_putc(msgbuf, DHCP4_LPRSERVER);
+		}
+		if (options->flags & DHCP4_DO_LOG) {
 			ni_buffer_putc(msgbuf, DHCP4_LOGSERVER);
+		}
+		if (options->flags & DHCP4_DO_NDS) {
+			ni_buffer_putc(msgbuf, DHCP4_NDS_SERVER);
+			ni_buffer_putc(msgbuf, DHCP4_NDS_TREE);
+			ni_buffer_putc(msgbuf, DHCP4_NDS_CTX);
+		}
+		if (options->flags & DHCP4_DO_SIP) {
+			ni_buffer_putc(msgbuf, DHCP4_SIPSERVER);
+		}
+		if (options->flags & DHCP4_DO_SMB) {
 			ni_buffer_putc(msgbuf, DHCP4_NETBIOSNAMESERVER);
 			ni_buffer_putc(msgbuf, DHCP4_NETBIOSDDSERVER);
 			ni_buffer_putc(msgbuf, DHCP4_NETBIOSNODETYPE);
 			ni_buffer_putc(msgbuf, DHCP4_NETBIOSSCOPE);
 		}
-
 		ni_dhcp4_option_end(msgbuf, params_begin);
 	}
 	ni_buffer_putc(msgbuf, DHCP4_END);
@@ -885,6 +897,7 @@ ni_dhcp4_parse_response(const ni_dhcp4_message_t *message, ni_buffer_t *options,
 	ni_string_array_t dns_domain = NI_STRING_ARRAY_INIT;
 	ni_string_array_t nis_servers = NI_STRING_ARRAY_INIT;
 	char *nisdomain = NULL;
+	char *tmp = NULL;
 	int opt_overload = 0;
 	int msg_type = -1;
 	int use_bootserver = 1;
@@ -1012,6 +1025,19 @@ parse_more:
 			break;
 		case DHCP4_DNSSEARCH:
 			ni_dhcp4_decode_dnssearch(&buf, &dns_search, "dns-search domain");
+			break;
+
+		case DHCP4_NDS_SERVER:
+			ni_dhcp4_decode_address_list(&buf, &lease->nds_servers);
+			break;
+		case DHCP4_NDS_CTX:
+			if (!ni_dhcp4_option_get_printable(&buf, &tmp, "nds-context"))
+				ni_string_array_append(&lease->nds_context, tmp);
+			ni_string_free(&tmp);
+			break;
+		case DHCP4_NDS_TREE:
+			ni_dhcp4_option_get_printable(&buf, &lease->nds_tree,
+							"nds-tree");
 			break;
 
 		case DHCP4_CSR:
@@ -1282,6 +1308,9 @@ static const char *__dhcp4_option_names[256] = {
  [DHCP4_CLIENTID]		= "DHCP4_CLIENTID",
  [DHCP4_USERCLASS]		= "DHCP4_USERCLASS",
  [DHCP4_FQDN]			= "DHCP4_FQDN",
+ [DHCP4_NDS_SERVER]		= "DHCP4_NDS_SERVER",
+ [DHCP4_NDS_TREE]		= "DHCP4_NDS_TREE",
+ [DHCP4_NDS_CTX]		= "DHCP4_NDS_CTX",
  [DHCP4_DNSSEARCH]		= "DHCP4_DNSSEARCH",
  [DHCP4_SIPSERVER]		= "DHCP4_SIPSERVER",
  [DHCP4_CSR]			= "DHCP4_CSR",
