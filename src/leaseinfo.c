@@ -557,9 +557,9 @@ __ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 
 	/* end wicked specific vars */
 
+#endif
 	__ni_leaseinfo_print_string(out, prefix, "HOSTNAME", lease->hostname,
 				NULL, 0);
-#endif
 
 	__ni_leaseinfo_print_addrs(out, prefix, lease->addrs, lease->family);
 

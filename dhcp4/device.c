@@ -289,8 +289,8 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	if (classid)
 		strncpy(config->classid, classid, sizeof(config->classid) - 1);
 
-	config->flags = DHCP4_DO_ARP | DHCP4_DO_CSR | DHCP4_DO_MSCSR;
-	config->flags |= ni_dhcp4_do_bits(info->update);
+	config->flags = DHCP4_DO_DEFAULT;
+	config->flags |= ni_dhcp4_do_bits(config->update);
 
 	if (ni_debug & NI_TRACE_DHCP) {
 		ni_trace("Received request:");

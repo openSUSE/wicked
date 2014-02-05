@@ -330,6 +330,7 @@ dhcp4_test_req_init(ni_dhcp4_request_t *req, const char *request)
 {
 	/* Apply some defaults */
 	req->acquire_timeout = 10;
+	req->update = ~0;
 
 	if (!ni_string_empty(request)) {
 		xml_document_t *doc;
