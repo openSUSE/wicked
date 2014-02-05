@@ -556,7 +556,7 @@ ni_dhcp4_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list, const ch
 			if (ni_check_domain_name(namebuf.string, len, 0)) {
 				ni_string_array_append(list, namebuf.string);
 			} else {
-				ni_debug_dhcp("Discarded suspect %s: %s", what,
+				ni_warn("Discarded suspect %s: '%s'", what,
 					ni_print_suspect(namebuf.string, len));
 			}
 		}
@@ -747,7 +747,7 @@ ni_dhcp4_option_get_domain(ni_buffer_t *bp, char **var, const char *what)
 		return -1;
 
 	if (!ni_check_domain_name(tmp, len, 0)) {
-		ni_debug_dhcp("Discarded suspect %s: %s", what,
+		ni_warn("Discarded suspect %s: '%s'", what,
 			ni_print_suspect(tmp, len));
 		free(tmp);
 		return -1;
@@ -756,6 +756,47 @@ ni_dhcp4_option_get_domain(ni_buffer_t *bp, char **var, const char *what)
 	if (*var)
 		free(*var);
 	*var = tmp;
+	return 0;
+}
+
+static int
+ni_dhcp4_option_get_domain_list(ni_buffer_t *bp, ni_string_array_t *var,
+					const char *what)
+{
+	ni_string_array_t list = NI_STRING_ARRAY_INIT;
+	unsigned int len, i;
+	char *tmp = NULL;
+
+	if (ni_dhcp4_option_get_string(bp, &tmp, &len) < 0)
+		return -1;
+
+	/*
+	 * Hack to accept "compatibility abuse" of dns domain name
+	 * option containing multiple domains instead to send them
+	 * using a dns-search option...
+	 */
+	if (!ni_string_split(&list, tmp, " ", 0)) {
+		ni_warn("Discarded suspect %s: '%s'", what,
+				ni_print_suspect(tmp, len));
+		free(tmp);
+		return -1;
+	}
+	for (i = 0; i < list.count; ++i) {
+		const char *dom = list.data[i];
+		if (!ni_check_domain_name(dom, ni_string_len(dom), 0)) {
+			ni_warn("Discarded suspect %s: '%s'", what,
+				ni_print_suspect(tmp, len));
+			ni_string_array_destroy(&list);
+			free(tmp);
+			return -1;
+		}
+	}
+	if (list.count != 1) {
+		ni_warn("Abuse of %s option to provide a list: '%s'",
+			what, tmp);
+	}
+	free(tmp);
+	ni_string_array_move(var, &list);
 	return 0;
 }
 
@@ -769,7 +810,7 @@ ni_dhcp4_option_get_pathname(ni_buffer_t *bp, char **var, const char *what)
 		return -1;
 
 	if (!ni_check_pathname(tmp, len)) {
-		ni_debug_dhcp("Discarded suspect %s: %s", what,
+		ni_warn("Discarded suspect %s: '%s'", what,
 			ni_print_suspect(tmp, len));
 		free(tmp);
 		return -1;
@@ -791,7 +832,7 @@ ni_dhcp4_option_get_printable(ni_buffer_t *bp, char **var, const char *what)
 		return -1;
 
 	if (!ni_check_printable(tmp, len)) {
-		ni_debug_dhcp("Discarded non-printable %s: %s", what,
+		ni_warn("Discarded non-printable %s: '%s'", what,
 			ni_print_suspect(tmp, len));
 		free(tmp);
 		return -1;
@@ -841,9 +882,9 @@ ni_dhcp4_parse_response(const ni_dhcp4_message_t *message, ni_buffer_t *options,
 	ni_route_array_t classless_routes = NI_ROUTE_ARRAY_INIT;
 	ni_string_array_t dns_servers = NI_STRING_ARRAY_INIT;
 	ni_string_array_t dns_search = NI_STRING_ARRAY_INIT;
+	ni_string_array_t dns_domain = NI_STRING_ARRAY_INIT;
 	ni_string_array_t nis_servers = NI_STRING_ARRAY_INIT;
 	char *nisdomain = NULL;
-	char *dnsdomain = NULL;
 	int opt_overload = 0;
 	int msg_type = -1;
 	int use_bootserver = 1;
@@ -926,7 +967,7 @@ parse_more:
 							"hostname");
 			break;
 		case DHCP4_DNSDOMAIN:
-			ni_dhcp4_option_get_domain(&buf, &dnsdomain,
+			ni_dhcp4_option_get_domain_list(&buf, &dns_domain,
 							"dns-domain");
 			break;
 		case DHCP4_MESSAGE:
@@ -1068,8 +1109,8 @@ parse_more:
 		if (ni_check_domain_name(tmp, len, 0)) {
 			memcpy(lease->dhcp4.servername, tmp, sizeof(lease->dhcp4.servername));
 		} else {
-			ni_debug_dhcp("Discarded suspect boot-server name: %s",
-					ni_print_suspect(tmp, len));
+			ni_warn("Discarded suspect boot-server name: '%s'",
+				ni_print_suspect(tmp, len));
 		}
 	}
 	if (use_bootfile && message->bootfile[0]) {
@@ -1082,8 +1123,8 @@ parse_more:
 		if (ni_check_pathname(tmp, len)) {
 			ni_string_dup(&lease->dhcp4.bootfile, tmp);
 		} else {
-			ni_debug_dhcp("Discarded suspect boot-file name: %s",
-					ni_print_suspect(tmp, len));
+			ni_warn("Discarded suspect boot-file name: '%s'",
+				ni_print_suspect(tmp, len));
 		}
 	}
 
@@ -1108,14 +1149,18 @@ parse_more:
 		ni_route_array_destroy(&default_routes);
 	}
 
-	if (dns_servers.count != 0) {
+	if (dns_servers.count || dns_search.count || dns_domain.count) {
 		ni_resolver_info_t *resolver = ni_resolver_info_new();
 
-		resolver->default_domain = dnsdomain;
-		dnsdomain = NULL;
+		if (dns_domain.count)
+			ni_string_dup(&resolver->default_domain, dns_domain.data[0]);
+
+		if (dns_search.count)
+			ni_string_array_move(&resolver->dns_search, &dns_search);
+		else
+			ni_string_array_move(&resolver->dns_search, &dns_domain);
 
 		ni_string_array_move(&resolver->dns_servers, &dns_servers);
-		ni_string_array_move(&resolver->dns_search, &dns_search);
 		lease->resolver = resolver;
 	}
 	if (nisdomain != NULL) {
@@ -1154,10 +1199,10 @@ done:
 	ni_route_array_destroy(&default_routes);
 	ni_route_array_destroy(&static_routes);
 	ni_route_array_destroy(&classless_routes);
-	ni_string_array_destroy(&nis_servers);
 	ni_string_array_destroy(&dns_servers);
 	ni_string_array_destroy(&dns_search);
-	ni_string_free(&dnsdomain);
+	ni_string_array_destroy(&dns_domain);
+	ni_string_array_destroy(&nis_servers);
 	ni_string_free(&nisdomain);
 
 	return msg_type;

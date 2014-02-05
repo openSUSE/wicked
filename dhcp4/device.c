@@ -270,7 +270,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		if (ni_check_domain_name(info->hostname, len, 0)) {
 			strncpy(config->hostname, info->hostname, sizeof(config->hostname) - 1);
 		} else {
-			ni_debug_dhcp("Discarded request to use suspect hostname: %s",
+			ni_debug_dhcp("Discarded request to use suspect hostname: '%s'",
 				ni_print_suspect(info->hostname, len));
 		}
 	}

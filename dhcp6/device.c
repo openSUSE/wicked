@@ -941,7 +941,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 			strncpy(config->hostname, req->hostname, sizeof(config->hostname) - 1);
 		} else {
 			ni_debug_dhcp(
-				"%s: Discarded suspect hostname in DHCPv6 acquire request %s: %s",
+				"%s: Discarded suspect hostname in DHCPv6 acquire request %s: '%s'",
 				dev->ifname, ni_uuid_print(&req->uuid),
 				ni_print_suspect(req->hostname, len));
 		}
