@@ -584,6 +584,18 @@ __ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 	__ni_leaseinfo_print_string_array(out, prefix, "NTPSERVERS",
 					&lease->ntp_servers, " ");
 
+	/* NDS Servers */
+	__ni_leaseinfo_print_string_array(out, prefix, "NDSSERVERS",
+					&lease->nds_servers, " ");
+
+	/* NDS Context */
+	__ni_leaseinfo_print_string_array(out, prefix, "NDSCONTEXT",
+					&lease->nds_context, " ");
+
+	/* NDS Tree */
+	__ni_leaseinfo_print_string(out, prefix, "NDSTREE", lease->nds_tree,
+				NULL, 0);
+
 	/* Only applicable for ipv4. */
 	if (lease->family == AF_INET)
 		__ni_leaseinfo_print_netbios(out, prefix, lease);
