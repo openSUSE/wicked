@@ -641,6 +641,9 @@ ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 {
 
 	char *filename = NULL;
+	ni_bool_t close_out_fp = TRUE; /* Used to prevent unwanted closure of
+					* things like stdout.
+					*/
 
 	if (!lease) {
 		ni_error("Cannot dump info from NULL lease.");
@@ -653,7 +656,7 @@ ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 	}
 
 	/* If we're supplied a FILE pointer, use it. Otherwise, open a file based
-	 * based on lease info (ifname, type, family).
+	 * on lease info (ifname, type, family).
 	 */
 	if (!out) {
 		if ((filename = ni_leaseinfo_path(ifname, lease->type, lease->family)) == NULL) {
@@ -665,6 +668,9 @@ ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 			ni_error("Cannot open %s", filename);
 			return;
 		}
+	} else {
+		/* A fp passed to us, don't close it! */
+		close_out_fp = FALSE;
 	}
 
 	__ni_leaseinfo_dump(out, lease, ifname, prefix);
@@ -688,7 +694,8 @@ ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 		break;
 	}
 
-	fclose(out);
+	if (close_out_fp)
+		fclose(out);
 	ni_string_free(&filename);
 }
 
