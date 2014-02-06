@@ -802,6 +802,23 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		if (ni_sysfs_netif_exists(ifname, "parent"))
 			link->type = NI_IFTYPE_INFINIBAND_CHILD;
 		break;
+
+	case ARPHRD_SLIP:
+		{
+			/* s390 ctc devices on ctcm + iucv? */
+			char *path = NULL;
+			const char *base;
+			if (ni_sysfs_netif_readlink(ifname, "device/subsystem", &path)) {
+				base = ni_basename(path);
+				if (ni_string_eq(base, "ccwgroup"))
+					link->type = NI_IFTYPE_CTCM;
+				else
+				if (ni_string_eq(base, "iucv"))
+					link->type = NI_IFTYPE_IUCV;
+				ni_string_free(&path);
+			}
+		}
+		break;
 	}
 
 	if (link->type == NI_IFTYPE_UNKNOWN) {

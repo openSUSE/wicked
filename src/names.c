@@ -38,6 +38,8 @@ static ni_intmap_t __linktype_names[] = {
 	{ "virtual-tunnel",	NI_IFTYPE_TUN },
 	{ "virtual-tap",	NI_IFTYPE_TAP },
 	{ "dummy",		NI_IFTYPE_DUMMY },
+	{ "ctcm",		NI_IFTYPE_CTCM },
+	{ "iucv",		NI_IFTYPE_IUCV },
 
 	{ NULL }
 };

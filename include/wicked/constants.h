@@ -67,6 +67,9 @@ typedef enum ni_iftype {
 	NI_IFTYPE_TAP,
 	NI_IFTYPE_DUMMY,
 
+	NI_IFTYPE_CTCM,		/* s390 ctcm (slip) devices */
+	NI_IFTYPE_IUCV,		/* s390 iucv (slip) devices */
+
 	__NI_IFTYPE_MAX
 } ni_iftype_t;
 
