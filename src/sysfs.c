@@ -170,6 +170,19 @@ ni_sysfs_netif_exists(const char *ifname, const char *attr_name)
 	return ni_file_exists(__ni_sysfs_netif_attrpath(ifname, attr_name));
 }
 
+ni_bool_t
+ni_sysfs_netif_readlink(const char *ifname, const char *attr_name, char **link)
+{
+	char linkbuf[PATH_MAX] = {'\0'};
+	const char *path = __ni_sysfs_netif_attrpath(ifname, attr_name);
+
+	if (readlink(path, linkbuf, sizeof(linkbuf)) < 0 || !linkbuf[0])
+		return FALSE;
+
+	ni_string_dup(link, linkbuf);
+	return TRUE;
+}
+
 static const char *
 __ni_sysfs_netif_get_attr(const char *ifname, const char *attr_name)
 {
