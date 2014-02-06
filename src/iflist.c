@@ -823,8 +823,8 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 
 	if (link->type == NI_IFTYPE_UNKNOWN) {
 		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
-			"%s: unable to discover link type, arp type is 0x%x",
-			ifname, link->hwaddr.type);
+			"%s: unable to discover link type, arp type is 0x%x, kind %s",
+			ifname, link->hwaddr.type, link->kind);
 	}
 
 	return 0;
