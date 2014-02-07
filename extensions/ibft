@@ -194,7 +194,7 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 
 	# Enum: Other,Manual,WellKnown,Dhcp,RouterAdv
 	# Note: kvm/gPXE is using 0, even it is from dhcp
-	nic_origin=`ibft_getattr "$nicpath/edir/origin"`
+	nic_origin=`ibft_getattr "$nicpath/origin"`
 	nic_dhcp_server=`ibft_getattr "$nicpath/dhcp"`
 	nic_gateway=`ibft_getattr "$nicpath/gateway"`
 	nic_dns_server1=`ibft_getattr "$nicpath/primary-dns"`
