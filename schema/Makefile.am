@@ -15,9 +15,7 @@ wicked_schema_files		= \
 	infiniband.xml		\
 	interface.xml		\
 	lldp.xml		\
-	modem.xml		\
 	macvlan.xml		\
-	openvpn.xml		\
 	ppp.xml			\
 	protocol.xml		\
 	types.xml		\
