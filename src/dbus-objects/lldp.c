@@ -129,7 +129,7 @@ ni_objectmodel_lldp_up(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 	ni_debug_lldp("ni_objectmodel_lldp_up(%s -> %s)", object->path, dev->name);
 
 	if (!ni_system_lldp_available(dev)) {
-		ni_error("Cannot enable LLDP for device %s: incompatible layer 2 protocol", dev->name);
+		ni_debug_lldp("Cannot enable LLDP for device %s: incompatible layer 2 protocol", dev->name);
 		return TRUE;
 	}
 
@@ -172,7 +172,7 @@ ni_objectmodel_lldp_down(ni_dbus_object_t *object, const ni_dbus_method_t *metho
 		return FALSE;
 
 	if (!ni_system_lldp_available(dev)) {
-		ni_error("Cannot disable LLDP for device %s: incompatible layer 2 protocol", dev->name);
+		ni_debug_lldp("Cannot disable LLDP for device %s: incompatible layer 2 protocol", dev->name);
 		return TRUE;
 	}
 
