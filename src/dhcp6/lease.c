@@ -189,6 +189,25 @@ __ni_dhcp6_lease_ia_type_to_xml(const ni_dhcp6_ia_t *ia_list, unsigned ia_type,
 }
 
 int
+__ni_dhcp6_lease_boot_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+{
+	xml_node_t *data;
+	unsigned int i;
+
+	if (ni_string_empty(lease->dhcp6.boot_url) || !lease->dhcp6.boot_params.count)
+		return 1;
+
+	data = xml_node_new("boot", node);
+	xml_node_new_element("url", data, lease->dhcp6.boot_url);
+	for (i = 0; i < lease->dhcp6.boot_params.count; ++i) {
+		if (ni_string_empty(lease->dhcp6.boot_params.data[i]))
+			continue;
+		xml_node_new_element("param", data, lease->dhcp6.boot_params.data[i]);
+	}
+	return 0;
+}
+
+int
 ni_dhcp6_lease_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 {
 	static const struct group_map {
@@ -198,6 +217,7 @@ ni_dhcp6_lease_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 		{ NI_ADDRCONF_LEASE_XML_DNS_DATA_NODE, ni_addrconf_lease_dns_data_to_xml },
 		{ NI_ADDRCONF_LEASE_XML_NTP_DATA_NODE, ni_addrconf_lease_ntp_data_to_xml },
 		{ NI_ADDRCONF_LEASE_XML_SIP_DATA_NODE, ni_addrconf_lease_sip_data_to_xml },
+		{ NI_ADDRCONF_LEASE_XML_PTZ_DATA_NODE, ni_addrconf_lease_ptz_data_to_xml },
 		{ NULL, NULL }
 	};
 	xml_node_t *data;
@@ -219,6 +239,9 @@ ni_dhcp6_lease_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 		return -1;
 	if (__ni_dhcp6_lease_ia_type_to_xml(lease->dhcp6.ia_list,
 				NI_DHCP6_OPTION_IA_PD, node) < 0)
+		return -1;
+
+	if (__ni_dhcp6_lease_boot_to_xml(lease, node) < 0)
 		return -1;
 
 	for (g = group_map; g && g->name && g->func; ++g) {
@@ -397,6 +420,22 @@ __ni_dhcp6_lease_ia_type_from_xml(ni_dhcp6_ia_t **ia_list, unsigned int ia_type,
 }
 
 int
+__ni_dhcp6_lease_boot_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+{
+	xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "url") && child->cdata) {
+			ni_string_dup(&lease->dhcp6.boot_url, child->cdata);
+		} else
+		if (ni_string_eq(child->name, "param") && child->cdata) {
+			ni_string_array_append(&lease->dhcp6.boot_params, child->cdata);
+		}
+	}
+	return 0;
+}
+
+int
 ni_dhcp6_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 {
 	const char *ia_na_name = ni_dhcp6_option_name(NI_DHCP6_OPTION_IA_NA);
@@ -449,6 +488,11 @@ ni_dhcp6_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 				return -1;
 		} else
 
+		if (ni_string_eq(child->name, "boot")) {
+			if (__ni_dhcp6_lease_boot_from_xml(lease, child) < 0)
+				return -1;
+		} else
+
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_DNS_DATA_NODE)) {
 			if (ni_addrconf_lease_dns_data_from_xml(lease, child) < 0)
 				return -1;
@@ -459,6 +503,10 @@ ni_dhcp6_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 		} else
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_SIP_DATA_NODE)) {
 			if (ni_addrconf_lease_sip_data_from_xml(lease, child) < 0)
+				return -1;
+		} else
+		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_PTZ_DATA_NODE)) {
+			if (ni_addrconf_lease_ptz_data_from_xml(lease, child) < 0)
 				return -1;
 		}
 	}

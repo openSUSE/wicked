@@ -45,27 +45,64 @@
  * dhcp4 lease data to xml
  */
 static int
+__ni_dhcp4_lease_boot_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+{
+	ni_sockaddr_t addr;
+	xml_node_t *boot;
+
+	boot = xml_node_new("boot", NULL);
+	if (lease->dhcp4.boot_saddr.s_addr) {
+		ni_sockaddr_set_ipv4(&addr, lease->dhcp4.boot_saddr, 0);
+		xml_node_new_element("server-address", boot, ni_sockaddr_print(&addr));
+	}
+	if (!ni_string_empty(lease->dhcp4.boot_sname)) {
+		xml_node_new_element("server-name", boot, lease->dhcp4.boot_sname);
+	}
+	if (!ni_string_empty(lease->dhcp4.boot_file)) {
+		xml_node_new_element("filename", boot, lease->dhcp4.boot_file);
+	}
+	if (boot->children) {
+		xml_node_add_child(node, boot);
+		return 0;
+	} else {
+		xml_node_free(boot);
+		return 1;
+	}
+}
+
+static int
 __ni_dhcp4_lease_head_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 {
 	ni_sockaddr_t addr;
 
-	if (lease->dhcp4.client_id[0]) {
-		xml_node_new_element("client-id", node, lease->dhcp4.client_id);
+	if (lease->dhcp4.client_id.len) {
+		xml_node_new_element("client-id", node, ni_print_hex(
+					lease->dhcp4.client_id.data,
+					lease->dhcp4.client_id.len));
 	}
-	if (lease->dhcp4.servername[0]) {
-		xml_node_new_element("server-name", node, lease->dhcp4.servername);
+	if (lease->dhcp4.server_id.s_addr) {
+		ni_sockaddr_set_ipv4(&addr, lease->dhcp4.server_id, 0);
+		xml_node_new_element("server-id", node, ni_sockaddr_print(&addr));
 	}
+#if 0
 	if (lease->dhcp4.serveraddress.s_addr) {
 		ni_sockaddr_set_ipv4(&addr, lease->dhcp4.serveraddress, 0);
 		xml_node_new_element("server-address", node, ni_sockaddr_print(&addr));
 	}
-
+#endif
+	if (lease->dhcp4.relay_addr.s_addr) {
+		ni_sockaddr_set_ipv4(&addr, lease->dhcp4.relay_addr, 0);
+		xml_node_new_element("relay-address", node, ni_sockaddr_print(&addr));
+	}
 	if (lease->dhcp4.lease_time)
 		xml_node_new_element_uint("lease-time", node, lease->dhcp4.lease_time);
 	if (lease->dhcp4.renewal_time)
 		xml_node_new_element_uint("renewal-time", node, lease->dhcp4.renewal_time);
 	if (lease->dhcp4.rebind_time)
 		xml_node_new_element_uint("rebind-time", node, lease->dhcp4.rebind_time);
+
+	if (!ni_string_empty(lease->hostname))
+		xml_node_new_element("hostname", node, lease->hostname);
 
 	if (lease->dhcp4.address.s_addr) {
 		ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
@@ -82,13 +119,10 @@ __ni_dhcp4_lease_head_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 	if (lease->dhcp4.mtu)
 		xml_node_new_element_uint("mtu", node, lease->dhcp4.mtu);
 
-	if (!ni_string_empty(lease->hostname))
-		xml_node_new_element("hostname", node, lease->hostname);
+	__ni_dhcp4_lease_boot_to_xml(lease, node);
 
-	if (!ni_string_empty(lease->dhcp4.bootfile))
-		xml_node_new_element("boot-file", node, lease->dhcp4.bootfile);
-	if (!ni_string_empty(lease->dhcp4.rootpath))
-		xml_node_new_element("root-path", node, lease->dhcp4.rootpath);
+	if (!ni_string_empty(lease->dhcp4.root_path))
+		xml_node_new_element("root-path", node, lease->dhcp4.root_path);
 
 	if (!ni_string_empty(lease->dhcp4.message))
 		xml_node_new_element("message", node, lease->dhcp4.message);
@@ -113,6 +147,7 @@ ni_dhcp4_lease_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 		{ NI_ADDRCONF_LEASE_XML_SLP_DATA_NODE, ni_addrconf_lease_slp_data_to_xml },
 		{ NI_ADDRCONF_LEASE_XML_LPR_DATA_NODE, ni_addrconf_lease_lpr_data_to_xml },
 		{ NI_ADDRCONF_LEASE_XML_LOG_DATA_NODE, ni_addrconf_lease_log_data_to_xml },
+		{ NI_ADDRCONF_LEASE_XML_PTZ_DATA_NODE, ni_addrconf_lease_ptz_data_to_xml },
 		{ NULL,	NULL }
 	};
 	xml_node_t *data;
@@ -161,6 +196,28 @@ ni_dhcp4_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 /*
  * dhcp4 lease data from xml
  */
+static int
+__ni_dhcp4_lease_boot_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+{
+	xml_node_t *child;
+	ni_sockaddr_t addr;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "server-address") && child->cdata) {
+			if (ni_sockaddr_parse(&addr, child->cdata, AF_INET) < 0)
+				return -1;
+			lease->dhcp4.boot_saddr = addr.sin.sin_addr;
+		} else
+		if (ni_string_eq(child->name, "server-name") && child->cdata) {
+			ni_string_dup(&lease->dhcp4.boot_sname, child->cdata);
+		} else
+		if (ni_string_eq(child->name, "filename") && child->cdata) {
+			ni_string_dup(&lease->dhcp4.boot_file, child->cdata);
+		}
+	}
+	return 0;
+}
+
 int
 ni_dhcp4_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 {
@@ -170,25 +227,31 @@ ni_dhcp4_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, "client-id") && child->cdata) {
-			if (ni_string_len(child->cdata) >= sizeof(lease->dhcp4.client_id))
+			int len;
+
+			len = ni_parse_hex(child->cdata, lease->dhcp4.client_id.data,
+						sizeof(lease->dhcp4.client_id.data));
+			if (len < 0)
 				return -1;
-			strncpy(lease->dhcp4.client_id, child->cdata,
-					sizeof(lease->dhcp4.client_id)-1);
-			lease->dhcp4.client_id[sizeof(lease->dhcp4.client_id)-1] = '\0';
+			lease->dhcp4.client_id.len = len;
 		} else
-		if (ni_string_eq(child->name, "server-name") && child->cdata) {
-			if (ni_string_len(child->cdata) >= sizeof(lease->dhcp4.servername))
+		if (ni_string_eq(child->name, "server-id") && child->cdata) {
+			if (ni_sockaddr_parse(&addr, child->cdata, AF_INET) < 0)
 				return -1;
-			strncpy(lease->dhcp4.servername, child->cdata,
-					sizeof(lease->dhcp4.servername)-1);
-			lease->dhcp4.servername[sizeof(lease->dhcp4.servername)-1] = '\0';
-		} else
+			lease->dhcp4.server_id = addr.sin.sin_addr;
+		}
+#if 0
 		if (ni_string_eq(child->name, "server-address") && child->cdata) {
 			if (ni_sockaddr_parse(&addr, child->cdata, AF_INET) < 0)
 				return -1;
 			lease->dhcp4.serveraddress = addr.sin.sin_addr;
 		} else
-
+#endif
+		if (ni_string_eq(child->name, "relay-address") && child->cdata) {
+			if (ni_sockaddr_parse(&addr, child->cdata, AF_INET) < 0)
+				return -1;
+			lease->dhcp4.relay_addr = addr.sin.sin_addr;
+		}
 		if (ni_string_eq(child->name, "lease-time") && child->cdata) {
 			if (ni_parse_uint(child->cdata, &value, 10) != 0)
 				return -1;
@@ -231,11 +294,12 @@ ni_dhcp4_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 			ni_string_dup(&lease->hostname, child->cdata);
 		} else
 
-		if (ni_string_eq(child->name, "boot-file") && child->cdata) {
-			ni_string_dup(&lease->dhcp4.bootfile, child->cdata);
+		if (ni_string_eq(child->name, "boot") && child->children) {
+			if (__ni_dhcp4_lease_boot_from_xml(lease, child) < 0)
+				return -1;
 		} else
 		if (ni_string_eq(child->name, "root-path") && child->cdata) {
-			ni_string_dup(&lease->dhcp4.rootpath, child->cdata);
+			ni_string_dup(&lease->dhcp4.root_path, child->cdata);
 		} else
 
 		if (ni_string_eq(child->name, "message") && child->cdata) {
@@ -282,8 +346,11 @@ ni_dhcp4_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_LPR_DATA_NODE)) {
 			if (ni_addrconf_lease_lpr_data_from_xml(lease, child) < 0)
 				return -1;
+		} else
+		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_PTZ_DATA_NODE)) {
+			if (ni_addrconf_lease_ptz_data_from_xml(lease, child) < 0)
+				return -1;
 		}
-
 	}
 	return 0;
 }

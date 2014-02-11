@@ -671,7 +671,6 @@ ni_dhcp6_option_put_ia(ni_buffer_t *bp, ni_dhcp6_ia_t *ia)
 			ia->rebind_time = ia->renewal_time + (ia->renewal_time / 2);
 #if 0
 		ni_trace("ia->renewal_time: %u", ia->renewal_time);
-		ni_trace("ia->rebind_time: %u", ia->rebind_time);
 #endif
 		value32 = htonl(ia->renewal_time);
 		if (ni_buffer_put(&data, &value32, sizeof(value32)) < 0)
@@ -984,6 +983,49 @@ ni_dhcp6_option_get_sockaddr(ni_buffer_t *bp, ni_sockaddr_t *addr, unsigned int 
 }
 
 static int
+ni_dhcp6_option_get_printable_array(ni_buffer_t *bp, ni_string_array_t *result,
+					const char *what)
+{
+	ni_string_array_t temp = NI_STRING_ARRAY_INIT;
+	unsigned int tot, n = 0;
+	uint16_t len;
+	ni_buffer_t pbuff;
+	char *param = NULL;
+	void *data;
+
+	while ((tot = ni_buffer_count(bp)) && !bp->underflow) {
+		tot -= sizeof(len);
+		if (ni_dhcp6_option_get16(bp, &len) < 0 || !len || tot < len)
+			goto failure;
+
+		if ((data = ni_buffer_pull_head(bp, len)) == NULL)
+			goto failure;
+
+		ni_buffer_init_reader(&pbuff, data, len);
+		if (ni_dhcp6_option_gets(&pbuff, &param) < 0)
+			goto failure;
+
+		if (ni_check_printable(param, len)) {
+			ni_string_array_append(&temp, param);
+		} else {
+			ni_warn("Discarded suspect %s[%u]: '%s'",
+				what, n, ni_print_suspect(param, len));
+		}
+		n++;
+		ni_string_free(&param);
+	}
+
+	if (bp->underflow)
+		goto failure;
+
+	ni_string_array_move(result, &temp);
+	return 0;
+failure:
+	ni_string_array_destroy(&temp);
+	return -1;
+}
+
+static int
 ni_dhcp6_decode_address_list(ni_buffer_t *bp, ni_string_array_t *list)
 {
 	while (ni_buffer_count(bp) && !bp->underflow) {
@@ -1270,16 +1312,16 @@ __ni_dhcp6_build_oro_opts(ni_dhcp6_device_t *dev,
 	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_PREFERENCE);
 	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_DNS_SERVERS);
 	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_DNS_DOMAINS);
-	/* TODO:
+	/* TODO: linux nis currently does not support IPv6
 	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NIS_SERVERS);
 	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NIS_DOMAIN_NAME);
 	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NISP_SERVERS);
 	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NISP_DOMAIN_NAME);
-	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_POSIX_TIMEZONE);
-	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_POSIX_TIMEZONEDB);
+	*/
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_POSIX_TZ_STRING);
+	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_POSIX_TZ_DBNAME);
 	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_BOOTFILE_URL);
 	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_BOOTFILE_PARAM);
-	*/
 	/*
 	 * TODO: ntp options envelope - AFAIR ISC dhcp does not support it yet.
 	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NTP_SERVER);
@@ -1938,7 +1980,7 @@ ni_dhcp6_ia_list_count_active(ni_dhcp6_ia_t *list, struct timeval *now)
 static void
 __ni_dhcp6_ia_set_default_lifetimes(ni_dhcp6_ia_t *ia, unsigned int pref_time)
 {
-	if (ni_dhcp6_ia_type_ta(ia)) {
+	if (ni_dhcp6_ia_type_ta(ia) || !pref_time) {
 		/* ia-ta's do not have explicit renew,rebind */
 		ia->renewal_time = 0;
 		ia->rebind_time = 0;
@@ -2717,16 +2759,60 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 			}
 			ni_string_array_destroy(&temp);
 		break;
-		case NI_DHCP6_OPTION_POSIX_TIMEZONE:
+		case NI_DHCP6_OPTION_POSIX_TZ_STRING:
 			if (ni_dhcp6_option_gets(&optbuf, &str) == 0) {
-				ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option), str);
-				/* TODO */
+				size_t len = ni_string_len(str);
+				if (ni_check_printable(str, len)) {
+					ni_string_dup(&lease->posix_tz_string, str);
+					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option), str);
+				} else {
+					ni_warn("Discarded suspect %s: '%s'",
+							ni_dhcp6_option_name(option),
+							ni_print_suspect(str, len));
+				}
+				ni_string_free(&str);
 			}
 		break;
-		case NI_DHCP6_OPTION_POSIX_TIMEZONEDB:
+		case NI_DHCP6_OPTION_POSIX_TZ_DBNAME:
 			if (ni_dhcp6_option_gets(&optbuf, &str) == 0) {
-				ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option), str);
-				/* TODO */
+				size_t len = ni_string_len(str);
+				if (ni_check_pathname(str, len)) {
+					ni_string_dup(&lease->posix_tz_dbname, str);
+					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option), str);
+				} else {
+					ni_warn("Discarded suspect %s: '%s'",
+							ni_dhcp6_option_name(option),
+							ni_print_suspect(str, len));
+				}
+				ni_string_free(&str);
+			}
+		break;
+		case NI_DHCP6_OPTION_BOOTFILE_URL:
+			if (ni_dhcp6_option_gets(&optbuf, &str) == 0) {
+				size_t len = ni_string_len(str);
+				if (ni_check_pathname(str, len)) {
+					ni_string_dup(&lease->dhcp6.boot_url, str);
+					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option), str);
+				} else {
+					ni_warn("Discarded suspect %s: '%s'",
+							ni_dhcp6_option_name(option),
+							ni_print_suspect(str, len));
+				}
+				ni_string_free(&str);
+			}
+		break;
+		case NI_DHCP6_OPTION_BOOTFILE_PARAM:
+			if (ni_dhcp6_option_get_printable_array(&optbuf,
+						&lease->dhcp6.boot_params,
+						ni_dhcp6_option_name(option)) == 0) {
+				for (i = 0; i < lease->dhcp6.boot_params.count; ++i) {
+					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option),
+							lease->dhcp6.boot_params.data[i]);
+				}
+			} else {
+				ni_debug_dhcp("Cannot parse option %s",
+						ni_dhcp6_option_name(option));
+
 			}
 		break;
 		case NI_DHCP6_OPTION_ORO:

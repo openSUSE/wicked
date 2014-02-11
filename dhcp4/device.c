@@ -276,12 +276,11 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	}
 
 	if (info->clientid) {
-		strncpy(config->client_id, info->clientid, sizeof(config->client_id)-1);
-		ni_dhcp4_parse_client_id(&config->raw_client_id, dev->system.hwaddr.type, info->clientid);
+		ni_dhcp4_parse_client_id(&config->client_id, dev->system.hwaddr.type,
+					 info->clientid);
 	} else {
 		/* Set client ID from interface hwaddr */
-		strncpy(config->client_id, ni_link_address_print(&dev->system.hwaddr), sizeof(config->client_id)-1);
-		ni_dhcp4_set_client_id(&config->raw_client_id, &dev->system.hwaddr);
+		ni_dhcp4_set_client_id(&config->client_id, &dev->system.hwaddr);
 	}
 
 	if ((classid = info->vendor_class) == NULL)
@@ -298,7 +297,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_trace("  lease-time      %u", config->max_lease_time);
 		ni_trace("  hostname        %s", config->hostname[0]? config->hostname : "<none>");
 		ni_trace("  vendor-class    %s", config->classid[0]? config->classid : "<none>");
-		ni_trace("  client-id       %s", ni_print_hex(config->raw_client_id.data, config->raw_client_id.len));
+		ni_trace("  client-id       %s", ni_print_hex(config->client_id.data, config->client_id.len));
 		ni_trace("  uuid            %s", ni_uuid_print(&config->uuid));
 		ni_trace("  flags           %s", __ni_dhcp4_print_flags(config->flags));
 	}
@@ -314,8 +313,8 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 
 	if (dev->lease) {
 		if (!ni_addrconf_lease_is_valid(dev->lease)
-		 || (info->hostname && !ni_string_eq(info->hostname, dev->lease->hostname))
-		 || (info->clientid && !ni_string_eq(info->clientid, dev->lease->dhcp4.client_id))) {
+		 || (config->hostname && !ni_string_eq(config->hostname, dev->lease->hostname))
+		 || (config->client_id.len && !ni_opaque_eq(&config->client_id, &dev->lease->dhcp4.client_id))) {
 			ni_debug_dhcp("%s: lease doesn't match request", dev->ifname);
 			ni_dhcp4_device_drop_lease(dev);
 			dev->notify = 1;

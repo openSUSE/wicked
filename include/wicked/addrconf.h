@@ -101,13 +101,15 @@ struct ni_addrconf_lease {
 	ni_string_array_t	sip_servers;
 	ni_string_array_t	lpr_servers;
 	ni_string_array_t	log_servers;
+	char *			posix_tz_string;
+	char *			posix_tz_dbname;
 
 	/* Information specific to some addrconf protocol */
 	union {
 	    struct ni_addrconf_lease_dhcp4 {
-		struct in_addr		serveraddress;
-		char			servername[64];
-		char			client_id[64];
+		ni_opaque_t		client_id;
+		struct in_addr		server_id;
+		struct in_addr		relay_addr;
 
 		struct in_addr		address;
 		struct in_addr		netmask;
@@ -118,9 +120,11 @@ struct ni_addrconf_lease {
 		uint32_t		renewal_time;
 		uint32_t		rebind_time;
 
+		struct in_addr		boot_saddr;
+		char *			boot_sname;
+		char *			boot_file;
+		char *			root_path;
 		char *			message;
-		char *			bootfile;
-		char *			rootpath;
 	    } dhcp4;
 	    struct ni_addrconf_lease_dhcp6 {
 		ni_opaque_t		client_id;
@@ -130,6 +134,8 @@ struct ni_addrconf_lease {
 		ni_bool_t		rapid_commit;
 		struct ni_dhcp6_status *status;
 		struct ni_dhcp6_ia *	ia_list;
+		char *			boot_url;
+		ni_string_array_t	boot_params;
 	    } dhcp6;
 	};
 };

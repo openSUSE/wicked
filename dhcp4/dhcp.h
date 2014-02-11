@@ -105,11 +105,12 @@ enum {
 	DHCP4_DO_SIP		= 0x00000800,
 	DHCP4_DO_LPR		= 0x00001000,
 	DHCP4_DO_LOG		= 0x00002000,
+	DHCP4_DO_POSIX_TZ	= 0x00004000,
 	DHCP4_DO_DEFAULT	= DHCP4_DO_ARP|DHCP4_DO_HOSTNAME|DHCP4_DO_RESOLVER|
 				  DHCP4_DO_NIS|DHCP4_DO_NTP|DHCP4_DO_CSR|
 				  DHCP4_DO_GATEWAY|DHCP4_DO_ROOT|
 				  DHCP4_DO_NDS|DHCP4_DO_SMB|DHCP4_DO_SIP|
-				  DHCP4_DO_LPR|DHCP4_DO_LOG
+				  DHCP4_DO_LPR|DHCP4_DO_LOG|DHCP4_DO_POSIX_TZ
 };
 
 /*
@@ -153,8 +154,7 @@ struct ni_dhcp4_config {
 	char			classid[48];
 	int			fqdn;
 
-	char			client_id[256];
-	ni_opaque_t		raw_client_id;
+	ni_opaque_t		client_id;
 	ni_opaque_t		userclass;
 
 	unsigned int		initial_discovery_timeout;
