@@ -218,26 +218,14 @@ __ni_leaseinfo_format_route(ni_string_array_t *routes, ni_string_array_t *gates,
 	ni_route_nexthop_t *nh;
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_sockaddr_t nogateway;
-	ni_sockaddr_t netmask;
 
 	memset(&nogateway, 0, sizeof(nogateway));
 	for (nh = &rp->nh; nh; nh = nh->next) {
 		if (ni_sockaddr_is_specified(&rp->destination)) {
-			/* (network) ROUTES + = 'dest,netmask/prefixlen,gateway' */
+			/* (network) ROUTES + = 'destination,prefixlen,gateway' */
 			ni_stringbuf_puts(&buf, ni_sockaddr_print(&rp->destination));
 			ni_stringbuf_putc(&buf, ',');
-
-			switch (rp->family) {
-			case AF_INET:
-				ni_sockaddr_build_netmask(rp->family, rp->prefixlen,
-							&netmask);
-				ni_stringbuf_puts(&buf, ni_sockaddr_print(&netmask));
-				break;
-			case AF_INET6:
-				ni_stringbuf_printf(&buf, "%u", rp->prefixlen);
-				break;
-			default: ;
-			}
+			ni_stringbuf_printf(&buf, "%u", rp->prefixlen);
 			ni_stringbuf_putc(&buf, ',');
 
 			if (ni_sockaddr_is_specified(&nh->gateway)) {
