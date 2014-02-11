@@ -6,11 +6,24 @@ AC_INIT([wicked], esyscmd([tr -d '\n' < VERSION]),
 	[https://github.com/openSUSE/wicked])
 AM_INIT_AUTOMAKE([foreign dist-bzip2 no-dist-gzip])
 
-# at the moment we just use the package version...
-AC_SUBST(LIBWICKED_SOFILE_VERSION, ${PACKAGE_VERSION})
-AC_SUBST(LIBWICKED_SONAME_VERSION, ${PACKAGE_VERSION%%.*})
-AC_SUBST(LIBWICKED_LTLINK_VERSION, "-version-number ${PACKAGE_VERSION//./:}")
-AC_SUBST(LIBWICKED_PACKAGE_SUFFIX, ${LIBWICKED_SONAME_VERSION//./_})
+#
+# See "info libtool": Updating library version information
+#
+# Note: We consider libwicked as an internal helper library,
+# rather than a general purporse library with rock solid ABI.
+# The program/package version and the library version do not
+# correspond with each other and when, it is a coincidence.
+#
+# BTW: The libtool so version on _linux_ is (CUR-AGE).AGE.REV
+#      with (CUR-AGE) used in the library soname.
+#
+CUR=5
+REV=7
+AGE=5
+
+# Calculate package (soname version) suffix for the spec file.
+AC_SUBST(LIBWICKED_PACKAGE_SUFFIX, "$((${CUR}-${AGE}))")
+AC_SUBST(LIBWICKED_LTLINK_VERSION, "-version-info ${CUR}:${REV}:${AGE}")
 
 #AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_SRCDIR([src/config.c])
