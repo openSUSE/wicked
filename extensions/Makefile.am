@@ -2,23 +2,16 @@
 CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
 
-wicked_extensions_DATA		= \
-	functions
-
 wicked_extensions_SCRIPTS	= \
-	bridge		\
 	firewall	\
 	hostname	\
 	ibft		\
-	netconfig	\
-	openvpn		\
-	resolver
+	netconfig
 
-EXTRA_DIST			= $(wicked_extensions_DATA) \
-				  $(wicked_extensions_SCRIPTS)
+EXTRA_DIST			= $(wicked_extensions_SCRIPTS)
 
 check-local:
-	@for i in $(wicked_extensions_DATA) $(wicked_extensions_SCRIPTS) ; \
+	@for i in $(wicked_extensions_SCRIPTS) ; \
 	do \
 		bash -n $(srcdir)/$$i \
 			&& printf 'extensions/%-30s %s\n' $$i "Syntax OK" \

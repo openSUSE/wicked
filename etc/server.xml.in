@@ -33,38 +33,12 @@
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
   </dbus-service>
 
-  <dbus-service interface="org.opensuse.Network.Bridge">
-   <action name="addPort" command="@wicked_extensionsdir@/bridge addPort" />
-   <action name="removePort" command="@wicked_extensionsdir@/bridge removePort" />
-
-   <!-- default environment for all calls to this extension script -->
-   <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
-   <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
-   <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
-  </dbus-service>
-
   <dbus-service interface="org.opensuse.Network.Wireless">
    <!-- default environment for all calls to this extension script -->
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
    <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
   </dbus-service>
-
-  <!--
-  <dbus-service interface="org.opensuse.Network.OpenVPN">
-   <action name="changeDevice" command="@wicked_extensionsdir@/openvpn change" />
-   <action name="linkUp" command="@wicked_extensionsdir@/openvpn link-up" />
-   <action name="linkDown" command="@wicked_extensionsdir@/openvpn link-down" />
-  -->
-
-   <!-- default environment for all calls to this extension script -->
-  <!--
-   <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
-   <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
-   <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
-   <putenv name="WICKED_TUNNEL_ID" value="$property:tunnel-id"/>
-  </dbus-service>
-  -->
 
   <dbus-service interface="org.opensuse.Network.Firewall">
    <action name="firewallUp" command="@wicked_extensionsdir@/firewall up"/>
