@@ -217,7 +217,31 @@ __ni_objectmodel_get_string_array(ni_string_array_t *ap, const ni_dbus_variant_t
 	return TRUE;
 }
 
-dbus_bool_t
+static inline dbus_bool_t
+__ni_objectmodel_get_printable_array(ni_string_array_t *ap, const ni_dbus_variant_t *var, DBusError *error, const char *key)
+{
+	unsigned int i, len;
+
+	if (!ni_dbus_variant_is_string_array(var))
+		return FALSE;
+
+	if ((len = var->array.len) > 64)
+		len = 64;
+
+	for (i = 0; i < len; ++i) {
+		const char *string_value = var->string_array_value[i];
+		if (ni_check_printable(string_value, len)) {
+			ni_string_array_append(ap, string_value);
+		} else {
+			ni_debug_objectmodel("Discarded suspect objectmodel %s: %s",
+					key, ni_print_suspect(string_value, len));
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+static inline dbus_bool_t
 __ni_objectmodel_get_domain_string(const ni_dbus_variant_t *dict, const char *key, const char **value)
 {
 	const char *string_value = NULL;
@@ -231,6 +255,40 @@ __ni_objectmodel_get_domain_string(const ni_dbus_variant_t *dict, const char *ke
 		}
 		ni_debug_objectmodel("Discarded suspect objectmodel %s: %s",
 					key, ni_print_suspect(string_value, len));
+	}
+	return FALSE;
+}
+
+static inline dbus_bool_t
+__ni_objectmodel_get_pathname_string(const ni_dbus_variant_t *dict, const char *key, const char **value)
+{
+	const char *string_value = NULL;
+	size_t len;
+	if (ni_dbus_dict_get_string(dict, key, &string_value)) {
+		len = ni_string_len(string_value);
+		if (ni_check_pathname(string_value, len)) {
+			*value = string_value;
+			return TRUE;
+		}
+		ni_debug_objectmodel("Discarded suspect objectmodel %s: %s",
+				key, ni_print_suspect(string_value, len));
+	}
+	return FALSE;
+}
+
+static inline dbus_bool_t
+__ni_objectmodel_get_printable_string(const ni_dbus_variant_t *dict, const char *key, const char **value)
+{
+	const char *string_value = NULL;
+	size_t len;
+	if (ni_dbus_dict_get_string(dict, key, &string_value)) {
+		len = ni_string_len(string_value);
+		if (ni_check_printable(string_value, len)) {
+			*value = string_value;
+			return TRUE;
+		}
+		ni_debug_objectmodel("Discarded suspect objectmodel %s: %s",
+				key, ni_print_suspect(string_value, len));
 	}
 	return FALSE;
 }
@@ -993,6 +1051,93 @@ ni_netbios_node_type_to_code(const char *name)
 /*
  * Build a DBus dict from an addrconf lease
  */
+static void
+__ni_objectmodel_get_addrconf_dhcp4_dict(const struct ni_addrconf_lease_dhcp4 *dhcp4,
+					ni_dbus_variant_t *dict)
+{
+	if (dhcp4->client_id.len) {
+		ni_dbus_dict_add_string(dict, "client-id", ni_print_hex
+				(dhcp4->client_id.data, dhcp4->client_id.len));
+	}
+	if (dhcp4->server_id.s_addr) {
+		ni_dbus_dict_add_string(dict, "server-id",
+				inet_ntoa(dhcp4->server_id));
+	}
+	if (dhcp4->relay_addr.s_addr) {
+		ni_dbus_dict_add_string(dict, "relay-address",
+				inet_ntoa(dhcp4->relay_addr));
+	}
+	if (dhcp4->mtu) {
+		ni_dbus_dict_add_uint16(dict, "mtu", dhcp4->mtu);
+	}
+	if (dhcp4->lease_time) {
+		ni_dbus_dict_add_uint32(dict, "lease-time", dhcp4->lease_time);
+	}
+	if (dhcp4->renewal_time) {
+		ni_dbus_dict_add_uint32(dict, "renewal-time", dhcp4->renewal_time);
+	}
+	if (dhcp4->rebind_time) {
+		ni_dbus_dict_add_uint32(dict, "rebind-time", dhcp4->rebind_time);
+	}
+	if (dhcp4->boot_saddr.s_addr) {
+		ni_dbus_dict_add_string(dict, "boot-server-address",
+						inet_ntoa(dhcp4->boot_saddr));
+	}
+	if (dhcp4->boot_sname) {
+		ni_dbus_dict_add_string(dict, "boot-server-name",
+						dhcp4->boot_sname);
+	}
+	if (dhcp4->boot_file) {
+		ni_dbus_dict_add_string(dict, "boot-filename",
+						dhcp4->boot_file);
+	}
+	if (dhcp4->root_path) {
+		ni_dbus_dict_add_string(dict, "root-path",
+						dhcp4->root_path);
+	}
+	if (dhcp4->message) {
+		ni_dbus_dict_add_string(dict, "message",
+						dhcp4->message);
+	}
+}
+
+static void
+__ni_objectmodel_get_addrconf_dhcp6_dict(const struct ni_addrconf_lease_dhcp6 *dhcp6,
+					ni_dbus_variant_t *dict)
+{
+	ni_sockaddr_t addr;
+
+	if (dhcp6->client_id.len) {
+		ni_dbus_dict_add_string(dict, "client-id", ni_print_hex
+				(dhcp6->client_id.data, dhcp6->client_id.len));
+	}
+	if (dhcp6->server_id.len) {
+		ni_dbus_dict_add_string(dict, "server-id", ni_print_hex(
+				dhcp6->server_id.data, dhcp6->server_id.len));
+	}
+	ni_sockaddr_set_ipv6(&addr, dhcp6->server_addr, 0);
+	if (ni_sockaddr_is_specified(&addr)) {
+		ni_dbus_dict_add_string(dict, "server-address",
+				ni_sockaddr_print(&addr));
+	}
+	if (dhcp6->server_pref) {
+		ni_dbus_dict_add_uint16(dict, "server-preference", dhcp6->server_pref);
+	}
+	if (dhcp6->rapid_commit) {
+		ni_dbus_dict_add_bool(dict, "rapid-commit", dhcp6->rapid_commit);
+	}
+
+	/* Hmm... status + ia_list: only if we need it */
+
+	if (dhcp6->boot_url) {
+		ni_dbus_dict_add_string(dict, "bootfile-url", dhcp6->boot_url);
+	}
+	if (dhcp6->boot_params.count) {
+		__ni_objectmodel_set_string_array(dict, "bootfile-params",
+							&dhcp6->boot_params);
+	}
+}
+
 dbus_bool_t
 __ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 						ni_dbus_variant_t *result,
@@ -1044,7 +1189,7 @@ __ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 
 		if (nis->domainname)
 			ni_dbus_dict_add_string(child, "domainname", nis->domainname);
-		ni_dbus_dict_add_uint32(child, "default-binding", nis->default_binding);
+		ni_dbus_dict_add_uint32(child, "binding", nis->default_binding);
 		__ni_objectmodel_set_string_array(child, "servers", &nis->default_servers);
 	}
 
@@ -1055,6 +1200,11 @@ __ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 	__ni_objectmodel_set_string_array(result, "sip-servers", &lease->sip_servers);
 	__ni_objectmodel_set_string_array(result, "lpr-servers", &lease->lpr_servers);
 
+	__ni_objectmodel_set_string_array(result, "nds-servers", &lease->nds_servers);
+	__ni_objectmodel_set_string_array(result, "nds-context", &lease->nds_context);
+	if (lease->nds_tree)
+		ni_dbus_dict_add_string  (result, "nds-tree",    lease->nds_tree);
+
 	__ni_objectmodel_set_string_array(result, "netbios-name-servers", &lease->netbios_name_servers);
 	__ni_objectmodel_set_string_array(result, "netbios-dd-servers", &lease->netbios_dd_servers);
 	if (lease->netbios_type)
@@ -1063,6 +1213,25 @@ __ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 	if (lease->netbios_scope)
 		ni_dbus_dict_add_string(result, "netbios-scope", lease->netbios_scope);
 
+	if (lease->posix_tz_string)
+		ni_dbus_dict_add_string(result, "posix-timezone-string",
+						lease->posix_tz_string);
+	if (lease->posix_tz_dbname)
+		ni_dbus_dict_add_string(result, "posix-timezone-dbname",
+						lease->posix_tz_dbname);
+
+	if (lease->family == AF_INET  && lease->type == NI_ADDRCONF_DHCP) {
+		child = ni_dbus_dict_add(result, "ipv4:dhcp");
+		ni_dbus_variant_init_dict(child);
+
+		__ni_objectmodel_get_addrconf_dhcp4_dict(&lease->dhcp4, child);
+	} else
+	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_DHCP) {
+		child = ni_dbus_dict_add(result, "ipv6:dhcp");
+		ni_dbus_variant_init_dict(child);
+
+		__ni_objectmodel_get_addrconf_dhcp6_dict(&lease->dhcp6, child);
+	}
 	return TRUE;
 }
 
@@ -1076,6 +1245,107 @@ ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease, ni_dbus_vari
 		dbus_error_free(&error);
 		return FALSE;
 	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_set_addrconf_dhcp4_data(struct ni_addrconf_lease_dhcp4 *dhcp4,
+					const ni_dbus_variant_t *dict,
+					DBusError *error)
+{
+	const char *string_value;
+	uint32_t value32;
+	uint16_t value16;
+	ni_sockaddr_t addr;
+	int len;
+
+	if (ni_dbus_dict_get_string(dict, "client-id", &string_value)) {
+		if ((len = ni_parse_hex(string_value, dhcp4->client_id.data,
+					sizeof(dhcp4->client_id.data))) < 0)
+			return FALSE;
+		dhcp4->client_id.len = (unsigned int)len;
+	}
+	if (ni_dbus_dict_get_string(dict, "server-id", &string_value)) {
+		if (ni_sockaddr_parse(&addr, string_value, AF_INET) < 0)
+			return FALSE;
+		dhcp4->server_id = addr.sin.sin_addr;
+	}
+	if (ni_dbus_dict_get_string(dict, "relay-address", &string_value)) {
+		if (ni_sockaddr_parse(&addr, string_value, AF_INET) < 0)
+			return FALSE;
+		dhcp4->relay_addr = addr.sin.sin_addr;
+	}
+	if (ni_dbus_dict_get_uint16(dict, "mtu", &value16))
+		dhcp4->mtu = value16;
+	if (ni_dbus_dict_get_uint32(dict, "lease-time", &value32))
+		dhcp4->lease_time = value32;
+	if (ni_dbus_dict_get_uint32(dict, "renewal-time", &value32))
+		dhcp4->renewal_time = value32;
+	if (ni_dbus_dict_get_uint32(dict, "rebind-time", &value32))
+		dhcp4->rebind_time = value32;
+	if (ni_dbus_dict_get_string(dict, "boot-server-address", &string_value)) {
+		if (ni_sockaddr_parse(&addr, string_value, AF_INET) < 0)
+			return FALSE;
+		dhcp4->boot_saddr = addr.sin.sin_addr;
+	}
+	if (__ni_objectmodel_get_domain_string(dict, "boot-server-name", &string_value))
+		ni_string_dup(&dhcp4->boot_sname, string_value);
+	if (__ni_objectmodel_get_pathname_string(dict, "boot-filename", &string_value))
+		ni_string_dup(&dhcp4->boot_file, string_value);
+	if (__ni_objectmodel_get_pathname_string(dict, "root-path", &string_value))
+		ni_string_dup(&dhcp4->root_path, string_value);
+	if (__ni_objectmodel_get_printable_string(dict, "message", &string_value))
+		ni_string_dup(&dhcp4->message, string_value);
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_set_addrconf_dhcp6_data(struct ni_addrconf_lease_dhcp6 *dhcp6,
+					const ni_dbus_variant_t *dict,
+					DBusError *error)
+{
+	ni_dbus_variant_t *var;
+	const char *string_value;
+	dbus_bool_t bool_value;
+	uint16_t value16;
+	ni_sockaddr_t addr;
+	int len;
+
+	if (ni_dbus_dict_get_string(dict, "client-id", &string_value)) {
+		if ((len = ni_parse_hex(string_value, dhcp6->client_id.data,
+					sizeof(dhcp6->client_id.data))) < 0)
+			return FALSE;
+		dhcp6->client_id.len = len;
+	}
+	if (ni_dbus_dict_get_string(dict, "server-id", &string_value)) {
+		if ((len = ni_parse_hex(string_value, dhcp6->server_id.data,
+					sizeof(dhcp6->server_id.data))) < 0)
+			return FALSE;
+		dhcp6->server_id.len = len;
+	}
+	if (ni_dbus_dict_get_string(dict, "server-address", &string_value)) {
+		if (ni_sockaddr_parse(&addr, string_value, AF_INET6) < 0)
+			return FALSE;
+		dhcp6->server_addr = addr.six.sin6_addr;
+	}
+	if (ni_dbus_dict_get_uint16(dict, "server-preference", &value16) &&
+			value16 < 255)
+		dhcp6->server_pref = value16;
+
+	if (ni_dbus_dict_get_bool(dict, "rapid-commit", &bool_value))
+		dhcp6->rapid_commit = bool_value;
+
+	/* Hmm... status + ia_list: only if we need it */
+
+	if (__ni_objectmodel_get_printable_string(dict, "bootfile-url", &string_value))
+		ni_string_dup(&dhcp6->boot_url, string_value);
+
+	if ((var = ni_dbus_dict_get(dict, "bootfile-params")) != NULL
+	 && !__ni_objectmodel_get_printable_array(&dhcp6->boot_params, var,
+						error, "bootfile-params"))
+		return FALSE;
 
 	return TRUE;
 }
@@ -1101,12 +1371,12 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 	else
 		lease->update = ~0;
 
-	if (__ni_objectmodel_get_domain_string(argument, "hostname", &string_value))
-		ni_string_dup(&lease->hostname, string_value);
-
 	if ((child = ni_dbus_dict_get(argument, "uuid")) != NULL
 	 && !ni_dbus_variant_get_uuid(child, &lease->uuid))
 		return FALSE;
+
+	if (__ni_objectmodel_get_domain_string(argument, "hostname", &string_value))
+		ni_string_dup(&lease->hostname, string_value);
 
 	if ((child = ni_dbus_dict_get(argument, "addresses")) != NULL
 	 && !__ni_objectmodel_set_address_list(&lease->addrs, child, error))
@@ -1149,7 +1419,7 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 
 		if ((list = ni_dbus_dict_get(child, "servers")) != NULL
 		 && !__ni_objectmodel_get_address_array(&nis->default_servers, list,
-							error, "default-servers"))
+							error, "servers"))
 			return FALSE;
 	}
 
@@ -1178,6 +1448,17 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 						"lpr-servers"))
 		return FALSE;
 
+	if ((child = ni_dbus_dict_get(argument, "nds-servers")) != NULL
+	 && !__ni_objectmodel_get_address_array(&lease->nds_servers, child, error,
+						"nds-servers"))
+		return FALSE;
+	if ((child = ni_dbus_dict_get(argument, "nds-context")) != NULL
+	 && !__ni_objectmodel_get_printable_array(&lease->nds_context, child, error,
+						"nds-context"))
+		return FALSE;
+	if (__ni_objectmodel_get_printable_string(argument, "nds-tree", &string_value))
+		ni_string_dup(&lease->nds_tree, string_value);
+
 	if ((child = ni_dbus_dict_get(argument, "netbios-name-servers")) != NULL
 	 && !__ni_objectmodel_get_address_array(&lease->netbios_name_servers, child,
 						error, "netbios-name-servers"))
@@ -1190,6 +1471,25 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 		lease->netbios_type = ni_netbios_node_type_to_code(string_value);
 	if (__ni_objectmodel_get_domain_string(argument, "netbios-scope", &string_value))
 		ni_string_dup(&lease->netbios_scope, string_value);
+
+	if (__ni_objectmodel_get_printable_string(argument, "posix-timezone-string",
+				&string_value))
+		ni_string_dup(&lease->posix_tz_string, string_value);
+
+	if (__ni_objectmodel_get_pathname_string(argument, "posix-timezone-dbname",
+				&string_value))
+		ni_string_dup(&lease->posix_tz_dbname, string_value);
+
+	if (lease->family == AF_INET  && lease->type == NI_ADDRCONF_DHCP &&
+	    (child = ni_dbus_dict_get(argument, "ipv4:dhcp")) != NULL) {
+		if (!__ni_objectmodel_set_addrconf_dhcp4_data(&lease->dhcp4, child, error))
+			return FALSE;
+	} else
+	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_DHCP &&
+	    (child = ni_dbus_dict_get(argument, "ipv6:dhcp")) != NULL) {
+		if (!__ni_objectmodel_set_addrconf_dhcp6_data(&lease->dhcp6, child, error))
+			return FALSE;
+	}
 
 	return TRUE;
 }

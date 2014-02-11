@@ -708,9 +708,10 @@ static void
 ni_addrconf_lease_dhcp4_destroy(struct ni_addrconf_lease_dhcp4 *dhcp4)
 {
 	if (dhcp4) {
+		ni_string_free(&dhcp4->boot_sname);
+		ni_string_free(&dhcp4->boot_file);
+		ni_string_free(&dhcp4->root_path);
 		ni_string_free(&dhcp4->message);
-		ni_string_free(&dhcp4->bootfile);
-		ni_string_free(&dhcp4->rootpath);
 	}
 }
 
@@ -720,6 +721,9 @@ ni_addrconf_lease_dhcp6_destroy(struct ni_addrconf_lease_dhcp6 *dhcp6)
 	if (dhcp6) {
 		ni_dhcp6_status_destroy(&dhcp6->status);
 		ni_dhcp6_ia_list_destroy(&dhcp6->ia_list);
+
+		ni_string_free(&dhcp6->boot_url);
+		ni_string_array_destroy(&dhcp6->boot_params);
 	}
 }
 
@@ -753,6 +757,9 @@ ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 	ni_string_array_destroy(&lease->sip_servers);
 	ni_string_array_destroy(&lease->lpr_servers);
 	ni_string_array_destroy(&lease->log_servers);
+
+	ni_string_free(&lease->posix_tz_string);
+	ni_string_free(&lease->posix_tz_dbname);
 
 	switch (lease->type) {
 	case NI_ADDRCONF_DHCP:

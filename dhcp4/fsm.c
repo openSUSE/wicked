@@ -83,6 +83,10 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 		return -1;
 	}
 
+	/* set reqest client-id in the response early to have it in test mode */
+	ni_opaque_set(&lease->dhcp4.client_id,	dev->config->client_id.data,
+						dev->config->client_id.len);
+
 	ni_debug_dhcp("%s: received %s message in state %s",
 			dev->ifname, ni_dhcp4_message_name(msg_code),
 			ni_dhcp4_fsm_state_name(dev->fsm.state));
@@ -90,7 +94,7 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 	/* When receiving a DHCP4 OFFER, verify sender address against list of
 	 * servers to ignore, and preferred servers. */
 	if (msg_code == DHCP4_OFFER && dev->fsm.state == NI_DHCP4_STATE_SELECTING) {
-		struct in_addr srv_addr = { .s_addr = message->siaddr };
+		struct in_addr srv_addr = lease->dhcp4.server_id;
 
 		if (ni_dhcp4_config_ignore_server(srv_addr)) {
 			ni_debug_dhcp("%s: ignoring DHCP4 offer from %s",
@@ -113,11 +117,11 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 			 * server as the original one.
 			 */
 			if (dev->lease
-			 && dev->lease->dhcp4.serveraddress.s_addr == srv_addr.s_addr)
+			 && dev->lease->dhcp4.server_id.s_addr == srv_addr.s_addr)
 				weight = 100;
 
 			ni_debug_dhcp("received lease offer from %s; server weight=%d (best offer=%d)",
-					inet_ntoa(lease->dhcp4.serveraddress), weight,
+					inet_ntoa(lease->dhcp4.server_id), weight,
 					dev->best_offer.weight);
 
 			/* negative weight means never. */
@@ -344,7 +348,7 @@ ni_dhcp4_fsm_rebind(ni_dhcp4_device_t *dev)
 	int rv;
 
 	ni_debug_dhcp("trying to rebind lease for %s", dev->ifname);
-	dev->lease->dhcp4.serveraddress.s_addr = 0;
+	dev->lease->dhcp4.server_id.s_addr = 0;
 
 	dev->fsm.state = NI_DHCP4_STATE_REBINDING;
 	rv = ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
@@ -433,7 +437,7 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 				ni_addrconf_lease_t *lease = dev->best_offer.lease;
 
 				ni_debug_dhcp("accepting lease offer from %s; server weight=%d",
-						inet_ntoa(lease->dhcp4.serveraddress),
+						inet_ntoa(lease->dhcp4.server_id),
 						dev->best_offer.weight);
 				ni_dhcp4_process_offer(dev, lease);
 				return;
@@ -569,14 +573,9 @@ ni_dhcp4_process_offer(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 	 */
 
 	inet_ntop(AF_INET, &lease->dhcp4.address, abuf1, sizeof(abuf1));
-	inet_ntop(AF_INET, &lease->dhcp4.serveraddress, abuf2, sizeof(abuf2));
+	inet_ntop(AF_INET, &lease->dhcp4.server_id, abuf2, sizeof(abuf2));
 
-	if (lease->dhcp4.servername[0])
-		ni_debug_dhcp("Received offer for %s from %s (%s)",
-			abuf1, abuf2, lease->dhcp4.servername);
-	else
-		ni_debug_dhcp("Received offer for %s from %s", abuf1, abuf2);
-
+	ni_debug_dhcp("Received offer for %s from %s", abuf1, abuf2);
 	if (dev->config->dry_run) {
 		ni_dhcp4_send_event(NI_DHCP4_EVENT_ACQUIRED, dev, lease);
 		ni_dhcp4_device_stop(dev);
@@ -638,10 +637,6 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 				dev->ifname, lease->dhcp4.renewal_time);
 		ni_dhcp4_fsm_set_timeout(dev, lease->dhcp4.renewal_time);
 
-		/* Save the client id we used */
-		strncpy(lease->dhcp4.client_id, dev->config->client_id,
-				sizeof(lease->dhcp4.client_id)-1);
-
 		/* If the user requested a specific route metric, apply it now */
 		if (dev->config && dev->config->route_priority) {
 			ni_route_table_t *tab;
@@ -693,6 +688,7 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
  * Reload an old lease from file, and see whether we can reuse it.
  * This is used during restart of wickedd.
  */
+#if 0
 int
 ni_dhcp4_fsm_recover_lease(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *req)
 {
@@ -749,6 +745,7 @@ discard:
 	ni_addrconf_lease_free(lease);
 	return -1;
 }
+#endif
 
 void
 ni_dhcp4_fsm_fail_lease(ni_dhcp4_device_t *dev)

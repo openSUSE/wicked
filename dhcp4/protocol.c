@@ -304,19 +304,19 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	src_addr.s_addr = dst_addr.s_addr = 0;
 	switch (msg_code) {
 	case DHCP4_DISCOVER:
-		if (lease->dhcp4.serveraddress.s_addr != 0)
+		if (lease->dhcp4.server_id.s_addr != 0)
 			return -1;
 		break;
 
 	case DHCP4_REQUEST:
 	case DHCP4_RELEASE:
 	case DHCP4_INFORM:
-		if (lease->dhcp4.address.s_addr == 0 || lease->dhcp4.serveraddress.s_addr == 0)
+		if (lease->dhcp4.address.s_addr == 0 || lease->dhcp4.server_id.s_addr == 0)
 			return -1;
 
 		if (dev->fsm.state != NI_DHCP4_STATE_REQUESTING) {
 			src_addr = lease->dhcp4.address;
-			dst_addr = lease->dhcp4.serveraddress;
+			dst_addr = lease->dhcp4.server_id;
 		}
 		break;
 	}
@@ -367,8 +367,8 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 		ni_dhcp4_option_put16(msgbuf, DHCP4_MAXMESSAGESIZE, dev->system.mtu);
 
 	ni_dhcp4_option_put(msgbuf, DHCP4_CLIENTID,
-			options->raw_client_id.data,
-			options->raw_client_id.len);
+			options->client_id.data,
+			options->client_id.len);
 
 	if (msg_code != DHCP4_DECLINE && msg_code != DHCP4_RELEASE) {
 		if (options->userclass.len > 0)
@@ -388,8 +388,8 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	}
 
 	if (msg_code == DHCP4_REQUEST) {
-		if (lease->dhcp4.serveraddress.s_addr)
-			ni_dhcp4_option_put_ipv4(msgbuf, DHCP4_SERVERIDENTIFIER, lease->dhcp4.serveraddress);
+		if (lease->dhcp4.server_id.s_addr)
+			ni_dhcp4_option_put_ipv4(msgbuf, DHCP4_SERVERIDENTIFIER, lease->dhcp4.server_id);
 	}
 
 	if (msg_code == DHCP4_DISCOVER || msg_code == DHCP4_INFORM || msg_code == DHCP4_REQUEST) {
@@ -444,7 +444,10 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 			ni_buffer_putc(msgbuf, DHCP4_ROUTERS);
 		}
 		if (options->flags & DHCP4_DO_HOSTNAME) {
-			ni_buffer_putc(msgbuf, DHCP4_HOSTNAME);
+			if (options->fqdn == FQDN_DISABLE)
+				ni_buffer_putc(msgbuf, DHCP4_HOSTNAME);
+			else
+				ni_buffer_putc(msgbuf, DHCP4_FQDN);
 		}
 		if (options->flags & DHCP4_DO_RESOLVER) {
 			ni_buffer_putc(msgbuf, DHCP4_DNSSEARCH);
@@ -480,6 +483,10 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 			ni_buffer_putc(msgbuf, DHCP4_NETBIOSDDSERVER);
 			ni_buffer_putc(msgbuf, DHCP4_NETBIOSNODETYPE);
 			ni_buffer_putc(msgbuf, DHCP4_NETBIOSSCOPE);
+		}
+		if (options->flags & DHCP4_DO_POSIX_TZ) {
+			ni_buffer_putc(msgbuf, DHCP4_POSIX_TZ_STRING);
+			ni_buffer_putc(msgbuf, DHCP4_POSIX_TZ_DBNAME);
 		}
 		ni_dhcp4_option_end(msgbuf, params_begin);
 	}
@@ -911,8 +918,8 @@ ni_dhcp4_parse_response(const ni_dhcp4_message_t *message, ni_buffer_t *options,
 	lease->time_acquired = time(NULL);
 
 	lease->dhcp4.address.s_addr = message->yiaddr;
-	lease->dhcp4.serveraddress.s_addr = message->siaddr;
-	lease->dhcp4.address.s_addr = message->yiaddr;
+	lease->dhcp4.boot_saddr.s_addr = message->siaddr;
+	lease->dhcp4.relay_addr.s_addr = message->giaddr;
 
 parse_more:
 	/* Loop as long as we still have data in the buffer. */
@@ -953,7 +960,7 @@ parse_more:
 			ni_dhcp4_option_get_ipv4(&buf, &lease->dhcp4.broadcast);
 			break;
 		case DHCP4_SERVERIDENTIFIER:
-			ni_dhcp4_option_get_ipv4(&buf, &lease->dhcp4.serveraddress);
+			ni_dhcp4_option_get_ipv4(&buf, &lease->dhcp4.server_id);
 			break;
 		case DHCP4_LEASETIME:
 			ni_dhcp4_option_get32(&buf, &lease->dhcp4.lease_time);
@@ -988,7 +995,7 @@ parse_more:
 							"dhcp4-message");
 			break;
 		case DHCP4_ROOTPATH:
-			ni_dhcp4_option_get_pathname(&buf, &lease->dhcp4.rootpath,
+			ni_dhcp4_option_get_pathname(&buf, &lease->dhcp4.root_path,
 							"root-path");
 			break;
 		case DHCP4_NISDOMAIN:
@@ -1127,13 +1134,12 @@ parse_more:
 		char tmp[sizeof(message->servername)];
 		size_t len;
 
-		assert(sizeof(lease->dhcp4.servername) == sizeof(message->servername));
 		memcpy(tmp, message->servername, sizeof(tmp));
 		tmp[sizeof(tmp)-1] = '\0';
 
 		len = ni_string_len(tmp);
 		if (ni_check_domain_name(tmp, len, 0)) {
-			memcpy(lease->dhcp4.servername, tmp, sizeof(lease->dhcp4.servername));
+			ni_string_dup(&lease->dhcp4.boot_sname, tmp);
 		} else {
 			ni_warn("Discarded suspect boot-server name: '%s'",
 				ni_print_suspect(tmp, len));
@@ -1147,7 +1153,7 @@ parse_more:
 		tmp[sizeof(tmp)-1] = '\0';
 		len = ni_string_len(tmp);
 		if (ni_check_pathname(tmp, len)) {
-			ni_string_dup(&lease->dhcp4.bootfile, tmp);
+			ni_string_dup(&lease->dhcp4.boot_file, tmp);
 		} else {
 			ni_warn("Discarded suspect boot-file name: '%s'",
 				ni_print_suspect(tmp, len));

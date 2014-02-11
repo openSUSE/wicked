@@ -149,7 +149,9 @@ __ni_leaseinfo_print_addrs(FILE *out, const char *prefix, ni_address_t *addrs,
 				unsigned int family)
 {
 	ni_address_t *ap;
-	ni_sockaddr_t sa;
+	ni_sockaddr_t nm;
+	ni_sockaddr_t net;
+	ni_sockaddr_t brd;
 	unsigned int i;
 	char *buf = NULL;
 
@@ -166,13 +168,19 @@ __ni_leaseinfo_print_addrs(FILE *out, const char *prefix, ni_address_t *addrs,
 						buf, NULL, i);
 			ni_string_free(&buf);
 
-			ni_sockaddr_build_netmask(ap->family,ap->prefixlen, &sa);
+			ni_sockaddr_build_netmask(ap->family,ap->prefixlen, &nm);
 			__ni_leaseinfo_print_string(out, prefix, "NETMASK",
-						ni_sockaddr_print(&sa), NULL, i);
+						ni_sockaddr_print(&nm), NULL, i);
 
-			sa.sin.sin_addr.s_addr &= ap->local_addr.sin.sin_addr.s_addr;
+			ni_sockaddr_set_ipv4(&net, nm.sin.sin_addr, 0);
+			net.sin.sin_addr.s_addr &= ap->local_addr.sin.sin_addr.s_addr;
 			__ni_leaseinfo_print_string(out, prefix, "NETWORK",
-						ni_sockaddr_print(&sa), NULL, i);
+						ni_sockaddr_print(&net), NULL, i);
+
+			ni_sockaddr_set_ipv4(&brd, net.sin.sin_addr, 0);
+			brd.sin.sin_addr.s_addr |= ~nm.sin.sin_addr.s_addr;
+			__ni_leaseinfo_print_string(out, prefix, "BROADCAST",
+						ni_sockaddr_print(&brd), NULL, i);
 
 			ni_string_printf(&buf, "%u", ap->prefixlen);
 			__ni_leaseinfo_print_string(out, prefix, "PREFIXLEN",
@@ -385,61 +393,76 @@ __ni_leaseinfo_dhcp4_dump(FILE *out, const ni_addrconf_lease_t *lease,
 	char *key = NULL;
 	ni_sockaddr_t sa;
 
-#if 0
-	/* serveraddress */
-	ni_sockaddr_set_ipv4(&sa, lease->dhcp4.serveraddress, 0);
-	__ni_leaseinfo_print_string(out, prefix, "SID",
-				ni_sockaddr_print(&sa), NULL, 0);
-
-	__ni_leaseinfo_print_string(out, prefix, "SNAME",
-				lease->dhcp4.servername,
-				NULL, 0);
-
-	__ni_leaseinfo_print_string(out, prefix, "CLIENTID",
-				lease->dhcp4.client_id,
-				"", 0);
-#endif
-
 	/*
 	 * Hmm...
 	 * Address and netmask specified as part of generic dump, so not
 	 * duplicating here.
 	 */
-	ni_sockaddr_set_ipv4(&sa, lease->dhcp4.broadcast, 0);
+	if (lease->dhcp4.client_id.len) {
+		__ni_leaseinfo_print_string(out, prefix, "CLIENTID",
+				ni_print_hex(lease->dhcp4.client_id.data,
+				lease->dhcp4.client_id.len), "", 0);
+	}
+	ni_sockaddr_set_ipv4(&sa, lease->dhcp4.server_id, 0);
 	if (ni_sockaddr_is_specified(&sa)) {
-		__ni_leaseinfo_print_string(out, prefix, "BROADCAST",
+		__ni_leaseinfo_print_string(out, prefix, "SERVERID",
 					ni_sockaddr_print(&sa), NULL, 0);
 	}
 
-#if 0
-	if (lease->dhcp4.mtu) {
-		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
-			(&key, prefix, "MTU", 0),
-			lease->dhcp4.mtu);
+	ni_sockaddr_set_ipv4(&sa, lease->dhcp4.relay_addr, 0);
+	if (ni_sockaddr_is_specified(&sa)) {
+		__ni_leaseinfo_print_string(out, prefix, "RELAYADDR",
+					ni_sockaddr_print(&sa), NULL, 0);
 	}
 
-	__ni_leaseinfo_print_string(out, prefix, "LEASETIME",
-				__ni_leaseinfo_strftime(lease->dhcp4.lease_time),
+	if (lease->time_acquired) {
+		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
+				(&key, prefix, "ACQUIRED", 0),
+				lease->time_acquired);
+	}
+	if (lease->dhcp4.lease_time)  {
+		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
+				(&key, prefix, "LEASETIME", 0),
+				lease->dhcp4.lease_time);
+	}
+	if (lease->dhcp4.renewal_time) {
+		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
+				(&key, prefix, "RENEWALTIME", 0),
+				lease->dhcp4.renewal_time);
+	}
+	if (lease->dhcp4.rebind_time) {
+		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
+				(&key, prefix, "REBINDTIME", 0),
+				lease->dhcp4.rebind_time);
+	}
+
+	ni_sockaddr_set_ipv4(&sa, lease->dhcp4.boot_saddr, 0);
+	if (ni_sockaddr_is_specified(&sa)) {
+		__ni_leaseinfo_print_string(out, prefix, "BOOTSERVERADDR",
+				ni_sockaddr_print(&sa), NULL, 0);
+	}
+	if (lease->dhcp4.boot_sname) {
+		__ni_leaseinfo_print_string(out, prefix, "BOOTSERVENAME",
+					lease->dhcp4.boot_sname,
+					NULL, 0);
+	}
+	__ni_leaseinfo_print_string(out, prefix, "BOOTFILE",
+				lease->dhcp4.boot_file,
 				NULL, 0);
-	__ni_leaseinfo_print_string(out, prefix, "RENEWALTIME",
-				__ni_leaseinfo_strftime(lease->dhcp4.renewal_time),
-				NULL, 0);
-	__ni_leaseinfo_print_string(out, prefix, "REBINDTIME",
-				__ni_leaseinfo_strftime(lease->dhcp4.rebind_time),
+
+	__ni_leaseinfo_print_string(out, prefix, "ROOTPATH",
+				lease->dhcp4.root_path,
 				NULL, 0);
 
 	__ni_leaseinfo_print_string(out, prefix, "MESSAGE",
 				lease->dhcp4.message,
 				NULL, 0);
 
-	__ni_leaseinfo_print_string(out, prefix, "BOOTFILE",
-				lease->dhcp4.bootfile,
-				NULL, 0);
-
-	__ni_leaseinfo_print_string(out, prefix, "ROOTPATH",
-				lease->dhcp4.rootpath,
-				NULL, 0);
-#endif
+	if (lease->dhcp4.mtu) {
+		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
+			(&key, prefix, "MTU", 0),
+			lease->dhcp4.mtu);
+	}
 
 	ni_string_free(&key);
 }
@@ -448,83 +471,64 @@ static void
 __ni_leaseinfo_dhcp6_dump(FILE *out, const ni_addrconf_lease_t *lease,
 			const char *prefix)
 {
-#if 0
-	struct ni_dhcp6_ia *ia_p = NULL;
-	int i;
 	char *key = NULL;
 	ni_sockaddr_t sa;
 
-	__ni_leaseinfo_print_string(out, prefix, "CLIENTID",
-				ni_print_hex(lease->dhcp6.client_id.data,
-					     lease->dhcp6.client_id.len),
-				"", 0);
-	__ni_leaseinfo_print_string(out, prefix, "SNAME",
-				ni_print_hex(lease->dhcp6.server_id.data,
-					     lease->dhcp6.server_id.len),
-				NULL, 0);
-	fprintf(out, "%s='%"PRIu8"'\n", __ni_keyword_format
-		(&key, prefix, "SERVERPREF", 0),
-		lease->dhcp6.server_pref);
-
-	ni_sockaddr_set_ipv6(&sa, lease->dhcp6.server_addr, 0);
-	__ni_leaseinfo_print_string(out, prefix, "SID",
-				ni_sockaddr_print(&sa), NULL, 0);
-
-	if (lease->dhcp6.rapid_commit)
-		__ni_leaseinfo_print_string(out, prefix, "RAPIDCOMMIT",
-					"TRUE", NULL, 0);
-
-	/* dhcp6 status */
-	if (lease->dhcp6.status) {
+	if (lease->time_acquired) {
 		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
-			(&key, prefix, "STATUSCODE", 0),
-			lease->dhcp6.status->code);
-		__ni_leaseinfo_print_string(out, prefix, "STATUSMESSAGE",
-					lease->dhcp6.status->message,
-					NULL, 0);
+				(&key, prefix, "ACQUIRED", 0),
+				lease->time_acquired);
 	}
 
-	/* dhcp6 addressing */
-	for (i = 0, ia_p = lease->dhcp6.ia_list; ia_p; ++i, ia_p = ia_p->next) {
-		ni_sockaddr_t sa;
+	if (lease->dhcp6.client_id.len) {
+		__ni_leaseinfo_print_string(out, prefix, "CLIENTID",
+				ni_print_hex(lease->dhcp6.client_id.data,
+					lease->dhcp6.client_id.len), "", 0);
+	}
 
-		/* skip NI_DHCP6_OPTION_IA_PD for now */
-		if (ia_p->type != NI_DHCP6_OPTION_IA_NA &&
-		    ia_p->type != NI_DHCP6_OPTION_IA_TA)
-			continue;
+	if (lease->dhcp6.server_id.len) {
+		__ni_leaseinfo_print_string(out, prefix, "SERVERID",
+				ni_print_hex(lease->dhcp6.server_id.data,
+					lease->dhcp6.server_id.len), "", 0);
+	}
+	ni_sockaddr_set_ipv6(&sa, lease->dhcp6.server_addr, 0);
+	if (ni_sockaddr_is_specified(&sa)) {
+		__ni_leaseinfo_print_string(out, prefix, "SERVERADDR",
+				ni_sockaddr_print(&sa), NULL, 0);
+	}
+	if (lease->dhcp6.server_pref) {
+		fprintf(out, "%s='%"PRIu8"'\n", __ni_keyword_format
+			(&key, prefix, "SERVERPREF", 0),
+			lease->dhcp6.server_pref);
+	}
+	if (lease->dhcp6.rapid_commit) {
+		fprintf(out, "%s='%s'\n", __ni_keyword_format
+			(&key, prefix, "RAPIDCOMMIT", 0), "TRUE");
+	}
+	if (lease->dhcp6.boot_url) {
+		__ni_leaseinfo_print_string(out, prefix, "BOOTFILEURL",
+					lease->dhcp6.boot_url, NULL, 0);
+	}
+	if (lease->dhcp6.boot_params.count) {
+		unsigned int i;
 
-		ni_sockaddr_set_ipv6(&sa, ia_p->addrs->addr, 0);
-		__ni_leaseinfo_print_string(out, prefix, "IALIST_IN6_ADDR",
-					ni_sockaddr_print(&sa),
-					NULL, i);
-		__ni_leaseinfo_print_string(out, prefix,
-					"IALIST_IN6_TIMEACQUIRED",
-					__ni_leaseinfo_strftime(
-						ia_p->time_acquired),
-					NULL, i);
-		__ni_leaseinfo_print_string(out, prefix,
-					"IALIST_IN6_RENEWALTIME",
-					__ni_leaseinfo_strftime(
-						ia_p->renewal_time),
-					NULL, i);
-		__ni_leaseinfo_print_string(out, prefix,
-					"IALIST_IN6_REBINDTIME",
-					__ni_leaseinfo_strftime(
-						ia_p->rebind_time),
-					NULL, i);
+		for (i = 0; i < lease->dhcp6.boot_params.count; ++i) {
+			const char *param = lease->dhcp6.boot_params.data[i];
+			if (!param)
+				continue;
+			__ni_leaseinfo_print_string(out, prefix,
+					"BOOTFILEPARAM", param, NULL, i);
+		}
 	}
 
 	ni_string_free(&key);
-#endif
 }
 
 static void
 __ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 		const char *ifname, const char *prefix)
 {
-#if 0
 	unsigned int i;
-#endif
 	char *key = NULL;
 
 	__ni_leaseinfo_print_string(out, prefix, "INTERFACE", ifname, "", 0);
@@ -571,15 +575,6 @@ __ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 
 	__ni_leaseinfo_print_resolver(out, prefix, lease->resolver);
 
-#if 0
-	/* Log Servers */
-	for (i = 0; i < lease->log_servers.count; ++i) {
-		__ni_leaseinfo_print_string(out, prefix, "LOGSERVER",
-					lease->log_servers.data[i],
-					NULL, i);
-	}
-#endif
-
 	/* NTP Servers */
 	__ni_leaseinfo_print_string_array(out, prefix, "NTPSERVERS",
 					&lease->ntp_servers, " ");
@@ -600,7 +595,6 @@ __ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 	if (lease->family == AF_INET)
 		__ni_leaseinfo_print_netbios(out, prefix, lease);
 
-#if 0
 	/* Service Locator Servers */
 	for (i = 0; i < lease->slp_servers.count; ++i) {
 		__ni_leaseinfo_print_string(out, prefix, "SLPSERVERS",
@@ -628,7 +622,19 @@ __ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 					lease->lpr_servers.data[i],
 					NULL, i);
 	}
-#endif
+
+	/* Log Servers */
+	for (i = 0; i < lease->log_servers.count; ++i) {
+		__ni_leaseinfo_print_string(out, prefix, "LOGSERVER",
+					lease->log_servers.data[i],
+					NULL, i);
+	}
+
+	__ni_leaseinfo_print_string(out, prefix, "POSIXTZSTRING",
+				lease->posix_tz_string, NULL, 0);
+
+	__ni_leaseinfo_print_string(out, prefix, "POSIXTZDBNAME",
+				lease->posix_tz_dbname, NULL, 0);
 
 	ni_string_free(&key);
 }

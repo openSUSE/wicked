@@ -330,6 +330,22 @@ ni_addrconf_lease_log_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 }
 
 int
+ni_addrconf_lease_ptz_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+{
+	unsigned int ret = 1;
+
+	if (!ni_string_empty(lease->posix_tz_string)) {
+		xml_node_new_element("posix-string", node, lease->posix_tz_string);
+		ret = 0;
+	}
+	if (!ni_string_empty(lease->posix_tz_dbname)) {
+		xml_node_new_element("posix-dbname", node, lease->posix_tz_dbname);
+		ret = 0;
+	}
+	return ret;
+}
+
+int
 __ni_addrconf_lease_info_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 {
 	xml_node_new_element("family", node, ni_addrfamily_type_to_name(lease->family));
@@ -743,6 +759,24 @@ int
 ni_addrconf_lease_lpr_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 {
 	return __ni_string_array_from_xml(&lease->lpr_servers, "server", node);
+}
+
+int
+ni_addrconf_lease_ptz_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+{
+	const xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "posix-string") &&
+		    !ni_string_empty(child->cdata)) {
+			ni_string_dup(&lease->posix_tz_string, child->cdata);
+		} else
+		if (ni_string_eq(child->name, "posix-dbname") &&
+		    !ni_string_empty(child->cdata)) {
+			ni_string_dup(&lease->posix_tz_dbname, child->cdata);
+		}
+	}
+	return 0;
 }
 
 int

@@ -111,6 +111,8 @@ enum DHCP4_OPTIONS {
 	DHCP4_NDS_SERVER             = 85,  /* RFC 2241 */
 	DHCP4_NDS_TREE               = 86,  /* RFC 2241 */
 	DHCP4_NDS_CTX                = 87,  /* RFC 2241 */
+	DHCP4_POSIX_TZ_STRING        = 100, /* RFC 4833 */
+	DHCP4_POSIX_TZ_DBNAME        = 100, /* RFC 4833 */
 	DHCP4_DNSSEARCH              = 119, /* RFC 3397 */
 	DHCP4_SIPSERVER              = 120, /* RFC 3361 */
 	DHCP4_CSR                    = 121, /* RFC 3442 */

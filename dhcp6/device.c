@@ -898,7 +898,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	config->dry_run = req->dry_run;
 	config->rapid_commit = !config->dry_run ? req->rapid_commit : FALSE;
 
-	config->lease_time = NI_DHCP6_PREFERRED_LIFETIME;
+	config->lease_time = 0;
 	config->acquire_timeout = req->acquire_timeout;
 	ni_timer_get_time(&dev->start_time);
 
