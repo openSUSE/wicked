@@ -30,7 +30,7 @@
 static int		ni_dhcp4_fsm_request(ni_dhcp4_device_t *, const ni_addrconf_lease_t *);
 static int		ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *);
 static int		ni_dhcp4_fsm_renewal(ni_dhcp4_device_t *);
-static int		ni_dhcp4_fsm_quick_renewal(ni_dhcp4_device_t *);
+static int		ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *);
 static int		ni_dhcp4_fsm_rebind(ni_dhcp4_device_t *);
 static int		ni_dhcp4_fsm_decline(ni_dhcp4_device_t *);
 static const char *	ni_dhcp4_fsm_state_name(int);
@@ -165,6 +165,7 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 	case DHCP4_ACK:
 		if (dev->fsm.state != NI_DHCP4_STATE_REQUESTING
 		 && dev->fsm.state != NI_DHCP4_STATE_RENEWING
+		 && dev->fsm.state != NI_DHCP4_STATE_REBOOT
 		 && dev->fsm.state != NI_DHCP4_STATE_REBINDING)
 			goto ignore;
 		ni_dhcp4_process_ack(dev, lease);
@@ -218,7 +219,6 @@ ni_dhcp4_fsm_restart(ni_dhcp4_device_t *dev)
 void
 ni_dhcp4_fsm_set_timeout_msec(ni_dhcp4_device_t *dev, unsigned int msec)
 {
-	dev->fsm.fail_on_timeout = 0;
 	if (msec != 0) {
 		ni_debug_dhcp("%s: setting timeout to %u msec", dev->ifname, msec);
 		if (dev->fsm.timer)
@@ -323,22 +323,22 @@ ni_dhcp4_fsm_renewal(ni_dhcp4_device_t *dev)
 }
 
 int
-ni_dhcp4_fsm_quick_renewal(ni_dhcp4_device_t *dev)
+ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *dev)
 {
 	time_t deadline;
 	int rv;
 
-	ni_debug_dhcp("trying to perform quick lease renewal for %s", dev->ifname);
+	/* RFC 2131, 3.2 (see also 3.1) */
+	ni_debug_dhcp("trying to confirm lease for %s", dev->ifname);
 
-	dev->fsm.state = NI_DHCP4_STATE_RENEWING;
-	rv = ni_dhcp4_device_send_message_unicast(dev, DHCP4_REQUEST, dev->lease);
+	dev->fsm.state = NI_DHCP4_STATE_REBOOT;
+	rv = ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
 
 	deadline = time(NULL) + 10;
 	if (deadline > dev->lease->time_acquired + dev->lease->dhcp4.rebind_time)
 		deadline = dev->lease->time_acquired + dev->lease->dhcp4.rebind_time;
 
 	ni_dhcp4_fsm_set_deadline(dev, deadline);
-	dev->fsm.fail_on_timeout = 1;
 	return rv;
 }
 
@@ -402,21 +402,9 @@ ni_dhcp4_fsm_release(ni_dhcp4_device_t *dev)
 static void
 ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 {
-	ni_debug_dhcp("%s: timeout in state %s%s",
-			dev->ifname, ni_dhcp4_fsm_state_name(dev->fsm.state),
-			dev->fsm.fail_on_timeout? " (fatal failure)" : "");
+	ni_debug_dhcp("%s: timeout in state %s",
+			dev->ifname, ni_dhcp4_fsm_state_name(dev->fsm.state));
 	dev->fsm.timer = NULL;
-
-	if (dev->fsm.fail_on_timeout) {
-		/* We were unable to do a quick renew after the link came back up.
-		 * Go back to square one. */
-		ni_error("unable to renew lease");
-
-		/* This calls fsm_restart and changes the FSM state to INIT.
-		 * So we will enter the switch statement below in state INIT
-		 * and will promptly trigger a re-discovery. */
-		ni_dhcp4_fsm_commit_lease(dev, NULL);
-	}
 
 	switch (dev->fsm.state) {
 	case NI_DHCP4_STATE_INIT:
@@ -483,6 +471,11 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		/* FIXME: now decide whether we should try to re-discover */
 		break;
 
+	case NI_DHCP4_STATE_REBOOT:
+		ni_error("unable to confirm lease");
+		ni_dhcp4_fsm_commit_lease(dev, NULL);
+		break;
+
 	default:
 		;
 	}
@@ -526,7 +519,7 @@ ni_dhcp4_fsm_link_up(ni_dhcp4_device_t *dev)
 		 * to state INIT.
 		 */
 		if (dev->lease)
-			ni_dhcp4_fsm_quick_renewal(dev);
+			ni_dhcp4_fsm_reboot(dev);
 		else
 			ni_dhcp4_fsm_discover(dev);
 		break;
@@ -944,8 +937,7 @@ static const char *__dhcp4_state_name[__NI_DHCP4_STATE_MAX] = {
  [NI_DHCP4_STATE_BOUND]		= "BOUND",
  [NI_DHCP4_STATE_RENEWING]	= "RENEWING",
  [NI_DHCP4_STATE_REBINDING]	= "REBINDING",
- [NI_DHCP4_STATE_REBOOT]		= "REBOOT",
- [NI_DHCP4_STATE_RENEW_REQUESTED]= "RENEW_REQUESTED",
+ [NI_DHCP4_STATE_REBOOT]	= "REBOOT",
  [NI_DHCP4_STATE_RELEASED]	= "RELEASED",
 };
 
