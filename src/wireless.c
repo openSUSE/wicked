@@ -97,11 +97,6 @@ ni_wireless_interface_refresh(ni_netdev_t *dev)
 	if (wlan->scan)
 		__ni_wireless_do_scan(dev);
 
-	/* A wireless "link" isn't really up until we have associated
-	 * and authenticated. */
-	if (wlan->assoc.state != NI_WIRELESS_ESTABLISHED)
-		dev->link.ifflags &= ~(NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
-
 	return 0;
 }
 
