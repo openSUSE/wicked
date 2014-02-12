@@ -839,6 +839,8 @@ __ni_process_ifinfomsg_ipv6info(ni_netdev_t *dev, struct nlattr *ifla_protinfo)
 	if (ifla_protinfo) {
 		struct nlattr *ipv6info[IFLA_INET6_MAX + 1];
 		unsigned int flags = 0;
+		ni_bool_t old_managed_addr;
+		ni_bool_t old_other_config;
 		ni_ipv6_devinfo_t *ipv6;
 
 		nla_parse_nested(ipv6info, IFLA_INET6_MAX, ifla_protinfo, NULL);
@@ -846,19 +848,36 @@ __ni_process_ifinfomsg_ipv6info(ni_netdev_t *dev, struct nlattr *ifla_protinfo)
 			flags = nla_get_u32(ipv6info[IFLA_INET6_FLAGS]);
 
 		ipv6 = ni_netdev_get_ipv6(dev);
+		old_managed_addr = ipv6->radv.managed_addr;
+		old_other_config = ipv6->radv.other_config;
 		if (flags & IF_RA_MANAGED) {
 			ipv6->radv.managed_addr = TRUE;
 			ipv6->radv.other_config = TRUE;
-			ni_debug_ifconfig("%s: obtain addrconf via DHCPv6", dev->name);
+			if (ipv6->radv.managed_addr != old_managed_addr ||
+			    ipv6->radv.other_config != old_other_config) {
+				ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: obtain config and address via DHCPv6",
+					dev->name);
+			}
 		} else
 		if (flags & IF_RA_OTHERCONF) {
 			ipv6->radv.managed_addr = FALSE;
 			ipv6->radv.other_config = TRUE;
-			ni_debug_ifconfig("%s: obtain additional config via DHCPv6", dev->name);
+			if (ipv6->radv.managed_addr != old_managed_addr ||
+			    ipv6->radv.other_config != old_other_config) {
+				ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: obtain config only via DHCPv6",
+					dev->name);
+			}
 		} else {
 			ipv6->radv.managed_addr = FALSE;
 			ipv6->radv.other_config = FALSE;
-			ni_debug_ifconfig("%s: no DHCPv6 config suggestion in RA", dev->name);
+			if (ipv6->radv.managed_addr != old_managed_addr ||
+			    ipv6->radv.other_config != old_other_config) {
+				ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: no DHCPv6 suggestion in RA",
+					dev->name);
+			}
 		}
 	}
 	return 0;

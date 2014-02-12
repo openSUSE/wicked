@@ -1239,12 +1239,13 @@ ni_dhcp6_prefix_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 	if (ipv6 == NULL)
 		return;
 
-	ni_debug_events("%s: %s RA<%s> Prefix<%s/%u %s,%s> [%d,%d]", dev->ifname,
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+			"%s: %s RA<%s> Prefix<%s/%u %s,%s> [%d,%d]", dev->ifname,
 			(event == NI_EVENT_PREFIX_UPDATE ? "update" : "delete"),
 			(ipv6->radv.managed_addr ? "managed-address" :
 			(ipv6->radv.other_config ? "managed-config" : "unmanaged")),
 			ni_sockaddr_print(&pi->prefix), pi->length,
-			(pi->on_link ? "onlink," : "not-onlink,"),
+			(pi->on_link ? "onlink" : "not-onlink"),
 			(pi->autoconf ? "autoconf" : "no-autoconf"),
 			pi->lifetime.preferred_lft, pi->lifetime.valid_lft);
 
