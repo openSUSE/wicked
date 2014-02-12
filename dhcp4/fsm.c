@@ -511,7 +511,6 @@ ni_dhcp4_fsm_link_up(ni_dhcp4_device_t *dev)
 	if (dev->config == NULL)
 		return;
 
-	ni_debug_dhcp("%s: link came back up", dev->ifname);
 	switch (dev->fsm.state) {
 	case NI_DHCP4_STATE_INIT:
 		/* We get here if we aborted a discovery operation. */
@@ -526,7 +525,10 @@ ni_dhcp4_fsm_link_up(ni_dhcp4_device_t *dev)
 		 * for 10 seconds. If that fails, we drop the lease and revert
 		 * to state INIT.
 		 */
-		ni_dhcp4_fsm_quick_renewal(dev);
+		if (dev->lease)
+			ni_dhcp4_fsm_quick_renewal(dev);
+		else
+			ni_dhcp4_fsm_discover(dev);
 		break;
 
 	default:
@@ -540,7 +542,6 @@ ni_dhcp4_fsm_link_down(ni_dhcp4_device_t *dev)
 	if (dev->config == NULL)
 		return;
 
-	ni_debug_dhcp("%s: link went down", dev->ifname);
 	switch (dev->fsm.state) {
 	case NI_DHCP4_STATE_INIT:
 	case NI_DHCP4_STATE_SELECTING:
