@@ -304,7 +304,8 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 		return -1;
 	}
 #if 0
-	ni_debug_events("%s: RA<%s>, Prefix<%s/%u %s,%s>[%u, %u]", dev->name,
+	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
+			"%s: RA<%s>, Prefix<%s/%u %s,%s>[%u, %u]", dev->name,
 			(ipv6->radv.managed_addr ? "managed-address" :
 			(ipv6->radv.other_config ? "other-config" : "unmanaged")),
 			ni_sockaddr_print(&pi->prefix), pi->length,

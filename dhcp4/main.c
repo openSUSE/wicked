@@ -29,6 +29,10 @@
 #include <wicked/leaseinfo.h>
 
 #include "dhcp4/dhcp.h"
+#include "modprobe.h"
+
+#define AFPACKET_MODULE_NAME	"af_packet"
+#define AFPACKET_MODULE_OPTS	NULL
 
 enum {
 	/* common */
@@ -248,6 +252,9 @@ main(int argc, char **argv)
 
 	/* We're using randomized timeouts. Seed the RNG */
 	ni_srandom();
+
+	/* load af_packet module we need for capturing */
+	ni_modprobe(AFPACKET_MODULE_NAME, AFPACKET_MODULE_OPTS);
 
 	if (opt_test_run) {
 		return dhcp4_test_run(opt_test_ifname, opt_test_request, opt_test_timeout);

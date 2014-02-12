@@ -555,7 +555,7 @@ ni_dhcp6_device_is_ready(const ni_dhcp6_device_t *dev, const ni_netdev_t *ifp)
 	if (!ifp && !(ifp = ni_dhcp6_device_netdev(dev)))
 		return FALSE;
 
-	return	ni_netdev_network_is_up(ifp) &&
+	return	ni_netdev_link_is_up(ifp) &&
 		ni_sockaddr_is_ipv6_linklocal(&dev->link.addr);
 }
 
@@ -1163,28 +1163,29 @@ ni_dhcp6_device_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 		}
 	break;
 	case NI_EVENT_DEVICE_DOWN:
-		/* Someone has taken the interface down completely. */
 		ni_debug_dhcp("%s: network interface went down", dev->ifname);
 		ni_dhcp6_device_stop(dev);
 	break;
 
 	case NI_EVENT_NETWORK_UP:
 		ni_trace("%s: received network up event", dev->ifname);
-		if (dev->config)
-			ni_dhcp6_device_start(dev);
 	break;
 	case NI_EVENT_NETWORK_DOWN:
 		ni_trace("%s: received network down event", dev->ifname);
-		ni_dhcp6_device_stop(dev);
 	break;
 
 	case NI_EVENT_LINK_UP:
 		ni_debug_dhcp("received link up event");
-		/* ni_dhcp6_fsm_link_up(dev); */
+		if (dev->config) {
+			ni_dhcp6_device_start(dev);
+		}
 	break;
 	case NI_EVENT_LINK_DOWN:
 		ni_debug_dhcp("received link down event");
-		/* ni_dhcp6_fsm_link_down(dev); */
+		if (dev->config) {
+			ni_dhcp6_fsm_reset(dev);
+			ni_dhcp6_device_close(dev);
+		}
 	break;
 
 	default:
@@ -1238,12 +1239,13 @@ ni_dhcp6_prefix_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 	if (ipv6 == NULL)
 		return;
 
-	ni_debug_events("%s: %s RA<%s> Prefix<%s/%u %s,%s> [%d,%d]", dev->ifname,
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+			"%s: %s RA<%s> Prefix<%s/%u %s,%s> [%d,%d]", dev->ifname,
 			(event == NI_EVENT_PREFIX_UPDATE ? "update" : "delete"),
 			(ipv6->radv.managed_addr ? "managed-address" :
 			(ipv6->radv.other_config ? "managed-config" : "unmanaged")),
 			ni_sockaddr_print(&pi->prefix), pi->length,
-			(pi->on_link ? "onlink," : "not-onlink,"),
+			(pi->on_link ? "onlink" : "not-onlink"),
 			(pi->autoconf ? "autoconf" : "no-autoconf"),
 			pi->lifetime.preferred_lft, pi->lifetime.valid_lft);
 

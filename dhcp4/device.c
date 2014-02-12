@@ -313,7 +313,6 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 
 	if (dev->lease) {
 		if (!ni_addrconf_lease_is_valid(dev->lease)
-		 || (config->hostname && !ni_string_eq(config->hostname, dev->lease->hostname))
 		 || (config->client_id.len && !ni_opaque_eq(&config->client_id, &dev->lease->dhcp4.client_id))) {
 			ni_debug_dhcp("%s: lease doesn't match request", dev->ifname);
 			ni_dhcp4_device_drop_lease(dev);
@@ -322,8 +321,9 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	}
 
 	/* Go back to INIT state to force a rediscovery */
-	dev->fsm.state = NI_DHCP4_STATE_INIT;
-	ni_dhcp4_device_start(dev);
+	/* dev->fsm.state = NI_DHCP4_STATE_INIT; */
+	if (ni_dhcp4_device_start(dev) < 0)
+		return -1;
 	return 1;
 }
 
@@ -453,10 +453,12 @@ ni_dhcp4_device_event(ni_dhcp4_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 		break;
 
 	case NI_EVENT_LINK_DOWN:
+		ni_debug_dhcp("%s: link went down", dev->ifname);
 		ni_dhcp4_fsm_link_down(dev);
 		break;
 
 	case NI_EVENT_LINK_UP:
+		ni_debug_dhcp("%s: link came up", dev->ifname);
 		ni_dhcp4_fsm_link_up(dev);
 		break;
 
@@ -467,16 +469,26 @@ ni_dhcp4_device_event(ni_dhcp4_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 int
 ni_dhcp4_device_start(ni_dhcp4_device_t *dev)
 {
-	ni_dhcp4_device_drop_lease(dev);
+	ni_netconfig_t *nc;
+	ni_netdev_t *ifp;
+
 	ni_dhcp4_device_drop_buffer(dev);
 	dev->failed = 0;
 
-	if (ni_dhcp4_fsm_discover(dev) < 0) {
-		ni_error("unable to initiate discovery");
+	nc = ni_global_state_handle(0);
+	if(!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex))) {
+		ni_error("%s: unable to start device", dev->ifname);
 		return -1;
 	}
 
-	return 0;
+	if (ni_netdev_link_is_up(ifp)) {
+		ni_dhcp4_fsm_link_up(dev);
+		return 0;
+	} else {
+		ni_debug_dhcp("%s: defered start until link is up",
+				dev->ifname);
+	}
+	return 1;
 }
 
 void

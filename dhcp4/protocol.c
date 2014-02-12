@@ -314,7 +314,8 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 		if (lease->dhcp4.address.s_addr == 0 || lease->dhcp4.server_id.s_addr == 0)
 			return -1;
 
-		if (dev->fsm.state != NI_DHCP4_STATE_REQUESTING) {
+		if (dev->fsm.state != NI_DHCP4_STATE_REQUESTING
+		 && dev->fsm.state != NI_DHCP4_STATE_REBOOT) {
 			src_addr = lease->dhcp4.address;
 			dst_addr = lease->dhcp4.server_id;
 		}
@@ -334,8 +335,8 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	message->secs = htons(ni_dhcp4_device_uptime(dev, 0xFFFF));
 
 	if (dev->fsm.state == NI_DHCP4_STATE_BOUND
-	 || dev->fsm.state == NI_DHCP4_STATE_RENEWING
-	 || dev->fsm.state == NI_DHCP4_STATE_REBINDING)
+	 || dev->fsm.state == NI_DHCP4_STATE_REBINDING
+	 || dev->fsm.state == NI_DHCP4_STATE_RENEWING)
 		message->ciaddr = lease->dhcp4.address.s_addr;
 
 	switch (dev->system.hwaddr.type) {

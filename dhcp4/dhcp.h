@@ -25,7 +25,6 @@ enum {
 	NI_DHCP4_STATE_RENEWING,
 	NI_DHCP4_STATE_REBINDING,
 	NI_DHCP4_STATE_REBOOT,
-	NI_DHCP4_STATE_RENEW_REQUESTED,
 	NI_DHCP4_STATE_RELEASED,
 
 	__NI_DHCP4_STATE_MAX,
@@ -44,7 +43,6 @@ typedef struct ni_dhcp4_device {
 
 	struct {
 	    int			state;
-	    unsigned int	fail_on_timeout : 1;
 	    const ni_timer_t *	timer;
 	} fsm;
 
