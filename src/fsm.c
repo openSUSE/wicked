@@ -46,6 +46,7 @@ static int			ni_fsm_user_prompt_default(const ni_fsm_prompt_t *, xml_node_t *, v
 static void			ni_ifworker_refresh_client_info(ni_ifworker_t *, ni_device_clientinfo_t *);
 static void			ni_ifworker_refresh_client_state(ni_ifworker_t *, ni_client_state_t *);
 static void			ni_ifworker_set_config_origin(ni_ifworker_t *, const char *);
+static void			ni_ifworker_cancel_timeout(ni_ifworker_t *);
 
 ni_fsm_t *
 ni_fsm_new(void)
@@ -156,9 +157,7 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	w->target_range.min = NI_FSM_STATE_NONE;
 	w->target_range.max = __NI_FSM_STATE_MAX;
 
-	if (w->fsm.timer) {
-		ni_timer_cancel(w->fsm.timer);
-	}
+	ni_ifworker_cancel_timeout(w);
 
 	ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
 	memset(&w->fsm, 0, sizeof(w->fsm));
@@ -343,6 +342,8 @@ ni_ifworker_success(ni_ifworker_t *w)
 		printf("%s: %s\n", w->name, ni_ifworker_state_name(w->fsm.state));
 
 	__ni_ifworker_done(w);
+
+	ni_ifworker_cancel_timeout(w);
 }
 
 /*
@@ -372,10 +373,19 @@ __ni_ifworker_timeout(void *user_data, const ni_timer_t *timer)
 }
 
 static void
+ni_ifworker_cancel_timeout(ni_ifworker_t *w)
+{
+	if (w->fsm.timer) {
+		ni_timer_cancel(w->fsm.timer);
+		w->fsm.timer = NULL;
+		ni_debug_application("%s: cancel timeout", w->name);
+	}
+}
+
+static void
 ni_ifworker_set_timeout(ni_ifworker_t *w, unsigned long timeout_ms)
 {
-	if (w->fsm.timer)
-		ni_timer_cancel(w->fsm.timer);
+	ni_ifworker_cancel_timeout(w);
 	if (timeout_ms && timeout_ms != NI_IFWORKER_INFINITE_TIMEOUT)
 		w->fsm.timer = ni_timer_register(timeout_ms, __ni_ifworker_timeout, w);
 }
@@ -1869,9 +1879,7 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 			w->fsm.action_table = NULL;
 		}
 
-		if (w->fsm.timer) {
-			ni_timer_cancel(w->fsm.timer);
-		}
+		ni_ifworker_cancel_timeout(w);
 
 		ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
 
@@ -2432,6 +2440,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	found->readonly = fsm->readonly;
 
 	/* Don't touch devices we're done with */
+
 	if (!found->done) {
 		if (ni_netdev_link_is_up(dev))
 			ni_ifworker_update_state(found, NI_FSM_STATE_LINK_UP, __NI_FSM_STATE_MAX);
@@ -3271,8 +3280,10 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			unsigned int prev_state;
 			int rv;
 
-			if (ni_ifworker_complete(w))
+			if (ni_ifworker_complete(w)) {
+				ni_ifworker_cancel_timeout(w);
 				continue;
+			}
 
 			if (!w->kickstarted) {
 				if (!ni_ifworker_device_bound(w))
