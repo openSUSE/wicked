@@ -761,9 +761,41 @@ ni_dhcp4_fsm_fail_lease(ni_dhcp4_device_t *dev)
 	dev->failed = 1;
 }
 
+static ni_bool_t
+__ni_dhcp4_address_on_link(ni_dhcp4_device_t *dev, struct in_addr ipv4)
+{
+	ni_netconfig_t *nc;
+	ni_netdev_t *ifp;
+	ni_address_t *ap;
+
+	nc = ni_global_state_handle(0);
+	if (!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex)))
+		return FALSE;
+
+	for (ap = ifp->addrs; ap; ap = ap->next) {
+		if (ap->family != AF_INET)
+			continue;
+
+		if (ap->local_addr.sin.sin_addr.s_addr == ipv4.s_addr)
+			return TRUE;
+	}
+	return FALSE;
+}
+
 int
 ni_dhcp4_fsm_validate_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 {
+	/*
+	 * When the address is already set on the link, we
+	 * don't need to validate it and just commit it.
+	 */
+	if (__ni_dhcp4_address_on_link(dev, lease->dhcp4.address)) {
+		ni_debug_dhcp("%s: address %s is on link, omit validation",
+				dev->ifname, inet_ntoa(lease->dhcp4.address));
+		ni_dhcp4_fsm_commit_lease(dev, lease);
+		return 0;
+	}
+
 	/* For ARP validations, we will send 3 ARP queries with a timeout
 	 * of 200ms each.
 	 * The "claims" part is really for IPv4LL
@@ -787,7 +819,7 @@ ni_dhcp4_fsm_validate_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 	return 0;
 
 decline:
-	ni_debug_dhcp("unable to validate lease, declining");
+	ni_debug_dhcp("%s: unable to validate lease, declining", dev->ifname);
 	return -1;
 }
 
@@ -798,24 +830,28 @@ ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *dev)
 	struct in_addr null = { 0 };
 
 	if (dev->arp.handle == NULL) {
-		dev->arp.handle = ni_arp_socket_open(&dev->system, ni_dhcp4_fsm_process_arp_packet, dev);
+		dev->arp.handle = ni_arp_socket_open(&dev->system,
+				ni_dhcp4_fsm_process_arp_packet, dev);
 		if (!dev->arp.handle->user_data) {
-			ni_error("unable to create ARP handle");
+			ni_error("%s: unable to create ARP handle", dev->ifname);
 			return -1;
 		}
 	}
 
 	if (dev->arp.nprobes) {
-		ni_debug_dhcp("arp_validate: probing for %s", inet_ntoa(claim));
+		ni_debug_dhcp("%s: arp validate: probing for %s",
+				dev->ifname, inet_ntoa(claim));
 		ni_arp_send_request(dev->arp.handle, null, claim);
 		dev->arp.nprobes--;
 	} else if (dev->arp.nclaims) {
-		ni_debug_dhcp("arp_validate: claiming %s", inet_ntoa(claim));
+		ni_debug_dhcp("%s: arp validate: claiming %s",
+				dev->ifname, inet_ntoa(claim));
 		ni_arp_send_grat_reply(dev->arp.handle, claim);
 		dev->arp.nclaims--;
 	} else {
 		/* Wow, we're done! */
-		ni_debug_dhcp("successfully validated %s", inet_ntoa(claim));
+		ni_debug_dhcp("%s: successfully validated %s",
+				dev->ifname, inet_ntoa(claim));
 		ni_dhcp4_fsm_commit_lease(dev, dev->lease);
 		ni_dhcp4_device_arp_close(dev);
 		return 0;
