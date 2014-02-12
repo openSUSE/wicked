@@ -1910,6 +1910,7 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 	unsigned int min_state = w->target_range.min;
 	unsigned int max_state = w->target_range.max;
 	unsigned int cur_state = w->fsm.state;
+	unsigned int to_state;
 	unsigned int j;
 	int rv;
 
@@ -1930,14 +1931,10 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 			return 0;
 
 		/* No upper bound; bring it up to min level */
-		rv = ni_fsm_schedule_init(fsm, w, NI_FSM_STATE_DEVICE_DOWN, min_state);
-		if (rv < 0)
-			return rv;
+		to_state = min_state;
 	} else if (min_state == NI_FSM_STATE_NONE) {
 		/* No lower bound; bring it down to max level */
-		rv = ni_fsm_schedule_init(fsm, w, NI_FSM_STATE_ADDRCONF_UP, max_state);
-		if (rv < 0)
-			return rv;
+		to_state = max_state;
 	} else {
 		ni_warn("%s: not handled yet: bringing device into state range [%s, %s]",
 				w->name,
@@ -1945,6 +1942,10 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 				ni_ifworker_state_name(max_state));
 		return -NI_ERROR_GENERAL_FAILURE;
 	}
+
+	rv = ni_fsm_schedule_init(fsm, w, cur_state, to_state);
+	if (rv < 0)
+		return rv;
 
 	for (j = 0; j < w->children.count; ++j) {
 		ni_ifworker_t *child = w->children.data[j];
@@ -2430,14 +2431,6 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	found->ifindex = dev->link.ifindex;
 	found->object = object;
 	found->readonly = fsm->readonly;
-
-	/* Don't touch devices we're done with */
-	if (!found->done) {
-		if (ni_netdev_link_is_up(dev))
-			ni_ifworker_update_state(found, NI_FSM_STATE_LINK_UP, __NI_FSM_STATE_MAX);
-		else
-			ni_ifworker_update_state(found, 0, NI_FSM_STATE_LINK_UP - 1);
-	}
 
 	return found;
 }
