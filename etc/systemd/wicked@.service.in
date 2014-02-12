@@ -13,8 +13,8 @@ Type=oneshot
 RemainAfterExit=yes
 LimitCORE=infinity
 EnvironmentFile=-/etc/sysconfig/network/config
-ExecStart=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM ifup --boot-stage %i -- all
-ExecStop=@wicked_sbindir@/wicked $WICKED_DEBUG_PARAM ifdown --boot-stage %i -- all
+ExecStart=@wicked_sbindir@/wicked ifup --boot-stage %i -- all
+ExecStop=@wicked_sbindir@/wicked ifdown --boot-stage %i -- all
 
 [Install]
 Also=wickedd.service

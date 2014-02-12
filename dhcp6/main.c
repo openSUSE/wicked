@@ -115,6 +115,7 @@ main(int argc, char **argv)
 	const char * opt_test_ifname = NULL;
 	int c;
 
+	ni_log_init();
 	program_name = ni_basename(argv[0]);
 
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {

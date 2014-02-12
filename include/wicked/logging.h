@@ -31,6 +31,7 @@ extern const char * 	ni_debug_facility_to_name(unsigned int);
 extern int		ni_debug_name_to_facility(const char *, unsigned int *);
 extern const char *	ni_debug_facility_to_description(unsigned int);
 
+extern void		ni_log_init(void);
 extern ni_bool_t	ni_log_level_set(const char *);
 extern unsigned int	ni_log_level_get(void);
 

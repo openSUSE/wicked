@@ -110,10 +110,6 @@ while [ $# -gt 0 ]; do
 	shift
 done
 
-if [ "$DEBUG" = "yes" ]; then
-	WICKED_DEBUG="--debug ${WICKED_DEBUG_LEVEL:-most}"
-fi
-
 case $ACTION in
 start)
 	IFUP_ARGS=""
@@ -127,13 +123,13 @@ start)
 	# FIXME: remove it
 	ulimit -c unlimited
 
-	$FAKE $WICKED_CLIENT_BIN $WICKED_DEBUG ifup $IFUP_ARGS all
+	$FAKE $WICKED_CLIENT_BIN ifup $IFUP_ARGS all
 
 	rc_status -v
 	;;
 
 stop)
-	$FAKE $WICKED_CLIENT_BIN $WICKED_DEBUG ifdown all
+	$FAKE $WICKED_CLIENT_BIN ifdown all
 	rc_status -v
 	;;
 
@@ -160,13 +156,13 @@ force-reload)
 	;;
 
 reload)
-	$FAKE $WICKED_CLIENT_BIN $WICKED_DEBUG ifreload all
+	$FAKE $WICKED_CLIENT_BIN ifreload all
 	rc_status -v
 	;;
 
 status)
 	echo "Checking for service network:"
-	$FAKE $WICKED_CLIENT_BIN $WICKED_DEBUG ifstatus --brief all
+	$FAKE $WICKED_CLIENT_BIN ifstatus --brief all
 	echo -n "Status of service network "
 	rc_status -v
 	;;
@@ -175,7 +171,7 @@ probe)
 	## Optional / not part of LSB: Probe for the necessity of a reload,
 	## print out the argument to this init script which is required for
 	## a reload (or restart when reload not supported).
-	$FAKE $WICKED_CLIENT_BIN $WICKED_DEBUG ifcheck --changed --quiet all \
+	$FAKE $WICKED_CLIENT_BIN ifcheck --changed --quiet all \
 		&>/dev/null || echo reload
 	;;
 
