@@ -555,7 +555,7 @@ ni_dhcp6_device_is_ready(const ni_dhcp6_device_t *dev, const ni_netdev_t *ifp)
 	if (!ifp && !(ifp = ni_dhcp6_device_netdev(dev)))
 		return FALSE;
 
-	return	ni_netdev_network_is_up(ifp) &&
+	return	ni_netdev_link_is_up(ifp) &&
 		ni_sockaddr_is_ipv6_linklocal(&dev->link.addr);
 }
 
@@ -1163,28 +1163,29 @@ ni_dhcp6_device_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 		}
 	break;
 	case NI_EVENT_DEVICE_DOWN:
-		/* Someone has taken the interface down completely. */
 		ni_debug_dhcp("%s: network interface went down", dev->ifname);
 		ni_dhcp6_device_stop(dev);
 	break;
 
 	case NI_EVENT_NETWORK_UP:
 		ni_trace("%s: received network up event", dev->ifname);
-		if (dev->config)
-			ni_dhcp6_device_start(dev);
 	break;
 	case NI_EVENT_NETWORK_DOWN:
 		ni_trace("%s: received network down event", dev->ifname);
-		ni_dhcp6_device_stop(dev);
 	break;
 
 	case NI_EVENT_LINK_UP:
 		ni_debug_dhcp("received link up event");
-		/* ni_dhcp6_fsm_link_up(dev); */
+		if (dev->config) {
+			ni_dhcp6_device_start(dev);
+		}
 	break;
 	case NI_EVENT_LINK_DOWN:
 		ni_debug_dhcp("received link down event");
-		/* ni_dhcp6_fsm_link_down(dev); */
+		if (dev->config) {
+			ni_dhcp6_fsm_reset(dev);
+			ni_dhcp6_device_close(dev);
+		}
 	break;
 
 	default:
