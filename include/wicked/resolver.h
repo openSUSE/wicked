@@ -26,5 +26,7 @@ extern int			ni_resolver_write_resolv_conf(const char *, const ni_resolver_info_
 extern int			ni_resolve_hostname_timed(const char *hostname, int af, ni_sockaddr_t *addr, unsigned int timeout);
 extern int			ni_resolve_hostnames_timed(int af, unsigned int count, const char *hostnames[], ni_sockaddr_t *addrs, unsigned int timeout);
 
+extern int			ni_resolve_reverse_timed(const ni_sockaddr_t *addr, char **name, unsigned int timeout);
+
 #endif /* __WICKED_RESOLVER_H__ */
 

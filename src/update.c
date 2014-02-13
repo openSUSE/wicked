@@ -22,6 +22,15 @@
 #include "appconfig.h"
 #include "debug.h"
 
+/* secs we try to reverse resolve hostnames */
+#ifndef NI_UPDATER_REVERSE_TIMEOUT
+#define NI_UPDATER_REVERSE_TIMEOUT	2
+#endif
+/* how many lease addresses we try out */
+#ifndef NI_UPDATER_REVERSE_MAX_CNT
+#define NI_UPDATER_REVERSE_MAX_CNT	1
+#endif
+
 #define	NI_UPDATER_SOURCE_ARRAY_CHUNK	4
 #define	NI_UPDATER_SOURCE_ARRAY_INIT	{ 0, NULL }
 
@@ -267,42 +276,47 @@ ni_updater_name(unsigned int kind)
 }
 
 static inline ni_bool_t
-can_update_hostname(const ni_addrconf_lease_t *lease)
+can_try_reverse_lookup(const ni_addrconf_lease_t *lease)
 {
-	return __ni_addrconf_should_update(lease->update, NI_ADDRCONF_UPDATE_HOSTNAME) && lease->hostname;
-}
+	/* bnc#861476 workaround */
+	if (lease->state != NI_ADDRCONF_STATE_GRANTED)
+		return FALSE;
 
-static inline ni_bool_t
-can_update_resolver(const ni_addrconf_lease_t *lease)
-{
-	return __ni_addrconf_should_update(lease->update, NI_ADDRCONF_UPDATE_RESOLVER) && lease->resolver;
+	/* Limit to dhcp leases (for now) */
+	if (lease->type != NI_ADDRCONF_DHCP)
+		return FALSE;
+
+	return lease->addrs != NULL;
 }
 
 static inline ni_bool_t
 can_update_type(const ni_addrconf_lease_t *lease, unsigned int kind)
 {
-	ni_bool_t res = FALSE;
+	ni_bool_t can = FALSE;
+
+	if (!__ni_addrconf_should_update(lease->update, kind))
+		return FALSE;
 
 	switch (kind) {
 	case NI_ADDRCONF_UPDATE_HOSTNAME:
-		res = lease->hostname ? TRUE : FALSE;
+		can = lease->hostname ? TRUE : can_try_reverse_lookup(lease);
 		break;
 
 	case NI_ADDRCONF_UPDATE_RESOLVER:
-		res = lease->resolver ? TRUE : FALSE;
+		can = lease->resolver ? TRUE : FALSE;
 		break;
 
 	case NI_ADDRCONF_UPDATE_GENERIC:
 		/* Always attempt generic update. */
-		res = TRUE;
+		can = TRUE;
 		break;
 
 	default:
-		res = FALSE;
+		can = FALSE;
 		break;
 	}
 
-	return __ni_addrconf_should_update(lease->update, kind) && res;
+	return can;
 }
 
 /*
@@ -490,10 +504,39 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 		break;
 
 	case NI_ADDRCONF_UPDATE_HOSTNAME:
-		if (ni_string_empty(lease->hostname))
-			goto done;
+		if (!ni_string_empty(lease->hostname)) {
+			ni_string_array_append(&arguments, lease->hostname);
+		} else {
+			const ni_address_t *ap;
+			char *name = NULL;
+			unsigned int count;
 
-		ni_string_array_append(&arguments, lease->hostname);
+			/* bnc#861476 workaround */
+			if (!can_try_reverse_lookup(lease))
+				goto done;
+
+			for (count = 0, ap = lease->addrs; ap; ap = ap->next) {
+				if (!ni_sockaddr_is_specified(&ap->local_addr))
+					continue;
+
+				if (!ni_resolve_reverse_timed(&ap->local_addr,
+						&name, NI_UPDATER_REVERSE_TIMEOUT))
+					break;
+
+				ni_info("Unable to resolve %s to hostname",
+					ni_sockaddr_print(&ap->local_addr));
+
+				if (++count >= NI_UPDATER_REVERSE_MAX_CNT)
+					break;
+			}
+
+			if (ni_string_empty(name)) {
+				ni_note("Skipping hostname update, none available");
+				goto done;
+			}
+			ni_string_array_append(&arguments, name);
+			ni_string_free(&name);
+		}
 		break;
 
 	default:
@@ -621,6 +664,18 @@ done:
 }
 
 #if 0 /* Disable until we need something similar. */
+static inline ni_bool_t
+can_update_hostname(const ni_addrconf_lease_t *lease)
+{
+	return __ni_addrconf_should_update(lease->update, NI_ADDRCONF_UPDATE_HOSTNAME) && lease->hostname;
+}
+
+static inline ni_bool_t
+can_update_resolver(const ni_addrconf_lease_t *lease)
+{
+	return __ni_addrconf_should_update(lease->update, NI_ADDRCONF_UPDATE_RESOLVER) && lease->resolver;
+}
+
 static ni_bool_t
 ni_system_update_all(const ni_addrconf_lease_t *lease, const char *ifname)
 {

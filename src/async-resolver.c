@@ -10,10 +10,17 @@
 #include <wicked/address.h>
 #include <wicked/resolver.h>
 #include <wicked/logging.h>
+#include <wicked/socket.h>
 #include <stdlib.h>
 
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/time.h>
+#include <unistd.h>
+#include <signal.h>
 #include <netdb.h>
+#include <errno.h>
+#include <poll.h>
 
 
 /*
@@ -190,3 +197,194 @@ ni_resolve_hostnames_timed(int af, unsigned int count, const char *hostnames[], 
 
 	return 0;
 }
+
+static int
+__ni_resolve_reverse(const ni_sockaddr_t *addr, char **hostname)
+{
+	char hbuf[NI_MAXHOST+1] = {'\0'};
+	socklen_t len;
+	int ret;
+
+	if (!addr || !hostname) {
+		errno = EINVAL;
+		return EAI_SYSTEM;
+	}
+
+	if (!ni_sockaddr_is_specified(addr)) {
+		errno = EINVAL;
+		return EAI_SYSTEM;
+	}
+
+	switch (addr->ss_family) {
+	case AF_INET:
+		len = sizeof(addr->sin);
+		break;
+	case AF_INET6:
+		len = sizeof(addr->six);
+		break;
+	default:
+		errno = EINVAL;
+		return EAI_SYSTEM;
+	}
+
+	ret = getnameinfo(&addr->sa, len, hbuf, sizeof(hbuf),
+				NULL, 0, NI_NAMEREQD);
+	if (ret == 0) {
+		ni_string_dup(hostname, hbuf);
+	}
+	return ret;
+}
+
+static void
+__ni_resolve_reverse_sigchild(int sig)
+{
+	(void)sig;
+}
+
+static int
+__ni_resolve_reverse_exec(const ni_sockaddr_t *addr)
+{
+	char *hostname = NULL;
+
+	if (__ni_resolve_reverse(addr, &hostname) == 0) {
+		fputs(hostname, stdout);
+		fflush(stdout);
+		ni_string_free(&hostname);
+		return 0;
+	}
+	return 2;
+}
+
+static int
+__ni_resolve_reverse_read(int fd, char **hostname, unsigned int timeout)
+{
+	char hbuf[NI_MAXHOST+1] = {'\0'};
+	struct pollfd pfd[1] = { { fd, POLLIN, 0 } };
+	struct timeval now, tv;
+	ssize_t len;
+	int rc;
+
+	ni_timer_get_time(&tv);
+	tv.tv_sec += timeout;
+	timeout *= 1000;
+
+	while ((rc = poll(pfd, 1, timeout)) == -1 && errno == EINTR) {
+		ni_timer_get_time(&now);
+		if (timercmp(&tv, &now, <)) {
+			timeout = 0;
+		} else {
+			struct timeval delta;
+			long delta_ms;
+
+			timersub(&tv, &now, &delta);
+			delta_ms = 1000 * delta.tv_sec + delta.tv_usec / 1000;
+			if (delta_ms < timeout)
+				timeout = delta_ms;
+		}
+	}
+	if (rc == 1 && pfd[0].revents & POLLIN) {
+		len = read(pfd[0].fd, hbuf, sizeof(hbuf));
+		if (len > 0 && ni_check_domain_name(hbuf, len, 0)) {
+			ni_string_dup(hostname, hbuf);
+			return 0;
+		}
+	}
+	return -1;
+}
+
+int
+__ni_resolve_reverse_reap(pid_t pid)
+{
+	int status = -1;
+	int count = 4;
+
+	while (count--) {
+		if (waitpid(pid, &status, WNOHANG) == pid) {
+			if (WIFEXITED(status))
+				return WEXITSTATUS(status);
+			else
+				return -1;
+		} else if (count == 2) {
+			kill(pid, SIGHUP);
+		} else if (count == 1) {
+			if (kill(pid, SIGKILL) < 0) {
+				ni_error("Unable to kill reverse resolver");
+			}
+		}
+		usleep(10000);
+	}
+	ni_error("Unable to reap reverse resolver");
+	return -1;
+}
+
+/*
+ * Timed IP address reverse resolve hack (see bnc#861476)
+ * Unfortunately getnameinfo does not accept any timeout...
+ * Any better ideas how to implement this?
+ */
+int
+ni_resolve_reverse_timed(const ni_sockaddr_t *addr, char **hostname, unsigned int timeout)
+{
+	struct sigaction old, new;
+	int fd[2], fds, rc;
+	pid_t pid;
+
+	if (!timeout)
+		return __ni_resolve_reverse(addr, hostname);
+
+	rc = socketpair(AF_UNIX, SOCK_STREAM, PF_LOCAL, fd);
+	if (rc < 0)
+		return -1;
+
+	new.sa_flags   = 0;
+	new.sa_handler = __ni_resolve_reverse_sigchild;
+	sigemptyset (&new.sa_mask);
+	sigaction (SIGCHLD, &new, &old);
+
+	rc = 2;
+	do {
+		pid = fork();
+	} while (pid == -1 && errno == EAGAIN && --rc);
+
+	rc = -1;
+	switch (pid) {
+	case -1:
+		close(fd[0]);
+		close(fd[1]);
+		break;
+
+	case 0:
+		close(fd[0]);
+		if (!freopen("/dev/null", "r", stdin) ||
+		    !freopen("/dev/null", "w", stderr)) {
+			close(fd[1]);
+			exit(1);
+		}
+		if (dup2(fd[1], fileno(stdout)) < 0) {
+			close(fd[1]);
+			exit(1);
+		}
+
+		fds = getdtablesize();
+		for (fd[0] = 3; fd[0] < fds; ++fd[0])
+			close(fd[0]);
+
+		rc = __ni_resolve_reverse_exec(addr);
+		exit(rc);
+
+	default:
+		close(fd[1]);
+		rc = __ni_resolve_reverse_read(fd[0], hostname, timeout);
+		close(fd[0]);
+		if (rc == 0)
+			ni_trace("resolved to hostname: %s", *hostname);
+		if (rc < 0)
+			kill(pid, SIGTERM);
+
+		__ni_resolve_reverse_reap(pid);
+	}
+
+	sigaction (SIGCHLD, &old, &new);
+	return rc;
+}
+
