@@ -80,7 +80,7 @@ mesg()
 
 debug()
 {
-	test "$DEBUG" = "yes" && mesg -p debug "$*"
+	test "X${DEBUG:-no}" != "Xno" && mesg -p debug "$*"
 }
 
 systemd_running()
@@ -141,13 +141,12 @@ case $1 in
 	-o)		shift					;;
 esac
 OPTIONS=$@
-opt_debug=""
 opt_quiet=""
 opt_force=""
 while [ $# -gt 0 ]; do
 	case $1 in
-	debug)		DEBUG="yes" ; opt_debug="most"		;;
-	debug=*)	DEBUG="yes" ; opt_debug="${1#debug=}"	;;
+	debug)		DEBUG="yes"				;;
+	debug=*)	DEBUG="${1#debug=}"			;;
 	quiet)		opt_quiet="--quiet"			;;
 	force)          opt_force="--force device-exists"	;;
 	*)		debug "unknown option \"$1\""		;;
@@ -231,13 +230,11 @@ wicked_client="@wicked_sbindir@/wicked"
 case $SCRIPTNAME in
 	ifup)
 		$wicked_client \
-			${opt_debug:+--debug $opt_debug} \
 			ifup "$INTERFACE"
 		rc=$(rc_map_return "$?")
 	;;
 	ifdown)
 		$wicked_client \
-			${opt_debug:+--debug $opt_debug} \
 			ifdown \
 			  ${opt_force} \
 			  "$INTERFACE"
@@ -245,7 +242,6 @@ case $SCRIPTNAME in
 	;;
 	ifstatus)
 		$wicked_client \
-			${opt_debug:+--debug $opt_debug} \
 			ifstatus \
 			  ${opt_quiet} \
 			  "$INTERFACE"
@@ -253,7 +249,6 @@ case $SCRIPTNAME in
 	;;
 	ifprobe)
 		$wicked_client \
-			${opt_debug:+--debug $opt_debug} \
 			ifcheck \
 			  --changed \
 			  ${opt_quiet} \

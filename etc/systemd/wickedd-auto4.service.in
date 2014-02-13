@@ -9,7 +9,7 @@ Type=dbus
 BusName=org.opensuse.Network.AUTO4
 LimitCORE=infinity
 EnvironmentFile=-/etc/sysconfig/network/config
-ExecStart=@wicked_supplicantdir@/wickedd-auto4 $WICKED_DEBUG_PARAM --systemd --foreground
+ExecStart=@wicked_supplicantdir@/wickedd-auto4 --systemd --foreground
 StandardError=null
 Restart=on-abort
 

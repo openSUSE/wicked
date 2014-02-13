@@ -36,7 +36,7 @@ wicked_CONFIG=@wicked_configdir@/server.xml
 wicked_DAEMON_BIN=@wicked_sbindir@/wickedd
 wicked_PIDFILE=@wicked_piddir@/wicked.pid
 
-# for WICKED_DEBUG_LEVEL only
+# for WICKED_DEBUG and WICKED_LOG_LEVEL and DEBUG (sysconfig compat)
 test -f /etc/sysconfig/network/config && \
       . /etc/sysconfig/network/config
 
@@ -115,9 +115,6 @@ esac
 case $ACTION in
     start)
 	COMMON_ARGS=""
-	if [ -n "$WICKED_DEBUG_LEVEL" ]; then
-		COMMON_ARGS+=" --debug $WICKED_DEBUG_LEVEL"
-	fi
 
 	echo -n "Starting"
 

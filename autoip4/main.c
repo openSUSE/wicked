@@ -79,6 +79,7 @@ main(int argc, char **argv)
 {
 	int c;
 
+	ni_log_init();
 	program_name = ni_basename(argv[0]);
 
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {

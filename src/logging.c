@@ -27,7 +27,7 @@
 #define NI_TRACE_MOST	~(NI_TRACE_XPATH | NI_TRACE_WICKED_XML | NI_TRACE_DBUS)
 #define NI_TRACE_ALL	~0U
 
-unsigned int		ni_debug;
+unsigned int		ni_debug = 0;
 unsigned int		ni_log_level = NI_LOG_NOTICE;
 static unsigned int	ni_log_syslog;
 static const char *	ni_log_ident;
@@ -167,7 +167,7 @@ ni_enable_debug(const char *fac)
 	char *copy, *s;
 	int rv = 0;
 
-	copy = xstrdup(fac);
+	copy = xstrdup(fac ? fac : "");
 	for (s = strtok(copy, ","); s; s = strtok(NULL, ",")) {
 		unsigned int flags = 0;
 		int not = 0;
@@ -205,6 +205,25 @@ ni_debug_help(void)
 		printf("  %-10s\t%s\n",
 				ni_debug_facility_to_name(__debug_flags_descriptions[i].value),
 				__debug_flags_descriptions[i].name);
+	}
+}
+
+void
+ni_log_init(void)
+{
+	const char *var = getenv("WICKED_DEBUG");
+
+	if (ni_string_empty(var) && (var = getenv("DEBUG"))) {
+		if (ni_string_eq(var, "no"))
+			var = "";
+		else
+		if (ni_string_eq(var, "yes"))
+			var = "most";
+	}
+	ni_enable_debug(var);
+
+	if ((var = getenv("WICKED_LOG_LEVEL"))) {
+		ni_log_level_set(var);
 	}
 }
 

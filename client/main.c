@@ -111,7 +111,9 @@ main(int argc, char **argv)
 
 	mtrace();
 
+	ni_log_init();
 	program_name = ni_basename(argv[0]);
+
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_HELP:
