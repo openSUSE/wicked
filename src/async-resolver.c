@@ -283,7 +283,7 @@ __ni_resolve_reverse_read(int fd, char **hostname, unsigned int timeout)
 		}
 	}
 	if (rc == 1 && pfd[0].revents & POLLIN) {
-		len = read(pfd[0].fd, hbuf, sizeof(hbuf));
+		len = read(pfd[0].fd, hbuf, sizeof(hbuf) - 1);
 		if (len > 0 && ni_check_domain_name(hbuf, len, 0)) {
 			ni_string_dup(hostname, hbuf);
 			return 0;
