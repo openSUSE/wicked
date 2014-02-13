@@ -654,7 +654,7 @@ ni_dbus_connection_get_caller_uid(ni_dbus_connection_t *conn, const char *name, 
 		goto out;
 	}
 
-	ni_trace("%s(%s): user_id=%u", __func__, name, user_id);
+	ni_debug_dbus("%s(%s): user_id=%u", __func__, name, user_id);
 	if (uidp)
 		*uidp = user_id;
 	rv = 0;

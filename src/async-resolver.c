@@ -376,8 +376,6 @@ ni_resolve_reverse_timed(const ni_sockaddr_t *addr, char **hostname, unsigned in
 		close(fd[1]);
 		rc = __ni_resolve_reverse_read(fd[0], hostname, timeout);
 		close(fd[0]);
-		if (rc == 0)
-			ni_trace("resolved to hostname: %s", *hostname);
 		if (rc < 0)
 			kill(pid, SIGTERM);
 

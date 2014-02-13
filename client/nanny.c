@@ -324,7 +324,7 @@ ni_nanny_call_add_policy(const char *name, xml_node_t *node)
 		return FALSE;
 	}
 
-	ni_trace("About to call %s.update()", ni_dbus_object_get_path(proxy));
+	ni_debug_application("About to call %s.update()", ni_dbus_object_get_path(proxy));
 	if ((rv = ni_dbus_object_call_simple(proxy,
 					NI_OBJECTMODEL_MANAGED_POLICY_INTERFACE, "update",
 					DBUS_TYPE_STRING, &doc_string,

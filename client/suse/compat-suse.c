@@ -2816,7 +2816,6 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	primary = TRUE;
 	ni_string_dup(&bp, value);
 	for (s = strtok_r(bp, "+", &p); s; s = strtok_r(NULL, "+", &p)) {
-		ni_trace("BOOTPROTO[]=%s", s);
 		if(ni_string_eq(s, "dhcp")) {
 			/* dhcp4 or dhcp6 -> at least one required */
 			__ni_suse_addrconf_dhcp4(sc, compat, FALSE);

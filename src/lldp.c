@@ -1579,22 +1579,22 @@ ni_lldp_pdu_build(const ni_lldp_t *lldp, ni_dcbx_state_t *dcbx, ni_buffer_t *bp)
 		return 0;
 
 	/* Optional parts */
-	ni_trace("port_description=%s", lldp->port_description);
+	ni_debug_lldp("port_description=%s", lldp->port_description);
 	if (lldp->port_description
 	 && ni_lldp_tlv_put_string(bp, NI_LLDP_TLV_PORT_DESC, lldp->port_description) < 0)
 		return -1;
 
-	ni_trace("system.name=%s", lldp->system.name);
+	ni_debug_lldp("system.name=%s", lldp->system.name);
 	if (lldp->system.name
 	 && ni_lldp_tlv_put_string(bp, NI_LLDP_TLV_SYSTEM_NAME, lldp->system.name) < 0)
 		return -1;
 
-	ni_trace("system.description=%s", lldp->system.description);
+	ni_debug_lldp("system.description=%s", lldp->system.description);
 	if (lldp->system.description
 	 && ni_lldp_tlv_put_string(bp, NI_LLDP_TLV_SYSTEM_DESC, lldp->system.description) < 0)
 		return -1;
 
-	ni_trace("system.capabilities=%04x", lldp->system.capabilities);
+	ni_debug_lldp("system.capabilities=%04x", lldp->system.capabilities);
 	if (lldp->system.capabilities != 0
 	 && ni_lldp_tlv_put_syscaps(lldp, bp) < 0)
 		return -1;

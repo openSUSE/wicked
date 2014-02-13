@@ -42,7 +42,7 @@ __ni_netconfig_firmware_discovery(const char *root, const char *type, const char
 			if (type && !ni_string_eq_nocase(type, script->name))
 				continue;
 
-			ni_debug_objectmodel("trying to discover netif config via firmware service \"%s\"", script->name);
+			ni_debug_ifconfig("trying to discover netif config via firmware service \"%s\"", script->name);
 
 			/* Create an instance of this command */
 			process = ni_process_new(script->process);
@@ -113,7 +113,7 @@ ni_netconfig_firmware_discovery(const char *root, const char *type)
 	}
 	ni_string_free(&temp);
 
-	ni_trace("%s: buffer %s%s%s has %u bytes", __func__, (type ? type : ""),
+	ni_debug_ifconfig("%s: buffer %s%s%s has %u bytes", __func__, (type ? type : ""),
 			(type ? ":" : ""), (source ? source : ""), ni_buffer_count(buffer));
 	doc = xml_document_from_buffer(buffer, NULL);
 	ni_buffer_free(buffer);

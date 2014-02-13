@@ -312,7 +312,7 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 			if (match->class == NULL || dev_class == NULL
 			 || !ni_dbus_class_is_subclass(dev_class, match->class))
 				continue;
-			ni_trace("devmatch class %s: %p", match->value, match->class);
+			ni_debug_nanny("devmatch class %s: %p", match->value, match->class);
 			break;
 
 		case NI_NANNY_DEVMATCH_DEVICE:

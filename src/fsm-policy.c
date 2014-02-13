@@ -1251,7 +1251,9 @@ ni_ifcondition_boot_stage(xml_node_t *node)
 static ni_bool_t
 __ni_fsm_policy_min_device_state_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
+#if 0
 	ni_trace("%s: state is %u, need %u", w->name, w->fsm.state, cond->args.uint);
+#endif
 	return w->fsm.state >= cond->args.uint;
 }
 
@@ -1362,8 +1364,10 @@ __ni_fsm_policy_match_wireless_essid_check(const ni_ifcondition_t *cond, ni_ifwo
 			ni_wireless_network_t *net = scan->networks.data[i];
 
 			if (memcmp(&net->essid, &essid, sizeof(essid)) == 0) {
+#if 0
 				ni_trace("essid \"%s\" found - ap %s",
 						cond->args.string, ni_wireless_print_ssid(&net->essid));
+#endif
 				return TRUE;
 			}
 		}

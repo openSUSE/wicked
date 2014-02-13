@@ -1168,10 +1168,10 @@ ni_dhcp6_device_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 	break;
 
 	case NI_EVENT_NETWORK_UP:
-		ni_trace("%s: received network up event", dev->ifname);
+		ni_debug_dhcp("%s: received network up event", dev->ifname);
 	break;
 	case NI_EVENT_NETWORK_DOWN:
-		ni_trace("%s: received network down event", dev->ifname);
+		ni_debug_dhcp("%s: received network down event", dev->ifname);
 	break;
 
 	case NI_EVENT_LINK_UP:
@@ -1189,7 +1189,7 @@ ni_dhcp6_device_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 	break;
 
 	default:
-		ni_trace("%s: received other event", dev->ifname);
+		ni_debug_dhcp("%s: received other event", dev->ifname);
 	break;
 	}
 }

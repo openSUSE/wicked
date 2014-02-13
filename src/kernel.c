@@ -263,7 +263,7 @@ __ni_tuntap_delete(const char *ifname)
 	struct ifreq ifr;
 	int devfd, rv = -1;
 
-	ni_trace("%s(%s)", __func__, ifname);
+	ni_debug_ifconfig("%s(%s)", __func__, ifname);
 	if ((devfd = __ni_tuntap_open_dev()) < 0)
 		return -1;
 
