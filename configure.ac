@@ -18,7 +18,7 @@ AM_INIT_AUTOMAKE([foreign dist-bzip2 no-dist-gzip])
 #      with (CUR-AGE) used in the library soname.
 #
 CUR=5
-REV=7
+REV=8
 AGE=5
 
 # Calculate package (soname version) suffix for the spec file.
