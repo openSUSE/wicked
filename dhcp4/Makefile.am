@@ -21,7 +21,7 @@ wickedd_dhcp4_SOURCES	= \
 	main.c		\
 	protocol.c
 
-EXTRA_DIST			= \
+noinst_HEADERS		= \
 	dhcp.h		\
 	protocol.h
 

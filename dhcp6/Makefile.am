@@ -22,7 +22,7 @@ wickedd_dhcp6_SOURCES	= \
 	protocol.c	\
 	state.c
 
-EXTRA_DIST			= \
+noinst_HEADERS		= \
 	dbus-api.h	\
 	device.h	\
 	dhcp6.h		\
