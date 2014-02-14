@@ -1,17 +1,4 @@
 
-===========================================================
-NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! 
-
-This code is currently undergoing a massive rewrite. Use at your
-own risk. Do not expect things to make a lot of sense. Do not
-expect documentation to relate to program behavior in any way.
-
-You have been warned :)
-
-NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! 
-===========================================================
-
-
 Presenting wicked network configuration
 =======================================
 
@@ -202,7 +189,8 @@ Start the server process (again, as root):
 which starts wickedd (main server) and associated supplicants in
 debugging mode, printing trace information to syslog:
 
-        /usr/sbin/wickedd --foreground 
+        /usr/sbin/wickedd --foreground
+	/usr/sbin/wickedd-nanny --foreground
         /usr/lib/wicked/bin/wickedd-dhcp4 --foreground
         /usr/lib/wicked/bin/wickedd-auto4 --foreground
         /usr/lib/wicked/bin/wickedd-dhcp6 --foreground
@@ -379,25 +367,26 @@ commands to execute for the actions of this interface. Further,
 the declaration can define and initialize environment variables
 passed to the actions.
 
+
 Wicked extensions - configuration files
 =======================================
 
 You can extend the handling of configuration files with scripts as well.
-For example, DNS updates from leases are ultimately handled by the
-extensions/resolver script, with behavior configured in server.xml:
+For example, DNS, NIS, etc updates from leases are ultimately handled by the
+extensions/netconfig script, with behavior configured in server.xml:
 
-        <system-updater name="resolver">
-          <action name="backup" command="/etc/wicked/extensions/resolver backup"/>
-          <action name="restore" command="/etc/wicked/extensions/resolver restore"/>
-          <action name="install" command="/etc/wicked/extensions/resolver install"/>
-          <action name="remove" command="/etc/wicked/extensions/resolver remove"/>
-        </system-updater>
+  <system-updater name="generic" format="info">
+    <action name="backup" command="/etc/wicked/extensions/netconfig backup"/>
+    <action name="restore" command="/etc/wicked/extensions/netconfig restore"/>
+    <action name="install" command="/etc/wicked/extensions/netconfig install"/>
+    <action name="remove" command="/etc/wicked/extensions/netconfig remove"/>
+  </system-updater>
 
 When an update arrives in wickedd, the system updater routines parse
 the lease and call the appropriate commands (ie. backup, install, etc)
-in the resolver script. This in turn configures the DNS settings
-using /sbin/netconfig (if it exists on the system), or by manually writing
-/etc/resolv.conf as a fallback.
+in the netconfig script. This in turn configures the various settings
+using /sbin/netconfig.
+
 
 Future wickedness
 =================
