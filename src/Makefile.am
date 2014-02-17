@@ -140,12 +140,14 @@ libwicked_client_la_SOURCES		= \
 	client/client_state.c
 
 noinst_HEADERS			= \
-	dhcp4/lease.h		\
-	dhcp6/lease.h		\
+	$(wicked_headers)	\
+	$(system_headers)
+
+system_headers			= \
 	linux/if_link.h		\
 	linux/dcbnl.h
 
-wicked_include_HEADERS		= \
+wicked_headers			= \
 	appconfig.h		\
 	buffer.h		\
 	client/client_state.h	\
@@ -157,6 +159,8 @@ wicked_include_HEADERS		= \
 	dbus-objects/model.h	\
 	dbus-server.h		\
 	debug.h			\
+	dhcp4/lease.h		\
+	dhcp6/lease.h		\
 	dhcp6/options.h		\
 	duid.h			\
 	ipv6_priv.h		\
