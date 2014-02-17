@@ -20,7 +20,7 @@ wickedd_auto4_SOURCES	= \
 	fsm.c		\
 	main.c
 
-EXTRA_DIST			= \
+noinst_HEADERS		= \
 	autoip.h
 
 # vim: ai

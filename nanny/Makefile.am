@@ -22,7 +22,7 @@ wickedd_nanny_SOURCES		= \
 	nanny.c		\
 	policy.c
 
-EXTRA_DIST			= \
+noinst_HEADERS		= \
 	nanny.h
 
 # vim: ai
