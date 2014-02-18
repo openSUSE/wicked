@@ -316,7 +316,8 @@ ni_dbus_xml_deserialize_arguments(const ni_dbus_method_t *method,
 
 		if (!ni_dbus_deserialize_xml(&vars[i], xs_method->arguments.data[i].type, arg)) {
 			xml_node_free(node);
-			return NULL;
+			node = NULL;
+			break;
 		}
 	}
 

@@ -36,6 +36,7 @@ struct ni_socket {
 	int		(*get_timeout)(const ni_socket_t *, struct timeval *);
 	void		(*check_timeout)(ni_socket_t *, const struct timeval *);
 
+	void		(*release_user_data)(void *);
 	void *		user_data;
 };
 

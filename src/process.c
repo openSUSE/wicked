@@ -553,6 +553,14 @@ __ni_process_output_hangup(ni_socket_t *sock)
 	}
 }
 
+static void
+__ni_process_release_user_data(void *user_data)
+{
+	ni_process_t *pi = user_data;
+	if (pi)
+		ni_process_free(pi);
+}
+
 static ni_socket_t *
 __ni_process_get_output(ni_process_t *pi, int fd)
 {
@@ -562,6 +570,7 @@ __ni_process_get_output(ni_process_t *pi, int fd)
 	sock->receive = __ni_process_output_recv;
 	sock->handle_hangup = __ni_process_output_hangup;
 
+	sock->release_user_data = __ni_process_release_user_data;
 	sock->user_data = pi;
 	return sock;
 }

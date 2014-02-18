@@ -91,6 +91,8 @@ ni_socket_release(ni_socket_t *sock)
 	if (sock->refcount == 0) {
 		__ni_socket_close(sock);
 		ni_assert(!sock->active);
+		if (sock->release_user_data)
+			sock->release_user_data(sock->user_data);
 		free(sock);
 	}
 }
