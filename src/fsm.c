@@ -1074,45 +1074,11 @@ ni_ifworker_check_config(const ni_ifworker_t *w, const xml_node_t *config_node, 
 	return TRUE;
 }
 
-static ni_config_origin_prio_t
-__ni_config_origin_get_prio(const char *origin)
-{
-	ni_config_origin_prio_t prio;
-
-	if (ni_string_empty(origin))
-		return NI_CONFIG_ORIGIN_PRIO_UNKNOWN;
-
-	if (ni_string_startswith(origin, "firmware:"))
-		prio = NI_CONFIG_ORIGIN_PRIO_FIRMWARE;
-	else if (ni_string_startswith(origin, "compat:"))
-		prio = NI_CONFIG_ORIGIN_PRIO_COMPAT;
-	else if (ni_string_startswith(origin, "wicked:"))
-		prio = NI_CONFIG_ORIGIN_PRIO_WICKED;
-	else
-		prio = NI_CONFIG_ORIGIN_PRIO_UNKNOWN; /* Currently wicked */
-
-	return prio;
-}
-
-static inline ni_config_origin_prio_t
-ni_xml_origin_get_prio(xml_node_t *ifnode)
-{
-	ni_assert(ifnode);
-	return __ni_config_origin_get_prio(xml_node_get_location_filename(ifnode));
-}
-
-static inline ni_config_origin_prio_t
-ni_ifworker_origin_get_prio(ni_ifworker_t *w)
-{
-	ni_assert(w);
-	return __ni_config_origin_get_prio(w->config.origin);
-}
-
 /*
  * Given an XML document, build interface and modem objects, and policies from it.
  */
 unsigned int
-ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_document_t *doc, ni_bool_t force)
+ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_document_t *doc)
 {
 	xml_node_t *root, *ifnode;
 	unsigned int count = 0;
@@ -1159,14 +1125,6 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_document_t *doc, ni_bool_t force)
 
 		if (w == NULL) {
 			ni_error("%s: ignoring unknown interface", xml_node_location(ifnode));
-			continue;
-		}
-
-		/* FIXME: ifnode->location or ni_ifconfig_get_client_info() ? */
-		if (!force &&
-			ni_ifworker_origin_get_prio(w) < ni_xml_origin_get_prio(root)) {
-			ni_warn("Cannot overwrite %s config by %s config",
-					w->config.origin, xml_node_get_location_filename(root));
 			continue;
 		}
 

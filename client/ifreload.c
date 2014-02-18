@@ -59,7 +59,6 @@ ni_do_ifreload(int argc, char **argv)
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	ni_ifworker_array_t marked = { 0, NULL };
 	ni_ifmatcher_t ifmatch;
-	const char *opt_ifpolicy = NULL;
 	ni_bool_t opt_force = FALSE;
 	ni_bool_t opt_persistent = FALSE;
 	int c, status = NI_WICKED_RC_USAGE;
@@ -80,11 +79,8 @@ ni_do_ifreload(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, "", ifreload_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_IFCONFIG:
-			ni_string_array_append(&opt_ifconfig, optarg);
-			break;
-
 		case OPT_IFPOLICY:
-			opt_ifpolicy = optarg;
+			ni_string_array_append(&opt_ifconfig, optarg);
 			break;
 
 		case OPT_FORCE:
@@ -149,19 +145,9 @@ usage:
 		}
 	}
 
-	for (i = 0; i < opt_ifconfig.count; ++i) {
-		if (!ni_ifconfig_load(fsm, opt_global_rootdir,
-				opt_ifconfig.data[i], opt_force)) {
-			status = NI_WICKED_RC_NOT_CONFIGURED;
-			goto cleanup;
-		}
-	}
-	if (opt_ifpolicy) {
-		if (!ni_ifconfig_load(fsm, opt_global_rootdir,
-				opt_ifpolicy, opt_force)) {
-			status = NI_WICKED_RC_NOT_CONFIGURED;
-			goto cleanup;
-		}
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, opt_force)) {
+		status = NI_WICKED_RC_NOT_CONFIGURED;
+		goto cleanup;
 	}
 
 	status = NI_WICKED_RC_SUCCESS;

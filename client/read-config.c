@@ -191,17 +191,19 @@ static const ni_ifconfig_type_t	__ni_ifconfig_types[] = {
 };
 
 ni_bool_t
-ni_ifconfig_load(ni_fsm_t *fsm, const char *root, const char *location, ni_bool_t force)
+ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *opt_ifconfig, ni_bool_t force)
 {
 	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
 	unsigned int i;
 
-	if (!ni_ifconfig_read(&docs, root, location, FALSE))
-		return FALSE;
+	for (i = 0; i < opt_ifconfig->count; ++i) {
+		if (!ni_ifconfig_read(&docs, root, opt_ifconfig->data[i], force))
+			return FALSE;
+	}
 
 	for (i = 0; i < docs.count; i++) {
 		/* TODO: review ni_fsm_workers_from_xml return codes */
-		ni_fsm_workers_from_xml(fsm, docs.data[i], force);
+		ni_fsm_workers_from_xml(fsm, docs.data[i]);
 	}
 
 	/* Do not destroy xml documents as referenced by the fsm workers */
@@ -233,6 +235,81 @@ ni_ifconfig_read(xml_document_array_t *array, const char *root, const char *path
 	return FALSE;
 }
 
+static ni_config_origin_prio_t
+__ni_ifconfig_origin_get_prio(const char *origin)
+{
+	ni_config_origin_prio_t prio;
+
+	if (ni_string_empty(origin))
+		return NI_CONFIG_ORIGIN_PRIO_UNKNOWN;
+
+	if (ni_string_startswith(origin, "firmware:"))
+		prio = NI_CONFIG_ORIGIN_PRIO_FIRMWARE;
+	else if (ni_string_startswith(origin, "compat:"))
+		prio = NI_CONFIG_ORIGIN_PRIO_COMPAT;
+	else if (ni_string_startswith(origin, "wicked:"))
+		prio = NI_CONFIG_ORIGIN_PRIO_WICKED;
+	else
+		prio = NI_CONFIG_ORIGIN_PRIO_UNKNOWN; /* Currently wicked */
+
+	return prio;
+}
+
+static inline const char *
+__ifconfig_read_get_iface_name(xml_node_t *ifnode)
+{
+	xml_node_t *nnode = NULL;
+
+	if (ifnode)
+		nnode = xml_node_get_child(ifnode, "name");
+	return (!nnode || ni_string_empty(nnode->cdata)) ? NULL : nnode->cdata;
+}
+
+ni_bool_t
+ni_ifconfig_validate_adding_doc(xml_document_array_t *docs, xml_document_t *config_doc, ni_bool_t force)
+{
+	xml_node_t *dst_root, *src_root, *dst_child, *src_child;
+	ni_config_origin_prio_t dst_prio, src_prio;
+	const char *dst_ifname, *src_ifname;
+	unsigned int i;
+
+	ni_assert(docs);
+	if (!config_doc)
+		return FALSE;
+	if (force)
+		return TRUE;
+
+	/* Go through all config_doc's <interfaces> */
+	src_root = xml_document_root(config_doc);
+	src_prio = __ni_ifconfig_origin_get_prio(xml_node_get_location_filename(src_root));
+
+	/* Go through all already added docs */
+	for (i = 0; i < docs->count; i++) {
+		dst_root = xml_document_root(docs->data[i]);
+		dst_prio = __ni_ifconfig_origin_get_prio(xml_node_get_location_filename(dst_root));
+
+		/* Go through all already added docs' <interfaces> */
+		for (dst_child = dst_root->children; dst_child; dst_child = dst_child->next) {
+			if (!(dst_ifname = __ifconfig_read_get_iface_name(dst_child)))
+				return FALSE;
+
+			/* Go through all   <interfaces> of a doc being added */
+			for (src_child = src_root->children; src_child; src_child = src_child->next) {
+				if (!(src_ifname = __ifconfig_read_get_iface_name(src_child)))
+					return FALSE;
+				if (ni_string_eq(dst_ifname, src_ifname) && dst_prio <= src_prio) {
+					ni_warn("Ignoring config %s because of higher prio config %s",
+						xml_node_get_location_filename(src_root),
+						xml_node_get_location_filename(dst_root));
+					return FALSE;
+				}
+			}
+		}
+	}
+
+	return TRUE;
+}
+
 /*
  * Read ifconfig file
  */
@@ -257,7 +334,11 @@ __ni_ifconfig_xml_read_file(xml_document_array_t *docs, const char *root, const 
 			ni_ifconfig_generate_client_info("wicked", pathname, NULL), NULL);
 	}
 
-	xml_document_array_append(docs, config_doc);
+	if (ni_ifconfig_validate_adding_doc(docs, config_doc, raw))
+		xml_document_array_append(docs, config_doc);
+	else
+		xml_document_free(config_doc);
+
 	return TRUE;
 }
 
@@ -447,7 +528,11 @@ ni_ifconfig_read_firmware(xml_document_array_t *array, const char *type,
 	}
 
 	ni_device_clientinfo_free(client_info);
-	xml_document_array_append(array, config_doc);
+
+	if (ni_ifconfig_validate_adding_doc(array, config_doc, raw))
+		xml_document_array_append(array, config_doc);
+	else
+		xml_document_free(config_doc);
 	return TRUE;
 }
 
@@ -476,30 +561,53 @@ ni_ifconfig_generate_client_info(const char *schema, const char *filename, const
 	return client_info;
 }
 
+static ni_bool_t
+ni_ifconfig_parse_client_info_xml(const xml_node_t *node, ni_device_clientinfo_t *ci)
+{
+	const xml_node_t *child;
+
+	if (!node || !ci)
+		return FALSE;
+
+	if ((child = xml_node_get_child(node, "state"))) {
+		if (ni_string_empty(child->cdata))
+			return FALSE;
+		ni_string_dup(&ci->state, child->cdata);
+	}
+
+	child = xml_node_get_child(node, "config-origin");
+	if (!child || ni_string_empty(child->cdata))
+		return FALSE;
+	ni_string_dup(&ci->config_origin, child->cdata);
+
+	child = xml_node_get_child(node, "config-uuid");
+	if (!child || ni_string_empty(child->cdata) ||
+	    !ni_uuid_parse(&ci->config_uuid, child->cdata)) {
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+
 ni_device_clientinfo_t *
 ni_ifconfig_get_client_info(xml_document_t *doc)
 {
-	ni_device_clientinfo_t *client_info = NULL;
-	xml_node_t *cinode = NULL;
-	const char *val;
+	ni_device_clientinfo_t *ci;
+	xml_node_t *cinode;
 
-	if (!doc || !xml_document_root(doc))
-		return NULL;
-
+	ni_assert(doc);
 	/* FIXME: Currently returns either the first occurence or NULL */
-	cinode = xml_node_get_next_child(doc->root, "interface", cinode);
+	cinode = xml_node_get_child(xml_document_root(doc), "interface");
 
 	if (cinode) {
-		client_info = ni_device_clientinfo_new();
-		if ((val = xml_node_get_attr(cinode, "state")))
-			ni_string_dup(&client_info->state, val);
-		if ((val = xml_node_get_attr(cinode, "config-origin")))
-			ni_string_dup(&client_info->config_origin, val);
-		if ((val = xml_node_get_attr(cinode, "config-uuid")))
-			ni_uuid_parse(&client_info->config_uuid, val);
+		ci = ni_device_clientinfo_new();
+		if (ni_ifconfig_parse_client_info_xml(cinode, ci))
+			return ci;
+		ni_device_clientinfo_free(ci);
 	}
 
-	return client_info;
+	return NULL;
 }
 
 void
