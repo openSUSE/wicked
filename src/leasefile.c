@@ -827,7 +827,7 @@ ni_addrconf_lease_from_xml(ni_addrconf_lease_t **leasep, const xml_node_t *root)
  */
 static const char *		__ni_addrconf_lease_file_path(int, int, const char *);
 
-#if 1
+#if 0
 int
 ni_addrconf_lease_file_write(const char *ifname, ni_addrconf_lease_t *lease)
 {
