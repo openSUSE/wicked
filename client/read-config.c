@@ -366,7 +366,7 @@ __ni_ifconfig_xml_read_dir(xml_document_array_t *docs, const char *root, const c
 	}
 
 	if (empty)
-		ni_info("No valid configuration files found at %s", pathname);
+		ni_debug_ifconfig("No valid configuration files found at %s", pathname);
 
 	ni_string_array_destroy(&files);
 	return TRUE;
