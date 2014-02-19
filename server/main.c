@@ -39,7 +39,7 @@ enum {
 	OPT_SYSTEMD,
 
 	OPT_FOREGROUND,
-	OPT_NORECOVER,
+	OPT_RECOVER,
 	OPT_NOMODEMMGR,
 };
 
@@ -57,7 +57,7 @@ static struct option	options[] = {
 	{ "foreground",		no_argument,		NULL,	OPT_FOREGROUND },
 
 	/* specific */
-	{ "no-recovery",	no_argument,		NULL,	OPT_NORECOVER },
+	{ "recover",		no_argument,		NULL,	OPT_RECOVER },
 	{ "no-modem-manager",	no_argument,		NULL,	OPT_NOMODEMMGR },
 
 	{ NULL }
@@ -66,7 +66,7 @@ static struct option	options[] = {
 static const char *	program_name;
 static const char *	opt_log_target;
 static ni_bool_t	opt_foreground;
-static ni_bool_t	opt_no_recover_leases;
+static ni_bool_t	opt_recover_state;
 /* FIXME: ModemManager changed to ModemManager1 - new API -> disabled */
 static ni_bool_t	opt_no_modem_manager = TRUE;
 static ni_bool_t	opt_systemd;
@@ -75,7 +75,7 @@ static ni_dbus_server_t *dbus_server;
 
 static void		run_interface_server(void);
 static void		discover_state(ni_dbus_server_t *);
-static void		recover_addrconf(const char *filename);
+static void		recover_state(const char *filename);
 static void		handle_interface_event(ni_netdev_t *, ni_event_t);
 static void		handle_rfkill_event(ni_rfkill_type_t, ni_bool_t, void *);
 static void		handle_other_event(ni_event_t);
@@ -110,8 +110,8 @@ main(int argc, char **argv)
 				"        Set log destination to <stderr|syslog>.\n"
 				"  --foreground\n"
 				"        Tell the daemon to not background itself at startup.\n"
-				"  --no-recovery\n"
-				"        Skip restart of address configuration daemons.\n"
+				"  --recover\n"
+				"        Restart of address configuration daemons and keep state information.\n"
 				"  --no-modem-manager\n"
 				"        Skip start of modem-manager.\n"
 				"  --systemd\n"
@@ -157,8 +157,8 @@ main(int argc, char **argv)
 			opt_foreground = TRUE;
 			break;
 
-		case OPT_NORECOVER:
-			opt_no_recover_leases = TRUE;
+		case OPT_RECOVER:
+			opt_recover_state = TRUE;
 			break;
 
 		case OPT_NOMODEMMGR:
@@ -191,7 +191,7 @@ main(int argc, char **argv)
 	if (ni_init("server") < 0)
 		return NI_LSB_RC_ERROR;
 
-	if (opt_state_file == NULL) {
+	if (opt_recover_state && ni_string_empty(opt_state_file)) {
 		static char dirname[PATH_MAX];
 
 		snprintf(dirname, sizeof(dirname), "%s/state.xml", ni_config_statedir());
@@ -239,8 +239,8 @@ run_interface_server(void)
 
 	discover_state(dbus_server);
 
-	if (!opt_no_recover_leases)
-		recover_addrconf(opt_state_file);
+	if (opt_recover_state)
+		recover_state(opt_state_file);
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
@@ -253,7 +253,8 @@ run_interface_server(void)
 			ni_fatal("ni_socket_wait failed");
 	}
 
-	ni_objectmodel_save_state(opt_state_file);
+	if (opt_recover_state)
+		ni_objectmodel_save_state(opt_state_file);
 
 	exit(0);
 }
@@ -291,7 +292,7 @@ discover_state(ni_dbus_server_t *server)
  * this needs to happen in the respective supplicants.
  */
 void
-recover_addrconf(const char *filename)
+recover_state(const char *filename)
 {
 	const char *prefix_list[] = {
 		NI_OBJECTMODEL_ADDRCONF_INTERFACE,

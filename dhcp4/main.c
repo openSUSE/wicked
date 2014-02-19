@@ -46,7 +46,7 @@ enum {
 
 	/* specific */
 	OPT_FOREGROUND,
-	OPT_NORECOVER,
+	OPT_RECOVER,
 
 	/* test run */
 	OPT_TEST,
@@ -68,7 +68,7 @@ static struct option	options[] = {
 	{ "foreground",		no_argument,		NULL,	OPT_FOREGROUND },
 
 	/* specific */
-	{ "no-recovery",	no_argument,		NULL,	OPT_NORECOVER },
+	{ "recover",		no_argument,		NULL,	OPT_RECOVER },
 
 	/* test run */
 	{ "test",		no_argument,		NULL,	OPT_TEST         },
@@ -81,14 +81,14 @@ static struct option	options[] = {
 static const char *	program_name;
 static const char *	opt_log_target;
 static ni_bool_t	opt_foreground;
-static ni_bool_t	opt_no_recover_leases;
+static ni_bool_t	opt_recover_state;
 static ni_bool_t	opt_systemd;
 static char *		opt_state_file;
 
 static ni_dbus_server_t *dhcp4_dbus_server;
 
 static void		dhcp4_supplicant(void);
-static void		dhcp4_recover_addrconf(const char *);
+static void		dhcp4_recover_state(const char *);
 static void		dhcp4_discover_devices(ni_dbus_server_t *);
 static void		dhcp4_interface_event(ni_netdev_t *, ni_event_t);
 static void		dhcp4_protocol_event(enum ni_dhcp4_event, const ni_dhcp4_device_t *, ni_addrconf_lease_t *);
@@ -133,8 +133,8 @@ main(int argc, char **argv)
 				"        Use '--debug help' for a list of facilities.\n"
 				"  --foreground\n"
 				"        Do not background the service.\n"
-				"  --norecover\n"
-				"        Disable automatic recovery of leases.\n"
+				"  --recover\n"
+				"        Enable automatic recovery of daemon's state.\n"
 				"  --systemd\n"
 				"        Enables behavior required by systemd service\n"
 				"\n"
@@ -185,8 +185,8 @@ main(int argc, char **argv)
 			break;
 
 		/* specific */
-		case OPT_NORECOVER:
-			opt_no_recover_leases = TRUE;
+		case OPT_RECOVER:
+			opt_recover_state = TRUE;
 			break;
 
 		case OPT_SYSTEMD:
@@ -196,7 +196,6 @@ main(int argc, char **argv)
 		/* test run */
 		case OPT_TEST:
 			opt_foreground = TRUE;
-			opt_no_recover_leases = TRUE;
 			opt_test_run = 1;
 			break;
 
@@ -244,7 +243,7 @@ main(int argc, char **argv)
 	if (ni_init("dhcp4") < 0)
 		return NI_LSB_RC_ERROR;
 
-	if (opt_state_file == NULL) {
+	if (opt_recover_state && ni_string_empty(opt_state_file)) {
 		static char dirname[PATH_MAX];
 
 		snprintf(dirname, sizeof(dirname), "%s/dhcp4-state.xml", ni_config_statedir());
@@ -614,8 +613,8 @@ dhcp4_supplicant(void)
 			ni_fatal("unable to background server");
 	}
 
-	if (!opt_no_recover_leases)
-		dhcp4_recover_addrconf(opt_state_file);
+	if (opt_recover_state)
+		dhcp4_recover_state(opt_state_file);
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
@@ -628,7 +627,8 @@ dhcp4_supplicant(void)
 			ni_fatal("ni_socket_wait failed");
 	}
 
-	ni_objectmodel_save_state(opt_state_file);
+	if (opt_recover_state)
+		ni_objectmodel_save_state(opt_state_file);
 
 	ni_server_deactivate_interface_events();
 
@@ -763,10 +763,10 @@ done:
 }
 
 /*
- * Recover lease information from the state.xml file.
+ * Recover state information from the state.xml file.
  */
 void
-dhcp4_recover_addrconf(const char *filename)
+dhcp4_recover_state(const char *filename)
 {
 	if (!ni_file_exists(filename)) {
 		ni_debug_wicked("%s: %s does not exist, skip this", __func__, filename);
