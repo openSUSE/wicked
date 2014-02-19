@@ -141,6 +141,7 @@ case $1 in
 	-o)		shift					;;
 esac
 OPTIONS=$@
+opt_debug=""
 opt_quiet=""
 opt_force=""
 while [ $# -gt 0 ]; do
@@ -153,6 +154,13 @@ while [ $# -gt 0 ]; do
 	esac
 	shift
 done
+
+# apply debug from config or argument
+case $DEBUG in
+no|"")	DEBUG="no"			;;
+yes)	opt_debug="--debug most"	;;
+*)	opt_debug="--debug ${DEBUG}"	;;
+esac
 
 # Map wicked return codes to compatibility codes
 rc_map_return()
@@ -230,11 +238,13 @@ wicked_client="@wicked_sbindir@/wicked"
 case $SCRIPTNAME in
 	ifup)
 		$wicked_client \
+			${opt_debug} \
 			ifup "$INTERFACE"
 		rc=$(rc_map_return "$?")
 	;;
 	ifdown)
 		$wicked_client \
+			${opt_debug} \
 			ifdown \
 			  ${opt_force} \
 			  "$INTERFACE"
@@ -242,6 +252,7 @@ case $SCRIPTNAME in
 	;;
 	ifstatus)
 		$wicked_client \
+			${opt_debug} \
 			ifstatus \
 			  ${opt_quiet} \
 			  "$INTERFACE"
@@ -249,6 +260,7 @@ case $SCRIPTNAME in
 	;;
 	ifprobe)
 		$wicked_client \
+			${opt_debug} \
 			ifcheck \
 			  --changed \
 			  ${opt_quiet} \
