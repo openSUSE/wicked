@@ -36,7 +36,7 @@ enum {
 	OPT_SYSTEMD,
 
 	OPT_FOREGROUND,
-	OPT_NORECOVER,
+	OPT_RECOVER,
 };
 
 static struct option	options[] = {
@@ -53,7 +53,7 @@ static struct option	options[] = {
 	{ "foreground",		no_argument,		NULL,	OPT_FOREGROUND },
 
 	/* specific */
-	{ "no-recovery",	no_argument,		NULL,	OPT_NORECOVER },
+	{ "recover",		no_argument,		NULL,	OPT_RECOVER },
 
 	{ NULL }
 };
@@ -62,12 +62,12 @@ static const char *	program_name;
 static const char *	opt_log_target;
 static ni_bool_t	opt_systemd;
 static ni_bool_t	opt_foreground;
-static ni_bool_t	opt_no_recover_leases;
+static ni_bool_t	opt_recover_state;
 static ni_dbus_server_t *autoip4_dbus_server;
 
 static void		autoip4_supplicant(void);
 static void		autoip4_discover_devices(ni_dbus_server_t *);
-static void		autoip4_recover_lease(ni_netdev_t *);
+static void		autoip4_recover_state(ni_netdev_t *);
 static void		autoip4_interface_event(ni_netdev_t *, ni_event_t);
 static void		autoip4_protocol_event(enum ni_lease_event, const ni_autoip_device_t *, ni_addrconf_lease_t *);
 
@@ -103,8 +103,8 @@ main(int argc, char **argv)
 				"        Set log destination to <stderr|syslog>.\n"
 				"  --foreground\n"
 				"        Do not background the service.\n"
-				"  --norecover\n"
-				"        Disable automatic recovery of leases.\n"
+				"  --recover\n"
+				"        Enable automatic recovery of daemon's state.\n"
 				"  --systemd\n"
 				"        Enables behavior required by systemd service\n"
 				, program_name);
@@ -148,8 +148,8 @@ main(int argc, char **argv)
 			opt_foreground = TRUE;
 			break;
 
-		case OPT_NORECOVER:
-			opt_no_recover_leases = TRUE;
+		case OPT_RECOVER:
+			opt_recover_state = TRUE;
 			break;
 
 		case OPT_SYSTEMD:
@@ -188,7 +188,7 @@ main(int argc, char **argv)
  * This allows a daemon restart without losing lease state.
  */
 void
-autoip4_recover_lease(ni_netdev_t *ifp)
+autoip4_recover_state(ni_netdev_t *ifp)
 {
 #if 0
 	ni_afinfo_t *afi = &ifp->ipv4;
@@ -342,8 +342,8 @@ autoip4_discover_devices(ni_dbus_server_t *server)
 	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
 		autoip4_device_create(server, ifp);
 
-		if (!opt_no_recover_leases)
-			autoip4_recover_lease(ifp);
+		if (opt_recover_state)
+			autoip4_recover_state(ifp);
 	}
 }
 

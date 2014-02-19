@@ -57,7 +57,7 @@ enum {
 	OPT_SYSTEMD,
 
 	OPT_FOREGROUND,
-	OPT_NORECOVER,
+	OPT_RECOVER,
 
 	OPT_TEST,
 	OPT_TEST_TIMEOUT,
@@ -78,7 +78,7 @@ static struct option		options[] = {
 	{ "foreground",		no_argument,		NULL,	OPT_FOREGROUND },
 
 	/* specific */
-	{ "no-recovery",	no_argument,		NULL,	OPT_NORECOVER },
+	{ "recover",		no_argument,		NULL,	OPT_RECOVER },
 
 	/* test run */
 	{ "test",		no_argument,		NULL,	OPT_TEST         },
@@ -91,7 +91,7 @@ static struct option		options[] = {
 static const char *		program_name;
 static const char *		opt_log_target;
 static ni_bool_t		opt_foreground;
-static ni_bool_t		opt_no_recover_leases = 1;
+static ni_bool_t		opt_recover_state;
 static ni_bool_t		opt_systemd;
 static char *			opt_state_file;
 
@@ -140,8 +140,8 @@ main(int argc, char **argv)
 				"        Set log destination to <stderr|syslog>.\n"
 				"  --foreground\n"
 				"        Do not background the service.\n"
-				"  --norecover\n"
-				"        Disable automatic recovery of leases.\n"
+				"  --recover\n"
+				"        Enable automatic recovery of daemon's state.\n"
 				"  --systemd\n"
 				"        Enables behavior required by systemd service\n"
 				"\n"
@@ -193,8 +193,8 @@ main(int argc, char **argv)
 			break;
 
 		/* specific */
-		case OPT_NORECOVER:
-			opt_no_recover_leases = TRUE;
+		case OPT_RECOVER:
+			opt_recover_state = TRUE;
 			break;
 
 		case OPT_SYSTEMD:
@@ -204,7 +204,6 @@ main(int argc, char **argv)
 		/* test run */
 		case OPT_TEST:
 			opt_foreground = TRUE;
-			opt_no_recover_leases = TRUE;
 			opt_test_run = 1;
 			break;
 
@@ -252,7 +251,7 @@ main(int argc, char **argv)
 	if (ni_init("dhcp6") < 0)
 		return NI_LSB_RC_ERROR;
 
-	if (opt_state_file == NULL) {
+	if (opt_recover_state && ni_string_empty(opt_state_file)) {
 		static char dirname[PATH_MAX];
 
 		snprintf(dirname, sizeof(dirname), "%s/%s", ni_config_statedir(),
@@ -453,7 +452,7 @@ static ni_dbus_service_t	__ni_objectmodel_dhcp6_interface = {
 
 static void			dhcp6_discover_devices(ni_dbus_server_t *);
 static void			dhcp6_protocol_event(enum ni_dhcp6_event, const ni_dhcp6_device_t *, ni_addrconf_lease_t *);
-static void			dhcp6_recover_addrconf(const char *filename);
+static void			dhcp6_recover_state(const char *filename);
 
 
 /*
@@ -588,8 +587,8 @@ dhcp6_supplicant(void)
 			ni_fatal("Unable to background server");
 	}
 
-	if (!opt_no_recover_leases)
-		dhcp6_recover_addrconf(opt_state_file);
+	if (opt_recover_state)
+		dhcp6_recover_state(opt_state_file);
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
@@ -601,8 +600,10 @@ dhcp6_supplicant(void)
 		if (ni_socket_wait(timeout) != 0)
 			ni_fatal("ni_socket_wait failed");
 	}
+
 	/*
-	ni_objectmodel_save_state(opt_state_file);
+	if (opt_recover_state)
+		ni_objectmodel_save_state(opt_state_file);
 	*/
 
 	ni_server_deactivate_interface_events();
@@ -617,7 +618,7 @@ dhcp6_supplicant(void)
  * Recover lease information from the state.xml file.
  */
 void
-dhcp6_recover_addrconf(const char *filename)
+dhcp6_recover_state(const char *filename)
 {
 	if (!ni_file_exists(filename)) {
 		ni_debug_dhcp("%s: %s does not exist, skip this", __func__, filename);
