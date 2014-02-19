@@ -388,6 +388,20 @@ __ni_nla_get_addr(int af, ni_sockaddr_t *ss, const struct nlattr *nla)
 }
 
 /*
+ * Take care to properly null terminate nla payload strings.
+ */
+char *
+__ni_nla_set_string(char **dest, struct nlattr *nla)
+{
+	if (!dest || !nla)
+		return NULL;
+
+	ni_string_set(dest, nla_get_string(nla), nla_len(nla) - 1);
+
+	return *dest;
+}
+
+/*
  * Open netlink handle; usually for rtnetlink
  */
 ni_netlink_t *
