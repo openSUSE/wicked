@@ -1,6 +1,6 @@
 [Unit]
 Description=wicked network management service daemon
-After=local-fs.target dbus.service isdn.service openibd.service
+After=local-fs.target dbus.service isdn.service rdma.service
 Before=wicked.service
 
 [Service]
