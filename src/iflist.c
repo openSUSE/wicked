@@ -651,7 +651,7 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 	if (tb[IFLA_COST])
 		link->metric = nla_get_u32(tb[IFLA_COST]);
 	if (tb[IFLA_QDISC])
-		ni_string_dup(&link->qdisc, nla_get_string(tb[IFLA_QDISC]));
+		__ni_nla_set_string(&link->qdisc, tb[IFLA_QDISC]);
 
 	if (tb[IFLA_LINK]) {
 		link->lowerdev.index = nla_get_u32(tb[IFLA_LINK]);
@@ -674,7 +674,7 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 	}
 
 	if (tb[IFLA_IFALIAS])
-		ni_string_dup(&link->alias, nla_get_string(tb[IFLA_IFALIAS]));
+		__ni_nla_set_string(&link->alias, tb[IFLA_IFALIAS]);
 	if (tb[IFLA_OPERSTATE]) {
 		/* get the RFC 2863 operational status - IF_OPER_* */
 		link->oper_state = nla_get_u8(tb[IFLA_OPERSTATE]);
@@ -732,7 +732,8 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 			ni_error("unable to parse IFLA_LINKINFO");
 			return -1;
 		}
-		ni_string_dup(&link->kind, nla_get_string(nl_linkinfo[IFLA_INFO_KIND]));
+
+		__ni_nla_set_string(&link->kind, nl_linkinfo[IFLA_INFO_KIND]);
 
 		if (ni_string_empty(link->kind)) {
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
@@ -1272,7 +1273,7 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 	}
 
 	if (tb[IFA_LABEL] != NULL)
-		ni_string_dup(&ap->label, nla_get_string(tb[IFA_LABEL]));
+		__ni_nla_set_string(&ap->label, tb[IFA_LABEL]);
 
 	return 0;
 }

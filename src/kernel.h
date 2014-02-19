@@ -71,6 +71,7 @@ extern int		__ni_netdev_rename(const char *old_name, const char *new_name);
 extern const void *	__ni_nla_get_data(size_t, const struct nlattr *);
 extern int		__ni_nla_get_addr(int, ni_sockaddr_t *, const struct nlattr *);
 extern struct nlattr *	__ni_nla_find(struct nlattr *, size_t len, int type);
+extern char *		__ni_nla_set_string(char **, struct nlattr *);
 
 /*
  * Chain nlmsghdrs together.
