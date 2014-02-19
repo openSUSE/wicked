@@ -325,11 +325,9 @@ ni_do_ifcheck(int argc, char **argv)
 		}
 	}
 
-	for (i = 0; i < opt_ifconfig.count; ++i) {
-		if (!ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifconfig.data[i], TRUE)) {
-			status = NI_WICKED_RC_NOT_CONFIGURED;
-			goto cleanup;
-		}
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE)) {
+		status = NI_WICKED_RC_NOT_CONFIGURED;
+		goto cleanup;
 	}
 
 	if (!ni_fsm_create_client(fsm)) {

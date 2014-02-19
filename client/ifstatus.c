@@ -580,12 +580,10 @@ ni_do_ifstatus(int argc, char **argv)
 		if (sources && sources->count)
 			ni_string_array_copy(&opt_ifconfig, sources);
 	}
-	for (i = 0; i < opt_ifconfig.count; ++i) {
-		if (!ni_ifconfig_load(fsm, opt_global_rootdir,
-				opt_ifconfig.data[i], TRUE)) {
-			status = NI_WICKED_ST_ERROR;
-			goto cleanup;
-		}
+
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE)) {
+		status = NI_WICKED_ST_ERROR;
+		goto cleanup;
 	}
 
 	status = NI_WICKED_ST_OK;

@@ -1224,7 +1224,10 @@ ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t 
 			}
 		}
 
-		xml_document_array_append(array, config_doc);
+		if (ni_ifconfig_validate_adding_doc(array, config_doc, raw))
+			xml_document_array_append(array, config_doc);
+		else
+			xml_document_free(config_doc);
 	}
 
 	return i;

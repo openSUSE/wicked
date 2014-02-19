@@ -612,12 +612,6 @@ out:
 int
 do_show_config(int argc, char **argv, const char *root_schema)
 {
-	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
-	int opt_raw = 0;
-	const char *opt_output = NULL;
-	unsigned i;
-	int c;
-
 	enum { OPT_HELP, OPT_RAW, OPT_OUTPUT };
 	static struct option options[] = {
 		{ "help",	no_argument, NULL, OPT_HELP },
@@ -625,6 +619,12 @@ do_show_config(int argc, char **argv, const char *root_schema)
 		{ "output",     required_argument, NULL, OPT_OUTPUT },
 		{ NULL }
 	};
+
+	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
+	ni_bool_t opt_raw = 0;
+	const char *opt_output = NULL;
+	unsigned i;
+	int c;
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", options, NULL)) != EOF) {
@@ -651,7 +651,7 @@ do_show_config(int argc, char **argv, const char *root_schema)
 				"  --help\n"
 				"      Show this help text.\n"
 				"  --raw\n"
-				"      Display config file as it is. Do not generate and/or replace the <client-info> tag.\n"
+				"      Filter out existing <client-info> tags\n"
 				"  --output <path>\n"
 				"        Specify output file\n"
 				);
@@ -1403,17 +1403,20 @@ write_dbus_error(const char *filename, const char *name, const char *fmt, ...)
 int
 do_convert(int argc, char **argv)
 {
-	enum { OPT_HELP, OPT_OUTPUT };
+	enum { OPT_HELP, OPT_RAW, OPT_OUTPUT };
 	static struct option options[] = {
 		{ "help",	no_argument, NULL, OPT_HELP },
+		{ "raw",	no_argument, NULL, OPT_RAW},
 		{ "output",     required_argument, NULL, OPT_OUTPUT },
 		{ NULL }
 	};
+
 	int c;
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", options, NULL)) != EOF) {
 		switch (c) {
+		case OPT_RAW:
 		case OPT_OUTPUT:
 			break;
 		default:
@@ -1428,6 +1431,8 @@ do_convert(int argc, char **argv)
 				"Supported options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
+				"  --raw\n"
+				"      Filter out existing <client-info> tags\n"
 				"  --output <path>\n"
 				"        Specify output file\n"
 			       );

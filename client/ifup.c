@@ -81,9 +81,8 @@ ni_do_ifup(int argc, char **argv)
 	ni_ifmarker_t ifmarker;
 	ni_ifworker_array_t ifmarked;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
-	const char *opt_ifpolicy = NULL;
 	ni_bool_t opt_force = FALSE;
-	unsigned int nmarked, i;
+	unsigned int nmarked;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
 
@@ -107,11 +106,8 @@ ni_do_ifup(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_IFCONFIG:
-			ni_string_array_append(&opt_ifconfig, optarg);
-			break;
-
 		case OPT_IFPOLICY:
-			opt_ifpolicy = optarg;
+			ni_string_array_append(&opt_ifconfig, optarg);
 			break;
 
 		case OPT_CONTROL_MODE:
@@ -208,14 +204,7 @@ usage:
 		}
 	}
 
-	for (i = 0; i < opt_ifconfig.count; ++i) {
-		if (!ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifconfig.data[i], opt_force)) {
-			status = NI_WICKED_RC_NOT_CONFIGURED;
-			goto cleanup;
-		}
-	}
-
-	if (opt_ifpolicy && !ni_ifconfig_load(fsm, opt_global_rootdir, opt_ifpolicy, opt_force)) {
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, opt_force)) {
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 		goto cleanup;
 	}
