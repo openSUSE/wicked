@@ -418,14 +418,15 @@ ni_dhcp4_release(ni_dhcp4_device_t *dev, const ni_uuid_t *lease_uuid)
 	int rv;
 
 	if (dev->lease == NULL) {
-		ni_error("%s(%s): no lease set", __func__, dev->ifname);
+		ni_error("%s: no lease set", dev->ifname);
 		return -NI_ERROR_ADDRCONF_NO_LEASE;
 	}
 
-	if (lease_uuid) {
-		/* FIXME: We should check the provided uuid against the
-		 * lease's uuid, and refuse the call if it doesn't match
-		 */
+	if (lease_uuid && !ni_uuid_equal(lease_uuid, &dev->lease->uuid)) {
+		ni_warn("%s: lease UUID %s to release does not match current lease UUID %s",
+			dev->ifname, ni_uuid_print(lease_uuid),
+			ni_uuid_print(&dev->lease->uuid));
+		return -NI_ERROR_ADDRCONF_NO_LEASE;
 	}
 
 	/* We just send out a singe RELEASE without waiting for the

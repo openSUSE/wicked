@@ -382,22 +382,16 @@ ni_dhcp4_fsm_decline(ni_dhcp4_device_t *dev)
 int
 ni_dhcp4_fsm_release(ni_dhcp4_device_t *dev)
 {
-	if (!dev->lease)
+	if (!dev->config) {
+		ni_debug_dhcp("%s: not configured, dropping lease", dev->ifname);
+		ni_dhcp4_fsm_commit_lease(dev, NULL);
 		return 0;
-
-	if (dev->fsm.state != NI_DHCP4_STATE_BOUND) {
-		ni_error("%s called in state %s", __FUNCTION__,
-				ni_dhcp4_fsm_state_name(dev->fsm.state));
-		return -1;
 	}
 
 	ni_debug_dhcp("%s: releasing lease", dev->ifname);
 	ni_dhcp4_device_send_message(dev, DHCP4_RELEASE, dev->lease);
 
-	/* RFC 2131 mandates we should wait for 10 seconds before
-	 * retrying discovery. */
-	ni_dhcp4_fsm_set_timeout(dev, 10);
-	dev->fsm.state = NI_DHCP4_STATE_INIT;
+	ni_dhcp4_fsm_commit_lease(dev, NULL);
 	return 0;
 }
 
@@ -681,7 +675,7 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 			lease->state = NI_ADDRCONF_STATE_RELEASED;
 			ni_dhcp4_send_event(NI_DHCP4_EVENT_RELEASED, dev, lease);
 
-			if (dev->config->dry_run != NI_DHCP4_RUN_OFFER) {
+			if (!dev->config || dev->config->dry_run != NI_DHCP4_RUN_OFFER) {
 				ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
 			}
 			ni_dhcp4_device_drop_lease(dev);
