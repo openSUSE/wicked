@@ -60,6 +60,7 @@ libwicked_la_SOURCES		= \
 	firmware.c		\
 	fsm.c			\
 	fsm-policy.c		\
+	ibft.c			\
 	ifconfig.c		\
 	ifevent.c		\
 	iflist.c		\
@@ -163,6 +164,7 @@ wicked_headers			= \
 	dhcp6/lease.h		\
 	dhcp6/options.h		\
 	duid.h			\
+	ibft.h			\
 	ipv6_priv.h		\
 	kernel.h		\
 	leasefile.h		\

@@ -233,6 +233,7 @@ ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, unsigned int ad
 {
 	ni_addrconf_lease_t *lease = NULL;
 	const ni_dbus_variant_t *dict;
+	const char *string_value;
 	ni_netdev_t *dev;
 	int rv;
 
@@ -248,12 +249,16 @@ ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, unsigned int ad
 
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_STATIC, addrfamily);
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
+	lease->update = ~0;
 
 	if (!__ni_objectmodel_set_address_dict(&lease->addrs, dict, error)
-	 || !__ni_objectmodel_set_route_dict(&lease->routes, dict, error)) {
+	 || !__ni_objectmodel_set_route_dict(&lease->routes, dict, error)
+	 || !__ni_objectmodel_set_resolver_dict(&lease->resolver, dict, error)) {
 		ni_addrconf_lease_free(lease);
 		return FALSE;
 	}
+	if (__ni_objectmodel_get_domain_string(dict, "hostname", &string_value))
+		ni_string_dup(&lease->hostname, string_value);
 
 	rv = __ni_system_interface_update_lease(dev, &lease);
 	if (lease)

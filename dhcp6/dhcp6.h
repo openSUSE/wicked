@@ -29,7 +29,6 @@
 #include "dhcp6/options.h"
 #include "buffer.h"
 
-
 /*
  * -- type definitions
  */
@@ -45,6 +44,15 @@ extern int			ni_dhcp6_release(ni_dhcp6_device_t *, const ni_uuid_t *);
 extern void			ni_dhcp6_restart(void);
 
 /*
+ * -- fsm (dry) run modes
+ */
+typedef enum {
+	NI_DHCP6_RUN_NORMAL,	/* normal renew loop	*/
+	NI_DHCP6_RUN_LEASE,	/* get lease and stop	*/
+	NI_DHCP6_RUN_OFFER,	/* get offer and stop	*/
+} ni_dhcp6_run_t;
+
+/*
  * -- supplicant request
  *
  * This is the on-the wire request we receive from supplicant.
@@ -54,10 +62,10 @@ struct ni_dhcp6_request {
 	ni_bool_t		enabled;
 
 	/* Options controlling which and how to make the requests */
-	ni_bool_t		dry_run;         /* detect, but don't request+commit  */
-	ni_dhcp6_mode_t		mode;		 /* follow ra, request info/addr */
-	ni_bool_t		rapid_commit;	 /* try to use rapid commit flow */
-	unsigned int		acquire_timeout; /* how long we try before we give up */
+	ni_dhcp6_run_t		dry_run;         /* normal run or get offer/lease only	*/
+	ni_dhcp6_mode_t		mode;		 /* follow ra, request info/addr	*/
+	ni_bool_t		rapid_commit;	 /* try to use rapid commit flow	*/
+	unsigned int		acquire_timeout; /* how long we try before we give up	*/
 
 	/* Options controlling what to put into the lease request */
 	char *			hostname;
@@ -97,7 +105,7 @@ struct ni_dhcp6_config {
 	ni_uuid_t		uuid;
 
 	ni_dhcp6_mode_t		mode;
-	ni_bool_t		dry_run;
+	ni_dhcp6_run_t		dry_run;
 	ni_bool_t		rapid_commit;
 	unsigned int		acquire_timeout;
 

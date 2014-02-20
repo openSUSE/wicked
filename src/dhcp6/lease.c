@@ -57,6 +57,10 @@ __ni_dhcp6_lease_head_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 				lease->dhcp6.server_pref);
 	if (lease->dhcp6.rapid_commit)
 		xml_node_new_element("rapid-commit", node, NULL);
+
+	if (!ni_string_empty(lease->hostname))
+		xml_node_new_element("hostname", node, lease->hostname);
+
 	return 0;
 }
 
@@ -471,6 +475,9 @@ ni_dhcp6_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 		if (ni_string_eq(child->name, "rapid-commit")) {
 			lease->dhcp6.rapid_commit = TRUE;
 		} else
+		if (ni_string_eq(child->name, "hostname") && child->cdata) {
+			ni_string_dup(&lease->hostname, child->cdata);
+		}
 
 		if (ni_string_eq(child->name, ia_na_name)) {
 			if (__ni_dhcp6_lease_ia_type_from_xml(&lease->dhcp6.ia_list,

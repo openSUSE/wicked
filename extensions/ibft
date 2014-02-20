@@ -205,7 +205,7 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 	<interface>
 	  <name namespace="ifindex">$nic_ifindex</name>
 	  <alias>ibft${ibft_num}.0</alias>
-EOF
+	EOF
 
 	if [ -n "$nic_vlan" -a $((nic_vlan)) -gt 0 ]; then
 		vlan_ifname=`get_vlan_ifname "$nic_vlan" "$nic_name" 2>/dev/null`
@@ -229,7 +229,7 @@ EOF
 		    <device namespace="ifindex">$nic_ifindex</device>
 		    <tag>$nic_vlan</tag>
 		  </vlan>
-EOF
+		EOF
 	fi
 
 	echo "  <client-state>"
@@ -240,18 +240,27 @@ EOF
 	echo "    <config-origin>firmware:ibft:$ibft_nic</config-origin>"
 	echo "  </client-info>"
 
-	if [ -n "$nic_dhcp_server" ] ; then
-		# Default to DHCPv4
-		cat <<-EOF
-		  <ipv4:dhcp>
-		    <enabled>true</enabled>
-		  </ipv4:dhcp>
-EOF
-	elif [ -n "$nic_ipaddr" ]; then
+	if [ -n "$nic_ipaddr" ]; then
 		default_route="<!-- no default route -->"
 		if [ -n "$nic_gateway" ]; then
 			default_route="<route><nexthop><gateway>$nic_gateway"
 			default_route="$default_route</gateway></nexthop></route>"
+		fi
+		if [ -n "$nic_hostname" ]; then
+			host_name="<hostname>$nic_hostname</hostname>"
+		else
+			host_name="<!-- no host name -->"
+		fi
+
+		dns_servers=""
+		for s in "$nic_dns_server1" "$nic_dns_server2" ; do
+			[ -n "$s" ] || continue
+			dns_servers+="<server>$s</server>"
+		done
+		if [ -n "$dns_servers" ] ; then
+			dns_servers="<resolver><servers>$dns_servers</servers></resolver>"
+		else
+			dns_servers="<!-- no dns servers -->"
 		fi
 
 		# FIXME: we have no way yet to include other lease information
@@ -261,8 +270,18 @@ EOF
 		  <ipv4:static>
 		    <address>$nic_ipaddr/$nic_prefixlen</address>
 		    $default_route
+		    $dns_servers
+		    $host_name
 		  </ipv4:static>
-EOF
+		EOF
+	fi
+	if [ -n "$nic_dhcp_server" ] ; then
+		# Default to DHCPv4 -- no root-path defined for DHCPv6.
+		cat <<-EOF
+		  <ipv4:dhcp>
+		    <enabled>true</enabled>
+		  </ipv4:dhcp>
+		EOF
 	fi
 
 	echo "</interface>"

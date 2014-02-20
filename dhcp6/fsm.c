@@ -275,9 +275,10 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 			lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
 			lease->time_acquired = time(NULL);
 			lease->update = 0; /* dev->config->update; */
-			if (dev->config->dry_run) {
+			if (dev->config->dry_run != NI_DHCP6_RUN_NORMAL) {
 				lease->state = NI_ADDRCONF_STATE_FAILED;
 				ni_dhcp6_send_event(NI_DHCP6_EVENT_ACQUIRED, dev, lease);
+				ni_dhcp6_device_stop(dev);
 			} else {
 				lease->state = NI_ADDRCONF_STATE_GRANTED;
 				ni_dhcp6_fsm_commit_lease(dev, lease);
@@ -289,7 +290,7 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 
 	case NI_DHCP6_STATE_SELECTING:
 	case NI_DHCP6_STATE_REQUESTING_INFO:
-		if (dev->config->dry_run) {
+		if (dev->config->dry_run != NI_DHCP6_RUN_NORMAL) {
 			ni_addrconf_lease_t *lease;
 
 			if (ni_dhcp6_fsm_accept_offer(dev) == 0)
@@ -1469,7 +1470,7 @@ ni_dhcp6_fsm_accept_offer(ni_dhcp6_device_t *dev)
 			dev->best_offer.weight, ni_duid_print_hex(&offer->dhcp6.server_id));
 
 	ni_dhcp6_device_retransmit_disarm(dev);
-	if (dev->config->dry_run) {
+	if (dev->config->dry_run == NI_DHCP6_RUN_OFFER) {
 		/* Send offer as event to the caller */
 		ni_dhcp6_send_event(NI_DHCP6_EVENT_ACQUIRED, dev, offer);
 
@@ -1519,14 +1520,21 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 
 		ni_dhcp6_device_set_lease(dev, lease);
 
-		dev->fsm.state = NI_DHCP6_STATE_VALIDATING;
-		ni_dhcp6_fsm_set_timeout_msec(dev, NI_DHCP6_WAIT_IAADDR_READY);
+		dev->fsm.state = NI_DHCP6_STATE_BOUND;
+		if (dev->config->dry_run == NI_DHCP6_RUN_NORMAL) {
+			dev->fsm.state = NI_DHCP6_STATE_VALIDATING;
+			ni_dhcp6_fsm_set_timeout_msec(dev, NI_DHCP6_WAIT_IAADDR_READY);
+		}
 
-		if (!dev->config->dry_run) {
+		if (dev->config->dry_run != NI_DHCP6_RUN_OFFER) {
 			ni_addrconf_lease_file_write(dev->ifname, lease);
 		}
 
 		ni_dhcp6_send_event(NI_DHCP6_EVENT_ACQUIRED, dev, lease);
+		if (dev->config->dry_run != NI_DHCP6_RUN_NORMAL) {
+			ni_dhcp6_device_drop_lease(dev);
+			ni_dhcp6_device_stop(dev);
+		}
 	} else {
 		if ((lease = dev->lease) != NULL) {
 
@@ -1534,7 +1542,7 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 
 			ni_dhcp6_send_event(NI_DHCP6_EVENT_RELEASED, dev, lease);
 
-			if (!dev->config || !dev->config->dry_run) {
+			if (!dev->config || dev->config->dry_run != NI_DHCP6_RUN_OFFER) {
 				ni_addrconf_lease_file_remove(dev->ifname,
 						lease->type, lease->family);
 			}

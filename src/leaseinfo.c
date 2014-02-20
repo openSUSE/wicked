@@ -46,8 +46,6 @@
 
 #include "util_priv.h"
 #include "dhcp6/options.h"
-#include "dbus-objects/model.h"
-#include "dbus-objects/misc.h"
 
 static const char *	__ni_keyword_format(char **, const char *,
 					const char *, unsigned int);
@@ -694,6 +692,8 @@ ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 			ni_error("Unsupported lease family (%u).", lease->family);
 			break;
 		}
+		break;
+	case NI_ADDRCONF_STATIC:
 		break;
 	default:
 		ni_error("Unsupported lease type (%u).", lease->type);

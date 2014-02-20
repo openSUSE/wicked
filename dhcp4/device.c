@@ -19,9 +19,10 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include "netinfo_priv.h"
+#include "appconfig.h"
+
 #include "dhcp4/dhcp.h"
 #include "dhcp4/protocol.h"
-#include "appconfig.h"
 
 
 static unsigned int	ni_dhcp4_do_bits(unsigned int);
@@ -96,9 +97,6 @@ ni_dhcp4_device_close(ni_dhcp4_device_t *dev)
 void
 ni_dhcp4_device_stop(ni_dhcp4_device_t *dev)
 {
-	/* Clear the lease. This will trigger an event to wickedd
-	 * with a lease that has state RELEASED. */
-	ni_dhcp4_fsm_commit_lease(dev, NULL);
 	ni_dhcp4_device_close(dev);
 
 	/* Drop existing config and request */
@@ -196,17 +194,22 @@ ni_dhcp4_device_drop_lease(ni_dhcp4_device_t *dev)
 	ni_addrconf_lease_t *lease;
 
 	if ((lease = dev->lease) != NULL) {
-		/* FIXME: if we've configured the network using this
-		 * lease, we need to isse a link down request */
-
-		/* delete the lease file. */
-		ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
 		ni_addrconf_lease_free(lease);
 		dev->lease = NULL;
 
 		/* Go back to square one */
 		dev->fsm.state = NI_DHCP4_STATE_INIT;
 	}
+}
+
+void
+ni_dhcp4_device_set_best_offer(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease,
+							int weight)
+{
+	if (dev->best_offer.lease && dev->best_offer.lease != lease)
+		ni_addrconf_lease_free(dev->best_offer.lease);
+	dev->best_offer.lease = lease;
+	dev->best_offer.weight = weight;
 }
 
 void
@@ -415,14 +418,15 @@ ni_dhcp4_release(ni_dhcp4_device_t *dev, const ni_uuid_t *lease_uuid)
 	int rv;
 
 	if (dev->lease == NULL) {
-		ni_error("%s(%s): no lease set", __func__, dev->ifname);
+		ni_error("%s: no lease set", dev->ifname);
 		return -NI_ERROR_ADDRCONF_NO_LEASE;
 	}
 
-	if (lease_uuid) {
-		/* FIXME: We should check the provided uuid against the
-		 * lease's uuid, and refuse the call if it doesn't match
-		 */
+	if (lease_uuid && !ni_uuid_equal(lease_uuid, &dev->lease->uuid)) {
+		ni_warn("%s: lease UUID %s to release does not match current lease UUID %s",
+			dev->ifname, ni_uuid_print(lease_uuid),
+			ni_uuid_print(&dev->lease->uuid));
+		return -NI_ERROR_ADDRCONF_NO_LEASE;
 	}
 
 	/* We just send out a singe RELEASE without waiting for the
