@@ -1542,7 +1542,7 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 
 			ni_dhcp6_send_event(NI_DHCP6_EVENT_RELEASED, dev, lease);
 
-			if (!dev->config || dev->config->dry_run != NI_DHCP6_RUN_NORMAL) {
+			if (!dev->config || dev->config->dry_run != NI_DHCP6_RUN_OFFER) {
 				ni_addrconf_lease_file_remove(dev->ifname,
 						lease->type, lease->family);
 			}
