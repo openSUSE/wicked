@@ -67,6 +67,7 @@ ni_do_ifreload(int argc, char **argv)
 		.min = NI_FSM_STATE_ADDRCONF_UP,
 		.max = __NI_FSM_STATE_MAX
 	};
+	const char *ptr;
 	ni_fsm_t *fsm;
 
 	/* Allow ifreload on all interfaces with a changed config */
@@ -74,6 +75,26 @@ ni_do_ifreload(int argc, char **argv)
 	ifmatch.require_configured = FALSE;
 	ifmatch.allow_persistent = TRUE;
 	ifmatch.require_config = FALSE;
+
+	fsm = ni_fsm_new();
+	ni_assert(fsm);
+	ni_fsm_require_register_type("reachable", ni_ifworker_reachability_check_new);
+
+	/*
+	 * Workaround to consider WAIT_FOR_INTERFACES variable
+	 * in network/config (bnc#863371, bnc#862530 timeouts).
+	 * Correct would be to get it from compat layer, but
+	 * the network/config is sourced in systemd service...
+	 */
+	if ((ptr = getenv("WAIT_FOR_INTERFACES"))) {
+		unsigned int sec;
+
+		if (ni_parse_uint(ptr, &sec, 10) == 0 &&
+		    (sec * 1000 > fsm->worker_timeout)) {
+			ni_debug_application("wait %u sec for interfaces", sec);
+			fsm->worker_timeout = sec * 1000;
+		}
+	}
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifreload_options, NULL)) != EOF) {
@@ -119,10 +140,6 @@ usage:
 				goto usage;
 			}
 	}
-
-	fsm = ni_fsm_new();
-	ni_assert(fsm);
-	ni_fsm_require_register_type("reachable", ni_ifworker_reachability_check_new);
 
 	if (!ni_fsm_create_client(fsm)) {
 		/* Severe error we always explicitly return */

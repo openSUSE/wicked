@@ -85,6 +85,7 @@ ni_do_ifup(int argc, char **argv)
 	unsigned int nmarked;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
+	const char *ptr;
 
 	fsm = ni_fsm_new();
 	ni_assert(fsm);
@@ -101,6 +102,22 @@ ni_do_ifup(int argc, char **argv)
 
 	ifmarker.target_range.min = NI_FSM_STATE_ADDRCONF_UP;
 	ifmarker.target_range.max = __NI_FSM_STATE_MAX;
+
+	/*
+	 * Workaround to consider WAIT_FOR_INTERFACES variable
+	 * in network/config (bnc#863371, bnc#862530 timeouts).
+	 * Correct would be to get it from compat layer, but
+	 * the network/config is sourced in systemd service...
+	 */
+	if ((ptr = getenv("WAIT_FOR_INTERFACES"))) {
+		unsigned int sec;
+
+		if (ni_parse_uint(ptr, &sec, 10) == 0 &&
+		    (sec * 1000 > fsm->worker_timeout)) {
+			ni_debug_application("wait %u sec for interfaces", sec);
+			fsm->worker_timeout = sec * 1000;
+		}
+	}
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
