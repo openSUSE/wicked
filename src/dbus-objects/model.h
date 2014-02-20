@@ -160,5 +160,9 @@ extern dbus_bool_t		__ni_objectmodel_get_route_dict(ni_route_table_t *list,
 extern dbus_bool_t		__ni_objectmodel_set_route_dict(ni_route_table_t **list,
 						const ni_dbus_variant_t *dict,
 						DBusError *error);
+extern dbus_bool_t		__ni_objectmodel_get_domain_string(const ni_dbus_variant_t *,
+						const char *, const char **);
+extern dbus_bool_t		__ni_objectmodel_set_resolver_dict(ni_resolver_info_t **,
+						const ni_dbus_variant_t *, DBusError *);
 
 #endif /* __WICKED_OBJECTMODEL_P_H__ */

@@ -83,6 +83,12 @@
   <define name="request" class="dict">
     <address type="network-interface:assigned-address" />
     <route type="network-interface:assigned-route" />
+    <hostname type="string" />
+    <resolver class="dict">
+      <default-domain type="string" />
+      <servers class="array" element-type="string" />
+      <search class="array" element-type="string" />
+    </resolver>
   </define>
   <define name="properties" type="interface:addrconf-lease"/>
 
@@ -113,6 +119,12 @@
   <define name="request" class="dict">
     <address type="network-interface:assigned-address" />
     <route type="network-interface:assigned-route" />
+    <hostname type="string" />
+    <resolver class="dict">
+      <default-domain type="string" />
+      <servers class="array" element-type="string" />
+      <search class="array" element-type="string" />
+    </resolver>
   </define>
   <define name="properties" type="interface:addrconf-lease"/>
 

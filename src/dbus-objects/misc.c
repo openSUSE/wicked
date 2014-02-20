@@ -241,7 +241,7 @@ __ni_objectmodel_get_printable_array(ni_string_array_t *ap, const ni_dbus_varian
 	return TRUE;
 }
 
-static inline dbus_bool_t
+dbus_bool_t
 __ni_objectmodel_get_domain_string(const ni_dbus_variant_t *dict, const char *key, const char **value)
 {
 	const char *string_value = NULL;
@@ -510,6 +510,50 @@ __ni_objectmodel_set_address_dict(ni_address_t **list,
 		(void) __ni_objectmodel_address_from_dict(list, var);
 	}
 	return TRUE;
+}
+
+dbus_bool_t
+__ni_objectmodel_set_resolver_dict(ni_resolver_info_t **resinfo,
+				const ni_dbus_variant_t *dict,
+				DBusError *error)
+{
+	ni_resolver_info_t *resolv = NULL;
+	ni_dbus_variant_t *child;
+	const char *string_value;
+
+	if (!ni_dbus_variant_is_dict(dict)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s: argument type mismatch",
+				__FUNCTION__);
+		return FALSE;
+	}
+
+	if ((child = ni_dbus_dict_get(dict, "resolver")) != NULL) {
+		ni_dbus_variant_t *list;
+
+		resolv = ni_resolver_info_new();
+		if (__ni_objectmodel_get_domain_string(child,
+					"default-domain", &string_value))
+			ni_string_dup(&resolv->default_domain, string_value);
+
+		if ((list = ni_dbus_dict_get(child, "servers")) != NULL
+		&& !__ni_objectmodel_get_address_array(&resolv->dns_servers,
+					list, error, "dns-server"))
+			goto failure;
+
+		if ((list = ni_dbus_dict_get(child, "search")) != NULL
+		&& !__ni_objectmodel_get_domain_array(&resolv->dns_search,
+					list, error, "dns-search"))
+			goto failure;
+	}
+
+	*resinfo = resolv;
+	return TRUE;
+
+failure:
+	if (resolv)
+		ni_resolver_info_free(resolv);
+	return FALSE;
 }
 
 /*
@@ -1361,24 +1405,8 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 	 && !__ni_objectmodel_set_route_list(&lease->routes, child, error))
 		return FALSE;
 
-	if ((child = ni_dbus_dict_get(argument, "resolver")) != NULL) {
-		ni_resolver_info_t *resolv = ni_resolver_info_new();
-		ni_dbus_variant_t *list;
-
-		lease->resolver = resolv;
-		if (__ni_objectmodel_get_domain_string(child, "default-domain",
-								&string_value))
-			ni_string_dup(&resolv->default_domain, string_value);
-
-		if ((list = ni_dbus_dict_get(child, "servers")) != NULL
-		 && !__ni_objectmodel_get_address_array(&resolv->dns_servers, list,
-							error, "dns-servers"))
-			return FALSE;
-		if ((list = ni_dbus_dict_get(child, "search")) != NULL
-		 && !__ni_objectmodel_get_domain_array(&resolv->dns_search, list,
-							error, "dns-search"))
-			return FALSE;
-	}
+	if (!__ni_objectmodel_set_resolver_dict(&lease->resolver, argument, error))
+		return FALSE;
 
 	if ((child = ni_dbus_dict_get(argument, "nis")) != NULL) {
 		ni_nis_info_t *nis = ni_nis_info_new();

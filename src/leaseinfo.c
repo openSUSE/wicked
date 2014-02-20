@@ -693,6 +693,8 @@ ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 			break;
 		}
 		break;
+	case NI_ADDRCONF_STATIC:
+		break;
 	default:
 		ni_error("Unsupported lease type (%u).", lease->type);
 		break;
