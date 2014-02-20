@@ -71,9 +71,6 @@ ni_addrconf_lease_xml_get_type_node(const ni_addrconf_lease_t *, const xml_node_
  * convert lease / data to xml
  */
 extern int
-ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *, xml_node_t **);
-
-extern int
 ni_addrconf_lease_routes_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
 extern int
 ni_addrconf_lease_dns_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
@@ -100,9 +97,6 @@ ni_addrconf_lease_ptz_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
 /*
  * convert xml to lease / data
  */
-extern int
-ni_addrconf_lease_from_xml(ni_addrconf_lease_t **, const xml_node_t *);
-
 extern int
 ni_addrconf_lease_routes_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
 extern int

@@ -161,6 +161,9 @@ extern int		ni_addrconf_lease_file_write(const char *, ni_addrconf_lease_t *);
 extern ni_addrconf_lease_t *ni_addrconf_lease_file_read(const char *, int, int);
 extern void		ni_addrconf_lease_file_remove(const char *, int, int);
 
+extern int		ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *, xml_node_t **);
+extern int		ni_addrconf_lease_from_xml(ni_addrconf_lease_t **, const xml_node_t *);
+
 extern int		ni_system_update_from_lease(const ni_addrconf_lease_t *, const unsigned int, const char *);
 
 #endif /* __WICKED_ADDRCONF_H__ */
