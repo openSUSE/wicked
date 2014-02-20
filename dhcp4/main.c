@@ -46,6 +46,8 @@ enum {
 	OPT_TEST,
 	OPT_TEST_TIMEOUT,
 	OPT_TEST_REQUEST,
+	OPT_TEST_OUTPUT,
+	OPT_TEST_OUTFMT,
 };
 
 static struct option	options[] = {
@@ -68,6 +70,8 @@ static struct option	options[] = {
 	{ "test",		no_argument,		NULL,	OPT_TEST         },
 	{ "test-request",	required_argument,	NULL,	OPT_TEST_REQUEST },
 	{ "test-timeout",	required_argument,	NULL,	OPT_TEST_TIMEOUT },
+	{ "test-output",	required_argument,	NULL,	OPT_TEST_OUTPUT  },
+	{ "test-format",	required_argument,	NULL,	OPT_TEST_OUTFMT  },
 
 	{ NULL,			no_argument,		NULL,	0 }
 };
@@ -94,11 +98,8 @@ extern ni_dbus_object_t *ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *
 int
 main(int argc, char **argv)
 {
-	unsigned int opt_test_run = 0;
-	unsigned int opt_test_timeout = -1U;
-	const char * opt_test_request = NULL;
-	const char * opt_test_ifname = NULL;
-	int c;
+	dhcp4_tester_t * tester = NULL;
+	int c, status = NI_WICKED_RC_USAGE;
 
 	ni_log_init();
 	program_name = ni_basename(argv[0]);
@@ -107,6 +108,7 @@ main(int argc, char **argv)
 		switch (c) {
 		/* common */
 		case OPT_HELP:
+			status = NI_WICKED_RC_SUCCESS;
 		default:
 		usage:
 			fprintf(stderr,
@@ -134,17 +136,20 @@ main(int argc, char **argv)
 				"    test-options:\n"
 				"       --test-request <request.xml>\n"
 				"       --test-timeout <timeout in sec> (default: 10)\n"
+				"       --test-output  <output file name>\n"
+				"       --test-format  <leaseinfo|lease-xml>\n"
 				, program_name);
-			return (c == OPT_HELP ? NI_LSB_RC_SUCCESS : NI_LSB_RC_USAGE);
+			return status;
 
 		case OPT_VERSION:
 			printf("%s %s\n", program_name, PACKAGE_VERSION);
-			return NI_LSB_RC_SUCCESS;
+			return NI_WICKED_RC_SUCCESS;
 
 		case OPT_CONFIGFILE:
 			if (!ni_set_global_config_path(optarg)) {
-				fprintf(stderr, "Unable to set config file '%s': %m\n", optarg);
-				return NI_LSB_RC_ERROR;
+				fprintf(stderr, "Unable to set config file '%s': %m\n",
+						optarg);
+				return NI_WICKED_RC_ERROR;
 			}
 			break;
 
@@ -152,7 +157,7 @@ main(int argc, char **argv)
 			if (!strcmp(optarg, "help")) {
 				printf("Supported debug facilities:\n");
 				ni_debug_help();
-				return NI_LSB_RC_SUCCESS;
+				return NI_WICKED_RC_SUCCESS;
 			}
 			if (ni_enable_debug(optarg) < 0) {
 				fprintf(stderr, "Bad debug facility \"%s\"\n", optarg);
@@ -188,25 +193,38 @@ main(int argc, char **argv)
 		/* test run */
 		case OPT_TEST:
 			opt_foreground = TRUE;
-			opt_test_run = 1;
-			break;
-
-		case OPT_TEST_TIMEOUT:
-			if (!opt_test_run || ni_parse_uint(optarg, &opt_test_timeout, 0) < 0)
-				goto usage;
+			tester = dhcp4_tester_init();
 			break;
 
 		case OPT_TEST_REQUEST:
-			if (!opt_test_run || ni_string_empty(optarg))
+			if (!tester || ni_string_empty(optarg))
 				goto usage;
-			opt_test_request = optarg;
+			tester->request = optarg;
+			break;
+
+		case OPT_TEST_TIMEOUT:
+			if (!tester || ni_parse_uint(optarg,
+						&tester->timeout, 0) < 0)
+				goto usage;
+			break;
+
+		case OPT_TEST_OUTPUT:
+			if (!tester || ni_string_empty(optarg))
+				goto usage;
+			tester->output = optarg;
+			break;
+
+		case OPT_TEST_OUTFMT:
+			if (!tester || !dhcp4_tester_set_outfmt(optarg,
+						&tester->outfmt))
+				goto usage;
 			break;
 		}
 	}
 
-	if (opt_test_run) {
+	if (tester) {
 		if (optind < argc && !ni_string_empty(argv[optind])) {
-			opt_test_ifname = argv[optind++];
+			tester->ifname = argv[optind++];
 		} else {
 			fprintf(stderr, "Missing interface argument\n");
 			goto usage;
@@ -222,7 +240,7 @@ main(int argc, char **argv)
 			goto usage;
 		}
 	}
-	else if (opt_foreground && opt_test_run) {
+	else if (opt_foreground && tester) {
 		ni_log_destination(program_name, "stderr");
 	}
 	else if (opt_systemd || getppid() == 1 || !opt_foreground) { /* syslog only */
@@ -233,7 +251,7 @@ main(int argc, char **argv)
 	}
 
 	if (ni_init("dhcp4") < 0)
-		return NI_LSB_RC_ERROR;
+		return NI_WICKED_RC_ERROR;
 
 	if (opt_recover_state && ni_string_empty(opt_state_file)) {
 		static char dirname[PATH_MAX];
@@ -248,12 +266,12 @@ main(int argc, char **argv)
 	/* load af_packet module we need for capturing */
 	ni_modprobe(AFPACKET_MODULE_NAME, AFPACKET_MODULE_OPTS);
 
-	if (opt_test_run) {
-		return dhcp4_tester_run(opt_test_ifname, opt_test_request, opt_test_timeout);
+	if (tester) {
+		return dhcp4_tester_run(tester);
 	}
 
 	dhcp4_supplicant();
-	return NI_LSB_RC_SUCCESS;
+	return NI_WICKED_RC_SUCCESS;
 }
 
 

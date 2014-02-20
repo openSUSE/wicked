@@ -25,7 +25,22 @@
 #ifndef   __WICKED_DHCP4_TESTER_H__
 #define   __WICKED_DHCP4_TESTER_H__
 
-extern int		dhcp4_tester_run(const char *ifname, const char *request,
-						unsigned int timeout);
+enum {
+	DHCP4_TESTER_OUT_LEASE_INFO,
+	DHCP4_TESTER_OUT_LEASE_XML,
+};
+
+typedef struct dhcp4_tester {
+	const char *	ifname;
+	unsigned int	timeout;
+	const char *	request;
+	const char *	output;
+	unsigned int	outfmt;
+} dhcp4_tester_t;
+
+extern dhcp4_tester_t *	dhcp4_tester_init(void);
+extern ni_bool_t	dhcp4_tester_set_outfmt(const char *, unsigned int *);
+
+extern int		dhcp4_tester_run(dhcp4_tester_t *);
 
 #endif /* __WICKED_DHCP4_TESTER_H__ */
