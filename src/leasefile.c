@@ -47,7 +47,6 @@
 #include "dhcp6/lease.h"
 #include "netinfo_priv.h"
 
-
 /*
  * utility returning a family + type specific node / name
  */
@@ -283,6 +282,7 @@ int
 ni_addrconf_lease_smb_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 {
 	unsigned int count = 0;
+	const char *nbt;
 
 	if (__ni_string_array_to_xml(&lease->netbios_name_servers, "name-server", node) == 0)
 		count++;
@@ -292,9 +292,9 @@ ni_addrconf_lease_smb_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 		count++;
 		xml_node_new_element("scope", node, lease->netbios_scope);
 	}
-	if (lease->netbios_type) {
+	if ((nbt = ni_netbios_node_type_to_name(lease->netbios_type))) {
 		count++;
-		xml_node_new_element_uint("type", node, lease->netbios_type);
+		xml_node_new_element("type", node, nbt);
 	}
 	return count ? 0 : 1;
 }
@@ -691,13 +691,11 @@ int
 ni_addrconf_lease_smb_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 {
 	const xml_node_t *child;
-	unsigned int value;
 
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, "type") && child->cdata) {
-			if (ni_parse_uint(child->cdata, &value, 10) != 0 || value > 8)
+			if (!ni_netbios_node_type_to_code(child->cdata, &lease->netbios_type))
 				return -1;
-			lease->netbios_type = value;
 		} else
 		if (ni_string_eq(child->name, "scope") && !ni_string_empty(child->cdata)) {
 			ni_string_dup(&lease->netbios_scope, child->cdata);

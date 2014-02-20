@@ -15,6 +15,5 @@ extern dbus_bool_t	__ni_objectmodel_dict_get_sockaddr(const ni_dbus_variant_t *d
 extern dbus_bool_t	__ni_objectmodel_dict_get_sockaddr_prefix(const ni_dbus_variant_t *dict, const char *name, ni_sockaddr_t *sockaddr, unsigned int *prefixlen);
 extern dbus_bool_t	__ni_objectmodel_dict_add_hwaddr(ni_dbus_variant_t *dict, const char *name, const ni_hwaddr_t *hwaddr);
 extern dbus_bool_t	__ni_objectmodel_dict_get_hwaddr(const ni_dbus_variant_t *dict, const char *name, ni_hwaddr_t *hwaddr);
-extern const char *	ni_netbios_node_type_to_name(unsigned int);
 
 #endif /* __WICKED_DBUS_OBJECTS_MISC_H__ */

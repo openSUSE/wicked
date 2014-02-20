@@ -46,8 +46,6 @@
 
 #include "util_priv.h"
 #include "dhcp6/options.h"
-#include "dbus-objects/model.h"
-#include "dbus-objects/misc.h"
 
 static const char *	__ni_keyword_format(char **, const char *,
 					const char *, unsigned int);

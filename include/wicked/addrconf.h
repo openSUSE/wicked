@@ -166,4 +166,7 @@ extern int		ni_addrconf_lease_from_xml(ni_addrconf_lease_t **, const xml_node_t 
 
 extern int		ni_system_update_from_lease(const ni_addrconf_lease_t *, const unsigned int, const char *);
 
+extern const char *	ni_netbios_node_type_to_name(unsigned int);
+extern ni_bool_t	ni_netbios_node_type_to_code(const char *, unsigned int *);
+
 #endif /* __WICKED_ADDRCONF_H__ */

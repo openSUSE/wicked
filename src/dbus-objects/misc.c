@@ -1023,31 +1023,6 @@ failure:
 	return NULL;
 }
 
-static const ni_intmap_t __ni_netbios_node_types[] = {
-	{ "B-node",	0x1 },
-	{ "P-node",	0x2 },
-	{ "M-node",	0x4 },
-	{ "H-node",	0x8 },
-	{ NULL,		0x0 }
-};
-
-const char *
-ni_netbios_node_type_to_name(unsigned int code)
-{
-	return ni_format_uint_mapped(code, __ni_netbios_node_types);
-}
-
-static unsigned int
-ni_netbios_node_type_to_code(const char *name)
-{
-	unsigned int val;
-
-	/* allow parsing as number, ... but verify it's a valid type */
-	if (ni_parse_uint_maybe_mapped(name, __ni_netbios_node_types, &val, 0) == 0)
-		return val;
-	return 0;
-}
-
 /*
  * Build a DBus dict from an addrconf lease
  */
@@ -1468,7 +1443,7 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 						error, "netbios-dd-servers"))
 		return FALSE;
 	if (ni_dbus_dict_get_string(argument, "netbios-node-type", &string_value))
-		lease->netbios_type = ni_netbios_node_type_to_code(string_value);
+		ni_netbios_node_type_to_code(string_value, &lease->netbios_type);
 	if (__ni_objectmodel_get_domain_string(argument, "netbios-scope", &string_value))
 		ni_string_dup(&lease->netbios_scope, string_value);
 

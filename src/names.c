@@ -17,7 +17,7 @@
 /*
  * Map interface link layer types to strings and vice versa
  */
-static ni_intmap_t __linktype_names[] = {
+static const ni_intmap_t	__linktype_names[] = {
 	{ "unknown",		NI_IFTYPE_UNKNOWN },
 	{ "loopback",		NI_IFTYPE_LOOPBACK },
 	{ "ethernet",		NI_IFTYPE_ETHERNET },
@@ -63,11 +63,11 @@ ni_linktype_type_to_name(unsigned int type)
 /*
  * Map addrconf name to type constant and vice versa
  */
-static ni_intmap_t __addrconf_names[] = {
-	{ "dhcp",	NI_ADDRCONF_DHCP	},
-	{ "static",	NI_ADDRCONF_STATIC	},
-	{ "auto",	NI_ADDRCONF_AUTOCONF	},
-	{ "intrinsic",	NI_ADDRCONF_INTRINSIC	},
+static const ni_intmap_t	__addrconf_names[] = {
+	{ "dhcp",		NI_ADDRCONF_DHCP	},
+	{ "static",		NI_ADDRCONF_STATIC	},
+	{ "auto",		NI_ADDRCONF_AUTOCONF	},
+	{ "intrinsic",		NI_ADDRCONF_INTRINSIC	},
 
 	{ NULL }
 };
@@ -91,7 +91,7 @@ ni_addrconf_type_to_name(unsigned int type)
 /*
  * Map addrconf states to strings and vice versa
  */
-static ni_intmap_t __addrconf_states[] = {
+static const ni_intmap_t	__addrconf_states[] = {
 	{ "none",		NI_ADDRCONF_STATE_NONE },
 	{ "requesting",		NI_ADDRCONF_STATE_REQUESTING },
 	{ "granted",		NI_ADDRCONF_STATE_GRANTED },
@@ -121,7 +121,7 @@ ni_addrconf_state_to_name(unsigned int type)
 /*
  * Map addrconf update values to strings and vice versa
  */
-static ni_intmap_t __addrconf_updates[] = {
+static const ni_intmap_t	__addrconf_updates[] = {
 	{ "default-route",	NI_ADDRCONF_UPDATE_DEFAULT_ROUTE },
 	{ "hostname",		NI_ADDRCONF_UPDATE_HOSTNAME },
 	{ "hosts-file",		NI_ADDRCONF_UPDATE_HOSTSFILE },
@@ -154,7 +154,7 @@ ni_addrconf_update_target_to_name(unsigned int type)
 /*
  * Map address family names to type constants and vice versa
  */
-static ni_intmap_t __addrfamily_names[] = {
+static const ni_intmap_t __addrfamily_names[] = {
 	{ "ipv4",	AF_INET		},
 	{ "ipv6",	AF_INET6	},
 
@@ -224,7 +224,7 @@ ni_dhcp6_mode_name_to_type(const char *name, unsigned int *type)
 #define	ARPHRD_NETLINK		824
 #endif
 
-static ni_intmap_t __arphrd_names[] = {
+static const ni_intmap_t	__arphrd_names[] = {
  __ARPMAP(NETROM,		netrom),
  __ARPMAP(ETHER,		ether),
  __ARPMAP(EETHER,		eether),
@@ -311,7 +311,7 @@ ni_arphrd_type_to_name(unsigned int type)
 /*
  * Map event names to type constants and vice versa
  */
-static ni_intmap_t __event_names[] = {
+static const ni_intmap_t		__event_names[] = {
 	{ "device-create",		NI_EVENT_DEVICE_CREATE },
 	{ "device-delete",		NI_EVENT_DEVICE_DELETE },
 	{ "device-up",			NI_EVENT_DEVICE_UP },
@@ -357,7 +357,7 @@ ni_event_type_to_name(ni_event_t type)
 /*
  * Names for the kernel's oper_state values
  */
-static ni_intmap_t		__ni_operstate_names[] = {
+static const ni_intmap_t	__ni_operstate_names[] = {
 	{ "unknown",		IF_OPER_UNKNOWN		},
 	{ "not-present",	IF_OPER_NOTPRESENT	},
 	{ "down",		IF_OPER_DOWN		},
@@ -389,7 +389,7 @@ ni_oper_state_type_to_name(int type)
 /*
  * Names for LLDP destinations
  */
-static ni_intmap_t		__ni_lldp_type_names[] = {
+static const ni_intmap_t		__ni_lldp_type_names[] = {
 	{ "nearest-bridge",		NI_LLDP_DEST_NEAREST_BRIDGE	},
 	{ "nearest-non-tmpr-bridge",	NI_LLDP_DEST_NEAREST_NON_TPMR_BRIDGE	},
 	{ "nearest-customer-bridge",	NI_LLDP_DEST_NEAREST_CUSTOMER_BRIDGE	},
@@ -416,7 +416,7 @@ ni_lldp_destination_type_to_name(ni_lldp_destination_t type)
 /*
  * Names for LLDP System capabilities
  */
-static ni_intmap_t		__ni_lldp_systemcap_names[] = {
+static const ni_intmap_t		__ni_lldp_systemcap_names[] = {
 	{ "nearest-bridge",		NI_LLDP_DEST_NEAREST_BRIDGE	},
 	{ "nearest-non-tmpr-bridge",	NI_LLDP_DEST_NEAREST_NON_TPMR_BRIDGE	},
 	{ "nearest-customer-bridge",	NI_LLDP_DEST_NEAREST_CUSTOMER_BRIDGE	},
@@ -449,4 +449,31 @@ const char *
 ni_lldp_system_capability_type_to_name(unsigned int type)
 {
 	return ni_format_uint_maybe_mapped(type, __ni_lldp_systemcap_names);
+}
+
+static const ni_intmap_t	__ni_netbios_node_types[] = {
+	{ "B-node",		0x1 },
+	{ "P-node",		0x2 },
+	{ "M-node",		0x4 },
+	{ "H-node",		0x8 },
+	{ NULL,			0x0 }
+};
+
+const char *
+ni_netbios_node_type_to_name(unsigned int code)
+{
+	return ni_format_uint_mapped(code, __ni_netbios_node_types);
+}
+
+ni_bool_t
+ni_netbios_node_type_to_code(const char *name, unsigned int *value)
+{
+	unsigned int val;
+
+	/* allow parsing as number, ... but verify it's a valid type */
+	if (!value || ni_parse_uint_maybe_mapped(name,
+				__ni_netbios_node_types, &val, 0) != 0)
+		return FALSE;
+	*value = val;
+	return TRUE;
 }
