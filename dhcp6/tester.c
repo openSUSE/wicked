@@ -43,8 +43,29 @@
 #include "duid.h"
 
 
-static int			dhcp6_tester_status;
+static dhcp6_tester_t	dhcp6_tester_opts;
+static int		dhcp6_tester_status;
 
+dhcp6_tester_t *
+dhcp6_tester_init(void)
+{
+	memset(&dhcp6_tester_opts, 0, sizeof(dhcp6_tester_opts));
+	dhcp6_tester_opts.outfmt  = DHCP6_TESTER_OUT_LEASE_INFO;
+	dhcp6_tester_opts.timeout = 30; /* 30 seconds */
+	return &dhcp6_tester_opts;
+}
+
+ni_bool_t
+dhcp6_tester_set_outfmt(const char *outfmt, unsigned int *type)
+{
+	static const ni_intmap_t __outfmt_map[] = {
+		{ "lease-xml",	DHCP6_TESTER_OUT_LEASE_XML  },
+		{ "leaseinfo",	DHCP6_TESTER_OUT_LEASE_INFO },
+		{ "info",	DHCP6_TESTER_OUT_LEASE_INFO },
+		{ NULL,		DHCP6_TESTER_OUT_LEASE_INFO },
+	};
+	return ni_parse_uint_mapped(outfmt, __outfmt_map, type) == 0;
+}
 
 static void
 dhcp6_tester_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *dev,
@@ -57,7 +78,34 @@ dhcp6_tester_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *dev
 	switch (ev) {
 	case NI_DHCP6_EVENT_ACQUIRED:
 		if (lease && lease->state == NI_ADDRCONF_STATE_GRANTED) {
-			ni_leaseinfo_dump(stdout, lease, dev->ifname, NULL);
+			FILE *fp = stdout;
+
+			if (dhcp6_tester_opts.output != NULL) {
+				fp = fopen(dhcp6_tester_opts.output, "w");
+				if (!fp) {
+					ni_error("Cannot open %s for output",
+							dhcp6_tester_opts.output);
+					dhcp6_tester_status = NI_WICKED_RC_ERROR;
+					return;
+				}
+			}
+			if (dhcp6_tester_opts.outfmt == DHCP6_TESTER_OUT_LEASE_XML) {
+				xml_node_t *xml = NULL;
+
+				if (ni_addrconf_lease_to_xml(lease, &xml) != 0) {
+					if (dhcp6_tester_opts.output)
+						fclose(fp);
+					dhcp6_tester_status = NI_WICKED_RC_ERROR;
+					return;
+				}
+				xml_node_print(xml, fp);
+				xml_node_free(xml);
+			} else {
+				ni_leaseinfo_dump(fp, lease, dev->ifname, NULL);
+			}
+			fflush(fp);
+			if (dhcp6_tester_opts.output)
+				fclose(fp);
 			dhcp6_tester_status = 0;
 		}
 		break;
@@ -160,7 +208,7 @@ dhcp6_tester_req_init(ni_dhcp6_request_t *req, const char *request)
 }
 
 int
-dhcp6_tester_run(const char *ifname, const char *request, unsigned int timeout)
+dhcp6_tester_run(dhcp6_tester_t *opts)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
@@ -169,37 +217,41 @@ dhcp6_tester_run(const char *ifname, const char *request, unsigned int timeout)
 	char *errdetail = NULL;
 	int rv;
 
-	dhcp6_tester_status = 2;
+	if (!opts || ni_string_empty(opts->ifname))
+		ni_fatal("Invalid start parameters!");
+
+	dhcp6_tester_opts   = *opts;
+	dhcp6_tester_status = NI_WICKED_RC_ERROR;
 
 	if (!(nc = ni_global_state_handle(1)))
 		ni_fatal("Cannot refresh interface list!");
 
-	if (!(ifp = ni_netdev_by_name(nc, ifname)))
-		ni_fatal("Cannot find interface with name '%s'", ifname);
+	if (!(ifp = ni_netdev_by_name(nc, opts->ifname)))
+		ni_fatal("Cannot find interface with name '%s'", opts->ifname);
 
 	switch (ifp->link.hwaddr.type) {
 	case ARPHRD_ETHER:
 		break;
 	default:
-		ni_fatal("Interface type not supported yet");
+		ni_fatal("Interface type of %s not supported yet", opts->ifname);
 		break;
 	}
 
 	if (!(dev = ni_dhcp6_device_new(ifp->name, &ifp->link)))
-		ni_fatal("Cannot allocate dhcp6 client for '%s'", ifname);
+		ni_fatal("Cannot allocate dhcp6 client for '%s'", opts->ifname);
 
 	ni_dhcp6_set_event_handler(dhcp6_tester_protocol_event);
 
 	if (!(req = ni_dhcp6_request_new())) {
-		ni_error("Cannot allocate dhcp6 request");
+		ni_error("Cannot allocate dhcp6 request for '%s'", opts->ifname);
 		goto failure;
 	}
 
-	if (!dhcp6_tester_req_init(req, request))
+	if (!dhcp6_tester_req_init(req, opts->request))
 		goto failure;
 
-	if (timeout != -1U)
-		req->acquire_timeout = timeout;
+	if (opts->timeout && opts->timeout != -1U)
+		req->acquire_timeout = opts->timeout;
 
 	if ((rv = ni_dhcp6_acquire(dev, req, &errdetail)) < 0) {
 		ni_error("%s: DHCPv6 acquire request %s failed: %s%s[%s]",
@@ -211,6 +263,7 @@ dhcp6_tester_run(const char *ifname, const char *request, unsigned int timeout)
 		goto failure;
 	}
 
+	dhcp6_tester_status = NI_WICKED_RC_IN_PROGRESS;
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
 

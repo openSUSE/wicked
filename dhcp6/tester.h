@@ -25,7 +25,22 @@
 #ifndef   __WICKED_DHCP6_TESTER_H__
 #define   __WICKED_DHCP6_TESTER_H__
 
-extern int		dhcp6_tester_run(const char *ifname, const char *request,
-						unsigned int timeout);
+enum {
+	DHCP6_TESTER_OUT_LEASE_INFO,
+	DHCP6_TESTER_OUT_LEASE_XML,
+};
+
+typedef struct dhcp6_tester {
+	const char *	ifname;
+	unsigned int	timeout;
+	const char *	request;
+	const char *	output;
+	unsigned int	outfmt;
+} dhcp6_tester_t;
+
+extern dhcp6_tester_t *	dhcp6_tester_init(void);
+extern ni_bool_t	dhcp6_tester_set_outfmt(const char *, unsigned int *);
+
+extern int		dhcp6_tester_run(dhcp6_tester_t *);
 
 #endif /* __WICKED_DHCP6_TESTER_H__ */
