@@ -9,12 +9,14 @@
 
 #include <unistd.h>
 #include <limits.h>
+#include <net/if_arp.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/pci.h>
 #include "util_priv.h"
 #include "sysfs.h"
+#include "ibft.h"
 
 #define _PATH_SYS_CLASS_NET		"/sys/class/net"
 
@@ -688,6 +690,251 @@ __ni_sysfs_read_string(const char *pathname, char **result)
 	}
 	fclose(fp);
 	return 0;
+}
+
+/*
+ * Discover iBFT information stored in sysfs
+ */
+static const char *
+__ni_sysfs_ibft_nic_format_path(const char *base, const char *node,
+				const char *attr, char **path)
+{
+	if (ni_string_empty(base))
+		base = NI_SYSFS_FIRMWARE_IBFT_PATH;
+	return ni_string_printf(path, "%s/%s/%s", base, node, attr);
+}
+
+static int
+__ni_sysfs_ibft_nic_get_string(const char *base, const char *node,
+				const char *attr, char **value)
+{
+	char *path = NULL;
+	int ret = -1;
+
+	if (__ni_sysfs_ibft_nic_format_path(base, node, attr, &path)) {
+		ret = __ni_sysfs_read_string(path, value);
+		ni_string_free(&path);
+	}
+	return ret;
+}
+
+static int
+__ni_sysfs_ibft_nic_get_devpath(const char *base, const char *node,
+				const char *attr, char **value)
+{
+	char *path = NULL;
+	int ret = -1;
+
+	ni_string_free(value);
+	if (__ni_sysfs_ibft_nic_format_path(base, node, attr, &path)) {
+		ni_string_dup(value, canonicalize_file_name(path));
+		ni_string_free(&path);
+		if (*value != NULL)
+			ret = 0;
+	}
+	return ret;
+}
+
+static int
+__ni_sysfs_ibft_nic_get_uint(const char *base, const char *node,
+				const char *attr, unsigned int *value)
+{
+	char *temp = NULL;
+	int ret = -1;
+
+	if (__ni_sysfs_ibft_nic_get_string(base, node, attr, &temp) == 0 && temp) {
+		ret = ni_parse_uint(temp, value, 10);
+		ni_string_free(&temp);
+	}
+	return ret;
+}
+
+static int
+__ni_sysfs_ibft_nic_find_iface(const char *base, const char *devpath,
+				char **ifname, unsigned int *ifindex)
+{
+	ni_string_array_t netlist = NI_STRING_ARRAY_INIT;
+	char * netbase = NULL;
+	unsigned int i;
+
+	ni_assert(devpath != NULL && ifname != NULL && ifindex != NULL);
+	ni_string_free(ifname);
+	*ifindex = 0;
+
+	if (!ni_string_printf(&netbase, "%s/net", devpath))
+		goto cleanup;
+
+	if (ni_file_exists(netbase)) {
+		/* normal reference, e.g. device/net/eth0 */
+		if (ni_scandir(netbase, NULL, &netlist) <= 0)
+			goto cleanup;
+	} else {
+		/* virtio reference, e.g. device/virtio0/net/eth0,
+		 * because iBFT references PCI IDs without func. */
+		ni_string_array_t dirent = NI_STRING_ARRAY_INIT;
+
+		if (ni_scandir(devpath, NULL, &dirent) <= 0)
+			goto cleanup;
+
+		for(i = 0; i < dirent.count; ++i) {
+			ni_string_printf(&netbase, "%s/%s/net",
+					devpath, dirent.data[i]);
+
+			if (ni_file_exists(netbase) &&
+			   ni_scandir(netbase, NULL, &netlist) > 0)
+				break;
+
+			ni_string_free(&netbase);
+		}
+		ni_string_array_destroy(&dirent);
+	}
+
+	if (netbase && netlist.count > 0) {
+		/*
+		 * netbase points to device/[subdir/]net/ directory,
+		 * netlist contains the interface name entries in it;
+		 * verify that the <iface>/ifindex file exists.
+		 */
+		for(i = 0; i < netlist.count && *ifname == NULL; ++i) {
+			char *path = NULL;
+			char *temp = NULL;
+
+			ni_string_printf(&path, "%s/%s/ifindex",
+					netbase, netlist.data[i]);
+
+			if (__ni_sysfs_read_string(path, &temp) == 0 && temp) {
+				if (ni_parse_uint(temp, ifindex, 10) == 0)
+					ni_string_dup(ifname, netlist.data[i]);
+
+				ni_string_free(&temp);
+			}
+			ni_string_free(&path);
+		}
+	}
+
+cleanup:
+	ni_string_array_destroy(&netlist);
+	ni_string_free(&netbase);
+
+	return (*ifname != NULL && *ifindex > 0) ? 0 : -1;
+}
+
+static ni_ibft_nic_t *
+__ni_sysfs_ibft_nic_parse(const char *base, const char *node)
+{
+	char *temp = NULL;
+	ni_ibft_nic_t *nic;
+
+	nic = ni_ibft_nic_new();
+
+	ni_string_dup(&nic->node, node);
+
+	if (__ni_sysfs_ibft_nic_get_devpath(base, node,
+				"device", &nic->devpath) != 0)
+		goto error;
+	if (__ni_sysfs_ibft_nic_find_iface(base, nic->devpath,
+				&nic->ifname, &nic->ifindex) != 0)
+		goto error;
+
+	if (__ni_sysfs_ibft_nic_get_uint(base, node,
+				"index", &nic->index) != 0)
+		goto error;
+	if (__ni_sysfs_ibft_nic_get_uint(base, node,
+				"flags", &nic->flags) != 0)
+		goto error;
+	if (__ni_sysfs_ibft_nic_get_uint(base, node,
+				"origin", &nic->origin) != 0)
+		goto error;
+	if (__ni_sysfs_ibft_nic_get_uint(base, node,
+				"vlan", &nic->vlan) != 0)
+		goto error;
+
+	if (__ni_sysfs_ibft_nic_get_string(base, node,
+				"mac", &temp) == 0 && temp) {
+		if (ni_link_address_parse(&nic->hwaddr,
+					ARPHRD_ETHER, temp) != 0)
+			goto error;
+	}
+
+	if (__ni_sysfs_ibft_nic_get_string(base, node,
+				"ip-addr", &temp) == 0 && temp) {
+		if (ni_sockaddr_parse(&nic->ipaddr, temp, AF_UNSPEC) != 0)
+			goto error;
+	}
+	if (__ni_sysfs_ibft_nic_get_string(base, node,
+				"subnet-mask", &temp) == 0 && temp) {
+		/* The ibft module in 3.0.x kernels prints the ibft prefix
+		   lenght as ipv4 netmask; I guess nobody ever used IPv6 */
+		ni_sockaddr_t mask;
+		if (ni_sockaddr_parse(&mask, temp, AF_UNSPEC) != 0)
+			goto error;
+		nic->prefix_len = ni_sockaddr_netmask_bits(&mask);
+	}
+	if (__ni_sysfs_ibft_nic_get_string(base, node,
+				"dhcp", &temp) == 0 && temp) {
+		if (ni_sockaddr_parse(&nic->dhcp, temp, AF_UNSPEC) != 0)
+			goto error;
+	}
+	if (__ni_sysfs_ibft_nic_get_string(base, node,
+				"gateway", &temp) == 0 && temp) {
+		if (ni_sockaddr_parse(&nic->gateway, temp, AF_UNSPEC) != 0)
+			goto error;
+	}
+	if (__ni_sysfs_ibft_nic_get_string(base, node,
+				"primary-dns", &temp) == 0 && temp) {
+		if (ni_sockaddr_parse(&nic->primary_dns, temp, AF_UNSPEC) != 0)
+			goto error;
+	}
+	if (__ni_sysfs_ibft_nic_get_string(base, node,
+				"secondary-dns", &temp) == 0 && temp) {
+		if (ni_sockaddr_parse(&nic->secondary_dns, temp, AF_UNSPEC) != 0)
+			goto error;
+	}
+	__ni_sysfs_ibft_nic_get_string(base, node,
+			"hostname", &nic->hostname);
+
+	ni_string_free(&temp);
+	return nic;
+
+error:
+	ni_string_free(&temp);
+	ni_ibft_nic_free(nic);
+	return NULL;
+}
+
+int
+ni_sysfs_ibft_scan_nics(ni_ibft_nic_array_t *nics, const char *root)
+{
+	ni_string_array_t nodes = NI_STRING_ARRAY_INIT;
+	char ibftpath[PATH_MAX] = {'\0'};
+	unsigned int i;
+
+	/* iBFT not available (iscsi_ibft module not loaded?) */
+	if (!ni_string_empty(root)) {
+		snprintf(ibftpath, sizeof(ibftpath), "%s/%s",
+				root, NI_SYSFS_FIRMWARE_IBFT_PATH);
+	} else {
+		snprintf(ibftpath, sizeof(ibftpath), "%s",
+				NI_SYSFS_FIRMWARE_IBFT_PATH);
+	}
+
+	if (!ni_file_exists(ibftpath))
+		return 0;
+
+	if (ni_scandir(ibftpath, NI_SYSFS_IBFT_NIC_PREFIX"*", &nodes) <= 0)
+		return 0;
+
+	for(i = 0; i < nodes.count; ++i) {
+		ni_ibft_nic_t *nic;
+
+		nic = __ni_sysfs_ibft_nic_parse(ibftpath, nodes.data[i]);
+
+		ni_ibft_nic_array_append(nics, nic);
+		ni_ibft_nic_free(nic);
+	}
+	ni_string_array_destroy(&nodes);
+
+	return nics->count;
 }
 
 /*
