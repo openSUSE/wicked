@@ -20,13 +20,15 @@ wickedd_dhcp6_SOURCES	= \
 	fsm.c		\
 	main.c		\
 	protocol.c	\
-	state.c
+	state.c		\
+	tester.c
 
 noinst_HEADERS		= \
 	dbus-api.h	\
 	device.h	\
 	dhcp6.h		\
 	fsm.h		\
-	protocol.h
+	protocol.h	\
+	tester.h
 
 # vim: ai
