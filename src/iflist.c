@@ -285,7 +285,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 			ni_warn("RTM_NEWLINK message without IFNAME");
 			continue;
 		}
-		ifname = (char *) nla_data(nla);
+		ifname = nla_get_string(nla);
 
 		/* Create interface if it doesn't exist. */
 		if ((dev = ni_netdev_by_index(nc, ifi->ifi_index)) == NULL) {
@@ -732,7 +732,9 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 			ni_error("unable to parse IFLA_LINKINFO");
 			return -1;
 		}
-		ni_string_dup(&link->kind, nla_get_string(nl_linkinfo[IFLA_INFO_KIND]));
+
+		if (nl_linkinfo[IFLA_INFO_KIND])
+			ni_string_dup(&link->kind, nla_get_string(nl_linkinfo[IFLA_INFO_KIND]));
 
 		if (ni_string_empty(link->kind)) {
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
@@ -899,7 +901,9 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 		return -1;
 	}
 
-	if ((ifname = (char *) nla_data(tb[IFLA_IFNAME])) == NULL) {
+	if (tb[IFLA_IFNAME]) {
+		ifname = nla_get_string(tb[IFLA_IFNAME]);
+	} else {
 		ni_warn("RTM_NEWLINK message without IFNAME");
 		return -1;
 	}
@@ -925,11 +929,13 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		return -1;
 	}
 
-	if ((ifname = (char *) nla_data(tb[IFLA_IFNAME])) == NULL) {
+	if (tb[IFLA_IFNAME]) {
+		ifname = nla_get_string(tb[IFLA_IFNAME]);
+		if (!dev->name || !ni_string_eq(dev->name, ifname))
+			ni_string_dup(&dev->name, ifname);
+	} else {
 		ni_warn("RTM_NEWLINK message without IFNAME");
 		return -1;
-	} else if (!dev->name || !ni_string_eq(dev->name, ifname)) {
-		ni_string_dup(&dev->name, ifname);
 	}
 
 	rv = __ni_process_ifinfomsg_linkinfo(&dev->link, dev->name, tb, h, ifi, nc);
