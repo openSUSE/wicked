@@ -16,7 +16,7 @@
 #include <wicked/sysconfig.h>
 #include "util_priv.h"
 
-static int	unquote(char *);
+static ni_bool_t unquote(char *);
 static char *	quote(char *);
 
 int
@@ -289,34 +289,41 @@ error:
 	return -1;
 }
 
-static int
+/* Extract values from a setting. string starts after '='
+ * Good: sym=val ; sym="val" ; sym='val'
+ * Bad:  sym="val ; sym='val
+ *
+ * returns true if val is valid.
+ */
+static ni_bool_t
 unquote(char *string)
 {
-	char *src, *dst, cc;
+	char quote_sign = 0;
+	char *src, *dst, cc, lc = 0;
+	ni_bool_t ret = TRUE;
 
 	src = dst = string;
-	while ((cc = *src++) != '\0') {
-		if (isspace(cc))
-			break;
-		if (*string == '"') {
-			while ((cc = *src++) != '"') {
-				if (cc == '\\') {
-					cc = *src++;
-					if (cc == '\0')
-						return 0;
-				}
-				*dst++ = cc;
-			}
-		} else if (*string == '\'') {
-			while ((cc = *src++) != '\'')
-				*dst++ = cc;
-			string = dst;
-		} else {
-			*dst++ = cc;
-		}
+	if (*string == '"' || *string == '\'') {
+		quote_sign = *string;
+		src++;
 	}
+	do {
+		cc = *src;
+		if (!cc) {
+			ret = quote_sign && lc == quote_sign;
+			break;
+		}
+		if (isspace(cc) && !quote_sign)
+			break;
+		if (cc == quote_sign)
+			break;
+		*dst = lc = cc;
+		dst++;
+		src++;
+	} while (1);
+
 	*dst = '\0';
-	return 1;
+	return ret;
 }
 
 char *
