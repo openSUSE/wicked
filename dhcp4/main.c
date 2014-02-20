@@ -17,7 +17,7 @@
 #include <errno.h>
 #include <net/if_arp.h>
 
-#include <wicked/wicked.h>
+#include <wicked/types.h>
 #include <wicked/logging.h>
 #include <wicked/objectmodel.h>
 

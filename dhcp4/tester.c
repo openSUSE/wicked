@@ -1,5 +1,5 @@
 /*
- *	wicked dhcp4 in test (request offer) mode
+ *	wicked dhcp4 in test (request offer/lease) mode
  *
  *	Copyright (C) 2013-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
  *
@@ -33,14 +33,17 @@
 #include <errno.h>
 #include <net/if_arp.h>
 
-#include <wicked/xml.h>
+#include <wicked/types.h>
 #include <wicked/leaseinfo.h>
 #include <wicked/socket.h>
+#include <wicked/xml.h>
 
 #include "dhcp4/dhcp.h"
 #include "dhcp4/tester.h"
 
+
 static int	dhcp4_tester_status;
+
 
 static void
 dhcp4_tester_protocol_event(enum ni_dhcp4_event ev, const ni_dhcp4_device_t *dev,
@@ -66,6 +69,7 @@ static ni_bool_t
 dhcp4_tester_req_xml_init(ni_dhcp4_request_t *req, xml_document_t *doc)
 {
 	xml_node_t *xml, *child;
+	const char *type;
 
 	xml = xml_document_root(doc);
 	if (xml && !xml->name && xml->children)
@@ -75,6 +79,14 @@ dhcp4_tester_req_xml_init(ni_dhcp4_request_t *req, xml_document_t *doc)
 		ni_error("Invalid dhcp4 request xml '%s'",
 				xml ? xml_node_location(xml) : NULL);
 		return FALSE;
+	}
+
+	type = xml_node_get_attr(xml, "type");
+	if (ni_string_eq(type, "offer")) {
+		req->dry_run = NI_DHCP4_RUN_OFFER;
+	} else
+	if (ni_string_eq(type, "lease")) {
+		req->dry_run = NI_DHCP4_RUN_LEASE;
 	}
 
 	for (child = xml->children; child; child = child->next) {
@@ -113,6 +125,7 @@ static ni_bool_t
 dhcp4_tester_req_init(ni_dhcp4_request_t *req, const char *request)
 {
 	/* Apply some defaults */
+	req->dry_run = NI_DHCP4_RUN_OFFER;
 	req->acquire_timeout = 10;
 	req->update = ~0;
 
@@ -132,7 +145,6 @@ dhcp4_tester_req_init(ni_dhcp4_request_t *req, const char *request)
 	}
 
 	/* Always enter dry run mode */
-	req->dry_run = TRUE;
 	if (ni_uuid_is_null(&req->uuid))
 		ni_uuid_generate(&req->uuid);
 

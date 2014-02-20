@@ -111,6 +111,18 @@ enum {
 				  DHCP4_DO_LPR|DHCP4_DO_LOG|DHCP4_DO_POSIX_TZ
 };
 
+
+/*
+ * fsm (dry) run modes
+ */
+typedef enum
+{
+	NI_DHCP4_RUN_NORMAL,	/* normal renew loop	*/
+	NI_DHCP4_RUN_LEASE,	/* get lease and stop	*/
+	NI_DHCP4_RUN_OFFER,	/* get offer and stop	*/
+} ni_dhcp4_run_t;
+
+
 /*
  * This is the on-the wire request we receive from clients.
  */
@@ -118,9 +130,9 @@ struct ni_dhcp4_request {
 	ni_uuid_t		uuid;
 	ni_bool_t		enabled;
 
-	ni_bool_t		dry_run;	/* discover but don't request + commit */
-	unsigned int		settle_timeout;	/* wait that long before starting DHCP4 */
-	unsigned int		acquire_timeout;/* how long we try before we give up */
+	ni_dhcp4_run_t		dry_run;	/* normal run or get offer/lease only	*/
+	unsigned int		settle_timeout;	/* wait that long before starting DHCP4	*/
+	unsigned int		acquire_timeout;/* how long we try before we give up	*/
 
 	/* Options controlling what to put into the lease request */
 	char *			hostname;
@@ -143,7 +155,7 @@ struct ni_dhcp4_request {
  */
 struct ni_dhcp4_config {
 	ni_uuid_t		uuid;
-	ni_bool_t		dry_run;
+	ni_dhcp4_run_t		dry_run;
 
 	/* A combination of DHCP4_DO_* flags above */
 	unsigned int		flags;
@@ -221,6 +233,7 @@ extern void		ni_dhcp4_device_force_retransmit(ni_dhcp4_device_t *, unsigned int)
 extern void		ni_dhcp4_device_arp_close(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_parse_client_id(ni_opaque_t *, unsigned short, const char *);
 extern void		ni_dhcp4_set_client_id(ni_opaque_t *, const ni_hwaddr_t *);
+extern void		ni_dhcp4_device_set_best_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t *, int);
 extern void		ni_dhcp4_device_drop_best_offer(ni_dhcp4_device_t *);
 
 extern int		ni_dhcp4_xml_from_lease(const ni_addrconf_lease_t *, xml_node_t *);

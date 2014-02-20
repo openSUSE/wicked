@@ -97,9 +97,6 @@ ni_dhcp4_device_close(ni_dhcp4_device_t *dev)
 void
 ni_dhcp4_device_stop(ni_dhcp4_device_t *dev)
 {
-	/* Clear the lease. This will trigger an event to wickedd
-	 * with a lease that has state RELEASED. */
-	ni_dhcp4_fsm_commit_lease(dev, NULL);
 	ni_dhcp4_device_close(dev);
 
 	/* Drop existing config and request */
@@ -197,17 +194,22 @@ ni_dhcp4_device_drop_lease(ni_dhcp4_device_t *dev)
 	ni_addrconf_lease_t *lease;
 
 	if ((lease = dev->lease) != NULL) {
-		/* FIXME: if we've configured the network using this
-		 * lease, we need to isse a link down request */
-
-		/* delete the lease file. */
-		ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
 		ni_addrconf_lease_free(lease);
 		dev->lease = NULL;
 
 		/* Go back to square one */
 		dev->fsm.state = NI_DHCP4_STATE_INIT;
 	}
+}
+
+void
+ni_dhcp4_device_set_best_offer(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease,
+							int weight)
+{
+	if (dev->best_offer.lease && dev->best_offer.lease != lease)
+		ni_addrconf_lease_free(dev->best_offer.lease);
+	dev->best_offer.lease = lease;
+	dev->best_offer.weight = weight;
 }
 
 void
