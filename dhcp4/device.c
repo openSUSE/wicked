@@ -19,9 +19,10 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include "netinfo_priv.h"
+#include "appconfig.h"
+
 #include "dhcp4/dhcp.h"
 #include "dhcp4/protocol.h"
-#include "appconfig.h"
 
 
 static unsigned int	ni_dhcp4_do_bits(unsigned int);

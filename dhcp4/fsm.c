@@ -21,9 +21,11 @@
 #include <wicked/logging.h>
 #include <wicked/route.h>
 #include "netinfo_priv.h"
+#include "buffer.h"
+
 #include "dhcp4/dhcp.h"
 #include "dhcp4/protocol.h"
-#include "buffer.h"
+
 
 #define NAK_BACKOFF_MAX		60	/* seconds */
 

@@ -19,10 +19,12 @@ wickedd_dhcp4_SOURCES	= \
 	device.c	\
 	fsm.c		\
 	main.c		\
+	tester.c	\
 	protocol.c
 
 noinst_HEADERS		= \
 	dhcp.h		\
+	tester.h	\
 	protocol.h
 
 # vim: ai
