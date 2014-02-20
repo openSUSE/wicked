@@ -1,5 +1,5 @@
 /*
- *	wicked dhcp6 in test (request offer) mode
+ *	wicked dhcp6 in test (request offer/lease) mode
  *
  *	Copyright (C) 2013-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
  *

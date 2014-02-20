@@ -1,5 +1,5 @@
 /*
- *	wicked dhcp6 in test (request offer) mode
+ *	wicked dhcp6 in test (request offer/lease) mode
  *
  *	Copyright (C) 2013-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
  *
@@ -70,6 +70,7 @@ static ni_bool_t
 dhcp6_tester_req_xml_init(ni_dhcp6_request_t *req, xml_document_t *doc)
 {
 	xml_node_t *xml, *child;
+	const char *type;
 
 	xml = xml_document_root(doc);
 	if (xml && !xml->name && xml->children)
@@ -80,6 +81,14 @@ dhcp6_tester_req_xml_init(ni_dhcp6_request_t *req, xml_document_t *doc)
 		ni_error("Invalid dhcp6 request xml '%s'",
 			xml ? xml_node_location(xml) : NULL);
 		return FALSE;
+	}
+
+	type = xml_node_get_attr(xml, "type");
+	if (ni_string_eq(type, "offer")) {
+		req->dry_run = NI_DHCP6_RUN_OFFER;
+	} else
+	if (ni_string_eq(type, "lease")) {
+		req->dry_run = NI_DHCP6_RUN_LEASE;
 	}
 
 	for (child = xml->children; child; child = child->next) {
@@ -113,8 +122,8 @@ dhcp6_tester_req_xml_init(ni_dhcp6_request_t *req, xml_document_t *doc)
 	return TRUE;
 failure:
 	if (child) {
-		ni_error("Cannot parse dhcp6 request '%s': %s",
-			child->name, xml_node_location(child));
+		ni_error("Cannot parse dhcp6 request '%s' at %s: %s",
+			child->name, xml_node_location(child), child->cdata);
 	}
 	return FALSE;
 }
@@ -123,6 +132,7 @@ static ni_bool_t
 dhcp6_tester_req_init(ni_dhcp6_request_t *req, const char *request)
 {
 	/* Apply some defaults */
+	req->dry_run = NI_DHCP6_RUN_OFFER;
 	req->acquire_timeout = 10;
 	req->mode = NI_DHCP6_MODE_MANAGED;
 
@@ -142,7 +152,6 @@ dhcp6_tester_req_init(ni_dhcp6_request_t *req, const char *request)
 	}
 
 	/* Always enter dry run mode & disable rapid-commit */
-	req->dry_run = TRUE;
 	req->rapid_commit = FALSE;
 	if (ni_uuid_is_null(&req->uuid))
 		ni_uuid_generate(&req->uuid);
