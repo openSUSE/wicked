@@ -114,7 +114,7 @@ Requires:       dbus-1-devel
 Requires:       libnl-devel
 Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 %if 0%{?suse_version} > 1210
-Requires:       libnl-1_1-devel
+Requires:       libnl3-devel
 %else
 Requires:       libnl-devel
 %endif
