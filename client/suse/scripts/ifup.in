@@ -83,11 +83,6 @@ debug()
 	test "X${DEBUG:-no}" != "Xno" && mesg -p debug "$*"
 }
 
-systemd_running()
-{
-	mountpoint -q /sys/fs/cgroup/systemd
-}
-
 systemd_get_service_id()
 {
 	local service="$1"
@@ -104,16 +99,15 @@ systemd_get_network_service_id()
 ######################################################################
 # Check responsibility
 #
-if systemd_running ; then
-	network_service_id=`systemd_get_network_service_id`
-	if test "X$network_service_id" != "Xwicked.service" ; then
-		mesg "Network is managed by '$network_service_id' -> skipping"
-		exit $R_USAGE
-	fi
-elif test "X$NETWORKMANAGER" = "Xyes" ; then
-	mesg "Network is managed by NetworkManager -> skipping"
+network_service_id=`systemd_get_network_service_id`
+case $network_service_id in
+wicked.service|"")
+	;;
+*)
+	mesg "Network is managed by '$network_service_id' -> skipping"
 	exit $R_USAGE
-fi
+	;;
+esac
 
 
 ######################################################################
