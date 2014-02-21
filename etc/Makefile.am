@@ -110,19 +110,6 @@ systemv/network: systemv/network.in $(top_builddir)/config.status
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
 
-install-data-hook:
-if systemv_service
-	$(MKDIR_P) "$(DESTDIR)$(wicked_sbindir)"
-	$(LN_S) -f "$(systemv_initdir)/wickedd" "$(DESTDIR)$(wicked_sbindir)/rcwickedd"
-	$(LN_S) -f "$(systemv_initdir)/network" "$(DESTDIR)$(wicked_sbindir)/rcnetwork"
-endif
-
-uninstall-hook:
-if systemv_service
-	rm -f "$(DESTDIR)$(wicked_sbindir)/rcwickedd"
-	rm -f "$(DESTDIR)$(wicked_sbindir)/rcnetwork"
-endif
-
 check-local:
 	@for i in $(systemv_init_SCRIPTS) ; \
 	do \

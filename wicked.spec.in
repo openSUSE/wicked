@@ -171,6 +171,17 @@ make install DESTDIR=${RPM_BUILD_ROOT}
 %__rm -f ${RPM_BUILD_ROOT}%_libdir/libwicked*.*a
 # create ghost directory
 %__mkdir_p -m 0750 ${RPM_BUILD_ROOT}%_localstatedir/run/wicked
+%if %{with systemd}
+ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwicked
+ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd
+ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-nanny
+ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-dhcp6
+ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-dhcp4
+ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-auto4
+%else
+ln -sf %_sysconfdir/init.d/wickedd ${RPM_BUILD_ROOT}%_sbindir/rcwickedd
+ln -sf %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_sbindir/rcnetwork
+%endif
 
 %if %{with systemd}
 
@@ -296,6 +307,12 @@ fi
 /sbin/ifdown
 /sbin/ifstatus
 /sbin/ifprobe
+%_sbindir/rcwickedd-nanny
+%_sbindir/rcwickedd-dhcp6
+%_sbindir/rcwickedd-dhcp4
+%_sbindir/rcwickedd-auto4
+%_sbindir/rcwickedd
+%_sbindir/rcwicked
 
 %else
 
