@@ -111,13 +111,8 @@ This package provides the wicked system V init scripts.
 Summary:        Network configuration infrastructure - Development files
 Group:          Development/Libraries/C and C++
 Requires:       dbus-1-devel
-Requires:       libnl-devel
-Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
-%if 0%{?suse_version} > 1210
 Requires:       libnl3-devel
-%else
-Requires:       libnl-devel
-%endif
+Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 
 %description devel
 Wicked is a network configuration infrastructure incorporating a number
