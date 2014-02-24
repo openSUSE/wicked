@@ -135,6 +135,7 @@ void
 ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy)
 {
 	ni_ifworker_t *w = mdev->worker;
+	ni_fsm_t *fsm = mdev->nanny->fsm;
 	const char *type_name;
 	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
 	xml_node_t *config = NULL;
@@ -166,6 +167,10 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	}
 
 	ni_debug_nanny("%s: using policy %s", w->name, ni_fsm_policy_name(policy));
+
+	/* Set FSM and current ifworker as writable, nanny can update wickedd structures */
+	w->readonly = FALSE;
+	fsm->readonly = FALSE;
 
 	/* This returns "modem" or "interface" */
 	type_name = ni_ifworker_type_to_string(w->type);
