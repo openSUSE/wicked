@@ -29,6 +29,7 @@
 #include <wicked/dbus-errors.h>
 #include <wicked/fsm.h>
 #include <wicked/client.h>
+#include "util_priv.h"
 #include "nanny.h"
 
 
@@ -73,7 +74,7 @@ ni_managed_device_new(ni_nanny_t *mgr, ni_ifworker_t *w, ni_managed_device_t **l
 {
 	ni_managed_device_t *mdev;
 
-	mdev = calloc(1, sizeof(*mdev));
+	mdev = xcalloc(1, sizeof(*mdev));
 	mdev->nanny = mgr;
 	mdev->worker = ni_ifworker_get(w);
 

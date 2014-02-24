@@ -27,6 +27,7 @@
 #include <wicked/modem.h>
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
+#include "util_priv.h"
 #include "nanny.h"
 
 enum {
@@ -431,7 +432,7 @@ ni_nanny_config_callback(void *appdata, const xml_node_t *node)
 				goto skip_option;
 			}
 
-			match = calloc(1, sizeof(*match));
+			match = xcalloc(1, sizeof(*match));
 			match->type = type;
 			ni_string_dup(&match->value, attrval);
 
