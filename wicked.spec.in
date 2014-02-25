@@ -41,6 +41,8 @@ Requires(pre):  libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 %bcond_with     dbusstart
 %endif
 
+%bcond_with     wicked_devel
+
 BuildRequires:  libnl3-devel
 %if 0%{?suse_version} > 1110
 BuildRequires:  libiw-devel
@@ -107,6 +109,7 @@ This package provides the wicked system V init scripts.
 
 %endif
 
+%if %{with wicked_devel}
 %package devel
 Summary:        Network configuration infrastructure - Development files
 Group:          Development/Libraries/C and C++
@@ -120,6 +123,7 @@ of existing frameworks into a unified architecture, providing a DBUS
 interface to network configuration.
 
 This package provides the wicked development files.
+%endif
 
 %package -n     libwicked@LIBWICKED_PACKAGE_SUFFIX@
 Summary:        Network configuration infrastructure - Shared library
@@ -176,6 +180,16 @@ ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-auto4
 %else
 ln -sf %_sysconfdir/init.d/wickedd ${RPM_BUILD_ROOT}%_sbindir/rcwickedd
 ln -sf %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_sbindir/rcnetwork
+%endif
+
+%if %{without wicked_devel}
+pushd $RPM_BUILD_ROOT
+rm -rfv \
+	.%_libdir/libwicked*.so \
+	.%_datadir/pkgconfig/wicked.pc \
+	.%_mandir/man7/wicked.7* \
+	.%_includedir/wicked
+popd
 %endif
 
 %if %{with systemd}
@@ -328,6 +342,7 @@ fi
 
 %endif
 
+%if %{with wicked_devel}
 %files devel
 %defattr (-,root,root)
 %dir %_includedir/wicked
@@ -335,6 +350,7 @@ fi
 %_libdir/libwicked*.so
 %_datadir/pkgconfig/wicked.pc
 %_mandir/man7/wicked.7*
+%endif
 
 %files -n libwicked@LIBWICKED_PACKAGE_SUFFIX@
 %defattr (-,root,root)
