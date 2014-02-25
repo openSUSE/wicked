@@ -2383,6 +2383,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	if (!found) {
 		ni_debug_application("received new device %s (%s)", dev->name, object->path);
 		found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
+		found->readonly = fsm->readonly;
 		if (dev->client_info)
 			ni_ifworker_refresh_client_info(found, dev->client_info);
 		if (dev->client_state)
@@ -2395,7 +2396,6 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		found->device = ni_netdev_get(dev);
 	found->ifindex = dev->link.ifindex;
 	found->object = object;
-	found->readonly = fsm->readonly;
 
 	/* Don't touch devices we're done with */
 

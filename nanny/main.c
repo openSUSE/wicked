@@ -27,6 +27,7 @@
 #include <wicked/modem.h>
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
+#include "util_priv.h"
 #include "nanny.h"
 
 enum {
@@ -189,6 +190,7 @@ void
 babysit(void)
 {
 	ni_nanny_t *mgr;
+	ni_fsm_t *fsm;
 
 	mgr = ni_nanny_new();
 
@@ -196,6 +198,12 @@ babysit(void)
 		ni_fatal("error in configuration file");
 
 	ni_nanny_start(mgr);
+	fsm = mgr->fsm;
+
+	/* Nanny should not update neither <client-info> nor <client-state>,
+	 * unless it is told to configure a device by 'wicked enable'.
+	 */
+	fsm->readonly = TRUE;
 
 	if (!opt_foreground) {
 		if (ni_server_background(program_name) < 0)
@@ -213,6 +221,10 @@ babysit(void)
 		ni_nanny_down_do(mgr);
 
 		ni_fsm_do(mgr->fsm, &timeout);
+
+		/* Set back the FSM to readonly after job is done */
+		fsm->readonly = TRUE;
+
 		if (ni_socket_wait(timeout) != 0)
 			ni_fatal("ni_socket_wait failed");
 	}
@@ -431,7 +443,7 @@ ni_nanny_config_callback(void *appdata, const xml_node_t *node)
 				goto skip_option;
 			}
 
-			match = calloc(1, sizeof(*match));
+			match = xcalloc(1, sizeof(*match));
 			match->type = type;
 			ni_string_dup(&match->value, attrval);
 

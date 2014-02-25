@@ -28,6 +28,7 @@
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/fsm.h>
+#include "util_priv.h"
 #include "nanny.h"
 
 
@@ -71,7 +72,7 @@ ni_nanny_new(void)
 {
 	ni_nanny_t *mgr;
 
-	mgr = calloc(1, sizeof(*mgr));
+	mgr = xcalloc(1, sizeof(*mgr));
 	return mgr;
 }
 
@@ -509,7 +510,7 @@ ni_nanny_user_new(uid_t uid)
 {
 	ni_nanny_user_t *user;
 
-	user = calloc(1, sizeof(*user));
+	user = xcalloc(1, sizeof(*user));
 	user->uid = uid;
 	user->secret_db = ni_secret_db_new();
 	return user;

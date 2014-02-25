@@ -28,6 +28,7 @@
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/fsm.h>
+#include "util_priv.h"
 #include "nanny.h"
 
 
@@ -51,7 +52,7 @@ ni_managed_policy_new(ni_nanny_t *mgr, ni_fsm_policy_t *policy, xml_document_t *
 {
 	ni_managed_policy_t *mpolicy;
 
-	mpolicy = calloc(1, sizeof(*mpolicy));
+	mpolicy = xcalloc(1, sizeof(*mpolicy));
 	mpolicy->fsm_policy = policy;
 	mpolicy->doc = doc;
 
