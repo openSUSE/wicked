@@ -54,7 +54,6 @@
 
 typedef ni_bool_t (*try_function_t)(const ni_sysconfig_t *, ni_netdev_t *, const char *);
 
-static ni_bool_t		__ni_suse_get_interfaces(const char *, const char *, ni_compat_netdev_array_t *);
 static ni_compat_netdev_t *	__ni_suse_read_interface(const char *, const char *);
 static ni_bool_t		__ni_suse_read_globals(const char *path);
 static void			__ni_suse_free_globals(void);
@@ -185,15 +184,10 @@ __ni_suse_ifcfg_scan_files(const char *dirname, ni_string_array_t *res)
 ni_bool_t
 __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t *result)
 {
-	return __ni_suse_get_interfaces(root, path, &result->netdevs);
-}
-
-static ni_bool_t
-__ni_suse_get_interfaces(const char *root, const char *path, ni_compat_netdev_array_t *result)
-{
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	ni_bool_t success = FALSE;
 	char *pathname = NULL;
+	const char *base;
 	unsigned int i;
 
 	if (ni_string_empty(path))
@@ -204,12 +198,17 @@ __ni_suse_get_interfaces(const char *root, const char *path, ni_compat_netdev_ar
 	else
 		ni_string_printf(&pathname, "%s%s", root, path);
 
+	if (ni_isreg(pathname)) {
+		if ((base = ni_dirname(pathname)))
+			ni_string_dup(&pathname, base);
+		path = ni_dirname(pathname);
+	}
 	if (ni_isdir(pathname)) {
 		if (!__ni_suse_read_globals(pathname))
 			goto done;
 
 		if (!__ni_suse_ifcfg_scan_files(pathname, &files)) {
-			ni_error("No ifcfg files found in %s", pathname);
+			ni_debug_readwrite("No ifcfg files found in %s", pathname);
 			success = TRUE;
 			goto done;
 		}
@@ -222,26 +221,28 @@ __ni_suse_get_interfaces(const char *root, const char *path, ni_compat_netdev_ar
 
 			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", pathname, filename);
 			if (!(compat = __ni_suse_read_interface(pathbuf, ifname)))
-				goto done;
+				continue;
 
+			/*
+			 * TODO: source should not contain root-dir, ...
+			 * Can't change it not without to make the uuid useless.
+			 *
+			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, filename);
+			*/
 			ni_compat_netdev_client_info_set(compat->dev, pathbuf);
-			ni_compat_netdev_array_append(result, compat);
+			ni_compat_netdev_array_append(&result->netdevs, compat);
+		}
+
+		if (__ni_suse_config_defaults) {
+			ni_sysconfig_get_integer(__ni_suse_config_defaults,
+						"WAIT_FOR_INTERFACES",
+						&result->timeout);
 		}
 	} else
 	if (ni_file_exists(pathname)) {
-		ni_compat_netdev_t *compat;
-
-		if (!__ni_suse_read_globals(ni_dirname(pathname)))
-			goto done;
-
-		if (!(compat = __ni_suse_read_interface(pathname, NULL)))
-			goto done;
-
-		ni_compat_netdev_client_info_set(compat->dev, pathname);
-		ni_compat_netdev_array_append(result, compat);
-	}
-	else
+		ni_error("Cannot use '%s' to read suse ifcfg files", pathname);
 		goto done;
+	}
 
 	success = TRUE;
 
