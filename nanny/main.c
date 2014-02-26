@@ -40,7 +40,9 @@ enum {
 	OPT_SYSTEMD,
 
 	OPT_FOREGROUND,
+#ifdef MODEM
 	OPT_NOMODEMMGR,
+#endif
 };
 
 static struct option	options[] = {
@@ -56,8 +58,10 @@ static struct option	options[] = {
 	/* daemon */
 	{ "foreground",		no_argument,		NULL,	OPT_FOREGROUND },
 
+#ifdef MODEM
 	/* specific */
 	{ "no-modem-manager",	no_argument,		NULL,	OPT_NOMODEMMGR },
+#endif
 
 	{ NULL }
 };
@@ -65,13 +69,17 @@ static struct option	options[] = {
 static const char *	program_name;
 static const char *	opt_log_target;
 static ni_bool_t	opt_foreground;
+#ifdef MODEM
 static ni_bool_t	opt_no_modem_manager;
+#endif
 static ni_bool_t	opt_systemd;
 
 static void		babysit(void);
 static void		ni_nanny_discover_state(ni_nanny_t *);
 static void		ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
+#ifdef MODEM
 static void		ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
+#endif
 //static void		handle_interface_event(ni_netdev_t *, ni_event_t);
 //static void		handle_modem_event(ni_modem_t *, ni_event_t);
 static void		handle_rfkill_event(ni_rfkill_type_t, ni_bool_t, void *user_data);
@@ -151,9 +159,11 @@ main(int argc, char **argv)
 			opt_foreground = TRUE;
 			break;
 
+#ifdef MODEM
 		case OPT_NOMODEMMGR:
 			opt_no_modem_manager = TRUE;
 			break;
+#endif
 
 		case OPT_SYSTEMD:
 			opt_systemd = TRUE;
@@ -250,10 +260,12 @@ ni_nanny_discover_state(ni_nanny_t *mgr)
 			NI_OBJECTMODEL_NETIF_INTERFACE,
 			ni_nanny_netif_state_change_signal_receive,
 			mgr);
+#ifdef MODEM
 	ni_dbus_client_add_signal_handler(client, NULL, NULL,
 			NI_OBJECTMODEL_MODEM_INTERFACE,
 			ni_nanny_modem_state_change_signal_receive,
 			mgr);
+#endif
 
 	ni_fsm_refresh_state(mgr->fsm);
 
@@ -354,6 +366,7 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 	}
 }
 
+#ifdef MODEM
 /*
  * Wickedd is sending us a modem signal (usually discovery or removal of a modem)
  */
@@ -397,6 +410,7 @@ ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		// ignore
 	}
 }
+#endif
 
 void
 handle_rfkill_event(ni_rfkill_type_t type, ni_bool_t blocked, void *user_data)

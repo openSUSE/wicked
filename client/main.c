@@ -147,7 +147,10 @@ main(int argc, char **argv)
 				"  ifreload    [options] <ifname ...>|all\n"
 				"  ifstatus    [options] <ifname ...>|all\n"
 				"  show        [options] <ifname ...>|all\n"
+#ifdef MODEM
 				"  show-xml    [--raw] [--modem] <ifname|all>\n"
+#endif
+				"  show-xml    [--raw] <ifname|all>\n"
 				"  show-config [--raw] [source]\n"
 				"  nanny       [subcommand]\n"
 				"  lease       [subcommand]\n"
@@ -513,11 +516,19 @@ __dump_schema_xml(const ni_dbus_variant_t *variant, ni_xs_scope_t *schema)
 int
 do_show_xml(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_RAW, OPT_MODEMS, };
+	enum {
+		OPT_HELP,
+		OPT_RAW,
+#ifdef MODEM
+		OPT_MODEMS,
+#endif
+	};
 	static struct option local_options[] = {
 		{ "help", no_argument, NULL, OPT_HELP },
 		{ "raw", no_argument, NULL, OPT_RAW },
+#ifdef MODEM
 		{ "modem", no_argument, NULL, OPT_MODEMS },
+#endif
 		{ NULL }
 	};
 	ni_dbus_object_t *list_object, *object;
@@ -525,7 +536,9 @@ do_show_xml(int argc, char **argv)
 	DBusError error = DBUS_ERROR_INIT;
 	const char *ifname = NULL;
 	int opt_raw = 0;
+#ifdef MODEM
 	int opt_modems = 0;
+#endif
 	int c, rv = 1;
 
 	optind = 1;
@@ -535,9 +548,11 @@ do_show_xml(int argc, char **argv)
 			opt_raw = 1;
 			break;
 
+#ifdef MODEM
 		case OPT_MODEMS:
 			opt_modems = 1;
 			break;
+#endif
 
 		default:
 		case OPT_HELP:
@@ -549,8 +564,10 @@ do_show_xml(int argc, char **argv)
 				"      Show this help text.\n"
 				"  --raw\n"
 				"      Show raw dbus reply in pseudo-xml, rather than using the schema\n"
+#ifdef MODEM
 				"  --modem\n"
 				"      List Modems\n"
+#endif
 				);
 			return 1;
 		}
@@ -565,14 +582,17 @@ do_show_xml(int argc, char **argv)
 
 	if (!(object = ni_call_create_client()))
 		return 1;
-
+#ifdef MODEM
 	if (!opt_modems) {
+#endif
 		if (!(list_object = ni_call_get_netif_list_object()))
 			goto out;
+#ifdef MODEM
 	} else {
 		if (!(list_object = ni_call_get_modem_list_object()))
 			goto out;
 	}
+#endif
 
 	if (!ni_dbus_object_call_variant(list_object,
 			"org.freedesktop.DBus.ObjectManager", "GetManagedObjects",
@@ -1112,23 +1132,35 @@ failed:
 int
 do_get_names(int argc, char **argv)
 {
-	enum { OPT_HELP, OPT_XML, OPT_MODEMS };
+	enum {
+		OPT_HELP,
+		OPT_XML,
+#ifdef MODEM
+		OPT_MODEMS,
+#endif
+	};
 	static struct option local_options[] = {
 		{ "help", no_argument, NULL, OPT_HELP },
 		{ "xml", no_argument, NULL, OPT_XML },
+#ifdef MODEM
 		{ "modem", no_argument, NULL, OPT_MODEMS },
+#endif
 		{ NULL }
 	};
 	ni_dbus_object_t *list_object;
+#ifdef MODEM
 	int opt_modems = 0;
+#endif
 	int c, rv = 1;
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", local_options, NULL)) != EOF) {
 		switch (c) {
+#ifdef MODEM
 		case OPT_MODEMS:
 			opt_modems = 1;
 			break;
+#endif
 
 		default:
 		case OPT_HELP:
@@ -1138,21 +1170,27 @@ do_get_names(int argc, char **argv)
 				"\nSupported options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
+#ifdef MODEM
 				"  --modems\n"
 				"      Query for modem device, rather than network device\n"
+#endif
 				);
 			return 1;
 		}
 	}
 
 	ni_objectmodel_init(NULL);
+#ifdef MODEM
 	if (!opt_modems) {
+#endif
 		if (!(list_object = ni_call_get_netif_list_object()))
 			goto out;
+#ifdef MODEM
 	} else {
 		if (!(list_object = ni_call_get_modem_list_object()))
 			goto out;
 	}
+#endif
 
 	if (optind < argc) {
 		DBusError error = DBUS_ERROR_INIT;

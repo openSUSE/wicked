@@ -32,7 +32,7 @@
 #include <wicked/client.h>
 #include "nanny.h"
 
-
+#ifdef MODEM
 void
 ni_objectmodel_managed_modem_init(ni_dbus_server_t *server)
 {
@@ -44,6 +44,7 @@ ni_objectmodel_managed_modem_init(ni_dbus_server_t *server)
 	root_object = ni_dbus_server_get_root_object(server);
 	ni_dbus_object_create(root_object, "Modem", NULL, NULL);
 }
+#endif
 
 /*
  * Create a dbus object representing the managed modem

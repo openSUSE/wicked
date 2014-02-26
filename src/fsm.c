@@ -41,7 +41,9 @@ static void			ni_fsm_require_free(ni_fsm_require_t *);
 static int			ni_ifworker_bind_device_apis(ni_ifworker_t *, const ni_dbus_service_t *);
 static void			ni_ifworker_control_set_defaults(ni_ifworker_t *);
 static void			__ni_ifworker_refresh_netdevs(ni_fsm_t *);
+#ifdef MODEM
 static void			__ni_ifworker_refresh_modems(ni_fsm_t *);
+#endif
 static int			ni_fsm_user_prompt_default(const ni_fsm_prompt_t *, xml_node_t *, void *);
 static void			ni_ifworker_refresh_client_info(ni_ifworker_t *, ni_device_clientinfo_t *);
 static void			ni_ifworker_refresh_client_state(ni_ifworker_t *, ni_client_state_t *);
@@ -1430,7 +1432,9 @@ __ni_ifworker_identify_device(ni_fsm_t *fsm, const char *namespace, const xml_no
 		break;
 
 	case NI_IFWORKER_TYPE_MODEM:
+#ifdef MODEM
 		object_path = ni_call_identify_modem(namespace, devnode);
+#endif
 		break;
 
 	default: ;
@@ -2315,7 +2319,9 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 	}
 
 	__ni_ifworker_refresh_netdevs(fsm);
+#ifdef MODEM
 	__ni_ifworker_refresh_modems(fsm);
+#endif
 
 	for (i = 0; i < fsm->workers.count; ++i) {
 		w = fsm->workers.data[i];
@@ -2422,6 +2428,7 @@ ni_fsm_recv_new_netif_path(ni_fsm_t *fsm, const char *path)
 	return ni_fsm_recv_new_netif(fsm, object, TRUE);
 }
 
+#ifdef MODEM
 static void
 __ni_ifworker_refresh_modems(ni_fsm_t *fsm)
 {
@@ -2439,6 +2446,7 @@ __ni_ifworker_refresh_modems(ni_fsm_t *fsm)
 		ni_fsm_recv_new_modem(fsm, object, FALSE);
 	}
 }
+#endif
 
 ni_ifworker_t *
 ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh)
