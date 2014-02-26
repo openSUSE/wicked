@@ -79,17 +79,23 @@ typedef struct ni_compat_netdev_array {
 } ni_compat_netdev_array_t;
 
 typedef struct ni_compat_ifconfig {
-	ni_compat_netdev_array_t netdev_array;
-	unsigned int timeout;
+	unsigned int		timeout;
+
+	ni_compat_netdev_array_t netdevs;
 } ni_compat_ifconfig_t;
 
 extern ni_compat_netdev_t *	ni_compat_netdev_new(const char *);
 extern void			ni_compat_netdev_free(ni_compat_netdev_t *);
-extern void			ni_compat_netdev_array_append(ni_compat_netdev_array_t *, ni_compat_netdev_t *);
-extern void			ni_compat_netdev_array_destroy(ni_compat_netdev_array_t *);
 extern ni_compat_netdev_t *	ni_compat_netdev_by_name(ni_compat_netdev_array_t *, const char *);
 extern ni_compat_netdev_t *	ni_compat_netdev_by_hwaddr(ni_compat_netdev_array_t *, const ni_hwaddr_t *);
 extern void			ni_compat_netdev_client_info_set(ni_netdev_t *, const char *);
+
+extern void			ni_compat_netdev_array_init(ni_compat_netdev_array_t *);
+extern void			ni_compat_netdev_array_append(ni_compat_netdev_array_t *, ni_compat_netdev_t *);
+extern void			ni_compat_netdev_array_destroy(ni_compat_netdev_array_t *);
+
+extern void			ni_compat_ifconfig_init(ni_compat_ifconfig_t *);
+extern void			ni_compat_ifconfig_destroy(ni_compat_ifconfig_t *);
 
 extern unsigned int		ni_compat_generate_interfaces(xml_document_array_t *, ni_compat_ifconfig_t *, ni_bool_t);
 
