@@ -53,6 +53,58 @@ static const char *	ni_sprint_timeout(unsigned int timeout);
 static xml_node_t *	xml_node_create(xml_node_t *, const char *);
 static void		xml_node_dict_set(xml_node_t *, const char *, const char *);
 
+/*
+ * Compat ifconfig handling functions
+ */
+void
+ni_compat_ifconfig_init(ni_compat_ifconfig_t *conf)
+{
+	memset(conf, 0, sizeof(*conf));
+}
+
+void
+ni_compat_ifconfig_destroy(ni_compat_ifconfig_t *conf)
+{
+	if (conf) {
+		ni_compat_netdev_array_destroy(&conf->netdevs);
+	}
+}
+
+/*
+ * Compat netdev handling functions
+ */
+void
+ni_compat_netdev_array_init(ni_compat_netdev_array_t *array)
+{
+	memset(array, 0, sizeof(*array));
+}
+
+void
+ni_compat_netdev_array_append(ni_compat_netdev_array_t *array, ni_compat_netdev_t *compat)
+{
+	ni_assert(array && compat);
+	array->data = xrealloc(array->data, (array->count + 1) * sizeof(array->data[0]));
+	array->data[array->count++] = compat;
+}
+
+void
+ni_compat_netdev_array_destroy(ni_compat_netdev_array_t *array)
+{
+	unsigned int i;
+
+	ni_assert(array);
+	for (i = 0; i < array->count; ++i) {
+		ni_compat_netdev_t *compat = array->data[i];
+
+		ni_compat_netdev_free(compat);
+	}
+	free(array->data);
+	memset(array, 0, sizeof(*array));
+}
+
+/*
+ * Compat netdev functions
+ */
 ni_compat_netdev_t *
 ni_compat_netdev_new(const char *ifname)
 {
@@ -66,30 +118,6 @@ ni_compat_netdev_new(const char *ifname)
 	compat->dhcp6.rapid_commit = TRUE;
 
 	return compat;
-}
-
-/*
- * Array handling functions
- */
-void
-ni_compat_netdev_array_append(ni_compat_netdev_array_t *array, ni_compat_netdev_t *compat)
-{
-	array->data = realloc(array->data, (array->count + 1) * sizeof(array->data[0]));
-	array->data[array->count++] = compat;
-}
-
-void
-ni_compat_netdev_array_destroy(ni_compat_netdev_array_t *array)
-{
-	unsigned int i;
-
-	for (i = 0; i < array->count; ++i) {
-		ni_compat_netdev_t *compat = array->data[i];
-
-		ni_compat_netdev_free(compat);
-	}
-	free(array->data);
-	memset(array, 0, sizeof(*array));
 }
 
 ni_compat_netdev_t *
@@ -1204,8 +1232,8 @@ ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t 
 	if (!ifcfg)
 		return 0;
 
-	for (i = 0; i < ifcfg->netdev_array.count; ++i) {
-		ni_compat_netdev_t *compat = ifcfg->netdev_array.data[i];
+	for (i = 0; i < ifcfg->netdevs.count; ++i) {
+		ni_compat_netdev_t *compat = ifcfg->netdevs.data[i];
 		ni_device_clientinfo_t *client_info = compat->dev->client_info;
 
 		config_doc = xml_document_new();

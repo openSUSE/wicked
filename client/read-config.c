@@ -43,12 +43,12 @@
 #include "wicked-client.h"
 
 #if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
-extern ni_bool_t	__ni_suse_get_interfaces(const char *, const char *,
-						ni_compat_netdev_array_t *);
+extern ni_bool_t	__ni_suse_get_ifconfig(const char *, const char *,
+						ni_compat_ifconfig_t *);
 #endif
 #if defined(COMPAT_AUTO) || defined(COMPAT_REDHAT)
-extern ni_bool_t	__ni_redhat_get_interfaces(const char *, const char *,
-						ni_compat_netdev_array_t *);
+extern ni_bool_t	__ni_redhat_get_ifconfig(const char *, const char *,
+						ni_compat_ifconfig_t *);
 #endif
 
 
@@ -435,14 +435,15 @@ ni_bool_t
 ni_ifconfig_read_compat_suse(xml_document_array_t *array, const char *type,
 			const char *root, const char *path, ni_bool_t raw)
 {
-	ni_compat_ifconfig_t ifcfg = { {0, NULL} };
+	ni_compat_ifconfig_t conf;
 	ni_bool_t rv;
 
-	if ((rv = __ni_suse_get_interfaces(root, path, &ifcfg.netdev_array))) {
-		ni_compat_generate_interfaces(array, &ifcfg, raw);
+	ni_compat_ifconfig_init(&conf);
+	if ((rv = __ni_suse_get_ifconfig(root, path, &conf))) {
+		ni_compat_generate_interfaces(array, &conf, raw);
 	}
 
-	ni_compat_netdev_array_destroy(&ifcfg.netdev_array);
+	ni_compat_ifconfig_destroy(&conf);
 	return rv;
 }
 #endif
@@ -452,14 +453,15 @@ ni_bool_t
 ni_ifconfig_read_compat_redhat(xml_document_array_t *array, const char *type,
 			const char *root, const char *path, ni_bool_t raw)
 {
-	ni_compat_ifconfig_t ifcfg = { {0, NULL} };
+	ni_compat_ifconfig_t conf;
 	ni_bool_t rv;
 
-	if ((rv = __ni_redhat_get_interfaces(root, path, &ifcfg.netdev_array))) {
+	ni_compat_ifconfig_init(&conf);
+	if ((rv = __ni_redhat_get_ifconfig(root, path, &conf))) {
 		ni_compat_generate_interfaces(array, &ifcfg, raw);
 	}
 
-	ni_compat_netdev_array_destroy(&ifcfg.netdev_array);
+	ni_compat_ifconfig_destroy(&conf);
 	return rv;
 }
 #endif

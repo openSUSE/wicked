@@ -54,6 +54,7 @@
 
 typedef ni_bool_t (*try_function_t)(const ni_sysconfig_t *, ni_netdev_t *, const char *);
 
+static ni_bool_t		__ni_suse_get_interfaces(const char *, const char *, ni_compat_netdev_array_t *);
 static ni_compat_netdev_t *	__ni_suse_read_interface(const char *, const char *);
 static ni_bool_t		__ni_suse_read_globals(const char *path);
 static void			__ni_suse_free_globals(void);
@@ -182,6 +183,12 @@ __ni_suse_ifcfg_scan_files(const char *dirname, ni_string_array_t *res)
 }
 
 ni_bool_t
+__ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t *result)
+{
+	return __ni_suse_get_interfaces(root, path, &result->netdevs);
+}
+
+static ni_bool_t
 __ni_suse_get_interfaces(const char *root, const char *path, ni_compat_netdev_array_t *result)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;

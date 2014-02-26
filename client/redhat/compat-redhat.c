@@ -55,6 +55,13 @@ static ni_compat_netdev_t *__ni_redhat_define_alias(ni_sysconfig_t *, const char
  * Refresh network configuration by reading all ifcfg files.
  */
 ni_bool_t
+__ni_redhat_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t *result)
+{
+	/* get global control things here */
+	return __ni_redhat_get_interfaces(root, path, &result->netdevs);
+}
+
+static ni_bool_t
 __ni_redhat_get_interfaces(const char *root, const char *path, ni_compat_netdev_array_t *result)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
