@@ -2,7 +2,6 @@
 CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
 DISTCLEANFILES			= $(BUILT_SOURCES)
-EXTRA_DIST			= $(wicked_headers)
 
 SUBDIRS				=
 if wicked_compat_auto
@@ -63,7 +62,7 @@ wicked_SOURCES			= \
 	nanny.c			\
 	reachable.c
 
-wicked_headers			= \
+noinst_HEADERS			= \
 	ifup.h			\
 	ifdown.h		\
 	ifcheck.h		\
