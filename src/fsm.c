@@ -1583,6 +1583,9 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 		if (ni_string_eq_nocase(w->control.mode, "off"))
 			continue;
 
+		if (!match->name && ni_string_eq_nocase(w->control.mode, "manual"))
+			continue;
+
 		if (match->name && !ni_string_eq(match->name, w->name))
 			continue;
 
