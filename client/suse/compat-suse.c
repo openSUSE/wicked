@@ -136,6 +136,9 @@ static int
 __ni_suse_valid_ifname(const char *ifname)
 {
 	size_t i, len = ni_string_len(ifname);
+	const char *black_list[] = {
+		"all", "default", NULL
+	}, **ptr;
 
 	if (!len || len >= IFNAMSIZ)
 		return FALSE;
@@ -151,6 +154,12 @@ __ni_suse_valid_ifname(const char *ifname)
 			continue;
 		return FALSE;
 	}
+
+	for (ptr = black_list; *ptr; ptr++) {
+		if (ni_string_eq(*ptr, ifname))
+			return FALSE;
+	}
+
 	return TRUE;
 }
 
