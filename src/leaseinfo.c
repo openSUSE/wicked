@@ -428,7 +428,7 @@ __ni_leaseinfo_dhcp4_dump(FILE *out, const ni_addrconf_lease_t *lease,
 				ni_sockaddr_print(&sa), NULL, 0);
 	}
 	if (lease->dhcp4.boot_sname) {
-		__ni_leaseinfo_print_string(out, prefix, "BOOTSERVENAME",
+		__ni_leaseinfo_print_string(out, prefix, "BOOTSERVERNAME",
 					lease->dhcp4.boot_sname,
 					NULL, 0);
 	}
