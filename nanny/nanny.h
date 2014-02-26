@@ -158,7 +158,9 @@ extern void			ni_objectmodel_unregister_managed_device(ni_managed_device_t *);
 extern void			interface_manager_register_all(ni_dbus_server_t *);
 extern void			ni_objectmodel_nanny_init(ni_nanny_t *mgr);
 extern void			ni_objectmodel_managed_netif_init(ni_dbus_server_t *);
+#ifdef MODEM
 extern void			ni_objectmodel_managed_modem_init(ni_dbus_server_t *);
+#endif
 extern void			ni_objectmodel_managed_policy_init(ni_dbus_server_t *);
 
 #endif /* __WICKED_MANAGER_H__ */

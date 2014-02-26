@@ -45,7 +45,9 @@ ni_objectmodel_nanny_init(ni_nanny_t *mgr)
 
 	ni_objectmodel_managed_policy_init(mgr->server);
 	ni_objectmodel_managed_netif_init(mgr->server);
+#ifdef MODEM
 	ni_objectmodel_managed_modem_init(mgr->server);
+#endif
 
 	ni_objectmodel_register_service(&ni_objectmodel_nanny_service);
 

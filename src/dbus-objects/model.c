@@ -113,8 +113,10 @@ ni_objectmodel_register_all(void)
 	/* register all netif classes and service */
 	ni_objectmodel_register_netif_classes();
 	ni_objectmodel_register_netif_services();
+#ifdef MODEM
 	ni_objectmodel_register_modem_classes();
 	ni_objectmodel_register_modem_services();
+#endif
 	ni_objectmodel_register_addrconf_classes();
 }
 
@@ -131,7 +133,9 @@ ni_objectmodel_create_initial_objects(ni_dbus_server_t *server)
 	ni_dbus_object_register_service(object, &ni_objectmodel_netif_root_interface);
 
 	ni_objectmodel_create_netif_list(server);
+#ifdef MODEM
 	ni_objectmodel_create_modem_list(server);
+#endif
 	return TRUE;
 }
 

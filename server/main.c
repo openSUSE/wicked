@@ -40,7 +40,9 @@ enum {
 
 	OPT_FOREGROUND,
 	OPT_RECOVER,
+#ifdef MODEM
 	OPT_NOMODEMMGR,
+#endif
 };
 
 static struct option	options[] = {
@@ -58,7 +60,10 @@ static struct option	options[] = {
 
 	/* specific */
 	{ "recover",		no_argument,		NULL,	OPT_RECOVER },
+#ifdef MODEM
 	{ "no-modem-manager",	no_argument,		NULL,	OPT_NOMODEMMGR },
+#endif
+
 
 	{ NULL }
 };
@@ -68,7 +73,9 @@ static const char *	opt_log_target;
 static ni_bool_t	opt_foreground;
 static ni_bool_t	opt_recover_state;
 /* FIXME: ModemManager changed to ModemManager1 - new API -> disabled */
+#ifdef MODEM
 static ni_bool_t	opt_no_modem_manager = TRUE;
+#endif
 static ni_bool_t	opt_systemd;
 static char *		opt_state_file;
 static ni_dbus_server_t *dbus_server;
@@ -79,7 +86,9 @@ static void		recover_state(const char *filename);
 static void		handle_interface_event(ni_netdev_t *, ni_event_t);
 static void		handle_rfkill_event(ni_rfkill_type_t, ni_bool_t, void *);
 static void		handle_other_event(ni_event_t);
+#ifdef MODEM
 static void		handle_modem_event(ni_modem_t *, ni_event_t);
+#endif
 
 int
 main(int argc, char **argv)
@@ -112,8 +121,10 @@ main(int argc, char **argv)
 				"        Tell the daemon to not background itself at startup.\n"
 				"  --recover\n"
 				"        Restart of address configuration daemons and keep state information.\n"
+#ifdef MODEM
 				"  --no-modem-manager\n"
 				"        Skip start of modem-manager.\n"
+#endif
 				"  --systemd\n"
 				"        Enables behavior required by systemd service\n"
 				, program_name);
@@ -160,10 +171,11 @@ main(int argc, char **argv)
 		case OPT_RECOVER:
 			opt_recover_state = TRUE;
 			break;
-
+#ifdef MODEM
 		case OPT_NOMODEMMGR:
 			opt_no_modem_manager = TRUE;
 			break;
+#endif
 
 		case OPT_SYSTEMD:
 			opt_systemd = TRUE;
@@ -213,11 +225,12 @@ run_interface_server(void)
 	dbus_server = ni_objectmodel_create_service();
 	if (!dbus_server)
 		ni_fatal("Cannot create server, giving up.");
-
+#ifdef MODEM
 	if (!opt_no_modem_manager) {
 		if (!ni_modem_manager_init(handle_modem_event))
 			ni_error("unable to initialize modem manager client");
 	}
+#endif
 
 	schema = ni_objectmodel_init(dbus_server);
 	if (schema == NULL)
@@ -269,7 +282,9 @@ discover_state(ni_dbus_server_t *server)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
+#ifdef MODEM
 	ni_modem_t *modem;
+#endif
 
 	nc = ni_global_state_handle(1);
 	if (nc == NULL)
@@ -280,9 +295,10 @@ discover_state(ni_dbus_server_t *server)
 			ni_objectmodel_register_netif(server, ifp, NULL);
 			ni_netdev_load_client_state(ifp);
 		}
-
+#ifdef MODEM
 		for (modem = ni_netconfig_modem_list(nc); modem; modem = modem->list.next)
 			ni_objectmodel_register_modem(server, modem);
+#endif
 	}
 }
 
@@ -387,6 +403,7 @@ handle_other_event(ni_event_t event)
 /*
  * Modem event - device was plugged
  */
+#ifdef MODEM
 static void
 handle_modem_event(ni_modem_t *modem, ni_event_t event)
 {
@@ -441,6 +458,7 @@ handle_modem_event(ni_modem_t *modem, ni_event_t event)
 		}
 	}
 }
+#endif
 
 void
 handle_rfkill_event(ni_rfkill_type_t type, ni_bool_t blocked, void *user_data)
