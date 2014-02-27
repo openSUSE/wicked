@@ -126,7 +126,7 @@ extern void		ni_config_free(ni_config_t *);
 extern ni_config_t *	ni_config_parse(const char *, ni_init_appdata_callback_t *, void *);
 extern ni_extension_t *	ni_config_find_extension(ni_config_t *, const char *);
 extern ni_extension_t *	ni_config_find_system_updater(ni_config_t *, const char *);
-extern unsigned int	ni_config_addrconf_update_mask(ni_config_t *, ni_addrconf_mode_t); /* KILL */
+extern unsigned int	ni_config_addrconf_update_mask(ni_addrconf_mode_t, unsigned int);
 
 extern ni_extension_t *	ni_extension_list_find(ni_extension_t *, const char *);
 extern void		ni_extension_list_destroy(ni_extension_t **);

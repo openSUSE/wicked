@@ -222,7 +222,7 @@ __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease
 		*lease_p = NULL;
 	}
 
-	lease->update &= ni_config_addrconf_update_mask(ni_global.config, lease->type);
+	lease->update &= ni_config_addrconf_update_mask(lease->type, lease->family);
 
 	ni_system_update_from_lease(lease, dev->link.ifindex, dev->name);
 

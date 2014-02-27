@@ -49,8 +49,10 @@
 
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
+#include "appconfig.h"
 #include "util_priv.h"
 #include "client/wicked-client.h"
+#include "duid.h"
 
 typedef ni_bool_t (*try_function_t)(const ni_sysconfig_t *, ni_netdev_t *, const char *);
 
@@ -2635,12 +2637,13 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 {
 	const char *string;
 	unsigned int uint;
-	ni_bool_t ret;
+	ni_bool_t ret = TRUE;
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_HOSTNAME_OPTION")) != NULL) {
 		if (!strcasecmp(string, "AUTO")) {
 			ni_string_dup(&compat->dhcp4.hostname, __ni_suse_default_hostname);
-		} else if (ni_check_domain_name(string, ni_string_len(string), 0)) {
+		} else
+		if (ni_check_domain_name(string, ni_string_len(string), 0)) {
 			ni_string_dup(&compat->dhcp4.hostname, string);
 		} else {
 			ni_warn("%s: Cannot parse DHCLIENT_HOSTNAME_OPTION='%s'",
@@ -2651,21 +2654,54 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_CLIENT_ID")) != NULL)
 		ni_string_dup(&compat->dhcp4.client_id, string);
+
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_VENDOR_CLASS_ID")) != NULL)
 		ni_string_dup(&compat->dhcp4.vendor_class, string);
 
-	if (ni_sysconfig_get_integer(sc, "DHCLIENT_WAIT_AT_BOOT", &uint))
-		compat->dhcp4.acquire_timeout = uint? uint : NI_IFWORKER_INFINITE_TIMEOUT;
+	if (ni_sysconfig_get_integer(sc, "DHCLIENT_SLEEP", &uint))
+		compat->dhcp4.start_delay = uint;
+
+	if (ni_sysconfig_get_integer(sc, "DHCLIENT_TIMEOUT", &uint))
+		compat->dhcp4.acquire_timeout = uint;
+
 	if (ni_sysconfig_get_integer(sc, "DHCLIENT_LEASE_TIME", &uint))
 		compat->dhcp4.lease_time = ((int) uint >= 0)? uint : NI_IFWORKER_INFINITE_TIMEOUT;
 
-	/* Ignored for now:
-	   DHCLIENT_USE_LAST_LEASE
-	   WRITE_HOSTNAME_TO_HOSTS
-	   DHCLIENT_MODIFY_SMB_CONF
-	   DHCLIENT_SET_HOSTNAME
-	   DHCLIENT_SET_DEFAULT_ROUTE
-	 */
+	string = ni_sysconfig_get_value(sc, "DHCLIENT_USE_LAST_LEASE");
+	compat->dhcp4.recover_lease = !ni_string_eq(string, "no");
+	string = ni_sysconfig_get_value(sc, "DHCLIENT_RELEASE_BEFORE_QUIT");
+	compat->dhcp4.release_lease = !ni_string_eq(string, "no");
+
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_SET_HOSTNAME"))) {
+		if (ni_string_eq(string, "yes")) {
+			ni_addrconf_update_set(&compat->dhcp4.update,
+					NI_ADDRCONF_UPDATE_HOSTNAME, TRUE);
+		} else
+		if (ni_string_eq(string, "no")) {
+			ni_addrconf_update_set(&compat->dhcp4.update,
+					NI_ADDRCONF_UPDATE_HOSTNAME, FALSE);
+		}
+	}
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_SET_DEFAULT_ROUTE"))) {
+		if (ni_string_eq(string, "yes")) {
+			ni_addrconf_update_set(&compat->dhcp4.update,
+					NI_ADDRCONF_UPDATE_DEFAULT_ROUTE, TRUE);
+		} else
+		if (ni_string_eq(string, "no")) {
+			ni_addrconf_update_set(&compat->dhcp4.update,
+					NI_ADDRCONF_UPDATE_DEFAULT_ROUTE, FALSE);
+		}
+	}
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_MODIFY_SMB_CONF"))) {
+		if (ni_string_eq(string, "yes")) {
+			ni_addrconf_update_set(&compat->dhcp4.update,
+					NI_ADDRCONF_UPDATE_SMB, TRUE);
+		} else
+		if (ni_string_eq(string, "no")) {
+			ni_addrconf_update_set(&compat->dhcp4.update,
+					NI_ADDRCONF_UPDATE_SMB, FALSE);
+		}
+	}
 
 	return ret;
 }
@@ -2677,6 +2713,7 @@ static ni_bool_t
 __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_bool_t ret = TRUE;
+	unsigned int uint;
 	const char *string;
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_MODE")) != NULL) {
@@ -2714,35 +2751,42 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_CLIENT_ID")) != NULL) {
 		ni_opaque_t duid;
-		int len;
-		/* Hmm... consider to move duid.[ch] to src ...
-		 * type (2) + hwtype (2) + hwaddr (6) => 10 for duid type 3 (LL)
-		 * type (2) + uuid (128)              => 130 for duid type 4 (UUID)
-		 */
-		len = ni_parse_hex(string, duid.data, sizeof(duid.data));
-		if (len >= 10 && len <= 130) {
+		if (ni_duid_parse_hex(&duid, string)) {
 			ni_string_dup(&compat->dhcp6.client_id, string);
 		} else {
-			ni_warn("%s: Cannot parse DHCLIENT6_CLIENT_ID='%s' as DUID in hex",
+			ni_warn("%s: Cannot parse DHCLIENT6_CLIENT_ID='%s' as DUID",
 				ni_basename(sc->pathname), string);
 			ret = FALSE;
 		}
 	}
 
-#if 0	/* FIXME: Use defaults for now */
+	if (ni_sysconfig_get_integer(sc, "DHCLIENT_SLEEP", &uint))
+		compat->dhcp6.start_delay = uint;
 
-	if (ni_sysconfig_get_integer(sc, "DHCLIENT6_WAIT_AT_BOOT", &uint))
-		compat->dhcp4.acquire_timeout = uint? uint : NI_IFWORKER_INFINITE_TIMEOUT;
-	if (ni_sysconfig_get_integer(sc, "DHCLIENT6_LEASE_TIME", &uint))
-		compat->dhcp4.lease_time = ((int) uint >= 0)? uint : NI_IFWORKER_INFINITE_TIMEOUT;
+	if (ni_sysconfig_get_integer(sc, "DHCLIENT_TIMEOUT", &uint))
+		compat->dhcp6.acquire_timeout = uint;
 
-	/* Ignored for now:
-	   DHCLIENT_USE_LAST_LEASE
-	   DHCLIENT_MODIFY_SMB_CONF
-	   DHCLIENT_SET_HOSTNAME
-	   DHCLIENT_SET_DEFAULT_ROUTE
-	 */
-#endif
+	if (ni_sysconfig_get_integer(sc, "DHCLIENT_LEASE_TIME", &uint))
+		compat->dhcp6.lease_time = ((int) uint >= 0)? uint : NI_IFWORKER_INFINITE_TIMEOUT;
+
+	/* TODO: Trigger autoip4 after DHCLIENT_WAIT_AT_BOOT when enabled */
+
+	string = ni_sysconfig_get_value(sc, "DHCLIENT_USE_LAST_LEASE");
+	compat->dhcp6.recover_lease = !ni_string_eq(string, "no");
+	string = ni_sysconfig_get_value(sc, "DHCLIENT_RELEASE_BEFORE_QUIT");
+	compat->dhcp6.release_lease = !ni_string_eq(string, "no");
+
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_SET_HOSTNAME"))) {
+		if (ni_string_eq(string, "yes")) {
+			ni_addrconf_update_set(&compat->dhcp6.update,
+					NI_ADDRCONF_UPDATE_HOSTNAME, TRUE);
+		} else
+		if (ni_string_eq(string, "no")) {
+			ni_addrconf_update_set(&compat->dhcp6.update,
+					NI_ADDRCONF_UPDATE_HOSTNAME, FALSE);
+		}
+	}
+
 	return ret;
 }
 
@@ -2751,6 +2795,12 @@ __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 {
 	if (compat->dhcp4.enabled)
 		return TRUE;
+
+	/* init wicked defaults */
+	compat->dhcp4.update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);
+	/* apply sysconfig defaults */
+	ni_addrconf_update_set(&compat->dhcp4.update, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE, TRUE);
+	ni_addrconf_update_set(&compat->dhcp4.update, NI_ADDRCONF_UPDATE_HOSTNAME, FALSE);
 
 	if (__ni_suse_dhcp_defaults)
 		__ni_suse_addrconf_dhcp4_options(__ni_suse_dhcp_defaults, compat);
@@ -2768,6 +2818,11 @@ __ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 {
 	if (compat->dhcp6.enabled)
 		return TRUE;
+
+	/* init wicked defaults */
+	compat->dhcp6.update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET6);
+	/* apply sysconfig defaults */
+	ni_addrconf_update_set(&compat->dhcp6.update, NI_ADDRCONF_UPDATE_HOSTNAME, FALSE);
 
 	if (__ni_suse_dhcp_defaults)
 		__ni_suse_addrconf_dhcp6_options(__ni_suse_dhcp_defaults, compat);

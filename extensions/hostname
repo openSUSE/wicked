@@ -59,27 +59,33 @@ restore)
 
 install)
 	found=""
-	hostname=$1
+	hostname_arg="${1%%.*}"
+	hostname_cur=`get_current_hostname`
 	hostnamefile="hostname.${ifname}.${type}.${family}"
 
-	# Check if hostname file exists
+	# Check if hostname cache file exists and is up-to-date
 	for f in "${hostnamedir}/hostname."* ; do
-		found=$f
-		break
+		test -f "$f" || continue
+		read -t 1 h < "$f" 2>/dev/null
+		h="${h%%.*}"
+		if test "X$h" != "X$hostname_cur" ; then
+			rm -f "$f"
+		else
+			found=$f
+			break
+		fi
 	done
 
 	if test "$found" = "" -o -e "${hostnamedir}/${hostnamefile}" ; then
 		# We've either not found any files, so we're first, or we're
 		# processing an update from the first lease which controls hostname.
-		curr_hostname=`get_current_hostname`
-		s_hostname="${hostname%%.*}"
-		if test "X${s_hostname}" != "X" -a "X${curr_hostname}" != "X${s_hostname}" ; then
+		if test "X${hostname_arg}" != "X" -a "X${hostname_cur}" != "X${hostname_arg}" ; then
 			# Only update the hostname it differs from the system.
-			/bin/hostname "${hostname}"
+			/bin/hostname "${hostname_arg}" 2>/dev/null
 		fi
 
 		# Store regardless of whether hostname differs from the system.
-		echo "${s_hostname}" > "${hostnamedir}/hostname.$ifname.$type.$family"
+		echo "${hostname_arg}" > "${hostnamedir}/${hostnamefile}" 2>/dev/null
 	fi
 ;;
 

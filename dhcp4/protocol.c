@@ -450,7 +450,7 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 			else
 				ni_buffer_putc(msgbuf, DHCP4_FQDN);
 		}
-		if (options->flags & DHCP4_DO_RESOLVER) {
+		if (options->flags & DHCP4_DO_DNS) {
 			ni_buffer_putc(msgbuf, DHCP4_DNSSEARCH);
 			ni_buffer_putc(msgbuf, DHCP4_DNSDOMAIN);
 			ni_buffer_putc(msgbuf, DHCP4_DNSSERVER);

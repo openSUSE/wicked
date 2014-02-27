@@ -43,6 +43,7 @@
 #include <wicked/logging.h>
 #include <wicked/xml.h>
 
+#include "appconfig.h"
 #include "leasefile.h"
 #include "dhcp4/lease.h"
 #include "dhcp6/lease.h"
@@ -392,6 +393,8 @@ ni_addrconf_lease_ptz_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 int
 __ni_addrconf_lease_info_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 {
+	char hex[32] = { '\0' };
+
 	xml_node_new_element("family", node, ni_addrfamily_type_to_name(lease->family));
 	xml_node_new_element("type", node, ni_addrconf_type_to_name(lease->type));
 	if (!ni_string_empty(lease->owner))
@@ -399,6 +402,8 @@ __ni_addrconf_lease_info_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *no
 	if (!ni_uuid_is_null(&lease->uuid))
 		xml_node_new_element("uuid", node, ni_uuid_print(&lease->uuid));
 	xml_node_new_element("state", node, ni_addrconf_state_to_name(lease->state));
+	snprintf(hex, sizeof(hex), "0x%08x", lease->update);
+	xml_node_new_element("update", node, hex);
 	xml_node_new_element_uint("acquired", node, lease->time_acquired);
 	return 0;
 }
@@ -515,6 +520,7 @@ ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t **result)
 static int
 __ni_addrconf_lease_info_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 {
+	ni_bool_t update = FALSE;
 	xml_node_t *child;
 	int value;
 
@@ -540,11 +546,19 @@ __ni_addrconf_lease_info_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *
 			if (ni_uuid_parse(&lease->uuid, child->cdata) != 0)
 				return -1;
 		} else
+		if (ni_string_eq(child->name, "update")) {
+			if (ni_parse_uint(child->cdata, &lease->update, 16) != 0)
+				return -1;
+			update = TRUE;
+		}
 		if (ni_string_eq(child->name, "acquired")) {
 			if (ni_parse_uint(child->cdata, &lease->time_acquired, 10) != 0)
 				return -1;
 		}
 	}
+	if (!update)
+		lease->update = ni_config_addrconf_update_mask(lease->type, lease->family);
+
 	return 0;
 }
 

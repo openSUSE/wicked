@@ -11,30 +11,38 @@
 #include <wicked/constants.h>
 
 /*
- * DHCP configuration info
+ * Lease update flags
  */
 enum {
-	NI_ADDRCONF_UPDATE_GENERIC,		/* Set netconfig data first. */
 	NI_ADDRCONF_UPDATE_DEFAULT_ROUTE,
 	NI_ADDRCONF_UPDATE_HOSTNAME,
-	NI_ADDRCONF_UPDATE_HOSTSFILE,
-	NI_ADDRCONF_UPDATE_SYSLOG,
-	NI_ADDRCONF_UPDATE_RESOLVER,
+	NI_ADDRCONF_UPDATE_DNS,
 	NI_ADDRCONF_UPDATE_NIS,
 	NI_ADDRCONF_UPDATE_NTP,
-	NI_ADDRCONF_UPDATE_NETBIOS,
+	NI_ADDRCONF_UPDATE_SMB,
+	NI_ADDRCONF_UPDATE_NDS,
 	NI_ADDRCONF_UPDATE_SLP,
-
-	__NI_ADDRCONF_UPDATE_MAX,
+	NI_ADDRCONF_UPDATE_LOG,
+	__NI_ADDRCONF_UPDATE_NONE = 0,
 };
 
-
+/*
+ * Lease updater types
+ */
 enum {
-	NI_ADDRCONF_UPDATE_FORMAT_INFO,
-
-	__NI_ADDRCONF_UPDATE_FORMAT_MAX,
+	NI_ADDRCONF_UPDATER_GENERIC,
+	NI_ADDRCONF_UPDATER_HOSTNAME,
+	NI_ADDRCONF_UPDATER_RESOLVER,
+	__NI_ADDRCONF_UPDATER_MAX
 };
 
+/*
+ * Lease updater format, leaseinfo only for now
+ */
+enum {
+	NI_ADDRCONF_UPDATER_FORMAT_NONE,
+	NI_ADDRCONF_UPDATER_FORMAT_INFO,
+};
 
 /*
  * Leases obtained through a dynamic addrconf protocol,
@@ -165,6 +173,10 @@ extern int		ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *, xml_node_t **)
 extern int		ni_addrconf_lease_from_xml(ni_addrconf_lease_t **, const xml_node_t *);
 
 extern int		ni_system_update_from_lease(const ni_addrconf_lease_t *, const unsigned int, const char *);
+
+extern const char *	ni_addrconf_update_flag_to_name(unsigned int);
+extern ni_bool_t	ni_addrconf_update_name_to_flag(const char *, unsigned int *);
+extern void		ni_addrconf_update_set(unsigned int *, unsigned int, ni_bool_t);
 
 extern const char *	ni_netbios_node_type_to_name(unsigned int);
 extern ni_bool_t	ni_netbios_node_type_to_code(const char *, unsigned int *);

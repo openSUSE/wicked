@@ -121,34 +121,47 @@ ni_addrconf_state_to_name(unsigned int type)
 /*
  * Map addrconf update values to strings and vice versa
  */
-static const ni_intmap_t	__addrconf_updates[] = {
+static const ni_intmap_t	__addrconf_update_flags[] = {
 	{ "default-route",	NI_ADDRCONF_UPDATE_DEFAULT_ROUTE },
-	{ "hostname",		NI_ADDRCONF_UPDATE_HOSTNAME },
-	{ "hosts-file",		NI_ADDRCONF_UPDATE_HOSTSFILE },
-	{ "syslog",		NI_ADDRCONF_UPDATE_SYSLOG },
-	{ "resolver",		NI_ADDRCONF_UPDATE_RESOLVER },
-	{ "nis",		NI_ADDRCONF_UPDATE_NIS },
-	{ "ntp",		NI_ADDRCONF_UPDATE_NTP },
-	{ "smb",		NI_ADDRCONF_UPDATE_NETBIOS },
-	{ "slp",		NI_ADDRCONF_UPDATE_SLP },
+	{ "hostname",		NI_ADDRCONF_UPDATE_HOSTNAME      },
+	{ "dns",		NI_ADDRCONF_UPDATE_DNS           },
+	{ "nis",		NI_ADDRCONF_UPDATE_NIS           },
+	{ "ntp",		NI_ADDRCONF_UPDATE_NTP           },
+	{ "smb",		NI_ADDRCONF_UPDATE_SMB           },
+	{ "nds",		NI_ADDRCONF_UPDATE_NDS           },
+	{ "slp",		NI_ADDRCONF_UPDATE_SLP           },
+	{ "log",		NI_ADDRCONF_UPDATE_LOG           },
 
 	{ NULL }
 };
 
-int
-ni_addrconf_name_to_update_target(const char *name)
+const char *
+ni_addrconf_update_flag_to_name(unsigned int flag)
+{
+	return ni_format_uint_mapped(flag, __addrconf_update_flags);
+}
+
+ni_bool_t
+ni_addrconf_update_name_to_flag(const char *name, unsigned int *flag)
 {
 	unsigned int value;
 
-	if (ni_parse_uint_mapped(name, __addrconf_updates, &value) < 0)
-		return -1;
-	return value;
+	if (!flag || ni_parse_uint_maybe_mapped(name,
+				__addrconf_update_flags, &value, 0) < 0)
+		return FALSE;
+	*flag = value;
+	return TRUE;
 }
 
-const char *
-ni_addrconf_update_target_to_name(unsigned int type)
+void
+ni_addrconf_update_set(unsigned int *mask, unsigned int flag, ni_bool_t enable)
 {
-	return ni_format_uint_mapped(type, __addrconf_updates);
+	if (mask) {
+		if (enable)
+			*mask |= (1 << flag);
+		else
+			*mask &= ~(1 << flag);
+	}
 }
 
 /*

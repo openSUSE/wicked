@@ -1383,12 +1383,8 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 	if (ni_dbus_dict_get_uint32(argument, "acquired", &value32))
 		lease->time_acquired = value32;
 
-	/* If the caller didn't tell us what to update, we assume we should
-	 * update all facilities */
 	if (ni_dbus_dict_get_uint32(argument, "update", &value32))
 		lease->update = value32;
-	else
-		lease->update = ~0;
 
 	if ((child = ni_dbus_dict_get(argument, "uuid")) != NULL
 	 && !ni_dbus_variant_get_uuid(child, &lease->uuid))

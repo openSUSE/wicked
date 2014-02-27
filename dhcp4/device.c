@@ -357,11 +357,11 @@ static unsigned int
 ni_dhcp4_do_bits(unsigned int update_flags)
 {
 	static unsigned int	do_mask[32] = {
+	[NI_ADDRCONF_UPDATE_DEFAULT_ROUTE]	= DHCP4_DO_GATEWAY,
 	[NI_ADDRCONF_UPDATE_HOSTNAME]		= DHCP4_DO_HOSTNAME,
-	[NI_ADDRCONF_UPDATE_RESOLVER]		= DHCP4_DO_RESOLVER,
+	[NI_ADDRCONF_UPDATE_DNS]		= DHCP4_DO_DNS,
 	[NI_ADDRCONF_UPDATE_NIS]		= DHCP4_DO_NIS,
 	[NI_ADDRCONF_UPDATE_NTP]		= DHCP4_DO_NTP,
-	[NI_ADDRCONF_UPDATE_DEFAULT_ROUTE]	= DHCP4_DO_GATEWAY,
 	};
 	unsigned int bit, result = 0;
 
@@ -379,11 +379,11 @@ __ni_dhcp4_print_flags(unsigned int flags)
 	{ "arp",		DHCP4_DO_ARP		},
 	{ "csr",		DHCP4_DO_CSR		},
 	{ "mscsr",		DHCP4_DO_MSCSR		},
+	{ "gateway",		DHCP4_DO_GATEWAY	},
 	{ "hostname",		DHCP4_DO_HOSTNAME	},
-	{ "resolver",		DHCP4_DO_RESOLVER	},
+	{ "dns",		DHCP4_DO_DNS		},
 	{ "nis",		DHCP4_DO_NIS		},
 	{ "ntp",		DHCP4_DO_NTP		},
-	{ "gateway",		DHCP4_DO_GATEWAY		},
 	{ NULL }
 	};
 	static char buffer[1024];

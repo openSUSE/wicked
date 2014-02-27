@@ -411,14 +411,12 @@ ni_bool_t
 ni_sysconfig_get_integer(const ni_sysconfig_t *sc, const char *name, unsigned int *p)
 {
 	ni_var_t *var;
-	char *end;
 
 	*p = 0;
 	if ((var = ni_sysconfig_get(sc, name)) == NULL)
 		return FALSE;
 
-	*p = strtoul(var->value, &end, 0);
-	if (*end != '\0')
+	if (ni_parse_uint(var->value, p, 0))
 		return FALSE;
 	return TRUE;
 }

@@ -34,7 +34,7 @@
 #include <wicked/objectmodel.h>
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
-
+#include "appconfig.h"
 #include "dhcp6/dhcp6.h"
 #include "util_priv.h"
 
@@ -289,7 +289,7 @@ ni_dhcp6_request_new(void)
 	req->rapid_commit = TRUE;
 
 	/* By default, we try to obtain all sorts of config from the server */
-	req->update = ~0;
+	req->update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET6);
 
 	return req;
 }
