@@ -85,6 +85,9 @@ static int	__ni_rtnl_link_change_hwaddr(ni_netdev_t *dev, const ni_hwaddr_t *hwa
 
 static int	__ni_rtnl_link_up(const ni_netdev_t *, const ni_netdev_req_t *);
 static int	__ni_rtnl_link_down(const ni_netdev_t *, int);
+
+static int	__ni_rtnl_link_add_slave_down(const ni_netdev_t *, const char *, unsigned int);
+
 static int	__ni_rtnl_send_deladdr(ni_netdev_t *, const ni_address_t *);
 static int	__ni_rtnl_send_newaddr(ni_netdev_t *, const ni_address_t *, int);
 static int	__ni_rtnl_send_delroute(ni_netdev_t *, ni_route_t *);
@@ -853,6 +856,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 {
 	const char *complaint;
 	ni_bonding_t *bond;
+	ni_string_array_t enslaved;
 	ni_string_array_t slaves;
 	ni_bool_t is_up;
 	ni_bool_t has_slaves;
@@ -871,9 +875,9 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 
 	/* Fetch the number of currently active slaves */
 	ni_string_array_init(&slaves);
-	ni_sysfs_bonding_get_slaves(dev->name, &slaves);
-	has_slaves = slaves.count > 0;
-	ni_string_array_destroy(&slaves);
+	ni_string_array_init(&enslaved);
+	ni_sysfs_bonding_get_slaves(dev->name, &enslaved);
+	has_slaves = enslaved.count > 0;
 
 	is_up = ni_netdev_device_is_up(dev);
 	if (!has_slaves) {
@@ -896,8 +900,29 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 	/* Filter out only currently available slaves */
 	for (i = 0; i < bond_cfg->slave_names.count; ++i) {
 		const char *name = bond_cfg->slave_names.data[i];
-		if (name && ni_netdev_by_name(nc, name))
-			ni_string_array_append(&slaves, name);
+		ni_netdev_t *sdev;
+
+		if (name && (sdev = ni_netdev_by_name(nc, name))) {
+			int ret;
+
+			if (sdev->link.masterdev.index) {
+				if (sdev->link.masterdev.index == dev->link.ifindex)
+					continue;
+
+				ni_error("%s: cannot enslave %s, already enslaved in %s[%u]",
+					dev->name, sdev->name, sdev->link.masterdev.name ?
+					sdev->link.masterdev.name : "", sdev->link.masterdev.index);
+				continue; /* ? */
+			} else
+			if (ni_string_array_index(&enslaved, name) != -1)
+				continue;
+
+			ret = __ni_rtnl_link_add_slave_down(sdev, dev->name, dev->link.ifindex);
+			if (ret != 0) {
+				__ni_rtnl_link_down(sdev, RTM_NEWLINK);
+				ni_string_array_append(&slaves, name);
+			}
+		}
 	}
 
 	if (slaves.count > 0) {
@@ -906,6 +931,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 		 */
 		ni_debug_ifconfig("%s: configuring bonding slaves (stage 1.%u.%u)",
 				dev->name, is_up, has_slaves);
+
 		/* Update the list of slave devices */
 		if (ni_sysfs_bonding_set_list_attr(dev->name, "slaves", &slaves) < 0) {
 			ni_string_array_destroy(&slaves);
@@ -915,10 +941,9 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 		}
 		ni_string_array_destroy(&slaves);
 	}
-	ni_sysfs_bonding_get_slaves(dev->name, &slaves);
-	has_slaves = slaves.count > 0;
-	ni_string_array_destroy(&slaves);
 
+	ni_sysfs_bonding_get_slaves(dev->name, &enslaved);
+	has_slaves = enslaved.count > 0;
 	if (has_slaves) {
 		/*
 		 * Stage 2 -- post-enslave:
@@ -1578,6 +1603,43 @@ __ni_rtnl_link_down(const ni_netdev_t *dev, int cmd)
 	ifi.ifi_change = IFF_UP;
 
 	return __ni_rtnl_simple(cmd, 0, &ifi, sizeof(ifi));
+}
+
+/*
+ * Bring down an interface and enslave to master
+ */
+int
+__ni_rtnl_link_add_slave_down(const ni_netdev_t *slave, const char *mname, unsigned int mindex)
+{
+	struct ifinfomsg ifi;
+	struct nl_msg *msg;
+
+	if (!slave || !mname || !mindex)
+		return -1;
+
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+	ifi.ifi_index = slave->link.ifindex;
+	ifi.ifi_change = IFF_UP;
+
+	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST);
+	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	NLA_PUT_U32(msg, IFLA_MASTER, mindex);
+
+	if (ni_nl_talk(msg, NULL) < 0)
+		goto failed;
+
+	ni_debug_ifconfig("successfully enslaved %s into master %s", slave->name, mname);
+	nlmsg_free(msg);
+	return 0;
+
+nla_put_failure:
+	ni_error("failed to encode netlink message to enslave %s into %s", slave->name, mname);
+failed:
+	nlmsg_free(msg);
+	return -1;
 }
 
 /*
