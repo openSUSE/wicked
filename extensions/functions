@@ -177,4 +177,9 @@ function netif_exists {
 	test -d "/sys/class/net/$ifname"
 }
 
-wicked_log_call "$0 $@"
+##################################################################
+#
+# To enable extension debug (/var/log/wickedd.log), comment out:
+#
+#wicked_log_call "$0 $@"
+#
