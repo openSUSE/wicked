@@ -1021,6 +1021,7 @@ static xml_node_t *
 __ni_compat_generate_dynamic_addrconf(xml_node_t *ifnode, const char *name, ni_bool_t required, unsigned int update)
 {
 	xml_node_t *aconf;
+	char *temp = NULL;
 
 	aconf = xml_node_new(name, ifnode);
 	xml_node_new_element("enabled", aconf, "true");
@@ -1031,17 +1032,22 @@ __ni_compat_generate_dynamic_addrconf(xml_node_t *ifnode, const char *name, ni_b
 #endif
 
 	if (update) {
-		xml_node_t *child = xml_node_new("update", aconf);
+		ni_string_array_t names = NI_STRING_ARRAY_INIT;
+		const char *name;
 		unsigned int i;
 
 		for (i = 0; update != 0; ++i, update >>= 1) {
 			if (update & 1) {
-				const char *key = ni_addrconf_update_target_to_name(i);
-
-				if (key)
-					xml_node_new(key, child);
+				name = ni_addrconf_update_flag_to_name(i);
+				if (name)
+					ni_string_array_append(&names, name);
 			}
 		}
+		if (names.count && ni_string_join(&temp, &names, ",")) {
+			xml_node_new_element("update", aconf, temp);
+			ni_string_free(&temp);
+		}
+		ni_string_array_destroy(&names);
 	}
 
 	return aconf;
@@ -1055,7 +1061,8 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 	if (!compat->dhcp4.enabled)
 		return NULL;
 
-	dhcp = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv4:dhcp", compat->dhcp4.required, compat->dhcp4.update);
+	dhcp = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv4:dhcp",
+			compat->dhcp4.required, compat->dhcp4.update);
 
 	if (compat->dhcp4.hostname)
 		xml_node_dict_set(dhcp, "hostname", compat->dhcp4.hostname);
@@ -1072,13 +1079,6 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 
 	if (compat->dhcp4.vendor_class)
 		xml_node_dict_set(dhcp, "vendor-class", compat->dhcp4.vendor_class);
-
-	/* Ignored for now:
-	   DHCLIENT_USE_LAST_LEASE
-	   DHCLIENT_MODIFY_SMB_CONF
-	   DHCLIENT_SET_HOSTNAME
-	   DHCLIENT_SET_DEFAULT_ROUTE
-	 */
 
 	return dhcp;
 }

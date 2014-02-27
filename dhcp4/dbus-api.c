@@ -23,6 +23,7 @@
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/objectmodel.h>
+#include "appconfig.h"
 #include "dhcp4/dhcp.h"
 
 static ni_dhcp4_request_t *	ni_objectmodel_dhcp4_request_from_dict(const ni_dbus_variant_t *);
@@ -259,7 +260,7 @@ ni_dhcp4_request_new(void)
 	req->enabled = TRUE; /* used by wickedd */
 
 	/* By default, we try to obtain all sorts of config from the server */
-	req->update = ~0;
+	req->update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);
 
 	return req;
 }

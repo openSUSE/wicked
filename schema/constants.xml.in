@@ -18,6 +18,11 @@
   <@@ADDRCONF_STATE_NAME@@ value="@@ADDRCONF_STATE_VALUE@@"/>
 </define>
 
+<!-- Built-in update flag bit mask names -->
+<define name="builtin-addrconf-update-mask" type="uint32" constraint="bitmap">
+  <@@ADDRCONF_UPDATE_FLAG_NAME@@ bit="@@ADDRCONF_UPDATE_FLAG_VALUE@@"/>
+</define>
+
 <!-- Built-in dhcp6 run/configuration mode types -->
 <define name="builtin-dhcp6-mode" type="uint32" constraint="enum">
   <@@DHCP6_MODE_NAME@@ value="@@DHCP6_MODE_VALUE@@"/>

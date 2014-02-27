@@ -163,11 +163,11 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		goto done;
 	}
 
-	ni_debug_dbus("received signal %s for interface %s (ifindex %d), lease %s/%s, uuid=%s",
+	ni_debug_dbus("received signal %s for interface %s (ifindex %d), lease %s/%s, uuid=%s, update=0x%x",
 			signal_name, ifp->name, ifp->link.ifindex,
 			ni_addrconf_type_to_name(lease->type),
 			ni_addrfamily_type_to_name(lease->family),
-			ni_uuid_print(&uuid));
+			ni_uuid_print(&uuid), lease->update);
 	if (!strcmp(signal_name, NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL)) {
 		if (lease->state != NI_ADDRCONF_STATE_GRANTED) {
 			ni_error("%s: unexpected lease state in signal %s", __func__, signal_name);
@@ -249,7 +249,6 @@ ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, unsigned int ad
 
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_STATIC, addrfamily);
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
-	lease->update = ~0;
 
 	if (!__ni_objectmodel_set_address_dict(&lease->addrs, dict, error)
 	 || !__ni_objectmodel_set_route_dict(&lease->routes, dict, error)

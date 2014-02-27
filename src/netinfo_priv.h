@@ -86,14 +86,7 @@ extern ni_route_t *	__ni_lease_owns_route(const ni_addrconf_lease_t *, const ni_
 
 extern int		__ni_wireless_link_event(ni_netconfig_t *, ni_netdev_t *, void *, size_t);
 
-static inline void
-__ni_addrconf_set_update(unsigned int *mask, unsigned int bit)
-{
-	*mask |= (1 << bit);
-}
-
-static inline int
-__ni_addrconf_should_update(unsigned int mask, unsigned int bit)
+static inline ni_bool_t	__ni_addrconf_should_update(unsigned int mask, unsigned int bit)
 {
 	return !!(mask & (1 << bit));
 }

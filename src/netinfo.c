@@ -694,6 +694,7 @@ ni_addrconf_lease_new(int type, int family)
 	lease->seqno = __ni_global_seqno++;
 	lease->type = type;
 	lease->family = family;
+	ni_config_addrconf_update_mask(lease->type, lease->family);
 	return lease;
 }
 
@@ -792,3 +793,4 @@ ni_addrconf_lease_list_destroy(ni_addrconf_lease_t **list)
 		ni_addrconf_lease_free(lease);
 	}
 }
+

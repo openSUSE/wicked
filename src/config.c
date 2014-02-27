@@ -44,6 +44,7 @@ static ni_bool_t	ni_config_parse_extension(ni_extension_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_sources(ni_config_t *, xml_node_t *);
 static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
 static const char *	ni_config_build_include(const char *, const char *);
+static unsigned int	ni_config_addrconf_update_mask_all(void);
 
 /*
  * Create an empty config object
@@ -55,10 +56,10 @@ ni_config_new()
 
 	conf = xcalloc(1, sizeof(*conf));
 
-	conf->addrconf.default_allow_update = ~0;
-	conf->addrconf.dhcp4.allow_update = ~0;
-	conf->addrconf.dhcp6.allow_update = ~0;
-	conf->addrconf.autoip.allow_update = ~0;
+	conf->addrconf.default_allow_update = ni_config_addrconf_update_mask_all();
+	conf->addrconf.dhcp4.allow_update   = conf->addrconf.default_allow_update;
+	conf->addrconf.dhcp6.allow_update   = conf->addrconf.default_allow_update;
+	conf->addrconf.autoip.allow_update  = conf->addrconf.default_allow_update;
 
 	conf->recv_max = 64 * 1024;
 
@@ -616,19 +617,21 @@ ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node
 {
 	const xml_node_t *child;
 
+	*update_mask = __NI_ADDRCONF_UPDATE_NONE;
 	for (child = node->children; child; child = child->next) {
-		int target;
+		unsigned int target;
 
 		if (!strcmp(child->name, "all")) {
-			*update_mask = ~0;
+			*update_mask = ni_config_addrconf_update_mask_all();
 		} else
 		if (!strcmp(child->name, "none")) {
-			*update_mask = 0;
+			*update_mask = __NI_ADDRCONF_UPDATE_NONE;
 		} else
-		if ((target = ni_addrconf_name_to_update_target(child->name)) >= 0) {
-			*update_mask |= (1 << target);
+		if (ni_addrconf_update_name_to_flag(child->name, &target)) {
+			ni_addrconf_update_set(update_mask, target, TRUE);
 		} else {
-			ni_warn("ignoring unknown addrconf update target \"%s\"", child->name);
+			ni_info("ignoring unknown addrconf update target \"%s\"",
+					child->name);
 		}
 	}
 }
@@ -933,19 +936,54 @@ ni_c_binding_get_address(const ni_c_binding_t *binding)
 /*
  * Query the default update mask
  */
-unsigned int
-ni_config_addrconf_update_mask(ni_config_t *conf, ni_addrconf_mode_t type)
+static unsigned int
+ni_config_addrconf_update_mask_all(void)
 {
-	unsigned int update_mask = conf->addrconf.default_allow_update;
+	static unsigned mask = __NI_ADDRCONF_UPDATE_NONE;
+	if (!mask) {
+		unsigned int i;
+		mask = ~mask;
+		for (i = 0; i < 32; ++i) {
+			if (!ni_addrconf_update_flag_to_name(i))
+				mask &= ~(1 << i);
+		}
+	}
+	return mask;
+}
+
+unsigned int
+ni_config_addrconf_update_mask(ni_addrconf_mode_t type, unsigned int family)
+{
+	unsigned int mask = __NI_ADDRCONF_UPDATE_NONE;
+	ni_config_t *conf = ni_global.config;
 
 	switch (type) {
-	case NI_ADDRCONF_DHCP:
-		update_mask &= conf->addrconf.dhcp4.allow_update;
+	case NI_ADDRCONF_STATIC:
+		mask = conf ? conf->addrconf.default_allow_update :
+			ni_config_addrconf_update_mask_all();
 		break;
 
+	case NI_ADDRCONF_AUTOCONF:
+		mask = conf ? conf->addrconf.autoip.allow_update :
+			ni_config_addrconf_update_mask_all();
+		break;
+
+	case NI_ADDRCONF_DHCP:
+		switch (family) {
+		case AF_INET:
+			mask = conf ? conf->addrconf.dhcp4.allow_update :
+				ni_config_addrconf_update_mask_all();
+			break;
+		case AF_INET6:
+			mask = conf ? conf->addrconf.dhcp6.allow_update :
+				ni_config_addrconf_update_mask_all();
+			break;
+		default: ;
+		}
+		break;
 	default: ;
 	}
-	return update_mask;
+	return mask;
 }
 
 void

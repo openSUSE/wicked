@@ -21,7 +21,7 @@
     		description="State of the lease - usually GRANTED or RELEASED"/>
     <acquired type="uint32" 
     		description="Timestamp when the lease was acquired"/>
-    <update type="uint32"
+    <update type="builtin-addrconf-update-mask"
     		description="This is a bitmap describing which system services should be configured through this lease" />
 
     <uuid type="uuid-type" />
@@ -156,12 +156,14 @@
     <uuid type="uuid-type"/>
     <enabled type="boolean"/>
 
-    <acquire-timeout type="uint32" />
     <hostname type="string" />
     <client-id type="string" />
     <vendor-class type="string" />
+    <initial-delay type="uint32" />
+    <acquire-timeout type="uint32" />
     <lease-time type="uint32" />
 
+    <update type="builtin-addrconf-update-mask" />
     <route-priority type="uint32" />
   </define>
   <define name="properties" type="interface:addrconf-lease"/>
@@ -200,6 +202,7 @@
     <client-id type="string" />
     <vendor-class type="string" />
     <lease-time type="uint32" />
+    <update type="builtin-addrconf-update-mask" />
   </define>
   <define name="properties" type="interface:addrconf-lease"/>
 

@@ -54,8 +54,12 @@ typedef struct ni_compat_netdev {
 		char *		hostname;
 		char *		client_id;
 		char *		vendor_class;
+
+		unsigned int	start_delay;
 		unsigned int	acquire_timeout;
 		unsigned int	lease_time;
+		ni_bool_t	recover_lease;
+		ni_bool_t	release_lease;
 
 		unsigned int	update;
 	} dhcp4;
@@ -68,6 +72,12 @@ typedef struct ni_compat_netdev {
 
 		char *		hostname;
 		char *		client_id;
+
+		unsigned int	start_delay;
+		unsigned int	acquire_timeout;
+		unsigned int	lease_time;
+		ni_bool_t	recover_lease;
+		ni_bool_t	release_lease;
 
 		unsigned int	update;
 	} dhcp6;
