@@ -2013,42 +2013,39 @@ ni_uuid_print(const ni_uuid_t *uuid)
 int
 ni_uuid_parse(ni_uuid_t *uuid, const char *string)
 {
-	unsigned int nibbles = 0;
-	uint32_t word = 0;
+	enum {
+		UUID_SEP1 = 8,
+		UUID_SEP2 = 13,
+		UUID_SEP3 = 18,
+		UUID_SEP4 = 23,
+		UUID_LEN = (32 + 4)
+	};
+	char tmp[UUID_LEN+1] = { 0 };
+	int ret;
 
 	if (uuid == NULL || string == NULL)
 		return -1;
 
-	if (*string == '\0') {
+	if (ni_string_empty(string)) {
 		memset(uuid, 0, sizeof(*uuid));
 		return 0;
 	}
 
-	while (*string) {
-		char cc = tolower(*string++);
-
-		if (nibbles == 32)
-			return -1;
-
-		if (isdigit(cc)) {
-			word = (word << 4) | (cc - '0');
-		} else if ('a' <= cc && cc <= 'f') {
-			word = (word << 4) | (cc - 'a' + 10);
-		} else {
-			return -1;
-		}
-		++nibbles;
-
-		if (nibbles == 8) {
-			uuid->words[nibbles / 8] = word;
-			if (*string == '-' || *string == ':')
-				++string;
-		}
+	if (ni_string_len(string) == UUID_LEN &&
+	    (string[UUID_SEP1] == '-') &&
+	    (string[UUID_SEP2] == '-') &&
+	    (string[UUID_SEP3] == '-') &&
+	    (string[UUID_SEP4] == '-')) {
+		memcpy(tmp, string, UUID_LEN);
+		ni_string_remove_char(tmp, '-');
+	}
+	else {
+		return -1;
 	}
 
-	if (nibbles < 32)
-		return -1;
-	return 0;
+	ret = ni_parse_hex_data(tmp, uuid->octets, sizeof(uuid->octets), NULL);
+
+	return ret == ((UUID_LEN-4)>>1) ? 0 : -1;
 }
 
 int
