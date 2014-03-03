@@ -262,6 +262,9 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	config->uuid = info->uuid;
 	config->update = info->update;
 	config->route_priority = info->route_priority;
+	config->start_delay = info->start_delay;
+	config->recover_lease = info->recover_lease;
+	config->release_lease = info->release_lease;
 
 	config->max_lease_time = ni_dhcp4_config_max_lease_time();
 	if (config->max_lease_time == 0)
@@ -298,11 +301,14 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_trace("Received request:");
 		ni_trace("  acquire-timeout %u", config->request_timeout);
 		ni_trace("  lease-time      %u", config->max_lease_time);
+		ni_trace("  start-delay     %u", config->start_delay);
 		ni_trace("  hostname        %s", config->hostname[0]? config->hostname : "<none>");
 		ni_trace("  vendor-class    %s", config->classid[0]? config->classid : "<none>");
 		ni_trace("  client-id       %s", ni_print_hex(config->client_id.data, config->client_id.len));
 		ni_trace("  uuid            %s", ni_uuid_print(&config->uuid));
 		ni_trace("  flags           %s", __ni_dhcp4_print_flags(config->flags));
+		ni_trace("  recover_lease   %s", config->recover_lease ? "true" : "false");
+		ni_trace("  release_lease   %s", config->release_lease ? "true" : "false");
 	}
 
 	ni_dhcp4_device_set_config(dev, config);

@@ -157,6 +157,22 @@ dhcp4_tester_req_xml_init(ni_dhcp4_request_t *req, xml_document_t *doc)
 			if (ni_parse_hex(child->cdata, duid.data, sizeof(duid.data)) <= 0)
 				goto failure;
 			ni_string_dup(&req->clientid, child->cdata);
+		} else
+		if(ni_string_eq(child->name, "start-delay")) {
+			if (ni_parse_uint(child->cdata, &req->start_delay, 10) != 0)
+				goto failure;
+		} else
+		if (ni_string_eq(child->name, "lease-time")) {
+			if (ni_parse_uint(child->cdata, &req->lease_time, 10) != 0)
+				goto failure;
+		} else
+		if (ni_string_eq(child->name, "recover-lease")) {
+			if (ni_parse_boolean(child->cdata, &req->recover_lease) != 0)
+				goto failure;
+		} else
+		if (ni_string_eq(child->name, "release-lease")) {
+			if (ni_parse_boolean(child->cdata, &req->release_lease) != 0)
+				goto failure;
 		}
 	}
 
