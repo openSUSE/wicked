@@ -1786,11 +1786,14 @@ ni_file_read(FILE *fp, unsigned int *lenp)
 int
 ni_mkdir_maybe(const char *pathname, unsigned int mode)
 {
-	if (access(pathname, F_OK) >= 0)
+	if (ni_isdir(pathname))
 		return 0;
 
-	if (errno == ENOENT)
-		return mkdir(pathname, mode);
+	if (mkdir(pathname, mode) == 0)
+		return 0;
+
+	if (errno == EEXIST && ni_isdir(pathname))
+		return 0;
 
 	return -1;
 }
