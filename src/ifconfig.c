@@ -86,6 +86,7 @@ static int	__ni_rtnl_link_change_hwaddr(ni_netdev_t *dev, const ni_hwaddr_t *hwa
 static int	__ni_rtnl_link_up(const ni_netdev_t *, const ni_netdev_req_t *);
 static int	__ni_rtnl_link_down(const ni_netdev_t *, int);
 
+static int	__ni_rtnl_link_add_port_up(const ni_netdev_t *, const char *, unsigned int);
 static int	__ni_rtnl_link_add_slave_down(const ni_netdev_t *, const char *, unsigned int);
 
 static int	__ni_rtnl_send_deladdr(ni_netdev_t *, const ni_address_t *);
@@ -634,10 +635,8 @@ ni_system_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bridge_t *
 	for (i = 0; i < bcfg->ports.count; ++i) {
 		ni_bridge_port_t *port = bcfg->ports.data[i];
 
-		if (port && ni_bridge_port_by_name(dev->bridge, port->ifname) == NULL) {
-			if ((ret = ni_system_bridge_add_port(nc, dev, port)) < 0)
-				goto done;
-		}
+		if (!port || (ret = ni_system_bridge_add_port(nc, dev, port)) < 0)
+			goto done;
 	}
 	/* Remove not configured ports */
 #if 0	/* FIXME: Disabled for now, it would break vm ports */
@@ -726,9 +725,28 @@ ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port
 		return -NI_ERROR_DEVICE_BAD_HIERARCHY;
 	}
 
-	if (ni_bridge_port_by_index(bridge, pif->link.ifindex) != NULL) {
-		ni_error("%s: interface %s is already port", brdev->name, pif->name);
+	if (pif->link.masterdev.index &&
+			pif->link.masterdev.index != brdev->link.ifindex) {
+		ni_error("%s: interface %s already has a master", brdev->name, pif->name);
 		return -NI_ERROR_DEVICE_BAD_HIERARCHY;
+	}
+
+	if (pif->link.masterdev.index &&
+			pif->link.masterdev.index == brdev->link.ifindex) {
+		/* already a port of this bridge -- make sure the device is up */
+		if (!ni_netdev_device_is_up(pif) && __ni_rtnl_link_up(pif, NULL) < 0) {
+			ni_warn("%s: Cannot set up link on bridge port %s",
+				brdev->name, pif->name);
+		}
+		return 0; /* part of the bridge and hopefully up now */
+	}
+
+	if (__ni_rtnl_link_add_port_up(pif, brdev->name, brdev->link.ifindex) == 0)
+		return 0;
+
+	if (!ni_netdev_device_is_up(pif) && __ni_rtnl_link_up(pif, NULL) < 0) {
+		ni_warn("%s: Cannot set up link on bridge port %s",
+			brdev->name, pif->name);
 	}
 
 	if ((rv = __ni_brioctl_add_port(brdev->name, pif->link.ifindex)) < 0) {
@@ -1606,7 +1624,47 @@ __ni_rtnl_link_down(const ni_netdev_t *dev, int cmd)
 }
 
 /*
- * Bring down an interface and enslave to master
+ * Bring up an interface and enslave (bridge port) to master
+ */
+int
+__ni_rtnl_link_add_port_up(const ni_netdev_t *port, const char *mname, unsigned int mindex)
+{
+	struct ifinfomsg ifi;
+	struct nl_msg *msg;
+
+	if (!port || !mname || !mindex)
+		return -1;
+
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+	ifi.ifi_index = port->link.ifindex;
+	ifi.ifi_change = IFF_UP;
+	ifi.ifi_flags = IFF_UP;
+
+	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST);
+	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	NLA_PUT_U32(msg, IFLA_MASTER, mindex);
+
+	if (ni_nl_talk(msg, NULL) < 0)
+		goto failed;
+
+	ni_debug_ifconfig("successfully added port %s into master %s",
+			port->name, mname);
+	nlmsg_free(msg);
+	return 0;
+
+nla_put_failure:
+	ni_error("failed to encode netlink message to add port %s into %s",
+			port->name, mname);
+failed:
+	nlmsg_free(msg);
+	return -1;
+}
+
+/*
+ * Bring down an interface and enslave (bond slave) to master
  */
 int
 __ni_rtnl_link_add_slave_down(const ni_netdev_t *slave, const char *mname, unsigned int mindex)
