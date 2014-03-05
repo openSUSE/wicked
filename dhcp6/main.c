@@ -145,7 +145,9 @@ main(int argc, char **argv)
 				"  --test [test-options] <ifname>\n"
 				"    test-options:\n"
 				"       --test-request <request.xml>\n"
-				"       --test-timeout <timeout in sec> (default: 10)\n"
+				"       --test-timeout <timeout in sec> (default: 20+10)\n"
+				"       --test-output  <output file name>\n"
+				"       --test-format  <leaseinfo|lease-xml>\n"
 				, program_name
 			       );
 			return status;

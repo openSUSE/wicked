@@ -499,7 +499,7 @@ ni_dhcp6_device_find_lladdr(ni_dhcp6_device_t *dev)
 	}
 
 	if (!ni_netdev_link_is_up(ifp)) {
-		ni_error("%s: Link is not (yet) up", dev->ifname);
+		ni_debug_dhcp("%s: Link is not (yet) up", dev->ifname);
 		return 1;
 	}
 
@@ -557,6 +557,14 @@ ni_dhcp6_device_is_ready(const ni_dhcp6_device_t *dev, const ni_netdev_t *ifp)
 
 	return	ni_netdev_link_is_up(ifp) &&
 		ni_sockaddr_is_ipv6_linklocal(&dev->link.addr);
+}
+
+ni_bool_t
+ni_dhcp6_device_check_ready(ni_dhcp6_device_t *dev)
+{
+	if (ni_dhcp6_device_is_ready(dev, NULL))
+		return TRUE;
+	return ni_dhcp6_device_find_lladdr(dev) == 0;
 }
 
 int
@@ -954,12 +962,14 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	/*
 	 * This basically fails only if we can't find netdev (any more)
 	 */
-	ni_dhcp6_device_show_addrs(dev);
-	rv = ni_dhcp6_device_find_lladdr(dev);
-	if (rv < 0) {
-		__ni_dhcp6_device_config_free(config);
-		ni_string_dup(err, "Cannot read network device settings");
-		return -NI_ERROR_GENERAL_FAILURE;
+	if (!ni_dhcp6_device_is_ready(dev, NULL)) {
+		ni_dhcp6_device_show_addrs(dev);
+		rv = ni_dhcp6_device_find_lladdr(dev);
+		if (rv < 0) {
+			__ni_dhcp6_device_config_free(config);
+			ni_string_dup(err, "Cannot read network device settings");
+			return -NI_ERROR_GENERAL_FAILURE;
+		}
 	}
 
 	ni_dhcp6_device_set_config(dev, config);
