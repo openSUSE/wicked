@@ -208,7 +208,7 @@ extern ni_dhcp6_device_t *	ni_dhcp6_device_by_index(unsigned int);
 extern ni_dhcp6_device_t *	ni_dhcp6_device_by_index_show_all(unsigned int);
 
 extern void			ni_dhcp6_device_set_request(ni_dhcp6_device_t *, ni_dhcp6_request_t *);
-
+extern ni_bool_t		ni_dhcp6_device_check_ready(ni_dhcp6_device_t *);
 
 /*
  * -- events

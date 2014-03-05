@@ -31,11 +31,13 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <errno.h>
+#include <unistd.h>
 #include <net/if_arp.h>
 
 #include <wicked/types.h>
 #include <wicked/logging.h>
 #include <wicked/leaseinfo.h>
+#include <wicked/system.h>
 #include <wicked/xml.h>
 
 #include "dhcp6/dhcp6.h"
@@ -51,7 +53,7 @@ dhcp6_tester_init(void)
 {
 	memset(&dhcp6_tester_opts, 0, sizeof(dhcp6_tester_opts));
 	dhcp6_tester_opts.outfmt  = DHCP6_TESTER_OUT_LEASE_INFO;
-	dhcp6_tester_opts.timeout = 30; /* 30 seconds */
+	dhcp6_tester_opts.timeout = 0;
 	return &dhcp6_tester_opts;
 }
 
@@ -211,11 +213,17 @@ int
 dhcp6_tester_run(dhcp6_tester_t *opts)
 {
 	ni_netconfig_t *nc;
-	ni_netdev_t *ifp;
-	ni_dhcp6_device_t *dev;
-	ni_dhcp6_request_t *req;
+	ni_netdev_t *ifp = NULL;
+	ni_dhcp6_device_t *dev = NULL;
+	ni_dhcp6_request_t *req = NULL;
+	unsigned int link_timeout = 20;
 	char *errdetail = NULL;
 	int rv;
+
+	if (opts->timeout && opts->timeout != -1U) {
+		link_timeout = (opts->timeout * 2) / 3;
+		opts->timeout -= link_timeout;
+	}
 
 	if (!opts || ni_string_empty(opts->ifname))
 		ni_fatal("Invalid start parameters!");
@@ -233,12 +241,12 @@ dhcp6_tester_run(dhcp6_tester_t *opts)
 	case ARPHRD_ETHER:
 		break;
 	default:
-		ni_fatal("Interface type of %s not supported yet", opts->ifname);
+		ni_fatal("Interface type of %s not supported yet", ifp->name);
 		break;
 	}
 
 	if (!(dev = ni_dhcp6_device_new(ifp->name, &ifp->link)))
-		ni_fatal("Cannot allocate dhcp6 client for '%s'", opts->ifname);
+		ni_fatal("Cannot allocate dhcp6 client for '%s'", ifp->name);
 
 	ni_dhcp6_set_event_handler(dhcp6_tester_protocol_event);
 
@@ -249,6 +257,47 @@ dhcp6_tester_run(dhcp6_tester_t *opts)
 
 	if (!dhcp6_tester_req_init(req, opts->request))
 		goto failure;
+
+	if (!ni_dhcp6_device_check_ready(dev)) {
+
+		if (!ni_netdev_link_is_up(ifp)) {
+			ni_netdev_req_t *ifreq;
+
+			ni_debug_dhcp("%s: Trying to bring link up", ifp->name);
+			ifreq = ni_netdev_req_new();
+			ifreq->ifflags = NI_IFF_LINK_UP | NI_IFF_NETWORK_UP;
+			if ((rv = ni_system_interface_link_change(ifp, ifreq)) < 0) {
+				ni_error("%s: Unable to set up link", ifp->name);
+				ni_netdev_req_free(ifreq);
+				goto failure;
+			}
+			ni_netdev_req_free(ifreq);
+		} else {
+			ni_debug_dhcp("%s: Waiting for IPv6 to become ready",
+					ifp->name);
+		}
+
+		do {
+			sleep(1);
+
+			if (!(nc = ni_global_state_handle(1)))
+				goto failure;
+
+			if (!(ifp = ni_netdev_by_index(nc, dev->link.ifindex)))
+				break;
+			if (!ni_netdev_device_is_up(ifp))
+				break;
+
+			if (ni_dhcp6_device_check_ready(dev))
+				break;
+		} while (link_timeout-- > 1);
+
+		if (!ifp || !ni_dhcp6_device_check_ready(dev) || !link_timeout) {
+			ni_error("%s: Unable to bring IPv6 link up",
+				ifp && ifp->name ? ifp->name : dev->ifname);
+			goto failure;
+		}
+	}
 
 	if (opts->timeout && opts->timeout != -1U)
 		req->acquire_timeout = opts->timeout;
@@ -276,7 +325,9 @@ dhcp6_tester_run(dhcp6_tester_t *opts)
 	ni_socket_deactivate_all();
 
 failure:
-	ni_dhcp6_device_put(dev);
-	ni_dhcp6_request_free(req);
+	if (dev)
+		ni_dhcp6_device_put(dev);
+	if (req)
+		ni_dhcp6_request_free(req);
 	return dhcp6_tester_status;
 }

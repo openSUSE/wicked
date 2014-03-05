@@ -31,11 +31,13 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <errno.h>
+#include <unistd.h>
 #include <net/if_arp.h>
 
 #include <wicked/types.h>
 #include <wicked/leaseinfo.h>
 #include <wicked/socket.h>
+#include <wicked/system.h>
 #include <wicked/xml.h>
 
 #include "dhcp4/dhcp.h"
@@ -50,7 +52,7 @@ dhcp4_tester_init(void)
 {
 	memset(&dhcp4_tester_opts, 0, sizeof(dhcp4_tester_opts));
 	dhcp4_tester_opts.outfmt  = DHCP4_TESTER_OUT_LEASE_INFO;
-	dhcp4_tester_opts.timeout = 10;	/* 10 seconds */
+	dhcp4_tester_opts.timeout = 0;
 	return &dhcp4_tester_opts;
 }
 
@@ -175,6 +177,7 @@ dhcp4_tester_req_init(ni_dhcp4_request_t *req, const char *request)
 	/* Apply some defaults */
 	req->dry_run = NI_DHCP4_RUN_OFFER;
 	req->update = ~0;
+	req->acquire_timeout = 10;
 
 	if (!ni_string_empty(request)) {
 		xml_document_t *doc;
@@ -202,10 +205,16 @@ int
 dhcp4_tester_run(dhcp4_tester_t *opts)
 {
 	ni_netconfig_t *nc;
-	ni_netdev_t *ifp;
-	ni_dhcp4_device_t *dev;
-	ni_dhcp4_request_t *req;
+	ni_netdev_t *ifp = NULL;
+	ni_dhcp4_device_t *dev = NULL;
+	ni_dhcp4_request_t *req = NULL;
+	unsigned int link_timeout = 20;
 	int rv;
+
+	if (opts->timeout && opts->timeout != -1U) {
+		link_timeout = (opts->timeout * 2) / 3;
+		opts->timeout -= link_timeout;
+	}
 
 	if (!opts || ni_string_empty(opts->ifname))
 		ni_fatal("Invalid start parameters!");
@@ -240,6 +249,45 @@ dhcp4_tester_run(dhcp4_tester_t *opts)
 	if (!dhcp4_tester_req_init(req, opts->request))
 		goto failure;
 
+	if (!ni_netdev_link_is_up(ifp)) {
+		ni_netdev_req_t *ifreq;
+		ni_debug_dhcp("%s: Link is not up, trying to bring it up",
+				ifp->name);
+
+		ifreq = ni_netdev_req_new();
+		ifreq->ifflags = NI_IFF_LINK_UP | NI_IFF_NETWORK_UP;
+		if ((rv = ni_system_interface_link_change(ifp, ifreq)) < 0) {
+			ni_error("%s: Unable to set up link", ifp->name);
+			ni_netdev_req_free(ifreq);
+			goto failure;
+		}
+		ni_netdev_req_free(ifreq);
+
+		do {
+			sleep(1);
+
+			if (!(nc = ni_global_state_handle(1)))
+				goto failure;
+
+			if (!(ifp = ni_netdev_by_index(nc, dev->link.ifindex)))
+				break;
+
+			if (ni_netdev_link_is_up(ifp))
+				break;
+
+			ni_debug_dhcp("%s: Link is not (yet) up", ifp->name);
+		} while (link_timeout-- > 1);
+
+		if (!ifp || !ni_netdev_link_is_up(ifp) || !link_timeout) {
+			ni_error("%s: Unable to bring link up",
+				ifp && ifp->name ? ifp->name : dev->ifname);
+			goto failure;
+		}
+
+		/* Do not try to send too early, even link is reported up now */
+		sleep(1);
+	}
+
 	if (opts->timeout && opts->timeout != -1U)
 		req->acquire_timeout = opts->timeout;
 
@@ -263,7 +311,9 @@ dhcp4_tester_run(dhcp4_tester_t *opts)
 	ni_socket_deactivate_all();
 
 failure:
-	ni_dhcp4_device_put(dev);
-	ni_dhcp4_request_free(req);
+	if (dev)
+		ni_dhcp4_device_put(dev);
+	if (req)
+		ni_dhcp4_request_free(req);
 	return dhcp4_tester_status;
 }
