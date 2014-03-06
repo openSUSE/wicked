@@ -2667,10 +2667,11 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 	if (ni_sysconfig_get_integer(sc, "DHCLIENT_LEASE_TIME", &uint))
 		compat->dhcp4.lease_time = ((int) uint >= 0)? uint : NI_IFWORKER_INFINITE_TIMEOUT;
 
-	string = ni_sysconfig_get_value(sc, "DHCLIENT_USE_LAST_LEASE");
-	compat->dhcp4.recover_lease = !ni_string_eq(string, "no");
-	string = ni_sysconfig_get_value(sc, "DHCLIENT_RELEASE_BEFORE_QUIT");
-	compat->dhcp4.release_lease = !ni_string_eq(string, "no");
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_USE_LAST_LEASE")))
+		compat->dhcp4.recover_lease = !ni_string_eq(string, "no");
+
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_RELEASE_BEFORE_QUIT")))
+		compat->dhcp4.release_lease = ni_string_eq(string, "yes");
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_SET_HOSTNAME"))) {
 		if (ni_string_eq(string, "yes")) {
@@ -2771,10 +2772,11 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 
 	/* TODO: Trigger autoip4 after DHCLIENT_WAIT_AT_BOOT when enabled */
 
-	string = ni_sysconfig_get_value(sc, "DHCLIENT_USE_LAST_LEASE");
-	compat->dhcp6.recover_lease = !ni_string_eq(string, "no");
-	string = ni_sysconfig_get_value(sc, "DHCLIENT_RELEASE_BEFORE_QUIT");
-	compat->dhcp6.release_lease = !ni_string_eq(string, "no");
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_USE_LAST_LEASE")))
+		compat->dhcp6.recover_lease = !ni_string_eq(string, "no");
+
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_RELEASE_BEFORE_QUIT")))
+		compat->dhcp6.release_lease = ni_string_eq(string, "yes");
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_SET_HOSTNAME"))) {
 		if (ni_string_eq(string, "yes")) {
@@ -2796,11 +2798,11 @@ __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 	if (compat->dhcp4.enabled)
 		return TRUE;
 
-	/* init wicked defaults */
-	compat->dhcp4.update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);
 	/* apply sysconfig defaults */
 	ni_addrconf_update_set(&compat->dhcp4.update, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE, TRUE);
 	ni_addrconf_update_set(&compat->dhcp4.update, NI_ADDRCONF_UPDATE_HOSTNAME, FALSE);
+	compat->dhcp4.recover_lease = TRUE;
+	compat->dhcp4.release_lease = FALSE;
 
 	if (__ni_suse_dhcp_defaults)
 		__ni_suse_addrconf_dhcp4_options(__ni_suse_dhcp_defaults, compat);
@@ -2819,10 +2821,10 @@ __ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 	if (compat->dhcp6.enabled)
 		return TRUE;
 
-	/* init wicked defaults */
-	compat->dhcp6.update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET6);
 	/* apply sysconfig defaults */
 	ni_addrconf_update_set(&compat->dhcp6.update, NI_ADDRCONF_UPDATE_HOSTNAME, FALSE);
+	compat->dhcp6.recover_lease = TRUE;
+	compat->dhcp6.release_lease = FALSE;
 
 	if (__ni_suse_dhcp_defaults)
 		__ni_suse_addrconf_dhcp6_options(__ni_suse_dhcp_defaults, compat);

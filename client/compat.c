@@ -114,8 +114,15 @@ ni_compat_netdev_new(const char *ifname)
 	compat->dev = ni_netdev_new(ifname, 0);
 
 	/* Apply defaults */
+	compat->dhcp4.update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);
+	compat->dhcp4.recover_lease = TRUE;
+	compat->dhcp4.release_lease = FALSE;
+
+	compat->dhcp6.update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET6);
 	compat->dhcp6.mode = NI_DHCP6_MODE_AUTO;
 	compat->dhcp6.rapid_commit = TRUE;
+	compat->dhcp6.recover_lease = TRUE;
+	compat->dhcp6.release_lease = FALSE;
 
 	return compat;
 }
