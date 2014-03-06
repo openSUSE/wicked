@@ -44,6 +44,7 @@
 #include <sys/param.h>
 
 #include "client/client_state.h"
+#include "appconfig.h"
 #include "util_priv.h"
 
 
