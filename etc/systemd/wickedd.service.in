@@ -1,7 +1,7 @@
 [Unit]
 Description=wicked network management service daemon
-After=local-fs.target dbus.service isdn.service rdma.service
-Before=wicked.service
+After=local-fs.target dbus.service isdn.service rdma.service SuSEfirewall2_init.service
+Before=wicked.service network.target multi-user.target shutdown.target
 
 [Service]
 Type=dbus

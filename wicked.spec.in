@@ -58,6 +58,7 @@ BuildRequires:  pkg-config
 BuildRequires:  pkgconfig(systemd)
 %if 0%{?suse_version:1}
 Requires(pre):  %fillup_prereq
+Requires:       sysconfig-netconfig
 %endif
 Requires:       %{name}-service = %{version}
 %else
