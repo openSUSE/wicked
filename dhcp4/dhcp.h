@@ -132,6 +132,7 @@ struct ni_dhcp4_request {
 
 	ni_dhcp4_run_t		dry_run;	/* normal run or get offer/lease only	*/
 	unsigned int		settle_timeout;	/* wait that long before starting DHCP4	*/
+	unsigned int		start_delay;
 	unsigned int		acquire_timeout;/* how long we try before we give up	*/
 
 	/* Options controlling what to put into the lease request */
@@ -141,6 +142,9 @@ struct ni_dhcp4_request {
 	unsigned int		lease_time;
 
 	unsigned int		route_priority;
+
+	ni_bool_t		recover_lease;
+	ni_bool_t		release_lease;
 
 	/* Options what to update based on the info received from
 	 * the DHCP4 server.
@@ -169,11 +173,15 @@ struct ni_dhcp4_config {
 
 	unsigned int		initial_discovery_timeout;
 	unsigned int		request_timeout;
+	unsigned int		start_delay;
 	unsigned int		resend_timeout;
 	unsigned int		max_lease_time;
 	unsigned int		update;
 
 	unsigned int		route_priority;
+
+	ni_bool_t		recover_lease;
+	ni_bool_t		release_lease;
 };
 
 enum ni_dhcp4_event {

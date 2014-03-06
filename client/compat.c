@@ -1067,12 +1067,27 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 	if (compat->dhcp4.hostname)
 		xml_node_dict_set(dhcp, "hostname", compat->dhcp4.hostname);
 
+	if (compat->dhcp4.start_delay)
+		xml_node_dict_set(dhcp, "start-delay",
+				ni_sprint_timeout(compat->dhcp4.start_delay));
+
 	if (compat->dhcp4.acquire_timeout)
 		xml_node_dict_set(dhcp, "acquire-timeout",
 				ni_sprint_timeout(compat->dhcp4.acquire_timeout));
+
 	if (compat->dhcp4.lease_time)
 		xml_node_dict_set(dhcp, "lease-time",
 				ni_sprint_timeout(compat->dhcp4.lease_time));
+
+	if (compat->dhcp4.recover_lease)
+		xml_node_dict_set(dhcp, "recover-lease", "true");
+	else
+		xml_node_dict_set(dhcp, "recover-lease", "false");
+
+	if (compat->dhcp4.release_lease)
+		xml_node_dict_set(dhcp, "release-lease", "true");
+	else
+		xml_node_dict_set(dhcp, "release-lease", "false");
 
 	if (compat->dhcp4.client_id)
 		xml_node_dict_set(dhcp, "client-id", compat->dhcp4.client_id);
