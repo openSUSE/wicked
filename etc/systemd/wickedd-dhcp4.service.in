@@ -1,7 +1,7 @@
 [Unit]
 Description=wicked DHCPv4 supplicant service
-After=local-fs.target dbus.service wickedd.service
-Before=wicked.service
+After=local-fs.target dbus.service SuSEfirewall2_init.service
+Before=wickedd.service wicked.service network.target multi-user.target shutdown.target
 PartOf=wickedd.service
 
 [Service]
