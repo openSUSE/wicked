@@ -492,7 +492,7 @@ ni_modem_free(ni_modem_t *modem)
 		}
 	}
 
-	ni_modem_set_client_info(modem, NULL);
+	ni_modem_set_client_state(modem, NULL);
 	free(modem);
 }
 
@@ -513,14 +513,26 @@ ni_modem_release(ni_modem_t *modem)
 }
 
 void
-ni_modem_set_client_info(ni_modem_t *modem, ni_device_clientinfo_t *client_info)
+ni_modem_set_client_state(ni_modem_t *modem, ni_client_state_t *client_state)
 {
-	if (modem->client_info == client_info)
+	if (modem->client_state == client_state)
 		return;
-	if (modem->client_info)
-		ni_device_clientinfo_free(modem->client_info);
+	if (modem->client_state)
+		ni_client_state_free(modem->client_state);
 
-	modem->client_info = client_info;
+	modem->client_state = client_state;
+}
+
+ni_client_state_t *
+ni_modem_get_client_state(ni_modem_t *dev)
+{
+	if (!dev)
+		return NULL;
+
+	if (!dev->client_state)
+		dev->client_state = ni_client_state_new(0);
+
+	return dev->client_state;
 }
 
 /*

@@ -240,7 +240,7 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 			 *
 			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, filename);
 			*/
-			ni_compat_netdev_client_info_set(compat->dev, pathbuf);
+			ni_compat_netdev_client_state_set(compat->dev, pathbuf);
 			ni_compat_netdev_array_append(&result->netdevs, compat);
 		}
 
@@ -1066,18 +1066,18 @@ __ni_suse_startmode(const char *mode)
 		ni_ifworker_control_t	control;
 	} __ni_suse_control_params[] = {
 		/* manual is the default in ifcfg */
-		{ "manual",	{ "manual",	NULL,		TRUE,	FALSE,	FALSE,	30	} },
+		{ "manual",	{ "manual",	NULL,		TRUE,	FALSE,	FALSE,	FALSE,	30	} },
 
-		{ "auto",	{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	30	} },
-		{ "boot",	{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	30	} },
-		{ "onboot",	{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	30	} },
-		{ "on",		{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	30	} },
+		{ "auto",	{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	FALSE,	30	} },
+		{ "boot",	{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	FALSE,	30	} },
+		{ "onboot",	{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	FALSE,	30	} },
+		{ "on",		{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	FALSE,	30	} },
 
-		{ "hotplug",	{ "hotplug",	NULL,		FALSE,	FALSE,	FALSE,	30	} },
-		{ "ifplugd",	{ "hotplug",	NULL,		FALSE,	FALSE,	FALSE,	30	} },
+		{ "hotplug",	{ "hotplug",	NULL,		FALSE,	FALSE,	FALSE,	FALSE,	30	} },
+		{ "ifplugd",	{ "hotplug",	NULL,		FALSE,	FALSE,	FALSE,	FALSE,	30	} },
 
-		{ "nfsroot",	{ "boot",	"localfs",	TRUE,	TRUE,	TRUE,	NI_IFWORKER_INFINITE_TIMEOUT	} },
-		{ "off",	{ "off",	NULL,		FALSE,	FALSE,	FALSE,	0	} },
+		{ "nfsroot",	{ "boot",	"localfs",	TRUE,	TRUE,	TRUE,	FALSE,	NI_IFWORKER_INFINITE_TIMEOUT	} },
+		{ "off",	{ "off",	NULL,		FALSE,	FALSE,	FALSE,	FALSE,	0	} },
 
 		{ NULL }
 	};
@@ -2934,6 +2934,12 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	else
 		compat->control = __ni_suse_startmode(NULL);
 
+	/* FIXME: to be enabled, when ni_ifworker_control_t is no longer const */
+#if 0
+	NI_SET_CONTROL_FLAG(compat->control->usercontrol,
+		ni_sysconfig_test_boolean(sc, "USERCONTROL"), TRUE);
+#endif
+
 	ni_sysconfig_get_integer(sc, "MTU", &dev->link.mtu);
 
 	if (try_loopback(sc, compat)   < 0 ||
@@ -2951,7 +2957,6 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	__ni_suse_bootproto(sc, compat);
 	/* FIXME: What to do with these:
 		NAME
-		USERCONTROL
 	 */
 
 	return TRUE;

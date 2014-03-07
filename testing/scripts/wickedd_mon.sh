@@ -12,12 +12,15 @@
 
 EXPECTED_ARGS=0
 
-STATE='state="%{?client-info/state}"'
-CONFIG_ORIGIN='config-origin="%{?client-info/config-origin}"'
-PERSISTENT='persistent="%{?client-state/persistent}"'
-INIT_STATE='init-state="%{?client-state/init-state}"'
-INIT_TIME='init-time="%{?client-state/init-time}"'
-LAST_TIME='last-time="%{?client-state/last-time}"'
+STATE='state="%{?client-state/state}"'
+CONFIG_ORIGIN='config-origin="%{?client-state/config/origin}"'
+CONFIG_UUID='config-origin="%{?client-state/config/uuid}"'
+PERSISTENT='persistent="%{?client-state/control/persistent}"'
+MANDATORY='mandatory="%{?client-state/control/mandatory}"'
+USERCONTROL='usercontrol="%{?client-state/control/usercontrol}"'
+INIT_STATE='init-state="%{?client-state/stats/init-state}"'
+INIT_TIME='init-time="%{?client-state/stats/init-time}"'
+LAST_TIME='last-time="%{?client-state/stats/last-time}"'
 
 number='^[0-9]+$'
 if [[ $# -lt $EXPECTED_ARGS || ! -z "$1" && ! $1 =~ $number ]]; then
@@ -31,7 +34,7 @@ while :; do
 		clear;
 	fi
 
-	wicked show-xml | wicked xpath --reference '/object/interface' "name=\"%{?name}\" ${STATE} ${CONFIG_ORIGIN} ${PERSISTENT} ${INIT_STATE} ${INIT_TIME} ${LAST_TIME}" | column -t || exit;
+	wicked show-xml | wicked xpath --reference '/object/interface' "name=\"%{?name}\" ${STATE} ${CONFIG_ORIGIN} ${CONFIG_UUID} ${PERSISTENT} ${MANDATORY} ${USERCONTROL} ${INIT_STATE} ${INIT_TIME} ${LAST_TIME}" | column -t || exit;
 
 	if [[ -z "$1"  || $1 -eq 0 ]]; then
 		exit;

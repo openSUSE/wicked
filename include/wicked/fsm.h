@@ -103,9 +103,10 @@ typedef enum {
 typedef struct ni_ifworker_control {
 	char *			mode;
 	char *			boot_stage;
-	ni_bool_t		mandatory;	/* not used yet */
-	ni_bool_t		link_required;
-	ni_bool_t		persistent;
+	ni_bool_t	mandatory;	/* a device must be present */
+	ni_bool_t	link_required;
+	ni_bool_t	persistent;	/* allowing/disallowing ifdown flag */
+	ni_bool_t	usercontrol; 	/* allowing/disallowing user to change the config */
 	unsigned int		link_timeout;
 } ni_ifworker_control_t;
 
@@ -132,11 +133,8 @@ struct ni_ifworker {
 	ni_ifworker_control_t	control;
 
 	ni_client_state_t client_state;
-	struct {
-		char *		origin;
-		ni_uuid_t	uuid;
-		xml_node_t *	node;
-	}			config;
+	xml_node_t *	config;
+
 	ni_bool_t		use_default_policies;
 
 	/* The security ID can be used as a set of identifiers
@@ -278,7 +276,6 @@ extern ni_bool_t		ni_ifworker_state_from_name(const char *, unsigned int *);
 extern ni_fsm_require_t *	ni_ifworker_reachability_check_new(xml_node_t *);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *, const char *);
 extern void			ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
-extern ni_bool_t		ni_ifworker_check_config(const ni_ifworker_t *, const xml_node_t *, const char *);
 extern void			ni_ifworker_reset(ni_ifworker_t *);
 extern int			ni_ifworker_bind_early(ni_ifworker_t *, ni_fsm_t *, ni_bool_t);
 extern int			ni_ifworker_start(ni_fsm_t *, ni_ifworker_t *, unsigned long);
@@ -345,7 +342,7 @@ ni_ifworker_get_modem(const ni_ifworker_t *w)
 }
 
 /*
- * Returns true iff the device was configured correctly
+ * Returns true if the device was configured correctly
  */
 static inline ni_bool_t
 ni_ifworker_is_running(const ni_ifworker_t *w)
@@ -354,12 +351,37 @@ ni_ifworker_is_running(const ni_ifworker_t *w)
 }
 
 /*
- * Returns true iff the worker is currently executing
+ * Returns true if the worker is currently executing
  */
 static inline ni_bool_t
 ni_ifworker_active(const ni_ifworker_t *w)
 {
 	return w->fsm.action_table != NULL;
 }
+
+/*
+ * Returns true if a state is one of the FSM defined states
+ */
+static inline ni_bool_t
+ni_ifworker_is_valid_state(unsigned int state)
+{
+	return	state > NI_FSM_STATE_NONE &&
+		state < __NI_FSM_STATE_MAX;
+}
+
+#define NI_SET_CONTROL_FLAG(flag, cond, value) \
+	do { \
+		if (!(cond)) \
+			break; \
+		if (value) {\
+			flag = TRUE; \
+			ni_debug_application("%s: set %s control flag to TRUE", \
+				__func__, #flag); \
+		} \
+		else if (flag) {\
+			ni_fatal("%s: attempt to switch off %s control flag", \
+				__func__, #flag); \
+		} \
+	} while(0)
 
 #endif /* __CLIENT_FSM_H__ */

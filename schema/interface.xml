@@ -94,30 +94,35 @@
 
  <link-type type="builtin-iftype" description="The link-layer type of this interface"/>
 
- <define name="client-info-type" class="dict">
-   <description>
-    This can be used by the client to store a "fingerprint" of the configured state.
-    This data is not interpreted by the server.
-   </description>
-   <config-origin type="string"/>
-   <config-uuid type="uuid-type"/>
-   <state type="string"/>
+ <define name="client-state-state-type" class="dict">
+   <state type="builtin-fsm-state" constraint="required"/>
  </define>
 
- <client-info type="client-info-type" />
-
- <define name="client-state-type" class="dict">
-   <description>
-    This is used by the server and it's client to store the initial state of an interface,
-    ifup/ifreload related timestamps and allowed ifdown's target state of an given interface.
-   </description>
+ <define name="client-state-control-type" class="dict">
    <persistent type="boolean" constraint="required"/>
-   <init-state type="builtin-client-state"/>
+   <mandatory type="boolean" constraint="required"/>
+   <usercontrol type="boolean" constraint="required"/>
+ </define>
+
+ <define name="client-state-config-type" class="dict">
+   <origin type="string" constraint="required"/>
+   <uuid type="uuid-type" constraint="required"/>
+ </define>
+
+ <define name="client-state-stats-type" class="dict">
+   <init-state type="builtin-fsm-state"/>
    <init-time type="string"/>
    <last-time type="string"/>
  </define>
 
- <client-state type="client-state-type" />
+ <define name="client-state-type" class="dict">
+   <state type="builtin-fsm-state"/>
+   <control type="client-state-control-type" constraint="required"/>
+   <config type="client-state-config-type" constraint="required"/>
+   <stats type="client-state-stats-type"/>
+ </define>
+
+ <client-state type="client-state-type" constraint="required"/>
 
  <index type="uint32" description="The interface index. The index is also used in the DBus name of the DBus netif object"/>
  <metric type="uint32"/>
@@ -278,27 +283,49 @@
   <method name="setClientState">
     <description>
       This method can be used by client to set:
-	* initial state of an interface
-	* time of the initial ifup configuration
-	* time of the last ifup configuration
-	* persistent flag - allowing/disallowing ifdown operation
-      These values are permanent and could be stored in a filesystem.
+	* current state of an interface
     </description>
     <arguments>
-      <arg type="network-interface:client-state-type" />
+      <arg type="network-interface:client-state-state-type" />
     </arguments>
   </method>
 
-  <method name="setClientInfo">
+  <method name="setClientControl">
     <description>
-      This method can be used by clients to record the state of a device
-      configuration. The argument includes a string describing the state,
-      and a hash of the configuration data used in bringing up the device.
+      This method can be used by client to set:
+	* control flags of an interface:
+	  - persistent  - allowing/disallowing ifdown operation
+	  - mandatory   - interface needs to be present
+	  - usercontrol - user control permission
     </description>
     <arguments>
-      <arg type="network-interface:client-info-type" />
+      <arg type="network-interface:client-state-control-type" />
     </arguments>
   </method>
+
+  <method name="setClientConfig">
+    <description>
+      This method can be used by clients to record the state of device's
+      configuration. Both UUID and configuration origin are transfered.
+    </description>
+    <arguments>
+      <arg type="network-interface:client-state-config-type" />
+    </arguments>
+  </method>
+
+<!--
+  <method name="setClientStats">
+    <description>
+      This method can be used by client to set:
+	* initial state of an interface
+	* time of the initial ifup configuration
+	* time of the last ifup configuration
+    </description>
+    <arguments>
+      <arg type="network-interface:client-state-stats-type" />
+    </arguments>
+  </method>
+-->
 
   <method name="linkMonitor">
     <description>

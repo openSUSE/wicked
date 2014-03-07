@@ -110,6 +110,27 @@ function get_vlan_ifname
 	done < "$conf" 2>/dev/null
 }
 
+function gen_config_uuid
+{
+	echo "00000000-0000-0000-0000-000000000000"
+}
+
+function gen_client_state
+{
+	echo "  <client-state>"
+	echo "    <control>"
+	echo "      <persistent>true</persistent>"
+	echo "      <mandatory>true</mandatory>"
+	echo "      <usercontrol>false</usercontrol>"
+	echo "    </control>"
+
+	echo "    <config>"
+	echo "      <origin>firmware:ibft:$1</origin>"
+	echo "      <uuid>`gen_config_uuid`</uuid>"
+	echo "    </config>"
+	echo "  </client-state>"
+}
+
 # sysfs mountpoint
 opt_rootdir=""
 # relative ibft node
@@ -212,13 +233,9 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 		if test "x$vlan_ifname" = x ; then
 			vlan_ifname="${nic_name}.${nic_vlan}"
 		fi
-		echo "  <client-state>"
-		echo "    <persistent>true</persistent>"
-		echo "  </client-state>"
 
-		echo "  <client-info>"
-		echo "    <config-origin>firmware:ibft:$ibft_nic</config-origin>"
-		echo "  </client-info>"
+		gen_client_state "$ibft_nic"
+
 		cat <<-EOF
 		</interface>
 
@@ -232,13 +249,7 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 		EOF
 	fi
 
-	echo "  <client-state>"
-	echo "    <persistent>true</persistent>"
-	echo "  </client-state>"
-
-	echo "  <client-info>"
-	echo "    <config-origin>firmware:ibft:$ibft_nic</config-origin>"
-	echo "  </client-info>"
+	gen_client_state "$ibft_nic"
 
 	if [ -n "$nic_ipaddr" ]; then
 		default_route="<!-- no default route -->"
