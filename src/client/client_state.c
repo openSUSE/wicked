@@ -70,159 +70,252 @@ ni_client_state_parse_timeval(const char *str, struct timeval *tv)
 	return TRUE;
 }
 
-ni_bool_t
-ni_client_state_print_xml(const ni_client_state_t *client_state, xml_node_t *node)
+static ni_bool_t
+ni_client_state_state_print_xml(const unsigned int state, xml_node_t *node)
 {
 	const char *ptr;
-	xml_node_t *parent;
 
-	if (!client_state || !node)
+	if (!node)
 		return FALSE;
 
-	if (!(ptr = ni_ifworker_state_name(client_state->state)) ||
+	if (!(ptr = ni_ifworker_state_name(state)) ||
 	    !xml_node_new_element(NI_CLIENT_STATE_XML_STATE_NODE, node, ptr))
 		return FALSE;
 
-	if ((parent = xml_node_new_element(NI_CLIENT_STATE_XML_CONTROL_NODE, node, NULL))) {
-		if (!xml_node_new_element(NI_CLIENT_STATE_XML_PERSISTENT_NODE, parent,
-			ni_format_boolean(client_state->control.persistent)))
-			return FALSE;
+	return TRUE;
+}
 
-		if (!xml_node_new_element(NI_CLIENT_STATE_XML_MANDATORY_NODE, parent,
-			ni_format_boolean(client_state->control.mandatory)))
-			return FALSE;
+static ni_bool_t
+ni_client_state_control_print_xml(const ni_client_state_control_t *ctrl, xml_node_t *node)
+{
+	xml_node_t *parent;
 
-		if (!xml_node_new_element(NI_CLIENT_STATE_XML_USERCONTROL_NODE, parent,
-			ni_format_boolean(client_state->control.usercontrol)))
-			return FALSE;
-	}
-	else
+	if (!ctrl || !node)
 		return FALSE;
 
-	if ((parent = xml_node_new_element(NI_CLIENT_STATE_XML_CONFIG_NODE, node, NULL))) {
-		if (!(ptr = ni_uuid_print(&client_state->config.uuid)) ||
-		    !xml_node_new_element(NI_CLIENT_STATE_XML_CONFIG_UUID_NODE, parent, ptr))
-			return FALSE;
-
-		if (!(ptr = client_state->config.origin) ||
-		    !xml_node_new_element(NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE, parent, ptr))
-			return FALSE;
-	}
-	else
+	if (!(parent = xml_node_new(NI_CLIENT_STATE_XML_CONTROL_NODE, node)))
 		return FALSE;
 
-#ifdef CLIENT_STATE_STATS
-	if ((parent = xml_node_new_element(NI_CLIENT_STATE_XML_STATS_NODE, node, NULL))) {
-		char *tmp = NULL;
-		if (!(ptr = ni_ifworker_state_name(client_state->stats.init_state)) ||
-		    !xml_node_new_element(NI_CLIENT_STATE_XML_INIT_STATE_NODE, parent, ptr))
+	if (!xml_node_new_element(NI_CLIENT_STATE_XML_PERSISTENT_NODE, parent,
+			ni_format_boolean(ctrl->persistent)) ||
+	    !xml_node_new_element(NI_CLIENT_STATE_XML_MANDATORY_NODE, parent,
+			ni_format_boolean(ctrl->mandatory)) ||
+	    !xml_node_new_element(NI_CLIENT_STATE_XML_USERCONTROL_NODE, parent,
+			ni_format_boolean(ctrl->usercontrol))) {
 			return FALSE;
-
-		if (!ni_client_state_print_timeval(&client_state->stats.init_time, &tmp))
-			return FALSE;
-		if (!xml_node_new_element(NI_CLIENT_STATE_XML_INIT_TIME_NODE, parent, tmp)) {
-			ni_string_free(&tmp);
-			return FALSE;
-		}
-		ni_string_free(&tmp);
-
-		if (!ni_client_state_print_timeval(&client_state->stats.last_time, &tmp))
-			return FALSE;
-		if (!xml_node_new_element(NI_CLIENT_STATE_XML_LAST_TIME_NODE, parent, tmp)) {
-			ni_string_free(&tmp);
-			return FALSE;
-		}
-		ni_string_free(&tmp);
 	}
-#endif
 
 	return TRUE;
 }
 
 ni_bool_t
-ni_client_state_parse_xml(const xml_node_t *node, ni_client_state_t *client_state)
+ni_client_state_config_print_xml(const ni_client_state_config_t *conf, xml_node_t *node)
 {
-	const xml_node_t *parent, *child;
+	xml_node_t *parent;
+	const char *ptr;
 
-	if (!node || !client_state)
+	if (!conf || !node)
+		return FALSE;
+
+	if (!(parent = xml_node_new(NI_CLIENT_STATE_XML_CONFIG_NODE, node)))
+		return FALSE;
+
+	if (!(ptr = ni_uuid_print(&conf->uuid)) ||
+	    !xml_node_new_element(NI_CLIENT_STATE_XML_CONFIG_UUID_NODE, parent, ptr)) {
+		return FALSE;
+	}
+
+	if (!(ptr = conf->origin) ||
+	    !xml_node_new_element(NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE, parent, ptr)) {
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+#ifdef CLIENT_STATE_STATS
+static ni_bool_t
+ni_client_state_stats_print_xml(const ni_client_state_stats_t *stats, xml_node_t *node)
+{
+	xml_node_t *parent;
+	const char *ptr;
+	char *tmp = NULL;
+
+	if (!stats || !node)
+		return FALSE;
+
+	if (!(parent = xml_node_new(NI_CLIENT_STATE_XML_STATS_NODE, node)))
+		return FALSE;
+
+	if (!(ptr = ni_ifworker_state_name(stats->init_state)) ||
+	    !xml_node_new_element(NI_CLIENT_STATE_XML_INIT_STATE_NODE, parent, ptr)) {
+		return FALSE;
+	}
+
+	if (!ni_client_state_print_timeval(&stats->init_time, &tmp) ||
+	    !xml_node_new_element(NI_CLIENT_STATE_XML_INIT_TIME_NODE, parent, tmp)) {
+		ni_string_free(&tmp);
+		return FALSE;
+	}
+	ni_string_free(&tmp);
+
+	if (!ni_client_state_print_timeval(&stats->last_time, &tmp) ||
+	    !xml_node_new_element(NI_CLIENT_STATE_XML_LAST_TIME_NODE, parent, tmp)) {
+		ni_string_free(&tmp);
+		return FALSE;
+	}
+	ni_string_free(&tmp);
+
+	return TRUE;
+}
+#endif
+
+ni_bool_t
+ni_client_state_print_xml(const ni_client_state_t *client_state, xml_node_t *node)
+{
+	if (!client_state || !node)
+		return FALSE;
+
+	if (!ni_client_state_state_print_xml(client_state->state, node) ||
+	    !ni_client_state_control_print_xml(&client_state->control, node) ||
+	    !ni_client_state_config_print_xml(&client_state->config, node)) {
+		return FALSE;
+	}
+#ifdef CLIENT_STATE_STATS
+	ni_client_state_stats_print_xml(&client_state->stats, node);
+#endif
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_client_state_state_parse_xml(const xml_node_t *node, unsigned int *state)
+{
+	const xml_node_t *child;
+
+	if (!node || !state)
 		return FALSE;
 
 	/* <state> node is optional */
 	if ((child = xml_node_get_child(node, NI_CLIENT_STATE_XML_STATE_NODE))) {
-		if (!child->cdata ||
-		    !ni_ifworker_state_from_name(child->cdata, &client_state->state)) {
+		if (!child->cdata || !ni_ifworker_state_from_name(child->cdata, state)) {
 			return FALSE;
 		}
 	}
 
-	/* <control> node is mandatory */
-	if ((parent = xml_node_get_child(node, NI_CLIENT_STATE_XML_CONTROL_NODE))) {
-		/* <persistent> node is mandatory */
-		child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_PERSISTENT_NODE);
-		if (!child || !child->cdata ||
-		    ni_parse_boolean(child->cdata, &client_state->control.persistent)) {
-			return FALSE;
-		}
+	return TRUE;
+}
 
-		/* <mandatory> node is mandatory */
-		child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_MANDATORY_NODE);
-		if (!child || !child->cdata ||
-		    ni_parse_boolean(child->cdata, &client_state->control.mandatory)) {
-			return FALSE;
-		}
+static ni_bool_t
+ni_client_state_control_parse_xml(const xml_node_t *node, ni_client_state_control_t *ctrl)
+{
+	const xml_node_t *parent, *child;
 
-		/* <usercontrol> node is mandatory */
-		child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_USERCONTROL_NODE);
-		if (!child || !child->cdata ||
-		    ni_parse_boolean(child->cdata, &client_state->control.usercontrol)) {
-			return FALSE;
-		}
-	}
-	else
+	if (!node || !ctrl)
 		return FALSE;
 
-	/* following nodes may be missing - to be checked within a caller when needed */
-	if ((parent = xml_node_get_child(node, NI_CLIENT_STATE_XML_CONFIG_NODE))) {
-		/* within <config> node <uuid> is mandatory */
-		child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_CONFIG_UUID_NODE);
-		if (!child || !child->cdata ||
-		    ni_uuid_parse(&client_state->config.uuid, child->cdata)) {
-				return FALSE;
-		}
+	/* <control> node is mandatory */
+	if (!(parent = xml_node_get_child(node, NI_CLIENT_STATE_XML_CONTROL_NODE)))
+		return FALSE;
 
-		/* within <config> node <origin> is mandatory */
-		child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE);
-		if (!child || !child->cdata)
-			return FALSE;
-		ni_string_dup(&client_state->config.origin, child->cdata);
+	/* <persistent> node is mandatory */
+	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_PERSISTENT_NODE);
+	if (!child || !child->cdata ||
+	    ni_parse_boolean(child->cdata, &ctrl->persistent)) {
+		return FALSE;
 	}
+
+	/* <mandatory> node is mandatory */
+	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_MANDATORY_NODE);
+	if (!child || !child->cdata ||
+	    ni_parse_boolean(child->cdata, &ctrl->mandatory)) {
+		return FALSE;
+	}
+
+	/* <usercontrol> node is mandatory */
+	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_USERCONTROL_NODE);
+	if (!child || !child->cdata ||
+	    ni_parse_boolean(child->cdata, &ctrl->usercontrol)) {
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_client_state_config_parse_xml(const xml_node_t *node, ni_client_state_config_t *conf)
+{
+	const xml_node_t *parent, *child;
+
+	if (!node || !conf)
+		return FALSE;
+
+	/* <config> node is mandatory */
+	if (!(parent = xml_node_get_child(node, NI_CLIENT_STATE_XML_CONFIG_NODE)))
+		return FALSE;
+
+	/* within <config> node <uuid> is mandatory */
+	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_CONFIG_UUID_NODE);
+	if (!child || !child->cdata || ni_uuid_parse(&conf->uuid, child->cdata))
+		return FALSE;
+
+	/* within <config> node <origin> is mandatory */
+	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE);
+	if (!child || !child->cdata)
+		return FALSE;
+	ni_string_dup(&conf->origin, child->cdata);
+
+	return TRUE;
+}
 
 #ifdef CLIENT_STATE_STATS
-	if ((parent = xml_node_get_child(node, NI_CLIENT_STATE_XML_STATS_NODE))) {
-		if ((child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_INIT_STATE_NODE))) {
-			if (!child->cdata ||
-			    !ni_ifworker_state_from_name(child->cdata,
-				&client_state->stats.init_state)) {
-				return FALSE;
-			}
-		}
+static ni_bool_t
+ni_client_state_stats_parse_xml(const xml_node_t *node, ni_client_state_stats_t *stats)
+{
+	const xml_node_t *parent, *child;
 
-		if ((child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_INIT_TIME_NODE))) {
-			if (!child->cdata ||
-			    !ni_client_state_parse_timeval(child->cdata,
-				&client_state->stats.init_time)) {
-				return FALSE;
-			}
-		}
+	if (!node || !stats)
+		return FALSE;
 
-		if ((child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_LAST_TIME_NODE))) {
-			if (!child->cdata ||
-			    !ni_client_state_parse_timeval(child->cdata,
-				&client_state->stats.last_time)) {
-				return FALSE;
-			}
-		}
+	/* <stats> is not mandatory */
+	if (!(parent = xml_node_get_child(node, NI_CLIENT_STATE_XML_STATS_NODE)))
+		return TRUE;
+
+	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_INIT_STATE_NODE);
+	if (!child || !child->cdata ||
+	    !ni_ifworker_state_from_name(child->cdata, &stats->init_state)) {
+		return FALSE;
 	}
+
+	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_INIT_TIME_NODE);
+	if (!child || !child->cdata ||
+	    !ni_client_state_parse_timeval(child->cdata, &stats->init_time)) {
+		return FALSE;
+	}
+
+	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_LAST_TIME_NODE);
+	if (!child || !child->cdata ||
+		!ni_client_state_parse_timeval(child->cdata, &stats->last_time)) {
+		return FALSE;
+	}
+
+	return TRUE;
+}
+#endif
+
+ni_bool_t
+ni_client_state_parse_xml(const xml_node_t *node, ni_client_state_t *client_state)
+{
+	if (!node || !client_state)
+		return FALSE;
+
+	if (!ni_client_state_state_parse_xml(node, &client_state->state) ||
+	    !ni_client_state_control_parse_xml(node, &client_state->control) ||
+	    !ni_client_state_config_parse_xml(node, &client_state->config)) {
+		return FALSE;
+	}
+#ifdef CLIENT_STATE_STATS
+	ni_client_state_stats_parse_xml(node, &client_state->stats);
 #endif
 
 	return TRUE;
