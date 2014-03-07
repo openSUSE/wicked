@@ -2934,12 +2934,6 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	else
 		compat->control = __ni_suse_startmode(NULL);
 
-	/* FIXME: to be enabled, when ni_ifworker_control_t is no longer const */
-#if 0
-	NI_SET_CONTROL_FLAG(compat->control->usercontrol,
-		ni_sysconfig_test_boolean(sc, "USERCONTROL"), TRUE);
-#endif
-
 	ni_sysconfig_get_integer(sc, "MTU", &dev->link.mtu);
 
 	if (try_loopback(sc, compat)   < 0 ||
