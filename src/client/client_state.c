@@ -359,8 +359,8 @@ ni_client_state_is_valid(const ni_client_state_t *client_state)
 }
 
 #ifdef CLIENT_STATE_STATS
-static void
-__ni_client_state_update_stats(ni_client_state_stats_t *stats, unsigned int new_state)
+void
+ni_client_state_update_stats(ni_client_state_stats_t *stats, unsigned int new_state)
 {
 	ni_timer_get_time(&stats->last_time);
 	if (!ni_ifworker_is_valid_state(stats->init_state)) {
@@ -428,7 +428,7 @@ ni_client_state_set_state(ni_client_state_t *client_state, unsigned int state)
 	client_state->state = state;
 
 #ifdef CLIENT_STATE_STATS
-	__ni_client_state_update_stats(&client_state->stats, state);
+	ni_client_state_update_stats(&client_state->stats, state);
 #endif
 }
 

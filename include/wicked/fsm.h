@@ -131,8 +131,14 @@ struct ni_ifworker {
 
 	ni_ifworker_control_t	control;
 
-	ni_client_state_t client_state;
-	xml_node_t *	config;
+	struct {
+		ni_client_state_config_t	meta;
+		xml_node_t *		node;
+	} config;
+
+#ifdef CLIENT_STATE_STATS
+	ni_client_state_stats_t stats;
+#endif
 
 	ni_bool_t		use_default_policies;
 
@@ -368,19 +374,22 @@ ni_ifworker_is_valid_state(unsigned int state)
 		state < __NI_FSM_STATE_MAX;
 }
 
-#define NI_SET_CONTROL_FLAG(flag, cond, value) \
+#define NI_SET_CONTROL_FLAG(flag, cond, value, inv) \
 	do { \
 		if (!(cond)) \
 			break; \
-		if (value) {\
-			flag = TRUE; \
-			ni_debug_application("%s: set %s control flag to TRUE", \
-				__func__, #flag); \
+		if (inv(value)) {\
+			flag = inv(TRUE); \
+			ni_debug_application("%s: set %s control flag to %s", \
+				__func__, #flag, flag ? "TRUE" : "FALSE"); \
 		} \
-		else if (flag) {\
-			ni_fatal("%s: attempt to switch off %s control flag", \
-				__func__, #flag); \
+		else if (inv(flag)) {\
+			ni_fatal("%s: attempt to switch %s %s control flag", \
+				__func__, flag ? "off" : "on", #flag); \
 		} \
 	} while(0)
+
+#define NI_SET_PERSISTENT_FLAG(flag, cond, value) NI_SET_CONTROL_FLAG(flag, cond, value, !!)
+#define NI_SET_USERCONTROL_FLAG(flag, cond, value) NI_SET_CONTROL_FLAG(flag, cond, value, !)
 
 #endif /* __CLIENT_FSM_H__ */

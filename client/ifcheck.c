@@ -134,7 +134,7 @@ ni_ifcheck_worker_device_is_persistent(ni_ifworker_t *w)
 ni_bool_t
 ni_ifcheck_worker_config_exists(ni_ifworker_t *w)
 {
-	return w && w->config;
+	return w && w->config.node;
 }
 
 ni_bool_t
@@ -142,11 +142,11 @@ ni_ifcheck_worker_config_matches(ni_ifworker_t *w)
 {
 	ni_netdev_t *dev;
 
-	if (w && w->config && (dev = w->device)) {
+	if (ni_ifcheck_worker_config_exists(w) && (dev = w->device)) {
 		ni_client_state_t *cs = dev->client_state;
 
 		return cs &&
-			ni_uuid_equal(&cs->config.uuid, &w->client_state.config.uuid);
+			ni_uuid_equal(&cs->config.uuid, &w->config.meta.uuid);
 	}
 	return FALSE;
 }
@@ -377,7 +377,7 @@ ni_do_ifcheck(int argc, char **argv)
 								(changed ? "yes" : "no"));
 						if (changed) {
 							ni_debug_wicked("%s: config file uuid is %s", w->name,
-								ni_uuid_print(&w->client_state.config.uuid));
+								ni_uuid_print(&w->config.meta.uuid));
 							ni_debug_wicked("%s: system dev. uuid is %s", w->name,
 								cs ? ni_uuid_print(&cs->config.uuid) : "NOT SET");
 							set_status(&status, NI_WICKED_ST_CHANGED_CONFIG);

@@ -195,8 +195,10 @@ usage:
 				continue;
 
 			/* Mark persistend when requested */
-			if (opt_persistent)
-				w->client_state.control.persistent = TRUE;
+			if (opt_persistent) {
+				NI_SET_PERSISTENT_FLAG(w->control.persistent, TRUE, TRUE);
+				NI_SET_USERCONTROL_FLAG(w->control.usercontrol, TRUE, FALSE);
+			}
 
 			/* Remember all changed devices */
 			ni_ifworker_array_append(&marked, w);
