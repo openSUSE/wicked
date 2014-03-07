@@ -111,6 +111,7 @@ ni_client_state_config_print_xml(const ni_client_state_config_t *conf, xml_node_
 {
 	xml_node_t *parent;
 	const char *ptr;
+	char *tmp = NULL;
 
 	if (!conf || !node)
 		return FALSE;
@@ -127,6 +128,13 @@ ni_client_state_config_print_xml(const ni_client_state_config_t *conf, xml_node_
 	    !xml_node_new_element(NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE, parent, ptr)) {
 		return FALSE;
 	}
+
+	ni_string_printf(&tmp, "%u", conf->owner);
+	if (!xml_node_new_element(NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE, parent, tmp)) {
+		ni_string_free(&tmp);
+		return FALSE;
+	}
+	ni_string_free(&tmp);
 
 	return TRUE;
 }
@@ -256,6 +264,10 @@ ni_client_state_config_parse_xml(const xml_node_t *node, ni_client_state_config_
 		return FALSE;
 	ni_string_dup(&conf->origin, child->cdata);
 
+	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE);
+	if (!child || !child->cdata || ni_parse_uint(child->cdata, &conf->owner, 10))
+		return FALSE;
+
 	return TRUE;
 }
 
@@ -380,6 +392,7 @@ ni_client_state_new(unsigned int state)
 
 	client_state = xcalloc(1, sizeof(*client_state));
 	ni_client_state_set_state(client_state, state);
+	ni_client_state_config_init(&client_state->config);
 
 	return client_state;
 }
@@ -389,6 +402,7 @@ ni_client_state_init(ni_client_state_t *client_state)
 {
 	if (client_state) {
 		memset(client_state, 0, sizeof(*client_state));
+		ni_client_state_config_init(&client_state->config);
 	}
 }
 
@@ -417,6 +431,21 @@ ni_client_state_free(ni_client_state_t *cs)
 {
 	ni_client_state_destroy(cs);
 	free(cs);
+}
+
+static inline void
+__ni_set_config_owner(ni_client_state_config_t *conf)
+{
+	conf->owner = geteuid();
+}
+
+void
+ni_client_state_config_init(ni_client_state_config_t *conf)
+{
+	if (conf) {
+		memset(conf, 0, sizeof(*conf));
+		__ni_set_config_owner(conf);
+	}
 }
 
 void
@@ -603,10 +632,11 @@ void
 ni_client_state_config_debug(const char *name, const ni_client_state_config_t *conf, const char *action)
 {
 	ni_assert(conf && action);
-	ni_debug_application("%s: %s <%s> %s: %s=%s, %s=%s", name ? name : "unknown",
+	ni_debug_application("%s: %s <%s> %s: %s=%s, %s=%s, %s=%u", name ? name : "unknown",
 		action, NI_CLIENT_STATE_XML_NODE, NI_CLIENT_STATE_XML_CONFIG_NODE,
 		NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE, conf->origin,
-		NI_CLIENT_STATE_XML_CONFIG_UUID_NODE, ni_uuid_print(&conf->uuid)
+		NI_CLIENT_STATE_XML_CONFIG_UUID_NODE, ni_uuid_print(&conf->uuid),
+		NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE, conf->owner
 	);
 }
 

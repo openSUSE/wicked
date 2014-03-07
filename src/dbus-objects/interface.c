@@ -1262,14 +1262,18 @@ ni_objectmodel_netif_client_state_config_to_dict(const ni_client_state_config_t 
 		return FALSE;
 	ni_dbus_variant_init_dict(var);
 
-	if (!ni_dbus_dict_add_string(var,
-	    NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE, conf->origin)) {
+	if (!ni_dbus_dict_add_string(var, NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE,
+	    conf->origin)) {
 		return FALSE;
 	}
 
-	if (!ni_dbus_dict_add_byte_array(var,
-	    NI_CLIENT_STATE_XML_CONFIG_UUID_NODE,
+	if (!ni_dbus_dict_add_byte_array(var, NI_CLIENT_STATE_XML_CONFIG_UUID_NODE,
 	    conf->uuid.octets, sizeof(conf->uuid.octets))) {
+		return FALSE;
+	}
+
+	if (!ni_dbus_dict_add_uint32(var, NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE,
+	    conf->owner)) {
 		return FALSE;
 	}
 
@@ -1398,6 +1402,11 @@ ni_objectmodel_netif_client_state_config_from_dict(ni_client_state_config_t *con
 	}
 	else
 		return FALSE;
+
+	if (!ni_dbus_dict_get_uint32(var, NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE,
+	    &conf->owner)) {
+		return FALSE;
+	}
 
 	return TRUE;
 }

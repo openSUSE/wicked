@@ -101,6 +101,8 @@ __ni_ifworker_new(ni_ifworker_type_t type, const char *name)
 	w->target_range.max = __NI_FSM_STATE_MAX;
 	w->readonly = FALSE;
 
+	ni_client_state_config_init(&w->config.meta);
+
 	ni_ifworker_control_set_defaults(w);
 
 	return w;
