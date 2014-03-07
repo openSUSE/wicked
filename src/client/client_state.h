@@ -30,6 +30,8 @@
 #define NI_CLIENT_STATE_XML_LAST_TIME_NODE	"last-time"
 #endif
 
+#define NI_WICKED_IFCONFIG_META_DATA "meta-data"
+
 typedef struct ni_client_state_control {
 	ni_bool_t persistent;	/* allowing/disallowing ifdown flag */
 	ni_bool_t usercontrol;	/* allowing/disallowing user to change the config */
