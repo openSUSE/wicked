@@ -109,17 +109,21 @@
    <uuid type="uuid-type" constraint="required"/>
  </define>
 
+<!--
  <define name="client-state-stats-type" class="dict">
    <init-state type="builtin-fsm-state"/>
    <init-time type="string"/>
    <last-time type="string"/>
  </define>
+-->
 
  <define name="client-state-type" class="dict">
    <state type="builtin-fsm-state"/>
    <control type="client-state-control-type" constraint="required"/>
    <config type="client-state-config-type" constraint="required"/>
+<!--
    <stats type="client-state-stats-type"/>
+-->
  </define>
 
  <client-state type="client-state-type" constraint="required"/>

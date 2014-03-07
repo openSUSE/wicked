@@ -501,6 +501,7 @@ ni_call_set_client_state_config(ni_dbus_object_t *object, const ni_client_state_
 	return rv;
 }
 
+#ifdef CLIENT_STATE_STATS
 #if 0
 int
 ni_call_set_client_state_stats(ni_dbus_object_t *object, const ni_client_state_stats_t *stats)
@@ -523,6 +524,7 @@ ni_call_set_client_state_stats(ni_dbus_object_t *object, const ni_client_state_s
 	ni_dbus_variant_destroy(&dict);
 	return rv;
 }
+#endif
 #endif
 
 /*

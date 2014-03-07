@@ -943,6 +943,7 @@ ni_objectmodel_netif_set_client_state_config(ni_dbus_object_t *object, const ni_
 	return TRUE;
 }
 
+#ifdef CLIENT_STATE_STATS
 /*
  * Interface.setClientStats()
  *
@@ -972,6 +973,8 @@ ni_objectmodel_netif_set_client_state_stats(ni_dbus_object_t *object, const ni_d
 	return TRUE;
 }
 #endif
+#endif
+
 /*
  * Broadcast an interface event
  * The optional uuid argument helps the client match e.g. notifications
@@ -1101,8 +1104,10 @@ static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 	{ "setClientState",	"a{sv}",		ni_objectmodel_netif_set_client_state_state },
 	{ "setClientControl",	"a{sv}",		ni_objectmodel_netif_set_client_state_control },
 	{ "setClientConfig",	"a{sv}",		ni_objectmodel_netif_set_client_state_config },
+#ifdef CLIENT_STATE_STATS
 #if 0
 	{ "setClientStats",	"a{sv}",		ni_objectmodel_netif_set_client_state_stats },
+#endif
 #endif
 	{ "linkMonitor",	"",			ni_objectmodel_netif_link_monitor },
 	{ "getNames",		"",			ni_objectmodel_netif_get_names },
@@ -1200,7 +1205,11 @@ ni_objectmodel_netif_client_state_to_dict(const ni_client_state_t *cs, ni_dbus_v
 	if (!ni_objectmodel_netif_client_state_state_to_dict(cs->state, dict) ||
 	    !ni_objectmodel_netif_client_state_control_to_dict(&cs->control, dict) ||
 	    !ni_objectmodel_netif_client_state_config_to_dict(&cs->config, dict) ||
+#ifdef CLIENT_STATE_STATS
 	    !ni_objectmodel_netif_client_state_stats_to_dict(&cs->stats, dict)) {
+#else
+	    FALSE) {
+#endif
 		return FALSE;
 	}
 
@@ -1272,6 +1281,7 @@ ni_objectmodel_netif_client_state_config_to_dict(const ni_client_state_config_t 
 	return TRUE;
 }
 
+#ifdef CLIENT_STATE_STATS
 dbus_bool_t
 ni_objectmodel_netif_client_state_stats_to_dict(const ni_client_state_stats_t *stats, ni_dbus_variant_t *dict)
 {
@@ -1305,6 +1315,7 @@ ni_objectmodel_netif_client_state_stats_to_dict(const ni_client_state_stats_t *s
 
 	return TRUE;
 }
+#endif
 
 static dbus_bool_t
 __ni_objectmodel_netif_set_client_state(ni_dbus_object_t *object,
@@ -1334,7 +1345,9 @@ ni_objectmodel_netif_client_state_from_dict(ni_client_state_t *cs, const ni_dbus
 	    !ni_objectmodel_netif_client_state_config_from_dict(&cs->config, dict)) {
 		return FALSE;
 	}
+#ifdef CLIENT_STATE_STATS
 	ni_objectmodel_netif_client_state_stats_from_dict(&cs->stats, dict);
+#endif
 
 	return TRUE;
 }
@@ -1399,6 +1412,7 @@ ni_objectmodel_netif_client_state_config_from_dict(ni_client_state_config_t *con
 	return TRUE;
 }
 
+#ifdef CLIENT_STATE_STATS
 dbus_bool_t
 ni_objectmodel_netif_client_state_stats_from_dict(ni_client_state_stats_t *stats, const ni_dbus_variant_t *dict)
 {
@@ -1423,6 +1437,7 @@ ni_objectmodel_netif_client_state_stats_from_dict(ni_client_state_stats_t *stats
 
 	return TRUE;
 }
+#endif
 
 /*
  * Properties of an interface

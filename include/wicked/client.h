@@ -31,8 +31,10 @@ extern int			ni_call_common_xml(ni_dbus_object_t *,
 extern int			ni_call_set_client_state_state(ni_dbus_object_t *, unsigned int);
 extern int			ni_call_set_client_state_control(ni_dbus_object_t *, const ni_client_state_control_t *);
 extern int			ni_call_set_client_state_config(ni_dbus_object_t *, const ni_client_state_config_t *);
+#ifdef CLIENT_STATE_STATS
 #if 0
 extern int			ni_call_set_client_state_stats(ni_dbus_object_t *, const ni_client_state_stats_t *);
+#endif
 #endif
 
 extern int			ni_call_link_monitor(ni_dbus_object_t *);

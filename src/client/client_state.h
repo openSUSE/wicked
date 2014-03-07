@@ -24,10 +24,12 @@
 #define NI_CLIENT_STATE_XML_CONFIG_UUID_NODE	"uuid"
 #define NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE	"origin"
 
+#ifdef CLIENT_STATE_STATS
 #define NI_CLIENT_STATE_XML_STATS_NODE	"stats"
 #define NI_CLIENT_STATE_XML_INIT_STATE_NODE	"init-state"
 #define NI_CLIENT_STATE_XML_INIT_TIME_NODE	"init-time"
 #define NI_CLIENT_STATE_XML_LAST_TIME_NODE	"last-time"
+#endif
 
 typedef struct ni_client_state_control {
 	ni_bool_t persistent;	/* allowing/disallowing ifdown flag */
@@ -40,17 +42,21 @@ typedef struct ni_client_state_config {
 	char *		origin;	/* Source of the configuration of the interface */
 } ni_client_state_config_t;
 
+#ifdef CLIENT_STATE_STATS
 typedef struct ni_client_state_stats {
 	unsigned int	init_state;	/* state while initial ifup */
 	struct timeval	init_time;	/* time of initial ifup     */
 	struct timeval	last_time;	/* time of last ifup/reload */
 } ni_client_state_stats_t;
+#endif
 
 typedef struct ni_client_state {
 	unsigned int	state;	/* Current state of the interface */
 	ni_client_state_control_t control;
 	ni_client_state_config_t config;
+#ifdef CLIENT_STATE_STATS
 	ni_client_state_stats_t stats;
+#endif
 } ni_client_state_t;
 
 extern ni_client_state_t *	ni_client_state_new(unsigned int);
@@ -61,7 +67,9 @@ extern void		ni_client_state_free(ni_client_state_t *);
 
 extern ni_bool_t	ni_client_state_control_is_valid(const ni_client_state_control_t *);
 extern ni_bool_t	ni_client_state_config_is_valid(const ni_client_state_config_t *);
+#ifdef CLIENT_STATE_STATS
 extern ni_bool_t	ni_client_state_stats_is_valid(const ni_client_state_stats_t *);
+#endif
 extern ni_bool_t	ni_client_state_is_valid(const ni_client_state_t *);
 
 extern void		ni_client_state_set_state(ni_client_state_t *, unsigned int);
@@ -76,7 +84,9 @@ extern ni_bool_t	ni_client_state_drop(unsigned int);
 extern void		ni_client_state_state_debug(const char *, unsigned int , const char *);
 extern void		ni_client_state_control_debug(const char *, const ni_client_state_control_t *, const char *);
 extern void		ni_client_state_config_debug(const char *, const ni_client_state_config_t *, const char *);
+#ifdef CLIENT_STATE_STATS
 extern void		ni_client_state_stats_debug(const char *, const ni_client_state_stats_t *, const char *);
+#endif
 extern void		ni_client_state_debug(const char *, const ni_client_state_t *, const char *);
 
 /*
