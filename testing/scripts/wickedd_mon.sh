@@ -12,7 +12,7 @@
 
 EXPECTED_ARGS=0
 
-STATE='state="%{?client-state/state}"'
+STATE='current-state="%{?client-state/current-state}"'
 CONFIG_ORIGIN='config-origin="%{?client-state/config/origin}"'
 CONFIG_UUID='config-origin="%{?client-state/config/uuid}"'
 PERSISTENT='persistent="%{?client-state/control/persistent}"'

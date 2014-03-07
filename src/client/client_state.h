@@ -13,7 +13,7 @@
 
 #define NI_CLIENT_STATE_XML_NODE	"client-state"
 
-#define NI_CLIENT_STATE_XML_STATE_NODE	"state"
+#define NI_CLIENT_STATE_XML_STATE_NODE	"current-state"
 
 #define NI_CLIENT_STATE_XML_CONTROL_NODE	"control"
 #define NI_CLIENT_STATE_XML_PERSISTENT_NODE	"persistent"
