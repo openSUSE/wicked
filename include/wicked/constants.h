@@ -270,8 +270,7 @@ typedef enum {
 
 	NI_WICKED_ST_NOT_IN_STATE	= 165,	/*!< ifcheck state lower than expected	*/
 	NI_WICKED_ST_PERSISTENT_ON	= 166,	/*!< interface is in persistent mode	*/
-	NI_WICKED_ST_MANDATORY_ON	= 167,	/*!< interface is mandatory	*/
-	NI_WICKED_ST_USERCONTROL_ON	= 168,	/*!< user is allowed to configure the interface	*/
+	NI_WICKED_ST_USERCONTROL_ON	= 167,	/*!< user is allowed to configure the interface	*/
 } ni_status_code_t;
 
 #endif /* __WICKED_CONSTANTS_H__ */

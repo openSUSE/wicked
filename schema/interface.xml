@@ -100,7 +100,6 @@
 
  <define name="client-state-control-type" class="dict">
    <persistent type="boolean" constraint="required"/>
-   <mandatory type="boolean" constraint="required"/>
    <usercontrol type="boolean" constraint="required"/>
  </define>
 
@@ -299,7 +298,6 @@
       This method can be used by client to set:
 	* control flags of an interface:
 	  - persistent  - allowing/disallowing ifdown operation
-	  - mandatory   - interface needs to be present
 	  - usercontrol - user control permission
     </description>
     <arguments>

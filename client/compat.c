@@ -1178,7 +1178,6 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 
 		cs = ni_netdev_get_client_state(dev);
 		cs->control.persistent = control->persistent;
-		cs->control.mandatory = control->mandatory;
 		cs->control.usercontrol = control->usercontrol;
 	}
 

@@ -98,8 +98,6 @@ ni_client_state_control_print_xml(const ni_client_state_control_t *ctrl, xml_nod
 
 	if (!xml_node_new_element(NI_CLIENT_STATE_XML_PERSISTENT_NODE, parent,
 			ni_format_boolean(ctrl->persistent)) ||
-	    !xml_node_new_element(NI_CLIENT_STATE_XML_MANDATORY_NODE, parent,
-			ni_format_boolean(ctrl->mandatory)) ||
 	    !xml_node_new_element(NI_CLIENT_STATE_XML_USERCONTROL_NODE, parent,
 			ni_format_boolean(ctrl->usercontrol))) {
 			return FALSE;
@@ -222,13 +220,6 @@ ni_client_state_control_parse_xml(const xml_node_t *node, ni_client_state_contro
 	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_PERSISTENT_NODE);
 	if (!child || !child->cdata ||
 	    ni_parse_boolean(child->cdata, &ctrl->persistent)) {
-		return FALSE;
-	}
-
-	/* <mandatory> node is mandatory */
-	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_MANDATORY_NODE);
-	if (!child || !child->cdata ||
-	    ni_parse_boolean(child->cdata, &ctrl->mandatory)) {
 		return FALSE;
 	}
 
@@ -601,10 +592,9 @@ void
 ni_client_state_control_debug(const char *name, const ni_client_state_control_t *ctrl, const char *action)
 {
 	ni_assert(ctrl && action);
-	ni_debug_application("%s: %s <%s> %s: %s=%s, %s=%s, %s=%s", name ? name : "unknown",
+	ni_debug_application("%s: %s <%s> %s: %s=%s, %s=%s", name ? name : "unknown",
 		action, NI_CLIENT_STATE_XML_NODE, NI_CLIENT_STATE_XML_CONTROL_NODE,
 		NI_CLIENT_STATE_XML_PERSISTENT_NODE, ni_format_boolean(ctrl->persistent),
-		NI_CLIENT_STATE_XML_MANDATORY_NODE, ni_format_boolean(ctrl->mandatory),
 		NI_CLIENT_STATE_XML_USERCONTROL_NODE, ni_format_boolean(ctrl->usercontrol)
 	);
 }

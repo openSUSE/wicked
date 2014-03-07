@@ -188,10 +188,8 @@ ni_ifstatus_of_worker(ni_ifworker_t *w, ni_bool_t *mandatory)
 	ni_netdev_t *dev = w ? w->device : NULL;
 	unsigned int st;
 
-	if (mandatory) {
-		*mandatory = ni_ifcheck_worker_device_is_mandatory(w) ||
-				ni_ifcheck_device_is_persistent(dev);
-	}
+	if (mandatory)
+		*mandatory = ni_ifcheck_device_is_persistent(dev);
 
 	if (!ni_ifcheck_worker_device_exists(w)) {
 		if (!ni_ifcheck_worker_config_exists(w))

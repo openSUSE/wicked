@@ -103,7 +103,6 @@ typedef enum {
 typedef struct ni_ifworker_control {
 	char *			mode;
 	char *			boot_stage;
-	ni_bool_t	mandatory;	/* a device must be present */
 	ni_bool_t	link_required;
 	ni_bool_t	persistent;	/* allowing/disallowing ifdown flag */
 	ni_bool_t	usercontrol; 	/* allowing/disallowing user to change the config */

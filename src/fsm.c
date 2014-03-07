@@ -1056,8 +1056,6 @@ ni_ifworker_set_control_client_state(ni_ifworker_t *w, xml_node_t *csnode)
 	/* only <control> values are taken into account */
 	NI_SET_CONTROL_FLAG(ctrl->persistent, cs.control.persistent == TRUE,
 		cs.control.persistent);
-	NI_SET_CONTROL_FLAG(ctrl->mandatory, cs.control.persistent == TRUE,
-		cs.control.mandatory);
 	NI_SET_CONTROL_FLAG(ctrl->usercontrol, cs.control.persistent == TRUE,
 		cs.control.usercontrol);
 
