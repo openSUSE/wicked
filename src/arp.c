@@ -167,7 +167,7 @@ ni_arp_parse(ni_arp_socket_t *arph, ni_buffer_t *bp, ni_arp_packet_t *p)
 	 || arp->ar_pln != 4)
 		return -1;
 
-	p->op = arp->ar_op;
+	p->op = ntohs(arp->ar_op);
 	p->sha.type = arph->dev_info.hwaddr.type;
 	p->sha.len = ni_link_address_length(arph->dev_info.hwaddr.type);
 	p->tha = p->sha;
