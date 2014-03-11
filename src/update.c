@@ -171,11 +171,11 @@ ni_updater_source_array_remove(ni_updater_source_array_t *usa, unsigned int inde
 		return NULL;
 
 	ptr = usa->data[index];
-
-	/* Note: this also copies the NULL pointer following the last element */
-	memmove(&usa->data[index], &usa->data[index + 1],
-		(usa->count - index) * sizeof(ni_updater_source_t *));
 	usa->count--;
+	if (index < usa->count) {
+		memmove(&usa->data[index], &usa->data[index + 1],
+			(usa->count - index) * sizeof(ni_updater_source_t *));
+	}
 	usa->data[usa->count] = NULL;
 
 	/* Don't bother with shrinking the array. It's not worth the trouble */

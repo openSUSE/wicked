@@ -891,11 +891,11 @@ ni_route_array_remove(ni_route_array_t *nra, unsigned int index)
 		return NULL;
 
 	rp = nra->data[index];
-
-	/* Note: this also copies the NULL pointer following the last element */
-	memmove(&nra->data[index], &nra->data[index + 1],
-		(nra->count - index) * sizeof(ni_route_t *));
 	nra->count--;
+	if (index < nra->count) {
+		memmove(&nra->data[index], &nra->data[index + 1],
+			(nra->count - index) * sizeof(ni_route_t *));
+	}
 	nra->data[nra->count] = NULL;
 
 	/* Don't bother with shrinking the array. It's not worth the trouble */
