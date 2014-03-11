@@ -582,7 +582,7 @@ ni_socket_array_activate(ni_socket_array_t *array, ni_socket_t *sock)
 	if (sock->active)
 		return sock->active == array;
 
-	if (!ni_socket_array_append(&__ni_sockets, sock))
+	if (!ni_socket_array_append(array, sock))
 		return FALSE;
 
 	ni_socket_hold(sock);

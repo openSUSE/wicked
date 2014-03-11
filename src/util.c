@@ -196,7 +196,7 @@ ni_string_array_remove_index(ni_string_array_t *nsa, unsigned int pos)
 	free(nsa->data[pos]);
 
 	nsa->count--;
-	if (index < nsa->count) {
+	if (pos < nsa->count) {
 		memmove(&nsa->data[pos], &nsa->data[pos + 1],
 			(nsa->count - pos) * sizeof(char *));
 	}
