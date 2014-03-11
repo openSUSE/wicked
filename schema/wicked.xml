@@ -16,7 +16,7 @@
 <include name="infiniband.xml"/>
 <include name="interface.xml"/>
 <include name="wireless.xml"/>
-<include name="tun.xml"/>
+<include name="tuntap.xml"/>
 <include name="ppp.xml"/>
 <include name="firewall.xml"/>
 <include name="addrconf.xml"/>

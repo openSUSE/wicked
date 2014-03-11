@@ -59,9 +59,13 @@ extern int		ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *,
 				const ni_bonding_t *);
 extern int		ni_system_bond_delete(ni_netconfig_t *nc, ni_netdev_t *);
 extern int		ni_system_bond_shutdown(ni_netdev_t *);
-extern int		ni_system_tun_create(ni_netconfig_t *, const char *,
-				const ni_tun_t *cfg, ni_netdev_t **);
-extern int		ni_system_tun_delete(ni_netdev_t *);
+extern int		ni_system_tap_change(ni_netconfig_t *, ni_netdev_t *, const ni_netdev_t *);
+extern int		ni_system_tuntap_create(ni_netconfig_t *, const ni_netdev_t *,
+				ni_netdev_t **);
+extern int		ni_system_tuntap_delete(ni_netdev_t *);
+extern int		ni_system_tap_create(ni_netconfig_t *, const char *,
+				ni_netdev_t **);
+extern int		ni_system_tap_delete(ni_netdev_t *);
 extern int		ni_system_ppp_create(ni_netconfig_t *, const char *,
 				ni_ppp_t *, ni_netdev_t **);
 extern int		ni_system_ppp_delete(ni_netdev_t *);

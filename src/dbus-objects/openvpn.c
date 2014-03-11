@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2012 Olaf Kirch <okir@suse.de>
  */
+#if 0
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -11,12 +12,13 @@
 #include <wicked/logging.h>
 #include <wicked/system.h>
 #include <wicked/openvpn.h>
-#include <wicked/tun.h>
+#include <wicked/tuntap.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/dbus-service.h>
 #include "model.h"
 #include "debug.h"
 
+#if 0
 extern ni_dbus_service_t	ni_objectmodel_openvpn_service;
 
 static ni_netdev_t *		__ni_objectmodel_openvpn_newlink(ni_netdev_t *, const char *, DBusError *);
@@ -31,6 +33,7 @@ __ni_objectmodel_openvpn_device_arg(const ni_dbus_variant_t *dict)
 	return ni_objectmodel_get_netif_argument(dict, NI_IFTYPE_TUN, &ni_objectmodel_openvpn_service);
 }
 
+#endif
 
 /*
  * Create a new TUN interface
@@ -70,7 +73,7 @@ __ni_objectmodel_openvpn_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_netdev_t *new_dev = NULL;
-	const ni_tun_t *tun;
+	const ni_tuntap_t *cfg;
 	const char *err;
 	int rv;
 
@@ -79,17 +82,18 @@ __ni_objectmodel_openvpn_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 	ni_debug_dbus("OpenVPN.newDevice(name=%s)", ifname);
 
 	if (ifname == NULL && !(ifname = ni_netdev_make_name(nc, "tun", 0))) {
-		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create tun - too many interfaces");
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+			"Unable to create tun - too many interfaces");
 		goto out;
 	}
 
-	tun = ni_netdev_get_tun(cfg_ifp);
-	if ((err = ni_tun_validate(tun))) {
+	cfg = ni_netdev_get_tuntap(cfg_ifp);
+	if ((err = ni_tuntap_validate(cfg))) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s", err);
 		goto out;
 	}
 
-	if ((rv = ni_system_tun_create(nc, ifname, tun, &new_dev)) < 0) {
+	if ((rv = ni_system_tuntap_create(nc, ifname, NI_IFTYPE_TUN, cfg, &new_dev)) < 0) {
 		if (rv != -NI_ERROR_DEVICE_EXISTS || new_dev == NULL
 		|| (ifname && new_dev && !ni_string_eq(new_dev->name, ifname))) {
 			ni_dbus_set_error_from_code(error, rv,
@@ -141,7 +145,7 @@ ni_objectmodel_openvpn_delete(ni_dbus_object_t *object, const ni_dbus_method_t *
 	 * the configuration files, keys etc. */
 	ni_netdev_set_openvpn(dev, NULL);
 
-	if ((rv = ni_system_tun_delete(dev)) < 0) {
+	if ((rv = ni_system_tuntap_delete(dev)) < 0) {
 		ni_dbus_set_error_from_code(error, rv, "Cannot delete OpenVPN interface %s", dev->name);
 		return FALSE;
 	}
@@ -203,4 +207,5 @@ ni_dbus_service_t	ni_objectmodel_openvpn_service = {
 	.properties	= ni_objectmodel_openvpn_property_table,
 };
 
+#endif
 

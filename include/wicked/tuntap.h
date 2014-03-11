@@ -1,5 +1,5 @@
 /*
- *	Routines for handling tun device settings
+ *	Routines for handling tun/tap device settings
  *
  *	Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
  *
@@ -24,20 +24,21 @@
  *
  */
 
-#ifndef   __WICKED_TUN_H__
-#define   __WICKED_TUN_H__
+#ifndef   __WICKED_TUNTAP_H__
+#define   __WICKED_TUNTAP_H__
 
 #include <wicked/types.h>
 
-struct ni_tun {
+struct ni_tuntap {
 	ni_bool_t	persistent; /* Always TRUE */
 	uid_t		owner;
 	gid_t		group;
 };
 
-extern ni_tun_t *	ni_tun_new(void);
-extern void		ni_tun_free(ni_tun_t *);
-extern const char *	ni_tun_validate(const ni_tun_t *);
+extern ni_tuntap_t *	ni_tuntap_new(void);
+extern void		ni_tuntap_free(ni_tuntap_t *);
+extern const char *	ni_tuntap_validate(const ni_tuntap_t *);
 
-extern int		ni_tun_parse_sysfs_attrs(const char *, ni_tun_t *);
-#endif /* __WICKED_MACVLAN_H__ */
+extern int		ni_tuntap_parse_sysfs_attrs(const char *, ni_tuntap_t *);
+
+#endif /* __WICKED_TUNTAP_H__ */

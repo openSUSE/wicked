@@ -22,7 +22,7 @@
 #include <wicked/macvlan.h>
 #include <wicked/openvpn.h>
 #include <wicked/ppp.h>
-#include <wicked/tun.h>
+#include <wicked/tuntap.h>
 #include <wicked/socket.h>
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
@@ -184,23 +184,23 @@ ni_netdev_set_vlan(ni_netdev_t *dev, ni_vlan_t *vlan)
 /*
  * Get the interface's TUN/TAP information
  */
-ni_tun_t *
-ni_netdev_get_tun(ni_netdev_t *dev)
+ni_tuntap_t *
+ni_netdev_get_tuntap(ni_netdev_t *dev)
 {
-	if (dev->link.type != NI_IFTYPE_TUN)
+	if (dev->link.type != NI_IFTYPE_TUN && dev->link.type != NI_IFTYPE_TAP)
 		return NULL;
 
-	if (!dev->tun)
-		dev->tun = ni_tun_new();
-	return dev->tun;
+	if (!dev->tuntap)
+		dev->tuntap = ni_tuntap_new();
+	return dev->tuntap;
 }
 
 void
-ni_netdev_set_tun(ni_netdev_t *dev, ni_tun_t *tun)
+ni_netdev_set_tuntap(ni_netdev_t *dev, ni_tuntap_t *cfg)
 {
-	if (dev->tun)
-		ni_tun_free(dev->tun);
-	dev->tun = tun;
+	if (dev->tuntap)
+		ni_tuntap_free(dev->tuntap);
+	dev->tuntap = cfg;
 }
 
 /*
@@ -753,6 +753,7 @@ static ni_intmap_t __ifname_types[] = {
 	{ "ipip",	NI_IFTYPE_TUNNEL	},
 	{ "sit",	NI_IFTYPE_SIT		},
 	{ "tun",	NI_IFTYPE_TUN		},
+	{ "tap",	NI_IFTYPE_TAP		},
 
 	{ NULL }
 };

@@ -35,7 +35,7 @@
 #include <wicked/system.h>
 #include <wicked/wireless.h>
 #include <wicked/infiniband.h>
-#include <wicked/tun.h>
+#include <wicked/tuntap.h>
 #include <wicked/ppp.h>
 #include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
@@ -273,15 +273,9 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 	case NI_IFTYPE_DUMMY:
 	case NI_IFTYPE_VLAN:
 	case NI_IFTYPE_MACVLAN:
-		if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
-			ni_error("could not destroy %s interface %s",
-				ni_linktype_type_to_name(dev->link.type), dev->name);
-			return -1;
-		}
-		break;
-
 	case NI_IFTYPE_TUN:
-		if (__ni_tuntap_delete(dev->name) < 0) {
+	case NI_IFTYPE_TAP:
+		if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
 			ni_error("could not destroy %s interface %s",
 				ni_linktype_type_to_name(dev->link.type), dev->name);
 			return -1;
@@ -1171,23 +1165,31 @@ ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int s
 	return 0;
 }
 
+int
+ni_system_tap_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	return __ni_rtnl_link_change(dev, cfg);
+}
+
 /*
- * Create a tun interface
+ * Create a tun/tap interface
  */
 int
-ni_system_tun_create(ni_netconfig_t *nc, const char *ifname,
-			const ni_tun_t *cfg, ni_netdev_t **dev_ret)
+ni_system_tuntap_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **dev_ret)
 {
+	const char *iftype_name;
 	ni_netdev_t *dev;
-	char *newname;
+	ni_assert(cfg && dev_ret);
 
 	*dev_ret = NULL;
+	iftype_name = ni_linktype_type_to_name(cfg->link.type);
 
-	dev = ni_netdev_by_name(nc, ifname);
+	dev = ni_netdev_by_name(nc, cfg->name);
 	if (dev != NULL) {
 		/* This is not necessarily an error */
-		if (dev->link.type == NI_IFTYPE_TUN) {
-			ni_debug_ifconfig("A tun interface %s already exists", dev->name);
+		if (dev->link.type == cfg->link.type) {
+			ni_debug_ifconfig("A %s interface %s already exists", iftype_name,
+				dev->name);
 			*dev_ret = dev;
 		} else {
 			ni_error("A %s interface with the name %s already exists",
@@ -1196,26 +1198,27 @@ ni_system_tun_create(ni_netconfig_t *nc, const char *ifname,
 		return -NI_ERROR_DEVICE_EXISTS;
 	}
 
-	ni_debug_ifconfig("%s: creating tun interface", ifname);
-	if ((newname = __ni_tuntap_create(ifname, cfg)) == NULL) {
-		ni_error("__ni_tuntap_create(%s) failed", ifname);
+	ni_debug_ifconfig("%s: creating %s interface", iftype_name, cfg->name);
+	if (__ni_tuntap_create(cfg) < 0) {
+		ni_error("__ni_tuntap_create(%s) failed for %s interface ", cfg->name,
+			iftype_name);
 		return -1;
 	}
 
 	/* Refresh interface status */
 	__ni_system_refresh_interfaces(nc);
 
-	dev = ni_netdev_by_name(nc, newname);
-	free(newname);
+	dev = ni_netdev_by_name(nc, cfg->name);
 
 	if (dev == NULL) {
-		ni_error("tried to create tun interface %s; still not found", ifname);
+		ni_error("tried to create %s interface %s; still not found",
+			iftype_name, cfg->name);
 		return -1;
 	}
 
-	if (!ni_netdev_get_tun(dev)) {
+	if (!ni_netdev_get_tuntap(dev)) {
 		ni_error("found new interface name %s but with type %s",
-			ifname, ni_linktype_type_to_name(dev->link.type));
+			cfg->name, ni_linktype_type_to_name(dev->link.type));
 		return -1;
 	}
 
@@ -1224,14 +1227,14 @@ ni_system_tun_create(ni_netconfig_t *nc, const char *ifname,
 }
 
 /*
- * Delete a tun interface
+ * Delete a tun/tap interface
  */
 int
-ni_system_tun_delete(ni_netdev_t *dev)
+ni_system_tuntap_delete(ni_netdev_t *dev)
 {
 	int rv;
 
-	if ((rv = __ni_tuntap_delete(dev->name)) < 0) {
+	if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
 		ni_error("could not destroy tun/tap interface %s", dev->name);
 		return rv;
 	}

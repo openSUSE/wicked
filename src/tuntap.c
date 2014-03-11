@@ -1,5 +1,5 @@
 /*
- *	DBus encapsulation for tun/tap interfaces
+ *	Routines for handling tun/tap device settings
  *
  *	Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
  *
@@ -31,7 +31,7 @@
 #include <limits.h>
 
 #include <wicked/netinfo.h>
-#include <wicked/tun.h>
+#include <wicked/tuntap.h>
 
 #include "netinfo_priv.h"
 #include "util_priv.h"
@@ -43,96 +43,81 @@
  * Initialize defaults
  */
 static inline void
-__ni_tun_init(ni_tun_t *tun)
+__ni_tuntap_init(ni_tuntap_t *cfg)
 {
-	memset(tun, 0, sizeof(*tun));
-	tun->persistent = TRUE;
+	memset(cfg, 0, sizeof(*cfg));
+	cfg->persistent = TRUE;
 }
 
 /*
- * Create a tun config
+ * Create a tun/tap config
  */
-ni_tun_t *
-ni_tun_new(void)
+ni_tuntap_t *
+ni_tuntap_new(void)
 {
-	ni_tun_t *tun;
+	ni_tuntap_t *cfg;
 
-	tun = xcalloc(1, sizeof(ni_tun_t));
-	__ni_tun_init(tun);
+	cfg = xcalloc(1, sizeof(ni_tuntap_t));
+	__ni_tuntap_init(cfg);
 
-	return tun;
+	return cfg;
 }
 
 /*
- * Free tun configuration
+ * Free tun/tap configuration
  */
 void
-ni_tun_free(ni_tun_t *tun)
+ni_tuntap_free(ni_tuntap_t *cfg)
 {
-	free(tun);
+	free(cfg);
 }
 
 /*
- * Check whether the given tun settings are valid
+ * Check whether the given tun/tap settings are valid
  */
 const char *
-ni_tun_validate(const ni_tun_t *tun)
+ni_tuntap_validate(const ni_tuntap_t *cfg)
 {
-	if (tun == NULL)
-		return "uninitialized tun options";
+	if (cfg == NULL)
+		return "uninitialized tun/tap options";
 
-	if (FALSE == tun->persistent)
+	if (FALSE == cfg->persistent)
 		return "Invalid/unsupported tun persistent setting (FALSE)";
 
-	if (tun->owner == -1u)
+	if (cfg->owner == -1U)
 		return "Invalid/unset tun owner UID";
 
-	if (tun->group == -1u)
+	if (cfg->group == -1U)
 		return "Invalid tun group GID";
 
 	return NULL;
-}
-
-static inline gid_t
-__ni_tun_normalize_group(gid_t group)
-{
-	return group == -1u ? 0 : group;
 }
 
 /*
  * Load tun configuration from sysfs
  */
 int
-ni_tun_parse_sysfs_attrs(const char *ifname, ni_tun_t *tun)
+ni_tuntap_parse_sysfs_attrs(const char *ifname, ni_tuntap_t *cfg)
 {
 	static const struct {
 		const char *name;
 		ni_bool_t   nofail;	/* don't fail, may be missed */
 	} attrs[] = {
-		{ "owner",		FALSE },
+		{ "owner",	FALSE },
 		{ "group",	FALSE },
-		{ NULL,			FALSE },
+		{ NULL,		FALSE },
 	};
-	const char *err = NULL;
 
-	__ni_tun_init(tun);
+	__ni_tuntap_init(cfg);
 
-	if (ni_sysfs_netif_get_uint(ifname, attrs[0].name, &tun->owner) < 0) {
+	if (ni_sysfs_netif_get_uint(ifname, attrs[0].name, &cfg->owner) < 0) {
 		if (!attrs[0].nofail)
 			return -1;
 	}
 
-	if (ni_sysfs_netif_get_uint(ifname, attrs[1].name, &tun->group) < 0) {
+	if (ni_sysfs_netif_get_uint(ifname, attrs[1].name, &cfg->group) < 0) {
 		if (!attrs[1].nofail)
 			return -1;
-	}
-
-	/* When group is unset (-1), should be normalized to GID=0 */
-	tun->group = __ni_tun_normalize_group(tun->group);
-
-	if ((err = ni_tun_validate(tun))) {
-		ni_error("%s: %s", ifname, err);
-		return -1;
 	}
 
 	return 0;

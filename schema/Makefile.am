@@ -20,7 +20,7 @@ wicked_schema_files		= \
 	ppp.xml			\
 	protocol.xml		\
 	types.xml		\
-	tun.xml			\
+	tuntap.xml		\
 	vlan.xml		\
 	wicked.xml		\
 	wireless.xml
