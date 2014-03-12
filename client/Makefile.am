@@ -51,6 +51,7 @@ endif
 endif
 
 wicked_SOURCES			= \
+	arputil.c		\
 	compat.c		\
 	ifup.c			\
 	ifdown.c		\
@@ -63,6 +64,7 @@ wicked_SOURCES			= \
 	reachable.c
 
 noinst_HEADERS			= \
+	arputil.h		\
 	ifup.h			\
 	ifdown.h		\
 	ifcheck.h		\
