@@ -152,7 +152,7 @@ ni_system_ipv6_devinfo_set(ni_netdev_t *dev, const ni_ipv6_devconf_t *conf)
 	int rv = 0;
 
 	if (__ni_system_ipv6_devinfo_change_uint(dev->name, "disable_ipv6",
-						conf->enabled) < 0)
+						!conf->enabled) < 0)
 		return -1;
 
 	/* If we're disabling IPv6 on this interface, we're done! */
