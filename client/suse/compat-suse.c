@@ -2871,6 +2871,10 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	/* Hmm... bonding slave -- set ethtool, but no link up */
 	if (ni_string_eq_nocase(bootproto, "none")) {
+		if (ipv4)
+			ipv4->conf.enabled = FALSE;
+		if (ipv6)
+			ipv6->conf.enabled = FALSE;
 		return TRUE;
 	}
 
