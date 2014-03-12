@@ -230,6 +230,8 @@ extern ni_bool_t	ni_address_is_permanent(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_deprecated(const ni_address_t *laddr);
 
 extern ni_bool_t	ni_address_probably_dynamic(const ni_address_t *);
+extern void		ni_address_set_tentative(ni_address_t *, ni_bool_t);
+extern void		ni_address_set_duplicate(ni_address_t *, ni_bool_t);
 
 extern void		ni_link_address_init(ni_hwaddr_t *);
 extern int		ni_link_address_format(const ni_hwaddr_t *ss,
