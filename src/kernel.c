@@ -32,6 +32,7 @@
 #include "sysfs.h"
 #include "kernel.h"
 #include <wicked/ppp.h>
+#include <wicked/tun.h>
 
 /* FIXME: we should really make this configurable */
 #ifndef CONFIG_TUNTAP_CHRDEV_PATH
@@ -217,7 +218,7 @@ __ni_tuntap_open_dev(void)
 }
 
 char *
-__ni_tuntap_create_tun(const char *ifname)
+__ni_tuntap_create(const char *ifname, const ni_tun_t *cfg)
 {
 	unsigned int index = 0;
 	struct ifreq ifr;
@@ -242,8 +243,11 @@ __ni_tuntap_create_tun(const char *ifname)
 		if (ioctl(devfd, TUNSETIFF, &ifr) >= 0) {
 			retname = xstrdup(ifr.ifr_name);
 
-			(void) ioctl(devfd, TUNSETPERSIST, 1);
-			break;
+			if (ioctl(devfd, TUNSETPERSIST, cfg->persistent) == 0 &&
+			    ioctl(devfd, TUNSETOWNER, cfg->owner) == 0 &&
+			    ioctl(devfd, TUNSETGROUP, cfg->group) == 0) {
+				break;
+			}
 		}
 
 		if (errno != EBUSY || ifname) {

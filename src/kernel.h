@@ -61,7 +61,7 @@ extern int		__ni_brioctl_del_port(const char *, unsigned int);
 extern int		__ni_wireless_get_name(const char *, char *, size_t);
 extern int		__ni_wireless_get_essid(const char *, char *, size_t);
 
-extern char *		__ni_tuntap_create_tun(const char *);
+extern char *		__ni_tuntap_create(const char *, const ni_tun_t *);
 extern int		__ni_tuntap_delete(const char *);
 
 extern char *		__ni_ppp_create_device(ni_ppp_t *, const char *);

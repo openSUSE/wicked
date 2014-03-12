@@ -35,6 +35,7 @@
 #include <wicked/system.h>
 #include <wicked/wireless.h>
 #include <wicked/infiniband.h>
+#include <wicked/tun.h>
 #include <wicked/ppp.h>
 #include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
@@ -274,8 +275,15 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 	case NI_IFTYPE_MACVLAN:
 		if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
 			ni_error("could not destroy %s interface %s",
-				ni_linktype_type_to_name(dev->link.type),
-				dev->name);
+				ni_linktype_type_to_name(dev->link.type), dev->name);
+			return -1;
+		}
+		break;
+
+	case NI_IFTYPE_TUN:
+		if (__ni_tuntap_delete(dev->name) < 0) {
+			ni_error("could not destroy %s interface %s",
+				ni_linktype_type_to_name(dev->link.type), dev->name);
 			return -1;
 		}
 		break;
@@ -1167,14 +1175,30 @@ ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int s
  * Create a tun interface
  */
 int
-ni_system_tun_create(ni_netconfig_t *nc, const char *ifname, ni_netdev_t **dev_ret)
+ni_system_tun_create(ni_netconfig_t *nc, const char *ifname,
+			const ni_tun_t *cfg, ni_netdev_t **dev_ret)
 {
 	ni_netdev_t *dev;
 	char *newname;
 
+	*dev_ret = NULL;
+
+	dev = ni_netdev_by_name(nc, ifname);
+	if (dev != NULL) {
+		/* This is not necessarily an error */
+		if (dev->link.type == NI_IFTYPE_TUN) {
+			ni_debug_ifconfig("A tun interface %s already exists", dev->name);
+			*dev_ret = dev;
+		} else {
+			ni_error("A %s interface with the name %s already exists",
+				ni_linktype_type_to_name(dev->link.type), dev->name);
+		}
+		return -NI_ERROR_DEVICE_EXISTS;
+	}
+
 	ni_debug_ifconfig("%s: creating tun interface", ifname);
-	if ((newname = __ni_tuntap_create_tun(ifname)) == NULL) {
-		ni_error("__ni_tuntap_create_tun(%s) failed", ifname);
+	if ((newname = __ni_tuntap_create(ifname, cfg)) == NULL) {
+		ni_error("__ni_tuntap_create(%s) failed", ifname);
 		return -1;
 	}
 
@@ -1186,6 +1210,12 @@ ni_system_tun_create(ni_netconfig_t *nc, const char *ifname, ni_netdev_t **dev_r
 
 	if (dev == NULL) {
 		ni_error("tried to create tun interface %s; still not found", ifname);
+		return -1;
+	}
+
+	if (!ni_netdev_get_tun(dev)) {
+		ni_error("found new interface name %s but with type %s",
+			ifname, ni_linktype_type_to_name(dev->link.type));
 		return -1;
 	}
 

@@ -22,6 +22,7 @@
 #include <wicked/macvlan.h>
 #include <wicked/openvpn.h>
 #include <wicked/ppp.h>
+#include <wicked/tun.h>
 #include <wicked/socket.h>
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
@@ -178,6 +179,28 @@ ni_netdev_set_vlan(ni_netdev_t *dev, ni_vlan_t *vlan)
 	if (dev->vlan)
 		ni_vlan_free(dev->vlan);
 	dev->vlan = vlan;
+}
+
+/*
+ * Get the interface's TUN/TAP information
+ */
+ni_tun_t *
+ni_netdev_get_tun(ni_netdev_t *dev)
+{
+	if (dev->link.type != NI_IFTYPE_TUN)
+		return NULL;
+
+	if (!dev->tun)
+		dev->tun = ni_tun_new();
+	return dev->tun;
+}
+
+void
+ni_netdev_set_tun(ni_netdev_t *dev, ni_tun_t *tun)
+{
+	if (dev->tun)
+		ni_tun_free(dev->tun);
+	dev->tun = tun;
 }
 
 /*

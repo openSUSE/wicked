@@ -11,6 +11,7 @@
 #include <wicked/logging.h>
 #include <wicked/system.h>
 #include <wicked/openvpn.h>
+#include <wicked/tun.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/dbus-service.h>
 #include "model.h"
@@ -69,6 +70,8 @@ __ni_objectmodel_openvpn_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_netdev_t *new_dev = NULL;
+	const ni_tun_t *tun;
+	const char *err;
 	int rv;
 
 	/* There's nothing in the device argument that we could use. */
@@ -80,7 +83,13 @@ __ni_objectmodel_openvpn_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 		goto out;
 	}
 
-	if ((rv = ni_system_tun_create(nc, ifname, &new_dev)) < 0) {
+	tun = ni_netdev_get_tun(cfg_ifp);
+	if ((err = ni_tun_validate(tun))) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s", err);
+		goto out;
+	}
+
+	if ((rv = ni_system_tun_create(nc, ifname, tun, &new_dev)) < 0) {
 		if (rv != -NI_ERROR_DEVICE_EXISTS || new_dev == NULL
 		|| (ifname && new_dev && !ni_string_eq(new_dev->name, ifname))) {
 			ni_dbus_set_error_from_code(error, rv,

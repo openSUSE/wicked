@@ -1,0 +1,9 @@
+<interface>
+  <name>tun0</name>
+
+  <tun>
+    <persistent>true</persistent>
+    <owner>0</owner>
+    <group>0</group>
+  </tun>
+</interface>

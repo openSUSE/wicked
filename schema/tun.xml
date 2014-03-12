@@ -1,0 +1,51 @@
+<!--
+  -- tun service definition
+  -->
+<service name="tun" interface="org.opensuse.Network.TUN"
+			object-class="netif-virtual-tunnel">
+ <description>
+   This link-layer service is provided by all TUN devices. Since there isn't a lot
+   to tune about a TUN once it has been created, this DBus interface doesn't offer
+   an own changeDevice() method (yet).
+
+   TUN devices can be created through the org.opensuse.Network.TUN.Factory
+   factory interface.
+ </description>
+
+ <!-- This are the properties used to configure the tun -->
+ <define name="configuration" class="dict">
+  <device type="string">
+    <meta:netif-reference shared="true"/>
+    <meta:require check="netif-child-state" op="newDevice" min-state="device-exists" />
+    <meta:require check="netif-child-state" op="linkUp"    min-state="device-up" />
+    <meta:require check="netif-child-state" op="login"     min-state="link-authenticated" />
+  </device>
+
+  <persistent type="boolean"/>
+  <owner type="uint32"/>
+  <group type="uint32"/>
+ </define>
+
+ <!-- The same properties are returned in interface state reports -->
+ <define name="properties" type="tun:configuration"/>
+
+ <method name="deleteDevice">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="tun-factory" interface="org.opensuse.Network.TUN.Factory"
+				object-class="netif-list">
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <config type="tun:configuration">
+    <meta:mapping document-node="/tun"/>
+   </config>
+  </arguments>
+  <return>
+   <!-- this is really an object handle -->
+   <string/>
+  </return>
+ </method>
+</service>
