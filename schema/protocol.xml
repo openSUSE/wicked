@@ -11,7 +11,10 @@
      ================================================= -->
 <service name="ipv4" interface="org.opensuse.Network.Protocol.IPv4" object-class="netif">
   <define name="properties" class="dict">
+    <enabled type="boolean" />
     <forwarding type="boolean" />
+    <arp-verify type="boolean" />
+    <arp-notify type="boolean" />
     <accept-redirects type="boolean" />
   </define>
 
@@ -33,8 +36,8 @@
     <enabled type="boolean" />
     <forwarding type="boolean" />
     <autoconf type="boolean" />
-    <accept-redirects type="boolean" />
     <privacy type="uint32" />
+    <accept-redirects type="boolean" />
   </define>
 
   <method name="changeProtocol">

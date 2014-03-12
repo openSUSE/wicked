@@ -39,6 +39,8 @@
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
 #include <wicked/xml.h>
+#include <wicked/ipv4.h>
+#include <wicked/ipv6.h>
 #include "wicked-client.h"
 #include <netlink/netlink.h>
 #include <sys/param.h>
@@ -988,7 +990,8 @@ __ni_compat_generate_static_address_list(xml_node_t *ifnode, ni_address_t *addr_
 }
 
 xml_node_t *
-__ni_compat_generate_static_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+__ni_compat_generate_static_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat,
+		unsigned int family)
 {
 	const ni_netdev_t *dev = compat->dev;
 	const ni_route_table_t *tab;
@@ -996,25 +999,12 @@ __ni_compat_generate_static_addrconf(xml_node_t *ifnode, const ni_compat_netdev_
 	unsigned int i;
 	xml_node_t *aconf;
 
-	if ((aconf = __ni_compat_generate_static_address_list(ifnode, dev->addrs, AF_INET)) != NULL) {
+	if ((aconf = __ni_compat_generate_static_address_list(ifnode, dev->addrs, family)) != NULL) {
 		for (tab = dev->routes; tab; tab = tab->next) {
 			for (i = 0; i < tab->routes.count; ++i) {
 				rp = tab->routes.data[i];
 
-				if( !rp || rp->family != AF_INET)
-					continue;
-
-				__ni_compat_generate_static_route(aconf, rp, dev->name);
-			}
-		}
-	}
-
-	if ((aconf = __ni_compat_generate_static_address_list(ifnode, dev->addrs, AF_INET6)) != NULL) {
-		for (tab = dev->routes; tab; tab = tab->next) {
-			for (i = 0; i < tab->routes.count; ++i) {
-				rp = tab->routes.data[i];
-
-				if( !rp || rp->family != AF_INET)
+				if( !rp || rp->family != family)
 					continue;
 
 				__ni_compat_generate_static_route(aconf, rp, dev->name);
@@ -1152,6 +1142,8 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	const ni_netdev_t *dev = compat->dev;
 	xml_node_t *linknode;
+	ni_ipv4_devinfo_t *ipv4;
+	ni_ipv6_devinfo_t *ipv6;
 
 	if (compat->control) {
 		const ni_ifworker_control_t *control = compat->control;
@@ -1217,10 +1209,38 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	if (dev->link.mtu)
 		xml_node_new_element("mtu", linknode, ni_sprint_uint(dev->link.mtu));
 
-	__ni_compat_generate_static_addrconf(ifnode, compat);
+	if ((ipv4 = dev->ipv4)) {
+		xml_node_t *ipv4node = xml_node_new("ipv4", ifnode);
+		xml_node_new_element("enabled", ipv4node,
+				ipv4->conf.enabled ? "true" : "false");
+		if (ipv4->conf.enabled) {
+			xml_node_new_element("forwarding", ipv4node,
+					ipv4->conf.forwarding ? "true" : "false");
+			xml_node_new_element("arp-verify", ipv4node,
+					ipv4->conf.arp_verify ? "true" : "false");
+			xml_node_new_element("arp-notify", ipv4node,
+					ipv4->conf.arp_notify ? "true" : "false");
+		}
+	}
 
-	__ni_compat_generate_dhcp4_addrconf(ifnode, compat);
-	__ni_compat_generate_dhcp6_addrconf(ifnode, compat);
+	if ((ipv6 = dev->ipv6)) {
+		xml_node_t *ipv6node = xml_node_new("ipv6", ifnode);
+		xml_node_new_element("enabled", ipv6node,
+				ipv6->conf.enabled ? "true" : "false");
+		if (ipv6->conf.enabled) {
+			xml_node_new_element("forwarding", ipv6node,
+					ipv6->conf.forwarding ? "true" : "false");
+		}
+	}
+
+	if ((ipv4 = dev->ipv4) && ipv4->conf.enabled) {
+		__ni_compat_generate_static_addrconf(ifnode, compat, AF_INET);
+		__ni_compat_generate_dhcp4_addrconf(ifnode, compat);
+	}
+	if ((ipv6 = dev->ipv6) && ipv6->conf.enabled) {
+		__ni_compat_generate_static_addrconf(ifnode, compat, AF_INET6);
+		__ni_compat_generate_dhcp6_addrconf(ifnode, compat);
+	}
 
 	return TRUE;
 }

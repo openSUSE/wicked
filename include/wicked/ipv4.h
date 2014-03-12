@@ -16,7 +16,9 @@
 
 struct ni_ipv4_devconf {
 	ni_bool_t		enabled;
-	unsigned int		forwarding;
+	ni_bool_t		forwarding;
+	ni_bool_t		arp_verify;
+	ni_bool_t		arp_notify;
 	ni_bool_t		accept_redirects;
 };
 

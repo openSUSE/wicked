@@ -46,6 +46,8 @@
 #include <wicked/macvlan.h>
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
+#include <wicked/ipv4.h>
+#include <wicked/ipv6.h>
 
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
@@ -2853,30 +2855,55 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
 	ni_bool_t primary;
+	const char *bootproto;
 	const char *value;
 	char *bp, *s, *p;
+	ni_ipv4_devinfo_t *ipv4;
+	ni_ipv6_devinfo_t *ipv6;
 
-	if ((value = ni_sysconfig_get_value(sc, "BOOTPROTO")) == NULL)
-		value = "static";
-	else if (!value[0] || ni_string_eq(dev->name, "lo"))
-		value = "static";
+	if ((bootproto = ni_sysconfig_get_value(sc, "BOOTPROTO")) == NULL)
+		bootproto = "static";
+	else if (!bootproto[0] || ni_string_eq(dev->name, "lo"))
+		bootproto = "static";
+
+	ipv4 = ni_netdev_get_ipv4(dev);
+	ipv6 = ni_netdev_get_ipv6(dev);
 
 	/* Hmm... bonding slave -- set ethtool, but no link up */
-	if (ni_string_eq_nocase(value, "none")) {
+	if (ni_string_eq_nocase(bootproto, "none")) {
 		return TRUE;
+	}
+
+	if (ipv4 && ipv4->conf.enabled) {
+		if (__ni_suse_config_defaults) {
+			if ((value = ni_sysconfig_get_value(__ni_suse_config_defaults,
+						"CHECK_DUPLICATE_IP"))) {
+				ipv4->conf.arp_verify = !ni_string_eq(value, "no");
+			}
+			if ((value = ni_sysconfig_get_value(__ni_suse_config_defaults,
+						"SEND_GRATUITOUS_ARP"))) {
+				ipv4->conf.arp_notify = ni_string_eq(value, "yes");
+			}
+		}
+		if ((value = ni_sysconfig_get_value(sc, "CHECK_DUPLICATE_IP"))) {
+			ipv4->conf.arp_verify = !ni_string_eq(value, "no");
+		}
+		if ((value = ni_sysconfig_get_value(sc, "SEND_GRATUITOUS_ARP"))) {
+			ipv4->conf.arp_notify = ni_string_eq(value, "yes");
+		}
 	}
 
 	/* Hmm... ignore this config completely -> ibft firmware */
-	if (ni_string_eq_nocase(value, "ibft")) {
+	if (ni_string_eq_nocase(bootproto, "ibft")) {
 		return TRUE;
 	}
 
-	if (ni_string_eq_nocase(value, "6to4")) {
+	if (ni_string_eq_nocase(bootproto, "6to4")) {
 		__ni_suse_addrconf_static(sc, compat);
 		return TRUE;
 	}
 
-	if (ni_string_eq_nocase(value, "static")) {
+	if (ni_string_eq_nocase(bootproto, "static")) {
 		__ni_suse_addrconf_static(sc, compat);
 		return TRUE;
 	}
@@ -2888,7 +2915,7 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	 */
 	bp = p = NULL;
 	primary = TRUE;
-	ni_string_dup(&bp, value);
+	ni_string_dup(&bp, bootproto);
 	for (s = strtok_r(bp, "+", &p); s; s = strtok_r(NULL, "+", &p)) {
 		if(ni_string_eq(s, "dhcp")) {
 			/* dhcp4 or dhcp6 -> at least one required */
@@ -2909,7 +2936,7 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		}
 		else {
 			ni_debug_readwrite("ifcfg-%s: Unknown BOOTPROTO=\"%s\""
-					" value \"%s\"", dev->name, value, s);
+					" value \"%s\"", dev->name, bootproto, s);
 		}
 		primary = FALSE;
 	}

@@ -77,7 +77,6 @@ __ni_objectmodel_protocol_arg(const ni_dbus_variant_t *dict, const ni_dbus_servi
 	dbus_bool_t rv;
 
 	dev = ni_netdev_new(NULL, 0);
-	dev->link.type = NI_IFTYPE_ETHERNET;
 
 	dev_object = ni_objectmodel_wrap_netif(dev);
 	rv = ni_dbus_object_set_properties_from_dict(dev_object, service, dict, NULL);
@@ -124,7 +123,10 @@ ni_objectmodel_get_ipv4_devinfo(const ni_dbus_object_t *object, ni_bool_t write_
 	NI_DBUS_GENERIC_BOOL_PROPERTY(ipv4_devinfo, dbus_name, member_name, rw)
 
 const ni_dbus_property_t	ni_objectmodel_ipv4_property_table[] = {
-	IPV4_UINT_PROPERTY(forwarding, conf.forwarding, RO),
+	IPV4_BOOL_PROPERTY(enabled, conf.enabled, RO),
+	IPV4_BOOL_PROPERTY(forwarding, conf.forwarding, RO),
+	IPV4_BOOL_PROPERTY(arp-verify, conf.arp_verify, RO),
+	IPV4_BOOL_PROPERTY(arp-notify, conf.arp_notify, RO),
 	IPV4_BOOL_PROPERTY(accept-redirects, conf.accept_redirects, RO),
 
 	{ NULL }

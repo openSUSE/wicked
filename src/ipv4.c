@@ -55,6 +55,8 @@ ni_ipv4_devinfo_new(void)
 	ni_ipv4_devinfo_t *ipv4;
 
 	ipv4 = xcalloc(1, sizeof(*ipv4));
+	ipv4->conf.arp_verify = TRUE;
+	ipv4->conf.arp_notify = FALSE;
 	__ni_ipv4_devconf_reset(&ipv4->conf);
 	return ipv4;
 }
@@ -79,7 +81,8 @@ ni_system_ipv4_devinfo_get(ni_netdev_t *dev, ni_ipv4_devinfo_t *ipv4)
 
 		if (ni_sysctl_ipv4_ifconfig_get_uint(dev->name, "forwarding", &val) >= 0)
 			ipv4->conf.forwarding = val;
-
+		if (ni_sysctl_ipv4_ifconfig_get_uint(dev->name, "arp_notify", &val) >= 0)
+			ipv4->conf.arp_notify = val;
 		if (ni_sysctl_ipv4_ifconfig_get_uint(dev->name, "accept_redirects", &val) >= 0)
 			ipv4->conf.accept_redirects = val;
 	} else {
@@ -114,6 +117,8 @@ ni_system_ipv4_devinfo_set(ni_netdev_t *dev, const ni_ipv4_devconf_t *conf)
 
 	if (__ni_system_ipv4_devinfo_change_uint(dev->name, "forwarding",
 						conf->forwarding) < 0
+	 || __ni_system_ipv4_devinfo_change_uint(dev->name, "arp_notify",
+						conf->arp_notify) < 0
 	 || __ni_system_ipv4_devinfo_change_uint(dev->name, "accept_redirects",
 						conf->accept_redirects) < 0)
 		rv = -1;
