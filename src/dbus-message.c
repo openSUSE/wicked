@@ -344,10 +344,13 @@ ni_dbus_message_iter_get_object_path_array(DBusMessageIter *iter, ni_dbus_varian
 dbus_bool_t
 ni_dbus_message_iter_get_array_array(DBusMessageIter *iter, ni_dbus_variant_t *variant)
 {
-	dbus_bool_t rv = TRUE;
+	dbus_bool_t rv = FALSE;
 
-	ni_dbus_array_array_init(variant, 
+	if (variant && iter) {
+		rv = TRUE;
+		ni_dbus_array_array_init(variant,
 			dbus_message_iter_get_signature(iter));
+	}
 
 	while (rv && dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_ARRAY) {
 		ni_dbus_variant_t *elem;
