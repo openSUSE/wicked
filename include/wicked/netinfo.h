@@ -203,9 +203,6 @@ extern void		ni_netdev_set_client_state(ni_netdev_t *, ni_client_state_t *);
 extern ni_client_state_t *	ni_netdev_get_client_state(ni_netdev_t *);
 extern void		ni_netdev_load_client_state(ni_netdev_t *);
 
-extern ni_ipv6_devinfo_t *ni_netdev_get_ipv6(ni_netdev_t *);
-extern ni_ipv4_devinfo_t *ni_netdev_get_ipv4(ni_netdev_t *);
-
 extern void             ni_netdev_clear_addresses(ni_netdev_t *);
 extern void             ni_netdev_clear_routes(ni_netdev_t *);
 extern void		ni_netdev_clear_event_filters(ni_netdev_t *);
@@ -230,6 +227,8 @@ extern ni_bool_t	ni_address_is_permanent(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_deprecated(const ni_address_t *laddr);
 
 extern ni_bool_t	ni_address_probably_dynamic(const ni_address_t *);
+extern void		ni_address_set_tentative(ni_address_t *, ni_bool_t);
+extern void		ni_address_set_duplicate(ni_address_t *, ni_bool_t);
 
 extern void		ni_link_address_init(ni_hwaddr_t *);
 extern int		ni_link_address_format(const ni_hwaddr_t *ss,

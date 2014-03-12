@@ -55,6 +55,7 @@
 #include "ifcheck.h"
 #include "ifreload.h"
 #include "ifstatus.h"
+#include "arputil.h"
 
 enum {
 	OPT_HELP,
@@ -158,6 +159,7 @@ main(int argc, char **argv)
 				"  getnames    [subcommand]\n"
 				"  convert     [subcommand]\n"
 				"  xpath       [options] expr ...\n"
+				"  arp         [options] <ifname> <IP>\n"
 				);
 			return (c == OPT_HELP ? NI_WICKED_RC_SUCCESS : NI_WICKED_RC_USAGE);
 
@@ -277,6 +279,9 @@ main(int argc, char **argv)
 
 	if (!strcmp(cmd, "convert"))
 		return do_convert(argc - optind, argv + optind);
+
+	if (!strcmp(cmd, "arp"))
+		return ni_do_arp(argc - optind, argv + optind);
 
 	fprintf(stderr, "Unsupported command %s\n", cmd);
 	goto usage;

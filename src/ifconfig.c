@@ -68,6 +68,7 @@
 #include "sysfs.h"
 #include "kernel.h"
 #include "appconfig.h"
+#include "process.h"
 #include "debug.h"
 
 static int	__ni_netdev_update_addrs(ni_netdev_t *dev,
@@ -2227,6 +2228,141 @@ __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t 
  * Update the addresses and routes assigned to an interface
  * for a given addrconf method
  */
+static ni_bool_t
+__ni_netdev_call_arp_util(ni_netdev_t *dev, ni_address_t *ap, ni_bool_t verify)
+{
+	ni_shellcmd_t *cmd;
+	ni_process_t *pi;
+	ni_bool_t rv;
+	int ret;
+
+	if (dev->link.hwaddr.type != ARPHRD_ETHER)
+		return TRUE;
+
+	if (!ni_netdev_link_is_up(dev))
+		return TRUE;	/* Huh...? */
+
+	if (dev->link.ifflags & NI_IFF_POINT_TO_POINT)
+		return TRUE;
+
+	if (!(dev->link.ifflags & (NI_IFF_ARP_ENABLED|NI_IFF_BROADCAST_ENABLED)))
+		return TRUE;
+
+	/*
+	 * This is a hack to validate it this way...
+	 */
+	cmd = ni_shellcmd_parse(WICKED_SBINDIR"/wicked");
+	if (!cmd) {
+		ni_warn("%s: cannot construct command to %s address '%s'",
+			dev->name, verify ? "verify address" : "notify about",
+			ni_sockaddr_print(&ap->local_addr));
+		return TRUE;
+	}
+	ni_shellcmd_add_arg(cmd, "arp");
+	if (verify) {
+		ni_shellcmd_add_arg(cmd, "--verify");
+		ni_shellcmd_add_arg(cmd, "3");
+		ni_shellcmd_add_arg(cmd, "--notify");
+		ni_shellcmd_add_arg(cmd, "0");
+	} else {
+		ni_shellcmd_add_arg(cmd, "--verify");
+		ni_shellcmd_add_arg(cmd, "0");
+		ni_shellcmd_add_arg(cmd, "--notify");
+		ni_shellcmd_add_arg(cmd, "1");
+	}
+	ni_shellcmd_add_arg(cmd, dev->name);
+	ni_shellcmd_add_arg(cmd, ni_sockaddr_print(&ap->local_addr));
+
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
+			"%s: using new address %s cmd: %s",
+			dev->name, verify ? "verify" : "notify", cmd->command);
+
+	if ((pi = ni_process_new(cmd)) == NULL) {
+		ni_warn("%s: cannot prepare process to %s address '%s'",
+			dev->name, verify ? "verify" : "notify about",
+			ni_sockaddr_print(&ap->local_addr));
+		ni_shellcmd_release(cmd);
+		return TRUE;
+	}
+	ni_shellcmd_release(cmd);
+
+	rv = TRUE;
+	ret = ni_process_run_and_wait(pi);
+	/* TODO process: ret shouldn't be -1 if exit is !0 */
+	if (WIFEXITED(pi->status)) {
+		if (WEXITSTATUS(pi->status) == NI_WICKED_RC_NOT_ALLOWED) {
+			ni_warn("%s: address '%s' is already in use",
+				dev->name, ni_sockaddr_print(&ap->local_addr));
+			rv = FALSE;
+		} else
+		if (WEXITSTATUS(pi->status) != NI_WICKED_RC_SUCCESS) {
+			ni_warn("%s: address %s returned with status %d",
+				dev->name, verify ? "verify" : "notify",
+				WEXITSTATUS(pi->status));
+		} else {
+			ni_info("%s: successfully %s address '%s'",
+				dev->name, verify ? "verified" : "notified about",
+				ni_sockaddr_print(&ap->local_addr));
+		}
+	} else if(ret) {
+		ni_warn("%s: address %s execution failed",
+			dev->name, verify ? "verify" : "notify");
+	}
+	ni_process_free(pi);
+	return rv;
+}
+
+static ni_bool_t
+__ni_netdev_new_addr_verify(ni_netdev_t *dev, ni_address_t *ap)
+{
+	ni_ipv4_devinfo_t *ipv4;
+
+	if (ap->family != AF_INET)
+		return TRUE;
+
+	if (ni_address_is_duplicate(ap))
+		return FALSE;
+
+	if (!ni_address_is_tentative(ap))
+		return TRUE;
+
+	ipv4 = ni_netdev_get_ipv4(dev);
+	if (ipv4 && !ipv4->conf.arp_verify) {
+		ni_address_set_tentative(ap, FALSE);
+		return TRUE;
+	}
+
+	if (__ni_netdev_call_arp_util(dev, ap, TRUE)) {
+		ni_address_set_tentative(ap, FALSE);
+		return TRUE;
+	} else {
+		ni_address_set_duplicate(ap, TRUE);
+		return FALSE;
+	}
+}
+
+static ni_bool_t
+__ni_netdev_new_addr_notify(ni_netdev_t *dev, ni_address_t *ap)
+{
+#if !defined(NI_IPV4_ARP_NOTIFY_IN_KERNEL)
+	ni_ipv4_devinfo_t *ipv4;
+
+	if (ap->family != AF_INET)
+		return TRUE;
+
+	if (ni_address_is_duplicate(ap))
+		return FALSE;
+
+	ipv4 = ni_netdev_get_ipv4(dev);
+	if (ipv4 && !ipv4->conf.arp_notify)
+		return TRUE;
+
+	return __ni_netdev_call_arp_util(dev, ap, FALSE);
+#else
+	return TRUE;
+#endif
+}
+
 static int
 __ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
@@ -2315,11 +2451,16 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		if (ap->seq == __ni_global_seqno)
 			continue;
 
+		if (!__ni_netdev_new_addr_verify(dev, ap))
+			continue;
+
 		ni_debug_ifconfig("Adding new interface address %s/%u",
 				ni_sockaddr_print(&ap->local_addr),
 				ap->prefixlen);
 		if ((rv = __ni_rtnl_send_newaddr(dev, ap, NLM_F_CREATE)) < 0)
 			return rv;
+
+		__ni_netdev_new_addr_notify(dev, ap);
 	}
 
 	return 0;

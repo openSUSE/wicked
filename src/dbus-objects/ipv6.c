@@ -78,7 +78,6 @@ __ni_objectmodel_protocol_arg(const ni_dbus_variant_t *dict, const ni_dbus_servi
 	dbus_bool_t rv;
 
 	dev = ni_netdev_new(NULL, 0);
-	dev->link.type = NI_IFTYPE_ETHERNET;
 
 	dev_object = ni_objectmodel_wrap_netif(dev);
 	rv = ni_dbus_object_set_properties_from_dict(dev_object, service, dict, NULL);
@@ -128,8 +127,8 @@ const ni_dbus_property_t	ni_objectmodel_ipv6_property_table[] = {
 	IPV6_BOOL_PROPERTY(enabled, conf.enabled, RO),
 	IPV6_BOOL_PROPERTY(forwarding, conf.forwarding, RO),
 	IPV6_BOOL_PROPERTY(autoconf, conf.autoconf, RO),
-	IPV6_UINT_PROPERTY(accept-redirects, conf.accept_redirects, RO),
 	IPV6_UINT_PROPERTY(privacy, conf.privacy, RO),
+	IPV6_UINT_PROPERTY(accept-redirects, conf.accept_redirects, RO),
 
 	{ NULL }
 };

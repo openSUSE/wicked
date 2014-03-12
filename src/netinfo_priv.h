@@ -158,6 +158,7 @@ extern int		ni_arp_send_request(ni_arp_socket_t *, struct in_addr, struct in_add
 extern int		ni_arp_send_reply(ni_arp_socket_t *, struct in_addr,
 				const ni_hwaddr_t *, struct in_addr);
 extern int		ni_arp_send_grat_reply(ni_arp_socket_t *, struct in_addr);
+extern int		ni_arp_send_grat_request(ni_arp_socket_t *, struct in_addr);
 extern int		ni_arp_send(ni_arp_socket_t *, const ni_arp_packet_t *);
 
 #endif /* __NETINFO_PRIV_H__ */

@@ -846,7 +846,7 @@ ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *dev)
 	} else if (dev->arp.nclaims) {
 		ni_debug_dhcp("%s: arp validate: claiming %s",
 				dev->ifname, inet_ntoa(claim));
-		ni_arp_send_grat_reply(dev->arp.handle, claim);
+		ni_arp_send_grat_request(dev->arp.handle, claim);
 		dev->arp.nclaims--;
 	} else {
 		/* Wow, we're done! */

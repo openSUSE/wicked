@@ -150,6 +150,24 @@ ni_address_probably_dynamic(const ni_address_t *ap)
 	return 0;
 }
 
+void
+ni_address_set_tentative(ni_address_t *laddr, ni_bool_t tentative)
+{
+	if (tentative)
+		laddr->flags |= IFA_F_TENTATIVE;
+	else
+		laddr->flags &= ~IFA_F_TENTATIVE;
+}
+
+void
+ni_address_set_duplicate(ni_address_t *laddr, ni_bool_t duplicate)
+{
+	if (duplicate)
+		laddr->flags |= IFA_F_DADFAILED;
+	else
+		laddr->flags &= ~IFA_F_DADFAILED;
+}
+
 /*
  * ni_address list functions
  */
