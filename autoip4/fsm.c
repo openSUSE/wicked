@@ -197,7 +197,7 @@ ni_autoip_send_arp(ni_autoip_device_t *dev)
 			ni_autoip_fsm_set_timeout(dev, IPV4LL_ANNOUNCE_DELAY, IPV4LL_ANNOUNCE_DELAY);
 	} else if (dev->autoip.nclaims) {
 		ni_debug_autoip("arp_validate: claiming %s", inet_ntoa(claim));
-		ni_arp_send_grat_reply(dev->arp_socket, claim);
+		ni_arp_send_grat_request(dev->arp_socket, claim);
 
 		dev->autoip.nclaims -= 1;
 		if (dev->autoip.nclaims != 0) {

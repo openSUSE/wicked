@@ -116,6 +116,25 @@ ni_arp_send_grat_reply(ni_arp_socket_t *arph, struct in_addr sip)
 	return ni_arp_send(arph, &packet);
 }
 
+/*
+ * See e.g. https://tools.ietf.org/html/rfc5227#section-3:
+ * Gratuitous ARP request are more likely to work correctly as
+ * requests are always broadcasts and replies may be expected
+ * to be unicasts only and dropped by incorrect implementations.
+ */
+int
+ni_arp_send_grat_request(ni_arp_socket_t *arph, struct in_addr sip)
+{
+	ni_arp_packet_t packet;
+	memset(&packet, 0, sizeof(packet));
+	packet.op = ARPOP_REQUEST;
+	packet.sip = sip;
+	packet.sha = arph->dev_info.hwaddr;
+	packet.tip = sip;
+	ni_link_address_get_broadcast(arph->dev_info.hwaddr.type, &packet.tha);
+	return ni_arp_send(arph, &packet);
+}
+
 int
 ni_arp_send(ni_arp_socket_t *arph, const ni_arp_packet_t *packet)
 {

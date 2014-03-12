@@ -136,7 +136,7 @@ __do_arp_validate_send(struct arp_handle *handle)
 
 		handle->nclaims--;
 		handle->replies = FALSE;
-		if ((ret = ni_arp_send_grat_reply(handle->sock,
+		if ((ret = ni_arp_send_grat_request(handle->sock,
 				handle->ipaddr.sin.sin_addr) > 0)) {
 			if (handle->nclaims) {
 				__do_arp_validate_arm_timer(handle);
