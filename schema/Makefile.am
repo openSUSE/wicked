@@ -16,6 +16,7 @@ wicked_schema_files		= \
 	interface.xml		\
 	lldp.xml		\
 	macvlan.xml		\
+	dummy.xml		\
 	ppp.xml			\
 	protocol.xml		\
 	types.xml		\
