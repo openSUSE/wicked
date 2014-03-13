@@ -642,6 +642,9 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 
 		memcpy(link->hwaddr.data, data, alen);
 		link->hwaddr.len = alen;
+		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
+				"IFLA_ADDRESS: %s",
+				ni_link_address_print(&link->hwaddr));
 	}
 
 	if (tb[IFLA_MTU])
@@ -1222,6 +1225,20 @@ __ni_netdev_add_autoconf_prefix(ni_netdev_t *dev, const ni_sockaddr_t *addr, uns
 	return rp;
 }
 
+static inline void
+__newaddr_trace(unsigned int family, const char *name, struct nlattr *attr)
+{
+	ni_sockaddr_t temp;
+	if (attr && name) {
+		if (__ni_nla_get_addr(family, &temp, attr))
+			ni_trace("newaddr[%s]: ---", name);
+		else
+			ni_trace("newaddr[%s]: %s", name, ni_sockaddr_print(&temp));
+	} else if(name) {
+		ni_trace("newaddr[%s]: NULL", name);
+	}
+}
+
 /*
  * Update interface address list given a RTM_NEWADDR message
  */
@@ -1241,6 +1258,16 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 	ap->prefixlen	= ifa->ifa_prefixlen;
 	ap->scope	= ifa->ifa_scope;
 	ap->flags	= ifa->ifa_flags;
+
+	if (ni_log_level_at(NI_LOG_DEBUG3) && (ni_debug & NI_TRACE_EVENTS)) {
+		ni_trace("newaddr(%s): family %d, prefixlen %u, scope %u, flags %u",
+			(ifflags & NI_IFF_POINT_TO_POINT) ? "ptp" : "brd",
+			ap->family, ap->prefixlen, ap->scope, ap->flags);
+		__newaddr_trace(ifa->ifa_family, __ni_string(IFA_LOCAL), tb[IFA_LOCAL]);
+		__newaddr_trace(ifa->ifa_family, __ni_string(IFA_ADDRESS), tb[IFA_ADDRESS]);
+		__newaddr_trace(ifa->ifa_family, __ni_string(IFA_BROADCAST), tb[IFA_BROADCAST]);
+		__newaddr_trace(ifa->ifa_family, __ni_string(IFA_ANYCAST), tb[IFA_ANYCAST]);
+	}
 
 	/*
 	 * Quoting linux/if_addr.h:
