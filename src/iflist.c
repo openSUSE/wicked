@@ -1277,8 +1277,15 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 	 * local address is supplied in IFA_LOCAL attribute.
 	 */
 	if (ifflags & NI_IFF_POINT_TO_POINT) {
-		__ni_nla_get_addr(ifa->ifa_family, &ap->local_addr, tb[IFA_LOCAL]);
-		__ni_nla_get_addr(ifa->ifa_family, &ap->peer_addr, tb[IFA_ADDRESS]);
+		if (tb[IFA_LOCAL]) {
+			/* local peer remote */
+			__ni_nla_get_addr(ifa->ifa_family, &ap->local_addr, tb[IFA_LOCAL]);
+			__ni_nla_get_addr(ifa->ifa_family, &ap->peer_addr, tb[IFA_ADDRESS]);
+		} else
+		if (tb[IFA_ADDRESS]) {
+			/* local only, e.g. tunnel ipv6 link layer address */
+			__ni_nla_get_addr(ifa->ifa_family, &ap->local_addr, tb[IFA_ADDRESS]);
+		}
 		/* Note iproute2 code obtains peer_addr from IFA_BROADCAST */
 		/* When I read and remember it correctly, iproute2 is using:
 		 *   !tb[IFA_BROADCAST] && tb[IFA_LOCAL] && tb[IFA_ADDRESS]
