@@ -549,6 +549,20 @@ __ni_compat_generate_macvlan(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 }
 
 static ni_bool_t
+__ni_compat_generate_dummy(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	xml_node_t *child = NULL;
+
+	child = xml_node_create(ifnode, "dummy");
+
+	if (compat->dev->link.hwaddr.len)
+		xml_node_new_element("address", child,
+				ni_link_address_print(&compat->dev->link.hwaddr));
+
+	return TRUE;
+}
+
+static ni_bool_t
 __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	ni_wireless_t *wlan;
@@ -1196,6 +1210,10 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 
 	case NI_IFTYPE_MACVLAN:
 		__ni_compat_generate_macvlan(ifnode, compat);
+		break;
+
+	case NI_IFTYPE_DUMMY:
+		__ni_compat_generate_dummy(ifnode, compat);
 		break;
 
 	case NI_IFTYPE_WIRELESS:
