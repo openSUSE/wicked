@@ -39,9 +39,10 @@ ni_address_new(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr,
 {
 	ni_address_t *ap;
 
-	ni_assert(!local_addr || local_addr->ss_family == af);
+	if (local_addr && local_addr->ss_family != af)
+		return NULL;
 
-	ap = calloc(1, sizeof(*ap));
+	ap = xcalloc(1, sizeof(*ap));
 	ap->family = af;
 	ap->prefixlen = prefix_len;
 	ap->scope = -1;

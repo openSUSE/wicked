@@ -2491,7 +2491,7 @@ cannot_parse:
 	}
 
 	ap = ni_address_new(local_addr.ss_family, prefixlen, &local_addr, list);
-	if (ap->family == AF_INET) {
+	if (ap && ap->family == AF_INET) {
 		var = __find_indexed_variable(sc, "BROADCAST", suffix);
 		if (var) {
 			ni_sockaddr_parse(&ap->bcast_addr, var->value, AF_INET);

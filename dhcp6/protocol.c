@@ -2554,12 +2554,14 @@ __copy_ia_na_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_t *l
 			ni_sockaddr_set_ipv6(&sadr, iadr->addr, 0);
 
 			ap = ni_address_new(AF_INET6, 64, &sadr, &lease->addrs);
-			ap->ipv6_cache_info.preferred_lft = iadr->preferred_lft;
-			ap->ipv6_cache_info.valid_lft = iadr->valid_lft;
+			if (ap) {
+				ap->ipv6_cache_info.preferred_lft = iadr->preferred_lft;
+				ap->ipv6_cache_info.valid_lft = iadr->valid_lft;
 
-			ni_debug_dhcp("%s: added IPv6 address %s/%u to lease candidate",
-				dev->ifname, ni_sockaddr_print(&ap->local_addr),
-				ap->prefixlen);
+				ni_debug_dhcp("%s: added IPv6 address %s/%u to lease candidate",
+					dev->ifname, ni_sockaddr_print(&ap->local_addr),
+					ap->prefixlen);
+			}
 		}
 	}
 	return count;
