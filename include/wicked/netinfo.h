@@ -26,6 +26,7 @@ struct ni_linkinfo {
 	unsigned int		ifindex;
 	unsigned int		ifflags;
 	ni_hwaddr_t		hwaddr;
+	ni_hwaddr_t		hwpeer; /* alias hwbrd */
 	char *			alias;
 
 	unsigned int		mtu;

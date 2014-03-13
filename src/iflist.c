@@ -601,7 +601,7 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 				struct nlattr **tb, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_netconfig_t *nc)
 {
-	link->hwaddr.type = ifi->ifi_type;
+	link->hwaddr.type = link->hwpeer.type = ifi->ifi_type;
 	link->ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
 
 	/* map by it's main arp type */
@@ -645,6 +645,18 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
 				"IFLA_ADDRESS: %s",
 				ni_link_address_print(&link->hwaddr));
+	}
+	if (tb[IFLA_BROADCAST]) {
+		unsigned int alen = nla_len(tb[IFLA_BROADCAST]);
+		void *data = nla_data(tb[IFLA_BROADCAST]);
+
+		if (alen > sizeof(link->hwpeer.data))
+			alen = sizeof(link->hwpeer.data);
+		memcpy(link->hwpeer.data, data, alen);
+		link->hwpeer.len = alen;
+		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
+				"IFLA_BROADCAST: %s",
+				ni_link_address_print(&link->hwpeer));
 	}
 
 	if (tb[IFLA_MTU])
