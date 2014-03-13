@@ -1219,10 +1219,11 @@ parse_more:
 		ap = ni_address_new(AF_INET,
 				__count_net_bits(ntohl(lease->dhcp4.netmask.s_addr)),
 				&local_addr, &lease->addrs);
-
-		memset(&ap->bcast_addr, 0, sizeof(ap->bcast_addr));
-		ap->bcast_addr.sin.sin_family = AF_INET;
-		ap->bcast_addr.sin.sin_addr = lease->dhcp4.broadcast;
+		if (ap) {
+			memset(&ap->bcast_addr, 0, sizeof(ap->bcast_addr));
+			ap->bcast_addr.sin.sin_family = AF_INET;
+			ap->bcast_addr.sin.sin_addr = lease->dhcp4.broadcast;
+		}
 	}
 
 	*leasep = lease;

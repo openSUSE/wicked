@@ -601,7 +601,7 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 				struct nlattr **tb, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_netconfig_t *nc)
 {
-	link->hwaddr.type = ifi->ifi_type;
+	link->hwaddr.type = link->hwpeer.type = ifi->ifi_type;
 	link->ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
 
 	/* map by it's main arp type */
@@ -642,6 +642,21 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 
 		memcpy(link->hwaddr.data, data, alen);
 		link->hwaddr.len = alen;
+		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
+				"IFLA_ADDRESS: %s",
+				ni_link_address_print(&link->hwaddr));
+	}
+	if (tb[IFLA_BROADCAST]) {
+		unsigned int alen = nla_len(tb[IFLA_BROADCAST]);
+		void *data = nla_data(tb[IFLA_BROADCAST]);
+
+		if (alen > sizeof(link->hwpeer.data))
+			alen = sizeof(link->hwpeer.data);
+		memcpy(link->hwpeer.data, data, alen);
+		link->hwpeer.len = alen;
+		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
+				"IFLA_BROADCAST: %s",
+				ni_link_address_print(&link->hwpeer));
 	}
 
 	if (tb[IFLA_MTU])
@@ -1222,6 +1237,20 @@ __ni_netdev_add_autoconf_prefix(ni_netdev_t *dev, const ni_sockaddr_t *addr, uns
 	return rp;
 }
 
+static inline void
+__newaddr_trace(unsigned int family, const char *name, struct nlattr *attr)
+{
+	ni_sockaddr_t temp;
+	if (attr && name) {
+		if (__ni_nla_get_addr(family, &temp, attr))
+			ni_trace("newaddr[%s]: ---", name);
+		else
+			ni_trace("newaddr[%s]: %s", name, ni_sockaddr_print(&temp));
+	} else if(name) {
+		ni_trace("newaddr[%s]: NULL", name);
+	}
+}
+
 /*
  * Update interface address list given a RTM_NEWADDR message
  */
@@ -1242,6 +1271,16 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 	ap->scope	= ifa->ifa_scope;
 	ap->flags	= ifa->ifa_flags;
 
+	if (ni_log_level_at(NI_LOG_DEBUG3) && (ni_debug & NI_TRACE_EVENTS)) {
+		ni_trace("newaddr(%s): family %d, prefixlen %u, scope %u, flags %u",
+			(ifflags & NI_IFF_POINT_TO_POINT) ? "ptp" : "brd",
+			ap->family, ap->prefixlen, ap->scope, ap->flags);
+		__newaddr_trace(ifa->ifa_family, __ni_string(IFA_LOCAL), tb[IFA_LOCAL]);
+		__newaddr_trace(ifa->ifa_family, __ni_string(IFA_ADDRESS), tb[IFA_ADDRESS]);
+		__newaddr_trace(ifa->ifa_family, __ni_string(IFA_BROADCAST), tb[IFA_BROADCAST]);
+		__newaddr_trace(ifa->ifa_family, __ni_string(IFA_ANYCAST), tb[IFA_ANYCAST]);
+	}
+
 	/*
 	 * Quoting linux/if_addr.h:
 	 * IFA_ADDRESS is prefix address, rather than local interface address.
@@ -1250,8 +1289,15 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 	 * local address is supplied in IFA_LOCAL attribute.
 	 */
 	if (ifflags & NI_IFF_POINT_TO_POINT) {
-		__ni_nla_get_addr(ifa->ifa_family, &ap->local_addr, tb[IFA_LOCAL]);
-		__ni_nla_get_addr(ifa->ifa_family, &ap->peer_addr, tb[IFA_ADDRESS]);
+		if (tb[IFA_LOCAL]) {
+			/* local peer remote */
+			__ni_nla_get_addr(ifa->ifa_family, &ap->local_addr, tb[IFA_LOCAL]);
+			__ni_nla_get_addr(ifa->ifa_family, &ap->peer_addr, tb[IFA_ADDRESS]);
+		} else
+		if (tb[IFA_ADDRESS]) {
+			/* local only, e.g. tunnel ipv6 link layer address */
+			__ni_nla_get_addr(ifa->ifa_family, &ap->local_addr, tb[IFA_ADDRESS]);
+		}
 		/* Note iproute2 code obtains peer_addr from IFA_BROADCAST */
 		/* When I read and remember it correctly, iproute2 is using:
 		 *   !tb[IFA_BROADCAST] && tb[IFA_LOCAL] && tb[IFA_ADDRESS]
@@ -1295,6 +1341,8 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 	ap = ni_address_list_find(dev->addrs, &tmp.local_addr);
 	if (!ap) {
 		ap = ni_netdev_add_address(dev, tmp.family, tmp.prefixlen, &tmp.local_addr);
+		if (!ap)
+			return -1;
 	}
 	ap->scope = tmp.scope;
 	ap->flags = tmp.flags;
