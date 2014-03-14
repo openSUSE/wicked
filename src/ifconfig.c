@@ -1494,6 +1494,7 @@ __ni_rtnl_link_create(const ni_netdev_t *cfg)
 {
 	struct ifinfomsg ifi;
 	struct nl_msg *msg;
+	int err = -1;
 
 	if (!cfg || ni_string_empty(cfg->name))
 		return -1;
@@ -1542,7 +1543,8 @@ __ni_rtnl_link_create(const ni_netdev_t *cfg)
 		goto failed;
 	}
 
-	if (ni_nl_talk(msg, NULL) < 0)
+	/* Actually capture the netlink -error code for use by callers. */
+	if ((err = ni_nl_talk(msg, NULL)) < 0)
 		goto failed;
 
 	ni_debug_ifconfig("successfully created interface %s", cfg->name);
@@ -1553,7 +1555,7 @@ nla_put_failure:
 	ni_error("failed to encode netlink message to create %s", cfg->name);
 failed:
 	nlmsg_free(msg);
-	return -1;
+	return err;
 }
 
 int
