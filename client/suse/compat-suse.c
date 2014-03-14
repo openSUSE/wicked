@@ -29,6 +29,9 @@
 #include <net/if_arp.h>
 #include <net/ethernet.h>
 #include <netlink/netlink.h>
+#include <sys/types.h>
+#include <pwd.h>
+#include <grp.h>
 
 #include <wicked/address.h>
 #include <wicked/util.h>
@@ -48,6 +51,7 @@
 #include <wicked/fsm.h>
 #include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
+#include <wicked/tuntap.h>
 
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
@@ -2445,6 +2449,52 @@ try_wireless(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
  * Handle Tunnel interfaces
  */
 static int
+__try_tunnel_tuntap(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	const char *value;
+	ni_tuntap_t *tuntap;
+
+	if (!(tuntap = ni_netdev_get_tuntap(dev)))
+		return -1;
+
+	if (dev->link.type == NI_IFTYPE_TAP
+	&&  (value = ni_sysconfig_get_value(sc, "LLADDR"))) {
+		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, value) < 0) {
+			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
+				dev->name, value);
+			return -1;
+		}
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_SET_OWNER"))) {
+		if (ni_parse_uint(value, &tuntap->owner, 10)) {
+			struct passwd *pw;
+
+			if (!(pw = getpwnam(value))) {
+				ni_error("ifcfg-%s: Cannot parse TUNNEL_SET_OWNER='%s'",
+					dev->name, value);
+				return -1;
+			}
+			tuntap->owner = pw->pw_uid;
+		}
+	}
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_SET_GROUP"))) {
+		if (ni_parse_uint(value, &tuntap->group, 10)) {
+			struct group *gr;
+
+			if (!(gr = getgrnam(value))) {
+				ni_error("ifcfg-%s: Cannot parse TUNNEL_SET_GROUP='%s'",
+					dev->name, value);
+				return -1;
+			}
+			tuntap->group = gr->gr_gid;
+		}
+	}
+	return 0;
+}
+
+static int
 try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
@@ -2481,10 +2531,15 @@ try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	dev->link.type = map->value;
-	ni_warn("ifcfg-%s: conversion of tunnel interfaces not yet supported",
-		dev->name);
-
-	return 0;
+	switch (dev->link.type) {
+	case NI_IFTYPE_TUN:
+	case NI_IFTYPE_TAP:
+		return __try_tunnel_tuntap(sc, compat);
+	default:
+		ni_warn("ifcfg-%s: conversion of %s tunnels not yet supported",
+			dev->name, map->name);
+		return 0;
+	}
 }
 
 /*
