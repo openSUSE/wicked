@@ -1,5 +1,5 @@
 <!--
-  -- dummy interface service definition
+     dummy interface service definition
   -->
 <service name="dummy" interface="org.opensuse.Network.Dummy"
 			object-class="netif-dummy">
@@ -7,6 +7,11 @@
    This link-layer service is provided by all Dummy devices.
    Dummy network interfaces can be used to provide an IP address to any
    application/kernel TCP/IP code that needs an IP to function properly.
+
+   Also a typical use-case is to create a dummy with assinged hadware/mac
+   address and use it as first port in a (initially host-only) bridge to
+   use static / avoid random mac address on the bridge as well as mac
+   address changes of the bridge while other ports are added and removed.
 
    Dummy devices can be created through the org.opensuse.Network.Dummy.Factory
    factory interface.

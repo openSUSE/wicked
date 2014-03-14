@@ -1,0 +1,29 @@
+<!--
+     Bridge with static mac address using a dummy.
+
+     Create a dummy interface with hadware/mac address assigned
+     and use it as first port in a (initially host-only) bridge
+     to use static / avoid random mac address on the bridge as
+     well as mac address changesanges of the bridge while other
+     ports are added and removed.
+  -->
+<interface>
+  <name>dummy42</name>
+  <dummy>
+    <address>42:42:42:42:42:42</address>
+  </dummy>
+</interface>
+
+<interface>
+  <name>bridge42</name>
+  <bridge>
+    <stp>false</stp>
+    <forward-delay>0.00</forward-delay>
+    <ports>
+     <port>
+      <device>dummy42</device>
+     </port>
+    </ports>
+  </bridge>
+</interface>
+

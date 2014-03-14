@@ -1,0 +1,4 @@
+NAME='Bridge42 Dummy-Link'
+STARTMODE='auto'
+BOOTPROTO='none'
+LLADDR='42:42:42:42:42:42'

@@ -1801,7 +1801,7 @@ try_dummy(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	iftype = ni_sysconfig_get_value(sc, "INTERFACETYPE");
 
 	if (!ni_string_eq_nocase(iftype, "dummy") &&
-		!__ni_suse_ifcfg_valid_prefix(dev->name, "dummy"))
+		!ni_string_startswith(dev->name, "dummy"))
 		return 1; /* This is not a dummy interface*/
 
 	if (dev->link.type != NI_IFTYPE_UNKNOWN) {

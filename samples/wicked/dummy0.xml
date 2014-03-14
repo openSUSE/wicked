@@ -1,0 +1,15 @@
+<interface>
+  <name>dummy0</name>
+
+  <dummy>
+    <address>02:02:02:02:02:02</address>
+  </dummy>
+
+  <ipv4:static>
+    <address>
+      <local>192.168.2.2/24</local>
+    </address>
+  </ipv4:static>
+
+</interface>
+
