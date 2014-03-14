@@ -439,6 +439,74 @@ ni_system_macvlan_delete(ni_netdev_t *dev)
 	return 0;
 }
 
+/*
+ * Create a dummy interface
+ */
+int
+ni_system_dummy_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
+						ni_netdev_t **dev_ret)
+{
+	ni_netdev_t *dev;
+	int err;
+
+	if (!nc || !dev_ret || !cfg || !cfg->name)
+		return -1;
+
+	*dev_ret = NULL;
+
+	dev = ni_netdev_by_name(nc, cfg->name);
+	if (dev != NULL) {
+		/* This is not necessarily an error */
+		if (dev->link.type == NI_IFTYPE_DUMMY) {
+			ni_debug_ifconfig("A dummy interface %s already exists",
+					dev->name);
+			*dev_ret = dev;
+		} else {
+			ni_error("A %s interface with the name %s already exists",
+				ni_linktype_type_to_name(dev->link.type), dev->name);
+		}
+		return -NI_ERROR_DEVICE_EXISTS;
+	}
+
+	ni_debug_ifconfig("%s: creating dummy interface", cfg->name);
+
+	if ((err = __ni_rtnl_link_create(cfg)) != 0 && err != -NLE_EXIST) {
+		ni_error("unable to create dummy interface %s", cfg->name);
+		return -1;
+	}
+
+	/* Refresh interface status */
+	__ni_system_refresh_interfaces(nc);
+
+	dev = ni_netdev_by_name(nc, cfg->name);
+	if (dev == NULL) {
+		ni_error("tried to create interface %s; still not found", cfg->name);
+		return -1;
+	}
+
+	*dev_ret = dev;
+	return 0;
+}
+
+int
+ni_system_dummy_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	return __ni_rtnl_link_change(dev, cfg);
+}
+
+/*
+ * Delete a dummy interface
+ */
+int
+ni_system_dummy_delete(ni_netdev_t *dev)
+{
+	if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
+		ni_error("could not destroy dummy interface %s", dev->name);
+		return -1;
+	}
+	return 0;
+}
+
 
 /*
  * Setup infiniband interface
@@ -1402,6 +1470,24 @@ nla_put_failure:
 	return -1;
 }
 
+static int
+__ni_rtnl_link_put_dummy(struct nl_msg *msg, const ni_netdev_t *cfg)
+{
+	struct nlattr *linkinfo;
+
+	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
+		goto nla_put_failure;
+
+	NLA_PUT_STRING(msg, IFLA_INFO_KIND, "dummy");
+
+	nla_nest_end(msg, linkinfo);
+
+	return 0;
+
+nla_put_failure:
+	return -1;
+}
+
 
 static int
 __ni_rtnl_link_create(const ni_netdev_t *cfg)
@@ -1434,6 +1520,15 @@ __ni_rtnl_link_create(const ni_netdev_t *cfg)
 
 	case NI_IFTYPE_MACVLAN:
 		if (__ni_rtnl_link_put_macvlan(msg, cfg) < 0)
+			goto nla_put_failure;
+
+		if (__ni_rtnl_link_put_hwaddr(msg, &cfg->link.hwaddr) < 0)
+			goto nla_put_failure;
+
+		break;
+
+	case NI_IFTYPE_DUMMY:
+		if (__ni_rtnl_link_put_dummy(msg, cfg) < 0)
 			goto nla_put_failure;
 
 		if (__ni_rtnl_link_put_hwaddr(msg, &cfg->link.hwaddr) < 0)
@@ -1491,6 +1586,11 @@ __ni_rtnl_link_change(ni_netdev_t *dev, const ni_netdev_t *cfg)
 
 	case NI_IFTYPE_MACVLAN:
 		if (__ni_rtnl_link_put_macvlan(msg, cfg) < 0)
+			goto nla_put_failure;
+		break;
+
+	case NI_IFTYPE_DUMMY:
+		if (__ni_rtnl_link_put_dummy(msg, cfg) < 0)
 			goto nla_put_failure;
 		break;
 
