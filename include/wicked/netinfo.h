@@ -84,7 +84,9 @@ struct ni_netdev {
 	ni_infiniband_t *	infiniband;
 	ni_macvlan_t *		macvlan;
 	ni_wireless_t *		wireless;
+#if OPENVPN
 	ni_openvpn_t *		openvpn;
+#endif
 	ni_tuntap_t *		tuntap;
 	ni_ppp_t *		ppp;
 	ni_lldp_t *		lldp;
@@ -183,7 +185,9 @@ extern ni_vlan_t *	ni_netdev_get_vlan(ni_netdev_t *);
 extern ni_macvlan_t *	ni_netdev_get_macvlan(ni_netdev_t *);
 extern ni_bridge_t *	ni_netdev_get_bridge(ni_netdev_t *);
 extern ni_wireless_t *	ni_netdev_get_wireless(ni_netdev_t *);
+#if OPENVPN
 extern ni_openvpn_t *	ni_netdev_get_openvpn(ni_netdev_t *);
+#endif
 extern ni_tuntap_t *	ni_netdev_get_tuntap(ni_netdev_t *);
 extern ni_ppp_t *	ni_netdev_get_ppp(ni_netdev_t *);
 extern ni_lldp_t *	ni_netdev_get_lldp(ni_netdev_t *);
@@ -195,7 +199,9 @@ extern void		ni_netdev_set_ethernet(ni_netdev_t *, ni_ethernet_t *);
 extern void		ni_netdev_set_infiniband(ni_netdev_t *, ni_infiniband_t *);
 extern void		ni_netdev_set_link_stats(ni_netdev_t *, ni_link_stats_t *);
 extern void		ni_netdev_set_wireless(ni_netdev_t *, ni_wireless_t *);
+#if OPENVPN
 extern void		ni_netdev_set_openvpn(ni_netdev_t *, ni_openvpn_t *);
+#endif
 extern void		ni_netdev_set_tuntap(ni_netdev_t *, ni_tuntap_t *);
 extern void		ni_netdev_set_ppp(ni_netdev_t *, ni_ppp_t *);
 extern void		ni_netdev_set_dcb(ni_netdev_t *, ni_dcb_t *);

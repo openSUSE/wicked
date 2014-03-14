@@ -19,7 +19,9 @@
 #include <wicked/ethernet.h>
 #include <wicked/wireless.h>
 #include <wicked/vlan.h>
+#if OPENVPN
 #include <wicked/openvpn.h>
+#endif
 #include <wicked/socket.h>
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
@@ -435,7 +437,9 @@ ni_global_state_handle(int refresh)
 		}
 
 		if (!nc->initialized) {
+#if OPENVPN
 			ni_openvpn_discover(nc);
+#endif
 			nc->initialized = 1;
 		}
 	}

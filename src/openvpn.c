@@ -7,15 +7,14 @@
 #include "config.h"
 #endif
 
+#if OPENVPN
 #include <stdlib.h>
 #include <limits.h>
 #include <ctype.h>
 #include <sys/stat.h>
-
 #include <wicked/netinfo.h>
 #include <wicked/openvpn.h>
 #include "netinfo_priv.h"
-
 
 #define __NI_OPENVPN_CONFIG	"config"
 #define __NI_OPENVPN_PIDFILE	"pid"
@@ -219,3 +218,4 @@ __ni_openvpn_tag_to_index(const char *tag, unsigned int *indexp)
 
 	return 1;
 }
+#endif

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2012 Olaf Kirch <okir@suse.de>
  */
-#if 0
+#if OPENVPN
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -208,4 +208,3 @@ ni_dbus_service_t	ni_objectmodel_openvpn_service = {
 };
 
 #endif
-

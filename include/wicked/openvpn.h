@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2012 Olaf Kirch <okir@suse.de>
  */
-
+#if OPENVPN
 #ifndef __WICKED_OPENVPN_H__
 #define __WICKED_OPENVPN_H__
 
@@ -26,3 +26,4 @@ extern int			ni_openvpn_mkdir(ni_openvpn_t *);
 extern void			ni_openvpn_free(ni_openvpn_t *);
 
 #endif /* __WICKED_OPENVPN_H__ */
+#endif
