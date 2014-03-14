@@ -309,7 +309,13 @@ __ni_objectmodel_bridge_port_to_dict(const ni_bridge_port_t *port, ni_dbus_varia
 				const ni_dbus_object_t *object,
 				int config_only)
 {
-	ni_warn("FIXME: we should return the object path here");
+	/*
+	 * Hmm... Resolving the complete tree and ports to devices
+	 * while serializing at client side does not work properly,
+	 * e.g. when the port does not exists yet...
+	 */
+	ni_debug_dbus("FIXME: should we resolve the object path here (port ifname: %s)?",
+			port->ifname);
 	if (port->ifname)
 		ni_dbus_dict_add_string(dict, "device", port->ifname);
 	ni_dbus_dict_add_uint32(dict, "priority", port->priority);
