@@ -20,7 +20,9 @@
 #include <wicked/wireless.h>
 #include <wicked/vlan.h>
 #include <wicked/macvlan.h>
+#if OPENVPN
 #include <wicked/openvpn.h>
+#endif
 #include <wicked/ppp.h>
 #include <wicked/tuntap.h>
 #include <wicked/socket.h>
@@ -95,7 +97,9 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_vlan(dev, NULL);
 	ni_netdev_set_macvlan(dev, NULL);
 	ni_netdev_set_wireless(dev, NULL);
+#if OPENVPN
 	ni_netdev_set_openvpn(dev, NULL);
+#endif
 	ni_netdev_set_ppp(dev, NULL);
 	ni_netdev_set_dcb(dev, NULL);
 	ni_netdev_set_lldp(dev, NULL);
@@ -331,6 +335,7 @@ ni_netdev_set_wireless(ni_netdev_t *dev, ni_wireless_t *wireless)
 	dev->wireless = wireless;
 }
 
+#if OPENVPN
 /*
  * Set the interface's openvpn info
  */
@@ -349,6 +354,7 @@ ni_netdev_set_openvpn(ni_netdev_t *dev, ni_openvpn_t *openvpn)
 		ni_openvpn_free(dev->openvpn);
 	dev->openvpn = openvpn;
 }
+#endif
 
 /*
  * Set the interface's ppp info
