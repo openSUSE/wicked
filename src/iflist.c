@@ -315,15 +315,15 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 
 	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
 		if (dev->link.masterdev.index && !dev->link.masterdev.name) {
-			if (ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc) < 0) {
-				ni_warn("Interface %s references unknown master device (ifindex %u)",
+			if (ni_netdev_ref_bind_ifname(&dev->link.masterdev, nc) < 0) {
+				ni_info("Interface %s references unknown master device (ifindex %u)",
 					dev->name, dev->link.masterdev.index);
 			}
 			/* Ignore error and proceed */
 		}
 		if (dev->link.lowerdev.index && !dev->link.lowerdev.name) {
 			if (ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc) < 0) {
-				ni_warn("Interface %s references unknown lower device (ifindex %u)",
+				ni_info("Interface %s references unknown lower device (ifindex %u)",
 					dev->name, dev->link.lowerdev.index);
 			}
 			/* Ignore error and proceed */
