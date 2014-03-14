@@ -30,7 +30,6 @@
 #include <wicked/types.h>
 
 struct ni_tuntap {
-	ni_bool_t	persistent; /* Always TRUE */
 	uid_t		owner;
 	gid_t		group;
 };
