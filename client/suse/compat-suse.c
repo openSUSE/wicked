@@ -1787,6 +1787,53 @@ try_macvlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 }
 
 /*
+ * A Dummy device is recognized by INTERFACETYPE and/or by the interface name
+ * itself.
+ */
+static int
+try_dummy(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	const char *iftype = NULL;
+	const char *lladdr = NULL;
+	const char *bootproto = NULL;
+
+	iftype = ni_sysconfig_get_value(sc, "INTERFACETYPE");
+
+	if (!ni_string_eq_nocase(iftype, "dummy") &&
+		!__ni_suse_ifcfg_valid_prefix(dev->name, "dummy"))
+		return 1; /* This is not a dummy interface*/
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config contains dummy variables",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
+
+	dev->link.type = NI_IFTYPE_DUMMY;
+
+	/* We only support "none" and "static". */
+	if ((bootproto = ni_sysconfig_get_value(sc, "BOOTPROTO")) != NULL) {
+		if (!ni_string_eq_nocase(bootproto, "none") &&
+			!ni_string_eq_nocase(bootproto, "static")) {
+			ni_error("ifcfg-%s: BOOTPROTO=%s not supported",
+				dev->name, bootproto);
+			return -1;
+		}
+	}
+
+	if ((lladdr = ni_sysconfig_get_value(sc, "LLADDR")) != NULL) {
+		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, lladdr) < 0) {
+			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
+				dev->name, lladdr);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+/*
  * Handle Wireless devices
  */
 static ni_bool_t
@@ -2972,6 +3019,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	    try_bridge(sc, compat)     < 0 ||
 	    try_vlan(sc, compat)       < 0 ||
 	    try_macvlan(sc, compat)    < 0 ||
+	    try_dummy(sc, compat)      < 0 ||
 	    try_tunnel(sc, compat)     < 0 ||
 	    try_wireless(sc, compat)   < 0 ||
 	    try_infiniband(sc, compat) < 0 ||

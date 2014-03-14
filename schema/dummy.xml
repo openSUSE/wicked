@@ -1,0 +1,50 @@
+<!--
+  -- dummy interface service definition
+  -->
+<service name="dummy" interface="org.opensuse.Network.Dummy"
+			object-class="netif-dummy">
+ <description>
+   This link-layer service is provided by all Dummy devices.
+   Dummy network interfaces can be used to provide an IP address to any
+   application/kernel TCP/IP code that needs an IP to function properly.
+
+   Dummy devices can be created through the org.opensuse.Network.Dummy.Factory
+   factory interface.
+ </description>
+
+ <!-- This are the properties used to configure the dummy -->
+ <define name="configuration" class="dict">
+  <address  type="ethernet-address"/>
+ </define>
+
+ <!-- The same properties are returned in interface state reports -->
+ <define name="properties" type="dummy:configuration"/>
+
+ <method name="changeDevice">
+  <arguments>
+   <config type="dummy:configuration">
+    <meta:mapping document-node="/dummy" skip-unless-present="true" />
+   </config>
+  </arguments>
+ </method>
+
+ <method name="deleteDevice">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="dummy-factory" interface="org.opensuse.Network.Dummy.Factory"
+				object-class="netif-list">
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <config type="dummy:configuration">
+    <meta:mapping document-node="/dummy"/>
+   </config>
+  </arguments>
+  <return>
+   <!-- this is really an object handle -->
+   <string/>
+  </return>
+ </method>
+</service>

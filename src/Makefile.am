@@ -117,6 +117,7 @@ libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/ipv6.c	\
 	dbus-objects/lldp.c	\
 	dbus-objects/macvlan.c	\
+	dbus-objects/dummy.c	\
 	dbus-objects/misc.c	\
 	dbus-objects/model.c	\
 	dbus-objects/modem.c	\
