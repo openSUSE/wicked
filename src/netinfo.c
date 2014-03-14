@@ -611,12 +611,12 @@ ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *parent_name, uint
  * Create a unique interface name
  */
 const char *
-ni_netdev_make_name(ni_netconfig_t *nc, const char *stem)
+ni_netdev_make_name(ni_netconfig_t *nc, const char *stem, unsigned int first)
 {
 	static char namebuf[64];
 	unsigned int num;
 
-	for (num = 0; num < 65536; ++num) {
+	for (num = first; num < 65536; ++num) {
 		snprintf(namebuf, sizeof(namebuf), "%s%u", stem, num);
 		if (!ni_netdev_by_name(nc, namebuf))
 			return namebuf;

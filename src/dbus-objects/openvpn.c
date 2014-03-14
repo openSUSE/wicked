@@ -75,7 +75,7 @@ __ni_objectmodel_openvpn_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 
 	ni_debug_dbus("OpenVPN.newDevice(name=%s)", ifname);
 
-	if (ifname == NULL && !(ifname = ni_netdev_make_name(nc, "tun"))) {
+	if (ifname == NULL && !(ifname = ni_netdev_make_name(nc, "tun", 0))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create tun - too many interfaces");
 		goto out;
 	}

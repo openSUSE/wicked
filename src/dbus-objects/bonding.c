@@ -73,7 +73,7 @@ __ni_objectmodel_bond_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 
 	bond = ni_netdev_get_bonding(cfg_ifp);
 
-	if (ifname == NULL && !(ifname = ni_netdev_make_name(nc, "bond"))) {
+	if (ifname == NULL && !(ifname = ni_netdev_make_name(nc, "bond", 0))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create bonding interface - too many interfaces");
 		goto out;
 	}

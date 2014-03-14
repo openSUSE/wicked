@@ -110,7 +110,7 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 
 	if (ni_string_empty(ifname)) {
 		if (ni_string_empty(cfg_ifp->name) &&
-		    (ifname = ni_netdev_make_name(nc, "macvlan"))) {
+		    (ifname = ni_netdev_make_name(nc, "macvlan", 0))) {
 			ni_string_dup(&cfg_ifp->name, ifname);
 		} else {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,

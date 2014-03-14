@@ -81,7 +81,7 @@ __ni_objectmodel_bridge_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusEr
 
 	bridge = ni_netdev_get_bridge(cfg_ifp);
 
-	if (ifname == NULL && !(ifname = ni_netdev_make_name(nc, "br"))) {
+	if (ifname == NULL && !(ifname = ni_netdev_make_name(nc, "br", 0))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create bridging interface - too many interfaces");
 		goto out;
 	}
