@@ -32,6 +32,7 @@
 #include "sysfs.h"
 #include "kernel.h"
 #include <wicked/ppp.h>
+#include <wicked/tuntap.h>
 
 /* FIXME: we should really make this configurable */
 #ifndef CONFIG_TUNTAP_CHRDEV_PATH
@@ -216,73 +217,55 @@ __ni_tuntap_open_dev(void)
 	return devfd;
 }
 
-char *
-__ni_tuntap_create_tun(const char *ifname)
+int
+__ni_tuntap_create(const ni_netdev_t *cfg)
 {
-	unsigned int index = 0;
 	struct ifreq ifr;
 	int devfd;
-	char *retname = NULL;
+	uid_t owner;
+	gid_t group;
+	int rv = -1;
 
-	if ((devfd = __ni_tuntap_open_dev()) < 0)
-		return NULL;
+	if (!cfg || !cfg->tuntap || ni_string_empty(cfg->name))
+		goto error;
 
-	memset(&ifr, 0, sizeof(ifr));
-	ifr.ifr_flags = IFF_TUN | IFF_TUN_EXCL;
-
-	while (1) {
-		/* If the caller didn't specify an interface name, we try
-		 * all tunX names in turn until we find a free one.
-		 */
-		if (ifname != NULL)
-			strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
-		else
-			snprintf(ifr.ifr_name, IFNAMSIZ, "tun%u", index++);
-
-		if (ioctl(devfd, TUNSETIFF, &ifr) >= 0) {
-			retname = xstrdup(ifr.ifr_name);
-
-			(void) ioctl(devfd, TUNSETPERSIST, 1);
-			break;
-		}
-
-		if (errno != EBUSY || ifname) {
-			ni_error("failed to create tun device: %m");
-			goto done;
-		}
+	if ((NI_IFTYPE_TUN != cfg->link.type && NI_IFTYPE_TAP != cfg->link.type) ||
+	    (devfd = __ni_tuntap_open_dev()) < 0) {
+		goto error;
 	}
 
-done:
-	close(devfd);
-	return retname;
-}
-
-int
-__ni_tuntap_delete(const char *ifname)
-{
-	struct ifreq ifr;
-	int devfd, rv = -1;
-
-	ni_debug_ifconfig("%s(%s)", __func__, ifname);
-	if ((devfd = __ni_tuntap_open_dev()) < 0)
-		return -1;
-
-	/* To destroy the interface, attach it to the chrdev, unset the
-	 * PERSIST flag, and close the chrdev. */
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
-	ifr.ifr_flags = IFF_TUN;
+	ifr.ifr_flags = IFF_NO_PI;
+	ifr.ifr_flags = (NI_IFTYPE_TUN == cfg->link.type ? IFF_TUN : IFF_TAP);
+	strncpy(ifr.ifr_name, cfg->name, sizeof(ifr.ifr_name) - 1);
 
-	if (ioctl(devfd, TUNSETIFF, &ifr) < 0) {
-		ni_error("%s: cannot attach tun device: %m", ifname);
-	} else
-	if (ioctl(devfd, TUNSETPERSIST, 0) < 0) {
-		ni_error("%s: unable to unset persist flag: %m", ifname);
-	} else {
-		rv = 0;
+	if ((rv = ioctl(devfd, TUNSETIFF, (void *) &ifr)) < 0)
+		goto error;
+
+	if ((rv = ioctl(devfd, TUNSETPERSIST, cfg->tuntap->persistent)) < 0)
+		goto error;
+
+	owner = cfg->tuntap->owner;
+	group = cfg->tuntap->group;
+
+	if (owner == -1U && group == -1U)
+		owner = geteuid();
+
+	if (owner != -1U) {
+		if ((rv = ioctl(devfd, TUNSETOWNER, owner)) < 0)
+			goto error;
 	}
 
-	close(devfd);
+	if (group != -1U) {
+		if ((rv = ioctl(devfd, TUNSETGROUP, group)) < 0)
+			goto error;
+	}
+
+	return 0;
+
+error:
+	ni_error("failed to create %s device: %m",
+		ni_linktype_type_to_name(cfg->link.type));
 	return rv;
 }
 

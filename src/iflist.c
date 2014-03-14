@@ -27,6 +27,7 @@
 #include <wicked/macvlan.h>
 #include <wicked/wireless.h>
 #include <wicked/infiniband.h>
+#include <wicked/tuntap.h>
 #include <wicked/linkstats.h>
 
 #if defined(HAVE_RTA_MARK)
@@ -63,6 +64,7 @@ static int		__ni_discover_addrconf(ni_netdev_t *);
 static int		__ni_discover_infiniband(ni_netdev_t *, ni_netconfig_t *);
 static int		__ni_discover_vlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static int		__ni_discover_macvlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
+static int		__ni_discover_tuntap(ni_netdev_t *);
 static ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, const struct prefix_cacheinfo *);
 static ni_addrconf_lease_t *__ni_netdev_get_autoconf_lease(ni_netdev_t *, unsigned int);
 
@@ -999,6 +1001,11 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		__ni_discover_macvlan(dev, tb, nc);
 		break;
 
+	case NI_IFTYPE_TUN:
+	case NI_IFTYPE_TAP:
+		__ni_discover_tuntap(dev);
+		break;
+
 	case NI_IFTYPE_WIRELESS:
 		rv = ni_wireless_interface_refresh(dev);
 		if (rv == -NI_ERROR_RADIO_DISABLED) {
@@ -1092,6 +1099,31 @@ __ni_discover_macvlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 		macvlan->flags = nla_get_u16(info_data[IFLA_MACVLAN_FLAGS]);
 
 	return 0;
+}
+
+int
+__ni_discover_tuntap(ni_netdev_t *dev)
+{
+	ni_tuntap_t *cfg;
+	int rv = -1;
+
+	if (!dev) {
+		ni_error("Unable to discover NULL interface details");
+		return rv;
+	}
+
+	if (dev->link.type != NI_IFTYPE_TUN && dev->link.type != NI_IFTYPE_TAP) {
+		ni_error("%s: Attempt to discover %s interface details for TUN/TAP",
+			ni_linktype_type_to_name(dev->link.type), dev->name);
+		return rv;
+	}
+
+	cfg = ni_netdev_get_tuntap(dev);
+	if ((rv = ni_tuntap_parse_sysfs_attrs(dev->name, cfg) < 0))
+		ni_error("error retrieving %s attribute from sysfs",
+			ni_linktype_type_to_name(dev->link.type));
+
+	return rv;
 }
 
 /*

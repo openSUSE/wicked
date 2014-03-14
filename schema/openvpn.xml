@@ -1,10 +1,12 @@
 <!--
+  -- *** Note: UNDER REWORK -- DO NOT INCLUDE/USE ***
+  --
   -- OpenVPN Tunnel Service definition
   --
   -- We create a subclass of the tun/tap device class, which supports the OpenVPN
   -- DBus interface.
   -->
-<object-class name="netif-openvpn" base-class="netif-virtual-tunnel"/>
+<object-class name="netif-openvpn" base-class="netif-tun"/>
 
 <service name="openvpn" interface="org.opensuse.Network.OpenVPN" object-class="netif-openvpn">
  <!-- This is the linkinfo returned in interface reports -->
@@ -99,12 +101,6 @@
  </method>
 </service>
 
-<service name="tun" interface="org.opensuse.Network.TUN" object-class="netif-virtual-tunnel">
- <method name="deleteDevice">
-   <!-- no arguments, no return code -->
- </method>
-</service>
-
 <service name="openvpn-factory" interface="org.opensuse.Network.OpenVPN.Factory" object-class="netif-list">
  <!-- "Create" openvpn device.
    -- This will create a tunX device and an openvpn config file.
@@ -122,19 +118,3 @@
   </return>
  </method>
 </service>
-
-<service name="tun-factory" interface="org.opensuse.Network.TUN.Factory" object-class="netif-list">
- <define name="linkinfo" class="dict">
-   <!-- nothing -->
- </define>
- <method name="newDevice">
-  <arguments>
-   <name type="string"/>
-   <config type="linkinfo"/>
-  </arguments>
-  <return>
-   <string/> <!-- this is really an object handle -->
-  </return>
- </method>
-</service>
-

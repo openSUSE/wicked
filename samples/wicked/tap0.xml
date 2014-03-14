@@ -1,0 +1,8 @@
+<interface>
+  <name>tap0</name>
+  <tap>
+    <address>42:42:42:42:42</address>
+    <owner>0</owner>
+    <group>0</group>
+  </tap>
+</interface>

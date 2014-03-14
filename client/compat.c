@@ -36,6 +36,7 @@
 #include <wicked/bridge.h>
 #include <wicked/vlan.h>
 #include <wicked/macvlan.h>
+#include <wicked/tuntap.h>
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
 #include <wicked/xml.h>
@@ -775,6 +776,38 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 	return TRUE;
 }
 
+static ni_bool_t
+__ni_compat_generate_tuntap(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	xml_node_t *child = NULL;
+	ni_tuntap_t *tuntap;
+
+	if (!(tuntap = ni_netdev_get_tuntap(compat->dev)))
+		return FALSE;
+
+	if (compat->dev->link.type == NI_IFTYPE_TUN) {
+		child = xml_node_create(ifnode, "tun");
+	} else
+	if (compat->dev->link.type == NI_IFTYPE_TAP) {
+		child = xml_node_create(ifnode, "tap");
+
+		if (child && compat->dev->link.hwaddr.len) {
+			xml_node_new_element("address", child,
+				ni_link_address_print(&compat->dev->link.hwaddr));
+		}
+	}
+
+	if (!child)
+		return FALSE;
+
+	if (tuntap->owner != -1U)
+		xml_node_new_element_uint("owner", child, tuntap->owner);
+	if (tuntap->group != -1U)
+		xml_node_new_element_uint("owner", child, tuntap->group);
+
+	return TRUE;
+}
+
 static void
 __ni_compat_generate_static_route_hops(xml_node_t *rnode, const ni_route_nexthop_t *hops,
 					const char *ifname)
@@ -1150,7 +1183,6 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 	return dhcp;
 }
 
-
 static ni_bool_t
 __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
@@ -1218,6 +1250,11 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 
 	case NI_IFTYPE_WIRELESS:
 		__ni_compat_generate_wireless(ifnode, compat);
+		break;
+
+	case NI_IFTYPE_TUN:
+	case NI_IFTYPE_TAP:
+		__ni_compat_generate_tuntap(ifnode, compat);
 		break;
 
 	default: ;
