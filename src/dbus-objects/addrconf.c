@@ -22,6 +22,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/addrconf.h>
+#include <wicked/route.h>
 #include <wicked/system.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/dbus-service.h>
@@ -177,7 +178,22 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		ifevent = NI_EVENT_ADDRESS_ACQUIRED;
 
 		if (!__ni_addrconf_should_update(lease->update, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE)) {
-			/* FIXME: remove any default routes from the lease */
+			ni_route_table_t *tab;
+			ni_route_t *rp;
+			unsigned int i;
+
+			for (tab = lease->routes; tab; tab = tab->next) {
+				for (i = 0; i < tab->routes.count; ++i) {
+					if (!(rp = tab->routes.data[i]))
+						continue;
+
+					if (ni_sockaddr_is_specified(&rp->destination))
+						continue;
+
+					if (ni_route_array_delete(&tab->routes, i))
+						i--;
+				}
+			}
 		}
 	} else if (!strcmp(signal_name, NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL)) {
 		lease->state = NI_ADDRCONF_STATE_RELEASED;
