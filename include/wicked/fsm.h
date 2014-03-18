@@ -103,9 +103,10 @@ typedef enum {
 typedef struct ni_ifworker_control {
 	char *			mode;
 	char *			boot_stage;
-	ni_bool_t		mandatory;	/* not used yet */
-	ni_bool_t		link_required;
 	ni_bool_t		persistent;
+	ni_bool_t		usercontrol;
+	ni_bool_t		link_required;
+	unsigned int		link_priority;
 	unsigned int		link_timeout;
 } ni_ifworker_control_t;
 

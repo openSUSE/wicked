@@ -1202,7 +1202,13 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 		if (control->boot_stage)
 			xml_node_new_element("boot-stage", child, control->boot_stage);
 
-		if (control->link_timeout || control->link_required) {
+		if (control->persistent)
+			(void) xml_node_new("persistent", child);
+		else
+		if (control->usercontrol)
+			(void) xml_node_new("usercontrol", child);
+
+		if (control->link_timeout || control->link_priority || control->link_required) {
 			linkdet = xml_node_create(child, "link-detection");
 			if (control->link_timeout)
 				xml_node_new_element("timeout", linkdet,

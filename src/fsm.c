@@ -964,9 +964,10 @@ ni_ifworker_control_init(ni_ifworker_control_t *control)
 {
 	ni_string_dup(&control->mode, "boot");
 	ni_string_dup(&control->boot_stage, NULL);
-	control->mandatory     = FALSE;
 	control->persistent    = FALSE;
+	control->usercontrol   = FALSE;
 	control->link_required = FALSE;
+	control->link_priority = 0;
 	control->link_timeout  = NI_IFWORKER_INFINITE_TIMEOUT;
 }
 
@@ -996,8 +997,9 @@ ni_ifworker_control_clone(const ni_ifworker_control_t *control)
 	ni_string_dup(&_control->mode,       control->mode);
 	ni_string_dup(&_control->boot_stage, control->boot_stage);
 	_control->persistent    = control->persistent;
-	_control->mandatory     = control->mandatory;
+	_control->usercontrol   = control->usercontrol;
 	_control->link_required = control->link_required;
+	_control->link_priority = control->link_priority;
 	_control->link_timeout  = control->link_timeout;
 	return _control;
 }
@@ -1026,14 +1028,21 @@ ni_ifworker_control_from_xml(ni_ifworker_control_t *control, xml_node_t *ctrlnod
 		ni_string_dup(&control->mode, np->cdata);
 	if ((np = xml_node_get_child(ctrlnode, "boot-stage")) != NULL)
 		ni_string_dup(&control->boot_stage, np->cdata);
-	if ((np = xml_node_get_child(ctrlnode, "persistent")) != NULL)
-		ni_parse_boolean(np->cdata, &control->persistent);
+	if (xml_node_get_child(ctrlnode, "persistent"))
+		control->persistent = TRUE;
+	if (!control->persistent && xml_node_get_child(ctrlnode, "usercontrol"))
+		control->usercontrol = TRUE;
 	if ((linknode = xml_node_get_child(ctrlnode, "link-detection")) != NULL) {
 		if ((np = xml_node_get_child(linknode, "timeout")) != NULL) {
 			if (ni_string_eq(np->cdata, "infinite"))
 				control->link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
 			else
 				ni_parse_uint(np->cdata, &control->link_timeout, 10);
+			if (control->link_timeout == 0)
+				control->link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
+		}
+		if ((np = xml_node_get_child(linknode, "priority"))) {
+			ni_parse_uint(np->cdata, &control->link_priority, 10);
 		}
 		if (xml_node_get_child(linknode, "require-link")) {
 			control->link_required = TRUE;

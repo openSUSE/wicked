@@ -1065,31 +1065,35 @@ error:
  * Translate the SUSE startmodes to <control> element
  */
 static ni_ifworker_control_t *
-__ni_suse_startmode(const char *mode)
+__ni_suse_startmode(const ni_sysconfig_t *sc)
 {
 	static const struct __ni_control_params {
 		const char *		name;
 		ni_ifworker_control_t	control;
 	} __ni_suse_control_params[] = {
 		/* manual is the default in ifcfg */
-		{ "manual",	{ "manual",	NULL,		TRUE,	FALSE,	FALSE,	30	} },
+		{ "manual",	{ "manual",	NULL,		FALSE,	FALSE,	TRUE,	0, 0 } },
 
-		{ "auto",	{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	30	} },
-		{ "boot",	{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	30	} },
-		{ "onboot",	{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	30	} },
-		{ "on",		{ "boot",	NULL,		FALSE,	TRUE,	FALSE,	30	} },
+		{ "auto",	{ "boot",	NULL,		FALSE,	FALSE,	TRUE,	0, 0 } },
+		{ "boot",	{ "boot",	NULL,		FALSE,	FALSE,	TRUE,	0, 0 } },
+		{ "onboot",	{ "boot",	NULL,		FALSE,	FALSE,	TRUE,	0, 0 } },
+		{ "on",		{ "boot",	NULL,		FALSE,	FALSE,	TRUE,	0, 0 } },
 
-		{ "hotplug",	{ "hotplug",	NULL,		FALSE,	FALSE,	FALSE,	30	} },
-		{ "ifplugd",	{ "hotplug",	NULL,		FALSE,	FALSE,	FALSE,	30	} },
+		{ "nfsroot",	{ "boot",	"localfs",	TRUE,	FALSE,	TRUE,	0, 0 } },
 
-		{ "nfsroot",	{ "boot",	"localfs",	TRUE,	TRUE,	TRUE,	NI_IFWORKER_INFINITE_TIMEOUT	} },
-		{ "off",	{ "off",	NULL,		FALSE,	FALSE,	FALSE,	0	} },
+		{ "hotplug",	{ "hotplug",	NULL,		FALSE,	FALSE,	FALSE,	0, 0 } },
+		{ "ifplugd",	{ "ifplugd",	NULL,		FALSE,	FALSE,	FALSE,	0, 0 } },
+
+		{ "off",	{ "off",	NULL,		FALSE,	FALSE,	FALSE,	0, 0 } },
 
 		{ NULL }
 	};
 	const struct __ni_control_params *p, *params = NULL;
+	ni_ifworker_control_t *control;
+	const char *mode;
 
-	if (mode != NULL) {
+	params = &__ni_suse_control_params[0];
+	if (sc && (mode = ni_sysconfig_get_value(sc, "STARTMODE"))) {
 		for (p = __ni_suse_control_params; p->name; ++p) {
 			if (ni_string_eq(p->name, mode)) {
 				params = p;
@@ -1098,10 +1102,16 @@ __ni_suse_startmode(const char *mode)
 		}
 	}
 
-	if (!params)
-		params = &__ni_suse_control_params[0];
-
-	return ni_ifworker_control_clone(&params->control);
+	if ((control = ni_ifworker_control_clone(&params->control))) {
+		if (!control->persistent && !ni_string_eq("off", control->mode)) {
+			if (sc && ni_sysconfig_test_boolean(sc, "USERCONTROL"))
+				control->usercontrol = TRUE;
+		}
+		if (ni_string_eq("ifplugd", control->mode)) {
+			ni_sysconfig_get_integer(sc, "IFPLUGD_PRIORITY", &control->link_priority);
+		}
+	}
+	return control;
 }
 
 /*
@@ -3060,12 +3070,8 @@ static ni_bool_t
 __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
-	const char *value;
 
-	if ((value = ni_sysconfig_get_value(sc, "STARTMODE")) != NULL)
-		compat->control = __ni_suse_startmode(value);
-	else
-		compat->control = __ni_suse_startmode(NULL);
+	compat->control = __ni_suse_startmode(sc);
 
 	ni_sysconfig_get_integer(sc, "MTU", &dev->link.mtu);
 
