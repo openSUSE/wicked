@@ -39,7 +39,8 @@ static ni_fsm_require_t *	ni_ifworker_modem_resolver_new(xml_node_t *);
 static void			ni_fsm_require_list_destroy(ni_fsm_require_t **);
 static void			ni_fsm_require_free(ni_fsm_require_t *);
 static int			ni_ifworker_bind_device_apis(ni_ifworker_t *, const ni_dbus_service_t *);
-static void			ni_ifworker_control_set_defaults(ni_ifworker_t *);
+static void			ni_ifworker_control_init(ni_ifworker_control_t *);
+static void			ni_ifworker_control_destroy(ni_ifworker_control_t *);
 static void			__ni_ifworker_refresh_netdevs(ni_fsm_t *);
 #ifdef MODEM
 static void			__ni_ifworker_refresh_modems(ni_fsm_t *);
@@ -102,7 +103,7 @@ __ni_ifworker_new(ni_ifworker_type_t type, const char *name)
 	w->target_range.max = __NI_FSM_STATE_MAX;
 	w->readonly = FALSE;
 
-	ni_ifworker_control_set_defaults(w);
+	ni_ifworker_control_init(&w->control);
 
 	return w;
 }
@@ -124,8 +125,7 @@ ni_ifworker_reset(ni_ifworker_t *w)
 {
 	ni_string_free(&w->object_path);
 	ni_string_free(&w->config.origin);
-	ni_string_free(&w->control.mode);
-	ni_string_free(&w->control.boot_stage);
+	ni_ifworker_control_destroy(&w->control);
 	ni_security_id_destroy(&w->security_id);
 
 	/* When detaching children, clear their shared/exclusive ownership info */
@@ -960,19 +960,62 @@ ni_ifworker_generate_uuid(ni_ifworker_t *w)
  * Reset an ifworker's control information to its defaults
  */
 static void
-ni_ifworker_control_set_defaults(ni_ifworker_t *w)
+ni_ifworker_control_init(ni_ifworker_control_t *control)
 {
-	ni_string_dup(&w->control.mode, "boot");
-	ni_string_dup(&w->control.boot_stage, "default");
-	w->control.link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-	w->control.link_required = FALSE;
+	ni_string_dup(&control->mode, "boot");
+	ni_string_dup(&control->boot_stage, NULL);
+	control->mandatory     = FALSE;
+	control->persistent    = FALSE;
+	control->link_required = FALSE;
+	control->link_timeout  = NI_IFWORKER_INFINITE_TIMEOUT;
+}
+
+static void
+ni_ifworker_control_destroy(ni_ifworker_control_t *control)
+{
+	ni_string_free(&control->mode);
+	ni_string_free(&control->boot_stage);
+}
+
+ni_ifworker_control_t *
+ni_ifworker_control_new(void)
+{
+	ni_ifworker_control_t *_control;
+
+	_control = xcalloc(1, sizeof(*_control));
+	ni_ifworker_control_init(_control);
+	return _control;
+}
+
+ni_ifworker_control_t *
+ni_ifworker_control_clone(const ni_ifworker_control_t *control)
+{
+	ni_ifworker_control_t *_control;
+
+	_control = xcalloc(1, sizeof(*_control));
+	ni_string_dup(&_control->mode,       control->mode);
+	ni_string_dup(&_control->boot_stage, control->boot_stage);
+	_control->persistent    = control->persistent;
+	_control->mandatory     = control->mandatory;
+	_control->link_required = control->link_required;
+	_control->link_timeout  = control->link_timeout;
+	return _control;
+}
+
+void
+ni_ifworker_control_free(ni_ifworker_control_t *control)
+{
+	if (control) {
+		ni_ifworker_control_destroy(control);
+		free(control);
+	}
 }
 
 /*
  * Update an ifworker's control information from XML
  */
 static void
-ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
+ni_ifworker_control_from_xml(ni_ifworker_control_t *control, xml_node_t *ctrlnode)
 {
 	xml_node_t *linknode, *np;
 
@@ -980,18 +1023,21 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 		return;
 
 	if ((np = xml_node_get_child(ctrlnode, "mode")) != NULL)
-		ni_string_dup(&w->control.mode, np->cdata);
+		ni_string_dup(&control->mode, np->cdata);
 	if ((np = xml_node_get_child(ctrlnode, "boot-stage")) != NULL)
-		ni_string_dup(&w->control.boot_stage, np->cdata);
+		ni_string_dup(&control->boot_stage, np->cdata);
+	if ((np = xml_node_get_child(ctrlnode, "persistent")) != NULL)
+		ni_parse_boolean(np->cdata, &control->persistent);
 	if ((linknode = xml_node_get_child(ctrlnode, "link-detection")) != NULL) {
 		if ((np = xml_node_get_child(linknode, "timeout")) != NULL) {
 			if (ni_string_eq(np->cdata, "infinite"))
-				w->control.link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
+				control->link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
 			else
-				ni_parse_uint(np->cdata, &w->control.link_timeout, 10);
+				ni_parse_uint(np->cdata, &control->link_timeout, 10);
 		}
-		if (xml_node_get_child(linknode, "require-link"))
-			w->control.link_required = TRUE;
+		if (xml_node_get_child(linknode, "require-link")) {
+			control->link_required = TRUE;
+		}
 	}
 }
 
@@ -1044,7 +1090,7 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 	w->config.node = ifnode;
 
 	if ((child = xml_node_get_child(ifnode, "control")))
-		ni_ifworker_control_from_xml(w, child);
+		ni_ifworker_control_from_xml(&w->control, child);
 
 	ni_ifworker_generate_uuid(w);
 	ni_ifworker_set_config_origin(w, config_origin);
@@ -3209,8 +3255,8 @@ ni_fsm_schedule_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
 		w->config.node = ni_fsm_policy_transform_document(w->config.node, policies, count);
 
 		/* Update the control information - it may have been changed by policy */
-		ni_ifworker_control_set_defaults(w);
-		ni_ifworker_control_from_xml(w, xml_node_get_child(w->config.node, "control"));
+		ni_ifworker_control_init(&w->control);
+		ni_ifworker_control_from_xml(&w->control, xml_node_get_child(w->config.node, "control"));
 	}
 
 	ni_debug_application("%s: binding dbus calls to FSM transitions", w->name);

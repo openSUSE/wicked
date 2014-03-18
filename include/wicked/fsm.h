@@ -286,6 +286,10 @@ extern void			ni_ifworker_set_completion_callback(ni_ifworker_t *, void (*)(ni_i
 extern ni_rfkill_type_t		ni_ifworker_get_rfkill_type(const ni_ifworker_t *);
 extern void			ni_ifworker_free(ni_ifworker_t *);
 
+extern ni_ifworker_control_t *	ni_ifworker_control_new(void);
+extern ni_ifworker_control_t *	ni_ifworker_control_clone(const ni_ifworker_control_t *);
+extern void			ni_ifworker_control_free(ni_ifworker_control_t *);
+
 extern void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 extern int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
 extern void			ni_ifworker_array_destroy(ni_ifworker_array_t *);

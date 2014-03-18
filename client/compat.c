@@ -169,6 +169,7 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 	if (compat) {
 		if (compat->dev)
 			ni_netdev_put(compat->dev);
+		ni_ifworker_control_free(compat->control);
 
 		ni_string_free(&compat->dhcp4.hostname);
 		ni_string_free(&compat->dhcp4.client_id);

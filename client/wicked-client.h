@@ -41,7 +41,7 @@ extern int			ni_host_is_reachable(const char *, const ni_sockaddr_t *);
 
 typedef struct ni_compat_netdev {
 	ni_netdev_t *		dev;
-	const ni_ifworker_control_t *control;
+	ni_ifworker_control_t * control;
 
 	struct {
 		ni_hwaddr_t	hwaddr;

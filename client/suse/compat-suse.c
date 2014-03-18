@@ -1064,7 +1064,7 @@ error:
 /*
  * Translate the SUSE startmodes to <control> element
  */
-static const ni_ifworker_control_t *
+static ni_ifworker_control_t *
 __ni_suse_startmode(const char *mode)
 {
 	static const struct __ni_control_params {
@@ -1101,7 +1101,7 @@ __ni_suse_startmode(const char *mode)
 	if (!params)
 		params = &__ni_suse_control_params[0];
 
-	return &params->control;
+	return ni_ifworker_control_clone(&params->control);
 }
 
 /*
