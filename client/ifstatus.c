@@ -188,10 +188,8 @@ ni_ifstatus_of_worker(ni_ifworker_t *w, ni_bool_t *mandatory)
 	ni_netdev_t *dev = w ? w->device : NULL;
 	unsigned int st;
 
-	if (mandatory) {
-		*mandatory = ni_ifcheck_worker_device_is_mandatory(w) ||
-				ni_ifcheck_device_is_persistent(dev);
-	}
+	if (mandatory)
+		*mandatory = ni_ifcheck_device_is_persistent(dev);
 
 	if (!ni_ifcheck_worker_device_exists(w)) {
 		if (!ni_ifcheck_worker_config_exists(w))
@@ -381,16 +379,16 @@ ni_ifstatus_show_routes(const ni_netdev_t *dev, ni_bool_t verbose)
 static inline void
 ni_ifstatus_show_config(const ni_netdev_t *dev, ni_bool_t verbose)
 {
-	ni_device_clientinfo_t *ci = dev->client_info;
+	ni_client_state_t *cs = dev->client_state;
 
 	/* currently the runtime config only ... */
-	if (ci && !ni_string_empty(ci->config_origin)) {
-		if_printf("", "config:", "%s", ci->config_origin);
+	if (cs && !ni_string_empty(cs->config.origin)) {
+		if_printf("", "config:", "%s", cs->config.origin);
 
-		if (verbose && !ni_uuid_is_null(&ci->config_uuid)) {
+		if (verbose && !ni_uuid_is_null(&cs->config.uuid)) {
 			printf(",\n");
 			if_printf("", " ", "uuid: %s\n",
-				ni_uuid_print(&ci->config_uuid));
+				ni_uuid_print(&cs->config.uuid));
 		} else {
 			printf("\n");
 		}
@@ -434,13 +432,12 @@ ni_ifstatus_show_leases(const ni_netdev_t *dev, ni_bool_t verbose)
 static inline void
 ni_ifstatus_show_cstate(const ni_netdev_t *dev, ni_bool_t verbose)
 {
-	ni_device_clientinfo_t *ci = dev->client_info;
 	ni_client_state_t *cs = dev->client_state;
+	const char *state = cs ? ni_ifworker_state_name(cs->state) : NULL;
 
-	if (ci && !ni_string_empty(ci->state)) {
-		if_printf("", "cstate:", "%s%s\n", ci->state,
-			(verbose && cs && cs->persistent) ?
-				", persistent" : "");
+	if (!ni_string_empty(state)) {
+		if_printf("", "cstate:", "%s%s\n", state,
+			(verbose && cs->control.persistent) ? ", persistent" : "");
 	} else if (verbose) {
 		if_printf("", "cstate:", "none\n");
 	}

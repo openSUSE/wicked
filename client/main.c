@@ -676,7 +676,7 @@ do_show_config(int argc, char **argv, const char *root_schema)
 				"  --help\n"
 				"      Show this help text.\n"
 				"  --raw\n"
-				"      Filter out existing <client-info> tags\n"
+				"      Filter out existing <client-state> tags\n"
 				"  --output <path>\n"
 				"        Specify output file\n"
 				);
@@ -1475,7 +1475,7 @@ do_convert(int argc, char **argv)
 				"  --help\n"
 				"      Show this help text.\n"
 				"  --raw\n"
-				"      Filter out existing <client-info> tags\n"
+				"      Filter out existing <client-state> tags\n"
 				"  --output <path>\n"
 				"        Specify output file\n"
 			       );

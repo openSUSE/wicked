@@ -182,12 +182,16 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 }
 
 void
-ni_compat_netdev_client_info_set(ni_netdev_t *dev, const char *filename)
+ni_compat_netdev_client_state_set(ni_netdev_t *dev, const char *filename)
 {
-	if (dev) {
-		ni_netdev_set_client_info(dev,
-			ni_ifconfig_generate_client_info("compat", filename, NULL));
-	}
+	ni_client_state_t *cs;
+
+	if (!dev)
+		return;
+
+	cs = ni_netdev_get_client_state(dev);
+	ni_client_state_config_init(&cs->config);
+	ni_client_state_config_generate(&cs->config, "compat", filename);
 }
 
 /*
@@ -1186,7 +1190,7 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 static ni_bool_t
 __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
-	const ni_netdev_t *dev = compat->dev;
+	ni_netdev_t *dev = compat->dev;
 	xml_node_t *linknode;
 	ni_ipv4_devinfo_t *ipv4;
 	ni_ipv6_devinfo_t *ipv6;
@@ -1210,12 +1214,10 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 				(void) xml_node_new("require-link", linkdet);
 		}
 
-		/* <client-state> node generation based on STARTMODE value parsed in control */
-		if (control->persistent) {
-			child = xml_node_create(ifnode, NI_CLIENT_STATE_XML_STATE_NODE);
-			xml_node_new_element(NI_CLIENT_STATE_XML_PERSISTENT_NODE, child,
-				ni_format_boolean(control->persistent));
-		}
+		xml_node_new_element(NI_CLIENT_STATE_XML_PERSISTENT_NODE, child,
+			ni_format_boolean(control->persistent));
+		xml_node_new_element(NI_CLIENT_STATE_XML_USERCONTROL_NODE, child,
+			ni_format_boolean(control->usercontrol));
 	}
 
 	switch (dev->link.type) {
@@ -1332,22 +1334,23 @@ ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t 
 
 	for (i = 0; i < ifcfg->netdevs.count; ++i) {
 		ni_compat_netdev_t *compat = ifcfg->netdevs.data[i];
-		ni_device_clientinfo_t *client_info = compat->dev->client_info;
+		ni_client_state_config_t *conf = &compat->dev->client_state->config;
 
 		config_doc = xml_document_new();
 		ni_compat_generate_ifcfg(compat, config_doc);
 
-		if (client_info) {
-			const char *origin = client_info->config_origin;
-			if (!ni_string_empty(origin)) {
-				xml_location_set(config_doc->root, xml_location_create(origin, 0));
+		if (conf) {
+			xml_node_t *root = xml_document_root(config_doc);
+
+			if (!ni_string_empty(conf->origin)) {
+				xml_location_set(root, xml_location_create(conf->origin, 0));
 				ni_debug_ifconfig("%s: location: %s, line: %u", __func__,
-						xml_node_get_location_filename(config_doc->root),
-						xml_node_get_location_line(config_doc->root));
+						xml_node_get_location_filename(root),
+						xml_node_get_location_line(root));
 			}
-			if (!raw) {
-				ni_ifconfig_add_client_info(config_doc, client_info, NULL);
-			}
+
+			if (!raw)
+				ni_ifconfig_add_meta_data_to_node(root, conf);
 		}
 
 		if (ni_ifconfig_validate_adding_doc(array, config_doc, raw))

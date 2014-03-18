@@ -123,7 +123,7 @@ struct ni_modem {
 
 	/* Configuration and policy */
 	ni_bool_t		use_lock_file;			/* Use a LCK..* lock file when we claim this device */
-	ni_device_clientinfo_t *client_info;
+	ni_client_state_t *client_state;
 };
 
 typedef void		ni_modem_manager_event_handler_fn_t(ni_modem_t *, ni_event_t);
@@ -132,7 +132,8 @@ extern ni_bool_t	ni_modem_manager_init(ni_modem_manager_event_handler_fn_t *);
 extern ni_modem_t *	ni_modem_new(void);
 extern ni_modem_t *	ni_modem_hold(ni_modem_t *);
 extern void		ni_modem_release(ni_modem_t *);
-extern void		ni_modem_set_client_info(ni_modem_t *, ni_device_clientinfo_t *);
+extern void		ni_modem_set_client_state(ni_modem_t *, ni_client_state_t *);
+extern ni_client_state_t *	ni_modem_get_client_state(ni_modem_t *);
 
 extern int		ni_modem_manager_unlock(ni_modem_t *modem, const ni_modem_pin_t *pin);
 extern int		ni_modem_manager_enable(ni_modem_t *modem);
