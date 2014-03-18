@@ -20,7 +20,11 @@ libwicked_client_suse_la_CFLAGS			= $(LIBNL_CFLAGS)       \
 libwicked_client_suse_la_LDFLAGS		= -rdynamic
 
 libwicked_client_suse_la_SOURCES		= \
-						  compat-suse.c
+						  compat-suse.c	\
+						  ifsysctl.c
+
+noinst_HEADERS					= \
+						  ifsysctl.h
 
 
 suse_configdir					= $(sysconfdir)/sysconfig/network
