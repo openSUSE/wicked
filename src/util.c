@@ -375,6 +375,20 @@ ni_uint_array_contains(ni_uint_array_t *nua, unsigned int num)
 /*
  * Array of variables
  */
+ni_var_array_t *
+ni_var_array_new(void)
+{
+	return xcalloc(1, sizeof(ni_var_array_t));
+}
+
+void
+ni_var_array_free(ni_var_array_t *nva)
+{
+	if (nva) {
+		ni_var_array_destroy(nva);
+	}
+}
+
 void
 ni_var_array_init(ni_var_array_t *nva)
 {
@@ -423,6 +437,18 @@ __ni_var_array_realloc(ni_var_array_t *nva, unsigned int newsize)
 	}
 }
 
+static void
+__ni_var_array_append(ni_var_array_t *nva, const char *name, const char *value)
+{
+	ni_var_t *var;
+
+	if ((nva->count % NI_VAR_ARRAY_CHUNK) == 0)
+		__ni_var_array_realloc(nva, nva->count);
+	var = &nva->data[nva->count++];
+	var->name = xstrdup(name);
+	var->value = xstrdup(value);
+}
+
 void
 ni_var_array_set(ni_var_array_t *nva, const char *name, const char *value)
 {
@@ -438,6 +464,25 @@ ni_var_array_set(ni_var_array_t *nva, const char *name, const char *value)
 	}
 
 	ni_string_dup(&var->value, value);
+}
+
+void
+ni_var_array_copy(ni_var_array_t *dst, const ni_var_array_t *src)
+{
+	unsigned int i;
+
+	for (i = 0; i < src->count; ++i) {
+		const ni_var_t *var = &src->data[i];
+		__ni_var_array_append(dst, var->name, var->value);
+	}
+}
+
+void
+ni_var_array_move(ni_var_array_t *dst, ni_var_array_t *src)
+{
+	ni_var_array_destroy(dst);
+	*dst = *src;
+	memset(src, 0, sizeof(*src));
 }
 
 int
