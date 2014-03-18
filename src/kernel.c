@@ -242,7 +242,7 @@ __ni_tuntap_create(const ni_netdev_t *cfg)
 	if ((rv = ioctl(devfd, TUNSETIFF, (void *) &ifr)) < 0)
 		goto error;
 
-	if ((rv = ioctl(devfd, TUNSETPERSIST, cfg->tuntap->persistent)) < 0)
+	if ((rv = ioctl(devfd, TUNSETPERSIST, 1)) < 0)
 		goto error;
 
 	owner = cfg->tuntap->owner;

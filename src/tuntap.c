@@ -46,7 +46,6 @@ static inline void
 __ni_tuntap_init(ni_tuntap_t *cfg)
 {
 	memset(cfg, 0, sizeof(*cfg));
-	cfg->persistent = TRUE;
 }
 
 /*
@@ -80,9 +79,6 @@ ni_tuntap_validate(const ni_tuntap_t *cfg)
 {
 	if (cfg == NULL)
 		return "uninitialized tun/tap options";
-
-	if (FALSE == cfg->persistent)
-		return "Invalid/unsupported tun persistent setting (FALSE)";
 
 	if (cfg->owner == -1U)
 		return "Invalid/unset tun owner UID";
