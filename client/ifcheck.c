@@ -126,12 +126,6 @@ ni_ifcheck_worker_device_enabled(ni_ifworker_t *w)
 }
 
 ni_bool_t
-ni_ifcheck_worker_device_is_mandatory(ni_ifworker_t *w)
-{
-	return w && w->control.mandatory;
-}
-
-ni_bool_t
 ni_ifcheck_worker_device_link_required(ni_ifworker_t *w)
 {
 	return w && w->control.link_required;

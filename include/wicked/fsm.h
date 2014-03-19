@@ -103,9 +103,10 @@ typedef enum {
 typedef struct ni_ifworker_control {
 	char *			mode;
 	char *			boot_stage;
-	ni_bool_t		mandatory;	/* not used yet */
-	ni_bool_t		link_required;
 	ni_bool_t		persistent;
+	ni_bool_t		usercontrol;
+	ni_bool_t		link_required;
+	unsigned int		link_priority;
 	unsigned int		link_timeout;
 } ni_ifworker_control_t;
 
@@ -285,6 +286,10 @@ extern int			ni_ifworker_start(ni_fsm_t *, ni_ifworker_t *, unsigned long);
 extern void			ni_ifworker_set_completion_callback(ni_ifworker_t *, void (*)(ni_ifworker_t *), void *);
 extern ni_rfkill_type_t		ni_ifworker_get_rfkill_type(const ni_ifworker_t *);
 extern void			ni_ifworker_free(ni_ifworker_t *);
+
+extern ni_ifworker_control_t *	ni_ifworker_control_new(void);
+extern ni_ifworker_control_t *	ni_ifworker_control_clone(const ni_ifworker_control_t *);
+extern void			ni_ifworker_control_free(ni_ifworker_control_t *);
 
 extern void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 extern int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
