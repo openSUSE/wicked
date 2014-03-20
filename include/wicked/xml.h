@@ -93,6 +93,7 @@ extern void		xml_document_free(xml_document_t *);
 
 extern xml_node_t *	xml_node_new(const char *ident, xml_node_t *);
 extern xml_node_t *	xml_node_new_element(const char *ident, xml_node_t *, const char *cdata);
+extern xml_node_t *	xml_node_new_element_int(const char *ident, xml_node_t *, int);
 extern xml_node_t *	xml_node_new_element_uint(const char *ident, xml_node_t *, unsigned int);
 extern xml_node_t *	xml_node_clone(const xml_node_t *src, xml_node_t *parent);
 extern xml_node_t *	xml_node_clone_ref(xml_node_t *src);
@@ -105,6 +106,7 @@ extern int		xml_node_print_fn(const xml_node_t *, void (*)(const char *, void *)
 extern int		xml_node_print_debug(const xml_node_t *, unsigned int facility);
 extern xml_node_t *	xml_node_scan(FILE *fp, const char *location);
 extern void		xml_node_set_cdata(xml_node_t *, const char *);
+extern void		xml_node_set_int(xml_node_t *, int);
 extern void		xml_node_set_uint(xml_node_t *, unsigned int);
 extern void		xml_node_set_uint_hex(xml_node_t *, unsigned int);
 extern void		xml_node_add_attr(xml_node_t *, const char *, const char *);

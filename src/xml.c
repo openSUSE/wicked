@@ -160,6 +160,15 @@ xml_node_new_element(const char *ident, xml_node_t *parent, const char *cdata)
 }
 
 xml_node_t *
+xml_node_new_element_int(const char *ident, xml_node_t *parent, int value)
+{
+	xml_node_t *node = xml_node_new(ident, parent);
+
+	xml_node_set_int(node, value);
+	return node;
+}
+
+xml_node_t *
 xml_node_new_element_uint(const char *ident, xml_node_t *parent, unsigned int value)
 {
 	xml_node_t *node = xml_node_new(ident, parent);
@@ -260,6 +269,15 @@ void
 xml_node_set_cdata(xml_node_t *node, const char *cdata)
 {
 	ni_string_dup(&node->cdata, cdata);
+}
+
+void
+xml_node_set_int(xml_node_t *node, int value)
+{
+	char buffer[32];
+
+	snprintf(buffer, sizeof(buffer), "%d", value);
+	ni_string_dup(&node->cdata, buffer);
 }
 
 void
