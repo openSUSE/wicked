@@ -525,7 +525,7 @@ dhcp4_interface_event(ni_netdev_t *ifp, ni_event_t event)
 		/* Someone has taken the interface down completely. Which means
 		 * we shouldn't pretend we're still owning this device. So forget
 		 * all leases and shut up. */
-		ni_debug_dhcp("device %s went down: discard any leases", ifp->name);
+		ni_debug_dhcp("device %s went down: stop any processing", ifp->name);
 		dev = ni_dhcp4_device_by_index(ifp->link.ifindex);
 		if (dev != NULL)
 			ni_dhcp4_device_stop(dev);

@@ -165,6 +165,15 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 		break;
 
 	case DHCP4_ACK:
+		if (dev->fsm.state == NI_DHCP4_STATE_INIT) {
+			/*
+			 * Received a decline ACK -- wait until
+			 * timeout before we restart from begin
+			 */
+			ni_dhcp4_device_drop_lease(dev);
+			break;
+		}
+
 		if (dev->fsm.state != NI_DHCP4_STATE_REQUESTING
 		 && dev->fsm.state != NI_DHCP4_STATE_RENEWING
 		 && dev->fsm.state != NI_DHCP4_STATE_REBOOT
@@ -367,6 +376,7 @@ int
 ni_dhcp4_fsm_decline(ni_dhcp4_device_t *dev)
 {
 	ni_debug_dhcp("%s: declining lease", dev->ifname);
+	dev->fsm.state = NI_DHCP4_STATE_INIT;
 	ni_dhcp4_device_send_message(dev, DHCP4_DECLINE, dev->lease);
 
 	/* FIXME: we should record the bad lease, and ignore it
@@ -375,7 +385,6 @@ ni_dhcp4_fsm_decline(ni_dhcp4_device_t *dev)
 	/* RFC 2131 mandates we should wait for 10 seconds before
 	 * retrying discovery. */
 	ni_dhcp4_fsm_set_timeout(dev, 10);
-	dev->fsm.state = NI_DHCP4_STATE_INIT;
 	return 0;
 }
 
@@ -410,6 +419,7 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		/* We get here if we previously received a NAK, and have
 		 * started to back off, or if we declined a lease because
 		 * the address was already in use. */
+		ni_dhcp4_device_drop_lease(dev);
 		ni_dhcp4_fsm_discover(dev);
 		break;
 
@@ -539,6 +549,7 @@ ni_dhcp4_fsm_link_down(ni_dhcp4_device_t *dev)
 	case NI_DHCP4_STATE_SELECTING:
 	case NI_DHCP4_STATE_REQUESTING:
 	case NI_DHCP4_STATE_VALIDATING:
+		ni_dhcp4_device_arp_close(dev);
 		ni_dhcp4_device_drop_lease(dev);
 		ni_dhcp4_fsm_restart(dev);
 		break;
