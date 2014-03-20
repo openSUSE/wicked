@@ -283,6 +283,9 @@ __ni_suse_read_default_hostname(char **hostname)
 		return NULL;
 	ni_string_free(hostname);
 
+	if (!ni_isreg(__NI_SUSE_HOSTNAME_FILE))
+		return NULL;
+
 	input = ni_file_open(__NI_SUSE_HOSTNAME_FILE, "r", 0600);
 	if (!input)
 		return NULL;
