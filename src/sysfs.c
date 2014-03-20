@@ -598,6 +598,24 @@ ni_sysctl_ipv6_ifconfig_is_present(const char *ifname)
 }
 
 int
+ni_sysctl_ipv6_ifconfig_get_int(const char *ifname, const char *ctl_name, int *value)
+{
+	const char *pathname = __ni_sysctl_ipv6_ifconfig_path(ifname, ctl_name);
+	char *result = NULL;
+
+	*value = 0;
+	if (__ni_sysfs_read_string(pathname, &result) < 0) {
+		ni_error("%s: unable to read file: %m", pathname);
+		return -1;
+	}
+	if (result == NULL) {
+		ni_error("%s: empty file", pathname);
+		return -1;
+	}
+	return ni_parse_int(result, value, 0);
+}
+
+int
 ni_sysctl_ipv6_ifconfig_get_uint(const char *ifname, const char *ctl_name, unsigned int *value)
 {
 	const char *pathname = __ni_sysctl_ipv6_ifconfig_path(ifname, ctl_name);
@@ -612,9 +630,13 @@ ni_sysctl_ipv6_ifconfig_get_uint(const char *ifname, const char *ctl_name, unsig
 		ni_error("%s: empty file", pathname);
 		return -1;
 	}
-	*value = strtoul(result, NULL, 0);
-	ni_string_free(&result);
-	return 0;
+	return ni_parse_uint(result, value, 0);
+}
+
+int
+ni_sysctl_ipv6_ifconfig_set_int(const char *ifname, const char *ctl_name, int newval)
+{
+	return __ni_sysfs_printf(__ni_sysctl_ipv6_ifconfig_path(ifname, ctl_name), "%d", newval);
 }
 
 int
