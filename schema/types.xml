@@ -65,3 +65,13 @@
   <array element-type="byte" notation="external-file"/>
 </define>
 
+<!--
+  This type represents is a boolean like integer type with an
+  additional "unset" / default value.
+-->
+<define name="tristate" type="int32" constraint="enum">
+  <default value="-1"/>
+  <false value="0"/>
+  <true value="1"/>
+</define>
+

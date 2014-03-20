@@ -294,7 +294,31 @@ ni_format_boolean(ni_bool_t data)
 				__res; \
 			  })
 
+/*
+ * Tristate (bool + "unset/default") translation
+ */
+extern const char *	ni_tristate_to_name(ni_tristate_t tristate);
+extern ni_bool_t	ni_tristate_by_name(const char *name, ni_tristate_t *tristate);
+static inline ni_bool_t	ni_tristate_is_enabled(ni_tristate_t tristate)
+{
+	return tristate == NI_TRISTATE_ENABLE;
+}
+static inline ni_bool_t	ni_tristate_is_disabled(ni_tristate_t tristate)
+{
+	return tristate == NI_TRISTATE_DISABLE;
+}
+static inline ni_bool_t	ni_tristate_is_set(ni_tristate_t tristate)
+{
+	return tristate != NI_TRISTATE_DEFAULT;
+}
+static inline void	ni_tristate_set(ni_tristate_t *tristate, int value)
+{
+	*tristate = value ? NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
+}
 
+/*
+ * Further string related utililies
+ */
 extern const char *	ni_string_strip_prefix(const char *string, const char *prefix);
 extern char *		ni_string_strip_suffix(char *string, const char *suffix);
 extern const char *	ni_string_join(char **str, const ni_string_array_t *nsa, const char *sep);
