@@ -218,24 +218,39 @@ __ni_objectmodel_ethernet_get_offload(const ni_dbus_object_t *object,
 	if (!(eth = __ni_objectmodel_ethernet_read_handle(object, error)))
 		return FALSE;
 
-	if (eth->offload.rx_csum != NI_ETHERNET_SETTING_DEFAULT)
-		ni_dbus_dict_add_uint32(result, "rx-csum", eth->offload.rx_csum);
-	if (eth->offload.tx_csum != NI_ETHERNET_SETTING_DEFAULT)
-		ni_dbus_dict_add_uint32(result, "tx-csum", eth->offload.tx_csum);
-	if (eth->offload.scatter_gather != NI_ETHERNET_SETTING_DEFAULT)
-		ni_dbus_dict_add_uint32(result, "scatter-gather", eth->offload.scatter_gather);
-	if (eth->offload.tso != NI_ETHERNET_SETTING_DEFAULT)
-		ni_dbus_dict_add_uint32(result, "tso", eth->offload.tso);
-	if (eth->offload.ufo != NI_ETHERNET_SETTING_DEFAULT)
-		ni_dbus_dict_add_uint32(result, "ufo", eth->offload.ufo);
-	if (eth->offload.gso != NI_ETHERNET_SETTING_DEFAULT)
-		ni_dbus_dict_add_uint32(result, "gso", eth->offload.gso);
-	if (eth->offload.gro != NI_ETHERNET_SETTING_DEFAULT)
-		ni_dbus_dict_add_uint32(result, "gro", eth->offload.gro);
-	if (eth->offload.lro != NI_ETHERNET_SETTING_DEFAULT)
-		ni_dbus_dict_add_uint32(result, "lro", eth->offload.lro);
+	if (ni_tristate_is_set(eth->offload.rx_csum))
+		ni_dbus_dict_add_int32(result, "rx-csum", eth->offload.rx_csum);
+	if (ni_tristate_is_set(eth->offload.tx_csum))
+		ni_dbus_dict_add_int32(result, "tx-csum", eth->offload.tx_csum);
+	if (ni_tristate_is_set(eth->offload.scatter_gather))
+		ni_dbus_dict_add_int32(result, "scatter-gather", eth->offload.scatter_gather);
+	if (ni_tristate_is_set(eth->offload.tso))
+		ni_dbus_dict_add_int32(result, "tso", eth->offload.tso);
+	if (ni_tristate_is_set(eth->offload.ufo))
+		ni_dbus_dict_add_int32(result, "ufo", eth->offload.ufo);
+	if (ni_tristate_is_set(eth->offload.gso))
+		ni_dbus_dict_add_int32(result, "gso", eth->offload.gso);
+	if (ni_tristate_is_set(eth->offload.gro))
+		ni_dbus_dict_add_int32(result, "gro", eth->offload.gro);
+	if (ni_tristate_is_set(eth->offload.lro))
+		ni_dbus_dict_add_int32(result, "lro", eth->offload.lro);
 
 	return TRUE;
+}
+
+static ni_bool_t
+__ni_objectmodel_set_tristate(const ni_dbus_variant_t *argument,
+				const char *name, ni_tristate_t *flag)
+{
+	int32_t val;
+
+	if (ni_dbus_dict_get_int32(argument, name, &val)) {
+		ni_tristate_set(flag, val);
+		return TRUE;
+	} else {
+		*flag = NI_TRISTATE_DEFAULT;
+		return FALSE;
+	}
 }
 
 static dbus_bool_t
@@ -245,43 +260,44 @@ __ni_objectmodel_ethernet_set_offload(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_ethernet_t *eth;
-	
+
 	if (!(eth = __ni_objectmodel_ethernet_write_handle(object, error)))
 		return FALSE;
 
 	if (!ni_dbus_variant_is_dict(argument))
 		return FALSE;
 
-	if (!ni_dbus_dict_get_uint32(argument, "rx-csum", &eth->offload.rx_csum))
-		eth->offload.rx_csum = NI_ETHERNET_SETTING_DEFAULT;
-	if (!ni_dbus_dict_get_uint32(argument, "tx-csum", &eth->offload.tx_csum))
-		eth->offload.tx_csum = NI_ETHERNET_SETTING_DEFAULT;
-	if (!ni_dbus_dict_get_uint32(argument, "scatter-gather", &eth->offload.scatter_gather))
-		eth->offload.scatter_gather = NI_ETHERNET_SETTING_DEFAULT;
-	if (!ni_dbus_dict_get_uint32(argument, "tso", &eth->offload.tso))
-		eth->offload.tso = NI_ETHERNET_SETTING_DEFAULT;
-	if (!ni_dbus_dict_get_uint32(argument, "ufo", &eth->offload.ufo))
-		eth->offload.ufo = NI_ETHERNET_SETTING_DEFAULT;
-	if (!ni_dbus_dict_get_uint32(argument, "gso", &eth->offload.gso))
-		eth->offload.gso = NI_ETHERNET_SETTING_DEFAULT;
-	if (!ni_dbus_dict_get_uint32(argument, "gro", &eth->offload.gro))
-		eth->offload.gro = NI_ETHERNET_SETTING_DEFAULT;
-	if (!ni_dbus_dict_get_uint32(argument, "lro", &eth->offload.lro))
-		eth->offload.lro = NI_ETHERNET_SETTING_DEFAULT;
+	__ni_objectmodel_set_tristate(argument, "rx-csum",
+					&eth->offload.rx_csum);
+	__ni_objectmodel_set_tristate(argument, "tx-csum",
+					&eth->offload.tx_csum);
+	__ni_objectmodel_set_tristate(argument, "scatter-gather",
+					&eth->offload.scatter_gather);
+	__ni_objectmodel_set_tristate(argument, "tso",
+					&eth->offload.tso);
+	__ni_objectmodel_set_tristate(argument, "ufo",
+					&eth->offload.ufo);
+	__ni_objectmodel_set_tristate(argument, "gso",
+					&eth->offload.gso);
+	__ni_objectmodel_set_tristate(argument, "gro",
+					&eth->offload.gro);
+	__ni_objectmodel_set_tristate(argument, "lro",
+					&eth->offload.lro);
 
 	return TRUE;
 }
 
 
-
 #define ETHERNET_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(ethernet, dbus_name, member_name, rw)
+#define ETHERNET_INT_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_INT_PROPERTY(ethernet, dbus_name, member_name, rw)
 
 const ni_dbus_property_t	ni_objectmodel_ethernet_property_table[] = {
 	ETHERNET_UINT_PROPERTY(link-speed, link_speed, RO),
 	ETHERNET_UINT_PROPERTY(port-type, port_type, RO),
 	ETHERNET_UINT_PROPERTY(duplex, duplex, RO),
-	ETHERNET_UINT_PROPERTY(autoneg-enable, autoneg_enable, RO),
+	ETHERNET_INT_PROPERTY(autoneg-enable, autoneg_enable, RO),
 
 	___NI_DBUS_PROPERTY(
 			DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING,

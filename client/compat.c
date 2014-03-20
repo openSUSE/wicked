@@ -195,13 +195,11 @@ ni_compat_netdev_client_info_set(ni_netdev_t *dev, const char *filename)
  * Functions for generating XML
  */
 static void
-__ni_compat_ethtool_tristate(const char *name, xml_node_t *node, ni_ether_tristate_t flag)
+__ni_compat_optional_tristate(const char *name, xml_node_t *node, ni_tristate_t flag)
 {
-	if (flag == NI_ETHERNET_SETTING_ENABLE)
-		xml_node_new_element(name, node, "enable");
-	else
-	if (flag == NI_ETHERNET_SETTING_DISABLE)
-		xml_node_new_element(name, node, "disable");
+	if (ni_tristate_is_set(flag)) {
+		xml_node_new_element(name, node, ni_tristate_to_name(flag));
+	}
 }
 
 static void
@@ -224,18 +222,19 @@ __ni_compat_generate_eth_node(xml_node_t *child, const ni_ethernet_t *eth)
 	if (eth->duplex == NI_ETHERNET_DUPLEX_FULL) {
 		xml_node_new_element("duplex", child, "full");
 	}
-	__ni_compat_ethtool_tristate("autoneg-enable", child, eth->autoneg_enable);
+	__ni_compat_optional_tristate("autoneg-enable", child, eth->autoneg_enable);
 
 	/* generate offload and other information */
 	offload = xml_node_new("offload", NULL);
-	__ni_compat_ethtool_tristate("rx-csum", offload, eth->offload.rx_csum);
-	__ni_compat_ethtool_tristate("tx-csum", offload, eth->offload.tx_csum);
-	__ni_compat_ethtool_tristate("scatter-gather", child, eth->offload.scatter_gather);
-	__ni_compat_ethtool_tristate("tso", offload, eth->offload.tso);
-	__ni_compat_ethtool_tristate("ufo", offload, eth->offload.ufo);
-	__ni_compat_ethtool_tristate("gso", offload, eth->offload.gso);
-	__ni_compat_ethtool_tristate("gro", offload, eth->offload.gro);
-	__ni_compat_ethtool_tristate("lro", offload, eth->offload.lro);
+	__ni_compat_optional_tristate("rx-csum", offload, eth->offload.rx_csum);
+	__ni_compat_optional_tristate("tx-csum", offload, eth->offload.tx_csum);
+	__ni_compat_optional_tristate("scatter-gather", offload,
+						eth->offload.scatter_gather);
+	__ni_compat_optional_tristate("tso", offload, eth->offload.tso);
+	__ni_compat_optional_tristate("ufo", offload, eth->offload.ufo);
+	__ni_compat_optional_tristate("gso", offload, eth->offload.gso);
+	__ni_compat_optional_tristate("gro", offload, eth->offload.gro);
+	__ni_compat_optional_tristate("lro", offload, eth->offload.lro);
 	if (offload->children)
 		xml_node_add_child(child, offload);
 	else

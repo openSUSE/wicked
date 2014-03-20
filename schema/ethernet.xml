@@ -3,11 +3,6 @@
   -->
 <service name="ethernet" interface="org.opensuse.Network.Ethernet" object-class="netif-ethernet">
   <!-- This is the linkinfo returned in interface reports -->
-  <define name="tristate" type="uint32" constraint="enum">
-      <default value="0"/>
-      <enable value="1"/>
-      <disable value="2"/>
-  </define>
   <define name="duplex_t" type="uint32" constraint="enum">
     <default value="0" />
     <half value="1" />

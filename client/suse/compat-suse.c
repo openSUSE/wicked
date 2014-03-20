@@ -1214,13 +1214,13 @@ try_infiniband(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
  * Handle Ethernet devices
  */
 static inline void
-ni_parse_ethtool_onoff(const char *input, ni_ether_tristate_t *flag)
+ni_parse_ethtool_onoff(const char *input, ni_tristate_t *flag)
 {
 	if (ni_string_eq(input, "on")) {
-		*flag = NI_ETHERNET_SETTING_ENABLE;
+		*flag = NI_TRISTATE_ENABLE;
 	} else
 	if (ni_string_eq(input, "off")) {
-		*flag = NI_ETHERNET_SETTING_DISABLE;
+		*flag = NI_TRISTATE_DISABLE;
 	}
 }
 
