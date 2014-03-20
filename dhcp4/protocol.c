@@ -308,10 +308,17 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 			return -1;
 		break;
 
+	case DHCP4_DECLINE:
+		if (lease->dhcp4.address.s_addr == 0
+		||  lease->dhcp4.server_id.s_addr == 0)
+			return -1;
+		break;
+
 	case DHCP4_REQUEST:
 	case DHCP4_RELEASE:
 	case DHCP4_INFORM:
-		if (lease->dhcp4.address.s_addr == 0 || lease->dhcp4.server_id.s_addr == 0)
+		if (lease->dhcp4.address.s_addr == 0
+		||  lease->dhcp4.server_id.s_addr == 0)
 			return -1;
 
 		if (dev->fsm.state != NI_DHCP4_STATE_REQUESTING
@@ -381,6 +388,10 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 			ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 
+	if (msg_code == DHCP4_DECLINE) {
+		if (lease->dhcp4.address.s_addr)
+			ni_dhcp4_option_put_ipv4(msgbuf, DHCP4_ADDRESS, lease->dhcp4.address);
+	} else
 	if (msg_code == DHCP4_DISCOVER || msg_code == DHCP4_REQUEST) {
 		if (lease->dhcp4.address.s_addr)
 			ni_dhcp4_option_put_ipv4(msgbuf, DHCP4_ADDRESS, lease->dhcp4.address);
@@ -388,7 +399,7 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 			ni_dhcp4_option_put32(msgbuf, DHCP4_LEASETIME, lease->dhcp4.lease_time);
 	}
 
-	if (msg_code == DHCP4_REQUEST) {
+	if (msg_code == DHCP4_REQUEST || msg_code == DHCP4_DECLINE) {
 		if (lease->dhcp4.server_id.s_addr)
 			ni_dhcp4_option_put_ipv4(msgbuf, DHCP4_SERVERIDENTIFIER, lease->dhcp4.server_id);
 	}

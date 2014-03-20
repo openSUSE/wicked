@@ -165,6 +165,15 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 		break;
 
 	case DHCP4_ACK:
+		if (dev->fsm.state == NI_DHCP4_STATE_INIT) {
+			/*
+			 * Received a decline ACK -- wait until
+			 * timeout before we restart from begin
+			 */
+			ni_dhcp4_device_drop_lease(dev);
+			break;
+		}
+
 		if (dev->fsm.state != NI_DHCP4_STATE_REQUESTING
 		 && dev->fsm.state != NI_DHCP4_STATE_RENEWING
 		 && dev->fsm.state != NI_DHCP4_STATE_REBOOT
@@ -367,6 +376,7 @@ int
 ni_dhcp4_fsm_decline(ni_dhcp4_device_t *dev)
 {
 	ni_debug_dhcp("%s: declining lease", dev->ifname);
+	dev->fsm.state = NI_DHCP4_STATE_INIT;
 	ni_dhcp4_device_send_message(dev, DHCP4_DECLINE, dev->lease);
 
 	/* FIXME: we should record the bad lease, and ignore it
@@ -375,7 +385,6 @@ ni_dhcp4_fsm_decline(ni_dhcp4_device_t *dev)
 	/* RFC 2131 mandates we should wait for 10 seconds before
 	 * retrying discovery. */
 	ni_dhcp4_fsm_set_timeout(dev, 10);
-	dev->fsm.state = NI_DHCP4_STATE_INIT;
 	return 0;
 }
 
@@ -410,6 +419,7 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		/* We get here if we previously received a NAK, and have
 		 * started to back off, or if we declined a lease because
 		 * the address was already in use. */
+		ni_dhcp4_device_drop_lease(dev);
 		ni_dhcp4_fsm_discover(dev);
 		break;
 
@@ -539,6 +549,7 @@ ni_dhcp4_fsm_link_down(ni_dhcp4_device_t *dev)
 	case NI_DHCP4_STATE_SELECTING:
 	case NI_DHCP4_STATE_REQUESTING:
 	case NI_DHCP4_STATE_VALIDATING:
+		ni_dhcp4_device_arp_close(dev);
 		ni_dhcp4_device_drop_lease(dev);
 		ni_dhcp4_fsm_restart(dev);
 		break;
@@ -613,8 +624,11 @@ ni_dhcp4_process_ack(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 	ni_dhcp4_device_set_lease(dev, lease);
 
 	if (dev->config->flags & DHCP4_DO_ARP) {
-		/* should we do this on renew as well? */
-		ni_dhcp4_fsm_validate_lease(dev, lease);
+		/*
+		 * When we cannot init validate [arp], commit it.
+		 */
+		if (ni_dhcp4_fsm_validate_lease(dev, lease) < 0)
+			ni_dhcp4_fsm_commit_lease(dev, lease);
 	} else {
 		ni_dhcp4_fsm_commit_lease(dev, lease);
 	}
@@ -812,23 +826,25 @@ ni_dhcp4_fsm_validate_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 	if (dev->system.hwaddr.type == ARPHRD_IEEE1394)
 		dev->arp.nclaims = 0;
 
-	if (ni_dhcp4_fsm_arp_validate(dev) < 0)
-		goto decline;
+	if (ni_dhcp4_fsm_arp_validate(dev) < 0) {
+		ni_debug_dhcp("%s: unable to validate lease", dev->ifname);
+		return -1;
+	}
 
 	dev->fsm.state = NI_DHCP4_STATE_VALIDATING;
 	return 0;
-
-decline:
-	ni_debug_dhcp("%s: unable to validate lease, declining", dev->ifname);
-	return -1;
 }
 
 int
 ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *dev)
 {
-	struct in_addr claim = dev->lease->dhcp4.address;
 	struct in_addr null = { 0 };
+	struct in_addr claim;
 
+	if (!dev || !dev->lease)
+		return -1;
+
+	claim = dev->lease->dhcp4.address;
 	if (dev->arp.handle == NULL) {
 		dev->arp.handle = ni_arp_socket_open(&dev->system,
 				ni_dhcp4_fsm_process_arp_packet, dev);
@@ -866,7 +882,7 @@ ni_dhcp4_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *pk
 {
 	ni_dhcp4_device_t *dev = user_data;
 
-	if (pkt->op != ARPOP_REPLY)
+	if (!pkt || pkt->op != ARPOP_REPLY || !dev || !dev->lease)
 		return;
 
 	/* Ignore any ARP replies that seem to come from our own
@@ -879,6 +895,7 @@ ni_dhcp4_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *pk
 		ni_debug_dhcp("address %s already in use by %s",
 				inet_ntoa(pkt->sip),
 				ni_link_address_print(&pkt->sha));
+		ni_dhcp4_device_arp_close(dev);
 		ni_dhcp4_fsm_decline(dev);
 	}
 }
