@@ -841,6 +841,7 @@ ni_ifworker_update_client_state_config(ni_ifworker_t *w)
 	ni_client_state_config_debug(w->name, conf, "update");
 }
 
+#ifdef CLIENT_STATE_STATS
 #if 0
 static void
 ni_ifworker_update_client_state_stats(ni_ifworker_t *w)
@@ -852,6 +853,7 @@ ni_ifworker_update_client_state_stats(ni_ifworker_t *w)
 	ni_call_set_client_state_stats(w->object, stats);
 	ni_client_state_stats_debug(w->name, stats, "update");
 }
+#endif
 #endif
 
 static inline ni_bool_t
@@ -894,8 +896,11 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 			if (w->object && prev_state < new_state) {
 				if (!w->readonly) { /* Do not update on readonly refreshes (ifcheck, ifstatus) */
 					ni_ifworker_update_client_state_config(w);
+#ifdef CLIENT_STATE_STATS
+					/* FIXME: No need to update stats at the moment */
 #if 0
 					ni_ifworker_update_client_state_stats(w);
+#endif
 #endif
 				}
 			}

@@ -74,7 +74,6 @@ ni_bool_t
 ni_client_state_print_xml(const ni_client_state_t *client_state, xml_node_t *node)
 {
 	const char *ptr;
-	char *tmp = NULL;
 	xml_node_t *parent;
 
 	if (!client_state || !node)
@@ -112,7 +111,9 @@ ni_client_state_print_xml(const ni_client_state_t *client_state, xml_node_t *nod
 	else
 		return FALSE;
 
+#ifdef CLIENT_STATE_STATS
 	if ((parent = xml_node_new_element(NI_CLIENT_STATE_XML_STATS_NODE, node, NULL))) {
+		char *tmp = NULL;
 		if (!(ptr = ni_ifworker_state_name(client_state->stats.init_state)) ||
 		    !xml_node_new_element(NI_CLIENT_STATE_XML_INIT_STATE_NODE, parent, ptr))
 			return FALSE;
@@ -133,6 +134,7 @@ ni_client_state_print_xml(const ni_client_state_t *client_state, xml_node_t *nod
 		}
 		ni_string_free(&tmp);
 	}
+#endif
 
 	return TRUE;
 }
@@ -195,6 +197,7 @@ ni_client_state_parse_xml(const xml_node_t *node, ni_client_state_t *client_stat
 		ni_string_dup(&client_state->config.origin, child->cdata);
 	}
 
+#ifdef CLIENT_STATE_STATS
 	if ((parent = xml_node_get_child(node, NI_CLIENT_STATE_XML_STATS_NODE))) {
 		if ((child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_INIT_STATE_NODE))) {
 			if (!child->cdata ||
@@ -220,6 +223,7 @@ ni_client_state_parse_xml(const xml_node_t *node, ni_client_state_t *client_stat
 			}
 		}
 	}
+#endif
 
 	return TRUE;
 }
@@ -247,6 +251,7 @@ ni_client_state_config_is_valid(const ni_client_state_config_t *conf)
 		!ni_uuid_is_null(&conf->uuid);
 }
 
+#ifdef CLIENT_STATE_STATS
 ni_bool_t
 ni_client_state_stats_is_valid(const ni_client_state_stats_t *stats)
 {
@@ -254,6 +259,7 @@ ni_client_state_stats_is_valid(const ni_client_state_stats_t *stats)
 		   __ni_client_state_is_valid_time(&stats->init_time) &&
 		   __ni_client_state_is_valid_time(&stats->last_time);
 }
+#endif
 
 ni_bool_t
 ni_client_state_is_valid(const ni_client_state_t *client_state)
@@ -261,9 +267,14 @@ ni_client_state_is_valid(const ni_client_state_t *client_state)
 	return client_state && ni_ifworker_is_valid_state(client_state->state) &&
 		   ni_client_state_control_is_valid(&client_state->control) &&
 		   ni_client_state_config_is_valid(&client_state->config) &&
+#ifdef CLIENT_STATE_STATS
 		   ni_client_state_stats_is_valid(&client_state->stats);
+#else
+		   TRUE;
+#endif
 }
 
+#ifdef CLIENT_STATE_STATS
 static void
 __ni_client_state_update_stats(ni_client_state_stats_t *stats, unsigned int new_state)
 {
@@ -273,6 +284,7 @@ __ni_client_state_update_stats(ni_client_state_stats_t *stats, unsigned int new_
 		stats->init_time = stats->last_time;
 	}
 }
+#endif
 
 /*
  * Exported functions
@@ -330,7 +342,10 @@ ni_client_state_set_state(ni_client_state_t *client_state, unsigned int state)
 		return;
 
 	client_state->state = state;
+
+#ifdef CLIENT_STATE_STATS
 	__ni_client_state_update_stats(&client_state->stats, state);
+#endif
 }
 
 ni_bool_t
@@ -512,6 +527,7 @@ ni_client_state_config_debug(const char *name, const ni_client_state_config_t *c
 	);
 }
 
+#ifdef CLIENT_STATE_STATS
 void
 ni_client_state_stats_debug(const char *name, const ni_client_state_stats_t *stats, const char *action)
 {
@@ -527,6 +543,7 @@ ni_client_state_stats_debug(const char *name, const ni_client_state_stats_t *sta
 		stats->last_time.tv_sec, stats->last_time.tv_usec
 	);
 }
+#endif
 
 void
 ni_client_state_debug(const char *name, const ni_client_state_t *cs, const char *action)
@@ -535,5 +552,7 @@ ni_client_state_debug(const char *name, const ni_client_state_t *cs, const char 
 	ni_client_state_state_debug(name, cs->state, action);
 	ni_client_state_control_debug(name, &cs->control, action);
 	ni_client_state_config_debug(name, &cs->config, action);
+#ifdef CLIENT_STATE_STATS
 	ni_client_state_stats_debug(name, &cs->stats, action);
+#endif
 }
