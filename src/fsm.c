@@ -1038,6 +1038,7 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 {
 	ni_ifworker_control_t *control;
 	xml_node_t *linknode, *np;
+	ni_bool_t val;
 
 	if (ctrlnode == NULL)
 		return;
@@ -1067,6 +1068,18 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 			control->link_required = TRUE;
 		}
 	}
+
+	if ((np = xml_node_get_child(ctrlnode, NI_CLIENT_STATE_XML_PERSISTENT_NODE)) != NULL) {
+		ni_parse_boolean(np->cdata, &val);
+		NI_SET_CONTROL_FLAG(w->control.persistent, !w->control.persistent, val);
+	}
+	w->client_state.control.persistent = w->control.persistent;
+
+	if ((np = xml_node_get_child(ctrlnode, NI_CLIENT_STATE_XML_USERCONTROL_NODE)) != NULL) {
+		ni_parse_boolean(np->cdata, &val);
+		NI_SET_CONTROL_FLAG(w->control.usercontrol, !w->control.usercontrol, val);
+	}
+	w->client_state.control.usercontrol = w->control.usercontrol;
 }
 
 /*
@@ -1086,39 +1099,6 @@ ni_ifworker_set_config_origin(ni_ifworker_t *w, const char *new_origin)
 	ni_string_dup(old_origin, new_origin);
 }
 
-static ni_bool_t
-ni_ifworker_set_control_client_state(ni_ifworker_t *w, xml_node_t *csnode)
-{
-	ni_client_state_t cs;
-	ni_client_state_control_t *ctrl;
-
-	ni_assert(w);
-	ni_client_state_init(&cs);
-
-	if (!csnode || !ni_client_state_parse_xml(csnode, &cs)) {
-		ni_error("%s: unable to parse %s node from %s file",
-			w->name, NI_CLIENT_STATE_XML_NODE, w->client_state.config.origin
-		);
-		return FALSE;
-	}
-
-	if (ni_client_state_is_valid(&cs)) {
-		ni_warn("%s: full %s node in %s file; ignored all but %s flags",
-			w->name, NI_CLIENT_STATE_XML_NODE, w->client_state.config.origin,
-			NI_CLIENT_STATE_XML_CONTROL_NODE
-		);
-	}
-
-	ctrl = &w->client_state.control;
-	/* only <control> values are taken into account */
-	NI_SET_CONTROL_FLAG(ctrl->persistent, cs.control.persistent == TRUE,
-		cs.control.persistent);
-	NI_SET_CONTROL_FLAG(ctrl->usercontrol, cs.control.persistent == TRUE,
-		cs.control.usercontrol);
-
-	return TRUE;
-}
-
 void
 ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_origin)
 {
@@ -1135,8 +1115,17 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 	if ((child = xml_node_get_child(ifnode, "dependencies")))
 		ni_ifworker_set_dependencies_xml(w, child);
 
-	if ((child = xml_node_get_child(ifnode, NI_CLIENT_STATE_XML_NODE)))
-		ni_ifworker_set_control_client_state(w, child);
+	if ((child = xml_node_get_child(ifnode, NI_CLIENT_STATE_XML_NODE))) {
+		ni_error("%s node is specifid in %s config file - ignoring it",
+			NI_CLIENT_STATE_XML_NODE, config_origin);
+		xml_node_detach(child);
+	}
+
+	if ((child = xml_node_get_child(ifnode, NI_WICKED_IFCONFIG_META_DATA))) {
+		ni_error("%s node is specifid in %s config file - ignoring it",
+			NI_WICKED_IFCONFIG_META_DATA, config_origin);
+		xml_node_detach(child);
+	}
 }
 
 /*

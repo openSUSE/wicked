@@ -1191,7 +1191,6 @@ static ni_bool_t
 __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
-	ni_client_state_t *cs;
 	xml_node_t *linknode;
 	ni_ipv4_devinfo_t *ipv4;
 	ni_ipv6_devinfo_t *ipv6;
@@ -1221,9 +1220,10 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 				(void) xml_node_new("require-link", linkdet);
 		}
 
-		cs = ni_netdev_get_client_state(dev);
-		cs->control.persistent = control->persistent;
-		cs->control.usercontrol = control->usercontrol;
+		xml_node_new_element(NI_CLIENT_STATE_XML_PERSISTENT_NODE, child,
+			ni_format_boolean(control->persistent));
+		xml_node_new_element(NI_CLIENT_STATE_XML_USERCONTROL_NODE, child,
+			ni_format_boolean(control->usercontrol));
 	}
 
 	switch (dev->link.type) {
