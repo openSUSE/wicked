@@ -9,6 +9,7 @@
  */
 #ifndef __WICKED_CLIENT_STATE_H__
 #define __WICKED_CLIENT_STATE_H__
+#include <unistd.h>
 #include <wicked/logging.h>
 
 #define NI_CLIENT_STATE_XML_NODE	"client-state"
@@ -22,6 +23,7 @@
 #define NI_CLIENT_STATE_XML_CONFIG_NODE	"config"
 #define NI_CLIENT_STATE_XML_CONFIG_UUID_NODE	"uuid"
 #define NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE	"origin"
+#define NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE	"owner-uid"
 
 #ifdef CLIENT_STATE_STATS
 #define NI_CLIENT_STATE_XML_STATS_NODE	"stats"
@@ -40,8 +42,8 @@ typedef struct ni_client_state_control {
 typedef struct ni_client_state_config {
 	ni_uuid_t	uuid;	/* Configuration UUID marker of the interface */
 	char *		origin;	/* Source of the configuration of the interface */
+	uid_t		owner;	/* User's UID who has initiated the given configuration */
 } ni_client_state_config_t;
-#define NI_CLIENT_STATE_CONFIG_INIT { .uuid = NI_UUID_INIT, .origin = NULL }
 
 #ifdef CLIENT_STATE_STATS
 typedef struct ni_client_state_stats {
@@ -65,6 +67,7 @@ extern void		ni_client_state_init(ni_client_state_t *);
 extern ni_client_state_t *	ni_client_state_clone(ni_client_state_t *);
 extern void		ni_client_state_destroy(ni_client_state_t *);
 extern void		ni_client_state_free(ni_client_state_t *);
+extern void		ni_client_state_config_init(ni_client_state_config_t *);
 
 extern ni_bool_t	ni_client_state_control_is_valid(const ni_client_state_control_t *);
 extern ni_bool_t	ni_client_state_config_is_valid(const ni_client_state_config_t *);
@@ -98,7 +101,6 @@ extern void		ni_client_state_debug(const char *, const ni_client_state_t *, cons
 /*
  * Static inline functions
  */
-
 static inline const char *
 ni_client_state_print_timeval(const struct timeval *tv, char **str)
 {

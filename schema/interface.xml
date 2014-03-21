@@ -106,6 +106,7 @@
  <define name="client-state-config-type" class="dict">
    <origin type="string" constraint="required"/>
    <uuid type="uuid-type" constraint="required"/>
+   <owner-uid type="uint32" constraint="required"/>
  </define>
 
 <!--

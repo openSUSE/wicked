@@ -191,6 +191,7 @@ ni_compat_netdev_client_state_set(ni_netdev_t *dev, const char *filename)
 		return;
 
 	cs = ni_netdev_get_client_state(dev);
+	ni_client_state_config_init(&cs->config);
 	ni_client_state_config_generate(&cs->config, "compat", filename);
 }
 

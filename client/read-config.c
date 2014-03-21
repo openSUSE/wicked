@@ -330,7 +330,8 @@ __ni_ifconfig_xml_read_file(xml_document_array_t *docs, const char *root, const 
 	}
 
 	if (!raw) {
-		ni_client_state_config_t conf = NI_CLIENT_STATE_CONFIG_INIT;
+		ni_client_state_config_t conf;
+		ni_client_state_config_init(&conf);
 		ni_client_state_config_generate(&conf, "wicked", pathname);
 		ni_ifconfig_add_meta_data_to_node(config_doc->root, &conf);
 		ni_string_free(&conf.origin);
@@ -512,7 +513,7 @@ ni_client_state_config_generate(ni_client_state_config_t *conf, const char *sche
 			(filename ? filename : ""));
 	}
 
-	memset(conf, 0, sizeof(*conf));
+	ni_client_state_config_init(conf);
 	if (!ni_string_empty(origin))
 		conf->origin = origin;
 	if (ni_file_exists(filename))
@@ -526,7 +527,7 @@ ni_ifconfig_read_firmware(xml_document_array_t *array, const char *type,
 			const char *root, const char *path, ni_bool_t raw)
 {
 	xml_document_t *config_doc;
-	ni_client_state_config_t conf = NI_CLIENT_STATE_CONFIG_INIT;
+	ni_client_state_config_t conf;
 	xml_node_t *rnode;
 
 	config_doc = ni_netconfig_firmware_discovery(root, path);
@@ -537,11 +538,15 @@ ni_ifconfig_read_firmware(xml_document_array_t *array, const char *type,
 		return FALSE;
 	}
 
+	ni_client_state_config_init(&conf);
 	rnode = xml_document_root(config_doc);
 	if (!ni_ifconfig_get_meta_data_from_node(&conf, rnode)) {
 		ni_client_state_config_generate(&conf, "firmware", path);
 		if (!raw)
 			ni_ifconfig_add_meta_data_to_node(rnode, &conf);
+	}
+	else if (raw) {
+		xml_node_delete_child(rnode, NI_WICKED_IFCONFIG_META_DATA);
 	}
 
 	/* Add location */
@@ -587,7 +592,7 @@ ni_ifconfig_get_meta_data_from_node(ni_client_state_config_t *conf, xml_node_t *
 	while ((ifnode = xml_node_get_next_child(root, root->children->name, ifnode))) {
 		/* First <client-state> node found in a doc is returned */
 		if ((csnode = xml_node_get_child(ifnode, NI_WICKED_IFCONFIG_META_DATA))) {
-			memset(conf, 0, sizeof(*conf));
+			ni_client_state_config_init(conf);
 			ni_client_state_config_parse_xml(csnode, conf);
 			return TRUE;
 		}

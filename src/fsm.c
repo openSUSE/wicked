@@ -103,6 +103,7 @@ __ni_ifworker_new(ni_ifworker_type_t type, const char *name)
 	w->readonly = FALSE;
 
 	ni_ifworker_control_init(&w->control);
+	ni_client_state_config_init(&w->config.meta);
 
 	return w;
 }
