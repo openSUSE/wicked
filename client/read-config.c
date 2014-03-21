@@ -330,8 +330,7 @@ __ni_ifconfig_xml_read_file(xml_document_array_t *docs, const char *root, const 
 	}
 
 	if (!raw) {
-		ni_client_state_config_t conf;
-		ni_client_state_config_init(&conf);
+		ni_client_state_config_t conf = NI_CLIENT_STATE_CONFIG_INIT;
 		ni_client_state_config_generate(&conf, "wicked", pathname);
 		ni_ifconfig_add_meta_data_to_node(config_doc->root, &conf);
 		ni_string_free(&conf.origin);
@@ -527,7 +526,7 @@ ni_ifconfig_read_firmware(xml_document_array_t *array, const char *type,
 			const char *root, const char *path, ni_bool_t raw)
 {
 	xml_document_t *config_doc;
-	ni_client_state_config_t conf;
+	ni_client_state_config_t conf = NI_CLIENT_STATE_CONFIG_INIT;
 	xml_node_t *rnode;
 
 	config_doc = ni_netconfig_firmware_discovery(root, path);

@@ -44,6 +44,7 @@ typedef struct ni_client_state_config {
 	char *		origin;	/* Source of the configuration of the interface */
 	uid_t		owner;	/* User's UID who has initiated the given configuration */
 } ni_client_state_config_t;
+#define NI_CLIENT_STATE_CONFIG_INIT { .uuid = NI_UUID_INIT, .origin = NULL, .owner = 0 }
 
 #ifdef CLIENT_STATE_STATS
 typedef struct ni_client_state_stats {

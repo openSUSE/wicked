@@ -50,6 +50,15 @@ static void			ni_ifworker_refresh_client_state(ni_ifworker_t *, ni_client_state_
 static void			ni_ifworker_set_config_origin(ni_ifworker_t *, const char *);
 static void			ni_ifworker_cancel_timeout(ni_ifworker_t *);
 
+static inline void		ni_ifworker_update_client_state_state(ni_ifworker_t *w);
+static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
+static inline void		ni_ifworker_update_client_state_config(ni_ifworker_t *w);
+#ifdef CLIENT_STATE_STATS
+#if 0
+static inline void		ni_ifworker_update_client_state_stats(ni_ifworker_t *w);
+#endif
+#endif
+
 ni_fsm_t *
 ni_fsm_new(void)
 {
@@ -158,6 +167,12 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	w->target_state = NI_FSM_STATE_NONE;
 	w->target_range.min = NI_FSM_STATE_NONE;
 	w->target_range.max = __NI_FSM_STATE_MAX;
+
+	/* Clear config and stats*/
+	ni_client_state_config_init(&w->config.meta);
+#ifdef CLIENT_STATE_STATS
+	memset(&w->stats, 0, sizeof(w->stats));
+#endif
 
 	ni_ifworker_cancel_timeout(w);
 
@@ -331,6 +346,12 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 	va_end(ap);
 
 	ni_error("device %s failed: %s", w->name, errmsg);
+
+	if (w->fsm.state <= NI_FSM_STATE_DEVICE_DOWN) {
+		ni_client_state_config_init(&w->config.meta);
+		if (w->object)
+			ni_ifworker_update_client_state_config(w);
+	}
 	w->fsm.state = w->target_state = NI_FSM_STATE_NONE;
 	w->failed = TRUE;
 
@@ -897,7 +918,6 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 			/* Update wickedd's client-state container if it was:
 			 * - ifup operation on existing interface */
 			if (w->object && prev_state < new_state) {
-					ni_ifworker_update_client_state_config(w);
 #ifdef CLIENT_STATE_STATS
 					/* FIXME: No need to update stats at the moment */
 #if 0
@@ -1821,6 +1841,9 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 		w->target_range = marker->target_range;
 		NI_SET_PERSISTENT_FLAG(w->control.persistent, marker->persistent == TRUE, TRUE);
 		NI_SET_USERCONTROL_FLAG(w->control.usercontrol, marker->persistent == TRUE, FALSE);
+
+		if (marker->target_range.max < NI_FSM_STATE_DEVICE_UP)
+			ni_client_state_config_init(&w->config.meta);
 	}
 
 	count = ni_fsm_start_matching_workers(fsm, marked);
@@ -1844,6 +1867,11 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 
 		if (w->failed)
 			continue;
+
+		if (w->object) {
+			ni_ifworker_update_client_state_control(w);
+			ni_ifworker_update_client_state_config(w);
+		}
 
 		if ((rv = ni_ifworker_start(fsm, w, fsm->worker_timeout)) < 0)
 			return rv;
@@ -2006,16 +2034,8 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 				ni_ifworker_state_name(w->fsm.state),
 				ni_ifworker_state_name(w->target_state));
 
-	if (w->target_state != NI_FSM_STATE_NONE) {
+	if (w->target_state != NI_FSM_STATE_NONE)
 		ni_ifworker_set_timeout(w, timeout);
-
-		if (w->device && !ni_client_state_is_valid(w->device->client_state)) {
-			if (ni_netdev_link_is_up(w->device)) {
-				NI_SET_PERSISTENT_FLAG(w->control.persistent, TRUE, TRUE);
-				NI_SET_USERCONTROL_FLAG(w->control.usercontrol, TRUE, FALSE);
-			}
-		}
-	}
 
 	/* For each of the DBus calls we will execute on this device,
 	 * check whether there are constraints on child devices that
@@ -3076,6 +3096,11 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 		ni_fsm_schedule_bind_methods(fsm, w);
 	}
 
+	if (w->object) {
+		ni_ifworker_update_client_state_control(w);
+		ni_ifworker_update_client_state_config(w);
+	}
+
 	ni_ifworker_set_state(w, action->next_state);
 	return 0;
 }
@@ -3318,10 +3343,8 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			if (!w->kickstarted) {
 				if (!ni_ifworker_device_bound(w))
 					ni_ifworker_set_state(w, NI_FSM_STATE_DEVICE_DOWN);
-				else if (w->object) {
+				else if (w->object)
 					ni_call_clear_event_filters(w->object);
-					ni_ifworker_update_client_state_control(w);
-				}
 				w->kickstarted = TRUE;
 			}
 

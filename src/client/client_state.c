@@ -443,6 +443,7 @@ void
 ni_client_state_config_init(ni_client_state_config_t *conf)
 {
 	if (conf) {
+		ni_string_free(&conf->origin);
 		memset(conf, 0, sizeof(*conf));
 		__ni_set_config_owner(conf);
 	}

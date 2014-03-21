@@ -190,7 +190,7 @@ usage:
 			    !ni_ifcheck_device_configured(dev))
 				continue;
 
-			/* skip if config changed somehow */
+			/* skip if config unchanged */
 			if (ni_ifcheck_worker_config_matches(w))
 				continue;
 
