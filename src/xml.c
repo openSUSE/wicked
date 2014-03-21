@@ -335,6 +335,15 @@ xml_node_get_attr(const xml_node_t *node, const char *name)
 	return attr->value;
 }
 
+ni_bool_t
+xml_node_del_attr(xml_node_t *node, const char *name)
+{
+	if (node && xml_node_has_attr(node, name))
+		return ni_var_array_remove(&node->attrs, name);
+
+	return FALSE;
+}
+
 /*
  * FIXME: The next 3 functions aren't used at all
  */
