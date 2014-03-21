@@ -309,10 +309,13 @@ __xml_node_get_attr(const xml_node_t *node, const char *name)
 {
 	unsigned int i;
 
-	for (i = 0; i < node->attrs.count; ++i) {
-		if (!strcmp(node->attrs.data[i].name, name))
-			return &node->attrs.data[i];
+	if (node) {
+		for (i = 0; i < node->attrs.count; ++i) {
+			if (!strcmp(node->attrs.data[i].name, name))
+				return &node->attrs.data[i];
+		}
 	}
+
 	return NULL;
 }
 
@@ -339,45 +342,45 @@ ni_bool_t
 xml_node_get_attr_uint(const xml_node_t *node, const char *name, unsigned int *valp)
 {
 	const ni_var_t *attr;
-	char *pos;
 
-	if (!(attr = __xml_node_get_attr(node, name)) || !attr->value)
-		return 0;
+	ni_assert(valp);
 
-	*valp = strtoul(attr->value, &pos, 0);
-	if (*pos)
-		return -1;
-	return 0;
+	if (!(attr = __xml_node_get_attr(node, name)) || !attr->value ||
+	    ni_parse_uint(attr->value, valp, 10) < 0) {
+		return FALSE;
+	}
+
+	return TRUE;
 }
 
 ni_bool_t
 xml_node_get_attr_ulong(const xml_node_t *node, const char *name, unsigned long *valp)
 {
 	const ni_var_t *attr;
-	char *pos;
 
-	if (!(attr = __xml_node_get_attr(node, name)) || !attr->value)
-		return 0;
+	ni_assert(valp);
 
-	*valp = strtoul(attr->value, &pos, 0);
-	if (*pos)
-		return -1;
-	return 0;
+	if (!(attr = __xml_node_get_attr(node, name)) || !attr->value ||
+	    ni_parse_ulong(attr->value, valp, 10) < 0) {
+		return FALSE;
+	}
+
+	return TRUE;
 }
 
 ni_bool_t
 xml_node_get_attr_double(const xml_node_t *node, const char *name, double *valp)
 {
 	const ni_var_t *attr;
-	char *pos;
 
-	if (!(attr = __xml_node_get_attr(node, name)) || !attr->value)
-		return 0;
+	ni_assert(valp);
 
-	*valp = strtod(attr->value, &pos);
-	if (*pos)
-		return -1;
-	return 0;
+	if (!(attr = __xml_node_get_attr(node, name)) || !attr->value ||
+	    ni_parse_double(attr->value, valp) < 0) {
+		return FALSE;
+	}
+
+	return TRUE;
 }
 
 /*
