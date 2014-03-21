@@ -32,8 +32,6 @@ extern int		ni_do_ifcheck(int argc, char **argv);
 extern ni_bool_t	ni_ifcheck_device_configured(ni_netdev_t *);
 extern ni_bool_t	ni_ifcheck_device_is_up(ni_netdev_t *);
 extern ni_bool_t	ni_ifcheck_device_link_is_up(ni_netdev_t *);
-extern ni_bool_t	ni_ifcheck_device_fsm_is_up(ni_netdev_t *);
-extern ni_bool_t	ni_ifcheck_device_fsm_link_is_up(ni_netdev_t *);
 extern ni_bool_t	ni_ifcheck_device_network_is_up(ni_netdev_t *);
 extern ni_bool_t	ni_ifcheck_device_is_persistent(ni_netdev_t *);
 

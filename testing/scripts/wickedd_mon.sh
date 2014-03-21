@@ -12,7 +12,6 @@
 
 EXPECTED_ARGS=0
 
-STATE='current-state="%{?client-state/current-state}"'
 CONFIG_ORIGIN='config-origin="%{?client-state/config/origin}"'
 CONFIG_UUID='config-origin="%{?client-state/config/uuid}"'
 CONFIG_OWNER='owner-uid="%{?client-state/config/owner-uid}"'
@@ -34,7 +33,7 @@ while :; do
 		clear;
 	fi
 
-	wicked show-xml | wicked xpath --reference '/object/interface' "name=\"%{?name}\" ${STATE} ${CONFIG_ORIGIN} ${CONFIG_UUID} ${CONFIG_OWNER} ${PERSISTENT} ${USERCONTROL}" | column -t || exit;
+	wicked show-xml | wicked xpath --reference '/object/interface' "name=\"%{?name}\" ${CONFIG_ORIGIN} ${CONFIG_UUID} ${CONFIG_OWNER} ${PERSISTENT} ${USERCONTROL}" | column -t || exit;
 
 	if [[ -z "$1"  || $1 -eq 0 ]]; then
 		exit;

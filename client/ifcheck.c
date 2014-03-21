@@ -75,25 +75,6 @@ ni_ifcheck_device_network_is_up(ni_netdev_t *dev)
 	return dev && !!(dev->link.ifflags & NI_IFF_NETWORK_UP);
 }
 
-unsigned int
-__ifcheck_device_fsm_state(ni_netdev_t *dev)
-{
-	ni_client_state_t *cs = dev ? dev->client_state : NULL;
-	return cs ? cs->state : NI_FSM_STATE_NONE;
-}
-
-ni_bool_t
-ni_ifcheck_device_fsm_is_up(ni_netdev_t *dev)
-{
-	return __ifcheck_device_fsm_state(dev) >= NI_FSM_STATE_DEVICE_UP;
-}
-
-ni_bool_t
-ni_ifcheck_device_fsm_link_is_up(ni_netdev_t *dev)
-{
-	return __ifcheck_device_fsm_state(dev) >= NI_FSM_STATE_LINK_UP;
-}
-
 ni_bool_t
 ni_ifcheck_device_is_persistent(ni_netdev_t *dev)
 {
@@ -157,7 +138,8 @@ ni_ifcheck_worker_not_in_state(ni_ifworker_t *w, unsigned int state_val)
 	unsigned int state_dev;
 
 	ni_assert(w);
-	state_dev = __ifcheck_device_fsm_state(w->device);
+	/* FIXME: add state mapping */
+	state_dev = NI_FSM_STATE_NONE;
 
 	if (state_val < NI_FSM_STATE_DEVICE_EXISTS && state_dev > state_val)
 		return TRUE;

@@ -28,7 +28,6 @@ int main(int argc, char **argv)
 	ni_client_state_load(cs, ifindex1);
 	ni_client_state_debug("Test1", cs, "print");
 
-	ni_client_state_set_state(cs, NI_FSM_STATE_ADDRCONF_UP);
 	ni_client_state_save(cs, ifindex1);
 	ni_client_state_load(cs, ifindex1);
 	ni_client_state_debug("Test2", cs, "print");

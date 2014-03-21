@@ -863,35 +863,6 @@ __ni_objectmodel_netif_set_client_state_save_trigger(ni_netdev_t *dev)
 }
 
 /*
- * Interface.setClientState()
- *
- * This is used by clients to record current state.
- */
-static dbus_bool_t
-ni_objectmodel_netif_set_client_state_state(ni_dbus_object_t *object, const ni_dbus_method_t *method,
-			unsigned int argc, const ni_dbus_variant_t *argv,
-			ni_dbus_message_t *reply, DBusError *error)
-{
-	ni_netdev_t *dev;
-	ni_client_state_t *cs;
-	unsigned int state;
-
-	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
-		return FALSE;
-
-	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
-		return ni_dbus_error_invalid_args(error, object->path, method->name);
-
-	if (!ni_objectmodel_netif_client_state_state_from_dict(&state, &argv[0]))
-		return ni_dbus_error_invalid_args(error, object->path, method->name);
-
-	cs = ni_netdev_get_client_state(dev);
-	ni_client_state_set_state(cs, state);
-	__ni_objectmodel_netif_set_client_state_save_trigger(dev);
-	return TRUE;
-}
-
-/*
  * Interface.setClientControl()
  *
  * This is used by clients to record control flags
@@ -1103,7 +1074,6 @@ static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 	{ "linkUp",		"a{sv}",		ni_objectmodel_netif_link_up },
 	{ "linkDown",		"",			ni_objectmodel_netif_link_down },
 	{ "installLease",	"a{sv}",		ni_objectmodel_netif_install_lease },
-	{ "setClientState",	"a{sv}",		ni_objectmodel_netif_set_client_state_state },
 	{ "setClientControl",	"a{sv}",		ni_objectmodel_netif_set_client_state_control },
 	{ "setClientConfig",	"a{sv}",		ni_objectmodel_netif_set_client_state_config },
 #ifdef CLIENT_STATE_STATS
@@ -1204,8 +1174,7 @@ ni_objectmodel_netif_client_state_to_dict(const ni_client_state_t *cs, ni_dbus_v
 {
 	ni_assert(cs && dict);
 
-	if (!ni_objectmodel_netif_client_state_state_to_dict(cs->state, dict) ||
-	    !ni_objectmodel_netif_client_state_control_to_dict(&cs->control, dict) ||
+	if (!ni_objectmodel_netif_client_state_control_to_dict(&cs->control, dict) ||
 	    !ni_objectmodel_netif_client_state_config_to_dict(&cs->config, dict) ||
 #ifdef CLIENT_STATE_STATS
 	    !ni_objectmodel_netif_client_state_stats_to_dict(&cs->stats, dict)) {
@@ -1216,15 +1185,6 @@ ni_objectmodel_netif_client_state_to_dict(const ni_client_state_t *cs, ni_dbus_v
 	}
 
 	return TRUE;
-}
-
-dbus_bool_t
-ni_objectmodel_netif_client_state_state_to_dict(unsigned int state, ni_dbus_variant_t *dict)
-{
-	if (!dict)
-		return FALSE;
-
-	return ni_dbus_dict_add_uint32(dict, NI_CLIENT_STATE_XML_STATE_NODE, state);
 }
 
 dbus_bool_t
@@ -1341,23 +1301,13 @@ ni_objectmodel_netif_client_state_from_dict(ni_client_state_t *cs, const ni_dbus
 {
 	ni_assert(cs && dict);
 
-	if (!ni_objectmodel_netif_client_state_state_from_dict(&cs->state, dict) ||
-	    !ni_objectmodel_netif_client_state_control_from_dict(&cs->control, dict) ||
+	if (!ni_objectmodel_netif_client_state_control_from_dict(&cs->control, dict) ||
 	    !ni_objectmodel_netif_client_state_config_from_dict(&cs->config, dict)) {
 		return FALSE;
 	}
 #ifdef CLIENT_STATE_STATS
 	ni_objectmodel_netif_client_state_stats_from_dict(&cs->stats, dict);
 #endif
-
-	return TRUE;
-}
-
-dbus_bool_t
-ni_objectmodel_netif_client_state_state_from_dict(unsigned int *state, const ni_dbus_variant_t *dict)
-{
-	if (!ni_dbus_dict_get_uint32(dict, NI_CLIENT_STATE_XML_STATE_NODE, state))
-		return FALSE;
 
 	return TRUE;
 }

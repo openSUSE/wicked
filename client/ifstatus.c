@@ -434,7 +434,8 @@ static inline void
 ni_ifstatus_show_cstate(const ni_netdev_t *dev, ni_bool_t verbose)
 {
 	ni_client_state_t *cs = dev->client_state;
-	const char *state = cs ? ni_ifworker_state_name(cs->state) : NULL;
+	/* FIXME: Add state mapping */
+	const char *state = NULL;
 
 	if (!ni_string_empty(state)) {
 		if_printf("", "cstate:", "%s%s\n", state,

@@ -123,14 +123,12 @@ extern dbus_bool_t		ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t 
 extern dbus_bool_t		ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *, const ni_dbus_variant_t *);
 
 extern dbus_bool_t		ni_objectmodel_netif_client_state_to_dict(const ni_client_state_t *, ni_dbus_variant_t *);
-extern dbus_bool_t		ni_objectmodel_netif_client_state_state_to_dict(unsigned int, ni_dbus_variant_t *);
 extern dbus_bool_t		ni_objectmodel_netif_client_state_control_to_dict(const ni_client_state_control_t *, ni_dbus_variant_t *);
 extern dbus_bool_t		ni_objectmodel_netif_client_state_config_to_dict(const ni_client_state_config_t *, ni_dbus_variant_t *);
 #ifdef CLIENT_STATE_STATS
 extern dbus_bool_t		ni_objectmodel_netif_client_state_stats_to_dict(const ni_client_state_stats_t *, ni_dbus_variant_t *);
 #endif
 extern dbus_bool_t		ni_objectmodel_netif_client_state_from_dict(ni_client_state_t *, const ni_dbus_variant_t *);
-extern dbus_bool_t		ni_objectmodel_netif_client_state_state_from_dict(unsigned int *, const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_objectmodel_netif_client_state_control_from_dict(ni_client_state_control_t *, const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_objectmodel_netif_client_state_config_from_dict(ni_client_state_config_t *, const ni_dbus_variant_t *);
 #ifdef CLIENT_STATE_STATS

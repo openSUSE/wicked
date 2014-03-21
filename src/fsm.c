@@ -50,7 +50,6 @@ static void			ni_ifworker_refresh_client_state(ni_ifworker_t *, ni_client_state_
 static void			ni_ifworker_set_config_origin(ni_ifworker_t *, const char *);
 static void			ni_ifworker_cancel_timeout(ni_ifworker_t *);
 
-static inline void		ni_ifworker_update_client_state_state(ni_ifworker_t *w);
 static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
 static inline void		ni_ifworker_update_client_state_config(ni_ifworker_t *w);
 #ifdef CLIENT_STATE_STATS
@@ -831,16 +830,6 @@ ni_ifworker_waiting_for_event(ni_ifworker_t *w, const char *event_name)
 	return FALSE;
 }
 
-static inline void
-ni_ifworker_update_client_state_state(ni_ifworker_t *w)
-{
-	ni_assert(w && w->object);
-	if (!w->readonly) {
-		ni_call_set_client_state_state(w->object, w->fsm.state);
-		ni_client_state_state_debug(w->name, w->fsm.state, "update");
-	}
-}
-
 static void
 ni_ifworker_update_client_state_control(ni_ifworker_t *w)
 {
@@ -908,11 +897,6 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 		if (w->fsm.wait_for && w->fsm.wait_for->next_state == new_state)
 			w->fsm.wait_for = NULL;
 
-		if (w->object && new_state != NI_FSM_STATE_DEVICE_DOWN) {
-			/* Update wickedd's client-state container */
-				ni_ifworker_update_client_state_state(w);
-		}
-
 		/* ifworker reached its destination */
 		if (w->target_state == new_state) {
 			/* Update wickedd's client-state container if it was:
@@ -951,8 +935,6 @@ ni_ifworker_refresh_client_state(ni_ifworker_t *w, ni_client_state_t *cs)
 	ni_assert(w);
 	if (!cs)
 		return;
-
-	w->fsm.state = cs->state;
 
 	w->control.persistent = cs->control.persistent;
 	w->control.usercontrol = cs->control.usercontrol;

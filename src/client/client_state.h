@@ -55,7 +55,6 @@ typedef struct ni_client_state_stats {
 #endif
 
 typedef struct ni_client_state {
-	unsigned int	state;	/* Current state of the interface */
 	ni_client_state_control_t control;
 	ni_client_state_config_t config;
 #ifdef CLIENT_STATE_STATS
@@ -77,7 +76,6 @@ extern ni_bool_t	ni_client_state_stats_is_valid(const ni_client_state_stats_t *)
 #endif
 extern ni_bool_t	ni_client_state_is_valid(const ni_client_state_t *);
 
-extern void		ni_client_state_set_state(ni_client_state_t *, unsigned int);
 #ifdef CLIENT_STATE_STATS
 extern void		ni_client_state_update_stats(ni_client_state_stats_t *, unsigned int);
 #endif
@@ -91,7 +89,6 @@ extern ni_bool_t	ni_client_state_save(const ni_client_state_t *, unsigned int);
 extern ni_bool_t	ni_client_state_move(unsigned int, unsigned int);
 extern ni_bool_t	ni_client_state_drop(unsigned int);
 
-extern void		ni_client_state_state_debug(const char *, unsigned int , const char *);
 extern void		ni_client_state_control_debug(const char *, const ni_client_state_control_t *, const char *);
 extern void		ni_client_state_config_debug(const char *, const ni_client_state_config_t *, const char *);
 #ifdef CLIENT_STATE_STATS

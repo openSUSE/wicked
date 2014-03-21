@@ -71,21 +71,6 @@ ni_client_state_parse_timeval(const char *str, struct timeval *tv)
 }
 
 static ni_bool_t
-ni_client_state_state_print_xml(const unsigned int state, xml_node_t *node)
-{
-	const char *ptr;
-
-	if (!node)
-		return FALSE;
-
-	if (!(ptr = ni_ifworker_state_name(state)) ||
-	    !xml_node_new_element(NI_CLIENT_STATE_XML_STATE_NODE, node, ptr))
-		return FALSE;
-
-	return TRUE;
-}
-
-static ni_bool_t
 ni_client_state_control_print_xml(const ni_client_state_control_t *ctrl, xml_node_t *node)
 {
 	xml_node_t *parent;
@@ -182,32 +167,13 @@ ni_client_state_print_xml(const ni_client_state_t *client_state, xml_node_t *nod
 	if (!client_state || !node)
 		return FALSE;
 
-	if (!ni_client_state_state_print_xml(client_state->state, node) ||
-	    !ni_client_state_control_print_xml(&client_state->control, node) ||
+	if (!ni_client_state_control_print_xml(&client_state->control, node) ||
 	    !ni_client_state_config_print_xml(&client_state->config, node)) {
 		return FALSE;
 	}
 #ifdef CLIENT_STATE_STATS
 	ni_client_state_stats_print_xml(&client_state->stats, node);
 #endif
-
-	return TRUE;
-}
-
-static ni_bool_t
-ni_client_state_state_parse_xml(const xml_node_t *node, unsigned int *state)
-{
-	const xml_node_t *child;
-
-	if (!node || !state)
-		return FALSE;
-
-	/* <state> node is optional */
-	if ((child = xml_node_get_child(node, NI_CLIENT_STATE_XML_STATE_NODE))) {
-		if (!child->cdata || !ni_ifworker_state_from_name(child->cdata, state)) {
-			return FALSE;
-		}
-	}
 
 	return TRUE;
 }
@@ -312,8 +278,7 @@ ni_client_state_parse_xml(const xml_node_t *node, ni_client_state_t *client_stat
 	if (!node || !client_state)
 		return FALSE;
 
-	if (!ni_client_state_state_parse_xml(node, &client_state->state) ||
-	    !ni_client_state_control_parse_xml(node, &client_state->control) ||
+	if (!ni_client_state_control_parse_xml(node, &client_state->control) ||
 	    !ni_client_state_config_parse_xml(node, &client_state->config)) {
 		return FALSE;
 	}
@@ -360,8 +325,7 @@ ni_client_state_stats_is_valid(const ni_client_state_stats_t *stats)
 ni_bool_t
 ni_client_state_is_valid(const ni_client_state_t *client_state)
 {
-	return client_state && ni_ifworker_is_valid_state(client_state->state) &&
-		   ni_client_state_control_is_valid(&client_state->control) &&
+	return client_state && ni_client_state_control_is_valid(&client_state->control) &&
 		   ni_client_state_config_is_valid(&client_state->config) &&
 #ifdef CLIENT_STATE_STATS
 		   ni_client_state_stats_is_valid(&client_state->stats);
@@ -391,8 +355,10 @@ ni_client_state_new(unsigned int state)
 	ni_client_state_t *client_state;
 
 	client_state = xcalloc(1, sizeof(*client_state));
-	ni_client_state_set_state(client_state, state);
 	ni_client_state_config_init(&client_state->config);
+#ifdef CLIENT_STATE_STATS
+	ni_client_state_update_stats(&client_state->stats, state);
+#endif
 
 	return client_state;
 }
@@ -447,19 +413,6 @@ ni_client_state_config_init(ni_client_state_config_t *conf)
 		memset(conf, 0, sizeof(*conf));
 		__ni_set_config_owner(conf);
 	}
-}
-
-void
-ni_client_state_set_state(ni_client_state_t *client_state, unsigned int state)
-{
-	if (!client_state || !ni_ifworker_is_valid_state(state))
-		return;
-
-	client_state->state = state;
-
-#ifdef CLIENT_STATE_STATS
-	ni_client_state_update_stats(&client_state->stats, state);
-#endif
 }
 
 ni_bool_t
@@ -609,16 +562,6 @@ ni_client_state_drop(unsigned int ifindex)
 }
 
 void
-ni_client_state_state_debug(const char *name, unsigned int state, const char *action)
-{
-	ni_assert(action);
-	ni_debug_application("%s: %s <%s> %s: %s", name ? name : "unknown",
-		action, NI_CLIENT_STATE_XML_NODE, NI_CLIENT_STATE_XML_STATE_NODE,
-		ni_ifworker_state_name(state)
-	);
-}
-
-void
 ni_client_state_control_debug(const char *name, const ni_client_state_control_t *ctrl, const char *action)
 {
 	ni_assert(ctrl && action);
@@ -663,7 +606,6 @@ void
 ni_client_state_debug(const char *name, const ni_client_state_t *cs, const char *action)
 {
 	ni_assert(cs && action);
-	ni_client_state_state_debug(name, cs->state, action);
 	ni_client_state_control_debug(name, &cs->control, action);
 	ni_client_state_config_debug(name, &cs->config, action);
 #ifdef CLIENT_STATE_STATS
