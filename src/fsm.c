@@ -1043,6 +1043,80 @@ ni_ifworker_control_free(ni_ifworker_control_t *control)
 }
 
 /*
+ * Set usercontrol flag to the worker and to all of its children
+ */
+ni_bool_t
+ni_ifworker_control_set_usercontrol(ni_ifworker_t *w, ni_bool_t value)
+{
+	unsigned int i;
+
+	ni_assert(w);
+
+	if (w->control.usercontrol == value)
+		return TRUE;
+
+	if (geteuid() != 0) {
+		ni_error("%s: only root is allowed to %sset usercontrol flag",
+			w->name, value ? "" : "un");
+		return FALSE;
+	}
+
+	if (w->control.persistent == TRUE && value == TRUE) {
+		ni_error("%s: unable to allow usercontrol on persistent interface",
+			w->name);
+		return FALSE;
+	}
+
+	w->control.usercontrol = value;
+	for (i = 0; i < w->children.count; i++) {
+		ni_ifworker_t *child = w->children.data[i];
+		if (!ni_ifworker_control_set_usercontrol(child, value))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+/*
+ * Set persistent flag to the worker and to all of its children
+ */
+ni_bool_t
+ni_ifworker_control_set_persistent(ni_ifworker_t *w, ni_bool_t value)
+{
+	unsigned int i;
+
+	ni_assert(w);
+
+	if (w->control.persistent == value)
+		return TRUE;
+
+	if (geteuid() != 0) {
+		ni_error("%s: only root is allowed to change persistent flag", w->name);
+		return FALSE;
+	}
+
+	if (value == FALSE) {
+		ni_error("%s: unable to unset persistent flag", w->name);
+		return FALSE;
+	}
+
+	/* Now we can only set persistent */
+	w->control.persistent = TRUE;
+
+	/* When persistent is set disallow user control */
+	ni_ifworker_control_set_usercontrol(w, FALSE);
+
+	/* Set persistent and usercontrol in each child worker */
+	for (i = 0; i < w->children.count; i++) {
+		ni_ifworker_t *child = w->children.data[i];
+		if (!ni_ifworker_control_set_persistent(child, TRUE))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+/*
  * Update an ifworker's control information from XML
  */
 static void
@@ -1050,7 +1124,7 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 {
 	ni_ifworker_control_t *control;
 	xml_node_t *linknode, *np;
-	ni_bool_t val;
+	ni_bool_t val = FALSE;
 
 	if (ctrlnode == NULL)
 		return;
@@ -1060,10 +1134,14 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 		ni_string_dup(&control->mode, np->cdata);
 	if ((np = xml_node_get_child(ctrlnode, "boot-stage")) != NULL)
 		ni_string_dup(&control->boot_stage, np->cdata);
-	if (xml_node_get_child(ctrlnode, "persistent"))
-		control->persistent = TRUE;
-	if (!control->persistent && xml_node_get_child(ctrlnode, "usercontrol"))
-		control->usercontrol = TRUE;
+	if ((np = xml_node_get_child(ctrlnode, NI_CLIENT_STATE_XML_PERSISTENT_NODE)) &&
+	    !ni_parse_boolean(np->cdata, &val)) {
+		ni_ifworker_control_set_persistent(w, val);
+	}
+	if ((np = xml_node_get_child(ctrlnode, NI_CLIENT_STATE_XML_USERCONTROL_NODE)) &&
+	    !ni_parse_boolean(np->cdata, &val)) {
+		ni_ifworker_control_set_usercontrol(w, val);
+	}
 	if ((linknode = xml_node_get_child(ctrlnode, "link-detection")) != NULL) {
 		if ((np = xml_node_get_child(linknode, "timeout")) != NULL) {
 			if (ni_string_eq(np->cdata, "infinite"))
@@ -1079,19 +1157,6 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 		if (xml_node_get_child(linknode, "require-link")) {
 			control->link_required = TRUE;
 		}
-	}
-
-	if ((np = xml_node_get_child(ctrlnode, NI_CLIENT_STATE_XML_PERSISTENT_NODE)) != NULL) {
-		ni_parse_boolean(np->cdata, &val);
-		NI_SET_PERSISTENT_FLAG(w->control.persistent, !w->control.persistent, val);
-	}
-
-	if ((np = xml_node_get_child(ctrlnode, NI_CLIENT_STATE_XML_USERCONTROL_NODE)) != NULL) {
-		ni_parse_boolean(np->cdata, &val);
-		if (geteuid() == 0)
-			w->control.usercontrol = val;
-		else
-			NI_SET_USERCONTROL_FLAG(w->control.usercontrol, TRUE, val);
 	}
 }
 
@@ -1821,8 +1886,9 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 		ni_ifworker_t *w = marked->data[i];
 
 		w->target_range = marker->target_range;
-		NI_SET_PERSISTENT_FLAG(w->control.persistent, marker->persistent == TRUE, TRUE);
-		NI_SET_USERCONTROL_FLAG(w->control.usercontrol, marker->persistent == TRUE, FALSE);
+
+		if (marker->persistent)
+			ni_ifworker_control_set_persistent(w, TRUE);
 
 		if (marker->target_range.max < NI_FSM_STATE_DEVICE_UP)
 			ni_client_state_config_init(&w->config.meta);

@@ -1205,11 +1205,14 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 		if (control->boot_stage)
 			xml_node_new_element("boot-stage", child, control->boot_stage);
 
-		if (control->persistent)
-			(void) xml_node_new("persistent", child);
-		else
-		if (control->usercontrol)
-			(void) xml_node_new("usercontrol", child);
+		if (control->persistent) {
+			xml_node_new_element(NI_CLIENT_STATE_XML_PERSISTENT_NODE, child,
+				ni_format_boolean(control->persistent));
+		}
+		if (control->usercontrol) {
+			xml_node_new_element(NI_CLIENT_STATE_XML_USERCONTROL_NODE, child,
+				ni_format_boolean(control->usercontrol));
+		}
 
 		if (control->link_timeout || control->link_priority || control->link_required) {
 			linkdet = xml_node_create(child, "link-detection");
@@ -1219,11 +1222,6 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 			if (control->link_required)
 				(void) xml_node_new("require-link", linkdet);
 		}
-
-		xml_node_new_element(NI_CLIENT_STATE_XML_PERSISTENT_NODE, child,
-			ni_format_boolean(control->persistent));
-		xml_node_new_element(NI_CLIENT_STATE_XML_USERCONTROL_NODE, child,
-			ni_format_boolean(control->usercontrol));
 	}
 
 	switch (dev->link.type) {

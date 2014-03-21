@@ -282,6 +282,8 @@ extern ni_bool_t		ni_ifworker_state_from_name(const char *, unsigned int *);
 extern ni_fsm_require_t *	ni_ifworker_reachability_check_new(xml_node_t *);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *, const char *);
 extern void			ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
+extern ni_bool_t		ni_ifworker_control_set_usercontrol(ni_ifworker_t *, ni_bool_t);
+extern ni_bool_t		ni_ifworker_control_set_persistent(ni_ifworker_t *, ni_bool_t);
 extern void			ni_ifworker_reset(ni_ifworker_t *);
 extern int			ni_ifworker_bind_early(ni_ifworker_t *, ni_fsm_t *, ni_bool_t);
 extern int			ni_ifworker_start(ni_fsm_t *, ni_ifworker_t *, unsigned long);
@@ -378,23 +380,5 @@ ni_ifworker_is_valid_state(unsigned int state)
 	return	state > NI_FSM_STATE_NONE &&
 		state < __NI_FSM_STATE_MAX;
 }
-
-#define NI_SET_CONTROL_FLAG(flag, cond, value, inv) \
-	do { \
-		if (!(cond)) \
-			break; \
-		if (inv(value)) {\
-			flag = inv(TRUE); \
-			ni_debug_application("%s: set %s control flag to %s", \
-				__func__, #flag, flag ? "TRUE" : "FALSE"); \
-		} \
-		else if (inv(flag)) {\
-			ni_fatal("%s: attempt to switch %s %s control flag", \
-				__func__, flag ? "off" : "on", #flag); \
-		} \
-	} while(0)
-
-#define NI_SET_PERSISTENT_FLAG(flag, cond, value) NI_SET_CONTROL_FLAG(flag, cond, value, !!)
-#define NI_SET_USERCONTROL_FLAG(flag, cond, value) NI_SET_CONTROL_FLAG(flag, cond, value, !)
 
 #endif /* __CLIENT_FSM_H__ */
