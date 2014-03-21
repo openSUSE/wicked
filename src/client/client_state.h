@@ -74,6 +74,9 @@ extern ni_bool_t	ni_client_state_stats_is_valid(const ni_client_state_stats_t *)
 extern ni_bool_t	ni_client_state_is_valid(const ni_client_state_t *);
 
 extern void		ni_client_state_set_state(ni_client_state_t *, unsigned int);
+#ifdef CLIENT_STATE_STATS
+extern void		ni_client_state_update_stats(ni_client_state_stats_t *, unsigned int);
+#endif
 extern ni_bool_t	ni_client_state_parse_timeval(const char *, struct timeval *);
 extern ni_bool_t	ni_client_state_config_print_xml(const ni_client_state_config_t *, xml_node_t *);
 extern ni_bool_t	ni_client_state_print_xml(const ni_client_state_t *, xml_node_t *);

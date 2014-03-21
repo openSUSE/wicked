@@ -124,8 +124,8 @@ ni_ifworker_reset(ni_ifworker_t *w)
 {
 	ni_string_free(&w->object_path);
 	ni_ifworker_control_destroy(&w->control);
+	ni_string_free(&w->config.meta.origin);
 	ni_security_id_destroy(&w->security_id);
-	ni_client_state_destroy(&w->client_state);
 
 	/* When detaching children, clear their shared/exclusive ownership info */
 	if (w->children.count != 0) {
@@ -602,7 +602,8 @@ ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias)
 	if (w->device && ni_string_eq(w->device->link.alias, alias))
 		return TRUE;
 
-	if (w->config && (node = xml_node_get_child(w->config, "alias")) != NULL) {
+	if (w->config.node &&
+	    (node = xml_node_get_child(w->config.node, "alias")) != NULL) {
 		if (ni_string_eq(node->cdata, alias))
 			return TRUE;
 	}
@@ -733,7 +734,7 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 	if (child->exclusive_owner != NULL) {
 		char *other_owner;
 
-		other_owner = strdup(xml_node_location(child->exclusive_owner->config));
+		other_owner = strdup(xml_node_location(child->exclusive_owner->config.node));
 		ni_error("%s: subordinate interface already owned by %s",
 				xml_node_location(devnode), other_owner);
 		free(other_owner);
@@ -808,50 +809,42 @@ ni_ifworker_waiting_for_event(ni_ifworker_t *w, const char *event_name)
 	return FALSE;
 }
 
-static void
+static inline void
 ni_ifworker_update_client_state_state(ni_ifworker_t *w)
 {
-	unsigned int state;
-
 	ni_assert(w && w->object);
-	state = w->client_state.state;
-	ni_call_set_client_state_state(w->object, state);
-	ni_client_state_state_debug(w->name, state, "update");
+	ni_call_set_client_state_state(w->object, w->fsm.state);
+	ni_client_state_state_debug(w->name, w->fsm.state, "update");
 }
 
 static void
 ni_ifworker_update_client_state_control(ni_ifworker_t *w)
 {
-	ni_client_state_control_t *ctrl;
+	ni_client_state_control_t ctrl;
 
 	ni_assert(w && w->object);
-	ctrl = &w->client_state.control;
-	ni_call_set_client_state_control(w->object, ctrl);
-	ni_client_state_control_debug(w->name, ctrl, "update");
+	ctrl.persistent = w->control.persistent;
+	ctrl.usercontrol = w->control.usercontrol;
+	ni_call_set_client_state_control(w->object, &ctrl);
+	ni_client_state_control_debug(w->name, &ctrl, "update");
 }
 
-static void
+static inline void
 ni_ifworker_update_client_state_config(ni_ifworker_t *w)
 {
-	ni_client_state_config_t *conf;
-
 	ni_assert(w && w->object);
-	conf = &w->client_state.config;
-	ni_call_set_client_state_config(w->object, conf);
-	ni_client_state_config_debug(w->name, conf, "update");
+	ni_call_set_client_state_config(w->object, &w->config.meta);
+	ni_client_state_config_debug(w->name, &w->config.meta, "update");
 }
 
 #ifdef CLIENT_STATE_STATS
 #if 0
-static void
+static inline void
 ni_ifworker_update_client_state_stats(ni_ifworker_t *w)
 {
-	ni_client_state_stats_t *stats;
-
 	ni_assert(w && w->object);
-	stats = &w->client_state.stats;
-	ni_call_set_client_state_stats(w->object, stats);
-	ni_client_state_stats_debug(w->name, stats, "update");
+	ni_call_set_client_state_stats(w->object, &w->stats);
+	ni_client_state_stats_debug(w->name, &w->stats, "update");
 }
 #endif
 #endif
@@ -860,7 +853,7 @@ static inline ni_bool_t
 ni_ifworker_empty_config(ni_ifworker_t *w)
 {
 	ni_assert(w);
-	return ni_string_empty(w->client_state.config.origin);
+	return ni_string_empty(w->config.meta.origin);
 }
 
 static void
@@ -870,7 +863,9 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 
 	if (prev_state != new_state) {
 		w->fsm.state = new_state;
-		ni_client_state_set_state(&w->client_state, new_state);
+#ifdef CLIENT_STATE_STATS
+		ni_client_state_update_stats(&w->stats, new_state);
+#endif
 
 		ni_debug_application("%s: changed state %s -> %s%s",
 				w->name,
@@ -931,9 +926,18 @@ ni_ifworker_refresh_client_state(ni_ifworker_t *w, ni_client_state_t *cs)
 	if (!cs)
 		return;
 
-	w->client_state = *cs;
-	w->client_state.config.origin = NULL;
+	w->fsm.state = cs->state;
+
+	w->control.persistent = cs->control.persistent;
+	w->control.usercontrol = cs->control.usercontrol;
+
+	w->config.meta = cs->config;
+	w->config.meta.origin = NULL;
 	ni_ifworker_set_config_origin(w, cs->config.origin);
+
+#ifdef CLIENT_STATE_STATS
+	w->stats = cs->stats;
+#endif
 
 	ni_client_state_debug(w->name, cs, "refresh");
 }
@@ -961,10 +965,10 @@ ni_ifworker_generate_uuid(ni_ifworker_t *w)
 	ni_uuid_t *uuid;
 
 	ni_assert(w);
-	uuid = &w->client_state.config.uuid;
+	uuid = &w->config.meta.uuid;
 
-	if (w->config) {
-		if (__ni_ifworker_generate_config_uuid(w->config, uuid) < 0)
+	if (w->config.node) {
+		if (__ni_ifworker_generate_config_uuid(w->config.node, uuid) < 0)
 			ni_fatal("cannot generate uuid for %s config - hashing failed?!", w->name);
 	} else {
 		/* Generate a temporary uuid only */
@@ -1071,15 +1075,16 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 
 	if ((np = xml_node_get_child(ctrlnode, NI_CLIENT_STATE_XML_PERSISTENT_NODE)) != NULL) {
 		ni_parse_boolean(np->cdata, &val);
-		NI_SET_CONTROL_FLAG(w->control.persistent, !w->control.persistent, val);
+		NI_SET_PERSISTENT_FLAG(w->control.persistent, !w->control.persistent, val);
 	}
-	w->client_state.control.persistent = w->control.persistent;
 
 	if ((np = xml_node_get_child(ctrlnode, NI_CLIENT_STATE_XML_USERCONTROL_NODE)) != NULL) {
 		ni_parse_boolean(np->cdata, &val);
-		NI_SET_CONTROL_FLAG(w->control.usercontrol, !w->control.usercontrol, val);
+		if (geteuid() == 0)
+			w->control.usercontrol = val;
+		else
+			NI_SET_USERCONTROL_FLAG(w->control.usercontrol, TRUE, val);
 	}
-	w->client_state.control.usercontrol = w->control.usercontrol;
 }
 
 /*
@@ -1091,7 +1096,7 @@ ni_ifworker_set_config_origin(ni_ifworker_t *w, const char *new_origin)
 	char **old_origin;
 
 	ni_assert(w);
-	old_origin = &w->client_state.config.origin;
+	old_origin = &w->config.meta.origin;
 
 	if (ni_string_eq(*old_origin, new_origin))
 		return;
@@ -1104,7 +1109,7 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 {
 	xml_node_t *child;
 
-	w->config = ifnode;
+	w->config.node = ifnode;
 
 	if ((child = xml_node_get_child(ifnode, "control")))
 		ni_ifworker_control_from_xml(w, child);
@@ -1561,7 +1566,7 @@ ni_ifworker_apply_policies(ni_fsm_t *fsm, ni_ifworker_t *w)
 	ni_fsm_policy_t *policy;
 	xml_node_t *config;
 
-	if (w->config && (config = xml_node_get_child(w->config, "policies"))) {
+	if (w->config.node && (config = xml_node_get_child(w->config.node, "policies"))) {
 		xml_node_t *child;
 
 		for (child = config->children; child; child = child->next) {
@@ -1642,27 +1647,27 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 			continue;
 
 		/* skipping ifworkers without xml configuration */
-		if (match->require_config && !w->config) {
+		if (match->require_config && !w->config.node) {
 			ni_debug_application("skipping %s interface: "
 				"no configuration provided", w->name);
 			continue;
 		}
 		/* skipping ifworkers of interfaces not configured in the past */
 		if (match->require_configured &&
-		    ni_string_empty(w->client_state.config.origin)) {
+		    ni_string_empty(w->config.meta.origin)) {
 			ni_debug_application("skipping %s interface: "
 				"not configured yet", w->name);
 			continue;
 		}
 		/* skipping ifworkers of interfaces in the persistent mode */
-		if (!match->allow_persistent && w->client_state.control.persistent) {
+		if (!match->allow_persistent && w->control.persistent) {
 			ni_debug_application("skipping %s interface: "
 				"persistent mode is on", w->name);
 			continue;
 		}
 
 		/* skipping ifworkers of interfaces user must not control */
-		if (!w->client_state.control.usercontrol && geteuid() != 0) {
+		if (!w->control.usercontrol && geteuid() != 0) {
 			ni_debug_application("skipping %s interface: "
 				"user control is not allowed", w->name);
 			continue;
@@ -1806,10 +1811,10 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 	/* Mark all our primary devices with the requested marker values */
 	for (i = 0; i < marked->count; ++i) {
 		ni_ifworker_t *w = marked->data[i];
-		ni_client_state_control_t *ctrl = &w->client_state.control;
 
 		w->target_range = marker->target_range;
-		NI_SET_CONTROL_FLAG(ctrl->persistent, marker->persistent == TRUE, TRUE);
+		NI_SET_PERSISTENT_FLAG(w->control.persistent, marker->persistent == TRUE, TRUE);
+		NI_SET_USERCONTROL_FLAG(w->control.usercontrol, marker->persistent == TRUE, FALSE);
 	}
 
 	count = ni_fsm_start_matching_workers(fsm, marked);
@@ -1945,7 +1950,6 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 {
 	unsigned int min_state = w->target_range.min;
 	unsigned int max_state = w->target_range.max;
-	unsigned int cur_state = w->fsm.state;
 	unsigned int j;
 	int rv;
 
@@ -1997,14 +2001,14 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 				ni_ifworker_state_name(w->target_state));
 
 	if (w->target_state != NI_FSM_STATE_NONE) {
-		ni_client_state_t *cs = &w->client_state;
-
-		if (!ni_client_state_is_valid(cs)) {
-			ni_client_state_set_state(cs, cur_state);
-			NI_SET_CONTROL_FLAG(cs->control.persistent,
-				cur_state >= NI_FSM_STATE_LINK_UP, TRUE);
-		}
 		ni_ifworker_set_timeout(w, timeout);
+
+		if (w->device && !ni_client_state_is_valid(w->device->client_state)) {
+			if (ni_netdev_link_is_up(w->device)) {
+				NI_SET_PERSISTENT_FLAG(w->control.persistent, TRUE, TRUE);
+				NI_SET_USERCONTROL_FLAG(w->control.usercontrol, TRUE, FALSE);
+			}
+		}
 	}
 
 	/* For each of the DBus calls we will execute on this device,
@@ -2041,11 +2045,11 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 	unsigned int i, count;
 	int rv;
 
-	if (w->config == NULL || w->device_api.factory_service)
+	if (w->config.node == NULL || w->device_api.factory_service)
 		return 0;
 
 	/* Allow the configuration to explicitly specify a link-type. */
-	link_type = xml_node_get_attr(w->config, "link-type");
+	link_type = xml_node_get_attr(w->config.node, "link-type");
 	if (link_type != NULL) {
 		const ni_dbus_service_t *service, *factory_service;
 		const ni_dbus_class_t *class;
@@ -2054,7 +2058,7 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 		snprintf(classname, sizeof(classname), "netif-%s", link_type);
 		if (!(class = ni_objectmodel_get_class(classname))) {
 			ni_error("%s: unknown device class \"%s\" in link-type attribute",
-					xml_node_location(w->config), link_type);
+					xml_node_location(w->config.node), link_type);
 			ni_ifworker_fail(w, "cannot create interface: xml document error");
 			return -NI_ERROR_DOCUMENT_ERROR;
 		}
@@ -2064,7 +2068,7 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 		if (!(service = ni_objectmodel_service_by_class(class))
 		 || !(factory_service = ni_objectmodel_factory_service(service))) {
 			ni_error("%s: unsupported device class \"%s\" in link-type attribute",
-					xml_node_location(w->config), link_type);
+					xml_node_location(w->config.node), link_type);
 			ni_ifworker_fail(w, "cannot create interface: device class not supported");
 			return -NI_ERROR_DEVICE_NOT_COMPATIBLE;
 		}
@@ -2091,7 +2095,7 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 		if (method == NULL)
 			continue;
 
-		if ((rv = ni_dbus_xml_map_method_argument(method, 1, w->config, &config, NULL)) < 0) {
+		if ((rv = ni_dbus_xml_map_method_argument(method, 1, w->config.node, &config, NULL)) < 0) {
 			ni_ifworker_fail(w, "cannot create interface: xml document error");
 			return -NI_ERROR_DOCUMENT_ERROR;
 		}
@@ -2127,7 +2131,7 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
 	if (w->device_api.service)
 		return 1;
 
-	if (w->config == NULL)
+	if (w->config.node == NULL)
 		return 0;
 
 	if (w->object == NULL)
@@ -2141,7 +2145,7 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
 		return 0;
 
 	method = ni_dbus_service_get_method(service, "changeDevice");
-	if (method && ni_dbus_xml_map_method_argument(method, 0, w->config, &config, NULL) < 0)
+	if (method && ni_dbus_xml_map_method_argument(method, 0, w->config.node, &config, NULL) < 0)
 		return -NI_ERROR_DOCUMENT_ERROR;
 
 	w->device_api.service = service;
@@ -2227,7 +2231,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm)
 
 		/* A worker without an ifnode is one that we discovered in the
 		 * system, but which we've not been asked to configure. */
-		if (!w->config) {
+		if (!w->config.node) {
 			w->use_default_policies = TRUE;
 			continue;
 		}
@@ -2759,7 +2763,7 @@ ni_ifworker_map_method_requires(ni_ifworker_t *w, ni_fsm_transition_t *action,
 	for (i = 0; i < count; ++i) {
 		int rv;
 
-		if ((rv = ni_ifworker_require_xml(action, req_nodes[i], NULL, w->config)) < 0)
+		if ((rv = ni_ifworker_require_xml(action, req_nodes[i], NULL, w->config.node)) < 0)
 			return rv;
 	}
 
@@ -2901,7 +2905,7 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 		 * referenced node, and skip-unless-present is true, then we
 		 * do not perform this call.
 		 */
-		if (ni_dbus_xml_map_method_argument(bind->method, 0, w->config, &bind->config, &bind->skip_call) < 0)
+		if (ni_dbus_xml_map_method_argument(bind->method, 0, w->config.node, &bind->config, &bind->skip_call) < 0)
 			goto document_error;
 
 		/* Validate the document. This will record possible requirements, and will
@@ -3073,7 +3077,7 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 static inline ni_bool_t
 ni_ifworker_can_delete(const ni_ifworker_t *w)
 {
-	return (!w->client_state.control.persistent &&
+	return (!w->control.persistent &&
 		ni_dbus_object_get_service_for_method(w->object, "deleteDevice"));
 }
 
@@ -3254,11 +3258,11 @@ ni_fsm_schedule_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
 
 		count = ni_fsm_policy_get_applicable_policies(fsm, w, policies, MAX_POLICIES);
 
-		w->config = ni_fsm_policy_transform_document(w->config, policies, count);
+		w->config.node = ni_fsm_policy_transform_document(w->config.node, policies, count);
 
 		/* Update the control information - it may have been changed by policy */
 		ni_ifworker_control_init(&w->control);
-		ni_ifworker_control_from_xml(w, xml_node_get_child(w->config, "control"));
+		ni_ifworker_control_from_xml(w, xml_node_get_child(w->config.node, "control"));
 	}
 
 	ni_debug_application("%s: binding dbus calls to FSM transitions", w->name);
