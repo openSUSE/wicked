@@ -266,7 +266,7 @@ __ifconfig_read_get_iface_name(xml_node_t *ifnode)
 }
 
 ni_bool_t
-ni_ifconfig_validate_adding_doc(xml_document_array_t *docs, xml_document_t *config_doc, ni_bool_t force)
+ni_ifconfig_validate_adding_doc(xml_document_array_t *docs, xml_document_t *config_doc, ni_bool_t check_prio)
 {
 	xml_node_t *dst_root, *src_root, *dst_child, *src_child;
 	ni_config_origin_prio_t dst_prio, src_prio;
@@ -276,7 +276,7 @@ ni_ifconfig_validate_adding_doc(xml_document_array_t *docs, xml_document_t *conf
 	ni_assert(docs);
 	if (!config_doc)
 		return FALSE;
-	if (force)
+	if (!check_prio)
 		return TRUE;
 
 	/* Go through all config_doc's <interfaces> */
