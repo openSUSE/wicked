@@ -814,8 +814,10 @@ static inline void
 ni_ifworker_update_client_state_state(ni_ifworker_t *w)
 {
 	ni_assert(w && w->object);
-	ni_call_set_client_state_state(w->object, w->fsm.state);
-	ni_client_state_state_debug(w->name, w->fsm.state, "update");
+	if (!w->readonly) {
+		ni_call_set_client_state_state(w->object, w->fsm.state);
+		ni_client_state_state_debug(w->name, w->fsm.state, "update");
+	}
 }
 
 static void
@@ -824,18 +826,22 @@ ni_ifworker_update_client_state_control(ni_ifworker_t *w)
 	ni_client_state_control_t ctrl;
 
 	ni_assert(w && w->object);
-	ctrl.persistent = w->control.persistent;
-	ctrl.usercontrol = w->control.usercontrol;
-	ni_call_set_client_state_control(w->object, &ctrl);
-	ni_client_state_control_debug(w->name, &ctrl, "update");
+	if (!w->readonly) {
+		ctrl.persistent = w->control.persistent;
+		ctrl.usercontrol = w->control.usercontrol;
+		ni_call_set_client_state_control(w->object, &ctrl);
+		ni_client_state_control_debug(w->name, &ctrl, "update");
+	}
 }
 
 static inline void
 ni_ifworker_update_client_state_config(ni_ifworker_t *w)
 {
 	ni_assert(w && w->object);
-	ni_call_set_client_state_config(w->object, &w->config.meta);
-	ni_client_state_config_debug(w->name, &w->config.meta, "update");
+	if (!w->readonly) {
+		ni_call_set_client_state_config(w->object, &w->config.meta);
+		ni_client_state_config_debug(w->name, &w->config.meta, "update");
+	}
 }
 
 #ifdef CLIENT_STATE_STATS
@@ -844,8 +850,10 @@ static inline void
 ni_ifworker_update_client_state_stats(ni_ifworker_t *w)
 {
 	ni_assert(w && w->object);
-	ni_call_set_client_state_stats(w->object, &w->stats);
-	ni_client_state_stats_debug(w->name, &w->stats, "update");
+	if (!w->readonly) {
+		ni_call_set_client_state_stats(w->object, &w->stats);
+		ni_client_state_stats_debug(w->name, &w->stats, "update");
+	}
 }
 #endif
 #endif
@@ -881,7 +889,6 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 
 		if (w->object && new_state != NI_FSM_STATE_DEVICE_DOWN) {
 			/* Update wickedd's client-state container */
-			if (!w->readonly)	/* Do not update on readonly refreshes (ifcheck, ifstatus, etc...) */
 				ni_ifworker_update_client_state_state(w);
 		}
 
@@ -890,7 +897,6 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 			/* Update wickedd's client-state container if it was:
 			 * - ifup operation on existing interface */
 			if (w->object && prev_state < new_state) {
-				if (!w->readonly) { /* Do not update on readonly refreshes (ifcheck, ifstatus) */
 					ni_ifworker_update_client_state_config(w);
 #ifdef CLIENT_STATE_STATS
 					/* FIXME: No need to update stats at the moment */
@@ -898,7 +904,6 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 					ni_ifworker_update_client_state_stats(w);
 #endif
 #endif
-				}
 			}
 			ni_ifworker_success(w);
 		}
