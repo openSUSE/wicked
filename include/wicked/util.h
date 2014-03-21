@@ -108,6 +108,8 @@ extern ni_bool_t	ni_uint_array_contains(ni_uint_array_t *, unsigned int);
 extern ni_var_array_t *	ni_var_array_new(void);
 extern void		ni_var_array_free(ni_var_array_t *);
 extern void		ni_var_array_init(ni_var_array_t *);
+extern ni_bool_t	ni_var_array_remove_at(ni_var_array_t *, unsigned int);
+extern ni_bool_t	ni_var_array_remove(ni_var_array_t *, const char *);
 extern void		ni_var_array_destroy(ni_var_array_t *);
 extern void		ni_var_array_copy(ni_var_array_t *, const ni_var_array_t *);
 extern void		ni_var_array_move(ni_var_array_t *, ni_var_array_t *);
