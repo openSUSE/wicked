@@ -296,7 +296,7 @@ ni_do_ifcheck(int argc, char **argv)
 		}
 	}
 
-	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE)) {
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE, TRUE)) {
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 		goto cleanup;
 	}
