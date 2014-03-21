@@ -41,6 +41,7 @@ typedef struct ni_client_state_config {
 	ni_uuid_t	uuid;	/* Configuration UUID marker of the interface */
 	char *		origin;	/* Source of the configuration of the interface */
 } ni_client_state_config_t;
+#define NI_CLIENT_STATE_CONFIG_INIT { .uuid = NI_UUID_INIT, .origin = NULL }
 
 #ifdef CLIENT_STATE_STATS
 typedef struct ni_client_state_stats {
@@ -74,7 +75,9 @@ extern ni_bool_t	ni_client_state_is_valid(const ni_client_state_t *);
 
 extern void		ni_client_state_set_state(ni_client_state_t *, unsigned int);
 extern ni_bool_t	ni_client_state_parse_timeval(const char *, struct timeval *);
+extern ni_bool_t	ni_client_state_config_print_xml(const ni_client_state_config_t *, xml_node_t *);
 extern ni_bool_t	ni_client_state_print_xml(const ni_client_state_t *, xml_node_t *);
+extern ni_bool_t	ni_client_state_config_parse_xml(const xml_node_t *, ni_client_state_config_t *);
 extern ni_bool_t	ni_client_state_parse_xml(const xml_node_t *, ni_client_state_t *);
 extern ni_bool_t	ni_client_state_load(ni_client_state_t *, unsigned int);
 extern ni_bool_t	ni_client_state_save(const ni_client_state_t *, unsigned int);

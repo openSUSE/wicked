@@ -1340,24 +1340,23 @@ ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t 
 
 	for (i = 0; i < ifcfg->netdevs.count; ++i) {
 		ni_compat_netdev_t *compat = ifcfg->netdevs.data[i];
-		ni_client_state_t *cs = compat->dev->client_state;
+		ni_client_state_config_t *conf = &compat->dev->client_state->config;
 
 		config_doc = xml_document_new();
 		ni_compat_generate_ifcfg(compat, config_doc);
 
-		if (cs) {
-			const char *origin = cs->config.origin;
+		if (conf) {
 			xml_node_t *root = xml_document_root(config_doc);
 
-			if (!ni_string_empty(origin)) {
-				xml_location_set(root, xml_location_create(origin, 0));
+			if (!ni_string_empty(conf->origin)) {
+				xml_location_set(root, xml_location_create(conf->origin, 0));
 				ni_debug_ifconfig("%s: location: %s, line: %u", __func__,
 						xml_node_get_location_filename(root),
 						xml_node_get_location_line(root));
 			}
 
 			if (!raw)
-				ni_ifconfig_add_client_state_to_node(root, cs);
+				ni_ifconfig_add_meta_data_to_node(root, conf);
 		}
 
 		if (ni_ifconfig_validate_adding_doc(array, config_doc, raw))

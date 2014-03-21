@@ -330,11 +330,10 @@ __ni_ifconfig_xml_read_file(xml_document_array_t *docs, const char *root, const 
 	}
 
 	if (!raw) {
-		ni_client_state_t cs;
-		ni_client_state_init(&cs);
-		ni_client_state_config_generate(&cs.config, "wicked", pathname);
-		ni_ifconfig_add_client_state_to_node(config_doc->root, &cs);
-		ni_client_state_destroy(&cs);
+		ni_client_state_config_t conf = NI_CLIENT_STATE_CONFIG_INIT;
+		ni_client_state_config_generate(&conf, "wicked", pathname);
+		ni_ifconfig_add_meta_data_to_node(config_doc->root, &conf);
+		ni_string_free(&conf.origin);
 	}
 
 	if (ni_ifconfig_validate_adding_doc(docs, config_doc, raw))
@@ -527,7 +526,7 @@ ni_ifconfig_read_firmware(xml_document_array_t *array, const char *type,
 			const char *root, const char *path, ni_bool_t raw)
 {
 	xml_document_t *config_doc;
-	ni_client_state_t cs;
+	ni_client_state_config_t conf = NI_CLIENT_STATE_CONFIG_INIT;
 	xml_node_t *rnode;
 
 	config_doc = ni_netconfig_firmware_discovery(root, path);
@@ -538,56 +537,55 @@ ni_ifconfig_read_firmware(xml_document_array_t *array, const char *type,
 		return FALSE;
 	}
 
-	ni_client_state_init(&cs);
 	rnode = xml_document_root(config_doc);
-	if (!ni_ifconfig_get_client_state_from_node(&cs, rnode)) {
-		ni_client_state_config_generate(&cs.config, "firmware", path);
+	if (!ni_ifconfig_get_meta_data_from_node(&conf, rnode)) {
+		ni_client_state_config_generate(&conf, "firmware", path);
 		if (!raw)
-			ni_ifconfig_add_client_state_to_node(rnode, &cs);
+			ni_ifconfig_add_meta_data_to_node(rnode, &conf);
 	}
 
 	/* Add location */
-	if (!ni_string_empty(cs.config.origin)) {
-		xml_location_set(rnode, xml_location_create(cs.config.origin, 0));
+	if (!ni_string_empty(conf.origin)) {
+		xml_location_set(rnode, xml_location_create(conf.origin, 0));
 		ni_debug_ifconfig("%s: location: %s, line: %u", __func__,
 				xml_node_get_location_filename(rnode),
 				xml_node_get_location_line(rnode));
 	}
 
-	ni_client_state_destroy(&cs);
+	ni_string_free(&conf.origin);
 	xml_document_array_append(array, config_doc);
 	return TRUE;
 }
 
 void
-ni_ifconfig_add_client_state_to_node(xml_node_t *root, ni_client_state_t *cs)
+ni_ifconfig_add_meta_data_to_node(xml_node_t *root, ni_client_state_config_t *conf)
 {
 	xml_node_t *ifnode = NULL;
 
-	if (!root || !root->children || !cs)
+	if (!root || !root->children || !conf)
 		return;
 
 	while ((ifnode = xml_node_get_next_child(root, root->children->name, ifnode))) {
-		xml_node_t *csnode = xml_node_new(NI_CLIENT_STATE_XML_NODE, NULL);
+		xml_node_t *csnode = xml_node_new("meta-data", NULL);
 
 		xml_node_replace_child(ifnode, csnode);
-		ni_client_state_print_xml(cs, csnode);
+		ni_client_state_config_print_xml(conf, csnode);
 	}
 }
 
 ni_bool_t
-ni_ifconfig_get_client_state_from_node(ni_client_state_t *cs, xml_node_t *root)
+ni_ifconfig_get_meta_data_from_node(ni_client_state_config_t *conf, xml_node_t *root)
 {
 	xml_node_t *csnode, *ifnode = NULL;
 
-	if (!root || !root->children || !cs)
+	if (!root || !root->children || !conf)
 		return FALSE;
 
 	while ((ifnode = xml_node_get_next_child(root, root->children->name, ifnode))) {
 		/* First <client-state> node found in a doc is returned */
-		if ((csnode = xml_node_get_child(ifnode, NI_CLIENT_STATE_XML_NODE))) {
-			memset(cs, 0, sizeof(*cs));
-			ni_client_state_parse_xml(csnode, cs);
+		if ((csnode = xml_node_get_child(ifnode, "meta-data"))) {
+			memset(conf, 0, sizeof(*conf));
+			ni_client_state_config_parse_xml(csnode, conf);
 			return TRUE;
 		}
 	}
