@@ -196,7 +196,7 @@ usage:
 
 			/* Mark persistend when requested */
 			if (opt_persistent)
-				w->client_state.persistent = TRUE;
+				w->client_state.control.persistent = TRUE;
 
 			/* Remember all changed devices */
 			ni_ifworker_array_append(&marked, w);

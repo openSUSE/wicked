@@ -852,49 +852,29 @@ failed:
 	return ret;
 }
 
-/*
- * Interface.setClientInfo()
- *
- * This is used by clients to record a uuid identifying the configuration used, and
- * a "state" string that helps them track where they are.
- */
-static dbus_bool_t
-ni_objectmodel_netif_set_client_info(ni_dbus_object_t *object, const ni_dbus_method_t *method,
-			unsigned int argc, const ni_dbus_variant_t *argv,
-			ni_dbus_message_t *reply, DBusError *error)
+static void
+__ni_objectmodel_netif_set_client_state_save_trigger(ni_netdev_t *dev)
 {
-	ni_netdev_t *dev;
-	ni_device_clientinfo_t *client_info;
-
-	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
-		return FALSE;
-
-	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
-		return ni_dbus_error_invalid_args(error, object->path, method->name);
-
-	client_info = ni_device_clientinfo_new();
-	if (!ni_objectmodel_netif_client_info_from_dict(client_info, &argv[0])) {
-		ni_device_clientinfo_free(client_info);
-		return ni_dbus_error_invalid_args(error, object->path, method->name);
+	if (dev && dev->client_state) {
+		ni_client_state_save(dev->client_state, dev->link.ifindex);
+		ni_debug_dbus("saving %s structure into a file for %s",
+			NI_CLIENT_STATE_XML_NODE, dev->name);
 	}
-
-	ni_netdev_set_client_info(dev, client_info);
-	return TRUE;
 }
 
 /*
  * Interface.setClientState()
  *
- * This is used by clients to record the initial state of an interface, persistent flag
- * and timestamps of the initial and last ifup operations.
+ * This is used by clients to record current state.
  */
 static dbus_bool_t
-ni_objectmodel_netif_set_client_state(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_netif_set_client_state_state(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netdev_t *dev;
-	ni_client_state_t *client_state;
+	ni_client_state_t *cs;
+	unsigned int state;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
@@ -902,21 +882,98 @@ ni_objectmodel_netif_set_client_state(ni_dbus_object_t *object, const ni_dbus_me
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
 
-	client_state = ni_client_state_new(0);
-	if (!ni_objectmodel_netif_client_state_from_dict(client_state, &argv[0])) {
-		ni_client_state_free(client_state);
+	if (!ni_objectmodel_netif_client_state_state_from_dict(&state, &argv[0]))
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
-	}
 
-	ni_netdev_set_client_state(dev, client_state);
-	if (ni_netdev_get_client_state(dev)) {
-		ni_client_state_save(client_state, dev->link.ifindex);
-		ni_debug_dbus("saving client-state structure into a file for %s", dev->name);
-	}
-
+	cs = ni_netdev_get_client_state(dev);
+	ni_client_state_set_state(cs, state);
+	__ni_objectmodel_netif_set_client_state_save_trigger(dev);
 	return TRUE;
 }
 
+/*
+ * Interface.setClientControl()
+ *
+ * This is used by clients to record control flags
+ */
+static dbus_bool_t
+ni_objectmodel_netif_set_client_state_control(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+	ni_client_state_t *cs;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	cs = ni_netdev_get_client_state(dev);
+	if (!ni_objectmodel_netif_client_state_control_from_dict(&cs->control, &argv[0]))
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	__ni_objectmodel_netif_set_client_state_save_trigger(dev);
+	return TRUE;
+}
+
+/*
+ * Interface.setClientConfig()
+ *
+ * This is used by clients to record configuration origin and UUID
+ */
+static dbus_bool_t
+ni_objectmodel_netif_set_client_state_config(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+	ni_client_state_t *cs;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	cs = ni_netdev_get_client_state(dev);
+	if (!ni_objectmodel_netif_client_state_config_from_dict(&cs->config, &argv[0]))
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	__ni_objectmodel_netif_set_client_state_save_trigger(dev);
+	return TRUE;
+}
+
+/*
+ * Interface.setClientStats()
+ *
+ * This is used by clients to record statistics
+ */
+#if 0
+static dbus_bool_t
+ni_objectmodel_netif_set_client_state_stats(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+	ni_client_state_t *cs;
+	ni_client_state_stats_t stats;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	cs = ni_netdev_get_client_state(dev);
+	if (!ni_objectmodel_netif_client_state_stats_from_dict(&cs->stats, &argv[0]))
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	__ni_objectmodel_netif_set_client_state_save_trigger(dev);
+	return TRUE;
+}
+#endif
 /*
  * Broadcast an interface event
  * The optional uuid argument helps the client match e.g. notifications
@@ -1043,8 +1100,12 @@ static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 	{ "linkUp",		"a{sv}",		ni_objectmodel_netif_link_up },
 	{ "linkDown",		"",			ni_objectmodel_netif_link_down },
 	{ "installLease",	"a{sv}",		ni_objectmodel_netif_install_lease },
-	{ "setClientState",	"a{sv}",		ni_objectmodel_netif_set_client_state },
-	{ "setClientInfo",	"a{sv}",		ni_objectmodel_netif_set_client_info },
+	{ "setClientState",	"a{sv}",		ni_objectmodel_netif_set_client_state_state },
+	{ "setClientControl",	"a{sv}",		ni_objectmodel_netif_set_client_state_control },
+	{ "setClientConfig",	"a{sv}",		ni_objectmodel_netif_set_client_state_config },
+#if 0
+	{ "setClientStats",	"a{sv}",		ni_objectmodel_netif_set_client_state_stats },
+#endif
 	{ "linkMonitor",	"",			ni_objectmodel_netif_link_monitor },
 	{ "getNames",		"",			ni_objectmodel_netif_get_names },
 	{ "clearEventFilters",	"",			ni_objectmodel_netif_clear_event_filters },
@@ -1115,74 +1176,6 @@ __ni_objectmodel_netif_set_routes(ni_dbus_object_t *object,
 }
 
 /*
- * Property Interface.client_info
- */
-static dbus_bool_t
-__ni_objectmodel_netif_get_client_info(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	ni_netdev_t *dev = ni_dbus_object_get_handle(object);
-	ni_device_clientinfo_t *client_info;
-
-	if ((client_info = dev->client_info) == NULL)
-		return ni_dbus_error_property_not_present(error, object->path, property->name);
-
-	ni_dbus_variant_init_dict(result);
-	return ni_objectmodel_netif_client_info_to_dict(client_info, result);
-}
-
-dbus_bool_t
-ni_objectmodel_netif_client_info_to_dict(const ni_device_clientinfo_t *client_info, ni_dbus_variant_t *dict)
-{
-	if (client_info->state)
-		ni_dbus_dict_add_string(dict, "state", client_info->state);
-	if (client_info->config_origin)
-		ni_dbus_dict_add_string(dict, "config-origin", client_info->config_origin);
-
-	if (!ni_uuid_is_null(&client_info->config_uuid))
-		ni_dbus_dict_add_byte_array(dict, "config-uuid",
-				client_info->config_uuid.octets,
-				sizeof(client_info->config_uuid.octets));
-	return TRUE;
-}
-
-static dbus_bool_t
-__ni_objectmodel_netif_set_client_info(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument,
-				DBusError *error)
-{
-	ni_netdev_t *dev = ni_dbus_object_get_handle(object);
-	ni_device_clientinfo_t *client_info;
-
-	client_info = ni_device_clientinfo_new();
-	if (!ni_objectmodel_netif_client_info_from_dict(client_info, argument)) {
-		ni_device_clientinfo_free(client_info);
-		return FALSE;
-	}
-	ni_netdev_set_client_info(dev, client_info);
-	return TRUE;
-}
-
-dbus_bool_t
-ni_objectmodel_netif_client_info_from_dict(ni_device_clientinfo_t *client_info, const ni_dbus_variant_t *dict)
-{
-	ni_dbus_variant_t *child;
-	const char *sval;
-
-	if (ni_dbus_dict_get_string(dict, "state", &sval))
-		ni_string_dup(&client_info->state, sval);
-	if (ni_dbus_dict_get_string(dict, "config-origin", &sval))
-		ni_string_dup(&client_info->config_origin, sval);
-	if ((child = ni_dbus_dict_get(dict, "config-uuid")) != NULL)
-		ni_dbus_variant_get_uuid(child, &client_info->config_uuid);
-
-	return TRUE;
-}
-
-/*
  * Property Interface.client_state
  */
 static dbus_bool_t
@@ -1192,32 +1185,125 @@ __ni_objectmodel_netif_get_client_state(const ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_netdev_t *dev = ni_dbus_object_get_handle(object);
-	ni_client_state_t *client_state;
+	ni_client_state_t *cs = dev ? dev->client_state : NULL;
 
-	if ((client_state = dev->client_state) == NULL)
+	if (!cs)
 		return ni_dbus_error_property_not_present(error, object->path, property->name);
 
 	ni_dbus_variant_init_dict(result);
-	return ni_objectmodel_netif_client_state_to_dict(client_state, result);
+	return ni_objectmodel_netif_client_state_to_dict(cs, result);
 }
 
 dbus_bool_t
-ni_objectmodel_netif_client_state_to_dict(const ni_client_state_t *client_state, ni_dbus_variant_t *dict)
+ni_objectmodel_netif_client_state_to_dict(const ni_client_state_t *cs, ni_dbus_variant_t *dict)
 {
+	ni_assert(cs && dict);
+
+	if (!ni_objectmodel_netif_client_state_state_to_dict(cs->state, dict) ||
+	    !ni_objectmodel_netif_client_state_control_to_dict(&cs->control, dict) ||
+	    !ni_objectmodel_netif_client_state_config_to_dict(&cs->config, dict) ||
+	    !ni_objectmodel_netif_client_state_stats_to_dict(&cs->stats, dict)) {
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+dbus_bool_t
+ni_objectmodel_netif_client_state_state_to_dict(unsigned int state, ni_dbus_variant_t *dict)
+{
+	if (!dict)
+		return FALSE;
+
+	return ni_dbus_dict_add_uint32(dict, NI_CLIENT_STATE_XML_STATE_NODE, state);
+}
+
+dbus_bool_t
+ni_objectmodel_netif_client_state_control_to_dict(const ni_client_state_control_t *ctrl, ni_dbus_variant_t *dict)
+{
+	ni_dbus_variant_t *var;
+
+	if (!ctrl || !dict)
+		return FALSE;
+
+	if (!(var = ni_dbus_dict_add(dict, NI_CLIENT_STATE_XML_CONTROL_NODE)))
+		return FALSE;
+	ni_dbus_variant_init_dict(var);
+
+	if (!ni_dbus_dict_add_bool(var, NI_CLIENT_STATE_XML_PERSISTENT_NODE,
+	    (dbus_bool_t) ctrl->persistent)) {
+		return FALSE;
+	}
+
+	if (!ni_dbus_dict_add_bool(var, NI_CLIENT_STATE_XML_MANDATORY_NODE,
+	    (dbus_bool_t) ctrl->mandatory)) {
+		return FALSE;
+	}
+
+	if (!ni_dbus_dict_add_bool(var, NI_CLIENT_STATE_XML_USERCONTROL_NODE,
+	    (dbus_bool_t) ctrl->usercontrol)) {
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+dbus_bool_t
+ni_objectmodel_netif_client_state_config_to_dict(const ni_client_state_config_t *conf, ni_dbus_variant_t *dict)
+{
+	ni_dbus_variant_t *var;
+
+	if (!conf || !dict)
+		return FALSE;
+
+	if (!(var = ni_dbus_dict_add(dict, NI_CLIENT_STATE_XML_CONFIG_NODE)))
+		return FALSE;
+	ni_dbus_variant_init_dict(var);
+
+	if (!ni_dbus_dict_add_string(var,
+	    NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE, conf->origin)) {
+		return FALSE;
+	}
+
+	if (!ni_dbus_dict_add_byte_array(var,
+	    NI_CLIENT_STATE_XML_CONFIG_UUID_NODE,
+	    conf->uuid.octets, sizeof(conf->uuid.octets))) {
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+dbus_bool_t
+ni_objectmodel_netif_client_state_stats_to_dict(const ni_client_state_stats_t *stats, ni_dbus_variant_t *dict)
+{
+	ni_dbus_variant_t *var;
 	char *value = NULL;
+	dbus_bool_t rv;
 
-	ni_dbus_dict_add_bool(dict, NI_CLIENT_STATE_XML_PERSISTENT_NODE,
-		(dbus_bool_t) client_state->persistent);
-	ni_dbus_dict_add_uint32(dict, NI_CLIENT_STATE_XML_INIT_STATE_NODE,
-		client_state->init_state);
+	if (!stats || !dict)
+		return FALSE;
 
-	ni_dbus_dict_add_string(dict, NI_CLIENT_STATE_XML_INIT_TIME_NODE,
-		ni_client_state_print_timeval(&client_state->init_time, &value));
+	if (!(var = ni_dbus_dict_add(dict, NI_CLIENT_STATE_XML_STATS_NODE)))
+		return FALSE;
+	ni_dbus_variant_init_dict(var);
+
+	if (!ni_dbus_dict_add_uint32(var, NI_CLIENT_STATE_XML_INIT_STATE_NODE,
+	    stats->init_state)) {
+		return FALSE;
+	}
+
+	rv = ni_dbus_dict_add_string(var, NI_CLIENT_STATE_XML_INIT_TIME_NODE,
+			ni_client_state_print_timeval(&stats->init_time, &value));
 	ni_string_free(&value);
+	if (!rv)
+		return FALSE;
 
-	ni_dbus_dict_add_string(dict, NI_CLIENT_STATE_XML_LAST_TIME_NODE,
-		ni_client_state_print_timeval(&client_state->last_time, &value));
+	rv = ni_dbus_dict_add_string(var, NI_CLIENT_STATE_XML_LAST_TIME_NODE,
+			ni_client_state_print_timeval(&stats->last_time, &value));
 	ni_string_free(&value);
+	if (!rv)
+		return FALSE;
 
 	return TRUE;
 }
@@ -1229,34 +1315,111 @@ __ni_objectmodel_netif_set_client_state(ni_dbus_object_t *object,
 				DBusError *error)
 {
 	ni_netdev_t *dev = ni_dbus_object_get_handle(object);
-	ni_client_state_t *client_state;
+	ni_client_state_t *cs;
 
-	client_state = ni_client_state_new(0);
-	if (!ni_objectmodel_netif_client_state_from_dict(client_state, argument)) {
-		ni_client_state_free(client_state);
+	cs = ni_netdev_get_client_state(dev);
+	if (!ni_objectmodel_netif_client_state_from_dict(cs, argument)) {
+		ni_netdev_set_client_state(dev, NULL);
 		return FALSE;
 	}
-	ni_netdev_set_client_state(dev, client_state);
+
 	return TRUE;
 }
 
 dbus_bool_t
-ni_objectmodel_netif_client_state_from_dict(ni_client_state_t *client_state, const ni_dbus_variant_t *dict)
+ni_objectmodel_netif_client_state_from_dict(ni_client_state_t *cs, const ni_dbus_variant_t *dict)
 {
+	ni_assert(cs && dict);
+
+	if (!ni_objectmodel_netif_client_state_state_from_dict(&cs->state, dict) ||
+	    !ni_objectmodel_netif_client_state_control_from_dict(&cs->control, dict) ||
+	    !ni_objectmodel_netif_client_state_config_from_dict(&cs->config, dict)) {
+		return FALSE;
+	}
+	ni_objectmodel_netif_client_state_stats_from_dict(&cs->stats, dict);
+
+	return TRUE;
+}
+
+dbus_bool_t
+ni_objectmodel_netif_client_state_state_from_dict(unsigned int *state, const ni_dbus_variant_t *dict)
+{
+	if (!ni_dbus_dict_get_uint32(dict, NI_CLIENT_STATE_XML_STATE_NODE, state))
+		return FALSE;
+
+	return TRUE;
+}
+
+dbus_bool_t
+ni_objectmodel_netif_client_state_control_from_dict(ni_client_state_control_t *ctrl, const ni_dbus_variant_t *dict)
+{
+	const ni_dbus_variant_t *var;
+
+	if (!(var = ni_dbus_dict_get(dict, NI_CLIENT_STATE_XML_CONTROL_NODE)))
+		return FALSE;
+
+	if (!ni_dbus_dict_get_bool(var, NI_CLIENT_STATE_XML_PERSISTENT_NODE,
+		(dbus_bool_t *) &ctrl->persistent)) {
+		return FALSE;
+	}
+
+	if (!ni_dbus_dict_get_bool(var, NI_CLIENT_STATE_XML_MANDATORY_NODE,
+		(dbus_bool_t *) &ctrl->mandatory)) {
+		return FALSE;
+	}
+
+	if (!ni_dbus_dict_get_bool(var, NI_CLIENT_STATE_XML_USERCONTROL_NODE,
+		(dbus_bool_t *) &ctrl->usercontrol)) {
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+dbus_bool_t
+ni_objectmodel_netif_client_state_config_from_dict(ni_client_state_config_t *conf, const ni_dbus_variant_t *dict)
+{
+	const ni_dbus_variant_t *var, *child;
 	const char *sval;
 
-	ni_dbus_dict_get_bool(dict, NI_CLIENT_STATE_XML_PERSISTENT_NODE,
-		(dbus_bool_t *) &client_state->persistent);
-	ni_dbus_dict_get_uint32(dict, NI_CLIENT_STATE_XML_INIT_STATE_NODE,
-		&client_state->init_state);
+	if (!(var = ni_dbus_dict_get(dict, NI_CLIENT_STATE_XML_CONFIG_NODE)))
+		return FALSE;
 
-	if (ni_dbus_dict_get_string(dict, NI_CLIENT_STATE_XML_INIT_TIME_NODE, &sval)) {
-		if (!ni_client_state_parse_timeval(sval, &client_state->init_time))
+	if (!(child = ni_dbus_dict_get(var, NI_CLIENT_STATE_XML_CONFIG_UUID_NODE)))
+		return FALSE;
+
+	if (!ni_dbus_variant_get_uuid(child, &conf->uuid))
+		return FALSE;
+
+	if (ni_dbus_dict_get_string(var,
+	    NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE, &sval)) {
+		ni_string_dup(&conf->origin, sval);
+	}
+	else
+		return FALSE;
+
+	return TRUE;
+}
+
+dbus_bool_t
+ni_objectmodel_netif_client_state_stats_from_dict(ni_client_state_stats_t *stats, const ni_dbus_variant_t *dict)
+{
+	const ni_dbus_variant_t *var;
+	const char *sval;
+
+	if (!(var = ni_dbus_dict_get(dict, NI_CLIENT_STATE_XML_STATS_NODE)))
+		return FALSE;
+
+	ni_dbus_dict_get_uint32(var, NI_CLIENT_STATE_XML_INIT_STATE_NODE,
+		&stats->init_state);
+
+	if (ni_dbus_dict_get_string(var, NI_CLIENT_STATE_XML_INIT_TIME_NODE, &sval)) {
+		if (!ni_client_state_parse_timeval(sval, &stats->init_time))
 			return FALSE;
 	}
 
-	if (ni_dbus_dict_get_string(dict, NI_CLIENT_STATE_XML_LAST_TIME_NODE, &sval)) {
-		if (!ni_client_state_parse_timeval(sval, &client_state->last_time))
+	if (ni_dbus_dict_get_string(var, NI_CLIENT_STATE_XML_LAST_TIME_NODE, &sval)) {
+		if (!ni_client_state_parse_timeval(sval, &stats->last_time))
 			return FALSE;
 	}
 
@@ -1279,9 +1442,6 @@ static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, alias, link.alias, RO),
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, master, link.masterdev.name, RO),
 
-	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE,
-				client-info, client_info,
-				__ni_objectmodel_netif, RO),
 	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE,
 				client-state, client_state,
 				__ni_objectmodel_netif, RO),
