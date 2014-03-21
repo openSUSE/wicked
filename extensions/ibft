@@ -125,12 +125,7 @@ function gen_control
 
 function gen_meta_data
 {
-	echo "  <meta-data>"
-	echo "    <config>"
-	echo "      <origin>firmware:ibft:$1</origin>"
-	echo "      <uuid>`gen_config_uuid`</uuid>"
-	echo "    </config>"
-	echo "  </meta-data>"
+	echo " origin=\"firmware:ibft:$1\" uuid=\"`gen_config_uuid`\" owner-uid=\"0\""
 }
 
 # sysfs mountpoint
@@ -225,7 +220,7 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 	nic_hostname=`ibft_getattr "$nicpath/hostname"`
 
 	cat <<-EOF
-	<interface>
+	<interface`gen_meta_data "$ibft_nic"`>
 	  <name namespace="ifindex">$nic_ifindex</name>
 	  <alias>ibft${ibft_num}.0</alias>
 	EOF
@@ -238,12 +233,10 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 			vlan_ifname="${nic_name}.${nic_vlan}"
 		fi
 
-		gen_meta_data "$ibft_nic"
-
 		cat <<-EOF
 		</interface>
 
-		<interface>
+		<interface`gen_meta_data "$ibft_nic"`>
 		  <name>$vlan_ifname</name>
 		  <alias>ibft${ibft_num}.${nic_vlan}</alias>
 		EOF
@@ -302,7 +295,6 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 		EOF
 	fi
 
-	gen_meta_data "$ibft_nic"
 	echo "</interface>"
 done
 

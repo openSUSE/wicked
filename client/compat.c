@@ -191,7 +191,7 @@ ni_compat_netdev_client_state_set(ni_netdev_t *dev, const char *filename)
 		return;
 
 	cs = ni_netdev_get_client_state(dev);
-	ni_client_state_config_generate(&cs->config, "compat", filename);
+	ni_ifconfig_metadata_generate(&cs->config, "compat", filename);
 }
 
 /*
@@ -1338,7 +1338,8 @@ ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t 
 
 	for (i = 0; i < ifcfg->netdevs.count; ++i) {
 		ni_compat_netdev_t *compat = ifcfg->netdevs.data[i];
-		ni_client_state_config_t *conf = &compat->dev->client_state->config;
+		ni_client_state_t *cs = ni_netdev_get_client_state(compat->dev);
+		ni_client_state_config_t *conf = &cs->config;
 
 		config_doc = xml_document_new();
 		ni_compat_generate_ifcfg(compat, config_doc);
@@ -1354,7 +1355,7 @@ ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t 
 			}
 
 			if (!raw)
-				ni_ifconfig_add_meta_data_to_node(root, conf);
+				ni_ifconfig_metadata_add_to_node(root, conf);
 		}
 
 		if (ni_ifconfig_validate_adding_doc(array, config_doc, raw))

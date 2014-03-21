@@ -115,9 +115,9 @@ extern ni_bool_t		ni_ifconfig_load(ni_fsm_t *, const char *, ni_string_array_t *
 extern const ni_string_array_t *ni_config_sources(const char *);
 
 extern ni_bool_t		ni_ifconfig_validate_adding_doc(xml_document_array_t *, xml_document_t *, ni_bool_t);
-extern void		ni_client_state_config_generate(ni_client_state_config_t *, const char *, const char *);
-extern void		ni_ifconfig_add_meta_data_to_node(xml_node_t *, ni_client_state_config_t *);
-extern ni_bool_t	ni_ifconfig_get_meta_data_from_node(ni_client_state_config_t *, xml_node_t *);
-extern void		ni_ifconfig_del_meta_data_from_node(xml_node_t *);
+extern void		ni_ifconfig_metadata_generate(ni_client_state_config_t *, const char *, const char *);
+extern void		ni_ifconfig_metadata_add_to_node(xml_node_t *, ni_client_state_config_t *);
+extern ni_bool_t	ni_ifconfig_metadata_get_from_node(ni_client_state_config_t *, xml_node_t *);
+extern void		ni_ifconfig_metadata_clear(xml_node_t *);
 
 #endif /* WICKED_CLIENT_H */

@@ -1198,12 +1198,6 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 			NI_CLIENT_STATE_XML_NODE, config_origin);
 		xml_node_detach(child);
 	}
-
-	if ((child = xml_node_get_child(ifnode, NI_WICKED_IFCONFIG_META_DATA))) {
-		ni_error("%s node is specifid in %s config file - ignoring it",
-			NI_WICKED_IFCONFIG_META_DATA, config_origin);
-		xml_node_detach(child);
-	}
 }
 
 /*
