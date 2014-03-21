@@ -16,7 +16,6 @@ STATE='current-state="%{?client-state/current-state}"'
 CONFIG_ORIGIN='config-origin="%{?client-state/config/origin}"'
 CONFIG_UUID='config-origin="%{?client-state/config/uuid}"'
 PERSISTENT='persistent="%{?client-state/control/persistent}"'
-MANDATORY='mandatory="%{?client-state/control/mandatory}"'
 USERCONTROL='usercontrol="%{?client-state/control/usercontrol}"'
 # INIT_STATE='init-state="%{?client-state/stats/init-state}"'
 # INIT_TIME='init-time="%{?client-state/stats/init-time}"'
@@ -34,7 +33,7 @@ while :; do
 		clear;
 	fi
 
-	wicked show-xml | wicked xpath --reference '/object/interface' "name=\"%{?name}\" ${STATE} ${CONFIG_ORIGIN} ${CONFIG_UUID} ${PERSISTENT} ${MANDATORY} ${USERCONTROL}" | column -t || exit;
+	wicked show-xml | wicked xpath --reference '/object/interface' "name=\"%{?name}\" ${STATE} ${CONFIG_ORIGIN} ${CONFIG_UUID} ${PERSISTENT} ${USERCONTROL}" | column -t || exit;
 
 	if [[ -z "$1"  || $1 -eq 0 ]]; then
 		exit;

@@ -17,7 +17,6 @@
 
 #define NI_CLIENT_STATE_XML_CONTROL_NODE	"control"
 #define NI_CLIENT_STATE_XML_PERSISTENT_NODE	"persistent"
-#define NI_CLIENT_STATE_XML_MANDATORY_NODE	"mandatory"
 #define NI_CLIENT_STATE_XML_USERCONTROL_NODE	"usercontrol"
 
 #define NI_CLIENT_STATE_XML_CONFIG_NODE	"config"
@@ -33,7 +32,6 @@
 
 typedef struct ni_client_state_control {
 	ni_bool_t persistent;	/* allowing/disallowing ifdown flag */
-	ni_bool_t mandatory;	/* a device must be present */
 	ni_bool_t usercontrol;	/* allowing/disallowing user to change the config */
 } ni_client_state_control_t;
 

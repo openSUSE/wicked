@@ -1244,11 +1244,6 @@ ni_objectmodel_netif_client_state_control_to_dict(const ni_client_state_control_
 		return FALSE;
 	}
 
-	if (!ni_dbus_dict_add_bool(var, NI_CLIENT_STATE_XML_MANDATORY_NODE,
-	    (dbus_bool_t) ctrl->mandatory)) {
-		return FALSE;
-	}
-
 	if (!ni_dbus_dict_add_bool(var, NI_CLIENT_STATE_XML_USERCONTROL_NODE,
 	    (dbus_bool_t) ctrl->usercontrol)) {
 		return FALSE;
@@ -1373,11 +1368,6 @@ ni_objectmodel_netif_client_state_control_from_dict(ni_client_state_control_t *c
 
 	if (!ni_dbus_dict_get_bool(var, NI_CLIENT_STATE_XML_PERSISTENT_NODE,
 		(dbus_bool_t *) &ctrl->persistent)) {
-		return FALSE;
-	}
-
-	if (!ni_dbus_dict_get_bool(var, NI_CLIENT_STATE_XML_MANDATORY_NODE,
-		(dbus_bool_t *) &ctrl->mandatory)) {
 		return FALSE;
 	}
 
