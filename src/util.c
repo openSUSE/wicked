@@ -1162,11 +1162,13 @@ ni_parse_boolean(const char *input, ni_bool_t *result)
 	}
 
 	if (ni_string_eq_nocase(input, "true") ||
+	    ni_string_eq_nocase(input, "yes") ||
 	    ni_string_eq_nocase(input, "1")) {
 		*result = TRUE;
 	}
 	else if (ni_string_eq_nocase(input, "false") ||
-		 ni_string_eq_nocase(input, "0")) {
+	    ni_string_eq_nocase(input, "no") ||
+	    ni_string_eq_nocase(input, "0")) {
 		*result = FALSE;
 	}
 	else
