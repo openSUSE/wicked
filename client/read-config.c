@@ -552,6 +552,9 @@ ni_ifconfig_read_firmware(xml_document_array_t *array, const char *type,
 				xml_node_get_location_line(rnode));
 	}
 
+	if (raw)
+		ni_ifconfig_del_meta_data_from_node(rnode);
+
 	ni_string_free(&conf.origin);
 	xml_document_array_append(array, config_doc);
 	return TRUE;
@@ -566,7 +569,7 @@ ni_ifconfig_add_meta_data_to_node(xml_node_t *root, ni_client_state_config_t *co
 		return;
 
 	while ((ifnode = xml_node_get_next_child(root, root->children->name, ifnode))) {
-		xml_node_t *csnode = xml_node_new("meta-data", NULL);
+		xml_node_t *csnode = xml_node_new(NI_WICKED_IFCONFIG_META_DATA, NULL);
 
 		xml_node_replace_child(ifnode, csnode);
 		ni_client_state_config_print_xml(conf, csnode);
@@ -583,7 +586,7 @@ ni_ifconfig_get_meta_data_from_node(ni_client_state_config_t *conf, xml_node_t *
 
 	while ((ifnode = xml_node_get_next_child(root, root->children->name, ifnode))) {
 		/* First <client-state> node found in a doc is returned */
-		if ((csnode = xml_node_get_child(ifnode, "meta-data"))) {
+		if ((csnode = xml_node_get_child(ifnode, NI_WICKED_IFCONFIG_META_DATA))) {
 			memset(conf, 0, sizeof(*conf));
 			ni_client_state_config_parse_xml(csnode, conf);
 			return TRUE;
@@ -591,4 +594,16 @@ ni_ifconfig_get_meta_data_from_node(ni_client_state_config_t *conf, xml_node_t *
 	}
 
 	return FALSE;
+}
+
+void
+ni_ifconfig_del_meta_data_from_node(xml_node_t *root)
+{
+	xml_node_t *ifnode = NULL;
+
+	if (!root || !root->children)
+		return;
+
+	while ((ifnode = xml_node_get_next_child(root, root->children->name, ifnode)))
+		xml_node_delete_child(ifnode, NI_WICKED_IFCONFIG_META_DATA);
 }
