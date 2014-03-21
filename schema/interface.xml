@@ -95,7 +95,7 @@
  <link-type type="builtin-iftype" description="The link-layer type of this interface"/>
 
  <define name="client-state-state-type" class="dict">
-   <state type="builtin-fsm-state" constraint="required"/>
+   <current-state type="builtin-fsm-state" constraint="required"/>
  </define>
 
  <define name="client-state-control-type" class="dict">
@@ -118,7 +118,7 @@
 -->
 
  <define name="client-state-type" class="dict">
-   <state type="builtin-fsm-state"/>
+   <current-state type="builtin-fsm-state"/>
    <control type="client-state-control-type" constraint="required"/>
    <config type="client-state-config-type" constraint="required"/>
 <!--
