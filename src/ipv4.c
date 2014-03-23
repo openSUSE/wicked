@@ -21,9 +21,9 @@
 static void
 __ni_ipv4_devconf_reset(ni_ipv4_devconf_t *conf)
 {
-	conf->enabled = TRUE;
-	conf->forwarding = FALSE;
-	conf->accept_redirects = FALSE;
+	conf->forwarding = NI_TRISTATE_DEFAULT;
+	conf->arp_notify = NI_TRISTATE_DEFAULT;
+	conf->accept_redirects = NI_TRISTATE_DEFAULT;
 }
 
 /*
@@ -55,8 +55,8 @@ ni_ipv4_devinfo_new(void)
 	ni_ipv4_devinfo_t *ipv4;
 
 	ipv4 = xcalloc(1, sizeof(*ipv4));
-	ipv4->conf.arp_verify = TRUE;
-	ipv4->conf.arp_notify = FALSE;
+	ipv4->conf.enabled = NI_TRISTATE_DEFAULT;
+	ipv4->conf.arp_verify = NI_TRISTATE_DEFAULT;
 	__ni_ipv4_devconf_reset(&ipv4->conf);
 	return ipv4;
 }
@@ -76,16 +76,26 @@ ni_system_ipv4_devinfo_get(ni_netdev_t *dev, ni_ipv4_devinfo_t *ipv4)
 	if (ipv4 == NULL)
 		ipv4 = ni_netdev_get_ipv4(dev);
 
-	if (ni_sysctl_ipv4_ifconfig_is_present(dev->name)) {
-		unsigned int val;
+	if (!ni_tristate_is_set(ipv4->conf.enabled))
+		ipv4->conf.enabled = NI_TRISTATE_ENABLE;
 
-		if (ni_sysctl_ipv4_ifconfig_get_uint(dev->name, "forwarding", &val) >= 0)
-			ipv4->conf.forwarding = val;
-		if (ni_sysctl_ipv4_ifconfig_get_uint(dev->name, "arp_notify", &val) >= 0)
-			ipv4->conf.arp_notify = val;
-		if (ni_sysctl_ipv4_ifconfig_get_uint(dev->name, "accept_redirects", &val) >= 0)
-			ipv4->conf.accept_redirects = val;
+	if (!ni_tristate_is_set(ipv4->conf.arp_verify))
+		ipv4->conf.arp_verify = NI_TRISTATE_ENABLE;
+
+	if (ni_sysctl_ipv4_ifconfig_is_present(dev->name)) {
+		int val;
+
+		if (ni_sysctl_ipv4_ifconfig_get_int(dev->name, "forwarding", &val) >= 0)
+			ni_tristate_set(&ipv4->conf.forwarding, val);
+
+		if (ni_sysctl_ipv4_ifconfig_get_int(dev->name, "arp_notify", &val) >= 0)
+			ni_tristate_set(&ipv4->conf.arp_notify, val);
+
+		if (ni_sysctl_ipv4_ifconfig_get_int(dev->name, "accept_redirects", &val) >= 0)
+			ni_tristate_set(&ipv4->conf.accept_redirects, val);
 	} else {
+		ni_warn("%s: cannot get ipv4 device attributes", dev->name);
+
 		/* Reset to defaults */
 		__ni_ipv4_devconf_reset(&ipv4->conf);
 	}
@@ -94,16 +104,17 @@ ni_system_ipv4_devinfo_get(ni_netdev_t *dev, ni_ipv4_devinfo_t *ipv4)
 }
 
 /*
- * Update the device's IPv6 settings
+ * Update the device's IPv4 settings
  */
 static inline int
-__ni_system_ipv4_devinfo_change_uint(const char *ifname, const char *attr, unsigned int value)
+__ni_system_ipv4_devinfo_change_int(const char *ifname, const char *attr, int value)
 {
-	if (value == NI_IPV6_KERNEL_DEFAULT)
-		return 0;
+	if (!ni_tristate_is_set(value))
+		return 1;
 
-	if (ni_sysctl_ipv4_ifconfig_set_uint(ifname, attr, value) < 0) {
-		ni_error("%s: cannot set ipv4 device attr %s=%u", ifname, attr, value);
+	if (ni_sysctl_ipv4_ifconfig_set_int(ifname, attr, value) < 0) {
+		ni_warn("%s: cannot set ipv4 device attr %s=%u",
+				ifname, attr, value);
 		return -1;
 	}
 
@@ -113,16 +124,29 @@ __ni_system_ipv4_devinfo_change_uint(const char *ifname, const char *attr, unsig
 int
 ni_system_ipv4_devinfo_set(ni_netdev_t *dev, const ni_ipv4_devconf_t *conf)
 {
-	int rv = 0;
+	ni_ipv4_devinfo_t *ipv4;
 
-	if (__ni_system_ipv4_devinfo_change_uint(dev->name, "forwarding",
-						conf->forwarding) < 0
-	 || __ni_system_ipv4_devinfo_change_uint(dev->name, "arp_notify",
-						conf->arp_notify) < 0
-	 || __ni_system_ipv4_devinfo_change_uint(dev->name, "accept_redirects",
-						conf->accept_redirects) < 0)
-		rv = -1;
+	if (!conf || !(ipv4 = ni_netdev_get_ipv4(dev)))
+		return -1;
 
-	return rv;
+	if (ni_tristate_is_set(conf->enabled))
+		ni_tristate_set(&ipv4->conf.enabled, conf->enabled);
+
+	if (__ni_system_ipv4_devinfo_change_int(dev->name, "forwarding",
+						conf->forwarding) == 0)
+		ipv4->conf.forwarding = conf->forwarding;
+
+	if (ni_tristate_is_set(conf->arp_verify))
+		ni_tristate_set(&ipv4->conf.arp_verify, conf->arp_verify);
+
+	if (__ni_system_ipv4_devinfo_change_int(dev->name, "arp_notify",
+						conf->arp_notify) == 0)
+		ipv4->conf.arp_notify = conf->arp_notify;
+
+	if (__ni_system_ipv4_devinfo_change_int(dev->name, "accept_redirects",
+						conf->accept_redirects) == 0)
+		ipv4->conf.accept_redirects = conf->accept_redirects;
+
+	return 0;
 }
 

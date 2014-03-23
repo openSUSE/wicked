@@ -2462,7 +2462,7 @@ __ni_netdev_new_addr_verify(ni_netdev_t *dev, ni_address_t *ap)
 		return TRUE;
 
 	ipv4 = ni_netdev_get_ipv4(dev);
-	if (ipv4 && !ipv4->conf.arp_verify) {
+	if (ipv4 && !ni_tristate_is_enabled(ipv4->conf.arp_verify)) {
 		ni_address_set_tentative(ap, FALSE);
 		return TRUE;
 	}
@@ -2489,7 +2489,7 @@ __ni_netdev_new_addr_notify(ni_netdev_t *dev, ni_address_t *ap)
 		return FALSE;
 
 	ipv4 = ni_netdev_get_ipv4(dev);
-	if (ipv4 && !ipv4->conf.arp_notify)
+	if (ipv4 && !ni_tristate_is_enabled(ipv4->conf.arp_notify))
 		return TRUE;
 
 	return __ni_netdev_call_arp_util(dev, ap, FALSE);

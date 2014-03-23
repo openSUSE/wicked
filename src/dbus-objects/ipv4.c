@@ -117,17 +117,15 @@ ni_objectmodel_get_ipv4_devinfo(const ni_dbus_object_t *object, ni_bool_t write_
 	return __ni_objectmodel_ipv4_devinfo_handle(object, write_access, error);
 }
 
-#define IPV4_UINT_PROPERTY(dbus_name, member_name, rw) \
-	NI_DBUS_GENERIC_UINT_PROPERTY(ipv4_devinfo, dbus_name, member_name, rw)
-#define IPV4_BOOL_PROPERTY(dbus_name, member_name, rw) \
-	NI_DBUS_GENERIC_BOOL_PROPERTY(ipv4_devinfo, dbus_name, member_name, rw)
+#define IPV4_INT_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_INT_PROPERTY(ipv4_devinfo, dbus_name, member_name, rw)
 
 const ni_dbus_property_t	ni_objectmodel_ipv4_property_table[] = {
-	IPV4_BOOL_PROPERTY(enabled, conf.enabled, RO),
-	IPV4_BOOL_PROPERTY(forwarding, conf.forwarding, RO),
-	IPV4_BOOL_PROPERTY(arp-verify, conf.arp_verify, RO),
-	IPV4_BOOL_PROPERTY(arp-notify, conf.arp_notify, RO),
-	IPV4_BOOL_PROPERTY(accept-redirects, conf.accept_redirects, RO),
+	IPV4_INT_PROPERTY(enabled, conf.enabled, RO),
+	IPV4_INT_PROPERTY(forwarding, conf.forwarding, RO),
+	IPV4_INT_PROPERTY(arp-verify, conf.arp_verify, RO),
+	IPV4_INT_PROPERTY(arp-notify, conf.arp_notify, RO),
+	IPV4_INT_PROPERTY(accept-redirects, conf.accept_redirects, RO),
 
 	{ NULL }
 };

@@ -11,11 +11,11 @@
      ================================================= -->
 <service name="ipv4" interface="org.opensuse.Network.Protocol.IPv4" object-class="netif">
   <define name="properties" class="dict">
-    <enabled type="boolean" />
-    <forwarding type="boolean" />
-    <arp-verify type="boolean" />
-    <arp-notify type="boolean" />
-    <accept-redirects type="boolean" />
+    <enabled type="tristate" />
+    <forwarding type="tristate" />
+    <arp-verify type="tristate" />
+    <arp-notify type="tristate" />
+    <accept-redirects type="tristate" />
   </define>
 
   <method name="changeProtocol">
@@ -33,11 +33,16 @@
      ================================================= -->
 <service name="ipv6" interface="org.opensuse.Network.Protocol.IPv6" object-class="netif">
   <define name="properties" class="dict">
-    <enabled type="boolean" />
-    <forwarding type="boolean" />
-    <autoconf type="boolean" />
-    <privacy type="uint32" />
-    <accept-redirects type="boolean" />
+    <enabled type="tristate" />
+    <forwarding type="tristate" />
+    <autoconf type="tristate" />
+    <privacy type="int32" constraint="enum">
+      <default          value="-1"/>
+      <disable          value="0"/>
+      <prefer-public    value="1"/>
+      <prefer-temporary value="2"/>
+    </privacy>
+    <accept-redirects type="tristate" />
   </define>
 
   <method name="changeProtocol">

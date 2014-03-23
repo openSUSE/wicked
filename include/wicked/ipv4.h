@@ -15,11 +15,11 @@
 #include <wicked/types.h>
 
 struct ni_ipv4_devconf {
-	ni_bool_t		enabled;
-	ni_bool_t		forwarding;
-	ni_bool_t		arp_verify;
-	ni_bool_t		arp_notify;
-	ni_bool_t		accept_redirects;
+	ni_tristate_t		enabled;
+	ni_tristate_t		forwarding;
+	ni_tristate_t		arp_verify;
+	ni_tristate_t		arp_notify;
+	ni_tristate_t		accept_redirects;
 };
 
 struct ni_ipv4_devinfo {

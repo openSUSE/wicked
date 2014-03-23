@@ -2641,7 +2641,14 @@ static ni_bool_t
 __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
+	ni_bool_t ipv4_enabled = TRUE;
+	ni_bool_t ipv6_enabled = TRUE;
 	const char *routespath;
+
+	if (dev->ipv4 && ni_tristate_is_disabled(dev->ipv4->conf.enabled))
+		ipv4_enabled = FALSE;
+	if (dev->ipv6 && ni_tristate_is_disabled(dev->ipv6->conf.enabled))
+		ipv6_enabled = FALSE;
 
 	/* Loop over all IPADDR* variables and get the addresses */
 	{
@@ -2658,16 +2665,19 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	/* Hack up the loopback interface */
-	if (!strcmp(dev->name, "lo")) {
+	if (dev->link.type == NI_IFTYPE_LOOPBACK) {
 		ni_sockaddr_t local_addr;
 
-		ni_sockaddr_parse(&local_addr, "127.0.0.1", AF_INET);
-		if (ni_address_list_find(dev->addrs, &local_addr) == NULL)
-			ni_address_new(AF_INET, 8, &local_addr, &dev->addrs);
-
-		ni_sockaddr_parse(&local_addr, "::1", AF_INET6);
-		if (ni_address_list_find(dev->addrs, &local_addr) == NULL)
-			ni_address_new(AF_INET6, 128, &local_addr, &dev->addrs);
+		if (ipv4_enabled) {
+			ni_sockaddr_parse(&local_addr, "127.0.0.1", AF_INET);
+			if (ni_address_list_find(dev->addrs, &local_addr) == NULL)
+				ni_address_new(AF_INET, 8, &local_addr, &dev->addrs);
+		}
+		if (ipv6_enabled) {
+			ni_sockaddr_parse(&local_addr, "::1", AF_INET6);
+			if (ni_address_list_find(dev->addrs, &local_addr) == NULL)
+				ni_address_new(AF_INET6, 128, &local_addr, &dev->addrs);
+		}
 	}
 
 	if (dev->routes != NULL)
@@ -2691,6 +2701,9 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 				switch (rp->family) {
 				case AF_INET:
+					if (!ipv4_enabled)
+						continue;
+
 					/*
 					 * FIXME: this is much more complex,
 					 *      + move into some functions...
@@ -2727,6 +2740,9 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 				break;
 
 				case AF_INET6:
+					if (!ipv6_enabled)
+						continue;
+
 					/* For IPv6, we add the route as long as the interface name matches */
 					if (!rp->nh.device.name ||
 					    !ni_string_eq(rp->nh.device.name, dev->name))
@@ -2912,6 +2928,11 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 static ni_bool_t
 __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
 {
+	ni_netdev_t *dev = compat->dev;
+
+	if (dev && dev->ipv4 && ni_tristate_is_disabled(dev->ipv4->conf.enabled))
+		return FALSE;
+
 	if (compat->dhcp4.enabled)
 		return TRUE;
 
@@ -2935,6 +2956,11 @@ __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 static ni_bool_t
 __ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
 {
+	ni_netdev_t *dev = compat->dev;
+
+	if (dev && dev->ipv6 && ni_tristate_is_disabled(dev->ipv6->conf.enabled))
+		return FALSE;
+
 	if (compat->dhcp6.enabled)
 		return TRUE;
 
@@ -2987,28 +3013,28 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	/* Hmm... bonding slave -- set ethtool, but no link up */
 	if (ni_string_eq_nocase(bootproto, "none")) {
 		if (ipv4)
-			ipv4->conf.enabled = FALSE;
+			ni_tristate_set(&ipv4->conf.enabled, FALSE);
 		if (ipv6)
-			ipv6->conf.enabled = FALSE;
+			ni_tristate_set(&ipv6->conf.enabled, FALSE);
 		return TRUE;
 	}
 
-	if (ipv4 && ipv4->conf.enabled) {
+	if (ipv4 && !ni_tristate_is_disabled(ipv4->conf.enabled)) {
 		if (__ni_suse_config_defaults) {
 			if ((value = ni_sysconfig_get_value(__ni_suse_config_defaults,
 						"CHECK_DUPLICATE_IP"))) {
-				ipv4->conf.arp_verify = !ni_string_eq(value, "no");
+				ni_tristate_set(&ipv4->conf.arp_verify, !ni_string_eq(value, "no"));
 			}
 			if ((value = ni_sysconfig_get_value(__ni_suse_config_defaults,
 						"SEND_GRATUITOUS_ARP"))) {
-				ipv4->conf.arp_notify = ni_string_eq(value, "yes");
+				ni_tristate_set(&ipv4->conf.arp_notify, ni_string_eq(value, "yes"));
 			}
 		}
 		if ((value = ni_sysconfig_get_value(sc, "CHECK_DUPLICATE_IP"))) {
-			ipv4->conf.arp_verify = !ni_string_eq(value, "no");
+			ni_tristate_set(&ipv4->conf.arp_verify, !ni_string_eq(value, "no"));
 		}
 		if ((value = ni_sysconfig_get_value(sc, "SEND_GRATUITOUS_ARP"))) {
-			ipv4->conf.arp_notify = ni_string_eq(value, "yes");
+			ni_tristate_set(&ipv4->conf.arp_notify, ni_string_eq(value, "yes"));
 		}
 	}
 
