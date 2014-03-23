@@ -263,5 +263,6 @@ ni_ifsysctl_file_load(ni_var_array_t *vars, const char *filename)
 	if (!vars || ni_string_empty(filename))
 		return FALSE;
 
+	ni_debug_readwrite("Reading sysctl file '%s'", filename);
 	return __ni_sysctl_file_load(vars, filename, __ni_ifsysctl_vars_map);
 }
