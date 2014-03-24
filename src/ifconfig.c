@@ -1319,7 +1319,7 @@ ni_system_ipv6_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ipv6_devconf
 	 * seems rather good at that. 
 	 * The only way to recover from that is by upping the interface briefly.
 	 */
-	if (!ni_sysctl_ipv6_ifconfig_is_present(dev->name)) {
+	if (ni_ipv6_supported() && !ni_sysctl_ipv6_ifconfig_is_present(dev->name)) {
 		if (__ni_rtnl_link_up(dev, NULL) >= 0) {
 			unsigned int count = 100;
 

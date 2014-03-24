@@ -55,7 +55,8 @@ ni_objectmodel_ipv6_change_protocol(ni_dbus_object_t *object, const ni_dbus_meth
 	}
 
 	if (ni_system_ipv6_setup(nc, dev, &cfg->ipv6->conf) < 0) {
-		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to set up ethernet device");
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"failed to configure ipv6 protocol");
 		goto out;
 	}
 

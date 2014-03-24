@@ -9,12 +9,25 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <errno.h>
 
 #include "ipv6_priv.h"
 #include "util_priv.h"
 #include "sysfs.h"
 
+#define NI_PROC_SYS_NET_IPV6_DIR	"/proc/sys/net/ipv6"
+
 #define NI_IPV6_RA_RDNSS_ADDRS_CHUNK	4
+
+/*
+ * Check if ipv6 is supported or disabled
+ * via ipv6.disabled=1 kernel command line.
+ */
+ni_bool_t
+ni_ipv6_supported(void)
+{
+	return ni_isdir(NI_PROC_SYS_NET_IPV6_DIR);
+}
 
 /*
  * Reset to ipv6 config defaults
@@ -94,6 +107,13 @@ ni_system_ipv6_devinfo_get(ni_netdev_t *dev, ni_ipv6_devinfo_t *ipv6)
 	if (ipv6 == NULL)
 		ipv6 = ni_netdev_get_ipv6(dev);
 
+	if (!ni_ipv6_supported()) {
+		__ni_ipv6_devconf_reset(&ipv6->conf);
+		__ni_ipv6_ra_info_reset(&ipv6->radv);
+		ipv6->conf.enabled = NI_TRISTATE_DISABLE;
+		return 0;
+	}
+
 	/*
 	 * dhcpcd does something very odd when shutting down an interface;
 	 * in addition to removing all IPv4 addresses, it also removes any
@@ -156,6 +176,15 @@ ni_system_ipv6_devinfo_set(ni_netdev_t *dev, const ni_ipv6_devconf_t *conf)
 
 	if (!conf || !(ipv6 = ni_netdev_get_ipv6(dev)))
 		return -1;
+
+	if (!ni_ipv6_supported()) {
+		ipv6->conf.enabled = NI_TRISTATE_DISABLE;
+		if (ni_tristate_is_enabled(conf->enabled)) {
+			errno = EAFNOSUPPORT;
+			return -1;
+		}
+		return 0;
+	}
 
 	if (ni_tristate_is_set(conf->enabled)) {
 		if (__ni_system_ipv6_devinfo_change_int(dev->name, "disable_ipv6",

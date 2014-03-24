@@ -61,6 +61,8 @@ struct ni_ipv6_devinfo {
 	ni_ipv6_ra_info_t	radv;
 };
 
+extern ni_bool_t		ni_ipv6_supported(void);
+
 extern ni_ipv6_devinfo_t *	ni_netdev_get_ipv6(ni_netdev_t *);
 extern void			ni_netdev_set_ipv6(ni_netdev_t *, ni_ipv6_devconf_t *);
 
