@@ -273,6 +273,7 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 	case NI_IFTYPE_DUMMY:
 	case NI_IFTYPE_VLAN:
 	case NI_IFTYPE_MACVLAN:
+	case NI_IFTYPE_MACVTAP:
 	case NI_IFTYPE_TUN:
 	case NI_IFTYPE_TAP:
 		if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
@@ -375,7 +376,7 @@ ni_system_vlan_delete(ni_netdev_t *dev)
 }
 
 /*
- * Create a macvlan interface
+ * Create a macvlan/macvtap interface
  */
 int
 ni_system_macvlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
@@ -392,8 +393,9 @@ ni_system_macvlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 	dev = ni_netdev_by_name(nc, cfg->name);
 	if (dev != NULL) {
 		/* This is not necessarily an error */
-		if (dev->link.type == NI_IFTYPE_MACVLAN) {
-			ni_debug_ifconfig("A macvlan interface %s already exists",
+		if (dev->link.type == cfg->link.type) {
+			ni_debug_ifconfig("A %s interface %s already exists",
+					ni_linktype_type_to_name(dev->link.type),
 					dev->name);
 			*dev_ret = dev;
 		} else {
@@ -403,9 +405,11 @@ ni_system_macvlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 		return -NI_ERROR_DEVICE_EXISTS;
 	}
 
-	ni_debug_ifconfig("%s: creating macvlan interface", cfg->name);
+	ni_debug_ifconfig("%s: creating %s interface", cfg->name,
+			ni_linktype_type_to_name(cfg->link.type));
 	if (__ni_rtnl_link_create(cfg)) {
-		ni_error("unable to create macvlan interface %s", cfg->name);
+		ni_error("unable to create %s interface %s",
+			ni_linktype_type_to_name(cfg->link.type), cfg->name);
 		return -1;
 	}
 
@@ -429,7 +433,7 @@ ni_system_macvlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 }
 
 /*
- * Delete a macvlan interface
+ * Delete a macvlan/macvtap interface
  */
 int
 ni_system_macvlan_delete(ni_netdev_t *dev)
@@ -1481,7 +1485,8 @@ __ni_rtnl_link_put_macvlan(struct nl_msg *msg,	const ni_netdev_t *cfg)
 
 	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
 		goto nla_put_failure;
-	NLA_PUT_STRING(msg, IFLA_INFO_KIND, "macvlan");
+	NLA_PUT_STRING(msg, IFLA_INFO_KIND,
+		ni_linktype_type_to_name(cfg->link.type));
 
 	if (!(infodata = nla_nest_start(msg, IFLA_INFO_DATA)))
 		goto nla_put_failure;
@@ -1553,6 +1558,7 @@ __ni_rtnl_link_create(const ni_netdev_t *cfg)
 		break;
 
 	case NI_IFTYPE_MACVLAN:
+	case NI_IFTYPE_MACVTAP:
 		if (__ni_rtnl_link_put_macvlan(msg, cfg) < 0)
 			goto nla_put_failure;
 
@@ -1620,6 +1626,7 @@ __ni_rtnl_link_change(ni_netdev_t *dev, const ni_netdev_t *cfg)
 		break;
 
 	case NI_IFTYPE_MACVLAN:
+	case NI_IFTYPE_MACVTAP:
 		if (__ni_rtnl_link_put_macvlan(msg, cfg) < 0)
 			goto nla_put_failure;
 		break;
