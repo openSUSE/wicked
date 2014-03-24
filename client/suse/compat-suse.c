@@ -1811,7 +1811,9 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 }
 
 /*
- * MACVLAN is recognized by MACVLAN_DEVICE entry.
+ * MACVLAN/MACVTAP is recognized by [MACVLAN|MACVTAP]_DEVICE entry which
+ * specifies the lower device to use. The lower device, obviously, has to
+ * differ from the macvlan/tap device being created.
  */
 static int
 try_macvlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
@@ -1819,50 +1821,71 @@ try_macvlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ni_netdev_t *dev = compat->dev;
 	ni_macvlan_t *macvlan = NULL;
 	const char *macvlan_dev = NULL;
+	unsigned int macvlan_iftype = NI_IFTYPE_UNKNOWN;
 	const char *macvlan_mode = NULL;
 	const char *macvlan_flags = NULL;
+	const char *syscfg_dev_key = NULL;
+	const char *syscfg_mode_key = NULL;
+	const char *syscfg_flags_key = NULL;
 	const char *lladdr = NULL;
 	const char *err;
 
-	if ((macvlan_dev = ni_sysconfig_get_value(sc, "MACVLAN_DEVICE")) == NULL)
+	/* Determine if we're a macvlan or a macvtap */
+	if ((macvlan_dev = ni_sysconfig_get_value(sc, "MACVLAN_DEVICE")) != NULL) {
+		macvlan_iftype = NI_IFTYPE_MACVLAN;
+		syscfg_dev_key = "MACVLAN_DEVICE";
+		syscfg_mode_key = "MACVLAN_MODE";
+		syscfg_flags_key = "MACVLAN_FLAGS";
+	} else if ((macvlan_dev = ni_sysconfig_get_value(sc, "MACVTAP_DEVICE")) != NULL) {
+		macvlan_iftype = NI_IFTYPE_MACVTAP;
+		syscfg_dev_key = "MACVTAP_DEVICE";
+		syscfg_mode_key = "MACVTAP_MODE";
+		syscfg_flags_key = "MACVTAP_FLAGS";
+	} else {
 		return 1;
+	}
 
 	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
-		ni_error("ifcfg-%s: %s config contains macvlan variables",
+		ni_error("ifcfg-%s: %s config contains macvlan/macvtap variables",
 			dev->name, ni_linktype_type_to_name(dev->link.type));
 		return -1;
 	}
 
-	dev->link.type = NI_IFTYPE_MACVLAN;
-	macvlan = ni_netdev_get_macvlan(dev);
+	dev->link.type = macvlan_iftype;
+
+	if (!(macvlan = ni_netdev_get_macvlan(dev))) {
+		ni_error("ifcfg-%s: failed to get device specific data. Not a %s device.",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
 
 	if (!strcmp(dev->name, macvlan_dev)) {
-		ni_error("ifcfg-%s: MACVLAN_DEVICE=\"%s\" self-reference",
-			dev->name, macvlan_dev);
+		ni_error("ifcfg-%s: %s=\"%s\" self-reference",
+			dev->name, syscfg_dev_key, macvlan_dev);
 		return -1;
 	}
 
 	macvlan->mode = NI_MACVLAN_MODE_VEPA;
-	if ((macvlan_mode = ni_sysconfig_get_value(sc, "MACVLAN_MODE")) != NULL) {
-		unsigned int mode;
-		if (!ni_macvlan_name_to_mode(macvlan_mode, &mode)) {
-			ni_error("ifcfg-%s: Unsupported MACVLAN_MODE=\"%s\"",
-				dev->name, macvlan_mode);
-			return -1;
-		}
-		macvlan->mode = mode;
-	}
+        if ((macvlan_mode = ni_sysconfig_get_value(sc, syscfg_mode_key)) != NULL) {
+                unsigned int mode;
+                if (!ni_macvlan_name_to_mode(macvlan_mode, &mode)) {
+                        ni_error("ifcfg-%s: Unsupported %s=\"%s\"",
+                                dev->name, syscfg_mode_key, macvlan_mode);
+                        return -1;
+                }
+                macvlan->mode = mode;
+        }
 
 	macvlan->flags = 0;
-	if ((macvlan_flags = ni_sysconfig_get_value(sc, "MACVLAN_FLAGS")) != NULL) {
+	if ((macvlan_flags = ni_sysconfig_get_value(sc, syscfg_flags_key)) != NULL) {
 		ni_string_array_t flags = NI_STRING_ARRAY_INIT;
 		unsigned int i, flag;
 
 		ni_string_split(&flags, macvlan_flags, " \t", 0);
 		for (i = 0; i < flags.count; ++i) {
 			if (!ni_macvlan_name_to_flag(flags.data[i], &flag)) {
-				ni_error("ifcfg-%s: Unsupported MACVLAN_FLAGS=\"%s\"",
-					dev->name, macvlan_flags);
+				ni_error("ifcfg-%s: Unsupported %s=\"%s\"",
+					dev->name, syscfg_flags_key, macvlan_flags);
 				return -1;
 			}
 			macvlan->flags |= flag;

@@ -524,7 +524,9 @@ __ni_compat_generate_macvlan(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 
 	macvlan = ni_netdev_get_macvlan(compat->dev);
 
-	child = xml_node_create(ifnode, "macvlan");
+	/* Will create either <macvlan> or <macvtap> node. */
+	child = xml_node_create(ifnode,
+				ni_linktype_type_to_name(compat->dev->link.type));
 
 	xml_node_new_element("device", child, compat->dev->link.lowerdev.name);
 	if (compat->dev->link.hwaddr.len) {
@@ -1307,6 +1309,7 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 		break;
 
 	case NI_IFTYPE_MACVLAN:
+	case NI_IFTYPE_MACVTAP:
 		__ni_compat_generate_macvlan(ifnode, compat);
 		break;
 
