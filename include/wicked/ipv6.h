@@ -14,17 +14,22 @@
 
 #include <wicked/types.h>
 
-#define NI_IPV6_KERNEL_DEFAULT	~0U
-
 typedef struct ni_ipv6_ra_rdnss	ni_ipv6_ra_rdnss_t;
 
-struct ni_ipv6_devconf {
-	ni_bool_t		enabled;
-	ni_bool_t		forwarding;
-	ni_bool_t		autoconf;
+enum {
+	NI_IPV6_PRIVACY_DEFAULT		= -1,
+	NI_IPV6_PRIVACY_DISABLED	=  0,
+	NI_IPV6_PRIVACY_PREFER_PUBLIC	=  1,
+	NI_IPV6_PRIVACY_PREFER_TEMPORARY=  2,
+};
 
-	unsigned int		accept_redirects;
-	unsigned int		privacy; /* -1 for lo & p-t-p otherwise 0, 1, >1 */
+struct ni_ipv6_devconf {
+	ni_tristate_t		enabled;
+	ni_tristate_t		forwarding;
+	ni_tristate_t		autoconf;
+
+	ni_tristate_t		accept_redirects;
+	int			privacy; /* -1 for lo & p-t-p otherwise 0, 1, >1 */
 };
 
 struct ni_ipv6_ra_pinfo {
@@ -65,5 +70,6 @@ extern void			ni_ipv6_devinfo_free(ni_ipv6_devinfo_t *);
 extern int			ni_system_ipv6_devinfo_get(ni_netdev_t *, ni_ipv6_devinfo_t *);
 extern int			ni_system_ipv6_devinfo_set(ni_netdev_t *, const ni_ipv6_devconf_t *);
 
+extern const char *		ni_ipv6_devconf_privacy_to_name(int privacy);
 
 #endif /* __WICKED_IPv6_H__ */

@@ -18,6 +18,12 @@ typedef unsigned char		ni_bool_t;
 # define FALSE 0
 #endif
 
+typedef enum {
+	NI_TRISTATE_DEFAULT	= -1,
+	NI_TRISTATE_DISABLE	= 0,
+	NI_TRISTATE_ENABLE	= 1
+} ni_tristate_t;
+
 typedef union ni_sockaddr	ni_sockaddr_t;
 typedef struct ni_netconfig	ni_netconfig_t;
 typedef struct ni_netdev	ni_netdev_t;

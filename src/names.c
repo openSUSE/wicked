@@ -15,6 +15,39 @@
 #include "kernel.h"
 
 /*
+ * Tristate is basically a bool + "unset, use defaults"
+ */
+static const ni_intmap_t	__tristate_names[] = {
+	{ "true",		NI_TRISTATE_ENABLE	},
+	{ "enable",		NI_TRISTATE_ENABLE	},
+	{ "enabled",		NI_TRISTATE_ENABLE	},
+	{ "false",		NI_TRISTATE_DISABLE	},
+	{ "disable",		NI_TRISTATE_DISABLE	},
+	{ "disabled",		NI_TRISTATE_DISABLE	},
+	{ "default",		NI_TRISTATE_DEFAULT	},
+	{ NULL,			NI_TRISTATE_DEFAULT	},
+};
+
+const char *
+ni_tristate_to_name(ni_tristate_t tristate)
+{
+	return ni_format_uint_mapped(tristate, __tristate_names);
+}
+
+ni_bool_t
+ni_tristate_by_name(const char *name, ni_tristate_t *tristate)
+{
+	unsigned int t;
+
+	if (!tristate || ni_parse_uint_mapped(name, __tristate_names, &t) < 0)
+		return FALSE;
+
+	*tristate = (int)t;
+	return TRUE;
+}
+
+
+/*
  * Map interface link layer types to strings and vice versa
  */
 static const ni_intmap_t	__linktype_names[] = {

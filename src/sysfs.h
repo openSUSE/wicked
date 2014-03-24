@@ -53,7 +53,9 @@ extern int	ni_sysctl_ipv6_ifconfig_set_int(const char *, const char *, int);
 extern int	ni_sysctl_ipv6_ifconfig_set_uint(const char *, const char *, unsigned int);
 
 extern int	ni_sysctl_ipv4_ifconfig_is_present(const char *ifname);
+extern int	ni_sysctl_ipv4_ifconfig_get_int(const char *, const char *, int *);
 extern int	ni_sysctl_ipv4_ifconfig_get_uint(const char *, const char *, unsigned int *);
+extern int	ni_sysctl_ipv4_ifconfig_set_int(const char *, const char *, int);
 extern int	ni_sysctl_ipv4_ifconfig_set_uint(const char *, const char *, unsigned int);
 
 #endif /* __NETINFO_SYSFS_H__ */

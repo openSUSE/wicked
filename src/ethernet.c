@@ -27,6 +27,15 @@ ni_ethernet_new(void)
 	ni_ethernet_t *ether;
 	ether = xcalloc(1, sizeof(ni_ethernet_t));
 	ni_link_address_init(&ether->permanent_address);
+	ether->autoneg_enable		= NI_TRISTATE_DEFAULT;
+	ether->offload.rx_csum		= NI_TRISTATE_DEFAULT;
+	ether->offload.tx_csum		= NI_TRISTATE_DEFAULT;
+	ether->offload.scatter_gather	= NI_TRISTATE_DEFAULT;
+	ether->offload.tso		= NI_TRISTATE_DEFAULT;
+	ether->offload.ufo		= NI_TRISTATE_DEFAULT;
+	ether->offload.gso		= NI_TRISTATE_DEFAULT;
+	ether->offload.gro		= NI_TRISTATE_DEFAULT;
+	ether->offload.lro		= NI_TRISTATE_DEFAULT;
 	return ether;
 }
 
@@ -252,9 +261,9 @@ __ni_ethtool_get_tristate(const char *ifname, __ni_ioctl_info_t *ioc)
 	int value;
 
 	if ((value = __ni_ethtool_get_value(ifname, ioc)) < 0)
-		return NI_ETHERNET_SETTING_DEFAULT;
+		return NI_TRISTATE_DEFAULT;
 
-	return value? NI_ETHERNET_SETTING_ENABLE : NI_ETHERNET_SETTING_DISABLE;
+	return value? NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
 }
 
 static int
@@ -262,10 +271,10 @@ __ni_ethtool_set_tristate(const char *ifname, __ni_ioctl_info_t *ioc, int value)
 {
 	int kern_value;
 
-	if (value == NI_ETHERNET_SETTING_DEFAULT)
+	if (value == NI_TRISTATE_DEFAULT)
 		return 0;
 
-	kern_value = (value == NI_ETHERNET_SETTING_ENABLE);
+	kern_value = (value == NI_TRISTATE_ENABLE);
 	return __ni_ethtool_set_value(ifname, ioc, kern_value);
 }
 
@@ -358,7 +367,7 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 		ether->port_type = mapped;
 	}
 
-	ether->autoneg_enable = (ecmd.autoneg? NI_ETHERNET_SETTING_ENABLE : NI_ETHERNET_SETTING_DISABLE);
+	ether->autoneg_enable = (ecmd.autoneg? NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE);
 
 	/* Not used yet:
 	    phy_address
@@ -375,7 +384,7 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 
 	value = __ni_ethtool_get_value(ifname, &__ethtool_gflags);
 	if (value >= 0)
-		ether->offload.lro = (value & ETH_FLAG_LRO)? NI_ETHERNET_SETTING_ENABLE : NI_ETHERNET_SETTING_DISABLE;
+		ether->offload.lro = (value & ETH_FLAG_LRO)? NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
 
 	/* Get the permanent address */
 	{
@@ -444,10 +453,10 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 	}
 
 	switch (ether->autoneg_enable) {
-	case NI_ETHERNET_SETTING_ENABLE:
+	case NI_TRISTATE_ENABLE:
 		ecmd.autoneg = 1;
 		break;
-	case NI_ETHERNET_SETTING_DISABLE:
+	case NI_TRISTATE_DISABLE:
 		ecmd.autoneg = 0;
 		break;
 	default: ;
@@ -466,10 +475,10 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 	__ni_ethtool_set_tristate(ifname, &__ethtool_sgso, ether->offload.gso);
 	__ni_ethtool_set_tristate(ifname, &__ethtool_sgro, ether->offload.gro);
 
-	if (ether->offload.lro != NI_ETHERNET_SETTING_DEFAULT) {
+	if (ether->offload.lro != NI_TRISTATE_DEFAULT) {
 		value = __ni_ethtool_get_value(ifname, &__ethtool_gflags);
 		if (value >= 0) {
-			if (ether->offload.lro == NI_ETHERNET_SETTING_ENABLE)
+			if (ether->offload.lro == NI_TRISTATE_ENABLE)
 				value |= ETH_FLAG_LRO;
 			else
 				value &= ~ETH_FLAG_LRO;

@@ -118,17 +118,15 @@ ni_objectmodel_get_ipv6_devinfo(const ni_dbus_object_t *object, ni_bool_t write_
 	return __ni_objectmodel_ipv6_devinfo_handle(object, write_access, error);
 }
 
-#define IPV6_UINT_PROPERTY(dbus_name, member_name, rw) \
-	NI_DBUS_GENERIC_UINT_PROPERTY(ipv6_devinfo, dbus_name, member_name, rw)
-#define IPV6_BOOL_PROPERTY(dbus_name, member_name, rw) \
-	NI_DBUS_GENERIC_BOOL_PROPERTY(ipv6_devinfo, dbus_name, member_name, rw)
+#define IPV6_INT_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_INT_PROPERTY(ipv6_devinfo, dbus_name, member_name, rw)
 
 const ni_dbus_property_t	ni_objectmodel_ipv6_property_table[] = {
-	IPV6_BOOL_PROPERTY(enabled, conf.enabled, RO),
-	IPV6_BOOL_PROPERTY(forwarding, conf.forwarding, RO),
-	IPV6_BOOL_PROPERTY(autoconf, conf.autoconf, RO),
-	IPV6_UINT_PROPERTY(privacy, conf.privacy, RO),
-	IPV6_UINT_PROPERTY(accept-redirects, conf.accept_redirects, RO),
+	IPV6_INT_PROPERTY(enabled, conf.enabled, RO),
+	IPV6_INT_PROPERTY(forwarding, conf.forwarding, RO),
+	IPV6_INT_PROPERTY(autoconf, conf.autoconf, RO),
+	IPV6_INT_PROPERTY(accept-redirects, conf.accept_redirects, RO),
+	IPV6_INT_PROPERTY(privacy, conf.privacy, RO),
 
 	{ NULL }
 };

@@ -195,13 +195,11 @@ ni_compat_netdev_client_info_set(ni_netdev_t *dev, const char *filename)
  * Functions for generating XML
  */
 static void
-__ni_compat_ethtool_tristate(const char *name, xml_node_t *node, ni_ether_tristate_t flag)
+__ni_compat_optional_tristate(const char *name, xml_node_t *node, ni_tristate_t flag)
 {
-	if (flag == NI_ETHERNET_SETTING_ENABLE)
-		xml_node_new_element(name, node, "enable");
-	else
-	if (flag == NI_ETHERNET_SETTING_DISABLE)
-		xml_node_new_element(name, node, "disable");
+	if (ni_tristate_is_set(flag)) {
+		xml_node_new_element(name, node, ni_tristate_to_name(flag));
+	}
 }
 
 static void
@@ -224,18 +222,19 @@ __ni_compat_generate_eth_node(xml_node_t *child, const ni_ethernet_t *eth)
 	if (eth->duplex == NI_ETHERNET_DUPLEX_FULL) {
 		xml_node_new_element("duplex", child, "full");
 	}
-	__ni_compat_ethtool_tristate("autoneg-enable", child, eth->autoneg_enable);
+	__ni_compat_optional_tristate("autoneg-enable", child, eth->autoneg_enable);
 
 	/* generate offload and other information */
 	offload = xml_node_new("offload", NULL);
-	__ni_compat_ethtool_tristate("rx-csum", offload, eth->offload.rx_csum);
-	__ni_compat_ethtool_tristate("tx-csum", offload, eth->offload.tx_csum);
-	__ni_compat_ethtool_tristate("scatter-gather", child, eth->offload.scatter_gather);
-	__ni_compat_ethtool_tristate("tso", offload, eth->offload.tso);
-	__ni_compat_ethtool_tristate("ufo", offload, eth->offload.ufo);
-	__ni_compat_ethtool_tristate("gso", offload, eth->offload.gso);
-	__ni_compat_ethtool_tristate("gro", offload, eth->offload.gro);
-	__ni_compat_ethtool_tristate("lro", offload, eth->offload.lro);
+	__ni_compat_optional_tristate("rx-csum", offload, eth->offload.rx_csum);
+	__ni_compat_optional_tristate("tx-csum", offload, eth->offload.tx_csum);
+	__ni_compat_optional_tristate("scatter-gather", offload,
+						eth->offload.scatter_gather);
+	__ni_compat_optional_tristate("tso", offload, eth->offload.tso);
+	__ni_compat_optional_tristate("ufo", offload, eth->offload.ufo);
+	__ni_compat_optional_tristate("gso", offload, eth->offload.gso);
+	__ni_compat_optional_tristate("gro", offload, eth->offload.gro);
+	__ni_compat_optional_tristate("lro", offload, eth->offload.lro);
 	if (offload->children)
 		xml_node_add_child(child, offload);
 	else
@@ -1185,12 +1184,72 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 }
 
 static ni_bool_t
+__ni_compat_generate_ipv4_devconf(xml_node_t *ifnode, const ni_ipv4_devinfo_t *ipv4)
+{
+	xml_node_t *node;
+
+	if (!ipv4)
+		return FALSE;
+
+	node = xml_node_new("ipv4", NULL);
+	__ni_compat_optional_tristate("enabled", node, ipv4->conf.enabled);
+	if (ni_tristate_is_disabled(ipv4->conf.enabled)) {
+		xml_node_add_child(ifnode, node);
+		return TRUE;
+	}
+
+	__ni_compat_optional_tristate("forwarding", node, ipv4->conf.forwarding);
+	__ni_compat_optional_tristate("arp-verify", node, ipv4->conf.arp_verify);
+	__ni_compat_optional_tristate("arp-notify", node, ipv4->conf.arp_notify);
+
+	if (node->children) {
+		xml_node_add_child(ifnode, node);
+		return TRUE;
+	} else {
+		xml_node_free(node);
+		return FALSE;
+	}
+}
+
+static ni_bool_t
+__ni_compat_generate_ipv6_devconf(xml_node_t *ifnode, const ni_ipv6_devinfo_t *ipv6)
+{
+	xml_node_t *node;
+
+	if (!ipv6)
+		return TRUE;
+
+	node = xml_node_new("ipv6", NULL);
+
+	__ni_compat_optional_tristate("enabled", node, ipv6->conf.enabled);
+	if (ni_tristate_is_disabled(ipv6->conf.enabled)) {
+		xml_node_add_child(ifnode, node);
+		return TRUE;
+	}
+
+	__ni_compat_optional_tristate("forwarding", node, ipv6->conf.forwarding);
+	__ni_compat_optional_tristate("autoconf", node, ipv6->conf.autoconf);
+	if (ipv6->conf.privacy > NI_IPV6_PRIVACY_DEFAULT) {
+		xml_node_new_element("privacy", node,
+			ni_ipv6_devconf_privacy_to_name(ipv6->conf.privacy));
+	}
+	__ni_compat_optional_tristate("accept-redirects", node,
+						ipv6->conf.accept_redirects);
+
+	if (node->children) {
+		xml_node_add_child(ifnode, node);
+		return TRUE;
+	} else {
+		xml_node_free(node);
+		return FALSE;
+	}
+}
+
+static ni_bool_t
 __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	const ni_netdev_t *dev = compat->dev;
 	xml_node_t *linknode;
-	ni_ipv4_devinfo_t *ipv4;
-	ni_ipv6_devinfo_t *ipv6;
 
 	if (compat->control) {
 		const ni_ifworker_control_t *control = compat->control;
@@ -1271,35 +1330,14 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	if (dev->link.mtu)
 		xml_node_new_element("mtu", linknode, ni_sprint_uint(dev->link.mtu));
 
-	if ((ipv4 = dev->ipv4)) {
-		xml_node_t *ipv4node = xml_node_new("ipv4", ifnode);
-		xml_node_new_element("enabled", ipv4node,
-				ipv4->conf.enabled ? "true" : "false");
-		if (ipv4->conf.enabled) {
-			xml_node_new_element("forwarding", ipv4node,
-					ipv4->conf.forwarding ? "true" : "false");
-			xml_node_new_element("arp-verify", ipv4node,
-					ipv4->conf.arp_verify ? "true" : "false");
-			xml_node_new_element("arp-notify", ipv4node,
-					ipv4->conf.arp_notify ? "true" : "false");
-		}
-	}
-
-	if ((ipv6 = dev->ipv6)) {
-		xml_node_t *ipv6node = xml_node_new("ipv6", ifnode);
-		xml_node_new_element("enabled", ipv6node,
-				ipv6->conf.enabled ? "true" : "false");
-		if (ipv6->conf.enabled) {
-			xml_node_new_element("forwarding", ipv6node,
-					ipv6->conf.forwarding ? "true" : "false");
-		}
-	}
-
-	if ((ipv4 = dev->ipv4) && ipv4->conf.enabled) {
+	__ni_compat_generate_ipv4_devconf(ifnode, dev->ipv4);
+	if (dev->ipv4 && !ni_tristate_is_disabled(dev->ipv4->conf.enabled)) {
 		__ni_compat_generate_static_addrconf(ifnode, compat, AF_INET);
 		__ni_compat_generate_dhcp4_addrconf(ifnode, compat);
 	}
-	if ((ipv6 = dev->ipv6) && ipv6->conf.enabled) {
+
+	__ni_compat_generate_ipv6_devconf(ifnode, dev->ipv6);
+	if (dev->ipv6 && !ni_tristate_is_disabled(dev->ipv6->conf.enabled)) {
 		__ni_compat_generate_static_addrconf(ifnode, compat, AF_INET6);
 		__ni_compat_generate_dhcp6_addrconf(ifnode, compat);
 	}

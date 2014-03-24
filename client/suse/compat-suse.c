@@ -23,6 +23,13 @@
  *		Marius Tomaschewski <mt@suse.de>
  *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 #include <limits.h>
 #include <ctype.h>
 #include <errno.h>
@@ -57,13 +64,14 @@
 #include <wicked/dbus.h>
 #include "appconfig.h"
 #include "util_priv.h"
-#include "client/wicked-client.h"
 #include "duid.h"
+#include "client/suse/ifsysctl.h"
+#include "client/wicked-client.h"
 
 typedef ni_bool_t (*try_function_t)(const ni_sysconfig_t *, ni_netdev_t *, const char *);
 
 static ni_compat_netdev_t *	__ni_suse_read_interface(const char *, const char *);
-static ni_bool_t		__ni_suse_read_globals(const char *path);
+static ni_bool_t		__ni_suse_read_globals(const char *, const char *);
 static void			__ni_suse_free_globals(void);
 static ni_bool_t		__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
 static int			__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *,
@@ -85,15 +93,23 @@ static char *			__ni_suse_default_hostname;
 static ni_sysconfig_t *		__ni_suse_config_defaults;
 static ni_sysconfig_t *		__ni_suse_dhcp_defaults;
 static ni_route_table_t *	__ni_suse_global_routes;
+static ni_var_array_t		__ni_suse_global_ifsysctl;
+static ni_bool_t		__ni_ipv6_disbled;
 
+#define __NI_SUSE_SYSCONF_DIR			"/etc"
+#define __NI_SUSE_HOSTNAME_FILE			__NI_SUSE_SYSCONF_DIR"/HOSTNAME"
+#define __NI_SUSE_SYSCTL_SUFFIX			".conf"
+#define __NI_SUSE_SYSCTL_FILE			__NI_SUSE_SYSCONF_DIR"/sysctl.conf"
+#define __NI_SUSE_SYSCTL_DIR			__NI_SUSE_SYSCONF_DIR"/sysctl.d"
+#define __NI_SUSE_PROC_IPV6_DIR			"/proc/sys/net/ipv6"
 
-#define __NI_SUSE_SYSCONFIG_NETWORK_DIR		"/etc/sysconfig/network"
-#define __NI_SUSE_HOSTNAME_FILE			"/etc/HOSTNAME"
+#define __NI_SUSE_SYSCONFIG_NETWORK_DIR		__NI_SUSE_SYSCONF_DIR"/sysconfig/network"
 #define __NI_SUSE_CONFIG_IFPREFIX		"ifcfg-"
 #define __NI_SUSE_CONFIG_GLOBAL			"config"
 #define __NI_SUSE_CONFIG_DHCP			"dhcp"
 #define __NI_SUSE_ROUTES_IFPREFIX		"ifroute-"
 #define __NI_SUSE_ROUTES_GLOBAL			"routes"
+#define __NI_SUSE_IFSYSCTL_FILE			"ifsysctl"
 
 #define __NI_VLAN_TAG_MAX			4094
 #define __NI_WIRELESS_WPA_PSK_HEX_LEN	64
@@ -221,7 +237,7 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 		path = ni_dirname(pathname);
 	}
 	if (ni_isdir(pathname)) {
-		if (!__ni_suse_read_globals(pathname))
+		if (!__ni_suse_read_globals(root, pathname))
 			goto done;
 
 		if (!__ni_suse_ifcfg_scan_files(pathname, &files)) {
@@ -274,17 +290,23 @@ done:
  * Read HOSTNAME file
  */
 static const char *
-__ni_suse_read_default_hostname(char **hostname)
+__ni_suse_read_default_hostname(const char *root, char **hostname)
 {
-	char buff[256];
+	char filename[PATH_MAX];
+	char buff[256] = {'\0'};
 	FILE *input;
 
 	if (!hostname)
 		return NULL;
 	ni_string_free(hostname);
 
-	input = ni_file_open(__NI_SUSE_HOSTNAME_FILE, "r", 0600);
-	if (!input)
+	snprintf(filename, sizeof(filename), "%s%s",
+			ni_string_empty(root) ? "" : root,
+			__NI_SUSE_HOSTNAME_FILE);
+
+	if (!ni_isreg(filename))
+		return NULL;
+	if (!(input = ni_file_open(filename, "r", 0600)))
 		return NULL;
 
 	if (fgets(buff, sizeof(buff)-1, input)) {
@@ -298,12 +320,67 @@ __ni_suse_read_default_hostname(char **hostname)
 	return *hostname;
 }
 
+static ni_bool_t
+__ni_suse_read_global_ifsysctl(const char *root, const char *path)
+{
+	ni_string_array_t files = NI_STRING_ARRAY_INIT;
+	char dirname[PATH_MAX];
+	char pathbuf[PATH_MAX];
+	const char *name;
+	unsigned int i;
+
+	ni_var_array_destroy(&__ni_suse_global_ifsysctl);
+
+	if (ni_string_empty(root))
+		root = "";
+
+	/*
+	 * canonicalize all files to avoid parsing them multiple
+	 * times -- there are symlinks used by default.
+	 */
+	snprintf(dirname, sizeof(dirname), "%s%s", root, __NI_SUSE_SYSCTL_DIR);
+	if (ni_isdir(dirname)) {
+		ni_string_array_t names = NI_STRING_ARRAY_INIT;
+		if (ni_scandir(dirname, "*"__NI_SUSE_SYSCTL_SUFFIX, &names)) {
+			for (i = 0; i < names.count; ++i) {
+				snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
+						dirname, names.data[i]);
+				name = canonicalize_file_name(pathbuf);
+				if (name)
+					ni_string_array_append(&files, name);
+			}
+		}
+		ni_string_array_destroy(&names);
+	}
+
+	snprintf(pathbuf, sizeof(pathbuf), "%s%s", root, __NI_SUSE_SYSCTL_FILE);
+	name = canonicalize_file_name(pathbuf);
+	if (name && ni_isreg(name)) {
+		if (ni_string_array_index(&files, name) == -1)
+			ni_string_array_append(&files, name);
+	}
+
+	snprintf(pathbuf, sizeof(pathbuf), "%s%s/%s", root, path,
+						__NI_SUSE_IFSYSCTL_FILE);
+	name = canonicalize_file_name(pathbuf);
+	if (name && ni_isreg(name)) {
+		if (ni_string_array_index(&files, name) == -1)
+			ni_string_array_append(&files, name);
+	}
+
+	for (i = 0; i < files.count; ++i) {
+		name = files.data[i];
+		ni_ifsysctl_file_load(&__ni_suse_global_ifsysctl, name);
+	}
+	return TRUE;
+}
+
 
 /*
  * Read global ifconfig files like config, dhcp and routes
  */
 static ni_bool_t
-__ni_suse_read_globals(const char *path)
+__ni_suse_read_globals(const char *root, const char *path)
 {
 	char pathbuf[PATH_MAX];
 
@@ -314,7 +391,7 @@ __ni_suse_read_globals(const char *path)
 
 	__ni_suse_free_globals();
 
-	__ni_suse_read_default_hostname(&__ni_suse_default_hostname);
+	__ni_suse_read_default_hostname(root, &__ni_suse_default_hostname);
 
 	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, __NI_SUSE_CONFIG_GLOBAL);
 	if (ni_file_exists(pathbuf)) {
@@ -340,6 +417,14 @@ __ni_suse_read_globals(const char *path)
 			return FALSE;
 	}
 
+	__ni_suse_read_global_ifsysctl(root, path);
+
+	/* use proc without root-fs */
+	if (ni_isdir(__NI_SUSE_PROC_IPV6_DIR))
+		__ni_ipv6_disbled = FALSE;
+	else
+		__ni_ipv6_disbled = TRUE;
+
 	return TRUE;
 }
 
@@ -359,6 +444,8 @@ __ni_suse_free_globals(void)
 	}
 
 	ni_route_tables_destroy(&__ni_suse_global_routes);
+
+	ni_var_array_destroy(&__ni_suse_global_ifsysctl);
 }
 
 /*
@@ -1211,13 +1298,13 @@ try_infiniband(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
  * Handle Ethernet devices
  */
 static inline void
-ni_parse_ethtool_onoff(const char *input, ni_ether_tristate_t *flag)
+ni_parse_ethtool_onoff(const char *input, ni_tristate_t *flag)
 {
 	if (ni_string_eq(input, "on")) {
-		*flag = NI_ETHERNET_SETTING_ENABLE;
+		*flag = NI_TRISTATE_ENABLE;
 	} else
 	if (ni_string_eq(input, "off")) {
-		*flag = NI_ETHERNET_SETTING_DISABLE;
+		*flag = NI_TRISTATE_DISABLE;
 	}
 }
 
@@ -2638,7 +2725,14 @@ static ni_bool_t
 __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
+	ni_bool_t ipv4_enabled = TRUE;
+	ni_bool_t ipv6_enabled = TRUE;
 	const char *routespath;
+
+	if (dev->ipv4 && ni_tristate_is_disabled(dev->ipv4->conf.enabled))
+		ipv4_enabled = FALSE;
+	if (dev->ipv6 && ni_tristate_is_disabled(dev->ipv6->conf.enabled))
+		ipv6_enabled = FALSE;
 
 	/* Loop over all IPADDR* variables and get the addresses */
 	{
@@ -2654,18 +2748,27 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		}
 	}
 
+#if 0
+	/* Hmm... disabled the hack -- we (expect to) have a config
+	 * and when there is ipv6.disable=1 on the kernel cmd line,
+	 * this causes a failure
+	 */
 	/* Hack up the loopback interface */
-	if (!strcmp(dev->name, "lo")) {
+	if (dev->link.type == NI_IFTYPE_LOOPBACK) {
 		ni_sockaddr_t local_addr;
 
-		ni_sockaddr_parse(&local_addr, "127.0.0.1", AF_INET);
-		if (ni_address_list_find(dev->addrs, &local_addr) == NULL)
-			ni_address_new(AF_INET, 8, &local_addr, &dev->addrs);
-
-		ni_sockaddr_parse(&local_addr, "::1", AF_INET6);
-		if (ni_address_list_find(dev->addrs, &local_addr) == NULL)
-			ni_address_new(AF_INET6, 128, &local_addr, &dev->addrs);
+		if (ipv4_enabled) {
+			ni_sockaddr_parse(&local_addr, "127.0.0.1", AF_INET);
+			if (ni_address_list_find(dev->addrs, &local_addr) == NULL)
+				ni_address_new(AF_INET, 8, &local_addr, &dev->addrs);
+		}
+		if (ipv6_enabled) {
+			ni_sockaddr_parse(&local_addr, "::1", AF_INET6);
+			if (ni_address_list_find(dev->addrs, &local_addr) == NULL)
+				ni_address_new(AF_INET6, 128, &local_addr, &dev->addrs);
+		}
 	}
+#endif
 
 	if (dev->routes != NULL)
 		ni_route_tables_destroy(&dev->routes);
@@ -2688,6 +2791,9 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 				switch (rp->family) {
 				case AF_INET:
+					if (!ipv4_enabled)
+						continue;
+
 					/*
 					 * FIXME: this is much more complex,
 					 *      + move into some functions...
@@ -2724,6 +2830,9 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 				break;
 
 				case AF_INET6:
+					if (!ipv6_enabled)
+						continue;
+
 					/* For IPv6, we add the route as long as the interface name matches */
 					if (!rp->nh.device.name ||
 					    !ni_string_eq(rp->nh.device.name, dev->name))
@@ -2909,6 +3018,11 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 static ni_bool_t
 __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
 {
+	ni_netdev_t *dev = compat->dev;
+
+	if (dev && dev->ipv4 && ni_tristate_is_disabled(dev->ipv4->conf.enabled))
+		return FALSE;
+
 	if (compat->dhcp4.enabled)
 		return TRUE;
 
@@ -2932,6 +3046,11 @@ __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 static ni_bool_t
 __ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
 {
+	ni_netdev_t *dev = compat->dev;
+
+	if (dev && dev->ipv6 && ni_tristate_is_disabled(dev->ipv6->conf.enabled))
+		return FALSE;
+
 	if (compat->dhcp6.enabled)
 		return TRUE;
 
@@ -2984,28 +3103,28 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	/* Hmm... bonding slave -- set ethtool, but no link up */
 	if (ni_string_eq_nocase(bootproto, "none")) {
 		if (ipv4)
-			ipv4->conf.enabled = FALSE;
+			ni_tristate_set(&ipv4->conf.enabled, FALSE);
 		if (ipv6)
-			ipv6->conf.enabled = FALSE;
+			ni_tristate_set(&ipv6->conf.enabled, FALSE);
 		return TRUE;
 	}
 
-	if (ipv4 && ipv4->conf.enabled) {
+	if (ipv4 && !ni_tristate_is_disabled(ipv4->conf.enabled)) {
 		if (__ni_suse_config_defaults) {
 			if ((value = ni_sysconfig_get_value(__ni_suse_config_defaults,
 						"CHECK_DUPLICATE_IP"))) {
-				ipv4->conf.arp_verify = !ni_string_eq(value, "no");
+				ni_tristate_set(&ipv4->conf.arp_verify, !ni_string_eq(value, "no"));
 			}
 			if ((value = ni_sysconfig_get_value(__ni_suse_config_defaults,
 						"SEND_GRATUITOUS_ARP"))) {
-				ipv4->conf.arp_notify = ni_string_eq(value, "yes");
+				ni_tristate_set(&ipv4->conf.arp_notify, ni_string_eq(value, "yes"));
 			}
 		}
 		if ((value = ni_sysconfig_get_value(sc, "CHECK_DUPLICATE_IP"))) {
-			ipv4->conf.arp_verify = !ni_string_eq(value, "no");
+			ni_tristate_set(&ipv4->conf.arp_verify, !ni_string_eq(value, "no"));
 		}
 		if ((value = ni_sysconfig_get_value(sc, "SEND_GRATUITOUS_ARP"))) {
-			ipv4->conf.arp_notify = ni_string_eq(value, "yes");
+			ni_tristate_set(&ipv4->conf.arp_notify, ni_string_eq(value, "yes"));
 		}
 	}
 
@@ -3064,6 +3183,100 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 }
 
 /*
+ * Read ifsysctl file
+ */
+static void
+__ifsysctl_get_int(ni_var_array_t *vars, const char *path, const char *ifname,
+					const char *attr, int *value, int base)
+{
+	const char *names[] = { "all", "default", ifname, NULL };
+	const char **name;
+	ni_var_t *var;
+
+	for (name = names; *name; name++) {
+		var = ni_ifsysctl_vars_get(vars, "%s/%s/%s", path, *name, attr);
+		if (!var)
+			continue;
+		if (ni_parse_int(var->value, value, base) < 0) {
+			ni_debug_readwrite("Can't parse sysctl '%s'='%s' as integer",
+					var->name, var->value);
+		} else {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_READWRITE,
+				"Parsed sysctl '%s'='%s'", var->name, var->value);
+		}
+	}
+}
+
+static void
+__ifsysctl_get_tristate(ni_var_array_t *vars, const char *path, const char *ifname,
+			const char *attr, ni_tristate_t *tristate)
+{
+	int value = NI_TRISTATE_DEFAULT;
+
+	__ifsysctl_get_int(vars, path, ifname, attr, &value, 10);
+	if (ni_tristate_is_set(value))
+		ni_tristate_set(tristate, value);
+}
+
+static ni_bool_t
+__ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_var_array_t ifsysctl = NI_VAR_ARRAY_INIT;
+	ni_netdev_t *dev = compat->dev;
+	char pathbuf[PATH_MAX];
+	const char *dirname;
+	ni_ipv4_devinfo_t *ipv4;
+	ni_ipv6_devinfo_t *ipv6;
+
+	dirname = ni_dirname(sc->pathname);
+	if (ni_string_empty(dirname))
+		return FALSE;
+
+	ni_var_array_copy(&ifsysctl, &__ni_suse_global_ifsysctl);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s-%s", dirname,
+			__NI_SUSE_IFSYSCTL_FILE, dev->name);
+	if (ni_isreg(pathbuf)) {
+		ni_ifsysctl_file_load(&ifsysctl, pathbuf);
+	}
+
+	ipv4 = ni_netdev_get_ipv4(dev);
+	/* no conf.enable and conf.arp-verify in sysctl */
+	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
+				"forwarding", &ipv4->conf.forwarding);
+	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
+				"arp-notify", &ipv4->conf.arp_notify);
+	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
+				"accept-redirects", &ipv4->conf.accept_redirects);
+
+	ipv6 = ni_netdev_get_ipv6(dev);
+	if (__ni_ipv6_disbled) {
+		ni_tristate_set(&ipv6->conf.enabled, !__ni_ipv6_disbled);
+		ni_var_array_destroy(&ifsysctl);
+		return TRUE;
+	}
+	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
+				"disable_ipv6", &ipv6->conf.enabled);
+	if (ni_tristate_is_set(ipv6->conf.enabled))
+		ni_tristate_set(&ipv6->conf.enabled, !ipv6->conf.enabled);
+
+	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
+				"forwarding", &ipv6->conf.forwarding);
+	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
+				"autoconf", &ipv6->conf.autoconf);
+	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
+				"accept-redirects", &ipv6->conf.accept_redirects);
+
+	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
+				"privacy", &ipv6->conf.privacy, 10);
+	if (ipv6->conf.privacy > NI_IPV6_PRIVACY_PREFER_TEMPORARY)
+		ipv6->conf.privacy = NI_IPV6_PRIVACY_PREFER_TEMPORARY;
+	else if (ipv6->conf.privacy < NI_IPV6_PRIVACY_DEFAULT)
+		ipv6->conf.privacy = NI_IPV6_PRIVACY_DISABLED;
+
+	return TRUE;
+}
+
+/*
  * Read an ifcfg file
  */
 static ni_bool_t
@@ -3088,6 +3301,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	    try_ethernet(sc, compat)   < 0)
 		return FALSE;
 
+	__ni_suse_read_ifsysctl(sc, compat);
 	__ni_suse_bootproto(sc, compat);
 	/* FIXME: What to do with these:
 		NAME
