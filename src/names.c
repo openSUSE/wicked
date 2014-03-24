@@ -58,6 +58,7 @@ static const ni_intmap_t	__linktype_names[] = {
 	{ "bond",		NI_IFTYPE_BOND },
 	{ "vlan",		NI_IFTYPE_VLAN },
 	{ "macvlan",		NI_IFTYPE_MACVLAN },
+	{ "macvtap",		NI_IFTYPE_MACVTAP },
 	{ "wireless",		NI_IFTYPE_WIRELESS },
 	{ "infiniband",		NI_IFTYPE_INFINIBAND },
 	{ "infiniband-child",	NI_IFTYPE_INFINIBAND_CHILD },
