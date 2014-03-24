@@ -209,7 +209,8 @@ ni_netdev_set_tuntap(ni_netdev_t *dev, ni_tuntap_t *cfg)
 ni_macvlan_t *
 ni_netdev_get_macvlan(ni_netdev_t *dev)
 {
-	if (dev->link.type != NI_IFTYPE_MACVLAN)
+	if (dev->link.type != NI_IFTYPE_MACVLAN &&
+		dev->link.type != NI_IFTYPE_MACVTAP)
 		return NULL;
 
 	if (!dev->macvlan)
