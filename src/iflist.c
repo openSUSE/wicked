@@ -764,6 +764,8 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 			link->type = NI_IFTYPE_VLAN;
 		} else if (!strcmp(link->kind, "macvlan")) {
 			link->type = NI_IFTYPE_MACVLAN;
+		} else if (!strcmp(link->kind, "macvtap")) {
+			link->type = NI_IFTYPE_MACVTAP;
 		} else if (!strcmp(link->kind, "tun")) {
 			if (link->hwaddr.type == ARPHRD_ETHER)
 				link->type = NI_IFTYPE_TAP;
@@ -998,6 +1000,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		break;
 
 	case NI_IFTYPE_MACVLAN:
+	case NI_IFTYPE_MACVTAP:
 		__ni_discover_macvlan(dev, tb, nc);
 		break;
 

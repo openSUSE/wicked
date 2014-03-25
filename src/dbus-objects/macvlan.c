@@ -1,5 +1,5 @@
 /*
- *	DBus encapsulation for macvlan interfaces.
+ *	DBus encapsulation for macvlan/macvtap interfaces.
  *
  *	Copyright (C) 2013 SUSE LINUX Products GmbH, Nuernberg, Germany.
  *
@@ -20,6 +20,7 @@
  *
  *	Authors:
  *		Marius Tomaschewski <mt@suse.de>
+ *		Karol Mroz <kmroz@suse.com>
  *
  */
 #ifdef HAVE_CONFIG_H
@@ -39,15 +40,19 @@
 
 
 static ni_netdev_t *	__ni_objectmodel_macvlan_newlink(ni_netdev_t *, const char *, DBusError *);
+static dbus_bool_t	__ni_objectmodel_macvlan_change(ni_netdev_t *, ni_netdev_t *, DBusError *);
+static dbus_bool_t	__ni_objectmodel_macvlan_delete(ni_dbus_object_t *, const ni_dbus_method_t *,
+						unsigned int, const ni_dbus_variant_t *,
+						ni_dbus_message_t *, DBusError *);
 
 /*
  * Return an interface handle containing all macvlan-specific information provided
  * by the dict argument
  */
 static inline ni_netdev_t *
-__ni_objectmodel_macvlan_device_arg(const ni_dbus_variant_t *dict)
+__ni_objectmodel_macvlan_device_arg(const ni_dbus_variant_t *dict, unsigned int iftype)
 {
-	return ni_objectmodel_get_netif_argument(dict, NI_IFTYPE_MACVLAN,
+	return ni_objectmodel_get_netif_argument(dict, iftype,
 					&ni_objectmodel_macvlan_service);
 }
 
@@ -68,8 +73,34 @@ ni_objectmodel_macvlan_newlink(ni_dbus_object_t *factory_object,
 	NI_TRACE_ENTER();
 
 	ni_assert(argc == 2);
-	if (!ni_dbus_variant_get_string(&argv[0], &ifname)
-	 || !(dev = __ni_objectmodel_macvlan_device_arg(&argv[1]))) {
+	if (!ni_dbus_variant_get_string(&argv[0], &ifname) ||
+		!(dev = __ni_objectmodel_macvlan_device_arg(&argv[1], NI_IFTYPE_MACVLAN))) {
+		return ni_dbus_error_invalid_args(error,
+						factory_object->path,
+						method->name);
+	}
+
+	if (!(dev = __ni_objectmodel_macvlan_newlink(dev, ifname, error)))
+		return FALSE;
+
+	return ni_objectmodel_netif_factory_result(server, reply, dev, NULL, error);
+}
+
+dbus_bool_t
+ni_objectmodel_macvtap_newlink(ni_dbus_object_t *factory_object,
+			const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
+	ni_netdev_t *dev;
+	const char *ifname = NULL;
+
+	NI_TRACE_ENTER();
+
+	ni_assert(argc == 2);
+	if (!ni_dbus_variant_get_string(&argv[0], &ifname) ||
+		!(dev = __ni_objectmodel_macvlan_device_arg(&argv[1], NI_IFTYPE_MACVTAP))) {
 		return ni_dbus_error_invalid_args(error,
 						factory_object->path,
 						method->name);
@@ -97,8 +128,9 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 	} else
 	if (ni_netdev_ref_bind_ifindex(&cfg_ifp->link.lowerdev, nc) < 0) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"Unable to find macvlan lower device %s by name",
-				cfg_ifp->link.lowerdev.name);
+			"Unable to find %s lower device %s by name",
+			ni_linktype_type_to_name(cfg_ifp->link.type),
+			cfg_ifp->link.lowerdev.name);
 		return NULL;
 	}
 
@@ -110,12 +142,16 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 
 	if (ni_string_empty(ifname)) {
 		if (ni_string_empty(cfg_ifp->name) &&
-		    (ifname = ni_netdev_make_name(nc, "macvlan", 0))) {
+			(ifname = ni_netdev_make_name(
+				nc,
+				ni_linktype_type_to_name(cfg_ifp->link.type),
+				0))) {
 			ni_string_dup(&cfg_ifp->name, ifname);
 		} else {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"Unable to create macvlan interface: "
-				"name argument missed");
+				"Unable to create %s interface: "
+				"name argument missed",
+				ni_linktype_type_to_name(cfg_ifp->link.type));
 			goto out;
 		}
 		ifname = NULL;
@@ -124,8 +160,10 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 	}
 	if (ni_string_eq(cfg_ifp->name, cfg_ifp->link.lowerdev.name)) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"Cannot create macvlan interface: "
-				"macvlan name %s equal with lower device name");
+			"Cannot create %s interface: "
+			"macvlan name %s equal with lower device name",
+			ni_linktype_type_to_name(cfg_ifp->link.type),
+			cfg_ifp->name);
 		return NULL;
 	}
 
@@ -135,8 +173,9 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 		if (cfg_ifp->link.hwaddr.type != ARPHRD_ETHER ||
 		    cfg_ifp->link.hwaddr.len != ni_link_address_length(ARPHRD_ETHER)) {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"Cannot create macvlan interface: "
+				"Cannot create %s interface: "
 				"invalid ethernet address '%s'",
+				ni_linktype_type_to_name(cfg_ifp->link.type),
 				ni_link_address_print(&cfg_ifp->link.hwaddr));
 			return NULL;
 		}
@@ -146,19 +185,22 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 		if (rv != -NI_ERROR_DEVICE_EXISTS || dev_ifp == NULL
 		|| (ifname && dev_ifp && !ni_string_eq(dev_ifp->name, ifname))) {
 			dbus_set_error(error, DBUS_ERROR_FAILED,
-					"Unable to create macvlan interface: %s",
-					ni_strerror(rv));
+					"Unable to create %s interface: %s",
+				ni_linktype_type_to_name(cfg_ifp->link.type),
+				ni_strerror(rv));
 			dev_ifp = NULL;
 			goto out;
 		}
-		ni_debug_dbus("macvlan interface exists (and name matches)");
+		ni_debug_dbus("%s interface exists (and name matches)",
+			ni_linktype_type_to_name(cfg_ifp->link.type));
 	}
 
-	if (dev_ifp->link.type != NI_IFTYPE_MACVLAN) {
+	if (dev_ifp->link.type != cfg_ifp->link.type) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Unable to create macvlan interface: "
+				"Unable to create %s interface: "
 				"new interface is of type %s",
-				ni_linktype_type_to_name(dev_ifp->link.type));
+			ni_linktype_type_to_name(cfg_ifp->link.type),
+			ni_linktype_type_to_name(dev_ifp->link.type));
 		dev_ifp = NULL;
 	}
 
@@ -168,28 +210,55 @@ out:
 	return dev_ifp;
 }
 
-/*
- * Change a macvlan interface
- */
 static dbus_bool_t
 ni_objectmodel_macvlan_change(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_netdev_t *dev, *cfg;
-	ni_macvlan_t *macvlan;
-	const char *err;
 
 	/* we've already checked that argv matches our signature */
 	ni_assert(argc == 1);
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)) ||
-	    !(cfg = __ni_objectmodel_macvlan_device_arg(&argv[0])) ||
-	    !(ni_netdev_get_macvlan(dev))) {
+		!(cfg = __ni_objectmodel_macvlan_device_arg(&argv[0], NI_IFTYPE_MACVLAN)) ||
+		!(ni_netdev_get_macvlan(dev))) {
 		ni_dbus_error_invalid_args(error, object->path, method->name);
 		return FALSE;
 	}
+
+	return __ni_objectmodel_macvlan_change(cfg, dev, error);
+}
+
+static dbus_bool_t
+ni_objectmodel_macvtap_change(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev, *cfg;
+
+	/* we've already checked that argv matches our signature */
+	ni_assert(argc == 1);
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)) ||
+		!(cfg = __ni_objectmodel_macvlan_device_arg(&argv[0], NI_IFTYPE_MACVTAP)) ||
+		!(ni_netdev_get_macvlan(dev))) {
+		ni_dbus_error_invalid_args(error, object->path, method->name);
+		return FALSE;
+	}
+
+	return __ni_objectmodel_macvlan_change(cfg, dev, error);
+}
+
+/*
+ * Change a macvlan/macvtap interface
+ */
+static dbus_bool_t
+__ni_objectmodel_macvlan_change(ni_netdev_t *cfg, ni_netdev_t *dev, DBusError *error)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	const char *err;
+	ni_macvlan_t *macvlan;
 
 	macvlan = ni_netdev_get_macvlan(cfg);
 	if ((err = ni_macvlan_validate(macvlan))) {
@@ -203,11 +272,13 @@ ni_objectmodel_macvlan_change(ni_dbus_object_t *object, const ni_dbus_method_t *
 	     !ni_string_eq(cfg->link.lowerdev.name, dev->link.lowerdev.name))) {
 		if (cfg->link.lowerdev.name) {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"Cannot change macvlan lower device to %s",
+				"Cannot change %s lower device to %s",
+				ni_linktype_type_to_name(cfg->link.type),
 				cfg->link.lowerdev.name);
 		} else {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"Cannot change macvlan lower device to %u",
+				"Cannot change %s lower device to %u",
+				ni_linktype_type_to_name(cfg->link.type),
 				cfg->link.lowerdev.index);
 		}
 		return FALSE;
@@ -226,30 +297,35 @@ ni_objectmodel_macvlan_change(ni_dbus_object_t *object, const ni_dbus_method_t *
 	    (dev->macvlan->mode == NI_MACVLAN_MODE_PASSTHRU)) {
 		/* Passthrough mode can't be set or cleared dynamically */
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"Cannot change macvlan mode to %s",
-				ni_macvlan_mode_to_name(macvlan->mode));
+				"Cannot change %s mode to %s",
+			ni_linktype_type_to_name(dev->link.type),
+			ni_macvlan_mode_to_name(macvlan->mode));
 		return FALSE;
 	}
 
 	if (ni_netdev_device_is_up(dev)) {
-		ni_debug_objectmodel("Skipping macvlan changeDevice call on %s: "
-				"device is up", dev->name);
+		ni_debug_objectmodel("Skipping %s changeDevice call on %s: "
+				"device is up",
+				ni_linktype_type_to_name(dev->link.type),
+				dev->name);
 		return TRUE;
 	}
 
 	if (ni_system_macvlan_change(nc, dev, cfg) < 0) {
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
-				"Unable to change macvlan properties on interface %s",
-				dev->name);
+				"Unable to change %s properties on interface %s",
+			ni_linktype_type_to_name(dev->link.type),
+			dev->name);
 		return FALSE;
 	}
 
 	if (cfg->link.hwaddr.type == ARPHRD_VOID)
 		cfg->link.hwaddr.type = ARPHRD_ETHER;
 	if (ni_system_hwaddr_change(nc, dev, &cfg->link.hwaddr) < 0) {
-		ni_error("Unable to change hwaddr on macvlan interface %s",
-				dev->name);
+		ni_error("Unable to change hwaddr on %s interface %s",
+			ni_linktype_type_to_name(dev->link.type),
+			dev->name);
 		/* fail? */
 	}
 
@@ -257,10 +333,28 @@ ni_objectmodel_macvlan_change(ni_dbus_object_t *object, const ni_dbus_method_t *
 }
 
 /*
- * Delete a macvlan interface
+ * Delete a macvlan/macvtap interface
  */
 static dbus_bool_t
 ni_objectmodel_macvlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	return __ni_objectmodel_macvlan_delete(object, method, argc,
+					argv, reply, error);
+}
+
+static dbus_bool_t
+ni_objectmodel_macvtap_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	return __ni_objectmodel_macvlan_delete(object, method, argc,
+					argv, reply, error);
+}
+
+static dbus_bool_t
+__ni_objectmodel_macvlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
@@ -281,7 +375,6 @@ ni_objectmodel_macvlan_delete(ni_dbus_object_t *object, const ni_dbus_method_t *
 	ni_dbus_object_free(object);
 	return TRUE;
 }
-
 
 /*
  * Helper function to obtain macvlan config from dbus object
@@ -392,6 +485,7 @@ __ni_objectmodel_macvlan_set_flags(ni_dbus_object_t *object,
 	return ni_dbus_variant_get_uint16(result, &macvlan->flags);
 }
 
+/* MACVLAN Properties and Methods */
 #define	MACVLAN_PROPERTY_SIGNATURE(signature, dbus_name, rw) \
 		__NI_DBUS_PROPERTY(signature, dbus_name, __ni_objectmodel_macvlan, rw)
 #define MACVLAN_UINT32_PROPERTY(dbus_name, rw) \
@@ -422,6 +516,20 @@ static ni_dbus_method_t		ni_objectmodel_macvlan_factory_methods[] = {
 	{ NULL }
 };
 
+/* MACVTAP Methods */
+static ni_dbus_method_t		ni_objectmodel_macvtap_methods[] = {
+	{ "changeDevice",	"a{sv}",	ni_objectmodel_macvtap_change },
+	{ "deleteDevice",	"",		ni_objectmodel_macvtap_delete },
+	{ NULL }
+};
+
+static ni_dbus_method_t		ni_objectmodel_macvtap_factory_methods[] = {
+	{ "newDevice",		"sa{sv}",	ni_objectmodel_macvtap_newlink },
+
+	{ NULL }
+};
+
+/* MACVLAN Service */
 ni_dbus_service_t	ni_objectmodel_macvlan_factory_service = {
 	.name		= NI_OBJECTMODEL_MACVLAN_INTERFACE ".Factory",
 	.methods	= ni_objectmodel_macvlan_factory_methods,
@@ -433,3 +541,15 @@ ni_dbus_service_t	ni_objectmodel_macvlan_service = {
 	.properties	= ni_objectmodel_macvlan_property_table,
 };
 
+/* MACVTAP Service */
+ni_dbus_service_t	ni_objectmodel_macvtap_factory_service = {
+	.name		= NI_OBJECTMODEL_MACVTAP_INTERFACE ".Factory",
+	.methods	= ni_objectmodel_macvtap_factory_methods,
+};
+
+/* We re-use the macvlan_property_table. */
+ni_dbus_service_t	ni_objectmodel_macvtap_service = {
+	.name		= NI_OBJECTMODEL_MACVTAP_INTERFACE,
+	.methods	= ni_objectmodel_macvtap_methods,
+	.properties	= ni_objectmodel_macvlan_property_table,
+};

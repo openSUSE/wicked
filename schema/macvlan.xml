@@ -56,3 +56,49 @@
   </return>
  </method>
 </service>
+
+
+<!--
+  -- macvtap service definition
+  -->
+<service name="macvtap" interface="org.opensuse.Network.MACVTAP"
+			object-class="netif-macvtap">
+ <description>
+   This link-layer service is provided by all MACVTAP devices.
+   MACVTAP devices can be created through the org.opensuse.Network.MACVTAP.Factory
+   factory interface.
+ </description>
+
+ <!-- The same properties are returned in interface state reports -->
+ <define name="properties" type="macvlan:configuration"/>
+
+ <method name="changeDevice">
+  <arguments>
+   <config type="macvlan:configuration">
+    <!-- type is macvlan, but config node has it under /macvtap -->
+    <meta:mapping document-node="/macvtap" skip-unless-present="true" />
+   </config>
+  </arguments>
+ </method>
+
+ <method name="deleteDevice">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="macvtap-factory" interface="org.opensuse.Network.MACVTAP.Factory"
+				object-class="netif-list">
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <config type="macvlan:configuration">
+    <!-- type is macvlan, but config node has it under /macvtap -->
+    <meta:mapping document-node="/macvtap"/>
+   </config>
+  </arguments>
+  <return>
+   <!-- this is really an object handle -->
+   <string/>
+  </return>
+ </method>
+</service>
