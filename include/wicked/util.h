@@ -344,12 +344,18 @@ extern char *		ni_tempstate_mkfile(ni_tempstate_t *, const char *);
  */
 typedef struct ni_hashctx ni_hashctx_t;
 
-extern ni_hashctx_t *	ni_hashctx_new(void);
+typedef enum {
+	NI_HASHCTX_MD5	= 1,
+	NI_HASHCTX_SHA1	= 2,
+} ni_hashctx_algo_t;
+
+extern ni_hashctx_t *	ni_hashctx_new(ni_hashctx_algo_t algo);
 extern void		ni_hashctx_free(ni_hashctx_t *);
 extern void		ni_hashctx_begin(ni_hashctx_t *);
 extern void		ni_hashctx_finish(ni_hashctx_t *);
 extern unsigned int	ni_hashctx_get_digest_length(ni_hashctx_t *);
 extern int		ni_hashctx_get_digest(ni_hashctx_t *, void *, size_t);
+extern void		ni_hashctx_put(ni_hashctx_t *, const void *, size_t);
 extern void		ni_hashctx_puts(ni_hashctx_t *, const char *);
 
 

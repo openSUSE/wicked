@@ -940,7 +940,7 @@ static inline int
 __ni_ifworker_generate_config_uuid(const xml_node_t *config, ni_uuid_t *uuid)
 {
 	memset(uuid, 0, sizeof(*uuid));
-	return xml_node_hash(config, uuid->octets, sizeof(uuid->octets));
+	return xml_node_hash(config, NI_HASHCTX_MD5, uuid->octets, sizeof(uuid->octets));
 }
 
 static void
