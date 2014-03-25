@@ -111,6 +111,31 @@ xml_document_hash(const xml_document_t *doc, ni_hashctx_algo_t algo,
 	return xml_writer_destroy_get_hash(&writer, md_buffer, md_size);
 }
 
+int
+xml_document_uuid(const xml_document_t *doc, unsigned int version,
+			const ni_uuid_t *namespace, ni_uuid_t *uuid)
+{
+	xml_writer_t writer;
+	ni_hashctx_algo_t algo;
+
+	switch (version) {
+	case 3:	algo = NI_HASHCTX_MD5;	break;
+	case 5:	algo = NI_HASHCTX_SHA1;	break;
+	default:
+		return -1;
+	}
+
+	if (xml_writer_init_hash(&writer, algo) < 0)
+		return -1;
+
+	ni_hashctx_put(writer.hash, namespace, sizeof(*namespace));
+	xml_document_output(doc, &writer);
+	if (xml_writer_destroy_get_hash(&writer, uuid, sizeof(*uuid)) < 0)
+		return -1;
+
+	return ni_uuid_set_version(uuid, version);
+}
+
 void
 xml_document_output(const xml_document_t *doc, xml_writer_t *writer)
 {
@@ -157,7 +182,8 @@ xml_node_sprint(const xml_node_t *node)
 }
 
 int
-xml_node_hash(const xml_node_t *node, ni_hashctx_algo_t algo, void *md_buffer, size_t md_size)
+xml_node_hash(const xml_node_t *node, unsigned int algo,
+		void *md_buffer, size_t md_size)
 {
 	xml_writer_t writer;
 
@@ -166,6 +192,31 @@ xml_node_hash(const xml_node_t *node, ni_hashctx_algo_t algo, void *md_buffer, s
 
 	xml_node_output(node, &writer, 0);
 	return xml_writer_destroy_get_hash(&writer, md_buffer, md_size);
+}
+
+int
+xml_node_uuid(const xml_node_t *doc, unsigned int version,
+		const ni_uuid_t *namespace, ni_uuid_t *uuid)
+{
+	xml_writer_t writer;
+	ni_hashctx_algo_t algo;
+
+	switch (version) {
+	case 3:	algo = NI_HASHCTX_MD5;	break;
+	case 5:	algo = NI_HASHCTX_SHA1;	break;
+	default:
+		return -1;
+	}
+
+	if (xml_writer_init_hash(&writer, algo) < 0)
+		return -1;
+
+	ni_hashctx_put(writer.hash, namespace, sizeof(*namespace));
+	xml_node_output(doc, &writer, 0);
+	if (xml_writer_destroy_get_hash(&writer, uuid, sizeof(*uuid)) < 0)
+		return -1;
+
+	return ni_uuid_set_version(uuid, version);
 }
 
 int

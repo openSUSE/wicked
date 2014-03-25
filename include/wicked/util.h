@@ -194,6 +194,7 @@ extern int		ni_uuid_is_null(const ni_uuid_t *);
 extern int		ni_uuid_equal(const ni_uuid_t *, const ni_uuid_t *);
 extern ni_uuid_t *	ni_uuid_generate(ni_uuid_t *);
 extern int		ni_uuid_for_file(ni_uuid_t *, const char *);
+extern int		ni_uuid_set_version(ni_uuid_t *, unsigned int);
 
 extern char *		ni_quote(const char *string, const char *sepa);
 extern char *		ni_unquote(const char **stringp, const char *sepa);
