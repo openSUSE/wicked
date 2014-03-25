@@ -74,7 +74,7 @@ libwicked_la_SOURCES		= \
 	lldp.c			\
 	logging.c		\
 	macvlan.c		\
-	md5sum.c		\
+	hashcsum.c		\
 	modem-manager.c		\
 	modprobe.c		\
 	names.c			\
