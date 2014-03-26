@@ -119,7 +119,10 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 	ni_netdev_t *dev_ifp = NULL;
 	const ni_macvlan_t *macvlan;
 	const char *err;
+	const char *cfg_ifp_iftype = NULL;
 	int rv;
+
+	cfg_ifp_iftype = ni_linktype_type_to_name(cfg_ifp->link.type);
 
 	if (ni_string_empty(cfg_ifp->link.lowerdev.name)) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
@@ -129,7 +132,7 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 	if (ni_netdev_ref_bind_ifindex(&cfg_ifp->link.lowerdev, nc) < 0) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 			"Unable to find %s lower device %s by name",
-			ni_linktype_type_to_name(cfg_ifp->link.type),
+			cfg_ifp_iftype,
 			cfg_ifp->link.lowerdev.name);
 		return NULL;
 	}
@@ -144,14 +147,14 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 		if (ni_string_empty(cfg_ifp->name) &&
 			(ifname = ni_netdev_make_name(
 				nc,
-				ni_linktype_type_to_name(cfg_ifp->link.type),
+				cfg_ifp_iftype,
 				0))) {
 			ni_string_dup(&cfg_ifp->name, ifname);
 		} else {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Unable to create %s interface: "
 				"name argument missed",
-				ni_linktype_type_to_name(cfg_ifp->link.type));
+				cfg_ifp_iftype);
 			goto out;
 		}
 		ifname = NULL;
@@ -162,7 +165,7 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 			"Cannot create %s interface: "
 			"macvlan name %s equal with lower device name",
-			ni_linktype_type_to_name(cfg_ifp->link.type),
+			cfg_ifp_iftype,
 			cfg_ifp->name);
 		return NULL;
 	}
@@ -175,7 +178,7 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Cannot create %s interface: "
 				"invalid ethernet address '%s'",
-				ni_linktype_type_to_name(cfg_ifp->link.type),
+				cfg_ifp_iftype,
 				ni_link_address_print(&cfg_ifp->link.hwaddr));
 			return NULL;
 		}
@@ -186,20 +189,20 @@ __ni_objectmodel_macvlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusE
 		|| (ifname && dev_ifp && !ni_string_eq(dev_ifp->name, ifname))) {
 			dbus_set_error(error, DBUS_ERROR_FAILED,
 					"Unable to create %s interface: %s",
-				ni_linktype_type_to_name(cfg_ifp->link.type),
+				cfg_ifp_iftype,
 				ni_strerror(rv));
 			dev_ifp = NULL;
 			goto out;
 		}
 		ni_debug_dbus("%s interface exists (and name matches)",
-			ni_linktype_type_to_name(cfg_ifp->link.type));
+			cfg_ifp_iftype);
 	}
 
 	if (dev_ifp->link.type != cfg_ifp->link.type) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Unable to create %s interface: "
 				"new interface is of type %s",
-			ni_linktype_type_to_name(cfg_ifp->link.type),
+			cfg_ifp_iftype,
 			ni_linktype_type_to_name(dev_ifp->link.type));
 		dev_ifp = NULL;
 	}
@@ -259,6 +262,7 @@ __ni_objectmodel_macvlan_change(ni_netdev_t *cfg, ni_netdev_t *dev, DBusError *e
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	const char *err;
 	ni_macvlan_t *macvlan;
+	const char *dev_iftype = NULL;
 
 	macvlan = ni_netdev_get_macvlan(cfg);
 	if ((err = ni_macvlan_validate(macvlan))) {
@@ -270,16 +274,16 @@ __ni_objectmodel_macvlan_change(ni_netdev_t *cfg, ni_netdev_t *dev, DBusError *e
 	     (cfg->link.lowerdev.index != dev->link.lowerdev.index)) ||
 	    (cfg->link.lowerdev.name &&
 	     !ni_string_eq(cfg->link.lowerdev.name, dev->link.lowerdev.name))) {
+		const char *cfg_iftype = ni_linktype_type_to_name(cfg->link.type);
+
 		if (cfg->link.lowerdev.name) {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Cannot change %s lower device to %s",
-				ni_linktype_type_to_name(cfg->link.type),
-				cfg->link.lowerdev.name);
+				cfg_iftype, cfg->link.lowerdev.name);
 		} else {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Cannot change %s lower device to %u",
-				ni_linktype_type_to_name(cfg->link.type),
-				cfg->link.lowerdev.index);
+				cfg_iftype, cfg->link.lowerdev.index);
 		}
 		return FALSE;
 	}
@@ -290,6 +294,8 @@ __ni_objectmodel_macvlan_change(ni_netdev_t *cfg, ni_netdev_t *dev, DBusError *e
 	if (ni_string_empty(cfg->name))
 		ni_string_dup(&cfg->name, dev->name);
 
+	dev_iftype = ni_linktype_type_to_name(dev->link.type);
+
 	if (!macvlan->mode) {
 		macvlan->mode = dev->macvlan->mode;
 	} else
@@ -298,16 +304,14 @@ __ni_objectmodel_macvlan_change(ni_netdev_t *cfg, ni_netdev_t *dev, DBusError *e
 		/* Passthrough mode can't be set or cleared dynamically */
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Cannot change %s mode to %s",
-			ni_linktype_type_to_name(dev->link.type),
+			dev_iftype,
 			ni_macvlan_mode_to_name(macvlan->mode));
 		return FALSE;
 	}
 
 	if (ni_netdev_device_is_up(dev)) {
 		ni_debug_objectmodel("Skipping %s changeDevice call on %s: "
-				"device is up",
-				ni_linktype_type_to_name(dev->link.type),
-				dev->name);
+				"device is up", dev_iftype, dev->name);
 		return TRUE;
 	}
 
@@ -315,8 +319,7 @@ __ni_objectmodel_macvlan_change(ni_netdev_t *cfg, ni_netdev_t *dev, DBusError *e
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
 				"Unable to change %s properties on interface %s",
-			ni_linktype_type_to_name(dev->link.type),
-			dev->name);
+			dev_iftype, dev->name);
 		return FALSE;
 	}
 
@@ -324,8 +327,7 @@ __ni_objectmodel_macvlan_change(ni_netdev_t *cfg, ni_netdev_t *dev, DBusError *e
 		cfg->link.hwaddr.type = ARPHRD_ETHER;
 	if (ni_system_hwaddr_change(nc, dev, &cfg->link.hwaddr) < 0) {
 		ni_error("Unable to change hwaddr on %s interface %s",
-			ni_linktype_type_to_name(dev->link.type),
-			dev->name);
+			dev_iftype, dev->name);
 		/* fail? */
 	}
 
