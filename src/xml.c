@@ -354,6 +354,12 @@ xml_node_get_attr(const xml_node_t *node, const char *name)
  * FIXME: The next 3 functions aren't used at all
  */
 ni_bool_t
+xml_node_del_attr(xml_node_t *node, const char *name)
+{
+	return node ? ni_var_array_remove(&node->attrs, name) : FALSE;
+}
+
+ni_bool_t
 xml_node_get_attr_uint(const xml_node_t *node, const char *name, unsigned int *valp)
 {
 	const ni_var_t *attr;
