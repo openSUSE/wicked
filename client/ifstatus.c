@@ -87,7 +87,7 @@ ni_ifstatus_code_name(unsigned int status)
 {
 	static const ni_intmap_t        __status_name_map[] = {
 		{ "device-not-enabled",		NI_WICKED_ST_DISABLED		},
-		{ "device-not-started",		NI_WICKED_ST_NOT_STARTED	},
+		{ "device-unconfigured",	NI_WICKED_ST_UNCONFIGURED	},
 		{ "no-device",			NI_WICKED_ST_NO_DEVICE		},
 		{ "device-not-running",		NI_WICKED_ST_NOT_RUNNING	},
 		{ "no-config",			NI_WICKED_ST_NO_CONFIG		},
@@ -151,16 +151,14 @@ __ifstatus_of_device(ni_netdev_t *dev)
 {
 	unsigned int st = NI_WICKED_ST_OK;
 
-	if (!ni_ifcheck_device_is_up(dev) ||
-	    !ni_ifcheck_device_fsm_is_up(dev))
+	if (!ni_ifcheck_device_is_up(dev))
 		return NI_WICKED_ST_NOT_RUNNING;
 
-	if (!ni_ifcheck_device_link_is_up(dev) ||
-	    !ni_ifcheck_device_fsm_link_is_up(dev))
-		st = NI_WICKED_ST_IN_PROGRESS;
+	if (!ni_ifcheck_device_link_is_up(dev))
+		return NI_WICKED_ST_IN_PROGRESS;
 
 	__ifstatus_of_device_leases(dev, &st);
-	if (st == NI_WICKED_ST_IN_PROGRESS)
+	if (st != NI_WICKED_ST_NOT_RUNNING)
 		__ifstatus_of_device_addrs(dev, &st);
 
 	return st;
@@ -177,7 +175,7 @@ ni_ifstatus_of_device(ni_netdev_t *dev, ni_bool_t *mandatory)
 		return NI_WICKED_ST_NO_DEVICE;
 
 	if (!ni_ifcheck_device_configured(dev))
-		return NI_WICKED_ST_NOT_STARTED;
+		return NI_WICKED_ST_UNCONFIGURED;
 
 	return __ifstatus_of_device(dev);
 }
@@ -200,7 +198,7 @@ ni_ifstatus_of_worker(ni_ifworker_t *w, ni_bool_t *mandatory)
 	}
 
 	if (!ni_ifcheck_device_configured(dev))
-		return NI_WICKED_ST_NOT_STARTED;
+		return NI_WICKED_ST_UNCONFIGURED;
 
 	st = __ifstatus_of_device(dev);
 	if (st == NI_WICKED_ST_OK) {
@@ -460,7 +458,7 @@ ni_ifstatus_to_retcode(int status, ni_bool_t mandatory)
 	case NI_WICKED_ST_NOT_RUNNING:
 		return mandatory ? NI_WICKED_ST_FAILED : NI_WICKED_ST_OK;
 
-	case NI_WICKED_ST_NOT_STARTED:
+	case NI_WICKED_ST_UNCONFIGURED:
 		return mandatory ? NI_WICKED_ST_UNUSED : NI_WICKED_ST_OK;
 
 	default:
@@ -668,7 +666,7 @@ ni_do_ifstatus(int argc, char **argv)
 		if (!opt_transient) {
 			switch (status) {
 			case NI_WICKED_ST_NO_DEVICE:
-			case NI_WICKED_ST_NOT_STARTED:
+			case NI_WICKED_ST_UNCONFIGURED:
 			case NI_WICKED_ST_NOT_RUNNING:
 			default:
 				status = NI_WICKED_ST_OK;
