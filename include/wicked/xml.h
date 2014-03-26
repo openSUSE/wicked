@@ -119,6 +119,7 @@ extern void		xml_node_add_attr_double(xml_node_t *, const char *, double);
 extern ni_bool_t	xml_node_has_attr(const xml_node_t *, const char *);
 extern ni_bool_t	xml_node_del_attr(xml_node_t *, const char *);
 extern const char *	xml_node_get_attr(const xml_node_t *, const char *);
+extern const ni_var_t *	xml_node_get_attr_var(const xml_node_t *, const char *);
 extern ni_bool_t	xml_node_get_attr_uint(const xml_node_t *, const char *, unsigned int *);
 extern ni_bool_t	xml_node_get_attr_ulong(const xml_node_t *, const char *, unsigned long *);
 extern ni_bool_t	xml_node_get_attr_double(const xml_node_t *, const char *, double *);
