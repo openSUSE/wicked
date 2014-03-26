@@ -646,7 +646,7 @@ do_show_config(int argc, char **argv, const char *root_schema)
 	};
 
 	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
-	ni_bool_t opt_raw = 0;
+	ni_bool_t opt_raw = FALSE;
 	const char *opt_output = NULL;
 	unsigned i;
 	int c;
@@ -655,7 +655,7 @@ do_show_config(int argc, char **argv, const char *root_schema)
 	while ((c = getopt_long(argc, argv, "", options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_RAW:
-			opt_raw = 1;
+			opt_raw = TRUE;
 			break;
 
 		case OPT_OUTPUT:
@@ -676,14 +676,15 @@ do_show_config(int argc, char **argv, const char *root_schema)
 				"  --help\n"
 				"      Show this help text.\n"
 				"  --raw\n"
-				"      Filter out existing <client-info> tags\n"
+				"      Do not display configs' metadata.\n"
 				"  --output <path>\n"
-				"        Specify output file\n"
+				"      Specify output file\n"
 				);
 			return 1;
 		}
 	}
 
+	ni_objectmodel_init(NULL);
 	if (optind == argc) {
 		/* Print all */
 		const ni_string_array_t *cs_array = ni_config_sources("ifconfig");
@@ -691,7 +692,8 @@ do_show_config(int argc, char **argv, const char *root_schema)
 
 		for (i = 0; i < cs_array->count; i++) {
 			if (!root_schema || !strcmp(root_schema, cs_array->data[i])) {
-				if (!ni_ifconfig_read(&docs, opt_global_rootdir, cs_array->data[i], opt_raw)) {
+				if (!ni_ifconfig_read(&docs, opt_global_rootdir,
+						cs_array->data[i], FALSE, opt_raw)) {
 					ni_error("Unable to read config source from %s",
 						cs_array->data[i]);
 					return 1;
@@ -707,7 +709,8 @@ do_show_config(int argc, char **argv, const char *root_schema)
 			else
 				ni_string_printf(&path, "%s%s", root_schema, argv[optind++]);
 
-			if (!ni_ifconfig_read(&docs, opt_global_rootdir, path, opt_raw)) {
+			if (!ni_ifconfig_read(&docs, opt_global_rootdir,
+					path, FALSE, opt_raw)) {
 				ni_error("Unable to read config source from %s", path);
 				return 1;
 			}
@@ -1475,9 +1478,9 @@ do_convert(int argc, char **argv)
 				"  --help\n"
 				"      Show this help text.\n"
 				"  --raw\n"
-				"      Filter out existing <client-info> tags\n"
+				"      Do not generate configs' metadata.\n"
 				"  --output <path>\n"
-				"        Specify output file\n"
+				"      Specify output file\n"
 			       );
 			return 0;
 		}

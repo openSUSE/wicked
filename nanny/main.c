@@ -210,8 +210,8 @@ babysit(void)
 	ni_nanny_start(mgr);
 	fsm = mgr->fsm;
 
-	/* Nanny should not update neither <client-info> nor <client-state>,
-	 * unless it is told to configure a device by 'wicked enable'.
+	/* Nanny should not update <client-state>, unless it is told to
+	 * configure a device by 'wicked enable'.
 	 */
 	fsm->readonly = TRUE;
 

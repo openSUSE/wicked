@@ -50,9 +50,9 @@ static ni_bool_t opt_quiet;
 ni_bool_t
 ni_ifcheck_device_configured(ni_netdev_t *dev)
 {
-	ni_device_clientinfo_t *ci;
+	ni_client_state_t *cs;
 
-	if (!dev || !(ci = dev->client_info) || ni_string_empty(ci->config_origin))
+	if (!dev || !(cs = dev->client_state) || ni_string_empty(cs->config.origin))
 		return FALSE;
 	return TRUE;
 }
@@ -75,36 +75,11 @@ ni_ifcheck_device_network_is_up(ni_netdev_t *dev)
 	return dev && !!(dev->link.ifflags & NI_IFF_NETWORK_UP);
 }
 
-unsigned int
-__ifcheck_device_fsm_state(ni_netdev_t *dev)
-{
-	ni_device_clientinfo_t *ci;
-
-	if (dev && (ci = dev->client_info)) {
-		unsigned int state;
-
-		if (ni_ifworker_state_from_name(ci->state, &state))
-			return state;
-	}
-	return NI_FSM_STATE_NONE;
-}
-
-ni_bool_t
-ni_ifcheck_device_fsm_is_up(ni_netdev_t *dev)
-{
-	return __ifcheck_device_fsm_state(dev) >= NI_FSM_STATE_DEVICE_UP;
-}
-
-ni_bool_t
-ni_ifcheck_device_fsm_link_is_up(ni_netdev_t *dev)
-{
-	return __ifcheck_device_fsm_state(dev) >= NI_FSM_STATE_LINK_UP;
-}
-
 ni_bool_t
 ni_ifcheck_device_is_persistent(ni_netdev_t *dev)
 {
-	return dev && dev->client_state && dev->client_state->persistent;
+	ni_client_state_t *cs = dev ? dev->client_state : NULL;
+	return cs && cs->control.persistent;
 }
 
 ni_bool_t
@@ -148,10 +123,11 @@ ni_ifcheck_worker_config_matches(ni_ifworker_t *w)
 {
 	ni_netdev_t *dev;
 
-	if (w && w->config.node && (dev = w->device)) {
-		ni_device_clientinfo_t *ci = dev->client_info;
+	if (ni_ifcheck_worker_config_exists(w) && (dev = w->device)) {
+		ni_client_state_t *cs = dev->client_state;
 
-		return ci && ni_uuid_equal(&ci->config_uuid, &w->config.uuid);
+		return cs &&
+			ni_uuid_equal(&cs->config.uuid, &w->config.meta.uuid);
 	}
 	return FALSE;
 }
@@ -162,7 +138,8 @@ ni_ifcheck_worker_not_in_state(ni_ifworker_t *w, unsigned int state_val)
 	unsigned int state_dev;
 
 	ni_assert(w);
-	state_dev = __ifcheck_device_fsm_state(w->device);
+	/* FIXME: add state mapping */
+	state_dev = NI_FSM_STATE_NONE;
 
 	if (state_val < NI_FSM_STATE_DEVICE_EXISTS && state_dev > state_val)
 		return TRUE;
@@ -319,7 +296,7 @@ ni_do_ifcheck(int argc, char **argv)
 		}
 	}
 
-	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE)) {
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE, TRUE)) {
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 		goto cleanup;
 	}
@@ -351,8 +328,7 @@ ni_do_ifcheck(int argc, char **argv)
 		for (i = 0; i < marked.count; ++i) {
 			ni_ifworker_t *w = marked.data[i];
 			ni_netdev_t *dev = w->device;
-			ni_device_clientinfo_t *client_info =
-				dev ? dev->client_info : NULL;
+			ni_client_state_t *cs = dev ? dev->client_state : NULL;
 			unsigned int j;
 
 			if (ni_string_array_index(&ifnames, w->name) != -1)
@@ -383,9 +359,9 @@ ni_do_ifcheck(int argc, char **argv)
 								(changed ? "yes" : "no"));
 						if (changed) {
 							ni_debug_wicked("%s: config file uuid is %s", w->name,
-							ni_uuid_print(&w->config.uuid));
+								ni_uuid_print(&w->config.meta.uuid));
 							ni_debug_wicked("%s: system dev. uuid is %s", w->name,
-								client_info? ni_uuid_print(&client_info->config_uuid) : "NOT SET");
+								cs ? ni_uuid_print(&cs->config.uuid) : "NOT SET");
 							set_status(&status, NI_WICKED_ST_CHANGED_CONFIG);
 						}
 						break;

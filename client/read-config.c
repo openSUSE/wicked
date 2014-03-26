@@ -60,6 +60,7 @@ struct ni_ifconfig_type {
 						const char *,
 						const char *,
 						const char *,
+						ni_bool_t,
 						ni_bool_t);
 	    const ni_ifconfig_type_t *	(*guess)(const ni_ifconfig_type_t *,
 						const char *root,
@@ -71,22 +72,26 @@ static ni_bool_t	ni_ifconfig_read_wicked(xml_document_array_t *,
 						const char *,
 						const char *,
 						const char *,
+						ni_bool_t,
 						ni_bool_t);
 static ni_bool_t	ni_ifconfig_read_wicked_xml(xml_document_array_t *,
 						const char *,
 						const char *,
 						const char *,
+						ni_bool_t,
 						ni_bool_t);
 static ni_bool_t	ni_ifconfig_read_compat(xml_document_array_t *,
 						const char *,
 						const char *,
 						const char *,
+						ni_bool_t,
 						ni_bool_t);
 #if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
 static ni_bool_t	ni_ifconfig_read_compat_suse(xml_document_array_t *,
 						const char *,
 						const char *,
 						const char *,
+						ni_bool_t,
 						ni_bool_t);
 #endif
 #if defined(COMPAT_AUTO) || defined(COMPAT_REDHAT)
@@ -100,6 +105,7 @@ static ni_bool_t	ni_ifconfig_read_firmware(xml_document_array_t *,
 						const char *,
 						const char *,
 						const char *,
+						ni_bool_t,
 						ni_bool_t);
 
 static const ni_ifconfig_type_t *
@@ -191,13 +197,13 @@ static const ni_ifconfig_type_t	__ni_ifconfig_types[] = {
 };
 
 ni_bool_t
-ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *opt_ifconfig, ni_bool_t force)
+ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *opt_ifconfig, ni_bool_t check_prio, ni_bool_t raw)
 {
 	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
 	unsigned int i;
 
 	for (i = 0; i < opt_ifconfig->count; ++i) {
-		if (!ni_ifconfig_read(&docs, root, opt_ifconfig->data[i], force))
+		if (!ni_ifconfig_read(&docs, root, opt_ifconfig->data[i], check_prio, raw))
 			return FALSE;
 	}
 
@@ -213,7 +219,7 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *opt_ifconfi
 }
 
 ni_bool_t
-ni_ifconfig_read(xml_document_array_t *array, const char *root, const char *path, ni_bool_t raw)
+ni_ifconfig_read(xml_document_array_t *array, const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
 {
 	const ni_ifconfig_type_t *map;
 	const char *_path = path;
@@ -228,7 +234,7 @@ ni_ifconfig_read(xml_document_array_t *array, const char *root, const char *path
 
 	map = ni_ifconfig_find_type(__ni_ifconfig_types, root, path, _name, len);
 	if (map && map->name && map->ops.read) {
-		return map->ops.read(array, map->name, root, _path, raw);
+		return map->ops.read(array, map->name, root, _path, check_prio, raw);
 	}
 
 	ni_error("Unsupported ifconfig type %.*s", (int)len, path);
@@ -255,28 +261,110 @@ __ni_ifconfig_origin_get_prio(const char *origin)
 	return prio;
 }
 
-static inline const char *
-__ifconfig_read_get_iface_name(xml_node_t *ifnode)
+static ni_var_array_t *
+ni_get_ifname_to_ifindex_mapping(void)
 {
-	xml_node_t *nnode = NULL;
+	ni_dbus_object_t *list_object = NULL;
+	ni_dbus_object_t *object;
+	ni_netdev_t *dev;
+	static ni_var_array_t *nva;
 
-	if (ifnode)
-		nnode = xml_node_get_child(ifnode, "name");
-	return (!nnode || ni_string_empty(nnode->cdata)) ? NULL : nnode->cdata;
+	if (nva && nva->count > 0)
+		return nva;
+
+	ni_debug_ifconfig("Creating map of all interfaces' names and indexes");
+
+	if (!list_object && !(list_object = ni_call_get_netif_list_object()))
+		ni_fatal("unable to get server's interface list");
+
+	/* Call ObjectManager.GetManagedObjects to get list of objects and their properties */
+	if (!ni_dbus_object_refresh_children(list_object))
+		ni_fatal("Couldn't refresh list of active network interfaces");
+
+	if (!nva)
+		nva = ni_var_array_new();
+
+	for (object = list_object->children; object; object = object->next) {
+		dev = ni_objectmodel_unwrap_netif(object, NULL);
+		if (!ni_string_empty(dev->name))
+			ni_var_array_set_integer(nva, dev->name, dev->link.ifindex);
+	}
+
+	return nva;
 }
 
+/*
+ * Get interface's name and index
+ *
+ * return values:
+ *   -1 - error
+ *    0 - ifname obtained
+ *    1 - ifname and ifindex obtained
+ */
+static int
+__ifconfig_read_get_iface_name(xml_node_t *ifnode, const char **ifname, unsigned int *ifindex)
+{
+	xml_node_t *nnode = NULL;
+	const char *namespace;
+	int rv = -1;
+
+	if (!ifnode || !ifname)
+		return rv;
+
+	/* Config has no device name */
+	if (!(nnode = xml_node_get_child(ifnode, "name"))) {
+		*ifname = NULL;
+		if (ifindex)
+			*ifindex = -1U;
+		return rv;
+	}
+
+	*ifname = nnode->cdata;
+
+	if (!ifindex)
+		return 0;
+
+	/* Default value in case of ifindex not found */
+	*ifindex = -1U;
+
+	if ((namespace = xml_node_get_attr(nnode, "namespace"))) { /* Check namespaces */
+		if (!strcmp(namespace, "ifindex")) { /* Retrieve ifindex directly */
+			if ((rv = ni_parse_uint(nnode->cdata, ifindex, 10)) < 0)
+				return rv;
+		}
+		else {
+			/* TODO: Implement other namespaces */
+			;
+		}
+	}
+	else { /* Map device name to ifindex */
+		ni_var_array_t *nva = ni_get_ifname_to_ifindex_mapping();
+		ni_var_t *var;
+
+		/* Check if device is present */
+		if (!(var = ni_var_array_get(nva, nnode->cdata)))
+			return 0;
+
+		if ((rv = ni_parse_uint(var->value, ifindex, 10)) < 0)
+			return rv;
+	}
+
+	return 1;
+}
+
+
 ni_bool_t
-ni_ifconfig_validate_adding_doc(xml_document_array_t *docs, xml_document_t *config_doc, ni_bool_t force)
+ni_ifconfig_validate_adding_doc(xml_document_array_t *docs, xml_document_t *config_doc, ni_bool_t check_prio)
 {
 	xml_node_t *dst_root, *src_root, *dst_child, *src_child;
 	ni_config_origin_prio_t dst_prio, src_prio;
+	unsigned int dst_ifindex, src_ifindex, i;
 	const char *dst_ifname, *src_ifname;
-	unsigned int i;
 
 	ni_assert(docs);
 	if (!config_doc)
 		return FALSE;
-	if (force)
+	if (!check_prio)
 		return TRUE;
 
 	/* Go through all config_doc's <interfaces> */
@@ -290,14 +378,15 @@ ni_ifconfig_validate_adding_doc(xml_document_array_t *docs, xml_document_t *conf
 
 		/* Go through all already added docs' <interfaces> */
 		for (dst_child = dst_root->children; dst_child; dst_child = dst_child->next) {
-			if (!(dst_ifname = __ifconfig_read_get_iface_name(dst_child)))
+			if (__ifconfig_read_get_iface_name(dst_child, &dst_ifname, &dst_ifindex) < 0)
 				return FALSE;
 
 			/* Go through all   <interfaces> of a doc being added */
 			for (src_child = src_root->children; src_child; src_child = src_child->next) {
-				if (!(src_ifname = __ifconfig_read_get_iface_name(src_child)))
+				if (__ifconfig_read_get_iface_name(src_child, &src_ifname, &src_ifindex) < 0)
 					return FALSE;
-				if (ni_string_eq(dst_ifname, src_ifname) && dst_prio <= src_prio) {
+
+				if ((ni_string_eq(dst_ifname, src_ifname) || (dst_ifindex == src_ifindex && dst_ifindex != -1U)) && dst_prio <= src_prio) {
 					ni_warn("Ignoring config %s because of higher prio config %s",
 						xml_node_get_location_filename(src_root),
 						xml_node_get_location_filename(dst_root));
@@ -314,7 +403,7 @@ ni_ifconfig_validate_adding_doc(xml_document_array_t *docs, xml_document_t *conf
  * Read ifconfig file
  */
 static ni_bool_t
-__ni_ifconfig_xml_read_file(xml_document_array_t *docs, const char *root, const char *pathname, ni_bool_t raw)
+__ni_ifconfig_xml_read_file(xml_document_array_t *docs, const char *root, const char *pathname, ni_bool_t check_prio, ni_bool_t raw)
 {
 	xml_document_t *config_doc;
 	char pathbuf[PATH_MAX] = {'\0'};
@@ -330,11 +419,13 @@ __ni_ifconfig_xml_read_file(xml_document_array_t *docs, const char *root, const 
 	}
 
 	if (!raw) {
-		ni_ifconfig_add_client_info(config_doc,
-			ni_ifconfig_generate_client_info("wicked", pathname, NULL), NULL);
+		ni_client_state_config_t conf = NI_CLIENT_STATE_CONFIG_INIT;
+		ni_ifconfig_metadata_generate(&conf, "wicked", pathname);
+		ni_ifconfig_metadata_add_to_node(config_doc->root, &conf);
+		ni_string_free(&conf.origin);
 	}
 
-	if (ni_ifconfig_validate_adding_doc(docs, config_doc, raw))
+	if (ni_ifconfig_validate_adding_doc(docs, config_doc, check_prio))
 		xml_document_array_append(docs, config_doc);
 	else
 		xml_document_free(config_doc);
@@ -343,7 +434,7 @@ __ni_ifconfig_xml_read_file(xml_document_array_t *docs, const char *root, const 
 }
 
 static ni_bool_t
-__ni_ifconfig_xml_read_dir(xml_document_array_t *docs, const char *root, const char *pathname, ni_bool_t raw)
+__ni_ifconfig_xml_read_dir(xml_document_array_t *docs, const char *root, const char *pathname, ni_bool_t check_prio, ni_bool_t raw)
 {
 	char pathbuf[PATH_MAX] = {'\0'};
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
@@ -360,7 +451,7 @@ __ni_ifconfig_xml_read_dir(xml_document_array_t *docs, const char *root, const c
 	if (ni_scandir(pathname, "*.xml", &files) != 0) {
 		for (i = 0; i < files.count; ++i) {
 			/* Ignore wrong xml config files - warning only */
-			if (__ni_ifconfig_xml_read_file(docs, pathname, files.data[i], raw))
+			if (__ni_ifconfig_xml_read_file(docs, pathname, files.data[i], check_prio, raw))
 				empty = FALSE;
 		}
 	}
@@ -374,7 +465,7 @@ __ni_ifconfig_xml_read_dir(xml_document_array_t *docs, const char *root, const c
 
 ni_bool_t
 ni_ifconfig_read_wicked_xml(xml_document_array_t *array, const char *type,
-			const char *root, const char *path, ni_bool_t raw)
+			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
 {
 	char *ifconfig_dir = NULL;
 	ni_bool_t rv = FALSE;
@@ -387,9 +478,9 @@ ni_ifconfig_read_wicked_xml(xml_document_array_t *array, const char *type,
 
 	/* At the moment only XML is supported */
 	if (ni_isreg(path))
-		rv = __ni_ifconfig_xml_read_file(array, root, path, raw);
+		rv = __ni_ifconfig_xml_read_file(array, root, path, check_prio, raw);
 	else if (ni_isdir(path))
-		rv = __ni_ifconfig_xml_read_dir(array, root, path, raw);
+		rv = __ni_ifconfig_xml_read_dir(array, root, path, check_prio, raw);
 
 	ni_string_free(&ifconfig_dir);
 	return rv;
@@ -397,7 +488,7 @@ ni_ifconfig_read_wicked_xml(xml_document_array_t *array, const char *type,
 
 ni_bool_t
 ni_ifconfig_read_wicked(xml_document_array_t *array, const char *type,
-			const char *root, const char *path, ni_bool_t raw)
+			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
 {
 	const ni_ifconfig_type_t *map;
 	const char *_path = path;
@@ -414,7 +505,7 @@ ni_ifconfig_read_wicked(xml_document_array_t *array, const char *type,
 	map = ni_ifconfig_find_type(__ni_ifconfig_types_wicked, root, path, _name, len);
 	if (map && map->name && map->ops.read) {
 		ni_string_printf(&_type, "%s:%s", type, map->name);
-		if (map->ops.read(array, _type, root, _path, raw)) {
+		if (map->ops.read(array, _type, root, _path, check_prio, raw)) {
 			ni_string_free(&_type);
 			return TRUE;
 		}
@@ -433,7 +524,7 @@ ni_ifconfig_read_wicked(xml_document_array_t *array, const char *type,
 #if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
 ni_bool_t
 ni_ifconfig_read_compat_suse(xml_document_array_t *array, const char *type,
-			const char *root, const char *path, ni_bool_t raw)
+			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
 {
 	ni_compat_ifconfig_t conf;
 	ni_bool_t rv;
@@ -441,7 +532,7 @@ ni_ifconfig_read_compat_suse(xml_document_array_t *array, const char *type,
 	ni_compat_ifconfig_init(&conf);
 	/* TODO: apply timeout */
 	if ((rv = __ni_suse_get_ifconfig(root, path, &conf))) {
-		ni_compat_generate_interfaces(array, &conf, raw);
+		ni_compat_generate_interfaces(array, &conf, check_prio, raw);
 	}
 	ni_compat_ifconfig_destroy(&conf);
 	return rv;
@@ -451,14 +542,14 @@ ni_ifconfig_read_compat_suse(xml_document_array_t *array, const char *type,
 #if defined(COMPAT_AUTO) || defined(COMPAT_REDHAT)
 ni_bool_t
 ni_ifconfig_read_compat_redhat(xml_document_array_t *array, const char *type,
-			const char *root, const char *path, ni_bool_t raw)
+			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
 {
 	ni_compat_ifconfig_t conf;
 	ni_bool_t rv;
 
 	ni_compat_ifconfig_init(&conf);
 	if ((rv = __ni_redhat_get_ifconfig(root, path, &conf))) {
-		ni_compat_generate_interfaces(array, &ifcfg, raw);
+		ni_compat_generate_interfaces(array, &ifcfg, check_prio, raw);
 	}
 
 	ni_compat_ifconfig_destroy(&conf);
@@ -468,7 +559,7 @@ ni_ifconfig_read_compat_redhat(xml_document_array_t *array, const char *type,
 
 ni_bool_t
 ni_ifconfig_read_compat(xml_document_array_t *array, const char *type,
-			const char *root, const char *path, ni_bool_t raw)
+			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
 {
 	const ni_ifconfig_type_t *map;
 	const char *_path = path;
@@ -485,7 +576,7 @@ ni_ifconfig_read_compat(xml_document_array_t *array, const char *type,
 	map = ni_ifconfig_find_type(__ni_ifconfig_types_compat, root, path, _name, len);
 	if (map && map->name && map->ops.read) {
 		ni_string_printf(&_type, "%s:%s", type, map->name);
-		if (map->ops.read(array, _type, root, _path, raw)) {
+		if (map->ops.read(array, _type, root, _path, check_prio, raw)) {
 			ni_string_free(&_type);
 			return TRUE;
 		}
@@ -498,12 +589,69 @@ ni_ifconfig_read_compat(xml_document_array_t *array, const char *type,
 	return FALSE;
 }
 
+static inline ni_bool_t
+__ifconfig_is_config_path(const char *str)
+{
+	return ni_check_pathname(str, ni_string_len(str));
+}
+
+static ni_bool_t
+__ifconfig_metadata_is_valid(xml_node_t *ifnode)
+{
+	const char *str;
+	ni_uuid_t uuid;
+	unsigned int uid;
+
+	if (!ifnode)
+		return FALSE;
+
+	str = xml_node_get_attr(ifnode, NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE);
+	if (ni_string_empty(str) || !__ifconfig_is_config_path(str))
+		return FALSE;
+
+	str = xml_node_get_attr(ifnode, NI_CLIENT_STATE_XML_CONFIG_UUID_NODE);
+	if (ni_string_empty(str) || ni_uuid_parse(&uuid, str) < 0)
+		return FALSE;
+
+	if (!xml_node_get_attr_uint(ifnode,
+	    NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE, &uid)) {
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+void
+ni_ifconfig_metadata_generate(ni_client_state_config_t *conf, const char *schema, const char *filename)
+{
+	char *origin = NULL;
+
+	if (!conf)
+		return;
+
+	if (schema || filename) {
+		ni_string_printf(&origin, "%s%s%s",
+			(schema ? schema : ""),
+			(schema ? ":" : ""),
+			(filename ? filename : ""));
+	}
+
+	ni_client_state_config_init(conf);
+	if (!ni_string_empty(origin))
+		conf->origin = origin;
+	if (ni_file_exists(filename))
+		ni_uuid_for_file(&conf->uuid, filename);
+	else
+		ni_uuid_generate(&conf->uuid);
+}
+
 ni_bool_t
 ni_ifconfig_read_firmware(xml_document_array_t *array, const char *type,
-			const char *root, const char *path, ni_bool_t raw)
+			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
 {
 	xml_document_t *config_doc;
-	ni_device_clientinfo_t *client_info;
+	ni_client_state_config_t conf = NI_CLIENT_STATE_CONFIG_INIT;
+	xml_node_t *rnode;
 
 	config_doc = ni_netconfig_firmware_discovery(root, path);
 
@@ -513,152 +661,102 @@ ni_ifconfig_read_firmware(xml_document_array_t *array, const char *type,
 		return FALSE;
 	}
 
-	client_info = ni_ifconfig_get_client_info(config_doc);
-	if (!client_info) {
-		client_info = ni_ifconfig_generate_client_info("firmware", path, NULL);
+	rnode = xml_document_root(config_doc);
+	if (!ni_ifconfig_metadata_get_from_node(&conf, rnode)) {
+		ni_ifconfig_metadata_generate(&conf, "firmware", path);
 		if (!raw)
-			ni_ifconfig_add_client_info(config_doc, client_info, NULL);
+			ni_ifconfig_metadata_add_to_node(rnode, &conf);
+	}
+	else if (raw) {
+		ni_ifconfig_metadata_clear(rnode);
 	}
 
 	/* Add location */
-	if (!ni_string_empty(client_info->config_origin)) {
-		xml_location_set(config_doc->root,
-			xml_location_create(client_info->config_origin, 0));
+	if (!ni_string_empty(conf.origin)) {
+		xml_location_set(rnode, xml_location_create(conf.origin, 0));
 		ni_debug_ifconfig("%s: location: %s, line: %u", __func__,
-				xml_node_get_location_filename(config_doc->root),
-				xml_node_get_location_line(config_doc->root));
+				xml_node_get_location_filename(rnode),
+				xml_node_get_location_line(rnode));
 	}
 
-	ni_device_clientinfo_free(client_info);
-
-	if (ni_ifconfig_validate_adding_doc(array, config_doc, raw))
-		xml_document_array_append(array, config_doc);
-	else
-		xml_document_free(config_doc);
+	ni_string_free(&conf.origin);
+	(void) check_prio;
+	xml_document_array_append(array, config_doc);
 	return TRUE;
 }
 
-ni_device_clientinfo_t *
-ni_ifconfig_generate_client_info(const char *schema, const char *filename, const char *state)
+void
+ni_ifconfig_metadata_add_to_node(xml_node_t *root, ni_client_state_config_t *conf)
 {
-	ni_device_clientinfo_t *client_info;
-	char *origin = NULL;
+	xml_node_t *ifnode = NULL;
+	char *uuid_str = NULL;
 
-	ni_string_printf(&origin, "%s%s%s",
-			(schema ? schema : ""),
-			(schema ? ":" : ""),
-			(filename ? filename : ""));
+	if (!root || !root->children || !conf)
+		return;
 
-	client_info = ni_device_clientinfo_new();
-	if (!ni_string_empty(state))
-		ni_string_dup(&client_info->state, state);
-	if (!ni_string_empty(origin))
-		ni_string_dup(&client_info->config_origin, origin);
-	if (ni_file_exists(filename))
-		ni_uuid_for_file(&client_info->config_uuid, filename);
-	else
-		ni_uuid_generate(&client_info->config_uuid);
+	while ((ifnode = xml_node_get_next_child(root, root->children->name, ifnode))) {
+		xml_node_add_attr(ifnode,
+			NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE, conf->origin);
 
-	ni_string_free(&origin);
-	return client_info;
+		ni_string_dup(&uuid_str, ni_uuid_print(&conf->uuid));
+		xml_node_add_attr(ifnode,
+			NI_CLIENT_STATE_XML_CONFIG_UUID_NODE, uuid_str);
+
+		xml_node_add_attr_uint(ifnode,
+			NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE, (unsigned int) geteuid());
+	}
 }
 
-static ni_bool_t
-ni_ifconfig_parse_client_info_xml(const xml_node_t *node, ni_device_clientinfo_t *ci)
+ni_bool_t
+ni_ifconfig_metadata_get_from_node(ni_client_state_config_t *conf, xml_node_t *root)
 {
-	const xml_node_t *child;
+	xml_node_t *ifnode = NULL;
 
-	if (!node || !ci)
+	if (!root || !root->children || !conf)
 		return FALSE;
 
-	if ((child = xml_node_get_child(node, "state"))) {
-		if (ni_string_empty(child->cdata))
-			return FALSE;
-		ni_string_dup(&ci->state, child->cdata);
+	while ((ifnode = xml_node_get_next_child(root, root->children->name, ifnode))) {
+		/* only first   node with proper meta data attributes is processed */
+		if (__ifconfig_metadata_is_valid(ifnode)) {
+			const char *str;
+
+			ni_client_state_config_init(conf);
+
+			if (!(str = xml_node_get_attr(ifnode,
+					NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE))) {
+				return FALSE;
+			}
+			ni_string_dup(&conf->origin, str);
+
+			if (!(str = xml_node_get_attr(ifnode,
+					NI_CLIENT_STATE_XML_CONFIG_UUID_NODE)) ||
+			    ni_uuid_parse(&conf->uuid, str) < 0) {
+				return FALSE;
+			}
+
+			if (!xml_node_get_attr_uint(ifnode,
+				NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE, &conf->owner)) {
+				return FALSE;
+			}
+
+			return TRUE;
+		}
 	}
 
-	child = xml_node_get_child(node, "config-origin");
-	if (!child || ni_string_empty(child->cdata))
-		return FALSE;
-	ni_string_dup(&ci->config_origin, child->cdata);
-
-	child = xml_node_get_child(node, "config-uuid");
-	if (!child || ni_string_empty(child->cdata) ||
-	    !ni_uuid_parse(&ci->config_uuid, child->cdata)) {
-		return FALSE;
-	}
-
-	return TRUE;
-}
-
-
-ni_device_clientinfo_t *
-ni_ifconfig_get_client_info(xml_document_t *doc)
-{
-	ni_device_clientinfo_t *ci;
-	xml_node_t *cinode;
-
-	ni_assert(doc);
-	/* FIXME: Currently returns either the first occurence or NULL */
-	cinode = xml_node_get_child(xml_document_root(doc), "interface");
-
-	if (cinode) {
-		ci = ni_device_clientinfo_new();
-		if (ni_ifconfig_parse_client_info_xml(cinode, ci))
-			return ci;
-		ni_device_clientinfo_free(ci);
-	}
-
-	return NULL;
+	return FALSE;
 }
 
 void
-ni_ifconfig_add_client_info(xml_document_t *doc, ni_device_clientinfo_t *client_info, char *to_node)
+ni_ifconfig_metadata_clear(xml_node_t *root)
 {
-	xml_node_t *root, *cinode, *ifnode = NULL;
+	xml_node_t *ifnode = NULL;
 
-	if (!doc || !(root = xml_document_root(doc)) || !client_info)
+	if (!root || !root->children)
 		return;
 
-	if (!to_node) {
-		if (root->children)
-			to_node = root->children->name;
-		else
-			return;
+	while ((ifnode = xml_node_get_next_child(root, root->children->name, ifnode))) {
+		xml_node_del_attr(ifnode, NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE);
+		xml_node_del_attr(ifnode, NI_CLIENT_STATE_XML_CONFIG_UUID_NODE);
+		xml_node_del_attr(ifnode, NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE);
 	}
-
-	while ((ifnode = xml_node_get_next_child(root, to_node, ifnode))) {
-		cinode = xml_node_new("client-info", NULL);
-		xml_node_replace_child(ifnode, cinode);
-
-		if (!ni_string_empty(client_info->state))
-			xml_node_new_element("state", cinode, client_info->state);
-		if (!ni_string_empty(client_info->config_origin)) {
-			xml_node_new_element("config-origin", cinode,
-				client_info->config_origin);
-		}
-		if (!ni_uuid_is_null(&client_info->config_uuid)) {
-			xml_node_new_element("config-uuid", cinode,
-				ni_uuid_print(&client_info->config_uuid));
-		}
-	}
-}
-
-void
-ni_ifconfig_del_client_info(xml_document_t *doc, const char *from_node)
-{
-	xml_node_t *root, *ifnode = NULL;
-
-	if (!doc || !(root = xml_document_root(doc)))
-		return;
-
-	if (!from_node) {
-		if (root->children)
-			from_node = root->children->name;
-		else
-			return;
-	}
-
-	while ((ifnode = xml_node_get_next_child(root, from_node, ifnode)))
-		xml_node_delete_child(ifnode, "client-info");
 }

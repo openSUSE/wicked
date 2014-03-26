@@ -260,7 +260,7 @@ typedef enum {
 	 * Wicked extended status/check codes:
 	 */
 	NI_WICKED_ST_DISABLED		= 155,	/*!< dev activation is disabled		*/
-	NI_WICKED_ST_NOT_STARTED	= 156,	/*!< dev is not yet set up / started	*/
+	NI_WICKED_ST_UNCONFIGURED	= 156,	/*!< dev is not yet set up / started	*/
 
 	NI_WICKED_ST_NO_DEVICE		= 157,	/*!< dev does not exist yet		*/
 	NI_WICKED_ST_NOT_RUNNING	= 158,	/*!< dev is started, but set up failed	*/
@@ -271,6 +271,7 @@ typedef enum {
 
 	NI_WICKED_ST_NOT_IN_STATE	= 165,	/*!< ifcheck state lower than expected	*/
 	NI_WICKED_ST_PERSISTENT_ON	= 166,	/*!< interface is in persistent mode	*/
+	NI_WICKED_ST_USERCONTROL_ON	= 167,	/*!< user is allowed to configure the interface	*/
 } ni_status_code_t;
 
 #endif /* __WICKED_CONSTANTS_H__ */

@@ -437,6 +437,38 @@ __ni_var_array_realloc(ni_var_array_t *nva, unsigned int newsize)
 	}
 }
 
+ni_bool_t
+ni_var_array_remove_at(ni_var_array_t *array, unsigned int index)
+{
+	if (!array || index >= array->count)
+		return FALSE;
+
+	if (index < array->count) {
+		memmove(&array->data[index], &array->data[index + 1],
+			(array->count - index) * sizeof(ni_var_t *));
+	}
+	array->count--;
+	memset(array->data + array->count, 0, sizeof(array->data[array->count]));
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_var_array_remove(ni_var_array_t *array, const char *name)
+{
+	unsigned int i;
+	ni_var_t *var;
+
+	if (array && !ni_string_empty(name)) {
+		for (i = 0, var = array->data; i < array->count; ++i, ++var) {
+			if (!strcmp(var->name, name))
+				return ni_var_array_remove_at(array, i);
+		}
+	}
+
+	return FALSE;
+}
+
 static void
 __ni_var_array_append(ni_var_array_t *nva, const char *name, const char *value)
 {
@@ -1162,11 +1194,13 @@ ni_parse_boolean(const char *input, ni_bool_t *result)
 	}
 
 	if (ni_string_eq_nocase(input, "true") ||
+	    ni_string_eq_nocase(input, "yes") ||
 	    ni_string_eq_nocase(input, "1")) {
 		*result = TRUE;
 	}
 	else if (ni_string_eq_nocase(input, "false") ||
-		 ni_string_eq_nocase(input, "0")) {
+	    ni_string_eq_nocase(input, "no") ||
+	    ni_string_eq_nocase(input, "0")) {
 		*result = FALSE;
 	}
 	else

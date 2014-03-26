@@ -87,7 +87,7 @@ ni_ifstatus_code_name(unsigned int status)
 {
 	static const ni_intmap_t        __status_name_map[] = {
 		{ "device-not-enabled",		NI_WICKED_ST_DISABLED		},
-		{ "device-not-started",		NI_WICKED_ST_NOT_STARTED	},
+		{ "device-unconfigured",	NI_WICKED_ST_UNCONFIGURED	},
 		{ "no-device",			NI_WICKED_ST_NO_DEVICE		},
 		{ "device-not-running",		NI_WICKED_ST_NOT_RUNNING	},
 		{ "no-config",			NI_WICKED_ST_NO_CONFIG		},
@@ -151,16 +151,15 @@ __ifstatus_of_device(ni_netdev_t *dev)
 {
 	unsigned int st = NI_WICKED_ST_OK;
 
-	if (!ni_ifcheck_device_is_up(dev) ||
-	    !ni_ifcheck_device_fsm_is_up(dev))
+	if (!ni_ifcheck_device_is_up(dev))
 		return NI_WICKED_ST_NOT_RUNNING;
 
 	if (!ni_ifcheck_device_link_is_up(dev) ||
-	    !ni_ifcheck_device_fsm_link_is_up(dev))
-		st = NI_WICKED_ST_IN_PROGRESS;
+	    !ni_ifcheck_device_network_is_up(dev))
+		return NI_WICKED_ST_IN_PROGRESS;
 
 	__ifstatus_of_device_leases(dev, &st);
-	if (st == NI_WICKED_ST_IN_PROGRESS)
+	if (st != NI_WICKED_ST_NOT_RUNNING)
 		__ifstatus_of_device_addrs(dev, &st);
 
 	return st;
@@ -177,7 +176,7 @@ ni_ifstatus_of_device(ni_netdev_t *dev, ni_bool_t *mandatory)
 		return NI_WICKED_ST_NO_DEVICE;
 
 	if (!ni_ifcheck_device_configured(dev))
-		return NI_WICKED_ST_NOT_STARTED;
+		return NI_WICKED_ST_UNCONFIGURED;
 
 	return __ifstatus_of_device(dev);
 }
@@ -200,7 +199,7 @@ ni_ifstatus_of_worker(ni_ifworker_t *w, ni_bool_t *mandatory)
 	}
 
 	if (!ni_ifcheck_device_configured(dev))
-		return NI_WICKED_ST_NOT_STARTED;
+		return NI_WICKED_ST_UNCONFIGURED;
 
 	st = __ifstatus_of_device(dev);
 	if (st == NI_WICKED_ST_OK) {
@@ -381,16 +380,16 @@ ni_ifstatus_show_routes(const ni_netdev_t *dev, ni_bool_t verbose)
 static inline void
 ni_ifstatus_show_config(const ni_netdev_t *dev, ni_bool_t verbose)
 {
-	ni_device_clientinfo_t *ci = dev->client_info;
+	ni_client_state_t *cs = dev->client_state;
 
 	/* currently the runtime config only ... */
-	if (ci && !ni_string_empty(ci->config_origin)) {
-		if_printf("", "config:", "%s", ci->config_origin);
+	if (cs && !ni_string_empty(cs->config.origin)) {
+		if_printf("", "config:", "%s", cs->config.origin);
 
-		if (verbose && !ni_uuid_is_null(&ci->config_uuid)) {
+		if (verbose && !ni_uuid_is_null(&cs->config.uuid)) {
 			printf(",\n");
 			if_printf("", " ", "uuid: %s\n",
-				ni_uuid_print(&ci->config_uuid));
+				ni_uuid_print(&cs->config.uuid));
 		} else {
 			printf("\n");
 		}
@@ -434,13 +433,13 @@ ni_ifstatus_show_leases(const ni_netdev_t *dev, ni_bool_t verbose)
 static inline void
 ni_ifstatus_show_cstate(const ni_netdev_t *dev, ni_bool_t verbose)
 {
-	ni_device_clientinfo_t *ci = dev->client_info;
 	ni_client_state_t *cs = dev->client_state;
+	/* FIXME: Add state mapping */
+	const char *state = NULL;
 
-	if (ci && !ni_string_empty(ci->state)) {
-		if_printf("", "cstate:", "%s%s\n", ci->state,
-			(verbose && cs && cs->persistent) ?
-				", persistent" : "");
+	if (!ni_string_empty(state)) {
+		if_printf("", "cstate:", "%s%s\n", state,
+			(verbose && cs->control.persistent) ? ", persistent" : "");
 	} else if (verbose) {
 		if_printf("", "cstate:", "none\n");
 	}
@@ -460,7 +459,7 @@ ni_ifstatus_to_retcode(int status, ni_bool_t mandatory)
 	case NI_WICKED_ST_NOT_RUNNING:
 		return mandatory ? NI_WICKED_ST_FAILED : NI_WICKED_ST_OK;
 
-	case NI_WICKED_ST_NOT_STARTED:
+	case NI_WICKED_ST_UNCONFIGURED:
 		return mandatory ? NI_WICKED_ST_UNUSED : NI_WICKED_ST_OK;
 
 	default:
@@ -581,7 +580,7 @@ ni_do_ifstatus(int argc, char **argv)
 			ni_string_array_copy(&opt_ifconfig, sources);
 	}
 
-	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE)) {
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE, TRUE)) {
 		status = NI_WICKED_ST_ERROR;
 		goto cleanup;
 	}
@@ -668,7 +667,7 @@ ni_do_ifstatus(int argc, char **argv)
 		if (!opt_transient) {
 			switch (status) {
 			case NI_WICKED_ST_NO_DEVICE:
-			case NI_WICKED_ST_NOT_STARTED:
+			case NI_WICKED_ST_UNCONFIGURED:
 			case NI_WICKED_ST_NOT_RUNNING:
 			default:
 				status = NI_WICKED_ST_OK;

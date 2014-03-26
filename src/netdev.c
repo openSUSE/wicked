@@ -99,7 +99,6 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_ppp(dev, NULL);
 	ni_netdev_set_dcb(dev, NULL);
 	ni_netdev_set_lldp(dev, NULL);
-	ni_netdev_set_client_info(dev, NULL);
 	ni_netdev_set_client_state(dev, NULL);
 
 	ni_netdev_set_ipv4(dev, NULL);
@@ -412,45 +411,6 @@ ni_netdev_set_pci(ni_netdev_t *dev, ni_pci_dev_t *pci_dev)
 }
 
 /*
- * Set the interface's client_info.
- * This information is not intepreted by the server at all, but
- * we retain it for the client.
- */
-void
-ni_netdev_set_client_info(ni_netdev_t *dev, ni_device_clientinfo_t *client_info)
-{
-	if (dev->client_info == client_info)
-		return;
-	if (dev->client_info)
-		ni_device_clientinfo_free(dev->client_info);
-
-	dev->client_info = client_info;
-}
-
-ni_device_clientinfo_t *
-ni_netdev_get_client_info(ni_netdev_t *dev)
-{
-	return dev ? dev->client_info : NULL;
-}
-
-ni_device_clientinfo_t *
-ni_device_clientinfo_new(void)
-{
-	ni_device_clientinfo_t *client_info;
-
-	client_info = xcalloc(1, sizeof(*client_info));
-	return client_info;
-}
-
-void
-ni_device_clientinfo_free(ni_device_clientinfo_t *client_info)
-{
-	ni_string_free(&client_info->state);
-	ni_string_free(&client_info->config_origin);
-	free(client_info);
-}
-
-/*
  * Set the interface's client_state structure.
  * This information is not intepreted by the server at all, but
  * we retain it for the client.
@@ -469,20 +429,27 @@ ni_netdev_set_client_state(ni_netdev_t *dev, ni_client_state_t *client_state)
 ni_client_state_t *
 ni_netdev_get_client_state(ni_netdev_t *dev)
 {
-	return dev ? dev->client_state : NULL;
+	if (!dev)
+		return NULL;
+
+	if (!dev->client_state)
+		dev->client_state = ni_client_state_new(0);
+
+	return dev->client_state;
 }
 
 void
 ni_netdev_load_client_state(ni_netdev_t *dev)
 {
-	ni_client_state_t client_state;
+	ni_client_state_t cs;
 
-	if (!ni_netdev_get_client_state(dev)) {
-		ni_client_state_init(&client_state);
-		if (ni_client_state_load(&client_state, dev->link.ifindex)) {
-			ni_netdev_set_client_state(dev, ni_client_state_clone(&client_state));
-			ni_debug_ifconfig("loading client-state structure from a file for %s",
-				dev->name);
+	ni_assert(dev);
+	if (!ni_client_state_is_valid(dev->client_state)) {
+		ni_client_state_init(&cs);
+		if (ni_client_state_load(&cs, dev->link.ifindex)) {
+			ni_netdev_set_client_state(dev, ni_client_state_clone(&cs));
+			ni_debug_ifconfig("loading %s structure from a file for %s",
+				NI_CLIENT_STATE_XML_NODE, dev->name);
 		}
 	}
 }

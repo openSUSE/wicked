@@ -61,7 +61,7 @@ int
 ni_do_ifup(int argc, char **argv)
 {
 	enum  { OPT_HELP, OPT_IFCONFIG, OPT_IFPOLICY, OPT_CONTROL_MODE, OPT_STAGE,
-		OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_FORCE, OPT_PERSISTENT };
+		OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_IGNORE_PRIO, OPT_PERSISTENT };
 
 	static struct option ifup_options[] = {
 		{ "help",	no_argument,       NULL,	OPT_HELP },
@@ -72,7 +72,7 @@ ni_do_ifup(int argc, char **argv)
 		{ "skip-active",required_argument, NULL,	OPT_SKIP_ACTIVE },
 		{ "skip-origin",required_argument, NULL,	OPT_SKIP_ORIGIN },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
-		{ "force",	no_argument, NULL,	OPT_FORCE },
+		{ "ignore-prio",no_argument, NULL,	OPT_IGNORE_PRIO },
 		{ "persistent",	no_argument, NULL,	OPT_PERSISTENT },
 		{ NULL }
 	};
@@ -81,7 +81,7 @@ ni_do_ifup(int argc, char **argv)
 	ni_ifmarker_t ifmarker;
 	ni_ifworker_array_t ifmarked;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
-	ni_bool_t opt_force = FALSE;
+	ni_bool_t check_prio = TRUE;
 	unsigned int nmarked;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
@@ -154,8 +154,8 @@ ni_do_ifup(int argc, char **argv)
 			ifmatch.skip_active = TRUE;
 			break;
 
-		case OPT_FORCE:
-			opt_force = TRUE;
+		case OPT_IGNORE_PRIO:
+			check_prio = FALSE;
 			break;
 
 		case OPT_PERSISTENT:
@@ -186,8 +186,8 @@ usage:
 				"      touching interfaces that have been set up via firmware (like iBFT) previously\n"
 				"  --timeout <nsec>\n"
 				"      Timeout after <nsec> seconds\n"
-				"  --force\n"
-				"      Force reconfiguring the interface without checking the config origin\n"
+				"  --ignore-prio\n"
+				"      Ignore checking the config origin priorities\n"
 				"  --persistent\n"
 				"      Set interface into persistent mode (no regular ifdown allowed)\n"
 				);
@@ -221,7 +221,7 @@ usage:
 		}
 	}
 
-	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, opt_force)) {
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, check_prio, TRUE)) {
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 		goto cleanup;
 	}
