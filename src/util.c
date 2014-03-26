@@ -2151,6 +2151,22 @@ ni_uuid_for_file(ni_uuid_t *uuid, const char *filename)
 	return 0;
 }
 
+int
+ni_uuid_set_version(ni_uuid_t *uuid, unsigned int version)
+{
+	/* currently only 3 and 5 */
+	if (uuid && (version == 3 || version == 5)) {
+		uuid->shorts[3] = ntohs(uuid->shorts[3]);
+		uuid->shorts[3] &= 0x0FFF;
+		uuid->shorts[3] |= (version << 12);
+		uuid->shorts[3] = htons(uuid->shorts[3]);
+		uuid->octets[8] &= 0x3F;
+		uuid->octets[8] |= 0x80;
+		return 0;
+	}
+	return -1;
+}
+
 /*
  * Seed the RNG from /dev/urandom
  */

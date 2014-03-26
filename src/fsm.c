@@ -939,8 +939,19 @@ ni_ifworker_refresh_client_state(ni_ifworker_t *w, ni_client_state_t *client_sta
 static inline int
 __ni_ifworker_generate_config_uuid(const xml_node_t *config, ni_uuid_t *uuid)
 {
+	/* UUIDv5 of https://github.com/openSUSE/wicked in the URL
+	 * namespace as our private namespace for the config UUIDs:
+	 *      c89756cc-b7fb-569b-b7f0-49a400fa41fe
+	 */
+	static const ni_uuid_t ns = {
+		.octets = {
+			0xc8, 0x97, 0x56, 0xcc, 0xb7, 0xfb, 0x56, 0x9b,
+			0xb7, 0xf0, 0x49, 0xa4, 0x00, 0xfa, 0x41, 0xfe
+		}
+	};
 	memset(uuid, 0, sizeof(*uuid));
-	return xml_node_hash(config, uuid->octets, sizeof(uuid->octets));
+	/* Generate a version 5 (SHA1) UUID */
+	return xml_node_uuid(config, 5, &ns, uuid);
 }
 
 static void

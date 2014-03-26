@@ -1,7 +1,7 @@
 /*
- *	Functions for hashing data. Even though this uses md5, this is not supposed
- *	to by cryptographically safe in any way. The main purpose of this code is to
- *	hash an XML document for "fingerprinting" a configuration.
+ *	Functions for hashing data. Even though this uses md5/sha1 algo, this is
+ *	not supposed to by cryptographically safe in any way. The main purpose of
+ *	this code is to	hash an XML document for "fingerprinting" a configuration.
  *
  *	Copyright (C) 2012  Olaf Kirch <okir@suse.de>
  *
@@ -56,9 +56,17 @@ __ni_hashctx_new(int algo)
 }
 
 ni_hashctx_t *
-ni_hashctx_new(void)
+ni_hashctx_new(ni_hashctx_algo_t algo)
 {
-	return __ni_hashctx_new(GCRY_MD_MD5);
+	switch (algo) {
+	case NI_HASHCTX_MD5:
+		return __ni_hashctx_new(GCRY_MD_MD5);
+	case NI_HASHCTX_SHA1:
+		return __ni_hashctx_new(GCRY_MD_SHA1);
+
+	default:
+		return NULL;
+	}
 }
 
 /*
@@ -67,7 +75,7 @@ ni_hashctx_new(void)
 void
 ni_hashctx_free(ni_hashctx_t *ctx)
 {
-	if (ctx->handle) {
+	if (ctx && ctx->handle) {
 		gcry_md_close(ctx->handle);
 		ctx->handle = NULL;
 	}
@@ -118,8 +126,16 @@ ni_hashctx_get_digest(ni_hashctx_t *ctx, void *md_buffer, size_t md_size)
  * Add data for hashing
  */
 void
+ni_hashctx_put(ni_hashctx_t *ctx, const void *data, size_t len)
+{
+	if (data && len)
+		gcry_md_write(ctx->handle, data, len);
+}
+
+void
 ni_hashctx_puts(ni_hashctx_t *ctx, const char *string)
 {
 	if (string)
 		gcry_md_write(ctx->handle, string, strlen(string));
 }
+
