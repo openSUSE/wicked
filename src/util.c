@@ -415,7 +415,7 @@ ni_var_array_get(const ni_var_array_t *nva, const char *name)
 	ni_var_t *var;
 
 	for (i = 0, var = nva->data; i < nva->count; ++i, ++var) {
-		if (!strcmp(var->name, name))
+		if (ni_string_eq(var->name, name))
 			return var;
 	}
 	return NULL;
@@ -435,6 +435,42 @@ __ni_var_array_realloc(ni_var_array_t *nva, unsigned int newsize)
 		nva->data[i].name = NULL;
 		nva->data[i].value = NULL;
 	}
+}
+
+ni_bool_t
+ni_var_array_remove_at(ni_var_array_t *array, unsigned int index)
+{
+	if (!array || index >= array->count)
+		return FALSE;
+
+	free(array->data[index].name);
+	free(array->data[index].value);
+
+	array->count--;
+	if (index < array->count) {
+		memmove(&array->data[index], &array->data[index + 1],
+			(array->count - index) * sizeof(ni_var_t));
+	}
+	array->data[array->count].name = NULL;
+	array->data[array->count].value = NULL;
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_var_array_remove(ni_var_array_t *array, const char *name)
+{
+	unsigned int i;
+	ni_var_t *var;
+
+	if (array) {
+		for (i = 0, var = array->data; i < array->count; ++i, ++var) {
+			if (ni_string_eq(var->name, name))
+				return ni_var_array_remove_at(array, i);
+		}
+	}
+
+	return FALSE;
 }
 
 static void
