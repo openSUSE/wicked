@@ -294,6 +294,7 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	const ni_dhcp4_config_t *options = dev->config;
 	struct in_addr src_addr, dst_addr;
 	ni_dhcp4_message_t *message = NULL;
+	int renew = dev->fsm.state == NI_DHCP4_STATE_RENEWING && msg_code == DHCP4_REQUEST;
 
 	if (!options || !lease) {
 		ni_error("%s: %s: %s: missing %s %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
@@ -346,7 +347,8 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	}
 
 	/* Reserve some room for the IP and UDP header */
-	ni_buffer_reserve_head(msgbuf, sizeof(struct ip) + sizeof(struct udphdr));
+	if (!renew)
+		ni_buffer_reserve_head(msgbuf, sizeof(struct ip) + sizeof(struct udphdr));
 
 	/* Build the message */
 	message = ni_buffer_push_tail(msgbuf, sizeof(*message));
@@ -524,7 +526,7 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	ni_buffer_pad(msgbuf, BOOTP_MESSAGE_LENGTH_MIN, DHCP4_PAD);
 #endif
 
-	if (ni_capture_build_udp_header(msgbuf, src_addr, DHCP4_CLIENT_PORT, dst_addr, DHCP4_SERVER_PORT) < 0) {
+	if (!renew && ni_capture_build_udp_header(msgbuf, src_addr, DHCP4_CLIENT_PORT, dst_addr, DHCP4_SERVER_PORT) < 0) {
 		ni_error("%s: unable to build packet header", dev->ifname);
 		goto failed;
 	}

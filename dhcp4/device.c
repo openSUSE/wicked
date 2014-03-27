@@ -576,8 +576,15 @@ ni_dhcp4_device_send_message(ni_dhcp4_device_t *dev, unsigned int msg_code, cons
 		timeout.jitter.min = 1;
 		timeout.max_timeout = NI_DHCP4_RESEND_TIMEOUT_MAX;
 
-		/* FIXME: during renewal, we really want to unicast the request */
-		rv = ni_capture_send(dev->capture, buf, &timeout);
+		if (dev->fsm.state == NI_DHCP4_STATE_RENEWING) {
+			struct sockaddr_in sin = {
+				.sin_family = AF_INET,
+				.sin_addr.s_addr = lease->dhcp4.server_id.s_addr,
+				.sin_port = htons(DHCP4_SERVER_PORT),
+			};
+			rv = sendto(dev->listen_fd, ni_buffer_head(buf), ni_buffer_count(buf), 0, (struct sockaddr *)&sin, sizeof(sin));
+		} else
+			rv = ni_capture_send(dev->capture, buf, &timeout);
 		break;
 
 	default:
