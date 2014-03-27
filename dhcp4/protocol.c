@@ -289,6 +289,8 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 			const ni_addrconf_lease_t *lease,
 			ni_buffer_t *msgbuf)
 {
+	char address[INET_ADDRSTRLEN];
+	char server_id[INET_ADDRSTRLEN];
 	const ni_dhcp4_config_t *options = dev->config;
 	struct in_addr src_addr, dst_addr;
 	ni_dhcp4_message_t *message = NULL;
@@ -309,7 +311,7 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	case DHCP4_DISCOVER:
 		if (lease->dhcp4.server_id.s_addr != 0) {
 			ni_error("%s: %s: %s: server_id %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
-					inet_ntoa(lease->dhcp4.server_id));
+				inet_ntop(AF_INET, &lease->dhcp4.server_id.s_addr, server_id, sizeof(server_id)));
 			return -1;
 		}
 		break;
@@ -318,7 +320,8 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 		if (lease->dhcp4.address.s_addr == 0
 		||  lease->dhcp4.server_id.s_addr == 0) {
 			ni_error("%s: %s: %s: address %s server_id %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
-					inet_ntoa(lease->dhcp4.address), inet_ntoa(lease->dhcp4.server_id));
+				inet_ntop(AF_INET, &lease->dhcp4.address.s_addr, address, sizeof(address)),
+				inet_ntop(AF_INET, &lease->dhcp4.server_id.s_addr, server_id, sizeof(server_id)));
 			return -1;
 		}
 		break;
@@ -329,7 +332,8 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 		if (lease->dhcp4.address.s_addr == 0
 		||  lease->dhcp4.server_id.s_addr == 0) {
 			ni_error("%s: %s: %s: address %s server_id %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
-					inet_ntoa(lease->dhcp4.address), inet_ntoa(lease->dhcp4.server_id));
+				inet_ntop(AF_INET, &lease->dhcp4.address.s_addr, address, sizeof(address)),
+				inet_ntop(AF_INET, &lease->dhcp4.server_id.s_addr, server_id, sizeof(server_id)));
 			return -1;
 		}
 
