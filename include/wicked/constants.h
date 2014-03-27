@@ -260,7 +260,7 @@ typedef enum {
 	 * Wicked extended status/check codes:
 	 */
 	NI_WICKED_ST_DISABLED		= 155,	/*!< dev activation is disabled		*/
-	NI_WICKED_ST_NOT_STARTED	= 156,	/*!< dev is not yet set up / started	*/
+	NI_WICKED_ST_UNCONFIGURED	= 156,	/*!< dev is not yet set up / started	*/
 
 	NI_WICKED_ST_NO_DEVICE		= 157,	/*!< dev does not exist yet		*/
 	NI_WICKED_ST_NOT_RUNNING	= 158,	/*!< dev is started, but set up failed	*/
