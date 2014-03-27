@@ -1113,6 +1113,16 @@ parse_more:
 			/* We ignore replies about FQDN */
 			break;
 
+		case DHCP4_POSIX_TZ_STRING:
+			ni_dhcp4_option_get_printable(&buf, &lease->posix_tz_string,
+							"posix-tz-string");
+			break;
+
+		case DHCP4_POSIX_TZ_DBNAME:
+			ni_dhcp4_option_get_printable(&buf, &lease->posix_tz_dbname,
+							"posix-tz-dbname");
+			break;
+
 		default:
 			ni_debug_dhcp("ignoring unsupported DHCP4 code %u", option);
 			break;
