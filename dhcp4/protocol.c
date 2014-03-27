@@ -289,13 +289,16 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 			const ni_addrconf_lease_t *lease,
 			ni_buffer_t *msgbuf)
 {
+	char address[INET_ADDRSTRLEN];
+	char server_id[INET_ADDRSTRLEN];
 	const ni_dhcp4_config_t *options = dev->config;
 	struct in_addr src_addr, dst_addr;
 	ni_dhcp4_message_t *message = NULL;
+	int renew = dev->fsm.state == NI_DHCP4_STATE_RENEWING && msg_code == DHCP4_REQUEST;
 
 	if (!options || !lease) {
-		ni_error("%s: %s: missing %s %s", __func__, ni_dhcp4_message_name(msg_code),
-				options? "options" : "", lease ? "lease" : "");
+		ni_error("%s: %s: %s: missing %s %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
+				options? "" : "options", lease ? "" : "lease");
 		return -1;
 	}
 
@@ -308,8 +311,8 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	switch (msg_code) {
 	case DHCP4_DISCOVER:
 		if (lease->dhcp4.server_id.s_addr != 0) {
-			ni_error("%s: %s: server_id %s", __func__, ni_dhcp4_message_name(msg_code),
-					inet_ntoa(lease->dhcp4.server_id));
+			ni_error("%s: %s: %s: server_id %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
+				inet_ntop(AF_INET, &lease->dhcp4.server_id.s_addr, server_id, sizeof(server_id)));
 			return -1;
 		}
 		break;
@@ -317,8 +320,9 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	case DHCP4_DECLINE:
 		if (lease->dhcp4.address.s_addr == 0
 		||  lease->dhcp4.server_id.s_addr == 0) {
-			ni_error("%s: %s: address %s server_id %s", __func__, ni_dhcp4_message_name(msg_code),
-					inet_ntoa(lease->dhcp4.address), inet_ntoa(lease->dhcp4.server_id));
+			ni_error("%s: %s: %s: address %s server_id %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
+				inet_ntop(AF_INET, &lease->dhcp4.address.s_addr, address, sizeof(address)),
+				inet_ntop(AF_INET, &lease->dhcp4.server_id.s_addr, server_id, sizeof(server_id)));
 			return -1;
 		}
 		break;
@@ -328,8 +332,9 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	case DHCP4_INFORM:
 		if (lease->dhcp4.address.s_addr == 0
 		||  lease->dhcp4.server_id.s_addr == 0) {
-			ni_error("%s: %s: address %s server_id %s", __func__, ni_dhcp4_message_name(msg_code),
-					inet_ntoa(lease->dhcp4.address), inet_ntoa(lease->dhcp4.server_id));
+			ni_error("%s: %s: %s: address %s server_id %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
+				inet_ntop(AF_INET, &lease->dhcp4.address.s_addr, address, sizeof(address)),
+				inet_ntop(AF_INET, &lease->dhcp4.server_id.s_addr, server_id, sizeof(server_id)));
 			return -1;
 		}
 
@@ -342,7 +347,8 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	}
 
 	/* Reserve some room for the IP and UDP header */
-	ni_buffer_reserve_head(msgbuf, sizeof(struct ip) + sizeof(struct udphdr));
+	if (!renew)
+		ni_buffer_reserve_head(msgbuf, sizeof(struct ip) + sizeof(struct udphdr));
 
 	/* Build the message */
 	message = ni_buffer_push_tail(msgbuf, sizeof(*message));
@@ -362,8 +368,8 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	case ARPHRD_ETHER:
 	case ARPHRD_IEEE802:
 		if (dev->system.hwaddr.len > sizeof(message->chaddr)) {
-			ni_error("dhcp4 cannot handle hwaddress length %u",
-					dev->system.hwaddr.len);
+			ni_error("%s: dhcp4 cannot handle hwaddress length %u",
+					dev->ifname, dev->system.hwaddr.len);
 			goto failed;
 		}
 		message->hwlen = dev->system.hwaddr.len;
@@ -378,7 +384,7 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 		break;
 
 	default:
-		ni_error("dhcp4: unknown hardware type 0x%x", dev->system.hwaddr.type);
+		ni_error("dhcp4: %s: unknown hardware type 0x%x", dev->ifname, dev->system.hwaddr.type);
 	}
 
 	ni_dhcp4_option_put8(msgbuf, DHCP4_MESSAGETYPE, msg_code);
@@ -520,8 +526,8 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	ni_buffer_pad(msgbuf, BOOTP_MESSAGE_LENGTH_MIN, DHCP4_PAD);
 #endif
 
-	if (ni_capture_build_udp_header(msgbuf, src_addr, DHCP4_CLIENT_PORT, dst_addr, DHCP4_SERVER_PORT) < 0) {
-		ni_error("unable to build packet header");
+	if (!renew && ni_capture_build_udp_header(msgbuf, src_addr, DHCP4_CLIENT_PORT, dst_addr, DHCP4_SERVER_PORT) < 0) {
+		ni_error("%s: unable to build packet header", dev->ifname);
 		goto failed;
 	}
 
