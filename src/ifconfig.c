@@ -383,6 +383,7 @@ ni_system_macvlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 						ni_netdev_t **dev_ret)
 {
 	ni_netdev_t *dev;
+	const char *cfg_iftype = NULL;
 
 	if (!nc || !dev_ret || !cfg || !cfg->name || !cfg->macvlan
 	||  !cfg->link.lowerdev.name || !cfg->link.lowerdev.index)
@@ -392,24 +393,25 @@ ni_system_macvlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 
 	dev = ni_netdev_by_name(nc, cfg->name);
 	if (dev != NULL) {
+		const char *dev_iftype = ni_linktype_type_to_name(dev->link.type);
 		/* This is not necessarily an error */
 		if (dev->link.type == cfg->link.type) {
 			ni_debug_ifconfig("A %s interface %s already exists",
-					ni_linktype_type_to_name(dev->link.type),
-					dev->name);
+					dev_iftype, dev->name);
 			*dev_ret = dev;
 		} else {
 			ni_error("A %s interface with the name %s already exists",
-				ni_linktype_type_to_name(dev->link.type), dev->name);
+				dev_iftype, dev->name);
 		}
 		return -NI_ERROR_DEVICE_EXISTS;
 	}
 
-	ni_debug_ifconfig("%s: creating %s interface", cfg->name,
-			ni_linktype_type_to_name(cfg->link.type));
+	cfg_iftype = ni_linktype_type_to_name(cfg->link.type);
+	ni_debug_ifconfig("%s: creating %s interface", cfg->name, cfg_iftype);
+
 	if (__ni_rtnl_link_create(cfg)) {
 		ni_error("unable to create %s interface %s",
-			ni_linktype_type_to_name(cfg->link.type), cfg->name);
+			cfg_iftype, cfg->name);
 		return -1;
 	}
 

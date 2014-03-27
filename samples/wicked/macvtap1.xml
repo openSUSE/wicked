@@ -1,0 +1,10 @@
+<interface>
+  <name>macvtap1</name>
+
+  <macvtap>
+    <device>eth1</device>
+    <address>02:02:02:02:02:02</address>
+    <mode>vepa</mode>
+  </macvtap>
+
+</interface>
