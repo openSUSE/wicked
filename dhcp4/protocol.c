@@ -294,7 +294,7 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	ni_dhcp4_message_t *message = NULL;
 
 	if (!options || !lease) {
-		ni_error("%s: %s: missing %s %s", __func__, ni_dhcp4_message_name(msg_code),
+		ni_error("%s: %s: %s: missing %s %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
 				options? "" : "options", lease ? "" : "lease");
 		return -1;
 	}
@@ -308,7 +308,7 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	switch (msg_code) {
 	case DHCP4_DISCOVER:
 		if (lease->dhcp4.server_id.s_addr != 0) {
-			ni_error("%s: %s: server_id %s", __func__, ni_dhcp4_message_name(msg_code),
+			ni_error("%s: %s: %s: server_id %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
 					inet_ntoa(lease->dhcp4.server_id));
 			return -1;
 		}
@@ -317,7 +317,7 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	case DHCP4_DECLINE:
 		if (lease->dhcp4.address.s_addr == 0
 		||  lease->dhcp4.server_id.s_addr == 0) {
-			ni_error("%s: %s: address %s server_id %s", __func__, ni_dhcp4_message_name(msg_code),
+			ni_error("%s: %s: %s: address %s server_id %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
 					inet_ntoa(lease->dhcp4.address), inet_ntoa(lease->dhcp4.server_id));
 			return -1;
 		}
@@ -328,7 +328,7 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	case DHCP4_INFORM:
 		if (lease->dhcp4.address.s_addr == 0
 		||  lease->dhcp4.server_id.s_addr == 0) {
-			ni_error("%s: %s: address %s server_id %s", __func__, ni_dhcp4_message_name(msg_code),
+			ni_error("%s: %s: %s: address %s server_id %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
 					inet_ntoa(lease->dhcp4.address), inet_ntoa(lease->dhcp4.server_id));
 			return -1;
 		}
@@ -362,8 +362,8 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	case ARPHRD_ETHER:
 	case ARPHRD_IEEE802:
 		if (dev->system.hwaddr.len > sizeof(message->chaddr)) {
-			ni_error("dhcp4 cannot handle hwaddress length %u",
-					dev->system.hwaddr.len);
+			ni_error("%s: dhcp4 cannot handle hwaddress length %u",
+					dev->ifname, dev->system.hwaddr.len);
 			goto failed;
 		}
 		message->hwlen = dev->system.hwaddr.len;
@@ -378,7 +378,7 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 		break;
 
 	default:
-		ni_error("dhcp4: unknown hardware type 0x%x", dev->system.hwaddr.type);
+		ni_error("dhcp4: %s: unknown hardware type 0x%x", dev->ifname, dev->system.hwaddr.type);
 	}
 
 	ni_dhcp4_option_put8(msgbuf, DHCP4_MESSAGETYPE, msg_code);
@@ -521,7 +521,7 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 #endif
 
 	if (ni_capture_build_udp_header(msgbuf, src_addr, DHCP4_CLIENT_PORT, dst_addr, DHCP4_SERVER_PORT) < 0) {
-		ni_error("unable to build packet header");
+		ni_error("%s: unable to build packet header", dev->ifname);
 		goto failed;
 	}
 
