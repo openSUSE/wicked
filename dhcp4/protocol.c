@@ -293,8 +293,11 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	struct in_addr src_addr, dst_addr;
 	ni_dhcp4_message_t *message = NULL;
 
-	if (!options || !lease)
+	if (!options || !lease) {
+		ni_error("%s: %s: missing %s %s", __func__, ni_dhcp4_message_name(msg_code),
+				options? "options" : "", lease ? "lease" : "");
 		return -1;
+	}
 
 	if (IN_LINKLOCAL(ntohl(lease->dhcp4.address.s_addr))) {
 		ni_error("cannot request a link local address");
@@ -304,22 +307,31 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	src_addr.s_addr = dst_addr.s_addr = 0;
 	switch (msg_code) {
 	case DHCP4_DISCOVER:
-		if (lease->dhcp4.server_id.s_addr != 0)
+		if (lease->dhcp4.server_id.s_addr != 0) {
+			ni_error("%s: %s: server_id %s", __func__, ni_dhcp4_message_name(msg_code),
+					inet_ntoa(lease->dhcp4.server_id));
 			return -1;
+		}
 		break;
 
 	case DHCP4_DECLINE:
 		if (lease->dhcp4.address.s_addr == 0
-		||  lease->dhcp4.server_id.s_addr == 0)
+		||  lease->dhcp4.server_id.s_addr == 0) {
+			ni_error("%s: %s: address %s server_id %s", __func__, ni_dhcp4_message_name(msg_code),
+					inet_ntoa(lease->dhcp4.address), inet_ntoa(lease->dhcp4.server_id));
 			return -1;
+		}
 		break;
 
 	case DHCP4_REQUEST:
 	case DHCP4_RELEASE:
 	case DHCP4_INFORM:
 		if (lease->dhcp4.address.s_addr == 0
-		||  lease->dhcp4.server_id.s_addr == 0)
+		||  lease->dhcp4.server_id.s_addr == 0) {
+			ni_error("%s: %s: address %s server_id %s", __func__, ni_dhcp4_message_name(msg_code),
+					inet_ntoa(lease->dhcp4.address), inet_ntoa(lease->dhcp4.server_id));
 			return -1;
+		}
 
 		if (dev->fsm.state != NI_DHCP4_STATE_REQUESTING
 		 && dev->fsm.state != NI_DHCP4_STATE_REBOOT) {
