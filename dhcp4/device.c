@@ -532,6 +532,7 @@ ni_dhcp4_device_drop_buffer(ni_dhcp4_device_t *dev)
 int
 ni_dhcp4_device_send_message(ni_dhcp4_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
 {
+	ni_buffer_t *buf = &dev->message;
 	static uint32_t ni_dhcp4_xid;
 	ni_timeout_param_t timeout;
 	int rv;
@@ -552,7 +553,7 @@ ni_dhcp4_device_send_message(ni_dhcp4_device_t *dev, unsigned int msg_code, cons
 	ni_dhcp4_device_alloc_buffer(dev);
 
 	/* Build the DHCP4 message */
-	if ((rv = ni_dhcp4_build_message(dev, msg_code, lease, &dev->message)) < 0) {
+	if ((rv = ni_dhcp4_build_message(dev, msg_code, lease, buf)) < 0) {
 		/* This is really terminal */
 		ni_error("unable to build DHCP4 message");
 		return -1;
@@ -561,7 +562,7 @@ ni_dhcp4_device_send_message(ni_dhcp4_device_t *dev, unsigned int msg_code, cons
 	switch (msg_code) {
 	case DHCP4_DECLINE:
 	case DHCP4_RELEASE:
-		rv = ni_capture_send(dev->capture, &dev->message, NULL);
+		rv = ni_capture_send(dev->capture, buf, NULL);
 		break;
 
 	case DHCP4_DISCOVER:
@@ -576,7 +577,7 @@ ni_dhcp4_device_send_message(ni_dhcp4_device_t *dev, unsigned int msg_code, cons
 		timeout.max_timeout = NI_DHCP4_RESEND_TIMEOUT_MAX;
 
 		/* FIXME: during renewal, we really want to unicast the request */
-		rv = ni_capture_send(dev->capture, &dev->message, &timeout);
+		rv = ni_capture_send(dev->capture, buf, &timeout);
 		break;
 
 	default:
