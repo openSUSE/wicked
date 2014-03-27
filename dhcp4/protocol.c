@@ -295,7 +295,7 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 
 	if (!options || !lease) {
 		ni_error("%s: %s: missing %s %s", __func__, ni_dhcp4_message_name(msg_code),
-				options? "options" : "", lease ? "lease" : "");
+				options? "" : "options", lease ? "" : "lease");
 		return -1;
 	}
 
