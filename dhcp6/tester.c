@@ -238,7 +238,12 @@ dhcp6_tester_run(dhcp6_tester_t *opts)
 		ni_fatal("Cannot find interface with name '%s'", opts->ifname);
 
 	switch (ifp->link.hwaddr.type) {
+	/*
+	 * currently ether and ib type only, we've
+	 * simply not tested it on other links...
+	 */
 	case ARPHRD_ETHER:
+	case ARPHRD_INFINIBAND:
 		break;
 	default:
 		ni_fatal("Interface type of %s not supported yet", ifp->name);

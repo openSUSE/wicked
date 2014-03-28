@@ -390,11 +390,18 @@ dhcp6_discover_devices(ni_dbus_server_t *server)
 
 	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
 
-		/* currently ether type only */
-		if (ifp->link.hwaddr.type != ARPHRD_ETHER)
-			continue;
-
-		(void)dhcp6_device_create(server, ifp);
+		switch (ifp->link.hwaddr.type) {
+		/*
+		 * currently ether and ib type only, we've
+		 * simply not tested it on other links...
+		 */
+		case ARPHRD_ETHER:
+		case ARPHRD_INFINIBAND:
+			(void)dhcp6_device_create(server, ifp);
+			break;
+		default:
+			break;
+		}
 	}
 }
 
