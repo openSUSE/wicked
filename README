@@ -159,6 +159,19 @@ the network:wicked project tree and can be found via:
 The actual git master is built in the network:wicked:master
 project automatically.
 
+To build wicked from sources, try following commands:
+
+	zypper in git-core rpm-build gcc make pkg-config \
+		autoconf automake libtool systemd-devel \
+		libnl3-devel libiw-devel dbus-1-devel \
+		libgcrypt-devel
+	git clone https://github.com/openSUSE/wicked.git
+	cd wicked
+	./autogen.sh
+	make rpmbuild
+
+and then install the RPMs.
+
 
 Where to discuss or report bugs
 ===============================
