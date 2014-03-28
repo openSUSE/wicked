@@ -428,9 +428,21 @@ dhcp4_discover_devices(ni_dbus_server_t *server)
 		ni_fatal("cannot refresh interface list!");
 
 	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
-		if (ifp->link.hwaddr.type != ARPHRD_ETHER)
+		/*
+		 * currently broadcast capable ether and ib type only,
+		 * we've simply not tested it on other links...
+		 */
+		if (!(ifp->link.ifflags & NI_IFF_BROADCAST_ENABLED))
 			continue;
-		dhcp4_device_create(server, ifp);
+
+		switch (ifp->link.hwaddr.type) {
+		case ARPHRD_ETHER:
+		case ARPHRD_INFINIBAND:
+			dhcp4_device_create(server, ifp);
+			break;
+		default:
+			break;
+		}
 	}
 }
 

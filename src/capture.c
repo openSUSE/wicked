@@ -93,14 +93,26 @@ static struct bpf_insn std_ipv4_bpf_filter [] = {
 	BPF_STMT(BPF_RET + BPF_K, 0),
 };
 
+/*
+ * Wrap sockaddr_ll same to ni_sockaddr_t,
+ * just for link-layer packets only
+ *
+ * sll_addr[8] is not enough for infiniband.
+ */
+typedef union ni_packetaddr {
+	sa_family_t		ss_family;
+	struct sockaddr_storage	ss;
+	struct sockaddr		sa;
+	struct sockaddr_ll	sll;
+} ni_packetaddr_t;
 
 /*
  * Platform specific
  */
 struct ni_capture {
 	ni_socket_t *		sock;
+	ni_packetaddr_t		addr;
 	int			protocol;
-	struct sockaddr_ll	sll;
 
 	char *			ifname;
 
@@ -599,7 +611,7 @@ __ni_capture_enable_packet_auxdata(int fd)
 ni_capture_t *
 ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t *protinfo, void (*receive)(ni_socket_t *))
 {
-	struct sockaddr_ll sll;
+	ni_packetaddr_t	addr;
 	ni_capture_t *capture = NULL;
 	ni_hwaddr_t destaddr;
 
@@ -636,22 +648,22 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t
 	capture->sock = ni_socket_wrap(fd, SOCK_DGRAM);
 	capture->protocol = protinfo->eth_protocol;
 
-	capture->sll.sll_family = AF_PACKET;
-	capture->sll.sll_protocol = htons(protinfo->eth_protocol);
-	capture->sll.sll_ifindex = devinfo->ifindex;
-	capture->sll.sll_hatype = htons(devinfo->hwaddr.type);
-	capture->sll.sll_halen = destaddr.len;
-	memcpy(&capture->sll.sll_addr, destaddr.data, destaddr.len);
+	capture->addr.sll.sll_family = AF_PACKET;
+	capture->addr.sll.sll_protocol = htons(protinfo->eth_protocol);
+	capture->addr.sll.sll_ifindex = devinfo->ifindex;
+	capture->addr.sll.sll_hatype = htons(devinfo->hwaddr.type);
+	capture->addr.sll.sll_halen = destaddr.len;
+	memcpy(&capture->addr.sll.sll_addr, destaddr.data, destaddr.len);
 
 	if (ni_capture_set_filter(capture, protinfo) < 0)
 		goto failed;
 
-	memset(&sll, 0, sizeof(sll));
-	sll.sll_family = PF_PACKET;
-	sll.sll_protocol = htons(protinfo->eth_protocol);
-	sll.sll_ifindex = devinfo->ifindex;
+	memset(&addr, 0, sizeof(addr));
+	addr.sll.sll_family = PF_PACKET;
+	addr.sll.sll_protocol = htons(protinfo->eth_protocol);
+	addr.sll.sll_ifindex = devinfo->ifindex;
 
-	if (bind(fd, (struct sockaddr *) &sll, sizeof(sll)) == -1) {
+	if (bind(fd, &addr.sa, sizeof(addr)) == -1) {
 		ni_error("bind: %m");
 		goto failed;
 	}
@@ -731,7 +743,7 @@ __ni_capture_send(const ni_capture_t *capture, const ni_buffer_t *buf)
 	}
 
 	rv = sendto(capture->sock->__fd, ni_buffer_head(buf), ni_buffer_count(buf), 0,
-			(struct sockaddr *) &capture->sll, sizeof(capture->sll));
+			&capture->addr.sa, sizeof(capture->addr));
 	if (rv < 0)
 		ni_error("unable to send dhcp packet: %m");
 
