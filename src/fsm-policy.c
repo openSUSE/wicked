@@ -1180,37 +1180,71 @@ ni_ifcondition_sharable(xml_node_t *node)
 
 /*
  * <device>...</device>
+ * <device:name>...</device:name>
+ * <device:alias>...</device:alias>
+ * <device:ifindex>...</device:ifindex>
  */
 static ni_bool_t
-__ni_fsm_policy_match_device_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_device_name_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
-	ni_warn("<device> condition not implemented yet");
-	return FALSE;
+	return ni_ifworker_match_netdev_name(w, cond->args.string);
+}
+static ni_bool_t
+__ni_fsm_policy_match_device_alias_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+{
+	return ni_ifworker_match_netdev_alias(w, cond->args.string);
+}
+static ni_bool_t
+__ni_fsm_policy_match_device_ifindex_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+{
+	unsigned int ifindex;
+
+	if (ni_parse_uint(cond->args.string, &ifindex, 10) < 0 || !ifindex)
+		return FALSE;
+	return ni_ifworker_match_netdev_ifindex(w, ifindex);
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_device_element(xml_node_t *node, const char *name)
+{
+	if (ni_string_eq(name, "name")) {
+		return ni_ifcondition_new_cdata(__ni_fsm_policy_match_device_name_check, node);
+	}
+	if (ni_string_eq(name, "alias")) {
+		return ni_ifcondition_new_cdata(__ni_fsm_policy_match_device_alias_check, node);
+	}
+	if (ni_string_eq(name, "ifindex")) {
+		return ni_ifcondition_new_cdata(__ni_fsm_policy_match_device_ifindex_check, node);
+	}
+	ni_error("%s: unknown device condition <%s>", xml_node_location(node), name);
+	return NULL;
 }
 
 static ni_ifcondition_t *
 ni_ifcondition_device(xml_node_t *node)
 {
-	ni_ifcondition_t *result;
+	ni_ifcondition_t *result = NULL;
 
-	result = ni_ifcondition_new(__ni_fsm_policy_match_device_check);
-	result->args.device.node = node;
+	if (!node->children && node->cdata)
+		return ni_ifcondition_new_cdata(__ni_fsm_policy_match_device_name_check, node);
+
+	for (node = node->children; node; node = node->next) {
+		ni_ifcondition_t *cond;
+
+		cond = ni_ifcondition_device_element(node, node->name);
+		if (cond == NULL) {
+			if (result)
+				ni_ifcondition_free(result);
+			return NULL;
+		}
+
+		if (result == NULL)
+			result = cond;
+		else
+			result = ni_ifcondition_and_terms(result, cond);
+	}
+
 	return result;
-}
-
-/*
- * <device-alias>foobidoo</device-alias>
- */
-static ni_bool_t
-__ni_fsm_policy_match_device_alias_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
-{
-	return ni_ifworker_match_alias(w, cond->args.string);
-}
-
-static ni_ifcondition_t *
-ni_ifcondition_device_alias(xml_node_t *node)
-{
-	return ni_ifcondition_new_cdata(__ni_fsm_policy_match_device_alias_check, node);
 }
 
 /*
@@ -1468,30 +1502,30 @@ ni_ifcondition_from_xml(xml_node_t *node)
 		return ni_ifcondition_none(node);
 	if (!strcmp(node->name, "type"))
 		return ni_ifcondition_type(node);
-	if (!strcmp(node->name, "device"))
-		return ni_ifcondition_device(node);
 	if (!strcmp(node->name, "class"))
 		return ni_ifcondition_class(node);
 	if (!strcmp(node->name, "sharable"))
 		return ni_ifcondition_sharable(node);
 	if (!strcmp(node->name, "link-type"))
 		return ni_ifcondition_linktype(node);
-	if (!strcmp(node->name, "device-alias"))
-		return ni_ifcondition_device_alias(node);
 	if (!strcmp(node->name, "control-mode"))
 		return ni_ifcondition_control_mode(node);
 	if (!strcmp(node->name, "boot-stage"))
 		return ni_ifcondition_boot_stage(node);
 	if (!strcmp(node->name, "minimum-device-state"))
 		return ni_ifcondition_min_device_state(node);
+	if (!strcmp(node->name, "device"))
+		return ni_ifcondition_device(node);
+	if (!strncmp(node->name, "device:", sizeof("device:")-1))
+		return ni_ifcondition_device_element(node, node->name + sizeof("device:")-1);
 	if (!strcmp(node->name, "modem"))
 		return ni_ifcondition_modem(node);
-	if (!strncmp(node->name, "modem:", 6))
-		return ni_ifcondition_modem_element(node, node->name + 6);
+	if (!strncmp(node->name, "modem:", sizeof("modem:")-1))
+		return ni_ifcondition_modem_element(node, node->name + sizeof("modem:")-1);
 	if (!strcmp(node->name, "wireless"))
 		return ni_ifcondition_wireless(node);
-	if (!strncmp(node->name, "wireless:", 9))
-		return ni_ifcondition_wireless_element(node, node->name + 9);
+	if (!strncmp(node->name, "wireless:", sizeof("wireless:")-1))
+		return ni_ifcondition_wireless_element(node, node->name + sizeof("wireless:")-1);
 
 	ni_error("%s: unsupported policy conditional <%s>", xml_node_location(node), node->name);
 	return NULL;

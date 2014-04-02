@@ -277,6 +277,9 @@ extern inline ni_bool_t	ni_ifworker_state_in_range(const ni_uint_range_t *, cons
 extern const char *		ni_ifworker_state_name(unsigned int state);
 extern ni_bool_t		ni_ifworker_state_from_name(const char *, unsigned int *);
 extern ni_fsm_require_t *	ni_ifworker_reachability_check_new(xml_node_t *);
+extern ni_bool_t		ni_ifworker_match_netdev_name(const ni_ifworker_t *, const char *);
+extern ni_bool_t		ni_ifworker_match_netdev_alias(const ni_ifworker_t *, const char *);
+extern ni_bool_t		ni_ifworker_match_netdev_ifindex(const ni_ifworker_t *, unsigned int);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *, const char *);
 extern void			ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
 extern ni_bool_t		ni_ifworker_check_config(const ni_ifworker_t *, const xml_node_t *, const char *);
