@@ -324,7 +324,7 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 			break;
 		}
 
-		mdev->allowed = TRUE;
+		mdev->allowed = FALSE;
 		if (match->auto_enable)
 			mdev->monitor = TRUE;
 	}
@@ -332,7 +332,7 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_debug_nanny("new device %s, class %s%s%s", w->name,
 			mdev->object->class->name,
 			mdev->allowed? ", user control allowed" : "",
-			mdev->monitor? ", auto-enabled" : "");
+			mdev->monitor? ", monitored (auto-enabled)" : "");
 
 	if (mdev->monitor)
 		ni_nanny_schedule_recheck(mgr, w);
@@ -640,7 +640,7 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 
 		do {
 			snprintf(namebuf, sizeof(namebuf), "policy%u", counter++);
-		} while (ni_fsm_policy_by_name(mgr->fsm, namebuf) == NULL);
+		} while (ni_fsm_policy_by_name(mgr->fsm, namebuf) && counter);
 		name = namebuf;
 	}
 

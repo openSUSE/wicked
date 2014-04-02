@@ -593,6 +593,81 @@ ni_ifworker_by_modem(ni_fsm_t *fsm, const ni_modem_t *dev)
 }
 
 ni_bool_t
+ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
+{
+	xml_node_t *node;
+
+	if (!ifname)
+		return FALSE;
+
+	if (w->device && ni_string_eq(w->device->name, ifname))
+		return TRUE;
+
+	if (w->config.node && (node = xml_node_get_child(w->config.node, "name"))) {
+		const char *namespace = xml_node_get_attr(node, "namespace");
+		if (!namespace && ni_string_eq(node->cdata, ifname))
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
+static ni_bool_t
+__ni_ifworker_match_netdev_ifindex(unsigned int ifindex, const char *value)
+{
+	unsigned int index;
+
+	if (ni_parse_uint(value, &index, 10) < 0 || !index)
+		return FALSE;
+	return ifindex == index;
+}
+
+ni_bool_t
+ni_ifworker_match_netdev_ifindex(const ni_ifworker_t *w, unsigned int ifindex)
+{
+	xml_node_t *node;
+
+	if (!ifindex)
+		return FALSE;
+
+	if (w->device && w->device->link.ifindex == ifindex)
+		return TRUE;
+
+	if (w->config.node && (node = xml_node_get_child(w->config.node, "name"))) {
+		const char *namespace = xml_node_get_attr(node, "namespace");
+
+		if (namespace && ni_string_eq(namespace, "ifindex"))
+			return __ni_ifworker_match_netdev_ifindex(ifindex, node->cdata);
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_ifworker_match_netdev_alias(const ni_ifworker_t *w, const char *ifalias)
+{
+	xml_node_t *node;
+
+	if (!ifalias)
+		return FALSE;
+
+	if (w->device && ni_string_eq(w->device->link.alias, ifalias))
+		return TRUE;
+
+	if (w->config.node && (node = xml_node_get_child(w->config.node, "alias"))) {
+		if (ni_string_eq(node->cdata, ifalias))
+			return TRUE;
+	}
+	if (w->config.node && (node = xml_node_get_child(w->config.node, "name"))) {
+		const char *namespace = xml_node_get_attr(node, "namespace");
+
+		if (namespace && ni_string_eq(namespace, "alias"))
+			return ni_string_eq(node->cdata, ifalias);
+	}
+
+	return FALSE;
+}
+
+ni_bool_t
 ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias)
 {
 	xml_node_t *node;
@@ -603,7 +678,7 @@ ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias)
 	if (w->device && ni_string_eq(w->device->link.alias, alias))
 		return TRUE;
 
-	if (w->config.node && (node = xml_node_get_child(w->config.node, "alias")) != NULL) {
+	if (w->config.node && (node = xml_node_get_child(w->config.node, "alias"))) {
 		if (ni_string_eq(node->cdata, alias))
 			return TRUE;
 	}
