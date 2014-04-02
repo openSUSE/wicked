@@ -640,7 +640,7 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 
 		do {
 			snprintf(namebuf, sizeof(namebuf), "policy%u", counter++);
-		} while (ni_fsm_policy_by_name(mgr->fsm, namebuf) == NULL);
+		} while (ni_fsm_policy_by_name(mgr->fsm, namebuf) && counter);
 		name = namebuf;
 	}
 
