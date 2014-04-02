@@ -328,11 +328,12 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		return;
 	}
 
-	ni_debug_nanny("%s: received signal %s; state=%s, policy=%s%s",
+	ni_debug_nanny("%s: received signal %s; state=%s, policy=%s%s%s",
 			w->name, signal_name,
 			ni_managed_state_to_string(mdev->state),
 			mdev->selected_policy? ni_fsm_policy_name(mdev->selected_policy->fsm_policy): "<none>",
-			mdev->monitor? ", user controlled" : "");
+			mdev->allowed? ", user control allowed" : "",
+			mdev->monitor? ", monitored" : "");
 
 	switch (event) {
 	case NI_EVENT_LINK_DOWN:
