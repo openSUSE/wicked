@@ -429,8 +429,6 @@ ni_nanny_get_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 {
 	ni_managed_device_t *mdev;
 
-	ni_assert(w);
-
 	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
 		if (mdev->worker == w)
 			return mdev;

@@ -300,9 +300,10 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		// A new device was added. Could be a virtual device like
 		// a VLAN or vif, or a hotplug device
 		// Create a worker and a managed_netif for this device.
-		w = ni_fsm_recv_new_netif_path(mgr->fsm, object_path);
-		ni_nanny_register_device(mgr, w);
-		ni_nanny_schedule_recheck(mgr, w);
+		if ((w = ni_fsm_recv_new_netif_path(mgr->fsm, object_path))) {
+			ni_nanny_register_device(mgr, w);
+			ni_nanny_schedule_recheck(mgr, w);
+		}
 		return;
 	}
 
@@ -388,9 +389,10 @@ ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 
 	// We receive a deviceCreate signal when a modem was plugged in
 	if (event == NI_EVENT_DEVICE_CREATE) {
-		w = ni_fsm_recv_new_modem_path(mgr->fsm, object_path);
-		ni_nanny_register_device(mgr, w);
-		ni_nanny_schedule_recheck(mgr, w);
+		if ((w = ni_fsm_recv_new_modem_path(mgr->fsm, object_path))) {
+			ni_nanny_register_device(mgr, w);
+			ni_nanny_schedule_recheck(mgr, w);
+		}
 		return;
 	}
 
