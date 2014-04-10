@@ -176,6 +176,10 @@ ni_ifworker_free(ni_ifworker_t *w)
 {
 	ni_string_free(&w->name);
 	ni_ifworker_reset(w);
+	if (w->device)
+		ni_netdev_put(w->device);
+	if (w->modem)
+		ni_modem_release(w->modem);
 	free(w);
 }
 
