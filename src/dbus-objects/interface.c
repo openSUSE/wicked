@@ -374,8 +374,10 @@ __ni_objectmodel_build_netif_object(ni_dbus_server_t *server, ni_netdev_t *dev, 
 		object = ni_dbus_object_new(class, NULL, ni_netdev_get(dev));
 	}
 
-	if (object == NULL)
-		ni_fatal("Unable to create dbus object for network interface %s", dev->name);
+	if (object == NULL) {
+		ni_error("Unable to create dbus object for network interface %s", dev->name);
+		return NULL;
+	}
 
 	ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
@@ -504,8 +506,16 @@ ni_objectmodel_wrap_netif_request(ni_netdev_req_t *req)
 ni_netdev_t *
 ni_objectmodel_unwrap_netif(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_netdev_t *dev = object->handle;
+	ni_netdev_t *dev;
 
+	if (!object) {
+		if (error)
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Cannot unwrap network interface from a NULL dbus object");
+		return NULL;
+	}
+
+	dev = object->handle;
 	if (ni_dbus_object_isa(object, &ni_objectmodel_netif_class))
 		return dev;
 	if (error)
