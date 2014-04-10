@@ -41,9 +41,9 @@ static void			ni_fsm_require_free(ni_fsm_require_t *);
 static int			ni_ifworker_bind_device_apis(ni_ifworker_t *, const ni_dbus_service_t *);
 static void			ni_ifworker_control_init(ni_ifworker_control_t *);
 static void			ni_ifworker_control_destroy(ni_ifworker_control_t *);
-static void			__ni_ifworker_refresh_netdevs(ni_fsm_t *);
+static ni_bool_t		__ni_ifworker_refresh_netdevs(ni_fsm_t *);
 #ifdef MODEM
-static void			__ni_ifworker_refresh_modems(ni_fsm_t *);
+static ni_bool_t		__ni_ifworker_refresh_modems(ni_fsm_t *);
 #endif
 static int			ni_fsm_user_prompt_default(const ni_fsm_prompt_t *, xml_node_t *, void *);
 static void			ni_ifworker_refresh_client_info(ni_ifworker_t *, ni_device_clientinfo_t *);
@@ -2448,7 +2448,7 @@ __ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *
 	}
 }
 
-void
+ni_bool_t
 ni_fsm_refresh_state(ni_fsm_t *fsm)
 {
 	ni_ifworker_t *w;
@@ -2465,9 +2465,11 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 		w->readonly = fsm->readonly;
 	}
 
-	__ni_ifworker_refresh_netdevs(fsm);
+	if (!__ni_ifworker_refresh_netdevs(fsm))
+		return FALSE;
 #ifdef MODEM
-	__ni_ifworker_refresh_modems(fsm);
+	if (!__ni_ifworker_refresh_modems(fsm))
+		return FALSE;
 #endif
 
 	for (i = 0; i < fsm->workers.count; ++i) {
@@ -2491,23 +2493,29 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 		} else if (!w->done)
 			ni_ifworker_update_state(w, NI_FSM_STATE_DEVICE_EXISTS, __NI_FSM_STATE_MAX);
 	}
+	return TRUE;
 }
 
-static void
+static ni_bool_t
 __ni_ifworker_refresh_netdevs(ni_fsm_t *fsm)
 {
 	static ni_dbus_object_t *list_object = NULL;
 	ni_dbus_object_t *object;
 
-	if (!list_object && !(list_object = ni_call_get_netif_list_object()))
-		ni_fatal("unable to get server's interface list");
+	if (!list_object && !(list_object = ni_call_get_netif_list_object())) {
+		ni_error("unable to get server's interface list");
+		return FALSE;
+	}
 
 	/* Call ObjectManager.GetManagedObjects to get list of objects and their properties */
-	if (!ni_dbus_object_refresh_children(list_object))
-		ni_fatal("Couldn't refresh list of active network interfaces");
+	if (!ni_dbus_object_refresh_children(list_object)) {
+		ni_error("Couldn't refresh list of active network interfaces");
+		return FALSE;
+	}
 
 	for (object = list_object->children; object; object = object->next)
 		ni_fsm_recv_new_netif(fsm, object, FALSE);
+	return TRUE;
 }
 
 ni_ifworker_t *
@@ -2568,30 +2576,37 @@ ni_fsm_recv_new_netif_path(ni_fsm_t *fsm, const char *path)
 	static ni_dbus_object_t *list_object = NULL;
 	ni_dbus_object_t *object;
 
-	if (!list_object && !(list_object = ni_call_get_netif_list_object()))
-		ni_fatal("unable to get server's netdev list");
+	if (!list_object && !(list_object = ni_call_get_netif_list_object())) {
+		ni_error("unable to get server's netdev list");
+		return NULL;
+	}
 
 	object = ni_dbus_object_create(list_object, path, NULL, NULL);
 	return ni_fsm_recv_new_netif(fsm, object, TRUE);
 }
 
 #ifdef MODEM
-static void
+static ni_bool_t
 __ni_ifworker_refresh_modems(ni_fsm_t *fsm)
 {
 	static ni_dbus_object_t *list_object = NULL;
 	ni_dbus_object_t *object;
 
-	if (!list_object && !(list_object = ni_call_get_modem_list_object()))
-		ni_fatal("unable to get server's modem list");
+	if (!list_object && !(list_object = ni_call_get_modem_list_object())) {
+		ni_error("unable to get server's modem list");
+		return FALSE;
+	}
 
 	/* Call ObjectManager.GetManagedObjects to get list of objects and their properties */
-	if (!ni_dbus_object_refresh_children(list_object))
-		ni_fatal("Couldn't refresh list of available modems");
+	if (!ni_dbus_object_refresh_children(list_object)) {
+		ni_error("Couldn't refresh list of available modems");
+		return FALSE;
+	}
 
 	for (object = list_object->children; object; object = object->next) {
 		ni_fsm_recv_new_modem(fsm, object, FALSE);
 	}
+	return TRUE;
 }
 #endif
 

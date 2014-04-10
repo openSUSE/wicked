@@ -206,7 +206,11 @@ usage:
 		goto cleanup;
 	}
 
-	ni_fsm_refresh_state(fsm);
+	if (!ni_fsm_refresh_state(fsm)) {
+		/* Severe error we always explicitly return */
+		status = NI_WICKED_RC_ERROR;
+		goto cleanup;
+	}
 
 	if (opt_ifconfig.count == 0) {
 		const ni_string_array_t *sources = ni_config_sources("ifconfig");

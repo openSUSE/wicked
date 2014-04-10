@@ -151,11 +151,15 @@ usage:
 	ifmarker.target_range.min = NI_FSM_STATE_NONE;
 	ifmarker.target_range.max = max_state;
 
-	if (!ni_fsm_create_client(fsm))
+	if (!ni_fsm_create_client(fsm)) {
 		/* Severe error we always explicitly return */
 		return NI_WICKED_RC_ERROR;
+	}
 
-	ni_fsm_refresh_state(fsm);
+	if (!ni_fsm_refresh_state(fsm)) {
+		/* Severe error we always explicitly return */
+		return NI_WICKED_RC_ERROR;
+	}
 
 	/* Get workers that match given criteria */
 	nmarked = 0;

@@ -325,11 +325,17 @@ ni_do_ifcheck(int argc, char **argv)
 	}
 
 	if (!ni_fsm_create_client(fsm)) {
+		/* Severe error we always explicitly return */
 		status = NI_WICKED_RC_ERROR;
 		goto cleanup;
 	}
 
-	ni_fsm_refresh_state(fsm);
+	if (!ni_fsm_refresh_state(fsm)) {
+		/* Severe error we always explicitly return */
+		status = NI_WICKED_RC_ERROR;
+		goto cleanup;
+	}
+
 	status = NI_WICKED_ST_OK;
 
 	if (0 == checks.count)
