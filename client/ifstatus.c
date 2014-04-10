@@ -215,12 +215,12 @@ if_printf(const char *dev, const char *tag, const char *fmt, ...)
 	va_list ap;
 
 	if (!ni_string_empty(dev)) {
-		printf("%-15s", dev);
+		printf("%-16s", dev);
 	} else {
 		printf("%-6s", "");
 	}
 	if (!ni_string_empty(tag)) {
-		printf("%-8s ", tag);
+		printf("%-9s ", tag);
 	}
 	if (!ni_string_empty(fmt)) {
 		va_start(ap, fmt);
