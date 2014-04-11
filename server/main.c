@@ -347,10 +347,14 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 			/* A new netif was discovered; create a dbus server object
 			 * enacpsulating it. */
 			object = ni_objectmodel_register_netif(dbus_server, dev, NULL);
-		} else
-		if (!(object = ni_objectmodel_get_netif_object(dbus_server, dev))) {
-			ni_error("cannot send %s event for model \"%s\" - no dbus device",
-				ni_event_type_to_name(event), dev->name);
+		} else {
+			object = ni_objectmodel_get_netif_object(dbus_server, dev);
+		}
+		if (!object) {
+			/* usually a "bad event", e.g. when the underlying netdev
+			 * does not exists any more, but events still arrive ... */
+			ni_debug_events("cannot handle %s event for model \"%s\" - no dbus object",
+					ni_event_type_to_name(event), dev->name);
 			return;
 		}
 

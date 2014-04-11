@@ -144,6 +144,13 @@ __ni_rtevent_process(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	return rv;
 }
 
+static inline ni_bool_t
+__ni_netdev_still_exists(unsigned int ifindex)
+{
+	char namebuf[IF_NAMESIZE+1] = {'\0'};
+	return if_indextoname(ifindex, namebuf) != NULL;
+}
+
 /*
  * Process NEWLINK event
  */
@@ -169,6 +176,16 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	}
 
 	old = ni_netdev_by_index(nc, ifi->ifi_index);
+	if (!__ni_netdev_still_exists(ifi->ifi_index)) {
+		if (old) {
+			__ni_netdev_event(nc, old, NI_EVENT_DEVICE_DELETE);
+			ni_netconfig_device_remove(nc, old);
+			ni_client_state_drop(old->link.ifindex);
+			return 0;
+		}
+		return -1;
+	}
+
 	if (old != NULL) {
 		old_flags = old->link.ifflags;
 		dev = old;
@@ -244,6 +261,8 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 {
 	struct ifinfomsg *ifi;
 	ni_netdev_t *dev;
+	struct nlattr *nla;
+	const char *ifname = NULL;
 
 	if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_DELLINK)))
 		return -1;
@@ -253,9 +272,14 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		return 0;
 	}
 
+	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_IFNAME)) != NULL) {
+		ifname = (char *) nla_data(nla);
+	}
+
 	/* Open code interface removal. */
 	if ((dev = ni_netdev_by_index(nc, ifi->ifi_index)) == NULL) {
-		ni_error("bad RTM_DELLINK message for unknown interface index %d", ifi->ifi_index);
+		ni_debug_events("RTM_DELLINK message for unknown interface %s index %d",
+				ifname, ifi->ifi_index);
 		return -1;
 	} else {
 		dev->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);

@@ -301,7 +301,7 @@ ni_dbus_object_get_service(const ni_dbus_object_t *object, const char *interface
 	const ni_dbus_service_t *svc;
 	unsigned int i;
 
-	if (object->interfaces == NULL)
+	if (object == NULL || object->interfaces == NULL)
 		return NULL;
 
 	for (i = 0; (svc = object->interfaces[i]) != NULL; ++i) {
@@ -364,7 +364,7 @@ ni_dbus_object_get_all_services_for_method(const ni_dbus_object_t *object, const
 	const ni_dbus_service_t *svc;
 	unsigned int i, found = 0;
 
-	if (object->interfaces == NULL || method == NULL)
+	if (object == NULL || object->interfaces == NULL || method == NULL)
 		return 0;
 
 	for (i = 0; (svc = object->interfaces[i]) != NULL; ++i) {
@@ -383,7 +383,7 @@ ni_dbus_object_get_service_for_signal(const ni_dbus_object_t *object, const char
 	const ni_dbus_service_t *svc, *best = NULL;
 	unsigned int i;
 
-	if (object->interfaces == NULL)
+	if (object == NULL || object->interfaces == NULL)
 		return NULL;
 
 	for (i = 0; (svc = object->interfaces[i]) != NULL; ++i) {
@@ -404,7 +404,7 @@ ni_dbus_object_get_service_for_property(const ni_dbus_object_t *object, const ch
 	const ni_dbus_service_t *svc;
 	unsigned int i;
 
-	if (object->interfaces == NULL)
+	if (object == NULL || object->interfaces == NULL)
 		return NULL;
 
 	for (i = 0; (svc = object->interfaces[i]) != NULL; ++i) {

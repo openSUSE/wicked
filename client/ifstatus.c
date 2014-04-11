@@ -215,12 +215,12 @@ if_printf(const char *dev, const char *tag, const char *fmt, ...)
 	va_list ap;
 
 	if (!ni_string_empty(dev)) {
-		printf("%-15s", dev);
+		printf("%-16s", dev);
 	} else {
 		printf("%-6s", "");
 	}
 	if (!ni_string_empty(tag)) {
-		printf("%-8s ", tag);
+		printf("%-9s ", tag);
 	}
 	if (!ni_string_empty(fmt)) {
 		va_start(ap, fmt);
@@ -563,14 +563,16 @@ ni_do_ifstatus(int argc, char **argv)
 	}
 
 	if (!ni_fsm_create_client(fsm)) {
+		/* Severe error we always explicitly return */
 		status = NI_WICKED_ST_ERROR;
 		goto cleanup;
 	}
 
-	/* TODO: we connect to wickedd here. currently, it
-	 * may exit(1), that is with NI_WICKED_ST_ERROR...
-	 */
-	ni_fsm_refresh_state(fsm);
+	if (!ni_fsm_refresh_state(fsm)) {
+		/* Severe error we always explicitly return */
+		status = NI_WICKED_ST_ERROR;
+		goto cleanup;
+	}
 
 	if (check_config && opt_ifconfig.count == 0) {
 		const ni_string_array_t *sources = ni_config_sources("ifconfig");

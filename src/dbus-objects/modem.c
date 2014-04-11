@@ -198,8 +198,11 @@ __ni_objectmodel_build_modem_object(ni_dbus_server_t *server, ni_modem_t *modem)
 		object = ni_dbus_object_new(class, NULL, ni_modem_hold(modem));
 	}
 
-	if (object == NULL)
-		ni_fatal("Unable to create proxy object for modem %s (%s)", modem->device, modem->real_path);
+	if (object == NULL) {
+		ni_error("Unable to create proxy object for modem %s (%s)",
+				modem->device, modem->real_path);
+		return NULL;
+	}
 
 	ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
@@ -262,8 +265,16 @@ ni_objectmodel_modem_full_path(const ni_modem_t *modem)
 ni_modem_t *
 ni_objectmodel_unwrap_modem(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_modem_t *modem = object->handle;
+	ni_modem_t *modem;
 
+	if (!object) {
+		if (error)
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Cannot unwrap modem from a NULL dbus object");
+		return NULL;
+	}
+
+	modem = object->handle;
 	if (ni_dbus_object_isa(object, &ni_objectmodel_mm_modem_class))
 		return modem;
 	if (ni_dbus_object_isa(object, &ni_objectmodel_modem_class))

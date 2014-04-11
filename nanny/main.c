@@ -300,9 +300,10 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		// A new device was added. Could be a virtual device like
 		// a VLAN or vif, or a hotplug device
 		// Create a worker and a managed_netif for this device.
-		w = ni_fsm_recv_new_netif_path(mgr->fsm, object_path);
-		ni_nanny_register_device(mgr, w);
-		ni_nanny_schedule_recheck(mgr, w);
+		if ((w = ni_fsm_recv_new_netif_path(mgr->fsm, object_path))) {
+			ni_nanny_register_device(mgr, w);
+			ni_nanny_schedule_recheck(mgr, w);
+		}
 		return;
 	}
 
@@ -311,19 +312,22 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 				signal_name, object_path);
 		return;
 	}
-
-	ni_assert(w->type == NI_IFWORKER_TYPE_NETDEV);
-	ni_assert(w->device);
+	if (w->type != NI_IFWORKER_TYPE_NETDEV || w->device == NULL) {
+		ni_error("%s: received signal \"%s\" from \"%s\" (not a managed network device)",
+				w->name, signal_name, object_path);
+		return;
+	}
 
 	if (event == NI_EVENT_DEVICE_DELETE) {
-		ni_debug_nanny("%s: received signal %s from %s", w->name, signal_name, object_path);
+		ni_debug_nanny("%s: received signal \"%s\" from \"%s\"",
+				w->name, signal_name, object_path);
 		// delete the worker and the managed netif
 		ni_nanny_unregister_device(mgr, w);
 		return;
 	}
 
 	if ((mdev = ni_nanny_get_device(mgr, w)) == NULL) {
-		ni_debug_nanny("%s: received signal %s from %s (not a managed device)",
+		ni_debug_nanny("%s: received signal \"%s\" from \"%s\" (not a managed device)",
 				w->name, signal_name, object_path);
 		return;
 	}
@@ -388,9 +392,10 @@ ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 
 	// We receive a deviceCreate signal when a modem was plugged in
 	if (event == NI_EVENT_DEVICE_CREATE) {
-		w = ni_fsm_recv_new_modem_path(mgr->fsm, object_path);
-		ni_nanny_register_device(mgr, w);
-		ni_nanny_schedule_recheck(mgr, w);
+		if ((w = ni_fsm_recv_new_modem_path(mgr->fsm, object_path))) {
+			ni_nanny_register_device(mgr, w);
+			ni_nanny_schedule_recheck(mgr, w);
+		}
 		return;
 	}
 
@@ -400,10 +405,13 @@ ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		return;
 	}
 
-	ni_debug_nanny("%s: received signal %s from %s", w->name, signal_name, object_path);
-	ni_assert(w->type == NI_IFWORKER_TYPE_MODEM);
-	ni_assert(w->modem);
+	if (w->type != NI_IFWORKER_TYPE_MODEM || w->modem == NULL) {
+		ni_error("%s: received signal \"%s\" from \"%s\" (not a managed modem device)",
+				w->name, signal_name, object_path);
+		return;
+	}
 
+	ni_debug_nanny("%s: received signal %s from %s", w->name, signal_name, object_path);
 	if (event == NI_EVENT_DEVICE_DELETE) {
 		// delete the worker and the managed modem
 		ni_nanny_unregister_device(mgr, w);
