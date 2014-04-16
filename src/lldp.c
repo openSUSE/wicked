@@ -653,6 +653,7 @@ ni_lldp_agent_update(ni_lldp_agent_t *agent, ni_lldp_t *lldp, const void *raw_id
 			*pos = peer->next;
 			peer->next = NULL;
 		} else {
+			*pos = peer->next;
 			npeers++;
 		}
 	}
@@ -684,7 +685,7 @@ ni_lldp_agent_update(ni_lldp_agent_t *agent, ni_lldp_t *lldp, const void *raw_id
 	/* Insert in order of increasing timeout */
 	pos = &agent->peers;
 	while ((peer = *pos) != NULL && peer->expires < found->expires)
-		break;
+		*pos = peer->next;
 
 	found->next = *pos;
 	*pos = found;
