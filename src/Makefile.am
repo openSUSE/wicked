@@ -129,6 +129,7 @@ libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/state.c	\
 	dbus-objects/tuntap.c	\
 	dbus-objects/sit.c	\
+	dbus-objects/tunnel.c	\
 	dbus-objects/vlan.c	\
 	dbus-objects/wireless.c
 
