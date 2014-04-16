@@ -69,8 +69,10 @@ static int		__ni_discover_vlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *
 static int		__ni_discover_macvlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static int		__ni_discover_tuntap(ni_netdev_t *);
 static int		__ni_discover_tunneling(ni_netdev_t *, struct nlattr **);
+#if 0
 static void		__ni_tunnel_trace(ni_netdev_t *, struct nlattr **);
 static void		__ni_tunnel_gre_trace(ni_netdev_t *, struct nlattr **);
+#endif
 static int		__ni_discover_sit(ni_netdev_t *, struct nlattr **, struct nlattr**);
 static int		__ni_discover_tunnel(ni_netdev_t *, struct nlattr **, struct nlattr**);
 static int		__ni_discover_gre(ni_netdev_t *, struct nlattr **, struct nlattr**);
@@ -1285,6 +1287,7 @@ __ni_discover_gre(ni_netdev_t *dev, struct nlattr **link_info, struct nlattr **i
 	return 0;
 }
 
+#if 0
 /*
  * Dump tunnel data for debugging purposes.
  */
@@ -1332,7 +1335,9 @@ __ni_tunnel_trace(ni_netdev_t *dev, struct nlattr **info_data)
 		ni_trace("%s:IFLA_IPTUN_FLAGS: %u", dev->name, flags);
 	}
 }
+#endif
 
+#if 0
 /*
  * Dump gre tunnel data for debugging purposes.
  */
@@ -1375,6 +1380,7 @@ __ni_tunnel_gre_trace(ni_netdev_t *dev, struct nlattr **info_data)
 		ni_trace("%s:IFLA_GRE_FLAGS: %u", dev->name, flags);
 	}
 }
+#endif
 
 /*
  * Catch-all for (currentl sit, ipip and gre) tunnel discovery.
@@ -1407,7 +1413,9 @@ __ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
 			ni_error("%s: unable to parse IFLA_INFO_DATA", dev->name);
 			return -1;
 		}
+#if 0
 		__ni_tunnel_trace(dev, iptun_data);
+#endif
 		__ni_discover_tunnel(dev, link_info, iptun_data);
 		break;
 
@@ -1417,7 +1425,9 @@ __ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
 			ni_error("%s: unable to parse IFLA_INFO_DATA", dev->name);
 			return -1;
 		}
+#if 0
 		__ni_tunnel_trace(dev, iptun_data);
+#endif
 		__ni_discover_sit(dev, link_info, iptun_data);
 		break;
 
@@ -1427,7 +1437,9 @@ __ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
 			ni_error("%s: unable to parse IFLA_INFO_DATA", dev->name);
 			return -1;
 		}
+#if 0
 		__ni_tunnel_gre_trace(dev, gre_data);
+#endif
 		__ni_discover_gre(dev, link_info, gre_data);
 		break;
 
