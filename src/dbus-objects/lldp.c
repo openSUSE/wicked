@@ -126,12 +126,16 @@ ni_objectmodel_lldp_up(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
+#if defined(NI_ENABLE_LLDP)
 	ni_debug_lldp("ni_objectmodel_lldp_up(%s -> %s)", object->path, dev->name);
 
 	if (!ni_system_lldp_available(dev)) {
 		ni_debug_lldp("Cannot enable LLDP for device %s: incompatible layer 2 protocol", dev->name);
 		return TRUE;
 	}
+#else
+	return TRUE;
+#endif
 
 	if (!(cfg = __ni_objectmodel_protocol_arg(&argv[0], &ni_objectmodel_lldp_service))) {
 		ni_dbus_error_invalid_args(error, object->path, method->name);
@@ -171,6 +175,7 @@ ni_objectmodel_lldp_down(ni_dbus_object_t *object, const ni_dbus_method_t *metho
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
+#if defined(NI_ENABLE_LLDP)
 	if (!ni_system_lldp_available(dev)) {
 		ni_debug_lldp("Cannot disable LLDP for device %s: incompatible layer 2 protocol", dev->name);
 		return TRUE;
@@ -180,6 +185,7 @@ ni_objectmodel_lldp_down(ni_dbus_object_t *object, const ni_dbus_method_t *metho
 		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to stop LLDP agent on device %s", dev->name);
 		return FALSE;
 	}
+#endif
 
 	return TRUE;
 }
