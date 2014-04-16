@@ -1407,7 +1407,9 @@ __ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
 			ni_error("%s: unable to parse IFLA_INFO_DATA", dev->name);
 			return -1;
 		}
+#if 0
 		__ni_tunnel_trace(dev, iptun_data);
+#endif
 		__ni_discover_ipip_tunnel(dev, link_info, iptun_data);
 		break;
 
@@ -1417,7 +1419,9 @@ __ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
 			ni_error("%s: unable to parse IFLA_INFO_DATA", dev->name);
 			return -1;
 		}
+#if 0
 		__ni_tunnel_trace(dev, iptun_data);
+#endif
 		__ni_discover_sit(dev, link_info, iptun_data);
 		break;
 
@@ -1427,7 +1431,9 @@ __ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
 			ni_error("%s: unable to parse IFLA_INFO_DATA", dev->name);
 			return -1;
 		}
+#if 0
 		__ni_tunnel_gre_trace(dev, gre_data);
+#endif
 		__ni_discover_gre(dev, link_info, gre_data);
 		break;
 
