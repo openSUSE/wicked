@@ -380,7 +380,7 @@ autoip4_discover_devices(ni_dbus_server_t *server)
 		ni_fatal("cannot refresh interface list!");
 
 	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
-		if(ni_autoip4_supported(ifp))
+		if(!ni_autoip4_supported(ifp))
 			continue;
 
 		autoip4_device_create(server, ifp);
