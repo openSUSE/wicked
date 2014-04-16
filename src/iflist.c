@@ -29,6 +29,7 @@
 #include <wicked/wireless.h>
 #include <wicked/infiniband.h>
 #include <wicked/tuntap.h>
+#include <wicked/tunneling.h>
 #include <wicked/linkstats.h>
 
 #if defined(HAVE_RTA_MARK)
@@ -70,6 +71,9 @@ static int		__ni_discover_tuntap(ni_netdev_t *);
 static int		__ni_discover_tunneling(ni_netdev_t *, struct nlattr **);
 static void		__ni_tunnel_trace(ni_netdev_t *, struct nlattr **);
 static void		__ni_tunnel_gre_trace(ni_netdev_t *, struct nlattr **);
+static int		__ni_discover_sit(ni_netdev_t *, struct nlattr **, struct nlattr**);
+static int		__ni_discover_tunnel(ni_netdev_t *, struct nlattr **, struct nlattr**);
+static int		__ni_discover_gre(ni_netdev_t *, struct nlattr **, struct nlattr**);
 static ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, const struct prefix_cacheinfo *);
 static ni_addrconf_lease_t *__ni_netdev_get_autoconf_lease(ni_netdev_t *, unsigned int);
 
@@ -778,6 +782,12 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 				link->type = NI_IFTYPE_TUN;
 		} else if (!strcmp(link->kind, "dummy")) {
 			link->type = NI_IFTYPE_DUMMY;
+		} else if (!strcmp(link->kind, "sit")) {
+			link->type = NI_IFTYPE_SIT;
+		} else if (!strcmp(link->kind, "tunnel")) {
+			link->type = NI_IFTYPE_TUNNEL;
+		} else if (!strcmp(link->kind, "gre")) {
+			link->type = NI_IFTYPE_GRE;
 		}
 	}
 
@@ -1140,6 +1150,141 @@ __ni_discover_tuntap(ni_netdev_t *dev)
 	return rv;
 }
 
+static int
+__ni_discover_sit(ni_netdev_t *dev, struct nlattr **link_info, struct nlattr **info_data)
+{
+	ni_sit_t *sit;
+	uint32_t ip;
+	uint8_t pmtudisc;
+
+	if (!(sit = ni_netdev_get_tunnel(dev))) {
+		ni_error("%s: Unable to discover sit tunnel details",
+			dev ? dev->name : NULL);
+		return -1;
+	}
+
+	if (info_data[IFLA_IPTUN_LOCAL]) {
+		ip = nla_get_u32(info_data[IFLA_IPTUN_LOCAL]);
+		memcpy(dev->link.hwaddr.data, &ip,
+			sizeof(ip));
+	}
+
+	if (info_data[IFLA_IPTUN_REMOTE]) {
+		ip = nla_get_u32(info_data[IFLA_IPTUN_REMOTE]);
+		memcpy(dev->link.hwpeer.data, &ip,
+			sizeof(ip));
+	}
+
+	if (info_data[IFLA_IPTUN_TTL]) {
+		sit->ttl = nla_get_u8(info_data[IFLA_IPTUN_TTL]);
+	}
+
+	if (info_data[IFLA_IPTUN_TOS]) {
+		sit->tos = nla_get_u8(info_data[IFLA_IPTUN_TOS]);
+	}
+
+	if (info_data[IFLA_IPTUN_PMTUDISC]) {
+		pmtudisc = nla_get_u8(info_data[IFLA_IPTUN_PMTUDISC]);
+		if (pmtudisc)
+			sit->pmtudisc = TRUE;
+		else
+			sit->pmtudisc = FALSE;
+	}
+
+	return 0;
+}
+
+/*
+ * Discover tunnel (ipip) interfaces.
+ */
+static int
+__ni_discover_tunnel(ni_netdev_t *dev, struct nlattr **link_info, struct nlattr **info_data)
+{
+	ni_tunnel_t *tunnel;
+	uint32_t ip;
+	uint8_t pmtudisc;
+
+	if (!(tunnel = ni_netdev_get_tunnel(dev))) {
+		ni_error("%s: Unable to discover ipip tunnel details",
+			dev ? dev->name : NULL);
+		return -1;
+	}
+
+	if (info_data[IFLA_IPTUN_LOCAL]) {
+		ip = nla_get_u32(info_data[IFLA_IPTUN_LOCAL]);
+		memcpy(dev->link.hwaddr.data, &ip,
+			sizeof(ip));
+	}
+
+	if (info_data[IFLA_IPTUN_REMOTE]) {
+		ip = nla_get_u32(info_data[IFLA_IPTUN_REMOTE]);
+		memcpy(dev->link.hwpeer.data, &ip,
+			sizeof(ip));
+	}
+
+	if (info_data[IFLA_IPTUN_TTL]) {
+		tunnel->ttl = nla_get_u8(info_data[IFLA_IPTUN_TTL]);
+	}
+
+	if (info_data[IFLA_IPTUN_TOS]) {
+		tunnel->tos = nla_get_u8(info_data[IFLA_IPTUN_TOS]);
+	}
+
+	if (info_data[IFLA_IPTUN_PMTUDISC]) {
+		pmtudisc = nla_get_u8(info_data[IFLA_IPTUN_PMTUDISC]);
+		if (pmtudisc)
+			tunnel->pmtudisc = TRUE;
+		else
+			tunnel->pmtudisc = FALSE;
+	}
+
+	return 0;
+}
+
+static int
+__ni_discover_gre(ni_netdev_t *dev, struct nlattr **link_info, struct nlattr **info_data)
+{
+	ni_gre_t *gre;
+	uint32_t ip;
+	uint8_t pmtudisc;
+
+	if (!(gre = ni_netdev_get_tunnel(dev))) {
+		ni_error("%s: Unable to discover gre tunnel details",
+			dev ? dev->name : NULL);
+		return -1;
+	}
+
+	if (info_data[IFLA_GRE_LOCAL]) {
+		ip = nla_get_u32(info_data[IFLA_GRE_LOCAL]);
+		memcpy(dev->link.hwaddr.data, &ip,
+			sizeof(ip));
+	}
+
+	if (info_data[IFLA_GRE_REMOTE]) {
+		ip = nla_get_u32(info_data[IFLA_GRE_REMOTE]);
+		memcpy(dev->link.hwpeer.data, &ip,
+			sizeof(ip));
+	}
+
+	if (info_data[IFLA_GRE_TTL]) {
+		gre->ttl = nla_get_u8(info_data[IFLA_GRE_TTL]);
+	}
+
+	if (info_data[IFLA_GRE_TOS]) {
+		gre->tos = nla_get_u8(info_data[IFLA_GRE_TOS]);
+	}
+
+	if (info_data[IFLA_GRE_PMTUDISC]) {
+		pmtudisc = nla_get_u8(info_data[IFLA_GRE_PMTUDISC]);
+		if (pmtudisc)
+			gre->pmtudisc = TRUE;
+		else
+			gre->pmtudisc = FALSE;
+	}
+
+	return 0;
+}
+
 /*
  * Dump tunnel data for debugging purposes.
  */
@@ -1263,6 +1408,7 @@ __ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
 			return -1;
 		}
 		__ni_tunnel_trace(dev, iptun_data);
+		__ni_discover_tunnel(dev, link_info, iptun_data);
 		break;
 
 	case NI_IFTYPE_SIT:
@@ -1272,6 +1418,7 @@ __ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
 			return -1;
 		}
 		__ni_tunnel_trace(dev, iptun_data);
+		__ni_discover_sit(dev, link_info, iptun_data);
 		break;
 
 	case NI_IFTYPE_GRE:
@@ -1281,6 +1428,7 @@ __ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
 			return -1;
 		}
 		__ni_tunnel_gre_trace(dev, gre_data);
+		__ni_discover_gre(dev, link_info, gre_data);
 		break;
 
 	default:
