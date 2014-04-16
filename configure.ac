@@ -31,6 +31,15 @@ AC_CONFIG_HEADERS([config.h])
 
 AC_PREFIX_DEFAULT([/usr])
 
+# Whether to enable lldp support (experimental)
+AC_ARG_ENABLE([lldp],
+	      [AS_HELP_STRING([--enable-lldp],
+	       [enable lldp support (experimental)])],,
+	      [enable_lldp=no])
+if test "x$enable_lldp" = "xyes" ; then
+	AC_DEFINE([NI_ENABLE_LLDP], [], [Enable lldp support])
+fi
+
 # Whether to enable system-v init script installation
 AC_ARG_ENABLE([systemv],
               [AS_HELP_STRING([--enable-systemv],

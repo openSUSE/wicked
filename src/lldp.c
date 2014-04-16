@@ -263,7 +263,11 @@ ni_lldp_check_mac_address(ni_hwaddr_t *mac_addr, ni_netdev_t *dev, const char *w
 ni_bool_t
 ni_system_lldp_available(ni_netdev_t *dev)
 {
+#if defined(NI_ENABLE_LLDP)
 	return dev->link.hwaddr.type == ARPHRD_ETHER;
+#else
+	return FALSE;
+#endif
 }
 
 /*
