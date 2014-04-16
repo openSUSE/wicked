@@ -1,0 +1,21 @@
+<!--
+  tunnel service definition
+  -->
+<service name="tunnel" interface="org.opensuse.Network.Tunnel"
+                    object-class="netif-tunnel">
+ <description>
+   This link-layer service is provided by ipip tunnel devices.
+ </description>
+
+ <!-- This are the properties used to configure the tunnel tunnel -->
+ <define name="configuration" class="dict">
+  <local-address   type="ipv4-address"/>
+  <remote-address  type="ipv4-address"/>
+  <ttl             type="uint16"/>	<!-- u8 from netlink -->
+  <tos             type="uint16"/>	<!-- u8 from netlink -->
+  <pmtudisc        type="boolean"/>	<!-- u8 from netlink -->
+ </define>
+
+ <!-- The same properties are returned in interface state reports -->
+ <define name="properties" type="tunnel:configuration"/>
+</service>

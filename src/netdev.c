@@ -23,6 +23,7 @@
 #include <wicked/openvpn.h>
 #include <wicked/ppp.h>
 #include <wicked/tuntap.h>
+#include <wicked/tunneling.h>
 #include <wicked/socket.h>
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
@@ -201,6 +202,62 @@ ni_netdev_set_tuntap(ni_netdev_t *dev, ni_tuntap_t *cfg)
 	if (dev->tuntap)
 		ni_tuntap_free(dev->tuntap);
 	dev->tuntap = cfg;
+}
+
+/*
+ * Get the interface's tunnel (sit, ipip, gre) information
+ */
+void *
+ni_netdev_get_tunnel(ni_netdev_t *dev)
+{
+	/* Currently checking for below. Extend as needed. */
+	switch (dev->link.type) {
+	case NI_IFTYPE_SIT:
+		if (!dev->sit)
+			dev->sit = ni_sit_new();
+		return dev->sit;
+
+	case NI_IFTYPE_TUNNEL:
+		if (!dev->tunnel)
+			dev->tunnel = ni_tunnel_new();
+		return dev->tunnel;
+
+	case NI_IFTYPE_GRE:
+		if (!dev->gre)
+			dev->gre = ni_gre_new();
+		return dev->gre;
+
+	default:
+		return NULL;
+	}
+}
+
+void
+ni_netdev_set_tunnel(ni_netdev_t *dev, void *cfg)
+{
+	/* Currently checking for below. Extend as needed. */
+	switch (dev->link.type) {
+	case NI_IFTYPE_SIT:
+		if (dev->sit)
+			ni_sit_free(dev->sit);
+		dev->sit = (ni_sit_t *)cfg;
+		break;
+
+	case NI_IFTYPE_TUNNEL:
+		if (dev->tunnel)
+			ni_tunnel_free(dev->tunnel);
+		dev->tunnel = (ni_tunnel_t *)cfg;
+		break;
+
+	case NI_IFTYPE_GRE:
+		if (dev->gre)
+			ni_gre_free(dev->gre);
+		dev->gre = (ni_gre_t *)cfg;
+		break;
+
+	default:
+		break;
+	}
 }
 
 /*
