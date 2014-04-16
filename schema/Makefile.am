@@ -23,6 +23,7 @@ wicked_schema_files		= \
 	tuntap.xml		\
 	sit.xml			\
 	tunnel.xml		\
+	gre.xml			\
 	vlan.xml		\
 	wicked.xml		\
 	wireless.xml

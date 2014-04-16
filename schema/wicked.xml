@@ -19,6 +19,7 @@
 <include name="tuntap.xml"/>
 <include name="sit.xml"/>
 <include name="tunnel.xml"/>
+<include name="gre.xml"/>
 <include name="ppp.xml"/>
 <include name="firewall.xml"/>
 <include name="addrconf.xml"/>
