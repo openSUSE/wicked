@@ -42,6 +42,7 @@ typedef struct ni_dhcp6_device	ni_dhcp6_device_t;
 extern int			ni_dhcp6_acquire(ni_dhcp6_device_t *, const ni_dhcp6_request_t *, char **);
 extern int			ni_dhcp6_release(ni_dhcp6_device_t *, const ni_uuid_t *);
 extern void			ni_dhcp6_restart(void);
+extern ni_bool_t		ni_dhcp6_supported(const ni_netdev_t *);
 
 /*
  * -- fsm (dry) run modes

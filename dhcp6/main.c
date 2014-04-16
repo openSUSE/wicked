@@ -318,6 +318,31 @@ dhcp6_register_services(ni_dbus_server_t *server)
 	ni_dhcp6_set_event_handler(dhcp6_protocol_event);
 }
 
+ni_bool_t
+ni_dhcp6_supported(const ni_netdev_t *ifp)
+{
+	/*
+	 * currently not enslaved ether and ib types only,
+	 * we've simply did not tested it on other links ...
+	 */
+	switch (ifp->link.hwaddr.type) {
+	case ARPHRD_ETHER:
+	case ARPHRD_INFINIBAND:
+		if (ifp->link.masterdev.index) {
+			ni_debug_dhcp("%s: DHCPv6 not supported on slaves",
+					ifp->name);
+			return FALSE;
+		}
+		break;
+	default:
+		ni_debug_dhcp("%s: DHCPv6 not supported on %s interfaces",
+				ifp->name,
+				ni_linktype_type_to_name(ifp->link.hwaddr.type));
+		return FALSE;
+	}
+	return FALSE;
+}
+
 /*
  * Add a newly discovered device
  */
@@ -389,19 +414,10 @@ dhcp6_discover_devices(ni_dbus_server_t *server)
 		ni_fatal("Cannot refresh interface list!");
 
 	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
+		if (!ni_dhcp6_supported(ifp))
+			continue;
 
-		switch (ifp->link.hwaddr.type) {
-		/*
-		 * currently ether and ib type only, we've
-		 * simply not tested it on other links...
-		 */
-		case ARPHRD_ETHER:
-		case ARPHRD_INFINIBAND:
-			(void)dhcp6_device_create(server, ifp);
-			break;
-		default:
-			break;
-		}
+		(void)dhcp6_device_create(server, ifp);
 	}
 }
 
@@ -509,7 +525,8 @@ dhcp6_interface_event(ni_netdev_t *ifp, ni_event_t event)
 		}
 
 		/* Create dbus object */
-		dhcp6_device_create(dhcp6_dbus_server, ifp);
+		if (ni_dhcp6_supported(ifp))
+			dhcp6_device_create(dhcp6_dbus_server, ifp);
 	break;
 
 	case NI_EVENT_DEVICE_DELETE:
