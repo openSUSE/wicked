@@ -11,6 +11,7 @@
 #include <netinet/in.h>
 #include <net/if.h>
 #include <net/if_arp.h>
+#include <netinet/ip.h>
 #include <netlink/attr.h>
 #include <netlink/msg.h>
 #include <errno.h>
@@ -45,6 +46,7 @@
 #  define	ETH_P_8021AD	0x88A8
 #  endif
 #endif
+#include <linux/if_tunnel.h>
 
 #include "netinfo_priv.h"
 #include "sysfs.h"
@@ -65,6 +67,9 @@ static int		__ni_discover_infiniband(ni_netdev_t *, ni_netconfig_t *);
 static int		__ni_discover_vlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static int		__ni_discover_macvlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static int		__ni_discover_tuntap(ni_netdev_t *);
+static int		__ni_discover_tunneling(ni_netdev_t *, struct nlattr **);
+static void		__ni_tunnel_trace(ni_netdev_t *, struct nlattr **);
+static void		__ni_tunnel_gre_trace(ni_netdev_t *, struct nlattr **);
 static ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, const struct prefix_cacheinfo *);
 static ni_addrconf_lease_t *__ni_netdev_get_autoconf_lease(ni_netdev_t *, unsigned int);
 
@@ -1019,6 +1024,12 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 			ni_error("%s: failed to refresh wireless info", dev->name);
 		break;
 
+	case NI_IFTYPE_IPIP:
+	case NI_IFTYPE_GRE:
+	case NI_IFTYPE_SIT:
+		__ni_discover_tunneling(dev, tb);
+		break;
+
 	default:
 		break;
 	}
@@ -1127,6 +1138,166 @@ __ni_discover_tuntap(ni_netdev_t *dev)
 			ni_linktype_type_to_name(dev->link.type));
 
 	return rv;
+}
+
+/*
+ * Dump tunnel data for debugging purposes.
+ */
+static void
+__ni_tunnel_trace(ni_netdev_t *dev, struct nlattr **info_data)
+{
+	ni_sockaddr_t addr;
+	uint32_t link;
+	uint16_t flags;
+	uint8_t pmtudisc;
+	uint8_t proto;
+	uint8_t tos;
+	uint8_t ttl;
+
+	if (ni_debug_verbose_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		if (info_data[IFLA_IPTUN_LINK]) {
+			link = nla_get_u32(info_data[IFLA_IPTUN_LINK]);
+			ni_trace("%s:IFLA_IPTUN_LINK: %u", dev->name, link);
+		}
+		if (info_data[IFLA_IPTUN_LOCAL]) {
+			__ni_nla_get_addr(AF_INET, &addr, info_data[IFLA_IPTUN_LOCAL]);
+			ni_trace("%s:IFLA_IPTUN_LOCAL: %s", dev->name, ni_sockaddr_print(&addr));
+		}
+		if (info_data[IFLA_IPTUN_REMOTE]) {
+			__ni_nla_get_addr(AF_INET, &addr, info_data[IFLA_IPTUN_REMOTE]);
+			ni_trace("%s:IFLA_IPTUN_REMOTE: %s", dev->name, ni_sockaddr_print(&addr));
+		}
+		if (info_data[IFLA_IPTUN_TTL]) {
+			ttl = nla_get_u8(info_data[IFLA_IPTUN_TTL]);
+			ni_trace("%s:IFLA_IPTUN_TTL: %u", dev->name, ttl);
+		}
+		if (info_data[IFLA_IPTUN_TOS]) {
+			tos = nla_get_u8(info_data[IFLA_IPTUN_TOS]);
+			ni_trace("%s:IFLA_IPTUN_TOS: %u", dev->name, tos);
+		}
+		if (info_data[IFLA_IPTUN_PMTUDISC]) {
+			pmtudisc = nla_get_u8(info_data[IFLA_IPTUN_PMTUDISC]);
+			ni_trace("%s:IFLA_IPTUN_PMTUDISC: %u", dev->name, pmtudisc);
+		}
+		if (info_data[IFLA_IPTUN_PROTO]) {
+			proto = nla_get_u8(info_data[IFLA_IPTUN_PROTO]);
+			ni_trace("%s:IFLA_IPTUN_PROTO: %u", dev->name, proto);
+		}
+		if (info_data[IFLA_IPTUN_FLAGS]) {
+			flags = nla_get_u16(info_data[IFLA_IPTUN_FLAGS]);
+			ni_trace("%s:IFLA_IPTUN_FLAGS: %u", dev->name, flags);
+		}
+	}
+}
+
+/*
+ * Dump gre tunnel data for debugging purposes.
+ */
+static void
+__ni_tunnel_gre_trace(ni_netdev_t *dev, struct nlattr **info_data)
+{
+	ni_sockaddr_t addr;
+	uint32_t link;
+	uint16_t flags;
+	uint8_t pmtudisc;
+	uint8_t tos;
+	uint8_t ttl;
+
+	if (ni_debug_verbose_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		if (info_data[IFLA_GRE_LINK]) {
+			link = nla_get_u32(info_data[IFLA_GRE_LINK]);
+			ni_trace("%s:IFLA_GRE_LINK: %u", dev->name, link);
+		}
+		if (info_data[IFLA_GRE_LOCAL]) {
+			__ni_nla_get_addr(AF_INET, &addr, info_data[IFLA_GRE_LOCAL]);
+			ni_trace("%s:IFLA_GRE_LOCAL: %s", dev->name, ni_sockaddr_print(&addr));
+		}
+		if (info_data[IFLA_GRE_REMOTE]) {
+			__ni_nla_get_addr(AF_INET, &addr, info_data[IFLA_GRE_REMOTE]);
+			ni_trace("%s:IFLA_GRE_REMOTE: %s", dev->name, ni_sockaddr_print(&addr));
+		}
+		if (info_data[IFLA_GRE_TTL]) {
+			ttl = nla_get_u8(info_data[IFLA_GRE_TTL]);
+			ni_trace("%s:IFLA_GRE_TTL: %u", dev->name, ttl);
+		}
+		if (info_data[IFLA_GRE_TOS]) {
+			tos = nla_get_u8(info_data[IFLA_GRE_TOS]);
+			ni_trace("%s:IFLA_GRE_TOS: %u", dev->name, tos);
+		}
+		if (info_data[IFLA_GRE_PMTUDISC]) {
+			pmtudisc = nla_get_u8(info_data[IFLA_GRE_PMTUDISC]);
+			ni_trace("%s:IFLA_GRE_PMTUDISC: %u", dev->name, pmtudisc);
+		}
+		if (info_data[IFLA_GRE_FLAGS]) {
+			flags = nla_get_u16(info_data[IFLA_GRE_FLAGS]);
+			ni_trace("%s:IFLA_GRE_FLAGS: %u", dev->name, flags);
+		}
+	}
+}
+
+/*
+ * Catch-all for (currentl sit, ipip and gre) tunnel discovery.
+ */
+static int
+__ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
+{
+	struct nlattr *link_info[IFLA_INFO_MAX+1];
+	struct nlattr *iptun_data[IFLA_IPTUN_MAX+1];
+	struct nlattr *gre_data[IFLA_GRE_MAX+1];
+
+	if (!dev || !tb) {
+		ni_error("%s: Unable to discover interface details",
+			dev ? dev->name : NULL);
+		return -1;
+	}
+
+	/* IFLA_LINKINFO is extended interface info. Not all interfaces will
+	 * provide this.
+	 */
+	if (!tb[IFLA_LINKINFO]) {
+		ni_debug_ifconfig("%s: no extended linkinfo data provided",
+				dev ? dev->name : NULL);
+		return 0;
+	}
+
+	if (nla_parse_nested(link_info, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
+		ni_error("%s: unable to parse IFLA_LINKINFO", dev->name);
+		return -1;
+	}
+
+	switch (dev->link.type) {
+	case NI_IFTYPE_IPIP:
+		if (link_info[IFLA_INFO_DATA] &&
+			nla_parse_nested(iptun_data, IFLA_IPTUN_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
+			ni_error("%s: unable to parse IFLA_INFO_DATA", dev->name);
+			return -1;
+		}
+		__ni_tunnel_trace(dev, iptun_data);
+		break;
+
+	case NI_IFTYPE_SIT:
+		if (link_info[IFLA_INFO_DATA] &&
+			nla_parse_nested(iptun_data, IFLA_IPTUN_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
+			ni_error("%s: unable to parse IFLA_INFO_DATA", dev->name);
+			return -1;
+		}
+		__ni_tunnel_trace(dev, iptun_data);
+		break;
+
+	case NI_IFTYPE_GRE:
+		if (link_info[IFLA_INFO_DATA] &&
+			nla_parse_nested(gre_data, IFLA_GRE_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
+			ni_error("%s: unable to parse IFLA_INFO_DATA", dev->name);
+			return -1;
+		}
+		__ni_tunnel_gre_trace(dev, gre_data);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
 }
 
 /*
