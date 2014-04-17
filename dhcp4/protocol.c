@@ -425,7 +425,9 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 	if (msg_code == DHCP4_DISCOVER || msg_code == DHCP4_INFORM || msg_code == DHCP4_REQUEST) {
 		unsigned int params_begin;
 
-		if (options->hostname && options->hostname[0]) {
+		if (msg_code != DHCP4_DISCOVER &&
+			options->hostname && options->hostname[0]) {
+
 			if (options->fqdn == FQDN_DISABLE) {
 				ni_dhcp4_option_puts(msgbuf, DHCP4_HOSTNAME,
 							options->hostname);
