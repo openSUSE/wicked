@@ -112,6 +112,7 @@ ni_objectmodel_register_netif_services(void)
 	ni_objectmodel_register_netif_service(NI_IFTYPE_TUN, &ni_objectmodel_tun_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_TAP, &ni_objectmodel_tap_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_SIT, &ni_objectmodel_sit_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_IPIP, &ni_objectmodel_ipip_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_INFINIBAND, &ni_objectmodel_ibparent_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_INFINIBAND_CHILD, &ni_objectmodel_ibchild_service);
 
