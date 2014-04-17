@@ -115,6 +115,9 @@ extern unsigned int	ni_log_level;
 #define ni_debug_verbose(level, facility, fmt, args...) \
 		__ni_debug(level, facility, fmt, ##args)
 
+#define ni_log_facility(facility) (ni_debug & (facility))
+#define ni_debug_verbose_guard(level, facility) \
+	(ni_log_level_at(level) && ni_log_facility(facility))
 
 #define __ni_string(x) #x
 
