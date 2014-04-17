@@ -29,6 +29,7 @@
 #include <wicked/wireless.h>
 #include <wicked/infiniband.h>
 #include <wicked/tuntap.h>
+#include <wicked/tunneling.h>
 #include <wicked/linkstats.h>
 
 #if defined(HAVE_RTA_MARK)
@@ -70,6 +71,9 @@ static int		__ni_discover_tuntap(ni_netdev_t *);
 static int		__ni_discover_tunneling(ni_netdev_t *, struct nlattr **);
 static void		__ni_tunnel_trace(ni_netdev_t *, struct nlattr **);
 static void		__ni_tunnel_gre_trace(ni_netdev_t *, struct nlattr **);
+static int		__ni_discover_sit(ni_netdev_t *, struct nlattr **, struct nlattr**);
+static int		__ni_discover_ipip(ni_netdev_t *, struct nlattr **, struct nlattr**);
+static int		__ni_discover_gre(ni_netdev_t *, struct nlattr **, struct nlattr**);
 static ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, const struct prefix_cacheinfo *);
 static ni_addrconf_lease_t *__ni_netdev_get_autoconf_lease(ni_netdev_t *, unsigned int);
 
@@ -778,6 +782,12 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 				link->type = NI_IFTYPE_TUN;
 		} else if (!strcmp(link->kind, "dummy")) {
 			link->type = NI_IFTYPE_DUMMY;
+		} else if (!strcmp(link->kind, "sit")) {
+			link->type = NI_IFTYPE_SIT;
+		} else if (!strcmp(link->kind, "ipip")) {
+			link->type = NI_IFTYPE_IPIP;
+		} else if (!strcmp(link->kind, "gre")) {
+			link->type = NI_IFTYPE_GRE;
 		}
 	}
 
@@ -1140,6 +1150,98 @@ __ni_discover_tuntap(ni_netdev_t *dev)
 	return rv;
 }
 
+static int
+__ni_discover_tunnel(ni_tunnel_t *tunnel, unsigned int *ifla_map, struct nlattr **info_data)
+{
+	uint8_t pmtudisc = 0;
+
+	if (!tunnel) {
+		return -1;
+	}
+
+	if (info_data[ifla_map[NI_TUNNELING_TTL]])
+		tunnel->ttl = nla_get_u8(info_data[ifla_map[NI_TUNNELING_TTL]]);
+
+	if (info_data[ifla_map[NI_TUNNELING_TOS]])
+		tunnel->tos = nla_get_u8(info_data[ifla_map[NI_TUNNELING_TOS]]);
+
+	if (info_data[ifla_map[NI_TUNNELING_PMTUDISC]]) {
+		pmtudisc = nla_get_u8(info_data[ifla_map[NI_TUNNELING_PMTUDISC]]);
+		tunnel->pmtudisc = pmtudisc ? TRUE : FALSE;
+	}
+
+	return 0;
+}
+
+static int
+__ni_discover_tunnel_addresses(ni_linkinfo_t *link, unsigned int *ifla_map, struct nlattr **info_data)
+{
+	uint32_t ip;
+
+	if (info_data[ifla_map[NI_TUNNELING_LOCAL]]) {
+		ip = nla_get_u32(info_data[ifla_map[NI_TUNNELING_LOCAL]]);
+		ni_link_address_set(&link->hwaddr, link->hwaddr.type, &ip, sizeof(ip));
+	}
+
+	if (info_data[ifla_map[NI_TUNNELING_REMOTE]]) {
+		ip = nla_get_u32(info_data[ifla_map[NI_TUNNELING_REMOTE]]);
+		ni_link_address_set(&link->hwpeer, link->hwpeer.type, &ip, sizeof(ip));
+	}
+
+	return 0;
+}
+
+static int
+__ni_discover_sit(ni_netdev_t *dev, struct nlattr **link_info, struct nlattr **info_data)
+{
+	ni_sit_t *sit;
+
+	if (!(sit = ni_netdev_get_sit(dev)) ||
+		__ni_discover_tunnel(&sit->tunnel, sit->ifla_map, info_data) < 0 ||
+		__ni_discover_tunnel_addresses(&dev->link, sit->ifla_map, info_data) < 0) {
+		ni_error("%s: Unable to discover sit tunnel details",
+			dev ? dev->name : NULL);
+		return -1;
+	}
+
+	return 0;
+}
+
+/*
+ * Discover ipip interfaces.
+ */
+static int
+__ni_discover_ipip(ni_netdev_t *dev, struct nlattr **link_info, struct nlattr **info_data)
+{
+	ni_ipip_t *ipip;
+
+	if (!(ipip = ni_netdev_get_ipip(dev)) ||
+		__ni_discover_tunnel(&ipip->tunnel, ipip->ifla_map, info_data) < 0 ||
+		__ni_discover_tunnel_addresses(&dev->link, ipip->ifla_map, info_data)) {
+		ni_error("%s: Unable to discover ipip tunnel details",
+			dev ? dev->name : NULL);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int
+__ni_discover_gre(ni_netdev_t *dev, struct nlattr **link_info, struct nlattr **info_data)
+{
+	ni_gre_t *gre;
+
+	if (!(gre = ni_netdev_get_gre(dev)) ||
+		__ni_discover_tunnel(&gre->tunnel, gre->ifla_map, info_data) < 0 ||
+		__ni_discover_tunnel_addresses(&dev->link, gre->ifla_map, info_data)) {
+		ni_error("%s: Unable to discover gre tunnel details",
+			dev ? dev->name : NULL);
+		return -1;
+	}
+
+	return 0;
+}
+
 /*
  * Dump tunnel data for debugging purposes.
  */
@@ -1273,6 +1375,7 @@ __ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
 			return -1;
 		}
 		__ni_tunnel_trace(dev, iptun_data);
+		__ni_discover_ipip(dev, link_info, iptun_data);
 		break;
 
 	case NI_IFTYPE_SIT:
@@ -1282,6 +1385,7 @@ __ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
 			return -1;
 		}
 		__ni_tunnel_trace(dev, iptun_data);
+		__ni_discover_sit(dev, link_info, iptun_data);
 		break;
 
 	case NI_IFTYPE_GRE:
@@ -1291,6 +1395,7 @@ __ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
 			return -1;
 		}
 		__ni_tunnel_gre_trace(dev, gre_data);
+		__ni_discover_gre(dev, link_info, gre_data);
 		break;
 
 	default:
