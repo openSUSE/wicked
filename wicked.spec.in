@@ -66,6 +66,9 @@ Requires:       %{name}-service = %{version}
 PreReq:         %fillup_prereq %insserv_prereq
 %endif
 %endif
+%define         wicked_piddir   %_localstatedir/run/%{name}
+%define         wicked_statedir %_localstatedir/run/%{name}
+%define         wicked_storedir %_localstatedir/lib/%{name}
 
 %description
 Wicked is a network configuration infrastructure incorporating a number
@@ -145,6 +148,9 @@ This package provides the wicked shared library.
 test -x ./configure || autoreconf --force --install
 export CFLAGS="$RPM_OPT_FLAGS"
 %configure \
+	--with-piddir=%{wicked_piddir}	\
+	--with-statedir=%{wicked_statedir}\
+	--with-storedir=%{wicked_storedir}\
 	--with-compat=suse		\
 %if %{with systemd}
 	--enable-systemd		\
@@ -169,8 +175,13 @@ make install DESTDIR=${RPM_BUILD_ROOT}
 %__ln_s %_sbindir/ifup  ${RPM_BUILD_ROOT}/sbin/ifprobe
 # remove libwicked.a and la
 %__rm -f ${RPM_BUILD_ROOT}%_libdir/libwicked*.*a
-# create ghost directory
-%__mkdir_p -m 0750 ${RPM_BUILD_ROOT}%_localstatedir/run/wicked
+# create reboot-persistent (leases) store directory
+%__mkdir_p -m 0750 ${RPM_BUILD_ROOT}%{wicked_storedir}
+# create restart-persistent ghost state directory
+%__mkdir_p -m 0750 ${RPM_BUILD_ROOT}%{wicked_statedir}
+%if "%wicked_statedir" != "%wicked_piddir"
+%__mkdir_p -m 0750 ${RPM_BUILD_ROOT}%{wicked_piddir}
+%endif
 %if %{with systemd}
 ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwicked
 ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd
@@ -250,7 +261,10 @@ fi
 /sbin/ldconfig
 
 %post
-%__mkdir_p -m 0750 %_localstatedir/run/wicked
+%__mkdir_p -m 0750 %{wicked_statedir}
+%if "%wicked_statedir" != "%wicked_piddir"
+%__mkdir_p -m 0750 %{wicked_piddir}
+%endif
 
 %files
 %defattr (-,root,root)
@@ -297,7 +311,11 @@ fi
 %_mandir/man8/ifdown.8*
 %_mandir/man8/ifstatus.8*
 %_mandir/man8/ifup.8*
-%attr(0750,root,root) %dir %ghost %_localstatedir/run/wicked
+%attr(0750,root,root) %dir        %wicked_storedir
+%attr(0750,root,root) %dir %ghost %wicked_statedir
+%if "%wicked_statedir" != "%wicked_piddir"
+%attr(0750,root,root) %dir %ghost %wicked_piddir
+%endif
 
 %if %{with systemd}
 
