@@ -624,7 +624,7 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		link->type = NI_IFTYPE_GRE;
 		break;
 	case ARPHRD_TUNNEL:
-		link->type = NI_IFTYPE_TUNNEL;
+		link->type = NI_IFTYPE_IPIP;
 		break;
 	case ARPHRD_TUNNEL6:
 		link->type = NI_IFTYPE_TUNNEL6;
