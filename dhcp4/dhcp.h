@@ -216,6 +216,7 @@ extern int		ni_dhcp4_parse_response(const ni_dhcp4_message_t *, ni_buffer_t *, n
 
 extern int		ni_dhcp4_socket_open(ni_dhcp4_device_t *);
 
+extern ni_bool_t	ni_dhcp4_supported(const ni_netdev_t *);
 extern int		ni_dhcp4_device_start(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_device_stop(ni_dhcp4_device_t *);
 extern unsigned int	ni_dhcp4_device_uptime(const ni_dhcp4_device_t *, unsigned int);

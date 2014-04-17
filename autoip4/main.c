@@ -16,6 +16,7 @@
 #include <signal.h>
 #include <getopt.h>
 #include <errno.h>
+#include <net/if_arp.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -262,11 +263,50 @@ autoip4_register_services(ni_dbus_server_t *server)
 	if (object == NULL)
 		ni_fatal("Unable to create dbus object for interfaces");
 
-	// ni_dbus_object_register_service(object, &wicked_dbus_dhcpdev_interface);
 	autoip4_discover_devices(server);
 
 //	ni_autoip_set_event_handler(autoip4_protocol_event);
 	(void) (autoip4_protocol_event);
+}
+
+ni_bool_t
+ni_autoip4_supported(const ni_netdev_t *ifp)
+{
+	/*
+	 * currently broadcast and arp capable ether type only,
+	 * we've simply did not tested it on other links ...
+	 */
+	switch (ifp->link.hwaddr.type) {
+	case ARPHRD_ETHER:
+		if (ifp->link.masterdev.index) {
+			ni_debug_autoip("%s: DHCPv4 not supported on slaves",
+					ifp->name);
+			return FALSE;
+		}
+
+		if (!(ifp->link.ifflags & NI_IFF_ARP_ENABLED)) {
+			ni_debug_autoip("%s: AutoIP not supported without "
+					"ARP support", ifp->name);
+			return FALSE;
+		}
+		/* Hmm... can this happen? */
+		if (!(ifp->link.ifflags & NI_IFF_BROADCAST_ENABLED)) {
+			ni_debug_autoip("%s: AutoIP not supported without "
+					" broadcast support", ifp->name);
+			return FALSE;
+		}
+		if ((ifp->link.ifflags & NI_IFF_POINT_TO_POINT)) {
+			ni_debug_autoip("%s: AutoIP not supported on point-"
+					"to-point interfaces", ifp->name);
+			return FALSE;
+		}
+		break;
+	default:
+		ni_debug_autoip("%s: AutoIP not supported on %s interfaces",
+			ifp->name, ni_linktype_type_to_name(ifp->link.hwaddr.type));
+		return FALSE;
+	}
+	return TRUE;
 }
 
 /*
@@ -307,7 +347,7 @@ autoip4_device_destroy(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 	ni_autoip_device_t *dev;
 
 	if ((dev = ni_autoip_device_by_index(ifp->link.ifindex)) != NULL) {
-		ni_debug_dhcp("%s: Destroying autoip4 device with index %u",
+		ni_debug_autoip("%s: Destroying autoip4 device with index %u",
 				ifp->name, ifp->link.ifindex);
 		ni_dbus_server_unregister_object(server, dev);
 	}
@@ -340,6 +380,9 @@ autoip4_discover_devices(ni_dbus_server_t *server)
 		ni_fatal("cannot refresh interface list!");
 
 	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
+		if(!ni_autoip4_supported(ifp))
+			continue;
+
 		autoip4_device_create(server, ifp);
 
 		if (opt_recover_state)
@@ -411,7 +454,8 @@ autoip4_interface_event(ni_netdev_t *ifp, ni_event_t event)
 		}
 
 		/* Create dbus object */
-		autoip4_device_create(autoip4_dbus_server, ifp);
+		if(ni_autoip4_supported(ifp))
+			autoip4_device_create(autoip4_dbus_server, ifp);
 		break;
 
 	case NI_EVENT_DEVICE_DELETE:
@@ -444,7 +488,7 @@ autoip4_protocol_event(enum ni_lease_event ev, const ni_autoip_device_t *dev, ni
 	ni_dbus_object_t *dev_object;
 	int argc = 0;
 
-	ni_debug_dhcp("%s(ev=%u, dev=%d)", __func__, ev, dev->link.ifindex);
+	ni_debug_autoip("%s(ev=%u, dev=%d)", __func__, ev, dev->link.ifindex);
 
 	dev_object = ni_dbus_server_find_object_by_handle(autoip4_dbus_server, dev);
 	if (dev_object == NULL) {

@@ -244,20 +244,8 @@ dhcp4_tester_run(dhcp4_tester_t *opts)
 	if (!(ifp = ni_netdev_by_name(nc, opts->ifname)))
 		ni_fatal("Cannot find interface with name '%s'", opts->ifname);
 
-	/*
-	 * currently broadcast capable ether and ib type only,
-	 * we've simply not tested it on other links...
-	 */
-	if (!(ifp->link.ifflags & NI_IFF_BROADCAST_ENABLED))
-		ni_fatal("Interface does not support broadcasts");
-	switch (ifp->link.hwaddr.type) {
-	case ARPHRD_ETHER:
-	case ARPHRD_INFINIBAND:
-		break;
-	default:
-		ni_fatal("Interface type not supported yet");
-		break;
-	}
+	if (!ni_dhcp4_supported(ifp))
+		ni_fatal("DHCPv4 not supported on '%s'", opts->ifname);
 
 	if (!(dev = ni_dhcp4_device_new(ifp->name, &ifp->link)))
 		ni_fatal("Cannot allocate dhcp4 client for '%s'", opts->ifname);
