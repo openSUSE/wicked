@@ -1063,6 +1063,15 @@ __ni_discover_vlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 		return -1;
 	}
 
+	/* IFLA_LINKINFO is extended interface info. Not all interfaces will
+	 * provide this.
+	 */
+	if (!tb[IFLA_LINKINFO]) {
+		ni_debug_ifconfig("%s: no extended linkinfo data provided",
+				dev ? dev->name : NULL);
+		return 0;
+	}
+
 	if (nla_parse_nested(link_info, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
 		ni_error("%s: unable to parse IFLA_LINKINFO", dev->name);
 		return -1;
@@ -1104,6 +1113,15 @@ __ni_discover_macvlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 		ni_error("%s: Unable to discover macvlan interface details",
 			dev ? dev->name : NULL);
 		return -1;
+	}
+
+	/* IFLA_LINKINFO is extended interface info. Not all interfaces will
+	 * provide this.
+	 */
+	if (!tb[IFLA_LINKINFO]) {
+		ni_debug_ifconfig("%s: no extended linkinfo data provided",
+				dev ? dev->name : NULL);
+		return 0;
 	}
 
 	if (nla_parse_nested(link_info, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
