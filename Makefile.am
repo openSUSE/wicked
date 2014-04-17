@@ -12,7 +12,7 @@ SUBDIRS				= include src util schema client server nanny \
 pkgconfig_DATA			= wicked.pc
 
 wicked_doc_data			= README TODO COPYING ANNOUNCE		\
-				  $(wildcard ChangeLog ChangeLog.git)	\
+				  $(wildcard ChangeLog)			\
 				  Documentation/WhyWicked.txt
 #wicked_doc_DATA		= $(wicked_doc_data)
 
@@ -35,14 +35,14 @@ package: all check distcheck show-commit-state
 rpmpackage: package
 	rpmbuild $(rpmbuild_opts) $(distdir).tar.bz2
 
-dist-hook: VERSION $(distdir)/wicked.spec $(distdir)/ChangeLog.git
+dist-hook: VERSION $(distdir)/wicked.spec $(distdir)/ChangeLog
 
 $(distdir)/wicked.spec: wicked.spec
 	@cp $< $@
 
-$(distdir)/ChangeLog.git: check-git-tool
+$(distdir)/ChangeLog: check-git-tool
 	@if  [ -d $(top_srcdir)/.git ]; then \
-	  LANG=C git log --no-merges -- $(top_srcdir) > $(distdir)/ChangeLog.git ; \
+	  LANG=C git log --no-merges -- $(top_srcdir) > $(distdir)/ChangeLog ; \
 	fi
 
 show-commit-state: check-git-tool
