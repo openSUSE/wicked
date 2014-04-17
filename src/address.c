@@ -877,9 +877,9 @@ int
 ni_link_address_format(const ni_hwaddr_t *hwa, char *abuf, size_t len)
 {
 	switch (hwa->type) {
-	case ARPHRD_TUNNEL:
 	case ARPHRD_SIT:
 	case ARPHRD_IPGRE:
+	case ARPHRD_TUNNEL:
 		if (inet_ntop(AF_INET, hwa->data, abuf, len) == 0)
 			return -1;
 		return 0;
@@ -914,6 +914,35 @@ ni_link_address_set(ni_hwaddr_t *hwa, unsigned short arp_type, const void *data,
 	return 0;
 }
 
+static int
+__ni_link_sockaddr_parse(ni_hwaddr_t *hwa, unsigned short arp_type,
+			const char *string, unsigned int family)
+{
+	ni_sockaddr_t ss;
+
+	if (ni_sockaddr_parse(&ss, string, family) < 0)
+		return -1;
+
+	switch (ss.ss_family) {
+	case AF_INET:
+		hwa->type = arp_type;
+		hwa->len = ni_af_address_length(ss.ss_family);
+		memcpy(hwa->data, &ss.sin.sin_addr, hwa->len);
+		return 0;
+
+	case AF_INET6:
+		hwa->type = arp_type;
+		hwa->len = ni_af_address_length(ss.ss_family);
+		memcpy(hwa->data, &ss.six.sin6_addr, hwa->len);
+		return 0;
+
+	default:
+		ni_error("%s: link address parsing not yet implemented",
+				__FUNCTION__);
+		return -1;
+	}
+}
+
 int
 ni_link_address_parse(ni_hwaddr_t *hwa, unsigned short arp_type, const char *string)
 {
@@ -922,13 +951,16 @@ ni_link_address_parse(ni_hwaddr_t *hwa, unsigned short arp_type, const char *str
 
 	ni_link_address_init(hwa);
 	switch (arp_type) {
-	case ARPHRD_TUNNEL:
-	case ARPHRD_TUNNEL6:
 	case ARPHRD_SIT:
 	case ARPHRD_IPGRE:
-		ni_error("%s: setting tunnel addrs not yet implemented",
-				__FUNCTION__);
-		return -1;
+	case ARPHRD_TUNNEL:
+		return __ni_link_sockaddr_parse(hwa, arp_type, string, AF_INET);
+
+	case ARPHRD_TUNNEL6:
+		return __ni_link_sockaddr_parse(hwa, arp_type, string, AF_INET6);
+
+	default:
+		break;
 	}
 
 	/* Default format is aa:bb:cc:.. with hex octets */
@@ -967,6 +999,14 @@ unsigned int
 ni_link_address_length(unsigned short arp_type)
 {
 	switch (arp_type) {
+	case ARPHRD_SIT:
+	case ARPHRD_IPGRE:
+	case ARPHRD_TUNNEL:
+		return ni_af_address_length(AF_INET);
+
+	case ARPHRD_TUNNEL6:
+		return ni_af_address_length(AF_INET6);
+
 	case ARPHRD_ETHER:
 		return ETH_ALEN;
 

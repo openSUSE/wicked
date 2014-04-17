@@ -59,7 +59,7 @@ typedef enum ni_iftype {
 	NI_IFTYPE_SIT,
 	NI_IFTYPE_GRE,
 	NI_IFTYPE_ISDN,
-	NI_IFTYPE_TUNNEL,	/* ipip tunnel */
+	NI_IFTYPE_IPIP,		/* ipip tunnel */
 	NI_IFTYPE_TUNNEL6,	/* ip6ip6 tunnel */
 	NI_IFTYPE_TOKENRING,
 	NI_IFTYPE_FIREWIRE,
