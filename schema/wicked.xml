@@ -18,6 +18,7 @@
 <include name="wireless.xml"/>
 <include name="tuntap.xml"/>
 <include name="sit.xml"/>
+<include name="ipip.xml"/>
 <include name="ppp.xml"/>
 <include name="firewall.xml"/>
 <include name="addrconf.xml"/>
