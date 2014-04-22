@@ -434,7 +434,7 @@ ni_dhcp6_device_restart(ni_dhcp6_device_t *dev)
 	if (!dev->request)
 		return -1;
 
-	ni_debug_dhcp("%s: Restart DHCPv6 acquire request %s in mode %s",
+	ni_note("%s: Restart DHCPv6 acquire request %s in mode %s",
 		dev->ifname, ni_uuid_print(&dev->request->uuid),
 		ni_dhcp6_mode_type_to_name(dev->request->mode));
 
@@ -471,12 +471,12 @@ ni_dhcp6_device_set_lladdr(ni_dhcp6_device_t *dev, const ni_address_t *addr)
 		return -1;
 	}
 	if (ni_address_is_tentative(addr)) {
-		ni_debug_dhcp("%s: Link-local IPv6 address is tentative: %s",
+		ni_note("%s: Link-local IPv6 address is tentative: %s",
 			dev->ifname, ni_sockaddr_print(&addr->local_addr));
 		return 1;
 	}
 
-	ni_debug_dhcp("%s: Found usable link-local IPv6 address: %s",
+	ni_note("%s: Found usable link-local IPv6 address: %s",
 		dev->ifname, ni_sockaddr_print(&addr->local_addr));
 
 	memcpy(&dev->link.addr, &addr->local_addr, sizeof(dev->link.addr));
@@ -886,7 +886,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	case NI_DHCP6_MODE_AUTO:
 	case NI_DHCP6_MODE_INFO:
 	case NI_DHCP6_MODE_MANAGED:
-		ni_debug_dhcp("%s: DHCPv6 acquire request %s in mode %s",
+		ni_note("%s: DHCPv6 acquire request %s in mode %s",
 				dev->ifname, ni_uuid_print(&req->uuid),
 				ni_dhcp6_mode_type_to_name(req->mode));
 		break;
@@ -948,7 +948,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 		if (ni_check_domain_name(req->hostname, len, 0)) {
 			strncpy(config->hostname, req->hostname, sizeof(config->hostname) - 1);
 		} else {
-			ni_debug_dhcp(
+			ni_note(
 				"%s: Discarded suspect hostname in DHCPv6 acquire request %s: '%s'",
 				dev->ifname, ni_uuid_print(&req->uuid),
 				ni_print_suspect(req->hostname, len));
@@ -1030,16 +1030,14 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	config->flags = DHCP6_DO_ARP | DHCP6_DO_CSR | DHCP6_DO_MSCSR;
 	config->flags |= ni_dhcp6_do_bits(info->update);
 
-	if (ni_debug & NI_TRACE_DHCP) {
-		ni_trace("Received request:");
-		ni_trace("  acquire-timeout %u", config->request_timeout);
-		ni_trace("  lease-time      %u", config->max_lease_time);
-		ni_trace("  hostname        %s", config->hostname[0]? config->hostname : "<none>");
-		ni_trace("  vendor-class    %s", config->classid[0]? config->classid : "<none>");
-		ni_trace("  client-id       %s", ni_print_hex(config->raw_client_id.data, config->raw_client_id.len));
-		ni_trace("  uuid            %s", ni_print_hex(config->uuid.octets, 16));
-		ni_trace("  flags           %s", __ni_dhcp6_print_flags(config->flags));
-	}
+	ni_note("Received request:");
+	ni_note("  acquire-timeout %u", config->request_timeout);
+	ni_note("  lease-time      %u", config->max_lease_time);
+	ni_note("  hostname        %s", config->hostname[0]? config->hostname : "<none>");
+	ni_note("  vendor-class    %s", config->classid[0]? config->classid : "<none>");
+	ni_note("  client-id       %s", ni_print_hex(config->raw_client_id.data, config->raw_client_id.len));
+	ni_note("  uuid            %s", ni_print_hex(config->uuid.octets, 16));
+	ni_note("  flags           %s", __ni_dhcp6_print_flags(config->flags));
 
 	if (dev->config)
 		free(dev->config);

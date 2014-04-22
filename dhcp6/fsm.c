@@ -1122,7 +1122,7 @@ ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 	 * If not, create a dummy lease with NULL fields.
 	 */
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp("%s: Initiating DHCPv6 Server Solicitation",
+		ni_note("%s: Initiating DHCPv6 Server Solicitation",
 				dev->ifname);
 
 		if ((lease = dev->lease) == NULL) {
@@ -1155,7 +1155,7 @@ ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 	if (dev->best_offer.lease && dev->best_offer.weight > 0) {
 		rv = ni_dhcp6_fsm_accept_offer(dev);
 	} else {
-		ni_debug_dhcp("%s: Retransmitting DHCPv6 Server Solicitation",
+		ni_note("%s: Retransmitting DHCPv6 Server Solicitation",
 				dev->ifname);
 
 		if ((lease = dev->lease) == NULL) {
@@ -1186,7 +1186,7 @@ ni_dhcp6_fsm_request_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *le
 		return -1;
 
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp("%s: Initiating DHCPv6 Lease Request",
+		ni_note("%s: Initiating DHCPv6 Lease Request",
 				dev->ifname);
 
 		dev->dhcp6.xid = 0;
@@ -1196,7 +1196,7 @@ ni_dhcp6_fsm_request_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *le
 		dev->fsm.state = NI_DHCP6_STATE_REQUESTING;
 		rv = ni_dhcp6_device_transmit_init(dev);
 	} else {
-		ni_debug_dhcp("%s: Retransmitting DHCPv6 Lease Request",
+		ni_note("%s: Retransmitting DHCPv6 Lease Request",
 				dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_REQUEST, &dev->message, lease) != 0)
@@ -1213,7 +1213,7 @@ ni_dhcp6_fsm_request_info(ni_dhcp6_device_t *dev)
 	int rv = -1;
 
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp("%s: Initiating DHCPv6 Info Request",
+		ni_note("%s: Initiating DHCPv6 Info Request",
 				dev->ifname);
 
 		dev->dhcp6.xid = 0;
@@ -1227,7 +1227,7 @@ ni_dhcp6_fsm_request_info(ni_dhcp6_device_t *dev)
 	if (dev->best_offer.lease && dev->best_offer.weight > 0) {
 		rv = ni_dhcp6_fsm_accept_offer(dev);
 	} else {
-		ni_debug_dhcp("%s: Retransmitting DHCPv6 Info Request",
+		ni_note("%s: Retransmitting DHCPv6 Info Request",
 				dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_INFO_REQUEST, &dev->message, NULL) != 0)
@@ -1247,7 +1247,7 @@ ni_dhcp6_fsm_confirm_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *le
 		return -1;
 
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp("%s: Initiating DHCPv6 Lease Confirmation",
+		ni_note("%s: Initiating DHCPv6 Lease Confirmation",
 				dev->ifname);
 
 		dev->dhcp6.xid = 0;
@@ -1258,7 +1258,7 @@ ni_dhcp6_fsm_confirm_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *le
 		rv = ni_dhcp6_device_transmit_init(dev);
 	} else if (dev->fsm.state == NI_DHCP6_STATE_CONFIRMING) {
 
-		ni_debug_dhcp("%s: Retransmitting DHCPv6 Lease Confirmation",
+		ni_note("%s: Retransmitting DHCPv6 Lease Confirmation",
 				dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_CONFIRM, &dev->message, lease) != 0)
@@ -1292,7 +1292,7 @@ ni_dhcp6_fsm_renew(ni_dhcp6_device_t *dev)
 		ni_timer_get_time(&now);
 		now.tv_sec += deadline;
 
-		ni_debug_dhcp("%s: Initiating DHCPv6 Renew, duration %u sec until %s",
+		ni_note("%s: Initiating DHCPv6 Renew, duration %u sec until %s",
 				dev->ifname, deadline, ni_dhcp6_print_timeval(&now));
 
 		dev->dhcp6.xid = 0;
@@ -1307,7 +1307,7 @@ ni_dhcp6_fsm_renew(ni_dhcp6_device_t *dev)
 		/* Pickup more IA's that reached renewal time */
 		ni_dhcp6_fsm_mark_renew_ia(dev);
 
-		ni_debug_dhcp("%s: Retransmitting DHCPv6 Renew", dev->ifname);
+		ni_note("%s: Retransmitting DHCPv6 Renew", dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_RENEW, &dev->message, dev->lease) != 0)
 			return -1;
@@ -1347,7 +1347,7 @@ ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *dev)
 		ni_timer_get_time(&now);
 		now.tv_sec += deadline;
 
-		ni_debug_dhcp("%s: Initiating DHCPv6 Rebind, duration %u sec until %s",
+		ni_note("%s: Initiating DHCPv6 Rebind, duration %u sec until %s",
 				dev->ifname, deadline, ni_dhcp6_print_timeval(&now));
 
 		dev->dhcp6.xid = 0;
@@ -1363,7 +1363,7 @@ ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *dev)
 		ni_dhcp6_fsm_mark_renew_ia(dev);
 		ni_dhcp6_fsm_mark_rebind_ia(dev);
 
-		ni_debug_dhcp("%s: Retransmitting DHCPv6 Rebind", dev->ifname);
+		ni_note("%s: Retransmitting DHCPv6 Rebind", dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_REBIND, &dev->message, dev->lease) != 0)
 			return -1;
@@ -1382,7 +1382,7 @@ ni_dhcp6_fsm_decline(ni_dhcp6_device_t *dev)
 		return -1;
 
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp("%s: Initiating DHCPv6 Decline", dev->ifname);
+		ni_note("%s: Initiating DHCPv6 Decline", dev->ifname);
 
 		dev->dhcp6.xid = 0;
 		if (ni_dhcp6_init_message(dev, NI_DHCP6_DECLINE, dev->lease) != 0)
@@ -1391,7 +1391,7 @@ ni_dhcp6_fsm_decline(ni_dhcp6_device_t *dev)
 		dev->fsm.state = NI_DHCP6_STATE_DECLINING;
 		rv = ni_dhcp6_device_transmit_init(dev);
 	} else {
-		ni_debug_dhcp("%s: Retransmitting DHCPv6 Decline", dev->ifname);
+		ni_note("%s: Retransmitting DHCPv6 Decline", dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_DECLINE, &dev->message, dev->lease) != 0)
 			return -1;
@@ -1410,7 +1410,7 @@ __ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev, unsigned int nretries)
 		return -1;
 
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp("%s: Initiating DHCPv6 Release", dev->ifname);
+		ni_note("%s: Initiating DHCPv6 Release", dev->ifname);
 
 		/* currently all addresses */
 		ni_dhcp6_ia_release_matching(dev->lease->dhcp6.ia_list, NULL, 0);
@@ -1425,7 +1425,7 @@ __ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev, unsigned int nretries)
 			dev->retrans.params.nretries = nretries;
 		}
 	} else {
-		ni_debug_dhcp("%s: Retransmitting DHCPv6 Release", dev->ifname);
+		ni_note("%s: Retransmitting DHCPv6 Release", dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_RELEASE, &dev->message, dev->lease) != 0)
 			return -1;
@@ -1465,7 +1465,7 @@ ni_dhcp6_fsm_accept_offer(ni_dhcp6_device_t *dev)
 	if (!(offer = dev->best_offer.lease))
 		return -1;
 
-	ni_debug_dhcp("accepting best %slease offer with weight %d from server %s",
+	ni_note("accepting best %slease offer with weight %d from server %s",
 			offer->dhcp6.rapid_commit ? "rapid-commit " : "",
 			dev->best_offer.weight, ni_duid_print_hex(&offer->dhcp6.server_id));
 
