@@ -340,7 +340,7 @@ ni_dhcp6_supported(const ni_netdev_t *ifp)
 				ni_linktype_type_to_name(ifp->link.hwaddr.type));
 		return FALSE;
 	}
-	return FALSE;
+	return TRUE;
 }
 
 /*
