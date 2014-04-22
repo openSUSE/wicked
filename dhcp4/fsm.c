@@ -122,7 +122,7 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 			 && dev->lease->dhcp4.server_id.s_addr == srv_addr.s_addr)
 				weight = 100;
 
-			ni_debug_dhcp("received lease offer from %s; server weight=%d (best offer=%d)",
+			ni_note("received lease offer from %s; server weight=%d (best offer=%d)",
 					inet_ntoa(lease->dhcp4.server_id), weight,
 					dev->best_offer.weight);
 
@@ -265,7 +265,7 @@ __ni_dhcp4_fsm_discover(ni_dhcp4_device_t *dev, int scan_offers)
 	ni_addrconf_lease_t *lease;
 	int rv;
 
-	ni_debug_dhcp("initiating discovery for %s (ifindex %d)", dev->ifname, dev->link.ifindex);
+	ni_note("initiating discovery for %s (ifindex %d)", dev->ifname, dev->link.ifindex);
 
 	/* If we already have a lease, try asking for the same.
 	 * If not, create a dummy lease with NULL fields.
@@ -279,7 +279,7 @@ __ni_dhcp4_fsm_discover(ni_dhcp4_device_t *dev, int scan_offers)
 	rv = ni_dhcp4_device_send_message(dev, DHCP4_DISCOVER, lease);
 
 	dev->dhcp4.accept_any_offer = 1;
-	ni_debug_dhcp("valid lease: %d; have prefs: %d",
+	ni_note("valid lease: %d; have prefs: %d",
 			ni_addrconf_lease_is_valid(dev->lease),
 			ni_dhcp4_config_have_server_preference());
 	if (ni_addrconf_lease_is_valid(dev->lease)
@@ -308,7 +308,7 @@ ni_dhcp4_fsm_request(ni_dhcp4_device_t *dev, const ni_addrconf_lease_t *lease)
 {
 	int rv;
 
-	ni_debug_dhcp("requesting lease for %s, timeout %d",
+	ni_note("requesting lease for %s, timeout %d",
 			dev->ifname, dev->config->request_timeout);
 
 	dev->fsm.state = NI_DHCP4_STATE_REQUESTING;
@@ -326,7 +326,7 @@ ni_dhcp4_fsm_renewal(ni_dhcp4_device_t *dev)
 {
 	int rv;
 
-	ni_debug_dhcp("trying to renew lease for %s", dev->ifname);
+	ni_note("trying to renew lease for %s", dev->ifname);
 
 	dev->fsm.state = NI_DHCP4_STATE_RENEWING;
 	rv = ni_dhcp4_device_send_message_unicast(dev, DHCP4_REQUEST, dev->lease);
@@ -343,7 +343,7 @@ ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *dev)
 	int rv;
 
 	/* RFC 2131, 3.2 (see also 3.1) */
-	ni_debug_dhcp("trying to confirm lease for %s", dev->ifname);
+	ni_note("trying to confirm lease for %s", dev->ifname);
 
 	dev->fsm.state = NI_DHCP4_STATE_REBOOT;
 	rv = ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
@@ -361,7 +361,7 @@ ni_dhcp4_fsm_rebind(ni_dhcp4_device_t *dev)
 {
 	int rv;
 
-	ni_debug_dhcp("trying to rebind lease for %s", dev->ifname);
+	ni_note("trying to rebind lease for %s", dev->ifname);
 	dev->lease->dhcp4.server_id.s_addr = 0;
 
 	dev->fsm.state = NI_DHCP4_STATE_REBINDING;
@@ -375,7 +375,7 @@ ni_dhcp4_fsm_rebind(ni_dhcp4_device_t *dev)
 int
 ni_dhcp4_fsm_decline(ni_dhcp4_device_t *dev)
 {
-	ni_debug_dhcp("%s: declining lease", dev->ifname);
+	ni_note("%s: declining lease", dev->ifname);
 	dev->fsm.state = NI_DHCP4_STATE_INIT;
 	ni_dhcp4_device_send_message(dev, DHCP4_DECLINE, dev->lease);
 
@@ -397,7 +397,7 @@ ni_dhcp4_fsm_release(ni_dhcp4_device_t *dev)
 		return 0;
 	}
 
-	ni_debug_dhcp("%s: releasing lease", dev->ifname);
+	ni_note("%s: releasing lease", dev->ifname);
 	ni_dhcp4_device_send_message(dev, DHCP4_RELEASE, dev->lease);
 
 	ni_dhcp4_fsm_commit_lease(dev, NULL);
@@ -410,7 +410,7 @@ ni_dhcp4_fsm_release(ni_dhcp4_device_t *dev)
 static void
 ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 {
-	ni_debug_dhcp("%s: timeout in state %s",
+	ni_note("%s: timeout in state %s",
 			dev->ifname, ni_dhcp4_fsm_state_name(dev->fsm.state));
 	dev->fsm.timer = NULL;
 
@@ -433,7 +433,7 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 			if (dev->best_offer.lease) {
 				ni_addrconf_lease_t *lease = dev->best_offer.lease;
 
-				ni_debug_dhcp("accepting lease offer from %s; server weight=%d",
+				ni_note("accepting lease offer from %s; server weight=%d",
 						inet_ntoa(lease->dhcp4.server_id),
 						dev->best_offer.weight);
 				ni_dhcp4_process_offer(dev, lease);
@@ -579,7 +579,7 @@ ni_dhcp4_process_offer(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 	inet_ntop(AF_INET, &lease->dhcp4.address, abuf1, sizeof(abuf1));
 	inet_ntop(AF_INET, &lease->dhcp4.server_id, abuf2, sizeof(abuf2));
 
-	ni_debug_dhcp("Received offer for %s from %s", abuf1, abuf2);
+	ni_note("Received offer for %s from %s", abuf1, abuf2);
 	if (dev->config->dry_run == NI_DHCP4_RUN_OFFER) {
 		ni_dhcp4_send_event(NI_DHCP4_EVENT_ACQUIRED, dev, lease);
 		ni_dhcp4_fsm_restart(dev);
@@ -643,7 +643,7 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 	dev->capture = NULL;
 
 	if (lease) {
-		ni_debug_dhcp("%s: committing lease", dev->ifname);
+		ni_note("%s: committing lease", dev->ifname);
 		if (dev->config->dry_run == NI_DHCP4_RUN_NORMAL) {
 			ni_debug_dhcp("%s: schedule renewal of lease in %u seconds",
 					dev->ifname, lease->dhcp4.renewal_time);
@@ -684,7 +684,7 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 
 		/* Delete old lease file */
 		if ((lease = dev->lease) != NULL) {
-			ni_debug_dhcp("%s: dropped lease", dev->ifname);
+			ni_note("%s: dropped lease", dev->ifname);
 
 			lease->state = NI_ADDRCONF_STATE_RELEASED;
 			ni_dhcp4_send_event(NI_DHCP4_EVENT_RELEASED, dev, lease);
@@ -767,7 +767,7 @@ discard:
 void
 ni_dhcp4_fsm_fail_lease(ni_dhcp4_device_t *dev)
 {
-	ni_debug_dhcp("%s: failing lease", dev->ifname);
+	ni_note("%s: failing lease", dev->ifname);
 
 	ni_dhcp4_fsm_restart(dev);
 	ni_capture_free(dev->capture);
@@ -855,18 +855,18 @@ ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *dev)
 	}
 
 	if (dev->arp.nprobes) {
-		ni_debug_dhcp("%s: arp validate: probing for %s",
+		ni_note("%s: arp validate: probing for %s",
 				dev->ifname, inet_ntoa(claim));
 		ni_arp_send_request(dev->arp.handle, null, claim);
 		dev->arp.nprobes--;
 	} else if (dev->arp.nclaims) {
-		ni_debug_dhcp("%s: arp validate: claiming %s",
+		ni_note("%s: arp validate: claiming %s",
 				dev->ifname, inet_ntoa(claim));
 		ni_arp_send_grat_request(dev->arp.handle, claim);
 		dev->arp.nclaims--;
 	} else {
 		/* Wow, we're done! */
-		ni_debug_dhcp("%s: successfully validated %s",
+		ni_note("%s: successfully validated %s",
 				dev->ifname, inet_ntoa(claim));
 		ni_dhcp4_fsm_commit_lease(dev, dev->lease);
 		ni_dhcp4_device_arp_close(dev);
@@ -892,7 +892,7 @@ ni_dhcp4_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *pk
 		return;
 
 	if (pkt->sip.s_addr == dev->lease->dhcp4.address.s_addr) {
-		ni_debug_dhcp("address %s already in use by %s",
+		ni_note("address %s already in use by %s",
 				inet_ntoa(pkt->sip),
 				ni_link_address_print(&pkt->sha));
 		ni_dhcp4_device_arp_close(dev);
