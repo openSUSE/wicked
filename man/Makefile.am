@@ -13,6 +13,7 @@ man_MANS			= \
 	ifcfg-bonding.5		\
 	ifcfg-bridge.5		\
 	ifcfg-macvlan.5		\
+	ifcfg-macvtap.5		\
 	ifcfg-vlan.5		\
 	ifcfg-wireless.5	\
 	ifcfg.5			\
