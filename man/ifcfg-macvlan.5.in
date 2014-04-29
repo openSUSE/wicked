@@ -1,0 +1,77 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\"
+.TH IFCFG-MACVLAN 5 "April 2014" "wicked" "Network configuration"
+.\" ...
+
+.SH NAME
+ifcfg-macvlan \- MACVLAN interface configuration
+.SH SYNOPSIS
+.B /etc/sysconfig/network/ifcfg-*
+
+.SH MACVLANs
+To setup a macvlan interface you need a configuration file that contains at
+least the mandatory
+.TP
+.B MACVLAN_DEVICE
+variable with the real interface used for the macvlan virtual interface.
+
+.PP
+It may contain the optional
+
+.TP
+.B MACVLAN_MODE
+variable that may be set to one of the following supported modes: "private", "vepa",
+"bridge" and "pass-through/passthru". The default mode is "vepa".
+
+.PP
+You may also use the
+
+.TP
+.B MACVLAN_FLAG
+variable to set the "nopromisc" flag. By default, this flag is not set.
+
+.PP
+An ifcfg- file for the interface specified by \fBMACVLAN_DEVICE\fR must
+also be provided. In the most basic case, it should at least contain
+STARTMODE='auto'.
+
+The rest of the MACVLAN interface IP and routes configuration do not differ
+from ordinary interfaces. See also \fIman\ ifcfg\fR and \fIman\ routes\fR
+for details.
+
+.SH EXAMPLES
+.TP
+Sets up \fImacvlan0\fR macvlan interface on top of \fBeth0\fR:
+
+.I ifcfg-macvlan0
+.nf
+   STARTMODE='auto'
+   MACVLAN_DEVICE='\fBeth0\fR'
+   IPADDR='192.168.3.27/24'
+.fi
+
+.TP
+Sets up \fImacvlan0\fR macvlan interface on top of \fBeth0\fR and uses DHCP
+for IPADDR configuration:
+
+.I ifcfg-macvlan0
+.nf
+   STARTMODE='auto'
+   BOOTPROTO='dhcp'
+   MACVLAN_DEVICE='\fBeth0\fR'
+.fi
+
+.SH COPYRIGHT
+Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+.SH BUGS
+Please report bugs at <https://bugzilla.novell.com/index.cgi>
+.SH AUTHORS
+.nf
+Marius Tomaschewski
+Karol Mroz
+.fi
+.SH "SEE ALSO"
+.BR routes (5),
+.BR ifcfg (5),
+.BR wicked (8).
