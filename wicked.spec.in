@@ -306,6 +306,7 @@ fi
 %_mandir/man5/ifcfg-vlan.5*
 %_mandir/man5/ifcfg-wireless.5*
 %_mandir/man5/ifcfg.5*
+%_mandir/man5/ifsysctl.5*
 %_mandir/man8/wicked.8*
 %_mandir/man8/wickedd.8*
 %_mandir/man8/ifdown.8*

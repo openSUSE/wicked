@@ -1,0 +1,78 @@
+.\" Process this file with
+.\" groff -man -Tascii ifsysctl.5
+.\"
+.TH IFSYSCTL 5 "April 2014" "wicked" "Network configuration"
+.SH NAME
+ifsysctl[-<interface name>] \- per network interface sysctl settings
+.SH SYNOPSIS
+\fB/etc/sysctl.d/*.conf\fR
+.br
+\fB/etc/sysctl.conf\fR
+.br
+\fB/etc/sysconfig/network/ifsysctl\fR
+.br
+\fB/etc/sysconfig/network/ifsysctl-\fR<\fIinterface\ name\fR>
+.SH DESCRIPTION
+These files are intended to contain \fBsysctl\fR settings, that
+should be applied when a network interface is created. This are
+usually interface specific settings, like:
+
+.nf
+	net.ipv6.conf.eth0.use_tempaddr = 2
+or
+	net.ipv4.conf.eth0.rp_filter = 0
+.fi
+
+Settings from the global configuration files: \fB/etc/sysctl.d/*.conf\fR,
+\fB/etc/sysctl.conf\fR and \fB/etc/sysconfig/network/ifsysctl\fR are applied
+for every interface created.
+
+Settings from the \fBifsysctl-\fIinterface\ name\fR file are applied for an
+interface, when created, which has the corresponding interface name.
+
+.SH SYNTAX
+Wicked writes these settings directly to their corresponding \fB/proc/sys\fR
+locations. It supports two separator characters for sysctl keywords: a "\fB.\fR"
+in \fIdefault format\fR and a "\fB/\fR" in the \fIalternate format\fR. Therefore,
+the syntax is basically the same as is found in the /etc/sysctl.conf file.
+
+Interface names may contain a "\fB.\fR". In the default sysctl format using
+a "\fB.\fR" as separator, that is any "\fB.\fR" in the interface name of the
+keyword, has to be replaced with a "\fB/\fR". In the alternate sysctl format
+with "\fB/\fR" as separator, normal interface names can be used.
+
+\fINote also\fR, that settings with variables in the global sysctl files will be
+applied for every interface!
+.br
+.\" clarify below
+Further, files with variables are not compatible to the /etc/sysctl.conf file.
+
+.SH EXAMPLES
+Settings for "eth0" and "eth0.1" interfaces
+.nf
+	# using "." as separator:
+	net.ipv6.conf.eth0.use_tempaddr = 2
+	net.ipv6.conf.eth0/1.use_tempaddr = 2
+
+	# using "/" as separator:
+	net/ipv6/conf/eth0/use_tempaddr = 2
+	net/ipv6/conf/eth0.0/use_tempaddr = 2
+.fi
+
+To test your ifsysctl-eth0 or ifsysctl file, use:
+.nf
+	/etc/sysconfig/network/scripts/ifup-sysctl eth0 -o debug
+.fi
+
+.SH COPYRIGHT
+Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+.SH BUGS
+Please report bugs at <https://bugzilla.novell.com/>
+.SH AUTHORS
+.nf
+Marius Tomaschewski
+.SH "SEE ALSO"
+.BR ifup(8)
+.BR ifcfg (5)
+.BR sysctl(8)
+
