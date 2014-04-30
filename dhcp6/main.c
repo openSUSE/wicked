@@ -448,7 +448,13 @@ dhcp6_supplicant(void)
 		ni_fatal("Unable to initialize netlink prefix event listener");
 
 	if (!opt_foreground) {
-		if (ni_server_background(program_name) < 0)
+		ni_daemon_close_t close_flags = NI_DAEMON_CLOSE_IN |
+			NI_DAEMON_CLOSE_OUT | NI_DAEMON_CLOSE_ERR;
+
+		if (ni_string_startswith(opt_log_target, "stderr"))
+			close_flags &= ~NI_DAEMON_CLOSE_ERR;
+
+		if (ni_server_background(program_name, close_flags) < 0)
 			ni_fatal("Unable to background server");
 	}
 
