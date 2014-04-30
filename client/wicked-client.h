@@ -34,6 +34,7 @@
 extern int			opt_global_dryrun;
 extern char *			opt_global_rootdir;
 extern ni_bool_t		opt_systemd;
+extern ni_bool_t		opt_transient;
 
 /* We may want to move this into the library. */
 extern int			ni_resolve_hostname_timed(const char *, int, ni_sockaddr_t *, unsigned int);

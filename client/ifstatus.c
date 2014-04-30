@@ -470,20 +470,18 @@ int
 ni_do_ifstatus(int argc, char **argv)
 {
 	enum  { OPT_QUIET, OPT_BRIEF, OPT_NORMAL, OPT_VERBOSE,
-		OPT_HELP, OPT_SHOW, OPT_IFCONFIG, OPT_NOTRANSIENT };
+		OPT_HELP, OPT_SHOW, OPT_IFCONFIG };
 	static struct option ifcheck_options[] = {
 		{ "help",         no_argument,       NULL, OPT_HELP        },
 		{ "quiet",        no_argument,       NULL, OPT_QUIET       },
 		{ "brief",        no_argument,       NULL, OPT_BRIEF       },
 		{ "verbose",      no_argument,       NULL, OPT_VERBOSE     },
 		{ "ifconfig",     required_argument, NULL, OPT_IFCONFIG    },
-		{ "no-transient", no_argument,       NULL, OPT_NOTRANSIENT },
 
 		{ NULL,           no_argument,       NULL, 0               }
 	};
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	unsigned int      opt_verbose  = OPT_NORMAL;
-	ni_bool_t         opt_transient = TRUE;
 	int               c, status = NI_WICKED_ST_USAGE;
 	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	ni_uint_array_t   stcodes = NI_UINT_ARRAY_INIT;
@@ -532,8 +530,6 @@ ni_do_ifstatus(int argc, char **argv)
 				"\n"
 				"  --ifconfig <filename>\n"
 				"      Read interface configuration(s) from file\n"
-				"  --no-transient\n"
-				"      Discard transient interface status codes\n"
 				, argv[0]
 			);
 			goto cleanup;
@@ -546,10 +542,6 @@ ni_do_ifstatus(int argc, char **argv)
 
 		case OPT_IFCONFIG:
 			ni_string_array_append(&opt_ifconfig, optarg);
-			break;
-
-		case OPT_NOTRANSIENT:
-			opt_transient = FALSE;
 			break;
 		}
 	}

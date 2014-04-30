@@ -269,7 +269,7 @@ usage:
 		 * or whatever not ready in time) -- returning an error may
 		 * cause to stop the network completely.
 		 */
-		if (opt_systemd)
+		if (!opt_transient)
 			status = NI_LSB_RC_SUCCESS;
 	}
 
