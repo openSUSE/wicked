@@ -246,7 +246,13 @@ run_interface_server(void)
 	ni_server_listen_other_events(handle_other_event);
 
 	if (!opt_foreground) {
-		if (ni_server_background(program_name) < 0)
+		ni_daemon_close_t close_flags = NI_DAEMON_CLOSE_IN |
+			NI_DAEMON_CLOSE_OUT | NI_DAEMON_CLOSE_ERR;
+
+		if (ni_string_startswith(opt_log_target, "stderr"))
+			close_flags &= ~NI_DAEMON_CLOSE_ERR;
+
+		if (ni_server_background(program_name, close_flags) < 0)
 			ni_fatal("unable to background server");
 	}
 
