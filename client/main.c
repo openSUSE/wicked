@@ -65,6 +65,7 @@ enum {
 	OPT_LOG_LEVEL,
 	OPT_LOG_TARGET,
 	OPT_SYSTEMD,
+	OPT_TRANSIENT,
 
 	OPT_DRYRUN,
 	OPT_ROOTDIR,
@@ -80,6 +81,7 @@ static struct option	options[] = {
 	{ "log-level",		required_argument,	NULL,	OPT_LOG_LEVEL },
 	{ "log-target",		required_argument,	NULL,	OPT_LOG_TARGET },
 	{ "systemd", 		no_argument,		NULL,	OPT_SYSTEMD },
+	{ "transient", 		no_argument,		NULL,	OPT_TRANSIENT },
 
 	/* specific */
 	{ "dryrun",		no_argument,		NULL,	OPT_DRYRUN },
@@ -94,6 +96,7 @@ static const char *	opt_log_target;
 int			opt_global_dryrun;
 char *			opt_global_rootdir;
 ni_bool_t		opt_systemd;
+ni_bool_t		opt_transient;
 
 static int		do_show_xml(int, char **);
 static int		do_show_config(int, char **, const char *);
@@ -140,6 +143,8 @@ main(int argc, char **argv)
 				"        Search all config files below this directory.\n"
 				"  --systemd\n"
 				"        Enables behavior required by systemd service\n"
+				"  --transient\n"
+				"        Enable transient interface return codes\n"
 				"\n"
 				"Supported commands:\n"
 				"  ifup        [options] <ifname ...>|all\n"
@@ -207,6 +212,10 @@ main(int argc, char **argv)
 
 		case OPT_SYSTEMD:
 			opt_systemd = TRUE;
+			break;
+
+		case OPT_TRANSIENT:
+			opt_transient = TRUE;
 			break;
 		}
 	}
