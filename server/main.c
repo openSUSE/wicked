@@ -246,8 +246,7 @@ run_interface_server(void)
 	ni_server_listen_other_events(handle_other_event);
 
 	if (!opt_foreground) {
-		ni_daemon_close_t close_flags = NI_DAEMON_CLOSE_IN |
-			NI_DAEMON_CLOSE_OUT | NI_DAEMON_CLOSE_ERR;
+		ni_daemon_close_t close_flags = NI_DAEMON_CLOSE_STD;
 
 		if (ni_string_startswith(opt_log_target, "stderr"))
 			close_flags &= ~NI_DAEMON_CLOSE_ERR;
