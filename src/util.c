@@ -1555,9 +1555,10 @@ ni_stringbuf_trim_empty_lines(ni_stringbuf_t *sb)
  * background the current process
  */
 int
-ni_daemonize(const char *pidfile, unsigned int permissions)
+ni_daemonize(const char *pidfile, unsigned int permissions, ni_daemon_close_t close_flags)
 {
 	pid_t pid;
+	FILE *rv;
 
 	if (pidfile) {
 		/* check if service is already running */
@@ -1584,12 +1585,27 @@ ni_daemonize(const char *pidfile, unsigned int permissions)
 		return -1;
 
 	/* fork, chdir to root and close fds */
-	if (daemon(0, 0) < 0)
+	if (daemon(0, TRUE) < 0)
 		ni_fatal("unable to background process! daemon() failed: %m");
+
+	if (close_flags & NI_DAEMON_CLOSE_IN)
+		rv = freopen("/dev/null", "r", stdin);
+	if (close_flags & NI_DAEMON_CLOSE_OUT)
+		rv = freopen("/dev/null", "w", stdout);
+	if (close_flags & NI_DAEMON_CLOSE_ERR)
+		rv = freopen("/dev/null", "w", stderr);
+
+	close_flags |= NI_DAEMON_CLOSE_STD;
+	if (close_flags == NI_DAEMON_CLOSE_ALL) {
+		int fd, maxfd = getdtablesize();
+		for (fd = 3; fd < maxfd; ++fd)
+			close(fd);
+	}
 
 	if (pidfile)
 		__ni_pidfile_write(pidfile, permissions, getpid(), 0);
 
+	(void) rv;
 	return 0;
 }
 

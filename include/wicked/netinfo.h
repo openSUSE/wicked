@@ -118,7 +118,7 @@ extern int		ni_init(const char *appname);
 typedef ni_bool_t	ni_init_appdata_callback_t(void *, const xml_node_t *);
 extern int		ni_init_ex(const char *appname, ni_init_appdata_callback_t *, void *);
 
-extern int		ni_server_background(const char *);
+extern int		ni_server_background(const char *, ni_daemon_close_t);
 extern int		ni_server_listen_interface_events(void (*handler)(ni_netdev_t *, ni_event_t));
 extern int		ni_server_enable_interface_addr_events(void (*handler)(ni_netdev_t *, ni_event_t, const ni_address_t *));
 extern int		ni_server_enable_interface_prefix_events(void (*handler)(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *));

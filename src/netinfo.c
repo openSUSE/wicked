@@ -342,14 +342,14 @@ ni_extension_statedir(const char *ex_name)
  * and for connecting to it
  */
 int
-ni_server_background(const char *appname)
+ni_server_background(const char *appname, ni_daemon_close_t close_flags)
 {
 	const char *piddir = ni_config_piddir();
 	char pidfilepath[PATH_MAX];
 
 	ni_assert(appname != NULL);
 	snprintf(pidfilepath, sizeof(pidfilepath), "%s/%s.pid", piddir, appname);
-	return ni_daemonize(pidfilepath, 0644);
+	return ni_daemonize(pidfilepath, 0644, close_flags);
 }
 
 void

@@ -71,6 +71,15 @@ typedef struct ni_bitfield {
 
 #define NI_BITFIELD_INIT { 0, NULL }
 
+typedef enum ni_daemon_close {
+	NI_DAEMON_CLOSE_NONE	= 0,
+	NI_DAEMON_CLOSE_IN	= 1,
+	NI_DAEMON_CLOSE_OUT	= 2,
+	NI_DAEMON_CLOSE_ERR	= 4,
+	NI_DAEMON_CLOSE_STD	= NI_DAEMON_CLOSE_IN|NI_DAEMON_CLOSE_OUT|NI_DAEMON_CLOSE_ERR,
+	NI_DAEMON_CLOSE_ALL	= -1U,
+} ni_daemon_close_t;
+
 extern void		ni_bitfield_init(ni_bitfield_t *);
 extern void		ni_bitfield_destroy(ni_bitfield_t *);
 extern void		ni_bitfield_setbit(ni_bitfield_t *, unsigned int);
@@ -153,7 +162,7 @@ extern const char *	ni_realpath(const char *path, char **resolved);
 extern const char *	ni_sibling_path(const char *path, const char *file);
 extern const char *	ni_sibling_path_printf(const char *path, const char *fmt, ...);
 extern int		ni_scandir(const char *, const char *, ni_string_array_t *);
-extern int		ni_daemonize(const char *, unsigned int);
+extern int		ni_daemonize(const char *, unsigned int, ni_daemon_close_t);
 extern pid_t		ni_pidfile_check(const char *);
 extern int		ni_pidfile_write(const char *, unsigned int, pid_t);
 
