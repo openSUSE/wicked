@@ -61,7 +61,8 @@ int
 ni_do_ifup(int argc, char **argv)
 {
 	enum  { OPT_HELP, OPT_IFCONFIG, OPT_IFPOLICY, OPT_CONTROL_MODE, OPT_STAGE,
-		OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_IGNORE_PRIO, OPT_PERSISTENT };
+		OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_IGNORE_PRIO,
+		OPT_IGNORE_STARTMODE, OPT_PERSISTENT };
 
 	static struct option ifup_options[] = {
 		{ "help",	no_argument,       NULL,	OPT_HELP },
@@ -73,6 +74,7 @@ ni_do_ifup(int argc, char **argv)
 		{ "skip-origin",required_argument, NULL,	OPT_SKIP_ORIGIN },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
 		{ "ignore-prio",no_argument, NULL,	OPT_IGNORE_PRIO },
+		{ "ignore-startmode",no_argument, NULL,	OPT_IGNORE_STARTMODE },
 		{ "persistent",	no_argument, NULL,	OPT_PERSISTENT },
 		{ NULL }
 	};
@@ -99,6 +101,7 @@ ni_do_ifup(int argc, char **argv)
 	ifmatch.require_configured = FALSE;
 	ifmatch.allow_persistent = TRUE;
 	ifmatch.require_config = TRUE;
+	ifmatch.ignore_startmode = FALSE;
 
 	ifmarker.target_range.min = NI_FSM_STATE_ADDRCONF_UP;
 	ifmarker.target_range.max = __NI_FSM_STATE_MAX;
@@ -158,6 +161,10 @@ ni_do_ifup(int argc, char **argv)
 			check_prio = FALSE;
 			break;
 
+		case OPT_IGNORE_STARTMODE:
+			ifmatch.ignore_startmode = TRUE;
+			break;
+
 		case OPT_PERSISTENT:
 			ifmarker.persistent = TRUE;
 			break;
@@ -188,6 +195,8 @@ usage:
 				"      Timeout after <nsec> seconds\n"
 				"  --ignore-prio\n"
 				"      Ignore checking the config origin priorities\n"
+				"  --ignore-startmode\n"
+				"      Ignore checking the STARTMODE=off and STARTMODE=manual configs\n"
 				"  --persistent\n"
 				"      Set interface into persistent mode (no regular ifdown allowed)\n"
 				);
