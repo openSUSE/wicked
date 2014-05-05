@@ -229,6 +229,7 @@ typedef struct ni_ifmatcher {
 	unsigned int		require_config     : 1,
 				require_configured : 1,
 				allow_persistent   : 1,
+				ignore_startmode   : 1,
 				skip_active        : 1;
 } ni_ifmatcher_t;
 

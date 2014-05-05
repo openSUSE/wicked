@@ -655,7 +655,7 @@ do_show_config(int argc, char **argv, const char *root_schema)
 	};
 
 	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
-	ni_bool_t opt_raw = 0;
+	ni_bool_t opt_raw = FALSE;
 	const char *opt_output = NULL;
 	unsigned i;
 	int c;
@@ -664,7 +664,7 @@ do_show_config(int argc, char **argv, const char *root_schema)
 	while ((c = getopt_long(argc, argv, "", options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_RAW:
-			opt_raw = 1;
+			opt_raw = TRUE;
 			break;
 
 		case OPT_OUTPUT:

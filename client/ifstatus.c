@@ -497,6 +497,7 @@ ni_do_ifstatus(int argc, char **argv)
 	ifmatch.require_configured = FALSE;
 	ifmatch.allow_persistent = TRUE;
 	ifmatch.require_config = FALSE;
+	ifmatch.ignore_startmode = TRUE;
 
 	/* Allocate fsm and set to read-only */
 	fsm = ni_fsm_new();
