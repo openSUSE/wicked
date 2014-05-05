@@ -61,8 +61,11 @@ int
 ni_do_ifup(int argc, char **argv)
 {
 	enum  { OPT_HELP, OPT_IFCONFIG, OPT_IFPOLICY, OPT_CONTROL_MODE, OPT_STAGE,
-		OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_IGNORE_PRIO,
-		OPT_IGNORE_STARTMODE, OPT_PERSISTENT };
+		OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_PERSISTENT,
+#ifdef NI_TEST_HACKS
+		OPT_IGNORE_PRIO, OPT_IGNORE_STARTMODE,
+#endif
+	};
 
 	static struct option ifup_options[] = {
 		{ "help",	no_argument,       NULL,	OPT_HELP },
@@ -73,8 +76,10 @@ ni_do_ifup(int argc, char **argv)
 		{ "skip-active",required_argument, NULL,	OPT_SKIP_ACTIVE },
 		{ "skip-origin",required_argument, NULL,	OPT_SKIP_ORIGIN },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
+#ifdef NI_TEST_HACKS
 		{ "ignore-prio",no_argument, NULL,	OPT_IGNORE_PRIO },
 		{ "ignore-startmode",no_argument, NULL,	OPT_IGNORE_STARTMODE },
+#endif
 		{ "persistent",	no_argument, NULL,	OPT_PERSISTENT },
 		{ NULL }
 	};
@@ -101,7 +106,6 @@ ni_do_ifup(int argc, char **argv)
 	ifmatch.require_configured = FALSE;
 	ifmatch.allow_persistent = TRUE;
 	ifmatch.require_config = TRUE;
-	ifmatch.ignore_startmode = FALSE;
 
 	ifmarker.target_range.min = NI_FSM_STATE_ADDRCONF_UP;
 	ifmarker.target_range.max = __NI_FSM_STATE_MAX;
@@ -157,6 +161,7 @@ ni_do_ifup(int argc, char **argv)
 			ifmatch.skip_active = TRUE;
 			break;
 
+#ifdef NI_TEST_HACKS
 		case OPT_IGNORE_PRIO:
 			check_prio = FALSE;
 			break;
@@ -164,6 +169,7 @@ ni_do_ifup(int argc, char **argv)
 		case OPT_IGNORE_STARTMODE:
 			ifmatch.ignore_startmode = TRUE;
 			break;
+#endif
 
 		case OPT_PERSISTENT:
 			ifmarker.persistent = TRUE;
@@ -193,10 +199,12 @@ usage:
 				"      touching interfaces that have been set up via firmware (like iBFT) previously\n"
 				"  --timeout <nsec>\n"
 				"      Timeout after <nsec> seconds\n"
+#ifdef NI_TEST_HACKS
 				"  --ignore-prio\n"
 				"      Ignore checking the config origin priorities\n"
 				"  --ignore-startmode\n"
 				"      Ignore checking the STARTMODE=off and STARTMODE=manual configs\n"
+#endif
 				"  --persistent\n"
 				"      Set interface into persistent mode (no regular ifdown allowed)\n"
 				);
