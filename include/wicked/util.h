@@ -87,6 +87,7 @@ extern void		ni_bitfield_clearbit(ni_bitfield_t *, unsigned int);
 extern int		ni_bitfield_testbit(const ni_bitfield_t *, unsigned int);
 
 extern void		ni_string_free(char **);
+extern void		ni_string_clear(char **);
 extern void		ni_string_dup(char **, const char *);
 extern void		ni_string_set(char **, const char *, unsigned int len);
 extern const char *	ni_string_printf(char **, const char *, ...);
@@ -211,6 +212,8 @@ extern char *		ni_quote(const char *string, const char *sepa);
 extern char *		ni_unquote(const char **stringp, const char *sepa);
 
 extern void		ni_srandom(void);
+
+extern ni_bool_t	ni_try_mlock(const void *, size_t);
 
 /* Use this in mainloop-like functions to check at defined execution points
  * whether we were signaled in the meantime.

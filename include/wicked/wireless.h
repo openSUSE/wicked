@@ -7,6 +7,8 @@
 #ifndef __WICKED_WIRELESS_H__
 #define __WICKED_WIRELESS_H__
 
+#include <sys/mman.h>
+
 #include <wicked/types.h>
 #include <wicked/util.h>
 #include <wicked/logging.h>
@@ -342,6 +344,20 @@ ni_wireless_network_put(ni_wireless_network_t *net)
 	ni_assert(net->refcount);
 	if (--(net->refcount) == 0)
 		ni_wireless_network_free(net);
+}
+
+static inline void
+ni_wireless_passwd_clear(ni_wireless_network_t *net)
+{
+	if (net) {
+		ni_wireless_wep_key_array_destroy(net->wep_keys);
+		ni_string_clear(&net->wpa_psk.passphrase);
+		ni_string_clear(&net->wpa_eap.phase2.password);
+		ni_string_clear(&net->wpa_eap.tls.client_key_passwd);
+
+		/* No need to   lock  that page in memory anymore */
+		munlock(net, sizeof(*net));
+	}
 }
 
 #endif /* __WICKED_WIRELESS_H__ */
