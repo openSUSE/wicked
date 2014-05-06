@@ -10,7 +10,7 @@
 
 extern void *	xmalloc(size_t);
 extern void *	xcalloc(unsigned int, size_t);
-extern void *	xrealloc(void *ptr, size_t size);
+extern void *	xrealloc(void *, size_t);
 
 extern char *	xstrdup(const char *);
 

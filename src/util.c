@@ -9,6 +9,7 @@
 
 #include <sys/time.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <dirent.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -2292,6 +2293,21 @@ xrealloc(void *ptr, size_t size)
 		ni_fatal("allocation failed realloc(%p, %zu): %m", ptr, size);
 
 	return p;
+}
+
+ni_bool_t
+ni_try_mlock(const void *ptr, size_t len)
+{
+	errno = 0;
+	if (mlock(ptr, len)) {
+		if (errno != EPERM) {
+			ni_debug_wicked("memory locking failed");
+			return FALSE;
+		}
+		ni_debug_wicked("insufficient privileges to lock memory");
+	}
+
+	return TRUE;
 }
 
 char *
