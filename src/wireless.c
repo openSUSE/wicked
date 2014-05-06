@@ -958,37 +958,16 @@ ni_wireless_network_new(void)
 void
 __ni_wireless_network_destroy(ni_wireless_network_t *net)
 {
-	char **string;
-
 	ni_assert(net->refcount == 0);
 
 	ni_wireless_auth_info_array_destroy(&net->scan_info.supported_auth_modes);
+	ni_wireless_passwd_clear(net);
 
-	ni_wireless_wep_key_array_destroy(net->wep_keys);
-
-	string = &net->wpa_psk.passphrase;
-	memset(*string, 0, ni_string_len(*string));
-	ni_string_free(string);
-
-	string = &net->wpa_eap.identity;
-	memset(*string, 0, ni_string_len(*string));
-	ni_string_free(string);
-
-	string = &net->wpa_eap.anonid;
-	memset(*string, 0, ni_string_len(*string));
-	ni_string_free(string);
-
-	string = &net->wpa_eap.phase2.password;
-	memset(*string, 0, ni_string_len(*string));
-	ni_string_free(string);
-
+	ni_string_clear(&net->wpa_eap.identity);
+	ni_string_clear(&net->wpa_eap.anonid);
 	ni_wireless_blob_free(net->wpa_eap.tls.ca_cert);
 	ni_wireless_blob_free(net->wpa_eap.tls.client_cert);
 	ni_wireless_blob_free(net->wpa_eap.tls.client_key);
-
-	string = &net->wpa_eap.tls.client_key_passwd;
-	memset(*string, 0, ni_string_len(*string));
-	ni_string_free(string);
 
 	memset(net, 0, sizeof(*net));
 }
@@ -1005,12 +984,8 @@ ni_wireless_wep_key_array_destroy(char **array)
 {
 	unsigned int i;
 
-	for (i = 0; i < NI_WIRELESS_WEP_KEY_COUNT; i++) {
-		if (array[i]) {
-			memset(array[i], 0, ni_string_len(array[i]));
-			ni_string_free(&array[i]);
-		}
-	}
+	for (i = 0; i < NI_WIRELESS_WEP_KEY_COUNT; i++)
+		ni_string_clear(&array[i]);
 }
 
 /*
