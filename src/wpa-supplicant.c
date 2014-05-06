@@ -215,7 +215,12 @@ ni_wpa_interface_network_by_path(ni_wpa_interface_t *wpa_dev, const char *object
 		ni_debug_wireless("new object %s", net_object->path);
 		ni_dbus_object_set_default_interface(net_object, NI_WPA_BSS_INTERFACE);
 
-		net_object->handle = ni_wireless_network_new();
+		if (!(net_object->handle = ni_wireless_network_new())) {
+			ni_error("could not create wireless network for object %s",
+				net_object->path);
+			ni_dbus_object_free(net_object);
+			return NULL;
+		}
 	}
 
 	return net_object;

@@ -2053,8 +2053,11 @@ try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
 		goto failure_global;
 	}
 
-	/* Allocate new network object */
-	net = ni_wireless_network_new();
+	/* Allocate and mlock new network object */
+	if (!(net = ni_wireless_network_new())) {
+		ni_error("ifcfg-%s: unable to create network object", dev->name);
+		goto failure_global;
+	}
 
 	/* Write down the ESSID */
 	memcpy(net->essid.data, essid.data, essid.len);

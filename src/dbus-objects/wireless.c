@@ -311,7 +311,9 @@ ni_objectmodel_get_wireless_request(ni_wireless_config_t *conf,
 		if (!ni_dbus_variant_is_dict(var))
 			return FALSE;
 
-		net = ni_wireless_network_new();
+		if (!(net = ni_wireless_network_new()))
+			return FALSE;
+
 		if (!ni_objectmodel_get_wireless_request_net(net, var, error)) {
 			ni_wireless_network_free(net);
 			return FALSE;
@@ -508,7 +510,10 @@ __ni_objectmodel_wireless_set_scan(ni_dbus_object_t *object,
 
 	child = NULL;
 	while ((child = ni_dbus_dict_get_next(argument, "network", child)) != NULL) {
-		ni_wireless_network_t *net = ni_wireless_network_new();
+		ni_wireless_network_t *net;
+
+		if (!(net = ni_wireless_network_new()))
+			return FALSE;
 
 		if (!__ni_objectmodel_wireless_set_network(net, child, error)) {
 			ni_wireless_network_free(net);
