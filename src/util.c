@@ -842,6 +842,15 @@ ni_string_free(char **pp)
 }
 
 void
+ni_string_clear(char **pp)
+{
+	if (pp && !ni_string_empty(*pp)) {
+		memset(*pp, 0, ni_string_len(*pp));
+		ni_string_free(pp);
+	}
+}
+
+void
 ni_string_dup(char **pp, const char *value)
 {
 	char *newval;

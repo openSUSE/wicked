@@ -87,6 +87,7 @@ extern void		ni_bitfield_clearbit(ni_bitfield_t *, unsigned int);
 extern int		ni_bitfield_testbit(const ni_bitfield_t *, unsigned int);
 
 extern void		ni_string_free(char **);
+extern void		ni_string_clear(char **);
 extern void		ni_string_dup(char **, const char *);
 extern void		ni_string_set(char **, const char *, unsigned int len);
 extern const char *	ni_string_printf(char **, const char *, ...);
