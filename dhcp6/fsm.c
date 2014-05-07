@@ -274,6 +274,7 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 			 */
 			lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
 			lease->time_acquired = time(NULL);
+			lease->uuid = dev->config->uuid;
 			lease->update = 0; /* dev->config->update; */
 			if (dev->config->dry_run != NI_DHCP6_RUN_NORMAL) {
 				lease->state = NI_ADDRCONF_STATE_FAILED;
@@ -298,8 +299,9 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 
 			lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
 			lease->time_acquired = time(NULL);
-			lease->update = 0; /* dev->config->update; */
 			lease->state = NI_ADDRCONF_STATE_FAILED;
+			lease->uuid = dev->config->uuid;
+			lease->update = 0; /* dev->config->update; */
 			ni_dhcp6_send_event(NI_DHCP6_EVENT_ACQUIRED, dev, lease);
 			ni_dhcp6_device_drop_lease(dev);
 			ni_dhcp6_device_stop(dev);
@@ -448,10 +450,7 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		}
 
 		if(__fsm_select_best_offer(dev, msg->lease, weight)) {
-			if (dev->best_offer.lease)
-				ni_addrconf_lease_free(dev->best_offer.lease);
-			dev->best_offer.weight = weight;
-			dev->best_offer.lease = msg->lease;
+			ni_dhcp6_device_set_best_offer(dev, msg->lease, weight);
 			msg->lease = NULL;
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
 					"recorded regular offer with weight %d",
@@ -520,10 +519,7 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		weight += count;
 
 		if(__fsm_select_best_offer(dev, msg->lease, weight)) {
-			if (dev->best_offer.lease)
-				ni_addrconf_lease_free(dev->best_offer.lease);
-			dev->best_offer.weight = weight;
-			dev->best_offer.lease = msg->lease;
+			ni_dhcp6_device_set_best_offer(dev, msg->lease, weight);
 			msg->lease = NULL;
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
 					"recorded rapid-commit offer with weight %d",
@@ -780,10 +776,7 @@ __fsm_rebind_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		weight += count;
 
 		if(__fsm_select_best_offer(dev, msg->lease, weight)) {
-			if (dev->best_offer.lease)
-				ni_addrconf_lease_free(dev->best_offer.lease);
-			dev->best_offer.weight = weight;
-			dev->best_offer.lease = msg->lease;
+			ni_dhcp6_device_set_best_offer(dev, msg->lease, weight);
 			msg->lease = NULL;
 		} else if (!dev->best_offer.lease) {
 			ni_string_printf(hint, "unacceptable rapid-commmit offer with weight %d",
@@ -954,10 +947,7 @@ __fsm_inforeq_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 		}
 
 		if(__fsm_select_best_offer(dev, msg->lease, weight)) {
-			if (dev->best_offer.lease)
-				ni_addrconf_lease_free(dev->best_offer.lease);
-			dev->best_offer.weight = weight;
-			dev->best_offer.lease = msg->lease;
+			ni_dhcp6_device_set_best_offer(dev, msg->lease, weight);
 			msg->lease = NULL;
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
 					"recorded info offer with weight %d",
@@ -1127,9 +1117,9 @@ ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 
 		if ((lease = dev->lease) == NULL) {
 			lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
-
 			/* TODO: add addrs from interface as hint */
 		}
+		lease->uuid = dev->config->uuid;
 
 		dev->dhcp6.xid = 0;
 		ni_dhcp6_device_drop_best_offer(dev);
@@ -1163,6 +1153,7 @@ ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 
 			/* TODO: add addrs from interface as hint */
 		}
+		lease->uuid = dev->config->uuid;
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_SOLICIT, &dev->message, lease) != 0)
 			goto cleanup;
