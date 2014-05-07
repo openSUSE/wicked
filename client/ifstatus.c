@@ -308,14 +308,14 @@ ni_ifstatus_show_addrs(const ni_netdev_t *dev, ni_bool_t verbose)
 			ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 
 		if (verbose) {
-			if (!ni_string_empty(ap->label) &&
-			    !ni_string_eq(ap->label, dev->name))
-				printf(" label %s", ap->label);
-
+			if (ap->family == AF_INET) {
+				if (!ni_string_empty(ap->label) &&
+				    !ni_string_eq(ap->label, dev->name))
+					printf(" label %s", ap->label);
+			} else
 			if (ap->family == AF_INET6) {
 				if (ap->ipv6_cache_info.valid_lft == -1U) {
 					ni_stringbuf_puts(&buf, "infinite");
-					printf("%s", buf.string);
 				} else {
 					ni_stringbuf_printf(&buf, "%u",
 						ap->ipv6_cache_info.valid_lft);
@@ -324,7 +324,7 @@ ni_ifstatus_show_addrs(const ni_netdev_t *dev, ni_bool_t verbose)
 						ap->ipv6_cache_info.preferred_lft);
 				}
 				if (buf.string)
-					printf("lifetime %s", buf.string);
+					printf(" lifetime %s", buf.string);
 				ni_stringbuf_destroy(&buf);
 			}
 		}
