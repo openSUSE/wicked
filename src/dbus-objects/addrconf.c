@@ -266,6 +266,7 @@ ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, unsigned int ad
 
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_STATIC, addrfamily);
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
+	ni_uuid_generate(&lease->uuid);
 
 	if (!__ni_objectmodel_set_address_dict(&lease->addrs, dict, error)
 	 || !__ni_objectmodel_set_route_dict(&lease->routes, dict, error)
@@ -405,10 +406,10 @@ ni_objectmodel_addrconf_forward_request(ni_dbus_addrconf_forwarder_t *forwarder,
 		/* We didn't have a lease for this address family and addrconf protocol yet.
 		 * Create one and track it. */
 		lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily);
-		lease->state = NI_ADDRCONF_STATE_REQUESTING;
 		ni_netdev_set_lease(dev, lease);
 	}
 	lease->uuid = req_uuid;
+	lease->state = NI_ADDRCONF_STATE_REQUESTING;
 
 	rv = ni_objectmodel_addrconf_forwarder_call(forwarder, dev, "acquire", &req_uuid, dict, error);
 	if (rv) {
@@ -697,8 +698,9 @@ __ni_objectmodel_addrconf_generic_get_lease(const ni_dbus_object_t *object,
 			ni_addrconf_type_to_name(mode));
 #endif
 	if (!(lease = ni_netdev_get_lease(dev, addrfamily, mode)))
-		return TRUE;
+		return FALSE;
 
+	ni_dbus_dict_add_uuid(dict, "uuid", &lease->uuid);
 	ni_dbus_dict_add_uint32(dict, "state", lease->state);
 	return TRUE;
 }
@@ -720,6 +722,7 @@ __ni_objectmodel_addrconf_generic_set_lease(ni_dbus_object_t *object,
 
 		lease = ni_addrconf_lease_new(mode, addrfamily);
 		lease->state = state;
+		ni_dbus_dict_get_uuid(dict,   "uuid", &lease->uuid);
 		ni_netdev_set_lease(dev, lease);
 	}
 	return TRUE;
