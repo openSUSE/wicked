@@ -185,6 +185,8 @@ ni_dhcp4_device_set_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 		if (dev->lease)
 			ni_addrconf_lease_free(dev->lease);
 		dev->lease = lease;
+		if (dev->config && lease)
+			lease->uuid = dev->config->uuid;
 	}
 }
 
@@ -210,6 +212,8 @@ ni_dhcp4_device_set_best_offer(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *leas
 		ni_addrconf_lease_free(dev->best_offer.lease);
 	dev->best_offer.lease = lease;
 	dev->best_offer.weight = weight;
+	if (dev->config && lease)
+		lease->uuid = dev->config->uuid;
 }
 
 void
