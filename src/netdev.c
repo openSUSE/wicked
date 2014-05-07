@@ -621,6 +621,18 @@ ni_netdev_get_lease(ni_netdev_t *dev, unsigned int family, ni_addrconf_mode_t ty
 }
 
 ni_addrconf_lease_t *
+ni_netdev_get_lease_by_uuid(ni_netdev_t *dev, const ni_uuid_t *uuid)
+{
+	ni_addrconf_lease_t *lease;
+
+	for (lease = dev->leases; lease; lease = lease->next) {
+		if (ni_uuid_equal(&lease->uuid, uuid))
+			return lease;
+	}
+	return NULL;
+}
+
+ni_addrconf_lease_t *
 ni_netdev_get_lease_by_owner(ni_netdev_t *dev, const char *owner)
 {
 	ni_addrconf_lease_t *lease;

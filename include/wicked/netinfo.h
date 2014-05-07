@@ -163,6 +163,7 @@ extern int		ni_netdev_guess_type(ni_netdev_t *ifp);
 extern int		ni_netdev_set_lease(ni_netdev_t *, ni_addrconf_lease_t *);
 extern int		ni_netdev_unset_lease(ni_netdev_t *, unsigned int af, ni_addrconf_mode_t type);
 ni_addrconf_lease_t *	ni_netdev_get_lease(ni_netdev_t *, unsigned int, ni_addrconf_mode_t);
+ni_addrconf_lease_t *	ni_netdev_get_lease_by_uuid(ni_netdev_t *, const ni_uuid_t *);
 ni_addrconf_lease_t *	ni_netdev_get_lease_by_owner(ni_netdev_t *, const char *);
 
 extern ni_route_t *	ni_netdev_add_route(ni_netdev_t *,
