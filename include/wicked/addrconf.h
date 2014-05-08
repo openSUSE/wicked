@@ -173,13 +173,20 @@ extern void		ni_addrconf_lease_file_remove(const char *, int, int);
 extern int		ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *, xml_node_t **);
 extern int		ni_addrconf_lease_from_xml(ni_addrconf_lease_t **, const xml_node_t *);
 
-extern int		ni_system_update_from_lease(const ni_addrconf_lease_t *, const unsigned int, const char *);
-
+extern int		ni_addrconf_name_to_type(const char *);
+extern const char *	ni_addrconf_type_to_name(unsigned int);
+extern int		ni_addrconf_name_to_state(const char *);
+extern const char *	ni_addrconf_state_to_name(unsigned int);
 extern const char *	ni_addrconf_update_flag_to_name(unsigned int);
 extern ni_bool_t	ni_addrconf_update_name_to_flag(const char *, unsigned int *);
 extern void		ni_addrconf_update_set(unsigned int *, unsigned int, ni_bool_t);
 
+extern const char *	ni_dhcp6_mode_type_to_name(unsigned int);
+extern int		ni_dhcp6_mode_name_to_type(const char *, unsigned int *);
+
 extern const char *	ni_netbios_node_type_to_name(unsigned int);
 extern ni_bool_t	ni_netbios_node_type_to_code(const char *, unsigned int *);
+
+extern int		ni_system_update_from_lease(const ni_addrconf_lease_t *, const unsigned int, const char *);
 
 #endif /* __WICKED_ADDRCONF_H__ */
