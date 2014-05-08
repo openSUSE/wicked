@@ -262,14 +262,40 @@ __ni_ifconfig_origin_get_prio(const char *origin)
 	return prio;
 }
 
-static inline const char *
-__ifconfig_read_get_iface_name(xml_node_t *ifnode)
+static inline unsigned int
+__ifconfig_read_get_ifindex(xml_node_t *ifnode)
 {
 	xml_node_t *nnode = NULL;
+	unsigned int ifindex;
+	const char *namespace;
+	char *ifname;
 
-	if (ifnode)
-		nnode = xml_node_get_child(ifnode, "name");
-	return (!nnode || ni_string_empty(nnode->cdata)) ? NULL : nnode->cdata;
+	if (!ifnode)
+		return 0;
+
+	/* Config has no device name */
+	if (!(nnode = xml_node_get_child(ifnode, "name"))) {
+		ni_debug_ifconfig("cannot get ifname - config has no <name> node");
+		return 0;
+	}
+
+	ifname = nnode->cdata;
+	namespace = xml_node_get_attr(nnode, "namespace");
+
+	/* No namespace specified - get the ifindex */
+	if (ni_string_empty(namespace))
+		return if_nametoindex(ifname);
+
+	/* Check the namespace type */
+	if (ni_string_eq(namespace, "ifindex")) { /* Retrieve ifindex directly */
+		if (ni_parse_uint(ifname, &ifindex, 10) < 0)
+			return 0;
+	}
+	else {
+		/* TODO: Implement other namespaces */;
+	}
+
+	return ifindex;
 }
 
 ni_bool_t
@@ -277,8 +303,7 @@ ni_ifconfig_validate_adding_doc(xml_document_array_t *docs, xml_document_t *conf
 {
 	xml_node_t *dst_root, *src_root, *dst_child, *src_child;
 	ni_config_origin_prio_t dst_prio, src_prio;
-	const char *dst_ifname, *src_ifname;
-	unsigned int i;
+	unsigned int dst_ifname, src_ifname, i;
 
 	ni_assert(docs);
 	if (!config_doc)
@@ -297,14 +322,14 @@ ni_ifconfig_validate_adding_doc(xml_document_array_t *docs, xml_document_t *conf
 
 		/* Go through all already added docs' <interfaces> */
 		for (dst_child = dst_root->children; dst_child; dst_child = dst_child->next) {
-			if (!(dst_ifname = __ifconfig_read_get_iface_name(dst_child)))
+			if (!(dst_ifname = __ifconfig_read_get_ifindex(dst_child)))
 				return FALSE;
 
 			/* Go through all   <interfaces> of a doc being added */
 			for (src_child = src_root->children; src_child; src_child = src_child->next) {
-				if (!(src_ifname = __ifconfig_read_get_iface_name(src_child)))
+				if (!(src_ifname = __ifconfig_read_get_ifindex(src_child)))
 					return FALSE;
-				if (ni_string_eq(dst_ifname, src_ifname) && dst_prio <= src_prio) {
+				if (dst_ifname == src_ifname && dst_prio <= src_prio) {
 					ni_warn("Ignoring config %s because of higher prio config %s",
 						xml_node_get_location_filename(src_root),
 						xml_node_get_location_filename(dst_root));
