@@ -118,9 +118,9 @@ usage:
 				"wicked [options] ifreload [ifreload-options] <ifname ...>|all\n"
 				"\nSupported ifreload-options:\n"
 				"  --help\n"
-				"	   Show this help text.\n"
+				"      Show this help text.\n"
 				"  --ifconfig <filename>\n"
-				"	   Read interface configuration(s) from file\n"
+				"      Read interface configuration(s) from file\n"
 				"  --ignore-prio\n"
 				"      Ignore checking the config origin priorities\n"
 				"  --persistent\n"
@@ -166,7 +166,7 @@ usage:
 		}
 	}
 
-	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, check_prio)) {
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, check_prio, TRUE)) {
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 		goto cleanup;
 	}

@@ -685,9 +685,9 @@ do_show_config(int argc, char **argv, const char *root_schema)
 				"  --help\n"
 				"      Show this help text.\n"
 				"  --raw\n"
-				"      Filter out existing <client-info> tags\n"
+				"      Do not display <client-info> tags\n"
 				"  --output <path>\n"
-				"        Specify output file\n"
+				"      Specify output file\n"
 				);
 			return 1;
 		}
@@ -700,7 +700,8 @@ do_show_config(int argc, char **argv, const char *root_schema)
 
 		for (i = 0; i < cs_array->count; i++) {
 			if (!root_schema || !strcmp(root_schema, cs_array->data[i])) {
-				if (!ni_ifconfig_read(&docs, opt_global_rootdir, cs_array->data[i], opt_raw)) {
+				if (!ni_ifconfig_read(&docs, opt_global_rootdir,
+				    cs_array->data[i], FALSE, opt_raw)) {
 					ni_error("Unable to read config source from %s",
 						cs_array->data[i]);
 					return 1;
@@ -716,7 +717,8 @@ do_show_config(int argc, char **argv, const char *root_schema)
 			else
 				ni_string_printf(&path, "%s%s", root_schema, argv[optind++]);
 
-			if (!ni_ifconfig_read(&docs, opt_global_rootdir, path, opt_raw)) {
+			if (!ni_ifconfig_read(&docs, opt_global_rootdir,
+			    path, FALSE, opt_raw)) {
 				ni_error("Unable to read config source from %s", path);
 				return 1;
 			}
@@ -1484,9 +1486,9 @@ do_convert(int argc, char **argv)
 				"  --help\n"
 				"      Show this help text.\n"
 				"  --raw\n"
-				"      Filter out existing <client-info> tags\n"
+				"      Do not display <client-info> tags\n"
 				"  --output <path>\n"
-				"        Specify output file\n"
+				"      Specify output file\n"
 			       );
 			return 0;
 		}
