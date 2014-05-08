@@ -262,56 +262,106 @@ __ni_ifconfig_origin_get_prio(const char *origin)
 	return prio;
 }
 
-static inline const char *
-__ifconfig_read_get_iface_name(xml_node_t *ifnode)
+/*
+ * Parse name node and its namespace from xml config.
+ * Set ifname if available - it should be at least IF_NAMESIZE bytes long.
+ *
+ * Return ifindex value or 0 if not available.
+ */
+static char *
+__ifconfig_read_get_ifname(xml_node_t *ifnode, unsigned int *ifindex)
 {
 	xml_node_t *nnode = NULL;
+	const char *namespace;
+	char *ifname = NULL;
 
-	if (ifnode)
-		nnode = xml_node_get_child(ifnode, "name");
-	return (!nnode || ni_string_empty(nnode->cdata)) ? NULL : nnode->cdata;
+	/* Check for   <name> node */
+	nnode = xml_node_get_child(ifnode, "name");
+	if (!nnode || ni_string_empty(nnode->cdata)) {
+		ni_debug_ifconfig("cannot get interface name -"
+			"config has no valid <name> node");
+		goto error;
+	}
+
+	ifname = nnode->cdata;
+
+	/* Resolve a namespace if specified */
+	namespace = xml_node_get_attr(nnode, "namespace");
+	if (ni_string_empty(namespace)) {
+		if (ifindex)
+			*ifindex = if_nametoindex(ifname);
+	}
+	else if (ni_string_eq(namespace, "ifindex")) {
+		unsigned int value;
+		char name_buf[IF_NAMESIZE+1];
+
+		if (ni_parse_uint(ifname, &value, 10) < 0) {
+			ni_debug_ifconfig("unable to parse ifindex value "
+				" specified via <name namespace=\"ifindex\">");
+			goto error;
+		}
+
+		/* Get ifname based on ifindex */
+		if (ni_string_empty(if_indextoname(value, name_buf))) {
+			ni_debug_ifconfig("unable to obtain interface name "
+				"using ifindex value");
+			goto error;
+		}
+
+		ifname = NULL;
+		ni_string_dup(&ifname, name_buf);
+
+		if (ifindex)
+			*ifindex = value;
+	}
+	else {
+		/* TODO: Implement other namespaces */;
+	}
+
+	return ifname;
+
+error:
+	if (ifindex)
+		*ifindex = 0;
+	return NULL;
 }
 
 ni_bool_t
-ni_ifconfig_validate_adding_doc(xml_document_array_t *docs, xml_document_t *config_doc, ni_bool_t check_prio)
+ni_ifconfig_validate_adding_doc(xml_document_t *config_doc, ni_bool_t check_prio)
 {
-	xml_node_t *dst_root, *src_root, *dst_child, *src_child;
-	ni_config_origin_prio_t dst_prio, src_prio;
-	const char *dst_ifname, *src_ifname;
-	unsigned int i;
+	static ni_var_array_t validated_cfgs; /* Array of already processed configs */
+	ni_config_origin_prio_t src_prio, dst_prio;
+	xml_node_t *src_root, *src_child;
+	char *ifname;
 
-	ni_assert(docs);
 	if (!config_doc)
 		return FALSE;
+
 	if (!check_prio)
 		return TRUE;
 
-	/* Go through all config_doc's <interfaces> */
 	src_root = xml_document_root(config_doc);
 	src_prio = __ni_ifconfig_origin_get_prio(xml_node_get_location_filename(src_root));
 
-	/* Go through all already added docs */
-	for (i = 0; i < docs->count; i++) {
-		dst_root = xml_document_root(docs->data[i]);
-		dst_prio = __ni_ifconfig_origin_get_prio(xml_node_get_location_filename(dst_root));
+	/* Go through all config_doc's <interfaces> */
+	for (src_child = src_root->children; src_child; src_child = src_child->next) {
+		int rv;
 
-		/* Go through all already added docs' <interfaces> */
-		for (dst_child = dst_root->children; dst_child; dst_child = dst_child->next) {
-			if (!(dst_ifname = __ifconfig_read_get_iface_name(dst_child)))
-				return FALSE;
+		ifname = __ifconfig_read_get_ifname(src_child, NULL);
+		if (ni_string_empty(ifname))
+			return FALSE;
 
-			/* Go through all   <interfaces> of a doc being added */
-			for (src_child = src_root->children; src_child; src_child = src_child->next) {
-				if (!(src_ifname = __ifconfig_read_get_iface_name(src_child)))
-					return FALSE;
-				if (ni_string_eq(dst_ifname, src_ifname) && dst_prio <= src_prio) {
-					ni_warn("Ignoring config %s because of higher prio config %s",
-						xml_node_get_location_filename(src_root),
-						xml_node_get_location_filename(dst_root));
-					return FALSE;
-				}
-			}
+		rv = ni_var_array_get_uint(&validated_cfgs, ifname, &dst_prio);
+		if (rv < 0)
+			return FALSE;
+
+		if (rv && dst_prio < src_prio) {
+			ni_warn("Ignoring config %s because of higher prio config",
+				xml_node_get_location_filename(src_root));
+			return FALSE;
 		}
+
+		ni_var_array_set_uint(&validated_cfgs, ifname, src_prio);
 	}
 
 	return TRUE;
@@ -341,7 +391,7 @@ __ni_ifconfig_xml_read_file(xml_document_array_t *docs, const char *root, const 
 			ni_ifconfig_generate_client_info("wicked", pathname, NULL), NULL);
 	}
 
-	if (ni_ifconfig_validate_adding_doc(docs, config_doc, check_prio))
+	if (ni_ifconfig_validate_adding_doc(config_doc, check_prio))
 		xml_document_array_append(docs, config_doc);
 	else
 		xml_document_free(config_doc);
@@ -538,7 +588,7 @@ ni_ifconfig_read_firmware(xml_document_array_t *array, const char *type,
 
 	ni_device_clientinfo_free(client_info);
 
-	if (ni_ifconfig_validate_adding_doc(array, config_doc, raw))
+	if (ni_ifconfig_validate_adding_doc(config_doc, check_prio))
 		xml_document_array_append(array, config_doc);
 	else
 		xml_document_free(config_doc);

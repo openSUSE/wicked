@@ -115,7 +115,7 @@ extern ni_bool_t		ni_ifconfig_load(ni_fsm_t *, const char *, ni_string_array_t *
 
 extern const ni_string_array_t *ni_config_sources(const char *);
 
-extern ni_bool_t		ni_ifconfig_validate_adding_doc(xml_document_array_t *, xml_document_t *, ni_bool_t);
+extern ni_bool_t		ni_ifconfig_validate_adding_doc(xml_document_t *, ni_bool_t);
 extern ni_device_clientinfo_t *	ni_ifconfig_generate_client_info(const char *, const char *, const char *);
 extern ni_device_clientinfo_t *	ni_ifconfig_get_client_info(xml_document_t *);
 extern void			ni_ifconfig_add_client_info(xml_document_t *, ni_device_clientinfo_t *,     char *);
