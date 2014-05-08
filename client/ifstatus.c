@@ -100,6 +100,32 @@ ni_ifstatus_code_name(unsigned int status)
 	return ni_format_uint_mapped(status, __status_name_map);
 }
 
+static inline ni_addrconf_lease_t *
+__find_peer_lease(ni_netdev_t *dev, sa_family_t family, unsigned int type)
+{
+	switch (family) {
+	case AF_INET:
+		return ni_netdev_get_lease(dev, AF_INET6, type);
+	case AF_INET6:
+		return ni_netdev_get_lease(dev, AF_INET,  type);
+	default:
+		return NULL;
+	}
+}
+
+static inline ni_bool_t
+__is_peer_lease_up(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	if (ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_OPTIONAL)) {
+		const ni_addrconf_lease_t *other;
+
+		other = __find_peer_lease(dev, lease->family, lease->type);
+		if (other && other->state == NI_ADDRCONF_STATE_GRANTED)
+			return TRUE;
+	}
+	return FALSE;
+}
+
 void
 __ifstatus_of_device_leases(ni_netdev_t *dev, unsigned int *st)
 {
@@ -118,8 +144,10 @@ __ifstatus_of_device_leases(ni_netdev_t *dev, unsigned int *st)
 		}
 
 		if (lease->state == NI_ADDRCONF_STATE_FAILED) {
-			*st = NI_WICKED_ST_NOT_RUNNING;
-			break;
+			if (!__is_peer_lease_up(dev, lease)) {
+				*st = NI_WICKED_ST_NOT_RUNNING;
+				break;
+			}
 		}
 	}
 }
