@@ -54,13 +54,6 @@ static ni_compat_netdev_t *__ni_redhat_define_alias(ni_sysconfig_t *, const char
 /*
  * Refresh network configuration by reading all ifcfg files.
  */
-ni_bool_t
-__ni_redhat_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t *result)
-{
-	/* get global control things here */
-	return __ni_redhat_get_interfaces(root, path, &result->netdevs);
-}
-
 static ni_bool_t
 __ni_redhat_get_interfaces(const char *root, const char *path, ni_compat_netdev_array_t *result)
 {
@@ -124,6 +117,14 @@ done:
 	ni_string_array_destroy(&files);
 	return success;
 }
+
+ni_bool_t
+__ni_redhat_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t *result)
+{
+	/* get global control things here */
+	return __ni_redhat_get_interfaces(root, path, &result->netdevs);
+}
+
 
 /*
  * Read the configuration of a single interface from a sysconfig file
@@ -210,25 +211,25 @@ error:
 /*
  * Translate the RedHat startmodes to <control> element
  */
-static const ni_ifworker_control_t *
+static ni_ifworker_control_t *
 __ni_redhat_startmode(const char *mode)
 {
-	static struct __ni_control_params {
+	static const struct __ni_control_params {
 		const char *		name;
 		ni_ifworker_control_t	control;
 	} __ni_redhat_control_params[] = {
-		{ "manual",	{ NULL,		NULL,		TRUE,	FALSE,	FALSE,	30	} },
-		{ "onboot",	{ "auto",	NULL,		TRUE,	TRUE,	FALSE,	30	} },
+		{ "manual",	{ "manual",	NULL,	FALSE, FALSE, TRUE, 0, 0 } },
+		{ "onboot",	{ "auto",	NULL,	FALSE, FALSE, TRUE, 0, 0 } },
 		{ NULL }
 	};
-	struct __ni_control_params *p;
+	const struct __ni_control_params *p;
 
 	for (p = __ni_redhat_control_params; p->name; ++p) {
 		if (ni_string_eq(p->name, mode))
-			return &p->control;
+			return ni_ifworker_control_clone(&p->control);
 	}
 
-	return &__ni_redhat_control_params[0].control;
+	return ni_ifworker_control_clone(&__ni_redhat_control_params[0].control);
 }
 
 /*
@@ -483,17 +484,17 @@ __ni_redhat_addrconf_dhcp(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	if ((value = ni_sysconfig_get_value(sc, "DHCP_HOSTNAME")) != NULL)
 		ni_string_dup(&compat->dhcp4.hostname, value);
 
-	if (ni_sysconfig_test_boolean(sc, "DEFROUTE"))
-		compat->dhcp4.update |= (1 << NI_ADDRCONF_UPDATE_DEFAULT_ROUTE);
-	if (ni_sysconfig_test_boolean(sc, "PEERDNS"))
-		compat->dhcp4.update |= (1 << NI_ADDRCONF_UPDATE_RESOLVER);
+	ni_addrconf_update_set(&compat->dhcp4.update, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE,
+				ni_sysconfig_test_boolean(sc, "DEFROUTE"));
+	ni_addrconf_update_set(&compat->dhcp4.update, NI_ADDRCONF_UPDATE_DNS,
+				ni_sysconfig_test_boolean(sc, "PEERDNS"));
 #if 0
-	if (ni_sysconfig_test_boolean(sc, "PEERROUTES"))
-		compat->dhcp4.update |= (1 << NI_ADDRCONF_UPDATE_ROUTES);
+	ni_addrconf_update_set(&compat->dhcp4.update, NI_ADDRCONF_UPDATE_ROUTES,
+			ni_sysconfig_test_boolean(sc, "PEERROUTES"));
 #endif
 
-	if (ni_sysconfig_test_boolean(sc, "IPV4_FAILURE_FATAL"))
-		compat->dhcp4.required = TRUE;
+	ni_addrconf_flag_bit_set(&compat->dhcp4.flags, NI_ADDRCONF_FLAGS_OPTIONAL,
+			!ni_sysconfig_test_boolean(sc, "IPV4_FAILURE_FATAL"));
 
 	if (ni_sysconfig_test_boolean(sc, "IPV6INIT")) {
 #if 0
@@ -502,17 +503,17 @@ __ni_redhat_addrconf_dhcp(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 #endif
 
 		compat->dhcp6.enabled = TRUE;
-		if (ni_sysconfig_test_boolean(sc, "IPV6_DEFROUTE"))
-			compat->dhcp6.update |= (1 << NI_ADDRCONF_UPDATE_DEFAULT_ROUTE);
-		if (ni_sysconfig_test_boolean(sc, "IPV6_PEERDNS"))
-			compat->dhcp6.update |= (1 << NI_ADDRCONF_UPDATE_RESOLVER);
+		ni_addrconf_update_set(&compat->dhcp6.update, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE,
+				ni_sysconfig_test_boolean(sc, "IPV6_DEFROUTE"));
+		ni_addrconf_update_set(&compat->dhcp6.update, NI_ADDRCONF_UPDATE_DNS,
+				ni_sysconfig_test_boolean(sc, "IPV6_PEERDNS"));
 #if 0
-		if (ni_sysconfig_test_boolean(sc, "IPV6_PEERROUTES"))
-			compat->dhcp6.update |= (1 << NI_ADDRCONF_UPDATE_ROUTES);
+		ni_addrconf_update_set(&compat->dhcp6.update, NI_ADDRCONF_UPDATE_ROUTES,
+			ni_sysconfig_test_boolean(sc, "IPV6_PEERROUTES"));
 #endif
 
-		if (ni_sysconfig_test_boolean(sc, "IPV4_FAILURE_FATAL"))
-			compat->dhcp6.required = TRUE;
+		ni_addrconf_flag_bit_set(&compat->dhcp6.flags, NI_ADDRCONF_FLAGS_OPTIONAL,
+				!ni_sysconfig_test_boolean(sc, "IPV6_FAILURE_FATAL"));
 	}
 
 	return TRUE;

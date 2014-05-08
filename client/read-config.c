@@ -458,7 +458,7 @@ ni_ifconfig_read_compat_redhat(xml_document_array_t *array, const char *type,
 
 	ni_compat_ifconfig_init(&conf);
 	if ((rv = __ni_redhat_get_ifconfig(root, path, &conf))) {
-		ni_compat_generate_interfaces(array, &ifcfg, raw);
+		ni_compat_generate_interfaces(array, &conf, raw);
 	}
 
 	ni_compat_ifconfig_destroy(&conf);

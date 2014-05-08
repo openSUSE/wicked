@@ -19,6 +19,7 @@
 #include <wicked/dbus.h>
 #include <wicked/objectmodel.h>
 #include <wicked/dbus-errors.h>
+#include <wicked/addrconf.h>
 #include <wicked/modem.h>
 #include <wicked/xpath.h>
 #include <wicked/fsm.h>
@@ -3527,6 +3528,112 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 	return nrequested;
 }
 
+static inline ni_addrconf_lease_t *
+__find_corresponding_lease(ni_netdev_t *dev, sa_family_t family, unsigned int type)
+{
+	switch (family) {
+	case AF_INET:
+		return ni_netdev_get_lease(dev, AF_INET6, type);
+	case AF_INET6:
+		return ni_netdev_get_lease(dev, AF_INET,  type);
+	default:
+		return NULL;
+	}
+}
+
+static ni_bool_t
+address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callback_info_t *cb, ni_event_t event)
+{
+	ni_netdev_t *dev = w && cb ? w->device : NULL;
+	ni_addrconf_lease_t *lease;
+	ni_addrconf_lease_t *other;
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+	if (!dev)
+		return FALSE;
+
+	switch (event) {
+	case NI_EVENT_ADDRESS_ACQUIRED:
+		{
+			lease = ni_netdev_get_lease_by_uuid(dev, &cb->uuid);
+			if (lease) {
+				/* acquired, advance to granted */
+				lease->state = NI_ADDRCONF_STATE_GRANTED;
+
+				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+					"%s: %s:%s lease %s in state %s [%s]",
+					w->name,
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_uuid_print(&lease->uuid),
+					ni_addrconf_state_to_name(lease->state),
+					ni_addrconf_flags_format(&buf, lease->flags, "|"));
+				ni_stringbuf_destroy(&buf);
+
+				other = __find_corresponding_lease(dev, lease->family, lease->type);
+				if (other && ni_addrconf_flag_bit_is_set(other->flags, NI_ADDRCONF_FLAGS_OPTIONAL)) {
+					ni_objectmodel_callback_info_t *ocb;
+
+					if ((ocb = ni_ifworker_get_callback(w, &other->uuid))) {
+						ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+							"%s: stopped wait for %s:%s lease in state %s [%s]",
+							w->name,
+							ni_addrfamily_type_to_name(other->family),
+							ni_addrconf_type_to_name(other->type),
+							ni_addrconf_state_to_name(other->state),
+							ni_addrconf_flags_format(&buf, other->flags, "|"));
+						ni_stringbuf_destroy(&buf);
+
+						ni_objectmodel_callback_info_free(ocb);
+					}
+				}
+			}
+		}
+		return TRUE;
+
+	case NI_EVENT_ADDRESS_LOST:
+		{
+			lease = ni_netdev_get_lease_by_uuid(dev, &cb->uuid);
+			if (lease) {
+				lease->state = NI_ADDRCONF_STATE_FAILED;
+
+				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+						"%s: %s:%s lease %s in state %s [%s]",
+						w->name,
+						ni_addrfamily_type_to_name(lease->family),
+						ni_addrconf_type_to_name(lease->type),
+						ni_uuid_print(&lease->uuid),
+						ni_addrconf_state_to_name(lease->state),
+						ni_addrconf_flags_format(&buf, lease->flags, "|"));
+				ni_stringbuf_destroy(&buf);
+
+				if (!ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_OPTIONAL))
+					return FALSE;
+
+				if ((other = __find_corresponding_lease(dev, lease->family, lease->type))) {
+						ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+							"%s: %s:%s peer lease in state %s [%s]",
+							w->name,
+							ni_addrfamily_type_to_name(other->family),
+							ni_addrconf_type_to_name(other->type),
+							ni_addrconf_state_to_name(other->state),
+							ni_addrconf_flags_format(&buf, other->flags, "|"));
+						ni_stringbuf_destroy(&buf);
+
+					if (other->state == NI_ADDRCONF_STATE_GRANTED ||
+					    other->state == NI_ADDRCONF_STATE_REQUESTING)
+						return TRUE;
+				}
+			}
+		}
+		break;
+
+	default:
+		break;
+	}
+	return FALSE;
+}
+
 static void
 interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
 {
@@ -3534,9 +3641,10 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	const char *signal_name = dbus_message_get_member(msg);
 	const char *object_path = dbus_message_get_path(msg);
 	ni_uuid_t event_uuid = NI_UUID_INIT;
+	ni_event_t event_type = __NI_EVENT_MAX;
 	ni_ifworker_t *w;
 
-	/* See if this event comes with a uuid */
+	/* See if this event is a known one and comes with a uuid */
 	{
 		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 		int argc;
@@ -3545,6 +3653,11 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		if (argc < 0) {
 			ni_error("%s: cannot extract parameters of signal %s",
 					__func__, signal_name);
+			return;
+		}
+		if (ni_objectmodel_signal_to_event(signal_name, &event_type) < 0) {
+			ni_warn("%s: unknown event signal %s from %s",
+				__func__, signal_name, object_path);
 			return;
 		}
 		if (ni_dbus_variant_get_uuid(&result, &event_uuid))
@@ -3558,7 +3671,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	}
 
 	fsm->event_seq += 1;
-	if (!strcmp(signal_name, "addressAcquired"))
+	if (event_type == NI_EVENT_ADDRESS_ACQUIRED)
 		fsm->last_event_seq[NI_EVENT_ADDRESS_ACQUIRED] = fsm->event_seq;
 
 	if ((w = ni_fsm_ifworker_by_object_path(fsm, object_path)) != NULL) {
@@ -3567,13 +3680,29 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		if (!ni_uuid_is_null(&event_uuid)) {
 			cb = ni_ifworker_get_callback(w, &event_uuid);
 			if (cb) {
-				if (ni_string_eq(cb->event, signal_name)) {
+				ni_event_t cb_event_type;
+				ni_bool_t success;
+
+				if (ni_objectmodel_signal_to_event(cb->event, &cb_event_type) < 0)
+					cb_event_type = __NI_EVENT_MAX;
+
+				if ((success = (cb_event_type == event_type))) {
 					ni_debug_dbus("... great, we were expecting this event");
 				} else {
 					ni_debug_dbus("%s: was waiting for %s event, but got %s",
 							w->name, cb->event, signal_name);
-					ni_ifworker_fail(w, "got signal %s", signal_name);
 				}
+
+				switch (cb_event_type) {
+				case NI_EVENT_ADDRESS_ACQUIRED:
+					success = address_acquired_callback_handler(w, cb, event_type);
+					break;
+				default:
+					break;
+				}
+
+				if (!success)
+					ni_ifworker_fail(w, "got signal %s", signal_name);
 				ni_objectmodel_callback_info_free(cb);
 			}
 

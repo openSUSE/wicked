@@ -354,6 +354,7 @@ ni_objectmodel_get_dhcp6_request(const ni_dbus_object_t *object, ni_bool_t write
 static ni_dbus_property_t	dhcp6_request_properties[] = {
 	DHCP6REQ_BOOL_PROPERTY(enabled, enabled, RO),
 	DHCP6REQ_UUID_PROPERTY(uuid, uuid, RO),
+	DHCP6REQ_UINT_PROPERTY(flags, flags, RO),
 	DHCP6REQ_UINT_PROPERTY(mode, mode, RO),
 	DHCP6REQ_BOOL_PROPERTY(rapid-commit, rapid_commit, RO),
 	DHCP6REQ_UINT_PROPERTY(acquire-timeout, acquire_timeout, RO),

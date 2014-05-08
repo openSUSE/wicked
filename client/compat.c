@@ -1065,37 +1065,21 @@ __ni_compat_generate_static_addrconf(xml_node_t *ifnode, const ni_compat_netdev_
 }
 
 static xml_node_t *
-__ni_compat_generate_dynamic_addrconf(xml_node_t *ifnode, const char *name, ni_bool_t required, unsigned int update)
+__ni_compat_generate_dynamic_addrconf(xml_node_t *ifnode, const char *name, unsigned int flags, unsigned int update)
 {
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	xml_node_t *aconf;
-	char *temp = NULL;
 
 	aconf = xml_node_new(name, ifnode);
 	xml_node_new_element("enabled", aconf, "true");
 
-#if 0	/* This is not yet implemented */
-	if (!required)
-		xml_node_new_element("optional", aconf, "true");
-#endif
+	if (flags && !ni_string_empty(ni_addrconf_flags_format(&buf, flags, ",")))
+		xml_node_new_element("flags", aconf, buf.string);
+	ni_stringbuf_destroy(&buf);
 
-	if (update) {
-		ni_string_array_t names = NI_STRING_ARRAY_INIT;
-		const char *name;
-		unsigned int i;
-
-		for (i = 0; update != 0; ++i, update >>= 1) {
-			if (update & 1) {
-				name = ni_addrconf_update_flag_to_name(i);
-				if (name)
-					ni_string_array_append(&names, name);
-			}
-		}
-		if (names.count && ni_string_join(&temp, &names, ",")) {
-			xml_node_new_element("update", aconf, temp);
-			ni_string_free(&temp);
-		}
-		ni_string_array_destroy(&names);
-	}
+	if (update && !ni_string_empty(ni_addrconf_update_flags_format(&buf, update, ",")))
+		xml_node_new_element("update", aconf, buf.string);
+	ni_stringbuf_destroy(&buf);
 
 	return aconf;
 }
@@ -1109,7 +1093,7 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 		return NULL;
 
 	dhcp = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv4:dhcp",
-			compat->dhcp4.required, compat->dhcp4.update);
+			compat->dhcp4.flags, compat->dhcp4.update);
 
 	if (compat->dhcp4.hostname)
 		xml_node_dict_set(dhcp, "hostname", compat->dhcp4.hostname);
@@ -1155,7 +1139,7 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 		return NULL;
 
 	dhcp = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv6:dhcp",
-			compat->dhcp6.required, compat->dhcp6.update);
+			compat->dhcp6.flags, compat->dhcp6.update);
 
 	if ((ptr = ni_dhcp6_mode_type_to_name(compat->dhcp6.mode)) != NULL)
 		xml_node_dict_set(dhcp, "mode", ptr);

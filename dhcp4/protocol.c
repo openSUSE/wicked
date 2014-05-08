@@ -462,61 +462,61 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 		ni_buffer_putc(msgbuf, DHCP4_BROADCAST);
 		ni_buffer_putc(msgbuf, DHCP4_MTU);
 
-		if (options->flags & DHCP4_DO_CSR) {
+		if (options->doflags & DHCP4_DO_CSR) {
 			ni_buffer_putc(msgbuf, DHCP4_CSR);
 		}
-		if (options->flags & DHCP4_DO_MSCSR) {
+		if (options->doflags & DHCP4_DO_MSCSR) {
 			ni_buffer_putc(msgbuf, DHCP4_MSCSR);
 		}
 		/* RFC 3442 states classless static routes should be
 		 * before routers and static routes as classless static
 		 * routes override them both */
-		if (options->flags & DHCP4_DO_GATEWAY) {
+		if (options->doflags & DHCP4_DO_GATEWAY) {
 			ni_buffer_putc(msgbuf, DHCP4_STATICROUTE);
 			ni_buffer_putc(msgbuf, DHCP4_ROUTERS);
 		}
-		if (options->flags & DHCP4_DO_HOSTNAME) {
+		if (options->doflags & DHCP4_DO_HOSTNAME) {
 			if (options->fqdn == FQDN_DISABLE)
 				ni_buffer_putc(msgbuf, DHCP4_HOSTNAME);
 			else
 				ni_buffer_putc(msgbuf, DHCP4_FQDN);
 		}
-		if (options->flags & DHCP4_DO_DNS) {
+		if (options->doflags & DHCP4_DO_DNS) {
 			ni_buffer_putc(msgbuf, DHCP4_DNSSEARCH);
 			ni_buffer_putc(msgbuf, DHCP4_DNSDOMAIN);
 			ni_buffer_putc(msgbuf, DHCP4_DNSSERVER);
 		}
-		if (options->flags & DHCP4_DO_NIS) {
+		if (options->doflags & DHCP4_DO_NIS) {
 			ni_buffer_putc(msgbuf, DHCP4_NISDOMAIN);
 			ni_buffer_putc(msgbuf, DHCP4_NISSERVER);
 		}
-		if (options->flags & DHCP4_DO_NTP) {
+		if (options->doflags & DHCP4_DO_NTP) {
 			ni_buffer_putc(msgbuf, DHCP4_NTPSERVER);
 		}
-		if (options->flags & DHCP4_DO_ROOT) {
+		if (options->doflags & DHCP4_DO_ROOT) {
 			ni_buffer_putc(msgbuf, DHCP4_ROOTPATH);
 		}
-		if (options->flags & DHCP4_DO_LPR) {
+		if (options->doflags & DHCP4_DO_LPR) {
 			ni_buffer_putc(msgbuf, DHCP4_LPRSERVER);
 		}
-		if (options->flags & DHCP4_DO_LOG) {
+		if (options->doflags & DHCP4_DO_LOG) {
 			ni_buffer_putc(msgbuf, DHCP4_LOGSERVER);
 		}
-		if (options->flags & DHCP4_DO_NDS) {
+		if (options->doflags & DHCP4_DO_NDS) {
 			ni_buffer_putc(msgbuf, DHCP4_NDS_SERVER);
 			ni_buffer_putc(msgbuf, DHCP4_NDS_TREE);
 			ni_buffer_putc(msgbuf, DHCP4_NDS_CTX);
 		}
-		if (options->flags & DHCP4_DO_SIP) {
+		if (options->doflags & DHCP4_DO_SIP) {
 			ni_buffer_putc(msgbuf, DHCP4_SIPSERVER);
 		}
-		if (options->flags & DHCP4_DO_SMB) {
+		if (options->doflags & DHCP4_DO_SMB) {
 			ni_buffer_putc(msgbuf, DHCP4_NETBIOSNAMESERVER);
 			ni_buffer_putc(msgbuf, DHCP4_NETBIOSDDSERVER);
 			ni_buffer_putc(msgbuf, DHCP4_NETBIOSNODETYPE);
 			ni_buffer_putc(msgbuf, DHCP4_NETBIOSSCOPE);
 		}
-		if (options->flags & DHCP4_DO_POSIX_TZ) {
+		if (options->doflags & DHCP4_DO_POSIX_TZ) {
 			ni_buffer_putc(msgbuf, DHCP4_POSIX_TZ_STRING);
 			ni_buffer_putc(msgbuf, DHCP4_POSIX_TZ_DBNAME);
 		}

@@ -916,6 +916,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	config = xcalloc(1, sizeof(*config));
 	config->uuid = req->uuid;
 	config->mode = req->mode;
+	config->flags= req->flags;
 	config->update = req->update;
 	config->dry_run = req->dry_run;
 	config->rapid_commit = !config->dry_run ? req->rapid_commit : FALSE;

@@ -18,7 +18,7 @@
       signal and passes along this lease data.
     </description>
     <uuid type="uuid-type" />
-    <flags type="uint32" />
+    <flags type="builtin-addrconf-flags" />
     <state type="builtin-addrconf-state"
     		description="State of the lease - usually GRANTED or RELEASED"/>
 
@@ -155,8 +155,9 @@
      ================================================= -->
 <service name="ipv4:dhcp" interface="org.opensuse.Network.Addrconf.ipv4.dhcp" object-class="netif">
   <define name="request" class="dict">
-    <uuid type="uuid-type"/>
     <enabled type="boolean"/>
+    <uuid type="uuid-type"/>
+    <flags type="builtin-addrconf-flags" />
 
     <hostname type="string" />
     <client-id type="string" />
@@ -197,8 +198,9 @@
      ================================================= -->
 <service name="ipv6:dhcp" interface="org.opensuse.Network.Addrconf.ipv6.dhcp" object-class="netif">
   <define name="request" class="dict">
-    <uuid type="uuid-type"/>
     <enabled type="boolean"/>
+    <uuid type="uuid-type"/>
+    <flags type="builtin-addrconf-flags" />
 
     <mode type="builtin-dhcp6-mode"/>
     <rapid-commit type="boolean"/>

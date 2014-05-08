@@ -3065,7 +3065,7 @@ __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 	__ni_suse_addrconf_dhcp4_options(sc, compat);
 
 	compat->dhcp4.enabled = TRUE;
-	compat->dhcp4.required = required;
+	ni_addrconf_flag_bit_set(&compat->dhcp4.flags, NI_ADDRCONF_FLAGS_OPTIONAL, !required);
 	return TRUE;
 }
 
@@ -3092,7 +3092,7 @@ __ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 	__ni_suse_addrconf_dhcp6_options(sc, compat);
 
 	compat->dhcp6.enabled = TRUE;
-	compat->dhcp6.required = required;
+	ni_addrconf_flag_bit_set(&compat->dhcp6.flags, NI_ADDRCONF_FLAGS_OPTIONAL, !required);
 	return TRUE;
 }
 

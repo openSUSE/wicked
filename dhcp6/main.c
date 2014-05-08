@@ -608,8 +608,10 @@ dhcp6_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *dev, ni_ad
 
 		/* Make sure we copy the "update" flags to the lease; the
 		 * server relies on us to provide this info */
-		if (lease)
+		if (lease) {
 			lease->update = dev->config->update;
+			lease->flags = dev->config->flags;
+		}
 	}
 
 	var = &argv[argc++];

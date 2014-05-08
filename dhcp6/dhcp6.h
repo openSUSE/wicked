@@ -59,8 +59,9 @@ typedef enum {
  * This is the on-the wire request we receive from supplicant.
  */
 struct ni_dhcp6_request {
-	ni_uuid_t		uuid;
 	ni_bool_t		enabled;
+	ni_uuid_t		uuid;
+	unsigned int		flags;
 
 	/* Options controlling which and how to make the requests */
 	ni_dhcp6_run_t		dry_run;         /* normal run or get offer/lease only	*/
@@ -104,6 +105,7 @@ extern void			ni_dhcp6_request_free(ni_dhcp6_request_t *);
  */
 struct ni_dhcp6_config {
 	ni_uuid_t		uuid;
+	unsigned int		flags;
 
 	ni_dhcp6_mode_t		mode;
 	ni_dhcp6_run_t		dry_run;

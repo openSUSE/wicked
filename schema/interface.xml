@@ -208,7 +208,7 @@
     <lease class="dict">
       <uuid  type="uuid-type"/>
       <state type="builtin-addrconf-state"/>
-      <flags type="uint32"/>
+      <flags type="builtin-addrconf-flags"/>
     </lease>
   </define>
 
