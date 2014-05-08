@@ -492,6 +492,7 @@ ni_wpa_prepare_interface(ni_wpa_client_t *wpa, ni_wpa_interface_t *wpa_dev, cons
  */
 static ni_intmap_t	__ni_wpa_state_names[] = {
 	{ "INACTIVE",		NI_WPA_IFSTATE_INACTIVE	},
+	{ "INTERFACE_DISABLED",	NI_WPA_IFSTATE_INACTIVE	},
 	{ "SCANNING",		NI_WPA_IFSTATE_SCANNING	},
 	{ "DISCONNECTED",	NI_WPA_IFSTATE_DISCONNECTED },
 	{ "ASSOCIATING",	NI_WPA_IFSTATE_ASSOCIATING },
