@@ -189,6 +189,12 @@ ni_addrconf_flag_bit_set(unsigned int *mask, unsigned int flag, ni_bool_t enable
 	}
 }
 
+ni_bool_t
+ni_addrconf_flag_bit_is_set(unsigned int flags, unsigned int flag)
+{
+	return flags & (1 << flag);
+}
+
 const char *
 ni_addrconf_flags_format(ni_stringbuf_t *buf, unsigned int flags, const char *sep)
 {
