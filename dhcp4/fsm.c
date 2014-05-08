@@ -274,6 +274,7 @@ __ni_dhcp4_fsm_discover(ni_dhcp4_device_t *dev, int scan_offers)
 	 */
 	if ((lease = dev->lease) == NULL)
 		lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET);
+	lease->uuid = dev->config->uuid;
 
 	dev->fsm.state = NI_DHCP4_STATE_SELECTING;
 	rv = ni_dhcp4_device_send_message(dev, DHCP4_DISCOVER, lease);

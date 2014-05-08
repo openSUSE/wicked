@@ -1168,6 +1168,7 @@ __ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 	ni_dbus_dict_add_uint32(result, "acquired", lease->time_acquired);
 	ni_dbus_dict_add_uint32(result, "update", lease->update);
 
+	ni_dbus_dict_add_uint32(result, "flags", lease->flags);
 	if (!(child = ni_dbus_dict_add(result, "uuid")))
 		return FALSE;
 	ni_dbus_variant_set_uuid(child, &lease->uuid);
@@ -1386,6 +1387,8 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 	if (ni_dbus_dict_get_uint32(argument, "update", &value32))
 		lease->update = value32;
 
+	if (ni_dbus_dict_get_uint32(argument, "flags", &value32))
+		lease->flags = value32;
 	if ((child = ni_dbus_dict_get(argument, "uuid")) != NULL
 	 && !ni_dbus_variant_get_uuid(child, &lease->uuid))
 		return FALSE;
@@ -1647,7 +1650,7 @@ __ni_objectmodel_callback_info_to_dict(const ni_objectmodel_callback_info_t *cb,
 		ni_dbus_variant_init_dict(info_dict);
 
 		ni_dbus_dict_add_string(info_dict, "event", cb->event);
-		ni_dbus_variant_set_uuid(ni_dbus_dict_add(info_dict, "uuid"), &cb->uuid);
+		ni_dbus_dict_add_uuid(info_dict, "uuid", &cb->uuid);
 
 		cb = cb->next;
 	}
@@ -1659,20 +1662,20 @@ ni_objectmodel_callback_info_t *
 ni_objectmodel_callback_info_from_dict(const ni_dbus_variant_t *dict)
 {
 	ni_objectmodel_callback_info_t *result = NULL;
-	ni_dbus_variant_t *child = NULL, *var;
+	ni_dbus_variant_t *child = NULL;
 
 	while ((child = ni_dbus_dict_get_next(dict, "callback", child)) != NULL) {
 		ni_objectmodel_callback_info_t *cb;
 		const char *event;
 
-		cb = calloc(1, sizeof(*cb));
-		if (ni_dbus_dict_get_string(child, "event", &event))
-			ni_string_dup(&cb->event, event);
-		if ((var = ni_dbus_dict_get(child, "uuid")) != NULL)
-			ni_dbus_variant_get_uuid(var, &cb->uuid);
+		if ((cb = calloc(1, sizeof(*cb)))) {
+			if (ni_dbus_dict_get_string(child, "event", &event))
+				ni_string_dup(&cb->event, event);
+			ni_dbus_dict_get_uuid(child, "uuid", &cb->uuid);
 
-		cb->next = result;
-		result = cb;
+			cb->next = result;
+			result = cb;
+		}
 	}
 
 	return result;

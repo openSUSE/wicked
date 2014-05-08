@@ -17,14 +17,16 @@
       When an addrconf service acquires a lease, it emits a "LeaseAcquired"
       signal and passes along this lease data.
     </description>
+    <uuid type="uuid-type" />
+    <flags type="uint32" />
     <state type="builtin-addrconf-state"
     		description="State of the lease - usually GRANTED or RELEASED"/>
+
     <acquired type="uint32" 
     		description="Timestamp when the lease was acquired"/>
     <update type="builtin-addrconf-update-mask"
     		description="This is a bitmap describing which system services should be configured through this lease" />
 
-    <uuid type="uuid-type" />
     <hostname type="string" />
     <addresses type="network-interface:assigned-address-list" />
     <routes type="network-interface:assigned-route-list" />

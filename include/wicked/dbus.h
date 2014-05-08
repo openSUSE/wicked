@@ -303,6 +303,7 @@ extern dbus_bool_t		ni_dbus_dict_add_uint64(ni_dbus_variant_t *, const char *, u
 extern dbus_bool_t		ni_dbus_dict_add_string(ni_dbus_variant_t *, const char *, const char *);
 extern dbus_bool_t		ni_dbus_dict_add_object_path(ni_dbus_variant_t *, const char *, const char *);
 extern dbus_bool_t		ni_dbus_dict_add_double(ni_dbus_variant_t *, const char *, double);
+extern dbus_bool_t		ni_dbus_dict_add_uuid(ni_dbus_variant_t *, const char *, const ni_uuid_t *);
 extern dbus_bool_t		ni_dbus_dict_add_byte_array(ni_dbus_variant_t *, const char *,
 					const unsigned char *byte_array, unsigned int len);
 extern ni_dbus_variant_t *	ni_dbus_dict_get(const ni_dbus_variant_t *, const char *);
@@ -318,6 +319,7 @@ extern dbus_bool_t		ni_dbus_dict_get_uint64(const ni_dbus_variant_t *, const cha
 extern dbus_bool_t		ni_dbus_dict_get_string(const ni_dbus_variant_t *, const char *, const char **);
 extern dbus_bool_t		ni_dbus_dict_get_object_path(const ni_dbus_variant_t *, const char *, const char **);
 extern dbus_bool_t		ni_dbus_dict_get_double(const ni_dbus_variant_t *, const char *, double *);
+extern dbus_bool_t		ni_dbus_dict_get_uuid(const ni_dbus_variant_t *, const char *, ni_uuid_t *);
 extern dbus_bool_t		ni_dbus_dict_is_empty(const ni_dbus_variant_t *);
 
 extern void			ni_dbus_dict_array_init(ni_dbus_variant_t *);

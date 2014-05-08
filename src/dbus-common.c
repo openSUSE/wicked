@@ -1311,6 +1311,17 @@ ni_dbus_dict_add_double(ni_dbus_variant_t *dict, const char *key, double value)
 }
 
 dbus_bool_t
+ni_dbus_dict_add_uuid(ni_dbus_variant_t *dict, const char *key, const ni_uuid_t *uuid)
+{
+	ni_dbus_variant_t *dst;
+
+	if (!(dst = ni_dbus_dict_add(dict, key)))
+		return FALSE;
+	ni_dbus_variant_set_uuid(dst, uuid);
+	return TRUE;
+}
+
+dbus_bool_t
 ni_dbus_dict_add_byte_array(ni_dbus_variant_t *dict, const char *key,
 			const unsigned char *byte_array, unsigned int len)
 {
@@ -1490,6 +1501,16 @@ ni_dbus_dict_get_double(const ni_dbus_variant_t *dict, const char *key, double *
 	if (!(var = ni_dbus_dict_get(dict, key)))
 		return FALSE;
 	return ni_dbus_variant_get_double(var, value);
+}
+
+dbus_bool_t
+ni_dbus_dict_get_uuid(const ni_dbus_variant_t *dict, const char *key, ni_uuid_t *uuid)
+{
+	const ni_dbus_variant_t *var;
+
+	if (!(var = ni_dbus_dict_get(dict, key)))
+		return FALSE;
+	return ni_dbus_variant_get_uuid(var, uuid);
 }
 
 dbus_bool_t

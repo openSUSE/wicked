@@ -206,7 +206,9 @@
 
   <define name="addrconf-lease" class="dict">
     <lease class="dict">
+      <uuid  type="uuid-type"/>
       <state type="builtin-addrconf-state"/>
+      <flags type="uint32"/>
     </lease>
   </define>
 
