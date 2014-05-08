@@ -317,6 +317,7 @@ ni_objectmodel_get_dhcp4_request(const ni_dbus_object_t *object, ni_bool_t write
 static ni_dbus_property_t	dhcp4_request_properties[] = {
 	DHCP4REQ_BOOL_PROPERTY(enabled, enabled, RO),
 	DHCP4REQ_UUID_PROPERTY(uuid, uuid, RO),
+	DHCP4REQ_UINT_PROPERTY(flags, flags, RO),
 	DHCP4REQ_UINT_PROPERTY(settle-timeout, settle_timeout, RO),
 	DHCP4REQ_UINT_PROPERTY(start-delay, start_delay, RO),
 	DHCP4REQ_UINT_PROPERTY(acquire-timeout, acquire_timeout, RO),

@@ -164,11 +164,11 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		goto done;
 	}
 
-	ni_debug_dbus("received signal %s for interface %s (ifindex %d), lease %s/%s, uuid=%s, update=0x%x",
+	ni_debug_dbus("received signal %s for interface %s (ifindex %d), lease %s:%s, uuid=%s, update=0x%x, flags=0x%x",
 			signal_name, ifp->name, ifp->link.ifindex,
-			ni_addrconf_type_to_name(lease->type),
 			ni_addrfamily_type_to_name(lease->family),
-			ni_uuid_print(&uuid), lease->update);
+			ni_addrconf_type_to_name(lease->type),
+			ni_uuid_print(&uuid), lease->update, lease->flags);
 	if (!strcmp(signal_name, NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL)) {
 		if (lease->state != NI_ADDRCONF_STATE_GRANTED) {
 			ni_error("%s: unexpected lease state in signal %s", __func__, signal_name);
@@ -390,6 +390,7 @@ ni_objectmodel_addrconf_forward_request(ni_dbus_addrconf_forwarder_t *forwarder,
 	ni_addrconf_lease_t *lease;
 	ni_uuid_t req_uuid;
 	dbus_bool_t rv, enabled;
+	uint32_t flags = 0;
 
 	/* Check whether we already have a lease on this interface. */
 	lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf);
@@ -402,6 +403,9 @@ ni_objectmodel_addrconf_forward_request(ni_dbus_addrconf_forwarder_t *forwarder,
 	if (!ni_dbus_dict_get_bool(dict, "enabled", &enabled) || !enabled)
 		return ni_objectmodel_addrconf_forward_release(forwarder, dev, NULL, reply, error);
 
+	if (!ni_dbus_dict_get_uint32(dict, "flags", &flags))
+		flags = 0;
+
 	if (lease == NULL) {
 		/* We didn't have a lease for this address family and addrconf protocol yet.
 		 * Create one and track it. */
@@ -410,6 +414,7 @@ ni_objectmodel_addrconf_forward_request(ni_dbus_addrconf_forwarder_t *forwarder,
 	}
 	lease->uuid = req_uuid;
 	lease->state = NI_ADDRCONF_STATE_REQUESTING;
+	lease->flags = flags;
 
 	rv = ni_objectmodel_addrconf_forwarder_call(forwarder, dev, "acquire", &req_uuid, dict, error);
 	if (rv) {
@@ -700,9 +705,11 @@ __ni_objectmodel_addrconf_generic_get_lease(const ni_dbus_object_t *object,
 	if (!(lease = ni_netdev_get_lease(dev, addrfamily, mode)))
 		return FALSE;
 
-	ni_dbus_dict_add_uuid(dict, "uuid", &lease->uuid);
 	ni_dbus_dict_add_uint32(dict, "state", lease->state);
-	ni_dbus_dict_add_uint32(dict, "flags", lease->flags);
+	if (lease->flags)
+		ni_dbus_dict_add_uint32(dict, "flags", lease->flags);
+	if (!ni_uuid_is_null(&lease->uuid))
+		ni_dbus_dict_add_uuid(dict,   "uuid", &lease->uuid);
 	return TRUE;
 }
 

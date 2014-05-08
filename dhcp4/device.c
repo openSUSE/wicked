@@ -26,7 +26,7 @@
 
 
 static unsigned int	ni_dhcp4_do_bits(unsigned int);
-static const char *	__ni_dhcp4_print_flags(unsigned int);
+static const char *	__ni_dhcp4_print_doflags(unsigned int);
 
 ni_dhcp4_device_t *	ni_dhcp4_active;
 
@@ -264,6 +264,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	config->request_timeout = info->acquire_timeout?: NI_DHCP4_REQUEST_TIMEOUT;
 	config->initial_discovery_timeout = NI_DHCP4_DISCOVERY_TIMEOUT;
 	config->uuid = info->uuid;
+	config->flags = info->flags;
 	config->update = info->update;
 	config->route_priority = info->route_priority;
 	config->start_delay = info->start_delay;
@@ -298,8 +299,8 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	if (classid)
 		strncpy(config->classid, classid, sizeof(config->classid) - 1);
 
-	config->flags = DHCP4_DO_DEFAULT;
-	config->flags |= ni_dhcp4_do_bits(config->update);
+	config->doflags = DHCP4_DO_DEFAULT;
+	config->doflags |= ni_dhcp4_do_bits(info->update);
 
 	if (ni_debug & NI_TRACE_DHCP) {
 		ni_trace("Received request:");
@@ -310,7 +311,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_trace("  vendor-class    %s", config->classid[0]? config->classid : "<none>");
 		ni_trace("  client-id       %s", ni_print_hex(config->client_id.data, config->client_id.len));
 		ni_trace("  uuid            %s", ni_uuid_print(&config->uuid));
-		ni_trace("  flags           %s", __ni_dhcp4_print_flags(config->flags));
+		ni_trace("  update-flags    %s", __ni_dhcp4_print_doflags(config->doflags));
 		ni_trace("  recover_lease   %s", config->recover_lease ? "true" : "false");
 		ni_trace("  release_lease   %s", config->release_lease ? "true" : "false");
 	}
@@ -383,7 +384,7 @@ ni_dhcp4_do_bits(unsigned int update_flags)
 }
 
 static const char *
-__ni_dhcp4_print_flags(unsigned int flags)
+__ni_dhcp4_print_doflags(unsigned int flags)
 {
 	static ni_intmap_t flag_names[] = {
 	{ "arp",		DHCP4_DO_ARP		},

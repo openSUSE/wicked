@@ -624,7 +624,7 @@ ni_dhcp4_process_ack(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 	/* set lease to validate and commit or decline */
 	ni_dhcp4_device_set_lease(dev, lease);
 
-	if (dev->config->flags & DHCP4_DO_ARP) {
+	if (dev->config->doflags & DHCP4_DO_ARP) {
 		/*
 		 * When we cannot init validate [arp], commit it.
 		 */

@@ -416,6 +416,12 @@ __show_leases_by_family(const ni_netdev_t *dev, ni_bool_t verbose, sa_family_t f
 			ni_addrfamily_type_to_name(lease->family),
 			ni_addrconf_type_to_name(lease->type),
 			ni_addrconf_state_to_name(lease->state));
+
+		if (verbose && lease->flags) {
+			ni_stringbuf_puts(&buf, " [");
+			ni_addrconf_flags_format(&buf, lease->flags, ",");
+			ni_stringbuf_puts(&buf, "]");
+		}
 	}
 	if (buf.string)
 		if_printf("", "leases:", "%s\n", buf.string);

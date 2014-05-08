@@ -127,8 +127,9 @@ typedef enum
  * This is the on-the wire request we receive from clients.
  */
 struct ni_dhcp4_request {
-	ni_uuid_t		uuid;
 	ni_bool_t		enabled;
+	ni_uuid_t		uuid;
+	unsigned int		flags;
 
 	ni_dhcp4_run_t		dry_run;	/* normal run or get offer/lease only	*/
 	unsigned int		settle_timeout;	/* wait that long before starting DHCP4	*/
@@ -159,10 +160,8 @@ struct ni_dhcp4_request {
  */
 struct ni_dhcp4_config {
 	ni_uuid_t		uuid;
-	ni_dhcp4_run_t		dry_run;
-
-	/* A combination of DHCP4_DO_* flags above */
 	unsigned int		flags;
+	ni_dhcp4_run_t		dry_run;
 
 	char			hostname[256];
 	char			classid[48];
@@ -176,7 +175,10 @@ struct ni_dhcp4_config {
 	unsigned int		start_delay;
 	unsigned int		resend_timeout;
 	unsigned int		max_lease_time;
+
+	/* A combination of DHCP4_DO_* flags above */
 	unsigned int		update;
+	unsigned int		doflags;
 
 	unsigned int		route_priority;
 
