@@ -702,6 +702,7 @@ __ni_objectmodel_addrconf_generic_get_lease(const ni_dbus_object_t *object,
 
 	ni_dbus_dict_add_uuid(dict, "uuid", &lease->uuid);
 	ni_dbus_dict_add_uint32(dict, "state", lease->state);
+	ni_dbus_dict_add_uint32(dict, "flags", lease->flags);
 	return TRUE;
 }
 
@@ -723,6 +724,7 @@ __ni_objectmodel_addrconf_generic_set_lease(ni_dbus_object_t *object,
 		lease = ni_addrconf_lease_new(mode, addrfamily);
 		lease->state = state;
 		ni_dbus_dict_get_uuid(dict,   "uuid", &lease->uuid);
+		ni_dbus_dict_get_uint32(dict, "flags", &lease->flags);
 		ni_netdev_set_lease(dev, lease);
 	}
 	return TRUE;

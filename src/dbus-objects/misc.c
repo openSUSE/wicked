@@ -1168,6 +1168,7 @@ __ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 	ni_dbus_dict_add_uint32(result, "acquired", lease->time_acquired);
 	ni_dbus_dict_add_uint32(result, "update", lease->update);
 
+	ni_dbus_dict_add_uint32(result, "flags", lease->flags);
 	if (!(child = ni_dbus_dict_add(result, "uuid")))
 		return FALSE;
 	ni_dbus_variant_set_uuid(child, &lease->uuid);
@@ -1386,6 +1387,8 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 	if (ni_dbus_dict_get_uint32(argument, "update", &value32))
 		lease->update = value32;
 
+	if (ni_dbus_dict_get_uint32(argument, "flags", &value32))
+		lease->flags = value32;
 	if ((child = ni_dbus_dict_get(argument, "uuid")) != NULL
 	 && !ni_dbus_variant_get_uuid(child, &lease->uuid))
 		return FALSE;

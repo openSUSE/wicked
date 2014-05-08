@@ -79,6 +79,7 @@ struct ni_addrconf_lease {
 	unsigned int		seqno;		/* globally unique sequence # */
 	ni_addrconf_mode_t	type;
 	unsigned int		family;
+	unsigned int		flags;
 	char *			owner;
 
 	ni_uuid_t		uuid;
