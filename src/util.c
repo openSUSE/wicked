@@ -1361,6 +1361,28 @@ ni_parse_hex(const char *string, unsigned char *data, unsigned int datasize)
 	return len;
 }
 
+const char *
+ni_format_bitmap(ni_stringbuf_t *buf, const ni_intmap_t *map,
+		unsigned int flags, const char *sep)
+{
+	unsigned int i;
+
+	if (!buf || !map)
+		return NULL;
+
+	if (ni_string_empty(sep))
+		sep = "|";
+
+	for (i = 0; map->name; ++map) {
+		if (flags & (1 << map->value)) {
+			if (i++)
+				ni_stringbuf_puts(buf, sep);
+			ni_stringbuf_puts(buf, map->name);
+		}
+	}
+	return buf->string;
+}
+
 /*
  * stringbuf functions
  */
