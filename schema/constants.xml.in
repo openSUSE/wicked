@@ -18,6 +18,11 @@
   <@@ADDRCONF_STATE_NAME@@ value="@@ADDRCONF_STATE_VALUE@@"/>
 </define>
 
+<!-- Built-in addrconf flags (lease handling flags) -->
+<define name="builtin-addrconf-flags" type="uint32" constraint="bitmap">
+  <@@ADDRCONF_FLAG_BIT_NAME@@ bit="@@ADDRCONF_FLAG_BIT_VALUE@@"/>
+</define>
+
 <!-- Built-in update flag bit mask names -->
 <define name="builtin-addrconf-update-mask" type="uint32" constraint="bitmap">
   <@@ADDRCONF_UPDATE_FLAG_NAME@@ bit="@@ADDRCONF_UPDATE_FLAG_VALUE@@"/>

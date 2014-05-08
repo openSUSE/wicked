@@ -153,6 +153,49 @@ ni_addrconf_state_to_name(unsigned int type)
 }
 
 /*
+ * Map addrconf flag bits to strings and vice versa
+ */
+static const ni_intmap_t	__addrconf_flag_bits[] = {
+	{ "optional",		NI_ADDRCONF_FLAGS_OPTIONAL	},
+	{ NULL,			-1U				},
+};
+
+const char *
+ni_addrconf_flag_bit_to_name(unsigned int flag)
+{
+	return ni_format_uint_mapped(flag, __addrconf_flag_bits);
+}
+
+ni_bool_t
+ni_addrconf_name_to_flag_bit(const char *name, unsigned int *flag)
+{
+	unsigned int value;
+
+	if (!flag || ni_parse_uint_maybe_mapped(name,
+				__addrconf_flag_bits, &value, 0) < 0)
+		return FALSE;
+	*flag = value;
+	return TRUE;
+}
+
+void
+ni_addrconf_flag_bit_set(unsigned int *mask, unsigned int flag, ni_bool_t enable)
+{
+	if (mask) {
+		if (enable)
+			*mask |=  (1U << flag);
+		else
+			*mask &= ~(1U << flag);
+	}
+}
+
+const char *
+ni_addrconf_flags_format(ni_stringbuf_t *buf, unsigned int flags, const char *sep)
+{
+	return ni_format_bitmap(buf, __addrconf_flag_bits, flags, sep);
+}
+
+/*
  * Map addrconf update values to strings and vice versa
  */
 static const ni_intmap_t	__addrconf_update_flags[] = {
@@ -196,6 +239,12 @@ ni_addrconf_update_set(unsigned int *mask, unsigned int flag, ni_bool_t enable)
 		else
 			*mask &= ~(1 << flag);
 	}
+}
+
+const char *
+ni_addrconf_update_flags_format(ni_stringbuf_t *buf, unsigned int flags, const char *sep)
+{
+	return ni_format_bitmap(buf, __addrconf_update_flags, flags, sep);
 }
 
 /*

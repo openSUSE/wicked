@@ -59,6 +59,12 @@ enum {
 	__NI_ADDRCONF_STATE_MAX
 };
 
+/*
+ * Lease handling flag bits
+ */
+enum {
+	NI_ADDRCONF_FLAGS_OPTIONAL,
+};
 
 /*
  * DHCP6 run/configuration mode
@@ -175,11 +181,19 @@ extern int		ni_addrconf_lease_from_xml(ni_addrconf_lease_t **, const xml_node_t 
 
 extern int		ni_addrconf_name_to_type(const char *);
 extern const char *	ni_addrconf_type_to_name(unsigned int);
+
 extern int		ni_addrconf_name_to_state(const char *);
 extern const char *	ni_addrconf_state_to_name(unsigned int);
+
+extern const char *	ni_addrconf_flag_bit_to_name(unsigned int);
+extern ni_bool_t	ni_addrconf_name_to_flag_bit(const char *, unsigned int *);
+extern void		ni_addrconf_flag_bit_set(unsigned int *, unsigned int , ni_bool_t);
+extern const char *	ni_addrconf_flags_format(ni_stringbuf_t *, unsigned int, const char *);
+
 extern const char *	ni_addrconf_update_flag_to_name(unsigned int);
 extern ni_bool_t	ni_addrconf_update_name_to_flag(const char *, unsigned int *);
 extern void		ni_addrconf_update_set(unsigned int *, unsigned int, ni_bool_t);
+extern const char *	ni_addrconf_update_flags_format(ni_stringbuf_t *, unsigned int, const char *);
 
 extern const char *	ni_dhcp6_mode_type_to_name(unsigned int);
 extern int		ni_dhcp6_mode_name_to_type(const char *, unsigned int *);
