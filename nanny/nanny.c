@@ -255,7 +255,25 @@ ni_nanny_get_policy(ni_nanny_t *mgr, const ni_fsm_policy_t *policy)
 		if (mpolicy->fsm_policy == policy)
 			return mpolicy;
 	}
+
 	return NULL;
+}
+
+ni_bool_t
+ni_nanny_remove_policy(ni_nanny_t *mgr, ni_managed_policy_t *mpolicy)
+{
+	ni_managed_policy_t **pos, *cur;
+
+	ni_assert(mgr);
+	for (pos = &mgr->policy_list; (cur = *pos); pos = &cur->next) {
+		if (cur == mpolicy) {
+			*pos = cur->next;
+			ni_managed_policy_free(cur);
+			return TRUE;
+		}
+	}
+
+	return FALSE;
 }
 
 /*
@@ -670,6 +688,59 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 }
 
 /*
+ * Nanny.deletePolicy()
+ */
+static dbus_bool_t
+ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+					unsigned int argc, const ni_dbus_variant_t *argv,
+					ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_fsm_policy_t *policy;
+	const char *name;
+	ni_nanny_t *mgr;
+
+	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL)
+		return FALSE;
+
+	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &name))
+		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
+
+	ni_debug_nanny("Attempting to delete policy %s", name);
+
+	/* Unregistering Policy dbus object */
+	if ((policy = ni_fsm_policy_by_name(mgr->fsm, name))) {
+		ni_managed_policy_t **pos, *cur;
+
+		for (pos = &mgr->policy_list; (cur = *pos); pos = &cur->next) {
+			if (cur->fsm_policy == policy) {
+				ni_dbus_server_t *server;
+
+				if (!ni_fsm_policy_remove(mgr->fsm, policy))
+					return FALSE;
+
+				ni_debug_nanny("Removed FSM policy %s", name);
+
+				*pos = cur->next;
+				server = ni_dbus_object_get_server(object);
+				if (!ni_objectmodel_unregister_managed_policy(server, cur, name))
+					return FALSE;
+
+				ni_dbus_message_append_object_path(reply,
+					ni_dbus_object_get_path(object));
+				return TRUE;
+			}
+		}
+	}
+
+	dbus_set_error(error, NI_DBUS_ERROR_POLICY_DOESNOTEXIST,
+		"Policy \"%s\" does not exist in call to %s.%s",
+		(ni_string_empty(name) ? "none" : name),
+		ni_dbus_object_get_path(object), method->name);
+
+	return FALSE;
+}
+
+/*
  * Nanny.addSecret(security-id, path, value)
  * The security-id is an identifier that is derived from eg the modem's IMEI,
  * or the wireless ESSID.
@@ -703,6 +774,7 @@ ni_objectmodel_nanny_set_secret(ni_dbus_object_t *object, const ni_dbus_method_t
 static ni_dbus_method_t		ni_objectmodel_nanny_methods[] = {
 	{ "getDevice",		"s",		ni_objectmodel_nanny_get_device	},
 	{ "createPolicy",	"s",		ni_objectmodel_nanny_create_policy	},
+	{ "deletePolicy",	"s",		ni_objectmodel_nanny_delete_policy	},
 	{ "addSecret",		"a{sv}ss",	.handler_ex = ni_objectmodel_nanny_set_secret	},
 	{ NULL }
 };

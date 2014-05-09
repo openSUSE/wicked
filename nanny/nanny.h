@@ -124,6 +124,7 @@ extern void			ni_nanny_unregister_device(ni_nanny_t *, ni_ifworker_t *);
 extern ni_managed_device_t *	ni_nanny_get_device(ni_nanny_t *, ni_ifworker_t *);
 extern void			ni_nanny_remove_device(ni_nanny_t *, ni_managed_device_t *);
 extern ni_managed_policy_t *	ni_nanny_get_policy(ni_nanny_t *, const ni_fsm_policy_t *);
+extern ni_bool_t		ni_nanny_remove_policy(ni_nanny_t *, ni_managed_policy_t *);
 extern ni_nanny_user_t *	ni_nanny_get_user(ni_nanny_t *, uid_t);
 extern ni_nanny_user_t *	ni_nanny_create_user(ni_nanny_t *, uid_t);
 extern void			ni_nanny_clear_secrets(ni_nanny_t *mgr,
@@ -153,6 +154,7 @@ extern const char *		ni_managed_state_to_string(ni_managed_state_t);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_netdev(ni_dbus_server_t *, ni_managed_device_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_modem(ni_dbus_server_t *, ni_managed_device_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_policy(ni_dbus_server_t *, ni_managed_policy_t *);
+extern dbus_bool_t		ni_objectmodel_unregister_managed_policy(ni_dbus_server_t *, ni_managed_policy_t *, const char*);
 extern void			ni_objectmodel_unregister_managed_device(ni_managed_device_t *);
 
 extern void			interface_manager_register_all(ni_dbus_server_t *);

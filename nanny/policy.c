@@ -64,7 +64,7 @@ ni_managed_policy_new(ni_nanny_t *mgr, ni_fsm_policy_t *policy, xml_document_t *
 void
 ni_managed_policy_free(ni_managed_policy_t *mpolicy)
 {
-	if (mpolicy->doc) {
+	if (mpolicy && mpolicy->doc) {
 		xml_document_free(mpolicy->doc);
 		mpolicy->doc = NULL;
 	}
@@ -86,6 +86,20 @@ ni_objectmodel_register_managed_policy(ni_dbus_server_t *server, ni_managed_poli
 
 	ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
+}
+
+/*
+ * Unregister a modem from our dbus server.
+ */
+dbus_bool_t
+ni_objectmodel_unregister_managed_policy(ni_dbus_server_t *server, ni_managed_policy_t *mpolicy, const char *name)
+{
+	if (ni_dbus_server_unregister_object(server, mpolicy)) {
+		ni_debug_dbus("unregistered policy %s", name);
+		return TRUE;
+	}
+
+	return FALSE;
 }
 
 /*
