@@ -155,6 +155,7 @@ wicked_headers			= \
 	appconfig.h		\
 	buffer.h		\
 	client/client_state.h	\
+	client/ifconfig.h	\
 	dbus-common.h		\
 	dbus-connection.h	\
 	dbus-dict.h		\
