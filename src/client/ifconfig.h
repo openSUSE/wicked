@@ -38,6 +38,8 @@
 #define NI_NANNY_IFPOLICY_NAME		"name"
 #define NI_NANNY_IFPOLICY_ORIGIN	"origin"
 #define NI_NANNY_IFPOLICY_UUID		"uuid"
-#define NI_NANNY_IFPOLICY_OWNER		"owner"
+
+extern xml_node_t *		ni_convert_cfg_into_policy_node(xml_node_t *, const char *);
+extern xml_document_t *	ni_convert_cfg_into_policy_doc(xml_document_t *);
 
 #endif /* __WICKED_CLIENT_IFCONFIG_H__ */
