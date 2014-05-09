@@ -49,6 +49,7 @@
 #include "wicked-client.h"
 
 extern ni_bool_t	ni_nanny_call_add_policy(const char *, xml_node_t *);
+extern ni_bool_t	ni_nanny_call_del_policy(const char *);
 extern ni_bool_t	ni_nanny_call_device_enable(const char *ifname);
 extern ni_bool_t	ni_nanny_call_device_disable(const char *ifname);
 extern ni_dbus_object_t *ni_nanny_call_get_device(const char *);
@@ -152,6 +153,25 @@ do_nanny_addpolicy(int argc, char **argv)
 }
 
 /*
+ * Delete policy
+ */
+static int
+do_nanny_delpolicy(int argc, char **argv)
+{
+	int rv = NI_WICKED_RC_USAGE;
+
+	if (optind + 1 != argc) {
+		ni_error("nanny %s: expected policy name argument", argv[0]);
+		return rv;
+	}
+
+	while (optind < argc)
+		(void) ni_nanny_call_del_policy(argv[optind++]);
+
+	return NI_WICKED_RC_SUCCESS;
+}
+
+/*
  * Install a user name/password
  */
 static int
@@ -226,6 +246,7 @@ usage:
 				"  enable <device>\n"
 				"  disable <device>\n"
 				"  addpolicy <filename>\n"
+				"  delpolicy <policy name>\n"
 				"  addsecret <security-id> <path> <value>\n"
 				"  recheck <ifname>\n"
 				);
@@ -245,6 +266,8 @@ usage:
 	command = argv[0];
 	if (ni_string_eq(command, "addpolicy"))
 		return do_nanny_addpolicy(argc, argv);
+	if (ni_string_eq(command, "delpolicy"))
+		return do_nanny_delpolicy(argc, argv);
 	if (ni_string_eq(command, "recheck"))
 		return do_nanny_recheck(argc, argv);
 	if (ni_string_eq(command, "enable"))
@@ -330,6 +353,29 @@ ni_nanny_call_add_policy(const char *name, xml_node_t *node)
 					DBUS_TYPE_STRING, &doc_string,
 					DBUS_TYPE_INVALID, NULL)) < 0) {
 		ni_error("Call to ManagedPolicy.update() failed: %s", ni_strerror(rv));
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_nanny_call_del_policy(const char *name)
+{
+	ni_dbus_object_t *root_object;
+	char *policy_path;
+	int rv;
+
+	ni_nanny_create_client(&root_object);
+
+	rv = ni_dbus_object_call_simple(root_object,
+				NI_OBJECTMODEL_NANNY_INTERFACE, "deletePolicy",
+				DBUS_TYPE_STRING, &name,
+				DBUS_TYPE_OBJECT_PATH, &policy_path);
+
+	if (rv < 0) {
+		ni_error("Call to %s.deletePolicy(%s) failed: %s",
+			ni_dbus_object_get_path(root_object), name, ni_strerror(rv));
 		return FALSE;
 	}
 

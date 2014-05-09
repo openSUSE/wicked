@@ -111,7 +111,6 @@ struct ni_fsm_policy {
 };
 
 
-static void			ni_fsm_policy_free(ni_fsm_policy_t *);
 static void			__ni_fsm_policy_reset(ni_fsm_policy_t *);
 static ni_ifcondition_t *	ni_fsm_policy_conditions_from_xml(xml_node_t *);
 static ni_bool_t		ni_ifcondition_check(const ni_ifcondition_t *, ni_ifworker_t *);
@@ -129,12 +128,14 @@ static void			ni_fsm_template_input_free(ni_fsm_template_input_t *);
 /*
  * Destructor for policy objects
  */
-static void
+void
 ni_fsm_policy_free(ni_fsm_policy_t *policy)
 {
-	ni_string_free(&policy->name);
-	__ni_fsm_policy_reset(policy);
-	free(policy);
+	if (policy) {
+		ni_string_free(&policy->name);
+		__ni_fsm_policy_reset(policy);
+		free(policy);
+	}
 }
 
 static void
@@ -316,6 +317,23 @@ ni_fsm_policy_by_name(ni_fsm_t *fsm, const char *name)
 	}
 
 	return NULL;
+}
+
+ni_bool_t
+ni_fsm_policy_remove(ni_fsm_t *fsm, ni_fsm_policy_t *policy)
+{
+	ni_fsm_policy_t **pos, *cur;
+
+	ni_assert(fsm);
+	for (pos = &fsm->policies; (cur = *pos); pos = &cur->next) {
+		if (cur == policy) {
+			*pos = cur->next;
+			ni_fsm_policy_free(cur);
+			return TRUE;
+		}
+	}
+
+	return FALSE;
 }
 
 /*
