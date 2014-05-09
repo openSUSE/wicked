@@ -47,47 +47,7 @@
 #include <wicked/fsm.h>
 
 #include "wicked-client.h"
-
-extern ni_bool_t	ni_nanny_call_add_policy(const char *, xml_node_t *);
-extern ni_bool_t	ni_nanny_call_del_policy(const char *);
-extern ni_bool_t	ni_nanny_call_device_enable(const char *ifname);
-extern ni_bool_t	ni_nanny_call_device_disable(const char *ifname);
-extern ni_dbus_object_t *ni_nanny_call_get_device(const char *);
-extern ni_bool_t	ni_nanny_call_add_secret(const ni_security_id_t *, const char *, const char *);
-
-/*
- * Read a policy file
- */
-static xml_document_t *
-ni_ifpolicy_file_load(const char *filename)
-{
-	xml_document_t *config_doc;
-	xml_node_t *node;
-
-	ni_debug_readwrite("%s(%s)", __func__, filename);
-	if (!(config_doc = xml_document_read(filename))) {
-		ni_error("unable to load interface definition from %s", filename);
-		return NULL;
-	}
-
-	node = config_doc->root;
-	if (config_doc->root == NULL || config_doc->root->children == NULL) {
-		ni_error("empty policy document \"%s\"", filename);
-		xml_document_free(config_doc);
-		return NULL;
-	}
-
-	for (node = config_doc->root->children; node; node = node->next) {
-		if (!ni_string_eq(node->name, "policy")
-		 && !ni_string_eq(node->name, "template")) {
-			ni_error("policy document \"%s\" contains unexpected <%s> element", filename, node->name);
-			xml_document_free(config_doc);
-			return NULL;
-		}
-	}
-
-	return config_doc;
-}
+#include "client/ifconfig.h"
 
 /*
  * Enable the given user interface
@@ -124,32 +84,30 @@ do_nanny_disable(int argc, char **argv)
 static int
 do_nanny_addpolicy(int argc, char **argv)
 {
-	const char *filename;
-	xml_document_t *doc = NULL;
-	xml_node_t *policy_node;
-	const char *name;
-	int rv = 0;
+	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
+	unsigned int i;
+	int rv = NI_WICKED_RC_USAGE;
 
 	if (optind + 1 != argc) {
-		ni_error("wicked nanny addpolicy: expected filename argument");
-		return 1;
+		ni_error("wicked nanny addpolicy: expected pathname argument");
+		return rv;
 	}
 
-	filename = argv[optind++];
-	if ((doc = ni_ifpolicy_file_load(filename)) == NULL) {
-		ni_error("unable to load policy file");
-		return 1;
+	while (optind < argc) {
+		const char *path = argv[optind++];
+		if (!ni_ifconfig_read(&docs, opt_global_rootdir, path, TRUE, TRUE)) {
+			ni_error("Unable to read config source from %s", path);
+			xml_document_array_destroy(&docs);
+			return NI_WICKED_RC_ERROR;
+		}
 	}
 
-	for (policy_node = doc->root->children; policy_node; policy_node = policy_node->next) {
-		if ((name = xml_node_get_attr(policy_node, "name")) == NULL)
-			name = "";
-
-		if (!ni_nanny_call_add_policy(name, policy_node))
-			rv = 1;
+	for (i = 0; i < docs.count; i++) {
+		rv = ni_nanny_addpolicy(docs.data[i]);
 	}
 
-	return rv;
+	xml_document_array_destroy(&docs);
+	return rv < 0 ? NI_WICKED_RC_ERROR : NI_WICKED_RC_SUCCESS;
 }
 
 /*
@@ -199,7 +157,7 @@ do_nanny_addsecret(int argc, char **argv)
 
 out:
 	ni_security_id_destroy(&security_id);
-	return rv? 0 : 1;
+	return rv ? 0 : 1;
 }
 
 /*
@@ -282,6 +240,81 @@ usage:
 }
 
 /*
+ * Add policy node
+ *
+ * return value:
+ *  -1 - error
+ *   0 - no policy added
+ *   1 - success
+ */
+int
+ni_nanny_addpolicy_node(xml_node_t *pnode, const char *origin)
+{
+	const char *name;
+	int count = 0;
+
+	if (!pnode)
+		return count;
+
+	if (ni_string_empty(origin)) {
+		origin = xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_ORIGIN);
+	}
+
+	name = xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_NAME);
+	if (ni_string_empty(name)) {
+		ni_debug_ifconfig("Cannot add noname policy from %s pathname",
+			ni_string_empty(origin) ? "unspecified" : origin);
+		return count;
+	}
+
+	if (!ni_nanny_call_add_policy(name, pnode)) {
+		ni_error("Adding policy %s from %s file failed", name,
+			ni_string_empty(origin) ? "unspecified" : origin);
+		return -1;
+	}
+
+	return ++count;
+}
+
+/*
+ * Add policy document
+ *
+ * return value:
+ *      -1 - error
+ *       0 - no policy added
+ *   count - success
+ */
+int
+ni_nanny_addpolicy(xml_document_t *doc)
+{
+	xml_node_t *root, *pnode;
+	const char *origin;
+	int count = 0;
+
+	if (xml_document_is_empty(doc))
+		return count;
+
+	root = xml_document_root(doc);
+	origin = xml_node_get_location_filename(root);
+
+	if (!ni_convert_cfg_into_policy_doc(doc)) {
+		ni_error("Unable to convert %s from %s to %s",
+			NI_CLIENT_IFCONFIG, origin, NI_NANNY_IFPOLICY);
+		return -1;
+	}
+
+	for (pnode = root->children; pnode; pnode = pnode->next) {
+		int rv = ni_nanny_addpolicy_node(pnode, origin);
+		if (rv < 0)
+			return rv;
+
+		count += rv;
+	}
+
+	return count;
+}
+
+/*
  * Functions for communicating with nanny
  */
 ni_dbus_client_t *
@@ -322,7 +355,7 @@ ni_nanny_call_add_policy(const char *name, xml_node_t *node)
 					NI_OBJECTMODEL_NANNY_INTERFACE, "createPolicy",
 					DBUS_TYPE_STRING, &name,
 					DBUS_TYPE_OBJECT_PATH, &policy_path);
-	
+
 	if (rv == -NI_ERROR_POLICY_EXISTS) {
 		/* Policy exists, update it transparently */
 		char buffer[265];
@@ -424,7 +457,7 @@ ni_nanny_call_get_device(const char *ifname)
 					NI_OBJECTMODEL_NANNY_INTERFACE, "getDevice",
 					DBUS_TYPE_STRING, &ifname,
 					DBUS_TYPE_OBJECT_PATH, &object_path);
-	
+
 	if (rv < 0) {
 		ni_error("Call to %s.getDevice(%s) failed: %s",
 				ni_dbus_object_get_path(root_object), ifname,
@@ -451,7 +484,7 @@ ni_nanny_call_device_void_method(const char *ifname, const char *method)
 					NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE, method,
 					DBUS_TYPE_INVALID, NULL,
 					DBUS_TYPE_INVALID, NULL);
-	
+
 	if (rv < 0) {
 		ni_error("Call to %s.%s() failed: %s",
 				ni_dbus_object_get_path(object), method, ni_strerror(rv));
