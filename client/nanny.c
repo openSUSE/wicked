@@ -153,6 +153,25 @@ do_nanny_addpolicy(int argc, char **argv)
 }
 
 /*
+ * Delete policy
+ */
+static int
+do_nanny_delpolicy(int argc, char **argv)
+{
+	int rv = NI_WICKED_RC_USAGE;
+
+	if (optind + 1 != argc) {
+		ni_error("nanny %s: expected policy name argument", argv[0]);
+		return rv;
+	}
+
+	while (optind < argc)
+		(void) ni_nanny_call_del_policy(argv[optind++]);
+
+	return NI_WICKED_RC_SUCCESS;
+}
+
+/*
  * Install a user name/password
  */
 static int
@@ -227,6 +246,7 @@ usage:
 				"  enable <device>\n"
 				"  disable <device>\n"
 				"  addpolicy <filename>\n"
+				"  delpolicy <policy name>\n"
 				"  addsecret <security-id> <path> <value>\n"
 				"  recheck <ifname>\n"
 				);
@@ -246,6 +266,8 @@ usage:
 	command = argv[0];
 	if (ni_string_eq(command, "addpolicy"))
 		return do_nanny_addpolicy(argc, argv);
+	if (ni_string_eq(command, "delpolicy"))
+		return do_nanny_delpolicy(argc, argv);
 	if (ni_string_eq(command, "recheck"))
 		return do_nanny_recheck(argc, argv);
 	if (ni_string_eq(command, "enable"))
