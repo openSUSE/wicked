@@ -608,7 +608,7 @@ ni_do_ifstatus(int argc, char **argv)
 			ni_string_array_copy(&opt_ifconfig, sources);
 	}
 
-	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE)) {
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE, TRUE)) {
 		status = NI_WICKED_ST_ERROR;
 		goto cleanup;
 	}

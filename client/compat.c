@@ -1354,7 +1354,7 @@ ni_compat_generate_ifcfg(const ni_compat_netdev_t *compat, xml_document_t *doc)
 }
 
 unsigned int
-ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t *ifcfg, ni_bool_t raw)
+ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t *ifcfg, ni_bool_t check_prio, ni_bool_t raw)
 {
 	xml_document_t *config_doc;
 	unsigned int i;
@@ -1382,7 +1382,7 @@ ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t 
 			}
 		}
 
-		if (ni_ifconfig_validate_adding_doc(array, config_doc, raw))
+		if (ni_ifconfig_validate_adding_doc(array, config_doc, check_prio))
 			xml_document_array_append(array, config_doc);
 		else
 			xml_document_free(config_doc);
