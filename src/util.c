@@ -532,39 +532,48 @@ ni_var_array_get_string(ni_var_array_t *nva, const char *name, char **p)
 		*p = NULL;
 	}
 
-	if ((var = ni_var_array_get(nva, name)) != NULL)
+	if ((var = ni_var_array_get(nva, name)) != NULL) {
 		*p = xstrdup(var->value);
-	return 0;
+		return 1; /* Found */
+	}
+
+	return 0; /* Not found */
 }
 
 int
-ni_var_array_get_integer(ni_var_array_t *nva, const char *name, unsigned int *p)
-{
-	ni_var_t *var;
-
-	*p = 0;
-	if ((var = ni_var_array_get(nva, name)) != NULL)
-		*p = strtoul(var->value, NULL, 0);
-	return 0;
-}
-
-int
-ni_var_array_get_boolean(ni_var_array_t *nva, const char *name, int *p)
+ni_var_array_get_uint(ni_var_array_t *nva, const char *name, unsigned int *p)
 {
 	ni_var_t *var;
 
 	*p = 0;
 	if ((var = ni_var_array_get(nva, name)) != NULL) {
-		if (!strcasecmp(var->value, "on")
-		 || !strcasecmp(var->value, "true")
-		 || !strcasecmp(var->value, "yes"))
-			*p = 1;
+		if (ni_parse_uint(var->value, p, 0) < 0)
+			return -1; /* Error */
+		else
+			return 1; /* Found */
 	}
-	return 0;
+
+	return 0; /* Not found */
+}
+
+int
+ni_var_array_get_boolean(ni_var_array_t *nva, const char *name, ni_bool_t *p)
+{
+	ni_var_t *var;
+
+	*p = 0;
+	if ((var = ni_var_array_get(nva, name)) != NULL) {
+		if (ni_parse_boolean(var->value, p))
+			return -1; /* Error */
+		else
+			return 1; /* Found */
+	}
+
+	return 0; /* Not found */
 }
 
 void
-ni_var_array_set_integer(ni_var_array_t *nva, const char *name, unsigned int value)
+ni_var_array_set_uint(ni_var_array_t *nva, const char *name, unsigned int value)
 {
 	char buffer[32];
 

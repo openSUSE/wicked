@@ -307,7 +307,7 @@ xml_node_add_attr(xml_node_t *node, const char *name, const char *value)
 void
 xml_node_add_attr_uint(xml_node_t *node, const char *name, unsigned int value)
 {
-	ni_var_array_set_integer(&node->attrs, name, value);
+	ni_var_array_set_uint(&node->attrs, name, value);
 }
 
 void
