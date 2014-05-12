@@ -100,7 +100,7 @@ ni_do_ifdown(int argc, char **argv)
 			break;
 
 		case OPT_NO_DELETE:
-			max_state = NI_FSM_STATE_DEVICE_EXISTS;
+			max_state = NI_FSM_STATE_DEVICE_READY;
 			/* Allow ifdown only on non-persistent interfaces previously configured by ifup */
 			ifmatch.require_configured = TRUE;
 			ifmatch.allow_persistent = FALSE;

@@ -410,6 +410,7 @@ static ni_intmap_t __state_names[] = {
 	{ "none",		NI_FSM_STATE_NONE		},
 	{ "device-down",	NI_FSM_STATE_DEVICE_DOWN	},
 	{ "device-exists",	NI_FSM_STATE_DEVICE_EXISTS	},
+	{ "device-ready",	NI_FSM_STATE_DEVICE_READY	},
 	{ "device-up",		NI_FSM_STATE_DEVICE_UP		},
 	{ "protocols-up",	NI_FSM_STATE_PROTOCOLS_UP	},
 	{ "firewall-up",	NI_FSM_STATE_FIREWALL_UP	},
@@ -3226,6 +3227,9 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 		.func = ni_ifworker_call_device_factory,
 		.common = { .method_name = "newDevice" },
 	},
+
+	/* This state waits to become ready to set up, e.g. udev renamed */
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_READY, "waitDeviceReady", .call_overloading = TRUE),
 
 	/* This sets any device attributes, such as a MAC address */
 	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_UP, "changeDevice", .call_overloading = TRUE),
