@@ -596,6 +596,29 @@ ni_var_array_set_boolean(ni_var_array_t *nva, const char *name, int value)
 	ni_var_array_set(nva, name, value? "yes" : "no");
 }
 
+void
+ni_var_array_list_append(ni_var_array_t **list, ni_var_array_t *nva)
+{
+	if (list && nva) {
+		while (*list)
+			list = &(*list)->next;
+		*list = nva;
+	}
+}
+
+void
+ni_var_array_list_destroy(ni_var_array_t **list)
+{
+	ni_var_array_t *nva;
+
+	if (list) {
+		while ((nva = *list)) {
+			*list = nva->next;
+			ni_var_array_free(nva);
+		}
+	}
+}
+
 
 /*
  * Bitfield functions

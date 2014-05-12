@@ -38,13 +38,13 @@ __ni_shellcmd_format(char **cmd, const ni_string_array_t *argv)
 }
 
 static void
-__ni_shellcmd_free(ni_shellcmd_t *proc)
+__ni_shellcmd_free(ni_shellcmd_t *cmd)
 {
-	ni_string_array_destroy(&proc->environ);
-	ni_string_free(&proc->command);
-	free(proc);
+	ni_string_free(&cmd->command);
+	ni_string_array_destroy(&cmd->argv);
+	ni_string_array_destroy(&cmd->environ);
+	free(cmd);
 }
-
 
 /*
  * Create a process description
@@ -52,81 +52,124 @@ __ni_shellcmd_free(ni_shellcmd_t *proc)
 ni_shellcmd_t *
 ni_shellcmd_new(const ni_string_array_t *argv)
 {
-	ni_shellcmd_t *proc;
+	ni_shellcmd_t *cmd;
 	unsigned int i;
 
-	ni_assert(argv != NULL);
-
-	proc = xcalloc(1, sizeof(*proc));
+	cmd = xcalloc(1, sizeof(*cmd));
+	cmd->refcount = 1;
+	if (!argv)
+		return cmd;
 
 	for (i = 0; i < argv->count; ++i) {
 		const char *arg = argv->data[i];
 
-		if (ni_string_len(arg) == 0)
-			continue;	/* fail ?! */
+		if (ni_string_empty(arg)) {
+			__ni_shellcmd_free(cmd);
+			return NULL;
+		}
 
-		if (ni_string_array_append(&proc->argv, arg) < 0) {
-			__ni_shellcmd_free(proc);
+		if (ni_string_array_append(&cmd->argv, arg) < 0) {
+			__ni_shellcmd_free(cmd);
 			return NULL;
 		}
 	}
-	if (__ni_shellcmd_format(&proc->command, &proc->argv) == NULL) {
-		__ni_shellcmd_free(proc);
-		return NULL;
-	}
-	if (ni_string_array_copy(&proc->environ, __ni_default_environment()) < 0) {
-		__ni_shellcmd_free(proc);
-		return NULL;
-	}
 
-	proc->refcount = 1;
-	return proc;
+	if (__ni_shellcmd_format(&cmd->command, &cmd->argv) == NULL) {
+		__ni_shellcmd_free(cmd);
+		return NULL;
+	}
+	if (ni_string_array_copy(&cmd->environ, __ni_default_environment()) < 0) {
+		__ni_shellcmd_free(cmd);
+		return NULL;
+	}
+	return cmd;
 }
 
 ni_shellcmd_t *
 ni_shellcmd_parse(const char *command)
 {
-	ni_shellcmd_t *proc;
+	ni_shellcmd_t *cmd;
 
-	ni_assert(command != NULL);
+	if (ni_string_empty(command))
+		return NULL;
 
-	proc = xcalloc(1, sizeof(*proc));
+	cmd = xcalloc(1, sizeof(*cmd));
+	cmd->refcount = 1;
 
-	ni_string_dup(&proc->command, command);
-	if (!__ni_shellcmd_parse(&proc->argv, proc->command)) {
-		__ni_shellcmd_free(proc);
+	ni_string_dup(&cmd->command, command);
+	if (!__ni_shellcmd_parse(&cmd->argv, cmd->command)) {
+		__ni_shellcmd_free(cmd);
 		return NULL;
 	}
-	if (ni_string_array_copy(&proc->environ, __ni_default_environment()) < 0) {
-		__ni_shellcmd_free(proc);
+	if (ni_string_array_copy(&cmd->environ, __ni_default_environment()) < 0) {
+		__ni_shellcmd_free(cmd);
 		return NULL;
 	}
 
-	proc->refcount = 1;
-	return proc;
-}
-
-void
-ni_shellcmd_free(ni_shellcmd_t *proc)
-{
-	ni_assert(proc->refcount == 0);
-	__ni_shellcmd_free(proc);
+	return cmd;
 }
 
 ni_bool_t
-ni_shellcmd_add_arg(ni_shellcmd_t *proc, const char *arg)
+ni_shellcmd_fmt_arg(ni_shellcmd_t *cmd, const char *fmt, ...)
 {
-	if (proc == NULL || ni_string_len(arg) == 0)
+	char *arg = NULL;
+	va_list ap;
+	int ret;
+
+	if (!cmd || ni_string_empty(fmt))
 		return FALSE;
 
-	if (ni_string_array_append(&proc->argv, arg) < 0)
+	va_start(ap, fmt);
+	ret = vasprintf(&arg, fmt, ap);
+	va_end(ap);
+	if (ret < 0)
 		return FALSE;
 
-	if (__ni_shellcmd_format(&proc->command, &proc->argv) == NULL)
+	if (!ni_shellcmd_add_arg(cmd, arg)) {
+		ni_string_free(&arg);
+		return FALSE;
+	}
+	ni_string_free(&arg);
+	return TRUE;
+}
+
+ni_bool_t
+ni_shellcmd_add_arg(ni_shellcmd_t *cmd, const char *arg)
+{
+	if (!cmd || ni_string_empty(arg))
+		return FALSE;
+
+	if (ni_string_array_append(&cmd->argv, arg) < 0)
+		return FALSE;
+
+	if (__ni_shellcmd_format(&cmd->command, &cmd->argv) == NULL)
 		return FALSE;
 
 	return TRUE;
 }
+
+ni_shellcmd_t *
+ni_shellcmd_hold(ni_shellcmd_t *cmd)
+{
+	if (cmd) {
+		ni_assert(cmd->refcount);
+		cmd->refcount++;
+		return cmd;
+	}
+	return NULL;
+}
+
+void
+ni_shellcmd_free(ni_shellcmd_t *cmd)
+{
+	if (cmd) {
+		ni_assert(cmd->refcount);
+		cmd->refcount--;
+		if (cmd->refcount == 0)
+			__ni_shellcmd_free(cmd);
+	}
+}
+
 
 ni_process_t *
 ni_process_new(ni_shellcmd_t *proc)

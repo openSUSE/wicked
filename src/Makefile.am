@@ -94,6 +94,7 @@ libwicked_la_SOURCES		= \
 	sysfs.c			\
 	timer.c			\
 	tuntap.c		\
+	uevent.c		\
 	update.c		\
 	util.c			\
 	vlan.c			\
@@ -178,6 +179,7 @@ wicked_headers			= \
 	process.h		\
 	socket_priv.h		\
 	sysfs.h			\
+	uevent.h		\
 	util_priv.h		\
 	wireless_priv.h		\
 	wpa-supplicant.h	\

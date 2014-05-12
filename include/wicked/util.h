@@ -40,6 +40,7 @@ struct ni_variable {
 
 typedef struct ni_var_array ni_var_array_t;
 struct ni_var_array {
+	ni_var_array_t *next;
 	unsigned int	count;
 	ni_var_t *	data;
 };
@@ -135,6 +136,9 @@ extern void		ni_var_array_set_integer(ni_var_array_t *, const char *name, unsign
 extern void		ni_var_array_set_long(ni_var_array_t *, const char *name, unsigned long);
 extern void		ni_var_array_set_double(ni_var_array_t *, const char *name, double);
 extern void		ni_var_array_set_boolean(ni_var_array_t *, const char *name, int);
+
+extern void		ni_var_array_list_append(ni_var_array_t **, ni_var_array_t *);
+extern void		ni_var_array_list_destroy(ni_var_array_t **);
 
 extern void		ni_stringbuf_set(ni_stringbuf_t *, const char *);
 extern void		ni_stringbuf_init(ni_stringbuf_t *);
