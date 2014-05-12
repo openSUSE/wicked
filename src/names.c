@@ -67,7 +67,7 @@ static const ni_intmap_t	__linktype_names[] = {
 	{ "sit",		NI_IFTYPE_SIT },
 	{ "gre",		NI_IFTYPE_GRE },
 	{ "isdn",		NI_IFTYPE_ISDN },
-	{ "tunnel",		NI_IFTYPE_TUNNEL },
+	{ "ipip",		NI_IFTYPE_IPIP },
 	{ "tunnel6",		NI_IFTYPE_TUNNEL6 },
 	{ "tun",		NI_IFTYPE_TUN },
 	{ "tap",		NI_IFTYPE_TAP },

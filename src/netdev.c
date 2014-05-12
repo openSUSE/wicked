@@ -763,7 +763,7 @@ __ni_lease_owns_route(const ni_addrconf_lease_t *lease, const ni_route_t *rp)
 static ni_intmap_t __ifname_types[] = {
 	{ "ib",		NI_IFTYPE_INFINIBAND	},
 	{ "ip6tunl",	NI_IFTYPE_TUNNEL6	},
-	{ "ipip",	NI_IFTYPE_TUNNEL	},
+	{ "ipip",	NI_IFTYPE_IPIP		},
 	{ "sit",	NI_IFTYPE_SIT		},
 	{ "tun",	NI_IFTYPE_TUN		},
 	{ "tap",	NI_IFTYPE_TAP		},
