@@ -42,21 +42,6 @@
 #include "wicked-client.h"
 #include "ifup.h"
 
-void
-ni_fsm_fill_state_string(ni_stringbuf_t *sb, const ni_uint_range_t *range)
-{
-	unsigned int state;
-
-	if (!sb)
-		return;
-
-	for (state = (range ? range->min : NI_FSM_STATE_NONE);
-	     state <= (range ? range->max : __NI_FSM_STATE_MAX - 1);
-	     state++) {
-		ni_stringbuf_printf(sb, "%s ", ni_ifworker_state_name(state));
-	}
-}
-
 int
 ni_do_ifup(int argc, char **argv)
 {

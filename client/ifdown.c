@@ -36,7 +36,6 @@
 #include <wicked/fsm.h>
 
 #include "wicked-client.h"
-#include "ifup.h"
 #include "ifdown.h"
 
 
@@ -121,7 +120,7 @@ ni_do_ifdown(int argc, char **argv)
 		default:
 		case OPT_HELP:
 usage:
-			ni_fsm_fill_state_string(&sb, &ifmarker.target_range);
+			ni_client_get_state_strings(&sb, &ifmarker.target_range);
 			fprintf(stderr,
 				"wicked [options] ifdown [ifdown-options] <ifname ...>|all\n"
 				"\nSupported ifdown-options:\n"
