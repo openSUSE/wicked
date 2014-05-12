@@ -128,11 +128,11 @@ extern ni_var_t *	ni_var_array_get(const ni_var_array_t *, const char *name);
 extern void		ni_var_array_set(ni_var_array_t *, const char *name, const char *value);
 
 extern int		ni_var_array_get_string(ni_var_array_t *, const char *, char **);
-extern int		ni_var_array_get_integer(ni_var_array_t *, const char *, unsigned int *);
+extern int		ni_var_array_get_uint(ni_var_array_t *, const char *, unsigned int *);
 extern int		ni_var_array_get_long(ni_var_array_t *, const char *, unsigned long *);
 extern int		ni_var_array_get_double(ni_var_array_t *, const char *, double *);
-extern int		ni_var_array_get_boolean(ni_var_array_t *, const char *, int *);
-extern void		ni_var_array_set_integer(ni_var_array_t *, const char *name, unsigned int);
+extern int		ni_var_array_get_boolean(ni_var_array_t *, const char *, ni_bool_t *);
+extern void		ni_var_array_set_uint(ni_var_array_t *, const char *name, unsigned int);
 extern void		ni_var_array_set_long(ni_var_array_t *, const char *name, unsigned long);
 extern void		ni_var_array_set_double(ni_var_array_t *, const char *name, double);
 extern void		ni_var_array_set_boolean(ni_var_array_t *, const char *name, int);
