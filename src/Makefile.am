@@ -93,6 +93,7 @@ libwicked_la_SOURCES		= \
 	sysconfig.c		\
 	sysfs.c			\
 	timer.c			\
+	tunneling.c		\
 	tuntap.c		\
 	update.c		\
 	util.c			\
