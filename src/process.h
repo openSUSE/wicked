@@ -38,9 +38,16 @@ struct ni_process {
 	void *			user_data;
 };
 
-extern ni_shellcmd_t *		ni_shellcmd_new(const ni_string_array_t *argv);
+extern ni_shellcmd_t *		ni_shellcmd_new(const ni_string_array_t *args);
 extern ni_shellcmd_t *		ni_shellcmd_parse(const char *command);
 extern ni_bool_t		ni_shellcmd_add_arg(ni_shellcmd_t *, const char *);
+extern ni_bool_t		ni_shellcmd_fmt_arg(ni_shellcmd_t *, const char *, ...);
+extern ni_shellcmd_t *		ni_shellcmd_hold(ni_shellcmd_t *);
+extern void			ni_shellcmd_free(ni_shellcmd_t *);
+static inline void		ni_shellcmd_release(ni_shellcmd_t *cmd)
+{
+	ni_shellcmd_free(cmd);
+}
 
 extern ni_process_t *		ni_process_new(ni_shellcmd_t *);
 extern int			ni_process_run(ni_process_t *);
@@ -51,22 +58,5 @@ extern const char *		ni_process_getenv(const ni_process_t *, const char *);
 extern ni_tempstate_t *		ni_process_tempstate(ni_process_t *);
 extern void			ni_process_free(ni_process_t *);
 extern int			ni_process_exit_status_okay(const ni_process_t *);
-extern void			ni_shellcmd_free(ni_shellcmd_t *);
-
-static inline ni_shellcmd_t *
-ni_shellcmd_hold(ni_shellcmd_t *proc)
-{
-	ni_assert(proc->refcount);
-	proc->refcount++;
-	return proc;
-}
-
-static inline void
-ni_shellcmd_release(ni_shellcmd_t *proc)
-{
-	ni_assert(proc->refcount);
-	if (--(proc->refcount) == 0)
-		ni_shellcmd_free(proc);
-}
 
 #endif /* __WICKED_PROCESS_H__ */
