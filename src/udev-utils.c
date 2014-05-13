@@ -35,6 +35,9 @@
 #include "process.h"
 #include "buffer.h"
 
+#ifndef _PATH_SYS_CLASS_NET
+#define _PATH_SYS_CLASS_NET	"/sys/class/net"
+#endif
 
 static ni_shellcmd_t *
 __ni_udevadm_shellcmd()
@@ -158,3 +161,82 @@ ni_udevadm_info(const char *query, const char *path)
 
 	return list;
 }
+
+ni_bool_t
+ni_udev_net_subsystem_available(void)
+{
+	ni_var_array_t *vars;
+	ni_bool_t result = FALSE;
+
+	vars = ni_udevadm_info("all", _PATH_SYS_CLASS_NET);
+	if (vars) {
+		ni_var_t *devpath = ni_var_array_get(vars, "DEVPATH");
+		ni_var_t *subsystem = ni_var_array_get(vars, "SUBSYSTEM");
+
+		if (devpath   && ni_string_eq(devpath->value, "/class/net") &&
+		    subsystem && ni_string_eq(subsystem->value, "subsystem"))
+			result = TRUE;
+
+		ni_var_array_list_destroy(&vars);
+	}
+	return result;
+}
+
+ni_bool_t
+ni_udev_netdev_is_ready(const char *ifname)
+{
+	char pathbuf[PATH_MAX];
+	struct {
+		ni_bool_t	subsystem;
+		unsigned int	ifindex;
+		const char *	interface;
+		const char *	interface_old;
+		const char *	tags;
+	} uinfo;
+	ni_var_array_t *vars;
+	const ni_var_t *var;
+	unsigned int i;
+	ni_bool_t success = FALSE;
+
+	if (ni_string_empty(ifname))
+		return FALSE;
+
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", _PATH_SYS_CLASS_NET, ifname);
+	vars = ni_udevadm_info("all", pathbuf);
+	if (!vars)
+		return FALSE;
+
+	memset(&uinfo, 0, sizeof(uinfo));
+	for (i = 0; i < vars->count; ++i) {
+		var = &vars->data[i];
+#if 0
+		ni_trace("%s='%s'", var->name, var->value);
+#endif
+		if (ni_string_eq("SUBSYSTEM", var->name)) {
+			uinfo.subsystem = ni_string_eq("net", var->value);
+		} else
+		if (ni_string_eq("IFINDEX", var->name)) {
+			if (ni_parse_uint(var->value, &uinfo.ifindex, 10))
+				uinfo.ifindex = 0;
+		} else
+		if (ni_string_eq("INTERFACE_OLD", var->name)) {
+			if (!ni_string_empty(var->value))
+				uinfo.interface_old = var->value;
+		} else
+		if (ni_string_eq("INTERFACE", var->name)) {
+			if (!ni_string_empty(var->value))
+				uinfo.interface = var->value;
+		} else
+		if (ni_string_eq("TAGS", var->name)) {
+			if (!ni_string_empty(var->value))
+				uinfo.tags = var->value;
+		}
+	}
+	if (uinfo.subsystem && uinfo.ifindex && uinfo.interface && !uinfo.interface_old) {
+		if (uinfo.tags && strstr(uinfo.tags, ":systemd:"))
+			success = TRUE;
+	}
+	ni_var_array_list_destroy(&vars);
+	return success;
+}
+
