@@ -16,6 +16,8 @@ major motivation in choosing XML was the ability to represent and
 manipulate complex nested configurations.
 .PP
 .\" ------------------------------------------------------------------
+.SH NOTE
+At this time, \fBWicked does not provide a stable development API\fR.
 .SH DBus Services
 This implementation uses a DBus based server and a command line utility.
 If you're familiar with DBus terminology, you will recall that the
@@ -42,11 +44,15 @@ with the interface index. This allows the object handle to be unaffected
 when the interface is renamed.
 .PP
 In addition to the \fBwickedd\fP server itself, there are several
-auxiliary services that handle various dynamic address configuration
-protocols. For instance, there are daemons to handle DHCP4, DHCP6 and
-IPv4 link-layer autoconfiguration (aka ipv4ll, or IP zeroconf). The
-reason to create these anew is to be able to integrate them more closely
-with \fBwickedd\fP.
+auxiliary services that handle various dynamic address configuration,
+and propel interface bring-up. For instance, there are daemons
+to handle DHCP4, DHCP6 and IPv4 link-layer autoconfiguration (aka
+ipv4ll, or IP zeroconf) as well as a \fBwickedd-nanny\fP daemon that
+communicates interface configuration policies to \fBwikcedd\fP, thus
+driving interface bring-up. The main goal for introducing
+\fBwickedd-nanny\fP is to handle use cases for interface hotplugging
+and wireless roaming. The reason to create these anew is to be
+able to integrate them more closely with \fBwickedd\fP.
 .PP
 .\" ------------------------------------------------------------------
 .SH File format
@@ -58,14 +64,18 @@ parse any configuration files, and does not maintain any state besides
 what is actually in effect. On the other hand, the client never probes
 the kernel directly to obtain the current system state. The client's
 job is to parse the configuration file(s) handed to it by the user,
-process them and perform the necessary calls to the server to make the
-system state match the desired configuration.
+process and convert them to policies, and hand them off to wickedd-nanny.
+wickedd-nanny then performs device configuration when policy conditions
+have been met.
 .PP
-Currently, the \fBwicked\fP client supports an XML based configuration
-file format, which was at one point inspired by what the netcf library
-uses, but quickly outgrew it.
+Currently, the \fBwicked\fP client supports the original sysconfig ifcfg-
+file format and converts the data found to it's native xml format.
 .PP
-.SS Simple Ethernet Example
+.SS Simple Ethernet Example (ifcfg-eth0)
+STARTMODE="onboot"
+BOOTPROTO="dhcp4"
+.PP
+.SS Resulting Ethernet Configuration in Native XML
 In its simplest format, an interface description consists of little
 more than an \fB<interface>\fP element specifying the interface name
 and the requested address configuration:
@@ -87,89 +97,38 @@ Just like DHCPv4, there are elements for other address configuration
 modes as well, such as \fB<ipv6:dhcp>\fP, or \fB<ipv4:static>\fP
 \(em you get the idea.
 .PP
-.SS Persistent interface names
-Note that in this example, the interface is referred to by its kernel
-name \fBeth0\fP. While this is the most convenient way for the casual user,
-anyone who needs to manage more than one network device in his system
-usually wants a naming scheme that is persistent across reboots - but
-unfortunately, the interface names assigned by the kernel are not. In
-order to support this, \fBwicked\fP offers a number of alternative mechanisms
-to identify a network device; which we will not go into here, however.
-.PP
-.SS Slightly more complex example - VLAN
-The following example is slightly more complex, and shows a VLAN interface
-on top of \fBeth0\fP, with a static address configuration:
-.PP
-.nf
-<interface>
-  <name>eth0.42</name>
-   <control>
-    <mode>boot</mode>
-   </control>
-  <description>VLAN 42</description>
-
-  <vlan>
-    <device>eth0</device>
-    <tag>42</tag>
-  </vlan>
-
-  <ipv4:static>
-    <address>
-      <local>17.99.0.1/24</local>
-    </address>
-    <address>
-      <local>17.99.1.1/24</local>
-    </address>
-
-    <route>
-      <destination>17.99.12.0/24</destination>
-      <nexthop>
-        <gateway>17.99.0.254</gateway>
-      </nexthop>
-    </route>
-  </ipv4:static>
-</interface>
-.fi
-.PP
 For further information on the file syntax, refer to \fBwicked-config\fP(5).
 .PP
 .\" ------------------------------------------------------------------
 .SH Mode of Operation
 The \fBwicked\fP client utility supports a number of different activities,
-but its most important job is probably to bring up network interfaces.
+but its most important job is probably to generate policies from configuration
+files and initiate bring up of network interfaces.
 This is performed by calling \fBwicked ifup\fP, which takes a number of
 parameters to select which interfaces to bring up, and how. If you want to
 learn about the details, please refer to \fBwicked\fP(8).
 .PP
 For the sake of this discussion, let's assume we're asking \fBwicked\fP to
-bring up the VLAN interface described by the configuration above. After parsing
-the XML configuration, \fBwicked\fP will do several things in preparation of
-bringing up the device:
-.TP
-*
-Match the given configuration against existing network interfaces (existing means,
-the kernel knows about them).
+bring up a VLAN interface. After parsing the configuration file and generating
+a suitable policy, the \fBwicked\fP will do several things in preparation
+of bringing up the device:
 .TP
 *
 Build a \fIhierarchy\fP of devices depending on each other. In this example,
-for instance, the VLAN device depends on the underlying interface \fBeth0\fP.
+let's assume that the VLAN device depends on the underlying interface \fBeth0\fP.
 In order to bring up the VLAN, the Ethernet interface must be brought up as
 well (at least in terms of the link-layer).
 .TP
 *
-Mark the desired state for each interface. In this example, \fBeth\fP's desired
-state would be "at least the link should be up", whereas the desired state
-of the VLAN interface should be fully configured, including the requested
-address assignments.
-.PP
-With these steps performed, \fBwicked\fP will works its way through all
+Pass the policies for the specified interfaces to \fBwickedd-nanny\fP
+.TP
+With these steps performed, \fBwickedd-nanny\fP will work its way through all
 layers of network configuration to activate the devices.
 .TP
 Device creation
 Since the VLAN interface is a virtual interface which does not exist yet,
-it has to be created first. \fBWicked\fP does this by calling a \fIdevice
-factory\fP service for VLAN devices with the contents of the \fB<vlan>\fP
-element.
+it has to be created first. \fBwickedd-nanny\fP does this by calling a \fIdevice
+factory\fP service for VLAN devices.
 .TP
 Link-layer configuration
 Next, it will apply any link-layer configurations specified. For Ethernet
@@ -191,16 +150,17 @@ to complete.  In the case of an authenticated link layer, such as 802.11
 WiFi or 802.1x Ethernet authentication, care would be taken to perform
 the required authentication steps.
 .IP
-In our example, \fBwicked\fP would first need to bring up \fBeth0\fP and
-wait for its link layer negotiation to complete. The configuration of the
-VLAN device is not allowed to proceed until the subordinate device is up.
-Once that is the case, \fBwicked\fP would also bring up the VLAN device.
+In our example, \fBwickedd-nanny\fP directs \fBwickedd\fP to first
+bring up \fBeth0\fP and wait for its link layer negotiation to complete.
+The configuration of the VLAN device is not allowed to proceed until the
+subordinate device is up. Once that is the case, \fBwickedd\fP would also
+bring up the VLAN device.
 .IP
 As we've reached the desired state for the eth0 device with this step,
 no further action is taken.
 .TP
 Address Configuration
-Finally, \fBwicked\fP would trigger address configuration for all
+Finally, \fBwickedd\fP would configure addresses for all
 requested modes. In the given example, it would just assign the given
 static addresses. If we had also requested say DHCPv6, it would start
 the DHCPv6 protocol on this device and wait for it to come back with
@@ -210,23 +170,15 @@ Note that in the \fBwicked\fP universe, address assignment should happen
 through \fBwickedd\fP so that it can track which addresses are active,
 and have been assigned through which protocol. This prevents different
 address configuration mechanisms to step on each other's toes.
-.PP
-In terms of the implementation, one fairly important aspect is worth
-noting in this context. The above is implemented as an abstract finite
-state machine on the client side, with only minimal interpretation of the
-data that is being passed around. The client side essentially takes note
-of the DBus APIs associated with a network device, and invokes the
-DBus methods associated with the required state transitions.
-.\" ------------------------------------------------------------------
-.SH Events
-TBD
-
 .\" ------------------------------------------------------------------
 .SH "SEE ALSO"
 .BR wickedd (8),
 .BR wicked (8),
 .BR wicked (7),
 .BR wicked-config (5).
+.SH COPYRIGHT
+Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+.SH BUGS
+Please report bugs at <https://bugzilla.novell.com/index.cgi>
 .SH AUTHORS
-Written by Olaf Kirch <okir@suse.de>
-
+Olaf Kirch
