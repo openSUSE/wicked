@@ -29,6 +29,4 @@
 
 extern int		ni_do_ifup(int argc, char **argv);
 
-extern void		ni_fsm_fill_state_string(ni_stringbuf_t *, const ni_uint_range_t *);
-
 #endif /* __WICKED_CLIENT_IFUP_H__ */

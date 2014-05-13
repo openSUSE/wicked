@@ -40,7 +40,6 @@
 #include <wicked/fsm.h>
 
 #include "wicked-client.h"
-#include "ifup.h"
 #include "ifcheck.h"
 
 static ni_bool_t opt_quiet;
@@ -274,7 +273,7 @@ ni_do_ifcheck(int argc, char **argv)
 			status = NI_WICKED_RC_SUCCESS;
 		default:
 		usage:
-			ni_fsm_fill_state_string(&sb, NULL);
+			ni_client_get_state_strings(&sb, NULL);
 			fprintf(stderr,
 				"wicked [options] ifcheck [ifcheck-options] <ifname ...>|all\n"
 				"\nSupported ifcheck-options:\n"
