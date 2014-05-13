@@ -68,15 +68,16 @@ log the message to stderr as well
 \fB\-\-foreground\fP
 Tell the daemon to not background itself at startup.
 .TP
-\fB\-\-no-modem-manager\fP
-Skip start of modem-manager.
+\fB\-\-recover\fP
+By default, wickedd does not read previously saved state when starting.
+With this options set, wickedd will load any saved state and recover
+valid address configuration.
 .TP
-\fB\-\-no-recovery\fP
-By default, \fBwickedd\fP will try to restart address configuration
-daemons such as the DHCP client when it finds unexpired leases for a
-given interface. By specifying this option, this behavior is suppressed.
-.IP
-.B Note: this isn't fully functional at the moment.
+.BI "\-\-systemd "
+Forces wickedd to use the syslog target for logging. This also forces
+wickedd to not report any transient return codes.
+.TP
+.PP
 .\" ----------------------------------------
 .SH FILES
 .TP
@@ -89,6 +90,9 @@ Location of the PID file written by the daemon when backgrounding
 itself. The pid directory be changed in the configuration file.
 .SH "SEE ALSO"
 \fBwicked\fP(8), \fBwicked\fP(7), \fBwicked-config\fP(5), \fBwicked\fP(5).
+.SH COPYRIGHT
+Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+.SH BUGS
+Please report bugs at <https://bugzilla.novell.com/index.cgi>
 .SH AUTHORS
-Written by Olaf Kirch <okir@suse.de>
-
+Olaf Kirch
