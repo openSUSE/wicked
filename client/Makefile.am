@@ -61,6 +61,7 @@ wicked_SOURCES			= \
 	read-config.c		\
 	main.c			\
 	nanny.c			\
+	policy.c		\
 	reachable.c
 
 noinst_HEADERS			= \
