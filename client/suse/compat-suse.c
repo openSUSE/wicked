@@ -2627,7 +2627,7 @@ try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		{ "tap",	NI_IFTYPE_TAP		},
 		{ "sit",	NI_IFTYPE_SIT		},
 		{ "gre",	NI_IFTYPE_GRE		},
-		{ "ipip",	NI_IFTYPE_TUNNEL	},
+		{ "ipip",	NI_IFTYPE_IPIP		},
 		{ "ip6tnl",	NI_IFTYPE_TUNNEL6	},
 		{ NULL,		NI_IFTYPE_UNKNOWN	},
 	};

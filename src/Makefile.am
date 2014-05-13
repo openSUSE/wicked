@@ -93,6 +93,7 @@ libwicked_la_SOURCES		= \
 	sysconfig.c		\
 	sysfs.c			\
 	timer.c			\
+	tunneling.c		\
 	tuntap.c		\
 	uevent.c		\
 	update.c		\
@@ -128,6 +129,9 @@ libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/ppp.c	\
 	dbus-objects/state.c	\
 	dbus-objects/tuntap.c	\
+	dbus-objects/sit.c	\
+	dbus-objects/ipip.c	\
+	dbus-objects/gre.c	\
 	dbus-objects/vlan.c	\
 	dbus-objects/wireless.c
 

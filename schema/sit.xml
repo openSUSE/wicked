@@ -1,0 +1,30 @@
+<!--
+  sit service definition
+  -->
+<service name="sit" interface="org.opensuse.Network.SIT"
+                    object-class="netif-sit">
+ <description>
+   This link-layer service is provided by the SIT tunnel devices.
+
+   SIT tunnels can be created through the org.opensuse.Network.SitTunnel.Factory
+   factory interface.
+
+   Note, that sit0 is automatically created at module load time and
+   provides an automatic tunneling (use on your own risk). Deleting
+   it, cause to delete all further tunnels (sit1, ...) that can be
+   created for point-to-point tunnels. So just start with sit1.
+ </description>
+
+ <!-- This are the properties used to configure the sit tunnel -->
+ <define name="configuration" class="dict">
+  <local-address   type="ipv4-address"/>
+  <remote-address  type="ipv4-address"/>
+  <ttl             type="uint16"/>	<!-- u8 from netlink -->
+  <tos             type="uint16"/>	<!-- u8 from netlink -->
+  <pmtudisc        type="boolean"/>	<!-- u8 from netlink -->
+  <isatap          type="boolean"/>
+ </define>
+
+ <!-- The same properties are returned in interface state reports -->
+ <define name="properties" type="sit:configuration"/>
+</service>

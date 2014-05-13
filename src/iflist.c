@@ -11,6 +11,7 @@
 #include <netinet/in.h>
 #include <net/if.h>
 #include <net/if_arp.h>
+#include <netinet/ip.h>
 #include <netlink/attr.h>
 #include <netlink/msg.h>
 #include <errno.h>
@@ -28,6 +29,7 @@
 #include <wicked/wireless.h>
 #include <wicked/infiniband.h>
 #include <wicked/tuntap.h>
+#include <wicked/tunneling.h>
 #include <wicked/linkstats.h>
 
 #if defined(HAVE_RTA_MARK)
@@ -45,6 +47,7 @@
 #  define	ETH_P_8021AD	0x88A8
 #  endif
 #endif
+#include <linux/if_tunnel.h>
 
 #include "netinfo_priv.h"
 #include "sysfs.h"
@@ -65,6 +68,12 @@ static int		__ni_discover_infiniband(ni_netdev_t *, ni_netconfig_t *);
 static int		__ni_discover_vlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static int		__ni_discover_macvlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static int		__ni_discover_tuntap(ni_netdev_t *);
+static int		__ni_discover_tunneling(ni_netdev_t *, struct nlattr **);
+static void		__ni_tunnel_trace(ni_netdev_t *, struct nlattr **);
+static void		__ni_tunnel_gre_trace(ni_netdev_t *, struct nlattr **);
+static int		__ni_discover_sit(ni_netdev_t *, struct nlattr **, struct nlattr**);
+static int		__ni_discover_ipip(ni_netdev_t *, struct nlattr **, struct nlattr**);
+static int		__ni_discover_gre(ni_netdev_t *, struct nlattr **, struct nlattr**);
 static ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, const struct prefix_cacheinfo *);
 static ni_addrconf_lease_t *__ni_netdev_get_autoconf_lease(ni_netdev_t *, unsigned int);
 
@@ -624,7 +633,7 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		link->type = NI_IFTYPE_GRE;
 		break;
 	case ARPHRD_TUNNEL:
-		link->type = NI_IFTYPE_TUNNEL;
+		link->type = NI_IFTYPE_IPIP;
 		break;
 	case ARPHRD_TUNNEL6:
 		link->type = NI_IFTYPE_TUNNEL6;
@@ -773,6 +782,12 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 				link->type = NI_IFTYPE_TUN;
 		} else if (!strcmp(link->kind, "dummy")) {
 			link->type = NI_IFTYPE_DUMMY;
+		} else if (!strcmp(link->kind, "sit")) {
+			link->type = NI_IFTYPE_SIT;
+		} else if (!strcmp(link->kind, "ipip")) {
+			link->type = NI_IFTYPE_IPIP;
+		} else if (!strcmp(link->kind, "gre")) {
+			link->type = NI_IFTYPE_GRE;
 		}
 	}
 
@@ -1019,6 +1034,12 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 			ni_error("%s: failed to refresh wireless info", dev->name);
 		break;
 
+	case NI_IFTYPE_IPIP:
+	case NI_IFTYPE_GRE:
+	case NI_IFTYPE_SIT:
+		__ni_discover_tunneling(dev, tb);
+		break;
+
 	default:
 		break;
 	}
@@ -1040,6 +1061,15 @@ __ni_discover_vlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 		ni_error("%s: Unable to discover vlan interface details",
 			dev ? dev->name : NULL);
 		return -1;
+	}
+
+	/* IFLA_LINKINFO is extended interface info. Not all interfaces will
+	 * provide this.
+	 */
+	if (!tb[IFLA_LINKINFO]) {
+		ni_debug_ifconfig("%s: no extended linkinfo data provided",
+				dev ? dev->name : NULL);
+		return 0;
 	}
 
 	if (nla_parse_nested(link_info, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
@@ -1085,6 +1115,15 @@ __ni_discover_macvlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 		return -1;
 	}
 
+	/* IFLA_LINKINFO is extended interface info. Not all interfaces will
+	 * provide this.
+	 */
+	if (!tb[IFLA_LINKINFO]) {
+		ni_debug_ifconfig("%s: no extended linkinfo data provided",
+				dev ? dev->name : NULL);
+		return 0;
+	}
+
 	if (nla_parse_nested(link_info, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
 		ni_error("%s: unable to parse IFLA_LINKINFO", dev->name);
 		return -1;
@@ -1127,6 +1166,306 @@ __ni_discover_tuntap(ni_netdev_t *dev)
 			ni_linktype_type_to_name(dev->link.type));
 
 	return rv;
+}
+
+static int
+__ni_discover_tunnel(ni_tunnel_t *tunnel, unsigned int type, struct nlattr **info_data)
+{
+	uint8_t pmtudisc = 0;
+
+	if (!tunnel) {
+		return -1;
+	}
+
+	switch(type) {
+	case NI_IFTYPE_IPIP:
+	case NI_IFTYPE_SIT:
+		if (info_data[IFLA_IPTUN_TTL])
+			tunnel->ttl = nla_get_u8(info_data[IFLA_IPTUN_TTL]);
+
+		if (info_data[IFLA_IPTUN_TOS])
+			tunnel->tos = nla_get_u8(info_data[IFLA_IPTUN_TOS]);
+
+		if (info_data[IFLA_IPTUN_PMTUDISC]) {
+			pmtudisc = nla_get_u8(info_data[IFLA_IPTUN_PMTUDISC]);
+			tunnel->pmtudisc = pmtudisc ? TRUE : FALSE;
+		}
+		if (info_data[IFLA_IPTUN_FLAGS])
+			tunnel->iflags = nla_get_u16(info_data[IFLA_IPTUN_FLAGS]);
+
+		break;
+
+	case NI_IFTYPE_GRE:
+		if (info_data[IFLA_GRE_TTL])
+			tunnel->ttl = nla_get_u8(info_data[IFLA_GRE_TTL]);
+
+		if (info_data[IFLA_GRE_TOS])
+			tunnel->tos = nla_get_u8(info_data[IFLA_GRE_TOS]);
+
+		if (info_data[IFLA_GRE_PMTUDISC]) {
+			pmtudisc = nla_get_u8(info_data[IFLA_GRE_PMTUDISC]);
+			tunnel->pmtudisc = pmtudisc ? TRUE : FALSE;
+		}
+		if (info_data[IFLA_GRE_FLAGS])
+			tunnel->iflags = nla_get_u16(info_data[IFLA_GRE_FLAGS]);
+
+		break;
+	}
+
+	return 0;
+}
+
+static int
+__ni_discover_tunnel_addresses(ni_linkinfo_t *link, unsigned int type, struct nlattr **info_data)
+{
+	uint32_t ip;
+
+	switch(type) {
+	case NI_IFTYPE_IPIP:
+	case NI_IFTYPE_SIT:
+		if (info_data[IFLA_IPTUN_LOCAL]) {
+			ip = nla_get_u32(info_data[IFLA_IPTUN_LOCAL]);
+			ni_link_address_set(&link->hwaddr, link->hwaddr.type, &ip, sizeof(ip));
+		}
+
+		if (info_data[IFLA_IPTUN_REMOTE]) {
+			ip = nla_get_u32(info_data[IFLA_IPTUN_REMOTE]);
+			ni_link_address_set(&link->hwpeer, link->hwpeer.type, &ip, sizeof(ip));
+		}
+		break;
+
+	case NI_IFTYPE_GRE:
+		if (info_data[IFLA_GRE_LOCAL]) {
+			ip = nla_get_u32(info_data[IFLA_GRE_LOCAL]);
+			ni_link_address_set(&link->hwaddr, link->hwaddr.type, &ip, sizeof(ip));
+		}
+
+		if (info_data[IFLA_GRE_REMOTE]) {
+			ip = nla_get_u32(info_data[IFLA_GRE_REMOTE]);
+			ni_link_address_set(&link->hwpeer, link->hwpeer.type, &ip, sizeof(ip));
+		}
+	}
+
+	return 0;
+}
+
+static int
+__ni_discover_sit(ni_netdev_t *dev, struct nlattr **link_info, struct nlattr **info_data)
+{
+	ni_sit_t *sit;
+
+	if (!(sit = ni_netdev_get_sit(dev)) ||
+		__ni_discover_tunnel(&sit->tunnel, NI_IFTYPE_SIT, info_data) < 0 ||
+		__ni_discover_tunnel_addresses(&dev->link, NI_IFTYPE_SIT, info_data) < 0) {
+
+		ni_error("%s: Unable to discover sit tunnel details",
+			dev ? dev->name : NULL);
+
+		return -1;
+	}
+
+	if (sit->tunnel.iflags & SIT_ISATAP)
+		sit->isatap = TRUE;
+
+	return 0;
+}
+
+/*
+ * Discover ipip interfaces.
+ */
+static int
+__ni_discover_ipip(ni_netdev_t *dev, struct nlattr **link_info, struct nlattr **info_data)
+{
+	ni_ipip_t *ipip;
+
+	if (!(ipip = ni_netdev_get_ipip(dev)) ||
+		__ni_discover_tunnel(&ipip->tunnel, NI_IFTYPE_IPIP, info_data) < 0 ||
+		__ni_discover_tunnel_addresses(&dev->link, NI_IFTYPE_IPIP, info_data)) {
+		ni_error("%s: Unable to discover ipip tunnel details",
+			dev ? dev->name : NULL);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int
+__ni_discover_gre(ni_netdev_t *dev, struct nlattr **link_info, struct nlattr **info_data)
+{
+	ni_gre_t *gre;
+
+	if (!(gre = ni_netdev_get_gre(dev)) ||
+		__ni_discover_tunnel(&gre->tunnel, NI_IFTYPE_GRE, info_data) < 0 ||
+		__ni_discover_tunnel_addresses(&dev->link, NI_IFTYPE_GRE, info_data)) {
+		ni_error("%s: Unable to discover gre tunnel details",
+			dev ? dev->name : NULL);
+		return -1;
+	}
+
+	return 0;
+}
+
+/*
+ * Dump tunnel data for debugging purposes.
+ */
+static void
+__ni_tunnel_trace(ni_netdev_t *dev, struct nlattr **info_data)
+{
+	ni_sockaddr_t addr;
+	uint32_t link;
+	uint16_t flags;
+	uint8_t pmtudisc;
+	uint8_t proto;
+	uint8_t tos;
+	uint8_t ttl;
+
+	if (ni_debug_verbose_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		if (info_data[IFLA_IPTUN_LINK]) {
+			link = nla_get_u32(info_data[IFLA_IPTUN_LINK]);
+			ni_trace("%s:IFLA_IPTUN_LINK: %u", dev->name, link);
+		}
+		if (info_data[IFLA_IPTUN_LOCAL]) {
+			__ni_nla_get_addr(AF_INET, &addr, info_data[IFLA_IPTUN_LOCAL]);
+			ni_trace("%s:IFLA_IPTUN_LOCAL: %s", dev->name, ni_sockaddr_print(&addr));
+		}
+		if (info_data[IFLA_IPTUN_REMOTE]) {
+			__ni_nla_get_addr(AF_INET, &addr, info_data[IFLA_IPTUN_REMOTE]);
+			ni_trace("%s:IFLA_IPTUN_REMOTE: %s", dev->name, ni_sockaddr_print(&addr));
+		}
+		if (info_data[IFLA_IPTUN_TTL]) {
+			ttl = nla_get_u8(info_data[IFLA_IPTUN_TTL]);
+			ni_trace("%s:IFLA_IPTUN_TTL: %u", dev->name, ttl);
+		}
+		if (info_data[IFLA_IPTUN_TOS]) {
+			tos = nla_get_u8(info_data[IFLA_IPTUN_TOS]);
+			ni_trace("%s:IFLA_IPTUN_TOS: %u", dev->name, tos);
+		}
+		if (info_data[IFLA_IPTUN_PMTUDISC]) {
+			pmtudisc = nla_get_u8(info_data[IFLA_IPTUN_PMTUDISC]);
+			ni_trace("%s:IFLA_IPTUN_PMTUDISC: %u", dev->name, pmtudisc);
+		}
+		if (info_data[IFLA_IPTUN_PROTO]) {
+			proto = nla_get_u8(info_data[IFLA_IPTUN_PROTO]);
+			ni_trace("%s:IFLA_IPTUN_PROTO: %u", dev->name, proto);
+		}
+		if (info_data[IFLA_IPTUN_FLAGS]) {
+			flags = nla_get_u16(info_data[IFLA_IPTUN_FLAGS]);
+			ni_trace("%s:IFLA_IPTUN_FLAGS: %u", dev->name, flags);
+		}
+	}
+}
+
+/*
+ * Dump gre tunnel data for debugging purposes.
+ */
+static void
+__ni_tunnel_gre_trace(ni_netdev_t *dev, struct nlattr **info_data)
+{
+	ni_sockaddr_t addr;
+	uint32_t link;
+	uint16_t flags;
+	uint8_t pmtudisc;
+	uint8_t tos;
+	uint8_t ttl;
+
+	if (ni_debug_verbose_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		if (info_data[IFLA_GRE_LINK]) {
+			link = nla_get_u32(info_data[IFLA_GRE_LINK]);
+			ni_trace("%s:IFLA_GRE_LINK: %u", dev->name, link);
+		}
+		if (info_data[IFLA_GRE_LOCAL]) {
+			__ni_nla_get_addr(AF_INET, &addr, info_data[IFLA_GRE_LOCAL]);
+			ni_trace("%s:IFLA_GRE_LOCAL: %s", dev->name, ni_sockaddr_print(&addr));
+		}
+		if (info_data[IFLA_GRE_REMOTE]) {
+			__ni_nla_get_addr(AF_INET, &addr, info_data[IFLA_GRE_REMOTE]);
+			ni_trace("%s:IFLA_GRE_REMOTE: %s", dev->name, ni_sockaddr_print(&addr));
+		}
+		if (info_data[IFLA_GRE_TTL]) {
+			ttl = nla_get_u8(info_data[IFLA_GRE_TTL]);
+			ni_trace("%s:IFLA_GRE_TTL: %u", dev->name, ttl);
+		}
+		if (info_data[IFLA_GRE_TOS]) {
+			tos = nla_get_u8(info_data[IFLA_GRE_TOS]);
+			ni_trace("%s:IFLA_GRE_TOS: %u", dev->name, tos);
+		}
+		if (info_data[IFLA_GRE_PMTUDISC]) {
+			pmtudisc = nla_get_u8(info_data[IFLA_GRE_PMTUDISC]);
+			ni_trace("%s:IFLA_GRE_PMTUDISC: %u", dev->name, pmtudisc);
+		}
+		if (info_data[IFLA_GRE_FLAGS]) {
+			flags = nla_get_u16(info_data[IFLA_GRE_FLAGS]);
+			ni_trace("%s:IFLA_GRE_FLAGS: %u", dev->name, flags);
+		}
+	}
+}
+
+/*
+ * Catch-all for (currentl sit, ipip and gre) tunnel discovery.
+ */
+static int
+__ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
+{
+	struct nlattr *link_info[IFLA_INFO_MAX+1];
+	struct nlattr *iptun_data[IFLA_IPTUN_MAX+1];
+	struct nlattr *gre_data[IFLA_GRE_MAX+1];
+
+	if (!dev || !tb) {
+		ni_error("%s: Unable to discover interface details",
+			dev ? dev->name : NULL);
+		return -1;
+	}
+
+	/* IFLA_LINKINFO is extended interface info. Not all interfaces will
+	 * provide this.
+	 */
+	if (!tb[IFLA_LINKINFO]) {
+		ni_debug_ifconfig("%s: no extended linkinfo data provided",
+				dev ? dev->name : NULL);
+		return 0;
+	}
+
+	if (nla_parse_nested(link_info, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
+		ni_error("%s: unable to parse IFLA_LINKINFO", dev->name);
+		return -1;
+	}
+
+	switch (dev->link.type) {
+	case NI_IFTYPE_IPIP:
+		if (link_info[IFLA_INFO_DATA] &&
+			nla_parse_nested(iptun_data, IFLA_IPTUN_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
+			ni_error("%s: unable to parse IFLA_INFO_DATA", dev->name);
+			return -1;
+		}
+		__ni_tunnel_trace(dev, iptun_data);
+		__ni_discover_ipip(dev, link_info, iptun_data);
+		break;
+
+	case NI_IFTYPE_SIT:
+		if (link_info[IFLA_INFO_DATA] &&
+			nla_parse_nested(iptun_data, IFLA_IPTUN_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
+			ni_error("%s: unable to parse IFLA_INFO_DATA", dev->name);
+			return -1;
+		}
+		__ni_tunnel_trace(dev, iptun_data);
+		__ni_discover_sit(dev, link_info, iptun_data);
+		break;
+
+	case NI_IFTYPE_GRE:
+		if (link_info[IFLA_INFO_DATA] &&
+			nla_parse_nested(gre_data, IFLA_GRE_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
+			ni_error("%s: unable to parse IFLA_INFO_DATA", dev->name);
+			return -1;
+		}
+		__ni_tunnel_gre_trace(dev, gre_data);
+		__ni_discover_gre(dev, link_info, gre_data);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
 }
 
 /*
