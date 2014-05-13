@@ -410,8 +410,11 @@ ni_modem_manager_add_modem(ni_modem_manager_client_t *modem_manager, const char 
 		ni_netconfig_modem_append(nc, modem);
 	}
 
-	if (ni_modem_manager_event_handler)
+	if (ni_modem_manager_event_handler) {
 		ni_modem_manager_event_handler(modem, NI_EVENT_DEVICE_CREATE);
+		/* TODO: we don't wait for udev here, code disabled anyway */
+		ni_modem_manager_event_handler(modem, NI_EVENT_DEVICE_READY);
+	}
 }
 
 static void

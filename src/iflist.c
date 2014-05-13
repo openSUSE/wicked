@@ -310,6 +310,8 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 		}
 
 		dev->seq = seqno;
+		if (ni_netdev_device_always_ready(dev))
+			dev->ready = 1;
 
 		if (__ni_netdev_process_newlink(dev, h, ifi, nc) < 0)
 			ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);

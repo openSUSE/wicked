@@ -56,7 +56,8 @@ struct ni_netdev {
 	ni_netdev_t *		next;
 	unsigned int		seq;
 	unsigned int		modified : 1,
-				deleted : 1;
+				deleted : 1,
+				ready : 1;
 
 	char *			name;
 	ni_linkinfo_t		link;
@@ -123,7 +124,10 @@ extern int		ni_server_listen_interface_events(void (*handler)(ni_netdev_t *, ni_
 extern int		ni_server_enable_interface_addr_events(void (*handler)(ni_netdev_t *, ni_event_t, const ni_address_t *));
 extern int		ni_server_enable_interface_prefix_events(void (*handler)(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *));
 extern int		ni_server_enable_interface_nduseropt_events(void (*handler)(ni_netdev_t *, ni_event_t));
+extern int		ni_server_enable_interface_uevents(void);
 extern void		ni_server_deactivate_interface_events(void);
+extern void		ni_server_deactivate_interface_uevents(void);
+extern ni_bool_t	ni_server_listens_uevents(void);
 extern void		ni_server_listen_other_events(void (*handler)(ni_event_t));
 extern ni_dbus_server_t *ni_server_listen_dbus(const char *bus_name);
 extern ni_xs_scope_t *	ni_server_dbus_xml_schema(void);
@@ -265,6 +269,8 @@ extern const char *	ni_oper_state_type_to_name(int);
 
 extern const char *	ni_strerror(int errcode);
 
+extern ni_bool_t	ni_netdev_device_is_ready(ni_netdev_t *);
+extern ni_bool_t	ni_netdev_device_always_ready(ni_netdev_t *);
 
 static inline int
 ni_netdev_device_is_up(const ni_netdev_t *ifp)

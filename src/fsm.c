@@ -3724,15 +3724,25 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 
 		{
 			unsigned int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
-
-			if (!strcmp(signal_name, "linkUp"))
+			switch (event_type) {
+			case NI_EVENT_DEVICE_READY:
+				min_state = NI_FSM_STATE_DEVICE_READY;
+				break;
+			case NI_EVENT_LINK_UP:
 				min_state = NI_FSM_STATE_LINK_UP;
-			if (!strcmp(signal_name, "linkDown"))
+				break;
+			case NI_EVENT_LINK_DOWN:
 				max_state = NI_FSM_STATE_LINK_UP - 1;
-			if (!strcmp(signal_name, "addressAcquired"))
+				break;
+			case NI_EVENT_ADDRESS_ACQUIRED:
 				min_state = NI_FSM_STATE_ADDRCONF_UP;
-			if (!strcmp(signal_name, "addressReleased"))
+				break;
+			case NI_EVENT_ADDRESS_RELEASED:
 				max_state = NI_FSM_STATE_ADDRCONF_UP - 1;
+				break;
+			default:
+				break;
+			}
 
 			ni_ifworker_update_state(w, min_state, max_state);
 		}

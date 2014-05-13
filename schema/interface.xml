@@ -212,6 +212,20 @@
     </lease>
   </define>
 
+  <method name="waitDeviceReady">
+    <description>
+     This method allows to wait until an existing device is ready to set up,
+     e.g. renamed by udev.
+
+     If the device is ready, we will return an empty callback-info dict.
+     Otherwise, a callback-info dict with uuid to wait for is returned
+     and a deviceReady signal is emitted when the device becomes ready.
+    </description>
+    <return>
+      <callback-info/>
+    </return>
+  </method>
+
   <method name="linkUp">
     <description>
      This method initiaties link negotiation. This may include link-specific activities;
@@ -323,6 +337,12 @@
     <description>
      This signal is emitted whenever a device is destroyed or otherwise disappeared from the system
      (for instance, by hot removal).
+    </description>
+  </signal>
+  <signal name="deviceReady">
+    <description>
+      This signal is emitted whenever a new device is ready to use / configure,
+      e.g. udev finished its rename work and the name is final.
     </description>
   </signal>
   <signal name="deviceUp">
