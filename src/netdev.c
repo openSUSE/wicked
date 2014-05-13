@@ -144,6 +144,25 @@ ni_netdev_put(ni_netdev_t *dev)
 	return dev->users;
 }
 
+ni_bool_t
+ni_netdev_device_always_ready(ni_netdev_t *dev)
+{
+	switch (dev->link.type) {
+	case NI_IFTYPE_LOOPBACK:
+		return TRUE;
+	default:
+		return FALSE;
+	}
+}
+
+ni_bool_t
+ni_netdev_device_is_ready(ni_netdev_t *dev)
+{
+	if (ni_netdev_device_always_ready(dev))
+		return TRUE;
+	return dev->ready;
+}
+
 /*
  * This is a convenience function for adding addresses to an interface.
  */

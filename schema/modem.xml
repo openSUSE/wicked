@@ -35,6 +35,7 @@
   <!-- Signals emitted by this interface -->
   <signal name="deviceCreate" />
   <signal name="deviceDelete" />
+  <signal name="deviceReady" />
   <signal name="deviceUp" />
   <signal name="deviceDown" />
   <signal name="linkUp" />

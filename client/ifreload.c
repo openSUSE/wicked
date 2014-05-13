@@ -213,7 +213,7 @@ usage:
 				if (!ni_ifcheck_device_configured(dev))
 					continue;
 				w->target_range.min = NI_FSM_STATE_NONE;
-				w->target_range.max = NI_FSM_STATE_DEVICE_EXISTS;
+				w->target_range.max = NI_FSM_STATE_DEVICE_READY;
 				nmarked++;
 			} else
 			if (ni_ifcheck_device_configured(dev)) {

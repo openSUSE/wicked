@@ -245,6 +245,11 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		}
 	} else {
 		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_CREATE);
+		if (ni_netdev_device_always_ready(dev) ||
+		    !ni_server_listens_uevents()) {
+			dev->ready = 1;
+			__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_READY);
+		}
 	}
 
 	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_WIRELESS)) != NULL)
@@ -759,6 +764,7 @@ ni_server_enable_interface_nduseropt_events(void (*ifnduseropt_handler)(ni_netde
 void
 ni_server_deactivate_interface_events(void)
 {
+	ni_server_deactivate_interface_uevents();
 	if (__ni_rtevent_sock) {
 		ni_socket_deactivate(__ni_rtevent_sock);
 

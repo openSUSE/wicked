@@ -345,6 +345,11 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 			mdev->monitor? ", monitored" : "");
 
 	switch (event) {
+	case NI_EVENT_DEVICE_READY:
+		if (mdev->selected_policy != NULL && mdev->monitor)
+			ni_nanny_schedule_recheck(mgr, w);
+		break;
+
 	case NI_EVENT_LINK_DOWN:
 		// If we have recorded a policy for this device, it means
 		// we were the ones who took it up - so bring it down
@@ -420,6 +425,8 @@ ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 	if (event == NI_EVENT_DEVICE_DELETE) {
 		// delete the worker and the managed modem
 		ni_nanny_unregister_device(mgr, w);
+	} else if (event == NI_EVENT_DEVICE_READY) {
+		ni_nanny_schedule_recheck(mgr, w);
 	} else {
 		// ignore
 	}

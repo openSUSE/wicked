@@ -56,6 +56,7 @@
 
 #include "socket_priv.h"
 #include "uevent.h"
+#include "appconfig.h"
 
 
 /*
@@ -573,5 +574,143 @@ ni_uevent_trace_callback(const ni_var_array_t *vars, void *user_data)
 		ni_trace("%s='%s'", var->name, var->value);
 	}
 	ni_trace("* End.");
+}
+
+void
+__ni_uevent_ifevent_forwarder(const ni_var_array_t *vars, void *user_data)
+{
+	ni_netconfig_t *nc;
+	ni_netdev_t *dev;
+	unsigned int i;
+	const ni_var_t *var;
+	enum {
+		UDEV_ACTION_SKIP = 0,
+		UDEV_ACTION_ADD  = 1,
+		UDEV_ACTION_MOVE = 2,
+	};
+	static ni_intmap_t      __action_map[] = {
+		{ "add",	UDEV_ACTION_ADD  },
+		{ "move",	UDEV_ACTION_MOVE },
+		{ NULL,		UDEV_ACTION_SKIP }
+	};
+	struct {
+		ni_bool_t       subsystem;
+		unsigned int    action;
+		unsigned int    ifindex;
+		const char *    interface;
+		const char *    interface_old;
+		const char *    tags;
+	} uinfo;
+
+	(void)user_data;
+	if (!vars)
+		return;
+
+	if ((nc = ni_global_state_handle(0)) == NULL)
+		return;
+
+	memset(&uinfo, 0, sizeof(uinfo));
+	for (i = 0; i < vars->count; ++i) {
+		var = &vars->data[i];
+
+		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
+			"UEVENT: %s='%s'", var->name, var->value);
+
+		if (ni_string_eq("SUBSYSTEM", var->name)) {
+			uinfo.subsystem = ni_string_eq("net", var->value);
+		} else
+		if (ni_string_eq("ACTION", var->name)) {
+			if (ni_parse_uint_mapped(var->value, __action_map, &uinfo.action))
+				uinfo.action = UDEV_ACTION_SKIP;
+		} else
+		if (ni_string_eq("IFINDEX", var->name)) {
+			if (ni_parse_uint(var->value, &uinfo.ifindex, 10))
+				uinfo.ifindex = 0;
+		} else
+		if (ni_string_eq("INTERFACE_OLD", var->name)) {
+			if (!ni_string_empty(var->value))
+				uinfo.interface_old = var->value;
+		} else
+		if (ni_string_eq("INTERFACE", var->name)) {
+			if (!ni_string_empty(var->value))
+				uinfo.interface = var->value;
+		} else
+		if (ni_string_eq("TAGS", var->name)) {
+			if (!ni_string_empty(var->value))
+				uinfo.tags = var->value;
+		}
+	}
+
+	if (!uinfo.subsystem || uinfo.action == UDEV_ACTION_SKIP || !uinfo.ifindex)
+		return;
+
+	dev = ni_netdev_by_index(nc, uinfo.ifindex);
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+			"UEVENT(%s) ACTION: %s, IFINDEX=%u, NAME=%s, PREV=%s, TAGS=%s",
+			dev ? dev->name : NULL,
+			ni_format_uint_mapped(uinfo.action, __action_map),
+			uinfo.ifindex,
+			uinfo.interface, uinfo.interface_old, uinfo.tags);
+	if (dev) {
+		if (!ni_string_empty(uinfo.interface_old))
+			return;
+
+		if (!uinfo.tags || !strstr(uinfo.tags, ":systemd:"))
+			return;
+
+		dev->ready = 1;
+		if (ni_global.interface_event)
+			ni_global.interface_event(dev, NI_EVENT_DEVICE_READY);
+	}
+}
+
+static ni_uevent_monitor_t *	__ni_global_uevent_monitor = NULL;
+
+int
+ni_server_enable_interface_uevents()
+{
+	ni_uevent_monitor_t *mon;
+
+	if (__ni_global_uevent_monitor) {
+		ni_error("uevent monitor handler is already set");
+		return -1;
+	}
+
+	/* Monitor udev, kernel events we get via rtnetlink */
+	mon = ni_uevent_monitor_new(NI_UEVENT_NLGRP_UDEV,
+			__ni_uevent_ifevent_forwarder, NULL);
+	if (!mon)
+		return -1;
+
+	/* Here, we want to only SUBSYSTEM=net events */
+	ni_var_array_set(&mon->sub_filter, "net", NULL);
+	if (ni_uevent_monitor_filter_apply(mon) < 0) {
+		ni_uevent_monitor_free(mon);
+		ni_error("Cannot set uevent netlink message filter: %m");
+		return -1;
+	}
+
+	__ni_global_uevent_monitor = mon;
+
+	return ni_uevent_monitor_enable(mon);
+}
+
+ni_bool_t
+ni_server_listens_uevents(void)
+{
+	return __ni_global_uevent_monitor != NULL;
+}
+
+void
+ni_server_deactivate_interface_uevents(void)
+{
+	if (__ni_global_uevent_monitor) {
+		ni_uevent_monitor_t *mon;
+
+		mon = __ni_global_uevent_monitor;
+		__ni_global_uevent_monitor = NULL;
+
+		ni_uevent_monitor_free(mon);
+	}
 }
 

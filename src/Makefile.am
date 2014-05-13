@@ -96,6 +96,7 @@ libwicked_la_SOURCES		= \
 	tunneling.c		\
 	tuntap.c		\
 	uevent.c		\
+	udev-utils.c		\
 	update.c		\
 	util.c			\
 	vlan.c			\
@@ -185,6 +186,7 @@ wicked_headers			= \
 	socket_priv.h		\
 	sysfs.h			\
 	uevent.h		\
+	udev-utils.h		\
 	util_priv.h		\
 	wireless_priv.h		\
 	wpa-supplicant.h	\

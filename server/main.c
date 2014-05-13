@@ -28,6 +28,7 @@
 #include <wicked/objectmodel.h>
 #include <wicked/wireless.h>
 #include <wicked/modem.h>
+#include "udev-utils.h"
 
 enum {
 	OPT_HELP,
@@ -240,6 +241,11 @@ run_interface_server(void)
 	if (ni_server_listen_interface_events(handle_interface_event) < 0)
 		ni_fatal("unable to initialize netlink listener");
 
+	if (ni_udev_net_subsystem_available()) {
+		if (ni_server_enable_interface_uevents() < 0)
+			ni_fatal("unable to initialize udev event listener");
+	}
+
 	ni_rfkill_open(handle_rfkill_event, NULL);
 
 	/* Listen for other events, such as RESOLVER_UPDATED */
@@ -283,6 +289,13 @@ run_interface_server(void)
  * This allows a daemon restart without losing lease state.
  */
 void
+discover_udev_netdev_state(ni_netdev_t *dev)
+{
+	if (dev && ni_udev_netdev_is_ready(dev->name))
+		dev->ready = 1;
+}
+
+void
 discover_state(ni_dbus_server_t *server)
 {
 	ni_netconfig_t *nc;
@@ -297,6 +310,7 @@ discover_state(ni_dbus_server_t *server)
 
 	if (server) {
 		for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
+			discover_udev_netdev_state(ifp);
 			ni_objectmodel_register_netif(server, ifp, NULL);
 			ni_netdev_load_client_state(ifp);
 		}
@@ -385,6 +399,12 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 			ni_objectmodel_send_netif_event(dbus_server, object, NI_EVENT_DEVICE_DELETE, NULL);
 			break;
 
+		case NI_EVENT_DEVICE_READY:
+			while ((event_uuid = ni_netdev_get_event_uuid(dev, event)) != NULL)
+				ni_objectmodel_send_netif_event(dbus_server, object, event, event_uuid);
+			ni_objectmodel_send_netif_event(dbus_server, object, event, NULL);
+			break;
+
 		case NI_EVENT_LINK_ASSOCIATED:
 		case NI_EVENT_LINK_ASSOCIATION_LOST:
 		case NI_EVENT_LINK_UP:
@@ -453,6 +473,7 @@ handle_modem_event(ni_modem_t *modem, ni_event_t event)
 			ni_objectmodel_send_modem_event(dbus_server, object, NI_EVENT_DEVICE_DELETE, NULL);
 			break;
 
+		case NI_EVENT_DEVICE_READY:
 		case NI_EVENT_LINK_ASSOCIATED:
 		case NI_EVENT_LINK_ASSOCIATION_LOST:
 		case NI_EVENT_LINK_UP:

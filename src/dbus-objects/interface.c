@@ -987,6 +987,7 @@ __ni_objectmodel_device_event(ni_dbus_server_t *server, ni_dbus_object_t *object
 static ni_intmap_t	__ni_objectmodel_event_names[] = {
 	{ "deviceCreate",		NI_EVENT_DEVICE_CREATE },
 	{ "deviceDelete",		NI_EVENT_DEVICE_DELETE },
+	{ "deviceReady",		NI_EVENT_DEVICE_READY },
 	{ "deviceUp",			NI_EVENT_DEVICE_UP },
 	{ "deviceDown",			NI_EVENT_DEVICE_DOWN },
 	{ "linkAssociated",		NI_EVENT_LINK_ASSOCIATED },
@@ -1005,6 +1006,39 @@ static ni_intmap_t	__ni_objectmodel_event_names[] = {
 
 	{ NULL, 0 }
 };
+
+static dbus_bool_t
+ni_objectmodel_netif_wait_device_ready(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+	const ni_uuid_t *uuid;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
+
+	/* Create an interface_request object and extract configuration from dict */
+	if (argc != 0)
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	if (ni_netdev_device_is_up(dev))
+		return TRUE;
+
+	if (!ni_server_listens_uevents())
+		return TRUE;
+
+	if (ni_netdev_device_is_ready(dev))
+		return TRUE;
+
+	/* Device is not yet ready. Tell the caller to wait for an event. */
+	uuid = ni_netdev_add_event_filter(dev,  (1 << NI_EVENT_DEVICE_READY) |
+						(1 << NI_EVENT_DEVICE_UP));
+
+	return __ni_objectmodel_return_callback_info(reply, NI_EVENT_DEVICE_READY, uuid, error);
+}
 
 const char *
 ni_objectmodel_event_to_signal(ni_event_t event)
@@ -1063,6 +1097,7 @@ static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 	{ "linkMonitor",	"",			ni_objectmodel_netif_link_monitor },
 	{ "getNames",		"",			ni_objectmodel_netif_get_names },
 	{ "clearEventFilters",	"",			ni_objectmodel_netif_clear_event_filters },
+	{ "waitDeviceReady",	"",			ni_objectmodel_netif_wait_device_ready },
 	{ NULL }
 };
 
