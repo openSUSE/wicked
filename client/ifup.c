@@ -45,8 +45,8 @@
 int
 ni_do_ifup(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_IFCONFIG, OPT_IFPOLICY, OPT_CONTROL_MODE, OPT_STAGE,
-		OPT_TIMEOUT, OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_PERSISTENT,
+	enum  { OPT_HELP, OPT_IFCONFIG, OPT_CONTROL_MODE, OPT_STAGE, OPT_TIMEOUT,
+		OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_PERSISTENT,
 #ifdef NI_TEST_HACKS
 		OPT_IGNORE_PRIO, OPT_IGNORE_STARTMODE,
 #endif
@@ -55,7 +55,6 @@ ni_do_ifup(int argc, char **argv)
 	static struct option ifup_options[] = {
 		{ "help",	no_argument,       NULL,	OPT_HELP },
 		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
-		{ "ifpolicy",	required_argument, NULL,	OPT_IFPOLICY },
 		{ "mode",	required_argument, NULL,	OPT_CONTROL_MODE },
 		{ "boot-stage",	required_argument, NULL,	OPT_STAGE },
 		{ "skip-active",required_argument, NULL,	OPT_SKIP_ACTIVE },
@@ -115,7 +114,6 @@ ni_do_ifup(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_IFCONFIG:
-		case OPT_IFPOLICY:
 			ni_string_array_append(&opt_ifconfig, optarg);
 			break;
 
@@ -170,8 +168,6 @@ usage:
 				"      Show this help text.\n"
 				"  --ifconfig <pathname>\n"
 				"      Read interface configuration(s) from file/directory rather than using system config\n"
-				"  --ifpolicy <pathname>\n"
-				"      Read interface policies from the given file/directory\n"
 				"  --mode <label>\n"
 				"      Only touch interfaces with matching control <mode>\n"
 				"  --boot-stage <label>\n"
