@@ -66,8 +66,13 @@ Requires:       %{name}-service = %{version}
 PreReq:         %fillup_prereq %insserv_prereq
 %endif
 %endif
+%if %{defined _rundir}
+%define         wicked_piddir   %_rundir/%{name}
+%define         wicked_statedir %_rundir/%{name}
+%else
 %define         wicked_piddir   %_localstatedir/run/%{name}
 %define         wicked_statedir %_localstatedir/run/%{name}
+%endif
 %define         wicked_storedir %_localstatedir/lib/%{name}
 
 %description
