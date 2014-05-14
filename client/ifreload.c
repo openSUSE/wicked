@@ -45,12 +45,20 @@
 int
 ni_do_ifreload(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_IFCONFIG, OPT_IFPOLICY, OPT_IGNORE_PRIO, OPT_PERSISTENT };
+	enum  { OPT_HELP, OPT_IFCONFIG, OPT_IFPOLICY, OPT_PERSISTENT,
+#ifdef NI_TEST_HACKS
+		OPT_IGNORE_PRIO, OPT_IGNORE_STARTMODE,
+#endif
+	};
+
 	static struct option ifreload_options[] = {
 		{ "help",	no_argument,       NULL, OPT_HELP       },
 		{ "ifconfig",	required_argument, NULL, OPT_IFCONFIG   },
 		{ "ifpolicy",	required_argument, NULL, OPT_IFPOLICY   },
-		{ "ignore-prio",no_argument,       NULL, OPT_IGNORE_PRIO      },
+#ifdef NI_TEST_HACKS
+		{ "ignore-prio",no_argument, NULL,	OPT_IGNORE_PRIO },
+		{ "ignore-startmode",no_argument, NULL, OPT_IGNORE_STARTMODE },
+#endif
 		{ "persistent",	no_argument,       NULL, OPT_PERSISTENT },
 
 		{ NULL,		no_argument,	   NULL, 0              }
@@ -103,9 +111,16 @@ ni_do_ifreload(int argc, char **argv)
 			ni_string_array_append(&opt_ifconfig, optarg);
 			break;
 
+#ifdef NI_TEST_HACKS
 		case OPT_IGNORE_PRIO:
 			check_prio = FALSE;
 			break;
+
+		case OPT_IGNORE_STARTMODE:
+			ifmatch.ignore_startmode = TRUE;
+			break;
+#endif
+
 		case OPT_PERSISTENT:
 			opt_persistent = TRUE;
 			break;
@@ -120,8 +135,12 @@ usage:
 				"      Show this help text.\n"
 				"  --ifconfig <filename>\n"
 				"      Read interface configuration(s) from file\n"
+#ifdef NI_TEST_HACKS
 				"  --ignore-prio\n"
 				"      Ignore checking the config origin priorities\n"
+				"  --ignore-startmode\n"
+				"      Ignore checking the STARTMODE=off and STARTMODE=manual configs\n"
+#endif
 				"  --persistent\n"
 				"      Set interface into persistent mode (no regular ifdown allowed)\n"
 				);
