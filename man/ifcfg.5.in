@@ -8,6 +8,11 @@
 ifcfg \- common elements of network interface configuration
 .SH SYNOPSIS
 .B /etc/sysconfig/network/ifcfg-*
+.SH FILENAMES AND EXTENSIONS
+Configuration filenames that contain the following blacklisted
+extensions, will be ignored by wicked:
+.TP
+.B "~" ".old" ".bak" ".orig" ".scpmbackup" ".rpmnew" ".rpmsave" ".rpmorig"
 .SH VARIABLES
 The following is a list of variables that can be put in the
 configuration file, with an
@@ -44,6 +49,15 @@ and
 .B boot
 are aliases for
 .B auto\fP.
+.\"TODO: rewrite ifplugd when nanny handles it correctly.
+.\".TP
+.\".B ifplugd
+.\".br
+.\"The interface will be controlled from ifplugd. At initial ifup only ifplugd will
+.\"be started for this interface. Then if ifplugd detects a link if calls ifup
+.\"again which finally sets the interface up. See also variable
+.\".B IFPLUGD_PRIORITY
+.\"below.
 .TP
 .B nfsroot
 .br
@@ -59,8 +73,19 @@ Will never be activated.
 .PD
 .RE
 
+.\"TODO: reintroduce when ifplugd supported
+.\".TP
+.\".BR IFPLUGD_PRIORITY
+.\"If there multiple interfaces have
+.\".B STARTMODE=ifplugd
+.\"and a nonzero priority, only one of them will be set up at a time. Every time one
+.\"of these interfaces is (un)plugged the interface with highest priority (and
+.\"plugged cable) will be set up. Default is IFPLUGD_PRIORITY='0' causing set up as
+.\"when the cable is plugged. Note: This is not supported for e.g. bridge interfaces
+.\"or bridge ports.
+
 .TP
-.BR BOOTPROTO\  { static* | dhcp | dhcp4 | dhcp6 | autoip | dhcp+autoip | none }
+.BR BOOTPROTO\  { static* | dhcp | dhcp4 | dhcp6 | autoip | dhcp+autoip | 6to4 | none }
 Setup protocol. If this variable is empty or missing, it defaults to \fBstatic\fR.
 .RS
 .PD 0
@@ -89,6 +114,14 @@ destination (network) configured by dhcp clients on this interface.
 .B autoip dhcp+autoip
 .br
 may be used for a IPv4 zeroconf setup or as fall back to autoip if dhcp fails.
+.TP
+.BR 6to4
+.br
+to set up
+.I IPv6
+tunnel interfaces running in the "6to4" mode.
+.br
+See also \fBifcfg-tunnel(5)\fR manual page.
 .TP
 .br
 .B none
@@ -196,6 +229,31 @@ and force ifup to handle the interface differently than it detected
 from system or config.
 Please always open a bug report when it is required to set the type.
 .TP
+.B ETHTOOL_OPTIONS [ \fIsuffix\fR ]
+If this variable is not empty, wicked will set these options on an
+ethernet type device.
+See the
+.B ethtool (8)
+manual page for available options.
+If the option string starts with a '-' (e.g. '-K iface rx on'), then the
+second word in the string will be replaced with the current interface name.
+Otherwise (e.g. 'autoneg off speed 10') ifup prepends '-s <interface>'.
+The optional variable suffix can be used to apply every setting separately,
+e.g.:
+
+  ETHTOOL_OPTIONS='autoneg off speed 10'
+  ETHTOOL_OPTIONS_gro='-K iface gro off'
+  ETHTOOL_OPTIONS_lro='-K iface lro off'
+
+The NIC driver may reject settings as not supported (e.g. '-K iface lro off')
+or also when the link is not up.
+.TP
+.B TUNNEL, TUNNEL_*
+Using this variable you may set up different tunnels. See
+.B ifcfg-tunnel
+.BR (5)
+manual page.
+.TP
 .B ETHERDEVICE
 Needed only for virtual LANs (802.1q). It contains the real interface to use for the vlan
 interface. See
@@ -207,6 +265,24 @@ manual page.
 These are used to set up interface bonding. See
 .B ifcfg-bonding
 .BR (5)
+manual page.
+.TP
+.B IPOIB_MODE
+is used to set the infiniband transport mode of an IB device to one of "connected"
+(CM - Connected Mode) or "datagram" (UD - Unreliable Datagram).
+.TP
+.B IPOIB_UMCAST
+is used to enable/disable user-multicast for an IB device by setting to "allowed"
+or "disallowed".
+
+.SH GENERAL VARIABLES
+There are some general settings in the file
+.IR /etc/sysconfig/network/config
+and
+.IR /etc/sysconfig/network/dhcp .
+See the
+.B ifup
+.BR (8)
 manual page.
 
 .SH Multiple addresses
@@ -232,16 +308,19 @@ Example:
    and so on ...
 .PP
 
+.SH COPYRIGHT
+Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
 .SH BUGS
-Please report bugs at <http://www.suse.de/feedback>
+Please report bugs at <https://bugzilla.novell.com/index.cgi>
 .SH AUTHOR
 .nf
-Michal Ludvig <mludvig@suse.cz> -- tunnel support
-Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de> -- wicked
+Michal Ludvig -- tunneling
+Pawel Wieczorkiewicz -- wicked
 .fi
 .SH "SEE ALSO"
 .BR /etc/sysconfig/network/ifcfg.template ,
 .BR ifcfg-bonding (5),
+.BR ifcfg-tunnel (5),
 .BR ifcfg-vlan (5),
 .BR ifcfg-wireless (5),
 .BR wicked (8).
