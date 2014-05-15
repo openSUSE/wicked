@@ -10,6 +10,7 @@ man_MANS			= \
 	wicked.7		\
 	wicked.8		\
 	wickedd.8		\
+	routes.5		\
 	ifcfg-bonding.5		\
 	ifcfg-bridge.5		\
 	ifcfg-dummy.5		\
@@ -38,6 +39,11 @@ substitute_vars			= \
 	-e "s|[@]wicked_extensionsdir[@]|$(wicked_extensionsdir)|g"
 
 wicked%: wicked%.in $(top_builddir)/config.status
+	@echo "substituting variables in $< > $@"
+	@rm -f $@ $@.tmp
+	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+
+routes%: routes%.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
