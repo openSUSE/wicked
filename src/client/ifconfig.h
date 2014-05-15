@@ -59,4 +59,25 @@ extern ni_bool_t		ni_nanny_call_device_disable(const char *ifname);
 extern ni_dbus_object_t *	ni_nanny_call_get_device(const char *);
 extern ni_bool_t		ni_nanny_call_add_secret(const ni_security_id_t *, const char *, const char *);
 
+static inline ni_bool_t
+ni_ifconfig_is_config(xml_node_t *ifnode)
+{
+	return ifnode && ni_string_eq(ifnode->name, NI_CLIENT_IFCONFIG);
+}
+
+static inline ni_bool_t
+ni_ifconfig_is_policy(xml_node_t *pnode)
+{
+	return pnode &&
+		(ni_string_eq(pnode->name, NI_NANNY_IFPOLICY) ||
+		 ni_string_eq(pnode->name, NI_NANNY_IFTEMPLATE));
+}
+
+static inline ni_bool_t
+ni_ifpolicy_is_valid(xml_node_t *pnode)
+{
+	return ni_ifconfig_is_policy(pnode) &&
+		xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_NAME);
+}
+
 #endif /* __WICKED_CLIENT_IFCONFIG_H__ */
