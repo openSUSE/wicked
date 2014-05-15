@@ -75,10 +75,14 @@ extern unsigned int	ni_debug;
 extern unsigned int	ni_log_level;
 
 #define ni_log_level_at(level)			(ni_log_level >= (level))
+#define ni_log_facility(facility)		(ni_debug & (facility))
+
+#define ni_debug_guard(level, facility) \
+	(ni_log_level_at(level) && ni_log_facility(facility))
 
 #define __ni_debug(level, facility, fmt, args...) \
 	do { \
-		if (ni_log_level_at(level) && ni_debug & (facility)) \
+		if (ni_debug_guard(level, facility)) \
 			ni_trace(fmt, ##args); \
 	} while (0)
 
@@ -104,7 +108,7 @@ extern unsigned int	ni_log_level;
 
 #define ni_debug_wicked_xml(xml_node, level, fmt, args...) \
 	do { \
-		if (ni_log_level_at(level) && ni_debug & NI_TRACE_WICKED_XML) { \
+		if (ni_debug_guard(level, NI_TRACE_WICKED_XML)) { \
 			ni_trace(fmt, ##args); \
 			xml_node_print_debug(xml_node, NI_TRACE_WICKED_XML); \
 		} \
@@ -114,10 +118,6 @@ extern unsigned int	ni_log_level;
 
 #define ni_debug_verbose(level, facility, fmt, args...) \
 		__ni_debug(level, facility, fmt, ##args)
-
-#define ni_log_facility(facility) (ni_debug & (facility))
-#define ni_debug_verbose_guard(level, facility) \
-	(ni_log_level_at(level) && ni_log_facility(facility))
 
 #define __ni_string(x) #x
 

@@ -1321,7 +1321,7 @@ __ni_tunnel_trace(ni_netdev_t *dev, struct nlattr **info_data)
 	uint8_t tos;
 	uint8_t ttl;
 
-	if (ni_debug_verbose_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
 		if (info_data[IFLA_IPTUN_LINK]) {
 			link = nla_get_u32(info_data[IFLA_IPTUN_LINK]);
 			ni_trace("%s:IFLA_IPTUN_LINK: %u", dev->name, link);
@@ -1370,7 +1370,7 @@ __ni_tunnel_gre_trace(ni_netdev_t *dev, struct nlattr **info_data)
 	uint8_t tos;
 	uint8_t ttl;
 
-	if (ni_debug_verbose_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
 		if (info_data[IFLA_GRE_LINK]) {
 			link = nla_get_u32(info_data[IFLA_GRE_LINK]);
 			ni_trace("%s:IFLA_GRE_LINK: %u", dev->name, link);
