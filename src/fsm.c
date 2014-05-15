@@ -139,7 +139,6 @@ ni_ifworker_reset(ni_ifworker_t *w)
 			if (child_worker->exclusive_owner == w) {
 				child_worker->exclusive_owner = NULL;
 			} else {
-				ni_assert(child_worker->exclusive_owner == NULL);
 				ni_assert(child_worker->shared_users);
 				child_worker->shared_users -= 1;
 			}
@@ -812,25 +811,19 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 			return TRUE;
 	}
 
-	if (child->exclusive_owner != NULL) {
-		char *other_owner;
-
-		other_owner = strdup(xml_node_location(child->exclusive_owner->config.node));
-		ni_error("%s: subordinate interface already owned by %s",
-				xml_node_location(devnode), other_owner);
-		free(other_owner);
-		return FALSE;
-	}
-
 	if (shared) {
 		/* The reference allows sharing with other uses, e.g. VLANs. */
 		child->shared_users++;
+	} else if (child->exclusive_owner) {
+		char *other_owner;
+
+		other_owner = strdup(xml_node_location(child->exclusive_owner->config.node));
+		ni_error("%s (%s): subordinate interface already owned by %s (%s)",
+			child->name, xml_node_location(devnode),
+			child->exclusive_owner->name, other_owner);
+		free(other_owner);
+		return FALSE;
 	} else {
-		if (child->shared_users) {
-			ni_error("%s: interface already in shared use by other interfaces",
-					xml_node_location(devnode));
-			return FALSE;
-		}
 		child->exclusive_owner = parent;
 	}
 
