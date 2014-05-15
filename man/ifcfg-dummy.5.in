@@ -1,0 +1,47 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\"
+.TH IFCFG-DUMMY 5 "April 2014" "wicked" "Network configuration"
+.\" ...
+
+.SH NAME
+ifcfg-dummy \- Dummy interface configuration
+.SH SYNOPSIS
+.B /etc/sysconfig/network/ifcfg-*
+
+.SH Dummy Interfaces
+To setup a dummy interface you either need a configuration file
+with basename \fBifcfg-dummy\fR (ie. \fBifcfg-dummy0\fR) or one
+that explicity sets the
+.TP
+.B INTERFACETYPE
+variable to "dummy".
+.TP
+.B BOOTPROTO
+may be set to "none", or if a static IP and route configuration
+is desired, may be set to "static". Note that "dhcp" and others are not
+supported. See also \fIman\ ifcfg\fR and \fIman\ routes\fR for details.
+
+.SH EXAMPLES
+.TP
+Sets up \fIdummy0\fR interface:
+
+.I ifcfg-dummy0
+.nf
+   STARTMODE='auto'
+   BOOTPROTO='static'
+   IPADDR='10.0.0.100/24'
+.fi
+
+.SH COPYRIGHT
+Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+.SH BUGS
+Please report bugs at <https://bugzilla.novell.com/index.cgi>
+.SH AUTHORS
+.nf
+Karol Mroz
+.fi
+.SH "SEE ALSO"
+.BR routes (5),
+.BR ifcfg (5),
+.BR wicked (8).
