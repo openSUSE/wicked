@@ -376,4 +376,14 @@ ni_ifworker_active(const ni_ifworker_t *w)
 	return w->fsm.action_table != NULL;
 }
 
+/*
+ * Returns true if a state is one of the FSM defined states
+ */
+static inline ni_bool_t
+ni_ifworker_is_valid_state(unsigned int state)
+{
+	return  state > NI_FSM_STATE_NONE &&
+		state < __NI_FSM_STATE_MAX;
+}
+
 #endif /* __CLIENT_FSM_H__ */
