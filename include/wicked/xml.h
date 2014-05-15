@@ -161,9 +161,15 @@ extern void		xml_node_array_free(xml_node_array_t *);
  * Static inline functions
  */
 static inline ni_bool_t
+xml_node_is_empty(xml_node_t *node)
+{
+	return (!node || !node->children);
+}
+
+static inline ni_bool_t
 xml_document_is_empty(xml_document_t *doc)
 {
-	return (!doc || !doc->root || !doc->root->children);
+	return (!doc || xml_node_is_empty(doc->root));
 }
 
 #endif /* __WICKED_XML_H__ */
