@@ -3,6 +3,7 @@ CLEANFILES					= *~
 MAINTAINERCLEANFILES				= Makefile.in
 DISTCLEANFILES					= $(BUILT_SOURCES)
 EXTRA_DIST					= $(suse_config_DATA) \
+						  $(suse_fillup_DATA) \
 						  scripts/ifup.in
 BUILT_SOURCES					= scripts/ifup
 
@@ -26,6 +27,8 @@ libwicked_client_suse_la_SOURCES		= \
 noinst_HEADERS					= \
 						  ifsysctl.h
 
+suse_fillupdir					= ${localstatedir}/adm/fillup-templates
+suse_fillup_DATA				= config/sysconfig.config-wicked
 
 suse_configdir					= $(sysconfdir)/sysconfig/network
 suse_config_DATA				= config/ifcfg-lo
