@@ -1,16 +1,22 @@
 
 CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
-DISTCLEANFILES			= $(man_MANS)
-BUILT_SOURCES			= $(man_MANS)
-EXTRA_DIST			= $(templates)
+DISTCLEANFILES			= $(generated)
+BUILT_SOURCES			= $(generated)
+EXTRA_DIST			= $(templates) $(allstatic)
 
 man_MANS			= \
+	$(generated)		\
+	$(allstatic)
+
+allstatic			= \
+	routes.5
+
+generated			= \
 	wicked-config.5		\
 	wicked.7		\
 	wicked.8		\
 	wickedd.8		\
-	routes.5		\
 	ifcfg-bonding.5		\
 	ifcfg-bridge.5		\
 	ifcfg-dummy.5		\
@@ -19,13 +25,14 @@ man_MANS			= \
 	ifcfg-vlan.5		\
 	ifcfg-wireless.5	\
 	ifcfg.5			\
+	ifroute.5		\
 	ifsysctl.5		\
 	ifdown.8		\
 	ifstatus.8		\
 	ifup.8
 
 
-templates			= $(man_MANS:=.in)
+templates			= $(generated:=.in)
 
 substitute_vars			= \
 	$(AM_V_GEN)sed						\
@@ -39,11 +46,6 @@ substitute_vars			= \
 	-e "s|[@]wicked_extensionsdir[@]|$(wicked_extensionsdir)|g"
 
 wicked%: wicked%.in $(top_builddir)/config.status
-	@echo "substituting variables in $< > $@"
-	@rm -f $@ $@.tmp
-	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
-
-routes%: routes%.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
