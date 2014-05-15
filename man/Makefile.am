@@ -16,6 +16,7 @@ man_MANS			= \
 	ifcfg-vlan.5		\
 	ifcfg-wireless.5	\
 	ifcfg.5			\
+	ifsysctl.5		\
 	ifdown.8		\
 	ifstatus.8		\
 	ifup.8
