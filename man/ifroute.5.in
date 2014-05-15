@@ -1,5 +1,5 @@
 .\"
-.\" SUSE man page routes(5)
+.\" SUSE man page ifroute(5)
 .\" Copyright (c) 2002-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
 .\" Please send bugfixes or comments as described at <http://bugs.opensuse.org>.
 .\"
@@ -8,29 +8,30 @@
 .\" 	Marius Tomaschewski
 .\"
 .\"
-.TH ROUTES 5 "May 2014" "sysconfig" "Network configuration"
+.TH IFROUTE 5 "May 2014" "sysconfig" "Network configuration"
 .\"
 .SH NAME
 .\"
-routes \- configure the routing table
+ifroute \- configure the interface static routing tables
 .SH SYNOPSIS
-.B /etc/sysconfig/network/routes
-.br
 .BI /etc/sysconfig/network/ifroute-\fR<\fIinterface\fR>
+.br
+.B /etc/sysconfig/network/routes
 .\"
 .SH DESCRIPTION
 The
 .BI /etc/sysconfig/network/ifroute-\fR<\fIinterface\fR>
-and
-.B /etc/sysconfig/network/routes
-files are parsed together with /etc/sysconfig/network/ifcfg-\fR<\fIinterface\fR>
-to sets up static routes for interfaces.
+and the
+.BI /etc/sysconfig/network/routes
+file are parsed together with the
+.BI /etc/sysconfig/network/ifcfg-\fR<\fIinterface\fR>
+file to set up static routes for a particular interface.
 .PP
-The preferred
+The
 .B /etc/sysconfig/network/ifroute-\fR<\fIinterface\fR>
 file contains routes for the particular interface while the
 .B /etc/sysconfig/network/routes
-is allowed to contain routes for all interfaces.
+can contain routes for all interfaces.
 
 The currently assigned routes can be seen by issuing:
 .PP
@@ -39,7 +40,7 @@ The currently assigned routes can be seen by issuing:
 .B /sbin/ip\ -6\ route\ show
 .RE
 .PP
-which will give the current routing table.
+which will give the current (main) routing tables.
 .\"
 .SH Syntax
 Both files use the same syntax. The only difference is the interpretation the
@@ -53,10 +54,13 @@ are ignored. There are 5 columns with special meaning.
 Write a dash "-" if you want to omit an entry for a field. If all following
 fields in the line are empty too, you can even omit the dash.
 
+The columns are:
+.B Destination Gateway Netmask Interface Options
+
 The
-.B first column 
-gives the destination / prefix, written as the IP-address of a host or
-a network in a prefix-length (CIDR notation), e.g.
+.B 1st, Destination
+column gives the destination / prefix, written as the IP-address of a host
+or as a network in a prefix-length (CIDR notation), e.g.
 .B 10.10.0.0/16
 for IPv4 or
 .B fc00::/7
@@ -67,20 +71,20 @@ indicates that the route is the default gateway in the same address family
 explicit 0.0.0.0/0 or ::/0 destinations.
 
 The
-.B second column 
-contains the gateway. Write here the regular IP-address of a host which routes
-the packets to a remote host or remote network. You can omit this information
-for rejecting or device routes using a dash '-'.
+.B 2nd, Gateway
+column defines the gateway. Write here the regular IP-address of a host which
+routes the packets to a remote host or remote network.
+You can omit this information for rejecting or device routes using a dash '-'.
 
-The 
-.B third column 
-is deprecated and gives the IPv4 netmask for a remote host or remote network
-behind a gateway. For the default route or if you were using a prefix-length
-(CIDR notation) in the first column, you can omit it using a dash '-'.
+The
+.B 3rd, Netmask
+column is \fIdeprecated\fR and gives the IPv4 netmask of the destination.
+For IPv6 routes, the default route or if you were using a prefix-length (CIDR
+notation) in the 1st destination column, you can omit it using a dash '-'.
 
-The 
-.B fourth column 
-gives the name of the interface of the local networks (lo, eth0, eth1, ib0, ...).
+The
+.B 4th, Interface
+colums contains the name of the interface (lo, eth0, eth1, ib0, ...).
 
 If you leave this field empty (using a dash '-'), the result depends on the
 file you are using.
@@ -93,15 +97,15 @@ gateway is examined if it belongs to the same network as a IPADDR in all
 match is used, so if you have multiple interfaces, such a route may match
 multiple IP addresses and cause unintended behavior.
 
-In the latter case you may want to use the preferred
+In the latter case you may want to use the
 .BI /etc/sysconfig/network/ifroute-\fR<\fIinterface\fR>
-instead. Here an empty interface field is always replaced with the interface
-name that is currently being activated.
+instead. Here an empty interface field is replaced with the interface name
+that is currently being activated, that is the interface in the file name.
 
 The
-.B fifth column 
-can be used to specify further options for the route like \fBpreference\fR
-(metric), \fBmtu\fR or the destination \fBtype\fR of a route:
+.B 5th, Options
+column can be used to specify further options for the route like
+\fBpreference\fR (metric), \fBmtu\fR or the \fBtype\fR of a route:
 .TP
 .B
 unicast
@@ -152,12 +156,9 @@ senders get an EINVAL error.
 .TP
 .B
 nat
-A special NAT route. Destinations covered by the prefix are considered to be
-dummy (or external) addresses which require translation to real (or internal)
-ones before forwarding. The addresses to translate to are selected with
-attribute 'via'.
+A special NAT route, not supported any longer since Linux 2.6.
 .PP
-All options (except of to, via and dev) of the
+All options (except of to, via and dev used in columns 1-4) of the
 .B ip\ route\ add
 command shall be supported.
 
@@ -215,9 +216,9 @@ and should be omitted.
 .PP
 .\"
 .SH FILES
-.B /etc/sysconfig/network/routes
-.br
 .BI /etc/sysconfig/network/ifroute-\fR<\fIinterface\fR>
+.br
+.BI /etc/sysconfig/network/routes
 .\"
 .SH AUTHOR
 .nf
