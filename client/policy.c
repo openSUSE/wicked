@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 
+#include <wicked/fsm.h>
 #include <wicked/netinfo.h>
 #include <wicked/objectmodel.h>
 #include <wicked/dbus-errors.h>
@@ -53,6 +54,48 @@ ni_ifpolicy_is_valid(xml_node_t *pnode)
 {
 	return ni_ifconfig_is_policy(pnode) &&
 		xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_NAME);
+}
+
+static xml_node_t *
+__ni_policy_add_to_match(xml_node_t *policy, const char *name, const char *value)
+{
+	if (policy && !ni_string_empty(name)) {
+		xml_node_t *match = xml_node_get_child(policy, NI_NANNY_IFPOLICY_MATCH);
+
+		if (match)
+			return xml_node_new_element(name, match, value);
+	}
+
+	return NULL;
+}
+
+ni_bool_t
+ni_ifpolicy_match_add_min_state(xml_node_t *policy, unsigned int state)
+{
+	if (ni_ifworker_is_valid_state(state)) {
+		const char *sname = ni_ifworker_state_name(state);
+
+		if (__ni_policy_add_to_match(policy,
+		    NI_NANNY_IFPOLICY_MATCH_MIN_STATE, sname)) {
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+ni_bool_t
+ni_ifpolicy_match_add_link_type(xml_node_t *policy, unsigned int type)
+{
+	const char *linktype;
+
+	linktype = ni_linktype_type_to_name(type);
+	if (__ni_policy_add_to_match(policy,
+	    NI_NANNY_IFPOLICY_MATCH_LINK_TYPE, linktype)) {
+		return TRUE;
+	}
+
+	return FALSE;
 }
 
 /*

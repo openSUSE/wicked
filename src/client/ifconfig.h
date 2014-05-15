@@ -25,19 +25,24 @@
 #ifndef   __WICKED_CLIENT_IFCONFIG_H__
 #define   __WICKED_CLIENT_IFCONFIG_H__
 
-#define NI_CLIENT_IFCONFIG		"interface"
-#define NI_CLIENT_IFCONFIG_MATCH_NAME	"name"
+#define NI_CLIENT_IFCONFIG			"interface"
+#define NI_CLIENT_IFCONFIG_MATCH_NAME		"name"
 
-#define NI_NANNY_IFPOLICY		"policy"
-#define NI_NANNY_IFTEMPLATE		"template"
+#define NI_NANNY_IFPOLICY			"policy"
+#define NI_NANNY_IFTEMPLATE			"template"
 
 #define NI_NANNY_IFPOLICY_MATCH		"match"
-#define NI_NANNY_IFPOLICY_MATCH_DEV	"device"
+#define NI_NANNY_IFPOLICY_MATCH_DEV		"device"
+#define NI_NANNY_IFPOLICY_MATCH_MIN_STATE	"minimum-device-state"
+#define NI_NANNY_IFPOLICY_MATCH_LINK_TYPE	"link-type"
 #define NI_NANNY_IFPOLICY_MERGE		"merge"
 
-#define NI_NANNY_IFPOLICY_NAME		"name"
-#define NI_NANNY_IFPOLICY_ORIGIN	"origin"
-#define NI_NANNY_IFPOLICY_UUID		"uuid"
+#define NI_NANNY_IFPOLICY_NAME			"name"
+#define NI_NANNY_IFPOLICY_ORIGIN		"origin"
+#define NI_NANNY_IFPOLICY_UUID			"uuid"
+
+extern ni_bool_t		ni_ifpolicy_match_add_min_state(xml_node_t *, unsigned int);
+extern ni_bool_t		ni_ifpolicy_match_add_link_type(xml_node_t *, unsigned int);
 
 extern xml_node_t *		ni_convert_cfg_into_policy_node(xml_node_t *, const char *);
 extern xml_document_t *	ni_convert_cfg_into_policy_doc(xml_document_t *);
