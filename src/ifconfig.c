@@ -86,7 +86,8 @@ static int	__ni_rtnl_link_change_mtu(ni_netdev_t *dev, unsigned int mtu);
 static int	__ni_rtnl_link_change_hwaddr(ni_netdev_t *dev, const ni_hwaddr_t *hwaddr);
 
 static int	__ni_rtnl_link_up(const ni_netdev_t *, const ni_netdev_req_t *);
-static int	__ni_rtnl_link_down(const ni_netdev_t *, int);
+static int	__ni_rtnl_link_down(const ni_netdev_t *);
+static int	__ni_rtnl_link_delete(const ni_netdev_t *);
 
 static int	__ni_rtnl_link_add_port_up(const ni_netdev_t *, const char *, unsigned int);
 static int	__ni_rtnl_link_add_slave_down(const ni_netdev_t *, const char *, unsigned int);
@@ -133,7 +134,7 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 
 		/* Now take down the link for real */
 		ni_debug_ifconfig("shutting down interface %s", dev->name);
-		if (__ni_rtnl_link_down(dev, RTM_NEWLINK)) {
+		if (__ni_rtnl_link_down(dev)) {
 			ni_error("unable to shut down interface %s", dev->name);
 			return -1;
 		}
@@ -276,7 +277,7 @@ ni_system_interface_delete(ni_netconfig_t *nc, const char *ifname)
 	case NI_IFTYPE_MACVTAP:
 	case NI_IFTYPE_TUN:
 	case NI_IFTYPE_TAP:
-		if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
+		if (__ni_rtnl_link_delete(dev)) {
 			ni_error("could not destroy %s interface %s",
 				ni_linktype_type_to_name(dev->link.type), dev->name);
 			return -1;
@@ -368,7 +369,7 @@ ni_system_macvlan_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t
 int
 ni_system_vlan_delete(ni_netdev_t *dev)
 {
-	if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
+	if (__ni_rtnl_link_delete(dev)) {
 		ni_error("could not destroy VLAN interface %s", dev->name);
 		return -1;
 	}
@@ -440,7 +441,7 @@ ni_system_macvlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 int
 ni_system_macvlan_delete(ni_netdev_t *dev)
 {
-	if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
+	if (__ni_rtnl_link_delete(dev)) {
 		ni_error("could not destroy macvlan interface %s", dev->name);
 		return -1;
 	}
@@ -478,7 +479,7 @@ ni_system_dummy_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 
 	ni_debug_ifconfig("%s: creating dummy interface", cfg->name);
 
-	if ((err = __ni_rtnl_link_create(cfg)) != 0 && err != -NLE_EXIST) {
+	if ((err = __ni_rtnl_link_create(cfg)) && abs(err) != NLE_EXIST) {
 		ni_error("unable to create dummy interface %s", cfg->name);
 		return -1;
 	}
@@ -508,7 +509,7 @@ ni_system_dummy_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *
 int
 ni_system_dummy_delete(ni_netdev_t *dev)
 {
-	if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
+	if (__ni_rtnl_link_delete(dev)) {
 		ni_error("could not destroy dummy interface %s", dev->name);
 		return -1;
 	}
@@ -1014,7 +1015,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 
 			ret = __ni_rtnl_link_add_slave_down(sdev, dev->name, dev->link.ifindex);
 			if (ret != 0) {
-				__ni_rtnl_link_down(sdev, RTM_NEWLINK);
+				__ni_rtnl_link_down(sdev);
 				ni_string_array_append(&slaves, name);
 			}
 		}
@@ -1240,7 +1241,7 @@ ni_system_tuntap_delete(ni_netdev_t *dev)
 {
 	int rv;
 
-	if (__ni_rtnl_link_down(dev, RTM_DELLINK)) {
+	if (__ni_rtnl_link_delete(dev)) {
 		ni_error("could not destroy tun/tap interface %s", dev->name);
 		return rv;
 	}
@@ -1338,7 +1339,7 @@ ni_system_ipv6_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ipv6_devconf
 	rv = ni_system_ipv6_devinfo_set(dev, ipv6);
 
 	if (brought_up)
-		__ni_rtnl_link_down(dev, RTM_NEWLINK);
+		__ni_rtnl_link_down(dev);
 	return rv;
 }
 
@@ -1585,7 +1586,7 @@ __ni_rtnl_link_create(const ni_netdev_t *cfg)
 	}
 
 	/* Actually capture the netlink -error code for use by callers. */
-	if ((err = ni_nl_talk(msg, NULL)) < 0)
+	if ((err = ni_nl_talk(msg, NULL)))
 		goto failed;
 
 	ni_debug_ifconfig("successfully created interface %s", cfg->name);
@@ -1642,7 +1643,7 @@ __ni_rtnl_link_change(ni_netdev_t *dev, const ni_netdev_t *cfg)
 		break;
 	}
 
-	if (ni_nl_talk(msg, NULL) < 0)
+	if (ni_nl_talk(msg, NULL))
 		goto failed;
 
 	ni_debug_ifconfig("successfully modified interface %s", cfg->name);
@@ -1676,7 +1677,7 @@ __ni_rtnl_link_change_hwaddr(ni_netdev_t *dev, const ni_hwaddr_t *hwaddr)
 	if (__ni_rtnl_link_put_hwaddr(msg, hwaddr) < 0)
 		goto nla_put_failure;
 
-	if (ni_nl_talk(msg, NULL) < 0)
+	if (ni_nl_talk(msg, NULL))
 		goto failed;
 
 	ni_debug_ifconfig("successfully modified interface %s hwaddr %s",
@@ -1712,7 +1713,7 @@ __ni_rtnl_link_change_mtu(ni_netdev_t *dev, unsigned int mtu)
 	if (__ni_rtnl_link_put_mtu(msg, mtu) < 0)
 		goto nla_put_failure;
 
-	if (ni_nl_talk(msg, NULL) < 0)
+	if (ni_nl_talk(msg, NULL))
 		goto failed;
 
 	ni_debug_ifconfig("successfully modified interface %s mtu to %u",
@@ -1739,13 +1740,11 @@ __ni_rtnl_simple(int msgtype, unsigned int flags, void *data, size_t len)
 
 	msg = nlmsg_alloc_simple(msgtype, flags);
 
-	if ((rv = nlmsg_append(msg, data, len, NLMSG_ALIGNTO)) < 0) {
+	if ((rv = nlmsg_append(msg, data, len, NLMSG_ALIGNTO))) {
 		ni_error("%s: nlmsg_append failed: %s", __func__,  nl_geterror(rv));
 	} else
-	if ((rv = ni_nl_talk(msg, NULL)) < 0) {
+	if ((rv = ni_nl_talk(msg, NULL))) {
 		ni_debug_ifconfig("%s: rtnl_talk failed: %s", __func__,  nl_geterror(rv));
-	} else {
-		rv = 0; /* success */
 	}
 
 	nlmsg_free(msg);
@@ -1753,10 +1752,10 @@ __ni_rtnl_simple(int msgtype, unsigned int flags, void *data, size_t len)
 }
 
 /*
- * Bring down/delete an interface
+ * Set the interface link down
  */
 static int
-__ni_rtnl_link_down(const ni_netdev_t *dev, int cmd)
+__ni_rtnl_link_down(const ni_netdev_t *dev)
 {
 	struct ifinfomsg ifi;
 
@@ -1765,7 +1764,31 @@ __ni_rtnl_link_down(const ni_netdev_t *dev, int cmd)
 	ifi.ifi_index = dev->link.ifindex;
 	ifi.ifi_change = IFF_UP;
 
-	return __ni_rtnl_simple(cmd, 0, &ifi, sizeof(ifi));
+	return __ni_rtnl_simple(RTM_NEWLINK, 0, &ifi, sizeof(ifi));
+}
+
+/*
+ * Delete the interface
+ */
+static int
+__ni_rtnl_link_delete(const ni_netdev_t *dev)
+{
+	struct ifinfomsg ifi;
+	int rv;
+
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+	ifi.ifi_index = dev->link.ifindex;
+	ifi.ifi_change = IFF_UP;
+
+	rv = __ni_rtnl_simple(RTM_DELLINK, 0, &ifi, sizeof(ifi));
+	switch (abs(rv))  {
+	case NLE_SUCCESS:
+	case NLE_NODEV:
+		return 0;
+	default:
+		return rv;
+	}
 }
 
 /*
@@ -1792,7 +1815,7 @@ __ni_rtnl_link_add_port_up(const ni_netdev_t *port, const char *mname, unsigned 
 
 	NLA_PUT_U32(msg, IFLA_MASTER, mindex);
 
-	if (ni_nl_talk(msg, NULL) < 0)
+	if (ni_nl_talk(msg, NULL))
 		goto failed;
 
 	ni_debug_ifconfig("successfully added port %s into master %s",
@@ -2037,7 +2060,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 			goto nla_put_failure;
 	}
 
-	if ((err = ni_nl_talk(msg, NULL)) < 0 && err != -NLE_EXIST) {
+	if ((err = ni_nl_talk(msg, NULL)) && abs(err) != NLE_EXIST) {
 		ni_error("%s(%s/%u): ni_nl_talk failed [%s]", __func__,
 				ni_sockaddr_print(&ap->local_addr),
 				ap->prefixlen,  nl_geterror(err));
@@ -2264,7 +2287,7 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 		nla_nest_end(msg, mxrta);
 	}
 
-	if ((err = ni_nl_talk(msg, NULL)) < 0 && err != -NLE_EXIST) {
+	if ((err = ni_nl_talk(msg, NULL)) && abs(err) != NLE_EXIST) {
 		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 		ni_error("%s(%s): ni_nl_talk failed [%s]", __FUNCTION__,
 				ni_route_print(&buf, rp),  nl_geterror(err));
