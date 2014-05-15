@@ -6,11 +6,17 @@ wicked \- network management utility
 .br
 .BI "wicked [" global-options "] ifdown [" options "] " interface
 .br
+.BI "wicked [" global-options "] ifreload [" options "] " interface
+.br
+.BI "wicked [" global-options "] ifstatus [" options "] " interface
+.br
 .BI "wicked [" global-options "] ifcheck [" options "] " interface
 .br
-.BI "wicked [" global-options "] show-xml [" options "] [" interface "]
+.BI "wicked [" global-options "] show-config [" options "] [" interface "]
 .br
 .BI "wicked [" global-options "] convert [" options "] [" file " ... ]
+.br
+.BI "wicked [" global-options "] show-xml [" options "] [" interface "]
 .br
 .BI "wicked [" global-options "] xpath [" options "] " format ...
 .br
@@ -32,14 +38,15 @@ system daemons like \fBpppd\fP(8) or \fBopenvpn\fP(8).
 The server only knows about the latter, but does not parse any configuration
 files, and does not maintain any state besides what is actually in
 effect. On the other hand, the client never probes the kernel directly
-to obtain the current system state. The client's job is to parse the
-configuration file(s) handed to it by the user, process them and perform
-the necessary calls to the server to make the system state match the
-desired configuration.
+to obtain the current system state. The client's
+job is to parse the configuration file(s) handed to it by the user,
+process and convert them to policies, and hand them off to wickedd-nanny.
+wickedd-nanny then performs device configuration when policy conditions
+have been met.
 .PP
-The client and server communicate with each other over DBus. For a
-conceptual overview of the supported DBus APIs, please refer
-to \fBwicked\fP(7), available after installing wicked-devel package.
+The client, nanny and server processes communicate with each other over DBus.
+For a conceptual overview of the supported DBus APIs, please refer
+to \fBwicked\fP(7).
 .\" ----------------------------------------
 .SH OPTIONS
 .B wicked
@@ -59,6 +66,34 @@ The
 .B \-\-config
 options allows you to specify a different configuration file.
 .TP
+.BI "\-\-log-level " level
+Set log \fIlevel\fP to one of
+<\fIerror\fP|\fIwarning\fP|\fInotice\fP|\fIinfo\fP|\fIdebug\fP>.
+.TP
+.BI "\-\-log-target " target
+Set log \fItarget\fP to one of <\fIstderr\fP|\fIsyslog\fP>,
+optionally followed by a colon and target specific details.
+
+.in +4n
+.IR stderr "[:" options "]"
+with the following options:
+.in +4n
+.I pid
+include program pid in each message
+.in
+
+.IR syslog "[:" facility "[:" options "]]"
+with following facilities:
+.in +4n
+.IR user ", " daemon ", " local0 " .. " local7
+.in
+and options:
+.in +4n
+.I perror
+log the message to stderr as well
+.in
+
+.TP
 .BI "\-\-debug " facility
 Enable debugging for \fIfacility\fP.
 The list of available facilities can be obtained using
@@ -77,22 +112,35 @@ Helpful for getting a feel for how the utility and the protocol work,
 and for debugging.
 .IP
 .B This does not work at the moment.
+.TP
+.BI "\-\-systemd "
+Forces wicked to use the syslog target for logging.
+.TP
+.BI "\-\-transient "
+Enables more detailed interface return codes.
+.PP
 .\" ----------------------------------------
 .SH ifup - bring up one or more interfaces
 To bring up interfaces, use \fBwicked ifup\fP.
 This command supports a number of different modes of operations.
-In its simples form, you just give it the name of an interface, and
+In its simplest form, you just give it the name of an interface, and
 it will bring up the interface using the stored system configuration:
 .PP
 .nf
 .B "    # wicked ifup eth0
 .fi
 .PP
-This invocation makes \fBwicked\fP read all network configuration files
-from \fB/etc/sysconfig/network\fP by looking for files with a \fB.xml\fP
-suffix, and look for a description of the named interface. If found, it
-will proceed to bring up the interface and establish its network configuration.
-This includes assigning static address, and starting DHCP and similar
+This invocation makes \fBwicked\fP:
+.nf
+1. Run the ibft extension to get all firmware type configurations
+2. Read all sysconfig network configuration files from \fB/etc/sysconfig/network\fP 
+3. Read all XML network configuration files from \fB/etc/wicked/ifconfig\fP 
+.fi
+
+For each interface to be configured, wicked will generate a policy and pass
+this to wickedd-nanny. wickedd-nanny will then kick off applying the configuration
+to wickedd. wickedd then will perform the necessary steps to configure the interface.
+These steps include assigning a static address, and starting DHCP and similar
 address configuration protocols as required.
 .PP
 Instead of an interface name, you can also use the special names \fBall\fP
@@ -103,13 +151,16 @@ configured as boot time interfaces.
 .PP
 It is also possible to bring up interfaces that do not have a
 configuration stored in the system; using the \fB--ifconfig\fP
-option you can provide an XML interface description independent from
-any stored configuration. Again, you have to specify the name of the
-interface to bring up, or \fBall\fP
+option you can provide a configuration by specifying a path
+prefixed by a supported schema. Again, you have to specify
+the name of the interface to bring up, or \fBall\fP
 to bring up all interfaces described in the file:
 .PP
 .nf
 .B "    # wicked ifup --ifconfig bridgecfg.xml all
+.B "    # wicked ifup --ifconfig compat:/etc/sysconfig/network all
+.B "    # wicked ifup --ifconfig firmware:ibft:ethernet0 all
+.B "    # wicked ifup --ifconfig wicked:xml:/etc/wicked/ifconfig all
 .fi
 .PP
 Note that \fBwicked\fP attempts to bring up interfaces in a "reasonable
@@ -117,13 +168,9 @@ order": for virtual interfaces like VLANs, bridges or bonds, it will
 always make sure that all subordinate devices are in the required state
 before bringing up the virtual device itself.
 .PP
-For the ease of migration, \fBwicked\fP also offers a compatibility mode in
-which it will try to read and interpret configuration files in the old-style
-ifcfg syntax described in \fBifcfg\fP(5):
-.PP
-.nf
-.B "    # wicked ifup --ifconfig compat:/etc/sysconfig/network eth0
-.fi
+\fBwicked\fP offers a compatability mode as shown above in order to
+ease migration from ifcfg file format to XML. ifcfg syntax is described
+in \fBifcfg\fP(5):
 .PP
 The \fBifup\fP command supports the following options:
 .TP
@@ -147,16 +194,6 @@ it is an ifcfg file.
 .IP
 The special name \fBfirmware:\fP can be used to obtain the interface
 definition(s) from firmware services like iBFT.
-.TP
-.BI "\-\-ifpolicy " pathname
-Specify an alternative source of network configuration policies, instead
-of obtaining the system-wide policy. Policies provide a mechanism for
-separating address configuration behavior from actual interface instances.
-.IP
-When specifying the path of a file, it must contain an XML definition
-of the interface(s). When \fIpathname\fP refers to a directory,
-\fBwicked\fP will scan it for files having a \fB.xml\fP suffix and
-parse these.
 .TP
 .BI "\-\-mode " identifier
 This can be used in conjunction with the special interface name \fBall\fP,
@@ -193,30 +230,44 @@ The default timeout for bringing up a network device is 5 seconds. If
 the interface fails to come up within this time, \fBwicked\fP will fail
 the device and and exit with an error code. All interfaces depending
 on the failed interface will fail as well.
+.BI "\-\-persistent
+Set interface into persistent mode (no regular ifdown allowed).
 .IP
 Failed interfaces are left in an undefined state.
+.PP
 .\" ----------------------------------------
 .SH ifdown - bring down one or more interfaces
 This command does the reverse of \fBifup\fP.
 Again, you can give it either a specific interface name, or use
-the special names \fBall\fP or \fBshutdown\fP
-to bring down all devices. When bringing down several interfaces,
-the utility tries to do this in a suitable order.
+the special name \fBall\fP to bring down all devices. When
+bringing down several interfaces, the utility tries to do this
+in a suitable order.
 .PP
 The \fBifdown\fP command supports the following options:
 .TP
-.BI "\-\-ifconfig " pathname
-Specify an alternative source of network configuration, instead of
-obtaining the system's interface configuration.
-.IP
-When specifying the path of a file, it must contain an XML definition
-of the interface(s). When \fIpathname\fP refers to a directory,
-\fBwicked\fP will scan it for files having a \fB.xml\fP suffix and
-parse these.
+.BI "\-\-force " state
+Forcefully put interface into a specified state. This option
+is applicable whether the interface is persistent or not. State
+can be one of:
+.nf
+.BI "     device-down
+.BI "     device-exists
+.BI "     device-up
+.BI "     protocols-up
+.BI "     firewall-up
+.BI "     link-up
+.BI "     link-authenticated
+.BI "     lldp-up
+.fi
 .TP
 .BI "\-\-delete
-When bringing down a virtual interface such as a VLAN or a bridge,
-delete the virtual interface in addition to shutting it down.
+Attempts to delete an interface. This is equivalent to
+--force device-down.
+.TP
+.BI "\-\-no-delete
+Brings the specified interface to device-exists state. In other
+words, the interface is down, but not deleted. Persistent
+interfaces are ignored.
 .TP
 .BI "\-\-timeout " seconds
 The default timeout for bringing down a network device is 5 seconds. If
@@ -225,24 +276,195 @@ the device and and exit with an error code. All interfaces that are
 used by the failed interface will fail as well.
 .IP
 Failed interfaces are left in an undefined state.
+.PP
 .\" ----------------------------------------
-.SH convert - convert legacy files to XML
-In order to ease transition, wicked supports old-style ifcfg files, and can converts
-them to XML. When invoked without arguments, it will try to determine the type of
-Linux distro you're on, and create one XML file from all your ifcfg files.
+.SH ifreload - checks whether a configuration has changed, and applies accordingly.
+To automatically re-apply changed sections of a configuration for specified interfaces,
+use \fBwicked ifreload\fP. This command performs necessary ifdown/ifup operations
+and attempts to apply detected differences. For additional, see the uses cases below.
+.PP
+.nf
+.B "    # wicked ifreload eth0
+.B "    # wicked ifreload all
+.fi
+.PP
+There are 4 potential ifreload use cases:
+.nf
+
+.BI "1. Configuration unchanged
+    ifreload does not touch specified interfaces.
+.BI "2. Configuration changed
+    performs ifdown followed by ifup with the new configuration on the 
+    specified interfaces.
+.BI "3. Configuration deleted
+    performs ifdown --delete in order to remove the specified interfaces.
+.BI "4. New configuration added
+    performs regular ifup on specified interfaces.
+.fi
 .PP
 This behavior can be fine-tuned using the following options:
 .TP
-.BI "\-\-format " format
-Rather than having wicked determine the distribution on its own, this lets you
-specify the expected file format. Currently, \fBwicked\fP will recognize
-format names \fBsuse\fP and \fBredhat\fP.
+.BI "\-\-ifconfig " pathname
+Specify an alternative source of network configuration, instead of
+obtaining the system's interface configuration.
+.IP
+When specifying the path of a file, it must contain an XML definition
+of the interface(s) by default. When \fIpathname\fP refers to a directory,
+\fBwicked\fP will scan it for files having a \fB.xml\fP suffix and
+parse these.
+.IP
+If the file name starts with the string \fBcompat:\fP, \fBwicked\fP is
+instructed to load the interface configuration from files in the
+old-style "ifcfg" syntax, as described by the \fBifcfg\fP(5) manual page.
+The string following the \fBcompat:\fP prefix is interpreted as a
+path name. If this path name refers to a directory,
+\fBwicked\fP will scan it for files with names matching \fBifcfg-*\fP.
+If the path name refers to a regular file, it will parse this file, assuming
+it is an ifcfg file.
+.IP
+The special name \fBfirmware:\fP can be used to obtain the interface
+definition(s) from firmware services like iBFT.
+.TP
+.BI "\-\-persistent
+Set interface into persistent mode (no regular ifdown allowed).
+.PP
+.\" ----------------------------------------
+.SH ifstatus/show - displays detailed interface information.
+To display/diagnose system wide interface network configuration, use
+\fBwicked ifstatus/show\fP. ifstatus command additionally reads
+system wide configuration and so is usable by root only. The show
+variant, on the other hand, deals with runtime configurations of
+existing interfaces only. Thus, it can be used by users.
+.PP
+.nf
+.B "    # wicked ifstatus eth0
+.B "    # wicked ifstatus all
+.fi
+.PP
+.nf
+Example output for loopback interface:
+    lo              up
+          link:     #1, state up
+          type:     loopback
+          cstate:   network-up
+          config:   compat:/etc/sysconfig/network/ifcfg-lo
+          leases:   ipv4 static granted
+          addr:     ipv4 127.0.0.1/8
+          addr:     ipv6 ::1/128
+.fi
+.PP
+This behavior can be fine-tuned using the following options:
+.TP
+.BI "\-\-quiet "
+Used to obtain status return codes only. No information is output,
+so can be used for scrpiting.
+.TP
+.BI "\-\-brief "
+Displays device status for specified interfaces.
+.TP
+.BI "\-\-ifconfig " filenam
+Note that this is ifstatus specfic (ie. root only).
+Used to alter the source of the specified interface configurations.
+.PP
+.\" ----------------------------------------
+.SH ifcheck - inspects particular interface details
+To inspect details such as interface presence, change in interface
+configuration, internal interface state (cstate) and persistent mode
+for specified interfaces, use \fBwicked ifcheck\fP. This command
+can be particularly helpful to script writers.
+.PP
+.nf
+.B "    # wicked ifcheck --missed eth0
+.B "    # wicked ifcheck --missed --changed all
+.fi
+.PP
+.TP
+.BI "\-\-ifconfig " pathname
+Specify an alternative source of network configuration, instead of
+obtaining the system's interface configuration.
+.IP
+When specifying the path of a file, it must contain an XML definition
+of the interface(s) by default. When \fIpathname\fP refers to a directory,
+\fBwicked\fP will scan it for files having a \fB.xml\fP suffix and
+parse these.
+.IP
+If the file name starts with the string \fBcompat:\fP, \fBwicked\fP is
+instructed to load the interface configuration from files in the
+old-style "ifcfg" syntax, as described by the \fBifcfg\fP(5) manual page.
+The string following the \fBcompat:\fP prefix is interpreted as a
+path name. If this path name refers to a directory,
+\fBwicked\fP will scan it for files with names matching \fBifcfg-*\fP.
+If the path name refers to a regular file, it will parse this file, assuming
+it is an ifcfg file.
+.IP
+The special name \fBfirmware:\fP can be used to obtain the interface
+definition(s) from firmware services like iBFT.
+.TP
+.BI "\-\-quiet "
+Used to obtain status return codes only. No information is output,
+so can be used for scrpiting.
+.TP
+.BI "\-\-missed "
+Check if the interface is missed.
+.TP
+.BI "\-\-changed"
+Check if the interface's configuration is changed.
+.TP
+.BI "\-\-state " state-name
+Check if the interface is in the given state. Possible states:
+.nf
+.B "    none
+.B "    device-down
+.B "    device-exists
+.B "    device-up
+.B "    protocols-up
+.B "    firewall-up
+.B "    link-up
+.B "    link-authenticated
+.B "    lldp-up
+.B "    network-up
+.fi
+.TP
+.BI "\-\-persistent "
+Check if the interface is in persistent mode.
+.PP
+.\" ----------------------------------------
+.SH show-config - reads, conversts and displays all available configuration files.
+To display all available network configuration files in native XML format for
+specified sources (default is all sources), use \fBwicked show-config\fP. To specify
+the source, use one of the following:
+.nf
+.B "    firmware:
+.B "    compat:
+.B "    wicked:[PATH]
+.fi
+.PP
+.nf
+.B "    # wicked show-config
+.B "    # wicked show-config compat:
+.fi
+.PP
+.TP
+.PP
+This behavior can be fine-tuned using the following options:
+.TP
+.BI "\-\-raw "
+Filter from output all config meta-data.
 .TP
 .BI "\-\-output " path
 By default, \fBwicked\fP will write the XML document to its standard output. Using
 this option, you can instruct it to write to a different file instead. If the specified
 \fIpath\fP is a directory, the XML document will be split into separate files, one for
 each interface.
+.PP
+.\" ----------------------------------------
+.SH convert - convert legacy files to XML
+In order to ease transition, wicked supports old-style ifcfg files, and can converts
+them to XML. When invoked without arguments, it will try to determine the type of
+Linux distro you're on, and create one XML file from all your ifcfg files.
+.PP
+Note that convert is a variant is show-config, and is equivalent to:
+\fBshow-config compat:\fP
 .PP
 .\" ----------------------------------------
 .SH getnames - obtain different names for an interface
@@ -348,116 +570,14 @@ all XML nodes matching this expression - i.e. the two child nodes of the
 evaluated \fIrelative to each node\fP. Note the use of the question mark in
 the \fBpriority\fP term, marking the field as optional.
 .\" ----------------------------------------
-.SH How interface bring-up works
-.B "Everything in this and any following section is out of date and needs to be rewritten"
-.PP
-Interfaces can be configured for different behaviors during bring-up
-and shutdown. In many Linux distributions, this is controlled by
-configuration variables like \fBSTARTMODE\fP or \fBONBOOT\fP in a
-sysconfig file. \fBwicked\fP understands these different behaviors,
-and strives to map these distro-specific start modes to a generic
-"behavior" description attached to the interface.
-.PP
-\fBwicked\fP's internal description of interface behavior may look
-like the following example:
-.PP
-.nf
- <behavior>
-   <boot action="start">
-     <mandatory/> <only-if-link/> <wait seconds="30"/>
-   </boot>
-   <manual-up action="start">
-     <mandatory/> <wait seconds="30"/>
-   </manual-up>
-   <link-up action="start"/>
- </behavior>
-.fi
-.PP
-The three different sections of the above XML snippet affect three
-different modes of operation. The first element, \fBboot\fP,
-describes behavior when bringing up all interfaces using
-\fBwicked ifup boot\fP. The second, \fBmanual-up\fP, controls how
-the interface is brought up when calling \fBwicked ifup\fP with the
-interface name. The third, \fBlink-up\fP, indicates that the interface
-should be fully controlled by \fBwickedd\fP, bringing it up automatically
-when the link-layer is operational.
-.PP
-All these elements support the same set of flags and parameters:
-.TP
-.B mandatory
-This flag indicates that \fBwicked\fP should treat failure to bring up
-the interface as an error. If this flag is not present, \fBwicked\fP
-will still print a warning that the interface could not be brought up,
-but will not fail.
-.TP
-.B wait
-This indicates how long \fBwicked\fP should wait for the interface to
-become fully functional. For interfaces managed through DHCP, this
-includes obtaining a valid DHCP lease.
-.TP
-.B only-if-link
-If this flag is present, \fBwicked\fP will first try to activate the
-network interface without starting the address configuration, and wait
-for the link-layer to become available. For instance, in the case of
-Ethernet interfaces this includes waiting for link autonegotiation to
-complete. If the link does not become ready within the link-layer
-timeout, \fBwicked\fP will not attempt to configure the interface
-any further. Depending on the setting of the \fBmandatory\fP flag
-described above, this is treated as fatal or a transient failure,
-respectively.
-.IP
-Note that the link-up timeout is different from the \fBwait\fP parameter,
-which controls the overall timeout for interface bring-up. The
-link-up timeout defaults to 10 seconds, and can be controlled by
-the \fB--link-timeout\fP command line option.
-.PP
-Note that this representation of interface behavior is mostly internal to
-\fBwicked\fP; by default, behavior is governed by the usual configuration
-variables in the system's sysconfig files, such as \fBONBOOT\fP or
-\fBSTARTMODE\fP. The backends reading these distro-specific files
-understand the desired semantics of a given \fBSTARTMODE\fP settings,
-and map that to the internal behavior descriptions shown above.
-.PP
-Bring-up of interfaces that have a \fB<link-up>\fP element is a bit
-special in \fBwicked\fP. Instead of bringing up the interface in
-the \fBwicked\fP client directly, it first installs a policy in the
-server, which tells the server to bring up this interface when it notices
-that the device's link has come up. It then proceeds by trying to
-activate the device, and waits for it to come up.
-.PP
-.\" ----------------------------------------
-.SH The fine print on interface shutdown
-Analogous to interface bring-up, shutdown is governed by the interface's
-\fB<behavior>\fP element. In addition to those described above, there are
-three aspects of this:
-.PP
-.nf
- <behavior>
-   <shutdown action="stop"/>
-   <manual-down action="stop"/>
-   <link-down action="stop"/>
- </behavior>
-.fi
-.PP
-Depending on the interface settings, some or all of these may be missing.
-For instance, SUSE supports an interface mode called \fBnfsroot\fP, where
-an interface should never be shut down. This mode is mapped to a behavior
-that has all of the above three actions set to \fBignore\fP rather than
-\fBstop\fP.
-.PP
-As one might expect, the \fBshutdown\fP element controls how the interface
-is being treated when calling \fBwicked ifdown shutdown\fP during system
-shutdown. The \fBmanual-down\fP action controls operation when calling
-\fBifdown\fP with a specific interface name, or with the special name
-\fBall\fP.
-.PP
-Finally, the \fBlink-down\fP action is used to determine whether to install
-a policy that automatically shuts down the network on the interface in case
-the link should go down.
-.\" ----------------------------------------
 .SH "SEE ALSO"
 \fBwickedd\fP(8), \fBwicked\fP(8), \fBwicked\fP(7), \fBwicked-config\fP(5).
 .\" ----------------------------------------
+.SH COPYRIGHT
+Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+.SH BUGS
+Please report bugs at <https://bugzilla.novell.com/index.cgi>
 .SH AUTHORS
-Written by Olaf Kirch <okir@suse.de>
-
+Olaf Kirch
+Pawel Wieczorkiewicz
+Karol Mroz
