@@ -17,6 +17,12 @@ least the mandatory
 variable with the real interface used for the virtual LAN.
 
 .PP
+It may contain the optional
+.TP
+.B VLAN_PROTOCOL
+variable that may be set to one of the supported protocols: "ieee802-1Q", "ieee802-1ad".
+
+.PP
 Further, it may contain the optional
 .TP
 .B VLAN_ID
@@ -56,12 +62,9 @@ that a rename of the interface is required and that they violate
 the vlan name scheme.
 
 .PP
-The real interface will be set UP automatically and doesn't need a config
-file in case of a physical interface. But without a config file wicked will
-consider this interface as unused, if will not follow hotplug events and
-you're unable to apply any settings, e.g. ETHTOOL_OPTIONS. To avoid these
-problems, it is strongly recommended to provide a config file with at
-least STARTMODE='auto' for the physical interface as well.
+An ifcfg- file for the interface specified by \fBETHERDEVICE\fR must
+also be provided. In the most basic case, it should at least contain
+STARTMODE='auto'.
 
 The rest of the VLAN interface IP and routes configuration do not differ
 from ordinary interfaces. See also \fIman\ ifcfg\fR and \fIman\ routes\fR

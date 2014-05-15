@@ -1,0 +1,65 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\"
+.TH IFCFG-MACVTAP 5 "April 2014" "wicked" "Network configuration"
+.\" ...
+
+.SH NAME
+ifcfg-macvtap \- MACVTAP interface configuration
+.SH SYNOPSIS
+.B /etc/sysconfig/network/ifcfg-*
+
+.SH MACVTAPs
+To setup a macvtap interface you need a configuration file that contains at
+least the mandatory
+.TP
+.B MACVTAP_DEVICE
+variable with the real interface used for the macvtap virtual interface.
+
+.PP
+It may contain the optional
+
+.TP
+.B MACVTAP_MODE
+variable that may be set to one of the following supported modes: "private", "vepa",
+"bridge" and "pass-through/passthru". The default mode is "vepa".
+
+.PP
+You may also use the
+
+.TP
+.B MACVTAP_FLAG
+variable to set the "nopromisc" flag. By default, this flag is not set.
+
+.PP
+An ifcfg- file for the interface specified by \fBMACVTAP_DEVICE\fR must
+also be provided. In the most basic case, it should at least contain
+STARTMODE='auto'.
+
+For use as an interface that is passed to a virtualized guest, manual
+configurations of IP and route for the macvtap device on the host are
+not needed. See also \fIman\ ifcfg\fR and \fIman\ routes\fR for details.
+
+.SH EXAMPLES
+.TP
+Sets up \fImacvtap0\fR macvtap interface on top of \fBeth0\fR:
+
+.I ifcfg-macvtap0
+.nf
+   STARTMODE='auto'
+   MACVTAP_DEVICE='\fBeth0\fR'
+.fi
+
+.SH COPYRIGHT
+Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+.SH BUGS
+Please report bugs at <https://bugzilla.novell.com/index.cgi>
+.SH AUTHORS
+.nf
+Marius Tomaschewski
+Karol Mroz
+.fi
+.SH "SEE ALSO"
+.BR routes (5),
+.BR ifcfg (5),
+.BR wicked (8).
