@@ -102,6 +102,7 @@ IPADDRESS=10.10.11.184
 NETMASK=255.255.0.0
 BROADCAST=10.10.255.255
 STARTMODE=onboot
+BOOTPROTO=static
 
 .fi
 .RE
@@ -138,12 +139,13 @@ wicked generates debug output when called with
 .B debug
 option set to a particular facility (e.g. all). Please use it, when something wrong is happening.
 
+.SH COPYRIGHT
+Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
 .SH BUGS
-Please report bugs at <http://www.suse.de/feedback>
-.SH AUTHOR
+Please report bugs at <https://bugzilla.novell.com/index.cgi>
+.SH AUTHORS
 .nf
-Michal Ludvig <mludvig@suse.cz> -- tunnel support
-Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de> -- wicked
+Pawel Wieczorkiewicz
 .fi
 .SH "SEE ALSO"
 .BR ifcfg (5),
