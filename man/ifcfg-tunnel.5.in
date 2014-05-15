@@ -1,0 +1,227 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\"
+.TH IFCFG-TUNNEL 5 "August 2004" "wicked" "Network configuration"
+.\" ...
+
+.SH NAME
+ifcfg-tunnel \- network tunnel interface configuration
+.SH SYNOPSIS
+.\".B /etc/sysconfig/network/ifcfg-gre*
+.\".br
+.\".B /etc/sysconfig/network/ifcfg-ipip*
+.\".br
+.\".B /etc/sysconfig/network/ifcfg-sit*
+.\".br
+.\"
+.B /etc/sysconfig/network/ifcfg-tun*
+.br
+.B /etc/sysconfig/network/ifcfg-tap*
+
+.\".SH Tunnel interfaces
+.\"It is possible to create static IP tunnel interfaces for three different
+.\"protocols:
+.\".RS
+.\".PD 0
+.\".TP
+.\".I SIT
+.\"IPv6 over IPv4 tunnel
+.\".TP
+.\".I GRE
+.\"universal IPv4 tunnel
+.\".TP
+.\".I IPIP
+.\"IPv4 over IPv4 tunnel
+.\".PD
+.\".RE
+
+Currently, creation of user space program driven tunnels using
+the universal TUN/TAP device driver is supported:
+.RS
+.PD 0
+.TP
+.I TAP
+Ethernet tunnel interface
+.TP
+.I TUN
+Point-to-Point IP tunnel interface
+.PD
+.RE
+.PP
+Note that \fBSIT\fP, \fBGRE\fP and \fBIPIP\fP tunnels are under development.
+
+Since there is not yet YaST2 support for creating tunnels one must
+write appropriate config files by hand for now.
+
+.SH VARIABLES
+These variables can used in ip tunnel config files:
+.TP
+.B TUNNEL
+Here you have to set the tunnel protocol. Currently, this may be set to "tap"
+or "tun" for the user space program driven tunnels.
+.\"This may be "sit" for IPv6 over IPv4
+.\"tunnel, "gre" for universal IPv4 tunnel, "ipip" for IPv4 over IPv4 tunnel and
+.\""tap" or "tun" for the user space program driven tunnels.
+.TP
+.\"TODO: do we wish to support TUNNEL_DEVICE?
+.\".BR TUNNEL_LOCAL_IPADDR \ or \ TUNNEL_DEVICE
+.\"The address of the local tunnel's end could be directly specified in
+.\".B TUNNEL_LOCAL_IPADDR
+.\"variable. The address must be present on an existing interface of this host
+.\"(the TUNNEL_DEVICE). If
+.\".B TUNNEL_LOCAL_IPADDR
+.\"is empty the first ipv4 address without label from the interface given in the
+.\"variable
+.\".B TUNNEL_DEVICE
+.\"will be used. You can configure a label for each additional address on the
+.\"interface, that you don't want to use.
+.\".B TUNNEL_LOCAL_IPADDR
+.\"The address of the local tunnel's end.
+.\".TP
+.\".B TUNNEL_REMOTE_IPADDR
+.\"The address of the remote tunnel's end.
+.\".TP
+.\".B TUNNEL_TTL
+.\"Specify the
+.\".I Time To Life
+.\"of the packet which carries the tunneled data. Usually it is set to 64 but in
+.\"some circumstances you may want do use something else between 1 and 255. Special
+.\"value is "inherit" in which case the TTL is copied from the inner (tunneled)
+.\"packet. This is also the default if the TTL variable wasn't used.
+.\".TP
+.\"TODO: do we wish to support TUNNEL_OPTIONS?
+.\".B TUNNEL_OPTIONS
+.\"Here you may set additional options for the command
+.\".B ip tunnel add
+.\".TP
+.\"TODO: do we wish to support TUNNEL_SET_PERSISTENT?
+.\".B TUNNEL_SET_PERSISTENT
+.\"Create a persistent tun or tap interface. Default is "yes".
+.\"Non-persistent tunnels are not supported yet.
+.\".TP
+.BR TUNNEL_SET_OWNER \ and \ TUNNEL_SET_GROUP
+Allows to set the owner and group (by name or UID/GID) for persistent
+tun/tap interfaces.
+.SH Examples for tunnel configurations
+This are some generic examples for different tunnel types. As configuration names
+you may choose the interface names.
+.\"This are some generic examples for different tunnel types. Replace the shown
+.\"addresses and interface names by your individual ones. As configuration names
+.\"you may choose the interface names.
+.\".TP
+.\".B GRE and IPIP tunnels
+.\"Create a GRE tunnel between a local computer with IP address 192.168.1.2
+.\"and a remote computer with IP address 172.16.2.3. After the tunnel is
+.\"created assign an IP address 10.20.30.40 to it's local end. Default filename:
+.\".I ifcfg-gre1
+.\".nf
+.\"   STARTMODE='onboot'
+.\"   BOOTPROTO='static'
+.\"   TUNNEL='gre'
+.\"   TUNNEL_LOCAL_IPADDR='192.168.1.2'
+.\"   TUNNEL_REMOTE_IPADDR='172.16.2.3'
+.\"   IPADDR='10.20.30.40'
+.\"   TUNNEL_TTL='64'
+.\".fi
+.\"IPIP tunnel is created in exactly the same way, except that the variable
+.\".B TUNNEL
+.\"has to be set to "ipip" in this case. Use filename
+.\".I ifcfg-tunl1
+.\"in this case.
+.\".TP
+.\".B SIT tunnels for IPv6 over IPv4
+.\"There are two modes in which SIT tunnels may operate:
+.\".I static
+.\"and
+.\".I 6to4
+.\"To create a "static" tunnel one needs to know an IPv4 address of the remote end,
+.\"while for a "6to4" tunnel the remote end is a "6to4 relay". These relays are
+.\"usually public and could be reached either under their respective IPv4 address
+.\"or under a unique IPv4 anycast address 192.88.99.1 (as defined in RFC 3068).
+.\"This typical config file for a
+.\".B 6to4 tunnel
+.\"should fit most user's needs and the only required change is the external
+.\"interface name. Default filename:
+.\".I ifcfg-sit1
+.\".nf
+.\"   STARTMODE='onboot'
+.\"   BOOTPROTO='6to4'
+.\"   TUNNEL='sit'
+.\"   .\"TUNNEL_DEVICE='eth0'
+.\"   TUNNEL_TTL='64'
+.\".fi
+.\"Additionally you need to set some routes. Do that in a file called
+.\"ifroute-<configname> with the same configname as in ifcfg-<configname>. Default
+.\"filename:
+.\".I ifroute-sit1
+.\"It may look like this:
+.\".nf
+.\"   2000::/3 2002:c058:6301::1 - - - metric 1
+.\".fi
+.\"The magic string 2002:c058:6301::1 is a 6to4 version of the anycast
+.\"IPv4 address 192.88.99.1.
+.\"To create a "static" tunnel with local IPv6 address 3ffe:ffff::1234/64
+.\"use a config file like this: Default filename:
+.\".I ifcfg-sit1
+.\".nf
+.\"   STARTMODE='onboot'
+.\"  BOOTPROTO='static'
+.\"   TUNNEL='sit'
+.\"   TUNNEL_LOCAL_IPADDR='192.168.1.2'
+.\"   TUNNEL_REMOTE_IPADDR='172.16.2.3'
+.\"   IPADDR='3ffe:ffff::1234/64'
+.\"   TUNNEL_TTL='64'
+.\".fi
+.TP
+.B Universal TUN/TAP tunnels
+The universal TUN/TAP kernel driver provides an interface for user
+space programs to operate a tunnel. There are two modes in which
+the interface can be created:
+.nf
+  TUN (a Point-to-Point interface using local and remote IP) or
+  TAP (like normal ethernet interface, e.g. for use in bridges).
+.fi
+
+The following configuration allows to create the interfaces
+persistently:
+
+.I ifcfg-tap0
+.nf
+   STARTMODE='onboot'
+   BOOTPROTO='static'
+   TUNNEL='tap'
+.\"# optionally:
+.\"TUNNEL_SET_PERSISTENT='yes'
+   TUNNEL_SET_OWNER='username'
+   TUNNEL_SET_GROUP='groupname'
+.fi
+
+.I ifcfg-tun0
+.nf
+   STARTMODE='onboot'
+   BOOTPROTO='static'
+   TUNNEL='tun'
+.\"   # optionally:
+.\"TUNNEL_SET_PERSISTENT='yes'
+   TUNNEL_SET_OWNER='username'
+   TUNNEL_SET_GROUP='groupname'
+.fi
+
+The user space program can be started later. The
+TUNNEL_SET_OWNER and TUNNEL_SET_GROUP settings allow to run
+the user space program with an different UID/GID than 0 (root).
+When not specified, the user space program has to run with UID 0.
+.\"Non-persistent tunnels (TUNNEL_SET_PERSISTENT=no), where the
+.\"user space program (e.g. openvpn) is started directly in ifup,
+.\"are not supported yet.
+.SH COPYRIGHT
+Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+.SH BUGS
+Please report bugs at <https://bugzilla.novell.com/index.cgi>
+.SH AUTHORS
+.nf
+Michal Ludvig -- original tunnel man page
+Karol Mroz -- wicked
+.fi
+.SH "SEE ALSO"
+.BR ifcfg (5).
