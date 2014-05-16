@@ -266,6 +266,7 @@ fi
 /sbin/ldconfig
 
 %post
+%{fillup_only -dns config wicked network}
 %__mkdir_p -m 0750 %{wicked_statedir}
 %if "%wicked_statedir" != "%wicked_piddir"
 %__mkdir_p -m 0750 %{wicked_piddir}
@@ -323,6 +324,7 @@ fi
 %_mandir/man8/ifdown.8*
 %_mandir/man8/ifstatus.8*
 %_mandir/man8/ifup.8*
+%_localstatedir/adm/fillup-templates/sysconfig.config-wicked
 %attr(0750,root,root) %dir        %wicked_storedir
 %attr(0750,root,root) %dir %ghost %wicked_statedir
 %if "%wicked_statedir" != "%wicked_piddir"
