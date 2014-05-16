@@ -290,6 +290,8 @@ extern ni_bool_t		ni_ifworker_check_config(const ni_ifworker_t *, const xml_node
 extern void			ni_ifworker_reset(ni_ifworker_t *);
 extern int			ni_ifworker_bind_early(ni_ifworker_t *, ni_fsm_t *, ni_bool_t);
 extern int			ni_ifworker_start(ni_fsm_t *, ni_ifworker_t *, unsigned long);
+extern void			ni_ifworker_fail(ni_ifworker_t *, const char *, ...);
+extern void			ni_ifworker_success(ni_ifworker_t *);
 extern void			ni_ifworker_set_completion_callback(ni_ifworker_t *, void (*)(ni_ifworker_t *), void *);
 extern ni_rfkill_type_t		ni_ifworker_get_rfkill_type(const ni_ifworker_t *);
 extern void			ni_ifworker_free(ni_ifworker_t *);
@@ -372,6 +374,16 @@ static inline ni_bool_t
 ni_ifworker_active(const ni_ifworker_t *w)
 {
 	return w->fsm.action_table != NULL;
+}
+
+/*
+ * Returns true if a state is one of the FSM defined states
+ */
+static inline ni_bool_t
+ni_ifworker_is_valid_state(unsigned int state)
+{
+	return  state > NI_FSM_STATE_NONE &&
+		state < __NI_FSM_STATE_MAX;
 }
 
 #endif /* __CLIENT_FSM_H__ */

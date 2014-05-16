@@ -321,7 +321,7 @@ __ni_ifworker_done(ni_ifworker_t *w)
 	w->done = 1;
 }
 
-static void
+void
 ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 {
 	char errmsg[256];
@@ -341,7 +341,7 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 	__ni_ifworker_done(w);
 }
 
-static void
+void
 ni_ifworker_success(ni_ifworker_t *w)
 {
 	if (!w->done)

@@ -104,6 +104,12 @@ do_nanny_addpolicy(int argc, char **argv)
 
 	for (i = 0; i < docs.count; i++) {
 		rv = ni_nanny_addpolicy(docs.data[i]);
+		if (rv < 1) {
+			xml_node_t *root = xml_document_root(docs.data[i]);
+
+			ni_error("Unable to add policies from %s file",
+				xml_node_get_location_filename(root));
+		}
 	}
 
 	xml_document_array_destroy(&docs);
@@ -123,8 +129,14 @@ do_nanny_delpolicy(int argc, char **argv)
 		return rv;
 	}
 
-	while (optind < argc)
-		(void) ni_nanny_call_del_policy(argv[optind++]);
+	while (optind < argc) {
+		const char *policy_name = argv[optind++];
+
+		if (!ni_nanny_call_del_policy(policy_name)) {
+			ni_error("Unable to delete policy named %s", policy_name);
+			rv = NI_WICKED_RC_ERROR;
+		}
+	}
 
 	return NI_WICKED_RC_SUCCESS;
 }
@@ -268,7 +280,7 @@ ni_nanny_addpolicy_node(xml_node_t *pnode, const char *origin)
 	}
 
 	if (!ni_nanny_call_add_policy(name, pnode)) {
-		ni_error("Adding policy %s from %s file failed", name,
+		ni_debug_ifconfig("Adding policy %s from %s file failed", name,
 			ni_string_empty(origin) ? "unspecified" : origin);
 		return -1;
 	}
@@ -298,7 +310,7 @@ ni_nanny_addpolicy(xml_document_t *doc)
 	origin = xml_node_get_location_filename(root);
 
 	if (!ni_convert_cfg_into_policy_doc(doc)) {
-		ni_error("Unable to convert %s from %s to %s",
+		ni_debug_ifconfig("Unable to convert %s from %s to %s",
 			NI_CLIENT_IFCONFIG, origin, NI_NANNY_IFPOLICY);
 		return -1;
 	}
@@ -364,7 +376,7 @@ ni_nanny_call_add_policy(const char *name, xml_node_t *node)
 		policy_path = strdup(buffer);
 	} else
 	if (rv < 0) {
-		ni_error("Call to %s.createPolicy(%s) failed: %s",
+		ni_debug_application("Call to %s.createPolicy(%s) failed: %s",
 				ni_dbus_object_get_path(root_object), name,
 				ni_strerror(rv));
 		return FALSE;
@@ -376,7 +388,7 @@ ni_nanny_call_add_policy(const char *name, xml_node_t *node)
 	proxy = ni_dbus_object_create(root_object, relative_path, NULL, NULL);
 
 	if ((doc_string = xml_node_sprint(node)) == NULL) {
-		ni_error("%s: unable to format <policy> node", __func__);
+		ni_debug_application("%s: unable to format <policy> node", __func__);
 		return FALSE;
 	}
 
@@ -385,7 +397,7 @@ ni_nanny_call_add_policy(const char *name, xml_node_t *node)
 					NI_OBJECTMODEL_MANAGED_POLICY_INTERFACE, "update",
 					DBUS_TYPE_STRING, &doc_string,
 					DBUS_TYPE_INVALID, NULL)) < 0) {
-		ni_error("Call to ManagedPolicy.update() failed: %s", ni_strerror(rv));
+		ni_debug_application("Call to ManagedPolicy.update() failed: %s", ni_strerror(rv));
 		return FALSE;
 	}
 
@@ -407,7 +419,7 @@ ni_nanny_call_del_policy(const char *name)
 				DBUS_TYPE_OBJECT_PATH, &policy_path);
 
 	if (rv < 0) {
-		ni_error("Call to %s.deletePolicy(%s) failed: %s",
+		ni_debug_application("Call to %s.deletePolicy(%s) failed: %s",
 			ni_dbus_object_get_path(root_object), name, ni_strerror(rv));
 		return FALSE;
 	}

@@ -40,7 +40,9 @@
 #include <wicked/util.h>
 #include <wicked/logging.h>
 #include <wicked/netinfo.h>
+
 #include "wicked-client.h"
+#include "client/ifconfig.h"
 
 #if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
 extern ni_bool_t	__ni_suse_get_ifconfig(const char *, const char *,
@@ -278,7 +280,7 @@ __ifconfig_read_get_ifname(xml_node_t *ifnode, unsigned int *ifindex)
 	/* Check for   <name> node */
 	nnode = xml_node_get_child(ifnode, "name");
 	if (!nnode || ni_string_empty(nnode->cdata)) {
-		ni_debug_ifconfig("cannot get interface name -"
+		ni_debug_ifconfig("cannot get interface name - "
 			"config has no valid <name> node");
 		goto error;
 	}
@@ -346,6 +348,11 @@ ni_ifconfig_validate_adding_doc(xml_document_t *config_doc, ni_bool_t check_prio
 	/* Go through all config_doc's <interfaces> */
 	for (src_child = src_root->children; src_child; src_child = src_child->next) {
 		int rv;
+
+		if (ni_ifconfig_is_policy(src_child)) {
+			ni_debug_ifconfig("ignoring validation on policy nodes");
+			continue;
+		}
 
 		ifname = __ifconfig_read_get_ifname(src_child, NULL);
 		if (ni_string_empty(ifname))

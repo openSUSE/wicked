@@ -35,9 +35,51 @@
 #include <wicked/logging.h>
 #include <wicked/fsm.h>
 
+#include "client/ifconfig.h"
+
 #include "wicked-client.h"
 #include "ifdown.h"
 
+static ni_bool_t
+ni_ifdown_fire_nanny(ni_ifworker_t *w)
+{
+	if (w) {
+		/* Default policy name is interface name.
+		 * In case of any change other parameters
+		 * should be available within ifworker
+		 */
+		const char *policy_name = w->name;
+
+		if (!ni_nanny_call_device_disable(policy_name)) {
+			ni_debug_application("Unable to disable policy named %s",
+				policy_name);
+			return FALSE;
+		}
+
+		if (!ni_nanny_call_del_policy(policy_name)) {
+			ni_debug_application("Unable to delete policy named %s",
+				policy_name);
+			return FALSE;
+		}
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifdown_stop_policies(ni_ifworker_array_t *array)
+{
+	unsigned int i;
+
+	for (i = 0; i < array->count; i++) {
+		ni_ifworker_t *w = array->data[i];
+
+		if (!ni_ifdown_fire_nanny(w))
+			return FALSE;
+	}
+
+	return TRUE;
+}
 
 int
 ni_do_ifdown(int argc, char **argv)
@@ -168,8 +210,13 @@ usage:
 	}
 
 	/* Mark and start selected workers */
-	if (ifmarked.count)
+	if (ifmarked.count) {
+		/* Disable devices and delete all related policies from nanny */
+		ni_ifdown_stop_policies(&ifmarked);
+
+		/* Start workers to perform actual ifdown */
 		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
+	}
 
 	if (nmarked == 0) {
 		printf("ifdown: no matching interfaces\n");
