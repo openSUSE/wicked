@@ -126,6 +126,72 @@ error:
 	return FALSE;
 }
 
+
+/*
+ * Wickedd is sending us a signal indicating internal device state change.
+ * We want to wait for this signal and when it is >= device-up return TRUE.
+ * After timeout we fail...
+ */
+void
+ni_ifup_netif_state_change_signal_handler(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
+{
+
+	const char *signal_name = dbus_message_get_member(msg);
+	const char *object_path = dbus_message_get_path(msg);
+	ni_event_t event;
+	ni_ifworker_array_t *ifworkers = user_data;
+
+	if (ni_string_empty(object_path))
+		return;
+
+	if (ni_objectmodel_signal_to_event(signal_name, &event) < 0) {
+		ni_error("received broken signal \"%s\" from object \"%s\"",
+			signal_name, object_path);
+		return;
+	}
+
+	ni_debug_application("received signal %s; object_path=%s",
+		signal_name, object_path);
+
+	if (event >= NI_EVENT_DEVICE_UP) {
+		ni_string_array_t nsa = NI_STRING_ARRAY_INIT;
+		char ifname[IF_NAMESIZE+1] = { 0 };
+		unsigned int i, ifindex;
+
+		if (!ni_string_split(&nsa, object_path, "/", 0) ||
+		    ni_parse_uint(nsa.data[nsa.count-1], &ifindex, 10) < 0) {
+			ni_error("unable to parse object_path=%s", object_path);
+			return;
+		}
+
+		if (!if_indextoname(ifindex, ifname)) {
+			ni_error("unable to get ifname from ifindex=%d", ifindex);
+			return;
+		}
+
+		for (i = 0; i < ifworkers->count; ++i) {
+			ni_ifworker_t *w = ifworkers->data[i];
+
+			if (ni_string_eq(w->name, ifname))
+				ni_ifworker_array_remove(ifworkers, w);
+		}
+
+		ni_string_array_destroy(&nsa);
+	}
+}
+
+static void
+ni_ifup_timer_expires(void *user_data, const ni_timer_t *timer)
+{
+	int *status;
+
+	ni_assert(user_data);
+	status = user_data;
+
+	(void) timer;
+	*status = NI_WICKED_RC_ERROR;
+}
+
 int
 ni_do_ifup(int argc, char **argv)
 {
@@ -152,6 +218,7 @@ ni_do_ifup(int argc, char **argv)
 		{ NULL }
 	};
 
+	ni_dbus_client_t *client;
 	ni_ifmatcher_t ifmatch;
 	ni_ifworker_array_t ifmarked;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
@@ -160,6 +227,7 @@ ni_do_ifup(int argc, char **argv)
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
 	const char *ptr;
+	long timeout = 0;
 
 	fsm = ni_fsm_new();
 	ni_assert(fsm);
@@ -174,19 +242,14 @@ ni_do_ifup(int argc, char **argv)
 	ifmatch.require_config = TRUE;
 
 	/*
-	 * Workaround to consider WAIT_FOR_INTERFACES variable
-	 * in network/config (bnc#863371, bnc#862530 timeouts).
-	 * Correct would be to get it from compat layer, but
-	 * the network/config is sourced in systemd service...
+	 * Client waits for WAIT_FOR_INTERFACES/3 miliseconds
+	 * in order to let all ifworkers reach device-up state.
 	 */
 	if ((ptr = getenv("WAIT_FOR_INTERFACES"))) {
 		unsigned int sec;
 
-		if (ni_parse_uint(ptr, &sec, 10) == 0 &&
-		    (sec * 1000 > fsm->worker_timeout)) {
-			ni_debug_application("wait %u sec for interfaces", sec);
-			fsm->worker_timeout = sec * 1000;
-		}
+		if (ni_parse_uint(ptr, &sec, 10) == 0)
+			timeout = (sec * 1000)/3;
 	}
 
 	optind = 1;
@@ -206,12 +269,16 @@ ni_do_ifup(int argc, char **argv)
 
 		case OPT_TIMEOUT:
 			if (!strcmp(optarg, "infinite")) {
-				fsm->worker_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			} else if (ni_parse_uint(optarg, &fsm->worker_timeout, 10) >= 0) {
-				fsm->worker_timeout *= 1000; /* sec -> msec */
+				timeout = NI_IFWORKER_INFINITE_TIMEOUT;
 			} else {
-				ni_error("ifup: cannot parse timeout option \"%s\"", optarg);
-				goto usage;
+				unsigned int sec;
+
+				if (ni_parse_uint(optarg, &sec, 10) < 0) {
+					ni_error("ifup: cannot parse timeout option \"%s\"", optarg);
+					goto usage;
+				}
+
+				timeout = (sec * 1000)/3;
 			}
 			break;
 
@@ -277,11 +344,15 @@ usage:
 		goto usage;
 	}
 
-	if (!ni_fsm_create_client(fsm)) {
+	if (!(client = ni_fsm_create_client(fsm))) {
 		/* Severe error we always explicitly return */
 		status = NI_WICKED_RC_ERROR;
 		goto cleanup;
 	}
+
+	ni_dbus_client_add_signal_handler(client, NULL, NULL,
+		NI_OBJECTMODEL_NETIF_INTERFACE,
+		ni_ifup_netif_state_change_signal_handler, &ifmarked);
 
 	if (!ni_fsm_refresh_state(fsm)) {
 		/* Severe error we always explicitly return */
@@ -338,11 +409,23 @@ usage:
 			ni_cient_state_set_persistent(w->config.node);
 
 		if (!ni_ifup_hire_nanny(w)) {
-			status = NI_WICKED_RC_ERROR;
+			status = NI_WICKED_RC_NOT_CONFIGURED;
 			ni_error("%s: unable to apply configuration to nanny", w->name);
 		}
 		else
 			ni_info("%s: configuration applied to nanny", w->name);
+	}
+
+	ni_timer_register(timeout, ni_ifup_timer_expires, &status);
+	while (status == NI_WICKED_RC_SUCCESS) {
+		/* status is already success */
+		if (0 == ifmarked.count)
+			break;
+
+		if (ni_socket_wait(timeout) != 0)
+			ni_fatal("ni_socket_wait failed");
+
+		ni_timer_next_timeout();
 	}
 
 	/* Do not report any transient errors to systemd (e.g. dhcp
