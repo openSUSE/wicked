@@ -35,6 +35,9 @@
 
 static const char *	ni_managed_device_get_essid(xml_node_t *);
 
+static void		ni_managed_device_up(ni_managed_device_t *, const char *);
+static void		ni_virtual_device_up(ni_fsm_t *, ni_ifworker_t *);
+
 /*
  * List handling functions
  */
@@ -128,7 +131,7 @@ ni_managed_device_set_security_id(ni_managed_device_t *mdev, const ni_security_i
 	ni_security_id_set(&w->security_id, security_id);
 }
 
-void
+static void
 ni_virtual_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_ifworker_array_t ifmarked;
@@ -174,7 +177,7 @@ ni_virtual_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_polic
 	ni_debug_nanny("%s: using device config", w->name);
 	xml_node_print_debug(config, 0);
 
-	ni_ifworker_set_config(w, config, "nanny");
+	ni_ifworker_set_config(w, config, ni_fsm_policy_get_origin(policy));
 
 	/* Now do the fandango */
 	ni_virtual_device_up(fsm, w);
@@ -239,7 +242,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	ni_managed_device_set_policy(mdev, mpolicy, config);
 
 	/* Now do the fandango */
-	ni_managed_device_up(mdev);
+	ni_managed_device_up(mdev, ni_fsm_policy_get_origin(policy));
 }
 
 /*
@@ -288,8 +291,8 @@ ni_managed_device_up_done(ni_ifworker_t *w)
 /*
  * Bring up the device
  */
-void
-ni_managed_device_up(ni_managed_device_t *mdev)
+static void
+ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 {
 	ni_fsm_t *fsm = mdev->nanny->fsm;
 	ni_ifworker_t *w = mdev->worker;
@@ -333,7 +336,7 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 
 	ni_ifworker_set_completion_callback(w, ni_managed_device_up_done, mdev->nanny);
 
-	ni_ifworker_set_config(w, mdev->selected_config, "nanny");
+	ni_ifworker_set_config(w, mdev->selected_config, origin);
 	w->target_range.min = target_state;
 	w->target_range.max = __NI_FSM_STATE_MAX;
 
@@ -434,7 +437,7 @@ ni_managed_device_down(ni_managed_device_t *mdev)
 
 	ni_ifworker_set_completion_callback(w, ni_managed_device_down_done, mdev->nanny);
 
-	ni_ifworker_set_config(w, mdev->selected_config, "nanny");
+	ni_ifworker_set_config(w, mdev->selected_config, w->config.origin);
 	w->target_range.min = NI_FSM_STATE_NONE;
 	w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
 

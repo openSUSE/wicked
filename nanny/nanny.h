@@ -144,7 +144,6 @@ extern void			ni_managed_device_free(ni_managed_device_t *);
 extern void			ni_virtual_device_apply_policy(ni_fsm_t *, ni_ifworker_t *, ni_managed_policy_t *);
 extern void			ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy);
 extern void			ni_managed_device_set_policy(ni_managed_device_t *, ni_managed_policy_t *, xml_node_t *);
-extern void			ni_managed_device_up(ni_managed_device_t *mdev);
 extern void			ni_managed_device_down(ni_managed_device_t *mdev);
 
 extern ni_managed_policy_t *	ni_managed_policy_new(ni_nanny_t *, ni_fsm_policy_t *, xml_document_t *);
