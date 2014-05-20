@@ -12,6 +12,8 @@
 #include <wicked/modem.h>
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
+
+#include "client/ifconfig.h"
 #include "util_priv.h"
 
 /*
@@ -157,8 +159,24 @@ __ni_fsm_policy_reset(ni_fsm_policy_t *policy)
 	}
 }
 
+static inline ni_bool_t
+__ni_fsm_policy_create_worker(ni_fsm_t *fsm, xml_node_t *pitem)
+{
+	xml_node_t *ifnode;
+	ni_bool_t rv = FALSE;
+
+	if (fsm && pitem) {
+		ifnode = xml_node_clone(pitem, NULL);
+		ni_string_dup(&ifnode->name, NI_CLIENT_IFCONFIG);
+		rv = ni_fsm_workers_from_xml(fsm, ifnode, "nanny");
+	}
+
+	return rv;
+}
+
+
 static ni_bool_t
-__ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
+__ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, ni_fsm_t *fsm, xml_node_t *node)
 {
 	static unsigned int __policy_seq = 1;
 	xml_node_t *item;
@@ -207,13 +225,15 @@ __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 			}
 			continue;
 		} else
-		if (ni_string_eq(item->name, "merge")) {
+		if (ni_string_eq(item->name, NI_NANNY_IFPOLICY_MERGE)) {
 			action = ni_fsm_policy_action_new(NI_IFPOLICY_ACTION_MERGE, item, policy);
+			__ni_fsm_policy_create_worker(fsm, item);
 		} else
-		if (ni_string_eq(item->name, "replace")) {
+		if (ni_string_eq(item->name, NI_NANNY_IFPOLICY_REPLACE)) {
 			action = ni_fsm_policy_action_new(NI_IFPOLICY_ACTION_REPLACE, item, policy);
+			__ni_fsm_policy_create_worker(fsm, item);
 		} else
-		if (ni_string_eq(item->name, "create")) {
+		if (ni_string_eq(item->name, NI_NANNY_IFPOLICY_CREATE)) {
 			if (policy->type != NI_IFPOLICY_TYPE_TEMPLATE) {
 				ni_error("%s: <create> elements are permitted in templates only",
 						xml_node_location(item));
@@ -259,7 +279,7 @@ ni_fsm_policy_new(ni_fsm_t *fsm, const char *name, xml_node_t *node)
 	policy = calloc(1, sizeof(*policy));
 	ni_string_dup(&policy->name, name);
 
-	if (!__ni_fsm_policy_from_xml(policy, node)) {
+	if (!__ni_fsm_policy_from_xml(policy, fsm, node)) {
 		ni_fsm_policy_free(policy);
 		return NULL;
 	}
@@ -277,7 +297,7 @@ ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 	ni_fsm_policy_t temp;
 
 	memset(&temp, 0, sizeof(temp));
-	if (!__ni_fsm_policy_from_xml(&temp, node))
+	if (!__ni_fsm_policy_from_xml(&temp, NULL, node))
 		return FALSE;
 
 	__ni_fsm_policy_reset(policy);
@@ -363,9 +383,47 @@ ni_fsm_policy_location(const ni_fsm_policy_t *policy)
 static ni_bool_t
 ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
 {
-	if (policy->type != NI_IFPOLICY_TYPE_CONFIG)
+	xml_node_t *node;
+
+	if (ni_string_empty(policy->name)) {
+		ni_error("policy does not have a name");
 		return FALSE;
-	return policy->match && ni_ifcondition_check(policy->match, w);
+	}
+
+	if (!policy->match || policy->type != NI_IFPOLICY_TYPE_CONFIG) {
+		ni_error("wrong type or no match for policy %s", policy->name);
+		return FALSE;
+	}
+
+	/* 1st match   check - ifworker to policy name comparison */
+	if (!ni_string_eq(policy->name, w->name)) {
+		ni_error("%s: policy name indicates different device", policy->name);
+		return FALSE;
+	}
+
+	/* 2nd  match check -  ifworker  to config name comparison */
+	if (w->config.node && (node = xml_node_get_child(w->config.node, "name"))) {
+		const char *namespace = xml_node_get_attr(node, "namespace");
+		if (!namespace && !ni_string_eq(node->cdata, w->name)) {
+			ni_error("%s: config name does not match policy name", policy->name);
+			return FALSE;
+		}
+	}
+
+	/* 2nd match check - <match> condition must be fulfilled */
+	return ni_ifcondition_check(policy->match, w);
+}
+
+/*
+ * Retrieve policy origin
+ */
+const char *
+ni_fsm_policy_get_origin(const ni_fsm_policy_t *policy)
+{
+	const char *origin;
+
+	origin = xml_node_get_attr(policy->node, NI_NANNY_IFPOLICY_ORIGIN);
+	return ni_string_empty(origin) ? "nanny" : origin;
 }
 
 /*
@@ -390,6 +448,11 @@ ni_fsm_policy_get_applicable_policies(ni_fsm_t *fsm, ni_ifworker_t *w,
 {
 	unsigned int count = 0;
 	ni_fsm_policy_t *policy;
+
+	if (!w) {
+		ni_error("unable to get applicable policy for non-existing device");
+		return 0;
+	}
 
 	if (!w->use_default_policies)
 		return 0;

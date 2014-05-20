@@ -28,9 +28,15 @@
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/fsm.h>
+
+#include "client/ifconfig.h"
 #include "util_priv.h"
 #include "nanny.h"
 
+static void		ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
+#ifdef MODEM
+static void		ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
+#endif
 
 static void		__ni_nanny_user_free(ni_nanny_user_t *);
 static int		ni_nanny_prompt(const ni_fsm_prompt_t *, xml_node_t *, void *);
@@ -82,6 +88,7 @@ void
 ni_nanny_start(ni_nanny_t *mgr)
 {
 	ni_nanny_devmatch_t *match;
+	ni_dbus_client_t *client;
 
 	mgr->server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_NANNY);
 	if (!mgr->server)
@@ -92,7 +99,6 @@ ni_nanny_start(ni_nanny_t *mgr)
 	ni_fsm_set_user_prompt_fn(mgr->fsm, ni_nanny_prompt, mgr);
 
 	ni_objectmodel_nanny_init(mgr);
-	ni_objectmodel_register_all();
 
 	/* Resolve all class references in <enable> config elements,
 	 * so that we don't have to do this again for every new device we
@@ -108,6 +114,20 @@ ni_nanny_start(ni_nanny_t *mgr)
 			break;
 		}
 	}
+
+	if (!(client = ni_fsm_create_client(mgr->fsm)))
+		ni_fatal("Unable to create FSM client");
+
+	ni_dbus_client_add_signal_handler(client, NULL, NULL,
+			NI_OBJECTMODEL_NETIF_INTERFACE,
+			ni_nanny_netif_state_change_signal_receive,
+			mgr);
+#ifdef MODEM
+	ni_dbus_client_add_signal_handler(client, NULL, NULL,
+			NI_OBJECTMODEL_MODEM_INTERFACE,
+			ni_nanny_modem_state_change_signal_receive,
+			mgr);
+#endif
 }
 
 void
@@ -146,13 +166,24 @@ void
 ni_nanny_recheck_do(ni_nanny_t *mgr)
 {
 	unsigned int i;
+	ni_fsm_t *fsm = mgr->fsm;
 
-	if (ni_fsm_policies_changed_since(mgr->fsm, &mgr->last_policy_seq)) {
+	ni_assert(fsm);
+	if (ni_fsm_policies_changed_since(fsm, &mgr->last_policy_seq)) {
 		ni_managed_device_t *mdev;
 
 		for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
 			if (mdev->monitor)
 				ni_nanny_schedule_recheck(mgr, mdev->worker);
+		}
+
+		/* Always check virtual devices */
+		for (i = 0; i <  fsm->workers.count; i++) {
+			ni_ifworker_t *w =  fsm->workers.data[i];
+
+			/* Device not created yet */
+			if (w && !w->device)
+				ni_nanny_schedule_recheck(mgr, w);
 		}
 	}
 
@@ -160,6 +191,7 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 		return;
 
 	ni_fsm_refresh_state(mgr->fsm);
+	ni_fsm_build_hierarchy(fsm);
 
 	for (i = 0; i < mgr->recheck.count; ++i)
 		ni_nanny_recheck(mgr, mgr->recheck.data[i]);
@@ -178,13 +210,13 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_managed_device_t *mdev;
 	ni_managed_policy_t *mpolicy;
 	unsigned int count;
+	ni_bool_t virtual = FALSE;
 
-	/* Ignore devices that went away */
-	if (w->dead)
-		return;
+	mdev = ni_nanny_get_device(mgr, w);
 
-	if ((mdev = ni_nanny_get_device(mgr, w)) == NULL)
-		return;
+	/* We have an ifworker, but no device yet - follow virtual path */
+	if (NULL == mdev)
+		virtual = TRUE;
 
 	/* Note, we also check devices in state FAILED.
 	 * ni_managed_device_apply_policy() will then check if the policy
@@ -203,7 +235,7 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 		 * shutdown of the device. This needs cooperation from the server; which would have
 		 * to kill all leases and destroy all addresses.
 		 */
-		if (mdev->state != NI_MANAGED_STATE_STOPPED && mdev->state != NI_MANAGED_STATE_FAILED) {
+		if (!virtual && mdev->state != NI_MANAGED_STATE_STOPPED && mdev->state != NI_MANAGED_STATE_FAILED) {
 			ni_debug_nanny("%s: taking down device", w->name);
 			ni_managed_device_down(mdev);
 		} else {
@@ -215,7 +247,10 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	policy = policies[count-1];
 	mpolicy = ni_nanny_get_policy(mgr, policy);
 
-	ni_managed_device_apply_policy(mdev, mpolicy);
+	if (virtual)
+		ni_virtual_device_apply_policy(mgr->fsm, w, mpolicy);
+	else
+		ni_managed_device_apply_policy(mdev, mpolicy);
 }
 
 /*
@@ -591,6 +626,158 @@ ni_objectmodel_nanny_unwrap(const ni_dbus_object_t *object, DBusError *error)
 }
 
 /*
+ * Wickedd is sending us a signal (such a linkUp/linkDown, or change in the set of
+ * visible WLANs)
+ */
+void
+ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
+{
+	ni_nanny_t *mgr = user_data;
+	const char *signal_name = dbus_message_get_member(msg);
+	const char *object_path = dbus_message_get_path(msg);
+	ni_event_t event;
+	ni_managed_device_t *mdev;
+	ni_ifworker_t *w;
+
+	if (ni_objectmodel_signal_to_event(signal_name, &event) < 0) {
+		ni_debug_nanny("received unknown signal \"%s\" from object \"%s\"",
+				signal_name, object_path);
+		return;
+	}
+
+	if (event == NI_EVENT_DEVICE_CREATE) {
+		// A new device was added. Could be a virtual device like
+		// a VLAN or vif, or a hotplug device
+		// Create a worker and a managed_netif for this device.
+		if ((w = ni_fsm_recv_new_netif_path(mgr->fsm, object_path))) {
+			ni_nanny_register_device(mgr, w);
+			ni_nanny_schedule_recheck(mgr, w);
+		}
+		return;
+	}
+
+	if ((w = ni_fsm_ifworker_by_object_path(mgr->fsm, object_path)) == NULL) {
+		ni_warn("received signal \"%s\" from unknown object \"%s\"",
+				signal_name, object_path);
+		return;
+	}
+	if (w->type != NI_IFWORKER_TYPE_NETDEV || w->device == NULL) {
+		ni_error("%s: received signal \"%s\" from \"%s\" (not a managed network device)",
+				w->name, signal_name, object_path);
+		return;
+	}
+
+	if (event == NI_EVENT_DEVICE_DELETE) {
+		ni_debug_nanny("%s: received signal \"%s\" from \"%s\"",
+				w->name, signal_name, object_path);
+		// delete the worker and the managed netif
+		ni_nanny_unregister_device(mgr, w);
+		return;
+	}
+
+	if ((mdev = ni_nanny_get_device(mgr, w)) == NULL) {
+		ni_debug_nanny("%s: received signal \"%s\" from \"%s\" (not a managed device)",
+				w->name, signal_name, object_path);
+		return;
+	}
+
+	ni_debug_nanny("%s: received signal %s; state=%s, policy=%s%s%s",
+			w->name, signal_name,
+			ni_managed_state_to_string(mdev->state),
+			mdev->selected_policy? ni_fsm_policy_name(mdev->selected_policy->fsm_policy): "<none>",
+			mdev->allowed? ", user control allowed" : "",
+			mdev->monitor? ", monitored" : "");
+
+	switch (event) {
+	case NI_EVENT_DEVICE_READY:
+		if (mdev->selected_policy != NULL && mdev->monitor)
+			ni_nanny_schedule_recheck(mgr, w);
+		break;
+
+	case NI_EVENT_LINK_DOWN:
+		// If we have recorded a policy for this device, it means
+		// we were the ones who took it up - so bring it down
+		// again
+		if (mdev->selected_policy != NULL && mdev->monitor)
+			ni_nanny_schedule_down(mgr, w);
+		break;
+
+	case NI_EVENT_LINK_ASSOCIATION_LOST:
+		// If we have recorded a policy for this device, it means
+		// we were the ones who took it up - so bring it down
+		// again
+		if (mdev->selected_policy != NULL && mdev->monitor)
+			ni_nanny_schedule_recheck(mgr, w);
+		break;
+
+	case NI_EVENT_LINK_SCAN_UPDATED:
+		if (mdev->monitor)
+			ni_nanny_schedule_recheck(mgr, w);
+		break;
+
+	case NI_EVENT_LINK_UP:
+		// Link detection - eg for ethernet
+		if (mdev->monitor)
+			ni_nanny_schedule_recheck(mgr, w);
+		break;
+
+	default: ;
+	}
+}
+
+#ifdef MODEM
+/*
+ * Wickedd is sending us a modem signal (usually discovery or removal of a modem)
+ */
+void
+ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
+{
+	ni_nanny_t *mgr = user_data;
+	const char *signal_name = dbus_message_get_member(msg);
+	const char *object_path = dbus_message_get_path(msg);
+	ni_event_t event;
+	ni_ifworker_t *w;
+
+	if (ni_objectmodel_signal_to_event(signal_name, &event) < 0) {
+		ni_debug_nanny("received unknown signal \"%s\" from object \"%s\"",
+				signal_name, object_path);
+		return;
+	}
+
+	// We receive a deviceCreate signal when a modem was plugged in
+	if (event == NI_EVENT_DEVICE_CREATE) {
+		if ((w = ni_fsm_recv_new_modem_path(mgr->fsm, object_path))) {
+			ni_nanny_register_device(mgr, w);
+			ni_nanny_schedule_recheck(mgr, w);
+		}
+		return;
+	}
+
+	if ((w = ni_fsm_ifworker_by_object_path(mgr->fsm, object_path)) == NULL) {
+		ni_warn("received signal \"%s\" from unknown object \"%s\"",
+				signal_name, object_path);
+		return;
+	}
+
+	if (w->type != NI_IFWORKER_TYPE_MODEM || w->modem == NULL) {
+		ni_error("%s: received signal \"%s\" from \"%s\" (not a managed modem device)",
+				w->name, signal_name, object_path);
+		return;
+	}
+
+	ni_debug_nanny("%s: received signal %s from %s", w->name, signal_name, object_path);
+	if (event == NI_EVENT_DEVICE_DELETE) {
+		// delete the worker and the managed modem
+		ni_nanny_unregister_device(mgr, w);
+	} else if (event == NI_EVENT_DEVICE_READY) {
+		ni_nanny_schedule_recheck(mgr, w);
+	} else {
+		// ignore
+	}
+}
+#endif
+
+/*
  * Nanny.getDevice(devname)
  */
 static dbus_bool_t
@@ -642,49 +829,54 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_dbus_object_t *policy_object;
+	const char *doc_string;
+	xml_document_t *doc;
+	xml_node_t *root, *pnode;
 	ni_nanny_t *mgr;
-	ni_fsm_policy_t *policy;
-	const char *name;
-	char namebuf[64];
+	unsigned int count = 0;
 
 	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL)
 		return FALSE;
 
-	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &name))
+	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &doc_string) || ni_string_empty(doc_string))
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
 
-	if (*name == '\0') {
-		static unsigned int counter = 0;
-
-		do {
-			snprintf(namebuf, sizeof(namebuf), "policy%u", counter++);
-		} while (ni_fsm_policy_by_name(mgr->fsm, namebuf) && counter);
-		name = namebuf;
-	}
-
-#ifdef notyet
-	if (!ni_policy_name_valid(name)) {
+	doc = xml_document_from_string(doc_string, NULL);
+	if (!doc) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"Bad policy name \"%s\" in call to %s.%s",
-				name, ni_dbus_object_get_path(object), method->name);
+			"Unable to parse policy document %s", doc_string);
 		return FALSE;
 	}
-#endif
 
-	if (ni_fsm_policy_by_name(mgr->fsm, name) != NULL) {
-		dbus_set_error(error, NI_DBUS_ERROR_POLICY_EXISTS,
+	root = xml_document_root(doc);
+	for (pnode = root->children; pnode != NULL; pnode = pnode->next) {
+		ni_fsm_policy_t *policy;
+		const char *pname;
+
+		if (!ni_ifpolicy_is_valid(pnode)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"Bad policy \"%s\" in call to %s.%s",
+					doc_string, ni_dbus_object_get_path(object), method->name);
+			return FALSE;
+		}
+
+		pname = xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_NAME);
+		if (ni_fsm_policy_by_name(mgr->fsm, pname) != NULL) {
+			dbus_set_error(error, NI_DBUS_ERROR_POLICY_EXISTS,
 				"Policy \"%s\" already exists in call to %s.%s",
-				name, ni_dbus_object_get_path(object), method->name);
-		return FALSE;
+				pname, ni_dbus_object_get_path(object), method->name);
+			return FALSE;
+		}
+
+		policy = ni_fsm_policy_new(mgr->fsm, pname, pnode);
+		policy_object = ni_objectmodel_register_managed_policy(ni_dbus_object_get_server(object),
+			ni_managed_policy_new(mgr, policy, NULL));
+
+		if (ni_dbus_message_append_object_path(reply, ni_dbus_object_get_path(policy_object)))
+			count++;
 	}
 
-	policy = ni_fsm_policy_new(mgr->fsm, name, NULL);
-
-	policy_object = ni_objectmodel_register_managed_policy(ni_dbus_object_get_server(object),
-					ni_managed_policy_new(mgr, policy, NULL));
-
-	ni_dbus_message_append_object_path(reply, ni_dbus_object_get_path(policy_object));
-	return TRUE;
+	return count ? TRUE : FALSE;
 }
 
 /*

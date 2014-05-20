@@ -80,29 +80,43 @@ ni_ifpolicy_match_add_link_type(xml_node_t *policy, unsigned int type)
 /*
  * Generate a <match> node for ifpolicy
  */
-static xml_node_t *
-ni_ifpolicy_generate_match(const xml_node_t *ifname)
+xml_node_t *
+ni_ifpolicy_generate_match(const ni_string_array_t *ifnames, const char *cond)
 {
-	xml_node_t *mnode;
-	const char *namespace;
-	char *device_str = NULL;
+	xml_node_t *mnode = NULL;
+	xml_node_t *cnode = NULL;
 
-	if (!ifname)
+	if (!(mnode = xml_node_new(NI_NANNY_IFPOLICY_MATCH, NULL)))
 		return NULL;
 
-	/* Resolve namespace */
-	namespace = xml_node_get_attr(ifname, "namespace");
-	ni_string_printf(&device_str, "%s%s%s", NI_NANNY_IFPOLICY_MATCH_DEV,
-		ni_string_empty(namespace) ? "" : ":",
-		ni_string_empty(namespace) ? "" : namespace);
+	/* Always true condition */
+	if (!ifnames || 0 == ifnames->count) {
+		if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_ALWAYS_TRUE, mnode, NULL))
+			goto error;
+	}
+	else {
+		unsigned int i;
 
-	if (!(mnode = xml_node_new(NI_NANNY_IFPOLICY_MATCH, NULL)) ||
-	    !xml_node_new_element(device_str, mnode, ifname->cdata)) {
-		return NULL;
+		if (ni_string_empty(cond))
+			cond = NI_NANNY_IFPOLICY_MATCH_COND_OR;
+
+		if (!(cnode = xml_node_new(cond, mnode)))
+			goto error;
+
+		for (i = 0; i < ifnames->count; i++) {
+			 const char *ifname = ifnames->data[i];
+
+			if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, cnode, ifname))
+				goto error;
+		}
 	}
 
-	ni_string_free(&device_str);
 	return mnode;
+
+error:
+	xml_node_free(mnode);
+	xml_node_free(cnode);
+	return NULL;
 }
 
 
@@ -110,21 +124,18 @@ ni_ifpolicy_generate_match(const xml_node_t *ifname)
  * Convert ifconfig to ifpolicy format
  */
 xml_node_t *
-ni_convert_cfg_into_policy_node(xml_node_t *ifcfg, const char *origin)
+ni_convert_cfg_into_policy_node(xml_node_t *ifcfg, xml_node_t *match, const char *name, const char *origin)
 {
-	xml_node_t *ifpolicy, *match, *ifname;
+	xml_node_t *ifpolicy;
 	ni_uuid_t uuid;
 
-	if (!(ifname = xml_node_get_child(ifcfg, NI_CLIENT_IFCONFIG_MATCH_NAME)))
-		return NULL;
-
-	if (!(match = ni_ifpolicy_generate_match(ifname)))
+	if (!ifcfg || !match || ni_string_empty(name) || ni_string_empty(origin))
 		return NULL;
 
 	ifpolicy = xml_node_new(NI_NANNY_IFPOLICY, NULL);
 	xml_node_add_child(ifpolicy, match);
 
-	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_NAME, ifname->cdata);
+	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_NAME, name);
 
 	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_ORIGIN, origin);
 	ni_uuid_generate(&uuid);
@@ -139,7 +150,7 @@ ni_convert_cfg_into_policy_node(xml_node_t *ifcfg, const char *origin)
 xml_document_t *
 ni_convert_cfg_into_policy_doc(xml_document_t *ifconfig)
 {
-	xml_node_t *root, *ifnode;
+	xml_node_t *root, *ifnode, *ifname, *match;
 	const char *origin;
 
 	if (xml_document_is_empty(ifconfig))
@@ -167,8 +178,15 @@ ni_convert_cfg_into_policy_doc(xml_document_t *ifconfig)
 			return NULL;
 		}
 
+		ifname = xml_node_get_child(ifnode, NI_CLIENT_IFCONFIG_MATCH_NAME);
+		if (!ifname || ni_string_empty(ifname->cdata))
+			return NULL;
+
+		if (!(match = ni_ifpolicy_generate_match(NULL, NULL)))
+			return NULL;
+
 		xml_node_add_child(root,
-			ni_convert_cfg_into_policy_node(ifnode, origin));
+			ni_convert_cfg_into_policy_node(ifnode, match, ifname->cdata, origin));
 	}
 
 	return ifconfig;

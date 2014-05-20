@@ -35,6 +35,9 @@
 
 static const char *	ni_managed_device_get_essid(xml_node_t *);
 
+static void		ni_managed_device_up(ni_managed_device_t *, const char *);
+static void		ni_virtual_device_up(ni_fsm_t *, ni_ifworker_t *);
+
 /*
  * List handling functions
  */
@@ -128,6 +131,59 @@ ni_managed_device_set_security_id(ni_managed_device_t *mdev, const ni_security_i
 	ni_security_id_set(&w->security_id, security_id);
 }
 
+static void
+ni_virtual_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	ni_ifworker_array_t ifmarked;
+
+	ni_assert(fsm && w);
+
+	memset(&ifmarked, 0, sizeof(ifmarked));
+
+	w->target_range.min = NI_FSM_STATE_ADDRCONF_UP;
+	w->target_range.max = __NI_FSM_STATE_MAX;
+
+	ni_ifworker_array_append(&ifmarked, w);
+	ni_fsm_start_matching_workers(fsm, &ifmarked);
+
+	ni_ifworker_array_destroy(&ifmarked);
+}
+
+/*
+ * Apply policy to a virtual (factory) device
+ */
+void
+ni_virtual_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_policy_t *mpolicy)
+{
+	const char *type_name;
+	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
+	xml_node_t *config = NULL;
+
+	ni_debug_nanny("%s: creating device using policy %s",
+		w->name, ni_fsm_policy_name(policy));
+
+	/* This returns "modem" or "interface" */
+	type_name = ni_ifworker_type_to_string(w->type);
+
+	config = xml_node_new(type_name, NULL);
+	xml_node_new_element("name", config, w->name);
+
+	config = ni_fsm_policy_transform_document(config, &policy, 1);
+	if (config == NULL) {
+		ni_error("%s: error when applying policy to %s document",
+			w->name, type_name);
+		return;
+	}
+	ni_debug_nanny("%s: using device config", w->name);
+	xml_node_print_debug(config, 0);
+
+	ni_ifworker_set_config(w, config, ni_fsm_policy_get_origin(policy));
+
+	/* Now do the fandango */
+	ni_virtual_device_up(fsm, w);
+}
+
+
 /*
  * Apply policy to a device
  */
@@ -135,7 +191,6 @@ void
 ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy)
 {
 	ni_ifworker_t *w = mdev->worker;
-	ni_fsm_t *fsm = mdev->nanny->fsm;
 	const char *type_name;
 	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
 	xml_node_t *config = NULL;
@@ -168,10 +223,6 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 
 	ni_debug_nanny("%s: using policy %s", w->name, ni_fsm_policy_name(policy));
 
-	/* Set FSM and current ifworker as writable, nanny can update wickedd structures */
-	w->readonly = FALSE;
-	fsm->readonly = FALSE;
-
 	/* This returns "modem" or "interface" */
 	type_name = ni_ifworker_type_to_string(w->type);
 
@@ -191,7 +242,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	ni_managed_device_set_policy(mdev, mpolicy, config);
 
 	/* Now do the fandango */
-	ni_managed_device_up(mdev);
+	ni_managed_device_up(mdev, ni_fsm_policy_get_origin(policy));
 }
 
 /*
@@ -240,8 +291,8 @@ ni_managed_device_up_done(ni_ifworker_t *w)
 /*
  * Bring up the device
  */
-void
-ni_managed_device_up(ni_managed_device_t *mdev)
+static void
+ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 {
 	ni_fsm_t *fsm = mdev->nanny->fsm;
 	ni_ifworker_t *w = mdev->worker;
@@ -285,7 +336,7 @@ ni_managed_device_up(ni_managed_device_t *mdev)
 
 	ni_ifworker_set_completion_callback(w, ni_managed_device_up_done, mdev->nanny);
 
-	ni_ifworker_set_config(w, mdev->selected_config, "nanny");
+	ni_ifworker_set_config(w, mdev->selected_config, origin);
 	w->target_range.min = target_state;
 	w->target_range.max = __NI_FSM_STATE_MAX;
 
@@ -386,7 +437,7 @@ ni_managed_device_down(ni_managed_device_t *mdev)
 
 	ni_ifworker_set_completion_callback(w, ni_managed_device_down_done, mdev->nanny);
 
-	ni_ifworker_set_config(w, mdev->selected_config, "nanny");
+	ni_ifworker_set_config(w, mdev->selected_config, w->config.origin);
 	w->target_range.min = NI_FSM_STATE_NONE;
 	w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
 

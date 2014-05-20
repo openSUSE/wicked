@@ -74,8 +74,9 @@ ni_ifdown_stop_policies(ni_ifworker_array_t *array)
 	for (i = 0; i < array->count; i++) {
 		ni_ifworker_t *w = array->data[i];
 
+		/* TODO: Check the failure of particular worker */
 		if (!ni_ifdown_fire_nanny(w))
-			return FALSE;
+			continue;
 	}
 
 	return TRUE;

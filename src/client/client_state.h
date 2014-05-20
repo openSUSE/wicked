@@ -38,6 +38,7 @@ extern ni_bool_t	ni_client_state_load(ni_client_state_t *, unsigned int);
 extern ni_bool_t	ni_client_state_save(const ni_client_state_t *, unsigned int);
 extern ni_bool_t	ni_client_state_move(unsigned int, unsigned int);
 extern ni_bool_t	ni_client_state_drop(unsigned int);
+extern ni_bool_t	ni_cient_state_set_persistent(xml_node_t *);
 
 /*
  * Static inline functions

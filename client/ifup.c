@@ -39,8 +39,92 @@
 #include <wicked/logging.h>
 #include <wicked/fsm.h>
 
+#include "client/ifconfig.h"
+
 #include "wicked-client.h"
 #include "ifup.h"
+
+static ni_bool_t
+ni_ifup_hire_nanny(ni_ifworker_t *w)
+{
+	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
+	xml_node_t *match, *ifcfg = NULL, *policy = NULL;
+	ni_netdev_t *dev;
+	unsigned int i;
+
+	if (!w)
+		return FALSE;
+
+	ni_debug_application("%s: hiring nanny", w->name);
+
+	/* Create a config duplicate for a policy */
+	ifcfg = xml_node_clone(w->config.node, NULL);
+	if (!ifcfg)
+		goto error;
+
+	ni_debug_application("%s: converting config into policy", w->name);
+
+	/* Prepare for match generation - get names of referenced workers*/
+	for (i = 0; i < w->children.count; i++) {
+		ni_ifworker_t *child = w->children.data[i];
+
+		ni_string_array_append(&ifnames, child->name);
+	}
+
+	/* If no references - match against own name */
+	if (0 == w->children.count)
+		ni_string_array_append(&ifnames, w->name);
+
+	if (!(match = ni_ifpolicy_generate_match(&ifnames, NI_NANNY_IFPOLICY_MATCH_COND_OR)))
+		return FALSE;
+
+	policy = ni_convert_cfg_into_policy_node(ifcfg, match, w->name, w->config.origin);
+	if (!policy) {
+		policy = ifcfg; /* Free cloned config*/
+		goto error;
+	}
+
+	/* Add link type to match node*/
+	dev = w->device;
+	if (dev) {
+		ni_debug_application("%s: adding link type (%s) to match",
+			w->name, ni_linktype_type_to_name(dev->link.type));
+		ni_ifpolicy_match_add_link_type(policy, dev->link.type);
+	}
+
+#if 0
+	ni_debug_application("%s: adding minimum device state (%s) to match",
+		w->name, ni_ifworker_state_name(w->fsm.state));
+
+	/* Add minimum device state to match node */
+	if (!ni_ifpolicy_match_add_min_state(policy, w->fsm.state))
+		goto error;
+#endif
+
+	if (dev) {
+		ni_debug_application("%s: enabling device for nanny", w->name);
+		if (!ni_nanny_call_device_enable(w->name))
+			goto error;
+	}
+
+	ni_debug_application("%s: adding policy %s to nanny", w->name,
+		xml_node_get_attr(policy, NI_NANNY_IFPOLICY_NAME));
+
+	if (ni_nanny_addpolicy_node(policy, w->config.origin) <= 0) {
+		ni_nanny_call_device_disable(w->name);
+		goto error;
+	}
+
+	ni_debug_application("%s: nanny hired!", w->name);
+	ni_ifworker_success(w);
+	return TRUE;
+
+error:
+	ni_ifworker_fail(w, "%s: unable to apply configuration to nanny", w->name);
+	ni_string_array_destroy(&ifnames);
+	xml_node_free(policy);
+	return FALSE;
+}
 
 int
 ni_do_ifup(int argc, char **argv)
@@ -69,11 +153,10 @@ ni_do_ifup(int argc, char **argv)
 	};
 
 	ni_ifmatcher_t ifmatch;
-	ni_ifmarker_t ifmarker;
 	ni_ifworker_array_t ifmarked;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
-	ni_bool_t check_prio = TRUE;
-	unsigned int nmarked;
+	ni_bool_t check_prio = TRUE, set_persistent = FALSE;
+	unsigned int i;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
 	const char *ptr;
@@ -83,16 +166,12 @@ ni_do_ifup(int argc, char **argv)
 	ni_fsm_require_register_type("reachable", ni_ifworker_reachability_check_new);
 
 	memset(&ifmatch, 0, sizeof(ifmatch));
-	memset(&ifmarker, 0, sizeof(ifmarker));
 	memset(&ifmarked, 0, sizeof(ifmarked));
 
 	/* Allow ifup on all interfaces we have config for */
 	ifmatch.require_configured = FALSE;
 	ifmatch.allow_persistent = TRUE;
 	ifmatch.require_config = TRUE;
-
-	ifmarker.target_range.min = NI_FSM_STATE_ADDRCONF_UP;
-	ifmarker.target_range.max = __NI_FSM_STATE_MAX;
 
 	/*
 	 * Workaround to consider WAIT_FOR_INTERFACES variable
@@ -155,7 +234,7 @@ ni_do_ifup(int argc, char **argv)
 #endif
 
 		case OPT_PERSISTENT:
-			ifmarker.persistent = TRUE;
+			set_persistent = TRUE;
 			break;
 
 		default:
@@ -235,8 +314,9 @@ usage:
 		goto cleanup;
 	}
 
+	status = NI_WICKED_RC_SUCCESS;
+
 	/* Get workers that match given criteria */
-	nmarked = 0;
 	while (optind < argc) {
 		ifmatch.name = argv[optind++];
 
@@ -248,28 +328,29 @@ usage:
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
 	}
 
-	/* Mark and start selected workers */
-	if (ifmarked.count)
-		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
-
-	if (nmarked == 0) {
+	if (0 == ifmarked.count)
 		printf("ifup: no matching interfaces\n");
-		status = NI_WICKED_RC_SUCCESS;
-	} else {
-		if (ni_fsm_schedule(fsm) != 0)
-			ni_fsm_mainloop(fsm);
 
-		/* No error if all interfaces were good */
-		status = ni_fsm_fail_count(fsm) ?
-			NI_WICKED_RC_ERROR : NI_WICKED_RC_SUCCESS;
+	for (i = 0; i < ifmarked.count; i++) {
+		ni_ifworker_t *w = ifmarked.data[i];
 
-		/* Do not report any transient errors to systemd (e.g. dhcp
-		 * or whatever not ready in time) -- returning an error may
-		 * cause to stop the network completely.
-		 */
-		if (!opt_transient)
-			status = NI_LSB_RC_SUCCESS;
+		if (set_persistent)
+			ni_cient_state_set_persistent(w->config.node);
+
+		if (!ni_ifup_hire_nanny(w)) {
+			status = NI_WICKED_RC_ERROR;
+			ni_error("%s: unable to apply configuration to nanny", w->name);
+		}
+		else
+			ni_info("%s: configuration applied to nanny", w->name);
 	}
+
+	/* Do not report any transient errors to systemd (e.g. dhcp
+	 * or whatever not ready in time) -- returning an error may
+	 * cause to stop the network completely.
+	 */
+	if (!opt_transient)
+		status = NI_LSB_RC_SUCCESS;
 
 cleanup:
 	ni_ifworker_array_destroy(&ifmarked);
