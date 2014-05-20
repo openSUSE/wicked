@@ -28,6 +28,8 @@
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/fsm.h>
+
+#include "client/ifconfig.h"
 #include "util_priv.h"
 #include "nanny.h"
 
@@ -641,49 +643,54 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_dbus_object_t *policy_object;
+	const char *doc_string;
+	xml_document_t *doc;
+	xml_node_t *root, *pnode;
 	ni_nanny_t *mgr;
-	ni_fsm_policy_t *policy;
-	const char *name;
-	char namebuf[64];
+	unsigned int count = 0;
 
 	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL)
 		return FALSE;
 
-	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &name))
+	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &doc_string) || ni_string_empty(doc_string))
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
 
-	if (*name == '\0') {
-		static unsigned int counter = 0;
-
-		do {
-			snprintf(namebuf, sizeof(namebuf), "policy%u", counter++);
-		} while (ni_fsm_policy_by_name(mgr->fsm, namebuf) && counter);
-		name = namebuf;
-	}
-
-#ifdef notyet
-	if (!ni_policy_name_valid(name)) {
+	doc = xml_document_from_string(doc_string, NULL);
+	if (!doc) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"Bad policy name \"%s\" in call to %s.%s",
-				name, ni_dbus_object_get_path(object), method->name);
+			"Unable to parse policy document %s", doc_string);
 		return FALSE;
 	}
-#endif
 
-	if (ni_fsm_policy_by_name(mgr->fsm, name) != NULL) {
-		dbus_set_error(error, NI_DBUS_ERROR_POLICY_EXISTS,
+	root = xml_document_root(doc);
+	for (pnode = root->children; pnode != NULL; pnode = pnode->next) {
+		ni_fsm_policy_t *policy;
+		const char *pname;
+
+		if (!ni_ifpolicy_is_valid(pnode)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"Bad policy \"%s\" in call to %s.%s",
+					doc_string, ni_dbus_object_get_path(object), method->name);
+			return FALSE;
+		}
+
+		pname = xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_NAME);
+		if (ni_fsm_policy_by_name(mgr->fsm, pname) != NULL) {
+			dbus_set_error(error, NI_DBUS_ERROR_POLICY_EXISTS,
 				"Policy \"%s\" already exists in call to %s.%s",
-				name, ni_dbus_object_get_path(object), method->name);
-		return FALSE;
+				pname, ni_dbus_object_get_path(object), method->name);
+			return FALSE;
+		}
+
+		policy = ni_fsm_policy_new(mgr->fsm, pname, pnode, xml_node_get_location_filename(root));
+		policy_object = ni_objectmodel_register_managed_policy(ni_dbus_object_get_server(object),
+			ni_managed_policy_new(mgr, policy, NULL));
+
+		if (ni_dbus_message_append_object_path(reply, ni_dbus_object_get_path(policy_object)))
+			count++;
 	}
 
-	policy = ni_fsm_policy_new(mgr->fsm, name, NULL);
-
-	policy_object = ni_objectmodel_register_managed_policy(ni_dbus_object_get_server(object),
-					ni_managed_policy_new(mgr, policy, NULL));
-
-	ni_dbus_message_append_object_path(reply, ni_dbus_object_get_path(policy_object));
-	return TRUE;
+	return count ? TRUE : FALSE;
 }
 
 /*

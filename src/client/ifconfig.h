@@ -39,6 +39,8 @@
 #define NI_NANNY_IFPOLICY_MATCH_MIN_STATE	"minimum-device-state"
 #define NI_NANNY_IFPOLICY_MATCH_LINK_TYPE	"link-type"
 #define NI_NANNY_IFPOLICY_MERGE		"merge"
+#define NI_NANNY_IFPOLICY_REPLACE		"replace"
+#define NI_NANNY_IFPOLICY_CREATE		"create"
 
 #define NI_NANNY_IFPOLICY_NAME			"name"
 #define NI_NANNY_IFPOLICY_ORIGIN		"origin"
