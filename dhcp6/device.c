@@ -85,10 +85,6 @@ static void			ni_dhcp6_device_free(ni_dhcp6_device_t *);
 
 static void			ni_dhcp6_device_set_config(ni_dhcp6_device_t *, ni_dhcp6_config_t *);
 
-static void			ni_dhcp6_device_alloc_buffer(ni_dhcp6_device_t *);
-static void			ni_dhcp6_device_clear_buffer(ni_dhcp6_device_t *);
-static void			ni_dhcp6_device_drop_buffer(ni_dhcp6_device_t *);
-
 static int			ni_dhcp6_device_transmit_arm_delay(ni_dhcp6_device_t *);
 static void			ni_dhcp6_device_retransmit_arm(ni_dhcp6_device_t *dev);
 
@@ -204,7 +200,7 @@ ni_dhcp6_device_free(ni_dhcp6_device_t *dev)
 	ni_debug_dhcp("%s: Deleting dhcp6 device with index %u",
 			dev->ifname, dev->link.ifindex);
 
-	ni_dhcp6_device_drop_buffer(dev);
+	ni_buffer_destroy(&dev->message);
 	ni_dhcp6_device_drop_lease(dev);
 	ni_dhcp6_device_drop_best_offer(dev);
 	ni_dhcp6_device_close(dev);
@@ -281,28 +277,6 @@ ni_dhcp6_device_set_best_offer(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *leas
 	dev->best_offer.weight = weight;
 	if (dev->config && lease)
 		lease->uuid = dev->config->uuid;
-}
-
-static void
-ni_dhcp6_device_alloc_buffer(ni_dhcp6_device_t *dev)
-{
-	/* TODO: review this. rfc2460#section-5, Packet Size Issues */
-	if (dev->message.size < NI_DHCP6_WBUF_SIZE) {
-		ni_buffer_ensure_tailroom(&dev->message, NI_DHCP6_WBUF_SIZE);
-	}
-	ni_buffer_clear(&dev->message);
-}
-
-static void
-ni_dhcp6_device_clear_buffer(ni_dhcp6_device_t *dev)
-{
-	ni_buffer_clear(&dev->message);
-}
-
-static void
-ni_dhcp6_device_drop_buffer(ni_dhcp6_device_t *dev)
-{
-	ni_buffer_destroy(&dev->message);
 }
 
 void
@@ -432,7 +406,6 @@ ni_dhcp6_device_start(ni_dhcp6_device_t *dev)
 		return 1;
 
 	dev->failed = 0;
-	ni_dhcp6_device_alloc_buffer(dev);
 
 	return ni_dhcp6_fsm_start(dev);
 }
@@ -1330,7 +1303,7 @@ ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 
 		/* Close and try reopen socket while next run */
 		ni_dhcp6_mcast_socket_close(dev);
-		ni_dhcp6_device_clear_buffer(dev);
+		ni_buffer_clear(&dev->message);
 		return -1;
 	} else {
 		struct timeval now;
@@ -1345,7 +1318,7 @@ ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 				ni_sockaddr_print(&dev->mcast.dest),
 				ni_dhcp6_print_timeval(&now));
 
-		ni_dhcp6_device_clear_buffer(dev);
+		ni_buffer_clear(&dev->message);
 		return 0;
 	}
 }
