@@ -602,19 +602,29 @@ ni_ifworker_by_modem(ni_fsm_t *fsm, const ni_modem_t *dev)
 ni_bool_t
 ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
 {
-	xml_node_t *node;
+	unsigned int i;
 
-	if (!ifname)
+	if (!w || ni_string_empty(ifname))
 		return FALSE;
 
-	if (w->device && ni_string_eq(w->device->name, ifname))
+	/* ifworker name must be same as policy name here.
+	 * If device name matches policy name then we
+	 *  consider such a match as fulfilled.
+	 */
+	if (ni_string_eq(w->name, ifname))
 		return TRUE;
 
-	if (w->config.node && (node = xml_node_get_child(w->config.node, "name"))) {
-		const char *namespace = xml_node_get_attr(node, "namespace");
-		if (!namespace && ni_string_eq(node->cdata, ifname))
+	ni_debug_nanny("policy matches against dependency device");
+
+	/* Check for presence of mandatory child ifworker */
+	for (i = 0; i < w->children.count; i++) {
+		ni_ifworker_t *child = w->children.data[i];
+
+		if (ni_string_eq(child->name, ifname))
 			return TRUE;
 	}
+
+	ni_error("device %s requested via match is not present", ifname);
 
 	return FALSE;
 }
