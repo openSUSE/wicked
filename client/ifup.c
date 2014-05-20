@@ -157,7 +157,7 @@ ni_do_ifup(int argc, char **argv)
 	ni_ifworker_array_t ifmarked;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	ni_bool_t check_prio = TRUE;
-	unsigned int nmarked;
+	unsigned int i;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
 	const char *ptr;
@@ -319,8 +319,9 @@ usage:
 		goto cleanup;
 	}
 
+	status = NI_WICKED_RC_SUCCESS;
+
 	/* Get workers that match given criteria */
-	nmarked = 0;
 	while (optind < argc) {
 		ifmatch.name = argv[optind++];
 
@@ -332,28 +333,26 @@ usage:
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
 	}
 
-	/* Mark and start selected workers */
-	if (ifmarked.count)
-		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
-
-	if (nmarked == 0) {
+	if (0 == ifmarked.count)
 		printf("ifup: no matching interfaces\n");
-		status = NI_WICKED_RC_SUCCESS;
-	} else {
-		if (ni_fsm_schedule(fsm) != 0)
-			ni_fsm_mainloop(fsm);
 
-		/* No error if all interfaces were good */
-		status = ni_fsm_fail_count(fsm) ?
-			NI_WICKED_RC_ERROR : NI_WICKED_RC_SUCCESS;
+	for (i = 0; i < ifmarked.count; i++) {
+		ni_ifworker_t *w = ifmarked.data[i];
 
-		/* Do not report any transient errors to systemd (e.g. dhcp
-		 * or whatever not ready in time) -- returning an error may
-		 * cause to stop the network completely.
-		 */
-		if (!opt_transient)
-			status = NI_LSB_RC_SUCCESS;
+		if (!ni_ifup_hire_nanny(w)) {
+			status = NI_WICKED_RC_ERROR;
+			ni_error("%s: unable to apply configuration to nanny", w->name);
+		}
+		else
+			ni_info("%s: configuration applied to nanny", w->name);
 	}
+
+	/* Do not report any transient errors to systemd (e.g. dhcp
+	 * or whatever not ready in time) -- returning an error may
+	 * cause to stop the network completely.
+	 */
+	if (!opt_transient)
+		status = NI_LSB_RC_SUCCESS;
 
 cleanup:
 	ni_ifworker_array_destroy(&ifmarked);
