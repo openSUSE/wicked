@@ -92,7 +92,6 @@ ni_nanny_start(ni_nanny_t *mgr)
 	ni_fsm_set_user_prompt_fn(mgr->fsm, ni_nanny_prompt, mgr);
 
 	ni_objectmodel_nanny_init(mgr);
-	ni_objectmodel_register_all();
 
 	/* Resolve all class references in <enable> config elements,
 	 * so that we don't have to do this again for every new device we
