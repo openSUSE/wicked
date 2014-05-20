@@ -211,7 +211,7 @@ ni_dhcp6_mcast_socket_open(ni_dhcp6_device_t *dev)
 		dev->mcast.sock->get_timeout = ni_dhcp6_socket_get_timeout;
 		dev->mcast.sock->check_timeout = ni_dhcp6_socket_check_timeout;
 
-		/* TODO: review this. rfc2460#section-5, Packet Size Issues */
+		/* See rfc2460#section-5, Packet Size Issues. Allocate max buffer */
 		ni_buffer_init_dynamic(&dev->mcast.sock->rbuf, NI_DHCP6_RBUF_SIZE);
 
 		ni_socket_activate(dev->mcast.sock);
@@ -494,8 +494,6 @@ ni_dhcp6_option_put(ni_buffer_t *bp, int code, const void *data, size_t len)
 		.code = htons(code),
 		.len = htons(len),
 	};
-	/* TODO: review this. rfc2460#section-5, Packet Size Issues */
-	/*ni_buffer_ensure_tailroom(bp, sizeof(opt) + len);*/
 	if(ni_buffer_put(bp, &opt, sizeof(opt)) < 0)
 		return -1;
 	if(ni_buffer_put(bp, data, len) < 0)
@@ -1268,7 +1266,6 @@ ni_dhcp6_build_client_header(ni_buffer_t *bp, unsigned int msg_type, unsigned in
 	header.xid &= htonl(~NI_DHCP6_XID_MASK);
 	header.xid |= htonl(msg_xid);
 
-	ni_buffer_ensure_tailroom(bp, sizeof(header));
 	if(ni_buffer_put(bp, &header, sizeof(header)) < 0)
 		return -1;
 	return 0;
@@ -1677,6 +1674,14 @@ ni_dhcp6_build_message(ni_dhcp6_device_t *dev,
 {
 	uint16_t elapsed_time = 0;
 	int rv = -1;
+
+	/* See rfc2460#section-5, Packet Size Issues.
+	 * Ensure, there are at least 1280 bytes left.
+	 */
+	ni_buffer_reset(msg_buf);
+	if (msg_buf->size < NI_DHCP6_WBUF_SIZE) {
+		ni_buffer_ensure_tailroom(msg_buf, NI_DHCP6_WBUF_SIZE);
+	}
 
 	if (ni_dhcp6_build_client_header(msg_buf, msg_type, dev->dhcp6.xid) < 0)
 		goto cleanup;
