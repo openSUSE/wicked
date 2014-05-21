@@ -620,7 +620,7 @@ ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
 	for (i = 0; i < w->children.count; i++) {
 		ni_ifworker_t *child = w->children.data[i];
 
-		if (ni_string_eq(child->name, ifname))
+		if (child->device && ni_string_eq(child->name, ifname))
 			return TRUE;
 	}
 
