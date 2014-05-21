@@ -226,8 +226,7 @@ ni_do_ifup(int argc, char **argv)
 	unsigned int i;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
-	const char *ptr;
-	long timeout = 0;
+	unsigned int timeout = 0;
 
 	fsm = ni_fsm_new();
 	ni_assert(fsm);
@@ -240,17 +239,6 @@ ni_do_ifup(int argc, char **argv)
 	ifmatch.require_configured = FALSE;
 	ifmatch.allow_persistent = TRUE;
 	ifmatch.require_config = TRUE;
-
-	/*
-	 * Client waits for WAIT_FOR_INTERFACES/3 miliseconds
-	 * in order to let all ifworkers reach device-up state.
-	 */
-	if ((ptr = getenv("WAIT_FOR_INTERFACES"))) {
-		unsigned int sec;
-
-		if (ni_parse_uint(ptr, &sec, 10) == 0)
-			timeout = (sec * 1000)/3;
-	}
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
@@ -378,6 +366,12 @@ usage:
 		goto cleanup;
 	}
 
+	/* Client waits for device-up events for WAIT_FOR_INTERFACES / 3 */
+	if (timeout)
+		ni_wait_for_interfaces = timeout; /* One set by user */
+	else
+		ni_wait_for_interfaces *= (1000/3); /* One read from compat */
+
 	if (ni_fsm_build_hierarchy(fsm) < 0) {
 		ni_error("ifup: unable to build device hierarchy");
 		/* Severe error we always explicitly return */
@@ -416,13 +410,13 @@ usage:
 			ni_info("%s: configuration applied to nanny", w->name);
 	}
 
-	ni_timer_register(timeout, ni_ifup_timer_expires, &status);
+	ni_timer_register(ni_wait_for_interfaces, ni_ifup_timer_expires, &status);
 	while (status == NI_WICKED_RC_SUCCESS) {
 		/* status is already success */
 		if (0 == ifmarked.count)
 			break;
 
-		if (ni_socket_wait(timeout) != 0)
+		if (ni_socket_wait(ni_wait_for_interfaces) != 0)
 			ni_fatal("ni_socket_wait failed");
 
 		ni_timer_next_timeout();
