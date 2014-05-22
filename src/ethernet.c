@@ -407,6 +407,9 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 	    transceiver
 	 */
 
+	unsigned int wolopts = __ni_ethtool_get_wolinfo(ifname, &__ethtool_gwol);
+	ni_string_dup(&ether->wol, __ni_ethernet_generate_wol_str(wolopts));
+
 	ether->offload.rx_csum = __ni_ethtool_get_tristate(ifname, &__ethtool_grxcsum);
 	ether->offload.tx_csum = __ni_ethtool_get_tristate(ifname, &__ethtool_gtxcsum);
 	ether->offload.scatter_gather = __ni_ethtool_get_tristate(ifname, &__ethtool_gsg);
@@ -499,6 +502,8 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 	    phy_address
 	    transceiver
 	 */
+
+	__ni_ethtool_set_wolinfo(ifname, &__ethtool_swol, ether->wol);
 
 	__ni_ethtool_set_tristate(ifname, &__ethtool_srxcsum, ether->offload.rx_csum);
 	__ni_ethtool_set_tristate(ifname, &__ethtool_stxcsum, ether->offload.tx_csum);

@@ -24,6 +24,7 @@
     <port-type type="port_t"/>
     <duplex type="duplex_t" />
     <autoneg-enable type="tristate"/>
+    <wol type="string"/>
 
     <offload class="dict">
       <rx-csum type="tristate"/>

@@ -290,6 +290,8 @@ __ni_objectmodel_ethernet_set_offload(ni_dbus_object_t *object,
 
 #define ETHERNET_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(ethernet, dbus_name, member_name, rw)
+#define ETHERNET_STRING_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_STRING_PROPERTY(ethernet, dbus_name, member_name, rw)
 #define ETHERNET_INT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_INT_PROPERTY(ethernet, dbus_name, member_name, rw)
 
@@ -298,6 +300,7 @@ const ni_dbus_property_t	ni_objectmodel_ethernet_property_table[] = {
 	ETHERNET_UINT_PROPERTY(port-type, port_type, RO),
 	ETHERNET_UINT_PROPERTY(duplex, duplex, RO),
 	ETHERNET_INT_PROPERTY(autoneg-enable, autoneg_enable, RO),
+	ETHERNET_STRING_PROPERTY(wol, wol, RO),
 
 	___NI_DBUS_PROPERTY(
 			DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING,
