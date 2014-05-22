@@ -905,6 +905,7 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 		for (pos = &mgr->policy_list; (cur = *pos); pos = &cur->next) {
 			if (cur->fsm_policy == policy) {
 				ni_dbus_server_t *server;
+				ni_ifworker_t *w;
 
 				if (!ni_fsm_policy_remove(mgr->fsm, policy))
 					return FALSE;
@@ -918,6 +919,13 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 
 				ni_dbus_message_append_object_path(reply,
 					ni_dbus_object_get_path(object));
+
+				w = ni_fsm_ifworker_by_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, name);
+				if (!ni_fsm_destroy_worker(mgr->fsm, w)) {
+					ni_debug_nanny("Unable to destroy the ifworker for %s", name);
+					return FALSE;
+				}
+
 				return TRUE;
 			}
 		}

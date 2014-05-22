@@ -50,14 +50,14 @@ ni_ifdown_fire_nanny(ni_ifworker_t *w)
 		 */
 		const char *policy_name = w->name;
 
-		if (!ni_nanny_call_device_disable(policy_name)) {
-			ni_debug_application("Unable to disable policy named %s",
+		if (!ni_nanny_call_del_policy(policy_name)) {
+			ni_debug_application("Unable to delete policy named %s",
 				policy_name);
 			return FALSE;
 		}
 
-		if (!ni_nanny_call_del_policy(policy_name)) {
-			ni_debug_application("Unable to delete policy named %s",
+		if (!ni_nanny_call_device_disable(policy_name)) {
+			ni_debug_application("Unable to disable policy named %s",
 				policy_name);
 			return FALSE;
 		}
