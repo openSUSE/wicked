@@ -162,8 +162,10 @@ extern const char *		ni_objectmodel_event_to_signal(ni_event_t);
 typedef struct ni_objectmodel_callback_info ni_objectmodel_callback_info_t;
 struct ni_objectmodel_callback_info {
 	ni_objectmodel_callback_info_t *next;
-	char *			event;
-	ni_uuid_t		uuid;
+	unsigned int			flags;	/* internal */
+
+	char *				event;
+	ni_uuid_t			uuid;
 };
 
 ni_objectmodel_callback_info_t *ni_objectmodel_callback_info_from_dict(const ni_dbus_variant_t *);

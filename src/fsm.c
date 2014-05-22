@@ -26,6 +26,10 @@
 #include <wicked/client.h>
 #include "util_priv.h"
 
+enum {
+	NI_FSM_CALLBACK_CANCEL_ON_TIMEOUT =  (1 << 0),
+};
+
 static unsigned int		ni_ifworker_timeout_count;
 static ni_fsm_user_prompt_fn_t *ni_fsm_user_prompt_fn;
 static void *			ni_fsm_user_prompt_data;
@@ -51,6 +55,9 @@ static void			ni_ifworker_refresh_client_info(ni_ifworker_t *, ni_device_clienti
 static void			ni_ifworker_refresh_client_state(ni_ifworker_t *, ni_client_state_t *);
 static void			ni_ifworker_set_config_origin(ni_ifworker_t *, const char *);
 static void			ni_ifworker_cancel_timeout(ni_ifworker_t *);
+static ni_objectmodel_callback_info_t *	ni_ifworker_get_cancelable_callback(ni_ifworker_t *, ni_bool_t);
+static dbus_bool_t		ni_ifworker_waiting_for_events(ni_ifworker_t *);
+static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
 
 ni_fsm_t *
 ni_fsm_new(void)
@@ -181,6 +188,13 @@ ni_ifworker_free(ni_ifworker_t *w)
 	if (w->modem)
 		ni_modem_release(w->modem);
 	free(w);
+}
+
+static inline ni_bool_t
+ni_ifworker_complete(const ni_ifworker_t *w)
+{
+	return w->failed || w->done || w->target_state == NI_FSM_STATE_NONE
+					|| w->target_state == w->fsm.state;
 }
 
 static inline ni_bool_t
@@ -363,6 +377,28 @@ ni_ifworker_set_completion_callback(ni_ifworker_t *w, void (*cb)(ni_ifworker_t *
 }
 
 /*
+ * Cleanup group-optional/cancelable event callbacks on timeout
+ */
+static void
+ni_ifworker_cleanup_cancelable_events(ni_ifworker_t *w)
+{
+	ni_objectmodel_callback_info_t *cb;
+
+	while ((cb = ni_ifworker_get_cancelable_callback(w, TRUE))) {
+		ni_event_t ev;
+
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+			"%s: Cleaning up cancelable event %s callback on timeout",
+			w->name, cb->event);
+
+		if (ni_objectmodel_signal_to_event(cb->event, &ev) == 0)
+			ni_ifworker_advance_state(w, ev);
+
+		ni_objectmodel_callback_info_free(cb);
+	}
+}
+
+/*
  * Handle timeouts of device config.
  */
 static void
@@ -372,8 +408,13 @@ __ni_ifworker_timeout(void *user_data, const ni_timer_t *timer)
 
 	if (w->fsm.timer != timer) {
 		ni_error("%s(%s) called with unexpected timer", __func__, w->name);
+		return;
 	} else {
-		ni_ifworker_fail(w, "operation timed out");
+		w->fsm.timer = NULL;
+
+		ni_ifworker_cleanup_cancelable_events(w);
+		if (ni_ifworker_waiting_for_events(w) || !ni_ifworker_complete(w))
+			ni_ifworker_fail(w, "operation timed out");
 	}
 	ni_ifworker_timeout_count++;
 }
@@ -852,7 +893,7 @@ ni_ifworker_add_callbacks(ni_fsm_transition_t *action, ni_objectmodel_callback_i
 }
 
 static ni_objectmodel_callback_info_t *
-ni_ifworker_get_callback(ni_ifworker_t *w, const ni_uuid_t *uuid)
+ni_ifworker_get_callback(ni_ifworker_t *w, const ni_uuid_t *uuid, ni_bool_t remove)
 {
 	ni_objectmodel_callback_info_t **pos, *cb;
 	ni_fsm_transition_t *action;
@@ -861,11 +902,42 @@ ni_ifworker_get_callback(ni_ifworker_t *w, const ni_uuid_t *uuid)
 		return NULL;
 	for (pos = &action->callbacks; (cb = *pos) != NULL; pos = &cb->next) {
 		if (ni_uuid_equal(&cb->uuid, uuid)) {
-			*pos = cb->next;
+			if (remove)
+				*pos = cb->next;
 			return cb;
 		}
 	}
 	return NULL;
+}
+
+static ni_objectmodel_callback_info_t *
+ni_ifworker_get_cancelable_callback(ni_ifworker_t *w, ni_bool_t remove)
+{
+	ni_objectmodel_callback_info_t **pos, *cb;
+	ni_fsm_transition_t *action;
+
+	if ((action = w->fsm.wait_for) == NULL)
+		return NULL;
+	for (pos = &action->callbacks; (cb = *pos) != NULL; pos = &cb->next) {
+		if (cb->flags & NI_FSM_CALLBACK_CANCEL_ON_TIMEOUT) {
+			if (remove)
+				*pos = cb->next;
+			return cb;
+		}
+	}
+	return NULL;
+}
+
+static dbus_bool_t
+ni_ifworker_waiting_for_events(ni_ifworker_t *w)
+{
+	ni_fsm_transition_t *action;
+
+	if ((action = w->fsm.wait_for) == NULL)
+		return FALSE;
+	if (action->callbacks == NULL)
+		return FALSE;
+	return TRUE;
 }
 
 static dbus_bool_t
@@ -968,6 +1040,40 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
 	if (w->fsm.state != new_state)
 		ni_ifworker_set_state(w, new_state);
 
+}
+
+static void
+ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
+{
+	unsigned int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
+
+	switch (event_type) {
+	case NI_EVENT_DEVICE_READY:
+		min_state = NI_FSM_STATE_DEVICE_READY;
+		break;
+	case NI_EVENT_LINK_UP:
+		min_state = NI_FSM_STATE_LINK_UP;
+		break;
+	case NI_EVENT_LINK_DOWN:
+		max_state = NI_FSM_STATE_LINK_UP - 1;
+		break;
+	case NI_EVENT_ADDRESS_ACQUIRED:
+		min_state = NI_FSM_STATE_ADDRCONF_UP;
+		break;
+	case NI_EVENT_ADDRESS_RELEASED:
+		max_state = NI_FSM_STATE_ADDRCONF_UP - 1;
+		break;
+	default:
+		break;
+	}
+
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+		"%s: advance fsm state by signal %s: <%s..%s>", w->name,
+		ni_objectmodel_event_to_signal(event_type),
+		ni_ifworker_state_name(min_state),
+		ni_ifworker_state_name(max_state));
+
+	ni_ifworker_update_state(w, min_state, max_state);
 }
 
 static void
@@ -2667,12 +2773,6 @@ ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path)
 	return ni_fsm_recv_new_modem(fsm, object, TRUE);
 }
 
-static inline ni_bool_t
-ni_ifworker_complete(const ni_ifworker_t *w)
-{
-	return w->failed || w->done || w->target_state == NI_FSM_STATE_NONE || w->target_state == w->fsm.state;
-}
-
 /*
  * This error handler can be used by link management functions to request
  * input from the user, such as wireless passphrases, or user/password for
@@ -3571,17 +3671,18 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 				if (other && ni_addrconf_flag_bit_is_set(other->flags, NI_ADDRCONF_FLAGS_OPTIONAL)) {
 					ni_objectmodel_callback_info_t *ocb;
 
-					if ((ocb = ni_ifworker_get_callback(w, &other->uuid))) {
+					if ((ocb = ni_ifworker_get_callback(w, &other->uuid, FALSE))) {
 						ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
-							"%s: stopped wait for %s:%s lease in state %s [%s]",
+							"%s: mark %s:%s lease %s event in state %s [%s] cancelable",
 							w->name,
 							ni_addrfamily_type_to_name(other->family),
 							ni_addrconf_type_to_name(other->type),
+							ocb->event,
 							ni_addrconf_state_to_name(other->state),
 							ni_addrconf_flags_format(&buf, other->flags, "|"));
 						ni_stringbuf_destroy(&buf);
 
-						ni_objectmodel_callback_info_free(ocb);
+						ocb->flags |= NI_FSM_CALLBACK_CANCEL_ON_TIMEOUT;
 					}
 				}
 			}
@@ -3639,6 +3740,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	const char *object_path = dbus_message_get_path(msg);
 	ni_uuid_t event_uuid = NI_UUID_INIT;
 	ni_event_t event_type = __NI_EVENT_MAX;
+	const char *event_name = signal_name;
 	ni_ifworker_t *w;
 
 	/* See if this event is a known one and comes with a uuid */
@@ -3675,7 +3777,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		ni_objectmodel_callback_info_t *cb = NULL;
 
 		if (!ni_uuid_is_null(&event_uuid)) {
-			cb = ni_ifworker_get_callback(w, &event_uuid);
+			cb = ni_ifworker_get_callback(w, &event_uuid, TRUE);
 			if (cb) {
 				ni_event_t cb_event_type;
 				ni_bool_t success;
@@ -3692,6 +3794,8 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 
 				switch (cb_event_type) {
 				case NI_EVENT_ADDRESS_ACQUIRED:
+					/* Set event_name as this is the one we wait for */
+					event_name = ni_objectmodel_event_to_signal(cb_event_type);
 					success = address_acquired_callback_handler(w, cb, event_type);
 					break;
 				default:
@@ -3706,39 +3810,18 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			/* We do not update the ifworker state if we're waiting for more events
 			 * of the same name. For instance, during address configuration, we might
 			 * start several addrconf mechanisms in parallel; for each of them, we'll
-			 * receive an addressAcquired event. However, address configuration isn't
-			 * complete until we've received *all* outstanding addressAcquired events.
+			 * receive an addressAcquired (addressLost, ...) event. However, address
+			 * configuration isn't complete until we've received *all* non-optional
+			 * addressAcquired events outstanding for the running transition.
 			 */
-			if (ni_ifworker_waiting_for_event(w, signal_name)) {
-				ni_debug_application("%s: waiting for more %s events...", w->name, signal_name);
+			if (ni_ifworker_waiting_for_event(w, event_name)) {
+				ni_debug_application("%s: waiting for more %s events...",
+							w->name, event_name);
 				goto done;
 			}
 		}
 
-		{
-			unsigned int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
-			switch (event_type) {
-			case NI_EVENT_DEVICE_READY:
-				min_state = NI_FSM_STATE_DEVICE_READY;
-				break;
-			case NI_EVENT_LINK_UP:
-				min_state = NI_FSM_STATE_LINK_UP;
-				break;
-			case NI_EVENT_LINK_DOWN:
-				max_state = NI_FSM_STATE_LINK_UP - 1;
-				break;
-			case NI_EVENT_ADDRESS_ACQUIRED:
-				min_state = NI_FSM_STATE_ADDRCONF_UP;
-				break;
-			case NI_EVENT_ADDRESS_RELEASED:
-				max_state = NI_FSM_STATE_ADDRCONF_UP - 1;
-				break;
-			default:
-				break;
-			}
-
-			ni_ifworker_update_state(w, min_state, max_state);
-		}
+		ni_ifworker_advance_state(w, event_type);
 	}
 
 done: ;

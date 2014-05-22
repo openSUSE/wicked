@@ -211,9 +211,15 @@ usage:
 
 	/* Mark and start selected workers */
 	if (ifmarked.count) {
+#if 0		/*
+		 * Not yet hired, no need to fire it.
+		 *
+		 * There is currently no nanny in the inst-sys and the
+		 * attempt to delete the policies cause ifdown timeouts.
+		 */
 		/* Disable devices and delete all related policies from nanny */
 		ni_ifdown_stop_policies(&ifmarked);
-
+#endif
 		/* Start workers to perform actual ifdown */
 		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
 	}
