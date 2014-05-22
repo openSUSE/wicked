@@ -814,13 +814,15 @@ do_show_config(int argc, char **argv, const char *root_schema)
 int
 do_xpath(int argc, char **argv)
 {
+	enum { OPT_HELP, OPT_REFERENCE, OPT_FILE };
 	static struct option xpath_options[] = {
-		{ "help", no_argument, NULL, 'h' },
-		{ "reference", required_argument, NULL, 'r' },
-		{ "file", required_argument, NULL, 'f' },
+		{ "help", no_argument, NULL, OPT_HELP },
+		{ "reference", required_argument, NULL, OPT_REFERENCE },
+		{ "file", required_argument, NULL, OPT_FILE },
 		{ NULL }
 	};
 	const char *opt_reference = NULL, *opt_file = "-";
+	char *cmd;
 	xpath_result_t *input;
 	xml_document_t *doc;
 	int c;
@@ -828,21 +830,33 @@ do_xpath(int argc, char **argv)
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", xpath_options, NULL)) != EOF) {
 		switch (c) {
-		case 'r':
+		case OPT_REFERENCE:
 			opt_reference = optarg;
 			break;
 
-		case 'f':
+		case OPT_FILE:
 			opt_file = optarg;
 			break;
 
-		case 'h':
+		case OPT_HELP:
 		default:
+usage:
 			fprintf(stderr,
 				"wicked [options] xpath [--reference <expr>] [--file <path>] expr ...\n");
 			return 1;
 		}
 	}
+
+	if (optind >= argc) {
+		fprintf(stderr, "Missing expression\n");
+		goto usage;
+	}
+
+	/* FIXME:
+		An invalid expression blocks the command to return in a read()
+		call. Need a further check to validate given expression in
+		first place and return with an error if garbage is provided.
+	*/
 
 	doc = xml_document_read(opt_file);
 	if (!doc) {
