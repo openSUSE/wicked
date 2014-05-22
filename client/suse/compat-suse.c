@@ -39,6 +39,7 @@
 #include <sys/types.h>
 #include <pwd.h>
 #include <grp.h>
+#include <linux/ethtool.h>
 
 #include <wicked/address.h>
 #include <wicked/util.h>
@@ -1348,6 +1349,9 @@ try_add_ethtool_common(ni_netdev_t *dev, const char *opt, const char *val)
 	} else
 	if (ni_string_eq(opt, "autoneg")) {
 		ni_parse_ethtool_onoff(val, &eth->autoneg_enable);
+	} else
+	if (ni_string_eq(opt, "wol")) {
+		ni_string_dup(&eth->wol, val);
 	}
 }
 
