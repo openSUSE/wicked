@@ -18,6 +18,9 @@
 static int	__ni_system_ethernet_get(const char *, ni_ethernet_t *);
 static int	__ni_system_ethernet_set(const char *, const ni_ethernet_t *);
 
+static char *		__ni_ethernet_generate_wol_str(const unsigned int);
+static unsigned int 	__ni_ethernet_parse_wolopts(const char *);
+
 /*
  * Allocate ethernet struct
  */
@@ -36,12 +39,16 @@ ni_ethernet_new(void)
 	ether->offload.gso		= NI_TRISTATE_DEFAULT;
 	ether->offload.gro		= NI_TRISTATE_DEFAULT;
 	ether->offload.lro		= NI_TRISTATE_DEFAULT;
+
+	ether->wol = NULL;
+
 	return ether;
 }
 
 void
 ni_ethernet_free(ni_ethernet_t *ethernet)
 {
+	ni_string_free(&ethernet->wol);
 	free(ethernet);
 }
 
@@ -154,6 +161,7 @@ static __ni_ioctl_info_t __ethtool_ggso = { ETHTOOL_GGSO, "GGSO" };
 static __ni_ioctl_info_t __ethtool_ggro = { ETHTOOL_GGRO, "GGRO" };
 static __ni_ioctl_info_t __ethtool_gstrings = { ETHTOOL_GSTRINGS, "GSTRINGS" };
 static __ni_ioctl_info_t __ethtool_gstats = { ETHTOOL_GSTATS, "GSTATS" };
+static __ni_ioctl_info_t __ethtool_gwol = { ETHTOOL_GWOL, "GWOL" };
 static __ni_ioctl_info_t __ethtool_sflags = { ETHTOOL_SFLAGS, "SFLAGS" };
 static __ni_ioctl_info_t __ethtool_srxcsum = { ETHTOOL_SRXCSUM, "SRXCSUM" };
 static __ni_ioctl_info_t __ethtool_stxcsum = { ETHTOOL_STXCSUM, "STXCSUM" };
@@ -162,6 +170,7 @@ static __ni_ioctl_info_t __ethtool_stso = { ETHTOOL_STSO, "STSO" };
 static __ni_ioctl_info_t __ethtool_sufo = { ETHTOOL_SUFO, "SUFO" };
 static __ni_ioctl_info_t __ethtool_sgso = { ETHTOOL_SGSO, "SGSO" };
 static __ni_ioctl_info_t __ethtool_sgro = { ETHTOOL_SGRO, "SGRO" };
+static __ni_ioctl_info_t __ethtool_swol = { ETHTOOL_SWOL, "SWOL" };
 
 static int
 __ni_ethtool_do(const char *ifname, __ni_ioctl_info_t *ioc, void *evp)
@@ -201,6 +210,30 @@ __ni_ethtool_set_value(const char *ifname, __ni_ioctl_info_t *ioc, int value)
 	memset(&eval, 0, sizeof(eval));
 	eval.data = value;
 	return __ni_ethtool_do(ifname, ioc, &eval);
+}
+
+static int
+__ni_ethtool_get_wolinfo(const char *ifname, __ni_ioctl_info_t *ioc)
+{
+	struct ethtool_wolinfo wolinfo;
+
+	memset(&wolinfo, 0, sizeof(wolinfo));
+	if (__ni_ethtool_do(ifname, ioc, &wolinfo) < 0)
+		return -1;
+
+	return wolinfo.wolopts;
+}
+
+static int
+__ni_ethtool_set_wolinfo(const char *ifname, __ni_ioctl_info_t *ioc, const char *wolstr)
+{
+	struct ethtool_wolinfo wolinfo;
+
+	memset(&wolinfo, 0, sizeof(wolinfo));
+	/* For now we simply set wolopts. sopass is untouched. */
+	wolinfo.wolopts = __ni_ethernet_parse_wolopts(wolstr);
+
+	return __ni_ethtool_do(ifname, ioc, &wolinfo);
 }
 
 /*
@@ -374,6 +407,9 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 	    transceiver
 	 */
 
+	unsigned int wolopts = __ni_ethtool_get_wolinfo(ifname, &__ethtool_gwol);
+	ni_string_dup(&ether->wol, __ni_ethernet_generate_wol_str(wolopts));
+
 	ether->offload.rx_csum = __ni_ethtool_get_tristate(ifname, &__ethtool_grxcsum);
 	ether->offload.tx_csum = __ni_ethtool_get_tristate(ifname, &__ethtool_gtxcsum);
 	ether->offload.scatter_gather = __ni_ethtool_get_tristate(ifname, &__ethtool_gsg);
@@ -467,6 +503,8 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 	    transceiver
 	 */
 
+	__ni_ethtool_set_wolinfo(ifname, &__ethtool_swol, ether->wol);
+
 	__ni_ethtool_set_tristate(ifname, &__ethtool_srxcsum, ether->offload.rx_csum);
 	__ni_ethtool_set_tristate(ifname, &__ethtool_stxcsum, ether->offload.tx_csum);
 	__ni_ethtool_set_tristate(ifname, &__ethtool_ssg, ether->offload.scatter_gather);
@@ -487,4 +525,80 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 	}
 
 	return 0;
+}
+
+/*
+ * wake-on-lan wolopts -> string representation
+ */
+static char *
+__ni_ethernet_generate_wol_str(const unsigned int wolopts)
+{
+        static char buf[NI_ETHERNET_WOL_STR_MAX_SIZE];
+        char *p = buf;
+
+        memset(buf, 0, sizeof(buf));
+
+        if (wolopts) {
+                if (wolopts & WAKE_PHY)
+                        *p++ = 'p';
+                if (wolopts & WAKE_UCAST)
+                        *p++ = 'u';
+                if (wolopts & WAKE_MCAST)
+                        *p++ = 'm';
+                if (wolopts & WAKE_BCAST)
+                        *p++ = 'b';
+                if (wolopts & WAKE_ARP)
+                        *p++ = 'a';
+                if (wolopts & WAKE_MAGIC)
+                        *p++ = 'g';
+                if (wolopts & WAKE_MAGICSECURE)
+                        *p++ = 's';
+        } else {
+                *p = 'd';
+        }
+
+        return buf;
+}
+
+/*
+ * wake-on-lan string -> wolopts representation
+ */
+static unsigned int
+__ni_ethernet_parse_wolopts(const char *wol_str)
+{
+	unsigned int wol = 0;
+
+        while (wol_str && *wol_str) {
+                switch (*wol_str) {
+		case 'p':
+			wol |= WAKE_PHY;
+			break;
+		case 'u':
+			wol |= WAKE_UCAST;
+			break;
+		case 'm':
+			wol |= WAKE_MCAST;
+			break;
+		case 'b':
+			wol |= WAKE_BCAST;
+			break;
+		case 'a':
+			wol |= WAKE_ARP;
+			break;
+		case 'g':
+			wol |= WAKE_MAGIC;
+			break;
+		case 's':
+			wol |= WAKE_MAGICSECURE;
+			break;
+		case 'd':
+			wol = 0;
+			break;
+		default:
+			return wol;
+                }
+                wol_str++;
+        }
+
+        return wol;
 }

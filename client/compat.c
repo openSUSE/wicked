@@ -45,6 +45,7 @@
 #include "wicked-client.h"
 #include <netlink/netlink.h>
 #include <sys/param.h>
+#include <linux/ethtool.h>
 
 #include "client/client_state.h"
 #include "appconfig.h"
@@ -221,7 +222,11 @@ __ni_compat_generate_eth_node(xml_node_t *child, const ni_ethernet_t *eth)
 	} else
 	if (eth->duplex == NI_ETHERNET_DUPLEX_FULL) {
 		xml_node_new_element("duplex", child, "full");
+	} else
+	if (eth->wol) {
+		xml_node_new_element("wol", child, eth->wol);
 	}
+
 	__ni_compat_optional_tristate("autoneg-enable", child, eth->autoneg_enable);
 
 	/* generate offload and other information */

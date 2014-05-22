@@ -8,6 +8,7 @@
 #define __WICKED_ETHERNET_H__
 
 #include <wicked/types.h>
+#include <wicked/util.h>
 
 typedef enum {
 	NI_ETHERNET_PORT_DEFAULT = 0,
@@ -25,12 +26,15 @@ typedef enum {
 	NI_ETHERNET_DUPLEX_NONE,	/* autoneg not complete */
 } ni_ether_duplex_t;
 
+#define NI_ETHERNET_WOL_STR_MAX_SIZE	16
+
 struct ni_ethernet {
 	ni_hwaddr_t		permanent_address;
 	unsigned int		link_speed;
 	ni_ether_port_t		port_type;
 	ni_ether_duplex_t	duplex;
 	ni_tristate_t		autoneg_enable;
+	char *			wol;
 
 	struct {
 		ni_tristate_t	rx_csum;
