@@ -18,6 +18,9 @@
 static int	__ni_system_ethernet_get(const char *, ni_ethernet_t *);
 static int	__ni_system_ethernet_set(const char *, const ni_ethernet_t *);
 
+static char *		__ni_ethernet_generate_wol_str(const unsigned int);
+static unsigned int 	__ni_ethernet_parse_wolopts(const char *);
+
 /*
  * Allocate ethernet struct
  */
@@ -36,12 +39,16 @@ ni_ethernet_new(void)
 	ether->offload.gso		= NI_TRISTATE_DEFAULT;
 	ether->offload.gro		= NI_TRISTATE_DEFAULT;
 	ether->offload.lro		= NI_TRISTATE_DEFAULT;
+
+	ether->wol = NULL;
+
 	return ether;
 }
 
 void
 ni_ethernet_free(ni_ethernet_t *ethernet)
 {
+	ni_string_free(&ethernet->wol);
 	free(ethernet);
 }
 
@@ -487,4 +494,80 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 	}
 
 	return 0;
+}
+
+/*
+ * wake-on-lan wolopts -> string representation
+ */
+static char *
+__ni_ethernet_generate_wol_str(const unsigned int wolopts)
+{
+        static char buf[NI_ETHERNET_WOL_STR_MAX_SIZE];
+        char *p = buf;
+
+        memset(buf, 0, sizeof(buf));
+
+        if (wolopts) {
+                if (wolopts & WAKE_PHY)
+                        *p++ = 'p';
+                if (wolopts & WAKE_UCAST)
+                        *p++ = 'u';
+                if (wolopts & WAKE_MCAST)
+                        *p++ = 'm';
+                if (wolopts & WAKE_BCAST)
+                        *p++ = 'b';
+                if (wolopts & WAKE_ARP)
+                        *p++ = 'a';
+                if (wolopts & WAKE_MAGIC)
+                        *p++ = 'g';
+                if (wolopts & WAKE_MAGICSECURE)
+                        *p++ = 's';
+        } else {
+                *p = 'd';
+        }
+
+        return buf;
+}
+
+/*
+ * wake-on-lan string -> wolopts representation
+ */
+static unsigned int
+__ni_ethernet_parse_wolopts(const char *wol_str)
+{
+	unsigned int wol = 0;
+
+        while (wol_str && *wol_str) {
+                switch (*wol_str) {
+		case 'p':
+			wol |= WAKE_PHY;
+			break;
+		case 'u':
+			wol |= WAKE_UCAST;
+			break;
+		case 'm':
+			wol |= WAKE_MCAST;
+			break;
+		case 'b':
+			wol |= WAKE_BCAST;
+			break;
+		case 'a':
+			wol |= WAKE_ARP;
+			break;
+		case 'g':
+			wol |= WAKE_MAGIC;
+			break;
+		case 's':
+			wol |= WAKE_MAGICSECURE;
+			break;
+		case 'd':
+			wol = 0;
+			break;
+		default:
+			return wol;
+                }
+                wol_str++;
+        }
+
+        return wol;
 }
