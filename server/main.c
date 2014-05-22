@@ -402,6 +402,7 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 		case NI_EVENT_DEVICE_READY:
 			while ((event_uuid = ni_netdev_get_event_uuid(dev, event)) != NULL)
 				ni_objectmodel_send_netif_event(dbus_server, object, event, event_uuid);
+			ni_objectmodel_send_netif_event(dbus_server, object, event, NULL);
 			break;
 
 		case NI_EVENT_LINK_ASSOCIATED:
