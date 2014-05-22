@@ -161,6 +161,7 @@ static __ni_ioctl_info_t __ethtool_ggso = { ETHTOOL_GGSO, "GGSO" };
 static __ni_ioctl_info_t __ethtool_ggro = { ETHTOOL_GGRO, "GGRO" };
 static __ni_ioctl_info_t __ethtool_gstrings = { ETHTOOL_GSTRINGS, "GSTRINGS" };
 static __ni_ioctl_info_t __ethtool_gstats = { ETHTOOL_GSTATS, "GSTATS" };
+static __ni_ioctl_info_t __ethtool_gwol = { ETHTOOL_GWOL, "GWOL" };
 static __ni_ioctl_info_t __ethtool_sflags = { ETHTOOL_SFLAGS, "SFLAGS" };
 static __ni_ioctl_info_t __ethtool_srxcsum = { ETHTOOL_SRXCSUM, "SRXCSUM" };
 static __ni_ioctl_info_t __ethtool_stxcsum = { ETHTOOL_STXCSUM, "STXCSUM" };
@@ -169,6 +170,7 @@ static __ni_ioctl_info_t __ethtool_stso = { ETHTOOL_STSO, "STSO" };
 static __ni_ioctl_info_t __ethtool_sufo = { ETHTOOL_SUFO, "SUFO" };
 static __ni_ioctl_info_t __ethtool_sgso = { ETHTOOL_SGSO, "SGSO" };
 static __ni_ioctl_info_t __ethtool_sgro = { ETHTOOL_SGRO, "SGRO" };
+static __ni_ioctl_info_t __ethtool_swol = { ETHTOOL_SWOL, "SWOL" };
 
 static int
 __ni_ethtool_do(const char *ifname, __ni_ioctl_info_t *ioc, void *evp)
@@ -208,6 +210,30 @@ __ni_ethtool_set_value(const char *ifname, __ni_ioctl_info_t *ioc, int value)
 	memset(&eval, 0, sizeof(eval));
 	eval.data = value;
 	return __ni_ethtool_do(ifname, ioc, &eval);
+}
+
+static int
+__ni_ethtool_get_wolinfo(const char *ifname, __ni_ioctl_info_t *ioc)
+{
+	struct ethtool_wolinfo wolinfo;
+
+	memset(&wolinfo, 0, sizeof(wolinfo));
+	if (__ni_ethtool_do(ifname, ioc, &wolinfo) < 0)
+		return -1;
+
+	return wolinfo.wolopts;
+}
+
+static int
+__ni_ethtool_set_wolinfo(const char *ifname, __ni_ioctl_info_t *ioc, const char *wolstr)
+{
+	struct ethtool_wolinfo wolinfo;
+
+	memset(&wolinfo, 0, sizeof(wolinfo));
+	/* For now we simply set wolopts. sopass is untouched. */
+	wolinfo.wolopts = __ni_ethernet_parse_wolopts(wolstr);
+
+	return __ni_ethtool_do(ifname, ioc, &wolinfo);
 }
 
 /*
