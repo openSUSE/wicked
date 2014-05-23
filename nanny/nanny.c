@@ -176,26 +176,20 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 			if (mdev->monitor)
 				ni_nanny_schedule_recheck(mgr, mdev->worker);
 		}
-
-		/* Always check virtual devices */
-		for (i = 0; i <  fsm->workers.count; i++) {
-			ni_ifworker_t *w =  fsm->workers.data[i];
-
-			/* Device not created yet */
-			if (w && !w->device)
-				ni_nanny_schedule_recheck(mgr, w);
-		}
 	}
 
 	if (mgr->recheck.count == 0)
 		return;
 
-	ni_fsm_refresh_state(mgr->fsm);
-	ni_fsm_build_hierarchy(fsm);
+	ni_fsm_refresh_state(fsm);
 
-	for (i = 0; i < mgr->recheck.count; ++i)
-		ni_nanny_recheck(mgr, mgr->recheck.data[i]);
-	ni_ifworker_array_destroy(&mgr->recheck);
+	for (i = 0; i < mgr->recheck.count; ++i) {
+		ni_ifworker_t *w = mgr->recheck.data[i];
+
+		if (!ni_ifworker_complete(w))
+			ni_nanny_recheck(mgr, w);
+
+	}
 }
 
 /*
@@ -407,6 +401,7 @@ ni_nanny_unregister_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_nanny_remove_device(mgr, mdev);
 	ni_objectmodel_unregister_managed_device(mdev);
 	ni_fsm_destroy_worker(mgr->fsm, w);
+	ni_ifworker_array_remove(&mgr->recheck, w);
 }
 
 /*
@@ -645,11 +640,15 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		return;
 	}
 
-	if (event == NI_EVENT_DEVICE_CREATE) {
+	if (event == NI_EVENT_DEVICE_CREATE)
+		return;
+
+	if (event == NI_EVENT_DEVICE_READY) {
 		// A new device was added. Could be a virtual device like
 		// a VLAN or vif, or a hotplug device
 		// Create a worker and a managed_netif for this device.
 		if ((w = ni_fsm_recv_new_netif_path(mgr->fsm, object_path))) {
+			ni_fsm_build_hierarchy(mgr->fsm);
 			ni_nanny_register_device(mgr, w);
 			ni_nanny_schedule_recheck(mgr, w);
 		}
@@ -689,11 +688,6 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 			mdev->monitor? ", monitored" : "");
 
 	switch (event) {
-	case NI_EVENT_DEVICE_READY:
-		if (mdev->selected_policy != NULL && mdev->monitor)
-			ni_nanny_schedule_recheck(mgr, w);
-		break;
-
 	case NI_EVENT_LINK_DOWN:
 		// If we have recorded a policy for this device, it means
 		// we were the ones who took it up - so bring it down
@@ -819,6 +813,20 @@ ni_objectmodel_nanny_get_device(ni_dbus_object_t *object, const ni_dbus_method_t
 	return TRUE;
 }
 
+static void
+__ni_objectmodel_nanny_factory_device_recheck(ni_nanny_t *mgr, const char *ifname)
+{
+	ni_ifworker_t *w;
+
+	if (!mgr || ni_string_empty(ifname))
+		return;
+
+	if (!(w = ni_fsm_ifworker_by_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, ifname)))
+		return;
+
+	if (!ni_ifworker_complete(w) && ni_ifworker_is_factory_device(w))
+		ni_nanny_schedule_recheck(mgr, w);
+}
 
 /*
  * Nanny.createPolicy()
@@ -868,7 +876,17 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 			return FALSE;
 		}
 
+		/* Create policy and corresponding worker (e.g. for hotplug or factory devices */
 		policy = ni_fsm_policy_new(mgr->fsm, pname, pnode);
+
+		/* Rebuild the hierarchy cause new policy may hit some matches */
+		ni_fsm_build_hierarchy(mgr->fsm);
+
+		/* Schedule recheck on Factory devices
+		 * (Hotplugs and existing devices are scheduled upon DEVICE_READY)
+		 */
+		__ni_objectmodel_nanny_factory_device_recheck(mgr, pname);
+
 		policy_object = ni_objectmodel_register_managed_policy(ni_dbus_object_get_server(object),
 			ni_managed_policy_new(mgr, policy, NULL));
 
@@ -906,6 +924,7 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 		for (pos = &mgr->policy_list; (cur = *pos); pos = &cur->next) {
 			if (cur->fsm_policy == policy) {
 				ni_dbus_server_t *server;
+				ni_ifworker_t *w;
 
 				if (!ni_fsm_policy_remove(mgr->fsm, policy))
 					return FALSE;
@@ -919,6 +938,13 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 
 				ni_dbus_message_append_object_path(reply,
 					ni_dbus_object_get_path(object));
+
+				w = ni_fsm_ifworker_by_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, name);
+				if (!ni_fsm_destroy_worker(mgr->fsm, w)) {
+					ni_debug_nanny("Unable to destroy the ifworker for %s", name);
+					return FALSE;
+				}
+
 				return TRUE;
 			}
 		}

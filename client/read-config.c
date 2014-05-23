@@ -514,6 +514,7 @@ ni_ifconfig_read_compat_suse(xml_document_array_t *array, const char *type,
 	if ((rv = __ni_suse_get_ifconfig(root, path, &conf))) {
 		ni_compat_generate_interfaces(array, &conf, check_prio, raw);
 	}
+
 	ni_compat_ifconfig_destroy(&conf);
 	return rv;
 }

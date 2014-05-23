@@ -225,10 +225,9 @@ babysit(void)
 		ni_nanny_recheck_do(mgr);
 		ni_nanny_down_do(mgr);
 
-		ni_fsm_do(mgr->fsm, &timeout);
-
-		/* Register newly created devices if any */
-		ni_nanny_discover_state(mgr);
+		/* Start FSM only if there is something to do */
+		if (mgr->recheck.count)
+			ni_fsm_do(mgr->fsm, &timeout);
 
 		if (ni_socket_wait(timeout) != 0)
 			ni_fatal("ni_socket_wait failed");
@@ -245,14 +244,18 @@ babysit(void)
 void
 ni_nanny_discover_state(ni_nanny_t *mgr)
 {
+	ni_ifworker_t *w;
+	ni_fsm_t *fsm;
 	unsigned int i;
-	ni_fsm_t *fsm = mgr->fsm;
 
-	ni_assert(fsm);
+	ni_assert(mgr && mgr->fsm);
 
+	fsm = mgr->fsm;
 	ni_fsm_refresh_state(fsm);
+
+	/* Register devices that exist */
 	for (i = 0; i < fsm->workers.count; ++i) {
-		ni_ifworker_t *w = fsm->workers.data[i];
+		w = fsm->workers.data[i];
 
 		if (w->device)
 			ni_nanny_register_device(mgr, w);

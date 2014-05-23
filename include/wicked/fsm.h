@@ -302,6 +302,7 @@ extern ni_ifworker_control_t *	ni_ifworker_control_clone(const ni_ifworker_contr
 extern void			ni_ifworker_control_free(ni_ifworker_control_t *);
 
 extern void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
+extern ni_bool_t		ni_ifworker_array_remove(ni_ifworker_array_t *, ni_ifworker_t *);
 extern int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
 extern void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 
@@ -385,6 +386,21 @@ ni_ifworker_is_valid_state(unsigned int state)
 {
 	return  state > NI_FSM_STATE_NONE &&
 		state < __NI_FSM_STATE_MAX;
+}
+
+static inline ni_bool_t
+ni_ifworker_complete(const ni_ifworker_t *w)
+{
+	return 	w->failed || w->done ||
+		(w->target_state != NI_FSM_STATE_NONE &&
+		w->target_state == w->fsm.state);
+}
+
+static inline ni_bool_t
+ni_ifworker_is_factory_device(ni_ifworker_t *w)
+{
+	return  !w->device && (w->device_api.factory_service &&
+		w->device_api.factory_method);
 }
 
 #endif /* __CLIENT_FSM_H__ */

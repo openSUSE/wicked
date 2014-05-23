@@ -267,9 +267,11 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 		}
 
 		if (__ni_suse_config_defaults) {
+			extern unsigned int ni_wait_for_interfaces;
+
 			ni_sysconfig_get_integer(__ni_suse_config_defaults,
 						"WAIT_FOR_INTERFACES",
-						&result->timeout);
+						&ni_wait_for_interfaces);
 		}
 	} else
 	if (ni_file_exists(pathname)) {

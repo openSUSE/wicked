@@ -494,7 +494,7 @@ ni_ifworker_array_find(ni_ifworker_array_t *array, ni_ifworker_type_t type, cons
 	return NULL;
 }
 
-static ni_bool_t
+ni_bool_t
 ni_ifworker_array_remove(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
 	unsigned int i, j;
@@ -620,7 +620,7 @@ ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
 	for (i = 0; i < w->children.count; i++) {
 		ni_ifworker_t *child = w->children.data[i];
 
-		if (ni_string_eq(child->name, ifname))
+		if (child->device && ni_string_eq(child->name, ifname))
 			return TRUE;
 	}
 
@@ -2557,6 +2557,8 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		ni_string_dup(&found->object_path, object->path);
 	if (!found->device)
 		found->device = ni_netdev_get(dev);
+	if (!ni_string_eq(found->name, dev->name))
+		ni_string_dup(&found->name, dev->name);
 	found->ifindex = dev->link.ifindex;
 	found->object = object;
 
@@ -2666,12 +2668,6 @@ ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path)
 
 	object = ni_dbus_object_create(list_object, path, NULL, NULL);
 	return ni_fsm_recv_new_modem(fsm, object, TRUE);
-}
-
-static inline ni_bool_t
-ni_ifworker_complete(const ni_ifworker_t *w)
-{
-	return w->failed || w->done || w->target_state == NI_FSM_STATE_NONE || w->target_state == w->fsm.state;
 }
 
 /*
@@ -3413,7 +3409,8 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			unsigned int prev_state;
 			int rv;
 
-			if (ni_ifworker_complete(w)) {
+			/* Nothing to do for a FSM */
+			if (ni_ifworker_complete(w) || w->target_state == NI_FSM_STATE_NONE) {
 				ni_ifworker_cancel_timeout(w);
 				continue;
 			}
