@@ -2670,12 +2670,6 @@ ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path)
 	return ni_fsm_recv_new_modem(fsm, object, TRUE);
 }
 
-static inline ni_bool_t
-ni_ifworker_complete(const ni_ifworker_t *w)
-{
-	return w->failed || w->done || w->target_state == NI_FSM_STATE_NONE || w->target_state == w->fsm.state;
-}
-
 /*
  * This error handler can be used by link management functions to request
  * input from the user, such as wireless passphrases, or user/password for
@@ -3415,7 +3409,8 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			unsigned int prev_state;
 			int rv;
 
-			if (ni_ifworker_complete(w)) {
+			/* Nothing to do for a FSM */
+			if (ni_ifworker_complete(w) || w->target_state == NI_FSM_STATE_NONE) {
 				ni_ifworker_cancel_timeout(w);
 				continue;
 			}
