@@ -176,14 +176,6 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 			if (mdev->monitor)
 				ni_nanny_schedule_recheck(mgr, mdev->worker);
 		}
-
-		/* Always check virtual devices */
-		for (i = 0; i < fsm->workers.count; i++) {
-			ni_ifworker_t *w =  fsm->workers.data[i];
-
-			if (!w->device)
-				ni_nanny_schedule_recheck(mgr, w);
-		}
 	}
 
 	if (mgr->recheck.count == 0)
@@ -192,8 +184,14 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 	ni_fsm_refresh_state(mgr->fsm);
 	ni_fsm_build_hierarchy(fsm);
 
-	for (i = 0; i < mgr->recheck.count; ++i)
-		ni_nanny_recheck(mgr, mgr->recheck.data[i]);
+	for (i = 0; i < mgr->recheck.count; ++i) {
+		ni_ifworker_t *w = mgr->recheck.data[i];
+
+		if (!ni_ifworker_complete(w))
+			ni_nanny_recheck(mgr, w);
+
+	}
+
 	ni_ifworker_array_destroy(&mgr->recheck);
 }
 
@@ -644,7 +642,10 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		return;
 	}
 
-	if (event == NI_EVENT_DEVICE_CREATE) {
+	if (event == NI_EVENT_DEVICE_CREATE)
+		return;
+
+	if (event == NI_EVENT_DEVICE_READY) {
 		// A new device was added. Could be a virtual device like
 		// a VLAN or vif, or a hotplug device
 		// Create a worker and a managed_netif for this device.
@@ -688,11 +689,6 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 			mdev->monitor? ", monitored" : "");
 
 	switch (event) {
-	case NI_EVENT_DEVICE_READY:
-		if (mdev->selected_policy != NULL && mdev->monitor)
-			ni_nanny_schedule_recheck(mgr, w);
-		break;
-
 	case NI_EVENT_LINK_DOWN:
 		// If we have recorded a policy for this device, it means
 		// we were the ones who took it up - so bring it down
