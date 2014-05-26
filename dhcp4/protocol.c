@@ -429,8 +429,25 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
 			options->hostname && options->hostname[0]) {
 
 			if (options->fqdn == FQDN_DISABLE) {
-				ni_dhcp4_option_puts(msgbuf, DHCP4_HOSTNAME,
-							options->hostname);
+				char hname[64] = {'\0'}, *end;
+				size_t len;
+
+				/*
+				 * Truncate the domain part if fqdn to avoid attempts
+				 * to update DNS with foo.bar + update-domain.
+				 */
+				strncat(hname, options->hostname, sizeof(hname)-1);
+				if ((end = strchr(hname, '.')))
+					*end = '\0';
+
+				len = ni_string_len(hname);
+				if (ni_check_domain_name(hname, len, 0)) {
+					ni_dhcp4_option_puts(msgbuf, DHCP4_HOSTNAME,
+									hname);
+				} else {
+					ni_info("Not sending suspect hostname: '%s'",
+						ni_print_suspect(hname, len));
+				}
 			} else {
 				/* IETF DHC-FQDN option(81)
 				 * http://tools.ietf.org/html/rfc4702#section-2.1
