@@ -2942,6 +2942,9 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 					NI_ADDRCONF_UPDATE_DEFAULT_ROUTE, FALSE);
 		}
 	}
+	if (ni_sysconfig_get_integer(sc, "DHCLIENT_ROUTE_PRIORITY", &uint))
+		compat->dhcp4.route_priority = uint;
+
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_MODIFY_SMB_CONF"))) {
 		if (ni_string_eq(string, "yes")) {
 			ni_addrconf_update_set(&compat->dhcp4.update,

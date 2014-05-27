@@ -1098,6 +1098,10 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 	if (compat->dhcp4.hostname)
 		xml_node_dict_set(dhcp, "hostname", compat->dhcp4.hostname);
 
+	if (compat->dhcp4.route_priority)
+		xml_node_dict_set(dhcp, "route-priority",
+				ni_sprint_uint(compat->dhcp4.route_priority));
+
 	if (compat->dhcp4.start_delay)
 		xml_node_dict_set(dhcp, "start-delay",
 				ni_sprint_timeout(compat->dhcp4.start_delay));
