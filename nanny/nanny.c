@@ -243,8 +243,6 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 		}
 	}
 
-	ni_fsm_refresh_state(fsm);
-
 	for (i = 0; i < mgr->recheck.count; ++i)
 		count += ni_nanny_recheck(mgr, mgr->recheck.data[i]);
 
@@ -795,7 +793,6 @@ ni_objectmodel_nanny_get_device(ni_dbus_object_t *object, const ni_dbus_method_t
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
 
 	/* XXX: scalability. Use ni_call_identify_device() */
-	ni_fsm_refresh_state(mgr->fsm);
 	w = ni_fsm_ifworker_by_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, ifname);
 
 	if (w)
