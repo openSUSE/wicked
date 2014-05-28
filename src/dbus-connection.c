@@ -51,6 +51,8 @@ struct ni_dbus_sigaction {
 
 struct ni_dbus_connection {
 	DBusConnection *	conn;
+	ni_bool_t		private;
+
 	ni_dbus_async_client_call_t *async_client_calls;
 	ni_dbus_async_server_call_t *async_server_calls;
 	ni_dbus_sigaction_t *	sighandlers;
@@ -149,6 +151,7 @@ ni_dbus_connection_open(const char *bus_type_string, const char *bus_name)
 	connection = calloc(1, sizeof(*connection));
 	if (bus_name == NULL) {
 		connection->conn = dbus_bus_get_private(bus_type, &error);
+		connection->private = TRUE;
 		if (dbus_error_is_set(&error)) {
 			ni_error("Cannot get dbus %s bus handle (%s)",
 					bus_type == DBUS_BUS_SYSTEM? "system" : "session",
@@ -161,6 +164,7 @@ ni_dbus_connection_open(const char *bus_type_string, const char *bus_name)
 		int rv;
 
 		connection->conn = dbus_bus_get(bus_type, &error);
+		connection->private = FALSE;
 		if (dbus_error_is_set(&error)) {
 			ni_error("Cannot get dbus %s bus handle (%s)",
 					bus_type == DBUS_BUS_SYSTEM? "system" : "session",
@@ -240,7 +244,8 @@ ni_dbus_connection_free(ni_dbus_connection_t *dbc)
 	}
 
 	if (dbc->conn) {
-		dbus_connection_close(dbc->conn);
+		if (dbc->private)
+			dbus_connection_close(dbc->conn);
 		dbus_connection_unref(dbc->conn);
 		dbc->conn = NULL;
 	}
