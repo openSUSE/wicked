@@ -220,6 +220,7 @@ extern ni_device_clientinfo_t *	ni_netdev_get_client_info(ni_netdev_t *);
 extern void		ni_netdev_set_client_state(ni_netdev_t *, ni_client_state_t *);
 extern ni_client_state_t *	ni_netdev_get_client_state(ni_netdev_t *);
 extern void		ni_netdev_load_client_state(ni_netdev_t *);
+extern ni_bool_t	ni_netdev_supports_arp(ni_netdev_t *);
 
 extern void             ni_netdev_clear_addresses(ni_netdev_t *);
 extern void             ni_netdev_clear_routes(ni_netdev_t *);

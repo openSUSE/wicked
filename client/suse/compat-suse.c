@@ -3142,14 +3142,16 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 				ni_tristate_set(&ipv4->conf.arp_verify, !ni_string_eq(value, "no"));
 			}
 			if ((value = ni_sysconfig_get_value(__ni_suse_config_defaults,
-						"SEND_GRATUITOUS_ARP"))) {
+						"SEND_GRATUITOUS_ARP"))
+					&& !ni_string_eq(value, "auto")) {
 				ni_tristate_set(&ipv4->conf.arp_notify, ni_string_eq(value, "yes"));
 			}
 		}
 		if ((value = ni_sysconfig_get_value(sc, "CHECK_DUPLICATE_IP"))) {
 			ni_tristate_set(&ipv4->conf.arp_verify, !ni_string_eq(value, "no"));
 		}
-		if ((value = ni_sysconfig_get_value(sc, "SEND_GRATUITOUS_ARP"))) {
+		if ((value = ni_sysconfig_get_value(sc, "SEND_GRATUITOUS_ARP"))
+				&& !ni_string_eq(value, "auto")) {
 			ni_tristate_set(&ipv4->conf.arp_notify, ni_string_eq(value, "yes"));
 		}
 	}

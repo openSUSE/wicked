@@ -1170,7 +1170,7 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 }
 
 static ni_bool_t
-__ni_compat_generate_ipv4_devconf(xml_node_t *ifnode, const ni_ipv4_devinfo_t *ipv4)
+__ni_compat_generate_ipv4_devconf(xml_node_t *ifnode, const ni_ipv4_devinfo_t *ipv4, ni_iftype_t iftype)
 {
 	xml_node_t *node;
 
@@ -1185,8 +1185,24 @@ __ni_compat_generate_ipv4_devconf(xml_node_t *ifnode, const ni_ipv4_devinfo_t *i
 	}
 
 	__ni_compat_optional_tristate("forwarding", node, ipv4->conf.forwarding);
-	__ni_compat_optional_tristate("arp-verify", node, ipv4->conf.arp_verify);
-	__ni_compat_optional_tristate("arp-notify", node, ipv4->conf.arp_notify);
+	switch (iftype) {
+	case NI_IFTYPE_ETHERNET:
+	case NI_IFTYPE_WIRELESS:
+	case NI_IFTYPE_BRIDGE:
+	case NI_IFTYPE_BOND:
+	case NI_IFTYPE_VLAN:
+	case NI_IFTYPE_MACVLAN:
+	case NI_IFTYPE_MACVTAP:
+	case NI_IFTYPE_INFINIBAND:
+	case NI_IFTYPE_INFINIBAND_CHILD:
+	case NI_IFTYPE_TOKENRING:
+	case NI_IFTYPE_FIREWIRE:
+	case NI_IFTYPE_UNKNOWN:
+		__ni_compat_optional_tristate("arp-verify", node, ipv4->conf.arp_verify);
+		__ni_compat_optional_tristate("arp-notify", node, ipv4->conf.arp_notify);
+	default:
+		break;
+	}
 
 	if (node->children) {
 		xml_node_add_child(ifnode, node);
@@ -1317,7 +1333,7 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	if (dev->link.mtu)
 		xml_node_new_element("mtu", linknode, ni_sprint_uint(dev->link.mtu));
 
-	__ni_compat_generate_ipv4_devconf(ifnode, dev->ipv4);
+	__ni_compat_generate_ipv4_devconf(ifnode, dev->ipv4, dev->link.type);
 	if (dev->ipv4 && !ni_tristate_is_disabled(dev->ipv4->conf.enabled)) {
 		__ni_compat_generate_static_addrconf(ifnode, compat, AF_INET);
 		__ni_compat_generate_dhcp4_addrconf(ifnode, compat);
