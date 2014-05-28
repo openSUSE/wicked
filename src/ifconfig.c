@@ -1239,11 +1239,9 @@ ni_system_tuntap_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t 
 int
 ni_system_tuntap_delete(ni_netdev_t *dev)
 {
-	int rv;
-
 	if (__ni_rtnl_link_delete(dev)) {
 		ni_error("could not destroy tun/tap interface %s", dev->name);
-		return rv;
+		return -1;
 	}
 	return 0;
 }
