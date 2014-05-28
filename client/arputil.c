@@ -165,19 +165,12 @@ __do_arp_validate_init(struct arp_handle *handle, ni_capture_devinfo_t *dev_info
 		return NI_LSB_RC_ERROR;
 	}
 
-	switch (dev->link.hwaddr.type) {
-	case ARPHRD_ETHER:
-		if (!ni_netdev_link_is_up(dev)) {
-			ni_error("%s: link is not up", dev->name);
-			return NI_LSB_RC_ERROR;
-		}
-		if (!(dev->link.ifflags & (NI_IFF_ARP_ENABLED|NI_IFF_BROADCAST_ENABLED))) {
-			ni_error("%s: arp and broadcasts are disabled", dev->name);
-			return NI_LSB_RC_ERROR;
-		}
-		break;
-	default:
-		ni_error("%s: unsupported interface type", dev->name);
+	if (!ni_netdev_supports_arp(dev)) {
+		ni_error("%s: arp is not supported/enabled", dev->name);
+		return NI_LSB_RC_ERROR;
+	}
+	if (!ni_netdev_link_is_up(dev)) {
+		ni_error("%s: link is not up", dev->name);
 		return NI_LSB_RC_ERROR;
 	}
 

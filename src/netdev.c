@@ -921,3 +921,17 @@ __ni_netdev_list_append(ni_netdev_t **list, ni_netdev_t *new_ifp)
 	*list = new_ifp;
 }
 
+ni_bool_t
+ni_netdev_supports_arp(ni_netdev_t *dev)
+{
+	if (dev) {
+		switch (dev->link.hwaddr.type) {
+		case ARPHRD_LOOPBACK:
+			return FALSE;
+		default:
+			return dev->link.ifflags & NI_IFF_ARP_ENABLED;
+		}
+	}
+	return FALSE;
+}
+

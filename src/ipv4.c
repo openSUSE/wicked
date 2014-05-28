@@ -74,14 +74,19 @@ ni_ipv4_devinfo_free(ni_ipv4_devinfo_t *ipv4)
 int
 ni_system_ipv4_devinfo_get(ni_netdev_t *dev, ni_ipv4_devinfo_t *ipv4)
 {
+	ni_bool_t can_arp;
+
 	if (ipv4 == NULL)
 		ipv4 = ni_netdev_get_ipv4(dev);
 
 	if (!ni_tristate_is_set(ipv4->conf.enabled))
 		ipv4->conf.enabled = NI_TRISTATE_ENABLE;
 
-	if (!ni_tristate_is_set(ipv4->conf.arp_verify))
-		ipv4->conf.arp_verify = NI_TRISTATE_ENABLE;
+	can_arp = ni_netdev_supports_arp(dev);
+	if (!ni_tristate_is_set(ipv4->conf.arp_verify)) {
+		ipv4->conf.arp_verify = can_arp ?
+			NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
+	}
 
 	if (ni_sysctl_ipv4_ifconfig_is_present(dev->name)) {
 		int val;
@@ -89,7 +94,7 @@ ni_system_ipv4_devinfo_get(ni_netdev_t *dev, ni_ipv4_devinfo_t *ipv4)
 		if (ni_sysctl_ipv4_ifconfig_get_int(dev->name, "forwarding", &val) >= 0)
 			ni_tristate_set(&ipv4->conf.forwarding, val);
 
-		if (ni_sysctl_ipv4_ifconfig_get_int(dev->name, "arp_notify", &val) >= 0)
+		if (can_arp && ni_sysctl_ipv4_ifconfig_get_int(dev->name, "arp_notify", &val) >= 0)
 			ni_tristate_set(&ipv4->conf.arp_notify, val);
 
 		if (ni_sysctl_ipv4_ifconfig_get_int(dev->name, "accept_redirects", &val) >= 0)
@@ -127,6 +132,7 @@ ni_system_ipv4_devinfo_set(ni_netdev_t *dev, const ni_ipv4_devconf_t *conf)
 {
 	ni_ipv4_devinfo_t *ipv4;
 	ni_tristate_t arp_notify;
+	ni_bool_t can_arp;
 
 	if (!conf || !(ipv4 = ni_netdev_get_ipv4(dev)))
 		return -1;
@@ -138,10 +144,13 @@ ni_system_ipv4_devinfo_set(ni_netdev_t *dev, const ni_ipv4_devconf_t *conf)
 						conf->forwarding) == 0)
 		ipv4->conf.forwarding = conf->forwarding;
 
-	if (ni_tristate_is_set(conf->arp_verify))
+	can_arp = ni_netdev_supports_arp(dev);
+	if (ni_tristate_is_set(conf->arp_verify) && can_arp)
 		ni_tristate_set(&ipv4->conf.arp_verify, conf->arp_verify);
+	else
+		ni_tristate_set(&ipv4->conf.arp_verify, FALSE);
 
-	arp_notify = ni_tristate_is_set(conf->arp_notify) ?
+	arp_notify = ni_tristate_is_set(conf->arp_notify) && can_arp ?
 			conf->arp_notify : conf->arp_verify;
 	if (__ni_system_ipv4_devinfo_change_int(dev->name, "arp_notify",
 					arp_notify) == 0)
