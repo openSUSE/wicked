@@ -233,18 +233,14 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 			if (mdev->monitor)
 				ni_nanny_schedule_recheck(mgr, mdev->worker);
 		}
-
-		/* Always check virtual devices */
-		for (i = 0; i < fsm->workers.count; i++) {
-			ni_ifworker_t *w =  fsm->workers.data[i];
-
-			if (!w->device)
-				ni_nanny_schedule_recheck(mgr, w);
-		}
 	}
 
-	for (i = 0; i < mgr->recheck.count; ++i)
-		count += ni_nanny_recheck(mgr, mgr->recheck.data[i]);
+	for (i = 0; i < mgr->recheck.count; ++i) {
+		ni_ifworker_t *w = mgr->recheck.data[i];
+
+		if (!w->failed && !w->done && !ni_ifworker_active(w))
+			count += ni_nanny_recheck(mgr, w);
+	}
 
 	return count;
 }
