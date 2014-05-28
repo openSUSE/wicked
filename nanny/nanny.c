@@ -935,6 +935,13 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 
 				ni_debug_nanny("Removed FSM policy %s", name);
 
+				w = ni_fsm_ifworker_by_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, name);
+				if (w != NULL) {
+					ni_managed_device_t *mdev = ni_nanny_get_device(mgr, w);
+					if (mdev != NULL)
+						ni_managed_device_set_policy(mdev, NULL, NULL);
+				}
+
 				*pos = cur->next;
 				server = ni_dbus_object_get_server(object);
 				if (!ni_objectmodel_unregister_managed_policy(server, cur, name))
