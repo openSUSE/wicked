@@ -1999,6 +1999,13 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 	}
 }
 
+static inline void
+ni_fsm_purge_children(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	if (w->exclusive_owner)
+		ni_ifworker_array_remove(&w->exclusive_owner->children, w);
+}
+
 ni_bool_t
 ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
@@ -2017,8 +2024,8 @@ ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 
 	if (ni_ifworker_active(w))
 		ni_ifworker_fail(w, "device was deleted");
-	w->dead = TRUE;
 
+	ni_fsm_purge_children(fsm, w);
 	ni_ifworker_release(w);
 	return TRUE;
 }
