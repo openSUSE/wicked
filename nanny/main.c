@@ -222,10 +222,9 @@ babysit(void)
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
 
-		ni_nanny_recheck_do(mgr);
-		ni_nanny_down_do(mgr);
-
-		ni_fsm_do(mgr->fsm, &timeout);
+		do {
+			ni_fsm_do(mgr->fsm, &timeout);
+		} while (ni_nanny_recheck_do(mgr) || ni_nanny_down_do(mgr));
 
 		if (ni_socket_wait(timeout) != 0)
 			ni_fatal("ni_socket_wait failed");

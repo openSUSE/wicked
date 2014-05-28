@@ -162,45 +162,10 @@ ni_nanny_schedule_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 		ni_ifworker_array_append(&mgr->recheck, w);
 }
 
-void
-ni_nanny_recheck_do(ni_nanny_t *mgr)
-{
-	unsigned int i;
-	ni_fsm_t *fsm = mgr->fsm;
-
-	ni_assert(fsm);
-	if (ni_fsm_policies_changed_since(fsm, &mgr->last_policy_seq)) {
-		ni_managed_device_t *mdev;
-
-		for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
-			if (mdev->monitor)
-				ni_nanny_schedule_recheck(mgr, mdev->worker);
-		}
-
-		/* Always check virtual devices */
-		for (i = 0; i < fsm->workers.count; i++) {
-			ni_ifworker_t *w =  fsm->workers.data[i];
-
-			if (!w->device)
-				ni_nanny_schedule_recheck(mgr, w);
-		}
-	}
-
-	if (mgr->recheck.count == 0)
-		return;
-
-	ni_fsm_refresh_state(mgr->fsm);
-	ni_fsm_build_hierarchy(fsm);
-
-	for (i = 0; i < mgr->recheck.count; ++i)
-		ni_nanny_recheck(mgr, mgr->recheck.data[i]);
-	ni_ifworker_array_destroy(&mgr->recheck);
-}
-
 /*
  * Check whether a given interface should be reconfigured
  */
-void
+static unsigned int
 ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 {
 	static const unsigned int MAX_POLICIES = 20;
@@ -240,7 +205,7 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 		} else {
 			ni_debug_nanny("%s: no applicable policies", w->name);
 		}
-		return;
+		return count;
 	}
 
 	policy = policies[count-1];
@@ -250,6 +215,42 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 		ni_virtual_device_apply_policy(mgr->fsm, w, mpolicy);
 	else
 		ni_managed_device_apply_policy(mdev, mpolicy);
+
+	return count;
+}
+
+unsigned int
+ni_nanny_recheck_do(ni_nanny_t *mgr)
+{
+	unsigned int i, count = 0;
+	ni_fsm_t *fsm = mgr->fsm;
+
+	ni_assert(fsm);
+	if (ni_fsm_policies_changed_since(fsm, &mgr->last_policy_seq)) {
+		ni_managed_device_t *mdev;
+
+		for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
+			if (mdev->monitor)
+				ni_nanny_schedule_recheck(mgr, mdev->worker);
+		}
+
+		/* Always check virtual devices */
+		for (i = 0; i < fsm->workers.count; i++) {
+			ni_ifworker_t *w =  fsm->workers.data[i];
+
+			if (!w->device)
+				ni_nanny_schedule_recheck(mgr, w);
+		}
+	}
+
+	ni_fsm_refresh_state(mgr->fsm);
+	ni_fsm_build_hierarchy(fsm);
+
+	for (i = 0; i < mgr->recheck.count; ++i)
+		count += ni_nanny_recheck(mgr, mgr->recheck.data[i]);
+	ni_ifworker_array_destroy(&mgr->recheck);
+
+	return count;
 }
 
 /*
@@ -262,22 +263,25 @@ ni_nanny_schedule_down(ni_nanny_t *mgr, ni_ifworker_t *w)
 		ni_ifworker_array_append(&mgr->down, w);
 }
 
-void
+unsigned int
 ni_nanny_down_do(ni_nanny_t *mgr)
 {
-	unsigned int i;
-
-	if (mgr->down.count == 0)
-		return;
+	unsigned int i, count = 0;
 
 	for (i = 0; i < mgr->down.count; ++i) {
 		ni_ifworker_t *w = mgr->down.data[i];
 		ni_managed_device_t *mdev;
 
-		if ((mdev = ni_nanny_get_device(mgr, w)) != NULL)
+		if ((mdev = ni_nanny_get_device(mgr, w)) != NULL) {
 			ni_managed_device_down(mdev);
+			count++;
+		}
 	}
-	ni_ifworker_array_destroy(&mgr->down);
+
+	if (i > 0)
+		ni_ifworker_array_destroy(&mgr->down);
+
+	return count;
 }
 
 ni_managed_policy_t *
