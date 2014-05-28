@@ -227,9 +227,6 @@ babysit(void)
 
 		ni_fsm_do(mgr->fsm, &timeout);
 
-		/* Register newly created devices if any */
-		ni_nanny_discover_state(mgr);
-
 		if (ni_socket_wait(timeout) != 0)
 			ni_fatal("ni_socket_wait failed");
 	}
@@ -254,22 +251,12 @@ ni_nanny_discover_state(ni_nanny_t *mgr)
 	fsm = mgr->fsm;
 	ni_fsm_refresh_state(fsm);
 
-	/* Register devices that exist (e.g. have just been created) */
+	/* Register devices that exist */
 	for (i = 0; i < fsm->workers.count; ++i) {
 		w = fsm->workers.data[i];
 
 		if (w->device)
 			ni_nanny_register_device(mgr, w);
-	}
-
-	/* Do not recheck on devices that have failed */
-	for (i = 0; i < mgr->recheck.count; ++i) {
-		w = mgr->recheck.data[i];
-
-		if (w->failed) {
-			ni_ifworker_array_remove(&mgr->recheck, w);
-			ni_ifworker_reset(w);
-		}
 	}
 }
 
