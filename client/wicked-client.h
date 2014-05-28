@@ -62,6 +62,7 @@ typedef struct ni_compat_netdev {
 		ni_bool_t	recover_lease;
 		ni_bool_t	release_lease;
 
+		unsigned int	route_priority;
 		unsigned int	update;
 	} dhcp4;
 	struct {

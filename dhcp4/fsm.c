@@ -20,6 +20,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/route.h>
+#include <netlink/netlink.h>
 #include "netinfo_priv.h"
 #include "buffer.h"
 
@@ -652,7 +653,7 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 		}
 
 		/* If the user requested a specific route metric, apply it now */
-		if (dev->config && dev->config->route_priority) {
+		if (dev->config) {
 			ni_route_table_t *tab;
 			ni_route_t *rp;
 			unsigned int i;
@@ -661,6 +662,7 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 				for (i = 0; i < tab->routes.count; ++i) {
 					if ((rp = tab->routes.data[i]) == NULL)
 						continue;
+					rp->protocol = RTPROT_DHCP;
 					rp->priority = dev->config->route_priority;
 				}
 			}

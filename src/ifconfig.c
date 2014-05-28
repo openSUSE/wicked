@@ -75,9 +75,9 @@
 static int	__ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_address_t *cfg_addr_list);
-static int	__ni_netdev_update_routes(ni_netdev_t *dev,
+static int	__ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
-				ni_route_table_t *cfg_route_list);
+				ni_addrconf_lease_t       *new_lease);
 
 static int	__ni_rtnl_link_create(const ni_netdev_t *cfg);
 static int	__ni_rtnl_link_change(ni_netdev_t *dev, const ni_netdev_t *cfg);
@@ -214,9 +214,9 @@ __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease
 	 * Ignore all routes covered by other address config mechanisms.
 	 */
 	if (lease->state == NI_ADDRCONF_STATE_GRANTED)
-		res = __ni_netdev_update_routes(dev, old_lease, lease->routes);
+		res = __ni_netdev_update_routes(nc, dev, old_lease, lease);
 	else
-		res = __ni_netdev_update_routes(dev, old_lease, NULL);
+		res = __ni_netdev_update_routes(nc, dev, old_lease, NULL);
 	if (res < 0) {
 		ni_error("%s: error updating interface config from %s lease",
 				dev->name, 
@@ -2132,7 +2132,10 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 	struct nl_msg *msg;
 	int err;
 
-	ni_debug_ifconfig("%s(%s)", __FUNCTION__, ni_route_print(&buf, rp));
+	ni_debug_ifconfig("%s(%s%s)", __FUNCTION__,
+			flags & NLM_F_REPLACE ? "replace " :
+			flags & NLM_F_CREATE  ? "create " : "",
+			ni_route_print(&buf, rp));
 	ni_stringbuf_destroy(&buf);
 
 	memset(&rt, 0, sizeof(rt));
@@ -2659,39 +2662,57 @@ __ni_netdev_route_table_contains(ni_route_table_t *tab, const ni_route_t *rp)
 		if (rp->table != rp2->table)
 			continue;
 
-		if (rp->family != rp2->family
-		 || rp->prefixlen != rp2->prefixlen)
-			continue;
-
-		if (rp->prefixlen && !ni_sockaddr_equal(&rp->destination, &rp2->destination))
-			continue;
-
-		if (rp->family == AF_INET) {
-			/* ipv4 matches routing entries by [prefix, tos, priority] */
-			if (rp->tos == rp2->tos
-			 && rp->priority == rp2->priority)
-				return rp2;
-		} else
-		if (rp->family == AF_INET6) {
-			/* ipv6 matches routing entries by [dst pfx, src pfx, priority] */
-			/* We don't support source routes yet. */
-			if (rp->priority == rp2->priority)
-				return rp2;
-		}
+		if (ni_route_equal_destination(rp, rp2))
+			return rp2;
 	}
 
 	return NULL;
 }
 
+static ni_route_t *
+__ni_skip_conflicting_route(ni_netconfig_t *nc, ni_netdev_t *our_dev,
+		ni_addrconf_lease_t *our_lease, ni_route_t *our_rp)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_netdev_t *dev;
+	ni_route_table_t *tab;
+	ni_route_t *rp;
+	unsigned int i;
+
+	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
+		if (!dev->routes)
+			continue;
+
+		if (!(tab = ni_route_tables_find(dev->routes, our_rp->table)))
+			continue;
+
+		for (i = 0; i < tab->routes.count; ++i) {
+			rp = tab->routes.data[i];
+			if (!rp || !ni_route_equal_destination(rp, our_rp))
+				continue;
+
+			ni_debug_ifconfig("%s: skipping conflicting %s:%s route: %s",
+					our_dev->name,
+					ni_addrfamily_type_to_name(our_lease->family),
+					ni_addrconf_type_to_name(our_lease->type),
+					ni_route_print(&buf, rp));
+			ni_stringbuf_destroy(&buf);
+
+			return rp;
+		}
+	}
+	return NULL;
+}
+
 static int
-__ni_netdev_update_routes(ni_netdev_t *dev,
+__ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
-				ni_route_table_t *cfg_route_list)
+				ni_addrconf_lease_t       *new_lease)
 {
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_route_table_t *tab, *cfg_tab;
 	ni_route_t *rp, *new_route;
-	unsigned int i;
+	unsigned int minprio, i;
 	int rv = 0;
 
 	/* Loop over all tables and routes currently assigned to the interface.
@@ -2706,13 +2727,13 @@ __ni_netdev_update_routes(ni_netdev_t *dev,
 
 			/* See if the config list contains the route we've
 			 * found in the system. */
-			cfg_tab = ni_route_tables_find(cfg_route_list, rp->table);
+			cfg_tab = new_lease ? ni_route_tables_find(new_lease->routes, rp->table) : NULL;
 			if (cfg_tab)
 				new_route = __ni_netdev_route_table_contains(cfg_tab, rp);
 			else
 				new_route = NULL;
 
-			/* Do not touch route not managed by us. */
+			/* Do not touch route if not managed by us. */
 			if (rp->config_lease == NULL) {
 				if (new_route == NULL)
 					continue;
@@ -2722,6 +2743,7 @@ __ni_netdev_update_routes(ni_netdev_t *dev,
 				 * is ours now. */
 				rp->config_lease = old_lease;
 			}
+			minprio = ni_addrconf_lease_get_priority(rp->config_lease);
 
 			/* If the route was managed by us (ie its owned by a lease with
 			 * the same family/addrconf mode), then we want to check whether
@@ -2730,7 +2752,7 @@ __ni_netdev_update_routes(ni_netdev_t *dev,
 			if (rp->config_lease == old_lease) {
 				ni_addrconf_lease_t *other;
 
-				if ((other = __ni_netdev_route_to_lease(dev, rp)) != NULL)
+				if ((other = __ni_netdev_route_to_lease(dev, rp, minprio)) != NULL)
 					rp->config_lease = other;
 			}
 
@@ -2739,8 +2761,9 @@ __ni_netdev_update_routes(ni_netdev_t *dev,
 				 * addrconf mode.
 				 */
 				if (new_route != NULL) {
-					ni_warn("route %s covered by a %s lease",
+					ni_warn("route %s covered by a %s:%s lease",
 						ni_route_print(&buf, rp),
+						ni_addrfamily_type_to_name(rp->config_lease->family),
 						ni_addrconf_type_to_name(rp->config_lease->type));
 					ni_stringbuf_destroy(&buf);
 				}
@@ -2752,7 +2775,9 @@ __ni_netdev_update_routes(ni_netdev_t *dev,
 					ni_debug_ifconfig("%s: successfully updated existing route %s",
 							dev->name, ni_route_print(&buf, rp));
 					ni_stringbuf_destroy(&buf);
+					new_route->config_lease = new_lease;
 					new_route->seq = __ni_global_seqno;
+					__ni_netdev_record_newroute(nc, dev, new_route);
 					continue;
 				}
 
@@ -2773,7 +2798,7 @@ __ni_netdev_update_routes(ni_netdev_t *dev,
 	/* Loop over all tables and routes in the configuration
 	 * and create those that don't exist yet.
 	 */
-	for (tab = cfg_route_list; tab; tab = tab->next) {
+	for (tab = new_lease ? new_lease->routes : NULL; tab; tab = tab->next) {
 		for (i = 0; i < tab->routes.count; ++i) {
 			if ((rp = tab->routes.data[i]) == NULL)
 				continue;
@@ -2781,12 +2806,21 @@ __ni_netdev_update_routes(ni_netdev_t *dev,
 			if (rp->seq == __ni_global_seqno)
 				continue;
 
-			ni_debug_ifconfig("%s: adding new route %s",
+			if (__ni_skip_conflicting_route(nc, dev, new_lease, rp))
+				continue;
+
+			ni_debug_ifconfig("%s: adding new %s:%s lease route %s",
+					ni_addrfamily_type_to_name(new_lease->family),
+					ni_addrconf_type_to_name(new_lease->type),
 					dev->name, ni_route_print(&buf, rp));
 			ni_stringbuf_destroy(&buf);
 
 			if ((rv = __ni_rtnl_send_newroute(dev, rp, NLM_F_CREATE)) < 0)
 				return rv;
+
+			rp->config_lease = new_lease;
+			rp->seq = __ni_global_seqno;
+			__ni_netdev_record_newroute(nc, dev, rp);
 		}
 	}
 

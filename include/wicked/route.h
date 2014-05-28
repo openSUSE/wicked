@@ -95,6 +95,8 @@ extern ni_route_t *		ni_route_clone(const ni_route_t *);
 extern ni_route_t *		ni_route_ref(ni_route_t *);
 extern void			ni_route_free(ni_route_t *);
 extern ni_bool_t		ni_route_equal(const ni_route_t *, const ni_route_t *);
+extern ni_bool_t		ni_route_equal_gateways(const ni_route_t *, const ni_route_t *);
+extern ni_bool_t		ni_route_equal_destination(const ni_route_t *, const ni_route_t *);
 extern const char *		ni_route_print(ni_stringbuf_t *, const ni_route_t *);
 
 extern const char *		ni_route_type_type_to_name(unsigned int);

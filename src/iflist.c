@@ -1962,7 +1962,7 @@ __ni_process_newroute_metrics(ni_route_t *rp, struct nlattr *metrics)
 	return 0;
 }
 
-static int
+int
 __ni_netdev_record_newroute(ni_netconfig_t *nc, ni_netdev_t *dev, ni_route_t *rp)
 {
 	ni_stringbuf_t  buf = NI_STRINGBUF_INIT_DYNAMIC;
