@@ -2577,24 +2577,11 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 	for (i = 0; i < fsm->workers.count; ++i) {
 		w = fsm->workers.data[i];
 
-		if (w->object == NULL) {
-			ni_debug_application("device %s (%s) disappeared", w->name, w->object_path);
-			ni_ifworker_update_state(w, NI_FSM_STATE_NONE, NI_FSM_STATE_DEVICE_DOWN);
-
-			if (w->device) {
-				ni_netdev_put(w->device);
-				w->device = NULL;
-			}
-			if (w->modem) {
-				ni_modem_release(w->modem);
-				w->modem = NULL;
-			}
-			if (ni_ifworker_active(w) && !w->device_api.factory_method)
-				ni_ifworker_fail(w, "device was deleted");
-			w->dead = TRUE;
-		} else if (!w->done)
+		/* Set initial state of existing devices */
+		if (w->object != NULL)
 			ni_ifworker_update_state(w, NI_FSM_STATE_DEVICE_EXISTS, __NI_FSM_STATE_MAX);
 	}
+
 	return TRUE;
 }
 
@@ -2659,15 +2646,6 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		found->device = ni_netdev_get(dev);
 	found->ifindex = dev->link.ifindex;
 	found->object = object;
-
-	/* Don't touch devices we're done with */
-
-	if (!found->done) {
-		if (ni_netdev_link_is_up(dev))
-			ni_ifworker_update_state(found, NI_FSM_STATE_LINK_UP, __NI_FSM_STATE_MAX);
-		else
-			ni_ifworker_update_state(found, 0, NI_FSM_STATE_LINK_UP - 1);
-	}
 
 	return found;
 }
