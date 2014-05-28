@@ -3701,6 +3701,8 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 				min_state = NI_FSM_STATE_DEVICE_EXISTS;
 				break;
 			case NI_EVENT_DEVICE_READY:
+				/* Rebuild hierarchy in case of new device shows up */
+				ni_fsm_build_hierarchy(fsm);
 				min_state = NI_FSM_STATE_DEVICE_READY;
 				break;
 			case NI_EVENT_LINK_UP:
