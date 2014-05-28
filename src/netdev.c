@@ -809,27 +809,44 @@ __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ma
  * Given a route, look up the lease owning it
  */
 ni_addrconf_lease_t *
-__ni_netdev_route_to_lease(ni_netdev_t *dev, const ni_route_t *rp)
+__ni_netdev_route_to_lease(ni_netdev_t *dev, const ni_route_t *rp, unsigned int minprio)
 {
 	ni_addrconf_lease_t *lease;
+	ni_addrconf_lease_t *found = NULL;
 	ni_address_t *ap;
+	unsigned int prio;
 
 	if (!dev || !rp)
 		return NULL;
 
 	for (lease = dev->leases; lease; lease = lease->next) {
+		if (rp->family != lease->family)
+			continue;
+
+		if ((prio = ni_addrconf_lease_get_priority(lease)) < minprio)
+			continue;
+
 		/* First, check if this is an interface route */
 		for (ap = lease->addrs; ap; ap = ap->next) {
-			if (rp->prefixlen == ap->prefixlen
-			 && ni_sockaddr_prefix_match(ap->prefixlen, &rp->destination, &ap->local_addr))
-				return lease;
+			if (ni_sockaddr_is_specified(&rp->nh.gateway))
+				continue;
+			if (rp->prefixlen != ap->prefixlen)
+				continue;
+			if (!ni_sockaddr_prefix_match(ap->prefixlen,
+				&rp->destination, &ap->local_addr))
+				continue;
+
+			if (!found || prio > ni_addrconf_lease_get_priority(found))
+				found = lease;
 		}
 
-		if (__ni_lease_owns_route(lease, rp))
-			return lease;
+		if (__ni_lease_owns_route(lease, rp)) {
+			if (!found || prio > ni_addrconf_lease_get_priority(found))
+				found = lease;
+		}
 	}
 
-	return NULL;
+	return found;
 }
 
 ni_route_t *

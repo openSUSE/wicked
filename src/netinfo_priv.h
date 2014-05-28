@@ -44,10 +44,11 @@ extern void		__ni_netdev_list_append(ni_netdev_t **, ni_netdev_t *);
 extern void		__ni_netdev_list_destroy(ni_netdev_t **);
 extern ni_addrconf_lease_t *__ni_netdev_find_lease(ni_netdev_t *, unsigned int, ni_addrconf_mode_t, int);
 extern ni_addrconf_lease_t *__ni_netdev_address_to_lease(ni_netdev_t *, const ni_address_t *);
-extern ni_addrconf_lease_t *__ni_netdev_route_to_lease(ni_netdev_t *, const ni_route_t *);
+extern ni_addrconf_lease_t *__ni_netdev_route_to_lease(ni_netdev_t *, const ni_route_t *, unsigned int);
 extern void		__ni_netdev_track_ipv6_autoconf(ni_netdev_t *, int);
 extern unsigned int	__ni_netdev_translate_ifflags(unsigned int);
 extern void		__ni_netdev_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
+extern int		__ni_netdev_record_newroute(ni_netconfig_t *nc, ni_netdev_t *dev, ni_route_t *rp);
 
 extern void		__ni_routes_clear(ni_netconfig_t *);
 
