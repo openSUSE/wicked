@@ -2520,8 +2520,20 @@ __ni_netdev_new_addr_notify(ni_netdev_t *dev, ni_address_t *ap)
 	if (ni_address_is_duplicate(ap))
 		return FALSE;
 
+	switch (dev->link.hwaddr.type) {
+	case ARPHRD_LOOPBACK:
+	case ARPHRD_IEEE1394:
+		return TRUE;
+	default: ;
+	}
+
 	ipv4 = ni_netdev_get_ipv4(dev);
-	if (ipv4 && !ni_tristate_is_enabled(ipv4->conf.arp_notify))
+	if (!ipv4 || ni_tristate_is_disabled(ipv4->conf.arp_notify))
+		return TRUE;
+
+	/* default/unset is "auto" -> same as verify */
+	if (!ni_tristate_is_set(ipv4->conf.arp_notify) &&
+	    !ni_tristate_is_enabled(ipv4->conf.arp_verify))
 		return TRUE;
 
 	return __ni_netdev_call_arp_util(dev, ap, FALSE);

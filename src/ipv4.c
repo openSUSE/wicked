@@ -57,6 +57,7 @@ ni_ipv4_devinfo_new(void)
 	ipv4 = xcalloc(1, sizeof(*ipv4));
 	ipv4->conf.enabled = NI_TRISTATE_DEFAULT;
 	ipv4->conf.arp_verify = NI_TRISTATE_DEFAULT;
+	ipv4->conf.arp_notify = NI_TRISTATE_DEFAULT;
 	__ni_ipv4_devconf_reset(&ipv4->conf);
 	return ipv4;
 }
@@ -125,6 +126,7 @@ int
 ni_system_ipv4_devinfo_set(ni_netdev_t *dev, const ni_ipv4_devconf_t *conf)
 {
 	ni_ipv4_devinfo_t *ipv4;
+	ni_tristate_t arp_notify;
 
 	if (!conf || !(ipv4 = ni_netdev_get_ipv4(dev)))
 		return -1;
@@ -139,9 +141,11 @@ ni_system_ipv4_devinfo_set(ni_netdev_t *dev, const ni_ipv4_devconf_t *conf)
 	if (ni_tristate_is_set(conf->arp_verify))
 		ni_tristate_set(&ipv4->conf.arp_verify, conf->arp_verify);
 
+	arp_notify = ni_tristate_is_set(conf->arp_notify) ?
+			conf->arp_notify : conf->arp_verify;
 	if (__ni_system_ipv4_devinfo_change_int(dev->name, "arp_notify",
-						conf->arp_notify) == 0)
-		ipv4->conf.arp_notify = conf->arp_notify;
+					arp_notify) == 0)
+		ipv4->conf.arp_notify = arp_notify;
 
 	if (__ni_system_ipv4_devinfo_change_int(dev->name, "accept_redirects",
 						conf->accept_redirects) == 0)
