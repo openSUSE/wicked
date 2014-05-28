@@ -3697,6 +3697,9 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		{
 			unsigned int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
 			switch (event_type) {
+			case NI_EVENT_DEVICE_CREATE:
+				min_state = NI_FSM_STATE_DEVICE_EXISTS;
+				break;
 			case NI_EVENT_DEVICE_READY:
 				min_state = NI_FSM_STATE_DEVICE_READY;
 				break;
