@@ -285,16 +285,35 @@ ni_route_free(ni_route_t *rp)
 }
 
 ni_bool_t
-ni_route_equal(const ni_route_t *r1, const ni_route_t *r2)
+ni_route_equal_destination(const ni_route_t *r1, const ni_route_t *r2)
+{
+	if (r1->family != r2->family)
+		return FALSE;
+
+	if (r1->prefixlen != r2->prefixlen)
+		return FALSE;
+
+	if (r1->prefixlen && !ni_sockaddr_equal(&r1->destination, &r2->destination))
+		return FALSE;
+
+	if (r1->family == AF_INET) {
+		/* ipv4 matches routing entries by [prefix, tos, priority] */
+		if (r1->tos != r2->tos || r1->priority != r2->priority)
+			return FALSE;
+	} else
+	if (r1->family == AF_INET6) {
+		/* ipv6 matches routing entries by [dst pfx, src pfx, priority];
+		 * we don't support source routes yet. */
+		if (r1->priority != r2->priority)
+			return FALSE;
+	}
+	return TRUE;
+}
+
+ni_bool_t
+ni_route_equal_gateways(const ni_route_t *r1, const ni_route_t *r2)
 {
 	const ni_route_nexthop_t *nh1, *nh2;
-
-	if (r1->prefixlen != r2->prefixlen
-	 || !ni_sockaddr_equal(&r1->destination, &r2->destination))
-		return FALSE;
-
-	if (r1->priority != r2->priority)
-		return FALSE;
 
 	nh1 = &r1->nh;
 	nh2 = &r2->nh;
@@ -305,6 +324,15 @@ ni_route_equal(const ni_route_t *r1, const ni_route_t *r2)
 		nh2 = nh2->next;
 	}
 	return nh1 == nh2;
+}
+
+ni_bool_t
+ni_route_equal(const ni_route_t *r1, const ni_route_t *r2)
+{
+
+	if (!ni_route_equal_destination(r1, r2))
+		return FALSE;
+	return ni_route_equal_gateways(r1, r2);
 }
 
 const char *
