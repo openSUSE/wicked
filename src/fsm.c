@@ -986,11 +986,7 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
 static void
 ni_ifworker_refresh_client_info(ni_ifworker_t *w, ni_device_clientinfo_t *client_info)
 {
-	unsigned int state;
-
 	ni_assert(w && client_info);
-	if (ni_ifworker_state_from_name(client_info->state, &state))
-		ni_ifworker_set_state(w, state);
 	ni_ifworker_set_config_origin(w, client_info->config_origin);
 	w->config.uuid = client_info->config_uuid;
 
