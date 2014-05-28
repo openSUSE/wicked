@@ -202,4 +202,6 @@ extern int		ni_dhcp6_mode_name_to_type(const char *, unsigned int *);
 extern const char *	ni_netbios_node_type_to_name(unsigned int);
 extern ni_bool_t	ni_netbios_node_type_to_code(const char *, unsigned int *);
 
+extern unsigned int	ni_addrconf_lease_get_priority(const ni_addrconf_lease_t *);
+
 #endif /* __WICKED_ADDRCONF_H__ */

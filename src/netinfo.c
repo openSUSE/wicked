@@ -794,3 +794,22 @@ ni_addrconf_lease_list_destroy(ni_addrconf_lease_t **list)
 	}
 }
 
+unsigned int
+ni_addrconf_lease_get_priority(const ni_addrconf_lease_t *lease)
+{
+	if (!lease)
+		return 0;
+
+	switch (lease->type) {
+	case NI_ADDRCONF_STATIC:
+		return 2;
+
+	case NI_ADDRCONF_DHCP:
+	case NI_ADDRCONF_INTRINSIC:
+		return 1;
+
+	case NI_ADDRCONF_AUTOCONF:
+	default:
+		return 0;
+	}
+}
