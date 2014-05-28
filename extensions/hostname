@@ -53,6 +53,8 @@ restore)
 		curr_hostname=`get_current_hostname`
 		if test "X${def_hostname}" != "X" -a "X${curr_hostname}" != "X${def_hostname}" ; then
 			/bin/hostname "${def_hostname}"
+
+			rcsyslog reload &>/dev/null
 		fi
 	fi
 ;;
@@ -82,6 +84,8 @@ install)
 		if test "X${hostname_arg}" != "X" -a "X${hostname_cur}" != "X${hostname_arg}" ; then
 			# Only update the hostname it differs from the system.
 			/bin/hostname "${hostname_arg}" 2>/dev/null
+
+			rcsyslog reload &>/dev/null
 		fi
 
 		# Store regardless of whether hostname differs from the system.
@@ -103,6 +107,8 @@ remove)
 			curr_hostname=`get_current_hostname`
 			if test "X${def_hostname}" != "X" -a "X${curr_hostname}" != "X${def_hostname}" ; then
 				/bin/hostname "${def_hostname}"
+
+				rcsyslog reload &>/dev/null
 			fi
 		fi
 	fi
