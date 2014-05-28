@@ -3709,6 +3709,9 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 				min_state = NI_FSM_STATE_LINK_UP;
 				break;
 			case NI_EVENT_LINK_DOWN:
+				/* We should restart FSM on successful devices */
+				if (ni_ifworker_complete(w))
+					ni_ifworker_reset(w);
 				max_state = NI_FSM_STATE_LINK_UP - 1;
 				break;
 			case NI_EVENT_ADDRESS_ACQUIRED:
