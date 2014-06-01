@@ -147,7 +147,7 @@ ni_client_state_parse_xml(const xml_node_t *node, ni_client_state_t *client_stat
 }
 
 static inline void
-__ni_client_state_update_state(ni_client_state_t *client_state, unsigned int state)
+__ni_client_state_update_state(ni_client_state_t *client_state, ni_fsm_state_t state)
 {
 	ni_timer_get_time(&client_state->last_time);
 	if (!ni_client_state_is_valid_state(client_state->init_state)) {
@@ -160,7 +160,7 @@ __ni_client_state_update_state(ni_client_state_t *client_state, unsigned int sta
  * Exported functions
  */
 ni_client_state_t *
-ni_client_state_new(unsigned int state)
+ni_client_state_new(ni_fsm_state_t state)
 {
 	ni_client_state_t *client_state;
 
@@ -199,7 +199,7 @@ ni_client_state_free(ni_client_state_t *client_state)
 }
 
 ni_bool_t
-ni_client_state_set_state(ni_client_state_t *client_state, unsigned int state)
+ni_client_state_set_state(ni_client_state_t *client_state, ni_fsm_state_t state)
 {
 	if (client_state) {
 		if (ni_client_state_is_valid_state(state)) {
@@ -211,7 +211,7 @@ ni_client_state_set_state(ni_client_state_t *client_state, unsigned int state)
 }
 
 ni_bool_t
-ni_client_state_is_valid_state(unsigned int state)
+ni_client_state_is_valid_state(ni_fsm_state_t state)
 {
 	return	state > NI_FSM_STATE_NONE &&
 		state < __NI_FSM_STATE_MAX;

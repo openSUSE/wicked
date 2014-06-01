@@ -464,13 +464,13 @@ static ni_intmap_t __state_names[] = {
 };
 
 inline ni_bool_t
-ni_ifworker_state_in_range(const ni_uint_range_t *range, const unsigned int state)
+ni_ifworker_state_in_range(const ni_uint_range_t *range, const ni_fsm_state_t state)
 {
 	return state >= range->min && state <= range->max;
 }
 
 const char *
-ni_ifworker_state_name(unsigned int state)
+ni_ifworker_state_name(ni_fsm_state_t state)
 {
 	return ni_format_uint_mapped(state, __state_names);
 }
@@ -1079,7 +1079,7 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 static void
 ni_ifworker_refresh_client_info(ni_ifworker_t *w, ni_device_clientinfo_t *client_info)
 {
-	unsigned int state;
+	ni_fsm_state_t state;
 
 	ni_assert(w && client_info);
 	if (ni_ifworker_state_from_name(client_info->state, &state))

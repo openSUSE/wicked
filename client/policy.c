@@ -49,7 +49,7 @@ __ni_policy_add_to_match(xml_node_t *policy, const char *name, const char *value
 }
 
 ni_bool_t
-ni_ifpolicy_match_add_min_state(xml_node_t *policy, unsigned int state)
+ni_ifpolicy_match_add_min_state(xml_node_t *policy, ni_fsm_state_t state)
 {
 	if (ni_ifworker_is_valid_state(state)) {
 		const char *sname = ni_ifworker_state_name(state);

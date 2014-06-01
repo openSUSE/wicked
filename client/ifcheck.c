@@ -80,7 +80,7 @@ __ifcheck_device_fsm_state(ni_netdev_t *dev)
 	ni_device_clientinfo_t *ci;
 
 	if (dev && (ci = dev->client_info)) {
-		unsigned int state;
+		ni_fsm_state_t state;
 
 		if (ni_ifworker_state_from_name(ci->state, &state))
 			return state;
@@ -156,9 +156,9 @@ ni_ifcheck_worker_config_matches(ni_ifworker_t *w)
 }
 
 ni_bool_t
-ni_ifcheck_worker_not_in_state(ni_ifworker_t *w, unsigned int state_val)
+ni_ifcheck_worker_not_in_state(ni_ifworker_t *w, ni_fsm_state_t state_val)
 {
-	unsigned int state_dev;
+	ni_fsm_state_t state_dev;
 
 	ni_assert(w);
 	state_dev = __ifcheck_device_fsm_state(w->device);
