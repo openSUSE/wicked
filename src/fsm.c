@@ -2133,7 +2133,6 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 {
 	unsigned int min_state = w->target_range.min;
 	unsigned int max_state = w->target_range.max;
-	unsigned int cur_state = w->fsm.state;
 	unsigned int j;
 	int rv;
 
@@ -2184,16 +2183,8 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 				ni_ifworker_state_name(w->fsm.state),
 				ni_ifworker_state_name(w->target_state));
 
-	if (w->target_state != NI_FSM_STATE_NONE) {
-		ni_client_state_t *cs = &w->client_state;
-
-		if (!ni_client_state_is_valid(cs)) {
-			ni_client_state_set_state(cs, cur_state);
-			NI_CLIENT_STATE_SET_CONTROL_FLAG(cs->persistent,
-				cur_state >= NI_FSM_STATE_LINK_UP, TRUE);
-		}
+	if (w->target_state != NI_FSM_STATE_NONE)
 		ni_ifworker_set_timeout(w, timeout);
-	}
 
 	/* For each of the DBus calls we will execute on this device,
 	 * check whether there are constraints on child devices that
