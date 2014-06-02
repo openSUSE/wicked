@@ -2002,6 +2002,13 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 		ni_client_state_t *cs = &w->client_state;
 
 		w->target_range = marker->target_range;
+
+		/* Clean client-info origin and UUID on ifdown */
+		if (marker->target_range.max < NI_FSM_STATE_DEVICE_UP) {
+			ni_string_free(&w->config.origin);
+			memset(&w->config.uuid, 0, sizeof(w->config.uuid));
+		}
+
 		NI_CLIENT_STATE_SET_CONTROL_FLAG(cs->persistent,
 			marker->persistent == TRUE, TRUE);
 	}
