@@ -1991,6 +1991,11 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 
 	ni_ifworkers_check_loops(fsm, marked);
 
+	/* Collect all workers in the device graph, and sort them
+	 * by increasing depth.
+	 */
+	ni_ifworkers_flatten(marked);
+
 	/* Mark all our primary devices with the requested marker values */
 	for (i = 0; i < marked->count; ++i) {
 		ni_ifworker_t *w = marked->data[i];
@@ -2010,11 +2015,6 @@ unsigned int
 ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 {
 	unsigned int i, count = 0;
-
-	/* Collect all workers in the device graph, and sort them
-	 * by increasing depth.
-	 */
-	ni_ifworkers_flatten(marked);
 
 	for (i = 0; i < marked->count; ++i) {
 		ni_ifworker_t *w = marked->data[i];
