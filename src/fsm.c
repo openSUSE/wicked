@@ -3385,7 +3385,7 @@ ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, u
 		/* ifdown: when device cannot be deleted, don't try. */
 		if (NI_FSM_STATE_DEVICE_DOWN == target_state) {
 			if (!ni_ifworker_can_delete(w))
-				target_state -= increment; /* One up */
+				target_state = NI_FSM_STATE_DEVICE_READY;
 			else
 				ni_debug_application("%s: Deleting device", w->name);
 		}
