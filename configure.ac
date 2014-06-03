@@ -19,7 +19,7 @@ AM_INIT_AUTOMAKE([foreign dist-bzip2 no-dist-gzip])
 #
 CUR=5
 AGE=5
-REV=27
+REV=28
 
 # Calculate package (soname version) suffix for the spec file.
 AC_SUBST(LIBWICKED_PACKAGE_SUFFIX, "$((${CUR}-${AGE}))")
