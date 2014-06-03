@@ -3476,9 +3476,6 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 	while (1) {
 		int made_progress = 0;
 
-		ni_debug_application("-- refreshing interface state --");
-		ni_fsm_refresh_state(fsm);
-
 		for (i = 0; i < fsm->workers.count; ++i) {
 			ni_ifworker_t *w = fsm->workers.data[i];
 			ni_fsm_transition_t *action;
