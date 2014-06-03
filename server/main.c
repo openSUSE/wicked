@@ -312,7 +312,10 @@ discover_state(ni_dbus_server_t *server)
 		for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
 			discover_udev_netdev_state(ifp);
 			ni_objectmodel_register_netif(server, ifp, NULL);
-			ni_netdev_load_client_state(ifp);
+			if (!ni_netdev_get_client_state(ifp)) {
+				if (!ni_netdev_load_client_state(ifp))
+					ni_netdev_discover_client_state(ifp);
+			}
 		}
 #ifdef MODEM
 		for (modem = ni_netconfig_modem_list(nc); modem; modem = modem->list.next)

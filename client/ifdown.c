@@ -40,6 +40,7 @@
 #include "wicked-client.h"
 #include "ifdown.h"
 
+#if 0
 static ni_bool_t
 ni_ifdown_fire_nanny(ni_ifworker_t *w)
 {
@@ -80,6 +81,7 @@ ni_ifdown_stop_policies(ni_ifworker_array_t *array)
 
 	return TRUE;
 }
+#endif
 
 int
 ni_do_ifdown(int argc, char **argv)

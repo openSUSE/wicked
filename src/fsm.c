@@ -464,13 +464,13 @@ static ni_intmap_t __state_names[] = {
 };
 
 inline ni_bool_t
-ni_ifworker_state_in_range(const ni_uint_range_t *range, const unsigned int state)
+ni_ifworker_state_in_range(const ni_uint_range_t *range, const ni_fsm_state_t state)
 {
 	return state >= range->min && state <= range->max;
 }
 
 const char *
-ni_ifworker_state_name(unsigned int state)
+ni_ifworker_state_name(ni_fsm_state_t state)
 {
 	return ni_format_uint_mapped(state, __state_names);
 }
@@ -1016,12 +1016,13 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 		if (w->fsm.wait_for && w->fsm.wait_for->next_state == new_state)
 			w->fsm.wait_for = NULL;
 
-		if (w->object && new_state != NI_FSM_STATE_DEVICE_DOWN && !w->readonly)
-			ni_ifworker_update_client_info(w);
-
 		if (w->target_state == new_state) {
-			if (w->object && prev_state < new_state && !w->readonly)
-				ni_ifworker_update_client_state(w);
+			if (w->object && !w->readonly) {
+				if (prev_state < new_state)
+					ni_ifworker_update_client_state(w);
+				if (new_state != NI_FSM_STATE_DEVICE_DOWN)
+					ni_ifworker_update_client_info(w);
+			}
 			ni_ifworker_success(w);
 		}
 	}
@@ -1079,11 +1080,7 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 static void
 ni_ifworker_refresh_client_info(ni_ifworker_t *w, ni_device_clientinfo_t *client_info)
 {
-	unsigned int state;
-
 	ni_assert(w && client_info);
-	if (ni_ifworker_state_from_name(client_info->state, &state))
-		ni_ifworker_set_state(w, state);
 	ni_ifworker_set_config_origin(w, client_info->config_origin);
 	w->config.uuid = client_info->config_uuid;
 
@@ -1990,12 +1987,24 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 
 	ni_ifworkers_check_loops(fsm, marked);
 
+	/* Collect all workers in the device graph, and sort them
+	 * by increasing depth.
+	 */
+	ni_ifworkers_flatten(marked);
+
 	/* Mark all our primary devices with the requested marker values */
 	for (i = 0; i < marked->count; ++i) {
 		ni_ifworker_t *w = marked->data[i];
 		ni_client_state_t *cs = &w->client_state;
 
 		w->target_range = marker->target_range;
+
+		/* Clean client-info origin and UUID on ifdown */
+		if (marker->target_range.max < NI_FSM_STATE_DEVICE_UP) {
+			ni_string_free(&w->config.origin);
+			memset(&w->config.uuid, 0, sizeof(w->config.uuid));
+		}
+
 		NI_CLIENT_STATE_SET_CONTROL_FLAG(cs->persistent,
 			marker->persistent == TRUE, TRUE);
 	}
@@ -2009,11 +2018,6 @@ unsigned int
 ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 {
 	unsigned int i, count = 0;
-
-	/* Collect all workers in the device graph, and sort them
-	 * by increasing depth.
-	 */
-	ni_ifworkers_flatten(marked);
 
 	for (i = 0; i < marked->count; ++i) {
 		ni_ifworker_t *w = marked->data[i];
@@ -2133,7 +2137,6 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 {
 	unsigned int min_state = w->target_range.min;
 	unsigned int max_state = w->target_range.max;
-	unsigned int cur_state = w->fsm.state;
 	unsigned int j;
 	int rv;
 
@@ -2184,16 +2187,8 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 				ni_ifworker_state_name(w->fsm.state),
 				ni_ifworker_state_name(w->target_state));
 
-	if (w->target_state != NI_FSM_STATE_NONE) {
-		ni_client_state_t *cs = &w->client_state;
-
-		if (!ni_client_state_is_valid(cs)) {
-			ni_client_state_set_state(cs, cur_state);
-			NI_CLIENT_STATE_SET_CONTROL_FLAG(cs->persistent,
-				cur_state >= NI_FSM_STATE_LINK_UP, TRUE);
-		}
+	if (w->target_state != NI_FSM_STATE_NONE)
 		ni_ifworker_set_timeout(w, timeout);
-	}
 
 	/* For each of the DBus calls we will execute on this device,
 	 * check whether there are constraints on child devices that
@@ -2582,24 +2577,11 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 	for (i = 0; i < fsm->workers.count; ++i) {
 		w = fsm->workers.data[i];
 
-		if (w->object == NULL) {
-			ni_debug_application("device %s (%s) disappeared", w->name, w->object_path);
-			ni_ifworker_update_state(w, NI_FSM_STATE_NONE, NI_FSM_STATE_DEVICE_DOWN);
-
-			if (w->device) {
-				ni_netdev_put(w->device);
-				w->device = NULL;
-			}
-			if (w->modem) {
-				ni_modem_release(w->modem);
-				w->modem = NULL;
-			}
-			if (ni_ifworker_active(w) && !w->device_api.factory_method)
-				ni_ifworker_fail(w, "device was deleted");
-			w->dead = TRUE;
-		} else if (!w->done)
+		/* Set initial state of existing devices */
+		if (w->object != NULL)
 			ni_ifworker_update_state(w, NI_FSM_STATE_DEVICE_EXISTS, __NI_FSM_STATE_MAX);
 	}
+
 	return TRUE;
 }
 
@@ -2664,15 +2646,6 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		found->device = ni_netdev_get(dev);
 	found->ifindex = dev->link.ifindex;
 	found->object = object;
-
-	/* Don't touch devices we're done with */
-
-	if (!found->done) {
-		if (ni_netdev_link_is_up(dev))
-			ni_ifworker_update_state(found, NI_FSM_STATE_LINK_UP, __NI_FSM_STATE_MAX);
-		else
-			ni_ifworker_update_state(found, 0, NI_FSM_STATE_LINK_UP - 1);
-	}
 
 	return found;
 }
@@ -3393,7 +3366,7 @@ ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, u
 		/* ifdown: when device cannot be deleted, don't try. */
 		if (NI_FSM_STATE_DEVICE_DOWN == target_state) {
 			if (!ni_ifworker_can_delete(w))
-				target_state -= increment; /* One up */
+				target_state = NI_FSM_STATE_DEVICE_READY;
 			else
 				ni_debug_application("%s: Deleting device", w->name);
 		}
@@ -3502,9 +3475,6 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 
 	while (1) {
 		int made_progress = 0;
-
-		ni_debug_application("-- refreshing interface state --");
-		ni_fsm_refresh_state(fsm);
 
 		for (i = 0; i < fsm->workers.count; ++i) {
 			ni_ifworker_t *w = fsm->workers.data[i];

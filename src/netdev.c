@@ -32,6 +32,7 @@
 #include <wicked/ipv6.h>
 #include <wicked/pci.h>
 #include <wicked/lldp.h>
+#include <wicked/fsm.h>
 #include "netinfo_priv.h"
 #include "util_priv.h"
 #include "appconfig.h"
@@ -568,19 +569,44 @@ ni_netdev_get_client_state(ni_netdev_t *dev)
 	return dev ? dev->client_state : NULL;
 }
 
-void
+ni_bool_t
 ni_netdev_load_client_state(ni_netdev_t *dev)
 {
 	ni_client_state_t client_state;
 
-	if (!ni_netdev_get_client_state(dev)) {
-		ni_client_state_init(&client_state);
-		if (ni_client_state_load(&client_state, dev->link.ifindex)) {
-			ni_netdev_set_client_state(dev, ni_client_state_clone(&client_state));
-			ni_debug_ifconfig("loading client-state structure from a file for %s",
-				dev->name);
-		}
+	ni_assert(dev);
+
+	ni_client_state_init(&client_state);
+	if (ni_client_state_load(&client_state, dev->link.ifindex)) {
+		ni_netdev_set_client_state(dev, ni_client_state_clone(&client_state));
+		ni_debug_ifconfig("loading client-state structure from a file for %s",
+			dev->name);
+		return TRUE;
 	}
+
+	return FALSE;
+}
+
+void
+ni_netdev_discover_client_state(ni_netdev_t *dev)
+{
+	ni_fsm_state_t state = NI_FSM_STATE_DEVICE_EXISTS;
+	ni_client_state_t *cs;
+
+	ni_assert(dev);
+
+	if (ni_netdev_device_is_up(dev))
+		state = NI_FSM_STATE_DEVICE_UP;
+	if (ni_netdev_link_is_up(dev))
+		state = NI_FSM_STATE_LINK_UP;
+	if (ni_netdev_network_is_up(dev))
+		state = NI_FSM_STATE_LINK_UP;
+
+	cs = ni_client_state_new(state);
+	NI_CLIENT_STATE_SET_CONTROL_FLAG(cs->persistent,
+			state >= NI_FSM_STATE_LINK_UP, TRUE);
+
+	ni_netdev_set_client_state(dev, cs);
 }
 
 /*

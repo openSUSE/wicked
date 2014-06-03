@@ -126,7 +126,7 @@ static inline void
 ni_client_get_state_strings(ni_stringbuf_t *sb, const ni_uint_range_t *range)
 {
 	if (sb) {
-		unsigned int state;
+		ni_fsm_state_t state;
 
 		for (state = (range ? range->min : NI_FSM_STATE_NONE);
 		     state <= (range ? range->max : __NI_FSM_STATE_MAX - 1);
