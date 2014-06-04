@@ -571,7 +571,7 @@ evaluated \fIrelative to each node\fP. Note the use of the question mark in
 the \fBpriority\fP term, marking the field as optional.
 .\" ----------------------------------------
 .SH "SEE ALSO"
-\fBwickedd\fP(8), \fBwicked\fP(8), \fBwicked\fP(7), \fBwicked-config\fP(5).
+\fBwickedd\fP(8), \fBwicked\fP(7), \fBwicked-config\fP(5).
 .\" ----------------------------------------
 .SH COPYRIGHT
 Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
