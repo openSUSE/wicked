@@ -873,9 +873,9 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	case NI_DHCP6_MODE_AUTO:
 	case NI_DHCP6_MODE_INFO:
 	case NI_DHCP6_MODE_MANAGED:
-		ni_debug_dhcp("%s: DHCPv6 acquire request %s in mode %s",
-				dev->ifname, ni_uuid_print(&req->uuid),
-				ni_dhcp6_mode_type_to_name(req->mode));
+		ni_note("%s: Request to acquire DHCPv6 lease with UUID %s in mode %s",
+			dev->ifname, ni_uuid_print(&req->uuid),
+			ni_dhcp6_mode_type_to_name(req->mode));
 		break;
 	default:
 		if ((mode = ni_dhcp6_mode_type_to_name(req->mode)) != NULL) {
@@ -1126,6 +1126,8 @@ __ni_dhcp6_print_flags(unsigned int flags)
 int
 ni_dhcp6_release(ni_dhcp6_device_t *dev, const ni_uuid_t *lease_uuid)
 {
+	char *rel_uuid = NULL;
+	char *our_uuid = NULL;
 	int rv;
 
 	if (dev->lease == NULL) {
@@ -1133,12 +1135,21 @@ ni_dhcp6_release(ni_dhcp6_device_t *dev, const ni_uuid_t *lease_uuid)
 		return -NI_ERROR_ADDRCONF_NO_LEASE;
 	}
 
+	ni_string_dup(&rel_uuid, ni_uuid_print(lease_uuid));
+	ni_string_dup(&our_uuid, ni_uuid_print(&dev->lease->uuid));
+
 	if (lease_uuid && !ni_uuid_equal(lease_uuid, &dev->lease->uuid)) {
 		ni_warn("%s: lease UUID %s to release does not match current lease UUID %s",
-			dev->ifname, ni_uuid_print(lease_uuid),
-			ni_uuid_print(&dev->lease->uuid));
+			dev->ifname, rel_uuid, our_uuid);
+		ni_string_free(&rel_uuid);
+		ni_string_free(&our_uuid);
 		return -NI_ERROR_ADDRCONF_NO_LEASE;
 	}
+	ni_string_free(&our_uuid);
+
+	ni_note("%s: Request to release DHCPv6 lease%s%s",  dev->ifname,
+		rel_uuid ? " with UUID " : "", rel_uuid ? rel_uuid : "");
+	ni_string_free(&rel_uuid);
 
 	if ((rv = ni_dhcp6_fsm_release(dev)) < 0)
 		return rv;
@@ -1429,4 +1440,48 @@ unsigned int
 ni_dhcp6_config_max_lease_time(void)
 {
 	return ni_global.config->addrconf.dhcp6.lease_time;
+}
+
+ni_string_array_t *
+ni_dhcp6_get_ia_addrs(struct ni_dhcp6_ia *ia_list, ni_var_array_t *p_lft, ni_var_array_t *v_lft)
+{
+	ni_string_array_t *addrs = NULL;
+	const ni_dhcp6_ia_t *ia = NULL;
+
+	addrs = xcalloc(1, sizeof(ni_string_array_t));
+
+	for (ia = ia_list; ia; ia = ia->next) {
+		const ni_dhcp6_ia_addr_t *iaddr = NULL;
+		ni_sockaddr_t addr;
+		const char *addr_str = NULL;
+		for (iaddr = ia->addrs; iaddr; iaddr = iaddr->next) {
+			ni_sockaddr_set_ipv6(&addr, iaddr->addr, 0);
+			switch (ia->type) {
+			case NI_DHCP6_OPTION_IA_TA:
+			case NI_DHCP6_OPTION_IA_NA:
+				addr_str = ni_sockaddr_print(&addr);
+				ni_string_array_append(addrs, addr_str);
+				break;
+
+			case NI_DHCP6_OPTION_IA_PD:
+				addr_str = ni_sockaddr_prefix_print(&addr, iaddr->plen);
+				ni_string_array_append(addrs, addr_str);
+				break;
+
+			default:
+				break;
+			}
+
+			if (p_lft)
+				ni_var_array_set_uint(p_lft,
+						addr_str,
+						iaddr->preferred_lft);
+			if (v_lft)
+				ni_var_array_set_uint(v_lft,
+						addr_str,
+						iaddr->valid_lft);
+		}
+	}
+
+	return addrs;
 }
