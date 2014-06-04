@@ -334,6 +334,9 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		}
 	}
 
+	ni_note("%s: Request to acquire DHCPv4 lease with UUID %s",
+		dev->ifname, ni_uuid_print(&config->uuid));
+
 	/* Go back to INIT state to force a rediscovery */
 	/* dev->fsm.state = NI_DHCP4_STATE_INIT; */
 	if (ni_dhcp4_device_start(dev) < 0)
@@ -426,6 +429,8 @@ __ni_dhcp4_print_doflags(unsigned int flags)
 int
 ni_dhcp4_release(ni_dhcp4_device_t *dev, const ni_uuid_t *lease_uuid)
 {
+	char *rel_uuid = NULL;
+	char *our_uuid = NULL;
 	int rv;
 
 	if (dev->lease == NULL) {
@@ -433,12 +438,20 @@ ni_dhcp4_release(ni_dhcp4_device_t *dev, const ni_uuid_t *lease_uuid)
 		return -NI_ERROR_ADDRCONF_NO_LEASE;
 	}
 
+	ni_string_dup(&rel_uuid, ni_uuid_print(lease_uuid));
+	ni_string_dup(&our_uuid, ni_uuid_print(&dev->lease->uuid));
 	if (lease_uuid && !ni_uuid_equal(lease_uuid, &dev->lease->uuid)) {
 		ni_warn("%s: lease UUID %s to release does not match current lease UUID %s",
-			dev->ifname, ni_uuid_print(lease_uuid),
-			ni_uuid_print(&dev->lease->uuid));
+			dev->ifname, rel_uuid, our_uuid);
+		ni_string_free(&rel_uuid);
+		ni_string_free(&our_uuid);
 		return -NI_ERROR_ADDRCONF_NO_LEASE;
 	}
+	ni_string_free(&our_uuid);
+
+	ni_note("%s: Request to release DHCPv4 lease%s%s",  dev->ifname,
+		rel_uuid ? " with UUID " : "", rel_uuid ? rel_uuid : "");
+	ni_string_free(&rel_uuid);
 
 	/* We just send out a singe RELEASE without waiting for the
 	 * server's reply. We just keep our fingers crossed that it's
