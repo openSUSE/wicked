@@ -60,15 +60,15 @@ __ni_redhat_get_interfaces(const char *root, const char *path, ni_compat_netdev_
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	ni_bool_t success = FALSE;
 	char *pathname = NULL;
+	const char *_path = _PATH_NETCONFIG_DIR;
 
-	if (ni_string_empty(path))
-		path = _PATH_NETCONFIG_DIR;
+	if (!ni_string_empty(path))
+		_path = path;
 
 	if (ni_string_empty(root))
-		ni_string_dup(&pathname, path);
+		ni_string_dup(&pathname, _path);
 	else
-		ni_string_printf(&pathname, "%s%s", root, path);
-
+		ni_string_printf(&pathname, "%s%s", root, _path);
 
 	if (ni_isdir(pathname)) {
 		unsigned int i;
@@ -93,23 +93,15 @@ __ni_redhat_get_interfaces(const char *root, const char *path, ni_compat_netdev_
 		}
 	} else
 	if (ni_file_exists(pathname)) {
-		ni_compat_netdev_t *compat;
-		const char *filename = ni_basename(pathname);
-		const char *ifname = filename + sizeof("ifcfg-")-1;
-
-		if (strncmp("ifcfg-", filename, sizeof("ifcfg-")-1)) {
-			ni_error("File does not have ifcfg-prefix: %s", pathname);
-			goto done;
-		}
-
-		if (!(compat = __ni_redhat_read_interface(pathname, ifname, result)))
-			goto done;
-
-		ni_compat_netdev_client_info_set(compat->dev, pathname);
-	} else {
-		ni_error("File or directory does not exist: %s", pathname);
+		ni_error("Cannot use '%s' to read redhat ifcfg files -- not a directory",
+			pathname);
+		goto done;
+	} else
+	if (!ni_string_empty(path)) {
+		ni_error("Configuration directory '%s' does not exist", pathname);
 		goto done;
 	}
+
 
 	success = TRUE;
 done:

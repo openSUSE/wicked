@@ -220,22 +220,17 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	ni_bool_t success = FALSE;
 	char *pathname = NULL;
-	const char *base;
+	const char *_path = __NI_SUSE_SYSCONFIG_NETWORK_DIR;
 	unsigned int i;
 
-	if (ni_string_empty(path))
-		path = __NI_SUSE_SYSCONFIG_NETWORK_DIR;
+	if (!ni_string_empty(path))
+		_path = path;
 
 	if (ni_string_empty(root))
-		ni_string_dup(&pathname, path);
+		ni_string_dup(&pathname, _path);
 	else
-		ni_string_printf(&pathname, "%s%s", root, path);
+		ni_string_printf(&pathname, "%s%s", root, _path);
 
-	if (ni_isreg(pathname)) {
-		if ((base = ni_dirname(pathname)))
-			ni_string_dup(&pathname, base);
-		path = ni_dirname(pathname);
-	}
 	if (ni_isdir(pathname)) {
 		if (!__ni_suse_read_globals(root, pathname))
 			goto done;
@@ -273,7 +268,12 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 		}
 	} else
 	if (ni_file_exists(pathname)) {
-		ni_error("Cannot use '%s' to read suse ifcfg files", pathname);
+		ni_error("Cannot use '%s' to read suse ifcfg files -- not a directory",
+				pathname);
+		goto done;
+	} else
+	if (!ni_string_empty(path)) {
+		ni_error("Configuration directory '%s' does not exist", pathname);
 		goto done;
 	}
 

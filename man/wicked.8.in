@@ -187,10 +187,8 @@ If the file name starts with the string \fBcompat:\fP, \fBwicked\fP is
 instructed to load the interface configuration from files in the
 old-style "ifcfg" syntax, as described by the \fBifcfg\fP(5) manual page.
 The string following the \fBcompat:\fP prefix is interpreted as a
-path name. If this path name refers to a directory,
-\fBwicked\fP will scan it for files with names matching \fBifcfg-*\fP.
-If the path name refers to a regular file, it will parse this file, assuming
-it is an ifcfg file.
+directory name where \fBwicked\fP will scan for files with names matching
+\fBifcfg-*\fP and related files, like \fBroutes\fP and \fBifroute-*\fP.
 .IP
 The special name \fBfirmware:\fP can be used to obtain the interface
 definition(s) from firmware services like iBFT.
