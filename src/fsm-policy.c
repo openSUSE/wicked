@@ -383,9 +383,35 @@ ni_fsm_policy_location(const ni_fsm_policy_t *policy)
 static ni_bool_t
 ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
 {
-	if (policy->type != NI_IFPOLICY_TYPE_CONFIG)
+	xml_node_t *node;
+
+	if (ni_string_empty(policy->name)) {
+		ni_error("policy does not have a name");
 		return FALSE;
-	return policy->match && ni_ifcondition_check(policy->match, w);
+	}
+
+	if (!policy->match || policy->type != NI_IFPOLICY_TYPE_CONFIG) {
+		ni_error("wrong type or no match for policy %s", policy->name);
+		return FALSE;
+	}
+
+	/* 1st match   check - ifworker to policy name comparison */
+	if (!ni_string_eq(policy->name, w->name)) {
+		ni_error("%s: policy name indicates different device", policy->name);
+		return FALSE;
+	}
+
+	/* 2nd  match check -  ifworker  to config name comparison */
+	if (w->config.node && (node = xml_node_get_child(w->config.node, "name"))) {
+		const char *namespace = xml_node_get_attr(node, "namespace");
+		if (!namespace && !ni_string_eq(node->cdata, w->name)) {
+			ni_error("%s: config name does not match policy name", policy->name);
+			return FALSE;
+		}
+	}
+
+	/* 2nd match check - <match> condition must be fulfilled */
+	return ni_ifcondition_check(policy->match, w);
 }
 
 /*
@@ -410,6 +436,11 @@ ni_fsm_policy_get_applicable_policies(ni_fsm_t *fsm, ni_ifworker_t *w,
 {
 	unsigned int count = 0;
 	ni_fsm_policy_t *policy;
+
+	if (!w) {
+		ni_error("unable to get applicable policy for non-existing device");
+		return 0;
+	}
 
 	if (!w->use_default_policies)
 		return 0;
