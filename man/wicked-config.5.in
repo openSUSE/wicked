@@ -162,7 +162,6 @@ This extension class supports shell scripts only.
 .\" --------------------------------------------------------
 .SH "SEE ALSO"
 .BR wickedd (8),
-.BR wicked (7),
 .BR netconfig (8),
 .SH COPYRIGHT
 Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
