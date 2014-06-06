@@ -44,27 +44,13 @@
 #include "wicked-client.h"
 #include "ifup.h"
 
-static ni_bool_t
-ni_ifup_hire_nanny(ni_ifworker_t *w)
+static xml_node_t *
+__ni_ifup_generate_match(ni_ifworker_t *w)
 {
 	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
-	xml_node_t *match, *ifcfg = NULL, *policy = NULL;
-	ni_netdev_t *dev;
+	xml_node_t *match;
 	unsigned int i;
 
-	if (!w)
-		return FALSE;
-
-	ni_debug_application("%s: hiring nanny", w->name);
-
-	/* Create a config duplicate for a policy */
-	ifcfg = xml_node_clone(w->config.node, NULL);
-	if (!ifcfg)
-		goto error;
-
-	ni_debug_application("%s: converting config into policy", w->name);
-
-	/* Prepare for match generation - get names of referenced workers*/
 	for (i = 0; i < w->children.count; i++) {
 		ni_ifworker_t *child = w->children.data[i];
 
@@ -75,10 +61,33 @@ ni_ifup_hire_nanny(ni_ifworker_t *w)
 	if (0 == w->children.count)
 		ni_string_array_append(&ifnames, w->name);
 
-	if (!(match = ni_ifpolicy_generate_match(&ifnames, NI_NANNY_IFPOLICY_MATCH_COND_OR)))
-		return FALSE;
+	match = ni_ifpolicy_generate_match(&ifnames, NI_NANNY_IFPOLICY_MATCH_COND_OR);
+	ni_string_array_destroy(&ifnames);
 
-	policy = ni_convert_cfg_into_policy_node(ifcfg, match, w->name, w->config.origin);
+	return match;
+}
+
+static ni_bool_t
+ni_ifup_hire_nanny(ni_ifworker_t *w)
+{
+	xml_node_t *ifcfg = NULL, *policy = NULL;
+	ni_netdev_t *dev;
+	unsigned int i;
+	ni_bool_t rv = FALSE;
+
+	if (!w)
+		return rv;
+
+	ni_debug_application("%s: hiring nanny", w->name);
+
+	/* Create a config duplicate for a policy */
+	ifcfg = xml_node_clone(w->config.node, NULL);
+	if (!ifcfg)
+		goto error;
+
+	ni_debug_application("%s: converting config into policy", w->name);
+
+	policy = ni_convert_cfg_into_policy_node(ifcfg, __ni_ifup_generate_match(w), w->name, w->config.origin);
 	if (!policy) {
 		policy = ifcfg; /* Free cloned config*/
 		goto error;
@@ -117,13 +126,14 @@ ni_ifup_hire_nanny(ni_ifworker_t *w)
 
 	ni_debug_application("%s: nanny hired!", w->name);
 	ni_ifworker_success(w);
-	return TRUE;
+
+	rv = TRUE;
 
 error:
-	ni_ifworker_fail(w, "%s: unable to apply configuration to nanny", w->name);
-	ni_string_array_destroy(&ifnames);
+	if (!rv)
+		ni_ifworker_fail(w, "%s: unable to apply configuration to nanny", w->name);
 	xml_node_free(policy);
-	return FALSE;
+	return rv;
 }
 
 
