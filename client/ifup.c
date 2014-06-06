@@ -153,10 +153,9 @@ ni_do_ifup(int argc, char **argv)
 	};
 
 	ni_ifmatcher_t ifmatch;
-	ni_ifmarker_t ifmarker;
 	ni_ifworker_array_t ifmarked;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
-	ni_bool_t check_prio = TRUE;
+	ni_bool_t check_prio = TRUE, set_persistent = FALSE;
 	unsigned int i;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
@@ -167,16 +166,12 @@ ni_do_ifup(int argc, char **argv)
 	ni_fsm_require_register_type("reachable", ni_ifworker_reachability_check_new);
 
 	memset(&ifmatch, 0, sizeof(ifmatch));
-	memset(&ifmarker, 0, sizeof(ifmarker));
 	memset(&ifmarked, 0, sizeof(ifmarked));
 
 	/* Allow ifup on all interfaces we have config for */
 	ifmatch.require_configured = FALSE;
 	ifmatch.allow_persistent = TRUE;
 	ifmatch.require_config = TRUE;
-
-	ifmarker.target_range.min = NI_FSM_STATE_ADDRCONF_UP;
-	ifmarker.target_range.max = __NI_FSM_STATE_MAX;
 
 	/*
 	 * Workaround to consider WAIT_FOR_INTERFACES variable
@@ -239,7 +234,7 @@ ni_do_ifup(int argc, char **argv)
 #endif
 
 		case OPT_PERSISTENT:
-			ifmarker.persistent = TRUE;
+			set_persistent = TRUE;
 			break;
 
 		default:
@@ -338,6 +333,9 @@ usage:
 
 	for (i = 0; i < ifmarked.count; i++) {
 		ni_ifworker_t *w = ifmarked.data[i];
+
+		if (set_persistent)
+			ni_cient_state_set_persistent(w->config.node);
 
 		if (!ni_ifup_hire_nanny(w)) {
 			status = NI_WICKED_RC_ERROR;
