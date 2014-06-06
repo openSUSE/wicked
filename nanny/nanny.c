@@ -868,7 +868,7 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 			return FALSE;
 		}
 
-		policy = ni_fsm_policy_new(mgr->fsm, pname, pnode, xml_node_get_location_filename(root));
+		policy = ni_fsm_policy_new(mgr->fsm, pname, pnode);
 		policy_object = ni_objectmodel_register_managed_policy(ni_dbus_object_get_server(object),
 			ni_managed_policy_new(mgr, policy, NULL));
 
