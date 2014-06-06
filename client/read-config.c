@@ -211,8 +211,15 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *opt_ifconfi
 	}
 
 	for (i = 0; i < docs.count; i++) {
-		/* TODO: review ni_fsm_workers_from_xml return codes */
-		ni_fsm_workers_from_xml(fsm, docs.data[i]);
+		xml_node_t *root, *ifnode;
+		const char *origin;
+
+		root = xml_document_root(docs.data[i]);
+		origin = xml_node_get_location_filename(root);
+		for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
+			/* We do not fail when unable to generate ifworker */
+			ni_fsm_workers_from_xml(fsm, ifnode, origin);
+		}
 	}
 
 	/* Do not destroy xml documents as referenced by the fsm workers */
