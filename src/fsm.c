@@ -3800,6 +3800,10 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			}
 		}
 
+		/* Rebuild hierarchy in case of new device shows up */
+		if (event_type == NI_EVENT_DEVICE_READY)
+			ni_fsm_build_hierarchy(fsm);
+
 		ni_ifworker_advance_state(w, event_type);
 	}
 

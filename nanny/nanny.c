@@ -650,7 +650,6 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		// a VLAN or vif, or a hotplug device
 		// Create a worker and a managed_netif for this device.
 		if ((w = ni_fsm_recv_new_netif_path(mgr->fsm, object_path))) {
-			ni_fsm_build_hierarchy(mgr->fsm);
 			ni_nanny_register_device(mgr, w);
 			ni_nanny_schedule_recheck(mgr, w);
 		}
