@@ -243,12 +243,10 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 		}
 	}
 
-	ni_fsm_refresh_state(mgr->fsm);
-	ni_fsm_build_hierarchy(fsm);
+	ni_fsm_refresh_state(fsm);
 
 	for (i = 0; i < mgr->recheck.count; ++i)
 		count += ni_nanny_recheck(mgr, mgr->recheck.data[i]);
-	ni_ifworker_array_destroy(&mgr->recheck);
 
 	return count;
 }
@@ -410,6 +408,7 @@ ni_nanny_unregister_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_nanny_remove_device(mgr, mdev);
 	ni_objectmodel_unregister_managed_device(mdev);
 	ni_fsm_destroy_worker(mgr->fsm, w);
+	ni_ifworker_array_remove(&mgr->recheck, w);
 }
 
 /*
@@ -653,6 +652,7 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		// a VLAN or vif, or a hotplug device
 		// Create a worker and a managed_netif for this device.
 		if ((w = ni_fsm_recv_new_netif_path(mgr->fsm, object_path))) {
+			ni_fsm_build_hierarchy(mgr->fsm);
 			ni_nanny_register_device(mgr, w);
 			ni_nanny_schedule_recheck(mgr, w);
 		}
@@ -817,6 +817,20 @@ ni_objectmodel_nanny_get_device(ni_dbus_object_t *object, const ni_dbus_method_t
 	return TRUE;
 }
 
+static void
+__ni_objectmodel_nanny_factory_device_recheck(ni_nanny_t *mgr, const char *ifname)
+{
+	ni_ifworker_t *w;
+
+	if (!mgr || ni_string_empty(ifname))
+		return;
+
+	if (!(w = ni_fsm_ifworker_by_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, ifname)))
+		return;
+
+	if (!w->failed && !w->done && ni_ifworker_is_factory_device(w))
+		ni_nanny_schedule_recheck(mgr, w);
+}
 
 /*
  * Nanny.createPolicy()
@@ -866,7 +880,17 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 			return FALSE;
 		}
 
+		/* Create policy and corresponding worker (e.g. for hotplug or factory devices */
 		policy = ni_fsm_policy_new(mgr->fsm, pname, pnode);
+
+		/* Rebuild the hierarchy cause new policy may hit some matches */
+		ni_fsm_build_hierarchy(mgr->fsm);
+
+		/* Schedule recheck on Factory devices
+		 * (Hotplugs and existing devices are scheduled upon DEVICE_READY)
+		 */
+		__ni_objectmodel_nanny_factory_device_recheck(mgr, pname);
+
 		policy_object = ni_objectmodel_register_managed_policy(ni_dbus_object_get_server(object),
 			ni_managed_policy_new(mgr, policy, NULL));
 
