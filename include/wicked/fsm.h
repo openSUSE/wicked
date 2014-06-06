@@ -389,6 +389,13 @@ ni_ifworker_is_valid_state(ni_fsm_state_t state)
 }
 
 static inline ni_bool_t
+ni_ifworker_complete(const ni_ifworker_t *w)
+{
+	return 	w->failed || w->done || w->target_state == NI_FSM_STATE_NONE ||
+		w->target_state == w->fsm.state;
+}
+
+static inline ni_bool_t
 ni_ifworker_is_factory_device(ni_ifworker_t *w)
 {
 	return  !w->device && (w->device_api.factory_service &&
