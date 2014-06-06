@@ -648,7 +648,7 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		return;
 	}
 
-	if (event == NI_EVENT_DEVICE_CREATE) {
+	if (event == NI_EVENT_DEVICE_READY) {
 		// A new device was added. Could be a virtual device like
 		// a VLAN or vif, or a hotplug device
 		// Create a worker and a managed_netif for this device.
@@ -692,11 +692,6 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 			mdev->monitor? ", monitored" : "");
 
 	switch (event) {
-	case NI_EVENT_DEVICE_READY:
-		if (mdev->selected_policy != NULL && mdev->monitor)
-			ni_nanny_schedule_recheck(mgr, w);
-		break;
-
 	case NI_EVENT_LINK_DOWN:
 		// If we have recorded a policy for this device, it means
 		// we were the ones who took it up - so bring it down
