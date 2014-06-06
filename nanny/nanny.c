@@ -178,11 +178,10 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 		}
 
 		/* Always check virtual devices */
-		for (i = 0; i <  fsm->workers.count; i++) {
+		for (i = 0; i < fsm->workers.count; i++) {
 			ni_ifworker_t *w =  fsm->workers.data[i];
 
-			/* Device not created yet */
-			if (w && !w->device)
+			if (!w->device)
 				ni_nanny_schedule_recheck(mgr, w);
 		}
 	}
