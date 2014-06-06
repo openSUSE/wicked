@@ -210,11 +210,6 @@ babysit(void)
 	ni_nanny_start(mgr);
 	fsm = mgr->fsm;
 
-	/* Nanny should not update neither <client-info> nor <client-state>,
-	 * unless it is told to configure a device by 'wicked enable'.
-	 */
-	fsm->readonly = TRUE;
-
 	if (!opt_foreground) {
 		ni_daemon_close_t close_flags = NI_DAEMON_CLOSE_STD;
 
@@ -236,9 +231,6 @@ babysit(void)
 		ni_nanny_down_do(mgr);
 
 		ni_fsm_do(mgr->fsm, &timeout);
-
-		/* Set back the FSM to readonly after job is done */
-		fsm->readonly = TRUE;
 
 		if (ni_socket_wait(timeout) != 0)
 			ni_fatal("ni_socket_wait failed");
