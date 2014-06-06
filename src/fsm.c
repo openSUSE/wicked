@@ -535,7 +535,7 @@ ni_ifworker_array_find(ni_ifworker_array_t *array, ni_ifworker_type_t type, cons
 	return NULL;
 }
 
-static ni_bool_t
+ni_bool_t
 ni_ifworker_array_remove(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
 	unsigned int i, j;
