@@ -144,6 +144,31 @@ error:
 	return rv;
 }
 
+static ni_bool_t
+ni_ifup_start_policies(ni_ifworker_array_t *array, ni_bool_t set_persistent)
+{
+	unsigned int i;
+	ni_bool_t rv = TRUE;
+
+	for (i = 0; i < array->count; i++) {
+		ni_ifworker_t *w = array->data[i];
+
+		if (set_persistent)
+			ni_cient_state_set_persistent(w->config.node);
+
+		if (!ni_ifup_hire_nanny(w)) {
+			ni_error("%s: unable to apply configuration to nanny", w->name);
+			rv = FALSE;
+		}
+		else
+			ni_info("%s: configuration applied to nanny", w->name);
+	}
+
+	if (0 == array->count)
+		printf("ifup: no matching interfaces\n");
+
+	return rv;
+}
 
 /*
  * Wickedd is sending us a signal indicating internal device state change.
@@ -241,10 +266,9 @@ ni_do_ifup(int argc, char **argv)
 	ni_ifworker_array_t ifmarked;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	ni_bool_t check_prio = TRUE, set_persistent = FALSE;
-	unsigned int i;
-	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
 	unsigned int timeout = 0;
+	ni_fsm_t *fsm;
 
 	fsm = ni_fsm_new();
 	ni_assert(fsm);
@@ -411,23 +435,10 @@ usage:
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
 	}
 
-	if (0 == ifmarked.count)
-		printf("ifup: no matching interfaces\n");
+	if (!ni_ifup_start_policies(&ifmarked, set_persistent))
+		status = NI_WICKED_RC_NOT_CONFIGURED;
 
-	for (i = 0; i < ifmarked.count; i++) {
-		ni_ifworker_t *w = ifmarked.data[i];
-
-		if (set_persistent)
-			ni_cient_state_set_persistent(w->config.node);
-
-		if (!ni_ifup_hire_nanny(w)) {
-			status = NI_WICKED_RC_NOT_CONFIGURED;
-			ni_error("%s: unable to apply configuration to nanny", w->name);
-		}
-		else
-			ni_info("%s: configuration applied to nanny", w->name);
-	}
-
+	/* Wait for device-up events */
 	ni_timer_register(ni_wait_for_interfaces, ni_ifup_timer_expires, &status);
 	while (status == NI_WICKED_RC_SUCCESS) {
 		/* status is already success */
