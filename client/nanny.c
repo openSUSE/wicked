@@ -363,9 +363,14 @@ ni_nanny_call_add_policy(const char *name, xml_node_t *node)
 
 	ni_nanny_create_client(&root_object);
 
+	if ((doc_string = xml_node_sprint(node)) == NULL) {
+		ni_debug_application("%s: unable to format <policy> node", __func__);
+		return FALSE;
+	}
+
 	rv = ni_dbus_object_call_simple(root_object,
 					NI_OBJECTMODEL_NANNY_INTERFACE, "createPolicy",
-					DBUS_TYPE_STRING, &name,
+					DBUS_TYPE_STRING, &doc_string,
 					DBUS_TYPE_OBJECT_PATH, &policy_path);
 
 	if (rv == -NI_ERROR_POLICY_EXISTS) {
@@ -386,11 +391,6 @@ ni_nanny_call_add_policy(const char *name, xml_node_t *node)
 	ni_assert(relative_path);
 
 	proxy = ni_dbus_object_create(root_object, relative_path, NULL, NULL);
-
-	if ((doc_string = xml_node_sprint(node)) == NULL) {
-		ni_debug_application("%s: unable to format <policy> node", __func__);
-		return FALSE;
-	}
 
 	ni_debug_application("About to call %s.update()", ni_dbus_object_get_path(proxy));
 	if ((rv = ni_dbus_object_call_simple(proxy,
