@@ -2645,6 +2645,8 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		ni_string_dup(&found->object_path, object->path);
 	if (!found->device)
 		found->device = ni_netdev_get(dev);
+	if (!ni_string_eq(found->name, dev->name))
+		ni_string_dup(&found->name, dev->name);
 	found->ifindex = dev->link.ifindex;
 	found->object = object;
 
