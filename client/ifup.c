@@ -127,6 +127,14 @@ ni_ifup_hire_nanny(ni_ifworker_t *w)
 	ni_debug_application("%s: nanny hired!", w->name);
 	ni_ifworker_success(w);
 
+	/* Append policies for all children in case they contain some special options */
+	for (i = 0; i < w->children.count; i++) {
+		ni_ifworker_t *child = w->children.data[i];
+
+		if (!ni_ifup_hire_nanny(child))
+			ni_error("%s: unable to apply configuration to nanny", child->name);
+	}
+
 	rv = TRUE;
 
 error:
