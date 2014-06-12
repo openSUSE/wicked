@@ -231,10 +231,9 @@ or using the network.service alias:
 These commands are using default/system configuration sources as
 defined in the /etc/wicked/client.xml file.
 
-To enable debugging, you can currently set the WICKED_DEBUG_PARAM
-variable in /etc/sysconfig/network/config file, e.g.:
-        WICKED_DEBUG_PARAM="--debug most"
-Note: this may change in the furure.
+To enable debugging, you can currently set the WICKED_DEBUG variable
+in /etc/sysconfig/network/config file, e.g. WICKED_DEBUG="all" or
+to omit some, WICKED_DEBUG="all,-dbus,-objectmodel,-xpath,-xml".
 
 
 Showing interface status
