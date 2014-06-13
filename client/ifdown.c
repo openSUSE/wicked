@@ -56,14 +56,13 @@ ni_ifdown_fire_nanny(ni_ifworker_t *w)
 			ni_string_free(&policy_name);
 			return FALSE;
 		}
+		ni_string_free(&policy_name);
 
-		if (!ni_nanny_call_device_disable(policy_name)) {
-			ni_debug_application("Unable to disable policy named %s",
-				policy_name);
-			ni_string_free(&policy_name);
+		if (!ni_nanny_call_device_disable(w->name)) {
+			ni_debug_application("Unable to disable device named %s",
+				w->name);
 			return FALSE;
 		}
-		ni_string_free(&policy_name);
 	}
 
 	return TRUE;
