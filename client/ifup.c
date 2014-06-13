@@ -124,7 +124,7 @@ ni_ifup_hire_nanny(ni_ifworker_t *w)
 	}
 
 	ni_debug_application("%s: adding policy %s to nanny", w->name,
-		xml_node_get_attr(policy, NI_NANNY_IFPOLICY_NAME));
+		ni_ifpolicy_get_name(policy));
 
 	if (ni_nanny_addpolicy_node(policy, w->config.origin) <= 0) {
 		ni_nanny_call_device_disable(w->name);
