@@ -147,7 +147,8 @@ libwicked_dhcp6_la_SOURCES		= \
 
 libwicked_client_la_CFLAGS		= $(libwicked_la_CFLAGS)
 libwicked_client_la_SOURCES		= \
-	client/client_state.c
+	client/client_state.c	\
+	client/policy.c
 
 noinst_HEADERS			= \
 	$(wicked_headers)	\
