@@ -27,6 +27,8 @@
 #include <wicked/modem.h>
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
+
+#include "client/ifconfig.h"
 #include "util_priv.h"
 #include "nanny.h"
 
@@ -189,6 +191,63 @@ main(int argc, char **argv)
 	return NI_LSB_RC_SUCCESS;
 }
 
+static ni_bool_t
+ni_nanny_policy_load(ni_nanny_t *mgr)
+{
+	ni_string_array_t files = NI_STRING_ARRAY_INIT;
+	unsigned int i;
+
+	ni_assert(mgr);
+	ni_debug_application("Loading previously saved policies:");
+
+	if (ni_scandir(ni_config_statedir(), "policy-*", &files) != 0) {
+		for (i = 0; i < files.count; ++i) {
+			xml_node_t *root, *pnode;
+			char path[PATH_MAX];
+			ni_ifworker_t *w;
+			FILE *fp;
+			int rv;
+
+			snprintf(path, sizeof(path), "%s/%s", ni_config_statedir(),
+				files.data[i]);
+			if (!(fp = fopen(path, "re"))) {
+				ni_error("Cannot open policy file '%s'", path);
+				continue;
+			}
+
+			root = xml_node_scan(fp, path);
+			fclose(fp);
+
+			pnode = root ? root->children : NULL;
+			if (!pnode || pnode->next) {
+				ni_error("Wrong policy file %s - "
+					"exactly one policy node expected", path);
+				continue;
+			}
+
+			/* Free not needed root node */
+			root->children = NULL;
+			xml_node_free(root);
+
+			rv = ni_nanny_create_policy(mgr, pnode, NULL);
+			if (rv < 0)
+				ni_error("Policy file '%s' does not contain policy node", path);
+			else if (rv > 0)
+				ni_error("Policy from policy file '%s' already exists", path);
+			else
+				ni_debug_nanny("Policy has been loaded from file '%s'", path);
+
+			w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV,
+				ni_ifpolicy_get_name(pnode));
+			if (w != NULL)
+				ni_nanny_schedule_recheck(mgr, w);
+		}
+	}
+
+	ni_string_array_destroy(&files);
+	return TRUE;
+}
+
 /*
  * Implement service for configuring the system's network interfaces
  * based on events and user-supplied policies.
@@ -218,6 +277,7 @@ babysit(void)
 	ni_rfkill_open(handle_rfkill_event, mgr);
 
 	ni_nanny_discover_state(mgr);
+	ni_nanny_policy_load(mgr);
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
