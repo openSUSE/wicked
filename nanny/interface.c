@@ -80,6 +80,7 @@ ni_managed_netdev_disable(ni_managed_device_t *mdev)
 	if (mdev->monitor)
 		ni_nanny_schedule_down(mdev->nanny, mdev->worker);
 	mdev->monitor = FALSE;
+	ni_nanny_policy_drop(mdev->worker->name);
 	return TRUE;
 }
 

@@ -43,6 +43,7 @@
 
 #include "wicked-client.h"
 #include "ifup.h"
+#include "ifstatus.h"
 
 static xml_node_t *
 __ni_ifup_generate_match(ni_ifworker_t *w)
@@ -123,7 +124,7 @@ ni_ifup_hire_nanny(ni_ifworker_t *w)
 	}
 
 	ni_debug_application("%s: adding policy %s to nanny", w->name,
-		xml_node_get_attr(policy, NI_NANNY_IFPOLICY_NAME));
+		ni_ifpolicy_get_name(policy));
 
 	if (ni_nanny_addpolicy_node(policy, w->config.origin) <= 0) {
 		ni_nanny_call_device_disable(w->name);
@@ -202,7 +203,7 @@ ni_ifup_netif_state_change_signal_handler(ni_dbus_connection_t *conn, ni_dbus_me
 	ni_debug_application("received signal %s; object_path=%s",
 		signal_name, object_path);
 
-	if (event >= NI_EVENT_DEVICE_UP) {
+	if (event == NI_EVENT_ADDRESS_ACQUIRED) {
 		ni_string_array_t nsa = NI_STRING_ARRAY_INIT;
 		char ifname[IF_NAMESIZE+1] = { 0 };
 		unsigned int i, ifindex;
@@ -271,6 +272,7 @@ ni_do_ifup(int argc, char **argv)
 	ni_ifmatcher_t ifmatch;
 	ni_ifworker_array_t ifmarked;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
+	ni_string_array_t ifstatus_argv = NI_STRING_ARRAY_INIT;
 	ni_bool_t check_prio = TRUE, set_persistent = FALSE;
 	int c, status = NI_WICKED_RC_USAGE;
 	unsigned int timeout = 0;
@@ -428,6 +430,8 @@ usage:
 	}
 
 	status = NI_WICKED_RC_SUCCESS;
+	ni_string_array_append(&ifstatus_argv, "ifstatus");
+	ni_string_array_append(&ifstatus_argv, "--brief");
 
 	/* Get workers that match given criteria */
 	while (optind < argc) {
@@ -438,6 +442,7 @@ usage:
 			ifmatch.mode = "boot";
 		}
 
+		ni_string_array_append(&ifstatus_argv, ifmatch.name);
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
 	}
 
@@ -467,6 +472,9 @@ usage:
 cleanup:
 	ni_ifworker_array_destroy(&ifmarked);
 	ni_string_array_destroy(&opt_ifconfig);
+
+	status = ni_do_ifstatus(ifstatus_argv.count, ifstatus_argv.data);
+	ni_string_array_destroy(&ifstatus_argv);
 	return status;
 }
 

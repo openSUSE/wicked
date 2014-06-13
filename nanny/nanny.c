@@ -401,6 +401,7 @@ ni_nanny_unregister_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 
 	ni_nanny_remove_device(mgr, mdev);
 	ni_objectmodel_unregister_managed_device(mdev);
+	ni_nanny_policy_drop(w->name);
 	ni_fsm_destroy_worker(mgr->fsm, w);
 	ni_ifworker_array_remove(&mgr->recheck, w);
 }
@@ -826,6 +827,48 @@ __ni_objectmodel_nanny_factory_device_recheck(ni_nanny_t *mgr, const char *pname
 }
 
 /*
+ * Creates nanny policy and managed policy interface per policy node input.
+ * Return:
+ *	-1 - policy node does not exist or is errornous
+ *	 0 - success
+ *	 1 - policy already exists
+ */
+int
+ni_nanny_create_policy(ni_nanny_t *mgr, xml_node_t *pnode, ni_dbus_object_t **policy_object)
+{
+	ni_fsm_policy_t *policy;
+	ni_dbus_object_t *po;
+	const char *pname;
+
+	ni_assert(mgr);
+	if (!ni_ifpolicy_is_valid(pnode))
+		return -1;
+
+	pname = xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_NAME);
+	if (ni_fsm_policy_by_name(mgr->fsm, pname) != NULL)
+		return 1;
+
+	/* Create policy and corresponding worker (e.g. for hotplug or factory devices */
+	policy = ni_fsm_policy_new(mgr->fsm, pname, pnode);
+
+	/* Rebuild the hierarchy cause new policy may hit some matches */
+	ni_fsm_build_hierarchy(mgr->fsm);
+
+	/* Schedule recheck on Factory devices
+	 * (Hotplugs and existing devices are scheduled upon DEVICE_READY)
+	 */
+	__ni_objectmodel_nanny_factory_device_recheck(mgr, pname);
+
+	po = ni_objectmodel_register_managed_policy(mgr->server,
+		ni_managed_policy_new(mgr, policy, NULL));
+
+	if (policy_object)
+		*policy_object = po;
+
+	return 0;
+}
+
+/*
  * Nanny.createPolicy()
  */
 static dbus_bool_t
@@ -833,7 +876,6 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 					unsigned int argc, const ni_dbus_variant_t *argv,
 					ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_dbus_object_t *policy_object;
 	const char *doc_string;
 	xml_document_t *doc;
 	xml_node_t *root, *pnode;
@@ -855,51 +897,53 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 
 	root = xml_document_root(doc);
 	for (pnode = root->children; pnode != NULL; pnode = pnode->next) {
-		ni_fsm_policy_t *policy;
-		const char *pname;
+		ni_dbus_object_t *policy_object;
+		int rv;
 
-		if (!ni_ifconfig_is_policy(pnode)) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-					"Bad policy \"%s\" in call to %s.%s",
-					doc_string, ni_dbus_object_get_path(object), method->name);
+		rv = ni_nanny_create_policy(mgr, pnode, &policy_object);
+		if (rv < 0) {
+			const char *pname = ni_ifpolicy_get_name(pnode);
+			if (!ni_ifpolicy_name_is_valid(pname)) {
+				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+						"Invalid policy name \"%s\" in call to %s.%s",
+						ni_print_suspect(pname, ni_string_len(pname)),
+						ni_dbus_object_get_path(object), method->name);
+			} else {
+				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+						"Bad policy \"%s\" in call to %s.%s",
+						doc_string, ni_dbus_object_get_path(object), method->name);
+			}
 			return FALSE;
 		}
-
-		pname = ni_ifpolicy_get_name(pnode);
-		if (!ni_ifpolicy_name_is_valid(pname)) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-					"Invalid policy name \"%s\" in call to %s.%s",
-					ni_print_suspect(pname, ni_string_len(pname)),
-					ni_dbus_object_get_path(object), method->name);
-			return FALSE;
-		}
-
-		if (ni_fsm_policy_by_name(mgr->fsm, pname) != NULL) {
+		else if (rv > 0) {
 			dbus_set_error(error, NI_DBUS_ERROR_POLICY_EXISTS,
 				"Policy \"%s\" already exists in call to %s.%s",
-				pname, ni_dbus_object_get_path(object), method->name);
+				doc_string, ni_dbus_object_get_path(object), method->name);
 			return FALSE;
 		}
-
-		/* Create policy and corresponding worker (e.g. for hotplug or factory devices */
-		policy = ni_fsm_policy_new(mgr->fsm, pname, pnode);
-
-		/* Rebuild the hierarchy cause new policy may hit some matches */
-		ni_fsm_build_hierarchy(mgr->fsm);
-
-		/* Schedule recheck on Factory devices
-		 * (Hotplugs and existing devices are scheduled upon DEVICE_READY)
-		 */
-		__ni_objectmodel_nanny_factory_device_recheck(mgr, pname);
-
-		policy_object = ni_objectmodel_register_managed_policy(ni_dbus_object_get_server(object),
-			ni_managed_policy_new(mgr, policy, NULL));
 
 		if (ni_dbus_message_append_object_path(reply, ni_dbus_object_get_path(policy_object)))
 			count++;
 	}
 
 	return count ? TRUE : FALSE;
+}
+
+ni_bool_t
+ni_nanny_policy_drop(const char *pname)
+{
+	char path[PATH_MAX] = {'\0'};
+
+	ni_managed_policy_filename(pname, path, sizeof(path));
+
+	if (unlink(path) < 0) {
+		if (errno == ENOENT)
+			return TRUE;
+
+		ni_error("Cannot remove policy file '%s': %m", path);
+		return FALSE;
+	}
+	return TRUE;
 }
 
 /*
@@ -947,6 +991,8 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 				server = ni_dbus_object_get_server(object);
 				if (!ni_objectmodel_unregister_managed_policy(server, cur, name))
 					return FALSE;
+
+				ni_nanny_policy_drop(name);
 
 				ni_dbus_message_append_object_path(reply,
 					ni_dbus_object_get_path(object));
