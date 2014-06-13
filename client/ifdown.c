@@ -40,7 +40,6 @@
 #include "wicked-client.h"
 #include "ifdown.h"
 
-#if 0
 static ni_bool_t
 ni_ifdown_fire_nanny(ni_ifworker_t *w)
 {
@@ -82,7 +81,6 @@ ni_ifdown_stop_policies(ni_ifworker_array_t *array)
 
 	return TRUE;
 }
-#endif
 
 int
 ni_do_ifdown(int argc, char **argv)
@@ -214,7 +212,7 @@ usage:
 
 	/* Mark and start selected workers */
 	if (ifmarked.count) {
-#if 0		/*
+		/*
 		 * Not yet hired, no need to fire it.
 		 *
 		 * There is currently no nanny in the inst-sys and the
@@ -222,7 +220,7 @@ usage:
 		 */
 		/* Disable devices and delete all related policies from nanny */
 		ni_ifdown_stop_policies(&ifmarked);
-#endif
+
 		/* Start workers to perform actual ifdown */
 		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
 	}
