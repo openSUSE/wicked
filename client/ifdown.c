@@ -40,7 +40,6 @@
 #include "wicked-client.h"
 #include "ifdown.h"
 
-#if 0
 static ni_bool_t
 ni_ifdown_fire_nanny(ni_ifworker_t *w)
 {
@@ -49,19 +48,22 @@ ni_ifdown_fire_nanny(ni_ifworker_t *w)
 		 * In case of any change other parameters
 		 * should be available within ifworker
 		 */
-		const char *policy_name = w->name;
+		char *policy_name = ni_ifpolicy_name_from_ifname(w->name);
 
 		if (!ni_nanny_call_del_policy(policy_name)) {
 			ni_debug_application("Unable to delete policy named %s",
 				policy_name);
+			ni_string_free(&policy_name);
 			return FALSE;
 		}
 
 		if (!ni_nanny_call_device_disable(policy_name)) {
 			ni_debug_application("Unable to disable policy named %s",
 				policy_name);
+			ni_string_free(&policy_name);
 			return FALSE;
 		}
+		ni_string_free(&policy_name);
 	}
 
 	return TRUE;
@@ -82,7 +84,6 @@ ni_ifdown_stop_policies(ni_ifworker_array_t *array)
 
 	return TRUE;
 }
-#endif
 
 int
 ni_do_ifdown(int argc, char **argv)
@@ -214,7 +215,7 @@ usage:
 
 	/* Mark and start selected workers */
 	if (ifmarked.count) {
-#if 0		/*
+		/*
 		 * Not yet hired, no need to fire it.
 		 *
 		 * There is currently no nanny in the inst-sys and the
@@ -222,7 +223,7 @@ usage:
 		 */
 		/* Disable devices and delete all related policies from nanny */
 		ni_ifdown_stop_policies(&ifmarked);
-#endif
+
 		/* Start workers to perform actual ifdown */
 		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
 	}

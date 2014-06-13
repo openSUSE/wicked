@@ -55,7 +55,6 @@ BuildRequires:  pkg-config
 
 %if %{with systemd}
 %{?systemd_requires}
-BuildRequires:  pkgconfig(systemd)
 %if 0%{?suse_version:1}
 Requires(pre):  %fillup_prereq
 Requires:       sysconfig-netconfig
@@ -137,6 +136,7 @@ This package provides the wicked development files.
 %package -n     libwicked@LIBWICKED_PACKAGE_SUFFIX@
 Summary:        Network configuration infrastructure - Shared library
 Group:          System/Management
+Obsoletes:      libwicked0 < %{version}
 
 %description -n libwicked@LIBWICKED_PACKAGE_SUFFIX@
 Wicked is a network configuration infrastructure incorporating a number
@@ -159,6 +159,7 @@ export CFLAGS="$RPM_OPT_FLAGS"
 	--with-compat=suse		\
 %if %{with systemd}
 	--enable-systemd		\
+	--with-systemd-unitdir=%{_unitdir} \
 %else
 	--enable-systemv		\
 %endif

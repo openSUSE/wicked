@@ -978,3 +978,34 @@ ni_netdev_supports_arp(ni_netdev_t *dev)
 	return FALSE;
 }
 
+ni_bool_t
+ni_netdev_name_is_valid(const char *ifname)
+{
+	size_t i, len = ni_string_len(ifname);
+	const char *black_list[] = {
+		"all", "default", NULL
+	}, **ptr;
+
+	if (!len || len >= IFNAMSIZ)
+		return FALSE;
+
+	if (!isalnum((unsigned char)ifname[0]))
+		return FALSE;
+
+	for(i = 1; i < len; ++i) {
+		if(isalnum((unsigned char)ifname[i]) ||
+				ifname[i] == '-' ||
+				ifname[i] == '_' ||
+				ifname[i] == '.')
+			continue;
+		return FALSE;
+	}
+
+	for (ptr = black_list; *ptr; ptr++) {
+		if (ni_string_eq(*ptr, ifname))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+

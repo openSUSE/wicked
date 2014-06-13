@@ -25,6 +25,7 @@
 
 #include <unistd.h>
 #include <sys/types.h>
+#include <ctype.h>
 
 #include <wicked/fsm.h>
 #include <wicked/netinfo.h>
@@ -76,6 +77,65 @@ ni_ifpolicy_match_add_link_type(xml_node_t *policy, unsigned int type)
 
 	return FALSE;
 }
+
+char *
+ni_ifpolicy_name_from_ifname(const char *ifname)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	size_t len, i;
+
+	/*
+	 * The policy name is used in dbus path which allows to
+	 * use only "[A-Z][a-z][0-9]_" elements separated by "/".
+	 *
+	 * Just use some simple encoding for valid netdev name
+	 * characters and return new policy name or NULL.
+	 */
+	len = ni_string_len(ifname);
+	for (i = 0; i < len; ++i) {
+		if (isalnum((unsigned char)ifname[i])) {
+			ni_stringbuf_putc(&buf, ifname[i]);
+			continue;
+		}
+		switch (ifname[i]) {
+			case '_':
+				ni_stringbuf_putc(&buf, '_');
+				ni_stringbuf_putc(&buf, '_');
+				break;
+			case '.':
+				ni_stringbuf_putc(&buf, '_');
+				ni_stringbuf_putc(&buf, 'd');
+				break;
+			case '-':
+				ni_stringbuf_putc(&buf, '_');
+				ni_stringbuf_putc(&buf, 'm');
+				break;
+			default:
+				ni_stringbuf_destroy(&buf);
+				return NULL;
+		}
+	}
+	return buf.string;
+}
+
+ni_bool_t
+ni_ifpolicy_name_is_valid(const char *name)
+{
+	size_t i, len;
+
+	if (!(len = ni_string_len(name)))
+		return FALSE;
+
+	for (i = 0; i < len; ++i) {
+		if(isalnum((unsigned char)name[i]) ||
+				name[i] == '_')
+			continue;
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
 
 /*
  * Generate a <match> node for ifpolicy
@@ -161,7 +221,7 @@ ni_convert_cfg_into_policy_doc(xml_document_t *ifconfig)
 
 	for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
 		if (ni_ifpolicy_is_valid(ifnode)) {
-			const char *name = xml_node_get_attr(ifnode, NI_NANNY_IFPOLICY_NAME);
+			const char *name = ni_ifpolicy_get_name(ifnode);
 			ni_debug_ifconfig("Ignoring already existing %s named %s from %s",
 				NI_NANNY_IFPOLICY, name, origin);
 			continue;

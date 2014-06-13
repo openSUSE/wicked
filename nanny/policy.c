@@ -30,7 +30,7 @@
 #include <wicked/fsm.h>
 #include "util_priv.h"
 #include "nanny.h"
-
+#include "client/ifconfig.h"
 
 void
 ni_objectmodel_managed_policy_init(ni_dbus_server_t *server)
@@ -148,7 +148,7 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 
 	if (doc->root == NULL
 	 || (node = doc->root->children) == NULL
-	 || !ni_string_eq(node->name, "policy")
+	 || !ni_ifpolicy_is_valid(node)
 	 || node->next != NULL) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"XML document should contain exactly one <policy> element");
