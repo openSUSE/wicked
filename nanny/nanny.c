@@ -207,7 +207,6 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 		}
 		return count;
 	}
-	ni_trace("%s(%s): found %u policies", __func__, w->name, count);
 
 	policy = policies[count-1];
 	mpolicy = ni_nanny_get_policy(mgr, policy);
@@ -814,24 +813,11 @@ static void
 __ni_objectmodel_nanny_factory_device_recheck(ni_nanny_t *mgr, const char *pname)
 {
 	ni_ifworker_t *w = NULL;
-	unsigned int i;
 
 	if (!mgr || !mgr->fsm || ni_string_empty(pname))
 		return;
 
-	for (i = 0; i < mgr->fsm->workers.count ; ++i) {
-		w = mgr->fsm->workers.data[i];
-		if (w && w->type == NI_IFWORKER_TYPE_NETDEV) {
-			char *enc = ni_ifpolicy_name_from_ifname(w->name);
-			if (enc && ni_string_eq(enc, pname)) {
-				ni_string_free(&enc);
-				break;
-			}
-			ni_string_free(&enc);
-		}
-		w = NULL;
-	}
-
+	w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, pname);
 	if (!w)
 		return;
 
@@ -944,25 +930,13 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 			if (cur->fsm_policy == policy) {
 				ni_dbus_server_t *server;
 				ni_ifworker_t *w = NULL;
-				unsigned int i;
 
 				if (!ni_fsm_policy_remove(mgr->fsm, policy))
 					return FALSE;
 
 				ni_debug_nanny("Removed FSM policy %s", name);
 
-				for (i = 0; i < mgr->fsm->workers.count ; ++i) {
-					w = mgr->fsm->workers.data[i];
-					if (w && w->type == NI_IFWORKER_TYPE_NETDEV) {
-						char *enc = ni_ifpolicy_name_from_ifname(w->name);
-						if (enc && ni_string_eq(enc, name)) {
-							ni_string_free(&enc);
-							break;
-						}
-						ni_string_free(&enc);
-					}
-					w = NULL;
-				}
+				w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, name);
 				if (w != NULL) {
 					ni_managed_device_t *mdev = ni_nanny_get_device(mgr, w);
 					if (mdev != NULL)

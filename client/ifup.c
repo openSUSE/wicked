@@ -86,10 +86,10 @@ ni_ifup_hire_nanny(ni_ifworker_t *w)
 	if (!ifcfg)
 		goto error;
 
-	ni_debug_application("%s: converting config into policy", w->name);
-
 	pname  = ni_ifpolicy_name_from_ifname(w->name);
-	ni_trace("Generated %s as policy name from %s", pname, w->name);
+	ni_debug_application("%s: converting config into policy '%s'",
+			w->name, pname);
+
 	policy = ni_convert_cfg_into_policy_node(ifcfg,
 			__ni_ifup_generate_match(w),
 			pname, w->config.origin);
