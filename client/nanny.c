@@ -268,20 +268,25 @@ ni_nanny_addpolicy_node(xml_node_t *pnode, const char *origin)
 	if (!pnode)
 		return count;
 
-	if (ni_string_empty(origin)) {
-		origin = xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_ORIGIN);
+	if (ni_string_empty(origin))
+		origin = ni_ifpolicy_get_origin(pnode);
+
+	if (!ni_ifconfig_is_policy(pnode)) {
+		ni_debug_ifconfig("Rejecting to add invalid policy from %s",
+			ni_string_empty(origin) ? "unspecified origin" : origin);
+		return -1;
+	}
+	name = ni_ifpolicy_get_name(pnode);
+	if (!ni_ifpolicy_name_is_valid(name)) {
+		ni_debug_ifconfig("Cannot add policy from %s without valid name",
+			ni_string_empty(origin) ? "unspecified origin" : origin);
+		return -1;
 	}
 
-	name = xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_NAME);
-	if (ni_string_empty(name)) {
-		ni_debug_ifconfig("Cannot add noname policy from %s pathname",
-			ni_string_empty(origin) ? "unspecified" : origin);
-		return count;
-	}
-
+	/* FIXME: is this an error, it perhaps just already exists? */
 	if (!ni_nanny_call_add_policy(name, pnode)) {
 		ni_debug_ifconfig("Adding policy %s from %s file failed", name,
-			ni_string_empty(origin) ? "unspecified" : origin);
+			ni_string_empty(origin) ? "unspecified origin" : origin);
 		return -1;
 	}
 

@@ -49,6 +49,7 @@
 extern ni_bool_t		ni_ifpolicy_match_add_min_state(xml_node_t *, unsigned int);
 extern ni_bool_t		ni_ifpolicy_match_add_link_type(xml_node_t *, unsigned int);
 extern xml_node_t *		ni_ifpolicy_generate_match(const ni_string_array_t *, const char *);
+extern ni_bool_t		ni_ifpolicy_name_is_valid(const char *);
 
 extern xml_node_t *		ni_convert_cfg_into_policy_node(xml_node_t *, xml_node_t *, const char *, const char*);
 extern xml_document_t *	ni_convert_cfg_into_policy_doc(xml_document_t *);
@@ -79,11 +80,25 @@ ni_ifconfig_is_policy(xml_node_t *pnode)
 		 ni_string_eq(pnode->name, NI_NANNY_IFTEMPLATE));
 }
 
+static inline const char *
+ni_ifpolicy_get_origin(xml_node_t *pnode)
+{
+	return xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_ORIGIN);
+}
+
+static inline const char *
+ni_ifpolicy_get_name(xml_node_t *pnode)
+{
+	return xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_NAME);
+}
+
 static inline ni_bool_t
 ni_ifpolicy_is_valid(xml_node_t *pnode)
 {
-	return ni_ifconfig_is_policy(pnode) &&
-		xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_NAME);
+	if (!ni_ifconfig_is_policy(pnode))
+		return FALSE;
+
+	return ni_ifpolicy_name_is_valid(ni_ifpolicy_get_name(pnode));
 }
 
 #endif /* __WICKED_CLIENT_IFCONFIG_H__ */

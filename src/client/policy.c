@@ -25,6 +25,7 @@
 
 #include <unistd.h>
 #include <sys/types.h>
+#include <ctype.h>
 
 #include <wicked/fsm.h>
 #include <wicked/netinfo.h>
@@ -76,6 +77,25 @@ ni_ifpolicy_match_add_link_type(xml_node_t *policy, unsigned int type)
 
 	return FALSE;
 }
+
+ni_bool_t
+ni_ifpolicy_name_is_valid(const char *name)
+{
+	size_t i, len;
+
+	if (!(len = ni_string_len(name)))
+		return FALSE;
+
+	for (i = 0; i < len; ++i) {
+		if(isalnum((unsigned char)name[i]) ||
+				name[i] == '_')
+			continue;
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
 
 /*
  * Generate a <match> node for ifpolicy
@@ -161,7 +181,7 @@ ni_convert_cfg_into_policy_doc(xml_document_t *ifconfig)
 
 	for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
 		if (ni_ifpolicy_is_valid(ifnode)) {
-			const char *name = xml_node_get_attr(ifnode, NI_NANNY_IFPOLICY_NAME);
+			const char *name = ni_ifpolicy_get_name(ifnode);
 			ni_debug_ifconfig("Ignoring already existing %s named %s from %s",
 				NI_NANNY_IFPOLICY, name, origin);
 			continue;
