@@ -78,6 +78,46 @@ ni_ifpolicy_match_add_link_type(xml_node_t *policy, unsigned int type)
 	return FALSE;
 }
 
+char *
+ni_ifpolicy_name_from_ifname(const char *ifname)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	size_t len, i;
+
+	/*
+	 * The policy name is used in dbus path which allows to
+	 * use only "[A-Z][a-z][0-9]_" elements separated by "/".
+	 *
+	 * Just use some simple encoding for valid netdev name
+	 * characters and return new policy name or NULL.
+	 */
+	len = ni_string_len(ifname);
+	for (i = 0; i < len; ++i) {
+		if (isalnum((unsigned char)ifname[i])) {
+			ni_stringbuf_putc(&buf, ifname[i]);
+			continue;
+		}
+		switch (ifname[i]) {
+			case '_':
+				ni_stringbuf_putc(&buf, '_');
+				ni_stringbuf_putc(&buf, '_');
+				break;
+			case '.':
+				ni_stringbuf_putc(&buf, '_');
+				ni_stringbuf_putc(&buf, 'd');
+				break;
+			case '-':
+				ni_stringbuf_putc(&buf, '_');
+				ni_stringbuf_putc(&buf, 'm');
+				break;
+			default:
+				ni_stringbuf_destroy(&buf);
+				return NULL;
+		}
+	}
+	return buf.string;
+}
+
 ni_bool_t
 ni_ifpolicy_name_is_valid(const char *name)
 {

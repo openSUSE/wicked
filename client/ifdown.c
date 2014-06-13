@@ -48,19 +48,22 @@ ni_ifdown_fire_nanny(ni_ifworker_t *w)
 		 * In case of any change other parameters
 		 * should be available within ifworker
 		 */
-		const char *policy_name = w->name;
+		char *policy_name = ni_ifpolicy_name_from_ifname(w->name);
 
 		if (!ni_nanny_call_del_policy(policy_name)) {
 			ni_debug_application("Unable to delete policy named %s",
 				policy_name);
+			ni_string_free(&policy_name);
 			return FALSE;
 		}
 
 		if (!ni_nanny_call_device_disable(policy_name)) {
 			ni_debug_application("Unable to disable policy named %s",
 				policy_name);
+			ni_string_free(&policy_name);
 			return FALSE;
 		}
+		ni_string_free(&policy_name);
 	}
 
 	return TRUE;
