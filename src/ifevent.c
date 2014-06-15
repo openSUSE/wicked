@@ -179,8 +179,8 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	if (!__ni_netdev_still_exists(ifi->ifi_index)) {
 		if (old) {
 			__ni_netdev_event(nc, old, NI_EVENT_DEVICE_DELETE);
-			ni_netconfig_device_remove(nc, old);
 			ni_client_state_drop(old->link.ifindex);
+			ni_netconfig_device_remove(nc, old);
 			return 0;
 		}
 		return -1;
