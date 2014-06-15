@@ -191,8 +191,10 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		dev = old;
 	} else {
 		dev = ni_netdev_new(ifname, ifi->ifi_index);
-		if (dev)
+		if (dev) {
+			dev->created = 1;
 			ni_netconfig_device_append(nc, dev);
+		}
 	}
 	if (__ni_netdev_process_newlink(dev, h, ifi, nc) < 0) {
 		ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);
@@ -229,6 +231,17 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		if (ifname && strcmp(ifname, dev->name))
 			ni_string_dup(&dev->name, ifname);
 
+		if (dev->created) {
+			dev->created = 0;
+			__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_CREATE);
+		}
+
+		if (!dev->ready && (ni_netdev_device_always_ready(dev) ||
+				    !ni_server_listens_uevents())) {
+			dev->ready = 1;
+			__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_READY);
+		}
+
 		new_flags = dev->link.ifflags;
 		flags_changed = old_flags ^ new_flags;
 
@@ -244,7 +257,9 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 			}
 		}
 	} else {
+		dev->created = 0;
 		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_CREATE);
+
 		if (ni_netdev_device_always_ready(dev) ||
 		    !ni_server_listens_uevents()) {
 			dev->ready = 1;
