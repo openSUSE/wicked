@@ -320,6 +320,10 @@ autoip4_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 	ni_autoip_device_t *dev;
 	ni_bool_t rv = FALSE;
 
+	/* Guard against device-create duplicates */
+	if ((dev = ni_autoip_device_by_index(ifp->link.ifindex)) != NULL)
+		return TRUE;
+
 	dev = ni_autoip_device_new(ifp->name, &ifp->link);
 	if (!dev) {
 		ni_error("Cannot allocate autoip4 device for '%s' and index %u",
@@ -456,7 +460,7 @@ autoip4_interface_event(ni_netdev_t *ifp, ni_event_t event)
 		/* check for duplicate ifindex */
 		ofp = ni_netdev_by_index(nc, ifp->link.ifindex);
 		if (ofp && ofp != ifp) {
-			ni_warn("duplicate ifindex in device-create event");
+			ni_debug_autoip("duplicate ifindex in device-create event");
 			return;
 		}
 

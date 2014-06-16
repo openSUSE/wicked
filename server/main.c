@@ -447,12 +447,13 @@ handle_modem_event(ni_modem_t *modem, ni_event_t event)
 		ni_dbus_object_t *object;
 		ni_uuid_t *event_uuid = NULL;
 
-		if (event == NI_EVENT_DEVICE_CREATE) {
+		object = ni_objectmodel_get_modem_object(dbus_server, modem);
+		if (!object && event == NI_EVENT_DEVICE_CREATE) {
 			/* A new modem was discovered; create a dbus server object
 			 * enacpsulating it. */
 			object = ni_objectmodel_register_modem(dbus_server, modem);
-		} else
-		if (!(object = ni_objectmodel_get_modem_object(dbus_server, modem))) {
+		}
+		if (!object) {
 			ni_error("cannot send %s event for model \"%s\" - no dbus device",
 				ni_event_type_to_name(event), modem->real_path);
 			return;

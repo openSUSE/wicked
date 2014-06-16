@@ -259,14 +259,7 @@ ni_rtnl_query_next_route_info(struct ni_rtnl_query *q, struct nlmsghdr **hp, uns
 /*
  * Refresh all interfaces
  */
-int
-__ni_system_refresh_interfaces(ni_netconfig_t *nc)
-{
-	ni_assert(nc == ni_global_state_handle(0));
-	return __ni_system_refresh_all(nc, NULL);
-}
-
-int
+static int
 __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 {
 	struct ni_rtnl_query query;
@@ -414,6 +407,14 @@ failed:
 	ni_rtnl_query_destroy(&query);
 	return res;
 }
+
+int
+__ni_system_refresh_interfaces(ni_netconfig_t *nc)
+{
+	ni_assert(nc == ni_global_state_handle(0));
+	return __ni_system_refresh_all(nc, NULL);
+}
+
 
 /*
  * Refresh one interfaces
