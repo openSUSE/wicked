@@ -2783,13 +2783,18 @@ __ni_system_netdev_create(ni_netconfig_t *nc,
 		return -1;
 	}
 
-	dev->created = 1;
-	ni_netconfig_device_append(nc, ni_netdev_get(dev));
 
 	/* Hmm... init just the base link properties (e.g. type) or
 	 * do we required to discover furher things (vlan,bridge)?
 	 */
 	__ni_device_refresh_link_info(nc, &dev->link);
+
+	/* Mark to emit device-create in next newlink event later */
+	dev->created = 1;
+	/* Remove all flags, we have to emit them too */
+	dev->link.ifflags &= ~(NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
+	ni_netconfig_device_append(nc, ni_netdev_get(dev));
+
 	if (dev->link.type != iftype) {
 		ni_error("%s: created %s interface, but found a %s type at index %u",
 				ifname, type, ni_linktype_type_to_name(dev->link.type),

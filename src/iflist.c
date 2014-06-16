@@ -50,6 +50,7 @@
 #include <linux/if_tunnel.h>
 
 #include "netinfo_priv.h"
+#include "ipv6_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
 #include "appconfig.h"
@@ -603,6 +604,51 @@ __ni_netdev_translate_ifflags(unsigned int ifflags)
 	if (ifflags & IFF_MULTICAST)
 		retval |= NI_IFF_MULTICAST_ENABLED;
 	return retval;
+}
+
+/*
+ * Process device state change events
+ */
+void
+__ni_netdev_process_state_events(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int old_flags)
+{
+	static struct flag_transition {
+		unsigned int	flag;
+		unsigned int	event_up;
+		unsigned int	event_down;
+	} *edge, flag_transitions[] = {
+		{ NI_IFF_DEVICE_UP,	NI_EVENT_DEVICE_UP,	NI_EVENT_DEVICE_DOWN	},
+		{ NI_IFF_LINK_UP,	NI_EVENT_LINK_UP,	NI_EVENT_LINK_DOWN	},
+		{ NI_IFF_NETWORK_UP,	NI_EVENT_NETWORK_UP,	NI_EVENT_NETWORK_DOWN	},
+	};
+	size_t flags = sizeof(flag_transitions)/sizeof(flag_transitions[0]);
+	unsigned int i, new_flags, flags_changed;
+
+	new_flags = dev->link.ifflags;
+	flags_changed = old_flags ^ new_flags;
+
+	/* transition up */
+	for (i = 0; i < flags; ++i) {
+		edge = &flag_transitions[i];
+		if ((flags_changed & edge->flag) == 0)
+			continue;
+		if (new_flags & edge->flag) {
+			__ni_netdev_event(nc, dev, edge->event_up);
+		}
+	}
+	/* transition down */
+	for (i = flags; i-- > 0;  ) {
+		edge = &flag_transitions[i];
+		if ((flags_changed & edge->flag) == 0)
+			continue;
+		if (old_flags & edge->flag) {
+			/* Flush ra on device-down only? */
+			if (dev->ipv6)
+				ni_ipv6_ra_info_flush(&dev->ipv6->radv);
+
+			__ni_netdev_event(nc, dev, edge->event_down);
+		}
+	}
 }
 
 

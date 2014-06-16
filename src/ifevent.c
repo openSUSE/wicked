@@ -215,18 +215,6 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	}
 
 	if (old) {
-		static struct flag_transition {
-			unsigned int	flag;
-			unsigned int	event_up;
-			unsigned int	event_down;
-		} *edge, flag_transitions[] = {
-			{ NI_IFF_DEVICE_UP,	NI_EVENT_DEVICE_UP,	NI_EVENT_DEVICE_DOWN	},
-			{ NI_IFF_LINK_UP,	NI_EVENT_LINK_UP,	NI_EVENT_LINK_DOWN	},
-			{ NI_IFF_NETWORK_UP,	NI_EVENT_NETWORK_UP,	NI_EVENT_NETWORK_DOWN	},
-			{ 0 }
-		};
-		unsigned int i, new_flags, flags_changed;
-
 		/* If the interface name changed, update it */
 		if (ifname && strcmp(ifname, dev->name))
 			ni_string_dup(&dev->name, ifname);
@@ -236,36 +224,23 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 			__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_CREATE);
 		}
 
-		if (!dev->ready && (ni_netdev_device_always_ready(dev) ||
-				    !ni_server_listens_uevents())) {
-			dev->ready = 1;
-			__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_READY);
-		}
-
-		new_flags = dev->link.ifflags;
-		flags_changed = old_flags ^ new_flags;
-
-		for (i = 0, edge = flag_transitions; edge->flag; ++i, ++edge) {
-			if ((flags_changed & edge->flag) == 0)
-				continue;
-			if (new_flags & edge->flag) {
-				__ni_netdev_event(nc, dev, edge->event_up);
-			} else {
-				if (dev->ipv6)
-					ni_ipv6_ra_info_flush(&dev->ipv6->radv);
-				__ni_netdev_event(nc, dev, edge->event_down);
-			}
-		}
 	} else {
+		old_flags = 0;
 		dev->created = 0;
 		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_CREATE);
-
-		if (ni_netdev_device_always_ready(dev) ||
-		    !ni_server_listens_uevents()) {
-			dev->ready = 1;
-			__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_READY);
-		}
 	}
+
+
+	if (!dev->ready && (ni_netdev_device_always_ready(dev) ||
+	    !ni_server_listens_uevents() || ni_netdev_device_is_up(dev))) {
+		dev->ready = 1;
+		if (ni_netdev_device_is_up(dev)) {
+			ni_debug_events("%s: a not-ready netdev in UP state -- setting ready",
+					dev->name);
+		}
+		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_READY);
+	}
+	__ni_netdev_process_state_events(nc, dev, old_flags);
 
 	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_WIRELESS)) != NULL)
 		__ni_wireless_link_event(nc, dev, nla_data(nla), nla_len(nla));
@@ -302,7 +277,10 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 				ifname, ifi->ifi_index);
 		return -1;
 	} else {
+		unsigned int old_flags = dev->link.ifflags;
 		dev->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
+
+		__ni_netdev_process_state_events(nc, dev, old_flags);
 
 		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_DELETE);
 
