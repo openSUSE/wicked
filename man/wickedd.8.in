@@ -89,7 +89,7 @@ in additional configuration data from the same directory.
 Location of the PID file written by the daemon when backgrounding
 itself. The pid directory be changed in the configuration file.
 .SH "SEE ALSO"
-\fBwicked\fP(8), \fBwicked\fP(7), \fBwicked-config\fP(5), \fBwicked\fP(5).
+\fBwicked\fP(8), \fBwicked-config\fP(5), \fBwicked\fP(5).
 .SH COPYRIGHT
 Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
 .SH BUGS
