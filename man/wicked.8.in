@@ -161,10 +161,10 @@ the name of the interface to bring up, or \fBall\fP
 to bring up all interfaces described in the file:
 .PP
 .nf
-.B "    # wicked ifup --ifconfig bridgecfg.xml all
+.\".B "    # wicked ifup --ifconfig bridgecfg.xml all
 .B "    # wicked ifup --ifconfig compat:/etc/sysconfig/network all
 .B "    # wicked ifup --ifconfig firmware:ibft:ethernet0 all
-.B "    # wicked ifup --ifconfig wicked:xml:/etc/wicked/ifconfig all
+.\".B "    # wicked ifup --ifconfig wicked:xml:/etc/wicked/ifconfig all
 .fi
 .PP
 Note that \fBwicked\fP attempts to bring up interfaces in a "reasonable
@@ -172,24 +172,26 @@ order": for virtual interfaces like VLANs, bridges or bonds, it will
 always make sure that all subordinate devices are in the required state
 before bringing up the virtual device itself.
 .PP
-\fBwicked\fP offers a compatability mode as shown above in order to
-ease migration from ifcfg file format to XML. ifcfg syntax is described
-in \fBifcfg\fP(5):
-.PP
+.\" TODO: When we support XML as config standard, re-introduce below.
+.\"\fBwicked\fP offers a compatability mode as shown above in order to
+.\"ease migration from ifcfg file format to XML. ifcfg syntax is described
+.\"in \fBifcfg\fP(5):
+.\".PP
 The \fBifup\fP command supports the following options:
 .TP
 .BI "\-\-ifconfig " pathname
 Specify an alternative source of network configuration, instead of
 obtaining the system's interface configuration.
 .IP
-When specifying the path of a file, it must contain an XML definition
-of the interface(s) by default. When \fIpathname\fP refers to a directory,
-\fBwicked\fP will scan it for files having a \fB.xml\fP suffix and
-parse these.
-.IP
+.\" TODO: When we support XML as config standard, re-introduce below.
+.\"When specifying the path of a file, it must contain an XML definition
+.\"of the interface(s) by default. When \fIpathname\fP refers to a directory,
+.\"\fBwicked\fP will scan it for files having a \fB.xml\fP suffix and
+.\"parse these.
+.\".IP
 If the file name starts with the string \fBcompat:\fP, \fBwicked\fP is
 instructed to load the interface configuration from files in the
-old-style "ifcfg" syntax, as described by the \fBifcfg\fP(5) manual page.
+default "ifcfg" syntax, as described by the \fBifcfg\fP(5) manual page.
 The string following the \fBcompat:\fP prefix is interpreted as a
 directory name where \fBwicked\fP will scan for files with names matching
 \fBifcfg-*\fP and related files, like \fBroutes\fP and \fBifroute-*\fP.
@@ -310,14 +312,15 @@ This behavior can be fine-tuned using the following options:
 Specify an alternative source of network configuration, instead of
 obtaining the system's interface configuration.
 .IP
-When specifying the path of a file, it must contain an XML definition
-of the interface(s) by default. When \fIpathname\fP refers to a directory,
-\fBwicked\fP will scan it for files having a \fB.xml\fP suffix and
-parse these.
-.IP
+.\" TODO: When we support XML as config standard, re-introduce below.
+.\"When specifying the path of a file, it must contain an XML definition
+.\"of the interface(s) by default. When \fIpathname\fP refers to a directory,
+.\"\fBwicked\fP will scan it for files having a \fB.xml\fP suffix and
+.\"parse these.
+.\".IP
 If the file name starts with the string \fBcompat:\fP, \fBwicked\fP is
 instructed to load the interface configuration from files in the
-old-style "ifcfg" syntax, as described by the \fBifcfg\fP(5) manual page.
+default "ifcfg" syntax, as described by the \fBifcfg\fP(5) manual page.
 The string following the \fBcompat:\fP prefix is interpreted as a
 path name. If this path name refers to a directory,
 \fBwicked\fP will scan it for files with names matching \fBifcfg-*\fP.
@@ -385,11 +388,12 @@ can be particularly helpful to script writers.
 Specify an alternative source of network configuration, instead of
 obtaining the system's interface configuration.
 .IP
-When specifying the path of a file, it must contain an XML definition
-of the interface(s) by default. When \fIpathname\fP refers to a directory,
-\fBwicked\fP will scan it for files having a \fB.xml\fP suffix and
-parse these.
-.IP
+.\" TODO: When we support XML as config standard, re-introduce below.
+.\"When specifying the path of a file, it must contain an XML definition
+.\"of the interface(s) by default. When \fIpathname\fP refers to a directory,
+.\"\fBwicked\fP will scan it for files having a \fB.xml\fP suffix and
+.\"parse these.
+.\".IP
 If the file name starts with the string \fBcompat:\fP, \fBwicked\fP is
 instructed to load the interface configuration from files in the
 old-style "ifcfg" syntax, as described by the \fBifcfg\fP(5) manual page.
@@ -432,13 +436,14 @@ Check if the interface is in persistent mode.
 .PP
 .\" ----------------------------------------
 .SH show-config - reads, conversts and displays all available configuration files.
-To display all available network configuration files in native XML format for
+To display all available network configuration files in the internal XML format for
 specified sources (default is all sources), use \fBwicked show-config\fP. To specify
 the source, use one of the following:
 .nf
 .B "    firmware:
 .B "    compat:
-.B "    wicked:[PATH]
+.\" TODO: re-introduce when XML configs are accepted
+.\".B "    wicked:[PATH]
 .fi
 .PP
 .nf
@@ -460,10 +465,21 @@ this option, you can instruct it to write to a different file instead. If the sp
 each interface.
 .PP
 .\" ----------------------------------------
-.SH convert - convert legacy files to XML
-In order to ease transition, wicked supports old-style ifcfg files, and can converts
-them to XML. When invoked without arguments, it will try to determine the type of
-Linux distro you're on, and create one XML file from all your ifcfg files.
+.SH convert - convert configuration files to internal XML
+Wicked currently supports sysconfig ifcfg files, and internally converts
+them to XML. When invoked without arguments, this command will dump to stdout the
+XML document representation of all of your ifcfg files.
+.PP
+This behavior can be fine-tuned using the following options:
+.TP
+.BI "\-\-raw "
+Filter from output all config meta-data.
+.TP
+.BI "\-\-output " path
+By default, \fBwicked\fP will write the XML document to its standard output. Using
+this option, you can instruct it to write to a different file instead. If the specified
+\fIpath\fP is a directory, the XML document will be split into separate files, one for
+each interface.
 .PP
 Note that convert is a variant is show-config, and is equivalent to:
 \fBshow-config compat:\fP
