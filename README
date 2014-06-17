@@ -1,22 +1,8 @@
-
-===========================================================
-NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! 
-
-This code is currently undergoing a massive rewrite. Use at your
-own risk. Do not expect things to make a lot of sense. Do not
-expect documentation to relate to program behavior in any way.
-
-You have been warned :)
-
-NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! NOTE! 
-===========================================================
-
-
 Presenting wicked network configuration
 =======================================
 
-This tool and library provides a new, experimental framework
-for network configuration.
+This tool and library provides a new framework for network
+configuration.
 
 One of the bigger problems with network interface management today,
 and with the ifup scripts in general, is that different layers of
@@ -112,21 +98,18 @@ What's currently supported
 
 wicked currently supports
 
- -      configuration file backends to parse SUSE and RedHat style
-        /etc/sysconfig/network files. Since the development is on
-        a SUSE installation, the former are probably significantly
-        more stable than the RedHat ones.
+ -      configuration file backends to parse SUSE style
+	/etc/sysconfig/network files.
 
- -      a configuration file backend to represent network interface
-        configuration in XML. The syntax evolved out of what netcf
-        uses.
+ -      an internal configuration backend to represent network
+	interface configuration in XML. The syntax evolved out
+	of what netcf uses.
 
  -      bring-up and shutdown of "normal" network interfaces
         such as Ethernet, Infiniband etc, as well as VLAN,
-        bridges and bonding devices.
-        Bridging and bonding may still have some issues.
-
- -      Wireless, not yet complete and limited to one network.
+        bridges, bonds, tun, tap, dummy, macvlan, macvtap, hsi,
+	qeth, iucv and wireless (currently limited to one
+	wpa-psk/eap network) devices.
 
  -      A built-in DHCPv4 client
  -      A built-in DHCPv6 client
@@ -215,10 +198,11 @@ Start the server process (again, as root):
 which starts wickedd (main server) and associated supplicants in
 debugging mode, printing trace information to syslog:
 
-        /usr/sbin/wickedd --foreground 
-        /usr/lib/wicked/bin/wickedd-dhcp4 --foreground
-        /usr/lib/wicked/bin/wickedd-auto4 --foreground
-        /usr/lib/wicked/bin/wickedd-dhcp6 --foreground
+	/usr/lib/wicked/bin/wickedd-auto4 --systemd --foreground
+	/usr/lib/wicked/bin/wickedd-dhcp4 --systemd --foreground
+	/usr/lib/wicked/bin/wickedd-dhcp6 --systemd --foreground
+	/usr/sbin/wickedd --systemd --foreground
+	/usr/sbin/wickedd-nanny --systemd --foreground
 
 You may then bring up the network using:
 
@@ -260,43 +244,10 @@ that is:
 
         1) firmware:    ibft firmware
         2) compat:      ifcfg files - implemented for compatibility
-        3) wicked:PATH  native wicked xml configuration format stored
-                        under PATH (default: /etc/wicked/ifconfig)
 
 whatever it gets from those sources for a given interface is applied.
-The intended order of importance is firmware > compat > wicked. But
-this may be changed in the future, when ifcfg compatibility requirements
-are relaxed.
-
-Now let's bring up something interesting, e.g. a sample VLAN interface:
-
-        wicked ifup --ifconfig ./samples/wicked/vlan-static.xml eth0.42
-
-This should bring up a VLAN interface named "eth0.42", with a VLAN tag
-of 42, and a few statically assigned IP addresses.
-Try "ip addr show; ip route show" to see whether it worked.
-
-The above command retrieves the description of all interfaces from the
-specified file, and brings up the one named "eth0.42".
-
-Since the file contains only one interface, you could also have used
-"all" instead of the interface name. As the name implies, this brings
-up all interfaces listed in the file.
-
-Bringing up a single interface is easy - what really happens here is the
-client executes several server methods and arguments from XML elements,
-telling the server to transition the desired interface state to "up".
-Note that this operation will create the VLAN interface on the fly if
-it's not yet there.
-
-The analogous approach can be used to bring down the interface.
-For your convenience, you could use:
-
-        wicked ifdown eth0.42
-
-To bring down and delete the interface, you could use:
-
-        wicked ifdown --delete --ifconfig ./samples/wicked/vlan-static.xml eth0.42
+The intended order of importance is firmware > compat. But this may be
+changed in the future.
 
 Please refer to the wicked(8) manpage for details.
 
@@ -312,15 +263,15 @@ devices first (if they're virtual devices, such as VLANs).
 For these, you simply define the device topology in one file, and tell
 wicked to bring up the whole configuration.
 
-As an example, take a look at samples/wicked/bridge-static.xml
-This configuration defines an Ethernet Bridge built from two VLAN
-interfaces. To bring it up, simple call
+As an example, take a look at samples/suse/host5/ifcfg-bridge42
+This configuration defines an Ethernet Bridge built from one Dummy
+interface. To bring it up, simple call
 
-        wicked ifup --ifconfig ./samples/wicked/bridge-static.xml all
+        wicked ifup --ifconfig compat:./samples/suse/host5/ all
 
 The client will bring up devices in the appropriate order (ie.
-first create the two VLAN interfaces, then create the bridge and
-add the VLAN interfaces as ports to the bridge).
+first create the Dummy interface, then create the bridge and
+add the Dummy interface as a port to the bridge).
 
 
 Handling incremental changes
