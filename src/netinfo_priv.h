@@ -51,9 +51,8 @@ extern unsigned int	__ni_netdev_translate_ifflags(unsigned int);
 extern void		__ni_netdev_process_state_events(ni_netconfig_t *, ni_netdev_t *, unsigned int);
 extern void		__ni_netdev_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
 
-extern int		__ni_netdev_record_newroute(ni_netconfig_t *nc, ni_netdev_t *dev, ni_route_t *rp);
-
-extern void		__ni_routes_clear(ni_netconfig_t *);
+extern int		__ni_netconfig_record_route(ni_netconfig_t *nc, ni_route_t *rp);
+extern int		__ni_netconfig_remove_route(ni_netconfig_t *nc, ni_route_t *rp);
 
 extern ni_bool_t	__ni_address_list_remove(ni_address_t **, ni_address_t *);
 
@@ -83,6 +82,8 @@ extern int		__ni_system_resolver_put(const ni_resolver_info_t *);
 extern ni_resolver_info_t *__ni_system_resolver_get(void);
 extern int		__ni_system_resolver_backup(void);
 extern int		__ni_system_resolver_restore(void);
+extern int		__ni_server_enable_interface_addr_events(void);
+extern int		__ni_server_enable_interface_route_events(void);
 
 extern ni_bool_t	__ni_lease_owns_address(const ni_addrconf_lease_t *, const ni_address_t *);
 extern ni_route_t *	__ni_lease_owns_route(const ni_addrconf_lease_t *, const ni_route_t *);

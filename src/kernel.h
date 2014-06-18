@@ -136,7 +136,9 @@ extern int	__ni_rtnl_parse_newprefix(const char *, struct nlmsghdr *, struct pre
 extern int	__ni_netdev_process_newlink(ni_netdev_t *, struct nlmsghdr *, struct ifinfomsg *, ni_netconfig_t *);
 extern int	__ni_netdev_process_newlink_ipv6(ni_netdev_t *, struct nlmsghdr *, struct ifinfomsg *);
 extern int	__ni_netdev_process_newprefix(ni_netdev_t *, struct nlmsghdr *, struct prefixmsg *);
-extern int	__ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrmsg *ifa, const ni_address_t **);
+extern int	__ni_netdev_process_newaddr_event(ni_netdev_t *, struct nlmsghdr *, struct ifaddrmsg *, const ni_address_t **);
+extern int	__ni_netconfig_process_newroute_event(ni_netconfig_t *, struct nlmsghdr *, struct rtmsg *, ni_route_t **);
+extern int	__ni_netconfig_process_delroute_event(ni_netconfig_t *, struct nlmsghdr *, struct rtmsg *, ni_route_t **);
 
 #ifndef IFF_LOWER_UP
 # define IFF_LOWER_UP	0x10000

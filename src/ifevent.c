@@ -18,6 +18,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/socket.h>
+#include <wicked/route.h>
 #include <wicked/ipv6.h>
 
 #include "netinfo_priv.h"
@@ -55,6 +56,8 @@ static int	__ni_rtevent_dellink(ni_netconfig_t *, const struct sockaddr_nl *, st
 static int	__ni_rtevent_newprefix(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_newaddr(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_deladdr(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
+static int	__ni_rtevent_newroute(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
+static int	__ni_rtevent_delroute(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_nduseropt(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 
 static const char *	__ni_rtevent_msg_name(unsigned int);
@@ -131,6 +134,14 @@ __ni_rtevent_process(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 
 	case RTM_DELADDR:
 		rv = __ni_rtevent_deladdr(nc, nladdr, h);
+		break;
+
+	case RTM_NEWROUTE:
+		rv = __ni_rtevent_newroute(nc, nladdr, h);
+		break;
+
+	case RTM_DELROUTE:
+		rv = __ni_rtevent_delroute(nc, nladdr, h);
 		break;
 
 	case RTM_NEWNDUSEROPT:
@@ -422,6 +433,78 @@ __ni_rtevent_deladdr(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 }
 
 static int
+__ni_rtevent_newroute(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
+{
+	struct rtmsg *rtm;
+
+	if (!(rtm = ni_rtnl_rtmsg(h, RTM_NEWROUTE)))
+		return -1;
+
+	if (__ni_netconfig_process_newroute_event(nc, h, rtm, NULL) < 0)
+		ni_error("Problem processing RTM_NEWROUTE event message");
+
+#if 0 /* TODO: emit events */
+	ni_uint_array_t idx = NI_UINT_ARRAY_INIT;
+	ni_route_nexthop_t *nh;
+	ni_netdev_t *dev;
+	ni_route_t *rp = NULL;
+
+	for (nh = &rp->nh; ret != -1 && nh; nh = nh->next) {
+		if (nh->device.index == 0)
+			continue;
+
+		if (ni_uint_array_contains(&idx, nh->device.index))
+			continue;
+
+		if (!(dev = ni_netdev_by_index(nc, nh->device.index)))
+			continue;
+		ni_uint_array_append(&idx, nh->device.index);
+
+		__ni_netdev_route_event(dev, NI_EVENT_ROUTE_UPDATE, rp);
+	}
+	ni_route_free(rp);
+#endif
+
+	return 0;
+}
+
+static int
+__ni_rtevent_delroute(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
+{
+	struct rtmsg *rtm;
+
+	if (!(rtm = ni_rtnl_rtmsg(h, RTM_DELROUTE)))
+		return -1;
+
+	if (__ni_netconfig_process_delroute_event(nc, h, rtm, NULL) < 0)
+		ni_error("Problem processing RTM_DELROUTE event message");
+
+#if 0 /* TODO: emit events */
+	ni_uint_array_t idx = NI_UINT_ARRAY_INIT;
+	ni_route_nexthop_t *nh;
+	ni_netdev_t *dev;
+	ni_route_t *rp = NULL;
+
+	for (nh = &rp->nh; ret != -1 && nh; nh = nh->next) {
+		if (nh->device.index == 0)
+			continue;
+
+		if (ni_uint_array_contains(&idx, nh->device.index))
+			continue;
+
+		if (!(dev = ni_netdev_by_index(nc, nh->device.index)))
+			continue;
+		ni_uint_array_append(&idx, nh->device.index);
+
+		__ni_netdev_route_event(dev, NI_EVENT_ROUTE_DELETE, rp);
+	}
+	ni_route_free(rp);
+#endif
+	return 0;
+}
+
+
+static int
 __ni_rtevent_process_rdnss_info(ni_netdev_t *dev, const struct nd_opt_hdr *opt,
 				size_t len)
 {
@@ -697,14 +780,9 @@ ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_even
 }
 
 int
-ni_server_enable_interface_addr_events(void (*ifaddr_handler)(ni_netdev_t *, ni_event_t, const ni_address_t *))
+__ni_server_enable_interface_addr_events(void)
 {
 	struct nl_sock *nl_sock;
-
-	if (!__ni_rtevent_sock || ni_global.interface_addr_event) {
-		ni_error("Interface address event handler already set");
-		return -1;
-	}
 
 	nl_sock = __ni_rtevent_sock->user_data;
 
@@ -714,7 +792,35 @@ ni_server_enable_interface_addr_events(void (*ifaddr_handler)(ni_netdev_t *, ni_
 		return -1;
 	}
 
+	return 0;
+}
+
+
+int
+ni_server_enable_interface_addr_events(void (*ifaddr_handler)(ni_netdev_t *, ni_event_t, const ni_address_t *))
+{
+	if (!__ni_rtevent_sock || ni_global.interface_addr_event) {
+		ni_error("Interface address event handler already set");
+		return -1;
+	}
+
+	__ni_server_enable_interface_addr_events();
 	ni_global.interface_addr_event = ifaddr_handler;
+	return 0;
+}
+
+int
+__ni_server_enable_interface_route_events(void)
+{
+	struct nl_sock *nl_sock;
+
+	nl_sock = __ni_rtevent_sock->user_data;
+
+	if (nl_socket_add_membership(nl_sock, RTNLGRP_IPV4_ROUTE) < 0 ||
+	    nl_socket_add_membership(nl_sock, RTNLGRP_IPV6_ROUTE) < 0) {
+		ni_error("Cannot add rtnetlink route event membership: %m");
+		return -1;
+	}
 	return 0;
 }
 

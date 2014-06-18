@@ -2622,13 +2622,25 @@ __ni_skip_conflicting_route(ni_netconfig_t *nc, ni_netdev_t *our_dev,
 }
 
 static int
+__ni_netconfig_update_route(ni_netconfig_t *nc, ni_route_t *rp, ni_netdev_t *dev)
+{
+	ni_route_nexthop_t *nh;
+
+	for (nh = &rp->nh; nh; nh = nh->next) {
+		if (nh->device.index == 0)
+			nh->device.index = dev->link.ifindex;
+	}
+	return __ni_netconfig_record_route(nc, rp);
+}
+
+static int
 __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_addrconf_lease_t       *new_lease)
 {
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_route_table_t *tab, *cfg_tab;
-	ni_route_t *rp, *new_route;
+	ni_route_t *rp, *new_route, *clone;
 	unsigned int minprio, i;
 	int rv = 0;
 
@@ -2692,9 +2704,12 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 					ni_debug_ifconfig("%s: successfully updated existing route %s",
 							dev->name, ni_route_print(&buf, rp));
 					ni_stringbuf_destroy(&buf);
-					new_route->config_lease = new_lease;
-					new_route->seq = __ni_global_seqno;
-					__ni_netdev_record_newroute(nc, dev, new_route);
+
+					clone = ni_route_clone(rp);
+					clone->config_lease = new_lease;
+					clone->seq = __ni_global_seqno;
+					__ni_netconfig_update_route(nc, clone, dev);
+					ni_route_free(clone);
 					continue;
 				}
 
@@ -2709,6 +2724,11 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 
 			if ((rv = __ni_rtnl_send_delroute(dev, rp)) < 0)
 				return rv;
+
+			/* Hmm.. we delete on this interface only...
+			 * next DELLINK will remove from others
+			 */
+			ni_route_array_delete(&tab->routes, i--);
 		}
 	}
 
@@ -2735,9 +2755,12 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 			if ((rv = __ni_rtnl_send_newroute(dev, rp, NLM_F_CREATE)) < 0)
 				return rv;
 
-			rp->config_lease = new_lease;
-			rp->seq = __ni_global_seqno;
-			__ni_netdev_record_newroute(nc, dev, rp);
+			/* assign a clone if the lease route to all related devices */
+			clone = ni_route_clone(rp);
+			clone->config_lease = new_lease;
+			clone->seq = __ni_global_seqno;
+			__ni_netconfig_update_route(nc, clone, dev);
+			ni_route_free(clone);
 		}
 	}
 

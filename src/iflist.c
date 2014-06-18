@@ -60,8 +60,6 @@ static int		__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 					struct ifinfomsg *ifi, ni_netconfig_t *);
 static int		__ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h,
 					struct ifaddrmsg *ifa);
-static int		__ni_netdev_process_newroute(ni_netdev_t *, struct nlmsghdr *,
-					struct rtmsg *, ni_netconfig_t *);
 static int		__ni_discover_bridge(ni_netdev_t *);
 static int		__ni_discover_bond(ni_netdev_t *);
 static int		__ni_discover_addrconf(ni_netdev_t *);
@@ -77,6 +75,7 @@ static int		__ni_discover_ipip(ni_netdev_t *, struct nlattr **, struct nlattr**)
 static int		__ni_discover_gre(ni_netdev_t *, struct nlattr **, struct nlattr**);
 static ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, const struct prefix_cacheinfo *);
 static ni_addrconf_lease_t *__ni_netdev_get_autoconf_lease(ni_netdev_t *, unsigned int);
+static int		__ni_netconfig_process_newroute(ni_netconfig_t *, struct nlmsghdr *, struct rtmsg *);
 
 struct ni_rtnl_info {
 	struct ni_nlmsg_list	nlmsg_list;
@@ -370,17 +369,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 		if (!(rtm = ni_rtnl_query_next_route_info(&query, &h, &oif_index)))
 			break;
 
-		if (oif_index) {
-			dev = ni_netdev_by_index(nc, oif_index);
-			if (dev == NULL) {
-				ni_error("route specifies OIF=%u; not found!", oif_index);
-				continue;
-			}
-		} else {
-			dev = NULL;
-		}
-
-		if (__ni_netdev_process_newroute(dev, h, rtm, nc) < 0)
+		if (__ni_netconfig_process_newroute(nc, h, rtm) < 0)
 			ni_error("Problem parsing RTM_NEWROUTE message");
 	}
 
@@ -461,7 +450,7 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *dev)
 		if (!(rtm = ni_rtnl_query_next_route_info(&query, &h, NULL)))
 			break;
 
-		if (__ni_netdev_process_newroute(dev, h, rtm, nc) < 0)
+		if (__ni_netconfig_process_newroute(nc, h, rtm) < 0)
 			ni_error("Problem parsing RTM_NEWROUTE message");
 	}
 
@@ -1835,7 +1824,7 @@ __ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrm
 
 
 static inline ni_bool_t
-__ni_newroute_filter_msg(struct rtmsg *rtm)
+__ni_route_filter_msg(struct rtmsg *rtm)
 {
 	switch (rtm->rtm_family) {
 	case AF_INET:
@@ -1891,8 +1880,7 @@ __ni_newroute_filter_msg(struct rtmsg *rtm)
 }
 
 static int
-__ni_process_newroute_nexthop(ni_route_t *rp, ni_route_nexthop_t *nh,
-				struct rtnexthop *rtnh)
+__ni_process_route_nexthop(ni_route_t *rp, ni_route_nexthop_t *nh, struct rtnexthop *rtnh)
 {
 	if (rtnh->rtnh_ifindex <= 0) {
 		ni_warn("Cannot parse rtnl multipath route with interface index %d",
@@ -1929,7 +1917,7 @@ __ni_process_newroute_nexthop(ni_route_t *rp, ni_route_nexthop_t *nh,
 }
 
 static int
-__ni_process_newroute_multipath(ni_route_t *rp, struct nlattr *multipath)
+__ni_process_route_multipath(ni_route_t *rp, struct nlattr *multipath)
 {
 	struct rtnexthop *rtnh = RTA_DATA(multipath);
 	size_t len = nla_len(multipath);
@@ -1940,7 +1928,7 @@ __ni_process_newroute_multipath(ni_route_t *rp, struct nlattr *multipath)
 			*tail = nh = ni_route_nexthop_new();
 		}
 
-		if (__ni_process_newroute_nexthop(rp, nh, rtnh) != 0)
+		if (__ni_process_route_nexthop(rp, nh, rtnh) != 0)
 			return 1;
 
 		len -= RTNH_ALIGN(rtnh->rtnh_len);
@@ -1952,7 +1940,7 @@ __ni_process_newroute_multipath(ni_route_t *rp, struct nlattr *multipath)
 }
 
 static int
-__ni_process_newroute_metrics(ni_route_t *rp, struct nlattr *metrics)
+__ni_process_route_metrics(ni_route_t *rp, struct nlattr *metrics)
 {
 	struct nlattr *rtattrs[__RTAX_MAX+1], *rtax;
 
@@ -2001,97 +1989,26 @@ __ni_process_newroute_metrics(ni_route_t *rp, struct nlattr *metrics)
 	return 0;
 }
 
-int
-__ni_netdev_record_newroute(ni_netconfig_t *nc, ni_netdev_t *dev, ni_route_t *rp)
+static ni_route_t *
+__ni_process_route_msg(struct nlmsghdr *h, struct rtmsg *rtm)
 {
-	ni_stringbuf_t  buf = NI_STRINGBUF_INIT_DYNAMIC;
-	ni_uint_array_t idx = NI_UINT_ARRAY_INIT;
-	ni_route_nexthop_t *nh;
-	int ret = 1;
-
-	if (!nc || !rp)
-		return -1;
-
-	for (nh = &rp->nh; ret != -1 && nh; nh = nh->next) {
-		if (nh->device.index == 0 ||
-		    ni_uint_array_contains(&idx, nh->device.index))
-			continue;
-
-		if (!dev || (nh->device.index != dev->link.ifindex)) {
-			dev = ni_netdev_by_index(nc, nh->device.index);
-		}
-
-		if (!dev) {
-			ni_warn("Unable to find route device with index %u: %s",
-				nh->device.index, ni_route_print(&buf, rp));
-			ni_stringbuf_destroy(&buf);
-			ret = -1;
-		} else
-		if (!ni_route_tables_add_route(&dev->routes, ni_route_ref(rp))) {
-			ni_warn("Unable to record route for device %s[%u]: %s",
-				dev->name, dev->link.ifindex, ni_route_print(&buf, rp));
-			ni_stringbuf_destroy(&buf);
-			ret = -1;
-		} else
-		if (!ni_uint_array_append(&idx, nh->device.index)) {
-			ni_warn("Unable to track route device index %u",
-				nh->device.index);
-			ret = -1;
-		} else {
-#if 0
-			ni_debug_ifconfig("Route recorded for device %s[%u]: %s",
-				dev->name, dev->link.ifindex, ni_route_print(&buf, rp));
-			ni_stringbuf_destroy(&buf);
-#endif
-			ret = 0;
-		}
-	}
-
-	ni_uint_array_destroy(&idx);
-	return ret;
-}
-
-int
-__ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
-				struct rtmsg *rtm, ni_netconfig_t *nc)
-{
-	ni_addrconf_lease_t *lease;
 	struct nlattr *tb[RTA_MAX+1];
 	ni_route_t *rp;
-	int ret = 1;
-
-#if 0
-	ni_debug_ifconfig("RTM_NEWROUTE family=%d dstlen=%u srclen=%u type=%s proto=%s flags=0x%x table=%s scope=%s",
-			rtm->rtm_family,
-			rtm->rtm_dst_len,
-			rtm->rtm_src_len,
-			ni_route_type_type_to_name(rtm->rtm_type),
-			ni_route_protocol_type_to_name(rtm->rtm_protocol),
-			rtm->rtm_flags,
-			ni_route_table_type_to_name(rtm->rtm_table),
-			ni_route_scope_type_to_name(rtm->rtm_scope)
-			);
-#endif
-
-	/* filter unwanted / unsupported  msgs */
-	if (__ni_newroute_filter_msg(rtm))
-		return 1;
 
 	memset(tb, 0, sizeof(tb));
 	if (nlmsg_parse(h, sizeof(*rtm), tb, RTN_MAX, NULL) < 0) {
 		ni_warn("Cannot parse rtnl route message");
-		return 1;
+		return NULL;
 	}
 
 	rp = ni_route_new();
 	rp->family = rtm->rtm_family;
 	rp->type = rtm->rtm_type;
-	rp->table = rtm->rtm_table;
-	/*
 	if (tb[RTA_TABLE] != NULL) {
 		rp->table = nla_get_u32(tb[RTA_TABLE]);
+	} else {
+		rp->table = rtm->rtm_table;
 	}
-	*/
 	rp->scope = rtm->rtm_scope;
 	rp->protocol = rtm->rtm_protocol;
 	rp->flags = rtm->rtm_flags;
@@ -2106,27 +2023,23 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 		goto failure;
 	}
 
-	if (dev) {
-		rp->nh.device.index = dev->link.ifindex;
-		/*
-		 * Hmm... not now.
-		 * Better to resolve it when needed I think, so we
-		 * don't need to care about interface renames.
-		 */
-#if 0
-		ni_string_dup(&rp->nh.device.name, dev->name);
-#endif
-	}
-	if (tb[RTA_GATEWAY] != NULL) {
-		if (__ni_nla_get_addr(rtm->rtm_family, &rp->nh.gateway,
-					tb[RTA_GATEWAY]) != 0) {
-			ni_warn("Cannot parse rtnl route gateway address");
-			goto failure;
-		}
-	} else
 	if (tb[RTA_MULTIPATH] != NULL) {
-		if (__ni_process_newroute_multipath(rp, tb[RTA_MULTIPATH]) != 0)
+		if (__ni_process_route_multipath(rp, tb[RTA_MULTIPATH]) != 0)
 			goto failure;
+	} else {
+		if (tb[RTA_OIF] != NULL) {
+			rp->nh.device.index = nla_get_u32(tb[RTA_OIF]);
+		}
+		if (tb[RTA_GATEWAY] != NULL) {
+			if (__ni_nla_get_addr(rtm->rtm_family, &rp->nh.gateway,
+						tb[RTA_GATEWAY]) != 0) {
+				ni_warn("Cannot parse rtnl route gateway address");
+				goto failure;
+			}
+		}
+		if (tb[RTA_FLOW] != NULL) {
+			rp->nh.realm = nla_get_u32(tb[RTA_FLOW]);
+		}
 	}
 
 	if (tb[RTA_PREFSRC] != NULL)
@@ -2144,29 +2057,259 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 #endif
 
 	if (tb[RTA_METRICS] != NULL) {
-		if (__ni_process_newroute_metrics(rp, tb[RTA_METRICS]) != 0)
+		if (__ni_process_route_metrics(rp, tb[RTA_METRICS]) != 0)
 			goto failure;
 	}
 
-	/* Add routes to the device[s] references in hops -- once */
-	if ((ret = __ni_netdev_record_newroute(nc, dev, rp)) < 0)
+	return rp;
+
+failure:
+	/* Release our reference */
+	ni_route_free(rp);
+	return NULL;
+}
+
+int
+__ni_netconfig_record_route(ni_netconfig_t *nc, ni_route_t *rp)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_uint_array_t idx = NI_UINT_ARRAY_INIT;
+	ni_route_nexthop_t *nh;
+	ni_route_table_t *tab;
+	ni_netdev_t *dev;
+	ni_route_t *r;
+	unsigned int i;
+	int ret = 1;
+	ni_bool_t ok;
+
+	if (!nc || !rp)
+		return -1;
+
+	for (nh = &rp->nh; ret != -1 && nh; nh = nh->next) {
+		if (nh->device.index == 0)
+			continue;
+
+		if (!(dev = ni_netdev_by_index(nc, nh->device.index))) {
+			ni_warn("Unable to find route device with index %u: %s",
+					nh->device.index, ni_route_print(&buf, rp));
+			ni_stringbuf_destroy(&buf);
+			continue;
+		}
+
+		/* check if it is already assigned to this netdev */
+		if (ni_uint_array_contains(&idx, nh->device.index)) {
+			if (!ni_string_eq(nh->device.name, dev->name))
+				ni_string_dup(&nh->device.name, dev->name);
+			continue;
+		}
+
+		/* when already attached to device, replace with new reference */
+		if ((tab = ni_route_tables_find(dev->routes, rp->table))) {
+			for (i = 0; i < tab->routes.count; ++i) {
+				if ((r = tab->routes.data[i]) == NULL)
+					continue;
+
+				if (!ni_route_equal_destination(r, rp))
+					continue;
+
+				if (!rp->config_lease)
+					rp->config_lease = r->config_lease;
+
+				ni_route_array_delete(&tab->routes, i--);
+				break;
+			}
+			ok = ni_route_array_append(&tab->routes, ni_route_ref(rp));
+		} else {
+			ok = ni_route_tables_add_route(&dev->routes, ni_route_ref(rp));
+		}
+		if (!ni_string_eq(nh->device.name, dev->name))
+			ni_string_dup(&nh->device.name, dev->name);
+		if (!ok) {
+			ni_warn("Unable to record route for device %s[%u]: %s",
+				dev->name, nh->device.index, ni_route_print(&buf, rp));
+			ni_stringbuf_destroy(&buf);
+			ret = -1;
+			break;
+		}
+		ni_uint_array_append(&idx, nh->device.index);
+
+#if 0
+		ni_debug_ifconfig("Route recorded for device %s[%u]: %s",
+			dev->name, dev->link.ifindex, ni_route_print(&buf, rp));
+		ni_stringbuf_destroy(&buf);
+#endif
+		ret = 0;
+	}
+
+	ni_uint_array_destroy(&idx);
+	return ret;
+}
+
+static int
+__ni_netconfig_process_newroute(ni_netconfig_t *nc, struct nlmsghdr *h, struct rtmsg *rtm)
+{
+	return __ni_netconfig_process_newroute_event(nc, h, rtm, NULL);
+}
+
+int
+__ni_netconfig_process_newroute_event(ni_netconfig_t *nc, struct nlmsghdr *h, struct rtmsg *rtm, ni_route_t **rp_ret)
+{
+	ni_route_t *rp;
+	int ret;
+
+#if 0
+	ni_debug_ifconfig("RTM_NEWROUTE family=%d dstlen=%u srclen=%u type=%s proto=%s flags=0x%x table=%s scope=%s",
+			rtm->rtm_family,
+			rtm->rtm_dst_len,
+			rtm->rtm_src_len,
+			ni_route_type_type_to_name(rtm->rtm_type),
+			ni_route_protocol_type_to_name(rtm->rtm_protocol),
+			rtm->rtm_flags,
+			ni_route_table_type_to_name(rtm->rtm_table),
+			ni_route_scope_type_to_name(rtm->rtm_scope)
+			);
+#endif
+
+	/* filter unwanted / unsupported  msgs */
+	if (__ni_route_filter_msg(rtm))
+		return 1;
+
+	if (!(rp = __ni_process_route_msg(h, rtm)))
+		return 1;
+
+#if 0
+	{
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+		ni_debug_ifconfig("%s: parsed NEWROUTE: %s", __func__,
+				ni_route_print(&buf, rp));
+		ni_stringbuf_destroy(&buf);
+	}
+#endif
+
+	/* Add routes to the device[s] references in hops -- once to each device */
+	if ((ret = __ni_netconfig_record_route(nc, rp)) != 0)
 		goto failure;
 
-	(void)lease;
 #if 0
 	/* See if this route is owned by a lease */
-	if (dev) {
+	foreach (dev) {
 		lease = __ni_netdev_route_to_lease(dev, rp);
 		if (lease)
 			rp->config_lease = lease;
 	}
 #endif
 
+	if (rp_ret)
+		*rp_ret = ni_route_ref(rp);
+
 failure:
 	/* Release our reference */
 	ni_route_free(rp);
 	return ret;
 }
+
+int
+__ni_netconfig_remove_route(ni_netconfig_t *nc, ni_route_t *rp)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_uint_array_t idx = NI_UINT_ARRAY_INIT;
+	ni_route_nexthop_t *nh;
+	ni_route_table_t *tab;
+	ni_netdev_t *dev;
+	ni_route_t *r;
+	unsigned int i;
+
+	if (!nc || !rp)
+		return -1;
+
+	for (nh = &rp->nh; nh; nh = nh->next) {
+		if (nh->device.index == 0)
+			continue;
+
+		/* check if it is already assigned to this netdev */
+		if (ni_uint_array_contains(&idx, nh->device.index))
+			continue;
+
+		if (!(dev = ni_netdev_by_index(nc, nh->device.index))) {
+			ni_warn("Unable to find route device with index %u: %s",
+					nh->device.index, ni_route_print(&buf, rp));
+			ni_stringbuf_destroy(&buf);
+			continue;
+		}
+
+		/* when already attached to device, replace with new reference */
+		if ((tab = ni_route_tables_find(dev->routes, rp->table))) {
+			for (i = 0; i < tab->routes.count; ++i) {
+				if ((r = tab->routes.data[i]) == NULL)
+					continue;
+
+				if (!ni_route_equal(r, rp))
+					continue;
+
+				ni_route_array_delete(&tab->routes, i--);
+				break;
+			}
+		}
+		ni_uint_array_append(&idx, nh->device.index);
+#if 0
+		ni_debug_ifconfig("Route removed from device %s[%u]: %s",
+			dev->name, dev->link.ifindex, ni_route_print(&buf, rp));
+		ni_stringbuf_destroy(&buf);
+#endif
+	}
+
+	ni_uint_array_destroy(&idx);
+	return 0;
+}
+
+int
+__ni_netconfig_process_delroute_event(ni_netconfig_t *nc, struct nlmsghdr *h, struct rtmsg *rtm, ni_route_t **rp_ret)
+{
+	ni_route_t *rp;
+	int ret;
+
+#if 0
+	ni_debug_ifconfig("RTM_DELROUTE family=%d dstlen=%u srclen=%u type=%s proto=%s flags=0x%x table=%s scope=%s",
+			rtm->rtm_family,
+			rtm->rtm_dst_len,
+			rtm->rtm_src_len,
+			ni_route_type_type_to_name(rtm->rtm_type),
+			ni_route_protocol_type_to_name(rtm->rtm_protocol),
+			rtm->rtm_flags,
+			ni_route_table_type_to_name(rtm->rtm_table),
+			ni_route_scope_type_to_name(rtm->rtm_scope)
+			);
+#endif
+
+	/* filter unwanted / unsupported  msgs */
+	if (__ni_route_filter_msg(rtm))
+		return 1;
+
+	if (!(rp = __ni_process_route_msg(h, rtm)))
+		return 1;
+
+#if 0
+	{
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+		ni_debug_ifconfig("%s: parsed DELROUTE: %s",
+				__func__, ni_route_print(&buf, rp));
+		ni_stringbuf_destroy(&buf);
+	}
+#endif
+
+	/* Add routes to the device[s] references in hops -- once to each device */
+	if ((ret = __ni_netconfig_remove_route(nc, rp)) != 0)
+		goto failure;
+
+	if (rp_ret)
+		*rp_ret = ni_route_ref(rp);
+
+failure:
+	/* Release our reference */
+	ni_route_free(rp);
+	return ret;
+}
+
 
 ni_addrconf_lease_t *
 __ni_netdev_get_autoconf_lease(ni_netdev_t *dev, unsigned int af)

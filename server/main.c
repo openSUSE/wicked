@@ -29,6 +29,7 @@
 #include <wicked/wireless.h>
 #include <wicked/modem.h>
 #include "udev-utils.h"
+#include "netinfo_priv.h"
 
 enum {
 	OPT_HELP,
@@ -240,8 +241,10 @@ run_interface_server(void)
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_interface_events(handle_interface_event) < 0)
 		ni_fatal("unable to initialize netlink listener");
-	if (ni_server_enable_interface_addr_events(NULL) < 0)
+	if (__ni_server_enable_interface_addr_events() < 0)
 		ni_fatal("unable to enable netlink address listener");
+	if (__ni_server_enable_interface_route_events() < 0)
+		ni_fatal("unable to enable netlink routing listener");
 
 	if (ni_udev_net_subsystem_available()) {
 		if (ni_server_enable_interface_uevents() < 0)
