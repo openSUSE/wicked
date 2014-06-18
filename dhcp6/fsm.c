@@ -1112,8 +1112,8 @@ ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 	 * If not, create a dummy lease with NULL fields.
 	 */
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp("%s: Initiating DHCPv6 Server Solicitation",
-				dev->ifname);
+		ni_info("%s: Initiating DHCPv6 Server Solicitation",
+			dev->ifname);
 
 		if ((lease = dev->lease) == NULL) {
 			lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
@@ -1177,8 +1177,8 @@ ni_dhcp6_fsm_request_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *le
 		return -1;
 
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp("%s: Initiating DHCPv6 Lease Request",
-				dev->ifname);
+		ni_info("%s: Requesting DHCPv6 lease with timeout %d sec",
+			dev->ifname, dev->config->acquire_timeout);
 
 		dev->dhcp6.xid = 0;
 		if (ni_dhcp6_init_message(dev, NI_DHCP6_REQUEST, lease) != 0)
@@ -1283,7 +1283,7 @@ ni_dhcp6_fsm_renew(ni_dhcp6_device_t *dev)
 		ni_timer_get_time(&now);
 		now.tv_sec += deadline;
 
-		ni_debug_dhcp("%s: Initiating DHCPv6 Renew, duration %u sec until %s",
+		ni_info("%s: Initiating renewal of DHCPv6 lease, duration %u sec until %s",
 				dev->ifname, deadline, ni_dhcp6_print_timeval(&now));
 
 		dev->dhcp6.xid = 0;
@@ -1338,8 +1338,8 @@ ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *dev)
 		ni_timer_get_time(&now);
 		now.tv_sec += deadline;
 
-		ni_debug_dhcp("%s: Initiating DHCPv6 Rebind, duration %u sec until %s",
-				dev->ifname, deadline, ni_dhcp6_print_timeval(&now));
+		ni_info("%s: Initiating rebind of DHCPv6 lease, duration %u sec until %s",
+			dev->ifname, deadline, ni_dhcp6_print_timeval(&now));
 
 		dev->dhcp6.xid = 0;
 		if (ni_dhcp6_init_message(dev, NI_DHCP6_REBIND, dev->lease) != 0)
@@ -1367,13 +1367,25 @@ ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *dev)
 static int
 ni_dhcp6_fsm_decline(ni_dhcp6_device_t *dev)
 {
+	ni_string_array_t *iaddrs = NULL;
 	int rv = -1;
 
 	if (!dev->lease)
 		return -1;
 
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp("%s: Initiating DHCPv6 Decline", dev->ifname);
+		unsigned int i;
+
+		iaddrs = ni_dhcp6_get_ia_addrs(dev->lease->dhcp6.ia_list, NULL, NULL);
+
+		if (iaddrs && iaddrs->count) {
+			ni_warn("%s: Declining DHCPv6 lease with addresses:", dev->ifname);
+			for (i = 0; i < iaddrs->count; ++i)
+				ni_warn("    %s", iaddrs->data[i]);
+			ni_string_array_destroy(iaddrs);
+		} else {
+			ni_warn("%s: Declining DHCPv6 lease", dev->ifname);
+		}
 
 		dev->dhcp6.xid = 0;
 		if (ni_dhcp6_init_message(dev, NI_DHCP6_DECLINE, dev->lease) != 0)
@@ -1451,14 +1463,17 @@ static int
 ni_dhcp6_fsm_accept_offer(ni_dhcp6_device_t *dev)
 {
 	ni_addrconf_lease_t *offer;
+	ni_sockaddr_t server_addr;
 	int rv;
 
 	if (!(offer = dev->best_offer.lease))
 		return -1;
 
-	ni_debug_dhcp("accepting best %slease offer with weight %d from server %s",
-			offer->dhcp6.rapid_commit ? "rapid-commit " : "",
-			dev->best_offer.weight, ni_duid_print_hex(&offer->dhcp6.server_id));
+	ni_sockaddr_set_ipv6(&server_addr, offer->dhcp6.server_addr, 0);
+
+	ni_info("%s: Accepting best DHCPv6 %slease offer with weight %d from server %s",
+		dev->ifname, offer->dhcp6.rapid_commit ? "rapid-commit " : "",
+		dev->best_offer.weight, ni_sockaddr_print(&server_addr));
 
 	ni_dhcp6_device_retransmit_disarm(dev);
 	if (dev->config->dry_run == NI_DHCP6_RUN_OFFER) {
@@ -1499,6 +1514,11 @@ ni_dhcp6_fsm_accept_offer(ni_dhcp6_device_t *dev)
 static int
 ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 {
+	ni_string_array_t *iaddrs = NULL;
+	ni_var_array_t p_lft = NI_VAR_ARRAY_INIT; /* ia_addr preferred_lft */
+	ni_var_array_t v_lft = NI_VAR_ARRAY_INIT; /* ia_addr valid_lft */
+	unsigned int i;
+
 	if (lease) {
 		/* OK, now we can provide the lease to wicked,
 		 * that will set the IPs causing kernel to
@@ -1510,8 +1530,27 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 		 */
 
 		ni_dhcp6_device_set_lease(dev, lease);
-
 		dev->fsm.state = NI_DHCP6_STATE_BOUND;
+
+		iaddrs = ni_dhcp6_get_ia_addrs(dev->lease->dhcp6.ia_list, &p_lft, &v_lft);
+
+		if (iaddrs && iaddrs->count) {
+			ni_note("%s: Committed DHCPv6 lease with addresses:", dev->ifname);
+			for (i = 0; i < iaddrs->count; ++i) {
+				uint32_t pref_lft;
+				uint32_t valid_lft;
+				ni_var_array_get_uint(&p_lft, iaddrs->data[i], &pref_lft);
+				ni_var_array_get_uint(&v_lft, iaddrs->data[i], &valid_lft);
+				ni_note("    %s, pref-lft %u, valid-lft %u",
+					iaddrs->data[i], pref_lft, valid_lft);
+			}
+			ni_var_array_destroy(&p_lft);
+			ni_var_array_destroy(&v_lft);
+			ni_string_array_destroy(iaddrs);
+		} else {
+			ni_note("%s: Committed DHCPv6 lease", dev->ifname);
+		}
+
 		if (dev->config->dry_run == NI_DHCP6_RUN_NORMAL) {
 			dev->fsm.state = NI_DHCP6_STATE_VALIDATING;
 			ni_dhcp6_fsm_set_timeout_msec(dev, NI_DHCP6_WAIT_IAADDR_READY);
@@ -1528,7 +1567,8 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 		}
 	} else {
 		if ((lease = dev->lease) != NULL) {
-
+			ni_note("%s: Dropped DHCPv6 lease with UUID %s",
+				dev->ifname, ni_uuid_print(&lease->uuid));
 			lease->state = NI_ADDRCONF_STATE_RELEASED;
 
 			ni_dhcp6_send_event(NI_DHCP6_EVENT_RELEASED, dev, lease);

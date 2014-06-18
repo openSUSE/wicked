@@ -272,5 +272,6 @@ extern ni_bool_t		ni_dhcp6_ia_type_na(ni_dhcp6_ia_t *);
 extern ni_bool_t		ni_dhcp6_ia_type_ta(ni_dhcp6_ia_t *);
 extern ni_bool_t		ni_dhcp6_ia_type_pd(ni_dhcp6_ia_t *);
 
+extern ni_string_array_t *	ni_dhcp6_get_ia_addrs(struct ni_dhcp6_ia *, ni_var_array_t *, ni_var_array_t *);
 
 #endif /* __WICKED_DHCP6_SUPPLICANT_H__ */
