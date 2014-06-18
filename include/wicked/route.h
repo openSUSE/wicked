@@ -91,6 +91,7 @@ extern ni_route_t *		ni_route_create(unsigned int prefix_len,
 						const ni_sockaddr_t *gw,
 						unsigned int table,
 						ni_route_table_t **list);
+extern ni_bool_t		ni_route_copy(ni_route_t *, const ni_route_t *);
 extern ni_route_t *		ni_route_clone(const ni_route_t *);
 extern ni_route_t *		ni_route_ref(ni_route_t *);
 extern void			ni_route_free(ni_route_t *);
