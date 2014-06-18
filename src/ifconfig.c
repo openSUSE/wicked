@@ -2459,10 +2459,10 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_address_t *cfg_addr_list)
 {
-	ni_address_t *ap, *next;
+	ni_address_t *ap, *next, *prev = NULL;
 	int rv;
 
-	for (ap = dev->addrs; ap; ap = next) {
+	for (ap = dev->addrs; ap; prev = ap, ap = next) {
 		ni_address_t *new_addr;
 
 		next = ap->next;
@@ -2529,9 +2529,13 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 			if ((rv = __ni_rtnl_send_newaddr(dev, new_addr, NLM_F_REPLACE)) < 0)
 				return rv;
 
+			ni_address_copy(ap, new_addr);
 		} else {
 			if ((rv = __ni_rtnl_send_deladdr(dev, ap)) < 0)
 				return rv;
+
+			ni_address_free(ap);
+			ap = prev ? (prev->next = next) : (dev->addrs = next);
 		}
 	}
 
@@ -2548,9 +2552,11 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		ni_debug_ifconfig("Adding new interface address %s/%u",
 				ni_sockaddr_print(&ap->local_addr),
 				ap->prefixlen);
+
 		if ((rv = __ni_rtnl_send_newaddr(dev, ap, NLM_F_CREATE)) < 0)
 			return rv;
 
+		ni_address_list_append(&dev->addrs, ni_address_clone(ap));
 		__ni_netdev_new_addr_notify(dev, ap);
 	}
 
