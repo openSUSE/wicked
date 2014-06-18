@@ -859,11 +859,11 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 		char *other_owner;
 
 		other_owner = strdup(xml_node_location(child->exclusive_owner->config.node));
-		ni_error("%s (%s): subordinate interface already owned by %s (%s)",
+		ni_debug_application("%s (%s): subordinate interface already owned by %s (%s)",
 			child->name, xml_node_location(devnode),
 			child->exclusive_owner->name, other_owner);
 		free(other_owner);
-		return FALSE;
+		return TRUE;
 	} else {
 		child->exclusive_owner = parent;
 	}
