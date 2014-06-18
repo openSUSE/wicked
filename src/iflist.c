@@ -1767,16 +1767,8 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 		if (!ap)
 			return -1;
 	}
-	ap->scope = tmp.scope;
-	ap->flags = tmp.flags;
-	ap->peer_addr = tmp.peer_addr;
-	ap->bcast_addr = tmp.bcast_addr;
-	ap->anycast_addr = tmp.anycast_addr;
-	ap->ipv6_cache_info = tmp.ipv6_cache_info;
-	if (!ni_string_eq(ap->label, tmp.label)) {
-		ni_string_dup(&ap->label, tmp.label);
-	}
-	ni_string_free(&tmp.label);
+	tmp.config_lease = ap->config_lease;
+	ni_address_copy(ap, &tmp);
 
 	if (ap->config_lease == NULL)
 		lease = __ni_netdev_address_to_lease(dev, ap);
