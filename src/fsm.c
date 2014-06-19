@@ -3609,15 +3609,20 @@ __find_corresponding_lease(ni_netdev_t *dev, sa_family_t family, unsigned int ty
 }
 
 static ni_bool_t
-address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callback_info_t *cb, ni_event_t event)
+address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callback_info_t *cb, ni_event_t event, ni_fsm_t *fsm, const char *object_path)
 {
 	ni_netdev_t *dev = w && cb ? w->device : NULL;
 	ni_addrconf_lease_t *lease;
 	ni_addrconf_lease_t *other;
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
-	if (!dev)
-		return FALSE;
+	if (!dev) {
+		w = ni_fsm_recv_new_netif_path(fsm, object_path);
+		if (w && cb)
+			dev = w->device;
+		else
+			return FALSE;
+	}
 
 	switch (event) {
 	case NI_EVENT_ADDRESS_ACQUIRED:
@@ -3766,7 +3771,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 				case NI_EVENT_ADDRESS_ACQUIRED:
 					/* Set event_name as this is the one we wait for */
 					event_name = ni_objectmodel_event_to_signal(cb_event_type);
-					success = address_acquired_callback_handler(w, cb, event_type);
+					success = address_acquired_callback_handler(w, cb, event_type, fsm, object_path);
 					break;
 				default:
 					break;
