@@ -84,12 +84,6 @@ __ni_dhcp4_lease_head_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 		ni_sockaddr_set_ipv4(&addr, lease->dhcp4.server_id, 0);
 		xml_node_new_element("server-id", node, ni_sockaddr_print(&addr));
 	}
-#if 0
-	if (lease->dhcp4.serveraddress.s_addr) {
-		ni_sockaddr_set_ipv4(&addr, lease->dhcp4.serveraddress, 0);
-		xml_node_new_element("server-address", node, ni_sockaddr_print(&addr));
-	}
-#endif
 	if (lease->dhcp4.relay_addr.s_addr) {
 		ni_sockaddr_set_ipv4(&addr, lease->dhcp4.relay_addr, 0);
 		xml_node_new_element("relay-address", node, ni_sockaddr_print(&addr));
@@ -239,19 +233,12 @@ ni_dhcp4_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 			if (ni_sockaddr_parse(&addr, child->cdata, AF_INET) < 0)
 				return -1;
 			lease->dhcp4.server_id = addr.sin.sin_addr;
-		}
-#if 0
-		if (ni_string_eq(child->name, "server-address") && child->cdata) {
-			if (ni_sockaddr_parse(&addr, child->cdata, AF_INET) < 0)
-				return -1;
-			lease->dhcp4.serveraddress = addr.sin.sin_addr;
 		} else
-#endif
 		if (ni_string_eq(child->name, "relay-address") && child->cdata) {
 			if (ni_sockaddr_parse(&addr, child->cdata, AF_INET) < 0)
 				return -1;
 			lease->dhcp4.relay_addr = addr.sin.sin_addr;
-		}
+		} else
 		if (ni_string_eq(child->name, "lease-time") && child->cdata) {
 			if (ni_parse_uint(child->cdata, &value, 10) != 0)
 				return -1;
