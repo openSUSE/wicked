@@ -494,7 +494,9 @@ dhcp4_supplicant(void)
 
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_interface_events(dhcp4_interface_event) < 0)
-		ni_fatal("unable to initialize netlink listener");
+		ni_fatal("unable to initialize netlink link listener");
+	if (ni_server_enable_interface_addr_events(NULL) < 0)
+		ni_fatal("unable to initialize netlink addr listener");
 
 	if (!opt_foreground) {
 		ni_daemon_close_t close_flags = NI_DAEMON_CLOSE_STD;
