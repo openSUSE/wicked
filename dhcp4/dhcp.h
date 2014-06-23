@@ -208,7 +208,7 @@ extern int		ni_dhcp4_fsm_discover(ni_dhcp4_device_t *);
 extern int		ni_dhcp4_fsm_release(ni_dhcp4_device_t *);
 extern int		ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *, ni_buffer_t *);
 extern int		ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
-extern int		ni_dhcp4_fsm_recover_lease(ni_dhcp4_device_t *, const ni_dhcp4_request_t *);
+extern int		ni_dhcp4_recover_lease(ni_dhcp4_device_t *);
 extern int		ni_dhcp4_build_message(const ni_dhcp4_device_t *,
 				unsigned int, const ni_addrconf_lease_t *, ni_buffer_t *);
 extern void		ni_dhcp4_fsm_link_up(ni_dhcp4_device_t *);

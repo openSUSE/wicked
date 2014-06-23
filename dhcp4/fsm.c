@@ -719,6 +719,43 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
  * Reload an old lease from file, and see whether we can reuse it.
  * This is used during restart of wickedd.
  */
+int
+ni_dhcp4_recover_lease(ni_dhcp4_device_t *dev)
+{
+	ni_addrconf_lease_t *lease;
+	ni_sockaddr_t addr;
+
+	if (dev->lease)
+		return 1;
+
+	lease = ni_addrconf_lease_file_read(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
+	if (!lease)
+		return -1;
+
+	if (!ni_addrconf_lease_is_valid(dev->lease)) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: discarding existing lease, not granted",
+				dev->ifname);
+		goto discard;
+	}
+
+	/* We cannot renew/rebind/reboot without it */
+	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.server_id, 0);
+	if (!ni_sockaddr_is_ipv4_specified(&addr)) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: discarding existing lease, no server-id",
+				dev->ifname);
+		goto discard;
+	}
+
+	ni_dhcp4_device_set_lease(dev, lease);
+	return 0;
+
+discard:
+	ni_addrconf_lease_free(lease);
+	return -1;
+}
+
 #if 0
 int
 ni_dhcp4_fsm_recover_lease(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *req)
