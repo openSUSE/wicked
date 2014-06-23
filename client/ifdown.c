@@ -236,13 +236,6 @@ usage:
 		/* No error if all interfaces were good */
 		status = ni_fsm_fail_count(fsm) ?
 			NI_WICKED_RC_ERROR : NI_WICKED_RC_SUCCESS;
-
-		/* Do not report any transient errors to systemd (e.g. dhcp
-		 * or whatever not ready in time) -- returning an error may
-		 * cause to stop the network completely.
-		 */
-		if (!opt_transient)
-			status = NI_LSB_RC_SUCCESS;
 	}
 
 	ni_ifworker_array_destroy(&ifmarked);

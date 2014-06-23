@@ -46,7 +46,7 @@ int
 ni_do_ifup(int argc, char **argv)
 {
 	enum  { OPT_HELP, OPT_IFCONFIG, OPT_CONTROL_MODE, OPT_STAGE, OPT_TIMEOUT,
-		OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_PERSISTENT,
+		OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_PERSISTENT, OPT_TRANSIENT,
 #ifdef NI_TEST_HACKS
 		OPT_IGNORE_PRIO, OPT_IGNORE_STARTMODE,
 #endif
@@ -60,6 +60,7 @@ ni_do_ifup(int argc, char **argv)
 		{ "skip-active",required_argument, NULL,	OPT_SKIP_ACTIVE },
 		{ "skip-origin",required_argument, NULL,	OPT_SKIP_ORIGIN },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
+		{ "transient", 	no_argument,		NULL,	OPT_TRANSIENT },
 #ifdef NI_TEST_HACKS
 		{ "ignore-prio",no_argument, NULL,	OPT_IGNORE_PRIO },
 		{ "ignore-startmode",no_argument, NULL,	OPT_IGNORE_STARTMODE },
@@ -73,6 +74,7 @@ ni_do_ifup(int argc, char **argv)
 	ni_ifworker_array_t ifmarked;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	ni_bool_t check_prio = TRUE;
+	ni_bool_t opt_transient = FALSE;
 	unsigned int nmarked;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
@@ -158,6 +160,10 @@ ni_do_ifup(int argc, char **argv)
 			ifmarker.persistent = TRUE;
 			break;
 
+		case OPT_TRANSIENT:
+			opt_transient = TRUE;
+			break;
+
 		default:
 		case OPT_HELP:
 usage:
@@ -166,6 +172,8 @@ usage:
 				"\nSupported ifup-options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
+				"  --transient\n"
+				"      Enable transient interface return codes\n"
 				"  --ifconfig <pathname>\n"
 				"      Read interface configuration(s) from file/directory rather than using system config\n"
 				"  --mode <label>\n"
