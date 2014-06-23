@@ -813,7 +813,6 @@ do_xpath(int argc, char **argv)
 		{ NULL }
 	};
 	const char *opt_reference = NULL, *opt_file = "-";
-	char *cmd;
 	xpath_result_t *input;
 	xml_document_t *doc;
 	int c;
