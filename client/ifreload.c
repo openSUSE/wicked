@@ -45,7 +45,7 @@
 int
 ni_do_ifreload(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_IFCONFIG, OPT_PERSISTENT,
+	enum  { OPT_HELP, OPT_IFCONFIG, OPT_PERSISTENT, OPT_TRANSIENT,
 #ifdef NI_TEST_HACKS
 		OPT_IGNORE_PRIO, OPT_IGNORE_STARTMODE,
 #endif
@@ -53,6 +53,7 @@ ni_do_ifreload(int argc, char **argv)
 
 	static struct option ifreload_options[] = {
 		{ "help",	no_argument,       NULL, OPT_HELP       },
+		{ "transient", 	no_argument,       NULL, OPT_TRANSIENT },
 		{ "ifconfig",	required_argument, NULL, OPT_IFCONFIG   },
 #ifdef NI_TEST_HACKS
 		{ "ignore-prio",no_argument, NULL,	OPT_IGNORE_PRIO },
@@ -67,6 +68,7 @@ ni_do_ifreload(int argc, char **argv)
 	ni_ifmatcher_t ifmatch;
 	ni_bool_t check_prio = TRUE;
 	ni_bool_t opt_persistent = FALSE;
+	ni_bool_t opt_transient = FALSE;
 	int c, status = NI_WICKED_RC_USAGE;
 	unsigned int nmarked, i;
 	const ni_uint_range_t up_range = {
@@ -123,6 +125,10 @@ ni_do_ifreload(int argc, char **argv)
 			opt_persistent = TRUE;
 			break;
 
+		case OPT_TRANSIENT:
+			opt_transient = TRUE;
+			break;
+
 		default:
 		case OPT_HELP:
 usage:
@@ -131,6 +137,8 @@ usage:
 				"\nSupported ifreload-options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
+				"  --transient\n"
+				"      Enable transient interface return codes\n"
 				"  --ifconfig <filename>\n"
 				"      Read interface configuration(s) from file\n"
 #ifdef NI_TEST_HACKS

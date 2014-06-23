@@ -503,13 +503,14 @@ int
 ni_do_ifstatus(int argc, char **argv)
 {
 	enum  { OPT_QUIET, OPT_BRIEF, OPT_NORMAL, OPT_VERBOSE,
-		OPT_HELP, OPT_SHOW, OPT_IFCONFIG };
+		OPT_HELP, OPT_SHOW, OPT_IFCONFIG, OPT_TRANSIENT };
 	static struct option ifcheck_options[] = {
 		{ "help",         no_argument,       NULL, OPT_HELP        },
 		{ "quiet",        no_argument,       NULL, OPT_QUIET       },
 		{ "brief",        no_argument,       NULL, OPT_BRIEF       },
 		{ "verbose",      no_argument,       NULL, OPT_VERBOSE     },
 		{ "ifconfig",     required_argument, NULL, OPT_IFCONFIG    },
+		{ "transient",    no_argument,       NULL, OPT_TRANSIENT },
 
 		{ NULL,           no_argument,       NULL, 0               }
 	};
@@ -520,6 +521,7 @@ ni_do_ifstatus(int argc, char **argv)
 	ni_uint_array_t   stcodes = NI_UINT_ARRAY_INIT;
 	ni_uint_array_t   stflags = NI_UINT_ARRAY_INIT;
 	ni_bool_t         multiple = FALSE;
+	ni_bool_t         opt_transient = FALSE;
 	ni_bool_t         check_config;
 	ni_ifmatcher_t    ifmatch;
 	ni_fsm_t *        fsm;
@@ -557,6 +559,8 @@ ni_do_ifstatus(int argc, char **argv)
 				"\nSupported options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
+				"  --transient\n"
+				"      Enable transient interface return codes\n"
 				"  --quiet\n"
 				"      Return exit status only\n"
 				"  --brief\n"
@@ -576,6 +580,10 @@ ni_do_ifstatus(int argc, char **argv)
 
 		case OPT_IFCONFIG:
 			ni_string_array_append(&opt_ifconfig, optarg);
+			break;
+
+		case OPT_TRANSIENT:
+			opt_transient = TRUE;
 			break;
 		}
 	}
