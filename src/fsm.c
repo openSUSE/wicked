@@ -58,6 +58,7 @@ static void			ni_ifworker_cancel_timeout(ni_ifworker_t *);
 static ni_objectmodel_callback_info_t *	ni_ifworker_get_cancelable_callback(ni_ifworker_t *, ni_bool_t);
 static dbus_bool_t		ni_ifworker_waiting_for_events(ni_ifworker_t *);
 static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
+static void			ni_ifworkers_flatten(ni_ifworker_array_t *);
 
 ni_fsm_t *
 ni_fsm_new(void)
@@ -1877,6 +1878,11 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 		ni_ifworker_array_append(result, w);
 	}
 
+	/* Collect all workers in the device graph, and sort them
+	 * by increasing depth.
+	 */
+	ni_ifworkers_flatten(result);
+
 	return result->count;
 }
 
@@ -1960,7 +1966,7 @@ __ni_ifworker_depth_compare(const void *a, const void *b)
 static void
 ni_ifworkers_flatten(ni_ifworker_array_t *array)
 {
-	unsigned int i, count;
+	unsigned int i;
 
 	/* Note, we take the array->count outside the loop.
 	 * Inside the loop, we're adding new ifworkers to the array,
@@ -1968,9 +1974,14 @@ ni_ifworkers_flatten(ni_ifworker_array_t *array)
 	 * added devices twice.
 	 * NB a simple tail recursion won't work here.
 	 */
-	count = array->count;
-	for (i = 0; i < count; ++i)
-		__ni_ifworker_flatten(array->data[i], array, 0);
+	for (i = 0; i < array->count; ++i) {
+		ni_ifworker_t *w = array->data[i];
+
+		if (w->exclusive_owner)
+			continue;
+
+		__ni_ifworker_flatten(w, array, 0);
+	}
 
 	qsort(array->data, array->count, sizeof(array->data[0]), __ni_ifworker_depth_compare);
 }
@@ -1986,11 +1997,6 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 	unsigned int i, count = 0;
 
 	ni_ifworkers_check_loops(fsm, marked);
-
-	/* Collect all workers in the device graph, and sort them
-	 * by increasing depth.
-	 */
-	ni_ifworkers_flatten(marked);
 
 	/* Mark all our primary devices with the requested marker values */
 	for (i = 0; i < marked->count; ++i) {
@@ -2032,6 +2038,7 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 		if (w->target_state != NI_FSM_STATE_NONE)
 			count++;
 	}
+	ni_ifworkers_flatten(&fsm->workers);
 	return count;
 }
 
