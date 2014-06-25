@@ -132,7 +132,7 @@ done
 
 IBFT_NICS="ethernet"
 IBFT_PATH="/sys/firmware/ibft"
-IBFT_ROOT="${opt_rootdir}/sys/firmware/ibft"
+IBFT_ROOT="${opt_rootdir}${IBFT_PATH}"
 if test ! -d "$IBFT_ROOT" -a "X$opt_modprobe" != "X" ; then
 	modprobe -qs -- "${opt_modprobe}" &>/dev/null || :
 fi
@@ -268,7 +268,7 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 		# wickedd about the hostname and DNS server addresses, if given
 		cat <<-EOF
 		  <ipv4:static>
-		    <address>$nic_ipaddr/$nic_prefixlen</address>
+		    <address><local>$nic_ipaddr/$nic_prefixlen</local></address>
 		    $default_route
 		    $dns_servers
 		    $host_name
