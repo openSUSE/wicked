@@ -32,29 +32,38 @@ function glob_first
 function ibft_get_ifindex
 {
 	local devpath=$1
-	local ifpath=
+	local ibftmac=$2
+	local net_dir=""
 
 	if [ -d "$devpath/net/" ]; then
 		# normal reference, e.g. device/net/eth0
-		ifpath="$devpath/net"
+		net_dir="$devpath/net"
 	else
 		# virtio reference, e.g. device/virtio0/net/eth0,
 		# because iBFT references PCI IDs without func.
-		ifpath=`glob_first $devpath/*/net/`
+		net_dir=`glob_first $devpath/*/net/`
 	fi
 
-	if [ -n "$ifpath" ]; then
-		idxpath=`glob_first "$ifpath/*/ifindex"`
-		if [ -f "$idxpath" ]; then
-			ifindex=`cat $idxpath`
-			ifname=${idxpath%/ifindex}
-			ifname=${ifname##*/}
-			echo $ifindex $ifname
-			return 0
-		fi
+	if [ -n "$net_dir" ]; then
+		for idxpath in ${net_dir}/*/ifindex ;  do
+			ifindex=`cat "$idxpath" 2>/dev/null`
+			[ -n "$ifindex" ] || continue
+
+			ifbase=${idxpath%/ifindex}
+			ifname=${ifbase##*/}
+			if [ -n "$ibftmac" ] ; then
+				mac=`cat "$ifbase/address" 2>/dev/null`
+				if [ "X$mac" = "X$ibftmac" ] ; then
+					echo $ifindex $ifname
+					return 0
+				fi
+			else
+				echo $ifindex $ifname
+				return 0
+			fi
+		done
 	fi
 
-	echo "$err_name: unable to identify devices at \"$devpath\"" >&2
 	return 1
 }
 
@@ -154,7 +163,8 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 	devpath=`do_readlink -f $nicpath/device`
 	[ -n "$devpath" ]                           || continue
 
-	set -- `ibft_get_ifindex $devpath`
+	nic_mac=`ibft_getattr "$nicpath/mac"`
+	set -- `ibft_get_ifindex "$devpath" "$nic_mac"`
 	[ $# -gt 0 ]                                || continue
 
 	nic_ifindex=$1
@@ -174,7 +184,6 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 		continue
 	fi
 
-	nic_mac=`ibft_getattr "$nicpath/mac"`
 	nic_ipaddr=`ibft_getattr "$nicpath/ip-addr"`
 	nic_prefixlen=""
 
@@ -240,7 +249,7 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 	echo "    <config-origin>firmware:ibft:$ibft_nic</config-origin>"
 	echo "  </client-info>"
 
-	if [ -n "$nic_ipaddr" ]; then
+	if [ $nic_origin -ne 3 -a -n "$nic_ipaddr" ]; then
 		default_route="<!-- no default route -->"
 		if [ -n "$nic_gateway" ]; then
 			default_route="<route><nexthop><gateway>$nic_gateway"
@@ -263,9 +272,6 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 			dns_servers="<!-- no dns servers -->"
 		fi
 
-		# FIXME: we have no way yet to include other lease information
-		# in a static addrconf element. In this case, we would like to tell
-		# wickedd about the hostname and DNS server addresses, if given
 		cat <<-EOF
 		  <ipv4:static>
 		    <address><local>$nic_ipaddr/$nic_prefixlen</local></address>
@@ -275,7 +281,7 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 		  </ipv4:static>
 		EOF
 	fi
-	if [ -n "$nic_dhcp_server" ] ; then
+	if [ -n "$nic_dhcp_server" -o "$nic_origin" -eq 3 ] ; then
 		# Default to DHCPv4 -- no root-path defined for DHCPv6.
 		cat <<-EOF
 		  <ipv4:dhcp>
