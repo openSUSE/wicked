@@ -240,7 +240,7 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 	echo "    <config-origin>firmware:ibft:$ibft_nic</config-origin>"
 	echo "  </client-info>"
 
-	if [ -n "$nic_ipaddr" ]; then
+	if [ $nic_origin -ne 3 -a -n "$nic_ipaddr" ]; then
 		default_route="<!-- no default route -->"
 		if [ -n "$nic_gateway" ]; then
 			default_route="<route><nexthop><gateway>$nic_gateway"
@@ -263,9 +263,6 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 			dns_servers="<!-- no dns servers -->"
 		fi
 
-		# FIXME: we have no way yet to include other lease information
-		# in a static addrconf element. In this case, we would like to tell
-		# wickedd about the hostname and DNS server addresses, if given
 		cat <<-EOF
 		  <ipv4:static>
 		    <address><local>$nic_ipaddr/$nic_prefixlen</local></address>
@@ -275,7 +272,7 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 		  </ipv4:static>
 		EOF
 	fi
-	if [ -n "$nic_dhcp_server" ] ; then
+	if [ -n "$nic_dhcp_server" -o "$nic_origin" -eq 3 ] ; then
 		# Default to DHCPv4 -- no root-path defined for DHCPv6.
 		cat <<-EOF
 		  <ipv4:dhcp>
