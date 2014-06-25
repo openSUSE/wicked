@@ -695,7 +695,7 @@ static int
 __ni_addrconf_lease_route_nh_from_xml(ni_route_t *rp, const xml_node_t *node)
 {
 	const xml_node_t *child;
-	ni_route_nexthop_t *nh;
+	ni_route_nexthop_t *nh = NULL;
 	ni_sockaddr_t addr;
 
 	for (child = node->children; child; child = child->next) {

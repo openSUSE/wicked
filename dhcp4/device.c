@@ -18,6 +18,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <wicked/xml.h>
 #include "netinfo_priv.h"
 #include "appconfig.h"
 
@@ -318,12 +319,8 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 
 	ni_dhcp4_device_set_config(dev, config);
 
-#if 0
-	/* FIXME: This cores for now */
-	/* If we're asked to reclaim an existing lease, try to load it. */
-	if (info->reuse_unexpired && ni_dhcp4_fsm_recover_lease(dev, info) >= 0)
-		return 0;
-#endif
+	if (!dev->lease)
+		ni_dhcp4_recover_lease(dev);
 
 	if (dev->lease) {
 		if (!ni_addrconf_lease_is_valid(dev->lease)
@@ -337,8 +334,6 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	ni_note("%s: Request to acquire DHCPv4 lease with UUID %s",
 		dev->ifname, ni_uuid_print(&config->uuid));
 
-	/* Go back to INIT state to force a rediscovery */
-	/* dev->fsm.state = NI_DHCP4_STATE_INIT; */
 	if (ni_dhcp4_device_start(dev) < 0)
 		return -1;
 	return 1;

@@ -719,6 +719,43 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
  * Reload an old lease from file, and see whether we can reuse it.
  * This is used during restart of wickedd.
  */
+int
+ni_dhcp4_recover_lease(ni_dhcp4_device_t *dev)
+{
+	ni_addrconf_lease_t *lease;
+	ni_sockaddr_t addr;
+
+	if (dev->lease)
+		return 1;
+
+	lease = ni_addrconf_lease_file_read(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
+	if (!lease)
+		return -1;
+
+	if (!ni_addrconf_lease_is_valid(dev->lease)) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: discarding existing lease, not granted",
+				dev->ifname);
+		goto discard;
+	}
+
+	/* We cannot renew/rebind/reboot without it */
+	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.server_id, 0);
+	if (!ni_sockaddr_is_ipv4_specified(&addr)) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: discarding existing lease, no server-id",
+				dev->ifname);
+		goto discard;
+	}
+
+	ni_dhcp4_device_set_lease(dev, lease);
+	return 0;
+
+discard:
+	ni_addrconf_lease_free(lease);
+	return -1;
+}
+
 #if 0
 int
 ni_dhcp4_fsm_recover_lease(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *req)
@@ -793,24 +830,33 @@ ni_dhcp4_fsm_fail_lease(ni_dhcp4_device_t *dev)
 }
 
 static ni_bool_t
+__ni_dhcp4_address_on_device(const ni_netdev_t *ifp, struct in_addr ipv4)
+{
+	const ni_address_t *ap;
+	ni_sockaddr_t addr;
+
+	ni_sockaddr_set_ipv4(&addr, ipv4, 0);
+	for (ap = ifp->addrs; ap; ap = ap->next) {
+		if (ap->family != AF_INET)
+			continue;
+
+		if (ni_sockaddr_equal(&ap->local_addr, &addr))
+			return TRUE;
+	}
+	return FALSE;
+}
+
+static ni_bool_t
 __ni_dhcp4_address_on_link(ni_dhcp4_device_t *dev, struct in_addr ipv4)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
-	ni_address_t *ap;
 
 	nc = ni_global_state_handle(0);
 	if (!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex)))
 		return FALSE;
 
-	for (ap = ifp->addrs; ap; ap = ap->next) {
-		if (ap->family != AF_INET)
-			continue;
-
-		if (ap->local_addr.sin.sin_addr.s_addr == ipv4.s_addr)
-			return TRUE;
-	}
-	return FALSE;
+	return __ni_dhcp4_address_on_device(ifp, ipv4);
 }
 
 int
@@ -898,8 +944,16 @@ void
 ni_dhcp4_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *pkt, void *user_data)
 {
 	ni_dhcp4_device_t *dev = user_data;
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	const ni_netdev_t *ifp;
+	ni_bool_t false_alarm = FALSE;
+	ni_bool_t found_addr = FALSE;
 
 	if (!pkt || pkt->op != ARPOP_REPLY || !dev || !dev->lease)
+		return;
+
+	/* Is it about the address we're validating at all? */
+	if (pkt->sip.s_addr != dev->lease->dhcp4.address.s_addr)
 		return;
 
 	/* Ignore any ARP replies that seem to come from our own
@@ -908,13 +962,37 @@ ni_dhcp4_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *pk
 	if (ni_link_address_equal(&dev->system.hwaddr, &pkt->sha))
 		return;
 
-	if (pkt->sip.s_addr == dev->lease->dhcp4.address.s_addr) {
-		ni_debug_dhcp("address %s already in use by %s",
-				inet_ntoa(pkt->sip),
-				ni_link_address_print(&pkt->sha));
-		ni_dhcp4_device_arp_close(dev);
-		ni_dhcp4_fsm_decline(dev);
+	/* As well as ARP replies that seem to come from our own
+	 * host: dup if same address, not a dup if there are two
+	 * interfaces connected to the same broadcast domain.
+	 */
+	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
+		if (ifp->link.ifindex == dev->link.ifindex)
+			continue;
+
+		if (!ni_netdev_link_is_up(ifp))
+			continue;
+
+		if (!ni_link_address_equal(&ifp->link.hwaddr, &pkt->sha))
+			continue;
+
+		/* OK, we have an interface matching the hwaddr,
+		 * which will answer arp requests when it is on
+		 * the same broadcast domain and causes a false
+		 * alarm, except it really has the IP assigned.
+		 */
+		false_alarm = TRUE;
+		if (__ni_dhcp4_address_on_device(ifp, pkt->sip))
+			found_addr = TRUE;
 	}
+	if (false_alarm && !found_addr)
+		return;
+
+	ni_debug_dhcp("%s: address %s already in use by %s",
+			dev->ifname, inet_ntoa(pkt->sip),
+			ni_link_address_print(&pkt->sha));
+	ni_dhcp4_device_arp_close(dev);
+	ni_dhcp4_fsm_decline(dev);
 }
 
 /*

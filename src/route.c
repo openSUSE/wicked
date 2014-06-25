@@ -443,7 +443,7 @@ ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 		ni_stringbuf_printf(out, " priority %u", rp->priority);
 	}
 	if (rp->realm > 0) {
-		ni_stringbuf_printf(out, " realm %u", nh->realm);
+		ni_stringbuf_printf(out, " realm %u", rp->realm);
 	}
 	if (rp->tos > 0) {
 		/* TODO: names */

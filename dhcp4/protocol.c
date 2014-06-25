@@ -38,6 +38,7 @@
 #include <wicked/socket.h>
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
+#include <wicked/xml.h>
 #include "dhcp4/dhcp.h"
 #include "dhcp4/protocol.h"
 #include "buffer.h"
@@ -283,275 +284,798 @@ ni_dhcp4_option_get_string(ni_buffer_t *bp, char **var, unsigned int *lenp)
 	return 0;
 }
 
-int
-ni_dhcp4_build_message(const ni_dhcp4_device_t *dev,
-			unsigned int msg_code,
-			const ni_addrconf_lease_t *lease,
-			ni_buffer_t *msgbuf)
+static int
+__ni_dhcp4_build_msg_put_our_hostname(const ni_dhcp4_device_t *dev,
+					ni_buffer_t *msgbuf)
 {
-	char address[INET_ADDRSTRLEN];
-	char server_id[INET_ADDRSTRLEN];
 	const ni_dhcp4_config_t *options = dev->config;
-	struct in_addr src_addr, dst_addr;
-	ni_dhcp4_message_t *message = NULL;
-	int renew = dev->fsm.state == NI_DHCP4_STATE_RENEWING && msg_code == DHCP4_REQUEST;
+	size_t len = ni_string_len(options->hostname);
 
-	if (!options || !lease) {
-		ni_error("%s: %s: %s: missing %s %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
-				options? "" : "options", lease ? "" : "lease");
+	if (!len)
+		return 1; /* skipped hint */
+
+	if (options->fqdn == FQDN_DISABLE) {
+		char hname[64] = {'\0'}, *end;
+
+		/*
+		 * Truncate the domain part if fqdn to avoid attempts
+		 * to update DNS with foo.bar + update-domain.
+		 */
+		strncat(hname, options->hostname, sizeof(hname)-1);
+		if ((end = strchr(hname, '.')))
+			*end = '\0';
+
+		len = ni_string_len(hname);
+		if (ni_check_domain_name(hname, len, 0)) {
+			ni_dhcp4_option_puts(msgbuf, DHCP4_HOSTNAME, hname);
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: using hostname: %s", dev->ifname, hname);
+		} else {
+			ni_info("%s: not sending suspect hostname: '%s'",
+				dev->ifname, ni_print_suspect(hname, len));
+			return 1;
+		}
+	} else
+	if (ni_check_domain_name(options->hostname, len, 0)) {
+		/* IETF DHC-FQDN option(81)
+		 * http://tools.ietf.org/html/rfc4702#section-2.1
+		 *
+		 * Flags: 0000NEOS
+		 * S: 1 => Client requests Server to update
+		 *         a RR in DNS as well as PTR
+		 * O: 1 => Server indicates to client that
+		 *         DNS has been updated
+		 * E: 1 => Name data is DNS format
+		 * N: 1 => Client requests Server to not
+		 *         update DNS
+		 */
+		ni_buffer_putc(msgbuf, DHCP4_FQDN);
+		ni_buffer_putc(msgbuf, len + 3);
+		ni_buffer_putc(msgbuf, options->fqdn & 0x9);
+		ni_buffer_putc(msgbuf, 0);	/* from server for PTR RR */
+		ni_buffer_putc(msgbuf, 0);	/* from server for A RR if S=1 */
+		ni_buffer_put(msgbuf, options->hostname, len);
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: using fqdn: %s", dev->ifname,
+				options->hostname);
+	} else {
+		ni_info("%s: not sending suspect fqdn: '%s'",
+			dev->ifname, ni_print_suspect(options->hostname, len));
+		return 1;
+	}
+
+	return 0;
+}
+
+static int
+__ni_dhcp4_build_msg_put_option_request(const ni_dhcp4_device_t *dev,
+					unsigned int msg_code, ni_buffer_t *msgbuf)
+{
+	const ni_dhcp4_config_t *options = dev->config;
+	unsigned int params_begin;
+
+	switch (msg_code) {
+	case DHCP4_DISCOVER:
+	case DHCP4_REQUEST:
+	case DHCP4_INFORM:
+		break;
+	default:
+		return 1; /* skipped hint */
+	}
+
+	params_begin = ni_dhcp4_option_begin(msgbuf, DHCP4_PARAMETERREQUESTLIST);
+	if (msg_code != DHCP4_INFORM) {
+		ni_buffer_putc(msgbuf, DHCP4_RENEWALTIME);
+		ni_buffer_putc(msgbuf, DHCP4_REBINDTIME);
+	}
+	ni_buffer_putc(msgbuf, DHCP4_NETMASK);
+	ni_buffer_putc(msgbuf, DHCP4_BROADCAST);
+	ni_buffer_putc(msgbuf, DHCP4_MTU);
+
+	/*
+	 * RFC 3442 states classless static routes override both,
+	 * the (default) router and (class) static routes options.
+	 * Keep them in front also on request... just in case.
+	 */
+	if (options->doflags & DHCP4_DO_CSR) {
+		ni_buffer_putc(msgbuf, DHCP4_CSR);
+	}
+	if (options->doflags & DHCP4_DO_MSCSR) {
+		ni_buffer_putc(msgbuf, DHCP4_MSCSR);
+	}
+	if (options->doflags & DHCP4_DO_GATEWAY) {
+		ni_buffer_putc(msgbuf, DHCP4_STATICROUTE);
+		ni_buffer_putc(msgbuf, DHCP4_ROUTERS);
+	}
+	if (options->doflags & DHCP4_DO_HOSTNAME) {
+		if (options->fqdn == FQDN_DISABLE) {
+			ni_buffer_putc(msgbuf, DHCP4_HOSTNAME);
+		} else {
+			ni_buffer_putc(msgbuf, DHCP4_FQDN);
+		}
+	}
+	if (options->doflags & DHCP4_DO_DNS) {
+		ni_buffer_putc(msgbuf, DHCP4_DNSSEARCH);
+		ni_buffer_putc(msgbuf, DHCP4_DNSDOMAIN);
+		ni_buffer_putc(msgbuf, DHCP4_DNSSERVER);
+	}
+	if (options->doflags & DHCP4_DO_NIS) {
+		ni_buffer_putc(msgbuf, DHCP4_NISDOMAIN);
+		ni_buffer_putc(msgbuf, DHCP4_NISSERVER);
+	}
+	if (options->doflags & DHCP4_DO_NTP) {
+		ni_buffer_putc(msgbuf, DHCP4_NTPSERVER);
+	}
+	if (options->doflags & DHCP4_DO_ROOT) {
+		ni_buffer_putc(msgbuf, DHCP4_ROOTPATH);
+	}
+	if (options->doflags & DHCP4_DO_LPR) {
+		ni_buffer_putc(msgbuf, DHCP4_LPRSERVER);
+	}
+	if (options->doflags & DHCP4_DO_LOG) {
+		ni_buffer_putc(msgbuf, DHCP4_LOGSERVER);
+	}
+	if (options->doflags & DHCP4_DO_NDS) {
+		ni_buffer_putc(msgbuf, DHCP4_NDS_SERVER);
+		ni_buffer_putc(msgbuf, DHCP4_NDS_TREE);
+		ni_buffer_putc(msgbuf, DHCP4_NDS_CTX);
+	}
+	if (options->doflags & DHCP4_DO_SIP) {
+		ni_buffer_putc(msgbuf, DHCP4_SIPSERVER);
+	}
+	if (options->doflags & DHCP4_DO_SMB) {
+		ni_buffer_putc(msgbuf, DHCP4_NETBIOSNAMESERVER);
+		ni_buffer_putc(msgbuf, DHCP4_NETBIOSDDSERVER);
+		ni_buffer_putc(msgbuf, DHCP4_NETBIOSNODETYPE);
+		ni_buffer_putc(msgbuf, DHCP4_NETBIOSSCOPE);
+	}
+	if (options->doflags & DHCP4_DO_POSIX_TZ) {
+		ni_buffer_putc(msgbuf, DHCP4_POSIX_TZ_STRING);
+		ni_buffer_putc(msgbuf, DHCP4_POSIX_TZ_DBNAME);
+	}
+	ni_dhcp4_option_end(msgbuf, params_begin);
+
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+			"%s: using an option request", dev->ifname);
+
+	return 0;
+}
+
+static int
+__ni_dhcp4_build_msg_put_client_id(const ni_dhcp4_device_t *dev, unsigned int msg_code,
+				ni_dhcp4_message_t *message, ni_buffer_t *msgbuf)
+{
+	const ni_dhcp4_config_t *options = dev->config;
+
+	if (options->client_id.len) {
+		ni_dhcp4_option_put(msgbuf, DHCP4_CLIENTID,
+				options->client_id.data,
+				options->client_id.len);
+
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: using client-id: %s", dev->ifname,
+				ni_print_hex(options->client_id.data,
+						options->client_id.len));
+	} else
+	if (!message->hwlen) {
+		ni_error("%s: cannot construct %s without usable hw-addr and client-id",
+				dev->ifname, ni_dhcp4_message_name(msg_code));
+		return -1;
+	} else {
+		return 1; /* skipped client-id */
+	}
+	return 0;
+}
+
+static int
+__ni_dhcp4_build_msg_put_server_id(const ni_dhcp4_device_t *dev,
+				const ni_addrconf_lease_t *lease,
+				unsigned int msg_code, ni_buffer_t *msgbuf)
+{
+	ni_sockaddr_t addr;
+
+	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.server_id, 0);
+	if (!ni_sockaddr_is_ipv4_specified(&addr)) {
+		ni_error("%s: cannot construct %s without server-id",
+				dev->ifname, ni_dhcp4_message_name(msg_code));
 		return -1;
 	}
 
-	if (IN_LINKLOCAL(ntohl(lease->dhcp4.address.s_addr))) {
-		ni_error("cannot request a link local address");
-		goto failed;
-	}
+	ni_dhcp4_option_put_ipv4(msgbuf, DHCP4_SERVERIDENTIFIER, lease->dhcp4.server_id);
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+			"%s: using server-id: %s", dev->ifname,
+			ni_sockaddr_print(&addr));
+	return 0;
+}
 
-	src_addr.s_addr = dst_addr.s_addr = 0;
-	switch (msg_code) {
-	case DHCP4_DISCOVER:
-		if (lease->dhcp4.server_id.s_addr != 0) {
-			ni_error("%s: %s: %s: server_id %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
-				inet_ntop(AF_INET, &lease->dhcp4.server_id.s_addr, server_id, sizeof(server_id)));
-			return -1;
-		}
-		break;
 
-	case DHCP4_DECLINE:
-		if (lease->dhcp4.address.s_addr == 0
-		||  lease->dhcp4.server_id.s_addr == 0) {
-			ni_error("%s: %s: %s: address %s server_id %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
-				inet_ntop(AF_INET, &lease->dhcp4.address.s_addr, address, sizeof(address)),
-				inet_ntop(AF_INET, &lease->dhcp4.server_id.s_addr, server_id, sizeof(server_id)));
-			return -1;
-		}
-		break;
-
-	case DHCP4_REQUEST:
-	case DHCP4_RELEASE:
-	case DHCP4_INFORM:
-		if (lease->dhcp4.address.s_addr == 0
-		||  lease->dhcp4.server_id.s_addr == 0) {
-			ni_error("%s: %s: %s: address %s server_id %s", __func__, dev->ifname, ni_dhcp4_message_name(msg_code),
-				inet_ntop(AF_INET, &lease->dhcp4.address.s_addr, address, sizeof(address)),
-				inet_ntop(AF_INET, &lease->dhcp4.server_id.s_addr, server_id, sizeof(server_id)));
-			return -1;
-		}
-
-		if (dev->fsm.state != NI_DHCP4_STATE_REQUESTING
-		 && dev->fsm.state != NI_DHCP4_STATE_REBOOT) {
-			src_addr = lease->dhcp4.address;
-			dst_addr = lease->dhcp4.server_id;
-		}
-		break;
-	}
-
-	/* Reserve some room for the IP and UDP header */
-	if (!renew)
-		ni_buffer_reserve_head(msgbuf, sizeof(struct ip) + sizeof(struct udphdr));
-
-	/* Build the message */
-	message = ni_buffer_push_tail(msgbuf, sizeof(*message));
-
-	message->op = DHCP4_BOOTREQUEST;
-	message->hwtype = dev->system.hwaddr.type;
-	message->xid = dev->dhcp4.xid;
-	message->cookie = htonl(MAGIC_COOKIE);
-	message->secs = htons(ni_dhcp4_device_uptime(dev, 0xFFFF));
-
-	if (dev->fsm.state == NI_DHCP4_STATE_BOUND
-	 || dev->fsm.state == NI_DHCP4_STATE_REBINDING
-	 || dev->fsm.state == NI_DHCP4_STATE_RENEWING)
-		message->ciaddr = lease->dhcp4.address.s_addr;
-
+static int
+__ni_dhcp4_build_msg_put_hwspec(const ni_dhcp4_device_t *dev, ni_dhcp4_message_t *message)
+{
 	switch (dev->system.hwaddr.type) {
 	case ARPHRD_ETHER:
 	case ARPHRD_IEEE802:
-		if (dev->system.hwaddr.len > sizeof(message->chaddr)) {
-			ni_error("%s: dhcp4 cannot handle hwaddress length %u",
-					dev->ifname, dev->system.hwaddr.len);
-			goto failed;
+		if (dev->system.hwaddr.len && dev->system.hwaddr.len <= sizeof(message->chaddr)) {
+			message->hwlen = dev->system.hwaddr.len;
+			memcpy(&message->chaddr, dev->system.hwaddr.data, dev->system.hwaddr.len);
 		}
-		message->hwlen = dev->system.hwaddr.len;
-		memcpy(&message->chaddr, dev->system.hwaddr.data, dev->system.hwaddr.len);
 		break;
 
 	case ARPHRD_IEEE1394:
 	case ARPHRD_INFINIBAND:
+		/* See http://tools.ietf.org/html/rfc4390
+		 *
+		 * Note: set the ciaddr before if needed.
+		 */
 		message->hwlen = 0;
 		if (message->ciaddr == 0)
 			message->flags = htons(BROADCAST_FLAG);
 		break;
 
 	default:
-		ni_error("dhcp4: %s: unknown hardware type 0x%x", dev->ifname, dev->system.hwaddr.type);
+		ni_error("%s: dhcp4 unsupported hardware type %s (0x%x)", dev->ifname,
+				ni_arphrd_type_to_name(dev->system.hwaddr.type),
+				dev->system.hwaddr.type);
+		return -1;
 	}
+	if (message->hwlen) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: using hw-address[%u]: %s", dev->ifname,
+				message->hwtype, ni_print_hex(message->chaddr, message->hwlen));
+	}
+	if (message->flags & htons(BROADCAST_FLAG)) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: using broadcast response flag", dev->ifname);
+	}
+	return 0;
+}
+
+static ni_dhcp4_message_t *
+__ni_dhcp4_build_msg_init_head(const ni_dhcp4_device_t *dev,
+				unsigned int msg_code, ni_buffer_t *msgbuf)
+{
+	ni_dhcp4_message_t *message;
+
+	/* Build the main message (header) */
+	if (!(message = ni_buffer_push_tail(msgbuf, sizeof(*message)))) {
+		ni_error("%s: buffer too short for dhcp4 message", dev->ifname);
+		return NULL;
+	}
+
+	memset(message, 0, sizeof(*message));
+	message->op = DHCP4_BOOTREQUEST;
+	message->xid = dev->dhcp4.xid;
+	message->secs = htons(ni_dhcp4_device_uptime(dev, 0xFFFF));
+	message->cookie = htonl(MAGIC_COOKIE);
+	message->hwtype = dev->system.hwaddr.type;
 
 	ni_dhcp4_option_put8(msgbuf, DHCP4_MESSAGETYPE, msg_code);
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+			"%s: using message type: %s", dev->ifname,
+			ni_dhcp4_message_name(msg_code));
 
-	if (msg_code == DHCP4_REQUEST)
-		ni_dhcp4_option_put16(msgbuf, DHCP4_MAXMESSAGESIZE, dev->system.mtu);
+	return message;
+}
 
-	ni_dhcp4_option_put(msgbuf, DHCP4_CLIENTID,
-			options->client_id.data,
-			options->client_id.len);
+static int
+__ni_dhcp4_build_msg_discover(const ni_dhcp4_device_t *dev,
+			const ni_addrconf_lease_t *lease,
+			ni_buffer_t *msgbuf)
+{
+	const ni_dhcp4_config_t *options = dev->config;
+	unsigned int msg_code = DHCP4_DISCOVER;
+	ni_dhcp4_message_t *message;
+	ni_sockaddr_t addr;
 
-	if (msg_code != DHCP4_DECLINE && msg_code != DHCP4_RELEASE) {
-		if (options->userclass.len > 0)
-			ni_dhcp4_option_put(msgbuf, DHCP4_USERCLASS,
-					options->userclass.data,
-					options->userclass.len);
+	/* Discover server able to provide usable offer */
+	if (!(message = __ni_dhcp4_build_msg_init_head(dev, msg_code, msgbuf)))
+		return -1;
 
-		if (options->classid && options->classid[0])
-			ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
+	if (__ni_dhcp4_build_msg_put_hwspec(dev, message) < 0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_client_id(dev, msg_code, message, msgbuf) <  0)
+		return -1;
+
+	/* An optional hint that we've had this address in the past,
+	 * so the server __may__ assign it again to us.
+	 */
+	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
+	if (ni_sockaddr_is_ipv4_specified(&addr)) {
+		ni_dhcp4_option_put_ipv4(msgbuf, DHCP4_ADDRESS, lease->dhcp4.address);
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: using ip-address hint: %s",
+				dev->ifname, ni_sockaddr_print(&addr));
 	}
 
-	if (msg_code == DHCP4_DECLINE) {
-		if (lease->dhcp4.address.s_addr)
-			ni_dhcp4_option_put_ipv4(msgbuf, DHCP4_ADDRESS, lease->dhcp4.address);
-	} else
-	if (msg_code == DHCP4_DISCOVER || msg_code == DHCP4_REQUEST) {
-		if (lease->dhcp4.address.s_addr)
-			ni_dhcp4_option_put_ipv4(msgbuf, DHCP4_ADDRESS, lease->dhcp4.address);
-		if (lease->dhcp4.lease_time != 0)
-			ni_dhcp4_option_put32(msgbuf, DHCP4_LEASETIME, lease->dhcp4.lease_time);
+	if (__ni_dhcp4_build_msg_put_option_request(dev, msg_code, msgbuf) <  0)
+		return -1;
+
+	ni_dhcp4_option_put16(msgbuf, DHCP4_MAXMESSAGESIZE, dev->system.mtu);
+
+	if (lease->dhcp4.lease_time != 0) {
+		ni_dhcp4_option_put32(msgbuf, DHCP4_LEASETIME,
+					lease->dhcp4.lease_time);
 	}
 
-	if (msg_code == DHCP4_REQUEST || msg_code == DHCP4_DECLINE) {
-		if (lease->dhcp4.server_id.s_addr)
-			ni_dhcp4_option_put_ipv4(msgbuf, DHCP4_SERVERIDENTIFIER, lease->dhcp4.server_id);
+	if (options->userclass.len > 0) {
+		ni_dhcp4_option_put(msgbuf, DHCP4_USERCLASS,
+				options->userclass.data,
+				options->userclass.len);
 	}
 
-	if (msg_code == DHCP4_DISCOVER || msg_code == DHCP4_INFORM || msg_code == DHCP4_REQUEST) {
-		unsigned int params_begin;
-
-		if (msg_code != DHCP4_DISCOVER &&
-			options->hostname && options->hostname[0]) {
-
-			if (options->fqdn == FQDN_DISABLE) {
-				char hname[64] = {'\0'}, *end;
-				size_t len;
-
-				/*
-				 * Truncate the domain part if fqdn to avoid attempts
-				 * to update DNS with foo.bar + update-domain.
-				 */
-				strncat(hname, options->hostname, sizeof(hname)-1);
-				if ((end = strchr(hname, '.')))
-					*end = '\0';
-
-				len = ni_string_len(hname);
-				if (ni_check_domain_name(hname, len, 0)) {
-					ni_dhcp4_option_puts(msgbuf, DHCP4_HOSTNAME,
-									hname);
-				} else {
-					ni_info("Not sending suspect hostname: '%s'",
-						ni_print_suspect(hname, len));
-				}
-			} else {
-				/* IETF DHC-FQDN option(81)
-				 * http://tools.ietf.org/html/rfc4702#section-2.1
-				 *
-				 * Flags: 0000NEOS
-				 * S: 1 => Client requests Server to update
-				 *         a RR in DNS as well as PTR
-				 * O: 1 => Server indicates to client that
-				 *         DNS has been updated
-				 * E: 1 => Name data is DNS format
-				 * N: 1 => Client requests Server to not
-				 *         update DNS
-				 */
-				ni_buffer_putc(msgbuf, DHCP4_FQDN);
-				ni_buffer_putc(msgbuf, strlen(options->hostname) + 3);
-				ni_buffer_putc(msgbuf, options->fqdn & 0x9);
-				ni_buffer_putc(msgbuf, 0);	/* from server for PTR RR */
-				ni_buffer_putc(msgbuf, 0);	/* from server for A RR if S=1 */
-				ni_buffer_put(msgbuf, options->hostname, strlen(options->hostname));
-			}
-		}
-
-		params_begin = ni_dhcp4_option_begin(msgbuf, DHCP4_PARAMETERREQUESTLIST);
-		if (msg_code != DHCP4_INFORM) {
-			ni_buffer_putc(msgbuf, DHCP4_RENEWALTIME);
-			ni_buffer_putc(msgbuf, DHCP4_REBINDTIME);
-		}
-		ni_buffer_putc(msgbuf, DHCP4_NETMASK);
-		ni_buffer_putc(msgbuf, DHCP4_BROADCAST);
-		ni_buffer_putc(msgbuf, DHCP4_MTU);
-
-		if (options->doflags & DHCP4_DO_CSR) {
-			ni_buffer_putc(msgbuf, DHCP4_CSR);
-		}
-		if (options->doflags & DHCP4_DO_MSCSR) {
-			ni_buffer_putc(msgbuf, DHCP4_MSCSR);
-		}
-		/* RFC 3442 states classless static routes should be
-		 * before routers and static routes as classless static
-		 * routes override them both */
-		if (options->doflags & DHCP4_DO_GATEWAY) {
-			ni_buffer_putc(msgbuf, DHCP4_STATICROUTE);
-			ni_buffer_putc(msgbuf, DHCP4_ROUTERS);
-		}
-		if (options->doflags & DHCP4_DO_HOSTNAME) {
-			if (options->fqdn == FQDN_DISABLE)
-				ni_buffer_putc(msgbuf, DHCP4_HOSTNAME);
-			else
-				ni_buffer_putc(msgbuf, DHCP4_FQDN);
-		}
-		if (options->doflags & DHCP4_DO_DNS) {
-			ni_buffer_putc(msgbuf, DHCP4_DNSSEARCH);
-			ni_buffer_putc(msgbuf, DHCP4_DNSDOMAIN);
-			ni_buffer_putc(msgbuf, DHCP4_DNSSERVER);
-		}
-		if (options->doflags & DHCP4_DO_NIS) {
-			ni_buffer_putc(msgbuf, DHCP4_NISDOMAIN);
-			ni_buffer_putc(msgbuf, DHCP4_NISSERVER);
-		}
-		if (options->doflags & DHCP4_DO_NTP) {
-			ni_buffer_putc(msgbuf, DHCP4_NTPSERVER);
-		}
-		if (options->doflags & DHCP4_DO_ROOT) {
-			ni_buffer_putc(msgbuf, DHCP4_ROOTPATH);
-		}
-		if (options->doflags & DHCP4_DO_LPR) {
-			ni_buffer_putc(msgbuf, DHCP4_LPRSERVER);
-		}
-		if (options->doflags & DHCP4_DO_LOG) {
-			ni_buffer_putc(msgbuf, DHCP4_LOGSERVER);
-		}
-		if (options->doflags & DHCP4_DO_NDS) {
-			ni_buffer_putc(msgbuf, DHCP4_NDS_SERVER);
-			ni_buffer_putc(msgbuf, DHCP4_NDS_TREE);
-			ni_buffer_putc(msgbuf, DHCP4_NDS_CTX);
-		}
-		if (options->doflags & DHCP4_DO_SIP) {
-			ni_buffer_putc(msgbuf, DHCP4_SIPSERVER);
-		}
-		if (options->doflags & DHCP4_DO_SMB) {
-			ni_buffer_putc(msgbuf, DHCP4_NETBIOSNAMESERVER);
-			ni_buffer_putc(msgbuf, DHCP4_NETBIOSDDSERVER);
-			ni_buffer_putc(msgbuf, DHCP4_NETBIOSNODETYPE);
-			ni_buffer_putc(msgbuf, DHCP4_NETBIOSSCOPE);
-		}
-		if (options->doflags & DHCP4_DO_POSIX_TZ) {
-			ni_buffer_putc(msgbuf, DHCP4_POSIX_TZ_STRING);
-			ni_buffer_putc(msgbuf, DHCP4_POSIX_TZ_DBNAME);
-		}
-		ni_dhcp4_option_end(msgbuf, params_begin);
+	if (options->classid && options->classid[0]) {
+		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
+
+	return 0;
+}
+
+static int
+__ni_dhcp4_build_msg_decline(const ni_dhcp4_device_t *dev,
+			const ni_addrconf_lease_t *lease,
+			ni_buffer_t *msgbuf)
+{
+	unsigned int msg_code = DHCP4_DECLINE;
+	ni_dhcp4_message_t *message;
+	ni_sockaddr_t addr;
+
+	/* Decline IP address the server offered to us;
+	 * we've found another host using it already.
+	 */
+	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
+	if (!ni_sockaddr_is_ipv4_specified(&addr)) {
+		ni_error("%s: cannot decline - no ip-address in lease", dev->ifname);
+		return -1;
+	}
+
+	if (!(message = __ni_dhcp4_build_msg_init_head(dev, msg_code, msgbuf)))
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_hwspec(dev, message) < 0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_client_id(dev, msg_code, message, msgbuf) <  0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_server_id(dev, lease, msg_code, msgbuf) <  0)
+		return -1;
+
+	ni_dhcp4_option_put_ipv4(msgbuf, DHCP4_ADDRESS, lease->dhcp4.address);
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+			"%s: using decline ip-address: %s",
+			dev->ifname, ni_sockaddr_print(&addr));
+	return 0;
+}
+
+static int
+__ni_dhcp4_build_msg_release(const ni_dhcp4_device_t *dev,
+			const ni_addrconf_lease_t *lease,
+			ni_buffer_t *msgbuf)
+{
+	unsigned int msg_code = DHCP4_RELEASE;
+	ni_dhcp4_message_t *message;
+	ni_sockaddr_t addr;
+
+	/* Release an IP address from a lease we own */
+	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
+	if (!ni_sockaddr_is_ipv4_specified(&addr)) {
+		ni_error("%s: cannot release - no ip-address in lease", dev->ifname);
+		return -1;
+	}
+
+	if (!(message = __ni_dhcp4_build_msg_init_head(dev, msg_code, msgbuf)))
+		return -1;
+
+	message->ciaddr = lease->dhcp4.address.s_addr;
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+			"%s: using release ip-address: %s",
+			dev->ifname, ni_sockaddr_print(&addr));
+
+	if (__ni_dhcp4_build_msg_put_hwspec(dev, message) < 0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_client_id(dev, msg_code, message, msgbuf) <  0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_server_id(dev, lease, msg_code, msgbuf) <  0)
+		return -1;
+
+	return 0;
+}
+
+int
+__ni_dhcp4_build_msg_inform(const ni_dhcp4_device_t *dev,
+			const ni_addrconf_lease_t *lease,
+			ni_buffer_t *msgbuf)
+{
+	const ni_dhcp4_config_t *options = dev->config;
+	unsigned int msg_code = DHCP4_INFORM;
+	ni_dhcp4_message_t *message;
+	ni_sockaddr_t addr;
+
+	/* Inform server about IP address we use and request other config */
+	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
+	if (!ni_sockaddr_is_ipv4_specified(&addr)) {
+		ni_error("%s: cannot inform - no ip-address set", dev->ifname);
+		return -1;
+	}
+
+	if (!(message = __ni_dhcp4_build_msg_init_head(dev, msg_code, msgbuf)))
+		return -1;
+
+	message->ciaddr = lease->dhcp4.address.s_addr;
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+			"%s: using inform ip-address: %s",
+			dev->ifname, ni_sockaddr_print(&addr));
+
+	if (__ni_dhcp4_build_msg_put_hwspec(dev, message) < 0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_client_id(dev, msg_code, message, msgbuf) <  0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_option_request(dev, msg_code, msgbuf) <  0)
+		return -1;
+
+	ni_dhcp4_option_put16(msgbuf, DHCP4_MAXMESSAGESIZE, dev->system.mtu);
+
+	if (options->userclass.len > 0) {
+		ni_dhcp4_option_put(msgbuf, DHCP4_USERCLASS,
+				options->userclass.data,
+				options->userclass.len);
+	}
+
+	if (options->classid && options->classid[0]) {
+		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
+	}
+
+	return 0;
+}
+
+int
+__ni_dhcp4_build_msg_request_offer(const ni_dhcp4_device_t *dev,
+			const ni_addrconf_lease_t *lease,
+			ni_buffer_t *msgbuf)
+{
+	const ni_dhcp4_config_t *options = dev->config;
+	unsigned int msg_code = DHCP4_REQUEST;
+	ni_dhcp4_message_t *message;
+	ni_sockaddr_t addr;
+
+	/* Request an offer provided by a server (id!) while discover */
+	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
+	if (!ni_sockaddr_is_ipv4_specified(&addr)) {
+		ni_error("%s: not requesting this offer - no ip-address in lease",
+				dev->ifname);
+		return -1;
+	}
+
+	if (!(message = __ni_dhcp4_build_msg_init_head(dev, msg_code, msgbuf)))
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_hwspec(dev, message) < 0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_client_id(dev, msg_code, message, msgbuf) <  0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_server_id(dev, lease, msg_code, msgbuf) <  0)
+		return -1;
+
+	ni_dhcp4_option_put_ipv4(msgbuf, DHCP4_ADDRESS, lease->dhcp4.address);
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+			"%s: using offered ip-address: %s",
+			dev->ifname, ni_sockaddr_print(&addr));
+
+	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf) < 0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_option_request(dev, msg_code, msgbuf) <  0)
+		return -1;
+
+	ni_dhcp4_option_put16(msgbuf, DHCP4_MAXMESSAGESIZE, dev->system.mtu);
+
+	if (lease->dhcp4.lease_time != 0) {
+		ni_dhcp4_option_put32(msgbuf, DHCP4_LEASETIME,
+					lease->dhcp4.lease_time);
+	}
+
+	if (options->userclass.len > 0) {
+		ni_dhcp4_option_put(msgbuf, DHCP4_USERCLASS,
+				options->userclass.data,
+				options->userclass.len);
+	}
+
+	if (options->classid && options->classid[0]) {
+		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
+	}
+
+	return 0;
+}
+
+int
+__ni_dhcp4_build_msg_request_renew(const ni_dhcp4_device_t *dev,
+			const ni_addrconf_lease_t *lease,
+			ni_buffer_t *msgbuf)
+{
+	const ni_dhcp4_config_t *options = dev->config;
+	unsigned int msg_code = DHCP4_REQUEST;
+	ni_dhcp4_message_t *message;
+	ni_sockaddr_t addr;
+
+	/* Request a lease renewal (unicast to server, no id) */
+	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
+	if (!ni_sockaddr_is_ipv4_specified(&addr)) {
+		ni_error("%s: cannot renew - no ip-address in lease",
+				dev->ifname);
+		return -1;
+	}
+
+	if (!(message = __ni_dhcp4_build_msg_init_head(dev, msg_code, msgbuf)))
+		return -1;
+
+	message->ciaddr = lease->dhcp4.address.s_addr;
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+			"%s: using renew ip-address: %s",
+			dev->ifname, ni_sockaddr_print(&addr));
+
+	if (__ni_dhcp4_build_msg_put_hwspec(dev, message) < 0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_client_id(dev, msg_code, message, msgbuf) <  0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf) < 0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_option_request(dev, msg_code, msgbuf) <  0)
+		return -1;
+
+	ni_dhcp4_option_put16(msgbuf, DHCP4_MAXMESSAGESIZE, dev->system.mtu);
+
+#if 0
+	if (lease->dhcp4.lease_time != 0) {
+		ni_dhcp4_option_put32(msgbuf, DHCP4_LEASETIME,
+					lease->dhcp4.lease_time);
+	}
+#endif
+
+	if (options->userclass.len > 0) {
+		ni_dhcp4_option_put(msgbuf, DHCP4_USERCLASS,
+				options->userclass.data,
+				options->userclass.len);
+	}
+
+	if (options->classid && options->classid[0]) {
+		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
+	}
+
+	return 0;
+}
+
+int
+__ni_dhcp4_build_msg_request_rebind(const ni_dhcp4_device_t *dev,
+			const ni_addrconf_lease_t *lease,
+			ni_buffer_t *msgbuf)
+{
+	const ni_dhcp4_config_t *options = dev->config;
+	unsigned int msg_code = DHCP4_REQUEST;
+	ni_dhcp4_message_t *message;
+	ni_sockaddr_t addr;
+
+	/* Request a lease rebind from another server (no id) */
+	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
+	if (!ni_sockaddr_is_ipv4_specified(&addr)) {
+		ni_error("%s: cannot rebind - no ip-address in lease",
+				dev->ifname);
+		return -1;
+	}
+
+	if (!(message = __ni_dhcp4_build_msg_init_head(dev, msg_code, msgbuf)))
+		return -1;
+
+	message->ciaddr = lease->dhcp4.address.s_addr;
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+			"%s: using rebind ip-address: %s",
+			dev->ifname, ni_sockaddr_print(&addr));
+
+	if (__ni_dhcp4_build_msg_put_hwspec(dev, message) < 0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_client_id(dev, msg_code, message, msgbuf) <  0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf) < 0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_option_request(dev, msg_code, msgbuf) <  0)
+		return -1;
+
+	ni_dhcp4_option_put16(msgbuf, DHCP4_MAXMESSAGESIZE, dev->system.mtu);
+
+#if 0
+	if (lease->dhcp4.lease_time != 0) {
+		ni_dhcp4_option_put32(msgbuf, DHCP4_LEASETIME,
+					lease->dhcp4.lease_time);
+	}
+#endif
+
+	if (options->userclass.len > 0) {
+		ni_dhcp4_option_put(msgbuf, DHCP4_USERCLASS,
+				options->userclass.data,
+				options->userclass.len);
+	}
+
+	if (options->classid && options->classid[0]) {
+		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
+	}
+
+	return 0;
+}
+
+int
+__ni_dhcp4_build_msg_request_reboot(const ni_dhcp4_device_t *dev,
+			const ni_addrconf_lease_t *lease,
+			ni_buffer_t *msgbuf)
+{
+	const ni_dhcp4_config_t *options = dev->config;
+	unsigned int msg_code = DHCP4_REQUEST;
+	ni_dhcp4_message_t *message;
+	ni_sockaddr_t addr;
+
+	/* Request an lease after reboot to reuse old lease (no server id) */
+	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
+	if (!ni_sockaddr_is_ipv4_specified(&addr)) {
+		ni_error("%s: not reusing lease - no ip-address in lease",
+				dev->ifname);
+		return -1;
+	}
+
+	if (!(message = __ni_dhcp4_build_msg_init_head(dev, msg_code, msgbuf)))
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_hwspec(dev, message) < 0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_client_id(dev, msg_code, message, msgbuf) <  0)
+		return -1;
+
+	ni_dhcp4_option_put_ipv4(msgbuf, DHCP4_ADDRESS, lease->dhcp4.address);
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+			"%s: using reused ip-address: %s",
+			dev->ifname, ni_sockaddr_print(&addr));
+
+	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf) < 0)
+		return -1;
+
+	if (__ni_dhcp4_build_msg_put_option_request(dev, msg_code, msgbuf) <  0)
+		return -1;
+
+	ni_dhcp4_option_put16(msgbuf, DHCP4_MAXMESSAGESIZE, dev->system.mtu);
+
+#if 0
+	if (lease->dhcp4.lease_time != 0) {
+		ni_dhcp4_option_put32(msgbuf, DHCP4_LEASETIME,
+					lease->dhcp4.lease_time);
+	}
+#endif
+
+	if (options->userclass.len > 0) {
+		ni_dhcp4_option_put(msgbuf, DHCP4_USERCLASS,
+				options->userclass.data,
+				options->userclass.len);
+	}
+
+	if (options->classid && options->classid[0]) {
+		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
+	}
+
+	return 0;
+}
+
+int
+ni_dhcp4_build_message(const ni_dhcp4_device_t *dev, unsigned int msg_code,
+			const ni_addrconf_lease_t *lease, ni_buffer_t *msgbuf)
+{
+	const ni_dhcp4_config_t *options = dev->config;
+	struct in_addr src_addr, dst_addr;
+	int renew = dev->fsm.state == NI_DHCP4_STATE_RENEWING && msg_code == DHCP4_REQUEST;
+
+	if (!options || !lease) {
+		ni_error("%s: %s: %s: missing %s %s", __func__,
+				dev->ifname, ni_dhcp4_message_name(msg_code),
+				options? "" : "options", lease ? "" : "lease");
+		return -1;
+	}
+
+	if (IN_LINKLOCAL(ntohl(lease->dhcp4.address.s_addr))) {
+		ni_error("%s: cannot request a link local address", dev->ifname);
+		goto failed;
+	}
+
+	/* Reserve some room for the IP and UDP header */
+	if (!renew)
+		ni_buffer_reserve_head(msgbuf, sizeof(struct ip) + sizeof(struct udphdr));
+
+	src_addr.s_addr = dst_addr.s_addr = 0;
+	switch (msg_code) {
+	case DHCP4_INFORM:
+		if (__ni_dhcp4_build_msg_inform(dev, lease, msgbuf) < 0)
+			goto failed;
+		break;
+
+	case DHCP4_DISCOVER:
+		if (__ni_dhcp4_build_msg_discover(dev, lease, msgbuf) < 0)
+			goto failed;
+		break;
+
+	case DHCP4_DECLINE:
+		if (__ni_dhcp4_build_msg_decline(dev, lease, msgbuf) < 0)
+			goto failed;
+		break;
+
+	case DHCP4_RELEASE:
+		if (__ni_dhcp4_build_msg_release(dev, lease, msgbuf) < 0)
+			goto failed;
+		break;
+
+	case DHCP4_REQUEST:
+		switch (dev->fsm.state) {
+		case NI_DHCP4_STATE_REQUESTING:
+			src_addr.s_addr = 0;
+			dst_addr.s_addr = 0;
+
+			if (__ni_dhcp4_build_msg_request_offer(dev, lease, msgbuf) < 0)
+				goto failed;
+			break;
+
+		case NI_DHCP4_STATE_RENEWING:
+			src_addr = lease->dhcp4.address;
+			dst_addr = lease->dhcp4.server_id;
+
+			if (__ni_dhcp4_build_msg_request_renew(dev, lease, msgbuf) < 0)
+				goto failed;
+			break;
+
+		case NI_DHCP4_STATE_REBINDING:
+			src_addr = lease->dhcp4.address;
+			dst_addr.s_addr = 0;
+
+			if (__ni_dhcp4_build_msg_request_rebind(dev, lease, msgbuf) < 0)
+				goto failed;
+			break;
+
+		case NI_DHCP4_STATE_REBOOT:
+			src_addr.s_addr = 0;
+			dst_addr.s_addr = 0;
+
+			if (__ni_dhcp4_build_msg_request_reboot(dev, lease, msgbuf) < 0)
+				goto failed;
+			break;
+
+		default:
+			goto failed;
+		}
+		break;
+
+	default:
+		goto failed;
+	}
+
 	ni_buffer_putc(msgbuf, DHCP4_END);
 
 #ifdef BOOTP_MESSAGE_LENGTH_MIN
 	ni_buffer_pad(msgbuf, BOOTP_MESSAGE_LENGTH_MIN, DHCP4_PAD);
 #endif
 
-	if (!renew && ni_capture_build_udp_header(msgbuf, src_addr, DHCP4_CLIENT_PORT, dst_addr, DHCP4_SERVER_PORT) < 0) {
+	if (!renew && ni_capture_build_udp_header(msgbuf, src_addr,
+			DHCP4_CLIENT_PORT, dst_addr, DHCP4_SERVER_PORT) < 0) {
 		ni_error("%s: unable to build packet header", dev->ifname);
 		goto failed;
 	}
 
 	return 0;
-
 failed:
 	return -1;
 }

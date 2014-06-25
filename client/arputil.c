@@ -61,27 +61,86 @@ struct arp_handle {
 static ni_bool_t	__do_arp_validate_send(struct arp_handle *);
 
 static void
+__do_arp_handle_close(struct arp_handle *handle)
+{
+	if (handle) {
+		if (handle->sock)
+			ni_arp_socket_close(handle->sock);
+		handle->sock = NULL;
+		ni_server_deactivate_interface_events();
+	}
+}
+
+static void
 __do_arp_validate_process(ni_arp_socket_t *sock, const ni_arp_packet_t *pkt,
 		void *user_data)
 {
 	struct arp_handle *handle = user_data;
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	const ni_netdev_t *ifp;
+	ni_bool_t false_alarm = FALSE;
+	ni_bool_t found_addr = FALSE;
+	const ni_address_t *ap;
+	ni_sockaddr_t addr;
 
-	if (pkt->op != ARPOP_REPLY || !handle->replies)
+	if (!pkt || pkt->op != ARPOP_REPLY || !handle->replies)
 		return;
 
+	/* Is it about the address we're validating at all? */
+	if (pkt->sip.s_addr != handle->ipaddr.sin.sin_addr.s_addr) {
+		ni_debug_application("%s: report about different address",
+				handle->ifname);
+		return;
+	}
+
+	/* Ignore any ARP replies that seem to come from our own
+	 * MAC address. Some helpful switches seem to generate
+	 * these. */
 	if (ni_link_address_equal(&sock->dev_info.hwaddr, &pkt->sha)) {
 		ni_debug_application("%s: adress in use by ourself",
 				handle->ifname);
 		return;
 	}
 
-	if (pkt->sip.s_addr == handle->ipaddr.sin.sin_addr.s_addr) {
-		ni_info("%s: adress %s in use by %s reported",
-				handle->ifname,
-				inet_ntoa(pkt->sip),
-				ni_link_address_print(&pkt->sha));
-		handle->hwaddr = pkt->sha;
+	/* As well as ARP replies that seem to come from our own
+	 * host: dup if same address, not a dup if there are two
+	 * interfaces connected to the same broadcast domain.
+	 */
+	ni_sockaddr_set_ipv4(&addr, pkt->sip, 0);
+	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
+		if (ifp->link.ifindex == sock->dev_info.ifindex)
+			continue;
+
+		if (!ni_netdev_link_is_up(ifp))
+			continue;
+
+		if (!ni_link_address_equal(&ifp->link.hwaddr, &pkt->sha))
+			continue;
+
+		/* OK, we have an interface matching the hwaddr,
+		 * which will answer arp requests when it is on
+		 * the same broadcast domain and causes a false
+		 * alarm, except it really has the IP assigned.
+		 */
+		false_alarm = TRUE;
+		for (ap = ifp->addrs; !found_addr && ap; ap = ap->next) {
+			if (ap->family != AF_INET)
+				continue;
+			if (ni_sockaddr_equal(&ap->local_addr, &addr))
+				found_addr = TRUE;
+		}
 	}
+	if (false_alarm && !found_addr) {
+		ni_debug_application("%s: reply from one of our interfaces",
+				handle->ifname);
+		return;
+	}
+
+	ni_info("%s: adress %s in use by %s reported",
+			handle->ifname,
+			inet_ntoa(pkt->sip),
+			ni_link_address_print(&pkt->sha));
+	handle->hwaddr = pkt->sha;
 }
 
 static void
@@ -94,9 +153,7 @@ __do_arp_validate_timeout(void *user_data, const ni_timer_t *timer)
 
 	handle->timer = NULL;
 	if (!__do_arp_validate_send(handle)) {
-		if (handle->sock)
-			ni_arp_socket_close(handle->sock);
-		handle->sock = NULL;
+		__do_arp_handle_close(handle);
 	}
 }
 
@@ -141,8 +198,7 @@ __do_arp_validate_send(struct arp_handle *handle)
 			if (handle->nclaims) {
 				__do_arp_validate_arm_timer(handle);
 			} else if (handle->sock) {
-				ni_arp_socket_close(handle->sock);
-				handle->sock = NULL;
+				__do_arp_handle_close(handle);
 			}
 		}
 	}
@@ -155,16 +211,25 @@ __do_arp_validate_init(struct arp_handle *handle, ni_capture_devinfo_t *dev_info
 	ni_netconfig_t *nc;
 	ni_netdev_t *dev;
 
+	if (ni_server_listen_interface_events(NULL) < 0) {
+		ni_error("unable to initialize netlink link listener");
+		return NI_LSB_RC_ERROR;
+	}
+	if (ni_server_enable_interface_addr_events(NULL) < 0) {
+		ni_error("unable to initialize netlink addr listener");
+		return NI_LSB_RC_ERROR;
+	}
+
 	if (!(nc = ni_global_state_handle(1))) {
 		ni_error("Cannot refresh interface list!");
 		return NI_LSB_RC_ERROR;
 	}
+
 	if (!(dev = ni_netdev_by_name(nc, handle->ifname))) {
 		ni_error("Cannot find interface with name '%s'",
 				handle->ifname);
 		return NI_LSB_RC_ERROR;
 	}
-
 	if (!ni_netdev_supports_arp(dev)) {
 		ni_error("%s: arp is not supported/enabled", dev->name);
 		return NI_LSB_RC_ERROR;
@@ -195,16 +260,12 @@ __do_arp_validate(struct arp_handle *handle)
 			__do_arp_validate_process, handle);
 	if (!handle->sock || !handle->sock->user_data) {
 		ni_error("%s: Cannot initialize arp socket", handle->ifname);
-		if (handle->sock)
-			ni_arp_socket_close(handle->sock);
-		handle->sock = NULL;
+		__do_arp_handle_close(handle);
 		return NI_LSB_RC_ERROR;
 	}
 
 	if (!__do_arp_validate_send(handle)) {
-		if (handle->sock)
-			ni_arp_socket_close(handle->sock);
-		handle->sock = NULL;
+		__do_arp_handle_close(handle);
 		ni_error("%s: Cannot send arp packet", handle->ifname);
 		return NI_LSB_RC_ERROR;
 	}
@@ -223,10 +284,7 @@ __do_arp_validate(struct arp_handle *handle)
 		ni_timer_cancel(handle->timer);
 		handle->timer = NULL;
 	}
-	if (handle->sock) {
-		ni_arp_socket_close(handle->sock);
-		handle->sock = NULL;
-	}
+	__do_arp_handle_close(handle);
 
 	return handle->hwaddr.len ? NI_LSB_RC_NOT_ALLOWED : ret;
 }
