@@ -55,7 +55,6 @@ BuildRequires:  pkg-config
 
 %if %{with systemd}
 %{?systemd_requires}
-BuildRequires:  pkgconfig(systemd)
 %if 0%{?suse_version:1}
 Requires(pre):  %fillup_prereq
 Requires:       sysconfig-netconfig
@@ -160,6 +159,7 @@ export CFLAGS="$RPM_OPT_FLAGS"
 	--with-compat=suse		\
 %if %{with systemd}
 	--enable-systemd		\
+	--with-systemd-unitdir=%{_unitdir} \
 %else
 	--enable-systemv		\
 %endif
