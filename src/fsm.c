@@ -1949,6 +1949,9 @@ __ni_ifworker_flatten(ni_ifworker_t *w, ni_ifworker_array_t *array, unsigned int
 	for (i = 0; i < w->children.count; ++i) {
 		ni_ifworker_t *child = w->children.data[i];
 
+		if (ni_ifworker_is_running(child))
+			continue;
+
 		if (ni_ifworker_array_index(array, child) < 0)
 			ni_ifworker_array_append(array, child);
 		__ni_ifworker_flatten(child, array, depth + 1);
