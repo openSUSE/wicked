@@ -29,4 +29,6 @@
 
 extern int		ni_do_ifreload(int argc, char **argv);
 
+extern void		ni_ifup_pull_in_children(ni_ifworker_array_t *);
+
 #endif /* __WICKED_CLIENT_IFRELOAD_H__ */
