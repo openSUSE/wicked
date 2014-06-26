@@ -104,11 +104,27 @@ static int		do_xpath(int, char **);
 static int		do_get_names(int, char **);
 static int		do_convert(int, char **);
 
+static void
+show_exec_info(int argc, char **argv)
+{
+	ni_stringbuf_t args = NI_STRINGBUF_INIT_DYNAMIC;
+	int i;
+
+	for (i = 0; i < argc && argv[i]; ++i) {
+		if (i != 0)
+			ni_stringbuf_putc(&args, ' ');
+		ni_stringbuf_puts(&args, argv[i]);
+	}
+
+	ni_debug_application("Executing: %s", args.string);
+	ni_stringbuf_destroy(&args);
+}
+
 int
 main(int argc, char **argv)
 {
 	char *cmd;
-	int c;
+	int c, status = NI_WICKED_RC_USAGE;
 
 	mtrace();
 
@@ -118,6 +134,7 @@ main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_HELP:
+			status = NI_WICKED_ST_OK;
 		default:
 		usage:
 			fprintf(stderr,
@@ -161,16 +178,18 @@ main(int argc, char **argv)
 				"  xpath       [options] expr ...\n"
 				"  arp         [options] <ifname> <IP>\n"
 				);
-			return (c == OPT_HELP ? NI_WICKED_RC_SUCCESS : NI_WICKED_RC_USAGE);
+			goto done;
 
 		case OPT_VERSION:
 			printf("%s %s\n", program_name, PACKAGE_VERSION);
-			return NI_WICKED_RC_SUCCESS;
+			status  = NI_WICKED_RC_SUCCESS;
+			goto done;
 
 		case OPT_CONFIGFILE:
 			if (!ni_set_global_config_path(optarg)) {
 				fprintf(stderr, "Unable to set config file '%s': %m\n", optarg);
-				return NI_WICKED_RC_ERROR;
+				status = NI_WICKED_RC_ERROR;
+				goto done;
 			}
 			break;
 
@@ -178,7 +197,8 @@ main(int argc, char **argv)
 			if (!strcmp(optarg, "help")) {
 				printf("Supported debug facilities:\n");
 				ni_debug_help();
-				return NI_WICKED_RC_SUCCESS;
+				status = NI_WICKED_RC_SUCCESS;
+				goto done;
 			}
 			if (ni_enable_debug(optarg) < 0) {
 				fprintf(stderr, "Bad debug facility \"%s\"\n", optarg);
@@ -230,61 +250,70 @@ main(int argc, char **argv)
 		ni_log_destination(program_name, "syslog:user:perror");
 	}
 
-	if (ni_init("client") < 0)
-		return NI_WICKED_RC_ERROR;
+	if (ni_init("client") < 0) {
+		status = NI_WICKED_RC_ERROR;
+		goto done;
+	}
 
 	cmd = argv[optind];
-
-	if (!strcmp(cmd, "help"))
+	if (!strcmp(cmd, "help")) {
 		goto usage;
+	}
 
-	if (!strcmp(cmd, "ifup"))
-		return ni_do_ifup(argc - optind, argv + optind);
+	show_exec_info(argc, argv);
 
-	if (!strcmp(cmd, "ifdown"))
-		return ni_do_ifdown(argc - optind, argv + optind);
+	if (!strcmp(cmd, "ifup")) {
+		status = ni_do_ifup(argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "ifdown")) {
+		status = ni_do_ifdown(argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "ifcheck")) {
+		status = ni_do_ifcheck(argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "ifreload")) {
+		status = ni_do_ifreload(argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "ifstatus")) {
+		status = ni_do_ifstatus(argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "show")) {
+		status = ni_do_ifstatus(argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "show-xml")) {
+		status = do_show_xml(argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "show-config")) {
+		status = do_show_config(argc - optind, argv + optind, NULL);
+	} else
+	if (!strcmp(cmd, "nanny")) {
+		status = do_nanny(argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "xpath")) {
+		status = do_xpath(argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "lease")) {
+		status = do_lease(argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "check")) {
+		status = do_check(argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "getnames")) {
+		status = do_get_names(argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "convert")) {
+		status = do_convert(argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "arp")) {
+		status = ni_do_arp(argc - optind, argv + optind);
+	} else {
+		fprintf(stderr, "Unsupported command %s\n", cmd);
+		goto usage;
+	}
 
-	if (!strcmp(cmd, "ifcheck"))
-		return ni_do_ifcheck(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "ifreload"))
-		return ni_do_ifreload(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "ifstatus"))
-		return ni_do_ifstatus(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "show"))
-		return ni_do_ifstatus(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "show-xml"))
-		return do_show_xml(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "show-config"))
-		return do_show_config(argc - optind, argv + optind, NULL);
-
-	if (!strcmp(cmd, "nanny"))
-		return do_nanny(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "xpath"))
-		return do_xpath(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "lease"))
-		return do_lease(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "check"))
-		return do_check(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "getnames"))
-		return do_get_names(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "convert"))
-		return do_convert(argc - optind, argv + optind);
-
-	if (!strcmp(cmd, "arp"))
-		return ni_do_arp(argc - optind, argv + optind);
-
-	fprintf(stderr, "Unsupported command %s\n", cmd);
-	goto usage;
+done:
+	ni_debug_application("Exit with status: %d", status);
+	return status;
 }
 
 /*
