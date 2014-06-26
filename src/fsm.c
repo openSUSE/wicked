@@ -354,8 +354,12 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 	va_end(ap);
 
 	ni_error("device %s failed: %s", w->name, errmsg);
+	/* memset(&w->fsm, 0, sizeof(w->fsm)); */
 	w->fsm.state = w->target_state = NI_FSM_STATE_NONE;
 	w->failed = TRUE;
+
+	if (w->progress.callback)
+		w->progress.callback(w, w->fsm.state);
 
 	__ni_ifworker_done(w);
 }
@@ -363,12 +367,25 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 void
 ni_ifworker_success(ni_ifworker_t *w)
 {
-	if (!w->done)
+	if (!w->done && !w->progress.callback)
 		printf("%s: %s\n", w->name, ni_ifworker_state_name(w->fsm.state));
 
 	__ni_ifworker_done(w);
 
+	if (w->progress.callback)
+		w->progress.callback(w, w->fsm.state);
+
 	ni_ifworker_cancel_timeout(w);
+}
+
+/*
+ * Set the progress callback
+ */
+void
+ni_ifworker_set_progress_callback(ni_ifworker_t *w, void (*cb)(ni_ifworker_t *, ni_fsm_state_t), void *user_data)
+{
+	w->progress.callback = cb;
+	w->progress.user_data = user_data;
 }
 
 /*
@@ -1056,6 +1073,9 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 	unsigned int prev_state = w->fsm.state;
 
 	if (prev_state != new_state) {
+		if (w->progress.callback)
+			w->progress.callback(w, new_state);
+
 		w->fsm.state = new_state;
 
 		ni_debug_application("%s: changed state %s -> %s%s",

@@ -179,6 +179,11 @@ struct ni_ifworker {
 	} fsm;
 
 	struct {
+		void            (*callback)(ni_ifworker_t *, ni_fsm_state_t);
+		void *          user_data;
+	} progress;
+
+	struct {
 		void		(*callback)(ni_ifworker_t *);
 		void *		user_data;
 	} completion;
@@ -297,6 +302,7 @@ extern int			ni_ifworker_bind_early(ni_ifworker_t *, ni_fsm_t *, ni_bool_t);
 extern int			ni_ifworker_start(ni_fsm_t *, ni_ifworker_t *, unsigned long);
 extern void			ni_ifworker_fail(ni_ifworker_t *, const char *, ...);
 extern void			ni_ifworker_success(ni_ifworker_t *);
+extern void			ni_ifworker_set_progress_callback(ni_ifworker_t *, void (*)(ni_ifworker_t *, ni_fsm_state_t), void *);
 extern void			ni_ifworker_set_completion_callback(ni_ifworker_t *, void (*)(ni_ifworker_t *), void *);
 extern ni_rfkill_type_t		ni_ifworker_get_rfkill_type(const ni_ifworker_t *);
 extern void			ni_ifworker_free(ni_ifworker_t *);
