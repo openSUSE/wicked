@@ -40,6 +40,7 @@
 #include <wicked/fsm.h>
 
 #include "wicked-client.h"
+#include "appconfig.h"
 #include "ifcheck.h"
 
 static ni_bool_t opt_quiet;

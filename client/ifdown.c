@@ -38,6 +38,7 @@
 #include "client/ifconfig.h"
 
 #include "wicked-client.h"
+#include "appconfig.h"
 #include "ifdown.h"
 
 #if 0

@@ -48,6 +48,7 @@
 #include <wicked/fsm.h>
 
 #include "wicked-client.h"
+#include "appconfig.h"
 #include "ifcheck.h"
 
 /*
