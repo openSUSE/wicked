@@ -287,7 +287,6 @@ ni_managed_device_up_done(ni_ifworker_t *w)
 		if (ni_security_id_valid(&w->security_id))
 			ni_nanny_clear_secrets(mgr, &w->security_id, NULL);
 	} else {
-		ni_ifworker_reset(w);
 		mdev->fail_count = 0;
 		mdev->state = NI_MANAGED_STATE_RUNNING;
 	}
@@ -415,7 +414,6 @@ ni_managed_device_down_done(ni_ifworker_t *w)
 			mdev->state = NI_MANAGED_STATE_FAILED;
 		}
 	} else {
-		ni_ifworker_reset(w);
 		mdev->state = NI_MANAGED_STATE_STOPPED;
 	}
 	ni_managed_device_set_policy(mdev, NULL, NULL);
@@ -435,8 +433,6 @@ ni_managed_device_down(ni_managed_device_t *mdev)
 	ni_fsm_t *fsm = mdev->nanny->fsm;
 	ni_ifworker_t *w = mdev->worker;
 	int rv;
-
-	ni_ifworker_reset(w);
 
 	ni_ifworker_set_completion_callback(w, ni_managed_device_down_done, mdev->nanny);
 
