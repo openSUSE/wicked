@@ -240,12 +240,7 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 		 * shutdown of the device. This needs cooperation from the server; which would have
 		 * to kill all leases and destroy all addresses.
 		 */
-		if (!virtual && mdev->state != NI_MANAGED_STATE_STOPPED && mdev->state != NI_MANAGED_STATE_FAILED) {
-			ni_debug_nanny("%s: taking down device", w->name);
-			ni_managed_device_down(mdev);
-		} else {
-			ni_debug_nanny("%s: no applicable policies", w->name);
-		}
+		ni_debug_nanny("%s: no applicable policies", w->name);
 		return;
 	}
 
