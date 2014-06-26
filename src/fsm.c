@@ -193,13 +193,6 @@ ni_ifworker_free(ni_ifworker_t *w)
 }
 
 static inline ni_bool_t
-ni_ifworker_complete(const ni_ifworker_t *w)
-{
-	return w->failed || w->done || w->target_state == NI_FSM_STATE_NONE
-					|| w->target_state == w->fsm.state;
-}
-
-static inline ni_bool_t
 ni_ifworker_device_bound(const ni_ifworker_t *w)
 {
 	switch (w->type) {
