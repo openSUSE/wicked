@@ -58,6 +58,7 @@ static void			ni_ifworker_cancel_timeout(ni_ifworker_t *);
 static ni_objectmodel_callback_info_t *	ni_ifworker_get_cancelable_callback(ni_ifworker_t *, ni_bool_t);
 static dbus_bool_t		ni_ifworker_waiting_for_events(ni_ifworker_t *);
 static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
+static void			ni_ifworkers_flatten(ni_ifworker_array_t *);
 
 ni_fsm_t *
 ni_fsm_new(void)
@@ -152,6 +153,7 @@ ni_ifworker_reset(ni_ifworker_t *w)
 		}
 	}
 	ni_ifworker_array_destroy(&w->children);
+	ni_ifworker_array_destroy(&w->lowerdevs);
 
 	if (w->fsm.action_table) {
 		ni_fsm_transition_t *action;
@@ -521,7 +523,7 @@ ni_ifworker_array_find(ni_ifworker_array_t *array, ni_ifworker_type_t type, cons
 {
 	unsigned int i;
 
-	if (!ifname)
+	if (ni_string_empty(ifname))
 		return NULL;
 
 	for (i = 0; i < array->count; ++i) {
@@ -859,11 +861,11 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 		char *other_owner;
 
 		other_owner = strdup(xml_node_location(child->exclusive_owner->config.node));
-		ni_error("%s (%s): subordinate interface already owned by %s (%s)",
+		ni_debug_application("%s (%s): subordinate interface already owned by %s (%s)",
 			child->name, xml_node_location(devnode),
 			child->exclusive_owner->name, other_owner);
 		free(other_owner);
-		return FALSE;
+		return TRUE;
 	} else {
 		child->exclusive_owner = parent;
 	}
@@ -1853,7 +1855,7 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 			continue;
 		}
 
-		if (w->exclusive_owner)
+		if (match->name && (w->exclusive_owner || w->lowerdevs.count > 0))
 			continue;
 
 		if (match->mode && !ni_string_eq(match->mode, w->control.mode))
@@ -1876,6 +1878,11 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 
 		ni_ifworker_array_append(result, w);
 	}
+
+	/* Collect all workers in the device graph, and sort them
+	 * by increasing depth.
+	 */
+	ni_ifworkers_flatten(result);
 
 	return result->count;
 }
@@ -1941,9 +1948,6 @@ __ni_ifworker_flatten(ni_ifworker_t *w, ni_ifworker_array_t *array, unsigned int
 
 	for (i = 0; i < w->children.count; ++i) {
 		ni_ifworker_t *child = w->children.data[i];
-
-		if (ni_ifworker_array_index(array, child) < 0)
-			ni_ifworker_array_append(array, child);
 		__ni_ifworker_flatten(child, array, depth + 1);
 	}
 }
@@ -1960,7 +1964,7 @@ __ni_ifworker_depth_compare(const void *a, const void *b)
 static void
 ni_ifworkers_flatten(ni_ifworker_array_t *array)
 {
-	unsigned int i, count;
+	unsigned int i;
 
 	/* Note, we take the array->count outside the loop.
 	 * Inside the loop, we're adding new ifworkers to the array,
@@ -1968,9 +1972,14 @@ ni_ifworkers_flatten(ni_ifworker_array_t *array)
 	 * added devices twice.
 	 * NB a simple tail recursion won't work here.
 	 */
-	count = array->count;
-	for (i = 0; i < count; ++i)
-		__ni_ifworker_flatten(array->data[i], array, 0);
+	for (i = 0; i < array->count; ++i) {
+		ni_ifworker_t *w = array->data[i];
+
+		if (w->exclusive_owner)
+			continue;
+
+		__ni_ifworker_flatten(w, array, 0);
+	}
 
 	qsort(array->data, array->count, sizeof(array->data[0]), __ni_ifworker_depth_compare);
 }
@@ -1986,11 +1995,6 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 	unsigned int i, count = 0;
 
 	ni_ifworkers_check_loops(fsm, marked);
-
-	/* Collect all workers in the device graph, and sort them
-	 * by increasing depth.
-	 */
-	ni_ifworkers_flatten(marked);
 
 	/* Mark all our primary devices with the requested marker values */
 	for (i = 0; i < marked->count; ++i) {
@@ -2032,6 +2036,7 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 		if (w->target_state != NI_FSM_STATE_NONE)
 			count++;
 	}
+	ni_ifworkers_flatten(&fsm->workers);
 	return count;
 }
 
@@ -2089,6 +2094,7 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 			}
 		}
 		ni_ifworker_array_destroy(&w->children);
+		ni_ifworker_array_destroy(&w->lowerdevs);
 
 		if (w->fsm.action_table) {
 			ni_fsm_transition_t *action;
@@ -2550,6 +2556,55 @@ __ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *
 	}
 }
 
+static void
+ni_fsm_refresh_master_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	const char *mname;
+	ni_netdev_t *dev;
+
+	if (!fsm || !w || !(dev = w->device))
+		return;
+
+	mname = dev->link.masterdev.name;
+	if (ni_string_empty(mname))
+		return;
+
+	w->exclusive_owner = ni_fsm_ifworker_by_name(fsm,
+			NI_IFWORKER_TYPE_NETDEV, mname);
+
+	if (w->exclusive_owner) {
+		ni_ifworker_array_t *children = &w->exclusive_owner->children;
+
+		if (ni_ifworker_array_index(children, w) < 0)
+			ni_ifworker_array_append(children, w);
+	}
+}
+
+static void
+ni_fsm_refresh_lower_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	ni_ifworker_t *lower;
+	const char *lname;
+	ni_netdev_t *dev;
+
+	if (!fsm || !w || !(dev = w->device))
+		return;
+
+	lname = dev->link.lowerdev.name;
+	if (ni_string_empty(lname))
+		return;
+
+	lower = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, lname);
+	if (!lower)
+		return;
+
+	if (ni_ifworker_array_index(&lower->lowerdevs, w) < 0)
+		ni_ifworker_array_append(&lower->lowerdevs, w);
+
+	if (ni_ifworker_array_index(&w->children, lower) < 0)
+		ni_ifworker_array_append(&w->children, lower);
+}
+
 ni_bool_t
 ni_fsm_refresh_state(ni_fsm_t *fsm)
 {
@@ -2576,6 +2631,10 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 
 	for (i = 0; i < fsm->workers.count; ++i) {
 		w = fsm->workers.data[i];
+
+		/* Rebuild hierarchy */
+		ni_fsm_refresh_master_dev(fsm, w);
+		ni_fsm_refresh_lower_dev(fsm, w);
 
 		/* Set initial state of existing devices */
 		if (w->object != NULL)
@@ -3618,8 +3677,13 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 
 	if (!dev) {
 		w = ni_fsm_recv_new_netif_path(fsm, object_path);
-		if (w && cb)
+		if (w && cb) {
 			dev = w->device;
+
+			/* Rebuild hierarchy */
+			ni_fsm_refresh_master_dev(fsm, w);
+			ni_fsm_refresh_lower_dev(fsm, w);
+		}
 		else
 			return FALSE;
 	}

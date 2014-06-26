@@ -49,6 +49,7 @@
 
 #include "wicked-client.h"
 #include "ifcheck.h"
+#include "ifstatus.h"
 
 /*
  * ifstatus code matrix + mapped lsb exit code.
@@ -633,6 +634,7 @@ ni_do_ifstatus(int argc, char **argv)
 		}
 
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &marked);
+		ni_ifup_pull_in_children(&marked);
 		for (i = 0; i < marked.count; ++i) {
 			ni_ifworker_t *w = marked.data[i];
 			ni_netdev_t *dev = w->device;
