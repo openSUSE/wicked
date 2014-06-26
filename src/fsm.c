@@ -525,7 +525,7 @@ ni_ifworker_array_find(ni_ifworker_array_t *array, ni_ifworker_type_t type, cons
 {
 	unsigned int i;
 
-	if (!ifname)
+	if (ni_string_empty(ifname))
 		return NULL;
 
 	for (i = 0; i < array->count; ++i) {
@@ -2582,6 +2582,52 @@ __ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *
 	}
 }
 
+static void
+ni_fsm_refresh_master_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	const char *mname;
+	ni_netdev_t *dev;
+
+	if (!fsm || !w || !(dev = w->device))
+		return;
+
+	mname = dev->link.masterdev.name;
+	if (ni_string_empty(mname))
+		return;
+
+	w->exclusive_owner = ni_fsm_ifworker_by_name(fsm,
+			NI_IFWORKER_TYPE_NETDEV, mname);
+
+	if (w->exclusive_owner) {
+		ni_ifworker_array_t *children = &w->exclusive_owner->children;
+
+		if (ni_ifworker_array_index(children, w) < 0)
+			ni_ifworker_array_append(children, w);
+	}
+}
+
+static void
+ni_fsm_refresh_lower_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	ni_ifworker_t *lower;
+	const char *lname;
+	ni_netdev_t *dev;
+
+	if (!fsm || !w || !(dev = w->device))
+		return;
+
+	lname = dev->link.lowerdev.name;
+	if (ni_string_empty(lname))
+		return;
+
+	lower = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, lname);
+	if (!lower)
+		return;
+
+	if (ni_ifworker_array_index(&w->children, lower) < 0)
+		ni_ifworker_array_append(&w->children, lower);
+}
+
 ni_bool_t
 ni_fsm_refresh_state(ni_fsm_t *fsm)
 {
@@ -2608,6 +2654,10 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 
 	for (i = 0; i < fsm->workers.count; ++i) {
 		w = fsm->workers.data[i];
+
+		/* Rebuild hierarchy */
+		ni_fsm_refresh_master_dev(fsm, w);
+		ni_fsm_refresh_lower_dev(fsm, w);
 
 		/* Set initial state of existing devices */
 		if (w->object != NULL)
