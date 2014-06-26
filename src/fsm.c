@@ -163,6 +163,7 @@ ni_ifworker_reset(ni_ifworker_t *w)
 		}
 	}
 	ni_ifworker_array_destroy(&w->children);
+	ni_ifworker_array_destroy(&w->lowerdevs);
 
 	if (w->fsm.action_table) {
 		ni_fsm_transition_t *action;
@@ -2119,6 +2120,7 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 			}
 		}
 		ni_ifworker_array_destroy(&w->children);
+		ni_ifworker_array_destroy(&w->lowerdevs);
 
 		if (w->fsm.action_table) {
 			ni_fsm_transition_t *action;
@@ -2628,6 +2630,9 @@ ni_fsm_refresh_lower_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
 	lower = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, lname);
 	if (!lower)
 		return;
+
+	if (ni_ifworker_array_index(&lower->lowerdevs, w) < 0)
+		ni_ifworker_array_append(&lower->lowerdevs, w);
 
 	if (ni_ifworker_array_index(&w->children, lower) < 0)
 		ni_ifworker_array_append(&w->children, lower);

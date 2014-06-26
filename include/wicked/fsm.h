@@ -189,6 +189,7 @@ struct ni_ifworker {
 	ni_ifworker_t *		parent;
 	unsigned int		depth;		/* depth in device graph */
 	ni_ifworker_array_t	children;
+	ni_ifworker_array_t	lowerdevs;
 };
 
 /*
