@@ -1982,7 +1982,7 @@ __ni_ifworker_depth_compare(const void *a, const void *b)
 	return (int) (wa->depth - wb->depth);
 }
 
-static void
+void
 ni_ifworkers_flatten(ni_ifworker_array_t *array)
 {
 	unsigned int i, count;
