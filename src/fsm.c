@@ -535,7 +535,7 @@ ni_ifworker_array_find(ni_ifworker_array_t *array, ni_ifworker_type_t type, cons
 	return NULL;
 }
 
-static ni_bool_t
+ni_bool_t
 ni_ifworker_array_remove(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
 	unsigned int i, j;
@@ -557,6 +557,19 @@ ni_ifworker_array_remove(ni_ifworker_array_t *array, ni_ifworker_t *w)
 	}
 
 	return found;
+}
+
+void
+ni_ifworker_array_remove_with_children(ni_ifworker_array_t *array, ni_ifworker_t *w)
+{
+	if (ni_ifworker_array_index(array, w) != -1) {
+		unsigned int i;
+
+		for (i = 0; i < w->children.count; i++) {
+			ni_ifworker_array_remove_with_children(array, w->children.data[i]);
+		}
+		ni_ifworker_array_remove(array, w);
+	}
 }
 
 ni_ifworker_t *
