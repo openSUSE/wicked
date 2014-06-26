@@ -51,6 +51,7 @@ ni_objectmodel_managed_netif_init(ni_dbus_server_t *server)
 ni_bool_t
 ni_managed_netdev_enable(ni_managed_device_t *mdev)
 {
+	ni_nanny_t *mgr = mdev->nanny;
 	ni_ifworker_t *w = mdev->worker;
 
 	if (mdev->rfkill_blocked) {
@@ -65,7 +66,11 @@ ni_managed_netdev_enable(ni_managed_device_t *mdev)
 		return FALSE;
 	}
 
-	ni_nanny_schedule_recheck(mdev->nanny, mdev->worker);
+	ni_nanny_schedule_recheck(&mgr->recheck, w);
+	ni_nanny_unschedule(&mgr->down, w);
+	if (ni_ifworker_complete(w))
+		ni_ifworker_rearm(w);
+
 	mdev->monitor = TRUE;
 
 	return TRUE;
@@ -77,8 +82,14 @@ ni_managed_netdev_enable(ni_managed_device_t *mdev)
 ni_bool_t
 ni_managed_netdev_disable(ni_managed_device_t *mdev)
 {
-	if (mdev->monitor)
-		ni_nanny_schedule_down(mdev->nanny, mdev->worker);
+	ni_nanny_t *mgr = mdev->nanny;
+	ni_ifworker_t *w = mdev->worker;
+
+	ni_nanny_schedule_recheck(&mgr->down, w);
+	ni_nanny_unschedule(&mgr->recheck, w);
+	if (ni_ifworker_complete(w))
+		ni_ifworker_rearm(w);
+
 	mdev->monitor = FALSE;
 	return TRUE;
 }

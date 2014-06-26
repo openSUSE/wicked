@@ -156,45 +156,10 @@ ni_nanny_free(ni_nanny_t *mgr)
  * Both checks happen once per mainloop iteration.
  */
 void
-ni_nanny_schedule_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
+ni_nanny_schedule_recheck(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
-	if (ni_ifworker_array_index(&mgr->recheck, w) < 0)
-		ni_ifworker_array_append(&mgr->recheck, w);
-}
-
-void
-ni_nanny_recheck_do(ni_nanny_t *mgr)
-{
-	unsigned int i;
-	ni_fsm_t *fsm = mgr->fsm;
-
-	ni_assert(fsm);
-	if (ni_fsm_policies_changed_since(fsm, &mgr->last_policy_seq)) {
-		ni_managed_device_t *mdev;
-
-		for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
-			if (mdev->monitor)
-				ni_nanny_schedule_recheck(mgr, mdev->worker);
-		}
-
-		/* Always check virtual devices */
-		for (i = 0; i < fsm->workers.count; i++) {
-			ni_ifworker_t *w =  fsm->workers.data[i];
-
-			if (!w->device)
-				ni_nanny_schedule_recheck(mgr, w);
-		}
-	}
-
-	if (mgr->recheck.count == 0)
-		return;
-
-	ni_fsm_refresh_state(mgr->fsm);
-	ni_fsm_build_hierarchy(fsm);
-
-	for (i = 0; i < mgr->recheck.count; ++i)
-		ni_nanny_recheck(mgr, mgr->recheck.data[i]);
-	ni_ifworker_array_destroy(&mgr->recheck);
+	if (ni_ifworker_array_index(array, w) < 0)
+		ni_ifworker_array_append(array, w);
 }
 
 void
@@ -206,7 +171,7 @@ ni_nanny_unschedule(ni_ifworker_array_t *array, ni_ifworker_t *w)
 /*
  * Check whether a given interface should be reconfigured
  */
-void
+static unsigned int
 ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 {
 	static const unsigned int MAX_POLICIES = 20;
@@ -241,7 +206,7 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 		 * to kill all leases and destroy all addresses.
 		 */
 		ni_debug_nanny("%s: no applicable policies", w->name);
-		return;
+		return count;
 	}
 
 	policy = policies[count-1];
@@ -251,34 +216,64 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 		ni_virtual_device_apply_policy(mgr->fsm, w, mpolicy);
 	else
 		ni_managed_device_apply_policy(mdev, mpolicy);
+
+	return count;
+}
+
+unsigned int
+ni_nanny_recheck_do(ni_nanny_t *mgr)
+{
+	unsigned int i, count = 0;
+	ni_fsm_t *fsm = mgr->fsm;
+
+	ni_assert(fsm);
+	if (ni_fsm_policies_changed_since(fsm, &mgr->last_policy_seq)) {
+		ni_managed_device_t *mdev;
+
+		for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
+			if (mdev->monitor)
+				ni_nanny_schedule_recheck(&mgr->recheck, mdev->worker);
+		}
+	}
+
+	if (mgr->recheck.count)
+		ni_ifworkers_flatten(&mgr->recheck);
+
+	for (i = 0; i < mgr->recheck.count; ++i) {
+		ni_ifworker_t *w = mgr->recheck.data[i];
+
+		if (!w->failed && !w->done && !ni_ifworker_active(w))
+			count += ni_nanny_recheck(mgr, w);
+	}
+
+	return count;
 }
 
 /*
  * Taking down an interface
  */
-void
-ni_nanny_schedule_down(ni_nanny_t *mgr, ni_ifworker_t *w)
-{
-	if (ni_ifworker_array_index(&mgr->down, w) < 0)
-		ni_ifworker_array_append(&mgr->down, w);
-}
-
-void
+unsigned int
 ni_nanny_down_do(ni_nanny_t *mgr)
 {
-	unsigned int i;
+	unsigned int i, count = 0;
 
-	if (mgr->down.count == 0)
-		return;
+	if (mgr->down.count)
+		ni_ifworkers_flatten(&mgr->down);
 
 	for (i = 0; i < mgr->down.count; ++i) {
 		ni_ifworker_t *w = mgr->down.data[i];
 		ni_managed_device_t *mdev;
 
-		if ((mdev = ni_nanny_get_device(mgr, w)) != NULL)
+		if ((mdev = ni_nanny_get_device(mgr, w)) != NULL) {
 			ni_managed_device_down(mdev);
+			count++;
+		}
 	}
-	ni_ifworker_array_destroy(&mgr->down);
+
+	if (i > 0)
+		ni_ifworker_array_destroy(&mgr->down);
+
+	return count;
 }
 
 ni_managed_policy_t *
@@ -331,11 +326,73 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 				ni_debug_nanny("%s: radio re-enabled, resume monitoring", w->name);
 				if (mdev->monitor) {
 					ni_managed_netdev_enable(mdev);
-					ni_nanny_schedule_recheck(mgr, w);
+					ni_nanny_schedule_recheck(&mgr->recheck, w);
 				}
 			}
 		}
 	}
+}
+
+static ni_bool_t
+ni_managed_device_send_progress_info(ni_managed_device_t *mdev, ni_ifworker_t *w, ni_fsm_state_t state)
+{
+	ni_dbus_variant_t args = NI_DBUS_VARIANT_INIT;
+	const char *interface = NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE;
+	const char *signal_name = "progressInfo";
+	ni_dbus_server_t *server;
+	ni_dbus_object_t *object;
+	ni_bool_t ret;
+
+	if (!mdev || !mdev->nanny || !mdev->nanny->server) {
+		ni_error("%s: help! No dbus server handle! Cannot send signal.", __func__);
+		return FALSE;
+	}
+	server = mdev->nanny->server;
+
+	if (!mdev->object) {
+		ni_error("%s: help! No dbus object handle! Cannot send signal.", __func__);
+		return FALSE;
+	}
+	object = mdev->object;
+
+	if (!ni_ifworker_is_valid_state(state) && state != NI_FSM_STATE_NONE) {
+		ni_error("%s: Invalid state: %u", __func__, state);
+		return FALSE;
+	}
+
+	ni_dbus_variant_init_dict(&args);
+	ni_dbus_dict_add_uint32(&args, "current-state", state);
+	ni_dbus_dict_add_uint32(&args, "target-state", w->target_state);
+	ni_dbus_dict_add_string(&args, "ifname", w->name);
+
+	ni_debug_dbus("sending event \"%s\"", signal_name);
+	ret = ni_dbus_server_send_signal(server, object, interface, signal_name, 1, &args);
+	if (!ret) {
+		ni_error("%s: Cannot send signal %s", __func__, signal_name);
+	}
+
+	ni_dbus_variant_destroy(&args);
+	return ret;
+}
+
+/*
+ * Progress callback for bringup
+ */
+static void
+ni_managed_device_progress(ni_ifworker_t *w, ni_fsm_state_t new_state)
+{
+	ni_managed_device_t *mdev = w->progress.user_data;
+	(void)mdev;
+
+	ni_trace("%s(%s) target(%s [%s..%s]), transition(%s => %s)",
+			__func__, w->name,
+			ni_ifworker_state_name(w->target_state),
+			ni_ifworker_state_name(w->target_range.min),
+			ni_ifworker_state_name(w->target_range.max),
+			ni_ifworker_state_name(w->fsm.state),
+			ni_ifworker_state_name(new_state));
+
+	ni_managed_device_send_progress_info(mdev, w, new_state);
 }
 
 /*
@@ -388,7 +445,9 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 			mdev->monitor? ", monitored (auto-enabled)" : "");
 
 	if (mdev->monitor)
-		ni_nanny_schedule_recheck(mgr, w);
+		ni_nanny_schedule_recheck(&mgr->recheck, w);
+
+	ni_ifworker_set_progress_callback(w, ni_managed_device_progress, mdev);
 }
 
 /*
@@ -544,7 +603,7 @@ ni_nanny_add_secret(ni_nanny_t *mgr, uid_t caller_uid,
 			}
 
 			ni_debug_nanny("%s: secret for %s updated, rechecking", w->name, path);
-			ni_nanny_schedule_recheck(mgr, w);
+			ni_nanny_schedule_recheck(&mgr->recheck, w);
 		}
 	}
 }
@@ -646,17 +705,12 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		return;
 	}
 
-	w = ni_fsm_ifworker_by_object_path(mgr->fsm, object_path);
-	if (!w && event == NI_EVENT_DEVICE_READY) {
-		// A new device was added. Could be a virtual device like
-		// a VLAN or vif, or a hotplug device
-		// Create a worker and a managed_netif for this device.
-		if ((w = ni_fsm_recv_new_netif_path(mgr->fsm, object_path))) {
+	if (event == NI_EVENT_DEVICE_CREATE) {
+		if ((w = ni_fsm_recv_new_netif_path(mgr->fsm, object_path)))
 			ni_nanny_register_device(mgr, w);
-			ni_nanny_schedule_recheck(mgr, w);
-		}
-		return;
 	}
+
+	w = ni_fsm_ifworker_by_object_path(mgr->fsm, object_path);
 	if (!w) {
 		ni_warn("received signal \"%s\" from unknown object \"%s\"",
 				signal_name, object_path);
@@ -690,12 +744,16 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 			mdev->monitor? ", monitored" : "");
 
 	switch (event) {
+	case NI_EVENT_DEVICE_READY:
+		ni_nanny_schedule_recheck(&mgr->recheck, w);
+		break;
+
 	case NI_EVENT_LINK_DOWN:
 		// If we have recorded a policy for this device, it means
 		// we were the ones who took it up - so bring it down
 		// again
 		if (mdev->selected_policy != NULL && mdev->monitor)
-			ni_nanny_schedule_down(mgr, w);
+			ni_nanny_schedule_recheck(&mgr->down, w);
 		ni_nanny_unschedule(&mgr->recheck, w);
 		break;
 
@@ -704,18 +762,18 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		// we were the ones who took it up - so bring it down
 		// again
 		if (mdev->selected_policy != NULL && mdev->monitor)
-			ni_nanny_schedule_recheck(mgr, w);
+			ni_nanny_schedule_recheck(&mgr->recheck, w);
 		break;
 
 	case NI_EVENT_LINK_SCAN_UPDATED:
 		if (mdev->monitor)
-			ni_nanny_schedule_recheck(mgr, w);
+			ni_nanny_schedule_recheck(&mgr->recheck, w);
 		break;
 
 	case NI_EVENT_LINK_UP:
 		// Link detection - eg for ethernet
 		if (mdev->monitor)
-			ni_nanny_schedule_recheck(mgr, w);
+			ni_nanny_schedule_recheck(&mgr->recheck, w);
 		break;
 
 	default: ;
@@ -746,7 +804,7 @@ ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 	if (!w && event == NI_EVENT_DEVICE_CREATE) {
 		if ((w = ni_fsm_recv_new_modem_path(mgr->fsm, object_path))) {
 			ni_nanny_register_device(mgr, w);
-			ni_nanny_schedule_recheck(mgr, w);
+			ni_nanny_schedule_recheck(&mgr->recheck, w);
 		}
 		return;
 	}
@@ -767,7 +825,7 @@ ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		// delete the worker and the managed modem
 		ni_nanny_unregister_device(mgr, w);
 	} else if (event == NI_EVENT_DEVICE_READY) {
-		ni_nanny_schedule_recheck(mgr, w);
+		ni_nanny_schedule_recheck(&mgr->recheck, w);
 	} else {
 		// ignore
 	}
@@ -815,6 +873,21 @@ ni_objectmodel_nanny_get_device(ni_dbus_object_t *object, const ni_dbus_method_t
 	return TRUE;
 }
 
+static void
+__ni_objectmodel_nanny_factory_device_recheck(ni_nanny_t *mgr, const char *pname)
+{
+	ni_ifworker_t *w = NULL;
+
+	if (!mgr || !mgr->fsm || ni_string_empty(pname))
+		return;
+
+	w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, pname);
+	if (!w)
+		return;
+
+	if (!w->failed && !w->done && ni_ifworker_is_factory_device(w))
+		ni_nanny_schedule_recheck(&mgr->recheck, w);
+}
 
 /*
  * Nanny.createPolicy()
@@ -872,7 +945,17 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 			return FALSE;
 		}
 
+		/* Create policy and corresponding worker (e.g. for hotplug or factory devices */
 		policy = ni_fsm_policy_new(mgr->fsm, pname, pnode);
+
+		/* Rebuild the hierarchy cause new policy may hit some matches */
+		ni_fsm_build_hierarchy(mgr->fsm);
+
+		/* Schedule recheck on Factory devices
+		 * (Hotplugs and existing devices are scheduled upon DEVICE_READY)
+		 */
+		__ni_objectmodel_nanny_factory_device_recheck(mgr, pname);
+
 		policy_object = ni_objectmodel_register_managed_policy(ni_dbus_object_get_server(object),
 			ni_managed_policy_new(mgr, policy, NULL));
 
@@ -910,14 +993,14 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 		for (pos = &mgr->policy_list; (cur = *pos); pos = &cur->next) {
 			if (cur->fsm_policy == policy) {
 				ni_dbus_server_t *server;
-				ni_ifworker_t *w;
+				ni_ifworker_t *w = NULL;
 
 				if (!ni_fsm_policy_remove(mgr->fsm, policy))
 					return FALSE;
 
 				ni_debug_nanny("Removed FSM policy %s", name);
 
-				w = ni_fsm_ifworker_by_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, name);
+				w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, name);
 				if (w != NULL) {
 					ni_managed_device_t *mdev = ni_nanny_get_device(mgr, w);
 					if (mdev != NULL)
