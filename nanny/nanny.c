@@ -197,6 +197,12 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 	ni_ifworker_array_destroy(&mgr->recheck);
 }
 
+void
+ni_nanny_unschedule(ni_ifworker_array_t *array, ni_ifworker_t *w)
+{
+	ni_ifworker_array_remove_with_children(array, w);
+}
+
 /*
  * Check whether a given interface should be reconfigured
  */
@@ -406,6 +412,7 @@ ni_nanny_unregister_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_nanny_remove_device(mgr, mdev);
 	ni_objectmodel_unregister_managed_device(mdev);
 	ni_fsm_destroy_worker(mgr->fsm, w);
+	ni_nanny_unschedule(&mgr->recheck, w);
 }
 
 /*
@@ -694,6 +701,7 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		// again
 		if (mdev->selected_policy != NULL && mdev->monitor)
 			ni_nanny_schedule_down(mgr, w);
+		ni_nanny_unschedule(&mgr->recheck, w);
 		break;
 
 	case NI_EVENT_LINK_ASSOCIATION_LOST:
