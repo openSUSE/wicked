@@ -306,8 +306,6 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 	ni_security_id_t security_id = NI_SECURITY_ID_INIT;
 	int rv;
 
-	ni_ifworker_reset(w);
-
 	switch (w->type) {
 	case NI_IFWORKER_TYPE_NETDEV:
 		mdev->max_fail_count = 3;
