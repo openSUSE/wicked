@@ -200,14 +200,14 @@ ni_route_create(unsigned int prefixlen, const ni_sockaddr_t *dest,
 	return rp;
 }
 
-ni_route_t *
-ni_route_clone(const ni_route_t *src)
+ni_bool_t
+ni_route_copy(ni_route_t *rp, const ni_route_t *src)
 {
-	ni_route_t *rp;
 	ni_route_nexthop_t *nh;
 	const ni_route_nexthop_t *srcnh;
 
-	rp = ni_route_new();
+	if (!rp || !src)
+		return FALSE;
 
 #define C(x)	rp->x = src->x
 	C(family);
@@ -247,7 +247,19 @@ ni_route_clone(const ni_route_t *src)
 			nh->next = ni_route_nexthop_new();
 		}
 	}
+	return TRUE;
+}
 
+ni_route_t *
+ni_route_clone(const ni_route_t *src)
+{
+	ni_route_t *rp;
+
+	rp = ni_route_new();
+	if (rp && !ni_route_copy(rp, src)) {
+		ni_route_free(rp);
+		return NULL;
+	}
 	return rp;
 }
 

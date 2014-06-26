@@ -429,6 +429,9 @@ ni_global_state_handle(int refresh)
 	}
 
 	if (refresh) {
+		if (nc->initialized)
+			ni_debug_application("Manual interface refresh (bootstrap)");
+
 		if (__ni_system_refresh_interfaces(nc) < 0) {
 			ni_error("failed to refresh interface list");
 			return NULL;

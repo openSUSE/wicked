@@ -61,11 +61,48 @@ ni_address_new(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr,
 	return ap;
 }
 
+ni_bool_t
+ni_address_copy(ni_address_t *ap, const ni_address_t *src)
+{
+	if (!ap || !src)
+		return FALSE;
+
+	ap->config_lease = src->config_lease;
+	ap->seq = src->seq;
+	ap->family = src->family;
+	ap->flags = src->flags;
+	ap->scope = src->scope;
+	ap->prefixlen = src->prefixlen;
+	ap->local_addr = src->local_addr;
+	ap->peer_addr = src->peer_addr;
+	ap->bcast_addr = src->bcast_addr;
+	ap->anycast_addr = src->anycast_addr;
+	if (!ni_string_eq(ap->label, src->label))
+		ni_string_dup(&ap->label, src->label);
+	ap->ipv6_cache_info = src->ipv6_cache_info;
+	return TRUE;
+}
+
+ni_address_t *
+ni_address_clone(const ni_address_t *src)
+{
+	ni_address_t *ap;
+
+	ap = xcalloc(1, sizeof(*ap));
+	if (ap && !ni_address_copy(ap, src)) {
+		ni_address_free(ap);
+		return NULL;
+	}
+	return ap;
+}
+
 void
 ni_address_free(ni_address_t *ap)
 {
-	ni_string_free(&ap->label);
-	free(ap);
+	if (ap) {
+		ni_string_free(&ap->label);
+		free(ap);
+	}
 }
 
 ni_bool_t
