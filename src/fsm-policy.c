@@ -296,6 +296,10 @@ ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 {
 	ni_fsm_policy_t temp;
 
+	if (!policy || !ni_ifconfig_is_policy(node)
+	||  !ni_string_eq(ni_ifpolicy_get_name(node), policy->name))
+		return FALSE;
+
 	memset(&temp, 0, sizeof(temp));
 	if (!__ni_fsm_policy_from_xml(&temp, NULL, node))
 		return FALSE;
@@ -384,9 +388,10 @@ static ni_bool_t
 ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
 {
 	xml_node_t *node;
+	char *pname;
 
-	if (ni_string_empty(policy->name)) {
-		ni_error("policy does not have a name");
+	if (!ni_ifpolicy_name_is_valid(policy->name)) {
+		ni_error("policy with invalid name");
 		return FALSE;
 	}
 
@@ -396,16 +401,21 @@ ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
 	}
 
 	/* 1st match   check - ifworker to policy name comparison */
-	if (!ni_string_eq(policy->name, w->name)) {
-		ni_error("%s: policy name indicates different device", policy->name);
+	pname = ni_ifpolicy_name_from_ifname(w->name);
+	if (!ni_string_eq(policy->name, pname)) {
+		ni_debug_nanny("%s: policy name indicates different device than %s",
+				policy->name, w->name);
+		ni_string_free(&pname);
 		return FALSE;
 	}
+	ni_string_free(&pname);
 
 	/* 2nd  match check -  ifworker  to config name comparison */
 	if (w->config.node && (node = xml_node_get_child(w->config.node, "name"))) {
 		const char *namespace = xml_node_get_attr(node, "namespace");
 		if (!namespace && !ni_string_eq(node->cdata, w->name)) {
-			ni_error("%s: config name does not match policy name", policy->name);
+			ni_error("%s: config name does not match policy name",
+					policy->name);
 			return FALSE;
 		}
 	}
