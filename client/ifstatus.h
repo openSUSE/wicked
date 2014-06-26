@@ -28,5 +28,6 @@
 #define   __WICKED_CLIENT_IFSTATUS_H__
 
 extern int		ni_do_ifstatus(int argc, char **argv);
+extern void		ni_ifup_pull_in_children(ni_ifworker_array_t *);
 
 #endif /* __WICKED_CLIENT_IFSTATUS_H__ */

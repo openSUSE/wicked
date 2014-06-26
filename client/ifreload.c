@@ -41,6 +41,7 @@
 
 #include "wicked-client.h"
 #include "ifcheck.h"
+#include "ifreload.h"
 
 int
 ni_do_ifreload(int argc, char **argv)
@@ -268,6 +269,7 @@ usage:
 
 		/* And trigger up */
 		ni_debug_application("Reloading all changed devices");
+		ni_ifup_pull_in_children(&marked);
 		nmarked = ni_fsm_start_matching_workers(fsm, &marked);
 
 		ni_ifworker_array_destroy(&marked);
