@@ -131,6 +131,15 @@ ni_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
 }
 
 void
+ni_ifworker_rearm(ni_ifworker_t *w)
+{
+	w->target_state = NI_FSM_STATE_NONE;
+	w->done = FALSE;
+	w->failed = FALSE;
+	w->kickstarted = FALSE;
+}
+
+void
 ni_ifworker_reset(ni_ifworker_t *w)
 {
 	ni_string_free(&w->object_path);
@@ -1079,7 +1088,7 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 	case NI_EVENT_LINK_DOWN:
 		/* We should restart FSM on successful devices */
 		if (ni_ifworker_complete(w))
-			ni_ifworker_reset(w);
+			ni_ifworker_rearm(w);
 		max_state = NI_FSM_STATE_LINK_UP - 1;
 		break;
 	case NI_EVENT_ADDRESS_ACQUIRED:

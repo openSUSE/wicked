@@ -288,6 +288,7 @@ extern ni_bool_t		ni_ifworker_match_netdev_ifindex(const ni_ifworker_t *, unsign
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *, const char *);
 extern void			ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
 extern ni_bool_t		ni_ifworker_check_config(const ni_ifworker_t *, const xml_node_t *, const char *);
+extern  void			ni_ifworker_rearm(ni_ifworker_t *);
 extern void			ni_ifworker_reset(ni_ifworker_t *);
 extern int			ni_ifworker_bind_early(ni_ifworker_t *, ni_fsm_t *, ni_bool_t);
 extern int			ni_ifworker_start(ni_fsm_t *, ni_ifworker_t *, unsigned long);
