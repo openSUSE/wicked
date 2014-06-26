@@ -1077,6 +1077,9 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 		min_state = NI_FSM_STATE_LINK_UP;
 		break;
 	case NI_EVENT_LINK_DOWN:
+		/* We should restart FSM on successful devices */
+		if (ni_ifworker_complete(w))
+			ni_ifworker_reset(w);
 		max_state = NI_FSM_STATE_LINK_UP - 1;
 		break;
 	case NI_EVENT_ADDRESS_ACQUIRED:
