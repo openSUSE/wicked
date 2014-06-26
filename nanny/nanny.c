@@ -846,14 +846,22 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 		ni_fsm_policy_t *policy;
 		const char *pname;
 
-		if (!ni_ifpolicy_is_valid(pnode)) {
+		if (!ni_ifconfig_is_policy(pnode)) {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 					"Bad policy \"%s\" in call to %s.%s",
 					doc_string, ni_dbus_object_get_path(object), method->name);
 			return FALSE;
 		}
 
-		pname = xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_NAME);
+		pname = ni_ifpolicy_get_name(pnode);
+		if (!ni_ifpolicy_name_is_valid(pname)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"Invalid policy name \"%s\" in call to %s.%s",
+					ni_print_suspect(pname, ni_string_len(pname)),
+					ni_dbus_object_get_path(object), method->name);
+			return FALSE;
+		}
+
 		if (ni_fsm_policy_by_name(mgr->fsm, pname) != NULL) {
 			dbus_set_error(error, NI_DBUS_ERROR_POLICY_EXISTS,
 				"Policy \"%s\" already exists in call to %s.%s",

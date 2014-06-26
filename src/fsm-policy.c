@@ -422,7 +422,7 @@ ni_fsm_policy_get_origin(const ni_fsm_policy_t *policy)
 {
 	const char *origin;
 
-	origin = xml_node_get_attr(policy->node, NI_NANNY_IFPOLICY_ORIGIN);
+	origin = ni_ifpolicy_get_origin(policy->node);
 	return ni_string_empty(origin) ? "nanny" : origin;
 }
 
