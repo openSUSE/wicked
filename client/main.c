@@ -95,6 +95,8 @@ int			opt_global_dryrun;
 char *			opt_global_rootdir;
 ni_bool_t		opt_systemd;
 
+unsigned int ni_wait_for_interfaces;
+
 static int		do_show_xml(int, char **);
 static int		do_show_config(int, char **, const char *);
 extern int		do_nanny(int, char **);

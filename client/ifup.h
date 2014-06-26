@@ -27,6 +27,8 @@
 #ifndef   __WICKED_CLIENT_IFUP_H__
 #define   __WICKED_CLIENT_IFUP_H__
 
+extern unsigned int ni_wait_for_interfaces;
+
 extern int		ni_do_ifup(int argc, char **argv);
 
 #endif /* __WICKED_CLIENT_IFUP_H__ */

@@ -376,3 +376,35 @@ ni_client_state_drop(unsigned int ifindex)
 	}
 	return TRUE;
 }
+
+ni_bool_t
+ni_client_state_set_persistent(xml_node_t *config)
+{
+	xml_node_t *csnode, *pernode;
+	ni_bool_t persistent;
+
+	if (xml_node_is_empty(config))
+		return FALSE;
+
+	csnode = xml_node_get_child(config, NI_CLIENT_STATE_XML_STATE_NODE);
+	if (!csnode) {
+		if (!(csnode = xml_node_new(NI_CLIENT_STATE_XML_STATE_NODE, config)))
+			return FALSE;
+	}
+
+	pernode = xml_node_get_child(csnode, NI_CLIENT_STATE_XML_PERSISTENT_NODE);
+	if (!pernode) {
+		pernode = xml_node_new_element(NI_CLIENT_STATE_XML_PERSISTENT_NODE, csnode,
+			ni_format_boolean(TRUE));
+
+		return pernode ? TRUE : FALSE;
+	}
+
+	if (ni_parse_boolean(pernode->cdata, &persistent))
+		return FALSE;
+
+	if (!persistent)
+		ni_string_dup(&pernode->cdata, ni_format_boolean(TRUE));
+
+	return TRUE;
+}
