@@ -644,7 +644,8 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		return;
 	}
 
-	if (event == NI_EVENT_DEVICE_READY) {
+	w = ni_fsm_ifworker_by_object_path(mgr->fsm, object_path);
+	if (!w && event == NI_EVENT_DEVICE_READY) {
 		// A new device was added. Could be a virtual device like
 		// a VLAN or vif, or a hotplug device
 		// Create a worker and a managed_netif for this device.
@@ -654,8 +655,7 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		}
 		return;
 	}
-
-	if ((w = ni_fsm_ifworker_by_object_path(mgr->fsm, object_path)) == NULL) {
+	if (!w) {
 		ni_warn("received signal \"%s\" from unknown object \"%s\"",
 				signal_name, object_path);
 		return;
@@ -738,16 +738,16 @@ ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		return;
 	}
 
-	// We receive a deviceCreate signal when a modem was plugged in
-	if (event == NI_EVENT_DEVICE_CREATE) {
+	/* We receive a deviceCreate signal when a modem was plugged in */
+	w = ni_fsm_ifworker_by_object_path(mgr->fsm, object_path);
+	if (!w && event == NI_EVENT_DEVICE_CREATE) {
 		if ((w = ni_fsm_recv_new_modem_path(mgr->fsm, object_path))) {
 			ni_nanny_register_device(mgr, w);
 			ni_nanny_schedule_recheck(mgr, w);
 		}
 		return;
 	}
-
-	if ((w = ni_fsm_ifworker_by_object_path(mgr->fsm, object_path)) == NULL) {
+	if (!w) {
 		ni_warn("received signal \"%s\" from unknown object \"%s\"",
 				signal_name, object_path);
 		return;
