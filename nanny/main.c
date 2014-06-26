@@ -253,17 +253,31 @@ babysit(void)
 void
 ni_nanny_discover_state(ni_nanny_t *mgr)
 {
+	ni_ifworker_t *w;
+	ni_fsm_t *fsm;
 	unsigned int i;
-	ni_fsm_t *fsm = mgr->fsm;
 
-	ni_assert(fsm);
+	ni_assert(mgr && mgr->fsm);
 
+	fsm = mgr->fsm;
 	ni_fsm_refresh_state(fsm);
+
+	/* Register devices that exist (e.g. have just been created) */
 	for (i = 0; i < fsm->workers.count; ++i) {
-		ni_ifworker_t *w = fsm->workers.data[i];
+		w = fsm->workers.data[i];
 
 		if (w->device)
 			ni_nanny_register_device(mgr, w);
+	}
+
+	/* Do not recheck on devices that have failed */
+	for (i = 0; i < mgr->recheck.count; ++i) {
+		w = mgr->recheck.data[i];
+
+		if (w->failed) {
+			ni_ifworker_array_remove(&mgr->recheck, w);
+			ni_ifworker_reset(w);
+		}
 	}
 }
 
