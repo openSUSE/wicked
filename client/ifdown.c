@@ -41,48 +41,60 @@
 #include "appconfig.h"
 #include "ifdown.h"
 
-#if 0
 static ni_bool_t
-ni_ifdown_fire_nanny(ni_ifworker_t *w)
+ni_ifdown_stop_policy(const char *policy_name)
 {
-	if (w) {
-		/* Default policy name is interface name.
-		 * In case of any change other parameters
-		 * should be available within ifworker
-		 */
-		const char *policy_name = w->name;
-
-		if (!ni_nanny_call_device_disable(policy_name)) {
-			ni_debug_application("Unable to disable policy named %s",
-				policy_name);
-			return FALSE;
-		}
-
-		if (!ni_nanny_call_del_policy(policy_name)) {
-			ni_debug_application("Unable to delete policy named %s",
-				policy_name);
-			return FALSE;
-		}
+	/* Default policy name is interface name.
+	 * In case of any change other parameters
+	 * should be available within ifworker
+	 */
+	if (!ni_nanny_call_del_policy(policy_name)) {
+		ni_debug_application("Unable to delete policy named %s", policy_name);
+		return FALSE;
 	}
 
 	return TRUE;
 }
 
 static ni_bool_t
-ni_ifdown_stop_policies(ni_ifworker_array_t *array)
+ni_ifdown_stop_device(const char *device_name)
+{
+	if (!ni_nanny_call_device_disable(device_name)) {
+		ni_debug_application("Unable to disable device named %s", device_name);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifdown_fire_nanny(ni_ifworker_array_t *array)
 {
 	unsigned int i;
+	char *policy_name;
 
+	/* Deleting all requested policies */
 	for (i = 0; i < array->count; i++) {
 		ni_ifworker_t *w = array->data[i];
 
-		if (!ni_ifdown_fire_nanny(w))
-			return FALSE;
+		policy_name = ni_ifpolicy_name_from_ifname(w->name);
+		if (!ni_ifdown_stop_policy(policy_name)) {
+			/* We ignore errors for now */;
+		}
+		ni_string_free(&policy_name);
+	}
+
+	/* Disabling all requested devices */
+	for (i = 0; i < array->count; i++) {
+		ni_ifworker_t *w = array->data[i];
+
+		if (!ni_ifdown_stop_device(w->name)) {
+			/* We ignore errors for now */;
+		}
 	}
 
 	return TRUE;
 }
-#endif
 
 int
 ni_do_ifdown(int argc, char **argv)
@@ -214,15 +226,11 @@ usage:
 
 	/* Mark and start selected workers */
 	if (ifmarked.count) {
-#if 0		/*
-		 * Not yet hired, no need to fire it.
-		 *
-		 * There is currently no nanny in the inst-sys and the
-		 * attempt to delete the policies cause ifdown timeouts.
-		 */
-		/* Disable devices and delete all related policies from nanny */
-		ni_ifdown_stop_policies(&ifmarked);
-#endif
+		if (ni_config_use_nanny()) {
+			/* Disable devices and delete all related policies from nanny */
+			ni_ifdown_fire_nanny(&ifmarked);
+		}
+
 		/* Start workers to perform actual ifdown */
 		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
 	}
