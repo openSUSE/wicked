@@ -913,6 +913,7 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 
 				ni_dbus_message_append_object_path(reply,
 					ni_dbus_object_get_path(object));
+
 				return TRUE;
 			}
 		}
