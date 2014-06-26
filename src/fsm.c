@@ -24,6 +24,8 @@
 #include <wicked/xpath.h>
 #include <wicked/fsm.h>
 #include <wicked/client.h>
+
+#include "client/ifconfig.h"
 #include "util_priv.h"
 
 enum {
@@ -1332,62 +1334,51 @@ ni_ifworker_check_config(const ni_ifworker_t *w, const xml_node_t *config_node, 
 /*
  * Given an XML document, build interface and modem objects, and policies from it.
  */
-unsigned int
-ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_document_t *doc)
+ni_bool_t
+ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_node_t *ifnode, const char *origin)
 {
-	xml_node_t *root, *ifnode;
-	unsigned int count = 0;
+	ni_ifworker_type_t type;
+	const char *ifname = NULL;
+	xml_node_t *node;
+	ni_ifworker_t *w = NULL;
 
-	root = xml_document_root(doc);
-	for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
-		ni_ifworker_type_t type;
-		const char *ifname = NULL;
-		xml_node_t *node;
-		ni_ifworker_t *w = NULL;
+	if (!fsm || xml_node_is_empty(ifnode))
+		return FALSE;
 
-		if (ni_string_eq(ifnode->name, "policy")) {
-			const char *name;
-
-			name = xml_node_get_attr(ifnode, "name");
-			ni_fsm_policy_new(fsm, name, ifnode);
-			continue;
-		}
-
-		type = ni_ifworker_type_from_string(ifnode->name);
-		if (type == NI_IFWORKER_TYPE_NONE) {
-			ni_warn("%s: ignoring non-interface element <%s>",
-					xml_node_location(ifnode),
-					ifnode->name);
-			continue;
-		}
-
-		if ((node = xml_node_get_child(ifnode, "identify")) != NULL) {
-			ni_warn("%s: using obsolete <identify> element - please use <name namespace=\"...\"> instead", xml_node_location(ifnode));
-			w = ni_ifworker_identify_device(fsm, node, type);
-		} else 
-		if ((node = xml_node_get_child(ifnode, "name")) != NULL) {
-			const char *namespace;
-
-			namespace = xml_node_get_attr(node, "namespace");
-			if (namespace != NULL) {
-				w = __ni_ifworker_identify_device(fsm, namespace, node, type);
-			} else {
-				ifname = node->cdata;
-				if (ifname && (w = ni_fsm_ifworker_by_name(fsm, type, ifname)) == NULL)
-					w = ni_ifworker_new(fsm, type, ifname);
-			}
-		}
-
-		if (w == NULL) {
-			ni_error("%s: ignoring unknown interface", xml_node_location(ifnode));
-			continue;
-		}
-
-		ni_ifworker_set_config(w, ifnode, xml_node_get_location_filename(root));
-		count++;
+	type = ni_ifworker_type_from_string(ifnode->name);
+	if (type == NI_IFWORKER_TYPE_NONE) {
+		ni_warn("%s: ignoring non-interface element <%s>",
+				xml_node_location(ifnode),
+				ifnode->name);
+		return FALSE;
 	}
 
-	return count;
+	if ((node = xml_node_get_child(ifnode, "identify")) != NULL) {
+		ni_warn("%s: using obsolete <identify> element - please use <name namespace=\"...\"> instead", xml_node_location(ifnode));
+		w = ni_ifworker_identify_device(fsm, node, type);
+	} else
+	if ((node = xml_node_get_child(ifnode, "name")) != NULL) {
+		const char *namespace;
+
+		namespace = xml_node_get_attr(node, "namespace");
+		if (namespace != NULL) {
+			w = __ni_ifworker_identify_device(fsm, namespace, node, type);
+		} else {
+			ifname = node->cdata;
+			if (ifname && (w = ni_fsm_ifworker_by_name(fsm, type, ifname)) == NULL)
+				w = ni_ifworker_new(fsm, type, ifname);
+		}
+	}
+
+	if (w == NULL) {
+		ni_error("%s: ignoring unknown interface configuration",
+			xml_node_location(ifnode));
+		return FALSE;
+	}
+
+	ni_ifworker_set_config(w, ifnode, origin);
+
+	return TRUE;
 }
 
 /*
@@ -1793,7 +1784,7 @@ ni_ifworker_apply_policies(ni_fsm_t *fsm, ni_ifworker_t *w)
 ni_ifworker_type_t
 ni_ifworker_type_from_string(const char *s)
 {
-	if (ni_string_eq(s, "interface"))
+	if (ni_string_eq(s, NI_CLIENT_IFCONFIG))
 		return NI_IFWORKER_TYPE_NETDEV;
 	if (ni_string_eq(s, "modem"))
 		return NI_IFWORKER_TYPE_MODEM;
