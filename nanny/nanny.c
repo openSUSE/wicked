@@ -145,13 +145,24 @@ void
 ni_nanny_recheck_do(ni_nanny_t *mgr)
 {
 	unsigned int i;
+	ni_fsm_t *fsm = mgr->fsm;
 
-	if (ni_fsm_policies_changed_since(mgr->fsm, &mgr->last_policy_seq)) {
+	ni_assert(fsm);
+	if (ni_fsm_policies_changed_since(fsm, &mgr->last_policy_seq)) {
 		ni_managed_device_t *mdev;
 
 		for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
 			if (mdev->monitor)
 				ni_nanny_schedule_recheck(mgr, mdev->worker);
+		}
+
+		/* Always check virtual devices */
+		for (i = 0; i <  fsm->workers.count; i++) {
+			ni_ifworker_t *w =  fsm->workers.data[i];
+
+			/* Device not created yet */
+			if (w && !w->device)
+				ni_nanny_schedule_recheck(mgr, w);
 		}
 	}
 
@@ -159,6 +170,7 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 		return;
 
 	ni_fsm_refresh_state(mgr->fsm);
+	ni_fsm_build_hierarchy(fsm);
 
 	for (i = 0; i < mgr->recheck.count; ++i)
 		ni_nanny_recheck(mgr, mgr->recheck.data[i]);
@@ -177,13 +189,13 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_managed_device_t *mdev;
 	ni_managed_policy_t *mpolicy;
 	unsigned int count;
+	ni_bool_t virtual = FALSE;
 
-	/* Ignore devices that went away */
-	if (w->dead)
-		return;
+	mdev = ni_nanny_get_device(mgr, w);
 
-	if ((mdev = ni_nanny_get_device(mgr, w)) == NULL)
-		return;
+	/* We have an ifworker, but no device yet - follow virtual path */
+	if (NULL == mdev)
+		virtual = TRUE;
 
 	/* Note, we also check devices in state FAILED.
 	 * ni_managed_device_apply_policy() will then check if the policy
@@ -202,7 +214,7 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 		 * shutdown of the device. This needs cooperation from the server; which would have
 		 * to kill all leases and destroy all addresses.
 		 */
-		if (mdev->state != NI_MANAGED_STATE_STOPPED && mdev->state != NI_MANAGED_STATE_FAILED) {
+		if (!virtual && mdev->state != NI_MANAGED_STATE_STOPPED && mdev->state != NI_MANAGED_STATE_FAILED) {
 			ni_debug_nanny("%s: taking down device", w->name);
 			ni_managed_device_down(mdev);
 		} else {
@@ -214,7 +226,10 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	policy = policies[count-1];
 	mpolicy = ni_nanny_get_policy(mgr, policy);
 
-	ni_managed_device_apply_policy(mdev, mpolicy);
+	if (virtual)
+		ni_virtual_device_apply_policy(mgr->fsm, w, mpolicy);
+	else
+		ni_managed_device_apply_policy(mdev, mpolicy);
 }
 
 /*

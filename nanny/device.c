@@ -128,6 +128,59 @@ ni_managed_device_set_security_id(ni_managed_device_t *mdev, const ni_security_i
 	ni_security_id_set(&w->security_id, security_id);
 }
 
+void
+ni_virtual_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	ni_ifworker_array_t ifmarked;
+
+	ni_assert(fsm && w);
+
+	memset(&ifmarked, 0, sizeof(ifmarked));
+
+	w->target_range.min = NI_FSM_STATE_ADDRCONF_UP;
+	w->target_range.max = __NI_FSM_STATE_MAX;
+
+	ni_ifworker_array_append(&ifmarked, w);
+	ni_fsm_start_matching_workers(fsm, &ifmarked);
+
+	ni_ifworker_array_destroy(&ifmarked);
+}
+
+/*
+ * Apply policy to a virtual (factory) device
+ */
+void
+ni_virtual_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_policy_t *mpolicy)
+{
+	const char *type_name;
+	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
+	xml_node_t *config = NULL;
+
+	ni_debug_nanny("%s: creating device using policy %s",
+		w->name, ni_fsm_policy_name(policy));
+
+	/* This returns "modem" or "interface" */
+	type_name = ni_ifworker_type_to_string(w->type);
+
+	config = xml_node_new(type_name, NULL);
+	xml_node_new_element("name", config, w->name);
+
+	config = ni_fsm_policy_transform_document(config, &policy, 1);
+	if (config == NULL) {
+		ni_error("%s: error when applying policy to %s document",
+			w->name, type_name);
+		return;
+	}
+	ni_debug_nanny("%s: using device config", w->name);
+	xml_node_print_debug(config, 0);
+
+	ni_ifworker_set_config(w, config, "nanny");
+
+	/* Now do the fandango */
+	ni_virtual_device_up(fsm, w);
+}
+
+
 /*
  * Apply policy to a device
  */
