@@ -157,37 +157,6 @@ __ni_suse_ifcfg_valid_prefix(const char *basename, const char *prefix)
 }
 
 static int
-__ni_suse_valid_ifname(const char *ifname)
-{
-	size_t i, len = ni_string_len(ifname);
-	const char *black_list[] = {
-		"all", "default", NULL
-	}, **ptr;
-
-	if (!len || len >= IFNAMSIZ)
-		return FALSE;
-
-	if (!isalnum((unsigned char)ifname[0]))
-		return FALSE;
-
-	for(i = 1; i < len; ++i) {
-		if(isalnum((unsigned char)ifname[i]) ||
-			ifname[i] == '-' ||
-			ifname[i] == '_' ||
-			ifname[i] == '.')
-			continue;
-		return FALSE;
-	}
-
-	for (ptr = black_list; *ptr; ptr++) {
-		if (ni_string_eq(*ptr, ifname))
-			return FALSE;
-	}
-
-	return TRUE;
-}
-
-static int
 __ni_suse_ifcfg_scan_files(const char *dirname, ni_string_array_t *res)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
@@ -1125,7 +1094,7 @@ __ni_suse_read_interface(const char *filename, const char *ifname)
 		ifname = basename + pfxlen;
 	}
 
-	if (!__ni_suse_valid_ifname(ifname)) {
+	if (!ni_netdev_name_is_valid(ifname)) {
 		ni_error("Rejecting suspect interface name: %s", ifname);
 		return NULL;
 	}
@@ -1648,7 +1617,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		     name != NULL;
 		     name = strtok_r(NULL, " \t", &name_pos)) {
 
-			if (!__ni_suse_valid_ifname(name)) {
+			if (!ni_netdev_name_is_valid(name)) {
 				ni_error("ifcfg-%s: BRIDGE_PORTS='%s' "
 					 "rejecting suspect port name '%s'",
 					 dev->name, value, name);
