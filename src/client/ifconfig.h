@@ -32,6 +32,9 @@
 #define NI_NANNY_IFTEMPLATE			"template"
 
 #define NI_NANNY_IFPOLICY_MATCH		"match"
+#define NI_NANNY_IFPOLICY_MATCH_COND_OR	"or"
+#define NI_NANNY_IFPOLICY_MATCH_COND_AND	"and"
+#define NI_NANNY_IFPOLICY_MATCH_ALWAYS_TRUE	"any"
 #define NI_NANNY_IFPOLICY_MATCH_DEV		"device"
 #define NI_NANNY_IFPOLICY_MATCH_MIN_STATE	"minimum-device-state"
 #define NI_NANNY_IFPOLICY_MATCH_LINK_TYPE	"link-type"
@@ -43,8 +46,9 @@
 
 extern ni_bool_t		ni_ifpolicy_match_add_min_state(xml_node_t *, unsigned int);
 extern ni_bool_t		ni_ifpolicy_match_add_link_type(xml_node_t *, unsigned int);
+extern xml_node_t *		ni_ifpolicy_generate_match(const ni_string_array_t *, const char *);
 
-extern xml_node_t *		ni_convert_cfg_into_policy_node(xml_node_t *, const char *);
+extern xml_node_t *		ni_convert_cfg_into_policy_node(xml_node_t *, xml_node_t *, const char *, const char*);
 extern xml_document_t *	ni_convert_cfg_into_policy_doc(xml_document_t *);
 
 extern int			ni_nanny_addpolicy_node(xml_node_t *, const char *);
