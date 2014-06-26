@@ -582,6 +582,31 @@ ni_fsm_ifworker_by_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *ifna
 }
 
 ni_ifworker_t *
+ni_fsm_ifworker_by_policy_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *policy_name)
+{
+	unsigned int i;
+	ni_ifworker_t *w;
+	char *n;
+
+	if (!fsm || !policy_name)
+		return NULL;
+
+	for (i = 0; i < fsm->workers.count ; ++i) {
+		w = fsm->workers.data[i];
+		if (w && w->type == type) {
+			n = ni_ifpolicy_name_from_ifname(w->name);
+			if (n && ni_string_eq(n, policy_name)) {
+				ni_string_free(&n);
+				return w;
+			}
+			ni_string_free(&n);
+		}
+	}
+
+	return NULL;
+}
+
+ni_ifworker_t *
 ni_fsm_ifworker_by_object_path(ni_fsm_t *fsm, const char *object_path)
 {
 	unsigned int i;
