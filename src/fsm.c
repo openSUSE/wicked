@@ -3672,8 +3672,13 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 
 	if (!dev) {
 		w = ni_fsm_recv_new_netif_path(fsm, object_path);
-		if (w && cb)
+		if (w && cb) {
 			dev = w->device;
+
+			/* Rebuild hierarchy */
+			ni_fsm_refresh_master_dev(fsm, w);
+			ni_fsm_refresh_lower_dev(fsm, w);
+		}
 		else
 			return FALSE;
 	}
