@@ -242,7 +242,7 @@ typedef struct ni_ifmarker {
 extern ni_fsm_t *		ni_fsm_new(void);
 extern void			ni_fsm_free(ni_fsm_t *);
 
-extern ni_fsm_policy_t *	ni_fsm_policy_new(ni_fsm_t *, const char *, xml_node_t *, const char *);
+extern ni_fsm_policy_t *	ni_fsm_policy_new(ni_fsm_t *, const char *, xml_node_t *);
 extern void			ni_fsm_policy_free(ni_fsm_policy_t *);
 extern ni_bool_t		ni_fsm_policy_update(ni_fsm_policy_t *, xml_node_t *);
 extern ni_fsm_policy_t *	ni_fsm_policy_by_name(ni_fsm_t *, const char *);
@@ -252,6 +252,7 @@ extern unsigned int		ni_fsm_policy_get_applicable_policies(ni_fsm_t *, ni_ifwork
 extern xml_node_t *		ni_fsm_policy_transform_document(xml_node_t *, const ni_fsm_policy_t * const *, unsigned int);
 extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
 extern xml_location_t *	ni_fsm_policy_location(const ni_fsm_policy_t *);
+extern const char *		ni_fsm_policy_get_origin(const ni_fsm_policy_t *);
 extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *tstamp);
 
 extern ni_dbus_client_t *	ni_fsm_create_client(ni_fsm_t *);
