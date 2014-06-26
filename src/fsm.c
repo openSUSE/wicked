@@ -1855,7 +1855,7 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 			continue;
 		}
 
-		if (w->exclusive_owner)
+		if (match->name && (w->exclusive_owner || w->lowerdevs.count > 0))
 			continue;
 
 		if (match->mode && !ni_string_eq(match->mode, w->control.mode))
