@@ -924,7 +924,10 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 
 	if (shared) {
 		/* The reference allows sharing with other uses, e.g. VLANs. */
-		child->shared_users++;
+		if (ni_ifworker_array_index(&child->lowerdevs, parent) < 0) {
+			ni_ifworker_array_append(&child->lowerdevs, parent);
+			child->shared_users++;
+		}
 	} else if (child->exclusive_owner) {
 		char *other_owner;
 
@@ -2676,8 +2679,10 @@ ni_fsm_refresh_lower_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
 	if (!lower)
 		return;
 
-	if (ni_ifworker_array_index(&lower->lowerdevs, w) < 0)
+	if (ni_ifworker_array_index(&lower->lowerdevs, w) < 0) {
 		ni_ifworker_array_append(&lower->lowerdevs, w);
+		lower->shared_users++;
+	}
 
 	if (ni_ifworker_array_index(&w->children, lower) < 0)
 		ni_ifworker_array_append(&w->children, lower);
