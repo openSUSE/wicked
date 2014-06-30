@@ -188,13 +188,12 @@ struct ni_ifworker {
 		void *		user_data;
 	} completion;
 
-	unsigned int		shared_users;
 	ni_ifworker_t *		masterdev;
 
 	ni_ifworker_t *		parent;
 	unsigned int		depth;		/* depth in device graph */
 	ni_ifworker_array_t	children;
-	ni_ifworker_array_t	lowerdevs;
+	ni_ifworker_array_t	lowerdev_for;
 };
 
 /*

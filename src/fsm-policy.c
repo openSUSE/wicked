@@ -1253,7 +1253,7 @@ __ni_fsm_policy_match_sharable_check(const ni_ifcondition_t *cond, ni_ifworker_t
 	if (ni_string_eq(cond->args.string, "shared"))
 		return w->masterdev == NULL;
 	if (ni_string_eq(cond->args.string, "exclusive"))
-		return w->masterdev == NULL && w->shared_users == 0;
+		return w->masterdev == NULL && w->lowerdev_for.count == 0;
 	return FALSE;
 }
 

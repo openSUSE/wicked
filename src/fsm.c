@@ -152,18 +152,16 @@ ni_ifworker_reset(ni_ifworker_t *w)
 		unsigned int i;
 
 		for (i = 0; i < w->children.count; ++i) {
-			ni_ifworker_t *child_worker = w->children.data[i];
+			ni_ifworker_t *child = w->children.data[i];
 
-			if (child_worker->masterdev == w) {
-				child_worker->masterdev = NULL;
-			} else {
-				ni_assert(child_worker->shared_users);
-				child_worker->shared_users -= 1;
-			}
+			if (child->masterdev == w)
+				child->masterdev = NULL;
+			else
+				ni_ifworker_array_remove(&child->lowerdev_for, w);
 		}
 	}
 	ni_ifworker_array_destroy(&w->children);
-	ni_ifworker_array_destroy(&w->lowerdevs);
+	ni_ifworker_array_destroy(&w->lowerdev_for);
 
 	if (w->fsm.action_table) {
 		ni_fsm_transition_t *action;
@@ -924,10 +922,8 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 
 	if (shared) {
 		/* The reference allows sharing with other uses, e.g. VLANs. */
-		if (ni_ifworker_array_index(&child->lowerdevs, parent) < 0) {
-			ni_ifworker_array_append(&child->lowerdevs, parent);
-			child->shared_users++;
-		}
+		if (ni_ifworker_array_index(&child->lowerdev_for, parent) < 0)
+			ni_ifworker_array_append(&child->lowerdev_for, parent);
 	} else if (child->masterdev) {
 		char *other_owner;
 
@@ -2156,19 +2152,18 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 			unsigned int i;
 
 			for (i = 0; i < w->children.count; ++i) {
-				ni_ifworker_t *child_worker = w->children.data[i];
+				ni_ifworker_t *child = w->children.data[i];
 
-				if (child_worker->masterdev == w) {
-					child_worker->masterdev = NULL;
+				if (child->masterdev == w) {
+					child->masterdev = NULL;
 				} else {
-					ni_assert(child_worker->masterdev == NULL);
-					ni_assert(child_worker->shared_users);
-					child_worker->shared_users -= 1;
+					ni_assert(child->masterdev == NULL);
+					ni_ifworker_array_remove(&child->lowerdev_for, w);
 				}
 			}
 		}
 		ni_ifworker_array_destroy(&w->children);
-		ni_ifworker_array_destroy(&w->lowerdevs);
+		ni_ifworker_array_destroy(&w->lowerdev_for);
 
 		if (w->fsm.action_table) {
 			ni_fsm_transition_t *action;
@@ -2510,7 +2505,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm)
 		for (i = 0; i < fsm->workers.count; ++i) {
 			ni_ifworker_t *w = fsm->workers.data[i];
 
-			if (!w->shared_users && !w->masterdev)
+			if (!w->lowerdev_for.count && !w->masterdev)
 				__ni_ifworker_print_tree("   +-> ", w, "   |   ");
 		}
 	}
@@ -2679,10 +2674,8 @@ ni_fsm_refresh_lower_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
 	if (!lower)
 		return;
 
-	if (ni_ifworker_array_index(&lower->lowerdevs, w) < 0) {
-		ni_ifworker_array_append(&lower->lowerdevs, w);
-		lower->shared_users++;
-	}
+	if (ni_ifworker_array_index(&lower->lowerdev_for, w) < 0)
+		ni_ifworker_array_append(&lower->lowerdev_for, w);
 
 	if (ni_ifworker_array_index(&w->children, lower) < 0)
 		ni_ifworker_array_append(&w->children, lower);
