@@ -1920,9 +1920,6 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 			continue;
 		}
 
-		if (match->name && (w->masterdev || w->lowerdevs.count > 0))
-			continue;
-
 		if (match->mode && !ni_string_eq(match->mode, w->control.mode))
 			continue;
 
@@ -1940,6 +1937,22 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 
 		if (match->skip_active && w->device && ni_netdev_device_is_up(w->device))
 			continue;
+
+		if (match->name) { /* Check only when particular interface specified */
+			if (!match->ifdown) {
+				if (w->masterdev) { /* Pull in also masterdev */
+					if (ni_ifworker_array_index(result, w->masterdev) < 0)
+						ni_ifworker_array_append(result, w->masterdev);
+				}
+			}
+			else if (w->masterdev || w->lowerdev_for.count > 0) {
+				ni_debug_application("skipping %s interface: "
+					"unable to ifdown due to dependency: masterdev=%s, lowerdev=%s", w->name,
+					w->masterdev ? w->masterdev->name : "none",
+					w->lowerdev_for.count ? w->lowerdev_for.data[0]->name : "none");
+				continue;
+			}
+		}
 
 		ni_ifworker_array_append(result, w);
 	}
