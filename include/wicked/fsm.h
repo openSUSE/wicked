@@ -189,7 +189,7 @@ struct ni_ifworker {
 	} completion;
 
 	unsigned int		shared_users;
-	ni_ifworker_t *		exclusive_owner;
+	ni_ifworker_t *		masterdev;
 
 	ni_ifworker_t *		parent;
 	unsigned int		depth;		/* depth in device graph */

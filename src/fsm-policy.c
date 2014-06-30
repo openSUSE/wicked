@@ -1251,9 +1251,9 @@ static ni_bool_t
 __ni_fsm_policy_match_sharable_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
 	if (ni_string_eq(cond->args.string, "shared"))
-		return w->exclusive_owner == NULL;
+		return w->masterdev == NULL;
 	if (ni_string_eq(cond->args.string, "exclusive"))
-		return w->exclusive_owner == NULL && w->shared_users == 0;
+		return w->masterdev == NULL && w->shared_users == 0;
 	return FALSE;
 }
 

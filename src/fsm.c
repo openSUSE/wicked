@@ -147,15 +147,15 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	ni_ifworker_control_destroy(&w->control);
 	ni_security_id_destroy(&w->security_id);
 
-	/* When detaching children, clear their shared/exclusive ownership info */
+	/* When detaching children, clear their lowerdev/masterdev ownership info */
 	if (w->children.count != 0) {
 		unsigned int i;
 
 		for (i = 0; i < w->children.count; ++i) {
 			ni_ifworker_t *child_worker = w->children.data[i];
 
-			if (child_worker->exclusive_owner == w) {
-				child_worker->exclusive_owner = NULL;
+			if (child_worker->masterdev == w) {
+				child_worker->masterdev = NULL;
 			} else {
 				ni_assert(child_worker->shared_users);
 				child_worker->shared_users -= 1;
@@ -928,17 +928,17 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 			ni_ifworker_array_append(&child->lowerdevs, parent);
 			child->shared_users++;
 		}
-	} else if (child->exclusive_owner) {
+	} else if (child->masterdev) {
 		char *other_owner;
 
-		other_owner = strdup(xml_node_location(child->exclusive_owner->config.node));
+		other_owner = strdup(xml_node_location(child->masterdev->config.node));
 		ni_debug_application("%s (%s): subordinate interface already owned by %s (%s)",
 			child->name, xml_node_location(devnode),
-			child->exclusive_owner->name, other_owner);
+			child->masterdev->name, other_owner);
 		free(other_owner);
 		return TRUE;
 	} else {
-		child->exclusive_owner = parent;
+		child->masterdev = parent;
 	}
 
 	ni_ifworker_array_append(&parent->children, child);
@@ -1924,7 +1924,7 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 			continue;
 		}
 
-		if (match->name && (w->exclusive_owner || w->lowerdevs.count > 0))
+		if (match->name && (w->masterdev || w->lowerdevs.count > 0))
 			continue;
 
 		if (match->mode && !ni_string_eq(match->mode, w->control.mode))
@@ -2048,7 +2048,7 @@ ni_ifworkers_flatten(ni_ifworker_array_t *array)
 	for (i = 0; i < array->count; ++i) {
 		ni_ifworker_t *w = array->data[i];
 
-		if (w->exclusive_owner)
+		if (w->masterdev)
 			continue;
 
 		__ni_ifworker_flatten(w, array, 0);
@@ -2151,17 +2151,17 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 			w->target_range.max = __NI_FSM_STATE_MAX;
 		}
 
-		/* When detaching children, clear their shared/exclusive ownership info */
+		/* When detaching children, clear their lowerdev/masterdev ownership info */
 		if (w->children.count != 0) {
 			unsigned int i;
 
 			for (i = 0; i < w->children.count; ++i) {
 				ni_ifworker_t *child_worker = w->children.data[i];
 
-				if (child_worker->exclusive_owner == w) {
-					child_worker->exclusive_owner = NULL;
+				if (child_worker->masterdev == w) {
+					child_worker->masterdev = NULL;
 				} else {
-					ni_assert(child_worker->exclusive_owner == NULL);
+					ni_assert(child_worker->masterdev == NULL);
 					ni_assert(child_worker->shared_users);
 					child_worker->shared_users -= 1;
 				}
@@ -2191,8 +2191,8 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 static inline void
 ni_fsm_purge_children(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
-	if (w->exclusive_owner)
-		ni_ifworker_array_remove(&w->exclusive_owner->children, w);
+	if (w->masterdev)
+		ni_ifworker_array_remove(&w->masterdev->children, w);
 }
 
 ni_bool_t
@@ -2510,7 +2510,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm)
 		for (i = 0; i < fsm->workers.count; ++i) {
 			ni_ifworker_t *w = fsm->workers.data[i];
 
-			if (!w->shared_users && !w->exclusive_owner)
+			if (!w->shared_users && !w->masterdev)
 				__ni_ifworker_print_tree("   +-> ", w, "   |   ");
 		}
 	}
@@ -2650,11 +2650,11 @@ ni_fsm_refresh_master_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
 	if (ni_string_empty(mname))
 		return;
 
-	w->exclusive_owner = ni_fsm_ifworker_by_name(fsm,
+	w->masterdev = ni_fsm_ifworker_by_name(fsm,
 			NI_IFWORKER_TYPE_NETDEV, mname);
 
-	if (w->exclusive_owner) {
-		ni_ifworker_array_t *children = &w->exclusive_owner->children;
+	if (w->masterdev) {
+		ni_ifworker_array_t *children = &w->masterdev->children;
 
 		if (ni_ifworker_array_index(children, w) < 0)
 			ni_ifworker_array_append(children, w);
