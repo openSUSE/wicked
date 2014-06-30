@@ -873,10 +873,8 @@ ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_ty
 			child = ni_ifworker_array_find(&fsm->workers, type, slave_name);
 
 			if (child == NULL) {
-				ni_error("%s: <%s> element references unknown device %s",
-						xml_node_location(devnode),
-						devnode->name,
-						slave_name);
+				ni_error("<%s> element references unknown device %s",
+						devnode->name, slave_name);
 				return NULL;
 			}
 		} else {
@@ -886,9 +884,7 @@ ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_ty
 			child = ni_ifworker_identify_device(fsm, devnode, type);
 		}
 		if (child == NULL) {
-			ni_error("%s: <%s> element references unknown device",
-					xml_node_location(devnode),
-					devnode->name);
+			ni_error("<%s> element references unknown device", devnode->name);
 			return NULL;
 		}
 
@@ -2554,8 +2550,12 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm)
 			continue;
 		}
 
-		if ((rv = ni_ifworker_bind_early(w, fsm, FALSE)) < 0)
-			return rv;
+		if ((rv = ni_ifworker_bind_early(w, fsm, FALSE)) < 0) {
+			if (-NI_ERROR_DOCUMENT_ERROR == rv)
+				ni_error("%s: configuration failed", w->name);
+			ni_fsm_destroy_worker(fsm, w);
+			continue;
+		}
 	}
 
 	if (ni_debug & NI_TRACE_APPLICATION) {
