@@ -956,6 +956,27 @@ ni_route_array_ref(ni_route_array_t *nra, unsigned int index)
 	return ni_route_ref(ni_route_array_get(nra, index));
 }
 
+ni_route_t *
+ni_route_array_find_match(ni_route_array_t *nra, const ni_route_t *rp,
+		ni_bool_t (*match)(const ni_route_t *, const ni_route_t *))
+{
+	ni_route_t *r;
+	unsigned int i;
+
+	if (!nra || !rp || !match)
+		return NULL;
+
+	for (i = 0; i < nra->count; ++i) {
+		if (!(r = nra->data[i]))
+			continue;
+
+		if (match(r, rp))
+			return r;
+	}
+	return NULL;
+}
+
+
 /*
  * ni_route_table functions
  */
@@ -1022,6 +1043,17 @@ ni_route_tables_add_routes(ni_route_table_t **list, ni_route_array_t *routes)
 			return FALSE;
 	}
 	return TRUE;
+}
+
+ni_route_t *
+ni_route_tables_find_match(ni_route_table_t *list, const ni_route_t *rp,
+		ni_bool_t (*match)(const ni_route_t *, const ni_route_t *))
+{
+	ni_route_table_t *tab;
+
+	if (!rp || !(tab = ni_route_tables_find(list, rp->table)))
+		return NULL;
+	return ni_route_array_find_match(&tab->routes, rp, match);
 }
 
 ni_route_table_t *

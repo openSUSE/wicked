@@ -829,9 +829,11 @@ __ni_compat_generate_static_route_hops(xml_node_t *rnode, const ni_route_nexthop
 		}
 		if (nh->device.name && !ni_string_eq(ifname, nh->device.name)) {
 			xml_node_new_element("device", nhnode, nh->device.name);
-		} else if (ifname) {
+		} else
+		if (ifname && hops->next && nh->gateway.ss_family == AF_UNSPEC) {
 			xml_node_new_element("device", nhnode, ifname);
 		}
+
 		if (!hops->next)
 			continue;
 

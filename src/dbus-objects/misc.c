@@ -872,14 +872,23 @@ __ni_objectmodel_route_nexthop_from_dict(ni_route_nexthop_t *nh, const ni_dbus_v
 	const char *string;
 	uint32_t value;
 
-	if (!__ni_objectmodel_dict_get_sockaddr(nhdict, "gateway", &nh->gateway)) {
-		if (!ni_dbus_dict_get_string(nhdict, "device", &string)) {
-			ni_debug_dbus("%s: route nexthop is missing gateway and device",
-					__func__);
+	/*
+	 * we cannot check if a hop contains device and/or gateway
+	 * as we don't have the (interface) context of the route.
+	 */
+	if (ni_dbus_dict_get(nhdict, "gateway")) {
+		if (!__ni_objectmodel_dict_get_sockaddr(nhdict, "gateway", &nh->gateway)) {
+			ni_debug_dbus("%s: invalid route hop gateway %u", __func__, value);
 			return FALSE;
 		}
-		ni_string_dup(&nh->device.name, string);
-	} else if (ni_dbus_dict_get_string(nhdict, "device", &string)) {
+	}
+
+	if (ni_dbus_dict_get_string(nhdict, "device", &string)) {
+		if (!ni_netdev_name_is_valid(string)) {
+			ni_debug_dbus("%s: invalid route hop device name: %s", __func__,
+					ni_print_suspect(string, ni_string_len(string)));
+			return FALSE;
+		}
 		ni_string_dup(&nh->device.name, string);
 	}
 
