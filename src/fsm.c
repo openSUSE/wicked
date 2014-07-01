@@ -916,6 +916,7 @@ static ni_bool_t
 ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode, ni_bool_t shared)
 {
 	unsigned int i;
+	char *other_owner;
 
 	/* Check if this child is already owned by the given parent. */
 	for (i = 0; i < parent->children.count; ++i) {
@@ -925,19 +926,31 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 
 	if (shared) {
 		/* The reference allows sharing with other uses, e.g. VLANs. */
-		if (ni_ifworker_array_index(&child->lowerdev_for, parent) < 0)
-			ni_ifworker_array_append(&child->lowerdev_for, parent);
-	} else if (child->masterdev) {
-		char *other_owner;
-
-		other_owner = strdup(xml_node_location(child->masterdev->config.node));
-		ni_debug_application("%s (%s): subordinate interface already owned by %s (%s)",
-			child->name, xml_node_location(devnode),
-			child->masterdev->name, other_owner);
-		free(other_owner);
-		return TRUE;
-	} else {
-		child->masterdev = parent;
+		if (parent->lowerdev) {
+			other_owner = strdup(xml_node_location(parent->lowerdev->config.node));
+			ni_debug_application("%s (%s): subordinate interface already has lowerdev %s (%s)",
+				parent->name, xml_node_location(devnode),
+				parent->lowerdev->name, other_owner);
+			free(other_owner);
+			return TRUE;
+		}
+		else {
+			parent->lowerdev = child;
+			if (ni_ifworker_array_index(&child->lowerdev_for, parent) < 0)
+				ni_ifworker_array_append(&child->lowerdev_for, parent);
+		}
+	}
+	else {
+		if (child->masterdev) {
+			other_owner = strdup(xml_node_location(child->masterdev->config.node));
+			ni_debug_application("%s (%s): subordinate interface already has masterdev %s (%s)",
+				child->name, xml_node_location(devnode),
+				child->masterdev->name, other_owner);
+			free(other_owner);
+			return TRUE;
+		}
+		else
+			child->masterdev = parent;
 	}
 
 	ni_ifworker_array_append(&parent->children, child);
