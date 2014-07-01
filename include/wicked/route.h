@@ -123,7 +123,6 @@ extern ni_bool_t		ni_route_is_valid_protocol(unsigned int);
 extern unsigned int		ni_route_guess_table(ni_route_t *);
 extern unsigned int		ni_route_guess_scope(ni_route_t *);
 
-
 extern ni_route_nexthop_t *	ni_route_nexthop_new(void);
 extern void			ni_route_nexthop_copy(ni_route_nexthop_t *, const ni_route_nexthop_t *);
 extern void			ni_route_nexthop_free(ni_route_nexthop_t *);
@@ -142,7 +141,8 @@ extern ni_bool_t		ni_route_array_delete(ni_route_array_t *, unsigned int);
 extern ni_route_t *		ni_route_array_remove(ni_route_array_t *, unsigned int);
 extern ni_route_t *		ni_route_array_get(ni_route_array_t *, unsigned int);
 extern ni_route_t *		ni_route_array_ref(ni_route_array_t *, unsigned int);
-
+extern ni_route_t *		ni_route_array_find_match(ni_route_array_t *, const ni_route_t *,
+				ni_bool_t (*match)(const ni_route_t *, const ni_route_t *));
 
 extern ni_route_table_t *	ni_route_table_new(unsigned int);
 extern void			ni_route_table_free(ni_route_table_t *);
@@ -150,6 +150,9 @@ extern void			ni_route_table_clear(ni_route_table_t *);
 
 extern ni_bool_t		ni_route_tables_add_route(ni_route_table_t **, ni_route_t *);
 extern ni_bool_t		ni_route_tables_add_routes(ni_route_table_t **, ni_route_array_t *);
+
+extern ni_route_t *		ni_route_tables_find_match(ni_route_table_t *, const ni_route_t *,
+				ni_bool_t (*match)(const ni_route_t *, const ni_route_t *));
 
 extern ni_route_table_t *	ni_route_tables_find(ni_route_table_t *, unsigned int);
 extern ni_route_table_t *	ni_route_tables_get(ni_route_table_t **, unsigned int);
