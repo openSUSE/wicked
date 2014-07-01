@@ -1947,6 +1947,10 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 					if (ni_ifworker_array_index(result, w->masterdev) < 0)
 						ni_ifworker_array_append(result, w->masterdev);
 				}
+				if (w->lowerdev) {
+					if (ni_ifworker_array_index(result, w->lowerdev) < 0)
+						ni_ifworker_array_append(result, w->lowerdev);
+				}
 			}
 			else if (w->masterdev || w->lowerdev_for.count > 0) {
 				ni_debug_application("skipping %s interface: "
