@@ -156,8 +156,11 @@ ni_ifworker_reset(ni_ifworker_t *w)
 
 			if (child->masterdev == w)
 				child->masterdev = NULL;
-			else
+
+			if (child == w->lowerdev) {
 				ni_ifworker_array_remove(&child->lowerdev_for, w);
+				w->lowerdev = NULL;
+			}
 		}
 	}
 	ni_ifworker_array_destroy(&w->children);
@@ -2167,11 +2170,12 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 			for (i = 0; i < w->children.count; ++i) {
 				ni_ifworker_t *child = w->children.data[i];
 
-				if (child->masterdev == w) {
+				if (child->masterdev == w)
 					child->masterdev = NULL;
-				} else {
-					ni_assert(child->masterdev == NULL);
+
+				if (child == w->lowerdev) {
 					ni_ifworker_array_remove(&child->lowerdev_for, w);
+					w->lowerdev = NULL;
 				}
 			}
 		}
@@ -2687,6 +2691,7 @@ ni_fsm_refresh_lower_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
 	if (!lower)
 		return;
 
+	w->lowerdev = lower;
 	if (ni_ifworker_array_index(&lower->lowerdev_for, w) < 0)
 		ni_ifworker_array_append(&lower->lowerdev_for, w);
 
