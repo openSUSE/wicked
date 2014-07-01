@@ -276,6 +276,10 @@ main(int argc, char **argv)
 	ni_srandom();
 
 	if (tester) {
+		/* Create necessary directories if not yet there */
+		ni_config_storedir();
+		ni_config_statedir();
+
 		return dhcp6_tester_run(tester);
 	}
 
