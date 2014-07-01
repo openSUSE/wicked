@@ -1996,7 +1996,8 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 			}
 		}
 
-		ni_ifworker_array_append(result, w);
+		if (ni_ifworker_array_index(result,w) < 0)
+			ni_ifworker_array_append(result, w);
 	}
 
 	/* Collect all workers in the device graph, and sort them
