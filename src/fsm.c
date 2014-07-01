@@ -1965,12 +1965,34 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 						ni_ifworker_array_append(result, w->lowerdev);
 				}
 			}
-			else if (w->masterdev || w->lowerdev_for.count > 0) {
-				ni_debug_application("skipping %s interface: "
-					"unable to ifdown due to dependency: masterdev=%s, lowerdev=%s", w->name,
-					w->masterdev ? w->masterdev->name : "none",
-					w->lowerdev_for.count ? w->lowerdev_for.data[0]->name : "none");
-				continue;
+			else {
+				if (w->masterdev) {
+					if (ni_ifworker_array_index(result, w->masterdev) < 0) {
+						ni_debug_application("skipping %s interface: "
+							"unable to ifdown due to masterdev dependency to: %s",
+							w->name, w->masterdev->name);
+						continue;
+					}
+				}
+
+				if (w->lowerdev_for.count > 0) {
+					ni_bool_t missing_dep = FALSE;
+					unsigned int i;
+
+					for (i = 0; i < w->lowerdev_for.count; i++) {
+						ni_ifworker_t *dep = w->lowerdev_for.data[i];
+
+						if (ni_ifworker_array_index(result, dep) < 0) {
+							ni_debug_application("skipping %s interface: "
+								"unable to ifdown due to lowerdev dependency to: %s",
+								w->name, dep->name);
+							missing_dep = TRUE;
+						}
+					}
+
+					if (missing_dep)
+						continue;
+				}
 			}
 		}
 
