@@ -221,6 +221,7 @@ usage:
 	nmarked = 0;
 	while (optind < argc) {
 		ifmatch.name = argv[optind++];
+		ifmatch.ifdown = TRUE;
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
 	}
 

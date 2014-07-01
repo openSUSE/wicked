@@ -147,23 +147,24 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	ni_ifworker_control_destroy(&w->control);
 	ni_security_id_destroy(&w->security_id);
 
-	/* When detaching children, clear their shared/exclusive ownership info */
+	/* When detaching children, clear their lowerdev/masterdev ownership info */
 	if (w->children.count != 0) {
 		unsigned int i;
 
 		for (i = 0; i < w->children.count; ++i) {
-			ni_ifworker_t *child_worker = w->children.data[i];
+			ni_ifworker_t *child = w->children.data[i];
 
-			if (child_worker->exclusive_owner == w) {
-				child_worker->exclusive_owner = NULL;
-			} else {
-				ni_assert(child_worker->shared_users);
-				child_worker->shared_users -= 1;
+			if (child->masterdev == w)
+				child->masterdev = NULL;
+
+			if (child == w->lowerdev) {
+				ni_ifworker_array_remove(&child->lowerdev_for, w);
+				w->lowerdev = NULL;
 			}
 		}
 	}
 	ni_ifworker_array_destroy(&w->children);
-	ni_ifworker_array_destroy(&w->lowerdevs);
+	ni_ifworker_array_destroy(&w->lowerdev_for);
 
 	if (w->fsm.action_table) {
 		ni_fsm_transition_t *action;
@@ -872,10 +873,8 @@ ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_ty
 			child = ni_ifworker_array_find(&fsm->workers, type, slave_name);
 
 			if (child == NULL) {
-				ni_error("%s: <%s> element references unknown device %s",
-						xml_node_location(devnode),
-						devnode->name,
-						slave_name);
+				ni_error("<%s> element references unknown device %s",
+						devnode->name, slave_name);
 				return NULL;
 			}
 		} else {
@@ -885,9 +884,7 @@ ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_ty
 			child = ni_ifworker_identify_device(fsm, devnode, type);
 		}
 		if (child == NULL) {
-			ni_error("%s: <%s> element references unknown device",
-					xml_node_location(devnode),
-					devnode->name);
+			ni_error("<%s> element references unknown device", devnode->name);
 			return NULL;
 		}
 
@@ -915,6 +912,7 @@ static ni_bool_t
 ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode, ni_bool_t shared)
 {
 	unsigned int i;
+	char *other_owner;
 
 	/* Check if this child is already owned by the given parent. */
 	for (i = 0; i < parent->children.count; ++i) {
@@ -924,21 +922,31 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 
 	if (shared) {
 		/* The reference allows sharing with other uses, e.g. VLANs. */
-		if (ni_ifworker_array_index(&child->lowerdevs, parent) < 0) {
-			ni_ifworker_array_append(&child->lowerdevs, parent);
-			child->shared_users++;
+		if (parent->lowerdev) {
+			other_owner = strdup(xml_node_location(parent->lowerdev->config.node));
+			ni_debug_application("%s (%s): subordinate interface already has lowerdev %s (%s)",
+				parent->name, xml_node_location(devnode),
+				parent->lowerdev->name, other_owner);
+			free(other_owner);
+			return TRUE;
 		}
-	} else if (child->exclusive_owner) {
-		char *other_owner;
-
-		other_owner = strdup(xml_node_location(child->exclusive_owner->config.node));
-		ni_debug_application("%s (%s): subordinate interface already owned by %s (%s)",
-			child->name, xml_node_location(devnode),
-			child->exclusive_owner->name, other_owner);
-		free(other_owner);
-		return TRUE;
-	} else {
-		child->exclusive_owner = parent;
+		else {
+			parent->lowerdev = child;
+			if (ni_ifworker_array_index(&child->lowerdev_for, parent) < 0)
+				ni_ifworker_array_append(&child->lowerdev_for, parent);
+		}
+	}
+	else {
+		if (child->masterdev) {
+			other_owner = strdup(xml_node_location(child->masterdev->config.node));
+			ni_debug_application("%s (%s): subordinate interface already has masterdev %s (%s)",
+				child->name, xml_node_location(devnode),
+				child->masterdev->name, other_owner);
+			free(other_owner);
+			return TRUE;
+		}
+		else
+			child->masterdev = parent;
 	}
 
 	ni_ifworker_array_append(&parent->children, child);
@@ -1924,9 +1932,6 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 			continue;
 		}
 
-		if (match->name && (w->exclusive_owner || w->lowerdevs.count > 0))
-			continue;
-
 		if (match->mode && !ni_string_eq(match->mode, w->control.mode))
 			continue;
 
@@ -1945,7 +1950,50 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 		if (match->skip_active && w->device && ni_netdev_device_is_up(w->device))
 			continue;
 
-		ni_ifworker_array_append(result, w);
+		if (match->name) { /* Check only when particular interface specified */
+			if (!match->ifdown) {
+				if (w->masterdev) { /* Pull in also masterdev */
+					if (ni_ifworker_array_index(result, w->masterdev) < 0)
+						ni_ifworker_array_append(result, w->masterdev);
+				}
+				if (w->lowerdev) {
+					if (ni_ifworker_array_index(result, w->lowerdev) < 0)
+						ni_ifworker_array_append(result, w->lowerdev);
+				}
+			}
+			else {
+				if (w->masterdev) {
+					if (ni_ifworker_array_index(result, w->masterdev) < 0) {
+						ni_debug_application("skipping %s interface: "
+							"unable to ifdown due to masterdev dependency to: %s",
+							w->name, w->masterdev->name);
+						continue;
+					}
+				}
+
+				if (w->lowerdev_for.count > 0) {
+					ni_bool_t missing_dep = FALSE;
+					unsigned int i;
+
+					for (i = 0; i < w->lowerdev_for.count; i++) {
+						ni_ifworker_t *dep = w->lowerdev_for.data[i];
+
+						if (ni_ifworker_array_index(result, dep) < 0) {
+							ni_debug_application("skipping %s interface: "
+								"unable to ifdown due to lowerdev dependency to: %s",
+								w->name, dep->name);
+							missing_dep = TRUE;
+						}
+					}
+
+					if (missing_dep)
+						continue;
+				}
+			}
+		}
+
+		if (ni_ifworker_array_index(result,w) < 0)
+			ni_ifworker_array_append(result, w);
 	}
 
 	/* Collect all workers in the device graph, and sort them
@@ -2048,7 +2096,7 @@ ni_ifworkers_flatten(ni_ifworker_array_t *array)
 	for (i = 0; i < array->count; ++i) {
 		ni_ifworker_t *w = array->data[i];
 
-		if (w->exclusive_owner)
+		if (w->masterdev)
 			continue;
 
 		__ni_ifworker_flatten(w, array, 0);
@@ -2151,24 +2199,24 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 			w->target_range.max = __NI_FSM_STATE_MAX;
 		}
 
-		/* When detaching children, clear their shared/exclusive ownership info */
+		/* When detaching children, clear their lowerdev/masterdev ownership info */
 		if (w->children.count != 0) {
 			unsigned int i;
 
 			for (i = 0; i < w->children.count; ++i) {
-				ni_ifworker_t *child_worker = w->children.data[i];
+				ni_ifworker_t *child = w->children.data[i];
 
-				if (child_worker->exclusive_owner == w) {
-					child_worker->exclusive_owner = NULL;
-				} else {
-					ni_assert(child_worker->exclusive_owner == NULL);
-					ni_assert(child_worker->shared_users);
-					child_worker->shared_users -= 1;
+				if (child->masterdev == w)
+					child->masterdev = NULL;
+
+				if (child == w->lowerdev) {
+					ni_ifworker_array_remove(&child->lowerdev_for, w);
+					w->lowerdev = NULL;
 				}
 			}
 		}
 		ni_ifworker_array_destroy(&w->children);
-		ni_ifworker_array_destroy(&w->lowerdevs);
+		ni_ifworker_array_destroy(&w->lowerdev_for);
 
 		if (w->fsm.action_table) {
 			ni_fsm_transition_t *action;
@@ -2191,8 +2239,8 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 static inline void
 ni_fsm_purge_children(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
-	if (w->exclusive_owner)
-		ni_ifworker_array_remove(&w->exclusive_owner->children, w);
+	if (w->masterdev)
+		ni_ifworker_array_remove(&w->masterdev->children, w);
 }
 
 ni_bool_t
@@ -2502,15 +2550,19 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm)
 			continue;
 		}
 
-		if ((rv = ni_ifworker_bind_early(w, fsm, FALSE)) < 0)
-			return rv;
+		if ((rv = ni_ifworker_bind_early(w, fsm, FALSE)) < 0) {
+			if (-NI_ERROR_DOCUMENT_ERROR == rv)
+				ni_error("%s: configuration failed", w->name);
+			ni_fsm_destroy_worker(fsm, w);
+			continue;
+		}
 	}
 
 	if (ni_debug & NI_TRACE_APPLICATION) {
 		for (i = 0; i < fsm->workers.count; ++i) {
 			ni_ifworker_t *w = fsm->workers.data[i];
 
-			if (!w->shared_users && !w->exclusive_owner)
+			if (!w->lowerdev_for.count && !w->masterdev)
 				__ni_ifworker_print_tree("   +-> ", w, "   |   ");
 		}
 	}
@@ -2650,11 +2702,11 @@ ni_fsm_refresh_master_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
 	if (ni_string_empty(mname))
 		return;
 
-	w->exclusive_owner = ni_fsm_ifworker_by_name(fsm,
+	w->masterdev = ni_fsm_ifworker_by_name(fsm,
 			NI_IFWORKER_TYPE_NETDEV, mname);
 
-	if (w->exclusive_owner) {
-		ni_ifworker_array_t *children = &w->exclusive_owner->children;
+	if (w->masterdev) {
+		ni_ifworker_array_t *children = &w->masterdev->children;
 
 		if (ni_ifworker_array_index(children, w) < 0)
 			ni_ifworker_array_append(children, w);
@@ -2679,10 +2731,9 @@ ni_fsm_refresh_lower_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
 	if (!lower)
 		return;
 
-	if (ni_ifworker_array_index(&lower->lowerdevs, w) < 0) {
-		ni_ifworker_array_append(&lower->lowerdevs, w);
-		lower->shared_users++;
-	}
+	w->lowerdev = lower;
+	if (ni_ifworker_array_index(&lower->lowerdev_for, w) < 0)
+		ni_ifworker_array_append(&lower->lowerdev_for, w);
 
 	if (ni_ifworker_array_index(&w->children, lower) < 0)
 		ni_ifworker_array_append(&w->children, lower);
@@ -3399,8 +3450,7 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 static inline ni_bool_t
 ni_ifworker_can_delete(const ni_ifworker_t *w)
 {
-	return (!w->client_state.persistent &&
-		ni_dbus_object_get_service_for_method(w->object, "deleteDevice"));
+	return !!ni_dbus_object_get_service_for_method(w->object, "deleteDevice");
 }
 
 /*
