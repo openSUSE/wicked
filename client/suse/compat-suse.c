@@ -73,6 +73,7 @@ typedef ni_bool_t (*try_function_t)(const ni_sysconfig_t *, ni_netdev_t *, const
 static ni_compat_netdev_t *	__ni_suse_read_interface(const char *, const char *);
 static ni_bool_t		__ni_suse_read_globals(const char *, const char *);
 static void			__ni_suse_free_globals(void);
+static void			__ni_suse_show_unapplied_routes(void);
 static ni_bool_t		__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
 static int			__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *,
 							const char *, try_function_t);
@@ -248,6 +249,8 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 		goto done;
 	}
 
+	__ni_suse_show_unapplied_routes();
+
 	success = TRUE;
 
 done:
@@ -397,6 +400,27 @@ __ni_suse_read_globals(const char *root, const char *path)
 		__ni_ipv6_disbled = TRUE;
 
 	return TRUE;
+}
+
+static void
+__ni_suse_show_unapplied_routes(void)
+{
+	ni_stringbuf_t out = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_route_table_t *tab;
+	unsigned int i;
+
+	for (tab = __ni_suse_global_routes; tab; tab = tab->next) {
+		for (i = 0; i < tab->routes.count; ++i) {
+			ni_route_t *rp = tab->routes.data[i];
+
+			if (!rp || rp->users >= 2)
+				continue;
+
+			ni_debug_readwrite("discarding route not matching any interface: %s",
+					ni_route_print(&out, rp));
+			ni_stringbuf_destroy(&out);
+		}
+	}
 }
 
 static void
@@ -805,18 +829,18 @@ __ni_suse_route_parse(ni_route_table_t **routes, char *buffer, const char *ifnam
 		if (ni_string_eq(name, "-"))
 			name = NULL;
 
-		if (ifname == NULL)
-			ifname = name;
-
 		/*
 		 * ifname is set while reading per-interface routes;
 		 * do not allow another interfaces in the name field.
 		 */
 		if (ifname && name && !ni_string_eq(ifname, name)) {
-			ni_error("%s[%u]: Invalid (foreign) interface name \"%s\"",
+			ni_warn("%s[%u]: Ignoring foreign interface name \"%s\"",
 				filename, line, name);
-			return -1;
+			name = NULL;
 		}
+
+		if (ifname == NULL)
+			ifname = name;
 
 		ni_string_split(&opts, end, " \t", 0);
 	}
@@ -935,12 +959,18 @@ __ni_suse_route_parse(ni_route_table_t **routes, char *buffer, const char *ifnam
 	case RTN_PROHIBIT:
 	case RTN_THROW:
 		/* we need the destination only ...    */
-		if (rp->nh.gateway.ss_family != AF_UNSPEC ||
-		    rp->nh.device.name || rp->nh.next) {
-			ni_error("%s[%u]: Route type does not have a device or gateway",
-				filename, line);
-			goto failure;
+		if (rp->nh.device.name && ni_string_eq(rp->nh.device.name, "lo")) {
+			ni_warn("%s[%u]: Route type %s aren't bound to specific devices",
+				filename, line, ni_route_type_type_to_name(rp->type));
 		}
+		if (ni_sockaddr_is_specified(&rp->nh.gateway) || rp->nh.next) {
+			ni_warn("%s[%u]: Route type %s do not have any gateway",
+				filename, line, ni_route_type_type_to_name(rp->type));
+		}
+		/* Hmm... just assign to loopback (as in kernel) and continue */
+		ni_route_nexthop_list_destroy(&rp->nh.next);
+		memset(&rp->nh.gateway, 0, sizeof(rp->nh.gateway));
+		ni_string_dup(&rp->nh.device.name, "lo");
 		break;
 
 	default:
@@ -973,6 +1003,13 @@ __ni_suse_route_parse(ni_route_table_t **routes, char *buffer, const char *ifnam
 		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 		ni_debug_readwrite("Parsed route: %s", ni_route_print(&buf, rp));
 		ni_stringbuf_destroy(&buf);
+	}
+
+	/* skip if we have this destination already */
+	if (ni_route_tables_find_match(*routes, rp, ni_route_equal_destination)) {
+		ni_debug_readwrite("Skipping route -- duplicate destination: %s/%u",
+				ni_sockaddr_print(&rp->destination), rp->prefixlen);
+		return 1;
 	}
 
 	if (ni_route_tables_add_route(routes, rp))
@@ -1029,6 +1066,8 @@ __ni_suse_read_routes(ni_route_table_t **routes, const char *filename, const cha
 		return FALSE;
 	}
 
+	ni_debug_readwrite("ni_suse_read_routes(%s)", filename);
+
 	ni_stringbuf_grow(&buff, 1023);
 	do {
 		ni_stringbuf_truncate(&buff, 0);
@@ -1053,10 +1092,11 @@ __ni_suse_read_routes(ni_route_table_t **routes, const char *filename, const cha
 		ni_stringbuf_trim_head(&buff, " \t");
 
 		if (!ni_stringbuf_empty(&buff)) {
-			ni_debug_readwrite("Parsing route line: %s", buff.string);
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_READWRITE,
+					"Parsing route line: %s", buff.string);
 			if (__ni_suse_route_parse(routes, buff.string,
 						  ifname, filename, line) < 0)
-				goto error; /* ? */
+				continue;
 		}
 	} while (!done);
 
@@ -2719,12 +2759,53 @@ cannot_parse:
  * Process static addrconf
  */
 static ni_bool_t
+__dev_route_match(ni_route_table_t *routes, unsigned int table,
+			const char *device, ni_sockaddr_t *gw)
+{
+	ni_route_table_t *tab;
+	ni_route_nexthop_t *nh;
+	ni_route_t *rp;
+	unsigned int i;
+	ni_bool_t dh;
+
+	if (!(tab =  ni_route_tables_find(routes, table)))
+		return FALSE;
+
+	for (i = 0; i < tab->routes.count; ++i) {
+		if (!(rp = tab->routes.data[i]))
+			continue;
+
+		if (rp->family != gw->ss_family)
+			continue;
+
+		if (!ni_sockaddr_is_specified(&rp->destination) ||
+		    ni_sockaddr_is_loopback(&rp->destination))
+			continue;
+
+		if (!ni_sockaddr_is_specified(&rp->destination))
+			continue;
+
+		for (dh = FALSE, nh = &rp->nh; !dh && nh; nh = nh->next) {
+			if (!ni_sockaddr_is_unspecified(&nh->gateway))
+				continue;
+			if (!nh->device.name || ni_string_eq(nh->device.name, device))
+				dh = TRUE;
+		}
+
+		if (dh && ni_sockaddr_prefix_match(rp->prefixlen, &rp->destination, gw))
+			return TRUE;
+	}
+	return FALSE;
+}
+
+static ni_bool_t
 __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
 	ni_bool_t ipv4_enabled = TRUE;
 	ni_bool_t ipv6_enabled = TRUE;
 	const char *routespath;
+	ni_stringbuf_t out = NI_STRINGBUF_INIT_DYNAMIC;
 
 	if (dev->ipv4 && ni_tristate_is_disabled(dev->ipv4->conf.enabled))
 		ipv4_enabled = FALSE;
@@ -2745,11 +2826,6 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		}
 	}
 
-#if 0
-	/* Hmm... disabled the hack -- we (expect to) have a config
-	 * and when there is ipv6.disable=1 on the kernel cmd line,
-	 * this causes a failure
-	 */
 	/* Hack up the loopback interface */
 	if (dev->link.type == NI_IFTYPE_LOOPBACK) {
 		ni_sockaddr_t local_addr;
@@ -2765,7 +2841,8 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 				ni_address_new(AF_INET6, 128, &local_addr, &dev->addrs);
 		}
 	}
-#endif
+
+	ni_address_list_dedup(&dev->addrs);
 
 	if (dev->routes != NULL)
 		ni_route_tables_destroy(&dev->routes);
@@ -2784,68 +2861,67 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 				ni_route_t *rp = tab->routes.data[i];
 				ni_address_t *ap;
 				ni_route_nexthop_t *nh;
-				ni_bool_t match = FALSE;
+				unsigned int matches = 0;
 
-				switch (rp->family) {
-				case AF_INET:
-					if (!ipv4_enabled)
+				if (rp->family == AF_INET  && !ipv4_enabled)
+					continue;
+				if (rp->family == AF_INET6 && !ipv6_enabled)
+					continue;
+
+				/* skip if dev->routes contains the destination */
+				if (ni_route_tables_find_match(dev->routes, rp,
+						ni_route_equal_destination))
+					continue;
+
+				for (nh = &rp->nh; nh; nh = nh->next) {
+					/* check match by device name */
+					if (nh->device.name) {
+						if (ni_string_eq(nh->device.name, dev->name))
+							matches++;
 						continue;
+					}
 
-					/*
-					 * FIXME: this is much more complex,
-					 *      + move into some functions...
+					/* Every interface is in IPv6 link local network,
+					 * that is, explicit interface required for them
 					 */
-					for (nh = &rp->nh; nh; nh = nh->next) {
-						/* check match by device name */
-						if (nh->device.name) {
-							if (ni_string_eq(nh->device.name, dev->name)) {
-								match = TRUE;
-								break;
-							}
+					if (ni_sockaddr_is_ipv6_linklocal(&nh->gateway))
+						continue;
+
+					/* match gw against already assigned device routes */
+					if (__dev_route_match(dev->routes, rp->table,
+								dev->name, &nh->gateway)) {
+						matches++;
+						continue;
+					}
+
+					/* match, when gw is on the same network:
+					 * e.g. ip from 192.168.1.0/24, gw is 192.168.1.1
+					 */
+					for (ap = dev->addrs; !matches && ap; ap = ap->next) {
+						if (ap->family != nh->gateway.ss_family)
 							continue;
-						}
 
-						/* match, when gw is on the same network:
-						 * e.g. ip 192.168.1.0/24, gw is 192.168.1.1
-						 */
-						for (ap = dev->addrs; !match && ap; ap = ap->next) {
-							if (ap->family == AF_INET &&
-							    ni_address_can_reach(ap, &nh->gateway))
-								match = TRUE;
-						}
-
-						/* match, when gw is on a previously added dev route
-						 * ip 192.168.1.0/24
-						 * route1: 192.168.2.0/24 dev $current
-						 * route2: 192.168.3.0/24 gw 192.168.2.1
-						 */
+						if (ni_address_can_reach(ap, &nh->gateway))
+							matches++;
 					}
-					if (match) {
-						ni_route_tables_add_route(&dev->routes,
-								ni_route_clone(rp));
+				}
+				if (matches) {
+					for (nh = &rp->nh; nh; nh = nh->next) {
+						if (!nh->device.name) {
+							ni_string_dup(&nh->device.name, dev->name);
+						}
 					}
-				break;
 
-				case AF_INET6:
-					if (!ipv6_enabled)
-						continue;
+					ni_debug_readwrite("Assigned route to %s: %s",
+							dev->name, ni_route_print(&out, rp));
+					ni_stringbuf_destroy(&out);
 
-					/* For IPv6, we add the route as long as the interface name matches */
-					if (!rp->nh.device.name ||
-					    !ni_string_eq(rp->nh.device.name, dev->name))
-						continue;
-
-					ni_route_tables_add_route(&dev->routes, ni_route_clone(rp));
-					break;
-
-				default:
-					break;
+					ni_route_tables_add_route(&dev->routes, ni_route_ref(rp));
 				}
 			}
 		}
 	}
 
-	ni_address_list_dedup(&dev->addrs);
 	return TRUE;
 }
 

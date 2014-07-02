@@ -113,6 +113,36 @@ ni_objectmodel_addrconf_path_to_device(const char *path)
 }
 
 /*
+ * Utility to apply device name context to lease routes
+ */
+static ni_bool_t
+__ni_objectmodel_routes_bind_device_name(ni_route_table_t *routes, const char *ifname)
+{
+	ni_route_table_t *tab;
+	ni_route_nexthop_t *nh;
+	ni_route_t *rp;
+	unsigned int i, count = 0;
+
+	for (tab = routes; tab; tab = tab->next) {
+		for (i = 0; i < tab->routes.count; ++i) {
+			if (!(rp = tab->routes.data[i]))
+				continue;
+
+			for (nh = &rp->nh; nh; nh = nh->next) {
+				if (ifname && !nh->device.name) {
+					ni_string_dup(&nh->device.name, ifname);
+					count++;
+				} else
+				if (ni_string_eq(nh->device.name, ifname)) {
+					count++;
+				}
+			}
+		}
+	}
+	return count > 0;
+}
+
+/*
  * Callback from addrconf supplicant whenever it acquired, released or lost a lease.
  *
  * FIXME SECURITY:
@@ -176,6 +206,8 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		}
 
 		ifevent = NI_EVENT_ADDRESS_ACQUIRED;
+
+		__ni_objectmodel_routes_bind_device_name(lease->routes, ifp->name);
 
 		if (!__ni_addrconf_should_update(lease->update, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE)) {
 			ni_route_table_t *tab;
@@ -274,6 +306,9 @@ ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, unsigned int ad
 		ni_addrconf_lease_free(lease);
 		return FALSE;
 	}
+
+	__ni_objectmodel_routes_bind_device_name(lease->routes, dev->name);
+
 	if (__ni_objectmodel_get_domain_string(dict, "hostname", &string_value))
 		ni_string_dup(&lease->hostname, string_value);
 

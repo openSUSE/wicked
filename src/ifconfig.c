@@ -2183,10 +2183,22 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 		    addattr_sockaddr(msg, RTA_GATEWAY, &rp->nh.gateway))
 			goto nla_put_failure;
 
-		if (rp->nh.device.index)
-			NLA_PUT_U32(msg, RTA_OIF, rp->nh.device.index);
-		else if (dev && dev->link.ifindex)
-			NLA_PUT_U32(msg, RTA_OIF, dev->link.ifindex);
+		switch (rt.rtm_type) {
+		case RTN_UNREACHABLE:
+		case RTN_BLACKHOLE:
+		case RTN_PROHIBIT:
+		case RTN_THROW:
+			break;
+		default:
+			if (rp->nh.device.index)
+				NLA_PUT_U32(msg, RTA_OIF, rp->nh.device.index);
+			else
+			if (dev && ni_string_eq(rp->nh.device.name, dev->name))
+				NLA_PUT_U32(msg, RTA_OIF, dev->link.ifindex);
+			else
+				goto failed; /* apply to other device? */
+			break;
+		}
 
 		if (rp->realm)
 			NLA_PUT_U32(msg, RTA_FLOW, rp->realm);
@@ -2194,6 +2206,7 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 		struct nlattr *mp_head;
 		struct rtnexthop *rtnh;
 		ni_route_nexthop_t *nh;
+		ni_netconfig_t *nc = NULL;
 
 		mp_head = nla_nest_start(msg, RTA_MULTIPATH);
 		if (mp_head == NULL)
@@ -2208,12 +2221,27 @@ __ni_rtnl_send_newroute(ni_netdev_t *dev, ni_route_t *rp, int flags)
 			rtnh->rtnh_flags = nh->flags & 0xFF;
 			rtnh->rtnh_hops = nh->weight ? nh->weight - 1 : 0;
 
-			if (nh->device.index)
+			if (nh->device.index) {
 				rtnh->rtnh_ifindex = nh->device.index;
-			else if (dev && dev->link.ifindex)
+			} else
+			if (dev && ni_string_eq(rp->nh.device.name, dev->name)) {
 				rtnh->rtnh_ifindex = dev->link.ifindex;
-			else
+			} else
+			if (rp->nh.device.name) {
+				/* TODO: multi-device hops not supported yet */
+				ni_netdev_t *other;
+
+				if (!nc || !(nc = ni_global_state_handle(0)))
+					goto failed;
+				if (!(other = ni_netdev_by_name(nc, rp->nh.device.name)))
+					goto failed;
+
+				rtnh->rtnh_ifindex = other->link.ifindex;
+			} else
+			if (!ni_sockaddr_is_specified(&nh->gateway)) {
+				/* hop without gw and device? */
 				goto failed;
+			}
 
 			if (ni_sockaddr_is_specified(&nh->gateway) &&
 			    addattr_sockaddr(msg, RTA_GATEWAY, &nh->gateway))
