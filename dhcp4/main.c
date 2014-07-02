@@ -267,6 +267,10 @@ main(int argc, char **argv)
 	ni_modprobe(AFPACKET_MODULE_NAME, AFPACKET_MODULE_OPTS);
 
 	if (tester) {
+		/* Create necessary directories if not yet there */
+		ni_config_storedir();
+		ni_config_statedir();
+
 		return dhcp4_tester_run(tester);
 	}
 
