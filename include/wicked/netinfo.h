@@ -56,8 +56,7 @@ struct ni_netdev {
 	ni_netdev_t *		next;
 	unsigned int		seq;
 	unsigned int		modified : 1,
-				deleted : 1,
-				ready : 1;
+				deleted : 1;
 
 	char *			name;
 	ni_linkinfo_t		link;
@@ -263,12 +262,10 @@ extern int		ni_link_address_set(ni_hwaddr_t *, unsigned short arp_type, const vo
 extern ni_device_clientinfo_t *ni_device_clientinfo_new(void);
 extern void		ni_device_clientinfo_free(ni_device_clientinfo_t *);
 
-extern const char *	ni_print_link_flags(int flags);
-extern const char *	ni_print_link_type(int type);
-extern const char *	ni_print_integer_nice(unsigned long long, const char *);
-
 extern int		ni_linktype_name_to_type(const char *);
 extern const char *	ni_linktype_type_to_name(unsigned int);
+extern const char *	ni_linkflags_bit_to_name(unsigned int);
+extern const char *	ni_linkflags_format(ni_stringbuf_t *, unsigned int, const char *);
 extern int		ni_addrfamily_name_to_type(const char *);
 extern const char *	ni_addrfamily_type_to_name(unsigned int);
 extern int		ni_arphrd_name_to_type(const char *);

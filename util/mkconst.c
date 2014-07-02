@@ -29,7 +29,6 @@
 
 extern const char *	ni_ifworker_state_name(unsigned int);
 
-static ni_intmap_t *	build_ifflag_bits_map(void);
 static ni_intmap_t *	buildmap(const char *(*)(unsigned), unsigned int);
 static void		generate(char *, const char *, const ni_intmap_t *);
 
@@ -47,6 +46,7 @@ struct generic_map {
 	{ #name, sizeof(#name) - 1, func, max }
 static struct generic_map	generic_maps[] = {
 	MAPN(IFTYPE, ni_linktype_type_to_name, __NI_IFTYPE_MAX),
+	MAP(IFFLAGS, ni_linkflags_bit_to_name),
 	MAPN(ARPHRD, ni_arphrd_type_to_name, ARPHRD_VOID),
 	MAPN(ADDRCONF_MODE, ni_addrconf_type_to_name, __NI_ADDRCONF_MAX),
 	MAPN(ADDRCONF_STATE, ni_addrconf_state_to_name, __NI_ADDRCONF_STATE_MAX),
@@ -94,6 +94,8 @@ main(int argc, char **argv)
 	char buffer[512];
 
 	while (fgets(buffer, sizeof(buffer), stdin) != NULL) {
+		struct generic_map *map;
+		int indent;
 		char *atat;
 
 		++line;
@@ -102,69 +104,25 @@ main(int argc, char **argv)
 			continue;
 		}
 
-		if (!strncmp(atat + 2, "IFFLAG_", 7)) {
-			generate(buffer, "IFFLAG", build_ifflag_bits_map());
-		} else {
-			struct generic_map *map;
-			int indent;
-
-			for (map = generic_maps; map->prefix; ++map) {
-				if (!strncmp(atat + 2, map->prefix, map->prefix_len)
-				 && !strncmp(atat + 2 + map->prefix_len, "_NAME@@", 7)) {
-					generate(buffer, map->prefix,
-							buildmap(map->mapfunc, map->max_value));
-					goto found;
-				}
+		for (map = generic_maps; map->prefix; ++map) {
+			if (!strncmp(atat + 2, map->prefix, map->prefix_len)
+			 && !strncmp(atat + 2 + map->prefix_len, "_NAME@@", 7)) {
+				generate(buffer, map->prefix,
+						buildmap(map->mapfunc, map->max_value));
+				goto found;
 			}
-
-			indent = atat - buffer;
-
-			ni_error("line %u: unsupported constant class\n", line);
-			fputs(buffer, stderr);
-			fprintf(stderr, "%*.*s^--- here\n", indent, indent, "");
-			ni_fatal("Giving up.");
 		}
+
+		indent = atat - buffer;
+
+		ni_error("line %u: unsupported constant class\n", line);
+		fputs(buffer, stderr);
+		fprintf(stderr, "%*.*s^--- here\n", indent, indent, "");
+		ni_fatal("Giving up.");
 found: ;
 	}
 
 	return 0;
-}
-
-/*
- * The NI_IFF_* values are bitmask values; but in order to
- * define the corresponding type in the xml schema, we need the
- * shift values
- */
-static ni_intmap_t *
-build_ifflag_bits_map(void)
-{
-	static ni_intmap_t mask_map[] = {
-	{ "device-up",		NI_IFF_DEVICE_UP		},
-	{ "link-up",		NI_IFF_LINK_UP			},
-	{ "powersave",		NI_IFF_POWERSAVE		},
-	{ "network-up",		NI_IFF_NETWORK_UP		},
-	{ "point-to-point",	NI_IFF_POINT_TO_POINT		},
-	{ "arp",		NI_IFF_ARP_ENABLED		},
-	{ "broadcast",		NI_IFF_BROADCAST_ENABLED	},
-	{ "multicast",		NI_IFF_MULTICAST_ENABLED	},
-
-	{ NULL }
-	};
-	static ni_intmap_t bits_map[33];
-	unsigned int i, j = 0;
-
-	for (i = 0; i < 32; ++i) {
-		const char *name;
-
-		name = ni_format_uint_mapped(1 << i, mask_map);
-		if (name) {
-			bits_map[j].name = name;
-			bits_map[j].value = i;
-			++j;
-		}
-	}
-
-	return bits_map;
 }
 
 static ni_intmap_t *

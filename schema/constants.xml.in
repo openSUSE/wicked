@@ -35,7 +35,7 @@
 
 <!-- Built-in interface status flags -->
 <define name="builtin-ifflags" type="uint32" constraint="bitmap">
-  <@@IFFLAG_NAME@@ bit="@@IFFLAG_VALUE@@"/>
+  <@@IFFLAGS_NAME@@ bit="@@IFFLAGS_VALUE@@"/>
 </define>
 
 <!-- Built-in interface state values -->
