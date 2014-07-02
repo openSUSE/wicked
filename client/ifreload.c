@@ -197,6 +197,14 @@ usage:
 		goto cleanup;
 	}
 
+	/* Build the up tree */
+	if (ni_fsm_build_hierarchy(fsm) < 0) {
+		ni_error("ifreload: unable to build device hierarchy");
+		/* Severe error we always explicitly return */
+		status = NI_WICKED_RC_ERROR;
+		goto cleanup;
+	}
+
 	status = NI_WICKED_RC_SUCCESS;
 	nmarked = 0;
 	for (c = optind; c < argc; ++c) {
@@ -277,14 +285,6 @@ usage:
 	}
 
 	if (nmarked) {
-		/* Build the up tree */
-		if (ni_fsm_build_hierarchy(fsm) < 0) {
-			ni_error("ifreload: unable to build device hierarchy");
-			/* Severe error we always explicitly return */
-			status = NI_WICKED_RC_ERROR;
-			goto cleanup;
-		}
-
 		/* Execute the up run */
 		if (ni_fsm_schedule(fsm) != 0)
 			ni_fsm_mainloop(fsm);
