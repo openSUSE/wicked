@@ -285,11 +285,11 @@ usage:
 		ni_debug_application("No interfaces to be brought down\n");
 	}
 
+	/* Drop deleted or apply the up range */
+	ni_fsm_reset_matching_workers(fsm, &marked, &up_range, FALSE);
+
 	/* anything to ifup? */
 	if (marked.count) {
-		/* Drop deleted or apply the up range */
-		ni_fsm_reset_matching_workers(fsm, &marked, &up_range, FALSE);
-
 		/* And trigger up */
 		ni_debug_application("Reloading all changed devices");
 		ni_ifup_pull_in_children(&marked);
