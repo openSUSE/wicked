@@ -14,7 +14,7 @@ ExecStop=@wicked_sbindir@/wicked --systemd ifdown all
 ExecReload=@wicked_sbindir@/wicked --systemd ifreload all
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target network-online.target
 Alias=network.service
 Also=wickedd.service
 
