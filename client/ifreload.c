@@ -239,8 +239,12 @@ usage:
 			/* Remember all changed devices */
 			ni_ifworker_array_append(&marked, w);
 
+			/* Do not ifdown non-existing device */
+			if (!dev)
+				continue;
+
 			/* Persistent do not go down but up only */
-			if (!dev || ni_ifcheck_device_is_persistent(dev))
+			if (ni_ifcheck_device_is_persistent(dev))
 				continue;
 
 			/* Decide how much down we go */
@@ -260,6 +264,13 @@ usage:
 		ni_ifworker_array_destroy(&temp);
 	}
 
+	if (0 == nmarked && 0 == marked.count) {
+		printf("ifreload: no matching interfaces\n");
+		status = NI_WICKED_RC_SUCCESS;
+		goto cleanup;
+	}
+
+	/* anything to ifdown? e.g. persistent devices are skipped here */
 	if (nmarked) {
 		/* Run ifdown part of the reload */
 		ni_debug_application("Shutting down unneeded devices");
@@ -270,35 +281,39 @@ usage:
 			ni_fsm_mainloop(fsm);
 
 	}
+	else {
+		ni_debug_application("No interfaces to be brought down\n");
+	}
 
+	/* anything to ifup? */
 	if (marked.count) {
-
 		/* Drop deleted or apply the up range */
 		ni_fsm_reset_matching_workers(fsm, &marked, &up_range, FALSE);
 
 		/* And trigger up */
 		ni_debug_application("Reloading all changed devices");
 		ni_ifup_pull_in_children(&marked);
-		nmarked = ni_fsm_start_matching_workers(fsm, &marked);
+		if (ni_fsm_start_matching_workers(fsm, &marked)) {
+			/* Execute the up run */
+			if (ni_fsm_schedule(fsm) != 0)
+				ni_fsm_mainloop(fsm);
+
+			/* No error if all interfaces were good */
+			status = ni_fsm_fail_count(fsm) ?
+				NI_WICKED_RC_ERROR : NI_WICKED_RC_SUCCESS;
+
+			/* Do not report any transient errors to systemd (e.g. dhcp
+			 * or whatever not ready in time) -- returning an error may
+			 * cause to stop the network completely.
+			 */
+			if (!opt_transient)
+				status = NI_LSB_RC_SUCCESS;
+		}
 
 		ni_ifworker_array_destroy(&marked);
 	}
-
-	if (nmarked) {
-		/* Execute the up run */
-		if (ni_fsm_schedule(fsm) != 0)
-			ni_fsm_mainloop(fsm);
-
-		/* No error if all interfaces were good */
-		status = ni_fsm_fail_count(fsm) ?
-			NI_WICKED_RC_ERROR : NI_WICKED_RC_SUCCESS;
-
-		/* Do not report any transient errors to systemd (e.g. dhcp
-		 * or whatever not ready in time) -- returning an error may
-		 * cause to stop the network completely.
-		 */
-		if (!opt_transient)
-			status = NI_LSB_RC_SUCCESS;
+	else {
+		ni_debug_application("No interfaces to be brought up\n");
 	}
 
 cleanup:
