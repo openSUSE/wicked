@@ -245,9 +245,12 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		}
 	} else {
 		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_CREATE);
-		if (ni_netdev_device_always_ready(dev) ||
-		    !ni_server_listens_uevents()) {
-			dev->ready = 1;
+
+		/* Hmm.. do we still need this corner case? */
+		if (!ni_netdev_device_is_ready(dev) &&
+		    (ni_netdev_device_always_ready(dev) ||
+		     !ni_server_listens_uevents())) {
+			dev->link.ifflags |= NI_IFF_DEVICE_READY;
 			__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_READY);
 		}
 	}
@@ -287,7 +290,8 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 				ifname, ifi->ifi_index);
 		return -1;
 	} else {
-		dev->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
+		dev->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags,
+								dev->link.ifflags);
 
 		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_DELETE);
 

@@ -319,8 +319,6 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 		}
 
 		dev->seq = seqno;
-		if (ni_netdev_device_always_ready(dev))
-			dev->ready = 1;
 
 		if (__ni_netdev_process_newlink(dev, h, ifi, nc) < 0)
 			ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);
@@ -568,19 +566,20 @@ __ni_system_interface_stats_refresh(ni_netconfig_t *nc, ni_netdev_t *dev)
  * Translate interface flags
  */
 unsigned int
-__ni_netdev_translate_ifflags(unsigned int ifflags)
+__ni_netdev_translate_ifflags(unsigned int ifflags, unsigned int prev)
 {
-	unsigned int retval = 0;
+	unsigned int retval = (prev & NI_IFF_DEVICE_READY);
 
 	switch (ifflags & (IFF_RUNNING | IFF_LOWER_UP | IFF_UP)) {
 	case IFF_UP:
 	case IFF_UP | IFF_RUNNING:
-		retval = NI_IFF_DEVICE_UP;
+		retval = NI_IFF_DEVICE_READY | NI_IFF_DEVICE_UP;
 		break;
 
 	case IFF_UP | IFF_LOWER_UP:
 	case IFF_UP | IFF_LOWER_UP | IFF_RUNNING:
-		retval = NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP;
+		retval = NI_IFF_DEVICE_READY | NI_IFF_DEVICE_UP |
+			 NI_IFF_LINK_UP | NI_IFF_NETWORK_UP;
 		break;
 
 	case 0:
@@ -615,11 +614,12 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 				struct ifinfomsg *ifi, ni_netconfig_t *nc)
 {
 	link->hwaddr.type = link->hwpeer.type = ifi->ifi_type;
-	link->ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
+	link->ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags, link->ifflags);
 
 	/* map by it's main arp type */
 	switch (link->hwaddr.type) {
 	case ARPHRD_LOOPBACK:
+		link->ifflags |= NI_IFF_DEVICE_READY;
 		link->type = NI_IFTYPE_LOOPBACK;
 		break;
 	case ARPHRD_ETHER:

@@ -292,7 +292,7 @@ void
 discover_udev_netdev_state(ni_netdev_t *dev)
 {
 	if (dev && ni_udev_netdev_is_ready(dev->name))
-		dev->ready = 1;
+		dev->link.ifflags |= NI_IFF_DEVICE_READY;
 }
 
 void

@@ -159,9 +159,7 @@ ni_netdev_device_always_ready(ni_netdev_t *dev)
 ni_bool_t
 ni_netdev_device_is_ready(ni_netdev_t *dev)
 {
-	if (ni_netdev_device_always_ready(dev))
-		return TRUE;
-	return dev->ready;
+	return dev && dev->link.ifflags & NI_IFF_DEVICE_READY;
 }
 
 /*
