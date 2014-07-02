@@ -614,35 +614,41 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 				struct nlattr **tb, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_netconfig_t *nc)
 {
+	ni_iftype_t saved_link_type;
+	ni_iftype_t tmp_link_type;
+
+	/* On entry, store device link type for later restoration (if needed). */
+	saved_link_type = link->type;
+
 	link->hwaddr.type = link->hwpeer.type = ifi->ifi_type;
 	link->ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags);
 
 	/* map by it's main arp type */
 	switch (link->hwaddr.type) {
 	case ARPHRD_LOOPBACK:
-		link->type = NI_IFTYPE_LOOPBACK;
+		tmp_link_type = NI_IFTYPE_LOOPBACK;
 		break;
 	case ARPHRD_ETHER:
-		link->type = NI_IFTYPE_ETHERNET;
+		tmp_link_type = NI_IFTYPE_ETHERNET;
 		break;
 	case ARPHRD_INFINIBAND:
-		link->type = NI_IFTYPE_INFINIBAND;
+		tmp_link_type = NI_IFTYPE_INFINIBAND;
 		break;
 	case ARPHRD_SIT:
-		link->type = NI_IFTYPE_SIT;
+		tmp_link_type = NI_IFTYPE_SIT;
 		break;
 	case ARPHRD_IPGRE:
-		link->type = NI_IFTYPE_GRE;
+		tmp_link_type = NI_IFTYPE_GRE;
 		break;
 	case ARPHRD_TUNNEL:
-		link->type = NI_IFTYPE_IPIP;
+		tmp_link_type = NI_IFTYPE_IPIP;
 		break;
 	case ARPHRD_TUNNEL6:
-		link->type = NI_IFTYPE_TUNNEL6;
+		tmp_link_type = NI_IFTYPE_TUNNEL6;
 		break;
 	default:
 		/* FIXME: ok to reset this?! */
-		link->type = NI_IFTYPE_UNKNOWN;
+		tmp_link_type = NI_IFTYPE_UNKNOWN;
 		break;
 	}
 
@@ -758,6 +764,15 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 
 		if (nla_parse_nested(nl_linkinfo, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
 			ni_error("unable to parse IFLA_LINKINFO");
+			/* In case we're here for an existing device with a
+			 * known link type, reset it's link type to the
+			 * previously saved version.
+			 */
+			if (saved_link_type != NI_IFTYPE_UNKNOWN)
+				link->type = saved_link_type;
+			else
+				link->type = tmp_link_type;
+
 			return -1;
 		}
 
@@ -768,28 +783,28 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
 				"%s: extended link-info without kind", ifname);
 		} else if (!strcmp(link->kind, "bridge")) {
-			link->type = NI_IFTYPE_BRIDGE;
+			tmp_link_type = NI_IFTYPE_BRIDGE;
 		} else if (!strcmp(link->kind, "bond")) {
-			link->type = NI_IFTYPE_BOND;
+			tmp_link_type = NI_IFTYPE_BOND;
 		} else if (!strcmp(link->kind, "vlan")) {
-			link->type = NI_IFTYPE_VLAN;
+			tmp_link_type = NI_IFTYPE_VLAN;
 		} else if (!strcmp(link->kind, "macvlan")) {
-			link->type = NI_IFTYPE_MACVLAN;
+			tmp_link_type = NI_IFTYPE_MACVLAN;
 		} else if (!strcmp(link->kind, "macvtap")) {
-			link->type = NI_IFTYPE_MACVTAP;
+			tmp_link_type = NI_IFTYPE_MACVTAP;
 		} else if (!strcmp(link->kind, "tun")) {
 			if (link->hwaddr.type == ARPHRD_ETHER)
-				link->type = NI_IFTYPE_TAP;
+				tmp_link_type = NI_IFTYPE_TAP;
 			else
-				link->type = NI_IFTYPE_TUN;
+				tmp_link_type = NI_IFTYPE_TUN;
 		} else if (!strcmp(link->kind, "dummy")) {
-			link->type = NI_IFTYPE_DUMMY;
+			tmp_link_type = NI_IFTYPE_DUMMY;
 		} else if (!strcmp(link->kind, "sit")) {
-			link->type = NI_IFTYPE_SIT;
+			tmp_link_type = NI_IFTYPE_SIT;
 		} else if (!strcmp(link->kind, "ipip")) {
-			link->type = NI_IFTYPE_IPIP;
+			tmp_link_type = NI_IFTYPE_IPIP;
 		} else if (!strcmp(link->kind, "gre")) {
-			link->type = NI_IFTYPE_GRE;
+			tmp_link_type = NI_IFTYPE_GRE;
 		}
 	}
 
@@ -802,19 +817,19 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 			if (__ni_ethtool(ifname, ETHTOOL_GDRVINFO, &drv_info) >= 0) {
 
 				/* Hmm... should be not needed any more */
-				if (link->type == NI_IFTYPE_ETHERNET) {
+				if (tmp_link_type == NI_IFTYPE_ETHERNET) {
 					const char *driver = drv_info.driver;
 
 					if (!strcmp(driver, "tun")) {
 						/* tun/tap driver */
 						if (!strcmp(drv_info.bus_info, "tap"))
-							link->type = NI_IFTYPE_TAP;
+							tmp_link_type = NI_IFTYPE_TAP;
 						else
-							link->type = NI_IFTYPE_TUN;
+							tmp_link_type = NI_IFTYPE_TUN;
 					} else if (!strcmp(driver, "bridge")) {
-						link->type = NI_IFTYPE_BRIDGE;
+						tmp_link_type = NI_IFTYPE_BRIDGE;
 					} else if (!strcmp(driver, "bonding")) {
-						link->type = NI_IFTYPE_BOND;
+						tmp_link_type = NI_IFTYPE_BOND;
 					}
 				}
 
@@ -828,17 +843,17 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		 * ioctl(SIOCGIWNAME) succeeds.
 		 */
 		if (__ni_wireless_get_name(ifname, NULL, 0) == 0)
-			link->type = NI_IFTYPE_WIRELESS;
+			tmp_link_type = NI_IFTYPE_WIRELESS;
 
 		break;
 
 	case ARPHRD_INFINIBAND:
-		link->type = NI_IFTYPE_INFINIBAND;
+		tmp_link_type = NI_IFTYPE_INFINIBAND;
 		if (ni_sysfs_bonding_is_master(ifname))
-			link->type = NI_IFTYPE_BOND;
+			tmp_link_type = NI_IFTYPE_BOND;
 		else
 		if (ni_sysfs_netif_exists(ifname, "parent"))
-			link->type = NI_IFTYPE_INFINIBAND_CHILD;
+			tmp_link_type = NI_IFTYPE_INFINIBAND_CHILD;
 		break;
 
 	case ARPHRD_SLIP:
@@ -849,21 +864,30 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 			if (ni_sysfs_netif_readlink(ifname, "device/subsystem", &path)) {
 				base = ni_basename(path);
 				if (ni_string_eq(base, "ccwgroup"))
-					link->type = NI_IFTYPE_CTCM;
+					tmp_link_type = NI_IFTYPE_CTCM;
 				else
 				if (ni_string_eq(base, "iucv"))
-					link->type = NI_IFTYPE_IUCV;
+					tmp_link_type = NI_IFTYPE_IUCV;
 				ni_string_free(&path);
 			}
 		}
 		break;
 	}
 
-	if (link->type == NI_IFTYPE_UNKNOWN) {
+	if (tmp_link_type == NI_IFTYPE_UNKNOWN) {
 		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
 			"%s: unable to discover link type, arp type is 0x%x, kind %s",
 			ifname, link->hwaddr.type, link->kind);
 	}
+
+	/* In case we're here for an existing device with a
+	 * known link type, reset it's link type to the
+	 * previously saved version.
+	 */
+	if (saved_link_type != NI_IFTYPE_UNKNOWN)
+		link->type = saved_link_type;
+	else
+		link->type = tmp_link_type;
 
 	return 0;
 }
