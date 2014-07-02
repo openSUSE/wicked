@@ -2549,7 +2549,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm)
 
 		if ((rv = ni_ifworker_bind_early(w, fsm, FALSE)) < 0) {
 			if (-NI_ERROR_DOCUMENT_ERROR == rv)
-				ni_error("%s: configuration failed", w->name);
+				ni_debug_application("%s: configuration failed", w->name);
 			ni_fsm_destroy_worker(fsm, w);
 			continue;
 		}
