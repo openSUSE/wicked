@@ -658,7 +658,7 @@ __ni_uevent_ifevent_forwarder(const ni_var_array_t *vars, void *user_data)
 		if (!uinfo.tags || !strstr(uinfo.tags, ":systemd:"))
 			return;
 
-		dev->ready = 1;
+		dev->link.ifflags |= NI_IFF_DEVICE_READY;
 		if (ni_global.interface_event)
 			ni_global.interface_event(dev, NI_EVENT_DEVICE_READY);
 	}

@@ -458,6 +458,51 @@ ni_event_type_to_name(ni_event_t type)
 }
 
 /*
+ * Names for wicked link ifflags
+ */
+static const ni_intmap_t	__ni_linkifflag_names[] = {
+	{ "device-up",		NI_IFF_DEVICE_UP	},
+	{ "link-up",		NI_IFF_LINK_UP		},
+	{ "powersave",		NI_IFF_POWERSAVE	},
+	{ "network-up",		NI_IFF_NETWORK_UP	},
+	{ "point-to-point",	NI_IFF_POINT_TO_POINT	},
+	{ "arp",		NI_IFF_ARP_ENABLED	},
+	{ "broadcast",		NI_IFF_BROADCAST_ENABLED},
+	{ "multicast",		NI_IFF_MULTICAST_ENABLED},
+	{ "ready",		NI_IFF_DEVICE_READY	},
+	{ NULL,			0			},
+};
+
+const char *
+ni_linkflags_bit_to_name(unsigned int bit)
+{
+	if (bit >= 32)
+		return NULL;
+	return ni_format_uint_mapped(1 << bit, __ni_linkifflag_names);
+}
+
+const char *
+ni_linkflags_format(ni_stringbuf_t *buf, unsigned int flags, const char *sep)
+{
+	const ni_intmap_t *map = __ni_linkifflag_names;
+	unsigned int i;
+
+	if (!buf)
+		return NULL;
+	if (ni_string_empty(sep))
+		sep = "|";
+
+	for (i = 0; map->name; ++map) {
+		if (flags & map->value) {
+			if (i++)
+				ni_stringbuf_puts(buf, sep);
+			ni_stringbuf_puts(buf, map->name);
+		}
+	}
+	return buf->string;
+}
+
+/*
  * Names for the kernel's oper_state values
  */
 static const ni_intmap_t	__ni_operstate_names[] = {
