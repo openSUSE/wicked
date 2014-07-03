@@ -1915,19 +1915,19 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 
 		/* skipping ifworkers without xml configuration */
 		if (!w->config.node && match->require_config) {
-			ni_debug_application("skipping %s interface: "
+			ni_note("skipping %s interface: "
 				"no configuration provided", w->name);
 			continue;
 		}
 		/* skipping ifworkers of interfaces not configured in the past */
 		if (ni_string_empty(w->config.origin) && match->require_configured) {
-			ni_debug_application("skipping %s interface: "
+			ni_note("skipping %s interface: "
 				"not configured yet", w->name);
 			continue;
 		}
 		/* skipping ifworkers of interfaces in the persistent mode */
 		if (w->client_state.persistent && !match->allow_persistent) {
-			ni_debug_application("skipping %s interface: "
+			ni_note("skipping %s interface: "
 				"persistent mode is on", w->name);
 			continue;
 		}
@@ -1964,7 +1964,7 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 			else {
 				if (w->masterdev) {
 					if (ni_ifworker_array_index(result, w->masterdev) < 0) {
-						ni_debug_application("skipping %s interface: "
+						ni_note("skipping %s interface: "
 							"unable to ifdown due to masterdev dependency to: %s",
 							w->name, w->masterdev->name);
 						continue;
@@ -1979,7 +1979,7 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 						ni_ifworker_t *dep = w->lowerdev_for.data[i];
 
 						if (ni_ifworker_array_index(result, dep) < 0) {
-							ni_debug_application("skipping %s interface: "
+							ni_note("skipping %s interface: "
 								"unable to ifdown due to lowerdev dependency to: %s",
 								w->name, dep->name);
 							missing_dep = TRUE;
