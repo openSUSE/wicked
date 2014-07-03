@@ -674,19 +674,29 @@ ni_fsm_ifworker_by_policy_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const cha
 ni_ifworker_t *
 ni_fsm_ifworker_by_object_path(ni_fsm_t *fsm, const char *object_path)
 {
+	ni_ifworker_t *w;
+	char *ifname;
 	unsigned int i;
 
-	if (!object_path)
+	if (ni_string_empty(object_path))
 		return NULL;
 
 	for (i = 0; i < fsm->workers.count; ++i) {
-		ni_ifworker_t *w = fsm->workers.data[i];
+		w = fsm->workers.data[i];
 
 		if (w->object_path && !strcmp(w->object_path, object_path))
 			return w;
 	}
 
-	return NULL;
+	/* ifworker may not be refreshed (no object_path set nor ifindex) */
+	ifname = __ni_fsm_dbus_objectpath_to_name(object_path);
+	if (ni_string_empty(ifname))
+		return NULL;
+
+	w = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, ifname);
+	ni_string_free(&ifname);
+
+	return w;
 }
 
 static ni_ifworker_t *
