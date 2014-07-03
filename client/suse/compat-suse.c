@@ -3305,6 +3305,7 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	const char *dirname;
 	ni_ipv4_devinfo_t *ipv4;
 	ni_ipv6_devinfo_t *ipv6;
+	ni_tristate_t disable_ipv6 = NI_TRISTATE_DEFAULT;
 
 	dirname = ni_dirname(sc->pathname);
 	if (ni_string_empty(dirname))
@@ -3318,6 +3319,7 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	ipv4 = ni_netdev_get_ipv4(dev);
+	ni_tristate_set(&ipv4->conf.enabled, TRUE);
 	/* no conf.enable and conf.arp-verify in sysctl */
 	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
 				"forwarding", &ipv4->conf.forwarding);
@@ -3327,15 +3329,15 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 				"accept-redirects", &ipv4->conf.accept_redirects);
 
 	ipv6 = ni_netdev_get_ipv6(dev);
+	ni_tristate_set(&ipv6->conf.enabled, !__ni_ipv6_disbled);
 	if (__ni_ipv6_disbled) {
-		ni_tristate_set(&ipv6->conf.enabled, !__ni_ipv6_disbled);
 		ni_var_array_destroy(&ifsysctl);
 		return TRUE;
 	}
 	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
-				"disable_ipv6", &ipv6->conf.enabled);
-	if (ni_tristate_is_set(ipv6->conf.enabled))
-		ni_tristate_set(&ipv6->conf.enabled, !ipv6->conf.enabled);
+				"disable_ipv6", &disable_ipv6);
+	if (ni_tristate_is_set(disable_ipv6))
+		ni_tristate_set(&ipv6->conf.enabled, !disable_ipv6);
 
 	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
 				"forwarding", &ipv6->conf.forwarding);
