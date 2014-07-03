@@ -643,9 +643,12 @@ ni_fsm_ifworker_by_object_path(ni_fsm_t *fsm, const char *object_path)
 }
 
 static ni_ifworker_t *
-ni_ifworker_by_ifindex(ni_fsm_t *fsm, unsigned int ifindex)
+ni_fsm_ifworker_by_ifindex(ni_fsm_t *fsm, unsigned int ifindex)
 {
 	unsigned int i;
+
+	if (0 == ifindex)
+		return NULL;
 
 	for (i = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
@@ -1745,7 +1748,7 @@ __ni_ifworker_identify_device(ni_fsm_t *fsm, const char *namespace, const xml_no
 			ni_error("%s: cannot parse ifindex attribute", xml_node_location(devnode));
 			return NULL;
 		}
-		return ni_ifworker_by_ifindex(fsm, ifindex);
+		return ni_fsm_ifworker_by_ifindex(fsm, ifindex);
 	}
 
 	switch (type) {
