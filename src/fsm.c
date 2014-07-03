@@ -36,8 +36,8 @@ static unsigned int		ni_ifworker_timeout_count;
 static ni_fsm_user_prompt_fn_t *ni_fsm_user_prompt_fn;
 static void *			ni_fsm_user_prompt_data;
 
-static ni_ifworker_t *		ni_ifworker_identify_device(ni_fsm_t *, const xml_node_t *, ni_ifworker_type_t);
-static ni_ifworker_t *		__ni_ifworker_identify_device(ni_fsm_t *, const char *, const xml_node_t *, ni_ifworker_type_t);
+static ni_ifworker_t *		ni_ifworker_identify_device(ni_fsm_t *, const xml_node_t *, ni_ifworker_type_t, const char *);
+static ni_ifworker_t *		__ni_ifworker_identify_device(ni_fsm_t *, const char *, const xml_node_t *, ni_ifworker_type_t, const char *);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static int			ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *, unsigned int, unsigned int);
 static int			ni_fsm_schedule_bind_methods(ni_fsm_t *, ni_ifworker_t *);
@@ -856,7 +856,7 @@ ni_ifworker_get_rfkill_type(const ni_ifworker_t *w)
  * other devices.
  */
 static ni_ifworker_t *
-ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_type_t type)
+ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_type_t type, const char *origin)
 {
 	ni_ifworker_t *child;
 
@@ -867,41 +867,38 @@ ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_ty
 
 		namespace = xml_node_get_attr(devnode, "namespace");
 		if (namespace != NULL) {
-			child = __ni_ifworker_identify_device(fsm, namespace, devnode, type);
+			child = __ni_ifworker_identify_device(fsm, namespace, devnode, type, origin);
 		} else if (devnode->cdata) {
 			const char *slave_name = devnode->cdata;
 			child = ni_ifworker_array_find(&fsm->workers, type, slave_name);
 
 			if (child == NULL) {
-				ni_error("<%s> element references unknown device %s",
-						devnode->name, slave_name);
+				ni_error("%s: <%s> element references unknown device %s",
+						origin, devnode->name, slave_name);
 				return NULL;
 			}
 		} else {
 			ni_warn("%s: obsolete: using <device> node without namespace attribute "
-				"- please use <device namespace=\"...\"> instead",
-					xml_node_location(devnode));
-			child = ni_ifworker_identify_device(fsm, devnode, type);
+				"- please use <device namespace=\"...\"> instead", origin);
+			child = ni_ifworker_identify_device(fsm, devnode, type, origin);
 		}
 		if (child == NULL) {
-			ni_error("<%s> element references unknown device", devnode->name);
+			ni_error("%s: <%s> element references unknown device",
+				origin, devnode->name);
 			return NULL;
 		}
 
 		if (child->name == NULL) {
 			ni_warn("%s: <%s> element references device with no name",
-					xml_node_location(devnode),
-					devnode->name);
+				origin, devnode->name);
 		}
 
-		ni_debug_application("%s: identified device as \"%s\"",
-				xml_node_location(devnode),
-				child->name);
+		ni_debug_application("%s: <%s> identified device as \"%s\"",
+				origin, devnode->name, child->name);
 		xml_node_set_cdata(devnode, child->name);
 	} else {
 		ni_error("%s: empty device reference in <%s> element",
-				xml_node_location(devnode),
-				devnode->name);
+			origin, devnode->name);
 		return NULL;
 	}
 
@@ -1433,14 +1430,14 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_node_t *ifnode, const char *origin)
 
 	if ((node = xml_node_get_child(ifnode, "identify")) != NULL) {
 		ni_warn("%s: using obsolete <identify> element - please use <name namespace=\"...\"> instead", xml_node_location(ifnode));
-		w = ni_ifworker_identify_device(fsm, node, type);
+		w = ni_ifworker_identify_device(fsm, node, type, origin);
 	} else
 	if ((node = xml_node_get_child(ifnode, "name")) != NULL) {
 		const char *namespace;
 
 		namespace = xml_node_get_attr(node, "namespace");
 		if (namespace != NULL) {
-			w = __ni_ifworker_identify_device(fsm, namespace, node, type);
+			w = __ni_ifworker_identify_device(fsm, namespace, node, type, origin);
 		} else {
 			ifname = node->cdata;
 			if (ifname && (w = ni_fsm_ifworker_by_name(fsm, type, ifname)) == NULL)
@@ -1473,7 +1470,7 @@ ni_fsm_require_netif_resolve(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *
 	if (req->user_data == NULL)
 		return TRUE;
 
-	if (!(child_worker = ni_ifworker_resolve_reference(fsm, devnode, NI_IFWORKER_TYPE_NETDEV)))
+	if (!(child_worker = ni_ifworker_resolve_reference(fsm, devnode, NI_IFWORKER_TYPE_NETDEV, w->name)))
 		return FALSE;
 
 	ni_debug_application("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
@@ -1507,7 +1504,7 @@ ni_fsm_require_modem_resolve(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *
 	if (req->user_data == NULL)
 		return TRUE;
 
-	if (!(child_worker = ni_ifworker_resolve_reference(fsm, devnode, NI_IFWORKER_TYPE_MODEM)))
+	if (!(child_worker = ni_ifworker_resolve_reference(fsm, devnode, NI_IFWORKER_TYPE_MODEM, w->name)))
 		return FALSE;
 
 	ni_debug_application("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
@@ -1726,7 +1723,7 @@ ni_ifworker_check_dependencies(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transitio
  * System z etc.
  */
 static ni_ifworker_t *
-__ni_ifworker_identify_device(ni_fsm_t *fsm, const char *namespace, const xml_node_t *devnode, ni_ifworker_type_t type)
+__ni_ifworker_identify_device(ni_fsm_t *fsm, const char *namespace, const xml_node_t *devnode, ni_ifworker_type_t type, const char *origin)
 {
 	ni_ifworker_t *found = NULL;
 	char *object_path = NULL;
@@ -1768,12 +1765,12 @@ __ni_ifworker_identify_device(ni_fsm_t *fsm, const char *namespace, const xml_no
 
 	if (found)
 		ni_debug_application("%s: identified device as %s (%s)",
-				xml_node_location(devnode), found->name, found->object_path);
+				origin, found->name, found->object_path);
 	return found;
 }
 
 static ni_ifworker_t *
-ni_ifworker_identify_device(ni_fsm_t *fsm, const xml_node_t *devnode, ni_ifworker_type_t type)
+ni_ifworker_identify_device(ni_fsm_t *fsm, const xml_node_t *devnode, ni_ifworker_type_t type, const char *origin)
 {
 	ni_ifworker_t *best = NULL;
 	xml_node_t *attr;
@@ -1799,7 +1796,7 @@ ni_ifworker_identify_device(ni_fsm_t *fsm, const xml_node_t *devnode, ni_ifworke
 			free(namespace);
 		}
 
-		found = __ni_ifworker_identify_device(fsm, query->name, query, type);
+		found = __ni_ifworker_identify_device(fsm, query->name, query, type, origin);
 		if (query != attr)
 			xml_node_free(query);
 		if (found != NULL) {
@@ -1813,7 +1810,7 @@ ni_ifworker_identify_device(ni_fsm_t *fsm, const xml_node_t *devnode, ni_ifworke
 
 	if (best)
 		ni_debug_application("%s: identified device as %s (%s)",
-				xml_node_location(devnode), best->name, best->object_path);
+				origin, best->name, best->object_path);
 	return best;
 }
 
@@ -2552,7 +2549,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm)
 
 		if ((rv = ni_ifworker_bind_early(w, fsm, FALSE)) < 0) {
 			if (-NI_ERROR_DOCUMENT_ERROR == rv)
-				ni_error("%s: configuration failed", w->name);
+				ni_debug_application("%s: configuration failed", w->name);
 			ni_fsm_destroy_worker(fsm, w);
 			continue;
 		}
@@ -2587,7 +2584,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 				ni_error("%s: duplicate/conflicting references", xml_node_location(node));
 				return FALSE;
 			}
-			if (!(child_worker = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_NETDEV)))
+			if (!(child_worker = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_NETDEV, w->name)))
 				return FALSE;
 
 			if ((attr = xml_node_get_attr(mchild, "shared")) != NULL)
@@ -2604,7 +2601,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 				ni_error("%s: duplicate/conflicting references", xml_node_location(node));
 				return FALSE;
 			}
-			if (!(child_worker = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_MODEM)))
+			if (!(child_worker = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_MODEM, w->name)))
 				return FALSE;
 
 			if ((attr = xml_node_get_attr(mchild, "shared")) != NULL)
