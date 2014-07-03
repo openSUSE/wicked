@@ -129,6 +129,7 @@ struct ni_ifworker {
 				failed		: 1,
 				done		: 1,
 				kickstarted	: 1,
+				pending		: 1,
 				readonly	: 1;
 
 	ni_ifworker_control_t	control;
