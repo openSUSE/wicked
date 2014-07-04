@@ -523,18 +523,11 @@ ni_do_ifstatus(int argc, char **argv)
 	ni_uint_array_t   stcodes = NI_UINT_ARRAY_INIT;
 	ni_uint_array_t   stflags = NI_UINT_ARRAY_INIT;
 	ni_bool_t         multiple = FALSE;
+	ni_bool_t         all = FALSE;
 	ni_bool_t         opt_transient = FALSE;
 	ni_bool_t         check_config;
-	ni_ifmatcher_t    ifmatch;
 	ni_fsm_t *        fsm;
-	unsigned int      i;
-
-	/* Allow ifcheck on persistent, unconfigured interfaces */
-	memset(&ifmatch, 0, sizeof(ifmatch));
-	ifmatch.require_configured = FALSE;
-	ifmatch.allow_persistent = TRUE;
-	ifmatch.require_config = FALSE;
-	ifmatch.ignore_startmode = TRUE;
+	unsigned int      i, nmarked;
 
 	/* Allocate fsm and set to read-only */
 	fsm = ni_fsm_new();
@@ -624,75 +617,70 @@ ni_do_ifstatus(int argc, char **argv)
 
 	status = NI_WICKED_ST_OK;
 	for (c = optind; c < argc; ++c) {
-		ni_ifworker_array_t marked = { 0, NULL };
+		char *ifname = argv[c];
+
+		if (ni_string_eq(ifname, "all")) {
+			ni_string_array_destroy(&ifnames);
+			all = TRUE;
+			break;
+		}
+
+		if (ni_string_array_index(&ifnames, ifname) == -1)
+			ni_string_array_append(&ifnames, ifname);
+	}
+
+	if (ifnames.count > 1 || all)
+		multiple = TRUE;
+
+	for (i = 0, nmarked = 0; i < fsm->workers.count; ++i) {
+		ni_ifworker_t *w = fsm->workers.data[i];
+		ni_netdev_t *dev = w->device;
 		unsigned int st = NI_WICKED_ST_NO_DEVICE;
 		ni_bool_t mandatory = TRUE;
 
-		ifmatch.name = argv[c];
-		if (ni_string_eq(ifmatch.name, "all")) {
-			ifmatch.name = NULL;
-			multiple = TRUE;
-		}
-
-		ni_fsm_get_matching_workers(fsm, &ifmatch, &marked);
-		ni_ifup_pull_in_children(&marked);
-		for (i = 0; i < marked.count; ++i) {
-			ni_ifworker_t *w = marked.data[i];
-			ni_netdev_t *dev = w->device;
-
-			if (ni_string_array_index(&ifnames, w->name) != -1)
+		if (!all) {
+			if (ni_string_array_index(&ifnames, w->name) == -1)
 				continue;
-
-			multiple = ifnames.count ? TRUE : multiple;
-			ni_string_array_append(&ifnames, w->name);
-
-			if (check_config) {
-				st = ni_ifstatus_of_worker(w, &mandatory);
-			} else {
-				st = ni_ifstatus_of_device(dev, &mandatory);
-			}
-			ni_uint_array_append(&stcodes, st);
-			ni_uint_array_append(&stflags, mandatory);
-
-			if (i && opt_verbose > OPT_BRIEF)
-				printf("\n");
-
-			if (opt_verbose > OPT_QUIET)
-				ni_ifstatus_show_status(w->name, st);
-
-			if (opt_verbose <= OPT_BRIEF)
-				continue;
-
-			if (dev) {
-				ni_ifstatus_show_iflink (dev, opt_verbose > OPT_NORMAL);
-				ni_ifstatus_show_iftype (dev, opt_verbose > OPT_NORMAL);
-
-				/* TODO: Hmm... this is the running config only;
-				 *              show current config info too?
-				 */
-				ni_ifstatus_show_cstate (dev, opt_verbose > OPT_NORMAL);
-				ni_ifstatus_show_config (dev, opt_verbose > OPT_NORMAL);
-				ni_ifstatus_show_leases (dev, opt_verbose > OPT_NORMAL);
-
-				ni_ifstatus_show_addrs  (dev, opt_verbose > OPT_NORMAL);
-				ni_ifstatus_show_routes (dev, opt_verbose > OPT_NORMAL);
-			}
 		}
 
-		if (ifmatch.name && !marked.count &&
-		    ni_string_array_index(&ifnames, ifmatch.name) == -1) {
+		if (nmarked && opt_verbose > OPT_BRIEF)
+			printf("\n");
 
-			multiple = ifnames.count ? TRUE : multiple;
-			ni_string_array_append(&ifnames, ifmatch.name);
-			ni_uint_array_append(&stcodes, st);
-			ni_uint_array_append(&stflags, mandatory);
-
-			if (c > optind && opt_verbose > OPT_BRIEF)
-				printf("\n");
-
-			if (opt_verbose > OPT_QUIET)
-				ni_ifstatus_show_status(ifmatch.name, st);
+		if (check_config) {
+			st = ni_ifstatus_of_worker(w, &mandatory);
+		} else {
+			st = ni_ifstatus_of_device(dev, &mandatory);
 		}
+		ni_uint_array_append(&stcodes, st);
+		ni_uint_array_append(&stflags, mandatory);
+		nmarked++;
+
+		if (opt_verbose > OPT_QUIET)
+			ni_ifstatus_show_status(w->name, st);
+
+		if (opt_verbose <= OPT_BRIEF)
+			continue;
+
+		if (dev) {
+			ni_ifstatus_show_iflink (dev, opt_verbose > OPT_NORMAL);
+			ni_ifstatus_show_iftype (dev, opt_verbose > OPT_NORMAL);
+
+			/* TODO: Hmm... this is the running config only;
+			 *              show current config info too?
+			 */
+			ni_ifstatus_show_cstate (dev, opt_verbose > OPT_NORMAL);
+			ni_ifstatus_show_config (dev, opt_verbose > OPT_NORMAL);
+			ni_ifstatus_show_leases (dev, opt_verbose > OPT_NORMAL);
+
+			ni_ifstatus_show_addrs  (dev, opt_verbose > OPT_NORMAL);
+			ni_ifstatus_show_routes (dev, opt_verbose > OPT_NORMAL);
+		}
+	}
+
+	if (nmarked == 0) {
+		printf("ifstatus: no matching interfaces\n");
+		status = NI_WICKED_ST_OK;
+		goto cleanup;
 	}
 
 	if (!stcodes.count) {
