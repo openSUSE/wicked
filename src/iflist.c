@@ -326,14 +326,14 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 
 	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
 		if (dev->link.masterdev.index && !dev->link.masterdev.name) {
-			if (ni_netdev_ref_bind_ifname(&dev->link.masterdev, nc) < 0) {
+			if (!ni_netdev_ref_bind_ifname(&dev->link.masterdev, nc)) {
 				ni_info("Interface %s references unknown master device (ifindex %u)",
 					dev->name, dev->link.masterdev.index);
 			}
 			/* Ignore error and proceed */
 		}
 		if (dev->link.lowerdev.index && !dev->link.lowerdev.name) {
-			if (ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc) < 0) {
+			if (!ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc)) {
 				ni_info("Interface %s references unknown lower device (ifindex %u)",
 					dev->name, dev->link.lowerdev.index);
 			}
@@ -683,7 +683,7 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 
 	if (tb[IFLA_LINK]) {
 		link->lowerdev.index = nla_get_u32(tb[IFLA_LINK]);
-		if (!nc || ni_netdev_ref_bind_ifname(&link->lowerdev, nc) < 0) {
+		if (!ni_netdev_ref_bind_ifname(&link->lowerdev, nc)) {
 			/* Drop old ifname, we will try it again later */
 			ni_string_free(&link->lowerdev.name);
 		}
@@ -693,7 +693,7 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 
 	if (tb[IFLA_MASTER]) {
 		link->masterdev.index = nla_get_u32(tb[IFLA_MASTER]);
-		if (!nc || ni_netdev_ref_bind_ifname(&link->masterdev, nc) < 0) {
+		if (ni_netdev_ref_bind_ifname(&link->masterdev, nc)) {
 			/* Drop old ifname, we will try it again later */
 			ni_string_free(&link->masterdev.name);
 		}
