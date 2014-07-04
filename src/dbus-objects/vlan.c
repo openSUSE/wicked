@@ -71,7 +71,7 @@ __ni_objectmodel_vlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 				"Incomplete arguments: need a lower device name");
 		return NULL;
 	} else
-	if (ni_netdev_ref_bind_ifindex(&cfg_ifp->link.lowerdev, nc) < 0) {
+	if (!ni_netdev_ref_bind_ifindex(&cfg_ifp->link.lowerdev, nc)) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Unable to find vlan lower device %s by name",
 				cfg_ifp->link.lowerdev.name);
