@@ -525,16 +525,8 @@ ni_do_ifstatus(int argc, char **argv)
 	ni_bool_t         multiple = FALSE;
 	ni_bool_t         opt_transient = FALSE;
 	ni_bool_t         check_config;
-	ni_ifmatcher_t    ifmatch;
 	ni_fsm_t *        fsm;
 	unsigned int      i;
-
-	/* Allow ifcheck on persistent, unconfigured interfaces */
-	memset(&ifmatch, 0, sizeof(ifmatch));
-	ifmatch.require_configured = FALSE;
-	ifmatch.allow_persistent = TRUE;
-	ifmatch.require_config = FALSE;
-	ifmatch.ignore_startmode = TRUE;
 
 	/* Allocate fsm and set to read-only */
 	fsm = ni_fsm_new();
@@ -624,24 +616,28 @@ ni_do_ifstatus(int argc, char **argv)
 
 	status = NI_WICKED_ST_OK;
 	for (c = optind; c < argc; ++c) {
-		ni_ifworker_array_t marked = { 0, NULL };
 		unsigned int st = NI_WICKED_ST_NO_DEVICE;
 		ni_bool_t mandatory = TRUE;
+		char *ifname;
 
-		ifmatch.name = argv[c];
-		if (ni_string_eq(ifmatch.name, "all")) {
-			ifmatch.name = NULL;
+		ifname = argv[c];
+		if (ni_string_eq(ifname, "all")) {
+			ifname = NULL;
 			multiple = TRUE;
 		}
 
-		ni_fsm_get_matching_workers(fsm, &ifmatch, &marked);
-		ni_ifup_pull_in_children(&marked);
-		for (i = 0; i < marked.count; ++i) {
-			ni_ifworker_t *w = marked.data[i];
+		for (i = 0; i < fsm->workers.count; ++i) {
+			ni_ifworker_t *w = fsm->workers.data[i];
 			ni_netdev_t *dev = w->device;
+
+			if (!ni_string_empty(ifname) && !ni_string_eq(ifname, w->name))
+				continue;
 
 			if (ni_string_array_index(&ifnames, w->name) != -1)
 				continue;
+
+			if (ifnames.count && opt_verbose > OPT_BRIEF)
+				printf("\n");
 
 			multiple = ifnames.count ? TRUE : multiple;
 			ni_string_array_append(&ifnames, w->name);
@@ -653,9 +649,6 @@ ni_do_ifstatus(int argc, char **argv)
 			}
 			ni_uint_array_append(&stcodes, st);
 			ni_uint_array_append(&stflags, mandatory);
-
-			if (i && opt_verbose > OPT_BRIEF)
-				printf("\n");
 
 			if (opt_verbose > OPT_QUIET)
 				ni_ifstatus_show_status(w->name, st);
@@ -679,11 +672,11 @@ ni_do_ifstatus(int argc, char **argv)
 			}
 		}
 
-		if (ifmatch.name && !marked.count &&
-		    ni_string_array_index(&ifnames, ifmatch.name) == -1) {
+		if (!ni_string_empty(ifname) && ifnames.count > 0 &&
+		    ni_string_array_index(&ifnames, ifname) == -1) {
 
 			multiple = ifnames.count ? TRUE : multiple;
-			ni_string_array_append(&ifnames, ifmatch.name);
+			ni_string_array_append(&ifnames, ifname);
 			ni_uint_array_append(&stcodes, st);
 			ni_uint_array_append(&stflags, mandatory);
 
@@ -691,8 +684,14 @@ ni_do_ifstatus(int argc, char **argv)
 				printf("\n");
 
 			if (opt_verbose > OPT_QUIET)
-				ni_ifstatus_show_status(ifmatch.name, st);
+				ni_ifstatus_show_status(ifname, st);
 		}
+	}
+
+	if (ifnames.count == 0) {
+		printf("ifstatus: no matching interfaces\n");
+		status = NI_WICKED_ST_OK;
+		goto cleanup;
 	}
 
 	if (!stcodes.count) {
