@@ -593,6 +593,53 @@ ni_ifworker_array_remove_with_children(ni_ifworker_array_t *array, ni_ifworker_t
 	}
 }
 
+static unsigned int
+__ni_fsm_dbus_objectpath_to_ifindex(const char *object_path)
+{
+	ni_string_array_t nsa = NI_STRING_ARRAY_INIT;
+	unsigned int ifindex = 0;
+
+	if (ni_string_empty(object_path))
+		goto done;
+
+	if (!ni_string_split(&nsa, object_path, "/", 0)) {
+		ni_error("unable to parse object_path=%s", object_path);
+		goto done;
+	}
+
+	if (ni_parse_uint(nsa.data[nsa.count-1], &ifindex, 10) < 0) {
+		ni_error("wrong ifindex value in object_path=%s", object_path);
+		goto done;
+	}
+
+done:
+	ni_string_array_destroy(&nsa);
+	return ifindex;
+}
+
+/*
+ * __ni_dbus_objectpath_to_name() allocates a string and return interface name
+ */
+static char *
+__ni_fsm_dbus_objectpath_to_name(const char *object_path)
+{
+	char buf[IF_NAMESIZE+1] = { 0 };
+	unsigned int ifindex;
+	char *ifname = NULL;
+
+	if (ni_string_empty(object_path))
+		return NULL;;
+
+	ifindex = __ni_fsm_dbus_objectpath_to_ifindex(object_path);
+	if (!if_indextoname(ifindex, buf)) {
+		ni_error("unable to get ifname from ifindex=%d", ifindex);
+		return NULL;
+	}
+
+	ni_string_dup(&ifname, buf);
+	return ifname;
+}
+
 ni_ifworker_t *
 ni_fsm_ifworker_by_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *ifname)
 {
@@ -627,25 +674,38 @@ ni_fsm_ifworker_by_policy_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const cha
 ni_ifworker_t *
 ni_fsm_ifworker_by_object_path(ni_fsm_t *fsm, const char *object_path)
 {
+	ni_ifworker_t *w;
+	char *ifname;
 	unsigned int i;
 
-	if (!object_path)
+	if (ni_string_empty(object_path))
 		return NULL;
 
 	for (i = 0; i < fsm->workers.count; ++i) {
-		ni_ifworker_t *w = fsm->workers.data[i];
+		w = fsm->workers.data[i];
 
 		if (w->object_path && !strcmp(w->object_path, object_path))
 			return w;
 	}
 
-	return NULL;
+	/* ifworker may not be refreshed (no object_path set nor ifindex) */
+	ifname = __ni_fsm_dbus_objectpath_to_name(object_path);
+	if (ni_string_empty(ifname))
+		return NULL;
+
+	w = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, ifname);
+	ni_string_free(&ifname);
+
+	return w;
 }
 
 static ni_ifworker_t *
-ni_ifworker_by_ifindex(ni_fsm_t *fsm, unsigned int ifindex)
+ni_fsm_ifworker_by_ifindex(ni_fsm_t *fsm, unsigned int ifindex)
 {
 	unsigned int i;
+
+	if (0 == ifindex)
+		return NULL;
 
 	for (i = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
@@ -1742,7 +1802,7 @@ __ni_ifworker_identify_device(ni_fsm_t *fsm, const char *namespace, const xml_no
 			ni_error("%s: cannot parse ifindex attribute", xml_node_location(devnode));
 			return NULL;
 		}
-		return ni_ifworker_by_ifindex(fsm, ifindex);
+		return ni_fsm_ifworker_by_ifindex(fsm, ifindex);
 	}
 
 	switch (type) {
