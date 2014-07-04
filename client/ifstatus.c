@@ -523,10 +523,11 @@ ni_do_ifstatus(int argc, char **argv)
 	ni_uint_array_t   stcodes = NI_UINT_ARRAY_INIT;
 	ni_uint_array_t   stflags = NI_UINT_ARRAY_INIT;
 	ni_bool_t         multiple = FALSE;
+	ni_bool_t         all = FALSE;
 	ni_bool_t         opt_transient = FALSE;
 	ni_bool_t         check_config;
 	ni_fsm_t *        fsm;
-	unsigned int      i;
+	unsigned int      i, nmarked;
 
 	/* Allocate fsm and set to read-only */
 	fsm = ni_fsm_new();
@@ -616,79 +617,67 @@ ni_do_ifstatus(int argc, char **argv)
 
 	status = NI_WICKED_ST_OK;
 	for (c = optind; c < argc; ++c) {
+		char *ifname = argv[c];
+
+		if (ni_string_eq(ifname, "all")) {
+			ni_string_array_destroy(&ifnames);
+			all = TRUE;
+			break;
+		}
+
+		if (ni_string_array_index(&ifnames, ifname) == -1)
+			ni_string_array_append(&ifnames, ifname);
+	}
+
+	if (ifnames.count > 1 || all)
+		multiple = TRUE;
+
+	for (i = 0, nmarked = 0; i < fsm->workers.count; ++i) {
+		ni_ifworker_t *w = fsm->workers.data[i];
+		ni_netdev_t *dev = w->device;
 		unsigned int st = NI_WICKED_ST_NO_DEVICE;
 		ni_bool_t mandatory = TRUE;
-		char *ifname;
 
-		ifname = argv[c];
-		if (ni_string_eq(ifname, "all")) {
-			ifname = NULL;
-			multiple = TRUE;
+		if (!all) {
+			if (ni_string_array_index(&ifnames, w->name) == -1)
+				continue;
 		}
 
-		for (i = 0; i < fsm->workers.count; ++i) {
-			ni_ifworker_t *w = fsm->workers.data[i];
-			ni_netdev_t *dev = w->device;
+		if (nmarked && opt_verbose > OPT_BRIEF)
+			printf("\n");
 
-			if (!ni_string_empty(ifname) && !ni_string_eq(ifname, w->name))
-				continue;
-
-			if (ni_string_array_index(&ifnames, w->name) != -1)
-				continue;
-
-			if (ifnames.count && opt_verbose > OPT_BRIEF)
-				printf("\n");
-
-			multiple = ifnames.count ? TRUE : multiple;
-			ni_string_array_append(&ifnames, w->name);
-
-			if (check_config) {
-				st = ni_ifstatus_of_worker(w, &mandatory);
-			} else {
-				st = ni_ifstatus_of_device(dev, &mandatory);
-			}
-			ni_uint_array_append(&stcodes, st);
-			ni_uint_array_append(&stflags, mandatory);
-
-			if (opt_verbose > OPT_QUIET)
-				ni_ifstatus_show_status(w->name, st);
-
-			if (opt_verbose <= OPT_BRIEF)
-				continue;
-
-			if (dev) {
-				ni_ifstatus_show_iflink (dev, opt_verbose > OPT_NORMAL);
-				ni_ifstatus_show_iftype (dev, opt_verbose > OPT_NORMAL);
-
-				/* TODO: Hmm... this is the running config only;
-				 *              show current config info too?
-				 */
-				ni_ifstatus_show_cstate (dev, opt_verbose > OPT_NORMAL);
-				ni_ifstatus_show_config (dev, opt_verbose > OPT_NORMAL);
-				ni_ifstatus_show_leases (dev, opt_verbose > OPT_NORMAL);
-
-				ni_ifstatus_show_addrs  (dev, opt_verbose > OPT_NORMAL);
-				ni_ifstatus_show_routes (dev, opt_verbose > OPT_NORMAL);
-			}
+		if (check_config) {
+			st = ni_ifstatus_of_worker(w, &mandatory);
+		} else {
+			st = ni_ifstatus_of_device(dev, &mandatory);
 		}
+		ni_uint_array_append(&stcodes, st);
+		ni_uint_array_append(&stflags, mandatory);
+		nmarked++;
 
-		if (!ni_string_empty(ifname) && ifnames.count > 0 &&
-		    ni_string_array_index(&ifnames, ifname) == -1) {
+		if (opt_verbose > OPT_QUIET)
+			ni_ifstatus_show_status(w->name, st);
 
-			multiple = ifnames.count ? TRUE : multiple;
-			ni_string_array_append(&ifnames, ifname);
-			ni_uint_array_append(&stcodes, st);
-			ni_uint_array_append(&stflags, mandatory);
+		if (opt_verbose <= OPT_BRIEF)
+			continue;
 
-			if (c > optind && opt_verbose > OPT_BRIEF)
-				printf("\n");
+		if (dev) {
+			ni_ifstatus_show_iflink (dev, opt_verbose > OPT_NORMAL);
+			ni_ifstatus_show_iftype (dev, opt_verbose > OPT_NORMAL);
 
-			if (opt_verbose > OPT_QUIET)
-				ni_ifstatus_show_status(ifname, st);
+			/* TODO: Hmm... this is the running config only;
+			 *              show current config info too?
+			 */
+			ni_ifstatus_show_cstate (dev, opt_verbose > OPT_NORMAL);
+			ni_ifstatus_show_config (dev, opt_verbose > OPT_NORMAL);
+			ni_ifstatus_show_leases (dev, opt_verbose > OPT_NORMAL);
+
+			ni_ifstatus_show_addrs  (dev, opt_verbose > OPT_NORMAL);
+			ni_ifstatus_show_routes (dev, opt_verbose > OPT_NORMAL);
 		}
 	}
 
-	if (ifnames.count == 0) {
+	if (nmarked == 0) {
 		printf("ifstatus: no matching interfaces\n");
 		status = NI_WICKED_ST_OK;
 		goto cleanup;
