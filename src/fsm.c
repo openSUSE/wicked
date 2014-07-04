@@ -358,6 +358,7 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 	/* memset(&w->fsm, 0, sizeof(w->fsm)); */
 	w->fsm.state = w->target_state = NI_FSM_STATE_NONE;
 	w->failed = TRUE;
+	w->pending = FALSE;
 
 	if (w->progress.callback)
 		w->progress.callback(w, w->fsm.state);
@@ -436,7 +437,7 @@ __ni_ifworker_timeout(void *user_data, const ni_timer_t *timer)
 		w->fsm.timer = NULL;
 
 		ni_ifworker_cleanup_cancelable_events(w);
-		if (ni_ifworker_waiting_for_events(w) || !ni_ifworker_complete(w))
+		if (ni_ifworker_waiting_for_events(w) || !ni_ifworker_complete(w) || w->pending)
 			ni_ifworker_fail(w, "operation timed out");
 	}
 	ni_ifworker_timeout_count++;
@@ -2209,6 +2210,12 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 		if (w->failed)
 			continue;
 
+		if (!w->device && !ni_ifworker_is_factory_device(w)) {
+			w->pending = TRUE;
+			ni_ifworker_set_timeout(w, fsm->worker_timeout);
+			continue;
+		}
+
 		if ((rv = ni_ifworker_start(fsm, w, fsm->worker_timeout)) < 0)
 			return rv;
 
@@ -3242,9 +3249,7 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 	unsigned int i;
 	int rv;
 
-	/* If we haven't created the netdev yet, skip this binding
-	 * quietly. We will retry later (or fail). */
-	if (w->object == NULL)
+	if (!w->object && ni_ifworker_is_factory_device(w))
 		return 0;
 
 	if (action->bound)
@@ -3733,6 +3738,9 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			unsigned int prev_state;
 			int rv;
 
+			if (w->pending)
+				continue;
+
 			if (ni_ifworker_complete(w)) {
 				ni_ifworker_cancel_timeout(w);
 				continue;
@@ -3836,7 +3844,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 	for (i = waiting = nrequested = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
 
-		if (!w->failed && !ni_ifworker_complete(w)) {
+		if (!ni_ifworker_complete(w) || w->pending) {
 			waiting++;
 			nrequested++;
 		}
@@ -4052,9 +4060,26 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			}
 		}
 
-		/* Rebuild hierarchy in case of new device shows up */
-		if (event_type == NI_EVENT_DEVICE_READY)
+		if (event_type == NI_EVENT_DEVICE_READY) {
+			/* Refresh device on create */
+			if (!w->device) {
+				w = ni_fsm_recv_new_netif_path(fsm, object_path);
+
+				/* Rebuild hierarchy */
+				ni_fsm_refresh_master_dev(fsm, w);
+				ni_fsm_refresh_lower_dev(fsm, w);
+			}
+
+			/* Rebuild hierarchy in case of new device shows up */
 			ni_fsm_build_hierarchy(fsm);
+
+			/* Handle devices which were not present on ifup */
+			if(w->pending) {
+				w->pending = FALSE;
+				ni_ifworker_start(fsm, w, fsm->worker_timeout);
+				goto done;
+			}
+		}
 
 		ni_ifworker_advance_state(w, event_type);
 	}
