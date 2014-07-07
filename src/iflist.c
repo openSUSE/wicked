@@ -792,9 +792,6 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 				} else if (!strcmp(driver, "802.1Q VLAN Support")) {
 					tmp_link_type = NI_IFTYPE_VLAN;
 				}
-
-				if (drv_info.n_stats != 0 && link->ethtool_stats == NULL)
-					link->ethtool_stats = __ni_ethtool_stats_init(ifname, &drv_info);
 			}
 
 			break;
