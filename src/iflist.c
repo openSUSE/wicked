@@ -679,37 +679,42 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		link->oper_state = nla_get_u8(tb[IFLA_OPERSTATE]);
 	}
 
-	if (tb[IFLA_STATS]) {
-		struct rtnl_link_stats *s = nla_data(tb[IFLA_STATS]);
+	struct rtnl_link_stats *s = NULL;
+	struct rtnl_link_stats64 *s64 = NULL;
+	if (tb[IFLA_STATS])
+		s = nla_data(tb[IFLA_STATS]);
+	else if (tb[IFLA_STATS64])
+		s64 = nla_data(tb[IFLA_STATS64]);
+	if (s || s64) {
 		ni_link_stats_t *n;
 
 		if (!link->stats)
 			link->stats = calloc(1, sizeof(*n));
 
 		if ((n = link->stats)) {
-			n->rx_packets = s->rx_packets;
-			n->tx_packets = s->tx_packets;
-			n->rx_bytes = s->rx_bytes;
-			n->tx_bytes = s->tx_bytes;
-			n->rx_errors = s->rx_errors;
-			n->tx_errors = s->tx_errors;
-			n->rx_dropped = s->rx_dropped;
-			n->tx_dropped = s->tx_dropped;
-			n->multicast = s->multicast;
-			n->collisions = s->collisions;
-			n->rx_length_errors = s->rx_length_errors;
-			n->rx_over_errors = s->rx_over_errors;
-			n->rx_crc_errors = s->rx_crc_errors;
-			n->rx_frame_errors = s->rx_frame_errors;
-			n->rx_fifo_errors = s->rx_fifo_errors;
-			n->rx_missed_errors = s->rx_missed_errors;
-			n->tx_aborted_errors = s->tx_aborted_errors;
-			n->tx_carrier_errors = s->tx_carrier_errors;
-			n->tx_fifo_errors = s->tx_fifo_errors;
-			n->tx_heartbeat_errors = s->tx_heartbeat_errors;
-			n->tx_window_errors = s->tx_window_errors;
-			n->rx_compressed = s->rx_compressed;
-			n->tx_compressed = s->tx_compressed;
+			n->rx_packets = s64 ? s64->rx_packets : (uint64_t) s->rx_packets;
+			n->tx_packets = s64 ? s64->tx_packets : (uint64_t) s->tx_packets;
+			n->rx_bytes = s64 ? s64->rx_bytes : (uint64_t) s->rx_bytes;
+			n->tx_bytes = s64 ? s64->tx_bytes : (uint64_t) s->tx_bytes;
+			n->rx_errors = s64 ? s64->rx_errors : (uint64_t) s->rx_errors;
+			n->tx_errors = s64 ? s64->tx_errors : (uint64_t) s->tx_errors;
+			n->rx_dropped = s64 ? s64->rx_dropped : (uint64_t) s->rx_dropped;
+			n->tx_dropped = s64 ? s64->tx_dropped : (uint64_t) s->tx_dropped;
+			n->multicast = s64 ? s64->multicast : (uint64_t) s->multicast;
+			n->collisions = s64 ? s64->collisions : (uint64_t) s->collisions;
+			n->rx_length_errors = s64 ? s64->rx_length_errors : (uint64_t) s->rx_length_errors;
+			n->rx_over_errors = s64 ? s64->rx_over_errors : (uint64_t) s->rx_over_errors;
+			n->rx_crc_errors = s64 ? s64->rx_crc_errors : (uint64_t) s->rx_crc_errors;
+			n->rx_frame_errors = s64 ? s64->rx_frame_errors : (uint64_t) s->rx_frame_errors;
+			n->rx_fifo_errors = s64 ? s64->rx_fifo_errors : (uint64_t) s->rx_fifo_errors;
+			n->rx_missed_errors = s64 ? s64->rx_missed_errors : (uint64_t) s->rx_missed_errors;
+			n->tx_aborted_errors = s64 ? s64->tx_aborted_errors : (uint64_t) s->tx_aborted_errors;;
+			n->tx_carrier_errors = s64 ? s64->tx_carrier_errors : (uint64_t) s->tx_carrier_errors;
+			n->tx_fifo_errors = s64 ? s64->tx_fifo_errors : (uint64_t) s->tx_fifo_errors;
+			n->tx_heartbeat_errors = s64 ? s64->tx_heartbeat_errors : (uint64_t) s->tx_heartbeat_errors;
+			n->tx_window_errors = s64 ? s64->tx_window_errors : (uint64_t) s->tx_window_errors;
+			n->rx_compressed = s64 ? s64->rx_compressed : (uint64_t) s->rx_compressed;
+			n->tx_compressed = s64 ? s64->tx_compressed : (uint64_t) s->tx_compressed;
 		}
 	}
 
