@@ -2163,6 +2163,35 @@ ni_ifworkers_flatten(ni_ifworker_array_t *array)
 	qsort(array->data, array->count, sizeof(array->data[0]), __ni_ifworker_depth_compare);
 }
 
+static void
+__ni_fsm_pull_in_children(ni_ifworker_t *w, ni_ifworker_array_t *array)
+{
+	unsigned int i;
+
+	for (i = 0; i < w->children.count; i++) {
+		ni_ifworker_t *child = w->children.data[i];
+
+		if (ni_ifworker_array_index(array, child) < 0)
+			ni_ifworker_array_append(array, child);
+		__ni_fsm_pull_in_children(child, array);
+	}
+}
+
+void
+ni_fsm_pull_in_children(ni_ifworker_array_t *array)
+{
+	unsigned int i;
+
+	if (!array)
+		return;
+
+	for (i = 0; i < array->count; i++) {
+		ni_ifworker_t *w = array->data[i];
+
+		__ni_fsm_pull_in_children(w, array);
+	}
+}
+
 /*
  * After we've picked the list of matching interfaces, set their target state.
  * We need to do this recursively - for instance, bringing up a VLAN interface

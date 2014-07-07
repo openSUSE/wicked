@@ -45,35 +45,6 @@
 #include "appconfig.h"
 #include "ifup.h"
 
-static void
-__ni_ifup_pull_in_children(ni_ifworker_t *w, ni_ifworker_array_t *array)
-{
-	unsigned int i;
-
-	for (i = 0; i < w->children.count; i++) {
-		ni_ifworker_t *child = w->children.data[i];
-
-		if (ni_ifworker_array_index(array, child) < 0)
-			ni_ifworker_array_append(array, child);
-		__ni_ifup_pull_in_children(child, array);
-	}
-}
-
-void
-ni_ifup_pull_in_children(ni_ifworker_array_t *array)
-{
-	unsigned int i;
-
-	if (!array)
-		return;
-
-	for (i = 0; i < array->count; i++) {
-		ni_ifworker_t *w = array->data[i];
-
-		__ni_ifup_pull_in_children(w, array);
-	}
-}
-
 static xml_node_t *
 __ni_ifup_generate_match_type_dev(ni_netdev_t *dev)
 {
@@ -812,7 +783,7 @@ usage:
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
 	}
 
-	ni_ifup_pull_in_children(&ifmarked);
+	ni_fsm_pull_in_children(&ifmarked);
 
 	/* Mark and start selected workers */
 	if (ifmarked.count)
