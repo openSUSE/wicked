@@ -355,8 +355,7 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 	va_end(ap);
 
 	ni_error("device %s failed: %s", w->name, errmsg);
-	/* memset(&w->fsm, 0, sizeof(w->fsm)); */
-	w->fsm.state = w->target_state = NI_FSM_STATE_NONE;
+	memset(&w->fsm, 0, sizeof(w->fsm));
 	w->failed = TRUE;
 	w->pending = FALSE;
 
