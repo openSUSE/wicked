@@ -3714,22 +3714,6 @@ ni_fsm_schedule_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
 	unsigned int unbound = 0;
 	int rv;
 
-	if (w->use_default_policies) {
-		static const unsigned int MAX_POLICIES = 64;
-		const ni_fsm_policy_t *policies[MAX_POLICIES];
-		unsigned int count;
-
-		ni_debug_application("%s: applying policies", w->name);
-
-		count = ni_fsm_policy_get_applicable_policies(fsm, w, policies, MAX_POLICIES);
-
-		w->config.node = ni_fsm_policy_transform_document(w->config.node, policies, count);
-
-		/* Update the control information - it may have been changed by policy */
-		ni_ifworker_control_init(&w->control);
-		ni_ifworker_control_from_xml(&w->control, xml_node_get_child(w->config.node, "control"));
-	}
-
 	ni_debug_application("%s: binding dbus calls to FSM transitions", w->name);
 	for (action = w->fsm.action_table; action->func; ++action) {
 		if (action->bound)
