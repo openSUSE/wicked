@@ -2222,7 +2222,6 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 	}
 
 	count = ni_fsm_start_matching_workers(fsm, marked);
-	ni_ifworkers_flatten(&fsm->workers);
 	ni_debug_application("marked %u interfaces", count);
 	return count;
 }
