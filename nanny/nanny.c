@@ -227,9 +227,7 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 		}
 	}
 
-	if (mgr->recheck.count)
-		ni_ifworkers_flatten(&mgr->recheck);
-
+	ni_ifworkers_flatten(&mgr->recheck);
 	for (i = 0; i < mgr->recheck.count; ++i) {
 		ni_ifworker_t *w = mgr->recheck.data[i];
 
