@@ -54,6 +54,7 @@ typedef struct ni_ifworker_array {
 	unsigned int		count;
 	ni_ifworker_t **	data;
 } ni_ifworker_array_t;
+#define NI_IFWORKER_ARRAY_INIT { .count = 0, .data = NULL }
 
 typedef struct ni_fsm_transition ni_fsm_transition_t;
 
