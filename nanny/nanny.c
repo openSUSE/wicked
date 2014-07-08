@@ -694,7 +694,10 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		return;
 	}
 
-	if (event == NI_EVENT_DEVICE_CREATE) {
+	if (event == NI_EVENT_DEVICE_CREATE)
+		return;
+
+	if (event == NI_EVENT_DEVICE_READY) {
 		if ((w = ni_fsm_recv_new_netif_path(mgr->fsm, object_path)))
 			ni_nanny_register_device(mgr, w);
 	}
