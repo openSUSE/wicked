@@ -1186,7 +1186,7 @@ ni_ifcondition_type(xml_node_t *node)
 static ni_bool_t
 __ni_fsm_policy_match_class_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
-	return w->object && ni_dbus_object_isa(w->object, cond->args.class);
+	return w->object && ni_dbus_class_is_subclass(cond->args.class, w->object->class);
 }
 
 static ni_ifcondition_t *
