@@ -180,13 +180,13 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_managed_device_t *mdev;
 	ni_managed_policy_t *mpolicy;
 	unsigned int count;
-	ni_bool_t virtual = FALSE;
+	ni_bool_t factory_device = FALSE;
 
 	mdev = ni_nanny_get_device(mgr, w);
-
-	/* We have an ifworker, but no device yet - follow virtual path */
-	if (NULL == mdev)
-		virtual = TRUE;
+	if (!mdev) {
+		/* We have an ifworker, but no device yet - follow factory device path */
+		factory_device = TRUE;
+	}
 
 	/* Note, we also check devices in state FAILED.
 	 * ni_managed_device_apply_policy() will then check if the policy
@@ -196,15 +196,6 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_debug_nanny("%s(%s)", __func__, w->name);
 	w->use_default_policies = TRUE;
 	if ((count = ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES)) == 0) {
-		/* Don't try to take down a FAILED device.
-		 * Either we succeed, then we mark it STOPPED (and then try to take it
-		 * up again... and fail), or we fail to take it down (and then we try to
-		 * take it down once more... and fail).
-		 * In either case, we're ending up in a endless loop.
-		 * FIXME: use a ni_managed_device_down_emergency() function, which does a hard
-		 * shutdown of the device. This needs cooperation from the server; which would have
-		 * to kill all leases and destroy all addresses.
-		 */
 		ni_debug_nanny("%s: no applicable policies", w->name);
 		return count;
 	}
@@ -212,8 +203,8 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	policy = policies[count-1];
 	mpolicy = ni_nanny_get_policy(mgr, policy);
 
-	if (virtual)
-		ni_virtual_device_apply_policy(mgr->fsm, w, mpolicy);
+	if (factory_device)
+		ni_factory_device_apply_policy(mgr->fsm, w, mpolicy);
 	else
 		ni_managed_device_apply_policy(mdev, mpolicy);
 
