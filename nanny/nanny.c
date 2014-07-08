@@ -996,6 +996,8 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 					ni_managed_device_t *mdev = ni_nanny_get_device(mgr, w);
 					if (mdev != NULL)
 						ni_managed_device_set_policy(mdev, NULL, NULL);
+
+					w->config.node = NULL;
 				}
 
 				*pos = cur->next;
