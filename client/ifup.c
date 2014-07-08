@@ -128,7 +128,6 @@ static ni_bool_t
 ni_ifup_start_policy(ni_ifworker_t *w)
 {
 	xml_node_t *ifcfg = NULL, *policy = NULL;
-	unsigned int i;
 	ni_bool_t rv = FALSE;
 	char *pname;
 
@@ -181,14 +180,6 @@ ni_ifup_start_policy(ni_ifworker_t *w)
 
 	ni_debug_application("%s: nanny hired!", w->name);
 	ni_ifworker_success(w);
-
-	/* Append policies for all children in case they contain some special options */
-	for (i = 0; i < w->children.count; i++) {
-		ni_ifworker_t *child = w->children.data[i];
-
-		if (!ni_ifup_start_policy(child))
-			ni_error("%s: unable to apply configuration to nanny", child->name);
-	}
 
 	rv = TRUE;
 
@@ -532,6 +523,9 @@ usage:
 
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
 	}
+
+	ni_fsm_pull_in_children(&ifmarked);
+	ni_ifworkers_flatten(&ifmarked);
 
 	if (!ni_ifup_hire_nanny(&ifmarked, set_persistent))
 		status = NI_WICKED_RC_NOT_CONFIGURED;
