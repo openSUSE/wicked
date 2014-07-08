@@ -292,7 +292,7 @@ usage:
 	if (marked.count) {
 		/* And trigger up */
 		ni_debug_application("Reloading all changed devices");
-		ni_ifup_pull_in_children(&marked);
+		ni_fsm_pull_in_children(&marked);
 		if (ni_fsm_start_matching_workers(fsm, &marked)) {
 			/* Execute the up run */
 			if (ni_fsm_schedule(fsm) != 0)

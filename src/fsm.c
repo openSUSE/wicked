@@ -355,8 +355,7 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 	va_end(ap);
 
 	ni_error("device %s failed: %s", w->name, errmsg);
-	/* memset(&w->fsm, 0, sizeof(w->fsm)); */
-	w->fsm.state = w->target_state = NI_FSM_STATE_NONE;
+	memset(&w->fsm, 0, sizeof(w->fsm));
 	w->failed = TRUE;
 	w->pending = FALSE;
 
@@ -2163,6 +2162,35 @@ ni_ifworkers_flatten(ni_ifworker_array_t *array)
 	qsort(array->data, array->count, sizeof(array->data[0]), __ni_ifworker_depth_compare);
 }
 
+static void
+__ni_fsm_pull_in_children(ni_ifworker_t *w, ni_ifworker_array_t *array)
+{
+	unsigned int i;
+
+	for (i = 0; i < w->children.count; i++) {
+		ni_ifworker_t *child = w->children.data[i];
+
+		if (ni_ifworker_array_index(array, child) < 0)
+			ni_ifworker_array_append(array, child);
+		__ni_fsm_pull_in_children(child, array);
+	}
+}
+
+void
+ni_fsm_pull_in_children(ni_ifworker_array_t *array)
+{
+	unsigned int i;
+
+	if (!array)
+		return;
+
+	for (i = 0; i < array->count; i++) {
+		ni_ifworker_t *w = array->data[i];
+
+		__ni_fsm_pull_in_children(w, array);
+	}
+}
+
 /*
  * After we've picked the list of matching interfaces, set their target state.
  * We need to do this recursively - for instance, bringing up a VLAN interface
@@ -2193,7 +2221,6 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 	}
 
 	count = ni_fsm_start_matching_workers(fsm, marked);
-	ni_ifworkers_flatten(&fsm->workers);
 	ni_debug_application("marked %u interfaces", count);
 	return count;
 }
@@ -3685,22 +3712,6 @@ ni_fsm_schedule_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
 	ni_fsm_transition_t *action;
 	unsigned int unbound = 0;
 	int rv;
-
-	if (w->use_default_policies) {
-		static const unsigned int MAX_POLICIES = 64;
-		const ni_fsm_policy_t *policies[MAX_POLICIES];
-		unsigned int count;
-
-		ni_debug_application("%s: applying policies", w->name);
-
-		count = ni_fsm_policy_get_applicable_policies(fsm, w, policies, MAX_POLICIES);
-
-		w->config.node = ni_fsm_policy_transform_document(w->config.node, policies, count);
-
-		/* Update the control information - it may have been changed by policy */
-		ni_ifworker_control_init(&w->control);
-		ni_ifworker_control_from_xml(&w->control, xml_node_get_child(w->config.node, "control"));
-	}
 
 	ni_debug_application("%s: binding dbus calls to FSM transitions", w->name);
 	for (action = w->fsm.action_table; action->func; ++action) {

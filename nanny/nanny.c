@@ -180,13 +180,13 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_managed_device_t *mdev;
 	ni_managed_policy_t *mpolicy;
 	unsigned int count;
-	ni_bool_t virtual = FALSE;
+	ni_bool_t factory_device = FALSE;
 
 	mdev = ni_nanny_get_device(mgr, w);
-
-	/* We have an ifworker, but no device yet - follow virtual path */
-	if (NULL == mdev)
-		virtual = TRUE;
+	if (!mdev) {
+		/* We have an ifworker, but no device yet - follow factory device path */
+		factory_device = TRUE;
+	}
 
 	/* Note, we also check devices in state FAILED.
 	 * ni_managed_device_apply_policy() will then check if the policy
@@ -196,15 +196,6 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_debug_nanny("%s(%s)", __func__, w->name);
 	w->use_default_policies = TRUE;
 	if ((count = ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES)) == 0) {
-		/* Don't try to take down a FAILED device.
-		 * Either we succeed, then we mark it STOPPED (and then try to take it
-		 * up again... and fail), or we fail to take it down (and then we try to
-		 * take it down once more... and fail).
-		 * In either case, we're ending up in a endless loop.
-		 * FIXME: use a ni_managed_device_down_emergency() function, which does a hard
-		 * shutdown of the device. This needs cooperation from the server; which would have
-		 * to kill all leases and destroy all addresses.
-		 */
 		ni_debug_nanny("%s: no applicable policies", w->name);
 		return count;
 	}
@@ -212,8 +203,8 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	policy = policies[count-1];
 	mpolicy = ni_nanny_get_policy(mgr, policy);
 
-	if (virtual)
-		ni_virtual_device_apply_policy(mgr->fsm, w, mpolicy);
+	if (factory_device)
+		ni_factory_device_apply_policy(mgr->fsm, w, mpolicy);
 	else
 		ni_managed_device_apply_policy(mdev, mpolicy);
 
@@ -236,9 +227,7 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 		}
 	}
 
-	if (mgr->recheck.count)
-		ni_ifworkers_flatten(&mgr->recheck);
-
+	ni_ifworkers_flatten(&mgr->recheck);
 	for (i = 0; i < mgr->recheck.count; ++i) {
 		ni_ifworker_t *w = mgr->recheck.data[i];
 
@@ -705,7 +694,10 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		return;
 	}
 
-	if (event == NI_EVENT_DEVICE_CREATE) {
+	if (event == NI_EVENT_DEVICE_CREATE)
+		return;
+
+	if (event == NI_EVENT_DEVICE_READY) {
 		if ((w = ni_fsm_recv_new_netif_path(mgr->fsm, object_path)))
 			ni_nanny_register_device(mgr, w);
 	}
@@ -902,11 +894,13 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 	xml_document_t *doc;
 	xml_node_t *root, *pnode;
 	ni_nanny_t *mgr;
+	ni_fsm_t *fsm;
 	unsigned int count = 0;
 
 	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL)
 		return FALSE;
 
+	fsm = mgr->fsm;
 	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &doc_string) || ni_string_empty(doc_string))
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
 
@@ -919,7 +913,8 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 
 	root = xml_document_root(doc);
 	for (pnode = root->children; pnode != NULL; pnode = pnode->next) {
-		ni_fsm_policy_t *policy;
+		const ni_fsm_policy_t *policies[1];
+		xml_node_t *config = NULL;
 		const char *pname;
 
 		if (!ni_ifconfig_is_policy(pnode)) {
@@ -938,7 +933,7 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 			return FALSE;
 		}
 
-		if (ni_fsm_policy_by_name(mgr->fsm, pname) != NULL) {
+		if (ni_fsm_policy_by_name(fsm, pname) != NULL) {
 			dbus_set_error(error, NI_DBUS_ERROR_POLICY_EXISTS,
 				"Policy \"%s\" already exists in call to %s.%s",
 				pname, ni_dbus_object_get_path(object), method->name);
@@ -946,10 +941,19 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 		}
 
 		/* Create policy and corresponding worker (e.g. for hotplug or factory devices */
-		policy = ni_fsm_policy_new(mgr->fsm, pname, pnode);
+		policies[0] = ni_fsm_policy_new(fsm, pname, pnode);
+
+		config = xml_node_new(NI_CLIENT_IFCONFIG, NULL);
+		config = ni_fsm_policy_transform_document(config, policies, 1);
+		if (!config || !ni_fsm_workers_from_xml(fsm, config, ni_ifpolicy_get_origin(pnode))) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"Bad policy \"%s\" in call to %s.%s",
+				doc_string, ni_dbus_object_get_path(object), method->name);
+			return FALSE;
+		}
 
 		/* Rebuild the hierarchy cause new policy may hit some matches */
-		ni_fsm_build_hierarchy(mgr->fsm);
+		ni_fsm_build_hierarchy(fsm);
 
 		/* Schedule recheck on Factory devices
 		 * (Hotplugs and existing devices are scheduled upon DEVICE_READY)
@@ -957,7 +961,7 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 		__ni_objectmodel_nanny_factory_device_recheck(mgr, pname);
 
 		policy_object = ni_objectmodel_register_managed_policy(ni_dbus_object_get_server(object),
-			ni_managed_policy_new(mgr, policy, NULL));
+			ni_managed_policy_new(mgr, (ni_fsm_policy_t *) policies[0], NULL));
 
 		if (ni_dbus_message_append_object_path(reply, ni_dbus_object_get_path(policy_object)))
 			count++;
@@ -1005,6 +1009,8 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 					ni_managed_device_t *mdev = ni_nanny_get_device(mgr, w);
 					if (mdev != NULL)
 						ni_managed_device_set_policy(mdev, NULL, NULL);
+
+					w->config.node = NULL;
 				}
 
 				*pos = cur->next;

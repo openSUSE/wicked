@@ -140,7 +140,7 @@ extern void			ni_managed_modem_up(ni_managed_device_t *, unsigned int);
 
 extern ni_managed_device_t *	ni_managed_device_new(ni_nanny_t *, ni_ifworker_t *, ni_managed_device_t **list);
 extern void			ni_managed_device_free(ni_managed_device_t *);
-extern void			ni_virtual_device_apply_policy(ni_fsm_t *, ni_ifworker_t *, ni_managed_policy_t *);
+extern void			ni_factory_device_apply_policy(ni_fsm_t *, ni_ifworker_t *, ni_managed_policy_t *);
 extern void			ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy);
 extern void			ni_managed_device_set_policy(ni_managed_device_t *, ni_managed_policy_t *, xml_node_t *);
 extern void			ni_managed_device_down(ni_managed_device_t *mdev);
