@@ -894,11 +894,13 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 	xml_document_t *doc;
 	xml_node_t *root, *pnode;
 	ni_nanny_t *mgr;
+	ni_fsm_t *fsm;
 	unsigned int count = 0;
 
 	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL)
 		return FALSE;
 
+	fsm = mgr->fsm;
 	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &doc_string) || ni_string_empty(doc_string))
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
 
@@ -911,7 +913,8 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 
 	root = xml_document_root(doc);
 	for (pnode = root->children; pnode != NULL; pnode = pnode->next) {
-		ni_fsm_policy_t *policy;
+		const ni_fsm_policy_t *policies[1];
+		xml_node_t *config = NULL;
 		const char *pname;
 
 		if (!ni_ifconfig_is_policy(pnode)) {
@@ -930,7 +933,7 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 			return FALSE;
 		}
 
-		if (ni_fsm_policy_by_name(mgr->fsm, pname) != NULL) {
+		if (ni_fsm_policy_by_name(fsm, pname) != NULL) {
 			dbus_set_error(error, NI_DBUS_ERROR_POLICY_EXISTS,
 				"Policy \"%s\" already exists in call to %s.%s",
 				pname, ni_dbus_object_get_path(object), method->name);
@@ -938,10 +941,19 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 		}
 
 		/* Create policy and corresponding worker (e.g. for hotplug or factory devices */
-		policy = ni_fsm_policy_new(mgr->fsm, pname, pnode);
+		policies[0] = ni_fsm_policy_new(fsm, pname, pnode);
+
+		config = xml_node_new(NI_CLIENT_IFCONFIG, NULL);
+		config = ni_fsm_policy_transform_document(config, policies, 1);
+		if (!config || !ni_fsm_workers_from_xml(fsm, config, ni_ifpolicy_get_origin(pnode))) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"Bad policy \"%s\" in call to %s.%s",
+				doc_string, ni_dbus_object_get_path(object), method->name);
+			return FALSE;
+		}
 
 		/* Rebuild the hierarchy cause new policy may hit some matches */
-		ni_fsm_build_hierarchy(mgr->fsm);
+		ni_fsm_build_hierarchy(fsm);
 
 		/* Schedule recheck on Factory devices
 		 * (Hotplugs and existing devices are scheduled upon DEVICE_READY)
@@ -949,7 +961,7 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 		__ni_objectmodel_nanny_factory_device_recheck(mgr, pname);
 
 		policy_object = ni_objectmodel_register_managed_policy(ni_dbus_object_get_server(object),
-			ni_managed_policy_new(mgr, policy, NULL));
+			ni_managed_policy_new(mgr, (ni_fsm_policy_t *) policies[0], NULL));
 
 		if (ni_dbus_message_append_object_path(reply, ni_dbus_object_get_path(policy_object)))
 			count++;
