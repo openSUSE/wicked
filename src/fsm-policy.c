@@ -159,24 +159,8 @@ __ni_fsm_policy_reset(ni_fsm_policy_t *policy)
 	}
 }
 
-static inline ni_bool_t
-__ni_fsm_policy_create_worker(ni_fsm_t *fsm, xml_node_t *pitem)
-{
-	xml_node_t *ifnode;
-	ni_bool_t rv = FALSE;
-
-	if (fsm && pitem) {
-		ifnode = xml_node_clone(pitem, NULL);
-		ni_string_dup(&ifnode->name, NI_CLIENT_IFCONFIG);
-		rv = ni_fsm_workers_from_xml(fsm, ifnode, "nanny");
-	}
-
-	return rv;
-}
-
-
 static ni_bool_t
-__ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, ni_fsm_t *fsm, xml_node_t *node)
+__ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 {
 	static unsigned int __policy_seq = 1;
 	xml_node_t *item;
@@ -227,11 +211,9 @@ __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, ni_fsm_t *fsm, xml_node_t *nod
 		} else
 		if (ni_string_eq(item->name, NI_NANNY_IFPOLICY_MERGE)) {
 			action = ni_fsm_policy_action_new(NI_IFPOLICY_ACTION_MERGE, item, policy);
-			__ni_fsm_policy_create_worker(fsm, item);
 		} else
 		if (ni_string_eq(item->name, NI_NANNY_IFPOLICY_REPLACE)) {
 			action = ni_fsm_policy_action_new(NI_IFPOLICY_ACTION_REPLACE, item, policy);
-			__ni_fsm_policy_create_worker(fsm, item);
 		} else
 		if (ni_string_eq(item->name, NI_NANNY_IFPOLICY_CREATE)) {
 			if (policy->type != NI_IFPOLICY_TYPE_TEMPLATE) {
@@ -279,7 +261,7 @@ ni_fsm_policy_new(ni_fsm_t *fsm, const char *name, xml_node_t *node)
 	policy = calloc(1, sizeof(*policy));
 	ni_string_dup(&policy->name, name);
 
-	if (!__ni_fsm_policy_from_xml(policy, fsm, node)) {
+	if (!__ni_fsm_policy_from_xml(policy, node)) {
 		ni_fsm_policy_free(policy);
 		return NULL;
 	}
@@ -301,7 +283,7 @@ ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 		return FALSE;
 
 	memset(&temp, 0, sizeof(temp));
-	if (!__ni_fsm_policy_from_xml(&temp, NULL, node))
+	if (!__ni_fsm_policy_from_xml(&temp, node))
 		return FALSE;
 
 	__ni_fsm_policy_reset(policy);
