@@ -864,22 +864,6 @@ ni_objectmodel_nanny_get_device(ni_dbus_object_t *object, const ni_dbus_method_t
 	return TRUE;
 }
 
-static void
-__ni_objectmodel_nanny_factory_device_recheck(ni_nanny_t *mgr, const char *pname)
-{
-	ni_ifworker_t *w = NULL;
-
-	if (!mgr || !mgr->fsm || ni_string_empty(pname))
-		return;
-
-	w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, pname);
-	if (!w)
-		return;
-
-	if (!w->failed && !w->done && ni_ifworker_is_factory_device(w))
-		ni_nanny_schedule_recheck(&mgr->recheck, w);
-}
-
 /*
  * Nanny.createPolicy()
  */
@@ -915,6 +899,7 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 		const ni_fsm_policy_t *policies[1];
 		xml_node_t *config = NULL;
 		const char *pname;
+		ni_ifworker_t *w;
 
 		if (!ni_ifconfig_is_policy(pnode)) {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
@@ -954,10 +939,18 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 		/* Rebuild the hierarchy cause new policy may hit some matches */
 		ni_fsm_build_hierarchy(fsm);
 
-		/* Schedule recheck on Factory devices
-		 * (Hotplugs and existing devices are scheduled upon DEVICE_READY)
-		 */
-		__ni_objectmodel_nanny_factory_device_recheck(mgr, pname);
+		w = ni_fsm_ifworker_by_policy_name(fsm, NI_IFWORKER_TYPE_NETDEV, pname);
+		if (!w) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"Ifworker creation failed in call to %s.%s",
+				ni_dbus_object_get_path(object), method->name);
+			return FALSE;
+		}
+
+		/* Trigger recheck on factory devices */
+		if (ni_ifworker_is_factory_device(w) && !w->kickstarted) {
+			ni_nanny_schedule_recheck(&mgr->recheck, w);
+		}
 
 		policy_object = ni_objectmodel_register_managed_policy(ni_dbus_object_get_server(object),
 			ni_managed_policy_new(mgr, (ni_fsm_policy_t *) policies[0], NULL));
