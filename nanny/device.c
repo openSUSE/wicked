@@ -36,7 +36,7 @@
 static const char *	ni_managed_device_get_essid(xml_node_t *);
 
 static void		ni_managed_device_up(ni_managed_device_t *, const char *);
-static void		ni_virtual_device_up(ni_fsm_t *, ni_ifworker_t *);
+static void		ni_factory_device_up(ni_fsm_t *, ni_ifworker_t *);
 
 /*
  * List handling functions
@@ -132,7 +132,7 @@ ni_managed_device_set_security_id(ni_managed_device_t *mdev, const ni_security_i
 }
 
 static void
-ni_virtual_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
+ni_factory_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_ifworker_array_t ifmarked;
 
@@ -153,13 +153,13 @@ ni_virtual_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
  * Apply policy to a virtual (factory) device
  */
 void
-ni_virtual_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_policy_t *mpolicy)
+ni_factory_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_policy_t *mpolicy)
 {
 	const char *type_name;
 	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
 	xml_node_t *config = NULL;
 
-	ni_debug_nanny("%s: creating device using policy %s",
+	ni_debug_nanny("%s: configuring factory device using policy %s",
 		w->name, ni_fsm_policy_name(policy));
 
 	/* This returns "modem" or "interface" */
@@ -180,7 +180,7 @@ ni_virtual_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_polic
 	ni_ifworker_set_config(w, config, ni_fsm_policy_get_origin(policy));
 
 	/* Now do the fandango */
-	ni_virtual_device_up(fsm, w);
+	ni_factory_device_up(fsm, w);
 }
 
 
