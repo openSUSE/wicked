@@ -78,6 +78,7 @@ __ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w)
 	 * (dev is probably a not ready one just using our name),
 	 * but this info is lost in translation... isn't it?
 	 */
+#if 0 /* Unsupported - new condition to be introduced to match agains device slave and its link-type */
 	if (w->device && ni_string_eq(w->name, w->device->name)) {
 		xml_node_t * ret = NULL;
 
@@ -86,6 +87,7 @@ __ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w)
 			return ret;
 		}
 	}
+#endif
 	return xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, node, w->name);
 }
 
@@ -98,13 +100,13 @@ __ni_ifup_generate_match(ni_ifworker_t *w)
 	if (!(match = xml_node_new(NI_NANNY_IFPOLICY_MATCH, NULL)))
 		return NULL;
 
+	if (!__ni_ifup_generate_match_dev(match, w)) {
+		xml_node_free(match);
+		return NULL;
+	}
+
 	if (w->children.count) {
 		op = xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_OR, match);
-
-		if (!__ni_ifup_generate_match_dev(op, w)) {
-			xml_node_free(match);
-			return NULL;
-		}
 
 		for (i = 0; i < w->children.count; i++) {
 			ni_ifworker_t *child = w->children.data[i];
@@ -115,12 +117,8 @@ __ni_ifup_generate_match(ni_ifworker_t *w)
 			}
 		}
 
-	} else {
-		if (!__ni_ifup_generate_match_dev(match, w)) {
-			xml_node_free(match);
-			return NULL;
-		}
 	}
+
 	return match;
 }
 
