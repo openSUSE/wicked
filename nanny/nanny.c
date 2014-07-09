@@ -937,7 +937,7 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 		}
 
 		/* Rebuild the hierarchy cause new policy may hit some matches */
-		ni_fsm_build_hierarchy(fsm);
+		ni_fsm_build_hierarchy(fsm, FALSE);
 
 		w = ni_fsm_ifworker_by_policy_name(fsm, NI_IFWORKER_TYPE_NETDEV, pname);
 		if (!w) {

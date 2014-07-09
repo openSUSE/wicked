@@ -503,7 +503,7 @@ usage:
 	if (ni_wait_for_interfaces)
 		fsm->worker_timeout = ni_wait_for_interfaces;
 
-	if (ni_fsm_build_hierarchy(fsm) < 0) {
+	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
 		ni_error("ifup: unable to build device hierarchy");
 		/* Severe error we always explicitly return */
 		status = NI_WICKED_RC_ERROR;
@@ -757,7 +757,7 @@ usage:
 	else
 		ni_wait_for_interfaces *= 1000;   /* in msec */
 
-	if (ni_fsm_build_hierarchy(fsm) < 0) {
+	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
 		ni_error("ifup: unable to build device hierarchy");
 		/* Severe error we always explicitly return */
 		status = NI_WICKED_RC_ERROR;

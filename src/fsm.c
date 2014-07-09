@@ -2626,7 +2626,7 @@ ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
 static void		__ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *, const char *);
 
 int
-ni_fsm_build_hierarchy(ni_fsm_t *fsm)
+ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 {
 	unsigned int i;
 
@@ -2642,9 +2642,11 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm)
 		}
 
 		if ((rv = ni_ifworker_bind_early(w, fsm, FALSE)) < 0) {
-			if (-NI_ERROR_DOCUMENT_ERROR == rv)
-				ni_debug_application("%s: configuration failed", w->name);
-			ni_fsm_destroy_worker(fsm, w);
+			if (destructive) {
+				if (-NI_ERROR_DOCUMENT_ERROR == rv)
+					ni_debug_application("%s: configuration failed", w->name);
+				ni_fsm_destroy_worker(fsm, w);
+			}
 			continue;
 		}
 	}
@@ -4082,7 +4084,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			}
 
 			/* Rebuild hierarchy in case of new device shows up */
-			ni_fsm_build_hierarchy(fsm);
+			ni_fsm_build_hierarchy(fsm, FALSE);
 
 			/* Handle devices which were not present on ifup */
 			if(w->pending) {
