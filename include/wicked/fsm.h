@@ -257,6 +257,7 @@ extern ni_fsm_policy_t *	ni_fsm_policy_by_name(ni_fsm_t *, const char *);
 extern ni_bool_t		ni_fsm_policy_remove(ni_fsm_t *, ni_fsm_policy_t *);
 extern unsigned int		ni_fsm_policy_get_applicable_policies(ni_fsm_t *, ni_ifworker_t *,
 						const ni_fsm_policy_t **, unsigned int);
+extern ni_bool_t		ni_fsm_exists_applicable_policy(ni_fsm_t *, ni_ifworker_t *);
 extern xml_node_t *		ni_fsm_policy_transform_document(xml_node_t *, const ni_fsm_policy_t * const *, unsigned int);
 extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
 extern xml_location_t *	ni_fsm_policy_location(const ni_fsm_policy_t *);

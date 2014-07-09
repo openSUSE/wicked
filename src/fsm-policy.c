@@ -460,6 +460,21 @@ ni_fsm_policy_get_applicable_policies(ni_fsm_t *fsm, ni_ifworker_t *w,
 	return count;
 }
 
+ni_bool_t
+ni_fsm_exists_applicable_policy(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	ni_fsm_policy_t *policy;
+
+	if (fsm && w) {
+		for (policy = fsm->policies; policy; policy = policy->next) {
+			if (ni_fsm_policy_applicable(policy, w))
+				return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
 /*
  * Transform an interface or modem XML document according to a list of policies.
  * Usually, you would obtain that list via ni_fsm_policy_get_applicable_policies
