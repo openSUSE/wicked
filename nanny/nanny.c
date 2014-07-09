@@ -218,6 +218,7 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 	ni_fsm_t *fsm = mgr->fsm;
 
 	ni_assert(fsm);
+#if 0
 	if (ni_fsm_policies_changed_since(fsm, &mgr->last_policy_seq)) {
 		ni_managed_device_t *mdev;
 
@@ -226,6 +227,7 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 				ni_nanny_schedule_recheck(&mgr->recheck, mdev->worker);
 		}
 	}
+#endif
 
 	for (i = 0; i < mgr->recheck.count; ++i) {
 		ni_ifworker_t *w = mgr->recheck.data[i];
@@ -311,7 +313,9 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 				ni_debug_nanny("%s: radio re-enabled, resume monitoring", w->name);
 				if (mdev->monitor) {
 					ni_managed_netdev_enable(mdev);
+#if 0
 					ni_nanny_schedule_recheck(&mgr->recheck, w);
+#endif
 				}
 			}
 		}
@@ -429,8 +433,10 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 			mdev->allowed? ", user control allowed" : "",
 			mdev->monitor? ", monitored (auto-enabled)" : "");
 
+#if 0
 	if (mdev->monitor)
 		ni_nanny_schedule_recheck(&mgr->recheck, w);
+#endif
 
 	ni_ifworker_set_progress_callback(w, ni_managed_device_progress, mdev);
 }
@@ -588,7 +594,9 @@ ni_nanny_add_secret(ni_nanny_t *mgr, uid_t caller_uid,
 			}
 
 			ni_debug_nanny("%s: secret for %s updated, rechecking", w->name, path);
+#if 0
 			ni_nanny_schedule_recheck(&mgr->recheck, w);
+#endif
 		}
 	}
 }
@@ -733,35 +741,47 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 
 	switch (event) {
 	case NI_EVENT_DEVICE_READY:
+#if 0
 		ni_nanny_schedule_recheck(&mgr->recheck, w);
+#endif
 		break;
 
 	case NI_EVENT_LINK_DOWN:
 		// If we have recorded a policy for this device, it means
 		// we were the ones who took it up - so bring it down
 		// again
+#if 0
 		if (mdev->selected_policy != NULL && mdev->monitor)
 			ni_nanny_schedule_recheck(&mgr->down, w);
+#endif
+#if 0
 		ni_nanny_unschedule(&mgr->recheck, w);
+#endif
 		break;
 
 	case NI_EVENT_LINK_ASSOCIATION_LOST:
 		// If we have recorded a policy for this device, it means
 		// we were the ones who took it up - so bring it down
 		// again
+#if 0
 		if (mdev->selected_policy != NULL && mdev->monitor)
 			ni_nanny_schedule_recheck(&mgr->recheck, w);
+#endif
 		break;
 
 	case NI_EVENT_LINK_SCAN_UPDATED:
+#if 0
 		if (mdev->monitor)
 			ni_nanny_schedule_recheck(&mgr->recheck, w);
+#endif
 		break;
 
 	case NI_EVENT_LINK_UP:
 		// Link detection - eg for ethernet
+#if 0
 		if (mdev->monitor)
 			ni_nanny_schedule_recheck(&mgr->recheck, w);
+#endif
 		break;
 
 	default: ;
@@ -792,7 +812,9 @@ ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 	if (!w && event == NI_EVENT_DEVICE_CREATE) {
 		if ((w = ni_fsm_recv_new_modem_path(mgr->fsm, object_path))) {
 			ni_nanny_register_device(mgr, w);
+#if 0
 			ni_nanny_schedule_recheck(&mgr->recheck, w);
+#endif
 		}
 		return;
 	}
@@ -813,7 +835,10 @@ ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 		// delete the worker and the managed modem
 		ni_nanny_unregister_device(mgr, w);
 	} else if (event == NI_EVENT_DEVICE_READY) {
+#if 0
 		ni_nanny_schedule_recheck(&mgr->recheck, w);
+#endif
+		;
 	} else {
 		// ignore
 	}
