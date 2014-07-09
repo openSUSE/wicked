@@ -134,18 +134,20 @@ ni_managed_device_set_security_id(ni_managed_device_t *mdev, const ni_security_i
 static void
 ni_factory_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
-	ni_ifworker_array_t ifmarked;
+	ni_ifworker_array_t ifmarked = NI_IFWORKER_ARRAY_INIT;
+	ni_ifmarker_t ifmarker;
 
 	ni_assert(fsm && w);
+	memset(&ifmarker, 0, sizeof(ifmarker));
 
-	memset(&ifmarked, 0, sizeof(ifmarked));
-
-	w->target_range.min = NI_FSM_STATE_ADDRCONF_UP;
-	w->target_range.max = __NI_FSM_STATE_MAX;
+	ifmarker.target_range.min = NI_FSM_STATE_ADDRCONF_UP;
+	ifmarker.target_range.max = __NI_FSM_STATE_MAX;
+	ifmarker.persistent = w->control.persistent;
 
 	ni_ifworker_array_append(&ifmarked, w);
-	ni_fsm_start_matching_workers(fsm, &ifmarked);
+	ni_fsm_pull_in_children(&ifmarked);
 
+	ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
 	ni_ifworker_array_destroy(&ifmarked);
 }
 
@@ -302,7 +304,11 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 	unsigned int previous_state;
 	unsigned int target_state;
 	ni_security_id_t security_id = NI_SECURITY_ID_INIT;
+	ni_ifworker_array_t ifmarked = NI_IFWORKER_ARRAY_INIT;
+	ni_ifmarker_t ifmarker;
 	int rv;
+
+	memset(&ifmarker, 0, sizeof(ifmarker));
 
 	switch (w->type) {
 	case NI_IFWORKER_TYPE_NETDEV:
@@ -338,8 +344,13 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 	ni_ifworker_set_completion_callback(w, ni_managed_device_up_done, mdev->nanny);
 
 	ni_ifworker_set_config(w, mdev->selected_config, origin);
-	w->target_range.min = target_state;
-	w->target_range.max = __NI_FSM_STATE_MAX;
+
+	ifmarker.target_range.min = target_state;
+	ifmarker.target_range.max = __NI_FSM_STATE_MAX;
+	ifmarker.persistent = w->control.persistent;
+
+	ni_ifworker_array_append(&ifmarked, w);
+	ni_fsm_pull_in_children(&ifmarked);
 
 	/* Binding: this validates the XML configuration document,
 	 * resolves any references to other devices (if there are any),
@@ -352,6 +363,7 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 	mdev->state = NI_MANAGED_STATE_BINDING;
 	if ((rv = ni_ifworker_bind_early(w, fsm, TRUE)) < 0)
 		goto failed;
+
 	if (mdev->missing_secrets) {
 		/* FIXME: Emit an event listing the secrets we're missing.
 		 */
@@ -360,8 +372,8 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 	}
 
 	mdev->state = NI_MANAGED_STATE_STARTING;
-	if ((rv = ni_ifworker_start(fsm, w, fsm->worker_timeout)) < 0)
-		goto failed;
+	ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
+	ni_ifworker_array_destroy(&ifmarked);
 
 	return;
 
