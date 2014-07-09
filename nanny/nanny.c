@@ -710,17 +710,18 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 				signal_name, object_path);
 		return;
 	}
-	if (w->type != NI_IFWORKER_TYPE_NETDEV || w->device == NULL) {
-		ni_error("%s: received signal \"%s\" from \"%s\" (not a managed network device)",
-				w->name, signal_name, object_path);
-		return;
-	}
 
 	if (event == NI_EVENT_DEVICE_DELETE) {
 		ni_debug_nanny("%s: received signal \"%s\" from \"%s\"",
 				w->name, signal_name, object_path);
 		// delete the worker and the managed netif
 		ni_nanny_unregister_device(mgr, w);
+		return;
+	}
+
+	if (w->type != NI_IFWORKER_TYPE_NETDEV || w->device == NULL) {
+		ni_error("%s: received signal \"%s\" from \"%s\" (not a managed network device)",
+				w->name, signal_name, object_path);
 		return;
 	}
 
