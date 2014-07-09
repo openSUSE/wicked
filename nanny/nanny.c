@@ -433,10 +433,8 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 			mdev->allowed? ", user control allowed" : "",
 			mdev->monitor? ", monitored (auto-enabled)" : "");
 
-#if 0
-	if (mdev->monitor)
+	if (ni_fsm_exists_applicable_policy(mgr->fsm, w))
 		ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
 
 	ni_ifworker_set_progress_callback(w, ni_managed_device_progress, mdev);
 }
