@@ -115,6 +115,9 @@ ni_netdev_free(ni_netdev_t *dev)
 
 	ni_addrconf_lease_list_destroy(&dev->leases);
 
+	if (dev->dbus_object)
+		ni_dbus_object_free(dev->dbus_object);
+
 	free(dev);
 }
 

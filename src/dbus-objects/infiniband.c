@@ -145,7 +145,7 @@ ni_objectmodel_ib_delete(ni_dbus_object_t *object, const ni_dbus_method_t *metho
 	}
 
 	ni_client_state_drop(ifp->link.ifindex);
-	ni_dbus_object_free(object);
+
 	return TRUE;
 }
 
