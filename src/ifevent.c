@@ -166,14 +166,11 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_NEWLINK)))
 		return -1;
 
-	if (ifi->ifi_family == AF_BRIDGE) {
-		ni_debug_events("Ignoring bridge NEWLINK event");
-		return 0;
-	}
-
 	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_IFNAME)) != NULL) {
 		ifname = (char *) nla_data(nla);
 	}
+
+	ni_debug_events("%s:%d for %s with ifindex %d", __func__, __LINE__, ifname, ifi->ifi_index);
 
 	old = ni_netdev_by_index(nc, ifi->ifi_index);
 	if (!__ni_netdev_still_exists(ifi->ifi_index)) {
@@ -275,14 +272,11 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_DELLINK)))
 		return -1;
 
-	if (ifi->ifi_family == AF_BRIDGE) {
-		ni_debug_events("Ignoring bridge DELLINK event");
-		return 0;
-	}
-
 	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_IFNAME)) != NULL) {
 		ifname = (char *) nla_data(nla);
 	}
+
+	ni_debug_events("%s:%d for %s with ifindex %d", __func__, __LINE__, ifname, ifi->ifi_index);
 
 	/* Open code interface removal. */
 	if ((dev = ni_netdev_by_index(nc, ifi->ifi_index)) == NULL) {
