@@ -3538,12 +3538,6 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 	return 0;
 }
 
-static inline ni_bool_t
-ni_ifworker_can_delete(const ni_ifworker_t *w)
-{
-	return !!ni_dbus_object_get_service_for_method(w->object, "deleteDevice");
-}
-
 /*
  * Finite state machine
  */
