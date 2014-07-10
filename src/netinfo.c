@@ -626,40 +626,97 @@ ni_netdev_make_name(ni_netconfig_t *nc, const char *stem, unsigned int first)
 }
 
 /*
- * Bind/Unbind destroy netdev reference
+ * netdev reference
  */
-int
+ni_bool_t
+ni_netdev_ref_init(ni_netdev_ref_t *ref, const char *ifname, unsigned int ifindex)
+{
+	if (ref) {
+		memset(ref, 0, sizeof(*ref));
+		ni_string_dup(&ref->name, ifname);
+		ref->index = ifindex;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_netdev_ref_set_ifname(ni_netdev_ref_t *ref, const char *ifname)
+{
+	if (ref) {
+		ni_string_dup(&ref->name, ifname);
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_netdev_ref_set_ifindex(ni_netdev_ref_t *ref, unsigned int ifindex)
+{
+	if (ref) {
+		ref->index = ifindex;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_netdev_t *
+ni_netdev_ref_resolve(ni_netdev_ref_t *ref, ni_netconfig_t *nc)
+{
+	ni_netdev_t *dev = NULL;
+
+	if (!ref || (!nc && !(nc = ni_global_state_handle(0))))
+		return NULL;
+
+	if (ref->index && (dev = ni_netdev_by_index(nc, ref->index)))
+		return dev;
+
+	if (ref->name && (dev = ni_netdev_by_name(nc, ref->name)))
+		return dev;
+
+	return NULL;
+}
+
+ni_netdev_t *
 ni_netdev_ref_bind_ifname(ni_netdev_ref_t *ref, ni_netconfig_t *nc)
 {
 	ni_netdev_t *dev;
 
+	if (!ref || (!nc && !(nc = ni_global_state_handle(0))))
+		return NULL;
+
 	dev = ni_netdev_by_index(nc, ref->index);
 	if (dev == NULL)
-		return -1;
+		return NULL;
 
 	if (!ni_string_eq(ref->name, dev->name))
 		ni_string_dup(&ref->name, dev->name);
-	return 0;
+	return dev;
 }
 
-int
+ni_netdev_t *
 ni_netdev_ref_bind_ifindex(ni_netdev_ref_t *ref, ni_netconfig_t *nc)
 {
 	ni_netdev_t *dev;
 
+	if (!ref || (!nc && !(nc = ni_global_state_handle(0))))
+		return NULL;
+
 	dev = ni_netdev_by_name(nc, ref->name);
 	if (dev == NULL)
-		return -1;
+		return NULL;
 
 	ref->index = dev->link.ifindex;
-	return 0;
+	return dev;
 }
 
 void
 ni_netdev_ref_destroy(ni_netdev_ref_t *ref)
 {
-	ni_string_free(&ref->name);
-	ref->index = 0;
+	if (ref) {
+		ref->index = 0;
+		ni_string_free(&ref->name);
+	}
 }
 
 
