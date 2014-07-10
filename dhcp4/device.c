@@ -472,7 +472,8 @@ ni_dhcp4_device_event(ni_dhcp4_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 					dev->ifname, ifp->name);
 			ni_string_dup(&dev->ifname, ifp->name);
 		}
-		ni_capture_devinfo_refresh(&dev->system, dev->ifname, &dev->link);
+		/* Does return -1 on failure. */
+		ni_dhcp4_device_refresh(dev);
 		break;
 
 	case NI_EVENT_LINK_DOWN:
