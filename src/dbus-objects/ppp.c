@@ -128,7 +128,7 @@ ni_objectmodel_ppp_delete(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 	}
 
 	ni_client_state_drop(dev->link.ifindex);
-	ni_dbus_object_free(object);
+
 	return TRUE;
 }
 

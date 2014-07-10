@@ -382,6 +382,8 @@ __ni_objectmodel_build_netif_object(ni_dbus_server_t *server, ni_netdev_t *dev, 
 		return NULL;
 	}
 
+	dev->dbus_object = object;
+
 	ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
 }

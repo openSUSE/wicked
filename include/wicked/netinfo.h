@@ -19,6 +19,7 @@
 
 typedef struct ni_link_stats	ni_link_stats_t;
 typedef struct ni_ethtool_stats	ni_ethtool_stats_t;
+typedef struct ni_dbus_object   ni_dbus_object_t;
 
 typedef struct ni_linkinfo ni_linkinfo_t;
 struct ni_linkinfo {
@@ -68,6 +69,8 @@ struct ni_netdev {
 
 	ni_address_t *		addrs;
 	ni_route_table_t *	routes;
+
+	ni_dbus_object_t *	dbus_object;
 
 	/* Network layer */
 	ni_ipv4_devinfo_t *	ipv4;
