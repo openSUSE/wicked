@@ -740,14 +740,14 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
 				"%s: extended link-info without kind", ifname);
 
-		} else {
-			if ((tmp_link_type = ni_linktype_name_to_type(link->kind)) < 0)
-				tmp_link_type = NI_IFTYPE_UNKNOWN;
+		} else
+		if (!__ni_linkinfo_kind_to_type(link->kind, &tmp_link_type)) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
+				"%s: unknown link-info kind: %s", ifname, link->kind);
 		}
 	}
 
-	/* If link type is still unknown, try to determine via main arp type.
-	 */
+	/* If link type is still unknown, try to determine based on arp type. */
 	struct ethtool_drvinfo drv_info;
 	const char *driver = NULL;
 	char *path = NULL;
@@ -844,24 +844,21 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 	if (link->type == NI_IFTYPE_UNKNOWN) {
 		if (tmp_link_type == NI_IFTYPE_UNKNOWN) {
 			/* We've failed to discover a link type, leave as is. */
-			ni_info("%s: Failed to discover link type, arp type is 0x%x, kind %s",
+			ni_debug_ifconfig("%s: Failed to discover link type, arp type is 0x%x, kind %s",
 				ifname, link->hwaddr.type, link->kind);
-		}
-		else {
+		} else {
 			/* Our link has no type yet, so let's assign. */
-			ni_debug_ifconfig("%s: Setting interface link type to %s",
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
+					"%s: Setting interface link type to %s",
 					ifname, ni_linktype_type_to_name(tmp_link_type));
 			link->type = tmp_link_type;
 		}
-	} else {
-		if (link->type == tmp_link_type) {
-			/* No need to assign the same link type. */
-		} else {
-			/* We're trying to re-assign a link type, Disallow. */
-			ni_error("%s: Ignoring attempt to reset existing interface link type from %s to %s",
-				ifname, ni_linktype_type_to_name(link->type),
-				ni_linktype_type_to_name(tmp_link_type));
-		}
+	} else
+	if (link->type != tmp_link_type) {
+		/* We're trying to re-assign a link type, Disallow. */
+		ni_error("%s: Ignoring attempt to reset existing interface link type from %s to %s",
+			ifname, ni_linktype_type_to_name(link->type),
+			ni_linktype_type_to_name(tmp_link_type));
 	}
 
 	return 0;
