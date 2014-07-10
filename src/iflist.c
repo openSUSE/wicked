@@ -616,6 +616,13 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 
 	link->hwaddr.type = link->hwpeer.type = ifi->ifi_type;
 	link->ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags, link->ifflags);
+	switch (link->hwaddr.type) {
+	case ARPHRD_LOOPBACK:
+		link->ifflags |= NI_IFF_DEVICE_READY;
+		break;
+	default:
+		break;
+	}
 
 	if (tb[IFLA_ADDRESS]) {
 		unsigned int alen = nla_len(tb[IFLA_ADDRESS]);
