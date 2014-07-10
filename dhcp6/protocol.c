@@ -39,6 +39,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/socket.h>
 #include <wicked/resolver.h>
+#include <wicked/ipv6.h>
 #if 0
 #include <wicked/route.h>
 #include <wicked/nis.h>
@@ -2532,6 +2533,25 @@ ni_dhcp6_option_request_dump(ni_buffer_t *optbuf, ni_stringbuf_t *buf)
 }
 
 static unsigned int
+__find_pinfo_prefixlen(const ni_dhcp6_device_t *dev, const ni_sockaddr_t *addr)
+{
+	const ni_ipv6_ra_pinfo_t *pinfo;
+	unsigned int prefixlen = 0;
+
+	pinfo = ni_dhcp6_device_ra_pinfo(dev, NULL);
+	for ( ; pinfo; pinfo = pinfo->next) {
+		/* find highest matching prefix */
+		if (!ni_sockaddr_prefix_match(pinfo->length, &pinfo->prefix, addr))
+			continue;
+
+		/* OK, have an applicable prefix info */
+		if (pinfo->length > prefixlen)
+			prefixlen = pinfo->length;
+	}
+	return prefixlen;
+}
+
+static unsigned int
 __copy_ia_na_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 {
 	ni_address_t * ap;
@@ -2539,6 +2559,7 @@ __copy_ia_na_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_t *l
 	ni_dhcp6_ia_addr_t * iadr;
 	ni_sockaddr_t sadr;
 	unsigned int count = 0;
+	unsigned int plen;
 
 	for (ia = lease->dhcp6.ia_list; ia; ia = ia->next) {
 		if (ia->type != NI_DHCP6_OPTION_IA_NA)
@@ -2558,7 +2579,17 @@ __copy_ia_na_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_t *l
 
 			ni_sockaddr_set_ipv6(&sadr, iadr->addr, 0);
 
-			ap = ni_address_new(AF_INET6, 64, &sadr, &lease->addrs);
+			plen = __find_pinfo_prefixlen(dev, &sadr);
+			if (plen >= 4 && plen <= 128) {
+				ni_debug_dhcp("%s: Using RA prefix info length %u",
+						dev->ifname, plen);
+			} else {
+				plen = 64;
+				ni_debug_dhcp("%s: Using default prefix length %u",
+						dev->ifname, plen);
+			}
+
+			ap = ni_address_new(AF_INET6, plen, &sadr, &lease->addrs);
 			if (ap) {
 				ap->ipv6_cache_info.preferred_lft = iadr->preferred_lft;
 				ap->ipv6_cache_info.valid_lft = iadr->valid_lft;
