@@ -204,9 +204,9 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	mpolicy = ni_nanny_get_policy(mgr, policy);
 
 	if (factory_device)
-		ni_factory_device_apply_policy(mgr->fsm, w, mpolicy);
+		count += ni_factory_device_apply_policy(mgr->fsm, w, mpolicy);
 	else
-		ni_managed_device_apply_policy(mdev, mpolicy);
+		count += ni_managed_device_apply_policy(mdev, mpolicy);
 
 	return count;
 }

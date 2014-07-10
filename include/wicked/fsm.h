@@ -417,4 +417,10 @@ ni_ifworker_is_factory_device(ni_ifworker_t *w)
 		w->device_api.factory_method);
 }
 
+static inline ni_bool_t
+ni_ifworker_can_delete(const ni_ifworker_t *w)
+{
+	return !!ni_dbus_object_get_service_for_method(w->object, "deleteDevice");
+}
+
 #endif /* __CLIENT_FSM_H__ */

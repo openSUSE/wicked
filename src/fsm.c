@@ -1190,6 +1190,12 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 	unsigned int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
 
 	switch (event_type) {
+	case NI_EVENT_DEVICE_DOWN:
+		min_state = ni_ifworker_can_delete(w) ?
+			NI_FSM_STATE_DEVICE_DOWN : NI_FSM_STATE_DEVICE_READY;
+		if (ni_ifworker_complete(w))
+			ni_ifworker_rearm(w);
+		break;
 	case NI_EVENT_DEVICE_CREATE:
 		min_state = NI_FSM_STATE_DEVICE_EXISTS;
 		break;
@@ -3536,12 +3542,6 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 
 	ni_ifworker_set_state(w, action->next_state);
 	return 0;
-}
-
-static inline ni_bool_t
-ni_ifworker_can_delete(const ni_ifworker_t *w)
-{
-	return !!ni_dbus_object_get_service_for_method(w->object, "deleteDevice");
 }
 
 /*
