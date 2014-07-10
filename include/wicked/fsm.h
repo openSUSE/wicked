@@ -54,6 +54,7 @@ typedef struct ni_ifworker_array {
 	unsigned int		count;
 	ni_ifworker_t **	data;
 } ni_ifworker_array_t;
+#define NI_IFWORKER_ARRAY_INIT { .count = 0, .data = NULL }
 
 typedef struct ni_fsm_transition ni_fsm_transition_t;
 
@@ -256,6 +257,7 @@ extern ni_fsm_policy_t *	ni_fsm_policy_by_name(ni_fsm_t *, const char *);
 extern ni_bool_t		ni_fsm_policy_remove(ni_fsm_t *, ni_fsm_policy_t *);
 extern unsigned int		ni_fsm_policy_get_applicable_policies(ni_fsm_t *, ni_ifworker_t *,
 						const ni_fsm_policy_t **, unsigned int);
+extern ni_bool_t		ni_fsm_exists_applicable_policy(ni_fsm_t *, ni_ifworker_t *);
 extern xml_node_t *		ni_fsm_policy_transform_document(xml_node_t *, const ni_fsm_policy_t * const *, unsigned int);
 extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
 extern xml_location_t *	ni_fsm_policy_location(const ni_fsm_policy_t *);
@@ -271,7 +273,7 @@ extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, n
 extern unsigned int		ni_fsm_mark_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_ifmarker_t *);
 extern unsigned int		ni_fsm_start_matching_workers(ni_fsm_t *, ni_ifworker_array_t *);
 extern void			ni_fsm_reset_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_uint_range_t *, ni_bool_t);
-extern int			ni_fsm_build_hierarchy(ni_fsm_t *);
+extern int			ni_fsm_build_hierarchy(ni_fsm_t *, ni_bool_t);
 extern ni_bool_t		ni_fsm_workers_from_xml(ni_fsm_t *, xml_node_t *, const char *);
 extern unsigned int		ni_fsm_fail_count(ni_fsm_t *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_object_path(ni_fsm_t *, const char *);
@@ -284,6 +286,7 @@ extern ni_ifworker_t *		ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *o
 extern ni_ifworker_t *		ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path);
 extern ni_bool_t		ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w);
 extern void			ni_ifworkers_flatten(ni_ifworker_array_t *);
+extern void			ni_fsm_pull_in_children(ni_ifworker_array_t *);
 
 extern ni_ifworker_type_t	ni_ifworker_type_from_string(const char *);
 extern const char *		ni_ifworker_type_to_string(ni_ifworker_type_t);
@@ -412,6 +415,12 @@ ni_ifworker_is_factory_device(ni_ifworker_t *w)
 {
 	return  !w->device && (w->device_api.factory_service &&
 		w->device_api.factory_method);
+}
+
+static inline ni_bool_t
+ni_ifworker_can_delete(const ni_ifworker_t *w)
+{
+	return !!ni_dbus_object_get_service_for_method(w->object, "deleteDevice");
 }
 
 #endif /* __CLIENT_FSM_H__ */
