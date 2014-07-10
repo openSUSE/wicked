@@ -95,40 +95,6 @@ ni_linktype_type_to_name(unsigned int type)
 }
 
 /*
- * Map interface link layer types to strings and vice versa
- */
-static const ni_intmap_t	__linkinfo_kind_names[] = {
-	{ "bridge",		NI_IFTYPE_BRIDGE },
-	{ "bond",		NI_IFTYPE_BOND },
-	{ "vlan",		NI_IFTYPE_VLAN },
-	{ "macvlan",		NI_IFTYPE_MACVLAN },
-	{ "macvtap",		NI_IFTYPE_MACVTAP },
-	{ "tun",		NI_IFTYPE_TUN },
-	{ "dummy",		NI_IFTYPE_DUMMY },
-	{ "sit",		NI_IFTYPE_SIT },
-	{ "ipip",		NI_IFTYPE_IPIP },
-	{ "gre",		NI_IFTYPE_GRE },
-
-	{ NULL }
-};
-
-int
-ni_linkinfo_kind_to_type(const char *name)
-{
-	unsigned int value;
-
-	if (ni_parse_uint_mapped(name, __linkinfo_kind_names, &value) < 0)
-		return -1;
-	return value;
-}
-
-const char *
-ni_linkinfo_type_to_kind(unsigned int type)
-{
-	return ni_format_uint_mapped(type, __linkinfo_kind_names);
-}
-
-/*
  * Map addrconf name to type constant and vice versa
  */
 static const ni_intmap_t	__addrconf_names[] = {
