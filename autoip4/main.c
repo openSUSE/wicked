@@ -305,7 +305,7 @@ ni_autoip4_supported(const ni_netdev_t *ifp)
 		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_AUTOIP,
 				"%s: AutoIP not supported on %s interfaces",
 				ifp->name,
-				ni_linktype_type_to_name(ifp->link.hwaddr.type));
+				ni_linktype_type_to_name(ifp->link.type));
 		return FALSE;
 	}
 	return TRUE;
