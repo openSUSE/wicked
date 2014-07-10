@@ -36,7 +36,7 @@
 static const char *	ni_managed_device_get_essid(xml_node_t *);
 
 static void		ni_managed_device_up(ni_managed_device_t *, const char *);
-static void		ni_virtual_device_up(ni_fsm_t *, ni_ifworker_t *);
+static void		ni_factory_device_up(ni_fsm_t *, ni_ifworker_t *);
 
 /*
  * List handling functions
@@ -132,20 +132,22 @@ ni_managed_device_set_security_id(ni_managed_device_t *mdev, const ni_security_i
 }
 
 static void
-ni_virtual_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
+ni_factory_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
-	ni_ifworker_array_t ifmarked;
+	ni_ifworker_array_t ifmarked = NI_IFWORKER_ARRAY_INIT;
+	ni_ifmarker_t ifmarker;
 
 	ni_assert(fsm && w);
+	memset(&ifmarker, 0, sizeof(ifmarker));
 
-	memset(&ifmarked, 0, sizeof(ifmarked));
-
-	w->target_range.min = NI_FSM_STATE_ADDRCONF_UP;
-	w->target_range.max = __NI_FSM_STATE_MAX;
+	ifmarker.target_range.min = NI_FSM_STATE_ADDRCONF_UP;
+	ifmarker.target_range.max = __NI_FSM_STATE_MAX;
+	ifmarker.persistent = w->control.persistent;
 
 	ni_ifworker_array_append(&ifmarked, w);
-	ni_fsm_start_matching_workers(fsm, &ifmarked);
+	ni_fsm_pull_in_children(&ifmarked);
 
+	ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
 	ni_ifworker_array_destroy(&ifmarked);
 }
 
@@ -153,13 +155,13 @@ ni_virtual_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
  * Apply policy to a virtual (factory) device
  */
 void
-ni_virtual_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_policy_t *mpolicy)
+ni_factory_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_policy_t *mpolicy)
 {
 	const char *type_name;
 	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
 	xml_node_t *config = NULL;
 
-	ni_debug_nanny("%s: creating device using policy %s",
+	ni_debug_nanny("%s: configuring factory device using policy %s",
 		w->name, ni_fsm_policy_name(policy));
 
 	/* This returns "modem" or "interface" */
@@ -180,7 +182,7 @@ ni_virtual_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_polic
 	ni_ifworker_set_config(w, config, ni_fsm_policy_get_origin(policy));
 
 	/* Now do the fandango */
-	ni_virtual_device_up(fsm, w);
+	ni_factory_device_up(fsm, w);
 }
 
 
@@ -232,8 +234,10 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	config = ni_fsm_policy_transform_document(config, &policy, 1);
 	if (config == NULL) {
 		ni_error("%s: error when applying policy to %s document", w->name, type_name);
+#if 0
 		if (mdev->state != NI_MANAGED_STATE_STOPPED)
 			ni_nanny_schedule_recheck(&mdev->nanny->down, w);
+#endif
 		return;
 	}
 	ni_debug_nanny("%s: using device config", w->name);
@@ -267,7 +271,9 @@ ni_managed_device_up_done(ni_ifworker_t *w)
 		if (mdev->fail_count < mdev->max_fail_count) {
 			ni_error("%s: failed to bring up device, still continuing", w->name);
 			mdev->state = NI_MANAGED_STATE_LIMBO;
+#if 0
 			ni_nanny_schedule_recheck(&mgr->recheck, w);
+#endif
 		} else {
 			/* Broadcast an error and take down the device
 			 * for good. */
@@ -298,7 +304,11 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 	unsigned int previous_state;
 	unsigned int target_state;
 	ni_security_id_t security_id = NI_SECURITY_ID_INIT;
+	ni_ifworker_array_t ifmarked = NI_IFWORKER_ARRAY_INIT;
+	ni_ifmarker_t ifmarker;
 	int rv;
+
+	memset(&ifmarker, 0, sizeof(ifmarker));
 
 	switch (w->type) {
 	case NI_IFWORKER_TYPE_NETDEV:
@@ -334,8 +344,13 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 	ni_ifworker_set_completion_callback(w, ni_managed_device_up_done, mdev->nanny);
 
 	ni_ifworker_set_config(w, mdev->selected_config, origin);
-	w->target_range.min = target_state;
-	w->target_range.max = __NI_FSM_STATE_MAX;
+
+	ifmarker.target_range.min = target_state;
+	ifmarker.target_range.max = __NI_FSM_STATE_MAX;
+	ifmarker.persistent = w->control.persistent;
+
+	ni_ifworker_array_append(&ifmarked, w);
+	ni_fsm_pull_in_children(&ifmarked);
 
 	/* Binding: this validates the XML configuration document,
 	 * resolves any references to other devices (if there are any),
@@ -348,6 +363,7 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 	mdev->state = NI_MANAGED_STATE_BINDING;
 	if ((rv = ni_ifworker_bind_early(w, fsm, TRUE)) < 0)
 		goto failed;
+
 	if (mdev->missing_secrets) {
 		/* FIXME: Emit an event listing the secrets we're missing.
 		 */
@@ -356,8 +372,8 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 	}
 
 	mdev->state = NI_MANAGED_STATE_STARTING;
-	if ((rv = ni_ifworker_start(fsm, w, fsm->worker_timeout)) < 0)
-		goto failed;
+	ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
+	ni_ifworker_array_destroy(&ifmarked);
 
 	return;
 

@@ -224,7 +224,11 @@ babysit(void)
 
 		do {
 			ni_fsm_do(mgr->fsm, &timeout);
+#if 0
 		} while (ni_nanny_recheck_do(mgr) || ni_nanny_down_do(mgr));
+#else
+		} while (ni_nanny_recheck_do(mgr));
+#endif
 
 		if (ni_socket_wait(timeout) != 0)
 			ni_fatal("ni_socket_wait failed");

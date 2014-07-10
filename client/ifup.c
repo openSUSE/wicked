@@ -45,35 +45,6 @@
 #include "appconfig.h"
 #include "ifup.h"
 
-static void
-__ni_ifup_pull_in_children(ni_ifworker_t *w, ni_ifworker_array_t *array)
-{
-	unsigned int i;
-
-	for (i = 0; i < w->children.count; i++) {
-		ni_ifworker_t *child = w->children.data[i];
-
-		if (ni_ifworker_array_index(array, child) < 0)
-			ni_ifworker_array_append(array, child);
-		__ni_ifup_pull_in_children(child, array);
-	}
-}
-
-void
-ni_ifup_pull_in_children(ni_ifworker_array_t *array)
-{
-	unsigned int i;
-
-	if (!array)
-		return;
-
-	for (i = 0; i < array->count; i++) {
-		ni_ifworker_t *w = array->data[i];
-
-		__ni_ifup_pull_in_children(w, array);
-	}
-}
-
 static xml_node_t *
 __ni_ifup_generate_match_type_dev(ni_netdev_t *dev)
 {
@@ -107,6 +78,7 @@ __ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w)
 	 * (dev is probably a not ready one just using our name),
 	 * but this info is lost in translation... isn't it?
 	 */
+#if 0 /* Unsupported - new condition to be introduced to match agains device slave and its link-type */
 	if (w->device && ni_string_eq(w->name, w->device->name)) {
 		xml_node_t * ret = NULL;
 
@@ -115,6 +87,7 @@ __ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w)
 			return ret;
 		}
 	}
+#endif
 	return xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, node, w->name);
 }
 
@@ -127,13 +100,13 @@ __ni_ifup_generate_match(ni_ifworker_t *w)
 	if (!(match = xml_node_new(NI_NANNY_IFPOLICY_MATCH, NULL)))
 		return NULL;
 
+	if (!__ni_ifup_generate_match_dev(match, w)) {
+		xml_node_free(match);
+		return NULL;
+	}
+
 	if (w->children.count) {
 		op = xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_OR, match);
-
-		if (!__ni_ifup_generate_match_dev(op, w)) {
-			xml_node_free(match);
-			return NULL;
-		}
 
 		for (i = 0; i < w->children.count; i++) {
 			ni_ifworker_t *child = w->children.data[i];
@@ -144,21 +117,15 @@ __ni_ifup_generate_match(ni_ifworker_t *w)
 			}
 		}
 
-	} else {
-		if (!__ni_ifup_generate_match_dev(match, w)) {
-			xml_node_free(match);
-			return NULL;
-		}
 	}
+
 	return match;
 }
 
 static ni_bool_t
-ni_ifup_hire_nanny(ni_ifworker_t *w)
+ni_ifup_start_policy(ni_ifworker_t *w)
 {
 	xml_node_t *ifcfg = NULL, *policy = NULL;
-	ni_netdev_t *dev;
-	unsigned int i;
 	ni_bool_t rv = FALSE;
 	char *pname;
 
@@ -203,31 +170,14 @@ ni_ifup_hire_nanny(ni_ifworker_t *w)
 		goto error;
 #endif
 
-	dev = w->device;
-	if (dev) {
-		ni_debug_application("%s: enabling device for nanny", w->name);
-		if (!ni_nanny_call_device_enable(w->name))
-			goto error;
-	}
-
 	ni_debug_application("%s: adding policy %s to nanny", w->name,
 		xml_node_get_attr(policy, NI_NANNY_IFPOLICY_NAME));
 
-	if (ni_nanny_addpolicy_node(policy, w->config.origin) <= 0) {
-		ni_nanny_call_device_disable(w->name);
+	if (ni_nanny_addpolicy_node(policy, w->config.origin) <= 0)
 		goto error;
-	}
 
 	ni_debug_application("%s: nanny hired!", w->name);
 	ni_ifworker_success(w);
-
-	/* Append policies for all children in case they contain some special options */
-	for (i = 0; i < w->children.count; i++) {
-		ni_ifworker_t *child = w->children.data[i];
-
-		if (!ni_ifup_hire_nanny(child))
-			ni_error("%s: unable to apply configuration to nanny", child->name);
-	}
 
 	rv = TRUE;
 
@@ -239,23 +189,46 @@ error:
 }
 
 static ni_bool_t
-ni_ifup_start_policies(ni_ifworker_array_t *array, ni_bool_t set_persistent)
+ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 {
 	unsigned int i;
 	ni_bool_t rv = TRUE;
 
+	/* Send policies to nanny */
 	for (i = 0; i < array->count; i++) {
 		ni_ifworker_t *w = array->data[i];
 
 		if (set_persistent)
 			ni_client_state_set_persistent(w->config.node);
 
-		if (!ni_ifup_hire_nanny(w)) {
+		if (!ni_ifup_start_policy(w)) {
 			ni_error("%s: unable to apply configuration to nanny", w->name);
 			rv = FALSE;
 		}
 		else
 			ni_info("%s: configuration applied to nanny", w->name);
+	}
+
+	/* Enable devices with policies */
+	for (i = 0; i < array->count; i++) {
+		ni_ifworker_t *w = array->data[i];
+		ni_netdev_t *dev = w->device;
+
+		/* Ignore non-existing device */
+		if (!dev)
+			continue;
+
+		if (w->failed) {
+			ni_debug_application("%s: disabling failed device for nanny", w->name);
+			ni_nanny_call_device_disable(w->name);
+		}
+		else {
+			ni_debug_application("%s: enabling device for nanny", w->name);
+			if (!ni_nanny_call_device_enable(w->name)) {
+				ni_error("%s: unable to enable device", w->name);
+				rv = FALSE;
+			}
+		}
 	}
 
 	if (0 == array->count)
@@ -528,7 +501,7 @@ usage:
 	if (ni_wait_for_interfaces)
 		fsm->worker_timeout = ni_wait_for_interfaces;
 
-	if (ni_fsm_build_hierarchy(fsm) < 0) {
+	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
 		ni_error("ifup: unable to build device hierarchy");
 		/* Severe error we always explicitly return */
 		status = NI_WICKED_RC_ERROR;
@@ -549,7 +522,10 @@ usage:
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
 	}
 
-	if (!ni_ifup_start_policies(&ifmarked, set_persistent))
+	ni_fsm_pull_in_children(&ifmarked);
+	ni_ifworkers_flatten(&ifmarked);
+
+	if (!ni_ifup_hire_nanny(&ifmarked, set_persistent))
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 
 	/* Wait for device-up events */
@@ -779,7 +755,7 @@ usage:
 	else
 		ni_wait_for_interfaces *= 1000;   /* in msec */
 
-	if (ni_fsm_build_hierarchy(fsm) < 0) {
+	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
 		ni_error("ifup: unable to build device hierarchy");
 		/* Severe error we always explicitly return */
 		status = NI_WICKED_RC_ERROR;
@@ -799,7 +775,7 @@ usage:
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
 	}
 
-	ni_ifup_pull_in_children(&ifmarked);
+	ni_fsm_pull_in_children(&ifmarked);
 
 	/* Mark and start selected workers */
 	if (ifmarked.count)
