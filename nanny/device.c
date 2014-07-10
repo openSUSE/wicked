@@ -35,8 +35,8 @@
 
 static const char *	ni_managed_device_get_essid(xml_node_t *);
 
-static void		ni_managed_device_up(ni_managed_device_t *, const char *);
-static void		ni_factory_device_up(ni_fsm_t *, ni_ifworker_t *);
+static int		ni_managed_device_up(ni_managed_device_t *, const char *);
+static int		ni_factory_device_up(ni_fsm_t *, ni_ifworker_t *);
 
 /*
  * List handling functions
@@ -131,7 +131,7 @@ ni_managed_device_set_security_id(ni_managed_device_t *mdev, const ni_security_i
 	ni_security_id_set(&w->security_id, security_id);
 }
 
-static void
+static int
 ni_factory_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_ifworker_array_t ifmarked = NI_IFWORKER_ARRAY_INIT;
@@ -149,12 +149,14 @@ ni_factory_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
 
 	ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
 	ni_ifworker_array_destroy(&ifmarked);
+
+	return 0;
 }
 
 /*
  * Apply policy to a virtual (factory) device
  */
-void
+int
 ni_factory_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_policy_t *mpolicy)
 {
 	const char *type_name;
@@ -174,7 +176,7 @@ ni_factory_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_polic
 	if (config == NULL) {
 		ni_error("%s: error when applying policy to %s document",
 			w->name, type_name);
-		return;
+		return -1;
 	}
 	ni_debug_nanny("%s: using device config", w->name);
 	xml_node_print_debug(config, 0);
@@ -182,14 +184,14 @@ ni_factory_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_polic
 	ni_ifworker_set_config(w, config, ni_fsm_policy_get_origin(policy));
 
 	/* Now do the fandango */
-	ni_factory_device_up(fsm, w);
+	return ni_factory_device_up(fsm, w);
 }
 
 
 /*
  * Apply policy to a device
  */
-void
+int
 ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy)
 {
 	ni_ifworker_t *w = mdev->worker;
@@ -211,7 +213,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	case NI_MANAGED_STATE_FAILED:
 		if (mdev->selected_policy == mpolicy && mdev->selected_policy_seq == mpolicy->seqno) {
 			ni_debug_nanny("%s: keep using policy %s", w->name, ni_fsm_policy_name(policy));
-			return;
+			return -1;
 		}
 
 		/* Just install the new policy and reconfigure. */
@@ -220,7 +222,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	case NI_MANAGED_STATE_BINDING:
 		ni_error("%s(%s): should not get here in state %s",
 				__func__, w->name, ni_managed_state_to_string(mdev->state));
-		return;
+		return -1;
 	}
 
 	ni_debug_nanny("%s: using policy %s", w->name, ni_fsm_policy_name(policy));
@@ -238,7 +240,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 		if (mdev->state != NI_MANAGED_STATE_STOPPED)
 			ni_nanny_schedule_recheck(&mdev->nanny->down, w);
 #endif
-		return;
+		return -1;
 	}
 	ni_debug_nanny("%s: using device config", w->name);
 	xml_node_print_debug(config, 0);
@@ -246,7 +248,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	ni_managed_device_set_policy(mdev, mpolicy, config);
 
 	/* Now do the fandango */
-	ni_managed_device_up(mdev, ni_fsm_policy_get_origin(policy));
+	return ni_managed_device_up(mdev, ni_fsm_policy_get_origin(policy));
 }
 
 /*
@@ -296,7 +298,7 @@ ni_managed_device_up_done(ni_ifworker_t *w)
 /*
  * Bring up the device
  */
-static void
+static int
 ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 {
 	ni_fsm_t *fsm = mdev->nanny->fsm;
@@ -306,7 +308,7 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 	ni_security_id_t security_id = NI_SECURITY_ID_INIT;
 	ni_ifworker_array_t ifmarked = NI_IFWORKER_ARRAY_INIT;
 	ni_ifmarker_t ifmarker;
-	int rv;
+	int rv = -NI_ERROR_DEVICE_NOT_COMPATIBLE;
 
 	memset(&ifmarker, 0, sizeof(ifmarker));
 
@@ -335,7 +337,7 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 		break;
 
 	default:
-		return;
+		goto failed;
 	}
 
 	if (ni_security_id_valid(&security_id))
@@ -368,18 +370,19 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 		/* FIXME: Emit an event listing the secrets we're missing.
 		 */
 		mdev->state = previous_state;
-		return;
+		return -1;
 	}
 
 	mdev->state = NI_MANAGED_STATE_STARTING;
 	ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
 	ni_ifworker_array_destroy(&ifmarked);
 
-	return;
+	return 0;
 
 failed:
 	ni_error("%s: cannot start device: %s", w->name, ni_strerror(rv));
 	mdev->state = NI_MANAGED_STATE_FAILED;
+	return -1;
 }
 
 /*
