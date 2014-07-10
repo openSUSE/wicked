@@ -95,7 +95,9 @@ ni_linktype_type_to_name(unsigned int type)
 }
 
 /*
- * Map interface link layer types to strings and vice versa
+ * Map kernel kind to type
+ *
+ * Note: this is an initial, incomplete, one-direction match!
  */
 static const ni_intmap_t	__linkinfo_kind_names[] = {
 	{ "bridge",		NI_IFTYPE_BRIDGE },
@@ -112,20 +114,15 @@ static const ni_intmap_t	__linkinfo_kind_names[] = {
 	{ NULL }
 };
 
-int
-ni_linkinfo_kind_to_type(const char *name)
+ni_bool_t
+__ni_linkinfo_kind_to_type(const char *name, ni_iftype_t *iftype)
 {
 	unsigned int value;
 
-	if (ni_parse_uint_mapped(name, __linkinfo_kind_names, &value) < 0)
-		return -1;
-	return value;
-}
-
-const char *
-ni_linkinfo_type_to_kind(unsigned int type)
-{
-	return ni_format_uint_mapped(type, __linkinfo_kind_names);
+	if (!iftype || ni_parse_uint_mapped(name, __linkinfo_kind_names, &value) < 0)
+		return FALSE;
+	*iftype = value;
+	return TRUE;
 }
 
 /*
