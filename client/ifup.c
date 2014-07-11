@@ -129,7 +129,7 @@ ni_ifup_start_policy(ni_ifworker_t *w)
 	ni_bool_t rv = FALSE;
 	char *pname;
 
-	if (!w)
+	if (!w || !w->config.node)
 		return rv;
 
 	ni_debug_application("%s: hiring nanny", w->name);
@@ -198,6 +198,9 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 	for (i = 0; i < array->count; i++) {
 		ni_ifworker_t *w = array->data[i];
 
+		if (!w || !w->config.node)
+			continue;
+
 		if (set_persistent)
 			ni_client_state_set_persistent(w->config.node);
 
@@ -212,7 +215,7 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 	/* Enable devices with policies */
 	for (i = 0; i < array->count; i++) {
 		ni_ifworker_t *w = array->data[i];
-		ni_netdev_t *dev = w->device;
+		ni_netdev_t *dev = w ? w->device : NULL;
 
 		/* Ignore non-existing device */
 		if (!dev)
