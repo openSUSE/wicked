@@ -1107,6 +1107,23 @@ __ni_fsm_policy_match_and_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 	    && ni_ifcondition_check(cond->args.terms.right, w);
 }
 
+static ni_bool_t
+__ni_fsm_policy_match_and_children_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+{
+	unsigned int i;
+
+	for (i = 0; i < w->children.count; i++) {
+		ni_ifworker_t *child = w->children.data[i];
+
+		if (ni_ifcondition_check(cond->args.terms.left, child) &&
+		    ni_ifcondition_check(cond->args.terms.right, child)) {
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
 static ni_ifcondition_t *
 ni_ifcondition_and_terms(ni_ifcondition_t *left, ni_ifcondition_t *right)
 {
@@ -1117,6 +1134,12 @@ static ni_ifcondition_t *
 ni_ifcondition_and(xml_node_t *node)
 {
 	return ni_ifcondition_term2(node, __ni_fsm_policy_match_and_check);
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_and_child(xml_node_t *node)
+{
+	return ni_ifcondition_term2(node, __ni_fsm_policy_match_and_children_check);
 }
 
 /*
@@ -1606,6 +1629,8 @@ ni_ifcondition_from_xml(xml_node_t *node)
 		return ni_ifcondition_device(node);
 	if (!strncmp(node->name, "device:", sizeof("device:")-1))
 		return ni_ifcondition_device_element(node, node->name + sizeof("device:")-1);
+	if (!strcmp(node->name, "child"))
+		return ni_ifcondition_and_child(node);
 	if (!strcmp(node->name, "modem"))
 		return ni_ifcondition_modem(node);
 	if (!strncmp(node->name, "modem:", sizeof("modem:")-1))
