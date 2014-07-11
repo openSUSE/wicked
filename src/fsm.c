@@ -2176,6 +2176,11 @@ __ni_fsm_pull_in_children(ni_ifworker_t *w, ni_ifworker_array_t *array)
 	for (i = 0; i < w->children.count; i++) {
 		ni_ifworker_t *child = w->children.data[i];
 
+		if (xml_node_is_empty(w->config.node)) {
+			ni_debug_application("%s: ignoring dependent child  - no config", w->name);
+			continue;
+		}
+
 		if (ni_ifworker_array_index(array, child) < 0)
 			ni_ifworker_array_append(array, child);
 		__ni_fsm_pull_in_children(child, array);
