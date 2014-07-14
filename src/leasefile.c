@@ -1054,7 +1054,10 @@ ni_addrconf_lease_from_xml(ni_addrconf_lease_t **leasep, const xml_node_t *root)
 /*
  * lease file read and write routines
  */
-static const char *		__ni_addrconf_lease_file_path(int, int, const char *);
+static const char *		__ni_addrconf_lease_file_path(char **,
+				const char *, const char *, int, int);
+static void			__ni_addrconf_lease_file_remove(
+				const char *, const char *, int, int);
 
 #if 0
 int
@@ -1078,16 +1081,22 @@ int
 ni_addrconf_lease_file_write(const char *ifname, ni_addrconf_lease_t *lease)
 {
 	char tempname[PATH_MAX] = {'\0'};
-	const char *filename;
+	ni_bool_t fallback = FALSE;
+	char *filename = NULL;
 	xml_node_t *xml = NULL;
 	FILE *fp = NULL;
 	int ret = -1;
 	int fd;
 
-	filename = __ni_addrconf_lease_file_path(lease->type, lease->family, ifname);
 	if (lease->state == NI_ADDRCONF_STATE_RELEASED) {
-		ni_debug_dhcp("Removing lease file '%s'", filename);
-		return unlink(filename);
+		ni_addrconf_lease_file_remove(ifname, lease->type, lease->family);
+		return 0;
+	}
+
+	if (!__ni_addrconf_lease_file_path(&filename, ni_config_storedir(),
+					ifname, lease->type, lease->family)) {
+		ni_error("Cannot construct lease file name: %m");
+		return -1;
 	}
 
 	ni_debug_dhcp("Preparing xml lease data for '%s'", filename);
@@ -1106,10 +1115,22 @@ ni_addrconf_lease_file_write(const char *ifname, ni_addrconf_lease_t *lease)
 
 	snprintf(tempname, sizeof(tempname), "%s.XXXXXX", filename);
 	if ((fd = mkstemp(tempname)) < 0) {
-		ni_error("Cannot create temporary lease file '%s': %m", tempname);
-		tempname[0] = '\0';
-		ret = -1;
-		goto failed;
+		if (errno == EROFS && __ni_addrconf_lease_file_path(&filename,
+						ni_config_statedir(), ifname,
+						lease->type, lease->family)) {
+			ni_debug_dhcp("Read-only filesystem, try fallback to %s",
+					filename);
+			snprintf(tempname, sizeof(tempname), "%s.XXXXXX", filename);
+			fd = mkstemp(tempname);
+			fallback = TRUE;
+		}
+		if (fd < 0) {
+			ni_error("Cannot create temporary lease file '%s': %m",
+					tempname);
+			tempname[0] = '\0';
+			ret = -1;
+			goto failed;
+		}
 	}
 	if ((fp = fdopen(fd, "we")) == NULL) {
 		ret = -1;
@@ -1127,9 +1148,13 @@ ni_addrconf_lease_file_write(const char *ifname, ni_addrconf_lease_t *lease)
 		ni_error("Unable to rename temporary lease file '%s' to '%s': %m",
 				tempname, filename);
 		goto failed;
+	} else if (!fallback) {
+		__ni_addrconf_lease_file_remove(ni_config_statedir(),
+				ifname, lease->type, lease->family);
 	}
 
 	ni_debug_dhcp("Lease written to file '%s'", filename);
+	ni_string_free(&filename);
 	return 0;
 
 failed:
@@ -1139,6 +1164,7 @@ failed:
 		xml_node_free(xml);
 	if (tempname[0])
 		unlink(tempname);
+	ni_string_free(&filename);
 	return -1;
 }
 
@@ -1149,24 +1175,41 @@ ni_addrconf_lease_t *
 ni_addrconf_lease_file_read(const char *ifname, int type, int family)
 {
 	ni_addrconf_lease_t *lease = NULL;
-	const char *filename;
 	xml_node_t *xml = NULL, *lnode;
+	char *filename = NULL;
 	FILE *fp;
 
-	filename = __ni_addrconf_lease_file_path(type, family, ifname);
-
-	ni_debug_dhcp("Reading lease from %s", filename);
-	if ((fp = fopen(filename, "re")) == NULL) {
-		if (errno != ENOENT)
-			ni_error("Unable to open %s for reading: %m", filename);
+	if (!__ni_addrconf_lease_file_path(&filename,
+				ni_config_statedir(),
+				ifname, type, family)) {
+		ni_error("Unable to construct lease file name: %m");
 		return NULL;
 	}
 
+	if ((fp = fopen(filename, "re")) == NULL) {
+		if (errno == ENOENT) {
+			if (__ni_addrconf_lease_file_path(&filename,
+						ni_config_storedir(),
+						ifname, type, family))
+				fp = fopen(filename, "re");
+		}
+		if (fp == NULL) {
+			if (errno != ENOENT) {
+				ni_error("Unable to open %s for reading: %m",
+						filename);
+			}
+			ni_string_free(&filename);
+			return NULL;
+		}
+	}
+
+	ni_debug_dhcp("Reading lease from %s", filename);
 	xml = xml_node_scan(fp, filename);
 	fclose(fp);
 
 	if (xml == NULL) {
 		ni_error("Unable to parse %s", filename);
+		ni_string_free(&filename);
 		return NULL;
 	}
 
@@ -1177,16 +1220,19 @@ ni_addrconf_lease_file_read(const char *ifname, int type, int family)
 		lnode = xml;
 	if (!lnode) {
 		ni_error("File '%s' does not contain a valid lease", filename);
+		ni_string_free(&filename);
 		xml_node_free(xml);
 		return NULL;
 	}
 
 	if (ni_addrconf_lease_from_xml(&lease, xml) < 0) {
 		ni_error("Unable to parse xml lease file '%s'", filename);
+		ni_string_free(&filename);
 		xml_node_free(xml);
 		return NULL;
 	}
 
+	ni_string_free(&filename);
 	xml_node_free(xml);
 	return lease;
 }
@@ -1195,25 +1241,36 @@ ni_addrconf_lease_file_read(const char *ifname, int type, int family)
 /*
  * Remove a lease file
  */
+static void
+__ni_addrconf_lease_file_remove(const char *dir, const char *ifname,
+				int type, int family)
+{
+	char *filename = NULL;
+
+	if (!__ni_addrconf_lease_file_path(&filename, dir, ifname, type, family))
+		return;
+
+	if (ni_file_exists(filename) && unlink(filename) == 0)
+		ni_debug_dhcp("removed %s", filename);
+	ni_string_free(&filename);
+}
+
 void
 ni_addrconf_lease_file_remove(const char *ifname, int type, int family)
 {
-	const char *filename;
-
-	filename = __ni_addrconf_lease_file_path(type, family, ifname);
-	ni_debug_dhcp("removing %s", filename);
-	unlink(filename);
+	__ni_addrconf_lease_file_remove(ni_config_statedir(), ifname, type, family);
+	__ni_addrconf_lease_file_remove(ni_config_storedir(), ifname, type, family);
 }
 
 static const char *
-__ni_addrconf_lease_file_path(int type, int family, const char *ifname)
+__ni_addrconf_lease_file_path(char **path, const char *dir,
+		const char *ifname, int type, int family)
 {
-	static char pathname[PATH_MAX];
+	const char *t = ni_addrconf_type_to_name(type);
+	const char *f = ni_addrfamily_type_to_name(family);
 
-	snprintf(pathname, sizeof(pathname), "%s/lease-%s-%s-%s.xml",
-			ni_config_storedir(), ifname,
-			ni_addrconf_type_to_name(type),
-			ni_addrfamily_type_to_name(family));
-	return pathname;
+	if (!path || ni_string_empty(dir) || ni_string_empty(ifname) || !t || !f)
+		return NULL;
+	return ni_string_printf(path, "%s/lease-%s-%s-%s.xml", dir, ifname, t, f);
 }
 
