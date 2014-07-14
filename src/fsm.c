@@ -1985,7 +1985,7 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 		/* skipping ifworkers of interfaces not configured in the past */
 		if (ni_string_empty(w->config.origin) && match->require_configured) {
 			ni_info("skipping %s interface: "
-				"not configured yet", w->name);
+				"device is not configured by wicked yet", w->name);
 			continue;
 		}
 		/* skipping ifworkers of interfaces in the persistent mode */

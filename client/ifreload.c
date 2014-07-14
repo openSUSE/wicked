@@ -225,12 +225,18 @@ usage:
 
 			/* skip unused devices without config */
 			if (!ni_ifcheck_worker_config_exists(w) &&
-			    !ni_ifcheck_device_configured(dev))
+			    !ni_ifcheck_device_configured(dev)) {
+				ni_info("skipping %s interface: no configuration exists and"
+					"device is not configured by wicked", w->name);
 				continue;
+			}
 
-			/* skip if config changed somehow */
-			if (ni_ifcheck_worker_config_matches(w))
+			/* skip if config has not been changed */
+			if (ni_ifcheck_worker_config_matches(w)) {
+				ni_info("skipping %s interface: "
+					"configuration unchanged", w->name);
 				continue;
+			}
 
 			/* Mark persistend when requested */
 			if (opt_persistent)
@@ -240,17 +246,26 @@ usage:
 			ni_ifworker_array_append(&marked, w);
 
 			/* Do not ifdown non-existing device */
-			if (!dev)
+			if (!dev) {
+				ni_info("skipping ifdown operation for %s interface: "
+					"non-existing device", w->name);
 				continue;
+			}
 
 			/* Persistent do not go down but up only */
-			if (ni_ifcheck_device_is_persistent(dev))
+			if (ni_ifcheck_device_is_persistent(dev)) {
+				ni_info("skipping ifdown operation for %s interface: "
+					"persistent device", w->name);
 				continue;
+			}
 
 			/* Decide how much down we go */
 			if (ni_ifcheck_worker_config_exists(w)) {
-				if (!ni_ifcheck_device_configured(dev))
+				if (!ni_ifcheck_device_configured(dev)) {
+					ni_info("skipping ifdown operation for %s interface: "
+						"device is not configured by wicked", w->name);
 					continue;
+				}
 				w->target_range.min = NI_FSM_STATE_NONE;
 				w->target_range.max = NI_FSM_STATE_DEVICE_READY;
 				nmarked++;
