@@ -66,7 +66,8 @@ ni_do_ifreload(int argc, char **argv)
 		{ NULL,		no_argument,	   NULL, 0              }
 	};
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
-	ni_ifworker_array_t marked = { 0, NULL };
+	ni_ifworker_array_t up_marked = NI_IFWORKER_ARRAY_INIT;
+	ni_ifworker_array_t down_marked = NI_IFWORKER_ARRAY_INIT;
 	ni_ifmatcher_t ifmatch;
 	ni_bool_t check_prio = TRUE;
 	ni_bool_t opt_persistent = FALSE;
@@ -208,63 +209,71 @@ usage:
 	status = NI_WICKED_RC_SUCCESS;
 	nmarked = 0;
 	for (c = optind; c < argc; ++c) {
-		ni_ifworker_array_t temp = { 0, NULL };
-
-		/* Getting an array of ifworkers matching argument */
 		ifmatch.name = argv[c];
-		if (!ni_fsm_get_matching_workers(fsm, &ifmatch, &temp))
-			continue;
 
-		for (i = 0; i < temp.count; ++i) {
-			ni_ifworker_t *w = temp.data[i];
-			ni_netdev_t *dev = w->device;
-
-			/* skip duplicate matches */
-			if (ni_ifworker_array_index(&marked, w) != -1)
-				continue;
-
-			/* skip unused devices without config */
-			if (!ni_ifcheck_worker_config_exists(w) &&
-			    !ni_ifcheck_device_configured(dev))
-				continue;
-
-			/* skip if config changed somehow */
-			if (ni_ifcheck_worker_config_matches(w))
-				continue;
-
-			/* Mark persistend when requested */
-			if (opt_persistent)
-				w->client_state.persistent = TRUE;
-
-			/* Remember all changed devices */
-			ni_ifworker_array_append(&marked, w);
-
-			/* Do not ifdown non-existing device */
-			if (!dev)
-				continue;
-
-			/* Persistent do not go down but up only */
-			if (ni_ifcheck_device_is_persistent(dev))
-				continue;
-
-			/* Decide how much down we go */
-			if (ni_ifcheck_worker_config_exists(w)) {
-				if (!ni_ifcheck_device_configured(dev))
-					continue;
-				w->target_range.min = NI_FSM_STATE_NONE;
-				w->target_range.max = NI_FSM_STATE_DEVICE_READY;
-				nmarked++;
-			} else
-			if (ni_ifcheck_device_configured(dev)) {
-				w->target_range.min = NI_FSM_STATE_NONE;
-				w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
-				nmarked++;
-			}
-		}
-		ni_ifworker_array_destroy(&temp);
+		/* Getting an array of ifworkers matching arguments */
+		ni_fsm_get_matching_workers(fsm, &ifmatch, &down_marked);
 	}
 
-	if (0 == nmarked && 0 == marked.count) {
+	for (i = 0; i < down_marked.count; ++i) {
+		ni_ifworker_t *w = down_marked.data[i];
+		ni_netdev_t *dev = w->device;
+
+		/* skip unused devices without config */
+		if (!ni_ifcheck_worker_config_exists(w) &&
+		    !ni_ifcheck_device_configured(dev)) {
+			ni_info("skipping %s interface: no configuration exists and"
+				"device is not configured by wicked", w->name);
+			continue;
+		}
+
+		/* skip if config has not been changed */
+		if (ni_ifcheck_worker_config_matches(w)) {
+			ni_info("skipping %s interface: "
+				"configuration unchanged", w->name);
+			continue;
+		}
+
+		/* Mark persistend when requested */
+		if (opt_persistent)
+			w->client_state.persistent = TRUE;
+
+		/* Remember all changed devices */
+		ni_ifworker_array_append(&up_marked, w);
+
+		/* Do not ifdown non-existing device */
+		if (!dev) {
+			ni_info("skipping ifdown operation for %s interface: "
+				"non-existing device", w->name);
+			continue;
+		}
+
+		/* Persistent do not go down but up only */
+		if (ni_ifcheck_device_is_persistent(dev)) {
+			ni_info("skipping ifdown operation for %s interface: "
+				"persistent device", w->name);
+			continue;
+		}
+
+		/* Decide how much down we go */
+		if (ni_ifcheck_worker_config_exists(w)) {
+			if (!ni_ifcheck_device_configured(dev)) {
+				ni_info("skipping ifdown operation for %s interface: "
+					"device is not configured by wicked", w->name);
+				continue;
+			}
+			w->target_range.min = NI_FSM_STATE_NONE;
+			w->target_range.max = NI_FSM_STATE_DEVICE_READY;
+			nmarked++;
+		} else
+		if (ni_ifcheck_device_configured(dev)) {
+			w->target_range.min = NI_FSM_STATE_NONE;
+			w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
+			nmarked++;
+		}
+	}
+
+	if (0 == nmarked && 0 == up_marked.count) {
 		printf("ifreload: no matching interfaces\n");
 		status = NI_WICKED_RC_SUCCESS;
 		goto cleanup;
@@ -274,26 +283,25 @@ usage:
 	if (nmarked) {
 		/* Run ifdown part of the reload */
 		ni_debug_application("Shutting down unneeded devices");
-		ni_fsm_start_matching_workers(fsm, &marked);
-
-		/* Execute the down run */
-		if (ni_fsm_schedule(fsm) != 0)
-			ni_fsm_mainloop(fsm);
-
+		if (ni_fsm_start_matching_workers(fsm, &down_marked)) {
+			/* Execute the down run */
+			if (ni_fsm_schedule(fsm) != 0)
+				ni_fsm_mainloop(fsm);
+		}
 	}
 	else {
 		ni_debug_application("No interfaces to be brought down\n");
 	}
 
 	/* Drop deleted or apply the up range */
-	ni_fsm_reset_matching_workers(fsm, &marked, &up_range, FALSE);
+	ni_fsm_reset_matching_workers(fsm, &up_marked, &up_range, FALSE);
 
 	/* anything to ifup? */
-	if (marked.count) {
+	if (up_marked.count) {
 		/* And trigger up */
 		ni_debug_application("Reloading all changed devices");
-		ni_fsm_pull_in_children(&marked);
-		if (ni_fsm_start_matching_workers(fsm, &marked)) {
+		ni_fsm_pull_in_children(&up_marked);
+		if (ni_fsm_start_matching_workers(fsm, &up_marked)) {
 			/* Execute the up run */
 			if (ni_fsm_schedule(fsm) != 0)
 				ni_fsm_mainloop(fsm);
@@ -309,8 +317,6 @@ usage:
 			if (!opt_transient)
 				status = NI_LSB_RC_SUCCESS;
 		}
-
-		ni_ifworker_array_destroy(&marked);
 	}
 	else {
 		ni_debug_application("No interfaces to be brought up\n");
@@ -318,6 +324,7 @@ usage:
 
 cleanup:
 	ni_string_array_destroy(&opt_ifconfig);
-	ni_ifworker_array_destroy(&marked);
+	ni_ifworker_array_destroy(&down_marked);
+	ni_ifworker_array_destroy(&up_marked);
 	return status;
 }
