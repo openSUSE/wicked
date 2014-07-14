@@ -94,7 +94,8 @@ Setup protocol. If this variable is empty or missing, it defaults to \fBstatic\f
 .br
 A fixed addresses specified in \fBIPADDR\fR and related variables and static
 routing as defined in \fBroutes\fR and \fBifroute-\fR<\fIinterface name\fR>
-files is configured.
+files is configured. This option does \fInot\fR prevent from getting dynamic IPv6
+addresses and routes from Router Advertisements, though.
 .TP
 .B dhcp4 dhcp6 dhcp
 .br
