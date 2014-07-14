@@ -2290,9 +2290,7 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 			continue;
 		}
 
-		w->done = FALSE;
-		w->failed = FALSE;
-		w->kickstarted = FALSE;
+		ni_ifworker_rearm(w);
 
 		w->target_state = NI_FSM_STATE_NONE;
 		if (target_range) {
@@ -2301,25 +2299,6 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 			w->target_range.min = NI_FSM_STATE_NONE;
 			w->target_range.max = __NI_FSM_STATE_MAX;
 		}
-
-		/* When detaching children, clear their lowerdev/masterdev ownership info */
-		if (w->children.count != 0) {
-			unsigned int i;
-
-			for (i = 0; i < w->children.count; ++i) {
-				ni_ifworker_t *child = w->children.data[i];
-
-				if (child->masterdev == w)
-					child->masterdev = NULL;
-
-				if (child == w->lowerdev) {
-					ni_ifworker_array_remove(&child->lowerdev_for, w);
-					w->lowerdev = NULL;
-				}
-			}
-		}
-		ni_ifworker_array_destroy(&w->children);
-		ni_ifworker_array_destroy(&w->lowerdev_for);
 
 		if (w->fsm.action_table) {
 			ni_fsm_transition_t *action;
@@ -2335,7 +2314,6 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 		ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
 
 		memset(&w->fsm, 0, sizeof(w->fsm));
-		memset(&w->device_api, 0, sizeof(w->device_api));
 	}
 }
 
