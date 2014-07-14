@@ -74,10 +74,7 @@
 #define NI_DHCP6_VENDOR_VERSION_STRING		NI_DHCP6_PACKAGE_NAME"/"NI_DHCP6_PACKAGE_VERSION
 #endif
 
-
-extern int			ni_dhcp6_load_duid(ni_opaque_t *duid, const char *filename);
-extern int			ni_dhcp6_save_duid(const ni_opaque_t *duid, const char *filename);
-
+static ni_opaque_t		ni_dhcp6_duid;
 ni_dhcp6_device_t *		ni_dhcp6_active;
 
 static void			ni_dhcp6_device_close(ni_dhcp6_device_t *);
@@ -841,6 +838,18 @@ ni_dhcp6_generate_duid(ni_dhcp6_device_t *dev, ni_opaque_t *duid)
 	ni_duid_init_uuid(duid, &uuid);
 }
 
+static inline int
+ni_dhcp6_duid_load(ni_opaque_t *duid)
+{
+	return ni_duid_load(duid, NULL, NULL);
+}
+
+static inline int
+ni_dhcp6_duid_save(const ni_opaque_t *duid)
+{
+	return ni_duid_save(duid, NULL, NULL);
+}
+
 static ni_bool_t
 ni_dhcp6_config_init_duid(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config, const char *preferred)
 {
@@ -852,17 +861,21 @@ ni_dhcp6_config_init_duid(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config, con
 	if (config->client_duid.len == 0) {
 		ni_dhcp6_config_default_duid(&config->client_duid);
 	}
-
+	if (config->client_duid.len == 0 && ni_dhcp6_duid.len > 0) {
+		ni_duid_copy(&config->client_duid, &ni_dhcp6_duid);
+	}
 	if (config->client_duid.len == 0) {
-		if( ni_dhcp6_load_duid(&config->client_duid, NULL) == 0)
+		if(ni_dhcp6_duid_load(&config->client_duid) == 0)
 			save = FALSE;
 	}
 	if (config->client_duid.len == 0) {
 		ni_dhcp6_generate_duid(dev, &config->client_duid);
 	}
-
 	if (config->client_duid.len > 0 && save) {
-		(void)ni_dhcp6_save_duid(&config->client_duid, NULL);
+		(void)ni_dhcp6_duid_save(&config->client_duid);
+	}
+	if (config->client_duid.len > 0 && !ni_dhcp6_duid.len) {
+		ni_duid_copy(&ni_dhcp6_duid, &config->client_duid);
 	}
 	return (config->client_duid.len > 0);
 }

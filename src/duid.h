@@ -63,6 +63,7 @@ extern ni_bool_t		ni_duid_init_ll (ni_opaque_t *duid, unsigned short arp_type, c
 extern ni_bool_t		ni_duid_init_en (ni_opaque_t *duid, unsigned int enumber, const void *identifier, size_t len);
 extern ni_bool_t		ni_duid_init_uuid(ni_opaque_t *duid, const ni_uuid_t *uuid);
 
+extern ni_bool_t		ni_duid_copy (ni_opaque_t * duid, const ni_opaque_t *src);
 extern void			ni_duid_clear(ni_opaque_t * duid);
 
 extern ni_bool_t		ni_duid_parse_hex(ni_opaque_t *duid, const char *hex);
@@ -72,5 +73,8 @@ static inline const char *	ni_duid_print_hex(const ni_opaque_t *duid)
 {
 	return ni_print_hex(duid->data, duid->len);
 }
+
+extern int			ni_duid_load(ni_opaque_t *, const char *, const char *);
+extern int			ni_duid_save(const ni_opaque_t *, const char *, const char *);
 
 #endif /* __WICKED_DUID_H__ */

@@ -20,7 +20,6 @@ wickedd_dhcp6_SOURCES	= \
 	fsm.c		\
 	main.c		\
 	protocol.c	\
-	state.c		\
 	tester.c
 
 noinst_HEADERS		= \
