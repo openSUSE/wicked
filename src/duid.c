@@ -22,16 +22,26 @@
 #include "config.h"
 #endif
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <limits.h>
+#include <unistd.h>
 #include <time.h>
 #include <arpa/inet.h>
 
 #include <wicked/logging.h>
+#include <wicked/netinfo.h>
+#include <wicked/util.h>
+#include <wicked/xml.h>
 
 #include "duid.h"
 #include "util_priv.h"
+
+#define CONFIG_DEFAULT_DUID_NODE	"duid"
+#define CONFIG_DEFAULT_DUID_FILE	"duid.xml"
 
 
 /*
@@ -182,6 +192,18 @@ ni_duid_init_uuid(ni_opaque_t *duid, const ni_uuid_t *uuid)
 	return TRUE;
 }
 
+ni_bool_t
+ni_duid_copy(ni_opaque_t *duid, const ni_opaque_t *src)
+{
+	if (!duid || !src)
+		return FALSE;
+
+	ni_duid_clear(duid);
+	if (src->len)
+		ni_opaque_set(duid, src->data, src->len);
+	return TRUE;
+}
+
 void
 ni_duid_clear(ni_opaque_t *duid)
 {
@@ -212,3 +234,170 @@ ni_duid_format_hex(char **hex, const ni_opaque_t *duid)
 	}
 	return *hex;
 }
+
+int
+ni_duid_load(ni_opaque_t *duid, const char *filename, const char *name)
+{
+	char path[PATH_MAX];
+	xml_node_t *xml = NULL;
+	xml_node_t *node;
+	FILE *fp;
+	int rv;
+
+	if (ni_string_empty(name))
+		name = CONFIG_DEFAULT_DUID_NODE;
+
+	if (!filename) {
+		/* On root-fs, state dir used as fallback */
+		snprintf(path, sizeof(path), "%s/%s",
+				ni_config_statedir(),
+				CONFIG_DEFAULT_DUID_FILE);
+		filename = path;
+
+		/* Then the proper, reboot persistent dir */
+		if ((fp = fopen(filename, "re")) == NULL) {
+			snprintf(path, sizeof(path), "%s/%s",
+					ni_config_storedir(),
+					CONFIG_DEFAULT_DUID_FILE);
+			filename = path;
+
+			fp = fopen(filename, "re");
+		}
+	} else {
+		fp = fopen(filename, "re");
+	}
+
+	if (fp == NULL) {
+		if (errno != ENOENT)
+			ni_error("unable to open %s for reading: %m", filename);
+		return -1;
+	}
+	xml = xml_node_scan(fp, NULL);
+	fclose(fp);
+
+	if (xml == NULL) {
+		ni_error("%s: unable to parse xml file", filename);
+		return -1;
+	}
+
+	if (xml->name == NULL)
+		node = xml->children;
+	else
+		node = xml;
+
+	if (!node || !ni_string_eq(node->name, name)) {
+		ni_error("%s: does not contain %s", filename, name);
+		xml_node_free(xml);
+		return -1;
+	}
+
+	rv = 0;
+	if (!node->cdata || !ni_duid_parse_hex(duid, node->cdata)) {
+		ni_error("%s: unable to parse %s file", filename, name);
+		rv = -1;
+	}
+
+	xml_node_free(xml);
+	return rv;
+}
+
+static int
+__ni_duid_save_node(xml_node_t *node, const char *filename)
+{
+	char tempname[PATH_MAX] = {'\0'};
+	FILE *fp = NULL;
+	int rv = -1;
+	int fd;
+
+	if (!node || !node->name || !filename)
+		return rv;
+
+	snprintf(tempname, sizeof(tempname), "%s.XXXXXX", filename);
+	if ((fd = mkstemp(tempname)) < 0) {
+		if (errno == EROFS)
+			return 1;
+
+		ni_error("%s: unable create temporary file for writing: %m", filename);
+		goto failed;
+	}
+
+	if ((fp = fdopen(fd, "we")) == NULL) {
+		ni_error("%s: unable to open file for writing: %m", filename);
+		goto failed;
+	}
+
+	if (xml_node_print(node, fp) < 0) {
+		ni_error("%s: unable to write %s representation",
+				filename, node->name);
+		goto failed;
+	}
+
+	if ((rv = rename(tempname, filename)) != 0) {
+		ni_error("%s: unable to rename temporary file '%s': %m",
+				filename, tempname);
+		goto failed;
+	}
+
+failed:
+	if (fp != NULL)
+		fclose(fp);
+	else if (fd >= 0)
+		close(fd);
+	if (tempname[0])
+		unlink(tempname);
+	return rv;
+}
+
+int
+ni_duid_save(const ni_opaque_t *duid, const char *filename, const char *name)
+{
+	char path[PATH_MAX] = {'\0'};
+	xml_node_t *node;
+	int rv = -1;
+
+	if (!duid || !duid->len) {
+		ni_error("BUG: Refusing to save empty duid");
+		return -1;
+	}
+
+	if (ni_string_empty(name))
+		name = CONFIG_DEFAULT_DUID_NODE;
+
+	if ((node = xml_node_new(name, NULL)) == NULL) {
+		ni_error("Unable to create %s xml node: %m", name);
+		return -1;
+	}
+	ni_duid_format_hex(&node->cdata, duid);
+
+	if (!filename) {
+		snprintf(path, sizeof(path), "%s/%s",
+				ni_config_storedir(),
+				CONFIG_DEFAULT_DUID_FILE);
+		filename = path;
+	}
+
+	/* Try reboot persistent store dir */
+	rv = __ni_duid_save_node(node, filename);
+	if (filename == path) {
+		if (rv == 0) {
+			snprintf(path, sizeof(path), "%s/%s",
+					ni_config_statedir(),
+					CONFIG_DEFAULT_DUID_FILE);
+
+			/* Fallback in state dir is obsolete */
+			unlink(path);
+		} else
+		if (rv > 0) {
+			snprintf(path, sizeof(path), "%s/%s",
+					ni_config_statedir(),
+					CONFIG_DEFAULT_DUID_FILE);
+
+			/* Then try state dir as fallback */
+			rv = __ni_duid_save_node(node, path);
+		}
+	}
+
+	xml_node_free(node);
+	return rv > 0 ? -1 : rv;
+}
+
