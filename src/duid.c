@@ -352,7 +352,6 @@ int
 ni_duid_save(const ni_opaque_t *duid, const char *filename, const char *name)
 {
 	char path[PATH_MAX] = {'\0'};
-	ni_opaque_t temp = NI_OPAQUE_INIT;
 	xml_node_t *node;
 	int rv = -1;
 
@@ -363,9 +362,6 @@ ni_duid_save(const ni_opaque_t *duid, const char *filename, const char *name)
 
 	if (ni_string_empty(name))
 		name = CONFIG_DEFAULT_DUID_NODE;
-
-	if(ni_duid_load(&temp, filename, name) == 0)
-		return 1;
 
 	if ((node = xml_node_new(name, NULL)) == NULL) {
 		ni_error("Unable to create %s xml node: %m", name);
@@ -378,8 +374,6 @@ ni_duid_save(const ni_opaque_t *duid, const char *filename, const char *name)
 				ni_config_storedir(),
 				CONFIG_DEFAULT_DUID_FILE);
 		filename = path;
-	} else {
-		name = "duid";
 	}
 
 	/* Try reboot persistent store dir */
