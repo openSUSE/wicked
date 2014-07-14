@@ -554,6 +554,25 @@ ni_dhcp6_device_check_ready(ni_dhcp6_device_t *dev)
 	return ni_dhcp6_device_find_lladdr(dev) == 0;
 }
 
+const ni_ipv6_ra_info_t *
+ni_dhcp6_device_ra_info(const ni_dhcp6_device_t *dev, const ni_netdev_t *ifp)
+{
+	if (!ifp) {
+		ni_netconfig_t *nc = ni_global_state_handle(0);
+		ifp = nc ? ni_netdev_by_index(nc, dev->link.ifindex) : NULL;
+	}
+	return ifp && ifp->ipv6 ? &ifp->ipv6->radv : NULL;
+}
+
+const ni_ipv6_ra_pinfo_t *
+ni_dhcp6_device_ra_pinfo(const ni_dhcp6_device_t *dev, const ni_netdev_t *ifp)
+{
+	const ni_ipv6_ra_info_t *radv;
+
+	radv = ni_dhcp6_device_ra_info(dev, ifp);
+	return radv ? radv->pinfo : NULL;
+}
+
 int
 ni_dhcp6_device_transmit_init(ni_dhcp6_device_t *dev)
 {

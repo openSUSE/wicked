@@ -32,6 +32,8 @@ extern int		ni_dhcp6_device_retransmit(ni_dhcp6_device_t *);
 extern void		ni_dhcp6_device_retransmit_disarm(ni_dhcp6_device_t *);
 
 extern ni_bool_t	ni_dhcp6_device_is_ready(const ni_dhcp6_device_t *, const ni_netdev_t *);
+extern const ni_ipv6_ra_info_t  *ni_dhcp6_device_ra_info(const ni_dhcp6_device_t *, const ni_netdev_t *);
+extern const ni_ipv6_ra_pinfo_t *ni_dhcp6_device_ra_pinfo(const ni_dhcp6_device_t *, const ni_netdev_t *);
 extern int		ni_dhcp6_device_start(ni_dhcp6_device_t *);
 extern int		ni_dhcp6_device_restart(ni_dhcp6_device_t *);
 extern void		ni_dhcp6_device_stop(ni_dhcp6_device_t *);

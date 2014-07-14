@@ -46,7 +46,7 @@
 #include "ifup.h"
 
 static xml_node_t *
-__ni_ifup_generate_match_type_dev(ni_netdev_t *dev)
+__ni_ifup_generate_match_type_dev(ni_netdev_t *dev, ni_bool_t child)
 {
 	const char *type;
 	xml_node_t *ret;
@@ -57,7 +57,9 @@ __ni_ifup_generate_match_type_dev(ni_netdev_t *dev)
 	if (!(type = ni_linktype_type_to_name(dev->link.type)))
 		return NULL;
 
-	if (!(ret = xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_AND, NULL)))
+	ret = child ? xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_CHILD, NULL) :
+			xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_AND, NULL);
+	if (!ret)
 		return NULL;
 
 	if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, ret, dev->name) ||
@@ -69,7 +71,7 @@ __ni_ifup_generate_match_type_dev(ni_netdev_t *dev)
 }
 
 static xml_node_t *
-__ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w)
+__ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w, ni_bool_t child)
 {
 	if (!node || !w || !w->name)
 		return NULL;
@@ -78,40 +80,42 @@ __ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w)
 	 * (dev is probably a not ready one just using our name),
 	 * but this info is lost in translation... isn't it?
 	 */
-#if 0 /* Unsupported - new condition to be introduced to match agains device slave and its link-type */
 	if (w->device && ni_string_eq(w->name, w->device->name)) {
 		xml_node_t * ret = NULL;
 
-		if ((ret = __ni_ifup_generate_match_type_dev(w->device))) {
+		if ((ret = __ni_ifup_generate_match_type_dev(w->device, child))) {
 			xml_node_add_child(node, ret);
 			return ret;
 		}
 	}
-#endif
+
 	return xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, node, w->name);
 }
 
 static xml_node_t *
 __ni_ifup_generate_match(ni_ifworker_t *w)
 {
-	xml_node_t *match, *op;
+	xml_node_t *match;
 	unsigned int i;
 
 	if (!(match = xml_node_new(NI_NANNY_IFPOLICY_MATCH, NULL)))
 		return NULL;
 
-	if (!__ni_ifup_generate_match_dev(match, w)) {
+	if (!__ni_ifup_generate_match_dev(match, w, FALSE)) {
 		xml_node_free(match);
 		return NULL;
 	}
 
 	if (w->children.count) {
-		op = xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_OR, match);
+		xml_node_t*or;
+
+		if (!(or = xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_OR, match)))
+			return NULL;
 
 		for (i = 0; i < w->children.count; i++) {
 			ni_ifworker_t *child = w->children.data[i];
 
-			if (!__ni_ifup_generate_match_dev(op, child)) {
+			if (!__ni_ifup_generate_match_dev(or, child, TRUE)) {
 				xml_node_free(match);
 				return NULL;
 			}
@@ -129,7 +133,7 @@ ni_ifup_start_policy(ni_ifworker_t *w)
 	ni_bool_t rv = FALSE;
 	char *pname;
 
-	if (!w)
+	if (!w || !w->config.node)
 		return rv;
 
 	ni_debug_application("%s: hiring nanny", w->name);
@@ -198,6 +202,9 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 	for (i = 0; i < array->count; i++) {
 		ni_ifworker_t *w = array->data[i];
 
+		if (!w || !w->config.node)
+			continue;
+
 		if (set_persistent)
 			ni_client_state_set_persistent(w->config.node);
 
@@ -212,7 +219,7 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 	/* Enable devices with policies */
 	for (i = 0; i < array->count; i++) {
 		ni_ifworker_t *w = array->data[i];
-		ni_netdev_t *dev = w->device;
+		ni_netdev_t *dev = w ? w->device : NULL;
 
 		/* Ignore non-existing device */
 		if (!dev)
