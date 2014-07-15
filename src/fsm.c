@@ -980,6 +980,11 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 	if (shared) {
 		/* The reference allows sharing with other uses, e.g. VLANs. */
 		if (parent->lowerdev) {
+			if (xml_node_is_empty(parent->lowerdev->config.node)) {
+				ni_error("%s (%s): subordinate interface's lowerdev %s has no config node",
+					parent->name, xml_node_location(devnode), parent->lowerdev->name);
+				return FALSE;
+			}
 			other_owner = strdup(xml_node_location(parent->lowerdev->config.node));
 			ni_debug_application("%s (%s): subordinate interface already has lowerdev %s (%s)",
 				parent->name, xml_node_location(devnode),
@@ -995,6 +1000,11 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 	}
 	else {
 		if (child->masterdev) {
+			if (xml_node_is_empty(child->masterdev->config.node)) {
+				ni_error("%s (%s): subordinate interface's master device %s has no config node",
+					child->name, xml_node_location(devnode), child->masterdev->name);
+				return FALSE;
+			}
 			other_owner = strdup(xml_node_location(child->masterdev->config.node));
 			ni_debug_application("%s (%s): subordinate interface already has masterdev %s (%s)",
 				child->name, xml_node_location(devnode),
