@@ -2636,6 +2636,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 				if (-NI_ERROR_DOCUMENT_ERROR == rv)
 					ni_debug_application("%s: configuration failed", w->name);
 				ni_fsm_destroy_worker(fsm, w);
+				i--;
 			}
 			continue;
 		}
