@@ -551,7 +551,7 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 	if (ether->duplex != NI_ETHERNET_DUPLEX_DEFAULT) {
 		mapped = __ni_wicked_to_ethtool(__ni_ethtool_duplex_map, ether->duplex);
 		if (mapped >= 0)
-			ecmd.port = mapped;
+			ecmd.duplex = mapped;
 	}
 
 	if (ether->port_type != NI_ETHERNET_PORT_DEFAULT) {
