@@ -594,5 +594,13 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 		__ni_ethtool_set_value(ifname, &__ethtool_sflags, value);
 	}
 
+	__ni_system_ethernet_set_advertising(ifname, &ecmd);
+
+	if (__ni_ethtool(ifname, ETHTOOL_SSET, &ecmd) < 0) {
+		if (errno != EOPNOTSUPP)
+			ni_error("%s: ETHTOOL_SSET failed: %m", ifname);
+		return -1;
+	}
+
 	return 0;
 }
