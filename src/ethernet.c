@@ -15,6 +15,53 @@
 #include "util_priv.h"
 #include "kernel.h"
 
+#define ALL_ADVERTISED_MODES			\
+	(ADVERTISED_10baseT_Half |		\
+	 ADVERTISED_10baseT_Full |		\
+	 ADVERTISED_100baseT_Half |		\
+	 ADVERTISED_100baseT_Full |		\
+	 ADVERTISED_1000baseT_Half |		\
+	 ADVERTISED_1000baseT_Full |		\
+	 ADVERTISED_2500baseX_Full |		\
+	 ADVERTISED_10000baseKX4_Full |		\
+	 ADVERTISED_10000baseKR_Full |		\
+	 ADVERTISED_10000baseR_FEC |		\
+	 ADVERTISED_20000baseMLD2_Full |	\
+	 ADVERTISED_20000baseKR2_Full |		\
+	 ADVERTISED_40000baseKR4_Full |		\
+	 ADVERTISED_40000baseCR4_Full |		\
+	 ADVERTISED_40000baseSR4_Full |		\
+	 ADVERTISED_40000baseLR4_Full)
+
+#define ALL_ADVERTISED_FLAGS			\
+	(ADVERTISED_10baseT_Half |		\
+	 ADVERTISED_10baseT_Full |		\
+	 ADVERTISED_100baseT_Half |		\
+	 ADVERTISED_100baseT_Full |		\
+	 ADVERTISED_1000baseT_Half |		\
+	 ADVERTISED_1000baseT_Full |		\
+	 ADVERTISED_Autoneg |			\
+	 ADVERTISED_TP |			\
+	 ADVERTISED_AUI |			\
+	 ADVERTISED_MII |			\
+	 ADVERTISED_FIBRE |			\
+	 ADVERTISED_BNC |			\
+	 ADVERTISED_10000baseT_Full |		\
+	 ADVERTISED_Pause |			\
+	 ADVERTISED_Asym_Pause |		\
+	 ADVERTISED_2500baseX_Full |		\
+	 ADVERTISED_Backplane |			\
+	 ADVERTISED_1000baseKX_Full |		\
+	 ADVERTISED_10000baseKX4_Full |		\
+	 ADVERTISED_10000baseKR_Full |		\
+	 ADVERTISED_10000baseR_FEC |		\
+	 ADVERTISED_20000baseMLD2_Full |	\
+	 ADVERTISED_20000baseKR2_Full |		\
+	 ADVERTISED_40000baseKR4_Full |		\
+	 ADVERTISED_40000baseCR4_Full |		\
+	 ADVERTISED_40000baseSR4_Full |		\
+	 ADVERTISED_40000baseLR4_Full)
+
 static int	__ni_system_ethernet_get(const char *, ni_ethernet_t *);
 static int	__ni_system_ethernet_set(const char *, const ni_ethernet_t *);
 
