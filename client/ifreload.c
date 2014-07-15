@@ -222,7 +222,7 @@ usage:
 		/* skip unused devices without config */
 		if (!ni_ifcheck_worker_config_exists(w) &&
 		    !ni_ifcheck_device_configured(dev)) {
-			ni_info("skipping %s interface: no configuration exists and"
+			ni_info("skipping %s interface: no configuration exists and "
 				"device is not configured by wicked", w->name);
 			continue;
 		}
@@ -293,6 +293,7 @@ usage:
 		ni_debug_application("No interfaces to be brought down\n");
 	}
 
+	ni_fsm_pull_in_children(&up_marked);
 	/* Drop deleted or apply the up range */
 	ni_fsm_reset_matching_workers(fsm, &up_marked, &up_range, FALSE);
 
@@ -300,7 +301,6 @@ usage:
 	if (up_marked.count) {
 		/* And trigger up */
 		ni_debug_application("Reloading all changed devices");
-		ni_fsm_pull_in_children(&up_marked);
 		if (ni_fsm_start_matching_workers(fsm, &up_marked)) {
 			/* Execute the up run */
 			if (ni_fsm_schedule(fsm) != 0)
