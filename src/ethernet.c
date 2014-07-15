@@ -467,6 +467,67 @@ __ni_system_ethernet_update(ni_netdev_t *dev, const ni_ethernet_t *ether)
 	return __ni_system_ethernet_refresh(dev);
 }
 
+/*
+ * Based on ecmd.speed and ecmd.duplex, determine ecmd.advertising.
+ */
+static void
+__ni_system_ethernet_set_advertising(const char *ifname, struct ethtool_cmd *ecmd)
+{
+	if (!ecmd)
+		return;
+
+	if (ecmd->speed == SPEED_10 && ecmd->duplex == DUPLEX_HALF)
+		ecmd->advertising = ADVERTISED_10baseT_Half;
+	else if (ecmd->speed == SPEED_10 &&
+		ecmd->duplex == DUPLEX_FULL)
+		ecmd->advertising = ADVERTISED_10baseT_Full;
+	else if (ecmd->speed == SPEED_100 &&
+		ecmd->duplex == DUPLEX_HALF)
+		ecmd->advertising = ADVERTISED_100baseT_Half;
+	else if (ecmd->speed == SPEED_100 &&
+		ecmd->duplex == DUPLEX_FULL)
+		ecmd->advertising = ADVERTISED_100baseT_Full;
+	else if (ecmd->speed == SPEED_1000 &&
+		ecmd->duplex == DUPLEX_HALF)
+		ecmd->advertising = ADVERTISED_1000baseT_Half;
+	else if (ecmd->speed == SPEED_1000 &&
+		ecmd->duplex == DUPLEX_FULL)
+		ecmd->advertising = ADVERTISED_1000baseT_Full;
+	else if (ecmd->speed == SPEED_2500 &&
+		ecmd->duplex == DUPLEX_FULL)
+		ecmd->advertising = ADVERTISED_2500baseX_Full;
+	else if (ecmd->speed == SPEED_10000 &&
+		ecmd->duplex == DUPLEX_FULL)
+		ecmd->advertising = ADVERTISED_10000baseT_Full;
+	else
+		/* auto negotiate without forcing,
+		 * all supported speeds will be assigned below
+		 */
+		ecmd->advertising = 0;
+
+	if (ecmd->autoneg && ecmd->advertising == 0) {
+		/* Auto negotiation enabled, but with
+		 * unspecified speed and duplex: enable all
+		 * supported speeds and duplexes.
+		 */
+		ecmd->advertising = (ecmd->advertising &
+				~ALL_ADVERTISED_MODES) |
+			(ALL_ADVERTISED_MODES &
+				ecmd->supported);
+		/* If driver supports unknown flags, we cannot
+		 * be sure that we enable all link modes.
+		 */
+		if ((ecmd->supported & ALL_ADVERTISED_FLAGS) != ecmd->supported) {
+			ni_error("%s: Driver supports one or more unknown flags",
+				ifname);
+		}
+	} else if (ecmd->advertising > 0) {
+		/* Enable all requested modes. */
+		ecmd->advertising = (ecmd->advertising & ~ALL_ADVERTISED_MODES) |
+			ecmd->advertising;
+	}
+}
+
 int
 __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 {
