@@ -401,18 +401,16 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 		ether->link_speed = ethtool_cmd_speed(&ecmd);
 
 	mapped = __ni_ethtool_to_wicked(__ni_ethtool_duplex_map, ecmd.duplex);
-	if (mapped < 0) {
+	if (mapped < 0)
 		ni_warn("%s: unknown duplex setting %d", ifname, ecmd.duplex);
-	} else {
+	else
 		ether->duplex = mapped;
-	}
 
 	mapped = __ni_ethtool_to_wicked(__ni_ethtool_port_map, ecmd.port);
-	if (mapped < 0) {
+	if (mapped < 0)
 		ni_warn("%s: unknown port setting %d", ifname, ecmd.port);
-	} else {
+	else
 		ether->port_type = mapped;
-	}
 
 	ether->autoneg_enable = (ecmd.autoneg? NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE);
 
