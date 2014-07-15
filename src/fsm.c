@@ -2300,20 +2300,7 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 			w->target_range.max = __NI_FSM_STATE_MAX;
 		}
 
-		if (w->fsm.action_table) {
-			ni_fsm_transition_t *action;
-
-			for (action = w->fsm.action_table; action->next_state; action++)
-				ni_fsm_require_list_destroy(&action->require.list);
-			free(w->fsm.action_table);
-			w->fsm.action_table = NULL;
-		}
-
 		ni_ifworker_cancel_timeout(w);
-
-		ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
-
-		memset(&w->fsm, 0, sizeof(w->fsm));
 	}
 }
 
@@ -2636,6 +2623,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 				if (-NI_ERROR_DOCUMENT_ERROR == rv)
 					ni_debug_application("%s: configuration failed", w->name);
 				ni_fsm_destroy_worker(fsm, w);
+				i--;
 			}
 			continue;
 		}
