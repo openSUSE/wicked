@@ -139,6 +139,25 @@ ni_ifworker_rearm(ni_ifworker_t *w)
 	w->kickstarted = FALSE;
 }
 
+static void
+__ni_ifworker_reset_fsm(ni_ifworker_t *w)
+{
+	if (!w)
+		return;
+
+	if (w->fsm.action_table) {
+		ni_fsm_transition_t *action;
+
+		for (action = w->fsm.action_table; action->next_state; action++)
+			ni_fsm_require_list_destroy(&action->require.list);
+		free(w->fsm.action_table);
+	}
+	w->fsm.action_table = NULL;
+
+	ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
+	memset(&w->fsm, 0, sizeof(w->fsm));
+}
+
 void
 ni_ifworker_reset(ni_ifworker_t *w)
 {
@@ -166,23 +185,13 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	ni_ifworker_array_destroy(&w->children);
 	ni_ifworker_array_destroy(&w->lowerdev_for);
 
-	if (w->fsm.action_table) {
-		ni_fsm_transition_t *action;
-
-		for (action = w->fsm.action_table; action->next_state; action++)
-			ni_fsm_require_list_destroy(&action->require.list);
-		free(w->fsm.action_table);
-	}
-	w->fsm.action_table = NULL;
-
 	w->target_state = NI_FSM_STATE_NONE;
 	w->target_range.min = NI_FSM_STATE_NONE;
 	w->target_range.max = __NI_FSM_STATE_MAX;
 
 	ni_ifworker_cancel_timeout(w);
 
-	ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
-	memset(&w->fsm, 0, sizeof(w->fsm));
+	__ni_ifworker_reset_fsm(w);
 	memset(&w->device_api, 0, sizeof(w->device_api));
 
 	w->failed = FALSE;
