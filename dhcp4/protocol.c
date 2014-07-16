@@ -1458,6 +1458,70 @@ ni_dhcp4_option_get_netbios_type(ni_buffer_t *bp, unsigned int *type)
 	return -1;
 }
 
+void
+ni_dhcp4_apply_routes(ni_addrconf_lease_t *lease, ni_route_array_t *routes)
+{
+	ni_route_array_t temp = NI_ROUTE_ARRAY_INIT;
+	ni_route_t *rp, *r;
+	ni_address_t *ap;
+	unsigned int i, j;
+
+	if (!lease || !routes)
+		return;
+
+	/* apply device routes first (if any) */
+	for (i = 0; i < routes->count; ++i) {
+		if (!(rp = routes->data[i]))
+			continue;
+		if (ni_sockaddr_is_specified(&rp->nh.gateway))
+			continue;
+		ni_route_array_append(&temp, ni_route_ref(rp));
+	}
+
+	/* now the routes with a gateway - add a
+	 * device routes as needed / when missed */
+	for (i = 0; i < routes->count; ++i) {
+		ni_bool_t added = FALSE;
+
+		if (!(rp = routes->data[i]))
+			continue;
+		if (!ni_sockaddr_is_specified(&rp->nh.gateway))
+			continue;
+
+		/* just add, when gateway is on the same net as IP */
+		for (ap = lease->addrs; !added && ap; ap = ap->next) {
+			if (!ni_address_can_reach(ap, &rp->nh.gateway))
+				continue;
+			ni_route_array_append(&temp, ni_route_ref(rp));
+			added = TRUE;
+		}
+		/* or there is a device route allowing to reach it */
+		for (j = 0; !added && j < temp.count; ++j) {
+			if (!(r = temp.data[j]))
+				continue;
+			if (ni_sockaddr_is_specified(&r->nh.gateway))
+				continue;
+
+			if (!ni_sockaddr_prefix_match(r->prefixlen,
+						&r->destination,
+						&rp->nh.gateway))
+				continue;
+			ni_route_array_append(&temp, ni_route_ref(rp));
+			added = TRUE;
+		}
+
+		/* otherwise, automatically prepend a device route */
+		if (!added) {
+			unsigned int len = ni_af_address_length(rp->family);
+			r = ni_route_create(len * 8, &rp->nh.gateway, NULL, 0, NULL);
+			ni_route_array_append(&temp, r);
+			ni_route_array_append(&temp, ni_route_ref(rp));
+		}
+	}
+	ni_route_tables_add_routes(&lease->routes, &temp);
+	ni_route_array_destroy(&temp);
+}
+
 /*
  * Parse a DHCP4 response.
  * FIXME: RFC2131 states that the server is allowed to split a DHCP4 option into
@@ -1750,17 +1814,34 @@ parse_more:
 		lease->dhcp4.netmask.s_addr = htonl(~(0xFFFFFFFF >> pfxlen));
 	}
 	if (!lease->dhcp4.broadcast.s_addr) {
-		lease->dhcp4.broadcast.s_addr = lease->dhcp4.address.s_addr | ~lease->dhcp4.netmask.s_addr;
+		lease->dhcp4.broadcast.s_addr = lease->dhcp4.address.s_addr |
+						~lease->dhcp4.netmask.s_addr;
+	}
+	if (lease->dhcp4.address.s_addr) {
+		ni_sockaddr_t local_addr;
+		ni_address_t *ap;
+
+		memset(&local_addr, 0, sizeof(local_addr));
+		local_addr.sin.sin_family = AF_INET;
+		local_addr.sin.sin_addr = lease->dhcp4.address;
+		ap = ni_address_new(AF_INET,
+				__count_net_bits(ntohl(lease->dhcp4.netmask.s_addr)),
+				&local_addr, &lease->addrs);
+		if (ap) {
+			memset(&ap->bcast_addr, 0, sizeof(ap->bcast_addr));
+			ap->bcast_addr.sin.sin_family = AF_INET;
+			ap->bcast_addr.sin.sin_addr = lease->dhcp4.broadcast;
+		}
 	}
 
 	if (classless_routes.count) {
-		/* CSR and MSCSR take precedence over static routes */
-		ni_route_tables_add_routes(&lease->routes, &classless_routes);
+		/* if CSR or MSCSR are available, ignore other routes */
+		ni_dhcp4_apply_routes(lease, &classless_routes);
 		ni_route_array_destroy(&classless_routes);
 	} else {
-		ni_route_tables_add_routes(&lease->routes, &static_routes);
+		ni_dhcp4_apply_routes(lease, &static_routes);
 		ni_route_array_destroy(&static_routes);
-		ni_route_tables_add_routes(&lease->routes, &default_routes);
+		ni_dhcp4_apply_routes(lease, &default_routes);
 		ni_route_array_destroy(&default_routes);
 	}
 
@@ -1789,23 +1870,6 @@ parse_more:
 		else
 			ni_string_array_move(&nis->default_servers, &nis_servers);
 		lease->nis = nis;
-	}
-
-	if (lease->dhcp4.address.s_addr) {
-		ni_sockaddr_t local_addr;
-		ni_address_t *ap;
-
-		memset(&local_addr, 0, sizeof(local_addr));
-		local_addr.sin.sin_family = AF_INET;
-		local_addr.sin.sin_addr = lease->dhcp4.address;
-		ap = ni_address_new(AF_INET,
-				__count_net_bits(ntohl(lease->dhcp4.netmask.s_addr)),
-				&local_addr, &lease->addrs);
-		if (ap) {
-			memset(&ap->bcast_addr, 0, sizeof(ap->bcast_addr));
-			ap->bcast_addr.sin.sin_family = AF_INET;
-			ap->bcast_addr.sin.sin_addr = lease->dhcp4.broadcast;
-		}
 	}
 
 	*leasep = lease;
