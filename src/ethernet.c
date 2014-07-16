@@ -15,6 +15,53 @@
 #include "util_priv.h"
 #include "kernel.h"
 
+#define ALL_ADVERTISED_MODES			\
+	(ADVERTISED_10baseT_Half |		\
+	 ADVERTISED_10baseT_Full |		\
+	 ADVERTISED_100baseT_Half |		\
+	 ADVERTISED_100baseT_Full |		\
+	 ADVERTISED_1000baseT_Half |		\
+	 ADVERTISED_1000baseT_Full |		\
+	 ADVERTISED_2500baseX_Full |		\
+	 ADVERTISED_10000baseKX4_Full |		\
+	 ADVERTISED_10000baseKR_Full |		\
+	 ADVERTISED_10000baseR_FEC |		\
+	 ADVERTISED_20000baseMLD2_Full |	\
+	 ADVERTISED_20000baseKR2_Full |		\
+	 ADVERTISED_40000baseKR4_Full |		\
+	 ADVERTISED_40000baseCR4_Full |		\
+	 ADVERTISED_40000baseSR4_Full |		\
+	 ADVERTISED_40000baseLR4_Full)
+
+#define ALL_ADVERTISED_FLAGS			\
+	(ADVERTISED_10baseT_Half |		\
+	 ADVERTISED_10baseT_Full |		\
+	 ADVERTISED_100baseT_Half |		\
+	 ADVERTISED_100baseT_Full |		\
+	 ADVERTISED_1000baseT_Half |		\
+	 ADVERTISED_1000baseT_Full |		\
+	 ADVERTISED_Autoneg |			\
+	 ADVERTISED_TP |			\
+	 ADVERTISED_AUI |			\
+	 ADVERTISED_MII |			\
+	 ADVERTISED_FIBRE |			\
+	 ADVERTISED_BNC |			\
+	 ADVERTISED_10000baseT_Full |		\
+	 ADVERTISED_Pause |			\
+	 ADVERTISED_Asym_Pause |		\
+	 ADVERTISED_2500baseX_Full |		\
+	 ADVERTISED_Backplane |			\
+	 ADVERTISED_1000baseKX_Full |		\
+	 ADVERTISED_10000baseKX4_Full |		\
+	 ADVERTISED_10000baseKR_Full |		\
+	 ADVERTISED_10000baseR_FEC |		\
+	 ADVERTISED_20000baseMLD2_Full |	\
+	 ADVERTISED_20000baseKR2_Full |		\
+	 ADVERTISED_40000baseKR4_Full |		\
+	 ADVERTISED_40000baseCR4_Full |		\
+	 ADVERTISED_40000baseSR4_Full |		\
+	 ADVERTISED_40000baseLR4_Full)
+
 static int	__ni_system_ethernet_get(const char *, ni_ethernet_t *);
 static int	__ni_system_ethernet_set(const char *, const ni_ethernet_t *);
 
@@ -354,18 +401,16 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 		ether->link_speed = ethtool_cmd_speed(&ecmd);
 
 	mapped = __ni_ethtool_to_wicked(__ni_ethtool_duplex_map, ecmd.duplex);
-	if (mapped < 0) {
+	if (mapped < 0)
 		ni_warn("%s: unknown duplex setting %d", ifname, ecmd.duplex);
-	} else {
+	else
 		ether->duplex = mapped;
-	}
 
 	mapped = __ni_ethtool_to_wicked(__ni_ethtool_port_map, ecmd.port);
-	if (mapped < 0) {
+	if (mapped < 0)
 		ni_warn("%s: unknown port setting %d", ifname, ecmd.port);
-	} else {
+	else
 		ether->port_type = mapped;
-	}
 
 	ether->autoneg_enable = (ecmd.autoneg? NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE);
 
@@ -420,6 +465,67 @@ __ni_system_ethernet_update(ni_netdev_t *dev, const ni_ethernet_t *ether)
 	return __ni_system_ethernet_refresh(dev);
 }
 
+/*
+ * Based on ecmd.speed and ecmd.duplex, determine ecmd.advertising.
+ */
+static void
+__ni_system_ethernet_set_advertising(const char *ifname, struct ethtool_cmd *ecmd)
+{
+	if (!ecmd)
+		return;
+
+	if (ecmd->speed == SPEED_10 && ecmd->duplex == DUPLEX_HALF)
+		ecmd->advertising = ADVERTISED_10baseT_Half;
+	else if (ecmd->speed == SPEED_10 &&
+		ecmd->duplex == DUPLEX_FULL)
+		ecmd->advertising = ADVERTISED_10baseT_Full;
+	else if (ecmd->speed == SPEED_100 &&
+		ecmd->duplex == DUPLEX_HALF)
+		ecmd->advertising = ADVERTISED_100baseT_Half;
+	else if (ecmd->speed == SPEED_100 &&
+		ecmd->duplex == DUPLEX_FULL)
+		ecmd->advertising = ADVERTISED_100baseT_Full;
+	else if (ecmd->speed == SPEED_1000 &&
+		ecmd->duplex == DUPLEX_HALF)
+		ecmd->advertising = ADVERTISED_1000baseT_Half;
+	else if (ecmd->speed == SPEED_1000 &&
+		ecmd->duplex == DUPLEX_FULL)
+		ecmd->advertising = ADVERTISED_1000baseT_Full;
+	else if (ecmd->speed == SPEED_2500 &&
+		ecmd->duplex == DUPLEX_FULL)
+		ecmd->advertising = ADVERTISED_2500baseX_Full;
+	else if (ecmd->speed == SPEED_10000 &&
+		ecmd->duplex == DUPLEX_FULL)
+		ecmd->advertising = ADVERTISED_10000baseT_Full;
+	else
+		/* auto negotiate without forcing,
+		 * all supported speeds will be assigned below
+		 */
+		ecmd->advertising = 0;
+
+	if (ecmd->autoneg && ecmd->advertising == 0) {
+		/* Auto negotiation enabled, but with
+		 * unspecified speed and duplex: enable all
+		 * supported speeds and duplexes.
+		 */
+		ecmd->advertising = (ecmd->advertising &
+				~ALL_ADVERTISED_MODES) |
+			(ALL_ADVERTISED_MODES &
+				ecmd->supported);
+		/* If driver supports unknown flags, we cannot
+		 * be sure that we enable all link modes.
+		 */
+		if ((ecmd->supported & ALL_ADVERTISED_FLAGS) != ecmd->supported) {
+			ni_error("%s: Driver supports one or more unknown flags",
+				ifname);
+		}
+	} else if (ecmd->advertising > 0) {
+		/* Enable all requested modes. */
+		ecmd->advertising = (ecmd->advertising & ~ALL_ADVERTISED_MODES) |
+			ecmd->advertising;
+	}
+}
+
 int
 __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 {
@@ -443,7 +549,7 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 	if (ether->duplex != NI_ETHERNET_DUPLEX_DEFAULT) {
 		mapped = __ni_wicked_to_ethtool(__ni_ethtool_duplex_map, ether->duplex);
 		if (mapped >= 0)
-			ecmd.port = mapped;
+			ecmd.duplex = mapped;
 	}
 
 	if (ether->port_type != NI_ETHERNET_PORT_DEFAULT) {
@@ -484,6 +590,14 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 				value &= ~ETH_FLAG_LRO;
 		}
 		__ni_ethtool_set_value(ifname, &__ethtool_sflags, value);
+	}
+
+	__ni_system_ethernet_set_advertising(ifname, &ecmd);
+
+	if (__ni_ethtool(ifname, ETHTOOL_SSET, &ecmd) < 0) {
+		if (errno != EOPNOTSUPP)
+			ni_error("%s: ETHTOOL_SSET failed: %m", ifname);
+		return -1;
 	}
 
 	return 0;

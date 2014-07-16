@@ -222,7 +222,7 @@ usage:
 		/* skip unused devices without config */
 		if (!ni_ifcheck_worker_config_exists(w) &&
 		    !ni_ifcheck_device_configured(dev)) {
-			ni_info("skipping %s interface: no configuration exists and"
+			ni_info("skipping %s interface: no configuration exists and "
 				"device is not configured by wicked", w->name);
 			continue;
 		}
