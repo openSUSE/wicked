@@ -2014,6 +2014,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 	}
 
 	if (ap->bcast_addr.ss_family != AF_UNSPEC
+	 && !ni_sockaddr_equal(&ap->bcast_addr, &ap->local_addr)
 	 && addattr_sockaddr(msg, IFA_BROADCAST, &ap->bcast_addr) < 0)
 		goto nla_put_failure;
 
