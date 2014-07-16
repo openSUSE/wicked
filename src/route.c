@@ -177,7 +177,10 @@ ni_route_create(unsigned int prefixlen, const ni_sockaddr_t *dest,
 	rp->family = af;
 	rp->prefixlen = prefixlen;
 	rp->destination = *dest;
-	rp->nh.gateway = *gw;
+	if (!ni_sockaddr_is_specified(gw))
+		rp->nh.gateway.ss_family = af;
+	else
+		rp->nh.gateway = *gw;
 	if (rp->destination.ss_family == AF_UNSPEC) {
 		memset(&rp->destination, 0, sizeof(rp->destination));
 		rp->destination.ss_family = af;
@@ -747,7 +750,7 @@ ni_route_guess_scope(ni_route_t *rp)
 
 		case RTN_UNICAST:
 		case RTN_UNSPEC:
-			if (rp->nh.gateway.ss_family == AF_UNSPEC)
+			if (!ni_sockaddr_is_specified(&rp->nh.gateway))
 				return RT_SCOPE_LINK;
 		default: ;
 		}
