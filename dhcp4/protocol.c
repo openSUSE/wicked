@@ -1299,7 +1299,7 @@ guess_default_maskbits(struct in_addr addr)
 static inline in_addr_t
 cidr_to_netmask(unsigned int pfxlen)
 {
-	return htonl(~((1<<(32-pfxlen))-1));
+	return pfxlen ? htonl(~((1<<(32-pfxlen))-1)) : 0U;
 }
 
 /*
