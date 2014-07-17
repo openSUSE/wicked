@@ -46,46 +46,34 @@
 #include "ifup.h"
 
 static xml_node_t *
-__ni_ifup_generate_match_type_dev(ni_netdev_t *dev)
-{
-	const char *type;
-	xml_node_t *ret;
-
-	if (!dev || dev->link.type == NI_IFTYPE_UNKNOWN)
-		return NULL;
-
-	if (!(type = ni_linktype_type_to_name(dev->link.type)))
-		return NULL;
-
-	if (!(ret = xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_AND, NULL)))
-		return NULL;
-
-	if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, ret, dev->name) ||
-	    !xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_LINK_TYPE, ret, type)) {
-		xml_node_free(ret);
-		return NULL;
-	}
-	return ret;
-}
-
-static xml_node_t *
 __ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w)
 {
-	if (!node || !w || !w->name)
+	ni_netdev_t *dev;
+	const char *type;
+
+	if (!node || !w || ni_string_empty(w->name))
 		return NULL;
 
-	/* TODO: the type has to be from config, _not_ from device
-	 * (dev is probably a not ready one just using our name),
-	 * but this info is lost in translation... isn't it?
-	 */
-	if (w->device && ni_string_eq(w->name, w->device->name)) {
-		xml_node_t * ret = NULL;
+	/* Conditional <link-type> generation */
+	{
+		/* TODO: the type has to be from config, _not_ from device
+		 * (dev is probably a not ready one just using our name),
+		 * but this info is lost in translation... isn't it?
+		 */
+		if (!(dev = w->device) || !ni_string_eq(w->name, dev->name))
+			goto skip;
 
-		if ((ret = __ni_ifup_generate_match_type_dev(w->device))) {
-			xml_node_add_child(node, ret);
-			return ret;
-		}
+		if (dev->link.type == NI_IFTYPE_UNKNOWN)
+			goto skip;
+
+		type = ni_linktype_type_to_name(dev->link.type);
+		if (ni_string_empty(type))
+			goto skip;
+
+		if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_LINK_TYPE, node, type))
+			return NULL; /* Error */
 	}
+skip:
 
 	return xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, node, w->name);
 }
