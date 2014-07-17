@@ -1546,6 +1546,7 @@ ni_dhcp4_parse_response(const ni_dhcp4_message_t *message, ni_buffer_t *options,
 	int msg_type = -1;
 	int use_bootserver = 1;
 	int use_bootfile = 1;
+	unsigned int pfxlen;
 
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET);
 
@@ -1808,10 +1809,27 @@ parse_more:
 	}
 
 	/* Fill in any missing fields */
-	if (!lease->dhcp4.netmask.s_addr) {
-		unsigned int pfxlen = guess_prefix_len(lease->dhcp4.address);
+	if (lease->dhcp4.netmask.s_addr) {
+		ni_sockaddr_t mask;
 
-		lease->dhcp4.netmask.s_addr = htonl(~(0xFFFFFFFF >> pfxlen));
+		ni_sockaddr_set_ipv4(&mask, lease->dhcp4.netmask, 0);
+		if (!(pfxlen = ni_sockaddr_netmask_bits(&mask)))
+			pfxlen = 32;
+	} else {
+		uint32_t prefix = ntohl(lease->dhcp4.address.s_addr);
+
+		if (IN_CLASSA(prefix))
+			pfxlen = 8;
+		else if (IN_CLASSB(prefix))
+			pfxlen = 16;
+		else if (IN_CLASSC(prefix))
+			pfxlen = 24;
+		else
+			pfxlen = 32;
+		lease->dhcp4.netmask.s_addr = htonl(~((1<<(32-pfxlen))-1));
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"guessed netmask: %s, cidr: %u",
+				inet_ntoa(lease->dhcp4.netmask), pfxlen);
 	}
 	if (!lease->dhcp4.broadcast.s_addr) {
 		lease->dhcp4.broadcast.s_addr = lease->dhcp4.address.s_addr |
@@ -1824,9 +1842,7 @@ parse_more:
 		memset(&local_addr, 0, sizeof(local_addr));
 		local_addr.sin.sin_family = AF_INET;
 		local_addr.sin.sin_addr = lease->dhcp4.address;
-		ap = ni_address_new(AF_INET,
-				__count_net_bits(ntohl(lease->dhcp4.netmask.s_addr)),
-				&local_addr, &lease->addrs);
+		ap = ni_address_new(AF_INET, pfxlen, &local_addr, &lease->addrs);
 		if (ap) {
 			memset(&ap->bcast_addr, 0, sizeof(ap->bcast_addr));
 			ap->bcast_addr.sin.sin_family = AF_INET;
