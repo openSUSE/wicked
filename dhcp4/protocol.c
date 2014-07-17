@@ -1282,6 +1282,26 @@ guess_prefix_len_sockaddr(const ni_sockaddr_t *ap)
 	return guess_prefix_len(ap->sin.sin_addr);
 }
 
+static inline unsigned int
+guess_default_maskbits(struct in_addr addr)
+{
+	uint32_t prefix = ntohl(addr.s_addr);
+
+	if (IN_CLASSA(prefix))
+		return 8;
+	if (IN_CLASSB(prefix))
+		return 16;
+	if (IN_CLASSC(prefix))
+		return 24;
+	return 32;
+}
+
+static inline in_addr_t
+cidr_to_netmask(unsigned int pfxlen)
+{
+	return pfxlen ? htonl(~((1<<(32-pfxlen))-1)) : 0U;
+}
+
 /*
  * DHCP4_STATICROUTE
  * List of network/gateway pairs.
@@ -1816,17 +1836,9 @@ parse_more:
 		if (!(pfxlen = ni_sockaddr_netmask_bits(&mask)))
 			pfxlen = 32;
 	} else {
-		uint32_t prefix = ntohl(lease->dhcp4.address.s_addr);
+		pfxlen = guess_default_maskbits(lease->dhcp4.address);
+		lease->dhcp4.netmask.s_addr = cidr_to_netmask(pfxlen);
 
-		if (IN_CLASSA(prefix))
-			pfxlen = 8;
-		else if (IN_CLASSB(prefix))
-			pfxlen = 16;
-		else if (IN_CLASSC(prefix))
-			pfxlen = 24;
-		else
-			pfxlen = 32;
-		lease->dhcp4.netmask.s_addr = htonl(~((1<<(32-pfxlen))-1));
 		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
 				"guessed netmask: %s, cidr: %u",
 				inet_ntoa(lease->dhcp4.netmask), pfxlen);
