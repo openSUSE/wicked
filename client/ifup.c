@@ -46,48 +46,34 @@
 #include "ifup.h"
 
 static xml_node_t *
-__ni_ifup_generate_match_type_dev(ni_netdev_t *dev, ni_bool_t child)
+__ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w)
 {
+	ni_netdev_t *dev;
 	const char *type;
-	xml_node_t *ret;
 
-	if (!dev || dev->link.type == NI_IFTYPE_UNKNOWN)
+	if (!node || !w || ni_string_empty(w->name))
 		return NULL;
 
-	if (!(type = ni_linktype_type_to_name(dev->link.type)))
-		return NULL;
+	/* Conditional <link-type> generation */
+	{
+		/* TODO: the type has to be from config, _not_ from device
+		 * (dev is probably a not ready one just using our name),
+		 * but this info is lost in translation... isn't it?
+		 */
+		if (!(dev = w->device) || !ni_string_eq(w->name, dev->name))
+			goto skip;
 
-	ret = child ? xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_CHILD, NULL) :
-			xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_AND, NULL);
-	if (!ret)
-		return NULL;
+		if (dev->link.type == NI_IFTYPE_UNKNOWN)
+			goto skip;
 
-	if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, ret, dev->name) ||
-	    !xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_LINK_TYPE, ret, type)) {
-		xml_node_free(ret);
-		return NULL;
+		type = ni_linktype_type_to_name(dev->link.type);
+		if (ni_string_empty(type))
+			goto skip;
+
+		if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_LINK_TYPE, node, type))
+			return NULL; /* Error */
 	}
-	return ret;
-}
-
-static xml_node_t *
-__ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w, ni_bool_t child)
-{
-	if (!node || !w || !w->name)
-		return NULL;
-
-	/* TODO: the type has to be from config, _not_ from device
-	 * (dev is probably a not ready one just using our name),
-	 * but this info is lost in translation... isn't it?
-	 */
-	if (w->device && ni_string_eq(w->name, w->device->name)) {
-		xml_node_t * ret = NULL;
-
-		if ((ret = __ni_ifup_generate_match_type_dev(w->device, child))) {
-			xml_node_add_child(node, ret);
-			return ret;
-		}
-	}
+skip:
 
 	return xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, node, w->name);
 }
@@ -96,34 +82,36 @@ static xml_node_t *
 __ni_ifup_generate_match(ni_ifworker_t *w)
 {
 	xml_node_t *match;
-	unsigned int i;
 
 	if (!(match = xml_node_new(NI_NANNY_IFPOLICY_MATCH, NULL)))
-		return NULL;
+		goto error;
 
-	if (!__ni_ifup_generate_match_dev(match, w, FALSE)) {
-		xml_node_free(match);
-		return NULL;
-	}
+	if (!__ni_ifup_generate_match_dev(match, w))
+		goto error;
 
 	if (w->children.count) {
-		xml_node_t*or;
+		xml_node_t *or;
+		unsigned int i;
 
 		if (!(or = xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_OR, match)))
-			return NULL;
+			goto error;
 
 		for (i = 0; i < w->children.count; i++) {
 			ni_ifworker_t *child = w->children.data[i];
+			xml_node_t *cnode;
 
-			if (!__ni_ifup_generate_match_dev(or, child, TRUE)) {
-				xml_node_free(match);
-				return NULL;
-			}
+			if(!(cnode = xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_CHILD, or)))
+				goto error;
+
+			if (!__ni_ifup_generate_match_dev(cnode, child))
+				goto error;
 		}
-
 	}
 
 	return match;
+error:
+	xml_node_free(match);
+	return NULL;
 }
 
 static ni_bool_t
