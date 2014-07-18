@@ -79,11 +79,11 @@ skip:
 }
 
 static xml_node_t *
-__ni_ifup_generate_match(ni_ifworker_t *w)
+__ni_ifup_generate_match(const char *name, ni_ifworker_t *w)
 {
 	xml_node_t *match;
 
-	if (!(match = xml_node_new(NI_NANNY_IFPOLICY_MATCH, NULL)))
+	if (!(match = xml_node_new(name, NULL)))
 		goto error;
 
 	if (!__ni_ifup_generate_match_dev(match, w))
@@ -100,11 +100,8 @@ __ni_ifup_generate_match(ni_ifworker_t *w)
 			ni_ifworker_t *child = w->children.data[i];
 			xml_node_t *cnode;
 
-			if(!(cnode = xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_CHILD, or)))
-				goto error;
-
-			if (!__ni_ifup_generate_match_dev(cnode, child))
-				goto error;
+			cnode = __ni_ifup_generate_match(NI_NANNY_IFPOLICY_MATCH_COND_CHILD, child);
+			xml_node_add_child(or ,cnode);
 		}
 	}
 
@@ -136,7 +133,7 @@ ni_ifup_start_policy(ni_ifworker_t *w)
 			w->name, pname);
 
 	policy = ni_convert_cfg_into_policy_node(ifcfg,
-			__ni_ifup_generate_match(w),
+			__ni_ifup_generate_match(NI_NANNY_IFPOLICY_MATCH, w),
 			pname, w->config.origin);
 	ni_string_free(&pname);
 	if (!policy) {
