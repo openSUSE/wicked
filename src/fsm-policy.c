@@ -372,27 +372,18 @@ ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
 	xml_node_t *node;
 	char *pname;
 
-	if (!ni_ifpolicy_name_is_valid(policy->name)) {
-		ni_error("policy with invalid name");
+	if (!policy || !w)
 		return FALSE;
-	}
 
-	if (!policy->match || policy->type != NI_IFPOLICY_TYPE_CONFIG) {
-		ni_error("wrong type or no match for policy %s", policy->name);
-		return FALSE;
-	}
-
-	/* 1st match   check - ifworker to policy name comparison */
+	/* 1st match check -ifworker to policy name comparison */
 	pname = ni_ifpolicy_name_from_ifname(w->name);
 	if (!ni_string_eq(policy->name, pname)) {
-		ni_debug_nanny("%s: policy name indicates different device than %s",
-				policy->name, w->name);
 		ni_string_free(&pname);
 		return FALSE;
 	}
 	ni_string_free(&pname);
 
-	/* 2nd  match check -  ifworker  to config name comparison */
+	/* 2nd match check - ifworker  to config name comparison */
 	if (w->config.node && (node = xml_node_get_child(w->config.node, "name"))) {
 		const char *namespace = xml_node_get_attr(node, "namespace");
 		if (!namespace && !ni_string_eq(node->cdata, w->name)) {
@@ -402,8 +393,15 @@ ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
 		}
 	}
 
-	/* 2nd match check - <match> condition must be fulfilled */
-	return ni_ifcondition_check(policy->match, w);
+	/* 3rd match check - <match> condition must be fulfilled */
+	if (!ni_ifcondition_check(policy->match, w)) {
+		ni_debug_nanny("%s: policy <match> condition is not met for worker %s",
+			policy->name, w->name);
+		return FALSE;
+	}
+
+	ni_debug_nanny("%s: found applicable policy: %s", w->name, policy->name);
+	return TRUE;
 }
 
 /*
@@ -450,6 +448,21 @@ ni_fsm_policy_get_applicable_policies(ni_fsm_t *fsm, ni_ifworker_t *w,
 		return 0;
 
 	for (policy = fsm->policies; policy; policy = policy->next) {
+		if (!ni_ifpolicy_name_is_valid(policy->name)) {
+			ni_error("policy with invalid name %s", policy->name);
+			continue;
+		}
+
+		if (policy->type != NI_IFPOLICY_TYPE_CONFIG) {
+			ni_error("policy %s: wrong type %d", policy->name, policy->type);
+			continue;
+		}
+
+		if (!policy->match) {
+			ni_error("policy %s: no valid <match>", policy->name);
+			continue;
+		}
+
 		if (ni_fsm_policy_applicable(policy, w)) {
 			if (count < max)
 				result[count++] = policy;
