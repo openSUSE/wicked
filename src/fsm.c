@@ -771,8 +771,6 @@ ni_ifworker_by_modem(ni_fsm_t *fsm, const ni_modem_t *dev)
 ni_bool_t
 ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
 {
-	unsigned int i;
-
 	if (!w || ni_string_empty(ifname))
 		return FALSE;
 
@@ -783,18 +781,7 @@ ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
 	if (ni_string_eq(w->name, ifname))
 		return TRUE;
 
-	ni_debug_nanny("policy matches against dependency device");
-
-	/* Check for presence of mandatory child ifworker */
-	for (i = 0; i < w->children.count; i++) {
-		ni_ifworker_t *child = w->children.data[i];
-
-		if (ni_string_eq(child->name, ifname))
-			return TRUE;
-	}
-
 	ni_error("device %s requested via match is not present", ifname);
-
 	return FALSE;
 }
 
