@@ -1117,25 +1117,39 @@ ni_ifcondition_term2(xml_node_t *node, ni_ifcondition_check_fn_t *check_fn)
 static ni_bool_t
 __ni_fsm_policy_match_and_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
-	return ni_ifcondition_check(cond->args.terms.left, w)
+	ni_bool_t rv;
+
+	rv = ni_ifcondition_check(cond->args.terms.left, w)
 	    && ni_ifcondition_check(cond->args.terms.right, w);
+
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_trace("%s: %s condition is %s",
+			w->name, __func__, ni_format_boolean(rv));
+	}
+	return rv;
+
 }
 
 static ni_bool_t
 __ni_fsm_policy_match_and_children_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
 	unsigned int i;
+	ni_bool_t rv = FALSE;
 
 	for (i = 0; i < w->children.count; i++) {
 		ni_ifworker_t *child = w->children.data[i];
 
-		if (ni_ifcondition_check(cond->args.terms.left, child) &&
-		    ni_ifcondition_check(cond->args.terms.right, child)) {
-			return TRUE;
+		if ((rv = ni_ifcondition_check(cond->args.terms.left, child) &&
+		    ni_ifcondition_check(cond->args.terms.right, child))) {
+			break;
 		}
 	}
 
-	return FALSE;
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_trace("%s: %s condition is %s",
+			w->name, __func__, ni_format_boolean(rv));
+	}
+	return rv;
 }
 
 static ni_ifcondition_t *
@@ -1166,8 +1180,16 @@ ni_ifcondition_and_child(xml_node_t *node)
 static ni_bool_t
 __ni_fsm_policy_match_or_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
-	return ni_ifcondition_check(cond->args.terms.left, w)
+	ni_bool_t rv;
+
+	rv = ni_ifcondition_check(cond->args.terms.left, w)
 	    || ni_ifcondition_check(cond->args.terms.right, w);
+
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_trace("%s: %s condition is %s",
+			w->name, __func__, ni_format_boolean(rv));
+	}
+	return rv;
 }
 
 static ni_ifcondition_t *
@@ -1238,7 +1260,16 @@ ni_ifcondition_type(xml_node_t *node)
 static ni_bool_t
 __ni_fsm_policy_match_class_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
-	return w->object && ni_dbus_class_is_subclass(cond->args.class, w->object->class);
+	ni_bool_t rv;
+
+	rv = w->object &&
+		ni_dbus_class_is_subclass(cond->args.class, w->object->class);
+
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_trace("%s: %s condition is %s",
+			w->name, __func__, ni_format_boolean(rv));
+	}
+	return rv;
 }
 
 static ni_ifcondition_t *
@@ -1312,7 +1343,15 @@ ni_ifcondition_sharable(xml_node_t *node)
 static ni_bool_t
 __ni_fsm_policy_match_device_name_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
-	return ni_ifworker_match_netdev_name(w, cond->args.string);
+	ni_bool_t rv;
+
+	rv = ni_ifworker_match_netdev_name(w, cond->args.string);
+
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_trace("%s: %s condition is %s",
+			w->name, __func__, ni_format_boolean(rv));
+	}
+	return rv;
 }
 static ni_bool_t
 __ni_fsm_policy_match_device_alias_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
