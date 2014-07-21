@@ -394,6 +394,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 		if (dev->seq != seqno) {
 			*tail = dev->next;
 			if (del_list == NULL) {
+				ni_client_state_drop(dev->link.ifindex);
 				ni_netdev_put(dev);
 			} else {
 				dev->next = NULL;
