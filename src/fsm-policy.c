@@ -1139,10 +1139,9 @@ __ni_fsm_policy_match_and_children_check(const ni_ifcondition_t *cond, ni_ifwork
 	for (i = 0; i < w->children.count; i++) {
 		ni_ifworker_t *child = w->children.data[i];
 
-		if ((rv = ni_ifcondition_check(cond->args.terms.left, child) &&
-		    ni_ifcondition_check(cond->args.terms.right, child))) {
+		rv = ni_ifcondition_check(cond->args.terms.left, child);
+		if (rv)
 			break;
-		}
 	}
 
 	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
@@ -1167,7 +1166,18 @@ ni_ifcondition_and(xml_node_t *node)
 static ni_ifcondition_t *
 ni_ifcondition_and_child(xml_node_t *node)
 {
-	return ni_ifcondition_term2(node, __ni_fsm_policy_match_and_children_check);
+	ni_ifcondition_t *and;
+
+	if (node->children == NULL) {
+		ni_error("%s: <%s> condition must not be empty",
+				xml_node_location(node), node->name);
+		return NULL;
+	}
+
+	if (!(and = ni_ifcondition_and(node)))
+		return NULL;
+
+	return ni_ifcondition_new_terms(__ni_fsm_policy_match_and_children_check, and, NULL);
 }
 
 /*
