@@ -479,6 +479,18 @@ ni_ifstatus_show_cstate(const ni_netdev_t *dev, ni_bool_t verbose)
 	}
 }
 
+unsigned int
+ni_ifstatus_nontransient(unsigned int status)
+{
+	switch (status) {
+	case NI_WICKED_ST_IN_PROGRESS:
+	case NI_WICKED_ST_CHANGED_CONFIG:
+		return NI_WICKED_ST_OK;
+	default:
+		return status;
+	}
+}
+
 void
 ni_ifstatus_show_status(const char *ifname, unsigned int status)
 {
@@ -656,7 +668,8 @@ ni_do_ifstatus(int argc, char **argv)
 		nmarked++;
 
 		if (opt_verbose > OPT_QUIET)
-			ni_ifstatus_show_status(w->name, st);
+			ni_ifstatus_show_status(w->name, opt_transient ? st :
+						ni_ifstatus_nontransient(st));
 
 		if (opt_verbose <= OPT_BRIEF)
 			continue;
