@@ -2886,7 +2886,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	ni_netdev_t *dev = ni_objectmodel_unwrap_netif(object, NULL);
 	ni_ifworker_t *found = NULL;
 
-	if ((dev == NULL || dev->name == NULL) && refresh) {
+	if (dev == NULL || dev->name == NULL || refresh) {
 		if (!ni_dbus_object_refresh_children(object)) {
 			ni_error("%s: failed to refresh netdev object", object->path);
 			return NULL;
