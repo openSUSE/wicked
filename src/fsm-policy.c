@@ -372,27 +372,18 @@ ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
 	xml_node_t *node;
 	char *pname;
 
-	if (!ni_ifpolicy_name_is_valid(policy->name)) {
-		ni_error("policy with invalid name");
+	if (!policy || !w)
 		return FALSE;
-	}
 
-	if (!policy->match || policy->type != NI_IFPOLICY_TYPE_CONFIG) {
-		ni_error("wrong type or no match for policy %s", policy->name);
-		return FALSE;
-	}
-
-	/* 1st match   check - ifworker to policy name comparison */
+	/* 1st match check -ifworker to policy name comparison */
 	pname = ni_ifpolicy_name_from_ifname(w->name);
 	if (!ni_string_eq(policy->name, pname)) {
-		ni_debug_nanny("%s: policy name indicates different device than %s",
-				policy->name, w->name);
 		ni_string_free(&pname);
 		return FALSE;
 	}
 	ni_string_free(&pname);
 
-	/* 2nd  match check -  ifworker  to config name comparison */
+	/* 2nd match check - ifworker  to config name comparison */
 	if (w->config.node && (node = xml_node_get_child(w->config.node, "name"))) {
 		const char *namespace = xml_node_get_attr(node, "namespace");
 		if (!namespace && !ni_string_eq(node->cdata, w->name)) {
@@ -402,8 +393,15 @@ ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
 		}
 	}
 
-	/* 2nd match check - <match> condition must be fulfilled */
-	return ni_ifcondition_check(policy->match, w);
+	/* 3rd match check - <match> condition must be fulfilled */
+	if (!ni_ifcondition_check(policy->match, w)) {
+		ni_debug_nanny("%s: policy <match> condition is not met for worker %s",
+			policy->name, w->name);
+		return FALSE;
+	}
+
+	ni_debug_nanny("%s: found applicable policy: %s", w->name, policy->name);
+	return TRUE;
 }
 
 /*
@@ -450,6 +448,21 @@ ni_fsm_policy_get_applicable_policies(ni_fsm_t *fsm, ni_ifworker_t *w,
 		return 0;
 
 	for (policy = fsm->policies; policy; policy = policy->next) {
+		if (!ni_ifpolicy_name_is_valid(policy->name)) {
+			ni_error("policy with invalid name %s", policy->name);
+			continue;
+		}
+
+		if (policy->type != NI_IFPOLICY_TYPE_CONFIG) {
+			ni_error("policy %s: wrong type %d", policy->name, policy->type);
+			continue;
+		}
+
+		if (!policy->match) {
+			ni_error("policy %s: no valid <match>", policy->name);
+			continue;
+		}
+
 		if (ni_fsm_policy_applicable(policy, w)) {
 			if (count < max)
 				result[count++] = policy;
@@ -461,15 +474,16 @@ ni_fsm_policy_get_applicable_policies(ni_fsm_t *fsm, ni_ifworker_t *w,
 }
 
 ni_bool_t
-ni_fsm_exists_applicable_policy(ni_fsm_t *fsm, ni_ifworker_t *w)
+ni_fsm_exists_applicable_policy(ni_fsm_policy_t *list, ni_ifworker_t *w)
 {
 	ni_fsm_policy_t *policy;
 
-	if (fsm && w) {
-		for (policy = fsm->policies; policy; policy = policy->next) {
-			if (ni_fsm_policy_applicable(policy, w))
-				return TRUE;
-		}
+	if (!list || !w)
+		return FALSE;
+
+	for (policy = list; policy; policy = policy->next) {
+		if (ni_fsm_policy_applicable(policy, w))
+			return TRUE;
 	}
 
 	return FALSE;
@@ -1103,25 +1117,38 @@ ni_ifcondition_term2(xml_node_t *node, ni_ifcondition_check_fn_t *check_fn)
 static ni_bool_t
 __ni_fsm_policy_match_and_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
-	return ni_ifcondition_check(cond->args.terms.left, w)
+	ni_bool_t rv;
+
+	rv = ni_ifcondition_check(cond->args.terms.left, w)
 	    && ni_ifcondition_check(cond->args.terms.right, w);
+
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_trace("%s: %s condition is %s",
+			w->name, __func__, ni_format_boolean(rv));
+	}
+	return rv;
+
 }
 
 static ni_bool_t
 __ni_fsm_policy_match_and_children_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
 	unsigned int i;
+	ni_bool_t rv = FALSE;
 
 	for (i = 0; i < w->children.count; i++) {
 		ni_ifworker_t *child = w->children.data[i];
 
-		if (ni_ifcondition_check(cond->args.terms.left, child) &&
-		    ni_ifcondition_check(cond->args.terms.right, child)) {
-			return TRUE;
-		}
+		rv = ni_ifcondition_check(cond->args.terms.left, child);
+		if (rv)
+			break;
 	}
 
-	return FALSE;
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_trace("%s: %s condition is %s",
+			w->name, __func__, ni_format_boolean(rv));
+	}
+	return rv;
 }
 
 static ni_ifcondition_t *
@@ -1139,7 +1166,18 @@ ni_ifcondition_and(xml_node_t *node)
 static ni_ifcondition_t *
 ni_ifcondition_and_child(xml_node_t *node)
 {
-	return ni_ifcondition_term2(node, __ni_fsm_policy_match_and_children_check);
+	ni_ifcondition_t *and;
+
+	if (node->children == NULL) {
+		ni_error("%s: <%s> condition must not be empty",
+				xml_node_location(node), node->name);
+		return NULL;
+	}
+
+	if (!(and = ni_ifcondition_and(node)))
+		return NULL;
+
+	return ni_ifcondition_new_terms(__ni_fsm_policy_match_and_children_check, and, NULL);
 }
 
 /*
@@ -1152,8 +1190,16 @@ ni_ifcondition_and_child(xml_node_t *node)
 static ni_bool_t
 __ni_fsm_policy_match_or_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
-	return ni_ifcondition_check(cond->args.terms.left, w)
+	ni_bool_t rv;
+
+	rv = ni_ifcondition_check(cond->args.terms.left, w)
 	    || ni_ifcondition_check(cond->args.terms.right, w);
+
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_trace("%s: %s condition is %s",
+			w->name, __func__, ni_format_boolean(rv));
+	}
+	return rv;
 }
 
 static ni_ifcondition_t *
@@ -1224,7 +1270,16 @@ ni_ifcondition_type(xml_node_t *node)
 static ni_bool_t
 __ni_fsm_policy_match_class_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
-	return w->object && ni_dbus_class_is_subclass(cond->args.class, w->object->class);
+	ni_bool_t rv;
+
+	rv = w->object &&
+		ni_dbus_class_is_subclass(cond->args.class, w->object->class);
+
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_trace("%s: %s condition is %s",
+			w->name, __func__, ni_format_boolean(rv));
+	}
+	return rv;
 }
 
 static ni_ifcondition_t *
@@ -1298,7 +1353,15 @@ ni_ifcondition_sharable(xml_node_t *node)
 static ni_bool_t
 __ni_fsm_policy_match_device_name_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
-	return ni_ifworker_match_netdev_name(w, cond->args.string);
+	ni_bool_t rv;
+
+	rv = ni_ifworker_match_netdev_name(w, cond->args.string);
+
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_trace("%s: %s condition is %s",
+			w->name, __func__, ni_format_boolean(rv));
+	}
+	return rv;
 }
 static ni_bool_t
 __ni_fsm_policy_match_device_alias_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
