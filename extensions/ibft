@@ -158,6 +158,7 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 	err_name="$err_base/$ibft_nic"
 
 	nic_flags=`ibft_getattr "$nicpath/flags"`
+	# Check for valid NIC block
 	[ -n "$nic_flags" ] && ((nic_flags & 0x01)) || continue
 
 	devpath=`do_readlink -f $nicpath/device`
@@ -184,31 +185,38 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 		continue
 	fi
 
-	nic_ipaddr=`ibft_getattr "$nicpath/ip-addr"`
-	nic_prefixlen=""
-
-	# The kernel AFAIS currently supports only IPv4:
-	# it always converts the iBFT "Subnet Mask Prefix"
-	# byte (the prefix length) into a IPv4 netmask ...
-	netmask=`ibft_getattr "$nicpath/subnet-mask"`
-	case "$netmask" in
-	*.*.*.*)
-		nic_prefixlen=`netmask2pfxlen "$netmask" 2>/dev/null`
-		;;
-	*)
-		nic_prefixlen="$netmask"
-		;;
-	esac
-	[ -n "$nic_prefixlen" ] || continue
-
 	# Enum: Other,Manual,WellKnown,Dhcp,RouterAdv
 	# Note: kvm/gPXE is using 0, even it is from dhcp
 	nic_origin=`ibft_getattr "$nicpath/origin"`
+	nic_ipaddr=`ibft_getattr "$nicpath/ip-addr"`
+	nic_prefixlen=$(ibft_getattr "$nicpath/prefix-len")
 	nic_dhcp_server=`ibft_getattr "$nicpath/dhcp"`
 	nic_gateway=`ibft_getattr "$nicpath/gateway"`
 	nic_dns_server1=`ibft_getattr "$nicpath/primary-dns"`
 	nic_dns_server2=`ibft_getattr "$nicpath/secondary-dns"`
 	nic_hostname=`ibft_getattr "$nicpath/hostname"`
+
+	case "$nic_ipaddr" in
+	*.*.*.*)
+		nic_family="ipv4"
+		if [ -z "$nic_prefixlen" ] ; then
+			# Older kernel iBFT support isn't IPv6 aware
+			# and always converts the iBFT prefix length
+			# byte into dotted-decimal ipv4 subnet-mask.
+			netmask=`ibft_getattr "$nicpath/subnet-mask"`
+			nic_prefixlen=`netmask2pfxlen "$netmask" 2>/dev/null`
+		fi
+		;;
+	*:*)
+		nic_family="ipv6"
+		;;
+	esac
+	[ -n "$nic_family" ] || continue
+	if [ $nic_origin -ne 3 -a -n "$nic_ipaddr" ] ; then
+		# we need a prefix length for static setup
+		[ -n "$nic_prefixlen"    ] || continue
+		[ "$nic_prefixlen" = "0" ] && continue
+	fi
 
 	cat <<-EOF
 	<interface>
@@ -273,20 +281,21 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 		fi
 
 		cat <<-EOF
-		  <ipv4:static>
+		  <$nic_family:static>
 		    <address><local>$nic_ipaddr/$nic_prefixlen</local></address>
 		    $default_route
 		    $dns_servers
 		    $host_name
-		  </ipv4:static>
+		  </$nic_family:static>
 		EOF
 	fi
 	if [ -n "$nic_dhcp_server" -o "$nic_origin" -eq 3 ] ; then
-		# Default to DHCPv4 -- no root-path defined for DHCPv6.
+		# Note: There is currently no root-path option
+		#       defined for DHCPv6 in any RFC...
 		cat <<-EOF
-		  <ipv4:dhcp>
+		  <$nic_family:dhcp>
 		    <enabled>true</enabled>
-		  </ipv4:dhcp>
+		  </$nic_family:dhcp>
 		EOF
 	fi
 
