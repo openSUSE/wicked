@@ -159,26 +159,34 @@ ni_factory_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
 int
 ni_factory_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_policy_t *mpolicy)
 {
+	const char *type_name;
 	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
+	xml_node_t *config = NULL;
 
 	ni_debug_nanny("%s: configuring factory device using policy %s",
 		w->name, ni_fsm_policy_name(policy));
 
-	/* Factory worker config needs to be created upon createPolicy() call */
-	if (xml_node_is_empty(w->config.node)) {
-		ni_error("%s: factory device worker has no config", w->name);
+	/* This returns "modem" or "interface" */
+	type_name = ni_ifworker_type_to_string(w->type);
+
+	config = xml_node_new(type_name, NULL);
+	xml_node_new_element("name", config, w->name);
+
+	config = ni_fsm_policy_transform_document(config, &policy, 1);
+	if (config == NULL) {
+		ni_error("%s: error when applying policy to %s document",
+			w->name, type_name);
 		return -1;
 	}
-
 	ni_debug_nanny("%s: using device config", w->name);
-	xml_node_print_debug(w->config.node, 0);
+	xml_node_print_debug(config, 0);
 
-	ni_ifworker_set_config(w, w->config.node,
-		ni_fsm_policy_get_origin(policy));
+	ni_ifworker_set_config(w, config, ni_fsm_policy_get_origin(policy));
 
 	/* Now do the fandango */
 	return ni_factory_device_up(fsm, w);
 }
+
 
 /*
  * Apply policy to a device
@@ -187,6 +195,7 @@ int
 ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy)
 {
 	ni_ifworker_t *w = mdev->worker;
+	const char *type_name;
 	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
 	xml_node_t *config = NULL;
 
@@ -218,23 +227,21 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 
 	ni_debug_nanny("%s: using policy %s", w->name, ni_fsm_policy_name(policy));
 
-	if (xml_node_is_empty(w->config.node)) {
-		/* This returns "modem" or "interface" */
-		const char *type_name = ni_ifworker_type_to_string(w->type);
+	/* This returns "modem" or "interface" */
+	type_name = ni_ifworker_type_to_string(w->type);
 
-		config = xml_node_new(type_name, NULL);
-		xml_node_new_element("name", config, w->name);
+	config = xml_node_new(type_name, NULL);
+	xml_node_new_element("name", config, w->name);
 
-		config = ni_fsm_policy_transform_document(config, &policy, 1);
-		if (config == NULL) {
-			ni_error("%s: error when applying policy to %s document",
-				w->name, type_name);
-			return -1;
-		}
+	config = ni_fsm_policy_transform_document(config, &policy, 1);
+	if (config == NULL) {
+		ni_error("%s: error when applying policy to %s document", w->name, type_name);
+#if 0
+		if (mdev->state != NI_MANAGED_STATE_STOPPED)
+			ni_nanny_schedule_recheck(&mdev->nanny->down, w);
+#endif
+		return -1;
 	}
-	else
-		config = w->config.node;
-
 	ni_debug_nanny("%s: using device config", w->name);
 	xml_node_print_debug(config, 0);
 
