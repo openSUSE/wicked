@@ -152,6 +152,70 @@ __ni_netdev_still_exists(unsigned int ifindex)
 }
 
 /*
+ * Process device state change events
+ */
+void
+__ni_netdev_process_events(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int old_flags)
+{
+	static struct flag_transition {
+		unsigned int	flag;
+		unsigned int	event_up;
+		unsigned int	event_down;
+	} *edge, flag_transitions[] = {
+		{ NI_IFF_DEVICE_UP,	NI_EVENT_DEVICE_UP,	NI_EVENT_DEVICE_DOWN	},
+		{ NI_IFF_LINK_UP,	NI_EVENT_LINK_UP,	NI_EVENT_LINK_DOWN	},
+		{ NI_IFF_NETWORK_UP,	NI_EVENT_NETWORK_UP,	NI_EVENT_NETWORK_DOWN	},
+	};
+	size_t flags = sizeof(flag_transitions)/sizeof(flag_transitions[0]);
+	unsigned int i, new_flags, flags_changed;
+
+	new_flags = dev->link.ifflags;
+	flags_changed = old_flags ^ new_flags;
+
+	if (dev->created) {
+		dev->created = 0;
+		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_CREATE);
+	}
+
+	/* Hmm.. do we still need this? */
+	if (!ni_netdev_device_is_ready(dev) &&
+	    (ni_netdev_device_always_ready(dev) ||
+	     !ni_server_listens_uevents())) {
+		dev->link.ifflags |= NI_IFF_DEVICE_READY;
+		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_READY);
+	}
+
+	/* transition up */
+	for (i = 0; i < flags; ++i) {
+		edge = &flag_transitions[i];
+		if ((flags_changed & edge->flag) == 0)
+			continue;
+		if (new_flags & edge->flag) {
+			__ni_netdev_event(nc, dev, edge->event_up);
+		}
+	}
+
+	/* transition down */
+	for (i = flags; i-- > 0;  ) {
+		edge = &flag_transitions[i];
+		if ((flags_changed & edge->flag) == 0)
+			continue;
+		if (old_flags & edge->flag) {
+			if (dev->ipv6 && edge->event_down == NI_EVENT_DEVICE_DOWN)
+				ni_ipv6_ra_info_flush(&dev->ipv6->radv);
+
+			__ni_netdev_event(nc, dev, edge->event_down);
+		}
+	}
+
+	if (dev->deleted) {
+		dev->deleted = 0;
+		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_DELETE);
+	}
+}
+
+
+/*
  * Process NEWLINK event
  */
 int
@@ -161,24 +225,27 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	struct ifinfomsg *ifi;
 	struct nlattr *nla;
 	char *ifname = NULL;
-	int old_flags = -1;
+	int old_flags = 0;
 
 	if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_NEWLINK)))
 		return -1;
 
-	if (ifi->ifi_family == AF_BRIDGE) {
-		ni_debug_events("Ignoring bridge NEWLINK event");
-		return 0;
-	}
-
 	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_IFNAME)) != NULL) {
 		ifname = (char *) nla_data(nla);
+	}
+	if (ifi->ifi_family == AF_BRIDGE) {
+		ni_debug_events("%s: ignoring bridge NEWLINK event", ifname);
+		return 0;
 	}
 
 	old = ni_netdev_by_index(nc, ifi->ifi_index);
 	if (!__ni_netdev_still_exists(ifi->ifi_index)) {
 		if (old) {
-			__ni_netdev_event(nc, old, NI_EVENT_DEVICE_DELETE);
+			old_flags = old->link.ifflags;
+			old->link.ifflags = 0;
+			old->deleted = 1;
+
+			__ni_netdev_process_events(nc, old, old_flags);
 			ni_client_state_drop(old->link.ifindex);
 			ni_netconfig_device_remove(nc, old);
 			return 0;
@@ -196,6 +263,7 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 			ni_netconfig_device_append(nc, dev);
 		}
 	}
+
 	if (__ni_netdev_process_newlink(dev, h, ifi, nc) < 0) {
 		ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);
 		return -1;
@@ -218,47 +286,7 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 			ni_string_dup(&dev->name, ifname);
 	}
 
-	if (dev->created) {
-		dev->created = 0;
-		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_CREATE);
-	}
-
-	if (old) {
-		static struct flag_transition {
-			unsigned int	flag;
-			unsigned int	event_up;
-			unsigned int	event_down;
-		} *edge, flag_transitions[] = {
-			{ NI_IFF_DEVICE_UP,	NI_EVENT_DEVICE_UP,	NI_EVENT_DEVICE_DOWN	},
-			{ NI_IFF_LINK_UP,	NI_EVENT_LINK_UP,	NI_EVENT_LINK_DOWN	},
-			{ NI_IFF_NETWORK_UP,	NI_EVENT_NETWORK_UP,	NI_EVENT_NETWORK_DOWN	},
-			{ 0 }
-		};
-		unsigned int i, new_flags, flags_changed;
-
-		new_flags = dev->link.ifflags;
-		flags_changed = old_flags ^ new_flags;
-
-		for (i = 0, edge = flag_transitions; edge->flag; ++i, ++edge) {
-			if ((flags_changed & edge->flag) == 0)
-				continue;
-			if (new_flags & edge->flag) {
-				__ni_netdev_event(nc, dev, edge->event_up);
-			} else {
-				if (dev->ipv6)
-					ni_ipv6_ra_info_flush(&dev->ipv6->radv);
-				__ni_netdev_event(nc, dev, edge->event_down);
-			}
-		}
-
-		/* Hmm.. do we still need this corner case? */
-		if (!ni_netdev_device_is_ready(dev) &&
-		    (ni_netdev_device_always_ready(dev) ||
-		     !ni_server_listens_uevents())) {
-			dev->link.ifflags |= NI_IFF_DEVICE_READY;
-			__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_READY);
-		}
-	}
+	__ni_netdev_process_events(nc, dev, old_flags);
 
 	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_WIRELESS)) != NULL)
 		__ni_wireless_link_event(nc, dev, nla_data(nla), nla_len(nla));
@@ -280,13 +308,12 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_DELLINK)))
 		return -1;
 
-	if (ifi->ifi_family == AF_BRIDGE) {
-		ni_debug_events("Ignoring bridge DELLINK event");
-		return 0;
-	}
-
 	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_IFNAME)) != NULL) {
 		ifname = (char *) nla_data(nla);
+	}
+	if (ifi->ifi_family == AF_BRIDGE) {
+		ni_debug_events("%s: ignoring bridge DELLINK event", ifname);
+		return 0;
 	}
 
 	/* Open code interface removal. */
@@ -295,11 +322,11 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 				ifname, ifi->ifi_index);
 		return -1;
 	} else {
-		dev->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags,
-								dev->link.ifflags);
+		unsigned int old_flags = dev->link.ifflags;
 
-		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_DELETE);
-
+		dev->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags, old_flags);
+		dev->deleted = 1;
+		__ni_netdev_process_events(nc, dev, old_flags);
 		ni_client_state_drop(dev->link.ifindex);
 		ni_netconfig_device_remove(nc, dev);
 	}
