@@ -1448,12 +1448,14 @@ ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev)
 
 	/* When all IA's are expired, just commit a release */
 	if (ni_dhcp6_lease_with_active_address(dev->lease)) {
-		return __ni_dhcp6_fsm_release(dev, 0);
+		__ni_dhcp6_fsm_release(dev, 0);
+		return ni_dhcp6_fsm_commit_lease(dev, NULL);
 	}
 
 	if (dev->config->mode == NI_DHCP6_MODE_INFO) {
 		ni_dhcp6_device_drop_lease(dev);
-		return ni_dhcp6_fsm_restart(dev);
+		ni_dhcp6_fsm_restart(dev);
+		return 0;
 	} else {
 		return ni_dhcp6_fsm_commit_lease(dev, NULL);
 	}

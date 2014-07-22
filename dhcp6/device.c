@@ -1160,7 +1160,6 @@ ni_dhcp6_release(ni_dhcp6_device_t *dev, const ni_uuid_t *lease_uuid)
 {
 	char *rel_uuid = NULL;
 	char *our_uuid = NULL;
-	int rv;
 
 	if (dev->lease == NULL) {
 		ni_error("%s: no lease set", dev->ifname);
@@ -1183,9 +1182,7 @@ ni_dhcp6_release(ni_dhcp6_device_t *dev, const ni_uuid_t *lease_uuid)
 		rel_uuid ? " with UUID " : "", rel_uuid ? rel_uuid : "");
 	ni_string_free(&rel_uuid);
 
-	if ((rv = ni_dhcp6_fsm_release(dev)) < 0)
-		return rv;
-
+	ni_dhcp6_fsm_release(dev);
 	return 0;
 }
 
