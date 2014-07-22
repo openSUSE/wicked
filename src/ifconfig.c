@@ -184,9 +184,6 @@ __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease
 			ni_addrfamily_type_to_name(lease->family),
 			ni_addrconf_state_to_name(lease->state));
 
-	if ((res = __ni_system_refresh_interface(nc, dev)) < 0)
-		return -1;
-
 	/* Use the existing lease handle to identify those addresses already
 	 * owned by this addrconf protocol.
 	 * While we're getting the old lease, detach it from the interface
@@ -205,10 +202,13 @@ __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease
 		goto out;
 	}
 
-	/* Refresh state here - routes may have disappeared, for instance,
-	 * when we took away the address. */
-	if ((res = __ni_system_refresh_interface(nc, dev)) < 0)
+	/* Refresh addrs + routes state - routes may have disappeared,
+	 * for instance, when we took away the address. */
+	if ((res = __ni_system_refresh_interface_addrs(nc, dev)) < 0)
 		goto out;
+	if ((res = __ni_system_refresh_interface_routes(nc, dev)) < 0)
+		goto out;
+
 
 	/* Loop over all routes and remove those no longer covered by the lease.
 	 * Ignore all routes covered by other address config mechanisms.
@@ -223,6 +223,10 @@ __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease
 				ni_addrconf_type_to_name(lease->type));
 		goto out;
 	}
+
+	/* Refresh routes again to sync with the current kernel state. */
+	if ((res = __ni_system_refresh_interface_routes(nc, dev)) < 0)
+		goto out;
 
 	if (lease->state == NI_ADDRCONF_STATE_GRANTED) {
 		ni_netdev_set_lease(dev, lease);
