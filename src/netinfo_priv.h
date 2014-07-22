@@ -66,6 +66,8 @@ extern int		__ni_device_refresh_ipv6_link_info(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_system_interface_configure(ni_netconfig_t *, ni_netdev_t *, const ni_netdev_t *);
 extern int		__ni_system_interface_delete(ni_netconfig_t *, const char *);
 extern int		__ni_system_interface_stats_refresh(ni_netconfig_t *, ni_netdev_t *);
+extern int		__ni_system_interface_flush_addrs(ni_netconfig_t *, ni_netdev_t *);
+extern int		__ni_system_interface_flush_routes(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_system_ethernet_refresh(ni_netdev_t *);
 extern int		__ni_system_ethernet_update(ni_netdev_t *, const ni_ethernet_t *);
 
