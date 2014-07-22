@@ -455,6 +455,7 @@ ni_nanny_unregister_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_nanny_remove_device(mgr, mdev);
 	ni_objectmodel_unregister_managed_device(mdev);
 	ni_nanny_unschedule(&mgr->recheck, w);
+	ni_nanny_policy_drop(w->name);
 	ni_fsm_destroy_worker(mgr->fsm, w);
 }
 
@@ -983,6 +984,23 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 	return count ? TRUE : FALSE;
 }
 
+ni_bool_t
+ni_nanny_policy_drop(const char *pname)
+{
+	char path[PATH_MAX] = {'\0'};
+
+	ni_managed_policy_filename(pname, path, sizeof(path));
+
+	if (unlink(path) < 0) {
+		if (errno == ENOENT)
+			return TRUE;
+
+		ni_error("Cannot remove policy file '%s': %m", path);
+		return FALSE;
+	}
+	return TRUE;
+}
+
 /*
  * Nanny.deletePolicy()
  */
@@ -1030,6 +1048,8 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 				server = ni_dbus_object_get_server(object);
 				if (!ni_objectmodel_unregister_managed_policy(server, cur, name))
 					return FALSE;
+
+				ni_nanny_policy_drop(name);
 
 				ni_dbus_message_append_object_path(reply,
 					ni_dbus_object_get_path(object));

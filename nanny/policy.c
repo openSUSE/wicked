@@ -33,7 +33,7 @@
 #include "nanny.h"
 #include "client/ifconfig.h"
 
-static ni_bool_t
+ni_bool_t
 ni_managed_policy_filename(const char *name, char *path, size_t size)
 {
 	if (path && !ni_string_empty(name)) {
