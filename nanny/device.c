@@ -160,7 +160,7 @@ int
 ni_factory_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_policy_t *mpolicy)
 {
 	const char *type_name;
-	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
+	ni_fsm_policy_t *policy = mpolicy->fsm_policy;
 	xml_node_t *config = NULL;
 
 	ni_debug_nanny("%s: configuring factory device using policy %s",
@@ -196,7 +196,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 {
 	ni_ifworker_t *w = mdev->worker;
 	const char *type_name;
-	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
+	ni_fsm_policy_t *policy = mpolicy->fsm_policy;
 	xml_node_t *config = NULL;
 
 	/* If the device is up and running, do not reconfigure unless the policy
