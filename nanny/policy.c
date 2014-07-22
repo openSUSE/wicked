@@ -28,9 +28,76 @@
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/fsm.h>
+
 #include "util_priv.h"
 #include "nanny.h"
 #include "client/ifconfig.h"
+
+static ni_bool_t
+ni_managed_policy_filename(const char *name, char *path, size_t size)
+{
+	if (path && !ni_string_empty(name)) {
+		snprintf(path, size, "%s/nanny/%s.xml",
+			ni_config_statedir(), name);
+
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+static ni_bool_t
+ni_managed_policy_save(xml_node_t *pnode)
+{
+	char path[PATH_MAX] = {'\0'};
+	char temp[PATH_MAX] = {'\0'};
+	const char *pname;
+	FILE *fp;
+	int fd;
+
+	if (xml_node_is_empty(pnode))
+		return FALSE;
+
+	pname = ni_ifpolicy_get_name(pnode);
+	if (ni_string_empty(pname))
+		return FALSE;
+
+	ni_managed_policy_filename(pname, path, sizeof(path));
+	snprintf(temp, sizeof(temp), "%s.XXXXXX", path);
+
+	if ((fd = mkstemp(temp)) < 0) {
+		ni_error("Cannot create %s policy temp file", path);
+		return FALSE;
+	}
+
+	if (!(fp = fdopen(fd, "we"))) {
+		close(fd);
+		ni_error("Cannot create %s policy temp file", path);
+		goto failure;
+	}
+
+	if (xml_node_print(pnode, fp) < 0) {
+		ni_error("Cannot write into %s policy temp file", path);
+		xml_node_free(pnode);
+		goto failure;
+	}
+
+	if (rename(temp, path) < 0) {
+		ni_error("Cannot move temp file to policy file %s", path);
+		goto failure;
+	}
+
+	fclose(fp);
+
+	return TRUE;
+
+failure:
+	if (fp) {
+		fclose(fp);
+	}
+	unlink(temp);
+	return FALSE;
+}
 
 void
 ni_objectmodel_managed_policy_init(ni_dbus_server_t *server)
@@ -168,9 +235,9 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 	if (mpolicy->doc)
 		xml_document_free(mpolicy->doc);
 	mpolicy->doc = doc;
-
 	mpolicy->seqno++;
 
+	ni_managed_policy_save(node);
 	return TRUE;
 }
 
