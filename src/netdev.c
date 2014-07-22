@@ -601,8 +601,6 @@ ni_netdev_discover_client_state(ni_netdev_t *dev)
 		state = NI_FSM_STATE_LINK_UP;
 
 	cs = ni_client_state_new(state);
-	NI_CLIENT_STATE_SET_CONTROL_FLAG(cs->persistent,
-			state >= NI_FSM_STATE_LINK_UP, TRUE);
 
 	ni_netdev_set_client_state(dev, cs);
 }
