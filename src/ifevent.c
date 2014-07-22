@@ -162,6 +162,7 @@ __ni_netdev_process_events(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int ol
 		unsigned int	event_up;
 		unsigned int	event_down;
 	} *edge, flag_transitions[] = {
+		{ NI_IFF_DEVICE_READY,	NI_EVENT_DEVICE_READY,	0			},
 		{ NI_IFF_DEVICE_UP,	NI_EVENT_DEVICE_UP,	NI_EVENT_DEVICE_DOWN	},
 		{ NI_IFF_LINK_UP,	NI_EVENT_LINK_UP,	NI_EVENT_LINK_DOWN	},
 		{ NI_IFF_NETWORK_UP,	NI_EVENT_NETWORK_UP,	NI_EVENT_NETWORK_DOWN	},
@@ -175,14 +176,6 @@ __ni_netdev_process_events(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int ol
 	if (dev->created) {
 		dev->created = 0;
 		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_CREATE);
-	}
-
-	/* Hmm.. do we still need this? */
-	if (!ni_netdev_device_is_ready(dev) &&
-	    (ni_netdev_device_always_ready(dev) ||
-	     !ni_server_listens_uevents())) {
-		dev->link.ifflags |= NI_IFF_DEVICE_READY;
-		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_READY);
 	}
 
 	/* transition up */
@@ -204,7 +197,8 @@ __ni_netdev_process_events(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int ol
 			if (dev->ipv6 && edge->event_down == NI_EVENT_DEVICE_DOWN)
 				ni_ipv6_ra_info_flush(&dev->ipv6->radv);
 
-			__ni_netdev_event(nc, dev, edge->event_down);
+			if (edge->event_down)
+				__ni_netdev_event(nc, dev, edge->event_down);
 		}
 	}
 
