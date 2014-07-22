@@ -322,6 +322,80 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 	}
 }
 
+ni_bool_t
+ni_nanny_create_policy(ni_nanny_t *mgr, const char *doc_string, ni_bool_t schedule)
+{
+	xml_node_t *root, *pnode, *config;
+	ni_fsm_policy_t *policy;
+	xml_document_t *doc;
+	const char *pname;
+	ni_ifworker_t *w;
+	ni_fsm_t *fsm;
+
+	fsm = mgr->fsm;
+	ni_assert(fsm);
+
+	doc = xml_document_from_string(doc_string, NULL);
+	if (xml_document_is_empty(doc)) {
+		ni_error("Unable to parse policy document %s", doc_string);
+		return FALSE;
+	}
+
+	root = xml_document_root(doc);
+	if (xml_node_is_empty(root->children)) {
+		ni_error("Policy document is empty %s", doc_string);
+		return FALSE;
+	}
+
+	if (!xml_node_is_empty(root->children->next)) {
+		ni_error("Policy document contains more then one <policy> node %s",
+			doc_string);
+		return FALSE;
+	}
+
+	pnode = root->children;
+	if (!ni_ifconfig_is_policy(pnode)) {
+		ni_error("No valid policy document %s", doc_string);
+		return FALSE;
+	}
+
+	pname = ni_ifpolicy_get_name(pnode);
+	if (!ni_ifpolicy_name_is_valid(pname)) {
+		ni_error("Invalid policy name \"%s\"", ni_print_suspect(pname,
+			ni_string_len(pname)));
+		return FALSE;
+	}
+
+	policy = ni_fsm_policy_by_name(fsm, pname);
+	if (policy)
+		ni_debug_nanny("Policy \"%s\" already exists", pname);
+	else
+		policy = ni_fsm_policy_new(fsm, pname, pnode);
+
+	config = xml_node_new(NI_CLIENT_IFCONFIG, NULL);
+	config = ni_fsm_policy_transform_document(config, &policy, 1);
+	if (!config || !ni_fsm_workers_from_xml(fsm, config, ni_ifpolicy_get_origin(pnode))) {
+		ni_error("Unable to extract config or update workers from policy %s",
+			doc_string);
+		return FALSE;
+	}
+
+	/* Rebuild the hierarchy cause new policy may hit some matches */
+	ni_fsm_build_hierarchy(fsm, FALSE);
+
+	w = ni_fsm_ifworker_by_policy_name(fsm, NI_IFWORKER_TYPE_NETDEV, pname);
+	if (!w) {
+		ni_error("%s: worker creation failed for policy %s", pname, doc_string);
+		return FALSE;
+	}
+
+	/* Trigger recheck on factory devices */
+	if (schedule || (ni_ifworker_is_factory_device(w) && !w->kickstarted))
+		ni_nanny_schedule_recheck(&mgr->recheck, w);
+
+	return TRUE;
+}
+
 static ni_bool_t
 ni_managed_device_send_progress_info(ni_managed_device_t *mdev, ni_ifworker_t *w, ni_fsm_state_t state)
 {
