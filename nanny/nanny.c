@@ -895,9 +895,9 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	xml_node_t *root, *pnode, *config;
-	const ni_fsm_policy_t *policies[1];
 	const char *doc_string, *pname;
 	ni_dbus_object_t *policy_object;
+	ni_fsm_policy_t *policy;
 	xml_document_t *doc;
 	ni_ifworker_t *w;
 	ni_nanny_t *mgr;
@@ -956,10 +956,10 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 	}
 
 	/* Create the policy */
-	policies[0] = ni_fsm_policy_new(fsm, pname, pnode);
+	policy = ni_fsm_policy_new(fsm, pname, pnode);
 
 	config = xml_node_new(NI_CLIENT_IFCONFIG, NULL);
-	config = ni_fsm_policy_transform_document(config, policies, 1);
+	config = ni_fsm_policy_transform_document(config, &policy, 1);
 	if (!config || !ni_fsm_workers_from_xml(fsm, config, ni_ifpolicy_get_origin(pnode))) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 			"Invalid policy \"%s\" in call to %s.%s",
@@ -984,7 +984,7 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 	}
 
 	policy_object = ni_objectmodel_register_managed_policy(ni_dbus_object_get_server(object),
-		ni_managed_policy_new(mgr, (ni_fsm_policy_t *) policies[0], NULL));
+		ni_managed_policy_new(mgr, policy, NULL));
 
 	return ni_dbus_message_append_object_path(reply,
 		ni_dbus_object_get_path(policy_object));

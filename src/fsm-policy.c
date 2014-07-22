@@ -538,7 +538,7 @@ ni_fsm_exists_applicable_policy(ni_fsm_policy_t *list, ni_ifworker_t *w)
  *	changes made by a policy with lower weight.
  */
 xml_node_t *
-ni_fsm_policy_transform_document(xml_node_t *node, const ni_fsm_policy_t * const *policies, unsigned int count)
+ni_fsm_policy_transform_document(xml_node_t *node, ni_fsm_policy_t * const *policies, unsigned int count)
 {
 	unsigned int i = 0;
 
