@@ -1163,15 +1163,15 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 		if (w->fsm.wait_for && w->fsm.wait_for->next_state == new_state)
 			w->fsm.wait_for = NULL;
 
-		if (w->target_state == new_state) {
-			if (w->object && !w->readonly) {
-				if (prev_state < new_state)
-					ni_ifworker_update_client_state(w);
-				if (new_state != NI_FSM_STATE_DEVICE_DOWN)
-					ni_ifworker_update_client_info(w);
-			}
-			ni_ifworker_success(w);
+		if (new_state == NI_FSM_STATE_DEVICE_READY &&
+		    w->object && !w->readonly) {
+			if (prev_state < new_state)
+				ni_ifworker_update_client_state(w);
+			ni_ifworker_update_client_info(w);
 		}
+
+		if (w->target_state == new_state)
+			ni_ifworker_success(w);
 	}
 }
 
