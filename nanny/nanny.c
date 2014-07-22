@@ -895,7 +895,7 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 {
 	xml_node_t *root, *pnode, *config;
 	const char *doc_string, *pname;
-	ni_dbus_object_t *policy_object;
+	ni_dbus_object_t *policy_object = NULL;
 	ni_fsm_policy_t *policy;
 	xml_document_t *doc;
 	ni_ifworker_t *w;
@@ -947,15 +947,21 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 		return FALSE;
 	}
 
-	if (ni_fsm_policy_by_name(fsm, pname) != NULL) {
+	if ((policy = ni_fsm_policy_by_name(fsm, pname))) {
 		dbus_set_error(error, NI_DBUS_ERROR_POLICY_EXISTS,
 			"Policy \"%s\" already exists in call to %s.%s",
 			pname, ni_dbus_object_get_path(object), method->name);
-		return FALSE;
 	}
+	else {
+		ni_managed_policy_t *mpolicy;
+		ni_dbus_server_t *server;
 
-	/* Create the policy */
-	policy = ni_fsm_policy_new(fsm, pname, pnode);
+		/* Create the policy */
+		policy = ni_fsm_policy_new(fsm, pname, pnode);
+		mpolicy = ni_managed_policy_new(mgr, policy, NULL);
+		server = ni_dbus_object_get_server(object);
+		policy_object = ni_objectmodel_register_managed_policy(server, mpolicy);
+	}
 
 	config = xml_node_new(NI_CLIENT_IFCONFIG, NULL);
 	config = ni_fsm_policy_transform_document(config, &policy, 1);
@@ -971,9 +977,7 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 
 	w = ni_fsm_ifworker_by_policy_name(fsm, NI_IFWORKER_TYPE_NETDEV, pname);
 	if (!w) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-			"Ifworker creation failed in call to %s.%s",
-			ni_dbus_object_get_path(object), method->name);
+		ni_error("%s: worker creation failed for policy %s", pname, doc_string);
 		return FALSE;
 	}
 
@@ -982,11 +986,12 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 		ni_nanny_schedule_recheck(&mgr->recheck, w);
 	}
 
-	policy_object = ni_objectmodel_register_managed_policy(ni_dbus_object_get_server(object),
-		ni_managed_policy_new(mgr, policy, NULL));
+	if (policy_object) {
+		const char *object_path = ni_dbus_object_get_path(policy_object);
+		return ni_dbus_message_append_object_path(reply, object_path);
+	}
 
-	return ni_dbus_message_append_object_path(reply,
-		ni_dbus_object_get_path(policy_object));
+	return FALSE;
 }
 
 /*
