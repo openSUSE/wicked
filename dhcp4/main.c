@@ -416,6 +416,9 @@ dhcp4_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 	ni_dhcp4_device_t *dev;
 	ni_bool_t rv = FALSE;
 
+	if ((dev = ni_dhcp4_device_by_index(ifp->link.ifindex)) != NULL)
+		return TRUE;
+
 	dev = ni_dhcp4_device_new(ifp->name, &ifp->link);
 	if (!dev) {
 		ni_error("Cannot allocate dhcp4 device for '%s' and index %u",

@@ -365,12 +365,19 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 	if (dbus_server) {
 		ni_dbus_object_t *object;
 
-		if (event == NI_EVENT_DEVICE_CREATE) {
-			/* A new netif was discovered; create a dbus server object
-			 * enacpsulating it. */
+		object = ni_objectmodel_get_netif_object(dbus_server, dev);
+		if (!object && event == NI_EVENT_DEVICE_CREATE) {
+			/* A new netif was discovered or we've created one;
+			 * create a dbus server object enacpsulating it.
+			 *
+			 * When a factory creates a virtual device, it also
+			 * creates the dbus object and while the netlink
+			 * event about it device arrived, we already have it.
+			 *
+			 * When the system discovered new device, we'll get
+			 * a netlink event and create the dbus object here.
+			 */
 			object = ni_objectmodel_register_netif(dbus_server, dev, NULL);
-		} else {
-			object = ni_objectmodel_get_netif_object(dbus_server, dev);
 		}
 		if (!object) {
 			/* usually a "bad event", e.g. when the underlying netdev
