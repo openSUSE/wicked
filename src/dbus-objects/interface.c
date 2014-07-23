@@ -190,16 +190,8 @@ static const ni_dbus_class_t	ni_objectmodel_netif_list_class = {
 dbus_bool_t
 ni_objectmodel_netif_list_refresh(ni_dbus_object_t *object)
 {
-	ni_netconfig_t *nc;
-
-	if (!(nc = ni_global_state_handle(1))) {
-		ni_error("failed to refresh network interfaces");
-		return FALSE;
-	}
-
-	/* Note, we do not have to deal with removal of interfaces
-	 * that have been destroyed. We should be notified of these
-	 * automatically via RTM_DELLINK */
+	/* We're notified about automatically via RTM_NEW/DELLINK */
+	(void)object;
 
 	return TRUE;
 }

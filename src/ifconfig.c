@@ -101,7 +101,6 @@ int
 ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req)
 {
 	unsigned int ifflags;
-	int res;
 
 	if (dev == NULL)
 		return -NI_ERROR_INVALID_ARGS;
@@ -144,10 +143,10 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 		__ni_system_interface_flush_routes(NULL, dev);
 	}
 
+	/* TODO: still needed? */
 	__ni_global_seqno++;
 
-	res = __ni_system_refresh_interface(ni_global_state_handle(0), dev);
-	return res;
+	return 0;
 }
 
 int
