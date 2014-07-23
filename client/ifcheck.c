@@ -148,7 +148,7 @@ ni_ifcheck_worker_config_matches(ni_ifworker_t *w)
 {
 	ni_netdev_t *dev;
 
-	if (w && w->config.node && (dev = w->device)) {
+	if (w && !xml_node_is_empty(w->config.node) && (dev = w->device)) {
 		ni_device_clientinfo_t *ci = dev->client_info;
 
 		return ci && ni_uuid_equal(&ci->config_uuid, &w->config.uuid);

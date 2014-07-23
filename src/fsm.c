@@ -806,7 +806,8 @@ ni_ifworker_match_netdev_ifindex(const ni_ifworker_t *w, unsigned int ifindex)
 	if (w->device && w->device->link.ifindex == ifindex)
 		return TRUE;
 
-	if (w->config.node && (node = xml_node_get_child(w->config.node, "name"))) {
+	if (!xml_node_is_empty(w->config.node) &&
+	    (node = xml_node_get_child(w->config.node, "name"))) {
 		const char *namespace = xml_node_get_attr(node, "namespace");
 
 		if (namespace && ni_string_eq(namespace, "ifindex"))
@@ -826,11 +827,13 @@ ni_ifworker_match_netdev_alias(const ni_ifworker_t *w, const char *ifalias)
 	if (w->device && ni_string_eq(w->device->link.alias, ifalias))
 		return TRUE;
 
-	if (w->config.node && (node = xml_node_get_child(w->config.node, "alias"))) {
+	if (!xml_node_is_empty(w->config.node) &&
+	    (node = xml_node_get_child(w->config.node, "alias"))) {
 		if (ni_string_eq(node->cdata, ifalias))
 			return TRUE;
 	}
-	if (w->config.node && (node = xml_node_get_child(w->config.node, "name"))) {
+	if (!xml_node_is_empty(w->config.node) &&
+	    (node = xml_node_get_child(w->config.node, "name"))) {
 		const char *namespace = xml_node_get_attr(node, "namespace");
 
 		if (namespace && ni_string_eq(namespace, "alias"))
@@ -851,7 +854,8 @@ ni_ifworker_match_alias(const ni_ifworker_t *w, const char *alias)
 	if (w->device && ni_string_eq(w->device->link.alias, alias))
 		return TRUE;
 
-	if (w->config.node && (node = xml_node_get_child(w->config.node, "alias"))) {
+	if (!xml_node_is_empty(w->config.node) &&
+	    (node = xml_node_get_child(w->config.node, "alias"))) {
 		if (ni_string_eq(node->cdata, alias))
 			return TRUE;
 	}
@@ -1900,7 +1904,8 @@ ni_ifworker_apply_policies(ni_fsm_t *fsm, ni_ifworker_t *w)
 	ni_fsm_policy_t *policy;
 	xml_node_t *config;
 
-	if (w->config.node && (config = xml_node_get_child(w->config.node, "policies"))) {
+	if (!xml_node_is_empty(w->config.node) &&
+	    (config = xml_node_get_child(w->config.node, "policies"))) {
 		xml_node_t *child;
 
 		for (child = config->children; child; child = child->next) {
@@ -2452,7 +2457,7 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 	unsigned int i, count;
 	int rv;
 
-	if (w->config.node == NULL || w->device_api.factory_service)
+	if (xml_node_is_empty(w->config.node) || w->device_api.factory_service)
 		return 0;
 
 	/* Allow the configuration to explicitly specify a link-type. */
@@ -2538,7 +2543,7 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
 	if (w->device_api.service)
 		return 1;
 
-	if (w->config.node == NULL)
+	if (xml_node_is_empty(w->config.node))
 		return 0;
 
 	if (w->object == NULL)
