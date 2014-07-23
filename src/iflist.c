@@ -209,6 +209,20 @@ ni_rtnl_query_next_ipv6_link_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 	return NULL;
 }
 
+static int
+ni_rtnl_query_addr_info(struct ni_rtnl_query *q, unsigned int ifindex)
+{
+	memset(q, 0, sizeof(*q));
+	q->ifindex = ifindex;
+
+	if (__ni_rtnl_query(&q->addr_info, AF_UNSPEC, RTM_GETADDR) < 0) {
+		ni_rtnl_query_destroy(q);
+		return -1;
+	}
+
+	return 0;
+}
+
 static inline struct ifaddrmsg *
 ni_rtnl_query_next_addr_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 {
@@ -225,6 +239,20 @@ ni_rtnl_query_next_addr_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 		}
 	}
 	return NULL;
+}
+
+static int
+ni_rtnl_query_route_info(struct ni_rtnl_query *q, unsigned int ifindex)
+{
+	memset(q, 0, sizeof(*q));
+	q->ifindex = ifindex;
+
+	if (__ni_rtnl_query(&q->route_info, AF_UNSPEC, RTM_GETROUTE) < 0) {
+		ni_rtnl_query_destroy(q);
+		return -1;
+	}
+
+	return 0;
 }
 
 static inline struct rtmsg *
@@ -468,6 +496,73 @@ failed:
 	ni_rtnl_query_destroy(&query);
 	return res;
 }
+
+/*
+ * Refresh addresses
+ */
+int
+__ni_system_refresh_interface_addrs(ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	struct ni_rtnl_query query;
+	struct nlmsghdr *h;
+	int res = -1;
+
+	__ni_global_seqno++;
+
+	if (ni_rtnl_query_addr_info(&query, dev->link.ifindex) < 0)
+		goto failed;
+
+	ni_netdev_clear_addresses(dev);
+	while (1) {
+		struct ifaddrmsg *ifa;
+
+		if (!(ifa = ni_rtnl_query_next_addr_info(&query, &h)))
+			break;
+
+		if (__ni_netdev_process_newaddr(dev, h, ifa) < 0)
+			ni_error("Problem parsing RTM_NEWADDR message for %s", dev->name);
+	}
+
+	res = 0;
+
+failed:
+	ni_rtnl_query_destroy(&query);
+	return res;
+}
+
+/*
+ * Refresh routes
+ */
+int
+__ni_system_refresh_interface_routes(ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	struct ni_rtnl_query query;
+	struct nlmsghdr *h;
+	int res = -1;
+
+	__ni_global_seqno++;
+
+	if (ni_rtnl_query_route_info(&query, dev->link.ifindex) < 0)
+		goto failed;
+
+	ni_netdev_clear_routes(dev);
+	while (1) {
+		struct rtmsg *rtm;
+
+		if (!(rtm = ni_rtnl_query_next_route_info(&query, &h, NULL)))
+			break;
+
+		if (__ni_netdev_process_newroute(dev, h, rtm, nc) < 0)
+			ni_error("Problem parsing RTM_NEWROUTE message");
+	}
+
+	res = 0;
+
+failed:
+	ni_rtnl_query_destroy(&query);
+	return res;
+}
+
 
 /*
  * Refresh the link info of one interface

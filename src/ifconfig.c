@@ -138,12 +138,56 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 			ni_error("unable to shut down interface %s", dev->name);
 			return -1;
 		}
+
+		/* link is down, remove all addrs and routes */
+		__ni_system_interface_flush_addrs(NULL, dev);
+		__ni_system_interface_flush_routes(NULL, dev);
 	}
 
 	__ni_global_seqno++;
 
 	res = __ni_system_refresh_interface(ni_global_state_handle(0), dev);
 	return res;
+}
+
+int
+__ni_system_interface_flush_addrs(ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	ni_address_t *ap;
+
+	 if (!dev || (!nc && !(nc = ni_global_state_handle(0))))
+		 return -1;
+
+	 /* TODO: ni_rtnl_query_addr_info + del without to parse */
+	__ni_system_refresh_interface_addrs(nc, dev);
+	for (ap = dev->addrs; ap; ap = ap->next) {
+		__ni_rtnl_send_deladdr(dev, ap);
+	}
+	__ni_system_refresh_interface_addrs(nc, dev);
+	return dev->addrs == NULL ? 0 : 1;
+}
+
+int
+__ni_system_interface_flush_routes(ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	ni_route_table_t *tab;
+	ni_route_t *rp;
+	 unsigned int i;
+
+	 if (!dev || (!nc && !(nc = ni_global_state_handle(0))))
+		 return -1;
+
+	 /* TODO: ni_rtnl_query_route_info + del without to parse */
+	 __ni_system_refresh_interface_routes(nc, dev);
+	 for (tab = dev->routes; tab; tab = tab->next) {
+		 for (i = 0; i < tab->routes.count; ++i) {
+			if (!(rp = tab->routes.data[i]))
+				continue;
+			__ni_rtnl_send_delroute(dev, rp);
+		}
+	 }
+	 __ni_system_refresh_interface_routes(nc, dev);
+	 return dev->routes == NULL ? 0 : 1;
 }
 
 int
