@@ -56,7 +56,8 @@ struct ni_netdev {
 	ni_netdev_t *		next;
 	unsigned int		seq;
 	unsigned int		modified : 1,
-				deleted : 1;
+				deleted : 1,
+				created : 1;
 
 	char *			name;
 	ni_linkinfo_t		link;

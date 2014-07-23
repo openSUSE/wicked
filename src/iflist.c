@@ -296,6 +296,7 @@ __ni_system_refresh_interfaces(ni_netconfig_t *nc)
 int
 __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 {
+	static int refresh = 0;
 	struct ni_rtnl_query query;
 	struct nlmsghdr *h;
 	ni_netdev_t **tail, *dev;
@@ -303,6 +304,15 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 	int res = -1;
 
 	seqno = ++__ni_global_seqno;
+
+	if (!refresh) {
+		refresh = 1;
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+				"Full refresh of all interfaces (bootstrap)");
+	} else {
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EVENTS,
+				"Full refresh of all interfaces (enforced)");
+	}
 
 	if (ni_rtnl_query(&query, 0) < 0)
 		goto failed;
@@ -451,8 +461,11 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *dev)
 	struct nlmsghdr *h;
 	int res = -1;
 
-	__ni_global_seqno++;
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+			"Full refresh of %s interface",
+			dev->name);
 
+	__ni_global_seqno++;
 	if (ni_rtnl_query(&query, dev->link.ifindex) < 0)
 		goto failed;
 
@@ -507,8 +520,11 @@ __ni_system_refresh_interface_addrs(ni_netconfig_t *nc, ni_netdev_t *dev)
 	struct nlmsghdr *h;
 	int res = -1;
 
-	__ni_global_seqno++;
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+			"Refresh of %s interface address",
+			dev->name);
 
+	__ni_global_seqno++;
 	if (ni_rtnl_query_addr_info(&query, dev->link.ifindex) < 0)
 		goto failed;
 
@@ -540,8 +556,11 @@ __ni_system_refresh_interface_routes(ni_netconfig_t *nc, ni_netdev_t *dev)
 	struct nlmsghdr *h;
 	int res = -1;
 
-	__ni_global_seqno++;
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+			"Refresh of %s interface routes",
+			dev->name);
 
+	__ni_global_seqno++;
 	if (ni_rtnl_query_route_info(&query, dev->link.ifindex) < 0)
 		goto failed;
 
@@ -572,10 +591,16 @@ __ni_device_refresh_link_info(ni_netconfig_t *nc, ni_linkinfo_t *link)
 {
 	struct ni_rtnl_query query;
 	struct nlmsghdr *h;
+	ni_netdev_t *dev;
 	int rv = 0;
 
-	__ni_global_seqno++;
+	dev = nc ? ni_netdev_by_index(nc, link->ifindex) : NULL;
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+			"Link %s[%u] info refresh",
+			dev ? dev->name : "",
+			link->ifindex);
 
+	__ni_global_seqno++;
 	if ((rv = ni_rtnl_query_link(&query, link->ifindex)) < 0)
 		goto done;
 
@@ -606,10 +631,11 @@ __ni_device_refresh_ipv6_link_info(ni_netconfig_t *nc, ni_netdev_t *dev)
 	struct nlmsghdr *h;
 	int rv = 0;
 
-	(void)nc; /* unused */
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+			"IPv6 link info refresh of %s interface",
+			dev->name);
 
 	__ni_global_seqno++;
-
 	if ((rv = ni_rtnl_query_ipv6_link(&query, dev->link.ifindex)) < 0)
 		goto done;
 

@@ -365,12 +365,19 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 	if (dbus_server) {
 		ni_dbus_object_t *object;
 
-		if (event == NI_EVENT_DEVICE_CREATE) {
-			/* A new netif was discovered; create a dbus server object
-			 * enacpsulating it. */
+		object = ni_objectmodel_get_netif_object(dbus_server, dev);
+		if (!object && event == NI_EVENT_DEVICE_CREATE) {
+			/* A new netif was discovered or we've created one;
+			 * create a dbus server object enacpsulating it.
+			 *
+			 * When a factory creates a virtual device, it also
+			 * creates the dbus object and while the netlink
+			 * event about it device arrived, we already have it.
+			 *
+			 * When the system discovered new device, we'll get
+			 * a netlink event and create the dbus object here.
+			 */
 			object = ni_objectmodel_register_netif(dbus_server, dev, NULL);
-		} else {
-			object = ni_objectmodel_get_netif_object(dbus_server, dev);
 		}
 		if (!object) {
 			/* usually a "bad event", e.g. when the underlying netdev
@@ -389,25 +396,15 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 		case NI_EVENT_DEVICE_DELETE:
 			/* Delete dbus object first, so that GetManagedObjects doesn't
 			 * return it any longer.
-			 * Note; deletion of the object will be deferred until we return to
-			 * the main loop.
+			 * Note; deletion of the object will be deferred until we return
+			 * to the main loop.
 			 */
 			ni_objectmodel_unregister_netif(dbus_server, dev);
-
-			/* Delete dbus object and emit event */
-			while ((event_uuid = ni_netdev_get_event_uuid(dev, event)) != NULL)
-				ni_objectmodel_send_netif_event(dbus_server, object, NI_EVENT_DEVICE_DOWN, event_uuid);
-
-			ni_objectmodel_send_netif_event(dbus_server, object, NI_EVENT_DEVICE_DOWN, NULL);
-			ni_objectmodel_send_netif_event(dbus_server, object, NI_EVENT_DEVICE_DELETE, NULL);
-			break;
-
-		case NI_EVENT_DEVICE_READY:
-			while ((event_uuid = ni_netdev_get_event_uuid(dev, event)) != NULL)
-				ni_objectmodel_send_netif_event(dbus_server, object, event, event_uuid);
 			ni_objectmodel_send_netif_event(dbus_server, object, event, NULL);
 			break;
 
+		case NI_EVENT_DEVICE_READY:
+		case NI_EVENT_DEVICE_DOWN:
 		case NI_EVENT_LINK_ASSOCIATED:
 		case NI_EVENT_LINK_ASSOCIATION_LOST:
 		case NI_EVENT_LINK_UP:
