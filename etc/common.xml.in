@@ -6,4 +6,8 @@
 
   <dbus name="org.opensuse.Network" />
   <schema name="@wicked_schemadir@/wicked.xml"/>
+
+  <!-- Set to 'false' to disable nanny use and
+       apply the config directly into wickedd -->
+  <use-nanny>true</use-nanny>
 </config>
