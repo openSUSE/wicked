@@ -264,8 +264,14 @@ ni_config_statedir(void)
 	static ni_bool_t firsttime = TRUE;
 
 	if (firsttime) {
+		char nanny_dir[PATH_MAX] = {'\0'};
+
 		if (ni_mkdir_maybe(fsloc->path, fsloc->mode) < 0)
 			ni_fatal("Cannot create state directory \"%s\": %m", fsloc->path);
+
+		snprintf(nanny_dir, sizeof(nanny_dir), "%s/nanny", fsloc->path);
+		if (ni_mkdir_maybe(nanny_dir, fsloc->mode) < 0)
+			ni_fatal("Cannot create nanny state directory \"%s\": %m", nanny_dir);
 		firsttime = FALSE;
 	}
 
