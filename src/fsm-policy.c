@@ -384,7 +384,8 @@ ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
 	ni_string_free(&pname);
 
 	/* 2nd match check - ifworker  to config name comparison */
-	if (w->config.node && (node = xml_node_get_child(w->config.node, "name"))) {
+	if (!xml_node_is_empty(w->config.node) &&
+	    (node = xml_node_get_child(w->config.node, "name"))) {
 		const char *namespace = xml_node_get_attr(node, "namespace");
 		if (!namespace && !ni_string_eq(node->cdata, w->name)) {
 			ni_error("%s: config name does not match policy name",
