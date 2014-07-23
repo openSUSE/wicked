@@ -97,6 +97,10 @@ static int	__ni_rtnl_send_newaddr(ni_netdev_t *, const ni_address_t *, int);
 static int	__ni_rtnl_send_delroute(ni_netdev_t *, ni_route_t *);
 static int	__ni_rtnl_send_newroute(ni_netdev_t *, ni_route_t *, int);
 
+static int	__ni_system_netdev_create(ni_netconfig_t *nc,
+					const char *ifname, unsigned int ifindex,
+					ni_iftype_t iftype, ni_netdev_t **dev_ret);
+
 int
 ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req)
 {
@@ -385,17 +389,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 		return -1;
 	}
 
-	/* Refresh interface status */
-	__ni_system_refresh_interfaces(nc);
-
-	dev = ni_netdev_by_vlan_name_and_tag(nc, cfg->link.lowerdev.name, cfg->vlan->tag);
-	if (dev == NULL) {
-		ni_error("tried to create interface %s; still not found", cfg->name);
-		return -1;
-	}
-
-	*dev_ret = dev;
-	return 0;
+	return __ni_system_netdev_create(nc, cfg->name, 0, NI_IFTYPE_VLAN, dev_ret);
 }
 
 int
@@ -463,23 +457,7 @@ ni_system_macvlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 		return -1;
 	}
 
-	/* Refresh interface status */
-	__ni_system_refresh_interfaces(nc);
-
-	dev = ni_netdev_by_name(nc, cfg->name);
-	if (dev == NULL) {
-		ni_error("tried to create interface %s; still not found", cfg->name);
-		return -1;
-	}
-
-	if (!ni_netdev_get_macvlan(dev)) {
-		ni_error("found new interface name %s but with type %s",
-			cfg->name, ni_linktype_type_to_name(dev->link.type));
-		return -1;
-	}
-
-	*dev_ret = dev;
-	return 0;
+	return __ni_system_netdev_create(nc, cfg->name, 0, cfg->link.type, dev_ret);
 }
 
 /*
@@ -531,17 +509,7 @@ ni_system_dummy_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 		return -1;
 	}
 
-	/* Refresh interface status */
-	__ni_system_refresh_interfaces(nc);
-
-	dev = ni_netdev_by_name(nc, cfg->name);
-	if (dev == NULL) {
-		ni_error("tried to create interface %s; still not found", cfg->name);
-		return -1;
-	}
-
-	*dev_ret = dev;
-	return 0;
+	return __ni_system_netdev_create(nc, cfg->name, 0, NI_IFTYPE_DUMMY, dev_ret);
 }
 
 int
@@ -673,18 +641,7 @@ ni_system_infiniband_child_create(ni_netconfig_t *nc,
 	if (__ni_system_infiniband_setup(cfg->name, ib->mode, ib->umcast) < 0)
 		return -1; /* error reported */
 
-	if (dev_ret != NULL) {
-		/* Refresh interface status */
-		__ni_system_refresh_interfaces(nc);
-
-		*dev_ret = ni_netdev_by_name(nc, cfg->name);
-		if (*dev_ret == NULL) {
-			ni_error("tried to create interface %s; unable to find it",
-				cfg->name);
-			return -1;
-		}
-	}
-	return 0;
+	return __ni_system_netdev_create(nc, cfg->name, 0, NI_IFTYPE_INFINIBAND_CHILD, dev_ret);
 }
 
 /*
@@ -718,23 +675,20 @@ ni_system_bridge_create(ni_netconfig_t *nc, const char *ifname,
 {
 	ni_netdev_t *dev;
 
+	*dev_ret = NULL;
+
+	if ((dev = ni_netdev_by_name(nc, ifname))) {
+		*dev_ret = dev;
+		return -NI_ERROR_DEVICE_EXISTS;
+	}
+
 	ni_debug_ifconfig("%s: creating bridge interface", ifname);
 	if (__ni_brioctl_add_bridge(ifname) < 0) {
 		ni_error("__ni_brioctl_add_bridge(%s) failed", ifname);
 		return -1;
 	}
 
-	/* Refresh interface status */
-	__ni_system_refresh_interfaces(nc);
-
-	dev = ni_netdev_by_name(nc, ifname);
-	if (dev == NULL) {
-		ni_error("tried to create interface %s; still not found", ifname);
-		return -1;
-	}
-
-	*dev_ret = dev;
-	return 0;
+	return __ni_system_netdev_create(nc, ifname, 0, NI_IFTYPE_BRIDGE, dev_ret);
 }
 
 /*
@@ -775,10 +729,8 @@ ni_system_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bridge_t *
 	}
 #endif
 
-	return __ni_system_refresh_interface(nc, dev);
-
+	ret = 0;
 done:
-	(void) __ni_system_refresh_interface(nc, dev);
 	return ret;
 }
 
@@ -921,8 +873,6 @@ ni_system_bridge_remove_port(ni_netdev_t *dev, unsigned int port_ifindex)
 int
 ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t *bond, ni_netdev_t **dev_ret)
 {
-	ni_netdev_t *dev;
-
 	if (!ni_sysfs_bonding_available()) {
 		unsigned int i, success = 0;
 
@@ -963,16 +913,7 @@ ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t
 		}
 	}
 
-	/* Refresh interface status */
-	__ni_system_refresh_interfaces(nc);
-
-	if ((dev = ni_netdev_by_name(nc, ifname)) == NULL) {
-		ni_error("tried to create interface %s; still not found", ifname);
-		return -1;
-	}
-
-	*dev_ret = dev;
-	return 0;
+	return __ni_system_netdev_create(nc, ifname, 0, NI_IFTYPE_BOND, dev_ret);
 }
 
 /*
@@ -1259,25 +1200,7 @@ ni_system_tuntap_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t 
 		return -1;
 	}
 
-	/* Refresh interface status */
-	__ni_system_refresh_interfaces(nc);
-
-	dev = ni_netdev_by_name(nc, cfg->name);
-
-	if (dev == NULL) {
-		ni_error("tried to create %s interface %s; still not found",
-			iftype_name, cfg->name);
-		return -1;
-	}
-
-	if (!ni_netdev_get_tuntap(dev)) {
-		ni_error("found new interface name %s but with type %s",
-			cfg->name, ni_linktype_type_to_name(dev->link.type));
-		return -1;
-	}
-
-	*dev_ret = dev;
-	return 0;
+	return __ni_system_netdev_create(nc, cfg->name, 0, cfg->link.type, dev_ret);
 }
 
 /*
@@ -1299,9 +1222,9 @@ ni_system_tuntap_delete(ni_netdev_t *dev)
 int
 ni_system_ppp_create(ni_netconfig_t *nc, const char *ifname, ni_ppp_t *cfg, ni_netdev_t **dev_ret)
 {
-	ni_netdev_t *dev;
 	ni_ppp_t *ppp;
 	char *newname;
+	int ret;
 
 	ni_debug_ifconfig("%s: creating ppp interface", ifname);
 
@@ -1312,25 +1235,15 @@ ni_system_ppp_create(ni_netconfig_t *nc, const char *ifname, ni_ppp_t *cfg, ni_n
 		return -1;
 	}
 
-	/* Refresh interface status */
-	__ni_system_refresh_interfaces(nc);
-
-	dev = ni_netdev_by_name(nc, newname);
-	free(newname);
-
-	if (dev == NULL) {
-		ni_error("tried to create ppp interface %s; still not found", ifname);
-		return -1;
-	}
-
 	if (cfg) {
 		ppp->config = cfg->config;
 		cfg->config = NULL;
 	}
 
-	ni_netdev_set_ppp(dev, ppp);
-	*dev_ret = dev;
-	return 0;
+	ret = __ni_system_netdev_create(nc, newname, 0, NI_IFTYPE_PPP, dev_ret);
+	if (ret == 0 && dev_ret && *dev_ret)
+		ni_netdev_set_ppp(*dev_ret, ppp);
+	return ret;
 }
 
 /*
@@ -2713,6 +2626,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		ni_debug_ifconfig("Adding new interface address %s/%u",
 				ni_sockaddr_print(&ap->local_addr),
 				ap->prefixlen);
+
 		if ((rv = __ni_rtnl_send_newaddr(dev, ap, NLM_F_CREATE)) < 0)
 			return rv;
 
@@ -2854,6 +2768,7 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 					new_route->config_lease = new_lease;
 					new_route->seq = __ni_global_seqno;
 					__ni_netdev_record_newroute(nc, dev, new_route);
+
 					continue;
 				}
 
@@ -2903,3 +2818,73 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 	return rv;
 }
 
+/*
+ * Initialialize a netdev of a just created inteface.
+ *
+ * The purpose of this function is to initialize the interface
+ * just after it's creation with a _known_ interface name.
+ *
+ * We add it to list of known interfaces, mark created (dirty)
+ * and wait for the NEWLINK event to update the rest.
+ */
+static int
+__ni_system_netdev_create(ni_netconfig_t *nc,
+				const char *ifname, unsigned int ifindex,
+				ni_iftype_t iftype, ni_netdev_t **dev_ret)
+{
+	const char *type = ni_linktype_type_to_name(iftype);
+	ni_netdev_t *dev;
+
+	if (!ifname || !type || iftype == NI_IFTYPE_UNKNOWN) {
+		ni_error("Rejecting to create an unknown interface %s index %u",
+				ifname, ifindex);
+		return -1;
+	}
+
+	if (!ifindex && !(ifindex = if_nametoindex(ifname))) {
+		ni_error("%s: created %s interface, but can't find it's index",
+				ifname, type);
+		return -1;
+	}
+
+	if ((dev = ni_netdev_by_index(nc, ifindex))) {
+		if (dev->link.type != iftype) {
+			ni_error("%s: created %s interface, but found a %s type at index %u",
+					ifname, type, ni_linktype_type_to_name(dev->link.type),
+					ifindex);
+		}
+		*dev_ret = dev;
+		return -NI_ERROR_DEVICE_EXISTS;
+	}
+
+	if (!(dev = ni_netdev_new(ifname, ifindex))) {
+		ni_error("%s: unable to allocate %s netdev structure for index %u: %m",
+				ifname, type, ifindex);
+		return -1;
+	}
+
+
+	/* Hmm... init just the base link properties (e.g. type) or
+	 * do we required to discover furher things (vlan,bridge)?
+	 */
+	__ni_device_refresh_link_info(nc, &dev->link);
+
+	/* Mark to emit device-create in next newlink event later */
+	dev->created = 1;
+	/* Remove all flags, we have to emit them too */
+	dev->link.ifflags &= ~(NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
+	ni_netconfig_device_append(nc, ni_netdev_get(dev));
+
+	if (dev->link.type != iftype) {
+		ni_error("%s: created %s interface, but found a %s type at index %u",
+				ifname, type, ni_linktype_type_to_name(dev->link.type),
+				ifindex);
+		*dev_ret = dev;
+		return -NI_ERROR_DEVICE_EXISTS;
+	}
+
+	*dev_ret = dev;
+	ni_debug_ifconfig("%s: created %s interface with index %u",
+				ifname, type, ifindex);
+	return 0;
+}
