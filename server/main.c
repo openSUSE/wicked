@@ -396,25 +396,15 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 		case NI_EVENT_DEVICE_DELETE:
 			/* Delete dbus object first, so that GetManagedObjects doesn't
 			 * return it any longer.
-			 * Note; deletion of the object will be deferred until we return to
-			 * the main loop.
+			 * Note; deletion of the object will be deferred until we return
+			 * to the main loop.
 			 */
 			ni_objectmodel_unregister_netif(dbus_server, dev);
-
-			/* Delete dbus object and emit event */
-			while ((event_uuid = ni_netdev_get_event_uuid(dev, event)) != NULL)
-				ni_objectmodel_send_netif_event(dbus_server, object, NI_EVENT_DEVICE_DOWN, event_uuid);
-
-			ni_objectmodel_send_netif_event(dbus_server, object, NI_EVENT_DEVICE_DOWN, NULL);
-			ni_objectmodel_send_netif_event(dbus_server, object, NI_EVENT_DEVICE_DELETE, NULL);
-			break;
-
-		case NI_EVENT_DEVICE_READY:
-			while ((event_uuid = ni_netdev_get_event_uuid(dev, event)) != NULL)
-				ni_objectmodel_send_netif_event(dbus_server, object, event, event_uuid);
 			ni_objectmodel_send_netif_event(dbus_server, object, event, NULL);
 			break;
 
+		case NI_EVENT_DEVICE_READY:
+		case NI_EVENT_DEVICE_DOWN:
 		case NI_EVENT_LINK_ASSOCIATED:
 		case NI_EVENT_LINK_ASSOCIATION_LOST:
 		case NI_EVENT_LINK_UP:
