@@ -103,9 +103,8 @@ ni_objectmodel_addrconf_path_to_device(const char *path)
 	if (ni_parse_uint(path, &ifindex, 10) < 0)
 		return NULL;
 
-	nc = ni_global_state_handle(1);
-	if (nc == NULL) {
-		ni_error("%s: unable to refresh interfaces", __func__);
+	if (!(nc = ni_global_state_handle(0))) {
+		ni_error("%s: unable to get global handle", __func__);
 		return NULL;
 	}
 
