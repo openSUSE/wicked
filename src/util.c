@@ -1940,7 +1940,8 @@ ni_file_read(FILE *fp, unsigned int *lenp)
 		}
 	}
 
-	*lenp = done;
+	if (lenp)
+		*lenp = done;
 	return buffer;
 }
 

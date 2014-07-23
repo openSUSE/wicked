@@ -27,6 +27,8 @@
 #include <wicked/modem.h>
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
+
+#include "client/ifconfig.h"
 #include "util_priv.h"
 #include "nanny.h"
 
@@ -189,6 +191,50 @@ main(int argc, char **argv)
 	return NI_LSB_RC_SUCCESS;
 }
 
+static ni_bool_t
+ni_nanny_policy_load(ni_nanny_t *mgr)
+{
+	ni_string_array_t files = NI_STRING_ARRAY_INIT;
+	char nanny_dir[PATH_MAX] = {'\0'};
+
+	ni_assert(mgr);
+	ni_debug_application("Loading previously saved policies:");
+
+	snprintf(nanny_dir, sizeof(nanny_dir), "%s/nanny", ni_config_statedir());
+	if (ni_scandir(nanny_dir, "policy*.xml", &files) != 0) {
+		unsigned int i;
+
+		for (i = 0; i < files.count; ++i) {
+			char path[PATH_MAX];
+			char *doc_string;
+			FILE *fp;
+
+			snprintf(path, sizeof(path), "%s/%s", nanny_dir, files.data[i]);
+			if (!(fp = fopen(path, "re"))) {
+				ni_error("Cannot open policy file '%s'", path);
+				continue;
+			}
+
+			doc_string = ni_file_read(fp, NULL);
+			fclose(fp);
+			if (doc_string == NULL) {
+				ni_error("Unable to read policy file %s: %m", path);
+				continue;
+			}
+
+			if (ni_nanny_create_policy(NULL, mgr, doc_string, TRUE) < 0) {
+				ni_error("Unable to create policy from file '%s'", path);
+				continue;
+			}
+
+			ni_string_free(&doc_string);
+		}
+	}
+
+	ni_string_array_destroy(&files);
+	return TRUE;
+}
+
 /*
  * Implement service for configuring the system's network interfaces
  * based on events and user-supplied policies.
@@ -218,6 +264,7 @@ babysit(void)
 	ni_rfkill_open(handle_rfkill_event, mgr);
 
 	ni_nanny_discover_state(mgr);
+	ni_nanny_policy_load(mgr);
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
