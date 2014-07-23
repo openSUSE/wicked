@@ -54,6 +54,7 @@
 #include <wicked/socket.h>
 #include <wicked/netinfo.h>
 
+#include "netinfo_priv.h"
 #include "socket_priv.h"
 #include "uevent.h"
 #include "appconfig.h"
@@ -651,7 +652,10 @@ __ni_uevent_ifevent_forwarder(const ni_var_array_t *vars, void *user_data)
 			ni_format_uint_mapped(uinfo.action, __action_map),
 			uinfo.ifindex,
 			uinfo.interface, uinfo.interface_old, uinfo.tags);
-	if (dev) {
+
+	if (dev && !(dev->link.ifflags & NI_IFF_DEVICE_READY)) {
+		unsigned int old_flags = dev->link.ifflags;
+
 		if (!ni_string_empty(uinfo.interface_old))
 			return;
 
@@ -659,8 +663,7 @@ __ni_uevent_ifevent_forwarder(const ni_var_array_t *vars, void *user_data)
 			return;
 
 		dev->link.ifflags |= NI_IFF_DEVICE_READY;
-		if (ni_global.interface_event)
-			ni_global.interface_event(dev, NI_EVENT_DEVICE_READY);
+		__ni_netdev_process_events(nc, dev, old_flags);
 	}
 }
 
