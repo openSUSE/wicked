@@ -198,8 +198,7 @@ ni_objectmodel_dummy_delete(ni_dbus_object_t *object, const ni_dbus_method_t *me
 		return FALSE;
 	}
 
-	ni_dbus_object_free(object);
-
+	ni_client_state_drop(dev->link.ifindex);
 	return TRUE;
 }
 

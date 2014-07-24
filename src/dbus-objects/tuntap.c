@@ -269,7 +269,6 @@ ni_objectmodel_tuntap_delete(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	}
 
 	ni_client_state_drop(dev->link.ifindex);
-	ni_dbus_object_free(object);
 	return TRUE;
 }
 
