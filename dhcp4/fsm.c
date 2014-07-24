@@ -483,12 +483,13 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 	case NI_DHCP4_STATE_REBINDING:
 		ni_error("unable to rebind lease");
 		ni_dhcp4_fsm_restart(dev);
-		/* FIXME: now decide whether we should try to re-discover */
+		ni_dhcp4_fsm_set_timeout(dev, 10);
 		break;
 
 	case NI_DHCP4_STATE_REBOOT:
 		ni_error("unable to confirm lease");
 		ni_dhcp4_fsm_commit_lease(dev, NULL);
+		ni_dhcp4_fsm_set_timeout(dev, 10);
 		break;
 
 	default:
