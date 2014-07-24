@@ -42,12 +42,14 @@
 #include "wicked-client.h"
 #include "appconfig.h"
 #include "ifcheck.h"
+#include "ifup.h"
 #include "ifreload.h"
 
 int
 ni_do_ifreload(int argc, char **argv)
 {
 	enum  { OPT_HELP, OPT_IFCONFIG, OPT_PERSISTENT, OPT_TRANSIENT,
+		OPT_TIMEOUT,
 #ifdef NI_TEST_HACKS
 		OPT_IGNORE_PRIO, OPT_IGNORE_STARTMODE,
 #endif
@@ -55,8 +57,9 @@ ni_do_ifreload(int argc, char **argv)
 
 	static struct option ifreload_options[] = {
 		{ "help",	no_argument,       NULL, OPT_HELP       },
-		{ "transient", 	no_argument,       NULL, OPT_TRANSIENT },
 		{ "ifconfig",	required_argument, NULL, OPT_IFCONFIG   },
+		{ "timeout", 	no_argument,       NULL, OPT_TIMEOUT },
+		{ "transient", 	no_argument,       NULL, OPT_TRANSIENT },
 #ifdef NI_TEST_HACKS
 		{ "ignore-prio",no_argument, NULL,	OPT_IGNORE_PRIO },
 		{ "ignore-startmode",no_argument, NULL, OPT_IGNORE_STARTMODE },
@@ -72,13 +75,13 @@ ni_do_ifreload(int argc, char **argv)
 	ni_bool_t check_prio = TRUE;
 	ni_bool_t opt_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
+	unsigned int opt_timeout = 0;
 	int c, status = NI_WICKED_RC_USAGE;
 	unsigned int nmarked, i;
 	const ni_uint_range_t up_range = {
 		.min = NI_FSM_STATE_ADDRCONF_UP,
 		.max = __NI_FSM_STATE_MAX
 	};
-	const char *ptr;
 	ni_fsm_t *fsm;
 
 	/* Allow ifreload on all interfaces with a changed config */
@@ -90,22 +93,6 @@ ni_do_ifreload(int argc, char **argv)
 	fsm = ni_fsm_new();
 	ni_assert(fsm);
 	ni_fsm_require_register_type("reachable", ni_ifworker_reachability_check_new);
-
-	/*
-	 * Workaround to consider WAIT_FOR_INTERFACES variable
-	 * in network/config (bnc#863371, bnc#862530 timeouts).
-	 * Correct would be to get it from compat layer, but
-	 * the network/config is sourced in systemd service...
-	 */
-	if ((ptr = getenv("WAIT_FOR_INTERFACES"))) {
-		unsigned int sec;
-
-		if (ni_parse_uint(ptr, &sec, 10) == 0 &&
-		    (sec * 1000 > fsm->worker_timeout)) {
-			ni_debug_application("wait %u sec for interfaces", sec);
-			fsm->worker_timeout = sec * 1000;
-		}
-	}
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifreload_options, NULL)) != EOF) {
@@ -130,6 +117,18 @@ ni_do_ifreload(int argc, char **argv)
 
 		case OPT_TRANSIENT:
 			opt_transient = TRUE;
+			break;
+
+		case OPT_TIMEOUT:
+			if (!strcmp(optarg, "infinite")) {
+				opt_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
+			} else if (ni_parse_uint(optarg, &opt_timeout, 10) >= 0) {
+				opt_timeout *= 1000; /* sec -> msec */
+			} else {
+				ni_error("ifup: cannot parse timeout option \"%s\"",
+						optarg);
+				goto usage;
+			}
 			break;
 
 		default:
@@ -197,6 +196,14 @@ usage:
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 		goto cleanup;
 	}
+
+	if (opt_timeout)
+		ni_wait_for_interfaces = opt_timeout; /* One set by user */
+	else
+		ni_wait_for_interfaces *= 1000;   /* sec -> msec */
+
+	if (ni_wait_for_interfaces)
+		fsm->worker_timeout = ni_wait_for_interfaces;
 
 	/* Build the up tree */
 	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
