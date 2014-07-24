@@ -177,7 +177,7 @@ error:
 	return rv;
 }
 
-static ni_bool_t
+ni_bool_t
 ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 {
 	unsigned int i;
