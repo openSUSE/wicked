@@ -163,7 +163,7 @@ extern void		xml_node_array_free(xml_node_array_t *);
 static inline ni_bool_t
 xml_node_is_empty(xml_node_t *node)
 {
-	return (!node || !node->children);
+	return (!node || (ni_string_empty(node->cdata) && !node->children));
 }
 
 static inline ni_bool_t

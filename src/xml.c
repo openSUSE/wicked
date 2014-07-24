@@ -73,9 +73,11 @@ xml_document_take_root(xml_document_t *doc)
 void
 xml_document_free(xml_document_t *doc)
 {
-	xml_node_free(doc->root);
-	ni_string_free(&doc->dtd);
-	free(doc);
+	if (doc) {
+		xml_node_free(doc->root);
+		ni_string_free(&doc->dtd);
+		free(doc);
+	}
 }
 
 /*
