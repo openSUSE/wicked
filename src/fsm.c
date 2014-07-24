@@ -2313,11 +2313,27 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 	}
 }
 
-static inline void
-ni_fsm_purge_children(ni_fsm_t *fsm, ni_ifworker_t *w)
+static void
+ni_fsm_clear_hierarchy(ni_ifworker_t *w)
 {
+	unsigned int i;
+
 	if (w->masterdev)
 		ni_ifworker_array_remove(&w->masterdev->children, w);
+
+	for (i = 0; i < w->lowerdev_for.count; i++) {
+		ni_ifworker_t *ldev_usr = w->lowerdev_for.data[i];
+
+		ni_ifworker_array_remove(&ldev_usr->children, w);
+		ldev_usr->lowerdev = NULL;
+	}
+
+	for (i = 0; i < w->children.count; i++) {
+		ni_ifworker_t *child = w->children.data[i];
+
+		if (child->masterdev == w)
+			child->masterdev = NULL;
+	}
 }
 
 ni_bool_t
@@ -2339,7 +2355,7 @@ ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 	if (ni_ifworker_active(w))
 		ni_ifworker_fail(w, "device was deleted");
 
-	ni_fsm_purge_children(fsm, w);
+	ni_fsm_clear_hierarchy(w);
 	ni_ifworker_release(w);
 	return TRUE;
 }
