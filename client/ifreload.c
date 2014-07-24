@@ -246,7 +246,8 @@ usage:
 			w->client_state.persistent = TRUE;
 
 		/* Remember all changed devices */
-		ni_ifworker_array_append(&up_marked, w);
+		if (ni_ifcheck_worker_config_exists(w))
+			ni_ifworker_array_append(&up_marked, w);
 
 		/* Do not ifdown non-existing device */
 		if (!dev) {
@@ -529,7 +530,8 @@ usage:
 		}
 
 		/* Remember all changed devices */
-		ni_ifworker_array_append(&up_marked, w);
+		if (ni_ifcheck_worker_config_exists(w))
+			ni_ifworker_array_append(&up_marked, w);
 
 		/* Do not ifdown non-existing device */
 		if (!dev) {
