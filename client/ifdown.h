@@ -29,4 +29,6 @@
 
 extern int		ni_do_ifdown(int argc, char **argv);
 
+ni_bool_t		ni_ifdown_fire_nanny(ni_ifworker_array_t *);
+
 #endif /* __WICKED_CLIENT_IFDOWN_H__ */
