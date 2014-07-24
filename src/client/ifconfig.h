@@ -71,13 +71,13 @@ extern ni_bool_t		ni_nanny_call_add_secret(const ni_security_id_t *, const char 
 static inline ni_bool_t
 ni_ifconfig_is_config(xml_node_t *ifnode)
 {
-	return ifnode && ni_string_eq(ifnode->name, NI_CLIENT_IFCONFIG);
+	return !xml_node_is_empty(ifnode) && ni_string_eq(ifnode->name, NI_CLIENT_IFCONFIG);
 }
 
 static inline ni_bool_t
 ni_ifconfig_is_policy(xml_node_t *pnode)
 {
-	return pnode &&
+	return !xml_node_is_empty(pnode) &&
 		(ni_string_eq(pnode->name, NI_NANNY_IFPOLICY) ||
 		 ni_string_eq(pnode->name, NI_NANNY_IFTEMPLATE));
 }
