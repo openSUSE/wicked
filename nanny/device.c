@@ -113,7 +113,7 @@ ni_managed_device_type(const ni_managed_device_t *mdev)
 void
 ni_managed_device_set_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy, xml_node_t *config)
 {
-	if (mdev->selected_config)
+	if (!xml_node_is_empty(mdev->selected_config))
 		xml_node_free(mdev->selected_config);
 	mdev->selected_config = config;
 
@@ -160,7 +160,7 @@ int
 ni_factory_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_policy_t *mpolicy)
 {
 	const char *type_name;
-	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
+	ni_fsm_policy_t *policy = mpolicy->fsm_policy;
 	xml_node_t *config = NULL;
 
 	ni_debug_nanny("%s: configuring factory device using policy %s",
@@ -196,7 +196,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 {
 	ni_ifworker_t *w = mdev->worker;
 	const char *type_name;
-	const ni_fsm_policy_t *policy = mpolicy->fsm_policy;
+	ni_fsm_policy_t *policy = mpolicy->fsm_policy;
 	xml_node_t *config = NULL;
 
 	/* If the device is up and running, do not reconfigure unless the policy

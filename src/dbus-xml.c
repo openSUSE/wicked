@@ -1694,7 +1694,7 @@ ni_dbus_xml_expand_element_reference(xml_node_t *doc_node, const char *expr_stri
 	xpath_result_t *result;
 	unsigned int i, nret;
 
-	if (doc_node == NULL)
+	if (xml_node_is_empty(doc_node))
 		return 0;
 
 	expression = xpath_expression_parse(expr_string);
@@ -1767,7 +1767,7 @@ ni_dbus_xml_map_method_argument(const ni_dbus_method_t *method, unsigned int ind
 			skip_call = TRUE;
 
 		attr = xml_node_get_attr(mapping, "document-node");
-		if (attr != NULL && doc_node) {
+		if (attr != NULL && !xml_node_is_empty(doc_node)) {
 			xml_node_t *expanded[2];
 			int rv;
 

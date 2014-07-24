@@ -121,6 +121,8 @@ extern ni_device_clientinfo_t *	ni_ifconfig_get_client_info(xml_document_t *);
 extern void			ni_ifconfig_add_client_info(xml_document_t *, ni_device_clientinfo_t *,     char *);
 extern void			ni_ifconfig_del_client_info(xml_document_t *, const char *);
 
+extern void			ni_state_change_signal_handler(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
+extern void			ni_client_timer_expires(void *, const ni_timer_t *);
 extern ni_bool_t		ni_client_create(ni_fsm_t *, void *);
 
 static inline void

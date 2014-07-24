@@ -384,7 +384,8 @@ ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
 	ni_string_free(&pname);
 
 	/* 2nd match check - ifworker  to config name comparison */
-	if (w->config.node && (node = xml_node_get_child(w->config.node, "name"))) {
+	if (!xml_node_is_empty(w->config.node) &&
+	    (node = xml_node_get_child(w->config.node, "name"))) {
 		const char *namespace = xml_node_get_attr(node, "namespace");
 		if (!namespace && !ni_string_eq(node->cdata, w->name)) {
 			ni_error("%s: config name does not match policy name",
@@ -538,7 +539,7 @@ ni_fsm_exists_applicable_policy(ni_fsm_policy_t *list, ni_ifworker_t *w)
  *	changes made by a policy with lower weight.
  */
 xml_node_t *
-ni_fsm_policy_transform_document(xml_node_t *node, const ni_fsm_policy_t * const *policies, unsigned int count)
+ni_fsm_policy_transform_document(xml_node_t *node, ni_fsm_policy_t * const *policies, unsigned int count)
 {
 	unsigned int i = 0;
 
