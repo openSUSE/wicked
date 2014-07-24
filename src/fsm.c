@@ -378,7 +378,7 @@ void
 ni_ifworker_success(ni_ifworker_t *w)
 {
 	if (!w->done && !w->progress.callback)
-		printf("%s: %s\n", w->name, ni_ifworker_state_name(w->fsm.state));
+		ni_note("%s: %s\n", w->name, ni_ifworker_state_name(w->fsm.state));
 
 	__ni_ifworker_done(w);
 

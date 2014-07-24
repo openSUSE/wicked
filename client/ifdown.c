@@ -67,7 +67,7 @@ ni_ifdown_stop_device(const char *device_name)
 	return TRUE;
 }
 
-static ni_bool_t
+ni_bool_t
 ni_ifdown_fire_nanny(ni_ifworker_array_t *array)
 {
 	unsigned int i;
@@ -237,7 +237,7 @@ usage:
 	}
 
 	if (nmarked == 0) {
-		printf("ifdown: no matching interfaces\n");
+		ni_note("ifdown: no matching interfaces");
 		status = NI_WICKED_RC_SUCCESS;
 	} else {
 		if (ni_fsm_schedule(fsm) != 0)

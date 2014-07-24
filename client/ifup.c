@@ -224,7 +224,7 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 	}
 
 	if (0 == array->count)
-		printf("ifup: no matching interfaces\n");
+		ni_note("ifup: no matching interfaces");
 
 	return rv;
 }
@@ -277,7 +277,8 @@ ni_state_change_signal_handler(ni_dbus_connection_t *conn, ni_dbus_message_t *ms
 		if (!ni_string_eq(w->name, ifname))
 			continue;
 
-		ni_warn("%s: Device %s", ifname, cur_state == target_state ? "succeeded" : "failed");
+		ni_note("%s: %s [%s]", ifname, ni_ifworker_state_name(target_state),
+				cur_state == target_state ? "success" : "failure");
 		ni_ifworker_array_remove_with_children(ifworkers, w);
 
 	}
@@ -295,7 +296,7 @@ ni_client_timer_expires(void *user_data, const ni_timer_t *timer)
 
 	(void) timer;
 	*status = NI_WICKED_RC_ERROR;
-	ni_error("Operation timeout...");
+	ni_note("Interface wait time reached");
 }
 
 ni_bool_t
@@ -777,7 +778,7 @@ usage:
 		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
 
 	if (nmarked == 0) {
-		printf("ifup: no matching interfaces\n");
+		ni_note("ifup: no matching interfaces");
 		status = NI_WICKED_RC_SUCCESS;
 	} else {
 		if (ni_fsm_schedule(fsm) != 0)

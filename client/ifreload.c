@@ -43,6 +43,7 @@
 #include "appconfig.h"
 #include "ifcheck.h"
 #include "ifup.h"
+#include "ifdown.h"
 #include "ifreload.h"
 
 static int
@@ -282,7 +283,7 @@ usage:
 	}
 
 	if (0 == nmarked && 0 == up_marked.count) {
-		printf("ifreload: no matching interfaces\n");
+		ni_note("ifreload: no matching interfaces");
 		status = NI_WICKED_RC_SUCCESS;
 		goto cleanup;
 	}
@@ -566,7 +567,7 @@ usage:
 	}
 
 	if (0 == nmarked && 0 == up_marked.count) {
-		printf("ifreload: no matching interfaces\n");
+		ni_note("ifreload: no matching interfaces");
 		status = NI_WICKED_RC_SUCCESS;
 		goto cleanup;
 	}
@@ -575,6 +576,7 @@ usage:
 	if (nmarked) {
 		/* Run ifdown part of the reload */
 		ni_debug_application("Shutting down unneeded devices");
+		ni_ifdown_fire_nanny(&down_marked);
 		if (ni_fsm_start_matching_workers(fsm, &down_marked)) {
 			/* Execute the down run */
 			if (ni_fsm_schedule(fsm) != 0)
