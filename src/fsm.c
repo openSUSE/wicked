@@ -2326,6 +2326,9 @@ ni_fsm_clear_hierarchy(ni_ifworker_t *w)
 	if (w->masterdev)
 		ni_ifworker_array_remove(&w->masterdev->children, w);
 
+	if (w->lowerdev)
+		ni_ifworker_array_remove(&w->lowerdev->lowerdev_for, w);
+
 	for (i = 0; i < w->lowerdev_for.count; i++) {
 		ni_ifworker_t *ldev_usr = w->lowerdev_for.data[i];
 

@@ -91,6 +91,7 @@ ni_managed_netdev_disable(ni_managed_device_t *mdev)
 		ni_ifworker_rearm(w);
 
 	mdev->monitor = FALSE;
+	ni_nanny_policy_drop(mdev->worker->name);
 	return TRUE;
 }
 

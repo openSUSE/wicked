@@ -12,6 +12,7 @@
 
 #include <wicked/fsm.h>
 #include <wicked/secret.h>
+#include "appconfig.h"
 
 typedef struct ni_nanny		ni_nanny_t;
 typedef struct ni_managed_device ni_managed_device_t;
@@ -114,6 +115,7 @@ extern ni_dbus_service_t	ni_objectmodel_nanny_service;
 extern ni_nanny_t *		ni_nanny_new(void);
 extern void			ni_nanny_start(ni_nanny_t *);
 extern void			ni_nanny_free(ni_nanny_t *);
+extern const char *		ni_nanny_statedir(void);
 extern void			ni_nanny_schedule_recheck(ni_ifworker_array_t *, ni_ifworker_t *);
 extern void			ni_nanny_unschedule(ni_ifworker_array_t *, ni_ifworker_t *);
 extern unsigned int		ni_nanny_recheck_do(ni_nanny_t *mgr);
@@ -131,6 +133,7 @@ extern void			ni_nanny_clear_secrets(ni_nanny_t *mgr,
 extern ni_secret_t *		ni_nanny_get_secret(ni_nanny_t *, uid_t, const ni_security_id_t *, const char *);
 extern void			ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked);
 extern int			ni_nanny_create_policy(ni_dbus_object_t **, ni_nanny_t *, const char *, ni_bool_t);
+extern ni_bool_t		ni_nanny_policy_drop(const char *);
 
 extern ni_bool_t		ni_managed_netdev_enable(ni_managed_device_t *);
 extern void			ni_managed_netdev_apply_policy(ni_managed_device_t *, ni_managed_policy_t *, ni_fsm_t *);
@@ -145,6 +148,7 @@ extern int			ni_factory_device_apply_policy(ni_fsm_t *, ni_ifworker_t *, ni_mana
 extern int			ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy);
 extern void			ni_managed_device_set_policy(ni_managed_device_t *, ni_managed_policy_t *, xml_node_t *);
 extern void			ni_managed_device_down(ni_managed_device_t *mdev);
+extern ni_bool_t		ni_managed_policy_filename(const char *, char *, size_t);
 
 extern ni_managed_policy_t *	ni_managed_policy_new(ni_nanny_t *, ni_fsm_policy_t *, xml_document_t *);
 extern void			ni_managed_policy_free(ni_managed_policy_t *);

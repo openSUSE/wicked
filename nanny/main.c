@@ -27,6 +27,8 @@
 #include <wicked/modem.h>
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
+
+#include "client/ifconfig.h"
 #include "util_priv.h"
 #include "nanny.h"
 
@@ -189,11 +191,71 @@ main(int argc, char **argv)
 	return NI_LSB_RC_SUCCESS;
 }
 
+const char *
+ni_nanny_statedir(void)
+{
+	unsigned int fsmode = ni_global.config->statedir.mode;
+	static char path[PATH_MAX] = { '\0' };
+	const char *nannydir = "nanny";
+
+	if (ni_string_empty(path)) {
+		snprintf(path, sizeof(path), "%s/%s", ni_config_statedir(), nannydir);
+		if (ni_mkdir_maybe(path, fsmode) < 0)
+			ni_fatal("Cannot create nanny state directory \"%s\": %m", path);
+	}
+
+	return path;
+}
+
+static ni_bool_t
+ni_nanny_policy_load(ni_nanny_t *mgr)
+{
+	ni_string_array_t files = NI_STRING_ARRAY_INIT;
+	char nanny_dir[PATH_MAX] = { '\0' };
+
+	ni_assert(mgr);
+	ni_debug_application("Loading previously saved policies:");
+
+	snprintf(nanny_dir, sizeof(nanny_dir), "%s", ni_nanny_statedir());
+	if (ni_scandir(nanny_dir, "policy*.xml", &files) != 0) {
+		unsigned int i;
+
+		for (i = 0; i < files.count; ++i) {
+			char path[PATH_MAX];
+			char *doc_string;
+			FILE *fp;
+
+			snprintf(path, sizeof(path), "%s/%s", nanny_dir, files.data[i]);
+			if (!(fp = fopen(path, "re"))) {
+				ni_error("Cannot open policy file '%s'", path);
+				continue;
+			}
+
+			doc_string = ni_file_read(fp, NULL);
+			fclose(fp);
+			if (doc_string == NULL) {
+				ni_error("Unable to read policy file %s: %m", path);
+				continue;
+			}
+
+			if (!ni_nanny_create_policy(NULL, mgr, doc_string, TRUE)) {
+				ni_error("Unable to create policy from file '%s'", path);
+				continue;
+			}
+
+			ni_string_free(&doc_string);
+		}
+	}
+
+	ni_string_array_destroy(&files);
+	return TRUE;
+}
+
 /*
  * Implement service for configuring the system's network interfaces
  * based on events and user-supplied policies.
  */
-void
+static void
 babysit(void)
 {
 	ni_nanny_t *mgr;
@@ -218,6 +280,7 @@ babysit(void)
 	ni_rfkill_open(handle_rfkill_event, mgr);
 
 	ni_nanny_discover_state(mgr);
+	ni_nanny_policy_load(mgr);
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
@@ -242,7 +305,7 @@ babysit(void)
  * If we have any live leases, restart address configuration for them.
  * This allows a daemon restart without losing lease state.
  */
-void
+static void
 ni_nanny_discover_state(ni_nanny_t *mgr)
 {
 	ni_ifworker_t *w;
@@ -263,7 +326,7 @@ ni_nanny_discover_state(ni_nanny_t *mgr)
 	}
 }
 
-void
+static void
 handle_rfkill_event(ni_rfkill_type_t type, ni_bool_t blocked, void *user_data)
 {
 	ni_nanny_t *mgr = user_data;
@@ -277,7 +340,7 @@ handle_rfkill_event(ni_rfkill_type_t type, ni_bool_t blocked, void *user_data)
 /*
  * Handle config file option in <nanny> element
  */
-ni_bool_t
+static ni_bool_t
 ni_nanny_config_callback(void *appdata, const xml_node_t *node)
 {
 	ni_nanny_t *nanny = appdata;
