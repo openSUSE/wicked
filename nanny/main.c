@@ -189,11 +189,27 @@ main(int argc, char **argv)
 	return NI_LSB_RC_SUCCESS;
 }
 
+const char *
+ni_nanny_statedir(void)
+{
+	unsigned int fsmode = ni_global.config->statedir.mode;
+	static char path[PATH_MAX] = { '\0' };
+	const char *nannydir = "nanny";
+
+	if (ni_string_empty(path)) {
+		snprintf(path, sizeof(path), "%s/%s", ni_config_statedir(), nannydir);
+		if (ni_mkdir_maybe(path, fsmode) < 0)
+			ni_fatal("Cannot create nanny state directory \"%s\": %m", path);
+	}
+
+	return path;
+}
+
 /*
  * Implement service for configuring the system's network interfaces
  * based on events and user-supplied policies.
  */
-void
+static void
 babysit(void)
 {
 	ni_nanny_t *mgr;
@@ -242,7 +258,7 @@ babysit(void)
  * If we have any live leases, restart address configuration for them.
  * This allows a daemon restart without losing lease state.
  */
-void
+static void
 ni_nanny_discover_state(ni_nanny_t *mgr)
 {
 	ni_ifworker_t *w;
@@ -263,7 +279,7 @@ ni_nanny_discover_state(ni_nanny_t *mgr)
 	}
 }
 
-void
+static void
 handle_rfkill_event(ni_rfkill_type_t type, ni_bool_t blocked, void *user_data)
 {
 	ni_nanny_t *mgr = user_data;
@@ -277,7 +293,7 @@ handle_rfkill_event(ni_rfkill_type_t type, ni_bool_t blocked, void *user_data)
 /*
  * Handle config file option in <nanny> element
  */
-ni_bool_t
+static ni_bool_t
 ni_nanny_config_callback(void *appdata, const xml_node_t *node)
 {
 	ni_nanny_t *nanny = appdata;
