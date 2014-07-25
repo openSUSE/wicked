@@ -280,7 +280,8 @@ babysit(void)
 	ni_rfkill_open(handle_rfkill_event, mgr);
 
 	ni_nanny_discover_state(mgr);
-	ni_nanny_policy_load(mgr);
+	if (ni_config_use_nanny())
+		ni_nanny_policy_load(mgr);
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
