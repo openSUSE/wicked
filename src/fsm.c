@@ -1392,6 +1392,82 @@ ni_ifworker_control_free(ni_ifworker_control_t *control)
 }
 
 /*
+ * Set usercontrol flag to the worker and to all of its children
+ */
+ni_bool_t
+ni_ifworker_control_set_usercontrol(ni_ifworker_t *w, ni_bool_t value)
+{
+	unsigned int i;
+
+	if (!w)
+		return FALSE;
+
+	if (w->control.usercontrol == value)
+		return TRUE;
+
+	if (geteuid() != 0) {
+		ni_error("%s: only root is allowed to %sset usercontrol flag",
+			w->name, value ? "" : "un");
+		return FALSE;
+	}
+
+	if (w->control.persistent == TRUE && value == TRUE) {
+		ni_error("%s: unable to allow usercontrol on persistent interface",
+			w->name);
+		return FALSE;
+	}
+
+	w->control.usercontrol = value;
+	for (i = 0; i < w->children.count; i++) {
+		ni_ifworker_t *child = w->children.data[i];
+		if (!ni_ifworker_control_set_usercontrol(child, value))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+/*
+ * Set persistent flag to the worker and to all of its children
+ */
+ni_bool_t
+ni_ifworker_control_set_persistent(ni_ifworker_t *w, ni_bool_t value)
+{
+	unsigned int i;
+
+	if (!w)
+		return FALSE;
+
+	if (w->control.persistent == value)
+		return TRUE;
+
+	if (geteuid() != 0) {
+		ni_error("%s: only root is allowed to change persistent flag", w->name);
+		return FALSE;
+	}
+
+	if (value == FALSE) {
+		ni_error("%s: unable to unset persistent flag", w->name);
+		return FALSE;
+	}
+
+	/* Now we can only set persistent */
+	w->control.persistent = TRUE;
+
+	/* When persistent is set disallow user control */
+	ni_ifworker_control_set_usercontrol(w, FALSE);
+
+	/* Set persistent and usercontrol in each child worker */
+	for (i = 0; i < w->children.count; i++) {
+		ni_ifworker_t *child = w->children.data[i];
+		if (!ni_ifworker_control_set_persistent(child, TRUE))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+/*
  * Update an ifworker's control information from XML
  */
 static void
