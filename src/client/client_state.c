@@ -426,9 +426,6 @@ ni_client_state_save(const ni_client_state_t *client_state, unsigned int ifindex
 	FILE *fp = NULL;
 	int fd;
 
-	if (!ni_client_state_is_valid(client_state))
-		return FALSE;
-
 	ni_client_state_filename(ifindex, path, sizeof(path));
 	snprintf(temp, sizeof(temp), "%s.XXXXXX", path);
 
@@ -510,8 +507,7 @@ ni_client_state_load(ni_client_state_t *client_state, unsigned int ifindex)
 	}
 
 	ni_client_state_init(client_state);
-	if (!ni_client_state_parse_xml(node, client_state) ||
-	    !ni_client_state_is_valid(client_state)) {
+	if (!ni_client_state_parse_xml(node, client_state)) {
 		ni_error("Cannot parse state from file '%s'", path);
 		xml_node_free(xml);
 		return FALSE;
