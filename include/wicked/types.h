@@ -58,7 +58,6 @@ typedef struct ni_ipv6_devconf	ni_ipv6_devconf_t;
 typedef struct ni_event_filter	ni_event_filter_t;
 typedef struct ni_modem		ni_modem_t;
 typedef struct ni_pci_dev	ni_pci_dev_t;
-typedef struct ni_device_clientinfo ni_device_clientinfo_t;
 
 typedef struct ni_netdev_ref {
 	unsigned int		index;	/* by ifindex */

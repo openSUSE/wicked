@@ -135,12 +135,15 @@ struct ni_ifworker {
 
 	ni_ifworker_control_t	control;
 
-	ni_client_state_t client_state;
 	struct {
-		char *		origin;
-		ni_uuid_t	uuid;
-		xml_node_t *	node;
-	}			config;
+		ni_client_state_config_t	meta;
+		xml_node_t *		node;
+	} config;
+
+#ifdef CLIENT_STATE_STATS
+	ni_client_state_stats_t stats;
+#endif
+
 	ni_bool_t		use_default_policies;
 
 	/* The security ID can be used as a set of identifiers
@@ -299,7 +302,6 @@ extern ni_bool_t		ni_ifworker_match_netdev_alias(const ni_ifworker_t *, const ch
 extern ni_bool_t		ni_ifworker_match_netdev_ifindex(const ni_ifworker_t *, unsigned int);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *, const char *);
 extern void			ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
-extern ni_bool_t		ni_ifworker_check_config(const ni_ifworker_t *, const xml_node_t *, const char *);
 extern  void			ni_ifworker_rearm(ni_ifworker_t *);
 extern void			ni_ifworker_reset(ni_ifworker_t *);
 extern int			ni_ifworker_bind_early(ni_ifworker_t *, ni_fsm_t *, ni_bool_t);
@@ -376,7 +378,7 @@ ni_ifworker_get_modem(const ni_ifworker_t *w)
 }
 
 /*
- * Returns true iff the device was configured correctly
+ * Returns true if the device was configured correctly
  */
 static inline ni_bool_t
 ni_ifworker_is_running(const ni_ifworker_t *w)
@@ -385,7 +387,7 @@ ni_ifworker_is_running(const ni_ifworker_t *w)
 }
 
 /*
- * Returns true iff the worker is currently executing
+ * Returns true if the worker is currently executing
  */
 static inline ni_bool_t
 ni_ifworker_active(const ni_ifworker_t *w)

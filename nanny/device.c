@@ -450,7 +450,7 @@ ni_managed_device_down(ni_managed_device_t *mdev)
 
 	ni_ifworker_set_completion_callback(w, ni_managed_device_down_done, mdev->nanny);
 
-	ni_ifworker_set_config(w, mdev->selected_config, w->config.origin);
+	ni_ifworker_set_config(w, mdev->selected_config, w->config.meta.origin);
 	w->target_range.min = NI_FSM_STATE_NONE;
 	w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
 

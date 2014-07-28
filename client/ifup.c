@@ -134,7 +134,7 @@ ni_ifup_start_policy(ni_ifworker_t *w)
 
 	policy = ni_convert_cfg_into_policy_node(ifcfg,
 			__ni_ifup_generate_match(NI_NANNY_IFPOLICY_MATCH, w),
-			pname, w->config.origin);
+			pname, w->config.meta.origin);
 	ni_string_free(&pname);
 	if (!policy) {
 		policy = ifcfg; /* Free cloned config*/
@@ -162,7 +162,7 @@ ni_ifup_start_policy(ni_ifworker_t *w)
 	ni_debug_application("%s: adding policy %s to nanny", w->name,
 		xml_node_get_attr(policy, NI_NANNY_IFPOLICY_NAME));
 
-	if (ni_nanny_addpolicy_node(policy, w->config.origin) <= 0)
+	if (ni_nanny_addpolicy_node(policy, w->config.meta.origin) <= 0)
 		goto error;
 
 	ni_debug_application("%s: nanny hired!", w->name);

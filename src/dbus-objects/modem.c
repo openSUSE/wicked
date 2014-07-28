@@ -551,18 +551,18 @@ __ni_objectmodel_get_modem_arg(const ni_dbus_variant_t *dict, ni_dbus_object_t *
 }
 
 /*
- * Modem.setClientInfo()
+ * Modem.setClientState()
  *
  * This is used by clients to record a uuid identifying the configuration used, and
  * a "state" string that helps them track where they are.
  */
 static dbus_bool_t
-ni_objectmodel_modem_set_client_info(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_modem_set_client_state(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_modem_t *dev;
-	ni_device_clientinfo_t *client_info;
+	ni_client_state_t *cs;
 
 	if (!(dev = ni_objectmodel_unwrap_modem(object, error)))
 		return FALSE;
@@ -570,13 +570,12 @@ ni_objectmodel_modem_set_client_info(ni_dbus_object_t *object, const ni_dbus_met
 	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
 
-	client_info = ni_device_clientinfo_new();
-	if (!ni_objectmodel_netif_client_info_from_dict(client_info, &argv[0])) {
-		ni_device_clientinfo_free(client_info);
+	cs = ni_modem_get_client_state(dev);
+	if (!ni_objectmodel_netif_client_state_from_dict(cs, &argv[0])) {
+		ni_modem_set_client_state(dev, NULL);
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
 	}
 
-	ni_modem_set_client_info(dev, client_info);
 	return TRUE;
 }
 
@@ -741,7 +740,7 @@ static ni_dbus_method_t		ni_objectmodel_modem_methods[] = {
 	{ "changeDevice",	"a{sv}",		ni_objectmodel_modem_change_device },
 	{ "linkUp",		"a{sv}",		ni_objectmodel_modem_connect },
 	{ "linkDown",		"",			ni_objectmodel_modem_disconnect },
-	{ "setClientInfo",	"a{sv}",		ni_objectmodel_modem_set_client_info },
+	{ "setClientState",	"a{sv}",		ni_objectmodel_modem_set_client_state },
 	{ NULL }
 };
 
