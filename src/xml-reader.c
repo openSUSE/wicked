@@ -915,6 +915,23 @@ xml_location_create(const char *filename, unsigned int line)
 }
 
 void
+xml_location_modify(xml_node_t *node, const char *filename)
+{
+	if (!node || ni_string_empty(filename))
+		return;
+
+	if (node->location) {
+		struct xml_location_shared *sl;
+
+		if ((sl = node->location->shared)) {
+			ni_string_dup(&sl->filename, filename);
+			return;
+		}
+	}
+	xml_location_set(node, xml_location_create(filename, 0));
+}
+
+void
 xml_location_set(xml_node_t *node, xml_location_t *loc)
 {
 	if (node->location == loc)
