@@ -94,10 +94,6 @@
 
  <link-type type="builtin-iftype" description="The link-layer type of this interface"/>
 
- <define name="client-state-state-type" class="dict">
-   <current-state type="builtin-fsm-state" constraint="required"/>
- </define>
-
  <define name="client-state-control-type" class="dict">
    <persistent type="boolean" constraint="required"/>
    <usercontrol type="boolean" constraint="required"/>
@@ -110,7 +106,6 @@
  </define>
 
  <define name="client-state-type" class="dict">
-   <current-state type="builtin-fsm-state"/>
    <control type="client-state-control-type" constraint="required"/>
    <config type="client-state-config-type" constraint="required"/>
  </define>
@@ -286,16 +281,6 @@
   <method name="installLease">
     <arguments>
       <arg type="intrinsic-lease"/>
-    </arguments>
-  </method>
-
-  <method name="setClientState">
-    <description>
-      This method can be used by client to set:
-	* current state of an interface
-    </description>
-    <arguments>
-      <arg type="network-interface:client-state-state-type" />
     </arguments>
   </method>
 
