@@ -316,12 +316,15 @@ ni_bridge_ports_destroy(ni_bridge_t *bridge)
 
 #define NI_BRIDGE_FORWARD_DELAY_MIN	2
 #define NI_BRIDGE_FORWARD_DELAY_MAX	30
+#define NI_BRIDGE_FORWARD_DELAY_DEFAULT	15
 
 #define NI_BRIDGE_HELLO_TIME_MIN	1
 #define NI_BRIDGE_HELLO_TIME_MAX	10
+#define NI_BRIDGE_HELLO_TIME_DEFAULT	2
 
 #define NI_BRIDGE_MAX_AGE_MIN		6
 #define NI_BRIDGE_MAX_AGE_MAX		60
+#define NI_BRIDGE_MAX_AGE_DEFAULT	20
 
 #define NI_BRIDGE_PORT_PRIORITY_MIN	0
 #define NI_BRIDGE_PORT_PRIORITY_MAX	63	/* kernel */
@@ -408,5 +411,24 @@ ni_bridge_validate(const ni_bridge_t *bridge)
 	}
 
 	return NULL;
+}
+
+unsigned int
+ni_bridge_waittime(const ni_bridge_t *bridge)
+{
+	double forward_delay = 0;
+	double max_age = 0;
+
+	if (bridge && bridge->stp) {
+		if (bridge->forward_delay != NI_BRIDGE_VALUE_NOT_SET)
+			forward_delay = bridge->forward_delay;
+		else
+			forward_delay = NI_BRIDGE_FORWARD_DELAY_DEFAULT;
+		if (bridge->max_age != NI_BRIDGE_VALUE_NOT_SET)
+			max_age = bridge->max_age;
+		else
+			max_age = NI_BRIDGE_MAX_AGE_DEFAULT;
+	}
+	return (unsigned int)(max_age + (forward_delay * 2.0));
 }
 

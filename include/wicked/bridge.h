@@ -100,5 +100,6 @@ extern void		ni_bridge_port_free(ni_bridge_port_t *port);
 
 extern const char *	ni_bridge_port_validate(const ni_bridge_port_t *);
 extern const char *	ni_bridge_validate(const ni_bridge_t *);
+extern unsigned int	ni_bridge_waittime(const ni_bridge_t *);
 
 #endif /* __WICKED_BRIDGE_H__ */
