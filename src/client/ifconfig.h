@@ -68,6 +68,8 @@ extern ni_bool_t		ni_nanny_call_device_disable(const char *ifname);
 extern ni_dbus_object_t *	ni_nanny_call_get_device(const char *);
 extern ni_bool_t		ni_nanny_call_add_secret(const ni_security_id_t *, const char *, const char *);
 
+extern ni_bool_t		ni_ifconfig_generate_uuid(const xml_node_t *, ni_uuid_t *);
+
 static inline ni_bool_t
 ni_ifconfig_is_config(xml_node_t *ifnode)
 {

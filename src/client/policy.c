@@ -36,6 +36,32 @@
 
 #include "client/ifconfig.h"
 
+/*
+ * Given the configuration for a device, generate a UUID that uniquely
+ * identifies this configuration. We want to use this later to check
+ * whether the configuration changed.
+ *
+ * We do this by hashing the XML configuration using a reasonably
+ * collision free SHA hash algorithm, and storing that in a UUIDv5.
+ */
+ni_bool_t
+ni_ifconfig_generate_uuid(const xml_node_t *config, ni_uuid_t *uuid)
+{
+	/* UUIDv5 of https://github.com/openSUSE/wicked in the URL
+	 * namespace as our private namespace for the config UUIDs:
+	 *      c89756cc-b7fb-569b-b7f0-49a400fa41fe
+	 */
+	static const ni_uuid_t ns = {
+		.octets = {
+			0xc8, 0x97, 0x56, 0xcc, 0xb7, 0xfb, 0x56, 0x9b,
+			0xb7, 0xf0, 0x49, 0xa4, 0x00, 0xfa, 0x41, 0xfe
+		}
+	};
+	memset(uuid, 0, sizeof(*uuid));
+	/* Generate a version 5 (SHA1) UUID */
+	return xml_node_uuid(config, 5, &ns, uuid) == 0;
+}
+
 static xml_node_t *
 __ni_policy_add_to_match(xml_node_t *policy, const char *name, const char *value)
 {

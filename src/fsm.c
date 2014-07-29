@@ -1285,34 +1285,6 @@ ni_ifworker_refresh_client_state(ni_ifworker_t *w, ni_client_state_t *cs)
 	ni_client_state_debug(w->name, cs, "refresh");
 }
 
-/*
- * Given the configuration for a device, generate a UUID that uniquely
- * identifies this configuration. We want to use this later to check
- * whether the configuration changed.
- *
- * We do this by hashing the XML configuration using a reasonably collision
- * free hash algorithm, and storing that in the UUID. If the algorithm's output
- * is less than the size of a UUID, the result is zero-padded; if it's bigger,
- * the digest is simply truncated.
- */
-static inline int
-__ni_ifworker_generate_config_uuid(const xml_node_t *config, ni_uuid_t *uuid)
-{
-	/* UUIDv5 of https://github.com/openSUSE/wicked in the URL
-	 * namespace as our private namespace for the config UUIDs:
-	 *      c89756cc-b7fb-569b-b7f0-49a400fa41fe
-	 */
-	static const ni_uuid_t ns = {
-		.octets = {
-			0xc8, 0x97, 0x56, 0xcc, 0xb7, 0xfb, 0x56, 0x9b,
-			0xb7, 0xf0, 0x49, 0xa4, 0x00, 0xfa, 0x41, 0xfe
-		}
-	};
-	memset(uuid, 0, sizeof(*uuid));
-	/* Generate a version 5 (SHA1) UUID */
-	return xml_node_uuid(config, 5, &ns, uuid);
-}
-
 static void
 ni_ifworker_generate_uuid(ni_ifworker_t *w)
 {
@@ -1323,15 +1295,15 @@ ni_ifworker_generate_uuid(ni_ifworker_t *w)
 
 	uuid = &w->config.meta.uuid;
 	if (!xml_node_is_empty(w->config.node)) {
-		if (__ni_ifworker_generate_config_uuid(w->config.node, uuid) < 0) {
-			ni_fatal("cannot generate uuid for %s config - hashing failed?!",
-				w->name);
-		}
+		if (ni_ifconfig_generate_uuid(w->config.node, uuid))
+			return;
+
+		ni_warn("cannot generate uuid for %s config - hashing failed",
+			w->name);
 	}
-	else {
-		/* Generate a temporary uuid only */
-		ni_uuid_generate(uuid);
-	}
+
+	/* Generate a temporary uuid only */
+	ni_uuid_generate(uuid);
 }
 
 /*
