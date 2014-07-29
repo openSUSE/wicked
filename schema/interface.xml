@@ -109,21 +109,10 @@
    <owner-uid type="uint32" constraint="required"/>
  </define>
 
-<!--
- <define name="client-state-stats-type" class="dict">
-   <init-state type="builtin-fsm-state"/>
-   <init-time type="string"/>
-   <last-time type="string"/>
- </define>
--->
-
  <define name="client-state-type" class="dict">
    <current-state type="builtin-fsm-state"/>
    <control type="client-state-control-type" constraint="required"/>
    <config type="client-state-config-type" constraint="required"/>
-<!--
-   <stats type="client-state-stats-type"/>
--->
  </define>
 
  <client-state type="client-state-type" constraint="required"/>
@@ -331,20 +320,6 @@
       <arg type="network-interface:client-state-config-type" />
     </arguments>
   </method>
-
-<!--
-  <method name="setClientStats">
-    <description>
-      This method can be used by client to set:
-	* initial state of an interface
-	* time of the initial ifup configuration
-	* time of the last ifup configuration
-    </description>
-    <arguments>
-      <arg type="network-interface:client-state-stats-type" />
-    </arguments>
-  </method>
--->
 
   <method name="linkMonitor">
     <description>
