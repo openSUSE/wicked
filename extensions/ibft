@@ -227,7 +227,7 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 	fi
 
 	cat <<-EOF
-	<interface>
+	<interface origin="firmware:ibft:$ibft_nic">
 	  <name namespace="ifindex">$nic_ifindex</name>
 	  <alias>ibft${ibft_num}.0</alias>
 	EOF
@@ -243,7 +243,7 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 		cat <<-EOF
 		</interface>
 
-		<interface>
+		<interface origin="firmware:ibft:$ibft_nic">
 		  <name>$vlan_ifname</name>
 		  <alias>ibft${ibft_num}.${nic_vlan}</alias>
 		EOF

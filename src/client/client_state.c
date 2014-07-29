@@ -368,8 +368,23 @@ void
 ni_client_state_init(ni_client_state_t *client_state)
 {
 	if (client_state) {
-		memset(client_state, 0, sizeof(*client_state));
+		memset(&client_state->control, 0, sizeof(client_state->control));
 		ni_client_state_config_init(&client_state->config);
+#ifdef CLIENT_STATE_STATS
+		memset(&client_state->stats, 0, sizeof(client_state->stats));
+#endif
+	}
+}
+
+void
+ni_client_state_reset(ni_client_state_t *client_state)
+{
+	if (client_state) {
+		memset(&client_state->control, 0, sizeof(client_state->control));
+		ni_client_state_config_reset(&client_state->config);
+#ifdef CLIENT_STATE_STATS
+		memset(&client_state->stats, 0, sizeof(client_state->stats));
+#endif
 	}
 }
 
@@ -380,40 +395,54 @@ ni_client_state_clone(ni_client_state_t *client_state)
 
 	if (client_state) {
 		copy = xcalloc(1, sizeof(*copy));
-		*copy = *client_state;
+		copy->control = client_state->control;
+		ni_client_state_config_copy(&copy->config, &client_state->config);
+#ifdef CLIENT_STATE_STATS
+		copy->stats = client_state->stats;
+#endif
 	}
-
 	return copy;
 }
 
 void
-ni_client_state_destroy(ni_client_state_t *cs)
-{
-	if (cs)
-		ni_string_free(&cs->config.origin);
- }
-
-void
 ni_client_state_free(ni_client_state_t *cs)
 {
-	ni_client_state_destroy(cs);
-	free(cs);
-}
-
-static inline void
-__ni_set_config_owner(ni_client_state_config_t *conf)
-{
-	if (conf)
-		conf->owner = geteuid();
+	if (cs) {
+		ni_string_free(&cs->config.origin);
+		free(cs);
+	}
 }
 
 void
 ni_client_state_config_init(ni_client_state_config_t *conf)
 {
 	if (conf) {
-		ni_string_free(&conf->origin);
 		memset(conf, 0, sizeof(*conf));
-		__ni_set_config_owner(conf);
+		conf->owner = -1U;
+	}
+}
+
+void
+ni_client_state_config_reset(ni_client_state_config_t *conf)
+{
+	if (conf) {
+		ni_string_free(&conf->origin);
+		ni_client_state_config_init(conf);
+	}
+}
+
+void
+ni_client_state_config_copy(ni_client_state_config_t *conf,
+			const ni_client_state_config_t *src)
+{
+	if (conf) {
+		if (src) {
+			conf->uuid = src->uuid;
+			conf->owner = src->owner;
+			ni_string_dup(&conf->origin, src->origin);
+		} else {
+			ni_client_state_config_reset(conf);
+		}
 	}
 }
 
@@ -506,7 +535,7 @@ ni_client_state_load(ni_client_state_t *client_state, unsigned int ifindex)
 		return FALSE;
 	}
 
-	ni_client_state_init(client_state);
+	ni_client_state_reset(client_state);
 	if (!ni_client_state_parse_xml(node, client_state)) {
 		ni_error("Cannot parse state from file '%s'", path);
 		xml_node_free(xml);

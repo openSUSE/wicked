@@ -40,7 +40,7 @@ typedef struct ni_client_state_config {
 	char *	origin; /* Source of the configuration of the interface */
 	uid_t	owner;  /* User's UID who has initiated the given configuration */
 } ni_client_state_config_t;
-#define NI_CLIENT_STATE_CONFIG_INIT { .uuid = NI_UUID_INIT, .origin = NULL, .owner = 0 }
+#define NI_CLIENT_STATE_CONFIG_INIT { .uuid = NI_UUID_INIT, .origin = NULL, .owner = -1U }
 
 #ifdef CLIENT_STATE_STATS
 typedef struct ni_client_state_stats {
@@ -59,11 +59,14 @@ typedef struct ni_client_state {
 } ni_client_state_t;
 
 extern ni_client_state_t *	ni_client_state_new(unsigned int);
-extern void		ni_client_state_init(ni_client_state_t *);
 extern ni_client_state_t *	ni_client_state_clone(ni_client_state_t *);
-extern void		ni_client_state_destroy(ni_client_state_t *);
+extern void		ni_client_state_init(ni_client_state_t *);
+extern void		ni_client_state_reset(ni_client_state_t *);
 extern void		ni_client_state_free(ni_client_state_t *);
 extern void		ni_client_state_config_init(ni_client_state_config_t *);
+extern void		ni_client_state_config_reset(ni_client_state_config_t *);
+extern void		ni_client_state_config_copy(ni_client_state_config_t *,
+						const ni_client_state_config_t *);
 
 extern ni_bool_t	ni_client_state_control_is_valid(const ni_client_state_control_t *);
 extern ni_bool_t	ni_client_state_config_is_valid(const ni_client_state_config_t *);

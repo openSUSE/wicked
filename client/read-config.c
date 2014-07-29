@@ -571,38 +571,6 @@ ni_ifconfig_read_compat(xml_document_array_t *array, const char *type,
 	return FALSE;
 }
 
-static inline ni_bool_t
-__ifconfig_is_config_path(const char *str)
-{
-	return ni_check_pathname(str, ni_string_len(str));
-}
-
-static ni_bool_t
-__ifconfig_metadata_is_valid(xml_node_t *ifnode)
-{
-	const char *str;
-	ni_uuid_t uuid;
-	unsigned int uid;
-
-	if (!ifnode)
-		return FALSE;
-
-	str = xml_node_get_attr(ifnode, NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE);
-	if (ni_string_empty(str) || !__ifconfig_is_config_path(str))
-		return FALSE;
-
-	str = xml_node_get_attr(ifnode, NI_CLIENT_STATE_XML_CONFIG_UUID_NODE);
-	if (ni_string_empty(str) || ni_uuid_parse(&uuid, str) < 0)
-		return FALSE;
-
-	if (!xml_node_get_attr_uint(ifnode,
-	    NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE, &uid)) {
-		return FALSE;
-	}
-
-	return TRUE;
- }
-
 void
 ni_ifconfig_metadata_generate(ni_client_state_config_t *conf, const char *schema, const char *filename)
 {
@@ -618,7 +586,7 @@ ni_ifconfig_metadata_generate(ni_client_state_config_t *conf, const char *schema
 			(filename ? filename : ""));
 	}
 
-	ni_client_state_config_init(conf);
+	ni_client_state_config_reset(conf);
 	if (!ni_string_empty(origin))
 		conf->origin = origin;
 	if (ni_file_exists(filename))
@@ -675,24 +643,27 @@ void
 ni_ifconfig_metadata_add_to_node(xml_node_t *root, ni_client_state_config_t *conf)
 {
 	xml_node_t *ifnode = NULL;
-	char *uuid_str = NULL;
 
-	if (!root || !root->children || !conf)
-	return;
+	if (!root || !root->children || !conf || ni_string_empty(conf->origin))
+		return;
 
 	while ((ifnode = xml_node_get_next_child(root, root->children->name, ifnode))) {
 		xml_node_add_attr(ifnode,
-			NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE, conf->origin);
+				NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE,
+					conf->origin);
 
-		ni_string_dup(&uuid_str, ni_uuid_print(&conf->uuid));
-		xml_node_add_attr(ifnode,
-			NI_CLIENT_STATE_XML_CONFIG_UUID_NODE, uuid_str);
-
-		xml_node_add_attr_uint(ifnode,
-			NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE, (unsigned int) geteuid());
+		if (!ni_uuid_is_null(&conf->uuid)) {
+			xml_node_add_attr(ifnode,
+				NI_CLIENT_STATE_XML_CONFIG_UUID_NODE,
+					ni_uuid_print(&conf->uuid));
+		}
+		if (conf->owner != -1U) {
+			xml_node_add_attr_uint(ifnode,
+				NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE,
+					conf->owner);
+		}
 	}
- }
-
+}
 
 ni_bool_t
 ni_ifconfig_metadata_get_from_node(ni_client_state_config_t *conf, xml_node_t *root)
@@ -702,36 +673,29 @@ ni_ifconfig_metadata_get_from_node(ni_client_state_config_t *conf, xml_node_t *r
 	if (!root || !root->children || !conf)
 		return FALSE;
 
+	ni_client_state_config_reset(conf);
 	while ((ifnode = xml_node_get_next_child(root, root->children->name, ifnode))) {
 		/* only first   node with proper meta data attributes is processed */
-		if (__ifconfig_metadata_is_valid(ifnode)) {
-			const char *str;
+		const char *origin;
+		const char *str;
+		ni_uuid_t uuid;
 
-			ni_client_state_config_init(conf);
+		origin = xml_node_get_attr(ifnode, NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE);
+		if (ni_string_empty(origin))
+			continue;
 
-			if (!(str = xml_node_get_attr(ifnode,
-			    NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE))) {
-				return FALSE;
-			}
-			ni_string_dup(&conf->origin, str);
-
-			if (!(str = xml_node_get_attr(ifnode,
-			    NI_CLIENT_STATE_XML_CONFIG_UUID_NODE)) ||
-			    ni_uuid_parse(&conf->uuid, str) < 0) {
-				return FALSE;
-			}
-
-			if (!xml_node_get_attr_uint(ifnode,
-				NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE, &conf->owner)) {
-				return FALSE;
-			}
-
-			return TRUE;
+		str = xml_node_get_attr(ifnode, NI_CLIENT_STATE_XML_CONFIG_UUID_NODE);
+		if (str) {
+			if (ni_uuid_parse(&uuid, str) < 0)
+				continue;
+			conf->uuid = uuid;
 		}
+		ni_string_dup(&conf->origin, origin);
+		return TRUE;
 	}
 
 	return FALSE;
- }
+}
 
 void
 ni_ifconfig_metadata_clear(xml_node_t *root)
