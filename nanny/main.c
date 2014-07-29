@@ -282,6 +282,8 @@ babysit(void)
 	ni_nanny_discover_state(mgr);
 	if (ni_config_use_nanny())
 		ni_nanny_policy_load(mgr);
+	else
+		ni_file_remove_recursively(ni_nanny_statedir());
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
