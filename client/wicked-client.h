@@ -99,7 +99,6 @@ extern ni_compat_netdev_t *	ni_compat_netdev_new(const char *);
 extern void			ni_compat_netdev_free(ni_compat_netdev_t *);
 extern ni_compat_netdev_t *	ni_compat_netdev_by_name(ni_compat_netdev_array_t *, const char *);
 extern ni_compat_netdev_t *	ni_compat_netdev_by_hwaddr(ni_compat_netdev_array_t *, const ni_hwaddr_t *);
-extern void			ni_compat_netdev_client_info_set(ni_netdev_t *, const char *);
 
 extern void			ni_compat_netdev_array_init(ni_compat_netdev_array_t *);
 extern void			ni_compat_netdev_array_append(ni_compat_netdev_array_t *, ni_compat_netdev_t *);
@@ -110,16 +109,18 @@ extern void			ni_compat_ifconfig_destroy(ni_compat_ifconfig_t *);
 
 extern unsigned int		ni_compat_generate_interfaces(xml_document_array_t *, ni_compat_ifconfig_t *, ni_bool_t, ni_bool_t);
 
+extern void			ni_compat_netdev_client_state_set(ni_netdev_t *, const char *);
+
 extern ni_bool_t		ni_ifconfig_read(xml_document_array_t *, const char *, const char *, ni_bool_t, ni_bool_t);
 extern ni_bool_t		ni_ifconfig_load(ni_fsm_t *, const char *, ni_string_array_t *, ni_bool_t, ni_bool_t);
 
 extern const ni_string_array_t *ni_config_sources(const char *);
 
 extern ni_bool_t		ni_ifconfig_validate_adding_doc(xml_document_t *, ni_bool_t);
-extern ni_device_clientinfo_t *	ni_ifconfig_generate_client_info(const char *, const char *, const char *);
-extern ni_device_clientinfo_t *	ni_ifconfig_get_client_info(xml_document_t *);
-extern void			ni_ifconfig_add_client_info(xml_document_t *, ni_device_clientinfo_t *,     char *);
-extern void			ni_ifconfig_del_client_info(xml_document_t *, const char *);
+extern void			ni_ifconfig_metadata_generate(ni_client_state_config_t *, const char *, const char *);
+extern void			ni_ifconfig_metadata_add_to_node(xml_node_t *, ni_client_state_config_t *);
+extern ni_bool_t		ni_ifconfig_metadata_get_from_node(ni_client_state_config_t *, xml_node_t *);
+extern void			ni_ifconfig_metadata_clear(xml_node_t *);
 
 extern void			ni_state_change_signal_handler(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 extern void			ni_client_timer_expires(void *, const ni_timer_t *);

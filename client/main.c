@@ -571,7 +571,7 @@ do_show_xml(int argc, char **argv)
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
 	const char *ifname = NULL;
-	int opt_raw = 0;
+	int opt_raw = FALSE;
 #ifdef MODEM
 	int opt_modems = 0;
 #endif
@@ -581,7 +581,7 @@ do_show_xml(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, "", local_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_RAW:
-			opt_raw = 1;
+			opt_raw = TRUE;
 			break;
 
 #ifdef MODEM
@@ -707,7 +707,7 @@ do_show_config(int argc, char **argv, const char *root_schema)
 				"  --help\n"
 				"      Show this help text.\n"
 				"  --raw\n"
-				"      Do not display <client-info> tags\n"
+				"      Do not display <client-state> tags\n"
 				"  --output <path>\n"
 				"      Specify output file\n"
 				);
@@ -1521,7 +1521,7 @@ do_convert(int argc, char **argv)
 				"  --help\n"
 				"      Show this help text.\n"
 				"  --raw\n"
-				"      Do not display <client-info> tags\n"
+				"      Do not display <client-state> tags\n"
 				"  --output <path>\n"
 				"      Specify output file\n"
 			       );

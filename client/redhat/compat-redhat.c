@@ -89,7 +89,7 @@ __ni_redhat_get_interfaces(const char *root, const char *path, ni_compat_netdev_
 			if (!(compat = __ni_redhat_read_interface(pathbuf, ifname, result)))
 				goto done;
 
-			ni_compat_netdev_client_info_set(compat->dev, pathbuf);
+			ni_compat_netdev_client_state_set(compat->dev, pathbuf);
 		}
 	} else
 	if (ni_file_exists(pathname)) {

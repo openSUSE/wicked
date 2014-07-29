@@ -42,16 +42,6 @@ struct ni_linkinfo {
 	ni_ethtool_stats_t *	ethtool_stats;
 };
 
-/*
- * This information can be set by set any client to
- * "mark" the interface
- */
-struct ni_device_clientinfo {
-	char *			state;
-	ni_uuid_t		config_uuid;
-	char *			config_origin;		/* manual, sysconfig, firmware, ... */
-};
-
 struct ni_netdev {
 	ni_netdev_t *		next;
 	unsigned int		seq;
@@ -62,7 +52,6 @@ struct ni_netdev {
 	char *			name;
 	ni_linkinfo_t		link;
 
-	ni_device_clientinfo_t *client_info;
 	ni_client_state_t *	client_state;
 
 	unsigned int		users;
@@ -215,8 +204,6 @@ extern void		ni_netdev_set_ppp(ni_netdev_t *, ni_ppp_t *);
 extern void		ni_netdev_set_dcb(ni_netdev_t *, ni_dcb_t *);
 extern void		ni_netdev_set_lldp(ni_netdev_t *, ni_lldp_t *);
 extern void		ni_netdev_set_pci(ni_netdev_t *, ni_pci_dev_t *);
-extern void		ni_netdev_set_client_info(ni_netdev_t *, ni_device_clientinfo_t *);
-extern ni_device_clientinfo_t *	ni_netdev_get_client_info(ni_netdev_t *);
 extern void		ni_netdev_set_client_state(ni_netdev_t *, ni_client_state_t *);
 extern ni_client_state_t *	ni_netdev_get_client_state(ni_netdev_t *);
 extern ni_bool_t	ni_netdev_load_client_state(ni_netdev_t *);
@@ -263,9 +250,6 @@ extern ni_bool_t	ni_link_address_equal(const ni_hwaddr_t *, const ni_hwaddr_t *)
 extern unsigned int	ni_link_address_length(unsigned short);
 extern int		ni_link_address_get_broadcast(unsigned short, ni_hwaddr_t *);
 extern int		ni_link_address_set(ni_hwaddr_t *, unsigned short arp_type, const void *data, size_t len);
-
-extern ni_device_clientinfo_t *ni_device_clientinfo_new(void);
-extern void		ni_device_clientinfo_free(ni_device_clientinfo_t *);
 
 extern int		ni_linktype_name_to_type(const char *);
 extern const char *	ni_linktype_type_to_name(unsigned int);

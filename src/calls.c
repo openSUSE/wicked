@@ -436,19 +436,19 @@ ni_call_device_method_xml(ni_dbus_object_t *object, const char *method_name, xml
 }
 
 int
-ni_call_set_client_info(ni_dbus_object_t *object, const ni_device_clientinfo_t *client_info)
+ni_call_set_client_state_control(ni_dbus_object_t *object, const ni_client_state_control_t *ctrl)
 {
 	const ni_dbus_service_t *service;
 	const ni_dbus_method_t *method;
 	ni_dbus_variant_t dict;
 	int rv;
 
-	if ((rv = ni_get_device_method(object, "setClientInfo", &service, &method)) < 0)
+	if ((rv = ni_get_device_method(object, "setClientControl", &service, &method)) < 0)
 		return rv;
 
 	memset(&dict, 0, sizeof(dict));
 	ni_dbus_variant_init_dict(&dict);
-	if (!ni_objectmodel_netif_client_info_to_dict(client_info, &dict))
+	if (!ni_objectmodel_netif_client_state_control_to_dict(ctrl, &dict))
 		return -1;
 
 	rv = ni_call_device_method_common(object, service, method, 1, &dict, NULL, NULL);
@@ -458,19 +458,19 @@ ni_call_set_client_info(ni_dbus_object_t *object, const ni_device_clientinfo_t *
 }
 
 int
-ni_call_set_client_state(ni_dbus_object_t *object, const ni_client_state_t *client_state)
+ni_call_set_client_state_config(ni_dbus_object_t *object, const ni_client_state_config_t *conf)
 {
 	const ni_dbus_service_t *service;
 	const ni_dbus_method_t *method;
 	ni_dbus_variant_t dict;
 	int rv;
 
-	if ((rv = ni_get_device_method(object, "setClientState", &service, &method)) < 0)
+	if ((rv = ni_get_device_method(object, "setClientConfig", &service, &method)) < 0)
 		return rv;
 
 	memset(&dict, 0, sizeof(dict));
 	ni_dbus_variant_init_dict(&dict);
-	if (!ni_objectmodel_netif_client_state_to_dict(client_state, &dict))
+	if (!ni_objectmodel_netif_client_state_config_to_dict(conf, &dict))
 		return -1;
 
 	rv = ni_call_device_method_common(object, service, method, 1, &dict, NULL, NULL);
@@ -478,6 +478,32 @@ ni_call_set_client_state(ni_dbus_object_t *object, const ni_client_state_t *clie
 	ni_dbus_variant_destroy(&dict);
 	return rv;
 }
+
+#ifdef CLIENT_STATE_STATS
+#if 0
+int
+ni_call_set_client_state_stats(ni_dbus_object_t *object, const ni_client_state_stats_t *stats)
+{
+	const ni_dbus_service_t *service;
+	const ni_dbus_method_t *method;
+	ni_dbus_variant_t dict;
+	int rv;
+
+	if ((rv = ni_get_device_method(object, "setClientStats", &service, &method)) < 0)
+		return rv;
+
+	memset(&dict, 0, sizeof(dict));
+	ni_dbus_variant_init_dict(&dict);
+	if (!ni_objectmodel_netif_client_state_stats_to_dict(stats, &dict))
+		return -1;
+
+	rv = ni_call_device_method_common(object, service, method, 1, &dict, NULL, NULL);
+
+	ni_dbus_variant_destroy(&dict);
+	return rv;
+}
+#endif
+#endif
 
 /*
  * Call setMonitor(bool) on a device

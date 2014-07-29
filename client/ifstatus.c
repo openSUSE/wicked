@@ -408,16 +408,16 @@ ni_ifstatus_show_routes(const ni_netdev_t *dev, ni_bool_t verbose)
 static inline void
 ni_ifstatus_show_config(const ni_netdev_t *dev, ni_bool_t verbose)
 {
-	ni_device_clientinfo_t *ci = dev->client_info;
+	ni_client_state_t *cs = dev->client_state;
 
 	/* currently the runtime config only ... */
-	if (ci && !ni_string_empty(ci->config_origin)) {
-		if_printf("", "config:", "%s", ci->config_origin);
+	if (cs && !ni_string_empty(cs->config.origin)) {
+		if_printf("", "config:", "%s", cs->config.origin);
 
-		if (verbose && !ni_uuid_is_null(&ci->config_uuid)) {
+		if (verbose && !ni_uuid_is_null(&cs->config.uuid)) {
 			printf(",\n");
 			if_printf("", " ", "uuid: %s\n",
-				ni_uuid_print(&ci->config_uuid));
+				ni_uuid_print(&cs->config.uuid));
 		} else {
 			printf("\n");
 		}
@@ -465,18 +465,26 @@ ni_ifstatus_show_leases(const ni_netdev_t *dev, ni_bool_t verbose)
 }
 
 static inline void
-ni_ifstatus_show_cstate(const ni_netdev_t *dev, ni_bool_t verbose)
+ni_ifstatus_show_control(const ni_netdev_t *dev, ni_bool_t verbose)
 {
-	ni_device_clientinfo_t *ci = dev->client_info;
-	ni_client_state_t *cs = dev->client_state;
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_client_state_t *cs;
 
-	if (ci && !ni_string_empty(ci->state)) {
-		if_printf("", "cstate:", "%s%s\n", ci->state,
-			(verbose && cs && cs->persistent) ?
-				", persistent" : "");
-	} else if (verbose) {
-		if_printf("", "cstate:", "none\n");
+	if (!verbose || !dev || !ni_client_state_is_valid((cs = dev->client_state)))
+		return;
+
+	if (cs->control.persistent)
+		ni_stringbuf_printf(&buf, "persistent");
+
+	if (cs->control.usercontrol) {
+		ni_stringbuf_printf(&buf, "%susercontrol",
+			cs->control.persistent ? ", " : "");
 	}
+
+	if (ni_stringbuf_empty(&buf))
+		ni_stringbuf_printf(&buf, "none");
+
+	if_printf("", "control:", "%s\n", buf.string);
 }
 
 void
@@ -668,7 +676,7 @@ ni_do_ifstatus(int argc, char **argv)
 			/* TODO: Hmm... this is the running config only;
 			 *              show current config info too?
 			 */
-			ni_ifstatus_show_cstate (dev, opt_verbose > OPT_NORMAL);
+			ni_ifstatus_show_control (dev, opt_verbose > OPT_NORMAL);
 			ni_ifstatus_show_config (dev, opt_verbose > OPT_NORMAL);
 			ni_ifstatus_show_leases (dev, opt_verbose > OPT_NORMAL);
 

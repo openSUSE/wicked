@@ -244,7 +244,7 @@ usage:
 
 		/* Mark persistend when requested */
 		if (opt_persistent)
-			w->client_state.persistent = TRUE;
+			ni_ifworker_control_set_persistent(w, TRUE);
 
 		/* Remember all changed devices */
 		if (ni_ifcheck_worker_config_exists(w))

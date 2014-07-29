@@ -39,13 +39,13 @@
 </define>
 
 <!-- Built-in interface state values -->
-<define name="builtin-client-state" type="uint32" constraint="enum">
-  <@@CLIENT_STATE_NAME_NAME@@ value="@@CLIENT_STATE_NAME_VALUE@@"/>
+<define name="builtin-fsm-state" type="uint32" constraint="enum">
+  <@@FSM_STATE_NAME_NAME@@ value="@@FSM_STATE_NAME_VALUE@@"/>
 </define>
 
 <!-- The same as above, except as a bitmask (to express the list of supported modes) -->
-<define name="builtin-client-state-mask" type="uint32" constraint="bitmap">
-  <@@CLIENT_STATE_NAME_NAME@@ bit="@@CLIENT_STATE_NAME_VALUE@@"/>
+<define name="builtin-fsm-state-mask" type="uint32" constraint="bitmap">
+  <@@FSM_STATE_NAME_NAME@@ bit="@@FSM_STATE_NAME_VALUE@@"/>
 </define>
 
 <!-- Built-in wireless types -->
