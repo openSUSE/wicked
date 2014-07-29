@@ -618,7 +618,7 @@ ni_ifconfig_metadata_generate(ni_client_state_config_t *conf, const char *schema
 			(filename ? filename : ""));
 	}
 
-	ni_client_state_config_init(conf);
+	ni_client_state_config_reset(conf);
 	if (!ni_string_empty(origin))
 		conf->origin = origin;
 	if (ni_file_exists(filename))
