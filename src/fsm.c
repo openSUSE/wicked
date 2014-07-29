@@ -62,11 +62,6 @@ static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
 
 static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
 static inline void		ni_ifworker_update_client_state_config(ni_ifworker_t *w);
-#ifdef CLIENT_STATE_STATS
-#if 0
-static inline void		ni_ifworker_update_client_state_stats(ni_ifworker_t *w);
-#endif
-#endif
 
 ni_fsm_t *
 ni_fsm_new(void)
@@ -199,9 +194,6 @@ ni_ifworker_reset(ni_ifworker_t *w)
 
 	/* Clear config and stats*/
 	ni_client_state_config_init(&w->config.meta);
-#ifdef CLIENT_STATE_STATS
-	memset(&w->stats, 0, sizeof(w->stats));
-#endif
 
 	ni_ifworker_cancel_timeout(w);
 
@@ -1139,19 +1131,6 @@ ni_ifworker_update_client_state_config(ni_ifworker_t *w)
 	}
 }
 
-#ifdef CLIENT_STATE_STATS
-#if 0
-static inline void
-ni_ifworker_update_client_state_stats(ni_ifworker_t *w)
-{
-	if (w && w->object && !w->readonly) {
-		ni_call_set_client_state_stats(w->object, &w->stats);
-		ni_client_state_stats_debug(w->name, &w->stats, "update");
-	}
-}
-#endif
-#endif
-
 static inline ni_bool_t
 ni_ifworker_empty_config(ni_ifworker_t *w)
 {
@@ -1169,10 +1148,6 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 			w->progress.callback(w, new_state);
 
 		w->fsm.state = new_state;
-#ifdef CLIENT_STATE_STATS
-		ni_client_state_update_stats(&w->stats, new_state);
-#endif
-
 		ni_debug_application("%s: changed state %s -> %s%s",
 				w->name,
 				ni_ifworker_state_name(prev_state),
@@ -1190,17 +1165,8 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 			ni_ifworker_update_client_state_config(w);
 		}
 
-		if (w->target_state == new_state) {
+		if (w->target_state == new_state)
 			ni_ifworker_success(w);
-#ifdef CLIENT_STATE_STATS
-#if 0
-			if (w->object && prev_state < new_state && !w->readonly) {
-				* FIXME: No need to update stats at the moment */
-				ni_ifworker_update_client_state_stats(w);
-			}
-#endif
-#endif
-		}
 	}
 }
 
@@ -1277,10 +1243,6 @@ ni_ifworker_refresh_client_state(ni_ifworker_t *w, ni_client_state_t *cs)
 	w->config.meta.uuid = cs->config.uuid;
 	w->config.meta.owner = cs->config.owner;
 	ni_ifworker_set_config_origin(w, cs->config.origin);
-
-#ifdef CLIENT_STATE_STATS
-	w->stats = cs->stats;
-#endif
 
 	ni_client_state_debug(w->name, cs, "refresh");
 }

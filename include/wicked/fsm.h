@@ -140,10 +140,6 @@ struct ni_ifworker {
 		xml_node_t *		node;
 	} config;
 
-#ifdef CLIENT_STATE_STATS
-	ni_client_state_stats_t stats;
-#endif
-
 	ni_bool_t		use_default_policies;
 
 	/* The security ID can be used as a set of identifiers

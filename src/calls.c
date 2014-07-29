@@ -479,32 +479,6 @@ ni_call_set_client_state_config(ni_dbus_object_t *object, const ni_client_state_
 	return rv;
 }
 
-#ifdef CLIENT_STATE_STATS
-#if 0
-int
-ni_call_set_client_state_stats(ni_dbus_object_t *object, const ni_client_state_stats_t *stats)
-{
-	const ni_dbus_service_t *service;
-	const ni_dbus_method_t *method;
-	ni_dbus_variant_t dict;
-	int rv;
-
-	if ((rv = ni_get_device_method(object, "setClientStats", &service, &method)) < 0)
-		return rv;
-
-	memset(&dict, 0, sizeof(dict));
-	ni_dbus_variant_init_dict(&dict);
-	if (!ni_objectmodel_netif_client_state_stats_to_dict(stats, &dict))
-		return -1;
-
-	rv = ni_call_device_method_common(object, service, method, 1, &dict, NULL, NULL);
-
-	ni_dbus_variant_destroy(&dict);
-	return rv;
-}
-#endif
-#endif
-
 /*
  * Call setMonitor(bool) on a device
  */

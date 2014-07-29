@@ -94,10 +94,6 @@
 
  <link-type type="builtin-iftype" description="The link-layer type of this interface"/>
 
- <define name="client-state-state-type" class="dict">
-   <current-state type="builtin-fsm-state" constraint="required"/>
- </define>
-
  <define name="client-state-control-type" class="dict">
    <persistent type="boolean" constraint="required"/>
    <usercontrol type="boolean" constraint="required"/>
@@ -109,21 +105,9 @@
    <owner-uid type="uint32" constraint="required"/>
  </define>
 
-<!--
- <define name="client-state-stats-type" class="dict">
-   <init-state type="builtin-fsm-state"/>
-   <init-time type="string"/>
-   <last-time type="string"/>
- </define>
--->
-
  <define name="client-state-type" class="dict">
-   <current-state type="builtin-fsm-state"/>
    <control type="client-state-control-type" constraint="required"/>
    <config type="client-state-config-type" constraint="required"/>
-<!--
-   <stats type="client-state-stats-type"/>
--->
  </define>
 
  <client-state type="client-state-type" constraint="required"/>
@@ -300,16 +284,6 @@
     </arguments>
   </method>
 
-  <method name="setClientState">
-    <description>
-      This method can be used by client to set:
-	* current state of an interface
-    </description>
-    <arguments>
-      <arg type="network-interface:client-state-state-type" />
-    </arguments>
-  </method>
-
   <method name="setClientControl">
     <description>
       This method can be used by client to set:
@@ -331,20 +305,6 @@
       <arg type="network-interface:client-state-config-type" />
     </arguments>
   </method>
-
-<!--
-  <method name="setClientStats">
-    <description>
-      This method can be used by client to set:
-	* initial state of an interface
-	* time of the initial ifup configuration
-	* time of the last ifup configuration
-    </description>
-    <arguments>
-      <arg type="network-interface:client-state-stats-type" />
-    </arguments>
-  </method>
--->
 
   <method name="linkMonitor">
     <description>

@@ -38,16 +38,6 @@
   <@@IFFLAGS_NAME@@ bit="@@IFFLAGS_VALUE@@"/>
 </define>
 
-<!-- Built-in interface state values -->
-<define name="builtin-fsm-state" type="uint32" constraint="enum">
-  <@@FSM_STATE_NAME_NAME@@ value="@@FSM_STATE_NAME_VALUE@@"/>
-</define>
-
-<!-- The same as above, except as a bitmask (to express the list of supported modes) -->
-<define name="builtin-fsm-state-mask" type="uint32" constraint="bitmap">
-  <@@FSM_STATE_NAME_NAME@@ bit="@@FSM_STATE_NAME_VALUE@@"/>
-</define>
-
 <!-- Built-in wireless types -->
 <define name="builtin-wireless-mode" type="uint32" constraint="enum">
   <@@WIRELESS_MODE_NAME@@ value="@@WIRELESS_MODE_VALUE@@"/>
