@@ -220,8 +220,9 @@ __ni_tuntap_open_dev(void)
 int
 __ni_tuntap_create(const ni_netdev_t *cfg)
 {
+	const char *iftype;
 	struct ifreq ifr;
-	int devfd;
+	int devfd = -1;
 	uid_t owner;
 	gid_t group;
 	int rv = -1;
@@ -230,20 +231,26 @@ __ni_tuntap_create(const ni_netdev_t *cfg)
 		goto error;
 
 	if ((NI_IFTYPE_TUN != cfg->link.type && NI_IFTYPE_TAP != cfg->link.type) ||
-	    (devfd = __ni_tuntap_open_dev()) < 0) {
+			!(iftype = ni_linktype_type_to_name(cfg->link.type)))
 		goto error;
-	}
+
+	if ((devfd = __ni_tuntap_open_dev()) < 0)
+		goto error;
 
 	memset(&ifr, 0, sizeof(ifr));
 	ifr.ifr_flags = IFF_NO_PI;
 	ifr.ifr_flags = (NI_IFTYPE_TUN == cfg->link.type ? IFF_TUN : IFF_TAP);
 	strncpy(ifr.ifr_name, cfg->name, sizeof(ifr.ifr_name) - 1);
 
-	if ((rv = ioctl(devfd, TUNSETIFF, (void *) &ifr)) < 0)
+	if ((rv = ioctl(devfd, TUNSETIFF, (void *) &ifr)) < 0) {
+		ni_error("%s: failed to create %s device: %m", cfg->name, iftype);
 		goto error;
+	}
 
-	if ((rv = ioctl(devfd, TUNSETPERSIST, 1)) < 0)
+	if ((rv = ioctl(devfd, TUNSETPERSIST, 1)) < 0) {
+		ni_error("%s: failed to set %s device persistent: %m", cfg->name, iftype);
 		goto error;
+	}
 
 	owner = cfg->tuntap->owner;
 	group = cfg->tuntap->group;
@@ -252,20 +259,25 @@ __ni_tuntap_create(const ni_netdev_t *cfg)
 		owner = geteuid();
 
 	if (owner != -1U) {
-		if ((rv = ioctl(devfd, TUNSETOWNER, owner)) < 0)
-			goto error;
+		if ((rv = ioctl(devfd, TUNSETOWNER, owner)) < 0) {
+			ni_warn("%s: cannot set %s device owner to %d",
+					cfg->name, iftype, owner);
+			/* do not fail ? */
+		}
 	}
 
 	if (group != -1U) {
-		if ((rv = ioctl(devfd, TUNSETGROUP, group)) < 0)
-			goto error;
+		if ((rv = ioctl(devfd, TUNSETGROUP, group)) < 0) {
+			ni_warn("%s: cannot set %s device group to %d",
+					cfg->name, iftype, group);
+			/* do not fail ? */
+		}
 	}
 
-	return 0;
-
+	rv = 0;
 error:
-	ni_error("failed to create %s device: %m",
-		ni_linktype_type_to_name(cfg->link.type));
+	if (devfd >= 0)
+		close(devfd);
 	return rv;
 }
 
