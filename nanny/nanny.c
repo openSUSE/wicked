@@ -95,6 +95,7 @@ ni_nanny_start(ni_nanny_t *mgr)
 		ni_fatal("Cannot create server, giving up.");
 
 	mgr->fsm = ni_fsm_new();
+	mgr->fsm->worker_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
 
 	ni_fsm_set_user_prompt_fn(mgr->fsm, ni_nanny_prompt, mgr);
 
