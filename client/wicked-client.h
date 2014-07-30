@@ -122,9 +122,15 @@ extern void			ni_ifconfig_metadata_add_to_node(xml_node_t *, ni_client_state_con
 extern ni_bool_t		ni_ifconfig_metadata_get_from_node(ni_client_state_config_t *, xml_node_t *);
 extern void			ni_ifconfig_metadata_clear(xml_node_t *);
 
-extern void			ni_state_change_signal_handler(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
-extern void			ni_client_timer_expires(void *, const ni_timer_t *);
-extern ni_bool_t		ni_client_create(ni_fsm_t *, void *);
+typedef struct ni_nanny_fsm_monitor	ni_nanny_fsm_monitor_t;
+
+extern ni_nanny_fsm_monitor_t *	ni_nanny_fsm_monitor_new(ni_fsm_t *);
+extern ni_bool_t		ni_nanny_fsm_monitor_arm(ni_nanny_fsm_monitor_t *,
+							unsigned long);
+extern int			ni_nanny_fsm_monitor_run(ni_nanny_fsm_monitor_t *,
+							ni_ifworker_array_t *, int);
+extern void			ni_nanny_fsm_monitor_reset(ni_nanny_fsm_monitor_t *);
+extern void			ni_nanny_fsm_monitor_free(ni_nanny_fsm_monitor_t *);
 
 static inline void
 ni_client_get_state_strings(ni_stringbuf_t *sb, const ni_uint_range_t *range)
