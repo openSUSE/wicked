@@ -45,6 +45,14 @@
 #include "appconfig.h"
 #include "ifup.h"
 
+struct ni_nanny_fsm_monitor {
+	const ni_timer_t *      timer;
+	unsigned long		timeout;
+	ni_ifworker_array_t *	marked;
+	/* TODO: per worker status reporting */
+	int			status;
+};
+
 static xml_node_t *
 __ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w)
 {
@@ -234,18 +242,18 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
  * We want to wait for this signal and when it is >= device-up return TRUE.
  * After timeout we fail...
  */
-void
-ni_state_change_signal_handler(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
+static void
+ni_nanny_fsm_monitor_handler(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
 {
 	const char *signal_name = dbus_message_get_member(msg);
 	const char *object_path = dbus_message_get_path(msg);
 	ni_dbus_variant_t argv = NI_DBUS_VARIANT_INIT;
-	ni_ifworker_array_t *ifworkers = user_data;
+	ni_nanny_fsm_monitor_t *monitor = user_data;
 	ni_fsm_state_t cur_state, target_state;
 	const char *ifname;
 	unsigned int i;
 
-	if (ni_string_empty(object_path))
+	if (ni_string_empty(object_path) || !monitor || !monitor->marked)
 		return;
 
 	/* Deserialize dbus message */
@@ -268,8 +276,8 @@ ni_state_change_signal_handler(ni_dbus_connection_t *conn, ni_dbus_message_t *ms
 		signal_name, object_path,  ni_ifworker_state_name(target_state),
 		ni_ifworker_state_name(cur_state));
 
-	for (i = 0; i < ifworkers->count; ++i) {
-		ni_ifworker_t *w = ifworkers->data[i];
+	for (i = 0; i < monitor->marked->count; ++i) {
+		ni_ifworker_t *w = monitor->marked->data[i];
 
 		if (cur_state != NI_FSM_STATE_NONE && cur_state != target_state)
 			continue;
@@ -279,41 +287,122 @@ ni_state_change_signal_handler(ni_dbus_connection_t *conn, ni_dbus_message_t *ms
 
 		ni_note("%s: %s [%s]", ifname, ni_ifworker_state_name(target_state),
 				cur_state == target_state ? "success" : "failure");
-		ni_ifworker_array_remove_with_children(ifworkers, w);
 
+		ni_ifworker_array_remove_with_children(monitor->marked, w);
+		break;
 	}
 
 	ni_dbus_variant_destroy(&argv);
 }
 
 void
-ni_client_timer_expires(void *user_data, const ni_timer_t *timer)
+ni_nanny_fsm_monitor_timeout(void *user_data, const ni_timer_t *timer)
 {
-	int *status;
+	ni_nanny_fsm_monitor_t *monitor = user_data;
 
-	ni_assert(user_data);
-	status = user_data;
+	if (monitor && timer == monitor->timer) {
+		monitor->timer = NULL;
+		monitor->timeout = 0;
+		ni_info("Interface wait time reached");
+		/* TODO: status reporting */
+		monitor->status = NI_WICKED_RC_ERROR;
+	}
+}
 
-	(void) timer;
-	*status = NI_WICKED_RC_ERROR;
-	ni_note("Interface wait time reached");
+ni_nanny_fsm_monitor_t *
+ni_nanny_fsm_monitor_new(ni_fsm_t *fsm)
+{
+	ni_nanny_fsm_monitor_t *monitor;
+	ni_dbus_client_t *client;
+
+	if (!fsm)
+		return NULL;
+
+	if (!(fsm->client_root_object = ni_call_create_client()))
+		return NULL;
+
+	if (!(client = ni_dbus_object_get_client(fsm->client_root_object)))
+		return NULL;
+
+	monitor = calloc(1, sizeof(*monitor));
+	if (monitor) {
+		monitor->status = NI_WICKED_RC_SUCCESS;
+		ni_dbus_client_add_signal_handler(client, NULL, NULL,
+				NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE,
+				ni_nanny_fsm_monitor_handler, monitor);
+	}
+	return monitor;
 }
 
 ni_bool_t
-ni_client_create(ni_fsm_t *fsm, void *user_data)
+ni_nanny_fsm_monitor_arm(ni_nanny_fsm_monitor_t *monitor, unsigned long timeout)
 {
-	ni_dbus_client_t *client;
+	if (monitor) {
+		monitor->timeout = timeout;
+		if (monitor->timer)
+			monitor->timer = ni_timer_rearm(monitor->timer, timeout);
+		else
+			monitor->timer = ni_timer_register(timeout,
+					ni_nanny_fsm_monitor_timeout, monitor);
+		return monitor->timer != NULL;
+	}
+	return FALSE;
+}
 
-	if (!(fsm->client_root_object = ni_call_create_client()))
-		return FALSE;
+int
+ni_nanny_fsm_monitor_run(ni_nanny_fsm_monitor_t *monitor, ni_ifworker_array_t *marked, int status)
+{
+	if (!monitor || monitor->marked || !marked)
+		return NI_WICKED_RC_ERROR;
 
-	client = ni_dbus_object_get_client(fsm->client_root_object);
+	/* TODO: status reporting */
+	monitor->status = status;
+	monitor->marked = marked;
+	while (!ni_caught_terminal_signal()) {
+		long timeout;
 
-	ni_dbus_client_add_signal_handler(client, NULL, NULL,
-		NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE,
-		ni_state_change_signal_handler, user_data);
+		/* TODO: status reporting */
+		if (monitor->status != NI_WICKED_RC_SUCCESS)
+			break;
+		if (!monitor->marked || !monitor->marked->count)
+			break;
 
-	return TRUE;
+		timeout = ni_timer_next_timeout();
+		if (monitor->timeout == 0 ||
+		    (monitor->timeout > 0 && timeout < 0))
+			break;
+
+		if (ni_socket_wait(timeout) != 0)
+			break;
+	}
+
+	if (monitor->timer) {
+		ni_timer_cancel(monitor->timer);
+		monitor->timer = NULL;
+	}
+	return monitor->status;
+}
+
+void
+ni_nanny_fsm_monitor_reset(ni_nanny_fsm_monitor_t *monitor)
+{
+	if (monitor) {
+		monitor->timeout = 0;
+		if (monitor->timer) {
+			ni_timer_cancel(monitor->timer);
+			monitor->timer = NULL;
+		}
+		monitor->marked = NULL;
+		/* TODO: status reporting */
+		monitor->status = NI_WICKED_RC_SUCCESS;
+	}
+}
+
+void
+ni_nanny_fsm_monitor_free(ni_nanny_fsm_monitor_t *monitor)
+{
+	ni_nanny_fsm_monitor_reset(monitor);
+	free(monitor);
 }
 
 static int
@@ -345,6 +434,7 @@ ni_do_ifup_nanny(int argc, char **argv)
 
 	ni_ifmatcher_t ifmatch;
 	ni_ifworker_array_t ifmarked;
+	ni_nanny_fsm_monitor_t *monitor = NULL;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	ni_bool_t check_prio = TRUE, set_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
@@ -461,7 +551,7 @@ usage:
 		goto usage;
 	}
 
-	if (!ni_client_create(fsm, &ifmarked) || !ni_fsm_refresh_state(fsm)) {
+	if (!(monitor = ni_nanny_fsm_monitor_new(fsm)) || !ni_fsm_refresh_state(fsm)) {
 		/* Severe error we always explicitly return */
 		status = NI_WICKED_RC_ERROR;
 		goto cleanup;
@@ -491,8 +581,8 @@ usage:
 	else
 		ni_wait_for_interfaces *= 1000;   /* in msec */
 
-	if (ni_wait_for_interfaces)
-		fsm->worker_timeout = ni_wait_for_interfaces;
+	fsm->worker_timeout = ni_wait_for_interfaces;
+	ni_nanny_fsm_monitor_arm(monitor, ni_wait_for_interfaces);
 
 	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
 		ni_error("ifup: unable to build device hierarchy");
@@ -521,18 +611,8 @@ usage:
 	if (!ni_ifup_hire_nanny(&ifmarked, set_persistent))
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 
-	/* Wait for device-up events */
-	ni_timer_register(ni_wait_for_interfaces, ni_client_timer_expires, &status);
-	while (status == NI_WICKED_RC_SUCCESS) {
-		/* status is already success */
-		if (0 == ifmarked.count)
-			break;
-
-		if (ni_socket_wait(ni_wait_for_interfaces) != 0)
-			ni_fatal("ni_socket_wait failed");
-
-		ni_timer_next_timeout();
-	}
+	/* Wait for device up-transition progress events */
+	status = ni_nanny_fsm_monitor_run(monitor, &ifmarked, status);
 
 	/* Do not report any transient errors to systemd (e.g. dhcp
 	 * or whatever not ready in time) -- returning an error may
@@ -542,6 +622,7 @@ usage:
 		status = NI_LSB_RC_SUCCESS;
 
 cleanup:
+	ni_nanny_fsm_monitor_free(monitor);
 	ni_ifworker_array_destroy(&ifmarked);
 	ni_string_array_destroy(&opt_ifconfig);
 	return status;

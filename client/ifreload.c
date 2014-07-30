@@ -364,6 +364,7 @@ ni_do_ifreload_nanny(int argc, char **argv)
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	ni_ifworker_array_t up_marked = NI_IFWORKER_ARRAY_INIT;
 	ni_ifworker_array_t down_marked = NI_IFWORKER_ARRAY_INIT;
+	ni_nanny_fsm_monitor_t *monitor = NULL;
 	ni_ifmatcher_t ifmatch;
 	ni_bool_t check_prio = TRUE;
 	ni_bool_t set_persistent = FALSE;
@@ -592,29 +593,20 @@ usage:
 
 	/* anything to ifup? */
 	if (up_marked.count) {
-		if (!ni_client_create(fsm, &up_marked)) {
+		if (!(monitor = ni_nanny_fsm_monitor_new(fsm))) {
 			/* Severe error we always explicitly return */
 			status = NI_WICKED_RC_ERROR;
 			goto cleanup;
 		}
+		ni_nanny_fsm_monitor_arm(monitor, ni_wait_for_interfaces);
 
 		/* And trigger up */
 		ni_debug_application("Reloading all changed devices");
 		if (!ni_ifup_hire_nanny(&up_marked, set_persistent))
 			status = NI_WICKED_RC_NOT_CONFIGURED;
 
-		/* Wait for device-up events */
-		ni_timer_register(ni_wait_for_interfaces, ni_client_timer_expires, &status);
-		while (status == NI_WICKED_RC_SUCCESS) {
-			/* status is already success */
-			if (0 == up_marked.count)
-				break;
-
-			if (ni_socket_wait(ni_wait_for_interfaces) != 0)
-				ni_fatal("ni_socket_wait failed");
-
-			ni_timer_next_timeout();
-		}
+		/* Wait for device up-transition progress events */
+		status = ni_nanny_fsm_monitor_run(monitor, &up_marked, status);
 
 		/* Do not report any transient errors to systemd (e.g. dhcp
 		 * or whatever not ready in time) -- returning an error may
@@ -628,6 +620,7 @@ usage:
 	}
 
 cleanup:
+	ni_nanny_fsm_monitor_free(monitor);
 	ni_string_array_destroy(&opt_ifconfig);
 	ni_ifworker_array_destroy(&down_marked);
 	ni_ifworker_array_destroy(&up_marked);
