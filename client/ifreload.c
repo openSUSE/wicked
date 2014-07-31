@@ -372,9 +372,10 @@ ni_do_ifreload_nanny(int argc, char **argv)
 
 		{ NULL,			no_argument,		NULL,	0 }
 	};
-	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	ni_ifworker_array_t up_marked = NI_IFWORKER_ARRAY_INIT;
 	ni_ifworker_array_t down_marked = NI_IFWORKER_ARRAY_INIT;
+	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
+	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	ni_nanny_fsm_monitor_t *monitor = NULL;
 	ni_ifmatcher_t ifmatch;
 	ni_bool_t check_prio = TRUE;
@@ -520,6 +521,15 @@ usage:
 
 		/* Getting an array of ifworkers matching arguments */
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &down_marked);
+
+		if (ni_string_eq(ifmatch.name, "all") ||
+		    ni_string_empty(ifmatch.name)) {
+			ni_string_array_destroy(&ifnames);
+			break;
+		}
+
+		if (ni_string_array_index(&ifnames, ifmatch.name) == -1)
+			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
 	for (i = 0; i < down_marked.count; ++i) {
@@ -592,6 +602,8 @@ usage:
 			/* Execute the down run */
 			if (ni_fsm_schedule(fsm) != 0)
 				ni_fsm_mainloop(fsm);
+
+			status = ni_ifstatus_display_result(fsm, &ifnames, opt_transient);
 		}
 	}
 	else {
@@ -618,6 +630,8 @@ usage:
 		/* Wait for device up-transition progress events */
 		ni_nanny_fsm_monitor_run(monitor, &up_marked, status);
 
+		status = ni_ifstatus_display_result(fsm, &ifnames, opt_transient);
+
 		/* Do not report any transient errors to systemd (e.g. dhcp
 		 * or whatever not ready in time) -- returning an error may
 		 * cause to stop the network completely.
@@ -630,6 +644,7 @@ usage:
 	}
 
 cleanup:
+	ni_string_array_destroy(&ifnames);
 	ni_nanny_fsm_monitor_free(monitor);
 	ni_string_array_destroy(&opt_ifconfig);
 	ni_ifworker_array_destroy(&down_marked);
