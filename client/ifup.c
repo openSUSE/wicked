@@ -44,13 +44,12 @@
 #include "wicked-client.h"
 #include "appconfig.h"
 #include "ifup.h"
+#include "ifstatus.h"
 
 struct ni_nanny_fsm_monitor {
 	const ni_timer_t *      timer;
 	unsigned long		timeout;
 	ni_ifworker_array_t *	marked;
-	/* TODO: per worker status reporting */
-	int			status;
 };
 
 static xml_node_t *
@@ -195,7 +194,7 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 	for (i = 0; i < array->count; i++) {
 		ni_ifworker_t *w = array->data[i];
 
-		if (!w || !w->config.node)
+		if (!w || xml_node_is_empty(w->config.node))
 			continue;
 
 		if (set_persistent)
@@ -215,14 +214,16 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 		ni_netdev_t *dev = w ? w->device : NULL;
 
 		/* Ignore non-existing device */
-		if (!dev)
+		if (!dev || !ni_netdev_device_is_ready(dev) ||
+		    xml_node_is_empty(w->config.node)) {
 			continue;
+		}
 
 		if (w->failed) {
 			ni_debug_application("%s: disabling failed device for nanny", w->name);
 			ni_nanny_call_device_disable(w->name);
 		}
-		else {
+		else if (w->done) {
 			ni_debug_application("%s: enabling device for nanny", w->name);
 			if (!ni_nanny_call_device_enable(w->name)) {
 				ni_error("%s: unable to enable device", w->name);
@@ -285,9 +286,6 @@ ni_nanny_fsm_monitor_handler(ni_dbus_connection_t *conn, ni_dbus_message_t *msg,
 		if (!ni_string_eq(w->name, ifname))
 			continue;
 
-		ni_note("%s: %s [%s]", ifname, ni_ifworker_state_name(target_state),
-				cur_state == target_state ? "success" : "failure");
-
 		ni_ifworker_array_remove_with_children(monitor->marked, w);
 		break;
 	}
@@ -304,8 +302,6 @@ ni_nanny_fsm_monitor_timeout(void *user_data, const ni_timer_t *timer)
 		monitor->timer = NULL;
 		monitor->timeout = 0;
 		ni_info("Interface wait time reached");
-		/* TODO: status reporting */
-		monitor->status = NI_WICKED_RC_ERROR;
 	}
 }
 
@@ -326,7 +322,6 @@ ni_nanny_fsm_monitor_new(ni_fsm_t *fsm)
 
 	monitor = calloc(1, sizeof(*monitor));
 	if (monitor) {
-		monitor->status = NI_WICKED_RC_SUCCESS;
 		ni_dbus_client_add_signal_handler(client, NULL, NULL,
 				NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE,
 				ni_nanny_fsm_monitor_handler, monitor);
@@ -349,21 +344,16 @@ ni_nanny_fsm_monitor_arm(ni_nanny_fsm_monitor_t *monitor, unsigned long timeout)
 	return FALSE;
 }
 
-int
+void
 ni_nanny_fsm_monitor_run(ni_nanny_fsm_monitor_t *monitor, ni_ifworker_array_t *marked, int status)
 {
 	if (!monitor || monitor->marked || !marked)
-		return NI_WICKED_RC_ERROR;
+		return;
 
-	/* TODO: status reporting */
-	monitor->status = status;
 	monitor->marked = marked;
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
 
-		/* TODO: status reporting */
-		if (monitor->status != NI_WICKED_RC_SUCCESS)
-			break;
 		if (!monitor->marked || !monitor->marked->count)
 			break;
 
@@ -380,7 +370,6 @@ ni_nanny_fsm_monitor_run(ni_nanny_fsm_monitor_t *monitor, ni_ifworker_array_t *m
 		ni_timer_cancel(monitor->timer);
 		monitor->timer = NULL;
 	}
-	return monitor->status;
 }
 
 void
@@ -393,8 +382,6 @@ ni_nanny_fsm_monitor_reset(ni_nanny_fsm_monitor_t *monitor)
 			monitor->timer = NULL;
 		}
 		monitor->marked = NULL;
-		/* TODO: status reporting */
-		monitor->status = NI_WICKED_RC_SUCCESS;
 	}
 }
 
@@ -436,6 +423,7 @@ ni_do_ifup_nanny(int argc, char **argv)
 	ni_ifworker_array_t ifmarked;
 	ni_nanny_fsm_monitor_t *monitor = NULL;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
+	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	ni_bool_t check_prio = TRUE, set_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
 	int c, status = NI_WICKED_RC_USAGE;
@@ -604,6 +592,15 @@ usage:
 		}
 
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
+
+		if (ni_string_eq(ifmatch.name, "all") ||
+		    ni_string_empty(ifmatch.name)) {
+			ni_string_array_destroy(&ifnames);
+			break;
+		}
+
+		if (ni_string_array_index(&ifnames, ifmatch.name) == -1)
+			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
 	ni_fsm_pull_in_children(&ifmarked);
@@ -613,16 +610,19 @@ usage:
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 
 	/* Wait for device up-transition progress events */
-	status = ni_nanny_fsm_monitor_run(monitor, &ifmarked, status);
+	ni_nanny_fsm_monitor_run(monitor, &ifmarked, status);
+
+	status = ni_ifstatus_display_result(fsm, &ifnames, opt_transient);
 
 	/* Do not report any transient errors to systemd (e.g. dhcp
 	 * or whatever not ready in time) -- returning an error may
 	 * cause to stop the network completely.
 	 */
-	if (!opt_transient)
+	if (!opt_systemd)
 		status = NI_LSB_RC_SUCCESS;
 
 cleanup:
+	ni_string_array_destroy(&ifnames);
 	ni_nanny_fsm_monitor_free(monitor);
 	ni_ifworker_array_destroy(&ifmarked);
 	ni_string_array_destroy(&opt_ifconfig);
@@ -660,6 +660,7 @@ ni_do_ifup_direct(int argc, char **argv)
 	ni_ifmarker_t ifmarker;
 	ni_ifworker_array_t ifmarked;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
+	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	ni_bool_t check_prio = TRUE;
 	ni_bool_t opt_transient = FALSE;
 	unsigned int nmarked;
@@ -850,6 +851,15 @@ usage:
 		}
 
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
+
+		if (ni_string_eq(ifmatch.name, "all") ||
+		    ni_string_empty(ifmatch.name)) {
+			ni_string_array_destroy(&ifnames);
+			break;
+		}
+
+		if (ni_string_array_index(&ifnames, ifmatch.name) == -1)
+			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
 	ni_fsm_pull_in_children(&ifmarked);
@@ -865,20 +875,19 @@ usage:
 		if (ni_fsm_schedule(fsm) != 0)
 			ni_fsm_mainloop(fsm);
 
-		/* No error if all interfaces were good */
-		status = ni_fsm_fail_count(fsm) ?
-			NI_WICKED_RC_ERROR : NI_WICKED_RC_SUCCESS;
+		status = ni_ifstatus_display_result(fsm, &ifnames, opt_transient);
 
 		/* Do not report any transient errors to systemd (e.g. dhcp
 		 * or whatever not ready in time) -- returning an error may
 		 * cause to stop the network completely.
 		 */
-		if (!opt_transient)
+		if (!opt_systemd)
 			status = NI_LSB_RC_SUCCESS;
 	}
 
 cleanup:
 	ni_ifworker_array_destroy(&ifmarked);
+	ni_string_array_destroy(&ifnames);
 	ni_string_array_destroy(&opt_ifconfig);
 	return status;
 }
@@ -891,4 +900,3 @@ ni_do_ifup(int argc, char **argv)
 	else
 		return ni_do_ifup_direct(argc, argv);
 }
-

@@ -45,6 +45,7 @@
 #include "ifup.h"
 #include "ifdown.h"
 #include "ifreload.h"
+#include "ifstatus.h"
 
 static int
 ni_do_ifreload_direct(int argc, char **argv)
@@ -72,6 +73,7 @@ ni_do_ifreload_direct(int argc, char **argv)
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	ni_ifworker_array_t up_marked = NI_IFWORKER_ARRAY_INIT;
 	ni_ifworker_array_t down_marked = NI_IFWORKER_ARRAY_INIT;
+	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	ni_ifmatcher_t ifmatch;
 	ni_bool_t check_prio = TRUE;
 	ni_bool_t opt_persistent = FALSE;
@@ -217,9 +219,19 @@ usage:
 	nmarked = 0;
 	for (c = optind; c < argc; ++c) {
 		ifmatch.name = argv[c];
+		ifmatch.ignore_startmode = TRUE;
 
 		/* Getting an array of ifworkers matching arguments */
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &down_marked);
+
+		if (ni_string_eq(ifmatch.name, "all") ||
+		    ni_string_empty(ifmatch.name)) {
+			ni_string_array_destroy(&ifnames);
+			break;
+		}
+
+		if (ni_string_array_index(&ifnames, ifmatch.name) == -1)
+			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
 	for (i = 0; i < down_marked.count; ++i) {
@@ -246,8 +258,10 @@ usage:
 			ni_ifworker_control_set_persistent(w, TRUE);
 
 		/* Remember all changed devices */
-		if (ni_ifcheck_worker_config_exists(w))
+		if (ni_ifcheck_worker_config_exists(w) &&
+		    !ni_string_eq_nocase(w->control.mode, "off")) {
 			ni_ifworker_array_append(&up_marked, w);
+		}
 
 		/* Do not ifdown non-existing device */
 		if (!dev) {
@@ -295,6 +309,8 @@ usage:
 			/* Execute the down run */
 			if (ni_fsm_schedule(fsm) != 0)
 				ni_fsm_mainloop(fsm);
+
+			status = ni_ifstatus_display_result(fsm, &ifnames, opt_transient);
 		}
 	}
 	else {
@@ -314,15 +330,13 @@ usage:
 			if (ni_fsm_schedule(fsm) != 0)
 				ni_fsm_mainloop(fsm);
 
-			/* No error if all interfaces were good */
-			status = ni_fsm_fail_count(fsm) ?
-				NI_WICKED_RC_ERROR : NI_WICKED_RC_SUCCESS;
+			status = ni_ifstatus_display_result(fsm, &ifnames, opt_transient);
 
 			/* Do not report any transient errors to systemd (e.g. dhcp
 			 * or whatever not ready in time) -- returning an error may
 			 * cause to stop the network completely.
 			 */
-			if (!opt_transient)
+			if (!opt_systemd)
 				status = NI_LSB_RC_SUCCESS;
 		}
 	}
@@ -331,6 +345,7 @@ usage:
 	}
 
 cleanup:
+	ni_string_array_destroy(&ifnames);
 	ni_string_array_destroy(&opt_ifconfig);
 	ni_ifworker_array_destroy(&down_marked);
 	ni_ifworker_array_destroy(&up_marked);
@@ -360,9 +375,10 @@ ni_do_ifreload_nanny(int argc, char **argv)
 
 		{ NULL,			no_argument,		NULL,	0 }
 	};
-	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	ni_ifworker_array_t up_marked = NI_IFWORKER_ARRAY_INIT;
 	ni_ifworker_array_t down_marked = NI_IFWORKER_ARRAY_INIT;
+	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
+	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	ni_nanny_fsm_monitor_t *monitor = NULL;
 	ni_ifmatcher_t ifmatch;
 	ni_bool_t check_prio = TRUE;
@@ -505,9 +521,19 @@ usage:
 	nmarked = 0;
 	for (c = optind; c < argc; ++c) {
 		ifmatch.name = argv[c];
+		ifmatch.ignore_startmode = TRUE;
 
 		/* Getting an array of ifworkers matching arguments */
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &down_marked);
+
+		if (ni_string_eq(ifmatch.name, "all") ||
+		    ni_string_empty(ifmatch.name)) {
+			ni_string_array_destroy(&ifnames);
+			break;
+		}
+
+		if (ni_string_array_index(&ifnames, ifmatch.name) == -1)
+			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
 	for (i = 0; i < down_marked.count; ++i) {
@@ -530,8 +556,11 @@ usage:
 		}
 
 		/* Remember all changed devices */
-		if (ni_ifcheck_worker_config_exists(w))
+		/* Remember all changed devices */
+		if (ni_ifcheck_worker_config_exists(w) &&
+		    !ni_string_eq_nocase(w->control.mode, "off")) {
 			ni_ifworker_array_append(&up_marked, w);
+		}
 
 		/* Do not ifdown non-existing device */
 		if (!dev) {
@@ -580,6 +609,8 @@ usage:
 			/* Execute the down run */
 			if (ni_fsm_schedule(fsm) != 0)
 				ni_fsm_mainloop(fsm);
+
+			status = ni_ifstatus_display_result(fsm, &ifnames, opt_transient);
 		}
 	}
 	else {
@@ -604,7 +635,9 @@ usage:
 			status = NI_WICKED_RC_NOT_CONFIGURED;
 
 		/* Wait for device up-transition progress events */
-		status = ni_nanny_fsm_monitor_run(monitor, &up_marked, status);
+		ni_nanny_fsm_monitor_run(monitor, &up_marked, status);
+
+		status = ni_ifstatus_display_result(fsm, &ifnames, opt_transient);
 
 		/* Do not report any transient errors to systemd (e.g. dhcp
 		 * or whatever not ready in time) -- returning an error may
@@ -618,6 +651,7 @@ usage:
 	}
 
 cleanup:
+	ni_string_array_destroy(&ifnames);
 	ni_nanny_fsm_monitor_free(monitor);
 	ni_string_array_destroy(&opt_ifconfig);
 	ni_ifworker_array_destroy(&down_marked);

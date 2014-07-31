@@ -40,6 +40,7 @@
 #include "wicked-client.h"
 #include "appconfig.h"
 #include "ifdown.h"
+#include "ifstatus.h"
 
 static ni_bool_t
 ni_ifdown_stop_policy(const char *policy_name)
@@ -87,6 +88,12 @@ ni_ifdown_fire_nanny(ni_ifworker_array_t *array)
 	/* Disabling all requested devices */
 	for (i = 0; i < array->count; i++) {
 		ni_ifworker_t *w = array->data[i];
+		ni_netdev_t *dev = w ? w->device : NULL;
+
+		/* Ignore non-existing device */
+		if (!dev || !ni_netdev_device_is_ready(dev)) {
+			continue;
+		}
 
 		if (!ni_ifdown_stop_device(w->name)) {
 			/* We ignore errors for now */;
@@ -112,6 +119,7 @@ ni_do_ifdown(int argc, char **argv)
 	ni_ifmarker_t ifmarker;
 	ni_ifworker_array_t ifmarked;
 	unsigned int nmarked, max_state = NI_FSM_STATE_DEVICE_DOWN;
+	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	unsigned int timeout = 0;
 	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_fsm_t *fsm;
@@ -226,6 +234,15 @@ usage:
 		ifmatch.name = argv[optind++];
 		ifmatch.ifdown = TRUE;
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
+
+		if (ni_string_eq(ifmatch.name, "all") ||
+		    ni_string_empty(ifmatch.name)) {
+			ni_string_array_destroy(&ifnames);
+			break;
+		}
+
+		if (ni_string_array_index(&ifnames, ifmatch.name) == -1)
+			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
 	/* Mark and start selected workers */
@@ -246,12 +263,11 @@ usage:
 		if (ni_fsm_schedule(fsm) != 0)
 			ni_fsm_mainloop(fsm);
 
-		/* No error if all interfaces were good */
-		status = ni_fsm_fail_count(fsm) ?
-			NI_WICKED_RC_ERROR : NI_WICKED_RC_SUCCESS;
+		status = ni_ifstatus_display_result(fsm, &ifnames, TRUE);
 	}
 
 	ni_ifworker_array_destroy(&ifmarked);
+	ni_string_array_destroy(&ifnames);
 	return status;
 }
 
