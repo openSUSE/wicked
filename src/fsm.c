@@ -2874,6 +2874,10 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 		/* Always clear the object - we don't know if it's still there
 		 * after we've called ni_dbus_object_refresh_children() */
 		w->object = NULL;
+		if (w->device) {
+			ni_netdev_put(w->device);
+			w->device = NULL;
+		}
 
 		/* Set ifworkers to readonly if fsm is readonly */
 		w->readonly = fsm->readonly;
@@ -2956,8 +2960,9 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 
 	if (!found->object_path)
 		ni_string_dup(&found->object_path, object->path);
-	if (!found->device)
-		found->device = ni_netdev_get(dev);
+	if (found->device)
+		ni_netdev_put(found->device);
+	found->device = ni_netdev_get(dev);
 	if (!ni_string_eq(found->name, dev->name))
 		ni_string_dup(&found->name, dev->name);
 	found->ifindex = dev->link.ifindex;
