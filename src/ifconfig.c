@@ -698,7 +698,6 @@ int
 ni_system_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bridge_t *bcfg /*, ni_bool_t add_only */)
 {
 	unsigned int i;
-	int ret = -1;
 
 	if (dev->link.type != NI_IFTYPE_BRIDGE) {
 		ni_error("%s: %s is not a bridge interface", __func__, dev->name);
@@ -714,8 +713,8 @@ ni_system_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bridge_t *
 	for (i = 0; i < bcfg->ports.count; ++i) {
 		ni_bridge_port_t *port = bcfg->ports.data[i];
 
-		if (!port || (ret = ni_system_bridge_add_port(nc, dev, port)) < 0)
-			goto done;
+		if (!port || ni_system_bridge_add_port(nc, dev, port) < 0)
+			continue;
 	}
 	/* Remove not configured ports */
 #if 0	/* FIXME: Disabled for now, it would break vm ports */
@@ -729,9 +728,7 @@ ni_system_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bridge_t *
 	}
 #endif
 
-	ret = 0;
-done:
-	return ret;
+	return 0;
 }
 
 /*
@@ -742,18 +739,17 @@ ni_system_bridge_shutdown(ni_netdev_t *dev)
 {
 	ni_bridge_t *bridge = dev->bridge;
 	unsigned int i;
-	int rv = 0;
 
 	if (!bridge)
 		return -1;
 
 	for (i = 0; i < bridge->ports.count; ++i) {
 		ni_bridge_port_t *port = bridge->ports.data[i];
-		if ((rv = ni_system_bridge_remove_port(dev, port->ifindex)))
-			return rv;
+		if (ni_system_bridge_remove_port(dev, port->ifindex) < 0)
+			continue;
 	}
 
-	return rv;
+	return 0;
 }
 
 /*
