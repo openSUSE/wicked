@@ -286,9 +286,6 @@ ni_nanny_fsm_monitor_handler(ni_dbus_connection_t *conn, ni_dbus_message_t *msg,
 		if (!ni_string_eq(w->name, ifname))
 			continue;
 
-		ni_note("%s: %s [%s]", ifname, ni_ifworker_state_name(target_state),
-				cur_state == target_state ? "success" : "failure");
-
 		ni_ifworker_array_remove_with_children(monitor->marked, w);
 		break;
 	}
