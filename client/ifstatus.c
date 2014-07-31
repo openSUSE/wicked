@@ -83,7 +83,7 @@
  * no   yes  yes   up     yes   CHANGED_CFG  0    mandatory, started, no failure, config deleted
  */
 
-const char *
+static const char *
 ni_ifstatus_code_name(unsigned int status)
 {
 	static const ni_intmap_t        __status_name_map[] = {
@@ -127,7 +127,7 @@ __is_peer_lease_up(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	return FALSE;
 }
 
-void
+static void
 __ifstatus_of_device_leases(ni_netdev_t *dev, unsigned int *st)
 {
 	ni_addrconf_lease_t *lease;
@@ -153,7 +153,7 @@ __ifstatus_of_device_leases(ni_netdev_t *dev, unsigned int *st)
 	}
 }
 
-void
+static void
 __ifstatus_of_device_addrs(ni_netdev_t *dev, unsigned int *st)
 {
 	ni_address_t *ap;
@@ -175,7 +175,7 @@ __ifstatus_of_device_addrs(ni_netdev_t *dev, unsigned int *st)
 	}
 }
 
-unsigned int
+static unsigned int
 __ifstatus_of_device(ni_netdev_t *dev)
 {
 	unsigned int st = NI_WICKED_ST_OK;
@@ -193,7 +193,7 @@ __ifstatus_of_device(ni_netdev_t *dev)
 	return st;
 }
 
-unsigned int
+static unsigned int
 ni_ifstatus_of_device(ni_netdev_t *dev, ni_bool_t *mandatory)
 {
 	if (mandatory) {
@@ -209,7 +209,7 @@ ni_ifstatus_of_device(ni_netdev_t *dev, ni_bool_t *mandatory)
 	return __ifstatus_of_device(dev);
 }
 
-unsigned int
+static unsigned int
 ni_ifstatus_of_worker(ni_ifworker_t *w, ni_bool_t *mandatory)
 {
 	ni_netdev_t *dev = w ? w->device : NULL;
@@ -487,13 +487,13 @@ ni_ifstatus_show_control(const ni_netdev_t *dev, ni_bool_t verbose)
 	if_printf("", "control:", "%s\n", buf.string);
 }
 
-void
+static void
 ni_ifstatus_show_status(const char *ifname, unsigned int status)
 {
 	if_printf(ifname, "", "%s\n", ni_ifstatus_code_name(status));
 }
 
-int
+static int
 ni_ifstatus_to_retcode(int status, ni_bool_t mandatory)
 {
 	switch (status) {
@@ -722,5 +722,64 @@ cleanup:
 	ni_uint_array_destroy(&stflags);
 	ni_string_array_destroy(&ifnames);
 	ni_string_array_destroy(&opt_ifconfig);
+	return status;
+}
+
+int
+ni_ifstatus_display_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_bool_t opt_transient)
+{
+	ni_uint_array_t stcodes = NI_UINT_ARRAY_INIT;
+	ni_uint_array_t stflags = NI_UINT_ARRAY_INIT;
+	int status = NI_WICKED_ST_OK;
+	ni_bool_t multiple;
+	unsigned int i;
+
+	if (!ni_fsm_refresh_state(fsm)) {
+		/* Severe error we always explicitly return */
+		return NI_WICKED_ST_ERROR;
+	}
+
+	multiple = names->count != 1 ? TRUE : FALSE;
+
+	for (i = 0; i < fsm->workers.count; i++ ) {
+		ni_ifworker_t *w = fsm->workers.data[i];
+		unsigned int st = NI_WICKED_ST_NO_DEVICE;
+		ni_bool_t mandatory = TRUE;
+
+		if (names->count == 0 || ni_string_array_index(names, w->name) != -1) {
+			st = ni_ifstatus_of_worker(w, &mandatory);
+			ni_uint_array_append(&stcodes, st);
+			ni_uint_array_append(&stflags, mandatory);
+
+			ni_ifstatus_show_status(w->name, st);
+		}
+	}
+
+	if (!stcodes.count) {
+		if (status == NI_WICKED_ST_OK) {
+			status = NI_WICKED_ST_UNUSED;
+		}
+	} else
+	if (!multiple) {
+		status = stcodes.data[0];
+		if (!opt_transient) {
+			switch (status) {
+			case NI_WICKED_ST_NO_DEVICE:
+			case NI_WICKED_ST_UNCONFIGURED:
+			case NI_WICKED_ST_NOT_RUNNING:
+			default:
+				status = NI_WICKED_ST_OK;
+				break;
+			}
+		}
+	} else
+	for (i = 0; i < stcodes.count && i < stflags.count; ++i) {
+		unsigned int st = stcodes.data[i];
+		unsigned int fl = stflags.data[i];
+		int rc = ni_ifstatus_to_retcode(st, fl);
+		if (rc == NI_WICKED_ST_FAILED)
+			status = rc;
+	}
+
 	return status;
 }
