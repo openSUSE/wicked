@@ -112,6 +112,7 @@ ni_do_ifdown(int argc, char **argv)
 	ni_ifmarker_t ifmarker;
 	ni_ifworker_array_t ifmarked;
 	unsigned int nmarked, max_state = NI_FSM_STATE_DEVICE_DOWN;
+	unsigned int timeout = 0;
 	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
@@ -165,9 +166,9 @@ ni_do_ifdown(int argc, char **argv)
 
 		case OPT_TIMEOUT:
 			if (!strcmp(optarg, "infinite")) {
-				fsm->worker_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			} else if (ni_parse_uint(optarg, &fsm->worker_timeout, 10) >= 0) {
-				fsm->worker_timeout *= 1000; /* sec -> msec */
+				timeout = NI_IFWORKER_INFINITE_TIMEOUT;
+			} else if (ni_parse_uint(optarg, &timeout, 10) >= 0) {
+				timeout *= 1000; /* sec -> msec */
 			} else {
 				ni_error("ifdown: cannot parse timeout option \"%s\"", optarg);
 				goto usage;
@@ -206,6 +207,8 @@ usage:
 
 	ifmarker.target_range.min = NI_FSM_STATE_NONE;
 	ifmarker.target_range.max = max_state;
+
+	fsm->worker_timeout = ni_fsm_find_max_timeout(fsm, timeout);
 
 	if (!ni_fsm_create_client(fsm)) {
 		/* Severe error we always explicitly return */

@@ -24,6 +24,7 @@
 #include <wicked/xpath.h>
 #include <wicked/fsm.h>
 #include <wicked/client.h>
+#include <wicked/bridge.h>
 
 #include "client/ifconfig.h"
 #include "util_priv.h"
@@ -69,7 +70,6 @@ ni_fsm_new(void)
 	ni_fsm_t *fsm;
 
 	fsm = calloc(1, sizeof(*fsm));
-	fsm->worker_timeout = NI_IFWORKER_DEFAULT_TIMEOUT;
 	fsm->readonly = FALSE;
 
 	ni_fsm_user_prompt_fn = ni_fsm_user_prompt_default;
@@ -1457,6 +1457,22 @@ ni_ifworker_set_config_origin(ni_ifworker_t *w, const char *new_origin)
 	ni_string_dup(&w->config.meta.origin, new_origin);
 }
 
+static void
+ni_ifworker_extra_waittime_from_xml(ni_ifworker_t *w)
+{
+	unsigned int extra_timeout = 0;
+	const xml_node_t *brnode;
+
+	if (!w || xml_node_is_empty(w->config.node))
+		return;
+
+	/* Adding bridge dependent values (STP, Forwarding times) */
+	if ((brnode = xml_node_get_child(w->config.node, "bridge")))
+		extra_timeout += ni_bridge_waittime_from_xml(brnode);
+
+	w->extra_waittime = (extra_timeout*1000);
+}
+
 void
 ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_origin)
 {
@@ -1478,6 +1494,8 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 			NI_CLIENT_STATE_XML_NODE, config_origin);
 		xml_node_detach(child);
 	}
+
+	ni_ifworker_extra_waittime_from_xml(w);
 }
 
 /*
@@ -4235,6 +4253,25 @@ ni_fsm_user_prompt_default(const ni_fsm_prompt_t *p, xml_node_t *node, void *use
 done:
 	ni_stringbuf_destroy(&prompt_buf);
 	return rv;
+}
+
+unsigned int
+ni_fsm_find_max_timeout(ni_fsm_t *fsm, unsigned int timeout)
+{
+	unsigned int i, max;
+
+	if (!fsm)
+		return NI_IFWORKER_INFINITE_TIMEOUT;
+
+	max = timeout;
+	for (i = 0; i < fsm->workers.count; i++) {
+		ni_ifworker_t *w = fsm->workers.data[i];
+
+		max = max_t(unsigned int, max,
+			fsm->worker_timeout + w->extra_waittime);
+	}
+
+	return max;
 }
 
 void

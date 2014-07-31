@@ -162,13 +162,13 @@ extern void		xml_node_array_free(xml_node_array_t *);
  * Static inline functions
  */
 static inline ni_bool_t
-xml_node_is_empty(xml_node_t *node)
+xml_node_is_empty(const xml_node_t *node)
 {
 	return (!node || (ni_string_empty(node->cdata) && !node->children));
 }
 
 static inline ni_bool_t
-xml_document_is_empty(xml_document_t *doc)
+xml_document_is_empty(const xml_document_t *doc)
 {
 	return (!doc || xml_node_is_empty(doc->root));
 }

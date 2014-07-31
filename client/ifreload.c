@@ -199,12 +199,11 @@ usage:
 	}
 
 	if (opt_timeout)
-		ni_wait_for_interfaces = opt_timeout; /* One set by user */
-	else
-		ni_wait_for_interfaces *= 1000;   /* sec -> msec */
-
-	if (ni_wait_for_interfaces)
-		fsm->worker_timeout = ni_wait_for_interfaces;
+		fsm->worker_timeout = opt_timeout; /* One set by user */
+	else {
+		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
+			ni_wait_for_interfaces*1000);
+	}
 
 	/* Build the up tree */
 	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
@@ -488,12 +487,11 @@ usage:
 	}
 
 	if (opt_timeout)
-		ni_wait_for_interfaces = opt_timeout; /* One set by user */
-	else
-		ni_wait_for_interfaces *= 1000;   /* sec -> msec */
-
-	if (ni_wait_for_interfaces)
-		fsm->worker_timeout = ni_wait_for_interfaces;
+		fsm->worker_timeout = opt_timeout; /* One set by user */
+	else {
+		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
+			ni_wait_for_interfaces*1000);
+	}
 
 	/* Build the up tree */
 	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
@@ -598,7 +596,7 @@ usage:
 			status = NI_WICKED_RC_ERROR;
 			goto cleanup;
 		}
-		ni_nanny_fsm_monitor_arm(monitor, ni_wait_for_interfaces);
+		ni_nanny_fsm_monitor_arm(monitor, fsm->worker_timeout);
 
 		/* And trigger up */
 		ni_debug_application("Reloading all changed devices");

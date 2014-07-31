@@ -42,7 +42,7 @@ typedef enum ni_config_origin_prio {
 	NI_CONFIG_ORIGIN_PRIO_UNKNOWN = 100,
 } ni_config_origin_prio_t;
 
-#define NI_IFWORKER_DEFAULT_TIMEOUT	20000
+#define NI_IFWORKER_DEFAULT_TIMEOUT	30000
 #define NI_IFWORKER_INFINITE_TIMEOUT	((unsigned int) -1)
 
 typedef struct ni_fsm		ni_fsm_t;
@@ -178,6 +178,7 @@ struct ni_ifworker {
 		ni_fsm_require_t *child_state_req_list;
 
 	} fsm;
+	unsigned int		extra_waittime;
 
 	struct {
 		void            (*callback)(ni_ifworker_t *, ni_fsm_state_t);
@@ -321,6 +322,7 @@ extern void			ni_ifworker_array_remove_with_children(ni_ifworker_array_t *, ni_i
 extern int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
 extern void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 
+extern unsigned int		ni_fsm_find_max_timeout(ni_fsm_t *, unsigned int);
 extern void			ni_fsm_require_register_type(const char *, ni_fsm_require_ctor_t *);
 extern ni_fsm_require_t *	ni_fsm_require_new(ni_fsm_require_fn_t *, ni_fsm_require_dtor_t *);
 
