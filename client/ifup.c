@@ -576,13 +576,14 @@ usage:
 	}
 
 	/* Client waits for device-up events for WAIT_FOR_INTERFACES */
+	/* Client waits for device-up events for WAIT_FOR_INTERFACES */
 	if (timeout)
-		ni_wait_for_interfaces = timeout; /* One set by user */
-	else
-		ni_wait_for_interfaces *= 1000;   /* in msec */
-
-	fsm->worker_timeout = ni_wait_for_interfaces;
-	ni_nanny_fsm_monitor_arm(monitor, ni_wait_for_interfaces);
+		fsm->worker_timeout = timeout; /* One set by user */
+	else {
+		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
+			ni_wait_for_interfaces*1000);
+	}
+	ni_nanny_fsm_monitor_arm(monitor, fsm->worker_timeout);
 
 	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
 		ni_error("ifup: unable to build device hierarchy");
@@ -825,12 +826,11 @@ usage:
 
 	/* Client waits for device-up events for WAIT_FOR_INTERFACES */
 	if (timeout)
-		ni_wait_for_interfaces = timeout; /* One set by user */
-	else
-		ni_wait_for_interfaces *= 1000;   /* in msec */
-
-	if (ni_wait_for_interfaces)
-		fsm->worker_timeout = ni_wait_for_interfaces;
+		fsm->worker_timeout = timeout; /* One set by user */
+	else {
+		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
+			ni_wait_for_interfaces*1000);
+	}
 
 	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
 		ni_error("ifup: unable to build device hierarchy");
