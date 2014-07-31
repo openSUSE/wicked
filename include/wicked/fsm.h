@@ -42,7 +42,7 @@ typedef enum ni_config_origin_prio {
 	NI_CONFIG_ORIGIN_PRIO_UNKNOWN = 100,
 } ni_config_origin_prio_t;
 
-#define NI_IFWORKER_DEFAULT_TIMEOUT	20000
+#define NI_IFWORKER_DEFAULT_TIMEOUT	30000
 #define NI_IFWORKER_INFINITE_TIMEOUT	((unsigned int) -1)
 
 typedef struct ni_fsm		ni_fsm_t;
