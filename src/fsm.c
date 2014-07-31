@@ -4256,6 +4256,25 @@ done:
 	return rv;
 }
 
+unsigned int
+ni_fsm_find_max_timeout(ni_fsm_t *fsm, unsigned int timeout)
+{
+	unsigned int i, max;
+
+	if (!fsm)
+		return NI_IFWORKER_INFINITE_TIMEOUT;
+
+	max = timeout;
+	for (i = 0; i < fsm->workers.count; i++) {
+		ni_ifworker_t *w = fsm->workers.data[i];
+
+		max = max_t(unsigned int, max,
+			fsm->worker_timeout + w->extra_waittime);
+	}
+
+	return max;
+}
+
 void
 ni_fsm_set_user_prompt_fn(ni_fsm_t *fsm, ni_fsm_user_prompt_fn_t *fn, void *user_data)
 {

@@ -322,6 +322,7 @@ extern void			ni_ifworker_array_remove_with_children(ni_ifworker_array_t *, ni_i
 extern int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
 extern void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 
+extern unsigned int		ni_fsm_find_max_timeout(ni_fsm_t *, unsigned int);
 extern void			ni_fsm_require_register_type(const char *, ni_fsm_require_ctor_t *);
 extern ni_fsm_require_t *	ni_fsm_require_new(ni_fsm_require_fn_t *, ni_fsm_require_dtor_t *);
 
