@@ -50,8 +50,6 @@ struct ni_nanny_fsm_monitor {
 	const ni_timer_t *      timer;
 	unsigned long		timeout;
 	ni_ifworker_array_t *	marked;
-	/* TODO: per worker status reporting */
-	int			status;
 };
 
 static xml_node_t *
@@ -307,8 +305,6 @@ ni_nanny_fsm_monitor_timeout(void *user_data, const ni_timer_t *timer)
 		monitor->timer = NULL;
 		monitor->timeout = 0;
 		ni_info("Interface wait time reached");
-		/* TODO: status reporting */
-		monitor->status = NI_WICKED_RC_ERROR;
 	}
 }
 
@@ -329,7 +325,6 @@ ni_nanny_fsm_monitor_new(ni_fsm_t *fsm)
 
 	monitor = calloc(1, sizeof(*monitor));
 	if (monitor) {
-		monitor->status = NI_WICKED_RC_SUCCESS;
 		ni_dbus_client_add_signal_handler(client, NULL, NULL,
 				NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE,
 				ni_nanny_fsm_monitor_handler, monitor);
@@ -352,21 +347,16 @@ ni_nanny_fsm_monitor_arm(ni_nanny_fsm_monitor_t *monitor, unsigned long timeout)
 	return FALSE;
 }
 
-int
+void
 ni_nanny_fsm_monitor_run(ni_nanny_fsm_monitor_t *monitor, ni_ifworker_array_t *marked, int status)
 {
 	if (!monitor || monitor->marked || !marked)
-		return NI_WICKED_RC_ERROR;
+		return;
 
-	/* TODO: status reporting */
-	monitor->status = status;
 	monitor->marked = marked;
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
 
-		/* TODO: status reporting */
-		if (monitor->status != NI_WICKED_RC_SUCCESS)
-			break;
 		if (!monitor->marked || !monitor->marked->count)
 			break;
 
@@ -383,7 +373,6 @@ ni_nanny_fsm_monitor_run(ni_nanny_fsm_monitor_t *monitor, ni_ifworker_array_t *m
 		ni_timer_cancel(monitor->timer);
 		monitor->timer = NULL;
 	}
-	return monitor->status;
 }
 
 void
@@ -396,8 +385,6 @@ ni_nanny_fsm_monitor_reset(ni_nanny_fsm_monitor_t *monitor)
 			monitor->timer = NULL;
 		}
 		monitor->marked = NULL;
-		/* TODO: status reporting */
-		monitor->status = NI_WICKED_RC_SUCCESS;
 	}
 }
 
@@ -616,7 +603,7 @@ usage:
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 
 	/* Wait for device up-transition progress events */
-	status = ni_nanny_fsm_monitor_run(monitor, &ifmarked, status);
+	ni_nanny_fsm_monitor_run(monitor, &ifmarked, status);
 
 	/* Do not report any transient errors to systemd (e.g. dhcp
 	 * or whatever not ready in time) -- returning an error may

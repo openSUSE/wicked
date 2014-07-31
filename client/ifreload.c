@@ -616,7 +616,7 @@ usage:
 			status = NI_WICKED_RC_NOT_CONFIGURED;
 
 		/* Wait for device up-transition progress events */
-		status = ni_nanny_fsm_monitor_run(monitor, &up_marked, status);
+		ni_nanny_fsm_monitor_run(monitor, &up_marked, status);
 
 		/* Do not report any transient errors to systemd (e.g. dhcp
 		 * or whatever not ready in time) -- returning an error may
