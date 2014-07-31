@@ -70,7 +70,6 @@ ni_fsm_new(void)
 	ni_fsm_t *fsm;
 
 	fsm = calloc(1, sizeof(*fsm));
-	fsm->worker_timeout = NI_IFWORKER_DEFAULT_TIMEOUT;
 	fsm->readonly = FALSE;
 
 	ni_fsm_user_prompt_fn = ni_fsm_user_prompt_default;
