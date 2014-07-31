@@ -423,6 +423,7 @@ ni_do_ifup_nanny(int argc, char **argv)
 	ni_ifworker_array_t ifmarked;
 	ni_nanny_fsm_monitor_t *monitor = NULL;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
+	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	ni_bool_t check_prio = TRUE, set_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
 	int c, status = NI_WICKED_RC_USAGE;
@@ -591,6 +592,15 @@ usage:
 		}
 
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
+
+		if (ni_string_eq(ifmatch.name, "all") ||
+		    ni_string_empty(ifmatch.name)) {
+			ni_string_array_destroy(&ifnames);
+			break;
+		}
+
+		if (ni_string_array_index(&ifnames, ifmatch.name) == -1)
+			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
 	ni_fsm_pull_in_children(&ifmarked);
@@ -602,14 +612,17 @@ usage:
 	/* Wait for device up-transition progress events */
 	ni_nanny_fsm_monitor_run(monitor, &ifmarked, status);
 
+	status = ni_ifstatus_display_result(fsm, &ifnames, opt_transient);
+
 	/* Do not report any transient errors to systemd (e.g. dhcp
 	 * or whatever not ready in time) -- returning an error may
 	 * cause to stop the network completely.
 	 */
-	if (!opt_transient)
+	if (!opt_systemd)
 		status = NI_LSB_RC_SUCCESS;
 
 cleanup:
+	ni_string_array_destroy(&ifnames);
 	ni_nanny_fsm_monitor_free(monitor);
 	ni_ifworker_array_destroy(&ifmarked);
 	ni_string_array_destroy(&opt_ifconfig);
