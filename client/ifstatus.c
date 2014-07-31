@@ -220,14 +220,14 @@ ni_ifstatus_of_worker(ni_ifworker_t *w, ni_bool_t *mandatory)
 			ni_ifcheck_worker_device_link_required(w);
 	}
 
-	if (!ni_ifcheck_worker_device_exists(w)) {
-		if (!ni_ifcheck_worker_config_exists(w))
-			return NI_WICKED_ST_NO_CONFIG;
+	if (!ni_ifcheck_worker_device_exists(w))
 		return NI_WICKED_ST_NO_DEVICE;
-	}
 
 	if (!ni_ifcheck_device_configured(dev))
 		return NI_WICKED_ST_UNCONFIGURED;
+
+	if (!ni_ifcheck_worker_config_exists(w))
+		return NI_WICKED_ST_NO_CONFIG;
 
 	st = __ifstatus_of_device(dev);
 	if (st == NI_WICKED_ST_OK) {
