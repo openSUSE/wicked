@@ -9,6 +9,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/bridge.h>
+#include <wicked/xml.h>
 #include "netinfo_priv.h"
 #include "util_priv.h"
 #include "limits.h"
@@ -413,7 +414,7 @@ ni_bridge_validate(const ni_bridge_t *bridge)
 	return NULL;
 }
 
-unsigned int
+static unsigned int
 ni_bridge_waittime(const ni_bridge_t *bridge)
 {
 	double forward_delay = 0;
@@ -432,3 +433,44 @@ ni_bridge_waittime(const ni_bridge_t *bridge)
 	return (unsigned int)(max_age + (forward_delay * 2.0));
 }
 
+unsigned int
+ni_bridge_waittime_from_xml(const xml_node_t *brnode)
+{
+	unsigned int waittime = 0;
+	ni_bridge_t bridge;
+	xml_node_t *child;
+
+	if (xml_node_is_empty(brnode))
+		return waittime;
+
+	__ni_bridge_init(&bridge);
+	for (child = brnode->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "stp")) {
+			if (ni_parse_boolean(child->cdata, &bridge.stp))
+				continue;
+		} else
+		if (ni_string_eq(child->name, "forward-delay")) {
+			if (ni_parse_double(child->cdata, &bridge.forward_delay))
+				continue;
+
+			if (bridge.forward_delay > NI_BRIDGE_FORWARD_DELAY_MAX)
+				bridge.forward_delay = NI_BRIDGE_FORWARD_DELAY_MAX;
+			else
+			if (bridge.forward_delay < NI_BRIDGE_FORWARD_DELAY_MIN)
+				bridge.forward_delay = NI_BRIDGE_FORWARD_DELAY_MIN;
+		} else
+		if (ni_string_eq(child->name, "max-age")) {
+			if (ni_parse_double(child->cdata, &bridge.max_age))
+				continue;
+
+			if (bridge.max_age > NI_BRIDGE_MAX_AGE_MAX)
+				bridge.max_age = NI_BRIDGE_MAX_AGE_MAX;
+			else
+			if (bridge.max_age < NI_BRIDGE_MAX_AGE_MIN)
+				bridge.max_age = NI_BRIDGE_MAX_AGE_MIN;
+		}
+	}
+
+	waittime = ni_bridge_waittime(&bridge);
+	return waittime;
+}
