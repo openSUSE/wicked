@@ -87,6 +87,12 @@ ni_ifdown_fire_nanny(ni_ifworker_array_t *array)
 	/* Disabling all requested devices */
 	for (i = 0; i < array->count; i++) {
 		ni_ifworker_t *w = array->data[i];
+		ni_netdev_t *dev = w ? w->device : NULL;
+
+		/* Ignore non-existing device */
+		if (!dev || !ni_netdev_device_is_ready(dev)) {
+			continue;
+		}
 
 		if (!ni_ifdown_stop_device(w->name)) {
 			/* We ignore errors for now */;

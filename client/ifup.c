@@ -195,7 +195,7 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 	for (i = 0; i < array->count; i++) {
 		ni_ifworker_t *w = array->data[i];
 
-		if (!w || !w->config.node)
+		if (!w || xml_node_is_empty(w->config.node))
 			continue;
 
 		if (set_persistent)
@@ -215,14 +215,16 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 		ni_netdev_t *dev = w ? w->device : NULL;
 
 		/* Ignore non-existing device */
-		if (!dev)
+		if (!dev || !ni_netdev_device_is_ready(dev) ||
+		    xml_node_is_empty(w->config.node)) {
 			continue;
+		}
 
 		if (w->failed) {
 			ni_debug_application("%s: disabling failed device for nanny", w->name);
 			ni_nanny_call_device_disable(w->name);
 		}
-		else {
+		else if (w->done) {
 			ni_debug_application("%s: enabling device for nanny", w->name);
 			if (!ni_nanny_call_device_enable(w->name)) {
 				ni_error("%s: unable to enable device", w->name);
