@@ -2126,7 +2126,7 @@ ni_sibling_path(const char *path, const char *file)
 	len = strlen(buffer);
 	if (len + 2 + strlen(file) >= sizeof(buffer)) {
 		ni_error("%s(%s, %s): path name too long", __func__, path, file);
-		return FALSE;
+		return NULL;
 	}
 
 	snprintf(buffer + len, sizeof(buffer) - len, "/%s", file);
