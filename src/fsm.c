@@ -24,6 +24,7 @@
 #include <wicked/xpath.h>
 #include <wicked/fsm.h>
 #include <wicked/client.h>
+#include <wicked/bridge.h>
 
 #include "client/ifconfig.h"
 #include "util_priv.h"
@@ -1457,6 +1458,22 @@ ni_ifworker_set_config_origin(ni_ifworker_t *w, const char *new_origin)
 	ni_string_dup(&w->config.meta.origin, new_origin);
 }
 
+static void
+ni_ifworker_extra_waittime_from_xml(ni_ifworker_t *w)
+{
+	unsigned int extra_timeout = 0;
+	const xml_node_t *brnode;
+
+	if (!w || xml_node_is_empty(w->config.node))
+		return;
+
+	/* Adding bridge dependent values (STP, Forwarding times) */
+	if ((brnode = xml_node_get_child(w->config.node, "bridge")))
+		extra_timeout += ni_bridge_waittime_from_xml(brnode);
+
+	w->extra_waittime = (extra_timeout*1000);
+}
+
 void
 ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_origin)
 {
@@ -1478,6 +1495,8 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 			NI_CLIENT_STATE_XML_NODE, config_origin);
 		xml_node_detach(child);
 	}
+
+	ni_ifworker_extra_waittime_from_xml(w);
 }
 
 /*

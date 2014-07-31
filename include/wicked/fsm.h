@@ -178,6 +178,7 @@ struct ni_ifworker {
 		ni_fsm_require_t *child_state_req_list;
 
 	} fsm;
+	unsigned int		extra_waittime;
 
 	struct {
 		void            (*callback)(ni_ifworker_t *, ni_fsm_state_t);
