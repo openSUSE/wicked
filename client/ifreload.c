@@ -219,6 +219,7 @@ usage:
 	nmarked = 0;
 	for (c = optind; c < argc; ++c) {
 		ifmatch.name = argv[c];
+		ifmatch.ignore_startmode = TRUE;
 
 		/* Getting an array of ifworkers matching arguments */
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &down_marked);
@@ -257,8 +258,10 @@ usage:
 			ni_ifworker_control_set_persistent(w, TRUE);
 
 		/* Remember all changed devices */
-		if (ni_ifcheck_worker_config_exists(w))
+		if (ni_ifcheck_worker_config_exists(w) &&
+		    !ni_string_eq_nocase(w->control.mode, "off")) {
 			ni_ifworker_array_append(&up_marked, w);
+		}
 
 		/* Do not ifdown non-existing device */
 		if (!dev) {
@@ -518,6 +521,7 @@ usage:
 	nmarked = 0;
 	for (c = optind; c < argc; ++c) {
 		ifmatch.name = argv[c];
+		ifmatch.ignore_startmode = TRUE;
 
 		/* Getting an array of ifworkers matching arguments */
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &down_marked);
@@ -552,8 +556,11 @@ usage:
 		}
 
 		/* Remember all changed devices */
-		if (ni_ifcheck_worker_config_exists(w))
+		/* Remember all changed devices */
+		if (ni_ifcheck_worker_config_exists(w) &&
+		    !ni_string_eq_nocase(w->control.mode, "off")) {
 			ni_ifworker_array_append(&up_marked, w);
+		}
 
 		/* Do not ifdown non-existing device */
 		if (!dev) {
