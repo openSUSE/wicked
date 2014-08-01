@@ -15,17 +15,13 @@ Wicked release making mini HOWTO:
 6d. In case of inconsistience one may need to merge the changes into the local branch first
 7a. osc vc wicked.changes # own changes -- a kind of digest / summary from the git changelog
 7b. add bug / fate references when missed in git log
-8a. VERSION and configure.ac update
+8a. VERSION update
 
       VERSION:
       -0.5.19
       +0.5.20
 
-      configure.ac:
-      -REV=19
-      +REV=20
-
-8b. git ci -m 'version-0.5.20'
+8b. git ci -m 'version 0.5.20'
 9.  git tag -a -s version-0.5.20
 
 A.  git tag -v version-0.5.20
