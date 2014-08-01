@@ -2687,11 +2687,11 @@ try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
  *   REMOTE_IPADDR_x
  */
 static ni_bool_t
-__get_ipaddr(const ni_sysconfig_t *sc, const char *suffix, ni_address_t **list)
+__get_ipaddr(const ni_sysconfig_t *sc, const char *ifname, const char *suffix, ni_address_t **list)
 {
 	ni_var_t *var;
 	ni_sockaddr_t local_addr;
-	unsigned int prefixlen;
+	unsigned int prefixlen = ~0U;
 	ni_address_t *ap;
 
 	var = __find_indexed_variable(sc, "IPADDR", suffix);
@@ -2699,13 +2699,20 @@ __get_ipaddr(const ni_sysconfig_t *sc, const char *suffix, ni_address_t **list)
 		return TRUE;
 
 	if (!ni_sockaddr_prefix_parse(var->value, &local_addr, &prefixlen)) {
-cannot_parse:
-		ni_error("Unable to parse %s=\"%s\"", var->name, var->value);
+		ni_warn("ifcfg-%s: unable to parse %s=\"%s\"",
+				ifname, var->name, var->value);
+		return FALSE;
+	}
+
+	if (!ni_sockaddr_is_specified(&local_addr)) {
+		/* usually crap written by yast2 -- bnc#879617 */
+		ni_warn("ifcfg-%s: ignoring unspecified ip address %s",
+				ifname,	ni_sockaddr_print(&local_addr));
 		return FALSE;
 	}
 
 	/* If the address wasn't in addr/prefix format, go look elsewhere */
-	if (prefixlen == ~0U) {
+	if (!prefixlen || prefixlen > ni_af_address_prefixlen(local_addr.ss_family)) {
 		ni_sockaddr_t netmask;
 
 		/* Try PREFIXLEN variable */
@@ -2717,14 +2724,11 @@ cannot_parse:
 		 && (var = __find_indexed_variable(sc, "NETMASK", suffix)) != NULL
 		 && ni_sockaddr_parse(&netmask, var->value, AF_INET) >= 0) {
 			prefixlen = ni_sockaddr_netmask_bits(&netmask);
-		} else {
-			unsigned int dummy, len;
-
-			if (!ni_af_sockaddr_info(local_addr.ss_family, &dummy, &len))
-				goto cannot_parse;
-			prefixlen = len * 8;
 		}
 	}
+	/* Uff... assume maximal prefix length of the address family */
+	if (!prefixlen || prefixlen > ni_af_address_prefixlen(local_addr.ss_family))
+		prefixlen = ni_af_address_prefixlen(local_addr.ss_family);
 
 	ap = ni_address_new(local_addr.ss_family, prefixlen, &local_addr, list);
 	if (ap && ap->family == AF_INET) {
@@ -2732,8 +2736,8 @@ cannot_parse:
 		if (var) {
 			ni_sockaddr_parse(&ap->bcast_addr, var->value, AF_INET);
 			if (ap->bcast_addr.ss_family != ap->family) {
-				ni_error("%s: ignoring BROADCAST%s=%s (wrong address family)",
-						sc->pathname, suffix, var->value);
+				ni_warn("ifcfg-%s: ignoring BROADCAST%s=%s (wrong address family)",
+						ifname, suffix, var->value);
 				ap->bcast_addr.ss_family = AF_UNSPEC;
 			}
 		} else {
@@ -2742,13 +2746,20 @@ cannot_parse:
 		}
 	}
 
-	var = __find_indexed_variable(sc, "REMOTE_IPADDR", suffix);
-	if (var) {
-		ni_sockaddr_parse(&ap->peer_addr, var->value, AF_UNSPEC);
-		if (ap->peer_addr.ss_family != ap->family) {
-			ni_error("%s: ignoring REMOTE_IPADDR%s=%s (wrong address family)",
-					sc->pathname, suffix, var->value);
-			ap->peer_addr.ss_family = AF_UNSPEC;
+	if (prefixlen == ni_af_address_prefixlen(local_addr.ss_family))	{
+		var = __find_indexed_variable(sc, "REMOTE_IPADDR", suffix);
+		if (var) {
+			ni_sockaddr_parse(&ap->peer_addr, var->value, AF_UNSPEC);
+			if (ap->peer_addr.ss_family != ap->family) {
+				ni_warn("ifcfg-%s: ignoring REMOTE_IPADDR%s=%s (wrong address family)",
+						ifname, suffix, var->value);
+				ap->peer_addr.ss_family = AF_UNSPEC;
+			} else
+			if (!ni_sockaddr_is_specified(&ap->peer_addr)) {
+				ni_warn("ifcfg-%s: ignoring REMOTE_IPADDR%s=%s (invalid remote address)",
+						ifname, suffix, var->value);
+				ap->peer_addr.ss_family = AF_UNSPEC;
+			}
 		}
 	}
 
@@ -2819,8 +2830,9 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 		if (ni_sysconfig_find_matching(sc, "IPADDR", &names) > 0) {
 			for (i = 0; i < names.count; ++i) {
-				if (!__get_ipaddr(sc, names.data[i] + 6, &dev->addrs))
-					return FALSE;
+				(void)__get_ipaddr(sc, dev->name, names.data[i] + 6,
+							&dev->addrs);
+				/* skip / ignore addrs we aren't able to process */
 			}
 			ni_string_array_destroy(&names);
 		}
