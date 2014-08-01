@@ -88,6 +88,7 @@ extern void		ni_sockaddr_array_append(ni_sockaddr_array_t *, const ni_sockaddr_t
 
 extern ni_bool_t	ni_af_sockaddr_info(int, unsigned int *, unsigned int *);
 extern unsigned int	ni_af_address_length(int af);
+extern unsigned int	ni_af_address_prefixlen(int af);
 
 extern ni_address_t *	ni_address_new(int af, unsigned int prefix_len,
 					const ni_sockaddr_t *local_addr,

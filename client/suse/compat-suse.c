@@ -2901,8 +2901,13 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 						if (ap->family != nh->gateway.ss_family)
 							continue;
 
-						if (ni_address_can_reach(ap, &nh->gateway))
+						if (ni_address_can_reach(ap, &nh->gateway)) {
 							matches++;
+						} else
+						if (ni_sockaddr_is_specified(&ap->peer_addr) &&
+						    ni_sockaddr_equal(&ap->peer_addr, &nh->gateway)) {
+							matches++;
+						}
 					}
 				}
 				if (matches) {
