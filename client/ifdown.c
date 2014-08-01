@@ -120,7 +120,7 @@ ni_do_ifdown(int argc, char **argv)
 	ni_ifworker_array_t ifmarked;
 	unsigned int nmarked, max_state = NI_FSM_STATE_DEVICE_DOWN;
 	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
-	unsigned int timeout = 0;
+	unsigned int timeout = NI_IFWORKER_DEFAULT_TIMEOUT;
 	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
