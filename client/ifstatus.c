@@ -141,7 +141,9 @@ __ifstatus_of_device_leases(ni_netdev_t *dev, unsigned int *st)
 
 		if (lease->state == NI_ADDRCONF_STATE_RELEASING ||
 		    lease->state == NI_ADDRCONF_STATE_REQUESTING) {
-			*st = NI_WICKED_ST_IN_PROGRESS;
+			if (!__is_peer_lease_up(dev, lease)) {
+				*st = NI_WICKED_ST_IN_PROGRESS;
+			}
 		}
 
 		if (lease->state == NI_ADDRCONF_STATE_FAILED) {
