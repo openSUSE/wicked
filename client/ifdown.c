@@ -119,8 +119,7 @@ ni_do_ifdown(int argc, char **argv)
 	ni_ifmarker_t ifmarker;
 	ni_ifworker_array_t ifmarked;
 	unsigned int nmarked, max_state = NI_FSM_STATE_DEVICE_DOWN;
-	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
-	unsigned int timeout = 0;
+	unsigned int timeout = NI_IFWORKER_DEFAULT_TIMEOUT;
 	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
@@ -234,15 +233,6 @@ usage:
 		ifmatch.name = argv[optind++];
 		ifmatch.ifdown = TRUE;
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
-
-		if (ni_string_eq(ifmatch.name, "all") ||
-		    ni_string_empty(ifmatch.name)) {
-			ni_string_array_destroy(&ifnames);
-			break;
-		}
-
-		if (ni_string_array_index(&ifnames, ifmatch.name) == -1)
-			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
 	/* Mark and start selected workers */
@@ -263,11 +253,10 @@ usage:
 		if (ni_fsm_schedule(fsm) != 0)
 			ni_fsm_mainloop(fsm);
 
-		status = ni_ifstatus_display_result(fsm, &ifnames, TRUE);
+		status = ni_ifstatus_shutdown_result(fsm, &ifmarked);
 	}
 
 	ni_ifworker_array_destroy(&ifmarked);
-	ni_string_array_destroy(&ifnames);
 	return status;
 }
 
