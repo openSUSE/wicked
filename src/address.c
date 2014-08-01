@@ -256,23 +256,6 @@ ni_address_list_destroy(ni_address_t **list)
 /*
  * ni_af_sockaddr functions
  */
-ni_bool_t
-ni_af_sockaddr_info(int af, unsigned int *offset, unsigned int *len)
-{
-	switch (af) {
-	case AF_INET:
-		*offset = offsetof(struct sockaddr_in, sin_addr);
-		*len = 4;
-		return TRUE;
-	case AF_INET6:
-		*offset = offsetof(struct sockaddr_in6, sin6_addr);
-		*len = 16;
-		return TRUE;
-	}
-
-	return FALSE;
-}
-
 unsigned int
 ni_af_address_length(int af)
 {
@@ -285,6 +268,35 @@ ni_af_address_length(int af)
 	return 0;
 }
 
+unsigned int
+ni_af_address_prefixlen(int af)
+{
+	switch (af) {
+	case AF_INET:
+	case AF_INET6:
+		return ni_af_address_length(af) * 8;
+	break;
+	default:
+		return 0;
+	}
+}
+
+ni_bool_t
+ni_af_sockaddr_info(int af, unsigned int *offset, unsigned int *len)
+{
+	switch (af) {
+	case AF_INET:
+		*offset = offsetof(struct sockaddr_in, sin_addr);
+		*len = ni_af_address_length(af);
+		return TRUE;
+	case AF_INET6:
+		*offset = offsetof(struct sockaddr_in6, sin6_addr);
+		*len = ni_af_address_length(af);
+		return TRUE;
+	}
+
+	return FALSE;
+}
 
 /*
  * ni_sockaddr functions
