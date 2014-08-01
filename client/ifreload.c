@@ -310,7 +310,7 @@ usage:
 			if (ni_fsm_schedule(fsm) != 0)
 				ni_fsm_mainloop(fsm);
 
-			status = ni_ifstatus_display_result(fsm, &ifnames, opt_transient);
+			status = ni_ifstatus_shutdown_result(fsm, &down_marked);
 		}
 	}
 	else {
@@ -610,7 +610,7 @@ usage:
 			if (ni_fsm_schedule(fsm) != 0)
 				ni_fsm_mainloop(fsm);
 
-			status = ni_ifstatus_display_result(fsm, &ifnames, opt_transient);
+			status = ni_ifstatus_shutdown_result(fsm, &down_marked);
 		}
 	}
 	else {
@@ -643,7 +643,7 @@ usage:
 		 * or whatever not ready in time) -- returning an error may
 		 * cause to stop the network completely.
 		 */
-		if (!opt_transient)
+		if (!opt_systemd)
 			status = NI_LSB_RC_SUCCESS;
 	}
 	else {
