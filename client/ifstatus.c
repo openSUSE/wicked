@@ -726,6 +726,33 @@ cleanup:
 }
 
 int
+ni_ifstatus_shutdown_result(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
+{
+	if (marked && marked->count) {
+		const ni_ifworker_t *w;
+		const char *state;
+		unsigned int i;
+
+		for (i = 0; i < marked->count; ++i) {
+			if (!(w = marked->data[i]))
+				continue;
+
+			state = ni_ifworker_state_name(w->fsm.state);
+			if (ni_string_empty(w->name) ||
+			    ni_string_empty(state))
+				continue;
+
+			if_printf(w->name, "", "%s\n", state);
+		}
+	}
+
+	if (!fsm || ni_fsm_fail_count(fsm))
+		return NI_WICKED_RC_ERROR;
+
+	return NI_WICKED_RC_SUCCESS;
+}
+
+int
 ni_ifstatus_display_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_bool_t opt_transient)
 {
 	ni_uint_array_t stcodes = NI_UINT_ARRAY_INIT;
