@@ -350,7 +350,7 @@ ni_nanny_fsm_monitor_run(ni_nanny_fsm_monitor_t *monitor, ni_ifworker_array_t *m
 	if (!monitor || monitor->marked || !marked)
 		return;
 
-	monitor->marked = marked;
+	monitor->marked = ni_ifworker_array_clone(marked);
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
 
@@ -381,6 +381,7 @@ ni_nanny_fsm_monitor_reset(ni_nanny_fsm_monitor_t *monitor)
 			ni_timer_cancel(monitor->timer);
 			monitor->timer = NULL;
 		}
+		ni_ifworker_array_free(monitor->marked);
 		monitor->marked = NULL;
 	}
 }
