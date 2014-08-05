@@ -104,15 +104,13 @@ ni_client_state_config_print_xml(const ni_client_state_config_t *conf, xml_node_
 	if (!(parent = xml_node_new(NI_CLIENT_STATE_XML_CONFIG_NODE, node)))
 		return FALSE;
 
-	if (!(ptr = ni_uuid_print(&conf->uuid)) ||
-	    !xml_node_new_element(NI_CLIENT_STATE_XML_CONFIG_UUID_NODE, parent, ptr)) {
+	ptr = ni_uuid_print(&conf->uuid);
+	if (!xml_node_new_element(NI_CLIENT_STATE_XML_CONFIG_UUID_NODE, parent, ptr))
 		return FALSE;
-	}
 
-	if (!(ptr = conf->origin) ||
-	    !xml_node_new_element(NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE, parent, ptr)) {
+	ptr = conf->origin;
+	if (!xml_node_new_element(NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE, parent, ptr))
 		return FALSE;
-	}
 
 	ni_string_printf(&tmp, "%u", conf->owner);
 	if (!xml_node_new_element(NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE, parent, tmp)) {
