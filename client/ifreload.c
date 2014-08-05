@@ -230,7 +230,7 @@ usage:
 			break;
 		}
 
-		if (ni_string_array_index(&ifnames, ifmatch.name) == -1)
+		if (ni_string_array_index(&ifnames, ifmatch.name) < 0)
 			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
@@ -310,7 +310,7 @@ usage:
 			if (ni_fsm_schedule(fsm) != 0)
 				ni_fsm_mainloop(fsm);
 
-			status = ni_ifstatus_shutdown_result(fsm, &down_marked);
+			status = ni_ifstatus_shutdown_result(fsm, &ifnames, &down_marked);
 		}
 	}
 	else {
@@ -330,7 +330,8 @@ usage:
 			if (ni_fsm_schedule(fsm) != 0)
 				ni_fsm_mainloop(fsm);
 
-			status = ni_ifstatus_display_result(fsm, &ifnames, opt_transient);
+			status = ni_ifstatus_display_result(fsm, &ifnames, &up_marked,
+				opt_transient);
 
 			/* Do not report any transient errors to systemd (e.g. dhcp
 			 * or whatever not ready in time) -- returning an error may
@@ -532,7 +533,7 @@ usage:
 			break;
 		}
 
-		if (ni_string_array_index(&ifnames, ifmatch.name) == -1)
+		if (ni_string_array_index(&ifnames, ifmatch.name) < 0)
 			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
@@ -555,7 +556,6 @@ usage:
 			continue;
 		}
 
-		/* Remember all changed devices */
 		/* Remember all changed devices */
 		if (ni_ifcheck_worker_config_exists(w) &&
 		    !ni_string_eq_nocase(w->control.mode, "off")) {
@@ -610,7 +610,7 @@ usage:
 			if (ni_fsm_schedule(fsm) != 0)
 				ni_fsm_mainloop(fsm);
 
-			status = ni_ifstatus_shutdown_result(fsm, &down_marked);
+			status = ni_ifstatus_shutdown_result(fsm, &ifnames, &down_marked);
 		}
 	}
 	else {
@@ -637,7 +637,8 @@ usage:
 		/* Wait for device up-transition progress events */
 		ni_nanny_fsm_monitor_run(monitor, &up_marked, status);
 
-		status = ni_ifstatus_display_result(fsm, &ifnames, opt_transient);
+		status = ni_ifstatus_display_result(fsm, &ifnames, &up_marked,
+			opt_transient);
 
 		/* Do not report any transient errors to systemd (e.g. dhcp
 		 * or whatever not ready in time) -- returning an error may
