@@ -782,11 +782,18 @@ ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port
 		pif = ni_netdev_by_name(nc, port->ifname);
 
 	if (pif == NULL) {
-		ni_error("%s: cannot add port - interface not known", brdev->name);
+		ni_error("%s: cannot add port - interface not known",
+			brdev->name);
+		return -NI_ERROR_DEVICE_NOT_KNOWN;
+	}
+	if (!ni_netdev_device_is_ready(pif)) {
+		ni_error("%s: cannot add port %s - interface is not ready",
+			brdev->name, pif->name);
 		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 	if (pif->link.ifindex == 0) {
-		ni_error("%s: cannot add port - %s has no ifindex?!", brdev->name, pif->name);
+		ni_error("%s: cannot add port - %s has no ifindex?!",
+			brdev->name, pif->name);
 		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
@@ -794,13 +801,15 @@ ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port
 	 * the other, or we create a loop.
 	 */
 	if (pif == brdev) {
-		ni_error("%s: cannot add interface as its own bridge port", brdev->name);
+		ni_error("%s: cannot add interface as its own bridge port",
+			brdev->name);
 		return -NI_ERROR_DEVICE_BAD_HIERARCHY;
 	}
 
 	if (pif->link.masterdev.index &&
 			pif->link.masterdev.index != brdev->link.ifindex) {
-		ni_error("%s: interface %s already has a master", brdev->name, pif->name);
+		ni_error("%s: interface %s already has a master",
+			brdev->name, pif->name);
 		return -NI_ERROR_DEVICE_BAD_HIERARCHY;
 	}
 
@@ -830,8 +839,8 @@ ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port
 
 	/* Now configure the newly added port */
 	if ((rv = ni_sysfs_bridge_port_update_config(pif->name, port)) < 0) {
-		ni_error("%s: failed to configure port %s: %s", brdev->name, pif->name,
-				ni_strerror(rv));
+		ni_error("%s: failed to configure port %s: %s",
+			brdev->name, pif->name, ni_strerror(rv));
 		return rv;
 	}
 
@@ -985,6 +994,12 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 		if (name && (sdev = ni_netdev_by_name(nc, name))) {
 			int ret;
 
+			if (!ni_netdev_device_is_ready(sdev)) {
+				ni_error("%s: cannot enslave %s, device is not ready",
+					dev->name, sdev->name);
+				continue;
+			}
+
 			if (sdev->link.masterdev.index) {
 				if (sdev->link.masterdev.index == dev->link.ifindex)
 					continue;
@@ -1100,12 +1115,20 @@ ni_system_bond_add_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int slav
 
 	slave_dev = ni_netdev_by_index(nc, slave_idx);
 	if (slave_dev == NULL) {
-		ni_error("%s: trying to add unknown interface to bond %s", __func__, dev->name);
+		ni_error("%s: trying to add unknown interface to bond %s",
+			__func__, dev->name);
+		return -NI_ERROR_DEVICE_NOT_KNOWN;
+	}
+
+	if (!ni_netdev_device_is_ready(slave_dev)) {
+		ni_error("%s: trying to enslave %s, which is not ready",
+			dev->name, slave_dev->name);
 		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
 	if (ni_netdev_network_is_up(slave_dev)) {
-		ni_error("%s: trying to enslave %s, which is in use", dev->name, slave_dev->name);
+		ni_error("%s: trying to enslave %s, which is in use",
+			dev->name, slave_dev->name);
 		return -NI_ERROR_DEVICE_NOT_DOWN;
 	}
 
