@@ -28,7 +28,7 @@
 #define   __WICKED_CLIENT_IFSTATUS_H__
 
 extern int		ni_do_ifstatus(int argc, char **argv);
-extern int		ni_ifstatus_display_result(ni_fsm_t *, ni_string_array_t *, ni_bool_t);
-extern int		ni_ifstatus_shutdown_result(ni_fsm_t *, ni_ifworker_array_t *);
+extern int		ni_ifstatus_display_result(ni_fsm_t *, ni_string_array_t *, ni_ifworker_array_t *, ni_bool_t);
+extern int		ni_ifstatus_shutdown_result(ni_fsm_t *, ni_string_array_t *, ni_ifworker_array_t *);
 
 #endif /* __WICKED_CLIENT_IFSTATUS_H__ */

@@ -350,7 +350,7 @@ ni_nanny_fsm_monitor_run(ni_nanny_fsm_monitor_t *monitor, ni_ifworker_array_t *m
 	if (!monitor || monitor->marked || !marked)
 		return;
 
-	monitor->marked = marked;
+	monitor->marked = ni_ifworker_array_clone(marked);
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
 
@@ -381,6 +381,7 @@ ni_nanny_fsm_monitor_reset(ni_nanny_fsm_monitor_t *monitor)
 			ni_timer_cancel(monitor->timer);
 			monitor->timer = NULL;
 		}
+		ni_ifworker_array_free(monitor->marked);
 		monitor->marked = NULL;
 	}
 }
@@ -599,7 +600,7 @@ usage:
 			break;
 		}
 
-		if (ni_string_array_index(&ifnames, ifmatch.name) == -1)
+		if (ni_string_array_index(&ifnames, ifmatch.name) < 0)
 			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
@@ -612,7 +613,8 @@ usage:
 	/* Wait for device up-transition progress events */
 	ni_nanny_fsm_monitor_run(monitor, &ifmarked, status);
 
-	status = ni_ifstatus_display_result(fsm, &ifnames, opt_transient);
+	status = ni_ifstatus_display_result(fsm, &ifnames, &ifmarked,
+		opt_transient);
 
 	/* Do not report any transient errors to systemd (e.g. dhcp
 	 * or whatever not ready in time) -- returning an error may
@@ -858,7 +860,7 @@ usage:
 			break;
 		}
 
-		if (ni_string_array_index(&ifnames, ifmatch.name) == -1)
+		if (ni_string_array_index(&ifnames, ifmatch.name) < 0)
 			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
@@ -875,7 +877,8 @@ usage:
 		if (ni_fsm_schedule(fsm) != 0)
 			ni_fsm_mainloop(fsm);
 
-		status = ni_ifstatus_display_result(fsm, &ifnames, opt_transient);
+		status = ni_ifstatus_display_result(fsm, &ifnames, &ifmarked,
+			opt_transient);
 
 		/* Do not report any transient errors to systemd (e.g. dhcp
 		 * or whatever not ready in time) -- returning an error may

@@ -728,34 +728,42 @@ cleanup:
 }
 
 int
-ni_ifstatus_shutdown_result(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
+ni_ifstatus_shutdown_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_ifworker_array_t *marked)
 {
-	if (marked && marked->count) {
-		const ni_ifworker_t *w;
-		const char *state;
-		unsigned int i;
+	unsigned int i;
 
-		for (i = 0; i < marked->count; ++i) {
-			if (!(w = marked->data[i]))
-				continue;
+	ni_assert(fsm);
+	for (i = 0; i < fsm->workers.count; i++) {
+		const ni_ifworker_t *w = fsm->workers.data[i];
 
-			state = ni_ifworker_state_name(w->fsm.state);
-			if (ni_string_empty(w->name) ||
-			    ni_string_empty(state))
-				continue;
+		if (!w || ni_string_empty(w->name))
+			continue;
 
-			if_printf(w->name, "", "%s\n", state);
+		if (!w->kickstarted)
+			continue;
+
+		if (marked && ni_ifworker_array_index(marked, w) < 0)
+			continue;
+
+		if (names && names->count != 0 &&
+		    ni_string_array_index(names, w->name) < 0) {
+			continue;
 		}
+
+		if (!ni_ifworker_is_valid_state(w->fsm.state))
+			continue;
+
+		if_printf(w->name, "", "%s\n", ni_ifworker_state_name(w->fsm.state));
 	}
 
-	if (!fsm || ni_fsm_fail_count(fsm))
+	if (ni_fsm_fail_count(fsm))
 		return NI_WICKED_RC_ERROR;
 
 	return NI_WICKED_RC_SUCCESS;
 }
 
 int
-ni_ifstatus_display_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_bool_t opt_transient)
+ni_ifstatus_display_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_ifworker_array_t *marked, ni_bool_t opt_transient)
 {
 	ni_uint_array_t stcodes = NI_UINT_ARRAY_INIT;
 	ni_uint_array_t stflags = NI_UINT_ARRAY_INIT;
@@ -763,25 +771,40 @@ ni_ifstatus_display_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_bool_t op
 	ni_bool_t multiple;
 	unsigned int i;
 
+	ni_assert(fsm);
 	if (!ni_fsm_refresh_state(fsm)) {
 		/* Severe error we always explicitly return */
 		return NI_WICKED_ST_ERROR;
 	}
 
-	multiple = names->count != 1 ? TRUE : FALSE;
+	if (names && names->count == 1)
+		multiple = FALSE;
+	else if (marked && marked->count == 1)
+		multiple = FALSE;
+	else
+		multiple = TRUE;
 
 	for (i = 0; i < fsm->workers.count; i++ ) {
 		ni_ifworker_t *w = fsm->workers.data[i];
 		unsigned int st = NI_WICKED_ST_NO_DEVICE;
 		ni_bool_t mandatory = TRUE;
 
-		if (names->count == 0 || ni_string_array_index(names, w->name) != -1) {
-			st = ni_ifstatus_of_worker(w, &mandatory);
-			ni_uint_array_append(&stcodes, st);
-			ni_uint_array_append(&stflags, mandatory);
+		if (!w || ni_string_empty(w->name))
+			continue;
 
-			ni_ifstatus_show_status(w->name, st);
+		if (marked && ni_ifworker_array_index(marked, w) < 0)
+			continue;
+
+		if (names && names->count != 0 &&
+		    ni_string_array_index(names, w->name) < 0) {
+			continue;
 		}
+
+		st = ni_ifstatus_of_worker(w, &mandatory);
+		ni_uint_array_append(&stcodes, st);
+		ni_uint_array_append(&stflags, mandatory);
+
+		ni_ifstatus_show_status(w->name, st);
 	}
 
 	if (!stcodes.count) {

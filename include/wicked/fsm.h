@@ -316,6 +316,9 @@ extern ni_ifworker_control_t *	ni_ifworker_control_new(void);
 extern ni_ifworker_control_t *	ni_ifworker_control_clone(const ni_ifworker_control_t *);
 extern void			ni_ifworker_control_free(ni_ifworker_control_t *);
 
+extern ni_ifworker_array_t *	ni_ifworker_array_new(void);
+extern void			ni_ifworker_array_free(ni_ifworker_array_t *);
+extern ni_ifworker_array_t *	ni_ifworker_array_clone(ni_ifworker_array_t *);
 extern void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 extern ni_bool_t		ni_ifworker_array_remove(ni_ifworker_array_t *, ni_ifworker_t *);
 extern void			ni_ifworker_array_remove_with_children(ni_ifworker_array_t *, ni_ifworker_t *);

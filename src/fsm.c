@@ -522,6 +522,15 @@ ni_ifworker_state_from_name(const char *name, unsigned int *state)
 	return TRUE;
 }
 
+ni_ifworker_array_t *
+ni_ifworker_array_new(void)
+{
+	ni_ifworker_array_t *array;
+
+	array = xcalloc(1, sizeof(*array));
+	return array;
+}
+
 void
 ni_ifworker_array_append(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
@@ -545,10 +554,19 @@ ni_ifworker_array_index(const ni_ifworker_array_t *array, const ni_ifworker_t *w
 void
 ni_ifworker_array_destroy(ni_ifworker_array_t *array)
 {
-	while (array->count)
-		ni_ifworker_release(array->data[--(array->count)]);
-	free(array->data);
-	array->data = NULL;
+	if (array) {
+		while (array->count)
+			ni_ifworker_release(array->data[--(array->count)]);
+		free(array->data);
+		array->data = NULL;
+	}
+}
+
+void
+ni_ifworker_array_free(ni_ifworker_array_t *array)
+{
+	ni_ifworker_array_destroy(array);
+	free(array);
 }
 
 static ni_ifworker_t *
@@ -566,6 +584,22 @@ ni_ifworker_array_find(ni_ifworker_array_t *array, ni_ifworker_type_t type, cons
 			return worker;
 	}
 	return NULL;
+}
+
+ni_ifworker_array_t *
+ni_ifworker_array_clone(ni_ifworker_array_t *array)
+{
+	unsigned int i;
+	ni_ifworker_array_t *clone;
+
+	if (!array)
+		return NULL;
+
+	clone = ni_ifworker_array_new();
+	for (i = 0; i < array->count; ++i)
+		ni_ifworker_array_append(clone, array->data[i]);
+
+	return clone;
 }
 
 ni_bool_t
