@@ -38,6 +38,8 @@ struct ni_linkinfo {
 	char *			qdisc;
 	char *			kind;
 
+	unsigned int		saved_mtu;
+
 	ni_link_stats_t *	stats;
 	ni_ethtool_stats_t *	ethtool_stats;
 };

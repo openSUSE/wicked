@@ -78,6 +78,9 @@ static int	__ni_netdev_update_addrs(ni_netdev_t *dev,
 static int	__ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_addrconf_lease_t       *new_lease);
+static int	__ni_netdev_update_mtu(ni_netconfig_t *nc, ni_netdev_t *dev,
+				const ni_addrconf_lease_t *old_lease,
+				ni_addrconf_lease_t       *new_lease);
 
 static int	__ni_rtnl_link_create(const ni_netdev_t *cfg);
 static int	__ni_rtnl_link_change(ni_netdev_t *dev, const ni_netdev_t *cfg);
@@ -274,6 +277,19 @@ __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease
 	/* Refresh routes again to sync with the current kernel state. */
 	if ((res = __ni_system_refresh_interface_routes(nc, dev)) < 0)
 		goto out;
+
+	/* Update the device MTU.
+	 */
+	if (lease->state == NI_ADDRCONF_STATE_GRANTED)
+		res = __ni_netdev_update_mtu(nc, dev, old_lease, lease);
+	else
+		res = __ni_netdev_update_mtu(nc, dev, old_lease, NULL);
+	if (res < 0) {
+		ni_error("%s: error updating interface config from %s lease",
+				dev->name, 
+				ni_addrconf_type_to_name(lease->type));
+		goto out;
+	}
 
 	if (lease->state == NI_ADDRCONF_STATE_GRANTED) {
 		ni_netdev_set_lease(dev, lease);
@@ -2836,6 +2852,92 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 
 	return rv;
 }
+
+/*
+ * Get the MTU specified by this lease
+ */
+static ni_bool_t
+__ni_lease_get_mtu(const ni_addrconf_lease_t *lease, unsigned int *mtu_p)
+{
+	if (lease->type != NI_ADDRCONF_DHCP || lease->family != AF_INET)
+		return 0;
+
+	*mtu_p = lease->dhcp4.mtu;
+	if (*mtu_p == 0)
+		return 0;
+
+	return 1;
+}
+
+static ni_bool_t
+__ni_netdev_get_minimum_lease_mtu(const ni_netdev_t *dev, unsigned int *mtu_p)
+{
+	ni_addrconf_lease_t *lp;
+	unsigned int min_mtu;
+
+	min_mtu = 65535;
+	for (lp = dev->leases; lp; lp = lp->next) {
+		unsigned int lease_mtu;
+
+		if (__ni_lease_get_mtu(lp, &lease_mtu) && lease_mtu < min_mtu)
+			min_mtu = lease_mtu;
+	}
+
+	*mtu_p = min_mtu;
+	return min_mtu < 65535;
+}
+
+/*
+ * Update the MTU of an interface based on the data we received
+ * through some addrconf protocol.
+ * Currently, only DHCP4 provides this sort of information.
+ */
+static int
+__ni_netdev_update_mtu(ni_netconfig_t *nc, ni_netdev_t *dev,
+			const ni_addrconf_lease_t *old_lease,
+			ni_addrconf_lease_t       *new_lease)
+{
+	unsigned int req_mtu, req_mtu_min;
+
+	if (new_lease != NULL) {
+		/* New lease granted */
+		if (!__ni_lease_get_mtu(new_lease, &req_mtu)) {
+			/* FIXME: the device may be in a misconfigured state
+			 * due to somebody messing with the MTU.
+			 * We should really set the MTU to a sane value here,
+			 * e.g. like:
+			 *
+			 * req_mtu = ni_netdev_default_mtu(dev);
+			 *
+			 * where ni_netdev_default_mtu specifies some sane default
+			 * MTU based on dev->link.type.
+			 */
+			return 0;
+		}
+
+		/* No matter what we do, save the current device MTU value for later */
+		if (dev->link.saved_mtu == 0)
+			dev->link.saved_mtu = dev->link.mtu;
+
+		/* If more than one lease specifies a MTU, pick the minimum value given */
+		if (__ni_netdev_get_minimum_lease_mtu(dev, &req_mtu_min) && req_mtu_min < req_mtu)
+			return 0;
+	} else {
+		/* Lease is being revoked.
+		 * Restore the MTU to the minimum of all MTUs specified by
+		 * leases, and the saved device MTU
+		 */
+		if (dev->link.saved_mtu == 0)
+			return 0;
+
+		__ni_netdev_get_minimum_lease_mtu(dev, &req_mtu);
+		if (dev->link.saved_mtu < req_mtu)
+			req_mtu = dev->link.saved_mtu;
+	}
+
+	return __ni_rtnl_link_change_mtu(dev, req_mtu);
+}
+
 
 /*
  * Initialialize a netdev of a just created inteface.
