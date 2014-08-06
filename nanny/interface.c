@@ -54,16 +54,14 @@ ni_managed_netdev_enable(ni_managed_device_t *mdev)
 	ni_nanny_t *mgr = mdev->nanny;
 	ni_ifworker_t *w = mdev->worker;
 
+	if (!w)
+		return FALSE;
+
 	if (mdev->rfkill_blocked) {
-		ni_debug_nanny("%s: radio disabled, will enable scanning later", w->name);
+		ni_debug_nanny("%s: radio disabled, will enable scanning later",
+			w->name);
 		mdev->monitor = TRUE;
 		return TRUE;
-	}
-
-	/* bring it to state "UP" so that we can monitor for link status */
-	if (ni_call_link_monitor(w->object) < 0) {
-		ni_error("Failed to enable monitoring on %s", w->name);
-		return FALSE;
 	}
 
 	ni_nanny_schedule_recheck(&mgr->recheck, w);
