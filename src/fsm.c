@@ -1504,6 +1504,26 @@ ni_ifworker_extra_waittime_from_xml(ni_ifworker_t *w)
 	w->extra_waittime = (extra_timeout*1000);
 }
 
+static ni_iftype_t
+ni_ifworker_iftype_from_xml(xml_node_t *config)
+{
+	ni_iftype_t iftype;
+
+	if (!xml_node_is_empty(config)) {
+		for (iftype = 0; iftype < __NI_IFTYPE_MAX; iftype++) {
+			const char *iftype_name = ni_linktype_type_to_name(iftype);
+
+			if (ni_string_empty(iftype_name))
+				continue;
+
+			if (xml_node_get_child(config, iftype_name))
+				return iftype;
+		}
+	}
+
+	return NI_IFTYPE_UNKNOWN;
+}
+
 void
 ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_origin)
 {
@@ -1526,6 +1546,7 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 		xml_node_detach(child);
 	}
 
+	w->iftype = ni_ifworker_iftype_from_xml(ifnode);
 	ni_ifworker_extra_waittime_from_xml(w);
 }
 
