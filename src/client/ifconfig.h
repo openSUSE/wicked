@@ -27,6 +27,13 @@
 
 #define NI_CLIENT_IFCONFIG			"interface"
 #define NI_CLIENT_IFCONFIG_MATCH_NAME		"name"
+#define NI_CLIENT_IFCONFIG_CONTROL		"control"
+#define NI_CLIENT_IFCONFIG_MODE		"mode"
+#define NI_CLIENT_IFCONFIG_LINK		"link"
+#define NI_CLIENT_IFCONFIG_IPV4		"ipv4"
+#define NI_CLIENT_IFCONFIG_IPV6		"ipv6"
+#define NI_CLIENT_IFCONFIG_IP_ENABLED		"enabled"
+#define NI_CLIENT_IFCONFIG_ARP_VERIFY		"arp-verify"
 
 #define NI_NANNY_IFPOLICY			"policy"
 #define NI_NANNY_IFTEMPLATE			"template"
