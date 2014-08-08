@@ -1002,6 +1002,115 @@ ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_ty
 	return child;
 }
 
+static xml_node_t *
+__ni_generate_default_config(const char *ifname, ni_iftype_t ptype, xml_node_t *control)
+{
+	xml_node_t *ipv4, *ipv6, *config = NULL;
+
+	if (ni_string_empty(ifname) || xml_node_is_empty(control) || !ptype)
+		goto error;
+
+	/* Create <interface> */
+	if (!(config = xml_node_new(NI_CLIENT_IFCONFIG, NULL)))
+		goto error;
+	/* Add <name>$ifname</name> */
+	if (!xml_node_new_element(NI_CLIENT_IFCONFIG_MATCH_NAME, config, ifname))
+		goto error;
+	/* Add <link></link> */
+	if (!xml_node_new(NI_CLIENT_IFCONFIG_LINK, config))
+		goto error;
+	/* Add <ipv4></ipv4> and <ipv6></ipv6> */
+	if (!(ipv4 = xml_node_new(NI_CLIENT_IFCONFIG_IPV4, config)))
+		goto error;
+	 if (!(ipv6 = xml_node_new(NI_CLIENT_IFCONFIG_IPV6, config)))
+		 goto error;
+
+	switch (ptype) {
+	/* for slaves */
+	case NI_IFTYPE_BOND:
+		/*
+		 * STARTMODE="hotplug"
+		 * BOOTPROTO="none"
+		 */
+
+		/* Add <control></control> */
+		if (!(control = xml_node_new(NI_CLIENT_IFCONFIG_CONTROL, config)))
+			goto error;
+		/* Add <mode>hotplug</mode> */
+		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_MODE, control, "hotplug"))
+			goto error;
+		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv4, "false"))
+			 goto error;
+		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv6, "false"))
+			 goto error;
+	break;
+
+	case NI_IFTYPE_BRIDGE:
+		/*
+		 * STARTMODE="$pstartmode"
+		 * BOOTPROTO="none"
+		 */
+
+		/* Clone <control> */
+		if (!xml_node_clone(control, config))
+			goto error;
+		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv4, "false"))
+			 goto error;
+		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv6, "false"))
+			 goto error;
+	break;
+
+	/* lowerdevs */
+	case NI_IFTYPE_VLAN:
+	case NI_IFTYPE_MACVLAN:
+	case NI_IFTYPE_MACVTAP:
+		/*
+		 * STARTMODE="$pstartmode"
+		 * BOOTPROTO="static"
+		 */
+
+		/* Clone <control> */
+		if (!xml_node_clone(control, config))
+			goto error;
+		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv4, "true"))
+			 goto error;
+		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_ARP_VERIFY, ipv4, "true"))
+			 goto error;
+		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv6, "true"))
+			 goto error;
+	break;
+
+	default:
+		goto error;
+     }
+
+	return config;
+
+error:
+	ni_error("%s: Unable to generate default XML config (parent type %s)",
+		ifname, ni_linktype_type_to_name(ptype));
+	xml_node_free(config);
+	return NULL;
+}
+
+static void
+ni_ifworker_generate_default_config(ni_ifworker_t *parent, ni_ifworker_t *child)
+{
+	xml_node_t *control, *config;
+
+	if (!parent || !child)
+		return;
+
+	ni_debug_application("%s: generating default config for %s child",
+		parent->name, child->name);
+
+	control = xml_node_get_child(parent->config.node,
+		NI_CLIENT_IFCONFIG_CONTROL);
+	config = __ni_generate_default_config(child->name, parent->iftype, control);
+
+	ni_ifworker_set_config(child, config, parent->config.meta.origin);
+}
+
 static ni_bool_t
 ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode, ni_bool_t shared)
 {
@@ -1052,6 +1161,9 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 		else
 			child->masterdev = parent;
 	}
+
+	if (xml_node_is_empty(child->config.node))
+		ni_ifworker_generate_default_config(parent, child);
 
 	ni_ifworker_array_append(&parent->children, child);
 	return TRUE;
@@ -1504,6 +1616,26 @@ ni_ifworker_extra_waittime_from_xml(ni_ifworker_t *w)
 	w->extra_waittime = (extra_timeout*1000);
 }
 
+static ni_iftype_t
+ni_ifworker_iftype_from_xml(xml_node_t *config)
+{
+	ni_iftype_t iftype;
+
+	if (!xml_node_is_empty(config)) {
+		for (iftype = 0; iftype < __NI_IFTYPE_MAX; iftype++) {
+			const char *iftype_name = ni_linktype_type_to_name(iftype);
+
+			if (ni_string_empty(iftype_name))
+				continue;
+
+			if (xml_node_get_child(config, iftype_name))
+				return iftype;
+		}
+	}
+
+	return NI_IFTYPE_UNKNOWN;
+}
+
 void
 ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_origin)
 {
@@ -1526,6 +1658,7 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 		xml_node_detach(child);
 	}
 
+	w->iftype = ni_ifworker_iftype_from_xml(ifnode);
 	ni_ifworker_extra_waittime_from_xml(w);
 }
 
@@ -2242,6 +2375,9 @@ __ni_fsm_pull_in_children(ni_ifworker_t *w, ni_ifworker_array_t *array)
 
 	for (i = 0; i < w->children.count; i++) {
 		ni_ifworker_t *child = w->children.data[i];
+
+		if (xml_node_is_empty(child->config.node))
+			ni_ifworker_generate_default_config(w, child);
 
 		if (xml_node_is_empty(child->config.node)) {
 			ni_debug_application("%s: ignoring dependent child %s - no config",

@@ -117,6 +117,7 @@ struct ni_ifworker {
 
 	char *			name;
 	ni_ifworker_type_t	type;
+	ni_iftype_t		iftype;
 
 	ni_dbus_object_t *	object;
 	char *			object_path;
