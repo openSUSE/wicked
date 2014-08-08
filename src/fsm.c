@@ -2959,7 +2959,7 @@ static void
 __ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *branches)
 {
 	if (w->children.count == 0) {
-		ni_debug_application("%s%s\n", arrow, w->name);
+		ni_debug_application("%s%s", arrow, w->name);
 	} else {
 		char buffer[128];
 		unsigned int i;
