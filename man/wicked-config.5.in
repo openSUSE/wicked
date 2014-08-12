@@ -90,6 +90,19 @@ so it's best to leave this option untouched.
 .B "  <schema name=\(dq@wicked_schemadir@/wicked.xml\(dq />
 .fi
 .\" --------------------------------------------------------
+.SS Miscellaneous
+.TP
+.B debug
+This element specifies the default debug facilities to be enabled.
+Allowed is a comma separated list of supported facility names, including
+set names such as \fBall\fP and \fBmost\fP and names with a "-" prepended
+for negated facilities, e.g. \fI"all,-xpath"\fR.
+
+The '\fBwicked --debug help\fP' command shows valid facility names.
+If a debug level is specified on the command line or via the WICKED_DEBUG
+environment variable, the setting from the XML configuration file will be
+ignored.
+.\" --------------------------------------------------------
 .SH EXTENSIONS
 The functionality of \fBwickedd\fP can be extended through
 external commands and shell scripts. All of these extensions

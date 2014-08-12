@@ -190,6 +190,9 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 			if (!ni_config_parse_system_updater(&conf->updater_extensions, child))
 				goto failed;
 		} else
+		if (strcmp(child->name, "debug") == 0) {
+			ni_debug_set_default(child->cdata);
+		} else
 		if (cb != NULL) {
 			if (!cb(appdata, child))
 				goto failed;

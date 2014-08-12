@@ -23,12 +23,14 @@
 #define NI_LOG_PID	(1 << 0)
 #define NI_LOG_TIME	(1 << 1)
 #define NI_LOG_IDENT	(1 << 2)
+#define NI_TRACE_NONE	0U
 #define NI_TRACE_MINI	(NI_TRACE_IFCONFIG | NI_TRACE_READWRITE)
 #define NI_TRACE_MOST	~(NI_TRACE_XPATH | NI_TRACE_WICKED_XML | NI_TRACE_DBUS)
 #define NI_TRACE_ALL	~0U
 
 unsigned int		ni_debug = 0;
 unsigned int		ni_log_level = NI_LOG_NOTICE;
+static ni_bool_t	ni_debug_user_specified = FALSE;
 static unsigned int	ni_log_syslog;
 static const char *	ni_log_ident;
 static unsigned int	ni_log_opts;
@@ -60,7 +62,8 @@ static const ni_intmap_t	__debug_flags_names[] = {
 
 	{ "mini",	NI_TRACE_MINI },
 	{ "most", 	NI_TRACE_MOST },
-	{ "all", 	NI_TRACE_ALL },
+	{ "all", 	NI_TRACE_ALL  },
+	{ "none", 	NI_TRACE_NONE },
 	{ NULL }
 };
 
@@ -88,8 +91,8 @@ static const ni_intmap_t	__debug_flags_descriptions[] = {
 	{ "LLDP agent",					NI_TRACE_LLDP },
 
 	{ "Minimal debug facility set :-)", 		NI_TRACE_MINI },
-	{ "All useful debug facilities :-)", 		NI_TRACE_MOST },
-	{ "All debug facilities", 			NI_TRACE_ALL },
+	{ "All useful debug facility set :-)", 		NI_TRACE_MOST },
+	{ "All debug facilities set", 			NI_TRACE_ALL  },
 
 	{ NULL }
 };
@@ -160,8 +163,8 @@ ni_debug_facility_to_description(unsigned int facility)
 	return ni_format_uint_mapped(facility, __debug_flags_descriptions);
 }
 
-int
-ni_enable_debug(const char *fac)
+static int
+__ni_enable_debug(const char *fac)
 {
 	unsigned int _debug = 0;
 	char *copy, *s;
@@ -196,6 +199,22 @@ ni_enable_debug(const char *fac)
 	return rv;
 }
 
+int
+ni_enable_debug(const char *fac)
+{
+	ni_debug_user_specified = TRUE;
+	return __ni_enable_debug(fac);
+}
+
+int
+ni_debug_set_default(const char *fac)
+{
+	if (ni_debug_user_specified)
+		return 0;
+
+	return __ni_enable_debug(fac);
+}
+
 void
 ni_debug_help(void)
 {
@@ -220,7 +239,8 @@ ni_log_init(void)
 		if (ni_string_eq(var, "yes"))
 			var = "most";
 	}
-	ni_enable_debug(var);
+	if (!ni_string_empty(var))
+		ni_enable_debug(var);
 
 	if ((var = getenv("WICKED_LOG_LEVEL"))) {
 		ni_log_level_set(var);

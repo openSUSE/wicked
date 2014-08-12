@@ -26,6 +26,7 @@ extern void		ni_trace(const char *, ...) __fmtattr;
 extern void		ni_fatal(const char *, ...) __fmtattr __noreturn;
 
 extern int		ni_enable_debug(const char *);
+extern int		ni_debug_set_default(const char *);
 extern void		ni_debug_help(void);
 extern const char * 	ni_debug_facility_to_name(unsigned int);
 extern int		ni_debug_name_to_facility(const char *, unsigned int *);
