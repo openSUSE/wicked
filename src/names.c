@@ -462,6 +462,7 @@ static const ni_intmap_t		__event_names[] = {
 	{ "address-lost",		NI_EVENT_ADDRESS_LOST },
 	{ "address-updated",		NI_EVENT_ADDRESS_UPDATE },
 	{ "address-deleted",		NI_EVENT_ADDRESS_DELETE },
+	{ "address-backgrounding",	NI_EVENT_ADDRESS_BACKGROUNDING },
 	{ "prefix-updated",		NI_EVENT_PREFIX_UPDATE },
 	{ "prefix-deleted",		NI_EVENT_PREFIX_DELETE },
 	{ "rdnss-updated",		NI_EVENT_RDNSS_UPDATE },
