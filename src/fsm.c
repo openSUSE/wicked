@@ -1169,13 +1169,17 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 	return TRUE;
 }
 
-/* Create an event wait object */
 static void
-ni_ifworker_add_callbacks(ni_fsm_transition_t *action, ni_objectmodel_callback_info_t *callback_list, const char *ifname)
+ni_ifworker_print_callbacks(const char *ifname, ni_objectmodel_callback_info_t *callback_list)
 {
-	ni_objectmodel_callback_info_t **pos, *cb;
+	ni_objectmodel_callback_info_t *cb;
 
-	if (ni_debug & NI_TRACE_DBUS) {
+	if (!(ni_debug & NI_TRACE_EVENTS))
+		return;
+
+	if (callback_list == NULL) {
+		ni_trace("%s: no pending callbacks", ifname);
+	} else {
 		ni_trace("%s: waiting for callbacks:", ifname);
 		for (cb = callback_list; cb; cb = cb->next) {
 			ni_trace("        %s event=%s",
@@ -1183,6 +1187,15 @@ ni_ifworker_add_callbacks(ni_fsm_transition_t *action, ni_objectmodel_callback_i
 				cb->event);
 		}
 	}
+}
+
+/* Create an event wait object */
+static void
+ni_ifworker_add_callbacks(ni_fsm_transition_t *action, ni_objectmodel_callback_info_t *callback_list, const char *ifname)
+{
+	ni_objectmodel_callback_info_t **pos, *cb;
+
+	ni_ifworker_print_callbacks(ifname, callback_list);
 
 	for (pos = &action->callbacks; (cb = *pos) != NULL; pos = &cb->next)
 		;
@@ -1207,6 +1220,7 @@ ni_ifworker_get_callback(ni_ifworker_t *w, const ni_uuid_t *uuid, ni_bool_t remo
 	return NULL;
 }
 
+/* This should also go --okir */
 static ni_objectmodel_callback_info_t *
 ni_ifworker_get_cancelable_callback(ni_ifworker_t *w, ni_bool_t remove)
 {
@@ -1356,6 +1370,7 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 		max_state = NI_FSM_STATE_LINK_UP - 1;
 		break;
 	case NI_EVENT_ADDRESS_ACQUIRED:
+	case NI_EVENT_ADDRESS_BACKGROUNDING:
 		min_state = NI_FSM_STATE_ADDRCONF_UP;
 		break;
 	case NI_EVENT_ADDRESS_RELEASED:
@@ -4064,26 +4079,10 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 	return nrequested;
 }
 
-static inline ni_addrconf_lease_t *
-__find_corresponding_lease(ni_netdev_t *dev, sa_family_t family, unsigned int type)
-{
-	switch (family) {
-	case AF_INET:
-		return ni_netdev_get_lease(dev, AF_INET6, type);
-	case AF_INET6:
-		return ni_netdev_get_lease(dev, AF_INET,  type);
-	default:
-		return NULL;
-	}
-}
-
 static ni_bool_t
 address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callback_info_t *cb, ni_event_t event, ni_fsm_t *fsm, const char *object_path)
 {
 	ni_netdev_t *dev;
-	ni_addrconf_lease_t *lease;
-	ni_addrconf_lease_t *other;
-	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
 	w = ni_fsm_recv_new_netif_path(fsm, object_path);
 	if (w && cb) {
@@ -4096,87 +4095,7 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 	else
 		return FALSE;
 
-	switch (event) {
-	case NI_EVENT_ADDRESS_ACQUIRED:
-		{
-			lease = ni_netdev_get_lease_by_uuid(dev, &cb->uuid);
-			if (lease) {
-				/* acquired, advance to granted */
-				lease->state = NI_ADDRCONF_STATE_GRANTED;
-
-				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
-					"%s: %s:%s lease %s in state %s [%s]",
-					w->name,
-					ni_addrfamily_type_to_name(lease->family),
-					ni_addrconf_type_to_name(lease->type),
-					ni_uuid_print(&lease->uuid),
-					ni_addrconf_state_to_name(lease->state),
-					ni_addrconf_flags_format(&buf, lease->flags, "|"));
-				ni_stringbuf_destroy(&buf);
-
-				other = __find_corresponding_lease(dev, lease->family, lease->type);
-				if (other && ni_addrconf_flag_bit_is_set(other->flags, NI_ADDRCONF_FLAGS_OPTIONAL)) {
-					ni_objectmodel_callback_info_t *ocb;
-
-					if ((ocb = ni_ifworker_get_callback(w, &other->uuid, FALSE))) {
-						ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
-							"%s: mark %s:%s lease %s event in state %s [%s] cancelable",
-							w->name,
-							ni_addrfamily_type_to_name(other->family),
-							ni_addrconf_type_to_name(other->type),
-							ocb->event,
-							ni_addrconf_state_to_name(other->state),
-							ni_addrconf_flags_format(&buf, other->flags, "|"));
-						ni_stringbuf_destroy(&buf);
-
-						ocb->flags |= NI_FSM_CALLBACK_CANCEL_ON_TIMEOUT;
-					}
-				}
-			}
-		}
-		return TRUE;
-
-	case NI_EVENT_ADDRESS_LOST:
-		{
-			lease = ni_netdev_get_lease_by_uuid(dev, &cb->uuid);
-			if (lease) {
-				lease->state = NI_ADDRCONF_STATE_FAILED;
-
-				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
-						"%s: %s:%s lease %s in state %s [%s]",
-						w->name,
-						ni_addrfamily_type_to_name(lease->family),
-						ni_addrconf_type_to_name(lease->type),
-						ni_uuid_print(&lease->uuid),
-						ni_addrconf_state_to_name(lease->state),
-						ni_addrconf_flags_format(&buf, lease->flags, "|"));
-				ni_stringbuf_destroy(&buf);
-
-				if (!ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_OPTIONAL))
-					return FALSE;
-
-				if ((other = __find_corresponding_lease(dev, lease->family, lease->type))) {
-						ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
-							"%s: %s:%s peer lease in state %s [%s]",
-							w->name,
-							ni_addrfamily_type_to_name(other->family),
-							ni_addrconf_type_to_name(other->type),
-							ni_addrconf_state_to_name(other->state),
-							ni_addrconf_flags_format(&buf, other->flags, "|"));
-						ni_stringbuf_destroy(&buf);
-
-					if (other->state == NI_ADDRCONF_STATE_GRANTED ||
-					    other->state == NI_ADDRCONF_STATE_REQUESTING)
-						return TRUE;
-				}
-			}
-		}
-		break;
-
-	default:
-		break;
-	}
-	return FALSE;
+	return TRUE;
 }
 
 static void
@@ -4227,31 +4146,49 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			cb = ni_ifworker_get_callback(w, &event_uuid, TRUE);
 			if (cb) {
 				ni_event_t cb_event_type;
-				ni_bool_t success;
+				ni_bool_t success = FALSE;
 
 				if (ni_objectmodel_signal_to_event(cb->event, &cb_event_type) < 0)
 					cb_event_type = __NI_EVENT_MAX;
 
-				if ((success = (cb_event_type == event_type))) {
+				if (cb_event_type == event_type) {
 					ni_debug_dbus("... great, we were expecting this event");
+
+					switch (cb_event_type) {
+					case NI_EVENT_ADDRESS_ACQUIRED:
+						/* Set event_name as this is the one we wait for */
+						/* Why? event_name maps to event_type, which equals cb_event_type,
+						 * and thus maps back to the very event_name we started with, no? --okir */
+						event_name = ni_objectmodel_event_to_signal(cb_event_type);
+						success = address_acquired_callback_handler(w, cb, event_type, fsm, object_path);
+						break;
+					default:
+						success = TRUE;
+						break;
+					}
+				} else
+				if (cb_event_type == NI_EVENT_ADDRESS_ACQUIRED
+				 && event_type == NI_EVENT_ADDRESS_BACKGROUNDING) {
+					ni_debug_dbus("%s: lease acquisition was backgrounded, stop waiting for this event", w->name);
+
+					/* Pretend that this is an addressAcquired signal.
+					 * Also important so that we check for the right event in
+					 * our call to ni_ifworker_waiting_for_event() below.
+					 */
+					event_name = ni_objectmodel_event_to_signal(NI_EVENT_ADDRESS_ACQUIRED);
+					event_type = NI_EVENT_ADDRESS_ACQUIRED;
+
+					success = TRUE;
 				} else {
 					ni_debug_dbus("%s: was waiting for %s event, but got %s",
 							w->name, cb->event, signal_name);
 				}
 
-				switch (cb_event_type) {
-				case NI_EVENT_ADDRESS_ACQUIRED:
-					/* Set event_name as this is the one we wait for */
-					event_name = ni_objectmodel_event_to_signal(cb_event_type);
-					success = address_acquired_callback_handler(w, cb, event_type, fsm, object_path);
-					break;
-				default:
-					break;
-				}
-
 				if (!success)
 					ni_ifworker_fail(w, "got signal %s", signal_name);
 				ni_objectmodel_callback_info_free(cb);
+
+				/* FIXME: shouldn't we bail out in case of failure? --okir */
 			}
 
 			/* We do not update the ifworker state if we're waiting for more events
@@ -4264,6 +4201,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			if (ni_ifworker_waiting_for_event(w, event_name)) {
 				ni_debug_application("%s: waiting for more %s events...",
 							w->name, event_name);
+				ni_ifworker_print_callbacks(w->name, w->fsm.wait_for? w->fsm.wait_for->callbacks : NULL);
 				goto done;
 			}
 		}
