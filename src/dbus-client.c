@@ -63,7 +63,7 @@ ni_dbus_client_open(const char *bus_type, const char *bus_name)
 	dbc = xcalloc(1, sizeof(*dbc));
 	ni_string_dup(&dbc->bus_name, bus_name);
 	dbc->connection = busconn;
-	dbc->call_timeout = 10000;
+	dbc->call_timeout = 1000 * 60;
 	return dbc;
 }
 
