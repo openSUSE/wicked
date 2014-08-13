@@ -309,7 +309,7 @@ ni_dbus_connection_call(ni_dbus_connection_t *connection,
 		ni_dbus_message_t *call, unsigned int call_timeout, DBusError *error)
 {
 	DBusPendingCall *pending;
-	DBusMessage *reply = NULL;
+	DBusMessage *reply;
 	int msgtype;
 
 	if (!dbus_connection_send_with_reply(connection->conn, call, &pending, call_timeout)) {
@@ -327,7 +327,7 @@ ni_dbus_connection_call(ni_dbus_connection_t *connection,
 
 	reply = dbus_pending_call_steal_reply(pending);
 
-	if (call == NULL) {
+	if (reply == NULL) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "dbus: no reply");
 		return NULL;
 	}
