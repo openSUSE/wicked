@@ -503,6 +503,17 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 				ni_addrconf_type_to_name(forwarder->addrconf),
 				ni_addrfamily_type_to_name(forwarder->addrfamily));
 			rv = TRUE;
+
+			/* Drop the lease manually. */
+
+			/* The following should only be necessary if the supplicant for
+			 * some reason "forgot" about the lease, but we still have
+			 * applied some of the settings from it. */
+			lease->state = NI_ADDRCONF_STATE_RELEASED;
+			__ni_system_interface_update_lease(dev, &lease);
+
+			/* Now remove the lease data from the netdev */
+			ni_netdev_unset_lease(dev, forwarder->addrfamily, forwarder->addrconf);
 			break;
 		default:
 			ni_debug_objectmodel("%s: service returned %s (%s)", forwarder->supplicant.interface,
