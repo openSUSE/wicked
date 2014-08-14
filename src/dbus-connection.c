@@ -464,7 +464,7 @@ ni_dbus_add_signal_handler(ni_dbus_connection_t *connection,
 	if (!dbus_message_append_args(call, DBUS_TYPE_STRING, &arg, 0))
 		goto failed;
 
-	if ((reply = ni_dbus_connection_call(connection, call, 5000, &error)) == NULL)
+	if ((reply = ni_dbus_connection_call(connection, call, 1000 * 10, &error)) == NULL)
 		goto out;
 
 	sigact = __ni_sigaction_new(object_interface, callback, user_data);
