@@ -139,7 +139,7 @@ enum FQQN {
 #define SERVERNAME_LEN          64
 #define BOOTFILE_LEN            128
 
-#define BOOTP_MESSAGE_LENGTH_MIN 300
+#define BOOTP_MESSAGE_LENGTH_MIN (20 + 8 + 300)
 
 struct ni_dhcp4_message {
 	unsigned char		op;		/* message type */
