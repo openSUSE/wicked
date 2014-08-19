@@ -29,6 +29,7 @@
 
 unsigned int		ni_debug = 0;
 unsigned int		ni_log_level = NI_LOG_NOTICE;
+static ni_bool_t	ni_debug_user_specified = FALSE;
 static unsigned int	ni_log_syslog;
 static const char *	ni_log_ident;
 static unsigned int	ni_log_opts;
@@ -61,6 +62,7 @@ static const ni_intmap_t	__debug_flags_names[] = {
 	{ "mini",	NI_TRACE_MINI },
 	{ "most", 	NI_TRACE_MOST },
 	{ "all", 	NI_TRACE_ALL },
+	{ "none", 	0 },
 	{ NULL }
 };
 
@@ -160,8 +162,8 @@ ni_debug_facility_to_description(unsigned int facility)
 	return ni_format_uint_mapped(facility, __debug_flags_descriptions);
 }
 
-int
-ni_enable_debug(const char *fac)
+static int
+__ni_enable_debug(const char *fac)
 {
 	unsigned int _debug = 0;
 	char *copy, *s;
@@ -194,6 +196,22 @@ ni_enable_debug(const char *fac)
 			__ni_log_level_set(NI_LOG_DEBUG);
 	}
 	return rv;
+}
+
+int
+ni_enable_debug(const char *fac)
+{
+	ni_debug_user_specified = TRUE;
+	return __ni_enable_debug(fac);
+}
+
+int
+ni_debug_set_default(const char *fac)
+{
+	if (ni_debug_user_specified)
+		return 0;
+
+	return __ni_enable_debug(fac);
 }
 
 void

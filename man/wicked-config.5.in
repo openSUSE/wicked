@@ -90,11 +90,42 @@ so it's best to leave this option untouched.
 .B "  <schema name=\(dq@wicked_schemadir@/wicked.xml\(dq />
 .fi
 .\" --------------------------------------------------------
+.SS Miscellaneous
+.TP
+.B debug
+This element specifies the default debug facilities to be enabled.
+The standard debug facility names is supported, including special names such as
+\fBall\fP and \fBmost\fP.
+If a debug level is specified on the command line, the setting from
+the XML configuration file will be ignored.
+.\" --------------------------------------------------------
 .SH EXTENSIONS
-The functionality of \fBwickedd\fP can be extended through
-external commands and shell scripts. All of these extensions
-are declared in \fBserver.xml\fP, and all of them follow the same pattern.
+The functionality of \fBwickedd\fP can be extended in various ways.
+All of these extensions are declared in \fBserver.xml\fP, and all
+of them follow the same pattern.
 .PP
+Generally, two extension methods are supported \(em through external
+commands and shell scripts, and through shared libraries, respectively.
+Not all extension classes support both of these methods, but some do.
+.PP
+.TP
+Shared library extensions
+These are specified via a \fB<builtin\fP element, that needs to provide
+three attributes: \fBname\fP, \fBlibrary\fP, and \fBsymbol\fP, respectively.
+The name serves as an identifier of the extension. The \fBlibrary\fP attribute
+specifies the name of the shared library image. If it's found in the global
+search path for shared libraries, just the file name is sufficient; otherwise,
+the full pathname must be given. The \fBsymbol\fP attribute specifies the
+name of a shared symbol in the library that is to be used. The use of this
+symbol depends on the extension class.
+.IP
+An example would look like this:
+.IP
+.nf
+.B "  <builtin name=\(dqbiosdevname\(dq
+.B "           library=\(dqlibwicked-biosname.so\(dq
+.B "           symbol=\(dqbiosdevname_ns\(dq/>
+.fi
 .TP
 Script extensions
 Scripts are specified via the \fB<script>\fP element, which needs to provide
@@ -124,20 +155,18 @@ like DHCP. The configuration element must have a \fBname\fP attribute that speci
 the system service to configure, and include extensions for backing up the current
 configuration, for installing new settings, and for restoring the backup.
 .PP
-The configuration for the hostname updater might look like this:
+The configuration for the resolver might look like this:
 .PP
 .nf
-.B "  <system-updater name="hostname">
-.B "    <script name=\(dqbackup\(dq command=\(dq@wicked_extensionsdir@/hostnane backup\(dq/>
-.B "    <script name=\(dqrestore\(dq command=\(dq@wicked_extensionsdir@/hostname restore\(dq/>
-.B "    <script name=\(dqinstall\(dq command=\(dq@wicked_extensionsdir@/hostname install\(dq/>
-.B "    <script name=\(dqinstall\(dq command=\(dq@wicked_extensionsdir@/hostname remove\(dq/>
+.B "  <system-updater name="resolver">
+.B "    <script name=\(dqbackup\(dq command=\(dq@wicked_extensionsdir@/resolver backup\(dq/>
+.B "    <script name=\(dqrestore\(dq command=\(dq@wicked_extensionsdir@/resolver restore\(dq/>
+.B "    <script name=\(dqinstall\(dq command=\(dq@wicked_extensionsdir@/resolver install\(dq/>
 .B "  </system-updater>
 .fi
 .PP
-Currently, \fBwicked\fP supports \fBgeneric\fP and \fBhostname\fP system updaters.
-The \fBgeneric\fP updater operates on data which can be set via \fBnetconfig\fP (refer
-to \fBnetconfig\fP(7). The \fBhostname\fP updater sets the system hostname.
+Currently, \fBwicked\fP supports system updaters for \fBresolver\fP, and \fBhostname\fP,
+respectively.
 .PP
 This extension class supports shell scripts only.
 .\" --------------------------------------------------------
@@ -160,12 +189,16 @@ zero or more \fB<interface>\fP elements describing the configuration.
 This extension class supports shell scripts only.
 .PP
 .\" --------------------------------------------------------
+.SS Network device naming
+TBD
+.PP
+.\" --------------------------------------------------------
+.SS DBus service implementation
+TBD
+.\" ------------------------------------------------------------------
 .SH "SEE ALSO"
 .BR wickedd (8),
-.BR netconfig (8),
-.SH COPYRIGHT
-Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
-.SH BUGS
-Please report bugs at <https://bugzilla.novell.com/index.cgi>
+.BR wicked (7),
+.BR wicked (5).
 .SH AUTHORS
-Olaf Kirch
+Written by Olaf Kirch <okir@suse.de>

@@ -261,6 +261,27 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		if (object)
 			ni_objectmodel_send_netif_event(__ni_objectmodel_server, object,
 					ifevent, ni_uuid_is_null(&uuid)? NULL : &uuid);
+
+		/* If we were granted a lease, cancel the callbacks
+		 * for all other pending optional leases of the same type (eg DHCP).
+		 *
+		 * Note, leases may still arrive, and in this case we'll
+		 * take them, of course.
+		 */
+		if (object && ifevent == NI_EVENT_ADDRESS_ACQUIRED) {
+			ni_addrconf_lease_t *other;
+
+			for (other = ifp->leases; other; other = other->next) {
+				if (other->type == forwarder->addrconf
+				 && other->state != NI_ADDRCONF_STATE_GRANTED
+				 && ni_addrconf_flag_bit_is_set(other->flags, NI_ADDRCONF_FLAGS_OPTIONAL)) {
+					ni_objectmodel_send_netif_event(__ni_objectmodel_server,
+							object, NI_EVENT_ADDRESS_BACKGROUNDING,
+							&other->uuid);
+					/* ni_addrconf_flag_bit_set(&other->flags, NI_ADDRCONF_FLAGS_OPTIONAL, FALSE); */
+				}
+			}
+		}
 	}
 
 done:
@@ -482,6 +503,17 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 				ni_addrconf_type_to_name(forwarder->addrconf),
 				ni_addrfamily_type_to_name(forwarder->addrfamily));
 			rv = TRUE;
+
+			/* Drop the lease manually. */
+
+			/* The following should only be necessary if the supplicant for
+			 * some reason "forgot" about the lease, but we still have
+			 * applied some of the settings from it. */
+			lease->state = NI_ADDRCONF_STATE_RELEASED;
+			__ni_system_interface_update_lease(dev, &lease);
+
+			/* Now remove the lease data from the netdev */
+			ni_netdev_unset_lease(dev, forwarder->addrfamily, forwarder->addrconf);
 			break;
 		default:
 			ni_debug_objectmodel("%s: service returned %s (%s)", forwarder->supplicant.interface,
