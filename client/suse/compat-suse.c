@@ -59,6 +59,7 @@
 #include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
 #include <wicked/tuntap.h>
+#include <wicked/tunneling.h>
 
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
@@ -2629,6 +2630,67 @@ __try_tunnel_tuntap(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 }
 
 static int
+__try_tunnel_generic(const char *ifname, unsigned short arp_type,
+		ni_linkinfo_t *link, ni_tunnel_t *tunnel,
+		const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	const char *value = NULL;
+	unsigned int ui_value;
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_LOCAL_IPADDR"))) {
+		if (ni_link_address_parse(&link->hwaddr, arp_type, value) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TUNNEL_LOCAL_IPADDR=\"%s\"",
+				ifname, value);
+			return -1;
+		}
+	} else {
+		ni_error("ifcfg-%s: TUNNEL_LOCAL_IPADDR needed to configure tunnel interface",
+			ifname);
+		return -1;
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_REMOTE_IPADDR"))) {
+		if (ni_link_address_parse(&link->hwpeer, arp_type, value) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TUNNEL_REMOTE_IPADDR=\"%s\"",
+				ifname, value);
+			return -1;
+		}
+	} else {
+		ni_error("ifcfg-%s: TUNNEL_REMOTE_IPADDR needed to configure tunnel interface",
+			ifname);
+		return -1;
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_TTL"))) {
+		if (ni_parse_uint(value, &ui_value, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TUNNEL_TTL=\"%s\"",
+				ifname, value);
+			return -1;
+		}
+		tunnel->ttl = (uint16_t)ui_value;
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_TOS"))) {
+		if (ni_parse_uint(value, &ui_value, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TUNNEL_TOS=\"%s\"",
+				ifname, value);
+			return -1;
+		}
+		tunnel->tos = (uint16_t)ui_value;
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_PMTUDISC"))) {
+		if (ni_parse_boolean(value, &tunnel->pmtudisc) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TUNNEL_PMTUDISC=\"%s\"",
+				ifname, value);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int
 try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
@@ -2644,7 +2706,6 @@ try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	};
 	const ni_intmap_t *map;
 
-	/* FIXME: this are just the types... */
 	if ((value = ni_sysconfig_get_value(sc, "TUNNEL")) == NULL)
 		return 1;
 

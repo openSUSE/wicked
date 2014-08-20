@@ -37,6 +37,7 @@
 #include <wicked/vlan.h>
 #include <wicked/macvlan.h>
 #include <wicked/tuntap.h>
+#include <wicked/tunneling.h>
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
 #include <wicked/xml.h>
@@ -809,6 +810,28 @@ __ni_compat_generate_tuntap(xml_node_t *ifnode, const ni_compat_netdev_t *compat
 		xml_node_new_element_uint("owner", child, tuntap->owner);
 	if (tuntap->group != -1U)
 		xml_node_new_element_uint("owner", child, tuntap->group);
+
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_compat_generate_generic_tunnel(xml_node_t *ifnode, ni_linkinfo_t *link,
+				ni_tunnel_t *tunnel)
+{
+	if (!ifnode)
+		return FALSE;
+
+	xml_node_new_element("local-address", ifnode,
+			ni_link_address_print(&link->hwaddr));
+	xml_node_new_element("remote-address", ifnode,
+			ni_link_address_print(&link->hwpeer));
+
+	xml_node_new_element("ttl", ifnode,
+			ni_sprint_uint((unsigned int)tunnel->ttl));
+	xml_node_new_element("tos", ifnode,
+			ni_sprint_uint((unsigned int)tunnel->tos));
+	xml_node_new_element("pmtudisc", ifnode,
+			ni_format_boolean(tunnel->pmtudisc));
 
 	return TRUE;
 }
