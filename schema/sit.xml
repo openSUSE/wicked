@@ -27,4 +27,32 @@
 
  <!-- The same properties are returned in interface state reports -->
  <define name="properties" type="sit:configuration"/>
+
+ <method name="changeDevice">
+  <arguments>
+   <config type="sit:configuration">
+    <meta:mapping document-node="/sit" skip-unless-present="true" />
+   </config>
+  </arguments>
+ </method>
+
+ <method name="deleteDevice">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="sit-factory" interface="org.opensuse.Network.SIT.Factory"
+			    object-class="netif-list">
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <config type="sit:configuration">
+    <meta:mapping document-node="/sit"/>
+   </config>
+  </arguments>
+  <return>
+   <!-- this is really an object handle -->
+   <string/>
+  </return>
+ </method>
 </service>

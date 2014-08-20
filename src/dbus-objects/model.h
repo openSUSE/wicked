@@ -102,6 +102,7 @@ extern ni_dbus_service_t	ni_objectmodel_tun_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_tap_service;
 extern ni_dbus_service_t	ni_objectmodel_tap_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_sit_service;
+extern ni_dbus_service_t	ni_objectmodel_sit_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_ipip_service;
 extern ni_dbus_service_t	ni_objectmodel_gre_service;
 extern ni_dbus_service_t	ni_objectmodel_ppp_base_service;

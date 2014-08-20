@@ -126,6 +126,7 @@ ni_objectmodel_register_netif_services(void)
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_tun_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_tap_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_ibchild_factory_service);
+	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_sit_factory_service);
 
 	/* Register all builtin naming services */
 	ni_objectmodel_register_ns_builtin();
