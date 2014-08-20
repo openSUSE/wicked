@@ -21,6 +21,7 @@
 #include <sys/socket.h>
 #include <net/if.h>
 #include <net/if_arp.h>
+#include <netinet/ip.h>
 #include <netlink/msg.h>
 #include <netlink/errno.h>
 #include <time.h>
@@ -40,6 +41,7 @@
 #include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
 #include <wicked/lldp.h>
+#include <wicked/tunneling.h>
 
 #if defined(HAVE_RTA_MARK)
 #  include <netlink/netlink.h>
@@ -64,6 +66,7 @@
 #    include "linux/if_link.h"
 #  endif
 #endif
+#include <linux/if_tunnel.h>
 
 #include "netinfo_priv.h"
 #include "sysfs.h"
@@ -71,6 +74,20 @@
 #include "appconfig.h"
 #include "process.h"
 #include "debug.h"
+#include "modprobe.h"
+
+#ifndef SIT_TUNNEL_MODULE_NAME
+#define SIT_TUNNEL_MODULE_NAME "sit"
+#endif
+#ifndef GRE_TUNNEL_MODULE_NAME
+#define GRE_TUNNEL_MODULE_NAME "ip_gre"
+#endif
+#ifndef IPIP_TUNNEL_MODULE_NAME
+#define IPIP_TUNNEL_MODULE_NAME "ipip"
+#endif
+#ifndef TUNNEL4_MODULE_NAME
+#define TUNNEL4_MODULE_NAME "tunnel4"
+#endif
 
 static int	__ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
@@ -1296,6 +1313,130 @@ ni_system_ppp_delete(ni_netdev_t *dev)
 	return 0;
 }
 
+static int
+__ni_system_tunnel_load_modules(unsigned int type)
+{
+	int mod_load_ret = 0;
+
+	/* Modules may need to be loaded (if support not compiled directly into
+	 * the kernel) in order to first bring up base devices.
+	 * If support compiled in kernel, modprobe should not fail
+	 * either, simply not load the module. -1 return code is
+	 * thus valid.
+	 */
+	switch (type) {
+	case NI_IFTYPE_GRE:
+		if (ni_modprobe(GRE_TUNNEL_MODULE_NAME, NULL) < 0) {
+			ni_error("failed to load %s module",
+				GRE_TUNNEL_MODULE_NAME);
+			mod_load_ret = -1;
+		}
+		break;
+
+	case NI_IFTYPE_SIT:
+		if (ni_modprobe(TUNNEL4_MODULE_NAME, NULL) < 0) {
+			ni_error("failed to load %s module",
+				TUNNEL4_MODULE_NAME);
+			mod_load_ret = -1;
+		}
+		if (ni_modprobe(SIT_TUNNEL_MODULE_NAME, NULL) < 0) {
+			ni_error("failed to load %s module",
+				SIT_TUNNEL_MODULE_NAME);
+			mod_load_ret = -1;
+		}
+		break;
+
+	case NI_IFTYPE_IPIP:
+		if (ni_modprobe(TUNNEL4_MODULE_NAME, NULL) < 0) {
+			ni_error("failed to load %s module",
+				TUNNEL4_MODULE_NAME);
+			mod_load_ret = -1;
+		}
+		if (ni_modprobe(IPIP_TUNNEL_MODULE_NAME, NULL) < 0) {
+			ni_error("failed to load %s module",
+				IPIP_TUNNEL_MODULE_NAME);
+			mod_load_ret = -1;
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	return mod_load_ret;
+}
+
+/*
+ * Create a sit/ipip/gre tunnel
+ */
+int
+ni_system_tunnel_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
+		ni_netdev_t **dev_ret, unsigned int type)
+{
+	ni_netdev_t *dev;
+
+	if (!nc || !dev_ret || !cfg || !cfg->name)
+		return -1;
+
+	*dev_ret = NULL;
+
+	dev = ni_netdev_by_name(nc, cfg->name);
+	if (dev != NULL) {
+		/* This is not necessarily an error */
+		if (dev->link.type == type) {
+			ni_debug_ifconfig("A %s tunnel %s already exists",
+					ni_linktype_type_to_name(type),
+					dev->name);
+			*dev_ret = dev;
+		} else {
+			ni_error("A %s interface with the name %s already exists",
+				ni_linktype_type_to_name(dev->link.type), dev->name);
+		}
+		return -NI_ERROR_DEVICE_EXISTS;
+	}
+
+	ni_debug_ifconfig("%s: creating %s tunnel", cfg->name,
+			ni_linktype_type_to_name(type));
+
+	if (__ni_system_tunnel_load_modules(type) < 0) {
+		ni_error("aborting %s tunnel creation",
+			ni_linktype_type_to_name(type));
+		return -1;
+	}
+
+	if (__ni_rtnl_link_create(cfg)) {
+		ni_error("unable to create %s tunnel %s", ni_linktype_type_to_name(type),
+			cfg->name);
+		return -1;
+	}
+
+	return __ni_system_netdev_create(nc, cfg->name, 0, cfg->link.type, dev_ret);
+}
+
+/*
+ * Change a sit/ipip/gre tunnel
+ */
+int
+ni_system_tunnel_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	return __ni_rtnl_link_change(dev, cfg);
+}
+
+/*
+ * Delete a sit/ipip/gre tunnel
+ */
+int
+ni_system_tunnel_delete(ni_netdev_t *dev, unsigned int type)
+{
+	if (__ni_rtnl_link_delete(dev)) {
+		ni_error("could not destroy %s tunnel %s",
+			ni_linktype_type_to_name(type), dev->name);
+		return -1;
+	}
+
+	return 0;
+}
+
 /*
  * Update the IPv4 sysctl settings for the given interface
  */
@@ -1522,6 +1663,122 @@ nla_put_failure:
 	return -1;
 }
 
+static int
+__ni_rtnl_link_put_tunnel(struct nl_msg *msg, const ni_linkinfo_t *link,
+			const ni_tunnel_t *tunnel, unsigned int type)
+{
+	struct nlattr *infodata;
+	uint32_t *local_ip;
+	uint32_t *remote_ip;
+	uint8_t pmtudisc;
+
+	if (!(infodata = nla_nest_start(msg, IFLA_INFO_DATA)))
+		goto nla_put_failure;
+
+	local_ip = (uint32_t *)link->hwaddr.data;
+	remote_ip = (uint32_t *)link->hwpeer.data;
+
+	switch(type) {
+	case NI_IFTYPE_IPIP:
+	case NI_IFTYPE_SIT:
+		NLA_PUT_U8(msg, IFLA_IPTUN_PROTO, IPPROTO_IPV6);
+		NLA_PUT_U32(msg, IFLA_IPTUN_LINK, 0);
+		NLA_PUT_U32(msg, IFLA_IPTUN_LOCAL, *local_ip);
+		NLA_PUT_U32(msg, IFLA_IPTUN_REMOTE, *remote_ip);
+		NLA_PUT_U8(msg, IFLA_IPTUN_TTL, tunnel->ttl);
+		NLA_PUT_U8(msg, IFLA_IPTUN_TOS, tunnel->tos);
+		pmtudisc = tunnel->pmtudisc ? 1 : 0;
+		NLA_PUT_U8(msg, IFLA_IPTUN_PMTUDISC, pmtudisc);
+		NLA_PUT_U16(msg, IFLA_IPTUN_FLAGS, tunnel->iflags);
+
+		break;
+
+	case NI_IFTYPE_GRE:
+		NLA_PUT_U32(msg, IFLA_GRE_LINK, 0);
+		NLA_PUT_U32(msg, IFLA_GRE_LOCAL, *local_ip);
+		NLA_PUT_U32(msg, IFLA_GRE_REMOTE, *remote_ip);
+		NLA_PUT_U8(msg, IFLA_GRE_TTL, tunnel->ttl);
+		NLA_PUT_U8(msg, IFLA_GRE_TOS, tunnel->tos);
+		pmtudisc = tunnel->pmtudisc ? 1 : 0;
+		NLA_PUT_U8(msg, IFLA_GRE_PMTUDISC, pmtudisc);
+		NLA_PUT_U16(msg, IFLA_GRE_FLAGS, tunnel->iflags);
+
+		break;
+
+	default:
+		break;
+	}
+
+	nla_nest_end(msg, infodata);
+
+	return 0;
+
+nla_put_failure:
+	return -1;
+}
+
+static int
+__ni_rtnl_link_put_sit(struct nl_msg *msg, const ni_netdev_t *cfg)
+{
+	struct nlattr *linkinfo;
+
+	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
+		goto nla_put_failure;
+	NLA_PUT_STRING(msg, IFLA_INFO_KIND, "sit");
+
+	if (cfg->sit->isatap)
+		cfg->sit->tunnel.iflags |= SIT_ISATAP;
+
+	if (__ni_rtnl_link_put_tunnel(msg, &cfg->link, &cfg->sit->tunnel, NI_IFTYPE_SIT) < 0)
+		goto nla_put_failure;
+
+	nla_nest_end(msg, linkinfo);
+
+	return 0;
+
+nla_put_failure:
+       return -1;
+}
+
+static int
+__ni_rtnl_link_put_ipip(struct nl_msg *msg, const ni_netdev_t *cfg)
+{
+	struct nlattr *linkinfo;
+
+	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
+		goto nla_put_failure;
+	NLA_PUT_STRING(msg, IFLA_INFO_KIND, "ipip");
+
+	if (__ni_rtnl_link_put_tunnel(msg, &cfg->link, &cfg->ipip->tunnel, NI_IFTYPE_IPIP) < 0)
+		goto nla_put_failure;
+
+	nla_nest_end(msg, linkinfo);
+
+	return 0;
+
+nla_put_failure:
+       return -1;
+}
+
+static int
+__ni_rtnl_link_put_gre(struct nl_msg *msg, const ni_netdev_t *cfg)
+{
+	struct nlattr *linkinfo;
+
+	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
+		goto nla_put_failure;
+	NLA_PUT_STRING(msg, IFLA_INFO_KIND, "gre");
+
+	if (__ni_rtnl_link_put_tunnel(msg, &cfg->link, &cfg->gre->tunnel, NI_IFTYPE_GRE) < 0)
+		goto nla_put_failure;
+
+	nla_nest_end(msg, linkinfo);
+
+	return 0;
+
+nla_put_failure:
+       return -1;
+}
 
 static int
 __ni_rtnl_link_create(const ni_netdev_t *cfg)
@@ -1570,6 +1827,27 @@ __ni_rtnl_link_create(const ni_netdev_t *cfg)
 		if (__ni_rtnl_link_put_hwaddr(msg, &cfg->link.hwaddr) < 0)
 			goto nla_put_failure;
 
+		break;
+
+	case NI_IFTYPE_SIT:
+		ifi.ifi_flags |= IFF_POINTOPOINT;
+
+		if (__ni_rtnl_link_put_sit(msg, cfg) < 0)
+			goto nla_put_failure;
+		break;
+
+	case NI_IFTYPE_IPIP:
+		ifi.ifi_flags |= IFF_POINTOPOINT;
+
+		if (__ni_rtnl_link_put_ipip(msg, cfg) < 0)
+			goto nla_put_failure;
+		break;
+
+	case NI_IFTYPE_GRE:
+		ifi.ifi_flags |= IFF_POINTOPOINT;
+
+		if (__ni_rtnl_link_put_gre(msg, cfg) < 0)
+			goto nla_put_failure;
 		break;
 
 	default:
@@ -1629,6 +1907,21 @@ __ni_rtnl_link_change(ni_netdev_t *dev, const ni_netdev_t *cfg)
 
 	case NI_IFTYPE_DUMMY:
 		if (__ni_rtnl_link_put_dummy(msg, cfg) < 0)
+			goto nla_put_failure;
+		break;
+
+	case NI_IFTYPE_SIT:
+		if (__ni_rtnl_link_put_sit(msg, cfg) < 0)
+			goto nla_put_failure;
+		break;
+
+	case NI_IFTYPE_IPIP:
+		if (__ni_rtnl_link_put_ipip(msg, cfg) < 0)
+			goto nla_put_failure;
+		break;
+
+	case NI_IFTYPE_GRE:
+		if (__ni_rtnl_link_put_gre(msg, cfg) < 0)
 			goto nla_put_failure;
 		break;
 
