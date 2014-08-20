@@ -218,6 +218,12 @@ usage:
 
 	fsm->worker_timeout = ni_fsm_find_max_timeout(fsm, timeout);
 
+	if (fsm->worker_timeout == NI_IFWORKER_INFINITE_TIMEOUT)
+		ni_debug_application("wait for interfaces infinitely");
+	else
+		ni_debug_application("wait %u seconds for interfaces",
+					fsm->worker_timeout/1000);
+
 	if (!ni_fsm_create_client(fsm)) {
 		/* Severe error we always explicitly return */
 		return NI_WICKED_RC_ERROR;
