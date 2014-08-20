@@ -312,8 +312,24 @@ ni_ifstatus_show_iftype(const ni_netdev_t *dev, ni_bool_t verbose)
 	 */
 	if (dev->link.hwaddr.len) {
 		const char *hwaddr;
-		if ((hwaddr = ni_link_address_print(&dev->link.hwaddr)))
-			printf(", hwaddr %s", hwaddr);
+		const char *hwpeer;
+		if ((hwaddr = ni_link_address_print(&dev->link.hwaddr))) {
+			switch (dev->link.hwaddr.type) {
+			case ARPHRD_SIT:
+			case ARPHRD_IPGRE:
+			case ARPHRD_TUNNEL:
+				printf(", local-address %s", hwaddr);
+				if (dev->link.hwpeer.len &&
+					(hwpeer = ni_link_address_print(&dev->link.hwpeer)))
+					printf(", remote-address %s", hwpeer);
+				break;
+			default:
+				printf(", hwaddr %s", hwaddr);
+				break;
+			}
+
+		}
+
 	}
 	printf("\n");
 }
