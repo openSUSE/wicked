@@ -2691,6 +2691,66 @@ __try_tunnel_generic(const char *ifname, unsigned short arp_type,
 }
 
 static int
+__try_tunnel_ipip(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	ni_ipip_t *ipip = NULL;
+	int rv = 0;
+
+	if (!(ipip = ni_netdev_get_ipip(dev)))
+		return -1;
+
+	/* Populate generic tunneling data from config. */
+	rv = __try_tunnel_generic(dev->name, ARPHRD_TUNNEL, &dev->link,
+				&ipip->tunnel, sc, compat);
+
+	return rv;
+}
+
+static int
+__try_tunnel_gre(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	ni_gre_t *gre = NULL;
+	int rv = 0;
+
+	if (!(gre = ni_netdev_get_gre(dev)))
+		return -1;
+
+	/* Populate generic tunneling data from config. */
+	rv = __try_tunnel_generic(dev->name, ARPHRD_IPGRE, &dev->link,
+				&gre->tunnel, sc, compat);
+
+	return rv;
+}
+
+static int
+__try_tunnel_sit(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	ni_sit_t *sit = NULL;
+	const char *value = NULL;
+	int rv = 0;
+
+	if (!(sit = ni_netdev_get_sit(dev)))
+		return -1;
+
+	/* Populate generic tunneling data from config. */
+	rv = __try_tunnel_generic(dev->name, ARPHRD_SIT, &dev->link,
+				&sit->tunnel, sc, compat);
+
+	if ((value = ni_sysconfig_get_value(sc, "SIT_ISATAP"))) {
+		if (ni_parse_boolean(value, &sit->isatap) < 0) {
+			ni_error("ifcfg-%s: Cannot parse SIT_ISATAP=\"%s\"",
+				dev->name, value);
+			rv = -1;
+		}
+	}
+
+	return rv;
+}
+
+static int
 try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
@@ -2730,6 +2790,16 @@ try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	case NI_IFTYPE_TUN:
 	case NI_IFTYPE_TAP:
 		return __try_tunnel_tuntap(sc, compat);
+
+	case NI_IFTYPE_IPIP:
+		return __try_tunnel_ipip(sc, compat);
+
+	case NI_IFTYPE_GRE:
+		return __try_tunnel_gre(sc, compat);
+
+	case NI_IFTYPE_SIT:
+		return __try_tunnel_sit(sc, compat);
+
 	default:
 		ni_warn("ifcfg-%s: conversion of %s tunnels not yet supported",
 			dev->name, map->name);
