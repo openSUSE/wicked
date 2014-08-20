@@ -51,6 +51,7 @@
 #include "appconfig.h"
 #include "ifcheck.h"
 #include "ifstatus.h"
+#include "netinfo_priv.h"
 
 /*
  * ifstatus code matrix + mapped lsb exit code.
@@ -279,8 +280,9 @@ ni_ifstatus_show_iflink(const ni_netdev_t *dev, ni_bool_t verbose)
 }
 
 static inline void
-ni_ifstatus_show_iftype(const ni_netdev_t *dev, ni_bool_t verbose)
+ni_ifstatus_show_iftype(ni_netdev_t *dev, ni_bool_t verbose)
 {
+	ni_netconfig_t *nc = ni_global_state_handle(0);
 	(void)verbose;	/* currently unused */
 
 	if_printf("", "type:", "%s", ni_linktype_type_to_name(dev->link.type));
@@ -307,9 +309,11 @@ ni_ifstatus_show_iftype(const ni_netdev_t *dev, ni_bool_t verbose)
 		break;
 	}
 
-	/* TODO: provide complete hwaddr (with type) over dbus,
-	 *       fix the error which may be triggered here
+	/* Refresh link (hwaddr, hwpeer, etc) in order for correct parsing/
+	 * formatting of address data.
 	 */
+	__ni_device_refresh_link_info(nc, &dev->link);
+
 	if (dev->link.hwaddr.len) {
 		const char *hwaddr;
 		if ((hwaddr = ni_link_address_print(&dev->link.hwaddr)))
