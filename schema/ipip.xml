@@ -18,4 +18,32 @@
 
  <!-- The same properties are returned in interface state reports -->
  <define name="properties" type="ipip:configuration"/>
+
+ <method name="changeDevice">
+  <arguments>
+   <config type="ipip:configuration">
+    <meta:mapping document-node="/ipip" skip-unless-present="true" />
+   </config>
+  </arguments>
+ </method>
+
+ <method name="deleteDevice">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="ipip-factory" interface="org.opensuse.Network.IPIP.Factory"
+			    object-class="netif-list">
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <config type="ipip:configuration">
+    <meta:mapping document-node="/ipip"/>
+   </config>
+  </arguments>
+  <return>
+   <!-- this is really an object handle -->
+   <string/>
+  </return>
+ </method>
 </service>
