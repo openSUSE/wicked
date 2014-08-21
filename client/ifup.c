@@ -520,8 +520,8 @@ usage:
 				"      Skip interfaces that have a configuration origin of <name>\n"
 				"      Usually, you would use this with the name \"firmware\" to avoid\n"
 				"      touching interfaces that have been set up via firmware (like iBFT) previously\n"
-				"  --timeout <nsec>\n"
-				"      Timeout after <nsec> seconds\n"
+				"  --timeout <sec>\n"
+				"      Timeout after <sec> seconds\n"
 #ifdef NI_TEST_HACKS
 				"  --ignore-prio\n"
 				"      Ignore checking the config origin priorities\n"
@@ -564,14 +564,24 @@ usage:
 		goto cleanup;
 	}
 
-	/* Client waits for device-up events for WAIT_FOR_INTERFACES */
-	/* Client waits for device-up events for WAIT_FOR_INTERFACES */
-	if (timeout)
+	/* Set timeout how long the action is allowed to wait */
+	if (timeout) {
 		fsm->worker_timeout = timeout; /* One set by user */
-	else {
+	} else
+	if (ni_wait_for_interfaces) {
 		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
-			ni_wait_for_interfaces*1000);
+				ni_wait_for_interfaces*1000);
+	} else {
+		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
+				NI_IFWORKER_DEFAULT_TIMEOUT);
 	}
+
+	if (fsm->worker_timeout == NI_IFWORKER_INFINITE_TIMEOUT)
+		ni_debug_application("wait for interfaces infinitely");
+	else
+		ni_debug_application("wait %u seconds for interfaces",
+					fsm->worker_timeout/1000);
+
 	ni_nanny_fsm_monitor_arm(monitor, fsm->worker_timeout);
 
 	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
@@ -777,8 +787,8 @@ usage:
 				"      Skip interfaces that have a configuration origin of <name>\n"
 				"      Usually, you would use this with the name \"firmware\" to avoid\n"
 				"      touching interfaces that have been set up via firmware (like iBFT) previously\n"
-				"  --timeout <nsec>\n"
-				"      Timeout after <nsec> seconds\n"
+				"  --timeout <sec>\n"
+				"      Timeout after <sec> seconds\n"
 #ifdef NI_TEST_HACKS
 				"  --ignore-prio\n"
 				"      Ignore checking the config origin priorities\n"
@@ -827,13 +837,23 @@ usage:
 		goto cleanup;
 	}
 
-	/* Client waits for device-up events for WAIT_FOR_INTERFACES */
-	if (timeout)
+	/* Set timeout how long the action is allowed to wait */
+	if (timeout) {
 		fsm->worker_timeout = timeout; /* One set by user */
-	else {
+	} else
+	if (ni_wait_for_interfaces) {
 		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
-			ni_wait_for_interfaces*1000);
+				ni_wait_for_interfaces*1000);
+	} else {
+		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
+				NI_IFWORKER_DEFAULT_TIMEOUT);
 	}
+
+	if (fsm->worker_timeout == NI_IFWORKER_INFINITE_TIMEOUT)
+		ni_debug_application("wait for interfaces infinitely");
+	else
+		ni_debug_application("wait %u seconds for interfaces",
+					fsm->worker_timeout/1000);
 
 	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
 		ni_error("ifup: unable to build device hierarchy");

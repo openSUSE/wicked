@@ -146,6 +146,8 @@ usage:
 				"      Enable transient interface return codes\n"
 				"  --ifconfig <filename>\n"
 				"      Read interface configuration(s) from file\n"
+				"  --timeout <sec>\n"
+				"      Timeout after <sec> seconds\n"
 #ifdef NI_TEST_HACKS
 				"  --ignore-prio\n"
 				"      Ignore checking the config origin priorities\n"
@@ -200,12 +202,23 @@ usage:
 		goto cleanup;
 	}
 
-	if (opt_timeout)
+	/* Set timeout how long the action is allowed to wait */
+	if (opt_timeout) {
 		fsm->worker_timeout = opt_timeout; /* One set by user */
-	else {
+	} else
+	if (ni_wait_for_interfaces) {
 		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
-			ni_wait_for_interfaces*1000);
+					ni_wait_for_interfaces*1000);
+	} else {
+		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
+					NI_IFWORKER_DEFAULT_TIMEOUT);
 	}
+
+	if (fsm->worker_timeout == NI_IFWORKER_INFINITE_TIMEOUT)
+		ni_debug_application("wait for interfaces infinitely");
+	else
+		ni_debug_application("wait %u seconds for interfaces",
+					fsm->worker_timeout/1000);
 
 	/* Build the up tree */
 	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
@@ -449,6 +462,8 @@ usage:
 				"      Enable transient interface return codes\n"
 				"  --ifconfig <filename>\n"
 				"      Read interface configuration(s) from file\n"
+				"  --timeout <sec>\n"
+				"      Timeout after <sec> seconds\n"
 #ifdef NI_TEST_HACKS
 				"  --ignore-prio\n"
 				"      Ignore checking the config origin priorities\n"
@@ -503,12 +518,23 @@ usage:
 		goto cleanup;
 	}
 
-	if (opt_timeout)
+	/* Set timeout how long the action is allowed to wait */
+	if (opt_timeout) {
 		fsm->worker_timeout = opt_timeout; /* One set by user */
-	else {
+	} else
+	if (ni_wait_for_interfaces) {
 		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
-			ni_wait_for_interfaces*1000);
+					ni_wait_for_interfaces*1000);
+	} else {
+		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
+					NI_IFWORKER_DEFAULT_TIMEOUT);
 	}
+
+	if (fsm->worker_timeout == NI_IFWORKER_INFINITE_TIMEOUT)
+		ni_debug_application("wait for interfaces infinitely");
+	else
+		ni_debug_application("wait %u seconds for interfaces",
+					fsm->worker_timeout/1000);
 
 	/* Build the up tree */
 	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
