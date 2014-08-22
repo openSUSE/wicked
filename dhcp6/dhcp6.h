@@ -67,7 +67,14 @@ struct ni_dhcp6_request {
 	ni_dhcp6_run_t		dry_run;         /* normal run or get offer/lease only	*/
 	ni_dhcp6_mode_t		mode;		 /* follow ra, request info/addr	*/
 	ni_bool_t		rapid_commit;	 /* try to use rapid commit flow	*/
-	unsigned int		acquire_timeout; /* how long we try before we give up	*/
+
+	unsigned int		start_delay;	/* how long to delay start */
+	unsigned int		defer_timeout;	/* how long we try before we defer	*/
+	unsigned int		acquire_timeout;/* how long we try before we give up	*/
+
+	unsigned int		lease_time;	/* to request specific IA T1 and T2	*/
+	ni_bool_t		recover_lease;	/* recover and reuse existing lease	*/
+	ni_bool_t		release_lease;	/* release lease on drop request	*/
 
 	/* Options controlling what to put into the lease request */
 	char *			hostname;
@@ -75,9 +82,6 @@ struct ni_dhcp6_request {
 #if 0
 	char *			user_class;
 	char *			vendor_class;
-
-	unsigned int		lease_time;
-	unsigned int		max_transmits;   /* how many times we try to acquire  */
 #endif
 
 	/* Options what to update based on the info received from
@@ -110,7 +114,14 @@ struct ni_dhcp6_config {
 	ni_dhcp6_mode_t		mode;
 	ni_dhcp6_run_t		dry_run;
 	ni_bool_t		rapid_commit;
+
+	unsigned int		start_delay;
+	unsigned int		defer_timeout;
 	unsigned int		acquire_timeout;
+
+	unsigned int		lease_time;
+	ni_bool_t		recover_lease;
+	ni_bool_t		release_lease;
 
 	ni_opaque_t		client_duid;	/* raw client id to use		*/
 	ni_opaque_t		server_duid;	/* destination raw server id	*/
@@ -125,7 +136,6 @@ struct ni_dhcp6_config {
 	    unsigned int	en;
 	    ni_var_array_t	data;
 	}			vendor_opts;
-	unsigned int		lease_time;
 
 	unsigned int		update;
 

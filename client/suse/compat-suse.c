@@ -2974,11 +2974,14 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 	if (ni_sysconfig_get_integer(sc, "DHCLIENT_SLEEP", &uint))
 		compat->dhcp4.start_delay = uint;
 
+	if (ni_sysconfig_get_integer(sc, "DHCLIENT_WAIT_AT_BOOT", &uint))
+		compat->dhcp4.defer_timeout = uint;
+
 	if (ni_sysconfig_get_integer(sc, "DHCLIENT_TIMEOUT", &uint))
 		compat->dhcp4.acquire_timeout = uint;
 
 	if (ni_sysconfig_get_integer(sc, "DHCLIENT_LEASE_TIME", &uint))
-		compat->dhcp4.lease_time = ((int) uint >= 0)? uint : NI_IFWORKER_INFINITE_TIMEOUT;
+		compat->dhcp4.lease_time = ((int) uint >= 0) ? uint : 0;
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_USE_LAST_LEASE")))
 		compat->dhcp4.recover_lease = !ni_string_eq(string, "no");
@@ -3077,21 +3080,22 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 		}
 	}
 
-	if (ni_sysconfig_get_integer(sc, "DHCLIENT_SLEEP", &uint))
+	if (ni_sysconfig_get_integer(sc, "DHCLIENT6_SLEEP", &uint))
 		compat->dhcp6.start_delay = uint;
 
-	if (ni_sysconfig_get_integer(sc, "DHCLIENT_TIMEOUT", &uint))
+	if (ni_sysconfig_get_integer(sc, "DHCLIENT6_WAIT_AT_BOOT", &uint))
+		compat->dhcp6.defer_timeout = uint;
+
+	if (ni_sysconfig_get_integer(sc, "DHCLIENT6_TIMEOUT", &uint))
 		compat->dhcp6.acquire_timeout = uint;
 
-	if (ni_sysconfig_get_integer(sc, "DHCLIENT_LEASE_TIME", &uint))
-		compat->dhcp6.lease_time = ((int) uint >= 0)? uint : NI_IFWORKER_INFINITE_TIMEOUT;
+	if (ni_sysconfig_get_integer(sc, "DHCLIENT6_LEASE_TIME", &uint))
+		compat->dhcp6.lease_time = ((int) uint >= 0) ? uint : 0;
 
-	/* TODO: Trigger autoip4 after DHCLIENT_WAIT_AT_BOOT when enabled */
-
-	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_USE_LAST_LEASE")))
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_USE_LAST_LEASE")))
 		compat->dhcp6.recover_lease = !ni_string_eq(string, "no");
 
-	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_RELEASE_BEFORE_QUIT")))
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_RELEASE_BEFORE_QUIT")))
 		compat->dhcp6.release_lease = ni_string_eq(string, "yes");
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_SET_HOSTNAME"))) {
