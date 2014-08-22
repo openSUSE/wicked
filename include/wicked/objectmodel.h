@@ -106,6 +106,7 @@ extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_cl
  */
 #define NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL	"LeaseAcquired"
 #define NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL	"LeaseReleased"
+#define NI_OBJECTMODEL_LEASE_DEFERRED_SIGNAL	"LeaseDeferred"
 #define NI_OBJECTMODEL_LEASE_LOST_SIGNAL	"LeaseLost"
 
 extern const ni_dbus_class_t	ni_objectmodel_netif_class;

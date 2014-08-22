@@ -459,6 +459,7 @@ static const ni_intmap_t		__event_names[] = {
 	{ "network-down",		NI_EVENT_NETWORK_DOWN },
 	{ "address-acquired",		NI_EVENT_ADDRESS_ACQUIRED },
 	{ "address-released",		NI_EVENT_ADDRESS_RELEASED },
+	{ "address-deferred",		NI_EVENT_ADDRESS_DEFERRED },
 	{ "address-lost",		NI_EVENT_ADDRESS_LOST },
 	{ "address-updated",		NI_EVENT_ADDRESS_UPDATE },
 	{ "address-deleted",		NI_EVENT_ADDRESS_DELETE },

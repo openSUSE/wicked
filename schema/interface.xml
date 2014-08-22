@@ -394,8 +394,8 @@
      server succeeds, wickedd will emit an addressAcquired event with the uuid specified in
      the callback info.
 
-     If the DHCP supplicant is unable to obtain the requested lease, an addressLost signal is
-     generated instead.
+     If the DHCP supplicant is unable to obtain the requested lease, an addressDeferred is
+     generated to trigger fallback actions and on final timeout addressLost instead.
     </description>
   </signal>
   <signal name="addressReleased">
@@ -413,6 +413,12 @@
      For instance, if an interface is taken down manually using "ifconfig down", the DHCP
      supplicant will discard the lease it held for this interface, and subsequently,
      an addressReleased() event is emitted.
+    </description>
+  </signal>
+  <signal name="addressDeferred">
+    <description>
+      Emitted whenever an addrconf service were unable to acquire lease inside the specified
+      defer timeout to trigger fallback actions and addressLost on final acquire timeout.
     </description>
   </signal>
   <signal name="addressLost">

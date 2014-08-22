@@ -158,6 +158,7 @@ struct ni_addrconf_lease {
 enum ni_lease_event {
 	NI_EVENT_LEASE_ACQUIRED,
 	NI_EVENT_LEASE_RELEASED,
+	NI_EVENT_LEASE_DEFERRED,
 	NI_EVENT_LEASE_LOST
 };
 

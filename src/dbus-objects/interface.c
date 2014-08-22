@@ -990,6 +990,7 @@ static ni_intmap_t	__ni_objectmodel_event_names[] = {
 	{ "networkDown",		NI_EVENT_NETWORK_DOWN },
 	{ "addressAcquired",		NI_EVENT_ADDRESS_ACQUIRED },
 	{ "addressReleased",		NI_EVENT_ADDRESS_RELEASED },
+	{ "addressDeferred",		NI_EVENT_ADDRESS_DEFERRED },
 	{ "addressLost",		NI_EVENT_ADDRESS_LOST },
 	{ "resolverUpdated",		NI_EVENT_RESOLVER_UPDATED },
 	{ "hostnameUpdated",		NI_EVENT_HOSTNAME_UPDATED },

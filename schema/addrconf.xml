@@ -70,6 +70,13 @@
     </arguments>
   </signal>
 
+  <signal name="LeaseDeferred">
+    <arguments>
+      <uuid type="uuid-type"/>
+      <lease type="lease-type" />
+    </arguments>
+  </signal>
+
   <signal name="LeaseLost">
     <arguments>
       <uuid type="uuid-type"/>
