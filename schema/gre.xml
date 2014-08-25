@@ -18,4 +18,32 @@
 
  <!-- The same properties are returned in interface state reports -->
  <define name="properties" type="gre:configuration"/>
+
+ <method name="changeDevice">
+  <arguments>
+   <config type="gre:configuration">
+    <meta:mapping document-node="/gre" skip-unless-present="true" />
+   </config>
+  </arguments>
+ </method>
+
+ <method name="deleteDevice">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="gre-factory" interface="org.opensuse.Network.GRE.Factory"
+			    object-class="netif-list">
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <config type="gre:configuration">
+    <meta:mapping document-node="/gre"/>
+   </config>
+  </arguments>
+  <return>
+   <!-- this is really an object handle -->
+   <string/>
+  </return>
+ </method>
 </service>

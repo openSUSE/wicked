@@ -59,6 +59,7 @@
 #include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
 #include <wicked/tuntap.h>
+#include <wicked/tunneling.h>
 
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
@@ -2629,6 +2630,127 @@ __try_tunnel_tuntap(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 }
 
 static int
+__try_tunnel_generic(const char *ifname, unsigned short arp_type,
+		ni_linkinfo_t *link, ni_tunnel_t *tunnel,
+		const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	const char *value = NULL;
+	unsigned int ui_value;
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_LOCAL_IPADDR"))) {
+		if (ni_link_address_parse(&link->hwaddr, arp_type, value) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TUNNEL_LOCAL_IPADDR=\"%s\"",
+				ifname, value);
+			return -1;
+		}
+	} else {
+		ni_error("ifcfg-%s: TUNNEL_LOCAL_IPADDR needed to configure tunnel interface",
+			ifname);
+		return -1;
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_REMOTE_IPADDR"))) {
+		if (ni_link_address_parse(&link->hwpeer, arp_type, value) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TUNNEL_REMOTE_IPADDR=\"%s\"",
+				ifname, value);
+			return -1;
+		}
+	} else {
+		ni_error("ifcfg-%s: TUNNEL_REMOTE_IPADDR needed to configure tunnel interface",
+			ifname);
+		return -1;
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_TTL"))) {
+		if (ni_parse_uint(value, &ui_value, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TUNNEL_TTL=\"%s\"",
+				ifname, value);
+			return -1;
+		}
+		tunnel->ttl = (uint16_t)ui_value;
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_TOS"))) {
+		if (ni_parse_uint(value, &ui_value, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TUNNEL_TOS=\"%s\"",
+				ifname, value);
+			return -1;
+		}
+		tunnel->tos = (uint16_t)ui_value;
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_PMTUDISC"))) {
+		if (ni_parse_boolean(value, &tunnel->pmtudisc) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TUNNEL_PMTUDISC=\"%s\"",
+				ifname, value);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int
+__try_tunnel_ipip(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	ni_ipip_t *ipip = NULL;
+	int rv = 0;
+
+	if (!(ipip = ni_netdev_get_ipip(dev)))
+		return -1;
+
+	/* Populate generic tunneling data from config. */
+	rv = __try_tunnel_generic(dev->name, ARPHRD_TUNNEL, &dev->link,
+				&ipip->tunnel, sc, compat);
+
+	return rv;
+}
+
+static int
+__try_tunnel_gre(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	ni_gre_t *gre = NULL;
+	int rv = 0;
+
+	if (!(gre = ni_netdev_get_gre(dev)))
+		return -1;
+
+	/* Populate generic tunneling data from config. */
+	rv = __try_tunnel_generic(dev->name, ARPHRD_IPGRE, &dev->link,
+				&gre->tunnel, sc, compat);
+
+	return rv;
+}
+
+static int
+__try_tunnel_sit(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	ni_sit_t *sit = NULL;
+	const char *value = NULL;
+	int rv = 0;
+
+	if (!(sit = ni_netdev_get_sit(dev)))
+		return -1;
+
+	/* Populate generic tunneling data from config. */
+	rv = __try_tunnel_generic(dev->name, ARPHRD_SIT, &dev->link,
+				&sit->tunnel, sc, compat);
+
+	if ((value = ni_sysconfig_get_value(sc, "SIT_ISATAP"))) {
+		if (ni_parse_boolean(value, &sit->isatap) < 0) {
+			ni_error("ifcfg-%s: Cannot parse SIT_ISATAP=\"%s\"",
+				dev->name, value);
+			rv = -1;
+		}
+	}
+
+	return rv;
+}
+
+static int
 try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
@@ -2644,7 +2766,6 @@ try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	};
 	const ni_intmap_t *map;
 
-	/* FIXME: this are just the types... */
 	if ((value = ni_sysconfig_get_value(sc, "TUNNEL")) == NULL)
 		return 1;
 
@@ -2669,6 +2790,16 @@ try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	case NI_IFTYPE_TUN:
 	case NI_IFTYPE_TAP:
 		return __try_tunnel_tuntap(sc, compat);
+
+	case NI_IFTYPE_IPIP:
+		return __try_tunnel_ipip(sc, compat);
+
+	case NI_IFTYPE_GRE:
+		return __try_tunnel_gre(sc, compat);
+
+	case NI_IFTYPE_SIT:
+		return __try_tunnel_sit(sc, compat);
+
 	default:
 		ni_warn("ifcfg-%s: conversion of %s tunnels not yet supported",
 			dev->name, map->name);

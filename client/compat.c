@@ -37,6 +37,7 @@
 #include <wicked/vlan.h>
 #include <wicked/macvlan.h>
 #include <wicked/tuntap.h>
+#include <wicked/tunneling.h>
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
 #include <wicked/xml.h>
@@ -813,6 +814,88 @@ __ni_compat_generate_tuntap(xml_node_t *ifnode, const ni_compat_netdev_t *compat
 	return TRUE;
 }
 
+static ni_bool_t
+__ni_compat_generate_generic_tunnel(xml_node_t *ifnode, ni_linkinfo_t *link,
+				ni_tunnel_t *tunnel)
+{
+	if (!ifnode)
+		return FALSE;
+
+	xml_node_new_element("local-address", ifnode,
+			ni_link_address_print(&link->hwaddr));
+	xml_node_new_element("remote-address", ifnode,
+			ni_link_address_print(&link->hwpeer));
+
+	xml_node_new_element("ttl", ifnode,
+			ni_sprint_uint((unsigned int)tunnel->ttl));
+	xml_node_new_element("tos", ifnode,
+			ni_sprint_uint((unsigned int)tunnel->tos));
+	xml_node_new_element("pmtudisc", ifnode,
+			ni_format_boolean(tunnel->pmtudisc));
+
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_compat_generate_ipip(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	xml_node_t *child = NULL;
+	ni_ipip_t *ipip = NULL;
+	ni_netdev_t *dev = compat->dev;
+	ni_bool_t rv;
+
+	if (!(ipip = ni_netdev_get_ipip(dev)))
+		return FALSE;
+
+	child = xml_node_create(ifnode, "ipip");
+
+	rv = __ni_compat_generate_generic_tunnel(child, &dev->link,
+						&ipip->tunnel);
+
+	return rv;
+}
+
+static ni_bool_t
+__ni_compat_generate_gre(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	xml_node_t *child = NULL;
+	ni_gre_t *gre = NULL;
+	ni_netdev_t *dev = compat->dev;
+	ni_bool_t rv;
+
+	if (!(gre = ni_netdev_get_gre(dev)))
+		return FALSE;
+
+	child = xml_node_create(ifnode, "gre");
+
+	rv = __ni_compat_generate_generic_tunnel(child, &dev->link,
+						&gre->tunnel);
+
+	return rv;
+}
+
+static ni_bool_t
+__ni_compat_generate_sit(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	xml_node_t *child = NULL;
+	ni_sit_t *sit = NULL;
+	ni_netdev_t *dev = compat->dev;
+	ni_bool_t rv;
+
+	if (!(sit = ni_netdev_get_sit(dev)))
+		return FALSE;
+
+	child = xml_node_create(ifnode, "sit");
+
+	rv = __ni_compat_generate_generic_tunnel(child, &dev->link,
+						&sit->tunnel);
+
+	xml_node_new_element("isatap", child,
+			ni_format_boolean(sit->isatap));
+
+	return rv;
+}
+
 static void
 __ni_compat_generate_static_route_hops(xml_node_t *rnode, const ni_route_nexthop_t *hops,
 					const char *ifname)
@@ -1329,6 +1412,18 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	case NI_IFTYPE_TUN:
 	case NI_IFTYPE_TAP:
 		__ni_compat_generate_tuntap(ifnode, compat);
+		break;
+
+	case NI_IFTYPE_IPIP:
+		__ni_compat_generate_ipip(ifnode, compat);
+		break;
+
+	case NI_IFTYPE_GRE:
+		__ni_compat_generate_gre(ifnode, compat);
+		break;
+
+	case NI_IFTYPE_SIT:
+		__ni_compat_generate_sit(ifnode, compat);
 		break;
 
 	default: ;

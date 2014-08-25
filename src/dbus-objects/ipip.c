@@ -39,6 +39,184 @@
 #include "model.h"
 #include "debug.h"
 
+static ni_netdev_t *	__ni_objectmodel_ipip_create(ni_netdev_t *, const char *, DBusError *);
+
+static inline ni_netdev_t *
+__ni_objectmodel_ipip_device_arg(const ni_dbus_variant_t *dict)
+{
+	return ni_objectmodel_get_netif_argument(dict, NI_IFTYPE_IPIP,
+					&ni_objectmodel_ipip_service);
+}
+
+static ni_netdev_t *
+__ni_objectmodel_ipip_create(ni_netdev_t *cfg_ifp, const char *ifname, DBusError *error)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_ipip_t *ipip = NULL;
+	ni_netdev_t *dev = NULL;
+	const char *err = NULL;
+	int rv;
+
+	ipip = ni_netdev_get_ipip(cfg_ifp);
+	if ((err = ni_ipip_validate(ipip))) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s", err);
+		goto out;
+	}
+
+	if (ni_string_empty(ifname)) {
+		if (ni_string_empty(cfg_ifp->name) &&
+			(ifname = ni_netdev_make_name(nc, "ipip", 1))) {
+			ni_string_dup(&cfg_ifp->name, ifname);
+		} else {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"Unable to create ipip tunnel: "
+				"name argument missed");
+			goto out;
+		}
+		ifname = NULL;
+	} else if(!ni_string_eq(cfg_ifp->name, ifname)) {
+		ni_string_dup(&cfg_ifp->name, ifname);
+	}
+
+	if (cfg_ifp->link.hwaddr.len) {
+		if (cfg_ifp->link.hwaddr.type == ARPHRD_VOID)
+			cfg_ifp->link.hwaddr.type = ARPHRD_TUNNEL;
+
+		if (cfg_ifp->link.hwaddr.type != ARPHRD_TUNNEL ||
+		    cfg_ifp->link.hwaddr.len != ni_link_address_length(ARPHRD_TUNNEL)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"Cannot create ipip tunnel interface: "
+				"invalid local address '%s'",
+				ni_link_address_print(&cfg_ifp->link.hwaddr));
+			return NULL;
+		}
+	}
+
+	if (cfg_ifp->link.hwpeer.len) {
+		if (cfg_ifp->link.hwpeer.type == ARPHRD_VOID)
+			cfg_ifp->link.hwpeer.type = ARPHRD_TUNNEL;
+
+		if (cfg_ifp->link.hwpeer.type != ARPHRD_TUNNEL ||
+		    cfg_ifp->link.hwpeer.len != ni_link_address_length(ARPHRD_TUNNEL)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"Cannot create ipip tunnel interface: "
+				"invalid remote address '%s'",
+				ni_link_address_print(&cfg_ifp->link.hwpeer));
+			return NULL;
+		}
+	}
+
+	if ((rv = ni_system_tunnel_create(nc, cfg_ifp, &dev, NI_IFTYPE_IPIP) < 0)) {
+		if (rv != -NI_ERROR_DEVICE_EXISTS || dev == NULL
+			|| (ifname && dev && !ni_string_eq(dev->name, ifname))) {
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Unable to create ipip tunnel: %s");
+			dev = NULL;
+			goto out;
+		}
+		ni_debug_dbus("ipip tunnel exists (and name matches)");
+	}
+
+	if (dev->link.type != NI_IFTYPE_IPIP) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+			"Unable to create ipip tunnel: "
+			"new interface is of type %s",
+			ni_linktype_type_to_name(dev->link.type));
+		dev = NULL;
+	}
+
+out:
+	if (cfg_ifp)
+		ni_netdev_put(cfg_ifp);
+	return dev;
+}
+
+static dbus_bool_t
+ni_objectmodel_ipip_create(ni_dbus_object_t *factory_object,
+			const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
+	ni_netdev_t *dev;
+	const char *ifname = NULL;
+
+	NI_TRACE_ENTER();
+	ni_assert(argc == 2);
+
+	if (!ni_dbus_variant_get_string(&argv[0], &ifname)
+		||  !(dev = __ni_objectmodel_ipip_device_arg(&argv[1]))) {
+		return ni_dbus_error_invalid_args(error,
+						factory_object->path, method->name);
+	}
+
+	if (!(dev = __ni_objectmodel_ipip_create(dev, ifname, error)))
+		return FALSE;
+
+	return ni_objectmodel_netif_factory_result(server, reply, dev, NULL, error);
+}
+
+static dbus_bool_t
+ni_objectmodel_ipip_change(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_netdev_t *dev, *cfg;
+
+	/* we've already checked that argv matches our signature */
+	ni_assert(argc == 1);
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)) ||
+		!(cfg = __ni_objectmodel_ipip_device_arg(&argv[0]))) {
+		ni_dbus_error_invalid_args(error, object->path, method->name);
+		return FALSE;
+	}
+
+	cfg->link.ifindex = dev->link.ifindex;
+	if (ni_string_empty(cfg->name))
+		ni_string_dup(&cfg->name, dev->name);
+
+	if (ni_netdev_device_is_up(dev)) {
+		ni_debug_objectmodel("Skipping ipip changeDevice call on %s: "
+				"device is up", dev->name);
+		return TRUE;
+	}
+
+	if (ni_system_tunnel_change(nc, dev, cfg) < 0) {
+		dbus_set_error(error,
+			DBUS_ERROR_FAILED,
+			"Unable to change ipip properties on interface %s",
+			dev->name);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_ipip_delete(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+	int rv;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
+	if ((rv = ni_system_tunnel_delete(dev, NI_IFTYPE_IPIP) < 0)) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+			"Error deleting ipip tunnel %s: %s",
+			dev->name, ni_strerror(rv));
+		return FALSE;
+	}
+
+	ni_dbus_object_free(object);
+	return TRUE;
+}
+
 /*
  * Get/Set properties
  */
@@ -102,7 +280,13 @@ __ni_objectmodel_ipip_set_local_addr(ni_dbus_object_t *object,
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
-	return __ni_objectmodel_set_hwaddr(argument, &dev->link.hwaddr);
+
+	if (__ni_objectmodel_set_hwaddr(argument, &dev->link.hwaddr)) {
+		dev->link.hwaddr.type = ARPHRD_TUNNEL;
+		return TRUE;
+	} else {
+		return FALSE;
+	}
 }
 
 static dbus_bool_t
@@ -128,7 +312,13 @@ __ni_objectmodel_ipip_set_remote_addr(ni_dbus_object_t *object,
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
-	return __ni_objectmodel_set_hwaddr(argument, &dev->link.hwpeer);
+
+	if (__ni_objectmodel_set_hwaddr(argument, &dev->link.hwpeer)) {
+		dev->link.hwpeer.type = ARPHRD_TUNNEL;
+		return TRUE;
+	} else {
+		return FALSE;
+	}
 }
 
 /*
@@ -159,6 +349,9 @@ static const ni_dbus_property_t	ni_objectmodel_ipip_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_ipip_methods[] = {
+	{ "changeDevice",	"a{sv}",	ni_objectmodel_ipip_change },
+	{ "deleteDevice",	"",		ni_objectmodel_ipip_delete },
+
 	{ NULL }
 };
 
@@ -172,6 +365,8 @@ ni_dbus_service_t		ni_objectmodel_ipip_service = {
  * ipip factory service
  */
 static ni_dbus_method_t		ni_objectmodel_ipip_factory_methods[] = {
+	{ "newDevice",		"sa{sv}",	ni_objectmodel_ipip_create },
+
 	{ NULL }
 };
 
