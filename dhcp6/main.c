@@ -632,6 +632,12 @@ dhcp6_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *dev, ni_ad
 	}
 
 	switch (ev) {
+	case NI_DHCP6_EVENT_DEFERRED:
+		ni_dbus_server_send_signal(dhcp6_dbus_server, dev_object,
+				NI_OBJECTMODEL_ADDRCONF_INTERFACE, NI_OBJECTMODEL_LEASE_DEFERRED_SIGNAL,
+				argc, argv);
+		break;
+
 	case NI_DHCP6_EVENT_ACQUIRED:
 		if (lease == NULL) {
 			ni_error("%s: BUG not send %s event without a lease handle",

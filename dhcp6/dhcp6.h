@@ -100,6 +100,19 @@ struct ni_dhcp6_request {
 extern ni_dhcp6_request_t *	ni_dhcp6_request_new(void);
 extern void			ni_dhcp6_request_free(ni_dhcp6_request_t *);
 
+/*
+ * -- device config timing defaults
+ */
+#define NI_DHCP6_START_DELAY		0	/* use RFC SOL_MAX_DELAY (1s)	*/
+#define NI_DHCP6_DEFER_TIMEOUT		15	/* we derer after 15 secs	*/
+#define NI_DHCP6_ACQUIRE_TIMEOUT	0	/* use RFC SOL_MRD (infinite)	*/
+
+/*
+ * -- device config lease handling
+ */
+#define NI_DHCP6_LEASE_TIME		0	/* we do not request any	*/
+#define NI_DHCP6_RECOVER_LEASE		TRUE	/* we try to recocer + confirm	*/
+#define NI_DHCP6_RELEASE_LEASE		FALSE	/* we try to recover + confirm	*/
 
 /*
  * -- device config
@@ -229,6 +242,7 @@ extern ni_bool_t		ni_dhcp6_device_check_ready(ni_dhcp6_device_t *);
 enum ni_dhcp6_event {
 	NI_DHCP6_EVENT_ACQUIRED = NI_EVENT_LEASE_ACQUIRED,
 	NI_DHCP6_EVENT_RELEASED = NI_EVENT_LEASE_RELEASED,
+	NI_DHCP6_EVENT_DEFERRED = NI_EVENT_LEASE_DEFERRED,
 	NI_DHCP6_EVENT_LOST     = NI_EVENT_LEASE_LOST,
 };
 

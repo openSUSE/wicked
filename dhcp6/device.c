@@ -582,6 +582,7 @@ ni_dhcp6_device_transmit_init(ni_dhcp6_device_t *dev)
 int
 ni_dhcp6_device_transmit_start(ni_dhcp6_device_t *dev)
 {
+	ni_timer_get_time(&dev->retrans.start);
 	ni_dhcp6_device_retransmit_arm(dev);
 
 	return ni_dhcp6_device_transmit(dev);
@@ -622,16 +623,11 @@ ni_dhcp6_device_retransmit_arm(ni_dhcp6_device_t *dev)
 	/* when we're here, initial delay is over */
 	dev->retrans.delay = 0;
 
-	/*
-	 * Hmm... Remember the time of the first transmission
-	 */
-	ni_timer_get_time(&dev->retrans.start);
-
 	/* Leave, when retransmissions aren't enabled */
 	if (dev->retrans.params.nretries == 0)
 		return;
 
-	if (dev->fsm.state == NI_DHCP6_STATE_SELECTING && dev->retrans.count == 1) {
+	if (dev->fsm.state == NI_DHCP6_STATE_SELECTING && dev->retrans.count == 0) {
 		/*
 		 * rfc3315#section-17.1.2
 		 *
@@ -660,15 +656,6 @@ ni_dhcp6_device_retransmit_arm(ni_dhcp6_device_t *dev)
 		 */
 		dev->retrans.params.timeout = ni_timeout_arm_msec(&dev->retrans.deadline,
 								  &dev->retrans.params);
-
-		/*
-		 * Trigger fsm timeout event after first RT to process the collected
-		 * Advertise messages.
-		 *
-		 * Note, that there is no max duration time for Solicit messages, so
-		 * we can reuse the fsm duration timer ...
-		 */
-		ni_dhcp6_fsm_set_timeout_msec(dev, dev->retrans.params.timeout);
 	} else {
 		/*
 		 * rfc3315#section-14
@@ -694,20 +681,19 @@ ni_dhcp6_device_retransmit_arm(ni_dhcp6_device_t *dev)
 		 */
 		dev->retrans.params.timeout = ni_timeout_arm_msec(&dev->retrans.deadline,
 								  &dev->retrans.params);
-
-		if (dev->retrans.duration) {
-			/*
-			 * rfc3315#section-14
-			 *
-			 * "[...]
-			 * MRD specifies an upper bound on the length of time a client may
-			 * retransmit a message. Unless MRD is zero, the message exchange
-			 * fails once MRD seconds have elapsed since the client first
-			 * transmitted the message.
-			 * [...]"
-			 */
-			ni_dhcp6_fsm_set_timeout_msec(dev, dev->retrans.duration);
-		}
+	}
+	if (dev->retrans.duration) {
+		/*
+		 * rfc3315#section-14
+		 *
+		 * "[...]
+		 * MRD specifies an upper bound on the length of time a client may
+		 * retransmit a message. Unless MRD is zero, the message exchange
+		 * fails once MRD seconds have elapsed since the client first
+		 * transmitted the message.
+		 * [...]"
+		 */
+		ni_dhcp6_fsm_set_timeout_msec(dev, dev->retrans.duration);
 	}
 }
 
@@ -718,8 +704,10 @@ ni_dhcp6_device_retransmit_disarm(ni_dhcp6_device_t *dev)
 
 	ni_timer_get_time(&now);
 
-	ni_debug_dhcp("%s: disarming retransmission at %s",
-			dev->ifname, ni_dhcp6_print_timeval(&now));
+	if (dev->dhcp6.xid || dev->retrans.params.timeout) {
+		ni_debug_dhcp("%s: disarming retransmission at %s",
+				dev->ifname, ni_dhcp6_print_timeval(&now));
+	}
 
 	dev->dhcp6.xid = 0;
 	memset(&dev->retrans, 0, sizeof(dev->retrans));
@@ -766,9 +754,7 @@ ni_dhcp6_device_retransmit_advance(ni_dhcp6_device_t *dev)
 
 		return TRUE;
 	}
-#if 0
-	ni_trace("Retransmissions are disabled");
-#endif
+	ni_debug_dhcp("Retransmissions are disabled");
 	return FALSE;
 }
 
@@ -782,9 +768,9 @@ ni_dhcp6_device_retransmit(ni_dhcp6_device_t *dev)
 
 	if (ni_dhcp6_fsm_retransmit(dev) < 0)
 		return -1;
-#if 0
-	ni_trace("Retransmitted, next deadline at %s", ni_dhcp6_format_time(&dev->retrans.deadline));
-#endif
+
+	ni_debug_dhcp("Retransmitted, next deadline at %s",
+			ni_dhcp6_print_timeval(&dev->retrans.deadline));
 	return 0;
 }
 
@@ -880,6 +866,12 @@ ni_dhcp6_config_init_duid(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config, con
 	return (config->client_duid.len > 0);
 }
 
+static inline unsigned int
+__nondefault(unsigned int req, unsigned int def)
+{
+	return req ? req : def;
+}
+
 /*
  * Process a request to reconfigure the device (ie rebind a lease, or discover
  * a new lease).
@@ -923,12 +915,37 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	config->mode = req->mode;
 	config->flags= req->flags;
 	config->update = req->update;
-	config->dry_run = req->dry_run;
-	config->rapid_commit = !config->dry_run ? req->rapid_commit : FALSE;
+	config->dry_run	= req->dry_run;
 
-	config->lease_time = 0;
-	config->acquire_timeout = req->acquire_timeout;
 	ni_timer_get_time(&dev->start_time);
+	config->start_delay	= __nondefault(req->start_delay,
+					NI_DHCP6_START_DELAY);
+
+	if (config->dry_run != NI_DHCP6_RUN_NORMAL) {
+		/*
+		 * in dry run mode, we don't use rapid commit
+		 * and do not defer but just fail.
+		 */
+		config->rapid_commit	= FALSE;
+		config->start_delay	= __nondefault(req->start_delay,
+						NI_DHCP6_START_DELAY);
+		config->defer_timeout	= 0;
+		config->acquire_timeout	= __nondefault(req->acquire_timeout,
+						NI_DHCP6_DEFER_TIMEOUT);
+	} else {
+		config->rapid_commit	= req->rapid_commit;
+		config->defer_timeout	= __nondefault(req->defer_timeout,
+						NI_DHCP6_DEFER_TIMEOUT);
+		config->acquire_timeout	= __nondefault(req->acquire_timeout,
+						NI_DHCP6_ACQUIRE_TIMEOUT);
+
+		if (config->acquire_timeout)
+			config->acquire_timeout += config->defer_timeout;
+	}
+	config->lease_time	= __nondefault(req->lease_time,
+						NI_DHCP6_LEASE_TIME);
+	config->recover_lease	= req->recover_lease;
+	config->release_lease	= req->release_lease;
 
 	/*
          * Make sure we have a DUID for client-id
@@ -993,22 +1010,31 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	}
 
 	ni_dhcp6_device_set_config(dev, config);
-	if (config->mode == NI_DHCP6_MODE_AUTO) {
-		/* OK, let's look if device already has a mode */
-		ni_dhcp6_device_update_mode(dev, NULL);
-		if (config->mode == NI_DHCP6_MODE_AUTO) {
-			unsigned int timeout = config->acquire_timeout;
 
+	if (config->mode == NI_DHCP6_MODE_AUTO)
+		ni_dhcp6_device_update_mode(dev, NULL);
+
+	if (config->mode == NI_DHCP6_MODE_AUTO) {
+		unsigned int deadline = 0;
+
+		if (config->defer_timeout) {
 			/*
-			 * set timer to provide dummy lease to wicked
-			 * when there is no IPv6 RA on the network or
-			 * DHCPv6 is not used.
+			 * set timer to emit lease-deferred signal to wicked
+			 * when there is no IPv6 RA on the network or DHCPv6
+			 * is not used (managed and other-config unset).
 			 */
-			if (timeout > 5)
-				timeout = ((timeout - 1) * 1000) + 500;
-			else
-				timeout = 5000;
-			ni_dhcp6_fsm_set_timeout_msec(dev, timeout);
+			deadline = config->defer_timeout * 1000;
+			ni_dhcp6_fsm_set_timeout_msec(dev, deadline);
+			dev->fsm.fail_on_timeout = 0;
+		} else
+		if (config->acquire_timeout) {
+			/*
+			 * immediatelly set timer to fail after timeout,
+			 * that is to drop config, disarm fsm and stop.
+			 */
+			deadline = config->acquire_timeout * 1000;
+			ni_dhcp6_fsm_set_timeout_msec(dev, deadline);
+			dev->fsm.fail_on_timeout = 1;
 		}
 	}
 
