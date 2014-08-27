@@ -33,6 +33,8 @@
 #include "dhcp6/options.h"
 #include <gcrypt.h>
 
+extern void		ni_addrconf_updater_free(ni_addrconf_updater_t **);
+
 struct ni_netconfig {
 	ni_netdev_t *		interfaces;
 	ni_modem_t *		modems;
@@ -788,6 +790,12 @@ ni_addrconf_lease_dhcp6_destroy(struct ni_addrconf_lease_dhcp6 *dhcp6)
 void
 ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 {
+	ni_addrconf_updater_free(&lease->updater);
+	if (lease->old) {
+		ni_addrconf_lease_free(lease->old);
+		lease->old = NULL;
+	}
+
 	ni_string_free(&lease->owner);
 	ni_string_free(&lease->hostname);
 

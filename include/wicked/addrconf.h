@@ -51,6 +51,7 @@ enum {
 enum {
 	NI_ADDRCONF_STATE_NONE,
 	NI_ADDRCONF_STATE_REQUESTING,
+	NI_ADDRCONF_STATE_APPLYING,
 	NI_ADDRCONF_STATE_GRANTED,
 	NI_ADDRCONF_STATE_RELEASING,
 	NI_ADDRCONF_STATE_RELEASED,
@@ -79,8 +80,13 @@ typedef enum ni_dhcp6_mode {
 struct ni_dhcp6_status;
 struct ni_dhcp6_ia;
 
+typedef struct ni_addrconf_updater	ni_addrconf_updater_t;
+
 struct ni_addrconf_lease {
 	ni_addrconf_lease_t *	next;
+
+	ni_addrconf_updater_t *	updater;	/* update actions	*/
+	ni_addrconf_lease_t *	old;		/* replaced old lease	*/
 
 	unsigned int		seqno;		/* globally unique sequence # */
 	ni_addrconf_mode_t	type;

@@ -69,6 +69,7 @@
 #include <linux/if_tunnel.h>
 
 #include "netinfo_priv.h"
+#include "util_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
 #include "appconfig.h"
@@ -237,18 +238,288 @@ ni_system_interface_link_monitor(ni_netdev_t *dev)
 }
 
 /*
+ * system interface lease updater actions
+ */
+static int
+__ni_addrconf_action_mtu_apply(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+
+	__ni_netdev_update_mtu(nc, dev, lease->old, lease);
+	/* On failure, error is logged already -- do not abort:
+	 *    there is still pmtu done if mtu was smaller,
+	 *    not applying jumbo MTU is also not critical.
+	 */
+	return 0;
+
+}
+
+static int
+__ni_addrconf_action_addrs_apply(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	int res;
+
+	if ((res = __ni_netdev_update_addrs(dev, lease->old, lease->addrs)) < 0)
+		return res;
+
+	return 0;
+}
+
+static int
+__ni_addrconf_action_addrs_verify_check(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	ni_address_t *ap;
+
+	if (lease->family != AF_INET6)
+		return 0;
+
+	/*
+	 * returns:
+	 *      1 if lease or link-local addresses are still tentative and
+	 *      0 they're not tentative any more
+	 *     -1 if they're duplicate.
+	 */
+	for (ap = dev->addrs; ap; ap = ap->next) {
+		if (ap->family != AF_INET6)
+			continue;
+
+		if (ap->config_lease == NULL) {
+			if (!ni_address_list_find(lease->addrs, &ap->local_addr)
+			&&  !ni_address_is_linklocal(ap))
+				continue;
+		} else
+		if (ap->config_lease != lease)
+			continue;
+
+		if (ni_address_is_duplicate(ap)) {
+			ni_warn("%s: lease %s:%s address %s is duplicate",
+					dev->name,
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_sockaddr_print(&ap->local_addr));
+			/*
+			 * DHCPv6 monitors dad state and declines automatically
+			 */
+			if (lease->type != NI_ADDRCONF_DHCP)
+				lease->state = NI_ADDRCONF_STATE_REQUESTING;
+			else
+				lease->state = NI_ADDRCONF_STATE_FAILED;
+
+			return -1;	/* abort */
+		} else
+		if (ni_address_is_tentative(ap)) {
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG,
+				"%s: lease %s:%s address %s is tentative",
+					dev->name,
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_sockaddr_print(&ap->local_addr));
+			return 1;	/* defer */
+		}
+	}
+
+	return 0;
+}
+
+static int
+__ni_addrconf_action_addrs_verify(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	unsigned int loops = 50;
+	int res;
+
+	if (lease->family != AF_INET6)
+		return 0;
+
+	/*
+	 * TODO: instead to loop here, return 1 to go into background
+	 *       and continue to apply when address update event with
+	 *       the final tentative/dadfailed flags arrived.
+	 */
+	do {
+		if ((res = __ni_system_refresh_interface_addrs(nc, dev)) < 0)
+			return res;
+
+		if ((res = __ni_addrconf_action_addrs_verify_check(dev, lease)) <= 0)
+			return res;
+
+		usleep(250000);
+	} while (res && loops-- > 0);
+
+	return 0;
+}
+
+static int
+__ni_addrconf_action_routes_apply(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	int res;
+
+	if ((res = __ni_system_refresh_interface_routes(nc, dev)) < 0)
+		return res;
+
+	if ((res = __ni_netdev_update_routes(nc, dev, lease->old, lease)) < 0)
+		return res;
+
+	if ((res = __ni_system_refresh_interface_routes(nc, dev)) < 0)
+		return res;
+
+	return 0;
+}
+
+static int
+__ni_addrconf_action_system_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	lease->update &= ni_config_addrconf_update_mask(lease->type, lease->family);
+	ni_system_update_from_lease(lease, dev->link.ifindex, dev->name);
+	return 0;
+}
+
+static int
+__ni_addrconf_action_addrs_remove(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	int res;
+
+	if ((res = __ni_netdev_update_addrs(dev, lease->old, NULL)) < 0)
+		return res;
+
+	if ((res = __ni_system_refresh_interface_addrs(nc, dev)) < 0)
+		return res;
+
+	return 0;
+}
+
+static int
+__ni_addrconf_action_routes_remove(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	int res;
+
+	if ((res = __ni_system_refresh_interface_routes(nc, dev)) < 0)
+		return res;
+
+	if ((res = __ni_netdev_update_routes(nc, dev, lease->old, NULL)) < 0)
+		return res;
+
+	if ((res = __ni_system_refresh_interface_routes(nc, dev)) < 0)
+		return res;
+
+	return 0;
+}
+
+static int
+__ni_addrconf_action_mtu_restore(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+
+	__ni_netdev_update_mtu(nc, dev, lease->old, NULL);
+	/* On failure, error is logged already -- do not abort:
+	 *    there is still pmtu done if mtu was smaller,
+	 *    not applying jumbo MTU is also not critical.
+	 */
+	return 0;
+
+}
+
+typedef struct ni_addrconf_action ni_addrconf_action_t;
+
+struct ni_addrconf_action {
+	int		(*func)(ni_netdev_t *dev, ni_addrconf_lease_t *lease);
+	const char *	info;
+};
+
+struct ni_addrconf_updater {
+	/* do we need some data here ? */
+	const ni_addrconf_action_t *action;
+};
+
+
+static const ni_addrconf_action_t	__applying_actions[] = {
+	{ __ni_addrconf_action_mtu_apply,	"adjusting mtu"		},
+	{ __ni_addrconf_action_addrs_apply,	"applying addresses"	},
+	{ __ni_addrconf_action_addrs_verify,	"verifying adressses"	},
+	{ __ni_addrconf_action_routes_apply,	"applying routes"	},
+	{ __ni_addrconf_action_system_update,	"applying system config"},
+	{ NULL,	NULL }
+};
+
+static const ni_addrconf_action_t	__removing_actions[] = {
+	{ __ni_addrconf_action_addrs_remove,	"removing addresses"	},
+	{ __ni_addrconf_action_routes_remove,	"removing routes"	},
+	{ __ni_addrconf_action_system_update,	"removing system config"},
+	{ __ni_addrconf_action_mtu_restore,	"reverting mtu change"	},
+	{ NULL,		NULL						}
+};
+
+static ni_addrconf_updater_t *
+ni_addrconf_updater_new(const ni_addrconf_action_t *action)
+{
+	ni_addrconf_updater_t *updater;
+
+	updater = xcalloc(1, sizeof(updater));
+	updater->action = action;
+	return updater;
+}
+
+void
+ni_addrconf_updater_free(ni_addrconf_updater_t **updater)
+{
+	if (updater && *updater) {
+		free(*updater);
+		*updater = NULL;
+	}
+}
+
+int
+ni_addrconf_updater_execute(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	ni_addrconf_updater_t *updater;
+	int res = 0;
+
+	if (!dev || !lease)
+		return 0;
+
+	while ((updater = lease->updater) != NULL) {
+		if (!updater->action || !updater->action->func) {
+			ni_addrconf_updater_free(&lease->updater);
+			break;
+		}
+		/*
+		 * res > 1 could be used to defer into bg,
+		 * but currently we just wait for addrs
+		 * and use success/failure codes only.
+		 */
+		res = updater->action->func(dev, lease);
+		if (updater->action->info) {
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG,
+					"%s: %s for %s:%s lease in state %s: %s [%u]",
+					dev->name, updater->action->info,
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_addrconf_state_to_name(lease->state),
+					(res < 0 ? "failed" : "success"), res);
+		}
+		if (res)
+			break;
+		updater->action++;
+	}
+	return res;
+}
+
+/*
  * An address configuration agent sends a lease update.
  */
 int
 __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease_p)
 {
-	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_addrconf_lease_t *lease = *lease_p, *old_lease = NULL;
+	ni_addrconf_lease_t *lease = *lease_p;
 	int res;
 
-	ni_debug_ifconfig("%s: received %s/%s lease update; state %s", dev->name,
-			ni_addrconf_type_to_name(lease->type),
+	ni_debug_ifconfig("%s: received %s:%s lease update in state %s",
+			dev->name,
 			ni_addrfamily_type_to_name(lease->family),
+			ni_addrconf_type_to_name(lease->type),
 			ni_addrconf_state_to_name(lease->state));
 
 	/* Use the existing lease handle to identify those addresses already
@@ -256,70 +527,43 @@ __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease
 	 * While we're getting the old lease, detach it from the interface
 	 * (but don't delete it yet).
 	 */
-	old_lease = __ni_netdev_find_lease(dev, lease->family, lease->type, 1);
-
-	if (lease->state == NI_ADDRCONF_STATE_GRANTED)
-		res = __ni_netdev_update_addrs(dev, old_lease, lease->addrs);
-	else
-		res = __ni_netdev_update_addrs(dev, old_lease, NULL);
-	if (res < 0) {
-		ni_error("%s: error updating interface config from %s lease",
-				dev->name, 
-				ni_addrconf_type_to_name(lease->type));
-		goto out;
-	}
-
-	/* Refresh addrs + routes state - routes may have disappeared,
-	 * for instance, when we took away the address. */
-	if ((res = __ni_system_refresh_interface_addrs(nc, dev)) < 0)
-		goto out;
-	if ((res = __ni_system_refresh_interface_routes(nc, dev)) < 0)
-		goto out;
-
-
-	/* Loop over all routes and remove those no longer covered by the lease.
-	 * Ignore all routes covered by other address config mechanisms.
-	 */
-	if (lease->state == NI_ADDRCONF_STATE_GRANTED)
-		res = __ni_netdev_update_routes(nc, dev, old_lease, lease);
-	else
-		res = __ni_netdev_update_routes(nc, dev, old_lease, NULL);
-	if (res < 0) {
-		ni_error("%s: error updating interface config from %s lease",
-				dev->name, 
-				ni_addrconf_type_to_name(lease->type));
-		goto out;
-	}
-
-	/* Refresh routes again to sync with the current kernel state. */
-	if ((res = __ni_system_refresh_interface_routes(nc, dev)) < 0)
-		goto out;
-
-	/* Update the device MTU.
-	 */
-	if (lease->state == NI_ADDRCONF_STATE_GRANTED)
-		res = __ni_netdev_update_mtu(nc, dev, old_lease, lease);
-	else
-		res = __ni_netdev_update_mtu(nc, dev, old_lease, NULL);
-	if (res < 0) {
-		ni_error("%s: error updating interface config from %s lease",
-				dev->name, 
-				ni_addrconf_type_to_name(lease->type));
-		goto out;
-	}
-
+	lease->old = __ni_netdev_find_lease(dev, lease->family, lease->type, 1);
 	if (lease->state == NI_ADDRCONF_STATE_GRANTED) {
+		lease->state = NI_ADDRCONF_STATE_APPLYING;
+		lease->updater = ni_addrconf_updater_new(__applying_actions);
 		ni_netdev_set_lease(dev, lease);
 		*lease_p = NULL;
+
+		if (lease->old) {
+			ni_addrconf_updater_free(&lease->old->updater);
+		}
+		res = ni_addrconf_updater_execute(dev, lease);
+
+		/* we do not need the old lease any more */
+		if (lease->old) {
+			ni_addrconf_lease_free(lease->old);
+			lease->old = NULL;
+		}
+		if (res == 0 && lease->state == NI_ADDRCONF_STATE_APPLYING)
+			lease->state = NI_ADDRCONF_STATE_GRANTED;
+	} else {
+		lease->updater = ni_addrconf_updater_new(__removing_actions);
+		/*
+		 * we were unable to update the system properly -- is there
+		 * any reason to fail or to not drop the lease?
+		 */
+		ni_addrconf_updater_execute(dev, lease);
+		res = 0;
 	}
+	/* we do not defer updater into background yet */
+	ni_addrconf_updater_free(&lease->updater);
 
-	lease->update &= ni_config_addrconf_update_mask(lease->type, lease->family);
-
-	ni_system_update_from_lease(lease, dev->link.ifindex, dev->name);
-
-out:
-	if (old_lease)
-		ni_addrconf_lease_free(old_lease);
+	if (res < 0) {
+		ni_error("%s: error updating interface config from %s:%s lease",
+				dev->name,
+				ni_addrfamily_type_to_name(lease->family),
+				ni_addrconf_type_to_name(lease->type));
+	}
 	return res;
 }
 
