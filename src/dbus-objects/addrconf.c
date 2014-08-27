@@ -266,8 +266,11 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	 *
 	 * Note, lease may be NULL after this, as the interface object
 	 * takes ownership of it.
+	 *
+	 * Return code 0 is success, < 0 error where we do not emit events.
 	 */
-	__ni_system_interface_update_lease(ifp, &lease);
+	if (__ni_system_interface_update_lease(ifp, &lease) < 0)
+		goto done;
 
 	/* Potentially, there's a client somewhere waiting for that event.
 	 * We use the UUID that's passed back and forth to make sure we

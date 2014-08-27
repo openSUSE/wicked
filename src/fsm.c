@@ -4175,6 +4175,7 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 						ni_stringbuf_destroy(&buf);
 
 					if (other->state == NI_ADDRCONF_STATE_GRANTED ||
+					    other->state == NI_ADDRCONF_STATE_APPLYING ||
 					    other->state == NI_ADDRCONF_STATE_REQUESTING)
 						return TRUE;
 				}

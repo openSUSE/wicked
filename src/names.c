@@ -159,6 +159,7 @@ ni_addrconf_type_to_name(unsigned int type)
 static const ni_intmap_t	__addrconf_states[] = {
 	{ "none",		NI_ADDRCONF_STATE_NONE },
 	{ "requesting",		NI_ADDRCONF_STATE_REQUESTING },
+	{ "applying",		NI_ADDRCONF_STATE_APPLYING },
 	{ "granted",		NI_ADDRCONF_STATE_GRANTED },
 	{ "releasing",		NI_ADDRCONF_STATE_RELEASING },
 	{ "released",		NI_ADDRCONF_STATE_RELEASED },
