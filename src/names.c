@@ -448,6 +448,7 @@ ni_arphrd_type_to_name(unsigned int type)
 static const ni_intmap_t		__event_names[] = {
 	{ "device-create",		NI_EVENT_DEVICE_CREATE },
 	{ "device-delete",		NI_EVENT_DEVICE_DELETE },
+	{ "device-change",		NI_EVENT_DEVICE_CHANGE },
 	{ "device-ready",		NI_EVENT_DEVICE_READY },
 	{ "device-up",			NI_EVENT_DEVICE_UP },
 	{ "device-down",		NI_EVENT_DEVICE_DOWN },
