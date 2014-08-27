@@ -193,11 +193,14 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		goto done;
 	}
 
-	ni_debug_dbus("received signal %s for interface %s (ifindex %d), lease %s:%s, uuid=%s, update=0x%x, flags=0x%x",
+	ni_debug_dbus("received signal %s for interface %s (ifindex %d),"
+			" lease %s:%s/%s, uuid=%s, update=0x%x, flags=0x%x",
 			signal_name, ifp->name, ifp->link.ifindex,
 			ni_addrfamily_type_to_name(lease->family),
 			ni_addrconf_type_to_name(lease->type),
+			ni_addrconf_state_to_name(lease->state),
 			ni_uuid_print(&uuid), lease->update, lease->flags);
+
 	if (!strcmp(signal_name, NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL)) {
 		if (lease->state != NI_ADDRCONF_STATE_GRANTED) {
 			ni_error("%s: unexpected lease state in signal %s", __func__, signal_name);
@@ -226,6 +229,22 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 				}
 			}
 		}
+	} else if (!strcmp(signal_name, NI_OBJECTMODEL_LEASE_DEFERRED_SIGNAL)) {
+		ni_addrconf_lease_t *_lease;
+
+		/*
+		 * we don't have a lease here -- it is currently still requested.
+		 * so we do not update the system, just trigger event to inform
+		 * client that it needs more time than defer timeout.
+		 * TODO: trigger start of fallback services if any ...
+		 */
+		_lease = ni_netdev_get_lease(ifp, lease->family, lease->type);
+		if (!_lease || !ni_uuid_equal(&_lease->uuid, &uuid))
+			goto done;
+
+		lease->state = _lease->state = NI_ADDRCONF_STATE_REQUESTING;
+		ifevent = NI_EVENT_ADDRESS_DEFERRED;
+		goto emit;
 	} else if (!strcmp(signal_name, NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL)) {
 		lease->state = NI_ADDRCONF_STATE_RELEASED;
 		ifevent = NI_EVENT_ADDRESS_RELEASED;
@@ -254,6 +273,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 	 * We use the UUID that's passed back and forth to make sure we
 	 * really match the event we were expecting to match.
 	 */
+emit:
 	{
 		ni_dbus_object_t *object;
 

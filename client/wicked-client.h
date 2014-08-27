@@ -56,7 +56,9 @@ typedef struct ni_compat_netdev {
 		char *		vendor_class;
 
 		unsigned int	start_delay;
+		unsigned int	defer_timeout;
 		unsigned int	acquire_timeout;
+
 		unsigned int	lease_time;
 		ni_bool_t	recover_lease;
 		ni_bool_t	release_lease;
@@ -75,7 +77,9 @@ typedef struct ni_compat_netdev {
 		char *		client_id;
 
 		unsigned int	start_delay;
+		unsigned int	defer_timeout;
 		unsigned int	acquire_timeout;
+
 		unsigned int	lease_time;
 		ni_bool_t	recover_lease;
 		ni_bool_t	release_lease;

@@ -261,6 +261,9 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 
 	config = xcalloc(1, sizeof(*config));
 	config->dry_run = info->dry_run;
+	config->start_delay = info->start_delay;
+	config->defer_timeout = info->start_delay;
+	config->acquire_timeout = info->acquire_timeout;
 	config->resend_timeout = NI_DHCP4_RESEND_TIMEOUT_INIT;
 	config->request_timeout = info->acquire_timeout?: NI_DHCP4_REQUEST_TIMEOUT;
 	config->initial_discovery_timeout = NI_DHCP4_DISCOVERY_TIMEOUT;
@@ -268,7 +271,6 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	config->flags = info->flags;
 	config->update = info->update;
 	config->route_priority = info->route_priority;
-	config->start_delay = info->start_delay;
 	config->recover_lease = info->recover_lease;
 	config->release_lease = info->release_lease;
 

@@ -46,8 +46,10 @@ struct ni_dhcp6_message {
 };
 
 static void			ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *);
+static void			ni_dhcp6_fsm_fail_timeout(ni_dhcp6_device_t *);
 static void             	__ni_dhcp6_fsm_timeout(void *, const ni_timer_t *);
 static void			ni_dhcp6_fsm_timer_cancel(ni_dhcp6_device_t *);
+static unsigned int		ni_dhcp6_remaining_time(struct timeval *, unsigned int);
 
 static int			ni_dhcp6_fsm_solicit      (ni_dhcp6_device_t *);
 static int			__ni_dhcp6_fsm_release    (ni_dhcp6_device_t *, unsigned int);
@@ -204,9 +206,8 @@ ni_dhcp6_fsm_retransmit(ni_dhcp6_device_t *dev)
 void
 ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *dev, unsigned long msec)
 {
-	dev->fsm.fail_on_timeout = 0;
 	if (msec != 0) {
-		ni_debug_dhcp("%s: setting timeout to %lu msec", dev->ifname, msec);
+		ni_debug_dhcp("%s: setting fsm timeout to %lu msec", dev->ifname, msec);
 		if (dev->fsm.timer) {
 			ni_timer_rearm(dev->fsm.timer, msec);
 		} else {
@@ -243,19 +244,68 @@ __ni_dhcp6_fsm_timeout(void *user_data, const ni_timer_t *timer)
 }
 
 static void
-ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
+__show_remaining_timeouts(ni_dhcp6_device_t *dev, const char *info)
 {
-	ni_debug_dhcp("%s: timeout in state %s%s",
-			dev->ifname, ni_dhcp6_fsm_state_name(dev->fsm.state),
-			dev->fsm.fail_on_timeout? " (fatal failure)" : "");
+	if (dev->config->defer_timeout) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+			"%s: %s in state %s, remaining defer   timeout: %u of %u",
+				dev->ifname, info,
+				ni_dhcp6_fsm_state_name(dev->fsm.state),
+				ni_dhcp6_remaining_time(&dev->start_time,
+					dev->config->defer_timeout),
+				dev->config->defer_timeout);
+	}
+	if (dev->config->acquire_timeout) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+			"%s: %s in state %s, remaining acquire timeout: %u of %u",
+				dev->ifname, info,
+				ni_dhcp6_fsm_state_name(dev->fsm.state),
+				ni_dhcp6_remaining_time(&dev->start_time,
+					dev->config->acquire_timeout),
+				dev->config->acquire_timeout);
+	}
+}
 
-	if (dev->fsm.fail_on_timeout) {
-		dev->fsm.fail_on_timeout = 0;
+static void
+ni_dhcp6_fsm_fail_timeout(ni_dhcp6_device_t *dev)
+{
+	switch (dev->fsm.state) {
+	case NI_DHCP6_STATE_INIT:
+		/* acquire timeout was specified and is over;
+		 * no RA which would arm info/managed mode.
+		 */
+		__show_remaining_timeouts(dev, "FAILURE");
+		ni_dhcp6_send_event(NI_DHCP6_EVENT_LOST, dev, NULL);
+		ni_dhcp6_device_drop_best_offer(dev);
+		ni_dhcp6_device_drop_lease(dev);
+		break;
 
-		ni_dhcp6_device_stop(dev);
-		return;
+	case NI_DHCP6_STATE_SELECTING:
+	case NI_DHCP6_STATE_REQUESTING_INFO:
+		/* acquire timeout was specified and is over;
+		 * no usable dhcp server response received.
+		 */
+		__show_remaining_timeouts(dev, "FAILURE");
+
+		/* Hmm... can this happen somehow? IMO useless */
+		if (ni_dhcp6_fsm_accept_offer(dev) == 0)
+			return;
+
+		ni_dhcp6_send_event(NI_DHCP6_EVENT_LOST, dev, NULL);
+		ni_dhcp6_device_drop_best_offer(dev);
+		ni_dhcp6_device_drop_lease(dev);
+		break;
+
+	default:
+		break;
 	}
 
+	ni_dhcp6_device_stop(dev);
+}
+
+static void
+ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
+{
 	if (dev->retrans.delay) {
 		ni_debug_dhcp("%s: starting to transmit after initial delay",
 				dev->ifname);
@@ -264,54 +314,79 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 		return;
 	}
 
+	ni_debug_dhcp("%s: timeout in state %s%s",
+			dev->ifname, ni_dhcp6_fsm_state_name(dev->fsm.state),
+			dev->fsm.fail_on_timeout ? " (failure)" : "");
+
+	if (dev->fsm.fail_on_timeout) {
+		dev->fsm.fail_on_timeout = 0;
+		ni_dhcp6_fsm_fail_timeout(dev);
+		return;
+	}
+
 	switch (dev->fsm.state) {
 	case NI_DHCP6_STATE_INIT:
-		if (dev->config->mode == NI_DHCP6_MODE_AUTO) {
-			ni_addrconf_lease_t *lease;
-			/*
-			 * No DHCPv6 on the network in auto mode -- provide
-			 * a dummy lease, so wicked does not report failure.
-			 */
-			lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
-			lease->time_acquired = time(NULL);
-			lease->uuid = dev->config->uuid;
-			lease->update = 0; /* dev->config->update; */
-			if (dev->config->dry_run != NI_DHCP6_RUN_NORMAL) {
-				lease->state = NI_ADDRCONF_STATE_FAILED;
-				ni_dhcp6_send_event(NI_DHCP6_EVENT_ACQUIRED, dev, lease);
-				ni_dhcp6_device_stop(dev);
-			} else {
-				lease->state = NI_ADDRCONF_STATE_GRANTED;
-				ni_dhcp6_fsm_commit_lease(dev, lease);
-				ni_dhcp6_fsm_reset(dev);
+		/*
+		 * defer timeout was specified and is over;
+		 * no RA which would arm info/managed mode.
+		 */
+		__show_remaining_timeouts(dev, "TIMEOUT");
+
+		if (dev->config->defer_timeout) {
+			unsigned int deadline;
+
+			/* Do we still need this safeguard? */
+			deadline = ni_dhcp6_remaining_time(&dev->start_time,
+						dev->config->defer_timeout);
+			if (deadline) {
+				deadline *= 1000;
+				ni_dhcp6_fsm_set_timeout_msec(dev, deadline);
+				dev->fsm.fail_on_timeout = 0;
+				return;
 			}
-			return;
 		}
+
+		ni_dhcp6_send_event(NI_DHCP6_EVENT_DEFERRED, dev, NULL);
+		if (dev->config->acquire_timeout) {
+			unsigned int deadline;
+
+			deadline = ni_dhcp6_remaining_time(&dev->start_time,
+					dev->config->acquire_timeout);
+			if (deadline) {
+				deadline *= 1000;
+				ni_dhcp6_fsm_set_timeout_msec(dev, deadline);
+				dev->fsm.fail_on_timeout = 1;
+				return;
+			}
+		} /* infinite timeout, just continue monitoring */
 		break;
 
 	case NI_DHCP6_STATE_SELECTING:
 	case NI_DHCP6_STATE_REQUESTING_INFO:
-		if (dev->config->dry_run != NI_DHCP6_RUN_NORMAL) {
-			ni_addrconf_lease_t *lease;
+		/*
+		 * defer timeout was specified and is over;
+		 * no usable dhcp server response received
+		 * [or no address in managed mode offers
+		 *  and we've discarded them (RFC MUST)].
+		 */
+		__show_remaining_timeouts(dev, "TIMEOUT");
 
-			if (ni_dhcp6_fsm_accept_offer(dev) == 0)
+		if (ni_dhcp6_fsm_accept_offer(dev) == 0)
+			return;
+
+		ni_dhcp6_send_event(NI_DHCP6_EVENT_DEFERRED, dev, NULL);
+		if (dev->config->acquire_timeout) {
+			unsigned int deadline;
+
+			deadline = ni_dhcp6_remaining_time(&dev->start_time,
+					dev->config->acquire_timeout);
+			if (deadline) {
+				deadline *= 1000;
+				ni_dhcp6_fsm_set_timeout_msec(dev, deadline);
+				dev->fsm.fail_on_timeout = 1;
 				return;
-
-			lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
-			lease->time_acquired = time(NULL);
-			lease->state = NI_ADDRCONF_STATE_FAILED;
-			lease->uuid = dev->config->uuid;
-			lease->update = 0; /* dev->config->update; */
-			ni_dhcp6_send_event(NI_DHCP6_EVENT_ACQUIRED, dev, lease);
-			ni_dhcp6_device_drop_lease(dev);
-			ni_dhcp6_device_stop(dev);
-		} else
-		if (dev->best_offer.lease && dev->best_offer.weight > 0) {
-			if (ni_dhcp6_fsm_accept_offer(dev) < 0) {
-				ni_dhcp6_device_drop_lease(dev);
-				ni_dhcp6_device_stop(dev);
 			}
-		}
+		} /* infinite timeout, just continue selecting */
 		break;
 
 	case NI_DHCP6_STATE_CONFIRMING:
@@ -420,14 +495,27 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		}
 
 		/*
-		 * We've to discard all advertise messages with status NI_DHCP6_STATUS_NOADDRS;
-		 * the another codes IMO don't fit here, so we discard all unsuccessful codes.
+		 * We've to (RFC MUST) discard all advertise messages with
+		 * status NI_DHCP6_STATUS_NOADDRS; the another codes IMO
+		 * don't fit here ... simply discard all unsuccessful codes.
 		 */
-		if (msg->lease->dhcp6.status && msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
+		if (msg->lease->dhcp6.status &&
+		    msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
 			ni_string_printf(hint, "status %s - %s",
-					ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
-					msg->lease->dhcp6.status->message);
+				ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
+				msg->lease->dhcp6.status->message);
 			goto cleanup;
+		} else {
+			ni_dhcp6_ia_t *ia;
+			for (ia = msg->lease->dhcp6.ia_list; ia; ia = ia->next) {
+				if (ia->status.code == NI_DHCP6_STATUS_NOADDRS) {
+					ni_string_printf(hint, "status %s - %s",
+						ni_dhcp6_status_name(ia->status.code),
+						ia->status.message ? ia->status.message :
+						"no addresses available");
+					goto cleanup;
+				}
+			}
 		}
 
 		/* check if the config provides/overrides the preference */
@@ -440,13 +528,17 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 			ni_string_printf(hint, "blacklisted server");
 			goto cleanup;
 		}
-		/* reset weight for offers without any lease addrs */
+
+		/* Hmm... we currently do not request prefixes;
+		 * server forgot to set NI_DHCP6_STATUS_NOADDRS,
+		 * reset weight for offers without any lease addrs
+		 */
 		count = ni_address_list_count(msg->lease->addrs);
 		if (count) {
 			weight += count;
 		} else {
-			ni_debug_dhcp("lease offer without address");
-			weight = 0;
+			ni_string_printf(hint, "lease offer without address");
+			goto cleanup;
 		}
 
 		if(__fsm_select_best_offer(dev, msg->lease, weight)) {
@@ -461,7 +553,7 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 			goto cleanup;
 		}
 
-		if (dev->best_offer.lease) {
+		if (dev->best_offer.lease && dev->retrans.count > 1) {
 			/* if the weight has maximum value, just accept this offer */
 			if (dev->best_offer.weight > 255) {
 				ni_dhcp6_fsm_timer_cancel(dev);
@@ -479,25 +571,37 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		if (__fsm_parse_client_options(dev, msg, opts) < 0)
 			return -1;
 
-		/*
-		 * Hmm...
-		 */
-		if (msg->lease->dhcp6.status && msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
-			ni_string_printf(hint, "status %s - %s",
-						ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
-						msg->lease->dhcp6.status->message);
-			goto cleanup;
-		}
-
 		if (!msg->lease->dhcp6.rapid_commit) {
 			ni_string_printf(hint, "rapid commit not set");
 			goto cleanup;
 		}
 
+
+		/*
+		 * Hmm...
+		 */
+		if (msg->lease->dhcp6.status &&
+			msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
+			ni_string_printf(hint, "status %s - %s",
+						ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
+						msg->lease->dhcp6.status->message);
+			goto cleanup;
+		} else {
+			ni_dhcp6_ia_t *ia;
+			for (ia = msg->lease->dhcp6.ia_list; ia; ia = ia->next) {
+				if (ia->status.code == NI_DHCP6_STATUS_NOADDRS) {
+					ni_string_printf(hint, "status %s - %s",
+						ni_dhcp6_status_name(ia->status.code),
+						ia->status.message ? ia->status.message :
+						"no addresses available");
+					goto cleanup;
+				}
+			}
+		}
+
 		/*
 		 * 17.1.4. says it is our decision if we accept unrequested rapid-commit or not.
-		 * The message is already filtered by last xid, so when we are here, we didn't
-		 * sent Request yet.
+		 * The message is already filtered by last xid we've send.
 		 */
 
 		/* check if the config provides/overrides the preference */
@@ -513,8 +617,8 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		/* reset weight for offers without any lease addrs */
 		count = ni_address_list_count(msg->lease->addrs);
 		if (!count) {
-			ni_debug_dhcp("rapid-commit lease without address");
-			weight = 0;
+			ni_string_printf(hint, "rapid-commit lease without address");
+			goto cleanup;
 		}
 		weight += count;
 
@@ -530,7 +634,7 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 			goto cleanup;
 		}
 
-		if (dev->best_offer.lease) {
+		if (dev->best_offer.lease && dev->retrans.count > 1) {
 			/* if the weight has maximum value, just accept this offer */
 			if (dev->best_offer.weight > 255) {
 				ni_dhcp6_fsm_timer_cancel(dev);
@@ -577,11 +681,23 @@ __fsm_request_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 			goto cleanup;
 		}
 
-		if (msg->lease->dhcp6.status && msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
+		if (msg->lease->dhcp6.status &&
+		    msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
 			ni_string_printf(hint, "status %s - %s",
 						ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
 						msg->lease->dhcp6.status->message);
 			goto cleanup;
+		} else {
+			ni_dhcp6_ia_t *ia;
+			for (ia = msg->lease->dhcp6.ia_list; ia; ia = ia->next) {
+				if (ia->status.code == NI_DHCP6_STATUS_NOADDRS) {
+					ni_string_printf(hint, "status %s - %s",
+						ni_dhcp6_status_name(ia->status.code),
+						ia->status.message ? ia->status.message :
+						"no addresses available");
+					goto cleanup;
+				}
+			}
 		}
 
 		/*
@@ -1030,6 +1146,8 @@ int
 ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, unsigned int msg_type, unsigned int msg_xid,
 					ni_buffer_t *options, const struct in6_addr *sender)
 {
+	static unsigned int err_xid = 0;
+	static unsigned int err_cnt = 0;
 	char * hint = NULL;
 	struct ni_dhcp6_message msg;
 	int state = dev->fsm.state;
@@ -1077,10 +1195,28 @@ ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, unsigned int msg_typ
 	}
 
 	if (rv > 0) {
-		ni_debug_dhcp("%s: ignoring %s message xid 0x%06x in state %s from %s%s%s",
-			dev->ifname, ni_dhcp6_message_name(msg_type), msg_xid,
-			ni_dhcp6_fsm_state_name(state), ni_dhcp6_address_print(sender),
-			(hint ? ": " : ""), (hint ? hint : ""));
+		if (err_xid != msg_xid) {
+			err_xid = msg_xid;
+			err_cnt = 0;
+		} else {
+			err_cnt++;
+		}
+
+		if ((err_cnt % 5) == 0) {
+			ni_note("%s: ignoring %s message xid 0x%06x"
+					" in state %s from %s%s%s",
+				dev->ifname, ni_dhcp6_message_name(msg_type),
+				msg_xid, ni_dhcp6_fsm_state_name(state),
+				ni_dhcp6_address_print(sender),
+				(hint ? ": " : ""), (hint ? hint : ""));
+		} else {
+			ni_debug_dhcp("%s: ignoring %s message xid 0x%06x"
+					" in state %s from %s%s%s",
+				dev->ifname, ni_dhcp6_message_name(msg_type),
+				msg_xid, ni_dhcp6_fsm_state_name(state),
+				ni_dhcp6_address_print(sender),
+				(hint ? ": " : ""), (hint ? hint : ""));
+		}
 	}
 	ni_string_free(&hint);
 
@@ -1090,13 +1226,22 @@ ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, unsigned int msg_typ
 	return rv;
 }
 
+static unsigned int
+ni_dhcp6_remaining_time(struct timeval *start, unsigned int timeout)
+{
+	struct timeval now;
+	struct timeval dif;
+
+	ni_timer_get_time(&now);
+	timersub(&now, start, &dif);
+	return timeout > dif.tv_sec ? timeout - dif.tv_sec : 0;
+}
+
 static int
 ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 {
 	ni_addrconf_lease_t *lease = NULL;
-	unsigned int deadline;
-	struct timeval now;
-	struct timeval dif;
+	unsigned int deadline = 0;
 	int rv = -1;
 
 	/*
@@ -1126,25 +1271,36 @@ ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 		if (ni_dhcp6_init_message(dev, NI_DHCP6_SOLICIT, lease) != 0)
 			goto cleanup;
 
-		if (dev->config->acquire_timeout) {
-			deadline = dev->config->acquire_timeout;
-
-			ni_timer_get_time(&now);
-			timersub(&now, &dev->start_time, &dif);
-			if (deadline > dif.tv_sec)
-				deadline -= dif.tv_sec;
-
-			dev->retrans.duration = deadline * 1000;
-			if (dev->retrans.duration > dev->retrans.delay + 1000)
-				dev->retrans.duration -= dev->retrans.delay;
+		if (dev->config->start_delay) {
+			dev->retrans.delay = dev->config->start_delay * 1000;
 		}
-		dev->fsm.state = NI_DHCP6_STATE_SELECTING;
 
+		if (dev->config->defer_timeout) {
+			deadline = ni_dhcp6_remaining_time(&dev->start_time,
+					dev->config->defer_timeout);
+			dev->fsm.fail_on_timeout = 0;
+		}
+		if (!deadline && dev->config->acquire_timeout) {
+			deadline = ni_dhcp6_remaining_time(&dev->start_time,
+					dev->config->acquire_timeout);
+			dev->fsm.fail_on_timeout = 1;
+		}
+		if (deadline) {
+			dev->retrans.duration = deadline * 1000;
+		}
+
+		dev->fsm.state = NI_DHCP6_STATE_SELECTING;
 		rv = ni_dhcp6_device_transmit_init(dev);
-	} else
-	if (dev->best_offer.lease && dev->best_offer.weight > 0) {
-		rv = ni_dhcp6_fsm_accept_offer(dev);
 	} else {
+		if (dev->best_offer.lease && dev->best_offer.weight > 0) {
+			/*
+			 * Initial retransmission timeout is over,
+			 * we can process the collected offers now.
+			 */
+			if ((rv = ni_dhcp6_fsm_accept_offer(dev)) == 0)
+				goto cleanup;
+		}
+
 		ni_debug_dhcp("%s: Retransmitting DHCPv6 Server Solicitation",
 				dev->ifname);
 

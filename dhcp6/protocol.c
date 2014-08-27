@@ -916,13 +916,8 @@ ni_dhcp6_option_get_elapsed_time(ni_buffer_t *bp, struct timeval *tv)
 	if (ni_dhcp6_option_get16(bp, &csecs) < 0)
 		return -1;
 
-	if (csecs == 0xffff) {
-		tv->tv_sec = ~(time_t)0L;
-		tv->tv_usec = ~(suseconds_t)0L;
-	} else {
-		tv->tv_sec = csecs / 100;
-		tv->tv_usec = (csecs -tv->tv_sec) * 10000;
-	}
+	tv->tv_sec = csecs / 100;
+	tv->tv_usec = (csecs % 100) * 10000;
 	return 0;
 }
 
@@ -1814,9 +1809,10 @@ ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_ad
 	int rv;
 
 	/* Assign a new XID to this message */
-	while (dev->dhcp6.xid == 0) {
+	ni_timer_get_time(&dev->retrans.start);
+	do {
 		dev->dhcp6.xid = random() & NI_DHCP6_XID_MASK;
-	}
+	} while (dev->dhcp6.xid == 0);
 
 	ni_debug_dhcp("%s: building %s with xid 0x%x", dev->ifname,
 		ni_dhcp6_message_name(msg_code), dev->dhcp6.xid);
@@ -2680,8 +2676,8 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 		break;
 		case NI_DHCP6_OPTION_ELAPSED_TIME:
 			if (ni_dhcp6_option_get_elapsed_time(&optbuf, &elapsed) == 0) {
-				ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option),
-						ni_dhcp6_print_timeval(&elapsed));
+				ni_debug_dhcp("%s: %03ld.%02ld", ni_dhcp6_option_name(option),
+						elapsed.tv_sec, elapsed.tv_usec / 10000);
 			}
 		break;
 		case NI_DHCP6_OPTION_RAPID_COMMIT:

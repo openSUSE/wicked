@@ -70,6 +70,13 @@
     </arguments>
   </signal>
 
+  <signal name="LeaseDeferred">
+    <arguments>
+      <uuid type="uuid-type"/>
+      <lease type="lease-type" />
+    </arguments>
+  </signal>
+
   <signal name="LeaseLost">
     <arguments>
       <uuid type="uuid-type"/>
@@ -159,18 +166,19 @@
     <uuid type="uuid-type"/>
     <flags type="builtin-addrconf-flags" />
 
-    <hostname type="string" />
     <client-id type="string" />
     <vendor-class type="string" />
-    <initial-delay type="uint32" />
 
     <start-delay type="uint32" />
+    <defer-timeout type="uint32" />
     <acquire-timeout type="uint32" />
+
     <lease-time type="uint32" />
     <recover-lease type="boolean" />
     <release-lease type="boolean" />
 
     <update type="builtin-addrconf-update-mask" />
+    <hostname type="string" />
     <route-priority type="uint32" />
   </define>
   <define name="properties" type="interface:addrconf-lease"/>
@@ -205,12 +213,20 @@
     <mode type="builtin-dhcp6-mode"/>
     <rapid-commit type="boolean"/>
 
-    <acquire-timeout type="uint32" />
-    <hostname type="string" />
     <client-id type="string" />
-    <vendor-class type="string" />
+    <!-- vendor-class type="string" / -->
+
+    <start-delay type="uint32" />
+    <defer-timeout type="uint32" />
+    <acquire-timeout type="uint32" />
+
     <lease-time type="uint32" />
+    <recover-lease type="boolean" />
+    <release-lease type="boolean" />
+
     <update type="builtin-addrconf-update-mask" />
+    <hostname type="string" />
+
   </define>
   <define name="properties" type="interface:addrconf-lease"/>
 

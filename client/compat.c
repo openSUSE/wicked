@@ -1190,9 +1190,14 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 		xml_node_dict_set(dhcp, "route-priority",
 				ni_sprint_uint(compat->dhcp4.route_priority));
 
+
 	if (compat->dhcp4.start_delay)
 		xml_node_dict_set(dhcp, "start-delay",
 				ni_sprint_timeout(compat->dhcp4.start_delay));
+
+	if (compat->dhcp4.defer_timeout)
+		xml_node_dict_set(dhcp, "defer-timeout",
+				ni_sprint_timeout(compat->dhcp4.defer_timeout));
 
 	if (compat->dhcp4.acquire_timeout)
 		xml_node_dict_set(dhcp, "acquire-timeout",
@@ -1202,19 +1207,13 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 		xml_node_dict_set(dhcp, "lease-time",
 				ni_sprint_timeout(compat->dhcp4.lease_time));
 
-	if (compat->dhcp4.recover_lease)
-		xml_node_dict_set(dhcp, "recover-lease", "true");
-	else
-		xml_node_dict_set(dhcp, "recover-lease", "false");
-
-	if (compat->dhcp4.release_lease)
-		xml_node_dict_set(dhcp, "release-lease", "true");
-	else
-		xml_node_dict_set(dhcp, "release-lease", "false");
+	xml_node_dict_set(dhcp, "recover-lease",
+				ni_format_boolean(compat->dhcp4.recover_lease));
+	xml_node_dict_set(dhcp, "release-lease",
+				ni_format_boolean(compat->dhcp4.release_lease));
 
 	if (compat->dhcp4.client_id)
 		xml_node_dict_set(dhcp, "client-id", compat->dhcp4.client_id);
-
 	if (compat->dhcp4.vendor_class)
 		xml_node_dict_set(dhcp, "vendor-class", compat->dhcp4.vendor_class);
 
@@ -1236,14 +1235,22 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 	if ((ptr = ni_dhcp6_mode_type_to_name(compat->dhcp6.mode)) != NULL)
 		xml_node_dict_set(dhcp, "mode", ptr);
 
-	if (compat->dhcp6.rapid_commit)
-		xml_node_dict_set(dhcp, "rapid-commit", "true");
-	else
-		xml_node_dict_set(dhcp, "rapid-commit", "false");
+	xml_node_dict_set(dhcp, "rapid-commit",
+			ni_format_boolean(compat->dhcp6.rapid_commit));
+
 
 	if (compat->dhcp6.hostname)
 		xml_node_dict_set(dhcp, "hostname", compat->dhcp6.hostname);
-#if 0
+
+
+	if (compat->dhcp6.start_delay)
+		xml_node_dict_set(dhcp, "start-delay",
+				ni_sprint_timeout(compat->dhcp6.start_delay));
+
+	if (compat->dhcp6.defer_timeout)
+		xml_node_dict_set(dhcp, "defer-timeout",
+				ni_sprint_timeout(compat->dhcp6.defer_timeout));
+
 	if (compat->dhcp6.acquire_timeout)
 		xml_node_dict_set(dhcp, "acquire-timeout",
 				ni_sprint_timeout(compat->dhcp6.acquire_timeout));
@@ -1251,7 +1258,13 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 	if (compat->dhcp6.lease_time)
 		xml_node_dict_set(dhcp, "lease-time",
 				ni_sprint_timeout(compat->dhcp6.lease_time));
-#endif
+
+	xml_node_dict_set(dhcp, "recover-lease",
+				ni_format_boolean(compat->dhcp6.recover_lease));
+	xml_node_dict_set(dhcp, "release-lease",
+				ni_format_boolean(compat->dhcp6.release_lease));
+
+
 	if (compat->dhcp6.client_id)
 		xml_node_dict_set(dhcp, "client-id", compat->dhcp6.client_id);
 #if 0

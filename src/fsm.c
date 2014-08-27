@@ -1355,6 +1355,7 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 			ni_ifworker_rearm(w);
 		max_state = NI_FSM_STATE_LINK_UP - 1;
 		break;
+	case NI_EVENT_ADDRESS_DEFERRED:
 	case NI_EVENT_ADDRESS_ACQUIRED:
 		min_state = NI_FSM_STATE_ADDRCONF_UP;
 		break;
@@ -4097,6 +4098,14 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 		return FALSE;
 
 	switch (event) {
+	case NI_EVENT_ADDRESS_DEFERRED:
+		/*
+		 * All fine so far, it is just a wait cancel for this lease;
+		 * the sevice deferred it, maybe also started some fallback,
+		 * but will continue in background.
+		 */
+		return TRUE;
+
 	case NI_EVENT_ADDRESS_ACQUIRED:
 		{
 			lease = ni_netdev_get_lease_by_uuid(dev, &cb->uuid);
