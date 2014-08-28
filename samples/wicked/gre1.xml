@@ -1,0 +1,19 @@
+<interface>
+  <name>gre1</name>
+
+  <gre>
+    <local-address>10.121.8.167</local-address>
+    <remote-address>10.121.0.48</remote-address>
+    <ttl>0</ttl>
+    <tos>0</tos>
+    <pmtudisc>false</pmtudisc>
+  </gre>
+
+  <ipv4:static>
+    <address>
+      <local>192.168.101.42/32</local>
+      <peer>192.168.101.1</peer>
+    </address>
+  </ipv4:static>
+
+</interface>
