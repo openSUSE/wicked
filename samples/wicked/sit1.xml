@@ -1,0 +1,13 @@
+<interface>
+  <name>sit1</name>
+
+  <sit>
+    <local-address>10.121.8.167</local-address>
+    <remote-address>10.121.0.48</remote-address>
+    <ttl>0</ttl>
+    <tos>0</tos>
+    <pmtudisc>true</pmtudisc>
+    <isatap>false</isatap>
+  </sit>
+
+</interface>
