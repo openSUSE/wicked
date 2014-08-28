@@ -7,35 +7,35 @@
 .SH NAME
 ifcfg-tunnel \- network tunnel interface configuration
 .SH SYNOPSIS
-.\".B /etc/sysconfig/network/ifcfg-gre*
-.\".br
-.\".B /etc/sysconfig/network/ifcfg-ipip*
-.\".br
-.\".B /etc/sysconfig/network/ifcfg-sit*
-.\".br
-.\"
+.B /etc/sysconfig/network/ifcfg-gre*
+.br
+.B /etc/sysconfig/network/ifcfg-ipip*
+.br
+.B /etc/sysconfig/network/ifcfg-sit*
+.br
+
 .B /etc/sysconfig/network/ifcfg-tun*
 .br
 .B /etc/sysconfig/network/ifcfg-tap*
 
-.\".SH Tunnel interfaces
-.\"It is possible to create static IP tunnel interfaces for three different
-.\"protocols:
-.\".RS
-.\".PD 0
-.\".TP
-.\".I SIT
-.\"IPv6 over IPv4 tunnel
-.\".TP
-.\".I GRE
-.\"universal IPv4 tunnel
-.\".TP
-.\".I IPIP
-.\"IPv4 over IPv4 tunnel
-.\".PD
-.\".RE
+.SH Tunnel interfaces
+It is possible to create static IP tunnel interfaces for three different
+protocols:
+.RS
+.PD 0
+.TP
+.I SIT
+IPv6 over IPv4 tunnel
+.TP
+.I GRE
+universal IPv4 tunnel
+.TP
+.I IPIP
+IPv4 over IPv4 tunnel
+.PD
+.RE
 
-Currently, creation of user space program driven tunnels using
+Additionally, creation of user space program driven tunnels using
 the universal TUN/TAP device driver is supported:
 .RS
 .PD 0
@@ -48,8 +48,6 @@ Point-to-Point IP tunnel interface
 .PD
 .RE
 .PP
-Note that \fBSIT\fP, \fBGRE\fP and \fBIPIP\fP tunnels are under development.
-
 Since there is not yet YaST2 support for creating tunnels one must
 write appropriate config files by hand for now.
 
@@ -57,17 +55,16 @@ write appropriate config files by hand for now.
 These variables can used in ip tunnel config files:
 .TP
 .B TUNNEL
-Here you have to set the tunnel protocol. Currently, this may be set to "tap"
-or "tun" for the user space program driven tunnels.
-.\"This may be "sit" for IPv6 over IPv4
-.\"tunnel, "gre" for universal IPv4 tunnel, "ipip" for IPv4 over IPv4 tunnel and
-.\""tap" or "tun" for the user space program driven tunnels.
+Here you have to set the tunnel protocol. This may be "sit" for IPv6 over IPv4
+tunnel, "gre" for universal IPv4 tunnel, "ipip" for IPv4 over IPv4 tunnel and
+"tap" or "tun" for the user space program driven tunnels.
 .TP
 .\"TODO: do we wish to support TUNNEL_DEVICE?
 .\".BR TUNNEL_LOCAL_IPADDR \ or \ TUNNEL_DEVICE
-.\"The address of the local tunnel's end could be directly specified in
-.\".B TUNNEL_LOCAL_IPADDR
-.\"variable. The address must be present on an existing interface of this host
+.BR TUNNEL_LOCAL_IPADDR
+The address of the local tunnel's end must be directly specified in
+.B TUNNEL_LOCAL_IPADDR
+variable. The address must be present on an existing interface of this host.
 .\"(the TUNNEL_DEVICE). If
 .\".B TUNNEL_LOCAL_IPADDR
 .\"is empty the first ipv4 address without label from the interface given in the
@@ -77,18 +74,34 @@ or "tun" for the user space program driven tunnels.
 .\"interface, that you don't want to use.
 .\".B TUNNEL_LOCAL_IPADDR
 .\"The address of the local tunnel's end.
-.\".TP
-.\".B TUNNEL_REMOTE_IPADDR
-.\"The address of the remote tunnel's end.
-.\".TP
-.\".B TUNNEL_TTL
-.\"Specify the
-.\".I Time To Life
-.\"of the packet which carries the tunneled data. Usually it is set to 64 but in
-.\"some circumstances you may want do use something else between 1 and 255. Special
-.\"value is "inherit" in which case the TTL is copied from the inner (tunneled)
-.\"packet. This is also the default if the TTL variable wasn't used.
-.\".TP
+.TP
+.B TUNNEL_REMOTE_IPADDR
+The address of the remote tunnel's end.
+.TP
+.B TUNNEL_TTL
+Specify the
+.I Time To Life
+of the packet which carries the tunneled data. Usually it is set to 64 but in
+some circumstances you may want do use something else between 1 and 255. If not
+explicitly set, the TTL is copied from the inner (tunneled) packet.
+.TP
+.B TUNNEL_TOS
+Specify the
+.I Type of Service
+of the packet which carries the tunneled data.
+.TP
+.B TUNNEL_PMTUDISC
+Enable or disable the
+.I Path MTU Discovery
+on this tunnel. PMTU discovery is disabled by default. Note that a fixed TTL is
+incompatible with this option: tunnelling with a fixed TTL always makes PMTU
+discovery.
+.TP
+.B SIT_ISATAP
+Applicable only to SIT tunnels. Enable or disable this variable to control
+whether the SIT tunnel utilizes Intra-Site Automatic Tunnel Addressing Protocol.
+By default this option is disabled.
+.TP
 .\"TODO: do we wish to support TUNNEL_OPTIONS?
 .\".B TUNNEL_OPTIONS
 .\"Here you may set additional options for the command
@@ -103,38 +116,37 @@ or "tun" for the user space program driven tunnels.
 Allows to set the owner and group (by name or UID/GID) for persistent
 tun/tap interfaces.
 .SH Examples for tunnel configurations
-This are some generic examples for different tunnel types. As configuration names
+These are some generic examples for different tunnel types. Replace the shown
+addresses and interface names by your individual ones. As configuration names
 you may choose the interface names.
-.\"This are some generic examples for different tunnel types. Replace the shown
-.\"addresses and interface names by your individual ones. As configuration names
-.\"you may choose the interface names.
-.\".TP
-.\".B GRE and IPIP tunnels
-.\"Create a GRE tunnel between a local computer with IP address 192.168.1.2
-.\"and a remote computer with IP address 172.16.2.3. After the tunnel is
-.\"created assign an IP address 10.20.30.40 to it's local end. Default filename:
-.\".I ifcfg-gre1
-.\".nf
-.\"   STARTMODE='onboot'
-.\"   BOOTPROTO='static'
-.\"   TUNNEL='gre'
-.\"   TUNNEL_LOCAL_IPADDR='192.168.1.2'
-.\"   TUNNEL_REMOTE_IPADDR='172.16.2.3'
-.\"   IPADDR='10.20.30.40'
-.\"   TUNNEL_TTL='64'
-.\".fi
-.\"IPIP tunnel is created in exactly the same way, except that the variable
-.\".B TUNNEL
-.\"has to be set to "ipip" in this case. Use filename
-.\".I ifcfg-tunl1
-.\"in this case.
-.\".TP
-.\".B SIT tunnels for IPv6 over IPv4
+.TP
+.B GRE and IPIP tunnels
+Create a GRE tunnel between a local computer with IP address 192.168.1.2
+and a remote computer with IP address 172.16.2.3. After the tunnel is
+created assign an IP address 10.20.30.40 to it's local end. Default filename:
+.I ifcfg-gre1
+.nf
+   STARTMODE='onboot'
+   BOOTPROTO='static'
+   TUNNEL='gre'
+   TUNNEL_LOCAL_IPADDR='192.168.1.2'
+   TUNNEL_REMOTE_IPADDR='172.16.2.3'
+   IPADDR='10.20.30.40'
+   TUNNEL_TTL='64'
+.fi
+IPIP tunnels are created in exactly the same way, except that the variable
+.B TUNNEL
+has to be set to "ipip". Use filename
+.I ifcfg-tunl1
+in this case.
+.TP
+.B SIT tunnels for IPv6 over IPv4
 .\"There are two modes in which SIT tunnels may operate:
-.\".I static
+.I Static
+SIT tunnels are currently supported.
 .\"and
 .\".I 6to4
-.\"To create a "static" tunnel one needs to know an IPv4 address of the remote end,
+To create a "static" tunnel one needs to know an IPv4 address of the remote end.
 .\"while for a "6to4" tunnel the remote end is a "6to4 relay". These relays are
 .\"usually public and could be reached either under their respective IPv4 address
 .\"or under a unique IPv4 anycast address 192.88.99.1 (as defined in RFC 3068).
@@ -145,9 +157,11 @@ you may choose the interface names.
 .\".I ifcfg-sit1
 .\".nf
 .\"   STARTMODE='onboot'
-.\"   BOOTPROTO='6to4'
+.\"   BOOTPROTO='static'
 .\"   TUNNEL='sit'
 .\"   .\"TUNNEL_DEVICE='eth0'
+.\"   TUNNEL_LOCAL_IPADDR='192.168.1.2'
+.\"   TUNNEL_REMOTE_IPADDR='172.16.2.3'
 .\"   TUNNEL_TTL='64'
 .\".fi
 .\"Additionally you need to set some routes. Do that in a file called
@@ -160,18 +174,17 @@ you may choose the interface names.
 .\".fi
 .\"The magic string 2002:c058:6301::1 is a 6to4 version of the anycast
 .\"IPv4 address 192.88.99.1.
-.\"To create a "static" tunnel with local IPv6 address 3ffe:ffff::1234/64
-.\"use a config file like this: Default filename:
-.\".I ifcfg-sit1
-.\".nf
-.\"   STARTMODE='onboot'
-.\"  BOOTPROTO='static'
-.\"   TUNNEL='sit'
-.\"   TUNNEL_LOCAL_IPADDR='192.168.1.2'
-.\"   TUNNEL_REMOTE_IPADDR='172.16.2.3'
-.\"   IPADDR='3ffe:ffff::1234/64'
-.\"   TUNNEL_TTL='64'
-.\".fi
+The following example also assigns the local IPv6 address 3ffe:ffff::1234/64:
+.I ifcfg-sit1
+.nf
+   STARTMODE='onboot'
+   BOOTPROTO='static'
+   TUNNEL='sit'
+   TUNNEL_LOCAL_IPADDR='192.168.1.2'
+   TUNNEL_REMOTE_IPADDR='172.16.2.3'
+   IPADDR='3ffe:ffff::1234/64'
+   TUNNEL_TTL='64'
+.fi
 .TP
 .B Universal TUN/TAP tunnels
 The universal TUN/TAP kernel driver provides an interface for user
