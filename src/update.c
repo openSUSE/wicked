@@ -276,7 +276,8 @@ static inline ni_bool_t
 can_try_reverse_lookup(const ni_addrconf_lease_t *lease)
 {
 	/* bnc#861476 workaround */
-	if (lease->state != NI_ADDRCONF_STATE_GRANTED)
+	if (lease->state != NI_ADDRCONF_STATE_APPLYING &&
+	    lease->state != NI_ADDRCONF_STATE_GRANTED)
 		return FALSE;
 
 	/* Limit to dhcp leases (for now) */
@@ -684,7 +685,7 @@ ni_system_update_remove_matching_leases(ni_updater_t *updater,
 			 * information from the system.
 			 */
 			if (!ni_string_eq(src->d_ref.name, ifname) ||
-			    lease->state != NI_ADDRCONF_STATE_GRANTED) {
+			    lease->state != NI_ADDRCONF_STATE_APPLYING) {
 				ni_system_updater_remove(updater, src->lease, src->d_ref.name);
 			}
 
@@ -721,6 +722,7 @@ ni_system_update_from_lease(const ni_addrconf_lease_t *lease, const unsigned int
 				continue;
 
 			switch(lease->state) {
+			case NI_ADDRCONF_STATE_APPLYING:
 			case NI_ADDRCONF_STATE_GRANTED:
 				if(!ni_system_update_remove_matching_leases(updater, lease, ifindex, ifname)) {
 					ni_error("Failed to remove any matching leases. Storing new lease anyway.");
