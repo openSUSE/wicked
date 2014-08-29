@@ -108,8 +108,7 @@ ni_dhcp4_device_stop(ni_dhcp4_device_t *dev)
 void
 ni_dhcp4_device_set_config(ni_dhcp4_device_t *dev, ni_dhcp4_config_t *config)
 {
-	if (dev->config)
-		free(dev->config);
+	free(dev->config);
 	dev->config = config;
 }
 
