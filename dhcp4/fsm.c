@@ -31,7 +31,6 @@
 #define NAK_BACKOFF_MAX		60	/* seconds */
 
 static int		ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *);
-static int		ni_dhcp4_fsm_decline(ni_dhcp4_device_t *);
 static const char *	ni_dhcp4_fsm_state_name(int);
 
 static int		ni_dhcp4_process_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
@@ -355,7 +354,7 @@ ni_dhcp4_fsm_rebind(ni_dhcp4_device_t *dev)
 	ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
 }
 
-int
+static void
 ni_dhcp4_fsm_decline(ni_dhcp4_device_t *dev)
 {
 	ni_warn("%s: Declining DHCPv4 lease with address %s", dev->ifname,
@@ -369,7 +368,6 @@ ni_dhcp4_fsm_decline(ni_dhcp4_device_t *dev)
 	/* RFC 2131 mandates we should wait for 10 seconds before
 	 * retrying discovery. */
 	ni_dhcp4_fsm_set_timeout(dev, 10);
-	return 0;
 }
 
 int
