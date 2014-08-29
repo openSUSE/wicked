@@ -1106,7 +1106,7 @@ ni_dhcp4_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list, const ch
 			char label[64];
 			int length;
 
-			if ((length = ni_buffer_getc(bp)) < 0)
+			if ((length = ni_buffer_getc(bp)) == EOF)
 				goto failure; /* unexpected EOF */
 
 			if (length == 0)
@@ -1127,7 +1127,7 @@ ni_dhcp4_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list, const ch
 			case 0xC0:
 				/* Pointer */
 				pointer = (length & 0x3F) << 8;
-				if ((length = ni_buffer_getc(bp)) < 0)
+				if ((length = ni_buffer_getc(bp)) == EOF)
 					goto failure;
 
 				pointer |= length;
@@ -1177,8 +1177,12 @@ ni_dhcp4_decode_csr(ni_buffer_t *bp, ni_route_array_t *routes)
 		struct in_addr prefix = { 0 };
 		unsigned int prefix_len;
 		ni_route_t *rp;
+		int c = ni_buffer_getc(bp);
 
-		prefix_len = ni_buffer_getc(bp);
+		if (c == EOF)
+			return -1;
+
+		prefix_len = (unsigned int)c;
 		if (prefix_len > 32) {
 			ni_error("invalid prefix len of %u in classless static route", prefix_len);
 			return -1;
@@ -1225,7 +1229,7 @@ ni_dhcp4_decode_sipservers(ni_buffer_t *bp, ni_string_array_t *list)
 
 	encoding = ni_buffer_getc(bp);
 	switch (encoding) {
-	case -1:
+	case EOF:
 		ni_debug_dhcp("%s: missing data", __FUNCTION__);
 		return -1;
 
@@ -1608,7 +1612,7 @@ parse_more:
 		switch (option) {
 		case DHCP4_MESSAGETYPE:
 			msg_type = ni_buffer_getc(&buf);
-			if (msg_type < 0)
+			if (msg_type == EOF)
 				goto error;
 			continue;
 		case DHCP4_ADDRESS:
@@ -1734,9 +1738,12 @@ parse_more:
 		case DHCP4_OPTIONSOVERLOADED:
 			if (options != &overload_buf) {
 				opt_overload = ni_buffer_getc(&buf);
+				if (opt_overload == EOF)
+					goto error;
 			} else {
 				ni_debug_dhcp("DHCP4: ignoring OVERLOAD option in overloaded data");
-				(void) ni_buffer_getc(&buf);
+				if (ni_buffer_getc(&buf) == EOF)
+					goto error;
 			}
 			break;
 
