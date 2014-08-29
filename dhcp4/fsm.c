@@ -260,11 +260,10 @@ ni_dhcp4_fsm_set_deadline(ni_dhcp4_device_t *dev, time_t deadline)
 		ni_error("ni_dhcp4_fsm_set_deadline(%s): cannot go back in time", dev->ifname);
 }
 
-int
+static void
 __ni_dhcp4_fsm_discover(ni_dhcp4_device_t *dev, int scan_offers)
 {
 	ni_addrconf_lease_t *lease;
-	int rv;
 
 	ni_info("%s: Initiating DHCPv4 discovery (ifindex %d)", dev->ifname, dev->link.ifindex);
 
@@ -278,7 +277,7 @@ __ni_dhcp4_fsm_discover(ni_dhcp4_device_t *dev, int scan_offers)
 	lease->uuid = dev->config->uuid;
 
 	dev->fsm.state = NI_DHCP4_STATE_SELECTING;
-	rv = ni_dhcp4_device_send_message(dev, DHCP4_DISCOVER, lease);
+	ni_dhcp4_device_send_message(dev, DHCP4_DISCOVER, lease);
 
 	dev->dhcp4.accept_any_offer = 1;
 	ni_debug_dhcp("valid lease: %d; have prefs: %d",
@@ -296,13 +295,12 @@ __ni_dhcp4_fsm_discover(ni_dhcp4_device_t *dev, int scan_offers)
 
 	if (lease != dev->lease)
 		ni_addrconf_lease_free(lease);
-	return rv;
 }
 
-int
+static void
 ni_dhcp4_fsm_discover(ni_dhcp4_device_t *dev)
 {
-	return __ni_dhcp4_fsm_discover(dev, 1);
+	__ni_dhcp4_fsm_discover(dev, 1);
 }
 
 int
