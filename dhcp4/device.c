@@ -581,7 +581,7 @@ ni_dhcp4_device_send_message(ni_dhcp4_device_t *dev, unsigned int msg_code, cons
 		timeout.increment = dev->config->resend_timeout;
 		timeout.nretries = -1;
 		timeout.jitter.min = -1;/* add a random jitter of +/-1 sec */
-		timeout.jitter.min = 1;
+		timeout.jitter.max = 1;
 		timeout.max_timeout = NI_DHCP4_RESEND_TIMEOUT_MAX;
 
 		if (dev->fsm.state == NI_DHCP4_STATE_RENEWING) {
