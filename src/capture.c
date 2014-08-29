@@ -345,7 +345,7 @@ ni_capture_force_retransmit(ni_capture_t *capture, unsigned int delay)
 /*
  * Retransmit handling
  */
-void
+static void
 ni_capture_retransmit(ni_capture_t *capture)
 {
 	int rv;
