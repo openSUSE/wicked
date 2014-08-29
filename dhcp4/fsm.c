@@ -243,7 +243,7 @@ ni_dhcp4_fsm_set_timeout_msec(ni_dhcp4_device_t *dev, unsigned int msec)
 	}
 }
 
-void
+static void
 ni_dhcp4_fsm_set_timeout(ni_dhcp4_device_t *dev, unsigned int seconds)
 {
 	ni_dhcp4_fsm_set_timeout_msec(dev, 1000 * seconds);
