@@ -865,7 +865,7 @@ ni_dhcp4_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *pk
 	ni_bool_t false_alarm = FALSE;
 	ni_bool_t found_addr = FALSE;
 
-	if (!pkt || pkt->op != ARPOP_REPLY || !dev || !dev->lease)
+	if (!pkt || pkt->op != ARPOP_REPLY || !dev->lease)
 		return;
 
 	/* Is it about the address we're validating at all? */
