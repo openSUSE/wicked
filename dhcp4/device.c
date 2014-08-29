@@ -518,7 +518,6 @@ void
 ni_dhcp4_device_alloc_buffer(ni_dhcp4_device_t *dev)
 {
 	unsigned int mtu = 0;
-	void *pkt;
 
 	mtu = dev->system.mtu;
 	if (mtu == 0)
@@ -528,18 +527,14 @@ ni_dhcp4_device_alloc_buffer(ni_dhcp4_device_t *dev)
 		ni_buffer_clear(&dev->message);
 	} else {
 		ni_dhcp4_device_drop_buffer(dev);
-
-		pkt = calloc(1, mtu);
-		ni_buffer_init(&dev->message, pkt, mtu);
+		ni_buffer_init_dynamic(&dev->message, mtu);
 	}
 }
 
 void
 ni_dhcp4_device_drop_buffer(ni_dhcp4_device_t *dev)
 {
-	if (dev->message.base)
-		free(dev->message.base);
-	memset(&dev->message, 0, sizeof(dev->message));
+	ni_buffer_destroy(&dev->message);
 }
 
 int
