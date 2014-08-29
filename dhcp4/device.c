@@ -428,7 +428,6 @@ ni_dhcp4_release(ni_dhcp4_device_t *dev, const ni_uuid_t *lease_uuid)
 {
 	char *rel_uuid = NULL;
 	char *our_uuid = NULL;
-	int rv;
 
 	if (dev->lease == NULL) {
 		ni_error("%s: no lease set", dev->ifname);
@@ -454,8 +453,7 @@ ni_dhcp4_release(ni_dhcp4_device_t *dev, const ni_uuid_t *lease_uuid)
 	 * server's reply. We just keep our fingers crossed that it's
 	 * getting out. If it doesn't, it's rather likely the network
 	 * is hosed anyway, so there's little point in delaying. */
-	if ((rv = ni_dhcp4_fsm_release(dev)) < 0)
-		return rv;
+	ni_dhcp4_fsm_release(dev);
 
 	ni_dhcp4_device_stop(dev);
 	return 0;
