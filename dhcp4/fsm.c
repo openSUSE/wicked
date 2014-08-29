@@ -30,7 +30,6 @@
 
 #define NAK_BACKOFF_MAX		60	/* seconds */
 
-static int		ni_dhcp4_fsm_request(ni_dhcp4_device_t *, const ni_addrconf_lease_t *);
 static int		ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *);
 static int		ni_dhcp4_fsm_renewal(ni_dhcp4_device_t *);
 static int		ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *);
@@ -303,22 +302,17 @@ ni_dhcp4_fsm_discover(ni_dhcp4_device_t *dev)
 	__ni_dhcp4_fsm_discover(dev, 1);
 }
 
-int
+static void
 ni_dhcp4_fsm_request(ni_dhcp4_device_t *dev, const ni_addrconf_lease_t *lease)
 {
-	int rv;
-
 	ni_info("%s: Requesting DHCPv4 lease with timeout %d sec",
 		dev->ifname, dev->config->request_timeout);
 
 	dev->fsm.state = NI_DHCP4_STATE_REQUESTING;
-	rv = ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, lease);
-
 	/* Ignore the return value; sending the request may actually
 	 * fail transiently */
 	ni_dhcp4_fsm_set_timeout(dev, dev->config->request_timeout);
-
-	return rv;
+	ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, lease);
 }
 
 int
