@@ -1169,20 +1169,33 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 	return TRUE;
 }
 
+static void
+ni_ifworker_print_callbacks(const char *ifname, ni_objectmodel_callback_info_t *callback_list)
+{
+	ni_objectmodel_callback_info_t *cb;
+
+	if (!(ni_debug & NI_TRACE_EVENTS))
+		return;
+
+	if (callback_list == NULL) {
+		ni_debug_events("%s: no pending callbacks", ifname);
+	} else {
+		ni_debug_events("%s: waiting for callbacks:", ifname);
+		for (cb = callback_list; cb; cb = cb->next) {
+			ni_debug_events("        %s event=%s",
+					ni_uuid_print(&cb->uuid),
+					cb->event);
+		}
+	}
+}
+
 /* Create an event wait object */
 static void
 ni_ifworker_add_callbacks(ni_fsm_transition_t *action, ni_objectmodel_callback_info_t *callback_list, const char *ifname)
 {
 	ni_objectmodel_callback_info_t **pos, *cb;
 
-	if (ni_debug & NI_TRACE_DBUS) {
-		ni_trace("%s: waiting for callbacks:", ifname);
-		for (cb = callback_list; cb; cb = cb->next) {
-			ni_trace("        %s event=%s",
-				ni_uuid_print(&cb->uuid),
-				cb->event);
-		}
-	}
+	ni_ifworker_print_callbacks(ifname, callback_list);
 
 	for (pos = &action->callbacks; (cb = *pos) != NULL; pos = &cb->next)
 		;
@@ -4274,6 +4287,8 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			if (ni_ifworker_waiting_for_event(w, event_name)) {
 				ni_debug_application("%s: waiting for more %s events...",
 							w->name, event_name);
+				ni_ifworker_print_callbacks(w->name, w->fsm.wait_for ?
+						w->fsm.wait_for->callbacks : NULL);
 				goto done;
 			}
 		}
