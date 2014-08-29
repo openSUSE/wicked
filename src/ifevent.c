@@ -169,13 +169,14 @@ __ni_netdev_process_events(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int ol
 	};
 	size_t flags = sizeof(flag_transitions)/sizeof(flag_transitions[0]);
 	unsigned int i, new_flags, flags_changed;
+	ni_uint_array_t events = NI_UINT_ARRAY_INIT;
 
 	new_flags = dev->link.ifflags;
 	flags_changed = old_flags ^ new_flags;
 
 	if (dev->created) {
 		dev->created = 0;
-		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_CREATE);
+		ni_uint_array_append(&events, NI_EVENT_DEVICE_CREATE);
 	}
 
 	/* transition up */
@@ -184,7 +185,7 @@ __ni_netdev_process_events(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int ol
 		if ((flags_changed & edge->flag) == 0)
 			continue;
 		if (new_flags & edge->flag) {
-			__ni_netdev_event(nc, dev, edge->event_up);
+			ni_uint_array_append(&events, edge->event_up);
 		}
 	}
 
@@ -198,14 +199,22 @@ __ni_netdev_process_events(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int ol
 				ni_ipv6_ra_info_flush(&dev->ipv6->radv);
 
 			if (edge->event_down)
-				__ni_netdev_event(nc, dev, edge->event_down);
+				ni_uint_array_append(&events, edge->event_down);
 		}
 	}
 
 	if (dev->deleted) {
 		dev->deleted = 0;
-		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_DELETE);
+		ni_uint_array_append(&events, NI_EVENT_DEVICE_DELETE);
+	} else
+	if (events.count == 0) {
+		__ni_netdev_event(nc, dev, NI_EVENT_DEVICE_CHANGE);
 	}
+
+	for (i = 0; i < events.count; ++i) {
+		__ni_netdev_event(nc, dev, events.data[i]);
+	}
+	ni_uint_array_destroy(&events);
 }
 
 
