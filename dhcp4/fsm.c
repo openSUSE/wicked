@@ -757,65 +757,6 @@ discard:
 	return -1;
 }
 
-#if 0
-int
-ni_dhcp4_fsm_recover_lease(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *req)
-{
-	ni_addrconf_lease_t *lease;
-	time_t now = time(NULL), then;
-
-	/* Don't recover anything if we already have a lease attached. */
-	if (dev->lease != NULL)
-		return -1;
-
-	lease = ni_addrconf_lease_file_read(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
-	if (!lease)
-		return -1;
-
-	if (lease->state != NI_ADDRCONF_STATE_GRANTED)
-		goto discard;
-
-	ni_debug_dhcp("trying to recover dhcp4 lease, now inspecting");
-	then = lease->time_acquired;
-	if (now < then) {
-		ni_debug_dhcp("%s: found time-warped lease (hi, grand-grand-pa)", __FUNCTION__);
-		goto discard;
-	}
-
-	if (now >= then + lease->dhcp4.lease_time) {
-		ni_debug_dhcp("%s: found expired lease", __FUNCTION__);
-		goto discard;
-	}
-
-	if ((req->hostname && !ni_string_eq(req->hostname, dev->lease->hostname))
-	 || (req->clientid && !ni_string_eq(req->clientid, dev->lease->dhcp4.client_id))) {
-		ni_debug_dhcp("%s: lease doesn't match request", __FUNCTION__);
-		goto discard;
-	}
-
-	ni_dhcp4_device_set_lease(dev, lease);
-
-	if (now >= then + lease->dhcp4.rebind_time) {
-		ni_dhcp4_fsm_rebind(dev);
-	} else
-	if (now >= then + lease->dhcp4.renewal_time) {
-		ni_dhcp4_fsm_renewal(dev);
-	} else {
-		ni_dhcp4_fsm_set_deadline(dev, then + lease->dhcp4.renewal_time);
-		dev->fsm.state = NI_DHCP4_STATE_BOUND;
-	}
-
-	ni_debug_dhcp("%s: recovered old lease; now in state=%s",
-			dev->ifname, ni_dhcp4_fsm_state_name(dev->fsm.state));
-	dev->notify = 1;
-	return 0;
-
-discard:
-	ni_addrconf_lease_free(lease);
-	return -1;
-}
-#endif
-
 void
 ni_dhcp4_fsm_fail_lease(ni_dhcp4_device_t *dev)
 {
