@@ -675,6 +675,7 @@ ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_even
 	ni_socket_t *sock;
 	uint32_t groups = 0;
 	int fd;
+	unsigned int rsize = 1024*1024; /* required nl_sock receive buf size */
 
 	if (__ni_rtevent_sock || ni_global.interface_event) {
 		ni_error("Interface event handler is already set");
@@ -718,6 +719,11 @@ ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_even
 		ni_error("Cannot wrap rtnetlink event socket: %m");
 		nl_socket_free(nl_sock);
 		return -1;
+	}
+
+	if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF,
+			(char *)&rsize, sizeof rsize)) {
+		ni_warn("unable to set receive buffer to %u bytes", rsize);
 	}
 
 	sock->user_data	= nl_sock;
