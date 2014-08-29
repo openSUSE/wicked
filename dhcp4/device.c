@@ -328,6 +328,9 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 			ni_debug_dhcp("%s: lease doesn't match request", dev->ifname);
 			ni_dhcp4_device_drop_lease(dev);
 			dev->notify = 1;
+		} else {
+			/* Lease may be good */
+			dev->fsm.state = NI_DHCP4_STATE_REBOOT;
 		}
 	}
 

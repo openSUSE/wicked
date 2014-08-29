@@ -501,6 +501,7 @@ ni_dhcp4_fsm_link_up(ni_dhcp4_device_t *dev)
 		break;
 
 	case NI_DHCP4_STATE_BOUND:
+	case NI_DHCP4_STATE_REBOOT:
 		/* The link went down and came back up. We may now be on a
 		 * completely different network, and our lease may no longer
 		 * be valid.
