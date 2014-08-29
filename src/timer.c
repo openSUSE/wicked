@@ -147,6 +147,8 @@ ni_timeout_recompute(ni_timeout_param_t *tmo)
 {
 	if (tmo->nretries == 0)
 		return FALSE;
+	else if (tmo->nretries > 0)
+		tmo->nretries--;
 
 	if (tmo->increment >= 0)
 		tmo->timeout += tmo->increment;
