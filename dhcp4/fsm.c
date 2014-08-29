@@ -230,7 +230,7 @@ static void
 ni_dhcp4_fsm_set_timeout_msec(ni_dhcp4_device_t *dev, unsigned int msec)
 {
 	if (msec != 0) {
-		ni_debug_dhcp("%s: setting timeout to %u msec", dev->ifname, msec);
+		ni_debug_dhcp("%s: setting fsm timeout to %u msec", dev->ifname, msec);
 		if (dev->fsm.timer)
 			ni_timer_rearm(dev->fsm.timer, msec);
 		else
