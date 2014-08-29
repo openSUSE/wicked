@@ -70,7 +70,7 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 	}
 	if (dev->dhcp4.xid != message->xid) {
 		ni_debug_dhcp("ignoring packet with wrong xid 0x%x (expected 0x%x)",
-				message->xid, dev->dhcp4.xid);
+				htonl(message->xid), htonl(dev->dhcp4.xid));
 		return -1;
 	}
 

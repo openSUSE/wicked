@@ -555,7 +555,7 @@ ni_dhcp4_device_send_message(ni_dhcp4_device_t *dev, unsigned int msg_code, cons
 		goto transient_failure;
 	}
 
-	ni_debug_dhcp("sending %s with xid 0x%x", ni_dhcp4_message_name(msg_code), dev->dhcp4.xid);
+	ni_debug_dhcp("sending %s with xid 0x%x", ni_dhcp4_message_name(msg_code), htonl(dev->dhcp4.xid));
 
 	/* Allocate an empty buffer */
 	ni_dhcp4_device_alloc_buffer(dev);
