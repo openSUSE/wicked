@@ -820,7 +820,7 @@ ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *dev)
 	struct in_addr null = { 0 };
 	struct in_addr claim;
 
-	if (!dev || !dev->lease)
+	if (!dev->lease)
 		return -1;
 
 	claim = dev->lease->dhcp4.address;
