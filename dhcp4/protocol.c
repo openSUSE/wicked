@@ -551,6 +551,9 @@ __ni_dhcp4_build_msg_init_head(const ni_dhcp4_device_t *dev,
 
 	ni_dhcp4_option_put8(msgbuf, DHCP4_MESSAGETYPE, msg_code);
 	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+			"%s: xid: %x, secs: %u", dev->ifname,
+			ntohl(message->xid), ntohs(message->secs));
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
 			"%s: using message type: %s", dev->ifname,
 			ni_dhcp4_message_name(msg_code));
 
