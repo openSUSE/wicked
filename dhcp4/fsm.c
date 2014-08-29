@@ -231,7 +231,7 @@ ni_dhcp4_fsm_restart(ni_dhcp4_device_t *dev)
 	ni_dhcp4_device_drop_lease(dev);
 }
 
-void
+static void
 ni_dhcp4_fsm_set_timeout_msec(ni_dhcp4_device_t *dev, unsigned int msec)
 {
 	if (msec != 0) {
