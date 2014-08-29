@@ -31,7 +31,6 @@
 #define NAK_BACKOFF_MAX		60	/* seconds */
 
 static int		ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *);
-static int		ni_dhcp4_fsm_rebind(ni_dhcp4_device_t *);
 static int		ni_dhcp4_fsm_decline(ni_dhcp4_device_t *);
 static const char *	ni_dhcp4_fsm_state_name(int);
 
@@ -342,22 +341,18 @@ ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *dev)
 	ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
 }
 
-int
+static void
 ni_dhcp4_fsm_rebind(ni_dhcp4_device_t *dev)
 {
-	int rv;
-
 	ni_info("%s: Initiating rebind of DHCPv4 lease",
 		dev->ifname);
 
 	dev->lease->dhcp4.server_id.s_addr = 0;
 
 	dev->fsm.state = NI_DHCP4_STATE_REBINDING;
-	rv = ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
-
 	ni_dhcp4_fsm_set_deadline(dev,
 			dev->lease->time_acquired + dev->lease->dhcp4.lease_time);
-	return rv;
+	ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
 }
 
 int
