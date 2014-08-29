@@ -187,7 +187,9 @@ ni_timeout_randomize(unsigned long timeout, const ni_int_range_t *jitter)
 {
 	if (jitter && jitter->min < jitter->max) {
 		unsigned int jitter_range = (jitter->max - jitter->min);
-		timeout += ((long) random() % jitter_range) + jitter->min;
+		long adj = ((long) random() % jitter_range) + jitter->min;
+		ni_debug_socket("%s: timeout %lu adjusted by %ld to %lu (jr %u)", __func__, timeout, adj, timeout + adj, jitter_range);
+		timeout += adj;
 	}
 	return timeout;
 }
