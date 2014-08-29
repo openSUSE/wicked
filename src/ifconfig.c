@@ -328,9 +328,6 @@ __ni_addrconf_action_addrs_verify(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	unsigned int loops = 50;
 	int res;
 
-	if (lease->family != AF_INET6)
-		return 0;
-
 	/*
 	 * TODO: instead to loop here, return 1 to go into background
 	 *       and continue to apply when address update event with
