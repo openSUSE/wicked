@@ -31,7 +31,6 @@
 #define NAK_BACKOFF_MAX		60	/* seconds */
 
 static int		ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *);
-static int		ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *);
 static int		ni_dhcp4_fsm_rebind(ni_dhcp4_device_t *);
 static int		ni_dhcp4_fsm_decline(ni_dhcp4_device_t *);
 static const char *	ni_dhcp4_fsm_state_name(int);
@@ -326,24 +325,21 @@ ni_dhcp4_fsm_renewal(ni_dhcp4_device_t *dev)
 	ni_dhcp4_device_send_message_unicast(dev, DHCP4_REQUEST, dev->lease);
 }
 
-int
+static void
 ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *dev)
 {
 	time_t deadline;
-	int rv;
 
 	/* RFC 2131, 3.2 (see also 3.1) */
 	ni_debug_dhcp("trying to confirm lease for %s", dev->ifname);
 
 	dev->fsm.state = NI_DHCP4_STATE_REBOOT;
-	rv = ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
-
 	deadline = time(NULL) + 10;
 	if (deadline > dev->lease->time_acquired + dev->lease->dhcp4.rebind_time)
 		deadline = dev->lease->time_acquired + dev->lease->dhcp4.rebind_time;
 
 	ni_dhcp4_fsm_set_deadline(dev, deadline);
-	return rv;
+	ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
 }
 
 int
