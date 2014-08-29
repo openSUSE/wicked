@@ -324,8 +324,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_dhcp4_recover_lease(dev);
 
 	if (dev->lease) {
-		if (!ni_addrconf_lease_is_valid(dev->lease)
-		 || (config->client_id.len && !ni_opaque_eq(&config->client_id, &dev->lease->dhcp4.client_id))) {
+		if (config->client_id.len && !ni_opaque_eq(&config->client_id, &dev->lease->dhcp4.client_id)) {
 			ni_debug_dhcp("%s: lease doesn't match request", dev->ifname);
 			ni_dhcp4_device_drop_lease(dev);
 			dev->notify = 1;
