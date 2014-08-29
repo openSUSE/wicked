@@ -30,12 +30,7 @@
 
 #define NAK_BACKOFF_MAX		60	/* seconds */
 
-static int		ni_dhcp4_fsm_request(ni_dhcp4_device_t *, const ni_addrconf_lease_t *);
 static int		ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *);
-static int		ni_dhcp4_fsm_renewal(ni_dhcp4_device_t *);
-static int		ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *);
-static int		ni_dhcp4_fsm_rebind(ni_dhcp4_device_t *);
-static int		ni_dhcp4_fsm_decline(ni_dhcp4_device_t *);
 static const char *	ni_dhcp4_fsm_state_name(int);
 
 static int		ni_dhcp4_process_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
@@ -75,7 +70,7 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 	}
 	if (dev->dhcp4.xid != message->xid) {
 		ni_debug_dhcp("ignoring packet with wrong xid 0x%x (expected 0x%x)",
-				message->xid, dev->dhcp4.xid);
+				htonl(message->xid), htonl(dev->dhcp4.xid));
 		return -1;
 	}
 
@@ -227,15 +222,16 @@ ni_dhcp4_fsm_restart(ni_dhcp4_device_t *dev)
 		dev->fsm.timer = NULL;
 	}
 	dev->dhcp4.xid = 0;
+	dev->config->elapsed_timeout = 0;
 
 	ni_dhcp4_device_drop_lease(dev);
 }
 
-void
+static void
 ni_dhcp4_fsm_set_timeout_msec(ni_dhcp4_device_t *dev, unsigned int msec)
 {
 	if (msec != 0) {
-		ni_debug_dhcp("%s: setting timeout to %u msec", dev->ifname, msec);
+		ni_debug_dhcp("%s: setting fsm timeout to %u msec", dev->ifname, msec);
 		if (dev->fsm.timer)
 			ni_timer_rearm(dev->fsm.timer, msec);
 		else
@@ -243,7 +239,7 @@ ni_dhcp4_fsm_set_timeout_msec(ni_dhcp4_device_t *dev, unsigned int msec)
 	}
 }
 
-void
+static void
 ni_dhcp4_fsm_set_timeout(ni_dhcp4_device_t *dev, unsigned int seconds)
 {
 	ni_dhcp4_fsm_set_timeout_msec(dev, 1000 * seconds);
@@ -260,13 +256,15 @@ ni_dhcp4_fsm_set_deadline(ni_dhcp4_device_t *dev, time_t deadline)
 		ni_error("ni_dhcp4_fsm_set_deadline(%s): cannot go back in time", dev->ifname);
 }
 
-int
+static void
 __ni_dhcp4_fsm_discover(ni_dhcp4_device_t *dev, int scan_offers)
 {
 	ni_addrconf_lease_t *lease;
-	int rv;
 
-	ni_info("%s: Initiating DHCPv4 discovery (ifindex %d)", dev->ifname, dev->link.ifindex);
+	if (dev->config->elapsed_timeout)
+		ni_info("%s: Reinitiating DHCPv4 discovery (ifindex %d)", dev->ifname, dev->link.ifindex);
+	else
+		ni_info("%s: Initiating DHCPv4 discovery (ifindex %d)", dev->ifname, dev->link.ifindex);
 
 	/* If we already have a lease, try asking for the same.
 	 * If not, create a dummy lease with NULL fields.
@@ -278,110 +276,113 @@ __ni_dhcp4_fsm_discover(ni_dhcp4_device_t *dev, int scan_offers)
 	lease->uuid = dev->config->uuid;
 
 	dev->fsm.state = NI_DHCP4_STATE_SELECTING;
-	rv = ni_dhcp4_device_send_message(dev, DHCP4_DISCOVER, lease);
-
 	dev->dhcp4.accept_any_offer = 1;
+
 	ni_debug_dhcp("valid lease: %d; have prefs: %d",
 			ni_addrconf_lease_is_valid(dev->lease),
 			ni_dhcp4_config_have_server_preference());
 	if (ni_addrconf_lease_is_valid(dev->lease)
 	 || (scan_offers && ni_dhcp4_config_have_server_preference())) {
-		ni_dhcp4_fsm_set_timeout(dev, dev->config->initial_discovery_timeout);
 		dev->dhcp4.accept_any_offer = 0;
-	} else {
-		ni_dhcp4_fsm_set_timeout(dev, dev->config->request_timeout);
 	}
+
+	dev->config->capture_timeout = dev->config->capture_max_timeout;
+	if (dev->config->acquire_timeout && dev->config->acquire_timeout - dev->config->elapsed_timeout < dev->config->capture_max_timeout)
+		dev->config->capture_timeout = dev->config->acquire_timeout - dev->config->elapsed_timeout;
+	ni_dhcp4_fsm_set_timeout(dev, dev->config->capture_timeout);
+
+	ni_dhcp4_device_send_message(dev, DHCP4_DISCOVER, lease);
 
 	ni_dhcp4_device_drop_best_offer(dev);
 
 	if (lease != dev->lease)
 		ni_addrconf_lease_free(lease);
-	return rv;
 }
 
-int
+static void
 ni_dhcp4_fsm_discover(ni_dhcp4_device_t *dev)
 {
-	return __ni_dhcp4_fsm_discover(dev, 1);
+	dev->start_time = time(NULL);
+	dev->config->elapsed_timeout = 0;
+	__ni_dhcp4_fsm_discover(dev, 1);
 }
 
-int
+static void
 ni_dhcp4_fsm_request(ni_dhcp4_device_t *dev, const ni_addrconf_lease_t *lease)
 {
-	int rv;
-
-	ni_info("%s: Requesting DHCPv4 lease with timeout %d sec",
-		dev->ifname, dev->config->request_timeout);
-
 	dev->fsm.state = NI_DHCP4_STATE_REQUESTING;
-	rv = ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, lease);
+	dev->config->capture_timeout = dev->config->capture_max_timeout;
+	if (dev->config->acquire_timeout && dev->config->acquire_timeout - dev->config->elapsed_timeout < dev->config->capture_max_timeout)
+		dev->config->capture_timeout = dev->config->acquire_timeout - dev->config->elapsed_timeout;
+	ni_dhcp4_fsm_set_timeout(dev, dev->config->capture_timeout);
 
-	/* Ignore the return value; sending the request may actually
-	 * fail transiently */
-	ni_dhcp4_fsm_set_timeout(dev, dev->config->request_timeout);
-
-	return rv;
+	ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, lease);
 }
 
-int
+static void
 ni_dhcp4_fsm_renewal(ni_dhcp4_device_t *dev)
 {
-	int rv;
-
 	ni_info("%s: Initiating renewal of DHCPv4 lease",
 		dev->ifname);
 
+	dev->start_time = time(NULL);
 	dev->fsm.state = NI_DHCP4_STATE_RENEWING;
-	rv = ni_dhcp4_device_send_message_unicast(dev, DHCP4_REQUEST, dev->lease);
-
 	ni_dhcp4_fsm_set_deadline(dev,
 			dev->lease->time_acquired + dev->lease->dhcp4.rebind_time);
-	return rv;
+	ni_dhcp4_device_send_message_unicast(dev, DHCP4_REQUEST, dev->lease);
 }
 
-int
+static void
 ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *dev)
 {
-	time_t deadline;
-	int rv;
+	time_t now = time(NULL);
+	time_t expire_time, deadline = now + 10;
 
 	/* RFC 2131, 3.2 (see also 3.1) */
 	ni_debug_dhcp("trying to confirm lease for %s", dev->ifname);
 
+	dev->config->elapsed_timeout = 0;
+	dev->start_time = time(NULL);
 	dev->fsm.state = NI_DHCP4_STATE_REBOOT;
-	rv = ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
 
-	deadline = time(NULL) + 10;
-	if (deadline > dev->lease->time_acquired + dev->lease->dhcp4.rebind_time)
-		deadline = dev->lease->time_acquired + dev->lease->dhcp4.rebind_time;
+	expire_time = dev->lease->time_acquired + dev->lease->dhcp4.rebind_time;
+	if (expire_time > now && deadline > expire_time)
+		deadline = expire_time;
+	dev->config->capture_timeout = deadline - now;
 
-	ni_dhcp4_fsm_set_deadline(dev, deadline);
-	return rv;
+	ni_dhcp4_fsm_set_timeout(dev, dev->config->capture_timeout);
+	ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
 }
 
-int
+static void
 ni_dhcp4_fsm_rebind(ni_dhcp4_device_t *dev)
 {
-	int rv;
+	time_t expire_time, now = time(NULL);
 
 	ni_info("%s: Initiating rebind of DHCPv4 lease",
 		dev->ifname);
 
-	dev->lease->dhcp4.server_id.s_addr = 0;
-
+	dev->start_time = time(NULL);
 	dev->fsm.state = NI_DHCP4_STATE_REBINDING;
-	rv = ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
-
-	ni_dhcp4_fsm_set_deadline(dev,
-			dev->lease->time_acquired + dev->lease->dhcp4.lease_time);
-	return rv;
+	dev->lease->dhcp4.server_id.s_addr = 0;
+	expire_time = dev->lease->time_acquired + dev->lease->dhcp4.lease_time;
+	dev->config->capture_timeout = dev->config->capture_max_timeout;
+	if (expire_time > now) {
+		if (expire_time - now < dev->config->capture_max_timeout)
+			dev->config->capture_timeout = expire_time - now;
+		ni_dhcp4_fsm_set_deadline(dev, expire_time);
+	} else
+		ni_dhcp4_fsm_set_timeout(dev, dev->config->capture_timeout);
+	ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
 }
 
-int
+static void
 ni_dhcp4_fsm_decline(ni_dhcp4_device_t *dev)
 {
 	ni_warn("%s: Declining DHCPv4 lease with address %s", dev->ifname,
 		inet_ntoa(dev->lease->dhcp4.address));
+
+	dev->start_time = time(NULL);
 	dev->fsm.state = NI_DHCP4_STATE_INIT;
 	ni_dhcp4_device_send_message(dev, DHCP4_DECLINE, dev->lease);
 
@@ -391,23 +392,20 @@ ni_dhcp4_fsm_decline(ni_dhcp4_device_t *dev)
 	/* RFC 2131 mandates we should wait for 10 seconds before
 	 * retrying discovery. */
 	ni_dhcp4_fsm_set_timeout(dev, 10);
-	return 0;
 }
 
-int
+void
 ni_dhcp4_fsm_release(ni_dhcp4_device_t *dev)
 {
 	if (!dev->config) {
 		ni_debug_dhcp("%s: not configured, dropping lease", dev->ifname);
 		ni_dhcp4_fsm_commit_lease(dev, NULL);
-		return 0;
 	}
 
 	ni_debug_dhcp("%s: releasing lease", dev->ifname);
 	ni_dhcp4_device_send_message(dev, DHCP4_RELEASE, dev->lease);
 
 	ni_dhcp4_fsm_commit_lease(dev, NULL);
-	return 0;
 }
 
 /*
@@ -416,9 +414,12 @@ ni_dhcp4_fsm_release(ni_dhcp4_device_t *dev)
 static void
 ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 {
+	ni_dhcp4_config_t *conf = dev->config;
 	ni_debug_dhcp("%s: timeout in state %s",
 			dev->ifname, ni_dhcp4_fsm_state_name(dev->fsm.state));
 	dev->fsm.timer = NULL;
+
+	conf->elapsed_timeout += conf->capture_timeout;
 
 	switch (dev->fsm.state) {
 	case NI_DHCP4_STATE_INIT:
@@ -431,7 +432,6 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 
 	case NI_DHCP4_STATE_SELECTING:
 		if (!dev->dhcp4.accept_any_offer) {
-			ni_dhcp4_config_t *conf = dev->config;
 
 			/* We were scanning all offers to check for a best offer.
 			 * There was no perfect match, but we may have a "good enough"
@@ -447,14 +447,27 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 			}
 
 			ni_dhcp4_fsm_fail_lease(dev);
-			if (conf->initial_discovery_timeout < conf->request_timeout) {
-				__ni_dhcp4_fsm_discover(dev, 0);
-				return;
-			}
+			dev->start_time = time(NULL);
+		}
+		if (conf->acquire_timeout == 0) {
+			ni_debug_dhcp("%s: discovery got no (valid) reply, retrying.", dev->ifname);
+			__ni_dhcp4_fsm_discover(dev, 0);
+			return;
+		} else if (conf->elapsed_timeout < conf->acquire_timeout) {
+			ni_debug_dhcp("%s: discovery got no (valid) reply, retrying. %u seconds left until timeout.",
+					dev->ifname, conf->acquire_timeout - conf->elapsed_timeout);
+			__ni_dhcp4_fsm_discover(dev, 0);
+			return;
 		}
 		/* fallthrough */
 
 	case NI_DHCP4_STATE_REQUESTING:
+		if (conf->acquire_timeout && conf->elapsed_timeout < conf->acquire_timeout) {
+			ni_debug_dhcp("%s: discovery got no (valid) reply, retrying. %u seconds left until timeout.",
+					dev->ifname, conf->acquire_timeout - conf->elapsed_timeout);
+			ni_dhcp4_fsm_request(dev, dev->transmit.lease);
+			return;
+		}
 		ni_error("%s: DHCP4 discovery failed", dev->ifname);
 		ni_dhcp4_fsm_fail_lease(dev);
 		ni_dhcp4_fsm_restart(dev);
@@ -462,7 +475,7 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		ni_dhcp4_send_event(NI_DHCP4_EVENT_LOST, dev, NULL);
 
 		/* Now decide whether we should keep trying */
-		if (dev->config->request_timeout == ~0U)
+		if (dev->config->acquire_timeout == 0)
 			ni_dhcp4_fsm_discover(dev);
 		break;
 
@@ -517,6 +530,8 @@ __ni_dhcp4_fsm_timeout(void *user_data, const ni_timer_t *timer)
 void
 ni_dhcp4_fsm_link_up(ni_dhcp4_device_t *dev)
 {
+	dev->start_time = time(NULL);
+
 	if (dev->config == NULL)
 		return;
 
@@ -527,6 +542,7 @@ ni_dhcp4_fsm_link_up(ni_dhcp4_device_t *dev)
 		break;
 
 	case NI_DHCP4_STATE_BOUND:
+	case NI_DHCP4_STATE_REBOOT:
 		/* The link went down and came back up. We may now be on a
 		 * completely different network, and our lease may no longer
 		 * be valid.
@@ -592,6 +608,10 @@ ni_dhcp4_process_offer(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 		ni_dhcp4_fsm_restart(dev);
 		ni_dhcp4_device_stop(dev);
 	} else {
+		ni_info("%s: Requesting DHCPv4 lease with timeout %u sec",
+			dev->ifname, dev->config->acquire_timeout);
+		dev->start_time = time(NULL);
+		dev->config->elapsed_timeout = 0;
 		ni_dhcp4_fsm_request(dev, lease);
 	}
 	return 0;
@@ -733,13 +753,6 @@ ni_dhcp4_recover_lease(ni_dhcp4_device_t *dev)
 	if (!lease)
 		return -1;
 
-	if (!ni_addrconf_lease_is_valid(dev->lease)) {
-		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-				"%s: discarding existing lease, not granted",
-				dev->ifname);
-		goto discard;
-	}
-
 	/* We cannot renew/rebind/reboot without it */
 	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.server_id, 0);
 	if (!ni_sockaddr_is_ipv4_specified(&addr)) {
@@ -748,6 +761,8 @@ ni_dhcp4_recover_lease(ni_dhcp4_device_t *dev)
 				dev->ifname);
 		goto discard;
 	}
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+			"%s: recovered lease with UUID %s", dev->ifname, ni_uuid_print(&lease->uuid));
 
 	ni_dhcp4_device_set_lease(dev, lease);
 	return 0;
@@ -756,65 +771,6 @@ discard:
 	ni_addrconf_lease_free(lease);
 	return -1;
 }
-
-#if 0
-int
-ni_dhcp4_fsm_recover_lease(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *req)
-{
-	ni_addrconf_lease_t *lease;
-	time_t now = time(NULL), then;
-
-	/* Don't recover anything if we already have a lease attached. */
-	if (dev->lease != NULL)
-		return -1;
-
-	lease = ni_addrconf_lease_file_read(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
-	if (!lease)
-		return -1;
-
-	if (lease->state != NI_ADDRCONF_STATE_GRANTED)
-		goto discard;
-
-	ni_debug_dhcp("trying to recover dhcp4 lease, now inspecting");
-	then = lease->time_acquired;
-	if (now < then) {
-		ni_debug_dhcp("%s: found time-warped lease (hi, grand-grand-pa)", __FUNCTION__);
-		goto discard;
-	}
-
-	if (now >= then + lease->dhcp4.lease_time) {
-		ni_debug_dhcp("%s: found expired lease", __FUNCTION__);
-		goto discard;
-	}
-
-	if ((req->hostname && !ni_string_eq(req->hostname, dev->lease->hostname))
-	 || (req->clientid && !ni_string_eq(req->clientid, dev->lease->dhcp4.client_id))) {
-		ni_debug_dhcp("%s: lease doesn't match request", __FUNCTION__);
-		goto discard;
-	}
-
-	ni_dhcp4_device_set_lease(dev, lease);
-
-	if (now >= then + lease->dhcp4.rebind_time) {
-		ni_dhcp4_fsm_rebind(dev);
-	} else
-	if (now >= then + lease->dhcp4.renewal_time) {
-		ni_dhcp4_fsm_renewal(dev);
-	} else {
-		ni_dhcp4_fsm_set_deadline(dev, then + lease->dhcp4.renewal_time);
-		dev->fsm.state = NI_DHCP4_STATE_BOUND;
-	}
-
-	ni_debug_dhcp("%s: recovered old lease; now in state=%s",
-			dev->ifname, ni_dhcp4_fsm_state_name(dev->fsm.state));
-	dev->notify = 1;
-	return 0;
-
-discard:
-	ni_addrconf_lease_free(lease);
-	return -1;
-}
-#endif
 
 void
 ni_dhcp4_fsm_fail_lease(ni_dhcp4_device_t *dev)
@@ -905,7 +861,7 @@ ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *dev)
 	struct in_addr null = { 0 };
 	struct in_addr claim;
 
-	if (!dev || !dev->lease)
+	if (!dev->lease)
 		return -1;
 
 	claim = dev->lease->dhcp4.address;
@@ -950,7 +906,7 @@ ni_dhcp4_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *pk
 	ni_bool_t false_alarm = FALSE;
 	ni_bool_t found_addr = FALSE;
 
-	if (!pkt || pkt->op != ARPOP_REPLY || !dev || !dev->lease)
+	if (!pkt || pkt->op != ARPOP_REPLY || !dev->lease)
 		return;
 
 	/* Is it about the address we're validating at all? */

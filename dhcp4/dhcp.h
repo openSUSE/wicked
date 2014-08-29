@@ -61,6 +61,11 @@ typedef struct ni_dhcp4_device {
 				notify : 1;
 
 	struct {
+	    unsigned int	msg_code;
+	    const ni_addrconf_lease_t *lease;
+	} transmit;
+
+	struct {
 	    uint32_t		xid;
 	    unsigned int	nak_backoff;	/* backoff timer when we get NAKs */
 	    unsigned int	accept_any_offer : 1;
@@ -80,13 +85,10 @@ typedef struct ni_dhcp4_device {
 	} best_offer;
 } ni_dhcp4_device_t;
 
-#define NI_DHCP4_RESEND_TIMEOUT_INIT	3	/* seconds */
-#define NI_DHCP4_RESEND_TIMEOUT_MAX	60	/* seconds */
+#define NI_DHCP4_RESEND_TIMEOUT_INIT	4	/* seconds */
+#define NI_DHCP4_RESEND_TIMEOUT_MAX	64	/* seconds */
 #define NI_DHCP4_REQUEST_TIMEOUT		60	/* seconds */
 #define NI_DHCP4_ARP_TIMEOUT		200	/* msec */
-
-/* Initial discovery period while we scan all available leases. */
-#define NI_DHCP4_DISCOVERY_TIMEOUT	20	/* seconds */
 
 enum {
 	DHCP4_DO_ARP		= 0x00000001, /* TODO: -> wickedd */
@@ -172,12 +174,11 @@ struct ni_dhcp4_config {
 
 	unsigned int		start_delay;
 	unsigned int		defer_timeout;
-	unsigned int		acquire_timeout;
-
-	/* cleanup this: */
-	unsigned int		initial_discovery_timeout;
-	unsigned int		request_timeout;
-	unsigned int		resend_timeout;
+	unsigned int		capture_retry_timeout;	/* timeout for first request */
+	unsigned int		capture_max_timeout;	/* timeout for the capture */
+	unsigned int		capture_timeout;	/* timeout for actual capture, then fsm restarts */
+	unsigned int		elapsed_timeout;	/* elapsed time within fsm */
+	unsigned int		acquire_timeout;	/* 0 means retry forever */
 
 	/* A combination of DHCP4_DO_* flags above */
 	unsigned int		update;
@@ -208,8 +209,7 @@ extern int		ni_dhcp4_acquire(ni_dhcp4_device_t *, const ni_dhcp4_request_t *);
 extern int		ni_dhcp4_release(ni_dhcp4_device_t *, const ni_uuid_t *);
 extern void		ni_dhcp4_restart_leases(void);
 
-extern int		ni_dhcp4_fsm_discover(ni_dhcp4_device_t *);
-extern int		ni_dhcp4_fsm_release(ni_dhcp4_device_t *);
+extern void		ni_dhcp4_fsm_release(ni_dhcp4_device_t *);
 extern int		ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *, ni_buffer_t *);
 extern int		ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
 extern int		ni_dhcp4_recover_lease(ni_dhcp4_device_t *);

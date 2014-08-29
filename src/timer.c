@@ -132,26 +132,10 @@ __ni_timer_disarm(const ni_timer_t *handle)
 int
 ni_timer_get_time(struct timeval *tv)
 {
-#if 0
-/*  defined(WITH_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC) */
 	/*
-	 * Note: Requires to link using -lrt
+	 * The wallclock time has to be used because leases are stored on disk.
+	 * Using CLOCK_BOOTTIME is the alternative without persistant leases.
 	 */
-	static int use_monotonic = 1;
-
-	if (use_monotonic == 1) {
-		use_monotonic = clock_getres(CLOCK_MONOTONIC, NULL);
-	}
-	if (use_monotonic == 0) {
-		struct timespec now;
-		int ret;
-
-		ret = clock_gettime(CLOCK_MONOTONIC, &now);
-		TIMESPEC_TO_TIMEVAL(tv, &now);
-
-		return ret;
-	}
-#endif
 	return gettimeofday(tv, NULL);
 }
 
@@ -163,6 +147,8 @@ ni_timeout_recompute(ni_timeout_param_t *tmo)
 {
 	if (tmo->nretries == 0)
 		return FALSE;
+	else if (tmo->nretries > 0)
+		tmo->nretries--;
 
 	if (tmo->increment >= 0)
 		tmo->timeout += tmo->increment;
@@ -201,7 +187,9 @@ ni_timeout_randomize(unsigned long timeout, const ni_int_range_t *jitter)
 {
 	if (jitter && jitter->min < jitter->max) {
 		unsigned int jitter_range = (jitter->max - jitter->min);
-		timeout += ((long) random() % jitter_range) + jitter->min;
+		long adj = ((long) random() % jitter_range) + jitter->min;
+		ni_debug_socket("%s: timeout %lu adjusted by %ld to %lu (jr %u)", __func__, timeout, adj, timeout + adj, jitter_range);
+		timeout += adj;
 	}
 	return timeout;
 }

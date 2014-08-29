@@ -1059,21 +1059,6 @@ static const char *		__ni_addrconf_lease_file_path(char **,
 static void			__ni_addrconf_lease_file_remove(
 				const char *, const char *, int, int);
 
-#if 0
-int
-ni_addrconf_lease_file_write(const char *ifname, ni_addrconf_lease_t *lease)
-{
-	ni_error("%s: currently not implemented", __func__);
-	return -1;
-}
-
-ni_addrconf_lease_t *
-ni_addrconf_lease_file_read(const char *ifname, int type, int family)
-{
-	ni_error("%s: currently not implemented", __func__);
-	return NULL;
-}
-#else
 /*
  * Write a lease to a file
  */
@@ -1236,7 +1221,6 @@ ni_addrconf_lease_file_read(const char *ifname, int type, int family)
 	xml_node_free(xml);
 	return lease;
 }
-#endif
 
 /*
  * Remove a lease file
