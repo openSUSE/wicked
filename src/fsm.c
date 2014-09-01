@@ -1183,8 +1183,10 @@ ni_ifworker_get_callback(ni_ifworker_t *w, const ni_uuid_t *uuid, ni_bool_t remo
 		return NULL;
 	for (pos = &action->callbacks; (cb = *pos) != NULL; pos = &cb->next) {
 		if (ni_uuid_equal(&cb->uuid, uuid)) {
-			if (remove)
+			if (remove) {
 				*pos = cb->next;
+				cb->next = NULL;
+			}
 			return cb;
 		}
 	}
@@ -4212,7 +4214,7 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 		break;
 
 	default:
-		ni_error("%s: received unknown event %s -- ignoring it",
+		ni_error("%s: received unexpected event %s -- ignoring it",
 				w->name, ni_objectmodel_event_to_signal(event));
 		return TRUE;
 	}
@@ -4310,14 +4312,25 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 					cb_event_type = __NI_EVENT_MAX;
 
 				if ((success = (cb_event_type == event_type))) {
-					ni_debug_dbus("... great, we were expecting this event");
+					ni_debug_events("... great, we were expecting this event");
 				} else {
-					ni_debug_dbus("%s: was waiting for %s event, but got %s",
+					ni_debug_events("%s: was waiting for %s event, but got %s",
 							w->name, cb->event, signal_name);
 				}
 
 				switch (cb_event_type) {
 				case NI_EVENT_ADDRESS_ACQUIRED:
+					/*
+					 * When dhcp starts and there is a not-expired lease
+					 * which can't be confirmed, it emits a release event
+					 * before it acquires a new one and defers or fails.
+					 * Uff... add it back to the wait list and continue.
+					 */
+					if (event_type == NI_EVENT_ADDRESS_RELEASED && w->fsm.wait_for) {
+						ni_ifworker_add_callbacks(w->fsm.wait_for, cb, w->name);
+						goto done;
+					}
+
 					success = address_acquired_callback_handler(w, cb, event_type);
 
 					/* Set event_name and type to the event we wait for */
