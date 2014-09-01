@@ -3647,6 +3647,70 @@ document_error:
 	return -NI_ERROR_DOCUMENT_ERROR;
 }
 
+static void
+ni_ifworker_update_from_addrconf_requests(ni_ifworker_t *w, const char *service, const char *method,
+			int result, ni_objectmodel_callback_info_t *callback_list)
+{
+	ni_string_array_t array = NI_STRING_ARRAY_INIT;
+	size_t pfx = sizeof(NI_OBJECTMODEL_ADDRCONF_INTERFACE);
+	size_t len = ni_string_len(service);
+	unsigned int family, type;
+	ni_addrconf_lease_t *lease;
+	int ret;
+
+	if (!w || !w->device)
+		return;
+
+	if (len <= pfx || (ret = ni_string_split(&array, service+pfx, ".", 0)) != 2)
+		goto cleanup;
+	if ((int)(family = ni_addrfamily_name_to_type(array.data[0])) < 0)
+		goto cleanup;
+	if ((int)(type = ni_addrconf_name_to_type(array.data[1])) < 0)
+		goto cleanup;
+
+	if (ni_string_eq(method, "requestLease")) {
+		if (!(lease = ni_addrconf_lease_new(type, family)))
+			goto cleanup;
+
+		if (result < 0) {
+			lease->state = NI_ADDRCONF_STATE_FAILED;
+		} else
+		if (callback_list) {
+			lease->state = NI_ADDRCONF_STATE_REQUESTING;
+		} else {
+			lease->state = NI_ADDRCONF_STATE_GRANTED;
+		}
+		ni_netdev_set_lease(w->device, lease);
+	} else
+	if (ni_string_eq(method, "dropLease")) {
+		if (result < 0)
+			goto cleanup;
+
+		if (callback_list) {
+			if (!(lease = ni_addrconf_lease_new(type, family)))
+				goto cleanup;
+
+			lease->state = NI_ADDRCONF_STATE_RELEASING;
+			ni_netdev_set_lease(w->device, lease);
+		} else {
+			ni_netdev_unset_lease(w->device, family, type);
+		}
+	}
+	ni_ifworker_print_device_leases(w);
+
+cleanup:
+	ni_string_array_destroy(&array);
+}
+
+static void
+ni_ifworker_update_from_request(ni_ifworker_t *w, const char *service, const char *method,
+				int result, ni_objectmodel_callback_info_t *callback_list)
+{
+	if (ni_string_startswith(service, NI_OBJECTMODEL_ADDRCONF_INTERFACE)) {
+		ni_ifworker_update_from_addrconf_requests(w, service, method, result, callback_list);
+	}
+}
+
 static int
 ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
@@ -3671,6 +3735,8 @@ ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *acti
 
 		rv = ni_call_common_xml(w->object, bind->service, bind->method, bind->config,
 				&callback_list, ni_ifworker_error_handler);
+		ni_ifworker_update_from_request(w, bind->service->name,
+				bind->method->name, rv, callback_list);
 		if (rv < 0) {
 			if (action->common.may_fail) {
 				ni_error("[ignored] %s: call to %s.%s() failed: %s", w->name,
