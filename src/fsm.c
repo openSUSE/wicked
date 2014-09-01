@@ -3648,6 +3648,31 @@ document_error:
 }
 
 static void
+ni_ifworker_update_from_addrconf_callback(ni_addrconf_lease_t *lease, ni_objectmodel_callback_info_t *callback_list)
+{
+	ni_objectmodel_callback_info_t *cb;
+
+	if (!lease || !callback_list)
+		return;
+
+	for (cb = callback_list; cb; cb = cb->next) {
+		if (ni_string_eq(cb->event, "addressAcquired") ||
+		    ni_string_eq(cb->event, "addressReleased")) {
+			if (!cb->data.lease)
+				continue;
+			if (cb->data.lease->family != lease->family)
+				continue;
+			if (cb->data.lease->type != lease->type)
+				continue;
+			lease->uuid  = cb->data.lease->uuid;
+			lease->state = cb->data.lease->state;
+			lease->flags = cb->data.lease->flags;
+			break; /* could it be more than one? */
+		}
+	}
+}
+
+static void
 ni_ifworker_update_from_addrconf_requests(ni_ifworker_t *w, const char *service, const char *method,
 			int result, ni_objectmodel_callback_info_t *callback_list)
 {
@@ -3677,6 +3702,7 @@ ni_ifworker_update_from_addrconf_requests(ni_ifworker_t *w, const char *service,
 		} else
 		if (callback_list) {
 			lease->state = NI_ADDRCONF_STATE_REQUESTING;
+			ni_ifworker_update_from_addrconf_callback(lease, callback_list);
 		} else {
 			lease->state = NI_ADDRCONF_STATE_GRANTED;
 		}
@@ -3691,8 +3717,10 @@ ni_ifworker_update_from_addrconf_requests(ni_ifworker_t *w, const char *service,
 				goto cleanup;
 
 			lease->state = NI_ADDRCONF_STATE_RELEASING;
+			ni_ifworker_update_from_addrconf_callback(lease, callback_list);
 			ni_netdev_set_lease(w->device, lease);
 		} else {
+			/* [NI_ADDRCONF_STATE_RELEASED] and dropped */
 			ni_netdev_unset_lease(w->device, family, type);
 		}
 	}
