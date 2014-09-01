@@ -3484,6 +3484,42 @@ ni_ifworker_print_binding(ni_ifworker_t *w, ni_fsm_transition_t *action)
 }
 
 /*
+ * Debugging: print the device lease info
+ */
+static inline void
+ni_ifworker_print_device_leases(ni_ifworker_t *w)
+{
+	ni_addrconf_lease_t *lease;
+
+	if (!w || !ni_debug_guard(NI_LOG_DEBUG1, NI_TRACE_EVENTS))
+		return;
+
+	if (!w->device) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+				"%s: no worker device", w->name);
+	} else
+	if (!w->device->leases) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+				"%s: no worker device leases", w->name);
+	} else {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+				"%s: worker device leases:", w->name);
+		for (lease = w->device->leases; lease; lease = lease->next) {
+			ni_bool_t optional = ni_addrconf_flag_bit_is_set(lease->flags,
+							NI_ADDRCONF_FLAGS_OPTIONAL);
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+					"        %s:%s in state %s, uuid %s%s",
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_addrconf_state_to_name(lease->state),
+					ni_uuid_print(&lease->uuid),
+					optional ? ", optional" : "");
+		}
+	}
+}
+
+
+/*
  * Most steps of the finite state machine follow the same pattern.
  *
  * First part: bind the service, method and argument that should be passed.
@@ -4261,6 +4297,8 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 					ni_debug_dbus("%s: was waiting for %s event, but got %s",
 							w->name, cb->event, signal_name);
 				}
+
+				ni_ifworker_print_device_leases(w);
 
 				switch (cb_event_type) {
 				case NI_EVENT_ADDRESS_ACQUIRED:
