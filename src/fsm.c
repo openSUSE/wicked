@@ -1315,8 +1315,8 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 		if (w->fsm.wait_for && w->fsm.wait_for->next_state == new_state)
 			w->fsm.wait_for = NULL;
 
-		if (new_state == NI_FSM_STATE_DEVICE_READY &&
-		    w->object && !w->readonly) {
+		if ((new_state == NI_FSM_STATE_DEVICE_READY ||
+		    new_state == NI_FSM_STATE_DEVICE_UP) && w->object && !w->readonly) {
 			ni_ifworker_update_client_state_control(w);
 			ni_ifworker_update_client_state_config(w);
 		}
