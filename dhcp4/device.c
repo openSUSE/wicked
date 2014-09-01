@@ -29,6 +29,7 @@
 static unsigned int	ni_dhcp4_do_bits(unsigned int);
 static const char *	__ni_dhcp4_print_doflags(unsigned int);
 
+static uint32_t ni_dhcp4_xid;
 ni_dhcp4_device_t *	ni_dhcp4_active;
 
 /*
@@ -561,8 +562,6 @@ ni_dhcp4_device_prepare_message(void *data)
 int
 ni_dhcp4_device_send_message(ni_dhcp4_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
 {
-	ni_buffer_t *buf = &dev->message;
-	static uint32_t ni_dhcp4_xid;
 	ni_timeout_param_t timeout;
 	int rv;
 
@@ -587,7 +586,7 @@ ni_dhcp4_device_send_message(ni_dhcp4_device_t *dev, unsigned int msg_code, cons
 	switch (msg_code) {
 	case DHCP4_DECLINE:
 	case DHCP4_RELEASE:
-		rv = ni_capture_send(dev->capture, buf, NULL);
+		rv = ni_capture_send(dev->capture, &dev->message, NULL);
 		break;
 
 	case DHCP4_DISCOVER:
@@ -602,16 +601,7 @@ ni_dhcp4_device_send_message(ni_dhcp4_device_t *dev, unsigned int msg_code, cons
 		timeout.jitter.max = 1;
 		timeout.timeout_callback = ni_dhcp4_device_prepare_message;
 		timeout.timeout_data = dev;
-
-		if (dev->fsm.state == NI_DHCP4_STATE_RENEWING) {
-			struct sockaddr_in sin = {
-				.sin_family = AF_INET,
-				.sin_addr.s_addr = lease->dhcp4.server_id.s_addr,
-				.sin_port = htons(DHCP4_SERVER_PORT),
-			};
-			rv = sendto(dev->listen_fd, ni_buffer_head(buf), ni_buffer_count(buf), 0, (struct sockaddr *)&sin, sizeof(sin));
-		} else
-			rv = ni_capture_send(dev->capture, buf, &timeout);
+		rv = ni_capture_send(dev->capture, &dev->message, &timeout);
 		break;
 
 	default:
@@ -634,11 +624,32 @@ transient_failure:
 int
 ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
 {
-	/* FIXME: not implemented yet. We'd need to record the
-	 * server's hwaddr for this and reuse it here.
-	 * So fall back to broadcast.
-	 */
-	return ni_dhcp4_device_send_message(dev, msg_code, lease);
+	struct sockaddr_in sin = {
+		.sin_family = AF_INET,
+		.sin_addr.s_addr = lease->dhcp4.server_id.s_addr,
+		.sin_port = htons(DHCP4_SERVER_PORT),
+	};
+
+	/* Assign a new XID to this message */
+	if (ni_dhcp4_xid == 0)
+		ni_dhcp4_xid = random();
+	dev->dhcp4.xid = ni_dhcp4_xid++;
+
+	dev->transmit.msg_code = msg_code;
+	dev->transmit.lease = lease;
+
+	if (ni_dhcp4_socket_open(dev) < 0) {
+		ni_error("%s: unable to open capture socket", dev->ifname);
+		return -1;
+	}
+
+	ni_debug_dhcp("sending %s with xid 0x%x", ni_dhcp4_message_name(msg_code), htonl(dev->dhcp4.xid));
+
+	if (ni_dhcp4_device_prepare_message(dev) < 0)
+		return -1;
+	if (sendto(dev->listen_fd, ni_buffer_head(&dev->message), ni_buffer_count(&dev->message), 0, (struct sockaddr *)&sin, sizeof(sin)) < 0)
+		ni_error("%s: sendto failed: %m", dev->ifname);
+	return 0;
 }
 
 void

@@ -319,17 +319,33 @@ ni_dhcp4_fsm_request(ni_dhcp4_device_t *dev, const ni_addrconf_lease_t *lease)
 	ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, lease);
 }
 
-static void
-ni_dhcp4_fsm_renewal(ni_dhcp4_device_t *dev)
+static ni_bool_t
+ni_dhcp4_fsm_renewal(ni_dhcp4_device_t *dev, ni_bool_t oneshot)
 {
-	ni_info("%s: Initiating renewal of DHCPv4 lease",
-		dev->ifname);
+	time_t now = time(NULL);
+	time_t expire_time, deadline = now + 10;
+	ni_bool_t retry = FALSE;
 
-	dev->start_time = time(NULL);
+	expire_time = dev->lease->time_acquired + dev->lease->dhcp4.rebind_time;
+	if (expire_time > now || oneshot) {
+		ni_info("%s: Initiating renewal of DHCPv4 lease", dev->ifname);
+		if (expire_time > now && deadline > expire_time)
+			deadline = expire_time;
+		ni_dhcp4_fsm_set_timeout(dev, deadline - now);
+		ni_dhcp4_device_send_message_unicast(dev, DHCP4_REQUEST, dev->lease);
+		if (!oneshot)
+			retry = TRUE;
+	}
+	return retry;
+}
+
+static void
+ni_dhcp4_fsm_renewal_init(ni_dhcp4_device_t *dev)
+{
 	dev->fsm.state = NI_DHCP4_STATE_RENEWING;
-	ni_dhcp4_fsm_set_deadline(dev,
-			dev->lease->time_acquired + dev->lease->dhcp4.rebind_time);
-	ni_dhcp4_device_send_message_unicast(dev, DHCP4_REQUEST, dev->lease);
+	dev->start_time = time(NULL);
+	/* Send renewal request at least once */
+	ni_dhcp4_fsm_renewal(dev, TRUE);
 }
 
 static void
@@ -485,10 +501,12 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		break;
 
 	case NI_DHCP4_STATE_BOUND:
-		ni_dhcp4_fsm_renewal(dev);
+		ni_dhcp4_fsm_renewal_init(dev);
 		break;
 
 	case NI_DHCP4_STATE_RENEWING:
+		if (ni_dhcp4_fsm_renewal(dev, FALSE) == TRUE)
+			return;
 		ni_error("unable to renew lease within renewal period; trying to rebind");
 		ni_dhcp4_fsm_rebind(dev);
 		break;
