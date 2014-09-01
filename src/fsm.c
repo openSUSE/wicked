@@ -2895,7 +2895,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 				return FALSE;
 			}
 			if (!(child_worker = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_NETDEV, w->name)))
-				return FALSE;
+				continue;
 
 			if ((attr = xml_node_get_attr(mchild, "shared")) != NULL)
 				shared = ni_string_eq(attr, "true");
@@ -2951,7 +2951,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 			}
 
 			if (child_worker == NULL) {
-				ni_error("%s: <meta:require check=netif-child-state> without netif-reference",
+				ni_debug_application("%s: <meta:require check=netif-child-state> without netif-reference",
 						xml_node_location(mchild));
 				return FALSE;
 			}
