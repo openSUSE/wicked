@@ -525,15 +525,16 @@ __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease
 	 * (but don't delete it yet).
 	 */
 	lease->old = __ni_netdev_find_lease(dev, lease->family, lease->type, 1);
+	if (lease->old) {
+		ni_addrconf_updater_free(&lease->old->updater);
+	}
 	if (lease->state == NI_ADDRCONF_STATE_GRANTED) {
+		/* lease apply on ifup success/update */
 		lease->state = NI_ADDRCONF_STATE_APPLYING;
-		lease->updater = ni_addrconf_updater_new(__applying_actions);
 		ni_netdev_set_lease(dev, lease);
 		*lease_p = NULL;
 
-		if (lease->old) {
-			ni_addrconf_updater_free(&lease->old->updater);
-		}
+		lease->updater = ni_addrconf_updater_new(__applying_actions);
 		res = ni_addrconf_updater_execute(dev, lease);
 
 		/* we do not need the old lease any more */
@@ -543,13 +544,36 @@ __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease
 		}
 		if (res == 0 && lease->state == NI_ADDRCONF_STATE_APPLYING)
 			lease->state = NI_ADDRCONF_STATE_GRANTED;
+	} else
+	if (lease->state == NI_ADDRCONF_STATE_FAILED) {
+		/* lease drop on ifup failure */
+		ni_netdev_set_lease(dev, lease);
+		*lease_p = NULL;
+
+		/* there is an (empty) old lease in requesting state
+		 * or even in granted when e.g. dhcp rebind fails...
+		 * if not, we have nothing what we could revert.
+		 */
+		if (lease->old) {
+			lease->updater = ni_addrconf_updater_new(__removing_actions);
+			res = ni_addrconf_updater_execute(dev, lease);
+
+			/* we do not need the old lease any more */
+			ni_addrconf_lease_free(lease->old);
+			lease->old = NULL;
+		}
+		res = 0; /* any reason to fail? */
+		lease->state = NI_ADDRCONF_STATE_FAILED;
 	} else {
-		lease->updater = ni_addrconf_updater_new(__removing_actions);
+		/* lease drop on ifdown */
+		if (lease->old) {
+			lease->updater = ni_addrconf_updater_new(__removing_actions);
+			ni_addrconf_updater_execute(dev, lease);
+		}
 		/*
 		 * we were unable to update the system properly -- is there
 		 * any reason to fail or to not drop the lease?
 		 */
-		ni_addrconf_updater_execute(dev, lease);
 		res = 0;
 	}
 	/* we do not defer updater into background yet */
