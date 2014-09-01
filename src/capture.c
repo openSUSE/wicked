@@ -345,7 +345,7 @@ ni_capture_force_retransmit(ni_capture_t *capture, unsigned int delay)
 /*
  * Retransmit handling
  */
-void
+static void
 ni_capture_retransmit(ni_capture_t *capture)
 {
 	int rv;
@@ -358,7 +358,12 @@ ni_capture_retransmit(ni_capture_t *capture)
 		return;
 	}
 
-	ni_timeout_recompute(&capture->retrans.timeout);
+	if (!ni_timeout_recompute(&capture->retrans.timeout))
+		return;
+
+	if (capture->retrans.timeout.timeout_callback)
+		capture->retrans.timeout.timeout_callback(capture->retrans.timeout.timeout_data);
+
 	rv = __ni_capture_send(capture, capture->retrans.buffer);
 
 	/* We don't care whether sending failed or not. Quite possibly

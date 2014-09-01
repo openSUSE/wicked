@@ -27,6 +27,8 @@ typedef struct ni_timeout_param {
 	unsigned int		max_timeout;	/* timeout is capped by max_timeout */
 
 	ni_bool_t		(*backoff_callback)(struct ni_timeout_param *);
+	int			(*timeout_callback)(void *);
+	void			*timeout_data;
 } ni_timeout_param_t;
 
 typedef struct ni_timer	ni_timer_t;
