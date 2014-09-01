@@ -475,8 +475,11 @@ ni_objectmodel_addrconf_forward_request(ni_dbus_addrconf_forwarder_t *forwarder,
 
 	rv = ni_objectmodel_addrconf_forwarder_call(forwarder, dev, "acquire", &req_uuid, dict, error);
 	if (rv) {
+		ni_objectmodel_callback_data_t data = { .lease = lease };
+
 		/* Tell the client to wait for an addressAcquired event with the given uuid */
-		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_ACQUIRED, &req_uuid, error);
+		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_ACQUIRED,
+								&req_uuid, &data, error);
 	}
 	return rv;
 }
@@ -519,11 +522,14 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 	 * that has already been broadcast (and ignored).
 	 */
 	if ((lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf)) != NULL) {
+		ni_objectmodel_callback_data_t data = { .lease = lease };
+
 		/* Tell the client to wait for an addressReleased event with the given uuid */
 		ni_debug_objectmodel("%s/%s: found lease, waiting for drop notification from supplicant",
 				ni_addrconf_type_to_name(forwarder->addrconf),
 				ni_addrfamily_type_to_name(forwarder->addrfamily));
-		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_RELEASED, &lease->uuid, error);
+		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_RELEASED,
+								&lease->uuid, &data, error);
 	}
 	return rv;
 }

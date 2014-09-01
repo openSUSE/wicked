@@ -502,7 +502,7 @@ ni_objectmodel_modem_connect(ni_dbus_object_t *object, const ni_dbus_method_t *m
 		if (ni_uuid_is_null(&modem->event_uuid))
 			ni_uuid_generate(&modem->event_uuid);
 		ret =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_UP,
-				&modem->event_uuid, error);
+				&modem->event_uuid, NULL, error);
 	}
 #endif
 

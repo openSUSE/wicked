@@ -164,12 +164,19 @@ extern int			ni_objectmodel_signal_to_event(const char *, ni_event_t *);
 extern const char *		ni_objectmodel_event_to_signal(ni_event_t);
 
 typedef struct ni_objectmodel_callback_info ni_objectmodel_callback_info_t;
+typedef struct ni_objectmodel_callback_data ni_objectmodel_callback_data_t;
+
+struct ni_objectmodel_callback_data {
+	ni_addrconf_lease_t *		lease;	/* lease-info only */
+};
+
 struct ni_objectmodel_callback_info {
 	ni_objectmodel_callback_info_t *next;
 	unsigned int			flags;	/* internal */
 
 	char *				event;
 	ni_uuid_t			uuid;
+	ni_objectmodel_callback_data_t	data;
 };
 
 ni_objectmodel_callback_info_t *ni_objectmodel_callback_info_from_dict(const ni_dbus_variant_t *);
