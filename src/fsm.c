@@ -1315,8 +1315,8 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 		if (w->fsm.wait_for && w->fsm.wait_for->next_state == new_state)
 			w->fsm.wait_for = NULL;
 
-		if (new_state == NI_FSM_STATE_DEVICE_READY &&
-		    w->object && !w->readonly) {
+		if ((new_state == NI_FSM_STATE_DEVICE_READY ||
+		    new_state == NI_FSM_STATE_DEVICE_UP) && w->object && !w->readonly) {
 			ni_ifworker_update_client_state_control(w);
 			ni_ifworker_update_client_state_config(w);
 		}
@@ -2895,7 +2895,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 				return FALSE;
 			}
 			if (!(child_worker = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_NETDEV, w->name)))
-				return FALSE;
+				continue;
 
 			if ((attr = xml_node_get_attr(mchild, "shared")) != NULL)
 				shared = ni_string_eq(attr, "true");
@@ -2951,7 +2951,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 			}
 
 			if (child_worker == NULL) {
-				ni_error("%s: <meta:require check=netif-child-state> without netif-reference",
+				ni_debug_application("%s: <meta:require check=netif-child-state> without netif-reference",
 						xml_node_location(mchild));
 				return FALSE;
 			}
