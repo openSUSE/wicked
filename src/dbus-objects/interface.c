@@ -774,7 +774,7 @@ ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *m
 
 		/* Link is not up yet. Tell the caller to wait for an event. */
 		uuid = ni_netdev_add_event_filter(dev, (1 << NI_EVENT_LINK_UP) | (1 << NI_EVENT_LINK_DOWN));
-		ret = __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_UP, uuid, error);
+		ret = __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_UP, uuid, NULL, error);
 	}
 
 failed:
@@ -1033,7 +1033,7 @@ ni_objectmodel_netif_wait_device_ready(ni_dbus_object_t *object, const ni_dbus_m
 	uuid = ni_netdev_add_event_filter(dev,  (1 << NI_EVENT_DEVICE_READY) |
 						(1 << NI_EVENT_DEVICE_UP));
 
-	return __ni_objectmodel_return_callback_info(reply, NI_EVENT_DEVICE_READY, uuid, error);
+	return __ni_objectmodel_return_callback_info(reply, NI_EVENT_DEVICE_READY, uuid, NULL, error);
 }
 
 const char *

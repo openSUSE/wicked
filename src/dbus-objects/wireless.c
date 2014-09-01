@@ -65,7 +65,7 @@ __ni_objectmodel_wireless_net_disconnect(ni_netdev_t *dev, ni_dbus_message_t *re
 					(1 << NI_EVENT_LINK_ASSOCIATED) |
 					(1 << NI_EVENT_LINK_ASSOCIATION_LOST));
 		return __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_ASSOCIATION_LOST,
-					uuid, error);
+					uuid, NULL, error);
 	}
 
 	return TRUE;
@@ -168,7 +168,7 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 					(1 << NI_EVENT_LINK_ASSOCIATED) |
 					(1 << NI_EVENT_LINK_ASSOCIATION_LOST));
 		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_ASSOCIATED,
-					uuid, error);
+					uuid, NULL, error);
 	}
 
 	ni_wireless_network_put(net);

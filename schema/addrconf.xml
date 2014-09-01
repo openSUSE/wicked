@@ -55,6 +55,15 @@
     <netbios-node-type type="string" />
     <netbios-scope type="string" />
   </define>
+  <define name="callback-info" class="dict" extends="interface:callback-info">
+    <lease class="dict">
+      <type   type="uint32"/>
+      <family type="uint32"/>
+      <uuid   type="uuid-type"/>
+      <state  type="builtin-addrconf-state"/>
+      <flags  type="builtin-addrconf-flags"/>
+    </lease>
+  </define>
 
   <signal name="LeaseAcquired">
     <arguments>
@@ -109,13 +118,13 @@
       </config>
     </arguments>
     <return>
-      <interface:callback-info/>
+      <addrconf:callback-info/>
     </return>
   </method>
 
   <method name="dropLease">
     <return>
-      <interface:callback-info/>
+      <addrconf:callback-info/>
     </return>
   </method>
 </service>
@@ -145,13 +154,13 @@
       </config>
     </arguments>
     <return>
-      <interface:callback-info/>
+      <addrconf:callback-info/>
     </return>
   </method>
 
   <method name="dropLease">
     <return>
-      <interface:callback-info/>
+      <addrconf:callback-info/>
     </return>
   </method>
 </service>
@@ -190,13 +199,13 @@
       </config>
     </arguments>
     <return>
-      <interface:callback-info/>
+      <addrconf:callback-info/>
     </return>
   </method>
 
   <method name="dropLease">
     <return>
-      <interface:callback-info/>
+      <addrconf:callback-info/>
     </return>
   </method>
 </service>
@@ -237,13 +246,13 @@
       </config>
     </arguments>
     <return>
-      <interface:callback-info/>
+      <addrconf:callback-info/>
     </return>
   </method>
 
   <method name="dropLease">
     <return>
-      <interface:callback-info/>
+      <addrconf:callback-info/>
     </return>
   </method>
 </service>
@@ -265,13 +274,13 @@
       </config>
     </arguments>
     <return>
-      <interface:callback-info/>
+      <addrconf:callback-info/>
     </return>
   </method>
 
   <method name="dropLease">
     <return>
-      <interface:callback-info/>
+      <addrconf:callback-info/>
     </return>
   </method>
 </service>

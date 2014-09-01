@@ -1626,7 +1626,9 @@ ni_objectmodel_set_name_array(xml_node_t *names, const ni_dbus_variant_t *argume
  * to wait for.
  */
 dbus_bool_t
-__ni_objectmodel_return_callback_info(ni_dbus_message_t *reply, ni_event_t event, const ni_uuid_t *uuid, DBusError *error)
+__ni_objectmodel_return_callback_info(ni_dbus_message_t *reply, ni_event_t event,
+		const ni_uuid_t *uuid, const ni_objectmodel_callback_data_t *data,
+		DBusError *error)
 {
 	ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
 	ni_objectmodel_callback_info_t callback;
@@ -1639,6 +1641,10 @@ __ni_objectmodel_return_callback_info(ni_dbus_message_t *reply, ni_event_t event
 		return FALSE;
 	}
 	callback.uuid = *uuid;
+	if (data && data->lease) {
+		/* const/shallow, just to put into dict */
+		callback.data.lease = data->lease;
+	}
 
 	ni_dbus_variant_init_dict(&dict);
 	rv = __ni_objectmodel_callback_info_to_dict(&callback, &dict);
@@ -1647,6 +1653,50 @@ __ni_objectmodel_return_callback_info(ni_dbus_message_t *reply, ni_event_t event
 	ni_dbus_variant_destroy(&dict);
 
 	return rv;
+}
+
+static dbus_bool_t
+__ni_objectmodel_lease_info_to_dict(const ni_addrconf_lease_t *lease, ni_dbus_variant_t *dict)
+{
+	ni_dbus_variant_t *lease_dict;
+
+	if (!lease ||
+	    !ni_addrconf_type_to_name(lease->type) ||
+	    !ni_addrfamily_type_to_name(lease->family) ||
+	    !ni_addrconf_state_to_name(lease->state))
+		return FALSE;
+
+	lease_dict = ni_dbus_dict_add(dict, "lease");
+	ni_dbus_variant_init_dict(lease_dict);
+	ni_dbus_dict_add_uint32(lease_dict, "family", lease->family);
+	ni_dbus_dict_add_uint32(lease_dict, "type",   lease->type);
+	ni_dbus_dict_add_uint32(lease_dict, "state",  lease->state);
+	if (lease->flags)
+		ni_dbus_dict_add_uint32(lease_dict, "flags", lease->flags);
+	if (!ni_uuid_is_null(&lease->uuid))
+		ni_dbus_dict_add_uuid(lease_dict,   "uuid", &lease->uuid);
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_callback_data_to_dict(const ni_objectmodel_callback_info_t *cb, ni_dbus_variant_t *dict)
+{
+	ni_event_t event;
+
+	if (!cb || !dict || ni_objectmodel_signal_to_event(cb->event, &event) < 0)
+		return FALSE;
+
+	switch (event) {
+	case NI_EVENT_ADDRESS_ACQUIRED:
+	case NI_EVENT_ADDRESS_RELEASED:
+	case NI_EVENT_ADDRESS_DEFERRED:
+	case NI_EVENT_ADDRESS_LOST:
+		__ni_objectmodel_lease_info_to_dict(cb->data.lease, dict);
+		break;
+	default:
+		break;
+	}
+	return TRUE;
 }
 
 static dbus_bool_t
@@ -1660,10 +1710,64 @@ __ni_objectmodel_callback_info_to_dict(const ni_objectmodel_callback_info_t *cb,
 
 		ni_dbus_dict_add_string(info_dict, "event", cb->event);
 		ni_dbus_dict_add_uuid(info_dict, "uuid", &cb->uuid);
+		__ni_objectmodel_callback_data_to_dict(cb, info_dict);
 
 		cb = cb->next;
 	}
 
+	return TRUE;
+}
+
+static ni_addrconf_lease_t *
+__ni_objectmodel_lease_info_from_dict(const ni_dbus_variant_t *dict)
+{
+	ni_dbus_variant_t *lease_dict;
+	ni_addrconf_lease_t *lease;
+	unsigned int type, family, state;
+
+	lease_dict = ni_dbus_dict_get(dict, "lease");
+	if (!lease_dict || !ni_dbus_variant_is_dict(lease_dict))
+		return NULL;
+
+	if (!ni_dbus_dict_get_uint32(lease_dict, "family", &family) ||
+	    !ni_addrfamily_type_to_name(family))
+		return NULL;
+
+	if (!ni_dbus_dict_get_uint32(lease_dict, "type", &type) ||
+	    !ni_addrconf_type_to_name(type))
+		return NULL;
+
+	if (!ni_dbus_dict_get_uint32(lease_dict, "state", &state) ||
+	    !ni_addrconf_state_to_name(state))
+		return NULL;
+
+	if (!(lease = ni_addrconf_lease_new(type, family)))
+		return NULL;
+
+	lease->state = state;
+	ni_dbus_dict_get_uint32(dict, "flags", &lease->flags);
+	ni_dbus_dict_get_uuid(dict, "uuid",  &lease->uuid);
+	return lease;
+}
+
+static dbus_bool_t
+__ni_objectmodel_callback_data_from_dict(ni_objectmodel_callback_info_t *cb, ni_dbus_variant_t *dict)
+{
+	ni_event_t event;
+
+	if (!cb || !dict || ni_objectmodel_signal_to_event(cb->event, &event) < 0)
+		return FALSE;
+
+	switch (event) {
+	case NI_EVENT_ADDRESS_ACQUIRED:
+	case NI_EVENT_ADDRESS_RELEASED:
+	case NI_EVENT_ADDRESS_DEFERRED:
+	case NI_EVENT_ADDRESS_LOST:
+		cb->data.lease = __ni_objectmodel_lease_info_from_dict(dict);
+		break;
+	default:
+		break;
+	}
 	return TRUE;
 }
 
@@ -1681,7 +1785,7 @@ ni_objectmodel_callback_info_from_dict(const ni_dbus_variant_t *dict)
 			if (ni_dbus_dict_get_string(child, "event", &event))
 				ni_string_dup(&cb->event, event);
 			ni_dbus_dict_get_uuid(child, "uuid", &cb->uuid);
-
+			__ni_objectmodel_callback_data_from_dict(cb, child);
 			cb->next = result;
 			result = cb;
 		}
@@ -1693,7 +1797,11 @@ ni_objectmodel_callback_info_from_dict(const ni_dbus_variant_t *dict)
 void
 ni_objectmodel_callback_info_free(ni_objectmodel_callback_info_t *cb)
 {
-	ni_string_free(&cb->event);
-	free(cb);
+	if (cb) {
+		if (cb->data.lease)
+			ni_addrconf_lease_free(cb->data.lease);
+		ni_string_free(&cb->event);
+		free(cb);
+	}
 }
 

@@ -3484,6 +3484,42 @@ ni_ifworker_print_binding(ni_ifworker_t *w, ni_fsm_transition_t *action)
 }
 
 /*
+ * Debugging: print the device lease info
+ */
+static inline void
+ni_ifworker_print_device_leases(ni_ifworker_t *w)
+{
+	ni_addrconf_lease_t *lease;
+
+	if (!w || !ni_debug_guard(NI_LOG_DEBUG1, NI_TRACE_EVENTS))
+		return;
+
+	if (!w->device) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+				"%s: no worker device", w->name);
+	} else
+	if (!w->device->leases) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+				"%s: no worker device leases", w->name);
+	} else {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+				"%s: worker device leases:", w->name);
+		for (lease = w->device->leases; lease; lease = lease->next) {
+			ni_bool_t optional = ni_addrconf_flag_bit_is_set(lease->flags,
+							NI_ADDRCONF_FLAGS_OPTIONAL);
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+					"        %s:%s in state %s, uuid %s%s",
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_addrconf_state_to_name(lease->state),
+					ni_uuid_print(&lease->uuid),
+					optional ? ", optional" : "");
+		}
+	}
+}
+
+
+/*
  * Most steps of the finite state machine follow the same pattern.
  *
  * First part: bind the service, method and argument that should be passed.
@@ -3611,6 +3647,98 @@ document_error:
 	return -NI_ERROR_DOCUMENT_ERROR;
 }
 
+static void
+ni_ifworker_update_from_addrconf_callback(ni_addrconf_lease_t *lease, ni_objectmodel_callback_info_t *callback_list)
+{
+	ni_objectmodel_callback_info_t *cb;
+
+	if (!lease || !callback_list)
+		return;
+
+	for (cb = callback_list; cb; cb = cb->next) {
+		if (ni_string_eq(cb->event, "addressAcquired") ||
+		    ni_string_eq(cb->event, "addressReleased")) {
+			if (!cb->data.lease)
+				continue;
+			if (cb->data.lease->family != lease->family)
+				continue;
+			if (cb->data.lease->type != lease->type)
+				continue;
+			lease->uuid  = cb->data.lease->uuid;
+			lease->state = cb->data.lease->state;
+			lease->flags = cb->data.lease->flags;
+			break; /* could it be more than one? */
+		}
+	}
+}
+
+static void
+ni_ifworker_update_from_addrconf_requests(ni_ifworker_t *w, const char *service, const char *method,
+			int result, ni_objectmodel_callback_info_t *callback_list)
+{
+	ni_string_array_t array = NI_STRING_ARRAY_INIT;
+	size_t pfx = sizeof(NI_OBJECTMODEL_ADDRCONF_INTERFACE);
+	size_t len = ni_string_len(service);
+	unsigned int family, type;
+	ni_addrconf_lease_t *lease;
+	int ret;
+
+	if (!w || !w->device)
+		return;
+
+	if (len <= pfx || (ret = ni_string_split(&array, service+pfx, ".", 0)) != 2)
+		goto cleanup;
+	if ((int)(family = ni_addrfamily_name_to_type(array.data[0])) < 0)
+		goto cleanup;
+	if ((int)(type = ni_addrconf_name_to_type(array.data[1])) < 0)
+		goto cleanup;
+
+	if (ni_string_eq(method, "requestLease")) {
+		if (!(lease = ni_addrconf_lease_new(type, family)))
+			goto cleanup;
+
+		if (result < 0) {
+			lease->state = NI_ADDRCONF_STATE_FAILED;
+		} else
+		if (callback_list) {
+			lease->state = NI_ADDRCONF_STATE_REQUESTING;
+			ni_ifworker_update_from_addrconf_callback(lease, callback_list);
+		} else {
+			lease->state = NI_ADDRCONF_STATE_GRANTED;
+		}
+		ni_netdev_set_lease(w->device, lease);
+	} else
+	if (ni_string_eq(method, "dropLease")) {
+		if (result < 0)
+			goto cleanup;
+
+		if (callback_list) {
+			if (!(lease = ni_addrconf_lease_new(type, family)))
+				goto cleanup;
+
+			lease->state = NI_ADDRCONF_STATE_RELEASING;
+			ni_ifworker_update_from_addrconf_callback(lease, callback_list);
+			ni_netdev_set_lease(w->device, lease);
+		} else {
+			/* [NI_ADDRCONF_STATE_RELEASED] and dropped */
+			ni_netdev_unset_lease(w->device, family, type);
+		}
+	}
+	ni_ifworker_print_device_leases(w);
+
+cleanup:
+	ni_string_array_destroy(&array);
+}
+
+static void
+ni_ifworker_update_from_request(ni_ifworker_t *w, const char *service, const char *method,
+				int result, ni_objectmodel_callback_info_t *callback_list)
+{
+	if (ni_string_startswith(service, NI_OBJECTMODEL_ADDRCONF_INTERFACE)) {
+		ni_ifworker_update_from_addrconf_requests(w, service, method, result, callback_list);
+	}
+}
+
 static int
 ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
@@ -3635,6 +3763,8 @@ ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *acti
 
 		rv = ni_call_common_xml(w->object, bind->service, bind->method, bind->config,
 				&callback_list, ni_ifworker_error_handler);
+		ni_ifworker_update_from_request(w, bind->service->name,
+				bind->method->name, rv, callback_list);
 		if (rv < 0) {
 			if (action->common.may_fail) {
 				ni_error("[ignored] %s: call to %s.%s() failed: %s", w->name,
@@ -4261,6 +4391,8 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 					ni_debug_dbus("%s: was waiting for %s event, but got %s",
 							w->name, cb->event, signal_name);
 				}
+
+				ni_ifworker_print_device_leases(w);
 
 				switch (cb_event_type) {
 				case NI_EVENT_ADDRESS_ACQUIRED:
