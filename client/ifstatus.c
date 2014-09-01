@@ -218,24 +218,11 @@ ni_ifstatus_of_worker(ni_ifworker_t *w, ni_bool_t *mandatory)
 	ni_netdev_t *dev = w ? w->device : NULL;
 	unsigned int st;
 
+	st = ni_ifstatus_of_device(dev, mandatory);
+
 	if (mandatory) {
-		*mandatory = ni_ifcheck_device_is_persistent(dev) ||
-			ni_ifcheck_worker_device_link_required(w);
-	}
-
-	if (!ni_ifcheck_worker_device_exists(w))
-		return NI_WICKED_ST_NO_DEVICE;
-
-	if (!ni_ifcheck_device_configured(dev))
-		return NI_WICKED_ST_UNCONFIGURED;
-
-	if (!ni_ifcheck_worker_config_exists(w))
-		return NI_WICKED_ST_NO_CONFIG;
-
-	st = __ifstatus_of_device(dev);
-	if (st == NI_WICKED_ST_OK) {
-		if (!ni_ifcheck_worker_config_exists(w))
-			return NI_WICKED_ST_CHANGED_CONFIG;
+		if (ni_ifcheck_worker_device_link_required(w))
+			*mandatory = TRUE;
 	}
 
 	return st;
