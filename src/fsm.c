@@ -29,10 +29,6 @@
 #include "client/ifconfig.h"
 #include "util_priv.h"
 
-enum {
-	NI_FSM_CALLBACK_CANCEL_ON_TIMEOUT =  (1 << 0),
-};
-
 static unsigned int		ni_ifworker_timeout_count;
 static ni_fsm_user_prompt_fn_t *ni_fsm_user_prompt_fn;
 static void *			ni_fsm_user_prompt_data;
@@ -57,7 +53,6 @@ static int			ni_fsm_user_prompt_default(const ni_fsm_prompt_t *, xml_node_t *, v
 static void			ni_ifworker_refresh_client_state(ni_ifworker_t *, ni_client_state_t *);
 static void			ni_ifworker_set_config_origin(ni_ifworker_t *, const char *);
 static void			ni_ifworker_cancel_timeout(ni_ifworker_t *);
-static ni_objectmodel_callback_info_t *	ni_ifworker_get_cancelable_callback(ni_ifworker_t *, ni_bool_t);
 static dbus_bool_t		ni_ifworker_waiting_for_events(ni_ifworker_t *);
 static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
 
@@ -412,28 +407,6 @@ ni_ifworker_set_completion_callback(ni_ifworker_t *w, void (*cb)(ni_ifworker_t *
 }
 
 /*
- * Cleanup group-optional/cancelable event callbacks on timeout
- */
-static void
-ni_ifworker_cleanup_cancelable_events(ni_ifworker_t *w)
-{
-	ni_objectmodel_callback_info_t *cb;
-
-	while ((cb = ni_ifworker_get_cancelable_callback(w, TRUE))) {
-		ni_event_t ev;
-
-		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
-			"%s: Cleaning up cancelable event %s callback on timeout",
-			w->name, cb->event);
-
-		if (ni_objectmodel_signal_to_event(cb->event, &ev) == 0)
-			ni_ifworker_advance_state(w, ev);
-
-		ni_objectmodel_callback_info_free(cb);
-	}
-}
-
-/*
  * Handle timeouts of device config.
  */
 static void
@@ -446,8 +419,6 @@ __ni_ifworker_timeout(void *user_data, const ni_timer_t *timer)
 		return;
 	} else {
 		w->fsm.timer = NULL;
-
-		ni_ifworker_cleanup_cancelable_events(w);
 		if (ni_ifworker_waiting_for_events(w) || !ni_ifworker_complete(w) || w->pending)
 			ni_ifworker_fail(w, "operation timed out");
 	}
@@ -1212,24 +1183,6 @@ ni_ifworker_get_callback(ni_ifworker_t *w, const ni_uuid_t *uuid, ni_bool_t remo
 		return NULL;
 	for (pos = &action->callbacks; (cb = *pos) != NULL; pos = &cb->next) {
 		if (ni_uuid_equal(&cb->uuid, uuid)) {
-			if (remove)
-				*pos = cb->next;
-			return cb;
-		}
-	}
-	return NULL;
-}
-
-static ni_objectmodel_callback_info_t *
-ni_ifworker_get_cancelable_callback(ni_ifworker_t *w, ni_bool_t remove)
-{
-	ni_objectmodel_callback_info_t **pos, *cb;
-	ni_fsm_transition_t *action;
-
-	if ((action = w->fsm.wait_for) == NULL)
-		return NULL;
-	for (pos = &action->callbacks; (cb = *pos) != NULL; pos = &cb->next) {
-		if (cb->flags & NI_FSM_CALLBACK_CANCEL_ON_TIMEOUT) {
 			if (remove)
 				*pos = cb->next;
 			return cb;
@@ -3681,12 +3634,12 @@ ni_ifworker_update_from_addrconf_requests(ni_ifworker_t *w, const char *service,
 	size_t len = ni_string_len(service);
 	unsigned int family, type;
 	ni_addrconf_lease_t *lease;
-	int ret;
+	unsigned int cnt;
 
 	if (!w || !w->device)
 		return;
 
-	if (len <= pfx || (ret = ni_string_split(&array, service+pfx, ".", 0)) != 2)
+	if (len <= pfx || (cnt = ni_string_split(&array, service+pfx, ".", 0)) != 2)
 		goto cleanup;
 	if ((int)(family = ni_addrfamily_name_to_type(array.data[0])) < 0)
 		goto cleanup;
@@ -4222,114 +4175,85 @@ __find_corresponding_lease(ni_netdev_t *dev, sa_family_t family, unsigned int ty
 }
 
 static ni_bool_t
-address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callback_info_t *cb, ni_event_t event, ni_fsm_t *fsm, const char *object_path)
+address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callback_info_t *cb, ni_event_t event)
 {
 	ni_netdev_t *dev;
 	ni_addrconf_lease_t *lease;
 	ni_addrconf_lease_t *other;
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
-	w = ni_fsm_recv_new_netif_path(fsm, object_path);
-	if (w && cb) {
-		dev = w->device;
-
-		/* Rebuild hierarchy */
-		ni_fsm_refresh_master_dev(fsm, w);
-		ni_fsm_refresh_lower_dev(fsm, w);
+	if (!w || !(dev = w->device)) {
+		ni_error("%s: received %s event with uuid %s, but can't find a device for",
+				w ? w->name : NULL, ni_objectmodel_event_to_signal(event),
+				ni_uuid_print(&cb->uuid));
+		return FALSE;	/* ignore?? */
 	}
-	else
-		return FALSE;
+	if (!(lease = ni_netdev_get_lease_by_uuid(dev, &cb->uuid))) {
+		ni_error("%s: received %s event with uuid %s, but can't find a lease for",
+				w->name, ni_objectmodel_event_to_signal(event),
+				ni_uuid_print(&cb->uuid));
+		return FALSE;	/* ignore?? */
+	}
 
 	switch (event) {
-	case NI_EVENT_ADDRESS_DEFERRED:
-		/*
-		 * All fine so far, it is just a wait cancel for this lease;
-		 * the sevice deferred it, maybe also started some fallback,
-		 * but will continue in background.
-		 */
-		return TRUE;
-
 	case NI_EVENT_ADDRESS_ACQUIRED:
-		{
-			lease = ni_netdev_get_lease_by_uuid(dev, &cb->uuid);
-			if (lease) {
-				/* acquired, advance to granted */
-				lease->state = NI_ADDRCONF_STATE_GRANTED;
+		/* OK, it is granted -- adjust the state	*/
+		lease->state = NI_ADDRCONF_STATE_GRANTED;
+		break;
 
-				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
-					"%s: %s:%s lease %s in state %s [%s]",
-					w->name,
-					ni_addrfamily_type_to_name(lease->family),
-					ni_addrconf_type_to_name(lease->type),
-					ni_uuid_print(&lease->uuid),
-					ni_addrconf_state_to_name(lease->state),
-					ni_addrconf_flags_format(&buf, lease->flags, "|"));
-				ni_stringbuf_destroy(&buf);
-
-				other = __find_corresponding_lease(dev, lease->family, lease->type);
-				if (other && ni_addrconf_flag_bit_is_set(other->flags, NI_ADDRCONF_FLAGS_OPTIONAL)) {
-					ni_objectmodel_callback_info_t *ocb;
-
-					if ((ocb = ni_ifworker_get_callback(w, &other->uuid, FALSE))) {
-						ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
-							"%s: mark %s:%s lease %s event in state %s [%s] cancelable",
-							w->name,
-							ni_addrfamily_type_to_name(other->family),
-							ni_addrconf_type_to_name(other->type),
-							ocb->event,
-							ni_addrconf_state_to_name(other->state),
-							ni_addrconf_flags_format(&buf, other->flags, "|"));
-						ni_stringbuf_destroy(&buf);
-
-						ocb->flags |= NI_FSM_CALLBACK_CANCEL_ON_TIMEOUT;
-					}
-				}
-			}
-		}
-		return TRUE;
+	case NI_EVENT_ADDRESS_DEFERRED:
+		/* canceled wait -- remains requesting		*/
+		lease->state = NI_ADDRCONF_STATE_REQUESTING;
+		break;
 
 	case NI_EVENT_ADDRESS_LOST:
-		{
-			lease = ni_netdev_get_lease_by_uuid(dev, &cb->uuid);
-			if (lease) {
-				lease->state = NI_ADDRCONF_STATE_FAILED;
-
-				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
-						"%s: %s:%s lease %s in state %s [%s]",
-						w->name,
-						ni_addrfamily_type_to_name(lease->family),
-						ni_addrconf_type_to_name(lease->type),
-						ni_uuid_print(&lease->uuid),
-						ni_addrconf_state_to_name(lease->state),
-						ni_addrconf_flags_format(&buf, lease->flags, "|"));
-				ni_stringbuf_destroy(&buf);
-
-				if (!ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_OPTIONAL))
-					return FALSE;
-
-				if ((other = __find_corresponding_lease(dev, lease->family, lease->type))) {
-						ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
-							"%s: %s:%s peer lease in state %s [%s]",
-							w->name,
-							ni_addrfamily_type_to_name(other->family),
-							ni_addrconf_type_to_name(other->type),
-							ni_addrconf_state_to_name(other->state),
-							ni_addrconf_flags_format(&buf, other->flags, "|"));
-						ni_stringbuf_destroy(&buf);
-
-					if (other->state == NI_ADDRCONF_STATE_GRANTED ||
-					    other->state == NI_ADDRCONF_STATE_APPLYING ||
-					    other->state == NI_ADDRCONF_STATE_REQUESTING)
-						return TRUE;
-				}
-			}
-		}
+		/* lease failed -- adjust the state		*/
+		lease->state = NI_ADDRCONF_STATE_FAILED;
 		break;
 
 	default:
-		break;
+		ni_error("%s: received unknown event %s -- ignoring it",
+				w->name, ni_objectmodel_event_to_signal(event));
+		return TRUE;
 	}
-	return FALSE;
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+			"%s: adjusted %s:%s lease to state: %s",
+			w->name,
+			ni_addrfamily_type_to_name(lease->family),
+			ni_addrconf_type_to_name(lease->type),
+			ni_addrconf_state_to_name(lease->state));
+	ni_ifworker_print_device_leases(w);
+
+	/* if there are still pending leases -- wait for them	*/
+	if (ni_ifworker_waiting_for_event(w, cb->event))
+		return TRUE;
+
+	/* this is the last lease we were waiting for -- report	*/
+	for (lease = dev->leases; lease; lease = lease->next) {
+		if (lease->state == NI_ADDRCONF_STATE_NONE ||
+		    lease->state == NI_ADDRCONF_STATE_GRANTED)
+			continue;
+
+		/* a not ready, released or failed non-optional lease -> fail */
+		if (!ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_OPTIONAL))
+			return FALSE;
+
+		/* optional type-goup peer lease -> check peer lease */
+		if ((other = __find_corresponding_lease(dev, lease->family, lease->type))) {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+					"%s: %s:%s peer lease in state %s [%s]",
+					w->name,
+					ni_addrfamily_type_to_name(other->family),
+					ni_addrconf_type_to_name(other->type),
+					ni_addrconf_state_to_name(other->state),
+					ni_addrconf_flags_format(&buf, other->flags, "|"));
+					ni_stringbuf_destroy(&buf);
+
+			if (other->state != NI_ADDRCONF_STATE_GRANTED)
+				return FALSE;
+		}
+	}
+	return TRUE;
 }
 
 static void
@@ -4392,13 +4316,13 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 							w->name, cb->event, signal_name);
 				}
 
-				ni_ifworker_print_device_leases(w);
-
 				switch (cb_event_type) {
 				case NI_EVENT_ADDRESS_ACQUIRED:
-					/* Set event_name as this is the one we wait for */
+					success = address_acquired_callback_handler(w, cb, event_type);
+
+					/* Set event_name and type to the event we wait for */
 					event_name = ni_objectmodel_event_to_signal(cb_event_type);
-					success = address_acquired_callback_handler(w, cb, event_type, fsm, object_path);
+					event_type = cb_event_type; /* don't revert state on failure */
 					break;
 				default:
 					break;
