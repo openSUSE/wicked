@@ -1042,11 +1042,11 @@ __validate_netmask(const char *addrstring, int af, const char *subcmd, unsigned 
  * lf=/var/run/whatever/mylease.xml
  * netif=ppp0
  *
- * lease $lf new family ipv4 state granted hostname my.funky.hostname.org
- * lease $lf add-address 192.168.7.8 netmask 255.255.255.248
- * lease $lf add-route 0/0 gateway 192.168.7.1
- * lease $lf set-resolver default-domain funky.hostname.org server 192.168.1.1 server 192.168.8.1
- * lease $lf install --device $netif
+ * wicked lease $lf new family ipv4 state granted hostname my.funky.hostname.org
+ * wicked lease $lf add-address 192.168.7.8 netmask 255.255.255.248
+ * wicked lease $lf add-route 0/0 gateway 192.168.7.1
+ * wicked lease $lf set-resolver default-domain funky.hostname.org server 192.168.1.1 server 192.168.8.1
+ * wicked lease $lf install --device $netif
  * rm -f $lf
  *
  * Note, it's up to you whether you actually ask wickedd to take care of the
@@ -1058,8 +1058,8 @@ __validate_netmask(const char *addrstring, int af, const char *subcmd, unsigned 
  * lf=/var/run/whatever/mylease.xml
  * netif=ppp0
  *
- * lease $lf new family ipv4 state released
- * lease $lf install --device $netif
+ * wicked lease $lf new family ipv4 state released
+ * wicked lease $lf install --device $netif
  * rm -f $lf
  *
  */
