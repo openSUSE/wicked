@@ -495,11 +495,35 @@ ni_dhcp4_device_event(ni_dhcp4_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 	}
 }
 
+static void
+ni_dhcp4_device_start_delayed(void *user_data, const ni_timer_t *timer)
+{
+	ni_dhcp4_device_t *dev = user_data;
+	ni_netconfig_t *nc;
+	ni_netdev_t *ifp;
+
+	if (dev->defer.timer != timer) {
+		ni_warn("%s: bad timer handle", __func__);
+		return;
+	}
+	dev->defer.timer = NULL;
+
+	nc = ni_global_state_handle(0);
+	ifp = ni_netdev_by_index(nc, dev->link.ifindex);
+	ni_dhcp4_fsm_init_device(dev);
+	if (ni_netdev_link_is_up(ifp)) {
+		ni_dhcp4_fsm_link_up(dev);
+	} else {
+		ni_debug_dhcp("%s: defered start until link is up", dev->ifname);
+	}
+}
+
 int
 ni_dhcp4_device_start(ni_dhcp4_device_t *dev)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
+	unsigned long msec = dev->config->start_delay * 1000;
 
 	ni_dhcp4_device_drop_buffer(dev);
 	dev->failed = 0;
@@ -510,15 +534,10 @@ ni_dhcp4_device_start(ni_dhcp4_device_t *dev)
 		return -1;
 	}
 
-	ni_dhcp4_fsm_init_device(dev);
-	if (ni_netdev_link_is_up(ifp)) {
-		ni_dhcp4_fsm_link_up(dev);
-		return 0;
-	} else {
-		ni_debug_dhcp("%s: defered start until link is up",
-				dev->ifname);
-	}
-	return 1;
+	/* Reuse defer pointer for this one-shot timer */
+	dev->defer.timer = ni_timer_register(msec, ni_dhcp4_device_start_delayed, dev);
+
+	return !ni_netdev_link_is_up(ifp);
 }
 
 void
