@@ -31,7 +31,7 @@
 #define NAK_BACKOFF_MAX		60	/* seconds */
 
 static int		ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *);
-static const char *	ni_dhcp4_fsm_state_name(int);
+static const char *	ni_dhcp4_fsm_state_name(enum fsm_state);
 
 static int		ni_dhcp4_process_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
 static int		ni_dhcp4_process_ack(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
@@ -519,9 +519,8 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		ni_dhcp4_fsm_commit_lease(dev, NULL);
 		ni_dhcp4_fsm_set_timeout(dev, 10);
 		break;
-
-	default:
-		;
+	case __NI_DHCP4_STATE_MAX:
+		break;
 	}
 }
 
@@ -570,8 +569,13 @@ ni_dhcp4_fsm_link_up(ni_dhcp4_device_t *dev)
 		else
 			ni_dhcp4_fsm_discover(dev);
 		break;
-
-	default:
+	case NI_DHCP4_STATE_SELECTING:
+	case NI_DHCP4_STATE_REQUESTING:
+	case NI_DHCP4_STATE_VALIDATING:
+	case NI_DHCP4_STATE_RENEWING:
+	case NI_DHCP4_STATE_REBINDING:
+		break;
+	case __NI_DHCP4_STATE_MAX:
 		break;
 	}
 }
@@ -591,8 +595,13 @@ ni_dhcp4_fsm_link_down(ni_dhcp4_device_t *dev)
 		ni_dhcp4_device_drop_lease(dev);
 		ni_dhcp4_fsm_restart(dev);
 		break;
-
-	default: ;
+	case NI_DHCP4_STATE_BOUND:
+	case NI_DHCP4_STATE_REBOOT:
+	case NI_DHCP4_STATE_RENEWING:
+	case NI_DHCP4_STATE_REBINDING:
+		break;
+	case __NI_DHCP4_STATE_MAX:
+		break;
 	}
 }
 
@@ -978,9 +987,17 @@ ni_dhcp4_process_nak(ni_dhcp4_device_t *dev)
 		/* RFC says discard NAKs received in state BOUND */
 		return 0;
 
-	default:
+	case NI_DHCP4_STATE_INIT:
+	case NI_DHCP4_STATE_SELECTING:
+	case NI_DHCP4_STATE_REQUESTING:
+	case NI_DHCP4_STATE_VALIDATING:
+	case NI_DHCP4_STATE_RENEWING:
+	case NI_DHCP4_STATE_REBINDING:
+	case NI_DHCP4_STATE_REBOOT:
 		/* FIXME: how do we handle a NAK response to an INFORM? */
 		ni_dhcp4_device_drop_lease(dev);
+		break;
+	case __NI_DHCP4_STATE_MAX:
 		break;
 	}
 
@@ -1028,15 +1045,14 @@ static const char *__dhcp4_state_name[__NI_DHCP4_STATE_MAX] = {
  [NI_DHCP4_STATE_RENEWING]	= "RENEWING",
  [NI_DHCP4_STATE_REBINDING]	= "REBINDING",
  [NI_DHCP4_STATE_REBOOT]	= "REBOOT",
- [NI_DHCP4_STATE_RELEASED]	= "RELEASED",
 };
 
 const char *
-ni_dhcp4_fsm_state_name(int state)
+ni_dhcp4_fsm_state_name(enum fsm_state state)
 {
 	const char *name = NULL;
 
-	if (0 <= state && state < __NI_DHCP4_STATE_MAX)
+	if (state < __NI_DHCP4_STATE_MAX)
 		name = __dhcp4_state_name[state];
 	return name? name : "UNKNOWN STATE";
 }

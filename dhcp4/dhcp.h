@@ -16,7 +16,7 @@
 #include "netinfo_priv.h"
 #include "buffer.h"
 
-enum {
+enum fsm_state {
 	NI_DHCP4_STATE_INIT,
 	NI_DHCP4_STATE_SELECTING,
 	NI_DHCP4_STATE_REQUESTING,
@@ -25,7 +25,6 @@ enum {
 	NI_DHCP4_STATE_RENEWING,
 	NI_DHCP4_STATE_REBINDING,
 	NI_DHCP4_STATE_REBOOT,
-	NI_DHCP4_STATE_RELEASED,
 
 	__NI_DHCP4_STATE_MAX,
 };
@@ -42,7 +41,7 @@ typedef struct ni_dhcp4_device {
 	ni_linkinfo_t		link;
 
 	struct {
-	    int			state;
+	    enum fsm_state	state;
 	    const ni_timer_t *	timer;
 	} fsm;
 
