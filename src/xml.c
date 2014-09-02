@@ -162,6 +162,18 @@ xml_node_new_element(const char *ident, xml_node_t *parent, const char *cdata)
 }
 
 xml_node_t *
+xml_node_new_element_unique(const char *ident, xml_node_t *parent, const char *cdata)
+{
+	xml_node_t *node;
+
+	if (parent == NULL || (node = xml_node_get_child(parent, ident)) == NULL)
+		node = xml_node_new(ident, parent);
+
+	xml_node_set_cdata(node, cdata);
+	return node;
+}
+
+xml_node_t *
 xml_node_new_element_int(const char *ident, xml_node_t *parent, int value)
 {
 	xml_node_t *node = xml_node_new(ident, parent);
