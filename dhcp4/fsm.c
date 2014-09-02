@@ -44,6 +44,31 @@ static void		__ni_dhcp4_fsm_timeout(void *, const ni_timer_t *);
 
 static ni_dhcp4_event_handler_t *ni_dhcp4_fsm_event_handler;
 
+static void
+ni_dhcp4_defer_timeout(void *user_data, const ni_timer_t *timer)
+{
+	ni_dhcp4_device_t *dev = user_data;
+
+	if (dev->defer.timer != timer) {
+		ni_warn("%s: bad timer handle", __func__);
+		return;
+	}
+	ni_note("%s: DHCLIENT_WAIT_AT_BOOT=%u reached (fsm.state %u)", dev->ifname, dev->config->defer_timeout, dev->fsm.state);
+	ni_dhcp4_send_event(NI_DHCP4_EVENT_DEFERRED, dev, NULL);
+}
+
+void
+ni_dhcp4_fsm_init_device(ni_dhcp4_device_t *dev)
+{
+	if (dev->config->defer_timeout) {
+		unsigned long msec = dev->config->defer_timeout * 1000;
+		if (dev->defer.timer)
+			ni_timer_rearm(dev->defer.timer, msec);
+		else
+			dev->defer.timer = ni_timer_register(msec, ni_dhcp4_defer_timeout, dev);
+	}
+}
+
 int
 ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 {
@@ -714,6 +739,10 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 
 	if (lease) {
 		ni_debug_dhcp("%s: committing lease", dev->ifname);
+		if (dev->defer.timer) {
+			ni_timer_cancel(dev->defer.timer);
+			dev->defer.timer = NULL;
+		}
 		if (dev->config->dry_run == NI_DHCP4_RUN_NORMAL) {
 			ni_debug_dhcp("%s: schedule renewal of lease in %u seconds",
 					dev->ifname, lease->dhcp4.renewal_time);

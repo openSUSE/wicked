@@ -87,6 +87,10 @@ ni_dhcp4_device_close(ni_dhcp4_device_t *dev)
 		close(dev->listen_fd);
 	dev->listen_fd = -1;
 
+	if (dev->defer.timer) {
+		ni_timer_cancel(dev->defer.timer);
+		dev->defer.timer = NULL;
+	}
 	if (dev->fsm.timer) {
 		ni_warn("%s: timer active for %s", __func__, dev->ifname);
 		ni_timer_cancel(dev->fsm.timer);
@@ -264,7 +268,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 
 	config->dry_run = info->dry_run;
 	config->start_delay = info->start_delay;
-	config->defer_timeout = info->start_delay;
+	config->defer_timeout = info->defer_timeout;
 	config->acquire_timeout = info->acquire_timeout;
 	config->uuid = info->uuid;
 	config->flags = info->flags;
@@ -506,6 +510,7 @@ ni_dhcp4_device_start(ni_dhcp4_device_t *dev)
 		return -1;
 	}
 
+	ni_dhcp4_fsm_init_device(dev);
 	if (ni_netdev_link_is_up(ifp)) {
 		ni_dhcp4_fsm_link_up(dev);
 		return 0;
