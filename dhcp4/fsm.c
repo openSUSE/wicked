@@ -413,13 +413,10 @@ ni_dhcp4_fsm_decline(ni_dhcp4_device_t *dev)
 void
 ni_dhcp4_fsm_release(ni_dhcp4_device_t *dev)
 {
-	if (!dev->config) {
-		ni_debug_dhcp("%s: not configured, dropping lease", dev->ifname);
-		ni_dhcp4_fsm_commit_lease(dev, NULL);
+	if (dev->config->release_lease) {
+		ni_debug_dhcp("%s: releasing lease", dev->ifname);
+		ni_dhcp4_device_send_message(dev, DHCP4_RELEASE, dev->lease);
 	}
-
-	ni_debug_dhcp("%s: releasing lease", dev->ifname);
-	ni_dhcp4_device_send_message(dev, DHCP4_RELEASE, dev->lease);
 
 	ni_dhcp4_fsm_commit_lease(dev, NULL);
 }
