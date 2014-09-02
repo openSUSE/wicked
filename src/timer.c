@@ -123,10 +123,10 @@ __ni_timer_disarm(const ni_timer_t *handle)
 		if (timer == handle) {
 			*pos = timer->next;
 			timer->next = NULL;
-			break;
+			return timer;
 		}
 	}
-	return timer;
+	return NULL;
 }
 
 int
