@@ -1045,13 +1045,8 @@ add_conflict:
 		}
 
 		node = doc->root;
-		if (opt_state) {
-			xml_node_t *e;
-
-			if (!(e = xml_node_get_child(node, "state")))
-				e = xml_node_new("state", node);
-			xml_node_set_cdata(e, opt_state);
-		}
+		if (opt_state)
+			xml_node_new_element_unique("state", node, opt_state);
 
 		if (opt_address) {
 			char *slash, addrbuf[128];
@@ -1065,8 +1060,7 @@ add_conflict:
 				opt_address = addrbuf;
 			}
 
-			if (!(list = xml_node_get_child(node, "addresses")))
-				list = xml_node_new("addresses", node);
+			list = xml_node_new_element_unique("addresses", node, NULL);
 
 			e = xml_node_new("e", list);
 			xml_node_set_cdata(xml_node_new("local", e), opt_address);
@@ -1089,8 +1083,7 @@ add_conflict:
 				opt_route = addrbuf;
 			}
 
-			if (!(list = xml_node_get_child(node, "routes")))
-				list = xml_node_new("routes", node);
+			list = xml_node_new_element_unique("routes", node, NULL);
 
 			e = xml_node_new("e", list);
 			xml_node_set_cdata(xml_node_new("destination", e), opt_route);
