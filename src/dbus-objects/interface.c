@@ -845,6 +845,7 @@ ni_objectmodel_netif_install_lease(ni_dbus_object_t *object, const ni_dbus_metho
 			lease->type = value32;
 		if (ni_dbus_dict_get_uint32(dict, "family", &value32))
 			lease->family = value32;
+		lease->update = ~0;
 
 		child = ni_dbus_dict_get(dict, "lease");
 		if (child == NULL)
