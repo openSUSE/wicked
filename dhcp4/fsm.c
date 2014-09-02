@@ -153,44 +153,65 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 	/* move to next stage of protocol */
 	switch (msg_code) {
 	case DHCP4_OFFER:
-		if (dev->fsm.state != NI_DHCP4_STATE_SELECTING)
+		switch (dev->fsm.state) {
+		case NI_DHCP4_STATE_SELECTING:
+			/* process best offer set above */
+			ni_dhcp4_process_offer(dev, dev->best_offer.lease);
+			break;
+		case NI_DHCP4_STATE_INIT:
+		case NI_DHCP4_STATE_REQUESTING:
+		case NI_DHCP4_STATE_VALIDATING:
+		case NI_DHCP4_STATE_BOUND:
+		case NI_DHCP4_STATE_RENEWING:
+		case NI_DHCP4_STATE_REBINDING:
+		case NI_DHCP4_STATE_REBOOT:
+		case __NI_DHCP4_STATE_MAX:
 			goto ignore;
-
-		/* process best offer set above */
-		ni_dhcp4_process_offer(dev, dev->best_offer.lease);
+		}
 		break;
 
 	case DHCP4_ACK:
-		if (dev->fsm.state == NI_DHCP4_STATE_INIT) {
+		switch (dev->fsm.state) {
+		case NI_DHCP4_STATE_INIT:
 			/*
 			 * Received a decline ACK -- wait until
 			 * timeout before we restart from begin
 			 */
 			ni_dhcp4_device_drop_lease(dev);
 			break;
-		}
-
-		if (dev->fsm.state != NI_DHCP4_STATE_REQUESTING
-		 && dev->fsm.state != NI_DHCP4_STATE_RENEWING
-		 && dev->fsm.state != NI_DHCP4_STATE_REBOOT
-		 && dev->fsm.state != NI_DHCP4_STATE_REBINDING)
+		case NI_DHCP4_STATE_REQUESTING:
+		case NI_DHCP4_STATE_RENEWING:
+		case NI_DHCP4_STATE_REBINDING:
+		case NI_DHCP4_STATE_REBOOT:
+			ni_dhcp4_process_ack(dev, lease);
+			lease = NULL;
+			break;
+		case NI_DHCP4_STATE_SELECTING:
+		case NI_DHCP4_STATE_VALIDATING:
+		case NI_DHCP4_STATE_BOUND:
+		case __NI_DHCP4_STATE_MAX:
 			goto ignore;
-
-		ni_dhcp4_process_ack(dev, lease);
-		lease = NULL;
+		}
 		break;
 
 	case DHCP4_NAK:
-		/* The RFC 2131 state diagram says, ignore NAKs in state BOUND.
-		 * I guess we also have no use for NAK replies to a DHCP4_DISCOVER
-		 */
-		if (dev->fsm.state == NI_DHCP4_STATE_SELECTING
-		 || dev->fsm.state == NI_DHCP4_STATE_BOUND)
+		switch (dev->fsm.state) {
+		case NI_DHCP4_STATE_SELECTING:
+		case NI_DHCP4_STATE_BOUND:
+			/* The RFC 2131 state diagram says, ignore NAKs in state BOUND.
+			 * I guess we also have no use for NAK replies to a DHCP4_DISCOVER
+			 */
 			goto ignore;
-
-		ni_dhcp4_process_nak(dev);
+		case NI_DHCP4_STATE_INIT:
+		case NI_DHCP4_STATE_REQUESTING:
+		case NI_DHCP4_STATE_VALIDATING:
+		case NI_DHCP4_STATE_RENEWING:
+		case NI_DHCP4_STATE_REBINDING:
+		case NI_DHCP4_STATE_REBOOT:
+		case __NI_DHCP4_STATE_MAX:
+			ni_dhcp4_process_nak(dev);
+		}
 		break;
-
 	default:
 	ignore:
 		ni_debug_dhcp("ignoring %s in state %s",
