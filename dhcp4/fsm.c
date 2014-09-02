@@ -451,8 +451,6 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 	ni_dhcp4_config_t *conf = dev->config;
 	ni_debug_dhcp("%s: timeout in state %s",
 			dev->ifname, ni_dhcp4_fsm_state_name(dev->fsm.state));
-	dev->fsm.timer = NULL;
-
 	conf->elapsed_timeout += conf->capture_timeout;
 
 	switch (dev->fsm.state) {
@@ -554,7 +552,7 @@ __ni_dhcp4_fsm_timeout(void *user_data, const ni_timer_t *timer)
 		ni_warn("%s: bad timer handle", __func__);
 		return;
 	}
-
+	dev->fsm.timer = NULL;
 	ni_dhcp4_fsm_timeout(dev);
 }
 
