@@ -197,11 +197,8 @@ ni_dhcp4_device_drop_lease(ni_dhcp4_device_t *dev)
 	ni_addrconf_lease_t *lease;
 
 	if ((lease = dev->lease) != NULL) {
-		ni_addrconf_lease_free(lease);
 		dev->lease = NULL;
-
-		/* Go back to square one */
-		dev->fsm.state = NI_DHCP4_STATE_INIT;
+		ni_addrconf_lease_free(lease);
 	}
 }
 
