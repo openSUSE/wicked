@@ -819,7 +819,7 @@ ni_objectmodel_netif_install_lease(ni_dbus_object_t *object, const ni_dbus_metho
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netdev_t *dev;
-	ni_addrconf_lease_t *lease;
+	ni_addrconf_lease_t *lease = NULL;
 	dbus_bool_t ret = FALSE;
 	int rv;
 
@@ -833,8 +833,26 @@ ni_objectmodel_netif_install_lease(ni_dbus_object_t *object, const ni_dbus_metho
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
 
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_INTRINSIC, AF_INET);
-	if (!__ni_objectmodel_set_addrconf_lease(lease, &argv[0], error))
-		goto failed;
+
+	/* Set the lease information from the argument dict.
+	 * This can overwrite the lease type and addrfamily.
+	 */
+	{
+		const ni_dbus_variant_t *dict = &argv[0], *child;
+		uint32_t value32;
+
+		if (ni_dbus_dict_get_uint32(dict, "type", &value32))
+			lease->type = value32;
+		if (ni_dbus_dict_get_uint32(dict, "family", &value32))
+			lease->family = value32;
+
+		child = ni_dbus_dict_get(dict, "lease");
+		if (child == NULL)
+			lease->state = NI_ADDRCONF_STATE_RELEASED;
+		else
+		if (!__ni_objectmodel_set_addrconf_lease(lease, child, error))
+			goto failed;
+	}
 
 	/*
 	 * The following call updates the system with the information given in

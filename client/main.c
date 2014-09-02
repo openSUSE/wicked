@@ -956,6 +956,8 @@ do_lease(int argc, char **argv)
 {
 	const char *opt_file, *opt_cmd;
 	xml_document_t *doc;
+	xml_node_t *lease_node;
+	xml_node_t *type_node = NULL, *fmly_node = NULL;
 	int c, ret = 1;
 
 	if (argc <= 2)
@@ -1045,6 +1047,18 @@ add_conflict:
 		}
 
 		node = doc->root;
+
+		/* Prepare the lease type and family.
+		 * For now, we don't offer any command line switches to change this.
+		 * This will be done by a subsequent patch.
+		 */
+		xml_node_new_element_unique("type", node, "intrinsic");
+		xml_node_new_element_unique("family", node, "ipv4");
+
+		/* Now drill down into the lease itself, which is wrapped inside
+		 * a <lease> element. */
+		node = xml_node_new("lease", node);
+
 		if (opt_state)
 			xml_node_new_element_unique("state", node, opt_state);
 
@@ -1121,11 +1135,6 @@ add_conflict:
 			goto usage;
 		}
 
-		doc = xml_document_read(opt_file);
-		if (!doc) {
-			ni_error("unable to parse XML document %s", opt_file);
-			return 1;
-		}
 		if (doc->root == NULL) {
 			ni_error("empty lease file");
 			goto failed;
