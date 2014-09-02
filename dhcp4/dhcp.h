@@ -16,7 +16,7 @@
 #include "netinfo_priv.h"
 #include "buffer.h"
 
-enum {
+enum fsm_state {
 	NI_DHCP4_STATE_INIT,
 	NI_DHCP4_STATE_SELECTING,
 	NI_DHCP4_STATE_REQUESTING,
@@ -25,7 +25,6 @@ enum {
 	NI_DHCP4_STATE_RENEWING,
 	NI_DHCP4_STATE_REBINDING,
 	NI_DHCP4_STATE_REBOOT,
-	NI_DHCP4_STATE_RELEASED,
 
 	__NI_DHCP4_STATE_MAX,
 };
@@ -42,9 +41,13 @@ typedef struct ni_dhcp4_device {
 	ni_linkinfo_t		link;
 
 	struct {
-	    int			state;
+	    enum fsm_state	state;
 	    const ni_timer_t *	timer;
 	} fsm;
+
+	struct {
+	    const ni_timer_t *	timer;
+	} defer;
 
 	ni_capture_devinfo_t	system;
 
@@ -194,6 +197,7 @@ struct ni_dhcp4_config {
 enum ni_dhcp4_event {
 	NI_DHCP4_EVENT_ACQUIRED =NI_EVENT_LEASE_ACQUIRED,
 	NI_DHCP4_EVENT_RELEASED =NI_EVENT_LEASE_RELEASED,
+	NI_DHCP4_EVENT_DEFERRED =NI_EVENT_LEASE_DEFERRED,
 	NI_DHCP4_EVENT_LOST =	NI_EVENT_LEASE_LOST
 };
 
@@ -209,6 +213,7 @@ extern int		ni_dhcp4_acquire(ni_dhcp4_device_t *, const ni_dhcp4_request_t *);
 extern int		ni_dhcp4_release(ni_dhcp4_device_t *, const ni_uuid_t *);
 extern void		ni_dhcp4_restart_leases(void);
 
+extern void		ni_dhcp4_fsm_init_device(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_fsm_release(ni_dhcp4_device_t *);
 extern int		ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *, ni_buffer_t *);
 extern int		ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *, ni_addrconf_lease_t *);

@@ -31,7 +31,7 @@
 #define NAK_BACKOFF_MAX		60	/* seconds */
 
 static int		ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *);
-static const char *	ni_dhcp4_fsm_state_name(int);
+static const char *	ni_dhcp4_fsm_state_name(enum fsm_state);
 
 static int		ni_dhcp4_process_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
 static int		ni_dhcp4_process_ack(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
@@ -43,6 +43,31 @@ static void		ni_dhcp4_send_event(enum ni_dhcp4_event, ni_dhcp4_device_t *, ni_ad
 static void		__ni_dhcp4_fsm_timeout(void *, const ni_timer_t *);
 
 static ni_dhcp4_event_handler_t *ni_dhcp4_fsm_event_handler;
+
+static void
+ni_dhcp4_defer_timeout(void *user_data, const ni_timer_t *timer)
+{
+	ni_dhcp4_device_t *dev = user_data;
+
+	if (dev->defer.timer != timer) {
+		ni_warn("%s: bad timer handle", __func__);
+		return;
+	}
+	ni_note("%s: DHCLIENT_WAIT_AT_BOOT=%u reached (fsm.state %u)", dev->ifname, dev->config->defer_timeout, dev->fsm.state);
+	ni_dhcp4_send_event(NI_DHCP4_EVENT_DEFERRED, dev, NULL);
+}
+
+void
+ni_dhcp4_fsm_init_device(ni_dhcp4_device_t *dev)
+{
+	if (dev->config->defer_timeout) {
+		unsigned long msec = dev->config->defer_timeout * 1000;
+		if (dev->defer.timer)
+			ni_timer_rearm(dev->defer.timer, msec);
+		else
+			dev->defer.timer = ni_timer_register(msec, ni_dhcp4_defer_timeout, dev);
+	}
+}
 
 int
 ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
@@ -153,44 +178,65 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 	/* move to next stage of protocol */
 	switch (msg_code) {
 	case DHCP4_OFFER:
-		if (dev->fsm.state != NI_DHCP4_STATE_SELECTING)
+		switch (dev->fsm.state) {
+		case NI_DHCP4_STATE_SELECTING:
+			/* process best offer set above */
+			ni_dhcp4_process_offer(dev, dev->best_offer.lease);
+			break;
+		case NI_DHCP4_STATE_INIT:
+		case NI_DHCP4_STATE_REQUESTING:
+		case NI_DHCP4_STATE_VALIDATING:
+		case NI_DHCP4_STATE_BOUND:
+		case NI_DHCP4_STATE_RENEWING:
+		case NI_DHCP4_STATE_REBINDING:
+		case NI_DHCP4_STATE_REBOOT:
+		case __NI_DHCP4_STATE_MAX:
 			goto ignore;
-
-		/* process best offer set above */
-		ni_dhcp4_process_offer(dev, dev->best_offer.lease);
+		}
 		break;
 
 	case DHCP4_ACK:
-		if (dev->fsm.state == NI_DHCP4_STATE_INIT) {
+		switch (dev->fsm.state) {
+		case NI_DHCP4_STATE_INIT:
 			/*
 			 * Received a decline ACK -- wait until
 			 * timeout before we restart from begin
 			 */
 			ni_dhcp4_device_drop_lease(dev);
 			break;
-		}
-
-		if (dev->fsm.state != NI_DHCP4_STATE_REQUESTING
-		 && dev->fsm.state != NI_DHCP4_STATE_RENEWING
-		 && dev->fsm.state != NI_DHCP4_STATE_REBOOT
-		 && dev->fsm.state != NI_DHCP4_STATE_REBINDING)
+		case NI_DHCP4_STATE_REQUESTING:
+		case NI_DHCP4_STATE_RENEWING:
+		case NI_DHCP4_STATE_REBINDING:
+		case NI_DHCP4_STATE_REBOOT:
+			ni_dhcp4_process_ack(dev, lease);
+			lease = NULL;
+			break;
+		case NI_DHCP4_STATE_SELECTING:
+		case NI_DHCP4_STATE_VALIDATING:
+		case NI_DHCP4_STATE_BOUND:
+		case __NI_DHCP4_STATE_MAX:
 			goto ignore;
-
-		ni_dhcp4_process_ack(dev, lease);
-		lease = NULL;
+		}
 		break;
 
 	case DHCP4_NAK:
-		/* The RFC 2131 state diagram says, ignore NAKs in state BOUND.
-		 * I guess we also have no use for NAK replies to a DHCP4_DISCOVER
-		 */
-		if (dev->fsm.state == NI_DHCP4_STATE_SELECTING
-		 || dev->fsm.state == NI_DHCP4_STATE_BOUND)
+		switch (dev->fsm.state) {
+		case NI_DHCP4_STATE_SELECTING:
+		case NI_DHCP4_STATE_BOUND:
+			/* The RFC 2131 state diagram says, ignore NAKs in state BOUND.
+			 * I guess we also have no use for NAK replies to a DHCP4_DISCOVER
+			 */
 			goto ignore;
-
-		ni_dhcp4_process_nak(dev);
+		case NI_DHCP4_STATE_INIT:
+		case NI_DHCP4_STATE_REQUESTING:
+		case NI_DHCP4_STATE_VALIDATING:
+		case NI_DHCP4_STATE_RENEWING:
+		case NI_DHCP4_STATE_REBINDING:
+		case NI_DHCP4_STATE_REBOOT:
+		case __NI_DHCP4_STATE_MAX:
+			ni_dhcp4_process_nak(dev);
+		}
 		break;
-
 	default:
 	ignore:
 		ni_debug_dhcp("ignoring %s in state %s",
@@ -413,13 +459,10 @@ ni_dhcp4_fsm_decline(ni_dhcp4_device_t *dev)
 void
 ni_dhcp4_fsm_release(ni_dhcp4_device_t *dev)
 {
-	if (!dev->config) {
-		ni_debug_dhcp("%s: not configured, dropping lease", dev->ifname);
-		ni_dhcp4_fsm_commit_lease(dev, NULL);
+	if (dev->config->release_lease) {
+		ni_debug_dhcp("%s: releasing lease", dev->ifname);
+		ni_dhcp4_device_send_message(dev, DHCP4_RELEASE, dev->lease);
 	}
-
-	ni_debug_dhcp("%s: releasing lease", dev->ifname);
-	ni_dhcp4_device_send_message(dev, DHCP4_RELEASE, dev->lease);
 
 	ni_dhcp4_fsm_commit_lease(dev, NULL);
 }
@@ -433,8 +476,6 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 	ni_dhcp4_config_t *conf = dev->config;
 	ni_debug_dhcp("%s: timeout in state %s",
 			dev->ifname, ni_dhcp4_fsm_state_name(dev->fsm.state));
-	dev->fsm.timer = NULL;
-
 	conf->elapsed_timeout += conf->capture_timeout;
 
 	switch (dev->fsm.state) {
@@ -522,9 +563,8 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		ni_dhcp4_fsm_commit_lease(dev, NULL);
 		ni_dhcp4_fsm_set_timeout(dev, 10);
 		break;
-
-	default:
-		;
+	case __NI_DHCP4_STATE_MAX:
+		break;
 	}
 }
 
@@ -537,7 +577,7 @@ __ni_dhcp4_fsm_timeout(void *user_data, const ni_timer_t *timer)
 		ni_warn("%s: bad timer handle", __func__);
 		return;
 	}
-
+	dev->fsm.timer = NULL;
 	ni_dhcp4_fsm_timeout(dev);
 }
 
@@ -573,8 +613,13 @@ ni_dhcp4_fsm_link_up(ni_dhcp4_device_t *dev)
 		else
 			ni_dhcp4_fsm_discover(dev);
 		break;
-
-	default:
+	case NI_DHCP4_STATE_SELECTING:
+	case NI_DHCP4_STATE_REQUESTING:
+	case NI_DHCP4_STATE_VALIDATING:
+	case NI_DHCP4_STATE_RENEWING:
+	case NI_DHCP4_STATE_REBINDING:
+		break;
+	case __NI_DHCP4_STATE_MAX:
 		break;
 	}
 }
@@ -594,8 +639,13 @@ ni_dhcp4_fsm_link_down(ni_dhcp4_device_t *dev)
 		ni_dhcp4_device_drop_lease(dev);
 		ni_dhcp4_fsm_restart(dev);
 		break;
-
-	default: ;
+	case NI_DHCP4_STATE_BOUND:
+	case NI_DHCP4_STATE_REBOOT:
+	case NI_DHCP4_STATE_RENEWING:
+	case NI_DHCP4_STATE_REBINDING:
+		break;
+	case __NI_DHCP4_STATE_MAX:
+		break;
 	}
 }
 
@@ -689,6 +739,10 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 
 	if (lease) {
 		ni_debug_dhcp("%s: committing lease", dev->ifname);
+		if (dev->defer.timer) {
+			ni_timer_cancel(dev->defer.timer);
+			dev->defer.timer = NULL;
+		}
 		if (dev->config->dry_run == NI_DHCP4_RUN_NORMAL) {
 			ni_debug_dhcp("%s: schedule renewal of lease in %u seconds",
 					dev->ifname, lease->dhcp4.renewal_time);
@@ -981,9 +1035,17 @@ ni_dhcp4_process_nak(ni_dhcp4_device_t *dev)
 		/* RFC says discard NAKs received in state BOUND */
 		return 0;
 
-	default:
+	case NI_DHCP4_STATE_INIT:
+	case NI_DHCP4_STATE_SELECTING:
+	case NI_DHCP4_STATE_REQUESTING:
+	case NI_DHCP4_STATE_VALIDATING:
+	case NI_DHCP4_STATE_RENEWING:
+	case NI_DHCP4_STATE_REBINDING:
+	case NI_DHCP4_STATE_REBOOT:
 		/* FIXME: how do we handle a NAK response to an INFORM? */
 		ni_dhcp4_device_drop_lease(dev);
+		break;
+	case __NI_DHCP4_STATE_MAX:
 		break;
 	}
 
@@ -1031,15 +1093,14 @@ static const char *__dhcp4_state_name[__NI_DHCP4_STATE_MAX] = {
  [NI_DHCP4_STATE_RENEWING]	= "RENEWING",
  [NI_DHCP4_STATE_REBINDING]	= "REBINDING",
  [NI_DHCP4_STATE_REBOOT]	= "REBOOT",
- [NI_DHCP4_STATE_RELEASED]	= "RELEASED",
 };
 
 const char *
-ni_dhcp4_fsm_state_name(int state)
+ni_dhcp4_fsm_state_name(enum fsm_state state)
 {
 	const char *name = NULL;
 
-	if (0 <= state && state < __NI_DHCP4_STATE_MAX)
+	if (state < __NI_DHCP4_STATE_MAX)
 		name = __dhcp4_state_name[state];
 	return name? name : "UNKNOWN STATE";
 }

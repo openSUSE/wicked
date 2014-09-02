@@ -500,7 +500,7 @@ __ni_rtevent_process_rdnss_info(ni_netdev_t *dev, const struct nd_opt_hdr *opt,
 
 		ni_ipv6_ra_rdnss_add_server(ipv6->radv.rdnss, addr);
 
-		if (ni_debug & NI_TRACE_EVENTS) {
+		if (ni_log_facility(NI_TRACE_EVENTS)) {
 			const ni_sockaddr_array_t *addrs = &ipv6->radv.rdnss->addrs;
 
 			ni_debug_events("%s: rdnss address: %s", dev->name,

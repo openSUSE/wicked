@@ -651,6 +651,11 @@ dhcp4_protocol_event(enum ni_dhcp4_event ev, const ni_dhcp4_device_t *dev, ni_ad
 				NI_OBJECTMODEL_ADDRCONF_INTERFACE, NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL,
 				argc, argv);
 		break;
+	case NI_DHCP4_EVENT_DEFERRED:
+		ni_dbus_server_send_signal(dhcp4_dbus_server, dev_object,
+				NI_OBJECTMODEL_ADDRCONF_INTERFACE, NI_OBJECTMODEL_LEASE_DEFERRED_SIGNAL,
+				argc, argv);
+		break;
 
 	case NI_DHCP4_EVENT_LOST:
 		ni_dbus_server_send_signal(dhcp4_dbus_server, dev_object,

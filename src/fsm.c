@@ -1145,7 +1145,7 @@ ni_ifworker_print_callbacks(const char *ifname, ni_objectmodel_callback_info_t *
 {
 	ni_objectmodel_callback_info_t *cb;
 
-	if (!(ni_debug & NI_TRACE_EVENTS))
+	if (!ni_log_facility(NI_TRACE_EVENTS))
 		return;
 
 	if (callback_list == NULL) {
@@ -2820,7 +2820,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 		}
 	}
 
-	if (ni_debug & NI_TRACE_APPLICATION) {
+	if (ni_log_facility(NI_TRACE_APPLICATION)) {
 		for (i = 0; i < fsm->workers.count; ++i) {
 			ni_ifworker_t *w = fsm->workers.data[i];
 
@@ -4023,7 +4023,7 @@ ni_fsm_schedule_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
 
 		if (!action->bound)
 			unbound++;
-		else if (ni_debug & NI_TRACE_APPLICATION)
+		else if (ni_log_facility(NI_TRACE_APPLICATION))
 			ni_ifworker_print_binding(w, action);
 	}
 

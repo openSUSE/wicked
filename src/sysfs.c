@@ -358,7 +358,7 @@ ni_sysfs_bonding_set_list_attr(const char *ifname, const char *attr_name, const 
 		goto done;
 	}
 
-	if (ni_debug & NI_TRACE_IFCONFIG) {
+	if (ni_log_facility(NI_TRACE_IFCONFIG)) {
 		ni_trace("%s: updating attr list %s", ifname, attr_name);
 		for (i = 0; i < delete.count; ++i)
 			ni_trace("    remove %s", delete.data[i]);

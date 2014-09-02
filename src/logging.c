@@ -59,6 +59,7 @@ static const ni_intmap_t	__debug_flags_names[] = {
 	{ "application",NI_TRACE_APPLICATION },
 	{ "modem",	NI_TRACE_MODEM },
 	{ "lldp",	NI_TRACE_LLDP },
+	{ "timer",	NI_TRACE_TIMER },
 
 	{ "mini",	NI_TRACE_MINI },
 	{ "most", 	NI_TRACE_MOST },
@@ -89,6 +90,7 @@ static const ni_intmap_t	__debug_flags_descriptions[] = {
 	{ "Application level activity",	 		NI_TRACE_APPLICATION },
 	{ "Modem handling",				NI_TRACE_MODEM },
 	{ "LLDP agent",					NI_TRACE_LLDP },
+	{ "Internal timer",				NI_TRACE_TIMER },
 
 	{ "Minimal debug facility set :-)", 		NI_TRACE_MINI },
 	{ "All useful debug facility set :-)", 		NI_TRACE_MOST },

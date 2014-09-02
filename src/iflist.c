@@ -1793,7 +1793,7 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 	ap->scope	= ifa->ifa_scope;
 	ap->flags	= ifa->ifa_flags;
 
-	if (ni_log_level_at(NI_LOG_DEBUG3) && (ni_debug & NI_TRACE_EVENTS)) {
+	if (ni_log_level_at(NI_LOG_DEBUG3) && (ni_log_facility(NI_TRACE_EVENTS))) {
 		ni_trace("newaddr(%s): family %d, prefixlen %u, scope %u, flags %u",
 			(ifflags & NI_IFF_POINT_TO_POINT) ? "ptp" : "brd",
 			ap->family, ap->prefixlen, ap->scope, ap->flags);
