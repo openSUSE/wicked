@@ -1131,6 +1131,8 @@ add_conflict:
 			goto failed;
 		}
 
+		ni_objectmodel_init(NULL);
+
 		obj = get_netif_object(opt_device);
 		if (obj == NULL) {
 			ni_error("no such device or object: %s", opt_device);
