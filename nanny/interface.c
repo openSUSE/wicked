@@ -66,8 +66,7 @@ ni_managed_netdev_enable(ni_managed_device_t *mdev)
 
 	ni_nanny_schedule_recheck(&mgr->recheck, w);
 	ni_nanny_unschedule(&mgr->down, w);
-	if (ni_ifworker_complete(w))
-		ni_ifworker_rearm(w);
+	ni_ifworker_reset(w);
 
 	mdev->monitor = TRUE;
 
@@ -85,8 +84,7 @@ ni_managed_netdev_disable(ni_managed_device_t *mdev)
 
 	ni_nanny_schedule_recheck(&mgr->down, w);
 	ni_nanny_unschedule(&mgr->recheck, w);
-	if (ni_ifworker_complete(w))
-		ni_ifworker_rearm(w);
+	ni_ifworker_reset(w);
 
 	mdev->monitor = FALSE;
 	ni_nanny_policy_drop(mdev->worker->name);
