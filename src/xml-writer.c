@@ -252,7 +252,7 @@ static void
 xml_node_trace_printer(const char *line, void *user_data)
 {
 	if (user_data == NULL
-	 || (ni_debug & *(unsigned int *) user_data) != 0)
+	 || ni_log_facility(*(unsigned int *) user_data) != 0)
 		ni_trace("%s", line);
 }
 

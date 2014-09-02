@@ -307,7 +307,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	config->doflags = DHCP4_DO_DEFAULT;
 	config->doflags |= ni_dhcp4_do_bits(info->update);
 
-	if (ni_debug & NI_TRACE_DHCP) {
+	if (ni_log_facility(NI_TRACE_DHCP)) {
 		ni_trace("Received request:");
 		ni_trace("  acquire-timeout %u", config->acquire_timeout);
 		ni_trace("  lease-time      %u", config->max_lease_time);
