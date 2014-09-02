@@ -971,6 +971,9 @@ ni_config_addrconf_update_mask(ni_addrconf_mode_t type, unsigned int family)
 
 	switch (type) {
 	case NI_ADDRCONF_STATIC:
+	case NI_ADDRCONF_INTRINSIC:
+		/* for now we treat intrinsic just like static. We may want to differentiate
+		 * a bit better in the future. Let's see if anyone needs it. */
 		mask = conf ? conf->addrconf.default_allow_update :
 			ni_config_addrconf_update_mask_all();
 		break;
