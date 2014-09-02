@@ -35,7 +35,9 @@ ni_timer_register(unsigned long timeout, ni_timeout_callback_t *callback, void *
 	timer->callback = callback;
 	timer->user_data = data;
 	timer->ident = id_counter++;
-	ni_debug_timer("%s: new timer %p id %x, callback %p/%p", __func__, timer, timer->ident, callback, data);
+	ni_debug_verbose(NI_TRACE_TIMER, NI_LOG_DEBUG2,
+			"%s: new timer %p id %x, callback %p/%p",
+			__func__, timer, timer->ident, callback, data);
 	__ni_timer_arm(timer, timeout);
 
 	return timer;
@@ -50,9 +52,12 @@ ni_timer_cancel(const ni_timer_t *handle)
 	if ((timer = __ni_timer_disarm(handle)) != NULL) {
 		user_data = timer->user_data;
 		free(timer);
-		ni_debug_timer("%s: released timer %p", __func__, timer);
-	} else
-		ni_debug_timer("%s: timer %p NOT found", __func__, handle);
+		ni_debug_verbose(NI_TRACE_TIMER, NI_LOG_DEBUG2,
+				"%s: released timer %p", __func__, timer);
+	} else {
+		ni_debug_verbose(NI_TRACE_TIMER, NI_LOG_DEBUG2,
+				"%s: timer %p NOT found", __func__, handle);
+	}
 	return user_data;
 }
 
@@ -64,7 +69,8 @@ ni_timer_rearm(const ni_timer_t *handle, unsigned long timeout)
 	 if ((timer = __ni_timer_disarm(handle)) != NULL)
 		 __ni_timer_arm(timer, timeout);
 	 else
-		ni_debug_timer("%s: timer %p NOT found", __func__, handle);
+		ni_debug_verbose(NI_TRACE_TIMER, NI_LOG_DEBUG2,
+				"%s: timer %p NOT found", __func__, handle);
 	 return timer;
 }
 
@@ -80,12 +86,14 @@ ni_timer_next_timeout(void)
 		if (!timercmp(&timer->expires, &now, <)) {
 			timersub(&timer->expires, &now, &delta);
 			timeout = delta.tv_sec * 1000 + delta.tv_usec / 1000;
-			ni_debug_timer("%s: timer %p timeout %ld", __func__, timer, timeout);
+			ni_debug_verbose(NI_TRACE_TIMER, NI_LOG_DEBUG2,
+					"%s: timer %p timeout %ld", __func__, timer, timeout);
 			if (timeout > 0)
 				return timeout;
 		}
 
-		ni_debug_timer("%s: timer %p expired (now=%ld.%06lu, expires=%ld.%06lu)",
+		ni_debug_verbose(NI_TRACE_TIMER, NI_LOG_DEBUG2,
+				"%s: timer %p expired (now=%ld.%06lu, expires=%ld.%06lu)",
 				__func__, timer,
 				(long) now.tv_sec, (long) now.tv_usec,
 				(long) timer->expires.tv_sec, (long) timer->expires.tv_usec);
@@ -102,7 +110,8 @@ __ni_timer_arm(ni_timer_t *timer, unsigned long timeout)
 {
 	ni_timer_t *tail, **pos;
 
-	ni_debug_timer("%s: timer %p timeout %lu", __func__, timer, timeout);
+	ni_debug_verbose(NI_TRACE_TIMER, NI_LOG_DEBUG2,
+			"%s: timer %p timeout %lu", __func__, timer, timeout);
 	ni_timer_get_time(&timer->expires);
 	timer->expires.tv_sec += timeout / 1000;
 	timer->expires.tv_usec += (timeout % 1000) * 1000;
@@ -129,11 +138,13 @@ __ni_timer_disarm(const ni_timer_t *handle)
 		if (timer == handle) {
 			*pos = timer->next;
 			timer->next = NULL;
-			ni_debug_timer("%s: timer %p found", __func__, handle);
+			ni_debug_verbose(NI_TRACE_TIMER, NI_LOG_DEBUG2,
+					"%s: timer %p found", __func__, handle);
 			return timer;
 		}
 	}
-	ni_debug_timer("%s: timer %p NOT found", __func__, handle);
+	ni_debug_verbose(NI_TRACE_TIMER, NI_LOG_DEBUG2,
+			"%s: timer %p NOT found", __func__, handle);
 	return NULL;
 }
 
@@ -175,7 +186,7 @@ __ni_timeout_arm_msec(struct timeval *deadline, unsigned long timeout, const ni_
 {
 	timeout = ni_timeout_randomize(timeout, jitter);
 
-	ni_debug_timer("%s: arming retransmit timer (%lu msec)", __func__, timeout);
+	ni_debug_timer("arming retransmit timer (%lu msec)", timeout);
 	ni_timer_get_time(deadline);
 	deadline->tv_sec += timeout / 1000;
 	deadline->tv_usec += (timeout % 1000) * 1000;
@@ -196,7 +207,8 @@ ni_timeout_randomize(unsigned long timeout, const ni_int_range_t *jitter)
 	if (jitter && jitter->min < jitter->max) {
 		unsigned int jitter_range = (jitter->max - jitter->min);
 		long adj = ((long) random() % jitter_range) + jitter->min;
-		ni_debug_timer("%s: timeout %lu adjusted by %ld to %lu (jr %u)", __func__, timeout, adj, timeout + adj, jitter_range);
+		ni_debug_timer("timeout %lu adjusted by %ld to %lu (jr %u)",
+				timeout, adj, timeout + adj, jitter_range);
 		timeout += adj;
 	}
 	return timeout;
