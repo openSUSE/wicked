@@ -128,15 +128,6 @@ ni_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
 	return worker;
 }
 
-void
-ni_ifworker_rearm(ni_ifworker_t *w)
-{
-	w->target_state = NI_FSM_STATE_NONE;
-	w->done = FALSE;
-	w->failed = FALSE;
-	w->kickstarted = FALSE;
-}
-
 static void
 __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 {
@@ -154,6 +145,16 @@ __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 
 	ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
 	memset(&w->fsm, 0, sizeof(w->fsm));
+}
+
+void
+ni_ifworker_rearm(ni_ifworker_t *w)
+{
+	w->target_state = NI_FSM_STATE_NONE;
+	w->done = FALSE;
+	w->failed = FALSE;
+	w->kickstarted = FALSE;
+	__ni_ifworker_reset_fsm(w);
 }
 
 void
