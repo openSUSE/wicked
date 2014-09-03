@@ -53,7 +53,7 @@ ni_dhcp4_defer_timeout(void *user_data, const ni_timer_t *timer)
 		ni_warn("%s: bad timer handle", __func__);
 		return;
 	}
-	ni_note("%s: DHCLIENT_WAIT_AT_BOOT=%u reached (fsm.state %u)", dev->ifname, dev->config->defer_timeout, dev->fsm.state);
+	ni_note("%s: DHCLIENT_WAIT_AT_BOOT=%u reached (state %s)", dev->ifname, dev->config->defer_timeout, ni_dhcp4_fsm_state_name(dev->fsm.state));
 	ni_dhcp4_send_event(NI_DHCP4_EVENT_DEFERRED, dev, NULL);
 }
 
@@ -394,6 +394,37 @@ ni_dhcp4_fsm_renewal_init(ni_dhcp4_device_t *dev)
 	ni_dhcp4_fsm_renewal(dev, TRUE);
 }
 
+static ni_bool_t
+ni_dhcp4_fsm_rebind(ni_dhcp4_device_t *dev, ni_bool_t oneshot)
+{
+	time_t expire_time, now = time(NULL);
+	ni_bool_t retry = FALSE;
+
+	ni_info("%s: Initiating rebind of DHCPv4 lease", dev->ifname);
+
+	expire_time = dev->lease->time_acquired + dev->lease->dhcp4.lease_time;
+	if (expire_time > now || oneshot) {
+		dev->config->capture_timeout = dev->config->capture_max_timeout;
+		if (expire_time - now < dev->config->capture_timeout)
+			dev->config->capture_timeout = expire_time - now;
+		ni_dhcp4_fsm_set_timeout(dev, dev->config->capture_timeout);
+		ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
+		if (!oneshot)
+			retry = TRUE;
+	}
+	return retry;
+}
+
+static void
+ni_dhcp4_fsm_rebind_init(ni_dhcp4_device_t *dev)
+{
+	dev->fsm.state = NI_DHCP4_STATE_REBINDING;
+	dev->start_time = time(NULL);
+	dev->lease->dhcp4.server_id.s_addr = 0;
+	/* Send rebind request at least once */
+	ni_dhcp4_fsm_rebind(dev, TRUE);
+}
+
 static void
 ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *dev)
 {
@@ -413,28 +444,6 @@ ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *dev)
 	dev->config->capture_timeout = deadline - now;
 
 	ni_dhcp4_fsm_set_timeout(dev, dev->config->capture_timeout);
-	ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
-}
-
-static void
-ni_dhcp4_fsm_rebind(ni_dhcp4_device_t *dev)
-{
-	time_t expire_time, now = time(NULL);
-
-	ni_info("%s: Initiating rebind of DHCPv4 lease",
-		dev->ifname);
-
-	dev->start_time = time(NULL);
-	dev->fsm.state = NI_DHCP4_STATE_REBINDING;
-	dev->lease->dhcp4.server_id.s_addr = 0;
-	expire_time = dev->lease->time_acquired + dev->lease->dhcp4.lease_time;
-	dev->config->capture_timeout = dev->config->capture_max_timeout;
-	if (expire_time > now) {
-		if (expire_time - now < dev->config->capture_max_timeout)
-			dev->config->capture_timeout = expire_time - now;
-		ni_dhcp4_fsm_set_deadline(dev, expire_time);
-	} else
-		ni_dhcp4_fsm_set_timeout(dev, dev->config->capture_timeout);
 	ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
 }
 
@@ -459,6 +468,8 @@ ni_dhcp4_fsm_decline(ni_dhcp4_device_t *dev)
 void
 ni_dhcp4_fsm_release(ni_dhcp4_device_t *dev)
 {
+	if (dev->config == NULL)
+		return;
 	if (dev->config->release_lease) {
 		ni_debug_dhcp("%s: releasing lease", dev->ifname);
 		ni_dhcp4_device_send_message(dev, DHCP4_RELEASE, dev->lease);
@@ -549,10 +560,12 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		if (ni_dhcp4_fsm_renewal(dev, FALSE) == TRUE)
 			return;
 		ni_error("unable to renew lease within renewal period; trying to rebind");
-		ni_dhcp4_fsm_rebind(dev);
+		ni_dhcp4_fsm_rebind_init(dev);
 		break;
 
 	case NI_DHCP4_STATE_REBINDING:
+		if (ni_dhcp4_fsm_rebind(dev, FALSE) == TRUE)
+			return;
 		ni_error("unable to rebind lease");
 		ni_dhcp4_fsm_restart(dev);
 		ni_dhcp4_fsm_set_timeout(dev, 10);
@@ -560,7 +573,7 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 
 	case NI_DHCP4_STATE_REBOOT:
 		ni_error("unable to confirm lease");
-		ni_dhcp4_fsm_commit_lease(dev, NULL);
+		ni_dhcp4_fsm_restart(dev);
 		ni_dhcp4_fsm_set_timeout(dev, 10);
 		break;
 	case __NI_DHCP4_STATE_MAX:
