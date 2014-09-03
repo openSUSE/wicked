@@ -338,7 +338,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		}
 	}
 
-	ni_note("%s: Request to acquire DHCPv4 lease with request UUID %s",
+	ni_note("%s: Starting to acquire DHCPv4 lease with request UUID %s",
 		dev->ifname, ni_uuid_print(&config->uuid));
 
 	if (ni_dhcp4_device_start(dev) < 0)
