@@ -85,6 +85,9 @@ static void		run_interface_server(void);
 static void		discover_state(ni_dbus_server_t *);
 static void		recover_state(const char *filename);
 static void		handle_interface_event(ni_netdev_t *, ni_event_t);
+static void		handle_interface_addr_events(ni_netdev_t *, ni_event_t, const ni_address_t *);
+static void		handle_interface_prefix_events(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *);
+static void		handle_interface_nduseropt_events(ni_netdev_t *, ni_event_t);
 static void		handle_rfkill_event(ni_rfkill_type_t, ni_bool_t, void *);
 static void		handle_other_event(ni_event_t);
 #ifdef MODEM
@@ -240,6 +243,12 @@ run_interface_server(void)
 	/* open global RTNL socket to listen for kernel events */
 	if (ni_server_listen_interface_events(handle_interface_event) < 0)
 		ni_fatal("unable to initialize netlink listener");
+	if (ni_server_enable_interface_addr_events(handle_interface_addr_events) < 0)
+		ni_fatal("unable to initialize netlink address listener");
+	if (ni_server_enable_interface_prefix_events(handle_interface_prefix_events) < 0)
+		ni_fatal("unable to initialize netlink prefix listener");
+	if (ni_server_enable_interface_nduseropt_events(handle_interface_nduseropt_events) < 0)
+		ni_fatal("unable to initialize netlink nduseropt listener");
 
 	if (ni_udev_net_subsystem_available()) {
 		if (ni_server_enable_interface_uevents() < 0)
@@ -419,6 +428,24 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 			break;
 		}
 	}
+}
+
+static void
+handle_interface_addr_events(ni_netdev_t *dev, ni_event_t event, const ni_address_t *ap)
+{
+	ni_server_trace_interface_addr_events(dev, event, ap);
+}
+
+static void
+handle_interface_prefix_events(ni_netdev_t *dev, ni_event_t event, const ni_ipv6_ra_pinfo_t *pi)
+{
+	ni_server_trace_interface_prefix_events(dev, event, pi);
+}
+
+static void
+handle_interface_nduseropt_events(ni_netdev_t *dev, ni_event_t event)
+{
+	ni_server_trace_interface_nduseropt_events(dev, event);
 }
 
 static void
