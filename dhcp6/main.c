@@ -58,6 +58,7 @@ enum {
 	OPT_RECOVER,
 
 	OPT_TEST,
+	OPT_TEST_MODE,
 	OPT_TEST_TIMEOUT,
 	OPT_TEST_REQUEST,
 	OPT_TEST_OUTPUT,
@@ -82,6 +83,7 @@ static struct option		options[] = {
 
 	/* test run */
 	{ "test",		no_argument,		NULL,	OPT_TEST         },
+	{ "test-mode",		required_argument,	NULL,	OPT_TEST_MODE    },
 	{ "test-request",	required_argument,	NULL,	OPT_TEST_REQUEST },
 	{ "test-timeout",	required_argument,	NULL,	OPT_TEST_TIMEOUT },
 	{ "test-output",	required_argument,	NULL,	OPT_TEST_OUTPUT  },
@@ -144,6 +146,7 @@ main(int argc, char **argv)
 				"\n"
 				"  --test [test-options] <ifname>\n"
 				"    test-options:\n"
+				"       --test-mode    <auto|info|managed>\n"
 				"       --test-request <request.xml>\n"
 				"       --test-timeout <timeout in sec> (default: 20+10)\n"
 				"       --test-output  <output file name>\n"
@@ -205,6 +208,13 @@ main(int argc, char **argv)
 		case OPT_TEST:
 			opt_foreground = TRUE;
 			tester = dhcp6_tester_init();
+			break;
+
+		case OPT_TEST_MODE:
+			if (!tester || ni_string_empty(optarg))
+				goto usage;
+			if (ni_dhcp6_mode_name_to_type(optarg, &tester->mode) < 0)
+				goto usage;
 			break;
 
 		case OPT_TEST_REQUEST:

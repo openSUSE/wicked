@@ -41,8 +41,10 @@
 #include <wicked/xml.h>
 
 #include "dhcp6/dhcp6.h"
+#include "dhcp6/device.h"
 #include "dhcp6/tester.h"
 #include "duid.h"
+#include "src/netinfo_priv.h"
 
 
 static dhcp6_tester_t	dhcp6_tester_opts;
@@ -53,6 +55,7 @@ dhcp6_tester_init(void)
 {
 	memset(&dhcp6_tester_opts, 0, sizeof(dhcp6_tester_opts));
 	dhcp6_tester_opts.outfmt  = DHCP6_TESTER_OUT_LEASE_INFO;
+	dhcp6_tester_opts.mode    = NI_DHCP6_MODE_AUTO;
 	dhcp6_tester_opts.timeout = 0;
 	return &dhcp6_tester_opts;
 }
@@ -184,7 +187,7 @@ dhcp6_tester_req_init(ni_dhcp6_request_t *req, const char *request)
 	/* Apply some defaults */
 	req->dry_run = NI_DHCP6_RUN_OFFER;
 	req->acquire_timeout = 10;
-	req->mode = NI_DHCP6_MODE_MANAGED;
+	req->mode = NI_DHCP6_MODE_AUTO;
 
 	if (!ni_string_empty(request)) {
 		xml_document_t *doc;
@@ -253,6 +256,9 @@ dhcp6_tester_run(dhcp6_tester_t *opts)
 	if (!dhcp6_tester_req_init(req, opts->request))
 		goto failure;
 
+	if (opts->mode != req->mode)
+		req->mode = opts->mode;
+
 	if (!ni_dhcp6_device_check_ready(dev)) {
 
 		if (!ni_netdev_link_is_up(ifp)) {
@@ -275,9 +281,10 @@ dhcp6_tester_run(dhcp6_tester_t *opts)
 		do {
 			sleep(1);
 
-			if (!(nc = ni_global_state_handle(1)))
-				goto failure;
-
+			if (!(ifp = ni_netdev_by_index(nc, dev->link.ifindex)))
+				break;
+			if (__ni_system_refresh_interface(nc, ifp))
+				break;
 			if (!(ifp = ni_netdev_by_index(nc, dev->link.ifindex)))
 				break;
 			if (!ni_netdev_device_is_up(ifp))
@@ -312,7 +319,21 @@ dhcp6_tester_run(dhcp6_tester_t *opts)
 		long timeout;
 
 		timeout = ni_timer_next_timeout();
+		if (dev->config && dev->config->mode == NI_DHCP6_MODE_AUTO) {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+					"%s: DHCPv6 mode is auto", dev->ifname);
 
+			if (!(ifp = ni_netdev_by_index(nc, dev->link.ifindex)))
+				break;
+			if (__ni_system_refresh_interface(nc, ifp))
+				break;
+
+			ni_dhcp6_device_update_mode(dev, NULL);
+			if (dev->config && dev->config->mode == NI_DHCP6_MODE_AUTO) {
+				if (timeout > 1000)
+					timeout = 1000;
+			}
+		}
 		if (ni_socket_wait(timeout) != 0)
 			break;
 	}

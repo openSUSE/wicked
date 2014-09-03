@@ -518,7 +518,7 @@ ni_dhcp6_device_netdev(const ni_dhcp6_device_t *dev)
 	return ifp;
 }
 
-static void
+void
 ni_dhcp6_device_update_mode(ni_dhcp6_device_t *dev, const ni_netdev_t *ifp)
 {
 	if (!ifp && !(ifp = ni_dhcp6_device_netdev(dev)))
