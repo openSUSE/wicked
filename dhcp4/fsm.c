@@ -752,6 +752,10 @@ ni_dhcp4_process_ack(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 int
 ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 {
+	ni_route_table_t *tab;
+	ni_route_t *rp;
+	unsigned int i;
+
 	ni_capture_free(dev->capture);
 	dev->capture = NULL;
 
@@ -768,18 +772,12 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 		}
 
 		/* If the user requested a specific route metric, apply it now */
-		if (dev->config) {
-			ni_route_table_t *tab;
-			ni_route_t *rp;
-			unsigned int i;
-
-			for (tab = lease->routes; tab; tab = tab->next) {
-				for (i = 0; i < tab->routes.count; ++i) {
-					if ((rp = tab->routes.data[i]) == NULL)
-						continue;
-					rp->protocol = RTPROT_DHCP;
-					rp->priority = dev->config->route_priority;
-				}
+		for (tab = lease->routes; tab; tab = tab->next) {
+			for (i = 0; i < tab->routes.count; ++i) {
+				if ((rp = tab->routes.data[i]) == NULL)
+					continue;
+				rp->protocol = RTPROT_DHCP;
+				rp->priority = dev->config->route_priority;
 			}
 		}
 
@@ -814,7 +812,7 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 			lease->state = NI_ADDRCONF_STATE_RELEASED;
 			ni_dhcp4_send_event(NI_DHCP4_EVENT_RELEASED, dev, lease);
 
-			if (!dev->config || dev->config->dry_run != NI_DHCP4_RUN_OFFER) {
+			if (dev->config->dry_run != NI_DHCP4_RUN_OFFER) {
 				ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
 			}
 			ni_dhcp4_device_drop_lease(dev);
