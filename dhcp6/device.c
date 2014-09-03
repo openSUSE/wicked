@@ -1125,6 +1125,13 @@ ni_dhcp6_device_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 		}
 	break;
 
+	case NI_EVENT_DEVICE_CHANGE:
+		if (dev->config && dev->config->mode == NI_DHCP6_MODE_AUTO) {
+			ni_dhcp6_device_update_mode(dev, ifp);
+			ni_dhcp6_device_start(dev);
+		}
+	break;
+
 	default:
 		ni_debug_dhcp("%s: received other event", dev->ifname);
 	break;
@@ -1170,22 +1177,7 @@ void
 ni_dhcp6_prefix_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event,
 			const ni_ipv6_ra_pinfo_t *pi)
 {
-	ni_ipv6_devinfo_t *ipv6;
-
-	ipv6 = ni_netdev_get_ipv6(ifp);
-	if (ipv6 == NULL)
-		return;
-
-	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
-			"%s: %s RA<%s> Prefix<%s/%u %s,%s> [%d,%d]", dev->ifname,
-			(event == NI_EVENT_PREFIX_UPDATE ? "update" : "delete"),
-			(ipv6->radv.managed_addr ? "managed-address" :
-			(ipv6->radv.other_config ? "managed-config" : "unmanaged")),
-			ni_sockaddr_print(&pi->prefix), pi->length,
-			(pi->on_link ? "onlink" : "not-onlink"),
-			(pi->autoconf ? "autoconf" : "no-autoconf"),
-			pi->lifetime.preferred_lft, pi->lifetime.valid_lft);
-
+	ni_server_trace_interface_prefix_events(ifp, event, pi);
 	switch (event) {
 	case NI_EVENT_PREFIX_UPDATE:
 		if (dev->config && dev->config->mode == NI_DHCP6_MODE_AUTO) {

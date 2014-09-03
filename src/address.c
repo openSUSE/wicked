@@ -24,6 +24,13 @@
 #include <wicked/netinfo.h>
 #include "util_priv.h"
 
+#ifndef IFA_F_MANAGETEMPADDR
+#define IFA_F_MANAGETEMPADDR	0x100
+#endif
+#ifndef IFA_F_NOPREFIXROUTE
+#define IFA_F_NOPREFIXROUTE	0x200
+#endif
+
 #ifndef offsetof
 # define offsetof(type, member) \
 	((unsigned long) &(((type *) NULL)->member))
@@ -66,6 +73,55 @@ ni_address_free(ni_address_t *ap)
 {
 	ni_string_free(&ap->label);
 	free(ap);
+}
+
+static const ni_intmap_t	__ni_address_ipv4_flag_map[] = {
+	{ "secondary",		IFA_F_SECONDARY		},
+	{ "permanent",		IFA_F_PERMANENT		},
+	{ "deprecated",		IFA_F_DEPRECATED	},
+	{ NULL,			0			}
+};
+
+static const ni_intmap_t	__ni_address_ipv6_flag_map[] = {
+	{ "temporary",		IFA_F_TEMPORARY		},
+	{ "nodad",		IFA_F_NODAD		},
+	{ "optimistic",		IFA_F_OPTIMISTIC	},
+	{ "duplicate",		IFA_F_DADFAILED		},
+	{ "homeaddress",	IFA_F_HOMEADDRESS	},
+	{ "deprecated",		IFA_F_DEPRECATED	},
+	{ "tentative",		IFA_F_TENTATIVE		},
+	{ "permanent",		IFA_F_PERMANENT		},
+	{ "mngtmpaddr",		IFA_F_MANAGETEMPADDR	},
+	{ "noprefixroute",	IFA_F_NOPREFIXROUTE	},
+	{ NULL,			0			}
+};
+
+const char *
+ni_address_format_flags(ni_stringbuf_t *buf, unsigned int family,
+			unsigned int flags, const char *sep)
+{
+	const ni_intmap_t *map;
+	unsigned int i;
+
+	if (!buf)
+		return NULL;
+	switch (family) {
+	case AF_INET:	map = __ni_address_ipv4_flag_map; break;
+	case AF_INET6:	map = __ni_address_ipv6_flag_map; break;
+	default:	return NULL;
+	}
+
+	if (ni_string_empty(sep))
+		sep = "|";
+
+	for (i = 0; map->name; ++map) {
+		if (flags & map->value) {
+			if (i++)
+				ni_stringbuf_puts(buf, sep);
+			ni_stringbuf_puts(buf, map->name);
+		}
+	}
+	return buf->string;
 }
 
 ni_bool_t
