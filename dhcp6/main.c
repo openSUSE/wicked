@@ -547,6 +547,7 @@ dhcp6_interface_event(ni_netdev_t *ifp, ni_event_t event)
 		dhcp6_device_destroy(dhcp6_dbus_server, ifp);
 	break;
 
+	case NI_EVENT_DEVICE_CHANGE:
 	case NI_EVENT_DEVICE_DOWN:
 	case NI_EVENT_DEVICE_UP:
 	case NI_EVENT_NETWORK_DOWN:
