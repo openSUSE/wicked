@@ -370,16 +370,6 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 		free(pi);
 		return -1;
 	}
-#if 0
-	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
-			"%s: RA<%s>, Prefix<%s/%u %s,%s>[%u, %u]", dev->name,
-			(ipv6->radv.managed_addr ? "managed-address" :
-			(ipv6->radv.other_config ? "other-config" : "unmanaged")),
-			ni_sockaddr_print(&pi->prefix), pi->length,
-			(pi->on_link ? "onlink" : "not-onlink"),
-			(pi->autoconf ? "autoconf" : "no-autoconf"),
-			pi->lifetime.preferred_lft, pi->lifetime.valid_lft);
-#endif
 
 	if ((old = ni_ipv6_ra_pinfo_list_remove(&ipv6->radv.pinfo, pi)) != NULL) {
 		if (pi->lifetime.valid_lft > 0) {
@@ -486,26 +476,12 @@ __ni_rtevent_process_rdnss_info(ni_netdev_t *dev, const struct nd_opt_hdr *opt,
 		ni_ipv6_ra_rdnss_reset(ipv6->radv.rdnss);
 
 	ipv6->radv.rdnss->lifetime = ntohl(rdnss->nd_opt_rdnss_lifetime);
-	if (ipv6->radv.rdnss->lifetime == 0xffffffff)
-		ni_debug_events("%s: rdnss lifetime: infinite", dev->name);
-	else
-		ni_debug_events("%s: rdnss lifetime: %u", dev->name,
-				ipv6->radv.rdnss->lifetime);
-
 	len -= sizeof(*rdnss);
 	addr = &rdnss->nd_opt_rdnss_addr[0];
 	for ( ; len >= sizeof(*addr); len -= sizeof(*addr), ++addr) {
 		if (IN6_IS_ADDR_LOOPBACK(addr) || IN6_IS_ADDR_UNSPECIFIED(addr))
 			continue;
-
 		ni_ipv6_ra_rdnss_add_server(ipv6->radv.rdnss, addr);
-
-		if (ni_log_facility(NI_TRACE_EVENTS)) {
-			const ni_sockaddr_array_t *addrs = &ipv6->radv.rdnss->addrs;
-
-			ni_debug_events("%s: rdnss address: %s", dev->name,
-					ni_sockaddr_print(&addrs->data[addrs->count-1]));
-		}
 	}
 	__ni_netdev_nduseropt_event(dev, NI_EVENT_RDNSS_UPDATE);
 	return 0;
@@ -544,7 +520,8 @@ __ni_rtevent_process_nd_radv_opts(ni_netdev_t *dev, const struct nd_opt_hdr *opt
 
 		default:
 			/* kernels up to at least 3.4 do not provide other */
-			ni_debug_events("%s: unhandled nd user option %d",
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IPV6|NI_TRACE_EVENTS,
+					"%s: unhandled nd user option %d",
 					dev->name, opt->nd_opt_type);
 		break;
 		}
@@ -747,6 +724,14 @@ ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_even
 	return 0;
 }
 
+void
+ni_server_trace_interface_addr_events(ni_netdev_t *dev, ni_event_t event, const ni_address_t *ap)
+{
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IPV6|NI_TRACE_EVENTS,
+			"%s: %s event: %s", dev->name, ni_event_type_to_name(event),
+			ni_sockaddr_prefix_print(&ap->local_addr, ap->prefixlen));
+}
+
 int
 ni_server_enable_interface_addr_events(void (*ifaddr_handler)(ni_netdev_t *, ni_event_t, const ni_address_t *))
 {
@@ -769,6 +754,20 @@ ni_server_enable_interface_addr_events(void (*ifaddr_handler)(ni_netdev_t *, ni_
 	return 0;
 }
 
+void
+ni_server_trace_interface_prefix_events(ni_netdev_t *dev, ni_event_t event, const ni_ipv6_ra_pinfo_t *pi)
+{
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IPV6|NI_TRACE_EVENTS,
+			"%s: %s IPv6 RA<%s> Prefix<%s/%u %s,%s>[%u, %u]", dev->name,
+			(event == NI_EVENT_PREFIX_UPDATE ? "update" : "delete"),
+			(dev->ipv6 && dev->ipv6->radv.managed_addr ? "managed" :
+			(dev->ipv6 && dev->ipv6->radv.other_config ? "config" : "unmanaged")),
+			ni_sockaddr_print(&pi->prefix), pi->length,
+			(pi->on_link ? "onlink" : "not-onlink"),
+			(pi->autoconf ? "autoconf" : "no-autoconf"),
+			pi->lifetime.preferred_lft, pi->lifetime.valid_lft);
+}
+
 int
 ni_server_enable_interface_prefix_events(void (*ifprefix_handler)(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *))
 {
@@ -782,6 +781,42 @@ ni_server_enable_interface_prefix_events(void (*ifprefix_handler)(ni_netdev_t *,
 
 	ni_global.interface_prefix_event = ifprefix_handler;
 	return 0;
+}
+
+void
+ni_server_trace_interface_nduseropt_events(ni_netdev_t *dev, ni_event_t event)
+{
+	ni_ipv6_devinfo_t *ipv6 = dev->ipv6;
+
+	if (!ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IPV6|NI_TRACE_EVENTS))
+		return;
+
+	switch (event) {
+	case NI_EVENT_RDNSS_UPDATE:
+		if (ipv6 && ipv6->radv.rdnss && ipv6->radv.rdnss->addrs.count) {
+			char lifetime[32] = "infinite";
+			const char *rainfo;
+			unsigned int i;
+
+			rainfo = ipv6->radv.managed_addr ? "managed" :
+				 ipv6->radv.other_config ? "config"  : "unmanaged";
+			if (ipv6->radv.rdnss->lifetime != 0xffffffff) {
+				snprintf(lifetime, sizeof(lifetime), "%u",
+						ipv6->radv.rdnss->lifetime);
+			}
+			for (i = 0; i < ipv6->radv.rdnss->addrs.count; ++i) {
+				ni_trace("%s: update IPv6 RA<%s> RDNSS<%s>[%s]",
+					dev->name, rainfo,
+					ni_sockaddr_print(&ipv6->radv.rdnss->addrs.data[i]),
+					lifetime);
+			}
+		}
+		break;
+	default:
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IPV6|NI_TRACE_EVENTS,
+			"%s: IPv6 RA %s event: ", dev->name, ni_event_type_to_name(event));
+		break;
+	}
 }
 
 int

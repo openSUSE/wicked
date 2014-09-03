@@ -119,6 +119,9 @@ extern int		ni_server_enable_interface_addr_events(void (*handler)(ni_netdev_t *
 extern int		ni_server_enable_interface_prefix_events(void (*handler)(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *));
 extern int		ni_server_enable_interface_nduseropt_events(void (*handler)(ni_netdev_t *, ni_event_t));
 extern int		ni_server_enable_interface_uevents(void);
+extern void		ni_server_trace_interface_addr_events(ni_netdev_t *, ni_event_t, const ni_address_t *);
+extern void		ni_server_trace_interface_prefix_events(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *);
+extern void		ni_server_trace_interface_nduseropt_events(ni_netdev_t *, ni_event_t);
 extern void		ni_server_deactivate_interface_events(void);
 extern void		ni_server_deactivate_interface_uevents(void);
 extern ni_bool_t	ni_server_listens_uevents(void);
