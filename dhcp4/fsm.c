@@ -53,7 +53,9 @@ ni_dhcp4_defer_timeout(void *user_data, const ni_timer_t *timer)
 		ni_warn("%s: bad timer handle", __func__);
 		return;
 	}
-	ni_note("%s: DHCLIENT_WAIT_AT_BOOT=%u reached (state %s)", dev->ifname, dev->config->defer_timeout, ni_dhcp4_fsm_state_name(dev->fsm.state));
+	ni_note("%s: defer timeout %u reached (state %s)",
+		dev->ifname, dev->config->defer_timeout,
+		ni_dhcp4_fsm_state_name(dev->fsm.state));
 	ni_dhcp4_send_event(NI_DHCP4_EVENT_DEFERRED, dev, NULL);
 }
 
