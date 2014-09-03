@@ -36,6 +36,7 @@ typedef struct dhcp6_tester {
 	const char *	request;
 	const char *	output;
 	unsigned int	outfmt;
+	ni_dhcp6_mode_t	mode;
 } dhcp6_tester_t;
 
 extern dhcp6_tester_t *	dhcp6_tester_init(void);
