@@ -1151,7 +1151,7 @@ do_lease(int argc, char **argv)
 		}
 		opt_address = argv[optind++];
 
-		if (ni_sockaddr_prefix_parse(opt_address, &local_addr, &prefixlen) < 0) {
+		if (!ni_sockaddr_prefix_parse(opt_address, &local_addr, &prefixlen)) {
 			ni_error("cannot parse interface address \"%s\"", opt_address);
 			goto failed;
 		}
@@ -1205,7 +1205,7 @@ do_lease(int argc, char **argv)
 		}
 		opt_route = argv[optind++];
 
-		if (ni_sockaddr_prefix_parse(opt_route, &dest_addr, &prefixlen) < 0) {
+		if (!ni_sockaddr_prefix_parse(opt_route, &dest_addr, &prefixlen)) {
 			ni_error("cannot parse route destination \"%s\"", opt_route);
 			goto failed;
 		}
