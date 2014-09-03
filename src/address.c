@@ -101,7 +101,7 @@ ni_address_format_flags(ni_stringbuf_t *buf, unsigned int family,
 			unsigned int flags, const char *sep)
 {
 	const ni_intmap_t *map;
-	unsigned int i;
+	unsigned int i = 0;
 
 	if (!buf)
 		return NULL;
@@ -114,7 +114,14 @@ ni_address_format_flags(ni_stringbuf_t *buf, unsigned int family,
 	if (ni_string_empty(sep))
 		sep = "|";
 
-	for (i = 0; map->name; ++map) {
+	/* invert permanent flag same to iproute2 */
+	if (flags & IFA_F_PERMANENT) {
+		flags &= ~IFA_F_PERMANENT;
+	} else {
+		ni_stringbuf_puts(buf, "dynamic");
+		i++;
+	}
+	for ( ; map->name; ++map) {
 		if (flags & map->value) {
 			if (i++)
 				ni_stringbuf_puts(buf, sep);
