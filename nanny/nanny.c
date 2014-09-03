@@ -116,19 +116,21 @@ ni_nanny_start(ni_nanny_t *mgr)
 		}
 	}
 
-	if (!(client = ni_fsm_create_client(mgr->fsm)))
-		ni_fatal("Unable to create FSM client");
+	if (ni_config_use_nanny()) {
+		if (!(client = ni_fsm_create_client(mgr->fsm)))
+			ni_fatal("Unable to create FSM client");
 
-	ni_dbus_client_add_signal_handler(client, NULL, NULL,
-			NI_OBJECTMODEL_NETIF_INTERFACE,
-			ni_nanny_netif_state_change_signal_receive,
-			mgr);
+		ni_dbus_client_add_signal_handler(client, NULL, NULL,
+				NI_OBJECTMODEL_NETIF_INTERFACE,
+				ni_nanny_netif_state_change_signal_receive,
+				mgr);
 #ifdef MODEM
-	ni_dbus_client_add_signal_handler(client, NULL, NULL,
-			NI_OBJECTMODEL_MODEM_INTERFACE,
-			ni_nanny_modem_state_change_signal_receive,
-			mgr);
+		ni_dbus_client_add_signal_handler(client, NULL, NULL,
+				NI_OBJECTMODEL_MODEM_INTERFACE,
+				ni_nanny_modem_state_change_signal_receive,
+				mgr);
 #endif
+	}
 }
 
 void

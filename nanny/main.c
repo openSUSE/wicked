@@ -277,24 +277,26 @@ babysit(void)
 			ni_fatal("unable to background server");
 	}
 
-	ni_rfkill_open(handle_rfkill_event, mgr);
-
-	ni_nanny_discover_state(mgr);
-	if (ni_config_use_nanny())
+	if (ni_config_use_nanny()) {
+		ni_rfkill_open(handle_rfkill_event, mgr);
+		ni_nanny_discover_state(mgr);
 		ni_nanny_policy_load(mgr);
+	}
 	else
 		ni_file_remove_recursively(ni_nanny_statedir());
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
 
-		do {
-			ni_fsm_do(mgr->fsm, &timeout);
+		if (ni_config_use_nanny()) {
+			do {
+				ni_fsm_do(mgr->fsm, &timeout);
 #if 0
-		} while (ni_nanny_recheck_do(mgr) || ni_nanny_down_do(mgr));
+			} while (ni_nanny_recheck_do(mgr) || ni_nanny_down_do(mgr));
 #else
-		} while (ni_nanny_recheck_do(mgr));
+			} while (ni_nanny_recheck_do(mgr));
 #endif
+		}
 
 		if (ni_socket_wait(timeout) != 0)
 			ni_fatal("ni_socket_wait failed");
