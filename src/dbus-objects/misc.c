@@ -569,6 +569,10 @@ __ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict
 		__ni_objectmodel_dict_add_sockaddr(dict, "anycast", &ap->anycast_addr);
 	if (ap->bcast_addr.ss_family == ap->family)
 		__ni_objectmodel_dict_add_sockaddr(dict, "broadcast", &ap->bcast_addr);
+
+	if (ap->flags)
+		ni_dbus_dict_add_uint32(dict, "flags", ap->flags);
+
 	if (ap->family == AF_INET && ap->label)
 		ni_dbus_dict_add_string(dict, "label", ap->label);
 
@@ -607,6 +611,11 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 		__ni_objectmodel_dict_get_sockaddr(dict, "anycast", &ap->anycast_addr);
 		__ni_objectmodel_dict_get_sockaddr(dict, "broadcast", &ap->bcast_addr);
 
+		/* Do we need to translate them and map to names?
+		 * The usable flags differ between address families and
+		 * ipv6 temporary flag is same bit as secondary in ipv4.
+		 */
+		ni_dbus_dict_get_uint32(dict, "flags", &ap->flags);
 		if (ap->family == AF_INET) {
 			if (ni_dbus_dict_get_string(dict, "label", &label))
 				ni_string_dup(&ap->label, label);

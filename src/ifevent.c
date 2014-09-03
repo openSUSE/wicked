@@ -727,9 +727,15 @@ ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_even
 void
 ni_server_trace_interface_addr_events(ni_netdev_t *dev, ni_event_t event, const ni_address_t *ap)
 {
+	ni_stringbuf_t flags = NI_STRINGBUF_INIT_DYNAMIC;
+
+	ni_address_format_flags(&flags, ap->family, ap->flags, NULL);
 	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IPV6|NI_TRACE_EVENTS,
-			"%s: %s event: %s", dev->name, ni_event_type_to_name(event),
-			ni_sockaddr_prefix_print(&ap->local_addr, ap->prefixlen));
+			"%s: %s event: %s flags[%u] %s",
+			dev->name, ni_event_type_to_name(event),
+			ni_sockaddr_prefix_print(&ap->local_addr, ap->prefixlen),
+			ap->flags, flags.string ? flags.string : "");
+	ni_stringbuf_destroy(&flags);
 }
 
 int

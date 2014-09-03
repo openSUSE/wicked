@@ -9,6 +9,10 @@
    <peer type="network-address"/>
    <anycast type="network-address"/>
    <broadcast type="network-address"/>
+
+   <!-- currently raw flags -->
+   <flags type="uint32"/>
+   <!-- label is ipv4 only  -->
    <label type="string"/>
 
    <cache-info class="dict">
