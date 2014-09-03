@@ -271,16 +271,32 @@
 
   <define name="intrinsic-lease" class="dict">
     <state type="builtin-addrconf-state"/>
+    <update type="builtin-addrconf-update-mask" />
     <addresses type="network-interface:assigned-address-list" />
     <routes type="network-interface:assigned-route-list" />
     <hostname type="string" />
 
-    <!-- FIXME: add support for resolver etc -->
+    <resolver class="dict">
+      <default-domain type="string" />
+      <servers class="array" element-type="string" />
+      <search class="array" element-type="string" />
+    </resolver>
+
+    <!-- FIXME: use the real addrconf lease stuff instead. -->
+  </define>
+
+  <define name="intrinsic-lease-request" class="dict">
+    <type type="builtin-addrconf" />
+    <family type="builtin-address-family" />
+
+    <!-- at some point, we should use the real addrconf lease here. For now, let's
+      -- keep using what we have, however crippled it may be. -->
+    <lease type="intrinsic-lease"/>
   </define>
 
   <method name="installLease">
     <arguments>
-      <arg type="intrinsic-lease"/>
+      <arg type="intrinsic-lease-request"/>
     </arguments>
   </method>
 

@@ -8,6 +8,11 @@
   <@@ARPHRD_NAME@@ value="@@ARPHRD_VALUE@@"/>
 </define>
 
+<!-- Built-in address families -->
+<define name="builtin-address-family" type="uint32" constraint="enum">
+  <@@ADDRESS_FAMILY_NAME@@ value="@@ADDRESS_FAMILY_VALUE@@"/>
+</define>
+
 <!-- Built-in address configuration classes -->
 <define name="builtin-addrconf" type="uint32" constraint="enum">
   <@@ADDRCONF_MODE_NAME@@ value="@@ADDRCONF_MODE_VALUE@@"/>

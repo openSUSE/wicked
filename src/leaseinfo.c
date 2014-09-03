@@ -679,7 +679,7 @@ ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 
 	__ni_leaseinfo_dump(out, lease, ifname, prefix);
 
-	switch(lease->type) {
+	switch (lease->type) {
 	case NI_ADDRCONF_DHCP:
 		switch (lease->family) {
 		case AF_INET:
@@ -693,10 +693,11 @@ ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 			break;
 		}
 		break;
-	case NI_ADDRCONF_STATIC:
-		break;
+
 	default:
-		ni_error("Unsupported lease type (%u).", lease->type);
+		/* Don't complain; if there's a lease type we don't know,
+		 * then it's probably fine if we just save the standard
+		 * information. */
 		break;
 	}
 

@@ -48,6 +48,7 @@ static struct generic_map	generic_maps[] = {
 	MAPN(IFTYPE, ni_linktype_type_to_name, __NI_IFTYPE_MAX),
 	MAP(IFFLAGS, ni_linkflags_bit_to_name),
 	MAPN(ARPHRD, ni_arphrd_type_to_name, ARPHRD_VOID),
+	MAPN(ADDRESS_FAMILY, ni_addrfamily_type_to_name, AF_MAX),
 	MAPN(ADDRCONF_MODE, ni_addrconf_type_to_name, __NI_ADDRCONF_MAX),
 	MAPN(ADDRCONF_STATE, ni_addrconf_state_to_name, __NI_ADDRCONF_STATE_MAX),
 	MAP(ADDRCONF_FLAG_BIT, ni_addrconf_flag_bit_to_name),

@@ -948,14 +948,128 @@ usage:
 }
 
 /*
- * Script extensions may trigger some action that take time to complete,
- * and we may wish to notify the caller asynchronously.
+ * Helper function for do_lease()
+ */
+static xml_document_t *
+__get_lease_document(const char *pathname)
+{
+	xml_document_t *doc;
+
+	if (!ni_file_exists(pathname)) {
+		ni_error("%s: document does not exist, you need to create it with \"lease new\" first", pathname);
+		return NULL;
+	}
+
+	doc = xml_document_read(pathname);
+	if (!doc) {
+		ni_error("unable to parse XML document %s", pathname);
+		return NULL;
+	}
+
+	return doc;
+}
+
+static xml_node_t *
+__get_lease_xml_root(xml_document_t *doc)
+{
+	return xml_node_new_element_unique("lease", doc->root, NULL);
+}
+
+static xml_node_t *
+__get_lease_xml_node_maybe_zap(xml_document_t *doc, const char *name, const char *cmd)
+{
+	xml_node_t *node;
+
+	/* This function is used to obtain the <addresses> or <routes>
+	 * elements of the lease xml.
+	 * IFF cmd starts with "set", we clear the list, otherwise we return
+	 * what is already there.
+	 */
+	node = __get_lease_xml_root(doc);
+	if (!strncmp(cmd, "set", 3))
+		xml_node_delete_child(node, name);
+
+	return xml_node_new_element_unique(name, node, NULL);
+}
+
+static xml_node_t *
+__get_lease_xml_list_maybe_zap(xml_document_t *doc, const char *name, const char *cmd)
+{
+	xml_node_t *list;
+
+	list = __get_lease_xml_node_maybe_zap(doc, name, cmd);
+	return xml_node_new("e", list);
+}
+
+static ni_bool_t
+__validate_address(const char *addrstring, int af, const char *subcmd)
+{
+	ni_sockaddr_t tmp_addr;
+
+	if (ni_sockaddr_parse(&tmp_addr, addrstring, af) < 0) {
+		ni_error("cannot parse %s \"%s\"", subcmd, addrstring);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+__validate_netmask(const char *addrstring, int af, const char *subcmd, unsigned int *prefixlen_p)
+{
+	ni_sockaddr_t tmp_addr;
+
+	if (ni_sockaddr_parse(&tmp_addr, addrstring, af) < 0) {
+		ni_error("cannot parse %s \"%s\"", subcmd, addrstring);
+		return FALSE;
+	}
+
+	*prefixlen_p = ni_sockaddr_netmask_bits(&tmp_addr);
+	return TRUE;
+}
+
+
+/*
+ * Script extensions or external network facilities trying to integrate with wicked
+ * may wish to notify wicked about addresses, routes or other settings that they
+ * have learned about, and wish to have activated.
+ *
+ * For instance, this can be used from the PPP ifup/ifdown scripts to
+ * inform wicked about a lease that has been granted.
+ *
+ * Usually, the way you use this goes like this:
+ *
+ * lf=/var/run/whatever/mylease.xml
+ * netif=ppp0
+ *
+ * wicked lease $lf new family ipv4 state granted hostname my.funky.hostname.org
+ * wicked lease $lf add-address 192.168.7.8 netmask 255.255.255.248
+ * wicked lease $lf add-route 0/0 gateway 192.168.7.1
+ * wicked lease $lf set-resolver default-domain funky.hostname.org server 192.168.1.1 server 192.168.8.1
+ * wicked lease $lf install --device $netif
+ * rm -f $lf
+ *
+ * Note, it's up to you whether you actually ask wickedd to take care of the
+ * addresses, or whether your external network service does this natively.
+ * It's just as easy to just install a lease with eg resolver information.
+ *
+ * To revoke a lease when the link goes down:
+ *
+ * lf=/var/run/whatever/mylease.xml
+ * netif=ppp0
+ *
+ * wicked lease $lf new family ipv4 state released
+ * wicked lease $lf install --device $netif
+ * rm -f $lf
+ *
  */
 int
 do_lease(int argc, char **argv)
 {
-	const char *opt_file, *opt_cmd;
+	const char *opt_file, *opt_cmd, *opt_subcmd;
 	xml_document_t *doc;
+	xml_node_t *lease_node;
+	xml_node_t *type_node = NULL, *fmly_node = NULL;
 	int c, ret = 1;
 
 	if (argc <= 2)
@@ -963,146 +1077,214 @@ do_lease(int argc, char **argv)
 	opt_file = argv[1];
 	opt_cmd = argv[2];
 
+	if (!strcmp(opt_cmd, "new")) {
+		doc = xml_document_new();
+
+		type_node = xml_node_new("type", doc->root);
+		fmly_node = xml_node_new("family", doc->root);
+
+		lease_node = xml_node_new("lease", doc->root);
+		/* xml_node_new_element("update", lease_node, "all"); */
+	} else {
+		if (!(doc = __get_lease_document(opt_file)))
+			goto failed;
+		lease_node = __get_lease_xml_root(doc);
+	}
+
 	optind = 3;
-	if (!strcmp(opt_cmd, "add") || !strcmp(opt_cmd, "set")) {
-		static struct option add_options[] = {
-			{ "address", required_argument, NULL, 'a' },
-			{ "route", required_argument, NULL, 'r' },
-			{ "netmask", required_argument, NULL, 'm' },
-			{ "gateway", required_argument, NULL, 'g' },
-			{ "peer", required_argument, NULL, 'p' },
-			{ "state", required_argument, NULL, 's' },
-			{ NULL }
-		};
-		char *opt_address = NULL;
-		char *opt_route = NULL;
-		char *opt_netmask = NULL;
-		char *opt_gateway = NULL;
-		char *opt_peer = NULL;
-		char *opt_state = NULL;
-		xml_node_t *node;
-		int prefixlen = -1;
+	if (!strcmp(opt_cmd, "new") || !strcmp(opt_cmd, "set")) {
+		while (optind < argc) {
+			const char *optarg;
 
-		while ((c = getopt_long(argc, argv, "", add_options, NULL)) != EOF) {
-			switch (c) {
-			case 'a':
-				if (opt_address || opt_route)
-					goto add_conflict;
-				opt_address = optarg;
-				break;
-
-			case 'r':
-				if (opt_address || opt_route)
-					goto add_conflict;
-				opt_route = optarg;
-				break;
-
-			case 'm':
-				opt_netmask = optarg;
-				break;
-
-			case 'g':
-				opt_gateway = optarg;
-				break;
-
-			case 'p':
-				opt_peer = optarg;
-				break;
-
-			case 's':
-				opt_state = optarg;
-				break;
-
-			default:
-				goto usage;
+			opt_subcmd = argv[optind++];
+			if (optind >= argc) {
+				ni_error("missing argument to command \"%s %s\"", opt_cmd, opt_subcmd);
+				goto failed;
 			}
+			optarg = argv[optind++];
+
+			if (type_node && !strcmp(opt_subcmd, "type")) {
+				if (ni_addrconf_name_to_type(optarg) < 0) {
+					ni_error("invalid lease type \"%s\"", optarg);
+					goto failed;
+				}
+				xml_node_set_cdata(type_node, optarg);
+			} else
+			if (fmly_node && !strcmp(opt_subcmd, "family")) {
+				if (ni_addrfamily_name_to_type(optarg) < 0) {
+					ni_error("invalid address family \"%s\"", optarg);
+					goto failed;
+				}
+				xml_node_set_cdata(fmly_node, optarg);
+			} else
+			if (!strcmp(opt_subcmd, "state")) {
+				xml_node_new_element_unique("state", lease_node, optarg);
+			} else
+			if (!strcmp(opt_subcmd, "hostname")) {
+				xml_node_new_element_unique("hostname", lease_node, optarg);
+			} else
+				goto unknown_subcommand;
 		}
 
-		if (!opt_address && !opt_route && !opt_state) {
-add_conflict:
-			ni_error("wicked lease add: need at least one --route, --address or --state option");
-			goto usage;
+		if (type_node && type_node->cdata == NULL) {
+			/* ni_warn("wicked lease new: no lease type specified, assuming \"intrinsic\""); */
+			xml_node_set_cdata(type_node, "intrinsic");
+		}
+		if (fmly_node && fmly_node->cdata == NULL) {
+			ni_warn("wicked lease new: no address family specified, assuming \"ipv4\"");
+			xml_node_set_cdata(fmly_node, "ipv4");
 		}
 
-		if (!ni_file_exists(opt_file))
-			doc = xml_document_new();
-		else {
-			doc = xml_document_read(opt_file);
-			if (!doc) {
-				ni_error("unable to parse XML document %s", opt_file);
-				return 1;
+		ni_info("Writing lease info to %s", opt_file);
+		xml_document_write(doc, opt_file);
+	} else
+	if (!strcmp(opt_cmd, "add-address")
+	 || !strcmp(opt_cmd, "set-address")) {
+		xml_node_t *e, *anode;
+		char *opt_address;
+		ni_sockaddr_t local_addr;
+		unsigned int prefixlen;
+
+		if (optind >= argc) {
+			ni_error("missing address argument to command \"%s\"", opt_cmd);
+			goto failed;
+		}
+		opt_address = argv[optind++];
+
+		if (ni_sockaddr_prefix_parse(opt_address, &local_addr, &prefixlen) < 0) {
+			ni_error("cannot parse interface address \"%s\"", opt_address);
+			goto failed;
+		}
+		/* FIXME: consistency check - the parsed address should have the same AF as
+		 * the lease we're editing. */
+
+		e = __get_lease_xml_list_maybe_zap(doc, "addresses", opt_cmd);
+		anode = xml_node_new_element("local", e, NULL);
+
+		while (optind < argc) {
+			const char *optarg;
+
+			opt_subcmd = argv[optind++];
+			if (optind >= argc) {
+				ni_error("missing argument to command \"%s %s\"", opt_cmd, opt_subcmd);
+				goto failed;
 			}
+			optarg = argv[optind++];
+
+			if (!strcmp(opt_subcmd, "peer")) {
+				if (!__validate_address(optarg, local_addr.ss_family, opt_subcmd))
+					goto failed;
+				xml_node_new_element("peer", e, optarg);
+			} else
+			if (!strcmp(opt_subcmd, "netmask")) {
+				if (!__validate_netmask(optarg, local_addr.ss_family, opt_subcmd, &prefixlen))
+					goto failed;
+			} else
+			if (!strcmp(opt_subcmd, "gateway")) {
+				ni_warn("ignoring gateway option");
+			} else
+				goto unknown_subcommand;
 		}
 
-		if (opt_netmask) {
-			ni_sockaddr_t addr;
+		/* Done parsing the command line. Now update the address node itself */
+		xml_node_set_cdata(anode, ni_sockaddr_prefix_print(&local_addr, prefixlen));
 
-			if (ni_sockaddr_parse(&addr, opt_netmask, AF_UNSPEC) < 0) {
-				ni_error("cannot parse netmask \"%s\"", opt_netmask);
-				return 1;
+		ni_info("Writing lease info to %s", opt_file);
+		xml_document_write(doc, opt_file);
+	} else
+	if (!strcmp(opt_cmd, "add-route")
+	 || !strcmp(opt_cmd, "set-route")) {
+		xml_node_t *e, *rnode;
+		char *opt_route;
+		ni_sockaddr_t dest_addr;
+		unsigned int prefixlen;
+
+		if (optind >= argc) {
+			ni_error("missing address argument to command \"%s\"", opt_cmd);
+			goto failed;
+		}
+		opt_route = argv[optind++];
+
+		if (ni_sockaddr_prefix_parse(opt_route, &dest_addr, &prefixlen) < 0) {
+			ni_error("cannot parse route destination \"%s\"", opt_route);
+			goto failed;
+		}
+		/* FIXME: consistency check - the parsed address should have the same AF as
+		 * the lease we're editing. */
+
+		e = __get_lease_xml_list_maybe_zap(doc, "routes", opt_cmd);
+		rnode = xml_node_new_element("destination", e, NULL);
+
+		while (optind < argc) {
+			const char *optarg;
+
+			opt_subcmd = argv[optind++];
+			if (optind >= argc) {
+				ni_error("missing argument to command \"%s %s\"", opt_cmd, opt_subcmd);
+				goto failed;
 			}
-			prefixlen = ni_sockaddr_netmask_bits(&addr);
+			optarg = argv[optind++];
+
+			if (!strcmp(opt_subcmd, "netmask")) {
+				if (!__validate_netmask(optarg, dest_addr.ss_family, opt_subcmd, &prefixlen))
+					goto failed;
+			} else
+			if (!strcmp(opt_subcmd, "gateway")) {
+				xml_node_t *nh = xml_node_new("nexthop", e);
+
+				if (!__validate_address(optarg, dest_addr.ss_family, opt_subcmd))
+					goto failed;
+				xml_node_new_element("gateway", nh, optarg);
+			} else
+			if (!strcmp(opt_subcmd, "peer")) {
+				ni_warn("ignoring peer option");
+			} else
+				goto unknown_subcommand;
 		}
 
-		node = doc->root;
-		if (opt_state) {
-			xml_node_t *e;
+		/* Done parsing the command line. Now update the address node itself */
+		xml_node_set_cdata(rnode, ni_sockaddr_prefix_print(&dest_addr, prefixlen));
 
-			if (!(e = xml_node_get_child(node, "state")))
-				e = xml_node_new("state", node);
-			xml_node_set_cdata(e, opt_state);
-		}
+		ni_info("Writing lease info to %s", opt_file);
+		xml_document_write(doc, opt_file);
+	} else
+	if (!strcmp(opt_cmd, "add-resolver")
+	 || !strcmp(opt_cmd, "set-resolver")) {
+		xml_node_t *rnode;
 
-		if (opt_address) {
-			char *slash, addrbuf[128];
-			xml_node_t *list, *e;
+		rnode = __get_lease_xml_node_maybe_zap(doc, "resolver", opt_cmd);
 
-			slash = strchr(opt_address, '/');
-			if (prefixlen >= 0) {
-				if (slash)
-					*slash = '\0';
-				snprintf(addrbuf, sizeof(addrbuf), "%s/%d", opt_address, prefixlen);
-				opt_address = addrbuf;
+		while (optind < argc) {
+			const char *optarg;
+
+			opt_subcmd = argv[optind++];
+			if (optind >= argc) {
+				ni_error("missing argument to command \"%s %s\"", opt_cmd, opt_subcmd);
+				goto failed;
 			}
+			optarg = argv[optind++];
 
-			if (!(list = xml_node_get_child(node, "addresses")))
-				list = xml_node_new("addresses", node);
+			if (!strcmp(opt_subcmd, "default-domain")) {
+				xml_node_new_element("default-domain", rnode, optarg);
+			} else
+			if (!strcmp(opt_subcmd, "server")) {
+				xml_node_t *list;
 
-			e = xml_node_new("e", list);
-			xml_node_set_cdata(xml_node_new("local", e), opt_address);
-			if (opt_peer)
-				xml_node_set_cdata(xml_node_new("peer", e), opt_peer);
+				if (!__validate_address(optarg, AF_UNSPEC, opt_subcmd))
+					goto failed;
+				list = xml_node_new_element_unique("servers", rnode, NULL);
+				xml_node_new_element("e", list, optarg);
+			} else
+			if (!strcmp(opt_subcmd, "search")) {
+				xml_node_t *list;
 
-			if (opt_gateway)
-				ni_warn("ignoring --gateway option");
+				list = xml_node_new_element_unique("search", rnode, NULL);
+				xml_node_new_element("e", list, optarg);
+			} else
+				goto unknown_subcommand;
 		}
 
-		if (opt_route) {
-			char *slash, addrbuf[128];
-			xml_node_t *list, *e;
-
-			slash = strchr(opt_route, '/');
-			if (prefixlen >= 0) {
-				if (slash)
-					*slash = '\0';
-				snprintf(addrbuf, sizeof(addrbuf), "%s/%d", opt_route, prefixlen);
-				opt_route = addrbuf;
-			}
-
-			if (!(list = xml_node_get_child(node, "routes")))
-				list = xml_node_new("routes", node);
-
-			e = xml_node_new("e", list);
-			xml_node_set_cdata(xml_node_new("destination", e), opt_route);
-			if (opt_gateway) {
-				e = xml_node_new("nexthop", e);
-				xml_node_set_cdata(xml_node_new("gateway", e), opt_gateway);
-			}
-
-			if (opt_peer)
-				ni_warn("ignoring --peer option");
-		}
-
+		ni_info("Writing lease info to %s", opt_file);
 		xml_document_write(doc, opt_file);
 	} else if (!strcmp(opt_cmd, "install")) {
 		static struct option install_options[] = {
@@ -1128,15 +1310,12 @@ add_conflict:
 			goto usage;
 		}
 
-		doc = xml_document_read(opt_file);
-		if (!doc) {
-			ni_error("unable to parse XML document %s", opt_file);
-			return 1;
-		}
 		if (doc->root == NULL) {
 			ni_error("empty lease file");
 			goto failed;
 		}
+
+		ni_objectmodel_init(NULL);
 
 		obj = get_netif_object(opt_device);
 		if (obj == NULL) {
@@ -1148,7 +1327,7 @@ add_conflict:
 			ni_error("unable to install addrconf lease");
 			goto failed;
 		}
-	} else if (!strcmp(opt_cmd, "--help")) {
+	} else if (!strcmp(opt_cmd, "help")) {
 		ret = 0;
 		goto usage;
 	} else {
@@ -1158,10 +1337,11 @@ usage:
 			"Usage: wicked lease <filename> cmd ...\n"
 			"Where cmd is one of the following:\n"
 			"  --help\n"
-			"  add --address <ipaddr> --netmask <ipmask> [--peer <ipaddr>]\n"
-			"  add --address <ipaddr>/<prefixlen> [--peer <ipaddr>\n"
-			"  add --route <network> --netmask <ipmask> [--gateway <ipaddr>]\n"
-			"  add --route <network>/<prefixlen> [--gateway <ipaddr>]\n"
+			"  new [type <addrconf-type>] [family <address-family>]\n"
+			"  set [hostname <hostname>] [state <addrconf-state>]\n"
+			"  {set|add}-address <ipaddr>/prefixlen [netmask <ipmask>] [peer <ipaddr>]\n"
+			"  {set|add}-route <ipaddr>/prefixlen [netmask <ipmask>] [gateway <ipaddr>]\n"
+			"  {set|add}-resolver [default-domain <domain>] [server <ipaddr> ...] [search <domain> ...]\n"
 			"  install --device <object-path>\n"
 		       );
 		return ret;
@@ -1175,6 +1355,10 @@ failed:
 	if (doc)
 		xml_document_free(doc);
 	return 1;
+
+unknown_subcommand:
+	ni_error("unknown subcommand \"%s\" of command \"%s\"", opt_subcmd, opt_cmd);
+	goto failed;
 }
 
 /*
