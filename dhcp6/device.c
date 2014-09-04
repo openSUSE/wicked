@@ -897,7 +897,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	case NI_DHCP6_MODE_AUTO:
 	case NI_DHCP6_MODE_INFO:
 	case NI_DHCP6_MODE_MANAGED:
-		ni_note("%s: Request to acquire DHCPv6 lease with UUID %s in mode %s",
+		ni_note("%s: Starting to acquire DHCPv6 lease with request UUID %s in mode %s",
 			dev->ifname, ni_uuid_print(&req->uuid),
 			ni_dhcp6_mode_type_to_name(req->mode));
 		break;
