@@ -122,9 +122,54 @@ static int	__ni_system_netdev_create(ni_netconfig_t *nc,
 					const char *ifname, unsigned int ifindex,
 					ni_iftype_t iftype, ni_netdev_t **dev_ret);
 
+static int
+ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev)
+{
+	int ret = -1;
+
+	if (!master || !dev)
+		return -1;
+
+	if (dev->link.masterdev.index) {
+		if (dev->link.masterdev.index == master->link.ifindex) {
+			ni_debug_ifconfig("%s: already enslaved into %s[#%u]",
+					dev->name, dev->link.masterdev.name,
+					dev->link.masterdev.index);
+			return 0;
+		} else {
+			ni_error("%s: already enslaved into %s[#%u]",
+					dev->name, dev->link.masterdev.name,
+					dev->link.masterdev.index);
+			return -1;
+		}
+	}
+
+	switch (master->link.type) {
+	case NI_IFTYPE_BOND:
+		ret = __ni_rtnl_link_add_slave_down(dev, master->name,
+						master->link.ifindex);
+		if (ret == 0) {
+			ni_netdev_ref_set(&dev->link.masterdev,
+					master->name, master->link.ifindex);
+		}
+	case NI_IFTYPE_BRIDGE:
+		ret = __ni_rtnl_link_add_port_up(dev, master->name,
+						master->link.ifindex);
+		if (ret == 0) {
+			ni_netdev_ref_set(&dev->link.masterdev,
+					master->name, master->link.ifindex);
+		}
+	default:
+		break;
+	}
+	return ret;
+}
+
 int
 ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req)
 {
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_netdev_t *master;
 	unsigned int ifflags;
 
 	if (dev == NULL)
@@ -136,10 +181,30 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 
 	ifflags = ifp_req? ifp_req->ifflags : 0;
 	if (ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
+		/*
+		 * master manages the link of a slave, redirect to enslave
+		 * when there is a master set.
+		 */
+		if (dev->link.masterdev.index) {
+			if (!dev->link.masterdev.name)
+				ni_netdev_ref_bind_ifname(&dev->link.masterdev, nc);
+			ni_debug_ifconfig("%s: already enslaved in master %s[#%u] -- skipping linkUp",
+					dev->name, dev->link.masterdev.name ?
+					dev->link.masterdev.name : "",
+					dev->link.masterdev.index);
+			return 0;
+		}
+		/* config lookup for master and redirect to master's enslave */
+		if (ifp_req && !ni_string_empty(ifp_req->master.name)) {
+			master = ni_netdev_by_name(nc, ifp_req->master.name);
+			return ni_system_interface_enslave(master, dev);
+		}
+
 		ni_debug_ifconfig("bringing up %s", dev->name);
 
 		if (__ni_rtnl_link_up(dev, ifp_req)) {
-			ni_error("%s: failed to bring up interface (rtnl error)", dev->name);
+			ni_error("%s: failed to bring up interface (rtnl error)",
+					dev->name);
 			return -1;
 		}
 
@@ -1121,8 +1186,11 @@ ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port
 		return 0; /* part of the bridge and hopefully up now */
 	}
 
-	if (__ni_rtnl_link_add_port_up(pif, brdev->name, brdev->link.ifindex) == 0)
+	if (__ni_rtnl_link_add_port_up(pif, brdev->name, brdev->link.ifindex) == 0) {
+		ni_netdev_ref_set(&pif->link.masterdev, brdev->name,
+				brdev->link.ifindex);
 		return 0;
+	}
 
 	if (!ni_netdev_device_is_up(pif) && __ni_rtnl_link_up(pif, NULL) < 0) {
 		ni_warn("%s: Cannot set up link on bridge port %s",
@@ -1311,7 +1379,10 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 				continue;
 
 			ret = __ni_rtnl_link_add_slave_down(sdev, dev->name, dev->link.ifindex);
-			if (ret != 0) {
+			if (ret == 0) {
+				ni_netdev_ref_set(&sdev->link.masterdev,
+						dev->name, dev->link.ifindex);
+			} else {
 				__ni_rtnl_link_down(sdev);
 				ni_string_array_append(&slaves, name);
 			}

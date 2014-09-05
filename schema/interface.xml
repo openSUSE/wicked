@@ -196,6 +196,9 @@
    <mtu type="uint32"/>
    <txqlen type="uint32"/>
    <alias type="string"/>
+   <master type="string">
+     <meta:netif-reference/> <!-- shared="false" ??? -->
+   </master>
 
    <ipv4 type="network-interface:af-info"/>
    <ipv6 type="network-interface:af-info"/>

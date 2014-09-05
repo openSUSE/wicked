@@ -1398,6 +1398,8 @@ ni_objectmodel_get_netdev_req(const ni_dbus_object_t *object, ni_bool_t write_ac
 
 #define NETIF_REQUEST_UINT_PROPERTY(dbus_name, name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev_req, dbus_name, name, rw)
+#define NETIF_REQUEST_STRING_PROPERTY(dbus_name, name, rw) \
+	NI_DBUS_GENERIC_STRING_PROPERTY(netdev_req, dbus_name, name, rw)
 #define NETIF_REQUEST_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_netif_request, rw)
 
@@ -1406,6 +1408,8 @@ static ni_dbus_property_t	ni_objectmodel_netif_request_properties[] = {
 	NETIF_REQUEST_UINT_PROPERTY(mtu, mtu, RO),
 	NETIF_REQUEST_UINT_PROPERTY(metric, metric, RO),
 	NETIF_REQUEST_UINT_PROPERTY(txqlen, txqlen, RO),
+	NETIF_REQUEST_STRING_PROPERTY(alias, alias, RO),
+	NETIF_REQUEST_STRING_PROPERTY(master, master.name, RO),
 
 	{ NULL }
 };

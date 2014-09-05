@@ -98,6 +98,8 @@ struct ni_netdev_req {
 	unsigned int		txqlen;
 
 	char *			alias;
+
+	ni_netdev_ref_t		master;
 };
 
 extern ni_bool_t	ni_set_global_config_path(const char *);
@@ -223,6 +225,7 @@ extern const ni_uuid_t *ni_netdev_add_event_filter(ni_netdev_t *, unsigned int m
 extern const ni_uuid_t *ni_netdev_get_event_uuid(ni_netdev_t *, ni_event_t);
 
 extern ni_bool_t	ni_netdev_ref_init(ni_netdev_ref_t *, const char *, unsigned int);
+extern ni_bool_t	ni_netdev_ref_set(ni_netdev_ref_t *, const char *, unsigned int);
 extern ni_bool_t	ni_netdev_ref_set_ifname(ni_netdev_ref_t *, const char *);
 extern ni_bool_t	ni_netdev_ref_set_ifindex(ni_netdev_ref_t *, unsigned int);
 extern ni_netdev_t *	ni_netdev_ref_resolve(ni_netdev_ref_t *, ni_netconfig_t *);
