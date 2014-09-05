@@ -122,9 +122,44 @@ static int	__ni_system_netdev_create(ni_netconfig_t *nc,
 					const char *ifname, unsigned int ifindex,
 					ni_iftype_t iftype, ni_netdev_t **dev_ret);
 
+static int
+ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev)
+{
+	if (!master || !dev)
+		return -1;
+
+	if (dev->link.masterdev.index) {
+		if (dev->link.masterdev.index == master->link.ifindex) {
+			ni_debug_ifconfig("%s: already enslaved into %s[%u]",
+					dev->name, dev->link.masterdev.name,
+					dev->link.masterdev.index);
+			return 0;
+		} else {
+			ni_error("%s: already enslaved into %s[%u]",
+					dev->name, dev->link.masterdev.name,
+					dev->link.masterdev.index);
+			return -1;
+		}
+	}
+
+	switch (master->link.type) {
+	case NI_IFTYPE_BOND:
+		return __ni_rtnl_link_add_slave_down(dev, master->name,
+						master->link.ifindex);
+	case NI_IFTYPE_BRIDGE:
+		return __ni_rtnl_link_add_port_up(dev, master->name,
+						master->link.ifindex);
+	default:
+		break;
+	}
+	return -1;
+}
+
 int
 ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req)
 {
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_netdev_t *master;
 	unsigned int ifflags;
 
 	if (dev == NULL)
@@ -136,6 +171,21 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 
 	ifflags = ifp_req? ifp_req->ifflags : 0;
 	if (ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
+		/*
+		 * master manages the link of a slave, redirect to enslave
+		 * when there is a master set.
+		 */
+		if (dev->link.masterdev.index) {
+			ni_trace("%s: enslaved in master %s[%u] -- skipping linkUp request",
+			dev->name, dev->link.masterdev.name, dev->link.masterdev.index);
+			return 0;
+		}
+		/* config lookup for master and redirect to master's enslave */
+		if (ifp_req && !ni_string_empty(ifp_req->master.name)) {
+			master = ni_netdev_by_name(nc, ifp_req->master.name);
+			return ni_system_interface_enslave(master, dev);
+		}
+
 		ni_debug_ifconfig("bringing up %s", dev->name);
 
 		if (__ni_rtnl_link_up(dev, ifp_req)) {
