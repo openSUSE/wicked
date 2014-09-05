@@ -98,6 +98,8 @@ struct ni_netdev_req {
 	unsigned int		txqlen;
 
 	char *			alias;
+
+	ni_netdev_ref_t		master;
 };
 
 extern ni_bool_t	ni_set_global_config_path(const char *);

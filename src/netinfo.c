@@ -738,6 +738,7 @@ void
 ni_netdev_req_free(ni_netdev_req_t *req)
 {
 	ni_string_free(&req->alias);
+	ni_netdev_ref_destroy(&req->master);
 	free(req);
 }
 
