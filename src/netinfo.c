@@ -643,6 +643,17 @@ ni_netdev_ref_init(ni_netdev_ref_t *ref, const char *ifname, unsigned int ifinde
 }
 
 ni_bool_t
+ni_netdev_ref_set(ni_netdev_ref_t *ref, const char *ifname, unsigned int ifindex)
+{
+	if (ref) {
+		ni_string_dup(&ref->name, ifname);
+		ref->index = ifindex;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_bool_t
 ni_netdev_ref_set_ifname(ni_netdev_ref_t *ref, const char *ifname)
 {
 	if (ref) {
