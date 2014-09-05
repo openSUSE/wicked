@@ -4384,6 +4384,11 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			}
 		}
 
+		if (event_type == NI_EVENT_DEVICE_DELETE) {
+			ni_fsm_destroy_worker(fsm, w);
+			goto done;
+		}
+
 		if (event_type == NI_EVENT_DEVICE_READY) {
 			/* Refresh device on create */
 			if (!w->device) {
