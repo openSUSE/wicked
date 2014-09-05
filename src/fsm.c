@@ -1084,6 +1084,22 @@ ni_ifworker_generate_default_config(ni_ifworker_t *parent, ni_ifworker_t *child)
 }
 
 static ni_bool_t
+ni_ifworker_add_child_master(xml_node_t *config, const char *name)
+{
+	xml_node_t *link;
+
+	if (xml_node_is_empty(config) || ni_string_empty(name))
+		return FALSE;
+
+	if (!(link = xml_node_get_child(config, NI_CLIENT_IFCONFIG_LINK))) {
+		if (!(link = xml_node_new(NI_CLIENT_IFCONFIG_LINK, config)))
+			return FALSE;
+	}
+
+	return !!xml_node_new_element(NI_CLIENT_IFCONFIG_MASTER, link, name);
+}
+
+static ni_bool_t
 ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode, ni_bool_t shared)
 {
 	unsigned int i;
@@ -1136,6 +1152,11 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 
 	if (xml_node_is_empty(child->config.node))
 		ni_ifworker_generate_default_config(parent, child);
+
+	if (child->masterdev == parent) {
+		if (!ni_ifworker_add_child_master(child->config.node, parent->name))
+			return FALSE;
+	}
 
 	ni_ifworker_array_append(&parent->children, child);
 	return TRUE;
