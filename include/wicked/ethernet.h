@@ -25,12 +25,33 @@ typedef enum {
 	NI_ETHERNET_DUPLEX_NONE,	/* autoneg not complete */
 } ni_ether_duplex_t;
 
+typedef enum {
+	NI_ETHERNET_WOL_PHY		= 0,	/* p, phy	*/
+	NI_ETHERNET_WOL_UCAST		= 1,	/* u, unicast	*/
+	NI_ETHERNET_WOL_MCAST		= 2,	/* m, multicast	*/
+	NI_ETHERNET_WOL_BCAST		= 3,	/* b, broadcast	*/
+	NI_ETHERNET_WOL_ARP		= 4,	/* a, arp	*/
+	NI_ETHERNET_WOL_MAGIC		= 5,	/* g, magic	*/
+	NI_ETHERNET_WOL_SECUREON	= 6,	/* s, secure-on	*/
+
+	__NI_ETHERNET_WOL_DISABLE	= -1,	/* d: disable	*/
+	__NI_ETHERNET_WOL_DEFAULT	= 0,	/* unset	*/
+} ni_ether_wol_flags_t;
+
+typedef struct ni_ethernet_wol {
+	ni_ether_wol_flags_t	support;
+	ni_ether_wol_flags_t	options;
+	ni_hwaddr_t *		sopass;
+} ni_ethernet_wol_t;
+
 struct ni_ethernet {
 	ni_hwaddr_t		permanent_address;
 	unsigned int		link_speed;
 	ni_ether_port_t		port_type;
 	ni_ether_duplex_t	duplex;
 	ni_tristate_t		autoneg_enable;
+
+	ni_ethernet_wol_t	wol;
 
 	struct {
 		ni_tristate_t	rx_csum;
@@ -51,5 +72,8 @@ extern void		ni_ethernet_free(ni_ethernet_t *);
 
 extern ni_ether_port_t	ni_ethernet_name_to_port_type(const char *);
 extern const char *	ni_ethernet_port_type_to_name(ni_ether_port_t);
+extern const char *	ni_ethernet_wol_options_format(ni_stringbuf_t *,
+							int,
+							const char *);
 
 #endif /* __WICKED_ETHERNET_H__ */

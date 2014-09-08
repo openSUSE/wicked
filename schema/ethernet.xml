@@ -25,6 +25,17 @@
     <duplex type="duplex_t" />
     <autoneg-enable type="tristate"/>
 
+    <wake-on-lan class="dict">
+      <options type="int32"/>
+      <support type="int32"/>
+      <sopass type="ethernet-address"/>
+      <!-- Flags are not actually included in wol data struct used by wickedd.
+	-- We include it here so that we avoid warnings and provide user with
+	-- more meaningful xml output.
+	-->
+      <flags type="string"/>
+    </wake-on-lan>
+
     <offload class="dict">
       <rx-csum type="tristate"/>
       <tx-csum type="tristate"/>

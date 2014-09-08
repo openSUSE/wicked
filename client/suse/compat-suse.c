@@ -1320,6 +1320,47 @@ ni_parse_ethtool_onoff(const char *input, ni_tristate_t *flag)
 	}
 }
 
+static inline ni_bool_t
+ni_parse_ethtool_wol_options(const char *input, ni_ethernet_wol_t *wol)
+{
+	if (!input || !wol)
+		return FALSE;
+
+	while(*input) {
+		switch (*input) {
+		case 'p':
+			wol->options |= (1 << NI_ETHERNET_WOL_PHY);
+			break;
+		case 'u':
+			wol->options |= (1 << NI_ETHERNET_WOL_UCAST);
+			break;
+		case 'm':
+			wol->options |= (1 << NI_ETHERNET_WOL_MCAST);
+			break;
+		case 'b':
+			wol->options |= (1 << NI_ETHERNET_WOL_BCAST);
+			break;
+		case 'a':
+			wol->options |= (1 << NI_ETHERNET_WOL_ARP);
+			break;
+		case 'g':
+			wol->options |= (1 << NI_ETHERNET_WOL_MAGIC);
+			break;
+		case 's':
+			wol->options |= (1 << NI_ETHERNET_WOL_SECUREON);
+			break;
+		case 'd':
+			wol->options = __NI_ETHERNET_WOL_DISABLE;
+			break;
+		default:
+			return FALSE;
+		}
+		input++;
+	}
+
+	return  TRUE;
+}
+
 static void
 try_add_ethtool_common(ni_netdev_t *dev, const char *opt, const char *val)
 {
@@ -1360,6 +1401,10 @@ try_add_ethtool_common(ni_netdev_t *dev, const char *opt, const char *val)
 	} else
 	if (ni_string_eq(opt, "autoneg")) {
 		ni_parse_ethtool_onoff(val, &eth->autoneg_enable);
+	}
+	else
+	if (ni_string_eq(opt, "wol")) {
+		ni_parse_ethtool_wol_options(val, &eth->wol);
 	}
 }
 

@@ -17,6 +17,7 @@
 #include <wicked/dbus-service.h>
 #include "dbus-common.h"
 #include "model.h"
+#include "misc.h"
 
 #include <wicked/ethernet.h>
 
@@ -102,6 +103,7 @@ __ni_objectmodel_ethernet_device_arg(const ni_dbus_variant_t *dict)
 		ni_netdev_put(dev);
 		dev = NULL;
 	}
+
 	return dev;
 }
 
@@ -208,6 +210,55 @@ __ni_objectmodel_ethernet_set_permanent_address(ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
+__ni_objectmodel_ethernet_get_wakeonlan(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	const ni_ethernet_t *eth;
+
+	if (!(eth = __ni_objectmodel_ethernet_read_handle(object, error)))
+		return FALSE;
+
+	if (!eth->wol.support)
+		return FALSE;
+
+	ni_debug_objectmodel("%s: wol-options: %d", __func__, eth->wol.options);
+	ni_debug_objectmodel("%s: wol-support: %d", __func__, eth->wol.support);
+	ni_debug_objectmodel("%s: wol-sopass: %s", __func__,
+			ni_link_address_print(eth->wol.sopass));
+
+	ni_dbus_dict_add_int32(result, "support", eth->wol.support);
+	ni_dbus_dict_add_int32(result, "options", eth->wol.options);
+	__ni_objectmodel_dict_add_hwaddr(result, "sopass", eth->wol.sopass);
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_ethernet_set_wakeonlan(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_ethernet_t *eth;
+
+	if (!(eth = __ni_objectmodel_ethernet_write_handle(object, error)))
+		return FALSE;
+
+	if (!ni_dbus_variant_is_dict(argument)) {
+		ni_error("%s: wol is not a dict", __func__);
+		return FALSE;
+	}
+
+	ni_dbus_dict_get_int32(argument, "support", &eth->wol.support);
+	ni_dbus_dict_get_int32(argument, "options", &eth->wol.options);
+	__ni_objectmodel_dict_get_hwaddr(argument, "sopass", eth->wol.sopass);
+
+	return TRUE;
+}
+
+static dbus_bool_t
 __ni_objectmodel_ethernet_get_offload(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -305,6 +356,9 @@ const ni_dbus_property_t	ni_objectmodel_ethernet_property_table[] = {
 	__NI_DBUS_PROPERTY(
 			DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING,
 			address, __ni_objectmodel_ethernet, RO),
+	___NI_DBUS_PROPERTY(
+			NI_DBUS_DICT_SIGNATURE,
+			wake-on-lan, wakeonlan, __ni_objectmodel_ethernet, RO),
 	__NI_DBUS_PROPERTY(
 			NI_DBUS_DICT_SIGNATURE,
 			offload, __ni_objectmodel_ethernet, RO),
