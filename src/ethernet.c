@@ -6,10 +6,11 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-
+#include <net/if_arp.h>
 #include <linux/ethtool.h>
 #include <errno.h>
 
+#include <wicked/util.h>
 #include <wicked/ethernet.h>
 #include "netinfo_priv.h"
 #include "util_priv.h"
@@ -74,6 +75,8 @@ ni_ethernet_new(void)
 	ni_ethernet_t *ether;
 	ether = xcalloc(1, sizeof(ni_ethernet_t));
 	ni_link_address_init(&ether->permanent_address);
+	ether->wol.support		= __NI_ETHERNET_WOL_DEFAULT;
+	ether->wol.options		= __NI_ETHERNET_WOL_DEFAULT;
 	ether->autoneg_enable		= NI_TRISTATE_DEFAULT;
 	ether->offload.rx_csum		= NI_TRISTATE_DEFAULT;
 	ether->offload.tx_csum		= NI_TRISTATE_DEFAULT;
@@ -89,7 +92,10 @@ ni_ethernet_new(void)
 void
 ni_ethernet_free(ni_ethernet_t *ethernet)
 {
-	free(ethernet);
+	if (ethernet) {
+		free(ethernet->wol.sopass);
+		free(ethernet);
+	}
 }
 
 /*
@@ -155,6 +161,46 @@ static __ni_ethtool_map_t	__ni_ethtool_port_map[] = {
 	{ -1 }
 };
 
+static const __ni_ethtool_map_t	__ni_ethtool_wol_map[] = {
+	{ WAKE_PHY,		(1<<NI_ETHERNET_WOL_PHY)	},
+	{ WAKE_UCAST,		(1<<NI_ETHERNET_WOL_UCAST)	},
+	{ WAKE_MCAST,		(1<<NI_ETHERNET_WOL_MCAST)	},
+	{ WAKE_BCAST,		(1<<NI_ETHERNET_WOL_BCAST)	},
+	{ WAKE_ARP,		(1<<NI_ETHERNET_WOL_ARP)	},
+	{ WAKE_MAGIC,		(1<<NI_ETHERNET_WOL_MAGIC)	},
+	{ WAKE_MAGICSECURE,	(1<<NI_ETHERNET_WOL_SECUREON)	},
+	{ -1,			-1				}
+};
+
+static const ni_intmap_t	__ni_ethernet_wol_map[] = {
+	{ "p",			NI_ETHERNET_WOL_PHY	},
+	{ "phy",		NI_ETHERNET_WOL_PHY	},
+	{ "u",			NI_ETHERNET_WOL_UCAST	},
+	{ "unicast",		NI_ETHERNET_WOL_UCAST	},
+	{ "m",			NI_ETHERNET_WOL_MCAST	},
+	{ "multicast",		NI_ETHERNET_WOL_MCAST	},
+	{ "b",			NI_ETHERNET_WOL_BCAST	},
+	{ "broadcast",		NI_ETHERNET_WOL_BCAST	},
+	{ "a",			NI_ETHERNET_WOL_ARP	},
+	{ "arp",		NI_ETHERNET_WOL_ARP	},
+	{ "g",			NI_ETHERNET_WOL_MAGIC	},
+	{ "magic",		NI_ETHERNET_WOL_MAGIC	},
+	{ "s",			NI_ETHERNET_WOL_SECUREON},
+	{ "secure-on",		NI_ETHERNET_WOL_SECUREON},
+	{ NULL,			-1U			}
+};
+
+const char *
+ni_ethernet_wol_options_format(ni_stringbuf_t *buf, int options, const char *sep)
+{
+	if (options == __NI_ETHERNET_WOL_DISABLE)
+		ni_stringbuf_puts(buf, "d");
+	else
+		ni_format_bitmap(buf, __ni_ethernet_wol_map, options, sep);
+
+	return buf->string;
+}
+
 static int
 __ni_ethtool_to_wicked(const __ni_ethtool_map_t *map, int value)
 {
@@ -166,6 +212,19 @@ __ni_ethtool_to_wicked(const __ni_ethtool_map_t *map, int value)
 	return -1;
 }
 
+static unsigned int
+__ni_ethtool_to_wicked_bits(const __ni_ethtool_map_t *map, unsigned int mask)
+{
+	const __ni_ethtool_map_t *m;
+	unsigned int ret = 0;
+
+	for (m = map; m && m->wicked_value >= 0; m++) {
+		if (m->ethtool_value & mask)
+			ret |= m->wicked_value;
+	}
+	return ret;
+}
+
 static int
 __ni_wicked_to_ethtool(const __ni_ethtool_map_t *map, int value)
 {
@@ -175,6 +234,19 @@ __ni_wicked_to_ethtool(const __ni_ethtool_map_t *map, int value)
 		map++;
 	}
 	return -1;
+}
+
+static unsigned int
+__ni_wicked_to_ethtool_bits(const __ni_ethtool_map_t *map, unsigned int mask)
+{
+	const __ni_ethtool_map_t *m;
+	unsigned int ret = 0;
+
+	for (m = map; m && m->wicked_value >= 0; m++) {
+		if (m->wicked_value & mask)
+			ret |= m->ethtool_value;
+	}
+	return ret;
 }
 
 /*
@@ -209,6 +281,8 @@ static __ni_ioctl_info_t __ethtool_stso = { ETHTOOL_STSO, "STSO" };
 static __ni_ioctl_info_t __ethtool_sufo = { ETHTOOL_SUFO, "SUFO" };
 static __ni_ioctl_info_t __ethtool_sgso = { ETHTOOL_SGSO, "SGSO" };
 static __ni_ioctl_info_t __ethtool_sgro = { ETHTOOL_SGRO, "SGRO" };
+static __ni_ioctl_info_t __ethtool_gwol = { ETHTOOL_GWOL, "GWOL" };
+static __ni_ioctl_info_t __ethtool_swol = { ETHTOOL_SWOL, "SWOL" };
 
 static int
 __ni_ethtool_do(const char *ifname, __ni_ioctl_info_t *ioc, void *evp)
@@ -325,6 +399,87 @@ __ni_ethtool_set_tristate(const char *ifname, __ni_ioctl_info_t *ioc, int value)
 	return __ni_ethtool_set_value(ifname, ioc, kern_value);
 }
 
+static int
+__ni_ethtool_get_wol(const char *ifname, ni_ethernet_wol_t *wol)
+{
+	struct ethtool_wolinfo wolinfo;
+	ni_stringbuf_t buf;
+
+	memset(&wolinfo, 0, sizeof(wolinfo));
+	if (__ni_ethtool_do(ifname, &__ethtool_gwol, &wolinfo) < 0) {
+		wol->support = wol->options = __NI_ETHERNET_WOL_DISABLE;
+		if (wol->sopass)
+			free(wol->sopass);
+		return -1;
+	}
+
+	wol->support = __ni_ethtool_to_wicked_bits(__ni_ethtool_wol_map, wolinfo.supported);
+	wol->options  = __ni_ethtool_to_wicked_bits(__ni_ethtool_wol_map, wolinfo.wolopts);
+
+	if (wol->support & (1<<NI_ETHERNET_WOL_SECUREON)
+	&&  NI_MAXHWADDRLEN > sizeof(wolinfo.sopass)) {
+		if (!wol->sopass)
+			wol->sopass = calloc(1, sizeof(ni_hwaddr_t));
+		if (wol->sopass) {
+			wol->sopass->type = ARPHRD_ETHER;
+			wol->sopass->len = sizeof(wolinfo.sopass);
+			memcpy(wol->sopass->data, wolinfo.sopass, sizeof(wolinfo.sopass));
+		}
+	}
+
+	ni_stringbuf_init(&buf);
+	ni_format_bitmap(&buf, __ni_ethernet_wol_map, wol->support, "|");
+	ni_stringbuf_puts(&buf, " -> ");
+	ni_format_bitmap(&buf, __ni_ethernet_wol_map, wol->options, "|");
+	ni_stringbuf_destroy(&buf);
+
+	return 0;
+}
+
+static int
+__ni_ethtool_set_wol(const char *ifname, const ni_ethernet_wol_t *wol)
+{
+	struct ethtool_wolinfo wolinfo;
+	unsigned int wanted;
+	ni_stringbuf_t buf;
+
+	if (wol->options == __NI_ETHERNET_WOL_DEFAULT)
+		return 0;
+
+	memset(&wolinfo, 0, sizeof(wolinfo));
+
+	/* Try to grab existing options before setting. */
+	__ni_ethtool_do(ifname, &__ethtool_gwol, &wolinfo);
+
+	/* Wicked sets __NI_ETHERNET_WOL_DISABLE = -1. The kernel, however,
+	 * uses 0 for disabled.
+	 */
+	wanted = wol->options != __NI_ETHERNET_WOL_DISABLE ?
+		__ni_wicked_to_ethtool_bits(__ni_ethtool_wol_map, wol->options) :
+		0;
+	wolinfo.wolopts = wanted;
+
+	if ((wanted & wolinfo.supported) != wolinfo.wolopts)
+		wolinfo.wolopts = (wanted & wolinfo.supported);
+
+	if (wol->sopass && wol->sopass->len && wol->sopass->len == sizeof(wolinfo.sopass)) {
+		memcpy(wolinfo.sopass, wol->sopass->data, sizeof(wolinfo.sopass));
+	}
+
+	ni_stringbuf_init(&buf);
+	ni_format_bitmap(&buf, __ni_ethernet_wol_map, __ni_ethtool_to_wicked_bits(__ni_ethtool_wol_map, wolinfo.supported), "|");
+	ni_stringbuf_puts(&buf, " -> ");
+	ni_format_bitmap(&buf, __ni_ethernet_wol_map, __ni_ethtool_to_wicked_bits(__ni_ethtool_wol_map, wolinfo.wolopts), "|");
+	ni_stringbuf_destroy(&buf);
+
+	if (__ni_ethtool_do(ifname, &__ethtool_swol, &wolinfo) < 0) {
+		ni_error("%s: cannot set new wake-on-lan settings: %m", ifname);
+		return -1;
+	}
+
+	return 0;
+}
+
 /*
  * Handle ethtool stats
  */
@@ -418,6 +573,8 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 	    phy_address
 	    transceiver
 	 */
+
+	__ni_ethtool_get_wol(ifname, &ether->wol);
 
 	ether->offload.rx_csum = __ni_ethtool_get_tristate(ifname, &__ethtool_grxcsum);
 	ether->offload.tx_csum = __ni_ethtool_get_tristate(ifname, &__ethtool_gtxcsum);
@@ -532,6 +689,8 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 	struct ethtool_cmd ecmd;
 	int mapped, value;
 
+	__ni_ethtool_set_wol(ifname, &ether->wol);
+
 	memset(&ecmd, 0, sizeof(ecmd));
 	if (__ni_ethtool(ifname, ETHTOOL_GSET, &ecmd) < 0) {
 		if (errno != EOPNOTSUPP)
@@ -572,6 +731,7 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 	    phy_address
 	    transceiver
 	 */
+
 
 	__ni_ethtool_set_tristate(ifname, &__ethtool_srxcsum, ether->offload.rx_csum);
 	__ni_ethtool_set_tristate(ifname, &__ethtool_stxcsum, ether->offload.tx_csum);

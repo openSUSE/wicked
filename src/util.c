@@ -1399,7 +1399,7 @@ const char *
 ni_format_bitmap(ni_stringbuf_t *buf, const ni_intmap_t *map,
 		unsigned int flags, const char *sep)
 {
-	unsigned int i;
+	unsigned int i, flag;
 
 	if (!buf || !map)
 		return NULL;
@@ -1408,7 +1408,9 @@ ni_format_bitmap(ni_stringbuf_t *buf, const ni_intmap_t *map,
 		sep = "|";
 
 	for (i = 0; map->name; ++map) {
-		if (flags & (1 << map->value)) {
+		flag = (1 << map->value);
+		if (flags & flag) {
+			flags &= ~flag;
 			if (i++)
 				ni_stringbuf_puts(buf, sep);
 			ni_stringbuf_puts(buf, map->name);
