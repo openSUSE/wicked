@@ -228,6 +228,26 @@ __ni_compat_generate_eth_node(xml_node_t *child, const ni_ethernet_t *eth)
 	}
 	__ni_compat_optional_tristate("autoneg-enable", child, eth->autoneg_enable);
 
+	if (eth->wol.options != __NI_ETHERNET_WOL_DEFAULT) {
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+		xml_node_t *wol = xml_node_new("wake-on-lan", NULL);
+
+		ni_ethernet_wol_options_format(&buf, eth->wol.options, "|");
+		xml_node_new_element("options", wol, buf.string);
+		ni_stringbuf_destroy(&buf);
+
+		if (eth->wol.options & (1<<NI_ETHERNET_WOL_SECUREON)
+				&& eth->wol.sopass.len) {
+			xml_node_new_element("sopass", wol,
+					ni_link_address_print(&eth->wol.sopass));
+		}
+
+		if (wol->children)
+			xml_node_add_child(child, wol);
+		else
+			xml_node_free(wol);
+	}
+
 	/* generate offload and other information */
 	offload = xml_node_new("offload", NULL);
 	__ni_compat_optional_tristate("rx-csum", offload, eth->offload.rx_csum);

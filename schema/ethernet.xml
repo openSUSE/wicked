@@ -17,6 +17,15 @@
     <mii/>
     <fibre/>
   </define>
+  <define name="wol-flag-mask" type="uint32" constraint="bitmap">
+    <phy       bit="0"/>
+    <unicast   bit="1"/>
+    <multicast bit="2"/>
+    <broadcast bit="3"/>
+    <arp       bit="4"/>
+    <magic     bit="5"/>
+    <secure-on bit="6"/>
+  </define>
 
   <define name="configuration" class="dict">
     <address type="ethernet-address"/>
@@ -24,6 +33,12 @@
     <port-type type="port_t"/>
     <duplex type="duplex_t" />
     <autoneg-enable type="tristate"/>
+
+    <wake-on-lan class="dict">
+      <support type="wol-flag-mask"/>    <!-- read-only system property -->
+      <options type="wol-flag-mask"/>
+      <sopass  type="ethernet-address"/> <!-- write-only configuration  -->
+    </wake-on-lan>
 
     <offload class="dict">
       <rx-csum type="tristate"/>
