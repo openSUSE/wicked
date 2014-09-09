@@ -571,6 +571,11 @@ __ni_process_output_recv(ni_socket_t *sock)
 	int cnt;
 
 	ni_assert(pi);
+
+	/* Grow socket input buffer as needed.
+	 * NB: we may put an upper limit on how much process output we capture.
+	 * Anything beyond a few MB is insane...
+	 */
 	if (ni_buffer_tailroom(rbuf) < 256)
 		ni_buffer_ensure_tailroom(rbuf, 4096);
 
