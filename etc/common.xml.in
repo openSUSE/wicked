@@ -4,8 +4,13 @@
   <statedir path="@wicked_statedir@" mode="0755"/>
   <storedir path="@wicked_storedir@" mode="0755"/>
 
-  <dbus name="org.opensuse.Network" />
-  <schema name="@wicked_schemadir@/wicked.xml"/>
+  <!--
+    Config options specific to DBus service
+   -->
+  <dbus>
+    <service name="org.opensuse.Network" />
+    <schema name="@wicked_schemadir@/wicked.xml"/>
+  </dbus>
 
   <!--
     Use nanny or not:
@@ -22,4 +27,12 @@
     "wicked ifup all" to (re)apply the config / policies.
   -->
   <use-nanny>false</use-nanny>
+
+  <!--
+    If you want to make changes to this file, consider putting
+    your changes into @wicked_configdir@/local.xml instead.
+    Otherwise, you may lose your changes when applying
+    future maintenance updates.
+    -->
+  <include name="local.xml" optional="true" />
 </config>
