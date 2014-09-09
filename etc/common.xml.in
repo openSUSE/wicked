@@ -4,8 +4,13 @@
   <statedir path="@wicked_statedir@" mode="0755"/>
   <storedir path="@wicked_storedir@" mode="0755"/>
 
-  <dbus name="org.opensuse.Network" />
-  <schema name="@wicked_schemadir@/wicked.xml"/>
+  <!--
+    Config options specific to DBus service
+   -->
+  <dbus>
+    <service name="org.opensuse.Network" />
+    <schema name="@wicked_schemadir@/wicked.xml"/>
+  </dbus>
 
   <!--
     Use nanny or not:

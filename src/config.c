@@ -141,15 +141,40 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 		} else
 		if (strcmp(child->name, "dbus") == 0) {
 			const char *attrval;
+			xml_node_t *gchild;
 
+			/* Old-school
+			 * <dbus name="org.opensuse.Network" />
+			 * <schema name="/some/path/wicked.xml" />
+			 */
 			if ((attrval = xml_node_get_attr(child, "name")) != NULL)
 				ni_string_dup(&conf->dbus_name, attrval);
 			if ((attrval = xml_node_get_attr(child, "type")) != NULL)
 				ni_string_dup(&conf->dbus_type, attrval);
+
+			/* New school:
+			 *  <dbus>
+			 *    <service name="org.opensuse.Network" />
+			 *    <schema name="/some/path/wicked.xml" />
+			 *  </dbus>
+			 */
+			for (gchild = child->children; gchild; gchild = gchild->next) {
+				if (!strcmp(gchild->name, "service")) {
+					if ((attrval = xml_node_get_attr(gchild, "name")) != NULL)
+						ni_string_dup(&conf->dbus_name, attrval);
+					if ((attrval = xml_node_get_attr(gchild, "type")) != NULL)
+						ni_string_dup(&conf->dbus_type, attrval);
+				} else
+				if (!strcmp(gchild->name, "schema")) {
+					if ((attrval = xml_node_get_attr(gchild, "name")) != NULL)
+						ni_string_dup(&conf->dbus_xml_schema_file, attrval);
+				}
+			}
 		} else 
 		if (strcmp(child->name, "schema") == 0) {
 			const char *attrval;
 
+			/* old school */
 			if ((attrval = xml_node_get_attr(child, "name")) != NULL)
 				ni_string_dup(&conf->dbus_xml_schema_file, attrval);
 		} else
