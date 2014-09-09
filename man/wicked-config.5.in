@@ -8,18 +8,55 @@ wicked-config.xml \- wicked configuration file
 .br
 .B @wicked_configdir@/client.xml
 .br
+.B @wicked_configdir@/nanny.xml
+.br
 .SH DESCRIPTION
 These files contain the global configuration options for the \fBwicked\fP
-network management service. \fBCommon.xml\fP contains common definitions
-that should be used by all applications, whereas \fBclient.xml\fP and
-\fBserver.xml\fP contain client- and server-specific configuration data,
-respectively.
+network management service. All files follow the same XML schema.
 .PP
-The configuration file is an XML document; its root node must be called
-\fB<config>\fP.
+\fBcommon.xml\fP contains common definitions that should be used by all applications.
+It is sourced by the other configuration files. It can be used to enable
+debugging across all \fBwicked\fP components, for instance.
+.PP
+Different components of \fBwicked\fP will load different files on startup; for
+instance, the \fBwickedd\fP server process will try to load \fBserver.xml\fP. If
+that file does not exist, it will fall back to \fBcommon.xml\fP and try to read that
+directly.
+.PP
+The following table shows which \fBwicked\fP commands use which configuration file:
+.PP
+.TS
+box;
+l|l
+lb|lb.
+Application	Filename
+=
+wicked	client.xml
+wickedd	server.xml
+wickedd-nanny	nanny.xml
+wickedd-auto4	auto4.xml
+wickedd-dhcp4	dhcp4.xml
+wickedd-dhcp6	dhcp6.xml
+.TE
 .PP
 .\" --------------------------------------------------------
 .SH GENERAL OPTIONS
+.\" --------------------------------------------------------
+.PP
+The configuration file is an XML document; its root node must be called
+\fB<config>\fP.
+.TP
+.B include
+This element can be used to refer to an additional XML configuration
+file. When parsing a configuration file, \fBwicked\fP will traverse the
+XML hierarchy once, in the order in which elements occur in the file.
+The file referenced by an \fB<include>\fP element is loaded and parsed
+at the time the \fB<include>\fP element is encountered.
+.IP
+Note that the contents of the file will not be \(dqincluded\(dq in the
+way you would expect this from e.g. a macro preprocessor. Instead, the
+referenced file must be a proper XML document, and its top node must also
+be a \fBconfig\fP element.
 .\" --------------------------------------------------------
 .SS Common pathnames
 .TP
@@ -69,27 +106,6 @@ The default is to use \fB@wicked_storedir@\fP, mode \fB0755\fP.
 .fi
 .PP
 .\" --------------------------------------------------------
-.SS DBus service parameters
-.TP
-.B dbus
-This element can be used to override the DBus service name used.
-The default is "org.opensuse.Network"
-.IP
-.nf
-.B "  <dbus name=\(dqorg.opensuse.Network\(dq />
-.fi
-.TP
-.B schema
-This can be used to override the location of the schema files.
-The schema defines the various DBus APIs offered by the server,
-and how portions of an interface XML description map to their
-arguments. The schema files do not contain user-serviceable parts,
-so it's best to leave this option untouched.
-.IP
-.nf
-.B "  <schema name=\(dq@wicked_schemadir@/wicked.xml\(dq />
-.fi
-.\" --------------------------------------------------------
 .SS Miscellaneous
 .TP
 .B debug
@@ -102,6 +118,292 @@ The '\fBwicked --debug help\fP' command shows valid facility names.
 If a debug level is specified on the command line or via the WICKED_DEBUG
 environment variable, the setting from the XML configuration file will be
 ignored.
+.\" --------------------------------------------------------
+.SS DBus service parameters
+All configuration options related to the DBus service are grouped below
+the \fB<dbus>\fP element. Currently, the following child elements are
+recognized:
+.TP
+.B service
+This element specifies the DBus service name used, and must be a valid
+DBus API name.
+The default is "org.opensuse.Network".
+.TP
+.B schema
+This element specifies the location of the schema files.
+The schema defines the various DBus APIs offered by the server,
+and how portions of an interface XML description map to their
+arguments. The schema files do not contain user-serviceable parts,
+so it's best to leave this option untouched.
+.PP
+Here's what the default configuration looks like:
+.PP
+.nf
+.B "  <dbus>
+.B "    <service name=\(dqorg.opensuse.Network\(dq />
+.B "    <schema name=\(dq@wicked_schemadir@/wicked.xml\(dq />
+.B "  </dbus>
+.fi
+.\" --------------------------------------------------------
+.SH CLIENT ONLY OPTIONS
+.TP
+.B use-nanny
+This element controls whether the client will try to apply configuration
+changes immediately, or whether it will forward the configuration to
+\fBnanny\fP. When applying an interface configuration immediately, that
+may fail for a variety of transient reasons, such as an Ethernet cable
+not being plugged in. When managing an interface through \fBnanny\fP,
+the configuration will not be applied unless certain conditions are
+met (such as link detection being successful for an Ethernet NIC).
+.IP
+The exact set of conditions depends on the type of interface, and are
+defined by \fBwicked\fP when forwarding the configuration to \fBnanny\fP.
+.IP
+The \fB<use-nanny>\fP element controls the default behavior. When set to
+\fBtrue\fP, \fBwicked\fP will manage all interfaces through \fBnanny\fP. If
+set to \fBfalse\fP, all interface changes will be applied directly.
+.IP
+The default value is \fBfalse\fP.
+.TP
+.B sources
+This specifies a list of sources that the \fBwicked\fP client will pick
+up interface configurations from, and their load order. Child elements
+of \fB<sources>\fP must be called \fBifconfig\fP, and are expected to
+specify a \fBlocation\fP attribute.
+.IP
+The location attribute takes the form \fItype\fB:\fIstring\fR, where
+\fIstring\fP may be empty.
+.IP
+.TS
+box;
+l|l
+lb|lb.
+Type	Description
+=
+wicked	Load interface description using native wicked XML
+firmware	Get configuration from firmware, usually iBFT
+compat	Load interface description using legacy ifcfg files
+.TE
+.PP
+.IP
+The \fBfirmware\fP type takes no additional \fIstring\fP parameter.
+When specifying either \fBwicked\fP, you can optionally specify a
+directory where to look for XML interface configurations. If no
+directory is given, the path defaults to \fB@wicked_configdir@/ifconfig\fP.
+When specifying either \fBcompat\fP, you can optionally specify the
+ifcfg flavor, which can be either \fBsuse\fP or \fBredhat\fP. If no
+flavor is specified, the result is implementation dependent - but
+usually, it will pick the platform default it was compiled on.
+.IP
+The default configuration is this:
+.IP
+.nf
+.B "  <sources>
+.B "    <ifconfig location=\(dqfirmware:\(dq />
+.B "    <ifconfig location=\(dqcompat:\(dq />
+.B "    <ifconfig location=\(dqwicked:\(dq />
+.B "  </sources>
+.fi
+.\" --------------------------------------------------------
+.SH ADDRESS CONFIGURATION OPTIONS
+The \fB<addrconf>\fP element is evaluated by server applications only, and
+controls the behavior of dynamic address configuration protocols such
+as DHCP. This options to blacklist e.g. certain DHCP servers, and which
+information provided by address configuration to apply.
+.TP
+.B default-allow-update
+Most dynamic address configuration protocols, including DHCP, do not just provide
+a list of addresses and routes to install for the managed network interface,
+but can be used to provide information such as a list of DNS servers, directory
+information (for e.g. NIS), etc. A system receiving that information is free
+to reconfigure some of its services based on this information.
+For instance, it makes a lot of sense to configure the resolver library
+to use the DNS servers specified by a DHCP server.  On the other hand,
+for security reasons you may want to ignore any NIS information received
+via DHCP.
+.IP
+The \fB<default-allow-update>\fP element allows you to control which
+system services \fBwicked\fP will consider to update.  It contains a list
+of empty XML elements naming system facilities to update. The special
+elements \fB<all>\fP and \fB<none>\fP enable and disable any and all
+updates, respectively. Other valid updaters are:
+.IP
+.TS
+box;
+l|l
+lb|lb.
+Name	Description
+=
+default-route	system default route (IPv4 or IPv6)
+hostname	system hostname
+dns	update resolv.conf
+nis	NIS client (not implemented)
+ntp	NTP servers (not implemented)
+smb	SMB client (not implemented)
+slp	SLP client (not implemented)
+log	syslog servers (not implemented)
+.TE
+
+.IP
+Note that administrators wishing to support currently unimplemented
+updaters can do so by configuring external updaters using the
+\fB<system-updater>\fP extensions described below.
+.TP
+.B dhcp4
+This element can be used to control the behavior of the DHCP4
+supplicant. See below for a list of options.
+.TP
+.B dhcp6
+This element can be used to control the behavior of the DHCP6
+supplicant. See below for a list of options.
+.\" --------------------------------------------------------
+.SH DHCP4 SUPPLICANT OPTIONS
+The DHCP4 client can be configured through the options listed below.
+All of them must be nested like this:
+.PP
+.nf
+.B "  <addrconf>
+.B "    <dhcp4>
+.I "       ... options
+.B "    </dhcp4>
+.B "  </addrconf>
+.fi
+.TP
+.B vendor-class
+Specifies the string to be used as the vendor-class option in the DHCP
+request. By default, no vendor-class option is sent.
+.TP
+.B lease-time
+Specifies the lease time to request in the DHCP request, in seconds. This also
+caps the lease time that can be requested in an interface configuration;
+any lease-time specified there will be silently limited to what was
+specified in the global configuration file. The following will set the default
+lease time to one hour:
+.IP
+.B "  <lease-time>3600</lease-time>
+.PP
+.TP
+.B ignore-server
+Using the \fBip\fB attribute of this element, you can specify the
+IP address of a faulty DHCP server that should be ignored:
+.IP
+.B "  <ignore-server ip=\(dq192.168.8.1\(dq />
+.TP
+.B prefer-server
+Specify a preferred DHCP server, together with a numeric value indicating its
+preference. Again, the address of the server is specified using the
+\fBip\fP attribute.
+.IP
+The numeric preference value is given by the \fBweight\fP,
+and should range from -1 to 100.
+Higher numbers indicate a higher preference.
+A negative value will cause the server to be ignored. If a response from
+a server with a weight of 100 is received, it will be selected immediately.
+Otherwise, the supplicant will wait for about one minute, and select the
+server with the highest preference afterwards.
+.IP
+The special keywords \fBnever\fP and \fBalways\fP correspond to -1 and
+100, respectively. If no \fBweight\fP attribute is given, it defaults to
+\fBalways\fP (100).
+.IP
+The following example will ignore 192.168.8.1, always use the information from
+192.168.8.10 if available, and fall back to 192.168.8.7 if not:
+.IP
+.nf
+.B "  <prefer-server ip=\(dq192.168.8.1\(dq  weight=\(dqnever\(dq />
+.B "  <prefer-server ip=\(dq192.168.8.10\(dq weight=\(dq100\(dq />
+.B "  <prefer-server ip=\(dq192.168.8.7\(dq  weight=\(dq50\(dq />
+.fi
+.TP
+.B allow-update
+Specify the list of system services that \fBwicked\fP will configure based
+on the DHCP lease received. For the syntax of this element, please refer
+to the description of \fBdefault-allow-update\fP above.
+.PP
+.\" --------------------------------------------------------
+.SH DHCP6 SUPPLICANT OPTIONS
+The DHCP6 client can be configured through the options listed below.
+All of them must be nested like this:
+.PP
+.nf
+.B "  <addrconf>
+.B "    <dhcp6>
+.I "       ... options
+.B "    </dhcp6>
+.B "  </addrconf>
+.fi
+.TP
+.B default-duid
+DHCPv6 uses a so-called DUID to identify a DHCP client (rather than the
+MAC address used by DHCPv4). By default, \fBwickedd-dhcp6\fP will try to
+generate a DUID based on the link layer address of the device. Using the
+\fB<default-duid>\fP element, you can override this behavior and specify
+a global, unique DUID that will be used across all interfaces. The DUID
+notation is a string of hex octets, separated by colons - pretty similar
+to the standard notiation Ethernet address.
+.IP
+Note that \fBwickedd-dhcp6\fP stores the generated DUIDs in
+\fB@wicked_statedir@/duid.xml\fP. If you change the default DUID, you should
+make sure to delete that file before restarting the DHCPv6 supplicant.
+.PP
+.\"
+.\" Not documented, not fully working:
+.\"  user-class
+.\"  vendor-class
+.\"  vendor-opts
+.\"
+.TP
+.B lease-time
+Specifies the lease time to request in the DHCP request, in seconds. This also
+caps the lease time that can be requested in an interface configuration;
+any lease-time specified there will be silently limited to what was
+specified in the global configuration file. The following will set the default
+lease time to one hour:
+.IP
+.B "  <lease-time>3600</lease-time>
+.PP
+.TP
+.B ignore-server
+Using the \fBip\fB attribute of this element, you can specify the
+IP address of a faulty DHCP server that should be ignored:
+.\"
+.\" Working but useless (the IPv6 server addresses we get
+.\" are almost always link-local addrs, not the global unicast
+.\" address; thanks to relying on multicast exclusively).
+.\" 
+.TP
+.B prefer-server
+Specify a preferred DHCP server, together with a numeric value indicating its
+preference. The server is identified using its DUID, which has to be specified
+via the \fBid\fP attribute.
+.IP
+The numeric preference value is given by the \fBweight\fP,
+and should range from -1 to 100.
+Higher numbers indicate a higher preference.
+A negative value will cause the server to be ignored. If a response from
+a server with a weight of 100 is received, it will be selected immediately.
+Otherwise, the supplicant will wait for about one minute, and select the
+server with the highest preference afterwards.
+.IP
+The special keywords \fBnever\fP and \fBalways\fP correspond to -1 and
+100, respectively. If no \fBweight\fP attribute is given, it defaults to
+\fBalways\fP (100).
+.IP
+The following example will ignore DHCP offers from the first server,
+always use the information from the second (if available), and fall back
+to the third if not:
+.IP
+.nf
+.B "  <prefer-server id=\(dq00:44:01:02:04:00\(dq weight=\(dqnever\(dq />
+.B "  <prefer-server id=\(dq00:44:01:02:04:01\(dq weight=\(dq100\(dq />
+.B "  <prefer-server id=\(dq00:44:01:02:04:02\(dq weight=\(dq50\(dq />
+.fi
+.TP
+.B allow-update
+Specify the list of system services that \fBwicked\fP will configure based
+on the DHCP lease received. For the syntax of this element, please refer
+to the description of \fBdefault-allow-update\fP above.
+.PP
 .\" --------------------------------------------------------
 .SH EXTENSIONS
 The functionality of \fBwickedd\fP can be extended through
