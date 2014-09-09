@@ -403,7 +403,7 @@ __ni_ethtool_get_wol(const char *ifname, ni_ethernet_wol_t *wol)
 
 	memset(&wolinfo, 0, sizeof(wolinfo));
 	if (__ni_ethtool_do(ifname, &__ethtool_gwol, &wolinfo) < 0) {
-		wol->support = wol->options = __NI_ETHERNET_WOL_DEFAULT;
+		wol->support = wol->options = __NI_ETHERNET_WOL_DISABLE;
 		wol->sopass.len = 0;
 		return -1;
 	}
@@ -420,12 +420,22 @@ __ni_ethtool_get_wol(const char *ifname, ni_ethernet_wol_t *wol)
 		memcpy(&wol->sopass.data, wolinfo.sopass, sizeof(wolinfo.sopass));
 	}
 
-	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+	if (ni_debug_guard(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG)) {
 		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
-		ni_format_bitmap(&buf, __ni_ethernet_wol_map, wol->support, "|");
-		ni_stringbuf_puts(&buf, " -> ");
-		ni_format_bitmap(&buf, __ni_ethernet_wol_map, wol->options, "|");
+		if (wol->support != __NI_ETHERNET_WOL_DISABLE) {
+			ni_format_bitmap(&buf, __ni_ethernet_wol_map,
+						wol->support, "|");
+		} else {
+			ni_stringbuf_puts(&buf, "disabled");
+		}
+		ni_stringbuf_puts(&buf, " -- ");
+		if (wol->options != __NI_ETHERNET_WOL_DISABLE) {
+			ni_format_bitmap(&buf, __ni_ethernet_wol_map,
+						wol->options, "|");
+		} else {
+			ni_stringbuf_puts(&buf, "disabled");
+		}
 		if (wol->sopass.len) {
 			ni_stringbuf_printf(&buf, ", sopass: -set-");
 		}
@@ -447,14 +457,53 @@ __ni_ethtool_set_wol(const char *ifname, const ni_ethernet_wol_t *wol)
 	memset(&wolinfo, 0, sizeof(wolinfo));
 
 	/* Try to grab existing options before setting. */
-	__ni_ethtool_do(ifname, &__ethtool_gwol, &wolinfo);
+	if (__ni_ethtool_do(ifname, &__ethtool_gwol, &wolinfo) < 0)
+		wolinfo.wolopts = wolinfo.supported = 0;
 
-	/*
-	 * Wicked sets __NI_ETHERNET_WOL_DISABLE (0) to disable
-	 * (same to kernel) and initializes to -1U (unset).
-	 */
+	/* dump the requested change */
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+		unsigned int old_options;
+
+		old_options = __ni_ethtool_to_wicked_bits(__ni_ethtool_wol_map,
+							wolinfo.wolopts);
+		if (old_options != __NI_ETHERNET_WOL_DISABLE) {
+			ni_format_bitmap(&buf, __ni_ethernet_wol_map,
+						old_options, "|");
+		} else {
+			ni_stringbuf_puts(&buf, "disabled");
+		}
+		ni_stringbuf_puts(&buf, " -> ");
+		if (wol->options != __NI_ETHERNET_WOL_DISABLE) {
+			ni_format_bitmap(&buf, __ni_ethernet_wol_map,
+						wol->options, "|");
+		} else {
+			ni_stringbuf_puts(&buf, "disabled");
+		}
+		if (wol->sopass.len && (wol->options & (1<<NI_ETHERNET_WOL_SECUREON)))
+			ni_stringbuf_printf(&buf, ", sopass: -set-");
+
+		ni_trace("%s: %s() %s", ifname, __func__, buf.string);
+		ni_stringbuf_destroy(&buf);
+	}
+
+	/* apply new settings to wolinfo */
 	wolinfo.wolopts = __ni_wicked_to_ethtool_bits(__ni_ethtool_wol_map,
 							wol->options);
+	if ((wol->options & (1<<NI_ETHERNET_WOL_SECUREON)) && wol->sopass.len) {
+		if (wol->sopass.len != sizeof(wolinfo.sopass)) {
+			ni_error("%s: invalid wake-on-lan sopass length", ifname);
+			return -1;
+		}
+		memcpy(wolinfo.sopass, &wol->sopass.data, sizeof(wolinfo.sopass));
+	}
+
+	/* kindly reject a disable attempt when wol is unsupported */
+	if (wol->support == __NI_ETHERNET_WOL_DISABLE &&
+	    wol->options == __NI_ETHERNET_WOL_DISABLE) {
+		ni_error("%s: cannot set wake-on-lan -- not supported", ifname);
+		return -1;
+	}
 
 	/* reject unsupported flags, or we disable SWOL ioctl */
 	if ((wolinfo.wolopts & wolinfo.supported) != wolinfo.wolopts) {
@@ -468,30 +517,6 @@ __ni_ethtool_set_wol(const char *ifname, const ni_ethernet_wol_t *wol)
 				ifname, buf.string);
 		ni_stringbuf_destroy(&buf);
 		return -1;
-	}
-
-	if ((wol->options & (1<<NI_ETHERNET_WOL_SECUREON)) && wol->sopass.len) {
-		if (wol->sopass.len != sizeof(wolinfo.sopass)) {
-			ni_error("%s: invalid wake-on-lan sopass length", ifname);
-			return -1;
-		}
-		memcpy(wolinfo.sopass, &wol->sopass.data, sizeof(wolinfo.sopass));
-	}
-
-	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
-		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
-
-		ni_format_bitmap(&buf, __ni_ethernet_wol_map,
-				__ni_ethtool_to_wicked_bits(__ni_ethtool_wol_map,
-							wolinfo.supported), "|");
-		ni_stringbuf_puts(&buf, " -> ");
-		ni_format_bitmap(&buf, __ni_ethernet_wol_map,
-				__ni_ethtool_to_wicked_bits(__ni_ethtool_wol_map,
-							wolinfo.wolopts), "|");
-		if ((wol->options & (1<<NI_ETHERNET_WOL_SECUREON)) && wol->sopass.len)
-			ni_stringbuf_printf(&buf, ", sopass: -set-");
-		ni_trace("%s: %s() %s", ifname, __func__, buf.string);
-		ni_stringbuf_destroy(&buf);
 	}
 
 	if (__ni_ethtool_do(ifname, &__ethtool_swol, &wolinfo) < 0) {

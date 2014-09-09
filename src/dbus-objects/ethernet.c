@@ -219,7 +219,8 @@ __ni_objectmodel_ethernet_get_wakeonlan(const ni_dbus_object_t *object,
 	if (!(eth = __ni_objectmodel_ethernet_read_handle(object, error)))
 		return FALSE;
 
-	if (eth->wol.support == __NI_ETHERNET_WOL_DEFAULT)
+	if (eth->wol.support == __NI_ETHERNET_WOL_DEFAULT ||
+	    eth->wol.support == __NI_ETHERNET_WOL_DISABLE)
 		return FALSE;
 
 	ni_dbus_dict_add_uint32(result, "support", eth->wol.support);
