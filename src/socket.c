@@ -304,51 +304,6 @@ ni_socket_close(ni_socket_t *sock)
 }
 
 /*
- * Connect to a local unix socket
- */
-ni_socket_t *
-ni_local_socket_connect(const char *path)
-{
-	int fd;
-
-	if (!path) {
-		ni_error("cannot connect to server - no server socket path specified");
-		return NULL;
-	}
-
-	fd = socket(AF_LOCAL, SOCK_STREAM, 0);
-	if (fd < 0) {
-		ni_error("cannot open AF_LOCAL socket: %m");
-		return NULL;
-	}
-
-	{
-		struct sockaddr_un sun;
-		unsigned int len = strlen(path);
-
-		if (len + 1 > sizeof(sun.sun_path)) {
-			ni_error("can't set AF_LOCAL address: path too long!");
-			goto failed;
-		}
-
-		memset(&sun, 0, sizeof(sun));
-		sun.sun_family = AF_LOCAL;
-		strcpy(sun.sun_path, path);
-
-		if (connect(fd, (struct sockaddr *) &sun, sizeof(sun)) < 0) {
-			ni_error("connect(%s) failed: %m", path);
-			goto failed;
-		}
-	}
-
-	return ni_socket_wrap(fd, SOCK_STREAM);
-
-failed:
-	close(fd);
-	return NULL;
-}
-
-/*
  * Create a local socket pair
  */
 int
