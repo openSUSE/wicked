@@ -1320,6 +1320,67 @@ ni_parse_ethtool_onoff(const char *input, ni_tristate_t *flag)
 	}
 }
 
+static inline ni_bool_t
+ni_parse_ethtool_wol_options(const char *input, ni_ethernet_wol_t *wol)
+{
+	ni_bool_t disabled = FALSE;
+	unsigned int options = 0;
+	if (!input || !wol)
+		return FALSE;
+
+	while(*input) {
+		switch (*input) {
+		case 'p':
+			options |= (1 << NI_ETHERNET_WOL_PHY);
+			break;
+		case 'u':
+			options |= (1 << NI_ETHERNET_WOL_UCAST);
+			break;
+		case 'm':
+			options |= (1 << NI_ETHERNET_WOL_MCAST);
+			break;
+		case 'b':
+			options |= (1 << NI_ETHERNET_WOL_BCAST);
+			break;
+		case 'a':
+			options |= (1 << NI_ETHERNET_WOL_ARP);
+			break;
+		case 'g':
+			options |= (1 << NI_ETHERNET_WOL_MAGIC);
+			break;
+		case 's':
+			options |= (1 << NI_ETHERNET_WOL_SECUREON);
+			break;
+		case 'd':
+			disabled = TRUE;
+			break;
+		default:
+			return FALSE;
+		}
+		input++;
+	}
+	if (disabled) {
+		wol->options = __NI_ETHERNET_WOL_DISABLE;
+	} else
+	if (options) {
+		wol->options = options;
+	}
+	return  TRUE;
+}
+
+static inline ni_bool_t
+ni_parse_ethtool_wol_sopass(const char *input, ni_ethernet_wol_t *wol)
+{
+	if (!input || !wol)
+		return FALSE;
+
+	if (ni_link_address_parse(&wol->sopass, ARPHRD_ETHER, input) < 0)
+		return FALSE;
+
+	return TRUE;
+}
+
+
 static void
 try_add_ethtool_common(ni_netdev_t *dev, const char *opt, const char *val)
 {
@@ -1360,6 +1421,14 @@ try_add_ethtool_common(ni_netdev_t *dev, const char *opt, const char *val)
 	} else
 	if (ni_string_eq(opt, "autoneg")) {
 		ni_parse_ethtool_onoff(val, &eth->autoneg_enable);
+	}
+	else
+	if (ni_string_eq(opt, "wol")) {
+		ni_parse_ethtool_wol_options(val, &eth->wol);
+	}
+	else
+	if (ni_string_eq(opt, "sopass")) {
+		ni_parse_ethtool_wol_sopass(val, &eth->wol);
 	}
 }
 
