@@ -31,7 +31,6 @@
 #define	NI_SOCKET_ARRAY_CHUNK	16
 
 static void			__ni_socket_close(ni_socket_t *);
-static void			__ni_socket_accept(ni_socket_t *);
 static void			__ni_default_error_handler(ni_socket_t *);
 static void			__ni_default_hangup_handler(ni_socket_t *);
 
@@ -305,66 +304,8 @@ ni_socket_close(ni_socket_t *sock)
 }
 
 /*
- * Create a listener socket
+ * Connect to a local unix socket
  */
-ni_socket_t *
-ni_local_socket_listen(const char *path, unsigned int permissions)
-{
-	ni_socket_t *sock;
-	int fd, bound = 0;
-
-	permissions &= 0777;
-	fd = socket(AF_LOCAL, SOCK_STREAM, 0);
-	if (fd < 0) {
-		ni_error("cannot open AF_LOCAL socket: %m");
-		return NULL;
-	}
-
-	if (path) {
-		struct sockaddr_un sun;
-		unsigned int len = strlen(path);
-
-		if (len + 1 > sizeof(sun.sun_path)) {
-			ni_error("can't set AF_LOCAL address: path too long!");
-			return NULL;
-		}
-
-		memset(&sun, 0, sizeof(sun));
-		sun.sun_family = AF_LOCAL;
-		strcpy(sun.sun_path, path);
-
-		unlink(path);
-		if (bind(fd, (struct sockaddr *) &sun, sizeof(sun)) < 0) {
-			ni_error("bind(%s) failed: %m", path);
-			goto failed;
-		}
-		bound = 1;
-
-		if (chmod(path, permissions) < 0) {
-			ni_error("chmod(%s, 0%3o) failed: %m", path, permissions);
-			goto failed;
-		}
-
-	}
-
-	if (listen(fd, 128) < 0) {
-		ni_error("cannot listen on local socket: %m");
-		goto failed;
-	}
-
-	sock = __ni_socket_wrap(fd, SOCK_STREAM);
-	sock->receive = __ni_socket_accept;
-
-	ni_socket_activate(sock);
-	return sock;
-
-failed:
-	if (bound && path)
-		unlink(path);
-	close(fd);
-	return NULL;
-}
-
 ni_socket_t *
 ni_local_socket_connect(const char *path)
 {
@@ -405,33 +346,6 @@ ni_local_socket_connect(const char *path)
 failed:
 	close(fd);
 	return NULL;
-}
-
-void
-__ni_socket_accept(ni_socket_t *master)
-{
-	ni_socket_t *sock;
-	struct ucred cred;
-	socklen_t clen;
-	int fd;
-
-	fd = accept(master->__fd, NULL, NULL);
-	if (fd < 0)
-		return;
-
-	clen = sizeof(cred);
-	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &clen) < 0) {
-		ni_error("failed to get client credentials: %m");
-		close(fd);
-		return;
-	}
-
-	sock = __ni_socket_wrap(fd, SOCK_STREAM);
-	if (master->accept == NULL || master->accept(sock, cred.uid, cred.gid) >= 0) {
-		ni_buffer_init_dynamic(&sock->rbuf, ni_global.config->recv_max);
-		ni_socket_array_activate(master->active, sock);
-	}
-	ni_socket_release(sock);
 }
 
 /*

@@ -40,9 +40,7 @@ extern const ni_timer_t *ni_timer_rearm(const ni_timer_t *, unsigned long);
 extern long		ni_timer_next_timeout(void);
 extern int		ni_timer_get_time(struct timeval *tv);
 
-extern ni_socket_t *	ni_local_socket_listen(const char *, unsigned int);
 extern ni_socket_t *	ni_local_socket_connect(const char *);
-extern ni_socket_t *	ni_local_socket_accept(ni_socket_t *, uid_t *, gid_t *);
 extern int		ni_local_socket_pair(ni_socket_t **, ni_socket_t **);
 
 extern ni_socket_t *	ni_socket_hold(ni_socket_t *);
