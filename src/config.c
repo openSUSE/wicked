@@ -321,7 +321,7 @@ ni_config_parse_addrconf_dhcp4(struct ni_config_dhcp4 *dhcp4, xml_node_t *node)
 
 			pref = &dhcp4->preferred_server[dhcp4->num_preferred_servers++];
 			if (ni_sockaddr_parse(&pref->address, attrval, AF_INET) < 0) {
-				ni_error("config: unable to parse <prefer-server ip=\"%s\"",
+				ni_error("config: unable to parse <prefer-server ip=\"%s\">",
 						attrval);
 				return FALSE;
 			}
@@ -380,7 +380,7 @@ __ni_config_parse_dhcp6_class_data(xml_node_t *node, ni_string_array_t *data, co
 		if (!strcmp(attrval, "str") || !strcmp(attrval, "string")) {
 			format = FORMAT_STR;
 		} else {
-			ni_error("config: unknown %s <class-data format=\"%s\"",
+			ni_error("config: unknown %s <class-data format=\"%s\">",
 				parent, attrval);
 			return -1;
 		}
@@ -451,7 +451,7 @@ __ni_config_parse_dhcp6_vendor_opt_node(xml_node_t *node, ni_var_array_t *opts, 
 
 		num = strtol(attrval, &err, 0);
 		if (*err != '\0' || num < 0 || num > 0xffff) {
-			ni_error("config: unable to parse %s <option code=\"%s\"",
+			ni_error("config: unable to parse %s <option code=\"%s\">",
 				parent, attrval);
 			return -1;
 		}
@@ -469,7 +469,7 @@ __ni_config_parse_dhcp6_vendor_opt_node(xml_node_t *node, ni_var_array_t *opts, 
 		if (!strcmp(attrval, "str") || !strcmp(attrval, "string")) {
 			format = FORMAT_STR;
 		} else {
-			ni_error("config: unknown %s <option format=\"%s\"",
+			ni_error("config: unknown %s <option format=\"%s\">",
 				parent, attrval);
 			return -1;
 		}
@@ -550,7 +550,7 @@ ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 			
 			num = strtol(attrval, &err, 0);
 			if (*err != '\0' || num < 0 || num >= 0xffffffff) {
-				ni_error("config: unable to parse <vendor-class enterprise-number=\"%s\"",
+				ni_error("config: unable to parse <vendor-class enterprise-number=\"%s\">",
 						attrval);
 				return FALSE;
 			}
@@ -574,7 +574,7 @@ ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 			
 			num = strtol(attrval, &err, 0);
 			if (*err != '\0' || num < 0 || num >= 0xffffffff) {
-				ni_error("config: unable to parse <vendor-class enterprise-number=\"%s\"",
+				ni_error("config: unable to parse <vendor-class enterprise-number=\"%s\">",
 						attrval);
 				return FALSE;
 			}
@@ -615,7 +615,7 @@ ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 			pref = &dhcp6->preferred_server[dhcp6->num_preferred_servers++];
 
 			if (ip && ni_sockaddr_parse(&pref->address, ip, AF_INET6) < 0) {
-				ni_error("config: unable to parse <prefer-server ip=\"%s\"",
+				ni_error("config: unable to parse <prefer-server ip=\"%s\">",
 						ip);
 				return FALSE;
 			}
@@ -630,7 +630,7 @@ ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 				 /* DUID-LL has 2+2 fixed bytes + variable length hwaddress
 				  * and seems to be the shortest one I'm aware of ...       */
 				if ((len = ni_parse_hex(id, pref->serverid.data, len)) <= 4) {
-					ni_error("config: unable to parse <prefer-server id=\"%s\"",
+					ni_error("config: unable to parse <prefer-server id=\"%s\">",
 							id);
 					return FALSE;
 				}
