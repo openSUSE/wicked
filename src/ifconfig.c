@@ -3016,6 +3016,15 @@ __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t 
 	if (n->scope != -1 && o->scope != n->scope)
 		return TRUE;
 
+	if (o->prefixlen != n->prefixlen)
+		return TRUE;
+
+	if (!ni_sockaddr_equal(&o->local_addr, &n->local_addr))
+		return TRUE;
+
+	if (!ni_sockaddr_equal(&o->peer_addr, &n->peer_addr))
+		return TRUE;
+
 	if (!ni_sockaddr_equal(&o->bcast_addr, &n->bcast_addr))
 		return TRUE;
 
@@ -3043,6 +3052,27 @@ __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t 
 		break;
 	}
 	return FALSE;
+}
+
+static ni_bool_t
+__ni_netdev_addr_can_replace(ni_address_t *o, ni_address_t *n)
+{
+	if (o->prefixlen != n->prefixlen)
+		return FALSE;
+
+	if (!ni_sockaddr_equal(&o->local_addr, &n->local_addr))
+		return FALSE;
+
+	if (!ni_sockaddr_equal(&o->peer_addr, &n->peer_addr))
+		return FALSE;
+
+	if (!ni_sockaddr_equal(&o->bcast_addr, &n->bcast_addr))
+		return FALSE;
+
+	if (!ni_sockaddr_equal(&o->anycast_addr, &n->anycast_addr))
+		return FALSE;
+
+	return TRUE;
 }
 
 /*
@@ -3259,14 +3289,18 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 
 			/* Check whether we need to update */
 			if (!__ni_netdev_addr_needs_update(dev->name, ap, new_addr)) {
-				ni_debug_ifconfig("address %s/%u exists; no need to reconfigure",
+				ni_debug_ifconfig("%s: address %s/%u exists; no need to reconfigure",
+					dev->name,
 					ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 				continue;
 			}
 
-			ni_debug_ifconfig("existing address %s/%u needs to be reconfigured",
-					ni_sockaddr_print(&ap->local_addr),
-					ap->prefixlen);
+			ni_debug_ifconfig("%s: existing address %s/%u needs to be reconfigured",
+					dev->name,
+					ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
+
+			if (!__ni_netdev_addr_can_replace(ap, new_addr))
+				__ni_rtnl_send_deladdr(dev, ap);
 
 			if ((rv = __ni_rtnl_send_newaddr(dev, new_addr, NLM_F_REPLACE)) < 0)
 				return rv;
