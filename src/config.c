@@ -113,13 +113,25 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 	for (child = node->children; child; child = child->next) {
 		if (strcmp(child->name, "include") == 0) {
 			const char *attrval, *path;
+			ni_bool_t optional = FALSE;
 
+			if ((attrval = xml_node_get_attr(child, "optional")) != NULL) {
+				if (ni_parse_boolean(child->cdata, &optional)) {
+					ni_error("%s: invalid <%s>%s</%s> element value",
+						filename, child->name, child->name, child->cdata);
+					goto failed;
+				}
+			}
 			if ((attrval = xml_node_get_attr(child, "name")) == NULL) {
 				ni_error("%s: <include> element lacks filename", xml_node_location(child));
 				goto failed;
 			}
 			if (!(path = ni_config_build_include(filename, attrval)))
 				goto failed;
+			/* If the file is marked as optional, but does not exist, silently
+			 * skip it */
+			if (optional && !ni_file_exists(path))
+				continue;
 			if (!__ni_config_parse(conf, path, cb, appdata))
 				goto failed;
 		} else
