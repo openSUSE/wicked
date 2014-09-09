@@ -304,24 +304,6 @@ ni_socket_close(ni_socket_t *sock)
 }
 
 /*
- * Create a local socket pair
- */
-int
-ni_local_socket_pair(ni_socket_t **p1, ni_socket_t **p2)
-{
-	int fd[2];
-
-	if (socketpair(AF_LOCAL, SOCK_DGRAM, 0, fd) < 0) {
-		ni_error("unable to create AF_LOCAL socketpair: %m");
-		return -1;
-	}
-
-	*p1 = ni_socket_wrap(fd[0], SOCK_DGRAM);
-	*p2 = ni_socket_wrap(fd[1], SOCK_DGRAM);
-	return 0;
-}
-
-/*
  * Socket array manipulation functions
  */
 void
