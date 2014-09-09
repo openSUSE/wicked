@@ -61,8 +61,6 @@ ni_config_new()
 	conf->addrconf.dhcp6.allow_update   = conf->addrconf.default_allow_update;
 	conf->addrconf.autoip.allow_update  = conf->addrconf.default_allow_update;
 
-	conf->recv_max = 64 * 1024;
-
 	ni_config_fslocation_init(&conf->piddir,   WICKED_PIDDIR,   0755);
 	ni_config_fslocation_init(&conf->statedir, WICKED_STATEDIR, 0755);
 	ni_config_fslocation_init(&conf->storedir, WICKED_STOREDIR, 0755);
