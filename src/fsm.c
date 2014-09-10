@@ -650,7 +650,7 @@ __ni_fsm_dbus_objectpath_to_name(const char *object_path)
 
 	ifindex = __ni_fsm_dbus_objectpath_to_ifindex(object_path);
 	if (!if_indextoname(ifindex, buf)) {
-		ni_error("unable to get ifname from ifindex=%d", ifindex);
+		ni_debug_application("unable to get ifname from ifindex=%d", ifindex);
 		return NULL;
 	}
 
