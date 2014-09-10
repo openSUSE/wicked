@@ -114,9 +114,9 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 			ni_bool_t optional = FALSE;
 
 			if ((attrval = xml_node_get_attr(child, "optional")) != NULL) {
-				if (ni_parse_boolean(child->cdata, &optional)) {
-					ni_error("%s: invalid <%s>%s</%s> element value",
-						filename, child->name, child->name, child->cdata);
+				if (ni_parse_boolean(attrval, &optional)) {
+					ni_error("%s: invalid <%s optional='%s>...</%s> element value",
+						filename, child->name, attrval, child->name);
 					goto failed;
 				}
 			}
