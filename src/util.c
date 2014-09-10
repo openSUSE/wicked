@@ -2428,6 +2428,7 @@ ni_caught_terminal_signal(void)
 	if (!installed_handlers) {
 		signal(SIGTERM, __ni_catch_terminal_signal);
 		signal(SIGINT, __ni_catch_terminal_signal);
+		installed_handlers = TRUE;
 	}
 
 	if (!__ni_terminal_signal)
