@@ -286,7 +286,7 @@ babysit(void)
 		ni_file_remove_recursively(ni_nanny_statedir());
 
 	while (!ni_caught_terminal_signal()) {
-		long timeout;
+		long timeout = NI_IFWORKER_INFINITE_TIMEOUT;
 
 		if (ni_config_use_nanny()) {
 			do {
