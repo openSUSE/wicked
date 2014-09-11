@@ -929,7 +929,7 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 
 	if (tb[IFLA_MASTER]) {
 		link->masterdev.index = nla_get_u32(tb[IFLA_MASTER]);
-		if (ni_netdev_ref_bind_ifname(&link->masterdev, nc)) {
+		if (!ni_netdev_ref_bind_ifname(&link->masterdev, nc)) {
 			/* Drop old ifname, we will try it again later */
 			ni_string_free(&link->masterdev.name);
 		}
