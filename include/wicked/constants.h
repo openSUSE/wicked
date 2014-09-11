@@ -274,6 +274,8 @@ typedef enum {
 	NI_WICKED_ST_IN_PROGRESS	= 162,	/*!< dev is up, but setup is incomplete */
 	NI_WICKED_ST_CHANGED_CONFIG	= 163,	/*!< up, config changed, reload advised	*/
 
+	NI_WICKED_ST_ENSLAVED		= 164,	/*!< dev is up and has masterdev	*/
+
 	NI_WICKED_ST_NOT_IN_STATE	= 165,	/*!< ifcheck state lower than expected	*/
 	NI_WICKED_ST_PERSISTENT_ON	= 166,	/*!< interface is in persistent mode	*/
 	NI_WICKED_ST_USERCONTROL_ON	= 167,	/*!< user is allowed to configure the interface	*/

@@ -94,6 +94,7 @@ ni_ifstatus_code_name(unsigned int status)
 		{ "no-config",			NI_WICKED_ST_NO_CONFIG		},
 		{ "setup-in-progress",		NI_WICKED_ST_IN_PROGRESS	},
 		{ "config-changed",		NI_WICKED_ST_CHANGED_CONFIG	},
+		{ "enslaved",			NI_WICKED_ST_ENSLAVED		},
 		{ "up",				NI_WICKED_ST_OK			},
 
 		{ NULL,				~0				}
@@ -185,6 +186,10 @@ __ifstatus_of_device(ni_netdev_t *dev)
 
 	if (!ni_ifcheck_device_is_up(dev))
 		return NI_WICKED_ST_NOT_RUNNING;
+
+	/* device is at least up, check if it is a slave device */
+	if (!ni_string_empty(dev->link.masterdev.name))
+		return NI_WICKED_ST_ENSLAVED;
 
 	if (!ni_ifcheck_device_link_is_up(dev))
 		return NI_WICKED_ST_IN_PROGRESS;
