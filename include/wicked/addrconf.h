@@ -64,7 +64,10 @@ enum {
  * Lease handling flag bits
  */
 enum {
-	NI_ADDRCONF_FLAGS_OPTIONAL,
+	NI_ADDRCONF_FLAGS_GROUP,	/* lease type group acting as one    */
+	NI_ADDRCONF_FLAGS_PRIMARY,	/* primary lease trigerring fallback */
+	NI_ADDRCONF_FLAGS_FALLBACK,	/* fallback of a primary lease       */
+	NI_ADDRCONF_FLAGS_OPTIONAL,	/* optional lease allowed to fail    */
 };
 
 /*

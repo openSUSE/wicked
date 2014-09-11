@@ -118,7 +118,7 @@ __find_peer_lease(ni_netdev_t *dev, sa_family_t family, unsigned int type)
 static inline ni_bool_t
 __is_peer_lease_up(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 {
-	if (ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_OPTIONAL)) {
+	if (ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_GROUP)) {
 		const ni_addrconf_lease_t *other;
 
 		other = __find_peer_lease(dev, lease->family, lease->type);
