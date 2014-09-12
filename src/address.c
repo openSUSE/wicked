@@ -189,31 +189,6 @@ ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw)
 	return ni_sockaddr_prefix_match(laddr->prefixlen, &laddr->local_addr, gw);
 }
 
-ni_bool_t
-ni_address_probably_dynamic(const ni_address_t *ap)
-{
-	const unsigned char *addr;
-	unsigned int len;
-
-	switch (ap->family) {
-	case AF_INET6:
-		/* For IPv6 with static configuration, consider all link-local
-		 * prefixes as dynamic.
-		 */
-		if ((addr = __ni_sockaddr_data(&ap->local_addr, &len)) != NULL)
-			return addr[0] == 0xFE && addr[1] == 0x80;
-		break;
-
-	case AF_INET:
-		/* Consider all IPv4 zeroconf addresses (169.254/24) as autoconf */
-		if ((addr = __ni_sockaddr_data(&ap->local_addr, &len)) != NULL)
-			return addr[0] == 169 && addr[1] == 254;
-		break;
-	}
-
-	return 0;
-}
-
 void
 ni_address_set_tentative(ni_address_t *laddr, ni_bool_t tentative)
 {

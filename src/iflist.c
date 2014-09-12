@@ -74,8 +74,6 @@ static void		__ni_tunnel_gre_trace(ni_netdev_t *, struct nlattr **);
 static int		__ni_discover_sit(ni_netdev_t *, struct nlattr **, struct nlattr**);
 static int		__ni_discover_ipip(ni_netdev_t *, struct nlattr **, struct nlattr**);
 static int		__ni_discover_gre(ni_netdev_t *, struct nlattr **, struct nlattr**);
-static ni_route_t *	__ni_netdev_add_autoconf_prefix(ni_netdev_t *, const ni_sockaddr_t *, unsigned int, const struct prefix_cacheinfo *);
-static ni_addrconf_lease_t *__ni_netdev_get_autoconf_lease(ni_netdev_t *, unsigned int);
 
 struct ni_rtnl_info {
 	struct ni_nlmsg_list	nlmsg_list;
@@ -1681,84 +1679,6 @@ __ni_rtnl_parse_newprefix(const char *ifname, struct nlmsghdr *h, struct prefixm
 	return 0;
 }
 
-/*
- * Record IPv6 prefixes received via router advertisements
- */
-int
-__ni_netdev_process_newprefix(ni_netdev_t *dev, struct nlmsghdr *h, struct prefixmsg *pfx)
-{
-	struct nlattr *tb[PREFIX_MAX+1];
-	const struct prefix_cacheinfo *cache_info = NULL;
-	ni_sockaddr_t address;
-
-	if (pfx->prefix_family != AF_INET6)
-		return 0;
-
-	/* We're only interested in recording address prefixes that
-	 * can be used for autoconf */
-	if (!(pfx->prefix_flags & IF_PREFIX_AUTOCONF))
-		return 0;
-
-	if (nlmsg_parse(h, sizeof(*pfx), tb, PREFIX_MAX, NULL) < 0) {
-		ni_error("%s: unable to parse rtnl PREFIX message", dev->name);
-		return -1;
-	}
-
-	if (tb[PREFIX_ADDRESS] == NULL) {
-		ni_error("%s: rtnl NEWPREFIX message without address", dev->name);
-		return -1;
-	}
-
-	if (tb[PREFIX_CACHEINFO]) {
-		cache_info = __ni_nla_get_data(sizeof(*cache_info), tb[PREFIX_CACHEINFO]);
-	}
-
-	__ni_nla_get_addr(pfx->prefix_family, &address, tb[PREFIX_ADDRESS]);
-
-	/*
-	 * FIXME: I don't really see the reason to fake routes;
-	 *        the kernel creates routes and we receive them.
-	 */
-	if (__ni_netdev_add_autoconf_prefix(dev, &address, pfx->prefix_len, cache_info) == NULL)
-		return -1;
-	return 0;
-}
-
-ni_route_t *
-__ni_netdev_add_autoconf_prefix(ni_netdev_t *dev, const ni_sockaddr_t *addr, unsigned int pfxlen, const struct prefix_cacheinfo *cache_info)
-{
-	ni_addrconf_lease_t *lease;
-	ni_route_table_t *tab;
-	ni_route_t *rp = NULL;
-	unsigned int i;
-
-	ni_debug_ifconfig("%s(dev=%s, prefix=%s/%u", __func__, dev->name, ni_sockaddr_print(addr), pfxlen);
-
-	lease = __ni_netdev_get_autoconf_lease(dev, addr->ss_family);
-	if ((tab = ni_route_tables_find(lease->routes, RT_TABLE_MAIN))) {
-		for (i = 0; i < tab->routes.count; ++i) {
-			rp = tab->routes.data[i];
-
-			if (rp->prefixlen == pfxlen
-			&& ni_sockaddr_prefix_match(pfxlen, &rp->destination, addr))
-				break;
-
-			rp = NULL;
-		}
-	}
-
-	if (rp == NULL) {
-		rp = ni_route_create(pfxlen, addr, NULL, 0, &lease->routes);
-	}
-
-	if (cache_info && rp) {
-		rp->ipv6_cache_info.valid_lft = cache_info->valid_time;
-		rp->ipv6_cache_info.preferred_lft = cache_info->preferred_time;
-	}
-
-	return rp;
-}
-
 static inline void
 __newaddr_trace(unsigned int family, const char *name, struct nlattr *attr)
 {
@@ -1854,7 +1774,6 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 int
 __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrmsg *ifa, const ni_address_t **hint)
 {
-	ni_addrconf_lease_t *lease = NULL;
 	ni_address_t tmp, *ap;
 
 	if (__ni_rtnl_parse_newaddr(dev->link.ifflags, h, ifa, &tmp) < 0)
@@ -1878,33 +1797,7 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 	ni_string_free(&tmp.label);
 
 	if (ap->config_lease == NULL)
-		lease = __ni_netdev_address_to_lease(dev, ap);
-
-	if (lease == NULL) {
-		int probably_autoconf = 0;
-
-		/* We don't have a strict criterion to distinguish autoconf addresses
-		 * from manually assigned addresses. The best approximation is the
-		 * IFA_F_PERMANENT flag, which is set for all statically assigned addresses,
-		 * and for all link-local addresses. Strictly speaking, you can also administratively
-		 * add interface addresses with a limited lifetime, but that would probably be done
-		 * by some out-of-kernel autoconf mechanism, too.
-		 */
-		if (ifa->ifa_family == AF_INET6) {
-			if (!(ifa->ifa_flags & IFA_F_PERMANENT) || (ifa->ifa_scope == RT_SCOPE_LINK))
-				probably_autoconf = 1;
-			else if (ni_address_probably_dynamic(ap))
-				probably_autoconf = 1;
-		} else
-		if (ifa->ifa_family == AF_INET) {
-			probably_autoconf = ni_address_probably_dynamic(ap);
-		}
-
-		if (probably_autoconf)
-			lease = __ni_netdev_get_autoconf_lease(dev, ifa->ifa_family);
-	}
-
-	ap->config_lease = lease;
+		ap->config_lease = __ni_netdev_address_to_lease(dev, ap);
 
 #if 0
 	ni_debug_ifconfig("%s[%u]: address %s scope %s, flags%s%s%s%s%s%s%s%s [%02x], lft{%u,%u}, owned by %s",
@@ -2273,38 +2166,6 @@ failure:
 	/* Release our reference */
 	ni_route_free(rp);
 	return ret;
-}
-
-ni_addrconf_lease_t *
-__ni_netdev_get_autoconf_lease(ni_netdev_t *dev, unsigned int af)
-{
-	ni_addrconf_lease_t *lease;
-
-	if ((lease = ni_netdev_get_lease(dev, af, NI_ADDRCONF_AUTOCONF)) == NULL) {
-		lease = ni_addrconf_lease_new(NI_ADDRCONF_AUTOCONF, af);
-		lease->state = NI_ADDRCONF_STATE_GRANTED;
-		ni_netdev_set_lease(dev, lease);
-
-		/* In the IPv6 case, add the default prefix for link-local autoconf.
-		 * This is always on. */
-		if (af == AF_INET6) {
-			ni_sockaddr_t prefix;
-
-			ni_sockaddr_parse(&prefix, "fe80::", AF_INET6);
-			ni_route_create(64, &prefix, NULL, 0, &lease->routes);
-		}
-	}
-	return lease;
-}
-
-void
-__ni_netdev_track_ipv6_autoconf(ni_netdev_t *dev, int enable)
-{
-	if (!enable) {
-		ni_netdev_unset_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
-	} else {
-		(void) __ni_netdev_get_autoconf_lease(dev, AF_INET6);
-	}
 }
 
 /*
