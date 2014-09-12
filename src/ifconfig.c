@@ -519,7 +519,7 @@ ni_addrconf_updater_new(const ni_addrconf_action_t *action)
 {
 	ni_addrconf_updater_t *updater;
 
-	updater = xcalloc(1, sizeof(updater));
+	updater = xcalloc(1, sizeof(*updater));
 	updater->action = action;
 	return updater;
 }
