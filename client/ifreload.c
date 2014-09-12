@@ -346,11 +346,11 @@ usage:
 			status = ni_ifstatus_display_result(fsm, &ifnames, &up_marked,
 				opt_transient);
 
-			/* Do not report any transient errors to systemd (e.g. dhcp
-			 * or whatever not ready in time) -- returning an error may
-			 * cause to stop the network completely.
+			/*
+			 * Do not report any errors to systemd -- returning an error
+			 * here, will cause sytemd to stop the network completely.
 			 */
-			if (!opt_systemd)
+			if (opt_systemd)
 				status = NI_LSB_RC_SUCCESS;
 		}
 	}
@@ -666,11 +666,11 @@ usage:
 		status = ni_ifstatus_display_result(fsm, &ifnames, &up_marked,
 			opt_transient);
 
-		/* Do not report any transient errors to systemd (e.g. dhcp
-		 * or whatever not ready in time) -- returning an error may
-		 * cause to stop the network completely.
+		/*
+		 * Do not report any errors to systemd -- returning an error
+		 * here, will cause sytemd to stop the network completely.
 		 */
-		if (!opt_systemd)
+		if (opt_systemd)
 			status = NI_LSB_RC_SUCCESS;
 	}
 	else {
