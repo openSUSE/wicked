@@ -157,6 +157,17 @@ __ifstatus_of_device_leases(ni_netdev_t *dev, unsigned int *st)
 	}
 }
 
+#if 0
+/*
+ * duplicate addresses are not always a failure:
+ * dhcpv6 gets an address from dhcp-server. when the kernel
+ * finds out it is a duplicate and reports it, dhcpv6 will
+ * automatically try to decline it and get another address.
+ * wickedd will revert the lease state from applying back
+ * to requesting state and the lease gets not granted then.
+ * similar with tentative.
+ * => the lease state reflects the current status to use.
+ */
 static void
 __ifstatus_of_device_addrs(ni_netdev_t *dev, unsigned int *st)
 {
@@ -178,6 +189,7 @@ __ifstatus_of_device_addrs(ni_netdev_t *dev, unsigned int *st)
 		}
 	}
 }
+#endif
 
 static unsigned int
 __ifstatus_of_device(ni_netdev_t *dev)
@@ -195,9 +207,11 @@ __ifstatus_of_device(ni_netdev_t *dev)
 		return NI_WICKED_ST_IN_PROGRESS;
 
 	__ifstatus_of_device_leases(dev, &st);
+#if 0
 	if (st != NI_WICKED_ST_NOT_RUNNING)
 		__ifstatus_of_device_addrs(dev, &st);
 
+#endif
 	return st;
 }
 
