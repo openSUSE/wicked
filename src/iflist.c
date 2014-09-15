@@ -281,6 +281,30 @@ ni_rtnl_query_next_route_info(struct ni_rtnl_query *q, struct nlmsghdr **hp, uns
 	return NULL;
 }
 
+static void
+__ni_address_list_reset_seq(ni_address_t *addrs)
+{
+	ni_address_t *ap;
+
+	for (ap = addrs; ap; ap = ap->next)
+		ap->seq = 0;
+}
+
+static void
+__ni_address_list_drop_by_seq(ni_address_t **tail, unsigned int seq)
+{
+	ni_address_t *ap;
+
+	while ((ap = *tail)) {
+		if (ap->seq != seq) {
+			*tail = ap->next;
+			ni_address_free(ap);
+		} else {
+			tail = &ap->next;
+		}
+	}
+}
+
 /*
  * Refresh all interfaces
  */
@@ -301,7 +325,9 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 	unsigned int seqno;
 	int res = -1;
 
-	seqno = ++__ni_global_seqno;
+	do {
+		seqno = ++__ni_global_seqno;
+	} while (!seqno);
 
 	if (!refresh) {
 		refresh = 1;
@@ -350,7 +376,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 			tail = &dev->next;
 		} else {
 			/* Clear out addresses and routes */
-			ni_netdev_clear_addresses(dev);
+			__ni_address_list_reset_seq(dev->addrs);
 			ni_netdev_clear_routes(dev);
 		}
 
@@ -427,6 +453,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 	/* Cull any interfaces that went away */
 	tail = ni_netconfig_device_list_head(nc);
 	while ((dev = *tail) != NULL) {
+		__ni_address_list_drop_by_seq(&dev->addrs, seqno);
 		if (dev->seq != seqno) {
 			*tail = dev->next;
 			if (del_list == NULL) {
@@ -463,10 +490,14 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *dev)
 			"Full refresh of %s interface",
 			dev->name);
 
-	__ni_global_seqno++;
+	do {
+		__ni_global_seqno++;
+	} while (!__ni_global_seqno);
+
 	if (ni_rtnl_query(&query, dev->link.ifindex) < 0)
 		goto failed;
 
+	dev->seq = 0;
 	while (1) {
 		struct ifinfomsg *ifi;
 
@@ -474,7 +505,8 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *dev)
 			break;
 
 		/* Clear out addresses and routes */
-		ni_netdev_clear_addresses(dev);
+		dev->seq = __ni_global_seqno;
+		__ni_address_list_reset_seq(dev->addrs);
 		ni_netdev_clear_routes(dev);
 
 		if (__ni_netdev_process_newlink(dev, h, ifi, nc) < 0)
@@ -490,6 +522,7 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *dev)
 		if (__ni_netdev_process_newaddr(dev, h, ifa) < 0)
 			ni_error("Problem parsing RTM_NEWADDR message for %s", dev->name);
 	}
+	__ni_address_list_drop_by_seq(&dev->addrs, dev->seq);
 
 	while (1) {
 		struct rtmsg *rtm;
@@ -522,11 +555,14 @@ __ni_system_refresh_interface_addrs(ni_netconfig_t *nc, ni_netdev_t *dev)
 			"Refresh of %s interface address",
 			dev->name);
 
-	__ni_global_seqno++;
+	do {
+		dev->seq = ++__ni_global_seqno;
+	} while (!dev->seq);
+
 	if (ni_rtnl_query_addr_info(&query, dev->link.ifindex) < 0)
 		goto failed;
 
-	ni_netdev_clear_addresses(dev);
+	__ni_address_list_reset_seq(dev->addrs);
 	while (1) {
 		struct ifaddrmsg *ifa;
 
@@ -536,6 +572,7 @@ __ni_system_refresh_interface_addrs(ni_netconfig_t *nc, ni_netdev_t *dev)
 		if (__ni_netdev_process_newaddr(dev, h, ifa) < 0)
 			ni_error("Problem parsing RTM_NEWADDR message for %s", dev->name);
 	}
+	__ni_address_list_drop_by_seq(&dev->addrs, dev->seq);
 
 	res = 0;
 
@@ -1772,7 +1809,8 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 }
 
 int
-__ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrmsg *ifa, const ni_address_t **hint)
+__ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrmsg *ifa,
+					const ni_address_t **hint)
 {
 	ni_address_t tmp, *ap;
 
@@ -1785,6 +1823,7 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 		if (!ap)
 			return -1;
 	}
+	ap->seq = dev->seq;
 	ap->scope = tmp.scope;
 	ap->flags = tmp.flags;
 	ap->peer_addr = tmp.peer_addr;
@@ -2107,6 +2146,7 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 	}
 
 	if (dev) {
+		rp->seq = dev->seq;
 		rp->nh.device.index = dev->link.ifindex;
 		/*
 		 * Hmm... not now.
