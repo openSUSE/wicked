@@ -12,8 +12,7 @@ SUBDIRS				= include src util schema client server nanny \
 pkgconfig_DATA			= wicked.pc
 
 wicked_doc_data			= README TODO COPYING ANNOUNCE		\
-				  $(wildcard ChangeLog)			\
-				  Documentation/WhyWicked.txt
+				  $(wildcard ChangeLog)
 #wicked_doc_DATA		= $(wicked_doc_data)
 
 EXTRA_DIST			= VERSION wicked.pc.in wicked-rpmlintrc	\
