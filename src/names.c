@@ -188,6 +188,9 @@ ni_addrconf_state_to_name(unsigned int type)
  * Map addrconf flag bits to strings and vice versa
  */
 static const ni_intmap_t	__addrconf_flag_bits[] = {
+	{ "group",		NI_ADDRCONF_FLAGS_GROUP		},
+	{ "primary",		NI_ADDRCONF_FLAGS_PRIMARY	},
+	{ "fallback",		NI_ADDRCONF_FLAGS_FALLBACK	},
 	{ "optional",		NI_ADDRCONF_FLAGS_OPTIONAL	},
 	{ NULL,			-1U				},
 };

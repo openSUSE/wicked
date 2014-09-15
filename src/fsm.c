@@ -3483,7 +3483,7 @@ ni_ifworker_print_device_leases(ni_ifworker_t *w)
 				"%s: worker device leases:", w->name);
 		for (lease = w->device->leases; lease; lease = lease->next) {
 			ni_bool_t optional = ni_addrconf_flag_bit_is_set(lease->flags,
-							NI_ADDRCONF_FLAGS_OPTIONAL);
+							NI_ADDRCONF_FLAGS_GROUP);
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
 					"        %s:%s in state %s, uuid %s%s",
 					ni_addrfamily_type_to_name(lease->family),
@@ -4259,7 +4259,7 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 			continue;
 
 		/* a not ready, released or failed non-optional lease -> fail */
-		if (!ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_OPTIONAL))
+		if (!ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_GROUP))
 			return FALSE;
 
 		/* optional type-goup peer lease -> check peer lease */
