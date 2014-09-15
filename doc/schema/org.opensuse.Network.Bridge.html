@@ -1,0 +1,189 @@
+<h1>org.opensuse.Network.Bridge</h1>
+
+<h2>Namespace</h2>
+
+<p>
+<table border="1">
+<tr>
+ <td style="width:200px">Namespace</td>
+ <td style="width:500px">bridge</td>
+</tr>
+<tr>
+ <td>Class compat</td>
+ <td>netif-bridge</td>
+</tr>
+<tr>
+ <td>Typedefs</td>
+ <td>5</td>
+</tr>
+<tr>
+ <td rowspan="9" valign="top">Properties</td>
+ <td><a href="#property:stp">stp</a></td>
+</tr>
+<tr>
+ <td><a href="#property:priority">priority</a></td>
+</tr>
+<tr>
+ <td><a href="#property:forward-delay">forward-delay</a></td>
+</tr>
+<tr>
+ <td><a href="#property:hello-time">hello-time</a></td>
+</tr>
+<tr>
+ <td><a href="#property:max-age">max-age</a></td>
+</tr>
+<tr>
+ <td><a href="#property:aging-time">aging-time</a></td>
+</tr>
+<tr>
+ <td><a href="#property:gc-interval">gc-interval</a></td>
+</tr>
+<tr>
+ <td><a href="#property:stp-state">stp-state</a></td>
+</tr>
+<tr>
+ <td><a href="#property:ports">ports</a></td>
+</tr>
+<tr>
+ <td rowspan="4" valign="top">Methods</td>
+ <td><a href="#changeDevice">changeDevice()</a></td>
+</tr>
+<tr>
+ <td><a href="#deleteDevice">deleteDevice()</a></td>
+</tr>
+<tr>
+ <td><a href="#addPort">addPort()</a></td>
+</tr>
+<tr>
+ <td><a href="#removePort">removePort()</a></td>
+</tr>
+<tr>
+ <td>Signals</td>
+ <td>none</td>
+</tr>
+</table><p>
+<h2>Properties</h2>
+<ul>
+<li><a name="property:stp"/><bold>stp</bold> (<a href="dbus.html#boolean">boolean</a>). Enables Spanning Tree Protocol to handle multiple hops and avoid cyclic routes</li>
+<li><a name="property:priority"/><bold>priority</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
+<li><a name="property:forward-delay"/><bold>forward-delay</bold> (<a href="dbus.html#double">double</a>). Forwarding delay time is the time spent in each of the Listening and Learning states before the Forwarding state is entered.</li>
+<li><a name="property:hello-time"/><bold>hello-time</bold> (<a href="dbus.html#double">double</a>). Periodically, a hello packet is sent out by the Root Bridge and the Designated Bridges to communicate information about the topology throughout.</li>
+<li><a name="property:max-age"/><bold>max-age</bold> (<a href="dbus.html#double">double</a>). If a another bridge in the spanning tree does not send out a hello packet for this period of time, it is assumed to be dead.</li>
+<li><a name="property:aging-time"/><bold>aging-time</bold> (<a href="dbus.html#double">double</a>). Ethernet (MAC) address ageing time. Setting it to 0 makes all entries permanent.</li>
+<li><a name="property:gc-interval"/><bold>gc-interval</bold> (<a href="dbus.html#double">double</a>). Garbage collection interval for the bridge</li>
+<li><a name="property:stp-state"/><bold>stp-state</bold> (uint32). This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>none (0)</li>
+ <li>kernel-stp (1)</li>
+ <li>userspace-stp (2)</li>
+</ul><p>
+</li>
+<li><a name="property:ports"/><bold>ports</bold> (array). This is an array of <a href="bridge.html#port-status">port-status</a>.
+</li>
+</ul>
+<p>
+<h2>Methods</h2>
+<dl>
+<dt><em><a name="changeDevice"/>void changeDevice(dict config)</em></dt>
+<dd>
+<p>Argument <em>config</em> is mapped to element &lt;bridge&gt; of the device document.
+It is a dict-based type that provides the following members:
+<ul>
+<li><bold>stp</bold> (<a href="dbus.html#boolean">boolean</a>). Enables Spanning Tree Protocol to handle multiple hops and avoid cyclic routes</li>
+<li><bold>priority</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
+<li><bold>forward-delay</bold> (<a href="dbus.html#double">double</a>). Forwarding delay time is the time spent in each of the Listening and Learning states before the Forwarding state is entered.</li>
+<li><bold>hello-time</bold> (<a href="dbus.html#double">double</a>). Periodically, a hello packet is sent out by the Root Bridge and the Designated Bridges to communicate information about the topology throughout.</li>
+<li><bold>max-age</bold> (<a href="dbus.html#double">double</a>). If a another bridge in the spanning tree does not send out a hello packet for this period of time, it is assumed to be dead.</li>
+<li><bold>aging-time</bold> (<a href="dbus.html#double">double</a>). Ethernet (MAC) address ageing time. Setting it to 0 makes all entries permanent.</li>
+<li><bold>gc-interval</bold> (<a href="dbus.html#double">double</a>). Garbage collection interval for the bridge</li>
+<li><bold>ports</bold> (array). This is an array of <a href="bridge.html#port-config">port-config</a>.
+</li>
+</ul>
+<p>
+<p></dd>
+<dt><em><a name="deleteDevice"/>void deleteDevice()</em></dt>
+<dd>
+<p></dd>
+<dt><em><a name="addPort"/>void addPort(<a href="bridge.html#port-config">port-config</a> port)</em></dt>
+<dd>
+<p></dd>
+<dt><em><a name="removePort"/>void removePort(<a href="dbus.html#string">string</a> port)</em></dt>
+<dd>
+<p></dd>
+</dl>
+<h2>Types defined in this scope</h2>
+
+<p>
+<table border="1">
+<tr>
+ <th style="width:200px">Type name</th>
+ <th style="width:100px">Kind</th>
+ <th style="width:400px">Definition</th>
+</tr>
+<tr><td>port-config</td><td>dict</td><td>below</td></tr>
+<tr><td>port-status</td><td>dict</td><td>below</td></tr>
+<tr><td>bridge-config</td><td>dict</td><td>below</td></tr>
+<tr><td>configuration</td><td>dict</td><td>below</td></tr>
+</table>
+
+<a name="port-config"/>
+<h3>Type port-config</h3>
+<p>
+Bridge port configuration properties<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>device</bold> (string). This is a string</li>
+<li><bold>priority</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
+<li><bold>path-cost</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+</ul>
+<p>
+
+<a name="port-status"/>
+<h3>Type port-status</h3>
+<p>
+Bridge port configuration and status properties<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>device</bold> (string). This is a string</li>
+<li><bold>priority</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
+<li><bold>path-cost</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>state</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>port-no</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>port-id</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+</ul>
+<p>
+
+<a name="bridge-config"/>
+<h3>Type bridge-config</h3>
+<p>
+Bridge interface configuration properties<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>stp</bold> (<a href="dbus.html#boolean">boolean</a>). Enables Spanning Tree Protocol to handle multiple hops and avoid cyclic routes</li>
+<li><bold>priority</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
+<li><bold>forward-delay</bold> (<a href="dbus.html#double">double</a>). Forwarding delay time is the time spent in each of the Listening and Learning states before the Forwarding state is entered.</li>
+<li><bold>hello-time</bold> (<a href="dbus.html#double">double</a>). Periodically, a hello packet is sent out by the Root Bridge and the Designated Bridges to communicate information about the topology throughout.</li>
+<li><bold>max-age</bold> (<a href="dbus.html#double">double</a>). If a another bridge in the spanning tree does not send out a hello packet for this period of time, it is assumed to be dead.</li>
+<li><bold>aging-time</bold> (<a href="dbus.html#double">double</a>). Ethernet (MAC) address ageing time. Setting it to 0 makes all entries permanent.</li>
+<li><bold>gc-interval</bold> (<a href="dbus.html#double">double</a>). Garbage collection interval for the bridge</li>
+</ul>
+<p>
+
+<a name="configuration"/>
+<h3>Type configuration</h3>
+<p>
+Bridge and port configuration properties<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>stp</bold> (<a href="dbus.html#boolean">boolean</a>). Enables Spanning Tree Protocol to handle multiple hops and avoid cyclic routes</li>
+<li><bold>priority</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
+<li><bold>forward-delay</bold> (<a href="dbus.html#double">double</a>). Forwarding delay time is the time spent in each of the Listening and Learning states before the Forwarding state is entered.</li>
+<li><bold>hello-time</bold> (<a href="dbus.html#double">double</a>). Periodically, a hello packet is sent out by the Root Bridge and the Designated Bridges to communicate information about the topology throughout.</li>
+<li><bold>max-age</bold> (<a href="dbus.html#double">double</a>). If a another bridge in the spanning tree does not send out a hello packet for this period of time, it is assumed to be dead.</li>
+<li><bold>aging-time</bold> (<a href="dbus.html#double">double</a>). Ethernet (MAC) address ageing time. Setting it to 0 makes all entries permanent.</li>
+<li><bold>gc-interval</bold> (<a href="dbus.html#double">double</a>). Garbage collection interval for the bridge</li>
+<li><bold>ports</bold> (array). This is an array of <a href="bridge.html#port-config">port-config</a>.
+</li>
+</ul>
+<p>
+
+

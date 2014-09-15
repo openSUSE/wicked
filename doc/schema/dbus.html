@@ -1,0 +1,830 @@
+<h1>Namespace dbus</h1>
+<h2>Types defined in this scope</h2>
+
+<p>
+<table border="1">
+<tr>
+ <th style="width:200px">Type name</th>
+ <th style="width:100px">Kind</th>
+ <th style="width:400px">Definition</th>
+</tr>
+<tr><td>boolean</td><td>boolean</td><td>below</td></tr>
+<tr><td>byte</td><td>byte</td><td>below</td></tr>
+<tr><td>string</td><td>string</td><td>below</td></tr>
+<tr><td>double</td><td>double</td><td>below</td></tr>
+<tr><td>uint16</td><td>uint16</td><td>below</td></tr>
+<tr><td>uint32</td><td>uint32</td><td>below</td></tr>
+<tr><td>uint64</td><td>uint64</td><td>below</td></tr>
+<tr><td>int16</td><td>int16</td><td>below</td></tr>
+<tr><td>int32</td><td>int32</td><td>below</td></tr>
+<tr><td>int64</td><td>int64</td><td>below</td></tr>
+<tr><td>object-path</td><td>object-path</td><td>below</td></tr>
+<tr><td>flag</td><td>flag</td><td>below</td></tr>
+<tr><td>ipv4-address</td><td>array</td><td>below</td></tr>
+<tr><td>ipv4-address-prefix</td><td>dict</td><td>below</td></tr>
+<tr><td>ipv6-address</td><td>array</td><td>below</td></tr>
+<tr><td>ipv6-address-prefix</td><td>dict</td><td>below</td></tr>
+<tr><td>ethernet-address</td><td>array</td><td>below</td></tr>
+<tr><td>network-address</td><td>array</td><td>below</td></tr>
+<tr><td>network-address-prefix</td><td>array</td><td>below</td></tr>
+<tr><td>uuid-type</td><td>array</td><td>below</td></tr>
+<tr><td>external-file</td><td>array</td><td>below</td></tr>
+<tr><td>tristate</td><td>int32</td><td>below</td></tr>
+<tr><td>builtin-iftype</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-hwtype</td><td>uint16</td><td>below</td></tr>
+<tr><td>builtin-address-family</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-addrconf</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-addrconf-state</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-addrconf-flags</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-addrconf-update-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-dhcp6-mode</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-ifflags</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-wireless-mode</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-wireless-security</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-wireless-auth</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-wireless-auth-algo</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-wireless-cipher</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-key-mgmt</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-eap-method</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-wireless-security-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-wireless-auth-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-wireless-auth-algo-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-wireless-cipher-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-key-mgmt-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-eap-method-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-bonding-mode</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-bonding-arp-validate</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-bonding-mii-carrier-detect</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-bonding-xmit-hash-policy</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-bonding-lacp-rate</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-bonding-ad-select</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-bonding-fail-over-mac</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-bonding-primary-reselect</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-route-type</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-route-scope</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-route-protocol</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-route-table</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-route-flag-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-route-nh-flag-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-route-metrics-lock-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-infiniband-mode</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-infiniband-umcast</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-vlan-protocol</td><td>uint16</td><td>below</td></tr>
+<tr><td>builtin-lldp-type</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-lldp-system-capabilities</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-macvlan-mode</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-macvlan-flag-bits</td><td>uint16</td><td>below</td></tr>
+<tr><td>network-interface</td><td>dict</td><td>below</td></tr>
+</table>
+
+<a name="boolean"/>
+<h3>Type boolean</h3>
+<p>
+This is a boolean
+<a name="byte"/>
+<h3>Type byte</h3>
+<p>
+This is a byte
+<a name="string"/>
+<h3>Type string</h3>
+<p>
+This is a string
+<a name="double"/>
+<h3>Type double</h3>
+<p>
+This is a double
+<a name="uint16"/>
+<h3>Type uint16</h3>
+<p>
+This is a uint16
+<a name="uint32"/>
+<h3>Type uint32</h3>
+<p>
+This is a uint32
+<a name="uint64"/>
+<h3>Type uint64</h3>
+<p>
+This is a uint64
+<a name="int16"/>
+<h3>Type int16</h3>
+<p>
+This is a int16
+<a name="int32"/>
+<h3>Type int32</h3>
+<p>
+This is a int32
+<a name="int64"/>
+<h3>Type int64</h3>
+<p>
+This is a int64
+<a name="object-path"/>
+<h3>Type object-path</h3>
+<p>
+This is a object-path
+<a name="flag"/>
+<h3>Type flag</h3>
+<p>
+This is a flag
+<a name="ipv4-address"/>
+<h3>Type ipv4-address</h3>
+<p>
+This is an array of <a href="dbus.html#byte">byte</a>[4] (notation ipv4addr).
+
+<a name="ipv4-address-prefix"/>
+<h3>Type ipv4-address-prefix</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>address</bold> (<a href="dbus.html#ipv4-address">ipv4-address</a>). </li>
+<li><bold>prefix</bold> (<a href="dbus.html#byte">byte</a>). </li>
+</ul>
+<p>
+
+<a name="ipv6-address"/>
+<h3>Type ipv6-address</h3>
+<p>
+This is an array of <a href="dbus.html#byte">byte</a>[16] (notation ipv6addr).
+
+<a name="ipv6-address-prefix"/>
+<h3>Type ipv6-address-prefix</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>address</bold> (<a href="dbus.html#ipv6-address">ipv6-address</a>). </li>
+<li><bold>prefix</bold> (<a href="dbus.html#byte">byte</a>). </li>
+</ul>
+<p>
+
+<a name="ethernet-address"/>
+<h3>Type ethernet-address</h3>
+<p>
+This is an array of <a href="dbus.html#byte">byte</a>[6] (notation hwaddr).
+
+<a name="network-address"/>
+<h3>Type network-address</h3>
+<p>
+This is a network address of any support address family.On the wire, it is represented as uint16 containing the address family,followed by the raw address bytes in network byte order.<p>
+In the XML representation, an unambiguous "natural" representation is used,e.g.  dotted quad for IPv4.<p>
+This is an array of <a href="dbus.html#byte">byte</a> (notation net-address).
+
+<a name="network-address-prefix"/>
+<h3>Type network-address-prefix</h3>
+<p>
+This is a network address in addr/prefix notation.On the wire, it is represented as uint16 containing the prefix length,followed by a uint16 containing the address family, and eventuallythe raw address bytes in network byte order.<p>
+In the XML representation, an unambiguous "natural" representation is used,e.g.  dotted quad for IPv4, followed by a slash and the prefixlen.<p>
+This is an array of <a href="dbus.html#byte">byte</a> (notation net-address-prefix).
+
+<a name="uuid-type"/>
+<h3>Type uuid-type</h3>
+<p>
+This is an array of <a href="dbus.html#byte">byte</a>[16] (notation uuid).
+
+<a name="external-file"/>
+<h3>Type external-file</h3>
+<p>
+This type can be used in a schema definition. It is used to "splice"the contents of a file as raw binary data into the configuration thatis passed to the server.<p>
+The purpose of this is to be able to keep things like cryptographickeys in a separate file.<p>
+This is an array of <a href="dbus.html#byte">byte</a> (notation external-file).
+
+<a name="tristate"/>
+<h3>Type tristate</h3>
+<p>
+This is a int32 enumerated type, which can take the following values:
+<p><ul> <li>default (4294967295)</li>
+ <li>false (0)</li>
+ <li>true (1)</li>
+</ul><p>
+
+<a name="builtin-iftype"/>
+<h3>Type builtin-iftype</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>unknown (0)</li>
+ <li>loopback (1)</li>
+ <li>ethernet (2)</li>
+ <li>bridge (3)</li>
+ <li>bond (4)</li>
+ <li>vlan (5)</li>
+ <li>macvlan (6)</li>
+ <li>macvtap (7)</li>
+ <li>wireless (8)</li>
+ <li>infiniband (9)</li>
+ <li>infiniband-child (10)</li>
+ <li>ppp (11)</li>
+ <li>slip (12)</li>
+ <li>sit (13)</li>
+ <li>gre (14)</li>
+ <li>isdn (15)</li>
+ <li>ipip (16)</li>
+ <li>tunnel6 (17)</li>
+ <li>tun (20)</li>
+ <li>tap (21)</li>
+ <li>dummy (22)</li>
+ <li>ctcm (23)</li>
+ <li>iucv (24)</li>
+</ul><p>
+
+<a name="builtin-hwtype"/>
+<h3>Type builtin-hwtype</h3>
+<p>
+This is a uint16 enumerated type, which can take the following values:
+<p><ul> <li>netrom (0)</li>
+ <li>ether (1)</li>
+ <li>eether (2)</li>
+ <li>ax25 (3)</li>
+ <li>pronet (4)</li>
+ <li>chaos (5)</li>
+ <li>ieee802 (6)</li>
+ <li>arcnet (7)</li>
+ <li>appletlk (8)</li>
+ <li>dlci (15)</li>
+ <li>atm (19)</li>
+ <li>metricom (23)</li>
+ <li>ieee1394 (24)</li>
+ <li>eui64 (27)</li>
+ <li>infiniband (32)</li>
+ <li>slip (256)</li>
+ <li>cslip (257)</li>
+ <li>slip6 (258)</li>
+ <li>cslip6 (259)</li>
+ <li>rsrvd (260)</li>
+ <li>adapt (264)</li>
+ <li>rose (270)</li>
+ <li>x25 (271)</li>
+ <li>hwx25 (272)</li>
+ <li>can (280)</li>
+ <li>ppp (512)</li>
+ <li>hdlc (513)</li>
+ <li>lapb (516)</li>
+ <li>ddcmp (517)</li>
+ <li>rawhdlc (518)</li>
+ <li>tunnel (768)</li>
+ <li>tunnel6 (769)</li>
+ <li>frad (770)</li>
+ <li>skip (771)</li>
+ <li>loopback (772)</li>
+ <li>localtalk (773)</li>
+ <li>fddi (774)</li>
+ <li>bif (775)</li>
+ <li>sit (776)</li>
+ <li>ipddp (777)</li>
+ <li>ipgre (778)</li>
+ <li>pimreg (779)</li>
+ <li>hippi (780)</li>
+ <li>ash (781)</li>
+ <li>econet (782)</li>
+ <li>irda (783)</li>
+ <li>fcpp (784)</li>
+ <li>fcal (785)</li>
+ <li>fcpl (786)</li>
+ <li>fcfabric (787)</li>
+ <li>ieee802-tr (800)</li>
+ <li>ieee80211 (801)</li>
+ <li>ieee80211-prism (802)</li>
+ <li>ieee80211-radiotap (803)</li>
+ <li>ieee802154 (804)</li>
+ <li>ieee802154-monitor (805)</li>
+ <li>phonet (820)</li>
+ <li>phonet-pipe (821)</li>
+ <li>caif (822)</li>
+ <li>ip6gre (823)</li>
+ <li>netlink (824)</li>
+ <li>none (65534)</li>
+</ul><p>
+
+<a name="builtin-address-family"/>
+<h3>Type builtin-address-family</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>ipv4 (2)</li>
+ <li>ipv6 (10)</li>
+</ul><p>
+
+<a name="builtin-addrconf"/>
+<h3>Type builtin-addrconf</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>dhcp (0)</li>
+ <li>static (1)</li>
+ <li>auto (2)</li>
+ <li>intrinsic (3)</li>
+</ul><p>
+
+<a name="builtin-addrconf-state"/>
+<h3>Type builtin-addrconf-state</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>none (0)</li>
+ <li>requesting (1)</li>
+ <li>applying (2)</li>
+ <li>granted (3)</li>
+ <li>releasing (4)</li>
+ <li>released (5)</li>
+ <li>failed (6)</li>
+</ul><p>
+
+<a name="builtin-addrconf-flags"/>
+<h3>Type builtin-addrconf-flags</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>group (0)</li>
+ <li>primary (1)</li>
+ <li>fallback (2)</li>
+ <li>optional (3)</li>
+</ul><p>
+
+<a name="builtin-addrconf-update-mask"/>
+<h3>Type builtin-addrconf-update-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>default-route (0)</li>
+ <li>hostname (1)</li>
+ <li>dns (2)</li>
+ <li>nis (3)</li>
+ <li>ntp (4)</li>
+ <li>smb (5)</li>
+ <li>nds (6)</li>
+ <li>slp (7)</li>
+ <li>log (8)</li>
+</ul><p>
+
+<a name="builtin-dhcp6-mode"/>
+<h3>Type builtin-dhcp6-mode</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>auto (0)</li>
+ <li>info (1)</li>
+ <li>managed (2)</li>
+</ul><p>
+
+<a name="builtin-ifflags"/>
+<h3>Type builtin-ifflags</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>ready (0)</li>
+ <li>device-up (1)</li>
+ <li>link-up (2)</li>
+ <li>powersave (3)</li>
+ <li>network-up (4)</li>
+ <li>point-to-point (5)</li>
+ <li>arp (6)</li>
+ <li>broadcast (7)</li>
+ <li>multicast (8)</li>
+</ul><p>
+
+<a name="builtin-wireless-mode"/>
+<h3>Type builtin-wireless-mode</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>unknown (0)</li>
+ <li>auto (1)</li>
+ <li>adhoc (2)</li>
+ <li>managed (3)</li>
+ <li>master (4)</li>
+ <li>repeater (5)</li>
+ <li>secondary (6)</li>
+ <li>monitor (7)</li>
+</ul><p>
+
+<a name="builtin-wireless-security"/>
+<h3>Type builtin-wireless-security</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>default (0)</li>
+ <li>restricted (1)</li>
+ <li>open (2)</li>
+</ul><p>
+
+<a name="builtin-wireless-auth"/>
+<h3>Type builtin-wireless-auth</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>default (0)</li>
+ <li>wpa1 (1)</li>
+ <li>wpa2 (2)</li>
+</ul><p>
+
+<a name="builtin-wireless-auth-algo"/>
+<h3>Type builtin-wireless-auth-algo</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>open (1)</li>
+ <li>shared (2)</li>
+ <li>leap (3)</li>
+</ul><p>
+
+<a name="builtin-wireless-cipher"/>
+<h3>Type builtin-wireless-cipher</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>none (0)</li>
+ <li>proprietary (1)</li>
+ <li>wep40 (2)</li>
+ <li>tkip (3)</li>
+ <li>wrap (4)</li>
+ <li>ccmp (5)</li>
+ <li>wep104 (6)</li>
+</ul><p>
+
+<a name="builtin-key-mgmt"/>
+<h3>Type builtin-key-mgmt</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>none (0)</li>
+ <li>wpa-eap (1)</li>
+ <li>wpa-psk (2)</li>
+ <li>ieee802-1x (3)</li>
+ <li>proprietary (4)</li>
+</ul><p>
+
+<a name="builtin-eap-method"/>
+<h3>Type builtin-eap-method</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>none (0)</li>
+ <li>md5 (1)</li>
+ <li>tls (2)</li>
+ <li>mschapv2 (3)</li>
+ <li>peap (4)</li>
+ <li>ttls (5)</li>
+ <li>gtc (6)</li>
+ <li>otp (7)</li>
+ <li>leap (8)</li>
+ <li>psk (9)</li>
+ <li>pax (10)</li>
+ <li>sake (11)</li>
+ <li>gpsk (12)</li>
+ <li>wsc (13)</li>
+ <li>ikev2 (14)</li>
+ <li>tnc (15)</li>
+</ul><p>
+
+<a name="builtin-wireless-security-mask"/>
+<h3>Type builtin-wireless-security-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>default (0)</li>
+ <li>restricted (1)</li>
+ <li>open (2)</li>
+</ul><p>
+
+<a name="builtin-wireless-auth-mask"/>
+<h3>Type builtin-wireless-auth-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>default (0)</li>
+ <li>wpa1 (1)</li>
+ <li>wpa2 (2)</li>
+</ul><p>
+
+<a name="builtin-wireless-auth-algo-mask"/>
+<h3>Type builtin-wireless-auth-algo-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>open (1)</li>
+ <li>shared (2)</li>
+ <li>leap (3)</li>
+</ul><p>
+
+<a name="builtin-wireless-cipher-mask"/>
+<h3>Type builtin-wireless-cipher-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>none (0)</li>
+ <li>proprietary (1)</li>
+ <li>wep40 (2)</li>
+ <li>tkip (3)</li>
+ <li>wrap (4)</li>
+ <li>ccmp (5)</li>
+ <li>wep104 (6)</li>
+</ul><p>
+
+<a name="builtin-key-mgmt-mask"/>
+<h3>Type builtin-key-mgmt-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>none (0)</li>
+ <li>wpa-eap (1)</li>
+ <li>wpa-psk (2)</li>
+ <li>ieee802-1x (3)</li>
+ <li>proprietary (4)</li>
+</ul><p>
+
+<a name="builtin-eap-method-mask"/>
+<h3>Type builtin-eap-method-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>none (0)</li>
+ <li>md5 (1)</li>
+ <li>tls (2)</li>
+ <li>mschapv2 (3)</li>
+ <li>peap (4)</li>
+ <li>ttls (5)</li>
+ <li>gtc (6)</li>
+ <li>otp (7)</li>
+ <li>leap (8)</li>
+ <li>psk (9)</li>
+ <li>pax (10)</li>
+ <li>sake (11)</li>
+ <li>gpsk (12)</li>
+ <li>wsc (13)</li>
+ <li>ikev2 (14)</li>
+ <li>tnc (15)</li>
+</ul><p>
+
+<a name="builtin-bonding-mode"/>
+<h3>Type builtin-bonding-mode</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>balance-rr (0)</li>
+ <li>active-backup (1)</li>
+ <li>balance-xor (2)</li>
+ <li>broadcast (3)</li>
+ <li>ieee802-3ad (4)</li>
+ <li>balance-tlb (5)</li>
+ <li>balance-alb (6)</li>
+</ul><p>
+
+<a name="builtin-bonding-arp-validate"/>
+<h3>Type builtin-bonding-arp-validate</h3>
+<p>
+Specifies whether or not ARP probes and replies should be validated in theactive-backup mode.<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>description (1)</li>
+ <li>none (0)</li>
+ <li>active (1)</li>
+ <li>backup (2)</li>
+ <li>all (3)</li>
+</ul><p>
+
+<a name="builtin-bonding-mii-carrier-detect"/>
+<h3>Type builtin-bonding-mii-carrier-detect</h3>
+<p>
+Specifies whether the MII monitor will use the netif network interface carrieror the deprecated MII / ETHTOOL ioctls to determine the status of the slaves.Default is to query netif carrier, but when the MII monitor fails to detectcarrier loss (e.g. disconnected cable) of a slave or it appears that the MIImonitor is very slow in detecting link failures, try specifying ioctl.<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>description (1)</li>
+ <li>ioctl (0)</li>
+ <li>netif (1)</li>
+</ul><p>
+
+<a name="builtin-bonding-xmit-hash-policy"/>
+<h3>Type builtin-bonding-xmit-hash-policy</h3>
+<p>
+Selects the transmit hash policy to use for slave selection in balance-xorand 802.3ad modes. The policies layer2 and layer23 are ieee802-3ad compliant.<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>description (1)</li>
+ <li>layer2 (0)</li>
+ <li>layer23 (1)</li>
+ <li>layer34 (2)</li>
+</ul><p>
+
+<a name="builtin-bonding-lacp-rate"/>
+<h3>Type builtin-bonding-lacp-rate</h3>
+<p>
+Option specifying the rate in which the bond interface will ask the linkpartner to transmit LACPDU packets in 802.3ad mode.<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>description (1)</li>
+ <li>slow (0)</li>
+ <li>fast (1)</li>
+</ul><p>
+
+<a name="builtin-bonding-ad-select"/>
+<h3>Type builtin-bonding-ad-select</h3>
+<p>
+Specifies the 802.3ad aggregation selection logic to use.<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>description (1)</li>
+ <li>stable (0)</li>
+ <li>bandwidth (1)</li>
+ <li>count (2)</li>
+</ul><p>
+
+<a name="builtin-bonding-fail-over-mac"/>
+<h3>Type builtin-bonding-fail-over-mac</h3>
+<p>
+Specifies whether active-backup mode should set all slaves to the sameMAC address at enslavement, or perform special handling of the bond'sMAC address in accordance with the selected policy.<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>description (1)</li>
+ <li>none (0)</li>
+ <li>active (1)</li>
+ <li>follow (2)</li>
+</ul><p>
+
+<a name="builtin-bonding-primary-reselect"/>
+<h3>Type builtin-bonding-primary-reselect</h3>
+<p>
+Specifies the reselection policy for the primary slave. This affects howthe primary slave is chosen to become the active slave when failure ofthe active slave or recovery of the primary slave occurs. This optionis designed to prevent flip-flopping between the primary slave and otherslaves.<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>description (1)</li>
+ <li>always (0)</li>
+ <li>better (1)</li>
+ <li>failure (2)</li>
+</ul><p>
+
+<a name="builtin-route-type"/>
+<h3>Type builtin-route-type</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>unicast (1)</li>
+ <li>local (2)</li>
+ <li>broadcast (3)</li>
+ <li>anycast (4)</li>
+ <li>multicast (5)</li>
+ <li>blackhole (6)</li>
+ <li>unreachable (7)</li>
+ <li>prohibit (8)</li>
+ <li>throw (9)</li>
+ <li>nat (10)</li>
+ <li>xresolve (11)</li>
+</ul><p>
+
+<a name="builtin-route-scope"/>
+<h3>Type builtin-route-scope</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>universe (0)</li>
+ <li>site (200)</li>
+ <li>link (253)</li>
+ <li>host (254)</li>
+ <li>nowhere (255)</li>
+</ul><p>
+
+<a name="builtin-route-protocol"/>
+<h3>Type builtin-route-protocol</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>redirect (1)</li>
+ <li>kernel (2)</li>
+ <li>boot (3)</li>
+ <li>static (4)</li>
+ <li>gated (8)</li>
+ <li>ra (9)</li>
+ <li>mrt (10)</li>
+ <li>zebra (11)</li>
+ <li>bird (12)</li>
+ <li>dnrouted (13)</li>
+ <li>xorp (14)</li>
+ <li>ntk (15)</li>
+ <li>dhcp (16)</li>
+</ul><p>
+
+<a name="builtin-route-table"/>
+<h3>Type builtin-route-table</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>compat (252)</li>
+ <li>default (253)</li>
+ <li>main (254)</li>
+ <li>local (255)</li>
+</ul><p>
+
+<a name="builtin-route-flag-mask"/>
+<h3>Type builtin-route-flag-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>notify (8)</li>
+ <li>cloned (9)</li>
+ <li>equalize (10)</li>
+ <li>prefix (11)</li>
+</ul><p>
+
+<a name="builtin-route-nh-flag-mask"/>
+<h3>Type builtin-route-nh-flag-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>dead (0)</li>
+ <li>pervasive (1)</li>
+ <li>online (2)</li>
+</ul><p>
+
+<a name="builtin-route-metrics-lock-mask"/>
+<h3>Type builtin-route-metrics-lock-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>mtu (2)</li>
+ <li>window (3)</li>
+ <li>rtt (4)</li>
+ <li>rttvar (5)</li>
+ <li>ssthresh (6)</li>
+ <li>cwnd (7)</li>
+ <li>advmss (8)</li>
+ <li>reordering (9)</li>
+ <li>hoplimit (10)</li>
+ <li>initcwnd (11)</li>
+ <li>features (12)</li>
+ <li>rto_min (13)</li>
+ <li>initrwnd (14)</li>
+</ul><p>
+
+<a name="builtin-infiniband-mode"/>
+<h3>Type builtin-infiniband-mode</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>datagram (0)</li>
+ <li>connected (1)</li>
+</ul><p>
+
+<a name="builtin-infiniband-umcast"/>
+<h3>Type builtin-infiniband-umcast</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>disallowed (0)</li>
+ <li>allowed (1)</li>
+</ul><p>
+
+<a name="builtin-vlan-protocol"/>
+<h3>Type builtin-vlan-protocol</h3>
+<p>
+This is a uint16 enumerated type, which can take the following values:
+<p><ul> <li>ieee802-1Q (0)</li>
+ <li>ieee802-1ad (1)</li>
+</ul><p>
+
+<a name="builtin-lldp-type"/>
+<h3>Type builtin-lldp-type</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>nearest-bridge (0)</li>
+ <li>nearest-non-tmpr-bridge (1)</li>
+ <li>nearest-customer-bridge (2)</li>
+</ul><p>
+
+<a name="builtin-lldp-system-capabilities"/>
+<h3>Type builtin-lldp-system-capabilities</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>nearest-bridge (0)</li>
+ <li>nearest-non-tmpr-bridge (1)</li>
+ <li>nearest-customer-bridge (2)</li>
+ <li>bridge (3)</li>
+ <li>wlan-ap (4)</li>
+ <li>router (5)</li>
+ <li>telephone (6)</li>
+ <li>docsis-cable-device (7)</li>
+ <li>station-only (8)</li>
+ <li>vlan-bridge-c-vlan (9)</li>
+ <li>vlan-bridge-s-vlan (10)</li>
+ <li>two-port-repeater (11)</li>
+</ul><p>
+
+<a name="builtin-macvlan-mode"/>
+<h3>Type builtin-macvlan-mode</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>private (1)</li>
+ <li>vepa (2)</li>
+ <li>pass-through (4)</li>
+ <li>bridge (8)</li>
+</ul><p>
+
+<a name="builtin-macvlan-flag-bits"/>
+<h3>Type builtin-macvlan-flag-bits</h3>
+<p>
+This is a uint16 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>nopromisc (0)</li>
+</ul><p>
+
+<a name="network-interface"/>
+<h3>Type network-interface</h3>
+<p>
+This defines the state of a network interface from the kernel's perspective.<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>name</bold> (<a href="dbus.html#string">string</a>). The kernel name of the interface</li>
+<li><bold>status</bold> (<a href="dbus.html#builtin-ifflags">builtin-ifflags</a>). The interface status flags. NOTE: These are not the kernel flags</li>
+<li><bold>link-type</bold> (<a href="dbus.html#builtin-iftype">builtin-iftype</a>). The link-layer type of this interface</li>
+<li><bold>client-state</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>control</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>persistent</bold> (boolean). This is a boolean</li>
+<li><bold>usercontrol</bold> (boolean). This is a boolean</li>
+</ul>
+<p>
+</li>
+<li><bold>config</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>origin</bold> (string). This is a string</li>
+<li><bold>uuid</bold> (array). This is an array of <a href="dbus.html#byte">byte</a>[16] (notation uuid).
+</li>
+<li><bold>owner-uid</bold> (uint32). This is a uint32</li>
+</ul>
+<p>
+</li>
+</ul>
+<p>
+</li>
+<li><bold>index</bold> (<a href="dbus.html#uint32">uint32</a>). The interface index. The index is also used in the DBus name of the DBus netif object</li>
+<li><bold>metric</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>txqlen</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>mtu</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>alias</bold> (<a href="dbus.html#string">string</a>). </li>
+<li><bold>master</bold> (<a href="dbus.html#string">string</a>). </li>
+<li><bold>ipv4</bold> (<a href="network-interface.html#af-info">network-interface:af-info</a>). </li>
+<li><bold>ipv6</bold> (<a href="network-interface.html#af-info">network-interface:af-info</a>). </li>
+<li><bold>addresses</bold> (<a href="network-interface.html#assigned-address-list">network-interface:assigned-address-list</a>). The list of network addresses currently assigned to the interface</li>
+<li><bold>routes</bold> (<a href="network-interface.html#assigned-route-list">network-interface:assigned-route-list</a>). The list of network routes currently assigned to the interface</li>
+</ul>
+<p>
+
+
