@@ -6,14 +6,13 @@ MAINTAINERCLEANFILES		= Makefile.in aclocal.m4 config.guess config.*   \
 				  $(DIST_ARCHIVES) $(PACKAGE)-*.tar.bz2
 
 SUBDIRS				= include src util schema client server nanny \
-				  autoip4 dhcp4 dhcp6 etc extensions man testing
+				  autoip4 dhcp4 dhcp6 etc extensions man doc testing
 
 
 pkgconfig_DATA			= wicked.pc
 
 wicked_doc_data			= README TODO COPYING ANNOUNCE		\
 				  $(wildcard ChangeLog)
-#wicked_doc_DATA		= $(wicked_doc_data)
 
 EXTRA_DIST			= VERSION wicked.pc.in wicked-rpmlintrc	\
 				  wicked.spec.in wicked.spec samples	\

@@ -32,6 +32,8 @@ Makefile.in
 !wicked-rpmlintrc
 /man/wicked*.[0-9]
 /man/if*.[0-9]
+/doc/schema/
+/doc/schema.xml
 /etc/common.xml
 /etc/client.xml
 /etc/server.xml
