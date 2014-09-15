@@ -125,9 +125,10 @@ ni_objectmodel_get_ipv6_devinfo(const ni_dbus_object_t *object, ni_bool_t write_
 const ni_dbus_property_t	ni_objectmodel_ipv6_property_table[] = {
 	IPV6_INT_PROPERTY(enabled, conf.enabled, RO),
 	IPV6_INT_PROPERTY(forwarding, conf.forwarding, RO),
+	IPV6_INT_PROPERTY(accept-ra, conf.accept_ra, RO),
 	IPV6_INT_PROPERTY(autoconf, conf.autoconf, RO),
-	IPV6_INT_PROPERTY(accept-redirects, conf.accept_redirects, RO),
 	IPV6_INT_PROPERTY(privacy, conf.privacy, RO),
+	IPV6_INT_PROPERTY(accept-redirects, conf.accept_redirects, RO),
 
 	{ NULL }
 };
