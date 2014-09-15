@@ -1,0 +1,53 @@
+<h1>org.opensuse.Network.Bridge.Factory</h1>
+
+<h2>Namespace</h2>
+
+<p>
+<table border="1">
+<tr>
+ <td style="width:200px">Namespace</td>
+ <td style="width:500px">bridge-factory</td>
+</tr>
+<tr>
+ <td>Class compat</td>
+ <td>netif-list</td>
+</tr>
+<tr>
+ <td>Typedefs</td>
+ <td>0</td>
+</tr>
+<tr>
+ <td>Properties</td>
+ <td>none</td>
+</tr>
+<tr>
+ <td rowspan="1" valign="top">Methods</td>
+ <td><a href="#newDevice">newDevice()</a></td>
+</tr>
+<tr>
+ <td>Signals</td>
+ <td>none</td>
+</tr>
+</table><p>
+<h2>Methods</h2>
+<dl>
+<dt><em><a name="newDevice"/><a href="dbus.html#string">string</a> newDevice(<a href="dbus.html#string">string</a> name, dict config)</em></dt>
+<dd>
+<p>Argument <em>config</em> is mapped to element &lt;bridge&gt; of the device document.
+It is a dict-based type that provides the following members:
+<ul>
+<li><bold>stp</bold> (<a href="dbus.html#boolean">boolean</a>). Enables Spanning Tree Protocol to handle multiple hops and avoid cyclic routes</li>
+<li><bold>priority</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
+<li><bold>forward-delay</bold> (<a href="dbus.html#double">double</a>). Forwarding delay time is the time spent in each of the Listening and Learning states before the Forwarding state is entered.</li>
+<li><bold>hello-time</bold> (<a href="dbus.html#double">double</a>). Periodically, a hello packet is sent out by the Root Bridge and the Designated Bridges to communicate information about the topology throughout.</li>
+<li><bold>max-age</bold> (<a href="dbus.html#double">double</a>). If a another bridge in the spanning tree does not send out a hello packet for this period of time, it is assumed to be dead.</li>
+<li><bold>aging-time</bold> (<a href="dbus.html#double">double</a>). Ethernet (MAC) address ageing time. Setting it to 0 makes all entries permanent.</li>
+<li><bold>gc-interval</bold> (<a href="dbus.html#double">double</a>). Garbage collection interval for the bridge</li>
+<li><bold>ports</bold> (array). This is an array of <a href="bridge.html#port-config">bridge:port-config</a>.
+</li>
+</ul>
+<p>
+<p></dd>
+</dl>
+
+

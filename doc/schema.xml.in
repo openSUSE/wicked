@@ -1,0 +1,9 @@
+<config>
+  <!-- Dummy config used to build schema html
+       documentation from source tree
+  -->
+  <dbus>
+    <service name="org.opensuse.Network" />
+    <schema name="@schemadir@/wicked.xml"/>
+  </dbus>
+</config>

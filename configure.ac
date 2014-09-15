@@ -299,6 +299,7 @@ AC_CONFIG_FILES([
 	etc/Makefile
 	extensions/Makefile
 	testing/Makefile
+	doc/Makefile
 	wicked.pc
 	wicked.spec
 ])

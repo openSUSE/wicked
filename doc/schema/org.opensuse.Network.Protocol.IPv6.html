@@ -1,0 +1,82 @@
+<h1>org.opensuse.Network.Protocol.IPv6</h1>
+
+<h2>Namespace</h2>
+
+<p>
+<table border="1">
+<tr>
+ <td style="width:200px">Namespace</td>
+ <td style="width:500px">ipv6</td>
+</tr>
+<tr>
+ <td>Class compat</td>
+ <td>netif</td>
+</tr>
+<tr>
+ <td>Typedefs</td>
+ <td>1</td>
+</tr>
+<tr>
+ <td rowspan="5" valign="top">Properties</td>
+ <td><a href="#property:enabled">enabled</a></td>
+</tr>
+<tr>
+ <td><a href="#property:forwarding">forwarding</a></td>
+</tr>
+<tr>
+ <td><a href="#property:autoconf">autoconf</a></td>
+</tr>
+<tr>
+ <td><a href="#property:privacy">privacy</a></td>
+</tr>
+<tr>
+ <td><a href="#property:accept-redirects">accept-redirects</a></td>
+</tr>
+<tr>
+ <td rowspan="1" valign="top">Methods</td>
+ <td><a href="#changeProtocol">changeProtocol()</a></td>
+</tr>
+<tr>
+ <td>Signals</td>
+ <td>none</td>
+</tr>
+</table><p>
+<h2>Properties</h2>
+<ul>
+<li><a name="property:enabled"/><bold>enabled</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
+<li><a name="property:forwarding"/><bold>forwarding</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
+<li><a name="property:autoconf"/><bold>autoconf</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
+<li><a name="property:privacy"/><bold>privacy</bold> (int32). This is a int32 enumerated type, which can take the following values:
+<p><ul> <li>default (4294967295)</li>
+ <li>disable (0)</li>
+ <li>prefer-public (1)</li>
+ <li>prefer-temporary (2)</li>
+</ul><p>
+</li>
+<li><a name="property:accept-redirects"/><bold>accept-redirects</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
+</ul>
+<p>
+<h2>Methods</h2>
+<dl>
+<dt><em><a name="changeProtocol"/>void changeProtocol(dict config)</em></dt>
+<dd>
+<p>Argument <em>config</em> is mapped to element &lt;ipv6&gt; of the device document.
+It is a dict-based type that provides the following members:
+<ul>
+<li><bold>enabled</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
+<li><bold>forwarding</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
+<li><bold>autoconf</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
+<li><bold>privacy</bold> (int32). This is a int32 enumerated type, which can take the following values:
+<p><ul> <li>default (4294967295)</li>
+ <li>disable (0)</li>
+ <li>prefer-public (1)</li>
+ <li>prefer-temporary (2)</li>
+</ul><p>
+</li>
+<li><bold>accept-redirects</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
+</ul>
+<p>
+<p></dd>
+</dl>
+
+
