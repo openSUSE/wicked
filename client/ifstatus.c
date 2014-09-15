@@ -528,6 +528,9 @@ ni_ifstatus_to_retcode(int status, ni_bool_t mandatory)
 	case NI_WICKED_ST_UNCONFIGURED:
 		return mandatory ? NI_WICKED_ST_UNUSED : NI_WICKED_ST_OK;
 
+	case NI_WICKED_ST_IN_PROGRESS:
+		return mandatory ? NI_WICKED_ST_IN_PROGRESS : NI_WICKED_ST_OK;
+
 	default:
 		return NI_WICKED_ST_OK;
 	}
@@ -727,6 +730,8 @@ ni_do_ifstatus(int argc, char **argv)
 			case NI_WICKED_ST_NO_DEVICE:
 			case NI_WICKED_ST_UNCONFIGURED:
 			case NI_WICKED_ST_NOT_RUNNING:
+			case NI_WICKED_ST_IN_PROGRESS:
+				break;
 			default:
 				status = NI_WICKED_ST_OK;
 				break;
@@ -841,6 +846,8 @@ ni_ifstatus_display_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_ifworker_
 			case NI_WICKED_ST_NO_DEVICE:
 			case NI_WICKED_ST_UNCONFIGURED:
 			case NI_WICKED_ST_NOT_RUNNING:
+			case NI_WICKED_ST_IN_PROGRESS:
+				break;
 			default:
 				status = NI_WICKED_ST_OK;
 				break;
