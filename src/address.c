@@ -72,6 +72,7 @@ ni_bool_t
 ni_address_copy(ni_address_t *dst, const ni_address_t *src)
 {
 	if (src && dst) {
+		dst->owner	= src->owner;
 		dst->seq	= src->seq;
 		dst->family	= src->family;
 		dst->flags	= src->flags;

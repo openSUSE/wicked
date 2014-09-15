@@ -30,9 +30,9 @@ typedef struct ni_sockaddr_array {
 typedef struct ni_address {
 	struct ni_address *	next;
 
-	const ni_addrconf_lease_t *config_lease;	/* configured through lease */
-
+	ni_addrconf_mode_t	owner;		/* configured through lease */
 	unsigned int		seq;
+
 	unsigned int		family;
 	unsigned int		flags;
 	int			scope;

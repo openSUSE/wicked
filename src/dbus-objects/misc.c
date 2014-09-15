@@ -586,8 +586,8 @@ __ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict
 		ni_dbus_dict_add_uint32(var, "valid-lifetime", ap->ipv6_cache_info.valid_lft);
 	}
 
-	if (ap->config_lease)
-		ni_dbus_dict_add_uint32(dict, "owner", ap->config_lease->type);
+	if (ap->owner != NI_ADDRCONF_NONE)
+		ni_dbus_dict_add_uint32(dict, "owner", ap->owner);
 
 	return TRUE;
 }
@@ -636,10 +636,10 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 			ap->ipv6_cache_info.valid_lft = valid_lft;
 		}
 
-#if 0
-		if (ni_dbus_dict_get_uint32(dict, "owner", &value))
-			ap->config_method = value;
-#endif
+		if (ni_dbus_dict_get_uint32(dict, "owner", &ap->owner)) {
+			if (ap->owner >= __NI_ADDRCONF_MAX)
+				ap->owner = NI_ADDRCONF_NONE;
+		}
 
 		ni_address_list_append(list, ap);
 	}
@@ -869,8 +869,8 @@ __ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
 	if (rp->initrwnd)
 		ni_dbus_dict_add_uint32(child, "initrwnd", rp->initrwnd);
 
-	if (rp->config_lease)
-		ni_dbus_dict_add_uint32(dict, "owner", rp->config_lease->type);
+	if (rp->owner)
+		ni_dbus_dict_add_uint32(dict, "owner", rp->owner);
 
 	return TRUE;
 }
@@ -1066,11 +1066,10 @@ __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_
 			rp->initrwnd = value;
 	}
 
-#if 0
-	/* FIXME: need to create dummy lease here */
-	if (!ni_dbus_dict_get_uint32(dict, "owner", &value))
-		rp->config_method = value;
-#endif
+	if (ni_dbus_dict_get_uint32(dict, "owner", &rp->owner)) {
+		if (rp->owner >= __NI_ADDRCONF_MAX)
+			rp->owner = NI_ADDRCONF_NONE;
+	}
 
 	if (ni_route_tables_add_route(list, rp))
 		return rp;

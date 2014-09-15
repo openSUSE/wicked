@@ -11,6 +11,7 @@
  * Address configuration modes
  */
 typedef enum ni_addrconf_mode {
+	NI_ADDRCONF_NONE,
 	NI_ADDRCONF_DHCP,
 	NI_ADDRCONF_STATIC,
 	NI_ADDRCONF_AUTOCONF,

@@ -1835,8 +1835,12 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 	}
 	ni_string_free(&tmp.label);
 
-	if (ap->config_lease == NULL)
-		ap->config_lease = __ni_netdev_address_to_lease(dev, ap);
+	if (ap->owner == NI_ADDRCONF_NONE) {
+		ni_addrconf_lease_t *lease;
+
+		if ((lease = __ni_netdev_address_to_lease(dev, ap)))
+			ap->owner = lease->type;
+	}
 
 #if 0
 	ni_debug_ifconfig("%s[%u]: address %s scope %s, flags%s%s%s%s%s%s%s%s [%02x], lft{%u,%u}, owned by %s",
@@ -1857,7 +1861,7 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 			(unsigned int)ap->flags,
 			ap->ipv6_cache_info.valid_lft,
 			ap->ipv6_cache_info.preferred_lft,
-			(ap->config_lease? ni_addrconf_type_to_name(ap->config_lease->type) : "nobody"));
+			(ap->owner ? ni_addrconf_type_to_name(ap->owner) : "none"));
 #endif
 
 	if (hint)
@@ -2198,7 +2202,7 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 	if (dev) {
 		lease = __ni_netdev_route_to_lease(dev, rp);
 		if (lease)
-			rp->config_lease = lease;
+			rp->owner = lease->type;
 	}
 #endif
 
