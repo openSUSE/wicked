@@ -753,38 +753,12 @@ __ni_lease_owns_address(const ni_addrconf_lease_t *lease, const ni_address_t *ma
 	if (!lease || lease->family != match->family)
 		return 0;
 
-	/* IPv6 autoconf is special; we record the IPv6 address prefixes in the
-	 * lease. */
-	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_AUTOCONF) {
-		ni_route_table_t *tab;
-		ni_route_t *rp;
-		unsigned int i;
-
-		tab = ni_route_tables_find(lease->routes, RT_TABLE_MAIN);
-		for (i = 0; tab && i < tab->routes.count; ++i) {
-			rp = tab->routes.data[i];
-
-			if (rp->prefixlen != match->prefixlen)
-				continue;
-			if (ni_sockaddr_prefix_match(rp->prefixlen, &rp->destination, &match->local_addr))
-				return TRUE;
-		}
-	}
-
 	for (ap = lease->addrs; ap; ap = ap->next) {
 		if (ap->prefixlen != match->prefixlen)
 			continue;
 
-		/* Note: for IPv6 autoconf, we will usually have recorded the
-		 * address prefix only; the address that will eventually be picked
-		 * by the autoconf logic will be different */
-		if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_AUTOCONF) {
-			if (!ni_sockaddr_prefix_match(match->prefixlen, &ap->local_addr, &match->local_addr))
+		if (!ni_sockaddr_equal(&ap->local_addr, &match->local_addr))
 				continue;
-		} else {
-			if (!ni_sockaddr_equal(&ap->local_addr, &match->local_addr))
-				continue;
-		}
 
 		if (ni_sockaddr_equal(&ap->peer_addr, &match->peer_addr)
 		 && ni_sockaddr_equal(&ap->anycast_addr, &match->anycast_addr))

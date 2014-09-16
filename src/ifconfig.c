@@ -92,7 +92,7 @@
 
 static int	__ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
-				ni_address_t *cfg_addr_list);
+				ni_addrconf_lease_t       *new_lease);
 static int	__ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_addrconf_lease_t       *new_lease);
@@ -324,7 +324,7 @@ __ni_addrconf_action_addrs_apply(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 {
 	int res;
 
-	if ((res = __ni_netdev_update_addrs(dev, lease->old, lease->addrs)) < 0)
+	if ((res = __ni_netdev_update_addrs(dev, lease->old, lease)) < 0)
 		return res;
 
 	return 0;
@@ -348,12 +348,12 @@ __ni_addrconf_action_addrs_verify_check(ni_netdev_t *dev, ni_addrconf_lease_t *l
 		if (ap->family != AF_INET6)
 			continue;
 
-		if (ap->config_lease == NULL) {
+		if (ap->owner == NI_ADDRCONF_NONE) {
 			if (!ni_address_list_find(lease->addrs, &ap->local_addr)
 			&&  !ni_address_is_linklocal(ap))
 				continue;
 		} else
-		if (ap->config_lease != lease)
+		if (ap->owner != lease->type)
 			continue;
 
 		if (ni_address_is_duplicate(ap)) {
@@ -519,7 +519,7 @@ ni_addrconf_updater_new(const ni_addrconf_action_t *action)
 {
 	ni_addrconf_updater_t *updater;
 
-	updater = xcalloc(1, sizeof(updater));
+	updater = xcalloc(1, sizeof(*updater));
 	updater->action = action;
 	return updater;
 }
@@ -2561,7 +2561,7 @@ addattr_sockaddr(struct nl_msg *msg, int type, const ni_sockaddr_t *addr)
 }
 
 static ni_address_t *
-__ni_netdev_address_list_contains(ni_address_t *list, const ni_address_t *ap)
+__ni_netdev_address_in_list(ni_address_t *list, const ni_address_t *ap)
 {
 	ni_address_t *ap2;
 
@@ -2596,7 +2596,7 @@ __ni_netdev_address_list_contains(ni_address_t *list, const ni_address_t *ap)
 		}
 	}
 
-	return 0;
+	return NULL;
 }
 
 static int
@@ -3229,29 +3229,45 @@ __ni_netdev_new_addr_notify(ni_netdev_t *dev, ni_address_t *ap)
 static int
 __ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
-				ni_address_t *cfg_addr_list)
+				ni_addrconf_lease_t       *new_lease)
 {
+	ni_addrconf_mode_t old_type = NI_ADDRCONF_NONE;
+	unsigned int family = AF_UNSPEC;
 	ni_address_t *ap, *next;
 	int rv;
+
+	do {
+		__ni_global_seqno++;
+	} while (!__ni_global_seqno);
+
+	if (new_lease) {
+		family = new_lease->family;
+	} else
+	if (old_lease) {
+		family = old_lease->family;
+		old_type = old_lease->type;
+	}
 
 	for (ap = dev->addrs; ap; ap = next) {
 		ni_address_t *new_addr;
 
 		next = ap->next;
+		if (family != ap->family)
+			continue;
 
 		/* See if the config list contains the address we've found in the
 		 * system. */
-		new_addr = __ni_netdev_address_list_contains(cfg_addr_list, ap);
+		new_addr = new_lease ? __ni_netdev_address_in_list(new_lease->addrs, ap) : NULL;
 
 		/* Do not touch addresses not managed by us. */
-		if (ap->config_lease == NULL) {
+		if (ap->owner == NI_ADDRCONF_NONE) {
 			if (new_addr == NULL)
 				continue;
 
 			/* Address was assigned to device, but we did not track it.
 			 * Could be due to a daemon restart - simply assume this
 			 * is ours now. */
-			ap->config_lease = old_lease;
+			ap->owner = old_type;
 		}
 
 		/* If the address was managed by us (ie its owned by a lease with
@@ -3260,14 +3276,14 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		 * is configured through several different protocols, and we don't
 		 * want to delete such an address until the last of these protocols
 		 * has shut down. */
-		if (ap->config_lease == old_lease) {
+		if (ap->owner == old_type) {
 			ni_addrconf_lease_t *other;
 
 			if ((other = __ni_netdev_address_to_lease(dev, ap)) != NULL)
-				ap->config_lease = other;
+				ap->owner = other->type;
 		}
 
-		if (ap->config_lease != old_lease) {
+		if (ap->owner != old_type) {
 			/* The existing address is managed by a different
 			 * addrconf mode.
 			 *
@@ -3277,7 +3293,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 				ni_warn("%s: address %s covered by a %s lease",
 					dev->name,
 					ni_sockaddr_print(&ap->local_addr),
-					ni_addrconf_type_to_name(ap->config_lease->type));
+					ni_addrconf_type_to_name(ap->owner));
 			}
 
 			continue;
@@ -3305,6 +3321,8 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 			if ((rv = __ni_rtnl_send_newaddr(dev, new_addr, NLM_F_REPLACE)) < 0)
 				return rv;
 
+			new_addr->owner = new_lease->type;
+			ni_address_copy(ap, new_addr);
 		} else {
 			if ((rv = __ni_rtnl_send_deladdr(dev, ap)) < 0)
 				return rv;
@@ -3314,7 +3332,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 	/* Loop over all addresses in the configuration and create
 	 * those that don't exist yet.
 	 */
-	for (ap = cfg_addr_list; ap; ap = ap->next) {
+	for (ap = new_lease ? new_lease->addrs : NULL ; ap; ap = ap->next) {
 		if (ap->seq == __ni_global_seqno)
 			continue;
 
@@ -3328,6 +3346,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		if ((rv = __ni_rtnl_send_newaddr(dev, ap, NLM_F_CREATE)) < 0)
 			return rv;
 
+		ap->owner = new_lease->type;
 		__ni_netdev_new_addr_notify(dev, ap);
 	}
 
@@ -3398,10 +3417,24 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 				ni_addrconf_lease_t       *new_lease)
 {
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_addrconf_mode_t old_type = NI_ADDRCONF_NONE;
+	unsigned int family = AF_UNSPEC;
 	ni_route_table_t *tab, *cfg_tab;
 	ni_route_t *rp, *new_route;
 	unsigned int minprio, i;
 	int rv = 0;
+
+	do {
+		__ni_global_seqno++;
+	} while (!__ni_global_seqno);
+
+	if (new_lease) {
+		family = new_lease->family;
+	} else
+	if (old_lease) {
+		family = old_lease->family;
+		old_type = old_lease->type;
+	}
 
 	/* Loop over all tables and routes currently assigned to the interface.
 	 * If the configuration no longer specifies it, delete it.
@@ -3413,6 +3446,9 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 			if ((rp = tab->routes.data[i]) == NULL)
 				continue;
 
+			if (family != rp->family)
+				continue;
+
 			/* See if the config list contains the route we've
 			 * found in the system. */
 			cfg_tab = new_lease ? ni_route_tables_find(new_lease->routes, rp->table) : NULL;
@@ -3422,37 +3458,37 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 				new_route = NULL;
 
 			/* Do not touch route if not managed by us. */
-			if (rp->config_lease == NULL) {
+			if (rp->owner == NI_ADDRCONF_NONE) {
 				if (new_route == NULL)
 					continue;
 
 				/* Address was assigned to device, but we did not track it.
 				 * Could be due to a daemon restart - simply assume this
 				 * is ours now. */
-				rp->config_lease = old_lease;
+				rp->owner = old_type;
 			}
-			minprio = ni_addrconf_lease_get_priority(rp->config_lease);
+			minprio = ni_addrconf_lease_get_priority(ni_netdev_get_lease(dev, rp->family, rp->owner));
 
 			/* If the route was managed by us (ie its owned by a lease with
 			 * the same family/addrconf mode), then we want to check whether
 			 * it's owned by any other lease. It's possible that a route
 			 * is configured through different protocols. */
-			if (rp->config_lease == old_lease) {
+			if (rp->owner == old_type) {
 				ni_addrconf_lease_t *other;
 
 				if ((other = __ni_netdev_route_to_lease(dev, rp, minprio)) != NULL)
-					rp->config_lease = other;
+					rp->owner = other->type;
 			}
 
-			if (rp->config_lease != old_lease) {
+			if (rp->owner != old_type) {
 				/* The existing route is managed by a different
 				 * addrconf mode.
 				 */
 				if (new_route != NULL) {
 					ni_warn("route %s covered by a %s:%s lease",
 						ni_route_print(&buf, rp),
-						ni_addrfamily_type_to_name(rp->config_lease->family),
-						ni_addrconf_type_to_name(rp->config_lease->type));
+						ni_addrfamily_type_to_name(rp->family),
+						ni_addrconf_type_to_name(rp->owner));
 					ni_stringbuf_destroy(&buf);
 				}
 				continue;
@@ -3463,7 +3499,7 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 					ni_debug_ifconfig("%s: successfully updated existing route %s",
 							dev->name, ni_route_print(&buf, rp));
 					ni_stringbuf_destroy(&buf);
-					new_route->config_lease = new_lease;
+					new_route->owner = new_lease->type;
 					new_route->seq = __ni_global_seqno;
 					__ni_netdev_record_newroute(nc, dev, new_route);
 
@@ -3507,7 +3543,7 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 			if ((rv = __ni_rtnl_send_newroute(dev, rp, NLM_F_CREATE)) < 0)
 				return rv;
 
-			rp->config_lease = new_lease;
+			rp->owner = new_lease->type;
 			rp->seq = __ni_global_seqno;
 			__ni_netdev_record_newroute(nc, dev, rp);
 		}

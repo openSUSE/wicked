@@ -32,9 +32,9 @@ typedef struct ni_route_nexthop {
 struct ni_route {
 	unsigned int		users;
 
-	const ni_addrconf_lease_t *config_lease;	/* configured through lease */
-
+	ni_addrconf_mode_t	owner;		/* configured through lease */
 	unsigned int		seq;
+
 	unsigned int		family;
 	unsigned int		prefixlen;
 	ni_sockaddr_t		destination;

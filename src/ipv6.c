@@ -36,9 +36,10 @@ static void
 __ni_ipv6_devconf_reset(ni_ipv6_devconf_t *conf)
 {
 	conf->enabled = NI_TRISTATE_DEFAULT;
-	conf->autoconf = NI_TRISTATE_DEFAULT;
 	conf->forwarding = NI_TRISTATE_DEFAULT;
 	conf->accept_redirects = NI_TRISTATE_DEFAULT;
+	conf->accept_ra = NI_TRISTATE_DEFAULT;
+	conf->autoconf = NI_TRISTATE_DEFAULT;
 	conf->privacy = NI_TRISTATE_DEFAULT;
 }
 
@@ -132,11 +133,14 @@ ni_system_ipv6_devinfo_get(ni_netdev_t *dev, ni_ipv6_devinfo_t *ipv6)
 		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "forwarding", &val) >= 0)
 			ni_tristate_set(&ipv6->conf.forwarding, !!val);
 
-		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "autoconf", &val) >= 0)
-			ni_tristate_set(&ipv6->conf.autoconf, !!val);
-
 		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "accept_redirects", &val) >= 0)
 			ni_tristate_set(&ipv6->conf.accept_redirects, !!val);
+
+		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "accept_ra", &val) >= 0)
+			ipv6->conf.accept_ra = val < 0 ? 0 : val > 2 ? 2 : val;
+
+		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "autoconf", &val) >= 0)
+			ni_tristate_set(&ipv6->conf.autoconf, !!val);
 
 		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "use_tempaddr", &val) >= 0)
 			ipv6->conf.privacy = val < -1 ? -1 : (val > 2 ? 2 : val);
@@ -200,17 +204,24 @@ ni_system_ipv6_devinfo_set(ni_netdev_t *dev, const ni_ipv6_devconf_t *conf)
 		return 0;
 	}
 
-	if (__ni_system_ipv6_devinfo_change_int(dev->name, "autoconf",
-						conf->autoconf) == 0)
-		ipv6->conf.autoconf = conf->autoconf;
-
 	if (__ni_system_ipv6_devinfo_change_int(dev->name, "forwarding",
 						conf->forwarding) == 0)
 		ipv6->conf.forwarding = conf->forwarding;
 
+	if (conf->accept_ra > NI_TRISTATE_DEFAULT) {
+		int accept_ra = conf->accept_ra > 2 ? 2 : conf->accept_ra;
+		if (__ni_system_ipv6_devinfo_change_int(dev->name, "accept_ra",
+						accept_ra) == 0)
+			ipv6->conf.accept_ra = accept_ra;
+	}
+
 	if (__ni_system_ipv6_devinfo_change_int(dev->name, "accept_redirects",
 						conf->accept_redirects) == 0)
 		ipv6->conf.accept_redirects = conf->accept_redirects;
+
+	if (__ni_system_ipv6_devinfo_change_int(dev->name, "autoconf",
+						conf->autoconf) == 0)
+		ipv6->conf.autoconf = conf->autoconf;
 
 	if (ipv6->conf.privacy != NI_TRISTATE_DEFAULT) {
 		/* kernel is using -1 for loopback, ptp, ... */
@@ -316,5 +327,23 @@ ni_ipv6_devconf_privacy_to_name(int privacy)
 		privacy = NI_IPV6_PRIVACY_PREFER_TEMPORARY;
 
 	return ni_format_uint_mapped(privacy, __privacy_names);
+}
+
+const char *
+ni_ipv6_devconf_accept_ra_to_name(int accept_ra)
+{
+	static const ni_intmap_t	__accept_ra_names[] = {
+		{ "disable",		NI_IPv6_ACCEPT_RA_DISABLED	},
+		{ "host",		NI_IPv6_ACCEPT_RA_HOST		},
+		{ "router",		NI_IPv6_ACCEPT_RA_ROUTER	},
+		{ NULL,			NI_IPv6_ACCEPT_RA_DEFAULT	}
+	};
+	if (accept_ra < NI_IPv6_ACCEPT_RA_DEFAULT)
+		accept_ra = NI_IPv6_ACCEPT_RA_DEFAULT;
+	else
+	if (accept_ra > NI_IPv6_ACCEPT_RA_ROUTER)
+		accept_ra = NI_IPv6_ACCEPT_RA_ROUTER;
+
+	return ni_format_uint_mapped(accept_ra, __accept_ra_names);
 }
 

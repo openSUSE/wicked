@@ -30,9 +30,9 @@ typedef struct ni_sockaddr_array {
 typedef struct ni_address {
 	struct ni_address *	next;
 
-	const ni_addrconf_lease_t *config_lease;	/* configured through lease */
-
+	ni_addrconf_mode_t	owner;		/* configured through lease */
 	unsigned int		seq;
+
 	unsigned int		family;
 	unsigned int		flags;
 	int			scope;
@@ -93,6 +93,7 @@ extern unsigned int	ni_af_address_prefixlen(int af);
 extern ni_address_t *	ni_address_new(int af, unsigned int prefix_len,
 					const ni_sockaddr_t *local_addr,
 					ni_address_t **list);
+extern ni_bool_t	ni_address_copy(ni_address_t *, const ni_address_t *);
 extern void		ni_address_free(ni_address_t *);
 extern const char *	ni_address_format_flags(ni_stringbuf_t *, unsigned int, unsigned int, const char *);
 extern void		ni_address_list_append(ni_address_t **, ni_address_t *);

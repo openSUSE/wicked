@@ -23,12 +23,20 @@ enum {
 	NI_IPV6_PRIVACY_PREFER_TEMPORARY=  2,
 };
 
+enum {
+	NI_IPv6_ACCEPT_RA_DEFAULT	= -1,
+	NI_IPv6_ACCEPT_RA_DISABLED	=  0,
+	NI_IPv6_ACCEPT_RA_HOST		=  1,
+	NI_IPv6_ACCEPT_RA_ROUTER	=  2,
+};
+
 struct ni_ipv6_devconf {
 	ni_tristate_t		enabled;
 	ni_tristate_t		forwarding;
-	ni_tristate_t		autoconf;
-
 	ni_tristate_t		accept_redirects;
+	int			accept_ra;
+
+	ni_tristate_t		autoconf;
 	int			privacy; /* -1 for lo & p-t-p otherwise 0, 1, >1 */
 };
 
@@ -73,5 +81,6 @@ extern int			ni_system_ipv6_devinfo_get(ni_netdev_t *, ni_ipv6_devinfo_t *);
 extern int			ni_system_ipv6_devinfo_set(ni_netdev_t *, const ni_ipv6_devconf_t *);
 
 extern const char *		ni_ipv6_devconf_privacy_to_name(int privacy);
+extern const char *		ni_ipv6_devconf_accept_ra_to_name(int accept_ra);
 
 #endif /* __WICKED_IPv6_H__ */
