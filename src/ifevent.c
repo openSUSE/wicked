@@ -357,13 +357,6 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 		return 0;
 
 	ipv6 = ni_netdev_get_ipv6(dev);
-	/*
-	 * When this is the first time the link were set up,
-	 * the ra managed/other config flags aren't set until
-	 * the first ra (and prefix) arrive, so reread them.
-	 */
-	if (ipv6->radv.pinfo == NULL)
-		__ni_device_refresh_ipv6_link_info(nc, dev);
 
 	pi = xcalloc(1, sizeof(*pi));
 	if (__ni_rtnl_parse_newprefix(dev->name, h, pfx, pi) < 0) {
@@ -392,14 +385,6 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 		free(pi);
 	}
 
-	/* FIXME: __ni_netdev_add_autoconf_prefix fakes routes, so it is better
-	 *        to subscribe to routes and then compare & mark when the route
-	 *        is added/deleted by the kernel => TODO.
-	 */
-	if (__ni_netdev_process_newprefix(dev, h, pfx) < 0) {
-		ni_error("Problem parsing RTM_NEWPREFIX message for %s", dev->name);
-		/* return -1; */
-	}
 	return 0;
 }
 

@@ -35,6 +35,12 @@
   <define name="properties" class="dict">
     <enabled type="tristate" />
     <forwarding type="tristate" />
+    <accept-ra type="int32" constraint="enum">
+      <default          value="-1"/>
+      <disable          value="0"/>
+      <host             value="1"/>
+      <router           value="2"/>
+    </accept-ra>
     <autoconf type="tristate" />
     <privacy type="int32" constraint="enum">
       <default          value="-1"/>

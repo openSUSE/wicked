@@ -68,6 +68,26 @@ ni_address_new(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr,
 	return ap;
 }
 
+ni_bool_t
+ni_address_copy(ni_address_t *dst, const ni_address_t *src)
+{
+	if (src && dst) {
+		dst->owner	= src->owner;
+		dst->seq	= src->seq;
+		dst->family	= src->family;
+		dst->flags	= src->flags;
+		dst->scope	= src->scope;
+		dst->prefixlen	= src->prefixlen;
+		dst->local_addr = src->local_addr;
+		dst->peer_addr	= src->peer_addr;
+		dst->bcast_addr	= src->bcast_addr;
+		dst->anycast_addr    = src->anycast_addr;
+		dst->ipv6_cache_info = src->ipv6_cache_info;
+		ni_string_dup(&dst->label, src->label);
+	}
+	return FALSE;
+}
+
 void
 ni_address_free(ni_address_t *ap)
 {
@@ -187,31 +207,6 @@ ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw)
 
 	/* if (laddr->peer_addr.ss_family != AF_UNSPEC) { ... } */
 	return ni_sockaddr_prefix_match(laddr->prefixlen, &laddr->local_addr, gw);
-}
-
-ni_bool_t
-ni_address_probably_dynamic(const ni_address_t *ap)
-{
-	const unsigned char *addr;
-	unsigned int len;
-
-	switch (ap->family) {
-	case AF_INET6:
-		/* For IPv6 with static configuration, consider all link-local
-		 * prefixes as dynamic.
-		 */
-		if ((addr = __ni_sockaddr_data(&ap->local_addr, &len)) != NULL)
-			return addr[0] == 0xFE && addr[1] == 0x80;
-		break;
-
-	case AF_INET:
-		/* Consider all IPv4 zeroconf addresses (169.254/24) as autoconf */
-		if ((addr = __ni_sockaddr_data(&ap->local_addr, &len)) != NULL)
-			return addr[0] == 169 && addr[1] == 254;
-		break;
-	}
-
-	return 0;
 }
 
 void

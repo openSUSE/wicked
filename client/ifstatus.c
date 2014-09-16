@@ -348,16 +348,20 @@ ni_ifstatus_show_addrs(const ni_netdev_t *dev, ni_bool_t verbose)
 	ni_address_t *ap;
 
 	for (ap = dev->addrs; ap; ap = ap->next) {
+		const char *owner;
+
 		if (!ni_sockaddr_is_specified(&ap->local_addr))
 			continue;
 		if (ni_address_is_linklocal(ap) && !verbose)
 			continue;
 
+		owner = ni_addrconf_type_to_name(ap->owner);
 		ni_address_format_flags(&buf, ap->family, ap->flags, "|");
-		if_printf("", "addr:", "%s %s/%u%s%s",
+		if_printf("", "addr:", "%s %s/%u%s%s%s%s",
 			ni_addrfamily_type_to_name(ap->family),
 			ni_sockaddr_print(&ap->local_addr), ap->prefixlen,
-			buf.string ? " " : "", buf.string ? buf.string : "");
+			buf.string ? " " : "", buf.string ? buf.string : "",
+			owner ? " [" : "", owner ? owner : "", owner ? "]" : "");
 		ni_stringbuf_destroy(&buf);
 
 		if (verbose) {

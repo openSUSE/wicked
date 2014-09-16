@@ -3562,10 +3562,17 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
 				"forwarding", &ipv6->conf.forwarding);
+
+	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
+				"accept_ra", &ipv6->conf.accept_ra, 10);
+	if (ipv6->conf.accept_ra > NI_IPv6_ACCEPT_RA_ROUTER)
+		ipv6->conf.accept_ra = NI_IPv6_ACCEPT_RA_ROUTER;
+	else
+	if (ipv6->conf.accept_ra < NI_IPv6_ACCEPT_RA_DEFAULT)
+		ipv6->conf.accept_ra = NI_IPv6_ACCEPT_RA_DEFAULT;
+
 	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
 				"autoconf", &ipv6->conf.autoconf);
-	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
-				"accept-redirects", &ipv6->conf.accept_redirects);
 
 	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
 				"privacy", &ipv6->conf.privacy, 10);
@@ -3574,6 +3581,8 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	else if (ipv6->conf.privacy < NI_IPV6_PRIVACY_DEFAULT)
 		ipv6->conf.privacy = NI_IPV6_PRIVACY_DISABLED;
 
+	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
+				"accept-redirects", &ipv6->conf.accept_redirects);
 	return TRUE;
 }
 
