@@ -355,36 +355,43 @@ ni_ifstatus_show_addrs(const ni_netdev_t *dev, ni_bool_t verbose)
 		if (ni_address_is_linklocal(ap) && !verbose)
 			continue;
 
-		owner = ni_addrconf_type_to_name(ap->owner);
-		ni_address_format_flags(&buf, ap->family, ap->flags, "|");
-		if_printf("", "addr:", "%s %s/%u%s%s%s%s",
+		if_printf("", "addr:", "%s %s/%u",
 			ni_addrfamily_type_to_name(ap->family),
-			ni_sockaddr_print(&ap->local_addr), ap->prefixlen,
-			buf.string ? " " : "", buf.string ? buf.string : "",
-			owner ? " [" : "", owner ? owner : "", owner ? "]" : "");
-		ni_stringbuf_destroy(&buf);
+			ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
+
+		if ((owner = ni_addrconf_type_to_name(ap->owner)))
+			printf(" [%s]", owner);
 
 		if (verbose) {
+			ni_address_format_flags(&buf, ap->family, ap->flags, "|");
 			if (ap->family == AF_INET) {
+				if (buf.string) {
+					printf("\n");
+					if_printf("", " ", "%s", buf.string);
+				}
+				ni_stringbuf_destroy(&buf);
 				if (!ni_string_empty(ap->label) &&
 				    !ni_string_eq(ap->label, dev->name))
 					printf(" label %s", ap->label);
 			} else
 			if (ap->family == AF_INET6) {
-				if (ap->ipv6_cache_info.valid_lft == -1U) {
-					ni_stringbuf_puts(&buf, "infinite");
-				} else {
+				if (buf.string) {
+					printf("\n");
+					if_printf("", " ", "%s", buf.string);
+				}
+				ni_stringbuf_destroy(&buf);
+				if (ap->ipv6_cache_info.valid_lft != -1U) {
 					ni_stringbuf_printf(&buf, "%u",
 						ap->ipv6_cache_info.valid_lft);
 					ni_stringbuf_puts(&buf, "/");
 					ni_stringbuf_printf(&buf, "%u",
 						ap->ipv6_cache_info.preferred_lft);
-				}
-				if (buf.string)
 					printf(" lifetime %s", buf.string);
-				ni_stringbuf_destroy(&buf);
+				}
 			}
+			ni_stringbuf_destroy(&buf);
 		}
+
 		printf("\n");
 	}
 }
@@ -599,6 +606,8 @@ ni_do_ifstatus(int argc, char **argv)
 				"      Return exit status only\n"
 				"  --brief\n"
 				"      Show only a brief status, no additional info\n"
+				"  --verbose\n"
+				"      Show a more detailed information\n"
 				"\n"
 				"  --ifconfig <filename>\n"
 				"      Read interface configuration(s) from file\n"
