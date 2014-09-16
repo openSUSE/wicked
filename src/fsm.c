@@ -3485,15 +3485,16 @@ ni_ifworker_print_device_leases(ni_ifworker_t *w)
 		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
 				"%s: worker device leases:", w->name);
 		for (lease = w->device->leases; lease; lease = lease->next) {
-			ni_bool_t optional = ni_addrconf_flag_bit_is_set(lease->flags,
-							NI_ADDRCONF_FLAGS_GROUP);
+			ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+			ni_addrconf_flags_format(&buf, lease->flags, "|");
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
-					"        %s:%s in state %s, uuid %s%s",
+					"        %s:%s in state %s, uuid %s, flags %s",
 					ni_addrfamily_type_to_name(lease->family),
 					ni_addrconf_type_to_name(lease->type),
 					ni_addrconf_state_to_name(lease->state),
 					ni_uuid_print(&lease->uuid),
-					optional ? ", optional" : "");
+					buf.string ? buf.string : "none");
+			ni_stringbuf_destroy(&buf);
 		}
 	}
 }
@@ -4244,11 +4245,12 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 		return TRUE;
 	}
 	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
-			"%s: adjusted %s:%s lease to state: %s",
+			"%s: adjusted %s:%s lease to state: %s, flags: 0x%02x",
 			w->name,
 			ni_addrfamily_type_to_name(lease->family),
 			ni_addrconf_type_to_name(lease->type),
-			ni_addrconf_state_to_name(lease->state));
+			ni_addrconf_state_to_name(lease->state),
+			lease->flags);
 	ni_ifworker_print_device_leases(w);
 
 	/* if there are still pending leases -- wait for them	*/
@@ -4266,15 +4268,17 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 			return FALSE;
 
 		/* optional type-goup peer lease -> check peer lease */
-		if ((other = __find_corresponding_lease(dev, lease->family, lease->type))) {
+		other = __find_corresponding_lease(dev, lease->family, lease->type);
+		if (other) {
+			ni_addrconf_flags_format(&buf, other->flags, "|");
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
-					"%s: %s:%s peer lease in state %s [%s]",
+					"%s: %s:%s peer lease in state %s, flags %s",
 					w->name,
 					ni_addrfamily_type_to_name(other->family),
 					ni_addrconf_type_to_name(other->type),
 					ni_addrconf_state_to_name(other->state),
-					ni_addrconf_flags_format(&buf, other->flags, "|"));
-					ni_stringbuf_destroy(&buf);
+					buf.string ? buf.string : "none");
+			ni_stringbuf_destroy(&buf);
 
 			if (other->state != NI_ADDRCONF_STATE_GRANTED)
 				return FALSE;
