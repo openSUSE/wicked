@@ -131,6 +131,8 @@ ni_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
 static void
 __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 {
+	ni_fsm_require_t *req_list;
+
 	if (!w)
 		return;
 
@@ -143,8 +145,9 @@ __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 	}
 	w->fsm.action_table = NULL;
 
-	ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
+	req_list = w->fsm.child_state_req_list;
 	memset(&w->fsm, 0, sizeof(w->fsm));
+	w->fsm.child_state_req_list = req_list;
 }
 
 void
