@@ -126,54 +126,18 @@ rtnl_test_interface_event(ni_netdev_t *dev, ni_event_t event)
 static void
 rtnl_test_interface_addr_event(ni_netdev_t *dev, ni_event_t ev, const ni_address_t *ap)
 {
-	ni_trace("%s[%u]: received interface address event: %s %s",
-		dev->name, dev->link.ifindex, ni_event_type_to_name(ev),
-		ni_sockaddr_print(&ap->local_addr));
+	ni_server_trace_interface_addr_events(dev, ev, ap);
 }
 
 static void
 rtnl_test_interface_prefix_event(ni_netdev_t *dev, ni_event_t ev,const ni_ipv6_ra_pinfo_t *pi)
 {
-	ni_trace("%s[%u]: received interface prefix info event: %s",
-		dev->name, dev->link.ifindex, ni_event_type_to_name(ev));
-
-	ni_trace("%s[%u]: RA<%s>, Prefix %s/%u <%s,%s> lifetime[%u,%u]",
-		dev->name, dev->link.ifindex,
-		(dev->ipv6 && dev->ipv6->radv.managed_addr ? "managed-address" :
-		 (dev->ipv6 && dev->ipv6->radv.other_config ? "other-config" :
-		  "unmanaged")),
-		ni_sockaddr_print(&pi->prefix), pi->length,
-		(pi->on_link ? "onlink" : "not-onlink"),
-		(pi->autoconf ? "autoconf" : "no-autoconf"),
-		pi->lifetime.preferred_lft, pi->lifetime.valid_lft);
+	ni_server_trace_interface_prefix_events(dev, ev, pi);
 }
 
 static void
 rtnl_test_interface_ndopt_event(ni_netdev_t *dev, ni_event_t ev)
 {
-	unsigned int i;
-
-	ni_trace("%s[%u]: received interface nd user opt event: %s",
-		dev->name, dev->link.ifindex, ni_event_type_to_name(ev));
-
-	switch (ev) {
-	case NI_EVENT_RDNSS_UPDATE:
-		if (!ni_netdev_get_ipv6(dev) || !dev->ipv6->radv.rdnss)
-			return;
-
-		ni_trace("%s[%u]: rdnss lifetime %u",
-			dev->name, dev->link.ifindex,
-			dev->ipv6->radv.rdnss->lifetime);
-
-		for (i = 0; i < dev->ipv6->radv.rdnss->addrs.count; ++i) {
-			ni_sockaddr_t *srv = &dev->ipv6->radv.rdnss->addrs.data[i];
-			ni_trace("%s[%u]: rdnss[%u] server %s",
-				dev->name, dev->link.ifindex,
-				i, ni_sockaddr_print(srv));
-		}
-		break;
-	default:
-		break;
-	}
+	ni_server_trace_interface_nduseropt_events(dev, ev);
 }
 
