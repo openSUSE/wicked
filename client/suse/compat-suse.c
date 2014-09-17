@@ -3368,6 +3368,33 @@ __ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 }
 
 static ni_bool_t
+__ni_suse_addrconf_auto6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+
+	if (!dev || !dev->ipv6 || ni_tristate_is_disabled(dev->ipv6->conf.enabled))
+		return FALSE;
+
+	if (compat->auto6.enabled)
+		return TRUE;
+
+	if (ni_tristate_is_disabled(dev->ipv6->conf.autoconf))
+		return FALSE;
+
+	if (ni_tristate_is_enabled(dev->ipv6->conf.forwarding)) {
+		if (dev->ipv6->conf.accept_ra <= NI_IPv6_ACCEPT_RA_HOST)
+			return FALSE;
+	} else {
+		if (dev->ipv6->conf.accept_ra == NI_IPv6_ACCEPT_RA_DISABLED)
+			return FALSE;
+	}
+
+	compat->auto6.enabled = TRUE;
+	ni_addrconf_flag_bit_set(&compat->auto6.flags, NI_ADDRCONF_FLAGS_OPTIONAL, TRUE);
+	return TRUE;
+}
+
+static ni_bool_t
 __ni_suse_addrconf_autoip4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
 {
 	(void)sc;
@@ -3478,6 +3505,10 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	/* static is always included in the "+" variants */
 	__ni_suse_addrconf_static(sc, compat);
+
+	/* auto6 is configured using ifsysctl not ifcfg */
+	__ni_suse_addrconf_auto6(sc, compat);
+
 	return TRUE;
 }
 

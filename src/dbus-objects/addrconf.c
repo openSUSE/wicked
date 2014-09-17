@@ -63,10 +63,11 @@ static dbus_bool_t	ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forw
 					ni_dbus_message_t *reply, DBusError *error);
 
 #define NI_OBJECTMODEL_ADDRCONF_IPV4STATIC_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv4.static"
+#define NI_OBJECTMODEL_ADDRCONF_IPV6STATIC_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv6.static"
 #define NI_OBJECTMODEL_ADDRCONF_IPV4DHCP_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv4.dhcp"
 #define NI_OBJECTMODEL_ADDRCONF_IPV6DHCP_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv6.dhcp"
 #define NI_OBJECTMODEL_ADDRCONF_IPV4AUTO_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv4.auto"
-#define NI_OBJECTMODEL_ADDRCONF_IPV6STATIC_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv6.static"
+#define NI_OBJECTMODEL_ADDRCONF_IPV6AUTO_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv6.auto"
 
 void
 ni_objectmodel_register_addrconf_classes(void)
@@ -140,6 +141,35 @@ __ni_objectmodel_routes_bind_device_name(ni_route_table_t *routes, const char *i
 	}
 	return count > 0;
 }
+
+static dbus_bool_t
+__ni_objectmodel_addrconf_drop_lease(ni_netdev_t *dev, ni_addrconf_mode_t type,
+				unsigned int family, DBusError *error)
+{
+	ni_addrconf_lease_t *lease;
+	int rv;
+
+	lease = ni_addrconf_lease_new(type, family);
+	lease->state = NI_ADDRCONF_STATE_RELEASED;
+
+	rv = __ni_system_interface_update_lease(dev, &lease);
+	if (lease)
+		ni_addrconf_lease_free(lease);
+
+	if (rv < 0 && error) {
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"Error dropping %s:%s lease: %s",
+				ni_addrfamily_type_to_name(family),
+				ni_addrconf_type_to_name(type),
+				ni_strerror(rv));
+		return FALSE;
+	}
+
+	/* Don't return anything */
+	return TRUE;
+}
+
 
 /*
  * Callback from addrconf supplicant whenever it acquired, released or lost a lease.
@@ -359,31 +389,13 @@ static dbus_bool_t
 ni_objectmodel_addrconf_static_drop(ni_dbus_object_t *object, unsigned int addrfamily,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_addrconf_lease_t *lease = NULL;
 	ni_netdev_t *dev;
-	int rv;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	lease = ni_addrconf_lease_new(NI_ADDRCONF_STATIC, addrfamily);
-	lease->state = NI_ADDRCONF_STATE_RELEASED;
-
-	rv = __ni_system_interface_update_lease(dev, &lease);
-	if (lease)
-		ni_addrconf_lease_free(lease);
-
-	if (rv < 0) {
-		dbus_set_error(error,
-				DBUS_ERROR_FAILED,
-				"Error dropping static %s addresses: %s",
-				ni_addrfamily_type_to_name(addrfamily),
-				ni_strerror(rv));
-		return FALSE;
-	}
-
-	/* Don't return anything */
-	return TRUE;
+	return __ni_objectmodel_addrconf_drop_lease(dev,
+			NI_ADDRCONF_STATIC, addrfamily, error);
 }
 
 /*
@@ -472,7 +484,6 @@ ni_objectmodel_addrconf_forward_request(ni_dbus_addrconf_forwarder_t *forwarder,
 	lease->uuid = req_uuid;
 	lease->state = NI_ADDRCONF_STATE_REQUESTING;
 	lease->flags = flags;
-
 	rv = ni_objectmodel_addrconf_forwarder_call(forwarder, dev, "acquire", &req_uuid, dict, error);
 	if (rv) {
 		ni_objectmodel_callback_data_t data = { .lease = lease };
@@ -745,6 +756,77 @@ ni_objectmodel_addrconf_ipv4ll_drop(ni_dbus_object_t *object, const ni_dbus_meth
 	return ni_objectmodel_addrconf_forward_release(&ipv4ll_forwarder, dev, NULL, reply, error);
 }
 
+
+static dbus_bool_t
+ni_objectmodel_addrconf_ipv6_auto_request(ni_dbus_object_t *object,
+			const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_addrconf_lease_t *lease = NULL;
+	const ni_dbus_variant_t *dict;
+	dbus_bool_t enabled;
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0])) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s.%s: expected one dict argument",
+				NI_OBJECTMODEL_ADDRCONF_IPV6AUTO_INTERFACE, method->name);
+		return FALSE;
+	}
+	dict = &argv[0];
+
+	lease = ni_netdev_get_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
+	/* Hmm... do we have to return a callback + info before we drop? */
+	if (!ni_dbus_dict_get_bool(dict, "enabled", &enabled) || !enabled) {
+		return lease ? __ni_objectmodel_addrconf_drop_lease(dev,
+			NI_ADDRCONF_AUTOCONF, AF_INET6, error) : TRUE;
+	}
+
+	if (!lease) {
+		lease = ni_addrconf_lease_new(NI_ADDRCONF_AUTOCONF, AF_INET6);
+		ni_netdev_set_lease(dev, lease);
+	}
+	ni_uuid_generate(&lease->uuid);
+	/* whatever the caller says, we set it optional here ;-) */
+	lease->flags = (1<<NI_ADDRCONF_FLAGS_OPTIONAL);
+	lease->state = NI_ADDRCONF_STATE_REQUESTING;
+
+#if 0
+	/* 
+	 * TODO: currently a dummy reporting "done"
+	 *
+	 * always return a callback: the optional flag ensures,
+	 * that we can even fail [e.g. ipv6 or autoconf disabled]
+	 */
+	{
+		ni_objectmodel_callback_data_t data = { .lease = lease };
+
+		return __ni_objectmodel_return_callback_info(reply,
+			NI_EVENT_ADDRESS_ACQUIRED, &lease->uuid, &data, error);
+	}
+#endif
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_addrconf_ipv6_auto_drop(ni_dbus_object_t *object,
+			const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	return __ni_objectmodel_addrconf_drop_lease(dev,
+			NI_ADDRCONF_AUTOCONF, AF_INET6, error);
+}
+
 /*
  * Generic lease properties
  */
@@ -873,6 +955,24 @@ __ni_objectmodel_addrconf_ipv4ll_set_lease(ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
+__ni_objectmodel_addrconf_ipv6_auto_get_lease(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_get_lease(object, NI_ADDRCONF_AUTOCONF, AF_INET6, result, error);
+}
+
+static dbus_bool_t
+__ni_objectmodel_addrconf_ipv6_auto_set_lease(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_set_lease(object, NI_ADDRCONF_AUTOCONF, AF_INET6, argument, error);
+}
+
+static dbus_bool_t
 __ni_objectmodel_addrconf_ipv6_static_get_lease(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -915,6 +1015,11 @@ static ni_dbus_property_t		ni_objectmodel_addrconf_ipv4ll_properties[] = {
 	{ NULL }
 };
 
+static ni_dbus_property_t		ni_objectmodel_addrconf_ipv6_auto_properties[] = {
+	__NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, lease, __ni_objectmodel_addrconf_ipv6_auto, RO),
+	{ NULL }
+};
+
 /*
  * Addrconf methods
  */
@@ -945,6 +1050,12 @@ static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_dhcp_methods[] = {
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4ll_methods[] = {
 	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv4ll_request },
 	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv4ll_drop },
+	{ NULL }
+};
+
+static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_auto_methods[] = {
+	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv6_auto_request },
+	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv6_auto_drop },
 	{ NULL }
 };
 
@@ -979,4 +1090,10 @@ ni_dbus_service_t			ni_objectmodel_addrconf_ipv4ll_service = {
 	.name		= NI_OBJECTMODEL_ADDRCONF_IPV4AUTO_INTERFACE,
 	.methods	= ni_objectmodel_addrconf_ipv4ll_methods,
 	.properties	= ni_objectmodel_addrconf_ipv4ll_properties,
+};
+
+ni_dbus_service_t			ni_objectmodel_addrconf_ipv6_auto_service = {
+	.name		= NI_OBJECTMODEL_ADDRCONF_IPV6AUTO_INTERFACE,
+	.methods	= ni_objectmodel_addrconf_ipv6_auto_methods,
+	.properties	= ni_objectmodel_addrconf_ipv6_auto_properties,
 };

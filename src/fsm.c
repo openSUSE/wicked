@@ -4263,7 +4263,11 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 		    lease->state == NI_ADDRCONF_STATE_GRANTED)
 			continue;
 
-		/* a not ready, released or failed non-optional lease -> fail */
+		/* ignore any failures for leases marked as optional -> skip */
+		if (ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_OPTIONAL))
+			continue;
+
+		/* a not ready, released or failed non-grouped lease -> fail */
 		if (!ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_GROUP))
 			return FALSE;
 
