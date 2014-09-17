@@ -1089,7 +1089,7 @@ ni_ifworker_generate_default_config(ni_ifworker_t *parent, ni_ifworker_t *child)
 static ni_bool_t
 ni_ifworker_add_child_master(xml_node_t *config, const char *name)
 {
-	xml_node_t *link;
+	xml_node_t *link, *master;
 
 	if (xml_node_is_empty(config) || ni_string_empty(name))
 		return FALSE;
@@ -1099,7 +1099,17 @@ ni_ifworker_add_child_master(xml_node_t *config, const char *name)
 			return FALSE;
 	}
 
-	return !!xml_node_new_element(NI_CLIENT_IFCONFIG_MASTER, link, name);
+	if (!(master = xml_node_get_child(link, NI_CLIENT_IFCONFIG_MASTER))) {
+		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_MASTER, link, name))
+			return FALSE;
+	}
+	else if (!ni_string_eq(master->cdata, name)) {
+		ni_error("Failed adding <master>%s</master> to <link> -"
+			"there is already one <master>%s</master>", name, master->cdata);
+		return FALSE;
+	}
+
+	return TRUE;
 }
 
 static ni_bool_t
