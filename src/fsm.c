@@ -1089,7 +1089,7 @@ ni_ifworker_generate_default_config(ni_ifworker_t *parent, ni_ifworker_t *child)
 static ni_bool_t
 ni_ifworker_add_child_master(xml_node_t *config, const char *name)
 {
-	xml_node_t *link;
+	xml_node_t *link, *master;
 
 	if (xml_node_is_empty(config) || ni_string_empty(name))
 		return FALSE;
@@ -1099,7 +1099,17 @@ ni_ifworker_add_child_master(xml_node_t *config, const char *name)
 			return FALSE;
 	}
 
-	return !!xml_node_new_element(NI_CLIENT_IFCONFIG_MASTER, link, name);
+	if (!(master = xml_node_get_child(link, NI_CLIENT_IFCONFIG_MASTER))) {
+		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_MASTER, link, name))
+			return FALSE;
+	}
+	else if (!ni_string_eq(master->cdata, name)) {
+		ni_error("Failed adding <master>%s</master> to <link> -"
+			"there is already one <master>%s</master>", name, master->cdata);
+		return FALSE;
+	}
+
+	return TRUE;
 }
 
 static ni_bool_t
@@ -1155,11 +1165,6 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 
 	if (xml_node_is_empty(child->config.node))
 		ni_ifworker_generate_default_config(parent, child);
-
-	if (child->masterdev == parent) {
-		if (!ni_ifworker_add_child_master(child->config.node, parent->name))
-			return FALSE;
-	}
 
 	ni_ifworker_array_append(&parent->children, child);
 	return TRUE;
@@ -2841,18 +2846,25 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 				ni_fsm_destroy_worker(fsm, w);
 				i--;
 			}
-			continue;
 		}
 	}
 
-	if (ni_log_facility(NI_TRACE_APPLICATION)) {
-		for (i = 0; i < fsm->workers.count; ++i) {
-			ni_ifworker_t *w = fsm->workers.data[i];
 
+	for (i = 0; i < fsm->workers.count; ++i) {
+		ni_ifworker_t *w = fsm->workers.data[i];
+
+		if (w->masterdev) {
+			if (!ni_ifworker_add_child_master(w->config.node, w->masterdev->name))
+				continue;
+			ni_ifworker_generate_uuid(w);
+		}
+
+		if (ni_log_facility(NI_TRACE_APPLICATION)) {
 			if (!w->lowerdev_for.count && !w->masterdev)
 				__ni_ifworker_print_tree("   +-> ", w, "   |   ");
 		}
 	}
+
 	return 0;
 }
 
@@ -3962,7 +3974,7 @@ ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, u
 	int increment;
 	int rv;
 
-	if (w->fsm.action_table != NULL)
+	if (ni_ifworker_active(w))
 		return 0;
 
 	if (from_state <= target_state)
