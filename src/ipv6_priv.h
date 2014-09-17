@@ -27,4 +27,7 @@ extern void			ni_ipv6_ra_rdnss_reset(ni_ipv6_ra_rdnss_t *);
 extern void			ni_ipv6_ra_rdnss_add_server(ni_ipv6_ra_rdnss_t *,
 							const struct in6_addr *);
 
+extern ni_bool_t		ni_icmpv6_ra_solicit(const ni_netdev_ref_t *,
+							const ni_hwaddr_t *);
+
 #endif /* __IPV6_PRIV_H__ */
