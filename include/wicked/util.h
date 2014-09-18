@@ -204,6 +204,8 @@ extern size_t		ni_format_hex_data(const unsigned char *data, size_t data_len,
 extern ssize_t		ni_parse_hex_data(const char *string, unsigned char *data,
 						size_t data_size, const char *sep);
 extern const char *	ni_format_bitmap(ni_stringbuf_t *, const ni_intmap_t *, unsigned int, const char *);
+extern ni_bool_t	ni_intmap_file_get_name(const char *, unsigned int *, char **);
+extern ni_bool_t	ni_intmap_file_get_value(const char *, unsigned int *, char **);
 
 extern const char *	ni_uuid_print(const ni_uuid_t *);
 extern int		ni_uuid_parse(ni_uuid_t *, const char *);
