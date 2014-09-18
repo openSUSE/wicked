@@ -258,9 +258,10 @@ __ni_leaseinfo_print_routes(FILE *out, const char *prefix,
 	ni_route_table_t *rtp;
 	ni_route_t *rp;
 	unsigned int i;
+	char *name = NULL;
 
 	for (rtp = routes; rtp; rtp = rtp->next) {
-		if (!ni_string_eq(ni_route_table_type_to_name(rtp->tid), "main"))
+		if (!ni_string_eq(ni_route_table_type_to_name(rtp->tid, &name), "main"))
 			continue;
 
 		for (i = 0; i < rtp->routes.count; ++i) {
@@ -289,6 +290,7 @@ __ni_leaseinfo_print_routes(FILE *out, const char *prefix,
 
 	ni_string_array_destroy(&routes_entry_arr);
 	ni_string_array_destroy(&gw_entry_arr);
+	ni_string_free(&name);
 }
 
 static void
