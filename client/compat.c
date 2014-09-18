@@ -1039,11 +1039,15 @@ __ni_compat_generate_static_route(xml_node_t *aconf, const ni_route_t *rp, const
 
 	knode = NULL;
 	if (rp->table != RT_TABLE_UNSPEC && rp->table != RT_TABLE_MAIN) {
-		if (!(ptr = ni_route_table_type_to_name(rp->table)))
-			ptr = ni_sprint_uint(rp->table);
+		char *table_ptr = NULL;
+		if (!(ptr = ni_route_table_type_to_name(rp->table, &table_ptr))) {
+			/* Should not happen. */
+			ni_error("failed to obtain name of routing table %u", rp->table);
+		}
 		if (knode == NULL)
 			knode = xml_node_new("kern", rnode);
 		xml_node_new_element("table", knode, ptr);
+		ni_string_free(&table_ptr);
 	}
 	if (rp->type != RTN_UNSPEC && rp->type != RTN_UNICAST) {
 		if (!(ptr = ni_route_type_type_to_name(rp->type)))
