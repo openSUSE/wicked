@@ -18,6 +18,7 @@
 #include "util_priv.h"
 
 #define NI_ROUTE_ARRAY_CHUNK		16
+#define IPROUTE2_RT_TABLES_FILE		"/etc/iproute2/rt_tables"
 
 
 /*
@@ -545,9 +546,23 @@ ni_route_type_type_to_name(unsigned int type)
 }
 
 const char *
-ni_route_table_type_to_name(unsigned int type)
+ni_route_table_type_to_name(unsigned int type, char **name)
 {
-	return ni_format_uint_maybe_mapped(type, __ni_route_table_names);
+	const char *res = NULL;
+
+	if (!name)
+		return NULL;
+
+	if ((res = ni_format_uint_mapped(type, __ni_route_table_names))) {
+		ni_string_dup(name, res);
+		return *name;
+	}
+
+	if (ni_intmap_file_get_name(IPROUTE2_RT_TABLES_FILE, &type, name))
+		return *name;
+
+	/* Last resort. Convert type to string and return as name */
+	return ni_string_printf(name, "%u", type);
 }
 
 const char *
@@ -599,15 +614,30 @@ ni_bool_t
 ni_route_table_name_to_type(const char *name, unsigned int *table)
 {
 	unsigned int value;
+	char *name_from_file = NULL;
 
 	if (!table || !name)
 		return FALSE;
 
-	if (ni_parse_uint_maybe_mapped(name, __ni_route_table_names, &value, 10) < 0)
-		return FALSE;
+	if (ni_parse_uint_maybe_mapped(name, __ni_route_table_names, &value, 10) != -1) {
+		*table = value;
+		return TRUE;
+	}
 
-	*table = value;
-	return TRUE;
+	ni_string_dup(&name_from_file, name);
+	if (ni_intmap_file_get_value(IPROUTE2_RT_TABLES_FILE, &value, &name_from_file)) {
+		*table = value;
+		ni_string_free(&name_from_file);
+		return TRUE;
+	}
+	ni_string_free(&name_from_file);
+
+	if (ni_parse_uint(name, &value, 10) == 0) {
+		*table = value;
+		return TRUE;
+	}
+
+	return FALSE;
 }
 
 ni_bool_t
