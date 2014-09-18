@@ -415,11 +415,12 @@ ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 		}
 	}
 	if (rp->table != RT_TABLE_UNSPEC) {
-		if ((ptr = ni_route_table_type_to_name(rp->table))) {
+		char *name = NULL;
+		if ((ptr = ni_route_table_type_to_name(rp->table, &name)))
 			ni_stringbuf_printf(out, " table %s", ptr);
-		} else {
+		else
 			ni_stringbuf_printf(out, " table %u", rp->table);
-		}
+		ni_string_free(&name);
 	}
 	if ((ptr = ni_route_scope_type_to_name(rp->scope))) {
 		ni_stringbuf_printf(out, " scope %s", ptr);
