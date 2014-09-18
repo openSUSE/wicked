@@ -2104,6 +2104,7 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 	int ret = 1;
 
 #if 0
+	char *table_name = NULL;
 	ni_debug_ifconfig("RTM_NEWROUTE family=%d dstlen=%u srclen=%u type=%s proto=%s flags=0x%x table=%s scope=%s",
 			rtm->rtm_family,
 			rtm->rtm_dst_len,
@@ -2111,9 +2112,10 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 			ni_route_type_type_to_name(rtm->rtm_type),
 			ni_route_protocol_type_to_name(rtm->rtm_protocol),
 			rtm->rtm_flags,
-			ni_route_table_type_to_name(rtm->rtm_table),
+			ni_route_table_type_to_name(rtm->rtm_table, &table_name),
 			ni_route_scope_type_to_name(rtm->rtm_scope)
 			);
+	ni_string_free(&table_name);
 #endif
 
 	/* filter unwanted / unsupported  msgs */
