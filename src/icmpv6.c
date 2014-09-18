@@ -246,6 +246,8 @@ ni_icmpv6_ra_solicit_send(ni_icmpv6_ra_socket_t *ras)
 	ni_buffer_reset(&ras->sock->wbuf);
 	if (!ni_icmpv6_ra_solicit_build(&ras->sock->wbuf, &ras->hwa)) {
 		ni_buffer_reset(&ras->sock->wbuf);
+		ni_warn("%s[%u]: icmpv6 router solicitation build failure",
+				ras->dev.name, ras->dev.index);
 		return FALSE;
 	}
 
@@ -268,9 +270,15 @@ ni_icmpv6_ra_solicit_send(ni_icmpv6_ra_socket_t *ras)
 	msg.msg_control = cmsgbuf;
 	msg.msg_controllen = CMSG_SPACE(sizeof(*pinfo));
 
-	if (sendmsg(ras->sock->__fd, &msg, 0) == -1)
+	if (sendmsg(ras->sock->__fd, &msg, 0) == -1) {
+		ni_warn("%s[%u]: icmpv6 router solicitation send failure: %m",
+				ras->dev.name, ras->dev.index);
 		return FALSE;
-	return TRUE;
+	} else {
+		ni_info("%s[%u]: icmpv6 router solicitation sent",
+				ras->dev.name, ras->dev.index);
+		return TRUE;
+	}
 }
 
 ni_bool_t
