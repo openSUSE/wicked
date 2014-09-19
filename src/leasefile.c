@@ -64,6 +64,8 @@ __ni_addrconf_lease_xml_new_type_name(unsigned int family, unsigned int type)
 			return NI_ADDRCONF_LEASE_XML_STATIC4_NODE;
 		case NI_ADDRCONF_AUTOCONF:
 			return NI_ADDRCONF_LEASE_XML_AUTO4_NODE;
+		case NI_ADDRCONF_INTRINSIC:
+			return NI_ADDRCONF_LEASE_XML_INTRINSIC4_NODE;
 		default: ;
 		}
 		break;
@@ -75,6 +77,8 @@ __ni_addrconf_lease_xml_new_type_name(unsigned int family, unsigned int type)
 			return NI_ADDRCONF_LEASE_XML_STATIC6_NODE;
 		case NI_ADDRCONF_AUTOCONF:
 			return NI_ADDRCONF_LEASE_XML_AUTO6_NODE;
+		case NI_ADDRCONF_INTRINSIC:
+			return NI_ADDRCONF_LEASE_XML_INTRINSIC6_NODE;
 		default: ;
 		}
 		break;
@@ -483,6 +487,8 @@ ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t **result)
 	node = xml_node_new(NI_ADDRCONF_LEASE_XML_NODE, NULL);
 	switch (lease->type) {
 	case NI_ADDRCONF_STATIC:
+	case NI_ADDRCONF_AUTOCONF:
+	case NI_ADDRCONF_INTRINSIC:
 		if ((ret = __ni_addrconf_lease_info_to_xml(lease, node)) != 0)
 			break;
 
@@ -497,11 +503,6 @@ ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t **result)
 		if ((ret = __ni_addrconf_lease_dhcp_to_xml(lease, node)) != 0)
 			break;
 
-		break;
-
-	case NI_ADDRCONF_AUTOCONF:
-	case NI_ADDRCONF_INTRINSIC:
-		ret = 1;	/* unsupported / skip */
 		break;
 	default: ;		/* fall through error */
 	}
@@ -1029,16 +1030,13 @@ ni_addrconf_lease_from_xml(ni_addrconf_lease_t **leasep, const xml_node_t *root)
 
 	switch (lease->type) {
 	case NI_ADDRCONF_STATIC:
+	case NI_ADDRCONF_AUTOCONF:
+	case NI_ADDRCONF_INTRINSIC:
 		ret = __ni_addrconf_lease_static_from_xml(lease, node);
 		break;
 
 	case NI_ADDRCONF_DHCP:
 		ret = __ni_addrconf_lease_dhcp_from_xml(lease, node);
-		break;
-
-	case NI_ADDRCONF_AUTOCONF:
-	case NI_ADDRCONF_INTRINSIC:
-		ret = 1;	/* unsupported / skip */
 		break;
 	default: ;		/* fall through error */
 	}

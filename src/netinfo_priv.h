@@ -47,7 +47,6 @@ extern void		__ni_netdev_list_destroy(ni_netdev_t **);
 extern ni_addrconf_lease_t *__ni_netdev_find_lease(ni_netdev_t *, unsigned int, ni_addrconf_mode_t, int);
 extern ni_addrconf_lease_t *__ni_netdev_address_to_lease(ni_netdev_t *, const ni_address_t *);
 extern ni_addrconf_lease_t *__ni_netdev_route_to_lease(ni_netdev_t *, const ni_route_t *, unsigned int);
-extern void		__ni_netdev_track_ipv6_autoconf(ni_netdev_t *, int);
 extern unsigned int	__ni_netdev_translate_ifflags(unsigned int, unsigned int);
 extern void		__ni_netdev_process_events(ni_netconfig_t *, ni_netdev_t *, unsigned int);
 extern void		__ni_netdev_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);

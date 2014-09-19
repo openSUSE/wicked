@@ -140,6 +140,11 @@ __ifstatus_of_device_leases(ni_netdev_t *dev, unsigned int *st)
 		if (lease->state == NI_ADDRCONF_STATE_NONE)
 			continue;
 
+		/* skip optional "nice to have leases" */
+		if (ni_addrconf_flag_bit_is_set(lease->flags,
+				NI_ADDRCONF_FLAGS_OPTIONAL))
+			continue;
+
 		if (lease->state == NI_ADDRCONF_STATE_APPLYING ||
 		    lease->state == NI_ADDRCONF_STATE_RELEASING ||
 		    lease->state == NI_ADDRCONF_STATE_REQUESTING) {

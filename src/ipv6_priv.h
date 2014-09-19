@@ -21,10 +21,13 @@ extern ni_ipv6_ra_pinfo_t *	ni_ipv6_ra_pinfo_list_remove(ni_ipv6_ra_pinfo_t **,
 							const ni_ipv6_ra_pinfo_t *);
 
 
-extern ni_ipv6_ra_rdnss_t *	ni_ipv6_ra_rdnss_new(void);
-extern void			ni_ipv6_ra_rdnss_free(ni_ipv6_ra_rdnss_t *);
-extern void			ni_ipv6_ra_rdnss_reset(ni_ipv6_ra_rdnss_t *);
-extern void			ni_ipv6_ra_rdnss_add_server(ni_ipv6_ra_rdnss_t *,
-							const struct in6_addr *);
+extern void			ni_ipv6_ra_rdnss_list_destroy(ni_ipv6_ra_rdnss_t **);
+extern void			ni_ipv6_ra_rdnss_list_update(ni_ipv6_ra_rdnss_t **,
+							const struct in6_addr *,
+							unsigned int lifetime,
+							unsigned int acquired);
+
+extern ni_bool_t		ni_icmpv6_ra_solicit(const ni_netdev_ref_t *,
+							const ni_hwaddr_t *);
 
 #endif /* __IPV6_PRIV_H__ */
