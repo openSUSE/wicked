@@ -733,16 +733,27 @@ ni_netdev_get_lease_by_owner(ni_netdev_t *dev, const char *owner)
  * Given an address, look up the lease owning it
  */
 ni_addrconf_lease_t *
-__ni_netdev_address_to_lease(ni_netdev_t *dev, const ni_address_t *ap)
+__ni_netdev_address_to_lease(ni_netdev_t *dev, const ni_address_t *ap, unsigned int minprio)
 {
 	ni_addrconf_lease_t *lease;
+	ni_addrconf_lease_t *found = NULL;
+	unsigned int prio;
 
 	for (lease = dev->leases; lease; lease = lease->next) {
-		if (__ni_lease_owns_address(lease, ap))
-			return lease;
+		if (ap->family != lease->family)
+			continue;
+
+		if ((prio = ni_addrconf_lease_get_priority(lease)) < minprio)
+			continue;
+
+		if (!__ni_lease_owns_address(lease, ap))
+			continue;
+
+		if (!found || prio > ni_addrconf_lease_get_priority(found))
+			found = lease;
 	}
 
-	return NULL;
+	return found;
 }
 
 ni_bool_t

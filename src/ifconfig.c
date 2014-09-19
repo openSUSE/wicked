@@ -3234,6 +3234,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 	ni_addrconf_mode_t old_type = NI_ADDRCONF_NONE;
 	unsigned int family = AF_UNSPEC;
 	ni_address_t *ap, *next;
+	unsigned int minprio;
 	int rv;
 
 	do {
@@ -3269,6 +3270,8 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 			 * is ours now. */
 			ap->owner = old_type;
 		}
+		minprio = ni_addrconf_lease_get_priority(ni_netdev_get_lease(dev,
+							ap->family, ap->owner));
 
 		/* If the address was managed by us (ie its owned by a lease with
 		 * the same family/addrconf mode), then we want to check whether
@@ -3279,7 +3282,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		if (ap->owner == old_type) {
 			ni_addrconf_lease_t *other;
 
-			if ((other = __ni_netdev_address_to_lease(dev, ap)) != NULL)
+			if ((other = __ni_netdev_address_to_lease(dev, ap, minprio)) != NULL)
 				ap->owner = other->type;
 		}
 
