@@ -252,7 +252,6 @@ __ni_wicked_to_ethtool_bits(const __ni_ethtool_map_t *map, unsigned int mask)
 typedef struct __ni_ioctl_info {
 	int		number;
 	const char *	name;
-	unsigned int	not_supported;
 } __ni_ioctl_info_t;
 
 #ifndef ETHTOOL_GGRO
@@ -284,15 +283,9 @@ static __ni_ioctl_info_t __ethtool_swol = { ETHTOOL_SWOL, "SWOL" };
 static int
 __ni_ethtool_do(const char *ifname, __ni_ioctl_info_t *ioc, void *evp)
 {
-	if (ioc->not_supported) {
-		errno = EOPNOTSUPP;
-		return -1;
-	}
-
 	if (__ni_ethtool(ifname, ioc->number, evp) < 0) {
-		ni_error("%s: ETHTOOL_%s failed: %m", ifname, ioc->name);
-		if (errno == EOPNOTSUPP)
-			ioc->not_supported = 1;
+		if (errno != EOPNOTSUPP)
+			ni_warn("%s: ETHTOOL_%s failed: %m", ifname, ioc->name);
 		return -1;
 	}
 
@@ -592,7 +585,9 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 	memset(&ecmd, 0, sizeof(ecmd));
 	if (__ni_ethtool(ifname, ETHTOOL_GSET, &ecmd) < 0) {
 		if (errno != EOPNOTSUPP)
-			ni_error("%s: ETHTOOL_GSET failed: %m", ifname);
+			ni_warn("%s: ETHTOOL_GSET failed: %m", ifname);
+		else
+			ni_note("%s: ETHTOOL_GSET: %m", ifname);
 		return -1;
 	}
 
@@ -645,7 +640,7 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 		memset(&parm, 0, sizeof(parm));
 		parm.h.size = sizeof(parm.data);
 		if (__ni_ethtool(ifname, ETHTOOL_GPERMADDR, &parm) < 0) {
-			ni_warn("%s: ETHTOOL_GPERMADDR failed", ifname);
+			ni_debug_ifconfig("%s: ETHTOOL_GPERMADDR failed", ifname);
 		} else
 		if (ni_link_address_length(ether->permanent_address.type) == parm.h.size) {
 			ni_link_address_set(&ether->permanent_address,
@@ -663,8 +658,7 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 int
 __ni_system_ethernet_update(ni_netdev_t *dev, const ni_ethernet_t *ether)
 {
-	if (__ni_system_ethernet_set(dev->name, ether) < 0)
-		return -1;
+	__ni_system_ethernet_set(dev->name, ether);
 
 	return __ni_system_ethernet_refresh(dev);
 }
@@ -743,7 +737,9 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 	memset(&ecmd, 0, sizeof(ecmd));
 	if (__ni_ethtool(ifname, ETHTOOL_GSET, &ecmd) < 0) {
 		if (errno != EOPNOTSUPP)
-			ni_error("%s: ETHTOOL_GSET failed: %m", ifname);
+			ni_warn("%s: ETHTOOL_GSET failed: %m", ifname);
+		else
+			ni_note("%s: ETHTOOL_GSET: %m", ifname);
 		return -1;
 	}
 
@@ -804,7 +800,9 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 
 	if (__ni_ethtool(ifname, ETHTOOL_SSET, &ecmd) < 0) {
 		if (errno != EOPNOTSUPP)
-			ni_error("%s: ETHTOOL_SSET failed: %m", ifname);
+			ni_warn("%s: ETHTOOL_GSET failed: %m", ifname);
+		else
+			ni_note("%s: ETHTOOL_GSET: %m", ifname);
 		return -1;
 	}
 
