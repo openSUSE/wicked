@@ -2132,11 +2132,9 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 	rp->family = rtm->rtm_family;
 	rp->type = rtm->rtm_type;
 	rp->table = rtm->rtm_table;
-	/*
 	if (tb[RTA_TABLE] != NULL) {
 		rp->table = nla_get_u32(tb[RTA_TABLE]);
 	}
-	*/
 	rp->scope = rtm->rtm_scope;
 	rp->protocol = rtm->rtm_protocol;
 	rp->flags = rtm->rtm_flags;
