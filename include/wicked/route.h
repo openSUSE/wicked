@@ -100,7 +100,7 @@ extern ni_bool_t		ni_route_equal_destination(const ni_route_t *, const ni_route_
 extern const char *		ni_route_print(ni_stringbuf_t *, const ni_route_t *);
 
 extern const char *		ni_route_type_type_to_name(unsigned int);
-extern const char *		ni_route_table_type_to_name(unsigned int);
+extern const char *		ni_route_table_type_to_name(unsigned int, char **);
 extern const char *		ni_route_scope_type_to_name(unsigned int);
 extern const char *		ni_route_protocol_type_to_name(unsigned int);
 extern const char *		ni_route_flag_bit_to_name(unsigned int);

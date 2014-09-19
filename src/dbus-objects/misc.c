@@ -830,8 +830,15 @@ __ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
 
 	child = ni_dbus_dict_add(dict, "kern");
 	ni_dbus_variant_init_dict(child);
-	if (rp->table)
-		ni_dbus_dict_add_uint32(child, "table", rp->table);
+	if (rp->table) {
+		const char *name = NULL;
+		char *tmp_name = NULL;
+		if ((name = ni_route_table_type_to_name(rp->table, &tmp_name)))
+			ni_dbus_dict_add_string(child, "table", name);
+		else
+			ni_error("failed to obtain name of routing table %u", rp->table);
+		ni_string_free(&tmp_name);
+	}
 	if (rp->type)
 		ni_dbus_dict_add_uint32(child, "type", rp->type);
 	ni_dbus_dict_add_uint32(child, "scope", rp->scope);
@@ -916,6 +923,7 @@ __ni_objectmodel_route_kern_from_dict(ni_route_t *rp, const ni_dbus_variant_t *r
 				ni_bool_t *table_ok, ni_bool_t *scope_ok)
 {
 	uint32_t value;
+	const char *string = NULL;
 
 	if (ni_dbus_dict_get_uint32(rtkern, "type", &value)) {
 		if (!ni_route_is_valid_type(value)) {
@@ -924,8 +932,9 @@ __ni_objectmodel_route_kern_from_dict(ni_route_t *rp, const ni_dbus_variant_t *r
 		}
 		rp->type = value;
 	}
-	if (ni_dbus_dict_get_uint32(rtkern, "table", &value)) {
-		if (!ni_route_is_valid_table(value)) {
+	if (ni_dbus_dict_get_string(rtkern, "table", &string)) {
+		if (!ni_route_table_name_to_type(string, &value) ||
+			!ni_route_is_valid_table(value)) {
 			ni_debug_dbus("%s: invalid route table %u", __func__, value);
 			return FALSE;
 		}

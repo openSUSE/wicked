@@ -158,9 +158,6 @@
 <define name="builtin-route-protocol" type="uint32" constraint="enum">
   <@@ROUTE_PROTOCOL_NAME@@ value="@@ROUTE_PROTOCOL_VALUE@@"/>
 </define>
-<define name="builtin-route-table" type="uint32" constraint="enum">
-  <@@ROUTE_TABLE_NAME@@ value="@@ROUTE_TABLE_VALUE@@"/>
-</define>
 <define name="builtin-route-flag-mask" type="uint32" constraint="bitmap">
   <@@ROUTE_FLAG_NAME@@ bit="@@ROUTE_FLAG_VALUE@@"/>
 </define>
