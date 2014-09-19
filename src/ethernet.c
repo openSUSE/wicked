@@ -587,7 +587,7 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 		if (errno != EOPNOTSUPP)
 			ni_warn("%s: ETHTOOL_GSET failed: %m", ifname);
 		else
-			ni_note("%s: ETHTOOL_GSET: %m", ifname);
+			ni_debug_ifconfig("%s: ETHTOOL_GSET: %m", ifname);
 		return -1;
 	}
 
@@ -739,7 +739,7 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 		if (errno != EOPNOTSUPP)
 			ni_warn("%s: ETHTOOL_GSET failed: %m", ifname);
 		else
-			ni_note("%s: ETHTOOL_GSET: %m", ifname);
+			ni_debug_ifconfig("%s: ETHTOOL_GSET: %m", ifname);
 		return -1;
 	}
 
@@ -802,7 +802,7 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 		if (errno != EOPNOTSUPP)
 			ni_warn("%s: ETHTOOL_GSET failed: %m", ifname);
 		else
-			ni_note("%s: ETHTOOL_GSET: %m", ifname);
+			ni_debug_ifconfig("%s: ETHTOOL_GSET: %m", ifname);
 		return -1;
 	}
 
