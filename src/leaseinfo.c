@@ -68,7 +68,7 @@ static void		__ni_leaseinfo_print_routes(FILE *, const char *,
 static void		__ni_leaseinfo_print_nis(FILE *, const char *,
 					ni_nis_info_t *);
 static void		__ni_leaseinfo_print_resolver(FILE *, const char *,
-					ni_resolver_info_t *);
+					ni_resolver_info_t *, const char *);
 static void		__ni_leaseinfo_print_netbios(FILE *, const char *,
 					const ni_addrconf_lease_t *);
 static void		__ni_leaseinfo_dump(FILE *, const ni_addrconf_lease_t *,
@@ -318,18 +318,52 @@ __ni_leaseinfo_print_nis(FILE *out, const char *prefix, ni_nis_info_t *nis)
 	}
 }
 
+static const char *
+__ni_leaseinfo_qualify_addr(char **qualified, const char *address, const char *ifname)
+{
+	ni_sockaddr_t addr;
+
+	if (ni_sockaddr_parse(&addr, address, AF_UNSPEC))
+		return NULL;
+
+	if (ni_sockaddr_is_ipv6_linklocal(&addr)) {
+		ni_string_printf(qualified, "%s%%%s", address, ifname);
+	} else {
+		ni_string_dup(qualified, address);
+	}
+	return *qualified;
+}
+
+static void
+__ni_leaseinfo_qualify_addrs(ni_string_array_t *out,  const ni_string_array_t *in, const char *ifname)
+{
+	char *qualified = NULL;
+	unsigned int i;
+
+	for (i = 0; i < in->count; ++i) {
+		const char *address = in->data[i];
+		if (__ni_leaseinfo_qualify_addr(&qualified, address, ifname))
+			ni_string_array_append(out, qualified);
+		ni_string_free(&qualified);
+	}
+}
+
 static void
 __ni_leaseinfo_print_resolver(FILE *out, const char *prefix,
-			ni_resolver_info_t *resolver)
+			ni_resolver_info_t *resolver, const char *ifname)
 {
+	ni_string_array_t dns_servers = NI_STRING_ARRAY_INIT;
+
 	if (!resolver)
 		return;
 
 	__ni_leaseinfo_print_string(out, prefix, "DNSDOMAIN",
 				resolver->default_domain, NULL, 0);
 
+	__ni_leaseinfo_qualify_addrs(&dns_servers, &resolver->dns_servers, ifname);
 	__ni_leaseinfo_print_string_array(out, prefix, "DNSSERVERS",
-					&resolver->dns_servers, " ");
+					&dns_servers, " ");
+	ni_string_array_destroy(&dns_servers);
 
 	__ni_leaseinfo_print_string_array(out, prefix, "DNSSEARCH",
 					&resolver->dns_search, " ");
@@ -521,7 +555,6 @@ __ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 
 	__ni_leaseinfo_print_string(out, prefix, "INTERFACE", ifname, "", 0);
 
-#if 0
 	/* wicked specific vars */
 
 	__ni_leaseinfo_print_string(out, prefix, "TYPE",
@@ -530,26 +563,10 @@ __ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 	__ni_leaseinfo_print_string(out, prefix, "FAMILY",
 				ni_addrfamily_type_to_name(lease->family),
 				NULL, 0);
+	__ni_leaseinfo_print_string(out, prefix, "UUID",
+				ni_uuid_print(&lease->uuid), NULL, 0);
 
-	__ni_leaseinfo_print_string(out, prefix, "OWNER", lease->owner, NULL, 0);
-
-	__ni_leaseinfo_print_string(out, prefix, "UUID", ni_uuid_print(&lease->uuid), NULL, 0);
-
-	__ni_leaseinfo_print_string(out, prefix, "STATE",
-				ni_addrconf_state_to_name(lease->state),
-				NULL, 0);
-
-	__ni_leaseinfo_print_string(out, prefix, "TIMEACQUIRED",
-				__ni_leaseinfo_strftime(lease->time_acquired),
-				NULL, 0);
-
-	fprintf(out, "%s='%u'\n", __ni_keyword_format
-		(&key, prefix, "UPDATE", 0),
-		lease->update);
-
-	/* end wicked specific vars */
-
-#endif
+	/* hostname, addrs, routes */
 	__ni_leaseinfo_print_string(out, prefix, "HOSTNAME", lease->hostname,
 				NULL, 0);
 
@@ -561,7 +578,8 @@ __ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 	if (lease->family == AF_INET)
 		__ni_leaseinfo_print_nis(out, prefix, lease->nis);
 
-	__ni_leaseinfo_print_resolver(out, prefix, lease->resolver);
+	/* DNS Servers and Domains */
+	__ni_leaseinfo_print_resolver(out, prefix, lease->resolver, ifname);
 
 	/* NTP Servers */
 	__ni_leaseinfo_print_string_array(out, prefix, "NTPSERVERS",
