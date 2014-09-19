@@ -45,7 +45,7 @@
    </nexthop>
 
    <kern class="dict">
-     <table      type="builtin-route-table"/>
+     <table      type="string"/>
      <type       type="builtin-route-type"/>
      <scope      type="builtin-route-scope"/>
      <protocol   type="builtin-route-protocol"/>

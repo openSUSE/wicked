@@ -72,7 +72,6 @@ static struct generic_map	generic_maps[] = {
 	MAP(ROUTE_TYPE, ni_route_type_type_to_name),
 	MAP(ROUTE_PROTOCOL, ni_route_protocol_type_to_name),
 	MAPN(ROUTE_SCOPE, ni_route_scope_type_to_name, 256),
-	MAPN(ROUTE_TABLE, ni_route_table_type_to_name, 256),
 	MAP(ROUTE_FLAG, ni_route_flag_bit_to_name),
 	MAP(ROUTE_NH_FLAG, ni_route_nh_flag_bit_to_name),
 	MAP(ROUTE_METRICS_LOCK, ni_route_metrics_lock_bit_to_name),

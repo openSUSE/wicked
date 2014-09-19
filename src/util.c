@@ -1419,6 +1419,86 @@ ni_format_bitmap(ni_stringbuf_t *buf, const ni_intmap_t *map,
 	return buf->string;
 }
 
+static ni_bool_t
+ni_intmap_cmp_get_name(unsigned int num, const char *ptr,
+			unsigned int *value, char **name)
+{
+	if (name && value && num == *value) {
+		ni_string_dup(name, ptr);
+		return TRUE;
+	}
+	return FALSE;
+}
+
+static ni_bool_t
+ni_intmap_cmp_get_value(unsigned int num, const char *ptr,
+			unsigned int *value, char **name)
+{
+	if (name && value && ni_string_eq(*name, ptr)) {
+		*value = num;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+static ni_bool_t
+__ni_intmap_file_parse(const char *filename, unsigned int *value, char **name,
+	ni_bool_t (*cmpget)(unsigned int, const char *, unsigned int *, char **))
+{
+	char *ptr, buf[512] = {'\0'};
+	FILE *file;
+	unsigned int num;
+	size_t off;
+
+	if (ni_string_empty(filename))
+		return FALSE;
+
+	if (!(file = fopen(filename, "r")))
+		return FALSE;
+
+	while (fgets(buf, sizeof(buf), file)) {
+		buf[strcspn(buf, "#\n\r")] = '\0';
+		ptr = buf;
+
+		ptr += strspn(ptr, "\t ");
+		if (*ptr == '\0')
+			continue;
+
+		off = strcspn(ptr, "\t ");
+		ptr[off] = '\0';
+		if (ni_parse_uint(ptr, &num, 0) < 0)
+			continue;
+
+		ptr += off + 1;
+		ptr += strspn(ptr, "\t ");
+		off = strcspn(ptr, "\t ");
+		ptr[off] = '\0';
+
+		if (!ni_check_domain_name(ptr, off, 0))
+			continue;
+
+		if(cmpget(num, ptr, value, name)) {
+			fclose(file);
+			return TRUE;
+		}
+
+	}
+	fclose(file);
+	return FALSE;
+}
+
+ni_bool_t
+ni_intmap_file_get_name(const char *filename, unsigned int *value, char **name)
+{
+	return __ni_intmap_file_parse(filename, value, name, ni_intmap_cmp_get_name);
+}
+
+ni_bool_t
+ni_intmap_file_get_value(const char *filename, unsigned int *value, char **name)
+{
+	return __ni_intmap_file_parse(filename, value, name, ni_intmap_cmp_get_value);
+}
+
 /*
  * stringbuf functions
  */
