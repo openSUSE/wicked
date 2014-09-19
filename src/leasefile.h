@@ -39,6 +39,8 @@
 #define NI_ADDRCONF_LEASE_XML_AUTO6_NODE		"ipv6:auto"
 #define NI_ADDRCONF_LEASE_XML_STATIC4_NODE		"ipv4:static"
 #define NI_ADDRCONF_LEASE_XML_STATIC6_NODE		"ipv6:static"
+#define NI_ADDRCONF_LEASE_XML_INTRINSIC4_NODE		"ipv4:intrinsic"
+#define NI_ADDRCONF_LEASE_XML_INTRINSIC6_NODE		"ipv6:intrinsic"
 
 /*
  * common lease data group container nodes

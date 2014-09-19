@@ -53,8 +53,7 @@ __ni_ipv6_ra_info_reset(ni_ipv6_ra_info_t *radv)
 	radv->other_config = FALSE;
 
 	ni_ipv6_ra_pinfo_list_destroy(&radv->pinfo);
-	ni_ipv6_ra_rdnss_free(radv->rdnss);
-	radv->rdnss = NULL;
+	ni_ipv6_ra_rdnss_list_destroy(&radv->rdnss);
 }
 
 /*
@@ -275,38 +274,57 @@ ni_ipv6_ra_pinfo_list_remove(ni_ipv6_ra_pinfo_t **list, const ni_ipv6_ra_pinfo_t
 	return NULL;
 }
 
-ni_ipv6_ra_rdnss_t *
+static ni_ipv6_ra_rdnss_t *
 ni_ipv6_ra_rdnss_new()
 {
 	return xcalloc(1, sizeof(ni_ipv6_ra_rdnss_t));
 }
 
-void
+static void
 ni_ipv6_ra_rdnss_free(ni_ipv6_ra_rdnss_t *rdnss)
 {
-	if (rdnss) {
-		ni_sockaddr_array_destroy(&rdnss->addrs);
-		free(rdnss);
+	free(rdnss);
+}
+
+void
+ni_ipv6_ra_rdnss_list_destroy(ni_ipv6_ra_rdnss_t **list)
+{
+	ni_ipv6_ra_rdnss_t *rdnss;
+
+	while ((rdnss = *list)) {
+		*list = rdnss->next;
+		ni_ipv6_ra_rdnss_free(rdnss);
 	}
 }
 
 void
-ni_ipv6_ra_rdnss_reset(ni_ipv6_ra_rdnss_t *rdnss)
+ni_ipv6_ra_rdnss_list_update(ni_ipv6_ra_rdnss_t **list, const struct in6_addr *ipv6,
+				unsigned int lifetime, unsigned int acquired)
 {
-	if (rdnss) {
-		rdnss->lifetime = 0;
-		ni_sockaddr_array_destroy(&rdnss->addrs);
+	ni_ipv6_ra_rdnss_t *rdnss, **pos;
+	ni_sockaddr_t addr;
+
+	if (!list || !ipv6)
+		return;
+
+	ni_sockaddr_set_ipv6(&addr, *ipv6, 0);
+	for (pos = list; (rdnss = *pos); pos = &rdnss->next) {
+		if (ni_sockaddr_equal(&rdnss->server, &addr)) {
+			if (lifetime) {
+				rdnss->lifetime = lifetime;
+				rdnss->acquired = acquired;
+			} else {
+				*pos = rdnss->next;
+				ni_ipv6_ra_rdnss_free(rdnss);
+			}
+			return;
+		}
 	}
-}
-
-void
-ni_ipv6_ra_rdnss_add_server(ni_ipv6_ra_rdnss_t *rdnss, const struct in6_addr *ipv6)
-{
-	ni_sockaddr_t sockaddr;
-
-	if (rdnss && ipv6) {
-		ni_sockaddr_set_ipv6(&sockaddr, *ipv6, 0);
-		ni_sockaddr_array_append(&rdnss->addrs, &sockaddr);
+	if (lifetime)  {
+		rdnss = *pos = ni_ipv6_ra_rdnss_new();
+		rdnss->server   = addr;
+		rdnss->lifetime = lifetime;
+		rdnss->acquired = acquired;
 	}
 }
 

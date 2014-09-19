@@ -348,6 +348,7 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 	ni_ipv6_devinfo_t *ipv6;
 	ni_ipv6_ra_pinfo_t *pi, *old = NULL;
 	ni_netdev_t *dev;
+	struct timeval now;
 
 	if (!(pfx = ni_rtnl_prefixmsg(h, RTM_NEWPREFIX)))
 		return -1;
@@ -359,6 +360,9 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 	ipv6 = ni_netdev_get_ipv6(dev);
 
 	pi = xcalloc(1, sizeof(*pi));
+	ni_timer_get_time(&now);
+	pi->acquired = now.tv_sec;
+
 	if (__ni_rtnl_parse_newprefix(dev->name, h, pfx, pi) < 0) {
 		free(pi);
 		return -1;
@@ -445,28 +449,28 @@ static int
 __ni_rtevent_process_rdnss_info(ni_netdev_t *dev, const struct nd_opt_hdr *opt,
 				size_t len)
 {
-	const struct ni_nd_opt_rdnss_info_p *rdnss;
+	const struct ni_nd_opt_rdnss_info_p *ropt;
 	const struct in6_addr* addr;
 	ni_ipv6_devinfo_t *ipv6;
+	unsigned int lifetime;
+	struct timeval now;
 
-	if (opt == NULL || len < (sizeof(*rdnss) + sizeof(*addr)))
+	if (opt == NULL || len < (sizeof(*ropt) + sizeof(*addr)))
 		return -1;
 
-	rdnss = (const struct ni_nd_opt_rdnss_info_p *)opt;
+	ropt = (const struct ni_nd_opt_rdnss_info_p *)opt;
 
 	ipv6 = ni_netdev_get_ipv6(dev);
-	if (ipv6->radv.rdnss == NULL)
-		ipv6->radv.rdnss = ni_ipv6_ra_rdnss_new();
-	else
-		ni_ipv6_ra_rdnss_reset(ipv6->radv.rdnss);
 
-	ipv6->radv.rdnss->lifetime = ntohl(rdnss->nd_opt_rdnss_lifetime);
-	len -= sizeof(*rdnss);
-	addr = &rdnss->nd_opt_rdnss_addr[0];
+	ni_timer_get_time(&now);
+	lifetime = ntohl(ropt->nd_opt_rdnss_lifetime);
+	len -= sizeof(*ropt);
+	addr = &ropt->nd_opt_rdnss_addr[0];
 	for ( ; len >= sizeof(*addr); len -= sizeof(*addr), ++addr) {
 		if (IN6_IS_ADDR_LOOPBACK(addr) || IN6_IS_ADDR_UNSPECIFIED(addr))
 			continue;
-		ni_ipv6_ra_rdnss_add_server(ipv6->radv.rdnss, addr);
+		ni_ipv6_ra_rdnss_list_update(&ipv6->radv.rdnss, addr,
+						lifetime, now.tv_sec);
 	}
 	__ni_netdev_nduseropt_event(dev, NI_EVENT_RDNSS_UPDATE);
 	return 0;
@@ -784,22 +788,25 @@ ni_server_trace_interface_nduseropt_events(ni_netdev_t *dev, ni_event_t event)
 
 	switch (event) {
 	case NI_EVENT_RDNSS_UPDATE:
-		if (ipv6 && ipv6->radv.rdnss && ipv6->radv.rdnss->addrs.count) {
-			char lifetime[32] = "infinite";
+		if (ipv6 && ipv6->radv.rdnss) {
+			ni_ipv6_ra_rdnss_t *rdnss;
+			char lifetime[32];
 			const char *rainfo;
-			unsigned int i;
 
 			rainfo = ipv6->radv.managed_addr ? "managed" :
 				 ipv6->radv.other_config ? "config"  : "unmanaged";
-			if (ipv6->radv.rdnss->lifetime != 0xffffffff) {
-				snprintf(lifetime, sizeof(lifetime), "%u",
-						ipv6->radv.rdnss->lifetime);
-			}
-			for (i = 0; i < ipv6->radv.rdnss->addrs.count; ++i) {
+
+			for (rdnss = ipv6->radv.rdnss; rdnss; rdnss = rdnss->next) {
+				if (rdnss->lifetime != 0xffffffff) {
+					snprintf(lifetime, sizeof(lifetime), "%u",
+								rdnss->lifetime);
+				} else {
+					snprintf(lifetime, sizeof(lifetime), "%s",
+								"infinite");
+				}
 				ni_trace("%s: update IPv6 RA<%s> RDNSS<%s>[%s]",
 					dev->name, rainfo,
-					ni_sockaddr_print(&ipv6->radv.rdnss->addrs.data[i]),
-					lifetime);
+					ni_sockaddr_print(&rdnss->server), lifetime);
 			}
 		}
 		break;

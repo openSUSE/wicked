@@ -1838,7 +1838,7 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 	if (ap->owner == NI_ADDRCONF_NONE) {
 		ni_addrconf_lease_t *lease;
 
-		if ((lease = __ni_netdev_address_to_lease(dev, ap)))
+		if ((lease = __ni_netdev_address_to_lease(dev, ap, 0)))
 			ap->owner = lease->type;
 	}
 
