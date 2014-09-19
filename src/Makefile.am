@@ -62,6 +62,7 @@ libwicked_la_SOURCES		= \
 	fsm.c			\
 	fsm-policy.c		\
 	ibft.c			\
+	icmpv6.c		\
 	ifconfig.c		\
 	ifevent.c		\
 	iflist.c		\
