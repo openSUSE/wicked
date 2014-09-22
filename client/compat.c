@@ -925,11 +925,11 @@ __ni_compat_generate_static_route_hops(xml_node_t *rnode, const ni_route_nexthop
 	for (nh = hops; nh; nh = nh->next) {
 		xml_node_t *nhnode;
 
-		if (nh->gateway.ss_family == AF_UNSPEC && !nh->device.name)
+		if (!ni_sockaddr_is_specified(&nh->gateway) && !nh->device.name)
 			continue;
 
-		nhnode = xml_node_new("nexthop", rnode);
-		if (nh->gateway.ss_family != AF_UNSPEC) {
+		nhnode = xml_node_new("nexthop", NULL);
+		if (ni_sockaddr_is_specified(&nh->gateway)) {
 			xml_node_new_element("gateway", nhnode,
 				ni_sockaddr_print(&nh->gateway));
 		}
@@ -939,6 +939,11 @@ __ni_compat_generate_static_route_hops(xml_node_t *rnode, const ni_route_nexthop
 		if (ifname && hops->next && nh->gateway.ss_family == AF_UNSPEC) {
 			xml_node_new_element("device", nhnode, ifname);
 		}
+
+		if (nhnode->children)
+			xml_node_add_child(rnode, nhnode);
+		else
+			xml_node_free(nhnode);
 
 		if (!hops->next)
 			continue;
@@ -967,7 +972,7 @@ __ni_compat_generate_static_route_hops(xml_node_t *rnode, const ni_route_nexthop
 	}
 }
 
-void
+static void
 __ni_compat_generate_static_route_metrics(xml_node_t *mnode, const ni_route_t *rp)
 {
 	ni_string_array_t names = NI_STRING_ARRAY_INIT;
@@ -1021,7 +1026,7 @@ __ni_compat_generate_static_route_metrics(xml_node_t *mnode, const ni_route_t *r
 	}
 }
 
-void
+static void
 __ni_compat_generate_static_route(xml_node_t *aconf, const ni_route_t *rp, const char *ifname)
 {
 	xml_node_t *rnode, *mnode, *knode;
@@ -1110,70 +1115,76 @@ __ni_compat_generate_static_route(xml_node_t *aconf, const ni_route_t *rp, const
 		xml_node_free(mnode);
 }
 
-static xml_node_t *
-__ni_compat_generate_static_address_list(xml_node_t *ifnode, ni_address_t *addr_list, unsigned int af)
+static void
+__ni_compat_generate_static_route_list(xml_node_t *afnode, ni_route_table_t *routes, const char *ifname, unsigned int af)
+{
+	const ni_route_table_t *tab;
+	const ni_route_t *rp;
+	unsigned int i;
+
+	for (tab = routes; tab; tab = tab->next) {
+		for (i = 0; i < tab->routes.count; ++i) {
+			rp = tab->routes.data[i];
+
+			if( !rp || rp->family != af)
+				continue;
+
+			__ni_compat_generate_static_route(afnode, rp, ifname);
+		}
+	}
+}
+
+static void
+__ni_compat_generate_static_address_list(xml_node_t *afnode, ni_address_t *addr_list, unsigned int af)
 {
 	ni_address_t *ap;
-	const char *afname;
-	xml_node_t *aconf = NULL;
-
-	afname = ni_addrfamily_type_to_name(af);
-	if (!afname) {
-		ni_error("%s: unknown address family %u", __func__, af);
-		return NULL;
-	}
+	xml_node_t *anode;
 
 	for (ap = addr_list; ap; ap = ap->next) {
-		xml_node_t *anode;
-
 		if (ap->family != af)
 			continue;
 
-		if (aconf == NULL) {
-			char buffer[64];
-
-			snprintf(buffer, sizeof(buffer), "%s:static", afname);
-			aconf = xml_node_create(ifnode, buffer);
-		}
-
-		anode = xml_node_new("address", aconf);
+		anode = xml_node_new("address", afnode);
 		xml_node_new_element("local", anode, ni_sockaddr_prefix_print(&ap->local_addr, ap->prefixlen));
 
 		if (ap->peer_addr.ss_family != AF_UNSPEC)
 			xml_node_new_element("peer", anode, ni_sockaddr_print(&ap->peer_addr));
 		if (ap->bcast_addr.ss_family != AF_UNSPEC)
 			xml_node_new_element("broadcast", anode, ni_sockaddr_print(&ap->bcast_addr));
-		if (ap->label)
+		if (af == AF_INET && ap->label)
 			xml_node_new_element("label", anode, ap->label);
 	}
-
-	return aconf;
 }
 
 xml_node_t *
 __ni_compat_generate_static_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat,
-		unsigned int family)
+		unsigned int af)
 {
 	const ni_netdev_t *dev = compat->dev;
-	const ni_route_table_t *tab;
-	const ni_route_t *rp;
-	unsigned int i;
-	xml_node_t *aconf;
+	const char *afname;
+	xml_node_t *afnode;
 
-	if ((aconf = __ni_compat_generate_static_address_list(ifnode, dev->addrs, family)) != NULL) {
-		for (tab = dev->routes; tab; tab = tab->next) {
-			for (i = 0; i < tab->routes.count; ++i) {
-				rp = tab->routes.data[i];
+	afname = ni_addrfamily_type_to_name(af);
+	if (afname) {
+		char buffer[64];
 
-				if( !rp || rp->family != family)
-					continue;
-
-				__ni_compat_generate_static_route(aconf, rp, dev->name);
-			}
-		}
+		snprintf(buffer, sizeof(buffer), "%s:static", afname);
+		afnode = xml_node_new(buffer, NULL);
+	} else {
+		ni_error("%s: unknown address family %u", __func__, af);
+		return NULL;
 	}
 
-	return aconf;
+	__ni_compat_generate_static_address_list(afnode, dev->addrs, af);
+	__ni_compat_generate_static_route_list(afnode, dev->routes, dev->name, af);
+
+	if (afnode->children) {
+		xml_node_add_child(ifnode, afnode);
+	} else {
+		xml_node_free(afnode);
+		afnode = NULL;
+	}
+	return afnode;
 }
 
 static xml_node_t *
