@@ -417,7 +417,7 @@ __ni_suse_show_unapplied_routes(void)
 			if (!rp || rp->users >= 2)
 				continue;
 
-			ni_debug_readwrite("discarding route not matching any interface: %s",
+			ni_note("discarding route not matching any interface: %s",
 					ni_route_print(&out, rp));
 			ni_stringbuf_destroy(&out);
 		}
