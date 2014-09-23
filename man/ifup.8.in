@@ -110,10 +110,6 @@ BOOTPROTO=static
 .RS
 You can specify individual routes for every configuration in these files. See
 routes (5) for a detailed description.
-.RE
-.I /etc/sysconfig/network/ifcfg.template
-.RS
-A template for writing ifcfg-* files.
 
 .SH GENERAL VARIABLES
 There are some general settings in the file
