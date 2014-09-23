@@ -98,33 +98,26 @@ What's currently supported
 
 wicked currently supports
 
- -      configuration file backends to parse SUSE style
+ -	configuration file backends to parse SUSE style
 	/etc/sysconfig/network files.
 
- -      an internal configuration backend to represent network
+ -	an internal configuration backend to represent network
 	interface configuration in XML. The syntax evolved out
 	of what netcf uses.
 
- -      bring-up and shutdown of "normal" network interfaces
-        such as Ethernet, Infiniband etc, as well as VLAN,
-        bridges, bonds, tun, tap, dummy, macvlan, macvtap, hsi,
+ -	bring-up and shutdown of "normal" network interfaces
+	such as Ethernet, Infiniband etc, as well as VLAN,
+	bridges, bonds, tun, tap, dummy, macvlan, macvtap, hsi,
 	qeth, iucv and wireless (currently limited to one
 	wpa-psk/eap network) devices.
 
- -      A built-in DHCPv4 client
- -      A built-in DHCPv6 client
+ -	A built-in DHCPv4 client
+ -	A built-in DHCPv6 client
 
- -      There is some experimental code that should help to
-        automatically bring up interfaces as soon as a link
-        is detected.
-
- -      A homegrown XML reader/writer implementation, which is far
-        from being fully standards conforming, but which has a
-        small footprint and seems reasonably fast.
-        This comes along with a (likewise, smallish) partial
-        implementation of XPATH 1.0, which lets you extract
-        information from an XML interface description without
-        having to do any XML parsing yourself.
+ -	The nanny daemon (if enabled) helps to automatically
+	bring up configured interfaces as soon as the device
+	is available (interface hotplugging) and set up IP
+	configuration when a link (carrier) is detected.
 
 
 Where to get the sources/binaries
@@ -188,15 +181,14 @@ Enable wicked using:
         systemctl enable --force wicked
 
 This enables the wicked services, creates the
-network.service -> wicked.service alias link and starts the
-network at the next boot.
+	network.service -> wicked.service
+alias link and causes to start the network at the next boot.
 
-Start the server process (again, as root):
+To manually start the server process (again, as root), use:
 
         systemctl start wickedd.service
 
-which starts wickedd (main server) and associated supplicants in
-debugging mode, printing trace information to syslog:
+which starts wickedd (main server) and associated supplicants:
 
 	/usr/lib/wicked/bin/wickedd-auto4 --systemd --foreground
 	/usr/lib/wicked/bin/wickedd-dhcp4 --systemd --foreground
@@ -208,7 +200,7 @@ You may then bring up the network using:
 
         systemctl start wicked.service
 
-or using the network.service alias:
+also using the network.service alias:
 
         systemctl start network.service
 
@@ -217,7 +209,8 @@ defined in the /etc/wicked/client.xml file.
 
 To enable debugging, you can currently set the WICKED_DEBUG variable
 in /etc/sysconfig/network/config file, e.g. WICKED_DEBUG="all" or
-to omit some, WICKED_DEBUG="all,-dbus,-objectmodel,-xpath,-xml".
+to omit some, WICKED_DEBUG="all,-dbus,-objectmodel,-xpath,-xml"
+before the wickedd service is started.
 
 
 Showing interface status
@@ -232,7 +225,7 @@ You can use the client utility to display interface information (xml):
 Bringing up one interface
 =========================
 
-You can configure interfaces, too. The easiest way is to call:
+You can set up single interfaces, too. The easiest way is to call:
 
         wicked ifup eth0
         wicked ifup wlan0
@@ -256,22 +249,48 @@ Bringing up multiple interfaces
 ===============================
 
 For bonds and bridges, it may make sense to define the entire device
-topology in one file, and bring it up in one go. This particularly
-makes sense for bonding, where you may need to create the slave
-devices first (if they're virtual devices, such as VLANs).
+topology in one file (ifcfg-bondX), and bring it up in one go.
 
 For these, you simply define the device topology in one file, and tell
-wicked to bring up the whole configuration.
+wicked to bring up the whole configuration by specifying the top level
+interface names (of the bridge or bond):
 
-As an example, take a look at samples/suse/host5/ifcfg-bridge42
-This configuration defines an Ethernet Bridge built from one Dummy
-interface. To bring it up, simple call
+	wicked ifup br0
 
-        wicked ifup --ifconfig compat:./samples/suse/host5/ all
+which automatically sets up the bridge and its dependencies in the
+appropriate order without a need to list the dependencies (ports, ...)
+separately.
 
-The client will bring up devices in the appropriate order (ie.
-first create the Dummy interface, then create the bridge and
-add the Dummy interface as a port to the bridge).
+You can also bring up multiple interfaces in one call:
+
+	wicked ifup bond0 br0 br1 br2
+
+or also all interfaces:
+
+	wicked ifup all
+
+As an example, take a look at samples/suse/host5/ directory.
+This configuration defines an Ethernet Bridge (ifcfg-bridge42)
+with a Dummy port (ifcfg-dummy42).
+
+Assuming you copy the files to standard ifcfg config directory
+(that is to /etc/sysconfig/network/), simply call:
+
+	wicked ifup bridge42
+
+and the client will create and bring up the dummy42 first, create
+the bridge and add the dummy interface as a port to the bridge.
+
+
+For testing purposes, you can even use the --ifconfig parameter:
+
+	wicked ifup --ifconfig compat:samples/suse/host5 bridge42
+
+which will bring up the bridge using the config files directly
+from the sample directory, but please note: --ifconfig parameter
+list disables (overrides) the default configuration search path
+and all following commands like "wicked ifstatus" have to use
+the same --ifconfig parameter list.
 
 
 Handling incremental changes
