@@ -319,7 +319,7 @@ Michal Ludvig -- tunneling
 Pawel Wieczorkiewicz -- wicked
 .fi
 .SH "SEE ALSO"
-.BR /etc/sysconfig/network/ifcfg.template ,
+.BR ifcfg-dhcp (5),
 .BR ifcfg-bonding (5),
 .BR ifcfg-tunnel (5),
 .BR ifcfg-vlan (5),
