@@ -12,10 +12,8 @@ ifcfg-wireless \- wireless LAN network interface configuration
 .SH GENERAL
 Wireless networks need some additional configuration data compared to ethernet
 ones. Therefore additional variables for ifcfg files were introduced.
-All wireless LAN specific variables are described in the ifcfg template file
-/etc/sysconfig/network/ifcfg.template. Some wireless variables
-are not applicable to a single wireless network but are global to the
-interface. The description of the variable points this out.
+Some wireless variables are not applicable to a single wireless network but are
+global to the interface. The description of the variable points this out.
 
 .SH OPTIONS
 .TP
