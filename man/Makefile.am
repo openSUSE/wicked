@@ -26,6 +26,7 @@ generated			= \
 	ifcfg-vlan.5		\
 	ifcfg-wireless.5	\
 	ifcfg.5			\
+	ifcfg-dhcp.5		\
 	ifroute.5		\
 	ifsysctl.5		\
 	ifdown.8		\

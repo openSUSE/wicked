@@ -308,6 +308,7 @@ fi
 %_mandir/man5/ifcfg-vlan.5*
 %_mandir/man5/ifcfg-wireless.5*
 %_mandir/man5/ifcfg.5*
+%_mandir/man5/ifcfg-dhcp.5*
 %_mandir/man5/ifroute.5*
 %_mandir/man5/ifsysctl.5*
 %_mandir/man5/routes.5*
