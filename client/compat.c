@@ -55,9 +55,6 @@
 /* Helper functions */
 static const char *	ni_sprint_uint(unsigned int value);
 static const char *	ni_sprint_timeout(unsigned int timeout);
-static xml_node_t *	xml_node_create(xml_node_t *, const char *);
-static void		xml_node_dict_set(xml_node_t *, const char *, const char *);
-
 /*
  * Compat ifconfig handling functions
  */
@@ -1559,31 +1556,6 @@ ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t 
 	}
 
 	return i;
-}
-
-/*
- * XML helper functions
- */
-static xml_node_t *
-xml_node_create(xml_node_t *parent, const char *name)
-{
-	xml_node_t *child;
-
-	if ((child = xml_node_get_child(parent, name)) == NULL)
-		child = xml_node_new(name, parent);
-	return child;
-}
-
-static void
-xml_node_dict_set(xml_node_t *parent, const char *name, const char *value)
-{
-	xml_node_t *child;
-
-	if (!value || !*value)
-		return;
-
-	child = xml_node_create(parent, name);
-	xml_node_set_cdata(child, value);
 }
 
 /*

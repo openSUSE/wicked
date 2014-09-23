@@ -159,6 +159,9 @@ extern void		xml_node_array_append(xml_node_array_t *, xml_node_t *);
 extern xml_node_array_t *xml_node_array_new(void);
 extern void		xml_node_array_free(xml_node_array_t *);
 
+extern xml_node_t*	xml_node_create(xml_node_t *, const char *);
+extern void		xml_node_dict_set(xml_node_t *, const char *, const char *);
+
 /*
  * Static inline functions
  */
