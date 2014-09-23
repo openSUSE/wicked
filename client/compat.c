@@ -43,6 +43,7 @@
 #include <wicked/xml.h>
 #include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
+#include <wicked/util.h>
 #include "wicked-client.h"
 #include <netlink/netlink.h>
 #include <sys/param.h>
@@ -51,10 +52,6 @@
 #include "appconfig.h"
 #include "util_priv.h"
 
-
-/* Helper functions */
-static const char *	ni_sprint_uint(unsigned int value);
-static const char *	ni_sprint_timeout(unsigned int timeout);
 /*
  * Compat ifconfig handling functions
  */
@@ -1556,24 +1553,4 @@ ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t 
 	}
 
 	return i;
-}
-
-/*
- * Helper function - should go to util.c
- */
-const char *
-ni_sprint_uint(unsigned int value)
-{
-	static char buffer[64];
-
-	snprintf(buffer, sizeof(buffer), "%u", value);
-	return buffer;
-}
-
-static const char *
-ni_sprint_timeout(unsigned int timeout)
-{
-	if (timeout == NI_IFWORKER_INFINITE_TIMEOUT)
-		return "infinite";
-	return ni_sprint_uint(timeout);
 }

@@ -349,6 +349,8 @@ extern ni_bool_t	ni_string_ishex(const char *);
 extern int		ni_string_remove_char(char *, int);
 
 extern char *		ni_sprint_hex(const unsigned char *, size_t);
+extern const char *	ni_sprint_uint(unsigned int);
+extern const char *	ni_sprint_timeout(unsigned int);
 
 /*
  * When we allocate temporary resources (such as tempfiles)

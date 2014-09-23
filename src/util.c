@@ -22,6 +22,7 @@
 #include <wicked/util.h>
 #include <wicked/logging.h>
 #include <wicked/netinfo.h> /* only for CONFIG_WICKED_STATEDIR */
+#include <wicked/fsm.h> /* for NI_IFWORKER_INFINITE_TIMEOUT */
 #include "util_priv.h"
 
 #define NI_STRING_ARRAY_CHUNK	16
@@ -1055,6 +1056,24 @@ ni_sprint_hex(const unsigned char *data, size_t len)
 
 	return buffer;
 }
+
+const char *
+ni_sprint_uint(unsigned int value)
+{
+	static char buffer[64];
+
+	snprintf(buffer, sizeof(buffer), "%u", value);
+	return buffer;
+}
+
+const char *
+ni_sprint_timeout(unsigned int timeout)
+{
+	if (timeout == NI_IFWORKER_INFINITE_TIMEOUT)
+		return "infinite";
+	return ni_sprint_uint(timeout);
+}
+
 
 int
 ni_parse_long(const char *input, long *result, int base)
