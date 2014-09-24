@@ -2821,7 +2821,7 @@ ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
  * eth interface needs to come up before any of the VLANs that reference
  * it.
  */
-static void		__ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *, const char *);
+static void		__ni_ifworker_print(const ni_ifworker_t *, unsigned int);
 
 int
 ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
@@ -2849,6 +2849,8 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 		}
 	}
 
+	if (ni_log_facility(NI_TRACE_APPLICATION))
+		ni_debug_application("Device hierarchy structure:");
 
 	for (i = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
@@ -2861,7 +2863,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 
 		if (ni_log_facility(NI_TRACE_APPLICATION)) {
 			if (!w->lowerdev_for.count && !w->masterdev)
-				__ni_ifworker_print_tree("   +-> ", w, "   |   ");
+				__ni_ifworker_print(w, 0);
 		}
 	}
 
@@ -2962,29 +2964,28 @@ ni_ifworker_prompt_later_cb(xml_node_t *node, const ni_xs_type_t *xs_type, const
 }
 
 static void
-__ni_ifworker_print_tree(const char *arrow, const ni_ifworker_t *w, const char *branches)
+__ni_ifworker_print(const ni_ifworker_t *w, unsigned int depth)
 {
-	if (w->children.count == 0) {
-		ni_debug_application("%s%s", arrow, w->name);
-	} else {
-		char buffer[128];
-		unsigned int i;
+	unsigned int i;
 
-		ni_debug_application("%s%-10s", arrow, w->name);
+	if (!w)
+		return;
 
-		snprintf(buffer, sizeof(buffer), "%s%10s  |   ", branches, "");
+	if (!depth) {
+		ni_debug_application("%s", w->name);
+		depth+=3;
+	}
+	for (i = 0; i < w->children.count; i++) {
+		ni_ifworker_t *child = w->children.data[i];
 
-		arrow = " +--> ";
-		for (i = 0; i < w->children.count; ++i) {
-			ni_ifworker_t *child = w->children.data[i];
+		if (child->masterdev == w)
+			ni_debug_application("%*s %s", depth, "*--", child->name);
+		else if (w->lowerdev == child)
+			ni_debug_application("%*s %s", depth, "+--", child->name);
+		else
+			ni_debug_application("%*s %s", depth, "   ", child->name);
 
-			if (i != 0) {
-				ni_debug_application("%s%10s", branches, "");
-				if (i == w->children.count - 1)
-					arrow = " \\--> ";
-			}
-			__ni_ifworker_print_tree(arrow, child, buffer);
-		}
+		__ni_ifworker_print(child, depth+4);
 	}
 }
 
