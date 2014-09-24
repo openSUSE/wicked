@@ -4201,6 +4201,40 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 	return nrequested;
 }
 
+/* Workaround implementing temporarly missing auto6 wait */
+void
+ni_fsm_wait_tentative_addrs(ni_fsm_t *fsm)
+{
+	unsigned int i;
+
+	if (!fsm)
+		return;
+
+	if (!ni_fsm_refresh_state(fsm))
+		return;
+
+	for (i = 0; i < fsm->workers.count; i++) {
+		ni_ifworker_t *w = fsm->workers.data[i];
+		ni_address_t *ap;
+
+		if (!w->kickstarted || !w->done)
+			continue;
+
+		if(!w->device)
+			continue;
+
+		for (ap = w->device->addrs; ap; ap = ap->next) {
+			if (ap->family == AF_INET6 && ni_address_is_tentative(ap)) {
+				usleep(250000);
+				if (!ni_fsm_refresh_state(fsm))
+					return;
+				i--;
+				break;
+			}
+		}
+	}
+}
+
 static inline ni_addrconf_lease_t *
 __find_corresponding_lease(ni_netdev_t *dev, sa_family_t family, unsigned int type)
 {

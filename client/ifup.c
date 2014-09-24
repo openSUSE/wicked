@@ -623,6 +623,8 @@ usage:
 	/* Wait for device up-transition progress events */
 	ni_nanny_fsm_monitor_run(monitor, &ifmarked, status);
 
+	ni_fsm_wait_tentative_addrs(fsm);
+
 	status = ni_ifstatus_display_result(fsm, &ifnames, &ifmarked,
 		opt_transient);
 
@@ -896,6 +898,8 @@ usage:
 	} else {
 		if (ni_fsm_schedule(fsm) != 0)
 			ni_fsm_mainloop(fsm);
+
+		ni_fsm_wait_tentative_addrs(fsm);
 
 		status = ni_ifstatus_display_result(fsm, &ifnames, &ifmarked,
 			opt_transient);
