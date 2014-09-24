@@ -752,3 +752,25 @@ xml_node_array_append(xml_node_array_t *array, xml_node_t *node)
 
 	array->data[array->count++] = xml_node_clone_ref(node);
 }
+
+xml_node_t *
+xml_node_create(xml_node_t *parent, const char *name)
+{
+	xml_node_t *child;
+
+	if ((child = xml_node_get_child(parent, name)) == NULL)
+		child = xml_node_new(name, parent);
+	return child;
+}
+
+void
+xml_node_dict_set(xml_node_t *parent, const char *name, const char *value)
+{
+	xml_node_t *child;
+
+	if (!value || !*value)
+		return;
+
+	child = xml_node_create(parent, name);
+	xml_node_set_cdata(child, value);
+}
