@@ -1,0 +1,189 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\"
+.TH IFCFG-DHCP 5 "September 2014" "wicked" "Network configuration"
+.\" ...
+
+.SH NAME
+ifcfg-dhcp \- common DHCPv4 and DHCPv6 elements of network interface configuration
+.SH SYNOPSIS
+.B /etc/sysconfig/network/dhcp
+.br
+.B /etc/sysconfig/network/ifcfg-*
+.SH VARIABLES
+The following is a list of DHCPv4 and DHCPv6 related variables that are globally
+configured in \fB/etc/sysconfig/network/dhcp\fR. When appropriate, examples are
+given in parentheses, and default values will either be explicity mentioned, or
+will be marked by a "*". Please note, that to override any of the variables for
+a specific interface, simply redefine the variable in the appropriate ifcfg-
+file.
+.SH DHVPv4 Specific Variables
+.TP
+.BR DHCLIENT_SET_HOSTNAME\  { yes | no* }
+Should the DHCPv4 client set the hostname?
+When it is likely that this would occur during a running X session,
+your DISPLAY variable could be screwed up and you won't be able to open
+new windows anymore, then this should be "no".
+If it happens during booting it won't be a problem and you can
+safely say "yes" here. For a roaming notebook with X kept running, "no"
+makes more sense.
+.TP
+.BR DHCLIENT_HOSTNAME_OPTION\  { "AUTO"* | }
+Specifies the hostname option field when DHCPv4 client sends messages.
+Some DHCP servers will update nameserver entries (dynamic DNS) to it.
+Also, some DHCP servers, notably those used by @Home Networks, require
+the hostname option field containing a specific string in the DHCP
+messages from clients.
+When set to "AUTO", the current hostname from /etc/hostname is sent.
+Use this variable to override it with another hostname, or leave it
+empty to not send any hostname.
+.TP
+.BR DHCLIENT_SET_DEFAULT_ROUTE\  { yes* | no }
+Should the DHCP client set a default route (default Gateway)?
+When multiple copies of DHCP clients run, it would make sense that only
+one of them does it. 
+.TP
+.BR DHCLIENT_ROUTE_PRIORITY
+This option allows to set a metric/priority for DHCPv4 routes. Default is 0.
+.TP
+.BR DHCLIENT_CLIENT_ID
+Specifies a client identifier string. By default an id derived from the
+hardware address of the network interface is sent as client identifier.
+.TP
+.BR DHCLIENT_VENDOR_CLASS_ID
+Specifies the vendor class identifier string. The default is DHCP client
+specific.
+.TP
+.BR DHCLIENT_LEASE_TIME
+Specifies the lease time (in seconds), that is suggested to the server. Default
+is unset which means to use the lease time offered by the server.
+.TP
+.BR DHCLIENT_USE_LAST_LEASE\  { yes* | no }
+This setting controls whether the DHCP client should try to use DHCP settings
+provided in its last lease when the DHCP-server is not reachable and
+the lease hasn't expired yet.
+Set this variable to "no" to disable the fallback to the last lease.
+.TP
+.BR DHCLIENT_RELEASE_BEFORE_QUIT\  { yes | no* }
+Send a DHCPRELEASE to the server (sign off the address)?
+This may lead to getting a different address/hostname next time an address
+is requested. But some servers require it.
+.TP
+.BR DHCLIENT_SLEEP
+Some interfaces need time to initialize and/or do not report correct status.
+Add the latency time in seconds so these can be handled properly. Should
+probably set per interface rather than here.
+This setting causes a sleep time before DHCP clients are started regardless
+of the link status.
+Note: RFC 2131 specifies, that the DHCP client should wait a random time
+between one and ten seconds to desynchronize the use of DHCP at startup.
+We do not use this initial delay to not slow down start/boot time. By default,
+this is set to 0.
+.TP
+.BR DHCLIENT_WAIT_AT_BOOT
+The DHCP client will try to get a lease for DHCLIENT_WAIT_AT_BOOT seconds,
+then inform the waiting ifup, that it continues in background.
+When you increase this time, increase also the WAIT_FOR_INTERFACES variable
+e.g. to a value twice as high as the time specified here.
+Default is 15 seconds.
+.TP
+.BR DHCLIENT_TIMEOUT
+The DHCP client will stop processing / fail after this time when it does
+not get a reply from the DHCP server. Before you set this variable, take a
+look at DHCLIENT_WAIT_AT_BOOT allowing to continue in background instead.
+Default value is 0.
+
+.SH DHCPv6 Specific Variables
+.TP
+.BR DHCLIENT6_MODE\  { auto* | info | managed }
+This option allows to specify the request mode used by the DHCPv6
+client when the BOOTPROTO is set to dhcp or dhcp6, and overrides
+the "Managed Address Configuration" and the "Other Configuration"
+flags provided by the IPv6 router its Router Advertisement (RA)
+for the network connected to this interface.
+.RS
+.PD 0
+.TP
+.B auto
+.br
+Follow RA flags, remain silent when no RA flag is set.
+.TP
+.B info
+.br
+Request other configuration (dns,ntp) only, no IP address.
+.TP
+.B managed
+.br
+Request IP address as well as other configuration.
+.PD
+.RE
+.TP
+.BR DHCLIENT6_RAPID_COMMIT\  { yes* | no }
+This option allows the DHCPv6 client to indicate its desire to accept
+rapid commit leases using two-packet exchange (solicitation, lease ack)
+instead of the four packet (solicitation, offer, request, lease ack).
+.TP
+.BR DHCLIENT6_SET_HOSTNAME\  { yes | no* }
+Should the DHCPv6 client set the hostname?
+When it is likely that this would occur during a running X session,
+your DISPLAY variable could be screwed up and you won't be able to
+open new windows anymore, then this should be "no".
+If it happens during booting it won't be a problem and you can
+safely say "yes" here. For a roaming notebook with X kept running,
+"no" makes more sense.
+.TP
+.BR DHCLIENT6_HOSTNAME_OPTION\  { "AUTO"* | }
+ Specifies the hostname option field when DHCPv6 client sends messages.
+ Some DHCP servers will update nameserver entries (dynamic DNS) to it.
+ When set to "AUTO", the current hostname from /etc/hostname is sent.
+ Use this variable to override it with another hostname, or leave it
+ empty to not send any hostname.
+.TP
+.BR DHCLIENT6_LEASE_TIME
+ Specifies the preferred lifetime (in seconds) used as T1/renewal
+ (1/2 of it) and T1/rebind (4/5 of it) in DHCPv6 IA NA requests.
+ Default is to not propose anything but use the times as offered
+ by the DHCPv6 server.
+.TP
+.BR DHCLIENT6_USE_LAST_LEASE\  { yes* | no }
+This setting controls whether DHCPv6 client should try to use settings
+provided in its last lease when the DHCPv6-server is not reachable and
+the lease hasn't expired yet.
+Set this variable to "no" to disable the fallback to the last lease.
+.TP
+.BR DHCLIENT6_RELEASE_BEFORE_QUIT\  { yes | no* }
+Send a DHCPv6 RELEASE to the server (sign off the address)?
+This may lead to getting a different address/hostname next time an address
+is requested. But some servers require it.
+.TP
+.BR DHCLIENT6_SLEEP
+Some interfaces need time to initialize and/or do not report correct status.
+By default, DHCPv6 waits until the link-local address (fe80::) is available
+and then ~1 second as specified by RFC3315.
+This setting allows override to use a non-standsrd initial delay. Default
+is 0.
+.TP
+.BR DHCLIENT6_WAIT_AT_BOOT
+The DHCPv6 client will try to get a lease for DHCLIENT6_WAIT_AT_BOOT seconds,
+then inform the waiting ifup, that it continues in background.
+When you increase this time, increase also the WAIT_FOR_INTERFACES variable
+e.g. to a value twice as high as the time specified here.
+Default is 15 seconds.
+.TP
+.BR DHCLIENT6_TIMEOUT
+The DHCPv6 client will stop processing / fail after this time when it does
+not get a reply from the DHCPv6 server. Before you set this variable, take a
+look at DHCLIENT6_WAIT_AT_BOOT allowing to continue in background instead.
+.TP
+
+.SH COPYRIGHT
+Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+.SH BUGS
+Please report bugs at <https://bugzilla.novell.com/index.cgi>
+.SH AUTHOR
+.nf
+Marius Tomaschewski -- wicked
+.fi
+.SH "SEE ALSO"
+.BR /etc/sysconfig/network/dhcp,
+.BR wicked (8).
