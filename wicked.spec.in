@@ -208,6 +208,7 @@ popd
 %if %{with systemd}
 
 %pre service
+# upgrade from sysconfig[-network] scripts
 _id=`/usr/bin/systemctl --no-pager -p Id show network.service 2>/dev/null` || :
 if test "x${_id#Id=}" = "xnetwork.service" -a -x /etc/init.d/network ; then
 	/etc/init.d/network stop-all-dhcp-clients || :
@@ -228,13 +229,13 @@ esac
 
 %preun service
 # stop the daemons on removal
-%{service_del_preun wickedd.service}
-%{service_del_preun wickedd-auto4.service}
-%{service_del_preun wickedd-dhcp4.service}
-%{service_del_preun wickedd-dhcp6.service}
-%{service_del_preun wickedd-nanny.service}
+# - stopping wickedd should be sufficient ... other just to be sure.
+# - stopping of the wicked.service does not stop network, but removes
+#   the wicked.service --> network.service link and resets its status.
+%{service_del_preun wickedd.service wickedd-auto4.service wickedd-dhcp4.service wickedd-dhcp6.service wickedd-nanny.service wicked.service}
 
 %postun service
+# restart wickedd after upgrade
 %{service_del_postun wickedd.service}
 
 %else
@@ -263,6 +264,14 @@ fi
 
 %post
 %{fillup_only -dns config wicked network}
+# reload dbus after install or upgrade to apply new policies
+/usr/bin/systemctl reload dbus.service 2>/dev/null || :
+
+%postun
+# reload dbus after uninstall, our policies are gone again
+if [ ${FIRST_ARG:-$1} -eq 0 ]; then
+	/usr/bin/systemctl reload dbus.service 2>/dev/null || :
+fi
 
 %files
 %defattr (-,root,root)
