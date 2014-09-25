@@ -13,6 +13,34 @@ via netlink, sysfs and other interfaces.
 It can be accessed via a DBus service, which can be used to reconfigure
 interfaces, bring them up or take them down.
 .\" ----------------------------------------
+.SH COMPONENTS
+.TP
+Additionally to the main \fBwickedd\fR daemon, \fBwicked\fR framework provides several helper daemons and supplicants:
+.PP
+.TS
+box;
+l|l
+lb|lb.
+Component	Description
+=
+wickedd-nanny	Event driven policy daemon responsible for hotplugging.
+wickedd-dhcp6	DHCPv6 client supplicant
+wickedd-dhcp4	DHCPv4 client supplicant
+wickedd-auto4	IPv6 autoip supplicant
+.TE
+.PP
+Further, it communicates also with external supplicants:
+.TS
+box;
+l|l
+lb|lb.
+Supplicant	Description
+=
+wpa-supplicant	Wireless (WPA) support
+.TE
+.\" modem-manager	modem support
+.PP
+.\" ----------------------------------------
 .SH OPTIONS
 .TP
 \fB\-\-help\fP

@@ -106,6 +106,33 @@ The default is to use \fB@wicked_storedir@\fP, mode \fB0755\fP.
 .fi
 .PP
 .\" --------------------------------------------------------
+.SS Nanny enablement
+.TP
+.B use-nanny
+This element controls whether the client will try to apply configuration
+changes immediately (one shot ifup), or whether it will forward the
+configuration to \fBnanny\fP.
+.IP
+When applying an interface configuration immediately to \fBwickedd\fR, it may
+fail or not complete in the specified time for a variety of transient reasons,
+such as an Ethernet cable not being plugged in.
+.IP
+When managing an interface through \fBnanny\fP, the configuration will be
+applied to \fBnanny\fP, which will apply it to \fBwickedd\fR when certain
+conditions are met such as when the device appears (interface hotplugging)
+or continue with IP setup, when the link detection was successful for a
+device.
+Nanny will also reapply the configurations to \fBwickedd\fR after restart
+(e.g. update) and trigger lease confirmations.
+.IP
+The \fB<use-nanny>\fP element controls the default behavior. When set to
+\fBtrue\fP, \fBwicked\fP will manage all interfaces through \fBnanny\fP.
+If set to \fBfalse\fP, all interface changes will be applied directly.
+The default value is \fBfalse\fP.
+.IP
+To enable \fBnanny\fP at installation time, use the \fBnanny=1\fP installer
+(linuxrc) boot parameter.
+.\" --------------------------------------------------------
 .SS Miscellaneous
 .TP
 .B debug
@@ -147,24 +174,6 @@ Here's what the default configuration looks like:
 .\" --------------------------------------------------------
 .SH CLIENT ONLY OPTIONS
 .TP
-.B use-nanny
-This element controls whether the client will try to apply configuration
-changes immediately, or whether it will forward the configuration to
-\fBnanny\fP. When applying an interface configuration immediately, that
-may fail for a variety of transient reasons, such as an Ethernet cable
-not being plugged in. When managing an interface through \fBnanny\fP,
-the configuration will not be applied unless certain conditions are
-met (such as link detection being successful for an Ethernet NIC).
-.IP
-The exact set of conditions depends on the type of interface, and are
-defined by \fBwicked\fP when forwarding the configuration to \fBnanny\fP.
-.IP
-The \fB<use-nanny>\fP element controls the default behavior. When set to
-\fBtrue\fP, \fBwicked\fP will manage all interfaces through \fBnanny\fP. If
-set to \fBfalse\fP, all interface changes will be applied directly.
-.IP
-The default value is \fBfalse\fP.
-.TP
 .B sources
 This specifies a list of sources that the \fBwicked\fP client will pick
 up interface configurations from, and their load order. Child elements
@@ -180,9 +189,9 @@ l|l
 lb|lb.
 Type	Description
 =
-wicked	Load interface description using native wicked XML
 firmware	Get configuration from firmware, usually iBFT
 compat	Load interface description using legacy ifcfg files
+wicked	Load interface description using native wicked XML
 .TE
 .PP
 .IP
@@ -236,9 +245,9 @@ Name	Description
 =
 default-route	system default route (IPv4 or IPv6)
 hostname	system hostname
-dns	update resolv.conf
-nis	NIS client (not implemented)
-ntp	NTP servers (not implemented)
+dns	update resolv.conf or dns server (via netconfig)
+nis	NIS client (via netconfig)
+ntp	NTP servers (via netconfig)
 smb	SMB client (not implemented)
 slp	SLP client (not implemented)
 log	syslog servers (not implemented)
@@ -403,6 +412,10 @@ to the third if not:
 Specify the list of system services that \fBwicked\fP will configure based
 on the DHCP lease received. For the syntax of this element, please refer
 to the description of \fBdefault-allow-update\fP above.
+.B Note:
+The DHCPv6 protocol does not define any routing options, which are applied
+by IPv6 Router Advertisement (RA) or require static configuration.
+The current NIS / ypbind implementation does supported IPv6 at all.
 .PP
 .\" --------------------------------------------------------
 .SH EXTENSIONS
