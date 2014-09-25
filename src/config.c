@@ -45,6 +45,9 @@ static ni_bool_t	ni_config_parse_sources(ni_config_t *, xml_node_t *);
 static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
 static const char *	ni_config_build_include(const char *, const char *);
 static unsigned int	ni_config_addrconf_update_mask_all(void);
+static unsigned int	ni_config_addrconf_update_mask_dhcp4(void);
+static unsigned int	ni_config_addrconf_update_mask_dhcp6(void);
+static unsigned int	ni_config_addrconf_update_mask_auto4(void);
 
 /*
  * Create an empty config object
@@ -57,9 +60,9 @@ ni_config_new()
 	conf = xcalloc(1, sizeof(*conf));
 
 	conf->addrconf.default_allow_update = ni_config_addrconf_update_mask_all();
-	conf->addrconf.dhcp4.allow_update   = conf->addrconf.default_allow_update;
-	conf->addrconf.dhcp6.allow_update   = conf->addrconf.default_allow_update;
-	conf->addrconf.autoip.allow_update  = conf->addrconf.default_allow_update;
+	conf->addrconf.dhcp4.allow_update   = ni_config_addrconf_update_mask_dhcp4();
+	conf->addrconf.dhcp6.allow_update   = ni_config_addrconf_update_mask_dhcp6();
+	conf->addrconf.autoip.allow_update  = ni_config_addrconf_update_mask_auto4();
 
 	ni_config_fslocation_init(&conf->piddir,   WICKED_PIDDIR,   0755);
 	ni_config_fslocation_init(&conf->statedir, WICKED_STATEDIR, 0755);
@@ -341,8 +344,10 @@ ni_config_parse_addrconf_dhcp4(struct ni_config_dhcp4 *dhcp4, xml_node_t *node)
 				}
 			}
 		}
-		if (!strcmp(child->name, "allow-update"))
+		if (!strcmp(child->name, "allow-update")) {
 			ni_config_parse_update_targets(&dhcp4->allow_update, child);
+			dhcp4->allow_update &= ni_config_addrconf_update_mask_dhcp4();
+		}
 	}
 	return TRUE;
 }
@@ -654,6 +659,7 @@ ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 		} else
 		if (!strcmp(child->name, "allow-update")) {
 			ni_config_parse_update_targets(&dhcp6->allow_update, child);
+			dhcp6->allow_update &= ni_config_addrconf_update_mask_dhcp6();
 		}
 	}
 	return TRUE;
@@ -998,6 +1004,32 @@ ni_config_addrconf_update_mask_all(void)
 	return mask;
 }
 
+static unsigned int
+ni_config_addrconf_update_mask_dhcp4(void)
+{
+	return ni_config_addrconf_update_mask_all();
+}
+
+static unsigned int
+ni_config_addrconf_update_mask_dhcp6(void)
+{
+	unsigned int mask = __NI_ADDRCONF_UPDATE_NONE;
+	mask |= (1<<NI_ADDRCONF_UPDATE_HOSTNAME);
+	mask |= (1<<NI_ADDRCONF_UPDATE_DNS);
+	mask |= (1<<NI_ADDRCONF_UPDATE_NTP);
+	/* Note:
+	 * - DHCPv6 does not handle routes --> IPv6 RA's job
+	 * - ypbind does not support ipv6 (DHCPv6 can it).
+	 */
+	return mask;
+}
+
+static unsigned int
+ni_config_addrconf_update_mask_auto4(void)
+{
+	return __NI_ADDRCONF_UPDATE_NONE;		/* IP address only */
+}
+
 unsigned int
 ni_config_addrconf_update_mask(ni_addrconf_mode_t type, unsigned int family)
 {
@@ -1014,19 +1046,24 @@ ni_config_addrconf_update_mask(ni_addrconf_mode_t type, unsigned int family)
 		break;
 
 	case NI_ADDRCONF_AUTOCONF:
-		mask = conf ? conf->addrconf.autoip.allow_update :
-			ni_config_addrconf_update_mask_all();
+		switch (family) {
+		case AF_INET:
+			mask = conf ? conf->addrconf.autoip.allow_update :
+				ni_config_addrconf_update_mask_auto4();
+			break;
+		default: ;
+		}
 		break;
 
 	case NI_ADDRCONF_DHCP:
 		switch (family) {
 		case AF_INET:
 			mask = conf ? conf->addrconf.dhcp4.allow_update :
-				ni_config_addrconf_update_mask_all();
+				ni_config_addrconf_update_mask_dhcp4();
 			break;
 		case AF_INET6:
 			mask = conf ? conf->addrconf.dhcp6.allow_update :
-				ni_config_addrconf_update_mask_all();
+				ni_config_addrconf_update_mask_dhcp6();
 			break;
 		default: ;
 		}
