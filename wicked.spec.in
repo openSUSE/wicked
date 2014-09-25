@@ -294,11 +294,12 @@ fi
 %dir %_sysconfdir/wicked/ifconfig
 %dir %_sysconfdir/dbus-1
 %dir %_sysconfdir/dbus-1/system.d
-%config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.conf
-%config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.AUTO4.conf
-%config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.DHCP4.conf
-%config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.DHCP6.conf
-%config(noreplace) %_sysconfdir/dbus-1/system.d/org.opensuse.Network.Nanny.conf
+# mark the policies as config to keep backup, but replace on upgrade
+%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.conf
+%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.AUTO4.conf
+%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.DHCP4.conf
+%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.DHCP6.conf
+%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.Nanny.conf
 %if %{with dbusstart}
 %dir %_datadir/dbus-1
 %dir %_datadir/dbus-1/system-services
