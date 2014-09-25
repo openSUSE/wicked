@@ -4203,10 +4203,25 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 }
 
 /* Workaround implementing temporarly missing auto6 wait */
+static ni_bool_t
+__ni_fsm_device_with_tentative_addrs(ni_netdev_t *dev)
+{
+	ni_address_t *ap;
+
+	for (ap = dev->addrs; ap; ap = ap->next) {
+		if (ap->family != AF_INET6)
+			continue;
+
+		if (ni_address_is_tentative(ap))
+			return TRUE;
+	}
+	return FALSE;
+}
+
 void
 ni_fsm_wait_tentative_addrs(ni_fsm_t *fsm)
 {
-	unsigned int i;
+	unsigned int i, count = 40; /* 10sec timeout */
 
 	if (!fsm)
 		return;
@@ -4214,9 +4229,8 @@ ni_fsm_wait_tentative_addrs(ni_fsm_t *fsm)
 	if (!ni_fsm_refresh_state(fsm))
 		return;
 
-	for (i = 0; i < fsm->workers.count; i++) {
+	for (i = 0; count && i < fsm->workers.count; i++) {
 		ni_ifworker_t *w = fsm->workers.data[i];
-		ni_address_t *ap;
 
 		if (!w->kickstarted || !w->done)
 			continue;
@@ -4224,14 +4238,12 @@ ni_fsm_wait_tentative_addrs(ni_fsm_t *fsm)
 		if(!w->device)
 			continue;
 
-		for (ap = w->device->addrs; ap; ap = ap->next) {
-			if (ap->family == AF_INET6 && ni_address_is_tentative(ap)) {
-				usleep(250000);
-				if (!ni_fsm_refresh_state(fsm))
-					return;
-				i--;
-				break;
-			}
+		if (__ni_fsm_device_with_tentative_addrs(w->device)) {
+			usleep(250000);
+			count--;
+			if (!ni_fsm_refresh_state(fsm))
+				return;
+			i--; /* recheck this worker */
 		}
 	}
 }
