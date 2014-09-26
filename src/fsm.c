@@ -4324,7 +4324,7 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 
 		/* a not ready, released or failed non-optional lease -> fail */
 		if (!ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_GROUP))
-			return FALSE;
+			return TRUE; /* not an error -> ifup shows status */
 
 		/* optional type-goup peer lease -> check peer lease */
 		other = __find_corresponding_lease(dev, lease->family, lease->type);
@@ -4340,7 +4340,7 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 			ni_stringbuf_destroy(&buf);
 
 			if (other->state != NI_ADDRCONF_STATE_GRANTED)
-				return FALSE;
+				return TRUE; /* not an error -> ifup shows status */
 		}
 	}
 	return TRUE;
