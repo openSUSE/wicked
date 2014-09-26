@@ -150,14 +150,14 @@ ni_client_state_control_parse_xml(const xml_node_t *node, ni_client_state_contro
 
 	/* <persistent> node is mandatory */
 	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_PERSISTENT_NODE);
-	if (!child || !child->cdata ||
+	if (!child || ni_string_empty(child->cdata) ||
 		ni_parse_boolean(child->cdata, &ctrl->persistent)) {
 		return FALSE;
 	}
 
 	/* <usercontrol> node is mandatory */
 	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_USERCONTROL_NODE);
-	if (!child || !child->cdata ||
+	if (!child || ni_string_empty(child->cdata) ||
 		ni_parse_boolean(child->cdata, &ctrl->usercontrol)) {
 		return FALSE;
 	}
@@ -177,20 +177,23 @@ ni_client_state_config_parse_xml(const xml_node_t *node, ni_client_state_config_
 	if (!(parent = xml_node_get_child(node, NI_CLIENT_STATE_XML_CONFIG_NODE)))
 		return FALSE;
 
-	/* within <config> node <uuid> is mandatory */
+	/* within <config> node <uuid> is mandatory, yet may be empty */
 	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_CONFIG_UUID_NODE);
-	if (!child || !child->cdata || ni_uuid_parse(&conf->uuid, child->cdata))
+	if (!child || (child->cdata && ni_uuid_parse(&conf->uuid, child->cdata)))
 		return FALSE;
 
-	/* within <config> node <origin> is mandatory */
+	/* within <config> node <origin> is mandatory, yet may be empty */
 	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE);
-	if (!child || !child->cdata)
+	if (!child)
 		return FALSE;
 	ni_string_dup(&conf->origin, child->cdata);
 
+	/* within <config> node <owner-uid> is optional */
 	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE);
-	if (!child || !child->cdata || ni_parse_uint(child->cdata, &conf->owner, 10))
-		return FALSE;
+	if (child && !ni_string_empty(child->cdata)) {
+		if (ni_parse_uint(child->cdata, &conf->owner, 10))
+			return FALSE;
+	}
 
 	return TRUE;
 }
