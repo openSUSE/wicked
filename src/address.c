@@ -1129,4 +1129,63 @@ ni_link_address_get_broadcast(unsigned short arp_type, ni_hwaddr_t *hwa)
 	return 0;
 }
 
+ni_bool_t
+ni_link_address_is_broadcast(ni_hwaddr_t *hwa)
+{
+	ni_hwaddr_t brd;
+
+	if (!hwa || ni_link_address_get_broadcast(hwa->type, &brd) < 0)
+		return FALSE;
+	return memcmp(hwa->data, brd.data, brd.len) == 0;
+}
+
+/*
+ * Utility to reject apparently invalid/unusable hwaddrs,
+ * initially with all bits zeroed and all set (broadcast).
+ * We may add other possibilities later.
+ *
+ * To say if it is valid, you have to know it's purpose.
+ */
+ni_bool_t
+ni_link_address_is_invalid(ni_hwaddr_t *hwa)
+{
+	unsigned short i;
+	unsigned char z, b;
+
+	if (!hwa)
+		return TRUE;
+
+	switch (hwa->type) {
+	case ARPHRD_VOID:
+		return TRUE;
+
+	case ARPHRD_NONE:
+		return hwa->len != 0;
+
+	case ARPHRD_INFINIBAND:
+		if (hwa->len != ni_link_address_length(hwa->type))
+			return TRUE;
+
+		for (z = 0, i = 0; i < hwa->len; ++i)
+			z |= hwa->data[i];
+
+		if (z == 0x00)
+			return TRUE;
+
+		return ni_link_address_is_broadcast(hwa);
+
+	case ARPHRD_ETHER:
+	case ARPHRD_IEEE802_TR:
+	default:
+		if (hwa->len != ni_link_address_length(hwa->type))
+			return TRUE;
+
+		for (b = 0xFF, z = 0, i = 0; i < hwa->len; ++i) {
+			b &= hwa->data[i];
+			z |= hwa->data[i];
+		}
+		return z == 0x00 || b == 0xff;
+	}
+	return FALSE;
+}
 
