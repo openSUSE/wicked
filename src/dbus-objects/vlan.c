@@ -226,7 +226,8 @@ ni_objectmodel_vlan_change(ni_dbus_object_t *object, const ni_dbus_method_t *met
 
 	if (cfg->link.hwaddr.type == ARPHRD_VOID)
 		cfg->link.hwaddr.type = ARPHRD_ETHER;
-	if (ni_system_hwaddr_change(nc, dev, &cfg->link.hwaddr) < 0) {
+	if (!ni_link_address_is_invalid(&cfg->link.hwaddr) &&
+	    ni_system_hwaddr_change(nc, dev, &cfg->link.hwaddr) < 0) {
 		ni_error("Unable to change hwaddr on vlan interface %s",
 			dev->name);
 		/* fail? */

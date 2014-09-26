@@ -325,7 +325,8 @@ __ni_objectmodel_macvlan_change(ni_netdev_t *cfg, ni_netdev_t *dev, DBusError *e
 
 	if (cfg->link.hwaddr.type == ARPHRD_VOID)
 		cfg->link.hwaddr.type = ARPHRD_ETHER;
-	if (ni_system_hwaddr_change(nc, dev, &cfg->link.hwaddr) < 0) {
+	if (!ni_link_address_is_invalid(&cfg->link.hwaddr) &&
+	    ni_system_hwaddr_change(nc, dev, &cfg->link.hwaddr) < 0) {
 		ni_error("Unable to change hwaddr on %s interface %s",
 			dev_iftype, dev->name);
 		/* fail? */
