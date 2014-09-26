@@ -102,30 +102,110 @@ ni_ifstatus_code_name(unsigned int status)
 	return ni_format_uint_mapped(status, __status_name_map);
 }
 
-static inline ni_addrconf_lease_t *
-__find_peer_lease(ni_netdev_t *dev, sa_family_t family, unsigned int type)
+static const ni_addrconf_lease_t *
+__find_grouped_lease(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 {
-	switch (family) {
+	const ni_addrconf_lease_t *other;
+
+	if (!ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_GROUP))
+		return NULL;
+
+	switch (lease->family) {
 	case AF_INET:
-		return ni_netdev_get_lease(dev, AF_INET6, type);
+		other = ni_netdev_get_lease(dev, AF_INET6, lease->type);
+		break;
 	case AF_INET6:
-		return ni_netdev_get_lease(dev, AF_INET,  type);
+		other = ni_netdev_get_lease(dev, AF_INET,  lease->type);
+		break;
 	default:
 		return NULL;
 	}
+
+	if (!ni_addrconf_flag_bit_is_set(other->flags, NI_ADDRCONF_FLAGS_GROUP))
+		return NULL;
+
+	if (ni_log_level_at(NI_LOG_DEBUG1)) {
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+		ni_addrconf_flags_format(&buf, other->flags, "|");
+		ni_debug_application("%s: grouped lease %s:%s, state=%s, flags=%s",
+				dev->name,
+				ni_addrfamily_type_to_name(other->family),
+				ni_addrconf_type_to_name(other->type),
+				ni_addrconf_state_to_name(other->state),
+				buf.string);
+		ni_stringbuf_destroy(&buf);
+	}
+
+	return other;
 }
 
-static inline ni_bool_t
-__is_peer_lease_up(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+static inline unsigned int
+__find_grouped_lease_state(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 {
-	if (ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_GROUP)) {
-		const ni_addrconf_lease_t *other;
+	const ni_addrconf_lease_t *other;
 
-		other = __find_peer_lease(dev, lease->family, lease->type);
-		if (other && other->state == NI_ADDRCONF_STATE_GRANTED)
-			return TRUE;
+	other = __find_grouped_lease(dev, lease);
+	return other ? other->state : lease->state;
+}
+
+static void
+__ifstatus_of_device_lease(ni_netdev_t *dev, ni_addrconf_lease_t *lease, unsigned int *st)
+{
+	/*
+	 * Note:
+	 * NI_ADDRCONF_STATE_RELEASING means, a release has been requested;
+	 * NI_ADDRCONF_STATE_RELEASED is set while it has been released, but
+	 * removal from system is running -- consider it happened already...
+	 */
+	switch (lease->state) {
+	case NI_ADDRCONF_STATE_APPLYING:
+	case NI_ADDRCONF_STATE_RELEASING:
+	case NI_ADDRCONF_STATE_REQUESTING:
+		switch (__find_grouped_lease_state(dev, lease)) {
+		case NI_ADDRCONF_STATE_GRANTED:
+			/* progress or granted  -> granted  */
+			break;
+		default:
+			/* progress or progress -> progress */
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+					"%s: applying in-progress status",
+					dev->name);
+			*st = NI_WICKED_ST_IN_PROGRESS;
+			break;
+		}
+		break;
+
+	case NI_ADDRCONF_STATE_FAILED:
+		switch (__find_grouped_lease_state(dev, lease)) {
+		case NI_ADDRCONF_STATE_GRANTED:
+			/* failure or granted   -> granted  */
+			break;
+
+		case NI_ADDRCONF_STATE_APPLYING:
+		case NI_ADDRCONF_STATE_RELEASING:
+		case NI_ADDRCONF_STATE_REQUESTING:
+			/* failure  or progress -> progress */
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+					"%s: applying in-progress status",
+					dev->name);
+			*st = NI_WICKED_ST_IN_PROGRESS;
+			break;
+
+		default:
+			/* failure  or failure  -> failure  */
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+					"%s: applying not-running status",
+					dev->name);
+			*st = NI_WICKED_ST_NOT_RUNNING;
+			break;
+		}
+		break;
+
+	default:
+		/* granted/released -> done / do not apply errors */
+		break;
 	}
-	return FALSE;
 }
 
 static void
@@ -137,23 +217,20 @@ __ifstatus_of_device_leases(ni_netdev_t *dev, unsigned int *st)
 		return;
 
 	for (lease = dev->leases; lease; lease = lease->next) {
-		if (lease->state == NI_ADDRCONF_STATE_NONE)
-			continue;
+		if (ni_log_level_at(NI_LOG_DEBUG1)) {
+			ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
-		if (lease->state == NI_ADDRCONF_STATE_APPLYING ||
-		    lease->state == NI_ADDRCONF_STATE_RELEASING ||
-		    lease->state == NI_ADDRCONF_STATE_REQUESTING) {
-			if (!__is_peer_lease_up(dev, lease)) {
-				*st = NI_WICKED_ST_IN_PROGRESS;
-			}
+			ni_addrconf_flags_format(&buf, lease->flags, "|");
+			ni_debug_application("%s: checking lease %s:%s, "
+						"state=%s, flags=%s",
+				dev->name,
+				ni_addrfamily_type_to_name(lease->family),
+				ni_addrconf_type_to_name(lease->type),
+				ni_addrconf_state_to_name(lease->state),
+				buf.string);
+			ni_stringbuf_destroy(&buf);
 		}
-
-		if (lease->state == NI_ADDRCONF_STATE_FAILED) {
-			if (!__is_peer_lease_up(dev, lease)) {
-				*st = NI_WICKED_ST_NOT_RUNNING;
-				break;
-			}
-		}
+		__ifstatus_of_device_lease(dev, lease, st);
 	}
 }
 
