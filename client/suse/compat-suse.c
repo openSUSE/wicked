@@ -380,6 +380,8 @@ __ni_suse_read_globals(const char *root, const char *path)
 			ni_error("unable to parse %s", pathbuf);
 			return FALSE;
 		}
+	} else {
+		ni_warn("unable to find global config '%s': %m", pathbuf);
 	}
 
 	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, __NI_SUSE_CONFIG_DHCP);
@@ -389,6 +391,8 @@ __ni_suse_read_globals(const char *root, const char *path)
 			ni_error("unable to parse %s", pathbuf);
 			return FALSE;
 		}
+	} else {
+		ni_warn("unable to find global config '%s': %m", pathbuf);
 	}
 
 	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, __NI_SUSE_ROUTES_GLOBAL);
