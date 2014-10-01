@@ -302,6 +302,13 @@ usage:
 			nmarked++;
 		} else
 		if (ni_ifcheck_device_configured(dev)) {
+			if (w->masterdev || w->lowerdev_for.count) {
+				ni_info("skipping ifdown operation for %s interface: "
+					"device has %s dependency", w->name,
+					w->masterdev ? "masterdev" : "lowerdev");
+				continue;
+			}
+
 			w->target_range.min = NI_FSM_STATE_NONE;
 			w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
 			nmarked++;
@@ -616,6 +623,13 @@ usage:
 			nmarked++;
 		} else
 		if (ni_ifcheck_device_configured(dev)) {
+			if (w->masterdev || w->lowerdev_for.count) {
+				ni_info("skipping ifdown operation for %s interface: "
+					"device has %s dependency", w->name,
+					w->masterdev ? "masterdev" : "lowerdev");
+				continue;
+			}
+
 			w->target_range.min = NI_FSM_STATE_NONE;
 			w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
 			nmarked++;
