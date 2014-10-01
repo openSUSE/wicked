@@ -1120,8 +1120,11 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 
 	/* Check if this child is already owned by the given parent. */
 	for (i = 0; i < parent->children.count; ++i) {
-		if (parent->children.data[i] == child)
+		if (parent->children.data[i] == child) {
+			if (xml_node_is_empty(child->config.node))
+				ni_ifworker_generate_default_config(parent, child);
 			return TRUE;
+		}
 	}
 
 	if (shared) {
