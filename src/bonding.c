@@ -447,11 +447,13 @@ ni_bonding_has_slave(ni_bonding_t *bonding, const char *ifname)
 ni_bool_t
 ni_bonding_add_slave(ni_bonding_t *bonding, const char *ifname)
 {
-	if (!bonding || !ifname || !*ifname)
+	if (!bonding || ni_string_empty(ifname))
 		return FALSE;
 
-	if (ni_bonding_has_slave(bonding, ifname))
-		return FALSE;
+	if (ni_bonding_has_slave(bonding, ifname)) {
+		ni_warn("Bonding slave %s already exists", ifname);
+		return TRUE;
+	}
 
 	return ni_string_array_append(&bonding->slave_names, ifname) == 0;
 }
