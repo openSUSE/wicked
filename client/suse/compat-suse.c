@@ -99,7 +99,9 @@ static ni_var_array_t		__ni_suse_global_ifsysctl;
 static ni_bool_t		__ni_ipv6_disbled;
 
 #define __NI_SUSE_SYSCONF_DIR			"/etc"
-#define __NI_SUSE_HOSTNAME_FILE			__NI_SUSE_SYSCONF_DIR"/HOSTNAME"
+#define __NI_SUSE_HOSTNAME_FILES		{ __NI_SUSE_SYSCONF_DIR"/hostname", \
+						  __NI_SUSE_SYSCONF_DIR"/HOSTNAME", \
+						  NULL }
 #define __NI_SUSE_SYSCTL_SUFFIX			".conf"
 #define __NI_SUSE_SYSCTL_FILE			__NI_SUSE_SYSCONF_DIR"/sysctl.conf"
 #define __NI_SUSE_SYSCTL_DIR			__NI_SUSE_SYSCONF_DIR"/sysctl.d"
@@ -267,6 +269,7 @@ done:
 static const char *
 __ni_suse_read_default_hostname(const char *root, char **hostname)
 {
+	const char *filenames[] = __NI_SUSE_HOSTNAME_FILES, **name;
 	char filename[PATH_MAX];
 	char buff[256] = {'\0'};
 	FILE *input;
@@ -275,23 +278,25 @@ __ni_suse_read_default_hostname(const char *root, char **hostname)
 		return NULL;
 	ni_string_free(hostname);
 
-	snprintf(filename, sizeof(filename), "%s%s",
-			ni_string_empty(root) ? "" : root,
-			__NI_SUSE_HOSTNAME_FILE);
+	for (name = filenames; name && !ni_string_empty(*name); name++) {
+		snprintf(filename, sizeof(filename), "%s%s",
+				ni_string_empty(root) ? "" : root, *name);
 
-	if (!ni_isreg(filename))
-		return NULL;
-	if (!(input = ni_file_open(filename, "r", 0600)))
-		return NULL;
+		if (!ni_isreg(filename))
+			continue;
 
-	if (fgets(buff, sizeof(buff)-1, input)) {
-		buff[strcspn(buff, " \t\r\n")] = '\0';
+		if (!(input = ni_file_open(filename, "r", 0600)))
+			continue;
 
-		if (ni_check_domain_name(buff, strlen(buff), 0))
-			ni_string_dup(hostname, buff);
+		if (fgets(buff, sizeof(buff)-1, input)) {
+			buff[strcspn(buff, " \t\r\n")] = '\0';
+
+			if (ni_check_domain_name(buff, strlen(buff), 0))
+				ni_string_dup(hostname, buff);
+		}
+		fclose(input);
+		break;
 	}
-	fclose(input);
-
 	return *hostname;
 }
 
@@ -375,6 +380,8 @@ __ni_suse_read_globals(const char *root, const char *path)
 			ni_error("unable to parse %s", pathbuf);
 			return FALSE;
 		}
+	} else {
+		ni_warn("unable to find global config '%s': %m", pathbuf);
 	}
 
 	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, __NI_SUSE_CONFIG_DHCP);
@@ -384,6 +391,8 @@ __ni_suse_read_globals(const char *root, const char *path)
 			ni_error("unable to parse %s", pathbuf);
 			return FALSE;
 		}
+	} else {
+		ni_warn("unable to find global config '%s': %m", pathbuf);
 	}
 
 	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, __NI_SUSE_ROUTES_GLOBAL);
