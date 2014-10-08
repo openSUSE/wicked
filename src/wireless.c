@@ -243,7 +243,6 @@ __ni_wireless_scan_timer_arm(ni_wireless_scan_t *scan, ni_netdev_t *dev, unsigne
 int
 ni_wireless_set_network(ni_netdev_t *dev, ni_wireless_network_t *net)
 {
-	int link_was_up = !!(dev->link.ifflags & NI_IFF_LINK_UP);
 	ni_wireless_t *wlan;
 	ni_wpa_interface_t *wpa_dev;
 
@@ -279,9 +278,6 @@ ni_wireless_set_network(ni_netdev_t *dev, ni_wireless_network_t *net)
 		ni_wpa_interface_disassociate(wpa_dev, wlan->conf.ap_scan);
 
 	ni_wireless_set_assoc_network(wlan, net);
-
-	if (!link_was_up)
-		return 0;
 
 	return ni_wpa_interface_associate(wpa_dev, net, wlan->conf.ap_scan);
 }

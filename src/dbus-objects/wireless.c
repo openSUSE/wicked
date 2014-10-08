@@ -79,7 +79,6 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 	ni_netdev_t *dev;
 	ni_wireless_t *wlan;
 	ni_wireless_network_t *net;
-	dbus_bool_t rv = FALSE;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
@@ -112,9 +111,6 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 				"no essid specified for a given wireless network");
 		goto error;
 	}
-
-	dbus_bool_t was_up = FALSE;
-	was_up = (wlan->assoc.state == NI_WIRELESS_ESTABLISHED);
 
 	switch (net->keymgmt_proto) {
 	case NI_WIRELESS_KEY_MGMT_PSK:
@@ -158,21 +154,8 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 		goto error;
 	}
 
-	if (!was_up || wlan->assoc.state == NI_WIRELESS_ESTABLISHED) {
-		rv = TRUE;
-	} else {
-		const ni_uuid_t *uuid;
-
-		/* Link is not associated yet. Tell the caller to wait for an event. */
-		uuid = ni_netdev_add_event_filter(dev,
-					(1 << NI_EVENT_LINK_ASSOCIATED) |
-					(1 << NI_EVENT_LINK_ASSOCIATION_LOST));
-		rv =  __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_ASSOCIATED,
-					uuid, NULL, error);
-	}
-
 	ni_wireless_network_put(net);
-	return rv;
+	return TRUE;
 
 error:
 	ni_wireless_network_put(net);
