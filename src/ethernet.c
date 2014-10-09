@@ -65,6 +65,7 @@
 
 static int	__ni_system_ethernet_get(const char *, ni_ethernet_t *);
 static int	__ni_system_ethernet_set(const char *, const ni_ethernet_t *);
+static void	ni_ethtool_offload_init(ni_ethtool_offload_t *);
 
 /*
  * Allocate ethernet struct
@@ -79,14 +80,8 @@ ni_ethernet_new(void)
 	ether->wol.options		= __NI_ETHERNET_WOL_DEFAULT;
 	ni_link_address_init(&ether->wol.sopass);
 	ether->autoneg_enable		= NI_TRISTATE_DEFAULT;
-	ether->offload.rx_csum		= NI_TRISTATE_DEFAULT;
-	ether->offload.tx_csum		= NI_TRISTATE_DEFAULT;
-	ether->offload.scatter_gather	= NI_TRISTATE_DEFAULT;
-	ether->offload.tso		= NI_TRISTATE_DEFAULT;
-	ether->offload.ufo		= NI_TRISTATE_DEFAULT;
-	ether->offload.gso		= NI_TRISTATE_DEFAULT;
-	ether->offload.gro		= NI_TRISTATE_DEFAULT;
-	ether->offload.lro		= NI_TRISTATE_DEFAULT;
+	ni_ethtool_offload_init(&ether->offload);
+
 	return ether;
 }
 
@@ -520,6 +515,20 @@ __ni_ethtool_set_wol(const char *ifname, const ni_ethernet_wol_t *wol)
 	return 0;
 }
 
+static void
+ni_ethtool_offload_init(ni_ethtool_offload_t *offload)
+{
+	if (offload) {
+		offload->rx_csum	= NI_TRISTATE_DEFAULT;
+		offload->tx_csum	= NI_TRISTATE_DEFAULT;
+		offload->scatter_gather	= NI_TRISTATE_DEFAULT;
+		offload->tso		= NI_TRISTATE_DEFAULT;
+		offload->ufo		= NI_TRISTATE_DEFAULT;
+		offload->gso		= NI_TRISTATE_DEFAULT;
+		offload->gro		= NI_TRISTATE_DEFAULT;
+		offload->lro		= NI_TRISTATE_DEFAULT;
+	}
+}
 /*
  * Handle ethtool stats
  */

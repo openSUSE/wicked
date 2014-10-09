@@ -44,6 +44,17 @@ typedef struct ni_ethernet_wol {
 	ni_hwaddr_t		sopass;
 } ni_ethernet_wol_t;
 
+typedef struct ni_ethtool_offload {
+	ni_tristate_t	rx_csum;
+	ni_tristate_t	tx_csum;
+	ni_tristate_t	scatter_gather;
+	ni_tristate_t	tso;
+	ni_tristate_t	ufo;
+	ni_tristate_t	gso;
+	ni_tristate_t	gro;
+	ni_tristate_t	lro;
+} ni_ethtool_offload_t;
+
 struct ni_ethernet {
 	ni_hwaddr_t		permanent_address;
 	unsigned int		link_speed;
@@ -52,17 +63,7 @@ struct ni_ethernet {
 	ni_tristate_t		autoneg_enable;
 
 	ni_ethernet_wol_t	wol;
-
-	struct {
-		ni_tristate_t	rx_csum;
-		ni_tristate_t	tx_csum;
-		ni_tristate_t	scatter_gather;
-		ni_tristate_t	tso;
-		ni_tristate_t	ufo;
-		ni_tristate_t	gso;
-		ni_tristate_t	gro;
-		ni_tristate_t	lro;
-	} offload;
+	ni_ethtool_offload_t	offload;
 
 	unsigned int		identify_time;
 };

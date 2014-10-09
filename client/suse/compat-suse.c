@@ -1442,32 +1442,33 @@ try_add_ethtool_common(ni_netdev_t *dev, const char *opt, const char *val)
 }
 
 static void
-try_add_ethtool_offload(ni_netdev_t *dev, const char *opt, const char *val)
+try_add_ethtool_offload(ni_ethtool_offload_t *offload, const char *opt, const char *val)
 {
-	ni_ethernet_t *eth = ni_netdev_get_ethernet(dev);
-	if (ni_string_eq(opt, "rx")) {
-		ni_parse_ethtool_onoff(val, &eth->offload.rx_csum);
-	} else
-	if (ni_string_eq(opt, "tx")) {
-		ni_parse_ethtool_onoff(val, &eth->offload.tx_csum);
-	} else
-	if (ni_string_eq(opt, "sg")) {
-		ni_parse_ethtool_onoff(val, &eth->offload.scatter_gather);
-	} else
-	if (ni_string_eq(opt, "tso")) {
-		ni_parse_ethtool_onoff(val, &eth->offload.tso);
-	} else
-	if (ni_string_eq(opt, "ufo")) {
-		ni_parse_ethtool_onoff(val, &eth->offload.ufo);
-	} else
-	if (ni_string_eq(opt, "gso")) {
-		ni_parse_ethtool_onoff(val, &eth->offload.gso);
-	} else
-	if (ni_string_eq(opt, "gro")) {
-		ni_parse_ethtool_onoff(val, &eth->offload.gro);
-	} else
-	if (ni_string_eq(opt, "lro")) {
-		ni_parse_ethtool_onoff(val, &eth->offload.lro);
+	if (offload) {
+		if (ni_string_eq(opt, "rx")) {
+			ni_parse_ethtool_onoff(val, &offload->rx_csum);
+		} else
+		if (ni_string_eq(opt, "tx")) {
+			ni_parse_ethtool_onoff(val, &offload->tx_csum);
+		} else
+		if (ni_string_eq(opt, "sg")) {
+			ni_parse_ethtool_onoff(val, &offload->scatter_gather);
+		} else
+		if (ni_string_eq(opt, "tso")) {
+			ni_parse_ethtool_onoff(val, &offload->tso);
+		} else
+		if (ni_string_eq(opt, "ufo")) {
+			ni_parse_ethtool_onoff(val, &offload->ufo);
+		} else
+		if (ni_string_eq(opt, "gso")) {
+			ni_parse_ethtool_onoff(val, &offload->gso);
+		} else
+		if (ni_string_eq(opt, "gro")) {
+			ni_parse_ethtool_onoff(val, &offload->gro);
+		} else
+		if (ni_string_eq(opt, "lro")) {
+			ni_parse_ethtool_onoff(val, &offload->lro);
+		}
 	}
 }
 
@@ -1479,7 +1480,7 @@ try_add_ethtool_options(ni_netdev_t *dev, const char *type,
 
 	if (ni_string_eq(type, "-K") || ni_string_eq(type, "--offload")) {
 		for (i = start; (i + 1) < opts->count; i+=2) {
-			try_add_ethtool_offload(dev, opts->data[i],
+			try_add_ethtool_offload(&dev->ethernet->offload, opts->data[i],
 						opts->data[i + 1]);
 		}
 	} else
