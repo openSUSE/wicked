@@ -63,7 +63,7 @@
 	 ADVERTISED_40000baseSR4_Full |		\
 	 ADVERTISED_40000baseLR4_Full)
 
-static int	__ni_system_ethernet_get(const char *, ni_ethernet_t *);
+static void	__ni_system_ethernet_get(const char *, ni_ethernet_t *);
 static int	__ni_system_ethernet_set(const char *, const ni_ethernet_t *);
 
 /*
@@ -567,16 +567,14 @@ __ni_system_ethernet_refresh(ni_netdev_t *dev)
 
 	ether = ni_ethernet_new();
 	ether->permanent_address.type = dev->link.hwaddr.type;
-	if (__ni_system_ethernet_get(dev->name, ether) < 0) {
-		ni_ethernet_free(ether);
-		return -1;
-	}
+
+	__ni_system_ethernet_get(dev->name, ether);
 
 	ni_netdev_set_ethernet(dev, ether);
 	return 0;
 }
 
-int
+static void
 __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 {
 	struct ethtool_cmd ecmd;
@@ -588,7 +586,6 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 			ni_warn("%s: ETHTOOL_GSET failed: %m", ifname);
 		else
 			ni_debug_ifconfig("%s: ETHTOOL_GSET: %m", ifname);
-		return -1;
 	}
 
 	mapped = __ni_ethtool_to_wicked(__ni_ethtool_speed_map, ethtool_cmd_speed(&ecmd));
@@ -648,8 +645,6 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 					parm.data, parm.h.size);
 		}
 	}
-
-	return 0;
 }
 
 /*
