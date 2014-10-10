@@ -201,9 +201,35 @@ __ni_compat_optional_tristate(const char *name, xml_node_t *node, ni_tristate_t 
 }
 
 static void
+__ni_compat_generate_eth_offload_node(xml_node_t *parent, const ni_ethtool_offload_t *offload)
+{
+	xml_node_t *node;
+
+	if (!parent || !offload)
+		return;
+
+	/* generate offload and other information */
+	node = xml_node_new("offload", NULL);
+
+	__ni_compat_optional_tristate("rx-csum", node, offload->rx_csum);
+	__ni_compat_optional_tristate("tx-csum", node, offload->tx_csum);
+	__ni_compat_optional_tristate("scatter-gather", node, offload->scatter_gather);
+	__ni_compat_optional_tristate("tso", node, offload->tso);
+	__ni_compat_optional_tristate("ufo", node, offload->ufo);
+	__ni_compat_optional_tristate("gso", node, offload->gso);
+	__ni_compat_optional_tristate("gro", node, offload->gro);
+	__ni_compat_optional_tristate("lro", node, offload->lro);
+
+	if (node->children)
+		xml_node_add_child(parent, node);
+	else
+		xml_node_free(node);
+
+}
+
+static void
 __ni_compat_generate_eth_node(xml_node_t *child, const ni_ethernet_t *eth)
 {
-	xml_node_t *offload;
 	const char *ptr;
 
 	/* generate common <ethernet> node settings */
@@ -242,21 +268,7 @@ __ni_compat_generate_eth_node(xml_node_t *child, const ni_ethernet_t *eth)
 			xml_node_free(wol);
 	}
 
-	/* generate offload and other information */
-	offload = xml_node_new("offload", NULL);
-	__ni_compat_optional_tristate("rx-csum", offload, eth->offload.rx_csum);
-	__ni_compat_optional_tristate("tx-csum", offload, eth->offload.tx_csum);
-	__ni_compat_optional_tristate("scatter-gather", offload,
-						eth->offload.scatter_gather);
-	__ni_compat_optional_tristate("tso", offload, eth->offload.tso);
-	__ni_compat_optional_tristate("ufo", offload, eth->offload.ufo);
-	__ni_compat_optional_tristate("gso", offload, eth->offload.gso);
-	__ni_compat_optional_tristate("gro", offload, eth->offload.gro);
-	__ni_compat_optional_tristate("lro", offload, eth->offload.lro);
-	if (offload->children)
-		xml_node_add_child(child, offload);
-	else
-		xml_node_free(offload);
+	__ni_compat_generate_eth_offload_node(child, &eth->offload);
 }
 
 static ni_bool_t

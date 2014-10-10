@@ -63,8 +63,10 @@
 	 ADVERTISED_40000baseSR4_Full |		\
 	 ADVERTISED_40000baseLR4_Full)
 
-static int	__ni_system_ethernet_get(const char *, ni_ethernet_t *);
-static int	__ni_system_ethernet_set(const char *, const ni_ethernet_t *);
+static void	__ni_system_ethernet_get(const char *, ni_ethernet_t *);
+static void	__ni_system_ethernet_set(const char *, ni_ethernet_t *);
+static int	__ni_ethtool_get_gset(const char *, ni_ethernet_t *);
+static void	ni_ethtool_offload_init(ni_ethtool_offload_t *);
 
 /*
  * Allocate ethernet struct
@@ -79,14 +81,8 @@ ni_ethernet_new(void)
 	ether->wol.options		= __NI_ETHERNET_WOL_DEFAULT;
 	ni_link_address_init(&ether->wol.sopass);
 	ether->autoneg_enable		= NI_TRISTATE_DEFAULT;
-	ether->offload.rx_csum		= NI_TRISTATE_DEFAULT;
-	ether->offload.tx_csum		= NI_TRISTATE_DEFAULT;
-	ether->offload.scatter_gather	= NI_TRISTATE_DEFAULT;
-	ether->offload.tso		= NI_TRISTATE_DEFAULT;
-	ether->offload.ufo		= NI_TRISTATE_DEFAULT;
-	ether->offload.gso		= NI_TRISTATE_DEFAULT;
-	ether->offload.gro		= NI_TRISTATE_DEFAULT;
-	ether->offload.lro		= NI_TRISTATE_DEFAULT;
+	ni_ethtool_offload_init(&ether->offload);
+
 	return ether;
 }
 
@@ -260,23 +256,9 @@ typedef struct __ni_ioctl_info {
 #endif
 
 static __ni_ioctl_info_t __ethtool_gflags = { ETHTOOL_GFLAGS, "GFLAGS" };
-static __ni_ioctl_info_t __ethtool_grxcsum = { ETHTOOL_GRXCSUM, "GRXCSUM" };
-static __ni_ioctl_info_t __ethtool_gtxcsum = { ETHTOOL_GTXCSUM, "GTXCSUM" };
-static __ni_ioctl_info_t __ethtool_gsg = { ETHTOOL_GSG, "GSG" };
-static __ni_ioctl_info_t __ethtool_gtso = { ETHTOOL_GTSO, "GTSO" };
-static __ni_ioctl_info_t __ethtool_gufo = { ETHTOOL_GUFO, "GUFO" };
-static __ni_ioctl_info_t __ethtool_ggso = { ETHTOOL_GGSO, "GGSO" };
-static __ni_ioctl_info_t __ethtool_ggro = { ETHTOOL_GGRO, "GGRO" };
+static __ni_ioctl_info_t __ethtool_sflags = { ETHTOOL_SFLAGS, "SFLAGS" };
 static __ni_ioctl_info_t __ethtool_gstrings = { ETHTOOL_GSTRINGS, "GSTRINGS" };
 static __ni_ioctl_info_t __ethtool_gstats = { ETHTOOL_GSTATS, "GSTATS" };
-static __ni_ioctl_info_t __ethtool_sflags = { ETHTOOL_SFLAGS, "SFLAGS" };
-static __ni_ioctl_info_t __ethtool_srxcsum = { ETHTOOL_SRXCSUM, "SRXCSUM" };
-static __ni_ioctl_info_t __ethtool_stxcsum = { ETHTOOL_STXCSUM, "STXCSUM" };
-static __ni_ioctl_info_t __ethtool_ssg = { ETHTOOL_SSG, "SSG" };
-static __ni_ioctl_info_t __ethtool_stso = { ETHTOOL_STSO, "STSO" };
-static __ni_ioctl_info_t __ethtool_sufo = { ETHTOOL_SUFO, "SUFO" };
-static __ni_ioctl_info_t __ethtool_sgso = { ETHTOOL_SGSO, "SGSO" };
-static __ni_ioctl_info_t __ethtool_sgro = { ETHTOOL_SGRO, "SGRO" };
 static __ni_ioctl_info_t __ethtool_gwol = { ETHTOOL_GWOL, "GWOL" };
 static __ni_ioctl_info_t __ethtool_swol = { ETHTOOL_SWOL, "SWOL" };
 
@@ -520,6 +502,116 @@ __ni_ethtool_set_wol(const char *ifname, const ni_ethernet_wol_t *wol)
 	return 0;
 }
 
+static void
+ni_ethtool_offload_init(ni_ethtool_offload_t *offload)
+{
+	if (offload) {
+		offload->rx_csum	= NI_TRISTATE_DEFAULT;
+		offload->tx_csum	= NI_TRISTATE_DEFAULT;
+		offload->scatter_gather	= NI_TRISTATE_DEFAULT;
+		offload->tso		= NI_TRISTATE_DEFAULT;
+		offload->ufo		= NI_TRISTATE_DEFAULT;
+		offload->gso		= NI_TRISTATE_DEFAULT;
+		offload->gro		= NI_TRISTATE_DEFAULT;
+		offload->lro		= NI_TRISTATE_DEFAULT;
+	}
+}
+
+static int
+__ni_ethtool_get_offload(const char *ifname, ni_ethtool_offload_t *offload)
+{
+	__ni_ioctl_info_t __ethtool_grxcsum = { ETHTOOL_GRXCSUM, "GRXCSUM" };
+	__ni_ioctl_info_t __ethtool_gtxcsum = { ETHTOOL_GTXCSUM, "GTXCSUM" };
+	__ni_ioctl_info_t __ethtool_gsg = { ETHTOOL_GSG, "GSG" };
+	__ni_ioctl_info_t __ethtool_gtso = { ETHTOOL_GTSO, "GTSO" };
+	__ni_ioctl_info_t __ethtool_gufo = { ETHTOOL_GUFO, "GUFO" };
+	__ni_ioctl_info_t __ethtool_ggso = { ETHTOOL_GGSO, "GGSO" };
+	__ni_ioctl_info_t __ethtool_ggro = { ETHTOOL_GGRO, "GGRO" };
+
+	int value;
+
+	if (ni_string_empty(ifname) || !offload)
+		return -1;
+
+	offload->rx_csum = __ni_ethtool_get_tristate(ifname, &__ethtool_grxcsum);
+	offload->tx_csum = __ni_ethtool_get_tristate(ifname, &__ethtool_gtxcsum);
+	offload->scatter_gather = __ni_ethtool_get_tristate(ifname, &__ethtool_gsg);
+	offload->tso = __ni_ethtool_get_tristate(ifname, &__ethtool_gtso);
+	offload->ufo = __ni_ethtool_get_tristate(ifname, &__ethtool_gufo);
+	offload->gso = __ni_ethtool_get_tristate(ifname, &__ethtool_ggso);
+	offload->gro = __ni_ethtool_get_tristate(ifname, &__ethtool_ggro);
+
+	value = __ni_ethtool_get_value(ifname, &__ethtool_gflags);
+	if (value >= 0) {
+		offload->lro = (value & ETH_FLAG_LRO) ?
+			NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
+	}
+
+	return 0;
+}
+
+static int
+__ni_ethtool_set_offload(const char *ifname, ni_ethtool_offload_t *offload)
+{
+	__ni_ioctl_info_t __ethtool_srxcsum = { ETHTOOL_SRXCSUM, "SRXCSUM" };
+	__ni_ioctl_info_t __ethtool_stxcsum = { ETHTOOL_STXCSUM, "STXCSUM" };
+	__ni_ioctl_info_t __ethtool_ssg = { ETHTOOL_SSG, "SSG" };
+	__ni_ioctl_info_t __ethtool_stso = { ETHTOOL_STSO, "STSO" };
+	__ni_ioctl_info_t __ethtool_sufo = { ETHTOOL_SUFO, "SUFO" };
+	__ni_ioctl_info_t __ethtool_sgso = { ETHTOOL_SGSO, "SGSO" };
+	__ni_ioctl_info_t __ethtool_sgro = { ETHTOOL_SGRO, "SGRO" };
+
+	if (ni_string_empty(ifname) || !offload)
+		return -1;
+
+	__ni_ethtool_set_tristate(ifname, &__ethtool_srxcsum, offload->rx_csum);
+	__ni_ethtool_set_tristate(ifname, &__ethtool_stxcsum, offload->tx_csum);
+	__ni_ethtool_set_tristate(ifname, &__ethtool_ssg, offload->scatter_gather);
+	__ni_ethtool_set_tristate(ifname, &__ethtool_stso, offload->tso);
+	__ni_ethtool_set_tristate(ifname, &__ethtool_sufo, offload->ufo);
+	__ni_ethtool_set_tristate(ifname, &__ethtool_sgso, offload->gso);
+	__ni_ethtool_set_tristate(ifname, &__ethtool_sgro, offload->gro);
+
+	if (offload->lro != NI_TRISTATE_DEFAULT) {
+		int value = __ni_ethtool_get_value(ifname, &__ethtool_gflags);
+
+		if (value >= 0) {
+			if (offload->lro == NI_TRISTATE_ENABLE)
+				value |= ETH_FLAG_LRO;
+			else
+				value &= ~ETH_FLAG_LRO;
+		}
+
+		__ni_ethtool_set_value(ifname, &__ethtool_sflags, value);
+	}
+
+	return 0;
+}
+
+static int
+__ni_ethtool_get_permanent_address(const char *ifname, ni_hwaddr_t *perm_addr)
+{
+	struct {
+		struct ethtool_perm_addr h;
+		unsigned char data[NI_MAXHWADDRLEN];
+	} parm;
+
+	if (ni_string_empty(ifname) || !perm_addr)
+		return -1;
+
+	memset(&parm, 0, sizeof(parm));
+	parm.h.size = sizeof(parm.data);
+	if (__ni_ethtool(ifname, ETHTOOL_GPERMADDR, &parm) < 0) {
+		ni_debug_ifconfig("%s: ETHTOOL_GPERMADDR failed", ifname);
+		return -1;
+	}
+	else if (ni_link_address_length(perm_addr->type) == parm.h.size) {
+		ni_link_address_set(perm_addr, perm_addr->type, parm.data, parm.h.size);
+	}
+
+	return 0;
+}
+
 /*
  * Handle ethtool stats
  */
@@ -560,27 +652,42 @@ __ni_ethtool_stats_free(ni_ethtool_stats_t *stats)
 /*
  * Get ethtool settings from the kernel
  */
-int
+void
 __ni_system_ethernet_refresh(ni_netdev_t *dev)
 {
 	ni_ethernet_t *ether;
 
 	ether = ni_ethernet_new();
 	ether->permanent_address.type = dev->link.hwaddr.type;
-	if (__ni_system_ethernet_get(dev->name, ether) < 0) {
-		ni_ethernet_free(ether);
-		return -1;
-	}
+	__ni_system_ethernet_get(dev->name, ether);
 
 	ni_netdev_set_ethernet(dev, ether);
-	return 0;
 }
 
-int
+void
 __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 {
+	__ni_ethtool_get_wol(ifname, &ether->wol);
+	__ni_ethtool_get_offload(ifname, &ether->offload);
+	__ni_ethtool_get_permanent_address(ifname, &ether->permanent_address);
+	__ni_ethtool_get_gset(ifname, ether);
+}
+
+/*
+ * Write ethtool settings back to kernel
+ */
+void
+__ni_system_ethernet_update(ni_netdev_t *dev, ni_ethernet_t *ether)
+{
+	__ni_system_ethernet_set(dev->name, ether);
+	__ni_system_ethernet_refresh(dev);
+}
+
+static int
+__ni_ethtool_get_gset(const char *ifname, ni_ethernet_t *ether)
+{
 	struct ethtool_cmd ecmd;
-	int mapped, value;
+	int mapped;
 
 	memset(&ecmd, 0, sizeof(ecmd));
 	if (__ni_ethtool(ifname, ETHTOOL_GSET, &ecmd) < 0) {
@@ -609,58 +716,14 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 	else
 		ether->port_type = mapped;
 
-	ether->autoneg_enable = (ecmd.autoneg? NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE);
+	ether->autoneg_enable = (ecmd.autoneg ? NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE);
 
 	/* Not used yet:
 	    phy_address
 	    transceiver
 	 */
 
-	__ni_ethtool_get_wol(ifname, &ether->wol);
-
-	ether->offload.rx_csum = __ni_ethtool_get_tristate(ifname, &__ethtool_grxcsum);
-	ether->offload.tx_csum = __ni_ethtool_get_tristate(ifname, &__ethtool_gtxcsum);
-	ether->offload.scatter_gather = __ni_ethtool_get_tristate(ifname, &__ethtool_gsg);
-	ether->offload.tso = __ni_ethtool_get_tristate(ifname, &__ethtool_gtso);
-	ether->offload.ufo = __ni_ethtool_get_tristate(ifname, &__ethtool_gufo);
-	ether->offload.gso = __ni_ethtool_get_tristate(ifname, &__ethtool_ggso);
-	ether->offload.gro = __ni_ethtool_get_tristate(ifname, &__ethtool_ggro);
-
-	value = __ni_ethtool_get_value(ifname, &__ethtool_gflags);
-	if (value >= 0)
-		ether->offload.lro = (value & ETH_FLAG_LRO)? NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
-
-	/* Get the permanent address */
-	{
-		struct {
-			struct ethtool_perm_addr h;
-			unsigned char data[NI_MAXHWADDRLEN];
-		} parm;
-
-		memset(&parm, 0, sizeof(parm));
-		parm.h.size = sizeof(parm.data);
-		if (__ni_ethtool(ifname, ETHTOOL_GPERMADDR, &parm) < 0) {
-			ni_debug_ifconfig("%s: ETHTOOL_GPERMADDR failed", ifname);
-		} else
-		if (ni_link_address_length(ether->permanent_address.type) == parm.h.size) {
-			ni_link_address_set(&ether->permanent_address,
-					ether->permanent_address.type,
-					parm.data, parm.h.size);
-		}
-	}
-
 	return 0;
-}
-
-/*
- * Write ethtool settings back to kernel
- */
-int
-__ni_system_ethernet_update(ni_netdev_t *dev, const ni_ethernet_t *ether)
-{
-	__ni_system_ethernet_set(dev->name, ether);
-
-	return __ni_system_ethernet_refresh(dev);
 }
 
 /*
@@ -724,15 +787,11 @@ __ni_system_ethernet_set_advertising(const char *ifname, struct ethtool_cmd *ecm
 	}
 }
 
-int
-__ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
+static int
+__ni_ethtool_set_sset(const char *ifname, const ni_ethernet_t *ether)
 {
 	struct ethtool_cmd ecmd;
-	int mapped, value;
-
-	if (__ni_ethtool_set_wol(ifname, &ether->wol) < 0) {
-		; /* do not fail completely, error is logged */
-	}
+	int mapped;
 
 	memset(&ecmd, 0, sizeof(ecmd));
 	if (__ni_ethtool(ifname, ETHTOOL_GSET, &ecmd) < 0) {
@@ -777,34 +836,23 @@ __ni_system_ethernet_set(const char *ifname, const ni_ethernet_t *ether)
 	    transceiver
 	 */
 
-	__ni_ethtool_set_tristate(ifname, &__ethtool_srxcsum, ether->offload.rx_csum);
-	__ni_ethtool_set_tristate(ifname, &__ethtool_stxcsum, ether->offload.tx_csum);
-	__ni_ethtool_set_tristate(ifname, &__ethtool_ssg, ether->offload.scatter_gather);
-	__ni_ethtool_set_tristate(ifname, &__ethtool_stso, ether->offload.tso);
-	__ni_ethtool_set_tristate(ifname, &__ethtool_sufo, ether->offload.ufo);
-	__ni_ethtool_set_tristate(ifname, &__ethtool_sgso, ether->offload.gso);
-	__ni_ethtool_set_tristate(ifname, &__ethtool_sgro, ether->offload.gro);
-
-	if (ether->offload.lro != NI_TRISTATE_DEFAULT) {
-		value = __ni_ethtool_get_value(ifname, &__ethtool_gflags);
-		if (value >= 0) {
-			if (ether->offload.lro == NI_TRISTATE_ENABLE)
-				value |= ETH_FLAG_LRO;
-			else
-				value &= ~ETH_FLAG_LRO;
-		}
-		__ni_ethtool_set_value(ifname, &__ethtool_sflags, value);
-	}
-
 	__ni_system_ethernet_set_advertising(ifname, &ecmd);
 
 	if (__ni_ethtool(ifname, ETHTOOL_SSET, &ecmd) < 0) {
 		if (errno != EOPNOTSUPP)
-			ni_warn("%s: ETHTOOL_GSET failed: %m", ifname);
+			ni_warn("%s: ETHTOOL_SSET failed: %m", ifname);
 		else
-			ni_debug_ifconfig("%s: ETHTOOL_GSET: %m", ifname);
+			ni_debug_ifconfig("%s: ETHTOOL_SSET: %m", ifname);
 		return -1;
 	}
 
 	return 0;
+}
+
+void
+__ni_system_ethernet_set(const char *ifname, ni_ethernet_t *ether)
+{
+	__ni_ethtool_set_wol(ifname, &ether->wol);
+	__ni_ethtool_set_offload(ifname, &ether->offload);
+	__ni_ethtool_set_sset(ifname, ether);
 }

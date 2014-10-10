@@ -1296,10 +1296,7 @@ ni_system_ethernet_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t
 	if (!dev || !cfg || !cfg->ethernet)
 		return -1;
 
-	if (__ni_system_ethernet_update(dev, cfg->ethernet) < 0) {
-		ni_error("%s: failed to update ethernet device settings", dev->name);
-		return -1;
-	}
+	__ni_system_ethernet_update(dev, cfg->ethernet);
 	return 0;
 }
 
