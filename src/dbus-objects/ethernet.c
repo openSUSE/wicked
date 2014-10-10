@@ -339,11 +339,149 @@ __ni_objectmodel_ethernet_set_offload(ni_dbus_object_t *object,
 	return TRUE;
 }
 
+static dbus_bool_t
+__ni_objectmodel_ethernet_get_link_speed(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	const ni_ethernet_t *eth;
+
+	if (!(eth = __ni_objectmodel_ethernet_read_handle(object, error)))
+		return FALSE;
+
+	if (eth->link_speed == 0 /* || eth->link_speed == 65535 */)
+		return FALSE;
+
+	ni_dbus_variant_set_uint32(result, eth->link_speed);
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_ethernet_set_link_speed(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_ethernet_t *eth;
+
+	if (!(eth = __ni_objectmodel_ethernet_write_handle(object, error)))
+		return FALSE;
+
+	return ni_dbus_variant_get_uint32(argument, &eth->link_speed);
+}
+
+static dbus_bool_t
+__ni_objectmodel_ethernet_get_port_type(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	const ni_ethernet_t *eth;
+
+	if (!(eth = __ni_objectmodel_ethernet_read_handle(object, error)))
+		return FALSE;
+
+	if (eth->port_type == NI_ETHERNET_PORT_DEFAULT)
+		return FALSE;
+
+	ni_dbus_variant_set_uint32(result, eth->port_type);
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_ethernet_set_port_type(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_ethernet_t *eth;
+
+	if (!(eth = __ni_objectmodel_ethernet_write_handle(object, error)))
+		return FALSE;
+
+	return ni_dbus_variant_get_uint32(argument, &eth->port_type);
+}
+
+static dbus_bool_t
+__ni_objectmodel_ethernet_get_duplex(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	const ni_ethernet_t *eth;
+
+	if (!(eth = __ni_objectmodel_ethernet_read_handle(object, error)))
+		return FALSE;
+
+	switch (eth->duplex) {
+	case NI_ETHERNET_DUPLEX_DEFAULT:
+	case NI_ETHERNET_DUPLEX_NONE:
+		return FALSE;
+	default:
+		ni_dbus_variant_set_uint32(result, eth->duplex);
+		return TRUE;
+	}
+}
+
+static dbus_bool_t
+__ni_objectmodel_ethernet_set_duplex(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_ethernet_t *eth;
+
+	if (!(eth = __ni_objectmodel_ethernet_write_handle(object, error)))
+		return FALSE;
+
+	return ni_dbus_variant_get_uint32(argument, &eth->duplex);
+}
+
+static dbus_bool_t
+__ni_objectmodel_ethernet_get_autoneg_enable(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	const ni_ethernet_t *eth;
+
+	if (!(eth = __ni_objectmodel_ethernet_read_handle(object, error)))
+		return FALSE;
+
+	if (!ni_tristate_is_set(eth->autoneg_enable))
+		return FALSE;
+	ni_dbus_variant_set_int32(result, eth->autoneg_enable);
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_ethernet_set_autoneg_enable(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_ethernet_t *eth;
+	int32_t value;
+
+	if (!(eth = __ni_objectmodel_ethernet_write_handle(object, error)))
+		return FALSE;
+
+	eth->autoneg_enable = NI_TRISTATE_DEFAULT;
+	if (ni_dbus_variant_get_int32(argument, &value)) {
+		if (value != NI_TRISTATE_DEFAULT)
+			ni_tristate_set(&eth->autoneg_enable, value);
+		return TRUE;
+	}
+	return FALSE;
+}
 
 #define ETHERNET_UINT_PROPERTY(dbus_name, member_name, rw) \
-	NI_DBUS_GENERIC_UINT_PROPERTY(ethernet, dbus_name, member_name, rw)
+	___NI_DBUS_PROPERTY(DBUS_TYPE_UINT32_AS_STRING, dbus_name, \
+			member_name, __ni_objectmodel_ethernet, RO)
 #define ETHERNET_INT_PROPERTY(dbus_name, member_name, rw) \
-	NI_DBUS_GENERIC_INT_PROPERTY(ethernet, dbus_name, member_name, rw)
+	___NI_DBUS_PROPERTY(DBUS_TYPE_INT32_AS_STRING, dbus_name, \
+			member_name, __ni_objectmodel_ethernet, RO)
 
 const ni_dbus_property_t	ni_objectmodel_ethernet_property_table[] = {
 	ETHERNET_UINT_PROPERTY(link-speed, link_speed, RO),
