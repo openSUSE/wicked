@@ -4215,8 +4215,11 @@ __ni_fsm_device_with_tentative_addrs(ni_netdev_t *dev)
 		if (ap->family != AF_INET6)
 			continue;
 
-		if (ni_address_is_tentative(ap))
+		if (ni_address_is_tentative(ap)) {
+			ni_debug_application("-- the address %s is tentative",
+				ni_sockaddr_print(&ap->local_addr));
 			return TRUE;
+		}
 	}
 	return FALSE;
 }
@@ -4235,11 +4238,10 @@ ni_fsm_wait_tentative_addrs(ni_fsm_t *fsm)
 	for (i = 0; count && i < fsm->workers.count; i++) {
 		ni_ifworker_t *w = fsm->workers.data[i];
 
-		if (!w->kickstarted || !w->done)
+		if (!w->done || !w->device)
 			continue;
 
-		if(!w->device)
-			continue;
+		ni_debug_application("%s: tentative addresses check", w->name);
 
 		if (__ni_fsm_device_with_tentative_addrs(w->device)) {
 			usleep(250000);
