@@ -163,13 +163,22 @@ ni_objectmodel_sit_change(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_netdev_t *dev, *cfg;
+	ni_sit_t *sit;
+	const char *err;
 
 	/* we've already checked that argv matches our signature */
 	ni_assert(argc == 1);
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)) ||
-		!(cfg = __ni_objectmodel_sit_device_arg(&argv[0]))) {
+		!(cfg = __ni_objectmodel_sit_device_arg(&argv[0])) ||
+		!(ni_netdev_get_sit(dev))) {
 		ni_dbus_error_invalid_args(error, object->path, method->name);
+		return FALSE;
+	}
+
+	sit = ni_netdev_get_sit(cfg);
+	if ((err = ni_sit_validate(sit))) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s", err);
 		return FALSE;
 	}
 
