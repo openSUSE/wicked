@@ -2070,7 +2070,7 @@ __ni_rtnl_link_put_sit(struct nl_msg *msg, const ni_netdev_t *cfg)
 	return 0;
 
 nla_put_failure:
-       return -1;
+	return -1;
 }
 
 static int
@@ -2090,7 +2090,7 @@ __ni_rtnl_link_put_ipip(struct nl_msg *msg, const ni_netdev_t *cfg)
 	return 0;
 
 nla_put_failure:
-       return -1;
+	return -1;
 }
 
 static int
@@ -2110,7 +2110,7 @@ __ni_rtnl_link_put_gre(struct nl_msg *msg, const ni_netdev_t *cfg)
 	return 0;
 
 nla_put_failure:
-       return -1;
+	return -1;
 }
 
 static int
