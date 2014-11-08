@@ -835,7 +835,7 @@ __ni_compat_generate_tuntap(xml_node_t *ifnode, const ni_compat_netdev_t *compat
 	if (tuntap->owner != -1U)
 		xml_node_new_element_uint("owner", child, tuntap->owner);
 	if (tuntap->group != -1U)
-		xml_node_new_element_uint("owner", child, tuntap->group);
+		xml_node_new_element_uint("group", child, tuntap->group);
 
 	return TRUE;
 }
