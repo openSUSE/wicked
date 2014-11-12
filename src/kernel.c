@@ -596,6 +596,7 @@ ni_nl_dump_store(int af, int type, struct ni_nlmsg_list *list)
 		return -NLE_BAD_SOCK;
 	}
 
+restart:
 	if ((rv = nl_rtgen_request(nl_sock, type, af, NLM_F_DUMP)) < 0) {
 		ni_error("%s: failed to send request", __func__);
 		return rv;
@@ -607,8 +608,15 @@ ni_nl_dump_store(int af, int type, struct ni_nlmsg_list *list)
 	nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, __ni_nl_dump_valid, &data);
 
 	if ((rv = nl_recvmsgs(nl_sock, cb)) < 0) {
-		ni_error("%s: failed to receive response", __func__);
+		/* DUMP request has been interrupted and may provide
+		   inconsistent data. Re-trying should be harmless.
+		 */
 		nl_cb_put(cb);
+		if (rv == -NLE_DUMP_INTR) {
+			ni_warn("%s: inconsistent receive response", __func__);
+			goto restart;
+		}
+		ni_error("%s: failed to receive response (rv=%d)", __func__, rv);
 		return rv;
 	}
 
