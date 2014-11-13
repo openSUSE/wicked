@@ -84,11 +84,11 @@ ni_nanny_new(void)
 	return mgr;
 }
 
-void
+ni_dbus_client_t *
 ni_nanny_start(ni_nanny_t *mgr)
 {
 	ni_nanny_devmatch_t *match;
-	ni_dbus_client_t *client;
+	ni_dbus_client_t *client = NULL;
 
 	mgr->server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_NANNY);
 	if (!mgr->server)
@@ -131,6 +131,8 @@ ni_nanny_start(ni_nanny_t *mgr)
 				mgr);
 #endif
 	}
+
+	return client;
 }
 
 void

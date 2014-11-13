@@ -113,7 +113,7 @@ extern ni_dbus_service_t	ni_objectmodel_managed_policy_service;
 extern ni_dbus_service_t	ni_objectmodel_nanny_service;
 
 extern ni_nanny_t *		ni_nanny_new(void);
-extern void			ni_nanny_start(ni_nanny_t *);
+extern ni_dbus_client_t *	ni_nanny_start(ni_nanny_t *);
 extern void			ni_nanny_free(ni_nanny_t *);
 extern const char *		ni_nanny_statedir(void);
 extern void			ni_nanny_schedule_recheck(ni_ifworker_array_t *, ni_ifworker_t *);

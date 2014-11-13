@@ -259,13 +259,14 @@ static void
 babysit(void)
 {
 	ni_nanny_t *mgr;
+	ni_dbus_client_t *client;
 
 	mgr = ni_nanny_new();
 
 	if (ni_init_ex("nanny", ni_nanny_config_callback, mgr) < 0)
 		ni_fatal("error in configuration file");
 
-	ni_nanny_start(mgr);
+	client = ni_nanny_start(mgr);
 
 	if (!opt_foreground) {
 		ni_daemon_close_t close_flags = NI_DAEMON_CLOSE_STD;
@@ -302,6 +303,7 @@ babysit(void)
 			ni_fatal("ni_socket_wait failed");
 	}
 
+	ni_dbus_client_free(client);
 	exit(0);
 }
 
