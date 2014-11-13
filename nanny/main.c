@@ -28,6 +28,7 @@
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
 
+#include "dbus-server.h"
 #include "client/ifconfig.h"
 #include "util_priv.h"
 #include "nanny.h"
@@ -304,6 +305,12 @@ babysit(void)
 	}
 
 	ni_dbus_client_free(client);
+	ni_dbus_server_free(mgr->server);
+	ni_server_deactivate_interface_events();
+
+	ni_dbus_objects_garbage_collect();
+
+	ni_socket_deactivate_all();
 	exit(0);
 }
 
