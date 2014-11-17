@@ -401,6 +401,15 @@ ni_ifworker_active(const ni_ifworker_t *w)
 }
 
 /*
+ * Return true if the worker has been created from config file and has no real device
+ */
+static inline ni_bool_t
+ni_ifworker_is_config_worker(ni_ifworker_t *w)
+{
+	return w && (!w->device && 0 == w->ifindex && !xml_node_is_empty(w->config.node));
+}
+
+/*
  * Returns true if a state is one of the FSM defined states
  */
 static inline ni_bool_t
