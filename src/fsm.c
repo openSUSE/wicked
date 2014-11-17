@@ -3125,7 +3125,17 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		return NULL;
 	}
 
-	found = ni_fsm_ifworker_by_netdev(fsm, dev);
+	if (ni_netdev_device_is_ready(dev)) {
+		found = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
+		if (ni_ifworker_is_config_worker(found)) {
+			ni_ifworker_t *real_w = ni_fsm_ifworker_by_ifindex(fsm, dev->link.ifindex);
+
+			if (real_w)
+				ni_fsm_destroy_worker(fsm, real_w);
+		}
+	}
+	if (!found)
+		found = ni_fsm_ifworker_by_netdev(fsm, dev);
 	if (!found)
 		found = ni_fsm_ifworker_by_object_path(fsm, object->path);
 	if (!found) {
