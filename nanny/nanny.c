@@ -583,6 +583,20 @@ ni_nanny_unregister_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_fsm_destroy_worker(mgr->fsm, w);
 }
 
+void
+ni_nanny_unregister_all(ni_nanny_t *mgr)
+{
+	unsigned int i;
+
+	if (mgr) {
+		for (i = 0; i < mgr->fsm->workers.count; i++) {
+			ni_ifworker_t *w = mgr->fsm->workers.data[i];
+
+			ni_nanny_unregister_device(mgr, w);
+		}
+	}
+}
+
 /*
  * Handle prompting
  */

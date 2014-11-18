@@ -304,6 +304,7 @@ babysit(void)
 			ni_fatal("ni_socket_wait failed");
 	}
 
+	ni_nanny_unregister_all(mgr);
 	ni_dbus_client_free(client);
 	ni_dbus_server_free(mgr->server);
 	ni_server_deactivate_interface_events();
@@ -311,6 +312,7 @@ babysit(void)
 	ni_dbus_objects_garbage_collect();
 
 	ni_socket_deactivate_all();
+
 	exit(0);
 }
 
