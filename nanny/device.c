@@ -93,7 +93,8 @@ ni_managed_device_free(ni_managed_device_t *mdev)
 	ni_debug_nanny("%s(%s): obj=%p", __func__,
 			mdev->worker? mdev->worker->name : "anon",
 			mdev->object);
-	ni_assert(mdev->object == NULL);
+
+	ni_objectmodel_unregister_managed_device(mdev);
 
 	if (mdev->worker) {
 		ni_ifworker_release(mdev->worker);
