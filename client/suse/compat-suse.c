@@ -2916,7 +2916,7 @@ __get_ipaddr(const ni_sysconfig_t *sc, const char *ifname, const char *suffix, n
 
 	if (!ni_sockaddr_is_specified(&local_addr)) {
 		/* usually crap written by yast2 -- bnc#879617 */
-		ni_warn("ifcfg-%s: ignoring unspecified ip address %s",
+		ni_info("ifcfg-%s: ignoring unspecified ip address %s",
 				ifname,	ni_sockaddr_print(&local_addr));
 		return FALSE;
 	}
