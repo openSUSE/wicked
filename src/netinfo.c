@@ -60,8 +60,24 @@ ni_init(const char *appname)
 static int
 __ni_init_gcrypt(void)
 {
-	if (!gcry_check_version(GCRYPT_VERSION)) {
-		ni_error("libgcrypt version mismatch");
+/*
+ * gcry_check_version checks for minmum version
+ * we want consider sufficient and returns NULL
+ * on failures.
+ *
+ * configure.ac checks and defines the minimum;
+ * when our requirements change, adjust there.
+ *
+ * With NULL, we don't require a minimum version
+ * but call the function to initialize libgcrypt
+ * and trust the linker and library soname.
+ */
+#ifndef REQUIRE_LIBGCRYPT
+#define REQUIRE_LIBGCRYPT NULL
+#endif
+	if (!gcry_check_version(REQUIRE_LIBGCRYPT)) {
+		ni_error("libgcrypt version mismatch: built %s, required >= %s",
+			GCRYPT_VERSION, REQUIRE_LIBGCRYPT);
 		return -1;
 	}
 
