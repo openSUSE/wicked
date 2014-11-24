@@ -8,6 +8,7 @@
 *.so.*
 *.m4
 .*
+compile
 core
 tags
 TAGS
