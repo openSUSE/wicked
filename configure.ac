@@ -203,15 +203,13 @@ AC_CHECK_LIB([anl], [getaddrinfo_a], [LIBANL_LIBS="-lanl"],[
 ])
 AC_SUBST(LIBANL_LIBS)
 
-AC_MSG_CHECKING([for libgcrypt])
-if ! test -x /usr/bin/libgcrypt-config; then
-	AC_MSG_ERROR([libgcrypt-config not found])
-fi
-LIBGCRYPT_CFLAGS=`/usr/bin/libgcrypt-config --cflags`
-LIBGCRYPT_LIBS=`/usr/bin/libgcrypt-config --libs`
-AC_SUBST(LIBGCRYPT_CFLAGS)
-AC_SUBST(LIBGCRYPT_LIBS)
-AC_MSG_RESULT([found.])
+# Checks for libgcrypt and it's minimal version;
+# libgcrypt-1.5.0 as on SLE-11-SP3 is sufficient.
+REQUIRE_LIBGCRYPT="1.5.0"
+AM_PATH_LIBGCRYPT([$REQUIRE_LIBGCRYPT],,[
+	AC_MSG_ERROR([Unable to find sufficient libgcrypt version])
+])
+AC_SUBST(REQUIRE_LIBGCRYPT)
 
 # Checks for pkg-config modules.
 PKG_CHECK_MODULES(LIBNL, [libnl-3.0 libnl-route-3.0])
