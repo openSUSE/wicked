@@ -289,6 +289,12 @@ run_interface_server(void)
 	if (opt_recover_state)
 		ni_objectmodel_save_state(opt_state_file);
 
+	ni_server_deactivate_interface_events();
+
+	ni_dbus_objects_garbage_collect();
+
+	ni_socket_deactivate_all();
+
 	exit(0);
 }
 

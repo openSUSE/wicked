@@ -84,11 +84,11 @@ ni_nanny_new(void)
 	return mgr;
 }
 
-void
+ni_dbus_client_t *
 ni_nanny_start(ni_nanny_t *mgr)
 {
 	ni_nanny_devmatch_t *match;
-	ni_dbus_client_t *client;
+	ni_dbus_client_t *client = NULL;
 
 	mgr->server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_NANNY);
 	if (!mgr->server)
@@ -131,6 +131,8 @@ ni_nanny_start(ni_nanny_t *mgr)
 				mgr);
 #endif
 	}
+
+	return client;
 }
 
 void
@@ -579,6 +581,20 @@ ni_nanny_unregister_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_nanny_unschedule(&mgr->recheck, w);
 	ni_nanny_policy_drop(w->name);
 	ni_fsm_destroy_worker(mgr->fsm, w);
+}
+
+void
+ni_nanny_unregister_all(ni_nanny_t *mgr)
+{
+	unsigned int i;
+
+	if (mgr) {
+		for (i = 0; i < mgr->fsm->workers.count; i++) {
+			ni_ifworker_t *w = mgr->fsm->workers.data[i];
+
+			ni_nanny_unregister_device(mgr, w);
+		}
+	}
 }
 
 /*
