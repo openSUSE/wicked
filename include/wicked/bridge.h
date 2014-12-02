@@ -95,6 +95,7 @@ extern void		ni_bridge_get_port_names(const ni_bridge_t *, ni_string_array_t *);
 extern ni_bridge_port_t *ni_bridge_port_new(ni_bridge_t *br, const char *ifname, unsigned int ifindex);
 extern ni_bridge_port_t *ni_bridge_port_by_index(const ni_bridge_t *br, unsigned int ifindex);
 extern ni_bridge_port_t *ni_bridge_port_by_name(const ni_bridge_t *br, const char *ifname);
+extern ni_bridge_port_t *ni_bridge_port_clone(const ni_bridge_port_t *port);
 extern void		ni_bridge_port_free(ni_bridge_port_t *port);
 
 

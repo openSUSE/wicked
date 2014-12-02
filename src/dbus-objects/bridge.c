@@ -294,7 +294,9 @@ __ni_objectmodel_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_proper
 			return FALSE;
 		}
 
-		ni_bridge_add_port(bridge, port);
+		if (ni_bridge_add_port(bridge, port) < 0) {
+			ni_bridge_port_free(port); /* duplicate port */
+		}
 	}
 
 	return TRUE;
@@ -315,8 +317,10 @@ __ni_objectmodel_bridge_port_to_dict(const ni_bridge_port_t *port, ni_dbus_varia
 	 *
 	 * FIXME: should we resolve the object path here?
 	 */
-	if (port->ifname)
-		ni_dbus_dict_add_string(dict, "device", port->ifname);
+	if (ni_string_empty(port->ifname))
+		return FALSE;
+
+	ni_dbus_dict_add_string(dict, "device", port->ifname);
 	ni_dbus_dict_add_uint32(dict, "priority", port->priority);
 	ni_dbus_dict_add_uint32(dict, "path-cost", port->path_cost);
 
@@ -342,8 +346,11 @@ __ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_var
 		return TRUE;
 
 	/* FIXME: should expect object path here and map that to an ifindex */
-	if (ni_dbus_dict_get_string(dict, "device", &string))
+	if (ni_dbus_dict_get_string(dict, "device", &string) && !ni_string_empty(string))
 		ni_string_dup(&port->ifname, string);
+	else
+		return FALSE;
+
 	if (ni_dbus_dict_get_uint32(dict, "priority", &value))
 		port->priority = value;
 	if (ni_dbus_dict_get_uint32(dict, "path-cost", &value))

@@ -1130,13 +1130,13 @@ ni_system_bridge_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
 
 /*
  * Add a port to a bridge interface
- * Note, in case of success, the bridge will have taken ownership of the port object.
  */
 int
-ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port_t *port)
+ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, const ni_bridge_port_t *port)
 {
 	ni_bridge_t *bridge = ni_netdev_get_bridge(brdev);
 	ni_netdev_t *pif = NULL;
+	ni_bridge_port_t *new_port;
 	int rv;
 
 	if (port->ifindex)
@@ -1210,7 +1210,14 @@ ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, ni_bridge_port
 		return rv;
 	}
 
-	ni_bridge_add_port(bridge, port);
+	/* when this fails, next event will update/add it... */
+	new_port = ni_bridge_port_clone(port);
+	new_port->ifindex = pif->link.ifindex;
+	if (!ni_string_eq(new_port->ifname, pif->name))
+		ni_string_dup(&new_port->ifname, pif->name);
+
+	if (!ni_bridge_add_port(bridge, new_port))
+		ni_bridge_port_free(new_port);
 	return 0;
 }
 
