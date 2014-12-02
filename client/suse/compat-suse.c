@@ -2973,6 +2973,18 @@ __get_ipaddr(const ni_sysconfig_t *sc, const char *ifname, const char *suffix, n
 		}
 	}
 
+	if (ap->family == AF_INET) {
+		var = __find_indexed_variable(sc, "LABEL", suffix);
+		if (var && var->value && !ni_string_eq(ifname, var->value)) {
+			if (!ni_netdev_alias_label_is_valid(ifname, var->value)) {
+				ni_info("ifcfg-%s: ignoring %s='%s' (incorrect format)",
+						ifname, var->name, var->value);
+			} else {
+				ni_string_dup(&ap->label, var->value);
+			}
+		}
+	}
+
 	return TRUE;
 }
 
