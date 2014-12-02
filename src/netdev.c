@@ -925,28 +925,37 @@ ni_netdev_supports_arp(ni_netdev_t *dev)
 	return FALSE;
 }
 
-ni_bool_t
-ni_netdev_name_is_valid(const char *ifname)
+static size_t
+__ni_netdev_name_is_valid(const char *ifname)
 {
 	size_t i, len = ni_string_len(ifname);
-	const char *black_list[] = {
-		"all", "default", NULL
-	}, **ptr;
 
 	if (!len || len >= IFNAMSIZ)
-		return FALSE;
+		return 0;
 
-	if (!isalnum((unsigned char)ifname[0]))
-		return FALSE;
-
-	for(i = 1; i < len; ++i) {
+	for(i = 0; i < len; ++i) {
 		if(isalnum((unsigned char)ifname[i]) ||
 				ifname[i] == '-' ||
 				ifname[i] == '_' ||
 				ifname[i] == '.')
 			continue;
-		return FALSE;
+		return 0;
 	}
+	return len;
+}
+
+ni_bool_t
+ni_netdev_name_is_valid(const char *ifname)
+{
+	const char *black_list[] = {
+		"all", "default", NULL
+	}, **ptr;
+
+	if (!__ni_netdev_name_is_valid(ifname))
+		return FALSE;
+
+	if (!isalnum((unsigned char)ifname[0]))
+		return FALSE;
 
 	for (ptr = black_list; *ptr; ptr++) {
 		if (ni_string_eq(*ptr, ifname))
@@ -954,5 +963,52 @@ ni_netdev_name_is_valid(const char *ifname)
 	}
 
 	return TRUE;
+}
+
+static size_t
+__ni_netdev_alias_label_is_valid(const char *alabel)
+{
+	size_t i, len = ni_string_len(alabel);
+
+	if (!len || len >= IFNAMSIZ)
+		return 0;
+
+	for(i = 0; i < len; ++i) {
+		if(isalnum((unsigned char)alabel[i]) ||
+				alabel[i] == '-' ||
+				alabel[i] == '_' ||
+				alabel[i] == '.' ||
+				alabel[i] == ':')
+			continue;
+		return 0;
+	}
+	return len;
+}
+
+
+ni_bool_t
+ni_netdev_alias_label_is_valid(const char *ifname, const char *alabel)
+{
+	size_t nlen = ni_string_len(ifname);
+	size_t alen = ni_string_len(alabel);
+
+	/* assume ifname is verified already/separately */
+	if (!nlen || !alen || alen >= IFNAMSIZ)
+		return FALSE;
+
+	if (!strncmp(ifname, alabel, nlen)) {
+		/* alabel is equal to ifname/no label */
+		if (alen == nlen)
+			return TRUE;
+
+		/* alabel contains "<ifname>:" prefix */
+		return  __ni_netdev_alias_label_is_valid(alabel + nlen) > 0;
+	} else if (alen + nlen + 1 < IFNAMSIZ) {
+		/* alabel without "<ifname>:" prefix  */
+		return __ni_netdev_alias_label_is_valid(alabel) > 0;
+	} else {
+		/* "<ifname>:<alabel>" is too long    */
+		return FALSE;
+	}
 }
 

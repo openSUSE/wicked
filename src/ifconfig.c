@@ -2644,19 +2644,17 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 		goto nla_put_failure;
 
 	if (ap->family == AF_INET && ap->label) {
-		size_t len = strlen(dev->name);
+		if (!ni_netdev_alias_label_is_valid(dev->name, ap->label)) {
+			ni_info("%s: skipping invalid ipv4 address alias label '%s'",
+					dev->name, ap->label);
+		} else if (!strncmp(ap->label, dev->name, strlen(dev->name))) {
+			NLA_PUT_STRING(msg, IFA_LABEL, ap->label);
+		} else {
+			char label[IFNAMSIZ] = {'\0'};
 
-		if (strncmp(ap->label, dev->name, len) != 0) {
-			ni_error("%s: device name must be a prefix of the ipv4 address label \"%s\"",
-				dev->name, ap->label);
-			goto failed;
-		} else if (strlen(ap->label) >= IFNAMSIZ) {
-			ni_error("%s: specified address label \"%s\" is too long",
-				dev->name, ap->label);
-			goto failed;
+			snprintf(label, sizeof(label), "%s:%s", dev->name, ap->label);
+			NLA_PUT_STRING(msg, IFA_LABEL, label);
 		}
-
-		NLA_PUT_STRING(msg, IFA_LABEL, ap->label);
 	}
 
 	if (ap->family == AF_INET6
