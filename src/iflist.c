@@ -94,12 +94,23 @@ struct ni_rtnl_query {
 static inline int
 __ni_rtnl_query(struct ni_rtnl_info *qr, int af, int type)
 {
-	ni_nlmsg_list_init(&qr->nlmsg_list);
-	if (ni_nl_dump_store(af, type, &qr->nlmsg_list) < 0)
-		return -1;
+	int rv;
 
-	qr->entry = qr->nlmsg_list.head;
-	return 0;
+	ni_nlmsg_list_init(&qr->nlmsg_list);
+retry:
+	rv = ni_nl_dump_store(af, type, &qr->nlmsg_list);
+	switch (rv) {
+	case NLE_SUCCESS:
+		qr->entry = qr->nlmsg_list.head;
+		break;
+	case -NLE_DUMP_INTR:
+		ni_nlmsg_list_destroy(&qr->nlmsg_list);
+		goto retry;
+	default:
+		qr->entry = NULL;
+		break;
+	}
+	return rv;
 }
 
 static inline struct nlmsghdr *

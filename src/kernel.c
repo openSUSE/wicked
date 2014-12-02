@@ -606,14 +606,28 @@ ni_nl_dump_store(int af, int type, struct ni_nlmsg_list *list)
 
 	nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, __ni_nl_dump_valid, &data);
 
-	if ((rv = nl_recvmsgs(nl_sock, cb)) < 0) {
-		ni_error("%s: failed to receive response", __func__);
-		nl_cb_put(cb);
-		return rv;
+retry:
+	rv = nl_recvmsgs(nl_sock, cb);
+	switch (rv) {
+	case NLE_SUCCESS:
+		break;
+	case -NLE_AGAIN:
+		/* debug only, we retry to receive */
+		ni_debug_socket("%s: failed to receive response: %s",
+				__func__, nl_geterror(rv));
+		goto retry;
+	case -NLE_DUMP_INTR:
+		/* debug only, we repeat the query */
+		ni_debug_socket("%s: failed to receive response: %s",
+				__func__, nl_geterror(rv));
+		break;
+	default:
+		ni_error("%s: failed to receive response: %s",
+				__func__, nl_geterror(rv));
+		break;
 	}
-
 	nl_cb_put(cb);
-	return 0;
+	return rv;
 }
 
 /*
