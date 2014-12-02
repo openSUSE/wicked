@@ -724,11 +724,23 @@ __ni_rtevent_sock_release_data(void *user_data)
 	__ni_rtevent_handle_free(user_data);
 }
 
+static unsigned int
+__ni_rtevent_config_recv_buff_len(void)
+{
+	return ni_global.config ? ni_global.config->rtnl_event.recv_buff_length : 0;
+}
+
+static unsigned int
+__ni_rtevent_config_mesg_buff_len(void)
+{
+	return ni_global.config ? ni_global.config->rtnl_event.mesg_buff_length : 0;
+}
+
 static ni_socket_t *
 __ni_rtevent_sock_open(void)
 {
-	unsigned int recv_buff_len = 1024 * 1024;
-	unsigned int mesg_buff_len = 0;
+	unsigned int recv_buff_len = __ni_rtevent_config_recv_buff_len();
+	unsigned int mesg_buff_len = __ni_rtevent_config_mesg_buff_len();
 	ni_rtevent_handle_t *handle;
 	ni_socket_t *sock;
 	int fd, ret;
