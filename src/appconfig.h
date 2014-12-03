@@ -66,6 +66,14 @@ typedef struct ni_server_preference {
 	int			weight;
 } ni_server_preference_t;
 
+typedef struct ni_config_rtnl_event {
+	/*
+	 * rtnetlink event related tunables
+	 */
+	unsigned int	recv_buff_length;
+	unsigned int	mesg_buff_length;
+} ni_config_rtnl_event_t;
+
 typedef struct ni_config {
 	ni_config_fslocation_t	piddir;
 	ni_config_fslocation_t	storedir;
@@ -119,6 +127,9 @@ typedef struct ni_config {
 
 	char *			dbus_name;
 	char *			dbus_type;
+
+	ni_config_rtnl_event_t	rtnl_event;
+
 } ni_config_t;
 
 extern ni_config_t *	ni_config_new();

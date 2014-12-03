@@ -42,6 +42,7 @@ static ni_bool_t	ni_config_parse_objectmodel_firmware_discovery(ni_extension_t *
 static ni_bool_t	ni_config_parse_system_updater(ni_extension_t **, xml_node_t *);
 static ni_bool_t	ni_config_parse_extension(ni_extension_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_sources(ni_config_t *, xml_node_t *);
+static ni_bool_t	ni_config_parse_rtnl_event(ni_config_rtnl_event_t *, xml_node_t *);
 static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
 static const char *	ni_config_build_include(const char *, const char *);
 static unsigned int	ni_config_addrconf_update_mask_all(void);
@@ -69,6 +70,9 @@ ni_config_new()
 	ni_config_fslocation_init(&conf->storedir, WICKED_STOREDIR, 0755);
 
 	conf->use_nanny = FALSE;
+
+	conf->rtnl_event.recv_buff_length = 1024 * 1024;
+	conf->rtnl_event.mesg_buff_length = 0;
 
 	return conf;
 }
@@ -230,6 +234,10 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 		} else
 		if (strcmp(child->name, "debug") == 0) {
 			ni_debug_set_default(child->cdata);
+		} else
+		if (strcmp(child->name, "netlink-events") == 0) {
+			if (!ni_config_parse_rtnl_event(&conf->rtnl_event, child))
+				goto failed;
 		} else
 		if (cb != NULL) {
 			if (!cb(appdata, child))
@@ -915,6 +923,27 @@ ni_config_sources(const char *type)
 		}
 	}
 	return retval;
+}
+
+ni_bool_t
+ni_config_parse_rtnl_event(ni_config_rtnl_event_t *conf, xml_node_t *node)
+{
+	xml_node_t *child;
+
+	if (!conf || !node)
+		return FALSE;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "receive-buffer-length")) {
+			if (ni_parse_uint(child->cdata, &conf->recv_buff_length, 0))
+				return FALSE;
+		} else
+		if (ni_string_eq(child->name, "message-buffer-length")) {
+			if (ni_parse_uint(child->cdata, &conf->mesg_buff_length, 0))
+				return FALSE;
+		}
+	}
+	return TRUE;
 }
 
 /*
