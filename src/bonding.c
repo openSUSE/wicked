@@ -57,6 +57,8 @@ static const ni_intmap_t	__map_kern_xmit_hash_policy[] = {
 	{ "layer2",		NI_BOND_XMIT_HASH_LAYER2   },
 	{ "layer2+3",		NI_BOND_XMIT_HASH_LAYER2_3 },
 	{ "layer3+4",		NI_BOND_XMIT_HASH_LAYER3_4 },
+	{ "encap2+3",		NI_BOND_XMIT_HASH_ENCAP2_3 },
+	{ "encap3+4",		NI_BOND_XMIT_HASH_ENCAP3_4 },
 	{ NULL }
 };
 static const ni_intmap_t	__map_kern_lacp_rate[] = {
@@ -105,6 +107,8 @@ static const ni_intmap_t	__map_user_xmit_hash_policy[] = {
 	{ "layer2",		NI_BOND_XMIT_HASH_LAYER2   },
 	{ "layer23",		NI_BOND_XMIT_HASH_LAYER2_3 },
 	{ "layer34",		NI_BOND_XMIT_HASH_LAYER3_4 },
+	{ "encap23",		NI_BOND_XMIT_HASH_ENCAP2_3 },
+	{ "encap34",		NI_BOND_XMIT_HASH_ENCAP3_4 },
 	{ NULL }
 };
 /*
@@ -299,6 +303,8 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 		case NI_BOND_XMIT_HASH_LAYER2:
 		case NI_BOND_XMIT_HASH_LAYER2_3:
 		case NI_BOND_XMIT_HASH_LAYER3_4:
+		case NI_BOND_XMIT_HASH_ENCAP2_3:
+		case NI_BOND_XMIT_HASH_ENCAP3_4:
 			break;
 		default:
 			return "unsupported xmit hash policy";
