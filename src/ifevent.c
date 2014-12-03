@@ -441,6 +441,7 @@ __ni_rtevent_deladdr(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 
 		__ni_address_list_remove(&dev->addrs, ap);
 	}
+	ni_string_free(&tmp.label);
 
 	return 0;
 }

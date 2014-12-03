@@ -41,6 +41,20 @@ ni_bridge_port_new(ni_bridge_t *bridge, const char *ifname, unsigned int ifindex
 	return port;
 }
 
+ni_bridge_port_t *
+ni_bridge_port_clone(const ni_bridge_port_t *src)
+{
+	ni_bridge_port_t *dst;
+
+	if (src) {
+		dst = ni_bridge_port_new(NULL, src->ifname, src->ifindex);
+		dst->priority = src->priority;
+		dst->path_cost = src->path_cost;
+		return dst;
+	}
+	return NULL;
+}
+
 void
 ni_bridge_port_free(ni_bridge_port_t *port)
 {

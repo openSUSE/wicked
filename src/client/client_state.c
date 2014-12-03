@@ -368,6 +368,7 @@ ni_client_state_save(const ni_client_state_t *client_state, unsigned int ifindex
 		xml_node_free(node);
 		goto failure;
 	}
+	xml_node_free(node);
 
 	if (rename(temp, path) < 0) {
 		ni_error("Cannot move temp file to state file %s", path);

@@ -423,9 +423,11 @@ ni_process_run_and_capture_output(ni_process_t *pi, ni_buffer_t *out_buffer)
 			out_buffer->tail += cnt;
 		} else if (errno != EINTR) {
 			ni_error("read error on subprocess pipe: %m");
-			return -1;
+			rv = -1;
+			break;
 		}
 	}
+	close(pfd[0]);
 
 	while (waitpid(pi->pid, &pi->status, 0) < 0) {
 		if (errno == EINTR)

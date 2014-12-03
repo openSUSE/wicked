@@ -1831,8 +1831,10 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 	ap = ni_address_list_find(dev->addrs, &tmp.local_addr);
 	if (!ap) {
 		ap = ni_netdev_add_address(dev, tmp.family, tmp.prefixlen, &tmp.local_addr);
-		if (!ap)
+		if (!ap) {
+			ni_string_free(&tmp.label);
 			return -1;
+		}
 	}
 	ap->seq = dev->seq;
 	ap->scope = tmp.scope;
