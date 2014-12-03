@@ -753,8 +753,6 @@ ni_fsm_ifworker_by_netdev(ni_fsm_t *fsm, const ni_netdev_t *dev)
 			return w;
 		if (w->ifindex && w->ifindex == dev->link.ifindex)
 			return w;
-		if (w->name && ni_string_eq(dev->name, w->name))
-			return w;
 	}
 
 	return NULL;
@@ -3127,7 +3125,17 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		return NULL;
 	}
 
-	found = ni_fsm_ifworker_by_netdev(fsm, dev);
+	if (ni_netdev_device_is_ready(dev)) {
+		found = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
+		if (ni_ifworker_is_config_worker(found)) {
+			ni_ifworker_t *real_w = ni_fsm_ifworker_by_ifindex(fsm, dev->link.ifindex);
+
+			if (real_w)
+				ni_fsm_destroy_worker(fsm, real_w);
+		}
+	}
+	if (!found)
+		found = ni_fsm_ifworker_by_netdev(fsm, dev);
 	if (!found)
 		found = ni_fsm_ifworker_by_object_path(fsm, object->path);
 	if (!found) {
@@ -4392,6 +4400,29 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	if (event_type == NI_EVENT_ADDRESS_ACQUIRED)
 		fsm->last_event_seq[NI_EVENT_ADDRESS_ACQUIRED] = fsm->event_seq;
 
+	if (event_type == NI_EVENT_DEVICE_READY) {
+		/* Refresh device on create */
+		if (!(w = ni_fsm_recv_new_netif_path(fsm, object_path))) {
+			ni_error("%s: Cannot find corresponding worker for %s",
+				__func__, object_path);
+			return;
+		}
+
+		/* Rebuild hierarchy */
+		ni_fsm_refresh_master_dev(fsm, w);
+		ni_fsm_refresh_lower_dev(fsm, w);
+
+		/* Rebuild hierarchy in case of new device shows up */
+		ni_fsm_build_hierarchy(fsm, FALSE);
+
+		/* Handle devices which were not present on ifup */
+		if(w->pending) {
+			w->pending = FALSE;
+			ni_ifworker_start(fsm, w, fsm->worker_timeout);
+			goto done;
+		}
+	}
+
 	if ((w = ni_fsm_ifworker_by_object_path(fsm, object_path)) != NULL) {
 		ni_objectmodel_callback_info_t *cb = NULL;
 
@@ -4458,27 +4489,6 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		if (event_type == NI_EVENT_DEVICE_DELETE) {
 			ni_fsm_destroy_worker(fsm, w);
 			goto done;
-		}
-
-		if (event_type == NI_EVENT_DEVICE_READY) {
-			/* Refresh device on create */
-			if (!w->device) {
-				w = ni_fsm_recv_new_netif_path(fsm, object_path);
-
-				/* Rebuild hierarchy */
-				ni_fsm_refresh_master_dev(fsm, w);
-				ni_fsm_refresh_lower_dev(fsm, w);
-			}
-
-			/* Rebuild hierarchy in case of new device shows up */
-			ni_fsm_build_hierarchy(fsm, FALSE);
-
-			/* Handle devices which were not present on ifup */
-			if(w->pending) {
-				w->pending = FALSE;
-				ni_ifworker_start(fsm, w, fsm->worker_timeout);
-				goto done;
-			}
 		}
 
 		ni_ifworker_advance_state(w, event_type);
