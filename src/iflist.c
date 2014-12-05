@@ -1139,6 +1139,115 @@ __ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 	return __ni_process_ifinfomsg_linkinfo(link, ifname, tb, h, ifi, nc);
 }
 
+static int
+__ni_process_ifinfomsg_af_ipv4_conf(ni_netdev_t *dev, struct nlattr *nla)
+{
+	int32_t *array;
+	int bytes;
+
+	array = nla_data(nla);
+	bytes = nla_len(nla);
+	if (bytes <= 0 || !array || (bytes % 4))
+		return -1;
+
+	return __ni_ipv4_devconf_process_flags(dev, array, bytes / 4);
+}
+
+static int
+__ni_process_ifinfomsg_af_ipv4(ni_netdev_t *dev, struct nlattr *nla, ni_bool_t *ipv4_conf)
+{
+	struct nlattr *tb[IFLA_INET_MAX + 1];
+
+	if (!nla)
+		return -1;
+
+	memset(tb, 0, sizeof(tb));
+	if (nla_parse_nested(tb, IFLA_INET_MAX, nla, NULL) < 0)
+		return -1;
+
+	if (tb[IFLA_INET_CONF]) {
+		if (!__ni_process_ifinfomsg_af_ipv4_conf(dev, tb[IFLA_INET_CONF]) && ipv4_conf)
+			*ipv4_conf = TRUE;
+	}
+
+	return 0;
+}
+
+static int
+__ni_process_ifinfomsg_af_ipv6_conf(ni_netdev_t *dev, struct nlattr *nla)
+{
+	int32_t *array;
+	int bytes;
+
+	array = nla_data(nla);
+	bytes = nla_len(nla);
+	if (bytes <= 0 || !array || (bytes % 4))
+		return -1;
+
+	return __ni_ipv6_devconf_process_flags(dev, array, bytes / 4);
+}
+
+static int
+__ni_process_ifinfomsg_af_ipv6(ni_netdev_t *dev, struct nlattr *nla, ni_bool_t *ipv6_conf)
+{
+	struct nlattr *tb[IFLA_INET6_MAX + 1];
+
+	if (!nla)
+		return -1;
+
+	memset(tb, 0, sizeof(tb));
+	if (nla_parse_nested(tb, IFLA_INET6_MAX, nla, NULL) < 0)
+		return -1;
+
+	if (tb[IFLA_INET6_CONF]) {
+		if (!__ni_process_ifinfomsg_af_ipv6_conf(dev, tb[IFLA_INET6_CONF]) && ipv6_conf)
+			*ipv6_conf = TRUE;
+	}
+
+	return 0;
+}
+
+static int
+__ni_process_ifinfomsg_af_spec(ni_netdev_t *dev, struct nlattr *ifla_af_spec)
+{
+	/*
+	 * not every newlink provides device sysctl's;
+	 * we get them on a refresh and on any change
+	 * and this is IMO completely sufficient.
+	 */
+	static ni_bool_t ipv4_conf = FALSE;
+	static ni_bool_t ipv6_conf = FALSE;
+
+	if (ifla_af_spec) {
+		struct nlattr *af;
+		int rem;
+
+		nla_for_each_nested(af, ifla_af_spec, rem) {
+			switch (nla_type(af)) {
+			case AF_INET:
+				__ni_process_ifinfomsg_af_ipv4(dev, af, &ipv4_conf);
+				break;
+			case AF_INET6:
+				__ni_process_ifinfomsg_af_ipv6(dev, af, &ipv6_conf);
+				break;
+			default:
+				break;
+			}
+		}
+	}
+
+	/* don't read sysfs when device (name) is not ready */
+	if (ni_netdev_device_is_ready(dev)) {
+		if (!ipv4_conf) {
+			ni_system_ipv4_devinfo_get(dev, NULL);
+		}
+		if (!ipv6_conf) {
+			ni_system_ipv6_devinfo_get(dev, NULL);
+		}
+	}
+
+	return 0;
+}
 
 /*
  * Refresh complete interface link info given a RTM_NEWLINK message
@@ -1182,9 +1291,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		ni_oper_state_type_to_name(dev->link.oper_state));
 #endif
 
-	ni_system_ipv4_devinfo_get(dev, NULL);
-	ni_system_ipv6_devinfo_get(dev, NULL);
-
+	__ni_process_ifinfomsg_af_spec(dev, tb[IFLA_AF_SPEC]);
 	__ni_process_ifinfomsg_ipv6info(dev, tb[IFLA_PROTINFO]);
 
 	switch (dev->link.type) {
