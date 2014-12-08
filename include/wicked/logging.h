@@ -71,6 +71,7 @@ enum {
 	NI_TRACE_MODEM		= 0x010000,
 	NI_TRACE_LLDP		= 0x020000,
 	NI_TRACE_TIMER		= 0x040000,
+	NI_TRACE_IPV4		= 0x080000,
 };
 
 extern unsigned int	ni_debug;
@@ -95,6 +96,7 @@ extern unsigned int	ni_log_level;
 #define ni_debug_wicked(fmt, args...)		__ni_debug(NI_LOG_DEBUG, NI_TRACE_WICKED, fmt, ##args)
 #define ni_debug_events(fmt, args...)		__ni_debug(NI_LOG_DEBUG, NI_TRACE_EVENTS, fmt, ##args)
 #define ni_debug_dhcp(fmt, args...)		__ni_debug(NI_LOG_DEBUG, NI_TRACE_DHCP, fmt, ##args)
+#define ni_debug_ipv4(fmt, args...)		__ni_debug(NI_LOG_DEBUG, NI_TRACE_IPV4, fmt, ##args)
 #define ni_debug_ipv6(fmt, args...)		__ni_debug(NI_LOG_DEBUG, NI_TRACE_IPV6, fmt, ##args)
 #define ni_debug_socket(fmt, args...)		__ni_debug(NI_LOG_DEBUG, NI_TRACE_SOCKET, fmt, ##args)
 #define ni_debug_autoip(fmt, args...)		__ni_debug(NI_LOG_DEBUG, NI_TRACE_AUTOIP, fmt, ##args)

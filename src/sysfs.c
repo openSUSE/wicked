@@ -688,10 +688,8 @@ __ni_sysfs_printf(const char *pathname, const char *fmt, ...)
 	va_list ap;
 	FILE *fp;
 
-	if ((fp = fopen(pathname, "w")) == NULL) {
-		ni_error("unable to open %s: %m", pathname);
+	if ((fp = fopen(pathname, "w")) == NULL)
 		return -1;
-	}
 
 	va_start(ap, fmt);
 	vfprintf(fp, fmt, ap);
