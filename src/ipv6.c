@@ -243,24 +243,37 @@ ni_system_ipv6_devinfo_get(ni_netdev_t *dev, ni_ipv6_devinfo_t *ipv6)
  * Update the device's IPv6 settings
  */
 static inline int
-__ni_system_ipv6_devinfo_change_int(const char *ifname, const char *attr, int value)
+__change_int(const char *ifname, const char *attr, int value)
 {
 	if (!ni_tristate_is_set(value))
 		return 1;
 
 	if (ni_sysctl_ipv6_ifconfig_set_int(ifname, attr, value) < 0) {
-		ni_warn("%s: cannot set ipv6 device attr %s=%u",
-				ifname, attr, value);
-		return -1;
+		if (errno == EROFS || errno == ENOENT) {
+			ni_info("%s: cannot set ipv6.conf.%s = %d attribute: %m",
+					ifname, attr, value);
+			return 1;
+		} else {
+			ni_warn("%s: cannot set ipv6.conf.%s = %d attribute: %m",
+					ifname, attr, value);
+			return -errno;
+		}
 	}
 
 	return 0;
+}
+
+static ni_bool_t
+__tristate_changed(ni_tristate_t cfg, ni_tristate_t sys)
+{
+	return ni_tristate_is_set(cfg) && cfg != sys;
 }
 
 int
 ni_system_ipv6_devinfo_set(ni_netdev_t *dev, const ni_ipv6_devconf_t *conf)
 {
 	ni_ipv6_devinfo_t *ipv6;
+	int ret;
 
 	if (!conf || !(ipv6 = ni_netdev_get_ipv6(dev)))
 		return -1;
@@ -274,12 +287,13 @@ ni_system_ipv6_devinfo_set(ni_netdev_t *dev, const ni_ipv6_devconf_t *conf)
 		return 0;
 	}
 
-	if (ni_tristate_is_set(conf->enabled)) {
-		if (__ni_system_ipv6_devinfo_change_int(dev->name, "disable_ipv6",
-				ni_tristate_is_enabled(conf->enabled) ? 0 : 1) < 0)
-			return -1;
-
-		ni_tristate_set(&ipv6->conf.enabled, conf->enabled);
+	if (__tristate_changed(conf->enabled, ipv6->conf.enabled)) {
+		ret = __change_int(dev->name, "disable_ipv6",
+				ni_tristate_is_enabled(conf->enabled) ? 0 : 1);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
+			ni_tristate_set(&ipv6->conf.enabled, conf->enabled);
 	}
 
 	/* If we're disabling IPv6 on this interface, we're done! */
@@ -288,31 +302,47 @@ ni_system_ipv6_devinfo_set(ni_netdev_t *dev, const ni_ipv6_devconf_t *conf)
 		return 0;
 	}
 
-	if (__ni_system_ipv6_devinfo_change_int(dev->name, "forwarding",
-						conf->forwarding) == 0)
-		ipv6->conf.forwarding = conf->forwarding;
+	if (__tristate_changed(conf->forwarding, ipv6->conf.forwarding)) {
+		ret = __change_int(dev->name, "forwarding", conf->forwarding);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
+			ipv6->conf.forwarding = conf->forwarding;
+	}
 
-	if (conf->accept_ra > NI_TRISTATE_DEFAULT) {
+	if (conf->accept_ra > NI_TRISTATE_DEFAULT && conf->accept_ra != ipv6->conf.accept_ra) {
 		int accept_ra = conf->accept_ra > 2 ? 2 : conf->accept_ra;
-		if (__ni_system_ipv6_devinfo_change_int(dev->name, "accept_ra",
-						accept_ra) == 0)
+		ret = __change_int(dev->name, "accept_ra", accept_ra);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
 			ipv6->conf.accept_ra = accept_ra;
 	}
 
-	if (__ni_system_ipv6_devinfo_change_int(dev->name, "accept_redirects",
-						conf->accept_redirects) == 0)
-		ipv6->conf.accept_redirects = conf->accept_redirects;
+	if (__tristate_changed(conf->accept_redirects, ipv6->conf.accept_redirects)) {
+		ret = __change_int(dev->name, "accept_redirects", conf->accept_redirects);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
+			ipv6->conf.accept_redirects = conf->accept_redirects;
+	}
 
-	if (__ni_system_ipv6_devinfo_change_int(dev->name, "autoconf",
-						conf->autoconf) == 0)
-		ipv6->conf.autoconf = conf->autoconf;
+	if (__tristate_changed(conf->autoconf, ipv6->conf.autoconf)) {
+		ret = __change_int(dev->name, "autoconf", conf->autoconf);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
+			ipv6->conf.autoconf = conf->autoconf;
+	}
 
-	if (ipv6->conf.privacy != NI_TRISTATE_DEFAULT) {
+	if (ipv6->conf.privacy != NI_TRISTATE_DEFAULT &&
+	    __tristate_changed(conf->privacy, ipv6->conf.privacy)) {
 		/* kernel is using -1 for loopback, ptp, ... */
-		if (__ni_system_ipv6_devinfo_change_int(dev->name,
-			"use_tempaddr",	conf->privacy) == 0) {
+		ret = __change_int(dev->name, "use_tempaddr",	conf->privacy);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
 			ipv6->conf.privacy = conf->privacy;
-		}
 	}
 
 	return 0;

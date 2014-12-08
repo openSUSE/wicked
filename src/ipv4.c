@@ -10,6 +10,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/ipv4.h>
+#include <errno.h>
 
 #include "util_priv.h"
 #include "sysfs.h"
@@ -185,18 +186,30 @@ ni_system_ipv4_devinfo_get(ni_netdev_t *dev, ni_ipv4_devinfo_t *ipv4)
  * Update the device's IPv4 settings
  */
 static inline int
-__ni_system_ipv4_devinfo_change_int(const char *ifname, const char *attr, int value)
+__change_int(const char *ifname, const char *attr, int value)
 {
 	if (!ni_tristate_is_set(value))
 		return 1;
 
 	if (ni_sysctl_ipv4_ifconfig_set_int(ifname, attr, value) < 0) {
-		ni_warn("%s: cannot set ipv4 device attr %s=%u",
-				ifname, attr, value);
-		return -1;
+		if (errno == EROFS || errno == ENOENT) {
+			ni_info("%s: cannot set ipv4.conf.%s = %d attribute: %m",
+					ifname, attr, value);
+			return 1;
+		} else {
+			ni_warn("%s: cannot set ipv4.conf.%s = %d attribute: %m",
+					ifname, attr, value);
+			return -errno;
+		}
 	}
 
 	return 0;
+}
+
+static ni_bool_t
+__tristate_changed(ni_tristate_t cfg, ni_tristate_t sys)
+{
+	return ni_tristate_is_set(cfg) && cfg != sys;
 }
 
 int
@@ -205,6 +218,7 @@ ni_system_ipv4_devinfo_set(ni_netdev_t *dev, const ni_ipv4_devconf_t *conf)
 	ni_ipv4_devinfo_t *ipv4;
 	ni_tristate_t arp_notify;
 	ni_bool_t can_arp;
+	int ret;
 
 	if (!conf || !(ipv4 = ni_netdev_get_ipv4(dev)))
 		return -1;
@@ -212,9 +226,13 @@ ni_system_ipv4_devinfo_set(ni_netdev_t *dev, const ni_ipv4_devconf_t *conf)
 	if (ni_tristate_is_set(conf->enabled))
 		ni_tristate_set(&ipv4->conf.enabled, conf->enabled);
 
-	if (__ni_system_ipv4_devinfo_change_int(dev->name, "forwarding",
-						conf->forwarding) == 0)
-		ipv4->conf.forwarding = conf->forwarding;
+	if (__tristate_changed(conf->forwarding, ipv4->conf.forwarding)) {
+		ret = __change_int(dev->name, "forwarding", conf->forwarding);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
+			ipv4->conf.forwarding = conf->forwarding;
+	}
 
 	can_arp = ni_netdev_supports_arp(dev);
 	if (ni_tristate_is_set(conf->arp_verify) && can_arp)
@@ -224,13 +242,22 @@ ni_system_ipv4_devinfo_set(ni_netdev_t *dev, const ni_ipv4_devconf_t *conf)
 
 	arp_notify = ni_tristate_is_set(conf->arp_notify) && can_arp ?
 			conf->arp_notify : conf->arp_verify;
-	if (__ni_system_ipv4_devinfo_change_int(dev->name, "arp_notify",
-					arp_notify) == 0)
-		ipv4->conf.arp_notify = arp_notify;
 
-	if (__ni_system_ipv4_devinfo_change_int(dev->name, "accept_redirects",
-						conf->accept_redirects) == 0)
-		ipv4->conf.accept_redirects = conf->accept_redirects;
+	if (__tristate_changed(arp_notify, ipv4->conf.arp_notify)) {
+		ret = __change_int(dev->name, "arp_notify", arp_notify);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
+			ipv4->conf.arp_notify = arp_notify;
+	}
+
+	if (__tristate_changed(conf->accept_redirects, ipv4->conf.accept_redirects)) {
+		ret = __change_int(dev->name, "accept_redirects", conf->accept_redirects);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
+			ipv4->conf.accept_redirects = conf->accept_redirects;
+	}
 
 	return 0;
 }
