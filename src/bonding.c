@@ -157,6 +157,7 @@ __ni_bonding_init(ni_bonding_t *bonding)
 	bonding->num_grat_arp = 1;
 	bonding->num_unsol_na = 1;
 	bonding->resend_igmp = 1;
+	bonding->packets_per_slave = 1;
 }
 
 /*
@@ -418,11 +419,15 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 	if (bonding->all_slaves_active > 1)
 		return "invalid all slaves active flag";
 
-	switch (bonding->mode) {
-	case NI_BOND_MODE_BALANCE_RR:
+	if (bonding->mode == NI_BOND_MODE_BALANCE_RR) {
 		if (bonding->packets_per_slave > USHRT_MAX)
 			return "packets per slave not in range 0..65535";
-		break;
+	} else {
+		if (bonding->packets_per_slave != 1)
+			return "packets per slave is valid in balance-rr mode only";
+	}
+
+	switch (bonding->mode) {
 	case NI_BOND_MODE_BALANCE_TLB:
 	case NI_BOND_MODE_BALANCE_ALB:
 		if (!bonding->lp_interval  || bonding->lp_interval > INT_MAX)
