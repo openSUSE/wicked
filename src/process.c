@@ -385,7 +385,8 @@ ni_process_run_and_wait(ni_process_t *pi)
 		pi->notify_callback(pi);
 
 	if (!ni_process_exit_status_okay(pi)) {
-		ni_error("subprocesses exited with error");
+		ni_error("subprocess %d (%s) exited with error",
+			pi->pid, pi->process->command);
 		return -1;
 	}
 
@@ -441,7 +442,8 @@ ni_process_run_and_capture_output(ni_process_t *pi, ni_buffer_t *out_buffer)
 		pi->notify_callback(pi);
 
 	if (!ni_process_exit_status_okay(pi)) {
-		ni_error("subprocesses exited with error");
+		ni_error("subprocess %d (%s) exited with error",
+			pi->pid, pi->process->command);
 		return -1;
 	}
 
