@@ -158,6 +158,7 @@ __ni_bonding_init(ni_bonding_t *bonding)
 	bonding->num_unsol_na = 1;
 	bonding->resend_igmp = 1;
 	bonding->packets_per_slave = 1;
+	bonding->lp_interval = 1;
 }
 
 /*
