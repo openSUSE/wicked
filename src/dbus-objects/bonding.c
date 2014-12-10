@@ -303,6 +303,7 @@ __ni_objectmodel_bonding_get_arpmon(const ni_dbus_object_t *object,
 
 	ni_dbus_dict_add_uint32(result, "interval", bond->arpmon.interval);
 	ni_dbus_dict_add_uint32(result, "validate", bond->arpmon.validate);
+	ni_dbus_dict_add_uint32(result, "validate-targets", bond->arpmon.validate_targets);
 	var = ni_dbus_dict_add(result, "targets");
 	ni_dbus_variant_set_string_array(var,
 			(const char **) bond->arpmon.targets.data,
@@ -326,6 +327,7 @@ __ni_objectmodel_bonding_set_arpmon(ni_dbus_object_t *object,
 
 	ni_dbus_dict_get_uint32(result, "interval", &bond->arpmon.interval);
 	ni_dbus_dict_get_uint32(result, "validate", &bond->arpmon.validate);
+	ni_dbus_dict_get_uint32(result, "validate_targets", &bond->arpmon.validate_targets);
 	if ((var = ni_dbus_dict_get(result, "targets")) != NULL) {
 		ni_bool_t valid = TRUE;
 		unsigned int i;
@@ -479,6 +481,9 @@ static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 	BONDING_UINT_PROPERTY(fail-over-mac, fail_over_mac, RO),
 	BONDING_UINT_PROPERTY(primary-reselect, primary_reselect, RO),
 	BONDING_BOOL_PROPERTY(all-slaves-active, all_slaves_active, RO),
+	BONDING_UINT_PROPERTY(packets-per-slave, packets_per_slave, RO),
+	BONDING_BOOL_PROPERTY(tlb-dynamic-lb, tlb_dynamic_lb, RO),
+	BONDING_UINT_PROPERTY(lp-interval, lp_interval, RO),
 
 	__NI_DBUS_PROPERTY(
 			DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,

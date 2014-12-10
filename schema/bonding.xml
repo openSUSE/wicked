@@ -35,6 +35,10 @@
    <arpmon class="dict">
      <interval type="uint32" constraint="required" description="ARP link monitoring frequency in milliseconds." />
      <validate type="builtin-bonding-arp-validate"/>
+     <validate-targets type="uint32" constraint="enum">
+       <any value="0"/>
+       <all value="1"/>
+     </validate-targets>
      <!-- targets class="array" element-type="ipv4-address" minlen="1"/ -->
      <targets class="array" constraint="required" minlen="1" element-type="string" />
    </arpmon>
@@ -69,6 +73,15 @@
      <min value="0"/>
      <max value="255"/>
    </resend-igmp>
+   <packets-per-slave type="uint32" constraint="range">
+     <min value="0"/>
+     <max value="65535"/>
+   </packets-per-slave>
+   <tlb-dynamic-lb type="boolean"/>
+   <lp-interval type="uint32" constraint="range">
+     <min value="0"/>
+     <max value="2147483647"/>
+   </lp-interval>
  </define>
 
  <define name="properties" type="device-info"/>
