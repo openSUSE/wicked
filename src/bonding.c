@@ -51,6 +51,14 @@ static const ni_intmap_t	__map_kern_arp_validate[] = {
 	{ "active",		NI_BOND_ARP_VALIDATE_ACTIVE },
 	{ "backup",		NI_BOND_ARP_VALIDATE_BACKUP },
 	{ "all",		NI_BOND_ARP_VALIDATE_ALL    },
+	{ "filter",		NI_BOND_ARP_VALIDATE_FILTER        },
+	{ "filter_active",	NI_BOND_ARP_VALIDATE_FILTER_ACTIVE },
+	{ "filter_backup",	NI_BOND_ARP_VALIDATE_FILTER_BACKUP },
+	{ NULL }
+};
+static const ni_intmap_t	__map_kern_arp_all_targets[] = {
+	{ "any",		NI_BOND_ARP_VALIDATE_TARGETS_ANY },
+	{ "all",		NI_BOND_ARP_VALIDATE_TARGETS_ALL },
 	{ NULL }
 };
 static const ni_intmap_t	__map_kern_xmit_hash_policy[] = {
@@ -149,6 +157,9 @@ __ni_bonding_init(ni_bonding_t *bonding)
 	bonding->num_grat_arp = 1;
 	bonding->num_unsol_na = 1;
 	bonding->resend_igmp = 1;
+	bonding->packets_per_slave = 1;
+	bonding->tlb_dynamic_lb = TRUE;
+	bonding->lp_interval = 1;
 }
 
 /*
@@ -243,6 +254,9 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 		case NI_BOND_ARP_VALIDATE_ACTIVE:
 		case NI_BOND_ARP_VALIDATE_BACKUP:
 		case NI_BOND_ARP_VALIDATE_ALL:
+		case NI_BOND_ARP_VALIDATE_FILTER:
+		case NI_BOND_ARP_VALIDATE_FILTER_ACTIVE:
+		case NI_BOND_ARP_VALIDATE_FILTER_BACKUP:
 			if (bonding->mode == NI_BOND_MODE_ACTIVE_BACKUP)
 				break;
 			return "arp validate is valid in active-backup mode only";
@@ -406,6 +420,29 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 
 	if (bonding->all_slaves_active > 1)
 		return "invalid all slaves active flag";
+
+	if (bonding->mode == NI_BOND_MODE_BALANCE_RR) {
+		if (bonding->packets_per_slave > USHRT_MAX)
+			return "packets per slave not in range 0..65535";
+	} else {
+		if (bonding->packets_per_slave != 1)
+			return "packets per slave is valid in balance-rr mode only";
+	}
+
+	switch (bonding->mode) {
+	case NI_BOND_MODE_BALANCE_TLB:
+	case NI_BOND_MODE_BALANCE_ALB:
+		if (!bonding->lp_interval || bonding->lp_interval > INT_MAX)
+			return "lp interval not in range 1 - 0x7fffffff";
+		break;
+	default:
+		break;
+	}
+
+	if (bonding->mode != NI_BOND_MODE_BALANCE_TLB) {
+		if (!bonding->tlb_dynamic_lb)
+			return "tlb dynamic lb 0 is valid in balance-tlb mode only";
+	}
 
 	return NULL;
 }
@@ -694,6 +731,22 @@ ni_bonding_fail_over_mac_mode(const char *name)
 	return value;
 }
 
+const char *
+ni_bonding_arp_validate_targets_to_name(unsigned int type)
+{
+	return ni_format_uint_mapped(type, __map_kern_arp_all_targets);
+}
+
+int
+ni_bonding_arp_validate_targets_to_type(const char *name)
+{
+	unsigned int value;
+
+	if (ni_parse_uint_maybe_mapped(name, __map_kern_arp_all_targets, &value, 10) < 0)
+		return -1;
+	return value;
+}
+
 /*
  * Set one bonding module option/attribute
  */
@@ -771,10 +824,26 @@ ni_bonding_parse_sysfs_attribute(ni_bonding_t *bonding, const char *attr, char *
 			if (ni_bonding_is_valid_arp_ip_target(s))
 				ni_string_array_append(&bonding->arpmon.targets, s);
 		}
+	} else if (!strcmp(attr, "arp_all_targets")) {
+		value[strcspn(value, " \t\n")] = '\0';
+		if (ni_parse_uint_mapped(value, __map_kern_arp_all_targets,
+					&bonding->arpmon.validate_targets) < 0)
+			return -1;
 	} else if (!strcmp(attr, "primary")) {
 		ni_string_dup(&bonding->primary_slave, value);
 	} else if (!strcmp(attr, "active_slave")) {
 		ni_string_dup(&bonding->active_slave, value);
+	} else if (!strcmp(attr, "packets_per_slave")) {
+		if (ni_parse_uint(value, &bonding->packets_per_slave, 10) < 0)
+			return -1;
+	} else if (!strcmp(attr, "tlb_dynamic_lb")) {
+		unsigned int tmp;
+		if (ni_parse_uint(value, &tmp, 10) < 0)
+			return -1;
+		bonding->tlb_dynamic_lb = !!tmp;
+	} else if (!strcmp(attr, "lp_interval")) {
+		if (ni_parse_uint(value, &bonding->lp_interval, 10) < 0)
+			return -1;
 	} else {
 		return -2;
 	}
@@ -846,6 +915,13 @@ ni_bonding_format_sysfs_attribute(const ni_bonding_t *bonding, const char *attr,
 		if (bonding->monitoring != NI_BOND_MONITOR_ARP)
 			return 0;
 		snprintf(buffer, bufsize, "%u", bonding->arpmon.interval);
+	} else if (!strcmp(attr, "arp_all_targets")) {
+		if (bonding->monitoring != NI_BOND_MONITOR_ARP ||
+		    bonding->arpmon.validate == NI_BOND_ARP_VALIDATE_NONE)
+			return 0;
+		if (!(ptr = ni_bonding_arp_validate_targets_to_name(bonding->arpmon.validate_targets)))
+			return -1;
+		snprintf(buffer, bufsize, "%s", ptr);
 	} else if (!strcmp(attr, "active_slave")) {
 		if (!bonding->active_slave)
 			return 0;
@@ -854,6 +930,12 @@ ni_bonding_format_sysfs_attribute(const ni_bonding_t *bonding, const char *attr,
 		if (!bonding->primary_slave)
 			return 0;
 		snprintf(buffer, bufsize, "%s", bonding->primary_slave);
+	} else if (!strcmp(attr, "packets_per_slave")) {
+		snprintf(buffer, bufsize, "%u", bonding->packets_per_slave);
+	} else if (!strcmp(attr, "tlb_dynamic_lb")) {
+		snprintf(buffer, bufsize, "%u", bonding->tlb_dynamic_lb ? 1 : 0);
+	} else if (!strcmp(attr, "lp_interval")) {
+		snprintf(buffer, bufsize, "%u", bonding->lp_interval);
 	} else {
 		return -1;
 	}
@@ -890,6 +972,10 @@ ni_bonding_parse_sysfs_attrs(const char *ifname, ni_bonding_t *bonding)
 		{ "use_carrier",	FALSE },
 		{ "arp_validate",	FALSE },
 		{ "arp_interval",	FALSE },
+		{ "arp_all_targets",	TRUE  },
+		{ "packets_per_slave",	TRUE  },
+		{ "tlb_dynamic_lb",	TRUE  },
+		{ "lp_interval",	TRUE  },
 		{ NULL,			FALSE },
 	};
 	char *attrval = NULL;
@@ -1031,6 +1117,10 @@ ni_bonding_write_sysfs_attrs(const char *ifname, const ni_bonding_t *bonding, co
 		{ "arp_ip_target",	0,	0,	TRUE,	FALSE },
 		{ "arp_interval",	0,	0,	FALSE,	FALSE },
 		{ "arp_validate",	0,	0,	FALSE,	FALSE },
+		{ "arp_all_targets",	0,	0,	FALSE,	FALSE },
+		{ "packets_per_slave",	0,	0,	FALSE,	FALSE },
+		{ "tlb_dynamic_lb",	1,	1,	FALSE,	FALSE },
+		{ "lp_interval",	0,	0,	FALSE,	FALSE },
 		{ NULL,			0,	0,	FALSE,	FALSE },
 	};
 	const struct attr_matrix *attrs;
@@ -1244,13 +1334,46 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 		return TRUE;
 	} else
 
+	if (strcmp(option, "arp_all_targets") == 0) {
+		if (ni_parse_uint_maybe_mapped(value,
+				__map_kern_arp_all_targets, &tmp, 10) != 0)
+			return FALSE;
+
+		bond->arpmon.validate_targets = tmp;
+		return TRUE;
+	} else
+
 	if (strcmp(option, "primary") == 0) {
 		ni_string_dup(&bond->primary_slave, value);
 		return TRUE;
-	}
+	} else
 
 	if (strcmp(option, "active_slave") == 0) {
 		ni_string_dup(&bond->active_slave, value);
+		return TRUE;
+	} else
+
+	if (strcmp(option, "packets_per_slave") == 0) {
+		if (ni_parse_uint(value, &tmp, 10) < 0 || tmp > 65535)
+			return FALSE;
+
+		bond->packets_per_slave = tmp;
+		return TRUE;
+	} else
+
+	if (strcmp(option, "tlb_dynamic_lb") == 0) {
+		if (ni_parse_uint(value, &tmp, 10) < 0 || tmp > INT_MAX)
+			return FALSE;
+
+		bond->tlb_dynamic_lb = tmp ? TRUE : FALSE;
+		return TRUE;
+	} else
+
+	if (strcmp(option, "lp_interval") == 0) {
+		if (ni_parse_uint(value, &tmp, 10) < 0 || tmp > INT_MAX)
+			return FALSE;
+
+		bond->lp_interval = tmp;
 		return TRUE;
 	}
 
