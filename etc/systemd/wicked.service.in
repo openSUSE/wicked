@@ -2,7 +2,7 @@
 Description=wicked managed network interfaces
 Wants=network.target
 After=network-pre.target wickedd.service wickedd-nanny.service
-Before=network-online.target network.target multi-user.target shutdown.target
+Before=network-online.target network.target
 
 [Service]
 Type=oneshot
