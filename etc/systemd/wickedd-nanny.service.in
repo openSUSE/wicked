@@ -1,7 +1,7 @@
 [Unit]
 Description=wicked network nanny service
 After=local-fs.target dbus.service SuSEfirewall2_init.service wickedd.service
-Before=wicked.service network.target multi-user.target shutdown.target
+Before=wicked.service network.target
 PartOf=wickedd.service
 
 [Service]
