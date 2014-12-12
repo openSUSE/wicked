@@ -1,7 +1,7 @@
 [Unit]
 Description=wicked managed network interfaces
 Wants=network.target
-After=wickedd.service wickedd-nanny.service
+After=network-pre.target wickedd.service wickedd-nanny.service
 Before=SuSEfirewall2.service network-online.target network.target multi-user.target shutdown.target
 
 [Service]
