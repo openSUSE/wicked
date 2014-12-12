@@ -26,6 +26,13 @@ enum {
 	NI_BOND_ARP_VALIDATE_ACTIVE = 1,
 	NI_BOND_ARP_VALIDATE_BACKUP = 2,
 	NI_BOND_ARP_VALIDATE_ALL = 3,
+	NI_BOND_ARP_VALIDATE_FILTER = 4,
+	NI_BOND_ARP_VALIDATE_FILTER_ACTIVE = 5,
+	NI_BOND_ARP_VALIDATE_FILTER_BACKUP = 6,
+};
+enum {
+	NI_BOND_ARP_VALIDATE_TARGETS_ANY = 0,
+	NI_BOND_ARP_VALIDATE_TARGETS_ALL = 1,
 };
 enum {
 	NI_BOND_MII_CARRIER_DETECT_IOCTL = 0,
@@ -65,6 +72,7 @@ struct ni_bonding {
 	struct ni_bonding_arpmon {
 		unsigned int	interval;	/* ms */
 		unsigned int	validate;
+		unsigned int	validate_targets;
 		ni_string_array_t targets;
 	}			arpmon;
 	struct ni_bonding_miimon {
@@ -84,6 +92,9 @@ struct ni_bonding {
 	unsigned int		fail_over_mac;
 	unsigned int		primary_reselect;
 	ni_bool_t		all_slaves_active;
+	unsigned int		packets_per_slave;
+	ni_bool_t		tlb_dynamic_lb;
+	unsigned int		lp_interval;
 
 	char *			primary_slave;
 	char *			active_slave;
@@ -115,6 +126,9 @@ extern int		ni_bonding_mode_name_to_type(const char *);
 
 extern const char *	ni_bonding_arp_validate_type_to_name(unsigned int);
 extern int		ni_bonding_arp_validate_name_to_type(const char *);
+
+extern const char *	ni_bonding_arp_validate_targets_to_name(unsigned int);
+extern int		ni_bonding_arp_validate_targets_to_type(const char *);
 
 extern const char *	ni_bonding_mii_carrier_detect_name(unsigned int);
 extern int		ni_bonding_mii_carrier_detect_type(const char *);

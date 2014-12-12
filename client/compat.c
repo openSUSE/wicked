@@ -351,7 +351,10 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 				ni_sprint_uint(bond->arpmon.interval));
 		xml_node_new_element("validate", arpmon,
 				ni_bonding_arp_validate_type_to_name(bond->arpmon.validate));
-
+		if (bond->arpmon.validate != NI_BOND_ARP_VALIDATE_NONE) {
+			xml_node_new_element("validate-targets", arpmon,
+				ni_bonding_arp_validate_targets_to_name(bond->arpmon.validate_targets));
+		}
 		targets = xml_node_create(arpmon, "targets");
 		for (i = 0; i < bond->arpmon.targets.count; ++i) {
 			xml_node_new_element("ipv4-address", targets,
@@ -405,6 +408,19 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 			xml_node_new_element("xmit-hash-policy", child,
 				ni_bonding_xmit_hash_policy_to_name(bond->xmit_hash_policy));
 		}
+		break;
+	case NI_BOND_MODE_BALANCE_RR:
+		if (verbose || bond->packets_per_slave != 1) {
+			xml_node_new_element("packets-per-slave", child,
+					ni_sprint_uint(bond->packets_per_slave));
+		}
+		break;
+	case NI_BOND_MODE_BALANCE_TLB:
+		if (verbose || !bond->tlb_dynamic_lb) {
+			xml_node_new_element("tlb-dynamic-lb", child,
+					(bond->tlb_dynamic_lb ? "true" : "false"));
+		}
+		break;
 	default:
 		break;
 	}
@@ -441,6 +457,18 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 			xml_node_new_element("num-unsol-na", child,
 				ni_sprint_uint(bond->num_unsol_na));
 		}
+	}
+
+	switch (bond->mode) {
+	case NI_BOND_MODE_BALANCE_TLB:
+	case NI_BOND_MODE_BALANCE_ALB:
+		if (verbose || bond->lp_interval != 1) {
+			xml_node_new_element("lp-interval", child,
+				ni_sprint_uint(bond->lp_interval));
+		}
+		break;
+	default:
+		break;
 	}
 
 	switch (bond->mode) {
