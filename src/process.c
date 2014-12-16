@@ -46,6 +46,24 @@ __ni_shellcmd_free(ni_shellcmd_t *cmd)
 	free(cmd);
 }
 
+static ni_bool_t
+__ni_shellcmd_set_argv(ni_shellcmd_t *cmd, const ni_string_array_t *argv)
+{
+	unsigned int i;
+
+	for (i = 0; i < argv->count; ++i) {
+		const char *arg = argv->data[i];
+
+		if (ni_string_empty(arg))
+			return FALSE;
+
+		if (ni_string_array_append(&cmd->argv, arg) < 0)
+			return FALSE;
+	}
+
+	return __ni_shellcmd_format(&cmd->command, &cmd->argv) != NULL;
+}
+
 /*
  * Create a process description
  */
@@ -53,31 +71,15 @@ ni_shellcmd_t *
 ni_shellcmd_new(const ni_string_array_t *argv)
 {
 	ni_shellcmd_t *cmd;
-	unsigned int i;
 
 	cmd = xcalloc(1, sizeof(*cmd));
 	cmd->refcount = 1;
-	if (!argv)
-		return cmd;
 
-	for (i = 0; i < argv->count; ++i) {
-		const char *arg = argv->data[i];
-
-		if (ni_string_empty(arg)) {
-			__ni_shellcmd_free(cmd);
-			return NULL;
-		}
-
-		if (ni_string_array_append(&cmd->argv, arg) < 0) {
-			__ni_shellcmd_free(cmd);
-			return NULL;
-		}
-	}
-
-	if (__ni_shellcmd_format(&cmd->command, &cmd->argv) == NULL) {
+	if (argv && !__ni_shellcmd_set_argv(cmd, argv)) {
 		__ni_shellcmd_free(cmd);
 		return NULL;
 	}
+
 	if (ni_string_array_copy(&cmd->environ, __ni_default_environment()) < 0) {
 		__ni_shellcmd_free(cmd);
 		return NULL;
