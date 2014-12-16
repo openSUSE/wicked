@@ -121,6 +121,9 @@ __find_grouped_lease(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 		return NULL;
 	}
 
+	if (!other)
+		return NULL;
+
 	if (!ni_addrconf_flag_bit_is_set(other->flags, NI_ADDRCONF_FLAGS_GROUP))
 		return NULL;
 
