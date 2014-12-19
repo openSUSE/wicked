@@ -3131,7 +3131,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 			ni_ifworker_t *real_w = ni_fsm_ifworker_by_ifindex(fsm, dev->link.ifindex);
 
 			if (real_w)
-				ni_fsm_destroy_worker(fsm, real_w);
+				ni_ifworker_array_remove(&fsm->workers, real_w);
 		}
 	}
 	if (!found)
