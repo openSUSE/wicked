@@ -177,6 +177,14 @@
 
     <client-id type="string" />
     <vendor-class type="string" />
+    <user-class class="dict">
+      <format type="uint32" constraint="enum">
+	<string value="0"/>
+	<rfc3004 value="1"/>
+	<unspecified value="2"/>
+      </format>
+      <class-data class="array" element-type="string"/>
+    </user-class>
 
     <start-delay type="uint32" />
     <defer-timeout type="uint32" />

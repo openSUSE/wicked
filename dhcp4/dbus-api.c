@@ -271,6 +271,7 @@ ni_dhcp4_request_free(ni_dhcp4_request_t *req)
 	ni_string_free(&req->hostname);
 	ni_string_free(&req->clientid);
 	ni_string_free(&req->vendor_class);
+	ni_string_array_destroy(&req->user_class.class_data);
 	free(req);
 }
 
@@ -291,6 +292,8 @@ static ni_dbus_class_t		ni_objectmodel_dhcp4req_class = {
 	NI_DBUS_GENERIC_BOOL_PROPERTY(dhcp4_request, dbus_name, member_name, rw)
 #define DHCP4REQ_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __dhcp4_request, rw)
+#define DHCP4REQ_STRING_ARRAY_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_STRING_ARRAY_PROPERTY(dhcp4_request, dbus_name, member_name, rw)
 
 static ni_dhcp4_request_t *
 __ni_objectmodel_get_dhcp4_request(const ni_dbus_object_t *object, DBusError *error)
@@ -314,12 +317,19 @@ ni_objectmodel_get_dhcp4_request(const ni_dbus_object_t *object, ni_bool_t write
 	return __ni_objectmodel_get_dhcp4_request(object, error);
 }
 
+static ni_dbus_property_t	dhcp4_user_class_properties[] = {
+	DHCP4REQ_UINT_PROPERTY(format, user_class.format, RO),
+	DHCP4REQ_STRING_ARRAY_PROPERTY(class-data, user_class.class_data, RO),
+	{ NULL },
+};
+
 static ni_dbus_property_t	dhcp4_request_properties[] = {
 	DHCP4REQ_BOOL_PROPERTY(enabled, enabled, RO),
 	DHCP4REQ_UUID_PROPERTY(uuid, uuid, RO),
 	DHCP4REQ_UINT_PROPERTY(flags, flags, RO),
 	DHCP4REQ_STRING_PROPERTY(client-id, clientid, RO),
 	DHCP4REQ_STRING_PROPERTY(vendor-class, vendor_class, RO),
+	NI_DBUS_GENERIC_DICT_PROPERTY(user-class, dhcp4_user_class_properties, RW),
 	DHCP4REQ_UINT_PROPERTY(start-delay, start_delay, RO),
 	DHCP4REQ_UINT_PROPERTY(defer-timeout, defer_timeout, RO),
 	DHCP4REQ_UINT_PROPERTY(acquire-timeout, acquire_timeout, RO),

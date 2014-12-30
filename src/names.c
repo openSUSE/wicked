@@ -337,6 +337,27 @@ ni_dhcp6_mode_name_to_type(const char *name, unsigned int *type)
 	return ni_parse_uint_mapped(name, __dhcp6_modes, type);
 }
 
+/* Map DHCP4 user-class formats */
+static const ni_intmap_t	__dhcp4_user_class_formats[] = {
+	{ "string",		NI_DHCP4_USER_CLASS_STRING	},
+	{ "rfc3004",		NI_DHCP4_USER_CLASS_RFC3004	},
+	{ "unspecified",	NI_DHCP4_USER_CLASS_UNSPEC	},
+
+	{ NULL }
+};
+
+const char *
+ni_dhcp4_user_class_format_type_to_name(unsigned int type)
+{
+	return ni_format_uint_mapped(type, __dhcp4_user_class_formats);
+}
+
+int
+ni_dhcp4_user_class_format_name_to_type(const char *name, unsigned int *type)
+{
+	return ni_parse_uint_mapped(name, __dhcp4_user_class_formats, type);
+}
+
 /*
  * Map ARPHRD_* constants to string
  */

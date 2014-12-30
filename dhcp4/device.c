@@ -29,6 +29,10 @@
 static unsigned int	ni_dhcp4_do_bits(unsigned int);
 static const char *	__ni_dhcp4_print_doflags(unsigned int);
 
+static void	__ni_dhcp4_parse_user_class_rfc3004(ni_opaque_t *, const ni_dhcp4_user_class_t *);
+static void	__ni_dhcp4_parse_user_class_string(ni_opaque_t *, const ni_dhcp4_user_class_t *);
+static void	__ni_dhcp4_parse_user_class_unspec(ni_opaque_t *, const ni_dhcp4_user_class_t *);
+
 static uint32_t ni_dhcp4_xid;
 ni_dhcp4_device_t *	ni_dhcp4_active;
 
@@ -300,6 +304,9 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_dhcp4_set_client_id(&config->client_id, &dev->system.hwaddr);
 	}
 
+	if (info->user_class.class_data.count)
+		ni_dhcp4_parse_user_class(&config->userclass, &info->user_class);
+
 	if ((classid = info->vendor_class) == NULL)
 		classid = ni_dhcp4_config_vendor_class();
 	if (classid)
@@ -315,6 +322,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_trace("  start-delay     %u", config->start_delay);
 		ni_trace("  hostname        %s", config->hostname[0]? config->hostname : "<none>");
 		ni_trace("  vendor-class    %s", config->classid[0]? config->classid : "<none>");
+		ni_trace("  user-class      %s", config->userclass.len > 0 ? ni_print_hex(config->userclass.data, config->userclass.len) : "<none>");
 		ni_trace("  client-id       %s", ni_print_hex(config->client_id.data, config->client_id.len));
 		ni_trace("  uuid            %s", ni_uuid_print(&config->uuid));
 		ni_trace("  update-flags    %s", __ni_dhcp4_print_doflags(config->doflags));
@@ -748,6 +756,79 @@ ni_dhcp4_config_vendor_class(void)
 	const struct ni_config_dhcp4 *dhconf = &ni_global.config->addrconf.dhcp4;
 
 	return dhconf->vendor_class;
+}
+
+static void
+__ni_dhcp4_parse_user_class_rfc3004(ni_opaque_t *raw, const ni_dhcp4_user_class_t *user_class)
+{
+	unsigned int i;
+	unsigned int total_len = 0;
+	unsigned int str_len;
+
+	for (i = 0;
+	     i < user_class->class_data.count &&
+		     total_len + strlen(user_class->class_data.data[i]) + 1 <= sizeof(raw->data);
+	     ++i) {
+		str_len = strlen(user_class->class_data.data[i]);
+
+		raw->data[total_len] = str_len;
+		memcpy(raw->data + (total_len + 1), user_class->class_data.data[i], str_len);
+		total_len += str_len + 1;
+	}
+	raw->len = total_len;
+}
+
+static void
+__ni_dhcp4_parse_user_class_string(ni_opaque_t *raw, const ni_dhcp4_user_class_t *user_class)
+{
+	unsigned int str_len;
+
+	str_len = strlen(user_class->class_data.data[0]);
+
+	if (str_len > sizeof(raw->data))
+		str_len = sizeof(raw->data);
+
+	ni_opaque_set(raw, user_class->class_data.data[0], str_len);
+}
+
+static void
+__ni_dhcp4_parse_user_class_unspec(ni_opaque_t *raw, const ni_dhcp4_user_class_t *user_class)
+{
+	unsigned int dataset_len;
+
+	dataset_len = (strlen(user_class->class_data.data[0]) / 3) + 1;
+
+	if (dataset_len > sizeof(raw->data))
+		dataset_len = sizeof(raw->data);
+
+	/* Since contents of user_class were already run through ni_parse_hex()
+	 * in the client, any negative return value from hex parsing will be
+	 * the result of truncation. As in dealing with client id, we silently
+	 * truncate here as well to fit ni_opaque_t size constraings.
+	 */
+	ni_parse_hex(user_class->class_data.data[0], raw->data, dataset_len);
+	raw->len = dataset_len;
+}
+
+void
+ni_dhcp4_parse_user_class(ni_opaque_t *raw, const ni_dhcp4_user_class_t *user_class)
+{
+	switch (user_class->format) {
+	case NI_DHCP4_USER_CLASS_RFC3004:
+		__ni_dhcp4_parse_user_class_rfc3004(raw, user_class);
+		break;
+
+	case NI_DHCP4_USER_CLASS_STRING:
+		__ni_dhcp4_parse_user_class_string(raw, user_class);
+		break;
+
+	case NI_DHCP4_USER_CLASS_UNSPEC:
+		__ni_dhcp4_parse_user_class_unspec(raw, user_class);
+		break;
+
+	default:
+		break;
+	}
 }
 
 int
