@@ -148,6 +148,7 @@ struct ni_dhcp4_request {
 	/* Options controlling what to put into the lease request */
 	char *			clientid;
 	char *			vendor_class;
+	ni_dhcp4_user_class_t	user_class;
 
 	char *			hostname;
 	unsigned int		route_priority;
@@ -253,6 +254,7 @@ extern void		ni_dhcp4_device_force_retransmit(ni_dhcp4_device_t *, unsigned int)
 extern void		ni_dhcp4_device_arp_close(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_parse_client_id(ni_opaque_t *, unsigned short, const char *);
 extern void		ni_dhcp4_set_client_id(ni_opaque_t *, const ni_hwaddr_t *);
+extern void		ni_dhcp4_parse_user_class(ni_opaque_t *, const ni_dhcp4_user_class_t *);
 extern void		ni_dhcp4_device_set_best_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t *, int);
 extern void		ni_dhcp4_device_drop_best_offer(ni_dhcp4_device_t *);
 
