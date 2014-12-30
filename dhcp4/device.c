@@ -304,6 +304,9 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_dhcp4_set_client_id(&config->client_id, &dev->system.hwaddr);
 	}
 
+	if (info->user_class.class_data.count)
+		ni_dhcp4_parse_user_class(&config->userclass, &info->user_class);
+
 	if ((classid = info->vendor_class) == NULL)
 		classid = ni_dhcp4_config_vendor_class();
 	if (classid)
