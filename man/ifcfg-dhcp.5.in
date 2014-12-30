@@ -54,6 +54,27 @@ hardware address of the network interface is sent as client identifier.
 Specifies the vendor class identifier string. The default is DHCP client
 specific.
 .TP
+.BR DHCLIENT_USER_CLASS_ID
+Specifies the user class option as either a rfc3004 formatted list, non-standard
+string or user supplied hex. The format option is supplied as a prefix to
+the user class id data. If no format is specified, the provided data is either
+sent out on the wire as-is (hex data supplied by user) or is first parsed (string).
+Formatted examples are shown below.
+.RS
+.PD 0
+.TP
+.B Examples:
+.TP
+.B rfc3004:custom-uc1,custom-uc2,...,custom-ucN
+.br
+Generates a rfc3004 formatted user class option composed of strings custom-uc1...custom-ucN.
+.TP
+.B string:custom-uc
+.br
+Generates a non-rfc3004 user class option from string custom-uc.
+.PD
+.RE
+.TP
 .BR DHCLIENT_LEASE_TIME
 Specifies the lease time (in seconds), that is suggested to the server. Default
 is unset which means to use the lease time offered by the server.
