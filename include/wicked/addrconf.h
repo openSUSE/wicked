@@ -222,6 +222,9 @@ extern const char *	ni_addrconf_update_flags_format(ni_stringbuf_t *, unsigned i
 extern const char *	ni_dhcp6_mode_type_to_name(unsigned int);
 extern int		ni_dhcp6_mode_name_to_type(const char *, unsigned int *);
 
+extern const char *	ni_dhcp4_user_class_format_type_to_name(unsigned int);
+extern int		ni_dhcp4_user_class_format_name_to_type(const char *, unsigned int *);
+
 extern const char *	ni_netbios_node_type_to_name(unsigned int);
 extern ni_bool_t	ni_netbios_node_type_to_code(const char *, unsigned int *);
 
