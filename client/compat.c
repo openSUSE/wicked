@@ -52,6 +52,8 @@
 #include "appconfig.h"
 #include "util_priv.h"
 
+static void	__ni_compat_generate_dhcp4_user_class(xml_node_t *, const char *);
+
 /*
  * Compat ifconfig handling functions
  */
@@ -169,6 +171,7 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 		ni_string_free(&compat->dhcp4.hostname);
 		ni_string_free(&compat->dhcp4.client_id);
 		ni_string_free(&compat->dhcp4.vendor_class);
+		ni_string_free(&compat->dhcp4.user_class);
 
 		ni_string_free(&compat->dhcp6.hostname);
 		ni_string_free(&compat->dhcp6.client_id);
@@ -1241,6 +1244,80 @@ __ni_compat_generate_dynamic_addrconf(xml_node_t *ifnode, const char *name, unsi
 	return aconf;
 }
 
+/*
+ * Generate XML for user-class data. We want to support both rfc3004 and non-standardized
+ * string case and allow for specification of formatting.
+ * case 1: "rfc3004:foo1,foo2,...,fooN"
+ * case 2: "string:foo"
+ * case 3: "XX:XX:XX:XX:...:XX"
+ * case 4: "foo"
+ */
+static void
+__ni_compat_generate_dhcp4_user_class(xml_node_t *ifnode, const char *user_class)
+{
+	ni_string_array_t uc_strings_arr = NI_STRING_ARRAY_INIT;
+	const char *uc_string = NULL;
+	xml_node_t *user_class_node;
+	xml_node_t *class_data_node;
+	unsigned int i;
+	unsigned int uc_hex_datasize;
+	unsigned char *uc_hex = NULL;
+	int format;
+
+	/* Done up-front as needed in below if-else */
+	uc_hex_datasize = (strlen(user_class) / 3) + 1;
+	uc_hex = xcalloc(1, uc_hex_datasize * sizeof(unsigned char));
+
+	/* First, try to determine format type and strip it from head of string */
+	if ((uc_string = ni_string_strip_prefix("rfc3004:", user_class))) {
+		format = NI_DHCP4_USER_CLASS_RFC3004;
+		ni_string_split(&uc_strings_arr, uc_string, ",", 0);
+	} else if ((uc_string = ni_string_strip_prefix("string:", user_class))) {
+		format = NI_DHCP4_USER_CLASS_STRING;
+	} else if (ni_parse_hex(user_class, uc_hex, uc_hex_datasize) != -1) {
+		format = NI_DHCP4_USER_CLASS_UNSPEC;
+		uc_string = user_class;
+	} else {
+		format = NI_DHCP4_USER_CLASS_STRING;
+		uc_string = user_class;
+	}
+
+	/* Only generate XML nodes if a valid string is contained in uc_string or
+	 * uc_strings_arr. This avoids generating empty nodes for entries like:
+	 *   "rfc3004:" or "rfc3004:,,," or "string:"
+	 * which contain no usable data, but will get picked up from parsing
+	 * ifcfg files.
+	 */
+	if ((format == NI_DHCP4_USER_CLASS_RFC3004 && uc_strings_arr.count) ||
+		(format!= NI_DHCP4_USER_CLASS_RFC3004 && strlen(uc_string) > 0)) {
+		user_class_node = xml_node_new("user-class", ifnode);
+
+		xml_node_dict_set(user_class_node, "format",
+				ni_dhcp4_user_class_format_type_to_name(format));
+
+		class_data_node = xml_node_new("class-data", user_class_node);
+
+		switch (format) {
+		case NI_DHCP4_USER_CLASS_RFC3004:
+			for (i = 0; i < uc_strings_arr.count; ++i)
+				xml_node_new_element("data", class_data_node, uc_strings_arr.data[i]);
+			break;
+
+		case NI_DHCP4_USER_CLASS_STRING:
+		case NI_DHCP4_USER_CLASS_UNSPEC:
+			xml_node_new_element("data", class_data_node, uc_string);
+			break;
+
+		default:
+			break;
+		}
+	}
+
+	ni_string_array_destroy(&uc_strings_arr);
+	if (uc_hex)
+		free(uc_hex);
+}
+
 static xml_node_t *
 __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
@@ -1285,6 +1362,10 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 		xml_node_dict_set(dhcp, "client-id", compat->dhcp4.client_id);
 	if (compat->dhcp4.vendor_class)
 		xml_node_dict_set(dhcp, "vendor-class", compat->dhcp4.vendor_class);
+
+	if (compat->dhcp4.user_class) {
+		__ni_compat_generate_dhcp4_user_class(dhcp, compat->dhcp4.user_class);
+	}
 
 	return dhcp;
 }

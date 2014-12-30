@@ -3193,6 +3193,11 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_VENDOR_CLASS_ID")) != NULL)
 		ni_string_dup(&compat->dhcp4.vendor_class, string);
 
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_USER_CLASS_ID")) != NULL) {
+		if (ni_check_printable(string, strlen(string)))
+			ni_string_dup(&compat->dhcp4.user_class, string);
+	}
+
 	if (ni_sysconfig_get_integer(sc, "DHCLIENT_SLEEP", &uint))
 		compat->dhcp4.start_delay = uint;
 

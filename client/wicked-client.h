@@ -54,6 +54,7 @@ typedef struct ni_compat_netdev {
 		char *		hostname;
 		char *		client_id;
 		char *		vendor_class;
+		char *		user_class;
 
 		unsigned int	start_delay;
 		unsigned int	defer_timeout;
