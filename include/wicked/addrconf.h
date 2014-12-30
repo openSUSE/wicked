@@ -83,6 +83,19 @@ typedef enum ni_dhcp6_mode {
 struct ni_dhcp6_status;
 struct ni_dhcp6_ia;
 
+typedef enum
+{
+	NI_DHCP4_USER_CLASS_STRING = 0,
+	NI_DHCP4_USER_CLASS_RFC3004,
+	NI_DHCP4_USER_CLASS_UNSPEC
+} ni_dhcp4_user_class_format_t;
+
+typedef struct ni_dhcp4_user_class
+{
+	ni_dhcp4_user_class_format_t	format;
+	ni_string_array_t		class_data;
+} ni_dhcp4_user_class_t;
+
 typedef struct ni_addrconf_updater	ni_addrconf_updater_t;
 
 struct ni_addrconf_lease {
