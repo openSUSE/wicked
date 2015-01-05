@@ -239,7 +239,7 @@ __ni_tuntap_create(const ni_netdev_t *cfg)
 
 	memset(&ifr, 0, sizeof(ifr));
 	ifr.ifr_flags = IFF_NO_PI;
-	ifr.ifr_flags = (NI_IFTYPE_TUN == cfg->link.type ? IFF_TUN : IFF_TAP);
+	ifr.ifr_flags |= (NI_IFTYPE_TUN == cfg->link.type ? IFF_TUN : IFF_TAP);
 	strncpy(ifr.ifr_name, cfg->name, sizeof(ifr.ifr_name) - 1);
 
 	if ((rv = ioctl(devfd, TUNSETIFF, (void *) &ifr)) < 0) {
