@@ -7,7 +7,6 @@ type=""
 family=""
 ifname=""
 
-set -e
 shopt -s nullglob
 cmd=$1; shift
 
@@ -48,15 +47,17 @@ restore)
 	rm -f "${hostnamedir}/hostname."* 2>/dev/null
 
 	# Restore hostname to original.
+	rc=0
 	if test -s "$defaulthostname" ; then
 		def_hostname=`get_default_hostname`
 		curr_hostname=`get_current_hostname`
 		if test "X${def_hostname}" != "X" -a "X${curr_hostname}" != "X${def_hostname}" ; then
-			/bin/hostname "${def_hostname}"
+			/bin/hostname "${def_hostname}" ; rc=$?
 
 			rcsyslog reload &>/dev/null
 		fi
 	fi
+	exit $rc
 ;;
 
 install)
@@ -78,12 +79,13 @@ install)
 		fi
 	done
 
+	rc=0
 	if test "$found" = "" -o -e "${hostnamedir}/${hostnamefile}" ; then
 		# We've either not found any files, so we're first, or we're
 		# processing an update from the first lease which controls hostname.
 		if test "X${hostname_arg}" != "X" -a "X${hostname_cur}" != "X${hostname_arg}" ; then
 			# Only update the hostname it differs from the system.
-			/bin/hostname "${hostname_arg}" 2>/dev/null
+			/bin/hostname "${hostname_arg}" 2>/dev/null ; rc=$?
 
 			rcsyslog reload &>/dev/null
 		fi
@@ -91,11 +93,13 @@ install)
 		# Store regardless of whether hostname differs from the system.
 		echo "${hostname_arg}" > "${hostnamedir}/${hostnamefile}" 2>/dev/null
 	fi
+	exit $rc
 ;;
 
 remove)
 	hostnamefile="hostname.${ifname}.${type}.${family}"
 
+	rc=0
 	# First check if remove request is for correct lease/file.
 	if test -e "${hostnamedir}/${hostnamefile}" ; then
 		# Remove the requested file first.
@@ -106,12 +110,13 @@ remove)
 			def_hostname=`get_default_hostname`
 			curr_hostname=`get_current_hostname`
 			if test "X${def_hostname}" != "X" -a "X${curr_hostname}" != "X${def_hostname}" ; then
-				/bin/hostname "${def_hostname}"
+				/bin/hostname "${def_hostname}" ; rc=$?
 
 				rcsyslog reload &>/dev/null
 			fi
 		fi
 	fi
+	exit $rc
 ;;
 
 *)
