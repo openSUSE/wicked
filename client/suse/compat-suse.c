@@ -2196,12 +2196,15 @@ try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
 
 	/* Default is unset */
 	if ((var = __find_indexed_variable(sc, "WIRELESS_AP", suffix))) {
-		if (ni_parse_hex(var->value, net->access_point.data,
-					sizeof(net->access_point.data)) == ETH_ALEN) {
-			net->access_point.type = ARPHRD_ETHER;
+		if (ni_string_empty(var->value) || ni_string_eq(var->value, "any")) {
+			ni_link_address_init(&net->access_point);
 			net->access_point.len = ETH_ALEN;
+			net->access_point.type = ARPHRD_ETHER;
 		}
-		else {
+		else if (ni_string_eq(var->value, "off")) {
+			ni_link_address_get_broadcast(ARPHRD_ETHER, &net->access_point);
+		}
+		else if (ni_link_address_parse(&net->access_point, ARPHRD_ETHER, var->value)) {
 			ni_error("ifcfg-%s: wrong WIRELESS_AP%s value", dev->name, suffix);
 			goto failure;
 		}
