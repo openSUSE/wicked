@@ -34,7 +34,7 @@ struct ni_managed_device {
 
 	ni_nanny_t *		nanny;		// back pointer at mgr
 	ni_dbus_object_t *	object;		// server object
-	ni_ifworker_t *		worker;
+	unsigned int		ifindex;
 
 	ni_bool_t		allowed;	// true iff user is allowed to enable it
 	ni_bool_t		monitor;	// true iff we're monitoring it
@@ -122,7 +122,7 @@ extern unsigned int		ni_nanny_recheck_do(ni_nanny_t *mgr);
 extern unsigned int		ni_nanny_down_do(ni_nanny_t *mgr);
 extern void			ni_nanny_register_device(ni_nanny_t *, ni_ifworker_t *);
 extern void			ni_nanny_unregister_device(ni_nanny_t *, ni_ifworker_t *);
-extern ni_managed_device_t *	ni_nanny_get_device(ni_nanny_t *, ni_ifworker_t *);
+extern ni_managed_device_t *	ni_nanny_get_device_by_ifindex(ni_nanny_t *, unsigned int);
 extern void			ni_nanny_remove_device(ni_nanny_t *, ni_managed_device_t *);
 extern ni_managed_policy_t *	ni_nanny_get_policy(ni_nanny_t *, const ni_fsm_policy_t *);
 extern ni_bool_t		ni_nanny_remove_policy(ni_nanny_t *, ni_managed_policy_t *);
@@ -142,8 +142,10 @@ extern void			ni_managed_netdev_up(ni_managed_device_t *, unsigned int);
 extern void			ni_managed_modem_apply_policy(ni_managed_device_t *, ni_managed_policy_t *, ni_fsm_t *);
 extern void			ni_managed_modem_up(ni_managed_device_t *, unsigned int);
 
-extern ni_managed_device_t *	ni_managed_device_new(ni_nanny_t *, ni_ifworker_t *, ni_managed_device_t **list);
+extern ni_managed_device_t *	ni_managed_device_new(ni_nanny_t *, unsigned int, ni_managed_device_t **list);
 extern void			ni_managed_device_free(ni_managed_device_t *);
+extern ni_ifworker_t *		ni_managed_device_get_worker(const ni_managed_device_t *);
+extern char *			ni_managed_device_get_name(ni_managed_device_t *);
 extern int			ni_factory_device_apply_policy(ni_fsm_t *, ni_ifworker_t *, ni_managed_policy_t *);
 extern int			ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy);
 extern void			ni_managed_device_set_policy(ni_managed_device_t *, ni_managed_policy_t *, xml_node_t *);
@@ -168,5 +170,18 @@ extern void			ni_objectmodel_managed_netif_init(ni_dbus_server_t *);
 extern void			ni_objectmodel_managed_modem_init(ni_dbus_server_t *);
 #endif
 extern void			ni_objectmodel_managed_policy_init(ni_dbus_server_t *);
+
+/*
+ * Look up managed device for a given worker
+ */
+
+/*
+ * Look up managed device for a given worker
+ */
+static inline ni_managed_device_t *
+ni_nanny_get_device(ni_nanny_t *mgr, ni_ifworker_t *w)
+{
+	return w ? ni_nanny_get_device_by_ifindex(mgr, w->ifindex) : NULL;
+}
 
 #endif /* __WICKED_MANAGER_H__ */
