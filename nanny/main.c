@@ -313,7 +313,6 @@ babysit(void)
 static void
 ni_nanny_discover_state(ni_nanny_t *mgr)
 {
-	ni_ifworker_t *w;
 	ni_fsm_t *fsm;
 	unsigned int i;
 
@@ -324,9 +323,9 @@ ni_nanny_discover_state(ni_nanny_t *mgr)
 
 	/* Register devices that exist */
 	for (i = 0; i < fsm->workers.count; ++i) {
-		w = fsm->workers.data[i];
+		ni_ifworker_t *w = fsm->workers.data[i];
 
-		if (w->device)
+		if (ni_netdev_device_is_ready(w->device))
 			ni_nanny_register_device(mgr, w);
 	}
 }
