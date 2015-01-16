@@ -411,8 +411,10 @@ __ni_objectmodel_wireless_set_network(ni_wireless_network_t *network,
 	 && !ni_wireless_parse_ssid(string, &network->essid))
 		return FALSE;
 
-	if ((child = ni_dbus_dict_get(dict, "access-point")) != NULL)
+	if ((child = ni_dbus_dict_get(dict, "access-point")) != NULL) {
 		__ni_objectmodel_set_hwaddr(child, &network->access_point);
+		network->access_point.type = ARPHRD_ETHER;
+	}
 
 	if (ni_dbus_dict_get_uint32(dict, "mode", &valu32))
 		network->mode = valu32;

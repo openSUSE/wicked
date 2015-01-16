@@ -31,6 +31,7 @@
 
 #include <time.h>
 #include <net/if_arp.h>
+#include <netinet/if_ether.h>
 #include <wicked/util.h>
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
@@ -990,10 +991,22 @@ __wpa_dbus_bss_get_bssid(const ni_dbus_object_t *object, const ni_dbus_property_
 		ni_dbus_variant_t *argument, DBusError *error)
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
+	const char *bssid;
 
-	if (net->access_point.len == 0)
+	if (net->access_point.type != ARPHRD_ETHER || 0 == net->access_point.len) {
 		return __ni_dbus_property_not_present_error(error, property);
-	ni_dbus_variant_set_byte_array(argument, net->access_point.data, net->access_point.len);
+	}
+
+	if (net->access_point.len != ni_link_address_length(net->access_point.type))
+		return FALSE;
+
+	/* Send '\0' for "any" and "off" */
+	if (ni_link_address_is_invalid(&net->access_point))
+		bssid = NULL;
+	else
+		bssid = ni_link_address_print(&net->access_point);
+
+	ni_dbus_variant_set_string(argument, bssid);
 	return TRUE;
 }
 
@@ -1002,14 +1015,16 @@ __wpa_dbus_bss_set_bssid(ni_dbus_object_t *object, const ni_dbus_property_t *pro
 		const ni_dbus_variant_t *argument, DBusError *error)
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
-	unsigned int len;
+	const char *bssid;
 
-	if (!ni_dbus_variant_get_byte_array_minmax(argument,
-				net->access_point.data, &len,
-				0, sizeof(net->access_point.data)))
+	if (!ni_dbus_variant_get_string(argument, &bssid))
 		return FALSE;
-	net->access_point.type = ARPHRD_ETHER;
-	net->access_point.len = len;
+
+	if (ni_string_empty(bssid))
+		ni_link_address_init(&net->access_point);
+	else if (ni_link_address_parse(&net->access_point, ARPHRD_ETHER, bssid))
+		return FALSE;
+
 	return TRUE;
 }
 
@@ -1601,7 +1616,7 @@ __wpa_dbus_bss_set_ca_path(ni_dbus_object_t *object, const ni_dbus_property_t *p
 	__NI_DBUS_PROPERTY(signature, __name, __wpa_dbus_bss, rw)
 
 static ni_dbus_property_t	wpa_bss_properties[] = {
-	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, bssid, RO),
+	WPA_BSS_PROPERTY(STRING, bssid, RO),
 	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, ssid, RO),
 	WPA_BSS_PROPERTY(INT32, noise, RO),
 	WPA_BSS_PROPERTY(INT32, frequency, RO),
@@ -1643,7 +1658,7 @@ static ni_dbus_service_t	ni_wpa_bssid_service = {
 };
 
 static ni_dbus_property_t	wpa_network_properties[] = {
-	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, bssid, RO),
+	WPA_BSS_PROPERTY(STRING, bssid, RO),
 	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, ssid, RO),
 	WPA_BSS_PROPERTY(INT32, frequency, RO),
 
