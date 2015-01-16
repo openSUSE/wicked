@@ -180,6 +180,7 @@ ni_process_new(ni_shellcmd_t *proc)
 
 	pi = xcalloc(1, sizeof(*pi));
 
+	pi->status  = -1;
 	pi->process = ni_shellcmd_hold(proc);
 
 	/* Copy the command array */
@@ -194,7 +195,7 @@ ni_process_new(ni_shellcmd_t *proc)
 void
 ni_process_free(ni_process_t *pi)
 {
-	if (pi->pid) {
+	if (ni_process_running(pi)) {
 		if (kill(pi->pid, SIGKILL) < 0)
 			ni_error("Unable to kill process %d (%s): %m", pi->pid, pi->process->command);
 	}
@@ -341,16 +342,16 @@ ni_process_sigchild(int sig)
 int
 ni_process_run(ni_process_t *pi)
 {
-	int pfd[2],  rv;
+	int pfd[2], rv;
 
 	/* Our code in socket.c is only able to deal with sockets for now; */
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, pfd) < 0) {
 		ni_error("%s: unable to create pipe: %m", __func__);
-		return -1;
+		return NI_PROCESS_FAILURE;
 	}
 
 	rv = __ni_process_run(pi, pfd);
-	if (rv >= 0) {
+	if (rv >= NI_PROCESS_SUCCESS) {
 		/* Set up a socket to receive the redirected output of the
 		 * subprocess. */
 		pi->socket = __ni_process_get_output(pi, pfd[0]);
@@ -366,52 +367,71 @@ ni_process_run(ni_process_t *pi)
 	return rv;
 }
 
+static int
+__ni_process_run_info(ni_process_t *pi)
+{
+	int rv;
+
+	if ((rv = ni_process_exit_status(pi)) != NI_PROCESS_FAILURE) {
+		ni_debug_extension("subprocess %d (%s) exited with status %d",
+				pi->pid, pi->process->command, rv);
+		return rv;
+	} else
+	if ((rv = ni_process_signaled(pi)) != NI_PROCESS_FAILURE) {
+		ni_debug_extension("subprocess %d (%s) died with signal %d%s",
+				pi->pid, pi->process->command, rv,
+				ni_process_core_dumped(pi) ? " (core dumped)" : "");
+		return NI_PROCESS_TERMSIG;
+	} else {
+		ni_debug_extension("subprocess %d (%s) transcended into nirvana",
+				pi->pid, pi->process->command);
+		return NI_PROCESS_UNKNOWN;
+	}
+}
+
 int
 ni_process_run_and_wait(ni_process_t *pi)
 {
 	int  rv;
 
 	rv = __ni_process_run(pi, NULL);
-	if (rv < 0)
+	if (rv < NI_PROCESS_SUCCESS)
 		return rv;
 
+	rv = NI_PROCESS_SUCCESS;
 	while (waitpid(pi->pid, &pi->status, 0) < 0) {
 		if (errno == EINTR)
 			continue;
-		ni_error("%s: waitpid returns error (%m)", __func__);
-		return -1;
+		ni_error("%s: waitpid returned error (%m)", __func__);
+		rv = NI_PROCESS_WAITPID;
 	}
 
-	pi->pid = 0;
 	if (pi->notify_callback)
 		pi->notify_callback(pi);
 
-	if (!ni_process_exit_status_okay(pi)) {
-		ni_error("subprocess %d (%s) exited with error",
-			pi->pid, pi->process->command);
-		return -1;
-	}
-
-	return rv;
+	if (rv != NI_PROCESS_SUCCESS)
+		return rv;
+	return __ni_process_run_info(pi);
 }
 
 int
 ni_process_run_and_capture_output(ni_process_t *pi, ni_buffer_t *out_buffer)
 {
-	int pfd[2],  rv;
+	int pfd[2], rv;
 
 	if (pipe(pfd) < 0) {
 		ni_error("%s: unable to create pipe: %m", __func__);
-		return -1;
+		return NI_PROCESS_FAILURE;
 	}
 
 	rv = __ni_process_run(pi, pfd);
-	if (rv < 0) {
+	if (rv < NI_PROCESS_SUCCESS) {
 		close(pfd[0]);
 		close(pfd[1]);
 		return rv;
 	}
 
+	rv = NI_PROCESS_SUCCESS;
 	close(pfd[1]);
 	while (1) {
 		int cnt;
@@ -426,7 +446,7 @@ ni_process_run_and_capture_output(ni_process_t *pi, ni_buffer_t *out_buffer)
 			out_buffer->tail += cnt;
 		} else if (errno != EINTR) {
 			ni_error("read error on subprocess pipe: %m");
-			rv = -1;
+			rv = NI_PROCESS_IOERROR;
 			break;
 		}
 	}
@@ -436,20 +456,15 @@ ni_process_run_and_capture_output(ni_process_t *pi, ni_buffer_t *out_buffer)
 		if (errno == EINTR)
 			continue;
 		ni_error("%s: waitpid returns error (%m)", __func__);
-		return -1;
+		rv = NI_PROCESS_WAITPID;
 	}
 
-	pi->pid = 0;
 	if (pi->notify_callback)
 		pi->notify_callback(pi);
 
-	if (!ni_process_exit_status_okay(pi)) {
-		ni_error("subprocess %d (%s) exited with error",
-			pi->pid, pi->process->command);
-		return -1;
-	}
-
-	return rv;
+	if (rv != NI_PROCESS_SUCCESS)
+		return rv;
+	return __ni_process_run_info(pi);
 }
 
 int
@@ -460,21 +475,22 @@ __ni_process_run(ni_process_t *pi, int *pfd)
 
 	if (pi->pid != 0) {
 		ni_error("Cannot execute process instance twice (%s)", pi->process->command);
-		return -1;
+		return NI_PROCESS_FAILURE;
 	}
 
 	if (!ni_file_executable(arg0)) {
 		ni_error("Unable to run %s; does not exist or is not executable", arg0);
-		return -1;
+		return NI_PROCESS_COMMAND;
 	}
 
 	signal(SIGCHLD, ni_process_sigchild);
 
 	if ((pid = fork()) < 0) {
 		ni_error("%s: unable to fork child process: %m", __func__);
-		return -1;
+		return NI_PROCESS_FAILURE;
 	}
 	pi->pid = pid;
+	pi->status = -1;
 
 	if (pid == 0) {
 		int maxfd;
@@ -505,10 +521,11 @@ __ni_process_run(ni_process_t *pi, int *pfd)
 		arg0 = pi->argv.data[0];
 		execve(arg0, pi->argv.data, pi->environ.data);
 
-		ni_fatal("%s: cannot execute %s: %m", __func__, arg0);
+		ni_error("%s: cannot execute %s: %m", __func__, arg0);
+		exit(127);
 	}
 
-	return 0;
+	return NI_PROCESS_SUCCESS;
 }
 
 /*
@@ -519,51 +536,34 @@ ni_process_reap(ni_process_t *pi)
 {
 	int rv;
 
-	if (pi->pid == 0) {
+	if (pi->status != -1) {
 		ni_error("%s: child already reaped", __func__);
-		return 0;
+		return NI_PROCESS_SUCCESS;
 	}
 
 	rv = waitpid(pi->pid, &pi->status, WNOHANG);
 	if (rv == 0) {
 		/* This is an ugly workaround. Sometimes, we seem to get a hangup on the socket even
 		 * though the script (provably) still has its end of the socket pair open for writing. */
-		ni_error("%s: process %u has not exited yet; now doing a blocking waitpid()", __func__, pi->pid);
+		ni_error("%s: process %u has not exited yet; now doing a blocking waitpid()",
+				__func__, pi->pid);
 		rv = waitpid(pi->pid, &pi->status, 0);
 	}
 
 	if (rv < 0) {
-		ni_error("%s: waitpid returns error (%m)", __func__);
-		return -1;
+		ni_error("%s: waitpid returned error (%m)", __func__);
+		rv = NI_PROCESS_WAITPID;
 	}
-
-	if (WIFEXITED(pi->status))
-		ni_debug_extension("subprocess %d (%s) exited with status %d",
-				pi->pid, pi->process->command,
-				WEXITSTATUS(pi->status));
-	else if (WIFSIGNALED(pi->status))
-		ni_debug_extension("subprocess %d (%s) died with signal %d%s",
-				pi->pid, pi->process->command,
-				WTERMSIG(pi->status),
-				WCOREDUMP(pi->status)? " (core dumped)" : "");
-	else
-		ni_debug_extension("subprocess %d (%s) transcended into nirvana",
-				pi->pid, pi->process->command);
-	pi->pid = 0;
 
 	if (pi->notify_callback)
 		pi->notify_callback(pi);
 
-	return 0;
-}
+	if (rv == NI_PROCESS_WAITPID)
+		return rv;
 
-int
-ni_process_exit_status_okay(const ni_process_t *pi)
-{
-	if (WIFEXITED(pi->status))
-		return WEXITSTATUS(pi->status) == 0;
+	__ni_process_run_info(pi);
 
-	return 0;
+	return NI_PROCESS_SUCCESS;
 }
 
 /*
@@ -627,5 +627,69 @@ __ni_process_get_output(ni_process_t *pi, int fd)
 	sock->release_user_data = __ni_process_release_user_data;
 	sock->user_data = pi;
 	return sock;
+}
+
+ni_bool_t
+ni_process_running(const ni_process_t *pi)
+{
+	return pi && pi->pid > 0 && pi->status == -1;
+}
+
+ni_bool_t
+ni_process_exited(const ni_process_t *pi)
+{
+	return pi && WIFEXITED(pi->status);
+}
+
+int
+ni_process_exit_status(const ni_process_t *pi)
+{
+	return ni_process_exited(pi) ? WEXITSTATUS(pi->status) : NI_PROCESS_FAILURE;
+}
+
+int
+ni_process_exit_status_okay(const ni_process_t *pi)
+{
+	return ni_process_exit_status(pi) == 0;
+}
+
+ni_bool_t
+ni_process_signaled(const ni_process_t *pi)
+{
+	return pi && WIFSIGNALED(pi->status);
+}
+
+ni_bool_t
+ni_process_core_dumped(const ni_process_t *pi)
+{
+#ifdef WCOREDUMP
+	return ni_process_signaled(pi) && WCOREDUMP(pi->status);
+#else
+	return FALSE;
+#endif
+}
+
+int
+ni_process_term_signal(const ni_process_t *pi)
+{
+	return ni_process_signaled(pi) ? WTERMSIG(pi->status) : NI_PROCESS_FAILURE;
+}
+
+ni_bool_t
+ni_process_stopped(const ni_process_t *pi)
+{
+	return pi && WIFSTOPPED(pi->status);
+}
+
+ni_bool_t
+ni_process_continued(const ni_process_t *pi)
+{
+	return pi && WIFCONTINUED(pi->status);
+}
+
+int
+ni_process_stop_signal(const ni_process_t *pi)
+{
+	return ni_process_stopped(pi) ? WSTOPSIG(pi->status) : NI_PROCESS_FAILURE;
 }
 

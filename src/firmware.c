@@ -61,9 +61,9 @@ __ni_netconfig_firmware_discovery(const char *root, const char *type, const char
 
 			rv = ni_process_run_and_capture_output(process, result);
 			ni_process_free(process);
-
-			if (rv < 0) {
-				ni_error("error in firmware discovery script \"%s\"", script->name);
+			if (rv) {
+				ni_error("unable to discover firmware (script \"%s\")",
+						script->name);
 				ni_buffer_free(result);
 				return NULL;
 			}

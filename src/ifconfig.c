@@ -3139,23 +3139,21 @@ __ni_netdev_call_arp_util(ni_netdev_t *dev, ni_address_t *ap, ni_bool_t verify)
 	}
 	ni_shellcmd_release(cmd);
 
-	rv = TRUE;
+	rv  = FALSE;
 	ret = ni_process_run_and_wait(pi);
-	/* TODO process: ret shouldn't be -1 if exit is !0 */
-	if (WIFEXITED(pi->status)) {
-		if (WEXITSTATUS(pi->status) == NI_WICKED_RC_NOT_ALLOWED) {
+	if (ret >= 0) {
+		if (ret == NI_WICKED_RC_NOT_ALLOWED) {
 			ni_warn("%s: address '%s' is already in use",
 				dev->name, ni_sockaddr_print(&ap->local_addr));
-			rv = FALSE;
 		} else
-		if (WEXITSTATUS(pi->status) != NI_WICKED_RC_SUCCESS) {
+		if (ret != NI_WICKED_RC_SUCCESS) {
 			ni_warn("%s: address %s returned with status %d",
-				dev->name, verify ? "verify" : "notify",
-				WEXITSTATUS(pi->status));
+				dev->name, verify ? "verify" : "notify", ret);
 		} else {
 			ni_info("%s: successfully %s address '%s'",
 				dev->name, verify ? "verified" : "notified about",
 				ni_sockaddr_print(&ap->local_addr));
+			rv = TRUE;
 		}
 	} else if(ret) {
 		ni_warn("%s: address %s execution failed",

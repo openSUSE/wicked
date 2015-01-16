@@ -49,6 +49,20 @@ static inline void		ni_shellcmd_release(ni_shellcmd_t *cmd)
 	ni_shellcmd_free(cmd);
 }
 
+/*
+ * ni_process_run functions return 0 on success, positive
+ * child exit status code or the following negative errors.
+ */
+enum {
+	NI_PROCESS_SUCCESS	=  0,	/* success                         */
+	NI_PROCESS_FAILURE	= -1,	/* generic (before fork) failure   */
+	NI_PROCESS_COMMAND	= -2,	/* command is not executable       */
+	NI_PROCESS_IOERROR	= -3,	/* child pipe/socket i/o error     */
+	NI_PROCESS_WAITPID	= -4,	/* failed to retrieve child status */
+	NI_PROCESS_TERMSIG	= -5,	/* child process died with signal  */
+	NI_PROCESS_UNKNOWN	= -6,	/* unknown (post fork) failure     */
+};
+
 extern ni_process_t *		ni_process_new(ni_shellcmd_t *);
 extern int			ni_process_run(ni_process_t *);
 extern int			ni_process_run_and_wait(ni_process_t *);
@@ -57,6 +71,19 @@ extern void			ni_process_setenv(ni_process_t *, const char *, const char *);
 extern const char *		ni_process_getenv(const ni_process_t *, const char *);
 extern ni_tempstate_t *		ni_process_tempstate(ni_process_t *);
 extern void			ni_process_free(ni_process_t *);
+
+extern ni_bool_t		ni_process_running(const ni_process_t *);
+
+extern ni_bool_t		ni_process_exited(const ni_process_t *);
+extern int			ni_process_exit_status(const ni_process_t *);
 extern int			ni_process_exit_status_okay(const ni_process_t *);
+
+extern ni_bool_t		ni_process_signaled(const ni_process_t *);
+extern ni_bool_t		ni_process_core_dumped(const ni_process_t *);
+extern int			ni_process_term_signal(const ni_process_t *);
+
+extern ni_bool_t		ni_process_stopped(const ni_process_t *);
+extern ni_bool_t		ni_process_continued(const ni_process_t *);
+extern int			ni_process_stop_signal(const ni_process_t *);
 
 #endif /* __WICKED_PROCESS_H__ */

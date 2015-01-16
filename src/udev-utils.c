@@ -151,7 +151,7 @@ ni_udevadm_info(const char *query, const char *path)
 
 	ret = ni_process_run_and_capture_output(proc, buff);
 	ni_process_free(proc);
-	if (ret < 0) {
+	if (ret) {
 		ni_buffer_free(buff);
 		return NULL;
 	}
