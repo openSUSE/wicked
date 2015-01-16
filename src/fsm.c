@@ -980,7 +980,7 @@ __ni_generate_default_config(const char *ifname, ni_iftype_t ptype, xml_node_t *
 {
 	xml_node_t *ipv4, *ipv6, *config = NULL;
 
-	if (ni_string_empty(ifname) || xml_node_is_empty(control) || !ptype)
+	if (ni_string_empty(ifname) || !ptype)
 		goto error;
 
 	/* Create <interface> */
@@ -1025,7 +1025,7 @@ __ni_generate_default_config(const char *ifname, ni_iftype_t ptype, xml_node_t *
 		 */
 
 		/* Clone <control> */
-		if (!xml_node_clone(control, config))
+		if (!xml_node_is_empty(control) && !xml_node_clone(control, config))
 			goto error;
 		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv4, "false"))
 			 goto error;
@@ -1043,7 +1043,7 @@ __ni_generate_default_config(const char *ifname, ni_iftype_t ptype, xml_node_t *
 		 */
 
 		/* Clone <control> */
-		if (!xml_node_clone(control, config))
+		if (!xml_node_is_empty(control) && !xml_node_clone(control, config))
 			goto error;
 		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv4, "true"))
 			 goto error;
