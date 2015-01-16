@@ -720,7 +720,7 @@ ni_fsm_ifworker_by_object_path(ni_fsm_t *fsm, const char *object_path)
 	return w;
 }
 
-static ni_ifworker_t *
+ni_ifworker_t *
 ni_fsm_ifworker_by_ifindex(ni_fsm_t *fsm, unsigned int ifindex)
 {
 	unsigned int i;

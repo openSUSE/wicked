@@ -278,6 +278,7 @@ extern int			ni_fsm_build_hierarchy(ni_fsm_t *, ni_bool_t);
 extern ni_bool_t		ni_fsm_workers_from_xml(ni_fsm_t *, xml_node_t *, const char *);
 extern unsigned int		ni_fsm_fail_count(ni_fsm_t *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_object_path(ni_fsm_t *, const char *);
+extern ni_ifworker_t *		ni_fsm_ifworker_by_ifindex(ni_fsm_t *, unsigned int);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_netdev(ni_fsm_t *, const ni_netdev_t *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_name(ni_fsm_t *, ni_ifworker_type_t, const char *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_policy_name(ni_fsm_t *, ni_ifworker_type_t, const char *);
