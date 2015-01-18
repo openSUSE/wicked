@@ -90,6 +90,7 @@ static ni_bool_t		__ni_wireless_parse_psk_auth(const ni_sysconfig_t *, ni_wirele
 							const char *, const char *, ni_wireless_ap_scan_mode_t);
 static ni_bool_t		__ni_wireless_parse_eap_auth(const ni_sysconfig_t *, ni_wireless_network_t *,
 							const char *, const char *, ni_wireless_ap_scan_mode_t);
+static ni_bool_t		__ni_suse_parse_dhcp4_user_class(const char *, ni_dhcp4_user_class_t *, const char *);
 
 static char *			__ni_suse_default_hostname;
 static ni_sysconfig_t *		__ni_suse_config_defaults;
@@ -3164,6 +3165,85 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	return TRUE;
 }
 
+static ni_bool_t
+__ni_suse_parse_dhcp4_user_class(const char *context, ni_dhcp4_user_class_t *uc, const char *string)
+{
+	size_t offset, length, total;
+	char * prefix = NULL;
+	unsigned int i;
+
+	if (!uc || ni_string_empty(string))
+		return FALSE;
+	ni_string_array_destroy(&uc->class_id);
+
+	total  = 0;
+	offset = strcspn(string, ":");
+	ni_string_set(&prefix, string, offset);
+	if (ni_dhcp4_user_class_format_name_to_type(prefix, &uc->format) != 0)
+		uc->format = -1U;
+	ni_string_free(&prefix);
+
+	if (offset == strlen(string)) /* No format prefix supplied, take whole string as data. */
+		offset = 0;
+	else /* Advance past ':' to actual data. */
+		offset++;
+
+	switch (uc->format) {
+	case NI_DHCP4_USER_CLASS_RFC3004:
+		ni_string_split(&uc->class_id, string + offset, ", ", 0);
+		for (i = 0; i < uc->class_id.count; ++i) {
+
+			/* may we add a check_identifier utility? */
+			string = uc->class_id.data[i];
+			length = ni_string_len(string);
+			total += length + 1;
+			if (length >= 255 || total >= 255) {
+				ni_warn("%s: DHCLIENT_USER_CLASS_ID array%s is too long",
+					context, total >= 255 ? "" : " element");
+				ni_string_array_destroy(&uc->class_id);
+				uc->format = -1U;
+				return FALSE;
+			}
+			if (!ni_check_domain_name(string, length, 0)) {
+				ni_warn("%s: DHCLIENT_USER_CLASS_ID contains suspect class id element: '%s'",
+					context, ni_print_suspect(string, length));
+				ni_string_array_destroy(&uc->class_id);
+				uc->format = -1U;
+				return FALSE;
+			}
+		}
+		break;
+
+	case NI_DHCP4_USER_CLASS_STRING:
+		/*
+		 * Hmm... do we need to support anything else? For now:
+		 * fallthrough and try as non-rfc complient string ...
+		 */
+
+	default:
+		string = string + offset;
+		length = ni_string_len(string);
+		if (length >= 255) {
+			ni_warn("%s: DHCLIENT_USER_CLASS_ID string is too long: '%s'",
+				context, ni_print_suspect(string, length));
+			uc->format = -1U;
+			return FALSE;
+		}
+		if (!ni_check_domain_name(string, length, 0)) {
+			ni_warn("%s: DHCLIENT_USER_CLASS_ID contains suspect class id string: '%s'",
+				context, ni_print_suspect(string, length));
+			ni_string_array_destroy(&uc->class_id);
+			uc->format = -1U;
+			return FALSE;
+		}
+		uc->format = NI_DHCP4_USER_CLASS_STRING;
+		ni_string_array_append(&uc->class_id, string);
+		break;
+	}
+
+	return TRUE;
+}
+
 /*
  * Process DHCPv4 addrconf
  */
@@ -3192,6 +3272,10 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_VENDOR_CLASS_ID")) != NULL)
 		ni_string_dup(&compat->dhcp4.vendor_class, string);
+
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_USER_CLASS_ID")) != NULL)
+		__ni_suse_parse_dhcp4_user_class(ni_basename(sc->pathname),
+					&compat->dhcp4.user_class, string);
 
 	if (ni_sysconfig_get_integer(sc, "DHCLIENT_SLEEP", &uint))
 		compat->dhcp4.start_delay = uint;
