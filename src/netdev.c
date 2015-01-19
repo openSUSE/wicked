@@ -146,20 +146,27 @@ ni_netdev_put(ni_netdev_t *dev)
 }
 
 ni_bool_t
-ni_netdev_device_always_ready(ni_netdev_t *dev)
+ni_netdev_link_always_ready(ni_linkinfo_t *link)
 {
-	switch (dev->link.type) {
+	switch (link->type) {
 	case NI_IFTYPE_LOOPBACK:
 		return TRUE;
 	default:
+		if (ni_server_disabled_uevents())
+			return TRUE;
 		return FALSE;
 	}
+}
+ni_bool_t
+ni_netdev_device_always_ready(ni_netdev_t *dev)
+{
+	return dev ? ni_netdev_link_always_ready(&dev->link) : FALSE;
 }
 
 ni_bool_t
 ni_netdev_device_is_ready(ni_netdev_t *dev)
 {
-	return dev && dev->link.ifflags & NI_IFF_DEVICE_READY;
+	return dev ? dev->link.ifflags & NI_IFF_DEVICE_READY : FALSE;
 }
 
 /*
