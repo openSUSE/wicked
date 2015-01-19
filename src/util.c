@@ -10,6 +10,7 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <sys/statvfs.h>
 #include <dirent.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -810,13 +811,13 @@ ni_file_remove_recursively(const char *path)
 /*
  * Check if the given file exists
  */
-extern ni_bool_t
+ni_bool_t
 ni_file_exists(const char *filename)
 {
 	return access(filename, F_OK) == 0;
 }
 
-extern ni_bool_t
+ni_bool_t
 ni_file_executable(const char *filename)
 {
 	return access(filename, X_OK) == 0;
@@ -836,7 +837,7 @@ ni_find_executable(const char **paths)
 	return NULL;
 }
 
-extern ni_bool_t
+ni_bool_t
 ni_isdir(const char *path)
 {
 	struct stat stb;
@@ -846,7 +847,7 @@ ni_isdir(const char *path)
 	return S_ISDIR(stb.st_mode);
 }
 
-extern ni_bool_t
+ni_bool_t
 ni_isreg(const char *path)
 {
 	struct stat stb;
@@ -856,7 +857,18 @@ ni_isreg(const char *path)
 	return S_ISREG(stb.st_mode);
 }
 
-extern ni_bool_t
+ni_bool_t
+ni_fs_is_read_only(const char *path)
+{
+	struct statvfs vstb;
+
+	if (statvfs(path, &vstb) < 0)
+		return FALSE;
+
+	return !!(vstb.f_flag & ST_RDONLY);
+}
+
+ni_bool_t
 ni_file_exists_fmt(const char *fmt, ...)
 {
 	char *path = NULL;

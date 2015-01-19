@@ -160,6 +160,7 @@ extern ni_bool_t	ni_file_exists(const char *);
 extern ni_bool_t	ni_file_executable(const char *);
 extern ni_bool_t	ni_isdir(const char *);
 extern ni_bool_t	ni_isreg(const char *);
+extern ni_bool_t	ni_fs_is_read_only(const char *);
 extern ni_bool_t	ni_file_exists_fmt(const char*, ...);
 extern const char *	ni_find_executable(const char **);
 extern const char *	ni_basename(const char *path);
