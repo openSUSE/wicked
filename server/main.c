@@ -300,7 +300,13 @@ run_interface_server(void)
 void
 discover_udev_netdev_state(ni_netdev_t *dev)
 {
-	if (dev && ni_udev_netdev_is_ready(dev->name))
+	if (!dev || ni_netdev_device_is_ready(dev))
+		return;
+
+	if (ni_netdev_device_always_ready(dev))
+		dev->link.ifflags |= NI_IFF_DEVICE_READY;
+	else
+	if (ni_udev_netdev_is_ready(dev))
 		dev->link.ifflags |= NI_IFF_DEVICE_READY;
 }
 

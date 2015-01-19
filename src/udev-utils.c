@@ -29,48 +29,48 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <unistd.h>
+
 #include <wicked/types.h>
 #include <wicked/util.h>
+#include <wicked/netinfo.h>
+
 #include "udev-utils.h"
 #include "process.h"
 #include "buffer.h"
+#include "sysfs.h"
+
 
 #ifndef _PATH_SYS_CLASS_NET
 #define _PATH_SYS_CLASS_NET	"/sys/class/net"
 #endif
 
-static ni_shellcmd_t *
-__ni_udevadm_shellcmd()
+struct netdev_uinfo {
+	unsigned int	ifindex;
+	const char *	subsystem;
+	const char *	interface;
+	const char *	interface_old;
+	const char *	tags;
+};
+
+
+static const char *
+ni_udevadm_tool_path()
 {
-	const char **p, *paths[] = {
+
+	static const char *paths[] = {
 		"/usr/bin/udevadm",
 		"/sbin/udevadm",
 		NULL
 	};
-	ni_shellcmd_t *cmd;
-
-	for (p = paths; p && *p; p++) {
-		if (!ni_file_executable(*p))
-			continue;
-
-		if (!(cmd = ni_shellcmd_new(NULL)))
-			return NULL;
-
-		if (ni_shellcmd_add_arg(cmd, *p))
-			return cmd;
-
-		ni_shellcmd_release(cmd);
-		return NULL;
-	}
-	return NULL;
+	return ni_find_executable(paths);
 }
 
-static ni_var_array_t *
-__ni_udevadm_info_parse_output(ni_buffer_t *buff)
+static unsigned int
+ni_udevadm_info_parse_output(ni_var_array_t **list, ni_buffer_t *buff)
 {
 	ni_stringbuf_t  line = NI_STRINGBUF_INIT_DYNAMIC;
-	ni_var_array_t *list = NULL;
 	ni_var_array_t *curr = NULL;
+	unsigned int count = 0;
 	int c;
 
 	while ((c = ni_buffer_getc(buff)) != EOF) {
@@ -95,8 +95,9 @@ __ni_udevadm_info_parse_output(ni_buffer_t *buff)
 			/* network devices aren't using N: L: S: */
 		} else if (curr) {
 			/* end of device */
-			ni_var_array_list_append(&list, curr);
+			ni_var_array_list_append(list, curr);
 			curr = NULL;
+			count++;
 		}
 		ni_stringbuf_clear(&line);
 	}
@@ -105,71 +106,83 @@ __ni_udevadm_info_parse_output(ni_buffer_t *buff)
 		/* incomplete device... */
 		ni_var_array_free(curr);
 	}
-	return list;
+	return count;
 }
 
-ni_var_array_t *
-ni_udevadm_info(const char *query, const char *path)
+static int
+ni_udevadm_info_cmd(ni_shellcmd_t *cmd, const char *query, const char *path)
 {
-	ni_shellcmd_t  *udevadm;
+	const char *tool;
+
+	if (!cmd || ni_string_empty(query) || ni_string_empty(path))
+		return NI_PROCESS_FAILURE;
+
+	if (!(tool = ni_udevadm_tool_path()))
+		return NI_PROCESS_COMMAND;
+
+	if (!ni_shellcmd_add_arg(cmd, tool))
+		return NI_PROCESS_FAILURE;
+
+	if (!ni_shellcmd_add_arg(cmd, "info"))
+		return NI_PROCESS_FAILURE;
+
+	if (!ni_shellcmd_fmt_arg(cmd, "--query=%s", query))
+		return NI_PROCESS_FAILURE;
+
+	if (!ni_shellcmd_fmt_arg(cmd, "--path=%s", path))
+		return NI_PROCESS_FAILURE;
+
+	return NI_PROCESS_SUCCESS;
+}
+
+int
+ni_udevadm_info(ni_var_array_t **list, const char *query, const char *path)
+{
+	ni_shellcmd_t  *cmd;
 	ni_process_t   *proc;
 	ni_buffer_t    *buff;
-	ni_var_array_t *list;
 	int ret;
 
-	if (ni_string_empty(query) || ni_string_empty(path))
-		return NULL;
+	if (!(cmd = ni_shellcmd_new(NULL)))
+		return NI_PROCESS_FAILURE;
 
-	if (!(udevadm = __ni_udevadm_shellcmd()))
-		return NULL;
-
-	if (!ni_shellcmd_add_arg(udevadm, "info")) {
-		ni_shellcmd_release(udevadm);
-		return NULL;
-	}
-	if (!ni_shellcmd_fmt_arg(udevadm, "--query=%s", query)) {
-		ni_shellcmd_release(udevadm);
-		return NULL;
-	}
-	if (!ni_shellcmd_fmt_arg(udevadm, "--path=%s", path)) {
-		ni_shellcmd_release(udevadm);
-		return NULL;
+	ret = ni_udevadm_info_cmd(cmd, query, path);
+	if (ret) {
+		ni_shellcmd_release(cmd);
+		return ret;
 	}
 
-	proc = ni_process_new(udevadm);
-	if (!proc) {
-		ni_shellcmd_release(udevadm);
-		return NULL;
-	}
-	ni_shellcmd_release(udevadm);
+	proc = ni_process_new(cmd);
+	ni_shellcmd_release(cmd);
+	if (!proc)
+		return NI_PROCESS_FAILURE;
 
 	buff = ni_buffer_new_dynamic(1024);
 	if (!buff) {
 		ni_process_free(proc);
-		return NULL;
+		return NI_PROCESS_FAILURE;
 	}
 
 	ret = ni_process_run_and_capture_output(proc, buff);
 	ni_process_free(proc);
-	if (ret) {
-		ni_buffer_free(buff);
-		return NULL;
-	}
 
-	list = __ni_udevadm_info_parse_output(buff);
+	if (ret == 0)
+		ni_udevadm_info_parse_output(list, buff);
+
 	ni_buffer_free(buff);
-
-	return list;
+	return ret;
 }
+
 
 ni_bool_t
 ni_udev_net_subsystem_available(void)
 {
-	ni_var_array_t *vars;
+	ni_var_array_t *vars = NULL;
 	ni_bool_t result = FALSE;
+	int ret;
 
-	vars = ni_udevadm_info("all", _PATH_SYS_CLASS_NET);
-	if (vars) {
+	ret = ni_udevadm_info(&vars, "all", _PATH_SYS_CLASS_NET);
+	if (ret == 0 && vars) {
 		ni_var_t *devpath = ni_var_array_get(vars, "DEVPATH");
 		ni_var_t *subsystem = ni_var_array_get(vars, "SUBSYSTEM");
 
@@ -177,66 +190,157 @@ ni_udev_net_subsystem_available(void)
 		    subsystem && ni_string_eq(subsystem->value, "subsystem"))
 			result = TRUE;
 
-		ni_var_array_list_destroy(&vars);
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EVENTS,
+				"udev: net subsystem %s available",
+				result ? "is" : "is not");
+	} else if (ret == NI_PROCESS_COMMAND) {
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+				"udevadm utility is not available");
+	} else {
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+				"udevadm net subsystem query failed: %d", ret);
 	}
+	ni_var_array_list_destroy(&vars);
+
 	return result;
 }
 
-ni_bool_t
-ni_udev_netdev_is_ready(const char *ifname)
+static int
+netdev_uinfo_map(struct netdev_uinfo *uinfo, const ni_var_array_t *vars, const char *ifname)
 {
-	char pathbuf[PATH_MAX];
-	struct {
-		ni_bool_t	subsystem;
-		unsigned int	ifindex;
-		const char *	interface;
-		const char *	interface_old;
-		const char *	tags;
-	} uinfo;
-	ni_var_array_t *vars;
 	const ni_var_t *var;
 	unsigned int i;
-	ni_bool_t success = FALSE;
 
-	if (ni_string_empty(ifname))
-		return FALSE;
+	if (!uinfo || !vars)
+		return -1;
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", _PATH_SYS_CLASS_NET, ifname);
-	vars = ni_udevadm_info("all", pathbuf);
-	if (!vars)
-		return FALSE;
-
-	memset(&uinfo, 0, sizeof(uinfo));
+	memset(uinfo, 0, sizeof(*uinfo));
 	for (i = 0; i < vars->count; ++i) {
 		var = &vars->data[i];
-#if 0
-		ni_trace("%s='%s'", var->name, var->value);
-#endif
+
+		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
+			"udevadm info %s: %s='%s'", ifname, var->name, var->value);
+
 		if (ni_string_eq("SUBSYSTEM", var->name)) {
-			uinfo.subsystem = ni_string_eq("net", var->value);
+			uinfo->subsystem = var->value;
 		} else
 		if (ni_string_eq("IFINDEX", var->name)) {
-			if (ni_parse_uint(var->value, &uinfo.ifindex, 10))
-				uinfo.ifindex = 0;
+			if (ni_parse_uint(var->value, &uinfo->ifindex, 10))
+				uinfo->ifindex = 0;
 		} else
 		if (ni_string_eq("INTERFACE_OLD", var->name)) {
 			if (!ni_string_empty(var->value))
-				uinfo.interface_old = var->value;
+				uinfo->interface_old = var->value;
 		} else
 		if (ni_string_eq("INTERFACE", var->name)) {
 			if (!ni_string_empty(var->value))
-				uinfo.interface = var->value;
+				uinfo->interface = var->value;
 		} else
 		if (ni_string_eq("TAGS", var->name)) {
 			if (!ni_string_empty(var->value))
-				uinfo.tags = var->value;
+				uinfo->tags = var->value;
 		}
 	}
-	if (uinfo.subsystem && uinfo.ifindex && uinfo.interface && !uinfo.interface_old) {
-		if (uinfo.tags && strstr(uinfo.tags, ":systemd:"))
-			success = TRUE;
+	return 0;
+}
+
+static int
+netdev_uinfo_ready(const ni_var_array_t *vars, const char *ifname, unsigned int ifindex)
+{
+	struct netdev_uinfo uinfo;
+
+	if (netdev_uinfo_map(&uinfo, vars, ifname) < 0)
+		return -1;
+
+	if (!ni_string_eq(uinfo.subsystem, "net")) {
+		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
+				"%s[%u] udev info: unexpected subsystem %s",
+				ifname, ifindex, uinfo.subsystem);
+		return -1;	/* huh? not a net subsystem?! */
 	}
-	ni_var_array_list_destroy(&vars);
-	return success;
+
+	if (uinfo.ifindex != ifindex || !ni_string_eq(uinfo.interface, ifname)) {
+		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
+				"%s[%u] udev info: ifname %s or ifindex %u differ",
+				ifname, ifindex, uinfo.interface, uinfo.ifindex);
+		return 1;	/* repeat, udevadm is using ifname / sysfs  */
+	}
+
+	if (uinfo.interface_old) {
+		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
+				"%s[%u] udev info: interface_old still set to %s",
+				ifname, ifindex, uinfo.interface_old);
+		return -1;	/* not ready, expect rename event to arrive */
+	}
+
+	if (uinfo.tags && strstr(uinfo.tags, ":systemd:")) {
+		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
+				"%s[%u] udev info: systemd tag is set",
+				ifname, ifindex);
+		return 0;	/* only systemd-udevd sets tags */
+	}
+
+	/* TODO: other special cases, e.g. like udev != systemd-udev */
+	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
+			"%s[%u] udev info: systemd tag is not set",
+			ifname, ifindex);
+	return -1;
+}
+
+static int
+ni_udev_netdev_update_name(ni_netdev_t *dev)
+{
+	char ifnamebuf[IF_NAMESIZE+1] = {'\0'};
+	const char *ifname;
+
+	if (!dev || !dev->link.ifindex)
+		return -1;
+
+	ifname = if_indextoname(dev->link.ifindex, ifnamebuf);
+	if (ni_string_empty(ifname))
+		return -1; /* device seems to be gone */
+
+	if (!ni_string_eq(dev->name, ifname))
+		ni_string_dup(&dev->name, ifname);
+
+	return 0;
+}
+
+ni_bool_t
+ni_udev_netdev_is_ready(ni_netdev_t *dev)
+{
+	char pathbuf[PATH_MAX] = { '\0' };
+	ni_var_array_t *vars = NULL;
+	int ret, retry = 2;
+
+	do {
+		/*
+		 * we're called to bootstrap before events listeners
+		 * start to receive, that is the device ifname may
+		 * be obsolete in the meantime due to udev renames.
+		 */
+		if (ni_udev_netdev_update_name(dev) < 0)
+			return FALSE;
+
+		snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
+				_PATH_SYS_CLASS_NET, dev->name);
+
+		ret = ni_udevadm_info(&vars, "all", pathbuf);
+		switch (ret) {
+		case 0:
+			ret = netdev_uinfo_ready(vars, dev->name, dev->link.ifindex);
+			break;
+		case 2:	/* syspath not found (by ifname)  */
+		case 4: /* another kind of device not found(?) */
+			ret = 1;
+			break;
+		default:
+			ret = -1;
+		}
+		ni_var_array_list_destroy(&vars);
+
+	} while (ret > 0 && retry--);
+
+	return ret == 0;
 }
 
