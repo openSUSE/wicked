@@ -18,6 +18,10 @@
 #include "sysfs.h"
 #include "ibft.h"
 
+#ifndef NI_PATH_SYSFS
+#define NI_PATH_SYSFS			"/sys"
+#endif
+
 #define _PATH_SYS_CLASS_NET		"/sys/class/net"
 
 /* #include <linux/if_bridge.h> */
@@ -164,6 +168,12 @@ ni_sysfs_netif_printf(const char *ifname, const char *attr_name, const char *fmt
 	ret = __ni_sysfs_netif_put_attr(ifname, attr_name, attr_value);
 	free(attr_value);
 	return ret;
+}
+
+ni_bool_t
+ni_sysfs_is_read_only(void)
+{
+	return ni_fs_is_read_only(NI_PATH_SYSFS);
 }
 
 ni_bool_t
