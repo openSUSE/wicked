@@ -250,9 +250,11 @@ run_interface_server(void)
 	if (ni_server_enable_interface_nduseropt_events(handle_interface_nduseropt_events) < 0)
 		ni_fatal("unable to initialize netlink nduseropt listener");
 
-	if (ni_udev_net_subsystem_available()) {
+	if (ni_udev_is_active() && ni_udev_net_subsystem_available()) {
 		if (ni_server_enable_interface_uevents() < 0)
 			ni_fatal("unable to initialize udev event listener");
+	} else {
+		ni_server_disable_interface_uevents();
 	}
 
 	ni_rfkill_open(handle_rfkill_event, NULL);

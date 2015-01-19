@@ -27,6 +27,7 @@
 
 extern int			ni_udevadm_info(ni_var_array_t **, const char *, const char *);
 
+extern ni_bool_t		ni_udev_is_active(void);
 extern ni_bool_t		ni_udev_net_subsystem_available(void);
 extern ni_bool_t		ni_udev_netdev_is_ready(ni_netdev_t *);
 

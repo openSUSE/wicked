@@ -173,6 +173,21 @@ ni_udevadm_info(ni_var_array_t **list, const char *query, const char *path)
 	return ret;
 }
 
+static ni_bool_t
+ni_systemd_udev_is_active(void)
+{
+	/*
+	 * systemd-udevd is a static service and is
+	 * always started when /sys fs is writeable.
+	 */
+	return !ni_sysfs_is_read_only();
+}
+
+ni_bool_t
+ni_udev_is_active(void)
+{
+	return ni_systemd_udev_is_active();
+}
 
 ni_bool_t
 ni_udev_net_subsystem_available(void)
