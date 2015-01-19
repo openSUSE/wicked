@@ -510,8 +510,7 @@ void
 ni_ifworker_array_append(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
 	array->data = realloc(array->data, (array->count + 1) * sizeof(array->data[0]));
-	array->data[array->count++] = w;
-	w->refcount++;
+	array->data[array->count++] = ni_ifworker_get(w);
 }
 
 int
@@ -4097,6 +4096,8 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			unsigned int prev_state;
 			int rv;
 
+			ni_ifworker_get(w);
+
 			if (w->pending)
 				continue;
 
@@ -4180,6 +4181,8 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 						ni_ifworker_state_name(prev_state),
 						ni_ifworker_state_name(action->next_state));
 			}
+
+			ni_ifworker_release(w);
 		}
 
 		if (!made_progress)
