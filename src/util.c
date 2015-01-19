@@ -822,6 +822,20 @@ ni_file_executable(const char *filename)
 	return access(filename, X_OK) == 0;
 }
 
+const char *
+ni_find_executable(const char **paths)
+{
+	const char **path;
+
+	if (paths) {
+		for (path = paths; *path; ++path) {
+			if (ni_file_executable(*path))
+				return *path;
+		}
+	}
+	return NULL;
+}
+
 extern ni_bool_t
 ni_isdir(const char *path)
 {
