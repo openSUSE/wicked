@@ -7,6 +7,8 @@
 *.so
 *.so.*
 *.m4
+*.diff
+*.patch
 .*
 compile
 core
