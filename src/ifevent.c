@@ -150,13 +150,6 @@ __ni_rtevent_process(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	return rv;
 }
 
-static inline ni_bool_t
-__ni_netdev_still_exists(unsigned int ifindex)
-{
-	char namebuf[IF_NAMESIZE+1] = {'\0'};
-	return if_indextoname(ifindex, namebuf) != NULL;
-}
-
 /*
  * Process device state change events
  */
@@ -230,6 +223,7 @@ __ni_netdev_process_events(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int ol
 int
 __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
+	char namebuf[IF_NAMESIZE+1] = {'\0'};
 	ni_netdev_t *dev, *old;
 	struct ifinfomsg *ifi;
 	struct nlattr *nla;
@@ -239,16 +233,16 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	if (!(ifi = ni_rtnl_ifinfomsg(h, RTM_NEWLINK)))
 		return -1;
 
-	if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_IFNAME)) != NULL) {
-		ifname = (char *) nla_data(nla);
-	}
-	if (ifi->ifi_family == AF_BRIDGE) {
-		ni_debug_events("%s: ignoring bridge NEWLINK event", ifname);
+	if (ifi->ifi_family == AF_BRIDGE)
 		return 0;
-	}
 
 	old = ni_netdev_by_index(nc, ifi->ifi_index);
-	if (!__ni_netdev_still_exists(ifi->ifi_index)) {
+	ifname = if_indextoname(ifi->ifi_index, namebuf);
+	if (!ifname) {
+		/*
+		 * device (index) does not exists any more;
+		 * process deletion/cleanup of the device.
+		 */
 		if (old) {
 			old_flags = old->link.ifflags;
 			old->link.ifflags = 0;
@@ -257,20 +251,26 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 			__ni_netdev_process_events(nc, old, old_flags);
 			ni_client_state_drop(old->link.ifindex);
 			ni_netconfig_device_remove(nc, old);
-			return 0;
 		}
-		return -1;
+		return 0;
 	}
 
-	if (old != NULL) {
-		old_flags = old->link.ifflags;
-		dev = old;
-	} else {
-		dev = ni_netdev_new(ifname, ifi->ifi_index);
-		if (dev) {
-			dev->created = 1;
-			ni_netconfig_device_append(nc, dev);
+	if (old) {
+		if (!ni_string_eq(old->name, ifname)) {
+			ni_debug_events("%s[%u]: device renamed to %s",
+					old->name, old->link.ifindex, ifname);
+			ni_string_dup(&old->name, ifname);
 		}
+		dev = old;
+		old_flags = old->link.ifflags;
+	} else {
+		if (!(dev = ni_netdev_new(ifname, ifi->ifi_index))) {
+			ni_warn("%s[%u]: unable to allocate memory for device",
+					ifname, ifi->ifi_index);
+			return -1;
+		}
+		dev->created = 1;
+		ni_netconfig_device_append(nc, dev);
 	}
 
 	if (__ni_netdev_process_newlink(dev, h, ifi, nc) < 0) {
@@ -284,15 +284,11 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		conflict = ni_netdev_by_name(nc, ifname);
 		if (conflict && conflict->link.ifindex != (unsigned int)ifi->ifi_index) {
 			/* We probably missed a deletion event. Just clobber the old interface. */
-			ni_warn("linkchange event: found interface %s with different ifindex", ifname);
+			ni_warn("link change event: found interface %s with different ifindex", ifname);
 
 			/* We should purge this either now or on the next refresh */
 			ni_string_dup(&conflict->name, "dead");
 		}
-
-		/* If the interface name changed, update it */
-		if (!ni_string_eq(ifname, dev->name))
-			ni_string_dup(&dev->name, ifname);
 	}
 
 	__ni_netdev_process_events(nc, dev, old_flags);

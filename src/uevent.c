@@ -49,6 +49,7 @@
 #include <netlink/netlink.h>
 #include <linux/filter.h>
 #define bpf_insn sock_filter
+#include <net/if.h>
 
 #include <wicked/logging.h>
 #include <wicked/socket.h>
@@ -655,12 +656,20 @@ __ni_uevent_ifevent_forwarder(const ni_var_array_t *vars, void *user_data)
 
 	if (dev && !(dev->link.ifflags & NI_IFF_DEVICE_READY)) {
 		unsigned int old_flags = dev->link.ifflags;
+		char namebuf[IF_NAMESIZE+1] = {'\0'};
+		const char *ifname;
 
 		if (!ni_string_empty(uinfo.interface_old))
 			return;
 
 		if (!uinfo.tags || !strstr(uinfo.tags, ":systemd:"))
 			return;
+
+		if (!(ifname = if_indextoname(dev->link.ifindex, namebuf)))
+			return; /* device gone in the meantime */
+
+		if (!ni_string_eq(dev->name, ifname))
+			ni_string_dup(&dev->name, ifname);
 
 		dev->link.ifflags |= NI_IFF_DEVICE_READY;
 		__ni_netdev_process_events(nc, dev, old_flags);
