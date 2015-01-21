@@ -386,6 +386,9 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 			*tail = dev;
 			tail = &dev->next;
 		} else {
+			if (!ni_string_eq(dev->name, ifname))
+				ni_string_dup(&dev->name, ifname);
+
 			/* Clear out addresses and routes */
 			__ni_address_list_reset_seq(dev->addrs);
 			ni_netdev_clear_routes(dev);
@@ -511,9 +514,20 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *dev)
 	dev->seq = 0;
 	while (1) {
 		struct ifinfomsg *ifi;
+		struct nlattr *nla;
+		const char *ifname;
 
 		if (!(ifi = ni_rtnl_query_next_link_info(&query, &h)))
 			break;
+
+		if ((nla = nlmsg_find_attr(h, sizeof(*ifi), IFLA_IFNAME)) == NULL) {
+			ni_warn("RTM_NEWLINK message without IFNAME");
+			continue;
+		}
+
+		ifname = nla_get_string(nla);
+		if (!ni_string_eq(dev->name, ifname))
+			ni_string_dup(&dev->name, ifname);
 
 		/* Clear out addresses and routes */
 		dev->seq = __ni_global_seqno;
@@ -1252,22 +1266,28 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_netconfig_t *nc)
 {
 	struct nlattr *tb[IFLA_MAX+1];
-	char *ifname;
 	int rv;
 
 	memset(tb, 0, sizeof(tb));
 	if (nlmsg_parse(h, sizeof(*ifi), tb, IFLA_MAX, NULL) < 0) {
-		ni_error("unable to parse rtnl LINK message");
+		ni_error("%s[%u] unable to parse rtnl LINK message",
+				dev->name, dev->link.ifindex);
 		return -1;
 	}
 
-	if (tb[IFLA_IFNAME]) {
-		ifname = nla_get_string(tb[IFLA_IFNAME]);
-		if (!dev->name || !ni_string_eq(dev->name, ifname))
-			ni_string_dup(&dev->name, ifname);
-	} else {
-		ni_warn("RTM_NEWLINK message without IFNAME");
-		return -1;
+	/* Note: we explicitly update name on query/event as needed
+	 * before this function is called. While event processing,
+	 * we explicitely query the current name to avoid an update
+	 * to an already obsolete name provided in the event data.
+	 * Thus just update device name in case it is missed.
+	 */
+	if (ni_string_empty(dev->name)) {
+		if (!tb[IFLA_IFNAME]) {
+			ni_warn("%s[#%u] RTM_NEWLINK message without IFNAME",
+					dev->name, dev->link.ifindex);
+			return -1;
+		}
+		ni_string_dup(&dev->name, nla_get_string(tb[IFLA_IFNAME]));
 	}
 
 	rv = __ni_process_ifinfomsg_linkinfo(&dev->link, dev->name, tb, h, ifi, nc);
