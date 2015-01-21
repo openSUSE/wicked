@@ -52,9 +52,9 @@ ni_bool_t
 ni_managed_netdev_enable(ni_managed_device_t *mdev)
 {
 	ni_nanny_t *mgr = mdev->nanny;
-	ni_ifworker_t *w = mdev->worker;
+	ni_ifworker_t *w;
 
-	if (!w)
+	if (!(w = ni_managed_device_get_worker(mdev)))
 		return FALSE;
 
 	if (mdev->rfkill_blocked) {
@@ -80,14 +80,17 @@ ni_bool_t
 ni_managed_netdev_disable(ni_managed_device_t *mdev)
 {
 	ni_nanny_t *mgr = mdev->nanny;
-	ni_ifworker_t *w = mdev->worker;
+	ni_ifworker_t *w;
+
+	if (!(w = ni_managed_device_get_worker(mdev)))
+		return FALSE;
 
 	ni_nanny_schedule_recheck(&mgr->down, w);
 	ni_nanny_unschedule(&mgr->recheck, w);
 	ni_ifworker_rearm(w);
 
 	mdev->monitor = FALSE;
-	ni_nanny_policy_drop(mdev->worker->name);
+	ni_nanny_policy_drop(w->name);
 	return TRUE;
 }
 
@@ -97,10 +100,15 @@ ni_managed_netdev_disable(ni_managed_device_t *mdev)
 ni_dbus_object_t *
 ni_objectmodel_register_managed_netdev(ni_dbus_server_t *server, ni_managed_device_t *mdev)
 {
-	ni_netdev_t *dev = ni_ifworker_get_netdev(mdev->worker);
+	ni_netdev_t *dev;
 	char relative_path[128];
 	ni_dbus_object_t *object;
+	ni_ifworker_t *w;
 
+	if (!(w = ni_managed_device_get_worker(mdev)))
+		return NULL;
+
+	dev = ni_ifworker_get_netdev(w);
 	snprintf(relative_path, sizeof(relative_path), "Interface/%u", dev->link.ifindex);
 	object = ni_dbus_server_register_object(server, relative_path, &ni_objectmodel_managed_netdev_class, mdev);
 

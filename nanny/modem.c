@@ -52,10 +52,15 @@ ni_objectmodel_managed_modem_init(ni_dbus_server_t *server)
 ni_dbus_object_t *
 ni_objectmodel_register_managed_modem(ni_dbus_server_t *server, ni_managed_device_t *mdev)
 {
-	ni_modem_t *modem = ni_ifworker_get_modem(mdev->worker);
+	ni_modem_t *modem;
 	char relative_path[128];
 	ni_dbus_object_t *object;
+	ni_ifworker_t *w;
 
+	if (!(w = ni_managed_device_get_worker(mdev)))
+		return NULL;
+
+	modem = ni_ifworker_get_modem(w);
 	snprintf(relative_path, sizeof(relative_path), "Modem/%s", modem->device);
 	object = ni_dbus_server_register_object(server, relative_path, &ni_objectmodel_managed_modem_class, mdev);
 

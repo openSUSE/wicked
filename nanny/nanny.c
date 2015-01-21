@@ -234,8 +234,11 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 		ni_managed_device_t *mdev;
 
 		for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
-			if (mdev->monitor)
-				ni_nanny_schedule_recheck(&mgr->recheck, mdev->worker);
+			if (mdev->monitor) {
+				ni_ifworker_t *w = ni_managed_device_get_worker(mdev);
+
+				if (w)
+					ni_nanny_schedule_recheck(&mgr->recheck, w);
 		}
 	}
 #endif
@@ -313,9 +316,9 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 	ni_managed_device_t *mdev;
 
 	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
-		ni_ifworker_t *w = mdev->worker;
+		ni_ifworker_t *w = ni_managed_device_get_worker(mdev);
 
-		if (ni_ifworker_get_rfkill_type(w) == type) {
+		if (w && ni_ifworker_get_rfkill_type(w) == type) {
 			mdev->rfkill_blocked = blocked;
 			if (blocked) {
 				ni_debug_nanny("%s: radio disabled", w->name);
@@ -519,7 +522,7 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	if (ni_nanny_get_device(mgr, w) != NULL)
 		return;
 
-	mdev = ni_managed_device_new(mgr, w, &mgr->device_list);
+	mdev = ni_managed_device_new(mgr, w->ifindex, &mgr->device_list);
 	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
 		mdev->object = ni_objectmodel_register_managed_netdev(mgr->server, mdev);
 		dev_class = ni_objectmodel_link_class(w->device->link.type);
@@ -592,7 +595,7 @@ ni_nanny_identify_node_owner(ni_nanny_t *mgr, xml_node_t *node, ni_stringbuf_t *
 
 	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
 		if (mdev->selected_config == node) {
-			w = mdev->worker;
+			w = ni_managed_device_get_worker(mdev);
 			goto found;
 		}
 	}
@@ -600,10 +603,10 @@ ni_nanny_identify_node_owner(ni_nanny_t *mgr, xml_node_t *node, ni_stringbuf_t *
 	if (node != NULL)
 		w = ni_nanny_identify_node_owner(mgr, node->parent, path);
 
+found:
 	if (w == NULL)
 		return NULL;
 
-found:
 	ni_stringbuf_putc(path, '/');
 	ni_stringbuf_puts(path, node->name);
 	return w;
@@ -697,7 +700,7 @@ ni_nanny_add_secret(ni_nanny_t *mgr, uid_t caller_uid,
 
 	ni_debug_nanny("%s: secret for %s updated", ni_security_id_print(security_id), path);
 	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
-		ni_ifworker_t *w = mdev->worker;
+		const char *name = ni_managed_device_get_name(mdev);
 
 		if (mdev->missing_secrets) {
 			ni_secret_t *missing = NULL;
@@ -710,11 +713,11 @@ ni_nanny_add_secret(ni_nanny_t *mgr, uid_t caller_uid,
 			}
 
 			if (missing) {
-				ni_debug_nanny("%s: secret for %s still missing", w->name, missing->path);
+				ni_debug_nanny("%s: secret for %s still missing", name ? name : "anon", missing->path);
 				continue;
 			}
 
-			ni_debug_nanny("%s: secret for %s updated, rechecking", w->name, path);
+			ni_debug_nanny("%s: secret for %s updated, rechecking", name ? name : "anon", path);
 #if 0
 			ni_nanny_schedule_recheck(&mgr->recheck, w);
 #endif
