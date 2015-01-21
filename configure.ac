@@ -4,7 +4,7 @@ AC_PREREQ([2.63])
 AC_INIT([wicked], esyscmd([tr -d '\n' < VERSION]),
 	[http://bugs.opensuse.org], [wicked],
 	[https://github.com/openSUSE/wicked])
-AM_INIT_AUTOMAKE([foreign dist-bzip2 no-dist-gzip])
+AM_INIT_AUTOMAKE([foreign dist-bzip2 no-dist-gzip subdir-objects])
 
 #
 # Note: We consider libwicked as an internal helper library,
