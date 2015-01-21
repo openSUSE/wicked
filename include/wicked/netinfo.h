@@ -121,11 +121,13 @@ extern int		ni_server_enable_interface_addr_events(void (*handler)(ni_netdev_t *
 extern int		ni_server_enable_interface_prefix_events(void (*handler)(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *));
 extern int		ni_server_enable_interface_nduseropt_events(void (*handler)(ni_netdev_t *, ni_event_t));
 extern int		ni_server_enable_interface_uevents(void);
+extern void		ni_server_disable_interface_uevents(void);
 extern void		ni_server_trace_interface_addr_events(ni_netdev_t *, ni_event_t, const ni_address_t *);
 extern void		ni_server_trace_interface_prefix_events(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *);
 extern void		ni_server_trace_interface_nduseropt_events(ni_netdev_t *, ni_event_t);
 extern void		ni_server_deactivate_interface_events(void);
 extern void		ni_server_deactivate_interface_uevents(void);
+extern ni_bool_t	ni_server_disabled_uevents(void);
 extern ni_bool_t	ni_server_listens_uevents(void);
 extern void		ni_server_listen_other_events(void (*handler)(ni_event_t));
 extern ni_dbus_server_t *ni_server_listen_dbus(const char *bus_name);
@@ -281,6 +283,7 @@ extern ni_bool_t	ni_netdev_alias_label_is_valid(const char *, const char *);
 
 extern ni_bool_t	ni_netdev_device_is_ready(ni_netdev_t *);
 extern ni_bool_t	ni_netdev_device_always_ready(ni_netdev_t *);
+extern ni_bool_t	ni_netdev_link_always_ready(ni_linkinfo_t *);
 
 static inline int
 ni_netdev_device_is_up(const ni_netdev_t *ifp)

@@ -668,6 +668,7 @@ __ni_uevent_ifevent_forwarder(const ni_var_array_t *vars, void *user_data)
 }
 
 static ni_uevent_monitor_t *	__ni_global_uevent_monitor = NULL;
+static ni_bool_t		__ni_global_uevent_disabled = FALSE;
 
 int
 ni_server_enable_interface_uevents()
@@ -694,6 +695,7 @@ ni_server_enable_interface_uevents()
 	}
 
 	__ni_global_uevent_monitor = mon;
+	__ni_global_uevent_disabled = FALSE;
 
 	return ni_uevent_monitor_enable(mon);
 }
@@ -715,5 +717,18 @@ ni_server_deactivate_interface_uevents(void)
 
 		ni_uevent_monitor_free(mon);
 	}
+}
+
+void
+ni_server_disable_interface_uevents(void)
+{
+	ni_server_deactivate_interface_uevents();
+	__ni_global_uevent_disabled = TRUE;
+}
+
+ni_bool_t
+ni_server_disabled_uevents(void)
+{
+	return __ni_global_uevent_disabled;
 }
 
