@@ -117,6 +117,8 @@ __ni_dbus_client_object_destroy(ni_dbus_object_t *object)
 	if ((cob = object->client_object) != NULL) {
 		ni_string_free(&cob->default_interface);
 		cob->client = NULL;
+		free(cob);
+		object->client_object= NULL;
 	}
 }
 
