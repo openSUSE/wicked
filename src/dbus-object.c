@@ -49,7 +49,7 @@ ni_dbus_object_new(const ni_dbus_class_t *class, const char *path, void *handle)
 {
 	ni_dbus_object_t *object;
 
-	object = __ni_dbus_object_new(class, path? xstrdup(path) : NULL);
+	object = __ni_dbus_object_new(class, path);
 	object->handle = handle;
 	return object;
 }
