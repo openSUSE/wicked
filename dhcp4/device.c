@@ -29,6 +29,11 @@
 static unsigned int	ni_dhcp4_do_bits(unsigned int);
 static const char *	__ni_dhcp4_print_doflags(unsigned int);
 
+static unsigned char *	__ni_dhcp4_parse_user_class(unsigned char *, size_t, size_t *, const ni_dhcp4_user_class_t *);
+static size_t		__ni_dhcp4_parse_user_class_rfc3004(unsigned char *, size_t, const ni_dhcp4_user_class_t *);
+static size_t		__ni_dhcp4_parse_user_class_string(unsigned char *, size_t, const ni_dhcp4_user_class_t *);
+static void		__ni_dhcp4_print_user_class(const ni_dhcp4_user_class_t *);
+
 static uint32_t ni_dhcp4_xid;
 ni_dhcp4_device_t *	ni_dhcp4_active;
 
@@ -113,6 +118,8 @@ ni_dhcp4_device_stop(ni_dhcp4_device_t *dev)
 void
 ni_dhcp4_device_set_config(ni_dhcp4_device_t *dev, ni_dhcp4_config_t *config)
 {
+	if (dev->config && dev->config->user_class.class_id.count)
+		ni_string_array_destroy(&dev->config->user_class.class_id);
 	free(dev->config);
 	dev->config = config;
 }
@@ -245,6 +252,24 @@ ni_dhcp4_device_refresh(ni_dhcp4_device_t *dev)
 	return ni_capture_devinfo_refresh(&dev->system, dev->ifname, &dev->link);
 }
 
+static void
+__ni_dhcp4_print_user_class(const ni_dhcp4_user_class_t *uc)
+{
+	size_t max_datalen = 254;
+	size_t datalen;
+	unsigned char user_class[max_datalen];
+	char buf[1024];
+
+	buf[0] = '\0';
+	user_class[0] = '\0';
+
+	__ni_dhcp4_parse_user_class(&user_class[0], max_datalen, &datalen, uc);
+
+	ni_trace("  user-class      %s", uc->class_id.count > 0 ?
+		ni_format_hex(&user_class[0], datalen, &buf[0], sizeof(buf)) :
+		"<none>");
+}
+
 /*
  * Process a request to reconfigure the device (ie rebind a lease, or discover
  * a new lease).
@@ -300,6 +325,11 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_dhcp4_set_client_id(&config->client_id, &dev->system.hwaddr);
 	}
 
+	if (info->user_class.class_id.count) {
+		config->user_class.format = info->user_class.format;
+		ni_string_array_copy(&config->user_class.class_id, &info->user_class.class_id);
+	}
+
 	if ((classid = info->vendor_class) == NULL)
 		classid = ni_dhcp4_config_vendor_class();
 	if (classid)
@@ -315,6 +345,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_trace("  start-delay     %u", config->start_delay);
 		ni_trace("  hostname        %s", config->hostname[0]? config->hostname : "<none>");
 		ni_trace("  vendor-class    %s", config->classid[0]? config->classid : "<none>");
+		__ni_dhcp4_print_user_class(&config->user_class);
 		ni_trace("  client-id       %s", ni_print_hex(config->client_id.data, config->client_id.len));
 		ni_trace("  uuid            %s", ni_uuid_print(&config->uuid));
 		ni_trace("  update-flags    %s", __ni_dhcp4_print_doflags(config->doflags));
@@ -748,6 +779,62 @@ ni_dhcp4_config_vendor_class(void)
 	const struct ni_config_dhcp4 *dhconf = &ni_global.config->addrconf.dhcp4;
 
 	return dhconf->vendor_class;
+}
+
+static size_t
+__ni_dhcp4_parse_user_class_rfc3004(unsigned char *raw, size_t max_datalen, const ni_dhcp4_user_class_t *user_class)
+{
+	unsigned int i;
+	size_t total_len = 0;
+	size_t str_len;
+
+	for (i = 0;
+	     i < user_class->class_id.count &&
+		     total_len + strlen(user_class->class_id.data[i]) + 1 <= max_datalen * sizeof(unsigned char);
+	     ++i) {
+		str_len = strlen(user_class->class_id.data[i]);
+
+		raw[total_len] = str_len;
+		memcpy(raw + (total_len + 1), user_class->class_id.data[i], str_len);
+		total_len += str_len + 1;
+	}
+
+	return total_len;
+}
+
+static size_t
+__ni_dhcp4_parse_user_class_string(unsigned char *raw, size_t max_datalen, const ni_dhcp4_user_class_t *user_class)
+{
+	size_t str_len;
+
+	str_len = strlen(user_class->class_id.data[0]);
+
+	if (str_len > max_datalen * sizeof(unsigned char))
+		str_len = max_datalen * sizeof(unsigned char);
+
+	memcpy(raw, user_class->class_id.data[0], str_len);
+
+	return str_len;
+}
+
+static unsigned char *
+__ni_dhcp4_parse_user_class(unsigned char *raw, size_t max_datalen, size_t *datalen, const ni_dhcp4_user_class_t *user_class)
+{
+	switch (user_class->format) {
+	case NI_DHCP4_USER_CLASS_RFC3004:
+		*datalen = __ni_dhcp4_parse_user_class_rfc3004(raw, max_datalen, user_class);
+		break;
+
+	case NI_DHCP4_USER_CLASS_STRING:
+		*datalen = __ni_dhcp4_parse_user_class_string(raw, max_datalen, user_class);
+		break;
+
+	default:
+		*datalen = 0;
+		break;
+	}
+
+	return raw;
 }
 
 int
