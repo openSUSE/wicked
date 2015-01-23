@@ -118,6 +118,8 @@ ni_dhcp4_device_stop(ni_dhcp4_device_t *dev)
 void
 ni_dhcp4_device_set_config(ni_dhcp4_device_t *dev, ni_dhcp4_config_t *config)
 {
+	if (dev->config && dev->config->user_class.class_id.count)
+		ni_string_array_destroy(&dev->config->user_class.class_id);
 	free(dev->config);
 	dev->config = config;
 }
@@ -321,6 +323,11 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	} else {
 		/* Set client ID from interface hwaddr */
 		ni_dhcp4_set_client_id(&config->client_id, &dev->system.hwaddr);
+	}
+
+	if (info->user_class.class_id.count) {
+		config->user_class.format = info->user_class.format;
+		ni_string_array_copy(&config->user_class.class_id, &info->user_class.class_id);
 	}
 
 	if ((classid = info->vendor_class) == NULL)
