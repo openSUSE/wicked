@@ -1002,6 +1002,7 @@ __ni_compat_generate_static_route_hops(xml_node_t *rnode, const ni_route_nexthop
 					fnode = xml_node_new("flags", nhnode);
 				xml_node_new(names.data[i], fnode);
 			}
+			ni_string_array_destroy(&names);
 		}
 	}
 }
@@ -1019,6 +1020,8 @@ __ni_compat_generate_static_route_metrics(xml_node_t *mnode, const ni_route_t *r
 			lnode = xml_node_new("lock", mnode);
 		xml_node_new(names.data[i], lnode);
 	}
+	ni_string_array_destroy(&names);
+
 	if (rp->mtu > 0) {
 		xml_node_new_element("mtu", mnode, ni_sprint_uint(rp->mtu));
 	}
@@ -1135,6 +1138,7 @@ __ni_compat_generate_static_route(xml_node_t *aconf, const ni_route_t *rp, const
 				fnode = xml_node_new("flags", rnode);
 			xml_node_new(names.data[i], fnode);
 		}
+		ni_string_array_destroy(&names);
 	}
 	if (rp->tos > 0 && ni_string_printf(&tmp, "0x%02x", rp->tos)) {
 		xml_node_new_element("tos", rnode, tmp);

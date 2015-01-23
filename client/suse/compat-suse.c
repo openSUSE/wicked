@@ -1977,6 +1977,7 @@ try_macvlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			if (!ni_macvlan_name_to_flag(flags.data[i], &flag)) {
 				ni_error("ifcfg-%s: Unsupported %s=\"%s\"",
 					dev->name, syscfg_flags_key, macvlan_flags);
+				ni_string_array_destroy(&flags);
 				return -1;
 			}
 			macvlan->flags |= flag;
