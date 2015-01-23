@@ -52,6 +52,8 @@
 #include "appconfig.h"
 #include "util_priv.h"
 
+static void	__ni_compat_generate_dhcp4_user_class(xml_node_t *, const ni_dhcp4_user_class_t *);
+
 /*
  * Compat ifconfig handling functions
  */
@@ -169,6 +171,7 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 		ni_string_free(&compat->dhcp4.hostname);
 		ni_string_free(&compat->dhcp4.client_id);
 		ni_string_free(&compat->dhcp4.vendor_class);
+		ni_string_array_destroy(&compat->dhcp4.user_class.class_id);
 
 		ni_string_free(&compat->dhcp6.hostname);
 		ni_string_free(&compat->dhcp6.client_id);
@@ -1241,6 +1244,27 @@ __ni_compat_generate_dynamic_addrconf(xml_node_t *ifnode, const char *name, unsi
 	return aconf;
 }
 
+/*
+ * Generate XML for user-class data. We want to support both rfc3004 and non-standardized
+ * string case and allow for specification of formatting.
+ */
+static void
+__ni_compat_generate_dhcp4_user_class(xml_node_t *ifnode, const ni_dhcp4_user_class_t *user_class)
+{
+	xml_node_t *user_class_node;
+	unsigned int i;
+
+	if (user_class->format != -1U) {
+		user_class_node = xml_node_new("user-class", ifnode);
+
+		xml_node_dict_set(user_class_node, "format",
+				ni_dhcp4_user_class_format_type_to_name(user_class->format));
+
+		for (i = 0; i < user_class->class_id.count; ++i)
+			xml_node_new_element("identifier", user_class_node, user_class->class_id.data[i]);
+	}
+}
+
 static xml_node_t *
 __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
@@ -1285,6 +1309,10 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 		xml_node_dict_set(dhcp, "client-id", compat->dhcp4.client_id);
 	if (compat->dhcp4.vendor_class)
 		xml_node_dict_set(dhcp, "vendor-class", compat->dhcp4.vendor_class);
+
+	if (compat->dhcp4.user_class.class_id.count) {
+		__ni_compat_generate_dhcp4_user_class(dhcp, &compat->dhcp4.user_class);
+	}
 
 	return dhcp;
 }

@@ -29,6 +29,7 @@
 
 #include <wicked/client.h>
 #include <wicked/objectmodel.h>
+#include <wicked/addrconf.h>
 #include <wicked/fsm.h>
 
 extern int			opt_global_dryrun;
@@ -54,6 +55,7 @@ typedef struct ni_compat_netdev {
 		char *		hostname;
 		char *		client_id;
 		char *		vendor_class;
+		ni_dhcp4_user_class_t user_class;
 
 		unsigned int	start_delay;
 		unsigned int	defer_timeout;
