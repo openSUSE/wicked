@@ -271,6 +271,7 @@ ni_dhcp4_request_free(ni_dhcp4_request_t *req)
 	ni_string_free(&req->hostname);
 	ni_string_free(&req->clientid);
 	ni_string_free(&req->vendor_class);
+	ni_string_array_destroy(&req->user_class.class_id);
 	free(req);
 }
 

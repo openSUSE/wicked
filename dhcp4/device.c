@@ -113,6 +113,8 @@ ni_dhcp4_device_stop(ni_dhcp4_device_t *dev)
 void
 ni_dhcp4_device_set_config(ni_dhcp4_device_t *dev, ni_dhcp4_config_t *config)
 {
+	if (dev->config && dev->config->user_class.class_id.count)
+		ni_string_array_destroy(&dev->config->user_class.class_id);
 	free(dev->config);
 	dev->config = config;
 }
@@ -305,6 +307,11 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	if (classid)
 		strncpy(config->classid, classid, sizeof(config->classid) - 1);
 
+	if (info->user_class.class_id.count) {
+		config->user_class.format = info->user_class.format;
+		ni_string_array_copy(&config->user_class.class_id, &info->user_class.class_id);
+	}
+
 	config->doflags = DHCP4_DO_DEFAULT;
 	config->doflags |= ni_dhcp4_do_bits(info->update);
 
@@ -315,6 +322,13 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_trace("  start-delay     %u", config->start_delay);
 		ni_trace("  hostname        %s", config->hostname[0]? config->hostname : "<none>");
 		ni_trace("  vendor-class    %s", config->classid[0]? config->classid : "<none>");
+		if (config->user_class.class_id.count) {
+			char *userclass = NULL;
+			const char *fmt = ni_dhcp4_user_class_format_type_to_name(config->user_class.format);
+			ni_string_join(&userclass, &config->user_class.class_id, ", ");
+			ni_trace("  user-class      %s: %s", fmt, userclass);
+			ni_string_free(&userclass);
+		}
 		ni_trace("  client-id       %s", ni_print_hex(config->client_id.data, config->client_id.len));
 		ni_trace("  uuid            %s", ni_uuid_print(&config->uuid));
 		ni_trace("  update-flags    %s", __ni_dhcp4_print_doflags(config->doflags));
