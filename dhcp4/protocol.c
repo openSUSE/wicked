@@ -1643,7 +1643,7 @@ parse_more:
 			/* Minimum legal mtu is 68 accoridng to
 			 * RFC 2132. In practise it's 576 which is the
 			 * minimum maximum message size. */
-			if (lease->dhcp4.mtu < MTU_MIN) {
+			if (lease->dhcp4.mtu <= MTU_MIN) {
 				ni_debug_dhcp("MTU %u is too low, minimum is %d; ignoring",
 						lease->dhcp4.mtu, MTU_MIN);
 				lease->dhcp4.mtu = 0;
