@@ -289,6 +289,27 @@ error:
 	return -1;
 }
 
+ni_sysconfig_t *
+ni_sysconfig_merge_defaults(const ni_sysconfig_t *config, const ni_sysconfig_t *defaults)
+{
+	ni_sysconfig_t *merged;
+	unsigned int i;
+
+	if (!config || !(merged =  ni_sysconfig_new(config->pathname)))
+		return NULL;
+
+	/* apply global defaults first  */
+	if (defaults)
+		ni_var_array_copy(&merged->vars, &defaults->vars);
+
+	/* override with current config */
+	for (i = 0; i < config->vars.count; ++i) {
+		const ni_var_t *var = &config->vars.data[i];
+		ni_var_array_set(&merged->vars, var->name, var->value);
+	}
+	return merged;
+}
+
 /* Extract values from a setting. string starts after '='
  * Good: sym=val ; sym="val" ; sym='val'
  * Bad:  sym="val ; sym='val
