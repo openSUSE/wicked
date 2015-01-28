@@ -3564,6 +3564,9 @@ __ni_lease_get_mtu(const ni_addrconf_lease_t *lease, unsigned int *mtu_p)
 	if (lease->type != NI_ADDRCONF_DHCP || lease->family != AF_INET)
 		return 0;
 
+	if (!(lease->update & (1 << NI_ADDRCONF_UPDATE_MTU)))
+		return 0;
+
 	*mtu_p = lease->dhcp4.mtu;
 	if (*mtu_p == 0)
 		return 0;

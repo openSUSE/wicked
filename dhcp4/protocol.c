@@ -370,7 +370,9 @@ __ni_dhcp4_build_msg_put_option_request(const ni_dhcp4_device_t *dev,
 	}
 	ni_buffer_putc(msgbuf, DHCP4_NETMASK);
 	ni_buffer_putc(msgbuf, DHCP4_BROADCAST);
-	ni_buffer_putc(msgbuf, DHCP4_MTU);
+	if (options->doflags & DHCP4_DO_MTU) {
+		ni_buffer_putc(msgbuf, DHCP4_MTU);
+	}
 
 	/*
 	 * RFC 3442 states classless static routes override both,

@@ -3352,6 +3352,7 @@ __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 	/* apply sysconfig defaults */
 	ni_addrconf_update_set(&compat->dhcp4.update, NI_ADDRCONF_UPDATE_DEFAULT_ROUTE, TRUE);
 	ni_addrconf_update_set(&compat->dhcp4.update, NI_ADDRCONF_UPDATE_HOSTNAME, FALSE);
+	ni_addrconf_update_set(&compat->dhcp4.update, NI_ADDRCONF_UPDATE_MTU, !dev->link.mtu);
 	compat->dhcp4.recover_lease = TRUE;
 	compat->dhcp4.release_lease = FALSE;
 
