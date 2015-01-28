@@ -90,6 +90,7 @@ static ni_bool_t		__ni_wireless_parse_psk_auth(const ni_sysconfig_t *, ni_wirele
 							const char *, const char *, ni_wireless_ap_scan_mode_t);
 static ni_bool_t		__ni_wireless_parse_eap_auth(const ni_sysconfig_t *, ni_wireless_network_t *,
 							const char *, const char *, ni_wireless_ap_scan_mode_t);
+static ni_bool_t		__ni_suse_parse_dhcp4_user_class(const ni_sysconfig_t *, ni_compat_netdev_t *, const char *);
 
 static char *			__ni_suse_default_hostname;
 static ni_sysconfig_t *		__ni_suse_config_defaults;
@@ -3168,6 +3169,76 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	return TRUE;
 }
 
+static ni_bool_t
+__ni_suse_parse_dhcp4_user_class(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, const char *prefix)
+{
+	const char *string;
+	size_t length;
+
+	if (compat->dhcp4.user_class.format == NI_DHCP4_USER_CLASS_RFC3004) {
+		ni_string_array_t names = NI_STRING_ARRAY_INIT;
+		unsigned int i;
+		size_t pfxlen;
+		size_t total;
+		ni_var_t *var;
+
+		if (!ni_sysconfig_find_matching(sc, prefix, &names))
+			return FALSE;
+
+		pfxlen = ni_string_len(prefix);
+		for (total = 0, i = 0; i < names.count; ++i) {
+			const char *suffix = names.data[i] + pfxlen;
+
+			if (!(var = __find_indexed_variable(sc, prefix, suffix)))
+				continue;
+
+			if (!(length = ni_string_len(var->value)))
+				continue;
+
+			string = var->value;
+			total += length + 1;
+			if (length >= 255 || total >= 255) {
+				ni_warn("%s: %s array%s data is too long",
+					ni_basename(sc->pathname), prefix,
+					total >= 255 ? "" : " element");
+				ni_string_array_destroy(&names);
+				ni_string_array_destroy(&compat->dhcp4.user_class.class_id);
+				return FALSE;
+			} else if (!ni_check_domain_name(string, length, 0)) {
+				ni_warn("%s: %s contains suspect class id element: '%s'",
+					ni_basename(sc->pathname), prefix,
+					ni_print_suspect(string, length));
+				ni_string_array_destroy(&names);
+				ni_string_array_destroy(&compat->dhcp4.user_class.class_id);
+				return FALSE;
+			}
+
+			ni_string_array_append(&compat->dhcp4.user_class.class_id, string);
+		}
+		ni_string_array_destroy(&names);
+	} else if ((string = ni_sysconfig_get_value(sc, prefix))) {
+		length = ni_string_len(string);
+
+		if (length >= 255) {
+			ni_warn("%s: %s string is too long: '%s'",
+				ni_basename(sc->pathname), prefix,
+				ni_print_suspect(string, length));
+
+			return FALSE;
+		} else if (!ni_check_domain_name(string, length, 0)) {
+			ni_warn("%s: %s contains suspect class id string: '%s'",
+				ni_basename(sc->pathname), prefix,
+				ni_print_suspect(string, length));
+
+			return FALSE;
+		}
+
+		ni_string_array_append(&compat->dhcp4.user_class.class_id, string);
+		compat->dhcp4.user_class.format = NI_DHCP4_USER_CLASS_STRING;
+	}
+	return TRUE;
+}
+
 /*
  * Process DHCPv4 addrconf
  */
@@ -3196,6 +3267,11 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_VENDOR_CLASS_ID")) != NULL)
 		ni_string_dup(&compat->dhcp4.vendor_class, string);
+
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_USER_CLASS_FORMAT")) != NULL)
+		ni_dhcp4_user_class_format_name_to_type(string, &compat->dhcp4.user_class.format);
+	__ni_suse_parse_dhcp4_user_class(sc, compat, "DHCLIENT_USER_CLASS_ID");
+
 
 	if (ni_sysconfig_get_integer(sc, "DHCLIENT_SLEEP", &uint))
 		compat->dhcp4.start_delay = uint;
