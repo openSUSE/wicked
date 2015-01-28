@@ -271,6 +271,7 @@ ni_dhcp4_request_free(ni_dhcp4_request_t *req)
 	ni_string_free(&req->hostname);
 	ni_string_free(&req->clientid);
 	ni_string_free(&req->vendor_class);
+	ni_string_array_destroy(&req->user_class.class_id);
 	free(req);
 }
 
@@ -314,12 +315,112 @@ ni_objectmodel_get_dhcp4_request(const ni_dbus_object_t *object, ni_bool_t write
 	return __ni_objectmodel_get_dhcp4_request(object, error);
 }
 
+static dbus_bool_t
+__dhcp4_request_set_user_class(ni_dbus_object_t *object,
+			const ni_dbus_property_t *property,
+			const ni_dbus_variant_t *argument,
+			DBusError *error)
+{
+	ni_dhcp4_request_t *req = NULL;
+	ni_dhcp4_user_class_t *uc = NULL;
+	ni_dbus_variant_t *var = NULL;
+	uint32_t format;
+	size_t total_len = 0;
+	size_t len;
+
+	if (!(req = __ni_objectmodel_get_dhcp4_request(object, error)))
+		return FALSE;
+
+	uc = &req->user_class;
+
+	if (!ni_dbus_dict_get_uint32(argument, "format", &format))
+		return FALSE;
+
+	if (format != NI_DHCP4_USER_CLASS_RFC3004 && format != NI_DHCP4_USER_CLASS_STRING) {
+		ni_warn("Invalid user class format (%u) obtained", format);
+		return FALSE;
+	}
+	uc->format = format;
+
+	while ((var = ni_dbus_dict_get_next(argument, "identifier", var))) {
+		if (!(len = ni_string_len(var->string_value))) {
+			ni_warn("Empty user class identifier found");
+			return FALSE;
+		}
+
+		if (format == NI_DHCP4_USER_CLASS_STRING && uc->class_id.count)
+			break; /* only one user class identifier for this format type */
+
+		if (!ni_check_domain_name(var->string_value, len, 0)) {
+			ni_warn("Suspect user class id string: '%s' obtained. Skipping.",
+				ni_print_suspect(var->string_value, len));
+			return FALSE;
+		}
+
+		if(uc->format == NI_DHCP4_USER_CLASS_RFC3004)
+			total_len += len + 1;
+		else
+			total_len += len;
+
+		if (len >= 255 || total_len >= 255) {
+			ni_warn("User class data exceeds maximum allowed length.");
+			ni_string_array_destroy(&uc->class_id);
+			return FALSE;
+		}
+
+		ni_string_array_append(&uc->class_id, var->string_value);
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__dhcp4_request_get_user_class(const ni_dbus_object_t *object,
+			const ni_dbus_property_t *property,
+			ni_dbus_variant_t *result,
+			DBusError *error)
+{
+	ni_dhcp4_request_t *req = NULL;
+	ni_dhcp4_user_class_t *uc = NULL;
+	unsigned int i;
+	size_t len;
+
+	if (!(req = __ni_objectmodel_get_dhcp4_request(object, error)))
+		return FALSE;
+
+	uc = &req->user_class;
+
+	if (uc->format != NI_DHCP4_USER_CLASS_RFC3004 && uc->format != NI_DHCP4_USER_CLASS_STRING) {
+		ni_warn("Invalid user class format (%u) found", uc->format);
+		return FALSE;
+	}
+
+	if (!uc->class_id.count)
+		return FALSE;
+
+	ni_dbus_dict_add_uint32(result, "format", uc->format);
+
+	for (i = 0; i < uc->class_id.count; ++i) {
+		len = ni_string_empty(uc->class_id.data[i]);
+		if (!ni_check_domain_name(uc->class_id.data[i], len, 0))
+			ni_warn("Suspect user class id string: '%s' found. Skipping.",
+				ni_print_suspect(uc->class_id.data[i], len));
+		else
+			ni_dbus_dict_add_string(result, "identifier", uc->class_id.data[i]);
+		if (uc->format == NI_DHCP4_USER_CLASS_STRING)
+			break; /* a single string */
+	}
+
+	return TRUE;
+}
+
 static ni_dbus_property_t	dhcp4_request_properties[] = {
 	DHCP4REQ_BOOL_PROPERTY(enabled, enabled, RO),
 	DHCP4REQ_UUID_PROPERTY(uuid, uuid, RO),
 	DHCP4REQ_UINT_PROPERTY(flags, flags, RO),
 	DHCP4REQ_STRING_PROPERTY(client-id, clientid, RO),
 	DHCP4REQ_STRING_PROPERTY(vendor-class, vendor_class, RO),
+	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, user-class, user_class, __dhcp4_request, RO),
 	DHCP4REQ_UINT_PROPERTY(start-delay, start_delay, RO),
 	DHCP4REQ_UINT_PROPERTY(defer-timeout, defer_timeout, RO),
 	DHCP4REQ_UINT_PROPERTY(acquire-timeout, acquire_timeout, RO),

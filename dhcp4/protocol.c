@@ -442,6 +442,41 @@ __ni_dhcp4_build_msg_put_option_request(const ni_dhcp4_device_t *dev,
 }
 
 static int
+__ni_dhcp4_build_msg_put_user_class(const char *ifname, const ni_dhcp4_user_class_t *uc,
+				ni_buffer_t *msgbuf)
+{
+	unsigned int i;
+	int ret = 0;
+
+	if (uc->format == NI_DHCP4_USER_CLASS_STRING) {
+		ni_dhcp4_option_puts(msgbuf, DHCP4_USERCLASS, uc->class_id.data[0]);
+	} else
+	if (uc->format == NI_DHCP4_USER_CLASS_RFC3004) {
+		unsigned int total_len = 0;
+		unsigned int ident_len;
+
+		for (i = 0; i < uc->class_id.count; ++i) {
+			if ((ident_len = ni_string_len(uc->class_id.data[i])))
+				total_len += ident_len + 1;
+		}
+		ni_buffer_putc(msgbuf, DHCP4_USERCLASS);
+		ni_buffer_putc(msgbuf, total_len);
+
+		for (i = 0; i < uc->class_id.count; ++i) {
+			if (!(ident_len = ni_string_len(uc->class_id.data[i])))
+				continue;
+			ni_buffer_putc(msgbuf, ident_len);
+			ni_buffer_put(msgbuf, uc->class_id.data[i], ident_len);
+		}
+	} else {
+		ni_error("%s: invalid user-class format type specified", ifname);
+		ret = -1;
+	}
+
+	return ret;
+}
+
+static int
 __ni_dhcp4_build_msg_put_client_id(const ni_dhcp4_device_t *dev, unsigned int msg_code,
 				ni_dhcp4_message_t *message, ni_buffer_t *msgbuf)
 {
@@ -601,10 +636,9 @@ __ni_dhcp4_build_msg_discover(const ni_dhcp4_device_t *dev,
 					lease->dhcp4.lease_time);
 	}
 
-	if (options->userclass.len > 0) {
-		ni_dhcp4_option_put(msgbuf, DHCP4_USERCLASS,
-				options->userclass.data,
-				options->userclass.len);
+	if (options->user_class.class_id.count) {
+		if (__ni_dhcp4_build_msg_put_user_class(dev->ifname, &options->user_class, msgbuf) < 0)
+			return -1;
 	}
 
 	if (options->classid && options->classid[0]) {
@@ -723,10 +757,9 @@ __ni_dhcp4_build_msg_inform(const ni_dhcp4_device_t *dev,
 
 	ni_dhcp4_option_put16(msgbuf, DHCP4_MAXMESSAGESIZE, dev->system.mtu);
 
-	if (options->userclass.len > 0) {
-		ni_dhcp4_option_put(msgbuf, DHCP4_USERCLASS,
-				options->userclass.data,
-				options->userclass.len);
+	if (options->user_class.class_id.count) {
+		if (__ni_dhcp4_build_msg_put_user_class(dev->ifname, &options->user_class, msgbuf) < 0)
+			return -1;
 	}
 
 	if (options->classid && options->classid[0]) {
@@ -784,10 +817,9 @@ __ni_dhcp4_build_msg_request_offer(const ni_dhcp4_device_t *dev,
 					lease->dhcp4.lease_time);
 	}
 
-	if (options->userclass.len > 0) {
-		ni_dhcp4_option_put(msgbuf, DHCP4_USERCLASS,
-				options->userclass.data,
-				options->userclass.len);
+	if (options->user_class.class_id.count) {
+		if (__ni_dhcp4_build_msg_put_user_class(dev->ifname, &options->user_class, msgbuf) < 0)
+			return -1;
 	}
 
 	if (options->classid && options->classid[0]) {
@@ -844,10 +876,9 @@ __ni_dhcp4_build_msg_request_renew(const ni_dhcp4_device_t *dev,
 	}
 #endif
 
-	if (options->userclass.len > 0) {
-		ni_dhcp4_option_put(msgbuf, DHCP4_USERCLASS,
-				options->userclass.data,
-				options->userclass.len);
+	if (options->user_class.class_id.count) {
+		if (__ni_dhcp4_build_msg_put_user_class(dev->ifname, &options->user_class, msgbuf) < 0)
+			return -1;
 	}
 
 	if (options->classid && options->classid[0]) {
@@ -904,10 +935,9 @@ __ni_dhcp4_build_msg_request_rebind(const ni_dhcp4_device_t *dev,
 	}
 #endif
 
-	if (options->userclass.len > 0) {
-		ni_dhcp4_option_put(msgbuf, DHCP4_USERCLASS,
-				options->userclass.data,
-				options->userclass.len);
+	if (options->user_class.class_id.count) {
+		if (__ni_dhcp4_build_msg_put_user_class(dev->ifname, &options->user_class, msgbuf) < 0)
+			return -1;
 	}
 
 	if (options->classid && options->classid[0]) {
@@ -964,10 +994,9 @@ __ni_dhcp4_build_msg_request_reboot(const ni_dhcp4_device_t *dev,
 	}
 #endif
 
-	if (options->userclass.len > 0) {
-		ni_dhcp4_option_put(msgbuf, DHCP4_USERCLASS,
-				options->userclass.data,
-				options->userclass.len);
+	if (options->user_class.class_id.count) {
+		if (__ni_dhcp4_build_msg_put_user_class(dev->ifname, &options->user_class, msgbuf) < 0)
+			return -1;
 	}
 
 	if (options->classid && options->classid[0]) {

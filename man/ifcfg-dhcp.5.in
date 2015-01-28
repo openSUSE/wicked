@@ -54,6 +54,19 @@ hardware address of the network interface is sent as client identifier.
 Specifies the vendor class identifier string. The default is DHCP client
 specific.
 .TP
+.BR DHCLIENT_USER_CLASS_FORMAT\ { string* | rfc3004 }
+Specifies the format of the DHCLIENT_USER_CLASS_ID variable.
+The DHCPv4 option and it's format is specified by RFC3004 as an array
+of class identifiers, but most DHCP clients/servers aren't compliant
+with the specification and send/expect a single string without proper
+RFC3004 length-value tuple format instead.
+When set to "rfc3004" DHCLIENT_USER_CLASS_ID[SUFFIX] permit an RFC
+compliant array, otherwise DHCLIENT_USER_CLASS_ID is used as string.
+.TP
+.BR DHCLIENT_USER_CLASS_ID[SUFFIX]
+Specifies the user class identifier [array] to send in dhcp requests.
+The DHCLIENT_USER_CLASS_FORMAT variable specified how to interpret it.
+.TP
 .BR DHCLIENT_LEASE_TIME
 Specifies the lease time (in seconds), that is suggested to the server. Default
 is unset which means to use the lease time offered by the server.

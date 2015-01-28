@@ -148,6 +148,7 @@ struct ni_dhcp4_request {
 	/* Options controlling what to put into the lease request */
 	char *			clientid;
 	char *			vendor_class;
+	ni_dhcp4_user_class_t	user_class;
 
 	char *			hostname;
 	unsigned int		route_priority;
@@ -173,7 +174,7 @@ struct ni_dhcp4_config {
 	int			fqdn;
 
 	ni_opaque_t		client_id;
-	ni_opaque_t		userclass;
+	ni_dhcp4_user_class_t	user_class;
 
 	unsigned int		start_delay;
 	unsigned int		defer_timeout;
