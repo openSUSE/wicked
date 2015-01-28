@@ -3342,6 +3342,7 @@ static ni_bool_t
 __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
 {
 	ni_netdev_t *dev = compat->dev;
+	ni_sysconfig_t *merged;
 
 	if (dev && dev->ipv4 && ni_tristate_is_disabled(dev->ipv4->conf.enabled))
 		return FALSE;
@@ -3355,11 +3356,10 @@ __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 	compat->dhcp4.recover_lease = TRUE;
 	compat->dhcp4.release_lease = FALSE;
 
-	if (__ni_suse_dhcp_defaults)
-		__ni_suse_addrconf_dhcp4_options(__ni_suse_dhcp_defaults, compat);
-
-	/* overwrite DHCP defaults with parameters from this ifcfg file */
-	__ni_suse_addrconf_dhcp4_options(sc, compat);
+	if ((merged = ni_sysconfig_merge_defaults(sc, __ni_suse_dhcp_defaults))) {
+		__ni_suse_addrconf_dhcp4_options(merged, compat);
+		ni_sysconfig_destroy(merged);
+	}
 
 	compat->dhcp4.enabled = TRUE;
 	ni_addrconf_flag_bit_set(&compat->dhcp4.flags, NI_ADDRCONF_FLAGS_GROUP, !required);
@@ -3370,6 +3370,7 @@ static ni_bool_t
 __ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
 {
 	ni_netdev_t *dev = compat->dev;
+	ni_sysconfig_t *merged;
 
 	if (dev && dev->ipv6 && ni_tristate_is_disabled(dev->ipv6->conf.enabled))
 		return FALSE;
@@ -3382,11 +3383,10 @@ __ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 	compat->dhcp6.recover_lease = TRUE;
 	compat->dhcp6.release_lease = FALSE;
 
-	if (__ni_suse_dhcp_defaults)
-		__ni_suse_addrconf_dhcp6_options(__ni_suse_dhcp_defaults, compat);
-
-	/* overwrite DHCP defaults with parameters from this ifcfg file */
-	__ni_suse_addrconf_dhcp6_options(sc, compat);
+	if ((merged = ni_sysconfig_merge_defaults(sc, __ni_suse_dhcp_defaults))) {
+		__ni_suse_addrconf_dhcp6_options(merged, compat);
+		ni_sysconfig_destroy(merged);
+	}
 
 	compat->dhcp6.enabled = TRUE;
 	ni_addrconf_flag_bit_set(&compat->dhcp6.flags, NI_ADDRCONF_FLAGS_GROUP, !required);
