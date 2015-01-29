@@ -249,6 +249,7 @@ static const ni_intmap_t	__addrconf_update_flags[] = {
 	{ "nds",		NI_ADDRCONF_UPDATE_NDS           },
 	{ "slp",		NI_ADDRCONF_UPDATE_SLP           },
 	{ "log",		NI_ADDRCONF_UPDATE_LOG           },
+	{ "mtu",		NI_ADDRCONF_UPDATE_MTU           },
 
 	{ NULL }
 };

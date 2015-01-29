@@ -392,6 +392,7 @@ ni_dhcp4_do_bits(unsigned int update_flags)
 	[NI_ADDRCONF_UPDATE_DNS]		= DHCP4_DO_DNS,
 	[NI_ADDRCONF_UPDATE_NIS]		= DHCP4_DO_NIS,
 	[NI_ADDRCONF_UPDATE_NTP]		= DHCP4_DO_NTP,
+	[NI_ADDRCONF_UPDATE_MTU]		= DHCP4_DO_MTU,
 	};
 	unsigned int bit, result = 0;
 
@@ -414,6 +415,7 @@ __ni_dhcp4_print_doflags(unsigned int flags)
 	{ "dns",		DHCP4_DO_DNS		},
 	{ "nis",		DHCP4_DO_NIS		},
 	{ "ntp",		DHCP4_DO_NTP		},
+	{ "mtu",		DHCP4_DO_MTU		},
 	{ NULL }
 	};
 	static char buffer[1024];

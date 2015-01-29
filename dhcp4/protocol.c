@@ -370,7 +370,9 @@ __ni_dhcp4_build_msg_put_option_request(const ni_dhcp4_device_t *dev,
 	}
 	ni_buffer_putc(msgbuf, DHCP4_NETMASK);
 	ni_buffer_putc(msgbuf, DHCP4_BROADCAST);
-	ni_buffer_putc(msgbuf, DHCP4_MTU);
+	if (options->doflags & DHCP4_DO_MTU) {
+		ni_buffer_putc(msgbuf, DHCP4_MTU);
+	}
 
 	/*
 	 * RFC 3442 states classless static routes override both,
@@ -1670,7 +1672,7 @@ parse_more:
 			/* Minimum legal mtu is 68 accoridng to
 			 * RFC 2132. In practise it's 576 which is the
 			 * minimum maximum message size. */
-			if (lease->dhcp4.mtu < MTU_MIN) {
+			if (lease->dhcp4.mtu <= MTU_MIN) {
 				ni_debug_dhcp("MTU %u is too low, minimum is %d; ignoring",
 						lease->dhcp4.mtu, MTU_MIN);
 				lease->dhcp4.mtu = 0;
