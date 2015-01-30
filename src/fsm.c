@@ -4094,7 +4094,6 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 		for (i = 0; i < fsm->workers.count; ++i) {
 			ni_ifworker_t *w = fsm->workers.data[i];
 			ni_fsm_transition_t *action;
-			unsigned int prev_state;
 			int rv;
 
 			ni_ifworker_get(w);
@@ -4153,34 +4152,22 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 
 			ni_ifworker_set_secondary_timeout(w, 0, NULL);
 
-			prev_state = w->fsm.state;
 			rv = action->func(fsm, w, action);
 			w->fsm.next_action++;
 
 			if (rv >= 0) {
 				made_progress = 1;
-				if (w->fsm.state == action->next_state) {
-					/* We should not have transitioned to the next state while
-					 * we were still waiting for some event. */
-					ni_assert(w->fsm.wait_for == NULL);
-					ni_debug_application("%s: successfully transitioned from %s to %s",
-						w->name,
-						ni_ifworker_state_name(prev_state),
-						ni_ifworker_state_name(w->fsm.state));
-				} else {
+				if (w->fsm.wait_for != NULL) {
 					ni_debug_application("%s: waiting for event in state %s",
-						w->name,
-						ni_ifworker_state_name(w->fsm.state));
-					w->fsm.wait_for = action;
+						w->name, ni_ifworker_state_name(w->fsm.state));
 				}
 			} else
 			if (!w->failed) {
 				/* The fsm action should really have marked this
 				 * as a failure. shame on the lazy programmer. */
-				ni_ifworker_fail(w, "%s: failed to transition from %s to %s",
-						w->name,
-						ni_ifworker_state_name(prev_state),
-						ni_ifworker_state_name(action->next_state));
+				ni_ifworker_fail(w, "%s: action %s -> %s failed", w->name,
+					ni_ifworker_state_name(action->from_state),
+					ni_ifworker_state_name(action->next_state));
 			}
 
 			ni_ifworker_release(w);
