@@ -4160,7 +4160,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 				made_progress = 1;
 				if (w->fsm.timer)
 					ni_ifworker_set_timeout(w, fsm->worker_timeout);
-				if (w->fsm.state == action->next_state) {
+				if (w->fsm.state >= action->next_state) {
 					/* We should not have transitioned to the next state while
 					 * we were still waiting for some event. */
 					ni_assert(w->fsm.wait_for == NULL);
