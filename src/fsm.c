@@ -3884,8 +3884,9 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 
 		ni_fsm_schedule_bind_methods(fsm, w);
 	}
+	else
+		ni_ifworker_set_state(w, action->next_state);
 
-	ni_ifworker_set_state(w, action->next_state);
 	return 0;
 }
 
