@@ -143,7 +143,7 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 		if (strcmp(child->name, "use-nanny") == 0) {
 			if (ni_parse_boolean(child->cdata, &conf->use_nanny)) {
 				ni_error("%s: invalid <%s>%s</%s> element value",
-					filename, child->name, child->name, child->cdata);
+					filename, child->name, child->cdata, child->name);
 				goto failed;
 			}
 		} else
