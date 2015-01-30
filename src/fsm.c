@@ -3749,6 +3749,13 @@ ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *acti
 	unsigned int i, count = 0;
 	int rv;
 
+	if (w->fsm.state == action->next_state) {
+		ni_debug_application("%s: action %s -> %s state already took place asynchronously", w->name,
+			ni_ifworker_state_name(action->from_state),
+			ni_ifworker_state_name(action->next_state));
+		return 0;
+	}
+
 	/* Initially, enable waiting for this action */
 	w->fsm.wait_for = action;
 
@@ -3789,14 +3796,12 @@ ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *acti
 		}
 	}
 
-	/* Reset wait_for this action if there are no callbacks */
-	if (count == 0)
-		w->fsm.wait_for = NULL;
+	/* Do not set state if there are callbacks */
+	if (count == 0) {
+		ni_ifworker_set_state(w, action->next_state);
+		ni_assert(w->fsm.wait_for == NULL);
+	}
 
-	if (w->fsm.wait_for != NULL)
-		return 0;
-
-	ni_ifworker_set_state(w, action->next_state);
 	return 0;
 }
 
@@ -3839,6 +3844,9 @@ ni_ifworker_bind_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 static int
 ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
+	/* Initially, enable waiting for this action */
+	w->fsm.wait_for = action;
+
 	if (!ni_ifworker_device_bound(w)) {
 		struct ni_fsm_transition_binding *bind;
 		const char *relative_path;
@@ -3884,8 +3892,9 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 
 		ni_fsm_schedule_bind_methods(fsm, w);
 	}
+	else
+		ni_ifworker_set_state(w, action->next_state);
 
-	ni_ifworker_set_state(w, action->next_state);
 	return 0;
 }
 
@@ -4093,7 +4102,6 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 		for (i = 0; i < fsm->workers.count; ++i) {
 			ni_ifworker_t *w = fsm->workers.data[i];
 			ni_fsm_transition_t *action;
-			unsigned int prev_state;
 			int rv;
 
 			ni_ifworker_get(w);
@@ -4152,20 +4160,21 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 
 			ni_ifworker_set_secondary_timeout(w, 0, NULL);
 
-			prev_state = w->fsm.state;
 			rv = action->func(fsm, w, action);
 			w->fsm.next_action++;
 
 			if (rv >= 0) {
 				made_progress = 1;
-				if (w->fsm.state == action->next_state) {
+				if (w->fsm.timer)
+					ni_ifworker_set_timeout(w, fsm->worker_timeout);
+				if (w->fsm.state >= action->next_state) {
 					/* We should not have transitioned to the next state while
 					 * we were still waiting for some event. */
 					ni_assert(w->fsm.wait_for == NULL);
-					ni_debug_application("%s: successfully transitioned from %s to %s",
+					ni_debug_application("%s: action %s -> %s successful",
 						w->name,
-						ni_ifworker_state_name(prev_state),
-						ni_ifworker_state_name(w->fsm.state));
+						ni_ifworker_state_name(action->from_state),
+						ni_ifworker_state_name(action->next_state));
 				} else {
 					ni_debug_application("%s: waiting for event in state %s",
 						w->name,
@@ -4176,10 +4185,9 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			if (!w->failed) {
 				/* The fsm action should really have marked this
 				 * as a failure. shame on the lazy programmer. */
-				ni_ifworker_fail(w, "%s: failed to transition from %s to %s",
-						w->name,
-						ni_ifworker_state_name(prev_state),
-						ni_ifworker_state_name(action->next_state));
+				ni_ifworker_fail(w, "%s: action %s -> %s failed", w->name,
+					ni_ifworker_state_name(action->from_state),
+					ni_ifworker_state_name(action->next_state));
 			}
 
 			ni_ifworker_release(w);
