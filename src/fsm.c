@@ -3749,6 +3749,13 @@ ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *acti
 	unsigned int i, count = 0;
 	int rv;
 
+	if (w->fsm.state == action->next_state) {
+		ni_debug_application("%s: action %s -> %s state already took place asynchronously", w->name,
+			ni_ifworker_state_name(action->from_state),
+			ni_ifworker_state_name(action->next_state));
+		return 0;
+	}
+
 	/* Initially, enable waiting for this action */
 	w->fsm.wait_for = action;
 
@@ -3789,14 +3796,12 @@ ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *acti
 		}
 	}
 
-	/* Reset wait_for this action if there are no callbacks */
-	if (count == 0)
-		w->fsm.wait_for = NULL;
+	/* Do not set state if there are callbacks */
+	if (count == 0) {
+		ni_ifworker_set_state(w, action->next_state);
+		ni_assert(w->fsm.wait_for == NULL);
+	}
 
-	if (w->fsm.wait_for != NULL)
-		return 0;
-
-	ni_ifworker_set_state(w, action->next_state);
 	return 0;
 }
 
