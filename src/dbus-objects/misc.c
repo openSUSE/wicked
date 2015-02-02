@@ -1787,9 +1787,10 @@ __ni_objectmodel_callback_data_from_dict(ni_objectmodel_callback_info_t *cb, ni_
 ni_objectmodel_callback_info_t *
 ni_objectmodel_callback_info_from_dict(const ni_dbus_variant_t *dict)
 {
-	ni_objectmodel_callback_info_t *result = NULL;
+	ni_objectmodel_callback_info_t *result = NULL, **tail;
 	ni_dbus_variant_t *child = NULL;
 
+	tail = &result;
 	while ((child = ni_dbus_dict_get_next(dict, "callback", child)) != NULL) {
 		ni_objectmodel_callback_info_t *cb;
 		const char *event;
@@ -1799,8 +1800,8 @@ ni_objectmodel_callback_info_from_dict(const ni_dbus_variant_t *dict)
 				ni_string_dup(&cb->event, event);
 			ni_dbus_dict_get_uuid(child, "uuid", &cb->uuid);
 			__ni_objectmodel_callback_data_from_dict(cb, child);
-			cb->next = result;
-			result = cb;
+			*tail = cb;
+			tail = &cb->next;
 		}
 	}
 
