@@ -256,9 +256,10 @@ can be one of:
 .nf
 .BI "     device-down
 .BI "     device-exists
-.BI "     device-up
+.BI "     device-setup
 .BI "     protocols-up
 .BI "     firewall-up
+.BI "     device-up
 .BI "     link-up
 .BI "     link-authenticated
 .BI "     lldp-up
@@ -422,9 +423,10 @@ Check if the interface is in the given state. Possible states:
 .B "    none
 .B "    device-down
 .B "    device-exists
-.B "    device-up
+.B "    device-setup
 .B "    protocols-up
 .B "    firewall-up
+.B "    device-up
 .B "    link-up
 .B "    link-authenticated
 .B "    lldp-up

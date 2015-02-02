@@ -228,19 +228,33 @@
 
   <method name="linkUp">
     <description>
-     This method initiaties link negotiation. This may include link-specific activities;
-     for instance, when bringing up a wireless device, this will start wireless
-     authentication.
+     This method configures link specific properties, and either enslaves to
+     a given master device which takes over further steps or sets the link
+     of the device administratively UP and initiaties the link negotiation.
 
-     When the link negotiation is complete by the time this method is done,
-     we will return an empty callback-info dict. If the link negotiation is still
-     in process, a callback-info dict is returned.
+     When the link on the device was already administratively UP (device-up),
+     it returns an empty callback-info dict. When the link was was not yet UP,
+     a callback-info dict is returned to wait for event providing the UP flag.
     </description>
     <arguments>
       <request type="link-request">
         <meta:mapping document-node="/link" skip-unless-present="false" />
       </request>
     </arguments>
+    <return>
+      <callback-info/>
+    </return>
+  </method>
+
+  <method name="waitLinkUp">
+  <description>
+     This method allows to wait until the link negotiation finished and it
+     starts to be usable for further steps like authenticaction or IP setup.
+
+     When the link negotiation finished and e.g. carrier has been detected,
+     it returns an empty callback-info dict. Otherwise a callback-info dict
+     is returned to wait for a link-up event.
+    </description>
     <return>
       <callback-info/>
     </return>

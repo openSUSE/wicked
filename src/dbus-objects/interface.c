@@ -768,13 +768,20 @@ ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *m
 
 	ret = TRUE;
 
-	/* If the link is up, there's nothing to return */
-	if (!(dev->link.ifflags & NI_IFF_LINK_UP)) {
+	/* When device's link is administatively UP already, no callback is needed.
+	 * Otherwise let the caller wait until the kernel sends event with an "ACK"
+	 * with the link UP flag.
+	 *
+	 * Note: This method sets the UP flag (device-up) and *triggers* a link
+	 * (carrier) negotiation / detection in the kernel, causing to reach the
+	 * link-up automatically once the negotiation/detection finished.
+	 */
+	if (!ni_netdev_device_is_up(dev)) {
 		const ni_uuid_t *uuid;
 
-		/* Link is not up yet. Tell the caller to wait for an event. */
-		uuid = ni_netdev_add_event_filter(dev, (1 << NI_EVENT_LINK_UP) | (1 << NI_EVENT_LINK_DOWN));
-		ret = __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_UP, uuid, NULL, error);
+		/* Link has been administatively set UP. Tell the caller to wait for an event. */
+		uuid = ni_netdev_add_event_filter(dev, (1 << NI_EVENT_DEVICE_UP) | (1 << NI_EVENT_DEVICE_DOWN));
+		ret = __ni_objectmodel_return_callback_info(reply, NI_EVENT_DEVICE_UP, uuid, NULL, error);
 	}
 
 failed:
@@ -782,6 +789,39 @@ failed:
 		ni_netdev_req_free(req);
 	return ret;
 }
+
+static dbus_bool_t
+ni_objectmodel_netif_wait_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+	const ni_uuid_t *uuid;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
+
+	/* Create an interface_request object and extract configuration from dict */
+	if (argc != 0)
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	if (!ni_netdev_device_is_up(dev))
+		return FALSE;
+
+	if (ni_netdev_link_is_up(dev))
+		return TRUE;
+
+	/*
+	 * Device is up and link negotiation is triggered, but isn't finished yet.
+	 * Tell the caller to wait until link-up event.
+	 */
+	uuid = ni_netdev_add_event_filter(dev,  (1 << NI_EVENT_LINK_UP) | (1 << NI_EVENT_LINK_DOWN));
+
+	return __ni_objectmodel_return_callback_info(reply, NI_EVENT_LINK_UP, uuid, NULL, error);
+}
+
 
 static dbus_bool_t
 ni_objectmodel_netif_link_down(ni_dbus_object_t *object, const ni_dbus_method_t *method,
@@ -1114,6 +1154,7 @@ static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 	{ "getNames",		"",			ni_objectmodel_netif_get_names },
 	{ "clearEventFilters",	"",			ni_objectmodel_netif_clear_event_filters },
 	{ "waitDeviceReady",	"",			ni_objectmodel_netif_wait_device_ready },
+	{ "waitLinkUp",		"",			ni_objectmodel_netif_wait_link_up },
 	{ NULL }
 };
 
