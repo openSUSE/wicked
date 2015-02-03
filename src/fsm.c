@@ -4551,7 +4551,7 @@ ni_fsm_do(ni_fsm_t *fsm, long *timeout_p)
 	 *    active workers, or whether we're done.
 	 */
 	do {
-		pending_workers = ni_fsm_schedule(fsm);
+		pending_workers = !!ni_fsm_schedule(fsm);
 
 		ni_ifworker_timeout_count = 0;
 		*timeout_p = ni_timer_next_timeout();
