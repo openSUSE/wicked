@@ -208,8 +208,9 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 	}
 
 	if ((child = ni_dbus_dict_get(var, "wpa-psk")) != NULL) {
-		net->auth_proto = NI_WIRELESS_AUTH_WPA2;
 		net->keymgmt_proto = NI_WIRELESS_KEY_MGMT_PSK;
+		if (!ni_dbus_dict_get_uint32(child, "auth-proto", &net->auth_proto))
+			net->auth_proto = NI_WIRELESS_AUTH_MODE_NONE;
 		/* 'key' member has been removed
 		 * do parsing a string here: may be a 64 len HEX digit string or a 8..63 ASCII char passphrase
 		*/
