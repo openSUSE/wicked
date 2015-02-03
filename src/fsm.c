@@ -429,31 +429,44 @@ __ni_ifworker_timeout(void *user_data, const ni_timer_t *timer)
 	ni_ifworker_timeout_count++;
 }
 
-static void
-ni_ifworker_cancel_timeout(ni_ifworker_t *w)
+static ni_bool_t
+__ni_fsm_cancel_timeout(const ni_timer_t **timer)
 {
-	if (w->fsm.timer) {
-		ni_timer_cancel(w->fsm.timer);
-		w->fsm.timer = NULL;
-		ni_debug_application("%s: cancel timeout", w->name);
+	if (timer && *timer) {
+		ni_timer_cancel(*timer);
+		*timer = NULL;
+		return TRUE;
 	}
+
+	return FALSE;
 }
 
-static void
+static inline void
+__ni_fsm_set_timeout(const ni_timer_t **timer, unsigned long timeout_ms, void (*handler)(void *, const ni_timer_t *), void *data)
+{
+	if (timer && handler && timeout_ms && timeout_ms != NI_IFWORKER_INFINITE_TIMEOUT)
+		*timer = ni_timer_register(timeout_ms, handler, data);
+}
+
+static inline void
+ni_ifworker_cancel_timeout(ni_ifworker_t *w)
+{
+	if (__ni_fsm_cancel_timeout(&w->fsm.timer))
+		ni_debug_application("%s: cancel worker's timeout", w->name);
+}
+
+static inline void
 ni_ifworker_set_timeout(ni_ifworker_t *w, unsigned long timeout_ms)
 {
 	ni_ifworker_cancel_timeout(w);
-	if (timeout_ms && timeout_ms != NI_IFWORKER_INFINITE_TIMEOUT)
-		w->fsm.timer = ni_timer_register(timeout_ms, __ni_ifworker_timeout, w);
+	__ni_fsm_set_timeout(&w->fsm.timer, timeout_ms, __ni_ifworker_timeout, w);
 }
 
-static void
+static inline void
 ni_ifworker_set_secondary_timeout(ni_ifworker_t *w, unsigned long timeout_ms, void (*handler)(void *, const ni_timer_t *))
 {
-	if (w->fsm.secondary_timer)
-		ni_timer_cancel(w->fsm.secondary_timer);
-	if (handler && timeout_ms && timeout_ms != NI_IFWORKER_INFINITE_TIMEOUT)
-		w->fsm.secondary_timer = ni_timer_register(timeout_ms, handler, w);
+	__ni_fsm_cancel_timeout(&w->fsm.secondary_timer);
+	__ni_fsm_set_timeout(&w->fsm.secondary_timer, timeout_ms, handler, w);
 }
 
 static ni_intmap_t __state_names[] = {
