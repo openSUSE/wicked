@@ -474,9 +474,10 @@ static ni_intmap_t __state_names[] = {
 	{ "device-down",	NI_FSM_STATE_DEVICE_DOWN	},
 	{ "device-exists",	NI_FSM_STATE_DEVICE_EXISTS	},
 	{ "device-ready",	NI_FSM_STATE_DEVICE_READY	},
-	{ "device-up",		NI_FSM_STATE_DEVICE_UP		},
+	{ "device-setup",	NI_FSM_STATE_DEVICE_SETUP	},
 	{ "protocols-up",	NI_FSM_STATE_PROTOCOLS_UP	},
 	{ "firewall-up",	NI_FSM_STATE_FIREWALL_UP	},
+	{ "device-up",		NI_FSM_STATE_DEVICE_UP		},
 	{ "link-up",		NI_FSM_STATE_LINK_UP		},
 	{ "link-authenticated",	NI_FSM_STATE_LINK_AUTHENTICATED	},
 	{ "lldp-up",		NI_FSM_STATE_LLDP_UP		},
@@ -1356,6 +1357,9 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 		break;
 	case NI_EVENT_DEVICE_READY:
 		min_state = NI_FSM_STATE_DEVICE_READY;
+		break;
+	case NI_EVENT_DEVICE_UP:
+		min_state = NI_FSM_STATE_DEVICE_UP;
 		break;
 	case NI_EVENT_LINK_UP:
 		min_state = NI_FSM_STATE_LINK_UP;
@@ -3941,7 +3945,7 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_READY, "waitDeviceReady", .call_overloading = TRUE),
 
 	/* This sets any device attributes, such as a MAC address */
-	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_UP, "changeDevice", .call_overloading = TRUE),
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_SETUP, "changeDevice", .call_overloading = TRUE),
 
 	/* This sets the per-interface protocol attributes, such as forwarding */
 	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_PROTOCOLS_UP, "changeProtocol"),
@@ -3950,9 +3954,15 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	 * example would be bridge filtering with ebtables. */
 	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_FIREWALL_UP, "firewallUp"),
 
-	/* This brings up the link layer, and sets general device attributes such
-	 * as the MTU, the transfer queue length etc. */
-	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_LINK_UP, "linkUp", .call_overloading = TRUE),
+	/* This steps sets general link attributes such as the MTU, the transfer
+	 * queue length etc., sets the link administratively UP what triggers a
+	 * link negotiation / detection in the kernel.
+	 */
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_UP, "linkUp", .call_overloading = TRUE),
+
+	/* This state causes to wait unlit the link negotiation / detection finished
+	 * and we can start using it, that is authenticate ... request IP setup. */
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_LINK_UP, "waitLinkUp", .call_overloading = TRUE),
 
 	/* If the link requires authentication, this information can be provided
 	 * here; for instance ethernet 802.1x, wireless WPA, or PPP chap/pap.
