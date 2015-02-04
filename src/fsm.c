@@ -1315,7 +1315,7 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 			w->fsm.wait_for = NULL;
 
 		if ((new_state == NI_FSM_STATE_DEVICE_READY ||
-		    new_state == NI_FSM_STATE_DEVICE_UP) && w->object && !w->readonly) {
+		    new_state == NI_FSM_STATE_DEVICE_SETUP) && w->object && !w->readonly) {
 			ni_ifworker_update_client_state_control(w);
 			ni_ifworker_update_client_state_config(w);
 		}
@@ -2444,7 +2444,7 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 		w->target_range = marker->target_range;
 
 		/* Clean client-info origin and UUID on ifdown */
-		if (marker->target_range.max < NI_FSM_STATE_DEVICE_UP)
+		if (marker->target_range.max < NI_FSM_STATE_DEVICE_SETUP)
 			ni_client_state_config_init(&w->config.meta);
 
 		if (marker->persistent)
@@ -3992,7 +3992,7 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_FIREWALL_UP, "firewallDown"),
 
 	/* Shutdown the device */
-	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_UP, "shutdownDevice", .call_overloading = TRUE),
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_SETUP, "shutdownDevice", .call_overloading = TRUE),
 
 	/* Delete the device */
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_EXISTS, "deleteDevice", .call_overloading = TRUE),
