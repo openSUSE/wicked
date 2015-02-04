@@ -1347,10 +1347,10 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 
 	switch (event_type) {
 	case NI_EVENT_DEVICE_DOWN:
-		min_state = ni_ifworker_can_delete(w) ?
-			NI_FSM_STATE_DEVICE_DOWN : NI_FSM_STATE_DEVICE_READY;
+		/* We should restart FSM on successful devices */
 		if (ni_ifworker_complete(w))
 			ni_ifworker_rearm(w);
+		max_state = NI_FSM_STATE_DEVICE_UP - 1;
 		break;
 	case NI_EVENT_DEVICE_CREATE:
 		min_state = NI_FSM_STATE_DEVICE_EXISTS;
