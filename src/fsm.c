@@ -3986,7 +3986,7 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_LLDP_UP, "lldpDown", .call_overloading = TRUE, .may_fail = TRUE),
 
 	/* Shut down the link */
-	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_LINK_UP, "linkDown", .call_overloading = TRUE),
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_UP, "linkDown", .call_overloading = TRUE),
 
 	/* Shut down the firewall */
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_FIREWALL_UP, "firewallDown"),
@@ -4157,9 +4157,10 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 				continue;
 			}
 
-			ni_debug_application("%s: state=%s want=%s, trying to transition to %s", w->name,
+			ni_debug_application("%s: state=%s want=%s, next transition is %s -> %s", w->name,
 				ni_ifworker_state_name(w->fsm.state),
 				ni_ifworker_state_name(w->target_state),
+				ni_ifworker_state_name(w->fsm.next_action->from_state),
 				ni_ifworker_state_name(w->fsm.next_action->next_state));
 
 			if (!action->bound) {
