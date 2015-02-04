@@ -842,6 +842,13 @@ ni_objectmodel_netif_link_down(ni_dbus_object_t *object, const ni_dbus_method_t 
 		return FALSE;
 	}
 
+	if (ni_netdev_device_is_up(dev)) {
+		const ni_uuid_t *uuid;
+
+		uuid = ni_netdev_add_event_filter(dev, (1 << NI_EVENT_DEVICE_DOWN));
+
+		return __ni_objectmodel_return_callback_info(reply, NI_EVENT_DEVICE_DOWN, uuid, NULL, error);
+	}
 	return TRUE;
 }
 

@@ -1315,7 +1315,7 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 			w->fsm.wait_for = NULL;
 
 		if ((new_state == NI_FSM_STATE_DEVICE_READY ||
-		    new_state == NI_FSM_STATE_DEVICE_UP) && w->object && !w->readonly) {
+		    new_state == NI_FSM_STATE_DEVICE_SETUP) && w->object && !w->readonly) {
 			ni_ifworker_update_client_state_control(w);
 			ni_ifworker_update_client_state_config(w);
 		}
@@ -1347,10 +1347,10 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 
 	switch (event_type) {
 	case NI_EVENT_DEVICE_DOWN:
-		min_state = ni_ifworker_can_delete(w) ?
-			NI_FSM_STATE_DEVICE_DOWN : NI_FSM_STATE_DEVICE_READY;
+		/* We should restart FSM on successful devices */
 		if (ni_ifworker_complete(w))
 			ni_ifworker_rearm(w);
+		max_state = NI_FSM_STATE_DEVICE_UP - 1;
 		break;
 	case NI_EVENT_DEVICE_CREATE:
 		min_state = NI_FSM_STATE_DEVICE_EXISTS;
@@ -2444,7 +2444,7 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 		w->target_range = marker->target_range;
 
 		/* Clean client-info origin and UUID on ifdown */
-		if (marker->target_range.max < NI_FSM_STATE_DEVICE_UP)
+		if (marker->target_range.max < NI_FSM_STATE_DEVICE_SETUP)
 			ni_client_state_config_init(&w->config.meta);
 
 		if (marker->persistent)
@@ -3986,13 +3986,13 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_LLDP_UP, "lldpDown", .call_overloading = TRUE, .may_fail = TRUE),
 
 	/* Shut down the link */
-	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_LINK_UP, "linkDown", .call_overloading = TRUE),
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_UP, "linkDown", .call_overloading = TRUE),
 
 	/* Shut down the firewall */
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_FIREWALL_UP, "firewallDown"),
 
 	/* Shutdown the device */
-	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_UP, "shutdownDevice", .call_overloading = TRUE),
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_SETUP, "shutdownDevice", .call_overloading = TRUE),
 
 	/* Delete the device */
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_EXISTS, "deleteDevice", .call_overloading = TRUE),
@@ -4157,9 +4157,10 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 				goto release;
 			}
 
-			ni_debug_application("%s: state=%s want=%s, trying to transition to %s", w->name,
+			ni_debug_application("%s: state=%s want=%s, next transition is %s -> %s", w->name,
 				ni_ifworker_state_name(w->fsm.state),
 				ni_ifworker_state_name(w->target_state),
+				ni_ifworker_state_name(w->fsm.next_action->from_state),
 				ni_ifworker_state_name(w->fsm.next_action->next_state));
 
 			if (!action->bound) {
