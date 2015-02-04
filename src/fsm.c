@@ -4122,11 +4122,11 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			ni_ifworker_get(w);
 
 			if (w->pending)
-				continue;
+				goto release;
 
 			if (ni_ifworker_complete(w)) {
 				ni_ifworker_cancel_timeout(w);
-				continue;
+				goto release;
 			}
 
 			if (!w->kickstarted) {
@@ -4144,7 +4144,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 					ni_ifworker_state_name(w->fsm.state),
 					ni_ifworker_state_name(w->target_state),
 					ni_ifworker_state_name(w->fsm.wait_for->next_state));
-				continue;
+				goto release;
 			}
 
 			action = w->fsm.next_action;
@@ -4154,7 +4154,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			if (w->fsm.state == w->target_state) {
 				ni_ifworker_success(w);
 				made_progress = 1;
-				continue;
+				goto release;
 			}
 
 			ni_debug_application("%s: state=%s want=%s, trying to transition to %s", w->name,
@@ -4165,12 +4165,12 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			if (!action->bound) {
 				ni_ifworker_fail(w, "failed to bind services and methods for %s()",
 						action->common.method_name);
-				continue;
+				goto release;
 			}
 
 			if (!ni_ifworker_check_dependencies(fsm, w, action)) {
 				ni_debug_application("%s: defer action (pending dependencies)", w->name);
-				continue;
+				goto release;
 			}
 
 			ni_ifworker_set_secondary_timeout(w, 0, NULL);
@@ -4205,6 +4205,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 						ni_ifworker_state_name(action->next_state));
 			}
 
+release:
 			ni_ifworker_release(w);
 		}
 
