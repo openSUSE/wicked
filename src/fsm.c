@@ -353,6 +353,8 @@ __ni_ifworker_done(ni_ifworker_t *w)
 	if (w->completion.callback)
 		w->completion.callback(w);
 	w->done = 1;
+
+	ni_ifworker_cancel_timeout(w);
 }
 
 void
@@ -386,8 +388,6 @@ ni_ifworker_success(ni_ifworker_t *w)
 
 	if (w->progress.callback)
 		w->progress.callback(w, w->fsm.state);
-
-	ni_ifworker_cancel_timeout(w);
 }
 
 /*
@@ -2564,6 +2564,8 @@ ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 		ni_dbus_object_free(w->object);
 		w->object = NULL;
 	}
+
+	ni_ifworker_cancel_timeout(w);
 
 	if (ni_ifworker_active(w))
 		ni_ifworker_fail(w, "device was deleted");
