@@ -813,6 +813,10 @@ ni_objectmodel_netif_wait_link_up(ni_dbus_object_t *object, const ni_dbus_method
 	if (ni_netdev_link_is_up(dev))
 		return TRUE;
 
+	/* Do not wait for slaves, master provides the link state */
+	if (dev->link.masterdev.index)
+		return TRUE;
+
 	/*
 	 * Device is up and link negotiation is triggered, but isn't finished yet.
 	 * Tell the caller to wait until link-up event.
