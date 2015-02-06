@@ -41,6 +41,12 @@
       <host             value="1"/>
       <router           value="2"/>
     </accept-ra>
+    <accept-dad type="int32" constraint="enum">
+      <default          value="-1"/>
+      <disable          value="0" />
+      <fail-address     value="1" />
+      <fail-protocol    value="2" />
+    </accept-dad>
     <autoconf type="tristate" />
     <privacy type="int32" constraint="enum">
       <default          value="-1"/>

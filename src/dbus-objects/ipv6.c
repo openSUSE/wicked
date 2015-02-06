@@ -126,6 +126,7 @@ const ni_dbus_property_t	ni_objectmodel_ipv6_property_table[] = {
 	IPV6_INT_PROPERTY(enabled, conf.enabled, RO),
 	IPV6_INT_PROPERTY(forwarding, conf.forwarding, RO),
 	IPV6_INT_PROPERTY(accept-ra, conf.accept_ra, RO),
+	IPV6_INT_PROPERTY(accept-dad, conf.accept_dad, RO),
 	IPV6_INT_PROPERTY(autoconf, conf.autoconf, RO),
 	IPV6_INT_PROPERTY(privacy, conf.privacy, RO),
 	IPV6_INT_PROPERTY(accept-redirects, conf.accept_redirects, RO),
