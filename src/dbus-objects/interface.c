@@ -1358,19 +1358,16 @@ dbus_bool_t
 ni_objectmodel_netif_client_state_control_from_dict(ni_client_state_control_t *ctrl, const ni_dbus_variant_t *dict)
 {
 	const ni_dbus_variant_t *var;
+	dbus_bool_t val;
 
 	if (!(var = ni_dbus_dict_get(dict, NI_CLIENT_STATE_XML_CONTROL_NODE)))
 		return FALSE;
 
-	if (!ni_dbus_dict_get_bool(var, NI_CLIENT_STATE_XML_PERSISTENT_NODE,
-		(dbus_bool_t *) &ctrl->persistent)) {
-		return FALSE;
-	}
+	if (ni_dbus_dict_get_bool(var, NI_CLIENT_STATE_XML_PERSISTENT_NODE, &val))
+		ctrl->persistent = val;
 
-	if (!ni_dbus_dict_get_bool(var, NI_CLIENT_STATE_XML_USERCONTROL_NODE,
-		(dbus_bool_t *) &ctrl->usercontrol)) {
-		return FALSE;
-	}
+	if (ni_dbus_dict_get_bool(var, NI_CLIENT_STATE_XML_USERCONTROL_NODE, &val))
+		ctrl->usercontrol = val;
 
 	return TRUE;
 }
