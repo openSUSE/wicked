@@ -813,6 +813,10 @@ ni_objectmodel_netif_wait_link_up(ni_dbus_object_t *object, const ni_dbus_method
 	if (ni_netdev_link_is_up(dev))
 		return TRUE;
 
+	/* Do not wait for slaves, master provides the link state */
+	if (dev->link.masterdev.index)
+		return TRUE;
+
 	/*
 	 * Device is up and link negotiation is triggered, but isn't finished yet.
 	 * Tell the caller to wait until link-up event.
@@ -1354,19 +1358,16 @@ dbus_bool_t
 ni_objectmodel_netif_client_state_control_from_dict(ni_client_state_control_t *ctrl, const ni_dbus_variant_t *dict)
 {
 	const ni_dbus_variant_t *var;
+	dbus_bool_t val;
 
 	if (!(var = ni_dbus_dict_get(dict, NI_CLIENT_STATE_XML_CONTROL_NODE)))
 		return FALSE;
 
-	if (!ni_dbus_dict_get_bool(var, NI_CLIENT_STATE_XML_PERSISTENT_NODE,
-		(dbus_bool_t *) &ctrl->persistent)) {
-		return FALSE;
-	}
+	if (ni_dbus_dict_get_bool(var, NI_CLIENT_STATE_XML_PERSISTENT_NODE, &val))
+		ctrl->persistent = val;
 
-	if (!ni_dbus_dict_get_bool(var, NI_CLIENT_STATE_XML_USERCONTROL_NODE,
-		(dbus_bool_t *) &ctrl->usercontrol)) {
-		return FALSE;
-	}
+	if (ni_dbus_dict_get_bool(var, NI_CLIENT_STATE_XML_USERCONTROL_NODE, &val))
+		ctrl->usercontrol = val;
 
 	return TRUE;
 }

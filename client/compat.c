@@ -1437,14 +1437,18 @@ __ni_compat_generate_ipv6_devconf(xml_node_t *ifnode, const ni_ipv6_devinfo_t *i
 	}
 
 	__ni_compat_optional_tristate("forwarding", node, ipv6->conf.forwarding);
-	if (ipv6->conf.accept_ra > NI_IPv6_ACCEPT_RA_DEFAULT) {
-		xml_node_new_element("accept-ra", node,
-				ni_ipv6_devconf_accept_ra_to_name(ipv6->conf.accept_ra));
-	}
 	__ni_compat_optional_tristate("autoconf", node, ipv6->conf.autoconf);
 	if (ipv6->conf.privacy > NI_IPV6_PRIVACY_DEFAULT) {
 		xml_node_new_element("privacy", node,
 			ni_ipv6_devconf_privacy_to_name(ipv6->conf.privacy));
+	}
+	if (ipv6->conf.accept_ra > NI_IPV6_ACCEPT_RA_DEFAULT) {
+		xml_node_new_element("accept-ra", node,
+				ni_ipv6_devconf_accept_ra_to_name(ipv6->conf.accept_ra));
+	}
+	if (ipv6->conf.accept_dad > NI_IPV6_ACCEPT_DAD_DEFAULT) {
+		xml_node_new_element("accept-dad", node,
+				ni_ipv6_devconf_accept_dad_to_name(ipv6->conf.accept_dad));
 	}
 	__ni_compat_optional_tristate("accept-redirects", node,
 						ipv6->conf.accept_redirects);

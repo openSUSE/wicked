@@ -3668,11 +3668,19 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
 				"accept_ra", &ipv6->conf.accept_ra, 10);
-	if (ipv6->conf.accept_ra > NI_IPv6_ACCEPT_RA_ROUTER)
-		ipv6->conf.accept_ra = NI_IPv6_ACCEPT_RA_ROUTER;
+	if (ipv6->conf.accept_ra > NI_IPV6_ACCEPT_RA_ROUTER)
+		ipv6->conf.accept_ra = NI_IPV6_ACCEPT_RA_ROUTER;
 	else
-	if (ipv6->conf.accept_ra < NI_IPv6_ACCEPT_RA_DEFAULT)
-		ipv6->conf.accept_ra = NI_IPv6_ACCEPT_RA_DEFAULT;
+	if (ipv6->conf.accept_ra < NI_IPV6_ACCEPT_RA_DEFAULT)
+		ipv6->conf.accept_ra = NI_IPV6_ACCEPT_RA_DEFAULT;
+
+	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
+				"accept_dad", &ipv6->conf.accept_dad, 10);
+	if (ipv6->conf.accept_dad > NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL)
+		ipv6->conf.accept_dad = NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL;
+	else
+	if (ipv6->conf.accept_dad < NI_IPV6_ACCEPT_DAD_DEFAULT)
+		ipv6->conf.accept_dad = NI_IPV6_ACCEPT_DAD_DEFAULT;
 
 	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
 				"autoconf", &ipv6->conf.autoconf);

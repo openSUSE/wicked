@@ -84,9 +84,8 @@ ni_client_state_control_print_xml(const ni_client_state_control_t *ctrl, xml_nod
 	if (!xml_node_new_element(NI_CLIENT_STATE_XML_PERSISTENT_NODE, parent,
 			ni_format_boolean(ctrl->persistent)) ||
 	    !xml_node_new_element(NI_CLIENT_STATE_XML_USERCONTROL_NODE, parent,
-			ni_format_boolean(ctrl->usercontrol))) {
-			return FALSE;
-	}
+			ni_format_boolean(ctrl->usercontrol)))
+		return FALSE;
 
 	return TRUE;
 }
@@ -148,19 +147,15 @@ ni_client_state_control_parse_xml(const xml_node_t *node, ni_client_state_contro
 	if (!(parent = xml_node_get_child(node, NI_CLIENT_STATE_XML_CONTROL_NODE)))
 		return FALSE;
 
-	/* <persistent> node is mandatory */
+	/* <persistent> node */
 	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_PERSISTENT_NODE);
-	if (!child || ni_string_empty(child->cdata) ||
-		ni_parse_boolean(child->cdata, &ctrl->persistent)) {
+	if (child && ni_parse_boolean(child->cdata, &ctrl->persistent) != 0)
 		return FALSE;
-	}
 
-	/* <usercontrol> node is mandatory */
+	/* <usercontrol> node */
 	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_USERCONTROL_NODE);
-	if (!child || ni_string_empty(child->cdata) ||
-		ni_parse_boolean(child->cdata, &ctrl->usercontrol)) {
+	if (child && ni_parse_boolean(child->cdata, &ctrl->usercontrol) != 0)
 		return FALSE;
-	}
 
 	return TRUE;
 }
@@ -224,8 +219,7 @@ __ni_client_state_is_valid_time(const struct timeval *tv)
 ni_bool_t
 ni_client_state_control_is_valid(const ni_client_state_control_t *ctrl)
 {
-	/* FIXME: Add some sanity checks */
-	return ctrl && TRUE;
+	return ctrl != NULL;
 }
 
 ni_bool_t

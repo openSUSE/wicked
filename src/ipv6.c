@@ -122,10 +122,11 @@ __ni_ipv6_devconf_reset(ni_ipv6_devconf_t *conf)
 {
 	conf->enabled = NI_TRISTATE_DEFAULT;
 	conf->forwarding = NI_TRISTATE_DEFAULT;
-	conf->accept_redirects = NI_TRISTATE_DEFAULT;
-	conf->accept_ra = NI_TRISTATE_DEFAULT;
 	conf->autoconf = NI_TRISTATE_DEFAULT;
-	conf->privacy = NI_TRISTATE_DEFAULT;
+	conf->privacy = NI_IPV6_PRIVACY_DEFAULT;
+	conf->accept_ra = NI_IPV6_ACCEPT_RA_DEFAULT;
+	conf->accept_dad = NI_IPV6_ACCEPT_DAD_DEFAULT;
+	conf->accept_redirects = NI_TRISTATE_DEFAULT;
 }
 
 /*
@@ -217,17 +218,21 @@ ni_system_ipv6_devinfo_get(ni_netdev_t *dev, ni_ipv6_devinfo_t *ipv6)
 		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "forwarding", &val) >= 0)
 			ni_tristate_set(&ipv6->conf.forwarding, !!val);
 
-		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "accept_redirects", &val) >= 0)
-			ni_tristate_set(&ipv6->conf.accept_redirects, !!val);
-
-		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "accept_ra", &val) >= 0)
-			ipv6->conf.accept_ra = val < 0 ? 0 : val > 2 ? 2 : val;
-
 		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "autoconf", &val) >= 0)
 			ni_tristate_set(&ipv6->conf.autoconf, !!val);
 
 		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "use_tempaddr", &val) >= 0)
 			ipv6->conf.privacy = val < -1 ? -1 : (val > 2 ? 2 : val);
+
+		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "accept_ra", &val) >= 0)
+			ipv6->conf.accept_ra = val < 0 ? 0 : val > 2 ? 2 : val;
+
+		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "accept_dad", &val) >= 0)
+			ipv6->conf.accept_dad = val < 0 ? 0 : val > 2 ? 2 : val;
+
+		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "accept_redirects", &val) >= 0)
+			ni_tristate_set(&ipv6->conf.accept_redirects, !!val);
+
 	} else {
 		ni_warn("%s: cannot get ipv6 device attributes", dev->name);
 
@@ -310,23 +315,6 @@ ni_system_ipv6_devinfo_set(ni_netdev_t *dev, const ni_ipv6_devconf_t *conf)
 			ipv6->conf.forwarding = conf->forwarding;
 	}
 
-	if (conf->accept_ra > NI_TRISTATE_DEFAULT && conf->accept_ra != ipv6->conf.accept_ra) {
-		int accept_ra = conf->accept_ra > 2 ? 2 : conf->accept_ra;
-		ret = __change_int(dev->name, "accept_ra", accept_ra);
-		if (ret < 0)
-			return ret;
-		if (ret == 0)
-			ipv6->conf.accept_ra = accept_ra;
-	}
-
-	if (__tristate_changed(conf->accept_redirects, ipv6->conf.accept_redirects)) {
-		ret = __change_int(dev->name, "accept_redirects", conf->accept_redirects);
-		if (ret < 0)
-			return ret;
-		if (ret == 0)
-			ipv6->conf.accept_redirects = conf->accept_redirects;
-	}
-
 	if (__tristate_changed(conf->autoconf, ipv6->conf.autoconf)) {
 		ret = __change_int(dev->name, "autoconf", conf->autoconf);
 		if (ret < 0)
@@ -335,14 +323,40 @@ ni_system_ipv6_devinfo_set(ni_netdev_t *dev, const ni_ipv6_devconf_t *conf)
 			ipv6->conf.autoconf = conf->autoconf;
 	}
 
-	if (ipv6->conf.privacy != NI_TRISTATE_DEFAULT &&
-	    __tristate_changed(conf->privacy, ipv6->conf.privacy)) {
+	if (__tristate_changed(conf->privacy, ipv6->conf.privacy)) {
 		/* kernel is using -1 for loopback, ptp, ... */
-		ret = __change_int(dev->name, "use_tempaddr",	conf->privacy);
+		int privacy = conf->privacy > 2 ? 2 : conf->privacy;
+		ret = __change_int(dev->name, "use_tempaddr", privacy);
 		if (ret < 0)
 			return ret;
 		if (ret == 0)
-			ipv6->conf.privacy = conf->privacy;
+			ipv6->conf.privacy = privacy;
+	}
+
+	if (__tristate_changed(conf->accept_ra, ipv6->conf.accept_ra)) {
+		int accept_ra = conf->accept_ra > 2 ? 2 : conf->accept_ra;
+		ret = __change_int(dev->name, "accept_ra", accept_ra);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
+			ipv6->conf.accept_ra = accept_ra;
+	}
+
+	if (__tristate_changed(conf->accept_dad, ipv6->conf.accept_dad)) {
+		int accept_dad = conf->accept_dad > 2 ? 2 : conf->accept_dad;
+		ret = __change_int(dev->name, "accept_dad", accept_dad);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
+			ipv6->conf.accept_dad = accept_dad;
+	}
+
+	if (__tristate_changed(conf->accept_redirects, ipv6->conf.accept_redirects)) {
+		ret = __change_int(dev->name, "accept_redirects", conf->accept_redirects);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
+			ipv6->conf.accept_redirects = conf->accept_redirects;
 	}
 
 	return 0;
@@ -466,18 +480,36 @@ const char *
 ni_ipv6_devconf_accept_ra_to_name(int accept_ra)
 {
 	static const ni_intmap_t	__accept_ra_names[] = {
-		{ "disable",		NI_IPv6_ACCEPT_RA_DISABLED	},
-		{ "host",		NI_IPv6_ACCEPT_RA_HOST		},
-		{ "router",		NI_IPv6_ACCEPT_RA_ROUTER	},
-		{ NULL,			NI_IPv6_ACCEPT_RA_DEFAULT	}
+		{ "disable",		NI_IPV6_ACCEPT_RA_DISABLED	},
+		{ "host",		NI_IPV6_ACCEPT_RA_HOST		},
+		{ "router",		NI_IPV6_ACCEPT_RA_ROUTER	},
+		{ NULL,			NI_IPV6_ACCEPT_RA_DEFAULT	}
 	};
-	if (accept_ra < NI_IPv6_ACCEPT_RA_DEFAULT)
-		accept_ra = NI_IPv6_ACCEPT_RA_DEFAULT;
+	if (accept_ra < NI_IPV6_ACCEPT_RA_DEFAULT)
+		accept_ra = NI_IPV6_ACCEPT_RA_DEFAULT;
 	else
-	if (accept_ra > NI_IPv6_ACCEPT_RA_ROUTER)
-		accept_ra = NI_IPv6_ACCEPT_RA_ROUTER;
+	if (accept_ra > NI_IPV6_ACCEPT_RA_ROUTER)
+		accept_ra = NI_IPV6_ACCEPT_RA_ROUTER;
 
 	return ni_format_uint_mapped(accept_ra, __accept_ra_names);
+}
+
+const char *
+ni_ipv6_devconf_accept_dad_to_name(int accept_dad)
+{
+	static const ni_intmap_t	__accept_dad_names[] = {
+		{ "disable",		NI_IPV6_ACCEPT_DAD_DISABLED	},
+		{ "fail-address",	NI_IPV6_ACCEPT_DAD_FAIL_ADDRESS	},
+		{ "fail-protocol",	NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL},
+		{ NULL,			NI_IPV6_ACCEPT_DAD_DEFAULT	}
+	};
+	if (accept_dad < NI_IPV6_ACCEPT_DAD_DEFAULT)
+		accept_dad = NI_IPV6_ACCEPT_DAD_DEFAULT;
+	else
+	if (accept_dad > NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL)
+		accept_dad = NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL;
+
+	return ni_format_uint_mapped(accept_dad, __accept_dad_names);
 }
 
 static inline const char *
@@ -505,6 +537,9 @@ __ni_ipv6_devconf_process_flag(ni_netdev_t *dev, unsigned int flag, int value)
 		break;
 	case NI_IPV6_DEVCONF_ACCEPT_RA:
 		ipv6->conf.accept_ra = value < 0 ? 0 : value > 2 ? 2 : value;
+		break;
+	case NI_IPV6_DEVCONF_ACCEPT_DAD:
+		ipv6->conf.accept_dad = value < 0 ? 0 : value > 2 ? 2 : value;
 		break;
 	case NI_IPV6_DEVCONF_AUTOCONF:
 		ipv6->conf.autoconf = !!value;
