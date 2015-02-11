@@ -57,6 +57,9 @@ typedef struct ni_ifworker_array {
 } ni_ifworker_array_t;
 #define NI_IFWORKER_ARRAY_INIT { .count = 0, .data = NULL }
 
+typedef struct ni_fsm_timer_ctx	ni_fsm_timer_ctx_t;
+typedef void			ni_fsm_timer_fn_t(const ni_timer_t *, ni_fsm_timer_ctx_t *);
+
 typedef struct ni_fsm_transition ni_fsm_transition_t;
 
 typedef int			ni_fsm_transition_fn_t(ni_fsm_t *, ni_ifworker_t *, ni_fsm_transition_t *);
@@ -223,6 +226,7 @@ struct ni_fsm {
 	unsigned int		worker_timeout;
 	ni_bool_t		readonly;
 
+	unsigned int		timeout_count;
 	unsigned int		event_seq;
 	unsigned int		last_event_seq[__NI_EVENT_MAX];
 

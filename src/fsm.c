@@ -29,7 +29,6 @@
 #include "client/ifconfig.h"
 #include "util_priv.h"
 
-static unsigned int		ni_ifworker_timeout_count;
 static ni_fsm_user_prompt_fn_t *ni_fsm_user_prompt_fn;
 static void *			ni_fsm_user_prompt_data;
 
@@ -53,6 +52,7 @@ static int			ni_fsm_user_prompt_default(const ni_fsm_prompt_t *, xml_node_t *, v
 static void			ni_ifworker_refresh_client_state(ni_ifworker_t *, ni_client_state_t *);
 static void			ni_ifworker_set_config_origin(ni_ifworker_t *, const char *);
 static void			ni_ifworker_cancel_timeout(ni_ifworker_t *);
+static void			ni_ifworker_cancel_secondary_timeout(ni_ifworker_t *);
 static dbus_bool_t		ni_ifworker_waiting_for_events(ni_ifworker_t *);
 static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
 
@@ -163,6 +163,9 @@ ni_ifworker_rearm(ni_ifworker_t *w)
 void
 ni_ifworker_reset(ni_ifworker_t *w)
 {
+	ni_ifworker_cancel_secondary_timeout(w);
+	ni_ifworker_cancel_timeout(w);
+
 	ni_string_free(&w->object_path);
 	ni_ifworker_control_init(&w->control);
 	ni_string_free(&w->config.meta.origin);
@@ -193,8 +196,6 @@ ni_ifworker_reset(ni_ifworker_t *w)
 
 	/* Clear config and stats*/
 	ni_client_state_config_init(&w->config.meta);
-
-	ni_ifworker_cancel_timeout(w);
 
 	__ni_ifworker_reset_fsm(w);
 	memset(&w->device_api, 0, sizeof(w->device_api));
@@ -354,6 +355,7 @@ __ni_ifworker_done(ni_ifworker_t *w)
 		w->completion.callback(w);
 	w->done = 1;
 
+	ni_ifworker_cancel_secondary_timeout(w);
 	ni_ifworker_cancel_timeout(w);
 }
 
@@ -413,60 +415,129 @@ ni_ifworker_set_completion_callback(ni_ifworker_t *w, void (*cb)(ni_ifworker_t *
 /*
  * Handle timeouts of device config.
  */
+struct ni_fsm_timer_ctx {
+	ni_fsm_t *		fsm;
+	ni_ifworker_t *		worker;
+	ni_fsm_timer_fn_t *	timeout_fn;
+};
+
 static void
-__ni_ifworker_timeout(void *user_data, const ni_timer_t *timer)
+ni_fsm_timer_ctx_free(ni_fsm_timer_ctx_t *tcx)
 {
-	ni_ifworker_t *w = user_data;
+	free(tcx);
+}
+
+static ni_fsm_timer_ctx_t *
+ni_fsm_timer_ctx_new(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_timer_fn_t *fn)
+{
+	ni_fsm_timer_ctx_t *tcx;
+
+	if (!fsm || !w || !fn)
+		return NULL;
+
+	tcx = xcalloc(1, sizeof(*tcx));
+	tcx->fsm = fsm;
+	tcx->worker = w;
+	tcx->timeout_fn = fn;
+	return tcx;
+}
+
+static void
+ni_fsm_timer_call(void *user_data, const ni_timer_t *timer)
+{
+	ni_fsm_timer_ctx_t *tcx = user_data;
+
+	if (!timer || !tcx || !tcx->fsm || !tcx->worker || !tcx->timeout_fn) {
+		ni_error("BUG: fsm worker timer call with invalid %s",
+				timer ? "timer" : "timer context");
+		return;
+	}
+
+	tcx->timeout_fn(timer, tcx);
+	ni_fsm_timer_ctx_free(tcx);
+}
+
+static inline const ni_timer_t *
+ni_fsm_timer_register(unsigned long timeout_ms, ni_fsm_timer_ctx_t *tcx)
+{
+	return ni_timer_register(timeout_ms, ni_fsm_timer_call, tcx);
+}
+
+static ni_bool_t
+ni_fsm_timer_cancel(const ni_timer_t **timer)
+{
+	ni_fsm_timer_ctx_t *tcx;
+
+	if (timer && *timer) {
+		tcx = ni_timer_cancel(*timer);
+		*timer = NULL;
+		ni_fsm_timer_ctx_free(tcx);
+		return TRUE;
+	}
+	return FALSE;
+}
+
+static void
+ni_ifworker_cancel_timeout(ni_ifworker_t *w)
+{
+	if (ni_fsm_timer_cancel(&w->fsm.timer))
+		ni_debug_application("%s: cancel worker's timeout", w->name);
+}
+
+static void
+ni_ifworker_cancel_secondary_timeout(ni_ifworker_t *w)
+{
+	if (ni_fsm_timer_cancel(&w->fsm.secondary_timer))
+		ni_debug_application("%s: cancel worker's secondary timeout", w->name);
+}
+
+static void
+ni_ifworker_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *tcx)
+{
+	ni_ifworker_t *w = tcx->worker;
 
 	if (w->fsm.timer != timer) {
 		ni_error("%s(%s) called with unexpected timer", __func__, w->name);
 		return;
-	} else {
-		w->fsm.timer = NULL;
-		if (ni_ifworker_waiting_for_events(w) || !ni_ifworker_complete(w) || w->pending)
-			ni_ifworker_fail(w, "operation timed out");
-	}
-	ni_ifworker_timeout_count++;
-}
-
-static ni_bool_t
-__ni_fsm_cancel_timeout(const ni_timer_t **timer)
-{
-	if (timer && *timer) {
-		ni_timer_cancel(*timer);
-		*timer = NULL;
-		return TRUE;
 	}
 
-	return FALSE;
+	tcx->worker->fsm.timer = NULL;
+	tcx->fsm->timeout_count++;
+
+	if (ni_ifworker_waiting_for_events(w) || !ni_ifworker_complete(w) || w->pending)
+		ni_ifworker_fail(w, "operation timed out");
 }
 
 static inline void
-__ni_fsm_set_timeout(const ni_timer_t **timer, unsigned long timeout_ms, void (*handler)(void *, const ni_timer_t *), void *data)
+ni_ifworker_set_timeout(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout_ms)
 {
-	if (timer && handler && timeout_ms && timeout_ms != NI_IFWORKER_INFINITE_TIMEOUT)
-		*timer = ni_timer_register(timeout_ms, handler, data);
-}
+	ni_fsm_timer_ctx_t *tcx;
 
-static inline void
-ni_ifworker_cancel_timeout(ni_ifworker_t *w)
-{
-	if (__ni_fsm_cancel_timeout(&w->fsm.timer))
-		ni_debug_application("%s: cancel worker's timeout", w->name);
-}
-
-static inline void
-ni_ifworker_set_timeout(ni_ifworker_t *w, unsigned long timeout_ms)
-{
 	ni_ifworker_cancel_timeout(w);
-	__ni_fsm_set_timeout(&w->fsm.timer, timeout_ms, __ni_ifworker_timeout, w);
+
+	if (!(tcx = ni_fsm_timer_ctx_new(fsm, w, ni_ifworker_timeout)))
+		return;
+
+	if (timeout_ms && timeout_ms != NI_IFWORKER_INFINITE_TIMEOUT)
+		w->fsm.timer = ni_fsm_timer_register(timeout_ms, tcx);
 }
 
 static inline void
-ni_ifworker_set_secondary_timeout(ni_ifworker_t *w, unsigned long timeout_ms, void (*handler)(void *, const ni_timer_t *))
+ni_ifworker_set_secondary_timeout(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout_ms,
+					ni_fsm_timer_fn_t *handler)
 {
-	__ni_fsm_cancel_timeout(&w->fsm.secondary_timer);
-	__ni_fsm_set_timeout(&w->fsm.secondary_timer, timeout_ms, handler, w);
+	ni_fsm_timer_ctx_t *tcx;
+
+	ni_ifworker_cancel_secondary_timeout(w);
+
+	if (!handler || !timeout_ms || timeout_ms == NI_IFWORKER_INFINITE_TIMEOUT)
+		return;
+
+	if (!(tcx = ni_fsm_timer_ctx_new(fsm, w, ni_ifworker_timeout)))
+		return;
+
+	tcx = ni_fsm_timer_ctx_new(fsm, w, handler);
+	w->fsm.secondary_timer = ni_fsm_timer_register(timeout_ms, tcx);
 }
 
 static ni_intmap_t __state_names[] = {
@@ -1805,9 +1876,9 @@ ni_ifworker_modem_resolver_new(xml_node_t *node)
  * Handle link-detection check
  */
 static void
-__ni_ifworker_link_detection_timeout(void *user_data, const ni_timer_t *timer)
+__ni_ifworker_link_detection_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *td)
 {
-	ni_ifworker_t *w = user_data;
+	ni_ifworker_t *w = td->worker;
 
 	if (w->fsm.secondary_timer != timer) {
 		ni_error("%s(%s) called with unexpected timer", __func__, w->name);
@@ -1838,7 +1909,7 @@ ni_fsm_require_detect_link(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *re
 			w->fsm.state = NI_FSM_STATE_LINK_UP;
 			return TRUE;
 		}
-		ni_ifworker_set_secondary_timeout(w, w->control.link_timeout, __ni_ifworker_link_detection_timeout);
+		ni_ifworker_set_secondary_timeout(fsm, w, w->control.link_timeout, __ni_ifworker_link_detection_timeout);
 	}
 
 	return FALSE;
@@ -2470,7 +2541,7 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 
 		if (!w->device && !ni_ifworker_is_factory_device(w)) {
 			w->pending = TRUE;
-			ni_ifworker_set_timeout(w, fsm->worker_timeout);
+			ni_ifworker_set_timeout(fsm, w, fsm->worker_timeout);
 			continue;
 		}
 
@@ -2631,7 +2702,7 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 				ni_ifworker_state_name(w->target_state));
 
 	if (w->target_state != NI_FSM_STATE_NONE)
-		ni_ifworker_set_timeout(w, timeout);
+		ni_ifworker_set_timeout(fsm, w, timeout);
 
 	/* For each of the DBus calls we will execute on this device,
 	 * check whether there are constraints on child devices that
@@ -4176,7 +4247,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 				goto release;
 			}
 
-			ni_ifworker_set_secondary_timeout(w, 0, NULL);
+			ni_ifworker_cancel_secondary_timeout(w);
 
 			prev_state = w->fsm.state;
 			rv = action->func(fsm, w, action);
@@ -4567,9 +4638,9 @@ ni_fsm_do(ni_fsm_t *fsm, long *timeout_p)
 	do {
 		pending_workers = !!ni_fsm_schedule(fsm);
 
-		ni_ifworker_timeout_count = 0;
+		fsm->timeout_count = 0;
 		*timeout_p = ni_timer_next_timeout();
-	} while (ni_ifworker_timeout_count);
+	} while (fsm->timeout_count);
 
 	return pending_workers;
 }
