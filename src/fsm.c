@@ -3882,9 +3882,12 @@ ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 		}
 	}
 
-	/* Reset wait_for this action if there are no callbacks */
-	if (count == 0)
-		w->fsm.wait_for = NULL;
+	/* Reset wait_for if there are no callbacks ... */
+	if (count == 0) {
+		/* ... unless this action requires ACK via event */
+		if (action->next_state != NI_FSM_STATE_DEVICE_DOWN)
+			w->fsm.wait_for = NULL;
+	}
 
 	if (w->fsm.wait_for != NULL)
 		return 0;
