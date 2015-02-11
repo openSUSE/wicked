@@ -1417,6 +1417,9 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 	unsigned int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
 
 	switch (event_type) {
+	case NI_EVENT_DEVICE_DELETE:
+		max_state = NI_FSM_STATE_DEVICE_EXISTS - 1;
+		break;
 	case NI_EVENT_DEVICE_DOWN:
 		/* We should restart FSM on successful devices */
 		if (ni_ifworker_complete(w))
@@ -4603,12 +4606,10 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			}
 		}
 
-		if (event_type == NI_EVENT_DEVICE_DELETE) {
-			ni_fsm_destroy_worker(fsm, w);
-			goto done;
-		}
-
 		ni_ifworker_advance_state(w, event_type);
+
+		if (event_type == NI_EVENT_DEVICE_DELETE)
+			ni_fsm_destroy_worker(fsm, w);
 	}
 
 done: ;
