@@ -67,7 +67,8 @@ struct ni_fsm_transition {
 	unsigned int		from_state;
 	unsigned int		next_state;
 	ni_fsm_transition_fn_t *bind_func;
-	ni_fsm_transition_fn_t *func;
+	ni_fsm_transition_fn_t *call_func;
+	ni_fsm_timer_fn_t *	timeout_fn;
 
 	struct {
 		const char *		service_name;

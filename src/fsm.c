@@ -3834,7 +3834,7 @@ ni_ifworker_update_from_request(ni_ifworker_t *w, const char *service, const cha
 }
 
 static int
-ni_ifworker_do_common(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
+ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
 	unsigned int i, count = 0;
 	int rv;
@@ -3988,14 +3988,30 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 #define COMMON_TRANSITION_UP_TO(__state, __meth, __more...) { \
 	__TRANSITION_UP_TO(__state), \
 	.bind_func = ni_ifworker_do_common_bind, \
-	.func = ni_ifworker_do_common, \
+	.call_func = ni_ifworker_do_common_call, \
 	.common = { .method_name = __meth, ##__more } \
 }
 
 #define COMMON_TRANSITION_DOWN_FROM(__state, __meth, __more...) { \
 	__TRANSITION_DOWN_FROM(__state), \
 	.bind_func = ni_ifworker_do_common_bind, \
-	.func = ni_ifworker_do_common, \
+	.call_func = ni_ifworker_do_common_call, \
+	.common = { .method_name = __meth, ##__more } \
+}
+
+#define TIMED_TRANSITION_UP_TO(__state, __timed, __meth, __more...) { \
+	__TRANSITION_UP_TO(__state), \
+	.bind_func = ni_ifworker_do_common_bind, \
+	.call_func = ni_ifworker_ ## __timed ## _call, \
+	.timeout_fn= ni_ifworker_ ## __timed ## _timeout, \
+	.common = { .method_name = __meth, ##__more } \
+}
+
+#define TIMED_TRANSITION_DOWN_FROM(__state, __timed, __meth, __more...) { \
+	__TRANSITION_DOWN_FROM(__state), \
+	.bind_func = ni_ifworker_do_common_bind, \
+	.call_func = ni_ifworker_ ## __timed ## _call, \
+	.timeout_fn= ni_ifworker_ ## __timed ## _timeout, \
 	.common = { .method_name = __meth, ##__more } \
 }
 
@@ -4010,7 +4026,7 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	{
 		__TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_EXISTS),
 		.bind_func = ni_ifworker_bind_device_factory,
-		.func = ni_ifworker_call_device_factory,
+		.call_func = ni_ifworker_call_device_factory,
 		.common = { .method_name = "newDevice" },
 	},
 
@@ -4070,7 +4086,7 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	/* Delete the device */
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_EXISTS, "deleteDevice", .call_overloading = TRUE),
 
-	{ .from_state = NI_FSM_STATE_NONE, .next_state = NI_FSM_STATE_NONE, .func = NULL }
+	{ .from_state = NI_FSM_STATE_NONE, .next_state = NI_FSM_STATE_NONE, .call_func = NULL }
 };
 
 static int
@@ -4109,7 +4125,7 @@ do_it_again:
 		unsigned int next_state = cur_state + increment;
 		const ni_fsm_transition_t *a;
 
-		for (a = ni_iftransitions; a->func; ++a) {
+		for (a = ni_iftransitions; a->call_func; ++a) {
 			if (a->from_state == cur_state && a->next_state == next_state) {
 				if (w->fsm.action_table != NULL) {
 
@@ -4157,7 +4173,7 @@ ni_fsm_schedule_bind_methods(ni_fsm_t *fsm, ni_ifworker_t *w)
 	int rv;
 
 	ni_debug_application("%s: binding dbus calls to FSM transitions", w->name);
-	for (action = w->fsm.action_table; action->func; ++action) {
+	for (action = w->fsm.action_table; action->call_func; ++action) {
 		if (action->bound)
 			continue;
 		rv = action->bind_func(fsm, w, action);
@@ -4250,7 +4266,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			ni_ifworker_cancel_secondary_timeout(w);
 
 			prev_state = w->fsm.state;
-			rv = action->func(fsm, w, action);
+			rv = action->call_func(fsm, w, action);
 			w->fsm.next_action++;
 
 			if (rv >= 0) {
