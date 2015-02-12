@@ -3915,7 +3915,8 @@ ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 
 	ret = ni_ifworker_do_common_call(fsm, w, action);
 
-	/* TODO: apply device specific link_required=auto magic here */
+	if (!ni_tristate_is_set(w->control.link_required) && w->device)
+		w->control.link_required = ni_netdev_guess_link_required(w->device);
 
 	if (ret >= 0 && w->fsm.wait_for) {
 		if (w->control.link_timeout != NI_IFWORKER_INFINITE_TIMEOUT) {

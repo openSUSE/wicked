@@ -285,6 +285,8 @@ extern ni_bool_t	ni_netdev_device_is_ready(ni_netdev_t *);
 extern ni_bool_t	ni_netdev_device_always_ready(ni_netdev_t *);
 extern ni_bool_t	ni_netdev_link_always_ready(ni_linkinfo_t *);
 
+extern ni_tristate_t	ni_netdev_guess_link_required(const ni_netdev_t *);
+
 static inline int
 ni_netdev_device_is_up(const ni_netdev_t *ifp)
 {
