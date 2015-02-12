@@ -1181,25 +1181,25 @@ __ni_suse_startmode(const ni_sysconfig_t *sc)
 		ni_ifworker_control_t	control;
 	} __ni_suse_control_params[] = {
 		/* manual is the default in ifcfg */
-		{ "manual",	{ "manual",	NULL,		FALSE,	FALSE,	TRUE,	0, 0 } },
+		{ "manual",	{ "manual",	NULL,		FALSE,	FALSE,	NI_TRISTATE_DEFAULT,	0, 0 } },
 
-		{ "auto",	{ "boot",	NULL,		FALSE,	FALSE,	TRUE,	0, 0 } },
-		{ "boot",	{ "boot",	NULL,		FALSE,	FALSE,	TRUE,	0, 0 } },
-		{ "onboot",	{ "boot",	NULL,		FALSE,	FALSE,	TRUE,	0, 0 } },
-		{ "on",		{ "boot",	NULL,		FALSE,	FALSE,	TRUE,	0, 0 } },
+		{ "auto",	{ "boot",	NULL,		FALSE,	FALSE,	NI_TRISTATE_DEFAULT,	0, 0 } },
+		{ "boot",	{ "boot",	NULL,		FALSE,	FALSE,	NI_TRISTATE_DEFAULT,	0, 0 } },
+		{ "onboot",	{ "boot",	NULL,		FALSE,	FALSE,	NI_TRISTATE_DEFAULT,	0, 0 } },
+		{ "on",		{ "boot",	NULL,		FALSE,	FALSE,	NI_TRISTATE_DEFAULT,	0, 0 } },
 
-		{ "nfsroot",	{ "boot",	"localfs",	TRUE,	FALSE,	TRUE,	0, 0 } },
+		{ "nfsroot",	{ "boot",	"localfs",	TRUE,	FALSE,	NI_TRISTATE_DEFAULT,	0, 0 } },
 
-		{ "hotplug",	{ "hotplug",	NULL,		FALSE,	FALSE,	FALSE,	0, 0 } },
-		{ "ifplugd",	{ "ifplugd",	NULL,		FALSE,	FALSE,	FALSE,	0, 0 } },
+		{ "hotplug",	{ "hotplug",	NULL,		FALSE,	FALSE,	NI_TRISTATE_DEFAULT,	0, 0 } },
+		{ "ifplugd",	{ "ifplugd",	NULL,		FALSE,	FALSE,	NI_TRISTATE_DEFAULT,	0, 0 } },
 
-		{ "off",	{ "off",	NULL,		FALSE,	FALSE,	FALSE,	0, 0 } },
+		{ "off",	{ "off",	NULL,		FALSE,	FALSE,	NI_TRISTATE_DEFAULT,	0, 0 } },
 
 		{ NULL }
 	};
 	const struct __ni_control_params *p, *params = NULL;
 	ni_ifworker_control_t *control;
-	const char *mode;
+	const char *mode, *value;
 
 	params = &__ni_suse_control_params[0];
 	if (sc && (mode = ni_sysconfig_get_value(sc, "STARTMODE"))) {
@@ -1216,8 +1216,25 @@ __ni_suse_startmode(const ni_sysconfig_t *sc)
 			if (sc && ni_sysconfig_test_boolean(sc, "USERCONTROL"))
 				control->usercontrol = TRUE;
 		}
+
 		if (ni_string_eq("ifplugd", control->mode)) {
 			ni_sysconfig_get_integer(sc, "IFPLUGD_PRIORITY", &control->link_priority);
+		}
+
+		if ((value = ni_sysconfig_get_value(sc, "LINK_REQUIRED"))) {
+			/* otherwise assume "auto" */
+			if (ni_string_eq(value, "yes"))
+				ni_tristate_set(&control->link_required, TRUE);
+			else
+			if (ni_string_eq(value, "no"))
+				ni_tristate_set(&control->link_required, FALSE);
+		}
+
+		if ((value = ni_sysconfig_get_value(sc, "LINK_READY_WAIT"))) {
+			if (ni_string_eq(value, "infinite"))
+				control->link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
+			else
+				ni_parse_uint(value, &control->link_timeout, 10);
 		}
 	}
 	return control;

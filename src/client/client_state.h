@@ -12,26 +12,29 @@
 #include <unistd.h>
 #include <wicked/logging.h>
 
-#define NI_CLIENT_STATE_XML_NODE			"client-state"
+#define NI_CLIENT_STATE_XML_NODE		"client-state"
 
 #define NI_CLIENT_STATE_XML_CONTROL_NODE	"control"
 #define NI_CLIENT_STATE_XML_PERSISTENT_NODE	"persistent"
 #define NI_CLIENT_STATE_XML_USERCONTROL_NODE	"usercontrol"
+#define NI_CLIENT_STATE_XML_REQUIRE_LINK_NODE	"require-link"
 
-#define NI_CLIENT_STATE_XML_CONFIG_NODE	"config"
+#define NI_CLIENT_STATE_XML_CONFIG_NODE		"config"
 #define NI_CLIENT_STATE_XML_CONFIG_UUID_NODE	"uuid"
 #define NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE	"origin"
 #define NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE	"owner-uid"
 
 typedef struct ni_client_state_control {
-	ni_bool_t persistent;   /* allowing/disallowing ifdown flag */
-	ni_bool_t usercontrol;  /* allowing/disallowing user to change the config */
+	ni_bool_t	persistent;	/* allowing/disallowing ifdown flag */
+	ni_bool_t	usercontrol;	/* allowing/disallowing user to change the config */
+	ni_tristate_t	require_link;	/* require link-up or ignore link detection results
+					   and consider an administrative UP as sufficient? */
 } ni_client_state_control_t;
 
 typedef struct ni_client_state_config {
-	ni_uuid_t	uuid;   /* Configuration UUID marker of the interface */
-	char *	origin; /* Source of the configuration of the interface */
-	uid_t	owner;  /* User's UID who has initiated the given configuration */
+	ni_uuid_t	uuid;		/* Configuration UUID marker of the interface */
+	char *		origin;		/* Source of the configuration of the interface */
+	uid_t		owner;		/* User's UID who has initiated the given configuration */
 } ni_client_state_config_t;
 #define NI_CLIENT_STATE_CONFIG_INIT { .uuid = NI_UUID_INIT, .origin = NULL, .owner = -1U }
 
@@ -49,7 +52,10 @@ extern void		ni_client_state_config_init(ni_client_state_config_t *);
 extern void		ni_client_state_config_reset(ni_client_state_config_t *);
 extern void		ni_client_state_config_copy(ni_client_state_config_t *,
 						const ni_client_state_config_t *);
-
+extern void		ni_client_state_control_init(ni_client_state_control_t *);
+extern void		ni_client_state_control_reset(ni_client_state_control_t *);
+extern void		ni_client_state_control_copy(ni_client_state_control_t *,
+						const ni_client_state_control_t *);
 extern ni_bool_t	ni_client_state_control_is_valid(const ni_client_state_control_t *);
 extern ni_bool_t	ni_client_state_config_is_valid(const ni_client_state_config_t *);
 extern ni_bool_t	ni_client_state_is_valid(const ni_client_state_t *);

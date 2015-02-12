@@ -1290,6 +1290,13 @@ ni_objectmodel_netif_client_state_control_to_dict(const ni_client_state_control_
 		return FALSE;
 	}
 
+	if (ni_tristate_is_set(ctrl->require_link)) {
+		if (!ni_dbus_dict_add_bool(var, NI_CLIENT_STATE_XML_REQUIRE_LINK_NODE,
+			(dbus_bool_t) ni_tristate_is_disabled(ctrl->require_link))) {
+			return FALSE;
+		}
+	}
+
 	return TRUE;
 }
 
@@ -1368,6 +1375,11 @@ ni_objectmodel_netif_client_state_control_from_dict(ni_client_state_control_t *c
 
 	if (ni_dbus_dict_get_bool(var, NI_CLIENT_STATE_XML_USERCONTROL_NODE, &val))
 		ctrl->usercontrol = val;
+
+	if (ni_dbus_dict_get_bool(var, NI_CLIENT_STATE_XML_REQUIRE_LINK_NODE, &val))
+		ni_tristate_set(&ctrl->require_link, val);
+	else
+		ctrl->require_link = NI_TRISTATE_DEFAULT;
 
 	return TRUE;
 }

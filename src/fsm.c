@@ -53,6 +53,7 @@ static void			ni_ifworker_refresh_client_state(ni_ifworker_t *, ni_client_state_
 static void			ni_ifworker_set_config_origin(ni_ifworker_t *, const char *);
 static void			ni_ifworker_cancel_timeout(ni_ifworker_t *);
 static void			ni_ifworker_cancel_secondary_timeout(ni_ifworker_t *);
+static void			ni_ifworker_cancel_callbacks(ni_ifworker_t *, ni_objectmodel_callback_info_t **);
 static dbus_bool_t		ni_ifworker_waiting_for_events(ni_ifworker_t *);
 static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
 
@@ -1318,6 +1319,24 @@ ni_ifworker_get_callback(ni_ifworker_t *w, const ni_uuid_t *uuid, ni_bool_t remo
 	return NULL;
 }
 
+static void
+ni_ifworker_cancel_callbacks(ni_ifworker_t *w, ni_objectmodel_callback_info_t **callbacks)
+{
+	ni_objectmodel_callback_info_t *cb;
+
+	if (!callbacks || !*callbacks)
+		return;
+
+	ni_debug_events("%s: cancel waiting for callbacks:", w->name);
+	while ((cb = *callbacks) != NULL) {
+		*callbacks = cb->next;
+		cb->next = NULL;
+		ni_debug_events("        %s event=%s",
+				ni_uuid_print(&cb->uuid), cb->event);
+		ni_objectmodel_callback_info_free(cb);
+	}
+}
+
 static dbus_bool_t
 ni_ifworker_waiting_for_events(ni_ifworker_t *w)
 {
@@ -1353,6 +1372,7 @@ ni_ifworker_update_client_state_control(ni_ifworker_t *w)
 	if (w && w->object && !w->readonly) {
 		ctrl.persistent = w->control.persistent;
 		ctrl.usercontrol = w->control.usercontrol;
+		ctrl.require_link = w->control.link_required;
 		ni_call_set_client_state_control(w->object, &ctrl);
 		ni_client_state_control_debug(w->name, &ctrl, "update");
 	}
@@ -1521,7 +1541,7 @@ ni_ifworker_control_init(ni_ifworker_control_t *control)
 	ni_string_dup(&control->boot_stage, NULL);
 	control->persistent    = FALSE;
 	control->usercontrol   = FALSE;
-	control->link_required = FALSE;
+	control->link_required = NI_TRISTATE_DEFAULT;
 	control->link_priority = 0;
 	control->link_timeout  = NI_IFWORKER_INFINITE_TIMEOUT;
 }
@@ -1688,12 +1708,18 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 				ni_parse_uint(np->cdata, &control->link_timeout, 10);
 			if (control->link_timeout == 0)
 				control->link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
+			else
+				control->link_timeout *= 1000;
 		}
 		if ((np = xml_node_get_child(linknode, "priority"))) {
 			ni_parse_uint(np->cdata, &control->link_priority, 10);
 		}
-		if (xml_node_get_child(linknode, "require-link")) {
-			control->link_required = TRUE;
+		if ((np = xml_node_get_child(linknode, "require-link"))) {
+			if (ni_string_eq(np->cdata, "true"))
+				ni_tristate_set(&control->link_required, TRUE);
+			else
+			if (ni_string_eq(np->cdata, "false"))
+				 ni_tristate_set(&control->link_required, FALSE);
 		}
 	}
 }
@@ -1896,57 +1922,33 @@ ni_ifworker_modem_resolver_new(xml_node_t *node)
 }
 
 /*
- * Handle link-detection check
+ * Handle link-detection timeout
  */
 static void
-__ni_ifworker_link_detection_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *td)
+ni_ifworker_link_detection_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *tcx)
 {
-	ni_ifworker_t *w = td->worker;
+	ni_ifworker_t *w = tcx->worker;
+	ni_fsm_transition_t *action;
 
 	if (w->fsm.secondary_timer != timer) {
 		ni_error("%s(%s) called with unexpected timer", __func__, w->name);
+		return;
+	}
+	w->fsm.secondary_timer = NULL;
+	tcx->fsm->timeout_count++;
+
+	if ((action = w->fsm.wait_for) == NULL)
+		return;
+	if (w->fsm.state != NI_FSM_STATE_DEVICE_UP)
+		return;
+
+	if (ni_tristate_is_disabled(w->control.link_required)) {
+		ni_warn("%s: link did not came up in time, proceeding anyway", w->name);
+		ni_ifworker_cancel_callbacks(w, &action->callbacks);
+		ni_ifworker_set_state(w, action->next_state);
 	} else {
-		w->fsm.secondary_timer = NULL;
-		if (w->control.link_required)
-			ni_ifworker_fail(w, "link did not come up");
-		else {
-			ni_warn("%s: link did not come up, proceeding anyway", w->name);
-			w->fsm.state = NI_FSM_STATE_LINK_UP;
-		}
+		ni_ifworker_fail(w, "link did not come up in specified time");
 	}
-}
-
-static ni_bool_t
-ni_fsm_require_detect_link(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
-{
-	if (w->fsm.state == NI_FSM_STATE_LINK_UP)
-		return TRUE;
-
-	if (req->user_data != NULL) {
-		req->user_data = NULL;
-		if (w->control.link_timeout == 0) {
-			if (w->control.link_required)
-				return FALSE;
-
-			/* timeout==0 and link not required means ignore link detection */
-			w->fsm.state = NI_FSM_STATE_LINK_UP;
-			return TRUE;
-		}
-		ni_ifworker_set_secondary_timeout(fsm, w, w->control.link_timeout, __ni_ifworker_link_detection_timeout);
-	}
-
-	return FALSE;
-}
-
-ni_fsm_require_t *
-ni_ifworker_link_detection_new(void)
-{
-	ni_fsm_require_t *req;
-
-	req = ni_fsm_require_new(ni_fsm_require_detect_link, NULL);
-	req->user_data = (void *) 1;
-
-	return req;
 }
 
 /*
@@ -3906,6 +3908,28 @@ ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 	return 0;
 }
 
+static int
+ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
+{
+	int ret;
+
+	ret = ni_ifworker_do_common_call(fsm, w, action);
+
+	/* TODO: apply device specific link_required=auto magic here */
+
+	if (ret >= 0 && w->fsm.wait_for) {
+		if (w->control.link_timeout != NI_IFWORKER_INFINITE_TIMEOUT) {
+			ni_ifworker_set_secondary_timeout(fsm, w, w->control.link_timeout,
+					ni_ifworker_link_detection_timeout);
+		} else if (ni_tristate_is_disabled(w->control.link_required)) {
+			ni_debug_application("%s: link-up state is not required, proceeding", w->name);
+			ni_ifworker_cancel_callbacks(w, &action->callbacks);
+			ni_ifworker_set_state(w, action->next_state);
+		}
+	}
+	return ret;
+}
+
 /*
  * Finite state machine - create the device if it does not exist
  * Typically, this will create just the bare interface, like a bridge
@@ -4067,7 +4091,7 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 
 	/* This state causes to wait unlit the link negotiation / detection finished
 	 * and we can start using it, that is authenticate ... request IP setup. */
-	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_LINK_UP, "waitLinkUp", .call_overloading = TRUE),
+	TIMED_TRANSITION_UP_TO(NI_FSM_STATE_LINK_UP, link_detection, "waitLinkUp", .call_overloading = TRUE),
 
 	/* If the link requires authentication, this information can be provided
 	 * here; for instance ethernet 802.1x, wireless WPA, or PPP chap/pap.
@@ -4381,6 +4405,9 @@ ni_fsm_wait_tentative_addrs(ni_fsm_t *fsm)
 		ni_ifworker_t *w = fsm->workers.data[i];
 
 		if (!w->done || !w->device)
+			continue;
+
+		if (!ni_netdev_link_is_up(w->device))
 			continue;
 
 		ni_debug_application("%s: tentative addresses check", w->name);
