@@ -131,6 +131,7 @@ ni_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
 static void
 __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 {
+	ni_objectmodel_callback_info_t *cb;
 	ni_fsm_require_t *req_list;
 
 	if (!w)
@@ -142,8 +143,14 @@ __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 	if (w->fsm.action_table) {
 		ni_fsm_transition_t *action;
 
-		for (action = w->fsm.action_table; action->next_state; action++)
+		for (action = w->fsm.action_table; action->next_state; action++) {
 			ni_fsm_require_list_destroy(&action->require.list);
+			while ((cb = action->callbacks) != NULL) {
+				action->callbacks = cb->next;
+				cb->next = NULL;
+				ni_objectmodel_callback_info_free(cb);
+			}
+		}
 		free(w->fsm.action_table);
 	}
 	w->fsm.action_table = NULL;
