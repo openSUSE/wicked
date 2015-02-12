@@ -1660,8 +1660,14 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 	control = &w->control;
 	if ((np = xml_node_get_child(ctrlnode, "mode")) != NULL)
 		ni_string_dup(&control->mode, np->cdata);
+	else if (!ni_string_eq(control->mode, "boot"))
+		ni_string_dup(&control->mode, "boot");
+
 	if ((np = xml_node_get_child(ctrlnode, "boot-stage")) != NULL)
 		ni_string_dup(&control->boot_stage, np->cdata);
+	else if (!ni_string_eq(control->boot_stage, NULL))
+		ni_string_dup(&control->boot_stage, NULL);
+
 	if ((np = xml_node_get_child(ctrlnode, NI_CLIENT_STATE_XML_PERSISTENT_NODE)) &&
 	    !ni_parse_boolean(np->cdata, &val)) {
 		ni_ifworker_control_set_persistent(w, val);
@@ -1670,6 +1676,10 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 	    !ni_parse_boolean(np->cdata, &val)) {
 		ni_ifworker_control_set_usercontrol(w, val);
 	}
+
+	control->link_priority = 0;
+	control->link_required = NI_TRISTATE_DEFAULT;
+	control->link_timeout  = NI_IFWORKER_INFINITE_TIMEOUT;
 	if ((linknode = xml_node_get_child(ctrlnode, "link-detection")) != NULL) {
 		if ((np = xml_node_get_child(linknode, "timeout")) != NULL) {
 			if (ni_string_eq(np->cdata, "infinite"))
