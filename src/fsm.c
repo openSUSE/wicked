@@ -2709,15 +2709,6 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 		return -NI_ERROR_GENERAL_FAILURE;
 	}
 
-	for (j = 0; j < w->children.count; ++j) {
-		ni_ifworker_t *child = w->children.data[j];
-
-		if (w->control.link_required)
-			child->control.link_required = TRUE;
-		if (w->control.link_timeout < child->control.link_timeout)
-			child->control.link_timeout = w->control.link_timeout;
-	}
-
 	ni_debug_application("%s: current state=%s target state=%s",
 				w->name,
 				ni_ifworker_state_name(w->fsm.state),
