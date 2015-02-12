@@ -131,16 +131,26 @@ ni_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
 static void
 __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 {
+	ni_objectmodel_callback_info_t *cb;
 	ni_fsm_require_t *req_list;
 
 	if (!w)
 		return;
 
+	ni_ifworker_cancel_secondary_timeout(w);
+	ni_ifworker_cancel_timeout(w);
+
 	if (w->fsm.action_table) {
 		ni_fsm_transition_t *action;
 
-		for (action = w->fsm.action_table; action->next_state; action++)
+		for (action = w->fsm.action_table; action->next_state; action++) {
 			ni_fsm_require_list_destroy(&action->require.list);
+			while ((cb = action->callbacks) != NULL) {
+				action->callbacks = cb->next;
+				cb->next = NULL;
+				ni_objectmodel_callback_info_free(cb);
+			}
+		}
 		free(w->fsm.action_table);
 	}
 	w->fsm.action_table = NULL;
@@ -500,7 +510,6 @@ ni_ifworker_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *tcx)
 		ni_error("%s(%s) called with unexpected timer", __func__, w->name);
 		return;
 	}
-
 	tcx->worker->fsm.timer = NULL;
 	tcx->fsm->timeout_count++;
 
@@ -515,11 +524,13 @@ ni_ifworker_set_timeout(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout_m
 
 	ni_ifworker_cancel_timeout(w);
 
+	if (!timeout_ms || timeout_ms == NI_IFWORKER_INFINITE_TIMEOUT)
+		return;
+
 	if (!(tcx = ni_fsm_timer_ctx_new(fsm, w, ni_ifworker_timeout)))
 		return;
 
-	if (timeout_ms && timeout_ms != NI_IFWORKER_INFINITE_TIMEOUT)
-		w->fsm.timer = ni_fsm_timer_register(timeout_ms, tcx);
+	w->fsm.timer = ni_fsm_timer_register(timeout_ms, tcx);
 }
 
 static inline void
@@ -533,10 +544,9 @@ ni_ifworker_set_secondary_timeout(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long
 	if (!handler || !timeout_ms || timeout_ms == NI_IFWORKER_INFINITE_TIMEOUT)
 		return;
 
-	if (!(tcx = ni_fsm_timer_ctx_new(fsm, w, ni_ifworker_timeout)))
+	if (!(tcx = ni_fsm_timer_ctx_new(fsm, w, handler)))
 		return;
 
-	tcx = ni_fsm_timer_ctx_new(fsm, w, handler);
 	w->fsm.secondary_timer = ni_fsm_timer_register(timeout_ms, tcx);
 }
 
@@ -2592,8 +2602,6 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 			w->target_range.min = NI_FSM_STATE_NONE;
 			w->target_range.max = __NI_FSM_STATE_MAX;
 		}
-
-		ni_ifworker_cancel_timeout(w);
 	}
 }
 
@@ -2639,6 +2647,7 @@ ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 		w->object = NULL;
 	}
 
+	ni_ifworker_cancel_secondary_timeout(w);
 	ni_ifworker_cancel_timeout(w);
 
 	if (ni_ifworker_active(w))
@@ -4220,6 +4229,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 				goto release;
 
 			if (ni_ifworker_complete(w)) {
+				ni_ifworker_cancel_secondary_timeout(w);
 				ni_ifworker_cancel_timeout(w);
 				goto release;
 			}
