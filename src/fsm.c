@@ -382,7 +382,7 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 	vsnprintf(errmsg, sizeof(errmsg), fmt, ap);
 	va_end(ap);
 
-	ni_error("device %s failed: %s", w->name, errmsg);
+	ni_error("device %s: %s", w->name, ni_string_empty(errmsg) ? "failed" : errmsg);
 	w->fsm.state = NI_FSM_STATE_NONE;
 	w->failed = TRUE;
 	w->pending = FALSE;
@@ -2661,7 +2661,7 @@ ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 	ni_ifworker_cancel_timeout(w);
 
 	if (ni_ifworker_active(w))
-		ni_ifworker_fail(w, "device was deleted");
+		ni_ifworker_fail(w, "device has been deleted");
 
 	ni_fsm_clear_hierarchy(w);
 	ni_ifworker_release(w);
@@ -3968,7 +3968,7 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 		ni_debug_application("%s: calling device factory", w->name);
 		object_path = ni_call_device_new_xml(bind->service, w->name, bind->config);
 		if (object_path == NULL) {
-			ni_ifworker_fail(w, "failed to create interface");
+			ni_ifworker_fail(w, "failed to create new device");
 			return -1;
 		}
 
