@@ -2592,8 +2592,6 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 			w->target_range.min = NI_FSM_STATE_NONE;
 			w->target_range.max = __NI_FSM_STATE_MAX;
 		}
-
-		ni_ifworker_cancel_timeout(w);
 	}
 }
 
@@ -2639,6 +2637,7 @@ ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 		w->object = NULL;
 	}
 
+	ni_ifworker_cancel_secondary_timeout(w);
 	ni_ifworker_cancel_timeout(w);
 
 	if (ni_ifworker_active(w))
@@ -4217,6 +4216,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 				goto release;
 
 			if (ni_ifworker_complete(w)) {
+				ni_ifworker_cancel_secondary_timeout(w);
 				ni_ifworker_cancel_timeout(w);
 				goto release;
 			}
