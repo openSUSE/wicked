@@ -500,7 +500,6 @@ ni_ifworker_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *tcx)
 		ni_error("%s(%s) called with unexpected timer", __func__, w->name);
 		return;
 	}
-
 	tcx->worker->fsm.timer = NULL;
 	tcx->fsm->timeout_count++;
 
@@ -515,11 +514,13 @@ ni_ifworker_set_timeout(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout_m
 
 	ni_ifworker_cancel_timeout(w);
 
+	if (!timeout_ms || timeout_ms == NI_IFWORKER_INFINITE_TIMEOUT)
+		return;
+
 	if (!(tcx = ni_fsm_timer_ctx_new(fsm, w, ni_ifworker_timeout)))
 		return;
 
-	if (timeout_ms && timeout_ms != NI_IFWORKER_INFINITE_TIMEOUT)
-		w->fsm.timer = ni_fsm_timer_register(timeout_ms, tcx);
+	w->fsm.timer = ni_fsm_timer_register(timeout_ms, tcx);
 }
 
 static inline void
@@ -533,10 +534,9 @@ ni_ifworker_set_secondary_timeout(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long
 	if (!handler || !timeout_ms || timeout_ms == NI_IFWORKER_INFINITE_TIMEOUT)
 		return;
 
-	if (!(tcx = ni_fsm_timer_ctx_new(fsm, w, ni_ifworker_timeout)))
+	if (!(tcx = ni_fsm_timer_ctx_new(fsm, w, handler)))
 		return;
 
-	tcx = ni_fsm_timer_ctx_new(fsm, w, handler);
 	w->fsm.secondary_timer = ni_fsm_timer_register(timeout_ms, tcx);
 }
 
