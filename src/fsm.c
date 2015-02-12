@@ -136,6 +136,9 @@ __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 	if (!w)
 		return;
 
+	ni_ifworker_cancel_secondary_timeout(w);
+	ni_ifworker_cancel_timeout(w);
+
 	if (w->fsm.action_table) {
 		ni_fsm_transition_t *action;
 
