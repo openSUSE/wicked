@@ -865,51 +865,17 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 			mdev->monitor? ", monitored" : "");
 
 	switch (event) {
-	case NI_EVENT_DEVICE_READY:
-#if 0
-		ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
-		break;
-
+	case NI_EVENT_DEVICE_DOWN:
 	case NI_EVENT_LINK_DOWN:
-		// If we have recorded a policy for this device, it means
-		// we were the ones who took it up - so bring it down
-		// again
-#if 0
-		if (mdev->selected_policy != NULL && mdev->monitor)
-			ni_nanny_schedule_recheck(&mgr->down, w);
-#endif
-#if 0
-		ni_nanny_unschedule(&mgr->recheck, w);
-#endif
-		break;
-
-	case NI_EVENT_LINK_ASSOCIATION_LOST:
-		// If we have recorded a policy for this device, it means
-		// we were the ones who took it up - so bring it down
-		// again
-#if 0
-		if (mdev->selected_policy != NULL && mdev->monitor)
-			ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
-		break;
-
-	case NI_EVENT_LINK_SCAN_UPDATED:
-#if 0
-		if (mdev->monitor)
-			ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
-		break;
-
 	case NI_EVENT_LINK_UP:
-		// Link detection - eg for ethernet
-#if 0
-		if (mdev->monitor)
-			ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
+	case NI_EVENT_LINK_ASSOCIATION_LOST:
+	case NI_EVENT_ADDRESS_LOST:
+		/* We should restart FSM on every event when device is succeeded or failed */
+		if (ni_ifworker_complete(w))
+			ni_ifworker_rearm(w);
 		break;
-
-	default: ;
+	default:
+		break;
 	}
 }
 
