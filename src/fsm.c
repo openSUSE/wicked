@@ -132,7 +132,6 @@ ni_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
 static void
 __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 {
-	ni_objectmodel_callback_info_t *cb;
 	ni_fsm_require_t *req_list;
 
 	if (!w)
@@ -146,11 +145,7 @@ __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 
 		for (action = w->fsm.action_table; action->next_state; action++) {
 			ni_fsm_require_list_destroy(&action->require.list);
-			while ((cb = action->callbacks) != NULL) {
-				action->callbacks = cb->next;
-				cb->next = NULL;
-				ni_objectmodel_callback_info_free(cb);
-			}
+			ni_ifworker_cancel_callbacks(w, &action->callbacks);
 		}
 		free(w->fsm.action_table);
 	}
@@ -220,12 +215,12 @@ ni_ifworker_reset(ni_ifworker_t *w)
 void
 ni_ifworker_free(ni_ifworker_t *w)
 {
-	ni_string_free(&w->name);
 	ni_ifworker_reset(w);
 	if (w->device)
 		ni_netdev_put(w->device);
 	if (w->modem)
 		ni_modem_release(w->modem);
+	ni_string_free(&w->name);
 	free(w);
 }
 
