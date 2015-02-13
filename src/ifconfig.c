@@ -405,6 +405,16 @@ __ni_addrconf_action_addrs_verify(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 		if ((res = __ni_addrconf_action_addrs_verify_check(dev, lease)) <= 0)
 			return res;
 
+		/* In case the client is configured to ignore link-up
+		 * and sets IPs already at device-up [without waiting
+		 * for link detection], we detect dadfailed above, but
+		 * do not wait util the kernel verified the addresses:
+		 * kernel will not even set link local or start dad
+		 * without link-up [detected carrier / lower UP] ...
+		 */
+		if (!ni_netdev_link_is_up(dev))
+			break;
+
 		usleep(250000);
 	} while (res && loops-- > 0);
 
@@ -3092,8 +3102,13 @@ __ni_netdev_call_arp_util(ni_netdev_t *dev, ni_address_t *ap, ni_bool_t verify)
 	if (dev->link.hwaddr.type != ARPHRD_ETHER)
 		return TRUE;
 
+	/* In case the client is configured to ignore link-up
+	 * and sets IPs already at device-up [without waiting
+	 * for link detection], we cannot detect duplicate IPs
+	 * or anounce them.
+	 */
 	if (!ni_netdev_link_is_up(dev))
-		return TRUE;	/* Huh...? */
+		return TRUE;
 
 	if (dev->link.ifflags & NI_IFF_POINT_TO_POINT)
 		return TRUE;
