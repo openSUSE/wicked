@@ -4562,8 +4562,8 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	if (event_type == NI_EVENT_ADDRESS_ACQUIRED)
 		fsm->last_event_seq[NI_EVENT_ADDRESS_ACQUIRED] = fsm->event_seq;
 
-	if (event_type == NI_EVENT_DEVICE_READY) {
-		/* Refresh device on create */
+	if (event_type == NI_EVENT_DEVICE_READY || event_type == NI_EVENT_DEVICE_UP) {
+		/* Refresh device on ready & device-up */
 		if (!(w = ni_fsm_recv_new_netif_path(fsm, object_path))) {
 			ni_error("%s: Cannot find corresponding worker for %s",
 				__func__, object_path);
