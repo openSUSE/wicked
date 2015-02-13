@@ -1716,6 +1716,28 @@ ni_ifworker_extra_waittime_from_xml(ni_ifworker_t *w)
 	w->extra_waittime = (extra_timeout*1000);
 }
 
+static void
+ni_ifworker_set_autocreated(ni_ifworker_t *w)
+{
+	if (!w)
+		return;
+
+	switch (w->iftype) {
+	case NI_IFTYPE_LOOPBACK:
+		w->autocreated = TRUE;
+		break;
+	case NI_IFTYPE_DUMMY:
+		if (ni_string_eq(w->name, "dummy0")) {
+			w->autocreated = TRUE;
+			break;
+		}
+		/* Fall through */
+	default:
+		w->autocreated = FALSE;
+		break;
+	}
+}
+
 static ni_iftype_t
 ni_ifworker_iftype_from_xml(xml_node_t *config)
 {
@@ -1808,6 +1830,7 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_node_t *ifnode, const char *origin)
 	}
 
 	ni_ifworker_set_config(w, ifnode, origin);
+	ni_ifworker_set_autocreated(w);
 
 	return TRUE;
 }
