@@ -225,24 +225,43 @@ valid inside this site.
 .BR MTU
 Set the maximum transfer unit (MTU) for this interface.
 .TP
-.BR IP_OPTIONS [ \fIsuffix\fR ]
-Any other option you may want to give to the
-.B ip add add ...
-command. This string is appended to the command.
-.TP
 .B LLADDR
 Set an individual link layer address (MAC address).
 .TP
-.B LINK_OPTIONS
-Here you may add any option valid with
-.B ip link set up ...
+.B LINK_REQUIRED\ { auto \fR| yes | no\fB }
+While a working and connected link is required for further setup
+steps, such as bridge STP, link authentication, auto configuration
+of the IP address (dhcp, ...) and duplicate IP address detection
+(enabled by default), it is required in some cases to continue
+the setup without to consider the link detection (carrier), e.g.
+in well-known static "router like" setups. You may want to disable
+also the duplicate IP detection (see \fBCHECK_DUPLICATE_IP\fR and
+the \fBifsysctl(5)\fR manual page).
+
+This variable permits to configure the waiting for link-detection.
+When set to \fByes\fR, wicked waits until link has been detected
+before it continues with further steps.
+When set to \fBno\fR, wicked is permitted to continue earlier,
+without to wait for a link in a usable state.
+When set to \fBauto\fR (default), an internal logic is applied
+causing to use a "no" for tun/tap devices (which require a driver
+daemon) and for bridges with enabled STP and without any ports.
+In other cases, it behaves as "yes".
 .TP
-.B INTERFACETYPE
-In case ifup cannot determine the interface type properly, you may
-specify the correct type in this variable to override the behavior
-and force ifup to handle the interface differently than it detected
-from system or config.
-Please always open a bug report when it is required to set the type.
+.B LINK_READY_WAIT
+This variable configures how long to wait for the link detection
+(by the kernel / network card driver) in seconds.
+Default is 0, causing to not wait at all if link is not required
+or wait infinitely when link is required, so nanny can continue
+with the setup when the cable gets connected to the network card
+after a while.
+Otherwise wicked will wait until the specified number of seconds
+and continue with further steps if link is not required or fail
+and stop further steps if nanny is not used (see \fBuse-nanny\fR
+in \fBwicked-config(5)\fR).
+Note, that an ifup call has it's own, independent timeout, which
+is limitting the maximal time ifup waits before it has to report
+(see global network/config \fBWAIT_FOR_INTERFACES\fR variable).
 .TP
 .B ETHTOOL_OPTIONS [ \fIsuffix\fR ]
 If this variable is not empty, wicked will set these options on an
@@ -262,6 +281,21 @@ e.g.:
 
 The NIC driver may reject settings as not supported (e.g. '-K iface lro off')
 or also when the link is not up.
+.TP
+.B CHECK_DUPLICATE_IP\ { yes \fR| no\fB }
+Whether to detect duplicate IPv4 addresses or not. Set to "no" to disable it.
+By default, duplicate IPv4 addresses checks are enabled on ARP capable devices.
+
+The IPv6 duplicate address detection is configured by the accept_dad sysctl
+variable (see \fBifsysctl(5)\fR).
+Note, that duplicate addresses check requires a connected/usable link and
+skipped when it is not (see \fBLINK_REQUIRED\fR).
+.TP
+.B SEND_GRATUITOUS_ARP\ { auto \fR| yes | no\fB }
+When a new IPv4 has been configured on an interface, send a gratuitous ARP
+to inform the receivers about the address (trigger arp cache update).
+Default is to send gratuitous ARP, when also duplicate IPv4 address check
+is enabled and the check were sucessful.
 .TP
 .B TUNNEL, TUNNEL_*
 Using this variable you may set up different tunnels. See
@@ -289,18 +323,42 @@ is used to set the infiniband transport mode of an IB device to one of "connecte
 .B IPOIB_UMCAST
 is used to enable/disable user-multicast for an IB device by setting to "allowed"
 or "disallowed".
+.TP
+.B INTERFACETYPE
+In case ifup cannot determine the interface type properly, you may specify the
+correct type in this variable to override the behavior and force ifup to handle
+the interface differently than it detected from system or config.
+Please always open a bug report when it is required to set the type.
 
 .SH GENERAL VARIABLES
-There are some general settings in the file
+.TP
 .IR /etc/sysconfig/network/config
-and
-.IR /etc/sysconfig/network/dhcp .
-See the
-.B ifup
-.BR (8)
+.TP
+.B WAIT_FOR_INTERFACES
+Specifies how log ifup waits for interfaces in seconds by default before it stops
+processing and reports the status reached until then. This time may be automatically
+increased in case of involved devices which require more time, such as bridge with
+enabled STP (IEEE defaults may need up to 50 seconds additionally).
+
+This setting can be overridden by the \fIwicked ifup --timeout\fR option (see the
+\fBwicked(8)\fR manual page).
+Note: nanny is not affected by this ifup reporting timeout and continues to setup
+in background until ifdown or reboot.
+
+.TP
+See also the \fB/etc/sysconfig/network/config\fR configuration file and the
+\fBnetconfig(8)\fR manual page.
+
+.TP
+.IR /etc/sysconfig/network/dhcp
+.TP
+See the \fB/etc/sysconfig/network/dhcp\fR configuration file and the \fBifcfg-dhcp\fR
 manual page.
 
-.SH Multiple addresses
+
+.SH EXAMPLES
+.TP
+.B Multiple addresses
 
 You can extend the variable name
 .B IPADDR
@@ -324,13 +382,15 @@ Example:
 .PP
 
 .SH COPYRIGHT
-Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+Copyright (C) 2004-2015 SUSE LINUX GmbH, Nuernberg, Germany.
 .SH BUGS
-Please report bugs at <https://bugzilla.novell.com/index.cgi>
+Please report bugs at <@PACKAGE_BUGREPORT@>
 .SH AUTHOR
 .nf
-Michal Ludvig -- tunneling
-Pawel Wieczorkiewicz -- wicked
+Michal Ludvig
+Karol Mroz
+Pawel Wieczorkiewicz
+Marius Tomaschewski
 .fi
 .SH "SEE ALSO"
 .BR ifcfg-dhcp (5),
