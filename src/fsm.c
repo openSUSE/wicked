@@ -1941,8 +1941,10 @@ ni_ifworker_link_detection_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *
 		ni_warn("%s: link did not came up in time, proceeding anyway", w->name);
 		ni_ifworker_cancel_callbacks(w, &action->callbacks);
 		ni_ifworker_set_state(w, action->next_state);
+	} else if (ni_config_use_nanny()) {
+		ni_warn("%s: link did not came up in time, proceeding anyway", w->name);
 	} else {
-		ni_ifworker_fail(w, "link did not come up in specified time");
+		ni_ifworker_fail(w, "link did not came up in specified time");
 	}
 }
 
