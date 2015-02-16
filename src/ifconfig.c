@@ -90,6 +90,10 @@
 #define TUNNEL4_MODULE_NAME "tunnel4"
 #endif
 
+#ifndef DUMMY_MODULE_NAME
+#define DUMMY_MODULE_NAME "dummy"
+#endif
+
 static int	__ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_addrconf_lease_t       *new_lease);
@@ -844,6 +848,7 @@ int
 ni_system_dummy_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 						ni_netdev_t **dev_ret)
 {
+	unsigned int dummy0[2] = { 0, 0 };
 	ni_netdev_t *dev;
 	int err;
 
@@ -866,11 +871,48 @@ ni_system_dummy_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 		return -NI_ERROR_DEVICE_EXISTS;
 	}
 
+	if (!dummy0[0] && ni_modprobe(DUMMY_MODULE_NAME, NULL) < 0)
+			ni_warn("failed to load %s module", DUMMY_MODULE_NAME);
+
+	dummy0[1] = if_nametoindex("dummy0");
+	if (dummy0[1] && !dummy0[0]) {
+		ni_debug_ifconfig("%s: using modprobe created dummy0[%u]",
+				cfg->name, dummy0[1]);
+
+		if (!ni_string_eq("dummy0", cfg->name)) {
+			if ((err = __ni_rtnl_link_rename(dummy0[1], "dummy0", cfg->name)) < 0)
+				return err;
+		}
+
+		if (!(dev = ni_netdev_new(cfg->name, dummy0[1]))) {
+			ni_error("%s: unable to allocate %s netdev structure for index %u: %m",
+				cfg->name, "dummy", dummy0[1]);
+			return -1;
+		}
+
+		__ni_device_refresh_link_info(nc, &dev->link);
+		dev->created = 1;
+		dev->link.ifflags &= ~(NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
+		ni_netconfig_device_append(nc, ni_netdev_get(dev));
+
+		*dev_ret = dev;
+		if (dev->link.type != NI_IFTYPE_DUMMY) {
+			ni_error("%s: created %s interface, but found a %s type at index %u",
+				cfg->name, "dummy", ni_linktype_type_to_name(dev->link.type),
+				dummy0[1]);
+			return -NI_ERROR_DEVICE_EXISTS;
+		}
+		ni_debug_ifconfig("%s: created %s interface with index %u",
+			dev->name, ni_linktype_type_to_name(dev->link.type),
+			dev->link.ifindex);
+		return 0;
+	}
+
 	ni_debug_ifconfig("%s: creating dummy interface", cfg->name);
 
 	if ((err = __ni_rtnl_link_create(cfg)) && abs(err) != NLE_EXIST) {
 		ni_error("unable to create dummy interface %s", cfg->name);
-		return -1;
+		return err;
 	}
 
 	return __ni_system_netdev_create(nc, cfg->name, 0, NI_IFTYPE_DUMMY, dev_ret);
