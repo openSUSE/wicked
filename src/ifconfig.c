@@ -105,6 +105,7 @@ static int	__ni_rtnl_link_change(ni_netdev_t *dev, const ni_netdev_t *cfg);
 
 static int	__ni_rtnl_link_change_mtu(ni_netdev_t *dev, unsigned int mtu);
 static int	__ni_rtnl_link_change_hwaddr(ni_netdev_t *dev, const ni_hwaddr_t *hwaddr);
+static int	__ni_rtnl_link_rename(unsigned int ifindex, const char *oldname, const char *newname);
 
 static int	__ni_rtnl_link_up(const ni_netdev_t *, const ni_netdev_req_t *);
 static int	__ni_rtnl_link_down(const ni_netdev_t *);
@@ -2353,6 +2354,44 @@ nla_put_failure:
 failed:
 	nlmsg_free(msg);
 	return -1;
+}
+
+int
+__ni_rtnl_link_rename(unsigned int ifindex, const char *oldname, const char *newname)
+{
+	struct ifinfomsg ifi;
+	struct nl_msg *msg;
+	int err = -1;
+
+	if (ifindex == 0 || ni_string_empty(newname))
+		return -1;
+
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+	ifi.ifi_index = ifindex;
+
+	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST);
+	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	if ((err = __ni_rtnl_link_put_ifname(msg, newname)) < 0)
+		goto nla_put_failure;
+
+	if ((err = ni_nl_talk(msg, NULL)))
+		goto failed;
+
+	ni_debug_ifconfig("%s[%u]: successfully renamed device to %s",
+			oldname ? oldname : "", ifindex, newname);
+
+	nlmsg_free(msg);
+	return 0;
+
+nla_put_failure:
+	ni_error("%s[%u]: failed to encode netlink message to rename device to %s",
+			oldname ? oldname : "", ifindex, newname);
+failed:
+	nlmsg_free(msg);
+	return err;
 }
 
 /*
