@@ -137,6 +137,7 @@ struct ni_ifworker {
 				done		: 1,
 				kickstarted	: 1,
 				pending		: 1,
+				autocreated	: 1,
 				readonly	: 1;
 
 	ni_ifworker_control_t	control;

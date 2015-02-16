@@ -417,8 +417,13 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, const 
 	if (!w->kickstarted) {
 		if (ni_ifworker_is_factory_device(w))
 			ni_nanny_schedule_recheck(&mgr->recheck, w);
-		else if (schedule && w->device)
-			ni_nanny_schedule_recheck(&mgr->recheck, w);
+		else if (w->device) {
+			/* If device exists and we are discovereing and applying old policies, we should reschedule.
+			 * Same if device exists and is automatically created by the kernel
+			 */
+			if (schedule || w->autocreated)
+				ni_nanny_schedule_recheck(&mgr->recheck, w);
+		}
 	}
 
 	/* Register the policy */
