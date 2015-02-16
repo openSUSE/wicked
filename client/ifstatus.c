@@ -283,7 +283,8 @@ __ifstatus_of_device(ni_netdev_t *dev)
 	if (!ni_string_empty(dev->link.masterdev.name))
 		return NI_WICKED_ST_ENSLAVED;
 
-	if (!ni_ifcheck_device_link_is_up(dev))
+	if (!ni_ifcheck_device_link_is_up(dev) &&
+	    ni_ifcheck_device_link_required(dev))
 		return NI_WICKED_ST_IN_PROGRESS;
 
 	__ifstatus_of_device_leases(dev, &st);

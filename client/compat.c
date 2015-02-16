@@ -1487,13 +1487,18 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 				ni_format_boolean(control->usercontrol));
 		}
 
-		if (control->link_timeout || control->link_priority || control->link_required) {
+		if (control->link_timeout || control->link_priority || ni_tristate_is_set(control->link_required)) {
 			linkdet = xml_node_create(child, "link-detection");
-			if (control->link_timeout)
-				xml_node_new_element("timeout", linkdet,
+			if (linkdet) {
+				if (ni_tristate_is_set(control->link_required)) {
+					xml_node_new_element("require-link", linkdet,
+						ni_format_boolean(ni_tristate_is_enabled(control->link_required)));
+				}
+				if (control->link_timeout) {
+					xml_node_new_element("timeout", linkdet,
 						ni_sprint_timeout(control->link_timeout));
-			if (control->link_required)
-				(void) xml_node_new("require-link", linkdet);
+				}
+			}
 		}
 	}
 

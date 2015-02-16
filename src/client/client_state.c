@@ -87,6 +87,12 @@ ni_client_state_control_print_xml(const ni_client_state_control_t *ctrl, xml_nod
 			ni_format_boolean(ctrl->usercontrol)))
 		return FALSE;
 
+	if (ni_tristate_is_set(ctrl->require_link)) {
+		if (!xml_node_new_element(NI_CLIENT_STATE_XML_REQUIRE_LINK_NODE, parent,
+			ni_format_boolean(ni_tristate_is_enabled(ctrl->require_link))))
+			return FALSE;
+	}
+
 	return TRUE;
 }
 
@@ -156,6 +162,15 @@ ni_client_state_control_parse_xml(const xml_node_t *node, ni_client_state_contro
 	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_USERCONTROL_NODE);
 	if (child && ni_parse_boolean(child->cdata, &ctrl->usercontrol) != 0)
 		return FALSE;
+
+	/* <require-link> node */
+	child = xml_node_get_child(parent, NI_CLIENT_STATE_XML_REQUIRE_LINK_NODE);
+	if (child) {
+		ni_bool_t require_link;
+		if (ni_parse_boolean(child->cdata, &require_link) != 0)
+			return FALSE;
+		ni_tristate_set(&ctrl->require_link, require_link);
+	}
 
 	return TRUE;
 }
@@ -246,6 +261,7 @@ ni_client_state_new(ni_fsm_state_t state)
 	ni_client_state_t *client_state;
 
 	client_state = xcalloc(1, sizeof(*client_state));
+	ni_client_state_control_init(&client_state->control);
 	ni_client_state_config_init(&client_state->config);
 
 	return client_state;
@@ -255,7 +271,7 @@ void
 ni_client_state_init(ni_client_state_t *client_state)
 {
 	if (client_state) {
-		memset(&client_state->control, 0, sizeof(client_state->control));
+		ni_client_state_control_init(&client_state->control);
 		ni_client_state_config_init(&client_state->config);
 	}
 }
@@ -264,7 +280,7 @@ void
 ni_client_state_reset(ni_client_state_t *client_state)
 {
 	if (client_state) {
-		memset(&client_state->control, 0, sizeof(client_state->control));
+		ni_client_state_control_reset(&client_state->control);
 		ni_client_state_config_reset(&client_state->config);
 	}
 }
@@ -276,7 +292,7 @@ ni_client_state_clone(ni_client_state_t *client_state)
 
 	if (client_state) {
 		copy = xcalloc(1, sizeof(*copy));
-		copy->control = client_state->control;
+		ni_client_state_control_copy(&copy->control, &client_state->control);
 		ni_client_state_config_copy(&copy->config, &client_state->config);
 	}
 	return copy;
@@ -322,6 +338,29 @@ ni_client_state_config_copy(ni_client_state_config_t *conf,
 			ni_client_state_config_reset(conf);
 		}
 	}
+}
+
+void
+ni_client_state_control_init(ni_client_state_control_t *ctrl)
+{
+	if (ctrl) {
+		memset(ctrl, 0, sizeof(*ctrl));
+		ctrl->require_link = NI_TRISTATE_DEFAULT;
+	}
+}
+
+void
+ni_client_state_control_reset(ni_client_state_control_t *ctrl)
+{
+	ni_client_state_control_init(ctrl);
+}
+
+void
+ni_client_state_control_copy(ni_client_state_control_t *dst,
+			const ni_client_state_control_t *src)
+{
+	if (src && dst)
+		*dst = *src;
 }
 
 ni_bool_t
@@ -505,13 +544,16 @@ ni_client_state_control_debug(const char *name, const ni_client_state_control_t 
 	if (!ctrl)
 		return;
 
-	ni_debug_application("%s: %s <%s> %s: %s=%s, %s=%s",
+	ni_debug_application("%s: %s <%s> %s: %s=%s, %s=%s, %s=%s",
 		name ? name : "unknown", action ? action : "unknown",
 		NI_CLIENT_STATE_XML_NODE, NI_CLIENT_STATE_XML_CONTROL_NODE,
 		NI_CLIENT_STATE_XML_PERSISTENT_NODE,
 		ni_format_boolean(ctrl->persistent),
 		NI_CLIENT_STATE_XML_USERCONTROL_NODE,
-		ni_format_boolean(ctrl->usercontrol)
+		ni_format_boolean(ctrl->usercontrol),
+		NI_CLIENT_STATE_XML_REQUIRE_LINK_NODE,
+		!ni_tristate_is_set(ctrl->require_link) ? "auto" :
+		ni_format_boolean(ni_tristate_is_enabled(ctrl->require_link))
 	);
 }
 

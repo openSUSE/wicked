@@ -83,6 +83,20 @@ ni_ifcheck_device_is_persistent(ni_netdev_t *dev)
 }
 
 ni_bool_t
+ni_ifcheck_device_link_required(ni_netdev_t *dev)
+{
+	ni_client_state_t *cs = dev ? dev->client_state : NULL;
+	ni_tristate_t link_required = NI_TRISTATE_DEFAULT;
+
+	if (cs && ni_tristate_is_set(cs->control.require_link))
+		link_required = cs->control.require_link;
+	else if (dev)
+		link_required = ni_netdev_guess_link_required(dev);
+
+	return !ni_tristate_is_disabled(link_required);
+}
+
+ni_bool_t
 ni_ifcheck_worker_device_exists(ni_ifworker_t *w)
 {
 	return w && w->device;
@@ -103,7 +117,14 @@ ni_ifcheck_worker_device_enabled(ni_ifworker_t *w)
 ni_bool_t
 ni_ifcheck_worker_device_link_required(ni_ifworker_t *w)
 {
-	return w && w->control.link_required;
+	ni_tristate_t link_required = NI_TRISTATE_DEFAULT;
+
+	if (w && ni_tristate_is_set(w->control.link_required))
+		link_required = w->control.link_required;
+	else if (w && w->device)
+		link_required = ni_netdev_guess_link_required(w->device);
+
+	return !ni_tristate_is_disabled(link_required);
 }
 
 ni_bool_t

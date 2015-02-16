@@ -27,6 +27,7 @@
 #include <wicked/bridge.h>
 
 #include "client/ifconfig.h"
+#include "appconfig.h"
 #include "util_priv.h"
 
 static ni_fsm_user_prompt_fn_t *ni_fsm_user_prompt_fn;
@@ -53,6 +54,7 @@ static void			ni_ifworker_refresh_client_state(ni_ifworker_t *, ni_client_state_
 static void			ni_ifworker_set_config_origin(ni_ifworker_t *, const char *);
 static void			ni_ifworker_cancel_timeout(ni_ifworker_t *);
 static void			ni_ifworker_cancel_secondary_timeout(ni_ifworker_t *);
+static void			ni_ifworker_cancel_callbacks(ni_ifworker_t *, ni_objectmodel_callback_info_t **);
 static dbus_bool_t		ni_ifworker_waiting_for_events(ni_ifworker_t *);
 static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
 
@@ -131,7 +133,6 @@ ni_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
 static void
 __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 {
-	ni_objectmodel_callback_info_t *cb;
 	ni_fsm_require_t *req_list;
 
 	if (!w)
@@ -145,11 +146,7 @@ __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 
 		for (action = w->fsm.action_table; action->next_state; action++) {
 			ni_fsm_require_list_destroy(&action->require.list);
-			while ((cb = action->callbacks) != NULL) {
-				action->callbacks = cb->next;
-				cb->next = NULL;
-				ni_objectmodel_callback_info_free(cb);
-			}
+			ni_ifworker_cancel_callbacks(w, &action->callbacks);
 		}
 		free(w->fsm.action_table);
 	}
@@ -219,12 +216,12 @@ ni_ifworker_reset(ni_ifworker_t *w)
 void
 ni_ifworker_free(ni_ifworker_t *w)
 {
-	ni_string_free(&w->name);
 	ni_ifworker_reset(w);
 	if (w->device)
 		ni_netdev_put(w->device);
 	if (w->modem)
 		ni_modem_release(w->modem);
+	ni_string_free(&w->name);
 	free(w);
 }
 
@@ -382,7 +379,7 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 	vsnprintf(errmsg, sizeof(errmsg), fmt, ap);
 	va_end(ap);
 
-	ni_error("device %s failed: %s", w->name, errmsg);
+	ni_error("device %s: %s", w->name, ni_string_empty(errmsg) ? "failed" : errmsg);
 	w->fsm.state = NI_FSM_STATE_NONE;
 	w->failed = TRUE;
 	w->pending = FALSE;
@@ -1318,6 +1315,24 @@ ni_ifworker_get_callback(ni_ifworker_t *w, const ni_uuid_t *uuid, ni_bool_t remo
 	return NULL;
 }
 
+static void
+ni_ifworker_cancel_callbacks(ni_ifworker_t *w, ni_objectmodel_callback_info_t **callbacks)
+{
+	ni_objectmodel_callback_info_t *cb;
+
+	if (!callbacks || !*callbacks)
+		return;
+
+	ni_debug_events("%s: cancel waiting for callbacks:", w->name);
+	while ((cb = *callbacks) != NULL) {
+		*callbacks = cb->next;
+		cb->next = NULL;
+		ni_debug_events("        %s event=%s",
+				ni_uuid_print(&cb->uuid), cb->event);
+		ni_objectmodel_callback_info_free(cb);
+	}
+}
+
 static dbus_bool_t
 ni_ifworker_waiting_for_events(ni_ifworker_t *w)
 {
@@ -1353,6 +1368,7 @@ ni_ifworker_update_client_state_control(ni_ifworker_t *w)
 	if (w && w->object && !w->readonly) {
 		ctrl.persistent = w->control.persistent;
 		ctrl.usercontrol = w->control.usercontrol;
+		ctrl.require_link = w->control.link_required;
 		ni_call_set_client_state_control(w->object, &ctrl);
 		ni_client_state_control_debug(w->name, &ctrl, "update");
 	}
@@ -1521,7 +1537,7 @@ ni_ifworker_control_init(ni_ifworker_control_t *control)
 	ni_string_dup(&control->boot_stage, NULL);
 	control->persistent    = FALSE;
 	control->usercontrol   = FALSE;
-	control->link_required = FALSE;
+	control->link_required = NI_TRISTATE_DEFAULT;
 	control->link_priority = 0;
 	control->link_timeout  = NI_IFWORKER_INFINITE_TIMEOUT;
 }
@@ -1660,8 +1676,14 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 	control = &w->control;
 	if ((np = xml_node_get_child(ctrlnode, "mode")) != NULL)
 		ni_string_dup(&control->mode, np->cdata);
+	else if (!ni_string_eq(control->mode, "boot"))
+		ni_string_dup(&control->mode, "boot");
+
 	if ((np = xml_node_get_child(ctrlnode, "boot-stage")) != NULL)
 		ni_string_dup(&control->boot_stage, np->cdata);
+	else if (!ni_string_eq(control->boot_stage, NULL))
+		ni_string_dup(&control->boot_stage, NULL);
+
 	if ((np = xml_node_get_child(ctrlnode, NI_CLIENT_STATE_XML_PERSISTENT_NODE)) &&
 	    !ni_parse_boolean(np->cdata, &val)) {
 		ni_ifworker_control_set_persistent(w, val);
@@ -1670,6 +1692,10 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 	    !ni_parse_boolean(np->cdata, &val)) {
 		ni_ifworker_control_set_usercontrol(w, val);
 	}
+
+	control->link_priority = 0;
+	control->link_required = NI_TRISTATE_DEFAULT;
+	control->link_timeout  = NI_IFWORKER_INFINITE_TIMEOUT;
 	if ((linknode = xml_node_get_child(ctrlnode, "link-detection")) != NULL) {
 		if ((np = xml_node_get_child(linknode, "timeout")) != NULL) {
 			if (ni_string_eq(np->cdata, "infinite"))
@@ -1678,12 +1704,18 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 				ni_parse_uint(np->cdata, &control->link_timeout, 10);
 			if (control->link_timeout == 0)
 				control->link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
+			else
+				control->link_timeout *= 1000;
 		}
 		if ((np = xml_node_get_child(linknode, "priority"))) {
 			ni_parse_uint(np->cdata, &control->link_priority, 10);
 		}
-		if (xml_node_get_child(linknode, "require-link")) {
-			control->link_required = TRUE;
+		if ((np = xml_node_get_child(linknode, "require-link"))) {
+			if (ni_string_eq(np->cdata, "true"))
+				ni_tristate_set(&control->link_required, TRUE);
+			else
+			if (ni_string_eq(np->cdata, "false"))
+				 ni_tristate_set(&control->link_required, FALSE);
 		}
 	}
 }
@@ -1886,57 +1918,35 @@ ni_ifworker_modem_resolver_new(xml_node_t *node)
 }
 
 /*
- * Handle link-detection check
+ * Handle link-detection timeout
  */
 static void
-__ni_ifworker_link_detection_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *td)
+ni_ifworker_link_detection_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *tcx)
 {
-	ni_ifworker_t *w = td->worker;
+	ni_ifworker_t *w = tcx->worker;
+	ni_fsm_transition_t *action;
 
 	if (w->fsm.secondary_timer != timer) {
 		ni_error("%s(%s) called with unexpected timer", __func__, w->name);
+		return;
+	}
+	w->fsm.secondary_timer = NULL;
+	tcx->fsm->timeout_count++;
+
+	if ((action = w->fsm.wait_for) == NULL)
+		return;
+	if (w->fsm.state != NI_FSM_STATE_DEVICE_UP)
+		return;
+
+	if (ni_tristate_is_disabled(w->control.link_required)) {
+		ni_warn("%s: link did not came up in time, proceeding anyway", w->name);
+		ni_ifworker_cancel_callbacks(w, &action->callbacks);
+		ni_ifworker_set_state(w, action->next_state);
+	} else if (ni_config_use_nanny()) {
+		ni_warn("%s: link did not came up in time, proceeding anyway", w->name);
 	} else {
-		w->fsm.secondary_timer = NULL;
-		if (w->control.link_required)
-			ni_ifworker_fail(w, "link did not come up");
-		else {
-			ni_warn("%s: link did not come up, proceeding anyway", w->name);
-			w->fsm.state = NI_FSM_STATE_LINK_UP;
-		}
+		ni_ifworker_fail(w, "link did not came up in specified time");
 	}
-}
-
-static ni_bool_t
-ni_fsm_require_detect_link(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
-{
-	if (w->fsm.state == NI_FSM_STATE_LINK_UP)
-		return TRUE;
-
-	if (req->user_data != NULL) {
-		req->user_data = NULL;
-		if (w->control.link_timeout == 0) {
-			if (w->control.link_required)
-				return FALSE;
-
-			/* timeout==0 and link not required means ignore link detection */
-			w->fsm.state = NI_FSM_STATE_LINK_UP;
-			return TRUE;
-		}
-		ni_ifworker_set_secondary_timeout(fsm, w, w->control.link_timeout, __ni_ifworker_link_detection_timeout);
-	}
-
-	return FALSE;
-}
-
-ni_fsm_require_t *
-ni_ifworker_link_detection_new(void)
-{
-	ni_fsm_require_t *req;
-
-	req = ni_fsm_require_new(ni_fsm_require_detect_link, NULL);
-	req->user_data = (void *) 1;
-
-	return req;
 }
 
 /*
@@ -2651,7 +2661,7 @@ ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 	ni_ifworker_cancel_timeout(w);
 
 	if (ni_ifworker_active(w))
-		ni_ifworker_fail(w, "device was deleted");
+		ni_ifworker_fail(w, "device has been deleted");
 
 	ni_fsm_clear_hierarchy(w);
 	ni_ifworker_release(w);
@@ -2697,15 +2707,6 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 				ni_ifworker_state_name(min_state),
 				ni_ifworker_state_name(max_state));
 		return -NI_ERROR_GENERAL_FAILURE;
-	}
-
-	for (j = 0; j < w->children.count; ++j) {
-		ni_ifworker_t *child = w->children.data[j];
-
-		if (w->control.link_required)
-			child->control.link_required = TRUE;
-		if (w->control.link_timeout < child->control.link_timeout)
-			child->control.link_timeout = w->control.link_timeout;
 	}
 
 	ni_debug_application("%s: current state=%s target state=%s",
@@ -3905,6 +3906,29 @@ ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 	return 0;
 }
 
+static int
+ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
+{
+	int ret;
+
+	ret = ni_ifworker_do_common_call(fsm, w, action);
+
+	if (!ni_tristate_is_set(w->control.link_required) && w->device)
+		w->control.link_required = ni_netdev_guess_link_required(w->device);
+
+	if (ret >= 0 && w->fsm.wait_for) {
+		if (w->control.link_timeout != NI_IFWORKER_INFINITE_TIMEOUT) {
+			ni_ifworker_set_secondary_timeout(fsm, w, w->control.link_timeout,
+					ni_ifworker_link_detection_timeout);
+		} else if (ni_tristate_is_disabled(w->control.link_required)) {
+			ni_debug_application("%s: link-up state is not required, proceeding", w->name);
+			ni_ifworker_cancel_callbacks(w, &action->callbacks);
+			ni_ifworker_set_state(w, action->next_state);
+		}
+	}
+	return ret;
+}
+
 /*
  * Finite state machine - create the device if it does not exist
  * Typically, this will create just the bare interface, like a bridge
@@ -3958,7 +3982,7 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 		ni_debug_application("%s: calling device factory", w->name);
 		object_path = ni_call_device_new_xml(bind->service, w->name, bind->config);
 		if (object_path == NULL) {
-			ni_ifworker_fail(w, "failed to create interface");
+			ni_ifworker_fail(w, "failed to create new device");
 			return -1;
 		}
 
@@ -4066,7 +4090,7 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 
 	/* This state causes to wait unlit the link negotiation / detection finished
 	 * and we can start using it, that is authenticate ... request IP setup. */
-	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_LINK_UP, "waitLinkUp", .call_overloading = TRUE),
+	TIMED_TRANSITION_UP_TO(NI_FSM_STATE_LINK_UP, link_detection, "waitLinkUp", .call_overloading = TRUE),
 
 	/* If the link requires authentication, this information can be provided
 	 * here; for instance ethernet 802.1x, wireless WPA, or PPP chap/pap.
@@ -4382,6 +4406,9 @@ ni_fsm_wait_tentative_addrs(ni_fsm_t *fsm)
 		if (!w->done || !w->device)
 			continue;
 
+		if (!ni_netdev_link_is_up(w->device))
+			continue;
+
 		ni_debug_application("%s: tentative addresses check", w->name);
 
 		if (__ni_fsm_device_with_tentative_addrs(w->device)) {
@@ -4533,8 +4560,8 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	if (event_type == NI_EVENT_ADDRESS_ACQUIRED)
 		fsm->last_event_seq[NI_EVENT_ADDRESS_ACQUIRED] = fsm->event_seq;
 
-	if (event_type == NI_EVENT_DEVICE_READY) {
-		/* Refresh device on create */
+	if (event_type == NI_EVENT_DEVICE_READY || event_type == NI_EVENT_DEVICE_UP) {
+		/* Refresh device on ready & device-up */
 		if (!(w = ni_fsm_recv_new_netif_path(fsm, object_path))) {
 			ni_error("%s: Cannot find corresponding worker for %s",
 				__func__, object_path);

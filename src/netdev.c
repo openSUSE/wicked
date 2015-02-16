@@ -169,6 +169,28 @@ ni_netdev_device_is_ready(ni_netdev_t *dev)
 	return dev ? dev->link.ifflags & NI_IFF_DEVICE_READY : FALSE;
 }
 
+ni_tristate_t
+ni_netdev_guess_link_required(const ni_netdev_t *dev)
+{
+	ni_tristate_t link_required = NI_TRISTATE_DEFAULT;
+
+	switch (dev->link.type) {
+	case NI_IFTYPE_TUN:
+	case NI_IFTYPE_TAP:
+		ni_tristate_set(&link_required, FALSE);
+		break;
+
+	case NI_IFTYPE_BRIDGE:
+		if (dev->bridge && dev->bridge->stp && !dev->bridge->ports.count)
+			ni_tristate_set(&link_required, FALSE);
+		break;
+
+	default:
+		break;
+	}
+	return link_required;
+}
+
 /*
  * This is a convenience function for adding addresses to an interface.
  */

@@ -34,6 +34,7 @@ extern ni_bool_t	ni_ifcheck_device_is_up(ni_netdev_t *);
 extern ni_bool_t	ni_ifcheck_device_link_is_up(ni_netdev_t *);
 extern ni_bool_t	ni_ifcheck_device_network_is_up(ni_netdev_t *);
 extern ni_bool_t	ni_ifcheck_device_is_persistent(ni_netdev_t *);
+extern ni_bool_t	ni_ifcheck_device_link_required(ni_netdev_t *);
 
 extern ni_bool_t	ni_ifcheck_worker_device_exists(ni_ifworker_t *);
 extern ni_bool_t	ni_ifcheck_worker_device_enabled(ni_ifworker_t *);

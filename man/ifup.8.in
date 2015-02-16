@@ -114,8 +114,8 @@ routes (5) for a detailed description.
 .SH GENERAL VARIABLES
 There are some general settings in the file
 .IR /etc/sysconfig/network/config .
-If needed you can also set every general variable as an individual variable in
-the
+If needed you can also set most of the general variables as an individual variable
+in the
 .B ifcfg-*
 files.
 Please see the description of these variables in
