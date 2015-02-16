@@ -362,7 +362,8 @@ ni_fsm_require_list_insert(ni_fsm_require_t **list, ni_fsm_require_t *req)
 static void
 __ni_ifworker_done(ni_ifworker_t *w)
 {
-	w->fsm.action_table = NULL;
+	__ni_ifworker_reset_action_table(w);
+
 	if (w->completion.callback)
 		w->completion.callback(w);
 	w->done = 1;
