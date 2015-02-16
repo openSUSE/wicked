@@ -27,6 +27,7 @@
 #include <wicked/bridge.h>
 
 #include "client/ifconfig.h"
+#include "appconfig.h"
 #include "util_priv.h"
 
 static ni_fsm_user_prompt_fn_t *ni_fsm_user_prompt_fn;
