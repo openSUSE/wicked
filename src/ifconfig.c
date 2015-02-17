@@ -90,6 +90,10 @@
 #define TUNNEL4_MODULE_NAME "tunnel4"
 #endif
 
+#ifndef DUMMY_MODULE_NAME
+#define DUMMY_MODULE_NAME "dummy"
+#endif
+
 static int	__ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_addrconf_lease_t       *new_lease);
@@ -105,6 +109,7 @@ static int	__ni_rtnl_link_change(ni_netdev_t *dev, const ni_netdev_t *cfg);
 
 static int	__ni_rtnl_link_change_mtu(ni_netdev_t *dev, unsigned int mtu);
 static int	__ni_rtnl_link_change_hwaddr(ni_netdev_t *dev, const ni_hwaddr_t *hwaddr);
+static int	__ni_rtnl_link_rename(unsigned int ifindex, const char *oldname, const char *newname);
 
 static int	__ni_rtnl_link_up(const ni_netdev_t *, const ni_netdev_req_t *);
 static int	__ni_rtnl_link_down(const ni_netdev_t *);
@@ -853,6 +858,7 @@ int
 ni_system_dummy_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 						ni_netdev_t **dev_ret)
 {
+	unsigned int dummy0[2] = { 0, 0 };
 	ni_netdev_t *dev;
 	int err;
 
@@ -875,11 +881,48 @@ ni_system_dummy_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 		return -NI_ERROR_DEVICE_EXISTS;
 	}
 
+	if (!dummy0[0] && ni_modprobe(DUMMY_MODULE_NAME, NULL) < 0)
+			ni_warn("failed to load %s module", DUMMY_MODULE_NAME);
+
+	dummy0[1] = if_nametoindex("dummy0");
+	if (dummy0[1] && !dummy0[0]) {
+		ni_debug_ifconfig("%s: using modprobe created dummy0[%u]",
+				cfg->name, dummy0[1]);
+
+		if (!ni_string_eq("dummy0", cfg->name)) {
+			if ((err = __ni_rtnl_link_rename(dummy0[1], "dummy0", cfg->name)) < 0)
+				return err;
+		}
+
+		if (!(dev = ni_netdev_new(cfg->name, dummy0[1]))) {
+			ni_error("%s: unable to allocate %s netdev structure for index %u: %m",
+				cfg->name, "dummy", dummy0[1]);
+			return -1;
+		}
+
+		__ni_device_refresh_link_info(nc, &dev->link);
+		dev->created = 1;
+		dev->link.ifflags &= ~(NI_IFF_DEVICE_UP | NI_IFF_LINK_UP | NI_IFF_NETWORK_UP);
+		ni_netconfig_device_append(nc, ni_netdev_get(dev));
+
+		*dev_ret = dev;
+		if (dev->link.type != NI_IFTYPE_DUMMY) {
+			ni_error("%s: created %s interface, but found a %s type at index %u",
+				cfg->name, "dummy", ni_linktype_type_to_name(dev->link.type),
+				dummy0[1]);
+			return -NI_ERROR_DEVICE_EXISTS;
+		}
+		ni_debug_ifconfig("%s: created %s interface with index %u",
+			dev->name, ni_linktype_type_to_name(dev->link.type),
+			dev->link.ifindex);
+		return 0;
+	}
+
 	ni_debug_ifconfig("%s: creating dummy interface", cfg->name);
 
 	if ((err = __ni_rtnl_link_create(cfg)) && abs(err) != NLE_EXIST) {
 		ni_error("unable to create dummy interface %s", cfg->name);
-		return -1;
+		return err;
 	}
 
 	return __ni_system_netdev_create(nc, cfg->name, 0, NI_IFTYPE_DUMMY, dev_ret);
@@ -2363,6 +2406,44 @@ nla_put_failure:
 failed:
 	nlmsg_free(msg);
 	return -1;
+}
+
+int
+__ni_rtnl_link_rename(unsigned int ifindex, const char *oldname, const char *newname)
+{
+	struct ifinfomsg ifi;
+	struct nl_msg *msg;
+	int err = -1;
+
+	if (ifindex == 0 || ni_string_empty(newname))
+		return -1;
+
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+	ifi.ifi_index = ifindex;
+
+	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST);
+	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	if ((err = __ni_rtnl_link_put_ifname(msg, newname)) < 0)
+		goto nla_put_failure;
+
+	if ((err = ni_nl_talk(msg, NULL)))
+		goto failed;
+
+	ni_debug_ifconfig("%s[%u]: successfully renamed device to %s",
+			oldname ? oldname : "", ifindex, newname);
+
+	nlmsg_free(msg);
+	return 0;
+
+nla_put_failure:
+	ni_error("%s[%u]: failed to encode netlink message to rename device to %s",
+			oldname ? oldname : "", ifindex, newname);
+failed:
+	nlmsg_free(msg);
+	return err;
 }
 
 /*
