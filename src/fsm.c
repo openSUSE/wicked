@@ -131,6 +131,20 @@ ni_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
 }
 
 static void
+__ni_ifworker_reset_action_table(ni_ifworker_t *w)
+{
+	ni_fsm_transition_t *action;
+
+	for (action = w->fsm.action_table; action && action->next_state; action++) {
+		ni_fsm_require_list_destroy(&action->require.list);
+		ni_ifworker_cancel_callbacks(w, &action->callbacks);
+	}
+	free(w->fsm.action_table);
+
+	w->fsm.action_table = NULL;
+}
+
+static void
 __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 {
 	ni_fsm_require_t *req_list;
@@ -141,16 +155,7 @@ __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 	ni_ifworker_cancel_secondary_timeout(w);
 	ni_ifworker_cancel_timeout(w);
 
-	if (w->fsm.action_table) {
-		ni_fsm_transition_t *action;
-
-		for (action = w->fsm.action_table; action->next_state; action++) {
-			ni_fsm_require_list_destroy(&action->require.list);
-			ni_ifworker_cancel_callbacks(w, &action->callbacks);
-		}
-		free(w->fsm.action_table);
-	}
-	w->fsm.action_table = NULL;
+	__ni_ifworker_reset_action_table(w);
 
 	req_list = w->fsm.child_state_req_list;
 	memset(&w->fsm, 0, sizeof(w->fsm));
@@ -357,7 +362,8 @@ ni_fsm_require_list_insert(ni_fsm_require_t **list, ni_fsm_require_t *req)
 static void
 __ni_ifworker_done(ni_ifworker_t *w)
 {
-	w->fsm.action_table = NULL;
+	__ni_ifworker_reset_action_table(w);
+
 	if (w->completion.callback)
 		w->completion.callback(w);
 	w->done = 1;
