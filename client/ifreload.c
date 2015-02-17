@@ -60,7 +60,7 @@ ni_do_ifreload_direct(int argc, char **argv)
 	static struct option ifreload_options[] = {
 		{ "help",		no_argument,		NULL,	OPT_HELP },
 		{ "ifconfig",		required_argument,	NULL,	OPT_IFCONFIG },
-		{ "timeout",		no_argument,		NULL,	OPT_TIMEOUT },
+		{ "timeout",		required_argument,	NULL,	OPT_TIMEOUT },
 		{ "transient",		no_argument,		NULL,	OPT_TRANSIENT },
 #ifdef NI_TEST_HACKS
 		{ "ignore-prio",	no_argument,		NULL, 	OPT_IGNORE_PRIO },
@@ -381,7 +381,7 @@ ni_do_ifreload_nanny(int argc, char **argv)
 	static struct option ifreload_options[] = {
 		{ "help",		no_argument,		NULL,	OPT_HELP },
 		{ "ifconfig",		required_argument,	NULL,	OPT_IFCONFIG },
-		{ "timeout",		no_argument,		NULL,	OPT_TIMEOUT },
+		{ "timeout",		required_argument,	NULL,	OPT_TIMEOUT },
 		{ "transient",		no_argument,		NULL,	OPT_TRANSIENT },
 #ifdef NI_TEST_HACKS
 		{ "ignore-prio",	no_argument,		NULL, 	OPT_IGNORE_PRIO },
