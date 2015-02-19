@@ -232,19 +232,21 @@ usage:
 	nmarked = 0;
 	for (c = optind; c < argc; ++c) {
 		ifmatch.name = argv[c];
-		ifmatch.ignore_startmode = TRUE;
 
-		/* Getting an array of ifworkers matching arguments */
-		ni_fsm_get_matching_workers(fsm, &ifmatch, &down_marked);
-
-		if (ni_string_eq(ifmatch.name, "all") ||
-		    ni_string_empty(ifmatch.name)) {
+		if (ni_string_eq(ifmatch.name, "all")) {
 			ni_string_array_destroy(&ifnames);
+			ni_string_array_append(&ifnames,ifmatch.name);
 			break;
 		}
 
 		if (ni_string_array_index(&ifnames, ifmatch.name) < 0)
 			ni_string_array_append(&ifnames, ifmatch.name);
+	}
+
+	ifmatch.ignore_startmode = TRUE;
+	for (i = 0; i < ifnames.count; i++) {
+		ifmatch.name = ifnames.data[i];
+		ni_fsm_get_matching_workers(fsm, &ifmatch, &down_marked);
 	}
 
 	for (i = 0; i < down_marked.count; ++i) {
@@ -550,19 +552,21 @@ usage:
 	nmarked = 0;
 	for (c = optind; c < argc; ++c) {
 		ifmatch.name = argv[c];
-		ifmatch.ignore_startmode = TRUE;
 
-		/* Getting an array of ifworkers matching arguments */
-		ni_fsm_get_matching_workers(fsm, &ifmatch, &down_marked);
-
-		if (ni_string_eq(ifmatch.name, "all") ||
-		    ni_string_empty(ifmatch.name)) {
+		if (ni_string_eq(ifmatch.name, "all")) {
 			ni_string_array_destroy(&ifnames);
+			ni_string_array_append(&ifnames,ifmatch.name);
 			break;
 		}
 
 		if (ni_string_array_index(&ifnames, ifmatch.name) < 0)
 			ni_string_array_append(&ifnames, ifmatch.name);
+	}
+
+	ifmatch.ignore_startmode = TRUE;
+	for (i = 0; i < ifnames.count; i++) {
+		ifmatch.name = ifnames.data[i];
+		ni_fsm_get_matching_workers(fsm, &ifmatch, &down_marked);
 	}
 
 	for (i = 0; i < down_marked.count; ++i) {

@@ -866,9 +866,9 @@ ni_ifstatus_shutdown_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_ifworker
 		if (marked && ni_ifworker_array_index(marked, w) < 0)
 			continue;
 
-		if (names && names->count != 0 &&
-		    ni_string_array_index(names, w->name) < 0) {
-			continue;
+		if (!(names->count == 1 && ni_string_eq(names->data[0], "all"))) {
+			if (ni_string_array_index(names, w->name) < 0)
+				continue;
 		}
 
 		if (!ni_ifworker_is_valid_state(w->fsm.state))
@@ -916,9 +916,9 @@ ni_ifstatus_display_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_ifworker_
 		if (marked && ni_ifworker_array_index(marked, w) < 0)
 			continue;
 
-		if (names && names->count != 0 &&
-		    ni_string_array_index(names, w->name) < 0) {
-			continue;
+		if (!(names->count == 1 && ni_string_eq(names->data[0], "all"))) {
+			if (ni_string_array_index(names, w->name) < 0)
+				continue;
 		}
 
 		st = ni_ifstatus_of_worker(w, &mandatory);

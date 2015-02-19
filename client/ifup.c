@@ -428,7 +428,7 @@ ni_do_ifup_nanny(int argc, char **argv)
 	ni_bool_t check_prio = TRUE, set_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
 	int c, status = NI_WICKED_RC_USAGE;
-	unsigned int timeout = 0;
+	unsigned int i, timeout = 0;
 	ni_fsm_t *fsm;
 
 	fsm = ni_fsm_new();
@@ -602,16 +602,19 @@ usage:
 			ifmatch.mode = "boot";
 		}
 
-		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
-
-		if (ni_string_eq(ifmatch.name, "all") ||
-		    ni_string_empty(ifmatch.name)) {
+		if (ni_string_eq(ifmatch.name, "all")) {
 			ni_string_array_destroy(&ifnames);
+			ni_string_array_append(&ifnames,ifmatch.name);
 			break;
 		}
 
 		if (ni_string_array_index(&ifnames, ifmatch.name) < 0)
 			ni_string_array_append(&ifnames, ifmatch.name);
+	}
+
+	for (i = 0; i < ifnames.count; i++) {
+		ifmatch.name = ifnames.data[i];
+		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
 	}
 
 	ni_fsm_pull_in_children(&ifmarked);
@@ -677,7 +680,7 @@ ni_do_ifup_direct(int argc, char **argv)
 	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	ni_bool_t check_prio = TRUE;
 	ni_bool_t opt_transient = FALSE;
-	unsigned int nmarked;
+	unsigned int nmarked, i;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
 	unsigned int timeout = 0;
@@ -874,16 +877,19 @@ usage:
 			ifmatch.mode = "boot";
 		}
 
-		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
-
-		if (ni_string_eq(ifmatch.name, "all") ||
-		    ni_string_empty(ifmatch.name)) {
+		if (ni_string_eq(ifmatch.name, "all")) {
 			ni_string_array_destroy(&ifnames);
+			ni_string_array_append(&ifnames,ifmatch.name);
 			break;
 		}
 
 		if (ni_string_array_index(&ifnames, ifmatch.name) < 0)
 			ni_string_array_append(&ifnames, ifmatch.name);
+	}
+
+	for (i = 0; i < ifnames.count; i++) {
+		ifmatch.name = ifnames.data[i];
+		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
 	}
 
 	ni_fsm_pull_in_children(&ifmarked);
