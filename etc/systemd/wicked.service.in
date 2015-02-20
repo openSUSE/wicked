@@ -3,6 +3,7 @@ Description=wicked managed network interfaces
 Wants=network.target
 After=network-pre.target wickedd.service wickedd-nanny.service
 Before=network-online.target network.target
+Conflicts=systemd-networkd.service
 
 [Service]
 Type=oneshot

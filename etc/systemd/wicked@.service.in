@@ -7,6 +7,7 @@ Description=wicked managed network in stage %i
 #Wants=network.target
 #Before=network.target
 After=wickedd.service
+Conflicts=systemd-networkd.service
 
 [Service]
 Type=oneshot
