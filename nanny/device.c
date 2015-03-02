@@ -230,13 +230,13 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	/* If the device is up and running, do not reconfigure unless the policy
 	 * has really changed */
 	switch (mdev->state) {
+	case NI_MANAGED_STATE_STARTING:
 	case NI_MANAGED_STATE_STOPPING:
 	case NI_MANAGED_STATE_STOPPED:
 	case NI_MANAGED_STATE_LIMBO:
 		/* Just install the new policy and reconfigure. */
 		break;
 
-	case NI_MANAGED_STATE_STARTING:
 	case NI_MANAGED_STATE_RUNNING:
 	case NI_MANAGED_STATE_FAILED:
 		if (mdev->selected_policy == mpolicy && mdev->selected_policy_seq == mpolicy->seqno) {
