@@ -159,7 +159,7 @@ This package provides the wicked shared library.
 
 %build
 test -x ./configure || autoreconf --force --install
-export CFLAGS="$RPM_OPT_FLAGS"
+export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS"
 %configure \
 	--with-piddir=%{wicked_piddir}	\
 	--with-statedir=%{wicked_statedir}\
