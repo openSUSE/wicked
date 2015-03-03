@@ -14,7 +14,7 @@ test -n "$_lib" || case "$(uname -m)" in
 	*) _lib=lib ;;
 esac
 
-export CFLAGS="${CFLAGS:- -O1 -g -D_FORTIFY_SOURCE=2 -fstack-protector -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter}"
+export CFLAGS="${CFLAGS:- -std=gnu89 -O1 -g -D_FORTIFY_SOURCE=2 -fstack-protector -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter}"
 prefix=/usr
 defaults=(--sysconfdir=/etc --prefix=${prefix} --libdir=${prefix}/${_lib} --libexecdir=${prefix}/lib --datadir=${prefix}/share --localstatedir=/var)
 
