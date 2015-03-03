@@ -378,6 +378,7 @@ __ni_syslog_parse_args(const char *args, unsigned int *options, unsigned int *fa
 	static const ni_intmap_t *opt, option_map[] = {
 		{ "perror",	LOG_PERROR	},
 		{ "stderr",	LOG_PERROR	},
+		{ "pid",	LOG_PID		},
 		{ NULL,		0		}
 	};
 	unsigned int _options  = LOG_NDELAY | LOG_PID;
@@ -400,7 +401,7 @@ __ni_syslog_parse_args(const char *args, unsigned int *options, unsigned int *fa
 	}
 
 	if (options)
-		*options = _options;
+		*options = _options | LOG_NDELAY;
 	if (facility)
 		*facility = _facility;
 
