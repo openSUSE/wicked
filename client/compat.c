@@ -1119,7 +1119,7 @@ __ni_compat_generate_static_route(xml_node_t *aconf, const ni_route_t *rp, const
 		xml_node_new_element("priority", rnode, ni_sprint_uint(rp->priority));
 	}
 	if (ni_sockaddr_is_specified(&rp->pref_src)) {
-		xml_node_new_element("source", rnode, ni_sockaddr_print(&rp->pref_src));
+		xml_node_new_element("pref-source", rnode, ni_sockaddr_print(&rp->pref_src));
 	}
 	if (rp->realm > 0) {
 		/* Hmm */
