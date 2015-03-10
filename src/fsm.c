@@ -3855,6 +3855,8 @@ ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 
 	/* Initially, enable waiting for this action */
 	w->fsm.wait_for = action;
+	ni_debug_application("%s: assigned wait_for=%s", w->name,
+		ni_ifworker_state_name(action->next_state));
 
 	for (i = 0; i < action->num_bindings; ++i) {
 		struct ni_fsm_transition_binding *bind = &action->binding[i];
@@ -3971,6 +3973,8 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 {
 	/* Initially, enable waiting for this action */
 	w->fsm.wait_for = action;
+	ni_debug_application("%s: assigned wait_for=%s", w->name,
+		ni_ifworker_state_name(action->next_state));
 
 	if (!ni_ifworker_device_bound(w)) {
 		struct ni_fsm_transition_binding *bind;
