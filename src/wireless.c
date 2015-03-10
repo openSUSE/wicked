@@ -402,7 +402,7 @@ ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t 
 
 	wlan->assoc.state = new_state;
 	if (new_state == NI_WIRELESS_ESTABLISHED)
-		__ni_netdev_event(nc, dev, NI_EVENT_LINK_UP);
+		__ni_netdev_event(nc, dev, NI_EVENT_LINK_ASSOCIATED);
 
 	/* We keep track of when we were last changing to or
 	 * from fully authenticated state.
