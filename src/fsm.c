@@ -3969,6 +3969,9 @@ ni_ifworker_bind_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 static int
 ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
+	/* Initially, enable waiting for this action */
+	w->fsm.wait_for = action;
+
 	if (!ni_ifworker_device_bound(w)) {
 		struct ni_fsm_transition_binding *bind;
 		const char *relative_path;
@@ -4014,8 +4017,9 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 
 		ni_fsm_schedule_bind_methods(fsm, w);
 	}
+	else if (w->fsm.wait_for)
+		ni_ifworker_set_state(w, action->next_state);
 
-	ni_ifworker_set_state(w, action->next_state);
 	return 0;
 }
 
