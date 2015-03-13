@@ -1787,6 +1787,20 @@ ni_system_tunnel_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t 
 int
 ni_system_tunnel_delete(ni_netdev_t *dev, unsigned int type)
 {
+	char *module = NULL;
+
+	/* Handle tunnels to be removed by unloading module (sit0 and tunl0 of ipip for now) */
+	if (dev->sit && ni_string_eq(dev->name, "sit0"))
+		module = SIT_TUNNEL_MODULE_NAME;
+	else if (dev->ipip && ni_string_eq(dev->name, "tunl0"))
+		module = IPIP_TUNNEL_MODULE_NAME;
+
+	if (!ni_string_empty(module)) {
+		if (ni_modprobe(NI_MODPROBE_REMOVE_OPT, module, NULL) < 0) {
+			ni_error("failed to unload %s module", module);
+			return -1;
+		}
+	} else
 	if (__ni_rtnl_link_delete(dev)) {
 		ni_error("could not destroy %s tunnel %s",
 			ni_linktype_type_to_name(type), dev->name);
