@@ -264,7 +264,7 @@ main(int argc, char **argv)
 	ni_srandom();
 
 	/* load af_packet module we need for capturing */
-	ni_modprobe(AFPACKET_MODULE_NAME, AFPACKET_MODULE_OPTS);
+	ni_modprobe(NI_MODPROBE_LOAD_OPT, AFPACKET_MODULE_NAME, AFPACKET_MODULE_OPTS);
 
 	if (tester) {
 		/* Create necessary directories if not yet there */

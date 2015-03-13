@@ -143,7 +143,7 @@ ni_bonding_load(const char *options)
 	if (options == NULL)
 		options = BONDING_MODULE_OPTS;
 
-	return ni_modprobe(BONDING_MODULE_NAME, options);
+	return ni_modprobe(NI_MODPROBE_LOAD_OPT, BONDING_MODULE_NAME, options);
 }
 
 /*
