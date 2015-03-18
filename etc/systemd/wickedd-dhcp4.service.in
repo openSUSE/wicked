@@ -2,6 +2,7 @@
 Description=wicked DHCPv4 supplicant service
 After=local-fs.target dbus.service SuSEfirewall2_init.service
 Before=wickedd.service wicked.service network.target
+Conflicts=systemd-networkd.service
 PartOf=wickedd.service
 
 [Service]

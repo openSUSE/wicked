@@ -2,6 +2,7 @@
 Description=wicked network nanny service
 After=local-fs.target dbus.service SuSEfirewall2_init.service wickedd.service
 Before=wicked.service network.target
+Conflicts=systemd-networkd.service
 PartOf=wickedd.service
 
 [Service]
