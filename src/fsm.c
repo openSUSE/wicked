@@ -3998,6 +3998,7 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 
 		ni_debug_application("created device %s (path=%s)", w->name, object_path);
 		ni_string_dup(&w->object_path, object_path);
+		w->ifindex = __ni_fsm_dbus_objectpath_to_ifindex(object_path);
 
 		relative_path = ni_string_strip_prefix(NI_OBJECTMODEL_OBJECT_PATH "/", object_path);
 		if (relative_path == NULL) {
