@@ -3246,19 +3246,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		return NULL;
 	}
 
-	if (ni_netdev_device_is_ready(dev)) {
-		found = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
-		if (ni_ifworker_is_config_worker(found)) {
-			ni_ifworker_t *real_w = ni_fsm_ifworker_by_ifindex(fsm, dev->link.ifindex);
-
-			if (real_w)
-				ni_fsm_destroy_worker(fsm, real_w);
-		}
-	}
-	if (!found)
-		found = ni_fsm_ifworker_by_netdev(fsm, dev);
-	if (!found)
-		found = ni_fsm_ifworker_by_object_path(fsm, object->path);
+	found = ni_fsm_ifworker_find(fsm, dev, dev->link.ifindex, object->path);
 	if (!found) {
 		ni_debug_application("received new device %s (%s)", dev->name, object->path);
 		found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
@@ -4547,7 +4535,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	ni_uuid_t event_uuid = NI_UUID_INIT;
 	ni_event_t event_type = __NI_EVENT_MAX;
 	const char *event_name = signal_name;
-	ni_ifworker_t *w;
+	ni_ifworker_t *w = NULL;
 
 	/* See if this event is a known one and comes with a uuid */
 	{
@@ -4602,7 +4590,9 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		}
 	}
 
-	if ((w = ni_fsm_ifworker_by_object_path(fsm, object_path)) != NULL) {
+	if(!w)
+		w = ni_fsm_ifworker_find(fsm, NULL, 0, object_path);
+	if (w) {
 		ni_objectmodel_callback_info_t *cb = NULL;
 
 		if (!ni_uuid_is_null(&event_uuid)) {
