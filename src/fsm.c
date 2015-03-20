@@ -735,6 +735,10 @@ done:
 	return ifindex;
 }
 
+/* Since we cannot trust the ifname, before device is ready (has been renamed),
+ * usage of this function should be avoided
+ */
+#if 0
 /*
  * __ni_dbus_objectpath_to_name() allocates a string and return interface name
  */
@@ -757,6 +761,7 @@ __ni_fsm_dbus_objectpath_to_name(const char *object_path)
 	ni_string_dup(&ifname, buf);
 	return ifname;
 }
+#endif
 
 ni_ifworker_t *
 ni_fsm_ifworker_by_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *ifname)
@@ -794,13 +799,13 @@ ni_fsm_ifworker_by_object_path(ni_fsm_t *fsm, const char *object_path)
 {
 	unsigned int i;
 
-	if (!object_path)
+	if (ni_string_empty(object_path))
 		return NULL;
 
 	for (i = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
 
-		if (w->object_path && !strcmp(w->object_path, object_path))
+		if (ni_string_eq(w->object_path, object_path))
 			return w;
 	}
 
