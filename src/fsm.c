@@ -838,8 +838,6 @@ ni_fsm_ifworker_by_netdev(ni_fsm_t *fsm, const ni_netdev_t *dev)
 
 		if (w->device == dev)
 			return w;
-		if (w->ifindex && w->ifindex == dev->link.ifindex)
-			return w;
 	}
 
 	return NULL;
