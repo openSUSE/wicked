@@ -865,6 +865,28 @@ ni_ifworker_by_modem(ni_fsm_t *fsm, const ni_modem_t *dev)
 	return NULL;
 }
 
+ni_ifworker_t *
+ni_fsm_ifworker_find(ni_fsm_t *fsm, ni_netdev_t *dev, unsigned int ifindex, const char *object_path)
+{
+	ni_ifworker_t *found = ni_fsm_ifworker_by_ifindex(fsm, ifindex);
+
+	if (!found)
+		found = ni_fsm_ifworker_by_netdev(fsm, dev);
+	if (!found)
+		found = ni_fsm_ifworker_by_object_path(fsm, object_path);
+	if (!found && ni_netdev_device_is_ready(dev)) {
+		found = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
+		if (ni_ifworker_is_config_worker(found)) {
+			ni_ifworker_t *real_w = ni_fsm_ifworker_by_ifindex(fsm, dev->link.ifindex);
+
+			if (real_w)
+				ni_fsm_destroy_worker(fsm, real_w);
+		}
+	}
+
+	return found;
+}
+
 ni_bool_t
 ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
 {
