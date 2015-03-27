@@ -2563,7 +2563,6 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 
 	for (i = 0; i < marked->count; ++i) {
 		ni_ifworker_t *w = marked->data[i];
-		int rv;
 
 		if (w->failed)
 			continue;
@@ -2575,8 +2574,10 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 			continue;
 		}
 
-		if ((rv = ni_ifworker_start(fsm, w, fsm->worker_timeout)) < 0)
-			return rv;
+		if (ni_ifworker_start(fsm, w, fsm->worker_timeout) < 0) {
+			ni_ifworker_fail(w, "%s: unable to start the worker", w->name);
+			continue;
+		}
 
 		if (w->target_state != NI_FSM_STATE_NONE)
 			count++;
