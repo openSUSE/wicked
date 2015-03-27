@@ -141,6 +141,8 @@ __ni_ifworker_reset_action_table(ni_ifworker_t *w)
 	}
 	free(w->fsm.action_table);
 
+	w->fsm.wait_for = NULL;
+	w->fsm.next_action = NULL;
 	w->fsm.action_table = NULL;
 }
 
