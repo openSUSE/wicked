@@ -56,7 +56,7 @@ static void			ni_ifworker_cancel_timeout(ni_ifworker_t *);
 static void			ni_ifworker_cancel_secondary_timeout(ni_ifworker_t *);
 static void			ni_ifworker_cancel_callbacks(ni_ifworker_t *, ni_objectmodel_callback_info_t **);
 static dbus_bool_t		ni_ifworker_waiting_for_events(ni_ifworker_t *);
-static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
+static void			ni_ifworker_release_wait_for(ni_ifworker_t *, ni_event_t);
 
 static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
 static inline void		ni_ifworker_update_client_state_config(ni_ifworker_t *w);
@@ -1446,56 +1446,59 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
 }
 
 static void
-ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
+ni_ifworker_release_wait_for(ni_ifworker_t *w, ni_event_t event_type)
 {
-	unsigned int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
+	unsigned int state = NI_FSM_STATE_NONE;
 
 	switch (event_type) {
 	case NI_EVENT_DEVICE_DELETE:
-		max_state = NI_FSM_STATE_DEVICE_EXISTS - 1;
-		break;
-	case NI_EVENT_DEVICE_DOWN:
-		/* We should restart FSM on successful devices */
-		if (ni_ifworker_complete(w))
-			ni_ifworker_rearm(w);
-		max_state = NI_FSM_STATE_DEVICE_UP - 1;
+		state = NI_FSM_STATE_DEVICE_EXISTS - 1;
 		break;
 	case NI_EVENT_DEVICE_CREATE:
-		min_state = NI_FSM_STATE_DEVICE_EXISTS;
+		state = NI_FSM_STATE_DEVICE_EXISTS;
 		break;
 	case NI_EVENT_DEVICE_READY:
-		min_state = NI_FSM_STATE_DEVICE_READY;
+		state = NI_FSM_STATE_DEVICE_READY;
+		break;
+	case NI_EVENT_DEVICE_DOWN:
+		state = NI_FSM_STATE_DEVICE_UP - 1;
 		break;
 	case NI_EVENT_DEVICE_UP:
-		min_state = NI_FSM_STATE_DEVICE_UP;
-		break;
-	case NI_EVENT_LINK_UP:
-		min_state = NI_FSM_STATE_LINK_UP;
+		state = NI_FSM_STATE_DEVICE_UP;
 		break;
 	case NI_EVENT_LINK_DOWN:
-		/* We should restart FSM on successful devices */
-		if (ni_ifworker_complete(w))
-			ni_ifworker_rearm(w);
-		max_state = NI_FSM_STATE_LINK_UP - 1;
+		state = NI_FSM_STATE_LINK_UP - 1;
+		break;
+	case NI_EVENT_LINK_UP:
+		state = NI_FSM_STATE_LINK_UP;
 		break;
 	case NI_EVENT_ADDRESS_DEFERRED:
 	case NI_EVENT_ADDRESS_ACQUIRED:
-		min_state = NI_FSM_STATE_ADDRCONF_UP;
+		state = NI_FSM_STATE_ADDRCONF_UP;
 		break;
 	case NI_EVENT_ADDRESS_RELEASED:
-		max_state = NI_FSM_STATE_ADDRCONF_UP - 1;
+		state = NI_FSM_STATE_ADDRCONF_UP - 1;
 		break;
 	default:
-		break;
+		/* Ignore irrelevant events */
+		return;
 	}
 
-	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
-		"%s: advance fsm state by signal %s: <%s..%s>", w->name,
-		ni_objectmodel_event_to_signal(event_type),
-		ni_ifworker_state_name(min_state),
-		ni_ifworker_state_name(max_state));
-
-	ni_ifworker_update_state(w, min_state, max_state);
+	/* We might be waiting for something specific ... */
+	if (w->fsm.wait_for) {
+		if (w->fsm.wait_for->next_state == state) /* We got it! Great! */
+			ni_ifworker_set_state(w, state);
+		else /* We got something else... hmm... */
+			ni_debug_application("%s: received event (%s) during transition from %s to %s state!",
+				w->name, ni_event_type_to_name(event_type),
+				ni_ifworker_state_name(w->fsm.wait_for->from_state),
+				ni_ifworker_state_name(w->fsm.wait_for->next_state));
+	}
+	else { /* ... or not */
+		ni_debug_application("%s: received event (%s) while in %s state",
+			w->name, ni_event_type_to_name(event_type),
+			ni_ifworker_state_name(w->fsm.state));
+	}
 }
 
 static void
@@ -3864,6 +3867,8 @@ ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 
 	/* Initially, enable waiting for this action */
 	w->fsm.wait_for = action;
+	ni_debug_application("%s: assigned wait_for=%s", w->name,
+		ni_ifworker_state_name(action->next_state));
 
 	for (i = 0; i < action->num_bindings; ++i) {
 		struct ni_fsm_transition_binding *bind = &action->binding[i];
@@ -3978,6 +3983,11 @@ ni_ifworker_bind_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 static int
 ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
+	/* Initially, enable waiting for this action */
+	w->fsm.wait_for = action;
+	ni_debug_application("%s: assigned wait_for=%s", w->name,
+		ni_ifworker_state_name(action->next_state));
+
 	if (!ni_ifworker_device_bound(w)) {
 		struct ni_fsm_transition_binding *bind;
 		const char *relative_path;
@@ -4023,8 +4033,9 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 
 		ni_fsm_schedule_bind_methods(fsm, w);
 	}
+	else if (w->fsm.wait_for)
+		ni_ifworker_set_state(w, action->next_state);
 
-	ni_ifworker_set_state(w, action->next_state);
 	return 0;
 }
 
@@ -4656,7 +4667,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			}
 		}
 
-		ni_ifworker_advance_state(w, event_type);
+		ni_ifworker_release_wait_for(w, event_type);
 
 		if (event_type == NI_EVENT_DEVICE_DELETE)
 			ni_fsm_destroy_worker(fsm, w);
