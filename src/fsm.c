@@ -1419,8 +1419,7 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 		if (w->fsm.wait_for && w->fsm.wait_for->next_state == new_state)
 			w->fsm.wait_for = NULL;
 
-		if ((new_state == NI_FSM_STATE_DEVICE_READY ||
-		    new_state == NI_FSM_STATE_DEVICE_SETUP) && w->object && !w->readonly) {
+		if ((new_state == NI_FSM_STATE_DEVICE_READY) && w->object && !w->readonly) {
 			ni_ifworker_update_client_state_control(w);
 			ni_ifworker_update_client_state_config(w);
 		}
@@ -4321,19 +4320,10 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 
 			if (rv >= 0) {
 				made_progress = 1;
-				if (w->fsm.state == action->next_state) {
-					/* We should not have transitioned to the next state while
-					 * we were still waiting for some event. */
-					ni_assert(w->fsm.wait_for == NULL);
-					ni_debug_application("%s: successfully transitioned from %s to %s",
-						w->name,
-						ni_ifworker_state_name(prev_state),
-						ni_ifworker_state_name(w->fsm.state));
-				} else {
+
+				if (w->fsm.wait_for) {
 					ni_debug_application("%s: waiting for event in state %s",
-						w->name,
-						ni_ifworker_state_name(w->fsm.state));
-					w->fsm.wait_for = action;
+						w->name, ni_ifworker_state_name(w->fsm.state));
 				}
 			} else
 			if (!w->failed) {
