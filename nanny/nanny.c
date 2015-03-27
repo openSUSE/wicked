@@ -581,7 +581,6 @@ ni_nanny_unregister_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_objectmodel_unregister_managed_device(mdev);
 	ni_nanny_unschedule(&mgr->recheck, w);
 	ni_nanny_policy_drop(w->name);
-	ni_fsm_destroy_worker(mgr->fsm, w);
 }
 
 /*
@@ -814,7 +813,7 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 	const char *object_path = dbus_message_get_path(msg);
 	ni_event_t event;
 	ni_managed_device_t *mdev;
-	ni_ifworker_t *w;
+	ni_ifworker_t *w = NULL;
 
 	if (ni_objectmodel_signal_to_event(signal_name, &event) < 0) {
 		ni_debug_nanny("received unknown signal \"%s\" from object \"%s\"",
@@ -830,7 +829,9 @@ ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_m
 			ni_nanny_register_device(mgr, w);
 	}
 
-	w = ni_fsm_ifworker_by_object_path(mgr->fsm, object_path);
+	if (!w)
+		w = ni_fsm_ifworker_find(mgr->fsm, NULL, 0, object_path);
+
 	if (!w) {
 		ni_warn("received signal \"%s\" from unknown object \"%s\"",
 				signal_name, object_path);

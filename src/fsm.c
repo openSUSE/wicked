@@ -737,6 +737,10 @@ done:
 	return ifindex;
 }
 
+/* Since we cannot trust the ifname, before device is ready (has been renamed),
+ * usage of this function should be avoided
+ */
+#if 0
 /*
  * __ni_dbus_objectpath_to_name() allocates a string and return interface name
  */
@@ -759,6 +763,7 @@ __ni_fsm_dbus_objectpath_to_name(const char *object_path)
 	ni_string_dup(&ifname, buf);
 	return ifname;
 }
+#endif
 
 ni_ifworker_t *
 ni_fsm_ifworker_by_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *ifname)
@@ -794,29 +799,19 @@ ni_fsm_ifworker_by_policy_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const cha
 ni_ifworker_t *
 ni_fsm_ifworker_by_object_path(ni_fsm_t *fsm, const char *object_path)
 {
-	ni_ifworker_t *w;
-	char *ifname;
 	unsigned int i;
 
 	if (ni_string_empty(object_path))
 		return NULL;
 
 	for (i = 0; i < fsm->workers.count; ++i) {
-		w = fsm->workers.data[i];
+		ni_ifworker_t *w = fsm->workers.data[i];
 
-		if (w->object_path && !strcmp(w->object_path, object_path))
+		if (ni_string_eq(w->object_path, object_path))
 			return w;
 	}
 
-	/* ifworker may not be refreshed (no object_path set nor ifindex) */
-	ifname = __ni_fsm_dbus_objectpath_to_name(object_path);
-	if (ni_string_empty(ifname))
-		return NULL;
-
-	w = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, ifname);
-	ni_string_free(&ifname);
-
-	return w;
+	return NULL;
 }
 
 ni_ifworker_t *
@@ -850,8 +845,6 @@ ni_fsm_ifworker_by_netdev(ni_fsm_t *fsm, const ni_netdev_t *dev)
 
 		if (w->device == dev)
 			return w;
-		if (w->ifindex && w->ifindex == dev->link.ifindex)
-			return w;
 	}
 
 	return NULL;
@@ -875,6 +868,28 @@ ni_ifworker_by_modem(ni_fsm_t *fsm, const ni_modem_t *dev)
 	}
 
 	return NULL;
+}
+
+ni_ifworker_t *
+ni_fsm_ifworker_find(ni_fsm_t *fsm, ni_netdev_t *dev, unsigned int ifindex, const char *object_path)
+{
+	ni_ifworker_t *found = ni_fsm_ifworker_by_ifindex(fsm, ifindex);
+
+	if (!found)
+		found = ni_fsm_ifworker_by_netdev(fsm, dev);
+	if (!found)
+		found = ni_fsm_ifworker_by_object_path(fsm, object_path);
+	if (!found && ni_netdev_device_is_ready(dev)) {
+		found = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
+		if (ni_ifworker_is_config_worker(found)) {
+			ni_ifworker_t *real_w = ni_fsm_ifworker_by_ifindex(fsm, dev->link.ifindex);
+
+			if (real_w)
+				ni_fsm_destroy_worker(fsm, real_w);
+		}
+	}
+
+	return found;
 }
 
 ni_bool_t
@@ -3237,19 +3252,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		return NULL;
 	}
 
-	if (ni_netdev_device_is_ready(dev)) {
-		found = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
-		if (ni_ifworker_is_config_worker(found)) {
-			ni_ifworker_t *real_w = ni_fsm_ifworker_by_ifindex(fsm, dev->link.ifindex);
-
-			if (real_w)
-				ni_fsm_destroy_worker(fsm, real_w);
-		}
-	}
-	if (!found)
-		found = ni_fsm_ifworker_by_netdev(fsm, dev);
-	if (!found)
-		found = ni_fsm_ifworker_by_object_path(fsm, object->path);
+	found = ni_fsm_ifworker_find(fsm, dev, dev->link.ifindex, object->path);
 	if (!found) {
 		ni_debug_application("received new device %s (%s)", dev->name, object->path);
 		found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
@@ -3998,6 +4001,7 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 
 		ni_debug_application("created device %s (path=%s)", w->name, object_path);
 		ni_string_dup(&w->object_path, object_path);
+		w->ifindex = __ni_fsm_dbus_objectpath_to_ifindex(object_path);
 
 		relative_path = ni_string_strip_prefix(NI_OBJECTMODEL_OBJECT_PATH "/", object_path);
 		if (relative_path == NULL) {
@@ -4538,7 +4542,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	ni_uuid_t event_uuid = NI_UUID_INIT;
 	ni_event_t event_type = __NI_EVENT_MAX;
 	const char *event_name = signal_name;
-	ni_ifworker_t *w;
+	ni_ifworker_t *w = NULL;
 
 	/* See if this event is a known one and comes with a uuid */
 	{
@@ -4593,7 +4597,9 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		}
 	}
 
-	if ((w = ni_fsm_ifworker_by_object_path(fsm, object_path)) != NULL) {
+	if(!w)
+		w = ni_fsm_ifworker_find(fsm, NULL, 0, object_path);
+	if (w) {
 		ni_objectmodel_callback_info_t *cb = NULL;
 
 		if (!ni_uuid_is_null(&event_uuid)) {
