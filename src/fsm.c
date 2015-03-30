@@ -3888,6 +3888,16 @@ ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 }
 
 static int
+ni_ifworker_do_wait_device_ready_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
+{
+	if (ni_netdev_device_is_ready(w->device)) {
+		ni_ifworker_set_state(w, action->next_state);
+		return 0;
+	}
+	return ni_ifworker_do_common_call(fsm, w, action);
+}
+
+static int
 ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
 	int ret;
@@ -4051,7 +4061,12 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	},
 
 	/* This state waits to become ready to set up, e.g. udev renamed */
-	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_READY, "waitDeviceReady", .call_overloading = TRUE),
+	{
+		__TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_READY),
+		.bind_func = ni_ifworker_do_common_bind,
+		.call_func = ni_ifworker_do_wait_device_ready_call,
+		.common = { .method_name = "waitDeviceReady", .call_overloading = TRUE }
+	},
 
 	/* This sets any device attributes, such as a MAC address */
 	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_SETUP, "changeDevice", .call_overloading = TRUE),
