@@ -76,6 +76,7 @@ ni_fsm_new(void)
 void
 ni_fsm_free(ni_fsm_t *fsm)
 {
+	ni_ifworker_array_destroy(&fsm->pending);
 	ni_ifworker_array_destroy(&fsm->workers);
 	free(fsm);
 }
@@ -3186,33 +3187,55 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	}
 
 	if (ni_netdev_device_is_ready(dev)) {
-		found = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
-		if (ni_ifworker_is_config_worker(found)) {
-			ni_ifworker_t *real_w = ni_fsm_ifworker_by_ifindex(fsm, dev->link.ifindex);
+		/*
+		 * if tracked as pending worker, it's over now -- device is ready
+		 */
+		if ((found = ni_ifworker_array_find_by_objectpath(&fsm->pending, object->path)))
+			ni_ifworker_array_remove(&fsm->pending, found);
 
-			if (real_w)
-				ni_fsm_destroy_worker(fsm, real_w);
+		/* lookup worker by object path (ifindex) first, then by name */
+		found = ni_ifworker_array_find_by_objectpath(&fsm->workers, object->path);
+		if (!found)
+			found = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
+		if (!found) {
+			ni_debug_application("received new ready device %s (%s)",
+						dev->name, object->path);
+			found = ni_ifworker_new(&fsm->workers, NI_IFWORKER_TYPE_NETDEV, dev->name);
+			found->readonly = fsm->readonly;
+		} else {
+			ni_debug_application("received refresh for ready device %s (%s)",
+						dev->name, object->path);
 		}
-	}
-	if (!found)
-		found = ni_fsm_ifworker_by_netdev(fsm, dev);
-	if (!found)
-		found = ni_fsm_ifworker_by_object_path(fsm, object->path);
-	if (!found) {
-		ni_debug_application("received new device %s (%s)", dev->name, object->path);
-		found = ni_ifworker_new(&fsm->workers, NI_IFWORKER_TYPE_NETDEV, dev->name);
-		found->readonly = fsm->readonly;
 		if (dev->client_state)
 			ni_ifworker_refresh_client_state(found, dev->client_state);
+	} else {
+		/* even we we've created it and know the the object-path/ifindex
+		 * or the config refers a device by ifindex, we've to track it as
+		 * pending worker to not confuse other parts (dependencies), that
+		 * may use it by not-yet-stable name (rename may be in progress).
+		 */
+		if (!(found = ni_ifworker_array_find_by_objectpath(&fsm->pending, object->path))) {
+			ni_debug_application("received new non-ready device %s (%s)",
+					dev->name, object->path);
+			found = ni_ifworker_new(&fsm->pending, NI_IFWORKER_TYPE_NETDEV, dev->name);
+			found->readonly = fsm->readonly;
+		} else {
+			ni_debug_application("received refresh for non-ready device %s (%s)",
+						dev->name, object->path);
+		}
 	}
 
 	if (!found->object_path)
 		ni_string_dup(&found->object_path, object->path);
+
+	dev = ni_netdev_get(dev);
 	if (found->device)
 		ni_netdev_put(found->device);
-	found->device = ni_netdev_get(dev);
+	found->device = dev;
+
 	if (!ni_string_eq(found->name, dev->name))
 		ni_string_dup(&found->name, dev->name);
+
 	found->ifindex = dev->link.ifindex;
 	found->object = object;
 

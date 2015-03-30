@@ -223,6 +223,7 @@ struct ni_fsm_require {
 };
 
 struct ni_fsm {
+	ni_ifworker_array_t	pending;
 	ni_ifworker_array_t	workers;
 	unsigned int		worker_timeout;
 	ni_bool_t		readonly;
