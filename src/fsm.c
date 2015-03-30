@@ -119,12 +119,12 @@ __ni_ifworker_new(ni_ifworker_type_t type, const char *name)
 }
 
 static ni_ifworker_t *
-ni_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
+ni_ifworker_new(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char *name)
 {
 	ni_ifworker_t *worker;
 
 	worker = __ni_ifworker_new(type, name);
-	ni_ifworker_array_append(&fsm->workers, worker);
+	ni_ifworker_array_append(array, worker);
 	worker->refcount--;
 
 	return worker;
@@ -1785,7 +1785,7 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_node_t *ifnode, const char *origin)
 		} else {
 			ifname = node->cdata;
 			if (ifname && (w = ni_fsm_ifworker_by_name(fsm, type, ifname)) == NULL)
-				w = ni_ifworker_new(fsm, type, ifname);
+				w = ni_ifworker_new(&fsm->workers, type, ifname);
 		}
 	}
 
@@ -3200,7 +3200,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		found = ni_fsm_ifworker_by_object_path(fsm, object->path);
 	if (!found) {
 		ni_debug_application("received new device %s (%s)", dev->name, object->path);
-		found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
+		found = ni_ifworker_new(&fsm->workers, NI_IFWORKER_TYPE_NETDEV, dev->name);
 		found->readonly = fsm->readonly;
 		if (dev->client_state)
 			ni_ifworker_refresh_client_state(found, dev->client_state);
@@ -3286,7 +3286,7 @@ ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		found = ni_fsm_ifworker_by_object_path(fsm, object->path);
 	if (!found) {
 		ni_debug_application("received new modem %s (%s)", modem->device, object->path);
-		found = ni_ifworker_new(fsm, NI_IFWORKER_TYPE_MODEM, modem->device);
+		found = ni_ifworker_new(&fsm->workers, NI_IFWORKER_TYPE_MODEM, modem->device);
 	}
 
 	if (!found->object_path)
