@@ -644,17 +644,17 @@ ni_ifworker_array_free(ni_ifworker_array_t *array)
 }
 
 static ni_ifworker_t *
-ni_ifworker_array_find(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char *ifname)
+ni_ifworker_array_find_by_name(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char *name)
 {
 	unsigned int i;
 
-	if (ni_string_empty(ifname))
+	if (ni_string_empty(name))
 		return NULL;
 
 	for (i = 0; i < array->count; ++i) {
 		ni_ifworker_t *worker = array->data[i];
 
-		if (worker->type == type && !strcmp(worker->name, ifname))
+		if (worker->type == type && ni_string_eq(worker->name, name))
 			return worker;
 	}
 	return NULL;
@@ -761,9 +761,9 @@ __ni_fsm_dbus_objectpath_to_name(const char *object_path)
 }
 
 ni_ifworker_t *
-ni_fsm_ifworker_by_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *ifname)
+ni_fsm_ifworker_by_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
 {
-	return ni_ifworker_array_find(&fsm->workers, type, ifname);
+	return ni_ifworker_array_find_by_name(&fsm->workers, type, name);
 }
 
 ni_ifworker_t *
@@ -1039,7 +1039,7 @@ ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_ty
 			child = __ni_ifworker_identify_device(fsm, namespace, devnode, type, origin);
 		} else if (devnode->cdata) {
 			const char *slave_name = devnode->cdata;
-			child = ni_ifworker_array_find(&fsm->workers, type, slave_name);
+			child = ni_fsm_ifworker_by_name(fsm, type, slave_name);
 
 			if (child == NULL) {
 				ni_error("%s: <%s> element references unknown device %s",
