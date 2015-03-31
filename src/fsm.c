@@ -3976,7 +3976,7 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 {
 	if (!ni_ifworker_device_bound(w)) {
 		struct ni_fsm_transition_binding *bind;
-		const char *relative_path;
+		const char *relative_path = NULL;
 		char *object_path;
 
 		if (action->num_bindings == 0) {
@@ -3992,27 +3992,29 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 			return -1;
 		}
 
-		ni_debug_application("created device %s (path=%s)", w->name, object_path);
-		ni_string_dup(&w->object_path, object_path);
-
-		relative_path = ni_string_strip_prefix(NI_OBJECTMODEL_OBJECT_PATH "/", object_path);
-		if (relative_path == NULL) {
+		switch (ni_ifworker_type_from_object_path(object_path, &relative_path)) {
+		case NI_IFWORKER_TYPE_NETDEV:
+			if (ni_parse_uint(relative_path, &w->ifindex, 10) == 0)
+				break;
+		default:
 			ni_ifworker_fail(w, "invalid device path %s", object_path);
 			ni_string_free(&object_path);
 			return -1;
 		}
+		ni_debug_application("created device %s (path=%s)", w->name, object_path);
+		ni_string_free(&w->object_path);
+		w->object_path = object_path;
 
 		/* Lookup the object corresponding to this path. If it doesn't
 		 * exist, create it on the fly (with a generic class of "netif" -
-		 * the next refresh call with take care of this and correct the
-		 * class */
-		w->object = ni_dbus_object_create(fsm->client_root_object, relative_path,
+		 * the following refresh call with take care of this and correct
+		 * the class.
+		 */
+		w->object = ni_dbus_object_create(fsm->client_root_object, object_path,
 					NULL,
 					NULL);
 
-		ni_string_free(&object_path);
-
-		if (!ni_dbus_object_refresh_children(w->object)) {
+		if (!w->object || !ni_dbus_object_refresh_children(w->object)) {
 			ni_ifworker_fail(w, "unable to refresh new device");
 			return -1;
 		}
