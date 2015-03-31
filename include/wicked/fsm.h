@@ -64,8 +64,8 @@ typedef struct ni_fsm_transition ni_fsm_transition_t;
 
 typedef int			ni_fsm_transition_fn_t(ni_fsm_t *, ni_ifworker_t *, ni_fsm_transition_t *);
 struct ni_fsm_transition {
-	unsigned int		from_state;
-	unsigned int		next_state;
+	ni_fsm_state_t		from_state;
+	ni_fsm_state_t		next_state;
 	ni_fsm_transition_fn_t *bind_func;
 	ni_fsm_transition_fn_t *call_func;
 	ni_fsm_timer_fn_t *	timeout_fn;
