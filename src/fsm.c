@@ -2204,6 +2204,22 @@ ni_ifworker_type_to_string(ni_ifworker_type_t type)
 	return NULL;
 }
 
+ni_ifworker_type_t
+ni_ifworker_type_from_object_path(const char *path, const char **suffix)
+{
+	if (ni_string_startswith(path, NI_OBJECTMODEL_NETIF_LIST_PATH "/")) {
+		if (suffix)
+			*suffix = path + sizeof(NI_OBJECTMODEL_NETIF_LIST_PATH);
+		return NI_IFWORKER_TYPE_NETDEV;
+	}
+	if (ni_string_startswith(path, NI_OBJECTMODEL_MODEM_LIST_PATH "/")) {
+		if (suffix)
+			*suffix = path + sizeof(NI_OBJECTMODEL_MODEM_LIST_PATH);
+		return NI_IFWORKER_TYPE_MODEM;
+	}
+	return NI_IFWORKER_TYPE_NONE;
+}
+
 /*
  * Get all interfaces matching some user-specified criteria
  */
