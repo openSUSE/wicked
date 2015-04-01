@@ -4616,17 +4616,90 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 }
 
 static void
-ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
+ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 {
 	const char *event_name = ev->signal_name;
 	ni_event_t  event_type = ev->event_type;
+
+	if (!ni_uuid_is_null(&ev->event_uuid)) {
+		ni_objectmodel_callback_info_t *cb;
+
+		cb = ni_ifworker_get_callback(w, &ev->event_uuid, TRUE);
+		if (cb) {
+			ni_event_t cb_event_type;
+			ni_bool_t success;
+
+			if (ni_objectmodel_signal_to_event(cb->event, &cb_event_type) < 0)
+				cb_event_type = __NI_EVENT_MAX;
+
+			if ((success = (cb_event_type == event_type))) {
+				ni_debug_events("... great, we were expecting this event");
+			} else {
+				ni_debug_events("%s: was waiting for %s event, but got %s",
+						w->name, cb->event, ev->signal_name);
+			}
+
+			switch (cb_event_type) {
+			case NI_EVENT_ADDRESS_ACQUIRED:
+				/*
+				 * When dhcp starts and there is a not-expired lease
+				 * which can't be confirmed, it emits a release event
+				 * before it acquires a new one and defers or fails.
+				 * Uff... add it back to the wait list and continue.
+				 */
+				if (event_type == NI_EVENT_ADDRESS_RELEASED && w->fsm.wait_for) {
+					ni_ifworker_add_callbacks(w->fsm.wait_for, cb, w->name);
+					goto done;
+				}
+
+				success = address_acquired_callback_handler(w, cb, event_type);
+
+				/* Set event_name and type to the event we wait for */
+				event_name = ni_objectmodel_event_to_signal(cb_event_type);
+				event_type = cb_event_type; /* don't revert state on failure */
+				break;
+			default:
+				break;
+			}
+
+			if (!success)
+				ni_ifworker_fail(w, "got signal %s", ev->signal_name);
+			ni_objectmodel_callback_info_free(cb);
+		}
+
+		/* We do not update the ifworker state if we're waiting for more events
+		 * of the same name. For instance, during address configuration, we might
+		 * start several addrconf mechanisms in parallel; for each of them, we'll
+		 * receive an addressAcquired (addressLost, ...) event. However, address
+		 * configuration isn't complete until we've received *all* non-optional
+		 * addressAcquired events outstanding for the running transition.
+		 */
+		if (ni_ifworker_waiting_for_event(w, event_name)) {
+			ni_debug_application("%s: waiting for more %s events...",
+						w->name, event_name);
+			ni_ifworker_print_callbacks(w->name, w->fsm.wait_for ?
+					w->fsm.wait_for->callbacks : NULL);
+			goto done;
+		}
+	}
+
+	ni_ifworker_advance_state(w, event_type);
+
+	if (event_type == NI_EVENT_DEVICE_DELETE)
+		ni_fsm_destroy_worker(fsm, w);
+
+done: ;
+}
+
+static void
+ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
+{
 	ni_ifworker_t *w;
 
 	fsm->event_seq += 1;
-	if (ev->event_type == NI_EVENT_ADDRESS_ACQUIRED)
-		fsm->last_event_seq[NI_EVENT_ADDRESS_ACQUIRED] = fsm->event_seq;
-
-	if (ev->event_type == NI_EVENT_DEVICE_READY || ev->event_type == NI_EVENT_DEVICE_UP) {
+	switch (ev->event_type) {
+	case NI_EVENT_DEVICE_READY:
+	case NI_EVENT_DEVICE_UP:
 		/* Refresh device on ready & device-up */
 		if (!(w = ni_fsm_recv_new_netif_path(fsm, ev->object_path))) {
 			ni_error("%s: Cannot find corresponding worker for %s",
@@ -4645,80 +4718,20 @@ ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 		if(w->pending) {
 			w->pending = FALSE;
 			ni_ifworker_start(fsm, w, fsm->worker_timeout);
-			goto done;
+		} else {
+			ni_fsm_process_worker_event(fsm, w, ev);
 		}
+		break;
+
+	case NI_EVENT_ADDRESS_ACQUIRED:
+		fsm->last_event_seq[ev->event_type] = fsm->event_seq;
+		/* fallthrough */
+
+	default:
+		if ((w = ni_fsm_ifworker_by_object_path(fsm, ev->object_path)) != NULL)
+			ni_fsm_process_worker_event(fsm, w, ev);
+	break;
 	}
-
-	if ((w = ni_fsm_ifworker_by_object_path(fsm, ev->object_path)) != NULL) {
-		ni_objectmodel_callback_info_t *cb = NULL;
-
-		if (!ni_uuid_is_null(&ev->event_uuid)) {
-			cb = ni_ifworker_get_callback(w, &ev->event_uuid, TRUE);
-			if (cb) {
-				ni_event_t cb_event_type;
-				ni_bool_t success;
-
-				if (ni_objectmodel_signal_to_event(cb->event, &cb_event_type) < 0)
-					cb_event_type = __NI_EVENT_MAX;
-
-				if ((success = (cb_event_type == event_type))) {
-					ni_debug_events("... great, we were expecting this event");
-				} else {
-					ni_debug_events("%s: was waiting for %s event, but got %s",
-							w->name, cb->event, ev->signal_name);
-				}
-
-				switch (cb_event_type) {
-				case NI_EVENT_ADDRESS_ACQUIRED:
-					/*
-					 * When dhcp starts and there is a not-expired lease
-					 * which can't be confirmed, it emits a release event
-					 * before it acquires a new one and defers or fails.
-					 * Uff... add it back to the wait list and continue.
-					 */
-					if (event_type == NI_EVENT_ADDRESS_RELEASED && w->fsm.wait_for) {
-						ni_ifworker_add_callbacks(w->fsm.wait_for, cb, w->name);
-						goto done;
-					}
-
-					success = address_acquired_callback_handler(w, cb, event_type);
-
-					/* Set event_name and type to the event we wait for */
-					event_name = ni_objectmodel_event_to_signal(cb_event_type);
-					event_type = cb_event_type; /* don't revert state on failure */
-					break;
-				default:
-					break;
-				}
-
-				if (!success)
-					ni_ifworker_fail(w, "got signal %s", ev->signal_name);
-				ni_objectmodel_callback_info_free(cb);
-			}
-
-			/* We do not update the ifworker state if we're waiting for more events
-			 * of the same name. For instance, during address configuration, we might
-			 * start several addrconf mechanisms in parallel; for each of them, we'll
-			 * receive an addressAcquired (addressLost, ...) event. However, address
-			 * configuration isn't complete until we've received *all* non-optional
-			 * addressAcquired events outstanding for the running transition.
-			 */
-			if (ni_ifworker_waiting_for_event(w, event_name)) {
-				ni_debug_application("%s: waiting for more %s events...",
-							w->name, event_name);
-				ni_ifworker_print_callbacks(w->name, w->fsm.wait_for ?
-						w->fsm.wait_for->callbacks : NULL);
-				goto done;
-			}
-		}
-
-		ni_ifworker_advance_state(w, event_type);
-
-		if (event_type == NI_EVENT_DEVICE_DELETE)
-			ni_fsm_destroy_worker(fsm, w);
-	}
-
-done: ;
 }
 
 static void
