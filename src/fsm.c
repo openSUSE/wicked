@@ -4616,51 +4616,21 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 }
 
 static void
-interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
+ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 {
-	ni_fsm_t *fsm = user_data;
-	const char *signal_name = dbus_message_get_member(msg);
-	const char *object_path = dbus_message_get_path(msg);
-	ni_uuid_t event_uuid = NI_UUID_INIT;
-	ni_event_t event_type = __NI_EVENT_MAX;
-	const char *event_name = signal_name;
+	const char *event_name = ev->signal_name;
+	ni_event_t  event_type = ev->event_type;
 	ni_ifworker_t *w;
 
-	/* See if this event is a known one and comes with a uuid */
-	{
-		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
-		int argc;
-
-		argc = ni_dbus_message_get_args_variants(msg, &result, 1);
-		if (argc < 0) {
-			ni_error("%s: cannot extract parameters of signal %s",
-					__func__, signal_name);
-			return;
-		}
-		if (ni_objectmodel_signal_to_event(signal_name, &event_type) < 0) {
-			ni_warn("%s: unknown event signal %s from %s",
-				__func__, signal_name, object_path);
-			return;
-		}
-		if (ni_dbus_variant_get_uuid(&result, &event_uuid))
-			ni_debug_dbus("%s: got signal %s from %s; event uuid=%s",
-					__func__, signal_name, object_path,
-					ni_uuid_print(&event_uuid));
-		else
-			ni_debug_dbus("%s: got signal %s from %s; event uuid=<>",
-					__func__, signal_name, object_path);
-		ni_dbus_variant_destroy(&result);
-	}
-
 	fsm->event_seq += 1;
-	if (event_type == NI_EVENT_ADDRESS_ACQUIRED)
+	if (ev->event_type == NI_EVENT_ADDRESS_ACQUIRED)
 		fsm->last_event_seq[NI_EVENT_ADDRESS_ACQUIRED] = fsm->event_seq;
 
-	if (event_type == NI_EVENT_DEVICE_READY || event_type == NI_EVENT_DEVICE_UP) {
+	if (ev->event_type == NI_EVENT_DEVICE_READY || ev->event_type == NI_EVENT_DEVICE_UP) {
 		/* Refresh device on ready & device-up */
-		if (!(w = ni_fsm_recv_new_netif_path(fsm, object_path))) {
+		if (!(w = ni_fsm_recv_new_netif_path(fsm, ev->object_path))) {
 			ni_error("%s: Cannot find corresponding worker for %s",
-				__func__, object_path);
+				__func__, ev->object_path);
 			return;
 		}
 
@@ -4679,11 +4649,11 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		}
 	}
 
-	if ((w = ni_fsm_ifworker_by_object_path(fsm, object_path)) != NULL) {
+	if ((w = ni_fsm_ifworker_by_object_path(fsm, ev->object_path)) != NULL) {
 		ni_objectmodel_callback_info_t *cb = NULL;
 
-		if (!ni_uuid_is_null(&event_uuid)) {
-			cb = ni_ifworker_get_callback(w, &event_uuid, TRUE);
+		if (!ni_uuid_is_null(&ev->event_uuid)) {
+			cb = ni_ifworker_get_callback(w, &ev->event_uuid, TRUE);
 			if (cb) {
 				ni_event_t cb_event_type;
 				ni_bool_t success;
@@ -4695,7 +4665,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 					ni_debug_events("... great, we were expecting this event");
 				} else {
 					ni_debug_events("%s: was waiting for %s event, but got %s",
-							w->name, cb->event, signal_name);
+							w->name, cb->event, ev->signal_name);
 				}
 
 				switch (cb_event_type) {
@@ -4722,7 +4692,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 				}
 
 				if (!success)
-					ni_ifworker_fail(w, "got signal %s", signal_name);
+					ni_ifworker_fail(w, "got signal %s", ev->signal_name);
 				ni_objectmodel_callback_info_free(cb);
 			}
 
@@ -4749,6 +4719,75 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 	}
 
 done: ;
+}
+
+static void
+interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
+{
+	const char *object_path = dbus_message_get_path(msg);
+	const char *signal_name = dbus_message_get_member(msg);
+	const char *suffix = NULL;
+	ni_fsm_t *  fsm = user_data;
+	ni_event_t  event_type;
+	ni_fsm_event_t *ev;
+
+	/* See if this event is a known one */
+	if (ni_objectmodel_signal_to_event(signal_name, &event_type) < 0) {
+		ni_warn("%s: unknown event signal %s from %s",
+			__func__, signal_name, object_path);
+		return;
+	}
+
+	/* Allocate and preparse/verify object-path */
+	ev = ni_fsm_event_new(object_path, signal_name, event_type);
+	ev->worker_type = ni_ifworker_type_from_object_path(ev->object_path, &suffix);
+	switch (ev->worker_type) {
+	case NI_IFWORKER_TYPE_NETDEV:
+		if (ni_parse_uint(suffix, &ev->ifindex, 10) < 0 || !ev->ifindex) {
+			ni_error("%s: cannot extract device index from signal %s object-path %s",
+					__func__, ev->signal_name, ev->object_path);
+			ni_fsm_event_free(ev);
+			return;
+		}
+		break;
+
+	case NI_IFWORKER_TYPE_MODEM:
+		/* object-path match for now */
+		break;
+
+	default:
+		ni_warn("%s: signal %s from uknown object-path %s type",
+				__func__, signal_name, object_path);
+		ni_fsm_event_free(ev);
+		return;
+	}
+
+	/* See if this event comes with a uuid */
+	{
+		ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+
+		int argc = ni_dbus_message_get_args_variants(msg, &result, 1);
+		if (argc < 0) {
+			ni_error("%s: cannot extract parameters of signal %s",
+					__func__, signal_name);
+			ni_fsm_event_free(ev);
+			return;
+		}
+
+		if (ni_dbus_variant_get_uuid(&result, &ev->event_uuid))
+			ni_debug_dbus("%s: got signal %s from %s; event uuid=%s",
+					__func__, signal_name, object_path,
+						ni_uuid_print(&ev->event_uuid));
+		else
+			ni_debug_dbus("%s: got signal %s from %s; event uuid=<>",
+					__func__, signal_name, object_path);
+
+		ni_dbus_variant_destroy(&result);
+	}
+
+	/* just process it for now  */
+	ni_fsm_process_event(fsm, ev);
+	ni_fsm_event_free(ev);
 }
 
 ni_dbus_client_t *
