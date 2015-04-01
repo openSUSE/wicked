@@ -50,6 +50,7 @@ typedef struct ni_fsm		ni_fsm_t;
 typedef struct ni_ifworker	ni_ifworker_t;
 typedef struct ni_fsm_require	ni_fsm_require_t;
 typedef struct ni_fsm_policy	ni_fsm_policy_t;
+typedef struct ni_fsm_event	ni_fsm_event_t;
 
 typedef struct ni_ifworker_array {
 	unsigned int		count;
@@ -231,6 +232,7 @@ struct ni_fsm {
 	unsigned int		timeout_count;
 	unsigned int		event_seq;
 	unsigned int		last_event_seq[__NI_EVENT_MAX];
+	ni_fsm_event_t *	events;
 
 	ni_fsm_policy_t *	policies;
 

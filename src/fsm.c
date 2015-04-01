@@ -60,6 +60,8 @@ static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
 
 static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
 static inline void		ni_ifworker_update_client_state_config(ni_ifworker_t *w);
+static void			ni_fsm_events_destroy(ni_fsm_event_t **);
+
 
 ni_fsm_t *
 ni_fsm_new(void)
@@ -76,10 +78,91 @@ ni_fsm_new(void)
 void
 ni_fsm_free(ni_fsm_t *fsm)
 {
+	ni_fsm_events_destroy(&fsm->events);
 	ni_ifworker_array_destroy(&fsm->pending);
 	ni_ifworker_array_destroy(&fsm->workers);
 	free(fsm);
 }
+
+
+/*
+ * fsm event processing utilities
+ */
+struct ni_fsm_event {
+	ni_fsm_event_t *	next;
+
+	char *			object_path;
+	char *			signal_name;
+
+	ni_event_t		event_type;
+	ni_uuid_t		event_uuid;
+
+	ni_ifworker_type_t	worker_type;
+	unsigned int		ifindex;
+};
+
+ni_fsm_event_t *
+ni_fsm_event_new(const char *object_path, const char *signal_name, ni_event_t event_type)
+{
+	ni_fsm_event_t *ev;
+
+	ev = xcalloc(1, sizeof(*ev));
+	ni_string_dup(&ev->object_path, object_path);
+	ni_string_dup(&ev->signal_name, signal_name);
+	ev->event_type = event_type;
+	return ev;
+}
+
+void
+ni_fsm_event_free(ni_fsm_event_t *ev)
+{
+	if (ev) {
+		ni_string_free(&ev->object_path);
+		ni_string_free(&ev->signal_name);
+		free(ev);
+	}
+}
+
+void
+ni_fsm_events_append(ni_fsm_event_t **events, ni_fsm_event_t *ev)
+{
+	while (*events)
+		events = &(*events)->next;
+	*events = ev;
+}
+
+ni_fsm_event_t *
+ni_fsm_events_remove(ni_fsm_event_t **events, ni_fsm_event_t *ev)
+{
+	ni_fsm_event_t **pos, *cur;
+
+	for (pos = events; (cur = *pos); pos = &cur->next) {
+		if (cur == ev) {
+			*pos = cur->next;
+			cur->next = NULL;
+			return cur;
+		}
+	}
+	return NULL;
+}
+
+void
+ni_fsm_events_delete(ni_fsm_event_t **events, ni_fsm_event_t *ev)
+{
+	ni_fsm_event_free(ni_fsm_events_remove(events, ev));
+}
+
+void
+ni_fsm_events_destroy(ni_fsm_event_t **events)
+{
+	ni_fsm_event_t *ev;
+
+	while ((ev = *events)) {
+		*events = ev->next;
+		ni_fsm_event_free(ev);
+	}
+}
+
 
 /*
  * Return number of failed interfaces
