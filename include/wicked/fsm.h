@@ -415,7 +415,7 @@ ni_ifworker_get_modem(const ni_ifworker_t *w)
  * Returns true if the device was configured correctly
  */
 static inline ni_bool_t
-ni_ifworker_is_running(const ni_ifworker_t *w)
+ni_ifworker_has_succeeded(const ni_ifworker_t *w)
 {
 	return w->done && !w->failed;
 }

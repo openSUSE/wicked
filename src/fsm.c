@@ -2500,7 +2500,7 @@ __ni_ifworker_flatten(ni_ifworker_t *w, ni_ifworker_array_t *array, unsigned int
 	for (i = 0; i < w->children.count; ++i) {
 		ni_ifworker_t *child = w->children.data[i];
 
-		if (ni_ifworker_is_running(child))
+		if (ni_ifworker_has_succeeded(child))
 			continue;
 
 		__ni_ifworker_flatten(child, array, depth + 1);
