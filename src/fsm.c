@@ -2621,7 +2621,7 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 		}
 
 		if (ni_ifworker_start(fsm, w, fsm->worker_timeout) < 0) {
-			ni_ifworker_fail(w, "%s: unable to start the worker", w->name);
+			ni_ifworker_fail(w, "unable to start worker");
 			continue;
 		}
 
@@ -4621,6 +4621,27 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 	if (fsm->process_event.callback)
 		fsm->process_event.callback(fsm, w, ev);
 
+	switch (ev->event_type) {
+	case NI_EVENT_DEVICE_READY:
+	case NI_EVENT_DEVICE_UP:
+		/* Rebuild hierarchy */
+		ni_fsm_refresh_master_dev(fsm, w);
+		ni_fsm_refresh_lower_dev(fsm, w);
+
+		/* Rebuild hierarchy in case of new device shows up */
+		ni_fsm_build_hierarchy(fsm, FALSE);
+
+		/* Handle devices which were not present on ifup */
+		if(w->pending) {
+			w->pending = FALSE;
+			if (ni_ifworker_start(fsm, w, fsm->worker_timeout) < 0)
+				ni_ifworker_fail(w, "unable to start worker");
+			return;
+		}
+	default:
+		break;
+	}
+
 	if (!ni_uuid_is_null(&ev->event_uuid)) {
 		ni_objectmodel_callback_info_t *cb;
 
@@ -4706,21 +4727,7 @@ ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 				__func__, ev->object_path);
 			return;
 		}
-
-		/* Rebuild hierarchy */
-		ni_fsm_refresh_master_dev(fsm, w);
-		ni_fsm_refresh_lower_dev(fsm, w);
-
-		/* Rebuild hierarchy in case of new device shows up */
-		ni_fsm_build_hierarchy(fsm, FALSE);
-
-		/* Handle devices which were not present on ifup */
-		if(w->pending) {
-			w->pending = FALSE;
-			ni_ifworker_start(fsm, w, fsm->worker_timeout);
-		} else {
-			ni_fsm_process_worker_event(fsm, w, ev);
-		}
+		ni_fsm_process_worker_event(fsm, w, ev);
 		break;
 
 	case NI_EVENT_ADDRESS_ACQUIRED:
