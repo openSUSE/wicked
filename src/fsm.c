@@ -88,19 +88,6 @@ ni_fsm_free(ni_fsm_t *fsm)
 /*
  * fsm event processing utilities
  */
-struct ni_fsm_event {
-	ni_fsm_event_t *	next;
-
-	char *			object_path;
-	char *			signal_name;
-
-	ni_event_t		event_type;
-	ni_uuid_t		event_uuid;
-
-	ni_ifworker_type_t	worker_type;
-	unsigned int		ifindex;
-};
-
 ni_fsm_event_t *
 ni_fsm_event_new(const char *object_path, const char *signal_name, ni_event_t event_type)
 {
@@ -489,6 +476,16 @@ ni_ifworker_success(ni_ifworker_t *w)
 
 	if (w->progress.callback)
 		w->progress.callback(w, w->fsm.state);
+}
+
+/*
+ * Set fsm event processing callback
+ */
+void
+ni_fsm_set_process_event_callback(ni_fsm_t *fsm, void (*cb)(ni_fsm_t *, ni_ifworker_t *, ni_fsm_event_t *), void *user_data)
+{
+	fsm->process_event.callback = cb;
+	fsm->process_event.user_data = user_data;
 }
 
 /*
@@ -4620,6 +4617,9 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 {
 	const char *event_name = ev->signal_name;
 	ni_event_t  event_type = ev->event_type;
+
+	if (fsm->process_event.callback)
+		fsm->process_event.callback(fsm, w, ev);
 
 	if (!ni_uuid_is_null(&ev->event_uuid)) {
 		ni_objectmodel_callback_info_t *cb;

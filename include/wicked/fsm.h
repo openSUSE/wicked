@@ -223,6 +223,19 @@ struct ni_fsm_require {
 	void *			user_data;
 };
 
+struct ni_fsm_event {
+	ni_fsm_event_t *	next;
+
+	char *			object_path;
+	char *			signal_name;
+
+	ni_event_t		event_type;
+	ni_uuid_t		event_uuid;
+
+	ni_ifworker_type_t	worker_type;
+	unsigned int		ifindex;
+};
+
 struct ni_fsm {
 	ni_ifworker_array_t	pending;
 	ni_ifworker_array_t	workers;
@@ -233,6 +246,10 @@ struct ni_fsm {
 	unsigned int		event_seq;
 	unsigned int		last_event_seq[__NI_EVENT_MAX];
 	ni_fsm_event_t *	events;
+	struct {
+		void            (*callback)(ni_fsm_t *, ni_ifworker_t *, ni_fsm_event_t *);
+		void *          user_data;
+	} process_event;
 
 	ni_fsm_policy_t *	policies;
 
@@ -279,6 +296,7 @@ extern ni_bool_t		ni_fsm_refresh_state(ni_fsm_t *);
 extern unsigned int		ni_fsm_schedule(ni_fsm_t *);
 extern ni_bool_t		ni_fsm_do(ni_fsm_t *fsm, long *timeout_p);
 extern void			ni_fsm_mainloop(ni_fsm_t *);
+extern void			ni_fsm_set_process_event_callback(ni_fsm_t *, void (*)(ni_fsm_t *, ni_ifworker_t *, ni_fsm_event_t *), void *);
 extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, ni_ifworker_array_t *);
 extern unsigned int		ni_fsm_mark_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_ifmarker_t *);
 extern unsigned int		ni_fsm_start_matching_workers(ni_fsm_t *, ni_ifworker_array_t *);
