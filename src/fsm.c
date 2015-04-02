@@ -450,14 +450,18 @@ ni_fsm_require_list_insert(ni_fsm_require_t **list, ni_fsm_require_t *req)
 static void
 __ni_ifworker_done(ni_ifworker_t *w)
 {
-	__ni_ifworker_reset_action_table(w);
-
-	if (w->completion.callback)
-		w->completion.callback(w);
-	w->done = 1;
+	w->done = TRUE;
 
 	ni_ifworker_cancel_secondary_timeout(w);
 	ni_ifworker_cancel_timeout(w);
+
+	__ni_ifworker_reset_action_table(w);
+
+	if (w->progress.callback)
+		w->progress.callback(w, w->fsm.state);
+
+	if (w->completion.callback)
+		w->completion.callback(w);
 }
 
 void
@@ -478,9 +482,6 @@ ni_ifworker_fail(ni_ifworker_t *w, const char *fmt, ...)
 	w->failed = TRUE;
 	w->pending = FALSE;
 
-	if (w->progress.callback)
-		w->progress.callback(w, w->fsm.state);
-
 	__ni_ifworker_done(w);
 }
 
@@ -488,9 +489,6 @@ void
 ni_ifworker_success(ni_ifworker_t *w)
 {
 	__ni_ifworker_done(w);
-
-	if (w->progress.callback)
-		w->progress.callback(w, w->fsm.state);
 }
 
 /*
