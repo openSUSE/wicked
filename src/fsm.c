@@ -3004,6 +3004,9 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 			continue;
 		}
 
+		ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
+		w->fsm.child_state_req_list = NULL;
+
 		if ((rv = ni_ifworker_bind_early(w, fsm, FALSE)) < 0) {
 			if (destructive) {
 				if (-NI_ERROR_DOCUMENT_ERROR == rv)
