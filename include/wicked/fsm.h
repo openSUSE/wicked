@@ -456,6 +456,12 @@ ni_ifworker_complete(const ni_ifworker_t *w)
 }
 
 static inline ni_bool_t
+ni_ifworker_is_running(const ni_ifworker_t *w)
+{
+	return w->kickstarted && !w->dead && !ni_ifworker_complete(w);
+}
+
+static inline ni_bool_t
 ni_ifworker_is_factory_device(ni_ifworker_t *w)
 {
 	return  !w->device && (w->device_api.factory_service &&
