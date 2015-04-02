@@ -2037,6 +2037,7 @@ ni_ifworker_child_state_req_free(ni_fsm_require_t *req)
 	struct ni_child_state_req_data *data = (struct ni_child_state_req_data *) req->user_data;
 
 	if (data) {
+		ni_ifworker_release(data->child);
 		ni_string_free(&data->method);
 		free(data);
 	}
@@ -2050,8 +2051,8 @@ ni_ifworker_add_child_state_req(ni_ifworker_t *w, const char *method, ni_ifworke
 	struct ni_child_state_req_data *data;
 	ni_fsm_require_t *req;
 
-	data = calloc(1, sizeof(*data));
-	data->child = child_worker;
+	data = xcalloc(1, sizeof(*data));
+	data->child = ni_ifworker_get(child_worker);
 	ni_string_dup(&data->method, method);
 	data->child_state.min = min_state;
 	data->child_state.max = max_state;
