@@ -210,8 +210,14 @@ __ni_ifworker_reset_action_table(ni_ifworker_t *w)
 		ni_fsm_require_list_destroy(&action->require.list);
 		ni_ifworker_cancel_callbacks(w, &action->callbacks);
 	}
-	free(w->fsm.action_table);
+}
 
+static void
+__ni_ifworker_destroy_action_table(ni_ifworker_t *w)
+{
+	__ni_ifworker_reset_action_table(w);
+
+	free(w->fsm.action_table);
 	w->fsm.wait_for = NULL;
 	w->fsm.next_action = NULL;
 	w->fsm.action_table = NULL;
