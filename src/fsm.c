@@ -301,6 +301,8 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	w->done = FALSE;
 	w->kickstarted = FALSE;
 	w->readonly = FALSE;
+	w->dead = FALSE;
+	w->pending = FALSE;
 }
 
 void
