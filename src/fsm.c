@@ -4261,8 +4261,10 @@ ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, u
 	ni_debug_application("%s: set up FSM from %s -> %s", w->name,
 			ni_ifworker_state_name(from_state),
 			ni_ifworker_state_name(target_state));
+
 	num_actions = 0;
 
+	__ni_ifworker_destroy_action_table(w);
 do_it_again:
 	index = 0;
 	for (cur_state = from_state; cur_state != target_state; ) {
@@ -4288,7 +4290,7 @@ do_it_again:
 	}
 
 	if (w->fsm.action_table == NULL) {
-		w->fsm.action_table = calloc(num_actions + 1, sizeof(ni_fsm_transition_t));
+		w->fsm.action_table = xcalloc(num_actions + 1, sizeof(ni_fsm_transition_t));
 		goto do_it_again;
 	}
 	w->fsm.next_action = w->fsm.action_table;
