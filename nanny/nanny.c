@@ -232,7 +232,7 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 	for (i = 0; i < mgr->recheck.count; ++i) {
 		ni_ifworker_t *w = mgr->recheck.data[i];
 
-		if (!w->failed && !w->done && !w->pending && !ni_ifworker_active(w))
+		if (!w->failed && !w->done && !w->pending && !ni_ifworker_is_running(w))
 			count += ni_nanny_recheck(mgr, w);
 	}
 

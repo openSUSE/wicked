@@ -2723,7 +2723,7 @@ ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 	ni_ifworker_cancel_secondary_timeout(w);
 	ni_ifworker_cancel_timeout(w);
 
-	if (ni_ifworker_active(w))
+	if (ni_ifworker_is_running(w))
 		ni_ifworker_fail(w, "device has been deleted");
 
 	ni_fsm_clear_hierarchy(w);
@@ -4241,7 +4241,7 @@ ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, u
 	int increment;
 	int rv;
 
-	if (ni_ifworker_active(w))
+	if (ni_ifworker_is_running(w))
 		return 0;
 
 	if (from_state <= target_state)
