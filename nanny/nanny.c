@@ -33,10 +33,7 @@
 #include "util_priv.h"
 #include "nanny.h"
 
-static void		ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
-#ifdef MODEM
-static void		ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
-#endif
+static void		ni_nanny_process_fsm_event(ni_fsm_t *, ni_ifworker_t *, ni_fsm_event_t *);
 
 static void		__ni_nanny_user_free(ni_nanny_user_t *);
 static int		ni_nanny_prompt(const ni_fsm_prompt_t *, xml_node_t *, void *);
@@ -88,7 +85,6 @@ void
 ni_nanny_start(ni_nanny_t *mgr)
 {
 	ni_nanny_devmatch_t *match;
-	ni_dbus_client_t *client;
 
 	mgr->server = ni_server_listen_dbus(NI_OBJECTMODEL_DBUS_BUS_NAME_NANNY);
 	if (!mgr->server)
@@ -98,6 +94,7 @@ ni_nanny_start(ni_nanny_t *mgr)
 	mgr->fsm->worker_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
 
 	ni_fsm_set_user_prompt_fn(mgr->fsm, ni_nanny_prompt, mgr);
+	ni_fsm_set_process_event_callback(mgr->fsm, ni_nanny_process_fsm_event, mgr);
 
 	ni_objectmodel_nanny_init(mgr);
 
@@ -117,19 +114,8 @@ ni_nanny_start(ni_nanny_t *mgr)
 	}
 
 	if (ni_config_use_nanny()) {
-		if (!(client = ni_fsm_create_client(mgr->fsm)))
+		if (!ni_fsm_create_client(mgr->fsm))
 			ni_fatal("Unable to create FSM client");
-
-		ni_dbus_client_add_signal_handler(client, NULL, NULL,
-				NI_OBJECTMODEL_NETIF_INTERFACE,
-				ni_nanny_netif_state_change_signal_receive,
-				mgr);
-#ifdef MODEM
-		ni_dbus_client_add_signal_handler(client, NULL, NULL,
-				NI_OBJECTMODEL_MODEM_INTERFACE,
-				ni_nanny_modem_state_change_signal_receive,
-				mgr);
-#endif
 	}
 }
 
@@ -806,169 +792,37 @@ ni_objectmodel_nanny_unwrap(const ni_dbus_object_t *object, DBusError *error)
  * Wickedd is sending us a signal (such a linkUp/linkDown, or change in the set of
  * visible WLANs)
  */
-void
-ni_nanny_netif_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
+static void
+ni_nanny_process_fsm_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 {
-	ni_nanny_t *mgr = user_data;
-	const char *signal_name = dbus_message_get_member(msg);
-	const char *object_path = dbus_message_get_path(msg);
-	ni_event_t event;
+	ni_nanny_t *mgr = fsm->process_event.user_data;
 	ni_managed_device_t *mdev;
-	ni_ifworker_t *w;
 
-	if (ni_objectmodel_signal_to_event(signal_name, &event) < 0) {
-		ni_debug_nanny("received unknown signal \"%s\" from object \"%s\"",
-				signal_name, object_path);
-		return;
-	}
+	switch (ev->event_type) {
+	case NI_EVENT_DEVICE_READY:
+		ni_nanny_register_device(mgr, w);
+		break;
 
-	if (event == NI_EVENT_DEVICE_CREATE)
-		return;
-
-	if (event == NI_EVENT_DEVICE_READY) {
-		if ((w = ni_fsm_recv_new_netif_path(mgr->fsm, object_path)))
-			ni_nanny_register_device(mgr, w);
-	}
-
-	w = ni_fsm_ifworker_by_object_path(mgr->fsm, object_path);
-	if (!w) {
-		ni_warn("received signal \"%s\" from unknown object \"%s\"",
-				signal_name, object_path);
-		return;
-	}
-
-	if (event == NI_EVENT_DEVICE_DELETE) {
-		ni_debug_nanny("%s: received signal \"%s\" from \"%s\"",
-				w->name, signal_name, object_path);
-		// delete the worker and the managed netif
+	case NI_EVENT_DEVICE_DELETE:
 		ni_nanny_unregister_device(mgr, w);
-		return;
+		break;
+
+	default:
+		break;
 	}
 
-	if (w->type != NI_IFWORKER_TYPE_NETDEV || w->device == NULL) {
-		ni_error("%s: received signal \"%s\" from \"%s\" (not a managed network device)",
-				w->name, signal_name, object_path);
-		return;
-	}
-
-	if ((mdev = ni_nanny_get_device(mgr, w)) == NULL) {
-		ni_debug_nanny("%s: received signal \"%s\" from \"%s\" (not a managed device)",
-				w->name, signal_name, object_path);
-		return;
-	}
-
-	ni_debug_nanny("%s: received signal %s; state=%s, policy=%s%s%s",
-			w->name, signal_name,
+	if ((mdev = ni_nanny_get_device(mgr, w))) {
+		ni_debug_nanny("%s: processed event %s; state=%s, policy=%s%s%s",
+			w->name, ev->signal_name,
 			ni_managed_state_to_string(mdev->state),
 			mdev->selected_policy? ni_fsm_policy_name(mdev->selected_policy->fsm_policy): "<none>",
 			mdev->allowed? ", user control allowed" : "",
 			mdev->monitor? ", monitored" : "");
-
-	switch (event) {
-	case NI_EVENT_DEVICE_READY:
-#if 0
-		ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
-		break;
-
-	case NI_EVENT_LINK_DOWN:
-		// If we have recorded a policy for this device, it means
-		// we were the ones who took it up - so bring it down
-		// again
-#if 0
-		if (mdev->selected_policy != NULL && mdev->monitor)
-			ni_nanny_schedule_recheck(&mgr->down, w);
-#endif
-#if 0
-		ni_nanny_unschedule(&mgr->recheck, w);
-#endif
-		break;
-
-	case NI_EVENT_LINK_ASSOCIATION_LOST:
-		// If we have recorded a policy for this device, it means
-		// we were the ones who took it up - so bring it down
-		// again
-#if 0
-		if (mdev->selected_policy != NULL && mdev->monitor)
-			ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
-		break;
-
-	case NI_EVENT_LINK_SCAN_UPDATED:
-#if 0
-		if (mdev->monitor)
-			ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
-		break;
-
-	case NI_EVENT_LINK_UP:
-		// Link detection - eg for ethernet
-#if 0
-		if (mdev->monitor)
-			ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
-		break;
-
-	default: ;
-	}
-}
-
-#ifdef MODEM
-/*
- * Wickedd is sending us a modem signal (usually discovery or removal of a modem)
- */
-void
-ni_nanny_modem_state_change_signal_receive(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
-{
-	ni_nanny_t *mgr = user_data;
-	const char *signal_name = dbus_message_get_member(msg);
-	const char *object_path = dbus_message_get_path(msg);
-	ni_event_t event;
-	ni_ifworker_t *w;
-
-	if (ni_objectmodel_signal_to_event(signal_name, &event) < 0) {
-		ni_debug_nanny("received unknown signal \"%s\" from object \"%s\"",
-				signal_name, object_path);
-		return;
-	}
-
-	/* We receive a deviceCreate signal when a modem was plugged in */
-	w = ni_fsm_ifworker_by_object_path(mgr->fsm, object_path);
-	if (!w && event == NI_EVENT_DEVICE_CREATE) {
-		if ((w = ni_fsm_recv_new_modem_path(mgr->fsm, object_path))) {
-			ni_nanny_register_device(mgr, w);
-#if 0
-			ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
-		}
-		return;
-	}
-	if (!w) {
-		ni_warn("received signal \"%s\" from unknown object \"%s\"",
-				signal_name, object_path);
-		return;
-	}
-
-	if (w->type != NI_IFWORKER_TYPE_MODEM || w->modem == NULL) {
-		ni_error("%s: received signal \"%s\" from \"%s\" (not a managed modem device)",
-				w->name, signal_name, object_path);
-		return;
-	}
-
-	ni_debug_nanny("%s: received signal %s from %s", w->name, signal_name, object_path);
-	if (event == NI_EVENT_DEVICE_DELETE) {
-		// delete the worker and the managed modem
-		ni_nanny_unregister_device(mgr, w);
-	} else if (event == NI_EVENT_DEVICE_READY) {
-#if 0
-		ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
-		;
 	} else {
-		// ignore
+		ni_debug_nanny("%s: received event \"%s\" from \"%s\" (not a managed device)",
+				w->name, ev->signal_name, ev->object_path);
 	}
 }
-#endif
 
 /*
  * Nanny.getDevice(devname)
