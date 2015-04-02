@@ -227,8 +227,6 @@ __ni_ifworker_destroy_action_table(ni_ifworker_t *w)
 static void
 __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 {
-	ni_fsm_require_t *req_list;
-
 	if (!w)
 		return;
 
@@ -237,9 +235,16 @@ __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 
 	__ni_ifworker_reset_action_table(w);
 
-	req_list = w->fsm.child_state_req_list;
-	memset(&w->fsm, 0, sizeof(w->fsm));
-	w->fsm.child_state_req_list = req_list;
+	w->fsm.state = NI_FSM_STATE_NONE;
+}
+
+static void
+__ni_ifworker_destroy_fsm(ni_ifworker_t *w)
+{
+	__ni_ifworker_reset_fsm(w);
+
+	__ni_ifworker_destroy_action_table(w);
+	ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
 }
 
 void
