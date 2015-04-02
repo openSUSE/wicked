@@ -452,7 +452,7 @@ static inline ni_bool_t
 ni_ifworker_complete(const ni_ifworker_t *w)
 {
 	return 	w->failed || w->done || w->target_state == NI_FSM_STATE_NONE ||
-		w->target_state == w->fsm.state;
+		(w->target_state == w->fsm.state && ni_ifworker_is_valid_state(w->target_state));
 }
 
 static inline ni_bool_t
