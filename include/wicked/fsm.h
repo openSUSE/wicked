@@ -50,6 +50,7 @@ typedef struct ni_fsm		ni_fsm_t;
 typedef struct ni_ifworker	ni_ifworker_t;
 typedef struct ni_fsm_require	ni_fsm_require_t;
 typedef struct ni_fsm_policy	ni_fsm_policy_t;
+typedef struct ni_fsm_event	ni_fsm_event_t;
 
 typedef struct ni_ifworker_array {
 	unsigned int		count;
@@ -64,8 +65,8 @@ typedef struct ni_fsm_transition ni_fsm_transition_t;
 
 typedef int			ni_fsm_transition_fn_t(ni_fsm_t *, ni_ifworker_t *, ni_fsm_transition_t *);
 struct ni_fsm_transition {
-	unsigned int		from_state;
-	unsigned int		next_state;
+	ni_fsm_state_t		from_state;
+	ni_fsm_state_t		next_state;
 	ni_fsm_transition_fn_t *bind_func;
 	ni_fsm_transition_fn_t *call_func;
 	ni_fsm_timer_fn_t *	timeout_fn;
@@ -222,7 +223,21 @@ struct ni_fsm_require {
 	void *			user_data;
 };
 
+struct ni_fsm_event {
+	ni_fsm_event_t *	next;
+
+	char *			object_path;
+	char *			signal_name;
+
+	ni_event_t		event_type;
+	ni_uuid_t		event_uuid;
+
+	ni_ifworker_type_t	worker_type;
+	unsigned int		ifindex;
+};
+
 struct ni_fsm {
+	ni_ifworker_array_t	pending;
 	ni_ifworker_array_t	workers;
 	unsigned int		worker_timeout;
 	ni_bool_t		readonly;
@@ -230,6 +245,11 @@ struct ni_fsm {
 	unsigned int		timeout_count;
 	unsigned int		event_seq;
 	unsigned int		last_event_seq[__NI_EVENT_MAX];
+	ni_fsm_event_t *	events;
+	struct {
+		void            (*callback)(ni_fsm_t *, ni_ifworker_t *, ni_fsm_event_t *);
+		void *          user_data;
+	} process_event;
 
 	ni_fsm_policy_t *	policies;
 
@@ -276,6 +296,7 @@ extern ni_bool_t		ni_fsm_refresh_state(ni_fsm_t *);
 extern unsigned int		ni_fsm_schedule(ni_fsm_t *);
 extern ni_bool_t		ni_fsm_do(ni_fsm_t *fsm, long *timeout_p);
 extern void			ni_fsm_mainloop(ni_fsm_t *);
+extern void			ni_fsm_set_process_event_callback(ni_fsm_t *, void (*)(ni_fsm_t *, ni_ifworker_t *, ni_fsm_event_t *), void *);
 extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, ni_ifworker_array_t *);
 extern unsigned int		ni_fsm_mark_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_ifmarker_t *);
 extern unsigned int		ni_fsm_start_matching_workers(ni_fsm_t *, ni_ifworker_array_t *);
@@ -299,6 +320,7 @@ extern void			ni_fsm_wait_tentative_addrs(ni_fsm_t *);
 
 extern ni_ifworker_type_t	ni_ifworker_type_from_string(const char *);
 extern const char *		ni_ifworker_type_to_string(ni_ifworker_type_t);
+extern ni_ifworker_type_t	ni_ifworker_type_from_object_path(const char *, const char **);
 extern inline ni_bool_t	ni_ifworker_state_in_range(const ni_uint_range_t *, const unsigned int);
 extern const char *		ni_ifworker_state_name(ni_fsm_state_t state);
 extern ni_bool_t		ni_ifworker_state_from_name(const char *, unsigned int *);
@@ -393,7 +415,7 @@ ni_ifworker_get_modem(const ni_ifworker_t *w)
  * Returns true if the device was configured correctly
  */
 static inline ni_bool_t
-ni_ifworker_is_running(const ni_ifworker_t *w)
+ni_ifworker_has_succeeded(const ni_ifworker_t *w)
 {
 	return w->done && !w->failed;
 }
@@ -430,7 +452,13 @@ static inline ni_bool_t
 ni_ifworker_complete(const ni_ifworker_t *w)
 {
 	return 	w->failed || w->done || w->target_state == NI_FSM_STATE_NONE ||
-		w->target_state == w->fsm.state;
+		(w->target_state == w->fsm.state && ni_ifworker_is_valid_state(w->target_state));
+}
+
+static inline ni_bool_t
+ni_ifworker_is_running(const ni_ifworker_t *w)
+{
+	return w->kickstarted && !w->dead && !ni_ifworker_complete(w);
 }
 
 static inline ni_bool_t
