@@ -4514,8 +4514,21 @@ ni_fsm_wait_tentative_addrs(ni_fsm_t *fsm)
 				break;
 			}
 
-			if (!w->device || !ni_netdev_link_is_up(w->device))
+			if (!w->device)
 				break;
+
+			if (!ni_netdev_link_is_up(w->device)) {
+				ni_tristate_t link_required = ni_tristate_is_set(w->control.link_required) ?
+					w->control.link_required : ni_netdev_guess_link_required(w->device);
+
+				if (ni_tristate_is_disabled(link_required))
+					break; /* LINK_REQUIRED=no and no link: do not check tentative addrs */
+				else {
+					ni_debug_application("%s: worker succeeded and there is no link... "
+						"waiting up to 10s for it", w->name);
+					goto wait;
+				}
+			}
 
 			if (!(ap = __ni_fsm_device_get_tentative_addr(w->device))) {
 				ni_debug_application("%s: device has no tentative addresses", w->name);
@@ -4527,6 +4540,7 @@ ni_fsm_wait_tentative_addrs(ni_fsm_t *fsm)
 				old_ap = ap;
 			}
 
+wait:
 			usleep(250000);
 		} while (--count > 0);
 	}
