@@ -4495,32 +4495,35 @@ __ni_fsm_device_with_tentative_addrs(ni_netdev_t *dev)
 void
 ni_fsm_wait_tentative_addrs(ni_fsm_t *fsm)
 {
-	unsigned int i, count = 40; /* 10sec timeout */
+	unsigned int i;
 
 	if (!fsm)
 		return;
 
-	if (!ni_fsm_refresh_state(fsm))
-		return;
-
-	for (i = 0; count && i < fsm->workers.count; i++) {
+	for (i = 0; i < fsm->workers.count; i++) {
 		ni_ifworker_t *w = fsm->workers.data[i];
+		unsigned int count = 40; /* 10sec timeout */
 
-		if (!w->done || !w->device)
-			continue;
-
-		if (!ni_netdev_link_is_up(w->device))
+		if (!ni_ifworker_has_succeeded(w) || ni_string_empty(w->object_path))
 			continue;
 
 		ni_debug_application("%s: tentative addresses check", w->name);
+		do {
+			if (!(w = ni_fsm_recv_new_netif_path(fsm, w->object_path))) {
+				ni_error("%s: unable to refresh the worker", w->name);
+				break;
+			}
 
-		if (__ni_fsm_device_with_tentative_addrs(w->device)) {
+			if (!w->device || !ni_netdev_link_is_up(w->device))
+				break;
+
+			if (!__ni_fsm_device_with_tentative_addrs(w->device)) {
+				ni_debug_application("%s: device has no tentative addresses", w->name);
+				break;
+			}
+
 			usleep(250000);
-			count--;
-			if (!ni_fsm_refresh_state(fsm))
-				return;
-			i--; /* recheck this worker */
-		}
+		} while (--count > 0);
 	}
 }
 
