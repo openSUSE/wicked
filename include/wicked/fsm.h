@@ -32,6 +32,7 @@ typedef enum ni_fsm_state {
 	NI_FSM_STATE_LINK_AUTHENTICATED,
 	NI_FSM_STATE_LLDP_UP,
 	NI_FSM_STATE_ADDRCONF_UP,
+	NI_FSM_STATE_NETWORK_UP,
 
 	__NI_FSM_STATE_MAX
 } ni_fsm_state_t;

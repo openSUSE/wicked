@@ -661,7 +661,8 @@ static ni_intmap_t __state_names[] = {
 	{ "link-up",		NI_FSM_STATE_LINK_UP		},
 	{ "link-authenticated",	NI_FSM_STATE_LINK_AUTHENTICATED	},
 	{ "lldp-up",		NI_FSM_STATE_LLDP_UP		},
-	{ "network-up",		NI_FSM_STATE_ADDRCONF_UP	},
+	{ "addrconf-up",	NI_FSM_STATE_ADDRCONF_UP	},
+	{ "network-up",		NI_FSM_STATE_NETWORK_UP		},
 	{ "max",		__NI_FSM_STATE_MAX		},
 
 	{ NULL }
