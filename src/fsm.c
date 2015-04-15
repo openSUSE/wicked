@@ -2760,7 +2760,7 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 			return rv;
 	} else if (min_state == NI_FSM_STATE_NONE) {
 		/* No lower bound; bring it down to max level */
-		rv = ni_fsm_schedule_init(fsm, w, NI_FSM_STATE_ADDRCONF_UP, max_state);
+		rv = ni_fsm_schedule_init(fsm, w, __NI_FSM_STATE_MAX - 1, max_state);
 		if (rv < 0)
 			return rv;
 	} else {

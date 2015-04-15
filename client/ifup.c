@@ -696,7 +696,7 @@ ni_do_ifup_direct(int argc, char **argv)
 	ifmatch.allow_persistent = TRUE;
 	ifmatch.require_config = TRUE;
 
-	ifmarker.target_range.min = NI_FSM_STATE_ADDRCONF_UP;
+	ifmarker.target_range.min = __NI_FSM_STATE_MAX - 1;
 	ifmarker.target_range.max = __NI_FSM_STATE_MAX;
 
 	/*
