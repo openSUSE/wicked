@@ -21,6 +21,7 @@ wicked_schema_files		= \
 	protocol.xml		\
 	types.xml		\
 	tuntap.xml		\
+	scripts.xml		\
 	sit.xml			\
 	ipip.xml		\
 	gre.xml			\

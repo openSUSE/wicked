@@ -1,0 +1,34 @@
+<!--
+  This service executes custom scripts at fsm up-to and down-from state transitions.
+  -->
+<service name="scripts" interface="org.opensuse.Network.Scripts" object-class="netif">
+
+  <define name="script-config" class="dict">
+    <script type="string" />
+  </define>
+
+  <method name="firewallUp">
+    <description>
+      These scripts are executed before the device is set UP at fsm transition
+      from protocol-up to firewall-up, followed by the device/link UP request.
+    </description>
+    <arguments>
+      <config type="script-config">
+        <meta:mapping document-node="/scripts/pre-up" skip-unless-present="true" />
+      </config>
+    </arguments>
+  </method>
+
+  <method name="networkUp">
+    <description>
+      These scripts are executed as final action in the ifup processing at fsm
+      transition action from addrconf-up (IP setup) before ifup reports status.
+    </description>
+    <arguments>
+      <config type="script-config">
+        <meta:mapping document-node="/scripts/post-up" skip-unless-present="true" />
+      </config>
+    </arguments>
+  </method>
+
+</service>
