@@ -1283,6 +1283,21 @@ __ni_fsm_policy_match_class_check(const ni_ifcondition_t *cond, ni_ifworker_t *w
 	return rv;
 }
 
+static ni_bool_t
+__ni_fsm_policy_match_linktype_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+{
+	ni_bool_t rv;
+	ni_iftype_t iftype = (ni_iftype_t) cond->args.uint;
+
+	rv = (iftype == w->iftype);
+
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_trace("%s: %s condition is %s",
+			w->name, __func__, ni_format_boolean(rv));
+	}
+	return rv;
+}
+
 static ni_ifcondition_t *
 __ni_fsm_policy_match_class_new(xml_node_t *node, const char *classname)
 {
@@ -1302,6 +1317,17 @@ __ni_fsm_policy_match_class_new(xml_node_t *node, const char *classname)
 }
 
 static ni_ifcondition_t *
+__ni_fsm_policy_match_linktype_new(xml_node_t *node, ni_iftype_t iftype)
+{
+	ni_ifcondition_t *result;
+
+	result = ni_ifcondition_new(__ni_fsm_policy_match_linktype_check);
+	result->args.uint = iftype;
+
+	return result;
+}
+
+static ni_ifcondition_t *
 ni_ifcondition_class(xml_node_t *node)
 {
 	return __ni_fsm_policy_match_class_new(node, node->cdata);
@@ -1310,14 +1336,15 @@ ni_ifcondition_class(xml_node_t *node)
 static ni_ifcondition_t *
 ni_ifcondition_linktype(xml_node_t *node)
 {
-	char namebuf[128];
+	ni_iftype_t iftype;
 
-	if (ni_linktype_name_to_type(node->cdata) < 0) {
+	iftype = ni_linktype_name_to_type(node->cdata);
+	if (iftype >= __NI_IFTYPE_MAX) {
 		ni_error("%s: unknown link type \"%s\"", xml_node_location(node), node->cdata);
 		return NULL;
 	}
-	snprintf(namebuf, sizeof(namebuf), "netif-%s", node->cdata);
-	return __ni_fsm_policy_match_class_new(node, namebuf);
+
+	return __ni_fsm_policy_match_linktype_new(node, iftype);
 }
 
 /*
