@@ -31,4 +31,28 @@
     </arguments>
   </method>
 
+  <method name="networkDown">
+    <description>
+      These scripts are executed at start of the ifdown processing at fsm transition
+      from network-up to addrconf-up, followed by dropping/releasing leases.
+    </description>
+    <arguments>
+      <config type="script-config">
+        <meta:mapping document-node="/scripts/pre-down" skip-unless-present="true" />
+      </config>
+    </arguments>
+  </method>
+
+  <method name="firewallDown">
+    <description>
+      These scripts are executed after device is already down at the fsm transition
+      from firewall-up to protocols-up, followed by device shutdown/deconfiguration.
+    </description>
+    <arguments>
+      <config type="script-config">
+        <meta:mapping document-node="/scripts/post-down" skip-unless-present="true" />
+      </config>
+    </arguments>
+  </method>
+
 </service>
