@@ -52,7 +52,7 @@ prepend_dir()
 	case $X in
 	"")     ;;
 	/*)	test -x "$X" && S=$X ;;
-	*)	for D in $@ ; do
+	*)	for D in "$@" ; do
 			if test -x "$D/$X" ; then
 				S="$D/$X"
 				break
