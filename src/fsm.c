@@ -4212,9 +4212,15 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	/* Configure all assigned addresses and bring up the network */
 	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_ADDRCONF_UP, "requestLease"),
 
+	/* Execute post-up script if any */
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_NETWORK_UP, "networkUp"),
+
 	/* -------------------------------------- *
 	 * Transitions for bringing down a device
 	 * -------------------------------------- */
+	/* Execute pre-down script if any */
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_NETWORK_UP, "networkDown"),
+
 	/* Remove all assigned addresses and bring down the network */
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_ADDRCONF_UP, "dropLease"),
 
