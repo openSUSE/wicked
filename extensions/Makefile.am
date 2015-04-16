@@ -3,6 +3,7 @@ CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
 
 wicked_extensions_SCRIPTS	= \
+	dispatch	\
 	firewall	\
 	hostname	\
 	ibft		\
