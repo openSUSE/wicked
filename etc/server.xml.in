@@ -50,6 +50,18 @@
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
   </dbus-service>
 
+  <dbus-service interface="org.opensuse.Network.Scripts">
+   <action name="firewallUp" command="@wicked_extensionsdir@/dispatch pre-up"/>
+   <action name="networkUp" command="@wicked_extensionsdir@/dispatch post-up"/>
+   <action name="networkDown" command="@wicked_extensionsdir@/dispatch pre-down"/>
+   <action name="firewallDown" command="@wicked_extensionsdir@/dispatch post-down"/>
+
+   <!-- default environment for all calls to this extension script -->
+   <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
+   <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
+   <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
+  </dbus-service>
+
   <!-- Define the scripts for updating various system settings with
        data obtained from addrconf services, such as dhcp -->
   <system-updater name="hostname">
