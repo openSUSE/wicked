@@ -144,8 +144,12 @@ struct ni_ifworker {
 	ni_ifworker_control_t	control;
 
 	struct {
+		xml_node_t *			node;
+	} state;
+
+	struct {
 		ni_client_state_config_t	meta;
-		xml_node_t *		node;
+		xml_node_t *			node;
 	} config;
 
 	ni_bool_t		use_default_policies;
