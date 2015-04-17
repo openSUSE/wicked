@@ -463,8 +463,11 @@ __ni_kernel_to_wicked(const __ni_kernel_map_t *map, int value)
 static ni_intmap_t __ni_wireless_mode_names[] = {
 	{ "unknown",		NI_WIRELESS_MODE_UNKNOWN },
 	{ "auto",		NI_WIRELESS_MODE_AUTO },
-	{ "adhoc",		NI_WIRELESS_MODE_ADHOC },
+	{ "ad-hoc", 		NI_WIRELESS_MODE_ADHOC },
+	{ "adhoc", 		NI_WIRELESS_MODE_ADHOC },
+	{ "infrastructure",	NI_WIRELESS_MODE_MANAGED },
 	{ "managed",		NI_WIRELESS_MODE_MANAGED },
+	{ "ap",			NI_WIRELESS_MODE_MASTER },
 	{ "master",		NI_WIRELESS_MODE_MASTER },
 	{ "repeater",		NI_WIRELESS_MODE_REPEATER },
 	{ "secondary",		NI_WIRELESS_MODE_SECONDARY },
