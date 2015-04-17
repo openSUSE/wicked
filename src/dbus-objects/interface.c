@@ -25,6 +25,7 @@
 #include <wicked/xml.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
+#include "xml-schema.h"
 #include "model.h"
 #include "debug.h"
 
@@ -997,6 +998,37 @@ ni_objectmodel_netif_set_client_state_config(ni_dbus_object_t *object, const ni_
 }
 
 /*
+ * Interface.setClientScripts()
+ *
+ * This method is used by the client to record script set.
+ */
+static dbus_bool_t
+ni_objectmodel_netif_set_client_state_scripts(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+	xml_node_t *args;
+	ni_client_state_t *cs;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	if (argc != 1 || !ni_dbus_variant_is_dict(&argv[0]))
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	if (!(args = ni_dbus_xml_deserialize_arguments(method, 1, &argv[0], NULL, NULL)))
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
+
+	cs = ni_netdev_get_client_state(dev);
+	ni_client_state_scripts_parse_xml(args, &cs->scripts);
+	xml_node_free(args);
+
+	__ni_objectmodel_netif_set_client_state_save_trigger(dev);
+	return TRUE;
+}
+
+/*
  * Broadcast an interface event
  * The optional uuid argument helps the client match e.g. notifications
  * from an addrconf service against its current state.
@@ -1161,6 +1193,7 @@ static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
 	{ "installLease",	"a{sv}",		ni_objectmodel_netif_install_lease },
 	{ "setClientControl",	"a{sv}",		ni_objectmodel_netif_set_client_state_control },
 	{ "setClientConfig",	"a{sv}",		ni_objectmodel_netif_set_client_state_config },
+	{ "setClientScripts",	"a{sv}",		ni_objectmodel_netif_set_client_state_scripts },
 	{ "linkMonitor",	"",			ni_objectmodel_netif_link_monitor },
 	{ "getNames",		"",			ni_objectmodel_netif_get_names },
 	{ "clearEventFilters",	"",			ni_objectmodel_netif_clear_event_filters },

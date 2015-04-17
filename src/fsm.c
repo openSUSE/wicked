@@ -60,6 +60,7 @@ static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
 
 static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
 static inline void		ni_ifworker_update_client_state_config(ni_ifworker_t *w);
+static void			ni_ifworker_update_client_state_scripts(ni_ifworker_t *w);
 static void			ni_fsm_events_destroy(ni_fsm_event_t **);
 
 
@@ -1434,6 +1435,18 @@ ni_ifworker_update_client_state_config(ni_ifworker_t *w)
 	}
 }
 
+static void
+ni_ifworker_update_client_state_scripts(ni_ifworker_t *w)
+{
+	ni_client_state_scripts_t scripts = { .node = NULL };
+
+	if (w && w->object && !w->readonly && w->config.node) {
+		if ((scripts.node = xml_node_get_child(w->config.node, "scripts"))) {
+			ni_call_set_client_state_scripts(w->object, &scripts);
+		}
+	}
+}
+
 static inline ni_bool_t
 ni_ifworker_empty_config(ni_ifworker_t *w)
 {
@@ -1464,6 +1477,7 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 
 		if ((new_state == NI_FSM_STATE_DEVICE_READY) && w->object && !w->readonly) {
 			ni_ifworker_update_client_state_control(w);
+			ni_ifworker_update_client_state_scripts(w);
 			ni_ifworker_update_client_state_config(w);
 		}
 

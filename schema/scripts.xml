@@ -7,6 +7,13 @@
     <script type="string" />
   </define>
 
+  <define name="configuration" class="dict" description="Complete script configuration">
+    <pre-up    type="script-config"/>
+    <post-up   type="script-config"/>
+    <pre-down  type="script-config"/>
+    <post-down type="script-config"/>
+  </define>
+
   <method name="firewallUp">
     <description>
       These scripts are executed before the device is set UP at fsm transition

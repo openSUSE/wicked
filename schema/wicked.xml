@@ -6,6 +6,7 @@
 
 <include name="types.xml"/>
 <include name="constants.xml"/>
+<include name="scripts.xml"/>
 <include name="protocol.xml"/>
 <include name="ethernet.xml"/>
 <include name="vlan.xml"/>
@@ -24,4 +25,3 @@
 <include name="firewall.xml"/>
 <include name="addrconf.xml"/>
 <include name="lldp.xml"/>
-<include name="scripts.xml"/>

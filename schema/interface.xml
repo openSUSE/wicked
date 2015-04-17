@@ -343,6 +343,15 @@
     </arguments>
   </method>
 
+  <method name="setClientScripts">
+    <description>
+      Apply per interface scripts from configuration.
+    </description>
+    <arguments>
+      <scripts type="scripts:configuration"/>
+    </arguments>
+  </method>
+
   <method name="linkMonitor">
     <description>
       This method sets up the device for monitoring, so that link status
