@@ -1294,10 +1294,10 @@ ni_objectmodel_netif_client_state_to_dict(const ni_client_state_t *cs, ni_dbus_v
 		return FALSE;
 
 	if (!ni_objectmodel_netif_client_state_control_to_dict(&cs->control, dict) ||
-	    !ni_objectmodel_netif_client_state_config_to_dict(&cs->config, dict)) {
+	    !ni_objectmodel_netif_client_state_config_to_dict(&cs->config, dict))
 		return FALSE;
-	}
 
+	ni_objectmodel_netif_client_state_scripts_to_dict(&cs->scripts, dict);
 	return TRUE;
 }
 
@@ -1363,6 +1363,40 @@ ni_objectmodel_netif_client_state_config_to_dict(const ni_client_state_config_t 
 	return TRUE;
 }
 
+dbus_bool_t
+ni_objectmodel_netif_client_state_scripts_to_dict(const ni_client_state_scripts_t *scripts, ni_dbus_variant_t *dict)
+{
+	ni_dbus_variant_t *sv, *tv;
+	xml_node_t *tn, *sn;
+
+	if (!scripts || !dict)
+		return FALSE;
+
+	if (!scripts->node || !scripts->node->children)
+		return TRUE;
+
+	if (!ni_string_eq(scripts->node->name, NI_CLIENT_STATE_XML_SCRIPTS_NODE))
+		return FALSE;
+
+	if (!(sv = ni_dbus_dict_add(dict, scripts->node->name)))
+		return FALSE;
+
+	ni_dbus_variant_init_dict(sv);
+	for (tn = scripts->node->children; tn; tn = tn->next) {
+		if (!tn->children || !(tv = ni_dbus_dict_add(sv, tn->name)))
+			continue;
+
+		ni_dbus_variant_init_dict(tv);
+		for (sn = tn->children; sn; sn = sn->next) {
+			if (!sn->name || !sn->cdata)
+				continue;
+			ni_dbus_dict_add_string(tv, sn->name, sn->cdata);
+		}
+	}
+
+	return TRUE;
+}
+
 static dbus_bool_t
 __ni_objectmodel_netif_set_client_state(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
@@ -1387,10 +1421,10 @@ ni_objectmodel_netif_client_state_from_dict(ni_client_state_t *cs, const ni_dbus
 	ni_assert(cs && dict);
 
 	if (!ni_objectmodel_netif_client_state_control_from_dict(&cs->control, dict) ||
-	    !ni_objectmodel_netif_client_state_config_from_dict(&cs->config, dict)) {
+	    !ni_objectmodel_netif_client_state_config_from_dict(&cs->config, dict))
 		return FALSE;
-	}
 
+	ni_objectmodel_netif_client_state_scripts_from_dict(&cs->scripts, dict);
 	return TRUE;
 }
 
@@ -1446,6 +1480,36 @@ ni_objectmodel_netif_client_state_config_from_dict(ni_client_state_config_t *con
 
 	return TRUE;
 }
+
+dbus_bool_t
+ni_objectmodel_netif_client_state_scripts_from_dict(ni_client_state_scripts_t *scripts, const ni_dbus_variant_t *dict)
+{
+	const ni_dbus_variant_t *sv, *tv;
+	const char *key, *script;
+	unsigned int t, s;
+	xml_node_t *tn;
+
+	if (!(dict = ni_dbus_dict_get(dict, NI_CLIENT_STATE_XML_SCRIPTS_NODE)))
+		return FALSE;
+
+	ni_client_state_scripts_reset(scripts);
+	scripts->node = xml_node_new(NI_CLIENT_STATE_XML_SCRIPTS_NODE, NULL);
+
+	for (t = 0; (tv = ni_dbus_dict_get_entry(dict, t, &key)) ; ++t) {
+		if (!key || !ni_dbus_variant_is_dict(tv))
+			continue;
+
+		tn = xml_node_new(key, scripts->node);
+		for (s = 0; (sv = ni_dbus_dict_get_entry(tv, s, &key)); ++s) {
+			if (!key || !ni_dbus_variant_get_string(sv, &script))
+				continue;
+			xml_node_new_element(key, tn, script);
+		}
+	}
+
+	return TRUE;
+}
+
 
 /*
  * Properties of an interface

@@ -112,6 +112,7 @@
  <define name="client-state-type" class="dict">
    <control type="client-state-control-type" constraint="required"/>
    <config type="client-state-config-type" constraint="required"/>
+   <scripts type="scripts:configuration"/>
  </define>
 
  <client-state type="client-state-type" constraint="required"/>
