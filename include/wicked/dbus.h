@@ -427,7 +427,7 @@ extern dbus_bool_t		ni_dbus_xml_method_has_return(const ni_dbus_method_t *);
 extern int			ni_dbus_serialize_return(const ni_dbus_method_t *, ni_dbus_variant_t *, xml_node_t *);
 extern void			ni_dbus_serialize_error(DBusError *, xml_node_t *);
 extern xml_node_t *		ni_dbus_xml_deserialize_arguments(const ni_dbus_method_t *method,
-		                                unsigned int num_vars, ni_dbus_variant_t *vars,
+						unsigned int nvars, const ni_dbus_variant_t *vars,
 						xml_node_t *parent,
 						ni_tempstate_t *);
 extern xml_node_t *		ni_dbus_xml_deserialize_properties(ni_xs_scope_t *, const char *,

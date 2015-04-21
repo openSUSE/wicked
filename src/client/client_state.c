@@ -127,6 +127,18 @@ ni_client_state_config_print_xml(const ni_client_state_config_t *conf, xml_node_
 	return TRUE;
 }
 
+static ni_bool_t
+ni_client_state_scripts_print_xml(const ni_client_state_scripts_t *scripts, xml_node_t *node)
+{
+	if (!scripts)
+		return FALSE;
+
+	if (!scripts->node)
+		return TRUE;
+
+	return xml_node_clone(scripts->node, node) != NULL;
+}
+
 ni_bool_t
 ni_client_state_print_xml(const ni_client_state_t *client_state, xml_node_t *node)
 {
@@ -134,7 +146,8 @@ ni_client_state_print_xml(const ni_client_state_t *client_state, xml_node_t *nod
 		return FALSE;
 
 	if (!ni_client_state_control_print_xml(&client_state->control, node) ||
-	    !ni_client_state_config_print_xml(&client_state->config, node)) {
+	    !ni_client_state_config_print_xml(&client_state->config, node)   ||
+	    !ni_client_state_scripts_print_xml(&client_state->scripts, node)) {
 		return FALSE;
 	}
 
@@ -209,13 +222,34 @@ ni_client_state_config_parse_xml(const xml_node_t *node, ni_client_state_config_
 }
 
 ni_bool_t
+ni_client_state_scripts_parse_xml(const xml_node_t *node, ni_client_state_scripts_t *scripts)
+{
+	const xml_node_t *child;
+
+	if (!node || !scripts)
+		return FALSE;
+
+	/* kick away old set if any */
+	ni_client_state_scripts_reset(scripts);
+
+	/* <scripts> node is optional */
+	if (!(child = xml_node_get_child(node, NI_CLIENT_STATE_XML_SCRIPTS_NODE)))
+		return TRUE;
+
+	/* deep clone the scripts */
+	scripts->node = xml_node_clone(child, NULL);
+	return scripts->node != NULL;
+}
+
+ni_bool_t
 ni_client_state_parse_xml(const xml_node_t *node, ni_client_state_t *client_state)
 {
 	if (!node || !client_state)
 		return FALSE;
 
 	if (!ni_client_state_control_parse_xml(node, &client_state->control) ||
-	    !ni_client_state_config_parse_xml(node, &client_state->config)) {
+	    !ni_client_state_config_parse_xml(node, &client_state->config)   ||
+	    !ni_client_state_scripts_parse_xml(node, &client_state->scripts)) {
 		return FALSE;
 	}
 
@@ -263,6 +297,7 @@ ni_client_state_new(ni_fsm_state_t state)
 	client_state = xcalloc(1, sizeof(*client_state));
 	ni_client_state_control_init(&client_state->control);
 	ni_client_state_config_init(&client_state->config);
+	ni_client_state_scripts_init(&client_state->scripts);
 
 	return client_state;
 }
@@ -273,6 +308,7 @@ ni_client_state_init(ni_client_state_t *client_state)
 	if (client_state) {
 		ni_client_state_control_init(&client_state->control);
 		ni_client_state_config_init(&client_state->config);
+		ni_client_state_scripts_init(&client_state->scripts);
 	}
 }
 
@@ -282,6 +318,7 @@ ni_client_state_reset(ni_client_state_t *client_state)
 	if (client_state) {
 		ni_client_state_control_reset(&client_state->control);
 		ni_client_state_config_reset(&client_state->config);
+		ni_client_state_scripts_reset(&client_state->scripts);
 	}
 }
 
@@ -294,6 +331,7 @@ ni_client_state_clone(ni_client_state_t *client_state)
 		copy = xcalloc(1, sizeof(*copy));
 		ni_client_state_control_copy(&copy->control, &client_state->control);
 		ni_client_state_config_copy(&copy->config, &client_state->config);
+		ni_client_state_scripts_copy(&copy->scripts, &client_state->scripts);
 	}
 	return copy;
 }
@@ -303,6 +341,7 @@ ni_client_state_free(ni_client_state_t *cs)
 {
 	if (cs) {
 		ni_string_free(&cs->config.origin);
+		xml_node_free(cs->scripts.node);
 		free(cs);
 	}
 }
@@ -361,6 +400,31 @@ ni_client_state_control_copy(ni_client_state_control_t *dst,
 {
 	if (src && dst)
 		*dst = *src;
+}
+
+void
+ni_client_state_scripts_init(ni_client_state_scripts_t *scripts)
+{
+	if (scripts)
+		scripts->node = NULL;
+}
+
+void
+ni_client_state_scripts_reset(ni_client_state_scripts_t *scripts)
+{
+	if (scripts && scripts->node) {
+		xml_node_free(scripts->node);
+		scripts->node = NULL;
+	}
+}
+
+void
+ni_client_state_scripts_copy(ni_client_state_scripts_t *dst,
+			const ni_client_state_scripts_t *src)
+{
+	ni_client_state_scripts_reset(dst);
+	if (dst && src && src->node)
+		dst->node = xml_node_clone(src->node, NULL);
 }
 
 ni_bool_t

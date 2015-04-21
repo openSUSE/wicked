@@ -82,7 +82,7 @@ ni_do_ifreload_direct(int argc, char **argv)
 	int c, status = NI_WICKED_RC_USAGE;
 	unsigned int nmarked, i;
 	const ni_uint_range_t up_range = {
-		.min = NI_FSM_STATE_ADDRCONF_UP,
+		.min = __NI_FSM_STATE_MAX - 1,
 		.max = __NI_FSM_STATE_MAX
 	};
 	ni_fsm_t *fsm;

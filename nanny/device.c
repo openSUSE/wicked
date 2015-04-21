@@ -354,7 +354,7 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 				ni_security_id_set_attr(&security_id, "essid", essid);
 		}
 
-		target_state = NI_FSM_STATE_ADDRCONF_UP;
+		target_state = __NI_FSM_STATE_MAX - 1;
 		break;
 
 	case NI_IFWORKER_TYPE_MODEM:

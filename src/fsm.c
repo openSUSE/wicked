@@ -60,6 +60,7 @@ static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
 
 static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
 static inline void		ni_ifworker_update_client_state_config(ni_ifworker_t *w);
+static void			ni_ifworker_update_client_state_scripts(ni_ifworker_t *w);
 static void			ni_fsm_events_destroy(ni_fsm_event_t **);
 
 
@@ -314,6 +315,7 @@ ni_ifworker_free(ni_ifworker_t *w)
 	if (w->modem)
 		ni_modem_release(w->modem);
 	__ni_ifworker_destroy_fsm(w);
+	xml_node_free(w->state.node);
 	ni_string_free(&w->name);
 	free(w);
 }
@@ -661,7 +663,8 @@ static ni_intmap_t __state_names[] = {
 	{ "link-up",		NI_FSM_STATE_LINK_UP		},
 	{ "link-authenticated",	NI_FSM_STATE_LINK_AUTHENTICATED	},
 	{ "lldp-up",		NI_FSM_STATE_LLDP_UP		},
-	{ "network-up",		NI_FSM_STATE_ADDRCONF_UP	},
+	{ "addrconf-up",	NI_FSM_STATE_ADDRCONF_UP	},
+	{ "network-up",		NI_FSM_STATE_NETWORK_UP		},
 	{ "max",		__NI_FSM_STATE_MAX		},
 
 	{ NULL }
@@ -1433,6 +1436,18 @@ ni_ifworker_update_client_state_config(ni_ifworker_t *w)
 	}
 }
 
+static void
+ni_ifworker_update_client_state_scripts(ni_ifworker_t *w)
+{
+	ni_client_state_scripts_t scripts = { .node = NULL };
+
+	if (w && w->object && !w->readonly && w->config.node) {
+		if ((scripts.node = xml_node_get_child(w->config.node, "scripts"))) {
+			ni_call_set_client_state_scripts(w->object, &scripts);
+		}
+	}
+}
+
 static inline ni_bool_t
 ni_ifworker_empty_config(ni_ifworker_t *w)
 {
@@ -1463,6 +1478,7 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 
 		if ((new_state == NI_FSM_STATE_DEVICE_READY) && w->object && !w->readonly) {
 			ni_ifworker_update_client_state_control(w);
+			ni_ifworker_update_client_state_scripts(w);
 			ni_ifworker_update_client_state_config(w);
 		}
 
@@ -1547,6 +1563,13 @@ ni_ifworker_refresh_client_state(ni_ifworker_t *w, ni_client_state_t *cs)
 	ni_ifworker_set_config_origin(w, cs->config.origin);
 
 	ni_client_state_debug(w->name, cs, "refresh");
+
+	if (!w->state.node)
+		w->state.node = xml_node_new(ni_ifworker_type_to_string(w->type), NULL);
+	if (cs->scripts.node) {
+		xml_node_t *scripts = xml_node_clone(cs->scripts.node, NULL);
+		xml_node_replace_child(w->state.node, scripts);
+	}
 }
 
 static void
@@ -2760,7 +2783,7 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 			return rv;
 	} else if (min_state == NI_FSM_STATE_NONE) {
 		/* No lower bound; bring it down to max level */
-		rv = ni_fsm_schedule_init(fsm, w, NI_FSM_STATE_ADDRCONF_UP, max_state);
+		rv = ni_fsm_schedule_init(fsm, w, __NI_FSM_STATE_MAX - 1, max_state);
 		if (rv < 0)
 			return rv;
 	} else {
@@ -3784,6 +3807,7 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 	/* Now bind method and config. */
 	for (i = 0; i < action->num_bindings; ++i) {
 		struct ni_fsm_transition_binding *bind = &action->binding[i];
+		xml_node_t *config;
 
 		bind->method = ni_dbus_service_get_method(bind->service, action->common.method_name);
 
@@ -3816,7 +3840,12 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 		 * referenced node, and skip-unless-present is true, then we
 		 * do not perform this call.
 		 */
-		if (ni_dbus_xml_map_method_argument(bind->method, 0, w->config.node, &bind->config, &bind->skip_call) < 0)
+		if (action->from_state > action->next_state)
+			config = w->state.node;		/* down transition */
+		else
+			config = w->config.node;	/* up transition */
+
+		if (ni_dbus_xml_map_method_argument(bind->method, 0, config, &bind->config, &bind->skip_call) < 0)
 			goto document_error;
 
 		/* Validate the document. This will record possible requirements, and will
@@ -4211,9 +4240,15 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	/* Configure all assigned addresses and bring up the network */
 	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_ADDRCONF_UP, "requestLease"),
 
+	/* Execute post-up script if any */
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_NETWORK_UP, "networkUp"),
+
 	/* -------------------------------------- *
 	 * Transitions for bringing down a device
 	 * -------------------------------------- */
+	/* Execute pre-down script if any */
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_NETWORK_UP, "networkDown"),
+
 	/* Remove all assigned addresses and bring down the network */
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_ADDRCONF_UP, "dropLease"),
 

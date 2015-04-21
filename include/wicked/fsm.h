@@ -32,6 +32,7 @@ typedef enum ni_fsm_state {
 	NI_FSM_STATE_LINK_AUTHENTICATED,
 	NI_FSM_STATE_LLDP_UP,
 	NI_FSM_STATE_ADDRCONF_UP,
+	NI_FSM_STATE_NETWORK_UP,
 
 	__NI_FSM_STATE_MAX
 } ni_fsm_state_t;
@@ -143,8 +144,12 @@ struct ni_ifworker {
 	ni_ifworker_control_t	control;
 
 	struct {
+		xml_node_t *			node;
+	} state;
+
+	struct {
 		ni_client_state_config_t	meta;
-		xml_node_t *		node;
+		xml_node_t *			node;
 	} config;
 
 	ni_bool_t		use_default_policies;

@@ -24,6 +24,8 @@
 #define NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE	"origin"
 #define NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE	"owner-uid"
 
+#define NI_CLIENT_STATE_XML_SCRIPTS_NODE	"scripts"
+
 typedef struct ni_client_state_control {
 	ni_bool_t	persistent;	/* allowing/disallowing ifdown flag */
 	ni_bool_t	usercontrol;	/* allowing/disallowing user to change the config */
@@ -36,11 +38,17 @@ typedef struct ni_client_state_config {
 	char *		origin;		/* Source of the configuration of the interface */
 	uid_t		owner;		/* User's UID who has initiated the given configuration */
 } ni_client_state_config_t;
+
 #define NI_CLIENT_STATE_CONFIG_INIT { .uuid = NI_UUID_INIT, .origin = NULL, .owner = -1U }
+
+typedef struct ni_client_state_scripts {
+	xml_node_t *	node;		/* Custom scripts to store in state */
+} ni_client_state_scripts_t;
 
 typedef struct ni_client_state {
 	ni_client_state_control_t	control;
 	ni_client_state_config_t	config;
+	ni_client_state_scripts_t	scripts;
 } ni_client_state_t;
 
 extern ni_client_state_t *	ni_client_state_new(unsigned int);
@@ -56,6 +64,10 @@ extern void		ni_client_state_control_init(ni_client_state_control_t *);
 extern void		ni_client_state_control_reset(ni_client_state_control_t *);
 extern void		ni_client_state_control_copy(ni_client_state_control_t *,
 						const ni_client_state_control_t *);
+extern void		ni_client_state_scripts_init(ni_client_state_scripts_t *);
+extern void		ni_client_state_scripts_reset(ni_client_state_scripts_t *);
+extern void		ni_client_state_scripts_copy(ni_client_state_scripts_t *,
+						const ni_client_state_scripts_t *);
 extern ni_bool_t	ni_client_state_control_is_valid(const ni_client_state_control_t *);
 extern ni_bool_t	ni_client_state_config_is_valid(const ni_client_state_config_t *);
 extern ni_bool_t	ni_client_state_is_valid(const ni_client_state_t *);
@@ -64,6 +76,7 @@ extern ni_bool_t	ni_client_state_parse_timeval(const char *, struct timeval *);
 extern ni_bool_t	ni_client_state_config_print_xml(const ni_client_state_config_t *, xml_node_t *);
 extern ni_bool_t	ni_client_state_print_xml(const ni_client_state_t *, xml_node_t *);
 extern ni_bool_t	ni_client_state_config_parse_xml(const xml_node_t *, ni_client_state_config_t *);
+extern ni_bool_t	ni_client_state_scripts_parse_xml(const xml_node_t *, ni_client_state_scripts_t *);
 extern ni_bool_t	ni_client_state_parse_xml(const xml_node_t *, ni_client_state_t *);
 extern ni_bool_t	ni_client_state_load(ni_client_state_t *, unsigned int);
 extern ni_bool_t	ni_client_state_save(const ni_client_state_t *, unsigned int);

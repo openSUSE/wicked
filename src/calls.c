@@ -479,6 +479,46 @@ ni_call_set_client_state_config(ni_dbus_object_t *object, const ni_client_state_
 	return rv;
 }
 
+int
+ni_call_set_client_state_scripts(ni_dbus_object_t *object, const ni_client_state_scripts_t *scripts)
+{
+	ni_dbus_xml_validate_context_t ctx;
+	const ni_dbus_service_t *service;
+	const ni_dbus_method_t *method;
+	ni_dbus_variant_t argv[1];
+	xml_node_t *node;
+	int rv, argc;
+
+	if ((rv = ni_get_device_method(object, "setClientScripts", &service, &method)) < 0)
+		return rv;
+
+	node = scripts->node;
+	memset(&ctx, 0, sizeof(ctx));
+	if (node && !ni_dbus_xml_validate_argument(method, 0, node, &ctx)) {
+		ni_error("%s.%s: error validating argument", service->name, method->name);
+		return -NI_ERROR_DOCUMENT_ERROR;
+	}
+
+	argc = 0;
+	memset(argv, 0, sizeof(argv));
+	if (ni_dbus_xml_method_num_args(method)) {
+		ni_dbus_variant_t *dict = &argv[argc++];
+
+		ni_dbus_variant_init_dict(dict);
+		if (node && !ni_dbus_xml_serialize_arg(method, 0, dict, node)) {
+			ni_error("%s.%s: error serializing argument", service->name, method->name);
+			rv = -NI_ERROR_CANNOT_MARSHAL;
+			goto out;
+		}
+	}
+
+	rv = ni_call_device_method_common(object, service, method, argc, argv, NULL, NULL);
+out:
+	while (argc--)
+		ni_dbus_variant_destroy(&argv[argc]);
+	return rv;
+}
+
 /*
  * Call setMonitor(bool) on a device
  */

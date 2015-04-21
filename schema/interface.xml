@@ -112,6 +112,7 @@
  <define name="client-state-type" class="dict">
    <control type="client-state-control-type" constraint="required"/>
    <config type="client-state-config-type" constraint="required"/>
+   <scripts type="scripts:configuration"/>
  </define>
 
  <client-state type="client-state-type" constraint="required"/>
@@ -340,6 +341,15 @@
     </description>
     <arguments>
       <arg type="network-interface:client-state-config-type" />
+    </arguments>
+  </method>
+
+  <method name="setClientScripts">
+    <description>
+      Apply per interface scripts from configuration.
+    </description>
+    <arguments>
+      <scripts type="scripts:configuration"/>
     </arguments>
   </method>
 

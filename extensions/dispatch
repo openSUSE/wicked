@@ -1,0 +1,186 @@
+#!/bin/bash
+#
+#	Dispatch custom script hook actions.
+#
+#	Copyright (C) 2015 SUSE LINUX GmbH, Nuernberg, Germany.
+#
+#	This program is free software; you can redistribute it and/or modify
+#	it under the terms of the GNU General Public License as published by
+#	the Free Software Foundation; either version 2 of the License, or
+#	(at your option) any later version.
+#
+#	This program is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#	GNU General Public License for more details.
+#
+#	You should have received a copy of the GNU General Public License along
+#	with this program; if not, see <http://www.gnu.org/licenses/>.
+#
+#	Authors:
+#		Marius Tomaschewski <mt@suse.de>
+###
+
+###
+### remove comment chars to trace this script:
+###
+#exec 2>/tmp/dispatch.$$.trace
+#set -vx
+
+shopt -s nullglob
+action=$1
+shift
+
+get_scripts()
+{
+	test -n "$1" -a -f "$1" || return 0
+	wicked xpath --file "$1" --reference '/arguments/config' '%{?script}' 2>/dev/null
+}
+
+filter_ext()
+{
+	case $1 in
+	*.rpm*|*.old|*.bak|*.orig|*.rej|*.scpmbackup|*~|"")
+		return 1 ;;
+	*)	return 0 ;;
+	esac
+}
+prepend_dir()
+{
+	local X="$1" ; shift
+	local D S
+	case $X in
+	"")     ;;
+	/*)	test -x "$X" && S=$X ;;
+	*)	for D in "$@" ; do
+			if test -x "$D/$X" ; then
+				S="$D/$X"
+				break
+			fi
+		done
+	;;
+	esac
+	echo "$S"
+}
+
+call_systemd_service()
+{
+	local IFNAME=$1 ; shift
+	local ACTION=$1 ; shift
+	local SERVICE=$1 ; shift
+
+	case $SERVICE in
+	"")	return 1 ;;
+	*@.service)
+		SERVICE="${SERVICE%@.service}"
+		test "X$SERVICE" = X && return 1
+		SERVICE="$SERVICE@${IFNAME}.service"
+	;;
+	esac
+
+	case $ACTION in
+	pre-up|post-up)
+		systemctl start "$SERVICE"
+	;;
+	pre-down|post-down)
+		systemctl stop  "$SERVICE"
+	;;
+	esac
+}
+
+call_compat_suse_script()
+{
+	local INTERFACE=$1 ; shift
+	local ACTION=$1    ; shift
+	local SCRIPT=$1    ; shift
+	local CONFIG=$INTERFACE
+
+	export INTERFACE CONFIG
+	"$SCRIPT" "$CONFIG" "$INTERFACE" -o "$ACTION"
+	unset INTERFACE CONFIG
+}
+call_compat_suse_scripts()
+{
+	local IFNAME=$1 ; shift
+	local ACTION=$1 ; shift
+	local SCRIPT=$1 ; shift
+	local DIR=/etc/sysconfig/network
+	local D S
+
+	SCRIPT=`prepend_dir "$SCRIPT" "$DIR/scripts" "$DIR"`
+	if test "X$SCRIPT" = X ; then
+		return 1
+	elif test -d "$SCRIPT" ; then
+		for S in "$SCRIPT"/* ; do
+			filter_ext "${S##*/}" || continue
+			test -x "$S"          || continue
+			call_compat_suse_script "$IFNAME" "$ACTION" "$S"
+		done
+	else
+		call_compat_suse_script "$IFNAME" "$ACTION" "$SCRIPT"
+	fi
+	return 0
+}
+
+call_wicked_script()
+{
+	local IFNAME=$1 ; shift
+	local ACTION=$1 ; shift
+	local SCRIPT=$1 ; shift
+
+	"$SCRIPT" "$ACTION" "$IFNAME"
+	return 0
+}
+call_wicked_scripts()
+{
+	local IFNAME=$1 ; shift
+	local ACTION=$1 ; shift
+	local SCRIPT=$1 ; shift
+	local DIR=/etc/wicked
+	local D S
+
+	SCRIPT=`prepend_dir "$SCRIPT" "$DIR/scripts"`
+	if test "X$SCRIPT" = X ; then
+		return 1
+	elif test -d "$SCRIPT" ; then
+		for S in "$SCRIPT"/* ; do
+			filter_ext "${S##*/}" || continue
+			test -x "$S"          || continue
+			call_wicked_script "$IFNAME" "$ACTION" "$S"
+		done
+	else
+		call_wicked_script "$IFNAME" "$ACTION" "$S"
+	fi
+	return 0
+}
+
+call_script()
+{
+	local IFNAME=$1 ; shift
+	local ACTION=$1 ; shift
+	local SCRIPT=$1 ; shift
+
+	case $SCRIPT in
+	compat:suse:*) call_compat_suse_scripts "$IFNAME" "$ACTION" "${SCRIPT:12}" ;;
+	systemd:*)     call_systemd_service "$IFNAME" "$ACTION" "${SCRIPT:8}" ;;
+	wicked:*)      call_wicked_scripts "$IFNAME" "$ACTION" "${SCRIPT:7}" ;;
+	*:*|"")        return 1 ;;
+	*)             call_wicked_scripts "$IFNAME" "$ACTION" "$SCRIPT" ;;
+	esac
+}
+
+case $action in
+pre-up|post-up|pre-down|post-down|up-timeout)
+	if test -n "$WICKED_ARGFILE" ; then
+		for script in `get_scripts "$WICKED_ARGFILE"` ; do
+			call_script "$WICKED_INTERFACE_NAME" "$action" "$script"
+		done
+	fi
+	disown -a
+	;;
+*)
+	logger -p user.debug -t "wicked-dispatch" "Unsupported script action '$action'"
+	;;
+esac
+
+exit 0

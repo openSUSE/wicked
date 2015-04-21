@@ -40,12 +40,12 @@ static dbus_bool_t	ni_dbus_serialize_xml_union(xml_node_t *, const ni_xs_type_t 
 static dbus_bool_t	ni_dbus_serialize_xml_array(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_dict(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_bitmap(const xml_node_t *, const ni_xs_scalar_info_t *, unsigned long *);
-static dbus_bool_t	ni_dbus_deserialize_xml(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
-static dbus_bool_t	ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
-static dbus_bool_t	ni_dbus_deserialize_xml_struct(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
-static dbus_bool_t	ni_dbus_deserialize_xml_union(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
-static dbus_bool_t	ni_dbus_deserialize_xml_array(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
-static dbus_bool_t	ni_dbus_deserialize_xml_dict(ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
+static dbus_bool_t	ni_dbus_deserialize_xml(const ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
+static dbus_bool_t	ni_dbus_deserialize_xml_scalar(const ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
+static dbus_bool_t	ni_dbus_deserialize_xml_struct(const ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
+static dbus_bool_t	ni_dbus_deserialize_xml_union(const ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
+static dbus_bool_t	ni_dbus_deserialize_xml_array(const ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
+static dbus_bool_t	ni_dbus_deserialize_xml_dict(const ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static char *		__ni_xs_type_to_dbus_signature(const ni_xs_type_t *, char *, size_t);
 static char *		ni_xs_type_to_dbus_signature(const ni_xs_type_t *);
 static ni_xs_service_t *ni_dbus_xml_get_service_schema(const ni_xs_scope_t *, const char *);
@@ -300,7 +300,7 @@ ni_dbus_xml_serialize_arg(const ni_dbus_method_t *method, unsigned int narg,
 
 xml_node_t *
 ni_dbus_xml_deserialize_arguments(const ni_dbus_method_t *method,
-				unsigned int num_vars, ni_dbus_variant_t *vars,
+				unsigned int num_vars, const ni_dbus_variant_t *vars,
 				xml_node_t *parent, ni_tempstate_t *temp_state)
 {
 	xml_node_t *node = xml_node_new("arguments", parent);
@@ -457,7 +457,7 @@ ni_dbus_validate_xml(xml_node_t *node, const ni_xs_type_t *type, const ni_dbus_x
 /*
  * Convert an XML tree to a dbus data object for serialization
  */
-dbus_bool_t
+static dbus_bool_t
 ni_dbus_serialize_xml(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_variant_t *var)
 {
 	switch (type->class) {
@@ -491,7 +491,7 @@ ni_dbus_serialize_xml(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_varian
  * Create XML from a dbus data object
  */
 dbus_bool_t
-ni_dbus_deserialize_xml(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
+ni_dbus_deserialize_xml(const ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
 {
 #if 0
 	int depth = 0;
@@ -705,7 +705,7 @@ ni_dbus_serialize_xml_scalar(xml_node_t *node, const ni_xs_type_t *type, ni_dbus
  * XML from dbus variant for scalars
  */
 dbus_bool_t
-ni_dbus_deserialize_xml_scalar(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
+ni_dbus_deserialize_xml_scalar(const ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
 {
 	ni_xs_scalar_info_t *scalar_info = ni_xs_scalar_info(type);
 	const char *value;
@@ -901,7 +901,7 @@ ni_dbus_serialize_xml_array(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
  * XML from dbus variant for arrays
  */
 dbus_bool_t
-ni_dbus_deserialize_xml_array(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
+ni_dbus_deserialize_xml_array(const ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
 {
 	ni_xs_array_info_t *array_info = ni_xs_array_info(type);
 	ni_xs_type_t *element_type = array_info->element_type;
@@ -1113,7 +1113,7 @@ ni_dbus_validate_xml_dict(xml_node_t *node, const ni_xs_type_t *type, const ni_d
  * Deserialize a dict
  */
 dbus_bool_t
-ni_dbus_deserialize_xml_dict(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
+ni_dbus_deserialize_xml_dict(const ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
 {
 	ni_xs_dict_info_t *dict_info = ni_xs_dict_info(type);
 	ni_dbus_dict_entry_t *entry;
@@ -1161,7 +1161,7 @@ ni_dbus_serialize_xml_struct(xml_node_t *node, const ni_xs_type_t *type, ni_dbus
 }
 
 static dbus_bool_t
-ni_dbus_deserialize_xml_struct(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
+ni_dbus_deserialize_xml_struct(const ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
 {
 	ni_error("%s: not implemented yet", __func__);
 	return FALSE;
@@ -1238,7 +1238,7 @@ ni_dbus_serialize_xml_union(xml_node_t *node, const ni_xs_type_t *type, ni_dbus_
 }
 
 static dbus_bool_t
-ni_dbus_deserialize_xml_union(ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
+ni_dbus_deserialize_xml_union(const ni_dbus_variant_t *var, const ni_xs_type_t *type, xml_node_t *node)
 {
 	ni_xs_union_info_t *union_info = ni_xs_union_info(type);
 	const ni_xs_type_t *child_type;

@@ -166,6 +166,7 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 		if (compat->dev)
 			ni_netdev_put(compat->dev);
 		ni_ifworker_control_free(compat->control);
+		ni_var_array_destroy(&compat->scripts);
 
 		ni_string_free(&compat->dhcp4.hostname);
 		ni_string_free(&compat->dhcp4.client_id);
@@ -1499,6 +1500,29 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 						ni_sprint_timeout(control->link_timeout));
 				}
 			}
+		}
+	}
+	if (compat->scripts.count) {
+		const ni_var_t *var;
+		xml_node_t *snode;
+		unsigned int i, j;
+
+		snode = xml_node_create(ifnode, "scripts");
+		for (i = 0, var = compat->scripts.data; i < compat->scripts.count; ++i, ++var) {
+			ni_string_array_t scripts = NI_STRING_ARRAY_INIT;
+			xml_node_t *tnode;
+
+			if (ni_string_empty(var->value) || ni_string_empty(var->name))
+				continue;
+
+			if (ni_string_split(&scripts, var->value, " ", 0)) {
+				tnode = xml_node_create(snode, var->name);
+				for (j = 0; j < scripts.count; ++j) {
+					const char *script = scripts.data[j];
+					xml_node_new_element("script", tnode, script);
+				}
+			}
+			ni_string_array_destroy(&scripts);
 		}
 	}
 

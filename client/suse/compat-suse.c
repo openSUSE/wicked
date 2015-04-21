@@ -99,6 +99,7 @@ static ni_route_table_t *	__ni_suse_global_routes;
 static ni_var_array_t		__ni_suse_global_ifsysctl;
 static ni_bool_t		__ni_ipv6_disbled;
 
+#define __NI_SUSE_COMPAT_SCHEME			"compat:suse"
 #define __NI_SUSE_SYSCONF_DIR			"/etc"
 #define __NI_SUSE_HOSTNAME_FILES		{ __NI_SUSE_SYSCONF_DIR"/hostname", \
 						  __NI_SUSE_SYSCONF_DIR"/HOSTNAME", \
@@ -3601,6 +3602,215 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	return TRUE;
 }
 
+typedef struct ni_ifscript_type ni_ifscript_type_t;
+struct ni_ifscript_type {
+	const char *	type;
+	struct {
+		char *	(*qualify)(const char *, const char *, const char *);
+	} ops;
+};
+
+static char *	ni_ifscript_qualify_wicked     (const char *, const char *, const char *);
+static char *	ni_ifscript_qualify_compat     (const char *, const char *, const char *);
+static char *	ni_ifscript_qualify_compat_suse(const char *, const char *, const char *);
+static char *	ni_ifscript_qualify_systemd    (const char *, const char *, const char *);
+
+static const ni_ifscript_type_t		ni_ifscript_types[] = {
+	{ "wicked",	{ .qualify = ni_ifscript_qualify_wicked		} },
+	{ "compat",	{ .qualify = ni_ifscript_qualify_compat		} },
+	{ "systemd",	{ .qualify = ni_ifscript_qualify_systemd	} },
+	{ NULL,		{ 						} },
+};
+
+static const ni_ifscript_type_t		ni_ifscript_types_compat[] = {
+	{ "suse",	{ .qualify = ni_ifscript_qualify_compat_suse	} },
+	{ NULL,		{						} },
+};
+
+static const ni_ifscript_type_t *
+ni_ifscript_find_map(const ni_ifscript_type_t *map, const char *type, size_t len)
+{
+	const ni_ifscript_type_t *pos = map;
+
+	if (pos) {
+		while (pos->type) {
+			if (type && strlen(pos->type) == len &&
+			    strncasecmp(pos->type, type, len) == 0)
+				break;
+			++pos;
+		}
+	}
+	return pos;
+}
+
+static char *
+ni_ifscript_qualify_systemd(const char *type, const char *path, const char *hint)
+{
+	char *ret = NULL;
+
+	(void)hint;
+	if (strchr(path, ':'))
+		return NULL;
+
+	/* any other checks? */
+	ni_string_printf(&ret, "%s:%s", type, path);
+	return ret;
+}
+
+static char *
+ni_ifscript_qualify_wicked(const char *type, const char *path, const char *hint)
+{
+	char *ret = NULL;
+
+	(void)hint;
+	if (strchr(path, ':'))
+		return NULL;
+
+	/* any other checks? */
+	ni_string_printf(&ret, "%s:%s", type, path);
+	return ret;
+}
+
+static char *
+ni_ifscript_qualify_compat_suse(const char *type, const char *path, const char *hint)
+{
+	char *ret = NULL;
+
+	(void)hint;
+	if (strchr(path, ':'))
+		return NULL;
+
+	/* any other checks? */
+	ni_string_printf(&ret, "%s:%s", type, path);
+	return ret;
+}
+
+static char *
+ni_ifscript_qualify_compat(const char *type, const char *path, const char *hint)
+{
+	const ni_ifscript_type_t *map;
+	const char *_path = path;
+	const char *_type = NULL;
+	size_t len;
+
+	len = strcspn(path, ":");
+	if (path[len] == ':') {
+		_type = len ? path : NULL;
+		_path = path + len + 1;
+		hint = NULL;
+	} else if (hint) {
+		len = strcspn(hint, ":");
+		_type = hint;
+		if (hint[len] == ':')
+			hint += len + 1;
+		else
+			hint = NULL;
+	}
+
+	map = ni_ifscript_find_map(ni_ifscript_types_compat, _type, len);
+	if (map && map->type && map->ops.qualify) {
+		char *ret, *temp = NULL;
+
+		ni_string_printf(&temp, "%s:%s", type, map->type);
+		ret = map->ops.qualify(temp, _path, hint);
+		ni_string_free(&temp);
+		if (ret)
+			return ret;
+
+		ni_debug_readwrite("Failed to qualify script %s:%s:%s", type, map->type, _path);
+	} else {
+		ni_debug_readwrite("Unsupported script type %s:%s", type, path);
+	}
+	return NULL;
+}
+
+char *
+ni_ifscript_qualify(const char *path, const char *hint)
+{
+	const ni_ifscript_type_t *map;
+	const char *_path = path;
+	const char *_type = NULL;
+	size_t len;
+
+	len = strcspn(path, ":");
+	if (path[len] == ':') {
+		_type = len ? path : NULL;
+		_path = path + len + 1;
+		hint = NULL;
+	} else if (hint) {
+		len = strcspn(hint, ":");
+		_type = hint;
+		if (hint[len] == ':')
+			hint += len + 1;
+		else
+			hint = NULL;
+	}
+
+	map = ni_ifscript_find_map(ni_ifscript_types, _type, len);
+	if (map && map->type && map->ops.qualify)
+		return map->ops.qualify(map->type, _path, hint);
+
+	ni_debug_readwrite("Unsupported script type %.*s:%s", (int)len, _type, _path);
+	return NULL;
+}
+
+static void
+__ni_suse_qualify_scripts(ni_compat_netdev_t *compat, const char *set, const char *value)
+{
+	ni_string_array_t scripts = NI_STRING_ARRAY_INIT;
+	ni_string_array_t qualified = NI_STRING_ARRAY_INIT;
+	char *list = NULL;
+	unsigned int i;
+
+	ni_string_split(&scripts, value, " \t",  0);
+	for (i = 0;  i < scripts.count; ++i) {
+		char *script = NULL;
+
+		script = ni_ifscript_qualify(scripts.data[i], __NI_SUSE_COMPAT_SCHEME);
+		if (script) {
+			if (ni_string_array_index(&qualified, script) == -1)
+				ni_string_array_append(&qualified, script);
+			ni_string_free(&script);
+		} else {
+			ni_warn("ifcfg-%s: unable to qualify %s script '%s'",
+				compat->dev->name, set, scripts.data[i]);
+		}
+	}
+	ni_string_array_destroy(&scripts);
+
+	if (ni_string_join(&list, &qualified, " ")) {
+		ni_var_array_set(&compat->scripts, set, list);
+		ni_string_free(&list);
+	}
+	ni_string_array_destroy(&qualified);
+}
+
+static void
+__ni_suse_get_scripts(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	const char *value;
+
+	value = ni_sysconfig_get_value(sc, "PRE_UP_SCRIPT");
+	if (!value && __ni_suse_config_defaults)
+		value = ni_sysconfig_get_value(__ni_suse_config_defaults, "PRE_UP_SCRIPT");
+	__ni_suse_qualify_scripts(compat, "pre-up", value);
+
+	value = ni_sysconfig_get_value(sc, "POST_UP_SCRIPT");
+	if (!value && __ni_suse_config_defaults)
+		value = ni_sysconfig_get_value(__ni_suse_config_defaults, "POST_UP_SCRIPT");
+	__ni_suse_qualify_scripts(compat, "post-up", value);
+
+	value = ni_sysconfig_get_value(sc, "PRE_DOWN_SCRIPT");
+	if (!value && __ni_suse_config_defaults)
+		value = ni_sysconfig_get_value(__ni_suse_config_defaults, "PRE_DOWN_SCRIPT");
+	__ni_suse_qualify_scripts(compat, "pre-down", value);
+
+	value = ni_sysconfig_get_value(sc, "POST_DOWN_SCRIPT");
+	if (!value && __ni_suse_config_defaults)
+		value = ni_sysconfig_get_value(__ni_suse_config_defaults, "POST_DOWN_SCRIPT");
+	__ni_suse_qualify_scripts(compat, "post-down", value);
+}
+
 /*
  * Read ifsysctl file
  */
@@ -3741,6 +3951,8 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	__ni_suse_read_ifsysctl(sc, compat);
 	__ni_suse_bootproto(sc, compat);
+	__ni_suse_get_scripts(sc, compat);
+
 	/* FIXME: What to do with these:
 		NAME
 	 */
