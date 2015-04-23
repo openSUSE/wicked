@@ -3099,13 +3099,21 @@ __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t 
 		break;
 
 	case AF_INET6:
+	{
+		ni_ipv6_cache_info_t olft, nlft;
+		struct timeval now;
+
+		ni_timer_get_time(&now);
+		ni_ipv6_cache_info_rebase(&olft, &o->ipv6_cache_info, &now);
+		ni_ipv6_cache_info_rebase(&nlft, &n->ipv6_cache_info, &now);
+
 		/* (invalid) 0 lifetimes mean unset/not provided by the lease;
 		 * kernel uses ~0 (infinity) / permanent address when omitted */
-		if ((n->ipv6_cache_info.valid_lft || n->ipv6_cache_info.preferred_lft) &&
-		    (o->ipv6_cache_info.valid_lft     != n->ipv6_cache_info.valid_lft ||
-		     o->ipv6_cache_info.preferred_lft != n->ipv6_cache_info.preferred_lft))
+		if ((nlft.valid_lft || nlft.preferred_lft) &&
+		    (olft.valid_lft     != nlft.valid_lft ||
+		     olft.preferred_lft != nlft.preferred_lft))
 			return TRUE;
-		break;
+	}	break;
 
 	default:
 		break;

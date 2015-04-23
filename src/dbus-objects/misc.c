@@ -562,6 +562,8 @@ failure:
 dbus_bool_t
 __ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict)
 {
+	ni_ipv6_cache_info_t lft;
+
 	__ni_objectmodel_dict_add_sockaddr_prefix(dict, "local", &ap->local_addr, ap->prefixlen);
 	if (ap->peer_addr.ss_family == ap->family)
 		__ni_objectmodel_dict_add_sockaddr(dict, "peer", &ap->peer_addr);
@@ -576,14 +578,15 @@ __ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict
 	if (ap->family == AF_INET && ap->label)
 		ni_dbus_dict_add_string(dict, "label", ap->label);
 
-	if (ap->ipv6_cache_info.preferred_lft || ap->ipv6_cache_info.valid_lft) {
+	ni_ipv6_cache_info_rebase(&lft, &ap->ipv6_cache_info, NULL);
+	if (lft.valid_lft) {
 		ni_dbus_variant_t *var;
 
 		var = ni_dbus_dict_add(dict, "cache-info");
 		ni_dbus_variant_init_dict(var);
 
-		ni_dbus_dict_add_uint32(var, "preferred-lifetime", ap->ipv6_cache_info.preferred_lft);
-		ni_dbus_dict_add_uint32(var, "valid-lifetime", ap->ipv6_cache_info.valid_lft);
+		ni_dbus_dict_add_uint32(var, "preferred-lifetime", lft.preferred_lft);
+		ni_dbus_dict_add_uint32(var, "valid-lifetime", lft.valid_lft);
 	}
 
 	if (ap->owner != NI_ADDRCONF_NONE)
