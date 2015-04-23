@@ -102,4 +102,7 @@ extern void		ni_address_list_dedup(ni_address_t **);
 extern ni_address_t *	ni_address_list_find(ni_address_t *, const ni_sockaddr_t *);
 extern unsigned int	ni_address_list_count(ni_address_t *list);
 
+extern void		ni_ipv6_cache_info_rebase(ni_ipv6_cache_info_t *, const ni_ipv6_cache_info_t *,
+					const struct timeval *);
+
 #endif /* __WICKED_ADDRESS_H__ */
