@@ -26,6 +26,7 @@
 #include <wicked/xml.h>
 #include <wicked/logging.h>
 #include "util_priv.h"
+#include <inttypes.h>
 
 #define XML_DOCUMENTARRAY_CHUNK		1
 #define XML_NODEARRAY_CHUNK		8
@@ -183,11 +184,29 @@ xml_node_new_element_int(const char *ident, xml_node_t *parent, int value)
 }
 
 xml_node_t *
+xml_node_new_element_int64(const char *ident, xml_node_t *parent, int64_t value)
+{
+	xml_node_t *node = xml_node_new(ident, parent);
+
+	xml_node_set_int64(node, value);
+	return node;
+}
+
+xml_node_t *
 xml_node_new_element_uint(const char *ident, xml_node_t *parent, unsigned int value)
 {
 	xml_node_t *node = xml_node_new(ident, parent);
 
 	xml_node_set_uint(node, value);
+	return node;
+}
+
+xml_node_t *
+xml_node_new_element_uint64(const char *ident, xml_node_t *parent, uint64_t value)
+{
+	xml_node_t *node = xml_node_new(ident, parent);
+
+	xml_node_set_uint64(node, value);
 	return node;
 }
 
@@ -295,11 +314,29 @@ xml_node_set_int(xml_node_t *node, int value)
 }
 
 void
+xml_node_set_int64(xml_node_t *node, int64_t value)
+{
+	char buffer[32];
+
+	snprintf(buffer, sizeof(buffer), "%"PRId64, value);
+	ni_string_dup(&node->cdata, buffer);
+}
+
+void
 xml_node_set_uint(xml_node_t *node, unsigned int value)
 {
 	char buffer[32];
 
 	snprintf(buffer, sizeof(buffer), "%u", value);
+	ni_string_dup(&node->cdata, buffer);
+}
+
+void
+xml_node_set_uint64(xml_node_t *node, uint64_t value)
+{
+	char buffer[32];
+
+	snprintf(buffer, sizeof(buffer), "%"PRIu64, value);
 	ni_string_dup(&node->cdata, buffer);
 }
 
