@@ -1,0 +1,20 @@
+<interface>
+  <name>dummy0</name>
+  <control>
+    <mode>boot</mode>
+  </control>
+  <scripts>
+    <post-up>
+      <script>systemd:test-post@.service</script>
+      <script>wicked:/etc/wicked/scripts/post-up</script>
+    </post-up>
+  </scripts>
+  <dummy/>
+  <link/>
+  <ipv4>
+    <enabled>false</enabled>
+  </ipv4>
+  <ipv6>
+    <enabled>false</enabled>
+  </ipv6>
+</interface>
