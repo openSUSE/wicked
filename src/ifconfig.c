@@ -3301,7 +3301,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_addrconf_lease_t       *new_lease)
 {
-	ni_addrconf_mode_t old_type = NI_ADDRCONF_NONE;
+	ni_addrconf_mode_t owner = NI_ADDRCONF_NONE;
 	unsigned int family = AF_UNSPEC;
 	ni_address_t *ap, *next;
 	unsigned int minprio;
@@ -3313,10 +3313,13 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 
 	if (new_lease) {
 		family = new_lease->family;
+		owner = new_lease->type;
+		for (ap = new_lease->addrs; ap; ap = ap->next)
+			ap->owner = owner;
 	} else
 	if (old_lease) {
 		family = old_lease->family;
-		old_type = old_lease->type;
+		owner = old_lease->type;
 	}
 
 	for (ap = dev->addrs; ap; ap = next) {
@@ -3338,7 +3341,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 			/* Address was assigned to device, but we did not track it.
 			 * Could be due to a daemon restart - simply assume this
 			 * is ours now. */
-			ap->owner = old_type;
+			ap->owner = owner;
 		}
 		minprio = ni_addrconf_lease_get_priority(ni_netdev_get_lease(dev,
 							ap->family, ap->owner));
@@ -3349,14 +3352,14 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		 * is configured through several different protocols, and we don't
 		 * want to delete such an address until the last of these protocols
 		 * has shut down. */
-		if (ap->owner == old_type) {
+		if (ap->owner == owner) {
 			ni_addrconf_lease_t *other;
 
 			if ((other = __ni_netdev_address_to_lease(dev, ap, minprio)) != NULL)
 				ap->owner = other->type;
 		}
 
-		if (ap->owner != old_type) {
+		if (ap->owner != owner) {
 			/* The existing address is managed by a different
 			 * addrconf mode.
 			 *
