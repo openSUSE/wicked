@@ -237,6 +237,8 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 		/* link is down, remove all addrs and routes */
 		__ni_system_interface_flush_addrs(NULL, dev);
 		__ni_system_interface_flush_routes(NULL, dev);
+		/* a safeguard in case there are still some */
+		ni_addrconf_lease_list_destroy(&dev->leases);
 	}
 
 	/* TODO: still needed? */
