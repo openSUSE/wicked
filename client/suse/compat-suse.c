@@ -99,7 +99,8 @@ static ni_route_table_t *	__ni_suse_global_routes;
 static ni_var_array_t		__ni_suse_global_ifsysctl;
 static ni_bool_t		__ni_ipv6_disbled;
 
-#define __NI_SUSE_COMPAT_SCHEME			"compat:suse"
+/* compat: no default script scheme as a safeguard (boo#907215, bsc#920070, bsc#919496) */
+#define __NI_SUSE_SCRIPT_DEFAULT_SCHEME		NULL
 #define __NI_SUSE_SYSCONF_DIR			"/etc"
 #define __NI_SUSE_HOSTNAME_FILES		{ __NI_SUSE_SYSCONF_DIR"/hostname", \
 						  __NI_SUSE_SYSCONF_DIR"/HOSTNAME", \
@@ -3725,7 +3726,7 @@ ni_ifscript_qualify_compat(const char *type, const char *path, const char *hint)
 }
 
 char *
-ni_ifscript_qualify(const char *path, const char *hint)
+ni_ifscript_qualify(const char *path, const char *hint, char **err)
 {
 	const ni_ifscript_type_t *map;
 	const char *_path = path;
@@ -3750,7 +3751,7 @@ ni_ifscript_qualify(const char *path, const char *hint)
 	if (map && map->type && map->ops.qualify)
 		return map->ops.qualify(map->type, _path, hint);
 
-	ni_debug_readwrite("Unsupported script type %.*s:%s", (int)len, _type, _path);
+	ni_string_printf(err, "missing script type %.*s:%s", (int)len, _type, _path);
 	return NULL;
 }
 
@@ -3760,23 +3761,28 @@ __ni_suse_qualify_scripts(ni_compat_netdev_t *compat, const char *set, const cha
 	ni_string_array_t scripts = NI_STRING_ARRAY_INIT;
 	ni_string_array_t qualified = NI_STRING_ARRAY_INIT;
 	char *list = NULL;
+	char *err = NULL;
 	unsigned int i;
 
 	ni_string_split(&scripts, value, " \t",  0);
 	for (i = 0;  i < scripts.count; ++i) {
 		char *script = NULL;
 
-		script = ni_ifscript_qualify(scripts.data[i], __NI_SUSE_COMPAT_SCHEME);
+		script = ni_ifscript_qualify(scripts.data[i], __NI_SUSE_SCRIPT_DEFAULT_SCHEME, &err);
 		if (script) {
 			if (ni_string_array_index(&qualified, script) == -1)
 				ni_string_array_append(&qualified, script);
 			ni_string_free(&script);
+		} else if (!ni_string_empty(err)) {
+			ni_note("ifcfg-%s: unable to qualify %s script due to %s",
+				compat->dev->name, set, err);
 		} else {
-			ni_warn("ifcfg-%s: unable to qualify %s script '%s'",
+			ni_note("ifcfg-%s: unable to qualify %s script '%s'",
 				compat->dev->name, set, scripts.data[i]);
 		}
 	}
 	ni_string_array_destroy(&scripts);
+	ni_string_free(&err);
 
 	if (ni_string_join(&list, &qualified, " ")) {
 		ni_var_array_set(&compat->scripts, set, list);
