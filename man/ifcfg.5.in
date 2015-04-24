@@ -329,6 +329,74 @@ In case ifup cannot determine the interface type properly, you may specify the
 correct type in this variable to override the behavior and force ifup to handle
 the interface differently than it detected from system or config.
 Please always open a bug report when it is required to set the type.
+.TP
+\fBPRE_UP_SCRIPT\fR, \fBPOST_UP_SCRIPT\fR, \fBPRE_DOWN_SCRIPT\fR and \fBPOST_DOWN_SCRIPT\fR
+Here you can hook a script (better: an executable) or systemd service name to
+perform individual actions before/after the interface is set up or before/after
+the interface is set down by specifying the script names in a space separated list.
+
+Wicked supports multiple schemes for the scripts.
+
+.in +4n
+- \fIsystemd:<service.name>"\fR scheme:
+.in +4n
+Permits a service name or template which will be completed with interface name
+as its argument, e.g.:
+
+.br
+	POST_UP_SCRIPT="systemd:my-eth-post-up.service"
+.br
+	POST_UP_SCRIPT="systemd:my-post-up@.service"
+.br
+
+On \fIpre-up\fR and \fIpost-up\fR actions the service is started, on
+\fIpre-down\fR and \fIpost-down\fR the service will be stopped.
+
+The service should make use of an device service unit binding
+.IR BindsTo=sys-subsystem-net-devices-%i.device
+so it gets stopped, when the device suddenly disappears.
+See also man \fBsystemd.unit(5)\fR.
+.in
+
+- \fIwicked:<script>\fR scheme:
+.in +4n
+Permits to specify a script or script directory either as an absolute
+path or relative to the /etc/wicked/scripts directory, e.g.:
+
+.br
+	POST_UP_SCRIPT="wicked:post-up"
+.br
+	POST_UP_SCRIPT="wicked:post-up/script1"
+.br
+	POST_UP_SCRIPT="wicked:/path/to/my-script-or-dir"
+.br
+
+The script is executed as "\fI$script $action $interface\fR" with the
+pre-up, post-up, pre-down, post-down actions corresponding with the
+variable name.
+.in
+
+- \fIcompat:suse:<script>\fR scheme:
+.in +4n
+Permits to specify a script or script directory either as an absolute
+path or relative to the /etc/sysconfig/network/script directory, e.g.:
+
+.br
+	POST_UP_SCRIPT="compat:suse:post-up-script1"
+.br
+	POST_UP_SCRIPT="compat:suse:/path/to/my-script-or-dir"
+.br
+
+The script is executed as "\fI$script $interface $interface -o $action\fR"
+with the pre-up, post-up, pre-down, post-down actions corresponding with
+the variable name.
+.in -8
+
+.B Note: The script scheme must be specified as a safeguard
+to not execute any old and not-compatible sysconfig ifup scripts (which may
+depend on different files, internal state, ...). Once the script has been
+adopted, prepend e.g. the "compat:suse:" scheme to activate.
+
 
 .SH GENERAL VARIABLES
 .TP

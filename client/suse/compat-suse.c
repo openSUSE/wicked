@@ -99,7 +99,8 @@ static ni_route_table_t *	__ni_suse_global_routes;
 static ni_var_array_t		__ni_suse_global_ifsysctl;
 static ni_bool_t		__ni_ipv6_disbled;
 
-#define __NI_SUSE_COMPAT_SCHEME			"compat:suse"
+/* compat: no default script scheme as a safeguard (boo#907215, bsc#920070, bsc#919496) */
+#define __NI_SUSE_SCRIPT_DEFAULT_SCHEME		NULL
 #define __NI_SUSE_SYSCONF_DIR			"/etc"
 #define __NI_SUSE_HOSTNAME_FILES		{ __NI_SUSE_SYSCONF_DIR"/hostname", \
 						  __NI_SUSE_SYSCONF_DIR"/HOSTNAME", \
@@ -3606,14 +3607,14 @@ typedef struct ni_ifscript_type ni_ifscript_type_t;
 struct ni_ifscript_type {
 	const char *	type;
 	struct {
-		char *	(*qualify)(const char *, const char *, const char *);
+		char *	(*qualify)(const char *, const char *, const char *, char **);
 	} ops;
 };
 
-static char *	ni_ifscript_qualify_wicked     (const char *, const char *, const char *);
-static char *	ni_ifscript_qualify_compat     (const char *, const char *, const char *);
-static char *	ni_ifscript_qualify_compat_suse(const char *, const char *, const char *);
-static char *	ni_ifscript_qualify_systemd    (const char *, const char *, const char *);
+static char *	ni_ifscript_qualify_wicked     (const char *, const char *, const char *, char **);
+static char *	ni_ifscript_qualify_compat     (const char *, const char *, const char *, char **);
+static char *	ni_ifscript_qualify_compat_suse(const char *, const char *, const char *, char **);
+static char *	ni_ifscript_qualify_systemd    (const char *, const char *, const char *, char **);
 
 static const ni_ifscript_type_t		ni_ifscript_types[] = {
 	{ "wicked",	{ .qualify = ni_ifscript_qualify_wicked		} },
@@ -3644,10 +3645,11 @@ ni_ifscript_find_map(const ni_ifscript_type_t *map, const char *type, size_t len
 }
 
 static char *
-ni_ifscript_qualify_systemd(const char *type, const char *path, const char *hint)
+ni_ifscript_qualify_systemd(const char *type, const char *path, const char *hint, char **err)
 {
 	char *ret = NULL;
 
+	(void)err;
 	(void)hint;
 	if (strchr(path, ':'))
 		return NULL;
@@ -3658,10 +3660,11 @@ ni_ifscript_qualify_systemd(const char *type, const char *path, const char *hint
 }
 
 static char *
-ni_ifscript_qualify_wicked(const char *type, const char *path, const char *hint)
+ni_ifscript_qualify_wicked(const char *type, const char *path, const char *hint, char **err)
 {
 	char *ret = NULL;
 
+	(void)err;
 	(void)hint;
 	if (strchr(path, ':'))
 		return NULL;
@@ -3672,10 +3675,11 @@ ni_ifscript_qualify_wicked(const char *type, const char *path, const char *hint)
 }
 
 static char *
-ni_ifscript_qualify_compat_suse(const char *type, const char *path, const char *hint)
+ni_ifscript_qualify_compat_suse(const char *type, const char *path, const char *hint, char **err)
 {
 	char *ret = NULL;
 
+	(void)err;
 	(void)hint;
 	if (strchr(path, ':'))
 		return NULL;
@@ -3686,7 +3690,7 @@ ni_ifscript_qualify_compat_suse(const char *type, const char *path, const char *
 }
 
 static char *
-ni_ifscript_qualify_compat(const char *type, const char *path, const char *hint)
+ni_ifscript_qualify_compat(const char *type, const char *path, const char *hint, char **err)
 {
 	const ni_ifscript_type_t *map;
 	const char *_path = path;
@@ -3712,20 +3716,20 @@ ni_ifscript_qualify_compat(const char *type, const char *path, const char *hint)
 		char *ret, *temp = NULL;
 
 		ni_string_printf(&temp, "%s:%s", type, map->type);
-		ret = map->ops.qualify(temp, _path, hint);
+		ret = map->ops.qualify(temp, _path, hint, err);
 		ni_string_free(&temp);
 		if (ret)
 			return ret;
 
-		ni_debug_readwrite("Failed to qualify script %s:%s:%s", type, map->type, _path);
+		ni_string_printf(err, "failed to qualify '%s:%s:%s'", type, map->type, _path);
 	} else {
-		ni_debug_readwrite("Unsupported script type %s:%s", type, path);
+		ni_string_printf(err, "unsupported script type '%s:%s'", type, path);
 	}
 	return NULL;
 }
 
-char *
-ni_ifscript_qualify(const char *path, const char *hint)
+static char *
+ni_ifscript_qualify(const char *path, const char *hint, char **err)
 {
 	const ni_ifscript_type_t *map;
 	const char *_path = path;
@@ -3748,9 +3752,10 @@ ni_ifscript_qualify(const char *path, const char *hint)
 
 	map = ni_ifscript_find_map(ni_ifscript_types, _type, len);
 	if (map && map->type && map->ops.qualify)
-		return map->ops.qualify(map->type, _path, hint);
+		return map->ops.qualify(map->type, _path, hint, err);
 
-	ni_debug_readwrite("Unsupported script type %.*s:%s", (int)len, _type, _path);
+	ni_string_printf(err, "%s script type '%.*s:%s'", len ? "unknown" : "missing",
+							(int)len, _type, _path);
 	return NULL;
 }
 
@@ -3760,23 +3765,28 @@ __ni_suse_qualify_scripts(ni_compat_netdev_t *compat, const char *set, const cha
 	ni_string_array_t scripts = NI_STRING_ARRAY_INIT;
 	ni_string_array_t qualified = NI_STRING_ARRAY_INIT;
 	char *list = NULL;
+	char *err = NULL;
 	unsigned int i;
 
 	ni_string_split(&scripts, value, " \t",  0);
 	for (i = 0;  i < scripts.count; ++i) {
 		char *script = NULL;
 
-		script = ni_ifscript_qualify(scripts.data[i], __NI_SUSE_COMPAT_SCHEME);
+		script = ni_ifscript_qualify(scripts.data[i], __NI_SUSE_SCRIPT_DEFAULT_SCHEME, &err);
 		if (script) {
 			if (ni_string_array_index(&qualified, script) == -1)
 				ni_string_array_append(&qualified, script);
 			ni_string_free(&script);
+		} else if (!ni_string_empty(err)) {
+			ni_note("ifcfg-%s: unable to qualify %s script - %s",
+				compat->dev->name, set, err);
 		} else {
-			ni_warn("ifcfg-%s: unable to qualify %s script '%s'",
+			ni_note("ifcfg-%s: unable to qualify %s script '%s'",
 				compat->dev->name, set, scripts.data[i]);
 		}
 	}
 	ni_string_array_destroy(&scripts);
+	ni_string_free(&err);
 
 	if (ni_string_join(&list, &qualified, " ")) {
 		ni_var_array_set(&compat->scripts, set, list);

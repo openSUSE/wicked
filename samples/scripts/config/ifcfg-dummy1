@@ -1,0 +1,6 @@
+STARTMODE=auto
+BOOTPROTO=none
+PRE_UP_SCRIPT="wicked:wicked-pre-up systemd:test-pre@.service"
+POST_UP_SCRIPT="wicked:wicked-post-up systemd:test-post@.service"
+PRE_DOWN_SCRIPT="wicked:wicked-pre-down systemd:test-pre@.service"
+POST_DOWN_SCRIPT="wicked:wicked-post-down systemd:test-post@.service"

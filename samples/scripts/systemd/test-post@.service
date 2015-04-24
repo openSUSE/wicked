@@ -1,0 +1,9 @@
+[Unit]
+Description=test-post@%i service
+BindsTo=sys-subsystem-net-devices-%i.device
+IgnoreOnIsolate=yes
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/logger -t test-post "started for %i"
