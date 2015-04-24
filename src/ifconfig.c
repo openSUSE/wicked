@@ -237,6 +237,8 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 		/* link is down, remove all addrs and routes */
 		__ni_system_interface_flush_addrs(NULL, dev);
 		__ni_system_interface_flush_routes(NULL, dev);
+		/* a safeguard in case there are still some */
+		ni_addrconf_lease_list_destroy(&dev->leases);
 	}
 
 	/* TODO: still needed? */
@@ -3099,13 +3101,21 @@ __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t 
 		break;
 
 	case AF_INET6:
+	{
+		ni_ipv6_cache_info_t olft, nlft;
+		struct timeval now;
+
+		ni_timer_get_time(&now);
+		ni_ipv6_cache_info_rebase(&olft, &o->ipv6_cache_info, &now);
+		ni_ipv6_cache_info_rebase(&nlft, &n->ipv6_cache_info, &now);
+
 		/* (invalid) 0 lifetimes mean unset/not provided by the lease;
 		 * kernel uses ~0 (infinity) / permanent address when omitted */
-		if ((n->ipv6_cache_info.valid_lft || n->ipv6_cache_info.preferred_lft) &&
-		    (o->ipv6_cache_info.valid_lft     != n->ipv6_cache_info.valid_lft ||
-		     o->ipv6_cache_info.preferred_lft != n->ipv6_cache_info.preferred_lft))
+		if ((nlft.valid_lft || nlft.preferred_lft) &&
+		    (olft.valid_lft     != nlft.valid_lft ||
+		     olft.preferred_lft != nlft.preferred_lft))
 			return TRUE;
-		break;
+	}	break;
 
 	default:
 		break;
@@ -3293,7 +3303,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_addrconf_lease_t       *new_lease)
 {
-	ni_addrconf_mode_t old_type = NI_ADDRCONF_NONE;
+	ni_addrconf_mode_t owner = NI_ADDRCONF_NONE;
 	unsigned int family = AF_UNSPEC;
 	ni_address_t *ap, *next;
 	unsigned int minprio;
@@ -3305,10 +3315,13 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 
 	if (new_lease) {
 		family = new_lease->family;
+		owner = new_lease->type;
+		for (ap = new_lease->addrs; ap; ap = ap->next)
+			ap->owner = owner;
 	} else
 	if (old_lease) {
 		family = old_lease->family;
-		old_type = old_lease->type;
+		owner = old_lease->type;
 	}
 
 	for (ap = dev->addrs; ap; ap = next) {
@@ -3330,7 +3343,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 			/* Address was assigned to device, but we did not track it.
 			 * Could be due to a daemon restart - simply assume this
 			 * is ours now. */
-			ap->owner = old_type;
+			ap->owner = owner;
 		}
 		minprio = ni_addrconf_lease_get_priority(ni_netdev_get_lease(dev,
 							ap->family, ap->owner));
@@ -3341,14 +3354,14 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		 * is configured through several different protocols, and we don't
 		 * want to delete such an address until the last of these protocols
 		 * has shut down. */
-		if (ap->owner == old_type) {
+		if (ap->owner == owner) {
 			ni_addrconf_lease_t *other;
 
 			if ((other = __ni_netdev_address_to_lease(dev, ap, minprio)) != NULL)
 				ap->owner = other->type;
 		}
 
-		if (ap->owner != old_type) {
+		if (ap->owner != owner) {
 			/* The existing address is managed by a different
 			 * addrconf mode.
 			 *

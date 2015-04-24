@@ -22,6 +22,7 @@
 
 #include <wicked/logging.h>
 #include <wicked/netinfo.h>
+#include <wicked/socket.h>
 #include "util_priv.h"
 
 #ifndef IFA_F_MANAGETEMPADDR
@@ -1187,5 +1188,42 @@ ni_link_address_is_invalid(ni_hwaddr_t *hwa)
 		return z == 0x00 || b == 0xff;
 	}
 	return FALSE;
+}
+
+/*
+ * Adjust IPv6 lifetimes in address cache info
+ */
+void
+ni_ipv6_cache_info_rebase(ni_ipv6_cache_info_t *res, const ni_ipv6_cache_info_t *lft, const struct timeval *base)
+{
+	#define rebase_lft(lft, dif) (lft -= lft > dif ? dif : lft)
+	struct timeval now, dif;
+
+	*res = *lft;
+
+	if (!timerisset(&lft->since))
+		return;
+
+	if (lft->valid_lft == -1U && lft->preferred_lft == -1U)
+		return;
+
+	if (!base || !timerisset(base))
+		ni_timer_get_time(&now);
+	else
+		now = *base;
+
+	if (!timercmp(&now, &lft->since, >))
+		return;
+	timersub(&now, &lft->since, &dif);
+
+	res->since = now;
+	if (res->valid_lft == -1U)
+		rebase_lft(res->preferred_lft, (unsigned long)dif.tv_sec);
+	else
+	if (rebase_lft(res->valid_lft, (unsigned long)dif.tv_sec))
+		rebase_lft(res->preferred_lft, (unsigned long)dif.tv_sec);
+	else
+		res->preferred_lft = 0;
+	#undef rebase_lft
 }
 

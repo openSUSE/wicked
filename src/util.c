@@ -19,6 +19,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdint.h>
 
 #include <wicked/util.h>
 #include <wicked/logging.h>
@@ -1135,6 +1136,56 @@ ni_parse_long(const char *input, long *result, int base)
 }
 
 int
+ni_parse_llong(const char *input, long long *result, int base)
+{
+	long long value;
+	char *end = NULL;
+	int off = 0;
+
+	if (!input || !*input || !result) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (input[off] == '-')
+		off++;
+
+	if ((base == 16 && !isxdigit((unsigned char)input[off])) ||
+	    (base != 16 && !isdigit((unsigned char)input[off]))) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	errno = 0;
+	value = strtoll(input, (char **) &end, base);
+	if(errno || *end != '\0') {
+		if (!errno)
+			errno = EINVAL;
+		return -1;
+	}
+
+	*result = value;
+	return 0;
+}
+
+int
+ni_parse_int64(const char *input, int64_t *result, int base)
+{
+	long long value;
+
+	if (ni_parse_llong(input, &value, base) < 0)
+		return -1;
+
+	if (value > INT64_MAX || value < INT64_MIN) {
+		errno = ERANGE;
+		return -1;
+	}
+
+	*result = value;
+	return 0;
+}
+
+int
 ni_parse_int(const char *input, int *result, int base)
 {
 	long value;
@@ -1169,6 +1220,48 @@ ni_parse_ulong(const char *input, unsigned long *result, int base)
 	if(errno || *end != '\0') {
 		if (!errno)
 			errno = EINVAL;
+		return -1;
+	}
+
+	*result = value;
+	return 0;
+}
+
+int
+ni_parse_ullong(const char *input, unsigned long long *result, int base)
+{
+	unsigned long long value;
+	char *end = NULL;
+
+	if (!result || !input || !*input || *input == '-' ||
+	    (base == 16 && !isxdigit((unsigned char)*input)) ||
+	    (base != 16 && !isdigit((unsigned char)*input))) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	errno = 0;
+	value = strtoull(input, (char **) &end, base);
+	if(errno || *end != '\0') {
+		if (!errno)
+			errno = EINVAL;
+		return -1;
+	}
+
+	*result = value;
+	return 0;
+}
+
+int
+ni_parse_uint64(const char *input, uint64_t *result, int base)
+{
+	unsigned long long value;
+
+	if (ni_parse_ullong(input, &value, base) < 0)
+		return -1;
+
+	if (value > UINT64_MAX) {
+		errno = ERANGE;
 		return -1;
 	}
 

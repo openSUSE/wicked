@@ -513,6 +513,17 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 			ni_debug_objectmodel("%s: service returned %s (%s)", forwarder->supplicant.interface,
 				error->name, error->message);
 		}
+
+		/* drop the lease, even supplicant fails or does not have any */
+		if (lease && lease->state == NI_ADDRCONF_STATE_GRANTED) {
+			lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily);
+			lease->state = NI_ADDRCONF_STATE_RELEASED;
+			__ni_system_interface_update_lease(dev, &lease);
+			if (lease)
+				ni_addrconf_lease_free(lease);
+		} else if (lease) {
+			ni_netdev_unset_lease(dev, lease->family, lease->type);
+		}
 		return rv;
 	}
 

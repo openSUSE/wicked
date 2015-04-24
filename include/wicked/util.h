@@ -185,8 +185,12 @@ extern int		ni_mkdir_maybe(const char *pathname, unsigned int mode);
 
 extern int		ni_parse_int(const char *, int *, int);
 extern int		ni_parse_uint(const char *, unsigned int *, int);
+extern int		ni_parse_int64(const char *, int64_t *, int);
+extern int		ni_parse_uint64(const char *, uint64_t *, int);
 extern int		ni_parse_long(const char *, long *, int);
 extern int		ni_parse_ulong(const char *, unsigned long *, int);
+extern int		ni_parse_llong(const char *, long long *, int);
+extern int		ni_parse_ullong(const char *, unsigned long long *, int);
 extern int		ni_parse_double(const char *, double *);
 extern int		ni_parse_hex(const char *, unsigned char *, unsigned int);
 extern int		ni_parse_boolean(const char *, ni_bool_t *);
