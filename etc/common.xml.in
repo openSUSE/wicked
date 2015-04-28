@@ -26,7 +26,7 @@
     After a change, restart wickedd.service and execute
     "wicked ifup all" to (re)apply the config / policies.
   -->
-  <use-nanny>false</use-nanny>
+  <use-nanny>@use_nanny@</use-nanny>
 
   <!--
     If you want to make changes to this file, consider putting
