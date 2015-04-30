@@ -67,6 +67,13 @@ BuildRequires:  dbus-1-devel
 BuildRequires:  libgcrypt-devel
 BuildRequires:  pkg-config
 
+# Prerequire the logger package
+%if 0%{?suse_version} > 1310
+Requires(pre):       util-linux-systemd
+%else
+Requires(pre):       util-linux
+%endif
+
 %if %{with systemd}
 %{?systemd_requires}
 %if 0%{?suse_version:1}
