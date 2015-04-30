@@ -51,6 +51,12 @@ Requires(pre):  libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 
 %bcond_with     wicked_devel
 
+%if 0%{?suse_version} >= 1320
+%bcond_without  use_nanny
+%else
+%bcond_with     use_nanny
+%endif
+
 BuildRequires:  libnl3-devel
 %if 0%{?suse_version} > 1110
 BuildRequires:  libiw-devel
@@ -165,6 +171,9 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS"
 	--with-statedir=%{wicked_statedir}\
 	--with-storedir=%{wicked_storedir}\
 	--with-compat=suse		\
+%if %{without use_nanny}
+	--disable-nanny-use		\
+%endif
 %if %{with systemd}
 	--enable-systemd		\
 	--with-systemd-unitdir=%{_unitdir} \

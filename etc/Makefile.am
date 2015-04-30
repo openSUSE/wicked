@@ -79,7 +79,8 @@ substitute_vars			= \
 	-e "s|[@]wicked_schemadir[@]|$(wicked_schemadir)|g"	\
 	-e "s|[@]wicked_configdir[@]|$(wicked_configdir)|g"	\
 	-e "s|[@]wicked_supplicantdir[@]|$(wicked_supplicantdir)|g"\
-	-e "s|[@]wicked_extensionsdir[@]|$(wicked_extensionsdir)|g"
+	-e "s|[@]wicked_extensionsdir[@]|$(wicked_extensionsdir)|g"\
+	-e "s|[@]use_nanny[@]|$(use_nanny)|g"
 
 %.xml: %.xml.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
