@@ -258,7 +258,7 @@ ni_fsm_policy_new(ni_fsm_t *fsm, const char *name, xml_node_t *node)
 	ni_fsm_policy_t *policy;
 	ni_fsm_policy_t *pos, **tail;
 	
-	policy = calloc(1, sizeof(*policy));
+	policy = xcalloc(1, sizeof(*policy));
 	ni_string_dup(&policy->name, name);
 
 	if (!__ni_fsm_policy_from_xml(policy, node)) {
@@ -547,6 +547,9 @@ ni_fsm_policy_transform_document(xml_node_t *node, ni_fsm_policy_t * const *poli
 	for (i = count; i--; ) {
 		const ni_fsm_policy_t *policy = policies[i];
 		ni_fsm_policy_action_t *action;
+
+		if (!policy)
+			continue;
 
 		for (action = policy->actions; action && node; action = action->next) {
 			switch (action->type) {
