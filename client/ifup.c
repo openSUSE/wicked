@@ -55,32 +55,20 @@ struct ni_nanny_fsm_monitor {
 static xml_node_t *
 __ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w)
 {
-	ni_netdev_t *dev;
+	ni_iftype_t iftype;
 	const char *type;
 
 	if (!node || !w || ni_string_empty(w->name))
 		return NULL;
 
 	/* Conditional <link-type> generation */
-	{
-		/* TODO: the type has to be from config, _not_ from device
-		 * (dev is probably a not ready one just using our name),
-		 * but this info is lost in translation... isn't it?
-		 */
-		if (!(dev = w->device) || !ni_string_eq(w->name, dev->name))
-			goto skip;
+	iftype = ni_ifworker_iftype_from_xml(w->config.node);
+	type = ni_linktype_type_to_name(iftype);
 
-		if (dev->link.type == NI_IFTYPE_UNKNOWN)
-			goto skip;
-
-		type = ni_linktype_type_to_name(dev->link.type);
-		if (ni_string_empty(type))
-			goto skip;
-
+	if (iftype != NI_IFTYPE_UNKNOWN && !ni_string_empty(type)) {
 		if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_LINK_TYPE, node, type))
 			return NULL; /* Error */
 	}
-skip:
 
 	return xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, node, w->name);
 }

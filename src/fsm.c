@@ -1814,7 +1814,7 @@ ni_ifworker_extra_waittime_from_xml(ni_ifworker_t *w)
 	w->extra_waittime = (extra_timeout*1000);
 }
 
-static ni_iftype_t
+ni_iftype_t
 ni_ifworker_iftype_from_xml(xml_node_t *config)
 {
 	ni_iftype_t iftype;

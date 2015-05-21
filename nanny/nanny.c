@@ -379,8 +379,10 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, const 
 		ni_debug_nanny("Policy \"%s\" already exists", pname);
 		rv = 0;
 	}
-	else
-		policy = ni_fsm_policy_new(fsm, pname, pnode);
+	else if (!(policy = ni_fsm_policy_new(fsm, pname, pnode))) {
+		ni_error("Unable to create policy object from %s", doc_string);
+		goto error;
+	}
 
 	config = xml_node_new(NI_CLIENT_IFCONFIG, NULL);
 	config = ni_fsm_policy_transform_document(config, &policy, 1);

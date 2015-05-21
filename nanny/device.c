@@ -188,6 +188,9 @@ ni_factory_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_polic
 	ni_fsm_policy_t *policy = mpolicy->fsm_policy;
 	xml_node_t *config = NULL;
 
+	if (!policy)
+		return -1;
+
 	ni_debug_nanny("%s: configuring factory device using policy %s",
 		w->name, ni_fsm_policy_name(policy));
 
@@ -224,7 +227,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	ni_fsm_policy_t *policy = mpolicy->fsm_policy;
 	xml_node_t *config = NULL;
 
-	if (!(w = ni_managed_device_get_worker(mdev)))
+	if (!policy || !(w = ni_managed_device_get_worker(mdev)))
 		return -1;
 
 	/* If the device is up and running, do not reconfigure unless the policy
