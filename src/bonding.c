@@ -241,9 +241,14 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 		if (bonding->miimon.frequency > 0)
 			return "invalid arp and mii monitoring option mix";
 
-		if (bonding->mode == NI_BOND_MODE_BALANCE_TLB ||
-		    bonding->mode == NI_BOND_MODE_BALANCE_ALB)
-			return "invalid arp monitoring in balance-tlb/-alb mode";
+		switch(bonding->mode) {
+		case NI_BOND_MODE_802_3AD:
+		case NI_BOND_MODE_BALANCE_TLB:
+		case NI_BOND_MODE_BALANCE_ALB:
+			return "invalid arp monitoring in balance-tlb/-alb or 802.3ad mode";
+		default:
+			break;
+		}
 
 		if (bonding->arpmon.interval == 0 ||
 		    bonding->arpmon.interval > INT_MAX)
