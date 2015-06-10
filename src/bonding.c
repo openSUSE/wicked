@@ -826,7 +826,7 @@ ni_bonding_parse_sysfs_attribute(ni_bonding_t *bonding, const char *attr, char *
 			bonding->monitoring = NI_BOND_MONITOR_ARP;
 	} else if (!strcmp(attr, "arp_ip_target")) {
 		char *s, *p = NULL;
-		for (s = strtok_r(value, ",", &p); s; s = strtok_r(NULL, ",", &p)) {
+		for (s = strtok_r(value, " \t\n", &p); s; s = strtok_r(NULL, " \t\n", &p)) {
 			if (ni_bonding_is_valid_arp_ip_target(s))
 				ni_string_array_append(&bonding->arpmon.targets, s);
 		}
@@ -1069,7 +1069,7 @@ ni_bonding_write_one_sysfs_attr(const char *ifname, const ni_bonding_t *bonding,
  * as well as in dependency of the bonding up/down state and slave count.
  */
 int
-ni_bonding_write_sysfs_attrs(const char *ifname, const ni_bonding_t *bonding, const ni_bonding_t *current, ni_bool_t is_up, ni_bool_t has_slaves)
+ni_bonding_write_sysfs_attrs(const char *ifname, const ni_bonding_t *bonding, ni_bonding_t *current, ni_bool_t is_up, ni_bool_t has_slaves)
 {
 	/*
 	 * option		up/down	slaves		modes
@@ -1131,6 +1131,7 @@ ni_bonding_write_sysfs_attrs(const char *ifname, const ni_bonding_t *bonding, co
 	};
 	const struct attr_matrix *attrs;
 	unsigned int i;
+	char *attrval = NULL;
 
 	attrs = attr_matrix;
 	for (i = 0; attrs[i].name; ++i) {
@@ -1154,6 +1155,10 @@ ni_bonding_write_sysfs_attrs(const char *ifname, const ni_bonding_t *bonding, co
 					!attrs[i].nofail)
 				return -1;
 		}
+
+		if (!ni_sysfs_bonding_get_attr(ifname, attrs[i].name, &attrval) && attrval)
+			ni_bonding_parse_sysfs_attribute(current, attrs[i].name, attrval);
+		ni_string_free(&attrval);
 	}
 
 	return 0;

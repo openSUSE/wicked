@@ -1369,6 +1369,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 		 */
 		ni_debug_ifconfig("%s: configuring bonding device (stage 0.%u.%u)",
 				dev->name, is_up, has_slaves);
+		ni_bonding_parse_sysfs_attrs(dev->name, bond);
 		if (ni_bonding_write_sysfs_attrs(dev->name, bond_cfg, bond,
 						is_up, has_slaves) < 0) {
 			ni_error("%s: cannot configure bonding device (stage 0.%u.%u)",
@@ -1442,6 +1443,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 		 */
 		ni_debug_ifconfig("%s: configuring bonding device (stage 2.%u.%u)",
 				dev->name, is_up, has_slaves);
+		ni_bonding_parse_sysfs_attrs(dev->name, bond);
 		if (ni_bonding_write_sysfs_attrs(dev->name, bond_cfg, bond,
 						is_up, has_slaves) < 0) {
 			ni_error("%s: cannot configure bonding device (stage 2.%u.%u)",
@@ -1453,6 +1455,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 				dev->name);
 		return -1;
 	}
+	ni_bonding_parse_sysfs_attrs(dev->name, bond);
 
 	return 0;
 }

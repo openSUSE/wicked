@@ -114,7 +114,7 @@ extern ni_bool_t	ni_bonding_set_option(ni_bonding_t *, const char *, const char 
 extern int		ni_bonding_parse_sysfs_attrs(const char *, ni_bonding_t *);
 extern int		ni_bonding_write_sysfs_attrs(const char *ifname,
 						const ni_bonding_t *cfg_bond,
-						const ni_bonding_t *cur_bond,
+						ni_bonding_t       *cur_bond,
 						ni_bool_t is_up, ni_bool_t has_slaves);
 
 extern ni_bool_t	ni_bonding_is_valid_arp_ip_target(const char *);
