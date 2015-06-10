@@ -3338,7 +3338,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		if (dev->client_state)
 			ni_ifworker_refresh_client_state(found, dev->client_state);
 	} else {
-		/* even we we've created it and know the the object-path/ifindex
+		/* even we we've created it and know the object-path/ifindex
 		 * or the config refers a device by ifindex, we've to track it as
 		 * pending worker to not confuse other parts (dependencies), that
 		 * may use it by not-yet-stable name (rename may be in progress).
