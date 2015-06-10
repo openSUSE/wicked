@@ -251,6 +251,7 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 
 		switch (bonding->arpmon.validate) {
 		case NI_BOND_ARP_VALIDATE_NONE:
+			break;
 		case NI_BOND_ARP_VALIDATE_ACTIVE:
 		case NI_BOND_ARP_VALIDATE_BACKUP:
 		case NI_BOND_ARP_VALIDATE_ALL:
