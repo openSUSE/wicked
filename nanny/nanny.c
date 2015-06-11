@@ -405,7 +405,7 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, const 
 	if (!w->kickstarted) {
 		if (ni_ifworker_is_factory_device(w))
 			ni_nanny_schedule_recheck(&mgr->recheck, w);
-		else if (schedule && w->device)
+		else if (schedule && ni_netdev_device_is_ready(w->device))
 			ni_nanny_schedule_recheck(&mgr->recheck, w);
 	}
 

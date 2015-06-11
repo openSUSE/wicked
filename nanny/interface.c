@@ -64,7 +64,8 @@ ni_managed_netdev_enable(ni_managed_device_t *mdev)
 		return TRUE;
 	}
 
-	ni_nanny_schedule_recheck(&mgr->recheck, w);
+	if (ni_netdev_device_is_ready(w->device))
+		ni_nanny_schedule_recheck(&mgr->recheck, w);
 	ni_nanny_unschedule(&mgr->down, w);
 	ni_ifworker_rearm(w);
 
