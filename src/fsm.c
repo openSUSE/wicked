@@ -4486,8 +4486,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			if (!w->failed) {
 				/* The fsm action should really have marked this
 				 * as a failure. shame on the lazy programmer. */
-				ni_ifworker_fail(w, "%s: failed to transition from %s to %s",
-						w->name,
+				ni_ifworker_fail(w, "failed to transition from %s to %s",
 						ni_ifworker_state_name(prev_state),
 						ni_ifworker_state_name(action->next_state));
 			}

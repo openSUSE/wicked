@@ -167,7 +167,7 @@ ni_ifup_start_policy(ni_ifworker_t *w)
 
 error:
 	if (!rv)
-		ni_ifworker_fail(w, "%s: unable to apply configuration to nanny", w->name);
+		ni_ifworker_fail(w, "unable to apply configuration to nanny");
 	xml_node_free(policy);
 	return rv;
 }
