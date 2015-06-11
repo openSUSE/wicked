@@ -549,6 +549,10 @@ ni_nanny_unregister_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 
 	ni_nanny_remove_device(mgr, mdev);
 	ni_objectmodel_unregister_managed_device(mdev);
+
+	ni_ifworker_set_progress_callback(w, NULL, NULL);
+	ni_ifworker_set_completion_callback(w, NULL, NULL);
+
 	ni_nanny_unschedule(&mgr->recheck, w);
 }
 
