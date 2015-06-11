@@ -58,6 +58,7 @@ static void			ni_ifworker_cancel_callbacks(ni_ifworker_t *, ni_objectmodel_callb
 static dbus_bool_t		ni_ifworker_waiting_for_events(ni_ifworker_t *);
 static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
 static ni_bool_t		ni_ifworker_del_child_master(xml_node_t *);
+static void			ni_fsm_clear_hierarchy(ni_ifworker_t *);
 
 static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
 static inline void		ni_ifworker_update_client_state_config(ni_ifworker_t *w);
@@ -271,25 +272,7 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	ni_security_id_destroy(&w->security_id);
 
 	/* When detaching children, clear their lowerdev/masterdev ownership info */
-	if (w->children.count != 0) {
-		unsigned int i;
-
-		for (i = 0; i < w->children.count; ++i) {
-			ni_ifworker_t *child = w->children.data[i];
-
-			if (child->masterdev == w) {
-				child->masterdev = NULL;
-				ni_ifworker_del_child_master(child->config.node);
-			}
-
-			if (child == w->lowerdev) {
-				ni_ifworker_array_remove(&child->lowerdev_for, w);
-				w->lowerdev = NULL;
-			}
-		}
-	}
-	ni_ifworker_array_destroy(&w->children);
-	ni_ifworker_array_destroy(&w->lowerdev_for);
+	ni_fsm_clear_hierarchy(w);
 
 	w->target_state = NI_FSM_STATE_NONE;
 	w->target_range.min = NI_FSM_STATE_NONE;
@@ -2728,7 +2711,16 @@ ni_fsm_clear_hierarchy(ni_ifworker_t *w)
 			child->masterdev = NULL;
 			ni_ifworker_del_child_master(child->config.node);
 		}
+
+		if (child == w->lowerdev) {
+			ni_ifworker_array_remove(&child->lowerdev_for, w);
+			w->lowerdev = NULL;
+		}
 	}
+
+	w->depth = 0;
+	ni_ifworker_array_destroy(&w->children);
+	ni_ifworker_array_destroy(&w->lowerdev_for);
 }
 
 ni_bool_t
