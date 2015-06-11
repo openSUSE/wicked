@@ -267,10 +267,6 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	config = ni_fsm_policy_transform_document(config, &policy, 1);
 	if (config == NULL) {
 		ni_error("%s: error when applying policy to %s document", w->name, type_name);
-#if 0
-		if (mdev->state != NI_MANAGED_STATE_STOPPED)
-			ni_nanny_schedule_recheck(&mdev->nanny->down, w);
-#endif
 		return -1;
 	}
 	ni_debug_nanny("%s: using device config", w->name);
@@ -304,9 +300,6 @@ ni_managed_device_up_done(ni_ifworker_t *w)
 		if (mdev->fail_count < mdev->max_fail_count) {
 			ni_error("%s: failed to bring up device, still continuing", w->name);
 			mdev->state = NI_MANAGED_STATE_LIMBO;
-#if 0
-			ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
 		} else {
 			/* Broadcast an error and take down the device
 			 * for good. */

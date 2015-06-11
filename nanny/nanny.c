@@ -215,20 +215,6 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 	ni_fsm_t *fsm = mgr->fsm;
 
 	ni_assert(fsm);
-#if 0
-	if (ni_fsm_policies_changed_since(fsm, &mgr->last_policy_seq)) {
-		ni_managed_device_t *mdev;
-
-		for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
-			if (mdev->monitor) {
-				ni_ifworker_t *w = ni_managed_device_get_worker(mdev);
-
-				if (w)
-					ni_nanny_schedule_recheck(&mgr->recheck, w);
-		}
-	}
-#endif
-
 	for (i = 0; i < mgr->recheck.count; ++i) {
 		ni_ifworker_t *w = mgr->recheck.data[i];
 
@@ -311,12 +297,8 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 			} else {
 				/* Re-enable scanning */
 				ni_debug_nanny("%s: radio re-enabled, resume monitoring", w->name);
-				if (mdev->monitor) {
+				if (mdev->monitor)
 					ni_managed_netdev_enable(mdev);
-#if 0
-					ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
-				}
 			}
 		}
 	}
@@ -704,9 +686,6 @@ ni_nanny_add_secret(ni_nanny_t *mgr, uid_t caller_uid,
 			}
 
 			ni_debug_nanny("%s: secret for %s updated, rechecking", name ? name : "anon", path);
-#if 0
-			ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
 		}
 	}
 }
