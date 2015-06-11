@@ -488,10 +488,9 @@ ni_ifworker_is_running(const ni_ifworker_t *w)
 }
 
 static inline ni_bool_t
-ni_ifworker_is_factory_device(ni_ifworker_t *w)
+ni_ifworker_is_factory_device(const ni_ifworker_t *w)
 {
-	return  !w->device && (w->device_api.factory_service &&
-		w->device_api.factory_method);
+	return  w->device_api.factory_service && w->device_api.factory_method;
 }
 
 static inline ni_bool_t

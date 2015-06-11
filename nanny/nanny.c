@@ -173,15 +173,17 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 
 	mdev = ni_nanny_get_device(mgr, w);
 	if (!mdev) {
-		/* We have an ifworker for factory device - follow factory device path */
-		if (ni_ifworker_is_factory_device(w))
-			factory_device = TRUE;
-		else if (w->pending || !w->device) {
-			ni_error("%s: Unable to recheck non-factory worker - "
-				"device is not present (pending=%s, device=%s)",
-				w->name, ni_format_boolean(w->pending),
-				ni_format_boolean(!!w->device));
-			return -1;
+		if (!ni_ifworker_is_device_created(w)) {
+			/* We have an ifworker for factory device - follow factory device path */
+			if (ni_ifworker_is_factory_device(w))
+				factory_device = TRUE;
+			else if (w->pending) {
+				ni_error("%s: Unable to recheck non-factory worker - "
+					"device is not present (pending=%s, device=%s)",
+					w->name, ni_format_boolean(w->pending),
+					ni_format_boolean(!!w->device));
+				return -1;
+			}
 		}
 	}
 

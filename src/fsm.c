@@ -2646,7 +2646,7 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 		if (w->failed)
 			continue;
 
-		if (!w->device && !ni_ifworker_is_factory_device(w)) {
+		if (!ni_ifworker_is_device_created(w) && !ni_ifworker_is_factory_device(w)) {
 			w->pending = TRUE;
 			ni_ifworker_set_timeout(fsm, w, fsm->worker_timeout);
 			count++;
@@ -3752,7 +3752,7 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 	unsigned int i;
 	int rv;
 
-	if (!w->object && ni_ifworker_is_factory_device(w))
+	if (!w->object && !w->device && ni_ifworker_is_factory_device(w))
 		return 0;
 
 	if (action->bound)
