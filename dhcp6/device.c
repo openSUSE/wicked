@@ -41,6 +41,7 @@
 #include "dhcp6/fsm.h"
 #include "appconfig.h"
 #include "util_priv.h"
+#include "netinfo_priv.h"
 #include "duid.h"
 
 
@@ -503,7 +504,7 @@ ni_dhcp6_device_find_lladdr(ni_dhcp6_device_t *dev)
 	return rv;
 }
 
-static const ni_netdev_t *
+static ni_netdev_t *
 ni_dhcp6_device_netdev(const ni_dhcp6_device_t *dev)
 {
 	ni_netconfig_t *nc;
@@ -516,6 +517,32 @@ ni_dhcp6_device_netdev(const ni_dhcp6_device_t *dev)
 		return NULL;
 	}
 	return ifp;
+}
+
+void
+ni_dhcp6_device_refresh_mode(ni_dhcp6_device_t *dev, ni_netdev_t *ifp)
+{
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_ipv6_devinfo_t *ipv6;
+
+	if (!nc || !dev || (!ifp && !(ifp = ni_dhcp6_device_netdev(dev))))
+		return;
+
+	/*
+	 * Refresh ipv6 link info on NEWPREFIX events in auto mode
+	 * when both flags are FALSE (no dhcp at all).
+	 *
+	 * When NEWPREFIX arrives, there definitely were an RA, but
+	 * when the RA contained a RetransTimer/ReachableTime of 0
+	 * (unspecified / no change to before), the kernel forgets
+	 * to send a NEWLINK event, even other things in the RA, as
+	 * the managed/other-config flags we wait for changed.
+	 */
+	ipv6 = ni_netdev_get_ipv6(ifp);
+	if (!ipv6->radv.managed_addr && !ipv6->radv.other_config)
+		__ni_device_refresh_ipv6_link_info(nc, ifp);
+
+	ni_dhcp6_device_update_mode(dev, ifp);
 }
 
 void
@@ -1181,7 +1208,7 @@ ni_dhcp6_prefix_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 	switch (event) {
 	case NI_EVENT_PREFIX_UPDATE:
 		if (dev->config && dev->config->mode == NI_DHCP6_MODE_AUTO) {
-			ni_dhcp6_device_update_mode(dev, ifp);
+			ni_dhcp6_device_refresh_mode(dev, ifp);
 			ni_dhcp6_device_start(dev);
 		}
 		break;
