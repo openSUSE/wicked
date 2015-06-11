@@ -475,6 +475,13 @@ ni_ifworker_complete(const ni_ifworker_t *w)
 }
 
 static inline ni_bool_t
+ni_ifworker_is_device_created(const ni_ifworker_t *w)
+{
+	return ni_ifworker_device_bound(w) && w->object && w->ifindex != 0 &&
+		!ni_string_empty(w->object_path);
+}
+
+static inline ni_bool_t
 ni_ifworker_is_running(const ni_ifworker_t *w)
 {
 	return w->kickstarted && !w->dead && !ni_ifworker_complete(w);
