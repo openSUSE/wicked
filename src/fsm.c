@@ -2388,8 +2388,11 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 			}
 		}
 
-		if (match->skip_active && w->device && ni_netdev_device_is_up(w->device))
+		/* Skip active means omit running and succeeded worker */
+		if (match->skip_active && w->kickstarted &&
+		    (ni_ifworker_is_running(w) || ni_ifworker_has_succeeded(w))) {
 			continue;
+		}
 
 		if (match->name) { /* Check only when particular interface specified */
 			if (!match->ifdown) {
