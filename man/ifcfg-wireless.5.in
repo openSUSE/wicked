@@ -77,7 +77,7 @@ synchronisation master. If unset, managed will be used.
 .B WIRELESS_AP
 In environments with multiple Access points you may want to define the one
 to connect to by entering its MAC address. Format is 6x2 hex digits,
-seperated by colons, eg 01:02:03:04:05:06.
+separated by colons, eg 01:02:03:04:05:06.
 See also the iwconfig ap option description in the iwconfig(8) manual page.
 .br
 Note, that some drivers (mac80211 based) may require to set this variable
