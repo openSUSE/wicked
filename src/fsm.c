@@ -4771,8 +4771,12 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 
 	ni_ifworker_advance_state(w, event_type);
 
-	if (event_type == NI_EVENT_DEVICE_DELETE)
-		ni_fsm_destroy_worker(fsm, w);
+	if (event_type == NI_EVENT_DEVICE_DELETE) {
+		if (ni_config_use_nanny() && ni_ifworker_is_factory_device(w))
+			ni_ifworker_device_delete(w);
+		else
+			ni_fsm_destroy_worker(fsm, w);
+	}
 
 done: ;
 }
