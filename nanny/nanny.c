@@ -954,6 +954,8 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 
 					/* We have freed config node above by setting policy (selected_config) to NULL */
 					w->config.node = NULL;
+
+					ni_nanny_unschedule(&mgr->recheck, w);
 				}
 
 				*pos = cur->next;
