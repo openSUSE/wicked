@@ -399,6 +399,21 @@ ni_ifworker_release(ni_ifworker_t *state)
 		ni_ifworker_free(state);
 }
 
+static inline ni_bool_t
+ni_ifworker_device_bound(const ni_ifworker_t *w)
+{
+	switch (w->type) {
+	case NI_IFWORKER_TYPE_NETDEV:
+		return w->device != NULL;
+
+	case NI_IFWORKER_TYPE_MODEM:
+		return w->modem != NULL;
+
+	default:
+		return FALSE;
+	}
+}
+
 static inline ni_netdev_t *
 ni_ifworker_get_netdev(const ni_ifworker_t *w)
 {

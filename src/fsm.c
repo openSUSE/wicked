@@ -323,21 +323,6 @@ ni_ifworker_free(ni_ifworker_t *w)
 	free(w);
 }
 
-static inline ni_bool_t
-ni_ifworker_device_bound(const ni_ifworker_t *w)
-{
-	switch (w->type) {
-	case NI_IFWORKER_TYPE_NETDEV:
-		return w->device != NULL;
-
-	case NI_IFWORKER_TYPE_MODEM:
-		return w->modem != NULL;
-
-	default:
-		return FALSE;
-	}
-}
-
 /*
  * Register dependency types
  */
