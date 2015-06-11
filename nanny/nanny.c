@@ -555,7 +555,10 @@ ni_nanny_unregister_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_ifworker_set_progress_callback(w, NULL, NULL);
 	ni_ifworker_set_completion_callback(w, NULL, NULL);
 
-	ni_nanny_unschedule(&mgr->recheck, w);
+	if (!ni_ifworker_is_factory_device(w) ||
+	    !ni_fsm_exists_applicable_policy(mgr->fsm->policies, w)) {
+		ni_nanny_unschedule(&mgr->recheck, w);
+	}
 }
 
 /*
