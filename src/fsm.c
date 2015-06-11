@@ -3318,11 +3318,15 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		/*
 		 * if tracked as pending worker, it's over now -- device is ready
 		 */
-		if ((found = ni_ifworker_array_find_by_objectpath(&fsm->pending, object->path)))
+		if ((found = ni_ifworker_array_find_by_objectpath(&fsm->pending, object->path))) {
+			if (ni_ifworker_array_index(&fsm->workers, found) < 0)
+				ni_ifworker_array_append(&fsm->workers, found);
 			ni_ifworker_array_remove(&fsm->pending, found);
+		}
 
 		/* lookup worker by object path (ifindex) first, then by name */
-		found = ni_ifworker_array_find_by_objectpath(&fsm->workers, object->path);
+		if (!found)
+			found = ni_ifworker_array_find_by_objectpath(&fsm->workers, object->path);
 		if (!found)
 			found = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
 		if (!found) {
