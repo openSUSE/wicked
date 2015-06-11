@@ -208,10 +208,14 @@ static void
 __ni_ifworker_reset_action_table(ni_ifworker_t *w)
 {
 	ni_fsm_transition_t *action;
+	unsigned int i;
 
 	for (action = w->fsm.action_table; action && action->next_state; action++) {
 		ni_fsm_require_list_destroy(&action->require.list);
 		ni_ifworker_cancel_callbacks(w, &action->callbacks);
+		for (i = 0; i < action->num_bindings; ++i)
+			xml_node_free(action->binding[i].config);
+		memset(action, 0, sizeof(*action));
 	}
 	w->fsm.wait_for = NULL;
 	w->fsm.next_action = w->fsm.action_table;
@@ -281,6 +285,7 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	ni_client_state_config_init(&w->config.meta);
 
 	ni_ifworker_rearm(w);
+	xml_node_free(w->device_api.config);
 	memset(&w->device_api, 0, sizeof(w->device_api));
 
 	w->readonly = FALSE;
@@ -2899,6 +2904,7 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 			}
 			w->device_api.factory_service = service;
 			w->device_api.factory_method = method;
+			xml_node_free(w->device_api.config);
 			w->device_api.config = config;
 		}
 	}
@@ -2916,7 +2922,7 @@ static int
 ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
 {
 	const ni_dbus_method_t *method;
-	xml_node_t *config;
+	xml_node_t *config = NULL;
 
 	if (w->device_api.service)
 		return 1;
@@ -2940,7 +2946,9 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
 
 	w->device_api.service = service;
 	w->device_api.method = method;
+	xml_node_free(w->device_api.config);
 	w->device_api.config = config;
+
 	return 1;
 }
 
@@ -4080,7 +4088,8 @@ ni_ifworker_bind_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 	bind = &action->binding[0];
 	bind->service = w->device_api.factory_service;
 	bind->method = w->device_api.factory_method;
-	bind->config = w->device_api.config;
+	xml_node_free(bind->config);
+	bind->config = xml_node_clone_ref(w->device_api.config);
 	action->num_bindings++;
 
 	rv = ni_ifworker_map_method_requires(w, action, bind->service, bind->method);
