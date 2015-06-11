@@ -2726,21 +2726,23 @@ ni_fsm_clear_hierarchy(ni_ifworker_t *w)
 	}
 }
 
-ni_bool_t
-ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
+static void
+ni_ifworker_device_delete(ni_ifworker_t *w)
 {
 	ni_ifworker_get(w);
-
 	ni_debug_application("%s(%s)", __func__, w->name);
-	if (!ni_ifworker_array_remove(&fsm->workers, w)) {
-		ni_ifworker_release(w);
-		return FALSE;
-	}
 
+	w->ifindex = 0;
+	if (w->device) {
+		ni_netdev_put(w->device);
+		w->device = NULL;
+	}
 	if (w->object) {
 		ni_dbus_object_free(w->object);
 		w->object = NULL;
 	}
+	ni_string_free(&w->object_path);
+	w->object_path = NULL;
 
 	ni_ifworker_cancel_secondary_timeout(w);
 	ni_ifworker_cancel_timeout(w);
@@ -2748,9 +2750,27 @@ ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 	if (ni_ifworker_is_running(w))
 		ni_ifworker_fail(w, "device has been deleted");
 
+	__ni_ifworker_destroy_action_table(w);
+	ni_ifworker_rearm(w);
 	ni_fsm_clear_hierarchy(w);
+
 	ni_ifworker_release(w);
-	return TRUE;
+}
+
+void
+ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	ni_ifworker_get(w);
+
+	ni_debug_application("%s(%s)", __func__, w->name);
+	if (!ni_ifworker_array_remove(&fsm->workers, w)) {
+		ni_ifworker_release(w);
+		return;
+	}
+
+	ni_ifworker_device_delete(w);
+
+	ni_ifworker_release(w);
 }
 
 int
