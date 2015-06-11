@@ -274,19 +274,15 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	/* When detaching children, clear their lowerdev/masterdev ownership info */
 	ni_fsm_clear_hierarchy(w);
 
-	w->target_state = NI_FSM_STATE_NONE;
 	w->target_range.min = NI_FSM_STATE_NONE;
 	w->target_range.max = __NI_FSM_STATE_MAX;
 
 	/* Clear config and stats*/
 	ni_client_state_config_init(&w->config.meta);
 
-	__ni_ifworker_reset_fsm(w);
+	ni_ifworker_rearm(w);
 	memset(&w->device_api, 0, sizeof(w->device_api));
 
-	w->failed = FALSE;
-	w->done = FALSE;
-	w->kickstarted = FALSE;
 	w->readonly = FALSE;
 	w->dead = FALSE;
 	w->pending = FALSE;
