@@ -79,8 +79,6 @@ struct ni_fsm_transition {
 		const char *		method_name;
 		const ni_dbus_method_t *method;
 
-		xml_node_t *		config;
-
 		ni_bool_t		call_overloading;
 		ni_bool_t		may_fail;
 	} common;
