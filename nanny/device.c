@@ -110,8 +110,7 @@ ni_managed_device_type(const ni_managed_device_t *mdev)
 void
 ni_managed_device_set_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy, xml_node_t *config)
 {
-	if (!xml_node_is_empty(mdev->selected_config))
-		xml_node_free(mdev->selected_config);
+	xml_node_free(mdev->selected_config);
 	mdev->selected_config = config;
 
 	mdev->selected_policy = mpolicy;
