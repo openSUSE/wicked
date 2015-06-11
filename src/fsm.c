@@ -1479,6 +1479,7 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 			w->fsm.wait_for = NULL;
 
 		if ((new_state == NI_FSM_STATE_DEVICE_READY) && w->object && !w->readonly) {
+			ni_call_clear_event_filters(w->object);
 			ni_ifworker_update_client_state_control(w);
 			ni_ifworker_update_client_state_scripts(w);
 			ni_ifworker_update_client_state_config(w);
@@ -4406,11 +4407,8 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 				goto release;
 			}
 
-			if (!w->kickstarted) {
-				if (w->object && ni_netdev_device_is_ready(w->device))
-					ni_call_clear_event_filters(w->object);
+			if (!w->kickstarted)
 				w->kickstarted = TRUE;
-			}
 
 			/* We requested a change that takes time (such as acquiring
 			 * a DHCP lease). Wait for a notification from wickedd */
