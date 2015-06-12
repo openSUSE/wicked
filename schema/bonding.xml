@@ -40,7 +40,7 @@
        <all value="1"/>
      </validate-targets>
      <!-- targets class="array" element-type="ipv4-address" minlen="1"/ -->
-     <targets class="array" constraint="required" minlen="1" element-type="string" />
+     <targets class="array" constraint="required" minlen="1" element-type="string" element-name="address" />
    </arpmon>
 
    <miimon class="dict">
