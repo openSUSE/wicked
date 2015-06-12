@@ -330,6 +330,14 @@ usage:
 		ni_debug_application("No interfaces to be brought down\n");
 	}
 
+	/* Build the up tree */
+	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
+		ni_error("ifreload: unable to build device hierarchy");
+		/* Severe error we always explicitly return */
+		status = NI_WICKED_RC_ERROR;
+		goto cleanup;
+	}
+
 	ni_fsm_pull_in_children(&up_marked);
 	/* Drop deleted or apply the up range */
 	ni_fsm_reset_matching_workers(fsm, &up_marked, &up_range, FALSE);
@@ -643,6 +651,14 @@ usage:
 	}
 	else {
 		ni_debug_application("No interfaces to be brought down\n");
+	}
+
+	/* Build the up tree */
+	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
+		ni_error("ifreload: unable to build device hierarchy");
+		/* Severe error we always explicitly return */
+		status = NI_WICKED_RC_ERROR;
+		goto cleanup;
 	}
 
 	ni_fsm_pull_in_children(&up_marked);
