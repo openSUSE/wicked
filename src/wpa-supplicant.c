@@ -1532,8 +1532,7 @@ __wpa_dbus_bss_get_password(const ni_dbus_object_t *object, const ni_dbus_proper
 	 && net->keymgmt_proto != NI_WIRELESS_KEY_MGMT_802_1X)
 		return __ni_dbus_property_not_present_error(error, property);
 
-	if (net->wpa_eap.phase2.method == NI_WIRELESS_EAP_NONE
-	 || net->wpa_eap.phase2.password == NULL)
+	if (ni_string_empty(net->wpa_eap.phase2.password))
 		return __ni_dbus_property_not_present_error(error, property);
 
 	ni_dbus_variant_set_string(argument, net->wpa_eap.phase2.password);
@@ -1561,7 +1560,7 @@ __wpa_dbus_bss_get_phase2(const ni_dbus_object_t *object, const ni_dbus_property
 	ni_wireless_network_t *net = __wpa_get_network(object);
 
 	if (net->keymgmt_proto == NI_WIRELESS_KEY_MGMT_EAP
-	 && net->wpa_eap.phase2.method) {
+	 && net->wpa_eap.phase2.method != NI_WIRELESS_EAP_NONE) {
 		const char *eap_name;
 		char buffer[64];
 
