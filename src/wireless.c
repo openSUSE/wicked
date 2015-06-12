@@ -595,6 +595,7 @@ ni_wireless_key_management_to_name(ni_wireless_key_mgmt_t mode)
 
 static ni_intmap_t __ni_wireless_eap_method_names[] = {
 	{ "none",	NI_WIRELESS_EAP_NONE	},
+	{ "any",	NI_WIRELESS_EAP_NONE	},
 	{ "md5",	NI_WIRELESS_EAP_MD5	},
 	{ "tls",	NI_WIRELESS_EAP_TLS	},
 	{ "mschapv2",	NI_WIRELESS_EAP_MSCHAPV2},
