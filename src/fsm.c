@@ -57,6 +57,7 @@ static void			ni_ifworker_cancel_secondary_timeout(ni_ifworker_t *);
 static void			ni_ifworker_cancel_callbacks(ni_ifworker_t *, ni_objectmodel_callback_info_t **);
 static dbus_bool_t		ni_ifworker_waiting_for_events(ni_ifworker_t *);
 static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
+static ni_bool_t		ni_ifworker_del_child_master(xml_node_t *);
 
 static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
 static inline void		ni_ifworker_update_client_state_config(ni_ifworker_t *w);
@@ -276,8 +277,10 @@ ni_ifworker_reset(ni_ifworker_t *w)
 		for (i = 0; i < w->children.count; ++i) {
 			ni_ifworker_t *child = w->children.data[i];
 
-			if (child->masterdev == w)
+			if (child->masterdev == w) {
 				child->masterdev = NULL;
+				ni_ifworker_del_child_master(child->config.node);
+			}
 
 			if (child == w->lowerdev) {
 				ni_ifworker_array_remove(&child->lowerdev_for, w);
@@ -1255,6 +1258,20 @@ ni_ifworker_add_child_master(xml_node_t *config, const char *name)
 }
 
 static ni_bool_t
+ni_ifworker_del_child_master(xml_node_t *config)
+{
+	xml_node_t *link;
+
+	if (xml_node_is_empty(config))
+		return FALSE;
+
+	if (!(link = xml_node_get_child(config, NI_CLIENT_IFCONFIG_LINK)))
+		return FALSE;
+
+	return xml_node_delete_child(link, NI_CLIENT_IFCONFIG_MASTER);
+}
+
+static ni_bool_t
 ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode, ni_bool_t shared)
 {
 	unsigned int i;
@@ -1273,7 +1290,7 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 		/* The reference allows sharing with other uses, e.g. VLANs. */
 		if (parent->lowerdev) {
 			if (xml_node_is_empty(parent->lowerdev->config.node)) {
-				ni_error("%s (%s): subordinate interface's lowerdev %s has no config node",
+				ni_debug_application("%s (%s): subordinate interface's lowerdev %s has no config node",
 					parent->name, xml_node_location(devnode), parent->lowerdev->name);
 				return FALSE;
 			}
@@ -1293,7 +1310,7 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 	else {
 		if (child->masterdev) {
 			if (xml_node_is_empty(child->masterdev->config.node)) {
-				ni_error("%s (%s): subordinate interface's master device %s has no config node",
+				ni_debug_application("%s (%s): subordinate interface's master device %s has no config node",
 					child->name, xml_node_location(devnode), child->masterdev->name);
 				return FALSE;
 			}
@@ -2721,8 +2738,10 @@ ni_fsm_clear_hierarchy(ni_ifworker_t *w)
 	for (i = 0; i < w->children.count; i++) {
 		ni_ifworker_t *child = w->children.data[i];
 
-		if (child->masterdev == w)
+		if (child->masterdev == w) {
 			child->masterdev = NULL;
+			ni_ifworker_del_child_master(child->config.node);
+		}
 	}
 }
 
