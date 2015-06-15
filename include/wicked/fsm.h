@@ -79,8 +79,6 @@ struct ni_fsm_transition {
 		const char *		method_name;
 		const ni_dbus_method_t *method;
 
-		xml_node_t *		config;
-
 		ni_bool_t		call_overloading;
 		ni_bool_t		may_fail;
 	} common;
@@ -401,6 +399,21 @@ ni_ifworker_release(ni_ifworker_t *state)
 		ni_ifworker_free(state);
 }
 
+static inline ni_bool_t
+ni_ifworker_device_bound(const ni_ifworker_t *w)
+{
+	switch (w->type) {
+	case NI_IFWORKER_TYPE_NETDEV:
+		return w->device != NULL;
+
+	case NI_IFWORKER_TYPE_MODEM:
+		return w->modem != NULL;
+
+	default:
+		return FALSE;
+	}
+}
+
 static inline ni_netdev_t *
 ni_ifworker_get_netdev(const ni_ifworker_t *w)
 {
@@ -436,15 +449,6 @@ ni_ifworker_active(const ni_ifworker_t *w)
 }
 
 /*
- * Return true if the worker has been created from config file and has no real device
- */
-static inline ni_bool_t
-ni_ifworker_is_config_worker(ni_ifworker_t *w)
-{
-	return w && (!w->device && 0 == w->ifindex && !xml_node_is_empty(w->config.node));
-}
-
-/*
  * Returns true if a state is one of the FSM defined states
  */
 static inline ni_bool_t
@@ -462,16 +466,32 @@ ni_ifworker_complete(const ni_ifworker_t *w)
 }
 
 static inline ni_bool_t
+ni_ifworker_is_device_created(const ni_ifworker_t *w)
+{
+	return ni_ifworker_device_bound(w) && w->object && w->ifindex != 0 &&
+		!ni_string_empty(w->object_path);
+}
+
+static inline ni_bool_t
 ni_ifworker_is_running(const ni_ifworker_t *w)
 {
 	return w->kickstarted && !w->dead && !ni_ifworker_complete(w);
 }
 
 static inline ni_bool_t
-ni_ifworker_is_factory_device(ni_ifworker_t *w)
+ni_ifworker_is_factory_device(const ni_ifworker_t *w)
 {
-	return  !w->device && (w->device_api.factory_service &&
-		w->device_api.factory_method);
+	return  w->device_api.factory_service && w->device_api.factory_method;
+}
+
+/*
+ * Return true if the worker has been created from config file and has no real device
+ */
+static inline ni_bool_t
+ni_ifworker_is_config_worker(const ni_ifworker_t *w)
+{
+	return !ni_ifworker_is_device_created(w) && !xml_node_is_empty(w->config.node) &&
+		!ni_ifworker_is_factory_device(w);
 }
 
 static inline ni_bool_t

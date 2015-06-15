@@ -173,15 +173,17 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 
 	mdev = ni_nanny_get_device(mgr, w);
 	if (!mdev) {
-		/* We have an ifworker for factory device - follow factory device path */
-		if (ni_ifworker_is_factory_device(w))
-			factory_device = TRUE;
-		else if (w->pending || !w->device) {
-			ni_error("%s: Unable to recheck non-factory worker - "
-				"device is not present (pending=%s, device=%s)",
-				w->name, ni_format_boolean(w->pending),
-				ni_format_boolean(!!w->device));
-			return -1;
+		if (!ni_ifworker_is_device_created(w)) {
+			/* We have an ifworker for factory device - follow factory device path */
+			if (ni_ifworker_is_factory_device(w))
+				factory_device = TRUE;
+			else if (w->pending) {
+				ni_error("%s: Unable to recheck non-factory worker - "
+					"device is not present (pending=%s, device=%s)",
+					w->name, ni_format_boolean(w->pending),
+					ni_format_boolean(!!w->device));
+				return -1;
+			}
 		}
 	}
 
@@ -215,20 +217,6 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 	ni_fsm_t *fsm = mgr->fsm;
 
 	ni_assert(fsm);
-#if 0
-	if (ni_fsm_policies_changed_since(fsm, &mgr->last_policy_seq)) {
-		ni_managed_device_t *mdev;
-
-		for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
-			if (mdev->monitor) {
-				ni_ifworker_t *w = ni_managed_device_get_worker(mdev);
-
-				if (w)
-					ni_nanny_schedule_recheck(&mgr->recheck, w);
-		}
-	}
-#endif
-
 	for (i = 0; i < mgr->recheck.count; ++i) {
 		ni_ifworker_t *w = mgr->recheck.data[i];
 
@@ -311,12 +299,8 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 			} else {
 				/* Re-enable scanning */
 				ni_debug_nanny("%s: radio re-enabled, resume monitoring", w->name);
-				if (mdev->monitor) {
+				if (mdev->monitor)
 					ni_managed_netdev_enable(mdev);
-#if 0
-					ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
-				}
 			}
 		}
 	}
@@ -405,7 +389,7 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, const 
 	if (!w->kickstarted) {
 		if (ni_ifworker_is_factory_device(w))
 			ni_nanny_schedule_recheck(&mgr->recheck, w);
-		else if (schedule && w->device)
+		else if (schedule && ni_netdev_device_is_ready(w->device))
 			ni_nanny_schedule_recheck(&mgr->recheck, w);
 	}
 
@@ -567,8 +551,14 @@ ni_nanny_unregister_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 
 	ni_nanny_remove_device(mgr, mdev);
 	ni_objectmodel_unregister_managed_device(mdev);
-	ni_nanny_unschedule(&mgr->recheck, w);
-	ni_nanny_policy_drop(w->name);
+
+	ni_ifworker_set_progress_callback(w, NULL, NULL);
+	ni_ifworker_set_completion_callback(w, NULL, NULL);
+
+	if (!ni_ifworker_is_factory_device(w) ||
+	    !ni_fsm_exists_applicable_policy(mgr->fsm->policies, w)) {
+		ni_nanny_unschedule(&mgr->recheck, w);
+	}
 }
 
 /*
@@ -705,9 +695,6 @@ ni_nanny_add_secret(ni_nanny_t *mgr, uid_t caller_uid,
 			}
 
 			ni_debug_nanny("%s: secret for %s updated, rechecking", name ? name : "anon", path);
-#if 0
-			ni_nanny_schedule_recheck(&mgr->recheck, w);
-#endif
 		}
 	}
 }
@@ -974,7 +961,10 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 					if (mdev != NULL)
 						ni_managed_device_set_policy(mdev, NULL, NULL);
 
+					/* We have freed config node above by setting policy (selected_config) to NULL */
 					w->config.node = NULL;
+
+					ni_nanny_unschedule(&mgr->recheck, w);
 				}
 
 				*pos = cur->next;

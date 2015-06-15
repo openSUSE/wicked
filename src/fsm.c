@@ -58,6 +58,7 @@ static void			ni_ifworker_cancel_callbacks(ni_ifworker_t *, ni_objectmodel_callb
 static dbus_bool_t		ni_ifworker_waiting_for_events(ni_ifworker_t *);
 static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
 static ni_bool_t		ni_ifworker_del_child_master(xml_node_t *);
+static void			ni_fsm_clear_hierarchy(ni_ifworker_t *);
 
 static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
 static inline void		ni_ifworker_update_client_state_config(ni_ifworker_t *w);
@@ -271,39 +272,17 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	ni_security_id_destroy(&w->security_id);
 
 	/* When detaching children, clear their lowerdev/masterdev ownership info */
-	if (w->children.count != 0) {
-		unsigned int i;
+	ni_fsm_clear_hierarchy(w);
 
-		for (i = 0; i < w->children.count; ++i) {
-			ni_ifworker_t *child = w->children.data[i];
-
-			if (child->masterdev == w) {
-				child->masterdev = NULL;
-				ni_ifworker_del_child_master(child->config.node);
-			}
-
-			if (child == w->lowerdev) {
-				ni_ifworker_array_remove(&child->lowerdev_for, w);
-				w->lowerdev = NULL;
-			}
-		}
-	}
-	ni_ifworker_array_destroy(&w->children);
-	ni_ifworker_array_destroy(&w->lowerdev_for);
-
-	w->target_state = NI_FSM_STATE_NONE;
 	w->target_range.min = NI_FSM_STATE_NONE;
 	w->target_range.max = __NI_FSM_STATE_MAX;
 
 	/* Clear config and stats*/
 	ni_client_state_config_init(&w->config.meta);
 
-	__ni_ifworker_reset_fsm(w);
+	ni_ifworker_rearm(w);
 	memset(&w->device_api, 0, sizeof(w->device_api));
 
-	w->failed = FALSE;
-	w->done = FALSE;
-	w->kickstarted = FALSE;
 	w->readonly = FALSE;
 	w->dead = FALSE;
 	w->pending = FALSE;
@@ -321,21 +300,6 @@ ni_ifworker_free(ni_ifworker_t *w)
 	xml_node_free(w->state.node);
 	ni_string_free(&w->name);
 	free(w);
-}
-
-static inline ni_bool_t
-ni_ifworker_device_bound(const ni_ifworker_t *w)
-{
-	switch (w->type) {
-	case NI_IFWORKER_TYPE_NETDEV:
-		return w->device != NULL;
-
-	case NI_IFWORKER_TYPE_MODEM:
-		return w->modem != NULL;
-
-	default:
-		return FALSE;
-	}
 }
 
 /*
@@ -1494,6 +1458,7 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 			w->fsm.wait_for = NULL;
 
 		if ((new_state == NI_FSM_STATE_DEVICE_READY) && w->object && !w->readonly) {
+			ni_call_clear_event_filters(w->object);
 			ni_ifworker_update_client_state_control(w);
 			ni_ifworker_update_client_state_scripts(w);
 			ni_ifworker_update_client_state_config(w);
@@ -2366,6 +2331,9 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 		if (w->type != NI_IFWORKER_TYPE_NETDEV)
 			continue;
 
+		if (w->dead)
+			continue;
+
 		if (!match->mode && !match->ignore_startmode) {
 			if (ni_string_eq_nocase(w->control.mode, "off"))
 				continue;
@@ -2420,8 +2388,11 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 			}
 		}
 
-		if (match->skip_active && w->device && ni_netdev_device_is_up(w->device))
+		/* Skip active means omit running and succeeded worker */
+		if (match->skip_active && w->kickstarted &&
+		    (ni_ifworker_is_running(w) || ni_ifworker_has_succeeded(w))) {
 			continue;
+		}
 
 		if (match->name) { /* Check only when particular interface specified */
 			if (!match->ifdown) {
@@ -2661,7 +2632,7 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 		if (w->failed)
 			continue;
 
-		if (!w->device && !ni_ifworker_is_factory_device(w)) {
+		if (!ni_ifworker_is_device_created(w) && !ni_ifworker_is_factory_device(w)) {
 			w->pending = TRUE;
 			ni_ifworker_set_timeout(fsm, w, fsm->worker_timeout);
 			count++;
@@ -2742,7 +2713,16 @@ ni_fsm_clear_hierarchy(ni_ifworker_t *w)
 			child->masterdev = NULL;
 			ni_ifworker_del_child_master(child->config.node);
 		}
+
+		if (child == w->lowerdev) {
+			ni_ifworker_array_remove(&child->lowerdev_for, w);
+			w->lowerdev = NULL;
+		}
 	}
+
+	w->depth = 0;
+	ni_ifworker_array_destroy(&w->children);
+	ni_ifworker_array_destroy(&w->lowerdev_for);
 }
 
 ni_bool_t
@@ -3338,11 +3318,15 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		/*
 		 * if tracked as pending worker, it's over now -- device is ready
 		 */
-		if ((found = ni_ifworker_array_find_by_objectpath(&fsm->pending, object->path)))
+		if ((found = ni_ifworker_array_find_by_objectpath(&fsm->pending, object->path))) {
+			if (ni_ifworker_array_index(&fsm->workers, found) < 0)
+				ni_ifworker_array_append(&fsm->workers, found);
 			ni_ifworker_array_remove(&fsm->pending, found);
+		}
 
 		/* lookup worker by object path (ifindex) first, then by name */
-		found = ni_ifworker_array_find_by_objectpath(&fsm->workers, object->path);
+		if (!found)
+			found = ni_ifworker_array_find_by_objectpath(&fsm->workers, object->path);
 		if (!found)
 			found = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
 		if (!found) {
@@ -3767,7 +3751,7 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 	unsigned int i;
 	int rv;
 
-	if (!w->object && ni_ifworker_is_factory_device(w))
+	if (!w->object && !w->device && ni_ifworker_is_factory_device(w))
 		return 0;
 
 	if (action->bound)
@@ -4421,11 +4405,8 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 				goto release;
 			}
 
-			if (!w->kickstarted) {
-				if (w->object && ni_netdev_device_is_ready(w->device))
-					ni_call_clear_event_filters(w->object);
+			if (!w->kickstarted)
 				w->kickstarted = TRUE;
-			}
 
 			/* We requested a change that takes time (such as acquiring
 			 * a DHCP lease). Wait for a notification from wickedd */
@@ -4486,8 +4467,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			if (!w->failed) {
 				/* The fsm action should really have marked this
 				 * as a failure. shame on the lazy programmer. */
-				ni_ifworker_fail(w, "%s: failed to transition from %s to %s",
-						w->name,
+				ni_ifworker_fail(w, "failed to transition from %s to %s",
 						ni_ifworker_state_name(prev_state),
 						ni_ifworker_state_name(action->next_state));
 			}

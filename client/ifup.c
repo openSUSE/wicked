@@ -167,7 +167,7 @@ ni_ifup_start_policy(ni_ifworker_t *w)
 
 error:
 	if (!rv)
-		ni_ifworker_fail(w, "%s: unable to apply configuration to nanny", w->name);
+		ni_ifworker_fail(w, "unable to apply configuration to nanny");
 	xml_node_free(policy);
 	return rv;
 }
@@ -188,10 +188,8 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 		if (set_persistent)
 			ni_client_state_set_persistent(w->config.node);
 
-		if (!ni_ifup_start_policy(w)) {
-			ni_error("%s: unable to apply configuration to nanny", w->name);
+		if (!ni_ifup_start_policy(w))
 			rv = FALSE;
-		}
 		else
 			ni_info("%s: configuration applied to nanny", w->name);
 	}

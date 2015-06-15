@@ -394,7 +394,13 @@ ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
 		}
 	}
 
-	/* 3rd match check - <match> condition must be fulfilled */
+	/* 3rd match check - physical worker must be ready  */
+	if (!ni_ifworker_is_factory_device(w)) {
+		if (!ni_netdev_device_is_ready(w->device))
+			return FALSE;
+	}
+
+	/* 4th match check - <match> condition must be fulfilled */
 	if (!ni_ifcondition_check(policy->match, w)) {
 		ni_debug_nanny("%s: policy <match> condition is not met for worker %s",
 			policy->name, w->name);
@@ -1142,6 +1148,9 @@ __ni_fsm_policy_match_and_children_check(const ni_ifcondition_t *cond, ni_ifwork
 
 	for (i = 0; i < w->children.count; i++) {
 		ni_ifworker_t *child = w->children.data[i];
+
+		if (!ni_netdev_device_is_ready(child->device))
+			continue;
 
 		rv = ni_ifcondition_check(cond->args.terms.left, child);
 		if (rv)
