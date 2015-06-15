@@ -3695,7 +3695,7 @@ ni_ifworker_map_method_requires(ni_ifworker_t *w, ni_fsm_transition_t *action,
 static void
 ni_ifworker_print_binding(ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
-	struct ni_fsm_transition_binding *bind;
+	ni_fsm_transition_bind_t *bind;
 	unsigned int i;
 
 	for (i = 0, bind = action->binding; i < action->num_bindings; ++i, ++bind) {
@@ -3826,7 +3826,7 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 
 	/* Now bind method and config. */
 	for (i = 0; i < action->num_bindings; ++i) {
-		struct ni_fsm_transition_binding *bind = &action->binding[i];
+		ni_fsm_transition_bind_t *bind = &action->binding[i];
 		xml_node_t *config;
 
 		bind->method = ni_dbus_service_get_method(bind->service, action->common.method_name);
@@ -3992,7 +3992,7 @@ ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 	w->fsm.wait_for = action;
 
 	for (i = 0; i < action->num_bindings; ++i) {
-		struct ni_fsm_transition_binding *bind = &action->binding[i];
+		ni_fsm_transition_bind_t *bind = &action->binding[i];
 		ni_objectmodel_callback_info_t *callback_list = NULL;
 
 		if (bind->method == NULL)
@@ -4084,7 +4084,7 @@ ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 static int
 ni_ifworker_bind_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
-	struct ni_fsm_transition_binding *bind;
+	ni_fsm_transition_bind_t *bind;
 	int rv;
 
 	if (action->bound)
@@ -4118,7 +4118,7 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 	w->fsm.wait_for = action;
 
 	if (!ni_ifworker_device_bound(w)) {
-		struct ni_fsm_transition_binding *bind;
+		ni_fsm_transition_bind_t *bind;
 		const char *relative_path = NULL;
 		char *object_path;
 
