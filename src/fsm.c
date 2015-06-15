@@ -3994,38 +3994,46 @@ ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 	for (i = 0; i < action->num_bindings; ++i) {
 		ni_fsm_transition_bind_t *bind = &action->binding[i];
 		ni_objectmodel_callback_info_t *callback_list = NULL;
+		char *service = NULL;
+		char *method = NULL;
 
-		if (bind->method == NULL)
+		if (!bind->method || !bind->service)
 			continue;
 
 		if (bind->skip_call)
 			continue;
 
-		ni_debug_application("%s: calling %s.%s()",
-				w->name, bind->service->name, bind->method->name);
+		ni_string_dup(&service, bind->service->name);
+		ni_string_dup(&method, bind->method->name);
+
+		ni_debug_application("%s: calling %s.%s()", w->name, service, method);
 
 		rv = ni_call_common_xml(w->object, bind->service, bind->method, bind->config,
 				&callback_list, ni_ifworker_error_handler);
-		ni_ifworker_update_from_request(w, bind->service->name,
-				bind->method->name, rv, callback_list);
+		ni_ifworker_update_from_request(w, service, method, rv, callback_list);
 		if (rv < 0) {
 			if (action->common.may_fail) {
 				ni_error("[ignored] %s: call to %s.%s() failed: %s", w->name,
-						bind->service->name, bind->method->name, ni_strerror(rv));
+						service, method, ni_strerror(rv));
 				ni_ifworker_set_state(w, action->next_state);
+				ni_string_free(&service);
+				ni_string_free(&method);
 				return 0;
 			}
-			ni_ifworker_fail(w, "call to %s.%s() failed: %s",
-					bind->service->name, bind->method->name, ni_strerror(rv));
+			ni_ifworker_fail(w, "call to %s.%s() failed: %s", service, method, ni_strerror(rv));
+			ni_string_free(&service);
+			ni_string_free(&method);
 			return rv;
 		}
 
 		if (callback_list) {
-			ni_debug_application("%s: adding callback for %s.%s()",
-					w->name, bind->service->name, bind->method->name);
+			ni_debug_application("%s: adding callback for %s.%s()", w->name, service, method);
 			ni_ifworker_add_callbacks(action, callback_list, w->name);
 			count++;
 		}
+
+		ni_string_free(&service);
+		ni_string_free(&method);
 	}
 
 	/* Reset wait_for if there are no callbacks ... */
