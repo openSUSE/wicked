@@ -278,16 +278,28 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		return -1;
 	}
 
-	if (ifname) {
+	if ((ifname = dev->name)) {
 		ni_netdev_t *conflict;
 
 		conflict = ni_netdev_by_name(nc, ifname);
 		if (conflict && conflict->link.ifindex != (unsigned int)ifi->ifi_index) {
-			/* We probably missed a deletion event. Just clobber the old interface. */
-			ni_warn("link change event: found interface %s with different ifindex", ifname);
-
-			/* We should purge this either now or on the next refresh */
-			ni_string_dup(&conflict->name, "dead");
+			/*
+			 * As the events often provide an already obsolete name [2 events,
+			 * we process 1st with next in read buffer], we are reading the
+			 * current dev->name in advance (above).
+			 *
+			 * On a rename like eth0->rename1->eth1, eth1->rename2->eth0, the
+			 * current dev->name is already eth1 at processing time of eth0
+			 * to rename1 event. This sometimes causes that we find eth1 in
+			 * our device list [eth1 -> rename2 event in the read buffer].
+			 *
+			 * Just update the name of the conflicting device in advance too.
+			 * Next DELLINK will cleanup it, next NEWLINK event will emit the
+			 * device-change (at least) or even delete (see above) when the
+			 * ifindex is not valid any more.
+			 */
+			char *current = if_indextoname(conflict->link.ifindex, namebuf);
+			ni_string_dup(&conflict->name, current ? current : "dead");
 		}
 	}
 
