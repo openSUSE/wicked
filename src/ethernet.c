@@ -659,7 +659,10 @@ __ni_system_ethernet_refresh(ni_netdev_t *dev)
 
 	ether = ni_ethernet_new();
 	ether->permanent_address.type = dev->link.hwaddr.type;
-	__ni_system_ethernet_get(dev->name, ether);
+
+	/* "unset" defaults until it is ready (using it's final name) */
+	if (ni_netdev_device_is_ready(dev))
+		__ni_system_ethernet_get(dev->name, ether);
 
 	ni_netdev_set_ethernet(dev, ether);
 }
@@ -679,6 +682,10 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 void
 __ni_system_ethernet_update(ni_netdev_t *dev, ni_ethernet_t *ether)
 {
+	/* should be not needed, but better safe than sorry. */
+	if (!ni_netdev_device_is_ready(dev))
+		return;
+
 	__ni_system_ethernet_set(dev->name, ether);
 	__ni_system_ethernet_refresh(dev);
 }
