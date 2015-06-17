@@ -1756,6 +1756,7 @@ ni_dbus_xml_map_method_argument(const ni_dbus_method_t *method, unsigned int ind
 	ni_bool_t skip_call = FALSE; /* The default is to not skip the call. */
 	const xml_node_t *meta, *mapping;
 
+	xml_node_free(*ret_node);
 	*ret_node = NULL;
 
 	meta = ni_dbus_xml_get_argument_metadata(method, index);
@@ -1787,7 +1788,7 @@ ni_dbus_xml_map_method_argument(const ni_dbus_method_t *method, unsigned int ind
 				/* Fine, the element referenced by the xpath is not present. */
 			} else
 			if (rv == 1) {
-				*ret_node = expanded[0];
+				*ret_node = xml_node_clone_ref(expanded[0]);
 				skip_call = FALSE;
 			} else {
 				ni_error("%s: ambiguous result of xpath expression \"%s\"",
