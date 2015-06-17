@@ -259,11 +259,18 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 	fi
 
 	if [ $nic_origin -ne 3 -a -n "$nic_ipaddr" ]; then
-		default_route="<!-- no default route -->"
-		if [ -n "$nic_gateway" ]; then
+		case $nic_gateway in
+		"")
+			default_route="<!-- no default route -->"
+			;;
+		::|0.0.0.0|255.255.255.255)
+			default_route="<!-- wrong default route: $nic_gateway ignored -->"
+			;;
+		*)
 			default_route="<route><nexthop><gateway>$nic_gateway"
 			default_route="$default_route</gateway></nexthop></route>"
-		fi
+			;;
+		esac
 		if [ -n "$nic_hostname" ]; then
 			host_name="<hostname>$nic_hostname</hostname>"
 		else
