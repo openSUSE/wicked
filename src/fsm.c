@@ -283,7 +283,7 @@ __ni_ifworker_destroy_fsm(ni_ifworker_t *w)
 	__ni_ifworker_reset_fsm(w);
 
 	__ni_ifworker_destroy_action_table(w);
-	ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
+	ni_fsm_require_list_destroy(&w->fsm.check_state_req_list);
 }
 
 void
@@ -2040,49 +2040,50 @@ ni_ifworker_link_detection_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *
 /*
  * Handle dependencies that check for a specific child state.
  */
-struct ni_child_state_req_data {
-	ni_ifworker_t *		child;
+struct ni_check_state_req_data {
+	ni_ifworker_t *		check_worker;
 	char *			method;
-	ni_uint_range_t		child_state;
+	ni_uint_range_t		check_state;
 };
 
 static ni_bool_t
-ni_ifworker_child_state_req_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
+ni_ifworker_check_state_req_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
-	struct ni_child_state_req_data *data = (struct ni_child_state_req_data *) req->user_data;
-	ni_ifworker_t *child = data->child;
+	struct ni_check_state_req_data *data = (struct ni_check_state_req_data *) req->user_data;
+	ni_ifworker_t *cw = data->check_worker;
 	unsigned int wait_for_state;
 
-	if (child->fsm.state < data->child_state.min) {
-		wait_for_state = data->child_state.min;
+	if (cw->fsm.state < data->check_state.min) {
+		wait_for_state = data->check_state.min;
 	} else
-	if (child->fsm.state > data->child_state.max) {
-		wait_for_state = data->child_state.max;
+	if (cw->fsm.state > data->check_state.max) {
+		wait_for_state = data->check_state.max;
 	} else {
-		/* Okay, child interface is ready */
+		/* Okay, dependency worker's interface is ready */
 		return TRUE;
 	}
 
-	if (child->failed) {
-		/* Child is not in the expected state, but as it failed, it'll
-		 * never get there. Fail the parent as well. */
-		ni_ifworker_fail(w, "subordinate device %s failed", child->name);
+	if (cw->failed) {
+		/* Dependency worker is not in the expected state,
+		 * but as it failed, it'll never get there. Fail the parent as well.
+		 */
+		ni_ifworker_fail(w, "subordinate device %s failed", cw->name);
 		return FALSE;
 	}
 
 	ni_debug_application("%s: waiting for %s to reach state %s",
-				w->name, child->name,
+				w->name, cw->name,
 				ni_ifworker_state_name(wait_for_state));
 	return FALSE;
 }
 
 static void
-ni_ifworker_child_state_req_free(ni_fsm_require_t *req)
+ni_ifworker_check_state_req_free(ni_fsm_require_t *req)
 {
-	struct ni_child_state_req_data *data = (struct ni_child_state_req_data *) req->user_data;
+	struct ni_check_state_req_data *data = (struct ni_check_state_req_data *) req->user_data;
 
 	if (data) {
-		ni_ifworker_release(data->child);
+		ni_ifworker_release(data->check_worker);
 		ni_string_free(&data->method);
 		free(data);
 	}
@@ -2090,49 +2091,49 @@ ni_ifworker_child_state_req_free(ni_fsm_require_t *req)
 }
 
 static void
-ni_ifworker_add_child_state_req(ni_ifworker_t *w, const char *method, ni_ifworker_t *child_worker,
+ni_ifworker_add_check_state_req(ni_ifworker_t *w, const char *method, ni_ifworker_t *check_worker,
 			unsigned int min_state, unsigned int max_state)
 {
-	struct ni_child_state_req_data *data;
+	struct ni_check_state_req_data *data;
 	ni_fsm_require_t *req;
 
 	data = xcalloc(1, sizeof(*data));
-	data->child = ni_ifworker_get(child_worker);
+	data->check_worker = ni_ifworker_get(check_worker);
 	ni_string_dup(&data->method, method);
-	data->child_state.min = min_state;
-	data->child_state.max = max_state;
+	data->check_state.min = min_state;
+	data->check_state.max = max_state;
 
-	req = ni_fsm_require_new(ni_ifworker_child_state_req_test, ni_ifworker_child_state_req_free);
+	req = ni_fsm_require_new(ni_ifworker_check_state_req_test, ni_ifworker_check_state_req_free);
 	req->user_data = data;
 
-	req->next = w->fsm.child_state_req_list;
-	w->fsm.child_state_req_list = req;
+	req->next = w->fsm.check_state_req_list;
+	w->fsm.check_state_req_list = req;
 }
 
 static void
-ni_ifworker_get_child_state_reqs_for_method(ni_ifworker_t *w, ni_fsm_transition_t *action)
+ni_ifworker_get_check_state_reqs_for_method(ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
 	ni_fsm_require_t **list, *req;
 
-	for (list = &w->fsm.child_state_req_list; (req = *list) != NULL; ) {
-		struct ni_child_state_req_data *data = req->user_data;
-		unsigned int min_state = data->child_state.min;
-		unsigned int max_state = data->child_state.max;
-		ni_ifworker_t *child = data->child;
+	for (list = &w->fsm.check_state_req_list; (req = *list) != NULL; ) {
+		struct ni_check_state_req_data *data = req->user_data;
+		unsigned int min_state = data->check_state.min;
+		unsigned int max_state = data->check_state.max;
+		ni_ifworker_t *cw = data->check_worker;
 
 		if (!ni_string_eq(data->method, action->common.method_name)) {
 			list = &req->next;
 			continue;
 		}
 
-		ni_debug_application("%s: %s transition requires state of child %s to be in range [%s, %s]",
-				w->name, data->method, child->name,
+		ni_debug_application("%s: %s transition requires state of worker %s to be in range [%s, %s]",
+				w->name, data->method, cw->name,
 				ni_ifworker_state_name(min_state),
 				ni_ifworker_state_name(max_state));
-		if (min_state > child->target_range.min)
-			child->target_range.min = min_state;
-		if (max_state < child->target_range.max)
-			child->target_range.max = max_state;
+		if (min_state > cw->target_range.min)
+			cw->target_range.min = min_state;
+		if (max_state < cw->target_range.max)
+			cw->target_range.max = max_state;
 
 		/* Move this requirement to the action's req list */
 		*list = req->next;
@@ -2867,7 +2868,7 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 	 * minimum/maximum state.
 	 */
 	for (j = 0; j < w->fsm.action_table[j].next_state; ++j) {
-		ni_ifworker_get_child_state_reqs_for_method(w, &w->fsm.action_table[j]);
+		ni_ifworker_get_check_state_reqs_for_method(w, &w->fsm.action_table[j]);
 	}
 
 	return 0;
@@ -3086,8 +3087,8 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 			continue;
 		}
 
-		ni_fsm_require_list_destroy(&w->fsm.child_state_req_list);
-		w->fsm.child_state_req_list = NULL;
+		ni_fsm_require_list_destroy(&w->fsm.check_state_req_list);
+		w->fsm.check_state_req_list = NULL;
 
 		if ((rv = ni_ifworker_bind_early(w, fsm, FALSE)) < 0) {
 			if (destructive) {
@@ -3169,8 +3170,16 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 			unsigned int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
 			const char *method;
 
-			if ((attr = xml_node_get_attr(mchild, "check")) == NULL
-			 || !ni_string_eq(attr, "netif-child-state"))
+			/* Ignore if there is no check attribute */
+			if (!(attr = xml_node_get_attr(mchild, "check")))
+				continue;
+
+			/* Compatibility name "netif-child-state" */
+			if (ni_string_eq(attr, "netif-child-state"))
+				attr = "netif-check-state";
+
+			/* Ignore if check attribute value is wrong */
+			 if (!ni_string_eq(attr, "netif-check-state"))
 				continue;
 
 			if ((attr = xml_node_get_attr(mchild, "min-state")) != NULL) {
@@ -3200,7 +3209,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 				return FALSE;
 			}
 
-			ni_ifworker_add_child_state_req(w, method, child_worker, min_state, max_state);
+			ni_ifworker_add_check_state_req(w, method, child_worker, min_state, max_state);
 		}
 	}
 

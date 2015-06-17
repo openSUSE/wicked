@@ -186,7 +186,7 @@ struct ni_ifworker {
 		const ni_timer_t *timer;
 		const ni_timer_t *secondary_timer;
 
-		ni_fsm_require_t *child_state_req_list;
+		ni_fsm_require_t *check_state_req_list;
 
 	} fsm;
 	unsigned int		extra_waittime;
