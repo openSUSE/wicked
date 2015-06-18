@@ -2725,21 +2725,23 @@ ni_fsm_clear_hierarchy(ni_ifworker_t *w)
 	ni_ifworker_array_destroy(&w->lowerdev_for);
 }
 
-ni_bool_t
-ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
+static void
+ni_ifworker_device_delete(ni_ifworker_t *w)
 {
 	ni_ifworker_get(w);
-
 	ni_debug_application("%s(%s)", __func__, w->name);
-	if (!ni_ifworker_array_remove(&fsm->workers, w)) {
-		ni_ifworker_release(w);
-		return FALSE;
-	}
 
+	w->ifindex = 0;
+	if (w->device) {
+		ni_netdev_put(w->device);
+		w->device = NULL;
+	}
 	if (w->object) {
 		ni_dbus_object_free(w->object);
 		w->object = NULL;
 	}
+	ni_string_free(&w->object_path);
+	w->object_path = NULL;
 
 	ni_ifworker_cancel_secondary_timeout(w);
 	ni_ifworker_cancel_timeout(w);
@@ -2747,9 +2749,27 @@ ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 	if (ni_ifworker_is_running(w))
 		ni_ifworker_fail(w, "device has been deleted");
 
+	__ni_ifworker_destroy_action_table(w);
+	ni_ifworker_rearm(w);
 	ni_fsm_clear_hierarchy(w);
+
 	ni_ifworker_release(w);
-	return TRUE;
+}
+
+void
+ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	ni_ifworker_get(w);
+
+	ni_debug_application("%s(%s)", __func__, w->name);
+	if (!ni_ifworker_array_remove(&fsm->workers, w)) {
+		ni_ifworker_release(w);
+		return;
+	}
+
+	ni_ifworker_device_delete(w);
+
+	ni_ifworker_release(w);
 }
 
 int
@@ -3674,7 +3694,7 @@ ni_ifworker_map_method_requires(ni_ifworker_t *w, ni_fsm_transition_t *action,
 static void
 ni_ifworker_print_binding(ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
-	struct ni_fsm_transition_binding *bind;
+	ni_fsm_transition_bind_t *bind;
 	unsigned int i;
 
 	for (i = 0, bind = action->binding; i < action->num_bindings; ++i, ++bind) {
@@ -3805,7 +3825,7 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 
 	/* Now bind method and config. */
 	for (i = 0; i < action->num_bindings; ++i) {
-		struct ni_fsm_transition_binding *bind = &action->binding[i];
+		ni_fsm_transition_bind_t *bind = &action->binding[i];
 		xml_node_t *config;
 
 		bind->method = ni_dbus_service_get_method(bind->service, action->common.method_name);
@@ -3971,40 +3991,48 @@ ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 	w->fsm.wait_for = action;
 
 	for (i = 0; i < action->num_bindings; ++i) {
-		struct ni_fsm_transition_binding *bind = &action->binding[i];
+		ni_fsm_transition_bind_t *bind = &action->binding[i];
 		ni_objectmodel_callback_info_t *callback_list = NULL;
+		char *service = NULL;
+		char *method = NULL;
 
-		if (bind->method == NULL)
+		if (!bind->method || !bind->service)
 			continue;
 
 		if (bind->skip_call)
 			continue;
 
-		ni_debug_application("%s: calling %s.%s()",
-				w->name, bind->service->name, bind->method->name);
+		ni_string_dup(&service, bind->service->name);
+		ni_string_dup(&method, bind->method->name);
+
+		ni_debug_application("%s: calling %s.%s()", w->name, service, method);
 
 		rv = ni_call_common_xml(w->object, bind->service, bind->method, bind->config,
 				&callback_list, ni_ifworker_error_handler);
-		ni_ifworker_update_from_request(w, bind->service->name,
-				bind->method->name, rv, callback_list);
+		ni_ifworker_update_from_request(w, service, method, rv, callback_list);
 		if (rv < 0) {
 			if (action->common.may_fail) {
 				ni_error("[ignored] %s: call to %s.%s() failed: %s", w->name,
-						bind->service->name, bind->method->name, ni_strerror(rv));
+						service, method, ni_strerror(rv));
 				ni_ifworker_set_state(w, action->next_state);
+				ni_string_free(&service);
+				ni_string_free(&method);
 				return 0;
 			}
-			ni_ifworker_fail(w, "call to %s.%s() failed: %s",
-					bind->service->name, bind->method->name, ni_strerror(rv));
+			ni_ifworker_fail(w, "call to %s.%s() failed: %s", service, method, ni_strerror(rv));
+			ni_string_free(&service);
+			ni_string_free(&method);
 			return rv;
 		}
 
 		if (callback_list) {
-			ni_debug_application("%s: adding callback for %s.%s()",
-					w->name, bind->service->name, bind->method->name);
+			ni_debug_application("%s: adding callback for %s.%s()", w->name, service, method);
 			ni_ifworker_add_callbacks(action, callback_list, w->name);
 			count++;
 		}
+
+		ni_string_free(&service);
+		ni_string_free(&method);
 	}
 
 	/* Reset wait_for if there are no callbacks ... */
@@ -4063,7 +4091,7 @@ ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 static int
 ni_ifworker_bind_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
-	struct ni_fsm_transition_binding *bind;
+	ni_fsm_transition_bind_t *bind;
 	int rv;
 
 	if (action->bound)
@@ -4097,7 +4125,7 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 	w->fsm.wait_for = action;
 
 	if (!ni_ifworker_device_bound(w)) {
-		struct ni_fsm_transition_binding *bind;
+		ni_fsm_transition_bind_t *bind;
 		const char *relative_path = NULL;
 		char *object_path;
 
@@ -4746,8 +4774,15 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 
 	ni_ifworker_advance_state(w, event_type);
 
-	if (event_type == NI_EVENT_DEVICE_DELETE)
-		ni_fsm_destroy_worker(fsm, w);
+	if (event_type == NI_EVENT_DEVICE_DELETE) {
+		if (ni_config_use_nanny() && ni_ifworker_is_factory_device(w))
+			ni_ifworker_device_delete(w);
+		else
+			ni_fsm_destroy_worker(fsm, w);
+
+		/* Rebuild hierarchy since one device is gone */
+		ni_fsm_build_hierarchy(fsm, FALSE);
+	}
 
 done: ;
 }

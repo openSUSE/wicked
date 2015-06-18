@@ -63,6 +63,12 @@ typedef struct ni_fsm_timer_ctx	ni_fsm_timer_ctx_t;
 typedef void			ni_fsm_timer_fn_t(const ni_timer_t *, ni_fsm_timer_ctx_t *);
 
 typedef struct ni_fsm_transition ni_fsm_transition_t;
+typedef struct ni_fsm_transition_binding {
+		const ni_dbus_service_t *service;
+		const ni_dbus_method_t *method;
+		xml_node_t *		config;
+		ni_bool_t		skip_call;
+} ni_fsm_transition_bind_t;
 
 typedef int			ni_fsm_transition_fn_t(ni_fsm_t *, ni_ifworker_t *, ni_fsm_transition_t *);
 struct ni_fsm_transition {
@@ -86,12 +92,7 @@ struct ni_fsm_transition {
 #define NI_IFTRANSITION_BINDINGS_MAX	32
 	ni_bool_t			bound;
 	unsigned int			num_bindings;
-	struct ni_fsm_transition_binding {
-		const ni_dbus_service_t *service;
-		const ni_dbus_method_t *method;
-		xml_node_t *		config;
-		ni_bool_t		skip_call;
-	} binding[NI_IFTRANSITION_BINDINGS_MAX];
+	ni_fsm_transition_bind_t binding[NI_IFTRANSITION_BINDINGS_MAX];
 
 	ni_objectmodel_callback_info_t *callbacks;
 
@@ -316,7 +317,7 @@ extern ni_ifworker_t *		ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *o
 extern ni_ifworker_t *		ni_fsm_recv_new_netif_path(ni_fsm_t *fsm, const char *path);
 extern ni_ifworker_t *		ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh);
 extern ni_ifworker_t *		ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path);
-extern ni_bool_t		ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w);
+extern void			ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w);
 extern void			ni_ifworkers_flatten(ni_ifworker_array_t *);
 extern void			ni_fsm_pull_in_children(ni_ifworker_array_t *);
 extern void			ni_fsm_wait_tentative_addrs(ni_fsm_t *);
