@@ -830,7 +830,8 @@ __ni_dbus_add_watch(DBusWatch *watch, void *data)
 		}
 	}
 
-	ni_debug_dbus("%s(%p, connection=%p, fd=%d, reuse sock=%p)",
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_DBUS,
+			"%s(%p, connection=%p, fd=%d, reuse sock=%p)",
 			__FUNCTION__, watch, connection, dbus_watch_get_socket(watch), sock);
 
 	if (!(wd = xcalloc(1, sizeof(*wd))))
