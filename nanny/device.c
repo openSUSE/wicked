@@ -164,7 +164,7 @@ ni_factory_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
 	ni_assert(fsm && w);
 	memset(&ifmarker, 0, sizeof(ifmarker));
 
-	ifmarker.target_range.min = NI_FSM_STATE_ADDRCONF_UP;
+	ifmarker.target_range.min = __NI_FSM_STATE_MAX - 1;
 	ifmarker.target_range.max = __NI_FSM_STATE_MAX;
 	ifmarker.persistent = w->control.persistent;
 
