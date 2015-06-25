@@ -420,18 +420,12 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 			ni_objectmodel_send_netif_event(dbus_server, object, event, NULL);
 			break;
 
-		case NI_EVENT_DEVICE_READY:
-		case NI_EVENT_DEVICE_DOWN:
-		case NI_EVENT_LINK_ASSOCIATED:
-		case NI_EVENT_LINK_ASSOCIATION_LOST:
-		case NI_EVENT_LINK_UP:
-		case NI_EVENT_LINK_DOWN:
+		default:
+			/* commit backgrounded action results first -- if any */
 			while ((event_uuid = ni_netdev_get_event_uuid(dev, event)) != NULL)
 				ni_objectmodel_send_netif_event(dbus_server, object, event, event_uuid);
 
-			/* fallthru */
-
-		default:
+			/* send unrequested events                            */
 			ni_objectmodel_send_netif_event(dbus_server, object, event, NULL);
 			break;
 		}
