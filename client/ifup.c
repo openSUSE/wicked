@@ -95,8 +95,9 @@ __ni_ifup_generate_match(const char *name, ni_ifworker_t *w)
 			ni_ifworker_t *child = w->children.data[i];
 			xml_node_t *cnode;
 
-			cnode = __ni_ifup_generate_match(NI_NANNY_IFPOLICY_MATCH_COND_CHILD, child);
-			xml_node_add_child(or ,cnode);
+			cnode = xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_CHILD, or);
+			if (!cnode || !__ni_ifup_generate_match_dev(cnode, child))
+				goto error;
 		}
 	}
 
