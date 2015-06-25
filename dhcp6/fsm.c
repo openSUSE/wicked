@@ -1608,13 +1608,9 @@ ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev)
 		return ni_dhcp6_fsm_commit_lease(dev, NULL);
 	}
 
-	if (dev->config->mode == NI_DHCP6_MODE_INFO) {
-		ni_dhcp6_device_drop_lease(dev);
-		ni_dhcp6_fsm_restart(dev);
-		return 0;
-	} else {
-		return ni_dhcp6_fsm_commit_lease(dev, NULL);
-	}
+	if (dev->lease)
+		ni_dhcp6_fsm_commit_lease(dev, NULL);
+	return 0;
 }
 
 static int
