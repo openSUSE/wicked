@@ -64,6 +64,10 @@ static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
 static inline void		ni_ifworker_update_client_state_config(ni_ifworker_t *w);
 static void			ni_ifworker_update_client_state_scripts(ni_ifworker_t *w);
 static void			ni_fsm_events_destroy(ni_fsm_event_t **);
+static inline void		ni_fsm_events_block(ni_fsm_t *);
+static inline void		ni_fsm_events_unblock(ni_fsm_t *);
+static void			ni_fsm_process_event(ni_fsm_t *, ni_fsm_event_t *);
+static void			ni_fsm_process_events(ni_fsm_t *);
 
 
 ni_fsm_t *
@@ -153,6 +157,38 @@ ni_fsm_events_destroy(ni_fsm_event_t **events)
 	}
 }
 
+static inline void
+ni_fsm_events_block(ni_fsm_t *fsm)
+{
+	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS, "block fsm events %u -> %u",
+			 fsm->block_events, fsm->block_events + 1);
+	fsm->block_events++;
+}
+
+static inline void
+ni_fsm_events_unblock(ni_fsm_t *fsm)
+{
+	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS, "unblock fsm events %u -> %u",
+			fsm->block_events, fsm->block_events - 1);
+	ni_assert(fsm->block_events > 0);
+	fsm->block_events--;
+}
+
+static void
+ni_fsm_process_events(ni_fsm_t *fsm)
+{
+	ni_fsm_event_t *ev;
+
+	while ((ev = fsm->events)) {
+		fsm->events = ev->next;
+
+		ni_fsm_events_block(fsm);
+		ni_fsm_process_event(fsm, ev);
+		ni_fsm_events_unblock(fsm);
+
+		ni_fsm_event_free(ev);
+	}
+}
 
 /*
  * Return number of failed interfaces
@@ -4478,8 +4514,11 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			ni_ifworker_cancel_secondary_timeout(w);
 
 			prev_state = w->fsm.state;
+			ni_fsm_events_block(fsm);
+
 			rv = action->call_func(fsm, w, action);
-			w->fsm.next_action++;
+			if (w->fsm.next_action)
+				w->fsm.next_action++;
 
 			if (rv >= 0) {
 				made_progress = 1;
@@ -4502,6 +4541,8 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 						ni_ifworker_state_name(action->next_state));
 			}
 
+			ni_fsm_process_events(fsm);
+			ni_fsm_events_unblock(fsm);
 release:
 			ni_ifworker_release(w);
 		}
@@ -4875,20 +4916,21 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			return;
 		}
 
-		if (ni_dbus_variant_get_uuid(&result, &ev->event_uuid))
-			ni_debug_dbus("%s: got signal %s from %s; event uuid=%s",
-					__func__, signal_name, object_path,
-						ni_uuid_print(&ev->event_uuid));
-		else
-			ni_debug_dbus("%s: got signal %s from %s; event uuid=<>",
-					__func__, signal_name, object_path);
-
+		ni_dbus_variant_get_uuid(&result, &ev->event_uuid);
 		ni_dbus_variant_destroy(&result);
 	}
 
-	/* just process it for now  */
-	ni_fsm_process_event(fsm, ev);
-	ni_fsm_event_free(ev);
+	/* enqueue for processing */
+	ni_fsm_events_append(&fsm->events, ev);
+
+	if (fsm->block_events) {
+		ni_debug_events("enqueue event signal %s from %s; uuid=<%s>",
+				ni_objectmodel_event_to_signal(ev->event_type),
+				ev->object_path, ni_uuid_print(&ev->event_uuid));
+	} else {
+		/* processed immediately */
+		ni_fsm_process_events(fsm);
+	}
 }
 
 ni_dbus_client_t *
