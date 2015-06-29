@@ -4039,14 +4039,12 @@ ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 	/* Reset wait_for if there are no callbacks ... */
 	if (count == 0) {
 		/* ... unless this action requires ACK via event */
-		if (action->next_state != NI_FSM_STATE_DEVICE_DOWN)
+		if (action->next_state != NI_FSM_STATE_DEVICE_DOWN) {
+			ni_ifworker_set_state(w, action->next_state);
 			w->fsm.wait_for = NULL;
+		}
 	}
 
-	if (w->fsm.wait_for != NULL)
-		return 0;
-
-	ni_ifworker_set_state(w, action->next_state);
 	return 0;
 }
 
@@ -4054,7 +4052,9 @@ static int
 ni_ifworker_do_wait_device_ready_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
 	if (ni_netdev_device_is_ready(w->device)) {
+		w->fsm.wait_for = action;
 		ni_ifworker_set_state(w, action->next_state);
+		w->fsm.wait_for = NULL;
 		return 0;
 	}
 	return ni_ifworker_do_common_call(fsm, w, action);
@@ -4078,6 +4078,7 @@ ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 			ni_debug_application("%s: link-up state is not required, proceeding", w->name);
 			ni_ifworker_cancel_callbacks(w, &action->callbacks);
 			ni_ifworker_set_state(w, action->next_state);
+			w->fsm.wait_for = NULL;
 		}
 	}
 	return ret;
@@ -4174,6 +4175,7 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 	}
 
 	ni_ifworker_set_state(w, action->next_state);
+	w->fsm.wait_for = NULL;
 	return 0;
 }
 
