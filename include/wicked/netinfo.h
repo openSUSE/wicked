@@ -290,19 +290,19 @@ extern ni_tristate_t	ni_netdev_guess_link_required(const ni_netdev_t *);
 static inline int
 ni_netdev_device_is_up(const ni_netdev_t *ifp)
 {
-	return ifp->link.ifflags & NI_IFF_DEVICE_UP;
+	return ifp ? ifp->link.ifflags & NI_IFF_DEVICE_UP : 0;
 }
 
 static inline int
 ni_netdev_link_is_up(const ni_netdev_t *ifp)
 {
-	return ifp->link.ifflags & NI_IFF_LINK_UP;
+	return ifp ? ifp->link.ifflags & NI_IFF_LINK_UP : 0;
 }
 
 static inline int
 ni_netdev_network_is_up(const ni_netdev_t *ifp)
 {
-	return ifp->link.ifflags & NI_IFF_NETWORK_UP;
+	return ifp ? ifp->link.ifflags & NI_IFF_NETWORK_UP : 0;
 }
 
 #endif /* __WICKED_NETINFO_H__ */
