@@ -266,8 +266,11 @@ static int
 __ni_ethtool_do(const char *ifname, __ni_ioctl_info_t *ioc, void *evp)
 {
 	if (__ni_ethtool(ifname, ioc->number, evp) < 0) {
-		if (errno != EOPNOTSUPP)
+		if (errno != EOPNOTSUPP && errno != ENODEV)
 			ni_warn("%s: ETHTOOL_%s failed: %m", ifname, ioc->name);
+		else
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
+				"%s: ETHTOOL_%s failed: %m", ifname, ioc->name);
 		return -1;
 	}
 
@@ -602,7 +605,11 @@ __ni_ethtool_get_permanent_address(const char *ifname, ni_hwaddr_t *perm_addr)
 	memset(&parm, 0, sizeof(parm));
 	parm.h.size = sizeof(parm.data);
 	if (__ni_ethtool(ifname, ETHTOOL_GPERMADDR, &parm) < 0) {
-		ni_debug_ifconfig("%s: ETHTOOL_GPERMADDR failed", ifname);
+		if (errno != EOPNOTSUPP && errno != ENODEV)
+			ni_warn("%s: ETHTOOL_GPERMADDR failed: %m", ifname);
+		else
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
+				"%s: ETHTOOL_GPERMADDR failed: %m", ifname);
 		return -1;
 	}
 	else if (ni_link_address_length(perm_addr->type) == parm.h.size) {
@@ -698,10 +705,11 @@ __ni_ethtool_get_gset(const char *ifname, ni_ethernet_t *ether)
 
 	memset(&ecmd, 0, sizeof(ecmd));
 	if (__ni_ethtool(ifname, ETHTOOL_GSET, &ecmd) < 0) {
-		if (errno != EOPNOTSUPP)
+		if (errno != EOPNOTSUPP && errno != ENODEV)
 			ni_warn("%s: ETHTOOL_GSET failed: %m", ifname);
 		else
-			ni_debug_ifconfig("%s: ETHTOOL_GSET: %m", ifname);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
+				"%s: ETHTOOL_GSET failed: %m", ifname);
 		return -1;
 	}
 
@@ -802,10 +810,11 @@ __ni_ethtool_set_sset(const char *ifname, const ni_ethernet_t *ether)
 
 	memset(&ecmd, 0, sizeof(ecmd));
 	if (__ni_ethtool(ifname, ETHTOOL_GSET, &ecmd) < 0) {
-		if (errno != EOPNOTSUPP)
+		if (errno != EOPNOTSUPP && errno != ENODEV)
 			ni_warn("%s: ETHTOOL_GSET failed: %m", ifname);
 		else
-			ni_debug_ifconfig("%s: ETHTOOL_GSET: %m", ifname);
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG,
+				"%s: ETHTOOL_GSET failed: %m", ifname);
 		return -1;
 	}
 
@@ -846,10 +855,11 @@ __ni_ethtool_set_sset(const char *ifname, const ni_ethernet_t *ether)
 	__ni_system_ethernet_set_advertising(ifname, &ecmd);
 
 	if (__ni_ethtool(ifname, ETHTOOL_SSET, &ecmd) < 0) {
-		if (errno != EOPNOTSUPP)
+		if (errno != EOPNOTSUPP && errno != ENODEV)
 			ni_warn("%s: ETHTOOL_SSET failed: %m", ifname);
 		else
-			ni_debug_ifconfig("%s: ETHTOOL_SSET: %m", ifname);
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG,
+				"%s: ETHTOOL_SSET failed: %m", ifname);
 		return -1;
 	}
 
