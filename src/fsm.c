@@ -771,6 +771,7 @@ ni_ifworker_array_remove(ni_ifworker_array_t *array, ni_ifworker_t *w)
 			array->count -= 1;
 			for (j = i; j < array->count; ++j)
 				array->data[j] = array->data[j + 1];
+			array->data[array->count] = NULL;
 
 			found = TRUE;
 		} else {
