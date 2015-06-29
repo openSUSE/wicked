@@ -4837,30 +4837,68 @@ done: ;
 static void
 ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 {
-	ni_ifworker_t *w;
+	ni_ifworker_t *w = ni_fsm_ifworker_by_object_path(fsm, ev->object_path);
 
 	fsm->event_seq += 1;
+
+	ni_debug_events("%s: process event signal %s from %s; uuid=<%s>",
+			w ? w->name : "",
+			ni_objectmodel_event_to_signal(ev->event_type),
+			ev->object_path, ni_uuid_print(&ev->event_uuid));
+
+	/*
+	 * wickedd emits explicit events with callback uuids to the requesters
+	 * when it backgrounds execution / delivery of the result, e.g. to let
+	 * the kernel emit its event ack after it processed them or dhcp needs
+	 * to request a lease from server.
+	 *
+	 * Events are emitted also without uuid, that is regardless if the
+	 * change was requested or triggered externally.
+	 *
+	 * That is, there are often two events of same type: ack for requested
+	 * change with uuid followed by the unsolicited event without uuid.
+	 */
 	switch (ev->event_type) {
 	case NI_EVENT_DEVICE_READY:
-	case NI_EVENT_DEVICE_UP:
-		/* Refresh device on ready & device-up */
-		if (!(w = ni_fsm_recv_new_netif_path(fsm, ev->object_path))) {
-			ni_error("%s: Cannot find corresponding worker for %s",
-				__func__, ev->object_path);
-			return;
+		if (w && w->fsm.state >= NI_FSM_STATE_DEVICE_READY) {
+			if (ni_netdev_device_is_ready(w->device))
+				return;
 		}
-		ni_fsm_process_worker_event(fsm, w, ev);
+
+		w = NULL; /* Force refresh (once) on device-ready event */
+		break;
+
+	case NI_EVENT_DEVICE_UP:
+		if (w && w->fsm.state >= NI_FSM_STATE_DEVICE_UP) {
+			if (ni_netdev_device_is_up(w->device))
+				return;
+		}
+
+		w = NULL; /* Force refresh (once) on device-up event */
+		break;
+
+	case NI_EVENT_LINK_UP:
+		if (w && !ni_netdev_link_is_up(w->device))
+			w = NULL; /* refresh is needed */
 		break;
 
 	case NI_EVENT_ADDRESS_ACQUIRED:
 		fsm->last_event_seq[ev->event_type] = fsm->event_seq;
-		/* fallthrough */
+		break;
 
 	default:
-		if ((w = ni_fsm_ifworker_by_object_path(fsm, ev->object_path)) != NULL)
-			ni_fsm_process_worker_event(fsm, w, ev);
-	break;
+		break;
 	}
+
+	if (!w && !(w = ni_fsm_recv_new_netif_path(fsm, ev->object_path))) {
+		ni_error("%s: Cannot find corresponding worker for %s",
+				__func__, ev->object_path);
+		return;
+	}
+
+	ni_ifworker_get(w);
+	ni_fsm_process_worker_event(fsm, w, ev);
+	ni_ifworker_release(w);
 }
 
 static void
