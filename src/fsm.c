@@ -1941,16 +1941,16 @@ static ni_bool_t
 ni_fsm_require_netif_resolve(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
 	xml_node_t *devnode = req->user_data;
-	ni_ifworker_t *child_worker;
+	ni_ifworker_t *cw;
 
 	if (req->user_data == NULL)
 		return TRUE;
 
-	if (!(child_worker = ni_ifworker_resolve_reference(fsm, devnode, NI_IFWORKER_TYPE_NETDEV, w->name)))
+	if (!(cw = ni_ifworker_resolve_reference(fsm, devnode, NI_IFWORKER_TYPE_NETDEV, w->name)))
 		return FALSE;
 
-	ni_debug_application("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
-	if (!ni_ifworker_add_child(w, child_worker, devnode, FALSE))
+	ni_debug_application("%s: resolved reference to subordinate device %s", w->name, cw->name);
+	if (!ni_ifworker_add_child(w, cw, devnode, FALSE))
 		return FALSE;
 
 	req->user_data = NULL;
@@ -1975,16 +1975,16 @@ static ni_bool_t
 ni_fsm_require_modem_resolve(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
 	xml_node_t *devnode = req->user_data;
-	ni_ifworker_t *child_worker;
+	ni_ifworker_t *cw;
 
 	if (req->user_data == NULL)
 		return TRUE;
 
-	if (!(child_worker = ni_ifworker_resolve_reference(fsm, devnode, NI_IFWORKER_TYPE_MODEM, w->name)))
+	if (!(cw = ni_ifworker_resolve_reference(fsm, devnode, NI_IFWORKER_TYPE_MODEM, w->name)))
 		return FALSE;
 
-	ni_debug_application("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
-	if (!ni_ifworker_add_child(w, child_worker, devnode, FALSE))
+	ni_debug_application("%s: resolved reference to subordinate device %s", w->name, cw->name);
+	if (!ni_ifworker_add_child(w, cw, devnode, FALSE))
 		return FALSE;
 
 	req->user_data = NULL;
@@ -3126,7 +3126,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 {
 	struct ni_ifworker_xml_validation_user_data *closure = user_data;
 	ni_ifworker_t *w = closure->worker;
-	ni_ifworker_t *child_worker = NULL;
+	ni_ifworker_t *cw = NULL;
 	xml_node_t *mchild;
 
 	for (mchild = metadata->children; mchild; mchild = mchild->next) {
@@ -3135,35 +3135,35 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 		if (ni_string_eq(mchild->name, "netif-reference")) {
 			ni_bool_t shared = FALSE;
 
-			if (child_worker) {
+			if (cw) {
 				ni_error("%s: duplicate/conflicting references", xml_node_location(node));
 				return FALSE;
 			}
-			if (!(child_worker = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_NETDEV, w->name)))
+			if (!(cw = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_NETDEV, w->name)))
 				continue;
 
 			if ((attr = xml_node_get_attr(mchild, "shared")) != NULL)
 				shared = ni_string_eq(attr, "true");
 
-			ni_debug_application("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
-			if (!ni_ifworker_add_child(w, child_worker, node, shared))
+			ni_debug_application("%s: resolved reference to subordinate device %s", w->name, cw->name);
+			if (!ni_ifworker_add_child(w, cw, node, shared))
 				return FALSE;
 		} else
 		if (ni_string_eq(mchild->name, "modem-reference")) {
 			ni_bool_t shared = FALSE;
 
-			if (child_worker) {
+			if (cw) {
 				ni_error("%s: duplicate/conflicting references", xml_node_location(node));
 				return FALSE;
 			}
-			if (!(child_worker = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_MODEM, w->name)))
+			if (!(cw = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_MODEM, w->name)))
 				return FALSE;
 
 			if ((attr = xml_node_get_attr(mchild, "shared")) != NULL)
 				shared = ni_string_eq(attr, "true");
 
-			ni_debug_application("%s: resolved reference to subordinate device %s", w->name, child_worker->name);
-			if (!ni_ifworker_add_child(w, child_worker, node, shared))
+			ni_debug_application("%s: resolved reference to subordinate device %s", w->name, cw->name);
+			if (!ni_ifworker_add_child(w, cw, node, shared))
 				return FALSE;
 		} else
 		if (ni_string_eq(mchild->name, "require")) {
@@ -3203,13 +3203,13 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 				return FALSE;
 			}
 
-			if (child_worker == NULL) {
-				ni_debug_application("%s: <meta:require check=netif-child-state> without netif-reference",
+			if (cw == NULL) {
+				ni_debug_application("%s: <meta:require check=netif-check-state> without netif-reference",
 						xml_node_location(mchild));
 				return FALSE;
 			}
 
-			ni_ifworker_add_check_state_req(w, method, child_worker, min_state, max_state);
+			ni_ifworker_add_check_state_req(w, method, cw, min_state, max_state);
 		}
 	}
 
