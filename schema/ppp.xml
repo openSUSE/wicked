@@ -87,8 +87,8 @@
      -->
    <device type="string" constraint="required">
      <meta:modem-reference shared="false"/>
-     <meta:require check="netif-child-state" op="newDevice" min-state="device-up" />
-     <meta:require check="netif-child-state" op="linkUp" min-state="link-up"/>
+     <meta:require check="netif-check-state" op="newDevice" min-state="device-up" />
+     <meta:require check="netif-check-state" op="linkUp" min-state="link-up"/>
    </device>
  </define>
 
@@ -121,9 +121,9 @@
  <define name="pppoe-linkinfo" class="dict" extends="ppp:linkinfo">
   <device type="string">
     <meta:netif-reference shared="true" object-class="netif-ethernet"/>
-    <meta:require check="netif-child-state" op="newDevice" min-state="device-up" />
-    <meta:require check="netif-child-state" op="login" min-state="link-authenticated" />
-    <meta:require check="netif-child-state" op="linkUp" min-state="link-up" />
+    <meta:require check="netif-check-state" op="newDevice" min-state="device-up" />
+    <meta:require check="netif-check-state" op="login" min-state="link-authenticated" />
+    <meta:require check="netif-check-state" op="linkUp" min-state="link-up" />
   </device>
  </define>
 
