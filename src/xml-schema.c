@@ -487,9 +487,9 @@ ni_xs_scope_typedef(ni_xs_scope_t *dict, const char *name, ni_xs_type_t *type, c
 	if (ni_xs_scope_lookup_local(dict, name) != NULL)
 		return -1;
 
-#ifdef DEBUG_VERBOSE
-	ni_debug_xml("define type %s in scope %s", name, dict->name?: "<anon>");
-#endif
+	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_XML,
+		"define type %s in scope %s", name, dict->name?: "<anon>");
+
 	ni_xs_name_type_array_append(&dict->types, name, type, description);
 
 	if (type->origdef.scope == NULL) {
@@ -610,7 +610,9 @@ ni_xs_process_schema_file(const char *filename, ni_xs_scope_t *scope)
 {
 	xml_document_t *doc = NULL;
 
-	ni_debug_xml("ni_xs_process_schema_file(filename=%s)", filename);
+	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_XML,
+		"ni_xs_process_schema_file(filename=%s)", filename);
+
 	if (filename == NULL) {
 		ni_error("%s: NULL filename", __func__);
 		return -1;
@@ -866,7 +868,7 @@ ni_xs_process_include(xml_node_t *node, ni_xs_scope_t *scope)
 		}
 	}
 
-	ni_debug_xml("trying to include %s", nameAttr);
+	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_XML, "trying to include %s", nameAttr);
 	return ni_xs_process_schema_file(nameAttr, scope);
 }
 
