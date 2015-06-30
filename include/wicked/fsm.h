@@ -249,6 +249,7 @@ struct ni_fsm {
 	unsigned int		timeout_count;
 	unsigned int		event_seq;
 	unsigned int		last_event_seq[__NI_EVENT_MAX];
+	unsigned int		block_events;
 	ni_fsm_event_t *	events;
 	struct {
 		void            (*callback)(ni_fsm_t *, ni_ifworker_t *, ni_fsm_event_t *);

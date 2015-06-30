@@ -64,6 +64,10 @@ static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
 static inline void		ni_ifworker_update_client_state_config(ni_ifworker_t *w);
 static void			ni_ifworker_update_client_state_scripts(ni_ifworker_t *w);
 static void			ni_fsm_events_destroy(ni_fsm_event_t **);
+static inline void		ni_fsm_events_block(ni_fsm_t *);
+static inline void		ni_fsm_events_unblock(ni_fsm_t *);
+static void			ni_fsm_process_event(ni_fsm_t *, ni_fsm_event_t *);
+static void			ni_fsm_process_events(ni_fsm_t *);
 
 
 ni_fsm_t *
@@ -153,6 +157,38 @@ ni_fsm_events_destroy(ni_fsm_event_t **events)
 	}
 }
 
+static inline void
+ni_fsm_events_block(ni_fsm_t *fsm)
+{
+	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS, "block fsm events %u -> %u",
+			 fsm->block_events, fsm->block_events + 1);
+	fsm->block_events++;
+}
+
+static inline void
+ni_fsm_events_unblock(ni_fsm_t *fsm)
+{
+	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS, "unblock fsm events %u -> %u",
+			fsm->block_events, fsm->block_events - 1);
+	ni_assert(fsm->block_events > 0);
+	fsm->block_events--;
+}
+
+static void
+ni_fsm_process_events(ni_fsm_t *fsm)
+{
+	ni_fsm_event_t *ev;
+
+	while ((ev = fsm->events)) {
+		fsm->events = ev->next;
+
+		ni_fsm_events_block(fsm);
+		ni_fsm_process_event(fsm, ev);
+		ni_fsm_events_unblock(fsm);
+
+		ni_fsm_event_free(ev);
+	}
+}
 
 /*
  * Return number of failed interfaces
@@ -771,6 +807,7 @@ ni_ifworker_array_remove(ni_ifworker_array_t *array, ni_ifworker_t *w)
 			array->count -= 1;
 			for (j = i; j < array->count; ++j)
 				array->data[j] = array->data[j + 1];
+			array->data[array->count] = NULL;
 
 			found = TRUE;
 		} else {
@@ -1488,6 +1525,9 @@ static void
 ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 {
 	unsigned int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
+
+	if (!w->fsm.wait_for)
+		return;
 
 	switch (event_type) {
 	case NI_EVENT_DEVICE_DELETE:
@@ -4038,14 +4078,12 @@ ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 	/* Reset wait_for if there are no callbacks ... */
 	if (count == 0) {
 		/* ... unless this action requires ACK via event */
-		if (action->next_state != NI_FSM_STATE_DEVICE_DOWN)
+		if (action->next_state != NI_FSM_STATE_DEVICE_DOWN) {
+			ni_ifworker_set_state(w, action->next_state);
 			w->fsm.wait_for = NULL;
+		}
 	}
 
-	if (w->fsm.wait_for != NULL)
-		return 0;
-
-	ni_ifworker_set_state(w, action->next_state);
 	return 0;
 }
 
@@ -4053,7 +4091,9 @@ static int
 ni_ifworker_do_wait_device_ready_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
 	if (ni_netdev_device_is_ready(w->device)) {
+		w->fsm.wait_for = action;
 		ni_ifworker_set_state(w, action->next_state);
+		w->fsm.wait_for = NULL;
 		return 0;
 	}
 	return ni_ifworker_do_common_call(fsm, w, action);
@@ -4077,6 +4117,7 @@ ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 			ni_debug_application("%s: link-up state is not required, proceeding", w->name);
 			ni_ifworker_cancel_callbacks(w, &action->callbacks);
 			ni_ifworker_set_state(w, action->next_state);
+			w->fsm.wait_for = NULL;
 		}
 	}
 	return ret;
@@ -4173,6 +4214,7 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 	}
 
 	ni_ifworker_set_state(w, action->next_state);
+	w->fsm.wait_for = NULL;
 	return 0;
 }
 
@@ -4472,8 +4514,11 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			ni_ifworker_cancel_secondary_timeout(w);
 
 			prev_state = w->fsm.state;
+			ni_fsm_events_block(fsm);
+
 			rv = action->call_func(fsm, w, action);
-			w->fsm.next_action++;
+			if (w->fsm.next_action)
+				w->fsm.next_action++;
 
 			if (rv >= 0) {
 				made_progress = 1;
@@ -4496,6 +4541,8 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 						ni_ifworker_state_name(action->next_state));
 			}
 
+			ni_fsm_process_events(fsm);
+			ni_fsm_events_unblock(fsm);
 release:
 			ni_ifworker_release(w);
 		}
@@ -4790,30 +4837,68 @@ done: ;
 static void
 ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 {
-	ni_ifworker_t *w;
+	ni_ifworker_t *w = ni_fsm_ifworker_by_object_path(fsm, ev->object_path);
 
 	fsm->event_seq += 1;
+
+	ni_debug_events("%s: process event signal %s from %s; uuid=<%s>",
+			w ? w->name : "",
+			ni_objectmodel_event_to_signal(ev->event_type),
+			ev->object_path, ni_uuid_print(&ev->event_uuid));
+
+	/*
+	 * wickedd emits explicit events with callback uuids to the requesters
+	 * when it backgrounds execution / delivery of the result, e.g. to let
+	 * the kernel emit its event ack after it processed them or dhcp needs
+	 * to request a lease from server.
+	 *
+	 * Events are emitted also without uuid, that is regardless if the
+	 * change was requested or triggered externally.
+	 *
+	 * That is, there are often two events of same type: ack for requested
+	 * change with uuid followed by the unsolicited event without uuid.
+	 */
 	switch (ev->event_type) {
 	case NI_EVENT_DEVICE_READY:
-	case NI_EVENT_DEVICE_UP:
-		/* Refresh device on ready & device-up */
-		if (!(w = ni_fsm_recv_new_netif_path(fsm, ev->object_path))) {
-			ni_error("%s: Cannot find corresponding worker for %s",
-				__func__, ev->object_path);
-			return;
+		if (w && w->fsm.state >= NI_FSM_STATE_DEVICE_READY) {
+			if (ni_netdev_device_is_ready(w->device))
+				return;
 		}
-		ni_fsm_process_worker_event(fsm, w, ev);
+
+		w = NULL; /* Force refresh (once) on device-ready event */
+		break;
+
+	case NI_EVENT_DEVICE_UP:
+		if (w && w->fsm.state >= NI_FSM_STATE_DEVICE_UP) {
+			if (ni_netdev_device_is_up(w->device))
+				return;
+		}
+
+		w = NULL; /* Force refresh (once) on device-up event */
+		break;
+
+	case NI_EVENT_LINK_UP:
+		if (w && !ni_netdev_link_is_up(w->device))
+			w = NULL; /* refresh is needed */
 		break;
 
 	case NI_EVENT_ADDRESS_ACQUIRED:
 		fsm->last_event_seq[ev->event_type] = fsm->event_seq;
-		/* fallthrough */
+		break;
 
 	default:
-		if ((w = ni_fsm_ifworker_by_object_path(fsm, ev->object_path)) != NULL)
-			ni_fsm_process_worker_event(fsm, w, ev);
-	break;
+		break;
 	}
+
+	if (!w && !(w = ni_fsm_recv_new_netif_path(fsm, ev->object_path))) {
+		ni_error("%s: Cannot find corresponding worker for %s",
+				__func__, ev->object_path);
+		return;
+	}
+
+	ni_ifworker_get(w);
+	ni_fsm_process_worker_event(fsm, w, ev);
+	ni_ifworker_release(w);
 }
 
 static void
@@ -4869,20 +4954,21 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 			return;
 		}
 
-		if (ni_dbus_variant_get_uuid(&result, &ev->event_uuid))
-			ni_debug_dbus("%s: got signal %s from %s; event uuid=%s",
-					__func__, signal_name, object_path,
-						ni_uuid_print(&ev->event_uuid));
-		else
-			ni_debug_dbus("%s: got signal %s from %s; event uuid=<>",
-					__func__, signal_name, object_path);
-
+		ni_dbus_variant_get_uuid(&result, &ev->event_uuid);
 		ni_dbus_variant_destroy(&result);
 	}
 
-	/* just process it for now  */
-	ni_fsm_process_event(fsm, ev);
-	ni_fsm_event_free(ev);
+	/* enqueue for processing */
+	ni_fsm_events_append(&fsm->events, ev);
+
+	if (fsm->block_events) {
+		ni_debug_events("enqueue event signal %s from %s; uuid=<%s>",
+				ni_objectmodel_event_to_signal(ev->event_type),
+				ev->object_path, ni_uuid_print(&ev->event_uuid));
+	} else {
+		/* processed immediately */
+		ni_fsm_process_events(fsm);
+	}
 }
 
 ni_dbus_client_t *

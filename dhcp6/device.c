@@ -1109,6 +1109,7 @@ ni_dhcp6_release(ni_dhcp6_device_t *dev, const ni_uuid_t *lease_uuid)
 	ni_string_free(&rel_uuid);
 
 	ni_dhcp6_fsm_release(dev);
+	ni_dhcp6_device_stop(dev);
 	return 0;
 }
 
