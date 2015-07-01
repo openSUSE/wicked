@@ -35,7 +35,7 @@
 
       <device type="string" description="Infiniband parent / lower device reference">
       <meta:netif-reference shared="true"/>
-      <!-- meta:require check="netif-child-state" op="newDevice" min-state="device-exists" / -->
+      <!-- meta:require check="netif-check-state" op="newDevice" min-state="device-exists" / -->
     </device>
 
     <pkey type="uint16" description="Infiniband partition key"/>

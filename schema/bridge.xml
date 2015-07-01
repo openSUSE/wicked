@@ -12,10 +12,10 @@
       -->
     <device type="string">
       <meta:netif-reference shared="false"/>
-      <meta:require check="netif-child-state" op="changeDevice" min-state="device-up" />
+      <meta:require check="netif-check-state" op="changeDevice" min-state="device-up" />
       <!-- bnc#862530 workaround to not require link-up on all ports
-      <meta:require check="netif-child-state" op="login" min-state="link-authenticated" />
-      <meta:require check="netif-child-state" op="linkUp" min-state="link-up" />
+      <meta:require check="netif-check-state" op="login" min-state="link-authenticated" />
+      <meta:require check="netif-check-state" op="linkUp" min-state="link-up" />
        -->
     </device>
 

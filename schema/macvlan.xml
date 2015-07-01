@@ -16,9 +16,9 @@
  <define name="configuration" class="dict">
   <device type="string">
     <meta:netif-reference shared="true"/>
-    <meta:require check="netif-child-state" op="newDevice" min-state="device-up" />
-    <meta:require check="netif-child-state" op="linkUp"    min-state="link-up" />
-    <meta:require check="netif-child-state" op="login"     min-state="link-authenticated" />
+    <meta:require check="netif-check-state" op="newDevice" min-state="device-up" />
+    <meta:require check="netif-check-state" op="linkUp"    min-state="link-up" />
+    <meta:require check="netif-check-state" op="login"     min-state="link-authenticated" />
   </device>
   <address  type="ethernet-address"/>
   <mode     type="builtin-macvlan-mode"/>
