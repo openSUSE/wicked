@@ -1398,8 +1398,11 @@ ni_dhcp4_decode_routers(ni_buffer_t *bp, ni_route_array_t *routes)
 		if (ni_dhcp4_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
-		rp = ni_route_create(0, NULL, &gateway, 0, NULL);
-		ni_route_array_append(routes, rp);
+		if (!ni_sockaddr_is_specified(&gateway))
+			continue;
+
+		if ((rp = ni_route_create(0, NULL, &gateway, 0, NULL)))
+			ni_route_array_append(routes, rp);
 	}
 
 	if (bp->underflow)
