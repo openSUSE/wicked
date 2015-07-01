@@ -1137,8 +1137,10 @@ ni_dhcp4_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list, const ch
 			char label[64];
 			int length;
 
-			if ((length = ni_buffer_getc(bp)) == EOF)
+			if ((length = ni_buffer_getc(bp)) == EOF) {
+				bp->underflow = 1;
 				goto failure; /* unexpected EOF */
+			}
 
 			if (length == 0)
 				break;	/* end of this name */
@@ -1158,8 +1160,10 @@ ni_dhcp4_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list, const ch
 			case 0xC0:
 				/* Pointer */
 				pointer = (length & 0x3F) << 8;
-				if ((length = ni_buffer_getc(bp)) == EOF)
+				if ((length = ni_buffer_getc(bp)) == EOF) {
+					bp->underflow = 1;
 					goto failure;
+				}
 
 				pointer |= length;
 				if (pointer >= pos)
@@ -1210,8 +1214,10 @@ ni_dhcp4_decode_csr(ni_buffer_t *bp, ni_route_array_t *routes)
 		ni_route_t *rp;
 		int c = ni_buffer_getc(bp);
 
-		if (c == EOF)
+		if (c == EOF) {
+			bp->underflow = 1;
 			return -1;
+		}
 
 		prefix_len = (unsigned int)c;
 		if (prefix_len > 32) {
@@ -1239,6 +1245,11 @@ ni_dhcp4_decode_csr(ni_buffer_t *bp, ni_route_array_t *routes)
 static int
 ni_dhcp4_decode_address_list(ni_buffer_t *bp, ni_string_array_t *list)
 {
+	if (ni_buffer_count(bp) % 4) {
+		bp->underflow = 1;
+		return -1;
+	}
+
 	while (ni_buffer_count(bp) && !bp->underflow) {
 		struct in_addr addr;
 
@@ -1261,7 +1272,7 @@ ni_dhcp4_decode_sipservers(ni_buffer_t *bp, ni_string_array_t *list)
 	encoding = ni_buffer_getc(bp);
 	switch (encoding) {
 	case EOF:
-		ni_debug_dhcp("%s: missing data", __FUNCTION__);
+		bp->underflow = 1;
 		return -1;
 
 	case 0:
@@ -1347,6 +1358,11 @@ cidr_to_netmask(unsigned int pfxlen)
 static int
 ni_dhcp4_decode_static_routes(ni_buffer_t *bp, ni_route_array_t *routes)
 {
+	if (ni_buffer_count(bp) % 4) {
+		bp->underflow = 1;
+		return -1;
+	}
+
 	while (ni_buffer_count(bp) && !bp->underflow) {
 		ni_sockaddr_t destination, gateway;
 		ni_route_t *rp;
@@ -1362,6 +1378,9 @@ ni_dhcp4_decode_static_routes(ni_buffer_t *bp, ni_route_array_t *routes)
 		ni_route_array_append(routes, rp);
 	}
 
+	if (bp->underflow)
+		return -1;
+
 	return 0;
 }
 
@@ -1374,15 +1393,26 @@ ni_dhcp4_decode_routers(ni_buffer_t *bp, ni_route_array_t *routes)
 {
 	ni_sockaddr_t gateway;
 
+	if (ni_buffer_count(bp) % 4) {
+		bp->underflow = 1;
+		return -1;
+	}
+
 	while (ni_buffer_count(bp) && !bp->underflow) {
 		ni_route_t *rp;
 
 		if (ni_dhcp4_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
-		rp = ni_route_create(0, NULL, &gateway, 0, NULL);
-		ni_route_array_append(routes, rp);
+		if (!ni_sockaddr_is_specified(&gateway))
+			continue;
+
+		if ((rp = ni_route_create(0, NULL, &gateway, 0, NULL)))
+			ni_route_array_append(routes, rp);
 	}
+
+	if (bp->underflow)
+		return -1;
 
 	return 0;
 }
@@ -1800,7 +1830,6 @@ parse_more:
 		if (buf.underflow) {
 			ni_debug_dhcp("unable to parse DHCP4 option %s: too short",
 					ni_dhcp4_option_name(option));
-			goto error;
 		} else if (ni_buffer_count(&buf)) {
 			ni_debug_dhcp("excess data in DHCP4 option %s - %u bytes left",
 					ni_dhcp4_option_name(option),
