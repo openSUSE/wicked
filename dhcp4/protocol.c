@@ -1137,8 +1137,10 @@ ni_dhcp4_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list, const ch
 			char label[64];
 			int length;
 
-			if ((length = ni_buffer_getc(bp)) == EOF)
+			if ((length = ni_buffer_getc(bp)) == EOF) {
+				bp->underflow = 1;
 				goto failure; /* unexpected EOF */
+			}
 
 			if (length == 0)
 				break;	/* end of this name */
@@ -1158,8 +1160,10 @@ ni_dhcp4_decode_dnssearch(ni_buffer_t *optbuf, ni_string_array_t *list, const ch
 			case 0xC0:
 				/* Pointer */
 				pointer = (length & 0x3F) << 8;
-				if ((length = ni_buffer_getc(bp)) == EOF)
+				if ((length = ni_buffer_getc(bp)) == EOF) {
+					bp->underflow = 1;
 					goto failure;
+				}
 
 				pointer |= length;
 				if (pointer >= pos)
