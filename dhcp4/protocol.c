@@ -1387,6 +1387,11 @@ ni_dhcp4_decode_routers(ni_buffer_t *bp, ni_route_array_t *routes)
 {
 	ni_sockaddr_t gateway;
 
+	if (ni_buffer_count(bp) % 4) {
+		bp->underflow = 1;
+		return -1;
+	}
+
 	while (ni_buffer_count(bp) && !bp->underflow) {
 		ni_route_t *rp;
 
@@ -1396,6 +1401,9 @@ ni_dhcp4_decode_routers(ni_buffer_t *bp, ni_route_array_t *routes)
 		rp = ni_route_create(0, NULL, &gateway, 0, NULL);
 		ni_route_array_append(routes, rp);
 	}
+
+	if (bp->underflow)
+		return -1;
 
 	return 0;
 }
