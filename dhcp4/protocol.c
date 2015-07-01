@@ -1210,8 +1210,10 @@ ni_dhcp4_decode_csr(ni_buffer_t *bp, ni_route_array_t *routes)
 		ni_route_t *rp;
 		int c = ni_buffer_getc(bp);
 
-		if (c == EOF)
+		if (c == EOF) {
+			bp->underflow = 1;
 			return -1;
+		}
 
 		prefix_len = (unsigned int)c;
 		if (prefix_len > 32) {
