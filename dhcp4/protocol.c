@@ -1352,6 +1352,11 @@ cidr_to_netmask(unsigned int pfxlen)
 static int
 ni_dhcp4_decode_static_routes(ni_buffer_t *bp, ni_route_array_t *routes)
 {
+	if (ni_buffer_count(bp) % 4) {
+		bp->underflow = 1;
+		return -1;
+	}
+
 	while (ni_buffer_count(bp) && !bp->underflow) {
 		ni_sockaddr_t destination, gateway;
 		ni_route_t *rp;
@@ -1366,6 +1371,9 @@ ni_dhcp4_decode_static_routes(ni_buffer_t *bp, ni_route_array_t *routes)
 				0, NULL);
 		ni_route_array_append(routes, rp);
 	}
+
+	if (bp->underflow)
+		return -1;
 
 	return 0;
 }
