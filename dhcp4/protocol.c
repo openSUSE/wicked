@@ -1800,7 +1800,6 @@ parse_more:
 		if (buf.underflow) {
 			ni_debug_dhcp("unable to parse DHCP4 option %s: too short",
 					ni_dhcp4_option_name(option));
-			goto error;
 		} else if (ni_buffer_count(&buf)) {
 			ni_debug_dhcp("excess data in DHCP4 option %s - %u bytes left",
 					ni_dhcp4_option_name(option),
