@@ -1239,6 +1239,11 @@ ni_dhcp4_decode_csr(ni_buffer_t *bp, ni_route_array_t *routes)
 static int
 ni_dhcp4_decode_address_list(ni_buffer_t *bp, ni_string_array_t *list)
 {
+	if (ni_buffer_count(bp) % 4) {
+		bp->underflow = 1;
+		return -1;
+	}
+
 	while (ni_buffer_count(bp) && !bp->underflow) {
 		struct in_addr addr;
 
