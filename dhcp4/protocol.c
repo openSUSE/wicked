@@ -1266,7 +1266,7 @@ ni_dhcp4_decode_sipservers(ni_buffer_t *bp, ni_string_array_t *list)
 	encoding = ni_buffer_getc(bp);
 	switch (encoding) {
 	case EOF:
-		ni_debug_dhcp("%s: missing data", __FUNCTION__);
+		bp->underflow = 1;
 		return -1;
 
 	case 0:
