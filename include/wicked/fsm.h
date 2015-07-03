@@ -502,4 +502,7 @@ ni_ifworker_can_delete(const ni_ifworker_t *w)
 	return !!ni_dbus_object_get_service_for_method(w->object, "deleteDevice");
 }
 
+extern ni_bool_t	ni_ifworker_is_loopback(ni_ifworker_t *w);
+
+
 #endif /* __CLIENT_FSM_H__ */

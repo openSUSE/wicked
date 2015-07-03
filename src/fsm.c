@@ -5140,3 +5140,28 @@ ni_fsm_set_user_prompt_fn(ni_fsm_t *fsm, ni_fsm_user_prompt_fn_t *fn, void *user
 	ni_fsm_user_prompt_fn = fn;
 	ni_fsm_user_prompt_data = user_data;
 }
+
+ni_bool_t
+ni_ifworker_is_loopback(ni_ifworker_t *w)
+{
+	if (w) {
+		if (ni_netdev_device_is_ready(w->device))
+			return w->device->link.type == NI_IFTYPE_LOOPBACK;
+
+		if (w->iftype == NI_IFTYPE_LOOPBACK)
+			return TRUE;
+
+		if (w->iftype != NI_IFTYPE_UNKNOWN)
+			return FALSE;
+
+		/*
+		 * (recent) kernel ensure, that loopback has ifindex 1
+		 * and is available as first in all namespaces...
+		 * It is rather an internal impementation, than a rule,
+		 * but since the worker is not yet bound to a device...
+		 */
+		return w->ifindex == 1 || ni_string_eq(w->name, "lo");
+	}
+	return FALSE;
+}
+
