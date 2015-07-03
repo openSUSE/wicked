@@ -2608,6 +2608,9 @@ __ni_fsm_pull_in_children(ni_ifworker_t *w, ni_ifworker_array_t *array)
 			continue;
 		}
 
+		if (ni_ifworker_is_running(child) || ni_ifworker_has_succeeded(child))
+			continue;
+
 		if (ni_ifworker_array_index(array, child) < 0)
 			ni_ifworker_array_append(array, child);
 
