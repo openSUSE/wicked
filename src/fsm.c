@@ -1289,41 +1289,44 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 
 	if (shared) {
 		/* The reference allows sharing with other uses, e.g. VLANs. */
-		if (parent->lowerdev) {
+		if (parent->lowerdev && !ni_string_eq(parent->lowerdev->name, child->name)) {
 			if (xml_node_is_empty(parent->lowerdev->config.node)) {
-				ni_debug_application("%s (%s): subordinate interface's lowerdev %s has no config node",
-					parent->name, xml_node_location(devnode), parent->lowerdev->name);
+				ni_debug_application("%s (%s): subordinate interface's lower device %s has no config node, cannot set to %s",
+					parent->name, xml_node_location(devnode), parent->lowerdev->name, child->name);
 				return FALSE;
 			}
 			other_owner = strdup(xml_node_location(parent->lowerdev->config.node));
-			ni_debug_application("%s (%s): subordinate interface already has lowerdev %s (%s)",
+			ni_debug_application("%s (%s): subordinate interface already has lower device %s (%s), cannot set to %s",
 				parent->name, xml_node_location(devnode),
-				parent->lowerdev->name, other_owner);
+				parent->lowerdev->name, other_owner, child->name);
 			free(other_owner);
 			return TRUE;
 		}
 		else {
+			ni_debug_application("%s: setting lower device to %s", parent->name, child->name);
 			parent->lowerdev = child;
 			if (ni_ifworker_array_index(&child->lowerdev_for, parent) < 0)
 				ni_ifworker_array_append(&child->lowerdev_for, parent);
 		}
 	}
 	else {
-		if (child->masterdev) {
+		if (child->masterdev && !ni_string_eq(child->masterdev->name, parent->name)) {
 			if (xml_node_is_empty(child->masterdev->config.node)) {
-				ni_debug_application("%s (%s): subordinate interface's master device %s has no config node",
-					child->name, xml_node_location(devnode), child->masterdev->name);
+				ni_debug_application("%s (%s): subordinate interface's master device %s has no config node, cannot set to %s",
+					child->name, xml_node_location(devnode), child->masterdev->name, parent->name);
 				return FALSE;
 			}
 			other_owner = strdup(xml_node_location(child->masterdev->config.node));
-			ni_debug_application("%s (%s): subordinate interface already has masterdev %s (%s)",
+			ni_debug_application("%s (%s): subordinate interface already has master device %s (%s), cannot set to %s",
 				child->name, xml_node_location(devnode),
-				child->masterdev->name, other_owner);
+				child->masterdev->name, other_owner, parent->name);
 			free(other_owner);
 			return TRUE;
 		}
-		else
+		else {
+			ni_debug_application("%s: setting master device to %s", child->name, parent->name);
 			child->masterdev = parent;
+		}
 	}
 
 	if (xml_node_is_empty(child->config.node))
