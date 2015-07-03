@@ -602,8 +602,6 @@ usage:
 	}
 
 	ni_fsm_pull_in_children(&ifmarked);
-	ni_ifworkers_flatten(&ifmarked);
-
 	if (!ni_ifup_hire_nanny(&ifmarked, set_persistent))
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 
@@ -874,7 +872,6 @@ usage:
 	}
 
 	ni_fsm_pull_in_children(&ifmarked);
-
 	/* Mark and start selected workers */
 	if (ifmarked.count)
 		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
