@@ -129,30 +129,30 @@ typedef struct __ni_ethtool_map {
 	int		wicked_value;
 } __ni_ethtool_map_t;
 
-static __ni_ethtool_map_t	__ni_ethtool_speed_map[] = {
+static const __ni_ethtool_map_t	__ni_ethtool_speed_map[] = {
 	{ SPEED_10,		10	},
 	{ SPEED_100,		100	},
 	{ SPEED_1000,		1000	},
 	{ SPEED_2500,		2500	},
 	{ SPEED_10000,		10000	},
 	{ 65535,		0	},
-	{ -1 }
+	{ -1,			-1	}
 };
 
-static __ni_ethtool_map_t	__ni_ethtool_duplex_map[] = {
+static const __ni_ethtool_map_t	__ni_ethtool_duplex_map[] = {
 	{ DUPLEX_HALF,		NI_ETHERNET_DUPLEX_HALF },
 	{ DUPLEX_FULL,		NI_ETHERNET_DUPLEX_FULL },
 	{ 255,			NI_ETHERNET_DUPLEX_NONE },
-	{ -1 }
+	{ -1,			-1			}
 };
 
-static __ni_ethtool_map_t	__ni_ethtool_port_map[] = {
-	{ PORT_TP,		NI_ETHERNET_PORT_TP },
-	{ PORT_AUI,		NI_ETHERNET_PORT_AUI },
-	{ PORT_BNC,		NI_ETHERNET_PORT_BNC },
-	{ PORT_MII,		NI_ETHERNET_PORT_MII },
-	{ PORT_FIBRE,		NI_ETHERNET_PORT_FIBRE },
-	{ -1 }
+static const __ni_ethtool_map_t	__ni_ethtool_port_map[] = {
+	{ PORT_TP,		NI_ETHERNET_PORT_TP	},
+	{ PORT_AUI,		NI_ETHERNET_PORT_AUI	},
+	{ PORT_BNC,		NI_ETHERNET_PORT_BNC	},
+	{ PORT_MII,		NI_ETHERNET_PORT_MII	},
+	{ PORT_FIBRE,		NI_ETHERNET_PORT_FIBRE	},
+	{ -1,			-1			}
 };
 
 static const __ni_ethtool_map_t	__ni_ethtool_wol_map[] = {
