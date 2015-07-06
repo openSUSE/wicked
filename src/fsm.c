@@ -3133,6 +3133,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 	xml_node_t *mchild;
 
 	for (mchild = metadata->children; mchild; mchild = mchild->next) {
+		ni_stringbuf_t path = NI_STRINGBUF_INIT_DYNAMIC;
 		const char *attr;
 
 		if (ni_string_eq(mchild->name, "netif-reference")) {
@@ -3148,7 +3149,11 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 			if ((attr = xml_node_get_attr(mchild, "shared")) != NULL)
 				shared = ni_string_eq(attr, "true");
 
-			ni_debug_application("%s: resolved reference to subordinate device %s", w->name, cw->name);
+			xml_node_get_path(&path, node, xml_node_find_parent(node, ni_ifworker_type_to_string(w->type)));
+			ni_debug_application("%s: resolved %sreference %s to subordinate device %s",
+					w->name, shared ? "shared " : "", path.string, cw->name);
+			ni_stringbuf_destroy(&path);
+
 			if (!ni_ifworker_add_child(w, cw, node, shared))
 				return FALSE;
 		} else
@@ -3165,7 +3170,11 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 			if ((attr = xml_node_get_attr(mchild, "shared")) != NULL)
 				shared = ni_string_eq(attr, "true");
 
-			ni_debug_application("%s: resolved reference to subordinate device %s", w->name, cw->name);
+			xml_node_get_path(&path, node, xml_node_find_parent(node, ni_ifworker_type_to_string(w->type)));
+			ni_debug_application("%s: resolved %sreference %s to subordinate device %s",
+					w->name, shared ? "shared " : "", path.string, cw->name);
+			ni_stringbuf_destroy(&path);
+
 			if (!ni_ifworker_add_child(w, cw, node, shared))
 				return FALSE;
 		} else
@@ -3211,6 +3220,11 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 						xml_node_location(mchild));
 				return FALSE;
 			}
+
+			ni_debug_application("%s: %s requires %s in state %s..%s",
+					w->name, method, cw->name,
+					ni_ifworker_state_name(min_state),
+					ni_ifworker_state_name(max_state));
 
 			ni_ifworker_add_check_state_req(w, method, cw, min_state, max_state);
 		}
