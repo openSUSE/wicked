@@ -136,12 +136,14 @@ extern ni_bool_t	xml_node_replace_child(xml_node_t *, xml_node_t *);
 extern ni_bool_t	xml_node_delete_child(xml_node_t *, const char *);
 extern ni_bool_t	xml_node_delete_child_node(xml_node_t *, xml_node_t *);
 extern void		xml_node_detach(xml_node_t *);
+extern xml_node_t *	xml_node_find_parent(const xml_node_t *, const char *);
 extern void		xml_node_reparent(xml_node_t *parent, xml_node_t *child);
 extern void		xml_node_add_child(xml_node_t *, xml_node_t *);
 extern xml_node_t *	xml_node_get_next_named(xml_node_t *, const char *, xml_node_t *);
 
 extern ni_bool_t	xml_node_match_attrs(const xml_node_t *, const ni_var_array_t *);
 
+extern const char *	xml_node_get_path(ni_stringbuf_t *, const xml_node_t *, const xml_node_t *);
 inline const char *	xml_node_get_location_filename(const xml_node_t *);
 inline unsigned int	xml_node_get_location_line(const xml_node_t *);
 extern const char *	xml_node_location(const xml_node_t *);
