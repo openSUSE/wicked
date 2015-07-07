@@ -149,7 +149,7 @@ call_wicked_scripts()
 			call_wicked_script "$IFNAME" "$ACTION" "$S"
 		done
 	else
-		call_wicked_script "$IFNAME" "$ACTION" "$S"
+		call_wicked_script "$IFNAME" "$ACTION" "$SCRIPT"
 	fi
 	return 0
 }
