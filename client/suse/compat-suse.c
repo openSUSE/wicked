@@ -310,6 +310,7 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 	char dirname[PATH_MAX];
 	char pathbuf[PATH_MAX];
 	const char *name;
+	char *real = NULL;
 	unsigned int i;
 
 	ni_var_array_destroy(&__ni_suse_global_ifsysctl);
@@ -328,28 +329,31 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 			for (i = 0; i < names.count; ++i) {
 				snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
 						dirname, names.data[i]);
-				name = canonicalize_file_name(pathbuf);
+				name = ni_realpath(pathbuf, &real);
 				if (name)
 					ni_string_array_append(&files, name);
+				ni_string_free(&real);
 			}
 		}
 		ni_string_array_destroy(&names);
 	}
 
 	snprintf(pathbuf, sizeof(pathbuf), "%s%s", root, __NI_SUSE_SYSCTL_FILE);
-	name = canonicalize_file_name(pathbuf);
+	name = ni_realpath(pathbuf, &real);
 	if (name && ni_isreg(name)) {
 		if (ni_string_array_index(&files, name) == -1)
 			ni_string_array_append(&files, name);
 	}
+	ni_string_free(&real);
 
 	snprintf(pathbuf, sizeof(pathbuf), "%s%s/%s", root, path,
 						__NI_SUSE_IFSYSCTL_FILE);
-	name = canonicalize_file_name(pathbuf);
+	name = ni_realpath(pathbuf, &real);
 	if (name && ni_isreg(name)) {
 		if (ni_string_array_index(&files, name) == -1)
 			ni_string_array_append(&files, name);
 	}
+	ni_string_free(&real);
 
 	for (i = 0; i < files.count; ++i) {
 		name = files.data[i];
