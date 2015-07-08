@@ -390,7 +390,7 @@ __ni_ifconfig_xml_read_file(xml_document_array_t *docs, const char *root, const 
 	xml_document_t *config_doc;
 	char pathbuf[PATH_MAX] = {'\0'};
 
-	if (root) {
+	if (!ni_string_empty(root)) {
 		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", root, pathname);
 		pathname = pathbuf;
 	}
@@ -425,7 +425,7 @@ __ni_ifconfig_xml_read_dir(xml_document_array_t *docs, const char *root, const c
 
 	ni_assert(docs);
 
-	if (root) {
+	if (!ni_string_empty(root)) {
 		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", root, pathname);
 		pathname = pathbuf;
 	}
@@ -450,6 +450,7 @@ ni_ifconfig_read_wicked_xml(xml_document_array_t *array, const char *type,
 			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
 {
 	char *ifconfig_dir = NULL;
+	char pathbuf[PATH_MAX];
 	ni_bool_t rv = FALSE;
 
 	if (ni_string_empty(path)) {
@@ -458,10 +459,16 @@ ni_ifconfig_read_wicked_xml(xml_document_array_t *array, const char *type,
 		path = ifconfig_dir;
 	}
 
+	if (ni_string_empty(root)) {
+		snprintf(pathbuf, sizeof(pathbuf), "%s", path);
+	} else {
+		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", root, path);
+	}
+
 	/* At the moment only XML is supported */
-	if (ni_isreg(path))
+	if (ni_isreg(pathbuf))
 		rv = __ni_ifconfig_xml_read_file(array, root, path, check_prio, raw);
-	else if (ni_isdir(path))
+	else if (ni_isdir(pathbuf))
 		rv = __ni_ifconfig_xml_read_dir(array, root, path, check_prio, raw);
 
 	ni_string_free(&ifconfig_dir);
