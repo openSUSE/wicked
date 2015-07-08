@@ -791,7 +791,7 @@ __ni_sysfs_ibft_nic_get_devpath(const char *base, const char *node,
 
 	ni_string_free(value);
 	if (__ni_sysfs_ibft_nic_format_path(base, node, attr, &path)) {
-		ni_string_dup(value, canonicalize_file_name(path));
+		ni_realpath(path, value);
 		ni_string_free(&path);
 		if (*value != NULL)
 			ret = 0;
