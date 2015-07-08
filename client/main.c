@@ -224,7 +224,13 @@ main(int argc, char **argv)
 			break;
 
 		case OPT_ROOTDIR:
-			opt_global_rootdir = optarg;
+			if (!ni_realpath(optarg, &opt_global_rootdir)) {
+				fprintf(stderr, "Invalid root-directory path '%s': %m\n", optarg);
+				status = NI_WICKED_RC_ERROR;
+				goto done;
+			}
+			if (ni_string_eq(opt_global_rootdir, "/"))
+				ni_string_free(&opt_global_rootdir);
 			break;
 
 		case OPT_SYSTEMD:
@@ -315,6 +321,7 @@ main(int argc, char **argv)
 
 done:
 	ni_debug_application("Exit with status: %d", status);
+	ni_string_free(&opt_global_rootdir);
 	return status;
 }
 
