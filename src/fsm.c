@@ -1232,7 +1232,7 @@ ni_ifworker_generate_default_config(ni_ifworker_t *parent, ni_ifworker_t *child)
 	ni_ifworker_set_config(child, config, parent->config.meta.origin);
 }
 
-static ni_bool_t
+ni_bool_t
 ni_ifworker_add_child_master(xml_node_t *config, const char *name)
 {
 	xml_node_t *link, *master;
