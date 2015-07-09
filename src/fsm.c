@@ -929,8 +929,26 @@ ni_ifworker_by_modem(ni_fsm_t *fsm, const ni_modem_t *dev)
 ni_bool_t
 ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
 {
-	if (!w || ni_string_empty(ifname))
+	const char *errmsg = NULL;
+
+	if (ni_string_empty(ifname))
 		return FALSE;
+
+	if (!w) {
+		errmsg = "no worker";
+		goto done;
+	}
+
+	if (ni_ifworker_is_device_created(w)) {
+		if (!ni_netdev_device_is_ready(w->device)) {
+			errmsg = "not ready";
+			goto done;
+		}
+	}
+	else if (!ni_ifworker_is_factory_device(w)) {
+		errmsg = "not created";
+		goto done;
+	}
 
 	/* ifworker name must be same as policy name here.
 	 * If device name matches policy name then we
@@ -938,8 +956,11 @@ ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
 	 */
 	if (ni_string_eq(w->name, ifname))
 		return TRUE;
+	else
+		errmsg = "name mismatch";
 
-	ni_error("device %s requested via match is not present", ifname);
+done:
+	ni_error("device %s requested via match is not present (%s)", ifname, errmsg);
 	return FALSE;
 }
 
