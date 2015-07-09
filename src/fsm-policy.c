@@ -1440,6 +1440,33 @@ ni_ifcondition_device_element(xml_node_t *node, const char *name)
 	return NULL;
 }
 
+static ni_bool_t
+__ni_fsm_policy_match_master_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+{
+	const char *errmsg = "condition check";
+	ni_ifworker_t *master = w->masterdev;
+	ni_bool_t rv = FALSE;
+
+	if (!master) {
+		errmsg = "no masterdev worker";
+		goto done;
+	}
+
+	if (!ni_ifworker_active(master)) {
+		errmsg = "inactive masterdev worker";
+		goto done;
+	}
+
+	rv = ni_ifcondition_check(cond->args.terms.left, master);
+done:
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_trace("%s: %s condition is %s (%s)",
+			w->name, __func__, ni_format_boolean(rv), errmsg);
+	}
+
+	return rv;
+}
+
 static ni_ifcondition_t *
 ni_ifcondition_device(xml_node_t *node)
 {
@@ -1465,6 +1492,23 @@ ni_ifcondition_device(xml_node_t *node)
 	}
 
 	return result;
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_master(xml_node_t *node)
+{
+	ni_ifcondition_t *and;
+
+	if (xml_node_is_empty(node)) {
+		ni_error("%s: <%s> condition must not be empty",
+				xml_node_location(node), node->name);
+		return NULL;
+	}
+
+	if (!(and = ni_ifcondition_and(node)))
+		return NULL;
+
+	return ni_ifcondition_new_terms(__ni_fsm_policy_match_master_check, and, NULL);
 }
 
 /*
@@ -1738,6 +1782,8 @@ ni_ifcondition_from_xml(xml_node_t *node)
 		return ni_ifcondition_device(node);
 	if (!strncmp(node->name, "device:", sizeof("device:")-1))
 		return ni_ifcondition_device_element(node, node->name + sizeof("device:")-1);
+	if (!strcmp(node->name, "master"))
+		return ni_ifcondition_master(node);
 	if (!strcmp(node->name, "child"))
 		return ni_ifcondition_and_child(node);
 	if (!strcmp(node->name, "modem"))
