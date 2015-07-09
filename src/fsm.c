@@ -1286,6 +1286,28 @@ ni_ifworker_get_child_master(xml_node_t *config)
 	return xml_node_get_child(link, NI_CLIENT_IFCONFIG_MASTER);
 }
 
+xml_node_t *
+ni_ifworker_get_child_lower(xml_node_t *config, ni_iftype_t iftype)
+{
+	xml_node_t *type_node;
+	const char *type;
+
+	if (xml_node_is_empty(config))
+		return NULL;
+
+	if (NI_IFTYPE_UNKNOWN == iftype)
+		return NULL;
+
+	type = ni_linktype_type_to_name(iftype);
+	if (ni_string_empty(type))
+		return NULL;
+
+	if (!(type_node = xml_node_get_child(config, type)))
+		return NULL;
+
+	return xml_node_get_child(type_node, NI_CLIENT_IFCONFIG_DEVICE);
+}
+
 static ni_bool_t
 ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode, ni_bool_t shared)
 {
