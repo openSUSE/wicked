@@ -3080,6 +3080,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 {
 	unsigned int i;
 
+	ni_fsm_events_block(fsm);
 	for (i = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
 		int rv;
@@ -3123,6 +3124,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 	}
 
 	ni_ifworker_array_flatten(&fsm->workers);
+	ni_fsm_events_unblock(fsm);
 	return 0;
 }
 
