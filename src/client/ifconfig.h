@@ -31,6 +31,7 @@
 #define NI_CLIENT_IFCONFIG_MODE		"mode"
 #define NI_CLIENT_IFCONFIG_LINK		"link"
 #define NI_CLIENT_IFCONFIG_MASTER		"master"
+#define NI_CLIENT_IFCONFIG_DEVICE		"device"
 #define NI_CLIENT_IFCONFIG_IPV4		"ipv4"
 #define NI_CLIENT_IFCONFIG_IPV6		"ipv6"
 #define NI_CLIENT_IFCONFIG_IP_ENABLED		"enabled"
