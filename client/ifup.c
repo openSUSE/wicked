@@ -153,6 +153,15 @@ __ni_ifup_generate_match(const char *name, ni_ifworker_t *w)
 		}
 	}
 
+	if (w->lowerdev) {
+		if (!__ni_ifup_generate_match_lower(match, w)) {
+			ni_debug_application("%s: unable to generate <%s> check in <%s>",
+				w->name, NI_NANNY_IFPOLICY_MATCH_LOWER,
+				NI_NANNY_IFPOLICY_MATCH);
+			goto error;
+		}
+	}
+
 	if (w->children.count) {
 		xml_node_t *or;
 		unsigned int i;
