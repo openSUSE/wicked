@@ -1272,6 +1272,20 @@ ni_ifworker_del_child_master(xml_node_t *config)
 	return xml_node_delete_child(link, NI_CLIENT_IFCONFIG_MASTER);
 }
 
+xml_node_t *
+ni_ifworker_get_child_master(xml_node_t *config)
+{
+	xml_node_t *link;
+
+	if (xml_node_is_empty(config))
+		return NULL;
+
+	if (!(link = xml_node_get_child(config, NI_CLIENT_IFCONFIG_LINK)))
+		return NULL;
+
+	return xml_node_get_child(link, NI_CLIENT_IFCONFIG_MASTER);
+}
+
 static ni_bool_t
 ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode, ni_bool_t shared)
 {
