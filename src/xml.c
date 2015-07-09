@@ -568,6 +568,18 @@ xml_node_reparent(xml_node_t *parent, xml_node_t *child)
 	xml_node_add_child(parent, child);
 }
 
+xml_node_t *
+xml_node_find_parent(const xml_node_t *node, const char *parent)
+{
+	xml_node_t *p;
+
+	for (p = node ? node->parent : NULL; p; p = p->parent) {
+		if (ni_string_eq(p->name, parent))
+			return p;
+	}
+	return NULL;
+}
+
 /*
  * Get xml node path relative to some top node
  */
@@ -598,6 +610,33 @@ xml_node_path(const xml_node_t *node, const xml_node_t *top)
 	static char pathbuf[1024];
 
 	return __xml_node_path(node, top, pathbuf, sizeof(pathbuf));
+}
+
+static const char *
+__xml_node_get_path(ni_stringbuf_t *path, const xml_node_t *node, const xml_node_t *top)
+{
+	if (node->parent && node->name && node->parent != top) {
+		__xml_node_get_path(path, node->parent, top);
+
+		if (path->len && path->string[path->len - 1] != '/')
+			ni_stringbuf_putc(path, '/');
+	}
+
+	if (node->name) {
+		ni_stringbuf_puts(path, node->name);
+	} else if (!node->parent) {
+		/* this is the root node */
+		ni_stringbuf_putc(path, '/');
+	}
+	return path->string;
+}
+
+const char *
+xml_node_get_path(ni_stringbuf_t *path, const xml_node_t *node, const xml_node_t *top)
+{
+	if (!path || !node)
+		return NULL;
+	return __xml_node_get_path(path, node, top);
 }
 
 /*
