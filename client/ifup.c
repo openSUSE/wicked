@@ -144,6 +144,14 @@ __ni_ifup_generate_match_master(xml_node_t *node, ni_ifworker_t *w)
 		return NULL;
 	ni_string_dup(&device->name, NI_NANNY_IFPOLICY_MATCH_DEV);
 
+	if (w->fsm.check_state_req_list) {
+		if (!__ni_ifup_generate_match_check_state(master, w, w->masterdev, "waitDeviceReady")) {
+			ni_debug_application("%s: unable to generate state checks in <%s>",
+				w->name, NI_NANNY_IFPOLICY_MATCH_MASTER);
+			return NULL;
+		}
+	}
+
 	return master;
 }
 
