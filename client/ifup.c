@@ -178,6 +178,13 @@ __ni_ifup_generate_match_lower(xml_node_t *node, ni_ifworker_t *w)
 	if (!xml_node_clone(device, lower))
 		return NULL;
 
+	if (w->fsm.check_state_req_list) {
+		if (!__ni_ifup_generate_match_check_state(lower, w, w->lowerdev, "newDevice")) {
+			ni_debug_application("%s: unable to generate state checks in <%s>",
+				w->name, NI_NANNY_IFPOLICY_MATCH_LOWER);
+			return NULL;
+		}
+	}
 
 	return lower;
 }
