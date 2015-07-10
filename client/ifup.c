@@ -74,6 +74,47 @@ __ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w)
 }
 
 static xml_node_t *
+__ni_ifup_generate_match_check_state(xml_node_t *node, ni_ifworker_t *w, ni_ifworker_t *req_w, const char *req_op)
+{
+	const char *errmsg = "failed adding new node";
+	ni_fsm_require_t *req;
+
+	if (!node || !w)
+		goto error;
+
+	for (req = w->fsm.check_state_req_list; req; req = req->next) {
+		ni_check_state_req_data_t *data = req->user_data;
+		ni_ifworker_t *cw = data->check_worker;
+		const char *op = data->method;
+		const char *min_state = ni_ifworker_state_name(data->check_state.min);
+		const char *max_state = ni_ifworker_state_name(data->check_state.max);
+
+		if (!ni_string_empty(req_op) && !ni_string_eq(op, req_op))
+			continue;
+
+		if (!cw || ni_string_empty(cw->name)) {
+			errmsg = "no requirement check worker set";
+			goto error;
+		}
+
+		if (req_w && !ni_string_eq(cw->name, req_w->name))
+			continue;
+
+		if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_MIN_STATE, node, min_state))
+			goto error;
+
+		if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_MAX_STATE, node, max_state))
+			goto error;
+	}
+
+	return node;
+error:
+	ni_debug_application("%s: unable to add <%s> to <%s>: %s", w->name,
+		NI_NANNY_IFPOLICY_MATCH_MIN_STATE, NI_NANNY_IFPOLICY_MATCH, errmsg);
+	return NULL;
+}
+
+static xml_node_t *
 __ni_ifup_generate_match_master(xml_node_t *node, ni_ifworker_t *w)
 {
 	xml_node_t *master, *device;

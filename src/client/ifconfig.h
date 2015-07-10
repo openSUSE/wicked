@@ -48,6 +48,7 @@
 #define NI_NANNY_IFPOLICY_MATCH_MASTER		"master"
 #define NI_NANNY_IFPOLICY_MATCH_LOWER		"lower"
 #define NI_NANNY_IFPOLICY_MATCH_MIN_STATE	"minimum-device-state"
+#define NI_NANNY_IFPOLICY_MATCH_MAX_STATE	"maximum-device-state"
 #define NI_NANNY_IFPOLICY_MATCH_LINK_TYPE	"link-type"
 #define NI_NANNY_IFPOLICY_MERGE		"merge"
 #define NI_NANNY_IFPOLICY_REPLACE		"replace"
