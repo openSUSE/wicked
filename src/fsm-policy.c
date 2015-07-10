@@ -492,6 +492,22 @@ ni_fsm_policy_get_applicable_policies(ni_fsm_t *fsm, ni_ifworker_t *w,
 }
 
 ni_bool_t
+ni_fsm_exists_policy(ni_fsm_policy_t *list, ni_ifworker_t *w)
+{
+	ni_fsm_policy_t *policy;
+
+	if (!list || !w)
+		return FALSE;
+
+	for (policy = list; policy; policy = policy->next) {
+		if (ni_fsm_policy_exists(policy, w))
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
+ni_bool_t
 ni_fsm_exists_applicable_policy(ni_fsm_policy_t *list, ni_ifworker_t *w)
 {
 	ni_fsm_policy_t *policy;
