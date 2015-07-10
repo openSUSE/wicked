@@ -1505,10 +1505,19 @@ ni_ifcondition_boot_stage(xml_node_t *node)
 static ni_bool_t
 __ni_fsm_policy_min_device_state_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
-#if 0
-	ni_trace("%s: state is %u, need %u", w->name, w->fsm.state, cond->args.uint);
-#endif
-	return w->fsm.state >= cond->args.uint;
+	ni_bool_t rv = FALSE;
+
+	if (w->fsm.state >= cond->args.uint)
+		rv = TRUE;
+
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_trace("%s: %s condition is %s (state is %s, minimum needed %s)",
+			w->name, __func__, ni_format_boolean(rv),
+			ni_ifworker_state_name(w->fsm.state),
+			ni_ifworker_state_name(cond->args.uint));
+	}
+
+	return rv;
 }
 
 static ni_ifcondition_t *
