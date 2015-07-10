@@ -2040,19 +2040,10 @@ ni_ifworker_link_detection_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *
 	}
 }
 
-/*
- * Handle dependencies that check for a specific child state.
- */
-struct ni_check_state_req_data {
-	ni_ifworker_t *		check_worker;
-	char *			method;
-	ni_uint_range_t		check_state;
-};
-
 static ni_bool_t
 ni_ifworker_check_state_req_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
-	struct ni_check_state_req_data *data = (struct ni_check_state_req_data *) req->user_data;
+	ni_check_state_req_data_t *data = req->user_data;
 	ni_ifworker_t *cw = data->check_worker;
 	unsigned int wait_for_state;
 
@@ -2083,7 +2074,7 @@ ni_ifworker_check_state_req_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require
 static void
 ni_ifworker_check_state_req_free(ni_fsm_require_t *req)
 {
-	struct ni_check_state_req_data *data = (struct ni_check_state_req_data *) req->user_data;
+	ni_check_state_req_data_t *data = req->user_data;
 
 	if (data) {
 		ni_ifworker_release(data->check_worker);
@@ -2097,7 +2088,7 @@ static void
 ni_ifworker_add_check_state_req(ni_ifworker_t *w, const char *method, ni_ifworker_t *check_worker,
 			unsigned int min_state, unsigned int max_state)
 {
-	struct ni_check_state_req_data *data;
+	ni_check_state_req_data_t *data;
 	ni_fsm_require_t *req;
 
 	data = xcalloc(1, sizeof(*data));
@@ -2119,7 +2110,7 @@ ni_ifworker_get_check_state_reqs_for_method(ni_ifworker_t *w, ni_fsm_transition_
 	ni_fsm_require_t **list, *req;
 
 	for (list = &w->fsm.check_state_req_list; (req = *list) != NULL; ) {
-		struct ni_check_state_req_data *data = req->user_data;
+		ni_check_state_req_data_t *data = req->user_data;
 		unsigned int min_state = data->check_state.min;
 		unsigned int max_state = data->check_state.max;
 		ni_ifworker_t *cw = data->check_worker;
