@@ -243,6 +243,10 @@ usage:
 		return NI_WICKED_RC_ERROR;
 	}
 
+
+	ni_ifworker_array_flatten(&fsm->workers);
+	ni_ifworker_array_depth_sort(&fsm->workers);
+
 	/* Get workers that match given criteria */
 	nmarked = 0;
 	while (optind < argc) {
