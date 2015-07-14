@@ -918,8 +918,14 @@ xml_location_new(struct xml_location_shared *shared_location, unsigned int line)
 inline xml_location_t *
 xml_location_create(const char *filename, unsigned int line)
 {
-	return filename ?
-			xml_location_new(xml_location_shared_new(filename), line) : NULL;
+	xml_location_t *location;
+
+	if (ni_string_empty(filename))
+		return NULL;
+
+	location = xml_location_new(xml_location_shared_new(filename), line);
+	xml_location_shared_release(location->shared);
+	return location;
 }
 
 void
