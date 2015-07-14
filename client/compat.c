@@ -1654,7 +1654,7 @@ ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t 
 		xml_node_location_relocate(root, conf->origin);
 
 		if (ni_ifconfig_validate_adding_doc(config_doc, check_prio)) {
-			ni_debug_ifconfig("%s: location: %s", __func__, xml_node_location(root));
+			ni_debug_ifconfig("%s: %s", __func__, xml_node_location(root));
 			xml_document_array_append(array, config_doc);
 		} else {
 			xml_document_free(config_doc);
