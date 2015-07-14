@@ -246,7 +246,7 @@ ni_convert_cfg_into_policy_doc(xml_document_t *ifconfig)
 		return NULL;
 
 	root = xml_document_root(ifconfig);
-	origin = xml_node_get_location_filename(root);
+	origin = xml_node_location_filename(root);
 
 	for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
 		if (ni_ifpolicy_is_valid(ifnode)) {

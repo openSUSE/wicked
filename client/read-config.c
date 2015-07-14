@@ -215,7 +215,7 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *opt_ifconfi
 		const char *origin;
 
 		root = xml_document_root(docs.data[i]);
-		origin = xml_node_get_location_filename(root);
+		origin = xml_node_location_filename(root);
 		for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
 			/* We do not fail when unable to generate ifworker */
 			ni_fsm_workers_from_xml(fsm, ifnode, origin);
@@ -350,7 +350,7 @@ ni_ifconfig_validate_adding_doc(xml_document_t *config_doc, ni_bool_t check_prio
 		return TRUE;
 
 	src_root = xml_document_root(config_doc);
-	src_prio = __ni_ifconfig_origin_get_prio(xml_node_get_location_filename(src_root));
+	src_prio = __ni_ifconfig_origin_get_prio(xml_node_location_filename(src_root));
 
 	/* Go through all config_doc's <interfaces> */
 	for (src_child = src_root->children; src_child; src_child = src_child->next) {
@@ -371,7 +371,7 @@ ni_ifconfig_validate_adding_doc(xml_document_t *config_doc, ni_bool_t check_prio
 
 		if (rv && dst_prio < src_prio) {
 			ni_warn("Ignoring config %s because of higher prio config",
-				xml_node_get_location_filename(src_root));
+				xml_node_location_filename(src_root));
 			return FALSE;
 		}
 
@@ -630,10 +630,10 @@ ni_ifconfig_read_firmware(xml_document_array_t *array, const char *type,
 
 	/* Add location */
 	if (!ni_string_empty(conf.origin)) {
-		xml_location_set(rnode, xml_location_create(conf.origin, 0));
+		xml_node_location_set(rnode, xml_location_create(conf.origin, 0));
 		ni_debug_ifconfig("%s: location: %s, line: %u", __func__,
-			xml_node_get_location_filename(rnode),
-			xml_node_get_location_line(rnode));
+			xml_node_location_filename(rnode),
+			xml_node_location_line(rnode));
 	}
 
 	if (ni_ifconfig_validate_adding_doc(config_doc, check_prio))

@@ -1642,10 +1642,10 @@ ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t 
 			xml_node_t *root = xml_document_root(config_doc);
 
 			if (!ni_string_empty(conf->origin)) {
-				xml_location_set(root, xml_location_create(conf->origin, 0));
+				xml_node_location_set(root, xml_location_create(conf->origin, 0));
 				ni_debug_ifconfig("%s: location: %s, line: %u", __func__,
-						xml_node_get_location_filename(root),
-						xml_node_get_location_line(root));
+						xml_node_location_filename(root),
+						xml_node_location_line(root));
 			}
 
 			if (!raw)

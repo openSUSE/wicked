@@ -846,13 +846,13 @@ xml_debug(const char *fmt, ...)
  * Location handling
  */
 inline const char *
-xml_node_get_location_filename(const xml_node_t *node)
+xml_node_location_filename(const xml_node_t *node)
 {
 	return node->location ? node->location->shared->filename : NULL;
 }
 
 inline unsigned int
-xml_node_get_location_line(const xml_node_t *node)
+xml_node_location_line(const xml_node_t *node)
 {
 	return node->location ? node->location->line : 0;
 }
@@ -915,7 +915,7 @@ xml_location_create(const char *filename, unsigned int line)
 }
 
 void
-xml_location_modify(xml_node_t *node, const char *filename)
+xml_node_location_modify(xml_node_t *node, const char *filename)
 {
 	if (!node || ni_string_empty(filename))
 		return;
@@ -928,11 +928,11 @@ xml_location_modify(xml_node_t *node, const char *filename)
 			return;
 		}
 	}
-	xml_location_set(node, xml_location_create(filename, 0));
+	xml_node_location_set(node, xml_location_create(filename, 0));
 }
 
 void
-xml_location_set(xml_node_t *node, xml_location_t *loc)
+xml_node_location_set(xml_node_t *node, xml_location_t *loc)
 {
 	if (node->location == loc)
 		return;
