@@ -1082,8 +1082,12 @@ xml_getc(xml_reader_t *xr)
 {
 	int cc;
 
-	if (xr->in_buffer)
-		return ni_buffer_getc(xr->in_buffer);
+	if (xr->in_buffer) {
+		cc = ni_buffer_getc(xr->in_buffer);
+		if (cc == '\n')
+			xr->lineCount++;
+		return cc;
+	}
 
 	while (1) {
 		if (xr->pos) {
