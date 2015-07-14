@@ -55,21 +55,31 @@ static ni_compat_netdev_t *__ni_redhat_define_alias(ni_sysconfig_t *, const char
  * Refresh network configuration by reading all ifcfg files.
  */
 static ni_bool_t
-__ni_redhat_get_interfaces(const char *root, const char *path, ni_compat_netdev_array_t *result)
+__ni_redhat_get_interfaces(const char *root, const char *path, ni_compat_ifconfig_t *config)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	ni_bool_t success = FALSE;
+	char pathbuf[PATH_MAX];
 	char *pathname = NULL;
 	const char *_path = _PATH_NETCONFIG_DIR;
 
 	if (!ni_string_empty(path))
 		_path = path;
 
-	if (ni_string_empty(root))
-		ni_string_dup(&pathname, _path);
-	else
-		ni_string_printf(&pathname, "%s%s", root, _path);
+	if (!root)
+		root = "";
 
+	if (ni_string_empty(root))
+		snprintf(pathbuf, sizeof(pathbuf), "%s", _path);
+	else
+		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", root, _path);
+
+	if (!ni_realpath(pathbuf, &pathname)) {
+		if (!ni_string_empty(path)) {
+			ni_error("Configuration directory '%s' does not exist", path);
+			goto done;
+		}
+	} else
 	if (ni_isdir(pathname)) {
 		unsigned int i;
 
@@ -82,23 +92,17 @@ __ni_redhat_get_interfaces(const char *root, const char *path, ni_compat_netdev_
 		for (i = 0; i < files.count; ++i) {
 			const char *filename = files.data[i];
 			const char *ifname = filename + sizeof("ifcfg-")-1;
-			char pathbuf[PATH_MAX];
 			ni_compat_netdev_t *compat;
 
 			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", pathname, filename);
-			if (!(compat = __ni_redhat_read_interface(pathbuf, ifname, result)))
+			if (!(compat = __ni_redhat_read_interface(pathbuf, ifname, &config->netdevs)))
 				goto done;
 
-			ni_compat_netdev_client_state_set(compat->dev, pathbuf);
+			ni_compat_netdev_set_origin(compat, config->schema, pathbuf);
 		}
-	} else
-	if (ni_file_exists(pathname)) {
+	} else {
 		ni_error("Cannot use '%s' to read redhat ifcfg files -- not a directory",
 			pathname);
-		goto done;
-	} else
-	if (!ni_string_empty(path)) {
-		ni_error("Configuration directory '%s' does not exist", pathname);
 		goto done;
 	}
 
@@ -114,7 +118,7 @@ ni_bool_t
 __ni_redhat_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t *result)
 {
 	/* get global control things here */
-	return __ni_redhat_get_interfaces(root, path, &result->netdevs);
+	return __ni_redhat_get_interfaces(root, path, result);
 }
 
 

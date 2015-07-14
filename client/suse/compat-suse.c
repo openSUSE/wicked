@@ -72,7 +72,7 @@
 typedef ni_bool_t (*try_function_t)(const ni_sysconfig_t *, ni_netdev_t *, const char *);
 
 static ni_compat_netdev_t *	__ni_suse_read_interface(const char *, const char *);
-static ni_bool_t		__ni_suse_read_globals(const char *, const char *);
+static ni_bool_t		__ni_suse_read_globals(const char *, const char *, const char *);
 static void			__ni_suse_free_globals(void);
 static void			__ni_suse_show_unapplied_routes(void);
 static ni_bool_t		__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
@@ -195,6 +195,7 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	ni_bool_t success = FALSE;
+	char pathbuf[PATH_MAX];
 	char *pathname = NULL;
 	const char *_path = __NI_SUSE_SYSCONFIG_NETWORK_DIR;
 	unsigned int i;
@@ -202,13 +203,22 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 	if (!ni_string_empty(path))
 		_path = path;
 
-	if (ni_string_empty(root))
-		ni_string_dup(&pathname, _path);
-	else
-		ni_string_printf(&pathname, "%s%s", root, _path);
+	if (!root)
+		root = "";
 
+	if (ni_string_empty(root))
+		snprintf(pathbuf, sizeof(pathbuf), "%s", _path);
+	else
+		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", root, _path);
+
+	if (!ni_realpath(pathbuf, &pathname)) {
+		if (!ni_string_empty(path)) {
+			ni_error("Configuration directory '%s' does not exist", path);
+			goto done;
+		}
+	} else
 	if (ni_isdir(pathname)) {
-		if (!__ni_suse_read_globals(root, pathname))
+		if (!__ni_suse_read_globals(root, _path, pathname))
 			goto done;
 
 		if (!__ni_suse_ifcfg_scan_files(pathname, &files)) {
@@ -220,20 +230,13 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 		for (i = 0; i < files.count; ++i) {
 			const char *filename = files.data[i];
 			const char *ifname = filename + (sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1);
-			char pathbuf[PATH_MAX];
 			ni_compat_netdev_t *compat;
 
 			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", pathname, filename);
 			if (!(compat = __ni_suse_read_interface(pathbuf, ifname)))
 				continue;
 
-			/*
-			 * TODO: source should not contain root-dir, ...
-			 * Can't change it not without to make the uuid useless.
-			 *
-			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, filename);
-			*/
-			ni_compat_netdev_client_state_set(compat->dev, pathbuf);
+			ni_compat_netdev_set_origin(compat, result->schema, pathbuf);
 			ni_compat_netdev_array_append(&result->netdevs, compat);
 		}
 
@@ -244,14 +247,9 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 						"WAIT_FOR_INTERFACES",
 						&ni_wait_for_interfaces);
 		}
-	} else
-	if (ni_file_exists(pathname)) {
+	} else {
 		ni_error("Cannot use '%s' to read suse ifcfg files -- not a directory",
 				pathname);
-		goto done;
-	} else
-	if (!ni_string_empty(path)) {
-		ni_error("Configuration directory '%s' does not exist", pathname);
 		goto done;
 	}
 
@@ -282,8 +280,7 @@ __ni_suse_read_default_hostname(const char *root, char **hostname)
 	ni_string_free(hostname);
 
 	for (name = filenames; name && !ni_string_empty(*name); name++) {
-		snprintf(filename, sizeof(filename), "%s%s",
-				ni_string_empty(root) ? "" : root, *name);
+		snprintf(filename, sizeof(filename), "%s%s", root, *name);
 
 		if (!ni_isreg(filename))
 			continue;
@@ -310,12 +307,10 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 	char dirname[PATH_MAX];
 	char pathbuf[PATH_MAX];
 	const char *name;
+	char *real = NULL;
 	unsigned int i;
 
 	ni_var_array_destroy(&__ni_suse_global_ifsysctl);
-
-	if (ni_string_empty(root))
-		root = "";
 
 	/*
 	 * canonicalize all files to avoid parsing them multiple
@@ -328,28 +323,36 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 			for (i = 0; i < names.count; ++i) {
 				snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
 						dirname, names.data[i]);
-				name = canonicalize_file_name(pathbuf);
+				name = ni_realpath(pathbuf, &real);
 				if (name)
 					ni_string_array_append(&files, name);
+				ni_string_free(&real);
 			}
 		}
 		ni_string_array_destroy(&names);
 	}
 
 	snprintf(pathbuf, sizeof(pathbuf), "%s%s", root, __NI_SUSE_SYSCTL_FILE);
-	name = canonicalize_file_name(pathbuf);
+	name = ni_realpath(pathbuf, &real);
 	if (name && ni_isreg(name)) {
 		if (ni_string_array_index(&files, name) == -1)
 			ni_string_array_append(&files, name);
 	}
+	ni_string_free(&real);
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s%s/%s", root, path,
-						__NI_SUSE_IFSYSCTL_FILE);
-	name = canonicalize_file_name(pathbuf);
+	if (ni_string_empty(root))
+		snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
+				path, __NI_SUSE_IFSYSCTL_FILE);
+	else
+		snprintf(pathbuf, sizeof(pathbuf), "%s/%s/%s",
+				root, path, __NI_SUSE_IFSYSCTL_FILE);
+
+	name = ni_realpath(pathbuf, &real);
 	if (name && ni_isreg(name)) {
 		if (ni_string_array_index(&files, name) == -1)
 			ni_string_array_append(&files, name);
 	}
+	ni_string_free(&real);
 
 	for (i = 0; i < files.count; ++i) {
 		name = files.data[i];
@@ -363,11 +366,11 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
  * Read global ifconfig files like config, dhcp and routes
  */
 static ni_bool_t
-__ni_suse_read_globals(const char *root, const char *path)
+__ni_suse_read_globals(const char *root, const char *path, const char *real)
 {
 	char pathbuf[PATH_MAX];
 
-	if (path == NULL) {
+	if (path == NULL || real == NULL) {
 		ni_error("%s: path is NULL", __func__);
 		return FALSE;
 	}
@@ -376,7 +379,7 @@ __ni_suse_read_globals(const char *root, const char *path)
 
 	__ni_suse_read_default_hostname(root, &__ni_suse_default_hostname);
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, __NI_SUSE_CONFIG_GLOBAL);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", real, __NI_SUSE_CONFIG_GLOBAL);
 	if (ni_file_exists(pathbuf)) {
 		__ni_suse_config_defaults = ni_sysconfig_read(pathbuf);
 		if (__ni_suse_config_defaults == NULL) {
@@ -387,7 +390,7 @@ __ni_suse_read_globals(const char *root, const char *path)
 		ni_warn("unable to find global config '%s': %m", pathbuf);
 	}
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, __NI_SUSE_CONFIG_DHCP);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", real, __NI_SUSE_CONFIG_DHCP);
 	if (ni_file_exists(pathbuf)) {
 		__ni_suse_dhcp_defaults = ni_sysconfig_read(pathbuf);
 		if (__ni_suse_dhcp_defaults == NULL) {
@@ -398,7 +401,7 @@ __ni_suse_read_globals(const char *root, const char *path)
 		ni_warn("unable to find global config '%s': %m", pathbuf);
 	}
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, __NI_SUSE_ROUTES_GLOBAL);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", real, __NI_SUSE_ROUTES_GLOBAL);
 	if (ni_file_exists(pathbuf)) {
 		if (!__ni_suse_read_routes(&__ni_suse_global_routes, pathbuf, NULL))
 			return FALSE;

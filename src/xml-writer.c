@@ -195,7 +195,7 @@ xml_node_hash(const xml_node_t *node, unsigned int algo,
 }
 
 int
-xml_node_uuid(const xml_node_t *doc, unsigned int version,
+xml_node_uuid(const xml_node_t *node, unsigned int version,
 		const ni_uuid_t *namespace, ni_uuid_t *uuid)
 {
 	xml_writer_t writer;
@@ -212,11 +212,32 @@ xml_node_uuid(const xml_node_t *doc, unsigned int version,
 		return -1;
 
 	ni_hashctx_put(writer.hash, namespace, sizeof(*namespace));
-	xml_node_output(doc, &writer, 0);
+	xml_node_output(node, &writer, 0);
 	if (xml_writer_destroy_get_hash(&writer, uuid, sizeof(*uuid)) < 0)
 		return -1;
 
 	return ni_uuid_set_version(uuid, version);
+}
+
+int
+xml_node_content_uuid(const xml_node_t *node, unsigned int version,
+		const ni_uuid_t *namespace, ni_uuid_t *uuid)
+{
+	xml_node_t *temp;
+	int ret;
+
+	if (!node->name && !node->attrs.count)
+		return xml_node_uuid(node, version, namespace, uuid);
+
+	/* create a "root like" copy of the node with it's
+	 * children/cdata, but without node name or attrs. */
+	temp = xml_node_clone(node, NULL);
+	ni_var_array_destroy(&temp->attrs);
+	ni_string_free(&temp->name);
+
+	ret = xml_node_uuid(temp, version, namespace, uuid);
+	xml_node_free(temp);
+	return ret;
 }
 
 int

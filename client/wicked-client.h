@@ -97,6 +97,7 @@ typedef struct ni_compat_netdev_array {
 } ni_compat_netdev_array_t;
 
 typedef struct ni_compat_ifconfig {
+	char *			schema;
 	unsigned int		timeout;
 
 	ni_compat_netdev_array_t netdevs;
@@ -111,12 +112,10 @@ extern void			ni_compat_netdev_array_init(ni_compat_netdev_array_t *);
 extern void			ni_compat_netdev_array_append(ni_compat_netdev_array_t *, ni_compat_netdev_t *);
 extern void			ni_compat_netdev_array_destroy(ni_compat_netdev_array_t *);
 
-extern void			ni_compat_ifconfig_init(ni_compat_ifconfig_t *);
+extern void			ni_compat_ifconfig_init(ni_compat_ifconfig_t *, const char *);
 extern void			ni_compat_ifconfig_destroy(ni_compat_ifconfig_t *);
-
 extern unsigned int		ni_compat_generate_interfaces(xml_document_array_t *, ni_compat_ifconfig_t *, ni_bool_t, ni_bool_t);
-
-extern void			ni_compat_netdev_client_state_set(ni_netdev_t *, const char *);
+extern void			ni_compat_netdev_set_origin(ni_compat_netdev_t *, const char *, const char *);
 
 extern ni_bool_t		ni_ifconfig_read(xml_document_array_t *, const char *, const char *, ni_bool_t, ni_bool_t);
 extern ni_bool_t		ni_ifconfig_load(ni_fsm_t *, const char *, ni_string_array_t *, ni_bool_t, ni_bool_t);
@@ -124,10 +123,10 @@ extern ni_bool_t		ni_ifconfig_load(ni_fsm_t *, const char *, ni_string_array_t *
 extern const ni_string_array_t *ni_config_sources(const char *);
 
 extern ni_bool_t		ni_ifconfig_validate_adding_doc(xml_document_t *, ni_bool_t);
-extern void			ni_ifconfig_metadata_generate(ni_client_state_config_t *, const char *, const char *);
 extern void			ni_ifconfig_metadata_add_to_node(xml_node_t *, ni_client_state_config_t *);
 extern ni_bool_t		ni_ifconfig_metadata_get_from_node(ni_client_state_config_t *, xml_node_t *);
 extern void			ni_ifconfig_metadata_clear(xml_node_t *);
+extern const char *		ni_ifconfig_format_origin(char **, const char *, const char *);
 
 typedef struct ni_nanny_fsm_monitor	ni_nanny_fsm_monitor_t;
 

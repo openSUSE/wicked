@@ -224,7 +224,13 @@ main(int argc, char **argv)
 			break;
 
 		case OPT_ROOTDIR:
-			opt_global_rootdir = optarg;
+			if (!ni_realpath(optarg, &opt_global_rootdir)) {
+				fprintf(stderr, "Invalid root-directory path '%s': %m\n", optarg);
+				status = NI_WICKED_RC_ERROR;
+				goto done;
+			}
+			if (ni_string_eq(opt_global_rootdir, "/"))
+				ni_string_free(&opt_global_rootdir);
 			break;
 
 		case OPT_SYSTEMD:
@@ -315,6 +321,7 @@ main(int argc, char **argv)
 
 done:
 	ni_debug_application("Exit with status: %d", status);
+	ni_string_free(&opt_global_rootdir);
 	return status;
 }
 
@@ -724,7 +731,7 @@ do_show_config(int argc, char **argv, const char *root_schema)
 			if (!root_schema || !strcmp(root_schema, cs_array->data[i])) {
 				if (!ni_ifconfig_read(&docs, opt_global_rootdir,
 				    cs_array->data[i], FALSE, opt_raw)) {
-					ni_error("Unable to read config source from %s",
+					ni_error("Unable to read config source %s",
 						cs_array->data[i]);
 					return 1;
 				}
@@ -741,7 +748,7 @@ do_show_config(int argc, char **argv, const char *root_schema)
 
 			if (!ni_ifconfig_read(&docs, opt_global_rootdir,
 			    path, FALSE, opt_raw)) {
-				ni_error("Unable to read config source from %s", path);
+				ni_error("Unable to read config source %s", path);
 				return 1;
 			}
 

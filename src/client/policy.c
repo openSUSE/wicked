@@ -58,8 +58,9 @@ ni_ifconfig_generate_uuid(const xml_node_t *config, ni_uuid_t *uuid)
 		}
 	};
 	memset(uuid, 0, sizeof(*uuid));
-	/* Generate a version 5 (SHA1) UUID */
-	return xml_node_uuid(config, 5, &ns, uuid) == 0;
+
+	/* Generate a version 5 (SHA1) UUID, of the node _content_ */
+	return xml_node_content_uuid(config, 5, &ns, uuid) == 0;
 }
 
 static xml_node_t *
@@ -246,7 +247,7 @@ ni_convert_cfg_into_policy_doc(xml_document_t *ifconfig)
 		return NULL;
 
 	root = xml_document_root(ifconfig);
-	origin = xml_node_get_location_filename(root);
+	origin = xml_node_location_filename(root);
 
 	for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
 		if (ni_ifpolicy_is_valid(ifnode)) {

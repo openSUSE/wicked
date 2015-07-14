@@ -76,47 +76,46 @@ __ni_netconfig_firmware_discovery(const char *root, const char *type, const char
 /*
  * Run the netif firmware discovery scripts and return their output
  * as an XML document.
- * The optional type and path parameters allow to specify the type
- * of the firmware (e.g. ibft) and a firmware specific path, passed
- * as last argument to the discovery script.
+ * The optional from parameter allow to specify the firmware extension
+ * type (e.g. ibft) and a firmware type specific path (e.g. ethernet0),
+ * passed as last argument to the discovery script.
  */
 xml_document_t *
-ni_netconfig_firmware_discovery(const char *root, const char *type)
+ni_netconfig_firmware_discovery(const char *root, const char *from)
 {
 	ni_buffer_t *buffer;
 	xml_document_t *doc;
-	char *source = NULL;
-	char *temp = NULL;
+	char *path = NULL;
+	char *type = NULL;
 
 	/* sanity adjustments... */
 	if (ni_string_empty(root))
 		root = NULL;
-	if (ni_string_empty(type))
-		type = NULL;
+
+	if (ni_string_empty(from))
+		from = NULL;
 	else {
-		ni_string_dup(&temp, type);
+		ni_string_dup(&type, from);
 
-		if ((source = strchr(temp, ':')))
-			*source++ = '\0';
+		if ((path = strchr(type, ':')))
+			*path++ = '\0';
 
-		if (ni_string_empty(source))
-			source = NULL;
-
-		if (!ni_string_empty(temp))
-			type = temp;
+		if (ni_string_empty(path))
+			path = NULL;
 	}
 
-	buffer = __ni_netconfig_firmware_discovery(root, type, source);
+	buffer = __ni_netconfig_firmware_discovery(root, type, path);
 	if (buffer == NULL) {
-		ni_string_free(&temp);
+		ni_string_free(&type);
 		return NULL;
 	}
-	ni_string_free(&temp);
 
-	ni_debug_ifconfig("%s: buffer %s%s%s has %u bytes", __func__, (type ? type : ""),
-			(type ? ":" : ""), (source ? source : ""), ni_buffer_count(buffer));
-	doc = xml_document_from_buffer(buffer, NULL);
+	ni_debug_ifconfig("%s: %s%sbuffer has %u bytes", __func__,
+			(from ? from : ""), (from ? " ": ""),
+			ni_buffer_count(buffer));
+	doc = xml_document_from_buffer(buffer, from);
 	ni_buffer_free(buffer);
+	ni_string_free(&type);
 
 	if (doc == NULL)
 		ni_error("%s: error processing document", __func__);

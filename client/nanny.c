@@ -108,7 +108,7 @@ do_nanny_addpolicy(int argc, char **argv)
 			xml_node_t *root = xml_document_root(docs.data[i]);
 
 			ni_error("Unable to add policies from %s file",
-				xml_node_get_location_filename(root));
+				xml_node_location_filename(root));
 		}
 	}
 
@@ -312,7 +312,7 @@ ni_nanny_addpolicy(xml_document_t *doc)
 		return count;
 
 	root = xml_document_root(doc);
-	origin = xml_node_get_location_filename(root);
+	origin = xml_node_location_filename(root);
 
 	if (!ni_convert_cfg_into_policy_doc(doc)) {
 		ni_debug_ifconfig("Unable to convert %s from %s to %s",

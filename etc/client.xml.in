@@ -17,6 +17,6 @@
   <sources>
     <ifconfig location="firmware:" />
     <ifconfig location="compat:" />
-    <ifconfig location="wicked:@wicked_configdir@/ifconfig" />
+    <ifconfig location="wicked:" />
   </sources>
 </config>

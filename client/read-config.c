@@ -215,7 +215,7 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *opt_ifconfi
 		const char *origin;
 
 		root = xml_document_root(docs.data[i]);
-		origin = xml_node_get_location_filename(root);
+		origin = xml_node_location_filename(root);
 		for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
 			/* We do not fail when unable to generate ifworker */
 			ni_fsm_workers_from_xml(fsm, ifnode, origin);
@@ -350,7 +350,7 @@ ni_ifconfig_validate_adding_doc(xml_document_t *config_doc, ni_bool_t check_prio
 		return TRUE;
 
 	src_root = xml_document_root(config_doc);
-	src_prio = __ni_ifconfig_origin_get_prio(xml_node_get_location_filename(src_root));
+	src_prio = __ni_ifconfig_origin_get_prio(xml_node_location_filename(src_root));
 
 	/* Go through all config_doc's <interfaces> */
 	for (src_child = src_root->children; src_child; src_child = src_child->next) {
@@ -370,8 +370,8 @@ ni_ifconfig_validate_adding_doc(xml_document_t *config_doc, ni_bool_t check_prio
 			return FALSE;
 
 		if (rv && dst_prio < src_prio) {
-			ni_warn("Ignoring config %s because of higher prio config",
-				xml_node_get_location_filename(src_root));
+			ni_warn("Ignoring %s config %s because of higher prio config",
+				ifname, xml_node_location_filename(src_root));
 			return FALSE;
 		}
 
@@ -382,15 +382,18 @@ ni_ifconfig_validate_adding_doc(xml_document_t *config_doc, ni_bool_t check_prio
 }
 
 /*
- * Read ifconfig file
+ * Read ifconfig
  */
 static ni_bool_t
-__ni_ifconfig_xml_read_file(xml_document_array_t *docs, const char *root, const char *pathname, ni_bool_t check_prio, ni_bool_t raw)
+ni_ifconfig_read_wicked_xml_file(xml_document_array_t *docs, const char *type,
+			const char *root, const char *pathname, ni_bool_t check_prio, ni_bool_t raw)
 {
-	xml_document_t *config_doc;
+	ni_client_state_config_t conf = NI_CLIENT_STATE_CONFIG_INIT;
 	char pathbuf[PATH_MAX] = {'\0'};
+	xml_document_t *config_doc;
+	xml_node_t *rnode, *cnode, *next;
 
-	if (root) {
+	if (!ni_string_empty(root)) {
 		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", root, pathname);
 		pathname = pathbuf;
 	}
@@ -400,23 +403,47 @@ __ni_ifconfig_xml_read_file(xml_document_array_t *docs, const char *root, const 
 		return FALSE;
 	}
 
-	if (!raw) {
-		ni_client_state_config_t conf = NI_CLIENT_STATE_CONFIG_INIT;
-		ni_ifconfig_metadata_generate(&conf, "wicked", pathname);
-		ni_ifconfig_metadata_add_to_node(config_doc->root, &conf);
-		ni_string_free(&conf.origin);
+	/* Modify shared location in the document to use origin */
+	rnode = xml_document_root(config_doc);
+	ni_ifconfig_format_origin(&conf.origin, type, pathname);
+	xml_node_location_modify(rnode, conf.origin);
+
+	/* Move each (interface/policy/template) child node into
+	 * a separate document, adjust it's location and add them
+	 * to the result array.
+	 */
+	for (cnode = rnode->children; cnode; cnode = next) {
+		xml_document_t *doc;
+		xml_node_t *node;
+
+		next = cnode->next;
+		doc = xml_document_new();
+		node = xml_document_root(doc);
+
+		xml_node_location_set(node, xml_location_clone(cnode->location));
+		xml_node_reparent(node, cnode);
+
+		ni_ifconfig_metadata_clear(node);
+		if (!raw)
+			ni_ifconfig_metadata_add_to_node(node, &conf);
+
+		if (ni_ifconfig_validate_adding_doc(doc, check_prio)) {
+			ni_debug_ifconfig("%s: %s", __func__, xml_node_location(node));
+			xml_document_array_append(docs, doc);
+		} else {
+			xml_document_free(doc);
+		}
 	}
 
-	if (ni_ifconfig_validate_adding_doc(config_doc, check_prio))
-		xml_document_array_append(docs, config_doc);
-	else
-		xml_document_free(config_doc);
+	ni_client_state_config_reset(&conf);
+	xml_document_free(config_doc);
 
 	return TRUE;
 }
 
 static ni_bool_t
-__ni_ifconfig_xml_read_dir(xml_document_array_t *docs, const char *root, const char *pathname, ni_bool_t check_prio, ni_bool_t raw)
+ni_ifconfig_read_wicked_xml_dir(xml_document_array_t *docs, const char *type,
+			const char *root, const char *pathname, ni_bool_t check_prio, ni_bool_t raw)
 {
 	char pathbuf[PATH_MAX] = {'\0'};
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
@@ -425,7 +452,7 @@ __ni_ifconfig_xml_read_dir(xml_document_array_t *docs, const char *root, const c
 
 	ni_assert(docs);
 
-	if (root) {
+	if (!ni_string_empty(root)) {
 		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", root, pathname);
 		pathname = pathbuf;
 	}
@@ -433,7 +460,7 @@ __ni_ifconfig_xml_read_dir(xml_document_array_t *docs, const char *root, const c
 	if (ni_scandir(pathname, "*.xml", &files) != 0) {
 		for (i = 0; i < files.count; ++i) {
 			/* Ignore wrong xml config files - warning only */
-			if (__ni_ifconfig_xml_read_file(docs, pathname, files.data[i], check_prio, raw))
+			if (ni_ifconfig_read_wicked_xml_file(docs, type, pathname, files.data[i], check_prio, raw))
 				empty = FALSE;
 		}
 	}
@@ -450,19 +477,26 @@ ni_ifconfig_read_wicked_xml(xml_document_array_t *array, const char *type,
 			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
 {
 	char *ifconfig_dir = NULL;
+	char pathbuf[PATH_MAX];
 	ni_bool_t rv = FALSE;
 
 	if (ni_string_empty(path)) {
-		ni_string_printf(&ifconfig_dir, "%s/%s", ni_get_global_config_dir(),
-				"ifconfig");
+		ni_string_printf(&ifconfig_dir, "%s/%s", ni_get_global_config_dir(), "ifconfig");
 		path = ifconfig_dir;
+		rv = TRUE; /* do not fail if default path does not exist */
+	}
+
+	if (ni_string_empty(root)) {
+		snprintf(pathbuf, sizeof(pathbuf), "%s", path);
+	} else {
+		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", root, path);
 	}
 
 	/* At the moment only XML is supported */
-	if (ni_isreg(path))
-		rv = __ni_ifconfig_xml_read_file(array, root, path, check_prio, raw);
-	else if (ni_isdir(path))
-		rv = __ni_ifconfig_xml_read_dir(array, root, path, check_prio, raw);
+	if (ni_isreg(pathbuf))
+		rv = ni_ifconfig_read_wicked_xml_file(array, type, root, path, check_prio, raw);
+	else if (ni_isdir(pathbuf))
+		rv = ni_ifconfig_read_wicked_xml_dir(array, type, root, path, check_prio, raw);
 
 	ni_string_free(&ifconfig_dir);
 	return rv;
@@ -511,7 +545,8 @@ ni_ifconfig_read_compat_suse(xml_document_array_t *array, const char *type,
 	ni_compat_ifconfig_t conf;
 	ni_bool_t rv;
 
-	ni_compat_ifconfig_init(&conf);
+	ni_compat_ifconfig_init(&conf, type);
+
 	/* TODO: apply timeout */
 	if ((rv = __ni_suse_get_ifconfig(root, path, &conf))) {
 		ni_compat_generate_interfaces(array, &conf, check_prio, raw);
@@ -529,7 +564,7 @@ ni_ifconfig_read_compat_redhat(xml_document_array_t *array, const char *type,
 	ni_compat_ifconfig_t conf;
 	ni_bool_t rv;
 
-	ni_compat_ifconfig_init(&conf);
+	ni_compat_ifconfig_init(&conf, type);
 	if ((rv = __ni_redhat_get_ifconfig(root, path, &conf))) {
 		ni_compat_generate_interfaces(array, &conf, check_prio, raw);
 	}
@@ -571,72 +606,68 @@ ni_ifconfig_read_compat(xml_document_array_t *array, const char *type,
 	return FALSE;
 }
 
-void
-ni_ifconfig_metadata_generate(ni_client_state_config_t *conf, const char *schema, const char *filename)
-{
-	char *origin = NULL;
-
-	if (!conf)
-		return;
-
-	if (schema || filename) {
-		ni_string_printf(&origin, "%s%s%s",
-			(schema ? schema : ""),
-			(schema ? ":" : ""),
-			(filename ? filename : ""));
-	}
-
-	ni_client_state_config_reset(conf);
-	if (!ni_string_empty(origin))
-		conf->origin = origin;
-	if (ni_file_exists(filename))
-		ni_uuid_for_file(&conf->uuid, filename);
-	else
-		ni_uuid_generate(&conf->uuid);
- }
-
 ni_bool_t
 ni_ifconfig_read_firmware(xml_document_array_t *array, const char *type,
 			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
 {
 	xml_document_t *config_doc;
 	ni_client_state_config_t conf = NI_CLIENT_STATE_CONFIG_INIT;
-	xml_node_t *rnode;
+	xml_node_t *rnode, *cnode, *next;
 
 	config_doc = ni_netconfig_firmware_discovery(root, path);
-
 	if (!config_doc) {
 		ni_error("unable to get firmware interface definitions from %s:%s",
 			type, path);
 		return FALSE;
 	}
 
+	/*
+	 * Firmware is expected to provide a more exact origin
+	 * than we can set here, just read it from the nodes.
+	 */
 	rnode = xml_document_root(config_doc);
-	if (!ni_ifconfig_metadata_get_from_node(&conf, rnode)) {
-		ni_ifconfig_metadata_generate(&conf, "firmware", path);
+	for (cnode = rnode->children; cnode; cnode = next) {
+		xml_document_t *doc;
+		xml_node_t *node;
+
+		next = cnode->next;
+		doc = xml_document_new();
+		node = xml_document_root(doc);
+
+		if (!ni_ifconfig_metadata_get_from_node(&conf, rnode))
+			ni_ifconfig_format_origin(&conf.origin, type, path);
+
+		xml_node_reparent(node, cnode);
+		xml_node_location_relocate(node, conf.origin);
+
+		ni_ifconfig_metadata_clear(node);
 		if (!raw)
-			ni_ifconfig_metadata_add_to_node(rnode, &conf);
-	}
-	else if (raw) {
-		ni_ifconfig_metadata_clear(rnode);
-	}
+			ni_ifconfig_metadata_add_to_node(node, &conf);
 
-	/* Add location */
-	if (!ni_string_empty(conf.origin)) {
-		xml_location_set(rnode, xml_location_create(conf.origin, 0));
-		ni_debug_ifconfig("%s: location: %s, line: %u", __func__,
-			xml_node_get_location_filename(rnode),
-			xml_node_get_location_line(rnode));
+		if (ni_ifconfig_validate_adding_doc(doc, check_prio)) {
+			ni_debug_ifconfig("%s: %s", __func__, xml_node_location(node));
+			xml_document_array_append(array, doc);
+		} else {
+			xml_document_free(doc);
+		}
 	}
 
-	if (ni_ifconfig_validate_adding_doc(config_doc, check_prio))
-		xml_document_array_append(array, config_doc);
-	else
-		xml_document_free(config_doc);
+	ni_client_state_config_reset(&conf);
+	xml_document_free(config_doc);
 
-	(void) check_prio;
-	ni_string_free(&conf.origin);
 	return TRUE;
+}
+
+const char *
+ni_ifconfig_format_origin(char **origin, const char *schema, const char *path)
+{
+	ni_string_printf(origin, "%s%s%s", (schema ? schema : ""),
+			(schema ? ":" : ""), (path ? path : ""));
+
+	if (ni_string_empty(*origin))
+		ni_string_free(origin);
+
+	return *origin;
 }
 
 void
@@ -711,3 +742,4 @@ ni_ifconfig_metadata_clear(xml_node_t *root)
 		xml_node_del_attr(ifnode, NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE);
 	}
 }
+

@@ -107,6 +107,7 @@ extern int		xml_node_print(const xml_node_t *, FILE *fp);
 extern char *		xml_node_sprint(const xml_node_t *);
 extern int		xml_node_hash(const xml_node_t *, ni_hashctx_algo_t, void *md_buffer, size_t md_bufsz);
 extern int		xml_node_uuid(const xml_node_t *, unsigned int, const ni_uuid_t *, ni_uuid_t *);
+extern int		xml_node_content_uuid(const xml_node_t *, unsigned int, const ni_uuid_t *, ni_uuid_t *);
 extern int		xml_node_print_fn(const xml_node_t *, void (*)(const char *, void *), void *);
 extern int		xml_node_print_debug(const xml_node_t *, unsigned int facility);
 extern xml_node_t *	xml_node_scan(FILE *fp, const char *location);
@@ -144,14 +145,16 @@ extern xml_node_t *	xml_node_get_next_named(xml_node_t *, const char *, xml_node
 extern ni_bool_t	xml_node_match_attrs(const xml_node_t *, const ni_var_array_t *);
 
 extern const char *	xml_node_get_path(ni_stringbuf_t *, const xml_node_t *, const xml_node_t *);
-inline const char *	xml_node_get_location_filename(const xml_node_t *);
-inline unsigned int	xml_node_get_location_line(const xml_node_t *);
-extern const char *	xml_node_location(const xml_node_t *);
+
 extern void		xml_location_free(xml_location_t *);
 extern xml_location_t *	xml_location_clone(const xml_location_t *);
 inline xml_location_t *	xml_location_create(const char *, unsigned int);
-extern void		xml_location_modify(xml_node_t *, const char *);
-extern void		xml_location_set(xml_node_t *, xml_location_t *);
+inline const char *	xml_node_location_filename(const xml_node_t *);
+inline unsigned int	xml_node_location_line(const xml_node_t *);
+extern const char *	xml_node_location(const xml_node_t *);
+extern void		xml_node_location_set(xml_node_t *, xml_location_t *);
+extern void		xml_node_location_modify(xml_node_t *, const char *);
+extern void		xml_node_location_relocate(xml_node_t *, const char *);
 
 extern void		xml_document_array_init(xml_document_array_t *);
 extern void		xml_document_array_destroy(xml_document_array_t *);
