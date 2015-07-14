@@ -870,7 +870,7 @@ ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
  * <sources>
  *   <ifconfig location="firmware:" />
  *   <ifconfig location="compat:" />
- *   <ifconfig location="wicked:/etc/wicked/ifconfig" />
+ *   <ifconfig location="wicked:" />
  * </sources>
  *
  */

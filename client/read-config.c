@@ -481,9 +481,9 @@ ni_ifconfig_read_wicked_xml(xml_document_array_t *array, const char *type,
 	ni_bool_t rv = FALSE;
 
 	if (ni_string_empty(path)) {
-		ni_string_printf(&ifconfig_dir, "%s/%s", ni_get_global_config_dir(),
-				"ifconfig");
+		ni_string_printf(&ifconfig_dir, "%s/%s", ni_get_global_config_dir(), "ifconfig");
 		path = ifconfig_dir;
+		rv = TRUE; /* do not fail if default path does not exist */
 	}
 
 	if (ni_string_empty(root)) {
