@@ -679,8 +679,6 @@ ni_ifconfig_metadata_add_to_node(xml_node_t *root, ni_client_state_config_t *con
 		return;
 
 	while ((ifnode = xml_node_get_next_child(root, root->children->name, ifnode))) {
-		ni_ifconfig_generate_uuid(ifnode, &conf->uuid);
-
 		xml_node_add_attr(ifnode,
 				NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE,
 					conf->origin);
