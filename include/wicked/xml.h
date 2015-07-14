@@ -107,6 +107,7 @@ extern int		xml_node_print(const xml_node_t *, FILE *fp);
 extern char *		xml_node_sprint(const xml_node_t *);
 extern int		xml_node_hash(const xml_node_t *, ni_hashctx_algo_t, void *md_buffer, size_t md_bufsz);
 extern int		xml_node_uuid(const xml_node_t *, unsigned int, const ni_uuid_t *, ni_uuid_t *);
+extern int		xml_node_content_uuid(const xml_node_t *, unsigned int, const ni_uuid_t *, ni_uuid_t *);
 extern int		xml_node_print_fn(const xml_node_t *, void (*)(const char *, void *), void *);
 extern int		xml_node_print_debug(const xml_node_t *, unsigned int facility);
 extern xml_node_t *	xml_node_scan(FILE *fp, const char *location);
