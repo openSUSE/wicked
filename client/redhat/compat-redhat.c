@@ -55,7 +55,7 @@ static ni_compat_netdev_t *__ni_redhat_define_alias(ni_sysconfig_t *, const char
  * Refresh network configuration by reading all ifcfg files.
  */
 static ni_bool_t
-__ni_redhat_get_interfaces(const char *root, const char *path, ni_compat_netdev_array_t *result)
+__ni_redhat_get_interfaces(const char *root, const char *path, ni_compat_ifconfig_t *config)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	ni_bool_t success = FALSE;
@@ -95,10 +95,10 @@ __ni_redhat_get_interfaces(const char *root, const char *path, ni_compat_netdev_
 			ni_compat_netdev_t *compat;
 
 			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", pathname, filename);
-			if (!(compat = __ni_redhat_read_interface(pathbuf, ifname, result)))
+			if (!(compat = __ni_redhat_read_interface(pathbuf, ifname, &config->netdevs)))
 				goto done;
 
-			ni_compat_netdev_client_state_set(compat->dev, pathbuf);
+			ni_compat_netdev_set_origin(compat, config->schema, pathbuf);
 		}
 	} else {
 		ni_error("Cannot use '%s' to read redhat ifcfg files -- not a directory",
@@ -118,7 +118,7 @@ ni_bool_t
 __ni_redhat_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t *result)
 {
 	/* get global control things here */
-	return __ni_redhat_get_interfaces(root, path, &result->netdevs);
+	return __ni_redhat_get_interfaces(root, path, result);
 }
 
 

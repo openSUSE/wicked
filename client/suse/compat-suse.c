@@ -236,13 +236,7 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 			if (!(compat = __ni_suse_read_interface(pathbuf, ifname)))
 				continue;
 
-			/*
-			 * TODO: source should not contain root-dir, ...
-			 * Can't change it not without to make the uuid useless.
-			 *
-			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, filename);
-			*/
-			ni_compat_netdev_client_state_set(compat->dev, pathbuf);
+			ni_compat_netdev_set_origin(compat, result->schema, pathbuf);
 			ni_compat_netdev_array_append(&result->netdevs, compat);
 		}
 

@@ -56,15 +56,17 @@
  * Compat ifconfig handling functions
  */
 void
-ni_compat_ifconfig_init(ni_compat_ifconfig_t *conf)
+ni_compat_ifconfig_init(ni_compat_ifconfig_t *conf, const char *schema)
 {
 	memset(conf, 0, sizeof(*conf));
+	ni_string_dup(&conf->schema, schema);
 }
 
 void
 ni_compat_ifconfig_destroy(ni_compat_ifconfig_t *conf)
 {
 	if (conf) {
+		ni_string_free(&conf->schema);
 		ni_compat_netdev_array_destroy(&conf->netdevs);
 	}
 }
@@ -181,15 +183,18 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 }
 
 void
-ni_compat_netdev_client_state_set(ni_netdev_t *dev, const char *filename)
+ni_compat_netdev_set_origin(ni_compat_netdev_t *compat, const char *schema, const char *path)
 {
 	ni_client_state_t *cs;
 
-	if (!dev)
+	if (!compat || !compat->dev || ni_string_empty(schema) || ni_string_empty(path))
 		return;
 
-	cs = ni_netdev_get_client_state(dev);
-	ni_ifconfig_metadata_generate(&cs->config, "compat", filename);
+	if (!(cs = ni_netdev_get_client_state(compat->dev)))
+		return;
+
+	ni_client_state_config_reset(&cs->config);
+	ni_ifconfig_format_origin(&cs->config.origin, schema, path);
 }
 
 /*
@@ -1605,7 +1610,7 @@ ni_compat_generate_ifcfg(const ni_compat_netdev_t *compat, xml_document_t *doc)
 {
 	xml_node_t *ifnode, *namenode;
 
-	ifnode = xml_node_new("interface", doc->root);
+	ifnode = xml_node_new("interface", xml_document_root(doc));
 
 	namenode = xml_node_new("name", ifnode);
 	if (compat->identify.hwaddr.len &&
@@ -1625,6 +1630,7 @@ unsigned int
 ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t *ifcfg, ni_bool_t check_prio, ni_bool_t raw)
 {
 	xml_document_t *config_doc;
+	xml_node_t *root;
 	unsigned int i;
 
 	if (!ifcfg)
@@ -1636,26 +1642,23 @@ ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t 
 		ni_client_state_config_t *conf = &cs->config;
 
 		config_doc = xml_document_new();
+		root = xml_document_root(config_doc);
+
+		if (ni_string_empty(conf->origin))
+			ni_string_dup(&conf->origin, ifcfg->schema);
+
 		ni_compat_generate_ifcfg(compat, config_doc);
+		if (!raw)
+			ni_ifconfig_metadata_add_to_node(root, conf);
 
-		if (conf) {
-			xml_node_t *root = xml_document_root(config_doc);
+		xml_node_location_relocate(root, conf->origin);
 
-			if (!ni_string_empty(conf->origin)) {
-				xml_node_location_set(root, xml_location_create(conf->origin, 0));
-				ni_debug_ifconfig("%s: location: %s, line: %u", __func__,
-						xml_node_location_filename(root),
-						xml_node_location_line(root));
-			}
-
-			if (!raw)
-				ni_ifconfig_metadata_add_to_node(root, conf);
-		}
-
-		if (ni_ifconfig_validate_adding_doc(config_doc, check_prio))
+		if (ni_ifconfig_validate_adding_doc(config_doc, check_prio)) {
+			ni_debug_ifconfig("%s: location: %s", __func__, xml_node_location(root));
 			xml_document_array_append(array, config_doc);
-		else
+		} else {
 			xml_document_free(config_doc);
+		}
 	}
 
 	return i;
