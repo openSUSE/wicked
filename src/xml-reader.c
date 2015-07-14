@@ -884,6 +884,14 @@ xml_location_shared_new(const char *filename)
 	return shared_location;
 }
 
+static inline struct xml_location_shared *
+xml_location_shared_hold(struct xml_location_shared *sl)
+{
+	if (sl)
+		sl->refcount++;
+	return sl;
+}
+
 static inline void
 xml_location_shared_release(struct xml_location_shared *sl)
 {
@@ -929,6 +937,36 @@ xml_node_location_modify(xml_node_t *node, const char *filename)
 		}
 	}
 	xml_node_location_set(node, xml_location_create(filename, 0));
+}
+
+static void
+__xml_node_location_relocate(xml_node_t *node, struct xml_location_shared *shared)
+{
+	xml_node_t *child;
+
+	if (node->location) {
+		if (node->location->shared)
+			xml_location_shared_release(node->location->shared);
+		node->location->shared = xml_location_shared_hold(shared);
+	} else {
+		xml_node_location_set(node, xml_location_new(shared, 0));
+	}
+
+	for (child = node->children; child; child = child->next)
+		__xml_node_location_relocate(child, shared);
+}
+
+void
+xml_node_location_relocate(xml_node_t *node, const char *filename)
+{
+	struct xml_location_shared *shared;
+
+	if (node && !ni_string_empty(filename)) {
+		if ((shared = xml_location_shared_new(filename))) {
+			__xml_node_location_relocate(node, shared);
+			xml_location_shared_release(shared);
+		}
+	}
 }
 
 void
