@@ -38,6 +38,7 @@ static const char *	ni_errors[__NI_ERROR_MAX] = {
 [NI_ERROR_UNREACHABLE_ADDRESS]		= "Address not reachable",
 [NI_ERROR_POLICY_EXISTS]		= "Policy already exists",
 [NI_ERROR_POLICY_DOESNOTEXIST]		= "Policy does not exist",
+[NI_ERROR_POLICY_REPLACEFAILED]	= "Policy replace failed",
 [NI_ERROR_RADIO_DISABLED]		= "Wireless networking disabled",
 };
 

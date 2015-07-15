@@ -30,6 +30,7 @@
 #define NI_DBUS_ERROR_UNREACHABLE_ADDRESS	__NI_DBUS_ERROR(CannotReachAddress)
 #define NI_DBUS_ERROR_POLICY_EXISTS		__NI_DBUS_ERROR(PolicyExists)
 #define NI_DBUS_ERROR_POLICY_DOESNOTEXIST	__NI_DBUS_ERROR(PolicyDoesNotExist)
+#define NI_DBUS_ERROR_POLICY_REPLACEFAILED	__NI_DBUS_ERROR(PolicyReplaceFailed)
 #define NI_DBUS_ERROR_RADIO_DISABLED		__NI_DBUS_ERROR(RadioDisabled)
 
 /* Map dbus error strings to our internal error codes and vice versa */
