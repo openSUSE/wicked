@@ -45,7 +45,7 @@ ni_managed_policy_filename(const char *name, char *path, size_t size)
 }
 
 static ni_bool_t
-ni_managed_policy_save(xml_node_t *pnode)
+ni_managed_policy_save(const xml_node_t *pnode)
 {
 	char path[PATH_MAX] = {'\0'};
 	char temp[PATH_MAX] = {'\0'};
@@ -76,7 +76,6 @@ ni_managed_policy_save(xml_node_t *pnode)
 
 	if (xml_node_print(pnode, fp) < 0) {
 		ni_error("Cannot write into %s policy temp file", path);
-		xml_node_free(pnode);
 		goto failure;
 	}
 
