@@ -32,6 +32,7 @@
 #define NI_DBUS_ERROR_POLICY_DOESNOTEXIST	__NI_DBUS_ERROR(PolicyDoesNotExist)
 #define NI_DBUS_ERROR_POLICY_REPLACEFAILED	__NI_DBUS_ERROR(PolicyReplaceFailed)
 #define NI_DBUS_ERROR_POLICY_DELETEFAILED	__NI_DBUS_ERROR(PolicyDeleteFailed)
+#define NI_DBUS_ERROR_POLICY_UPDATEFAILED	__NI_DBUS_ERROR(PolicyUpdateFailed)
 #define NI_DBUS_ERROR_RADIO_DISABLED		__NI_DBUS_ERROR(RadioDisabled)
 
 /* Map dbus error strings to our internal error codes and vice versa */
