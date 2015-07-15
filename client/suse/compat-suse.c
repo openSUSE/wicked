@@ -3524,8 +3524,7 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ipv4 = ni_netdev_get_ipv4(dev);
 	ipv6 = ni_netdev_get_ipv6(dev);
 
-	/* Hmm... bonding slave -- set ethtool, but no link up */
-	if (ni_string_eq_nocase(bootproto, "none")) {
+	if (dev->link.masterdev.name || ni_string_eq_nocase(bootproto, "none")) {
 		if (ipv4)
 			ni_tristate_set(&ipv4->conf.enabled, FALSE);
 		if (ipv6)
@@ -4073,17 +4072,29 @@ __ni_suse_adjust_slaves(ni_compat_netdev_array_t *netdevs)
 	}
 }
 
+static ni_bool_t
+__ni_suse_read_linkinfo(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	const char *master;
+
+	ni_sysconfig_get_integer(sc, "MTU", &dev->link.mtu);
+
+	if (!ni_string_empty(master = ni_sysconfig_get_value(sc, "MASTER_DEVICE"))) {
+		if (!__ni_suse_set_link_master(dev, master, dev->name))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
 /*
  * Read an ifcfg file
  */
 static ni_bool_t
 __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
-	ni_netdev_t *dev = compat->dev;
-
 	compat->control = __ni_suse_startmode(sc);
-
-	ni_sysconfig_get_integer(sc, "MTU", &dev->link.mtu);
 
 	if (try_loopback(sc, compat)   < 0 ||
 	    try_bonding(sc, compat)    < 0 ||
@@ -4098,6 +4109,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	    try_ethernet(sc, compat)   < 0)
 		return FALSE;
 
+	__ni_suse_read_linkinfo(sc, compat);
 	__ni_suse_read_ifsysctl(sc, compat);
 	__ni_suse_bootproto(sc, compat);
 	__ni_suse_get_scripts(sc, compat);
