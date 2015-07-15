@@ -42,6 +42,7 @@ static ni_intmap_t	__ni_dbus_errors[] = {
 	{ DBUS_ERROR_ACCESS_DENIED,			NI_ERROR_PERMISSION_DENIED		},
 	{ DBUS_ERROR_NO_REPLY,				NI_ERROR_METHOD_CALL_TIMED_OUT		},
 	{ DBUS_ERROR_INVALID_ARGS,			NI_ERROR_INVALID_ARGS			},
+	{ DBUS_ERROR_FAILED,				NI_ERROR_GENERAL_FAILURE		},
 
 	{ NULL }
 };
@@ -95,4 +96,48 @@ ni_dbus_print_error(const DBusError *error, const char *fmt, ...)
 		ni_error("DBus call returns error:");
 	}
 	ni_error_extra("%s: %s", error->name, error->message);
+}
+
+dbus_bool_t
+ni_dbus_error_handler(DBusError *error, unsigned int errcode, const ni_dbus_object_t *object, const ni_dbus_method_t *method, const char *string)
+{
+	const char *path = object ? ni_dbus_object_get_path(object) : "unknown";
+	const char *name = method ? method->name : "unknown";
+	char *errmsg = NULL;
+
+	if (ni_string_empty(string))
+		string = "";
+
+	switch (errcode) {
+	case NI_ERROR_PROPERTY_NOT_PRESENT:
+		ni_string_printf(&errmsg, "Property \"%s\" not set", string);
+		break;
+	case NI_ERROR_INVALID_ARGS:
+		ni_string_printf(&errmsg, "Bad call arguments");
+		break;
+	case NI_ERROR_POLICY_DOESNOTEXIST:
+		ni_string_printf(&errmsg, "Policy does not exist");
+		break;
+	case NI_ERROR_POLICY_REPLACEFAILED:
+		ni_string_printf(&errmsg, "Policy \"%s\" replace attempt failed", string);
+		break;
+	case NI_ERROR_POLICY_DELETEFAILED:
+		ni_string_printf(&errmsg, "Policy \"%s\" delete attempt failed", string);
+		break;
+	case NI_ERROR_POLICY_UPDATEFAILED:
+		ni_string_printf(&errmsg, "Policy \"%s\" update attempt failed", string);
+		break;
+	case NI_ERROR_PERMISSION_DENIED:
+		ni_string_printf(&errmsg, "Permission denied to access %s", string);
+		break;
+	case NI_ERROR_GENERAL_FAILURE:
+	default:
+		errcode = NI_ERROR_GENERAL_FAILURE;
+		ni_string_printf(&errmsg, "General failure");
+		break;
+	}
+
+	ni_dbus_set_error_from_code(error, errcode, "Error in call to %s.%s: %s", path, name, errmsg);
+	ni_string_free(&errmsg);
+	return FALSE;
 }
