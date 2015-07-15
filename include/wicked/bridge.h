@@ -88,7 +88,8 @@ extern void		ni_bridge_ports_destroy(ni_bridge_t *);
 extern void		ni_bridge_status_destroy(ni_bridge_status_t *);
 extern void		ni_bridge_port_status_destroy(ni_bridge_port_status_t *);
 extern int		ni_bridge_add_port(ni_bridge_t *, ni_bridge_port_t *);
-extern int		ni_bridge_del_port(ni_bridge_t *, unsigned int ifindex);
+extern int		ni_bridge_del_port(ni_bridge_t *, unsigned int);
+extern int		ni_bridge_del_port_ifname(ni_bridge_t *, const char *);
 extern int		ni_bridge_del_port_ifindex(ni_bridge_t *, unsigned int);
 extern void		ni_bridge_get_port_names(const ni_bridge_t *, ni_string_array_t *);
 

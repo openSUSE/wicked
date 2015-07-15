@@ -175,14 +175,20 @@ ni_bridge_add_port(ni_bridge_t *bridge, ni_bridge_port_t *port)
 
 
 int
-ni_bridge_del_port(ni_bridge_t *bridge, unsigned int ifindex)
+ni_bridge_del_port(ni_bridge_t *bridge, unsigned int pos)
+{
+	return ni_bridge_port_array_remove_index(&bridge->ports, pos);
+}
+
+int
+ni_bridge_del_port_ifname(ni_bridge_t *bridge, const char *ifname)
 {
 	ni_bridge_port_t **pp, *port;
 	unsigned int i;
 
 	for (i = 0, pp = bridge->ports.data; i < bridge->ports.count; ++i) {
 		port = *pp++;
-		if (port->ifindex == ifindex) {
+		if (ni_string_eq(port->ifname, ifname)) {
 			ni_bridge_port_array_remove_index(&bridge->ports, i);
 			return 0;
 		}
