@@ -23,6 +23,7 @@ static ni_intmap_t	__ni_dbus_errors[] = {
 	{ NI_DBUS_ERROR_DEVICE_NOT_COMPATIBLE,		NI_ERROR_DEVICE_NOT_COMPATIBLE		},
 	{ NI_DBUS_ERROR_DEVICE_EXISTS,			NI_ERROR_DEVICE_EXISTS			},
 	{ NI_DBUS_ERROR_DEVICE_ENABLEFAILED,		NI_ERROR_DEVICE_ENABLEFAILED		},
+	{ NI_DBUS_ERROR_DEVICE_DISABLEFAILED,		NI_ERROR_DEVICE_DISABLEFAILED		},
 	{ NI_DBUS_ERROR_AUTH_INFO_MISSING,		NI_ERROR_AUTH_INFO_MISSING		},
 	{ NI_DBUS_ERROR_ADDRCONF_NO_LEASE,		NI_ERROR_ADDRCONF_NO_LEASE		},
 	{ NI_DBUS_ERROR_CANNOT_CONFIGURE_ADDRESS,	NI_ERROR_CANNOT_CONFIGURE_ADDRESS	},
@@ -133,6 +134,9 @@ ni_dbus_error_handler(DBusError *error, unsigned int errcode, const ni_dbus_obje
 		break;
 	case NI_ERROR_DEVICE_ENABLEFAILED:
 		ni_string_printf(&errmsg, "Device enable attempt failed");
+		break;
+	case NI_ERROR_DEVICE_DISABLEFAILED:
+		ni_string_printf(&errmsg, "Device disable attempt failed");
 		break;
 	case NI_ERROR_GENERAL_FAILURE:
 	default:

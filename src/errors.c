@@ -24,6 +24,7 @@ static const char *	ni_errors[__NI_ERROR_MAX] = {
 [NI_ERROR_DEVICE_NOT_COMPATIBLE]	= "Device not compatible with requested operation",
 [NI_ERROR_DEVICE_EXISTS]		= "Device already exists",
 [NI_ERROR_DEVICE_ENABLEFAILED]		= "Device enable failed",
+[NI_ERROR_DEVICE_DISABLEFAILED]	= "Device disable failed",
 [NI_ERROR_AUTH_INFO_MISSING]		= "Authentication information missing",
 [NI_ERROR_ADDRCONF_NO_LEASE]		= "No address configuration lease set",
 [NI_ERROR_CANNOT_CONFIGURE_DEVICE]	= "Cannot configure device",
