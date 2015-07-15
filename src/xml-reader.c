@@ -133,8 +133,8 @@ xml_document_from_string(const char *string, const char *location)
 {
 	ni_buffer_t buf;
 
-	if (string == NULL) {
-		ni_error("%s: argument string is NULL", __func__);
+	if (ni_string_empty(string)) {
+		ni_error("%s: argument string is empty", __func__);
 		return NULL;
 	}
 	ni_buffer_init_reader(&buf, (char *) string, strlen(string));
