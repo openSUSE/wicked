@@ -432,6 +432,12 @@ ni_ifworker_get_modem(const ni_ifworker_t *w)
 	return w->modem;
 }
 
+static inline ni_bool_t
+ni_ifworker_has_failed(const ni_ifworker_t *w)
+{
+	return w->kickstarted && (w->failed || w->dead);
+}
+
 /*
  * Returns true if the device was configured correctly
  */
