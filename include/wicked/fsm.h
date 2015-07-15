@@ -469,7 +469,7 @@ ni_ifworker_is_valid_state(ni_fsm_state_t state)
 static inline ni_bool_t
 ni_ifworker_complete(const ni_ifworker_t *w)
 {
-	return 	w->failed || w->done || w->target_state == NI_FSM_STATE_NONE ||
+	return 	w->failed || w->done || w->dead || w->target_state == NI_FSM_STATE_NONE ||
 		(w->target_state == w->fsm.state && ni_ifworker_is_valid_state(w->target_state));
 }
 
@@ -483,7 +483,7 @@ ni_ifworker_is_device_created(const ni_ifworker_t *w)
 static inline ni_bool_t
 ni_ifworker_is_running(const ni_ifworker_t *w)
 {
-	return w->kickstarted && !w->dead && !ni_ifworker_complete(w);
+	return w->kickstarted && !ni_ifworker_complete(w);
 }
 
 static inline ni_bool_t
