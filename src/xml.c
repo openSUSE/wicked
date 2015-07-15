@@ -81,6 +81,24 @@ xml_document_free(xml_document_t *doc)
 	}
 }
 
+xml_document_t *
+xml_document_from_node(xml_node_t *node)
+{
+	xml_document_t *doc;
+	xml_node_t *root;
+
+	if (!node)
+		return NULL;
+
+	doc = xml_document_new();
+	root = xml_document_root(doc);
+
+	xml_node_location_set(root, xml_location_clone(node->location));
+	xml_node_clone(node, root);
+
+	return doc;
+}
+
 /*
  * Helper functions for xml node list management
  */
