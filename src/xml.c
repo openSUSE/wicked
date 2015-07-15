@@ -286,6 +286,7 @@ xml_node_free(xml_node_t *node)
 
 	while ((child = node->children) != NULL) {
 		node->children = child->next;
+		child->parent = NULL;
 		xml_node_free(child);
 	}
 
