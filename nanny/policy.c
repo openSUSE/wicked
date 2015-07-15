@@ -281,51 +281,63 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_managed_policy_t *mpolicy;
-	xml_document_t *doc;
-	const char *ifxml;
-	xml_node_t *node;
+	xml_document_t *doc = NULL;
+	xml_node_t *root, *pnode;
+	const char *pname = NULL;
+	const char *doc_string;
+	char object_path[128];
+	unsigned int errcode;
 
-	if ((mpolicy = ni_objectmodel_managed_policy_unwrap(object, error)) == NULL)
-		return FALSE;
 
-	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &ifxml))
-		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
-
-	doc = xml_document_from_string(ifxml, NULL);
-	if (doc == NULL) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "Unable to parse document");
-		return FALSE;
+	if ((mpolicy = ni_objectmodel_managed_policy_unwrap(object, error)) == NULL) {
+		errcode = NI_ERROR_POLICY_UPDATEFAILED;
+		goto error;
 	}
 
-	if (doc->root == NULL
-	 || (node = doc->root->children) == NULL
-	 || !ni_ifpolicy_is_valid(node)
-	 || node->next != NULL) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"XML document should contain exactly one <policy> element");
-		xml_document_free(doc);
-		return FALSE;
+	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &doc_string) || ni_string_empty(doc_string)) {
+		errcode = NI_ERROR_INVALID_ARGS;
+		goto error;
 	}
 
-	if (!ni_fsm_policy_update(mpolicy->fsm_policy, node)) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"Incorrect/incomplete policy in call to %s.%s",
-				ni_dbus_object_get_path(object), method->name);
-		xml_document_free(doc);
-		return FALSE;
+	snprintf(object_path, sizeof(object_path), "%s.%s", ni_dbus_object_get_path(object), method->name);
+	doc = xml_document_from_string(doc_string, object_path);
+	if (xml_document_is_empty(doc)) {
+		errcode = NI_ERROR_POLICY_UPDATEFAILED;
+		goto error;
 	}
 
-	mpolicy->owner = caller_uid;
-	if (mpolicy->doc)
-		xml_document_free(mpolicy->doc);
-	mpolicy->doc = doc;
-	mpolicy->seqno++;
+	root = xml_document_root(doc);
+	pnode = root->children;
+	if (!ni_ifpolicy_is_valid(pnode)) {
+		errcode = NI_ERROR_POLICY_DOESNOTEXIST;
+		goto error;
+	}
+	pname = ni_ifpolicy_get_name(pnode);
 
-	ni_managed_policy_save(node);
+	if (pnode->next) {
+		/* We accept only single policy update on each call */
+		ni_error("Unable to update multiple managed policy objects at once (%s)", pname);
+		errcode = NI_ERROR_POLICY_UPDATEFAILED;
+		goto error;
+	}
+
+	mpolicy = ni_managed_policy_update(mpolicy, pnode, caller_uid);
+	if (!mpolicy) {
+		ni_error("Unable to update managed policy object (%s)", pname);
+		errcode = NI_ERROR_POLICY_UPDATEFAILED;
+		goto error;
+	}
+
+	xml_document_free(doc);
 	return TRUE;
+error:
+	xml_document_free(doc);
+	return ni_dbus_error_handler(error, errcode, object, method, pname);
 }
 
 static ni_dbus_method_t		ni_objectmodel_managed_policy_methods[] = {
+	{ "updatePolicy",	"s",		.handler_ex = ni_objectmodel_managed_policy_update	},
+	/* compatibility only */
 	{ "update",		"s",		.handler_ex = ni_objectmodel_managed_policy_update	},
 	{ NULL }
 };
