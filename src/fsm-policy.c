@@ -281,8 +281,7 @@ ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 {
 	ni_fsm_policy_t temp;
 
-	if (!policy || !ni_ifconfig_is_policy(node)
-	||  !ni_string_eq(ni_ifpolicy_get_name(node), policy->name))
+	if (!policy || !ni_ifconfig_is_policy(node))
 		return FALSE;
 
 	memset(&temp, 0, sizeof(temp));
