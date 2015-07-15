@@ -220,6 +220,9 @@ xml_node_clone(const xml_node_t *src, xml_node_t *parent)
 	const ni_var_t *attr;
 	unsigned int i;
 
+	if (!src)
+		return NULL;
+
 	dst = xml_node_new(src->name, parent);
 	ni_string_dup(&dst->cdata, src->cdata);
 
@@ -239,6 +242,9 @@ xml_node_clone(const xml_node_t *src, xml_node_t *parent)
 xml_node_t *
 xml_node_clone_ref(xml_node_t *src)
 {
+	if (!src)
+		return NULL;
+
 	ni_assert(src->refcount);
 	src->refcount++;
 	return src;
@@ -286,6 +292,7 @@ xml_node_free(xml_node_t *node)
 
 	while ((child = node->children) != NULL) {
 		node->children = child->next;
+		child->parent = NULL;
 		xml_node_free(child);
 	}
 
@@ -823,6 +830,9 @@ __xml_node_array_realloc(xml_node_array_t *array, unsigned int newsize)
 void
 xml_node_array_append(xml_node_array_t *array, xml_node_t *node)
 {
+	if (!array || !node)
+		return;
+
 	if ((array->count % XML_NODEARRAY_CHUNK) == 0)
 		__xml_node_array_realloc(array, array->count);
 

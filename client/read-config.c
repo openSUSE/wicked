@@ -206,8 +206,10 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *opt_ifconfi
 	unsigned int i;
 
 	for (i = 0; i < opt_ifconfig->count; ++i) {
-		if (!ni_ifconfig_read(&docs, root, opt_ifconfig->data[i], check_prio, raw))
+		if (!ni_ifconfig_read(&docs, root, opt_ifconfig->data[i], check_prio, raw)) {
+			xml_document_array_destroy(&docs);
 			return FALSE;
+		}
 	}
 
 	for (i = 0; i < docs.count; i++) {
@@ -222,9 +224,7 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *opt_ifconfi
 		}
 	}
 
-	/* Do not destroy xml documents as referenced by the fsm workers */
-	free(docs.data);
-
+	xml_document_array_destroy(&docs);
 	return TRUE;
 }
 

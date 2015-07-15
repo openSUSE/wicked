@@ -110,7 +110,7 @@ error:
 static ni_bool_t
 ni_ifup_start_policy(ni_ifworker_t *w)
 {
-	xml_node_t *ifcfg = NULL, *policy = NULL;
+	xml_node_t *match, *policy = NULL;
 	ni_bool_t rv = FALSE;
 	char *pname;
 
@@ -119,23 +119,20 @@ ni_ifup_start_policy(ni_ifworker_t *w)
 
 	ni_debug_application("%s: hiring nanny", w->name);
 
-	/* Create a config duplicate for a policy */
-	ifcfg = xml_node_clone(w->config.node, NULL);
-	if (!ifcfg)
+	match = __ni_ifup_generate_match(NI_NANNY_IFPOLICY_MATCH, w);
+	if (!match)
 		goto error;
 
 	pname  = ni_ifpolicy_name_from_ifname(w->name);
 	ni_debug_application("%s: converting config into policy '%s'",
 			w->name, pname);
 
-	policy = ni_convert_cfg_into_policy_node(ifcfg,
-			__ni_ifup_generate_match(NI_NANNY_IFPOLICY_MATCH, w),
+	policy = ni_convert_cfg_into_policy_node(w->config.node, match,
 			pname, w->config.meta.origin);
 	ni_string_free(&pname);
-	if (!policy) {
-		policy = ifcfg; /* Free cloned config*/
+	xml_node_free(match);
+	if (!policy)
 		goto error;
-	}
 
 #if 0
 	/* Do we need this? */

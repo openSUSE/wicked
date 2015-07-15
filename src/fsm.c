@@ -241,11 +241,29 @@ ni_ifworker_new(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char 
 }
 
 static void
+ni_fsm_transition_bind_reset(ni_fsm_transition_bind_t *bind)
+{
+	xml_node_free(bind->config);
+	memset(bind, 0, sizeof(*bind));
+}
+
+static void
+ni_fsm_transition_reset(ni_fsm_transition_t *action)
+{
+	ni_fsm_transition_bind_t *bind;
+	unsigned int i;
+
+	for (i = 0, bind = action->binding; i < action->num_bindings; ++i, ++bind)
+		ni_fsm_transition_bind_reset(bind);
+}
+
+static void
 __ni_ifworker_reset_action_table(ni_ifworker_t *w)
 {
 	ni_fsm_transition_t *action;
 
 	for (action = w->fsm.action_table; action && action->next_state; action++) {
+		ni_fsm_transition_reset(action);
 		ni_fsm_require_list_destroy(&action->require.list);
 		ni_ifworker_cancel_callbacks(w, &action->callbacks);
 	}
@@ -261,6 +279,13 @@ __ni_ifworker_destroy_action_table(ni_ifworker_t *w)
 	free(w->fsm.action_table);
 	w->fsm.next_action = NULL;
 	w->fsm.action_table = NULL;
+}
+
+static void
+__ni_ifworker_reset_device_api(ni_ifworker_t *w)
+{
+	xml_node_free(w->device_api.config);
+	memset(&w->device_api, 0, sizeof(w->device_api));
 }
 
 static void
@@ -317,7 +342,7 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	ni_client_state_config_init(&w->config.meta);
 
 	ni_ifworker_rearm(w);
-	memset(&w->device_api, 0, sizeof(w->device_api));
+	__ni_ifworker_reset_device_api(w);
 
 	w->readonly = FALSE;
 	w->dead = FALSE;
@@ -1225,11 +1250,12 @@ ni_ifworker_generate_default_config(ni_ifworker_t *parent, ni_ifworker_t *child)
 	ni_debug_application("%s: generating default config for %s child",
 		parent->name, child->name);
 
-	control = xml_node_get_child(parent->config.node,
-		NI_CLIENT_IFCONFIG_CONTROL);
+	control = xml_node_get_child(parent->config.node, NI_CLIENT_IFCONFIG_CONTROL);
 	config = __ni_generate_default_config(child->name, parent->iftype, control);
-
-	ni_ifworker_set_config(child, config, parent->config.meta.origin);
+	if (config) {
+		ni_ifworker_set_config(child, config, parent->config.meta.origin);
+		xml_node_free(config);
+	}
 }
 
 static ni_bool_t
@@ -1864,22 +1890,25 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 {
 	xml_node_t *child;
 
-	w->config.node = ifnode;
+	xml_node_free(w->config.node);
+	ni_client_state_config_reset(&w->config.meta);
+	if (!(w->config.node = xml_node_clone_ref(ifnode)))
+		return;
 
-	if ((child = xml_node_get_child(ifnode, "control")))
-		ni_ifworker_control_from_xml(w, child);
+	if ((child = xml_node_get_child(ifnode, NI_CLIENT_STATE_XML_NODE))) {
+		/* cleanup obsolete stuff in case of attic configs */
+		xml_node_detach(child);
+		xml_node_free(child);
+	}
 
 	ni_ifworker_generate_uuid(w);
 	ni_ifworker_set_config_origin(w, config_origin);
 
+	if ((child = xml_node_get_child(ifnode, "control")))
+		ni_ifworker_control_from_xml(w, child);
+
 	if ((child = xml_node_get_child(ifnode, "dependencies")))
 		ni_ifworker_set_dependencies_xml(w, child);
-
-	if ((child = xml_node_get_child(ifnode, NI_CLIENT_STATE_XML_NODE))) {
-		ni_error("%s node is specifid in %s config file - ignoring it",
-			NI_CLIENT_STATE_XML_NODE, config_origin);
-		xml_node_detach(child);
-	}
 
 	w->iftype = ni_ifworker_iftype_from_xml(ifnode);
 	ni_ifworker_extra_waittime_from_xml(w);
@@ -2963,7 +2992,8 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 			}
 			w->device_api.factory_service = service;
 			w->device_api.factory_method = method;
-			w->device_api.config = config;
+			xml_node_free(w->device_api.config);
+			w->device_api.config = xml_node_clone_ref(config);
 		}
 	}
 
@@ -2980,7 +3010,7 @@ static int
 ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
 {
 	const ni_dbus_method_t *method;
-	xml_node_t *config;
+	xml_node_t *config = NULL;
 
 	if (w->device_api.service)
 		return 1;
@@ -3004,7 +3034,8 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
 
 	w->device_api.service = service;
 	w->device_api.method = method;
-	w->device_api.config = config;
+	xml_node_free(w->device_api.config);
+	w->device_api.config = xml_node_clone_ref(config);
 	return 1;
 }
 
@@ -3894,9 +3925,12 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 		ni_fsm_transition_bind_t *bind = &action->binding[i];
 		xml_node_t *config;
 
-		bind->method = ni_dbus_service_get_method(bind->service, action->common.method_name);
+		/* Ensure we do not overwrite any reference we've set before */
+		xml_node_free(bind->config);
+		bind->config = NULL;
 
 		/* If the interface doesn't support this method, we trivially succeed. */
+		bind->method = ni_dbus_service_get_method(bind->service, action->common.method_name);
 		if (bind->method == NULL)
 			continue;
 
@@ -3943,8 +3977,12 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 				.user_data = action,
 			};
 
-			if (!ni_dbus_xml_validate_argument(bind->method, 0, bind->config, &context))
+			bind->config = xml_node_clone_ref(bind->config);
+			if (!ni_dbus_xml_validate_argument(bind->method, 0, bind->config, &context)) {
+				xml_node_free(bind->config);
+				bind->config = NULL;
 				goto document_error;
+			}
 		}
 	}
 
@@ -4175,7 +4213,8 @@ ni_ifworker_bind_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 	bind = &action->binding[0];
 	bind->service = w->device_api.factory_service;
 	bind->method = w->device_api.factory_method;
-	bind->config = w->device_api.config;
+	xml_node_free(bind->config);
+	bind->config = xml_node_clone_ref(w->device_api.config);
 	action->num_bindings++;
 
 	rv = ni_ifworker_map_method_requires(w, action, bind->service, bind->method);
