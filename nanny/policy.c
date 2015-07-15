@@ -128,9 +128,10 @@ ni_managed_policy_new(ni_nanny_t *mgr, ni_fsm_policy_t *policy, xml_document_t *
 void
 ni_managed_policy_free(ni_managed_policy_t *mpolicy)
 {
-	if (mpolicy && mpolicy->doc) {
-		xml_document_free(mpolicy->doc);
-		mpolicy->doc = NULL;
+	if (mpolicy) {
+		if (mpolicy->doc)
+			xml_document_free(mpolicy->doc);
+		memset(mpolicy, 0, sizeof(*mpolicy));
 	}
 	free(mpolicy);
 }
