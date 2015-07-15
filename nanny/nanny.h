@@ -151,7 +151,7 @@ extern void			ni_managed_device_set_policy(ni_managed_device_t *, ni_managed_pol
 extern void			ni_managed_device_down(ni_managed_device_t *mdev);
 extern ni_bool_t		ni_managed_policy_filename(const char *, char *, size_t);
 
-extern ni_managed_policy_t *	ni_managed_policy_new(ni_nanny_t *, ni_fsm_policy_t *, xml_document_t *);
+extern ni_managed_policy_t *	ni_managed_policy_new(ni_nanny_t *, ni_fsm_policy_t *, xml_document_t *, uid_t);
 extern void			ni_managed_policy_free(ni_managed_policy_t *);
 extern void			ni_managed_policy_list_unlink(ni_nanny_t *, ni_managed_policy_t *);
 extern ni_managed_policy_t *	ni_managed_policy_by_policy(ni_nanny_t *, const ni_fsm_policy_t *);

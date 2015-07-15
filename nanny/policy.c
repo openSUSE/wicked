@@ -112,13 +112,14 @@ ni_objectmodel_managed_policy_init(ni_dbus_server_t *server)
  * managed_policy objects
  */
 ni_managed_policy_t *
-ni_managed_policy_new(ni_nanny_t *mgr, ni_fsm_policy_t *policy, xml_document_t *doc)
+ni_managed_policy_new(ni_nanny_t *mgr, ni_fsm_policy_t *policy, xml_document_t *doc, uid_t caller_uid)
 {
 	ni_managed_policy_t *mpolicy;
 
 	mpolicy = xcalloc(1, sizeof(*mpolicy));
 	mpolicy->fsm_policy = policy;
 	mpolicy->doc = doc;
+	mpolicy->owner = caller_uid;
 
 	mpolicy->next = mgr->policy_list;
 	mgr->policy_list = mpolicy;

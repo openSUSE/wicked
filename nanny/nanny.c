@@ -381,7 +381,7 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, const 
 		ni_managed_policy_t *mpolicy;
 		ni_dbus_object_t *po_tmp;
 
-		mpolicy = ni_managed_policy_new(mgr, policy, NULL);
+		mpolicy = ni_managed_policy_new(mgr, policy, NULL, 0);
 		po_tmp = ni_objectmodel_register_managed_policy(mgr->server, mpolicy);
 		if (!po_tmp) {
 			ni_error("%s: Unable to register managed policy", pname);
