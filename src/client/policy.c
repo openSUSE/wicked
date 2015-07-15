@@ -214,16 +214,17 @@ error:
  * Convert ifconfig to ifpolicy format
  */
 xml_node_t *
-ni_convert_cfg_into_policy_node(xml_node_t *ifcfg, xml_node_t *match, const char *name, const char *origin)
+ni_convert_cfg_into_policy_node(const xml_node_t *ifcfg, xml_node_t *match, const char *name, const char *origin)
 {
 	xml_node_t *ifpolicy;
 	ni_uuid_t uuid;
+	xml_node_t *node;
 
 	if (!ifcfg || !match || ni_string_empty(name) || ni_string_empty(origin))
 		return NULL;
 
 	ifpolicy = xml_node_new(NI_NANNY_IFPOLICY, NULL);
-	xml_node_add_child(ifpolicy, match);
+	xml_node_reparent(ifpolicy, xml_node_clone_ref(match));
 
 	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_NAME, name);
 
@@ -231,8 +232,9 @@ ni_convert_cfg_into_policy_node(xml_node_t *ifcfg, xml_node_t *match, const char
 	ni_uuid_generate(&uuid);
 	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_UUID, ni_uuid_print(&uuid));
 
-	ni_string_dup(&ifcfg->name, NI_NANNY_IFPOLICY_MERGE);
-	xml_node_reparent(ifpolicy, ifcfg);
+	/* clone <interface> into policy and rename to <merge> */
+	node = xml_node_clone(ifcfg, ifpolicy);
+	ni_string_dup(&node->name, NI_NANNY_IFPOLICY_MERGE);
 
 	return ifpolicy;
 }

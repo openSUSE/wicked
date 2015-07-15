@@ -111,7 +111,7 @@ void
 ni_managed_device_set_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy, xml_node_t *config)
 {
 	xml_node_free(mdev->selected_config);
-	mdev->selected_config = config;
+	mdev->selected_config = xml_node_clone_ref(config);
 
 	mdev->selected_policy = mpolicy;
 	mdev->selected_policy_seq = mpolicy? mpolicy->seqno : 0;
@@ -209,6 +209,7 @@ ni_factory_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_polic
 	xml_node_print_debug(config, 0);
 
 	ni_ifworker_set_config(w, config, ni_fsm_policy_get_origin(policy));
+	xml_node_free(config);
 
 	/* Now do the fandango */
 	return ni_factory_device_up(fsm, w);
@@ -272,6 +273,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	xml_node_print_debug(config, 0);
 
 	ni_managed_device_set_policy(mdev, mpolicy, config);
+	xml_node_free(config);
 
 	/* Now do the fandango */
 	return ni_managed_device_up(mdev, ni_fsm_policy_get_origin(policy));

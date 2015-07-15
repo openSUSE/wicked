@@ -61,7 +61,7 @@ extern xml_node_t *		ni_ifpolicy_generate_match(const ni_string_array_t *, const
 extern ni_bool_t		ni_ifpolicy_name_is_valid(const char *);
 extern char *			ni_ifpolicy_name_from_ifname(const char *);
 
-extern xml_node_t *		ni_convert_cfg_into_policy_node(xml_node_t *, xml_node_t *, const char *, const char*);
+extern xml_node_t *		ni_convert_cfg_into_policy_node(const xml_node_t *, xml_node_t *, const char *, const char*);
 extern xml_document_t *	ni_convert_cfg_into_policy_doc(xml_document_t *);
 
 extern int			ni_nanny_addpolicy_node(xml_node_t *, const char *);
