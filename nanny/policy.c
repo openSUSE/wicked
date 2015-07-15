@@ -276,8 +276,7 @@ ni_objectmodel_managed_policy_unwrap(const ni_dbus_object_t *object, DBusError *
  */
 static dbus_bool_t
 ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_method_t *method,
-					unsigned int argc, const ni_dbus_variant_t *argv,
-					uid_t caller_uid,
+					unsigned int argc, const ni_dbus_variant_t *argv, uid_t caller_uid,
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_managed_policy_t *mpolicy;
@@ -288,6 +287,11 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 	char object_path[128];
 	unsigned int errcode;
 
+	/* FIXME: Add user policy handling */
+	if (caller_uid != 0) {
+		errcode = NI_ERROR_PERMISSION_DENIED;
+		goto error;
+	}
 
 	if ((mpolicy = ni_objectmodel_managed_policy_unwrap(object, error)) == NULL) {
 		errcode = NI_ERROR_POLICY_UPDATEFAILED;
