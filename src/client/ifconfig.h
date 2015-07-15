@@ -99,7 +99,7 @@ ni_ifpolicy_get_origin(xml_node_t *pnode)
 }
 
 static inline const char *
-ni_ifpolicy_get_name(xml_node_t *pnode)
+ni_ifpolicy_get_name(const xml_node_t *pnode)
 {
 	return xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_NAME);
 }
