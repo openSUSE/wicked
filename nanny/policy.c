@@ -136,6 +136,23 @@ ni_managed_policy_free(ni_managed_policy_t *mpolicy)
 	free(mpolicy);
 }
 
+void
+ni_managed_policy_list_unlink(ni_nanny_t *mgr, ni_managed_policy_t *mpolicy)
+{
+	ni_managed_policy_t **pos, *cur;
+
+	ni_assert(mgr);
+	if (!mpolicy)
+		return;
+
+	for (pos = &mgr->policy_list; (cur = *pos); pos = &cur->next) {
+		if (cur == mpolicy) {
+			*pos = cur->next;
+			break;
+		}
+	}
+}
+
 /*
  * Create a dbus object representing the managed netdev
  */

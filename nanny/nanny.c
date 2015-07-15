@@ -264,23 +264,6 @@ ni_nanny_get_policy(ni_nanny_t *mgr, const ni_fsm_policy_t *policy)
 	return NULL;
 }
 
-ni_bool_t
-ni_nanny_remove_policy(ni_nanny_t *mgr, ni_managed_policy_t *mpolicy)
-{
-	ni_managed_policy_t **pos, *cur;
-
-	ni_assert(mgr);
-	for (pos = &mgr->policy_list; (cur = *pos); pos = &cur->next) {
-		if (cur == mpolicy) {
-			*pos = cur->next;
-			ni_managed_policy_free(cur);
-			return TRUE;
-		}
-	}
-
-	return FALSE;
-}
-
 /*
  * Handle events from an rfkill switch
  */

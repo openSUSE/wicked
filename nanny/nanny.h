@@ -125,7 +125,6 @@ extern void			ni_nanny_unregister_device(ni_nanny_t *, ni_ifworker_t *);
 extern ni_managed_device_t *	ni_nanny_get_device_by_ifindex(ni_nanny_t *, unsigned int);
 extern void			ni_nanny_remove_device(ni_nanny_t *, ni_managed_device_t *);
 extern ni_managed_policy_t *	ni_nanny_get_policy(ni_nanny_t *, const ni_fsm_policy_t *);
-extern ni_bool_t		ni_nanny_remove_policy(ni_nanny_t *, ni_managed_policy_t *);
 extern ni_nanny_user_t *	ni_nanny_get_user(ni_nanny_t *, uid_t);
 extern ni_nanny_user_t *	ni_nanny_create_user(ni_nanny_t *, uid_t);
 extern void			ni_nanny_clear_secrets(ni_nanny_t *mgr,
@@ -154,6 +153,7 @@ extern ni_bool_t		ni_managed_policy_filename(const char *, char *, size_t);
 
 extern ni_managed_policy_t *	ni_managed_policy_new(ni_nanny_t *, ni_fsm_policy_t *, xml_document_t *);
 extern void			ni_managed_policy_free(ni_managed_policy_t *);
+extern void			ni_managed_policy_list_unlink(ni_nanny_t *, ni_managed_policy_t *);
 
 extern const char *		ni_managed_state_to_string(ni_managed_state_t);
 
