@@ -444,7 +444,7 @@ ni_ifworker_has_failed(const ni_ifworker_t *w)
 static inline ni_bool_t
 ni_ifworker_has_succeeded(const ni_ifworker_t *w)
 {
-	return w->done && !w->failed;
+	return w->kickstarted && w->done && !ni_ifworker_has_failed(w);
 }
 
 /*
