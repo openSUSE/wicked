@@ -280,13 +280,15 @@ ni_bool_t
 ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 {
 	ni_fsm_policy_t temp;
+	const char *pname;
 
-	if (!policy || !ni_ifconfig_is_policy(node))
+	if (!policy || !ni_ifpolicy_is_valid(node))
 		return FALSE;
 
 	memset(&temp, 0, sizeof(temp));
 	if (!__ni_fsm_policy_from_xml(&temp, node))
 		return FALSE;
+	pname = ni_ifpolicy_get_name(node);
 
 	__ni_fsm_policy_reset(policy);
 	policy->type = temp.type;
@@ -295,6 +297,8 @@ ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 	policy->create_action = temp.create_action;
 	policy->actions = temp.actions;
 	policy->match = temp.match;
+	ni_string_free(&policy->name);
+	policy->name = xstrdup(pname);
 	policy->node = node;
 	return TRUE;
 }
