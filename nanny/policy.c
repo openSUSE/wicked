@@ -170,6 +170,33 @@ ni_managed_policy_by_policy(ni_nanny_t *mgr, const ni_fsm_policy_t *policy)
 	return NULL;
 }
 
+ni_managed_policy_t *
+ni_managed_policy_update(ni_managed_policy_t *mpolicy, xml_node_t *pnode, uid_t caller_uid)
+{
+	xml_document_t *doc;
+
+	if (!mpolicy || !ni_ifpolicy_is_valid(pnode))
+		return NULL;
+
+	if (!ni_fsm_policy_update(mpolicy->fsm_policy, pnode)) {
+		ni_error("Unable to update policy %s",
+			ni_fsm_policy_name(mpolicy->fsm_policy));
+		return NULL;
+	}
+
+	doc = xml_document_from_node(pnode);
+	if (xml_document_is_empty(doc))
+		return NULL;
+
+	xml_document_free(mpolicy->doc);
+	mpolicy->doc = doc;
+	mpolicy->seqno++;
+	mpolicy->owner = caller_uid;
+
+	ni_managed_policy_save(pnode);
+	return mpolicy;
+}
+
 ni_dbus_object_t *
 ni_managed_policy_register(ni_nanny_t *mgr, ni_fsm_policy_t *policy, xml_node_t *pnode, uid_t caller_uid)
 {
