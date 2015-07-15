@@ -257,6 +257,9 @@ ni_fsm_policy_new(ni_fsm_t *fsm, const char *name, xml_node_t *node)
 {
 	ni_fsm_policy_t *policy;
 	ni_fsm_policy_t *pos, **tail;
+
+	if (ni_string_empty(name))
+		return NULL;
 	
 	policy = xcalloc(1, sizeof(*policy));
 	ni_string_dup(&policy->name, name);
