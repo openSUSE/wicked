@@ -170,30 +170,36 @@ ni_objectmodel_managed_netdev_enable(ni_dbus_object_t *object, const ni_dbus_met
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_managed_device_t *mdev;
+	unsigned int errcode;
 
-	if ((mdev = ni_objectmodel_managed_netdev_unwrap(object, error)) == NULL)
-		return FALSE;
+	if ((mdev = ni_objectmodel_managed_netdev_unwrap(object, error)) == NULL) {
+		errcode = NI_ERROR_DEVICE_NOT_KNOWN;
+		goto error;
+	}
 
 	/* root user should always be allowed to enable a device */
 	if (caller_uid != 0 && !mdev->allowed) {
-		dbus_set_error(error, DBUS_ERROR_ACCESS_DENIED,
-				"you are not permitted to enable this device");
-		return FALSE;
+		errcode = NI_ERROR_PERMISSION_DENIED;
+		goto error;
 	}
 
-	if (argc != 0)
-		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
+	if (argc != 0) {
+		errcode = NI_ERROR_INVALID_ARGS;
+		goto error;
+	}
 
 	/* When calling enable on a failed device, implicitly clear the error state */
 	if (mdev->state == NI_MANAGED_STATE_FAILED)
 		mdev->state = NI_MANAGED_STATE_LIMBO;
 
 	if (!ni_managed_netdev_enable(mdev)) {
-		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to enable device");
-		return FALSE;
+		errcode = NI_ERROR_DEVICE_ENABLEFAILED;
+		goto error;
 	}
 
 	return TRUE;
+error:
+	return ni_dbus_error_handler(error, errcode, object, method, NULL);
 }
 
 /*
