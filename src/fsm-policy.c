@@ -1505,10 +1505,37 @@ ni_ifcondition_boot_stage(xml_node_t *node)
 static ni_bool_t
 __ni_fsm_policy_min_device_state_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 {
-#if 0
-	ni_trace("%s: state is %u, need %u", w->name, w->fsm.state, cond->args.uint);
-#endif
-	return w->fsm.state >= cond->args.uint;
+	ni_bool_t rv = FALSE;
+
+	if (w->fsm.state >= cond->args.uint)
+		rv = TRUE;
+
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_trace("%s: %s condition is %s (state is %s, minimum needed %s)",
+			w->name, __func__, ni_format_boolean(rv),
+			ni_ifworker_state_name(w->fsm.state),
+			ni_ifworker_state_name(cond->args.uint));
+	}
+
+	return rv;
+}
+
+static ni_bool_t
+__ni_fsm_policy_max_device_state_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+{
+	ni_bool_t rv = FALSE;
+
+	if (w->fsm.state <= cond->args.uint)
+		rv = TRUE;
+
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		ni_trace("%s: %s condition is %s (state is %s, maximum allowed %s)",
+			w->name, __func__, ni_format_boolean(rv),
+			ni_ifworker_state_name(w->fsm.state),
+			ni_ifworker_state_name(cond->args.uint));
+	}
+
+	return rv;
 }
 
 static ni_ifcondition_t *
@@ -1521,6 +1548,18 @@ ni_ifcondition_min_device_state(xml_node_t *node)
 		return NULL;
 	}
 	return ni_ifcondition_new_uint(__ni_fsm_policy_min_device_state_check, state);
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_max_device_state(xml_node_t *node)
+{
+	ni_fsm_state_t state;
+
+	if (!ni_ifworker_state_from_name(node->cdata, &state)) {
+		ni_error("%s: invalid device state \"%s\"", xml_node_location(node), node->cdata);
+		return NULL;
+	}
+	return ni_ifcondition_new_uint(__ni_fsm_policy_max_device_state_check, state);
 }
 
 /*
@@ -1734,6 +1773,8 @@ ni_ifcondition_from_xml(xml_node_t *node)
 		return ni_ifcondition_boot_stage(node);
 	if (!strcmp(node->name, "minimum-device-state"))
 		return ni_ifcondition_min_device_state(node);
+	if (!strcmp(node->name, "maximum-device-state"))
+		return ni_ifcondition_max_device_state(node);
 	if (!strcmp(node->name, "device"))
 		return ni_ifcondition_device(node);
 	if (!strncmp(node->name, "device:", sizeof("device:")-1))

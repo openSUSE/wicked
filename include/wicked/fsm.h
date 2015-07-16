@@ -50,6 +50,7 @@ typedef enum ni_config_origin_prio {
 typedef struct ni_fsm		ni_fsm_t;
 typedef struct ni_ifworker	ni_ifworker_t;
 typedef struct ni_fsm_require	ni_fsm_require_t;
+typedef struct ni_check_state_req_data ni_check_state_req_data_t;
 typedef struct ni_fsm_policy	ni_fsm_policy_t;
 typedef struct ni_fsm_event	ni_fsm_event_t;
 
@@ -187,7 +188,6 @@ struct ni_ifworker {
 		const ni_timer_t *secondary_timer;
 
 		ni_fsm_require_t *check_state_req_list;
-
 	} fsm;
 	unsigned int		extra_waittime;
 
@@ -216,6 +216,15 @@ struct ni_ifworker {
 typedef ni_fsm_require_t *	ni_fsm_require_ctor_t(xml_node_t *);
 typedef ni_bool_t		ni_fsm_require_fn_t(ni_fsm_t *, ni_ifworker_t *, ni_fsm_require_t *);
 typedef void			ni_fsm_require_dtor_t(ni_fsm_require_t *);
+
+/*
+ * Handle dependencies that check for a specific child state.
+ */
+struct ni_check_state_req_data {
+	ni_ifworker_t *		check_worker;
+	char *			method;
+	ni_uint_range_t		check_state;
+};
 
 struct ni_fsm_require {
 	ni_fsm_require_t *	next;
