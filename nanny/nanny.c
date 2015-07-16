@@ -413,20 +413,19 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, const 
 
 	config = xml_node_new(NI_CLIENT_IFCONFIG, NULL);
 	config = ni_fsm_policy_transform_document(config, &policy, 1);
-	if (!config || !ni_fsm_workers_from_xml(fsm, config, ni_ifpolicy_get_origin(pnode))) {
-		ni_error("Unable to extract config or update workers from policy %s",
-			doc_string);
+	if (!config) {
+		ni_error("Unable to extract config from policy %s", doc_string);
+		goto error;
+	}
+
+	w = ni_fsm_workers_from_xml(fsm, config, ni_ifpolicy_get_origin(pnode));
+	if (!w) {
+		ni_error("%s: worker creation failed for policy %s", pname, doc_string);
 		goto error;
 	}
 
 	/* Rebuild the hierarchy cause new policy may hit some matches */
 	ni_fsm_build_hierarchy(fsm, FALSE);
-
-	w = ni_fsm_ifworker_by_policy_name(fsm, NI_IFWORKER_TYPE_NETDEV, pname);
-	if (!w) {
-		ni_error("%s: worker creation failed for policy %s", pname, doc_string);
-		goto error;
-	}
 
 	/* Trigger recheck on factory devices or existing devices if schedule is set */
 	if (!w->kickstarted) {

@@ -1917,23 +1917,23 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 /*
  * Given an XML document, build interface and modem objects, and policies from it.
  */
-ni_bool_t
+ni_ifworker_t *
 ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_node_t *ifnode, const char *origin)
 {
 	ni_ifworker_type_t type;
 	const char *ifname = NULL;
-	xml_node_t *node;
 	ni_ifworker_t *w = NULL;
+	xml_node_t *node;
 
 	if (!fsm || xml_node_is_empty(ifnode))
-		return FALSE;
+		return NULL;
 
 	type = ni_ifworker_type_from_string(ifnode->name);
 	if (type == NI_IFWORKER_TYPE_NONE) {
 		ni_warn("%s: ignoring non-interface element <%s>",
 				xml_node_location(ifnode),
 				ifnode->name);
-		return FALSE;
+		return NULL;
 	}
 
 	if ((node = xml_node_get_child(ifnode, "identify")) != NULL) {
@@ -1953,15 +1953,14 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_node_t *ifnode, const char *origin)
 		}
 	}
 
-	if (w == NULL) {
+	if (w)
+		ni_ifworker_set_config(w, ifnode, origin);
+	else {
 		ni_error("%s: ignoring unknown interface configuration",
 			xml_node_location(ifnode));
-		return FALSE;
 	}
 
-	ni_ifworker_set_config(w, ifnode, origin);
-
-	return TRUE;
+	return w;
 }
 
 /*
