@@ -912,64 +912,76 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 					unsigned int argc, const ni_dbus_variant_t *argv,
 					ni_dbus_message_t *reply, DBusError *error)
 {
+	ni_managed_policy_t *mpolicy;
 	ni_fsm_policy_t *policy;
+	unsigned int errcode;
 	const char *name;
+	ni_ifworker_t *w;
 	ni_nanny_t *mgr;
 
-	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL)
-		return FALSE;
 
-	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &name))
-		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
-
-	ni_debug_nanny("Attempting to delete policy %s", name);
-
-	/* Unregistering Policy dbus object */
-	if ((policy = ni_fsm_policy_by_name(mgr->fsm, name))) {
-		ni_managed_policy_t **pos, *cur;
-
-		for (pos = &mgr->policy_list; (cur = *pos); pos = &cur->next) {
-			if (cur->fsm_policy == policy) {
-				ni_dbus_server_t *server;
-				ni_ifworker_t *w = NULL;
-
-				if (!ni_fsm_policy_remove(mgr->fsm, policy))
-					return FALSE;
-
-				ni_debug_nanny("Removed FSM policy %s", name);
-
-				w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, name);
-				if (w != NULL) {
-					ni_managed_device_t *mdev = ni_nanny_get_device(mgr, w);
-					if (mdev != NULL)
-						ni_managed_device_set_policy(mdev, NULL, NULL);
-
-					ni_ifworker_set_config(w, NULL, NULL);
-
-					ni_nanny_unschedule(&mgr->recheck, w);
-				}
-
-				*pos = cur->next;
-				server = ni_dbus_object_get_server(object);
-				if (!ni_objectmodel_unregister_managed_policy(server, cur, name))
-					return FALSE;
-
-				ni_nanny_policy_drop(name);
-
-				ni_dbus_message_append_object_path(reply,
-					ni_dbus_object_get_path(object));
-
-				return TRUE;
-			}
-		}
+	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL) {
+		errcode = NI_ERROR_POLICY_DELETEFAILED;
+		goto error;
 	}
 
-	dbus_set_error(error, NI_DBUS_ERROR_POLICY_DOESNOTEXIST,
-		"Policy \"%s\" does not exist in call to %s.%s",
-		(ni_string_empty(name) ? "none" : name),
-		ni_dbus_object_get_path(object), method->name);
+	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &name) || ni_string_empty(name)) {
+		errcode = NI_ERROR_INVALID_ARGS;
+		goto error;
+	}
 
-	return FALSE;
+	if (!ni_ifpolicy_name_is_valid(name)) {
+		errcode = NI_ERROR_POLICY_DOESNOTEXIST;
+		goto error;
+	}
+
+	policy = ni_fsm_policy_by_name(mgr->fsm, name);
+	if (!policy) {
+		errcode = NI_ERROR_POLICY_DOESNOTEXIST;
+		goto error;
+	}
+
+	ni_debug_nanny("Attempt to delete managed policy object (%s)", name);
+	mpolicy = ni_managed_policy_by_policy(mgr, policy);
+	if (!mpolicy) {
+			errcode = NI_ERROR_POLICY_DOESNOTEXIST;
+			goto error;
+	}
+	else {
+		/* Remove from managed policy list */
+		ni_managed_policy_list_unlink(mgr, mpolicy);
+
+		/* Unregister managed policy object and call destroy() on it */
+		if (!ni_objectmodel_unregister_managed_policy(mgr->server, mpolicy, name)) {
+			ni_error("Unable to unregister managed policy object (%s)", name);
+			errcode = NI_ERROR_POLICY_DELETEFAILED;
+			goto error;
+		}
+		ni_debug_nanny("Removed managed policy object (%s)", name);
+	}
+
+	ni_debug_nanny("Attempt to delete FSM policy (%s)", name);
+	if (!ni_fsm_policy_remove(mgr->fsm, policy)) {
+		errcode = NI_ERROR_POLICY_DELETEFAILED;
+		goto error;
+	}
+	ni_debug_nanny("Removed FSM policy (%s)", name);
+
+	w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, name);
+	if (w) {
+		ni_managed_device_t *mdev = ni_nanny_get_device(mgr, w);
+
+		if (mdev)
+			ni_managed_device_set_policy(mdev, NULL, NULL);
+
+		ni_ifworker_set_config(w, NULL, NULL);
+		ni_nanny_unschedule(&mgr->recheck, w);
+	}
+
+	ni_nanny_policy_drop(name);
+	return TRUE;
+error:
+	return ni_dbus_error_handler(error, errcode, object, method, name);
 }
 
 /*

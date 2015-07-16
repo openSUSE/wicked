@@ -49,7 +49,7 @@ ni_ifdown_stop_policy(const char *policy_name)
 	 * In case of any change other parameters
 	 * should be available within ifworker
 	 */
-	if (!ni_nanny_call_del_policy(policy_name)) {
+	if (!ni_nanny_call_delete_policy(policy_name)) {
 		ni_debug_application("Unable to delete policy named %s", policy_name);
 		return FALSE;
 	}

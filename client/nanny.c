@@ -132,7 +132,7 @@ do_nanny_delpolicy(int argc, char **argv)
 	while (optind < argc) {
 		const char *policy_name = argv[optind++];
 
-		if (!ni_nanny_call_del_policy(policy_name)) {
+		if (!ni_nanny_call_delete_policy(policy_name)) {
 			ni_error("Unable to delete policy named %s", policy_name);
 			rv = NI_WICKED_RC_ERROR;
 		}
@@ -410,10 +410,9 @@ ni_nanny_call_add_policy(const char *name, xml_node_t *node)
 }
 
 ni_bool_t
-ni_nanny_call_del_policy(const char *name)
+ni_nanny_call_delete_policy(const char *name)
 {
 	ni_dbus_object_t *root_object;
-	char *policy_path;
 	int rv;
 
 	ni_nanny_create_client(&root_object);
@@ -421,7 +420,7 @@ ni_nanny_call_del_policy(const char *name)
 	rv = ni_dbus_object_call_simple(root_object,
 				NI_OBJECTMODEL_NANNY_INTERFACE, "deletePolicy",
 				DBUS_TYPE_STRING, &name,
-				DBUS_TYPE_OBJECT_PATH, &policy_path);
+				DBUS_TYPE_INVALID, NULL);
 
 	if (rv < 0) {
 		ni_debug_application("Call to %s.deletePolicy(%s) failed: %s",
