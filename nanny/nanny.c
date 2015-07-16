@@ -1021,13 +1021,19 @@ ni_objectmodel_nanny_get_device(ni_dbus_object_t *object, const ni_dbus_method_t
  */
 static dbus_bool_t
 ni_objectmodel_nanny_replace_policies(ni_dbus_object_t *object, const ni_dbus_method_t *method,
-					unsigned int argc, const ni_dbus_variant_t *argv,
+					unsigned int argc, const ni_dbus_variant_t *argv, uid_t caller_uid,
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	const char *doc_string;
 	char object_path[128];
 	unsigned int errcode;
 	ni_nanny_t *mgr;
+
+	/* FIXME: Add user policy handling */
+	if (caller_uid != 0) {
+		errcode = NI_ERROR_PERMISSION_DENIED;
+		goto error;
+	}
 
 	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL) {
 		errcode = NI_ERROR_POLICY_REPLACEFAILED;
@@ -1040,7 +1046,7 @@ ni_objectmodel_nanny_replace_policies(ni_dbus_object_t *object, const ni_dbus_me
 	}
 
 	snprintf(object_path, sizeof(object_path), "%s.%s", ni_dbus_object_get_path(object), method->name);
-	if (!ni_nanny_replace_policy(mgr, doc_string, object_path, 0)) {
+	if (!ni_nanny_replace_policy(mgr, doc_string, object_path, caller_uid)) {
 		errcode = NI_ERROR_POLICY_REPLACEFAILED;
 		goto error;
 	}
@@ -1236,7 +1242,7 @@ ni_objectmodel_nanny_set_secret(ni_dbus_object_t *object, const ni_dbus_method_t
 
 static ni_dbus_method_t		ni_objectmodel_nanny_methods[] = {
 	{ "getDevice",		"s",		ni_objectmodel_nanny_get_device	},
-	{ "replacePolicy",	"s",		ni_objectmodel_nanny_replace_policies	},
+	{ "replacePolicy",	"s",		.handler_ex = ni_objectmodel_nanny_replace_policies	},
 	{ "createPolicy",	"s",		ni_objectmodel_nanny_create_policy	},
 	{ "deletePolicy",	"s",		.handler_ex = ni_objectmodel_nanny_delete_policy	},
 	{ "addSecret",		"a{sv}ss",	.handler_ex = ni_objectmodel_nanny_set_secret	},
