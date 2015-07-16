@@ -350,6 +350,116 @@ ni_nanny_register_policy(ni_nanny_t *mgr, const char *pname, xml_node_t *pnode, 
 }
 
 /*
+ * Creates (or replaces) nanny policy and registers managed policy interface.
+ */
+ni_bool_t
+ni_nanny_replace_policy(ni_nanny_t *mgr, const char *doc_string, const char *location, uid_t caller_uid)
+{
+	xml_node_t *root, *pnode;
+	xml_document_t *doc;
+	ni_fsm_t *fsm;
+	ni_bool_t rv = FALSE;
+
+	ni_assert(mgr && (fsm = mgr->fsm));
+
+	/* FIXME: add user policy handling */
+	if (caller_uid != 0) {
+		ni_error("you are not permitted to create/replace this policy %s",
+			location);
+		return FALSE;
+	}
+
+	if (ni_string_empty(location))
+		location = __func__;
+
+	doc = xml_document_from_string(doc_string, location);
+	if (xml_document_is_empty(doc)) {
+		ni_error("Unable to parse policy document from %s location", location);
+		goto done;
+	}
+
+	root = xml_document_root(doc);
+	if (xml_node_is_empty(root->children)) {
+		ni_error("Policy document %s is empty", xml_node_location_filename(root));
+		goto done;
+	}
+
+	for (pnode = root->children; pnode; pnode = pnode->next) {
+		ni_fsm_policy_t *policy = NULL;
+		const char *pname, *porigin;
+		xml_node_t *config = NULL;
+		ni_ifworker_t *w;
+
+		if (!ni_ifconfig_is_policy(pnode)) {
+			ni_error("Policy document %s is not valid", location);
+			goto error;
+		}
+
+		pname = ni_ifpolicy_get_name(pnode);
+		if (!ni_ifpolicy_name_is_valid(pname)) {
+			ni_error("Policy document %s has invalid policy name \"%s\"", location,
+				ni_print_suspect(pname, ni_string_len(pname)));
+			goto error;
+		}
+		xml_node_location_set(pnode, xml_location_create(pname, 0));
+
+		policy = ni_fsm_policy_by_name(fsm, pname);
+		if (policy) {
+			ni_debug_nanny("Policy with name %s already exists", pname);
+
+			/* Update the policy */
+			if (!ni_nanny_update_policy(mgr, policy, pnode, caller_uid)) {
+				ni_error("Unable to update policy %s", xml_node_location_filename(pnode));
+				goto error;
+			}
+		}
+		else {
+			/* Register new policy */
+			policy = ni_nanny_register_policy(mgr, pname, pnode, caller_uid);
+			if (!policy) {
+				ni_error("Unable to register policy %s", xml_node_location_filename(pnode));
+				goto error;
+			}
+		}
+
+		/* Perform fsm worker work now */
+		if (!(config = xml_node_new(NI_CLIENT_IFCONFIG, NULL))) {
+			ni_error("%s: Unable to allocate config node", __func__);
+			goto error;
+		}
+		config = ni_fsm_policy_transform_document(config, &policy, 1);
+		xml_node_location_set(config, xml_location_clone(pnode->location));
+
+		porigin = ni_ifpolicy_get_origin(pnode);
+		if (!(w = ni_fsm_workers_from_xml(fsm, config, porigin))) {
+			ni_error("Unable to create/update FSM worker from policy %s",
+				xml_node_location_filename(pnode));
+			goto error;
+		}
+
+		/* Rebuild the hierarchy since we have new configs and/or workers */
+		ni_fsm_build_hierarchy(fsm, FALSE);
+
+		/* Always recheck when policy has been created or updated */
+		ni_nanny_schedule_recheck(&mgr->recheck, w);
+
+		/* Rearm completed worker to let it use the new config */
+		if (ni_ifworker_complete(w))
+			ni_ifworker_rearm(w);
+
+		rv = TRUE;
+		continue;
+error:
+		xml_node_free(config);
+		ni_fsm_policy_free(policy);
+	}
+
+done:
+	xml_document_free(doc);
+	return rv;
+}
+
+/*
  * Creates nanny policy and register managed policy interface.
  * Return:
  *     -1 - policy node does not exist or is errornous
