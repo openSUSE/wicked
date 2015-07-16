@@ -289,6 +289,32 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 	}
 }
 
+ni_fsm_policy_t *
+ni_nanny_register_policy(ni_nanny_t *mgr, const char *pname, xml_node_t *pnode, uid_t caller_uid)
+{
+	ni_fsm_policy_t *policy;
+
+	ni_assert(mgr);
+	if (!ni_ifpolicy_name_is_valid(pname) || !ni_ifconfig_is_policy(pnode))
+		return NULL;
+
+	policy = ni_fsm_policy_new(mgr->fsm, pname, pnode);
+	if (!policy) {
+		ni_error("Unable to create fsm policy object from policy %s",
+			xml_node_location_filename(pnode));
+		return NULL;
+	}
+
+	if (!ni_managed_policy_register(mgr, policy, pnode, caller_uid)) {
+		ni_error("Unable to register managed policy object for policy %s",
+			xml_node_location_filename(pnode));
+		ni_fsm_policy_free(policy);
+		return NULL;
+	}
+
+	return policy;
+}
+
 /*
  * Creates nanny policy and register managed policy interface.
  * Return:
