@@ -909,7 +909,7 @@ ni_nanny_policy_drop(const char *pname)
  */
 static dbus_bool_t
 ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_method_t *method,
-					unsigned int argc, const ni_dbus_variant_t *argv,
+					unsigned int argc, const ni_dbus_variant_t *argv, uid_t caller_uid,
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_managed_policy_t *mpolicy;
@@ -919,6 +919,11 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 	ni_ifworker_t *w;
 	ni_nanny_t *mgr;
 
+	/* FIXME: Add user policy handling */
+	if (caller_uid != 0) {
+		errcode = NI_ERROR_PERMISSION_DENIED;
+		goto error;
+	}
 
 	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL) {
 		errcode = NI_ERROR_POLICY_DELETEFAILED;
@@ -944,8 +949,19 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 	ni_debug_nanny("Attempt to delete managed policy object (%s)", name);
 	mpolicy = ni_managed_policy_by_policy(mgr, policy);
 	if (!mpolicy) {
+		if (caller_uid != 0) {
+			/* Only root is allowed to delete FSM policy
+			 * without corresponding managed policy object
+			 */
 			errcode = NI_ERROR_POLICY_DOESNOTEXIST;
 			goto error;
+		}
+		else
+			ni_debug_nanny("No managed policy object found for FSM policy %s", name);
+	}
+	else if (caller_uid != mpolicy->owner) {
+		errcode = NI_ERROR_PERMISSION_DENIED;
+		goto error;
 	}
 	else {
 		/* Remove from managed policy list */
@@ -1018,7 +1034,7 @@ ni_objectmodel_nanny_set_secret(ni_dbus_object_t *object, const ni_dbus_method_t
 static ni_dbus_method_t		ni_objectmodel_nanny_methods[] = {
 	{ "getDevice",		"s",		ni_objectmodel_nanny_get_device	},
 	{ "createPolicy",	"s",		ni_objectmodel_nanny_create_policy	},
-	{ "deletePolicy",	"s",		ni_objectmodel_nanny_delete_policy	},
+	{ "deletePolicy",	"s",		.handler_ex = ni_objectmodel_nanny_delete_policy	},
 	{ "addSecret",		"a{sv}ss",	.handler_ex = ni_objectmodel_nanny_set_secret	},
 	{ NULL }
 };
