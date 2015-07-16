@@ -134,7 +134,6 @@ extern void			ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_b
 extern ni_fsm_policy_t *	ni_nanny_register_policy(ni_nanny_t *, const char *, xml_node_t *, uid_t);
 extern ni_fsm_policy_t *	ni_nanny_update_policy(ni_nanny_t *, ni_fsm_policy_t *, xml_node_t *, uid_t);
 extern ni_bool_t		ni_nanny_replace_policy(ni_nanny_t *, const char *, const char *, uid_t);
-extern int			ni_nanny_create_policy(ni_dbus_object_t **, ni_nanny_t *, const char *, ni_bool_t);
 extern ni_bool_t		ni_nanny_policy_drop(const char *);
 
 extern ni_bool_t		ni_managed_netdev_enable(ni_managed_device_t *);

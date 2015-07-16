@@ -71,7 +71,6 @@ extern ni_dbus_client_t *	ni_nanny_create_client(ni_dbus_object_t **);
 
 extern ni_bool_t		ni_nanny_call_update_policy(xml_node_t *);
 extern ni_bool_t		ni_nanny_call_replace_policy(xml_node_t *);
-extern ni_bool_t		ni_nanny_call_add_policy(const char *, xml_node_t *);
 extern ni_bool_t		ni_nanny_call_delete_policy(const char *);
 extern ni_bool_t		ni_nanny_call_device_enable(const char *ifname);
 extern ni_bool_t		ni_nanny_call_device_disable(const char *ifname);
