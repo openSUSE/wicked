@@ -289,6 +289,40 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 	}
 }
 
+/*
+ * Updates nanny policy and updates managed policy object.
+ */
+ni_fsm_policy_t *
+ni_nanny_update_policy(ni_nanny_t *mgr, ni_fsm_policy_t *policy, xml_node_t *pnode, uid_t caller_uid)
+{
+	ni_managed_policy_t *mpolicy;
+
+	ni_assert(mgr);
+	if (!policy || !ni_ifpolicy_is_valid(pnode))
+		return NULL;
+
+	mpolicy = ni_managed_policy_by_policy(mgr, policy);
+	if (!mpolicy) {
+		ni_error("No corresponding managed policy object for policy %s",
+			ni_fsm_policy_name(policy));
+		return NULL;
+	}
+
+	if (mpolicy->owner != caller_uid) {
+		ni_error("User %u is not allowed to policy %s",
+			caller_uid, ni_fsm_policy_name(policy));
+		return NULL;
+	}
+
+	if (!ni_managed_policy_update(mpolicy, pnode, caller_uid)) {
+		ni_error("Unable to update managed policy object for policy %s",
+			ni_fsm_policy_name(policy));
+		return NULL;
+	}
+
+	return policy;
+}
+
 ni_fsm_policy_t *
 ni_nanny_register_policy(ni_nanny_t *mgr, const char *pname, xml_node_t *pnode, uid_t caller_uid)
 {
