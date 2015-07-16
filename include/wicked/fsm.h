@@ -319,7 +319,8 @@ extern ni_ifworker_t *		ni_fsm_recv_new_netif_path(ni_fsm_t *fsm, const char *pa
 extern ni_ifworker_t *		ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh);
 extern ni_ifworker_t *		ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path);
 extern void			ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w);
-extern void			ni_ifworkers_flatten(ni_ifworker_array_t *);
+extern void			ni_ifworker_array_flatten(ni_ifworker_array_t *);
+extern void			ni_ifworker_array_depth_sort(ni_ifworker_array_t *);
 extern void			ni_fsm_pull_in_children(ni_ifworker_array_t *);
 extern void			ni_fsm_wait_tentative_addrs(ni_fsm_t *);
 
@@ -501,5 +502,8 @@ ni_ifworker_can_delete(const ni_ifworker_t *w)
 {
 	return !!ni_dbus_object_get_service_for_method(w->object, "deleteDevice");
 }
+
+extern ni_bool_t	ni_ifworker_is_loopback(ni_ifworker_t *w);
+
 
 #endif /* __CLIENT_FSM_H__ */

@@ -154,7 +154,7 @@ ni_nanny_schedule_recheck(ni_ifworker_array_t *array, ni_ifworker_t *w)
 void
 ni_nanny_unschedule(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
-	ni_ifworker_array_remove_with_children(array, w);
+	ni_ifworker_array_remove(array, w);
 }
 
 /*

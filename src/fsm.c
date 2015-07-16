@@ -221,6 +221,7 @@ __ni_ifworker_new(ni_ifworker_type_t type, const char *name)
 	w->target_range.min = NI_FSM_STATE_NONE;
 	w->target_range.max = __NI_FSM_STATE_MAX;
 	w->readonly = FALSE;
+	w->depth = -1U;
 
 	ni_ifworker_control_init(&w->control);
 	ni_client_state_config_init(&w->config.meta);
@@ -2513,11 +2514,6 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 			ni_ifworker_array_append(result, w);
 	}
 
-	/* Collect all workers in the device graph, and sort them
-	 * by increasing depth.
-	 */
-	ni_ifworkers_flatten(result);
-
 	return result->count;
 }
 
@@ -2573,20 +2569,39 @@ ni_ifworkers_check_loops(ni_fsm_t *fsm, ni_ifworker_array_t *array)
  * Flatten the device graph by sorting the nodes by depth
  */
 static void
-__ni_ifworker_flatten(ni_ifworker_t *w, ni_ifworker_array_t *array, unsigned int depth)
+ni_ifworker_set_depth(ni_ifworker_t *w, ni_ifworker_array_t *array, unsigned int depth)
 {
 	unsigned int i;
 
-	if (depth > w->depth)
-		w->depth = depth;
-
+	w->depth = depth;
 	for (i = 0; i < w->children.count; ++i) {
 		ni_ifworker_t *child = w->children.data[i];
 
-		if (ni_ifworker_has_succeeded(child))
+		ni_ifworker_set_depth(child, array, depth + 1);
+	}
+}
+
+void
+ni_ifworker_array_flatten(ni_ifworker_array_t *array)
+{
+	unsigned int i, level = 1; /* Default depth */
+
+	/* Note, we take the array->count outside the loop.
+	 * Inside the loop, we're adding new ifworkers to the array,
+	 * and do that recursively. Avoid processing these newly
+	 * added devices twice.
+	 * NB a simple tail recursion won't work here.
+	 */
+	for (i = 0; i < array->count; ++i) {
+		ni_ifworker_t *w = array->data[i];
+
+		if (w->masterdev || w->lowerdev_for.count > 0)
 			continue;
 
-		__ni_ifworker_flatten(child, array, depth + 1);
+		if (ni_ifworker_is_loopback(w))
+			level = 0; /* Highest, reserved depth to handle loopback first */
+
+		ni_ifworker_set_depth(w, array, level);
 	}
 }
 
@@ -2600,25 +2615,8 @@ __ni_ifworker_depth_compare(const void *a, const void *b)
 }
 
 void
-ni_ifworkers_flatten(ni_ifworker_array_t *array)
+ni_ifworker_array_depth_sort(ni_ifworker_array_t *array)
 {
-	unsigned int i;
-
-	/* Note, we take the array->count outside the loop.
-	 * Inside the loop, we're adding new ifworkers to the array,
-	 * and do that recursively. Avoid processing these newly
-	 * added devices twice.
-	 * NB a simple tail recursion won't work here.
-	 */
-	for (i = 0; i < array->count; ++i) {
-		ni_ifworker_t *w = array->data[i];
-
-		if (w->masterdev)
-			continue;
-
-		__ni_ifworker_flatten(w, array, 0);
-	}
-
 	qsort(array->data, array->count, sizeof(array->data[0]), __ni_ifworker_depth_compare);
 }
 
@@ -2639,11 +2637,12 @@ __ni_fsm_pull_in_children(ni_ifworker_t *w, ni_ifworker_array_t *array)
 			continue;
 		}
 
-		if (ni_ifworker_array_index(array, child) < 0) {
-			if (ni_ifworker_complete(child))
-				ni_ifworker_rearm(child);
+		if (ni_ifworker_is_running(child) || ni_ifworker_has_succeeded(child))
+			continue;
+
+		if (ni_ifworker_array_index(array, child) < 0)
 			ni_ifworker_array_append(array, child);
-		}
+
 		__ni_fsm_pull_in_children(child, array);
 	}
 }
@@ -2661,6 +2660,8 @@ ni_fsm_pull_in_children(ni_ifworker_array_t *array)
 
 		__ni_fsm_pull_in_children(w, array);
 	}
+
+	ni_ifworker_array_depth_sort(array);
 }
 
 /*
@@ -2720,7 +2721,7 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 		if (w->target_state != NI_FSM_STATE_NONE)
 			count++;
 	}
-	ni_ifworkers_flatten(&fsm->workers);
+	ni_ifworker_array_depth_sort(&fsm->workers);
 	return count;
 }
 
@@ -3110,6 +3111,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 {
 	unsigned int i;
 
+	ni_fsm_events_block(fsm);
 	for (i = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
 		int rv;
@@ -3152,6 +3154,8 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 		}
 	}
 
+	ni_ifworker_array_flatten(&fsm->workers);
+	ni_fsm_events_unblock(fsm);
 	return 0;
 }
 
@@ -4798,9 +4802,6 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 	const char *event_name = ev->signal_name;
 	ni_event_t  event_type = ev->event_type;
 
-	if (fsm->process_event.callback)
-		fsm->process_event.callback(fsm, w, ev);
-
 	switch (ev->event_type) {
 	case NI_EVENT_DEVICE_READY:
 	case NI_EVENT_DEVICE_UP:
@@ -4821,6 +4822,9 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 	default:
 		break;
 	}
+
+	if (fsm->process_event.callback)
+		fsm->process_event.callback(fsm, w, ev);
 
 	if (!ni_uuid_is_null(&ev->event_uuid)) {
 		ni_objectmodel_callback_info_t *cb;
@@ -5193,3 +5197,28 @@ ni_fsm_set_user_prompt_fn(ni_fsm_t *fsm, ni_fsm_user_prompt_fn_t *fn, void *user
 	ni_fsm_user_prompt_fn = fn;
 	ni_fsm_user_prompt_data = user_data;
 }
+
+ni_bool_t
+ni_ifworker_is_loopback(ni_ifworker_t *w)
+{
+	if (w) {
+		if (ni_netdev_device_is_ready(w->device))
+			return w->device->link.type == NI_IFTYPE_LOOPBACK;
+
+		if (w->iftype == NI_IFTYPE_LOOPBACK)
+			return TRUE;
+
+		if (w->iftype != NI_IFTYPE_UNKNOWN)
+			return FALSE;
+
+		/*
+		 * (recent) kernel ensure, that loopback has ifindex 1
+		 * and is available as first in all namespaces...
+		 * It is rather an internal impementation, than a rule,
+		 * but since the worker is not yet bound to a device...
+		 */
+		return w->ifindex == 1 || ni_string_eq(w->name, "lo");
+	}
+	return FALSE;
+}
+

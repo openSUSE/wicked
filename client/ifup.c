@@ -178,7 +178,7 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 
 	/* Send policies to nanny */
 	for (i = 0; i < array->count; i++) {
-		ni_ifworker_t *w = array->data[array->count-1-i];
+		ni_ifworker_t *w = array->data[i];
 
 		if (!w || xml_node_is_empty(w->config.node))
 			continue;
@@ -194,7 +194,7 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 
 	/* Enable devices with policies */
 	for (i = 0; i < array->count; i++) {
-		ni_ifworker_t *w = array->data[array->count-1-i];
+		ni_ifworker_t *w = array->data[i];
 		ni_netdev_t *dev = w ? w->device : NULL;
 
 		/* Ignore non-existing device */
@@ -599,8 +599,6 @@ usage:
 	}
 
 	ni_fsm_pull_in_children(&ifmarked);
-	ni_ifworkers_flatten(&ifmarked);
-
 	if (!ni_ifup_hire_nanny(&ifmarked, set_persistent))
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 
@@ -871,7 +869,6 @@ usage:
 	}
 
 	ni_fsm_pull_in_children(&ifmarked);
-
 	/* Mark and start selected workers */
 	if (ifmarked.count)
 		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);

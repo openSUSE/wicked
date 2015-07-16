@@ -57,6 +57,7 @@ ni_ifdown_stop_policy(const char *policy_name)
 	return TRUE;
 }
 
+#if 0
 static ni_bool_t
 ni_ifdown_stop_device(const char *device_name)
 {
@@ -67,6 +68,7 @@ ni_ifdown_stop_device(const char *device_name)
 
 	return TRUE;
 }
+#endif
 
 ni_bool_t
 ni_ifdown_fire_nanny(ni_ifworker_array_t *array)
@@ -85,6 +87,12 @@ ni_ifdown_fire_nanny(ni_ifworker_array_t *array)
 		ni_string_free(&policy_name);
 	}
 
+/* Do not call disable() on each device, since there is no need to
+ * unschedule recheck() at nanny. Deleting policy has done it already.
+ * Further rearming the worker is unwanted; it should be done by
+ * specific events instead.
+ */
+#if 0
 	/* Disabling all requested devices */
 	for (i = 0; i < array->count; i++) {
 		ni_ifworker_t *w = array->data[i];
@@ -99,6 +107,7 @@ ni_ifdown_fire_nanny(ni_ifworker_array_t *array)
 			/* We ignore errors for now */;
 		}
 	}
+#endif
 
 	return TRUE;
 }
@@ -233,6 +242,10 @@ usage:
 		/* Severe error we always explicitly return */
 		return NI_WICKED_RC_ERROR;
 	}
+
+
+	ni_ifworker_array_flatten(&fsm->workers);
+	ni_ifworker_array_depth_sort(&fsm->workers);
 
 	/* Get workers that match given criteria */
 	nmarked = 0;
