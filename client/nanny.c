@@ -283,8 +283,7 @@ ni_nanny_addpolicy_node(xml_node_t *pnode, const char *origin)
 		return -1;
 	}
 
-	/* FIXME: is this an error, it perhaps just already exists? */
-	if (!ni_nanny_call_add_policy(name, pnode)) {
+	if (!ni_nanny_call_replace_policy(pnode)) {
 		ni_debug_ifconfig("Adding policy %s from %s file failed", name,
 			ni_string_empty(origin) ? "unspecified origin" : origin);
 		return -1;

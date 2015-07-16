@@ -192,6 +192,7 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 			ni_info("%s: configuration applied to nanny", w->name);
 	}
 
+#if 0
 	/* Enable devices with policies */
 	for (i = 0; i < array->count; i++) {
 		ni_ifworker_t *w = array->data[array->count-1-i];
@@ -215,6 +216,7 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 			}
 		}
 	}
+#endif
 
 	if (0 == array->count)
 		ni_note("ifup: no matching interfaces");
