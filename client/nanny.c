@@ -359,6 +359,40 @@ ni_nanny_create_client(ni_dbus_object_t **root_p)
 }
 
 ni_bool_t
+ni_nanny_call_update_policy(xml_node_t *pnode)
+{
+	ni_dbus_object_t *root_object;
+	char *doc_string;
+	int rv;
+
+	if (!ni_ifpolicy_is_valid(pnode))
+		return FALSE;
+
+	ni_nanny_create_client(&root_object);
+
+	if ((doc_string = xml_node_sprint(pnode)) == NULL) {
+		ni_debug_application("%s: unable to format <%s> node",
+			NI_NANNY_IFPOLICY, __func__);
+		return FALSE;
+	}
+
+	rv = ni_dbus_object_call_simple(root_object,
+					NI_OBJECTMODEL_NANNY_INTERFACE, "updatePolicy",
+					DBUS_TYPE_STRING, &doc_string,
+					DBUS_TYPE_INVALID, NULL);
+	if (rv < 0) {
+		ni_debug_application("Call to %s.updatePolicy(%s) failed: %s",
+				ni_dbus_object_get_path(root_object),
+				ni_ifpolicy_get_name(pnode), ni_strerror(rv));
+		ni_string_free(&doc_string);
+		return FALSE;
+	}
+
+	ni_string_free(&doc_string);
+	return TRUE;
+}
+
+ni_bool_t
 ni_nanny_call_replace_policy(xml_node_t *pnode)
 {
 	ni_dbus_object_t *root_object;
