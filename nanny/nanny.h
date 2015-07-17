@@ -154,6 +154,7 @@ extern ni_bool_t		ni_managed_policy_filename(const char *, char *, size_t);
 extern ni_managed_policy_t *	ni_managed_policy_new(ni_nanny_t *, ni_fsm_policy_t *, xml_document_t *);
 extern void			ni_managed_policy_free(ni_managed_policy_t *);
 extern void			ni_managed_policy_list_unlink(ni_nanny_t *, ni_managed_policy_t *);
+extern ni_managed_policy_t *	ni_managed_policy_by_policy(ni_nanny_t *, const ni_fsm_policy_t *);
 
 extern const char *		ni_managed_state_to_string(ni_managed_state_t);
 

@@ -153,6 +153,22 @@ ni_managed_policy_list_unlink(ni_nanny_t *mgr, ni_managed_policy_t *mpolicy)
 	}
 }
 
+ni_managed_policy_t *
+ni_managed_policy_by_policy(ni_nanny_t *mgr, const ni_fsm_policy_t *policy)
+{
+	ni_managed_policy_t *mpolicy;
+
+	if (!policy)
+		return NULL;
+
+	for (mpolicy = mgr->policy_list; mpolicy; mpolicy = mpolicy->next) {
+		if (mpolicy->fsm_policy == policy)
+			return mpolicy;
+	}
+
+	return NULL;
+}
+
 /*
  * Create a dbus object representing the managed netdev
  */
