@@ -1081,7 +1081,9 @@ ni_system_bridge_create(ni_netconfig_t *nc, const char *ifname,
 int
 ni_system_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bridge_t *bcfg /*, ni_bool_t add_only */)
 {
+#if 0
 	unsigned int i;
+#endif
 
 	if (dev->link.type != NI_IFTYPE_BRIDGE) {
 		ni_error("%s: %s is not a bridge interface", __func__, dev->name);
@@ -1092,7 +1094,7 @@ ni_system_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bridge_t *
 		ni_error("%s: failed to update sysfs attributes for %s", __func__, dev->name);
 		return -1;
 	}
-
+#if 0
 	/* Add ports not yet used in bridge */
 	for (i = 0; i < bcfg->ports.count; ++i) {
 		ni_bridge_port_t *port = bcfg->ports.data[i];
@@ -1100,6 +1102,7 @@ ni_system_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bridge_t *
 		if (!port || ni_system_bridge_add_port(nc, dev, port) < 0)
 			continue;
 	}
+#endif
 	/* Remove not configured ports */
 #if 0	/* FIXME: Disabled for now, it would break vm ports */
 	for (i = 0; i < dev->bridge->ports.count; ++i) {
@@ -1340,7 +1343,9 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 	ni_string_array_t slaves;
 	ni_bool_t is_up;
 	ni_bool_t has_slaves;
+#if 0
 	unsigned int i;
+#endif
 
 	complaint = ni_bonding_validate(bond_cfg);
 	if (complaint != NULL) {
@@ -1377,7 +1382,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 			return -1;
 		}
 	}
-
+#if 0
 	/* Filter out only currently available slaves */
 	for (i = 0; i < bond_cfg->slave_names.count; ++i) {
 		const char *name = bond_cfg->slave_names.data[i];
@@ -1455,6 +1460,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 				dev->name);
 		return -1;
 	}
+#endif
 	ni_bonding_parse_sysfs_attrs(dev->name, bond);
 
 	return 0;
