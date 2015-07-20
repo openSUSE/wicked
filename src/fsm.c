@@ -3105,6 +3105,20 @@ ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
  */
 static void		__ni_ifworker_print(const ni_ifworker_t *, unsigned int);
 
+void
+ni_fsm_print_hierarchy(ni_fsm_t *fsm)
+{
+	unsigned int i;
+
+	ni_debug_application("Device hierarchy structure:");
+	for (i = 0; i < fsm->workers.count; ++i) {
+		ni_ifworker_t *w = fsm->workers.data[i];
+
+		if (!w->lowerdev_for.count && !w->masterdev)
+			__ni_ifworker_print(w, 0);
+	}
+}
+
 int
 ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 {
@@ -3134,9 +3148,6 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 		}
 	}
 
-	if (ni_log_facility(NI_TRACE_APPLICATION))
-		ni_debug_application("Device hierarchy structure:");
-
 	for (i = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
 
@@ -3145,13 +3156,10 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 				continue;
 			ni_ifworker_generate_uuid(w);
 		}
-
-		if (ni_log_facility(NI_TRACE_APPLICATION)) {
-			if (!w->lowerdev_for.count && !w->masterdev)
-				__ni_ifworker_print(w, 0);
-		}
 	}
 
+	if (ni_log_facility(NI_TRACE_APPLICATION))
+		ni_fsm_print_hierarchy(fsm);
 	return 0;
 }
 
