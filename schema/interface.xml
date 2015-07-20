@@ -198,7 +198,7 @@
    <txqlen type="uint32"/>
    <alias type="string"/>
    <master type="string">
-     <meta:netif-reference shared="false"/>
+     <meta:netif-reference subordinate="true" />
    </master>
 
    <ipv4 type="network-interface:af-info"/>
