@@ -3082,15 +3082,6 @@ ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
 		return 0;
 	}
 
-	if ((rv = ni_ifworker_bind_device_apis(w, NULL)) < 0)
-		return rv;
-
-	if (w->device_api.method && w->device_api.config) {
-		if (!ni_dbus_xml_validate_argument(w->device_api.method, 0, w->device_api.config, &context))
-			return -NI_ERROR_DOCUMENT_ERROR;
-		return 0;
-	}
-
 	/* For now, just apply policies here */
 	ni_ifworker_apply_policies(fsm, w);
 	return 0;
@@ -3979,13 +3970,27 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 		 * try to prompt for missing information.
 		 */
 		if (bind->config != NULL) {
-			ni_dbus_xml_validate_context_t context = {
-				.metadata_callback = ni_ifworker_xml_metadata_callback,
-				.prompt_callback = ni_ifworker_prompt_cb,
-				.user_data = action,
+			struct ni_ifworker_xml_validation_user_data user_data = {
+				.fsm = fsm,
+				.worker = w,
 			};
+			ni_dbus_xml_validate_context_t context;
 
 			bind->config = xml_node_clone_ref(bind->config);
+			context.metadata_callback = ni_ifworker_xml_metadata_callback;
+			context.prompt_callback = ni_ifworker_prompt_cb;
+			context.user_data = action;
+
+			if (!ni_dbus_xml_validate_argument(bind->method, 0, bind->config, &context)) {
+				xml_node_free(bind->config);
+				bind->config = NULL;
+				goto document_error;
+			}
+
+			context.metadata_callback = ni_ifworker_netif_resolve_cb;
+			context.prompt_callback = ni_ifworker_prompt_later_cb;
+			context.user_data = &user_data;
+
 			if (!ni_dbus_xml_validate_argument(bind->method, 0, bind->config, &context)) {
 				xml_node_free(bind->config);
 				bind->config = NULL;
