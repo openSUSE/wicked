@@ -25,6 +25,7 @@
 #include <wicked/fsm.h>
 #include <wicked/client.h>
 #include <wicked/bridge.h>
+#include <xml-schema.h>
 
 #include "client/ifconfig.h"
 #include "appconfig.h"
@@ -2087,74 +2088,209 @@ ni_ifworker_link_detection_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *
 /*
  * Handle dependencies that check for a specific child state.
  */
-struct ni_check_state_req_data {
-	ni_ifworker_t *		check_worker;
-	char *			method;
-	ni_uint_range_t		check_state;
+typedef struct ni_ifworker_check_state_req_check	ni_ifworker_check_state_req_check_t;
+typedef struct ni_ifworker_check_state_req		ni_ifworker_check_state_req_t;
+
+struct ni_ifworker_check_state_req_check {
+	ni_ifworker_check_state_req_check_t *	next;
+	ni_ifworker_t *				worker;
+	ni_uint_range_t				state;
 };
+struct ni_ifworker_check_state_req {
+	char *					method;
+	ni_ifworker_check_state_req_check_t *	check;
+};
+
+static void					ni_ifworker_check_state_req_free(ni_fsm_require_t *);
+static inline ni_ifworker_check_state_req_t *	ni_ifworker_check_state_req_cast(ni_fsm_require_t *req)
+{
+	if (!req || req->destroy_fn != ni_ifworker_check_state_req_free)
+		return NULL;
+	return (ni_ifworker_check_state_req_t *)req->user_data;
+}
+
+static inline ni_ifworker_check_state_req_check_t *
+ni_ifworker_check_state_req_check_new(ni_ifworker_t *cw, unsigned int min_state, unsigned int max_state)
+{
+	ni_ifworker_check_state_req_check_t *check;
+
+	check = xcalloc(1, sizeof(*check));
+	check->worker = ni_ifworker_get(cw);
+	check->state.min = min_state;
+	check->state.max = max_state;
+	return check;
+}
+
+static inline void
+ni_ifworker_check_state_req_check_free(ni_ifworker_check_state_req_check_t *check)
+{
+	if (check && check->worker)
+		ni_ifworker_release(check->worker);
+	free(check);
+}
+
+static ni_bool_t
+ni_ifworker_check_state_req_check_find_worker(ni_ifworker_check_state_req_t *csr, ni_ifworker_t *cw)
+{
+	ni_ifworker_check_state_req_check_t *check;
+
+	for (check = csr->check; check; check = check->next) {
+		if (check->worker == cw)
+			return TRUE;
+	}
+	return FALSE;
+}
+
+static inline void
+ni_ifworker_check_state_req_check_list_destroy(ni_ifworker_check_state_req_t *csr)
+{
+	ni_ifworker_check_state_req_check_t *check;
+
+	while ((check = csr->check)) {
+		csr->check = check->next;
+		ni_ifworker_check_state_req_check_free(check);
+	}
+}
+
+static inline void
+ni_ifworker_check_state_req_check_list_append(ni_ifworker_check_state_req_t *csr,
+					ni_ifworker_check_state_req_check_t *check)
+{
+	ni_ifworker_check_state_req_check_t **list = &csr->check;
+
+	while (*list)
+		list = &(*list)->next;
+	*list = check;
+}
 
 static ni_bool_t
 ni_ifworker_check_state_req_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
-	struct ni_check_state_req_data *data = (struct ni_check_state_req_data *) req->user_data;
-	ni_ifworker_t *cw = data->check_worker;
-	unsigned int wait_for_state;
+	ni_ifworker_check_state_req_check_t *check;
+	ni_ifworker_check_state_req_t *csr;
+	ni_bool_t all_required_ok = TRUE;
+	unsigned int state_reached = 0;
 
-	if (cw->fsm.state < data->check_state.min) {
-		wait_for_state = data->check_state.min;
-	} else
-	if (cw->fsm.state > data->check_state.max) {
-		wait_for_state = data->check_state.max;
-	} else {
-		/* Okay, dependency worker's interface is ready */
-		return TRUE;
-	}
-
-	if (cw->failed) {
-		/* Dependency worker is not in the expected state,
-		 * but as it failed, it'll never get there. Fail the parent as well.
-		 */
-		ni_ifworker_fail(w, "subordinate device %s failed", cw->name);
+	if (!(csr = ni_ifworker_check_state_req_cast(req)))
 		return FALSE;
+
+	for (check = csr->check; check; check = check->next) {
+		ni_ifworker_t *cw = check->worker;
+		ni_fsm_state_t wait_for_state;
+		ni_bool_t required = FALSE;
+
+		if (ni_string_eq(cw->control.mode, "off")) {
+			ni_debug_application("%s: ignoring state requirements for disabled worker %s",
+					w->name, cw->name);
+			continue;
+		}
+		if (ni_string_eq(cw->control.mode, "manual") && !ni_ifworker_active(cw)) {
+			ni_debug_application("%s: ignoring state requirements for inactive worker %s",
+					w->name, cw->name);
+			continue;
+		}
+
+		if (ni_string_eq(cw->control.mode, "boot") ||
+		    ni_string_eq(cw->control.mode, "manual")) /* explicitly requested */
+			required = TRUE;
+
+		if (cw->failed) {
+			ni_debug_application("%s: %sworker %s failed", w->name,
+					required ? "required " : "", cw->name);
+			if (required)
+				all_required_ok = FALSE;
+			continue;
+		}
+
+		if (cw->fsm.state < check->state.min) {
+			wait_for_state = check->state.min;
+		} else
+		if (cw->fsm.state > check->state.max) {
+			wait_for_state = check->state.max;
+		} else {
+			ni_debug_application("%s: %sworker %s reached %s state %s..%s",
+					w->name, required ? "required " : "", cw->name,
+					csr->method,
+					ni_ifworker_state_name(check->state.min),
+					ni_ifworker_state_name(check->state.max));
+			state_reached++;
+			continue;
+		}
+
+		ni_debug_application("%s: waiting for %s worker %s to reach %s state %s",
+				w->name, required ? "required " : "", cw->name,
+				csr->method,
+				ni_ifworker_state_name(wait_for_state));
+
+		if (required)
+			all_required_ok = FALSE;
 	}
 
-	ni_debug_application("%s: waiting for %s to reach state %s",
-				w->name, cw->name,
-				ni_ifworker_state_name(wait_for_state));
-	return FALSE;
+	return all_required_ok && state_reached > 0;
 }
 
 static void
 ni_ifworker_check_state_req_free(ni_fsm_require_t *req)
 {
-	struct ni_check_state_req_data *data = (struct ni_check_state_req_data *) req->user_data;
+	ni_ifworker_check_state_req_t *csr;
 
-	if (data) {
-		ni_ifworker_release(data->check_worker);
-		ni_string_free(&data->method);
-		free(data);
+	if ((csr = ni_ifworker_check_state_req_cast(req))) {
+		ni_ifworker_check_state_req_check_list_destroy(csr);
+		ni_string_free(&csr->method);
+		free(csr);
 	}
-	req->user_data = NULL;
+	if (req)
+		req->user_data = NULL;
+}
+
+ni_fsm_require_t *
+ni_ifworker_check_state_req_new(const char *method, ni_ifworker_t *cw,
+			unsigned int min_state, unsigned int max_state)
+{
+	ni_ifworker_check_state_req_check_t *check;
+	ni_ifworker_check_state_req_t *csr;
+	ni_fsm_require_t *req;
+
+	csr = xcalloc(1, sizeof(*csr));
+	ni_string_dup(&csr->method, method);
+
+	check = ni_ifworker_check_state_req_check_new(cw, min_state, max_state);
+	ni_ifworker_check_state_req_check_list_append(csr, check);
+
+	req = ni_fsm_require_new(ni_ifworker_check_state_req_test, ni_ifworker_check_state_req_free);
+	req->user_data = csr;
+	return req;
 }
 
 static void
-ni_ifworker_add_check_state_req(ni_ifworker_t *w, const char *method, ni_ifworker_t *check_worker,
+ni_ifworker_add_check_state_req(ni_ifworker_t *w, const char *method, ni_ifworker_t *cw,
 			unsigned int min_state, unsigned int max_state)
 {
-	struct ni_check_state_req_data *data;
 	ni_fsm_require_t *req;
 
-	data = xcalloc(1, sizeof(*data));
-	data->check_worker = ni_ifworker_get(check_worker);
-	ni_string_dup(&data->method, method);
-	data->check_state.min = min_state;
-	data->check_state.max = max_state;
+	if (!w || !cw || ni_string_empty(method))
+		return;
 
-	req = ni_fsm_require_new(ni_ifworker_check_state_req_test, ni_ifworker_check_state_req_free);
-	req->user_data = data;
+	for (req = w->fsm.check_state_req_list; req; req = req->next) {
+		ni_ifworker_check_state_req_check_t *check;
+		ni_ifworker_check_state_req_t *csr;
 
-	req->next = w->fsm.check_state_req_list;
-	w->fsm.check_state_req_list = req;
+		if (!(csr = ni_ifworker_check_state_req_cast(req)))
+			continue;
+
+		if (!ni_string_eq(csr->method, method))
+			continue;
+
+		if (ni_ifworker_check_state_req_check_find_worker(csr, cw))
+			continue;  /* don't add worker twice */
+
+		check = ni_ifworker_check_state_req_check_new(cw, min_state, max_state);
+		ni_ifworker_check_state_req_check_list_append(csr, check);
+		return;
+	}
+
+	req = ni_ifworker_check_state_req_new(method, cw, min_state, max_state);
+	ni_fsm_require_list_insert(&w->fsm.check_state_req_list, req);
 }
 
 static void
@@ -2163,24 +2299,30 @@ ni_ifworker_get_check_state_reqs_for_method(ni_ifworker_t *w, ni_fsm_transition_
 	ni_fsm_require_t **list, *req;
 
 	for (list = &w->fsm.check_state_req_list; (req = *list) != NULL; ) {
-		struct ni_check_state_req_data *data = req->user_data;
-		unsigned int min_state = data->check_state.min;
-		unsigned int max_state = data->check_state.max;
-		ni_ifworker_t *cw = data->check_worker;
+		ni_ifworker_check_state_req_check_t *check;
+		ni_ifworker_check_state_req_t *csr;
 
-		if (!ni_string_eq(data->method, action->common.method_name)) {
+		if (!(csr = ni_ifworker_check_state_req_cast(req)))
+			continue;
+
+		if (!ni_string_eq(csr->method, action->common.method_name)) {
 			list = &req->next;
 			continue;
 		}
 
-		ni_debug_application("%s: %s transition requires state of worker %s to be in range [%s, %s]",
-				w->name, data->method, cw->name,
-				ni_ifworker_state_name(min_state),
-				ni_ifworker_state_name(max_state));
-		if (min_state > cw->target_range.min)
-			cw->target_range.min = min_state;
-		if (max_state < cw->target_range.max)
-			cw->target_range.max = max_state;
+		for (check = csr->check; check; check = check->next) {
+			ni_ifworker_t *cw = check->worker;
+
+			ni_debug_application("%s: %s transition requires worker %s to be in state %s..%s",
+				w->name, csr->method, cw->name,
+				ni_ifworker_state_name(check->state.min),
+				ni_ifworker_state_name(check->state.max));
+
+			if (check->state.min > cw->target_range.min)
+				cw->target_range.min = check->state.min;
+			if (check->state.max < cw->target_range.max)
+				cw->target_range.max = check->state.max;
+		}
 
 		/* Move this requirement to the action's req list */
 		*list = req->next;
@@ -2205,8 +2347,8 @@ ni_ifworker_check_dependencies(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transitio
 	if (!action->require.list)
 		return TRUE;
 
-	ni_debug_application("%s: checking requirements for %s -> %s transition",
-			w->name,
+	ni_debug_application("%s: checking %s requirements for %s -> %s transition",
+			w->name, action->common.method_name,
 			ni_ifworker_state_name(action->from_state),
 			ni_ifworker_state_name(action->next_state));
 
