@@ -21,11 +21,12 @@
    <define name="slave" class="dict">
      <device type="string">
        <meta:netif-reference shared="false" />
+       <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
      </device>
      <active type="boolean"/>
      <primary type="boolean"/>
    </define>
-   <slaves class="array" element-type="slave" minlen="1"/>
+   <slaves class="array" element-type="slave" constraint="required" minlen="1" />
 
    <!-- Link monitoring options.
         There must be exactly one of either arpmon or miimon present,
