@@ -75,6 +75,7 @@ static ni_compat_netdev_t *	__ni_suse_read_interface(const char *, const char *)
 static ni_bool_t		__ni_suse_read_globals(const char *, const char *, const char *);
 static void			__ni_suse_free_globals(void);
 static void			__ni_suse_show_unapplied_routes(void);
+static void			__ni_suse_adjust_slaves(ni_compat_netdev_array_t *);
 static ni_bool_t		__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
 static int			__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *,
 							const char *, try_function_t);
@@ -253,6 +254,7 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 		goto done;
 	}
 
+	__ni_suse_adjust_slaves(&result->netdevs);
 	__ni_suse_show_unapplied_routes();
 
 	success = TRUE;
@@ -3522,8 +3524,7 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ipv4 = ni_netdev_get_ipv4(dev);
 	ipv6 = ni_netdev_get_ipv6(dev);
 
-	/* Hmm... bonding slave -- set ethtool, but no link up */
-	if (ni_string_eq_nocase(bootproto, "none")) {
+	if (dev->link.masterdev.name || ni_string_eq_nocase(bootproto, "none")) {
 		if (ipv4)
 			ni_tristate_set(&ipv4->conf.enabled, FALSE);
 		if (ipv6)
@@ -3937,17 +3938,163 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	return TRUE;
 }
 
+static ni_netdev_t *
+__ni_suse_find_compat_device(ni_compat_netdev_array_t *netdevs, const char *name)
+{
+	ni_compat_netdev_t *compat;
+	unsigned int i;
+
+	for (i = 0; i < netdevs->count; ++i) {
+		compat = netdevs->data[i];
+		if (ni_string_eq(compat->dev->name, name))
+			return compat->dev;
+	}
+	return NULL;
+}
+
+static ni_bool_t
+__ni_suse_set_link_master(ni_netdev_t *dev, const char *master, const char *ifcfg)
+{
+	ni_ipv4_devinfo_t *ipv4;
+	ni_ipv6_devinfo_t *ipv6;
+
+	if (ni_string_empty(dev->link.masterdev.name))
+		ni_netdev_ref_set_ifname(&dev->link.masterdev, master);
+	else
+	if (!ni_string_eq(master, dev->link.masterdev.name)) {
+		/*
+		 * The ifcfg device hierarchy _is_ broken. But it is quite hard
+		 * to fix it: the only possibilities are to remove the port/slave
+		 * from the 2nd master to keep the already assigned master intact
+		 * or to override the master.
+		 * But as we cannot judge which master config is correct and which
+		 * not, we let the upper layers decide how to handle this.
+		 */
+		ni_warn("ifcfg-%s: cannot enslave %s to %s, already enslaved by %s",
+				ifcfg, dev->name, master, dev->link.masterdev.name);
+		return FALSE;
+	}
+
+	if ((ipv4 = ni_netdev_get_ipv4(dev)))
+		ni_tristate_set(&ipv4->conf.enabled, FALSE);
+	if ((ipv6 = ni_netdev_get_ipv6(dev)))
+		ni_tristate_set(&ipv6->conf.enabled, FALSE);
+
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_suse_create_compat_slave(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master, const char *slave)
+{
+	ni_ifworker_control_t control = { "hotplug", NULL, FALSE, FALSE, NI_TRISTATE_DEFAULT, 0, 0 };
+	ni_compat_netdev_t *compat;
+	ni_client_state_t *m_cs;
+	ni_client_state_t *s_cs;
+
+	compat = ni_compat_netdev_new(slave);
+	if (!compat)
+		return FALSE;
+
+	__ni_suse_set_link_master(compat->dev, master->dev->name, master->dev->name);
+
+	/* apply control defaults  */
+	compat->control = ni_ifworker_control_clone(&control);
+
+	/* copy origin from master */
+	m_cs = ni_netdev_get_client_state(master->dev);
+	s_cs = ni_netdev_get_client_state(compat->dev);
+	ni_string_dup(&s_cs->config.origin, m_cs->config.origin);
+
+	ni_compat_netdev_array_append(netdevs, compat);
+
+	return TRUE;
+}
+
+static void
+__ni_suse_adjust_bond_slaves(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master)
+{
+	ni_bonding_t *bond = ni_netdev_get_bonding(master->dev);
+	const char *slave;
+	ni_netdev_t *dev;
+	unsigned int i;
+
+	for (i = 0; i < bond->slave_names.count; ++i) {
+		slave = bond->slave_names.data[i];
+		dev = __ni_suse_find_compat_device(netdevs, slave);
+		if (dev) {
+			__ni_suse_set_link_master(dev, master->dev->name, master->dev->name);
+		} else {
+			__ni_suse_create_compat_slave(netdevs, master, slave);
+		}
+	}
+}
+
+static void
+__ni_suse_adjust_bridge_ports(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master)
+{
+	ni_bridge_t *bridge = ni_netdev_get_bridge(master->dev);
+	const char *port;
+	ni_netdev_t *dev;
+	unsigned int i;
+
+	for (i = 0; i < bridge->ports.count; ++i) {
+		port = bridge->ports.data[i]->ifname;
+		dev = __ni_suse_find_compat_device(netdevs, port);
+		if (dev) {
+			__ni_suse_set_link_master(dev, master->dev->name, master->dev->name);
+		} else {
+			__ni_suse_create_compat_slave(netdevs, master, port);
+		}
+	}
+}
+
+static void
+__ni_suse_adjust_slaves(ni_compat_netdev_array_t *netdevs)
+{
+	ni_compat_netdev_t *compat;
+	ni_netdev_t *dev;
+	unsigned int i;
+
+	for (i = 0; i < netdevs->count; ++i) {
+		compat = netdevs->data[i];
+		dev = compat->dev;
+
+		switch (dev->link.type) {
+		case NI_IFTYPE_BOND:
+			__ni_suse_adjust_bond_slaves(netdevs, compat);
+			break;
+		case NI_IFTYPE_BRIDGE:
+			__ni_suse_adjust_bridge_ports(netdevs, compat);
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+static ni_bool_t
+__ni_suse_read_linkinfo(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	const char *master;
+
+	ni_sysconfig_get_integer(sc, "MTU", &dev->link.mtu);
+
+	if (!ni_string_empty(master = ni_sysconfig_get_value(sc, "MASTER_DEVICE"))) {
+		if (!__ni_suse_set_link_master(dev, master, dev->name))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
 /*
  * Read an ifcfg file
  */
 static ni_bool_t
 __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
-	ni_netdev_t *dev = compat->dev;
-
 	compat->control = __ni_suse_startmode(sc);
-
-	ni_sysconfig_get_integer(sc, "MTU", &dev->link.mtu);
 
 	if (try_loopback(sc, compat)   < 0 ||
 	    try_bonding(sc, compat)    < 0 ||
@@ -3962,6 +4109,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	    try_ethernet(sc, compat)   < 0)
 		return FALSE;
 
+	__ni_suse_read_linkinfo(sc, compat);
 	__ni_suse_read_ifsysctl(sc, compat);
 	__ni_suse_bootproto(sc, compat);
 	__ni_suse_get_scripts(sc, compat);

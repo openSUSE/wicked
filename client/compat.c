@@ -1587,6 +1587,8 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	}
 
 	linknode = xml_node_new("link", ifnode);
+	if (dev->link.masterdev.name)
+		xml_node_new_element("master", linknode, dev->link.masterdev.name);
 	if (dev->link.mtu)
 		xml_node_new_element("mtu", linknode, ni_sprint_uint(dev->link.mtu));
 
