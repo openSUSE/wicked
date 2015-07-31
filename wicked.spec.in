@@ -51,11 +51,8 @@ Requires(pre):  libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 
 %bcond_with     wicked_devel
 
-%if 0%{?suse_version} >= 1320
+# Note: nanny use is enabled by default
 %bcond_without  use_nanny
-%else
-%bcond_with     use_nanny
-%endif
 
 BuildRequires:  libnl3-devel
 %if 0%{?suse_version} > 1110
