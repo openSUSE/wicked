@@ -51,8 +51,8 @@ Requires(pre):  libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 
 %bcond_with     wicked_devel
 
-# Note: nanny use is enabled by default
-%bcond_without  use_nanny
+# Note: nanny use is enabled by default, except on SLE-12
+%bcond_with     use_nanny
 
 BuildRequires:  libnl3-devel
 %if 0%{?suse_version} > 1110
