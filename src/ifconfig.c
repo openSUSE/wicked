@@ -158,13 +158,18 @@ ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev)
 			ni_netdev_ref_set(&dev->link.masterdev,
 					master->name, master->link.ifindex);
 		}
+		break;
 	case NI_IFTYPE_BRIDGE:
 		ret = __ni_rtnl_link_add_port_up(dev, master->name,
 						master->link.ifindex);
 		if (ret == 0) {
 			ni_netdev_ref_set(&dev->link.masterdev,
 					master->name, master->link.ifindex);
+
+			if (dev->link.type == NI_IFTYPE_WIRELESS)
+				ni_wireless_connect(dev);
 		}
+		break;
 	default:
 		break;
 	}
@@ -194,12 +199,19 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 		if (dev->link.masterdev.index) {
 			if (!dev->link.masterdev.name)
 				ni_netdev_ref_bind_ifname(&dev->link.masterdev, nc);
-			ni_debug_ifconfig("%s: already enslaved in master %s[#%u] -- skipping linkUp",
+
+			ni_debug_ifconfig("%s: already enslaved in master %s[#%u]",
 					dev->name, dev->link.masterdev.name ?
 					dev->link.masterdev.name : "",
 					dev->link.masterdev.index);
-			return 0;
-		}
+
+			if (ni_netdev_device_is_up(dev))
+				return 0;
+
+			master = ni_netdev_by_index(nc, dev->link.masterdev.index);
+			if (master && master->link.type == NI_IFTYPE_BOND)
+				return 0;
+		} else
 		/* config lookup for master and redirect to master's enslave */
 		if (ifp_req && !ni_string_empty(ifp_req->master.name)) {
 			master = ni_netdev_by_name(nc, ifp_req->master.name);
