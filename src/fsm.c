@@ -955,8 +955,26 @@ ni_ifworker_by_modem(ni_fsm_t *fsm, const ni_modem_t *dev)
 ni_bool_t
 ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
 {
-	if (!w || ni_string_empty(ifname))
+	const char *errmsg = NULL;
+
+	if (ni_string_empty(ifname))
 		return FALSE;
+
+	if (!w) {
+		errmsg = "no worker";
+		goto done;
+	}
+
+	if (ni_ifworker_is_device_created(w)) {
+		if (!ni_netdev_device_is_ready(w->device)) {
+			errmsg = "not ready";
+			goto done;
+		}
+	}
+	else if (!ni_ifworker_is_factory_device(w)) {
+		errmsg = "not created";
+		goto done;
+	}
 
 	/* ifworker name must be same as policy name here.
 	 * If device name matches policy name then we
@@ -964,8 +982,11 @@ ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
 	 */
 	if (ni_string_eq(w->name, ifname))
 		return TRUE;
+	else
+		errmsg = "name mismatch";
 
-	ni_error("device %s requested via match is not present", ifname);
+done:
+	ni_error("device %s requested via match is not present (%s)", ifname, errmsg);
 	return FALSE;
 }
 
@@ -1259,7 +1280,7 @@ ni_ifworker_generate_default_config(ni_ifworker_t *parent, ni_ifworker_t *child)
 	}
 }
 
-static ni_bool_t
+ni_bool_t
 ni_ifworker_add_child_master(xml_node_t *config, const char *name)
 {
 	xml_node_t *link, *master;
@@ -1297,6 +1318,42 @@ ni_ifworker_del_child_master(xml_node_t *config)
 		return FALSE;
 
 	return xml_node_delete_child(link, NI_CLIENT_IFCONFIG_MASTER);
+}
+
+xml_node_t *
+ni_ifworker_get_child_master(xml_node_t *config)
+{
+	xml_node_t *link;
+
+	if (xml_node_is_empty(config))
+		return NULL;
+
+	if (!(link = xml_node_get_child(config, NI_CLIENT_IFCONFIG_LINK)))
+		return NULL;
+
+	return xml_node_get_child(link, NI_CLIENT_IFCONFIG_MASTER);
+}
+
+xml_node_t *
+ni_ifworker_get_child_lower(xml_node_t *config, ni_iftype_t iftype)
+{
+	xml_node_t *type_node;
+	const char *type;
+
+	if (xml_node_is_empty(config))
+		return NULL;
+
+	if (NI_IFTYPE_UNKNOWN == iftype)
+		return NULL;
+
+	type = ni_linktype_type_to_name(iftype);
+	if (ni_string_empty(type))
+		return NULL;
+
+	if (!(type_node = xml_node_get_child(config, type)))
+		return NULL;
+
+	return xml_node_get_child(type_node, NI_CLIENT_IFCONFIG_DEVICE);
 }
 
 static ni_bool_t

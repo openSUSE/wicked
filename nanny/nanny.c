@@ -530,7 +530,7 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 			mdev->allowed? ", user control allowed" : "",
 			mdev->monitor? ", monitored (auto-enabled)" : "");
 
-	if (ni_fsm_exists_applicable_policy(mgr->fsm->policies, w))
+	if (ni_fsm_exists_policy(mgr->fsm->policies, w))
 		ni_nanny_schedule_recheck(&mgr->recheck, w);
 
 	ni_ifworker_set_progress_callback(w, ni_managed_device_progress, mdev);
@@ -556,7 +556,7 @@ ni_nanny_unregister_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_ifworker_set_completion_callback(w, NULL, NULL);
 
 	if (!ni_ifworker_is_factory_device(w) ||
-	    !ni_fsm_exists_applicable_policy(mgr->fsm->policies, w)) {
+	    !ni_fsm_exists_policy(mgr->fsm->policies, w)) {
 		ni_nanny_unschedule(&mgr->recheck, w);
 	}
 }

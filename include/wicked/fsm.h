@@ -289,6 +289,7 @@ extern ni_fsm_policy_t *	ni_fsm_policy_by_name(ni_fsm_t *, const char *);
 extern ni_bool_t		ni_fsm_policy_remove(ni_fsm_t *, ni_fsm_policy_t *);
 extern unsigned int		ni_fsm_policy_get_applicable_policies(ni_fsm_t *, ni_ifworker_t *,
 						const ni_fsm_policy_t **, unsigned int);
+extern ni_bool_t		ni_fsm_exists_policy(ni_fsm_policy_t *, ni_ifworker_t *);
 extern ni_bool_t		ni_fsm_exists_applicable_policy(ni_fsm_policy_t *, ni_ifworker_t *);
 extern xml_node_t *		ni_fsm_policy_transform_document(xml_node_t *, ni_fsm_policy_t * const *, unsigned int);
 extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
@@ -335,6 +336,9 @@ extern ni_bool_t		ni_ifworker_match_netdev_name(const ni_ifworker_t *, const cha
 extern ni_bool_t		ni_ifworker_match_netdev_alias(const ni_ifworker_t *, const char *);
 extern ni_bool_t		ni_ifworker_match_netdev_ifindex(const ni_ifworker_t *, unsigned int);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *, const char *);
+extern xml_node_t *		ni_ifworker_get_child_master(xml_node_t *);
+extern xml_node_t *		ni_ifworker_get_child_lower(xml_node_t *, ni_iftype_t );
+extern ni_bool_t		ni_ifworker_add_child_master(xml_node_t *, const char *);
 extern ni_iftype_t		ni_ifworker_iftype_from_xml(xml_node_t *);
 extern void			ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
 extern ni_bool_t		ni_ifworker_control_set_usercontrol(ni_ifworker_t *, ni_bool_t);

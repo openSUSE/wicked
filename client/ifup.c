@@ -74,6 +74,66 @@ __ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w)
 }
 
 static xml_node_t *
+__ni_ifup_generate_match_master(xml_node_t *node, ni_ifworker_t *w)
+{
+	xml_node_t *master, *device;
+
+	if (!node || !w || xml_node_is_empty(w->config.node))
+		return NULL;
+
+	if (!w->masterdev)
+		return NULL;
+
+	if (!ni_ifworker_add_child_master(w->config.node, w->masterdev->name)) {
+		ni_debug_application("%s: unable to add <%s> to config", w->name,
+			NI_NANNY_IFPOLICY_MATCH_MASTER);
+		return NULL;
+	}
+
+	master = xml_node_new(NI_NANNY_IFPOLICY_MATCH_MASTER, node);
+	if (!master)
+		return NULL;
+
+	device = ni_ifworker_get_child_master(w->config.node);
+	if (xml_node_is_empty(device))
+		return NULL;
+
+	/* Attaching <device> is optional when <check-state> is also used */
+	if (!(device = xml_node_clone(device, master)))
+		return NULL;
+	ni_string_dup(&device->name, NI_NANNY_IFPOLICY_MATCH_DEV);
+
+	return master;
+}
+
+static xml_node_t *
+__ni_ifup_generate_match_lower(xml_node_t *node, ni_ifworker_t *w)
+{
+	xml_node_t *lower, *device;
+
+	if (!node || !w || xml_node_is_empty(w->config.node))
+		return NULL;
+
+	if (!w->lowerdev)
+		return NULL;
+
+	lower = xml_node_new(NI_NANNY_IFPOLICY_MATCH_LOWER, node);
+	if (!lower)
+		return NULL;
+
+	device = ni_ifworker_get_child_lower(w->config.node, w->iftype);
+	if (xml_node_is_empty(device))
+		return NULL;
+
+	/* Attaching <device> is optional when <check-state> is also used */
+	if (!xml_node_clone(device, lower))
+		return NULL;
+
+
+	return lower;
+}
+
+static xml_node_t *
 __ni_ifup_generate_match(const char *name, ni_ifworker_t *w)
 {
 	xml_node_t *match;
@@ -83,6 +143,24 @@ __ni_ifup_generate_match(const char *name, ni_ifworker_t *w)
 
 	if (!__ni_ifup_generate_match_dev(match, w))
 		goto error;
+
+	if (w->masterdev) {
+		if (!__ni_ifup_generate_match_master(match, w)) {
+			ni_debug_application("%s: unable to generate <%s> check in <%s>",
+				w->name, NI_NANNY_IFPOLICY_MATCH_MASTER,
+				NI_NANNY_IFPOLICY_MATCH);
+			goto error;
+		}
+	}
+
+	if (w->lowerdev) {
+		if (!__ni_ifup_generate_match_lower(match, w)) {
+			ni_debug_application("%s: unable to generate <%s> check in <%s>",
+				w->name, NI_NANNY_IFPOLICY_MATCH_LOWER,
+				NI_NANNY_IFPOLICY_MATCH);
+			goto error;
+		}
+	}
 
 	if (w->children.count) {
 		xml_node_t *or;
