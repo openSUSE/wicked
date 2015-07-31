@@ -433,13 +433,19 @@ ni_ifworker_get_modem(const ni_ifworker_t *w)
 	return w->modem;
 }
 
+static inline ni_bool_t
+ni_ifworker_has_failed(const ni_ifworker_t *w)
+{
+	return w->kickstarted && (w->failed || w->dead);
+}
+
 /*
  * Returns true if the device was configured correctly
  */
 static inline ni_bool_t
 ni_ifworker_has_succeeded(const ni_ifworker_t *w)
 {
-	return w->done && !w->failed;
+	return w->kickstarted && w->done && !ni_ifworker_has_failed(w);
 }
 
 /*
@@ -464,7 +470,7 @@ ni_ifworker_is_valid_state(ni_fsm_state_t state)
 static inline ni_bool_t
 ni_ifworker_complete(const ni_ifworker_t *w)
 {
-	return 	w->failed || w->done || w->target_state == NI_FSM_STATE_NONE ||
+	return 	w->failed || w->done || w->dead || w->target_state == NI_FSM_STATE_NONE ||
 		(w->target_state == w->fsm.state && ni_ifworker_is_valid_state(w->target_state));
 }
 
@@ -478,7 +484,7 @@ ni_ifworker_is_device_created(const ni_ifworker_t *w)
 static inline ni_bool_t
 ni_ifworker_is_running(const ni_ifworker_t *w)
 {
-	return w->kickstarted && !w->dead && !ni_ifworker_complete(w);
+	return w->kickstarted && !ni_ifworker_complete(w);
 }
 
 static inline ni_bool_t
