@@ -1356,6 +1356,10 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		__ni_discover_tunneling(dev, tb);
 		break;
 
+	case NI_IFTYPE_TEAM:
+		/* is using gennl, rtnl_link provides a kind only */
+		break;
+
 	default:
 		break;
 	}
