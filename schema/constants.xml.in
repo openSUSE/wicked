@@ -197,3 +197,8 @@
   <@@MACVLAN_FLAG_NAME@@ bit="@@MACVLAN_FLAG_VALUE@@"/>
 </define>
 
+<!-- Built-in team constants -->
+<define name="builtin-team-mode" type="uint32" constraint="enum">
+  <@@TEAM_MODE_NAME@@ value="@@TEAM_MODE_VALUE@@"/>
+</define>
+

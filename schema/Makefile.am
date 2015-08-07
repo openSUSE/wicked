@@ -19,6 +19,7 @@ wicked_schema_files		= \
 	dummy.xml		\
 	ppp.xml			\
 	protocol.xml		\
+	team.xml		\
 	types.xml		\
 	tuntap.xml		\
 	scripts.xml		\

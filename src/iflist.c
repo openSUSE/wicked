@@ -1358,6 +1358,8 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 
 	case NI_IFTYPE_TEAM:
 		/* is using gennl, rtnl_link provides a kind only */
+		/* FAKE: just init dev->team, get them from teamd */
+		ni_netdev_get_team(dev);
 		break;
 
 	default:

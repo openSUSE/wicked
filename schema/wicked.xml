@@ -25,3 +25,4 @@
 <include name="firewall.xml"/>
 <include name="addrconf.xml"/>
 <include name="lldp.xml"/>
+<include name="team.xml"/>

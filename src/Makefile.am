@@ -133,6 +133,7 @@ libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/openvpn.c	\
 	dbus-objects/ppp.c	\
 	dbus-objects/state.c	\
+	dbus-objects/team.c	\
 	dbus-objects/tuntap.c	\
 	dbus-objects/sit.c	\
 	dbus-objects/ipip.c	\

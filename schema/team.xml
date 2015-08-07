@@ -1,0 +1,38 @@
+<service name="team" interface="org.opensuse.Network.Team" object-class="netif-team">
+ <description>
+   This link-layer service is provided by all team devices.
+
+   Team devices can be created through the org.opensuse.Network.Team.Factory
+   factory interface.
+ </description>
+
+ <!-- This is the device-info returned in interface reports -->
+ <define name="device-info" class="dict">
+   <mode type="builtin-team-mode"/>
+ </define>
+
+ <define name="properties" type="device-info"/>
+
+ <method name="changeDevice">
+  <arguments>
+    <config type="team:device-info">
+      <meta:mapping document-node="/team"/>
+    </config>
+  </arguments>
+ </method>
+
+</service>
+
+<service name="team-factory" interface="org.opensuse.Network.Team.Factory" object-class="netif-list">
+  <method name="newDevice">
+    <arguments>
+     <name type="string"/>
+     <config type="team:device-info">
+      <meta:mapping document-node="/team"/>
+     </config>
+    </arguments>
+    <return>
+     <string/>
+    </return>
+  </method>
+</service>
