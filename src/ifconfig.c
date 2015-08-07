@@ -31,6 +31,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
+#include <wicked/team.h>
 #include <wicked/vlan.h>
 #include <wicked/macvlan.h>
 #include <wicked/system.h>
@@ -76,6 +77,7 @@
 #include "process.h"
 #include "debug.h"
 #include "modprobe.h"
+#include "teamd.h"
 
 #ifndef SIT_TUNNEL_MODULE_NAME
 #define SIT_TUNNEL_MODULE_NAME "sit"
@@ -1331,19 +1333,6 @@ ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t
 }
 
 /*
- * Set up an ethernet device
- */
-int
-ni_system_ethernet_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
-{
-	if (!dev || !cfg || !cfg->ethernet)
-		return -1;
-
-	__ni_system_ethernet_update(dev, cfg->ethernet);
-	return 0;
-}
-
-/*
  * Set up a bonding device
  */
 int
@@ -1594,10 +1583,70 @@ ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int s
 	return 0;
 }
 
+/*
+ * Create a team device
+ */
 int
-ni_system_tap_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+ni_system_team_create(ni_netconfig_t *nc, const char *ifname, const ni_team_t *team_cfg, ni_netdev_t **dev_ret)
 {
-	return __ni_rtnl_link_change(dev, cfg);
+	unsigned int i;
+	int ret;
+
+	if (ni_teamd_service_start(ifname, team_cfg) < 0)
+		return -1;
+
+	/* Wait for sysfs to appear */
+	for (i = 0; i < 400; ++i) {
+		if (ni_sysfs_netif_exists(ifname, "ifindex"))
+			break;
+		usleep(25000);
+	}
+
+	ret = __ni_system_netdev_create(nc, ifname, 0, NI_IFTYPE_TEAM, dev_ret);
+	/* FAKE: -> read them from teamd in discover */
+	if (dev_ret && *dev_ret) {
+		ni_team_t *team = ni_netdev_get_team(*dev_ret);
+		if (team)
+			team->mode = team_cfg->mode;
+	}
+	return ret;
+}
+
+int
+ni_system_team_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_team_t *team_cfg)
+{
+	ni_team_t *team = ni_netdev_get_team(dev);
+
+	/* FAKE: -> read them from teamd in discover */
+	if (team && team_cfg)
+		team->mode = team_cfg->mode;
+
+	return 0;
+}
+
+int
+ni_system_team_shutdown(ni_netdev_t *dev)
+{
+	return 0;
+}
+
+int
+ni_system_team_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	return ni_teamd_service_stop(dev->name);
+}
+
+/*
+ * Set up an ethernet device
+ */
+int
+ni_system_ethernet_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	if (!dev || !cfg || !cfg->ethernet)
+		return -1;
+
+	__ni_system_ethernet_update(dev, cfg->ethernet);
+	return 0;
 }
 
 /*
@@ -1635,6 +1684,12 @@ ni_system_tuntap_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t 
 	}
 
 	return __ni_system_netdev_create(nc, cfg->name, 0, cfg->link.type, dev_ret);
+}
+
+int
+ni_system_tap_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	return __ni_rtnl_link_change(dev, cfg);
 }
 
 /*
