@@ -36,6 +36,7 @@ wicked_include_HEADERS		= \
 	wicked/socket.h		\
 	wicked/sysconfig.h	\
 	wicked/system.h		\
+	wicked/team.h		\
 	wicked/tunneling.h	\
 	wicked/tuntap.h		\
 	wicked/types.h		\

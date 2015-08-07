@@ -70,6 +70,7 @@ struct ni_netdev {
 
 	/* link layer info specific to different device types. */
 	ni_vlan_t *		vlan;
+	ni_team_t *		team;
 	ni_bonding_t *		bonding;
 	ni_bridge_t *		bridge;
 	ni_ethernet_t *		ethernet;
@@ -185,6 +186,7 @@ extern ni_address_t *	ni_netdev_get_addresses(ni_netdev_t *, unsigned int af);
 extern ni_ethernet_t *	ni_netdev_get_ethernet(ni_netdev_t *);
 extern ni_infiniband_t *ni_netdev_get_infiniband(ni_netdev_t *);
 extern ni_bonding_t *	ni_netdev_get_bonding(ni_netdev_t *);
+extern ni_team_t *	ni_netdev_get_team(ni_netdev_t *);
 extern ni_vlan_t *	ni_netdev_get_vlan(ni_netdev_t *);
 extern ni_macvlan_t *	ni_netdev_get_macvlan(ni_netdev_t *);
 extern ni_bridge_t *	ni_netdev_get_bridge(ni_netdev_t *);
@@ -197,6 +199,7 @@ extern ni_gre_t *	ni_netdev_get_gre(ni_netdev_t *);
 extern ni_ppp_t *	ni_netdev_get_ppp(ni_netdev_t *);
 extern ni_lldp_t *	ni_netdev_get_lldp(ni_netdev_t *);
 extern void		ni_netdev_set_bonding(ni_netdev_t *, ni_bonding_t *);
+extern void		ni_netdev_set_team(ni_netdev_t *, ni_team_t *);
 extern void		ni_netdev_set_vlan(ni_netdev_t *, ni_vlan_t *);
 extern void		ni_netdev_set_macvlan(ni_netdev_t *, ni_macvlan_t *);
 extern void		ni_netdev_set_bridge(ni_netdev_t *, ni_bridge_t *);
