@@ -7,6 +7,7 @@ noinst_PROGRAMS			= rtnl-test	\
 				  uuid-test	\
 				  xml-test	\
 				  ibft-test	\
+				  teamd-test	\
 				  xpath-test	\
 				  cstate-test
 
@@ -25,6 +26,7 @@ hex_test_SOURCES		= hex-test.c
 uuid_test_SOURCES		= uuid-test.c
 xml_test_SOURCES		= xml-test.c
 ibft_test_SOURCES		= ibft-test.c
+teamd_test_SOURCES		= teamd-test.c
 xpath_test_SOURCES		= xpath-test.c
 cstate_test_SOURCES		= cstate-test.c
 
