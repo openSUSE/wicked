@@ -95,6 +95,7 @@ libwicked_la_SOURCES		= \
 	sysconfig.c		\
 	sysfs.c			\
 	team.c			\
+	teamd.c			\
 	timer.c			\
 	tunneling.c		\
 	tuntap.c		\
@@ -189,6 +190,7 @@ wicked_headers			= \
 	process.h		\
 	socket_priv.h		\
 	sysfs.h			\
+	teamd.h			\
 	uevent.h		\
 	udev-utils.h		\
 	util_priv.h		\
