@@ -807,7 +807,8 @@ ni_do_ifstatus(int argc, char **argv)
 	}
 
 	if (nmarked == 0) {
-		printf("ifstatus: no matching interfaces\n");
+		if (opt_verbose > OPT_QUIET)
+			printf("ifstatus: no matching interfaces\n");
 		status = NI_WICKED_ST_NO_DEVICE;
 		goto cleanup;
 	}
