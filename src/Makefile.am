@@ -70,6 +70,7 @@ libwicked_la_SOURCES		= \
 	infiniband.c		\
 	ipv4.c			\
 	ipv6.c			\
+	json.c			\
 	kernel.c		\
 	leasefile.c		\
 	leaseinfo.c		\
@@ -182,6 +183,7 @@ wicked_headers			= \
 	duid.h			\
 	ibft.h			\
 	ipv6_priv.h		\
+	json.h			\
 	kernel.h		\
 	leasefile.h		\
 	lldp-priv.h             \

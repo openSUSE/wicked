@@ -10,11 +10,13 @@
 #include <wicked/netinfo.h>
 
 #include "teamd.h"
+#include "json.h"
 
 int main(int argc, char **argv)
 {
 	ni_teamd_client_t *tdc;
 	const char *command, *param1, *param2, *val = NULL;
+	ni_json_t *json;
 	int rv = 0;
 
 	if (argc < 3) {
@@ -39,5 +41,18 @@ int main(int argc, char **argv)
 		val = ni_teamd_ctl_config_dump(tdc, TRUE);
 
 	printf("%s\n", val ? val : ni_format_boolean(!!rv));
+
+	if (val && (json = ni_json_parse_string(val))) {
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+		ni_json_format_string(&buf, json, NULL);
+		printf("type<%s>: %s\n",
+			ni_json_type_name(ni_json_type(json)), buf.string);
+		ni_stringbuf_destroy(&buf);
+		ni_json_free(json);
+	} else if (val) {
+		printf("json parsing error\n");
+	}
+
 	return rv;
 }
