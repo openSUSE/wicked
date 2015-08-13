@@ -298,10 +298,22 @@ __ni_objectmodel_team_get_runner(const ni_dbus_object_t *object, const ni_dbus_p
 	ni_dbus_variant_init_dict(dict);
 
 	switch (team->runner.type) {
-	case NI_TEAM_RUNNER_ACTIVE_BACKUP:
+	case NI_TEAM_RUNNER_ACTIVE_BACKUP: {
+			const ni_team_runner_active_backup_t *ab = &team->runner.ab;
+			ni_dbus_dict_add_uint32(dict, "hwaddr_policy", ab->config.hwaddr_policy);
+		}
 		break;
 
-	case NI_TEAM_RUNNER_LOAD_BALANCE:
+	case NI_TEAM_RUNNER_LOAD_BALANCE: {
+			const ni_team_runner_load_balance_t *lb = &team->runner.lb;
+			ni_dbus_variant_t *txb;
+
+			ni_dbus_dict_add_uint32(dict, "tx_hash", lb->config.tx_hash);
+			txb = ni_dbus_dict_add(dict, "tx_balancer");
+			ni_dbus_variant_init_dict(txb);
+			ni_dbus_dict_add_uint32(txb, "name", lb->config.tx_balancer.type);
+			ni_dbus_dict_add_uint32(txb, "balancing_interval", lb->config.tx_balancer.interval);
+		}
 		break;
 
 	case NI_TEAM_RUNNER_ROUND_ROBIN:
@@ -313,7 +325,22 @@ __ni_objectmodel_team_get_runner(const ni_dbus_object_t *object, const ni_dbus_p
 	case NI_TEAM_RUNNER_RANDOM:
 		break;
 
-	case NI_TEAM_RUNNER_LACP:
+	case NI_TEAM_RUNNER_LACP: {
+			const ni_team_runner_lacp_t *lacp = &team->runner.lacp;
+			ni_dbus_variant_t *txb;
+
+			ni_dbus_dict_add_bool(dict, "active", lacp->config.active);
+			ni_dbus_dict_add_bool(dict, "fast_rate", lacp->config.fast_rate);
+			ni_dbus_dict_add_uint16(dict, "sys_prio", lacp->config.sys_prio);
+			ni_dbus_dict_add_uint16(dict, "min_ports", lacp->config.min_ports);
+			ni_dbus_dict_add_uint32(dict, "select_policy", lacp->config.select_policy);
+
+			ni_dbus_dict_add_uint32(dict, "tx_hash", lacp->config.tx_hash);
+			txb = ni_dbus_dict_add(dict, "tx_balancer");
+			ni_dbus_variant_init_dict(txb);
+			ni_dbus_dict_add_uint32(txb, "name", lacp->config.tx_balancer.type);
+			ni_dbus_dict_add_uint32(txb, "balancing_interval", lacp->config.tx_balancer.interval);
+		}
 		break;
 
 	default:
@@ -355,10 +382,37 @@ __ni_objectmodel_team_set_runner(ni_dbus_object_t *object, const ni_dbus_propert
 	}
 
 	switch (team->runner.type) {
-	case NI_TEAM_RUNNER_ACTIVE_BACKUP:
+	case NI_TEAM_RUNNER_ACTIVE_BACKUP: {
+			ni_team_runner_active_backup_t *ab = &team->runner.ab;
+			uint32_t u32;
+
+			if (ni_dbus_dict_get_uint32(dict, "hwaddr_policy", &u32))
+				ab->config.hwaddr_policy = u32;
+			else
+				ab->config.hwaddr_policy = NI_TEAM_AB_HWADDR_POLICY_SAME_ALL;
+		}
 		break;
 
-	case NI_TEAM_RUNNER_LOAD_BALANCE:
+	case NI_TEAM_RUNNER_LOAD_BALANCE: {
+			ni_team_runner_load_balance_t *lb = &team->runner.lb;
+			ni_dbus_variant_t *txb;
+			uint32_t u32;
+
+			if (ni_dbus_dict_get_uint32(dict, "tx_hash", &u32))
+				lb->config.tx_hash = u32;
+			else	lb->config.tx_hash = NI_TEAM_TX_HASH_NONE;
+
+			txb = ni_dbus_dict_get(dict, "tx_balancer");
+			if (txb) {
+				if (ni_dbus_dict_get_uint32(txb, "name", &u32) &&
+				    ni_team_tx_balancer_type_to_name(u32))
+					lb->config.tx_balancer.type = u32;
+				else	lb->config.tx_balancer.type = NI_TEAM_TX_BALANCER_BASIC;
+				if (ni_dbus_dict_get_uint32(txb, "balancing_interval", &u32))
+					lb->config.tx_balancer.interval = u32;
+				else	lb->config.tx_balancer.interval = 50;
+			}
+		}
 		break;
 
 	case NI_TEAM_RUNNER_ROUND_ROBIN:
@@ -370,7 +424,48 @@ __ni_objectmodel_team_set_runner(ni_dbus_object_t *object, const ni_dbus_propert
 	case NI_TEAM_RUNNER_RANDOM:
 		break;
 
-	case NI_TEAM_RUNNER_LACP:
+	case NI_TEAM_RUNNER_LACP: {
+			ni_team_runner_lacp_t *lacp = &team->runner.lacp;
+			ni_dbus_variant_t *txb;
+			dbus_bool_t b;
+			uint16_t u16;
+			uint32_t u32;
+
+			if (ni_dbus_dict_get_bool(dict, "active", &b))
+				lacp->config.active = b;
+			else	lacp->config.active = TRUE;
+
+			if (ni_dbus_dict_get_uint16(dict, "sys_prio", &u16))
+				lacp->config.sys_prio = u16;
+			else	lacp->config.sys_prio = 255;
+
+			if (ni_dbus_dict_get_bool(dict, "fast_rate", &b))
+				lacp->config.fast_rate = b;
+			else	lacp->config.fast_rate = FALSE;
+
+			if (ni_dbus_dict_get_uint16(dict, "min_ports", &u16) && u16 < 256)
+				lacp->config.sys_prio = u16;
+			else	lacp->config.sys_prio = 0;
+
+			if (ni_dbus_dict_get_uint32(dict, "select_policy", &u32))
+				lacp->config.select_policy = u32;
+			else	lacp->config.select_policy = NI_TEAM_LACP_SELECT_POLICY_PRIO;
+
+			if (ni_dbus_dict_get_uint32(dict, "tx_hash", &u32))
+				lacp->config.tx_hash = u32;
+			else	lacp->config.tx_hash = NI_TEAM_TX_HASH_NONE;
+
+			txb = ni_dbus_dict_get(dict, "tx_balancer");
+			if (txb) {
+				if (ni_dbus_dict_get_uint32(txb, "name", &u32) &&
+				    ni_team_tx_balancer_type_to_name(u32))
+					lacp->config.tx_balancer.type = u32;
+				else	lacp->config.tx_balancer.type = NI_TEAM_TX_BALANCER_BASIC;
+				if (ni_dbus_dict_get_uint32(txb, "balancing_interval", &u32))
+					lacp->config.tx_balancer.interval = u32;
+				else	lacp->config.tx_balancer.interval = 50;
+			}
+		}
 		break;
 
 	default:
@@ -393,6 +488,7 @@ __ni_objectmodel_team_set_runner(ni_dbus_object_t *object, const ni_dbus_propert
 static ni_dbus_property_t	ni_objectmodel_team_properties[] = {
 	TEAM_DICT_PROPERTY(runner, runner, RO),
 	TEAM_HWADDR_PROPERTY(address, RO),
+
 	{ NULL }
 };
 

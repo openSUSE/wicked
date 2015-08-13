@@ -6,17 +6,37 @@
    factory interface.
  </description>
 
+  <define name="tx-balancer-type" class="dict">
+    <name               type="builtin-team-tx-balancer-type" />
+    <balancing_interval type="uint32" />
+  </define>
+
   <define name="roundrobin-runner" class="dict">
   </define>
+
   <define name="activebackup-runner" class="dict">
+    <hwaddr-policy     type="builtin-team-ab-hwaddr-policy" />
   </define>
+
   <define name="loadbalance-runner" class="dict">
+    <tx_hash           type="builtin-team-tx-hash-mask" />
+    <tx_balancer       type="team:tx-balancer-type" />
   </define>
+
   <define name="broadcast-runner" class="dict">
   </define>
+
   <define name="random-runner" class="dict">
   </define>
+
   <define name="lacp-runner" class="dict">
+    <active            type="boolean" />
+    <sys_prio          type="uint16" />
+    <fast_rate         type="boolean" />
+    <min_ports         type="uint16" />
+    <select_policy     type="builtin-team-lacp-select-policy" />
+    <tx_hash           type="builtin-team-tx-hash-mask" />
+    <tx_balancer       type="team:tx-balancer-type" />
   </define>
 
   <define name="arp-ping-linkwatch-type" class="dict">

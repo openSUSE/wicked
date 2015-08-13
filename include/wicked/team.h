@@ -61,14 +61,14 @@ typedef enum {
 typedef struct ni_team_tx_balancer {
 	ni_team_tx_balancer_type_t		type;
 	/* currently, there is a basic only */
-	unsigned int				balancing_interval;
+	unsigned int				interval;
 } ni_team_tx_balancer_t;
 
 /*
  * lacp runner
  */
 typedef enum {
-	NI_TEAM_LACP_SELECT_POLICY_PRIO,
+	NI_TEAM_LACP_SELECT_POLICY_PRIO = 0,
 	NI_TEAM_LACP_SELECT_POLICY_PRIO_STABLE,
 	NI_TEAM_LACP_SELECT_POLICY_BANDWIDTH,
 	NI_TEAM_LACP_SELECT_POLICY_COUNT,

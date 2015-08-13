@@ -83,6 +83,10 @@ static struct generic_map	generic_maps[] = {
 	MAP(LLDP_SYSTEM_CAPABILITY, ni_lldp_system_capability_type_to_name),
 	MAP(MACVLAN_MODE, ni_macvlan_mode_to_name),
 	MAP(MACVLAN_FLAG, ni_macvlan_flag_bit_name),
+	MAP(TEAM_TX_HASH_BIT, ni_team_tx_hash_bit_to_name),
+	MAP(TEAM_TX_BALANCER, ni_team_tx_balancer_type_to_name),
+	MAP(TEAM_AB_HWADDR_POLICY, ni_team_ab_hwaddr_policy_to_name),
+	MAP(TEAM_LACP_SELECT_POLICY, ni_team_lacp_select_policy_to_name),
 
 	{ NULL }
 };
