@@ -3622,6 +3622,12 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		return NULL;
 	}
 
+	if (!ni_linktype_type_to_name(dev->link.type)) {
+		ni_error("%s: normalize refreshed device's incorrect/unset link type: %u",
+			object->path, dev->link.type);
+		dev->link.type = NI_IFTYPE_UNKNOWN;
+	}
+
 	if (ni_netdev_device_is_ready(dev)) {
 		/*
 		 * if tracked as pending worker, it's over now -- device is ready
@@ -3674,6 +3680,21 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 
 	found->ifindex = dev->link.ifindex;
 	found->object = object;
+
+	/* Update worker's iftype on refresh when it makes sense */
+	if (found->iftype != dev->link.type) {
+		if (NI_IFTYPE_UNKNOWN == found->iftype ||
+		    !ni_linktype_type_to_name(found->iftype)) {
+			found->iftype = dev->link.type;
+		}
+		else {
+			ni_ifworker_fail(found , "worker iftype \"%s\" does not match to its"
+				" refreshed device link type \"%s\" - probably due to a wrong config",
+				ni_linktype_type_to_name(found->iftype),
+				ni_linktype_type_to_name(dev->link.type));
+			return NULL;
+		}
+	}
 
 	return found;
 }
