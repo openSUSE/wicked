@@ -132,7 +132,7 @@ do_nanny_delpolicy(int argc, char **argv)
 	while (optind < argc) {
 		const char *policy_name = argv[optind++];
 
-		if (!ni_nanny_call_del_policy(policy_name)) {
+		if (!ni_nanny_call_delete_policy(policy_name)) {
 			ni_error("Unable to delete policy named %s", policy_name);
 			rv = NI_WICKED_RC_ERROR;
 		}
@@ -283,8 +283,7 @@ ni_nanny_addpolicy_node(xml_node_t *pnode, const char *origin)
 		return -1;
 	}
 
-	/* FIXME: is this an error, it perhaps just already exists? */
-	if (!ni_nanny_call_add_policy(name, pnode)) {
+	if (!ni_nanny_call_replace_policy(pnode)) {
 		ni_debug_ifconfig("Adding policy %s from %s file failed", name,
 			ni_string_empty(origin) ? "unspecified origin" : origin);
 		return -1;
@@ -359,61 +358,77 @@ ni_nanny_create_client(ni_dbus_object_t **root_p)
 }
 
 ni_bool_t
-ni_nanny_call_add_policy(const char *name, xml_node_t *node)
+ni_nanny_call_update_policy(xml_node_t *pnode)
 {
-	ni_dbus_object_t *root_object, *proxy;
-	const char *relative_path;
-	char *policy_path, *doc_string;
+	ni_dbus_object_t *root_object;
+	char *doc_string;
 	int rv;
+
+	if (!ni_ifpolicy_is_valid(pnode))
+		return FALSE;
 
 	ni_nanny_create_client(&root_object);
 
-	if ((doc_string = xml_node_sprint(node)) == NULL) {
-		ni_debug_application("%s: unable to format <policy> node", __func__);
+	if ((doc_string = xml_node_sprint(pnode)) == NULL) {
+		ni_debug_application("%s: unable to format <%s> node",
+			NI_NANNY_IFPOLICY, __func__);
 		return FALSE;
 	}
 
 	rv = ni_dbus_object_call_simple(root_object,
-					NI_OBJECTMODEL_NANNY_INTERFACE, "createPolicy",
+					NI_OBJECTMODEL_NANNY_INTERFACE, "updatePolicy",
 					DBUS_TYPE_STRING, &doc_string,
-					DBUS_TYPE_OBJECT_PATH, &policy_path);
-
-	if (rv == -NI_ERROR_POLICY_EXISTS) {
-		/* Policy exists, update it transparently */
-		char buffer[265];
-
-		snprintf(buffer, sizeof(buffer), NI_OBJECTMODEL_MANAGED_POLICY_LIST_PATH "/%s", name);
-		policy_path = strdup(buffer);
-	} else
+					DBUS_TYPE_INVALID, NULL);
 	if (rv < 0) {
-		ni_debug_application("Call to %s.createPolicy(%s) failed: %s",
-				ni_dbus_object_get_path(root_object), name,
-				ni_strerror(rv));
+		ni_debug_application("Call to %s.updatePolicy(%s) failed: %s",
+				ni_dbus_object_get_path(root_object),
+				ni_ifpolicy_get_name(pnode), ni_strerror(rv));
+		ni_string_free(&doc_string);
 		return FALSE;
 	}
 
-	relative_path = ni_dbus_object_get_relative_path(root_object, policy_path);
-	ni_assert(relative_path);
-
-	proxy = ni_dbus_object_create(root_object, relative_path, NULL, NULL);
-
-	ni_debug_application("About to call %s.update()", ni_dbus_object_get_path(proxy));
-	if ((rv = ni_dbus_object_call_simple(proxy,
-					NI_OBJECTMODEL_MANAGED_POLICY_INTERFACE, "update",
-					DBUS_TYPE_STRING, &doc_string,
-					DBUS_TYPE_INVALID, NULL)) < 0) {
-		ni_debug_application("Call to ManagedPolicy.update() failed: %s", ni_strerror(rv));
-		return FALSE;
-	}
-
+	ni_string_free(&doc_string);
 	return TRUE;
 }
 
 ni_bool_t
-ni_nanny_call_del_policy(const char *name)
+ni_nanny_call_replace_policy(xml_node_t *pnode)
 {
 	ni_dbus_object_t *root_object;
-	char *policy_path;
+	char *doc_string;
+	int rv;
+
+	if (!ni_ifpolicy_is_valid(pnode))
+		return FALSE;
+
+	ni_nanny_create_client(&root_object);
+
+	if ((doc_string = xml_node_sprint(pnode)) == NULL) {
+		ni_debug_application("%s: unable to format <%s> node",
+			NI_NANNY_IFPOLICY, __func__);
+		return FALSE;
+	}
+
+	rv = ni_dbus_object_call_simple(root_object,
+					NI_OBJECTMODEL_NANNY_INTERFACE, "replacePolicy",
+					DBUS_TYPE_STRING, &doc_string,
+					DBUS_TYPE_INVALID, NULL);
+	if (rv < 0) {
+		ni_debug_application("Call to %s.replacePolicy(%s) failed: %s",
+				ni_dbus_object_get_path(root_object),
+				ni_ifpolicy_get_name(pnode), ni_strerror(rv));
+		ni_string_free(&doc_string);
+		return FALSE;
+	}
+
+	ni_string_free(&doc_string);
+	return TRUE;
+}
+
+ni_bool_t
+ni_nanny_call_delete_policy(const char *name)
+{
+	ni_dbus_object_t *root_object;
 	int rv;
 
 	ni_nanny_create_client(&root_object);
@@ -421,7 +436,7 @@ ni_nanny_call_del_policy(const char *name)
 	rv = ni_dbus_object_call_simple(root_object,
 				NI_OBJECTMODEL_NANNY_INTERFACE, "deletePolicy",
 				DBUS_TYPE_STRING, &name,
-				DBUS_TYPE_OBJECT_PATH, &policy_path);
+				DBUS_TYPE_INVALID, NULL);
 
 	if (rv < 0) {
 		ni_debug_application("Call to %s.deletePolicy(%s) failed: %s",

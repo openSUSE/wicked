@@ -238,7 +238,7 @@ ni_nanny_policy_load(ni_nanny_t *mgr)
 				continue;
 			}
 
-			if (!ni_nanny_create_policy(NULL, mgr, doc_string, TRUE)) {
+			if (!ni_nanny_replace_policy(mgr, doc_string, path, geteuid())) {
 				ni_error("Unable to create policy from file '%s'", path);
 				ni_string_free(&doc_string);
 				continue;

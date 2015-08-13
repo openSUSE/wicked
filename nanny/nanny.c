@@ -264,23 +264,6 @@ ni_nanny_get_policy(ni_nanny_t *mgr, const ni_fsm_policy_t *policy)
 	return NULL;
 }
 
-ni_bool_t
-ni_nanny_remove_policy(ni_nanny_t *mgr, ni_managed_policy_t *mpolicy)
-{
-	ni_managed_policy_t **pos, *cur;
-
-	ni_assert(mgr);
-	for (pos = &mgr->policy_list; (cur = *pos); pos = &cur->next) {
-		if (cur == mpolicy) {
-			*pos = cur->next;
-			ni_managed_policy_free(cur);
-			return TRUE;
-		}
-	}
-
-	return FALSE;
-}
-
 /*
  * Handle events from an rfkill switch
  */
@@ -307,116 +290,173 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 }
 
 /*
- * Creates nanny policy and register managed policy interface.
- * Return:
- *     -1 - policy node does not exist or is errornous
- *      0 - policy already exists
- *      1 - policy created and registered
+ * Updates nanny policy and updates managed policy object.
  */
-int
-ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, const char *doc_string, ni_bool_t schedule)
+ni_fsm_policy_t *
+ni_nanny_update_policy(ni_nanny_t *mgr, ni_fsm_policy_t *policy, xml_node_t *pnode, uid_t caller_uid)
 {
-	xml_node_t *root, *pnode, *config = NULL;
-	ni_fsm_policy_t *policy = NULL;
+	ni_managed_policy_t *mpolicy;
+
+	ni_assert(mgr);
+	if (!policy || !ni_ifpolicy_is_valid(pnode))
+		return NULL;
+
+	mpolicy = ni_managed_policy_by_policy(mgr, policy);
+	if (!mpolicy) {
+		ni_error("No corresponding managed policy object for policy %s",
+			ni_fsm_policy_name(policy));
+		return NULL;
+	}
+
+	if (mpolicy->owner != caller_uid) {
+		ni_error("User %u is not allowed to policy %s",
+			caller_uid, ni_fsm_policy_name(policy));
+		return NULL;
+	}
+
+	if (!ni_managed_policy_update(mpolicy, pnode, caller_uid)) {
+		ni_error("Unable to update managed policy object for policy %s",
+			ni_fsm_policy_name(policy));
+		return NULL;
+	}
+
+	return policy;
+}
+
+ni_fsm_policy_t *
+ni_nanny_register_policy(ni_nanny_t *mgr, const char *pname, xml_node_t *pnode, uid_t caller_uid)
+{
+	ni_fsm_policy_t *policy;
+
+	ni_assert(mgr);
+	if (!ni_ifpolicy_name_is_valid(pname) || !ni_ifconfig_is_policy(pnode))
+		return NULL;
+
+	policy = ni_fsm_policy_new(mgr->fsm, pname, pnode);
+	if (!policy) {
+		ni_error("Unable to create fsm policy object from policy %s",
+			xml_node_location_filename(pnode));
+		return NULL;
+	}
+
+	if (!ni_managed_policy_register(mgr, policy, pnode, caller_uid)) {
+		ni_error("Unable to register managed policy object for policy %s",
+			xml_node_location_filename(pnode));
+		ni_fsm_policy_free(policy);
+		return NULL;
+	}
+
+	return policy;
+}
+
+/*
+ * Creates (or replaces) nanny policy and registers managed policy interface.
+ */
+ni_bool_t
+ni_nanny_replace_policy(ni_nanny_t *mgr, const char *doc_string, const char *location, uid_t caller_uid)
+{
+	xml_node_t *root, *pnode;
 	xml_document_t *doc;
-	const char *pname;
-	ni_ifworker_t *w;
 	ni_fsm_t *fsm;
-	int rv = 1;
+	ni_bool_t rv = FALSE;
 
-	fsm = mgr->fsm;
-	ni_assert(fsm);
+	ni_assert(mgr && (fsm = mgr->fsm));
 
-	doc = xml_document_from_string(doc_string, NULL);
+	/* FIXME: add user policy handling */
+	if (caller_uid != 0) {
+		ni_error("you are not permitted to create/replace this policy %s",
+			location);
+		return FALSE;
+	}
+
+	if (ni_string_empty(location))
+		location = __func__;
+
+	doc = xml_document_from_string(doc_string, location);
 	if (xml_document_is_empty(doc)) {
-		ni_error("Unable to parse policy document %s", doc_string);
-		goto error;
+		ni_error("Unable to parse policy document from %s location", location);
+		goto done;
 	}
 
 	root = xml_document_root(doc);
 	if (xml_node_is_empty(root->children)) {
-		ni_error("Policy document is empty %s", doc_string);
-		goto error;
+		ni_error("Policy document %s is empty", xml_node_location_filename(root));
+		goto done;
 	}
 
-	if (!xml_node_is_empty(root->children->next)) {
-		ni_error("Policy document contains more then one <policy> node %s",
-			doc_string);
-		goto error;
-	}
+	for (pnode = root->children; pnode; pnode = pnode->next) {
+		ni_fsm_policy_t *policy = NULL;
+		const char *pname, *porigin;
+		xml_node_t *config = NULL;
+		ni_ifworker_t *w;
 
-	pnode = root->children;
-	if (!ni_ifconfig_is_policy(pnode)) {
-		ni_error("No valid policy document %s", doc_string);
-		goto error;
-	}
-
-	pname = ni_ifpolicy_get_name(pnode);
-	if (!ni_ifpolicy_name_is_valid(pname)) {
-		ni_error("Invalid policy name \"%s\"", ni_print_suspect(pname,
-			ni_string_len(pname)));
-		goto error;
-	}
-
-	policy = ni_fsm_policy_by_name(fsm, pname);
-	if (policy) {
-		ni_debug_nanny("Policy \"%s\" already exists", pname);
-		rv = 0;
-	}
-	else if (!(policy = ni_fsm_policy_new(fsm, pname, pnode))) {
-		ni_error("Unable to create policy object from %s", doc_string);
-		goto error;
-	}
-
-	config = xml_node_new(NI_CLIENT_IFCONFIG, NULL);
-	config = ni_fsm_policy_transform_document(config, &policy, 1);
-	if (!config || !ni_fsm_workers_from_xml(fsm, config, ni_ifpolicy_get_origin(pnode))) {
-		ni_error("Unable to extract config or update workers from policy %s",
-			doc_string);
-		goto error;
-	}
-
-	/* Rebuild the hierarchy cause new policy may hit some matches */
-	ni_fsm_build_hierarchy(fsm, FALSE);
-
-	w = ni_fsm_ifworker_by_policy_name(fsm, NI_IFWORKER_TYPE_NETDEV, pname);
-	if (!w) {
-		ni_error("%s: worker creation failed for policy %s", pname, doc_string);
-		goto error;
-	}
-
-	/* Trigger recheck on factory devices or existing devices if schedule is set */
-	if (!w->kickstarted) {
-		if (ni_ifworker_is_factory_device(w))
-			ni_nanny_schedule_recheck(&mgr->recheck, w);
-		else if (schedule && ni_netdev_device_is_ready(w->device))
-			ni_nanny_schedule_recheck(&mgr->recheck, w);
-	}
-
-	/* Register the policy */
-	if (rv > 0) {
-		ni_managed_policy_t *mpolicy;
-		ni_dbus_object_t *po_tmp;
-
-		mpolicy = ni_managed_policy_new(mgr, policy, NULL);
-		po_tmp = ni_objectmodel_register_managed_policy(mgr->server, mpolicy);
-		if (!po_tmp) {
-			ni_error("%s: Unable to register managed policy", pname);
-			ni_managed_policy_free(mpolicy);
+		if (!ni_ifconfig_is_policy(pnode)) {
+			ni_error("Policy document %s is not valid", location);
 			goto error;
 		}
 
-		if (policy_object)
-			*policy_object = po_tmp;
+		pname = ni_ifpolicy_get_name(pnode);
+		if (!ni_ifpolicy_name_is_valid(pname)) {
+			ni_error("Policy document %s has invalid policy name \"%s\"", location,
+				ni_print_suspect(pname, ni_string_len(pname)));
+			goto error;
+		}
+		xml_node_location_set(pnode, xml_location_create(pname, 0));
+
+		policy = ni_fsm_policy_by_name(fsm, pname);
+		if (policy) {
+			ni_debug_nanny("Policy with name %s already exists", pname);
+
+			/* Update the policy */
+			if (!ni_nanny_update_policy(mgr, policy, pnode, caller_uid)) {
+				ni_error("Unable to update policy %s", xml_node_location_filename(pnode));
+				goto error;
+			}
+		}
+		else {
+			/* Register new policy */
+			policy = ni_nanny_register_policy(mgr, pname, pnode, caller_uid);
+			if (!policy) {
+				ni_error("Unable to register policy %s", xml_node_location_filename(pnode));
+				goto error;
+			}
+		}
+
+		/* Perform fsm worker work now */
+		if (!(config = xml_node_new(NI_CLIENT_IFCONFIG, NULL))) {
+			ni_error("%s: Unable to allocate config node", __func__);
+			goto error;
+		}
+		config = ni_fsm_policy_transform_document(config, &policy, 1);
+		xml_node_location_set(config, xml_location_clone(pnode->location));
+
+		porigin = ni_ifpolicy_get_origin(pnode);
+		if (!(w = ni_fsm_workers_from_xml(fsm, config, porigin))) {
+			ni_error("Unable to create/update FSM worker from policy %s",
+				xml_node_location_filename(pnode));
+			goto error;
+		}
+
+		/* Rebuild the hierarchy since we have new configs and/or workers */
+		ni_fsm_build_hierarchy(fsm, FALSE);
+
+		/* Always recheck when policy has been created or updated */
+		ni_nanny_schedule_recheck(&mgr->recheck, w);
+
+		/* Rearm completed worker to let it use the new config */
+		if (ni_ifworker_complete(w))
+			ni_ifworker_rearm(w);
+
+		rv = TRUE;
+		continue;
+error:
+		xml_node_free(config);
+		ni_fsm_policy_free(policy);
 	}
 
-	return rv;
-
-error:
-	xml_node_free(config);
-	ni_fsm_policy_free(policy);
+done:
 	xml_document_free(doc);
-	return -1;
+	return rv;
 }
 
 static ni_bool_t
@@ -865,43 +905,43 @@ ni_objectmodel_nanny_get_device(ni_dbus_object_t *object, const ni_dbus_method_t
 }
 
 /*
- * Nanny.createPolicy()
+ * Nanny.replacePolicy()
  */
 static dbus_bool_t
-ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_method_t *method,
-					unsigned int argc, const ni_dbus_variant_t *argv,
+ni_objectmodel_nanny_replace_policies(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+					unsigned int argc, const ni_dbus_variant_t *argv, uid_t caller_uid,
 					ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_dbus_object_t *policy_object;
 	const char *doc_string;
+	char object_path[128];
+	unsigned int errcode;
 	ni_nanny_t *mgr;
-	ni_fsm_t *fsm;
-	int rv;
 
-	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL)
-		return FALSE;
-
-	fsm = mgr->fsm;
-	ni_assert(fsm);
-
-	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &doc_string) || ni_string_empty(doc_string))
-		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
-
-	rv = ni_nanny_create_policy(&policy_object, mgr, doc_string, FALSE);
-	if (rv < 0) {
-		dbus_set_error(error, NI_DBUS_ERROR_POLICY_DOESNOTEXIST,
-			"Policy \"%s\" creation failed in call to %s.%s",
-			doc_string, ni_dbus_object_get_path(object), method->name);
-		return FALSE;
-	}
-	else if (0 == rv) {
-		dbus_set_error(error, NI_DBUS_ERROR_POLICY_EXISTS,
-			"Policy \"%s\" already exists in call to %s.%s",
-			doc_string, ni_dbus_object_get_path(object), method->name);
-		return FALSE;
+	/* FIXME: Add user policy handling */
+	if (caller_uid != 0) {
+		errcode = NI_ERROR_PERMISSION_DENIED;
+		goto error;
 	}
 
-	return ni_dbus_message_append_object_path(reply, ni_dbus_object_get_path(policy_object));
+	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL) {
+		errcode = NI_ERROR_POLICY_REPLACEFAILED;
+		goto error;
+	}
+
+	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &doc_string) || ni_string_empty(doc_string)) {
+		errcode = NI_ERROR_INVALID_ARGS;
+		goto error;
+	}
+
+	snprintf(object_path, sizeof(object_path), "%s.%s", ni_dbus_object_get_path(object), method->name);
+	if (!ni_nanny_replace_policy(mgr, doc_string, object_path, caller_uid)) {
+		errcode = NI_ERROR_POLICY_REPLACEFAILED;
+		goto error;
+	}
+
+	return TRUE;
+error:
+	return ni_dbus_error_handler(error, errcode, object, method, NULL);
 }
 
 ni_bool_t
@@ -926,67 +966,95 @@ ni_nanny_policy_drop(const char *pname)
  */
 static dbus_bool_t
 ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_method_t *method,
-					unsigned int argc, const ni_dbus_variant_t *argv,
+					unsigned int argc, const ni_dbus_variant_t *argv, uid_t caller_uid,
 					ni_dbus_message_t *reply, DBusError *error)
 {
+	ni_managed_policy_t *mpolicy;
 	ni_fsm_policy_t *policy;
+	unsigned int errcode;
 	const char *name;
+	ni_ifworker_t *w;
 	ni_nanny_t *mgr;
 
-	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL)
-		return FALSE;
-
-	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &name))
-		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
-
-	ni_debug_nanny("Attempting to delete policy %s", name);
-
-	/* Unregistering Policy dbus object */
-	if ((policy = ni_fsm_policy_by_name(mgr->fsm, name))) {
-		ni_managed_policy_t **pos, *cur;
-
-		for (pos = &mgr->policy_list; (cur = *pos); pos = &cur->next) {
-			if (cur->fsm_policy == policy) {
-				ni_dbus_server_t *server;
-				ni_ifworker_t *w = NULL;
-
-				if (!ni_fsm_policy_remove(mgr->fsm, policy))
-					return FALSE;
-
-				ni_debug_nanny("Removed FSM policy %s", name);
-
-				w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, name);
-				if (w != NULL) {
-					ni_managed_device_t *mdev = ni_nanny_get_device(mgr, w);
-					if (mdev != NULL)
-						ni_managed_device_set_policy(mdev, NULL, NULL);
-
-					ni_ifworker_set_config(w, NULL, NULL);
-
-					ni_nanny_unschedule(&mgr->recheck, w);
-				}
-
-				*pos = cur->next;
-				server = ni_dbus_object_get_server(object);
-				if (!ni_objectmodel_unregister_managed_policy(server, cur, name))
-					return FALSE;
-
-				ni_nanny_policy_drop(name);
-
-				ni_dbus_message_append_object_path(reply,
-					ni_dbus_object_get_path(object));
-
-				return TRUE;
-			}
-		}
+	/* FIXME: Add user policy handling */
+	if (caller_uid != 0) {
+		errcode = NI_ERROR_PERMISSION_DENIED;
+		goto error;
 	}
 
-	dbus_set_error(error, NI_DBUS_ERROR_POLICY_DOESNOTEXIST,
-		"Policy \"%s\" does not exist in call to %s.%s",
-		(ni_string_empty(name) ? "none" : name),
-		ni_dbus_object_get_path(object), method->name);
+	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL) {
+		errcode = NI_ERROR_POLICY_DELETEFAILED;
+		goto error;
+	}
 
-	return FALSE;
+	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &name) || ni_string_empty(name)) {
+		errcode = NI_ERROR_INVALID_ARGS;
+		goto error;
+	}
+
+	if (!ni_ifpolicy_name_is_valid(name)) {
+		errcode = NI_ERROR_POLICY_DOESNOTEXIST;
+		goto error;
+	}
+
+	policy = ni_fsm_policy_by_name(mgr->fsm, name);
+	if (!policy) {
+		errcode = NI_ERROR_POLICY_DOESNOTEXIST;
+		goto error;
+	}
+
+	ni_debug_nanny("Attempt to delete managed policy object (%s)", name);
+	mpolicy = ni_managed_policy_by_policy(mgr, policy);
+	if (!mpolicy) {
+		if (caller_uid != 0) {
+			/* Only root is allowed to delete FSM policy
+			 * without corresponding managed policy object
+			 */
+			errcode = NI_ERROR_POLICY_DOESNOTEXIST;
+			goto error;
+		}
+		else
+			ni_debug_nanny("No managed policy object found for FSM policy %s", name);
+	}
+	else if (caller_uid != mpolicy->owner) {
+		errcode = NI_ERROR_PERMISSION_DENIED;
+		goto error;
+	}
+	else {
+		/* Remove from managed policy list */
+		ni_managed_policy_list_unlink(mgr, mpolicy);
+
+		/* Unregister managed policy object and call destroy() on it */
+		if (!ni_objectmodel_unregister_managed_policy(mgr->server, mpolicy, name)) {
+			ni_error("Unable to unregister managed policy object (%s)", name);
+			errcode = NI_ERROR_POLICY_DELETEFAILED;
+			goto error;
+		}
+		ni_debug_nanny("Removed managed policy object (%s)", name);
+	}
+
+	ni_debug_nanny("Attempt to delete FSM policy (%s)", name);
+	if (!ni_fsm_policy_remove(mgr->fsm, policy)) {
+		errcode = NI_ERROR_POLICY_DELETEFAILED;
+		goto error;
+	}
+	ni_debug_nanny("Removed FSM policy (%s)", name);
+
+	w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, name);
+	if (w) {
+		ni_managed_device_t *mdev = ni_nanny_get_device(mgr, w);
+
+		if (mdev)
+			ni_managed_device_set_policy(mdev, NULL, NULL);
+
+		ni_ifworker_set_config(w, NULL, NULL);
+		ni_nanny_unschedule(&mgr->recheck, w);
+	}
+
+	ni_nanny_policy_drop(name);
+	return TRUE;
+error:
+	return ni_dbus_error_handler(error, errcode, object, method, name);
 }
 
 /*
@@ -1022,8 +1090,9 @@ ni_objectmodel_nanny_set_secret(ni_dbus_object_t *object, const ni_dbus_method_t
 
 static ni_dbus_method_t		ni_objectmodel_nanny_methods[] = {
 	{ "getDevice",		"s",		ni_objectmodel_nanny_get_device	},
-	{ "createPolicy",	"s",		ni_objectmodel_nanny_create_policy	},
-	{ "deletePolicy",	"s",		ni_objectmodel_nanny_delete_policy	},
+	{ "replacePolicy",	"s",		.handler_ex = ni_objectmodel_nanny_replace_policies	},
+	{ "createPolicy",	"s",		.handler_ex = ni_objectmodel_nanny_replace_policies	},
+	{ "deletePolicy",	"s",		.handler_ex = ni_objectmodel_nanny_delete_policy	},
 	{ "addSecret",		"a{sv}ss",	.handler_ex = ni_objectmodel_nanny_set_secret	},
 	{ NULL }
 };

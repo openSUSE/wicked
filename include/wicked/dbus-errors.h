@@ -20,8 +20,10 @@
 #define NI_DBUS_ERROR_DEVICE_NOT_DOWN		__NI_DBUS_ERROR(DeviceNotDown)
 #define NI_DBUS_ERROR_DEVICE_NOT_COMPATIBLE	__NI_DBUS_ERROR(DeviceNotCompatible)
 #define NI_DBUS_ERROR_DEVICE_EXISTS		__NI_DBUS_ERROR(DeviceExists)
-#define NI_DBUS_ERROR_AUTH_INFO_MISSING		__NI_DBUS_ERROR(AuthInfoMissing)
-#define NI_DBUS_ERROR_ADDRCONF_NO_LEASE		__NI_DBUS_ERROR(AddrconfNoLease)
+#define NI_DBUS_ERROR_DEVICE_ENABLEFAILED	__NI_DBUS_ERROR(DeviceEnableFailed)
+#define NI_DBUS_ERROR_DEVICE_DISABLEFAILED	__NI_DBUS_ERROR(DeviceDisableFailed)
+#define NI_DBUS_ERROR_AUTH_INFO_MISSING	__NI_DBUS_ERROR(AuthInfoMissing)
+#define NI_DBUS_ERROR_ADDRCONF_NO_LEASE	__NI_DBUS_ERROR(AddrconfNoLease)
 #define NI_DBUS_ERROR_CANNOT_CONFIGURE_ADDRESS	__NI_DBUS_ERROR(CannotConfigureAddress)
 #define NI_DBUS_ERROR_CANNOT_CONFIGURE_ROUTE	__NI_DBUS_ERROR(CannotConfigureRoute)
 #define NI_DBUS_ERROR_CANNOT_MARSHAL		__NI_DBUS_ERROR(CannotMarshal)
@@ -30,12 +32,16 @@
 #define NI_DBUS_ERROR_UNREACHABLE_ADDRESS	__NI_DBUS_ERROR(CannotReachAddress)
 #define NI_DBUS_ERROR_POLICY_EXISTS		__NI_DBUS_ERROR(PolicyExists)
 #define NI_DBUS_ERROR_POLICY_DOESNOTEXIST	__NI_DBUS_ERROR(PolicyDoesNotExist)
+#define NI_DBUS_ERROR_POLICY_REPLACEFAILED	__NI_DBUS_ERROR(PolicyReplaceFailed)
+#define NI_DBUS_ERROR_POLICY_DELETEFAILED	__NI_DBUS_ERROR(PolicyDeleteFailed)
+#define NI_DBUS_ERROR_POLICY_UPDATEFAILED	__NI_DBUS_ERROR(PolicyUpdateFailed)
 #define NI_DBUS_ERROR_RADIO_DISABLED		__NI_DBUS_ERROR(RadioDisabled)
 
 /* Map dbus error strings to our internal error codes and vice versa */
 extern int		ni_dbus_get_error(const DBusError *error, char **detail);
 extern void		ni_dbus_set_error_from_code(DBusError *, int, const char *fmt, ...);
 extern void		ni_dbus_print_error(const DBusError *, const char *fmt, ...);
+extern dbus_bool_t	ni_dbus_error_handler(DBusError *, unsigned int, const ni_dbus_object_t *, const ni_dbus_method_t *, const char *);
 
 static inline dbus_bool_t
 ni_dbus_error_property_not_present(DBusError *error, const char *path, const char *property)

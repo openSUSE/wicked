@@ -135,7 +135,9 @@ ni_fsm_policy_free(ni_fsm_policy_t *policy)
 {
 	if (policy) {
 		ni_string_free(&policy->name);
+		xml_node_free(policy->node);
 		__ni_fsm_policy_reset(policy);
+		memset(policy, 0, sizeof(*policy));
 		free(policy);
 	}
 }
@@ -166,7 +168,8 @@ __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 	xml_node_t *item;
 	const char *attr;
 
-	policy->node = node;
+	if (!policy)
+		return FALSE;
 
 	if (node == NULL)
 		return TRUE;
@@ -248,6 +251,8 @@ __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 		return FALSE;
 	}
 
+	xml_node_free(policy->node);
+	policy->node = xml_node_clone_ref(node);
 	policy->seq = __policy_seq++;
 	return TRUE;
 }
@@ -257,6 +262,9 @@ ni_fsm_policy_new(ni_fsm_t *fsm, const char *name, xml_node_t *node)
 {
 	ni_fsm_policy_t *policy;
 	ni_fsm_policy_t *pos, **tail;
+
+	if (ni_string_empty(name))
+		return NULL;
 	
 	policy = xcalloc(1, sizeof(*policy));
 	ni_string_dup(&policy->name, name);
@@ -277,14 +285,15 @@ ni_bool_t
 ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 {
 	ni_fsm_policy_t temp;
+	const char *pname;
 
-	if (!policy || !ni_ifconfig_is_policy(node)
-	||  !ni_string_eq(ni_ifpolicy_get_name(node), policy->name))
+	if (!policy || !ni_ifpolicy_is_valid(node))
 		return FALSE;
 
 	memset(&temp, 0, sizeof(temp));
 	if (!__ni_fsm_policy_from_xml(&temp, node))
 		return FALSE;
+	pname = ni_ifpolicy_get_name(node);
 
 	__ni_fsm_policy_reset(policy);
 	policy->type = temp.type;
@@ -293,7 +302,10 @@ ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 	policy->create_action = temp.create_action;
 	policy->actions = temp.actions;
 	policy->match = temp.match;
-	policy->node = node;
+	ni_string_free(&policy->name);
+	policy->name = xstrdup(pname);
+	xml_node_free(policy->node);
+	policy->node = temp.node;
 	return TRUE;
 }
 

@@ -192,30 +192,6 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 			ni_info("%s: configuration applied to nanny", w->name);
 	}
 
-	/* Enable devices with policies */
-	for (i = 0; i < array->count; i++) {
-		ni_ifworker_t *w = array->data[array->count-1-i];
-		ni_netdev_t *dev = w ? w->device : NULL;
-
-		/* Ignore non-existing device */
-		if (!dev || !ni_netdev_device_is_ready(dev) ||
-		    xml_node_is_empty(w->config.node)) {
-			continue;
-		}
-
-		if (w->failed) {
-			ni_debug_application("%s: disabling failed device for nanny", w->name);
-			ni_nanny_call_device_disable(w->name);
-		}
-		else if (w->done) {
-			ni_debug_application("%s: enabling device for nanny", w->name);
-			if (!ni_nanny_call_device_enable(w->name)) {
-				ni_error("%s: unable to enable device", w->name);
-				rv = FALSE;
-			}
-		}
-	}
-
 	if (0 == array->count)
 		ni_note("ifup: no matching interfaces");
 
