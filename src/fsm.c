@@ -4849,8 +4849,8 @@ release:
 }
 
 /* Workaround implementing temporarly missing auto6 wait */
-static ni_bool_t
-__ni_fsm_device_with_tentative_addrs(ni_netdev_t *dev)
+static ni_address_t *
+__ni_fsm_device_get_tentative_addr(ni_netdev_t *dev)
 {
 	ni_address_t *ap;
 
@@ -4858,44 +4858,66 @@ __ni_fsm_device_with_tentative_addrs(ni_netdev_t *dev)
 		if (ap->family != AF_INET6)
 			continue;
 
-		if (ni_address_is_tentative(ap)) {
-			ni_debug_application("-- the address %s is tentative",
-				ni_sockaddr_print(&ap->local_addr));
-			return TRUE;
-		}
+		if (ni_address_is_tentative(ap))
+			return ap;
 	}
-	return FALSE;
+
+	return NULL;
 }
 
 void
 ni_fsm_wait_tentative_addrs(ni_fsm_t *fsm)
 {
-	unsigned int i, count = 40; /* 10sec timeout */
+	unsigned int i;
 
 	if (!fsm)
 		return;
 
-	if (!ni_fsm_refresh_state(fsm))
-		return;
-
-	for (i = 0; count && i < fsm->workers.count; i++) {
+	for (i = 0; i < fsm->workers.count; i++) {
 		ni_ifworker_t *w = fsm->workers.data[i];
+		unsigned int count = 40; /* 10sec timeout */
 
-		if (!w->done || !w->device)
-			continue;
-
-		if (!ni_netdev_link_is_up(w->device))
+		if (!ni_ifworker_has_succeeded(w) || ni_string_empty(w->object_path))
 			continue;
 
 		ni_debug_application("%s: tentative addresses check", w->name);
+		do {
+			ni_address_t *ap, *old_ap = NULL;
 
-		if (__ni_fsm_device_with_tentative_addrs(w->device)) {
+			if (!(w = ni_fsm_recv_new_netif_path(fsm, w->object_path))) {
+				ni_error("%s: unable to refresh the worker", w->name);
+				break;
+			}
+
+			if (!w->device)
+				break;
+
+			if (!ni_netdev_link_is_up(w->device)) {
+				ni_tristate_t link_required = ni_tristate_is_set(w->control.link_required) ?
+					w->control.link_required : ni_netdev_guess_link_required(w->device);
+
+				if (ni_tristate_is_disabled(link_required))
+					break; /* LINK_REQUIRED=no and no link: do not check tentative addrs */
+				else {
+					ni_debug_application("%s: worker succeeded and there is no link... "
+						"waiting up to 10s for it", w->name);
+					goto wait;
+				}
+			}
+
+			if (!(ap = __ni_fsm_device_get_tentative_addr(w->device))) {
+				ni_debug_application("%s: device has no tentative addresses", w->name);
+				break;
+			}
+			else if (ap != old_ap) {
+				ni_debug_application("%s: device has tentative address %s", w->name,
+					ni_sockaddr_print(&ap->local_addr));
+				old_ap = ap;
+			}
+
+wait:
 			usleep(250000);
-			count--;
-			if (!ni_fsm_refresh_state(fsm))
-				return;
-			i--; /* recheck this worker */
-		}
+		} while (--count > 0);
 	}
 }
 
