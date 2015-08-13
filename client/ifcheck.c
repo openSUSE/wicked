@@ -227,7 +227,6 @@ ni_do_ifcheck(int argc, char **argv)
 
 	fsm = ni_fsm_new();
 	ni_assert(fsm);
-	fsm->readonly = TRUE;
 
 	/* Allow ifcheck on persistent, unconfigured interfaces */
 	memset(&ifmatch, 0, sizeof(ifmatch));
@@ -316,6 +315,8 @@ ni_do_ifcheck(int argc, char **argv)
 			goto cleanup;
 		}
 	}
+
+	__ni_fsm_set_readonly(fsm, TRUE);
 
 	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE, TRUE)) {
 		status = NI_WICKED_RC_NOT_CONFIGURED;

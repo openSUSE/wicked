@@ -1964,8 +1964,10 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_node_t *ifnode, const char *origin)
 			w = __ni_ifworker_identify_device(fsm, namespace, node, type, origin);
 		} else {
 			ifname = node->cdata;
-			if (ifname && (w = ni_fsm_ifworker_by_name(fsm, type, ifname)) == NULL)
+			if (ifname && (w = ni_fsm_ifworker_by_name(fsm, type, ifname)) == NULL) {
 				w = ni_ifworker_new(&fsm->workers, type, ifname);
+				w->readonly = fsm->readonly;
+			}
 		}
 	}
 
@@ -3537,6 +3539,24 @@ ni_fsm_refresh_lower_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
 		ni_ifworker_array_append(&w->children, lower);
 }
 
+void
+__ni_fsm_set_readonly(ni_fsm_t *fsm, ni_bool_t readonly)
+{
+	unsigned int i;
+
+	if (!fsm)
+		return;
+
+	fsm->readonly = readonly;
+	for (i = 0; i < fsm->workers.count; ++i) {
+		ni_ifworker_t *w = fsm->workers.data[i];
+
+		/* Set ifworkers to readonly - no wickedd update calls (client_state) */
+		w->readonly = readonly;
+	}
+
+}
+
 ni_bool_t
 ni_fsm_refresh_state(ni_fsm_t *fsm)
 {
@@ -3553,9 +3573,6 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 			ni_netdev_put(w->device);
 			w->device = NULL;
 		}
-
-		/* Set ifworkers to readonly if fsm is readonly */
-		w->readonly = fsm->readonly;
 	}
 
 	if (!__ni_ifworker_refresh_netdevs(fsm))
@@ -4875,6 +4892,7 @@ ni_fsm_wait_tentative_addrs(ni_fsm_t *fsm)
 	if (!fsm)
 		return;
 
+	__ni_fsm_set_readonly(fsm, TRUE);
 	if (!ni_fsm_refresh_state(fsm))
 		return;
 
@@ -4897,6 +4915,7 @@ ni_fsm_wait_tentative_addrs(ni_fsm_t *fsm)
 			i--; /* recheck this worker */
 		}
 	}
+	__ni_fsm_set_readonly(fsm, FALSE);
 }
 
 static inline ni_addrconf_lease_t *

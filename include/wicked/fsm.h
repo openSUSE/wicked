@@ -297,6 +297,7 @@ extern const char *		ni_fsm_policy_get_origin(const ni_fsm_policy_t *);
 extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *tstamp);
 
 extern ni_dbus_client_t *	ni_fsm_create_client(ni_fsm_t *);
+extern void			__ni_fsm_set_readonly(ni_fsm_t *, ni_bool_t);
 extern ni_bool_t		ni_fsm_refresh_state(ni_fsm_t *);
 extern unsigned int		ni_fsm_schedule(ni_fsm_t *);
 extern ni_bool_t		ni_fsm_do(ni_fsm_t *fsm, long *timeout_p);

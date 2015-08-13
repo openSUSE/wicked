@@ -658,7 +658,6 @@ ni_do_ifstatus(int argc, char **argv)
 
 	/* Allocate fsm and set to read-only */
 	fsm = ni_fsm_new();
-	fsm->readonly = TRUE;
 
 	/*
 	 * Parse config files in ifstatus mode, show deals with
@@ -719,6 +718,8 @@ ni_do_ifstatus(int argc, char **argv)
 		if (ni_string_empty(argv[c]))
 			goto usage;
 	}
+
+	__ni_fsm_set_readonly(fsm, TRUE);
 
 	if (!ni_fsm_create_client(fsm)) {
 		/* Severe error we always explicitly return */
@@ -855,6 +856,8 @@ ni_ifstatus_shutdown_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_ifworker
 	unsigned int i;
 
 	ni_assert(fsm);
+
+	__ni_fsm_set_readonly(fsm, TRUE);
 	for (i = 0; i < fsm->workers.count; i++) {
 		const ni_ifworker_t *w = fsm->workers.data[i];
 
@@ -877,6 +880,7 @@ ni_ifstatus_shutdown_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_ifworker
 
 		if_printf(w->name, "", "%s\n", ni_ifworker_state_name(w->fsm.state));
 	}
+	__ni_fsm_set_readonly(fsm, FALSE);
 
 	if (ni_fsm_fail_count(fsm))
 		return NI_WICKED_RC_ERROR;
@@ -894,8 +898,11 @@ ni_ifstatus_display_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_ifworker_
 	unsigned int i;
 
 	ni_assert(fsm);
+
+	__ni_fsm_set_readonly(fsm, TRUE);
 	if (!ni_fsm_refresh_state(fsm)) {
 		/* Severe error we always explicitly return */
+		__ni_fsm_set_readonly(fsm, FALSE);
 		return NI_WICKED_ST_ERROR;
 	}
 
@@ -957,5 +964,6 @@ ni_ifstatus_display_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_ifworker_
 			status = rc;
 	}
 
+	__ni_fsm_set_readonly(fsm, FALSE);
 	return status;
 }
