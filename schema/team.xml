@@ -19,6 +19,35 @@
   <define name="lacp-runner" class="dict">
   </define>
 
+  <define name="arp-ping-linkwatch-type" class="dict">
+    <source_host       type="string" />
+    <target_host       type="string" />
+    <interval          type="uint32" />
+    <init_wait         type="uint32" />
+    <validate_active   type="boolean" />
+    <validate_inactive type="boolean" />
+    <send_always       type="boolean" />
+    <missed_max        type="uint32" />
+    <missed            type="uint32" />
+  </define>
+
+  <define name="tipc-linkwatch-type" class="dict">
+    <bearer      type="string" />
+  </define>
+
+  <define name="nsna-ping-linkwatch-type" class="dict">
+    <target_host type="string" />
+    <interval    type="uint32" />
+    <init_wait   type="uint32" />
+    <missed_max  type="uint32" />
+    <missed      type="uint32" />
+  </define>
+
+  <define name="ethtool-linkwatch-type" class="dict">
+    <delay_up    type="uint32" />
+    <delay_down  type="uint32" />
+  </define>
+
   <define name="device-info" class="dict">
     <runner class="union" switch="name">
       <roundrobin   type="roundrobin-runner"/>
@@ -28,7 +57,17 @@
       <random       type="random-runner"/>
       <lacp         type="lacp-runner"/>
     </runner>
-    <address  type="ethernet-address"/>
+
+    <link_watch class="dict">
+      <watch class="union" switch="name">
+        <ethtool   type="ethtool-linkwatch-type" />
+        <arp_ping  type="arp-ping-linkwatch-type" />
+        <nsna_ping type="nsna-ping-linkwatch-type" />
+        <tipc      type="tipc-linkwatch-type" />
+      </watch>
+    </link_watch>
+
+    <address type="ethernet-address"/>
   </define>
 
   <define name="properties" type="device-info"/>
