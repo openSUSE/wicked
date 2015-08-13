@@ -70,6 +70,125 @@ ni_team_runner_name_to_type(const char *name, ni_team_runner_type_t *type)
 	return TRUE;
 }
 
+/*
+ * Map teamd tx_hash flag bits to names
+ */
+static const ni_intmap_t	ni_team_tx_hash_bit_names[] = {
+	{ "eth",		NI_TEAM_TX_HASH_ETH		},
+	{ "vlan",		NI_TEAM_TX_HASH_VLAN		},
+	{ "ipv4",		NI_TEAM_TX_HASH_IPV4		},
+	{ "ipv6",		NI_TEAM_TX_HASH_IPV6		},
+	{ "ip",			NI_TEAM_TX_HASH_IP		},
+	{ "l3",			NI_TEAM_TX_HASH_L3		},
+	{ "tcp",		NI_TEAM_TX_HASH_TCP		},
+	{ "udp",		NI_TEAM_TX_HASH_UDP		},
+	{ "sctp",		NI_TEAM_TX_HASH_SCTP		},
+	{ "l4",			NI_TEAM_TX_HASH_L4		},
+
+	{ NULL,			NI_TEAM_TX_HASH_NONE		}
+};
+
+const char *
+ni_team_tx_hash_bit_to_name(ni_team_tx_hash_bit_t bit)
+{
+	return ni_format_uint_mapped(bit, ni_team_tx_hash_bit_names);
+}
+
+ni_bool_t
+ni_team_tx_hash_name_to_bit(const char *name, ni_team_tx_hash_bit_t *bit)
+{
+	unsigned int _bit;
+
+	if (!name || !bit)
+		return FALSE;
+
+	if (ni_parse_uint_mapped(name, ni_team_tx_hash_bit_names, &_bit) != 0)
+		return FALSE;
+
+	*bit = _bit;
+	return TRUE;
+}
+
+unsigned int
+ni_team_tx_hash_get_bit_names(ni_team_tx_hash_bit_t mask, ni_string_array_t *names)
+{
+	const ni_intmap_t *map;
+	unsigned int n = 0;
+
+	for (map = ni_team_tx_hash_bit_names; map->name; ++map) {
+		if (mask & (1 << map->value)) {
+			ni_string_array_append(names, map->name);
+			n++;
+		}
+	}
+	return n;
+}
+
+/*
+ * Map teamd tx_balancer names to constants
+ */
+static const ni_intmap_t	ni_team_tx_balancer_names[] = {
+	{ "basic",		NI_TEAM_TX_BALANCER_BASIC	},
+
+	{ NULL,			-1U				}
+};
+
+const char *
+ni_team_tx_balancer_type_to_name(ni_team_tx_balancer_type_t type)
+{
+	return ni_format_uint_mapped(type, ni_team_tx_balancer_names);
+}
+
+ni_bool_t
+ni_team_tx_balancer_name_to_type(const char *name, ni_team_tx_balancer_type_t *type)
+{
+	unsigned int _type;
+
+	if (!name || !type)
+		return FALSE;
+
+	if (ni_parse_uint_mapped(name, ni_team_tx_balancer_names, &_type) != 0)
+		return FALSE;
+
+	*type = _type;
+	return TRUE;
+}
+
+/*
+ * Map teamd lacp select policy names to constants
+ */
+static const ni_intmap_t	ni_team_lacp_select_policies[] = {
+	{ "lacp_prio",		NI_TEAM_LACP_SELECT_POLICY_PRIO		},
+	{ "lacp_prio_stable",	NI_TEAM_LACP_SELECT_POLICY_PRIO_STABLE	},
+	{ "bandwidth",		NI_TEAM_LACP_SELECT_POLICY_BANDWIDTH	},
+	{ "count",		NI_TEAM_LACP_SELECT_POLICY_COUNT	},
+	{ "port_options",	NI_TEAM_LACP_SELECT_POLICY_PORT_CONFIG	},
+
+	{ NULL,			-1U					}
+};
+
+const char *
+ni_team_lacp_select_policy_to_name(ni_team_lacp_select_policy_t policy)
+{
+	return ni_format_uint_mapped(policy, ni_team_lacp_select_policies);
+}
+
+/*
+ * Map teamd activebackup hwaddr_policy names to constants
+ */
+static const ni_intmap_t	ni_team_ab_hwaddr_policies[] = {
+	{ "same_all",		NI_TEAM_AB_HWADDR_POLICY_SAME_ALL	},
+	{ "by_active",		NI_TEAM_AB_HWADDR_POLICY_BY_ACTIVE	},
+	{ "only_active",	NI_TEAM_AB_HWADDR_POLICY_ONLY_ACTIVE	},
+
+	{ NULL,			-1U					}
+};
+
+const char *
+ni_team_ab_hwaddr_policy_to_name(ni_team_ab_hwaddr_policy_t policy)
+{
+	return ni_format_uint_mapped(policy, ni_team_ab_hwaddr_policies);
+}
 
 /*
  * Map teamd link watch names to constants

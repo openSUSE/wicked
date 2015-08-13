@@ -37,12 +37,98 @@ typedef enum {
 	NI_TEAM_RUNNER_LACP,
 } ni_team_runner_type_t;
 
+/*
+ * tx hash and balancer
+ */
+typedef enum {
+	NI_TEAM_TX_HASH_NONE = 0,
+	NI_TEAM_TX_HASH_ETH,
+	NI_TEAM_TX_HASH_VLAN,
+	NI_TEAM_TX_HASH_IPV4,
+	NI_TEAM_TX_HASH_IPV6,
+	NI_TEAM_TX_HASH_IP,
+	NI_TEAM_TX_HASH_L3,
+	NI_TEAM_TX_HASH_TCP,
+	NI_TEAM_TX_HASH_UDP,
+	NI_TEAM_TX_HASH_SCTP,
+	NI_TEAM_TX_HASH_L4,
+} ni_team_tx_hash_bit_t;
+
+typedef enum {
+	NI_TEAM_TX_BALANCER_BASIC = 0,
+} ni_team_tx_balancer_type_t;
+
+typedef struct ni_team_tx_balancer {
+	ni_team_tx_balancer_type_t		type;
+	/* currently, there is a basic only */
+	unsigned int				balancing_interval;
+} ni_team_tx_balancer_t;
+
+/*
+ * lacp runner
+ */
+typedef enum {
+	NI_TEAM_LACP_SELECT_POLICY_PRIO,
+	NI_TEAM_LACP_SELECT_POLICY_PRIO_STABLE,
+	NI_TEAM_LACP_SELECT_POLICY_BANDWIDTH,
+	NI_TEAM_LACP_SELECT_POLICY_COUNT,
+	NI_TEAM_LACP_SELECT_POLICY_PORT_CONFIG,
+} ni_team_lacp_select_policy_t;
+
+typedef struct ni_team_lacp {
+	ni_bool_t				active;
+	unsigned int				sys_prio;
+	ni_bool_t				fast_rate;
+	unsigned int				min_ports;
+	ni_team_lacp_select_policy_t		select_policy;
+	ni_team_tx_hash_bit_t			tx_hash; /* bitmap */
+	ni_team_tx_balancer_t			tx_balancer;
+} ni_team_lacp_t;
+
+typedef struct ni_team_runner_lacp {
+	ni_team_lacp_t				config;
+} ni_team_runner_lacp_t;
+
+/*
+ * lb runner
+ */
+typedef struct ni_team_load_balance {
+	ni_team_tx_hash_bit_t			tx_hash; /* bitmap */
+	ni_team_tx_balancer_t			tx_balancer;
+} ni_team_load_balance_t;
+
+typedef struct ni_team_runner_load_balance {
+	ni_team_load_balance_t			config;
+} ni_team_runner_load_balance_t;
+
+/*
+ * ab runner
+ */
+typedef enum {
+	NI_TEAM_AB_HWADDR_POLICY_SAME_ALL = 0,
+	NI_TEAM_AB_HWADDR_POLICY_BY_ACTIVE,
+	NI_TEAM_AB_HWADDR_POLICY_ONLY_ACTIVE,
+} ni_team_ab_hwaddr_policy_t;
+
+typedef struct ni_team_active_backup {
+	ni_team_ab_hwaddr_policy_t		hwaddr_policy;
+} ni_team_active_backup_t;
+
+typedef struct ni_team_runner_active_backup {
+	ni_team_active_backup_t			config;
+} ni_team_runner_active_backup_t;
 
 /*
  * runner type union
  */
 typedef struct ni_team_runner {
 	ni_team_runner_type_t			type;
+
+	union {
+		ni_team_runner_active_backup_t	ab;
+		ni_team_runner_load_balance_t	lb;
+		ni_team_runner_lacp_t		lacp;
+	};
 } ni_team_runner_t;
 
 
@@ -55,6 +141,7 @@ typedef enum {
 	NI_TEAM_LINK_WATCH_NSNA_PING,
 	NI_TEAM_LINK_WATCH_TIPC,
 } ni_team_link_watch_type_t;
+
 
 /*
  * link watch type structs
@@ -125,6 +212,15 @@ extern void					ni_team_free(ni_team_t *);
 
 extern const char *				ni_team_runner_type_to_name(ni_team_runner_type_t);
 extern ni_bool_t				ni_team_runner_name_to_type(const char *, ni_team_runner_type_t *);
+
+extern const char *				ni_team_tx_hash_bit_to_name(ni_team_tx_hash_bit_t);
+extern ni_bool_t				ni_team_tx_hash_name_to_bit(const char *, ni_team_tx_hash_bit_t *);
+extern unsigned int				ni_team_tx_hash_get_bit_names(ni_team_tx_hash_bit_t, ni_string_array_t *);
+extern const char *				ni_team_tx_balancer_type_to_name(ni_team_tx_balancer_type_t);
+extern ni_bool_t				ni_team_tx_balancer_name_to_type(const char *, ni_team_tx_balancer_type_t *);
+
+extern const char *				ni_team_ab_hwaddr_policy_to_name(ni_team_ab_hwaddr_policy_t);
+extern const char *				ni_team_lacp_select_policy_to_name(ni_team_lacp_select_policy_t);
 
 extern const char *				ni_team_link_watch_type_to_name(ni_team_link_watch_type_t);
 extern ni_bool_t				ni_team_link_watch_name_to_type(const char *, ni_team_link_watch_type_t *);
