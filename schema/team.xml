@@ -6,20 +6,40 @@
    factory interface.
  </description>
 
- <!-- This is the device-info returned in interface reports -->
- <define name="device-info" class="dict">
-   <mode type="builtin-team-mode"/>
- </define>
+  <define name="roundrobin-runner" class="dict">
+  </define>
+  <define name="activebackup-runner" class="dict">
+  </define>
+  <define name="loadbalance-runner" class="dict">
+  </define>
+  <define name="broadcast-runner" class="dict">
+  </define>
+  <define name="random-runner" class="dict">
+  </define>
+  <define name="lacp-runner" class="dict">
+  </define>
 
- <define name="properties" type="device-info"/>
+  <define name="device-info" class="dict">
+    <runner class="union" switch="name">
+      <roundrobin   type="roundrobin-runner"/>
+      <activebackup type="activebackup-runner"/>
+      <loadbalance  type="loadbalance-runner"/>
+      <broadcast    type="broadcast-runner"/>
+      <random       type="random-runner"/>
+      <lacp         type="lacp-runner"/>
+    </runner>
+    <address  type="ethernet-address"/>
+  </define>
 
- <method name="changeDevice">
-  <arguments>
-    <config type="team:device-info">
-      <meta:mapping document-node="/team"/>
-    </config>
-  </arguments>
- </method>
+  <define name="properties" type="device-info"/>
+
+  <method name="changeDevice">
+    <arguments>
+      <config type="team:device-info">
+        <meta:mapping document-node="/team"/>
+      </config>
+    </arguments>
+  </method>
 
 </service>
 

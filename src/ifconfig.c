@@ -1606,8 +1606,9 @@ ni_system_team_create(ni_netconfig_t *nc, const char *ifname, const ni_team_t *t
 	/* FAKE: -> read them from teamd in discover */
 	if (dev_ret && *dev_ret) {
 		ni_team_t *team = ni_netdev_get_team(*dev_ret);
-		if (team)
-			team->mode = team_cfg->mode;
+		if (team) {
+			team->runner.type = team_cfg->runner.type;
+		}
 	}
 	return ret;
 }
@@ -1618,8 +1619,9 @@ ni_system_team_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_team_t *team
 	ni_team_t *team = ni_netdev_get_team(dev);
 
 	/* FAKE: -> read them from teamd in discover */
-	if (team && team_cfg)
-		team->mode = team_cfg->mode;
+	if (team && team_cfg) {
+		team->runner.type = team_cfg->runner.type;
+	}
 
 	return 0;
 }

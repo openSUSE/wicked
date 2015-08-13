@@ -26,23 +26,26 @@
 #define NI_WICKED_TEAM_H
 
 typedef enum {
-	NI_TEAM_MODE_ROUND_ROBIN = 0,
-	NI_TEAM_MODE_ACTIVE_BACKUP = 1,
-	NI_TEAM_MODE_LOAD_BALANCE = 2,
-	NI_TEAM_MODE_BROADCAST = 3,
-	NI_TEAM_MODE_RANDOM = 4,
-	NI_TEAM_MODE_LACP = 5,
-} ni_team_mode_t;
+	NI_TEAM_RUNNER_ROUND_ROBIN = 0,
+	NI_TEAM_RUNNER_ACTIVE_BACKUP,
+	NI_TEAM_RUNNER_LOAD_BALANCE,
+	NI_TEAM_RUNNER_BROADCAST,
+	NI_TEAM_RUNNER_RANDOM,
+	NI_TEAM_RUNNER_LACP,
+} ni_team_runner_type_t;
 
+typedef struct ni_team_runner {
+	ni_team_runner_type_t			type;
+} ni_team_runner_t;
 
 struct ni_team {
-	ni_team_mode_t		mode;
+	ni_team_runner_t			runner;
 };
 
-extern ni_team_t *		ni_team_new();
-extern void			ni_team_free(ni_team_t *);
+extern ni_team_t *				ni_team_new();
+extern void					ni_team_free(ni_team_t *);
 
-extern const char *		ni_team_mode_type_to_name(ni_team_mode_t);
-extern ni_bool_t		ni_team_mode_name_to_type(const char *, ni_team_mode_t *);
+extern const char *				ni_team_runner_type_to_name(ni_team_runner_type_t);
+extern ni_bool_t				ni_team_runner_name_to_type(const char *, ni_team_runner_type_t *);
 
 #endif /* NI_WICKED_TEAM_H */

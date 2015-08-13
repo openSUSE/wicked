@@ -270,7 +270,7 @@ ni_teamd_config_file_dump(FILE *fp, const char *instance, const ni_team_t *confi
 	fprintf(fp, "{\n");
 	fprintf(fp, "\t\"device\": \"%s\",\n", instance);
 	fprintf(fp, "\t\"runner\": {\n");
-	fprintf(fp, "\t\t\"name\": \"%s\"\n", ni_team_mode_type_to_name(config->mode));
+	fprintf(fp, "\t\t\"name\": \"%s\"\n", ni_team_runner_type_to_name(config->runner.type));
 	fprintf(fp, "\t}\n");
 	fprintf(fp, "}\n");
 

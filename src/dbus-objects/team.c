@@ -124,7 +124,7 @@ out:
  * Bonding.changeDevice method
  */
 static dbus_bool_t
-ni_objectmodel_team_setup(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+__ni_objectmodel_team_setup(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
@@ -229,7 +229,6 @@ __ni_objectmodel_team_handle(const ni_dbus_object_t *object, ni_bool_t write_acc
 	return team;
 }
 
-#if 0
 static ni_team_t *
 __ni_objectmodel_team_write_handle(const ni_dbus_object_t *object, DBusError *error)
 {
@@ -241,27 +240,164 @@ __ni_objectmodel_team_read_handle(const ni_dbus_object_t *object, DBusError *err
 {
 	return __ni_objectmodel_team_handle(object, FALSE, error);
 }
-#endif
 
+#if 0
 static void *
 ni_objectmodel_get_team(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	return __ni_objectmodel_team_handle(object, write_access, error);
+}
+#endif
+
+static dbus_bool_t
+__ni_objectmodel_team_get_address(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result, DBusError *error)
+{
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+	return __ni_objectmodel_get_hwaddr(result, &dev->link.hwaddr);
+}
+
+static dbus_bool_t
+__ni_objectmodel_team_set_address(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+	return __ni_objectmodel_set_hwaddr(argument, &dev->link.hwaddr);
+}
+
+static dbus_bool_t
+__ni_objectmodel_team_get_runner(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result, DBusError *error)
+{
+	ni_dbus_variant_t *dict;
+	const ni_team_t *team;
+	const char *name;
+
+	if (!(team = __ni_objectmodel_team_read_handle(object, error)))
+		return FALSE;
+
+	if (!team->runner.type)
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
+
+	if (!(name = ni_team_runner_type_to_name(team->runner.type))) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"bad property %s; unsupported runner name type %u",
+				property->name, team->runner.type);
+		return FALSE;
+	}
+
+	ni_dbus_variant_init_struct(result);
+	ni_dbus_struct_add_string(result, name);
+	dict = ni_dbus_struct_add(result);
+	ni_dbus_variant_init_dict(dict);
+
+	switch (team->runner.type) {
+	case NI_TEAM_RUNNER_ACTIVE_BACKUP:
+		break;
+
+	case NI_TEAM_RUNNER_LOAD_BALANCE:
+		break;
+
+	case NI_TEAM_RUNNER_ROUND_ROBIN:
+		break;
+
+	case NI_TEAM_RUNNER_BROADCAST:
+		break;
+
+	case NI_TEAM_RUNNER_RANDOM:
+		break;
+
+	case NI_TEAM_RUNNER_LACP:
+		break;
+
+	default:
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_team_set_runner(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_dbus_variant_t *dict;
+	const char *name;
+	ni_team_t *team;
+
+	if (!(team = __ni_objectmodel_team_write_handle(object, error)))
+		return FALSE;
+
+	if (!ni_dbus_struct_get_string(argument, 0, &name)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"bad value for property %s; missed subtype", property->name);
+		return FALSE;
+	}
+
+	if (!ni_team_runner_name_to_type(name, &team->runner.type)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"bad value for property %s; unsupported subtype %s", property->name, name);
+		return FALSE;
+	}
+
+	if (!(dict = ni_dbus_struct_get(argument, 1))) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "missed team runner member dict");
+		return FALSE;
+	}
+	if (!ni_dbus_variant_is_dict(dict)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "team runner member is not a dict");
+		return FALSE;
+	}
+
+	switch (team->runner.type) {
+	case NI_TEAM_RUNNER_ACTIVE_BACKUP:
+		break;
+
+	case NI_TEAM_RUNNER_LOAD_BALANCE:
+		break;
+
+	case NI_TEAM_RUNNER_ROUND_ROBIN:
+		break;
+
+	case NI_TEAM_RUNNER_BROADCAST:
+		break;
+
+	case NI_TEAM_RUNNER_RANDOM:
+		break;
+
+	case NI_TEAM_RUNNER_LACP:
+		break;
+
+	default:
+		return FALSE;
+	}
+	return TRUE;
 }
 
 #define TEAM_INT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_INT_PROPERTY(team, dbus_name, member_name, rw)
 #define TEAM_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(team, dbus_name, member_name, rw)
+#define TEAM_HWADDR_PROPERTY(dbus_name, rw) \
+	__NI_DBUS_PROPERTY(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, \
+			dbus_name, __ni_objectmodel_team, rw)
+#define TEAM_DICT_PROPERTY(dbus_name, member_name,rw) \
+	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, dbus_name, \
+			member_name, __ni_objectmodel_team, RO)
 
 static ni_dbus_property_t	ni_objectmodel_team_properties[] = {
-	TEAM_UINT_PROPERTY(mode, mode, RO),
+	TEAM_DICT_PROPERTY(runner, runner, RO),
+	TEAM_HWADDR_PROPERTY(address, RO),
 	{ NULL }
 };
 
-
 static ni_dbus_method_t		ni_objectmodel_team_methods[] = {
-	{ "changeDevice",	"a{sv}",			ni_objectmodel_team_setup },
+	{ "changeDevice",	"a{sv}",			__ni_objectmodel_team_setup },
 	{ "shutdownDevice",	"",				__ni_objectmodel_shutdown_team },
 	{ "deleteDevice",	"",				__ni_objectmodel_delete_team },
 	{ NULL }

@@ -36,32 +36,32 @@
 /*
  * Map teamd mode names to constants
  */
-static const ni_intmap_t	ni_team_mode_names[] = {
-	{ "roundrobin",		NI_TEAM_MODE_ROUND_ROBIN	},
-	{ "activebackup",	NI_TEAM_MODE_ACTIVE_BACKUP	},
-	{ "loadbalance",	NI_TEAM_MODE_LOAD_BALANCE	},
-	{ "broadcast",		NI_TEAM_MODE_BROADCAST		},
-	{ "random",		NI_TEAM_MODE_RANDOM		},
-	{ "lacp",		NI_TEAM_MODE_LACP		},
+static const ni_intmap_t	ni_team_runner_names[] = {
+	{ "roundrobin",		NI_TEAM_RUNNER_ROUND_ROBIN	},
+	{ "activebackup",	NI_TEAM_RUNNER_ACTIVE_BACKUP	},
+	{ "loadbalance",	NI_TEAM_RUNNER_LOAD_BALANCE	},
+	{ "broadcast",		NI_TEAM_RUNNER_BROADCAST	},
+	{ "random",		NI_TEAM_RUNNER_RANDOM		},
+	{ "lacp",		NI_TEAM_RUNNER_LACP		},
 
 	{ NULL,			-1U				}
 };
 
 const char *
-ni_team_mode_type_to_name(ni_team_mode_t type)
+ni_team_runner_type_to_name(ni_team_runner_type_t type)
 {
-	return ni_format_uint_mapped(type, ni_team_mode_names);
+	return ni_format_uint_mapped(type, ni_team_runner_names);
 }
 
 ni_bool_t
-ni_team_mode_name_to_type(const char *name, ni_team_mode_t *type)
+ni_team_runner_name_to_type(const char *name, ni_team_runner_type_t *type)
 {
 	unsigned int _type;
 
 	if (!name || !type)
 		return FALSE;
 
-	if (ni_parse_uint_mapped(name, ni_team_mode_names, &_type) != 0)
+	if (ni_parse_uint_mapped(name, ni_team_runner_names, &_type) != 0)
 		return FALSE;
 
 	*type = _type;
