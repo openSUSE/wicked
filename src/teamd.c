@@ -252,6 +252,156 @@ ni_teamd_ctl_state_set_item(ni_teamd_client_t *tdc, const char *item_name, const
 	return rv;
 }
 
+/*
+ * teamd discovery
+ */
+static int
+ni_teamd_discover_runner(ni_team_t *team, ni_json_t *conf)
+{
+	char *name = NULL;
+	ni_json_t *runner;
+
+	if (!team || !(runner = ni_json_object_get_value(conf, "runner")))
+		return -1;
+
+	if (!ni_json_string_get(ni_json_object_get_value(runner, "name"), &name))
+		goto failure;
+	if (!ni_team_runner_name_to_type(name, &team->runner.type))
+		goto failure;
+
+	ni_string_free(&name);
+	switch (team->runner.type) {
+	case NI_TEAM_RUNNER_ACTIVE_BACKUP: {
+			ni_team_runner_active_backup_t *ab = &team->runner.ab;
+			int64_t i64;
+
+			if (ni_json_int64_get(ni_json_object_get_value(runner, "hwaddr_policy"), &i64))
+				ab->config.hwaddr_policy = i64;
+			else	ab->config.hwaddr_policy = NI_TEAM_AB_HWADDR_POLICY_SAME_ALL;
+		}
+		break;
+
+	case NI_TEAM_RUNNER_LOAD_BALANCE: {
+			ni_team_runner_load_balance_t *lb = &team->runner.lb;
+			unsigned int i;
+			ni_json_t *tx;
+			int64_t i64;
+
+			tx = ni_json_object_get_value(runner, "tx_hash");
+			lb->config.tx_hash = NI_TEAM_TX_HASH_NONE;
+			for (i = 0; i < ni_json_array_entries(tx); ++i) {
+				if (ni_json_string_get(ni_json_array_get(tx, i), &name)) {
+					ni_team_tx_hash_bit_t bit;
+
+					if (ni_team_tx_hash_name_to_bit(name, &bit))
+						lb->config.tx_hash |= (1 << bit);
+					ni_string_free(&name);
+				}
+			}
+
+			tx = ni_json_object_get_value(runner, "tx_balancer");
+			/* tx_balancer.name is currently always "basic" */
+			if (ni_json_int64_get(ni_json_object_get_value(tx, "balancing_interval"), &i64))
+				lb->config.tx_balancer.interval = i64;
+			else	lb->config.tx_balancer.interval = 50;
+		}
+		break;
+
+	case NI_TEAM_RUNNER_LACP: {
+			ni_team_runner_lacp_t *lacp = &team->runner.lacp;
+			unsigned int i;
+			ni_json_t *tx;
+			ni_bool_t b;
+			int64_t i64;
+
+			if (ni_json_bool_get(ni_json_object_get_value(runner, "active"), &b))
+				lacp->config.active = b;
+			else	lacp->config.active = TRUE;
+
+			if (ni_json_int64_get(ni_json_object_get_value(runner, "sys_prio"), &i64))
+				lacp->config.sys_prio = i64;
+			else	lacp->config.sys_prio = 65535;
+
+			if (ni_json_bool_get(ni_json_object_get_value(runner, "fast_rate"), &b))
+				lacp->config.fast_rate = b;
+			else	lacp->config.fast_rate = FALSE;
+
+			if (ni_json_int64_get(ni_json_object_get_value(runner, "min_ports"), &i64))
+				lacp->config.min_ports = i64;
+			else	lacp->config.min_ports = 0;
+
+			if (ni_json_int64_get(ni_json_object_get_value(runner, "agg_select_policy"), &i64))
+				lacp->config.select_policy = i64;
+			else	lacp->config.select_policy = NI_TEAM_LACP_SELECT_POLICY_PRIO;
+
+			tx = ni_json_object_get_value(runner, "tx_hash");
+			lacp->config.tx_hash = NI_TEAM_TX_HASH_NONE;
+			for (i = 0; i < ni_json_array_entries(tx); ++i) {
+				if (ni_json_string_get(ni_json_array_get(tx, i), &name)) {
+					ni_team_tx_hash_bit_t bit;
+
+					if (ni_team_tx_hash_name_to_bit(name, &bit))
+						lacp->config.tx_hash |= (1 << bit);
+					ni_string_free(&name);
+				}
+			}
+
+			tx = ni_json_object_get_value(runner, "tx_balancer");
+			/* tx_balancer.name is currently always "basic" */
+			if (ni_json_int64_get(ni_json_object_get_value(tx, "balancing_interval"), &i64))
+				lacp->config.tx_balancer.interval = i64;
+			else	lacp->config.tx_balancer.interval = 50;
+		}
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+failure:
+	ni_string_free(&name);
+	return -1;
+}
+
+int
+ni_teamd_discover(ni_netdev_t *dev)
+{
+	ni_teamd_client_t *tdc = NULL;
+	ni_json_t *conf = NULL;
+	ni_team_t *team = NULL;
+	const char *val;
+
+	if (!dev || dev->link.type != NI_IFTYPE_TEAM)
+		return -1;
+
+	/* we are about to replace dev->team, so just
+	 * allocate new one we can drop at any time */
+	if (!(team = ni_team_new()))
+		goto failure;
+
+	if (!(tdc = ni_teamd_client_open(dev->name)))
+		goto failure;
+
+	if (!(val = ni_teamd_ctl_config_dump(tdc, TRUE)))
+		goto failure;
+
+	if (!(conf = ni_json_parse_string(val)))
+		goto failure;
+
+	if (ni_teamd_discover_runner(team, conf) < 0)
+		goto failure;
+
+	ni_netdev_set_team(dev, team);
+	ni_teamd_client_free(tdc);
+	ni_json_free(conf);
+	return 0;
+
+failure:
+	ni_json_free(conf);
+	ni_team_free(dev->team);
+	ni_teamd_client_free(tdc);
+	return -1;
+}
 
 /*
  * teamd startup config file

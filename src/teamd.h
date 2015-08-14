@@ -35,6 +35,7 @@ extern const char *			ni_teamd_ctl_state_dump(ni_teamd_client_t *);
 extern const char *			ni_teamd_ctl_state_get_item(ni_teamd_client_t *, const char *);
 extern int				ni_teamd_ctl_state_set_item(ni_teamd_client_t *, const char *,
 											 const char *);
+extern int				ni_teamd_discover(ni_netdev_t *);
 
 extern int				ni_teamd_service_start(const char *, const ni_team_t *);
 extern int				ni_teamd_service_stop (const char *);

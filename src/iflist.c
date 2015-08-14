@@ -53,6 +53,7 @@
 #include "sysfs.h"
 #include "kernel.h"
 #include "appconfig.h"
+#include "teamd.h"
 
 
 static int		__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
@@ -1357,9 +1358,13 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		break;
 
 	case NI_IFTYPE_TEAM:
-		/* is using gennl, rtnl_link provides a kind only */
-		/* FAKE: just init dev->team, get them from teamd */
-		ni_netdev_get_team(dev);
+		/*
+		 * is using gennl, rtnl_link provides a kind only,
+		 * so we unfortunatelly have to ask teamd here and
+		 * even worser, by name...
+		 */
+		if (ni_netdev_device_is_ready(dev))
+			ni_teamd_discover(dev);
 		break;
 
 	default:

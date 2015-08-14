@@ -1603,12 +1603,8 @@ ni_system_team_create(ni_netconfig_t *nc, const char *ifname, const ni_team_t *t
 	}
 
 	ret = __ni_system_netdev_create(nc, ifname, 0, NI_IFTYPE_TEAM, dev_ret);
-	/* FAKE: -> read them from teamd in discover */
 	if (dev_ret && *dev_ret) {
-		ni_team_t *team = ni_netdev_get_team(*dev_ret);
-		if (team) {
-			team->runner.type = team_cfg->runner.type;
-		}
+		ni_teamd_discover(*dev_ret);
 	}
 	return ret;
 }
@@ -1618,9 +1614,10 @@ ni_system_team_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_team_t *team
 {
 	ni_team_t *team = ni_netdev_get_team(dev);
 
-	/* FAKE: -> read them from teamd in discover */
-	if (team && team_cfg) {
-		team->runner.type = team_cfg->runner.type;
+	if (team) {
+		/* does teamd not support reload / changes of the team device config
+		 * so we can't reconfigure it at all and just discover the state. */
+		ni_teamd_discover(dev);
 	}
 
 	return 0;
