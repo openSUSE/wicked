@@ -363,6 +363,138 @@ failure:
 	return -1;
 }
 
+static int
+ni_teamd_discover_link_watch_item_details(ni_team_link_watch_t *lw, ni_json_t *link_watch)
+{
+	int64_t i64;
+	ni_bool_t b;
+
+	/* return of -1 causes to fail completely, 1 permits to skip/ignore one item */
+	switch(lw->type) {
+	case NI_TEAM_LINK_WATCH_ETHTOOL:
+		if (ni_json_int64_get(ni_json_object_get_value(link_watch, "delay_up"), &i64))
+			lw->ethtool.delay_up = i64;
+		if (ni_json_int64_get(ni_json_object_get_value(link_watch, "delay_down"), &i64))
+			lw->ethtool.delay_down = i64;
+		break;
+
+	case NI_TEAM_LINK_WATCH_ARP_PING:
+		if (!ni_json_string_get(ni_json_object_get_value(link_watch, "target_host"), &lw->arp.target_host))
+			return 1;
+		ni_json_string_get(ni_json_object_get_value(link_watch, "source_host"), &lw->arp.source_host);
+		if (ni_json_int64_get(ni_json_object_get_value(link_watch, "interval"), &i64))
+			lw->arp.interval = i64;
+		if (ni_json_int64_get(ni_json_object_get_value(link_watch, "init_wait"), &i64))
+			lw->arp.init_wait = i64;
+		if (ni_json_bool_get(ni_json_object_get_value(link_watch, "validate_active"), &b))
+			lw->arp.validate_active= b;
+		if (ni_json_bool_get(ni_json_object_get_value(link_watch, "validate_inactive"), &b))
+			lw->arp.validate_inactive= b;
+		if (ni_json_bool_get(ni_json_object_get_value(link_watch, "send_always"), &b))
+			lw->arp.send_always= b;
+		if (ni_json_int64_get(ni_json_object_get_value(link_watch, "missed_max"), &i64))
+			lw->arp.missed_max= i64;
+		if (ni_json_int64_get(ni_json_object_get_value(link_watch, "missed"), &i64))
+			lw->arp.missed = i64;
+		break;
+
+	case NI_TEAM_LINK_WATCH_NSNA_PING:
+		if (!ni_json_string_get(ni_json_object_get_value(link_watch, "target_host"), &lw->nsna.target_host))
+			return 1;
+		if (ni_json_int64_get(ni_json_object_get_value(link_watch, "interval"), &i64))
+			lw->nsna.interval = i64;
+		if (ni_json_int64_get(ni_json_object_get_value(link_watch, "init_wait"), &i64))
+			lw->nsna.init_wait = i64;
+		if (ni_json_int64_get(ni_json_object_get_value(link_watch, "missed_max"), &i64))
+			lw->nsna.missed_max= i64;
+		if (ni_json_int64_get(ni_json_object_get_value(link_watch, "missed"), &i64))
+			lw->nsna.missed = i64;
+		break;
+
+	case NI_TEAM_LINK_WATCH_TIPC:
+		ni_json_string_get(ni_json_object_get_value(link_watch, "tipc_bearer"), &lw->tipc.bearer);
+		break;
+
+	default:
+		return 1;
+	}
+
+	return 0;
+}
+
+static int
+ni_teamd_discover_link_watch_item(ni_team_link_watch_array_t *array, ni_json_t *link_watch)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_team_link_watch_type_t lwt;
+	ni_team_link_watch_t *lw = NULL;
+	char * name = NULL;
+	int ret = -1;
+
+	if (!ni_json_string_get(ni_json_object_get_value(link_watch, "name"), &name))
+		goto failure;
+
+	if (!ni_team_link_watch_name_to_type(name, &lwt))
+		goto failure;
+
+	if (!(lw = ni_team_link_watch_new(lwt)))
+		goto failure;
+
+	/* a -1 to fail completely, 1 to skip/ignore one item */
+	if ((ret = ni_teamd_discover_link_watch_item_details(lw, link_watch)))
+		goto failure;
+
+	if (!ni_team_link_watch_array_append(array, lw))
+		goto failure;
+
+	ni_string_free(&name);
+	return 0;
+
+failure:
+	ni_json_format_string(&buf, link_watch, NULL);
+	ni_error("Unable to discover link_watch item: %s", buf.string);
+	ni_stringbuf_destroy(&buf);
+	ni_team_link_watch_free(lw);
+	ni_string_free(&name);
+	return ret;
+}
+
+static int
+ni_teamd_discover_link_watch(ni_team_t *team, ni_json_t *conf)
+{
+	ni_json_t *link_watch;
+
+	if (!team || !conf)
+		goto failure;
+
+	if (!(link_watch = ni_json_object_get_value(conf, "link_watch")))
+		return 0;
+
+	if (ni_json_is_array(link_watch)) {
+		unsigned int i, count;
+
+		count = ni_json_array_entries(link_watch);
+		for (i = 0; i < count; ++i) {
+			ni_json_t *w = ni_json_array_get(link_watch, i);
+
+			if (ni_teamd_discover_link_watch_item(&team->link_watch, w) < 0)
+				goto failure;
+		}
+
+		return 0;
+	} else
+	if (ni_json_is_object(link_watch)) {
+		if (ni_teamd_discover_link_watch_item(&team->link_watch, link_watch) < 0)
+			goto failure;
+
+		return 0;
+	}
+
+failure:
+	ni_error("Unable to discover link_watch");
+	return -1;
+}
+
 int
 ni_teamd_discover(ni_netdev_t *dev)
 {
@@ -389,6 +521,9 @@ ni_teamd_discover(ni_netdev_t *dev)
 		goto failure;
 
 	if (ni_teamd_discover_runner(team, conf) < 0)
+		goto failure;
+
+	if (ni_teamd_discover_link_watch(team, conf) < 0)
 		goto failure;
 
 	ni_netdev_set_team(dev, team);
