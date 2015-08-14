@@ -40,6 +40,7 @@
 #include "util_priv.h"
 #include "process.h"
 #include "teamd.h"
+#include "json.h"
 
 
 #define NI_TEAMD_CONFIG_DIR			"/run/teamd"
@@ -261,20 +262,145 @@ ni_teamd_config_file_name(char **filename, const char *instance)
 	return ni_string_printf(filename, NI_TEAMD_CONFIG_FMT, instance);
 }
 
+ni_json_t *
+ni_teamd_config_json_runner(const ni_team_runner_t *runner)
+{
+	ni_json_t *object = ni_json_new_object();
+
+	ni_json_object_set(object, "name", ni_json_new_string(
+		ni_team_runner_type_to_name(runner->type)
+	));
+
+	switch (runner->type) {
+	case NI_TEAM_RUNNER_ROUND_ROBIN:
+		break;
+	case NI_TEAM_RUNNER_ACTIVE_BACKUP: {
+			const ni_team_runner_active_backup_t *ab = &runner->ab;
+
+			ni_json_object_set(object, "hwaddr_policy", ni_json_new_string(
+				ni_team_ab_hwaddr_policy_to_name(ab->config.hwaddr_policy)
+			));
+		}
+		break;
+	case NI_TEAM_RUNNER_LOAD_BALANCE: {
+			const ni_team_runner_load_balance_t *lb = &runner->lb;
+			ni_string_array_t names = NI_STRING_ARRAY_INIT;
+			unsigned int i;
+
+			if (ni_team_tx_hash_get_bit_names(lb->config.tx_hash, &names)) {
+				ni_json_t *txh = ni_json_new_array();
+
+				for (i = 0; i < names.count; ++i) {
+					ni_json_array_append(txh, ni_json_new_string(names.data[i]));
+				}
+				ni_json_object_set(object, "tx_hash", txh);
+			}
+			if (lb->config.tx_balancer.interval) {
+				ni_json_t *txb = ni_json_new_object();
+
+				ni_json_object_set(txb, "name", ni_json_new_string(
+					ni_team_tx_balancer_type_to_name(lb->config.tx_balancer.type)
+				));
+				ni_json_object_set(txb, "balancing_interval", ni_json_new_int64(
+					lb->config.tx_balancer.interval
+				));
+				ni_json_object_set(object, "tx_balancer", txb);
+			}
+		}
+		break;
+	case NI_TEAM_RUNNER_BROADCAST:
+		break;
+	case NI_TEAM_RUNNER_RANDOM:
+		break;
+	case NI_TEAM_RUNNER_LACP: {
+			const ni_team_runner_lacp_t *lacp = &runner->lacp;
+			ni_string_array_t names = NI_STRING_ARRAY_INIT;
+			unsigned int i;
+
+			if (!lacp->config.active) {
+				ni_json_object_set(object, "active", ni_json_new_bool(
+					lacp->config.active
+				));
+			}
+			if (lacp->config.sys_prio > 0 && lacp->config.sys_prio < 65535) {
+				ni_json_object_set(object, "sys_prio", ni_json_new_int64(
+					lacp->config.sys_prio
+				));
+			}
+			if (lacp->config.fast_rate) {
+				ni_json_object_set(object, "fast_rate", ni_json_new_bool(
+					lacp->config.fast_rate
+				));
+			}
+			if (lacp->config.min_ports > 0 && lacp->config.min_ports < 256) {
+				ni_json_object_set(object, "min_ports", ni_json_new_int64(
+					lacp->config.min_ports
+				));
+			}
+			if (lacp->config.select_policy) {
+				ni_json_object_set(object, "agg_select_policy", ni_json_new_string(
+					ni_team_lacp_select_policy_to_name(lacp->config.select_policy)
+				));
+			}
+			if (ni_team_tx_hash_get_bit_names(lacp->config.tx_hash, &names)) {
+				ni_json_t *txh = ni_json_new_array();
+
+				for (i = 0; i < names.count; ++i) {
+					ni_json_array_append(txh, ni_json_new_string(names.data[i]));
+				}
+				ni_json_object_set(object, "tx_hash", txh);
+			}
+			if (lacp->config.tx_balancer.interval) {
+				ni_json_t *txb = ni_json_new_object();
+
+				ni_json_object_set(txb, "name", ni_json_new_string(
+					ni_team_tx_balancer_type_to_name(lacp->config.tx_balancer.type)
+				));
+				ni_json_object_set(txb, "balancing_interval", ni_json_new_int64(
+					lacp->config.tx_balancer.interval
+				));
+				ni_json_object_set(object, "tx_balancer", txb);
+			}
+		}
+		break;
+	default:
+		ni_json_free(object);
+		return NULL;
+	}
+	return object;
+}
+
 int
 ni_teamd_config_file_dump(FILE *fp, const char *instance, const ni_team_t *config)
 {
+	ni_stringbuf_t dump = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_json_t *object, *child;
+
 	if (!fp || ni_string_empty(instance) || !config)
 		return -1;
 
-	fprintf(fp, "{\n");
-	fprintf(fp, "\t\"device\": \"%s\",\n", instance);
-	fprintf(fp, "\t\"runner\": {\n");
-	fprintf(fp, "\t\t\"name\": \"%s\"\n", ni_team_runner_type_to_name(config->runner.type));
-	fprintf(fp, "\t}\n");
-	fprintf(fp, "}\n");
+	object = ni_json_new_object();
 
+	ni_json_object_set(object, "device", ni_json_new_string(instance));
+
+	if (!(child = ni_teamd_config_json_runner(&config->runner)))
+		goto failure;
+	ni_json_object_set(object, "runner", child);
+
+	if (!ni_json_format_string(&dump, object, NULL))
+		goto failure;
+
+	if (fprintf(fp, "%s\n", dump.string) < 0)
+		goto failure;
+
+	ni_stringbuf_destroy(&dump);
+	ni_json_free(object);
 	return 0;
+
+failure:
+	ni_stringbuf_destroy(&dump);
+	ni_json_free(object);
+	return -1;
 }
 
 int
