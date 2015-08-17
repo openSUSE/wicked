@@ -655,6 +655,130 @@ ni_teamd_config_json_runner(const ni_team_runner_t *runner)
 	return object;
 }
 
+ni_json_t *
+ni_teamd_config_json_link_watch_item(const ni_team_link_watch_t *lw)
+{
+	ni_json_t *object;
+	const char *name;
+
+	if (!lw || !(name = ni_team_link_watch_type_to_name(lw->type)))
+		return NULL;
+
+	if (!(object = ni_json_new_object()))
+		return NULL;
+
+	ni_json_object_set(object, "name", ni_json_new_string(name));
+	switch (lw->type) {
+	case NI_TEAM_LINK_WATCH_TIPC: {
+			const ni_team_link_watch_tipc_t *t = &lw->tipc;
+
+			if (!ni_string_empty(t->bearer)) {
+				ni_json_object_set(object, "tipc_bearer", ni_json_new_string(t->bearer));
+			}
+		}
+		break;
+
+	case NI_TEAM_LINK_WATCH_ETHTOOL: {
+			const ni_team_link_watch_ethtool_t *e = &lw->ethtool;
+
+			if (e->delay_up) {
+				ni_json_object_set(object, "delay_up", ni_json_new_int64(e->delay_up));
+			}
+			if (e->delay_down) {
+				ni_json_object_set(object, "delay_down", ni_json_new_int64(e->delay_down));
+			}
+		}
+		break;
+
+	case NI_TEAM_LINK_WATCH_ARP_PING: {
+			const ni_team_link_watch_arp_t *a = &lw->arp;
+
+			if (!ni_string_empty(a->source_host)) {
+				ni_json_object_set(object, "source_host", ni_json_new_string(a->source_host));
+			}
+			if (!ni_string_empty(a->target_host)) {
+				ni_json_object_set(object, "target_host", ni_json_new_string(a->target_host));
+			}
+			if (a->interval > 0) {
+				ni_json_object_set(object, "interval", ni_json_new_int64(a->interval));
+			}
+			if (a->init_wait > 0) {
+				ni_json_object_set(object, "init_wait", ni_json_new_int64(a->init_wait));
+			}
+			if (a->validate_active) {
+				ni_json_object_set(object, "validate_active", ni_json_new_bool(a->validate_active));
+			}
+			if (a->validate_inactive) {
+				ni_json_object_set(object, "validate_inactive", ni_json_new_bool(a->validate_inactive));
+			}
+			if (a->send_always) {
+				ni_json_object_set(object, "send_always", ni_json_new_bool(a->send_always));
+			}
+			if (a->missed_max) {
+				ni_json_object_set(object, "missed_max", ni_json_new_int64(a->missed_max));
+			}
+			if (a->missed) {
+				ni_json_object_set(object, "missed", ni_json_new_int64(a->missed));
+			}
+		}
+		break;
+
+	case NI_TEAM_LINK_WATCH_NSNA_PING: {
+			const ni_team_link_watch_nsna_t *n = &lw->nsna;
+
+			if (!ni_string_empty(n->target_host)) {
+				ni_json_object_set(object, "target_host", ni_json_new_string(n->target_host));
+			}
+			if (n->interval > 0) {
+				ni_json_object_set(object, "interval", ni_json_new_int64(n->interval));
+			}
+			if (n->init_wait > 0) {
+				ni_json_object_set(object, "init_wait", ni_json_new_int64(n->init_wait));
+			}
+			if (n->missed_max) {
+				ni_json_object_set(object, "missed_max", ni_json_new_int64(n->missed_max));
+			}
+			if (n->missed) {
+				ni_json_object_set(object, "missed", ni_json_new_int64(n->missed));
+			}
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	return object;
+}
+
+ni_json_t *
+ni_teamd_config_json_link_watch(const ni_team_link_watch_array_t *link_watch)
+{
+	const ni_team_link_watch_t *lw;
+	unsigned int i;
+
+	if (!link_watch || !link_watch->count)
+		return NULL;
+
+	if (link_watch->count == 1) {
+		lw = link_watch->data[0];
+
+		return ni_teamd_config_json_link_watch_item(lw);
+	} else {
+		ni_json_t *array = ni_json_new_array();
+		ni_json_t *object;
+
+		for (i = 0; i < link_watch->count; ++i) {
+			lw = link_watch->data[i];
+
+			object = ni_teamd_config_json_link_watch_item(lw);
+			if (object)
+				ni_json_array_append(array, object);
+		}
+		return array;
+	}
+}
+
 int
 ni_teamd_config_file_dump(FILE *fp, const char *instance, const ni_team_t *config)
 {
@@ -671,6 +795,12 @@ ni_teamd_config_file_dump(FILE *fp, const char *instance, const ni_team_t *confi
 	if (!(child = ni_teamd_config_json_runner(&config->runner)))
 		goto failure;
 	ni_json_object_set(object, "runner", child);
+
+	if (config->link_watch.count) {
+		if (!(child = ni_teamd_config_json_link_watch(&config->link_watch)))
+			goto failure;
+		ni_json_object_set(object, "link_watch",  child);
+	}
 
 	if (!ni_json_format_string(&dump, object, NULL))
 		goto failure;
