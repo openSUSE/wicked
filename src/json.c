@@ -307,6 +307,23 @@ ni_json_object_get_pair(ni_json_t *json, const char *name)
 }
 
 ni_json_pair_t *
+ni_json_object_get_pair_at(ni_json_t *json, unsigned int pos)
+{
+	ni_json_object_t *njo;
+
+	if (!(njo = ni_json_to_object(json)) || pos >= njo->count)
+		return NULL;
+
+	return njo->data[pos];
+}
+
+ni_json_pair_t *
+ni_json_object_ref_pair_at(ni_json_t *json, unsigned int pos)
+{
+	return ni_json_pair_ref(ni_json_object_get_pair_at(json, pos));
+}
+
+ni_json_pair_t *
 ni_json_object_ref_pair(ni_json_t *json, const char *name)
 {
 	return ni_json_pair_ref(ni_json_object_get_pair(json, name));

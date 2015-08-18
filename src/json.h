@@ -91,7 +91,9 @@ extern	ni_json_t *			ni_json_pair_ref_value(ni_json_pair_t *);
 extern	ni_bool_t			ni_json_pair_set_value(ni_json_pair_t *, ni_json_t *);
 
 extern	ni_json_pair_t *		ni_json_object_get_pair(ni_json_t *, const char *);
+extern	ni_json_pair_t *		ni_json_object_get_pair_at(ni_json_t *, unsigned int);
 extern	ni_json_t *			ni_json_object_get_value(ni_json_t *, const char *);
+extern	ni_json_pair_t *		ni_json_object_ref_pair_at(ni_json_t *, unsigned int);
 extern	ni_json_pair_t *		ni_json_object_ref_pair(ni_json_t *, const char *);
 extern	ni_json_t *			ni_json_object_ref_value(ni_json_t *, const char *);
 extern	ni_bool_t			ni_json_object_set(ni_json_t *, const char *, ni_json_t *);
