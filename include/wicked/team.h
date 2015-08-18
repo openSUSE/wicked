@@ -249,8 +249,11 @@ extern unsigned int				ni_team_tx_hash_get_bit_names(ni_team_tx_hash_bit_t, ni_s
 extern const char *				ni_team_tx_balancer_type_to_name(ni_team_tx_balancer_type_t);
 extern ni_bool_t				ni_team_tx_balancer_name_to_type(const char *, ni_team_tx_balancer_type_t *);
 
-extern const char *				ni_team_ab_hwaddr_policy_to_name(ni_team_ab_hwaddr_policy_t);
-extern const char *				ni_team_lacp_select_policy_to_name(ni_team_lacp_select_policy_t);
+extern const char *				ni_team_lacp_select_policy_type_to_name(ni_team_lacp_select_policy_t);
+extern ni_bool_t				ni_team_lacp_select_policy_name_to_type(const char *, ni_team_lacp_select_policy_t *);
+
+extern const char *				ni_team_ab_hwaddr_policy_type_to_name(ni_team_ab_hwaddr_policy_t);
+extern ni_bool_t				ni_team_ab_hwaddr_policy_name_to_type(const char *, ni_team_ab_hwaddr_policy_t *);
 
 extern const char *				ni_team_link_watch_type_to_name(ni_team_link_watch_type_t);
 extern ni_bool_t				ni_team_link_watch_name_to_type(const char *, ni_team_link_watch_type_t *);

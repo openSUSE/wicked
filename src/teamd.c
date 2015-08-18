@@ -615,7 +615,7 @@ ni_teamd_config_json_runner(const ni_team_runner_t *runner)
 			const ni_team_runner_active_backup_t *ab = &runner->ab;
 
 			ni_json_object_set(object, "hwaddr_policy", ni_json_new_string(
-				ni_team_ab_hwaddr_policy_to_name(ab->config.hwaddr_policy)
+				ni_team_ab_hwaddr_policy_type_to_name(ab->config.hwaddr_policy)
 			));
 		}
 		break;
@@ -676,7 +676,7 @@ ni_teamd_config_json_runner(const ni_team_runner_t *runner)
 			}
 			if (lacp->config.select_policy) {
 				ni_json_object_set(object, "agg_select_policy", ni_json_new_string(
-					ni_team_lacp_select_policy_to_name(lacp->config.select_policy)
+					ni_team_lacp_select_policy_type_to_name(lacp->config.select_policy)
 				));
 			}
 			if (ni_team_tx_hash_get_bit_names(lacp->config.tx_hash, &names)) {
