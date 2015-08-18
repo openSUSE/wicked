@@ -161,6 +161,14 @@ ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev)
 					master->name, master->link.ifindex);
 		}
 		break;
+	case NI_IFTYPE_TEAM:
+		ret = ni_teamd_port_enslave(master, dev, NULL);
+
+		if (ret == 0) {
+			ni_netdev_ref_set(&dev->link.masterdev,
+					master->name, master->link.ifindex);
+		}
+		break;
 	case NI_IFTYPE_BRIDGE:
 		ret = __ni_rtnl_link_add_port_up(dev, master->name,
 						master->link.ifindex);
@@ -211,7 +219,8 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 				return 0;
 
 			master = ni_netdev_by_index(nc, dev->link.masterdev.index);
-			if (master && master->link.type == NI_IFTYPE_BOND)
+			if (master &&  (master->link.type == NI_IFTYPE_BOND ||
+					master->link.type == NI_IFTYPE_TEAM))
 				return 0;
 		} else
 		/* config lookup for master and redirect to master's enslave */

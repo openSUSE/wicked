@@ -57,6 +57,8 @@
 #define NI_TEAMD_CALL_STATE_ITEM_GET		"StateItemValueGet"
 #define NI_TEAMD_CALL_STATE_ITEM_SET		"StateItemValueSet"
 
+#define NI_TEAMD_CALL_PORT_ADD			"PortAdd"
+
 
 struct ni_teamd_client {
 	ni_dbus_client_t *	dbus;
@@ -251,6 +253,56 @@ ni_teamd_ctl_state_set_item(ni_teamd_client_t *tdc, const char *item_name, const
 
 	return rv;
 }
+
+int
+ni_teamd_ctl_port_add(ni_teamd_client_t *tdc, const char *portname)
+{
+	ni_dbus_message_t *call, *reply;
+	DBusError error;
+	int rv = 0;
+
+	if (!tdc || ni_string_empty(portname))
+		return -NI_ERROR_INVALID_ARGS;
+
+	dbus_error_init(&error);
+	call = ni_dbus_object_call_new(tdc->proxy, NI_TEAMD_CALL_PORT_ADD, 0);
+	ni_dbus_message_append_string(call, portname);
+	if ((reply = ni_dbus_client_call(tdc->dbus, call, &error)) == NULL) {
+		rv = -NI_ERROR_DBUS_CALL_FAILED;
+		if (dbus_error_is_set(&error))
+			rv = ni_dbus_client_translate_error(tdc->dbus, &error);
+	}
+
+	if (rv < 0) {
+		ni_debug_application("Call to %s."NI_TEAMD_CALL_PORT_ADD"(%s) failed: %s",
+				ni_dbus_object_get_path(tdc->proxy), portname, ni_strerror(rv));
+	}
+
+	return rv;
+}
+
+int
+ni_teamd_port_enslave(ni_netdev_t *master, ni_netdev_t *port, ni_team_port_config_t *config)
+{
+	ni_teamd_client_t *tdc;
+	int ret = -1;
+
+	if (!master || !master->name || !port || !port->name)
+		return -1;
+
+	if (!(tdc = ni_teamd_client_open(master->name)))
+		return -1;
+
+	if (ni_teamd_ctl_port_add(tdc, port->name) < 0)
+		goto failure;
+
+	ret = 0;
+
+failure:
+        ni_teamd_client_free(tdc);
+	return ret;
+}
+
 
 /*
  * teamd discovery
