@@ -156,7 +156,6 @@ typedef struct ni_team_link_watch_arp {
 	ni_bool_t				validate_inactive;
 	ni_bool_t				send_always;
 	unsigned int				missed_max;
-	unsigned int				missed;
 } ni_team_link_watch_arp_t;
 
 typedef struct ni_team_link_watch_tipc {
@@ -169,7 +168,6 @@ typedef struct ni_team_link_watch_nsna {
 	unsigned int				interval;
 	unsigned int				init_wait;
 	unsigned int				missed_max;
-	unsigned int				missed;
 } ni_team_link_watch_nsna_t;
 
 typedef struct ni_team_link_watch_ethtool {

@@ -506,8 +506,6 @@ __ni_objectmodel_team_link_watch_to_dict(const ni_team_link_watch_t *lw, ni_dbus
 			ni_dbus_dict_add_bool(dict, "send_always", lw->arp.send_always);
 		if (lw->arp.missed_max > 0)
 			ni_dbus_dict_add_uint32(dict, "missed_max", lw->arp.missed_max);
-		if (lw->arp.missed > 0)
-			ni_dbus_dict_add_uint32(dict, "missed", lw->arp.missed);
 		break;
 	case NI_TEAM_LINK_WATCH_NSNA_PING:
 		if (lw->nsna.target_host)
@@ -518,8 +516,6 @@ __ni_objectmodel_team_link_watch_to_dict(const ni_team_link_watch_t *lw, ni_dbus
 			ni_dbus_dict_add_uint32(dict, "init_wait", lw->nsna.init_wait);
 		if (lw->nsna.missed_max)
 			ni_dbus_dict_add_uint32(dict, "missed_max", lw->nsna.missed_max);
-		if (lw->nsna.missed > 0)
-			ni_dbus_dict_add_uint32(dict, "missed", lw->nsna.missed);
 		break;
 	case NI_TEAM_LINK_WATCH_TIPC:
 		if (lw->tipc.bearer)
@@ -567,8 +563,6 @@ __ni_objectmodel_team_link_watch_from_dict(ni_team_link_watch_t *lw, const ni_db
 			lw->arp.send_always = bvalue;
 		if (ni_dbus_dict_get_uint32(dict, "missed_max", &value))
 			lw->arp.missed_max = value;
-		if (ni_dbus_dict_get_uint32(dict, "missed", &value))
-			 lw->arp.missed = value;
 		break;
 	case NI_TEAM_LINK_WATCH_NSNA_PING:
 		if (ni_dbus_dict_get_string(dict, "target_host", &string))
@@ -579,8 +573,6 @@ __ni_objectmodel_team_link_watch_from_dict(ni_team_link_watch_t *lw, const ni_db
 			lw->nsna.init_wait = value;
 		if (ni_dbus_dict_get_uint32(dict, "missed_max", &value))
 			lw->nsna.missed_max = value;
-		if (ni_dbus_dict_get_uint32(dict, "missed", &value))
-			 lw->nsna.missed = value;
 		break;
 	case NI_TEAM_LINK_WATCH_TIPC:
 		if (ni_dbus_dict_get_string(dict, "bearer", &string))
