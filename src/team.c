@@ -29,6 +29,7 @@
 #include <stdlib.h>
 
 #include <wicked/util.h>
+#include <wicked/netinfo.h>
 #include <wicked/team.h>
 #include "util_priv.h"
 
@@ -312,7 +313,7 @@ __ni_team_link_watch_array_realloc(ni_team_link_watch_array_t *array, unsigned i
 	unsigned int i;
 
 	newsize = (newsize + NI_TEAM_LINK_WATCH_ARRAY_CHUNK);
-	newdata = xrealloc(array->data, newsize * sizeof(ni_team_link_watch_t));
+	newdata = xrealloc(array->data, newsize * sizeof(ni_team_link_watch_t *));
 	array->data = newdata;
 	for (i = array->count; i < newsize; ++i)
 		array->data[i] = NULL;
@@ -362,6 +363,7 @@ ni_team_port_new(void)
 void
 ni_team_port_free(ni_team_port_t *port)
 {
+	ni_netdev_ref_destroy(&port->device);
 	free(port);
 }
 
@@ -387,7 +389,7 @@ __ni_team_port_array_realloc(ni_team_port_array_t *array, unsigned int newsize)
 	unsigned int i;
 
 	newsize = (newsize + NI_TEAM_PORT_ARRAY_CHUNK);
-	newdata = xrealloc(array->data, newsize * sizeof(ni_team_port_t));
+	newdata = xrealloc(array->data, newsize * sizeof(ni_team_port_t *));
 	array->data = newdata;
 	for (i = array->count; i < newsize; ++i)
 		array->data[i] = NULL;
