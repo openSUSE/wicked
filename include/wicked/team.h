@@ -197,6 +197,35 @@ typedef struct ni_team_link_watch_array {
 	ni_team_link_watch_t **			data;
 } ni_team_link_watch_array_t;
 
+/*
+ * team port config
+ */
+typedef struct ni_team_port_active_backup {
+	unsigned int				prio;
+	ni_bool_t				sticky;
+} ni_team_port_active_backup_t;
+
+typedef struct ni_team_port_lacp {
+	unsigned int				prio;
+	unsigned int				key;
+} ni_team_port_lacp_t;
+
+typedef struct ni_team_port_config {
+	unsigned int				queue_id;
+} ni_team_port_config_t;
+
+/*
+ * team port and array
+ */
+typedef struct ni_team_port {
+	ni_netdev_ref_t				device;
+	ni_team_port_config_t			config;
+} ni_team_port_t;
+
+typedef struct ni_team_port_array {
+	unsigned int				count;
+	ni_team_port_t **			data;
+} ni_team_port_array_t;
 
 /*
  * team device
@@ -204,6 +233,7 @@ typedef struct ni_team_link_watch_array {
 struct ni_team {
 	ni_team_runner_t			runner;
 	ni_team_link_watch_array_t		link_watch;
+	ni_team_port_array_t			ports;
 };
 
 
@@ -229,5 +259,11 @@ extern ni_team_link_watch_t *			ni_team_link_watch_new(ni_team_link_watch_type_t
 extern void					ni_team_link_watch_free(ni_team_link_watch_t *);
 extern ni_bool_t				ni_team_link_watch_array_append(ni_team_link_watch_array_t *, ni_team_link_watch_t *);
 extern ni_bool_t				ni_team_link_watch_array_delete_at(ni_team_link_watch_array_t *, unsigned int);
+
+extern ni_team_port_t *				ni_team_port_new(void);
+extern void					ni_team_port_free(ni_team_port_t *);
+extern void					ni_team_port_array_destroy(ni_team_port_array_t *);
+extern ni_bool_t				ni_team_port_array_append(ni_team_port_array_t *, ni_team_port_t *);
+extern ni_bool_t				ni_team_port_array_delete_at(ni_team_port_array_t *, unsigned int);
 
 #endif /* NI_WICKED_TEAM_H */
