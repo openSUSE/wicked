@@ -68,6 +68,17 @@
     <delay_down  type="uint32" />
   </define>
 
+  <define name="port-config" class="dict">
+    <queue_id    type="uint32" />
+  </define>
+
+  <define name="port-device" class="dict" extends="team:port-config">
+    <device type="string">
+      <meta:netif-reference shared="false" />
+      <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
+    </device>
+  </define>
+
   <define name="device-info" class="dict">
     <runner class="union" switch="name">
       <roundrobin   type="roundrobin-runner"/>
@@ -86,6 +97,8 @@
         <tipc      type="tipc-linkwatch-type" />
       </watch>
     </link_watch>
+
+    <ports class="array" element-type="team:port-device" element-name="port" />
 
     <address type="ethernet-address"/>
   </define>
