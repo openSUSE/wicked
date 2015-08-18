@@ -688,16 +688,123 @@ __ni_objectmodel_team_set_link_watch(ni_dbus_object_t *object, const ni_dbus_pro
 	return TRUE;
 }
 
+/*
+ * Helper function for team port device as dict
+ */
+static dbus_bool_t
+__ni_objectmodel_team_port_to_dict(const ni_team_port_t *port, ni_dbus_variant_t *dict, DBusError *error)
+{
+	(void)error;
+
+	if (ni_string_empty(port->device.name))
+		return FALSE;
+
+	ni_dbus_dict_add_string(dict, "device", port->device.name);
+	if (port->config.queue_id)
+		ni_dbus_dict_add_uint32(dict, "queue_id", port->config.queue_id);
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_team_port_from_dict(ni_team_port_t *port, const ni_dbus_variant_t *dict, DBusError *error)
+{
+	const char *string;
+	uint32_t u32;
+
+	(void)error;
+
+	if (dict->array.len == 0)
+		return TRUE;
+
+	if (ni_dbus_dict_get_string(dict, "device", &string) && !ni_string_empty(string))
+		ni_netdev_ref_set_ifname(&port->device, string);
+	else
+		return FALSE;
+
+	if (ni_dbus_dict_get_uint32(dict, "queue_id", &u32))
+		port->config.queue_id = u32;
+
+	return TRUE;
+}
+
+/*
+ * Property ports (array)
+ */
+static dbus_bool_t
+__ni_objectmodel_team_get_ports(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result, DBusError *error)
+{
+	ni_dbus_variant_t *dict;
+	const ni_team_t *team;
+	unsigned int i;
+
+	if (!(team = __ni_objectmodel_team_read_handle(object, error)))
+		return FALSE;
+
+	ni_dbus_dict_array_init(result);
+	for (i = 0; i < team->ports.count; ++i) {
+		const ni_team_port_t *port = team->ports.data[i];
+
+		if (!(dict = ni_dbus_dict_array_add(result)))
+			return FALSE;
+
+		ni_dbus_variant_init_dict(dict);
+		if (!__ni_objectmodel_team_port_to_dict(port, dict, error))
+			return FALSE;
+	}
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_team_set_ports(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument, DBusError *error)
+{
+	const ni_dbus_variant_t *dict;
+	ni_team_t *team;
+	unsigned int i;
+
+	if (!(team = __ni_objectmodel_team_write_handle(object, error)))
+		return FALSE;
+
+	if (!ni_dbus_variant_is_dict_array(argument))
+		return FALSE;
+
+	dict = argument->variant_array_value;
+	for (i = 0; i < argument->array.len; ++i, ++dict) {
+		ni_team_port_t *port;
+
+		port = ni_team_port_new();
+		if (!__ni_objectmodel_team_port_from_dict(port, dict, error)) {
+			ni_team_port_free(port);
+			return FALSE;
+		}
+		if (ni_team_port_array_find_by_name(&team->ports, port->device.name)) {
+			ni_team_port_free(port);
+			return FALSE;
+		}
+		if (!ni_team_port_array_append(&team->ports, port)) {
+			ni_team_port_free(port);
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
 #define TEAM_HWADDR_PROPERTY(dbus_name, rw) \
 	__NI_DBUS_PROPERTY(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, \
 			dbus_name, __ni_objectmodel_team, rw)
 #define TEAM_DICT_PROPERTY(dbus_name, member_name,rw) \
 	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, dbus_name, \
 			member_name, __ni_objectmodel_team, RO)
+#define TEAM_DICT_ARRAY_PROPERTY(dbus_name, member_name,rw) \
+	___NI_DBUS_PROPERTY(DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE, \
+			dbus_name, member_name, __ni_objectmodel_team, RO)
 
 static ni_dbus_property_t	ni_objectmodel_team_properties[] = {
 	TEAM_DICT_PROPERTY(runner, runner, RO),
 	TEAM_DICT_PROPERTY(link_watch, link_watch, RO),
+	TEAM_DICT_ARRAY_PROPERTY(ports, ports, RO),
 	TEAM_HWADDR_PROPERTY(address, RO),
 
 	{ NULL }

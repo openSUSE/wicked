@@ -392,6 +392,21 @@ ni_team_port_array_delete_at(ni_team_port_array_t *array, unsigned int pos)
 	return TRUE;
 }
 
+ni_team_port_t *
+ni_team_port_array_find_by_name(ni_team_port_array_t *array, const char *name)
+{
+	unsigned int i;
+
+	if (!array || !name)
+		return NULL;
+
+	for (i = 0; i < array->count; ++i) {
+		ni_team_port_t *port = array->data[i];
+		if (ni_string_eq(name, port->device.name))
+			return port;
+	}
+	return NULL;
+}
 
 /*
  * team device
