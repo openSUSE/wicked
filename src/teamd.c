@@ -547,6 +547,65 @@ failure:
 	return -1;
 }
 
+static int
+ni_teamd_discover_port_details(ni_team_port_t *port, ni_json_t *details)
+{
+	int64_t i64;
+
+	if (!ni_json_is_object(details))
+		return 1;
+
+	if (ni_json_int64_get(ni_json_object_get_value(details, "queue_id"), &i64))
+			port->config.queue_id = i64;
+
+	return 0;
+}
+
+static int
+ni_teamd_discover_ports(ni_team_t *team, ni_json_t *conf)
+{
+	ni_team_port_t *port;
+	ni_json_t *ports;
+	unsigned int i, count;
+
+	if (!team || !conf)
+		return -1;
+
+	if (!(ports = ni_json_object_get_value(conf, "ports")))
+		return 0;
+
+	if (!ni_json_is_object(ports))
+		return 1;
+
+	count = ni_json_object_entries(ports);
+	for (i = 0; i < count; ++i) {
+		ni_json_pair_t *pair;
+		ni_json_t *details;
+		const char *name;
+
+		if (!(pair = ni_json_object_get_pair_at(ports, i)))
+			continue;
+
+		name = ni_json_pair_get_name(pair);
+		if (ni_string_empty(name))
+			continue;
+		port = ni_team_port_new();
+		ni_netdev_ref_set_ifname(&port->device, name);
+
+		details = ni_json_pair_get_value(pair);
+		if (ni_teamd_discover_port_details(port, details) < 0) {
+			ni_team_port_free(port);
+			continue;
+		}
+
+		if (!ni_team_port_array_append(&team->ports, port)) {
+			ni_team_port_free(port);
+			continue;
+		}
+	}
+	return 0;
+}
+
 int
 ni_teamd_discover(ni_netdev_t *dev)
 {
@@ -576,6 +635,9 @@ ni_teamd_discover(ni_netdev_t *dev)
 		goto failure;
 
 	if (ni_teamd_discover_link_watch(team, conf) < 0)
+		goto failure;
+
+	if (ni_teamd_discover_ports(team, conf) < 0)
 		goto failure;
 
 	ni_netdev_set_team(dev, team);
