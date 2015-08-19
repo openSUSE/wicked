@@ -108,6 +108,7 @@ ni_objectmodel_register_netif_services(void)
 	ni_objectmodel_register_netif_service(NI_IFTYPE_MACVTAP, &ni_objectmodel_macvtap_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_DUMMY, &ni_objectmodel_dummy_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_BOND, &ni_objectmodel_bond_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_TEAM, &ni_objectmodel_team_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_BRIDGE, &ni_objectmodel_bridge_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_WIRELESS, &ni_objectmodel_wireless_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_TUN, &ni_objectmodel_tun_service);
@@ -119,6 +120,7 @@ ni_objectmodel_register_netif_services(void)
 	ni_objectmodel_register_netif_service(NI_IFTYPE_INFINIBAND_CHILD, &ni_objectmodel_ibchild_service);
 
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_bond_factory_service);
+	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_team_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_bridge_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_vlan_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_macvlan_factory_service);
@@ -521,6 +523,29 @@ ni_objectmodel_unwrap_netif(const ni_dbus_object_t *object, DBusError *error)
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
 				"method not compatible with object %s of class %s (not a network interface)",
+				object->path, object->class->name);
+	return NULL;
+}
+
+ni_netdev_req_t *
+ni_objectmodel_unwrap_netif_request(const ni_dbus_object_t *object, DBusError *error)
+{
+	ni_netdev_req_t *req;
+
+	if (!object) {
+		if (error)
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+					"Cannot unwrap network interface request from a NULL dbus object");
+		return NULL;
+	}
+
+	req = object->handle;
+	if (ni_dbus_object_isa(object, &ni_objectmodel_ifreq_class))
+		return req;
+	if (error)
+		dbus_set_error(error,
+				DBUS_ERROR_FAILED,
+				"method not compatible with object %s of class %s (not a network interface request)",
 				object->path, object->class->name);
 	return NULL;
 }
@@ -1556,12 +1581,147 @@ ni_objectmodel_get_netdev_req(const ni_dbus_object_t *object, ni_bool_t write_ac
 	return ni_dbus_object_get_handle(object);
 }
 
+static dbus_bool_t
+__ni_objectmodel_netdev_req_get_port(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+					ni_dbus_variant_t *result, DBusError *error)
+{
+	const ni_netdev_req_t *req;
+	ni_dbus_variant_t *dict;
+	const char *name;
+
+	if (!(req = ni_objectmodel_unwrap_netif_request(object, error)))
+		return FALSE;
+	if (!req->port)
+		return FALSE;
+
+	switch (req->port->type) {
+	case NI_IFTYPE_TEAM:
+	case NI_IFTYPE_BOND:
+	case NI_IFTYPE_BRIDGE:
+		if ((name = ni_linktype_type_to_name(req->port->type)))
+			break;
+	default:
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
+	}
+
+	ni_dbus_variant_init_struct(result);
+	ni_dbus_struct_add_string(result, name);
+	dict = ni_dbus_struct_add(result);
+	ni_dbus_variant_init_dict(dict);
+
+	switch (req->port->type) {
+	case NI_IFTYPE_TEAM: {
+			const ni_team_port_config_t *tp = &req->port->team;
+
+			if (tp->queue_id != -1U)
+				ni_dbus_dict_add_uint32(dict, "queue_id", tp->queue_id);
+
+			if (tp->ab.prio)
+				ni_dbus_dict_add_uint32(dict, "prio", tp->ab.prio);
+			if (tp->ab.sticky)
+				ni_dbus_dict_add_bool(dict, "prio", tp->ab.sticky);
+
+			if (tp->lacp.prio)
+				ni_dbus_dict_add_uint32(dict, "lacp_prio", tp->lacp.prio);
+			if (tp->lacp.key)
+				ni_dbus_dict_add_uint32(dict, "lacp_key", tp->lacp.key);
+		}
+		break;
+
+	case NI_IFTYPE_BOND:
+	case NI_IFTYPE_BRIDGE:
+	default:
+		break;
+	}
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_netdev_req_set_port(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+					const ni_dbus_variant_t *argument, DBusError *error)
+{
+	const ni_dbus_variant_t *dict;
+	ni_netdev_req_t *req;
+	const char *name;
+	ni_iftype_t type;
+	dbus_bool_t b;
+	uint32_t u32;
+
+	if (!(req = ni_objectmodel_unwrap_netif_request(object, error)))
+		return FALSE;
+
+	if (!ni_dbus_struct_get_string(argument, 0, &name)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"bad value for property %s; missed type", property->name);
+		return FALSE;
+	}
+
+	type = ni_linktype_name_to_type(name);
+	switch (type) {
+	case NI_IFTYPE_TEAM:
+	case NI_IFTYPE_BOND:
+	case NI_IFTYPE_BRIDGE:
+		break;
+	default:
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"bad value for property %s; unsupported type %s", property->name, name);
+		return FALSE;
+	}
+
+	if (!(dict = ni_dbus_struct_get(argument, 1))) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "missed netdev request port member dict");
+		return FALSE;
+	}
+	if (!ni_dbus_variant_is_dict(dict)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "netdev request port data is not a dict");
+		return FALSE;
+	}
+
+	if (req->port)
+		ni_netdev_port_req_free(req->port);
+	if (!(req->port = ni_netdev_port_req_new(type))) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "unable to allocate netdev request %s port data", name);
+		return FALSE;
+	}
+
+	switch (req->port->type) {
+	case NI_IFTYPE_TEAM: {
+			ni_team_port_config_t *tp = &req->port->team;
+
+			ni_team_port_config_init(tp);
+
+			if (ni_dbus_dict_get_uint32(dict, "queue_id", &u32))
+				tp->queue_id = u32;
+
+			if (ni_dbus_dict_get_uint32(dict, "prio", &u32))
+				tp->ab.prio = u32;
+			if (ni_dbus_dict_get_bool(dict, "sticky", &b))
+				tp->ab.sticky = b;
+
+			if (ni_dbus_dict_get_uint32(dict, "lacp_prio", &u32))
+				tp->lacp.prio = u32;
+
+			if (ni_dbus_dict_get_uint32(dict, "lacp_key", &u32))
+				tp->lacp.key = u32;
+		}
+		break;
+
+	case NI_IFTYPE_BOND:
+	case NI_IFTYPE_BRIDGE:
+	default:
+		break;
+	}
+	return TRUE;
+}
+
 #define NETIF_REQUEST_UINT_PROPERTY(dbus_name, name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev_req, dbus_name, name, rw)
 #define NETIF_REQUEST_STRING_PROPERTY(dbus_name, name, rw) \
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev_req, dbus_name, name, rw)
 #define NETIF_REQUEST_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_netif_request, rw)
+	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_netdev_req, rw)
+#define NETIF_REQUEST_UNION_PROPERTY(name, rw) \
+	NETIF_REQUEST_PROPERTY_SIGNATURE(NI_DBUS_DICT_SIGNATURE, name, rw)
 
 static ni_dbus_property_t	ni_objectmodel_netif_request_properties[] = {
 	NETIF_REQUEST_UINT_PROPERTY(status, ifflags, RO),
@@ -1570,6 +1730,7 @@ static ni_dbus_property_t	ni_objectmodel_netif_request_properties[] = {
 	NETIF_REQUEST_UINT_PROPERTY(txqlen, txqlen, RO),
 	NETIF_REQUEST_STRING_PROPERTY(alias, alias, RO),
 	NETIF_REQUEST_STRING_PROPERTY(master, master.name, RO),
+	NETIF_REQUEST_UNION_PROPERTY(port, RO),
 
 	{ NULL }
 };

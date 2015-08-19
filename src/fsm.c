@@ -1174,6 +1174,7 @@ __ni_generate_default_config(const char *ifname, ni_iftype_t ptype, xml_node_t *
 
 	switch (ptype) {
 	/* for slaves */
+	case NI_IFTYPE_TEAM:
 	case NI_IFTYPE_BOND:
 		/*
 		 * STARTMODE="hotplug"

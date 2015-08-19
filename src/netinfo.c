@@ -14,6 +14,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/route.h>
 #include <wicked/addrconf.h>
+#include <wicked/team.h>
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
 #include <wicked/ethernet.h>
@@ -748,6 +749,43 @@ ni_netdev_ref_destroy(ni_netdev_ref_t *ref)
 	}
 }
 
+/*
+ * Handle netdev request port config
+ */
+ni_netdev_port_req_t *
+ni_netdev_port_req_new(ni_iftype_t master)
+{
+	ni_netdev_port_req_t *port;
+
+	switch (master) {
+	case NI_IFTYPE_TEAM:
+	case NI_IFTYPE_BOND:
+	case NI_IFTYPE_BRIDGE:
+		port = xcalloc(1, sizeof(*port));
+		port->type = master;
+		return port;
+	default:
+		return NULL;
+	}
+}
+
+void
+ni_netdev_port_req_free(ni_netdev_port_req_t *port)
+{
+	if (port) {
+		switch (port->type) {
+		case NI_IFTYPE_TEAM:
+			ni_team_port_config_destroy(&port->team);
+			break;
+
+		case NI_IFTYPE_BOND:
+		case NI_IFTYPE_BRIDGE:
+		default:
+			break;
+		}
+		free(port);
+	}
+}
 
 /*
  * Handle interface_request objects
@@ -766,6 +804,7 @@ ni_netdev_req_free(ni_netdev_req_t *req)
 {
 	ni_string_free(&req->alias);
 	ni_netdev_ref_destroy(&req->master);
+	ni_netdev_port_req_free(req->port);
 	free(req);
 }
 

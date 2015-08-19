@@ -65,13 +65,12 @@ typedef enum ni_iftype {
 	NI_IFTYPE_TUNNEL6,	/* ip6ip6 tunnel */
 	NI_IFTYPE_TOKENRING,
 	NI_IFTYPE_FIREWIRE,
-
 	NI_IFTYPE_TUN,
 	NI_IFTYPE_TAP,
 	NI_IFTYPE_DUMMY,
-
 	NI_IFTYPE_CTCM,		/* s390 ctcm (slip) devices */
 	NI_IFTYPE_IUCV,		/* s390 iucv (slip) devices */
+	NI_IFTYPE_TEAM,
 
 	__NI_IFTYPE_MAX
 } ni_iftype_t;

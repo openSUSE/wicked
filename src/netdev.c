@@ -15,6 +15,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
+#include <wicked/team.h>
 #include <wicked/ethernet.h>
 #include <wicked/infiniband.h>
 #include <wicked/wireless.h>
@@ -94,6 +95,7 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_ethernet(dev, NULL);
 	ni_netdev_set_infiniband(dev, NULL);
 	ni_netdev_set_bonding(dev, NULL);
+	ni_netdev_set_team(dev, NULL);
 	ni_netdev_set_bridge(dev, NULL);
 	ni_netdev_set_vlan(dev, NULL);
 	ni_netdev_set_macvlan(dev, NULL);
@@ -390,6 +392,26 @@ ni_netdev_set_bonding(ni_netdev_t *dev, ni_bonding_t *bonding)
 	if (dev->bonding)
 		ni_bonding_free(dev->bonding);
 	dev->bonding = bonding;
+}
+
+/*
+ * Get team interface information
+ */
+ni_team_t *
+ni_netdev_get_team(ni_netdev_t *dev)
+{
+	if (dev->link.type != NI_IFTYPE_TEAM)
+		return NULL;
+	if (!dev->team)
+		dev->team = ni_team_new();
+	return dev->team;
+}
+
+void
+ni_netdev_set_team(ni_netdev_t *dev, ni_team_t *team)
+{
+	ni_team_free(dev->team);
+	dev->team = team;
 }
 
 /*

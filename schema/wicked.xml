@@ -12,6 +12,7 @@
 <include name="vlan.xml"/>
 <include name="macvlan.xml"/>
 <include name="dummy.xml"/>
+<include name="team.xml"/>
 <include name="bonding.xml"/>
 <include name="bridge.xml"/>
 <include name="infiniband.xml"/>

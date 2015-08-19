@@ -70,6 +70,7 @@ libwicked_la_SOURCES		= \
 	infiniband.c		\
 	ipv4.c			\
 	ipv6.c			\
+	json.c			\
 	kernel.c		\
 	leasefile.c		\
 	leaseinfo.c		\
@@ -94,6 +95,8 @@ libwicked_la_SOURCES		= \
 	state.c			\
 	sysconfig.c		\
 	sysfs.c			\
+	team.c			\
+	teamd.c			\
 	timer.c			\
 	tunneling.c		\
 	tuntap.c		\
@@ -131,6 +134,7 @@ libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/openvpn.c	\
 	dbus-objects/ppp.c	\
 	dbus-objects/state.c	\
+	dbus-objects/team.c	\
 	dbus-objects/tuntap.c	\
 	dbus-objects/sit.c	\
 	dbus-objects/ipip.c	\
@@ -179,6 +183,7 @@ wicked_headers			= \
 	duid.h			\
 	ibft.h			\
 	ipv6_priv.h		\
+	json.h			\
 	kernel.h		\
 	leasefile.h		\
 	lldp-priv.h             \
@@ -188,6 +193,7 @@ wicked_headers			= \
 	process.h		\
 	socket_priv.h		\
 	sysfs.h			\
+	teamd.h			\
 	uevent.h		\
 	udev-utils.h		\
 	util_priv.h		\

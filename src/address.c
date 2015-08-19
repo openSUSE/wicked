@@ -1131,7 +1131,7 @@ ni_link_address_get_broadcast(unsigned short arp_type, ni_hwaddr_t *hwa)
 }
 
 ni_bool_t
-ni_link_address_is_broadcast(ni_hwaddr_t *hwa)
+ni_link_address_is_broadcast(const ni_hwaddr_t *hwa)
 {
 	ni_hwaddr_t brd;
 
@@ -1148,7 +1148,7 @@ ni_link_address_is_broadcast(ni_hwaddr_t *hwa)
  * To say if it is valid, you have to know it's purpose.
  */
 ni_bool_t
-ni_link_address_is_invalid(ni_hwaddr_t *hwa)
+ni_link_address_is_invalid(const ni_hwaddr_t *hwa)
 {
 	unsigned short i;
 	unsigned char z, b;

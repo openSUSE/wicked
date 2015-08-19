@@ -34,6 +34,7 @@ typedef struct ni_macvlan	ni_macvlan_t;
 typedef struct ni_bridge	ni_bridge_t;
 typedef struct ni_bridge_port	ni_bridge_port_t;
 typedef struct ni_bonding	ni_bonding_t;
+typedef struct ni_team		ni_team_t;
 typedef struct ni_wireless	ni_wireless_t;
 typedef struct ni_wireless_scan	ni_wireless_scan_t;
 typedef struct ni_ethernet	ni_ethernet_t;

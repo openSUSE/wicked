@@ -74,6 +74,7 @@ static const ni_intmap_t	__linktype_names[] = {
 	{ "dummy",		NI_IFTYPE_DUMMY },
 	{ "ctcm",		NI_IFTYPE_CTCM },
 	{ "iucv",		NI_IFTYPE_IUCV },
+	{ "team",		NI_IFTYPE_TEAM },
 
 	{ NULL }
 };
@@ -102,6 +103,7 @@ ni_linktype_type_to_name(unsigned int type)
 static const ni_intmap_t	__linkinfo_kind_names[] = {
 	{ "bridge",		NI_IFTYPE_BRIDGE },
 	{ "bond",		NI_IFTYPE_BOND },
+	{ "team",		NI_IFTYPE_TEAM },
 	{ "vlan",		NI_IFTYPE_VLAN },
 	{ "macvlan",		NI_IFTYPE_MACVLAN },
 	{ "macvtap",		NI_IFTYPE_MACVTAP },

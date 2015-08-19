@@ -1699,8 +1699,8 @@ ni_stringbuf_grow(ni_stringbuf_t *sb, size_t len)
 	__ni_stringbuf_realloc(sb, len);
 }
 
-static void
-__ni_stringbuf_put(ni_stringbuf_t *sb, const char *ptr, size_t len)
+void
+ni_stringbuf_put(ni_stringbuf_t *sb, const char *ptr, size_t len)
 {
 	__ni_stringbuf_realloc(sb, len);
 
@@ -1713,14 +1713,14 @@ void
 ni_stringbuf_putc(ni_stringbuf_t *sb, int cc)
 {
 	char c = cc;
-	__ni_stringbuf_put(sb, &c, 1);
+	ni_stringbuf_put(sb, &c, 1);
 }
 
 void
 ni_stringbuf_puts(ni_stringbuf_t *sb, const char *s)
 {
 	if (s)
-		__ni_stringbuf_put(sb, s, strlen(s));
+		ni_stringbuf_put(sb, s, strlen(s));
 }
 
 int

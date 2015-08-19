@@ -1,0 +1,134 @@
+<service name="team" interface="org.opensuse.Network.Team" object-class="netif-team">
+ <description>
+   This link-layer service is provided by all team devices.
+
+   Team devices can be created through the org.opensuse.Network.Team.Factory
+   factory interface.
+ </description>
+
+  <define name="tx-balancer-type" class="dict">
+    <name               type="builtin-team-tx-balancer-type" />
+    <balancing_interval type="uint32" />
+  </define>
+
+  <define name="roundrobin-runner" class="dict">
+  </define>
+
+  <define name="activebackup-runner" class="dict">
+    <hwaddr-policy     type="builtin-team-ab-hwaddr-policy" />
+  </define>
+
+  <define name="loadbalance-runner" class="dict">
+    <tx_hash           type="builtin-team-tx-hash-mask" />
+    <tx_balancer       type="team:tx-balancer-type" />
+  </define>
+
+  <define name="broadcast-runner" class="dict">
+  </define>
+
+  <define name="random-runner" class="dict">
+  </define>
+
+  <define name="lacp-runner" class="dict">
+    <active            type="boolean" />
+    <sys_prio          type="uint16" />
+    <fast_rate         type="boolean" />
+    <min_ports         type="uint16" />
+    <select_policy     type="builtin-team-lacp-select-policy" />
+    <tx_hash           type="builtin-team-tx-hash-mask" />
+    <tx_balancer       type="team:tx-balancer-type" />
+  </define>
+
+  <define name="arp-ping-linkwatch-type" class="dict">
+    <source_host       type="string" />
+    <target_host       type="string" />
+    <interval          type="uint32" />
+    <init_wait         type="uint32" />
+    <validate_active   type="boolean" />
+    <validate_inactive type="boolean" />
+    <send_always       type="boolean" />
+    <missed_max        type="uint32" />
+    <missed            type="uint32" />
+  </define>
+
+  <define name="tipc-linkwatch-type" class="dict">
+    <bearer      type="string" />
+  </define>
+
+  <define name="nsna-ping-linkwatch-type" class="dict">
+    <target_host type="string" />
+    <interval    type="uint32" />
+    <init_wait   type="uint32" />
+    <missed_max  type="uint32" />
+    <missed      type="uint32" />
+  </define>
+
+  <define name="ethtool-linkwatch-type" class="dict">
+    <delay_up    type="uint32" />
+    <delay_down  type="uint32" />
+  </define>
+
+  <define name="port-config" class="dict">
+    <queue_id    type="uint32" />
+    <prio        type="uint32" />
+    <sticky      type="boolean" />
+    <lacp_key    type="uint32" />
+    <lacp_prio   type="uint32" />
+  </define>
+
+  <define name="port-device" class="dict" extends="team:port-config">
+    <device type="string">
+      <meta:netif-reference shared="false" />
+      <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
+    </device>
+  </define>
+
+  <define name="device-info" class="dict">
+    <runner class="union" switch="name">
+      <roundrobin   type="roundrobin-runner"/>
+      <activebackup type="activebackup-runner"/>
+      <loadbalance  type="loadbalance-runner"/>
+      <broadcast    type="broadcast-runner"/>
+      <random       type="random-runner"/>
+      <lacp         type="lacp-runner"/>
+    </runner>
+
+    <link_watch class="dict">
+      <watch class="union" switch="name">
+        <ethtool   type="ethtool-linkwatch-type" />
+        <arp_ping  type="arp-ping-linkwatch-type" />
+        <nsna_ping type="nsna-ping-linkwatch-type" />
+        <tipc      type="tipc-linkwatch-type" />
+      </watch>
+    </link_watch>
+
+    <ports class="array" element-type="team:port-device" element-name="port" />
+
+    <address type="ethernet-address"/>
+  </define>
+
+  <define name="properties" type="device-info"/>
+
+  <method name="changeDevice">
+    <arguments>
+      <config type="team:device-info">
+        <meta:mapping document-node="/team"/>
+      </config>
+    </arguments>
+  </method>
+
+</service>
+
+<service name="team-factory" interface="org.opensuse.Network.Team.Factory" object-class="netif-list">
+  <method name="newDevice">
+    <arguments>
+     <name type="string"/>
+     <config type="team:device-info">
+      <meta:mapping document-node="/team"/>
+     </config>
+    </arguments>
+    <return>
+     <string/>
+    </return>
+  </method>
+</service>

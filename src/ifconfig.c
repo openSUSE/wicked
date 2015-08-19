@@ -31,6 +31,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
+#include <wicked/team.h>
 #include <wicked/vlan.h>
 #include <wicked/macvlan.h>
 #include <wicked/system.h>
@@ -76,6 +77,7 @@
 #include "process.h"
 #include "debug.h"
 #include "modprobe.h"
+#include "teamd.h"
 
 #ifndef SIT_TUNNEL_MODULE_NAME
 #define SIT_TUNNEL_MODULE_NAME "sit"
@@ -129,11 +131,11 @@ static int	__ni_system_netdev_create(ni_netconfig_t *nc,
 					ni_iftype_t iftype, ni_netdev_t **dev_ret);
 
 static int
-ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev)
+ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev, const ni_netdev_req_t *req)
 {
 	int ret = -1;
 
-	if (!master || !dev)
+	if (!master || !dev || !req)
 		return -1;
 
 	if (dev->link.masterdev.index) {
@@ -158,6 +160,22 @@ ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev)
 			ni_netdev_ref_set(&dev->link.masterdev,
 					master->name, master->link.ifindex);
 		}
+		break;
+	case NI_IFTYPE_TEAM:
+		if (req->port && master->link.type != req->port->type) {
+			ni_error("%s: port configuration type mismatch", dev->name);
+			return -1;
+		}
+		ret = ni_teamd_port_enslave(master, dev, req->port ? &req->port->team : NULL);
+
+		if (ret == 0) {
+			ni_netdev_ref_set(&dev->link.masterdev,
+					master->name, master->link.ifindex);
+
+		}
+
+		/* refresh master - also when enslave fails... */
+		ni_teamd_discover(master);
 		break;
 	case NI_IFTYPE_BRIDGE:
 		ret = __ni_rtnl_link_add_port_up(dev, master->name,
@@ -205,17 +223,24 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 					dev->link.masterdev.name : "",
 					dev->link.masterdev.index);
 
+			master = ni_netdev_by_index(nc, dev->link.masterdev.index);
+			if (master && master->link.type == NI_IFTYPE_TEAM) {
+				if (ifp_req->port && master->link.type == ifp_req->port->type)
+					ni_teamd_port_enslave(master, dev, &ifp_req->port->team);
+				ni_teamd_discover(master);
+			}
+
 			if (ni_netdev_device_is_up(dev))
 				return 0;
 
-			master = ni_netdev_by_index(nc, dev->link.masterdev.index);
-			if (master && master->link.type == NI_IFTYPE_BOND)
+			if (master &&  (master->link.type == NI_IFTYPE_BOND ||
+					master->link.type == NI_IFTYPE_TEAM))
 				return 0;
 		} else
 		/* config lookup for master and redirect to master's enslave */
 		if (ifp_req && !ni_string_empty(ifp_req->master.name)) {
 			master = ni_netdev_by_name(nc, ifp_req->master.name);
-			return ni_system_interface_enslave(master, dev);
+			return ni_system_interface_enslave(master, dev, ifp_req);
 		}
 
 		ni_debug_ifconfig("bringing up %s", dev->name);
@@ -1331,19 +1356,6 @@ ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t
 }
 
 /*
- * Set up an ethernet device
- */
-int
-ni_system_ethernet_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
-{
-	if (!dev || !cfg || !cfg->ethernet)
-		return -1;
-
-	__ni_system_ethernet_update(dev, cfg->ethernet);
-	return 0;
-}
-
-/*
  * Set up a bonding device
  */
 int
@@ -1594,10 +1606,79 @@ ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int s
 	return 0;
 }
 
+/*
+ * Create a team device
+ */
 int
-ni_system_tap_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+ni_system_team_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **dev_ret)
 {
-	return __ni_rtnl_link_change(dev, cfg);
+	unsigned int i;
+	int ret;
+
+	if (!cfg || cfg->link.type != NI_IFTYPE_TEAM || !cfg->team)
+		return -1;
+
+	if (ni_teamd_service_start(cfg) < 0)
+		return -1;
+
+	/* Wait for sysfs to appear */
+	for (i = 0; i < 400; ++i) {
+		if (ni_sysfs_netif_exists(cfg->name, "ifindex"))
+			break;
+		usleep(25000);
+	}
+
+	ret = __ni_system_netdev_create(nc, cfg->name, 0, NI_IFTYPE_TEAM, dev_ret);
+	if (dev_ret && *dev_ret) {
+		ni_teamd_discover(*dev_ret);
+	}
+	return ret;
+}
+
+int
+ni_system_team_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	ni_team_t *team = dev ? ni_netdev_get_team(dev) : NULL;
+
+	if (team && cfg && cfg->link.type == NI_IFTYPE_TEAM) {
+		/* does teamd not support reload / changes of the team device config
+		 * so we can't reconfigure it at all and just discover the state. */
+		ni_teamd_discover(dev);
+		return 0;
+	}
+
+	return -1;
+}
+
+int
+ni_system_team_shutdown(ni_netdev_t *dev)
+{
+	if (!dev || dev->link.type != NI_IFTYPE_TEAM)
+		return -1;
+
+	return 0;
+}
+
+int
+ni_system_team_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	if (!dev || dev->link.type != NI_IFTYPE_TEAM)
+		return -1;
+
+	return ni_teamd_service_stop(dev->name);
+}
+
+/*
+ * Set up an ethernet device
+ */
+int
+ni_system_ethernet_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	if (!dev || !cfg || !cfg->ethernet)
+		return -1;
+
+	__ni_system_ethernet_update(dev, cfg->ethernet);
+	return 0;
 }
 
 /*
@@ -1635,6 +1716,12 @@ ni_system_tuntap_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t 
 	}
 
 	return __ni_system_netdev_create(nc, cfg->name, 0, cfg->link.type, dev_ret);
+}
+
+int
+ni_system_tap_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	return __ni_rtnl_link_change(dev, cfg);
 }
 
 /*
