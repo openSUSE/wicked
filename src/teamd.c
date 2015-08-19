@@ -39,9 +39,11 @@
 #include "dbus-objects/model.h"
 #include "util_priv.h"
 #include "process.h"
+#include "buffer.h"
 #include "teamd.h"
 #include "json.h"
 
+#define NI_TEAMD_VIA_DBUS			0
 
 #define NI_TEAMD_CONFIG_DIR			"/run/teamd"
 #define NI_TEAMD_CONFIG_FMT			NI_TEAMD_CONFIG_DIR"/%s.conf"
@@ -61,6 +63,7 @@
 #define NI_TEAMD_CALL_PORT_CONFIG_UPDATE	"PortConfigUpdate"
 
 
+#if NI_TEAMD_VIA_DBUS
 struct ni_teamd_client {
 	ni_dbus_client_t *	dbus;
 
@@ -123,8 +126,6 @@ ni_teamd_client_free(ni_teamd_client_t *tdc)
 			tdc->dbus = NULL;
 		}
 
-		/* while (tdc->iflist) */
-
 		if (tdc->proxy) {
 			ni_dbus_object_free(tdc->proxy);
 			tdc->proxy = NULL;
@@ -133,14 +134,6 @@ ni_teamd_client_free(ni_teamd_client_t *tdc)
 		free(tdc);
 	}
 }
-
-#if 0
-ni_dbus_client_t *
-ni_teamd_client_dbus(ni_teamd_client_t *tdc)
-{
-	return tdc->dbus;
-}
-#endif
 
 static void
 ni_teamd_dbus_signal(ni_dbus_connection_t *connection, ni_dbus_message_t *msg, void *user_data)
@@ -304,6 +297,185 @@ ni_teamd_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, c
 
 	return rv;
 }
+
+#else /* !NI_TEAMD_VIA_DBUS */
+
+struct ni_teamd_client {
+	char *			ifname;
+	ni_shellcmd_t *		cmd;
+};
+
+static const char *
+ni_teamdctl_tool_path()
+{
+	static const char *paths[] = {
+		"/usr/sbin/teamdctl",
+		NULL
+	};
+	return ni_find_executable(paths);
+}
+
+ni_teamd_client_t *
+ni_teamd_client_open(const char *ifname)
+{
+	ni_teamd_client_t *tdc;
+	const char *tool;
+
+	if (ni_string_empty(ifname))
+		return NULL;
+
+	if (!(tool = ni_teamdctl_tool_path()))
+		return NULL;
+
+	tdc = xcalloc(1, sizeof(*tdc));
+	ni_string_dup(&tdc->ifname, ifname);
+
+	if (!(tdc->cmd = ni_shellcmd_new(NULL)))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(tdc->cmd, tool))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(tdc->cmd, "--force-usock"))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(tdc->cmd, "--oneline"))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(tdc->cmd, ifname))
+		goto failure;
+
+	return tdc;
+failure:
+	ni_teamd_client_free(tdc);
+	return NULL;
+}
+
+void
+ni_teamd_client_free(ni_teamd_client_t *tdc)
+{
+	if (tdc) {
+		ni_shellcmd_release(tdc->cmd);
+		ni_string_free(&tdc->ifname);
+		free(tdc);
+	}
+}
+
+int
+ni_teamd_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t actual, char **result)
+{
+	ni_buffer_t buf;
+	ni_process_t *pi;
+	int rv;
+
+	if (!tdc || !result)
+		return -1;
+
+	ni_buffer_init_dynamic(&buf, 1024);
+	if (!(pi = ni_process_new(tdc->cmd)))
+		goto failure;
+
+	ni_string_array_append(&pi->argv, "config");
+	ni_string_array_append(&pi->argv, "dump");
+	if (actual)
+		ni_string_array_append(&pi->argv, "actual");
+
+	rv = ni_process_run_and_capture_output(pi, &buf);
+	ni_process_free(pi);
+	if (rv) {
+		ni_error("%s: unable to dump team config", tdc->ifname);
+		goto failure;
+	}
+
+	ni_buffer_put(&buf, "\0", 1);
+	ni_string_free(result);
+	*result = (char *)buf.base;
+	buf.base = NULL;
+	ni_buffer_destroy(&buf);
+	return 0;
+
+failure:
+	ni_buffer_destroy(&buf);
+	return rv;
+}
+
+int
+ni_teamd_ctl_state_dump(ni_teamd_client_t *tdc, char **result)
+{
+	(void)tdc;
+	(void)result;
+	return -1;
+}
+
+int
+ni_teamd_ctl_state_get_item(ni_teamd_client_t *tdc, const char *item_name, char **result)
+{
+	(void)tdc;
+	(void)item_name;
+	(void)result;
+	return -1;
+}
+
+int
+ni_teamd_ctl_state_set_item(ni_teamd_client_t *tdc, const char *item_name, const char *item_val)
+{
+	(void)tdc;
+	(void)item_name;
+	(void)item_val;
+	return -1;
+}
+
+int
+ni_teamd_ctl_port_add(ni_teamd_client_t *tdc, const char *port_name)
+{
+	ni_process_t *pi;
+	int rv;
+
+	if (!tdc || ni_string_empty(port_name))
+		return -1;
+
+	if (!(pi = ni_process_new(tdc->cmd)))
+		return -1;
+
+	ni_string_array_append(&pi->argv, "port");
+	ni_string_array_append(&pi->argv, "add");
+	ni_string_array_append(&pi->argv, port_name);
+
+	rv = ni_process_run_and_wait(pi);
+	ni_process_free(pi);
+	if (rv) {
+		ni_error("%s: unable to add team port %s", tdc->ifname, port_name);
+	}
+	return rv;
+}
+
+int
+ni_teamd_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, const char *port_conf)
+{
+	ni_process_t *pi;
+	int rv;
+
+	if (!tdc || ni_string_empty(port_name))
+		return -1;
+
+	if (!(pi = ni_process_new(tdc->cmd)))
+		return -1;
+
+	ni_string_array_append(&pi->argv, "port");
+	ni_string_array_append(&pi->argv, "config");
+	ni_string_array_append(&pi->argv, "update");
+	ni_string_array_append(&pi->argv, port_name);
+	ni_string_array_append(&pi->argv, port_conf ? port_conf : "");
+
+	rv = ni_process_run_and_wait(pi);
+	ni_process_free(pi);
+	if (rv) {
+		ni_error("%s: unable to update team port %s config", tdc->ifname, port_name);
+	}
+	return rv;
+}
+
+#endif /* NI_TEAMD_VIA_DBUS */
 
 static ni_json_t *
 ni_teamd_port_config_json(const ni_team_port_config_t *config)
