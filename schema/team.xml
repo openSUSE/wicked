@@ -70,6 +70,10 @@
 
   <define name="port-config" class="dict">
     <queue_id    type="uint32" />
+    <prio        type="uint32" />
+    <sticky      type="boolean" />
+    <lacp_key    type="uint32" />
+    <lacp_prio   type="uint32" />
   </define>
 
   <define name="port-device" class="dict" extends="team:port-config">

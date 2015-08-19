@@ -1879,10 +1879,44 @@ try_add_team_port(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix
 	port = ni_team_port_new();
 	ni_netdev_ref_set_ifname(&port->device, var->value);
 
-	port->config.queue_id = -1U;
 	if ((var = __find_indexed_variable(sc, "TEAM_PORT_QUEUE_ID", suffix))) {
 		if (ni_parse_uint(var->value, &port->config.queue_id, 10) < 0) {
 			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_QUEUE_ID%s='%s'",
+				dev->name, suffix, var->value);
+			ni_team_port_free(port);
+			return FALSE;
+		}
+	}
+
+	if ((var = __find_indexed_variable(sc, "TEAM_PORT_PRIO", suffix))) {
+		if (ni_parse_uint(var->value, &port->config.ab.prio, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_PRIO%s='%s'",
+				dev->name, suffix, var->value);
+			ni_team_port_free(port);
+			return FALSE;
+		}
+	}
+	if ((var = __find_indexed_variable(sc, "TEAM_PORT_STICKY", suffix))) {
+		if (ni_parse_boolean(var->value, &port->config.ab.sticky) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_STICKY%s='%s'",
+				dev->name, suffix, var->value);
+			ni_team_port_free(port);
+			return FALSE;
+		}
+	}
+
+	if ((var = __find_indexed_variable(sc, "TEAM_PORT_LACP_PRIO", suffix))) {
+		if (ni_parse_uint(var->value, &port->config.lacp.prio, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_LACP_PRIO%s='%s'",
+				dev->name, suffix, var->value);
+			ni_team_port_free(port);
+			return FALSE;
+		}
+	}
+
+	if ((var = __find_indexed_variable(sc, "TEAM_PORT_LACP_KEY", suffix))) {
+		if (ni_parse_uint(var->value, &port->config.lacp.key, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_LACP_KEY%s='%s'",
 				dev->name, suffix, var->value);
 			ni_team_port_free(port);
 			return FALSE;

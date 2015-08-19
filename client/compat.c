@@ -702,6 +702,17 @@ __ni_compat_generate_team_ports(xml_node_t *tnode, const ni_team_port_array_t *a
 
 		if (p->config.queue_id != -1U)
 			xml_node_new_element("queue_id", port, ni_sprint_uint(p->config.queue_id));
+
+		if (p->config.ab.prio)
+			xml_node_new_element("prio", port, ni_sprint_uint(p->config.ab.prio));
+		if (p->config.ab.sticky)
+			xml_node_new_element("sticky", port, ni_format_boolean(p->config.ab.sticky));
+
+		if (p->config.lacp.prio)
+			xml_node_new_element("lacp_prio", port, ni_sprint_uint(p->config.lacp.prio));
+		if (p->config.lacp.key)
+			xml_node_new_element("lacp_key", port, ni_sprint_uint(p->config.lacp.key));
+
 	}
 
 	return TRUE;

@@ -445,6 +445,9 @@ ni_team_port_array_find_by_name(ni_team_port_array_t *array, const char *name)
 void
 ni_team_port_config_init(ni_team_port_config_t *pc)
 {
+	if (pc) {
+		pc->queue_id = -1U;
+	}
 }
 
 void

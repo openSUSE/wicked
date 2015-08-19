@@ -316,7 +316,18 @@ ni_teamd_port_config_json(const ni_team_port_config_t *config)
 {
 	ni_json_t *object = ni_json_new_object();
 
-	ni_json_object_set(object, "queue_id", ni_json_new_int64(config->queue_id));
+	if (config->queue_id != -1U)
+		ni_json_object_set(object, "queue_id", ni_json_new_int64(config->queue_id));
+
+	if (config->ab.prio)
+		ni_json_object_set(object, "prio", ni_json_new_int64(config->ab.prio));
+	if (config->ab.sticky)
+		ni_json_object_set(object, "sticky", ni_json_new_bool(config->ab.sticky));
+
+	if (config->lacp.prio)
+		ni_json_object_set(object, "lacp_prio", ni_json_new_int64(config->lacp.prio));
+	if (config->lacp.key)
+		ni_json_object_set(object, "lacp_key", ni_json_new_int64(config->lacp.key));
 
 	return object;
 }
@@ -600,12 +611,23 @@ static int
 ni_teamd_discover_port_details(ni_team_port_t *port, ni_json_t *details)
 {
 	int64_t i64;
+	ni_bool_t b;
 
 	if (!ni_json_is_object(details))
 		return 1;
 
 	if (ni_json_int64_get(ni_json_object_get_value(details, "queue_id"), &i64))
-			port->config.queue_id = i64;
+		port->config.queue_id = i64;
+
+	if (ni_json_int64_get(ni_json_object_get_value(details, "prio"), &i64))
+		port->config.ab.prio = i64;
+	if (ni_json_bool_get(ni_json_object_get_value(details, "sticky"), &b))
+		port->config.ab.sticky = b;
+
+	if (ni_json_int64_get(ni_json_object_get_value(details, "lacp_prio"), &i64))
+		port->config.lacp.prio = i64;
+	if (ni_json_int64_get(ni_json_object_get_value(details, "lacp_key"), &i64))
+		port->config.lacp.key = i64;
 
 	return 0;
 }

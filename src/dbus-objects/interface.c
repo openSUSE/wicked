@@ -1615,6 +1615,16 @@ __ni_objectmodel_netdev_req_get_port(const ni_dbus_object_t *object, const ni_db
 
 			if (tp->queue_id != -1U)
 				ni_dbus_dict_add_uint32(dict, "queue_id", tp->queue_id);
+
+			if (tp->ab.prio)
+				ni_dbus_dict_add_uint32(dict, "prio", tp->ab.prio);
+			if (tp->ab.sticky)
+				ni_dbus_dict_add_bool(dict, "prio", tp->ab.sticky);
+
+			if (tp->lacp.prio)
+				ni_dbus_dict_add_uint32(dict, "lacp_prio", tp->lacp.prio);
+			if (tp->lacp.key)
+				ni_dbus_dict_add_uint32(dict, "lacp_key", tp->lacp.key);
 		}
 		break;
 
@@ -1634,6 +1644,7 @@ __ni_objectmodel_netdev_req_set_port(ni_dbus_object_t *object, const ni_dbus_pro
 	ni_netdev_req_t *req;
 	const char *name;
 	ni_iftype_t type;
+	dbus_bool_t b;
 	uint32_t u32;
 
 	if (!(req = ni_objectmodel_unwrap_netif_request(object, error)))
@@ -1677,8 +1688,21 @@ __ni_objectmodel_netdev_req_set_port(ni_dbus_object_t *object, const ni_dbus_pro
 	case NI_IFTYPE_TEAM: {
 			ni_team_port_config_t *tp = &req->port->team;
 
+			ni_team_port_config_init(tp);
+
 			if (ni_dbus_dict_get_uint32(dict, "queue_id", &u32))
 				tp->queue_id = u32;
+
+			if (ni_dbus_dict_get_uint32(dict, "prio", &u32))
+				tp->ab.prio = u32;
+			if (ni_dbus_dict_get_bool(dict, "sticky", &b))
+				tp->ab.sticky = b;
+
+			if (ni_dbus_dict_get_uint32(dict, "lacp_prio", &u32))
+				tp->lacp.prio = u32;
+
+			if (ni_dbus_dict_get_uint32(dict, "lacp_key", &u32))
+				tp->lacp.key = u32;
 		}
 		break;
 
