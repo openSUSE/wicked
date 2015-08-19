@@ -171,7 +171,11 @@ ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev, const ni_netd
 		if (ret == 0) {
 			ni_netdev_ref_set(&dev->link.masterdev,
 					master->name, master->link.ifindex);
+
 		}
+
+		/* refresh master - also when enslave fails... */
+		ni_teamd_discover(master);
 		break;
 	case NI_IFTYPE_BRIDGE:
 		ret = __ni_rtnl_link_add_port_up(dev, master->name,
@@ -219,10 +223,16 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 					dev->link.masterdev.name : "",
 					dev->link.masterdev.index);
 
+			master = ni_netdev_by_index(nc, dev->link.masterdev.index);
+			if (master && master->link.type == NI_IFTYPE_TEAM) {
+				if (ifp_req->port && master->link.type == ifp_req->port->type)
+					ni_teamd_port_enslave(master, dev, &ifp_req->port->team);
+				ni_teamd_discover(master);
+			}
+
 			if (ni_netdev_device_is_up(dev))
 				return 0;
 
-			master = ni_netdev_by_index(nc, dev->link.masterdev.index);
 			if (master &&  (master->link.type == NI_IFTYPE_BOND ||
 					master->link.type == NI_IFTYPE_TEAM))
 				return 0;

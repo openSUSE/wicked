@@ -311,8 +311,18 @@ ni_teamd_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, c
 	return rv;
 }
 
+static ni_json_t *
+ni_teamd_port_config_json(const ni_team_port_config_t *config)
+{
+	ni_json_t *object = ni_json_new_object();
+
+	ni_json_object_set(object, "queue_id", ni_json_new_int64(config->queue_id));
+
+	return object;
+}
+
 int
-ni_teamd_port_enslave(ni_netdev_t *master, ni_netdev_t *port, ni_team_port_config_t *config)
+ni_teamd_port_enslave(const ni_netdev_t *master, const ni_netdev_t *port, const ni_team_port_config_t *config)
 {
 	ni_stringbuf_t dump = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_teamd_client_t *tdc;
@@ -328,9 +338,8 @@ ni_teamd_port_enslave(ni_netdev_t *master, ni_netdev_t *port, ni_team_port_confi
 		goto failure;
 
 	if (config) {
-		ni_json_t *object = ni_json_new_object();
+		ni_json_t *object = ni_teamd_port_config_json(config);
 
-		ni_json_object_set(object, "queue_id", ni_json_new_int64(config->queue_id));
 		if (ni_json_format_string(&dump, object, NULL)) {
 			ni_teamd_ctl_port_config_update(tdc, port->name, dump.string);
 		} else {
