@@ -322,6 +322,7 @@ ni_teamd_discover_runner(ni_team_t *team, ni_json_t *conf)
 		goto failure;
 
 	ni_string_free(&name);
+	ni_team_runner_init(&team->runner, team->runner.type);
 	switch (team->runner.type) {
 	case NI_TEAM_RUNNER_ACTIVE_BACKUP: {
 			ni_team_runner_active_backup_t *ab = &team->runner.ab;

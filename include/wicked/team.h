@@ -238,6 +238,9 @@ struct ni_team {
 extern ni_team_t *				ni_team_new();
 extern void					ni_team_free(ni_team_t *);
 
+extern void					ni_team_runner_init(ni_team_runner_t *, ni_team_runner_type_t);
+extern void					ni_team_runner_destroy(ni_team_runner_t *);
+
 extern const char *				ni_team_runner_type_to_name(ni_team_runner_type_t);
 extern ni_bool_t				ni_team_runner_name_to_type(const char *, ni_team_runner_type_t *);
 

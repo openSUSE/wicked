@@ -456,9 +456,35 @@ void
 ni_team_free(ni_team_t *team)
 {
 	if (team) {
+		ni_team_runner_destroy(&team->runner);
 		ni_team_link_watch_array_destroy(&team->link_watch);
 		ni_team_port_array_destroy(&team->ports);
 		free(team);
 	}
+}
+
+void
+ni_team_runner_init(ni_team_runner_t *runner, ni_team_runner_type_t type)
+{
+	memset(runner, 0, sizeof(*runner));
+	runner->type = type;
+
+	/* apply non-zero type depending defaults here */
+	switch (runner->type) {
+	case NI_TEAM_RUNNER_ROUND_ROBIN:
+	case NI_TEAM_RUNNER_ACTIVE_BACKUP:
+	case NI_TEAM_RUNNER_LOAD_BALANCE:
+	case NI_TEAM_RUNNER_BROADCAST:
+	case NI_TEAM_RUNNER_RANDOM:
+	case NI_TEAM_RUNNER_LACP:
+	default:
+		break;
+	}
+}
+
+void
+ni_team_runner_destroy(ni_team_runner_t *runner)
+{
+	(void)runner; /* currently nothing to cleanup */
 }
 

@@ -381,6 +381,7 @@ __ni_objectmodel_team_set_runner(ni_dbus_object_t *object, const ni_dbus_propert
 		return FALSE;
 	}
 
+	ni_team_runner_init(&team->runner, team->runner.type);
 	switch (team->runner.type) {
 	case NI_TEAM_RUNNER_ACTIVE_BACKUP: {
 			ni_team_runner_active_backup_t *ab = &team->runner.ab;

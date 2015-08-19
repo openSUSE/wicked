@@ -51,6 +51,7 @@
 #include <wicked/ethernet.h>
 #include <wicked/infiniband.h>
 #include <wicked/bonding.h>
+#include <wicked/team.h>
 #include <wicked/bridge.h>
 #include <wicked/vlan.h>
 #include <wicked/macvlan.h>
@@ -1677,6 +1678,425 @@ try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			dev->name, err);
 		return -1;
 	}
+
+	return 0;
+}
+
+static ni_bool_t
+try_add_team_link_watch(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
+{
+	ni_team_link_watch_t *lw;
+	ni_team_t *team;
+	ni_var_t *var;
+	ni_team_link_watch_type_t type;
+
+	if (!(team = ni_netdev_get_team(dev)))
+		return FALSE;
+
+	/* Just skip link_watch with no name */
+	if (!(var = __find_indexed_variable(sc, "TEAM_LW_NAME", suffix))) {
+		ni_error("ifcfg-%s: empty TEAM_LW_NAME%s value",
+			dev->name, suffix);
+		return FALSE;
+	}
+
+	if (!ni_team_link_watch_name_to_type(var->value, &type)) {
+		ni_error("ifcfg-%s: unable to parse TEAM_LW_NAME%s=%s",
+			dev->name, suffix, var->value);
+		return FALSE;
+	}
+
+	lw = ni_team_link_watch_new(type);
+	switch(lw->type) {
+	case NI_TEAM_LINK_WATCH_ETHTOOL: {
+			ni_team_link_watch_ethtool_t *ethtool = &lw->ethtool;
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ETHTOOL_DELAY_UP", suffix))) {
+				if (ni_parse_uint(var->value, &ethtool->delay_up, 10) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ETHTOOL_DELAY_UP%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ETHTOOL_DELAY_DOWN", suffix))) {
+				if (ni_parse_uint(var->value, &ethtool->delay_down, 10) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ETHTOOL_DELAY_DOWN%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+		}
+		break;
+
+	case NI_TEAM_LINK_WATCH_ARP_PING: {
+			ni_team_link_watch_arp_t *arp = &lw->arp;
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_SOURCE_HOST", suffix))) {
+				ni_string_dup(&arp->source_host, var->value);
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_TARGET_HOST", suffix))) {
+				ni_string_dup(&arp->target_host, var->value);
+			} else {
+				ni_warn("ifcfg-%s: Missed TEAM_LW_ARP_PING_TARGET_HOST%s variable",
+					dev->name, suffix);
+				goto skipped;
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_INTERVAL", suffix))) {
+				if (ni_parse_uint(var->value, &arp->interval, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ARP_PING_INTERVAL%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_INIT_WAIT", suffix))) {
+				if (ni_parse_uint(var->value, &arp->init_wait, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ARP_PING_INIT_WAIT%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_VALIDATE_ACTIVE", suffix))) {
+				if (ni_parse_boolean(var->value, &arp->validate_active)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ARP_PING_VALIDATE_ACTIVE%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_VALIDATE_INACTIVE", suffix))) {
+				if (ni_parse_boolean(var->value, &arp->validate_inactive)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ARP_PING_VALIDATE_INACTIVE%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_SEND_ALWAYS", suffix))) {
+				if (ni_parse_boolean(var->value, &arp->send_always)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ARP_PING_SEND_ALWAYS%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_MISSED_MAX", suffix))) {
+				if (ni_parse_uint(var->value, &arp->missed_max, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ARP_PING_MISSED_MAX%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+		}
+		break;
+
+	case NI_TEAM_LINK_WATCH_NSNA_PING: {
+			ni_team_link_watch_nsna_t *nsna = &lw->nsna;
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_NSNA_PING_TARGET_HOST", suffix))) {
+				ni_string_dup(&nsna->target_host, var->value);
+			} else {
+				ni_warn("ifcfg-%s: Missed TEAM_LW_NSNA_PING_TARGET_HOST%s variable",
+					dev->name, suffix);
+				goto skipped;
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_NSNA_PING_INTERVAL", suffix))) {
+				if (ni_parse_uint(var->value, &nsna->interval, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_NSNA_PING_INTERVAL%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_NSNA_PING_INIT_WAIT", suffix))) {
+				if (ni_parse_uint(var->value, &nsna->init_wait, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_NSNA_PING_INIT_WAIT%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_NSNA_PING_MISSED_MAX", suffix))) {
+				if (ni_parse_uint(var->value, &nsna->missed_max, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_NSNA_PING_MISSED_MAX%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+		}
+		break;
+
+	case NI_TEAM_LINK_WATCH_TIPC: {
+			ni_team_link_watch_tipc_t *tipc = &lw->tipc;
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_TIPC_BEARER", suffix))) {
+				ni_string_dup(&tipc->bearer, var->value);
+			} else {
+				ni_warn("ifcfg-%s: Missed TEAM_LW_TIPC_BEARER%s variable",
+					dev->name, suffix);
+				goto skipped;
+			}
+		}
+		break;
+
+	default:
+		goto failure;
+	}
+
+	return ni_team_link_watch_array_append(&team->link_watch, lw);
+
+skipped:
+	ni_team_link_watch_free(lw);
+	return TRUE;
+
+failure:
+	ni_team_link_watch_free(lw);
+	return FALSE;
+}
+
+static ni_bool_t
+try_add_team_port(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
+{
+	ni_team_port_t *port;
+	ni_team_t *team;
+	ni_var_t *var;
+
+	if (!(team = ni_netdev_get_team(dev)))
+		return FALSE;
+
+	var = __find_indexed_variable(sc, "TEAM_PORT_DEVICE", suffix);
+	if (!var || ni_string_empty(var->value)) {
+		ni_error("ifcfg-%s: TEAM_PORT_DEVICE%s cannot be empty",
+			dev->name, suffix);
+		return FALSE;
+	}
+
+	port = ni_team_port_new();
+	ni_netdev_ref_set_ifname(&port->device, var->value);
+
+	port->config.queue_id = -1U;
+	if ((var = __find_indexed_variable(sc, "TEAM_PORT_QUEUE_ID", suffix))) {
+		if (ni_parse_uint(var->value, &port->config.queue_id, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_QUEUE_ID%s='%s'",
+				dev->name, suffix, var->value);
+			ni_team_port_free(port);
+			return FALSE;
+		}
+	}
+
+	return ni_team_port_array_append(&team->ports, port);
+}
+
+static int
+try_team(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	const char *value;
+	ni_team_runner_type_t type;
+	ni_team_t *team;
+
+	if (!(value = ni_sysconfig_get_value(sc, "TEAM_RUNNER")))
+		return 1;
+
+	if (!ni_team_runner_name_to_type(value, &type)) {
+		ni_error("ifcfg-%s: unable to parse TEAM_RUNNER=%s", dev->name, value);
+		return -1;
+	}
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config contains team variables",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
+
+	/* just drop old if any */
+	ni_netdev_set_team(dev, NULL);
+
+	dev->link.type = NI_IFTYPE_TEAM;
+	team = ni_netdev_get_team(dev);
+
+	ni_team_runner_init(&team->runner, type);
+	switch (team->runner.type) {
+	case NI_TEAM_RUNNER_ACTIVE_BACKUP: {
+			ni_team_runner_active_backup_t *ab = &team->runner.ab;
+
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_AB_HWADDR_POLICY")) != NULL) {
+				if (!ni_team_ab_hwaddr_policy_name_to_type(value, &ab->config.hwaddr_policy)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_AB_HWADDR_POLICY='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+		}
+		break;
+
+	case NI_TEAM_RUNNER_LOAD_BALANCE: {
+			ni_team_runner_load_balance_t *lb = &team->runner.lb;
+
+			lb->config.tx_hash = NI_TEAM_TX_HASH_NONE;
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LB_TX_HASH")) != NULL) {
+				ni_string_array_t flags = NI_STRING_ARRAY_INIT;
+				unsigned int i;
+
+				ni_string_split(&flags, value, " \t,", 0);
+				for (i = 0; i < flags.count; i++) {
+					ni_team_tx_hash_bit_t bit;
+
+					if (!ni_team_tx_hash_name_to_bit(flags.data[i], &bit)) {
+						ni_error("ifcfg-%s: Cannot parse TEAM_LB_TX_HASH='%s'",
+							dev->name, value);
+						return -1;
+					}
+
+					lb->config.tx_hash |= (1 << bit);
+				}
+				ni_string_array_destroy(&flags);
+			}
+
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LB_TX_BALANCER_NAME")) != NULL) {
+				if (!ni_team_tx_balancer_name_to_type(value, &lb->config.tx_balancer.type)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LB_TX_BALANCER_NAME='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+
+			lb->config.tx_balancer.interval = 50;
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LB_TX_BALANCER_INTERVAL")) != NULL) {
+				if (ni_parse_uint(value, &lb->config.tx_balancer.interval, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LB_TX_BALANCER_INTERVAL='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+		}
+		break;
+
+	case NI_TEAM_RUNNER_ROUND_ROBIN:
+		break;
+
+	case NI_TEAM_RUNNER_BROADCAST:
+		break;
+
+	case NI_TEAM_RUNNER_RANDOM:
+		break;
+
+	case NI_TEAM_RUNNER_LACP: {
+			ni_team_runner_lacp_t *lacp = &team->runner.lacp;
+
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_ACTIVE")) != NULL) {
+				if (ni_parse_boolean(value, &lacp->config.active)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_ACTIVE='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+
+			lacp->config.sys_prio = 255;
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_SYS_PRIO")) != NULL) {
+				if (ni_parse_uint(value, &lacp->config.sys_prio, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_SYS_PRIO='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_FAST_RATE")) != NULL) {
+				if (ni_parse_boolean(value, &lacp->config.fast_rate)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_FAST_RATE='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_MIN_PORTS")) != NULL) {
+				if (ni_parse_uint(value, &lacp->config.min_ports, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_MIN_PORTS='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_SELECT_POLICY")) != NULL) {
+				if (!ni_team_lacp_select_policy_name_to_type(value, &lacp->config.select_policy)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_SELECT_POLICY='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+
+			lacp->config.tx_hash = NI_TEAM_TX_HASH_NONE;
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_TX_HASH")) != NULL) {
+				ni_string_array_t flags = NI_STRING_ARRAY_INIT;
+				unsigned int i;
+
+				ni_string_split(&flags, value, " \t,", 0);
+				for (i = 0; i < flags.count; i++) {
+					ni_team_tx_hash_bit_t bit;
+
+					if (!ni_team_tx_hash_name_to_bit(flags.data[i], &bit)) {
+						ni_error("ifcfg-%s: Cannot parse TEAM_LACP_TX_HASH='%s'",
+							dev->name, value);
+						return -1;
+					}
+
+					lacp->config.tx_hash |= (1 << bit);
+				}
+
+				ni_string_array_destroy(&flags);
+			}
+
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_TX_BALANCER")) != NULL) {
+				if (!ni_team_tx_balancer_name_to_type(value, &lacp->config.tx_balancer.type)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_TX_BALANCER='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+
+			lacp->config.tx_balancer.interval = 50;
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_TX_BALANCER_INTERVAL")) != NULL) {
+				if (ni_parse_uint(value, &lacp->config.tx_balancer.interval, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_TX_BALANCER_INTERVAL='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+		}
+		break;
+
+	default:
+		return -1;
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "LLADDR")) != NULL) {
+		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, value) < 0) {
+			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
+				dev->name, value);
+			return -1;
+		}
+	}
+
+	if (__process_indexed_variables(sc, dev, "TEAM_LW_NAME",
+					try_add_team_link_watch) < 0)
+		return -1;
+
+	if (__process_indexed_variables(sc, dev, "TEAM_PORT_DEVICE",
+					try_add_team_port) < 0)
+		return -1;
+
+#if 0
+	if ((err = ni_team_validate(ni_netdev_get_team(dev))) != NULL) {
+		ni_error("ifcfg-%s: team validation: %s",
+			dev->name, err);
+		return -1;
+	}
+#endif
 
 	return 0;
 }
@@ -4098,6 +4518,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	if (try_loopback(sc, compat)   < 0 ||
 	    try_bonding(sc, compat)    < 0 ||
+	    try_team(sc, compat)       < 0 ||
 	    try_bridge(sc, compat)     < 0 ||
 	    try_vlan(sc, compat)       < 0 ||
 	    try_macvlan(sc, compat)    < 0 ||
