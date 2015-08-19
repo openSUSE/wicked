@@ -131,11 +131,11 @@ static int	__ni_system_netdev_create(ni_netconfig_t *nc,
 					ni_iftype_t iftype, ni_netdev_t **dev_ret);
 
 static int
-ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev)
+ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev, const ni_netdev_req_t *req)
 {
 	int ret = -1;
 
-	if (!master || !dev)
+	if (!master || !dev || !req)
 		return -1;
 
 	if (dev->link.masterdev.index) {
@@ -162,7 +162,11 @@ ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev)
 		}
 		break;
 	case NI_IFTYPE_TEAM:
-		ret = ni_teamd_port_enslave(master, dev, NULL);
+		if (req->port && master->link.type != req->port->type) {
+			ni_error("%s: port configuration type mismatch", dev->name);
+			return -1;
+		}
+		ret = ni_teamd_port_enslave(master, dev, req->port ? &req->port->team : NULL);
 
 		if (ret == 0) {
 			ni_netdev_ref_set(&dev->link.masterdev,
@@ -226,7 +230,7 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 		/* config lookup for master and redirect to master's enslave */
 		if (ifp_req && !ni_string_empty(ifp_req->master.name)) {
 			master = ni_netdev_by_name(nc, ifp_req->master.name);
-			return ni_system_interface_enslave(master, dev);
+			return ni_system_interface_enslave(master, dev, ifp_req);
 		}
 
 		ni_debug_ifconfig("bringing up %s", dev->name);

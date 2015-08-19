@@ -91,6 +91,7 @@ struct ni_netdev {
 	ni_event_filter_t *	event_filter;
 };
 
+typedef struct ni_netdev_port_req	ni_netdev_port_req_t;
 struct ni_netdev_req {
 	unsigned int		ifflags;
 
@@ -101,6 +102,7 @@ struct ni_netdev_req {
 	char *			alias;
 
 	ni_netdev_ref_t		master;
+	ni_netdev_port_req_t *	port;
 };
 
 extern ni_bool_t	ni_set_global_config_path(const char *);

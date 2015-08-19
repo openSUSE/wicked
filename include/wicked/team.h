@@ -271,4 +271,7 @@ extern ni_bool_t				ni_team_port_array_append(ni_team_port_array_t *, ni_team_po
 extern ni_bool_t				ni_team_port_array_delete_at(ni_team_port_array_t *, unsigned int);
 extern ni_team_port_t *				ni_team_port_array_find_by_name(ni_team_port_array_t *, const char *);
 
+extern void					ni_team_port_config_init(ni_team_port_config_t *);
+extern void					ni_team_port_config_destroy(ni_team_port_config_t *);
+
 #endif /* NI_WICKED_TEAM_H */

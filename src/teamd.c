@@ -314,6 +314,7 @@ ni_teamd_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, c
 int
 ni_teamd_port_enslave(ni_netdev_t *master, ni_netdev_t *port, ni_team_port_config_t *config)
 {
+	ni_stringbuf_t dump = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_teamd_client_t *tdc;
 	int ret = -1;
 
@@ -325,6 +326,18 @@ ni_teamd_port_enslave(ni_netdev_t *master, ni_netdev_t *port, ni_team_port_confi
 
 	if (ni_teamd_ctl_port_add(tdc, port->name) < 0)
 		goto failure;
+
+	if (config) {
+		ni_json_t *object = ni_json_new_object();
+
+		ni_json_object_set(object, "queue_id", ni_json_new_int64(config->queue_id));
+		if (ni_json_format_string(&dump, object, NULL)) {
+			ni_teamd_ctl_port_config_update(tdc, port->name, dump.string);
+		} else {
+			ni_debug_application("Unable to format %s team port config update", port->name);
+		}
+		ni_stringbuf_destroy(&dump);
+	}
 
 	ret = 0;
 

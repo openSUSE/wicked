@@ -357,6 +357,7 @@ ni_team_port_new(void)
 	ni_team_port_t *port;
 
 	port = xcalloc(1, sizeof(*port));
+	ni_team_port_config_init(&port->config);
 	return port;
 }
 
@@ -364,6 +365,7 @@ void
 ni_team_port_free(ni_team_port_t *port)
 {
 	ni_netdev_ref_destroy(&port->device);
+	ni_team_port_config_destroy(&port->config);
 	free(port);
 }
 
@@ -438,6 +440,16 @@ ni_team_port_array_find_by_name(ni_team_port_array_t *array, const char *name)
 			return port;
 	}
 	return NULL;
+}
+
+void
+ni_team_port_config_init(ni_team_port_config_t *pc)
+{
+}
+
+void
+ni_team_port_config_destroy(ni_team_port_config_t *pc)
+{
 }
 
 /*
