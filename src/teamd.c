@@ -58,6 +58,7 @@
 #define NI_TEAMD_CALL_STATE_ITEM_SET		"StateItemValueSet"
 
 #define NI_TEAMD_CALL_PORT_ADD			"PortAdd"
+#define NI_TEAMD_CALL_PORT_CONFIG_UPDATE	"PortConfigUpdate"
 
 
 struct ni_teamd_client {
@@ -276,6 +277,35 @@ ni_teamd_ctl_port_add(ni_teamd_client_t *tdc, const char *portname)
 	if (rv < 0) {
 		ni_debug_application("Call to %s."NI_TEAMD_CALL_PORT_ADD"(%s) failed: %s",
 				ni_dbus_object_get_path(tdc->proxy), portname, ni_strerror(rv));
+	}
+
+	return rv;
+}
+
+int
+ni_teamd_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, const char *port_conf)
+{
+	ni_dbus_message_t *call, *reply;
+	DBusError error;
+	int rv = 0;
+
+	if (!tdc || ni_string_empty(port_name))
+		return FALSE;
+
+	dbus_error_init(&error);
+	call = ni_dbus_object_call_new(tdc->proxy, NI_TEAMD_CALL_PORT_CONFIG_UPDATE, 0);
+	ni_dbus_message_append_string(call, port_name);
+	ni_dbus_message_append_string(call, port_conf ? port_conf : "");
+
+	if ((reply = ni_dbus_client_call(tdc->dbus, call, &error)) == NULL) {
+		rv = -NI_ERROR_DBUS_CALL_FAILED;
+		if (dbus_error_is_set(&error))
+			rv = ni_dbus_client_translate_error(tdc->dbus, &error);
+	}
+
+	if (rv < 0) {
+		ni_debug_application("Call to %s."NI_TEAMD_CALL_PORT_CONFIG_UPDATE"(%s) failed: %s",
+				ni_dbus_object_get_path(tdc->proxy), port_name, ni_strerror(rv));
 	}
 
 	return rv;
