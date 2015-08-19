@@ -154,76 +154,70 @@ ni_teamd_dbus_signal(ni_dbus_connection_t *connection, ni_dbus_message_t *msg, v
 /*
  * teamd instance dbus access methods
  */
-const char *
-ni_teamd_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t actual)
+int
+ni_teamd_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t actual, char **result)
 {
 	const char *method;
-	char *dump;
 	int rv;
 
-	if (!tdc)
-		return NULL;
+	if (!tdc || !result)
+		return -NI_ERROR_INVALID_ARGS;
 
 	method =  actual ? NI_TEAMD_CALL_CONFIG_DUMP_ACTUAL :
 		NI_TEAMD_CALL_CONFIG_DUMP;
 	rv = ni_dbus_object_call_simple(tdc->proxy,
- 				NI_TEAMD_INTERFACE, method,
-				0, NULL,
-				DBUS_TYPE_STRING, &dump);
+		NI_TEAMD_INTERFACE, method,
+		0, NULL,
+		DBUS_TYPE_STRING, result);
 
 	if (rv < 0) {
 		ni_debug_application("Call to %s.%s() failed: %s",
 			ni_dbus_object_get_path(tdc->proxy), method, ni_strerror(rv));
-		return NULL;
 	}
 
-	return dump;
+	return rv;
 }
 
-const char *
-ni_teamd_ctl_state_dump(ni_teamd_client_t *tdc)
+int
+ni_teamd_ctl_state_dump(ni_teamd_client_t *tdc, char **result)
 {
-	char *dump;
 	int rv;
 
-	if (!tdc)
-		return NULL;
+	if (!tdc || !result)
+		return -NI_ERROR_INVALID_ARGS;
 
 	rv = ni_dbus_object_call_simple(tdc->proxy,
-				NI_TEAMD_INTERFACE, NI_TEAMD_CALL_STATE_DUMP,
-				0, NULL,
-				DBUS_TYPE_STRING, &dump);
+		NI_TEAMD_INTERFACE, NI_TEAMD_CALL_STATE_DUMP,
+		0, NULL,
+		DBUS_TYPE_STRING, result);
 
 	if (rv < 0) {
 		ni_debug_application("Call to %s."NI_TEAMD_CALL_STATE_DUMP"() failed: %s",
 			ni_dbus_object_get_path(tdc->proxy), ni_strerror(rv));
-		return NULL;
 	}
 
-	return dump;
+	return rv;
 }
 
-const char *
-ni_teamd_ctl_state_get_item(ni_teamd_client_t *tdc, const char *item_name)
+int
+ni_teamd_ctl_state_get_item(ni_teamd_client_t *tdc, const char *item_name, char **result)
 {
-	char *state_item;
 	int rv;
 
-	if (!tdc || ni_string_empty(item_name))
-		return NULL;
+	if (!tdc || ni_string_empty(item_name) || !result)
+		return -NI_ERROR_INVALID_ARGS;
 
 	rv = ni_dbus_object_call_simple(tdc->proxy,
-				NI_TEAMD_INTERFACE, NI_TEAMD_CALL_STATE_ITEM_GET,
-				DBUS_TYPE_STRING, &item_name,
-				DBUS_TYPE_STRING, &state_item);
+		NI_TEAMD_INTERFACE, NI_TEAMD_CALL_STATE_ITEM_GET,
+		DBUS_TYPE_STRING, &item_name,
+		DBUS_TYPE_STRING, result);
 
 	if (rv < 0) {
 		ni_debug_application("Call to %s."NI_TEAMD_CALL_STATE_ITEM_GET"(%s) failed: %s",
 			ni_dbus_object_get_path(tdc->proxy), item_name, ni_strerror(rv));
-		return NULL;
 	}
 
-	return state_item;
+	return rv;
 }
 
 int
@@ -684,7 +678,7 @@ ni_teamd_discover(ni_netdev_t *dev)
 	ni_teamd_client_t *tdc = NULL;
 	ni_json_t *conf = NULL;
 	ni_team_t *team = NULL;
-	const char *val;
+	char *val = NULL;
 
 	if (!dev || dev->link.type != NI_IFTYPE_TEAM)
 		return -1;
@@ -697,7 +691,7 @@ ni_teamd_discover(ni_netdev_t *dev)
 	if (!(tdc = ni_teamd_client_open(dev->name)))
 		goto failure;
 
-	if (!(val = ni_teamd_ctl_config_dump(tdc, TRUE)))
+	if (ni_teamd_ctl_config_dump(tdc, TRUE, &val) < 0)
 		goto failure;
 
 	if (!(conf = ni_json_parse_string(val)))
@@ -715,12 +709,14 @@ ni_teamd_discover(ni_netdev_t *dev)
 	ni_netdev_set_team(dev, team);
 	ni_teamd_client_free(tdc);
 	ni_json_free(conf);
+	ni_string_free(&val);
 	return 0;
 
 failure:
 	ni_json_free(conf);
 	ni_team_free(dev->team);
 	ni_teamd_client_free(tdc);
+	ni_string_free(&val);
 	return -1;
 }
 

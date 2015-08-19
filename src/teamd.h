@@ -33,9 +33,9 @@ typedef struct ni_teamd_client		ni_teamd_client_t;
 ni_teamd_client_t *			ni_teamd_client_open(const char*);
 void					ni_teamd_client_free(ni_teamd_client_t *);
 
-extern const char *			ni_teamd_ctl_config_dump(ni_teamd_client_t *, ni_bool_t);
-extern const char *			ni_teamd_ctl_state_dump(ni_teamd_client_t *);
-extern const char *			ni_teamd_ctl_state_get_item(ni_teamd_client_t *, const char *);
+extern int				ni_teamd_ctl_config_dump(ni_teamd_client_t *, ni_bool_t, char **);
+extern int				ni_teamd_ctl_state_dump(ni_teamd_client_t *, char **);
+extern int				ni_teamd_ctl_state_get_item(ni_teamd_client_t *, const char *, char **);
 extern int				ni_teamd_ctl_state_set_item(ni_teamd_client_t *, const char *,
 											 const char *);
 extern int				ni_teamd_ctl_port_add(ni_teamd_client_t *, const char *);

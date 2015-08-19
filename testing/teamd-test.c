@@ -15,7 +15,8 @@
 int main(int argc, char **argv)
 {
 	ni_teamd_client_t *tdc;
-	const char *command, *param1, *param2, *val = NULL;
+	const char *command, *param1, *param2;
+	char *val = NULL;
 	ni_json_t *json;
 	int rv = 0;
 
@@ -30,15 +31,15 @@ int main(int argc, char **argv)
 	tdc = ni_teamd_client_open(argv[1]);
 
 	if (ni_string_eq(command, "state-item-get"))
-		val = ni_teamd_ctl_state_get_item(tdc, param1);
+		rv = ni_teamd_ctl_state_get_item(tdc, param1, &val);
 	else if (ni_string_eq(command, "state-item-set"))
 		rv = ni_teamd_ctl_state_set_item(tdc, param1, param2);
 	else if (ni_string_eq(command, "state-dump"))
-		val = ni_teamd_ctl_state_dump(tdc);
+		rv = ni_teamd_ctl_state_dump(tdc, &val);
 	else if (ni_string_eq(command, "config-dump"))
-		val = ni_teamd_ctl_config_dump(tdc, FALSE);
+		rv = ni_teamd_ctl_config_dump(tdc, FALSE, &val);
 	else if (ni_string_eq(command, "config-dump-actual"))
-		val = ni_teamd_ctl_config_dump(tdc, TRUE);
+		rv = ni_teamd_ctl_config_dump(tdc, TRUE, &val);
 
 	printf("%s\n", val ? val : ni_format_boolean(!!rv));
 
@@ -54,5 +55,6 @@ int main(int argc, char **argv)
 		printf("json parsing error\n");
 	}
 
+	ni_string_free(&val);
 	return rv;
 }
