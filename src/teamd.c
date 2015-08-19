@@ -356,6 +356,7 @@ ni_teamd_port_enslave(const ni_netdev_t *master, const ni_netdev_t *port, const 
 		} else {
 			ni_debug_application("Unable to format %s team port config update", port->name);
 		}
+		ni_json_free(object);
 		ni_stringbuf_destroy(&dump);
 	}
 
