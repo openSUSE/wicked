@@ -544,7 +544,7 @@ __ni_compat_generate_team_runner(xml_node_t *tnode, const ni_team_runner_t *runn
 			tx_balancer = xml_node_new("tx_balancer", rnode);
 			if ((name = ni_team_tx_balancer_type_to_name(lb->config.tx_balancer.type)))
 				xml_node_new_element("name", tx_balancer, name);
-			xml_node_new_element("balance_interval", tx_balancer,
+			xml_node_new_element("balancing_interval", tx_balancer,
 						ni_sprint_uint(lb->config.tx_balancer.interval));
 		}
 	}
@@ -583,7 +583,7 @@ __ni_compat_generate_team_runner(xml_node_t *tnode, const ni_team_runner_t *runn
 			tx_balancer = xml_node_new("tx_balancer", rnode);
 			if ((name = ni_team_tx_balancer_type_to_name(lacp->config.tx_balancer.type)))
 				xml_node_new_element("name", tx_balancer, name);
-			xml_node_new_element("balance_interval", tx_balancer,
+			xml_node_new_element("balancing_interval", tx_balancer,
 						ni_sprint_uint(lacp->config.tx_balancer.interval));
 		}
 	}
