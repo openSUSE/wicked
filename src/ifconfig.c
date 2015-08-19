@@ -1596,22 +1596,25 @@ ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int s
  * Create a team device
  */
 int
-ni_system_team_create(ni_netconfig_t *nc, const char *ifname, const ni_team_t *team_cfg, ni_netdev_t **dev_ret)
+ni_system_team_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **dev_ret)
 {
 	unsigned int i;
 	int ret;
 
-	if (ni_teamd_service_start(ifname, team_cfg) < 0)
+	if (!cfg || cfg->link.type != NI_IFTYPE_TEAM || !cfg->team)
+		return -1;
+
+	if (ni_teamd_service_start(cfg) < 0)
 		return -1;
 
 	/* Wait for sysfs to appear */
 	for (i = 0; i < 400; ++i) {
-		if (ni_sysfs_netif_exists(ifname, "ifindex"))
+		if (ni_sysfs_netif_exists(cfg->name, "ifindex"))
 			break;
 		usleep(25000);
 	}
 
-	ret = __ni_system_netdev_create(nc, ifname, 0, NI_IFTYPE_TEAM, dev_ret);
+	ret = __ni_system_netdev_create(nc, cfg->name, 0, NI_IFTYPE_TEAM, dev_ret);
 	if (dev_ret && *dev_ret) {
 		ni_teamd_discover(*dev_ret);
 	}
@@ -1619,28 +1622,35 @@ ni_system_team_create(ni_netconfig_t *nc, const char *ifname, const ni_team_t *t
 }
 
 int
-ni_system_team_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_team_t *team_cfg)
+ni_system_team_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
 {
-	ni_team_t *team = ni_netdev_get_team(dev);
+	ni_team_t *team = dev ? ni_netdev_get_team(dev) : NULL;
 
-	if (team) {
+	if (team && cfg && cfg->link.type == NI_IFTYPE_TEAM) {
 		/* does teamd not support reload / changes of the team device config
 		 * so we can't reconfigure it at all and just discover the state. */
 		ni_teamd_discover(dev);
+		return 0;
 	}
 
-	return 0;
+	return -1;
 }
 
 int
 ni_system_team_shutdown(ni_netdev_t *dev)
 {
+	if (!dev || dev->link.type != NI_IFTYPE_TEAM)
+		return -1;
+
 	return 0;
 }
 
 int
 ni_system_team_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
 {
+	if (!dev || dev->link.type != NI_IFTYPE_TEAM)
+		return -1;
+
 	return ni_teamd_service_stop(dev->name);
 }
 

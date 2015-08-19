@@ -485,6 +485,5 @@ ni_team_runner_init(ni_team_runner_t *runner, ni_team_runner_type_t type)
 void
 ni_team_runner_destroy(ni_team_runner_t *runner)
 {
-	(void)runner; /* currently nothing to cleanup */
 }
 

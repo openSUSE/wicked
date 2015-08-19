@@ -26,6 +26,8 @@
 #include "config.h"
 #endif
 
+#include <net/if_arp.h>
+
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/system.h>
@@ -77,18 +79,29 @@ __ni_objectmodel_team_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	ni_netdev_t *new_ifp = NULL;
-	const ni_team_t *team;
 	int rv;
 
-	team = ni_netdev_get_team(cfg_ifp);
-
+	ni_netdev_get_team(cfg_ifp);
 	if (ifname == NULL && !(ifname = ni_netdev_make_name(nc, "team", 0))) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create team interface - too many interfaces");
 		goto out;
 	}
 	ni_string_dup(&cfg_ifp->name, ifname);
 
-	if ((rv = ni_system_team_create(nc, cfg_ifp->name, team, &new_ifp)) < 0) {
+	if (cfg_ifp->link.hwaddr.len) {
+		if (cfg_ifp->link.hwaddr.type == ARPHRD_VOID)
+			cfg_ifp->link.hwaddr.type = ARPHRD_ETHER;
+
+		if (cfg_ifp->link.hwaddr.type != ARPHRD_ETHER ||
+		    cfg_ifp->link.hwaddr.len != ni_link_address_length(ARPHRD_ETHER)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"Cannot create team interface: invalid ethernet address '%s'",
+					ni_link_address_print(&cfg_ifp->link.hwaddr));
+			goto out;
+		}
+	}
+
+	if ((rv = ni_system_team_create(nc, cfg_ifp, &new_ifp)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Unable to create team interface '%s'", cfg_ifp->name);
 		new_ifp = NULL;
@@ -143,7 +156,7 @@ __ni_objectmodel_team_setup(ni_dbus_object_t *object, const ni_dbus_method_t *me
 		goto out;
 	}
 
-	if (ni_system_team_setup(nc, ifp, cfg->team) < 0) {
+	if (ni_system_team_setup(nc, ifp, cfg) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to set up team device");
 		goto out;
 	}

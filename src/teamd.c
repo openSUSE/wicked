@@ -658,7 +658,7 @@ ni_teamd_config_file_name(char **filename, const char *instance)
 	return ni_string_printf(filename, NI_TEAMD_CONFIG_FMT, instance);
 }
 
-ni_json_t *
+static ni_json_t *
 ni_teamd_config_json_runner(const ni_team_runner_t *runner)
 {
 	ni_json_t *object = ni_json_new_object();
@@ -766,7 +766,7 @@ ni_teamd_config_json_runner(const ni_team_runner_t *runner)
 	return object;
 }
 
-ni_json_t *
+static ni_json_t *
 ni_teamd_config_json_link_watch_item(const ni_team_link_watch_t *lw)
 {
 	ni_json_t *object;
@@ -856,7 +856,7 @@ ni_teamd_config_json_link_watch_item(const ni_team_link_watch_t *lw)
 	return object;
 }
 
-ni_json_t *
+static ni_json_t *
 ni_teamd_config_json_link_watch(const ni_team_link_watch_array_t *link_watch)
 {
 	const ni_team_link_watch_t *lw;
@@ -884,8 +884,8 @@ ni_teamd_config_json_link_watch(const ni_team_link_watch_array_t *link_watch)
 	}
 }
 
-int
-ni_teamd_config_file_dump(FILE *fp, const char *instance, const ni_team_t *config)
+static int
+ni_teamd_config_file_dump(FILE *fp, const char *instance, const ni_team_t *config, const ni_hwaddr_t *hwaddr)
 {
 	ni_stringbuf_t dump = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_json_t *object, *child;
@@ -896,6 +896,9 @@ ni_teamd_config_file_dump(FILE *fp, const char *instance, const ni_team_t *confi
 	object = ni_json_new_object();
 
 	ni_json_object_set(object, "device", ni_json_new_string(instance));
+	if (!ni_link_address_is_invalid(hwaddr)) {
+		ni_json_object_set(object, "hwaddr", ni_json_new_string(ni_link_address_print(hwaddr)));
+	}
 
 	if (!(child = ni_teamd_config_json_runner(&config->runner)))
 		goto failure;
@@ -923,8 +926,8 @@ failure:
 	return -1;
 }
 
-int
-ni_teamd_config_file_write(const char *instance, const ni_team_t *config)
+static int
+ni_teamd_config_file_write(const char *instance, const ni_team_t *config, const ni_hwaddr_t *hwaddr)
 {
 	char *filename = NULL;
 	char tempname[PATH_MAX] = {'\0'};
@@ -954,7 +957,7 @@ ni_teamd_config_file_write(const char *instance, const ni_team_t *config)
 		return -1;
 	}
 
-	if (ni_teamd_config_file_dump(fp, instance, config) < 0) {
+	if (ni_teamd_config_file_dump(fp, instance, config, hwaddr) < 0) {
 		ni_error("%s: unable to generate teamd config file for '%s'", instance, filename);
 		fclose(fp);
 		unlink(tempname);
@@ -1004,7 +1007,7 @@ const char *ni_systemctl_tool_path()
  * teamd systemd instance service methods
  */
 int
-ni_teamd_service_start(const char *instance, const ni_team_t *config)
+ni_teamd_service_start(const ni_netdev_t *cfg)
 {
 	const char *systemctl;
 	char *service = NULL;
@@ -1012,7 +1015,7 @@ ni_teamd_service_start(const char *instance, const ni_team_t *config)
 	ni_process_t *pi;
 	int rv;
 
-	if (ni_string_empty(instance) || !config)
+	if (!cfg || ni_string_empty(cfg->name) || !cfg->team)
 		return -1;
 
 	if (!(systemctl = ni_systemctl_tool_path()))
@@ -1027,11 +1030,11 @@ ni_teamd_service_start(const char *instance, const ni_team_t *config)
 	if (!ni_shellcmd_add_arg(cmd, "start"))
 		goto failure;
 
-	ni_string_printf(&service, "teamd@%s.service", instance);
+	ni_string_printf(&service, "teamd@%s.service", cfg->name);
 	if (!service || !ni_shellcmd_add_arg(cmd, service))
 		goto failure;
 
-	if (ni_teamd_config_file_write(instance, config) < 0)
+	if (ni_teamd_config_file_write(cfg->name, cfg->team, &cfg->link.hwaddr) < 0)
 		goto failure;
 
 	if (!(pi = ni_process_new(cmd)))
@@ -1053,7 +1056,7 @@ failure:
 }
 
 int
-ni_teamd_service_stop(const char *instance)
+ni_teamd_service_stop(const char *ifname)
 {
 	const char *systemctl;
 	char *service = NULL;
@@ -1061,7 +1064,7 @@ ni_teamd_service_stop(const char *instance)
 	ni_process_t *pi;
 	int rv;
 
-	if (ni_string_empty(instance))
+	if (ni_string_empty(ifname))
 		return -1;
 
 	if (!(cmd = ni_shellcmd_new(NULL)))
@@ -1076,7 +1079,7 @@ ni_teamd_service_stop(const char *instance)
 	if (!ni_shellcmd_add_arg(cmd, "stop"))
 		goto failure;
 
-	ni_string_printf(&service, "teamd@%s.service", instance);
+	ni_string_printf(&service, "teamd@%s.service", ifname);
 	if (!service || !ni_shellcmd_add_arg(cmd, service))
 		goto failure;
 
@@ -1087,7 +1090,7 @@ ni_teamd_service_stop(const char *instance)
 	rv = ni_process_run_and_wait(pi);
 	ni_process_free(pi);
 
-	ni_teamd_config_file_remove(instance);
+	ni_teamd_config_file_remove(ifname);
 	free(service);
 
 	return rv;

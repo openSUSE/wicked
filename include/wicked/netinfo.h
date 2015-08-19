@@ -263,8 +263,8 @@ extern ni_bool_t	ni_link_address_equal(const ni_hwaddr_t *, const ni_hwaddr_t *)
 extern unsigned int	ni_link_address_length(unsigned short);
 extern int		ni_link_address_get_broadcast(unsigned short, ni_hwaddr_t *);
 extern int		ni_link_address_set(ni_hwaddr_t *, unsigned short arp_type, const void *data, size_t len);
-extern ni_bool_t	ni_link_address_is_broadcast(ni_hwaddr_t *);
-extern ni_bool_t	ni_link_address_is_invalid(ni_hwaddr_t *);
+extern ni_bool_t	ni_link_address_is_broadcast(const ni_hwaddr_t *);
+extern ni_bool_t	ni_link_address_is_invalid(const ni_hwaddr_t *);
 
 extern int		ni_linktype_name_to_type(const char *);
 extern const char *	ni_linktype_type_to_name(unsigned int);
