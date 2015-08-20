@@ -37,6 +37,7 @@
 #include "dbus-dict.h"
 #include "dbus-common.h"
 #include "dbus-objects/model.h"
+#include "appconfig.h"
 #include "util_priv.h"
 #include "process.h"
 #include "buffer.h"
@@ -314,9 +315,11 @@ ni_teamdctl_tool_path()
 		"/usr/sbin/teamdctl",
 		NULL
 	};
-	return ni_find_executable(paths);
+	const char *path = ni_find_executable(paths);
+	if (!path)
+		ni_warn("unable to find teamdctl utility");
+	return path;
 }
-
 
 static ni_bool_t
 ni_teamd_unix_client_init(ni_teamd_client_t *tdc)
@@ -460,27 +463,81 @@ static const ni_teamd_client_ops_t	teamd_unix_ops = {
 	.ctl_port_config_update	= ni_teamd_unix_ctl_port_config_update,
 };
 
+ni_bool_t
+ni_teamd_enabled(const char *instance)
+{
+	if (ni_config_teamd_enabled())
+		return TRUE;
+
+	ni_warn_once("%s%steamd support is disabled",
+			instance ? instance : "",
+			instance ? ": ": "");
+	return FALSE;
+}
+
+static ni_config_teamd_ctl_t
+ni_teamd_client_ctl_detect_call(const char *instance, char **busname)
+{
+	ni_teamd_service_show_property(instance, "BusName", busname);
+	if (busname && !ni_string_empty(*busname))
+		return NI_CONFIG_TEAMD_CTL_DBUS;
+	else
+		return NI_CONFIG_TEAMD_CTL_UNIX;
+}
+
+static ni_config_teamd_ctl_t
+ni_teamd_client_ctl_detect(const char *instance, char **busname)
+{
+	static ni_config_teamd_ctl_t ctl_once = NI_CONFIG_TEAMD_CTL_DETECT_ONCE;
+	ni_config_teamd_ctl_t ctl = ni_config_teamd_ctl();
+
+	switch (ctl) {
+	case NI_CONFIG_TEAMD_CTL_DBUS:
+	case NI_CONFIG_TEAMD_CTL_UNIX:
+		break;
+	case NI_CONFIG_TEAMD_CTL_DETECT:
+		ctl = ni_teamd_client_ctl_detect_call(instance, busname);
+		break;
+	default:
+	case NI_CONFIG_TEAMD_CTL_DETECT_ONCE:
+		if (ctl_once == NI_CONFIG_TEAMD_CTL_DETECT_ONCE)
+			ctl_once = ni_teamd_client_ctl_detect_call(instance, busname);
+		ctl = ctl_once;
+		break;
+	}
+	return ctl;
+}
+
 ni_teamd_client_t *
 ni_teamd_client_open(const char *instance)
 {
+	ni_config_teamd_ctl_t ctl;
 	ni_teamd_client_t *tdc;
 	char *busname = NULL;
+
+	if (!ni_teamd_enabled(instance))
+		return NULL;
 
 	if (ni_string_empty(instance))
 		return NULL;
 
 	tdc = xcalloc(1, sizeof(*tdc));
 	ni_string_dup(&tdc->instance, instance);
-	ni_teamd_service_show_property(instance, "BusName", &busname);
-	ni_trace("%s(%s) busname: %s", __func__, instance, busname);
-	if (ni_string_len(busname)) {
+
+	ctl = ni_teamd_client_ctl_detect(instance, &busname);
+	switch (ctl) {
+	case NI_CONFIG_TEAMD_CTL_DBUS:
 		tdc->ops = teamd_dbus_ops;
 		if (!ni_teamd_dbus_client_init(tdc, busname))
 			goto failure;
-	} else {
+		break;
+	case NI_CONFIG_TEAMD_CTL_UNIX:
 		tdc->ops = teamd_unix_ops;
 		if (!ni_teamd_unix_client_init(tdc))
 			goto failure;
+		break;
+	default:
+		goto failure;
 	}
 
 	ni_string_free(&busname);
@@ -1325,7 +1382,10 @@ const char *ni_systemctl_tool_path()
 		"/bin/systemctl",
 		NULL
 	};
-	return ni_find_executable(paths);
+	const char *path = ni_find_executable(paths);
+	if (!path)
+		ni_warn_once("unable to find systemctl utility");
+	return path;
 }
 
 /*

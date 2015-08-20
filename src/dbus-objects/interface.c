@@ -26,6 +26,7 @@
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "xml-schema.h"
+#include "appconfig.h"
 #include "model.h"
 #include "debug.h"
 
@@ -119,8 +120,9 @@ ni_objectmodel_register_netif_services(void)
 	ni_objectmodel_register_netif_service(NI_IFTYPE_INFINIBAND, &ni_objectmodel_ibparent_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_INFINIBAND_CHILD, &ni_objectmodel_ibchild_service);
 
+	if (ni_config_teamd_enabled())
+		ni_objectmodel_register_netif_factory_service(&ni_objectmodel_team_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_bond_factory_service);
-	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_team_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_bridge_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_vlan_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_macvlan_factory_service);

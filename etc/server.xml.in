@@ -78,4 +78,9 @@
     <action name="remove" command="@wicked_extensionsdir@/netconfig remove"/>
   </system-updater>
 
+  <teamd>
+    <!-- enable/disable teamd support, see wicked-config(5) -->
+    <enabled>@use_teamd@</enabled>
+  </teamd>
+
 </config>

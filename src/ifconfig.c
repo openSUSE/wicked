@@ -162,6 +162,9 @@ ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev, const ni_netd
 		}
 		break;
 	case NI_IFTYPE_TEAM:
+		if (!ni_config_teamd_enabled())
+			return -1;
+
 		if (req->port && master->link.type != req->port->type) {
 			ni_error("%s: port configuration type mismatch", dev->name);
 			return -1;
@@ -224,9 +227,10 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 					dev->link.masterdev.index);
 
 			master = ni_netdev_by_index(nc, dev->link.masterdev.index);
-			if (master && master->link.type == NI_IFTYPE_TEAM) {
+			if (master && master->link.type == NI_IFTYPE_TEAM && ni_config_teamd_enabled()) {
 				if (ifp_req->port && master->link.type == ifp_req->port->type)
 					ni_teamd_port_enslave(master, dev, &ifp_req->port->team);
+
 				ni_teamd_discover(master);
 			}
 
@@ -1615,7 +1619,7 @@ ni_system_team_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **
 	unsigned int i;
 	int ret;
 
-	if (!cfg || cfg->link.type != NI_IFTYPE_TEAM || !cfg->team)
+	if (!cfg || cfg->link.type != NI_IFTYPE_TEAM || !cfg->team || !ni_config_teamd_enabled())
 		return -1;
 
 	if (ni_teamd_service_start(cfg) < 0)
@@ -1640,7 +1644,7 @@ ni_system_team_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cf
 {
 	ni_team_t *team = dev ? ni_netdev_get_team(dev) : NULL;
 
-	if (team && cfg && cfg->link.type == NI_IFTYPE_TEAM) {
+	if (team && cfg && cfg->link.type == NI_IFTYPE_TEAM && ni_config_teamd_enabled()) {
 		/* does teamd not support reload / changes of the team device config
 		 * so we can't reconfigure it at all and just discover the state. */
 		ni_teamd_discover(dev);

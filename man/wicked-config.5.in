@@ -418,6 +418,29 @@ by IPv6 Router Advertisement (RA) or require static configuration.
 The current NIS / ypbind implementation does supported IPv6 at all.
 .PP
 .\" --------------------------------------------------------
+.SH SERVER ONLY OPTIONS
+.TP
+.B teamd
+.IP
+The \fB<teamd>\fP element permits to enable or disable teamd support
+(inclusive discovery of team device details) in its \fB<enable>\fP
+sub-element. Disabled by default, \fBserver.xml\fP config enables it.
+Further, it permits to specify the control interface to communicate
+with teamd in the \fB<ctl>\fP sub-element, using the following options:
+.IP
+.TS
+box;
+l|l
+lb|l.
+Option	Description
+=
+detect-once	detect the control interface to use, once (\fBdefault\fP)
+detect	detect the control interface to use in each call
+dbus	communicate directly with teamd via dbus
+unix	use unix socket control interface via teamdctl tool
+.TE
+.PP
+.\" --------------------------------------------------------
 .SH EXTENSIONS
 The functionality of \fBwickedd\fP can be extended through
 external commands and shell scripts. All of these extensions
