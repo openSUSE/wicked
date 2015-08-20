@@ -46,6 +46,8 @@
 #define NI_TEAMD_VIA_DBUS			0
 
 #define NI_TEAMD_CONFIG_DIR			"/run/teamd"
+#define NI_TEAMD_CONFIG_DIR_MODE		0700
+
 #define NI_TEAMD_CONFIG_FMT			NI_TEAMD_CONFIG_DIR"/%s.conf"
 
 #define NI_TEAMD_BUS_NAME			"org.libteam.teamd"
@@ -1179,6 +1181,11 @@ ni_teamd_config_file_write(const char *instance, const ni_team_t *config, const 
 
 	if (ni_string_empty(instance) || !config)
 		return -1;
+
+	if (ni_mkdir_maybe(NI_TEAMD_CONFIG_DIR, NI_TEAMD_CONFIG_DIR_MODE) < 0) {
+		ni_error("Cannot create teamd run directory \"%s\": %m", NI_TEAMD_CONFIG_DIR);
+		return -1;
+	}
 
 	if (!ni_teamd_config_file_name(&filename, instance)) {
 		ni_error("%s: cannot create teamd config file name", instance);
