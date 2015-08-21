@@ -11,6 +11,7 @@
 
 #include "teamd.h"
 #include "json.h"
+#include "appconfig.h"
 
 int main(int argc, char **argv)
 {
@@ -27,6 +28,10 @@ int main(int argc, char **argv)
 	command = argv[2];
 	param1 = argv[3];
 	param2 = argv[4];
+
+	if (ni_init("teamd-test") < 0)
+		return -1;
+	ni_config_teamd_enable(NI_CONFIG_TEAMD_CTL_DETECT_ONCE);
 
 	tdc = ni_teamd_client_open(argv[1]);
 

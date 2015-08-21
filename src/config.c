@@ -998,10 +998,26 @@ ni_config_teamd_ctl(void)
 	return ni_global.config ? ni_global.config->teamd.ctl : NI_CONFIG_TEAMD_CTL_DETECT_ONCE;
 }
 
-const ni_config_teamd_t *
-ni_config_teamd(void)
+ni_bool_t
+ni_config_teamd_enable(ni_config_teamd_ctl_t type)
 {
-	return ni_global.config ? &ni_global.config->teamd : NULL;
+	if (ni_global.config && ni_config_teamd_ctl_type_to_name(type)) {
+		ni_global.config->teamd.enabled = TRUE;
+		ni_global.config->teamd.ctl = type;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_config_teamd_disable(void)
+{
+	if (ni_global.config) {
+		ni_global.config->teamd.enabled = FALSE;
+		ni_global.config->teamd.ctl = NI_CONFIG_TEAMD_CTL_DETECT_ONCE;
+		return TRUE;
+	}
+	return FALSE;
 }
 
 static ni_bool_t

@@ -153,9 +153,10 @@ extern ni_extension_t *	ni_config_find_system_updater(ni_config_t *, const char 
 extern unsigned int	ni_config_addrconf_update_mask(ni_addrconf_mode_t, unsigned int);
 extern ni_bool_t	ni_config_use_nanny(void);
 
+extern ni_bool_t	ni_config_teamd_enable(ni_config_teamd_ctl_t);
+extern ni_bool_t	ni_config_teamd_disable(void);
 extern ni_bool_t	ni_config_teamd_enabled(void);
 extern ni_config_teamd_ctl_t	ni_config_teamd_ctl(void);
-extern const ni_config_teamd_t *ni_config_teamd(void);
 extern const char *	ni_config_teamd_ctl_type_to_name(ni_config_teamd_ctl_t);
 
 extern ni_extension_t *	ni_extension_list_find(ni_extension_t *, const char *);
