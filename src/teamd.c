@@ -390,7 +390,7 @@ ni_teamd_unix_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t actual, char **r
 
 failure:
 	ni_buffer_destroy(&buf);
-	return rv;
+	return -1;
 }
 
 int
@@ -413,8 +413,9 @@ ni_teamd_unix_ctl_port_add(ni_teamd_client_t *tdc, const char *port_name)
 	ni_process_free(pi);
 	if (rv) {
 		ni_error("%s: unable to add team port %s", tdc->instance, port_name);
+		return -1;
 	}
-	return rv;
+	return 0;
 }
 
 int
@@ -439,8 +440,9 @@ ni_teamd_unix_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_na
 	ni_process_free(pi);
 	if (rv) {
 		ni_error("%s: unable to update team port %s config", tdc->instance, port_name);
+		return -1;
 	}
-	return rv;
+	return 0;
 }
 
 /*

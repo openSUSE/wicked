@@ -1622,7 +1622,7 @@ ni_system_team_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **
 	if (!cfg || cfg->link.type != NI_IFTYPE_TEAM || !cfg->team || !ni_config_teamd_enabled())
 		return -1;
 
-	if (ni_teamd_service_start(cfg) < 0)
+	if (ni_teamd_service_start(cfg))
 		return -1;
 
 	/* Wait for sysfs to appear */
@@ -1669,7 +1669,7 @@ ni_system_team_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
 	if (!dev || dev->link.type != NI_IFTYPE_TEAM)
 		return -1;
 
-	return ni_teamd_service_stop(dev->name);
+	return ni_teamd_service_stop(dev->name) ? -1 : 0;
 }
 
 /*
