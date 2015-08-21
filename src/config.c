@@ -43,6 +43,7 @@ static ni_bool_t	ni_config_parse_system_updater(ni_extension_t **, xml_node_t *)
 static ni_bool_t	ni_config_parse_extension(ni_extension_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_sources(ni_config_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_rtnl_event(ni_config_rtnl_event_t *, xml_node_t *);
+static ni_bool_t	ni_config_parse_teamd(ni_config_teamd_t *, const xml_node_t *);
 static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
 static const char *	ni_config_build_include(const char *, const char *);
 static unsigned int	ni_config_addrconf_update_mask_all(void);
@@ -73,6 +74,9 @@ ni_config_new()
 
 	conf->rtnl_event.recv_buff_length = 1024 * 1024;
 	conf->rtnl_event.mesg_buff_length = 0;
+
+	/* we enable it explicitly in wickedd only */
+	conf->teamd.enabled = FALSE;
 
 	return conf;
 }
@@ -239,6 +243,10 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 			if (!ni_config_parse_rtnl_event(&conf->rtnl_event, child))
 				goto failed;
 		} else
+		if (strcmp(child->name, "teamd") == 0) {
+			if (!ni_config_parse_teamd(&conf->teamd, child))
+				goto failed;
+		}
 		if (cb != NULL) {
 			if (!cb(appdata, child))
 				goto failed;
@@ -941,6 +949,99 @@ ni_config_parse_rtnl_event(ni_config_rtnl_event_t *conf, xml_node_t *node)
 		if (ni_string_eq(child->name, "message-buffer-length")) {
 			if (ni_parse_uint(child->cdata, &conf->mesg_buff_length, 0))
 				return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+/*
+ * teamd support config options
+ */
+static const ni_intmap_t	config_teamd_ctl_names[] = {
+	{ "detect-once",	NI_CONFIG_TEAMD_CTL_DETECT_ONCE	},
+	{ "detect",		NI_CONFIG_TEAMD_CTL_DETECT	},
+	{ "dbus",		NI_CONFIG_TEAMD_CTL_DBUS	},
+	{ "unix",		NI_CONFIG_TEAMD_CTL_UNIX	},
+	{ NULL,			-1U				}
+};
+
+const char *
+ni_config_teamd_ctl_type_to_name(ni_config_teamd_ctl_t type)
+{
+	return ni_format_uint_mapped(type, config_teamd_ctl_names);
+}
+
+static ni_bool_t
+ni_config_teamd_ctl_name_to_type(const char *name, ni_config_teamd_ctl_t *type)
+{
+	unsigned int _type;
+
+	if (!name || !type)
+		return FALSE;
+
+	if (ni_parse_uint_mapped(name, config_teamd_ctl_names, &_type) != 0)
+		return FALSE;
+
+	*type = _type;
+	return TRUE;
+}
+
+ni_bool_t
+ni_config_teamd_enabled(void)
+{
+	return ni_global.config ? ni_global.config->teamd.enabled : FALSE;
+}
+
+ni_config_teamd_ctl_t
+ni_config_teamd_ctl(void)
+{
+	return ni_global.config ? ni_global.config->teamd.ctl : NI_CONFIG_TEAMD_CTL_DETECT_ONCE;
+}
+
+ni_bool_t
+ni_config_teamd_enable(ni_config_teamd_ctl_t type)
+{
+	if (ni_global.config && ni_config_teamd_ctl_type_to_name(type)) {
+		ni_global.config->teamd.enabled = TRUE;
+		ni_global.config->teamd.ctl = type;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_config_teamd_disable(void)
+{
+	if (ni_global.config) {
+		ni_global.config->teamd.enabled = FALSE;
+		ni_global.config->teamd.ctl = NI_CONFIG_TEAMD_CTL_DETECT_ONCE;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+static ni_bool_t
+ni_config_parse_teamd(ni_config_teamd_t *conf, const xml_node_t *node)
+{
+	const xml_node_t *child;
+
+	if (!conf || !node)
+		return FALSE;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "enabled")) {
+			if (ni_parse_boolean(child->cdata, &conf->enabled)) {
+				ni_error("%s: invalid <teamd><enable>%s</enable></teamd> option",
+						xml_node_location(child), child->cdata);
+				return FALSE;
+			}
+		}
+		if (ni_string_eq(child->name, "ctl")) {
+			if (!ni_config_teamd_ctl_name_to_type(child->cdata, &conf->ctl)) {
+				ni_error("%s: invalid <teamd><ctl>%s</ctl></teamd> option",
+						xml_node_location(child), child->cdata);
+				return FALSE;
+			}
 		}
 	}
 	return TRUE;

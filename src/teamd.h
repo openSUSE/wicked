@@ -48,4 +48,6 @@ extern int				ni_teamd_discover(ni_netdev_t *);
 extern int				ni_teamd_service_start(const ni_netdev_t *);
 extern int				ni_teamd_service_stop (const char *);
 
+extern ni_bool_t			ni_teamd_enabled(const char *);
+
 #endif /* NI_TEAMD_CLIENT_H */

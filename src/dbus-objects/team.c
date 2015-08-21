@@ -37,6 +37,8 @@
 #include "dbus-common.h"
 #include "model.h"
 #include "debug.h"
+#include "appconfig.h"
+
 
 static ni_netdev_t *	__ni_objectmodel_team_device_arg(const ni_dbus_variant_t *);
 static ni_netdev_t *	__ni_objectmodel_team_newlink(ni_netdev_t *, const char *, DBusError *);
@@ -51,6 +53,17 @@ __ni_objectmodel_team_device_arg(const ni_dbus_variant_t *dict)
 	return ni_objectmodel_get_netif_argument(dict, NI_IFTYPE_TEAM, &ni_objectmodel_team_service);
 }
 
+static dbus_bool_t
+ni_objectmodel_team_report_disabled(DBusError *error)
+{
+	if (ni_config_teamd_enabled())
+		return TRUE;
+
+	dbus_set_error(error, DBUS_ERROR_UNKNOWN_METHOD,
+		"Unable to create team interface - teamd configuration support disabled");
+	return FALSE;
+}
+
 /*
  * Create a new team interface
  */
@@ -62,6 +75,9 @@ ni_objectmodel_new_team(ni_dbus_object_t *factory_object, const ni_dbus_method_t
 	ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
 	ni_netdev_t *ifp;
 	const char *ifname = NULL;
+
+	if (!ni_objectmodel_team_report_disabled(error))
+		return FALSE;
 
 	ni_assert(argc == 2);
 	if (!ni_dbus_variant_get_string(&argv[0], &ifname)
@@ -151,6 +167,9 @@ __ni_objectmodel_team_setup(ni_dbus_object_t *object, const ni_dbus_method_t *me
 	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
+	if (!ni_config_teamd_enabled())
+		return TRUE;
+
 	if (!(cfg = __ni_objectmodel_team_device_arg(&argv[0]))) {
 		ni_dbus_error_invalid_args(error, object->path, method->name);
 		goto out;
@@ -183,6 +202,9 @@ __ni_objectmodel_shutdown_team(ni_dbus_object_t *object, const ni_dbus_method_t 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
+	if (!ni_config_teamd_enabled())
+		return TRUE;
+
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
 	if (ni_system_team_shutdown(dev) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
@@ -206,6 +228,9 @@ __ni_objectmodel_delete_team(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	ni_netdev_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	if (!ni_objectmodel_team_report_disabled(error))
 		return FALSE;
 
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);

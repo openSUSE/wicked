@@ -37,6 +37,7 @@
 #include "dbus-dict.h"
 #include "dbus-common.h"
 #include "dbus-objects/model.h"
+#include "appconfig.h"
 #include "util_priv.h"
 #include "process.h"
 #include "buffer.h"
@@ -49,6 +50,7 @@
 #define NI_TEAMD_CONFIG_DIR_MODE		0700
 
 #define NI_TEAMD_CONFIG_FMT			NI_TEAMD_CONFIG_DIR"/%s.conf"
+#define NI_TEAMD_SERVICE_FMT			"teamd@%s.service"
 
 #define NI_TEAMD_BUS_NAME			"org.libteam.teamd"
 #define NI_TEAMD_OBJECT_PATH			"/org/libteam/teamd"
@@ -65,13 +67,33 @@
 #define NI_TEAMD_CALL_PORT_CONFIG_UPDATE	"PortConfigUpdate"
 
 
-#if NI_TEAMD_VIA_DBUS
-struct ni_teamd_client {
-	ni_dbus_client_t *	dbus;
+typedef struct ni_teamd_client_ops {
+	void	(*destroy)(ni_teamd_client_t *);
+	int	(*ctl_config_dump)(ni_teamd_client_t *, ni_bool_t, char **);
+	int	(*ctl_state_dump)(ni_teamd_client_t *, char **);
+	int	(*ctl_state_get_item)(ni_teamd_client_t *, const char *, char **);
+	int	(*ctl_state_set_item)(ni_teamd_client_t *, const char *, const char *);
+	int	(*ctl_port_add)(ni_teamd_client_t *, const char *);
+	int	(*ctl_port_config_update)(ni_teamd_client_t *, const char *, const char *);
+} ni_teamd_client_ops_t;
 
+struct ni_teamd_client {
+	ni_teamd_client_ops_t	ops;
+	char *			instance;
+
+	/* dbus */
+	ni_dbus_client_t *	dbus;
 	ni_dbus_object_t *	proxy;
+
+	/* unix */
+	ni_shellcmd_t *		cmd;
 };
 
+static const char *		ni_teamd_service_show_property(const char *, const char *, char **);
+
+/*
+ * === dbus client ===
+ */
 static void			ni_teamd_dbus_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 
 static ni_dbus_class_t		ni_objectmodel_teamd_client_class = {
@@ -83,57 +105,43 @@ static ni_dbus_class_t		ni_objectmodel_teamd_device_class = {
 };
 #endif
 
-static const ni_intmap_t	ni_teamd_error_names[] = {
+static const ni_intmap_t	ni_teamd_dbus_error_names[] = {
 	{ NULL,			-1			}
 };
 
-ni_teamd_client_t *
-ni_teamd_client_open(const char *ifname)
+static ni_bool_t
+ni_teamd_dbus_client_init(ni_teamd_client_t *tdc, const char *busname)
 {
-	ni_dbus_client_t *dbc;
-	ni_teamd_client_t *tdc;
-	char *service_name = NULL;
+	tdc->dbus = ni_dbus_client_open("system", busname);
+	if (!tdc->dbus)
+		return FALSE;
 
-	if (ni_string_empty(ifname))
-		return NULL;
-
-	ni_string_printf(&service_name, NI_TEAMD_BUS_NAME".%s", ifname);
-	dbc = ni_dbus_client_open("system", service_name);
-	ni_string_free(&service_name);
-	if (!dbc)
-		return NULL;
-
-	ni_dbus_client_set_error_map(dbc, ni_teamd_error_names);
-
-	tdc = xcalloc(1, sizeof(*tdc));
-	tdc->proxy = ni_dbus_client_object_new(dbc, &ni_objectmodel_teamd_client_class,
+	ni_dbus_client_set_error_map(tdc->dbus, ni_teamd_dbus_error_names);
+	tdc->proxy = ni_dbus_client_object_new(tdc->dbus,
+			&ni_objectmodel_teamd_client_class,
 			NI_TEAMD_OBJECT_PATH, NI_TEAMD_INTERFACE, tdc);
-	tdc->dbus = dbc;
-
-	ni_dbus_client_add_signal_handler(dbc,
+	if (!tdc->proxy)
+		return FALSE;
+	ni_dbus_client_add_signal_handler(tdc->dbus,
 				NI_TEAMD_BUS_NAME,	/* sender */
 				NULL,			/* object path */
 				NI_TEAMD_INTERFACE,	/* object interface */
 				ni_teamd_dbus_signal,
 				tdc);
-	return tdc;
+	return TRUE;
 }
 
-void
-ni_teamd_client_free(ni_teamd_client_t *tdc)
+static void
+ni_teamd_dbus_client_destroy(ni_teamd_client_t *tdc)
 {
-	if (tdc) {
-		if (tdc->dbus) {
-			ni_dbus_client_free(tdc->dbus);
-			tdc->dbus = NULL;
-		}
+	if (tdc->dbus) {
+		ni_dbus_client_free(tdc->dbus);
+		tdc->dbus = NULL;
+	}
 
-		if (tdc->proxy) {
-			ni_dbus_object_free(tdc->proxy);
-			tdc->proxy = NULL;
-		}
-
-		free(tdc);
+	if (tdc->proxy) {
+		ni_dbus_object_free(tdc->proxy);
+		tdc->proxy = NULL;
 	}
 }
 
@@ -146,16 +154,13 @@ ni_teamd_dbus_signal(ni_dbus_connection_t *connection, ni_dbus_message_t *msg, v
 	ni_debug_dbus("teamd-client: %s signal received (not handled)", member);
 }
 
-/*
- * teamd instance dbus access methods
- */
-int
-ni_teamd_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t actual, char **result)
+static int
+ni_teamd_dbus_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t actual, char **result)
 {
 	const char *method;
 	int rv;
 
-	if (!tdc || !result)
+	if (!result)
 		return -NI_ERROR_INVALID_ARGS;
 
 	method =  actual ? NI_TEAMD_CALL_CONFIG_DUMP_ACTUAL :
@@ -173,12 +178,12 @@ ni_teamd_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t actual, char **result
 	return rv;
 }
 
-int
-ni_teamd_ctl_state_dump(ni_teamd_client_t *tdc, char **result)
+static int
+ni_teamd_dbus_ctl_state_dump(ni_teamd_client_t *tdc, char **result)
 {
 	int rv;
 
-	if (!tdc || !result)
+	if (!result)
 		return -NI_ERROR_INVALID_ARGS;
 
 	rv = ni_dbus_object_call_simple(tdc->proxy,
@@ -194,12 +199,12 @@ ni_teamd_ctl_state_dump(ni_teamd_client_t *tdc, char **result)
 	return rv;
 }
 
-int
-ni_teamd_ctl_state_get_item(ni_teamd_client_t *tdc, const char *item_name, char **result)
+static int
+ni_teamd_dbus_ctl_state_get_item(ni_teamd_client_t *tdc, const char *item_name, char **result)
 {
 	int rv;
 
-	if (!tdc || ni_string_empty(item_name) || !result)
+	if (ni_string_empty(item_name) || !result)
 		return -NI_ERROR_INVALID_ARGS;
 
 	rv = ni_dbus_object_call_simple(tdc->proxy,
@@ -215,14 +220,14 @@ ni_teamd_ctl_state_get_item(ni_teamd_client_t *tdc, const char *item_name, char 
 	return rv;
 }
 
-int
-ni_teamd_ctl_state_set_item(ni_teamd_client_t *tdc, const char *item_name, const char *item_val)
+static int
+ni_teamd_dbus_ctl_state_set_item(ni_teamd_client_t *tdc, const char *item_name, const char *item_val)
 {
 	ni_dbus_message_t *call, *reply;
 	DBusError error;
 	int rv = 0;
 
-	if (!tdc || ni_string_empty(item_name))
+	if (ni_string_empty(item_name))
 		return -NI_ERROR_INVALID_ARGS;
 
 	dbus_error_init(&error);
@@ -244,19 +249,19 @@ ni_teamd_ctl_state_set_item(ni_teamd_client_t *tdc, const char *item_name, const
 	return rv;
 }
 
-int
-ni_teamd_ctl_port_add(ni_teamd_client_t *tdc, const char *portname)
+static int
+ni_teamd_dbus_ctl_port_add(ni_teamd_client_t *tdc, const char *port_name)
 {
 	ni_dbus_message_t *call, *reply;
 	DBusError error;
 	int rv = 0;
 
-	if (!tdc || ni_string_empty(portname))
+	if (ni_string_empty(port_name))
 		return -NI_ERROR_INVALID_ARGS;
 
 	dbus_error_init(&error);
 	call = ni_dbus_object_call_new(tdc->proxy, NI_TEAMD_CALL_PORT_ADD, 0);
-	ni_dbus_message_append_string(call, portname);
+	ni_dbus_message_append_string(call, port_name);
 	if ((reply = ni_dbus_client_call(tdc->dbus, call, &error)) == NULL) {
 		rv = -NI_ERROR_DBUS_CALL_FAILED;
 		if (dbus_error_is_set(&error))
@@ -265,20 +270,20 @@ ni_teamd_ctl_port_add(ni_teamd_client_t *tdc, const char *portname)
 
 	if (rv < 0) {
 		ni_debug_application("Call to %s."NI_TEAMD_CALL_PORT_ADD"(%s) failed: %s",
-				ni_dbus_object_get_path(tdc->proxy), portname, ni_strerror(rv));
+				ni_dbus_object_get_path(tdc->proxy), port_name, ni_strerror(rv));
 	}
 
 	return rv;
 }
 
-int
-ni_teamd_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, const char *port_conf)
+static int
+ni_teamd_dbus_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, const char *port_conf)
 {
 	ni_dbus_message_t *call, *reply;
 	DBusError error;
 	int rv = 0;
 
-	if (!tdc || ni_string_empty(port_name))
+	if (ni_string_empty(port_name))
 		return FALSE;
 
 	dbus_error_init(&error);
@@ -300,13 +305,9 @@ ni_teamd_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, c
 	return rv;
 }
 
-#else /* !NI_TEAMD_VIA_DBUS */
-
-struct ni_teamd_client {
-	char *			ifname;
-	ni_shellcmd_t *		cmd;
-};
-
+/*
+ * === unix client ===
+ */
 static const char *
 ni_teamdctl_tool_path()
 {
@@ -314,23 +315,19 @@ ni_teamdctl_tool_path()
 		"/usr/sbin/teamdctl",
 		NULL
 	};
-	return ni_find_executable(paths);
+	const char *path = ni_find_executable(paths);
+	if (!path)
+		ni_warn("unable to find teamdctl utility");
+	return path;
 }
 
-ni_teamd_client_t *
-ni_teamd_client_open(const char *ifname)
+static ni_bool_t
+ni_teamd_unix_client_init(ni_teamd_client_t *tdc)
 {
-	ni_teamd_client_t *tdc;
 	const char *tool;
 
-	if (ni_string_empty(ifname))
-		return NULL;
-
 	if (!(tool = ni_teamdctl_tool_path()))
-		return NULL;
-
-	tdc = xcalloc(1, sizeof(*tdc));
-	ni_string_dup(&tdc->ifname, ifname);
+		goto failure;
 
 	if (!(tdc->cmd = ni_shellcmd_new(NULL)))
 		goto failure;
@@ -344,33 +341,28 @@ ni_teamd_client_open(const char *ifname)
 	if (!ni_shellcmd_add_arg(tdc->cmd, "--oneline"))
 		goto failure;
 
-	if (!ni_shellcmd_add_arg(tdc->cmd, ifname))
+	if (!ni_shellcmd_add_arg(tdc->cmd, tdc->instance))
 		goto failure;
 
-	return tdc;
+	return TRUE;
 failure:
-	ni_teamd_client_free(tdc);
-	return NULL;
+	return FALSE;
 }
 
 void
-ni_teamd_client_free(ni_teamd_client_t *tdc)
+ni_teamd_unix_client_destroy(ni_teamd_client_t *tdc)
 {
-	if (tdc) {
-		ni_shellcmd_release(tdc->cmd);
-		ni_string_free(&tdc->ifname);
-		free(tdc);
-	}
+	ni_shellcmd_release(tdc->cmd);
 }
 
 int
-ni_teamd_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t actual, char **result)
+ni_teamd_unix_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t actual, char **result)
 {
 	ni_buffer_t buf;
 	ni_process_t *pi;
 	int rv;
 
-	if (!tdc || !result)
+	if (!result)
 		return -1;
 
 	ni_buffer_init_dynamic(&buf, 1024);
@@ -385,7 +377,7 @@ ni_teamd_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t actual, char **result
 	rv = ni_process_run_and_capture_output(pi, &buf);
 	ni_process_free(pi);
 	if (rv) {
-		ni_error("%s: unable to dump team config", tdc->ifname);
+		ni_error("%s: unable to dump team config", tdc->instance);
 		goto failure;
 	}
 
@@ -398,42 +390,16 @@ ni_teamd_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t actual, char **result
 
 failure:
 	ni_buffer_destroy(&buf);
-	return rv;
-}
-
-int
-ni_teamd_ctl_state_dump(ni_teamd_client_t *tdc, char **result)
-{
-	(void)tdc;
-	(void)result;
 	return -1;
 }
 
 int
-ni_teamd_ctl_state_get_item(ni_teamd_client_t *tdc, const char *item_name, char **result)
-{
-	(void)tdc;
-	(void)item_name;
-	(void)result;
-	return -1;
-}
-
-int
-ni_teamd_ctl_state_set_item(ni_teamd_client_t *tdc, const char *item_name, const char *item_val)
-{
-	(void)tdc;
-	(void)item_name;
-	(void)item_val;
-	return -1;
-}
-
-int
-ni_teamd_ctl_port_add(ni_teamd_client_t *tdc, const char *port_name)
+ni_teamd_unix_ctl_port_add(ni_teamd_client_t *tdc, const char *port_name)
 {
 	ni_process_t *pi;
 	int rv;
 
-	if (!tdc || ni_string_empty(port_name))
+	if (ni_string_empty(port_name))
 		return -1;
 
 	if (!(pi = ni_process_new(tdc->cmd)))
@@ -446,13 +412,14 @@ ni_teamd_ctl_port_add(ni_teamd_client_t *tdc, const char *port_name)
 	rv = ni_process_run_and_wait(pi);
 	ni_process_free(pi);
 	if (rv) {
-		ni_error("%s: unable to add team port %s", tdc->ifname, port_name);
+		ni_error("%s: unable to add team port %s", tdc->instance, port_name);
+		return -1;
 	}
-	return rv;
+	return 0;
 }
 
 int
-ni_teamd_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, const char *port_conf)
+ni_teamd_unix_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, const char *port_conf)
 {
 	ni_process_t *pi;
 	int rv;
@@ -472,12 +439,179 @@ ni_teamd_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, c
 	rv = ni_process_run_and_wait(pi);
 	ni_process_free(pi);
 	if (rv) {
-		ni_error("%s: unable to update team port %s config", tdc->ifname, port_name);
+		ni_error("%s: unable to update team port %s config", tdc->instance, port_name);
+		return -1;
 	}
-	return rv;
+	return 0;
 }
 
-#endif /* NI_TEAMD_VIA_DBUS */
+/*
+ *  === teamd client ===
+ */
+static const ni_teamd_client_ops_t	teamd_dbus_ops = {
+	.destroy		= ni_teamd_dbus_client_destroy,
+	.ctl_config_dump	= ni_teamd_dbus_ctl_config_dump,
+	.ctl_state_dump		= ni_teamd_dbus_ctl_state_dump,
+	.ctl_state_get_item	= ni_teamd_dbus_ctl_state_get_item,
+	.ctl_state_set_item	= ni_teamd_dbus_ctl_state_set_item,
+	.ctl_port_add		= ni_teamd_dbus_ctl_port_add,
+	.ctl_port_config_update	= ni_teamd_dbus_ctl_port_config_update,
+};
+
+static const ni_teamd_client_ops_t	teamd_unix_ops = {
+	.destroy		= ni_teamd_unix_client_destroy,
+	.ctl_config_dump	= ni_teamd_unix_ctl_config_dump,
+	.ctl_port_add		= ni_teamd_unix_ctl_port_add,
+	.ctl_port_config_update	= ni_teamd_unix_ctl_port_config_update,
+};
+
+ni_bool_t
+ni_teamd_enabled(const char *instance)
+{
+	if (ni_config_teamd_enabled())
+		return TRUE;
+
+	ni_warn_once("%s%steamd support is disabled",
+			instance ? instance : "",
+			instance ? ": ": "");
+	return FALSE;
+}
+
+static ni_config_teamd_ctl_t
+ni_teamd_client_ctl_detect_call(const char *instance, char **busname)
+{
+	ni_teamd_service_show_property(instance, "BusName", busname);
+	if (busname && !ni_string_empty(*busname))
+		return NI_CONFIG_TEAMD_CTL_DBUS;
+	else
+		return NI_CONFIG_TEAMD_CTL_UNIX;
+}
+
+static ni_config_teamd_ctl_t
+ni_teamd_client_ctl_detect(const char *instance, char **busname)
+{
+	static ni_config_teamd_ctl_t ctl_once = NI_CONFIG_TEAMD_CTL_DETECT_ONCE;
+	ni_config_teamd_ctl_t ctl = ni_config_teamd_ctl();
+
+	switch (ctl) {
+	case NI_CONFIG_TEAMD_CTL_DBUS:
+	case NI_CONFIG_TEAMD_CTL_UNIX:
+		break;
+	case NI_CONFIG_TEAMD_CTL_DETECT:
+		ctl = ni_teamd_client_ctl_detect_call(instance, busname);
+		break;
+	default:
+	case NI_CONFIG_TEAMD_CTL_DETECT_ONCE:
+		if (ctl_once == NI_CONFIG_TEAMD_CTL_DETECT_ONCE)
+			ctl_once = ni_teamd_client_ctl_detect_call(instance, busname);
+		ctl = ctl_once;
+		break;
+	}
+	return ctl;
+}
+
+ni_teamd_client_t *
+ni_teamd_client_open(const char *instance)
+{
+	ni_config_teamd_ctl_t ctl;
+	ni_teamd_client_t *tdc;
+	char *busname = NULL;
+
+	if (!ni_teamd_enabled(instance))
+		return NULL;
+
+	if (ni_string_empty(instance))
+		return NULL;
+
+	tdc = xcalloc(1, sizeof(*tdc));
+	ni_string_dup(&tdc->instance, instance);
+
+	ctl = ni_teamd_client_ctl_detect(instance, &busname);
+	switch (ctl) {
+	case NI_CONFIG_TEAMD_CTL_DBUS:
+		tdc->ops = teamd_dbus_ops;
+		if (!ni_teamd_dbus_client_init(tdc, busname))
+			goto failure;
+		break;
+	case NI_CONFIG_TEAMD_CTL_UNIX:
+		tdc->ops = teamd_unix_ops;
+		if (!ni_teamd_unix_client_init(tdc))
+			goto failure;
+		break;
+	default:
+		goto failure;
+	}
+
+	ni_string_free(&busname);
+	return tdc;
+
+failure:
+	ni_string_free(&busname);
+	ni_teamd_client_free(tdc);
+	return NULL;
+}
+
+void
+ni_teamd_client_free(ni_teamd_client_t *tdc)
+{
+	if (tdc) {
+		if (tdc->ops.destroy)
+			tdc->ops.destroy(tdc);
+		ni_string_free(&tdc->instance);
+		free(tdc);
+	}
+}
+
+/*
+ * teamd ctl ops
+ */
+int
+ni_teamd_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t active, char **result)
+{
+	if (!tdc || !tdc->ops.ctl_config_dump)
+		return -1;
+	return tdc->ops.ctl_config_dump(tdc, active, result);
+}
+
+int
+ni_teamd_ctl_state_dump(ni_teamd_client_t *tdc, char **result)
+{
+	if (!tdc || !tdc->ops.ctl_state_dump)
+		return -1;
+	return tdc->ops.ctl_state_dump(tdc, result);
+}
+
+int
+ni_teamd_ctl_state_get_item(ni_teamd_client_t *tdc, const char *item_name, char **result)
+{
+	if (!tdc || !tdc->ops.ctl_state_get_item)
+		return -1;
+	return tdc->ops.ctl_state_get_item(tdc, item_name, result);
+}
+
+int
+ni_teamd_ctl_state_set_item(ni_teamd_client_t *tdc, const char *item_name, const char *item_val)
+{
+	if (!tdc || !tdc->ops.ctl_state_set_item)
+		return -1;
+	return tdc->ops.ctl_state_set_item(tdc, item_name, item_val);
+}
+
+int
+ni_teamd_ctl_port_add(ni_teamd_client_t *tdc, const char *port_name)
+{
+	if (!tdc || !tdc->ops.ctl_port_add)
+		return -1;
+	return tdc->ops.ctl_port_add(tdc, port_name);
+}
+
+int
+ni_teamd_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, const char *port_conf)
+{
+	if (!tdc || !tdc->ops.ctl_port_config_update)
+		return -1;
+	return tdc->ops.ctl_port_config_update(tdc, port_name, port_conf);
+}
 
 static ni_json_t *
 ni_teamd_port_config_json(const ni_team_port_config_t *config)
@@ -1250,7 +1384,10 @@ const char *ni_systemctl_tool_path()
 		"/bin/systemctl",
 		NULL
 	};
-	return ni_find_executable(paths);
+	const char *path = ni_find_executable(paths);
+	if (!path)
+		ni_warn_once("unable to find systemctl utility");
+	return path;
 }
 
 /*
@@ -1280,7 +1417,7 @@ ni_teamd_service_start(const ni_netdev_t *cfg)
 	if (!ni_shellcmd_add_arg(cmd, "start"))
 		goto failure;
 
-	ni_string_printf(&service, "teamd@%s.service", cfg->name);
+	ni_string_printf(&service, NI_TEAMD_SERVICE_FMT, cfg->name);
 	if (!service || !ni_shellcmd_add_arg(cmd, service))
 		goto failure;
 
@@ -1329,7 +1466,7 @@ ni_teamd_service_stop(const char *ifname)
 	if (!ni_shellcmd_add_arg(cmd, "stop"))
 		goto failure;
 
-	ni_string_printf(&service, "teamd@%s.service", ifname);
+	ni_string_printf(&service, NI_TEAMD_SERVICE_FMT, ifname);
 	if (!service || !ni_shellcmd_add_arg(cmd, service))
 		goto failure;
 
@@ -1351,5 +1488,94 @@ failure:
 	if (service)
 		free(service);
 	return -1;
+}
+
+static const char *
+ni_teamd_service_show_property(const char *ifname, const char *property, char **result)
+{
+	const char *systemctl;
+	char *complete = NULL;
+	char *service = NULL;
+	char *ptr;
+	ni_shellcmd_t *cmd;
+	ni_process_t *pi;
+	ni_buffer_t buf;
+	int rv;
+
+	if (ni_string_empty(ifname) || ni_string_empty(property) || !result)
+		return NULL;
+
+	if (!ni_string_printf(&complete, "%s=", property))
+		return NULL;
+
+	/*
+	 * systemctl --no-pager -p ${property} show teamd@${ifname}.service
+	 *  -->	${property}=...
+	 *  e.g.:
+	 * 	BusName=
+	 * 	BusName=org.libteam.teamd.team1
+	 */
+	if (!(systemctl = ni_systemctl_tool_path()))
+		return NULL;
+
+	ni_buffer_init_dynamic(&buf, 1024);
+	if (!(cmd = ni_shellcmd_new(NULL)))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(cmd, systemctl))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(cmd, "--no-pager"))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(cmd, "-p"))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(cmd, property))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(cmd, "show"))
+		goto failure;
+
+	ni_string_printf(&service, NI_TEAMD_SERVICE_FMT, ifname);
+	if (!service || !ni_shellcmd_add_arg(cmd, service))
+		goto failure;
+
+	if (!(pi = ni_process_new(cmd)))
+		goto failure;
+
+	rv = ni_process_run_and_capture_output(pi, &buf);
+	ni_process_free(pi);
+	if (rv)
+		goto failure;
+
+	ni_buffer_putc(&buf, '\0');
+	ptr = (char *)ni_buffer_head(&buf);
+	ptr[strcspn(ptr, "\n\r")] = '\0';
+	if (!ni_string_startswith(ptr, complete))
+		goto failure;
+
+	if (!ni_buffer_pull_head(&buf, ni_string_len(complete)))
+		goto failure;
+
+	ptr = (char *)ni_buffer_head(&buf);
+	ni_string_set(result, ptr, ni_string_len(ptr));
+
+	ni_buffer_destroy(&buf);
+	ni_shellcmd_release(cmd);
+	ni_string_free(&service);
+	ni_string_free(&complete);
+	return *result;
+
+failure:
+	ni_error("%s: unable to to query teamd service bus name", ifname);
+	if (complete)
+		free(complete);
+	if (service)
+		free(service);
+	if (cmd)
+		ni_shellcmd_release(cmd);
+	ni_buffer_destroy(&buf);
+	return NULL;
 }
 

@@ -1363,7 +1363,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		 * so we unfortunatelly have to ask teamd here and
 		 * even worser, by name...
 		 */
-		if (ni_netdev_device_is_ready(dev))
+		if (ni_config_teamd_enabled() && ni_netdev_device_is_ready(dev))
 			ni_teamd_discover(dev);
 		break;
 

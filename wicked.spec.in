@@ -53,6 +53,7 @@ Requires(pre):  libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 
 # Note: nanny use is enabled by default
 %bcond_without  use_nanny
+%bcond_without  use_teamd
 
 BuildRequires:  libnl3-devel
 %if 0%{?suse_version} > 1110
@@ -177,6 +178,9 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS"
 	--with-compat=suse		\
 %if %{without use_nanny}
 	--disable-nanny-use		\
+%endif
+%if %{without use_teamd}
+	--disable-teamd			\
 %endif
 %if %{with systemd}
 	--enable-systemd		\

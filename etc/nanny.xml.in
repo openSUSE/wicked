@@ -1,4 +1,12 @@
-<!-- Configuration file for network-nanny -->
+<!--
+     Nanny-specific (wickedd-nanny binanry) configuration
+
+     Note:
+       If you want to make changes to this file, consider putting
+       your changes into @wicked_configdir@/nanny-local.xml instead.
+       Otherwise, you may lose your changes when applying future
+       maintenance updates.
+ -->
 <config>
   <include name="common.xml"/>
 
@@ -7,4 +15,7 @@
     <enable link-layer="ethernet" />
     <enable link-layer="wireless" />
   </nanny -->
+
+  <!-- nanny-local.xml permits to overwrite client options -->
+  <include name="nanny-local.xml" optional="true" />
 </config>

@@ -51,6 +51,18 @@ else
 fi
 AC_SUBST(use_nanny)
 
+# Whether to disable teamd support
+AC_ARG_ENABLE([teamd],
+	      [AS_HELP_STRING([--disable-teamd],
+	       [disable teamd support])],,
+	      [enable_teamd=true])
+if test "x$enable_teamd" = "xno" ; then
+    use_teamd="false"
+else
+    use_teamd="true"
+fi
+AC_SUBST(use_teamd)
+
 # Whether to enable system-v init script installation
 AC_ARG_ENABLE([systemv],
               [AS_HELP_STRING([--enable-systemv],

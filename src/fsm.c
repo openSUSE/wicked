@@ -4605,7 +4605,7 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_SETUP, "shutdownDevice", .call_overloading = TRUE),
 
 	/* Delete the device */
-	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_EXISTS, "deleteDevice", .call_overloading = TRUE),
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_EXISTS, "deleteDevice", .call_overloading = TRUE, .may_fail = TRUE),
 
 	{ .from_state = NI_FSM_STATE_NONE, .next_state = NI_FSM_STATE_NONE, .call_func = NULL }
 };
