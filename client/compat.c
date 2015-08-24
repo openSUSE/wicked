@@ -1775,6 +1775,12 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 		}
 	}
 
+	if (dev->ovs_bridge) {
+		xml_node_t *child;
+		child = xml_node_create(ifnode, "ovs-bridge");
+		xml_node_new_element("name", child, dev->ovs_bridge);
+	}
+
 	switch (dev->link.type) {
 	case NI_IFTYPE_ETHERNET:
 		__ni_compat_generate_ethernet(ifnode, compat);

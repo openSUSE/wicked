@@ -4279,6 +4279,16 @@ __ni_suse_get_scripts(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	__ni_suse_qualify_scripts(compat, "post-down", value);
 }
 
+static void
+__ni_suse_get_ovs_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	const char *ovs_bridge;
+
+	if ((ovs_bridge = ni_sysconfig_get_value(sc, "OVS_BRIDGE")) != NULL) {
+		ni_string_dup(&compat->dev->ovs_bridge, ovs_bridge);
+	}
+}
+
 /*
  * Read ifsysctl file
  */
@@ -4568,6 +4578,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	__ni_suse_read_ifsysctl(sc, compat);
 	__ni_suse_bootproto(sc, compat);
 	__ni_suse_get_scripts(sc, compat);
+	__ni_suse_get_ovs_bridge(sc, compat);
 
 	/* FIXME: What to do with these:
 		NAME
