@@ -1597,7 +1597,6 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 	case NI_EVENT_LINK_DOWN:
 		max_state = NI_FSM_STATE_LINK_UP - 1;
 		break;
-	case NI_EVENT_ADDRESS_DEFERRED:
 	case NI_EVENT_ADDRESS_ACQUIRED:
 		min_state = NI_FSM_STATE_ADDRCONF_UP;
 		break;
@@ -4913,7 +4912,7 @@ __find_corresponding_lease(ni_netdev_t *dev, sa_family_t family, unsigned int ty
 	}
 }
 
-static ni_bool_t
+static int
 address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callback_info_t *cb, ni_event_t event)
 {
 	ni_netdev_t *dev;
@@ -4925,13 +4924,13 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 		ni_error("%s: received %s event with uuid %s, but can't find a device for",
 				w ? w->name : NULL, ni_objectmodel_event_to_signal(event),
 				ni_uuid_print(&cb->uuid));
-		return FALSE;	/* ignore?? */
+		return -1;	/* ignore?? */
 	}
 	if (!(lease = ni_netdev_get_lease_by_uuid(dev, &cb->uuid))) {
 		ni_error("%s: received %s event with uuid %s, but can't find a lease for",
 				w->name, ni_objectmodel_event_to_signal(event),
 				ni_uuid_print(&cb->uuid));
-		return FALSE;	/* ignore?? */
+		return -1;	/* ignore?? */
 	}
 
 	switch (event) {
@@ -4953,7 +4952,7 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 	default:
 		ni_error("%s: received unexpected event %s -- ignoring it",
 				w->name, ni_objectmodel_event_to_signal(event));
-		return TRUE;
+		return 0;	/* ??? */
 	}
 	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
 			"%s: adjusted %s:%s lease to state: %s, flags: 0x%02x",
@@ -4966,36 +4965,34 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 
 	/* if there are still pending leases -- wait for them	*/
 	if (ni_ifworker_waiting_for_event(w, cb->event))
-		return TRUE;
+		return 0;
 
-	/* this is the last lease we were waiting for -- report	*/
-	for (lease = dev->leases; lease; lease = lease->next) {
-		if (lease->state == NI_ADDRCONF_STATE_NONE ||
-		    lease->state == NI_ADDRCONF_STATE_GRANTED)
-			continue;
+	/* report back if to advance state or not */
+	switch (lease->state) {
+	case NI_ADDRCONF_STATE_REQUESTING:
+	case NI_ADDRCONF_STATE_FAILED:
+		if (ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_GROUP)) {
+			other = __find_corresponding_lease(dev, lease->family, lease->type);
+			if (other) {
+				ni_addrconf_flags_format(&buf, other->flags, "|");
+				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+						"%s: %s:%s peer lease in state %s, flags %s",
+						w->name,
+						ni_addrfamily_type_to_name(other->family),
+						ni_addrconf_type_to_name(other->type),
+						ni_addrconf_state_to_name(other->state),
+						buf.string ? buf.string : "none");
+				ni_stringbuf_destroy(&buf);
 
-		/* a not ready, released or failed non-optional lease -> fail */
-		if (!ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_GROUP))
-			return TRUE; /* not an error -> ifup shows status */
-
-		/* optional type-goup peer lease -> check peer lease */
-		other = __find_corresponding_lease(dev, lease->family, lease->type);
-		if (other) {
-			ni_addrconf_flags_format(&buf, other->flags, "|");
-			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
-					"%s: %s:%s peer lease in state %s, flags %s",
-					w->name,
-					ni_addrfamily_type_to_name(other->family),
-					ni_addrconf_type_to_name(other->type),
-					ni_addrconf_state_to_name(other->state),
-					buf.string ? buf.string : "none");
-			ni_stringbuf_destroy(&buf);
-
-			if (other->state != NI_ADDRCONF_STATE_GRANTED)
-				return TRUE; /* not an error -> ifup shows status */
+				/* ok, peer lease is acquired, advance earlier */
+				if (other->state == NI_ADDRCONF_STATE_GRANTED)
+					return 0;
+			}
 		}
+		return 1;	/* do not advance state, wait until timeout */
 	}
-	return TRUE;
+
+	return 0;
 }
 
 static void
@@ -5035,6 +5032,7 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 		if (cb) {
 			ni_event_t cb_event_type;
 			ni_bool_t success;
+			int ret;
 
 			if (ni_objectmodel_signal_to_event(cb->event, &cb_event_type) < 0)
 				cb_event_type = __NI_EVENT_MAX;
@@ -5059,11 +5057,14 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 					goto done;
 				}
 
-				success = address_acquired_callback_handler(w, cb, event_type);
+				ret = address_acquired_callback_handler(w, cb, event_type);
+				success = ret >= 0;
 
-				/* Set event_name and type to the event we wait for */
-				event_name = ni_objectmodel_event_to_signal(cb_event_type);
-				event_type = cb_event_type; /* don't revert state on failure */
+				/* Set event_name and type to the callback event we wait for */
+				if (ret == 0) {
+					event_name = ni_objectmodel_event_to_signal(cb_event_type);
+					event_type = cb_event_type; /* don't revert state on failure */
+				}
 				break;
 			default:
 				break;
