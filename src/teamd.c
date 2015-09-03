@@ -1022,7 +1022,7 @@ ni_teamd_discover(ni_netdev_t *dev)
 
 failure:
 	ni_json_free(conf);
-	ni_team_free(dev->team);
+	ni_team_free(team);
 	ni_teamd_client_free(tdc);
 	ni_string_free(&val);
 	return -1;
