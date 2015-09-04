@@ -809,7 +809,7 @@ ni_lldp_tlv_begin(ni_lldp_tlv_t *tlv, ni_buffer_t *bp, unsigned int type)
 	tlv->type = type;
 	tlv->begin = ni_buffer_tail(bp);
 
-	if (!ni_buffer_put(bp, &dummy, 2) < 0)
+	if (ni_buffer_put(bp, &dummy, 2) < 0)
 		return -1;
 
 	return 0;
@@ -822,7 +822,7 @@ ni_lldp_tlv_begin_subtype(ni_lldp_tlv_t *tlv, ni_buffer_t *bp, unsigned int type
 		return -1;
 
 	tlv->subtype = subtype;
-	if (!ni_buffer_putc(bp, subtype) < 0)
+	if (ni_buffer_putc(bp, subtype) < 0)
 		return -1;
 
 	return 0;
