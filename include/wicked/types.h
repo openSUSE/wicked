@@ -33,6 +33,8 @@ typedef struct ni_vlan		ni_vlan_t;
 typedef struct ni_macvlan	ni_macvlan_t;
 typedef struct ni_bridge	ni_bridge_t;
 typedef struct ni_bridge_port	ni_bridge_port_t;
+typedef struct ni_ovs_bridge	ni_ovs_bridge_t;
+typedef struct ni_ovs_bridge_port_config ni_ovs_bridge_port_config_t;
 typedef struct ni_bonding	ni_bonding_t;
 typedef struct ni_team		ni_team_t;
 typedef struct ni_team_port_config ni_team_port_config_t;

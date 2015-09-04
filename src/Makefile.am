@@ -85,6 +85,7 @@ libwicked_la_SOURCES		= \
 	netinfo.c		\
 	nis.c			\
 	openvpn.c		\
+	ovs.c			\
 	ppp.c			\
 	process.c		\
 	resolver.c		\
@@ -132,6 +133,7 @@ libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/modem.c	\
 	dbus-objects/naming.c	\
 	dbus-objects/openvpn.c	\
+	dbus-objects/ovs.c	\
 	dbus-objects/ppp.c	\
 	dbus-objects/state.c	\
 	dbus-objects/team.c	\
@@ -190,6 +192,7 @@ wicked_headers			= \
 	modem-manager.h		\
 	modprobe.h		\
 	netinfo_priv.h		\
+	ovs.h			\
 	process.h		\
 	socket_priv.h		\
 	sysfs.h			\

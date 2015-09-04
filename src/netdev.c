@@ -16,6 +16,7 @@
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
 #include <wicked/team.h>
+#include <wicked/ovs.h>
 #include <wicked/ethernet.h>
 #include <wicked/infiniband.h>
 #include <wicked/wireless.h>
@@ -97,6 +98,7 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_bonding(dev, NULL);
 	ni_netdev_set_team(dev, NULL);
 	ni_netdev_set_bridge(dev, NULL);
+	ni_netdev_set_ovs_bridge(dev, NULL);
 	ni_netdev_set_vlan(dev, NULL);
 	ni_netdev_set_macvlan(dev, NULL);
 	ni_netdev_set_ipip(dev, NULL);
@@ -371,6 +373,27 @@ ni_netdev_set_bridge(ni_netdev_t *dev, ni_bridge_t *bridge)
 	if (dev->bridge)
 		ni_bridge_free(dev->bridge);
 	dev->bridge = bridge;
+}
+
+/*
+ * Get the interface's ovs bridge information
+ */
+ni_ovs_bridge_t *
+ni_netdev_get_ovs_bridge(ni_netdev_t *dev)
+{
+	if (dev->link.type != NI_IFTYPE_OVS_BRIDGE)
+		return NULL;
+	if (!dev->ovsbr)
+		dev->ovsbr = ni_ovs_bridge_new();
+	return dev->ovsbr;
+}
+
+void
+ni_netdev_set_ovs_bridge(ni_netdev_t *dev, ni_ovs_bridge_t *ovsbr)
+{
+	if (dev->ovsbr)
+		ni_ovs_bridge_free(dev->ovsbr);
+	dev->ovsbr = ovsbr;
 }
 
 /*

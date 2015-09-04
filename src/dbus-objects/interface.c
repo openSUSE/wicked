@@ -111,6 +111,7 @@ ni_objectmodel_register_netif_services(void)
 	ni_objectmodel_register_netif_service(NI_IFTYPE_BOND, &ni_objectmodel_bond_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_TEAM, &ni_objectmodel_team_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_BRIDGE, &ni_objectmodel_bridge_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_OVS_BRIDGE, &ni_objectmodel_ovs_bridge_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_WIRELESS, &ni_objectmodel_wireless_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_TUN, &ni_objectmodel_tun_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_TAP, &ni_objectmodel_tap_service);
@@ -124,6 +125,7 @@ ni_objectmodel_register_netif_services(void)
 		ni_objectmodel_register_netif_factory_service(&ni_objectmodel_team_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_bond_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_bridge_factory_service);
+	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_ovs_bridge_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_vlan_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_macvlan_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_macvtap_factory_service);
@@ -1600,6 +1602,7 @@ __ni_objectmodel_netdev_req_get_port(const ni_dbus_object_t *object, const ni_db
 	case NI_IFTYPE_TEAM:
 	case NI_IFTYPE_BOND:
 	case NI_IFTYPE_BRIDGE:
+	case NI_IFTYPE_OVS_BRIDGE:
 		if ((name = ni_linktype_type_to_name(req->port->type)))
 			break;
 	default:
@@ -1614,7 +1617,16 @@ __ni_objectmodel_netdev_req_get_port(const ni_dbus_object_t *object, const ni_db
 	switch (req->port->type) {
 	case NI_IFTYPE_TEAM: {
 			const ni_team_port_config_t *pconf = &req->port->team;
+
 			if (!__ni_objectmodel_get_team_port_config(pconf, dict, error))
+				return FALSE;
+		}
+		break;
+
+	case NI_IFTYPE_OVS_BRIDGE: {
+			const ni_ovs_bridge_port_config_t *pconf = &req->port->ovsbr;
+
+			if (!__ni_objectmodel_get_ovs_bridge_port_config(pconf, dict, error))
 				return FALSE;
 		}
 		break;
@@ -1650,6 +1662,7 @@ __ni_objectmodel_netdev_req_set_port(ni_dbus_object_t *object, const ni_dbus_pro
 	case NI_IFTYPE_TEAM:
 	case NI_IFTYPE_BOND:
 	case NI_IFTYPE_BRIDGE:
+	case NI_IFTYPE_OVS_BRIDGE:
 		break;
 	default:
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
@@ -1677,8 +1690,15 @@ __ni_objectmodel_netdev_req_set_port(ni_dbus_object_t *object, const ni_dbus_pro
 	case NI_IFTYPE_TEAM: {
 			ni_team_port_config_t *pconf = &req->port->team;
 
-			ni_team_port_config_init(pconf);
 			if (!__ni_objectmodel_set_team_port_config(pconf, dict, error))
+				return FALSE;
+		}
+		break;
+
+	case NI_IFTYPE_OVS_BRIDGE: {
+			ni_ovs_bridge_port_config_t *pconf = &req->port->ovsbr;
+
+			if (!__ni_objectmodel_set_ovs_bridge_port_config(pconf, dict, error))
 				return FALSE;
 		}
 		break;
@@ -1686,7 +1706,8 @@ __ni_objectmodel_netdev_req_set_port(ni_dbus_object_t *object, const ni_dbus_pro
 	case NI_IFTYPE_BOND:
 	case NI_IFTYPE_BRIDGE:
 	default:
-		break;
+		dbus_set_error(error, DBUS_ERROR_FAILED, "unable to initialize netdev request %s port data", name);
+		return FALSE;
 	}
 	return TRUE;
 }

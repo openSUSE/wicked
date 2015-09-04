@@ -71,6 +71,8 @@ typedef enum ni_iftype {
 	NI_IFTYPE_CTCM,		/* s390 ctcm (slip) devices */
 	NI_IFTYPE_IUCV,		/* s390 iucv (slip) devices */
 	NI_IFTYPE_TEAM,
+	NI_IFTYPE_OVS_SYSTEM,
+	NI_IFTYPE_OVS_BRIDGE,
 
 	__NI_IFTYPE_MAX
 } ni_iftype_t;

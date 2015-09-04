@@ -75,6 +75,8 @@ static const ni_intmap_t	__linktype_names[] = {
 	{ "ctcm",		NI_IFTYPE_CTCM },
 	{ "iucv",		NI_IFTYPE_IUCV },
 	{ "team",		NI_IFTYPE_TEAM },
+	{ "ovs-system",		NI_IFTYPE_OVS_SYSTEM },
+	{ "ovs-bridge",		NI_IFTYPE_OVS_BRIDGE },
 
 	{ NULL }
 };

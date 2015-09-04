@@ -52,6 +52,7 @@
 #include <wicked/infiniband.h>
 #include <wicked/bonding.h>
 #include <wicked/team.h>
+#include <wicked/ovs.h>
 #include <wicked/bridge.h>
 #include <wicked/vlan.h>
 #include <wicked/macvlan.h>
@@ -77,6 +78,7 @@ static ni_bool_t		__ni_suse_read_globals(const char *, const char *, const char 
 static void			__ni_suse_free_globals(void);
 static void			__ni_suse_show_unapplied_routes(void);
 static void			__ni_suse_adjust_slaves(ni_compat_netdev_array_t *);
+static void			__ni_suse_adjust_ovs_system(ni_compat_netdev_t *);
 static ni_bool_t		__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
 static int			__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *,
 							const char *, try_function_t);
@@ -2134,6 +2136,113 @@ try_team(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	return 0;
 }
+
+static ni_bool_t
+try_add_ovs_bridge_port(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
+{
+	const ni_var_t *var;
+
+	if (!dev->ovsbr)
+		return FALSE;
+
+	var = __find_indexed_variable(sc, "OVS_BRIDGE_PORT_DEVICE", suffix);
+	if (!var || !ni_netdev_name_is_valid(var->value)) {
+		size_t len;
+		if (var && (len = ni_string_len(var->value))) {
+			ni_error("ifcfg-%s: Suspect device in OVS_BRIDGE_PORT_DEVICE%s='%s'",
+					dev->name, suffix, ni_print_suspect(var->value, len));
+		} else {
+			ni_error("ifcfg-%s: OVS_BRIDGE_PORT_DEVICE%s cannot be empty",
+					dev->name, suffix);
+		}
+		return FALSE;
+	}
+
+	if (!ni_ovs_bridge_port_array_add_new(&dev->ovsbr->ports, var->value)) {
+		ni_warn("ifcfg-%s: Cannot add OVS_BRIDGE_PORT_DEVICE%s='%s' or not unique, skipped",
+				dev->name, suffix, var->value);
+	}
+	return TRUE;
+}
+
+static int
+try_ovs_bridge(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	ni_ovs_bridge_t *ovsbr;
+	ni_bool_t enabled;
+	const char *parent;
+	const char *vlan;
+	unsigned int tag;
+
+	if (!ni_sysconfig_get_boolean(sc, "OVS_BRIDGE", &enabled) || !enabled)
+		return 1;
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config contains ovs bridge variables",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
+
+	dev->link.type = NI_IFTYPE_OVS_BRIDGE;
+	ovsbr = ni_netdev_get_ovs_bridge(dev);
+
+	if ((parent = ni_sysconfig_get_value(sc, "OVS_BRIDGE_VLAN_PARENT"))) {
+		if (!ni_netdev_name_is_valid(parent)) {
+			ni_error("ifcfg-%s: Suspect device in OVS_BRIDGE_VLAN_PARENT='%s'",
+					dev->name, ni_print_suspect(parent, ni_string_len(parent)));
+			return -1;
+		}
+		if (!(vlan = ni_sysconfig_get_value(sc, "OVS_BRIDGE_VLAN_TAG"))) {
+			ni_error("ifcfg-%s: OVS_BRIDGE_VLAN_TAG=... missed", dev->name);
+			return -1;
+		}
+		if (ni_parse_uint(vlan, &tag, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse OVS_BRIDGE_VLAN_TAG=\"%s\"",
+					dev->name, vlan);
+			return -1;
+		}
+		if (!tag || tag > __NI_VLAN_TAG_MAX) {
+			ni_error("ifcfg-%s: OVS_BRIDGE_VLAN_TAG='%u' not in range 1..%u",
+					dev->name, ovsbr->config.vlan.tag, __NI_VLAN_TAG_MAX);
+			return -1;
+		}
+		ni_netdev_ref_set_ifname(&ovsbr->config.vlan.parent, parent);
+		ovsbr->config.vlan.tag = tag;
+	}
+
+	if (__process_indexed_variables(sc, dev, "OVS_BRIDGE_PORT_DEVICE",
+					try_add_ovs_bridge_port) < 0)
+		return -1;
+
+	return 0;
+}
+
+static int
+try_ovs_system(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	static const char *ovs_system = NULL;
+	ni_netdev_t *dev = compat->dev;
+
+	/* Consider ovs-system as a fixed/reserved master device for openvswitch */
+	if (ovs_system == NULL)
+		ovs_system = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
+
+	if (strcmp(dev->name, ovs_system))
+		return 1;
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config is using reserved %s device name",
+			dev->name, ni_linktype_type_to_name(dev->link.type), ovs_system);
+		return -1;
+	}
+
+	dev->link.type = NI_IFTYPE_OVS_SYSTEM;
+	__ni_suse_adjust_ovs_system(compat);
+
+	return 0;
+}
+
 
 /*
  * Bridge devices are recognized by BRIDGE=yes
@@ -4392,8 +4501,8 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	return TRUE;
 }
 
-static ni_netdev_t *
-__ni_suse_find_compat_device(ni_compat_netdev_array_t *netdevs, const char *name)
+static ni_compat_netdev_t *
+__ni_suse_find_compat(ni_compat_netdev_array_t *netdevs, const char *name)
 {
 	ni_compat_netdev_t *compat;
 	unsigned int i;
@@ -4401,9 +4510,16 @@ __ni_suse_find_compat_device(ni_compat_netdev_array_t *netdevs, const char *name
 	for (i = 0; i < netdevs->count; ++i) {
 		compat = netdevs->data[i];
 		if (ni_string_eq(compat->dev->name, name))
-			return compat->dev;
+			return compat;
 	}
 	return NULL;
+}
+
+static ni_netdev_t *
+__ni_suse_find_compat_device(ni_compat_netdev_array_t *netdevs, const char *name)
+{
+	ni_compat_netdev_t *compat = __ni_suse_find_compat(netdevs, name);
+	return compat ? compat->dev : NULL;
 }
 
 static ni_bool_t
@@ -4437,8 +4553,8 @@ __ni_suse_set_link_master(ni_netdev_t *dev, const char *master, const char *ifcf
 	return TRUE;
 }
 
-static ni_bool_t
-__ni_suse_create_compat_slave(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master, const char *slave)
+static ni_compat_netdev_t *
+__ni_suse_create_compat_slave(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master, const char *master_name, const char *slave)
 {
 	ni_ifworker_control_t control = { "hotplug", NULL, FALSE, FALSE, NI_TRISTATE_DEFAULT, 0, 0 };
 	ni_compat_netdev_t *compat;
@@ -4447,9 +4563,12 @@ __ni_suse_create_compat_slave(ni_compat_netdev_array_t *netdevs, ni_compat_netde
 
 	compat = ni_compat_netdev_new(slave);
 	if (!compat)
-		return FALSE;
+		return NULL;
 
-	__ni_suse_set_link_master(compat->dev, master->dev->name, master->dev->name);
+	if (master_name)
+		__ni_suse_set_link_master(compat->dev, master_name, master->dev->name);
+	else
+		__ni_suse_set_link_master(compat->dev, master->dev->name, master->dev->name);
 
 	/* apply control defaults  */
 	compat->control = ni_ifworker_control_clone(&control);
@@ -4461,7 +4580,7 @@ __ni_suse_create_compat_slave(ni_compat_netdev_array_t *netdevs, ni_compat_netde
 
 	ni_compat_netdev_array_append(netdevs, compat);
 
-	return TRUE;
+	return compat;
 }
 
 static void
@@ -4478,7 +4597,7 @@ __ni_suse_adjust_bond_slaves(ni_compat_netdev_array_t *netdevs, ni_compat_netdev
 		if (dev) {
 			__ni_suse_set_link_master(dev, master->dev->name, master->dev->name);
 		} else {
-			__ni_suse_create_compat_slave(netdevs, master, slave);
+			__ni_suse_create_compat_slave(netdevs, master, master->dev->name, slave);
 		}
 	}
 }
@@ -4497,7 +4616,80 @@ __ni_suse_adjust_bridge_ports(ni_compat_netdev_array_t *netdevs, ni_compat_netde
 		if (dev) {
 			__ni_suse_set_link_master(dev, master->dev->name, master->dev->name);
 		} else {
-			__ni_suse_create_compat_slave(netdevs, master, port);
+			__ni_suse_create_compat_slave(netdevs, master, master->dev->name, port);
+		}
+	}
+}
+
+static void
+__ni_suse_adjust_ovs_system(ni_compat_netdev_t *compat)
+{
+	static const ni_ifworker_control_t control = {
+		"hotplug", NULL, FALSE, FALSE, NI_TRISTATE_DEFAULT, 0, 0
+	};
+	ni_ipv4_devinfo_t *ipv4;
+	ni_ipv6_devinfo_t *ipv6;
+
+	/*
+	 * This datapath device does not need any setup (not even link up),
+	 * but as it is actively used as master device for all bridge ports
+	 * so we have to consider it... adjust it as good as we can.
+	 * We don't have any "do not set UP the link up" flag until now...
+	 */
+	compat->control = ni_ifworker_control_clone(&control);
+	if ((ipv4 = ni_netdev_get_ipv4(compat->dev)))
+		ni_tristate_set(&ipv4->conf.enabled, FALSE);
+	if ((ipv6 = ni_netdev_get_ipv6(compat->dev)))
+		ni_tristate_set(&ipv6->conf.enabled, FALSE);
+}
+
+static void
+__ni_suse_create_ovs_system(ni_compat_netdev_array_t *netdevs, const char *ovs_system, const char *origin)
+{
+	ni_compat_netdev_t *compat;
+	ni_client_state_t *cs;
+	const char *sibling;
+
+	if ((compat = __ni_suse_find_compat(netdevs, ovs_system)))
+		return;
+
+	compat = ni_compat_netdev_new(ovs_system);
+
+	__ni_suse_adjust_ovs_system(compat);
+	cs = ni_netdev_get_client_state(compat->dev);
+	/* fake it, otherwise it would depend on the trigger device names  */
+	sibling = ni_sibling_path_printf(origin, __NI_SUSE_CONFIG_IFPREFIX"%s", ovs_system);
+	ni_string_dup(&cs->config.origin, sibling);
+
+	ni_compat_netdev_array_append(netdevs, compat);
+}
+
+static void
+__ni_suse_adjust_ovs_bridge_ports(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master)
+{
+	ni_ovs_bridge_t *ovsbr = ni_netdev_get_ovs_bridge(master->dev);
+	static const char *ovs_system = NULL;
+	ni_compat_netdev_t *compat;
+	ni_ovs_bridge_port_t *p;
+	ni_client_state_t *cs;
+	const char *port;
+	unsigned int i;
+
+	if (ovs_system == NULL)
+		ovs_system = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
+
+	cs = ni_netdev_get_client_state(master->dev);
+	__ni_suse_create_ovs_system(netdevs, ovs_system, cs->config.origin);
+	for (i = 0; i < ovsbr->ports.count; ++i) {
+		p = ovsbr->ports.data[i];
+		port = p->device.name;
+		compat = __ni_suse_find_compat(netdevs, port);
+		if (compat) {
+			__ni_suse_set_link_master(compat->dev, ovs_system, master->dev->name);
+			ni_netdev_ref_set_ifname(&compat->link_port.ovsbr.bridge, master->dev->name);
+		} else
+		if ((compat = __ni_suse_create_compat_slave(netdevs, master, ovs_system, port))) {
+			ni_netdev_ref_set_ifname(&compat->link_port.ovsbr.bridge, master->dev->name);
 		}
 	}
 }
@@ -4519,6 +4711,9 @@ __ni_suse_adjust_slaves(ni_compat_netdev_array_t *netdevs)
 			break;
 		case NI_IFTYPE_BRIDGE:
 			__ni_suse_adjust_bridge_ports(netdevs, compat);
+			break;
+		case NI_IFTYPE_OVS_BRIDGE:
+			__ni_suse_adjust_ovs_bridge_ports(netdevs, compat);
 			break;
 		default:
 			break;
@@ -4551,6 +4746,8 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	compat->control = __ni_suse_startmode(sc);
 
 	if (try_loopback(sc, compat)   < 0 ||
+	    try_ovs_system(sc, compat) < 0 ||
+	    try_ovs_bridge(sc, compat) < 0 ||
 	    try_bonding(sc, compat)    < 0 ||
 	    try_team(sc, compat)       < 0 ||
 	    try_bridge(sc, compat)     < 0 ||
@@ -4563,6 +4760,9 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	    /* keep ethernet the last one */
 	    try_ethernet(sc, compat)   < 0)
 		return FALSE;
+
+	if (compat->dev->link.type == NI_IFTYPE_OVS_SYSTEM)
+		return TRUE;
 
 	__ni_suse_read_linkinfo(sc, compat);
 	__ni_suse_read_ifsysctl(sc, compat);
