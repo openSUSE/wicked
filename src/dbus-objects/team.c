@@ -720,6 +720,61 @@ __ni_objectmodel_team_set_link_watch(ni_dbus_object_t *object, const ni_dbus_pro
 }
 
 /*
+ * Helper function for team port config as dict
+ */
+/* extern */ dbus_bool_t
+__ni_objectmodel_get_team_port_config(const ni_team_port_config_t *pconf, ni_dbus_variant_t *dict, DBusError *error)
+{
+	(void)error;
+
+	if (!pconf || !dict)
+		return FALSE;
+
+	if (pconf->queue_id != -1U)
+		ni_dbus_dict_add_uint32(dict, "queue_id", pconf->queue_id);
+
+	if (pconf->ab.prio)
+		ni_dbus_dict_add_uint32(dict, "prio", pconf->ab.prio);
+	if (pconf->ab.sticky)
+		ni_dbus_dict_add_bool(dict, "sticky", pconf->ab.sticky);
+
+	if (pconf->lacp.prio)
+		ni_dbus_dict_add_uint32(dict, "lacp_prio", pconf->lacp.prio);
+	if (pconf->lacp.key)
+		ni_dbus_dict_add_uint32(dict, "lacp_key", pconf->lacp.key);
+
+	return TRUE;
+}
+
+/* extern */ dbus_bool_t
+__ni_objectmodel_set_team_port_config(ni_team_port_config_t *pconf, const ni_dbus_variant_t *dict, DBusError *error)
+{
+	dbus_bool_t b;
+	uint32_t u32;
+
+	(void)error;
+
+	if (!pconf || !dict)
+		return FALSE;
+
+	if (ni_dbus_dict_get_uint32(dict, "queue_id", &u32))
+		pconf->queue_id = u32;
+
+	if (ni_dbus_dict_get_uint32(dict, "prio", &u32))
+		pconf->ab.prio = u32;
+	if (ni_dbus_dict_get_bool(dict, "sticky", &b))
+		pconf->ab.sticky = b;
+
+	if (ni_dbus_dict_get_uint32(dict, "lacp_prio", &u32))
+		pconf->lacp.prio = u32;
+
+	if (ni_dbus_dict_get_uint32(dict, "lacp_key", &u32))
+		pconf->lacp.key = u32;
+
+	return TRUE;
+}
+
+/*
  * Helper function for team port device as dict
  */
 static dbus_bool_t
@@ -727,35 +782,23 @@ __ni_objectmodel_team_port_to_dict(const ni_team_port_t *port, ni_dbus_variant_t
 {
 	(void)error;
 
-	if (ni_string_empty(port->device.name))
+	if (!port || !dict || ni_string_empty(port->device.name))
 		return FALSE;
 
 	ni_dbus_dict_add_string(dict, "device", port->device.name);
 
-	if (port->config.queue_id != -1U)
-		ni_dbus_dict_add_uint32(dict, "queue_id", port->config.queue_id);
-
-	if (port->config.ab.prio)
-		ni_dbus_dict_add_uint32(dict, "prio", port->config.ab.prio);
-	if (port->config.ab.sticky)
-		ni_dbus_dict_add_bool(dict, "sticky", port->config.ab.sticky);
-
-	if (port->config.lacp.prio)
-		ni_dbus_dict_add_uint32(dict, "lacp_prio", port->config.lacp.prio);
-	if (port->config.lacp.key)
-		ni_dbus_dict_add_uint32(dict, "lacp_key", port->config.lacp.key);
-
-	return TRUE;
+	return __ni_objectmodel_get_team_port_config(&port->config, dict, error);
 }
 
 static dbus_bool_t
 __ni_objectmodel_team_port_from_dict(ni_team_port_t *port, const ni_dbus_variant_t *dict, DBusError *error)
 {
 	const char *string;
-	dbus_bool_t b;
-	uint32_t u32;
 
 	(void)error;
+
+	if (!port || !dict)
+		return FALSE;
 
 	if (dict->array.len == 0)
 		return TRUE;
@@ -766,22 +809,7 @@ __ni_objectmodel_team_port_from_dict(ni_team_port_t *port, const ni_dbus_variant
 		return FALSE;
 
 	ni_team_port_config_init(&port->config);
-
-	if (ni_dbus_dict_get_uint32(dict, "queue_id", &u32))
-		port->config.queue_id = u32;
-
-	if (ni_dbus_dict_get_uint32(dict, "prio", &u32))
-		port->config.ab.prio = u32;
-	if (ni_dbus_dict_get_bool(dict, "sticky", &b))
-		port->config.ab.sticky = b;
-
-	if (ni_dbus_dict_get_uint32(dict, "lacp_prio", &u32))
-		port->config.lacp.prio = u32;
-
-	if (ni_dbus_dict_get_uint32(dict, "lacp_key", &u32))
-		port->config.lacp.key = u32;
-
-	return TRUE;
+	return __ni_objectmodel_set_team_port_config(&port->config, dict, error);
 }
 
 /*
