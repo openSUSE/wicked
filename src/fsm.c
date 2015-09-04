@@ -1352,18 +1352,20 @@ ni_ifworker_set_lower_device(ni_ifworker_t *child, ni_ifworker_t *lower, xml_nod
 }
 
 static ni_bool_t
-ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode, ni_bool_t shared)
+ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode, ni_bool_t shared, ni_bool_t supplemental)
 {
 	unsigned int i;
 
-	if (shared) {
-		/* a vlan "parent" refers to it's lower in "child" */
-		if (!ni_ifworker_set_lower_device(parent, child, devnode))
-			return FALSE;
-	} else {
-		/* master "parent" refers to it's slave in "child" */
-		if (!ni_ifworker_set_master_device(child, parent, devnode))
-			return FALSE;
+	if (!supplemental) {
+		if (shared) {
+			/* a vlan "parent" refers to it's lower in "child" */
+			if (!ni_ifworker_set_lower_device(parent, child, devnode))
+				return FALSE;
+		} else {
+			/* master "parent" refers to it's slave in "child" */
+			if (!ni_ifworker_set_master_device(child, parent, devnode))
+				return FALSE;
+		}
 	}
 
 	/* Generate missed slave config if needed */
@@ -1998,7 +2000,7 @@ ni_fsm_require_netif_resolve(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *
 		return FALSE;
 
 	ni_debug_application("%s: resolved reference to subordinate device %s", w->name, cw->name);
-	if (!ni_ifworker_add_child(w, cw, devnode, FALSE))
+	if (!ni_ifworker_add_child(w, cw, devnode, FALSE, FALSE))
 		return FALSE;
 
 	req->user_data = NULL;
@@ -2032,7 +2034,7 @@ ni_fsm_require_modem_resolve(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *
 		return FALSE;
 
 	ni_debug_application("%s: resolved reference to subordinate device %s", w->name, cw->name);
-	if (!ni_ifworker_add_child(w, cw, devnode, FALSE))
+	if (!ni_ifworker_add_child(w, cw, devnode, FALSE, FALSE))
 		return FALSE;
 
 	req->user_data = NULL;
@@ -3320,6 +3322,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 	xml_node_t *mchild;
 	ni_bool_t shared = FALSE;
 	ni_bool_t subordinate = FALSE;
+	ni_bool_t supplemental = FALSE;
 
 	for (mchild = metadata->children; mchild; mchild = mchild->next) {
 		ni_stringbuf_t path = NI_STRINGBUF_INIT_DYNAMIC;
@@ -3334,7 +3337,13 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 			if (!(cw = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_NETDEV, w->name)))
 				continue;
 
+			/* supplemental is an additional reference, e.g. hidden inside of openvswitch */
+			if ((attr = xml_node_get_attr(mchild, "supplemental")))
+				supplemental = ni_string_eq(attr, "true");
+
 			/* subordinate is a slave -> master reference, counterpart of shared=false */
+			if ((attr = xml_node_get_attr(mchild, "supplemental")))
+				supplemental = ni_string_eq(attr, "true");
 			if ((attr = xml_node_get_attr(mchild, "subordinate")))
 				subordinate = ni_string_eq(attr, "true");
 			if (!subordinate && (attr = xml_node_get_attr(mchild, "shared")))
@@ -3349,16 +3358,16 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 
 			if (subordinate) {
 				/* slave w refers to it's master in cw */
-				if (!ni_ifworker_add_child(cw, w, node, FALSE))
+				if (!ni_ifworker_add_child(cw, w, node, FALSE, supplemental))
 					return FALSE;
 			} else
 			if (shared) {
 				/* vlan w refers to it's lower in cw   */
-				if (!ni_ifworker_add_child(w, cw, node, TRUE))
+				if (!ni_ifworker_add_child(w, cw, node, TRUE, supplemental))
 					return FALSE;
 			} else {
 				/* master w refers to it's slave in cw */
-				if (!ni_ifworker_add_child(w, cw, node, FALSE))
+				if (!ni_ifworker_add_child(w, cw, node, FALSE, supplemental))
 					return FALSE;
 			}
 		} else
@@ -3371,6 +3380,10 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 			if (!(cw = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_MODEM, w->name)))
 				return FALSE;
 
+			/* supplemental is an additional reference, e.g. hidden inside of openvswitch */
+			if ((attr = xml_node_get_attr(mchild, "supplemental")))
+				supplemental = ni_string_eq(attr, "true");
+
 			/* subordinate is a slave -> master reference, counterpart of shared=false */
 			if ((attr = xml_node_get_attr(mchild, "subordinate")))
 				subordinate = ni_string_eq(attr, "true");
@@ -3386,16 +3399,16 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 
 			if (subordinate) {
 				/* slave w refers to it's master in cw */
-				if (!ni_ifworker_add_child(cw, w, node, FALSE))
+				if (!ni_ifworker_add_child(cw, w, node, FALSE, supplemental))
 					return FALSE;
 			} else
 			if (shared) {
 				/* vlan w refers to it's lower in cw   */
-				if (!ni_ifworker_add_child(w, cw, node, TRUE))
+				if (!ni_ifworker_add_child(w, cw, node, TRUE, supplemental))
 					return FALSE;
 			} else {
 				/* master w refers to it's slave in cw */
-				if (!ni_ifworker_add_child(w, cw, node, FALSE))
+				if (!ni_ifworker_add_child(w, cw, node, FALSE, supplemental))
 					return FALSE;
 			}
 
