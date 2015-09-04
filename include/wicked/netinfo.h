@@ -86,6 +86,9 @@ struct ni_netdev {
 	ni_lldp_t *		lldp;
 	ni_dcb_t *		dcb;
 
+	/* If device is used as a port for an ovs_bridge, set the bridge name. */
+	char *			ovs_bridge;
+
 	ni_pci_dev_t *		pci_dev;
 
 	ni_event_filter_t *	event_filter;
