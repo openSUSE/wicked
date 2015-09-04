@@ -913,7 +913,7 @@ __ni_suse_route_parse(ni_route_table_t **routes, char *buffer, const char *ifnam
 				goto failure;
 			}
 		}
-		if (!ni_sockaddr_parse(&rp->destination, dest, AF_UNSPEC) < 0) {
+		if (ni_sockaddr_parse(&rp->destination, dest, AF_UNSPEC) < 0) {
 			ni_error("%s[%u]: Cannot parse route destination prefix \"%s\"",
 				filename, line, dest);
 			goto failure;
@@ -2323,7 +2323,7 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	if ((vlantag = ni_sysconfig_get_value(sc, "VLAN_ID")) != NULL) {
-		if (!ni_parse_uint(vlantag, &tag, 10) < 0) {
+		if (ni_parse_uint(vlantag, &tag, 10) < 0) {
 			ni_error("ifcfg-%s: Cannot parse VLAN_ID=\"%s\"",
 				dev->name, vlantag);
 			return -1;
@@ -2339,15 +2339,15 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			while(len > 0 && isdigit((unsigned char)vlantag[-1]))
 				vlantag--;
 		}
-		if (!ni_parse_uint(vlantag, &tag, 10) < 0) {
+		if (ni_parse_uint(vlantag, &tag, 10) < 0) {
 			ni_error("ifcfg-%s: Cannot parse vlan-tag from interface name",
 				dev->name);
 			return -1;
 		}
 	}
 	if (tag > __NI_VLAN_TAG_MAX) {
-		ni_error("ifcfg-%s: VLAN tag %u is out of numerical range",
-			dev->name, tag);
+		ni_error("ifcfg-%s: VLAN tag %u is out of numerical range 1..%u",
+			dev->name, tag, __NI_VLAN_TAG_MAX);
 		return -1;
 #if 0
 	} else if (tag == 0) {
