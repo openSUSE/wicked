@@ -84,6 +84,15 @@ __ni_ifup_generate_match(const char *name, ni_ifworker_t *w)
 	if (!__ni_ifup_generate_match_dev(match, w))
 		goto error;
 
+	/* Ignore child dependency for following device types */
+	switch (w->iftype) {
+	case NI_IFTYPE_OVS_SYSTEM:
+		goto done;
+		break;
+	default:
+		break;
+	}
+
 	if (w->children.count) {
 		xml_node_t *or;
 		unsigned int i;
@@ -101,6 +110,7 @@ __ni_ifup_generate_match(const char *name, ni_ifworker_t *w)
 		}
 	}
 
+done:
 	return match;
 error:
 	xml_node_free(match);
