@@ -274,7 +274,7 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 
 			master = ni_netdev_by_name(nc, ifp_req->master.name);
 			ret = ni_system_interface_enslave(master, dev, ifp_req);
-			if (master->link.type != NI_IFTYPE_OVS_SYSTEM)
+			if (!master || master->link.type != NI_IFTYPE_OVS_SYSTEM)
 				return ret;
 		}
 
