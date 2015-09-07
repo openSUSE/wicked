@@ -339,6 +339,7 @@ fi
 %_mandir/man5/ifcfg-dummy.5*
 %_mandir/man5/ifcfg-macvlan.5*
 %_mandir/man5/ifcfg-macvtap.5*
+%_mandir/man5/ifcfg-ovs-bridge.5*
 %_mandir/man5/ifcfg-team.5*
 %_mandir/man5/ifcfg-tunnel.5*
 %_mandir/man5/ifcfg-vlan.5*

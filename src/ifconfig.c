@@ -78,6 +78,7 @@
 #include "debug.h"
 #include "modprobe.h"
 #include "teamd.h"
+#include "ovs.h"
 
 #ifndef SIT_TUNNEL_MODULE_NAME
 #define SIT_TUNNEL_MODULE_NAME "sit"
@@ -191,6 +192,25 @@ ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev, const ni_netd
 				ni_wireless_connect(dev);
 		}
 		break;
+	case NI_IFTYPE_OVS_SYSTEM:
+		if (!req->port || req->port->type != NI_IFTYPE_OVS_BRIDGE) {
+			ni_error("%s: port configuration type mismatch", dev->name);
+			return -1;
+		}
+		if (ni_string_empty(req->port->ovsbr.bridge.name)) {
+			ni_error("%s: missing ovs-bridge name in port config", dev->name);
+			return -1;
+		}
+
+		ret = ni_ovs_vsctl_bridge_port_add(dev->name, &req->port->ovsbr);
+		if (ret == 0)  {
+			ni_netdev_ref_set(&dev->link.masterdev,
+					master->name, master->link.ifindex);
+		} else {
+			/* TODO */
+			ret = -1;
+		}
+		break;
 	default:
 		break;
 	}
@@ -209,8 +229,9 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 
 	ni_debug_ifconfig("%s(%s)", __func__, dev->name);
 
-	/* FIXME: perform sanity check on configuration data */
-
+	/* FIXME: perform sanity check on configuration data,
+	 *        cleanup the tweaks we've added
+	 */
 	ifflags = ifp_req? ifp_req->ifflags : 0;
 	if (ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
 		/*
@@ -233,6 +254,12 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 
 				ni_teamd_discover(master);
 			}
+			if (master && master->link.type == NI_IFTYPE_OVS_SYSTEM) {
+				if (ifp_req->port && ifp_req->port->type == NI_IFTYPE_OVS_BRIDGE &&
+				    !ni_string_empty(ifp_req->port->ovsbr.bridge.name)) {
+					ni_ovs_vsctl_bridge_port_add(dev->name, &ifp_req->port->ovsbr);
+				}
+			}
 
 			if (ni_netdev_device_is_up(dev))
 				return 0;
@@ -243,8 +270,12 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 		} else
 		/* config lookup for master and redirect to master's enslave */
 		if (ifp_req && !ni_string_empty(ifp_req->master.name)) {
+			int ret;
+
 			master = ni_netdev_by_name(nc, ifp_req->master.name);
-			return ni_system_interface_enslave(master, dev, ifp_req);
+			ret = ni_system_interface_enslave(master, dev, ifp_req);
+			if (master->link.type != NI_IFTYPE_OVS_SYSTEM)
+				return ret;
 		}
 
 		ni_debug_ifconfig("bringing up %s", dev->name);
@@ -1308,6 +1339,67 @@ ni_system_bridge_remove_port(ni_netdev_t *dev, unsigned int port_ifindex)
 
 	ni_bridge_del_port_ifindex(bridge, port_ifindex);
 	return 0;
+}
+
+/*
+ * OVS bridge system operations
+ */
+int
+ni_system_ovs_bridge_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **dev_ret)
+{
+	ni_netdev_t *dev;
+	unsigned int i;
+	int ret;
+
+	if (!cfg || cfg->link.type != NI_IFTYPE_OVS_BRIDGE || !cfg->name)
+		return -1;
+
+	*dev_ret = NULL;
+	if ((dev = ni_netdev_by_name(nc, cfg->name))) {
+		if (dev->link.type != NI_IFTYPE_OVS_BRIDGE) {
+			*dev_ret = dev;
+			return -NI_ERROR_DEVICE_EXISTS;
+		}
+	}
+
+	if (ni_ovs_vsctl_bridge_add(cfg, TRUE))
+		return -1;
+
+	/* Wait for sysfs to appear */
+	for (i = 0; i < 400; ++i) {
+		if (ni_sysfs_netif_exists(cfg->name, "ifindex"))
+			break;
+		usleep(25000);
+	}
+
+	ret = __ni_system_netdev_create(nc, cfg->name, dev ? dev->link.ifindex : 0,
+					NI_IFTYPE_OVS_BRIDGE, dev_ret);
+	return ret;
+}
+
+int
+ni_system_ovs_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	if (!dev || dev->link.type != NI_IFTYPE_OVS_BRIDGE)
+		return -1;
+	return 0; /* currently nothing */
+}
+
+int
+ni_system_ovs_bridge_shutdown(ni_netdev_t *dev)
+{
+	if (!dev || dev->link.type != NI_IFTYPE_OVS_BRIDGE)
+		return -1;
+	return 0; /* currently nothing */
+}
+
+int
+ni_system_ovs_bridge_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	if (!dev || dev->link.type != NI_IFTYPE_OVS_BRIDGE)
+		return -1;
+
+	return ni_ovs_vsctl_bridge_del(dev->name) ? -1 : 0;
 }
 
 /*

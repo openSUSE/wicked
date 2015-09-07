@@ -752,6 +752,25 @@ ni_netdev_ref_destroy(ni_netdev_ref_t *ref)
 /*
  * Handle netdev request port config
  */
+static void
+ni_netdev_port_req_init(ni_netdev_port_req_t *port)
+{
+	switch (port->type) {
+        case NI_IFTYPE_TEAM:
+		ni_team_port_config_init(&port->team);
+		break;
+
+	case NI_IFTYPE_OVS_BRIDGE:
+		ni_ovs_bridge_port_config_init(&port->ovsbr);
+		break;
+
+	case NI_IFTYPE_BOND:
+	case NI_IFTYPE_BRIDGE:
+	default:
+		break;
+	}
+}
+
 ni_netdev_port_req_t *
 ni_netdev_port_req_new(ni_iftype_t master)
 {
@@ -761,8 +780,10 @@ ni_netdev_port_req_new(ni_iftype_t master)
 	case NI_IFTYPE_TEAM:
 	case NI_IFTYPE_BOND:
 	case NI_IFTYPE_BRIDGE:
+	case NI_IFTYPE_OVS_BRIDGE:
 		port = xcalloc(1, sizeof(*port));
 		port->type = master;
+		ni_netdev_port_req_init(port);
 		return port;
 	default:
 		return NULL;
@@ -776,6 +797,10 @@ ni_netdev_port_req_free(ni_netdev_port_req_t *port)
 		switch (port->type) {
 		case NI_IFTYPE_TEAM:
 			ni_team_port_config_destroy(&port->team);
+			break;
+
+		case NI_IFTYPE_OVS_BRIDGE:
+			ni_ovs_bridge_port_config_destroy(&port->ovsbr);
 			break;
 
 		case NI_IFTYPE_BOND:

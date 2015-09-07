@@ -28,6 +28,7 @@ wicked_include_HEADERS		= \
 	wicked/nis.h		\
 	wicked/objectmodel.h	\
 	wicked/openvpn.h	\
+	wicked/ovs.h		\
 	wicked/pci.h		\
 	wicked/ppp.h		\
 	wicked/resolver.h	\

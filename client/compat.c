@@ -34,6 +34,7 @@
 #include <wicked/infiniband.h>
 #include <wicked/bonding.h>
 #include <wicked/team.h>
+#include <wicked/ovs.h>
 #include <wicked/bridge.h>
 #include <wicked/vlan.h>
 #include <wicked/macvlan.h>
@@ -739,6 +740,52 @@ __ni_compat_generate_team(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 		return FALSE;
 
 	if (!__ni_compat_generate_team_ports(tnode, &team->ports))
+		return FALSE;
+
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_compat_generate_ovs_bridge_ports(xml_node_t *bnode, const ni_ovs_bridge_port_array_t *array)
+{
+	xml_node_t *ports;
+	unsigned int i;
+
+	if (!array || !bnode)
+		return FALSE;
+
+	if (!array->count)
+		return TRUE;
+
+	ports = xml_node_new("ports", bnode);
+	for (i = 0; i < array->count; i++) {
+		ni_ovs_bridge_port_t *p = array->data[i];
+		xml_node_t *port;
+
+		if (ni_string_empty(p->device.name))
+			continue;
+
+		port = xml_node_new("port", ports);
+		xml_node_new_element("device", port, p->device.name);
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_compat_generate_ovs_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	const ni_ovs_bridge_t *ovsbr;
+	xml_node_t *bnode;
+
+	ovsbr = ni_netdev_get_ovs_bridge(compat->dev);
+	bnode = xml_node_create(ifnode, "ovs-bridge");
+
+	if (ovsbr->config.vlan.parent.name && ovsbr->config.vlan.tag) {
+		xml_node_t *vnode = xml_node_new("vlan", bnode);
+		xml_node_new_element("parent", vnode, ovsbr->config.vlan.parent.name);
+		xml_node_new_element_uint("tag", vnode, ovsbr->config.vlan.tag);
+	} /* else? */
+	if (!__ni_compat_generate_ovs_bridge_ports(bnode, &ovsbr->ports))
 		return FALSE;
 
 	return TRUE;
@@ -1793,6 +1840,10 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 		__ni_compat_generate_team(ifnode, compat);
 		break;
 
+	case NI_IFTYPE_OVS_BRIDGE:
+		__ni_compat_generate_ovs_bridge(ifnode, compat);
+		break;
+
 	case NI_IFTYPE_BRIDGE:
 		__ni_compat_generate_bridge(ifnode, compat);
 		break;
@@ -1835,8 +1886,16 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	}
 
 	linknode = xml_node_new("link", ifnode);
-	if (dev->link.masterdev.name)
+	if (dev->link.masterdev.name) {
+		xml_node_t *port;
+
 		xml_node_new_element("master", linknode, dev->link.masterdev.name);
+		if (compat->link_port.ovsbr.bridge.name) {
+			port = xml_node_new("port", linknode);
+			xml_node_add_attr(port, "type", ni_linktype_type_to_name(NI_IFTYPE_OVS_BRIDGE));
+			xml_node_new_element("bridge", port, compat->link_port.ovsbr.bridge.name);
+		}
+	}
 	if (dev->link.mtu)
 		xml_node_new_element("mtu", linknode, ni_sprint_uint(dev->link.mtu));
 

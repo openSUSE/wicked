@@ -16,6 +16,7 @@
 <include name="bonding.xml"/>
 <include name="bridge.xml"/>
 <include name="infiniband.xml"/>
+<include name="ovs-bridge.xml"/>
 <include name="interface.xml"/>
 <include name="wireless.xml"/>
 <include name="tuntap.xml"/>

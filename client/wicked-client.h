@@ -31,6 +31,7 @@
 #include <wicked/objectmodel.h>
 #include <wicked/addrconf.h>
 #include <wicked/fsm.h>
+#include <wicked/ovs.h>
 
 extern int			opt_global_dryrun;
 extern char *			opt_global_rootdir;
@@ -48,6 +49,10 @@ typedef struct ni_compat_netdev {
 	struct {
 		ni_hwaddr_t	hwaddr;
 	} identify;
+
+	struct {
+		ni_ovs_bridge_port_config_t ovsbr;
+	} link_port;
 
 	struct {
 		ni_bool_t	enabled;

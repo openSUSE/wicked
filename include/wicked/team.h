@@ -208,12 +208,12 @@ typedef struct ni_team_port_lacp {
 	unsigned int				key;
 } ni_team_port_lacp_t;
 
-typedef struct ni_team_port_config {
+struct ni_team_port_config {
 	unsigned int				queue_id;
 
 	ni_team_port_active_backup_t		ab;
 	ni_team_port_lacp_t			lacp;
-} ni_team_port_config_t;
+};
 
 /*
  * team port and array
