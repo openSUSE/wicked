@@ -2202,7 +2202,7 @@ try_ovs_bridge(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 					dev->name, vlan);
 			return -1;
 		}
-		if (!tag || tag > __NI_VLAN_TAG_MAX) {
+		if (tag > __NI_VLAN_TAG_MAX) {
 			ni_error("ifcfg-%s: OVS_BRIDGE_VLAN_TAG='%u' not in range 1..%u",
 					dev->name, ovsbr->config.vlan.tag, __NI_VLAN_TAG_MAX);
 			return -1;

@@ -463,14 +463,13 @@ ni_ovs_vsctl_bridge_add(const ni_netdev_t *cfg, ni_bool_t may_exist)
 	if (!ni_shellcmd_add_arg(cmd, cfg->name))
 		goto failure;
 
-	if (!ni_string_empty(cfg->ovsbr->config.vlan.parent.name) && cfg->ovsbr->config.vlan.tag) {
+	if (!ni_string_empty(cfg->ovsbr->config.vlan.parent.name)) {
 		if (!ni_shellcmd_add_arg(cmd, cfg->ovsbr->config.vlan.parent.name))
 			goto failure;
 
 		if (!ni_shellcmd_add_arg(cmd, ni_sprint_uint(cfg->ovsbr->config.vlan.tag)))
 			goto failure;
-	} else if (cfg->ovsbr->config.vlan.parent.name || cfg->ovsbr->config.vlan.tag)
-		goto failure;
+	}
 
 	if (!(pi = ni_process_new(cmd)))
 		goto failure;

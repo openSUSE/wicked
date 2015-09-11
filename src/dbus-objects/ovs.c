@@ -388,8 +388,8 @@ __ni_objectmodel_ovs_bridge_get_vlan(const ni_dbus_object_t *object, const ni_db
 	if (!(ovsbr = __ni_objectmodel_ovs_bridge_read_handle(object, error)))
 		return FALSE;
 
-	if (!ovsbr->config.vlan.parent.name || !ovsbr->config.vlan.tag)
-		return FALSE;
+	if (ni_string_empty(ovsbr->config.vlan.parent.name))
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
 
 	ni_dbus_dict_array_init(result);
 	ni_dbus_dict_add_string(result, "parent", ovsbr->config.vlan.parent.name);
@@ -408,17 +408,22 @@ __ni_objectmodel_ovs_bridge_set_vlan(ni_dbus_object_t *object, const ni_dbus_pro
 	if (!ni_dbus_variant_is_dict_array(argument))
 		return FALSE;
 
-	if (!ni_dbus_dict_get_uint16(argument, "tag", &tag) || !tag || tag >= 0x0fff)
-		return FALSE;
-	if (!ni_dbus_dict_get_string(argument, "parent", &parent) || ni_string_empty(parent))
+	if (!ni_dbus_variant_is_dict(argument))
 		return FALSE;
 
 	if (!(ovsbr = __ni_objectmodel_ovs_bridge_write_handle(object, error)))
 		return FALSE;
 
-	ovsbr->config.vlan.tag = tag;
-	ni_netdev_ref_set_ifname(&ovsbr->config.vlan.parent, parent);
+	ni_dbus_dict_get_string(argument, "parent", &parent);
+	ni_dbus_dict_get_uint16(argument, "tag", &tag);
 
+	if (!ni_string_empty(parent) && tag < 0x0fff) {
+		ovsbr->config.vlan.tag = tag;
+		ni_netdev_ref_set_ifname(&ovsbr->config.vlan.parent, parent);
+	} else {
+		ovsbr->config.vlan.tag = 0;
+		ni_netdev_ref_destroy(&ovsbr->config.vlan.parent);
+	}
 	return TRUE;
 }
 
