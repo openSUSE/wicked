@@ -22,7 +22,8 @@
     <vlan class="dict">
       <parent type="string">
         <meta:netif-reference supplemental="true" shared="true" />
-        <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
+        <meta:require check="netif-check-state" op="newDevice" min-state="device-up" />
+        <meta:require check="netif-check-state" op="linkUp" min-state="link-up" />
       </parent>
       <tag type="uint16" />
     </vlan>
