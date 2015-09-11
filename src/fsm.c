@@ -25,6 +25,7 @@
 #include <wicked/fsm.h>
 #include <wicked/client.h>
 #include <wicked/bridge.h>
+#include <wicked/ovs.h>
 #include <xml-schema.h>
 
 #include "client/ifconfig.h"
@@ -3572,6 +3573,38 @@ ni_fsm_refresh_lower_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
 		ni_ifworker_array_append(&w->children, lower);
 }
 
+static void
+ni_fsm_refresh_ovs_bridge(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	ni_ifworker_t *ow;
+	ni_netdev_t *dev;
+	const char *name;
+	unsigned int i;
+
+	if (!fsm || !w || !(dev = w->device))
+		return;
+
+	if (dev->link.type != NI_IFTYPE_OVS_BRIDGE || !dev->ovsbr)
+		return;
+
+	if ((name = dev->ovsbr->config.vlan.parent.name) && !ni_string_empty(name)) {
+		ow = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, name);
+		if (ow && ni_ifworker_array_index(&w->children, ow) < 0)
+			ni_ifworker_array_append(&w->children, ow);
+	}
+
+	for (i = 0; i < dev->ovsbr->ports.count; ++i) {
+		const ni_ovs_bridge_port_t *port = dev->ovsbr->ports.data[i];
+
+		if (!port || !(name = port->device.name) || ni_string_empty(name))
+			continue;
+
+		ow = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, name);
+		if (ow && ni_ifworker_array_index(&w->children, ow) < 0)
+			ni_ifworker_array_append(&w->children, ow);
+	}
+}
+
 ni_bool_t
 ni_fsm_refresh_state(ni_fsm_t *fsm)
 {
@@ -3606,6 +3639,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 		/* Rebuild hierarchy */
 		ni_fsm_refresh_master_dev(fsm, w);
 		ni_fsm_refresh_lower_dev(fsm, w);
+		ni_fsm_refresh_ovs_bridge(fsm, w);
 
 		/* Set initial state of existing devices */
 		if (w->object != NULL)
