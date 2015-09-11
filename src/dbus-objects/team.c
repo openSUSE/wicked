@@ -854,18 +854,20 @@ __ni_objectmodel_team_set_ports(ni_dbus_object_t *object, const ni_dbus_property
 	if (!ni_dbus_variant_is_dict_array(argument))
 		return FALSE;
 
-	dict = argument->variant_array_value;
-	for (i = 0; i < argument->array.len; ++i, ++dict) {
+	/* note: property refresh may call it on a team that contains ports */
+	ni_team_port_array_destroy(&team->ports);
+	for (i = 0; i < argument->array.len; ++i) {
 		ni_team_port_t *port;
 
 		port = ni_team_port_new();
+		dict = &argument->variant_array_value[i];
 		if (!__ni_objectmodel_team_port_from_dict(port, dict, error)) {
 			ni_team_port_free(port);
 			return FALSE;
 		}
 		if (ni_team_port_array_find_by_name(&team->ports, port->device.name)) {
 			ni_team_port_free(port);
-			return FALSE;
+			continue;
 		}
 		if (!ni_team_port_array_append(&team->ports, port)) {
 			ni_team_port_free(port);

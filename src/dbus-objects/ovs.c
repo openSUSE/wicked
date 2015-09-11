@@ -288,7 +288,7 @@ __ni_objectmodel_ovs_bridge_port_to_dict(const ni_ovs_bridge_port_t *port, ni_db
 {
 	(void)error;
 
-	if (!port || !dict || ni_string_empty(port->device.name))
+	if (!port || !dict)
 		return FALSE;
 
 	ni_dbus_dict_add_string(dict, "device", port->device.name);
@@ -311,6 +311,9 @@ __ni_objectmodel_ovs_bridge_get_ports(const ni_dbus_object_t *object, const ni_d
 	for (i = 0; i < ovsbr->ports.count; ++i) {
 		const ni_ovs_bridge_port_t *port = ovsbr->ports.data[i];
 
+		if (!port || ni_string_empty(port->device.name))
+			continue;
+
 		if (!(dict = ni_dbus_dict_array_add(result)))
 			return FALSE;
 
@@ -331,14 +334,11 @@ __ni_objectmodel_ovs_bridge_port_from_dict(ni_ovs_bridge_port_t *port, const ni_
 	if (!port || !dict)
 		return FALSE;
 
-	if (dict->array.len == 0)
-		return TRUE;
 
-	if (ni_dbus_dict_get_string(dict, "device", &string) && !ni_string_empty(string))
-		ni_netdev_ref_set_ifname(&port->device, string);
-	else
+	if (!ni_dbus_dict_get_string(dict, "device", &string) || ni_string_empty(string))
 		return FALSE;
 
+	ni_netdev_ref_set_ifname(&port->device, string);
 	return TRUE;
 }
 
@@ -356,18 +356,20 @@ __ni_objectmodel_ovs_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_pr
 	if (!ni_dbus_variant_is_dict_array(argument))
 		return FALSE;
 
-	dict = argument->variant_array_value;
-	for (i = 0; i < argument->array.len; ++i, ++dict) {
+	/* note: property refresh may call it on a ovsbr that contains ports */
+	ni_ovs_bridge_port_array_destroy(&ovsbr->ports);
+	for (i = 0; i < argument->array.len; ++i) {
 		ni_ovs_bridge_port_t *port;
 
 		port = ni_ovs_bridge_port_new();
+		dict = &argument->variant_array_value[i];
 		if (!__ni_objectmodel_ovs_bridge_port_from_dict(port, dict, error)) {
 			ni_ovs_bridge_port_free(port);
 			return FALSE;
 		}
 		if (ni_ovs_bridge_port_array_find_by_name(&ovsbr->ports, port->device.name)) {
 			ni_ovs_bridge_port_free(port);
-			return FALSE;
+			continue;
 		}
 		if (!ni_ovs_bridge_port_array_append(&ovsbr->ports, port)) {
 			ni_ovs_bridge_port_free(port);
