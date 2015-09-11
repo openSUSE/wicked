@@ -3366,8 +3366,6 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 				supplemental = ni_string_eq(attr, "true");
 
 			/* subordinate is a slave -> master reference, counterpart of shared=false */
-			if ((attr = xml_node_get_attr(mchild, "supplemental")))
-				supplemental = ni_string_eq(attr, "true");
 			if ((attr = xml_node_get_attr(mchild, "subordinate")))
 				subordinate = ni_string_eq(attr, "true");
 			if (!subordinate && (attr = xml_node_get_attr(mchild, "shared")))
