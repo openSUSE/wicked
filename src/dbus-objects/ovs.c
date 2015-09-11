@@ -304,10 +304,11 @@ __ni_objectmodel_ovs_bridge_get_ports(const ni_dbus_object_t *object, const ni_d
 	const ni_ovs_bridge_t *ovsbr;
 	unsigned int i;
 
-	if (!(ovsbr = __ni_objectmodel_ovs_bridge_read_handle(object, error)))
-		return FALSE;
-
 	ni_dbus_dict_array_init(result);
+
+	if (!(ovsbr = __ni_objectmodel_ovs_bridge_read_handle(object, error)))
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
+
 	for (i = 0; i < ovsbr->ports.count; ++i) {
 		const ni_ovs_bridge_port_t *port = ovsbr->ports.data[i];
 
@@ -334,6 +335,8 @@ __ni_objectmodel_ovs_bridge_port_from_dict(ni_ovs_bridge_port_t *port, const ni_
 	if (!port || !dict)
 		return FALSE;
 
+	if (!ni_dbus_variant_is_dict(dict))
+		return FALSE;
 
 	if (!ni_dbus_dict_get_string(dict, "device", &string) || ni_string_empty(string))
 		return FALSE;
@@ -350,10 +353,10 @@ __ni_objectmodel_ovs_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_pr
 	ni_ovs_bridge_t *ovsbr;
 	unsigned  int i;
 
-	if (!(ovsbr = __ni_objectmodel_ovs_bridge_write_handle(object, error)))
+	if (!ni_dbus_variant_is_dict_array(argument))
 		return FALSE;
 
-	if (!ni_dbus_variant_is_dict_array(argument))
+	if (!(ovsbr = __ni_objectmodel_ovs_bridge_write_handle(object, error)))
 		return FALSE;
 
 	/* note: property refresh may call it on a ovsbr that contains ports */
@@ -378,6 +381,7 @@ __ni_objectmodel_ovs_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_pr
 	}
 	return TRUE;
 }
+
 /*
  * OVS Bridge vlan
  */
@@ -388,12 +392,12 @@ __ni_objectmodel_ovs_bridge_get_vlan(const ni_dbus_object_t *object, const ni_db
 	const ni_ovs_bridge_t *ovsbr;
 
 	if (!(ovsbr = __ni_objectmodel_ovs_bridge_read_handle(object, error)))
-		return FALSE;
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
 
 	if (ni_string_empty(ovsbr->config.vlan.parent.name))
 		return ni_dbus_error_property_not_present(error, object->path, property->name);
 
-	ni_dbus_dict_array_init(result);
+	ni_dbus_variant_init_dict(result);
 	ni_dbus_dict_add_string(result, "parent", ovsbr->config.vlan.parent.name);
 	ni_dbus_dict_add_uint16(result, "tag", ovsbr->config.vlan.tag);
 	return TRUE;
@@ -406,9 +410,6 @@ __ni_objectmodel_ovs_bridge_set_vlan(ni_dbus_object_t *object, const ni_dbus_pro
 	ni_ovs_bridge_t *ovsbr;
 	const char *parent = NULL;
 	uint16_t tag = 0;
-
-	if (!ni_dbus_variant_is_dict_array(argument))
-		return FALSE;
 
 	if (!ni_dbus_variant_is_dict(argument))
 		return FALSE;
