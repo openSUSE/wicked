@@ -780,7 +780,7 @@ __ni_compat_generate_ovs_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *co
 	ovsbr = ni_netdev_get_ovs_bridge(compat->dev);
 	bnode = xml_node_create(ifnode, "ovs-bridge");
 
-	if (ovsbr->config.vlan.parent.name && ovsbr->config.vlan.tag) {
+	if (ovsbr->config.vlan.parent.name) {
 		xml_node_t *vnode = xml_node_new("vlan", bnode);
 		xml_node_new_element("parent", vnode, ovsbr->config.vlan.parent.name);
 		xml_node_new_element_uint("tag", vnode, ovsbr->config.vlan.tag);
