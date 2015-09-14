@@ -233,6 +233,21 @@ underflow:
 }
 
 static int
+ni_dhcp4_option_get_opaque(ni_buffer_t *bp, ni_opaque_t *opaque)
+{
+	unsigned int len = ni_buffer_count(bp);
+
+	if (!len || len > sizeof(opaque->data))
+		return -1;
+
+	if (ni_buffer_get(bp, opaque->data, len) < 0)
+		return -1;
+
+	opaque->len = len;
+	return 0;
+}
+
+static int
 ni_dhcp4_option_get_sockaddr(ni_buffer_t *bp, ni_sockaddr_t *addr)
 {
 	struct sockaddr_in *sin = &addr->sin;
@@ -1687,6 +1702,9 @@ parse_more:
 			break;
 		case DHCP4_SERVERIDENTIFIER:
 			ni_dhcp4_option_get_ipv4(&buf, &lease->dhcp4.server_id);
+			break;
+		case DHCP4_CLIENTID:
+			ni_dhcp4_option_get_opaque(&buf, &lease->dhcp4.client_id);
 			break;
 		case DHCP4_LEASETIME:
 			ni_dhcp4_option_get32(&buf, &lease->dhcp4.lease_time);

@@ -88,16 +88,17 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 	}
 
 	if (!(message = ni_buffer_pull_head(msgbuf, sizeof(*message)))) {
-		ni_debug_dhcp("short DHCP4 packet (%u bytes)", ni_buffer_count(msgbuf));
+		ni_debug_dhcp("%s: short DHCP4 packet (%u bytes)", dev->ifname,
+				ni_buffer_count(msgbuf));
 		return -1;
 	}
 	if (dev->dhcp4.xid == 0) {
-		ni_debug_dhcp("unexpected packet on %s", dev->ifname);
+		ni_debug_dhcp("%s: unexpected packet with 0 xid", dev->ifname);
 		return -1;
 	}
 	if (dev->dhcp4.xid != message->xid) {
-		ni_debug_dhcp("ignoring packet with wrong xid 0x%x (expected 0x%x)",
-				htonl(message->xid), htonl(dev->dhcp4.xid));
+		ni_debug_dhcp("%s: ignoring packet with wrong xid 0x%x (expected 0x%x)",
+				dev->ifname, htonl(message->xid), htonl(dev->dhcp4.xid));
 		return -1;
 	}
 
@@ -108,13 +109,57 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 		return -1;
 	}
 
-	/* set reqest client-id in the response early to have it in test mode */
-	ni_opaque_set(&lease->dhcp4.client_id,	dev->config->client_id.data,
-						dev->config->client_id.len);
+	if (dev->config->client_id.len && !lease->dhcp4.client_id.len) {
+		/*
+		 * https://tools.ietf.org/html/rfc6842:
+		 *
+		 *   If the 'client identifier' option is present in a message received
+		 *   from a client, the server MUST return the 'client identifier' option,
+		 *   unaltered, in its response message.
+		 *
+		 * Often (as of now) servers don't send it back, even the hlen was 0 and
+		 * the client sent a client-id, causing that the client has only xid to
+		 * identify responses to it's own messages.
+		 * Servers not sending it back risk, that a relay agent drops responses
+		 * with hlen 0 and without client-id as permitted by RFC2131 (MAY).
+		 *
+		 * Infiniband, ppp, ... don't have hwaddr or don't set it as it does not
+		 * fit into the dhcp4 chaddr field and use client-id only instead.
+		 */
+		ni_debug_dhcp("%s: server does not send client-id back", dev->ifname);
+	} else
+	if (lease->dhcp4.client_id.len &&
+	    !ni_opaque_eq(&dev->config->client_id, &lease->dhcp4.client_id)) {
+		/*
+		 * https://tools.ietf.org/html/rfc6842:
+		 *
+		 *   When a client receives a DHCP message containing a 'client
+		 *   identifier' option, the client MUST compare that client
+		 *   identifier to the one it is configured to send.
+		 *   If the two client identifiers do not match, the client MUST
+		 *   silently discard the message.
+		 */
+		ni_debug_dhcp("%s: ignoring packet with not matching client-id", dev->ifname);
+		return -1;
+	}
 
-	ni_debug_dhcp("%s: received %s message in state %s",
-			dev->ifname, ni_dhcp4_message_name(msg_code),
+	ni_debug_dhcp("%s: received %s message xid 0x%x in state %s",
+			dev->ifname, ni_dhcp4_message_name(msg_code), message->xid,
 			ni_dhcp4_fsm_state_name(dev->fsm.state));
+
+	if (lease->dhcp4.client_id.len) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: and matching client id %s", dev->ifname,
+				ni_print_hex(lease->dhcp4.client_id.data,
+						lease->dhcp4.client_id.len));
+	}
+
+	/* set reqest client-id in the response early to have it in test mode */
+	if (!lease->dhcp4.client_id.len && dev->config->client_id.len) {
+		ni_opaque_set(&lease->dhcp4.client_id,	dev->config->client_id.data,
+							dev->config->client_id.len);
+	}
+
 
 	/* When receiving a DHCP4 OFFER, verify sender address against list of
 	 * servers to ignore, and preferred servers. */
