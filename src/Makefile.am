@@ -163,8 +163,10 @@ noinst_HEADERS			= \
 	$(system_headers)
 
 system_headers			= \
+	linux/dcbnl.h		\
+	linux/ethtool.h		\
 	linux/if_link.h		\
-	linux/dcbnl.h
+	linux/if_tunnel.h
 
 wicked_headers			= \
 	appconfig.h		\
