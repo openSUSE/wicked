@@ -4058,13 +4058,23 @@ __ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 }
 
 static ni_bool_t
-__ni_suse_addrconf_autoip4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
+__ni_suse_addrconf_auto4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
 {
-	(void)sc;
-	(void)compat;
-	(void)required;
+	ni_netdev_t *dev = compat->dev;
 
-	/* TODO */
+	(void)sc; /* no additional config here */
+
+	if (dev && dev->ipv4 && ni_tristate_is_disabled(dev->ipv4->conf.enabled))
+		return FALSE;
+
+	if (compat->auto4.enabled)
+		return TRUE;
+
+	compat->auto4.enabled = TRUE;
+	/* mark auto4 as fallback for dhcp4    */
+	ni_addrconf_flag_bit_set(&compat->auto4.flags, NI_ADDRCONF_FLAGS_FALLBACK, !required);
+	/* mark dhcp4 as primary triggering it */
+	ni_addrconf_flag_bit_set(&compat->dhcp4.flags, NI_ADDRCONF_FLAGS_PRIMARY, !required);
 	return TRUE;
 }
 
@@ -4153,9 +4163,10 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			/* dhcp6 requested -> required             */
 			__ni_suse_addrconf_dhcp6(sc, compat, TRUE);
 		}
-		else if (ni_string_eq(s, "autoip")) {
-			/* dhcp6 requested -> required when 1st    */
-			__ni_suse_addrconf_autoip4(sc, compat, primary);
+		else if (ni_string_eq(s, "auto4") ||
+			 ni_string_eq(s, "autoip")) {
+			/* dhcp4 requested or required if primary  */
+			__ni_suse_addrconf_auto4(sc, compat, primary);
 		}
 		else {
 			ni_debug_readwrite("ifcfg-%s: Unknown BOOTPROTO=\"%s\""

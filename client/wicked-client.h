@@ -77,6 +77,10 @@ typedef struct ni_compat_netdev {
 	struct {
 		ni_bool_t	enabled;
 		unsigned int	flags;
+	} auto4;
+	struct {
+		ni_bool_t	enabled;
+		unsigned int	flags;
 
 		unsigned int	mode;
 		ni_bool_t	rapid_commit;

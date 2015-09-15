@@ -1620,6 +1620,16 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 }
 
 static xml_node_t *
+__ni_compat_generate_auto4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	if (!compat->auto4.enabled)
+		return NULL;
+
+	return __ni_compat_generate_dynamic_addrconf(ifnode, "ipv4:auto",
+			compat->auto4.flags, 0);
+}
+
+static xml_node_t *
 __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	xml_node_t *dhcp;
@@ -1903,6 +1913,7 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	if (dev->ipv4 && !ni_tristate_is_disabled(dev->ipv4->conf.enabled)) {
 		__ni_compat_generate_static_addrconf(ifnode, compat, AF_INET);
 		__ni_compat_generate_dhcp4_addrconf(ifnode, compat);
+		__ni_compat_generate_auto4_addrconf(ifnode, compat);
 	}
 
 	__ni_compat_generate_ipv6_devconf(ifnode, dev->ipv6);
