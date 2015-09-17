@@ -54,6 +54,7 @@ typedef struct ni_lldp		ni_lldp_t;
 typedef struct ni_nis_info	ni_nis_info_t;
 typedef struct ni_resolver_info	ni_resolver_info_t;
 typedef struct ni_addrconf_lease  ni_addrconf_lease_t;
+typedef struct ni_auto4_request	ni_auto4_request_t;
 typedef struct ni_netdev_req	ni_netdev_req_t;
 typedef struct ni_ipv4_devinfo	ni_ipv4_devinfo_t;
 typedef struct ni_ipv4_devconf	ni_ipv4_devconf_t;

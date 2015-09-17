@@ -117,10 +117,6 @@ ni_autoip_device_drop_lease(ni_autoip_device_t *dev)
 	ni_addrconf_lease_t *lease;
 
 	if ((lease = dev->lease) != NULL) {
-		/* if we've configured the network using this
-		 * lease, we need to isse a link down request */
-		dev->notify = 1;
-
 		/* delete the lease file. */
 		ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
 		ni_autoip_device_set_lease(dev, NULL);
@@ -195,7 +191,6 @@ ni_autoip_device_refresh(ni_autoip_device_t *dev)
 int
 ni_autoip_device_start(ni_autoip_device_t *dev)
 {
-	ni_autoip_device_drop_lease(dev);
 	dev->failed = 0;
 
 	if (ni_autoip_fsm_select(dev) < 0) {
@@ -210,14 +205,50 @@ ni_autoip_device_start(ni_autoip_device_t *dev)
  * Acquire an IPv4ll lease
  */
 int
-ni_autoip_acquire(ni_autoip_device_t *dev)
+ni_autoip_acquire(ni_autoip_device_t *dev, const ni_auto4_request_t *request)
 {
-	return ni_autoip_device_start(dev);
+	if (!dev || !request)
+		return -1;
+
+	ni_auto4_request_copy(&dev->request, request);
+	ni_note("%s: Request to acquire AUTOv4 lease with UUID %s",
+			dev->ifname, ni_uuid_print(&request->uuid));
+
+	dev->lease = ni_addrconf_lease_file_read(dev->ifname, NI_ADDRCONF_AUTOCONF, AF_INET);
+	if (ni_autoip_device_start(dev) < 0)
+		return -1;
+	return 1;
 }
 
 int
 ni_autoip_release(ni_autoip_device_t *dev, const ni_uuid_t *uuid)
 {
+	char *rel_uuid = NULL;
+	char *our_uuid = NULL;
+
+	if (dev->lease == NULL) {
+		ni_debug_autoip("%s: no lease set", dev->ifname);
+		return -NI_ERROR_ADDRCONF_NO_LEASE;
+	}
+
+	ni_string_dup(&rel_uuid, ni_uuid_is_null(uuid) ? NULL : ni_uuid_print(uuid));
+	ni_string_dup(&our_uuid, ni_uuid_print(&dev->lease->uuid));
+
+	if (!ni_uuid_is_null(uuid) && !ni_uuid_equal(uuid, &dev->lease->uuid)) {
+		ni_warn("%s: lease UUID %s to release does not match current lease UUID %s",
+			dev->ifname, rel_uuid, our_uuid);
+		ni_string_free(&rel_uuid);
+		ni_string_free(&our_uuid);
+		return -NI_ERROR_ADDRCONF_NO_LEASE;
+	}
+	ni_string_free(&our_uuid);
+
+	ni_note("%s: Request to release AUTOv4 lease%s%s",  dev->ifname,
+		rel_uuid ? " with UUID " : "", rel_uuid ? rel_uuid : "");
+	ni_string_free(&rel_uuid);
+
+	ni_autoip_fsm_release(dev);
 	ni_autoip_device_stop(dev);
+	ni_auto4_request_destroy(&dev->request);
 	return 0;
 }

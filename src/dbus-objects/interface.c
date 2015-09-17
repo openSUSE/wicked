@@ -51,7 +51,7 @@ extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv4_static_service;
 extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv6_static_service;
 extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv4_dhcp_service;
 extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv6_dhcp_service;
-extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv4ll_service;
+extern ni_dbus_service_t	ni_objectmodel_addrconf_ipv4_auto_service;
 extern ni_dbus_service_t	ni_objectmodel_wireless_service;
 static ni_dbus_property_t	ni_objectmodel_netif_request_properties[];
 
@@ -98,7 +98,7 @@ ni_objectmodel_register_netif_services(void)
 	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv6_static_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_dhcp_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv6_dhcp_service);
-	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4ll_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_addrconf_ipv4_auto_service);
 
 	/* LLDP agent */
 	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_lldp_service);

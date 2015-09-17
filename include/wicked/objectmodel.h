@@ -163,6 +163,8 @@ extern dbus_bool_t		ni_objectmodel_unmarshal_security_id(ni_security_id_t *, con
 extern dbus_bool_t		ni_objectmodel_get_name_array(const xml_node_t *names, ni_dbus_variant_t *);
 extern dbus_bool_t		ni_objectmodel_set_name_array(xml_node_t *names, const ni_dbus_variant_t *);
 
+extern dbus_bool_t		ni_objectmodel_get_auto4_request_dict(const ni_auto4_request_t *req, ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_objectmodel_set_auto4_request_dict(ni_auto4_request_t *req, const ni_dbus_variant_t *, DBusError *);
 
 extern int			ni_objectmodel_signal_to_event(const char *, ni_event_t *);
 extern const char *		ni_objectmodel_event_to_signal(ni_event_t);

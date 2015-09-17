@@ -8,6 +8,7 @@
 #define __WICKED_AUTOIP_PRIVATE_H__
 
 #include <wicked/socket.h>
+#include <wicked/addrconf.h>
 #include "netinfo_priv.h"
 
 typedef enum ni_autoip_state {
@@ -16,7 +17,7 @@ typedef enum ni_autoip_state {
 	NI_AUTOIP_STATE_CLAIMED,
 } ni_autoip_state_t;
 
-typedef struct ni_autoip_device	ni_autoip_device_t;
+typedef struct ni_autoip_device		ni_autoip_device_t;
 
 struct ni_autoip_device {
 	ni_autoip_device_t *	next;
@@ -44,19 +45,27 @@ struct ni_autoip_device {
 	    time_t		last_defense;
 	} autoip;
 
+	ni_auto4_request_t 	request;
+
 	ni_addrconf_lease_t *	lease;
 };
 
 extern ni_autoip_device_t *ni_autoip_active;
 
-extern int		ni_autoip_acquire(ni_autoip_device_t *);
+typedef void		ni_autoip_event_handler_t(enum ni_lease_event,
+						const ni_autoip_device_t *,
+						ni_addrconf_lease_t *lease);
+
+extern void		ni_autoip_set_event_handler(ni_autoip_event_handler_t);
+
+extern int		ni_autoip_acquire(ni_autoip_device_t *, const ni_auto4_request_t *);
 extern int		ni_autoip_release(ni_autoip_device_t *, const ni_uuid_t *);
 
 extern long             ni_autoip_fsm_get_timeout(void);
 extern void             ni_autoip_fsm_check_timeout(void);
 extern int		ni_autoip_fsm_select(ni_autoip_device_t *);
 extern const char *     ni_autoip_fsm_state_name(ni_autoip_state_t);
-extern int              ni_autoip_fsm_commit_lease(ni_autoip_device_t *, ni_addrconf_lease_t *);
+extern void             ni_autoip_fsm_release(ni_autoip_device_t *);
 
 extern ni_autoip_device_t *ni_autoip_device_new(const char *, const ni_linkinfo_t *);
 extern ni_autoip_device_t *ni_autoip_device_get(ni_autoip_device_t *);
