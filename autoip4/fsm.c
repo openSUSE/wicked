@@ -36,10 +36,12 @@
 #define IPV4LL_ANNOUNCE_WAIT		2000
 
 #define IPV4LL_PROBE_COUNT		3
-#define IPV4LL_ANNOUNCE_COUNT		2
+#define IPV4LL_ANNOUNCE_COUNT		0	/* do not announce -- deliver lease */
 #define IPV4LL_MAX_CONFLICTS		10
 #define IPV4LL_RATE_LIMIT_INTERVAL	60000
 #define IPV4LL_DEFEND_INTERVAL		10000
+
+static ni_autoip_event_handler_t *	ni_autoip_fsm_event_handler;
 
 extern int	ni_autoip_device_get_address(ni_autoip_device_t *, struct in_addr *);
 static int	ni_autoip_send_arp(ni_autoip_device_t *);
@@ -48,9 +50,25 @@ static void	ni_autoip_fsm_set_timeout(ni_autoip_device_t *, unsigned int, unsign
 static void	__ni_autoip_fsm_timeout(void *, const ni_timer_t *);
 
 
+void
+ni_autoip_set_event_handler(ni_autoip_event_handler_t func)
+{
+	ni_autoip_fsm_event_handler = func;
+}
+
+void
+ni_autoip_send_event(enum ni_lease_event ev, const ni_autoip_device_t *dev,
+			ni_addrconf_lease_t *lease)
+{
+	if (ni_autoip_fsm_event_handler)
+		ni_autoip_fsm_event_handler(ev, dev, lease);
+}
+
 int
 ni_autoip_fsm_select(ni_autoip_device_t *dev)
 {
+	ni_address_t *ap;
+
 	/*
 	 * RFC 3927, Section 2.1:
 	 * Hosts that are equipped with persistent storage MAY, for each
@@ -60,6 +78,12 @@ ni_autoip_fsm_select(ni_autoip_device_t *dev)
 	 */
 	if (dev->fsm.state == NI_AUTOIP_STATE_CLAIMED && dev->autoip.candidate.s_addr != 0) {
 		ni_debug_autoip("%s: trying to reclaim %s",
+					dev->ifname, inet_ntoa(dev->autoip.candidate));
+	} else if (dev->lease && (ap = dev->lease->addrs) &&
+			ni_sockaddr_is_ipv4_linklocal(&ap->local_addr) &&
+			dev->autoip.candidate.s_addr == 0) {
+		dev->autoip.candidate = dev->lease->addrs->local_addr.sin.sin_addr;
+		ni_debug_autoip("%s: trying to reuse our previous address %s",
 				dev->ifname, inet_ntoa(dev->autoip.candidate));
 	} else {
 		dev->autoip.candidate.s_addr = htonl(IPV4LL_ADDRESS_FIRST + (random() % IPV4LL_ADDRESS_RANGE));
@@ -75,6 +99,7 @@ ni_autoip_fsm_select(ni_autoip_device_t *dev)
 
 	dev->fsm.state = NI_AUTOIP_STATE_CLAIMING;
 	dev->autoip.nprobes = IPV4LL_PROBE_COUNT;
+	/* do not claim here -- deliver the lease */
 	dev->autoip.nclaims = IPV4LL_ANNOUNCE_COUNT;
 
 	/*
@@ -143,7 +168,7 @@ ni_autoip_fsm_defend(ni_autoip_device_t *dev, const ni_hwaddr_t *hwa)
 	}
 }
 
-int
+ni_addrconf_lease_t *
 ni_autoip_fsm_build_lease(ni_autoip_device_t *dev)
 {
 	ni_addrconf_lease_t *lease;
@@ -161,16 +186,42 @@ ni_autoip_fsm_build_lease(ni_autoip_device_t *dev)
 	ni_route_create(16, &addr, NULL, 0, &lease->routes);
 
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
-	ni_autoip_device_set_lease(dev, lease);
+	lease->time_acquired = time(NULL);
+	lease->uuid = dev->request.uuid;
+	lease->flags = dev->request.flags;
 
-	/* Write the lease to lease cache */
-	ni_addrconf_lease_file_write(dev->ifname, lease);
+	return lease;
+}
 
-	/* Inform the master about the newly acquired lease */
-	dev->notify = 1;
+static int
+ni_autoip_fsm_commit_lease(ni_autoip_device_t *dev, ni_addrconf_lease_t *lease)
+{
+	if (lease) {
+		ni_debug_autoip("%s: commiting lease", dev->ifname);
+		ni_autoip_device_set_lease(dev, lease);
+
+		/* Write the lease to lease cache */
+		ni_addrconf_lease_file_write(dev->ifname, lease);
+
+		/* Inform the master about the newly acquired lease */
+		ni_autoip_send_event(NI_EVENT_LEASE_ACQUIRED, dev, lease);
+	} else {
+		ni_debug_autoip("%s: dropping lease", dev->ifname);
+		if ((lease = dev->lease) != NULL) {
+			lease->state = NI_ADDRCONF_STATE_RELEASED;
+			lease->uuid =  dev->request.uuid;
+			ni_autoip_send_event(NI_EVENT_LEASE_RELEASED, dev, lease);
+		}
+		ni_autoip_device_drop_lease(dev);
+	}
 	return 0;
 }
 
+void
+ni_autoip_fsm_release(ni_autoip_device_t *dev)
+{
+	ni_autoip_fsm_commit_lease(dev, NULL);
+}
 
 int
 ni_autoip_send_arp(ni_autoip_device_t *dev)
@@ -207,16 +258,16 @@ ni_autoip_send_arp(ni_autoip_device_t *dev)
 			ni_debug_autoip("%s: successfully claimed %s", dev->ifname, inet_ntoa(claim));
 
 			/* Build the lease */
-			ni_autoip_fsm_build_lease(dev);
-
 			dev->fsm.state = NI_AUTOIP_STATE_CLAIMED;
+			ni_autoip_fsm_commit_lease(dev, ni_autoip_fsm_build_lease(dev));
 			dev->autoip.nconflicts = 0;
 			dev->autoip.last_defense = 0;
 		}
 	} else {
-		ni_error("%s: nprobes and nclaims are zero; shouldn't be here", __FUNCTION__);
-		ni_autoip_fsm_conflict(dev);
-		return -1;
+		dev->fsm.state = NI_AUTOIP_STATE_CLAIMED;
+		ni_autoip_fsm_commit_lease(dev, ni_autoip_fsm_build_lease(dev));
+		dev->autoip.nconflicts = 0;
+		dev->autoip.last_defense = 0;
 	}
 	return 0;
 }

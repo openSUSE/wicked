@@ -2441,7 +2441,7 @@ ni_uuid_parse(ni_uuid_t *uuid, const char *string)
 int
 ni_uuid_is_null(const ni_uuid_t *uuid)
 {
-	return uuid->words[0] == 0 && uuid->words[1] == 0 && uuid->words[2] == 0 && uuid->words[3] == 0;
+	return !uuid || (uuid->words[0] == 0 && uuid->words[1] == 0 && uuid->words[2] == 0 && uuid->words[3] == 0);
 }
 
 int

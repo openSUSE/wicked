@@ -3,7 +3,6 @@
  *
  * Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
  *
- * Much of this code is in dbus-objects/autoip4.c for now.
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -23,13 +22,17 @@
 #include <wicked/logging.h>
 #include <wicked/addrconf.h>
 #include <wicked/dbus-service.h>
+#include <wicked/dbus-errors.h>
 #include <wicked/objectmodel.h>
 #include "autoip.h"
+#include "util_priv.h"
 
+static void			__ni_objectmodel_autoip4_device_release(ni_dbus_object_t *);
 
 static const ni_dbus_service_t	ni_objectmodel_autoip4_service;
-static ni_dbus_class_t		ni_objectmodel_autoip4dev_class = {
+static ni_dbus_class_t		ni_objectmodel_autoip4_device_class = {
 	.name		= "autoip4-device",
+	.destroy	= __ni_objectmodel_autoip4_device_release,
 	.superclass	= &ni_objectmodel_addrconf_device_class,
 };
 
@@ -41,7 +44,7 @@ ni_objectmodel_autoip4_init(void)
 {
 	if (ni_objectmodel_init(NULL) == NULL)
 		ni_fatal("Cannot initialize objectmodel, giving up.");
-	ni_objectmodel_register_class(&ni_objectmodel_autoip4dev_class);
+	ni_objectmodel_register_class(&ni_objectmodel_autoip4_device_class);
 	ni_objectmodel_register_service(&ni_objectmodel_autoip4_service);
 }
 
@@ -64,10 +67,10 @@ __ni_objectmodel_build_autoip4_device_object(ni_dbus_server_t *server, ni_autoip
 	if (server != NULL) {
 		snprintf(object_path, sizeof(object_path), "Interface/%d", dev->link.ifindex);
 		object = ni_dbus_server_register_object(server, object_path,
-						&ni_objectmodel_autoip4dev_class,
+						&ni_objectmodel_autoip4_device_class,
 						ni_autoip_device_get(dev));
 	} else {
-		object = ni_dbus_object_new(&ni_objectmodel_autoip4dev_class, NULL,
+		object = ni_dbus_object_new(&ni_objectmodel_autoip4_device_class, NULL,
 						ni_autoip_device_get(dev));
 	}
 
@@ -93,11 +96,37 @@ ni_objectmodel_register_autoip4_device(ni_dbus_server_t *server, ni_autoip_devic
  * Extract the autoip_device handle from a dbus object
  */
 static ni_autoip_device_t *
-ni_objectmodel_unwrap_autoip4_device(const ni_dbus_object_t *object)
+ni_objectmodel_unwrap_autoip4_device(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_autoip_device_t *dev = object->handle;
+	if (!object) {
+		if (error) {
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+					"Cannot unwrap autoip4 device from a NULL dbus object");
+		}
+		return NULL;
+	}
+	if (!ni_dbus_object_isa(object, &ni_objectmodel_autoip4_device_class)) {
+		if (error)  {
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+					"method not compatible with object %s of class %s (not autoip4 device)",
+					object->path, object->class->name);
+		}
+		return NULL;
+	}
+	return object->handle;
+}
 
-	return object->class == &ni_objectmodel_autoip4dev_class? dev : NULL;
+/*
+ * Destroy a dbus object wrapping an autoip device.
+ */
+static void
+__ni_objectmodel_autoip4_device_release(ni_dbus_object_t *object)
+{
+	ni_autoip_device_t *dev = ni_objectmodel_unwrap_autoip4_device(object, NULL);
+
+	object->handle = NULL;
+	if (dev)
+		ni_autoip_device_put(dev);
 }
 
 /*
@@ -107,18 +136,51 @@ ni_objectmodel_unwrap_autoip4_device(const ni_dbus_object_t *object)
  * Server side method implementation
  */
 static dbus_bool_t
-__wicked_dbus_autoip4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_autoip4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_autoip_device_t *dev = ni_objectmodel_unwrap_autoip4_device(object);
+	ni_auto4_request_t req;
+	ni_autoip_device_t *dev;
 	dbus_bool_t ret = FALSE;
+	ni_uuid_t req_uuid = NI_UUID_INIT;
 	int rv;
 
-	ni_debug_dbus("%s(dev=%s)", __func__, dev->ifname);
+	if (!(dev = ni_objectmodel_unwrap_autoip4_device(object, error)))
+		return FALSE;
 
-	/* Ignore all arguments for now */
-	if ((rv = ni_autoip_acquire(dev)) < 0) {
+	ni_debug_dbus("%s(dev=%s, argc=%u)", __func__, dev->ifname, argc);
+
+	if (argc == 2) {
+		/*
+		 * Extract the request uuid and pass that along to acquire.
+		 */
+		if (!ni_dbus_variant_get_uuid(&argv[0], &req_uuid)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"%s: unable to extract acquire request uuid argument",
+					method->name);
+			goto failed;
+		}
+		argc--;
+		argv++;
+	}
+
+	if (argc != 1) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s: unable to extract arguments", method->name);
+		 goto failed;
+	}
+
+	ni_auto4_request_init(&req, TRUE);
+	if (!ni_objectmodel_set_auto4_request_dict(&req, &argv[0], error)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s: unable to extract request from argument",
+				method->name);
+		goto failed;
+	}
+	req.uuid = req_uuid;
+
+	if ((rv = ni_autoip_acquire(dev, &req)) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Cannot configure interface %s: %s", dev->ifname,
 				ni_strerror(rv));
@@ -140,32 +202,36 @@ failed:
  * Drop a IPv4ll lease
  */
 static dbus_bool_t
-__wicked_dbus_autoip4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+ni_objectmodel_autoip4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_autoip_device_t *dev = ni_objectmodel_unwrap_autoip4_device(object);
+	ni_autoip_device_t *dev;
 	dbus_bool_t ret = FALSE;
-	ni_uuid_t uuid;
+	ni_uuid_t req_uuid = NI_UUID_INIT;
 	int rv;
 
-	ni_debug_dbus("%s(dev=%s)", __func__, dev->ifname);
+	if (!(dev = ni_objectmodel_unwrap_autoip4_device(object, error)))
+		return FALSE;
 
-	memset(&uuid, 0, sizeof(uuid));
+	ni_debug_dbus("%s(dev=%s, argc=%u)", __func__, dev->ifname, argc);
+
 	if (argc == 1) {
-		/* Extract the lease uuid and pass that along to ni_autoip_release.
-		 * This makes sure we don't cancel the wrong lease.
+		/*
+		 * Extract the lease uuid and pass that along to ni_autoip_release.
 		 */
-		if (!ni_dbus_variant_get_uuid(&argv[0], &uuid)) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "bad uuid argument");
+		if (!ni_dbus_variant_get_uuid(&argv[0], &req_uuid)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"%s: unable to extract drop request uuid argument",
+					method->name);
 			goto failed;
 		}
 	}
 
-	if ((rv = ni_autoip_release(dev, &uuid)) < 0) {
-		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Unable to drop IPv4ll lease for interface %s: %s", dev->ifname,
-				ni_strerror(rv));
+	if ((rv = ni_autoip_release(dev, &req_uuid)) < 0) {
+		ni_dbus_set_error_from_code(error, rv,
+				"Unable to drop auto4 lease for interface %s: %s",
+				dev->ifname, ni_strerror(rv));
 		goto failed;
 	}
 
@@ -175,13 +241,16 @@ failed:
 	return ret;
 }
 
-static ni_dbus_method_t		wicked_dbus_autoip4_methods[] = {
-	{ "acquire",		"a{sv}",		__wicked_dbus_autoip4_acquire_svc },
-	{ "drop",		"ay",			__wicked_dbus_autoip4_drop_svc },
+/*
+ * Request class and properties
+ */
+static ni_dbus_method_t		ni_objectmodel_autoip4_methods[] = {
+	{ "acquire",		"aya{sv}",	ni_objectmodel_autoip4_acquire_svc },
+	{ "drop",		"ay",		ni_objectmodel_autoip4_drop_svc },
 	{ NULL }
 };
 
-static ni_dbus_method_t		wicked_dbus_autoip4_signals[] = {
+static ni_dbus_method_t		ni_objectmodel_autoip4_signals[] = {
 	{ NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL },
 	{ NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL },
 	{ NI_OBJECTMODEL_LEASE_LOST_SIGNAL },
@@ -189,50 +258,57 @@ static ni_dbus_method_t		wicked_dbus_autoip4_signals[] = {
 };
 
 /*
- * Property name
+ * Device property access functions -- just showing
+ * the device name and currently assigned request.
  */
+static void *
+ni_objectmodel_get_autoip_device(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
+{
+	return ni_objectmodel_unwrap_autoip4_device(object, error);
+}
+
 static dbus_bool_t
-__wicked_dbus_autoip4_get_name(const ni_dbus_object_t *object,
+ni_objectmodel_autoip_device_get_request(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_autoip_device_t *dev = ni_dbus_object_get_handle(object);
+	ni_autoip_device_t *dev;
 
-	ni_dbus_variant_set_string(result, dev->ifname);
-	return TRUE;
+	if (!(dev = ni_objectmodel_unwrap_autoip4_device(object, error)))
+		return FALSE;
+
+	if (!dev->request.enabled)
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
+
+	return ni_objectmodel_get_auto4_request_dict(&dev->request, result, error);
 }
 
 static dbus_bool_t
-__wicked_dbus_autoip4_set_name(ni_dbus_object_t *object,
+ni_objectmodel_autoip_device_set_request(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_autoip_device_t *dev = ni_dbus_object_get_handle(object);
-	const char *value;
+	ni_autoip_device_t *dev;
 
-	if (!ni_dbus_variant_get_string(argument, &value))
+	if (!(dev = ni_objectmodel_unwrap_autoip4_device(object, error)))
 		return FALSE;
-	ni_string_dup(&dev->ifname, value);
-	return TRUE;
+
+	return ni_objectmodel_set_auto4_request_dict(&dev->request, argument, error);
 }
 
-#define WICKED_INTERFACE_PROPERTY(type, __name, rw) \
-	NI_DBUS_PROPERTY(type, __name, __wicked_dbus_autoip4, rw)
-#define WICKED_INTERFACE_PROPERTY_SIGNATURE(signature, __name, rw) \
-	__NI_DBUS_PROPERTY(signature, __name, __wicked_dbus_autoip4, rw)
-
-static ni_dbus_property_t	wicked_dbus_autoip4_properties[] = {
-	WICKED_INTERFACE_PROPERTY(STRING, name, RO),
-
+static ni_dbus_property_t	ni_objectmodel_autoip4_properties[] = {
+	NI_DBUS_GENERIC_STRING_PROPERTY(autoip_device, name, ifname, RO),
+	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, request, request,
+				ni_objectmodel_autoip_device, RO),
 	{ NULL }
 };
 
 static const ni_dbus_service_t	ni_objectmodel_autoip4_service = {
 	.name		= NI_OBJECTMODEL_AUTO4_INTERFACE,
-	.compatible	= &ni_objectmodel_autoip4dev_class,
-	.methods	= wicked_dbus_autoip4_methods,
-	.signals	= wicked_dbus_autoip4_signals,
-	.properties	= wicked_dbus_autoip4_properties,
+	.compatible	= &ni_objectmodel_autoip4_device_class,
+	.methods	= ni_objectmodel_autoip4_methods,
+	.signals	= ni_objectmodel_autoip4_signals,
+	.properties	= ni_objectmodel_autoip4_properties,
 };
