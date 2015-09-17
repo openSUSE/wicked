@@ -294,10 +294,8 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		}
 	}
 
-	if (info->clientid) {
-		ni_dhcp4_parse_client_id(&config->client_id, dev->system.hwaddr.type,
-					 info->clientid);
-	} else {
+	if (!ni_dhcp4_parse_client_id(&config->client_id, dev->system.hwaddr.type,
+				info->clientid)) {
 		/* Set client ID from interface hwaddr */
 		ni_dhcp4_set_client_id(&config->client_id, &dev->system.hwaddr);
 	}
@@ -721,38 +719,51 @@ ni_dhcp4_device_arp_close(ni_dhcp4_device_t *dev)
 /*
  * Parse a client id
  */
-void
+ni_bool_t
 ni_dhcp4_parse_client_id(ni_opaque_t *raw, unsigned short arp_type, const char *cooked)
 {
 	ni_hwaddr_t hwaddr;
+	size_t len;
+
+	if (!raw || ni_string_empty(cooked))
+		return FALSE;
 
 	/* Check if it's a hardware address */
-	if (ni_link_address_parse(&hwaddr, arp_type, cooked) == 0) {
-		ni_dhcp4_set_client_id(raw, &hwaddr);
-	} else {
-		/* nope, use as-is */
-		unsigned int len = strlen(cooked);
+	if (ni_link_address_parse(&hwaddr, arp_type, cooked) == 0)
+		return ni_dhcp4_set_client_id(raw, &hwaddr);
 
-		if (len > sizeof(raw->data) - 1)
-			len = sizeof(raw->data) - 1;
+	/* Try to parse as a client-id hex string */
+	raw->len = ni_parse_hex(cooked, raw->data, sizeof(raw->data));
+	if ((int)(raw->len) > 1)
+		return TRUE;
 
-		raw->data[0] = 0;
-		memcpy(raw->data + 1, cooked, len);
-		raw->len = len + 1;
-	}
+	/* nope, fallback to use as-is (attic legacy) */
+	len = ni_string_len(cooked);
+	if (len > sizeof(raw->data) - 1)
+		len = sizeof(raw->data) - 1;
+
+	raw->data[0] = 0x00;
+	memcpy(raw->data + 1, cooked, len);
+	raw->len = len + 1;
+	return TRUE;
 }
 
 /*
  * Set the client ID from a link layer address, according to RFC 2131
  */
-void
+ni_bool_t
 ni_dhcp4_set_client_id(ni_opaque_t *raw, const ni_hwaddr_t *hwa)
 {
+	if (!raw || !hwa)
+		return FALSE;
+
 	if ((size_t)hwa->len + 1 > sizeof(raw->data))
-		ni_fatal("%s: not enough room for MAC address", __FUNCTION__);
+		return FALSE;
+
 	raw->data[0] = hwa->type;
 	memcpy(raw->data + 1, hwa->data, hwa->len);
 	raw->len = hwa->len + 1;
+	return TRUE;
 }
 
 /*
