@@ -168,6 +168,7 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 {
 	const ni_dbus_variant_t *child;
 	const char *string;
+	uint32_t value;
 
 	if (!ni_dbus_variant_is_dict(var)) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "expected dict argument");
@@ -176,24 +177,32 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 
 	if ((child = ni_dbus_dict_get(var, "essid")) != NULL) {
 		if (!ni_dbus_variant_get_string(child, &string) ||
-		    !ni_wireless_parse_ssid(string, &net->essid))
+		    !ni_wireless_parse_ssid(string, &net->essid)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "invald wireless ssid %s", string);
 			return FALSE;
+		}
 	}
 
 	if ((child = ni_dbus_dict_get(var, "access-point")) != NULL) {
 		ni_hwaddr_t hwaddr;
 		unsigned int len;
 
-		if (!ni_dbus_variant_get_byte_array_minmax(child, hwaddr.data, &len, 0, sizeof(hwaddr.data)) || ni_link_address_length(ARPHRD_ETHER) != len)
+		if (!ni_dbus_variant_get_byte_array_minmax(child, hwaddr.data, &len, 0,
+		    sizeof(hwaddr.data)) || ni_link_address_length(ARPHRD_ETHER) != len) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "invald wireless access point address");
 			return FALSE;
+		}
 		hwaddr.type = ARPHRD_ETHER;
 		hwaddr.len = len;
 		net->access_point = hwaddr;
 	}
 
-	if (ni_dbus_dict_get_string(var, "mode", &string)) {
-		if (!ni_wireless_name_to_mode(string, &net->mode))
+	if (ni_dbus_dict_get_uint32(var, "mode", &value)) {
+		if (!ni_wireless_mode_to_name(value)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "invalid wireless mode %u", value);
 			return FALSE;
+		}
+		net->mode = value;
 	}
 
 	if ((child = ni_dbus_dict_get(var, "wpa-psk")) != NULL) {
@@ -208,7 +217,6 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 	} else
 	if ((child = ni_dbus_dict_get(var, "wpa-eap")) != NULL) {
 		ni_dbus_variant_t *gchild;
-		uint32_t value;
 
 		net->auth_proto = NI_WIRELESS_AUTH_WPA2;
 		net->keymgmt_proto = NI_WIRELESS_KEY_MGMT_EAP;
