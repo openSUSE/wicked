@@ -37,6 +37,7 @@
 #include <net/ethernet.h>
 #include <netlink/netlink.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
 #include <pwd.h>
 #include <grp.h>
 
@@ -110,8 +111,14 @@ static ni_bool_t		__ni_ipv6_disbled;
 						  __NI_SUSE_SYSCONF_DIR"/HOSTNAME", \
 						  NULL }
 #define __NI_SUSE_SYSCTL_SUFFIX			".conf"
-#define __NI_SUSE_SYSCTL_FILE			__NI_SUSE_SYSCONF_DIR"/sysctl.conf"
-#define __NI_SUSE_SYSCTL_DIR			__NI_SUSE_SYSCONF_DIR"/sysctl.d"
+#define __NI_SUSE_SYSCTL_BOOT			"/boot/sysctl.conf-"
+#define __NI_SUSE_SYSCTL_DIRS			{ "/lib/sysctl.d",                  \
+						  "/usr/lib/sysctl.d",              \
+	                                          "/usr/local/lib/sysctl.d",        \
+	                                          "/etc/sysctl.d",                  \
+	                                          "/run/sysctl.d",                  \
+						  NULL }
+#define __NI_SUSE_SYSCTL_FILE			"/etc/sysctl.conf"
 #define __NI_SUSE_PROC_IPV6_DIR			"/proc/sys/net/ipv6"
 
 #define __NI_SUSE_SYSCONFIG_NETWORK_DIR		__NI_SUSE_SYSCONF_DIR"/sysconfig/network"
@@ -308,28 +315,46 @@ __ni_suse_read_default_hostname(const char *root, char **hostname)
 static ni_bool_t
 __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 {
+	const char *sysctldirs[] = __NI_SUSE_SYSCTL_DIRS, **sysctld;
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	char dirname[PATH_MAX];
 	char pathbuf[PATH_MAX];
 	const char *name;
 	char *real = NULL;
 	unsigned int i;
+	struct utsname u;
 
 	ni_var_array_destroy(&__ni_suse_global_ifsysctl);
 
 	/*
-	 * canonicalize all files to avoid parsing them multiple
-	 * times -- there are symlinks used by default.
+	 * first /boot/sysctl.conf-<kernelversion>
 	 */
-	snprintf(dirname, sizeof(dirname), "%s%s", root, __NI_SUSE_SYSCTL_DIR);
-	if (ni_isdir(dirname)) {
+	memset(&u, 0, sizeof(u));
+	if (uname(&u) == 0) {
+		snprintf(pathbuf, sizeof(pathbuf), "%s%s%s", root,
+				__NI_SUSE_SYSCTL_BOOT, u.release);
+		name = ni_realpath(pathbuf, &real);
+		if (name && ni_isreg(name))
+			ni_string_array_append(&files, name);
+		ni_string_free(&real);
+	}
+
+	/*
+	 * then the new sysctl.d directories
+	 */
+	for (sysctld = sysctldirs; *sysctld; ++sysctld) {
 		ni_string_array_t names = NI_STRING_ARRAY_INIT;
+
+		snprintf(dirname, sizeof(dirname), "%s%s", root, *sysctld);
+		if (!ni_isdir(dirname))
+			continue;
+
 		if (ni_scandir(dirname, "*"__NI_SUSE_SYSCTL_SUFFIX, &names)) {
 			for (i = 0; i < names.count; ++i) {
 				snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
 						dirname, names.data[i]);
 				name = ni_realpath(pathbuf, &real);
-				if (name)
+				if (name && ni_isreg(name))
 					ni_string_array_append(&files, name);
 				ni_string_free(&real);
 			}
@@ -337,6 +362,9 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 		ni_string_array_destroy(&names);
 	}
 
+	/*
+	 * then the old /etc/sysctl.conf
+	 */
 	snprintf(pathbuf, sizeof(pathbuf), "%s%s", root, __NI_SUSE_SYSCTL_FILE);
 	name = ni_realpath(pathbuf, &real);
 	if (name && ni_isreg(name)) {
@@ -345,6 +373,9 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 	}
 	ni_string_free(&real);
 
+	/*
+	 * finally ifsysctl if they exist
+	 */
 	if (ni_string_empty(root))
 		snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
 				path, __NI_SUSE_IFSYSCTL_FILE);
