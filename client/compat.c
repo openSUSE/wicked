@@ -960,9 +960,7 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 			return FALSE;
 
 		if (net->essid.len > 0) {
-			ni_string_set(&tmp, (const char *) net->essid.data, net->essid.len);
-			xml_node_new_element("essid", network, tmp);
-			ni_string_free(&tmp);
+			xml_node_new_element("essid", network, ni_wireless_print_ssid(&net->essid));
 		}
 
 		xml_node_new_element("scan-ssid", network, net->scan_ssid?"true":"false");
