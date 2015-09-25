@@ -1083,15 +1083,17 @@ ni_wireless_auth_info_array_destroy(ni_wireless_auth_info_array_t *array)
 /*
  * Helper function to print and parse an SSID
  * Non-printable characters and anything fishy is represented
- * as \\ooo octal escape characters
+ * as \\xXX hex escape characters as formated by the iwlist
+ * scanning command and wpa-supplicant.
  */
 const char *
 ni_wireless_print_ssid(const ni_wireless_ssid_t *ssid)
 {
 	static char result[4 * sizeof(ssid->data) + 1];
-	unsigned int i, j;
+	unsigned int i, j = 0;
 
-	ni_assert(ssid->len <= sizeof(ssid->data));
+	if (!ssid || ssid->len > sizeof(ssid->data))
+		return NULL;
 
 	for (i = j = 0; i < ssid->len; ++i) {
 		unsigned char cc = ssid->data[i];
@@ -1099,7 +1101,7 @@ ni_wireless_print_ssid(const ni_wireless_ssid_t *ssid)
 		if (isalnum(cc) || cc == '-' || cc == '_' || cc == ' ') {
 			result[j++] = cc;
 		} else {
-			sprintf(result + j, "\\%03o", cc);
+			sprintf(result + j, "\\x%02X", cc);
 			j += 4;
 		}
 	}
@@ -1108,35 +1110,113 @@ ni_wireless_print_ssid(const ni_wireless_ssid_t *ssid)
 	return result;
 }
 
+static inline unsigned int
+__ni_wireless_parse_ssid_hex(unsigned char *out, const char *str, size_t len)
+{
+	unsigned long val;
+	unsigned int pos;
+	char *eos = NULL;
+	char buf[3];
+
+	for (pos = 0; pos < 2 && (size_t)pos < len; ) {
+		unsigned char cc = str[pos];
+
+		if (!isxdigit(cc))
+			break;
+
+		buf[pos++] = cc;
+	}
+
+	if (pos) {
+		buf[pos] = '\0';
+		val = strtoul(&buf[0], &eos, 16);
+		if (*eos != '\0' || val > 255)
+			return 0;
+		*out = val;
+	}
+	return pos;
+}
+
+static inline unsigned int
+__ni_wireless_parse_ssid_oct(unsigned char *out, const char *str, size_t len)
+{
+	unsigned int val = 0;
+	unsigned int pos;
+
+	for (pos = 0; pos < 3 && (size_t)pos < len; ) {
+		unsigned char cc = str[pos];
+
+		if (cc < '0' || '7' < cc)
+			break;
+
+		val = (val << 3) | (cc - '0');
+		pos++;
+	}
+	if (pos)
+		*out = val;
+	return pos;
+}
+
+static inline int
+__ni_wireless_parse_ssid_put(ni_wireless_ssid_t *ssid, unsigned char cc)
+{
+	if (ssid->len >= sizeof(ssid->data))
+		return -1;
+	ssid->data[ssid->len++] = cc;
+	return 1;
+}
+
+static inline int
+__ni_wireless_parse_ssid_esc(unsigned char *cc, const char *s, const char *e)
+{
+	switch (*s) {
+	case '\\':	*cc = '\\';		return 1;
+	case '"':	*cc = '"';		return 1;
+	case 'n':	*cc = '\n';		return 1;
+	case 'r':	*cc = '\r';		return 1;
+	case 't':	*cc = '\t';		return 1;
+	case 'e':	*cc = '\033';		return 1;
+	case 'x':
+		return __ni_wireless_parse_ssid_hex(cc, s + 1, e - s - 1) + 1;
+	case '0':
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7':
+		return __ni_wireless_parse_ssid_oct(cc, s, e - s);
+	default:
+		return 0;
+	}
+}
+
 ni_bool_t
 ni_wireless_parse_ssid(const char *string, ni_wireless_ssid_t *ssid)
 {
-	const char *s;
+	const char *s = string;
+	const char *e;
+	int ret;
 
+	if (!string || !ssid)
+		goto bad_ssid;
+
+	e = s + ni_string_len(s);
 	memset(ssid, 0, sizeof(*ssid));
-	for (s = string; *s; ) {
+	while (e > s) {
 		unsigned char cc = *s++;
 
 		if (cc == '\\') {
-			unsigned int value = 0;
-			unsigned int j;
-
-			for (j = 0; j < 3; ++j) {
-				cc = *s;
-
-				if (cc < '0' || '7' < cc)
-					break;
-
-				value = (value << 3) | (cc - '0');
-				++s;
-			}
-			if (j == 0)
+			ret = __ni_wireless_parse_ssid_esc(&cc, s, e);
+			if (ret < 0)
 				goto bad_ssid;
-			cc = value;
+			s += ret;
 		}
-		if (ssid->len >= sizeof(ssid->data))
+
+		ret = __ni_wireless_parse_ssid_put(ssid, cc);
+		if (ret < 0)
 			goto bad_ssid;
-		ssid->data[ssid->len++] = cc;
 	}
 
 	return TRUE;

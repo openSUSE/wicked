@@ -10,6 +10,7 @@ noinst_PROGRAMS			= rtnl-test	\
 				  json-test	\
 				  teamd-test	\
 				  xpath-test	\
+				  essid-test	\
 				  cstate-test
 
 AM_CPPFLAGS			= -I$(top_srcdir)/src	\
@@ -30,6 +31,7 @@ ibft_test_SOURCES		= ibft-test.c
 json_test_SOURCES		= json-test.c
 teamd_test_SOURCES		= teamd-test.c
 xpath_test_SOURCES		= xpath-test.c
+essid_test_SOURCES		= essid-test.c
 cstate_test_SOURCES		= cstate-test.c
 
 EXTRA_DIST			= ibft xpath
