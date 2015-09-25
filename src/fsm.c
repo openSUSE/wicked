@@ -25,6 +25,7 @@
 #include <wicked/fsm.h>
 #include <wicked/client.h>
 #include <wicked/bridge.h>
+#include <wicked/ovs.h>
 #include <xml-schema.h>
 
 #include "client/ifconfig.h"
@@ -1150,12 +1151,13 @@ ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_ty
 }
 
 static xml_node_t *
-__ni_generate_default_config(const char *ifname, ni_iftype_t ptype, xml_node_t *control)
+__ni_generate_default_config(ni_ifworker_t *parent, const char *ifname)
 {
-	xml_node_t *ipv4, *ipv6, *config = NULL;
+	xml_node_t *link, *ipv4, *ipv6, *config = NULL;
+	xml_node_t *pconfig, *control, *port;
 
-	if (ni_string_empty(ifname) || !ptype)
-		goto error;
+	pconfig = parent->config.node;
+	control = xml_node_get_child(pconfig, NI_CLIENT_IFCONFIG_CONTROL);
 
 	/* Create <interface> */
 	if (!(config = xml_node_new(NI_CLIENT_IFCONFIG, NULL)))
@@ -1164,7 +1166,7 @@ __ni_generate_default_config(const char *ifname, ni_iftype_t ptype, xml_node_t *
 	if (!xml_node_new_element(NI_CLIENT_IFCONFIG_MATCH_NAME, config, ifname))
 		goto error;
 	/* Add <link></link> */
-	if (!xml_node_new(NI_CLIENT_IFCONFIG_LINK, config))
+	if (!(link = xml_node_new(NI_CLIENT_IFCONFIG_LINK, config)))
 		goto error;
 	/* Add <ipv4></ipv4> and <ipv6></ipv6> */
 	if (!(ipv4 = xml_node_new(NI_CLIENT_IFCONFIG_IPV4, config)))
@@ -1172,8 +1174,9 @@ __ni_generate_default_config(const char *ifname, ni_iftype_t ptype, xml_node_t *
 	 if (!(ipv6 = xml_node_new(NI_CLIENT_IFCONFIG_IPV6, config)))
 		 goto error;
 
-	switch (ptype) {
+	switch (parent->iftype) {
 	/* for slaves */
+	case NI_IFTYPE_TEAM:
 	case NI_IFTYPE_BOND:
 		/*
 		 * STARTMODE="hotplug"
@@ -1190,6 +1193,26 @@ __ni_generate_default_config(const char *ifname, ni_iftype_t ptype, xml_node_t *
 			 goto error;
 		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv6, "false"))
 			 goto error;
+	break;
+
+	case NI_IFTYPE_OVS_BRIDGE:
+		/*
+		 * STARTMODE="$pstartmode"
+		 * BOOTPROTO="none"
+		 */
+
+		/* Clone <control> */
+		if (!xml_node_is_empty(control) && !xml_node_clone(control, config))
+			goto error;
+		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv4, "false"))
+			 goto error;
+		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv6, "false"))
+			 goto error;
+
+		xml_node_new_element("master", link, ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM));
+		port = xml_node_new("port", link);
+		xml_node_add_attr(port, "type", ni_linktype_type_to_name(parent->iftype));
+		xml_node_new_element("bridge", port, parent->name);
 	break;
 
 	case NI_IFTYPE_BRIDGE:
@@ -1229,13 +1252,13 @@ __ni_generate_default_config(const char *ifname, ni_iftype_t ptype, xml_node_t *
 
 	default:
 		goto error;
-     }
+	}
 
 	return config;
 
 error:
 	ni_error("%s: Unable to generate default XML config (parent type %s)",
-		ifname, ni_linktype_type_to_name(ptype));
+		ifname, ni_linktype_type_to_name(parent->iftype));
 	xml_node_free(config);
 	return NULL;
 }
@@ -1243,16 +1266,19 @@ error:
 static void
 ni_ifworker_generate_default_config(ni_ifworker_t *parent, ni_ifworker_t *child)
 {
-	xml_node_t *control, *config;
+	xml_node_t *config;
 
-	if (!parent || !child)
+	if (!parent || !parent->iftype || !parent->config.node ||
+			!child || ni_string_empty(child->name))
+		return;
+
+	if (parent->iftype == NI_IFTYPE_OVS_SYSTEM)
 		return;
 
 	ni_debug_application("%s: generating default config for %s child",
-		parent->name, child->name);
+			parent->name, child->name);
 
-	control = xml_node_get_child(parent->config.node, NI_CLIENT_IFCONFIG_CONTROL);
-	config = __ni_generate_default_config(child->name, parent->iftype, control);
+	config = __ni_generate_default_config(parent, child->name);
 	if (config) {
 		ni_ifworker_set_config(child, config, parent->config.meta.origin);
 		xml_node_free(config);
@@ -1351,18 +1377,20 @@ ni_ifworker_set_lower_device(ni_ifworker_t *child, ni_ifworker_t *lower, xml_nod
 }
 
 static ni_bool_t
-ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode, ni_bool_t shared)
+ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *devnode, ni_bool_t shared, ni_bool_t supplemental)
 {
 	unsigned int i;
 
-	if (shared) {
-		/* a vlan "parent" refers to it's lower in "child" */
-		if (!ni_ifworker_set_lower_device(parent, child, devnode))
-			return FALSE;
-	} else {
-		/* master "parent" refers to it's slave in "child" */
-		if (!ni_ifworker_set_master_device(child, parent, devnode))
-			return FALSE;
+	if (!supplemental) {
+		if (shared) {
+			/* a vlan "parent" refers to it's lower in "child" */
+			if (!ni_ifworker_set_lower_device(parent, child, devnode))
+				return FALSE;
+		} else {
+			/* master "parent" refers to it's slave in "child" */
+			if (!ni_ifworker_set_master_device(child, parent, devnode))
+				return FALSE;
+		}
 	}
 
 	/* Generate missed slave config if needed */
@@ -1596,7 +1624,6 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 	case NI_EVENT_LINK_DOWN:
 		max_state = NI_FSM_STATE_LINK_UP - 1;
 		break;
-	case NI_EVENT_ADDRESS_DEFERRED:
 	case NI_EVENT_ADDRESS_ACQUIRED:
 		min_state = NI_FSM_STATE_ADDRCONF_UP;
 		break;
@@ -1998,7 +2025,7 @@ ni_fsm_require_netif_resolve(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *
 		return FALSE;
 
 	ni_debug_application("%s: resolved reference to subordinate device %s", w->name, cw->name);
-	if (!ni_ifworker_add_child(w, cw, devnode, FALSE))
+	if (!ni_ifworker_add_child(w, cw, devnode, FALSE, FALSE))
 		return FALSE;
 
 	req->user_data = NULL;
@@ -2032,7 +2059,7 @@ ni_fsm_require_modem_resolve(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *
 		return FALSE;
 
 	ni_debug_application("%s: resolved reference to subordinate device %s", w->name, cw->name);
-	if (!ni_ifworker_add_child(w, cw, devnode, FALSE))
+	if (!ni_ifworker_add_child(w, cw, devnode, FALSE, FALSE))
 		return FALSE;
 
 	req->user_data = NULL;
@@ -3320,6 +3347,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 	xml_node_t *mchild;
 	ni_bool_t shared = FALSE;
 	ni_bool_t subordinate = FALSE;
+	ni_bool_t supplemental = FALSE;
 
 	for (mchild = metadata->children; mchild; mchild = mchild->next) {
 		ni_stringbuf_t path = NI_STRINGBUF_INIT_DYNAMIC;
@@ -3334,6 +3362,10 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 			if (!(cw = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_NETDEV, w->name)))
 				continue;
 
+			/* supplemental is an additional reference, e.g. hidden inside of openvswitch */
+			if ((attr = xml_node_get_attr(mchild, "supplemental")))
+				supplemental = ni_string_eq(attr, "true");
+
 			/* subordinate is a slave -> master reference, counterpart of shared=false */
 			if ((attr = xml_node_get_attr(mchild, "subordinate")))
 				subordinate = ni_string_eq(attr, "true");
@@ -3349,16 +3381,16 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 
 			if (subordinate) {
 				/* slave w refers to it's master in cw */
-				if (!ni_ifworker_add_child(cw, w, node, FALSE))
+				if (!ni_ifworker_add_child(cw, w, node, FALSE, supplemental))
 					return FALSE;
 			} else
 			if (shared) {
 				/* vlan w refers to it's lower in cw   */
-				if (!ni_ifworker_add_child(w, cw, node, TRUE))
+				if (!ni_ifworker_add_child(w, cw, node, TRUE, supplemental))
 					return FALSE;
 			} else {
 				/* master w refers to it's slave in cw */
-				if (!ni_ifworker_add_child(w, cw, node, FALSE))
+				if (!ni_ifworker_add_child(w, cw, node, FALSE, supplemental))
 					return FALSE;
 			}
 		} else
@@ -3371,6 +3403,10 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 			if (!(cw = ni_ifworker_resolve_reference(closure->fsm, node, NI_IFWORKER_TYPE_MODEM, w->name)))
 				return FALSE;
 
+			/* supplemental is an additional reference, e.g. hidden inside of openvswitch */
+			if ((attr = xml_node_get_attr(mchild, "supplemental")))
+				supplemental = ni_string_eq(attr, "true");
+
 			/* subordinate is a slave -> master reference, counterpart of shared=false */
 			if ((attr = xml_node_get_attr(mchild, "subordinate")))
 				subordinate = ni_string_eq(attr, "true");
@@ -3386,16 +3422,16 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 
 			if (subordinate) {
 				/* slave w refers to it's master in cw */
-				if (!ni_ifworker_add_child(cw, w, node, FALSE))
+				if (!ni_ifworker_add_child(cw, w, node, FALSE, supplemental))
 					return FALSE;
 			} else
 			if (shared) {
 				/* vlan w refers to it's lower in cw   */
-				if (!ni_ifworker_add_child(w, cw, node, TRUE))
+				if (!ni_ifworker_add_child(w, cw, node, TRUE, supplemental))
 					return FALSE;
 			} else {
 				/* master w refers to it's slave in cw */
-				if (!ni_ifworker_add_child(w, cw, node, FALSE))
+				if (!ni_ifworker_add_child(w, cw, node, FALSE, supplemental))
 					return FALSE;
 			}
 
@@ -3537,6 +3573,38 @@ ni_fsm_refresh_lower_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
 		ni_ifworker_array_append(&w->children, lower);
 }
 
+static void
+ni_fsm_refresh_ovs_bridge(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	ni_ifworker_t *ow;
+	ni_netdev_t *dev;
+	const char *name;
+	unsigned int i;
+
+	if (!fsm || !w || !(dev = w->device))
+		return;
+
+	if (dev->link.type != NI_IFTYPE_OVS_BRIDGE || !dev->ovsbr)
+		return;
+
+	if ((name = dev->ovsbr->config.vlan.parent.name) && !ni_string_empty(name)) {
+		ow = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, name);
+		if (ow && ni_ifworker_array_index(&w->children, ow) < 0)
+			ni_ifworker_array_append(&w->children, ow);
+	}
+
+	for (i = 0; i < dev->ovsbr->ports.count; ++i) {
+		const ni_ovs_bridge_port_t *port = dev->ovsbr->ports.data[i];
+
+		if (!port || !(name = port->device.name) || ni_string_empty(name))
+			continue;
+
+		ow = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, name);
+		if (ow && ni_ifworker_array_index(&w->children, ow) < 0)
+			ni_ifworker_array_append(&w->children, ow);
+	}
+}
+
 ni_bool_t
 ni_fsm_refresh_state(ni_fsm_t *fsm)
 {
@@ -3571,6 +3639,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 		/* Rebuild hierarchy */
 		ni_fsm_refresh_master_dev(fsm, w);
 		ni_fsm_refresh_lower_dev(fsm, w);
+		ni_fsm_refresh_ovs_bridge(fsm, w);
 
 		/* Set initial state of existing devices */
 		if (w->object != NULL)
@@ -4604,7 +4673,7 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_SETUP, "shutdownDevice", .call_overloading = TRUE),
 
 	/* Delete the device */
-	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_EXISTS, "deleteDevice", .call_overloading = TRUE),
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_EXISTS, "deleteDevice", .call_overloading = TRUE, .may_fail = TRUE),
 
 	{ .from_state = NI_FSM_STATE_NONE, .next_state = NI_FSM_STATE_NONE, .call_func = NULL }
 };
@@ -4912,7 +4981,7 @@ __find_corresponding_lease(ni_netdev_t *dev, sa_family_t family, unsigned int ty
 	}
 }
 
-static ni_bool_t
+static int
 address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callback_info_t *cb, ni_event_t event)
 {
 	ni_netdev_t *dev;
@@ -4924,13 +4993,13 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 		ni_error("%s: received %s event with uuid %s, but can't find a device for",
 				w ? w->name : NULL, ni_objectmodel_event_to_signal(event),
 				ni_uuid_print(&cb->uuid));
-		return FALSE;	/* ignore?? */
+		return -1;	/* ignore?? */
 	}
 	if (!(lease = ni_netdev_get_lease_by_uuid(dev, &cb->uuid))) {
 		ni_error("%s: received %s event with uuid %s, but can't find a lease for",
 				w->name, ni_objectmodel_event_to_signal(event),
 				ni_uuid_print(&cb->uuid));
-		return FALSE;	/* ignore?? */
+		return -1;	/* ignore?? */
 	}
 
 	switch (event) {
@@ -4952,7 +5021,7 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 	default:
 		ni_error("%s: received unexpected event %s -- ignoring it",
 				w->name, ni_objectmodel_event_to_signal(event));
-		return TRUE;
+		return 0;	/* ??? */
 	}
 	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
 			"%s: adjusted %s:%s lease to state: %s, flags: 0x%02x",
@@ -4965,36 +5034,34 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 
 	/* if there are still pending leases -- wait for them	*/
 	if (ni_ifworker_waiting_for_event(w, cb->event))
-		return TRUE;
+		return 0;
 
-	/* this is the last lease we were waiting for -- report	*/
-	for (lease = dev->leases; lease; lease = lease->next) {
-		if (lease->state == NI_ADDRCONF_STATE_NONE ||
-		    lease->state == NI_ADDRCONF_STATE_GRANTED)
-			continue;
+	/* report back if to advance state or not */
+	switch (lease->state) {
+	case NI_ADDRCONF_STATE_REQUESTING:
+	case NI_ADDRCONF_STATE_FAILED:
+		if (ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_GROUP)) {
+			other = __find_corresponding_lease(dev, lease->family, lease->type);
+			if (other) {
+				ni_addrconf_flags_format(&buf, other->flags, "|");
+				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+						"%s: %s:%s peer lease in state %s, flags %s",
+						w->name,
+						ni_addrfamily_type_to_name(other->family),
+						ni_addrconf_type_to_name(other->type),
+						ni_addrconf_state_to_name(other->state),
+						buf.string ? buf.string : "none");
+				ni_stringbuf_destroy(&buf);
 
-		/* a not ready, released or failed non-optional lease -> fail */
-		if (!ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_GROUP))
-			return TRUE; /* not an error -> ifup shows status */
-
-		/* optional type-goup peer lease -> check peer lease */
-		other = __find_corresponding_lease(dev, lease->family, lease->type);
-		if (other) {
-			ni_addrconf_flags_format(&buf, other->flags, "|");
-			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
-					"%s: %s:%s peer lease in state %s, flags %s",
-					w->name,
-					ni_addrfamily_type_to_name(other->family),
-					ni_addrconf_type_to_name(other->type),
-					ni_addrconf_state_to_name(other->state),
-					buf.string ? buf.string : "none");
-			ni_stringbuf_destroy(&buf);
-
-			if (other->state != NI_ADDRCONF_STATE_GRANTED)
-				return TRUE; /* not an error -> ifup shows status */
+				/* ok, peer lease is acquired, advance earlier */
+				if (other->state == NI_ADDRCONF_STATE_GRANTED)
+					return 0;
+			}
 		}
+		return 1;	/* do not advance state, wait until timeout */
 	}
-	return TRUE;
+
+	return 0;
 }
 
 static void
@@ -5034,6 +5101,7 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 		if (cb) {
 			ni_event_t cb_event_type;
 			ni_bool_t success;
+			int ret;
 
 			if (ni_objectmodel_signal_to_event(cb->event, &cb_event_type) < 0)
 				cb_event_type = __NI_EVENT_MAX;
@@ -5058,11 +5126,14 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 					goto done;
 				}
 
-				success = address_acquired_callback_handler(w, cb, event_type);
+				ret = address_acquired_callback_handler(w, cb, event_type);
+				success = ret >= 0;
 
-				/* Set event_name and type to the event we wait for */
-				event_name = ni_objectmodel_event_to_signal(cb_event_type);
-				event_type = cb_event_type; /* don't revert state on failure */
+				/* Set event_name and type to the callback event we wait for */
+				if (ret == 0) {
+					event_name = ni_objectmodel_event_to_signal(cb_event_type);
+					event_type = cb_event_type; /* don't revert state on failure */
+				}
 				break;
 			default:
 				break;

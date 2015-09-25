@@ -788,6 +788,7 @@ ni_nanny_process_fsm_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 
 	switch (ev->event_type) {
 	case NI_EVENT_DEVICE_READY:
+	case NI_EVENT_DEVICE_UP:
 		ni_nanny_register_device(mgr, w);
 		break;
 

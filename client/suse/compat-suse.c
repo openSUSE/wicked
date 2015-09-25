@@ -37,6 +37,7 @@
 #include <net/ethernet.h>
 #include <netlink/netlink.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
 #include <pwd.h>
 #include <grp.h>
 
@@ -51,6 +52,8 @@
 #include <wicked/ethernet.h>
 #include <wicked/infiniband.h>
 #include <wicked/bonding.h>
+#include <wicked/team.h>
+#include <wicked/ovs.h>
 #include <wicked/bridge.h>
 #include <wicked/vlan.h>
 #include <wicked/macvlan.h>
@@ -76,6 +79,7 @@ static ni_bool_t		__ni_suse_read_globals(const char *, const char *, const char 
 static void			__ni_suse_free_globals(void);
 static void			__ni_suse_show_unapplied_routes(void);
 static void			__ni_suse_adjust_slaves(ni_compat_netdev_array_t *);
+static void			__ni_suse_adjust_ovs_system(ni_compat_netdev_t *);
 static ni_bool_t		__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
 static int			__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *,
 							const char *, try_function_t);
@@ -107,8 +111,14 @@ static ni_bool_t		__ni_ipv6_disbled;
 						  __NI_SUSE_SYSCONF_DIR"/HOSTNAME", \
 						  NULL }
 #define __NI_SUSE_SYSCTL_SUFFIX			".conf"
-#define __NI_SUSE_SYSCTL_FILE			__NI_SUSE_SYSCONF_DIR"/sysctl.conf"
-#define __NI_SUSE_SYSCTL_DIR			__NI_SUSE_SYSCONF_DIR"/sysctl.d"
+#define __NI_SUSE_SYSCTL_BOOT			"/boot/sysctl.conf-"
+#define __NI_SUSE_SYSCTL_DIRS			{ "/lib/sysctl.d",                  \
+						  "/usr/lib/sysctl.d",              \
+	                                          "/usr/local/lib/sysctl.d",        \
+	                                          "/etc/sysctl.d",                  \
+	                                          "/run/sysctl.d",                  \
+						  NULL }
+#define __NI_SUSE_SYSCTL_FILE			"/etc/sysctl.conf"
 #define __NI_SUSE_PROC_IPV6_DIR			"/proc/sys/net/ipv6"
 
 #define __NI_SUSE_SYSCONFIG_NETWORK_DIR		__NI_SUSE_SYSCONF_DIR"/sysconfig/network"
@@ -305,28 +315,46 @@ __ni_suse_read_default_hostname(const char *root, char **hostname)
 static ni_bool_t
 __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 {
+	const char *sysctldirs[] = __NI_SUSE_SYSCTL_DIRS, **sysctld;
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	char dirname[PATH_MAX];
 	char pathbuf[PATH_MAX];
 	const char *name;
 	char *real = NULL;
 	unsigned int i;
+	struct utsname u;
 
 	ni_var_array_destroy(&__ni_suse_global_ifsysctl);
 
 	/*
-	 * canonicalize all files to avoid parsing them multiple
-	 * times -- there are symlinks used by default.
+	 * first /boot/sysctl.conf-<kernelversion>
 	 */
-	snprintf(dirname, sizeof(dirname), "%s%s", root, __NI_SUSE_SYSCTL_DIR);
-	if (ni_isdir(dirname)) {
+	memset(&u, 0, sizeof(u));
+	if (uname(&u) == 0) {
+		snprintf(pathbuf, sizeof(pathbuf), "%s%s%s", root,
+				__NI_SUSE_SYSCTL_BOOT, u.release);
+		name = ni_realpath(pathbuf, &real);
+		if (name && ni_isreg(name))
+			ni_string_array_append(&files, name);
+		ni_string_free(&real);
+	}
+
+	/*
+	 * then the new sysctl.d directories
+	 */
+	for (sysctld = sysctldirs; *sysctld; ++sysctld) {
 		ni_string_array_t names = NI_STRING_ARRAY_INIT;
+
+		snprintf(dirname, sizeof(dirname), "%s%s", root, *sysctld);
+		if (!ni_isdir(dirname))
+			continue;
+
 		if (ni_scandir(dirname, "*"__NI_SUSE_SYSCTL_SUFFIX, &names)) {
 			for (i = 0; i < names.count; ++i) {
 				snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
 						dirname, names.data[i]);
 				name = ni_realpath(pathbuf, &real);
-				if (name)
+				if (name && ni_isreg(name))
 					ni_string_array_append(&files, name);
 				ni_string_free(&real);
 			}
@@ -334,6 +362,9 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 		ni_string_array_destroy(&names);
 	}
 
+	/*
+	 * then the old /etc/sysctl.conf
+	 */
 	snprintf(pathbuf, sizeof(pathbuf), "%s%s", root, __NI_SUSE_SYSCTL_FILE);
 	name = ni_realpath(pathbuf, &real);
 	if (name && ni_isreg(name)) {
@@ -342,6 +373,9 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 	}
 	ni_string_free(&real);
 
+	/*
+	 * finally ifsysctl if they exist
+	 */
 	if (ni_string_empty(root))
 		snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
 				path, __NI_SUSE_IFSYSCTL_FILE);
@@ -912,7 +946,7 @@ __ni_suse_route_parse(ni_route_table_t **routes, char *buffer, const char *ifnam
 				goto failure;
 			}
 		}
-		if (!ni_sockaddr_parse(&rp->destination, dest, AF_UNSPEC) < 0) {
+		if (ni_sockaddr_parse(&rp->destination, dest, AF_UNSPEC) < 0) {
 			ni_error("%s[%u]: Cannot parse route destination prefix \"%s\"",
 				filename, line, dest);
 			goto failure;
@@ -1681,6 +1715,566 @@ try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	return 0;
 }
 
+static ni_bool_t
+try_add_team_link_watch(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
+{
+	ni_team_link_watch_t *lw;
+	ni_team_t *team;
+	ni_var_t *var;
+	ni_team_link_watch_type_t type;
+
+	if (!(team = ni_netdev_get_team(dev)))
+		return FALSE;
+
+	/* Just skip link_watch with no name */
+	if (!(var = __find_indexed_variable(sc, "TEAM_LW_NAME", suffix))) {
+		ni_error("ifcfg-%s: empty TEAM_LW_NAME%s value",
+			dev->name, suffix);
+		return FALSE;
+	}
+
+	if (!ni_team_link_watch_name_to_type(var->value, &type)) {
+		ni_error("ifcfg-%s: unable to parse TEAM_LW_NAME%s=%s",
+			dev->name, suffix, var->value);
+		return FALSE;
+	}
+
+	lw = ni_team_link_watch_new(type);
+	switch(lw->type) {
+	case NI_TEAM_LINK_WATCH_ETHTOOL: {
+			ni_team_link_watch_ethtool_t *ethtool = &lw->ethtool;
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ETHTOOL_DELAY_UP", suffix))) {
+				if (ni_parse_uint(var->value, &ethtool->delay_up, 10) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ETHTOOL_DELAY_UP%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ETHTOOL_DELAY_DOWN", suffix))) {
+				if (ni_parse_uint(var->value, &ethtool->delay_down, 10) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ETHTOOL_DELAY_DOWN%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+		}
+		break;
+
+	case NI_TEAM_LINK_WATCH_ARP_PING: {
+			ni_team_link_watch_arp_t *arp = &lw->arp;
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_SOURCE_HOST", suffix))) {
+				ni_string_dup(&arp->source_host, var->value);
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_TARGET_HOST", suffix))) {
+				ni_string_dup(&arp->target_host, var->value);
+			} else {
+				ni_warn("ifcfg-%s: Missed TEAM_LW_ARP_PING_TARGET_HOST%s variable",
+					dev->name, suffix);
+				goto skipped;
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_INTERVAL", suffix))) {
+				if (ni_parse_uint(var->value, &arp->interval, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ARP_PING_INTERVAL%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_INIT_WAIT", suffix))) {
+				if (ni_parse_uint(var->value, &arp->init_wait, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ARP_PING_INIT_WAIT%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_VALIDATE_ACTIVE", suffix))) {
+				if (ni_parse_boolean(var->value, &arp->validate_active)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ARP_PING_VALIDATE_ACTIVE%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_VALIDATE_INACTIVE", suffix))) {
+				if (ni_parse_boolean(var->value, &arp->validate_inactive)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ARP_PING_VALIDATE_INACTIVE%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_SEND_ALWAYS", suffix))) {
+				if (ni_parse_boolean(var->value, &arp->send_always)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ARP_PING_SEND_ALWAYS%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_MISSED_MAX", suffix))) {
+				if (ni_parse_uint(var->value, &arp->missed_max, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ARP_PING_MISSED_MAX%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+		}
+		break;
+
+	case NI_TEAM_LINK_WATCH_NSNA_PING: {
+			ni_team_link_watch_nsna_t *nsna = &lw->nsna;
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_NSNA_PING_TARGET_HOST", suffix))) {
+				ni_string_dup(&nsna->target_host, var->value);
+			} else {
+				ni_warn("ifcfg-%s: Missed TEAM_LW_NSNA_PING_TARGET_HOST%s variable",
+					dev->name, suffix);
+				goto skipped;
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_NSNA_PING_INTERVAL", suffix))) {
+				if (ni_parse_uint(var->value, &nsna->interval, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_NSNA_PING_INTERVAL%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_NSNA_PING_INIT_WAIT", suffix))) {
+				if (ni_parse_uint(var->value, &nsna->init_wait, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_NSNA_PING_INIT_WAIT%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_NSNA_PING_MISSED_MAX", suffix))) {
+				if (ni_parse_uint(var->value, &nsna->missed_max, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_NSNA_PING_MISSED_MAX%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+			}
+		}
+		break;
+
+	case NI_TEAM_LINK_WATCH_TIPC: {
+			ni_team_link_watch_tipc_t *tipc = &lw->tipc;
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_TIPC_BEARER", suffix))) {
+				ni_string_dup(&tipc->bearer, var->value);
+			} else {
+				ni_warn("ifcfg-%s: Missed TEAM_LW_TIPC_BEARER%s variable",
+					dev->name, suffix);
+				goto skipped;
+			}
+		}
+		break;
+
+	default:
+		goto failure;
+	}
+
+	return ni_team_link_watch_array_append(&team->link_watch, lw);
+
+skipped:
+	ni_team_link_watch_free(lw);
+	return TRUE;
+
+failure:
+	ni_team_link_watch_free(lw);
+	return FALSE;
+}
+
+static ni_bool_t
+try_add_team_port(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
+{
+	ni_team_port_t *port;
+	ni_team_t *team;
+	ni_var_t *var;
+
+	if (!(team = ni_netdev_get_team(dev)))
+		return FALSE;
+
+	var = __find_indexed_variable(sc, "TEAM_PORT_DEVICE", suffix);
+	if (!var || ni_string_empty(var->value)) {
+		ni_error("ifcfg-%s: TEAM_PORT_DEVICE%s cannot be empty",
+			dev->name, suffix);
+		return FALSE;
+	}
+
+	port = ni_team_port_new();
+	ni_netdev_ref_set_ifname(&port->device, var->value);
+
+	if ((var = __find_indexed_variable(sc, "TEAM_PORT_QUEUE_ID", suffix))) {
+		if (ni_parse_uint(var->value, &port->config.queue_id, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_QUEUE_ID%s='%s'",
+				dev->name, suffix, var->value);
+			ni_team_port_free(port);
+			return FALSE;
+		}
+	}
+
+	if ((var = __find_indexed_variable(sc, "TEAM_PORT_PRIO", suffix))) {
+		if (ni_parse_uint(var->value, &port->config.ab.prio, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_PRIO%s='%s'",
+				dev->name, suffix, var->value);
+			ni_team_port_free(port);
+			return FALSE;
+		}
+	}
+	if ((var = __find_indexed_variable(sc, "TEAM_PORT_STICKY", suffix))) {
+		if (ni_parse_boolean(var->value, &port->config.ab.sticky) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_STICKY%s='%s'",
+				dev->name, suffix, var->value);
+			ni_team_port_free(port);
+			return FALSE;
+		}
+	}
+
+	if ((var = __find_indexed_variable(sc, "TEAM_PORT_LACP_PRIO", suffix))) {
+		if (ni_parse_uint(var->value, &port->config.lacp.prio, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_LACP_PRIO%s='%s'",
+				dev->name, suffix, var->value);
+			ni_team_port_free(port);
+			return FALSE;
+		}
+	}
+
+	if ((var = __find_indexed_variable(sc, "TEAM_PORT_LACP_KEY", suffix))) {
+		if (ni_parse_uint(var->value, &port->config.lacp.key, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_LACP_KEY%s='%s'",
+				dev->name, suffix, var->value);
+			ni_team_port_free(port);
+			return FALSE;
+		}
+	}
+
+	return ni_team_port_array_append(&team->ports, port);
+}
+
+static int
+try_team(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	const char *value;
+	ni_team_runner_type_t type;
+	ni_team_t *team;
+
+	if (!(value = ni_sysconfig_get_value(sc, "TEAM_RUNNER")))
+		return 1;
+
+	if (!ni_team_runner_name_to_type(value, &type)) {
+		ni_error("ifcfg-%s: unable to parse TEAM_RUNNER=%s", dev->name, value);
+		return -1;
+	}
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config contains team variables",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
+
+	/* just drop old if any */
+	ni_netdev_set_team(dev, NULL);
+
+	dev->link.type = NI_IFTYPE_TEAM;
+	team = ni_netdev_get_team(dev);
+
+	ni_team_runner_init(&team->runner, type);
+	switch (team->runner.type) {
+	case NI_TEAM_RUNNER_ACTIVE_BACKUP: {
+			ni_team_runner_active_backup_t *ab = &team->runner.ab;
+
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_AB_HWADDR_POLICY")) != NULL) {
+				if (!ni_team_ab_hwaddr_policy_name_to_type(value, &ab->config.hwaddr_policy)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_AB_HWADDR_POLICY='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+		}
+		break;
+
+	case NI_TEAM_RUNNER_LOAD_BALANCE: {
+			ni_team_runner_load_balance_t *lb = &team->runner.lb;
+
+			lb->config.tx_hash = NI_TEAM_TX_HASH_NONE;
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LB_TX_HASH")) != NULL) {
+				ni_string_array_t flags = NI_STRING_ARRAY_INIT;
+				unsigned int i;
+
+				ni_string_split(&flags, value, " \t,", 0);
+				for (i = 0; i < flags.count; i++) {
+					ni_team_tx_hash_bit_t bit;
+
+					if (!ni_team_tx_hash_name_to_bit(flags.data[i], &bit)) {
+						ni_error("ifcfg-%s: Cannot parse TEAM_LB_TX_HASH='%s'",
+							dev->name, value);
+						return -1;
+					}
+
+					lb->config.tx_hash |= (1 << bit);
+				}
+				ni_string_array_destroy(&flags);
+			}
+
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LB_TX_BALANCER_NAME")) != NULL) {
+				if (!ni_team_tx_balancer_name_to_type(value, &lb->config.tx_balancer.type)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LB_TX_BALANCER_NAME='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+
+			lb->config.tx_balancer.interval = 50;
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LB_TX_BALANCER_INTERVAL")) != NULL) {
+				if (ni_parse_uint(value, &lb->config.tx_balancer.interval, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LB_TX_BALANCER_INTERVAL='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+		}
+		break;
+
+	case NI_TEAM_RUNNER_ROUND_ROBIN:
+		break;
+
+	case NI_TEAM_RUNNER_BROADCAST:
+		break;
+
+	case NI_TEAM_RUNNER_RANDOM:
+		break;
+
+	case NI_TEAM_RUNNER_LACP: {
+			ni_team_runner_lacp_t *lacp = &team->runner.lacp;
+
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_ACTIVE")) != NULL) {
+				if (ni_parse_boolean(value, &lacp->config.active)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_ACTIVE='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+
+			lacp->config.sys_prio = 255;
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_SYS_PRIO")) != NULL) {
+				if (ni_parse_uint(value, &lacp->config.sys_prio, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_SYS_PRIO='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_FAST_RATE")) != NULL) {
+				if (ni_parse_boolean(value, &lacp->config.fast_rate)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_FAST_RATE='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_MIN_PORTS")) != NULL) {
+				if (ni_parse_uint(value, &lacp->config.min_ports, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_MIN_PORTS='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_SELECT_POLICY")) != NULL) {
+				if (!ni_team_lacp_select_policy_name_to_type(value, &lacp->config.select_policy)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_SELECT_POLICY='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+
+			lacp->config.tx_hash = NI_TEAM_TX_HASH_NONE;
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_TX_HASH")) != NULL) {
+				ni_string_array_t flags = NI_STRING_ARRAY_INIT;
+				unsigned int i;
+
+				ni_string_split(&flags, value, " \t,", 0);
+				for (i = 0; i < flags.count; i++) {
+					ni_team_tx_hash_bit_t bit;
+
+					if (!ni_team_tx_hash_name_to_bit(flags.data[i], &bit)) {
+						ni_error("ifcfg-%s: Cannot parse TEAM_LACP_TX_HASH='%s'",
+							dev->name, value);
+						return -1;
+					}
+
+					lacp->config.tx_hash |= (1 << bit);
+				}
+
+				ni_string_array_destroy(&flags);
+			}
+
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_TX_BALANCER")) != NULL) {
+				if (!ni_team_tx_balancer_name_to_type(value, &lacp->config.tx_balancer.type)) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_TX_BALANCER='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+
+			lacp->config.tx_balancer.interval = 50;
+			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_TX_BALANCER_INTERVAL")) != NULL) {
+				if (ni_parse_uint(value, &lacp->config.tx_balancer.interval, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_TX_BALANCER_INTERVAL='%s'",
+						dev->name, value);
+					return -1;
+				}
+			}
+		}
+		break;
+
+	default:
+		return -1;
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "LLADDR")) != NULL) {
+		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, value) < 0) {
+			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
+				dev->name, value);
+			return -1;
+		}
+	}
+
+	if (__process_indexed_variables(sc, dev, "TEAM_LW_NAME",
+					try_add_team_link_watch) < 0)
+		return -1;
+
+	if (__process_indexed_variables(sc, dev, "TEAM_PORT_DEVICE",
+					try_add_team_port) < 0)
+		return -1;
+
+#if 0
+	if ((err = ni_team_validate(ni_netdev_get_team(dev))) != NULL) {
+		ni_error("ifcfg-%s: team validation: %s",
+			dev->name, err);
+		return -1;
+	}
+#endif
+
+	return 0;
+}
+
+static ni_bool_t
+try_add_ovs_bridge_port(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
+{
+	const ni_var_t *var;
+
+	if (!dev->ovsbr)
+		return FALSE;
+
+	var = __find_indexed_variable(sc, "OVS_BRIDGE_PORT_DEVICE", suffix);
+	if (!var || !ni_netdev_name_is_valid(var->value)) {
+		size_t len;
+		if (var && (len = ni_string_len(var->value))) {
+			ni_error("ifcfg-%s: Suspect device in OVS_BRIDGE_PORT_DEVICE%s='%s'",
+					dev->name, suffix, ni_print_suspect(var->value, len));
+		} else {
+			ni_error("ifcfg-%s: OVS_BRIDGE_PORT_DEVICE%s cannot be empty",
+					dev->name, suffix);
+		}
+		return FALSE;
+	}
+
+	if (!ni_ovs_bridge_port_array_add_new(&dev->ovsbr->ports, var->value)) {
+		ni_warn("ifcfg-%s: Cannot add OVS_BRIDGE_PORT_DEVICE%s='%s' or not unique, skipped",
+				dev->name, suffix, var->value);
+	}
+	return TRUE;
+}
+
+static int
+try_ovs_bridge(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	ni_ovs_bridge_t *ovsbr;
+	ni_bool_t enabled;
+	const char *parent;
+	const char *vlan;
+	unsigned int tag;
+
+	if (!ni_sysconfig_get_boolean(sc, "OVS_BRIDGE", &enabled) || !enabled)
+		return 1;
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config contains ovs bridge variables",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
+
+	dev->link.type = NI_IFTYPE_OVS_BRIDGE;
+	ovsbr = ni_netdev_get_ovs_bridge(dev);
+
+	if ((parent = ni_sysconfig_get_value(sc, "OVS_BRIDGE_VLAN_PARENT"))) {
+		if (!ni_netdev_name_is_valid(parent)) {
+			ni_error("ifcfg-%s: Suspect device in OVS_BRIDGE_VLAN_PARENT='%s'",
+					dev->name, ni_print_suspect(parent, ni_string_len(parent)));
+			return -1;
+		}
+		if (!(vlan = ni_sysconfig_get_value(sc, "OVS_BRIDGE_VLAN_TAG"))) {
+			ni_error("ifcfg-%s: OVS_BRIDGE_VLAN_TAG=... missed", dev->name);
+			return -1;
+		}
+		if (ni_parse_uint(vlan, &tag, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse OVS_BRIDGE_VLAN_TAG=\"%s\"",
+					dev->name, vlan);
+			return -1;
+		}
+		if (tag > __NI_VLAN_TAG_MAX) {
+			ni_error("ifcfg-%s: OVS_BRIDGE_VLAN_TAG='%u' not in range 1..%u",
+					dev->name, ovsbr->config.vlan.tag, __NI_VLAN_TAG_MAX);
+			return -1;
+		}
+		ni_netdev_ref_set_ifname(&ovsbr->config.vlan.parent, parent);
+		ovsbr->config.vlan.tag = tag;
+	}
+
+	if (__process_indexed_variables(sc, dev, "OVS_BRIDGE_PORT_DEVICE",
+					try_add_ovs_bridge_port) < 0)
+		return -1;
+
+	return 0;
+}
+
+static int
+try_ovs_system(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	static const char *ovs_system = NULL;
+	ni_netdev_t *dev = compat->dev;
+
+	/* Consider ovs-system as a fixed/reserved master device for openvswitch */
+	if (ovs_system == NULL)
+		ovs_system = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
+
+	if (strcmp(dev->name, ovs_system))
+		return 1;
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config is using reserved %s device name",
+			dev->name, ni_linktype_type_to_name(dev->link.type), ovs_system);
+		return -1;
+	}
+
+	dev->link.type = NI_IFTYPE_OVS_SYSTEM;
+	__ni_suse_adjust_ovs_system(compat);
+
+	return 0;
+}
+
+
 /*
  * Bridge devices are recognized by BRIDGE=yes
  */
@@ -1869,7 +2463,7 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	if ((vlantag = ni_sysconfig_get_value(sc, "VLAN_ID")) != NULL) {
-		if (!ni_parse_uint(vlantag, &tag, 10) < 0) {
+		if (ni_parse_uint(vlantag, &tag, 10) < 0) {
 			ni_error("ifcfg-%s: Cannot parse VLAN_ID=\"%s\"",
 				dev->name, vlantag);
 			return -1;
@@ -1885,15 +2479,15 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			while(len > 0 && isdigit((unsigned char)vlantag[-1]))
 				vlantag--;
 		}
-		if (!ni_parse_uint(vlantag, &tag, 10) < 0) {
+		if (ni_parse_uint(vlantag, &tag, 10) < 0) {
 			ni_error("ifcfg-%s: Cannot parse vlan-tag from interface name",
 				dev->name);
 			return -1;
 		}
 	}
 	if (tag > __NI_VLAN_TAG_MAX) {
-		ni_error("ifcfg-%s: VLAN tag %u is out of numerical range",
-			dev->name, tag);
+		ni_error("ifcfg-%s: VLAN tag %u is out of numerical range 1..%u",
+			dev->name, tag, __NI_VLAN_TAG_MAX);
 		return -1;
 #if 0
 	} else if (tag == 0) {
@@ -3495,13 +4089,23 @@ __ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 }
 
 static ni_bool_t
-__ni_suse_addrconf_autoip4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
+__ni_suse_addrconf_auto4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
 {
-	(void)sc;
-	(void)compat;
-	(void)required;
+	ni_netdev_t *dev = compat->dev;
 
-	/* TODO */
+	(void)sc; /* no additional config here */
+
+	if (dev && dev->ipv4 && ni_tristate_is_disabled(dev->ipv4->conf.enabled))
+		return FALSE;
+
+	if (compat->auto4.enabled)
+		return TRUE;
+
+	compat->auto4.enabled = TRUE;
+	/* mark auto4 as fallback for dhcp4    */
+	ni_addrconf_flag_bit_set(&compat->auto4.flags, NI_ADDRCONF_FLAGS_FALLBACK, !required);
+	/* mark dhcp4 as primary triggering it */
+	ni_addrconf_flag_bit_set(&compat->dhcp4.flags, NI_ADDRCONF_FLAGS_PRIMARY, !required);
 	return TRUE;
 }
 
@@ -3590,9 +4194,10 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			/* dhcp6 requested -> required             */
 			__ni_suse_addrconf_dhcp6(sc, compat, TRUE);
 		}
-		else if (ni_string_eq(s, "autoip")) {
-			/* dhcp6 requested -> required when 1st    */
-			__ni_suse_addrconf_autoip4(sc, compat, primary);
+		else if (ni_string_eq(s, "auto4") ||
+			 ni_string_eq(s, "autoip")) {
+			/* dhcp4 requested or required if primary  */
+			__ni_suse_addrconf_auto4(sc, compat, primary);
 		}
 		else {
 			ni_debug_readwrite("ifcfg-%s: Unknown BOOTPROTO=\"%s\""
@@ -3938,8 +4543,8 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	return TRUE;
 }
 
-static ni_netdev_t *
-__ni_suse_find_compat_device(ni_compat_netdev_array_t *netdevs, const char *name)
+static ni_compat_netdev_t *
+__ni_suse_find_compat(ni_compat_netdev_array_t *netdevs, const char *name)
 {
 	ni_compat_netdev_t *compat;
 	unsigned int i;
@@ -3947,9 +4552,16 @@ __ni_suse_find_compat_device(ni_compat_netdev_array_t *netdevs, const char *name
 	for (i = 0; i < netdevs->count; ++i) {
 		compat = netdevs->data[i];
 		if (ni_string_eq(compat->dev->name, name))
-			return compat->dev;
+			return compat;
 	}
 	return NULL;
+}
+
+static ni_netdev_t *
+__ni_suse_find_compat_device(ni_compat_netdev_array_t *netdevs, const char *name)
+{
+	ni_compat_netdev_t *compat = __ni_suse_find_compat(netdevs, name);
+	return compat ? compat->dev : NULL;
 }
 
 static ni_bool_t
@@ -3983,8 +4595,8 @@ __ni_suse_set_link_master(ni_netdev_t *dev, const char *master, const char *ifcf
 	return TRUE;
 }
 
-static ni_bool_t
-__ni_suse_create_compat_slave(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master, const char *slave)
+static ni_compat_netdev_t *
+__ni_suse_create_compat_slave(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master, const char *master_name, const char *slave)
 {
 	ni_ifworker_control_t control = { "hotplug", NULL, FALSE, FALSE, NI_TRISTATE_DEFAULT, 0, 0 };
 	ni_compat_netdev_t *compat;
@@ -3993,9 +4605,12 @@ __ni_suse_create_compat_slave(ni_compat_netdev_array_t *netdevs, ni_compat_netde
 
 	compat = ni_compat_netdev_new(slave);
 	if (!compat)
-		return FALSE;
+		return NULL;
 
-	__ni_suse_set_link_master(compat->dev, master->dev->name, master->dev->name);
+	if (master_name)
+		__ni_suse_set_link_master(compat->dev, master_name, master->dev->name);
+	else
+		__ni_suse_set_link_master(compat->dev, master->dev->name, master->dev->name);
 
 	/* apply control defaults  */
 	compat->control = ni_ifworker_control_clone(&control);
@@ -4007,7 +4622,7 @@ __ni_suse_create_compat_slave(ni_compat_netdev_array_t *netdevs, ni_compat_netde
 
 	ni_compat_netdev_array_append(netdevs, compat);
 
-	return TRUE;
+	return compat;
 }
 
 static void
@@ -4024,7 +4639,7 @@ __ni_suse_adjust_bond_slaves(ni_compat_netdev_array_t *netdevs, ni_compat_netdev
 		if (dev) {
 			__ni_suse_set_link_master(dev, master->dev->name, master->dev->name);
 		} else {
-			__ni_suse_create_compat_slave(netdevs, master, slave);
+			__ni_suse_create_compat_slave(netdevs, master, master->dev->name, slave);
 		}
 	}
 }
@@ -4043,7 +4658,80 @@ __ni_suse_adjust_bridge_ports(ni_compat_netdev_array_t *netdevs, ni_compat_netde
 		if (dev) {
 			__ni_suse_set_link_master(dev, master->dev->name, master->dev->name);
 		} else {
-			__ni_suse_create_compat_slave(netdevs, master, port);
+			__ni_suse_create_compat_slave(netdevs, master, master->dev->name, port);
+		}
+	}
+}
+
+static void
+__ni_suse_adjust_ovs_system(ni_compat_netdev_t *compat)
+{
+	static const ni_ifworker_control_t control = {
+		"hotplug", NULL, FALSE, FALSE, NI_TRISTATE_DEFAULT, 0, 0
+	};
+	ni_ipv4_devinfo_t *ipv4;
+	ni_ipv6_devinfo_t *ipv6;
+
+	/*
+	 * This datapath device does not need any setup (not even link up),
+	 * but as it is actively used as master device for all bridge ports
+	 * so we have to consider it... adjust it as good as we can.
+	 * We don't have any "do not set UP the link up" flag until now...
+	 */
+	compat->control = ni_ifworker_control_clone(&control);
+	if ((ipv4 = ni_netdev_get_ipv4(compat->dev)))
+		ni_tristate_set(&ipv4->conf.enabled, FALSE);
+	if ((ipv6 = ni_netdev_get_ipv6(compat->dev)))
+		ni_tristate_set(&ipv6->conf.enabled, FALSE);
+}
+
+static void
+__ni_suse_create_ovs_system(ni_compat_netdev_array_t *netdevs, const char *ovs_system, const char *origin)
+{
+	ni_compat_netdev_t *compat;
+	ni_client_state_t *cs;
+	const char *sibling;
+
+	if ((compat = __ni_suse_find_compat(netdevs, ovs_system)))
+		return;
+
+	compat = ni_compat_netdev_new(ovs_system);
+
+	__ni_suse_adjust_ovs_system(compat);
+	cs = ni_netdev_get_client_state(compat->dev);
+	/* fake it, otherwise it would depend on the trigger device names  */
+	sibling = ni_sibling_path_printf(origin, __NI_SUSE_CONFIG_IFPREFIX"%s", ovs_system);
+	ni_string_dup(&cs->config.origin, sibling);
+
+	ni_compat_netdev_array_append(netdevs, compat);
+}
+
+static void
+__ni_suse_adjust_ovs_bridge_ports(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master)
+{
+	ni_ovs_bridge_t *ovsbr = ni_netdev_get_ovs_bridge(master->dev);
+	static const char *ovs_system = NULL;
+	ni_compat_netdev_t *compat;
+	ni_ovs_bridge_port_t *p;
+	ni_client_state_t *cs;
+	const char *port;
+	unsigned int i;
+
+	if (ovs_system == NULL)
+		ovs_system = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
+
+	cs = ni_netdev_get_client_state(master->dev);
+	__ni_suse_create_ovs_system(netdevs, ovs_system, cs->config.origin);
+	for (i = 0; i < ovsbr->ports.count; ++i) {
+		p = ovsbr->ports.data[i];
+		port = p->device.name;
+		compat = __ni_suse_find_compat(netdevs, port);
+		if (compat) {
+			__ni_suse_set_link_master(compat->dev, ovs_system, master->dev->name);
+			ni_netdev_ref_set_ifname(&compat->link_port.ovsbr.bridge, master->dev->name);
+		} else
+		if ((compat = __ni_suse_create_compat_slave(netdevs, master, ovs_system, port))) {
+			ni_netdev_ref_set_ifname(&compat->link_port.ovsbr.bridge, master->dev->name);
 		}
 	}
 }
@@ -4065,6 +4753,9 @@ __ni_suse_adjust_slaves(ni_compat_netdev_array_t *netdevs)
 			break;
 		case NI_IFTYPE_BRIDGE:
 			__ni_suse_adjust_bridge_ports(netdevs, compat);
+			break;
+		case NI_IFTYPE_OVS_BRIDGE:
+			__ni_suse_adjust_ovs_bridge_ports(netdevs, compat);
 			break;
 		default:
 			break;
@@ -4097,7 +4788,10 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	compat->control = __ni_suse_startmode(sc);
 
 	if (try_loopback(sc, compat)   < 0 ||
+	    try_ovs_system(sc, compat) < 0 ||
+	    try_ovs_bridge(sc, compat) < 0 ||
 	    try_bonding(sc, compat)    < 0 ||
+	    try_team(sc, compat)       < 0 ||
 	    try_bridge(sc, compat)     < 0 ||
 	    try_vlan(sc, compat)       < 0 ||
 	    try_macvlan(sc, compat)    < 0 ||
@@ -4108,6 +4802,9 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	    /* keep ethernet the last one */
 	    try_ethernet(sc, compat)   < 0)
 		return FALSE;
+
+	if (compat->dev->link.type == NI_IFTYPE_OVS_SYSTEM)
+		return TRUE;
 
 	__ni_suse_read_linkinfo(sc, compat);
 	__ni_suse_read_ifsysctl(sc, compat);

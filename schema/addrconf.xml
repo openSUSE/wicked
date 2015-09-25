@@ -269,8 +269,9 @@
      ================================================= -->
 <service name="ipv4:auto" interface="org.opensuse.Network.Addrconf.ipv4.auto" object-class="netif">
   <define name="request" class="dict">
-    <uuid type="uuid-type"/>
     <enabled type="boolean"/>
+    <uuid type="uuid-type"/>
+    <flags type="builtin-addrconf-flags" />
   </define>
   <define name="properties" type="interface:addrconf-lease"/>
 

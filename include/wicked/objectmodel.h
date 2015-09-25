@@ -74,10 +74,12 @@ extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_cl
 #define NI_OBJECTMODEL_INFINIBAND_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Infiniband"
 #define NI_OBJECTMODEL_WIRELESS_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Wireless"
 #define NI_OBJECTMODEL_BRIDGE_INTERFACE		NI_OBJECTMODEL_INTERFACE ".Bridge"
+#define NI_OBJECTMODEL_OVS_BRIDGE_INTERFACE	NI_OBJECTMODEL_INTERFACE ".OVSBridge"
 #define NI_OBJECTMODEL_MACVLAN_INTERFACE	NI_OBJECTMODEL_INTERFACE ".MACVLAN"
 #define NI_OBJECTMODEL_MACVTAP_INTERFACE	NI_OBJECTMODEL_INTERFACE ".MACVTAP"
 #define NI_OBJECTMODEL_DUMMY_INTERFACE		NI_OBJECTMODEL_INTERFACE ".Dummy"
 #define NI_OBJECTMODEL_VLAN_INTERFACE		NI_OBJECTMODEL_INTERFACE ".VLAN"
+#define NI_OBJECTMODEL_TEAM_INTERFACE		NI_OBJECTMODEL_INTERFACE ".Team"
 #define NI_OBJECTMODEL_BONDING_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Bond"
 #define NI_OBJECTMODEL_TUN_INTERFACE		NI_OBJECTMODEL_INTERFACE ".TUN"
 #define NI_OBJECTMODEL_TAP_INTERFACE		NI_OBJECTMODEL_INTERFACE ".TAP"
@@ -161,6 +163,8 @@ extern dbus_bool_t		ni_objectmodel_unmarshal_security_id(ni_security_id_t *, con
 extern dbus_bool_t		ni_objectmodel_get_name_array(const xml_node_t *names, ni_dbus_variant_t *);
 extern dbus_bool_t		ni_objectmodel_set_name_array(xml_node_t *names, const ni_dbus_variant_t *);
 
+extern dbus_bool_t		ni_objectmodel_get_auto4_request_dict(const ni_auto4_request_t *req, ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_objectmodel_set_auto4_request_dict(ni_auto4_request_t *req, const ni_dbus_variant_t *, DBusError *);
 
 extern int			ni_objectmodel_signal_to_event(const char *, ni_event_t *);
 extern const char *		ni_objectmodel_event_to_signal(ni_event_t);

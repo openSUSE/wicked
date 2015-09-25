@@ -265,8 +265,7 @@ autoip4_register_services(ni_dbus_server_t *server)
 
 	autoip4_discover_devices(server);
 
-//	ni_autoip_set_event_handler(autoip4_protocol_event);
-	(void) (autoip4_protocol_event);
+	ni_autoip_set_event_handler(autoip4_protocol_event);
 }
 
 ni_bool_t
@@ -492,10 +491,12 @@ autoip4_interface_event(ni_netdev_t *ifp, ni_event_t event)
 }
 
 void
-autoip4_protocol_event(enum ni_lease_event ev, const ni_autoip_device_t *dev, ni_addrconf_lease_t *lease)
+autoip4_protocol_event(enum ni_lease_event ev, const ni_autoip_device_t *dev,
+				ni_addrconf_lease_t *lease)
 {
-	ni_dbus_variant_t argv[1];
+	ni_dbus_variant_t argv[2];
 	ni_dbus_object_t *dev_object;
+	ni_dbus_variant_t *var;
 	int argc = 0;
 
 	ni_debug_autoip("%s(ev=%u, dev=%d)", __func__, ev, dev->link.ifindex);
@@ -507,9 +508,11 @@ autoip4_protocol_event(enum ni_lease_event ev, const ni_autoip_device_t *dev, ni
 	}
 
 	memset(argv, 0, sizeof(argv));
-	if (lease) {
-		ni_dbus_variant_t *var = &argv[argc++];
+	var = &argv[argc++];
+	ni_dbus_variant_set_uuid(var, &dev->request.uuid);
 
+	if (lease) {
+		var = &argv[argc++];
 		ni_dbus_variant_init_dict(var);
 		if (!ni_objectmodel_get_addrconf_lease(lease, var)) {
 			ni_warn("%s: could not extract lease data", __func__);

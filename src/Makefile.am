@@ -70,6 +70,7 @@ libwicked_la_SOURCES		= \
 	infiniband.c		\
 	ipv4.c			\
 	ipv6.c			\
+	json.c			\
 	kernel.c		\
 	leasefile.c		\
 	leaseinfo.c		\
@@ -84,6 +85,7 @@ libwicked_la_SOURCES		= \
 	netinfo.c		\
 	nis.c			\
 	openvpn.c		\
+	ovs.c			\
 	ppp.c			\
 	process.c		\
 	resolver.c		\
@@ -94,6 +96,8 @@ libwicked_la_SOURCES		= \
 	state.c			\
 	sysconfig.c		\
 	sysfs.c			\
+	team.c			\
+	teamd.c			\
 	timer.c			\
 	tunneling.c		\
 	tuntap.c		\
@@ -129,8 +133,10 @@ libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/modem.c	\
 	dbus-objects/naming.c	\
 	dbus-objects/openvpn.c	\
+	dbus-objects/ovs.c	\
 	dbus-objects/ppp.c	\
 	dbus-objects/state.c	\
+	dbus-objects/team.c	\
 	dbus-objects/tuntap.c	\
 	dbus-objects/sit.c	\
 	dbus-objects/ipip.c	\
@@ -157,8 +163,10 @@ noinst_HEADERS			= \
 	$(system_headers)
 
 system_headers			= \
+	linux/dcbnl.h		\
+	linux/ethtool.h		\
 	linux/if_link.h		\
-	linux/dcbnl.h
+	linux/if_tunnel.h
 
 wicked_headers			= \
 	appconfig.h		\
@@ -179,15 +187,18 @@ wicked_headers			= \
 	duid.h			\
 	ibft.h			\
 	ipv6_priv.h		\
+	json.h			\
 	kernel.h		\
 	leasefile.h		\
 	lldp-priv.h             \
 	modem-manager.h		\
 	modprobe.h		\
 	netinfo_priv.h		\
+	ovs.h			\
 	process.h		\
 	socket_priv.h		\
 	sysfs.h			\
+	teamd.h			\
 	uevent.h		\
 	udev-utils.h		\
 	util_priv.h		\

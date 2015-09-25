@@ -87,8 +87,12 @@ extern ni_dbus_service_t	ni_objectmodel_ipv6_service;
 extern ni_dbus_service_t	ni_objectmodel_ethernet_service;
 extern ni_dbus_service_t	ni_objectmodel_bridge_service;
 extern ni_dbus_service_t	ni_objectmodel_bridge_factory_service;
+extern ni_dbus_service_t	ni_objectmodel_ovs_bridge_service;
+extern ni_dbus_service_t	ni_objectmodel_ovs_bridge_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_bond_service;
 extern ni_dbus_service_t	ni_objectmodel_bond_factory_service;
+extern ni_dbus_service_t	ni_objectmodel_team_service;
+extern ni_dbus_service_t	ni_objectmodel_team_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_vlan_service;
 extern ni_dbus_service_t	ni_objectmodel_vlan_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_macvlan_service;
@@ -174,6 +178,16 @@ extern dbus_bool_t		__ni_objectmodel_set_route_dict(ni_route_table_t **list,
 extern dbus_bool_t		__ni_objectmodel_get_domain_string(const ni_dbus_variant_t *,
 						const char *, const char **);
 extern dbus_bool_t		__ni_objectmodel_set_resolver_dict(ni_resolver_info_t **,
+						const ni_dbus_variant_t *, DBusError *);
+
+extern dbus_bool_t		__ni_objectmodel_get_team_port_config(const ni_team_port_config_t *,
+						ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		__ni_objectmodel_set_team_port_config(ni_team_port_config_t *,
+						const ni_dbus_variant_t *, DBusError *);
+
+extern dbus_bool_t		__ni_objectmodel_get_ovs_bridge_port_config(const ni_ovs_bridge_port_config_t *,
+						ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		__ni_objectmodel_set_ovs_bridge_port_config(ni_ovs_bridge_port_config_t *,
 						const ni_dbus_variant_t *, DBusError *);
 
 #endif /* __WICKED_OBJECTMODEL_P_H__ */

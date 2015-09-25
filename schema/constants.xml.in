@@ -197,3 +197,16 @@
   <@@MACVLAN_FLAG_NAME@@ bit="@@MACVLAN_FLAG_VALUE@@"/>
 </define>
 
+<!-- Built-in team constants -->
+<define name="builtin-team-tx-hash-mask" type="uint32" constraint="bitmap">
+  <@@TEAM_TX_HASH_BIT_NAME@@ bit="@@TEAM_TX_HASH_BIT_VALUE@@"/>
+</define>
+<define name="builtin-team-tx-balancer-type" type="uint32" constraint="enum">
+  <@@TEAM_TX_BALANCER_NAME@@ value="@@TEAM_TX_BALANCER_VALUE@@"/>
+</define>
+<define name="builtin-team-ab-hwaddr-policy" type="uint32" constraint="enum">
+  <@@TEAM_AB_HWADDR_POLICY_NAME@@ value="@@TEAM_AB_HWADDR_POLICY_VALUE@@"/>
+</define>
+<define name="builtin-team-lacp-select-policy" type="uint32" constraint="enum">
+  <@@TEAM_LACP_SELECT_POLICY_NAME@@ value="@@TEAM_LACP_SELECT_POLICY_VALUE@@"/>
+</define>

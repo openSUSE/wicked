@@ -201,6 +201,10 @@
      <meta:netif-reference subordinate="true" />
      <meta:require check="netif-check-state" op="linkUp" min-state="firewall-up" />
    </master>
+   <port class="union" switch="type">
+     <team       type="team:port-config" />
+     <ovs-bridge type="ovs-bridge:port-config" />
+   </port>
 
    <ipv4 type="network-interface:af-info"/>
    <ipv6 type="network-interface:af-info"/>

@@ -1,0 +1,370 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\"
+.TH IFCFG-TEAM 5 "August 2015" "wicked" "Network configuration"
+.\" ...
+
+.SH NAME
+ifcfg-team \- interface team configuration
+.SH SYNOPSIS
+.B /etc/sysconfig/network/ifcfg-*
+
+
+.SH Team Interfaces
+To setup a team interface you need a configuration file ifcfg-team<X> with
+the usual network settings. But you must add additional variables
+.TP
+.BR TEAM_RUNNER
+must be set to one of the following types to identify this interface as a team interface:
+.RS 7
+.PP
+.BR "broadcast "\(em
+Team device transmits packets via all its ports.
+.PP
+.BR "roundrobin "\(em
+Team device transmits packets via all its ports with round-robin method.
+.PP
+.BR "activebackup "\(em
+Team device monitors ports' link changes and uses port with active link to transmit packets.
+.PP
+.BR "loadbalance "\(em
+Team device transmits packets via all its ports performing load balancing (passive or active) with a use of hash functions. For passive load balancing only BPF hash function is used. For active load balancing runner finds best balance by moving hashes between available ports.
+.PP
+.BR "lacp "\(em
+Implements 802.3ad LACP protocol.
+.RE
+.SH ACTIVE-BACKUP RUNNER SPECIFIC OPTIONS
+
+.TP
+.BR TEAM_AB_HWADDR_POLICY
+Determines the hardware addresses assignment for team device instance and its ports. This assignment is performed during team device instance creation and also for each new port added to the existing instance.
+The followingi modes are available:
+.RS 7
+.PP
+.BR "same_all "\(em
+All ports will always have the same hardware address as the associated team device.
+.PP
+.BR "by_active "\(em
+Team device adopts the hardware address of the currently active port. This is useful when the port device is not able to change its hardware address.
+.PP
+.BR "only_active "\(em
+Only the active port adopts the hardware address of the team device. The others have their own.
+.PP
+Default:
+.BR "same_all"
+.RE
+.PP
+
+.SH LOAD BALANCE RUNNER SPECIFIC OPTIONS
+.TP
+.BR TEAM_LB_TX_HASH
+A list of string elements separated by a comma ',' which should be used for packet Tx hash computation.
+The following elements are available:
+.RS 7
+.PP
+.BR "eth "\(em
+Uses source and destination MAC addresses.
+.PP
+.BR "vlan "\(em
+Uses VLAN id.
+.PP
+.BR "ipv4 "\(em
+Uses source and destination IPv4 addresses.
+.PP
+.BR "ipv6 "\(em
+Uses source and destination IPv6 addresses.
+.PP
+.BR "ip "\(em
+Uses source and destination IPv4 and IPv6 addresses.
+.PP
+.BR "l3 "\(em
+Uses source and destination IPv4 and IPv6 addresses.
+.PP
+.BR "tcp "\(em
+Uses source and destination TCP ports.
+.PP
+.BR "udp "\(em
+Uses source and destination UDP ports.
+.PP
+.BR "sctp "\(em
+Uses source and destination SCTP ports.
+.PP
+.BR "l4 "\(em
+Uses source and destination TCP and UDP and SCTP ports.
+.RE
+.TP
+.BR TEAM_LB_TX_BALANCER_NAME
+Name of active Tx balancer. Currently only supported value is
+.BR "basic".
+.TP
+.BR TEAM_LB_TX_BALANCER_INTERVAL
+Rebalancing interval. To be specified in tenths of a second.
+.RS 7
+.PP
+Default: 50
+.RE
+
+.SH LACP RUNNER SPECIFIC OPTIONS
+.TP
+.BR TEAM_LACP_ACTIVE
+Active mode enables sending LACPDU frames through configured link periodically.
+.RS 7
+.PP
+Default:
+.BR "true"
+.RE
+.TP
+.BR TEAM_LACP_SYS_PRIO
+System priority, value can be 0 \(en 65535.
+.PP
+.RS 7
+Default:
+.BR "255"
+.RE
+.TP
+.BR TEAM_LACP_FAST_RATE
+Fast rate asks link partner to transmit LACPDU frames once per second. Otherwise they are sent every 30 seconds.
+.RS 7
+.PP
+Default:
+.BR "true"
+.RE
+.TP
+.BR TEAM_LACP_MIN_PORTS
+Minimum number of active ports required to assert carrier in master device. Value can be 1 \(en 255.
+.RS 7
+.PP
+Default:
+.BR "0"
+.RE
+.TP
+.BR TEAM_LACP_SELECT_POLICY
+The policy of how the aggregators will be selected. The following are available:
+.RS 7
+.PP
+.BR "lacp_prio "\(em
+Aggregator with highest priority according to LACP standard will be selected. Aggregator priority is affected by per-port option
+.BR "lacp_prio".
+.PP
+.BR "lacp_prio_stable "\(em
+Same as previous one, except do not replace selected aggregator if it is still usable.
+.PP
+.BR "bandwidth "\(em
+Select aggregator with highest total bandwidth.
+.PP
+.BR "count "\(em
+Select aggregator with highest number of ports.
+.PP
+.BR "port_options "\(em
+Aggregator with highest priority according to per-port options
+.BR "prio " and
+.BR "sticky "
+will be selected. This means that the aggregator containing the port with the highest priority will be selected unless at least one of the ports in the currently selected aggregator is sticky.
+.PP
+Default:
+.BR "lacp_prio"
+.RE
+.RS 7
+.PP
+.BR "lacp_prio "\(em
+Aggregator with highest priority according to LACP standard will be selected. Aggregator priority is affected by per-port option
+.BR "lacp_prio".
+.PP
+.BR "lacp_prio_stable "\(em
+Same as previous one, except do not replace selected aggregator if it is still usable.
+.PP
+.BR "bandwidth "\(em
+Select aggregator with highest total bandwidth.
+.PP
+.BR "count "\(em
+Select aggregator with highest number of ports.
+.PP
+.BR "port_options "\(em
+Aggregator with highest priority according to per-port options
+.BR "prio " and
+.BR "sticky "
+will be selected. This means that the aggregator containing the port with the highest priority will be selected unless at least one of the ports in the currently selected aggregator is sticky.
+.PP
+Default:
+.BR "lacp_prio"
+.RE
+.TP
+.BR TEAM_LACP_TX_HASH
+Same as for loadbalancer runner. Please refer to the section above.
+.TP
+.BR TEAM_LACP_TX_BALANCER
+Same as for loadbalancer runner. Please refer to the section above.
+.TP
+.BR TEAM_LACP_TX_BALANCER_INTERVAL
+Same as for loadbalancer runner. Please refer to the section above.
+
+.SH LINK WATCH OPTIONS
+.TP
+.BR TEAM_LW_NAME
+Name of link watch to be used. The following types are available:
+.RS 7
+.PP
+.BR "ethtool "\(em
+Uses Libteam lib to get port ethtool state changes.
+.PP
+.BR "arp_ping "\(em
+ARP requests are sent through a port. If an ARP reply is received, the link is considered to be up.
+.PP
+.BR "nsna_ping "\(em
+Similar to the previous, except that it uses IPv6 Neighbor Solicitation / Neighbor Advertisement mechanism.
+.PP
+.RE
+
+.SH ETHTOOL LINK WATCH SPECIFIC OPTIONS
+.TP
+.BR TEAM_LW_ETHTOOL_DELAY_UP
+Delay between the link coming up and the runner being notified about it (in miliseconds).
+.RS 7
+.PP
+Default:
+.BR "0"
+.RE
+.TP
+.BR TEAM_LW_ETHTOOL_DELAY_DOWN
+Delay between the link going down and the runner being notified about it (in miliseconds).
+.RS 7
+.PP
+Default:
+.BR "0"
+.RE
+
+.SH ARP PING LINK WATCH SPECIFIC OPTIONS
+.TP
+.BR TEAM_LW_ARP_PING_SOURCE_HOST
+Hostname or IP address used in ARP request as source address.
+.RS 7
+.PP
+Default:
+.BR "0.0.0.0"
+.RE
+.TP
+.BR TEAM_LW_ARP_PING_TARGET_HOST
+Hostname or IP address used in ARP request as destination address.
+.TP
+.BR TEAM_LW_ARP_PING_INTERVAL
+Interval between ARP requests being sent (in miliseconds).
+.TP
+.BR TEAM_LW_ARP_PING_INIT_WAIT
+Delay between link watch initialization and the first ARP request being sent (in miliseconds).
+.RS 7
+.PP
+Default:
+.BR "0"
+.RE
+.TP
+.BR TEAM_LW_ARP_PING_VALIDATE_ACTIVE
+Validate received ARP packets on active ports. Otherwise all incoming ARP packets will be considered as a good reply.
+.RS 7
+.PP
+Default:
+.BR "false"
+.RE
+.TP
+.BR TEAM_LW_ARP_PING_VALIDATE_INACTIVE
+Validate received ARP packets on inactive ports. Otherwise all incoming ARP packets will be considered as a good reply.
+.RS 7
+.PP
+Default:
+.BR "false"
+.RE
+.TP
+.BR TEAM_LW_ARP_PING_SEND_ALWAYS
+Allow sending ARP requests on inactive ports.
+.RS 7
+.PP
+Default:
+.BR "false"
+.PP
+.RE
+.TP
+.BR TEAM_LW_ARP_PING_MISSED_MAX
+Maximum number of missed ARP replies. If this number is exceeded, link is reported as down.
+.RS 7
+.PP
+Default:
+.BR "3"
+.RE
+
+.SH NS/NA PING LINK WATCH SPECIFIC OPTIONS
+.TP
+.BR TEAM_LW_NSNA_PING_TARGET_HOST
+Hostname or IPv6 address used in NS packet as target address.
+.TP
+.BR TEAM_LW_NSNA_PING_INTERVAL
+Interval between sending NS packets (in miliseconds).
+.TP
+.BR TEAM_LW_NSNA_PING_INIT_WAIT
+Delay between link watch initialization and the first NS packet being sent (in miliseconds).
+.TP
+.BR TEAM_LW_NSNA_PING_MISSED_MAX
+Maximum number of missed NA reply packets. If this number is exceeded, link is reported as down.
+.RS 7
+.PP
+Default:
+.BR "3"
+.RE
+
+.SH TEAM PORT SPECIFIC OPTIONS
+
+.TP
+.BR TEAM_PORT_DEVICE
+Port device name. This option must not be empty for a given port.
+
+.TP
+.BR TEAM_PORT_QUEUE_ID
+ID of queue which this port should be mapped to.
+.RS 7
+.PP
+Default:
+.BR "None"
+.RE
+
+
+.SH Example
+Example for a bonding interface on eth0 and eth1 using the backup mode
+
+.I ifcfg-team0
+.nf
+   STARTMODE=auto
+   BOOTPROTO=static
+   TEAM_RUNNER="loadbalance"
+   TEAM_LB_TX_HASH="ipv4,ipv6,eth,vlan"
+   TEAM_LB_TX_BALANCER_NAME="basic"
+   TEAM_LB_TX_BALANCER_INTERVAL="100"
+
+   TEAM_LW_NAME="ethtool"
+   TEAM_LW_ETHTOOL_DELAY_UP="10"
+   TEAM_LW_ETHTOOL_DELAY_DOWN="10"
+.fi
+
+.SH Additional Information
+
+For additional and more general information take a look into
+.BR https://github.com/jpirko/libteam/wiki
+or
+.BR teamd.conf (5).
+
+The configuration of routes for this kind of interface does not differ from
+ordinary interfaces. See
+.I man routes
+for details.
+
+.SH COPYRIGHT
+Copyright (C) 2015 SUSE Linux GmbH, Nuernberg, Germany.
+.SH BUGS
+Please report bugs at <http://bugs.opensuse.org>
+.SH AUTHOR
+.nf
+Pawel Wieczorkiewicz -- original team man page
+.fi
+.SH "SEE ALSO"
+.BR teamd.conf (5),
+.BR ifcfg (5),
+.BR wicked (8),
+.BR teamd (8),
+.BR teamdctl (8).

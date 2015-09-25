@@ -143,6 +143,7 @@ extern void		ni_var_array_list_destroy(ni_var_array_t **);
 extern void		ni_stringbuf_set(ni_stringbuf_t *, const char *);
 extern void		ni_stringbuf_init(ni_stringbuf_t *);
 extern void		ni_stringbuf_grow(ni_stringbuf_t *, size_t);
+extern void		ni_stringbuf_put(ni_stringbuf_t *, const char *, size_t);
 extern void		ni_stringbuf_puts(ni_stringbuf_t *, const char *);
 extern void		ni_stringbuf_putc(ni_stringbuf_t *, int);
 extern int		ni_stringbuf_printf(ni_stringbuf_t *, const char *, ...);

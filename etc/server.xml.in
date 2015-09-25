@@ -1,10 +1,17 @@
 <!--
-     Server-specific configuration file.
+     Server-specific (wickedd binary) configuration file.
+
      This file sources common configuration options from common.xml.
 
      Above and beyond this, it defines various extensions, and the
      handling of resolver and other information received from 
      addrconf supplicants like dhcp.
+
+     Note:
+       If you want to make changes to this file, consider putting
+       your changes into @wicked_configdir@/server-local.xml instead.
+       Otherwise, you may lose your changes when applying future
+       maintenance updates.
   -->
 <config>
   <include name="common.xml"/>
@@ -78,4 +85,11 @@
     <action name="remove" command="@wicked_extensionsdir@/netconfig remove"/>
   </system-updater>
 
+  <teamd>
+    <!-- enable/disable teamd support, see wicked-config(5) -->
+    <enabled>@use_teamd@</enabled>
+  </teamd>
+
+  <!-- server-local.xml permits to overwrite server options -->
+  <include name="server-local.xml" optional="true" />
 </config>

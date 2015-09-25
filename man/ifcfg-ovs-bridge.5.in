@@ -1,0 +1,65 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\"
+.TH IFCFG-BRIDGE 5 "September 2015" "wicked" "Network configuration"
+.\" ...
+
+.SH NAME
+ifcfg-ovs-bridge \- openvswitch bridge configuration
+.SH SYNOPSIS
+.B /etc/sysconfig/network/ifcfg-*
+
+.SH CONFIGURATION
+To setup an ovs bridge interface you need a configuration file
+.I ifcfg-<interface-name>
+with the usual network settings. But you must add additional variables:
+
+.TP
+.B OVS_BRIDGE <yes|no>
+This option must be set to 'yes' to identify this interface as ovs bridge interface.
+
+.TP
+.IR \fBOVS_BRIDGE_PORT_DEVICE\fR [ \fIsuffix\fR ]\ <port\ device\ name>
+This suffix variable contains the names of port devices to enslave into the bridge,
+each port suffix has to be a unique keyword, e.g. _1 .. _N.
+
+.TP
+.IR \fBOVS_BRIDGE_VLAN_PARENT\fR\ <parent\ device\ name>
+Permits to create a ``fake bridge`` refering to the ``parent bridge`` with implicit
+VLAN on the ports of the ``parent bridge``.
+
+.TP
+.IR \fBOVS_BRIDGE_VLAN_TAG\fR\ <vlan\ tag>
+The 802.1Q VLAN tag or ID used to filter traffic for the ``fake bridge`` on ports
+of the ``parent bridge``.
+
+.SH EXAMPLE
+Minimal example for a ovs bridge interface on eth2 and eth3, the bridge interface
+itself is configured via dhcp:
+
+.I ifcfg-ovsbr0
+.nf
+	STARTMODE='auto'
+	BOOTPROTO='dhcp'
+	OVS_BRIDGE='yes'
+	OVS_BRIDGE_PORT_DEVICE_2='eth2'
+	OVS_BRIDGE_PORT_DEVICE_3='eth3'
+.fi
+
+.SH ADDITIONAL INFORMATION
+For additional and more general information have a look into documentation
+provided at
+.BR <http://openvswitch.org/>.
+
+.SH COPYRIGHT
+Copyright (C) 2012 SUSE Linux GmbH, Nuernberg, Germany.
+.SH BUGS
+Please report bugs at <@PACKAGE_BUGREPORT@>
+.SH AUTHOR
+.nf
+Marius Tomaschewski
+.fi
+.SH "SEE ALSO"
+.BR ifcfg (5),
+.BR wicked (8),
+.BR ovs-vsctl (8).

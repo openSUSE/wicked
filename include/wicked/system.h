@@ -53,12 +53,24 @@ extern int		ni_system_bridge_add_port(ni_netconfig_t *, ni_netdev_t *,
 extern int		ni_system_bridge_remove_port(ni_netdev_t *, unsigned int);
 extern int		ni_system_bridge_shutdown(ni_netdev_t *);
 extern int		ni_system_bridge_delete(ni_netconfig_t *, ni_netdev_t *);
+extern int		ni_system_ovs_bridge_create(ni_netconfig_t *nc,
+				const ni_netdev_t *, ni_netdev_t **);
+extern int		ni_system_ovs_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *,
+				const ni_netdev_t *);
+extern int		ni_system_ovs_bridge_shutdown(ni_netdev_t *);
+extern int		ni_system_ovs_bridge_delete(ni_netconfig_t *nc, ni_netdev_t *);
 extern int		ni_system_bond_create(ni_netconfig_t *nc, const char *,
 				const ni_bonding_t *, ni_netdev_t **);
 extern int		ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *,
 				const ni_bonding_t *);
 extern int		ni_system_bond_delete(ni_netconfig_t *nc, ni_netdev_t *);
 extern int		ni_system_bond_shutdown(ni_netdev_t *);
+extern int		ni_system_team_create(ni_netconfig_t *nc,
+				const ni_netdev_t *, ni_netdev_t **);
+extern int		ni_system_team_setup(ni_netconfig_t *nc, ni_netdev_t *,
+				const ni_netdev_t *);
+extern int		ni_system_team_shutdown(ni_netdev_t *);
+extern int		ni_system_team_delete(ni_netconfig_t *nc, ni_netdev_t *);
 extern int		ni_system_tap_change(ni_netconfig_t *, ni_netdev_t *, const ni_netdev_t *);
 extern int		ni_system_tuntap_create(ni_netconfig_t *, const ni_netdev_t *,
 				ni_netdev_t **);

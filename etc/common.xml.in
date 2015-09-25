@@ -1,4 +1,12 @@
-<!-- Common configuration file sourced by all application-specific files -->
+<!--
+     Common configuration file sourced by all application-specific files
+
+     Note:
+       If you want to make changes to this file, consider putting
+       your changes into @wicked_configdir@/local.xml instead.
+       Otherwise, you may lose your changes when applying future
+       maintenance updates.
+ -->
 <config>
   <piddir   path="@wicked_piddir@" mode="0755"/>
   <statedir path="@wicked_statedir@" mode="0755"/>
@@ -28,11 +36,6 @@
   -->
   <use-nanny>@use_nanny@</use-nanny>
 
-  <!--
-    If you want to make changes to this file, consider putting
-    your changes into @wicked_configdir@/local.xml instead.
-    Otherwise, you may lose your changes when applying
-    future maintenance updates.
-    -->
+  <!-- local.xml permits to overwrite common options -->
   <include name="local.xml" optional="true" />
 </config>

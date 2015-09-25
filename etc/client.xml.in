@@ -1,4 +1,14 @@
-<!-- Client-specific configuration file -->
+<!--
+     Client-specific (wicked binary) configuration file
+
+     This file sources common configuration options from common.xml.
+
+     Note:
+       If you want to make changes to this file, consider putting
+       your changes into @wicked_configdir@/client-local.xml instead.
+       Otherwise, you may lose your changes when applying future
+       maintenance updates.
+  -->
 <config>
   <include name="common.xml"/>
 
@@ -9,14 +19,22 @@
     <script name="ibft" command="@wicked_extensionsdir@/ibft" />
   </netif-firmware-discovery>
 
-  <!-- This specifies sources of client configuration.
+  <!-- This specifies sources of network interface configurations.
 
        The ifconfig source specifies the type, location and the
        priority/order of the interface configurations.
     -->
   <sources>
+    <!-- (bios ibft) firmware -->
     <ifconfig location="firmware:" />
+
+    <!-- ifcfg interface configs -->
     <ifconfig location="compat:" />
+
+    <!-- xml interface configs -->
     <ifconfig location="wicked:" />
   </sources>
+
+  <!-- client-local.xml permits to overwrite client options -->
+  <include name="client-local.xml" optional="true" />
 </config>

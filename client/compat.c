@@ -33,6 +33,8 @@
 #include <wicked/ethernet.h>
 #include <wicked/infiniband.h>
 #include <wicked/bonding.h>
+#include <wicked/team.h>
+#include <wicked/ovs.h>
 #include <wicked/bridge.h>
 #include <wicked/vlan.h>
 #include <wicked/macvlan.h>
@@ -501,6 +503,295 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 }
 
 static ni_bool_t
+__ni_compat_generate_team_runner(xml_node_t *tnode, const ni_team_runner_t *runner)
+{
+	xml_node_t *rnode;
+	const char *name;
+
+	if (!tnode || !runner)
+		return FALSE;
+
+	if (!(name = ni_team_runner_type_to_name(runner->type)))
+		return FALSE;
+
+	rnode = xml_node_new("runner", tnode);
+	xml_node_add_attr(rnode, "name", name);
+
+	switch (runner->type) {
+	case NI_TEAM_RUNNER_ACTIVE_BACKUP: {
+		const ni_team_runner_active_backup_t *ab = &runner->ab;
+
+		if (ab->config.hwaddr_policy) {
+			if ((name = ni_team_ab_hwaddr_policy_type_to_name(ab->config.hwaddr_policy)))
+				xml_node_new_element("hwaddr_policy", rnode, name);
+		}
+	}
+	break;
+
+	case NI_TEAM_RUNNER_LOAD_BALANCE: {
+		const ni_team_runner_load_balance_t *lb = &runner->lb;
+		ni_string_array_t flags = NI_STRING_ARRAY_INIT;
+		xml_node_t *tx_balancer;
+		char *tx_hash = NULL;
+		const char *name;
+
+		ni_team_tx_hash_get_bit_names(lb->config.tx_hash, &flags);
+		ni_string_join(&tx_hash, &flags, ",");
+		if (!ni_string_empty(tx_hash))
+			xml_node_new_element("tx_hash", rnode, tx_hash);
+		ni_string_array_destroy(&flags);
+
+		if (lb->config.tx_balancer.type || lb->config.tx_balancer.interval) {
+			tx_balancer = xml_node_new("tx_balancer", rnode);
+			if ((name = ni_team_tx_balancer_type_to_name(lb->config.tx_balancer.type)))
+				xml_node_new_element("name", tx_balancer, name);
+			xml_node_new_element("balancing_interval", tx_balancer,
+						ni_sprint_uint(lb->config.tx_balancer.interval));
+		}
+	}
+	break;
+
+	case NI_TEAM_RUNNER_ROUND_ROBIN:
+	break;
+
+	case NI_TEAM_RUNNER_BROADCAST:
+	break;
+
+	case NI_TEAM_RUNNER_RANDOM:
+	break;
+
+	case NI_TEAM_RUNNER_LACP: {
+		const ni_team_runner_lacp_t *lacp = &runner->lacp;
+		ni_string_array_t flags = NI_STRING_ARRAY_INIT;
+		xml_node_t *tx_balancer;
+		char *tx_hash = NULL;
+		const char *name;
+
+		xml_node_new_element("active", rnode, ni_format_boolean(lacp->config.active));
+		xml_node_new_element("fast_rate", rnode, ni_format_boolean(lacp->config.fast_rate));
+		xml_node_new_element("sys_prio", rnode, ni_sprint_uint(lacp->config.sys_prio));
+		xml_node_new_element("min_ports", rnode, ni_sprint_uint(lacp->config.min_ports));
+		xml_node_new_element("select_policy", rnode,
+				ni_team_lacp_select_policy_type_to_name(lacp->config.select_policy));
+
+		ni_team_tx_hash_get_bit_names(lacp->config.tx_hash, &flags);
+		ni_string_join(&tx_hash, &flags, ",");
+		if (!ni_string_empty(tx_hash))
+			xml_node_new_element("tx_hash", rnode, tx_hash);
+		ni_string_array_destroy(&flags);
+
+		if (lacp->config.tx_balancer.type || lacp->config.tx_balancer.interval) {
+			tx_balancer = xml_node_new("tx_balancer", rnode);
+			if ((name = ni_team_tx_balancer_type_to_name(lacp->config.tx_balancer.type)))
+				xml_node_new_element("name", tx_balancer, name);
+			xml_node_new_element("balancing_interval", tx_balancer,
+						ni_sprint_uint(lacp->config.tx_balancer.interval));
+		}
+	}
+	break;
+
+	default:
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_compat_generate_team_link_watch(xml_node_t *tnode, const ni_team_link_watch_array_t *array)
+{
+	xml_node_t *link_watch;
+	unsigned int i;
+
+	if (!array || !tnode)
+		return FALSE;
+
+	if (!array->count)
+		return TRUE;
+
+	link_watch = xml_node_new("link_watch", tnode);
+	for (i = 0; i < array->count; ++i) {
+		ni_team_link_watch_t *lw = array->data[i];
+		xml_node_t *watch;
+		const char *name;
+
+		if (!(name = ni_team_link_watch_type_to_name(lw->type)))
+			return FALSE;
+
+		watch = xml_node_new("watch", link_watch);
+		xml_node_add_attr(watch, "name", name);
+
+		switch(lw->type) {
+		case NI_TEAM_LINK_WATCH_ETHTOOL: {
+			ni_team_link_watch_ethtool_t *ethtool = &lw->ethtool;
+
+			xml_node_new_element("delay_up", watch, ni_sprint_uint(ethtool->delay_up));
+			xml_node_new_element("delay_down", watch, ni_sprint_uint(ethtool->delay_down));
+		}
+		break;
+
+		case NI_TEAM_LINK_WATCH_ARP_PING: {
+			const ni_team_link_watch_arp_t *arp = &lw->arp;
+
+			if (!ni_string_empty(arp->source_host))
+				xml_node_new_element("source_host", watch, arp->source_host);
+
+			if (!ni_string_empty(arp->target_host))
+				xml_node_new_element("target_host", watch, arp->target_host);
+
+			xml_node_new_element("interval", watch, ni_sprint_uint(arp->interval));
+			xml_node_new_element("init_wait", watch, ni_sprint_uint(arp->init_wait));
+
+			xml_node_new_element("validate_active", watch, ni_format_boolean(arp->validate_active));
+			xml_node_new_element("validate_inactive", watch, ni_format_boolean(arp->validate_inactive));
+			xml_node_new_element("send_always", watch, ni_format_boolean(arp->send_always));
+
+			xml_node_new_element("missed_max", watch, ni_sprint_uint(arp->missed_max));
+		}
+		break;
+
+		case NI_TEAM_LINK_WATCH_NSNA_PING: {
+			const ni_team_link_watch_nsna_t *nsna = &lw->nsna;
+
+			if (!ni_string_empty(nsna->target_host))
+				xml_node_new_element("target_host", watch, nsna->target_host);
+
+			xml_node_new_element("interval", watch, ni_sprint_uint(nsna->interval));
+			xml_node_new_element("init_wait", watch, ni_sprint_uint(nsna->init_wait));
+			xml_node_new_element("missed_max", watch, ni_sprint_uint(nsna->missed_max));
+		}
+		break;
+
+		case NI_TEAM_LINK_WATCH_TIPC: {
+			const ni_team_link_watch_tipc_t *tipc = &lw->tipc;
+
+			if (!ni_string_empty(tipc->bearer))
+				xml_node_new_element("bearer", watch, tipc->bearer);
+		}
+		break;
+
+		default:
+			return FALSE;
+		}
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_compat_generate_team_ports(xml_node_t *tnode, const ni_team_port_array_t *array)
+{
+	xml_node_t *ports;
+	unsigned int i;
+
+	if (!array || !tnode)
+		return FALSE;
+
+	if (!array->count)
+		return TRUE;
+
+	ports = xml_node_new("ports", tnode);
+	for (i = 0; i < array->count; i++) {
+		ni_team_port_t *p = array->data[i];
+		xml_node_t *port;
+
+		if (ni_string_empty(p->device.name))
+			continue;
+
+		port = xml_node_new("port", ports);
+		xml_node_new_element("device", port, p->device.name);
+
+		if (p->config.queue_id != -1U)
+			xml_node_new_element("queue_id", port, ni_sprint_uint(p->config.queue_id));
+
+		if (p->config.ab.prio)
+			xml_node_new_element("prio", port, ni_sprint_uint(p->config.ab.prio));
+		if (p->config.ab.sticky)
+			xml_node_new_element("sticky", port, ni_format_boolean(p->config.ab.sticky));
+
+		if (p->config.lacp.prio)
+			xml_node_new_element("lacp_prio", port, ni_sprint_uint(p->config.lacp.prio));
+		if (p->config.lacp.key)
+			xml_node_new_element("lacp_key", port, ni_sprint_uint(p->config.lacp.key));
+
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_compat_generate_team(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	const ni_team_t *team;
+	xml_node_t *tnode;
+
+	team = ni_netdev_get_team(compat->dev);
+	tnode = xml_node_create(ifnode, "team");
+
+	if (compat->dev->link.hwaddr.len) {
+		xml_node_new_element("address", tnode,
+			ni_link_address_print(&compat->dev->link.hwaddr));
+	}
+
+	if (!__ni_compat_generate_team_runner(tnode, &team->runner))
+		return FALSE;
+
+	if (!__ni_compat_generate_team_link_watch(tnode, &team->link_watch))
+		return FALSE;
+
+	if (!__ni_compat_generate_team_ports(tnode, &team->ports))
+		return FALSE;
+
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_compat_generate_ovs_bridge_ports(xml_node_t *bnode, const ni_ovs_bridge_port_array_t *array)
+{
+	xml_node_t *ports;
+	unsigned int i;
+
+	if (!array || !bnode)
+		return FALSE;
+
+	if (!array->count)
+		return TRUE;
+
+	ports = xml_node_new("ports", bnode);
+	for (i = 0; i < array->count; i++) {
+		ni_ovs_bridge_port_t *p = array->data[i];
+		xml_node_t *port;
+
+		if (ni_string_empty(p->device.name))
+			continue;
+
+		port = xml_node_new("port", ports);
+		xml_node_new_element("device", port, p->device.name);
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_compat_generate_ovs_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	const ni_ovs_bridge_t *ovsbr;
+	xml_node_t *bnode;
+
+	ovsbr = ni_netdev_get_ovs_bridge(compat->dev);
+	bnode = xml_node_create(ifnode, "ovs-bridge");
+
+	if (ovsbr->config.vlan.parent.name) {
+		xml_node_t *vnode = xml_node_new("vlan", bnode);
+		xml_node_new_element("parent", vnode, ovsbr->config.vlan.parent.name);
+		xml_node_new_element_uint("tag", vnode, ovsbr->config.vlan.tag);
+	} /* else? */
+	if (!__ni_compat_generate_ovs_bridge_ports(bnode, &ovsbr->ports))
+		return FALSE;
+
+	return TRUE;
+}
+
+static ni_bool_t
 __ni_compat_generate_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	ni_bridge_t *bridge;
@@ -669,9 +960,7 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 			return FALSE;
 
 		if (net->essid.len > 0) {
-			ni_string_set(&tmp, (const char *) net->essid.data, net->essid.len);
-			xml_node_new_element("essid", network, tmp);
-			ni_string_free(&tmp);
+			xml_node_new_element("essid", network, ni_wireless_print_ssid(&net->essid));
 		}
 
 		xml_node_new_element("scan-ssid", network, net->scan_ssid?"true":"false");
@@ -1329,6 +1618,16 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 }
 
 static xml_node_t *
+__ni_compat_generate_auto4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	if (!compat->auto4.enabled)
+		return NULL;
+
+	return __ni_compat_generate_dynamic_addrconf(ifnode, "ipv4:auto",
+			compat->auto4.flags, 0);
+}
+
+static xml_node_t *
 __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	xml_node_t *dhcp;
@@ -1545,6 +1844,14 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 		__ni_compat_generate_bonding(ifnode, compat);
 		break;
 
+	case NI_IFTYPE_TEAM:
+		__ni_compat_generate_team(ifnode, compat);
+		break;
+
+	case NI_IFTYPE_OVS_BRIDGE:
+		__ni_compat_generate_ovs_bridge(ifnode, compat);
+		break;
+
 	case NI_IFTYPE_BRIDGE:
 		__ni_compat_generate_bridge(ifnode, compat);
 		break;
@@ -1587,8 +1894,16 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	}
 
 	linknode = xml_node_new("link", ifnode);
-	if (dev->link.masterdev.name)
+	if (dev->link.masterdev.name) {
+		xml_node_t *port;
+
 		xml_node_new_element("master", linknode, dev->link.masterdev.name);
+		if (compat->link_port.ovsbr.bridge.name) {
+			port = xml_node_new("port", linknode);
+			xml_node_add_attr(port, "type", ni_linktype_type_to_name(NI_IFTYPE_OVS_BRIDGE));
+			xml_node_new_element("bridge", port, compat->link_port.ovsbr.bridge.name);
+		}
+	}
 	if (dev->link.mtu)
 		xml_node_new_element("mtu", linknode, ni_sprint_uint(dev->link.mtu));
 
@@ -1596,6 +1911,7 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	if (dev->ipv4 && !ni_tristate_is_disabled(dev->ipv4->conf.enabled)) {
 		__ni_compat_generate_static_addrconf(ifnode, compat, AF_INET);
 		__ni_compat_generate_dhcp4_addrconf(ifnode, compat);
+		__ni_compat_generate_auto4_addrconf(ifnode, compat);
 	}
 
 	__ni_compat_generate_ipv6_devconf(ifnode, dev->ipv6);

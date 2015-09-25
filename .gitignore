@@ -8,9 +8,7 @@
 *.so.*
 *.m4
 *.diff
-*.orig
 *.patch
-*.rej
 .*
 compile
 core

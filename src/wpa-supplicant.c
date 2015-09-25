@@ -763,8 +763,8 @@ ni_wpa_interface_associate(ni_wpa_interface_t *dev, ni_wireless_network_t *net, 
 {
 	ni_dbus_object_t *net_object;
 
-	ni_debug_wireless("%s(dev=%s, essid=%.*s)", __func__, dev->ifname,
-			net->essid.len, net->essid.data);
+	ni_debug_wireless("%s(dev=%s, essid='%s')", __func__, dev->ifname,
+			ni_wireless_print_ssid(&net->essid));
 
 	/* FIXME: make sure we have all the keys/pass phrases etc to
 	 * associate. */
@@ -991,22 +991,11 @@ __wpa_dbus_bss_get_bssid(const ni_dbus_object_t *object, const ni_dbus_property_
 		ni_dbus_variant_t *argument, DBusError *error)
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
-	const char *bssid;
 
-	if (net->access_point.type != ARPHRD_ETHER || 0 == net->access_point.len) {
+	if (net->access_point.len != ni_link_address_length(ARPHRD_ETHER))
 		return __ni_dbus_property_not_present_error(error, property);
-	}
 
-	if (net->access_point.len != ni_link_address_length(net->access_point.type))
-		return FALSE;
-
-	/* Send '\0' for "any" and "off" */
-	if (ni_link_address_is_invalid(&net->access_point))
-		bssid = NULL;
-	else
-		bssid = ni_link_address_print(&net->access_point);
-
-	ni_dbus_variant_set_string(argument, bssid);
+	ni_dbus_variant_set_byte_array(argument, net->access_point.data, net->access_point.len);
 	return TRUE;
 }
 
@@ -1015,16 +1004,57 @@ __wpa_dbus_bss_set_bssid(ni_dbus_object_t *object, const ni_dbus_property_t *pro
 		const ni_dbus_variant_t *argument, DBusError *error)
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
+	unsigned int len;
+
+	if (!ni_dbus_variant_get_byte_array_minmax(argument,
+				net->access_point.data, &len,
+				0, sizeof(net->access_point.data)))
+		return FALSE;
+
+	if (len == ni_link_address_length(ARPHRD_ETHER)) {
+		net->access_point.type = ARPHRD_ETHER;
+		net->access_point.len = len;
+	} else {
+		ni_link_address_init(&net->access_point);
+	}
+	return TRUE;
+}
+
+
+static dbus_bool_t
+__wpa_dbus_net_get_bssid(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_wireless_network_t *net = __wpa_get_network(object);
 	const char *bssid;
 
-	if (!ni_dbus_variant_get_string(argument, &bssid))
-		return FALSE;
+	if (net->access_point.type != ARPHRD_ETHER ||
+	    net->access_point.len  != ni_link_address_length(ARPHRD_ETHER))
+		return __ni_dbus_property_not_present_error(error, property);
 
-	if (ni_string_empty(bssid))
-		ni_link_address_init(&net->access_point);
-	else if (ni_link_address_parse(&net->access_point, ARPHRD_ETHER, bssid))
-		return FALSE;
+	/* Send '\0' for "any" and "off" */
+	if (ni_link_address_is_invalid(&net->access_point))
+		bssid = NULL;
+	else
+		bssid = ni_link_address_print(&net->access_point);
+	ni_dbus_variant_set_string(argument, bssid);
+	return TRUE;
+}
 
+static dbus_bool_t
+__wpa_dbus_net_set_bssid(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_wireless_network_t *net = __wpa_get_network(object);
+	const char *bssid;
+
+	if (ni_dbus_variant_get_string(argument, &bssid)) {
+		if (ni_string_empty(bssid))
+			ni_link_address_init(&net->access_point);
+		else
+		if (ni_link_address_parse(&net->access_point, ARPHRD_ETHER, bssid) != 0)
+			return FALSE;
+	}
 	return TRUE;
 }
 
@@ -1615,7 +1645,7 @@ __wpa_dbus_bss_set_ca_path(ni_dbus_object_t *object, const ni_dbus_property_t *p
 	__NI_DBUS_PROPERTY(signature, __name, __wpa_dbus_bss, rw)
 
 static ni_dbus_property_t	wpa_bss_properties[] = {
-	WPA_BSS_PROPERTY(STRING, bssid, RO),
+	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, bssid, RO),
 	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, ssid, RO),
 	WPA_BSS_PROPERTY(INT32, noise, RO),
 	WPA_BSS_PROPERTY(INT32, frequency, RO),
@@ -1656,8 +1686,13 @@ static ni_dbus_service_t	ni_wpa_bssid_service = {
 	.compatible	= &ni_objectmodel_wpanet_class,
 };
 
+#define WPA_NET_PROPERTY(type, __name, rw) \
+	NI_DBUS_PROPERTY(type, __name, __wpa_dbus_net, rw)
+#define WPA_NET_PROPERTY_SIGNATURE(signature, __name, rw) \
+	__NI_DBUS_PROPERTY(signature, __name, __wpa_dbus_net, rw)
+
 static ni_dbus_property_t	wpa_network_properties[] = {
-	WPA_BSS_PROPERTY(STRING, bssid, RO),
+	WPA_NET_PROPERTY(STRING, bssid, RO),
 	WPA_BSS_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, ssid, RO),
 	WPA_BSS_PROPERTY(INT32, frequency, RO),
 
@@ -1718,14 +1753,14 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 	if (!ni_dbus_object_set_properties_from_dict(proxy, &ni_wpa_bssid_service, &dict, NULL))
 		goto failed;
 
-	ni_debug_wireless("Updated BSS %s, freq=%.3f GHz, quality=%.2f, noise=%u, level=%.2f dBm, maxrate=%u MB/s, essid=%.*s",
+	ni_debug_wireless("Updated BSS %s, freq=%.3f GHz, quality=%.2f, noise=%u, level=%.2f dBm, maxrate=%u MB/s, essid='%s'",
 			ni_link_address_print(&net->access_point),
 			net->scan_info.frequency,
 			net->scan_info.quality,
 			net->scan_info.noise,
 			net->scan_info.level,
 			net->scan_info.max_bitrate / 1000000,
-			net->essid.len, net->essid.data);
+			ni_wireless_print_ssid(&net->essid));
 
 	if (net->notified && memcmp(&old_essid, &net->essid, sizeof(old_essid)) != 0) {
 		ni_debug_wireless("%s: essid changed", ni_link_address_print(&net->access_point));

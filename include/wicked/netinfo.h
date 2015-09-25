@@ -70,8 +70,10 @@ struct ni_netdev {
 
 	/* link layer info specific to different device types. */
 	ni_vlan_t *		vlan;
+	ni_team_t *		team;
 	ni_bonding_t *		bonding;
 	ni_bridge_t *		bridge;
+	ni_ovs_bridge_t *	ovsbr;
 	ni_ethernet_t *		ethernet;
 	ni_infiniband_t *	infiniband;
 	ni_macvlan_t *		macvlan;
@@ -90,6 +92,7 @@ struct ni_netdev {
 	ni_event_filter_t *	event_filter;
 };
 
+typedef struct ni_netdev_port_req	ni_netdev_port_req_t;
 struct ni_netdev_req {
 	unsigned int		ifflags;
 
@@ -100,6 +103,7 @@ struct ni_netdev_req {
 	char *			alias;
 
 	ni_netdev_ref_t		master;
+	ni_netdev_port_req_t *	port;
 };
 
 extern ni_bool_t	ni_set_global_config_path(const char *);
@@ -185,9 +189,11 @@ extern ni_address_t *	ni_netdev_get_addresses(ni_netdev_t *, unsigned int af);
 extern ni_ethernet_t *	ni_netdev_get_ethernet(ni_netdev_t *);
 extern ni_infiniband_t *ni_netdev_get_infiniband(ni_netdev_t *);
 extern ni_bonding_t *	ni_netdev_get_bonding(ni_netdev_t *);
+extern ni_team_t *	ni_netdev_get_team(ni_netdev_t *);
 extern ni_vlan_t *	ni_netdev_get_vlan(ni_netdev_t *);
 extern ni_macvlan_t *	ni_netdev_get_macvlan(ni_netdev_t *);
 extern ni_bridge_t *	ni_netdev_get_bridge(ni_netdev_t *);
+extern ni_ovs_bridge_t *ni_netdev_get_ovs_bridge(ni_netdev_t *);
 extern ni_wireless_t *	ni_netdev_get_wireless(ni_netdev_t *);
 extern ni_openvpn_t *	ni_netdev_get_openvpn(ni_netdev_t *);
 extern ni_tuntap_t *	ni_netdev_get_tuntap(ni_netdev_t *);
@@ -197,9 +203,11 @@ extern ni_gre_t *	ni_netdev_get_gre(ni_netdev_t *);
 extern ni_ppp_t *	ni_netdev_get_ppp(ni_netdev_t *);
 extern ni_lldp_t *	ni_netdev_get_lldp(ni_netdev_t *);
 extern void		ni_netdev_set_bonding(ni_netdev_t *, ni_bonding_t *);
+extern void		ni_netdev_set_team(ni_netdev_t *, ni_team_t *);
 extern void		ni_netdev_set_vlan(ni_netdev_t *, ni_vlan_t *);
 extern void		ni_netdev_set_macvlan(ni_netdev_t *, ni_macvlan_t *);
 extern void		ni_netdev_set_bridge(ni_netdev_t *, ni_bridge_t *);
+extern void		ni_netdev_set_ovs_bridge(ni_netdev_t *, ni_ovs_bridge_t *);
 extern void		ni_netdev_set_ethernet(ni_netdev_t *, ni_ethernet_t *);
 extern void		ni_netdev_set_infiniband(ni_netdev_t *, ni_infiniband_t *);
 extern void		ni_netdev_set_link_stats(ni_netdev_t *, ni_link_stats_t *);
@@ -260,8 +268,8 @@ extern ni_bool_t	ni_link_address_equal(const ni_hwaddr_t *, const ni_hwaddr_t *)
 extern unsigned int	ni_link_address_length(unsigned short);
 extern int		ni_link_address_get_broadcast(unsigned short, ni_hwaddr_t *);
 extern int		ni_link_address_set(ni_hwaddr_t *, unsigned short arp_type, const void *data, size_t len);
-extern ni_bool_t	ni_link_address_is_broadcast(ni_hwaddr_t *);
-extern ni_bool_t	ni_link_address_is_invalid(ni_hwaddr_t *);
+extern ni_bool_t	ni_link_address_is_broadcast(const ni_hwaddr_t *);
+extern ni_bool_t	ni_link_address_is_invalid(const ni_hwaddr_t *);
 
 extern int		ni_linktype_name_to_type(const char *);
 extern const char *	ni_linktype_type_to_name(unsigned int);

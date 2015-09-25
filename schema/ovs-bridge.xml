@@ -1,0 +1,61 @@
+<!--
+     This schema defines extension/ovs-bridge services and properties
+  -->
+
+<service name="ovs-bridge" interface="org.opensuse.Network.OVSBridge" object-class="netif-ovs-bridge">
+
+  <define name="port-config" class="dict">
+    <bridge type="string" >
+      <meta:netif-reference supplemental="true" subordinate="true" />
+      <meta:require check="netif-check-state" op="linkUp" min-state="firewall-up" />
+    </bridge>
+  </define>
+
+  <define name="port-device" class="dict">
+    <device type="string">
+      <meta:netif-reference supplemental="true" shared="false"/>
+      <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
+    </device>
+  </define>
+
+  <define name="bridge-config" class="dict">
+    <vlan class="dict">
+      <parent type="string">
+        <meta:netif-reference supplemental="true" shared="true" />
+        <meta:require check="netif-check-state" op="newDevice" min-state="device-up" />
+        <meta:require check="netif-check-state" op="linkUp" min-state="link-up" />
+      </parent>
+      <tag type="uint16" />
+    </vlan>
+    <ports class="array" element-type="ovs-bridge:port-device" element-name="port" />
+  </define>
+
+  <define name="configuration" class="dict" extends="ovs-bridge:bridge-config"/>
+  <define name="properties" class="dict" extends="ovs-bridge:bridge-config"/>
+
+  <method name="changeDevice">
+    <arguments>
+      <config type="ovs-bridge:configuration">
+       <meta:mapping document-node="/ovs-bridge" skip-unless-present="true" />
+      </config>
+    </arguments>
+  </method>
+
+</service>
+
+<service name="ovs-bridge-factory" interface="org.opensuse.Network.OVSBridge.Factory" object-class="netif-list">
+
+  <method name="newDevice">
+    <arguments>
+      <name type="string"/>
+      <config type="ovs-bridge:configuration">
+        <meta:mapping document-node="/ovs-bridge" />
+      </config>
+    </arguments>
+    <return>
+      <string/>
+    </return>
+  </method>
+</service>
+
+

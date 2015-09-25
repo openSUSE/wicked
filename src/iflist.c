@@ -53,6 +53,8 @@
 #include "sysfs.h"
 #include "kernel.h"
 #include "appconfig.h"
+#include "teamd.h"
+#include "ovs.h"
 
 
 static int		__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
@@ -842,6 +844,16 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname)
 					tmp_link_type = NI_IFTYPE_BOND;
 				} else if (!strcmp(driver, "802.1Q VLAN Support")) {
 					tmp_link_type = NI_IFTYPE_VLAN;
+				} else if (!strcmp(driver, "openvswitch")) {
+					static const char *ovs_system = NULL;
+
+					/* special openvswitch datapath (master) device */
+					if (ovs_system == NULL)
+						ovs_system = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
+					if (ni_string_eq(ifname, ovs_system))
+						tmp_link_type = NI_IFTYPE_OVS_SYSTEM;
+					else
+						tmp_link_type = NI_IFTYPE_OVS_BRIDGE;
 				}
 			}
 
@@ -1060,6 +1072,9 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
 				"%s: extended link-info without kind", ifname);
 
+		} else {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
+				"%s: extended link-info kind: %s", ifname, link->kind);
 		}
 	}
 
@@ -1354,6 +1369,21 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 	case NI_IFTYPE_GRE:
 	case NI_IFTYPE_SIT:
 		__ni_discover_tunneling(dev, tb);
+		break;
+
+	case NI_IFTYPE_TEAM:
+		/*
+		 * is using gennl, rtnl_link provides a kind only,
+		 * so we unfortunatelly have to ask teamd here and
+		 * even worser, by name...
+		 */
+		if (ni_config_teamd_enabled() && ni_netdev_device_is_ready(dev))
+			ni_teamd_discover(dev);
+		break;
+
+	case NI_IFTYPE_OVS_BRIDGE:
+		if (ni_netdev_device_is_ready(dev))
+			ni_ovs_bridge_discover(dev, nc);
 		break;
 
 	default:

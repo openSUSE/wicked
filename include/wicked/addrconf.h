@@ -231,4 +231,16 @@ extern ni_bool_t	ni_netbios_node_type_to_code(const char *, unsigned int *);
 
 extern unsigned int	ni_addrconf_lease_get_priority(const ni_addrconf_lease_t *);
 
+struct ni_auto4_request {
+	ni_bool_t	enabled;
+	unsigned int	flags;
+	ni_uuid_t	uuid;
+};
+
+extern ni_auto4_request_t *	ni_auto4_request_new(void);
+extern ni_bool_t		ni_auto4_request_copy(ni_auto4_request_t *, const ni_auto4_request_t *);
+extern void			ni_auto4_request_init(ni_auto4_request_t *, ni_bool_t);
+extern void			ni_auto4_request_destroy(ni_auto4_request_t *);
+extern void			ni_auto4_request_free(ni_auto4_request_t *);
+
 #endif /* __WICKED_ADDRCONF_H__ */

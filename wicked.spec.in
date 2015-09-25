@@ -53,6 +53,8 @@ Requires(pre):  libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 
 # Note: nanny use is enabled by default, except on SLE-12
 %bcond_with     use_nanny
+# teamd is supported since SLE-12-SP1
+%bcond_with     use_teamd
 
 BuildRequires:  libnl3-devel
 %if 0%{?suse_version} > 1110
@@ -177,6 +179,9 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS"
 	--with-compat=suse		\
 %if %{without use_nanny}
 	--disable-nanny-use		\
+%endif
+%if %{without use_teamd}
+	--disable-teamd			\
 %endif
 %if %{with systemd}
 	--enable-systemd		\
@@ -335,6 +340,8 @@ fi
 %_mandir/man5/ifcfg-dummy.5*
 %_mandir/man5/ifcfg-macvlan.5*
 %_mandir/man5/ifcfg-macvtap.5*
+%_mandir/man5/ifcfg-ovs-bridge.5*
+%_mandir/man5/ifcfg-team.5*
 %_mandir/man5/ifcfg-tunnel.5*
 %_mandir/man5/ifcfg-vlan.5*
 %_mandir/man5/ifcfg-wireless.5*

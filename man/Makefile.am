@@ -22,6 +22,8 @@ generated			= \
 	ifcfg-dummy.5		\
 	ifcfg-macvlan.5		\
 	ifcfg-macvtap.5		\
+	ifcfg-ovs-bridge.5	\
+	ifcfg-team.5		\
 	ifcfg-tunnel.5		\
 	ifcfg-vlan.5		\
 	ifcfg-wireless.5	\
