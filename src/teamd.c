@@ -27,6 +27,8 @@
 #endif
 
 #include <limits.h>
+#include <pwd.h>
+#include <sys/stat.h>
 
 #include <wicked/util.h>
 #include <wicked/dbus-service.h>
@@ -46,8 +48,10 @@
 
 #define NI_TEAMD_VIA_DBUS			0
 
+#define NI_TEAMD_CONFIG_OWNER			"teamd"
 #define NI_TEAMD_CONFIG_DIR			"/run/teamd"
 #define NI_TEAMD_CONFIG_DIR_MODE		0700
+#define NI_TEAMD_CONFIG_FILE_MODE		0600
 
 #define NI_TEAMD_CONFIG_FMT			NI_TEAMD_CONFIG_DIR"/%s.conf"
 #define NI_TEAMD_SERVICE_FMT			"teamd@%s.service"
@@ -1305,11 +1309,29 @@ failure:
 	return -1;
 }
 
+static ni_bool_t
+ni_teamd_config_file_owner(uid_t *owner, gid_t *group)
+{
+	struct passwd pwd, *result = NULL;
+	char buf[BUFSIZ] = { 0 };
+	int ret;
+
+	ret = getpwnam_r(NI_TEAMD_CONFIG_OWNER, &pwd, buf, sizeof(buf), &result);
+	if (owner && result)
+		*owner = pwd.pw_uid;
+	if (group && result)
+		*group = pwd.pw_gid;
+
+	return ret == 0;
+}
+
 static int
 ni_teamd_config_file_write(const char *instance, const ni_team_t *config, const ni_hwaddr_t *hwaddr)
 {
 	char *filename = NULL;
 	char tempname[PATH_MAX] = {'\0'};
+	uid_t owner = 0;
+	gid_t group = 0;
 	FILE *fp = NULL;
 	int fd;
 
@@ -1318,6 +1340,13 @@ ni_teamd_config_file_write(const char *instance, const ni_team_t *config, const 
 
 	if (ni_mkdir_maybe(NI_TEAMD_CONFIG_DIR, NI_TEAMD_CONFIG_DIR_MODE) < 0) {
 		ni_error("Cannot create teamd run directory \"%s\": %m", NI_TEAMD_CONFIG_DIR);
+		return -1;
+	}
+
+	ni_teamd_config_file_owner(&owner, &group);
+	if (chown(NI_TEAMD_CONFIG_DIR, owner, group) < 0) {
+		ni_error("Unable to change ownership of %s to UID: %u, GID: %u (%m)\n",
+			NI_TEAMD_CONFIG_DIR, owner, group);
 		return -1;
 	}
 
@@ -1349,6 +1378,17 @@ ni_teamd_config_file_write(const char *instance, const ni_team_t *config, const 
 		return -1;
 	}
 	fflush(fp);
+
+	if (fchown(fd, owner, group) < 0) {
+		ni_error("Unable to change ownership of %s to UID: %u, GID: %u (%m)\n",
+			filename, owner, group);
+		return -1;
+	}
+
+	if (fchmod(fd, NI_TEAMD_CONFIG_FILE_MODE) < 0) {
+		ni_error("Unable to change permissions of %s (%m)\n", filename);
+		return -1;
+	}
 	fclose(fp);
 
 	if ((fd = rename(tempname, filename)) != 0) {
