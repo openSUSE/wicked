@@ -46,8 +46,6 @@
 #include "teamd.h"
 #include "json.h"
 
-#define NI_TEAMD_VIA_DBUS			0
-
 #define NI_TEAMD_CONFIG_OWNER			"teamd"
 #define NI_TEAMD_CONFIG_DIR			"/run/teamd"
 #define NI_TEAMD_CONFIG_DIR_MODE		0700
@@ -498,16 +496,33 @@ ni_teamd_client_ctl_detect(const char *instance, char **busname)
 	ni_config_teamd_ctl_t ctl = ni_config_teamd_ctl();
 
 	switch (ctl) {
-	case NI_CONFIG_TEAMD_CTL_DBUS:
 	case NI_CONFIG_TEAMD_CTL_UNIX:
 		break;
+
+	case NI_CONFIG_TEAMD_CTL_DBUS:
+		/* use dbus, read the bus name from systemd file */
+		ni_teamd_client_ctl_detect_call(instance, busname);
+		break;
+
 	case NI_CONFIG_TEAMD_CTL_DETECT:
+		/* auto-failover to unix if no busname present */
 		ctl = ni_teamd_client_ctl_detect_call(instance, busname);
 		break;
+
 	default:
 	case NI_CONFIG_TEAMD_CTL_DETECT_ONCE:
-		if (ctl_once == NI_CONFIG_TEAMD_CTL_DETECT_ONCE)
+		/* detect ctl once and stay with it */
+		switch (ctl_once) {
+		case NI_CONFIG_TEAMD_CTL_UNIX:
+			break;
+		case NI_CONFIG_TEAMD_CTL_DBUS:
+			ni_teamd_client_ctl_detect_call(instance, busname);
+			break;
+		case NI_CONFIG_TEAMD_CTL_DETECT_ONCE:
+		default:
 			ctl_once = ni_teamd_client_ctl_detect_call(instance, busname);
+			break;
+		}
 		ctl = ctl_once;
 		break;
 	}
@@ -533,6 +548,10 @@ ni_teamd_client_open(const char *instance)
 	ctl = ni_teamd_client_ctl_detect(instance, &busname);
 	switch (ctl) {
 	case NI_CONFIG_TEAMD_CTL_DBUS:
+		if (ni_string_empty(busname)) {
+			ni_string_printf(&busname, "%s.%s",
+					NI_TEAMD_BUS_NAME, instance);
+		}
 		tdc->ops = teamd_dbus_ops;
 		if (!ni_teamd_dbus_client_init(tdc, busname))
 			goto failure;
