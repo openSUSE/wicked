@@ -27,6 +27,8 @@
 #endif
 
 #include <limits.h>
+#include <pwd.h>
+#include <sys/stat.h>
 
 #include <wicked/util.h>
 #include <wicked/dbus-service.h>
@@ -44,10 +46,10 @@
 #include "teamd.h"
 #include "json.h"
 
-#define NI_TEAMD_VIA_DBUS			0
-
+#define NI_TEAMD_CONFIG_OWNER			"teamd"
 #define NI_TEAMD_CONFIG_DIR			"/run/teamd"
 #define NI_TEAMD_CONFIG_DIR_MODE		0700
+#define NI_TEAMD_CONFIG_FILE_MODE		0600
 
 #define NI_TEAMD_CONFIG_FMT			NI_TEAMD_CONFIG_DIR"/%s.conf"
 #define NI_TEAMD_SERVICE_FMT			"teamd@%s.service"
@@ -494,16 +496,33 @@ ni_teamd_client_ctl_detect(const char *instance, char **busname)
 	ni_config_teamd_ctl_t ctl = ni_config_teamd_ctl();
 
 	switch (ctl) {
-	case NI_CONFIG_TEAMD_CTL_DBUS:
 	case NI_CONFIG_TEAMD_CTL_UNIX:
 		break;
+
+	case NI_CONFIG_TEAMD_CTL_DBUS:
+		/* use dbus, read the bus name from systemd file */
+		ni_teamd_client_ctl_detect_call(instance, busname);
+		break;
+
 	case NI_CONFIG_TEAMD_CTL_DETECT:
+		/* auto-failover to unix if no busname present */
 		ctl = ni_teamd_client_ctl_detect_call(instance, busname);
 		break;
+
 	default:
 	case NI_CONFIG_TEAMD_CTL_DETECT_ONCE:
-		if (ctl_once == NI_CONFIG_TEAMD_CTL_DETECT_ONCE)
+		/* detect ctl once and stay with it */
+		switch (ctl_once) {
+		case NI_CONFIG_TEAMD_CTL_UNIX:
+			break;
+		case NI_CONFIG_TEAMD_CTL_DBUS:
+			ni_teamd_client_ctl_detect_call(instance, busname);
+			break;
+		case NI_CONFIG_TEAMD_CTL_DETECT_ONCE:
+		default:
 			ctl_once = ni_teamd_client_ctl_detect_call(instance, busname);
+			break;
+		}
 		ctl = ctl_once;
 		break;
 	}
@@ -529,6 +548,10 @@ ni_teamd_client_open(const char *instance)
 	ctl = ni_teamd_client_ctl_detect(instance, &busname);
 	switch (ctl) {
 	case NI_CONFIG_TEAMD_CTL_DBUS:
+		if (ni_string_empty(busname)) {
+			ni_string_printf(&busname, "%s.%s",
+					NI_TEAMD_BUS_NAME, instance);
+		}
 		tdc->ops = teamd_dbus_ops;
 		if (!ni_teamd_dbus_client_init(tdc, busname))
 			goto failure;
@@ -1305,11 +1328,29 @@ failure:
 	return -1;
 }
 
+static ni_bool_t
+ni_teamd_config_file_owner(uid_t *owner, gid_t *group)
+{
+	struct passwd pwd, *result = NULL;
+	char buf[BUFSIZ] = { 0 };
+	int ret;
+
+	ret = getpwnam_r(NI_TEAMD_CONFIG_OWNER, &pwd, buf, sizeof(buf), &result);
+	if (owner && result)
+		*owner = pwd.pw_uid;
+	if (group && result)
+		*group = pwd.pw_gid;
+
+	return ret == 0;
+}
+
 static int
 ni_teamd_config_file_write(const char *instance, const ni_team_t *config, const ni_hwaddr_t *hwaddr)
 {
 	char *filename = NULL;
 	char tempname[PATH_MAX] = {'\0'};
+	uid_t owner = 0;
+	gid_t group = 0;
 	FILE *fp = NULL;
 	int fd;
 
@@ -1318,6 +1359,13 @@ ni_teamd_config_file_write(const char *instance, const ni_team_t *config, const 
 
 	if (ni_mkdir_maybe(NI_TEAMD_CONFIG_DIR, NI_TEAMD_CONFIG_DIR_MODE) < 0) {
 		ni_error("Cannot create teamd run directory \"%s\": %m", NI_TEAMD_CONFIG_DIR);
+		return -1;
+	}
+
+	ni_teamd_config_file_owner(&owner, &group);
+	if (chown(NI_TEAMD_CONFIG_DIR, owner, group) < 0) {
+		ni_error("Unable to change ownership of %s to UID: %u, GID: %u (%m)\n",
+			NI_TEAMD_CONFIG_DIR, owner, group);
 		return -1;
 	}
 
@@ -1349,6 +1397,17 @@ ni_teamd_config_file_write(const char *instance, const ni_team_t *config, const 
 		return -1;
 	}
 	fflush(fp);
+
+	if (fchown(fd, owner, group) < 0) {
+		ni_error("Unable to change ownership of %s to UID: %u, GID: %u (%m)\n",
+			filename, owner, group);
+		return -1;
+	}
+
+	if (fchmod(fd, NI_TEAMD_CONFIG_FILE_MODE) < 0) {
+		ni_error("Unable to change permissions of %s (%m)\n", filename);
+		return -1;
+	}
 	fclose(fp);
 
 	if ((fd = rename(tempname, filename)) != 0) {
