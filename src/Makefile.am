@@ -146,7 +146,11 @@ libwicked_dbus_objects_la_SOURCES	= \
 
 libwicked_dhcp4_la_CFLAGS		= $(libwicked_la_CFLAGS)
 libwicked_dhcp4_la_SOURCES		= \
-	dhcp4/lease.c
+	dhcp4/device.c		\
+	dhcp4/fsm.c		\
+	dhcp4/lease.c		\
+	dhcp4/protocol.c	\
+	dhcp4/tester.c
 
 libwicked_dhcp6_la_CFLAGS		= $(libwicked_la_CFLAGS)
 libwicked_dhcp6_la_SOURCES		= \
@@ -181,7 +185,10 @@ wicked_headers			= \
 	dbus-objects/model.h	\
 	dbus-server.h		\
 	debug.h			\
+	dhcp4/dhcp.h		\
 	dhcp4/lease.h		\
+	dhcp4/protocol.h	\
+	dhcp4/tester.h		\
 	dhcp6/lease.h		\
 	dhcp6/options.h		\
 	duid.h			\

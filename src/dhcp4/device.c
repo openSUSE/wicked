@@ -814,3 +814,74 @@ ni_dhcp4_config_max_lease_time(void)
 {
 	return ni_global.config->addrconf.dhcp4.lease_time;
 }
+
+/*
+ * Create or delete a dhcp4 request object
+ */
+ni_dhcp4_request_t *
+ni_dhcp4_request_new(void)
+{
+	ni_dhcp4_request_t *req;
+
+	req = xcalloc(1, sizeof(*req));
+	req->enabled = TRUE; /* used by wickedd */
+
+	/* By default, we try to obtain all sorts of config from the server */
+	req->update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);
+
+	return req;
+}
+
+void
+ni_dhcp4_request_free(ni_dhcp4_request_t *req)
+{
+	ni_string_free(&req->hostname);
+	ni_string_free(&req->clientid);
+	ni_string_free(&req->vendor_class);
+	ni_string_array_destroy(&req->user_class.class_id);
+	free(req);
+}
+
+ni_bool_t
+ni_dhcp4_supported(const ni_netdev_t *ifp)
+{
+	/*
+	 * currently broadcast and arp capable ether and ib types only,
+	 * we've simply did not tested it on other links ...
+	 */
+	switch (ifp->link.hwaddr.type) {
+	case ARPHRD_ETHER:
+	case ARPHRD_INFINIBAND:
+		if (ifp->link.masterdev.index) {
+			ni_debug_dhcp("%s: DHCPv4 not supported on slaves",
+					ifp->name);
+			return FALSE;
+		}
+
+		if (!(ifp->link.ifflags & NI_IFF_ARP_ENABLED)) {
+			ni_debug_dhcp("%s: DHCPv4 not supported without "
+					"ARP support", ifp->name);
+			return FALSE;
+		}
+		/* Hmm... can this happen? */
+		if (!(ifp->link.ifflags & NI_IFF_BROADCAST_ENABLED)) {
+			ni_debug_dhcp("%s: DHCPv4 not supported without "
+					" broadcast support", ifp->name);
+			return FALSE;
+		}
+		if ((ifp->link.ifflags & NI_IFF_POINT_TO_POINT)) {
+			ni_debug_dhcp("%s: DHCPv4 not supported on point-"
+					"to-point interfaces", ifp->name);
+			return FALSE;
+		}
+		break;
+	default:
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: DHCPv4 not supported on %s interfaces",
+				ifp->name,
+				ni_linktype_type_to_name(ifp->link.type));
+		return FALSE;
+	}
+	return TRUE;
+}
+
