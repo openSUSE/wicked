@@ -336,7 +336,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 
 	ni_dhcp4_device_set_config(dev, config);
 
-	if (!dev->lease)
+	if (!dev->lease && config->dry_run != NI_DHCP4_RUN_OFFER)
 		ni_dhcp4_recover_lease(dev);
 
 	if (dev->lease) {
