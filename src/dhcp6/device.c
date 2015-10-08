@@ -35,7 +35,7 @@
 #include <wicked/vlan.h>
 #include <wicked/ipv6.h>
 
-#include "dhcp6/dhcp6.h"
+#include "dhcp6/dhcp.h"
 #include "dhcp6/device.h"
 #include "dhcp6/protocol.h"
 #include "dhcp6/fsm.h"
@@ -1433,3 +1433,66 @@ ni_dhcp6_get_ia_addrs(struct ni_dhcp6_ia *ia_list, ni_var_array_t *p_lft, ni_var
 
 	return addrs;
 }
+
+/*
+ * Create/delete a dhcp6 request object
+ */
+ni_dhcp6_request_t *
+ni_dhcp6_request_new(void)
+{
+	ni_dhcp6_request_t *req;
+
+	req = xcalloc(1, sizeof(*req));
+
+	/* Apply defaults */
+	req->enabled = TRUE; /* used by wickedd */
+	req->mode = NI_DHCP6_MODE_AUTO;
+	req->rapid_commit = TRUE;
+
+	/* By default, we try to obtain all sorts of config from the server */
+	req->update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET6);
+
+	return req;
+}
+
+void
+ni_dhcp6_request_free(ni_dhcp6_request_t *req)
+{
+	if(req) {
+		ni_string_free(&req->hostname);
+		ni_string_free(&req->clientid);
+		ni_dhcp6_ia_list_destroy(&req->ia_list);
+		/*
+		 * req->vendor_class
+		 * ....
+		 */
+		free(req);
+	}
+}
+
+ni_bool_t
+ni_dhcp6_supported(const ni_netdev_t *ifp)
+{
+	/*
+	 * currently not enslaved ether and ib types only,
+	 * we've simply did not tested it on other links ...
+	 */
+	switch (ifp->link.hwaddr.type) {
+	case ARPHRD_ETHER:
+	case ARPHRD_INFINIBAND:
+		if (ifp->link.masterdev.index) {
+			ni_debug_dhcp("%s: DHCPv6 not supported on slaves",
+					ifp->name);
+			return FALSE;
+		}
+		break;
+	default:
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: DHCPv6 not supported on %s interfaces",
+				ifp->name,
+				ni_linktype_type_to_name(ifp->link.type));
+		return FALSE;
+	}
+	return TRUE;
+}
+

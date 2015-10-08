@@ -332,32 +332,6 @@ dhcp6_register_services(ni_dbus_server_t *server)
 	ni_dhcp6_set_event_handler(dhcp6_protocol_event);
 }
 
-ni_bool_t
-ni_dhcp6_supported(const ni_netdev_t *ifp)
-{
-	/*
-	 * currently not enslaved ether and ib types only,
-	 * we've simply did not tested it on other links ...
-	 */
-	switch (ifp->link.hwaddr.type) {
-	case ARPHRD_ETHER:
-	case ARPHRD_INFINIBAND:
-		if (ifp->link.masterdev.index) {
-			ni_debug_dhcp("%s: DHCPv6 not supported on slaves",
-					ifp->name);
-			return FALSE;
-		}
-		break;
-	default:
-		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-				"%s: DHCPv6 not supported on %s interfaces",
-				ifp->name,
-				ni_linktype_type_to_name(ifp->link.type));
-		return FALSE;
-	}
-	return TRUE;
-}
-
 /*
  * Add a newly discovered device
  */
