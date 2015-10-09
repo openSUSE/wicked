@@ -788,7 +788,7 @@ ni_ifworker_array_find_by_objectpath(ni_ifworker_array_t *array, const char *obj
 }
 
 static ni_ifworker_t *
-ni_ifworker_array_find_by_name(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char *name)
+ni_ifworker_array_find_by_name(const ni_ifworker_array_t *array, ni_ifworker_type_t type, const char *name)
 {
 	unsigned int i;
 
@@ -859,7 +859,7 @@ ni_ifworker_array_remove_with_children(ni_ifworker_array_t *array, ni_ifworker_t
 }
 
 ni_ifworker_t *
-ni_fsm_ifworker_by_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
+ni_fsm_ifworker_by_name(const ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
 {
 	return ni_ifworker_array_find_by_name(&fsm->workers, type, name);
 }
