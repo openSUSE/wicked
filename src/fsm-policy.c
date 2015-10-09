@@ -21,16 +21,14 @@
  */
 typedef struct ni_ifcondition	ni_ifcondition_t;
 typedef ni_bool_t	ni_ifcondition_check_fn_t(const ni_ifcondition_t *, ni_ifworker_t *);
+typedef void		ni_ifcondition_free_fn_t(ni_ifcondition_t *);
 
 struct ni_ifcondition {
-	ni_ifcondition_check_fn_t *check;
+	ni_ifcondition_check_fn_t *	check;
+	ni_ifcondition_free_fn_t *	free;
 
 	union {
 		ni_ifworker_type_t	type;
-		struct {
-			xml_node_t *	node;
-			ni_dbus_object_t *object;
-		} device;
 		struct {
 			ni_ifcondition_t *left;
 			ni_ifcondition_t *right;
@@ -593,7 +591,7 @@ ni_fsm_policy_action_new(ni_fsm_policy_action_type_t type, xml_node_t *node, ni_
 			;
 	}
 
-	action = calloc(1, sizeof(*action));
+	action = xcalloc(1, sizeof(*action));
 	action->type = type;
 	action->data = node;
 
@@ -1028,10 +1026,16 @@ ni_ifcondition_new(ni_ifcondition_check_fn_t *check_fn)
 {
 	ni_ifcondition_t *cond;
 
-	cond = calloc(1, sizeof(*cond));
+	cond = xcalloc(1, sizeof(*cond));
 	cond->check = check_fn;
 
 	return cond;
+}
+
+static void
+ni_ifcondition_free_args_string(ni_ifcondition_t *cond)
+{
+	ni_string_free(&cond->args.string);
 }
 
 static ni_ifcondition_t *
@@ -1045,6 +1049,7 @@ ni_ifcondition_new_cdata(ni_ifcondition_check_fn_t *check_fn, const xml_node_t *
 	}
 
 	cond = ni_ifcondition_new(check_fn);
+	cond->free = ni_ifcondition_free_args_string;
 	ni_string_dup(&cond->args.string, node->cdata);
 	return cond;
 }
@@ -1059,6 +1064,13 @@ ni_ifcondition_new_uint(ni_ifcondition_check_fn_t *check_fn, unsigned int value)
 	return cond;
 }
 
+static void
+ni_ifcondition_free_args_terms(ni_ifcondition_t *cond)
+{
+	ni_ifcondition_free(cond->args.terms.left);
+	ni_ifcondition_free(cond->args.terms.right);
+}
+
 static ni_ifcondition_t *
 ni_ifcondition_new_terms(ni_ifcondition_check_fn_t *check_fn,
 			ni_ifcondition_t *left,
@@ -1067,6 +1079,7 @@ ni_ifcondition_new_terms(ni_ifcondition_check_fn_t *check_fn,
 	ni_ifcondition_t *cond;
 
 	cond = ni_ifcondition_new(check_fn);
+	cond->free = ni_ifcondition_free_args_terms;
 	cond->args.terms.left = left;
 	cond->args.terms.right = right;
 	return cond;
@@ -1075,9 +1088,9 @@ ni_ifcondition_new_terms(ni_ifcondition_check_fn_t *check_fn,
 static void
 ni_ifcondition_free(ni_ifcondition_t *cond)
 {
+	if (cond && cond->free)
+		cond->free(cond);
 	free(cond);
-
-	/* XXX: delete subordinate terms */
 }
 
 static ni_bool_t
