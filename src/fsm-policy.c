@@ -28,7 +28,10 @@ struct ni_ifcondition {
 	ni_ifcondition_free_fn_t *	free;
 
 	union {
-		ni_ifworker_type_t	type;
+		struct {
+			ni_ifworker_type_t	type;
+			ni_ifcondition_t *	ref;
+		};
 		struct {
 			ni_ifcondition_t *left;
 			ni_ifcondition_t *right;
@@ -1037,6 +1040,11 @@ ni_ifcondition_free_args_string(ni_ifcondition_t *cond)
 {
 	ni_string_free(&cond->args.string);
 }
+static void
+ni_ifcondition_free_args_reference(ni_ifcondition_t *cond)
+{
+	ni_ifcondition_free(cond->args.ref);
+}
 
 static ni_ifcondition_t *
 ni_ifcondition_new_cdata(ni_ifcondition_check_fn_t *check_fn, const xml_node_t *node)
@@ -1608,6 +1616,120 @@ ni_ifcondition_modem(xml_node_t *node)
 	return result;
 }
 
+static ni_bool_t
+__ni_fsm_policy_match_reference(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	unsigned int i;
+
+	if (cond && cond->args.ref && fsm) {
+		for (i = 0; i < fsm->workers.count; ++i) {
+			w = fsm->workers.data[i];
+			if (!w || w->type !=  cond->args.type)
+				continue;
+
+			if (ni_ifcondition_check(cond->args.ref, fsm, w))
+				return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_new_reference(ni_ifcondition_t *ref, ni_ifworker_type_t type)
+{
+	ni_ifcondition_t *cond;
+
+	if (ref) {
+		cond = ni_ifcondition_new(__ni_fsm_policy_match_reference);
+		cond->free = ni_ifcondition_free_args_reference;
+		cond->args.ref = ref;
+		cond->args.type = type;
+		return cond;
+	}
+	return NULL;
+}
+
+static inline ni_bool_t
+ni_ifcondition_reference_bind_type(ni_ifworker_type_t *bound, ni_ifworker_type_t type)
+{
+	if (*bound == NI_IFWORKER_TYPE_NONE) {
+		*bound = type;
+		return TRUE;
+	} else {
+		return *bound == type;
+	}
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_reference_type_element(ni_ifworker_type_t *type, xml_node_t *node, const char *name)
+{
+	if (ni_string_eq(name, "device")) {
+		if (ni_ifcondition_reference_bind_type(type, NI_IFWORKER_TYPE_NETDEV))
+			return ni_ifcondition_device(node);
+
+		ni_error("%s: invalid <%s> reference element type mix", name, xml_node_location(node));
+		return NULL;
+	}
+	if (ni_string_eq(name, "modem")) {
+		if (ni_ifcondition_reference_bind_type(type, NI_IFWORKER_TYPE_MODEM))
+			return ni_ifcondition_modem(node);
+
+		ni_error("%s: invalid <%s> reference element type mix", name, xml_node_location(node));
+		return NULL;
+	}
+
+	ni_error("%s: unknown reference condition <%s>", xml_node_location(node), name);
+	return NULL;
+}
+
+/*
+ * <reference:device>...</reference:device>
+ * <reference:modem>...</reference:modem>
+ *
+ * Match a single property element of a referenced worker.
+ */
+static ni_ifcondition_t *
+ni_ifcondition_reference_element(xml_node_t *node, const char *name)
+{
+	ni_ifworker_type_t type = NI_IFWORKER_TYPE_NONE;
+	ni_ifcondition_t *cond;
+
+	cond = ni_ifcondition_reference_type_element(&type, node, name);
+	return ni_ifcondition_new_reference(cond, type);
+}
+
+/*
+ * <reference>...and device property match...</reference>
+ * <reference>...and modem property match...</reference>
+ *
+ * Each worker has a type (modem or device) and a reference is bond to
+ * the type of the 1st worker matching it's properties using an and term.
+ */
+static ni_ifcondition_t *
+ni_ifcondition_reference(xml_node_t *node)
+{
+	ni_ifcondition_t *result = NULL;
+	ni_ifworker_type_t type = NI_IFWORKER_TYPE_NONE;
+
+	for (node = node->children; node; node = node->next) {
+		ni_ifcondition_t *cond;
+
+		cond = ni_ifcondition_reference_type_element(&type, node, node->name);
+		if (cond == NULL) {
+			if (result)
+				ni_ifcondition_free(result);
+			return NULL;
+		}
+
+		if (result == NULL)
+			result = cond;
+		else
+			result = ni_ifcondition_and_terms(result, cond);
+	}
+
+	return ni_ifcondition_new_reference(result, type);
+}
+
 /*
  * <wireless>...</wireless>
  * <wireless:foobar>...</wireless:foobar>
@@ -1751,6 +1873,10 @@ ni_ifcondition_from_xml(xml_node_t *node)
 		return ni_ifcondition_device(node);
 	if (!strncmp(node->name, "device:", sizeof("device:")-1))
 		return ni_ifcondition_device_element(node, node->name + sizeof("device:")-1);
+	if (!strcmp(node->name, "reference"))
+		return ni_ifcondition_reference(node);
+	if (!strncmp(node->name, "reference:", sizeof("reference:")-1))
+		return ni_ifcondition_reference_element(node, node->name + sizeof("reference:")-1);
 	if (!strcmp(node->name, "child"))
 		return ni_ifcondition_and_child(node);
 	if (!strcmp(node->name, "modem"))

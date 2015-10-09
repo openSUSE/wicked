@@ -959,14 +959,11 @@ ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
 	if (!w || ni_string_empty(ifname))
 		return FALSE;
 
-	/* ifworker name must be same as policy name here.
-	 * If device name matches policy name then we
-	 *  consider such a match as fulfilled.
-	 */
 	if (ni_string_eq(w->name, ifname))
 		return TRUE;
 
-	ni_error("device %s requested via match is not present", ifname);
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+			"device %s requested via match is not present", ifname);
 	return FALSE;
 }
 
