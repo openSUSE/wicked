@@ -73,6 +73,93 @@ __ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w)
 	return xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, node, w->name);
 }
 
+static ni_bool_t
+__ni_ifup_generate_match_link_port_ref(xml_node_t *match, xml_node_t *port)
+{
+	const char *type = xml_node_get_attr(port, NI_CLIENT_IFCONFIG_PORT_TYPE);
+	ni_iftype_t ptype = ni_linktype_name_to_type(type);
+	xml_node_t *ref, *ovsbr;
+
+	switch (ptype) {
+	case NI_IFTYPE_OVS_BRIDGE:
+		ovsbr = xml_node_get_child(port, NI_CLIENT_IFCONFIG_BRIDGE);
+		if (!ovsbr || ni_string_empty(ovsbr->cdata))
+			return FALSE;
+
+		if (!(ref = xml_node_new(NI_NANNY_IFPOLICY_MATCH_REF, match)))
+			return FALSE;
+
+		if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, ref, ovsbr->cdata)) {
+			xml_node_free(ref);
+			return FALSE;
+		}
+		break;
+
+	default:
+		/* other port types need master only */
+		break;
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_ifup_generate_match_link_ref(xml_node_t *match, xml_node_t *link)
+{
+	xml_node_t *ref, *master, *port;
+
+	if (!(master = xml_node_get_child(link, NI_CLIENT_IFCONFIG_MASTER)))
+		return TRUE; /* <link> does not contain a <master> node */
+
+	if (ni_string_empty(master->cdata))
+		return FALSE;
+
+	if (!(ref = xml_node_new(NI_NANNY_IFPOLICY_MATCH_REF, match)))
+		return FALSE;
+
+	if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, ref, master->cdata)) {
+		xml_node_free(ref);
+		return FALSE;
+	}
+
+	if ((port = xml_node_get_child(link, NI_CLIENT_IFCONFIG_LINK_PORT)))
+		return __ni_ifup_generate_match_link_port_ref(match, port);
+
+	return TRUE; /* master ref at least */
+}
+
+static ni_bool_t
+__ni_ifup_generate_match_master_ref(xml_node_t *match, ni_ifworker_t *master)
+{
+	xml_node_t *ref;
+
+	if (!master || ni_string_empty(master->name))
+		return FALSE;
+
+	if (!(ref = xml_node_new(NI_NANNY_IFPOLICY_MATCH_REF, match)))
+		return FALSE;
+
+	if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, ref, master->name)) {
+		xml_node_free(ref);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_ifup_generate_match_refs(xml_node_t *match, ni_ifworker_t *w)
+{
+	xml_node_t *link;
+
+	if (w->masterdev)
+		return __ni_ifup_generate_match_master_ref(match, w->masterdev);
+
+	if ((link = xml_node_get_child(w->config.node, NI_CLIENT_IFCONFIG_LINK)))
+		return __ni_ifup_generate_match_link_ref(match, link);
+
+	return TRUE; /* no refs is not an error */
+}
+
 static xml_node_t *
 __ni_ifup_generate_match(const char *name, ni_ifworker_t *w)
 {
@@ -81,16 +168,32 @@ __ni_ifup_generate_match(const char *name, ni_ifworker_t *w)
 	if (!(match = xml_node_new(name, NULL)))
 		goto error;
 
+	ni_debug_wicked_xml(w->config.node, NI_LOG_DEBUG,
+		"generate policy match for %s (type %s)", w->name,
+		ni_linktype_type_to_name(w->iftype));
+
 	if (!__ni_ifup_generate_match_dev(match, w))
 		goto error;
 
-	/* Ignore child dependency for following device types */
+	/* Ignore child dependency for following device types:
+	 *  - ovs-system: otherwise ovs-system would require all ports
+	 *    in all ovs-bridges and want to get at least one up ...
+	 *    this is not what we want :-)
+	 */
 	switch (w->iftype) {
 	case NI_IFTYPE_OVS_SYSTEM:
 		goto done;
 		break;
 	default:
+		if (ni_string_eq(w->name, ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM)))
+			goto done;
 		break;
+	}
+
+	if (!__ni_ifup_generate_match_refs(match, w)) {
+		ni_debug_application("%s: unable to generate policy match device references",
+				w->name);
+		goto error;
 	}
 
 	if (w->children.count) {
