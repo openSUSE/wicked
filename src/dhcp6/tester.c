@@ -40,7 +40,7 @@
 #include <wicked/system.h>
 #include <wicked/xml.h>
 
-#include "dhcp6/dhcp6.h"
+#include "dhcp6/dhcp.h"
 #include "dhcp6/device.h"
 #include "dhcp6/tester.h"
 #include "duid.h"
