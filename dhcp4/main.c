@@ -260,9 +260,6 @@ main(int argc, char **argv)
 		opt_state_file = dirname;
 	}
 
-	/* We're using randomized timeouts. Seed the RNG */
-	ni_srandom();
-
 	/* load af_packet module we need for capturing */
 	ni_modprobe(AFPACKET_MODULE_NAME, AFPACKET_MODULE_OPTS);
 

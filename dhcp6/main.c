@@ -282,9 +282,6 @@ main(int argc, char **argv)
 		opt_state_file = dirname;
 	}
 
-	/* We're using randomized timeouts. Seed the RNG */
-	ni_srandom();
-
 	if (tester) {
 		/* Create necessary directories if not yet there */
 		ni_config_storedir();
