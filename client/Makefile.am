@@ -61,7 +61,8 @@ wicked_SOURCES			= \
 	read-config.c		\
 	main.c			\
 	nanny.c			\
-	reachable.c
+	reachable.c		\
+	tester.c
 
 noinst_HEADERS			= \
 	arputil.h		\
@@ -71,6 +72,7 @@ noinst_HEADERS			= \
 	ifreload.h		\
 	ifstatus.h		\
 	reachable.h		\
+	tester.h		\
 	wicked-client.h
 
 install-data-local:
