@@ -44,32 +44,34 @@
 #include "dhcp4/tester.h"
 
 
-static dhcp4_tester_t	dhcp4_tester_opts;
-static int		dhcp4_tester_status;
+/* TODO: get rid of these static things */
+static ni_dhcp4_tester_t	dhcp4_tester_opts;
+static int			dhcp4_tester_status;
 
-dhcp4_tester_t *
-dhcp4_tester_init(void)
+ni_dhcp4_tester_t *
+ni_dhcp4_tester_init(void)
 {
 	memset(&dhcp4_tester_opts, 0, sizeof(dhcp4_tester_opts));
-	dhcp4_tester_opts.outfmt  = DHCP4_TESTER_OUT_LEASE_INFO;
+	dhcp4_tester_opts.outfmt  = NI_DHCP4_TESTER_OUT_LEASE_INFO;
 	dhcp4_tester_opts.timeout = 0;
+	dhcp4_tester_status = NI_WICKED_RC_NOT_RUNNING;
 	return &dhcp4_tester_opts;
 }
 
 ni_bool_t
-dhcp4_tester_set_outfmt(const char *outfmt, unsigned int *type)
+ni_dhcp4_tester_set_outfmt(const char *outfmt, unsigned int *type)
 {
 	static const ni_intmap_t __outfmt_map[] = {
-		{ "lease-xml",	DHCP4_TESTER_OUT_LEASE_XML  },
-		{ "leaseinfo",	DHCP4_TESTER_OUT_LEASE_INFO },
-		{ "info",	DHCP4_TESTER_OUT_LEASE_INFO },
-		{ NULL,		DHCP4_TESTER_OUT_LEASE_INFO },
+		{ "lease-xml",	NI_DHCP4_TESTER_OUT_LEASE_XML  },
+		{ "leaseinfo",	NI_DHCP4_TESTER_OUT_LEASE_INFO },
+		{ "info",	NI_DHCP4_TESTER_OUT_LEASE_INFO },
+		{ NULL,		NI_DHCP4_TESTER_OUT_LEASE_INFO },
 	};
 	return ni_parse_uint_mapped(outfmt, __outfmt_map, type) == 0;
 }
 
 static void
-dhcp4_tester_protocol_event(enum ni_dhcp4_event ev, const ni_dhcp4_device_t *dev,
+ni_dhcp4_tester_protocol_event(enum ni_dhcp4_event ev, const ni_dhcp4_device_t *dev,
 		ni_addrconf_lease_t *lease)
 {
 	ni_debug_dhcp("%s(ev=%u, dev=%s[%u], config-uuid=%s)", __func__, ev,
@@ -90,7 +92,7 @@ dhcp4_tester_protocol_event(enum ni_dhcp4_event ev, const ni_dhcp4_device_t *dev
 					return;
 				}
 			}
-			if (dhcp4_tester_opts.outfmt == DHCP4_TESTER_OUT_LEASE_XML) {
+			if (dhcp4_tester_opts.outfmt == NI_DHCP4_TESTER_OUT_LEASE_XML) {
 				xml_node_t *xml = NULL;
 
 				if (ni_addrconf_lease_to_xml(lease, &xml) != 0) {
@@ -107,7 +109,7 @@ dhcp4_tester_protocol_event(enum ni_dhcp4_event ev, const ni_dhcp4_device_t *dev
 			fflush(fp);
 			if (dhcp4_tester_opts.output)
 				fclose(fp);
-			dhcp4_tester_status = 0;
+			dhcp4_tester_status = NI_WICKED_RC_SUCCESS;
 		}
 		break;
 	default:
@@ -116,7 +118,7 @@ dhcp4_tester_protocol_event(enum ni_dhcp4_event ev, const ni_dhcp4_device_t *dev
 }
 
 static ni_bool_t
-dhcp4_tester_req_xml_init(ni_dhcp4_request_t *req, xml_document_t *doc)
+ni_dhcp4_tester_req_xml_init(ni_dhcp4_request_t *req, xml_document_t *doc)
 {
 	xml_node_t *xml, *child;
 	const char *type;
@@ -188,7 +190,7 @@ failure:
 }
 
 static ni_bool_t
-dhcp4_tester_req_init(ni_dhcp4_request_t *req, const char *request)
+ni_dhcp4_tester_req_init(ni_dhcp4_request_t *req, const char *request)
 {
 	/* Apply some defaults */
 	req->dry_run = NI_DHCP4_RUN_OFFER;
@@ -203,7 +205,7 @@ dhcp4_tester_req_init(ni_dhcp4_request_t *req, const char *request)
 			return FALSE;
 		}
 
-		if (!dhcp4_tester_req_xml_init(req, doc)) {
+		if (!ni_dhcp4_tester_req_xml_init(req, doc)) {
 			xml_document_free(doc);
 			return FALSE;
 		}
@@ -218,7 +220,7 @@ dhcp4_tester_req_init(ni_dhcp4_request_t *req, const char *request)
 }
 
 int
-dhcp4_tester_run(dhcp4_tester_t *opts)
+ni_dhcp4_tester_run(ni_dhcp4_tester_t *opts)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp = NULL;
@@ -250,14 +252,14 @@ dhcp4_tester_run(dhcp4_tester_t *opts)
 	if (!(dev = ni_dhcp4_device_new(ifp->name, &ifp->link)))
 		ni_fatal("Cannot allocate dhcp4 client for '%s'", opts->ifname);
 
-	ni_dhcp4_set_event_handler(dhcp4_tester_protocol_event);
+	ni_dhcp4_set_event_handler(ni_dhcp4_tester_protocol_event);
 
 	if (!(req = ni_dhcp4_request_new())) {
 		ni_error("Cannot allocate dhcp4 request");
 		goto failure;
 	}
 
-	if (!dhcp4_tester_req_init(req, opts->request))
+	if (!ni_dhcp4_tester_req_init(req, opts->request))
 		goto failure;
 
 	if (!ni_netdev_link_is_up(ifp)) {

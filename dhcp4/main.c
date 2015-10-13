@@ -94,7 +94,7 @@ extern ni_dbus_object_t *ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *
 int
 main(int argc, char **argv)
 {
-	dhcp4_tester_t * tester = NULL;
+	ni_dhcp4_tester_t * tester = NULL;
 	int c, status = NI_WICKED_RC_USAGE;
 
 	ni_log_init();
@@ -189,7 +189,7 @@ main(int argc, char **argv)
 		/* test run */
 		case OPT_TEST:
 			opt_foreground = TRUE;
-			tester = dhcp4_tester_init();
+			tester = ni_dhcp4_tester_init();
 			break;
 
 		case OPT_TEST_REQUEST:
@@ -211,7 +211,7 @@ main(int argc, char **argv)
 			break;
 
 		case OPT_TEST_OUTFMT:
-			if (!tester || !dhcp4_tester_set_outfmt(optarg,
+			if (!tester || !ni_dhcp4_tester_set_outfmt(optarg,
 						&tester->outfmt))
 				goto usage;
 			break;
@@ -261,7 +261,7 @@ main(int argc, char **argv)
 		ni_config_storedir();
 		ni_config_statedir();
 
-		return dhcp4_tester_run(tester);
+		return ni_dhcp4_tester_run(tester);
 	}
 
 	dhcp4_supplicant();

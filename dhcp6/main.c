@@ -110,7 +110,7 @@ static void			dhcp6_supplicant(void);
 int
 main(int argc, char **argv)
 {
-	dhcp6_tester_t * tester = NULL;
+	ni_dhcp6_tester_t * tester = NULL;
 	int c, status = NI_WICKED_RC_USAGE;
 
 	ni_log_init();
@@ -207,7 +207,7 @@ main(int argc, char **argv)
 		/* test run */
 		case OPT_TEST:
 			opt_foreground = TRUE;
-			tester = dhcp6_tester_init();
+			tester = ni_dhcp6_tester_init();
 			break;
 
 		case OPT_TEST_MODE:
@@ -236,7 +236,7 @@ main(int argc, char **argv)
 			break;
 
 		case OPT_TEST_OUTFMT:
-			if (!tester || !dhcp6_tester_set_outfmt(optarg,
+			if (!tester || !ni_dhcp6_tester_set_outfmt(optarg,
 						&tester->outfmt))
 				goto usage;
 			break;
@@ -287,7 +287,7 @@ main(int argc, char **argv)
 		ni_config_storedir();
 		ni_config_statedir();
 
-		return dhcp6_tester_run(tester);
+		return ni_dhcp6_tester_run(tester);
 	}
 
 	dhcp6_supplicant();
