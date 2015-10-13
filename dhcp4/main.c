@@ -23,10 +23,6 @@
 
 #include "dhcp4/dhcp.h"
 #include "dhcp4/tester.h"
-#include "modprobe.h"
-
-#define AFPACKET_MODULE_NAME	"af_packet"
-#define AFPACKET_MODULE_OPTS	NULL
 
 enum {
 	/* common */
@@ -259,9 +255,6 @@ main(int argc, char **argv)
 		snprintf(dirname, sizeof(dirname), "%s/dhcp4-state.xml", ni_config_statedir());
 		opt_state_file = dirname;
 	}
-
-	/* load af_packet module we need for capturing */
-	ni_modprobe(AFPACKET_MODULE_NAME, AFPACKET_MODULE_OPTS);
 
 	if (tester) {
 		/* Create necessary directories if not yet there */
