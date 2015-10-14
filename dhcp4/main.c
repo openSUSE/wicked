@@ -23,10 +23,6 @@
 
 #include "dhcp4/dhcp.h"
 #include "dhcp4/tester.h"
-#include "modprobe.h"
-
-#define AFPACKET_MODULE_NAME	"af_packet"
-#define AFPACKET_MODULE_OPTS	NULL
 
 enum {
 	/* common */
@@ -98,7 +94,7 @@ extern ni_dbus_object_t *ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *
 int
 main(int argc, char **argv)
 {
-	dhcp4_tester_t * tester = NULL;
+	ni_dhcp4_tester_t * tester = NULL;
 	int c, status = NI_WICKED_RC_USAGE;
 
 	ni_log_init();
@@ -193,7 +189,7 @@ main(int argc, char **argv)
 		/* test run */
 		case OPT_TEST:
 			opt_foreground = TRUE;
-			tester = dhcp4_tester_init();
+			tester = ni_dhcp4_tester_init();
 			break;
 
 		case OPT_TEST_REQUEST:
@@ -215,7 +211,7 @@ main(int argc, char **argv)
 			break;
 
 		case OPT_TEST_OUTFMT:
-			if (!tester || !dhcp4_tester_set_outfmt(optarg,
+			if (!tester || !ni_dhcp4_tester_set_outfmt(optarg,
 						&tester->outfmt))
 				goto usage;
 			break;
@@ -260,18 +256,12 @@ main(int argc, char **argv)
 		opt_state_file = dirname;
 	}
 
-	/* We're using randomized timeouts. Seed the RNG */
-	ni_srandom();
-
-	/* load af_packet module we need for capturing */
-	ni_modprobe(AFPACKET_MODULE_NAME, AFPACKET_MODULE_OPTS);
-
 	if (tester) {
 		/* Create necessary directories if not yet there */
 		ni_config_storedir();
 		ni_config_statedir();
 
-		return dhcp4_tester_run(tester);
+		return ni_dhcp4_tester_run(tester);
 	}
 
 	dhcp4_supplicant();

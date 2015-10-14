@@ -106,6 +106,9 @@ ni_init_ex(const char *appname, ni_init_appdata_callback_t *cb, void *appdata)
 		return -1;
 	}
 
+	/* We're using randomized timeouts. Seed the RNG */
+	ni_srandom();
+
 	if (__ni_init_gcrypt() < 0)
 		return -1;
 

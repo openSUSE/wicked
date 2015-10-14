@@ -56,6 +56,7 @@
 #include "ifreload.h"
 #include "ifstatus.h"
 #include "arputil.h"
+#include "tester.h"
 
 enum {
 	OPT_HELP,
@@ -89,7 +90,6 @@ static struct option	options[] = {
 	{ NULL }
 };
 
-static const char *	program_name;
 static const char *	opt_log_target;
 int			opt_global_dryrun;
 char *			opt_global_rootdir;
@@ -125,13 +125,14 @@ show_exec_info(int argc, char **argv)
 int
 main(int argc, char **argv)
 {
-	char *cmd;
 	int c, status = NI_WICKED_RC_USAGE;
+	const char *program;
+	const char *cmd;
 
 	mtrace();
 
 	ni_log_init();
-	program_name = ni_basename(argv[0]);
+	program = ni_basename(argv[0]);
 
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
 		switch (c) {
@@ -140,7 +141,7 @@ main(int argc, char **argv)
 		default:
 		usage:
 			fprintf(stderr,
-				"wicked [options] cmd path\n"
+				"%s [options] cmd path\n"
 				"This command understands the following options\n"
 				"  --help\n"
 				"  --version\n"
@@ -178,12 +179,13 @@ main(int argc, char **argv)
 				"  getnames    [subcommand]\n"
 				"  convert     [subcommand]\n"
 				"  xpath       [options] expr ...\n"
+				"  test        [subcommand]\n"
 				"  arp         [options] <ifname> <IP>\n"
-				);
+				"\n", program);
 			goto done;
 
 		case OPT_VERSION:
-			printf("%s %s\n", program_name, PACKAGE_VERSION);
+			printf("%s %s\n", PACKAGE_NAME, PACKAGE_VERSION);
 			status  = NI_WICKED_RC_SUCCESS;
 			goto done;
 
@@ -245,17 +247,17 @@ main(int argc, char **argv)
 	}
 
 	if (opt_log_target) {
-		if (!ni_log_destination(program_name, opt_log_target)) {
+		if (!ni_log_destination(program, opt_log_target)) {
 			fprintf(stderr, "Bad log destination \%s\"\n",
 				opt_log_target);
 			goto usage;
 		}
 	}
 	else if (opt_systemd || getppid() == 1) { /* syslog only */
-		ni_log_destination(program_name, "syslog:user");
+		ni_log_destination(program, "syslog:user");
 	}
 	else { /* syslog + stderr */
-		ni_log_destination(program_name, "syslog:user:perror");
+		ni_log_destination(program, "syslog:user:perror");
 	}
 
 	if (ni_init("client") < 0) {
@@ -311,6 +313,9 @@ main(int argc, char **argv)
 	} else
 	if (!strcmp(cmd, "convert")) {
 		status = do_convert(argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "test")) {
+		status = ni_do_test(program, argc - optind, argv + optind);
 	} else
 	if (!strcmp(cmd, "arp")) {
 		status = ni_do_arp(argc - optind, argv + optind);
