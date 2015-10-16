@@ -1,5 +1,6 @@
 [Unit]
 Description=wicked network management service daemon
+Requisite=dbus.service
 After=local-fs.target dbus.service isdn.service rdma.service SuSEfirewall2_init.service
 Before=wicked.service network.target
 
