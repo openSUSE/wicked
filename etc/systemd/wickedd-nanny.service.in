@@ -1,6 +1,7 @@
 [Unit]
 Description=wicked network nanny service
 Requisite=dbus.service
+Wants=wickedd.service
 After=local-fs.target dbus.service SuSEfirewall2_init.service wickedd.service
 Before=wicked.service network.target
 PartOf=wickedd.service
@@ -15,6 +16,5 @@ StandardError=null
 Restart=on-abort
 
 [Install]
-WantedBy=wickedd.service
 Alias=dbus-org.opensuse.Network.Nanny.service
 
