@@ -1,5 +1,6 @@
 [Unit]
 Description=wicked DHCPv6 supplicant service
+Requisite=dbus.service
 After=local-fs.target dbus.service SuSEfirewall2_init.service
 Before=wickedd.service wicked.service network.target
 PartOf=wickedd.service
@@ -14,6 +15,5 @@ StandardError=null
 Restart=on-abort
 
 [Install]
-WantedBy=wickedd.service
 Alias=dbus-org.opensuse.Network.DHCP6.service
 
