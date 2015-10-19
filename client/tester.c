@@ -40,6 +40,7 @@
 #include "tester.h"
 #include "dhcp4/tester.h"
 #include "dhcp6/tester.h"
+#include "netinfo_priv.h"
 
 
 int
@@ -140,6 +141,8 @@ ni_do_test_dhcp4(const char *caller, int argc, char **argv)
 		fprintf(stderr, "Error: %s: multiple interface names not supported\n", program);
 		goto cleanup;
 	}
+
+	ni_netconfig_set_family_filter(ni_global_state_handle(0), AF_INET);
 
 	tester->ifname = argv[optind];
 	status = ni_dhcp4_tester_run(tester);
@@ -257,6 +260,8 @@ ni_do_test_dhcp6(const char *caller, int argc, char **argv)
 		fprintf(stderr, "Error: %s: multiple interface names not supported\n", program);
 		goto cleanup;
 	}
+
+	ni_netconfig_set_family_filter(ni_global_state_handle(0), AF_INET6);
 
 	tester->ifname = argv[optind];
 	status = ni_dhcp6_tester_run(tester);

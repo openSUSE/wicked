@@ -256,6 +256,8 @@ main(int argc, char **argv)
 		opt_state_file = dirname;
 	}
 
+	ni_netconfig_set_family_filter(ni_global_state_handle(0), AF_INET);
+
 	if (tester) {
 		/* Create necessary directories if not yet there */
 		ni_config_storedir();

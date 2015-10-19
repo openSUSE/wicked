@@ -404,6 +404,8 @@ autoip4_supplicant(void)
 	if (autoip4_dbus_server == NULL)
 		ni_fatal("unable to initialize dbus service");
 
+	ni_netconfig_set_family_filter(ni_global_state_handle(0), AF_INET);
+
 	ni_objectmodel_autoip4_init();
 
 	autoip4_register_services(autoip4_dbus_server);

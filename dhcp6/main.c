@@ -40,6 +40,7 @@
 
 #include "dhcp6/dbus-api.h"
 #include "dhcp6/tester.h"
+#include "netinfo_priv.h"
 #include "duid.h"
 
 
@@ -281,6 +282,8 @@ main(int argc, char **argv)
 							CONFIG_DHCP6_STATE_FILE);
 		opt_state_file = dirname;
 	}
+
+	ni_netconfig_set_family_filter(ni_global_state_handle(0), AF_INET6);
 
 	if (tester) {
 		/* Create necessary directories if not yet there */
