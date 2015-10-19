@@ -2507,8 +2507,6 @@ __ni_discover_addrconf(ni_netdev_t *dev)
 {
 	ni_addrconf_lease_t *lease;
 
-	__ni_assert_initialized();
-
 	for (lease = dev->leases; lease; lease = lease->next) {
 		switch (lease->family) {
 		case AF_INET:
