@@ -138,15 +138,15 @@ ni_rtnl_query_destroy(struct ni_rtnl_query *q)
 }
 
 static int
-ni_rtnl_query(struct ni_rtnl_query *q, unsigned int ifindex)
+ni_rtnl_query(struct ni_rtnl_query *q, unsigned int ifindex, unsigned int family)
 {
 	memset(q, 0, sizeof(*q));
 	q->ifindex = ifindex;
 
 	if (__ni_rtnl_query(&q->link_info, AF_UNSPEC, RTM_GETLINK) < 0
-	 || __ni_rtnl_query(&q->ipv6_info, AF_INET6, RTM_GETLINK) < 0
-	 || __ni_rtnl_query(&q->addr_info, AF_UNSPEC, RTM_GETADDR) < 0
-	 || __ni_rtnl_query(&q->route_info, AF_UNSPEC, RTM_GETROUTE) < 0) {
+	 || (family != AF_INET && __ni_rtnl_query(&q->ipv6_info, AF_INET6, RTM_GETLINK) < 0)
+	 || __ni_rtnl_query(&q->addr_info, family, RTM_GETADDR) < 0
+	 || __ni_rtnl_query(&q->route_info, family, RTM_GETROUTE) < 0) {
 		ni_rtnl_query_destroy(q);
 		return -1;
 	}
@@ -221,12 +221,12 @@ ni_rtnl_query_next_ipv6_link_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 }
 
 static int
-ni_rtnl_query_addr_info(struct ni_rtnl_query *q, unsigned int ifindex)
+ni_rtnl_query_addr_info(struct ni_rtnl_query *q, unsigned int ifindex, unsigned int family)
 {
 	memset(q, 0, sizeof(*q));
 	q->ifindex = ifindex;
 
-	if (__ni_rtnl_query(&q->addr_info, AF_UNSPEC, RTM_GETADDR) < 0) {
+	if (__ni_rtnl_query(&q->addr_info, family, RTM_GETADDR) < 0) {
 		ni_rtnl_query_destroy(q);
 		return -1;
 	}
@@ -253,7 +253,7 @@ ni_rtnl_query_next_addr_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 }
 
 static int
-ni_rtnl_query_route_info(struct ni_rtnl_query *q, unsigned int ifindex)
+ni_rtnl_query_route_info(struct ni_rtnl_query *q, unsigned int ifindex, unsigned int family)
 {
 	memset(q, 0, sizeof(*q));
 	q->ifindex = ifindex;
@@ -351,7 +351,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 				"Full refresh of all interfaces (enforced)");
 	}
 
-	if (ni_rtnl_query(&query, 0) < 0)
+	if (ni_rtnl_query(&query, 0, ni_netconfig_get_family_filter(nc)) < 0)
 		goto failed;
 
 	/* Find tail of iflist */
@@ -510,7 +510,7 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *dev)
 		__ni_global_seqno++;
 	} while (!__ni_global_seqno);
 
-	if (ni_rtnl_query(&query, dev->link.ifindex) < 0)
+	if (ni_rtnl_query(&query, dev->link.ifindex, ni_netconfig_get_family_filter(nc)) < 0)
 		goto failed;
 
 	dev->seq = 0;
@@ -586,7 +586,7 @@ __ni_system_refresh_interface_addrs(ni_netconfig_t *nc, ni_netdev_t *dev)
 		dev->seq = ++__ni_global_seqno;
 	} while (!dev->seq);
 
-	if (ni_rtnl_query_addr_info(&query, dev->link.ifindex) < 0)
+	if (ni_rtnl_query_addr_info(&query, dev->link.ifindex, ni_netconfig_get_family_filter(nc)) < 0)
 		goto failed;
 
 	__ni_address_list_reset_seq(dev->addrs);
@@ -623,7 +623,7 @@ __ni_system_refresh_interface_routes(ni_netconfig_t *nc, ni_netdev_t *dev)
 			dev->name);
 
 	__ni_global_seqno++;
-	if (ni_rtnl_query_route_info(&query, dev->link.ifindex) < 0)
+	if (ni_rtnl_query_route_info(&query, dev->link.ifindex, ni_netconfig_get_family_filter(nc)) < 0)
 		goto failed;
 
 	ni_netdev_clear_routes(dev);
