@@ -42,6 +42,9 @@ extern void		ni_netconfig_device_remove(ni_netconfig_t *, ni_netdev_t *);
 extern ni_netdev_t **	ni_netconfig_device_list_head(ni_netconfig_t *);
 extern void		ni_netconfig_modem_append(ni_netconfig_t *, ni_modem_t *);
 
+extern ni_bool_t	ni_netconfig_set_family_filter(ni_netconfig_t *, unsigned int);
+extern unsigned int	ni_netconfig_get_family_filter(ni_netconfig_t *);
+
 extern ni_bool_t	__ni_linkinfo_kind_to_type(const char *, ni_iftype_t *);
 
 extern void		__ni_netdev_list_append(ni_netdev_t **, ni_netdev_t *);

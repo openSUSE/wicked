@@ -36,7 +36,13 @@
 
 extern void		ni_addrconf_updater_free(ni_addrconf_updater_t **);
 
+typedef struct ni_netconfig_filter {
+	unsigned int		family;
+} ni_netconfig_filter_t;
+
 struct ni_netconfig {
+	ni_netconfig_filter_t	filter;
+
 	ni_netdev_t *		interfaces;
 	ni_modem_t *		modems;
 
@@ -509,6 +515,25 @@ ni_netconfig_destroy(ni_netconfig_t *nc)
 {
 	__ni_netdev_list_destroy(&nc->interfaces);
 	memset(nc, 0, sizeof(*nc));
+}
+
+/*
+ * apply filter
+ */
+ni_bool_t
+ni_netconfig_set_family_filter(ni_netconfig_t *nc, unsigned int family)
+{
+	if (nc) {
+		nc->filter.family = family;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+unsigned int
+ni_netconfig_get_family_filter(ni_netconfig_t *nc)
+{
+	return nc ? nc->filter.family : AF_UNSPEC;
 }
 
 /*
