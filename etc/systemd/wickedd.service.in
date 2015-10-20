@@ -15,7 +15,6 @@ StandardError=null
 Restart=on-abort
 
 [Install]
-WantedBy=wicked.service
 Also=wickedd-nanny.service
 Also=wickedd-auto4.service
 Also=wickedd-dhcp4.service

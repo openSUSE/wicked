@@ -1,6 +1,6 @@
 [Unit]
 Description=wicked managed network interfaces
-Wants=network.target
+Wants=network.target wickedd.service
 After=network-pre.target wickedd.service wickedd-nanny.service
 Before=network-online.target network.target
 
