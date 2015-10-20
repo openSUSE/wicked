@@ -15,6 +15,5 @@ StandardError=null
 Restart=on-abort
 
 [Install]
-WantedBy=wickedd.service
 Alias=dbus-org.opensuse.Network.AUTO4.service
 
