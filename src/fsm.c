@@ -2241,7 +2241,23 @@ ni_ifworker_check_state_req_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require
 			continue;
 		}
 
-		ni_debug_application("%s: waiting for %s worker %s to reach %s state %s",
+		/*
+		 * Manual tweak: When the cw device should be our master, is UP (thus
+		 * already configured), but not active/picked up by ifup, because not
+		 * directly related to current ifup run, just continue with enslave.
+		 * See bsc#948423 (comment 6ff) for more details.
+		 */
+		if (w->masterdev == cw && !ni_ifworker_active(cw) &&
+		    ni_netdev_device_is_up(cw->device) && w->device &&
+		    (ni_string_empty(w->device->link.masterdev.name) ||
+		     ni_string_eq(w->device->link.masterdev.name, cw->device->name))) {
+			ni_debug_application("%s: master %s is ready to enslave",
+					w->name, cw->name);
+			state_reached++;
+			continue;
+		}
+
+		ni_debug_application("%s: waiting for %sworker %s to reach %s state %s",
 				w->name, required ? "required " : "", cw->name,
 				csr->method,
 				ni_ifworker_state_name(wait_for_state));
