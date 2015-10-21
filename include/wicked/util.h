@@ -179,7 +179,7 @@ extern int		ni_copy_file(FILE *, FILE *);
 extern int		ni_backup_file_to(const char *, const char *);
 extern int		ni_restore_file_from(const char *, const char *);
 extern FILE *		ni_file_open(const char *, const char *, unsigned int);
-extern void *		ni_file_read(FILE *, unsigned int *);
+extern void *		ni_file_read(FILE *, size_t *, size_t);
 extern int		ni_file_write(FILE *, const void *, size_t);
 extern ni_bool_t	ni_file_remove_recursively(const char *path);
 extern int		ni_mkdir_maybe(const char *pathname, unsigned int mode);

@@ -2139,17 +2139,21 @@ ni_file_write(FILE *fp, const void *data, size_t len)
 }
 
 void *
-ni_file_read(FILE *fp, unsigned int *lenp)
+ni_file_read(FILE *fp, size_t *lenp, size_t limit)
 {
 	struct stat stb;
 	unsigned char *buffer;
-	unsigned int count, done, size;
+	size_t count, done, size;
 
 	if (fstat(fileno(fp), &stb) < 0)
 		return NULL;
-	size = stb.st_size;
 
-	buffer = malloc(size);
+	limit = limit ?: SIZE_MAX - 1;
+	if (stb.st_size <= 0 || (size_t)stb.st_size > limit)
+		return NULL;
+
+	size = stb.st_size;
+	buffer = calloc(1, size + 1);
 	if (buffer == NULL)
 		return NULL;
 

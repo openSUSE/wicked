@@ -231,7 +231,7 @@ ni_nanny_policy_load(ni_nanny_t *mgr)
 				continue;
 			}
 
-			doc_string = ni_file_read(fp, NULL);
+			doc_string = ni_file_read(fp, NULL, INT_MAX);
 			fclose(fp);
 			if (doc_string == NULL) {
 				ni_error("Unable to read policy file %s: %m", path);
