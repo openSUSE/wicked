@@ -314,11 +314,10 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
  *      1 - policy created and registered
  */
 int
-ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, const char *doc_string, ni_bool_t schedule)
+ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, xml_document_t *doc, ni_bool_t schedule)
 {
 	xml_node_t *root, *pnode, *config = NULL;
 	ni_fsm_policy_t *policy = NULL;
-	xml_document_t *doc;
 	const char *pname;
 	ni_ifworker_t *w;
 	ni_fsm_t *fsm;
@@ -327,34 +326,34 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, const 
 	fsm = mgr->fsm;
 	ni_assert(fsm);
 
-	doc = xml_document_from_string(doc_string, NULL);
-	if (xml_document_is_empty(doc)) {
-		ni_error("Unable to parse policy document %s", doc_string);
+	if (!doc || xml_document_is_empty(doc)) {
+		ni_error("Invalid policy document");
 		goto error;
 	}
 
 	root = xml_document_root(doc);
 	if (xml_node_is_empty(root->children)) {
-		ni_error("Policy document is empty %s", doc_string);
+		ni_error("Policy document is empty");
 		goto error;
 	}
 
 	if (!xml_node_is_empty(root->children->next)) {
-		ni_error("Policy document contains more then one <policy> node %s",
-			doc_string);
+		ni_error("Policy document contains more then one <policy> node");
 		goto error;
 	}
 
 	pnode = root->children;
 	if (!ni_ifconfig_is_policy(pnode)) {
-		ni_error("No valid policy document %s", doc_string);
+		pname = xml_node_get_attr(pnode, "name");
+		ni_error("No valid policy document \"%s\"",
+				ni_print_suspect(pname, ni_string_len(pname)));
 		goto error;
 	}
 
 	pname = ni_ifpolicy_get_name(pnode);
 	if (!ni_ifpolicy_name_is_valid(pname)) {
-		ni_error("Invalid policy name \"%s\"", ni_print_suspect(pname,
-			ni_string_len(pname)));
+		ni_error("Invalid policy name \"%s\"",
+				ni_print_suspect(pname, ni_string_len(pname)));
 		goto error;
 	}
 
@@ -364,15 +363,14 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, const 
 		rv = 0;
 	}
 	else if (!(policy = ni_fsm_policy_new(fsm, pname, pnode))) {
-		ni_error("Unable to create policy object from %s", doc_string);
+		ni_error("Unable to create policy object for %s", pname);
 		goto error;
 	}
 
 	config = xml_node_new(NI_CLIENT_IFCONFIG, NULL);
 	config = ni_fsm_policy_transform_document(config, &policy, 1);
 	if (!config || !ni_fsm_workers_from_xml(fsm, config, ni_ifpolicy_get_origin(pnode))) {
-		ni_error("Unable to extract config or update workers from policy %s",
-			doc_string);
+		ni_error("Unable to extract config or update workers from policy %s", pname);
 		goto error;
 	}
 
@@ -381,7 +379,7 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, const 
 
 	w = ni_fsm_ifworker_by_policy_name(fsm, NI_IFWORKER_TYPE_NETDEV, pname);
 	if (!w) {
-		ni_error("%s: worker creation failed for policy %s", pname, doc_string);
+		ni_error("%s: worker creation failed for policy", pname);
 		goto error;
 	}
 
@@ -415,7 +413,6 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, const 
 error:
 	xml_node_free(config);
 	ni_fsm_policy_free(policy);
-	xml_document_free(doc);
 	return -1;
 }
 
@@ -874,6 +871,7 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_dbus_object_t *policy_object;
+	xml_document_t *doc;
 	const char *doc_string;
 	ni_nanny_t *mgr;
 	ni_fsm_t *fsm;
@@ -888,19 +886,29 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &doc_string) || ni_string_empty(doc_string))
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
 
-	rv = ni_nanny_create_policy(&policy_object, mgr, doc_string, FALSE);
+	if (!(doc = xml_document_from_string(doc_string, NULL))) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+			"Policy creation failed in call to %s.%s: unable to parse policy xml",
+			ni_dbus_object_get_path(object), method->name);
+		return FALSE;
+	}
+
+	rv = ni_nanny_create_policy(&policy_object, mgr, doc, FALSE);
 	if (rv < 0) {
 		dbus_set_error(error, NI_DBUS_ERROR_POLICY_DOESNOTEXIST,
-			"Policy \"%s\" creation failed in call to %s.%s",
-			doc_string, ni_dbus_object_get_path(object), method->name);
+			"Policy creation failed in call to %s.%s",
+			ni_dbus_object_get_path(object), method->name);
+		xml_document_free(doc);
 		return FALSE;
 	}
 	else if (0 == rv) {
 		dbus_set_error(error, NI_DBUS_ERROR_POLICY_EXISTS,
-			"Policy \"%s\" already exists in call to %s.%s",
-			doc_string, ni_dbus_object_get_path(object), method->name);
+			"Policy already exists in call to %s.%s",
+			ni_dbus_object_get_path(object), method->name);
+		xml_document_free(doc);
 		return FALSE;
 	}
+	xml_document_free(doc);
 
 	return ni_dbus_message_append_object_path(reply, ni_dbus_object_get_path(policy_object));
 }

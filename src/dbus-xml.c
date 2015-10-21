@@ -15,6 +15,7 @@
 #include "dbus-common.h"
 #include "xml-schema.h"
 #include "util_priv.h"
+#include "limits.h"
 #include "debug.h"
 
 #include <wicked/netinfo.h>
@@ -1563,6 +1564,7 @@ static ni_bool_t
 __ni_notation_external_file_parse(const char *string_value, unsigned char **retbuf, unsigned int *retlen)
 {
 	const char *filename = string_value;
+	size_t len;
 	FILE *fp;
 
 	if (!(fp = fopen(filename, "r"))) {
@@ -1570,11 +1572,15 @@ __ni_notation_external_file_parse(const char *string_value, unsigned char **retb
 		return FALSE;
 	}
 
-	*retbuf = ni_file_read(fp, retlen);
-	if (*retbuf == NULL)
-		ni_error("unable to read %s: %m", filename);
-
+	*retbuf = ni_file_read(fp, &len, INT_MAX);
 	fclose(fp);
+
+	if (*retbuf == NULL) {
+		*retlen = 0;
+		ni_error("unable to read %s: %m", filename);
+	} else {
+		*retlen = len;
+	}
 
 	return *retbuf != NULL;
 }
