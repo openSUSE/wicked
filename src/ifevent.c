@@ -849,6 +849,7 @@ int
 ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_event_t))
 {
 	ni_rtevent_handle_t *handle;
+	unsigned int family;
 
 	if (__ni_rtevent_sock || ni_global.interface_event) {
 		ni_error("Interface event handler is already set");
@@ -858,10 +859,12 @@ ni_server_listen_interface_events(void (*ifevent_handler)(ni_netdev_t *, ni_even
 	if (!(__ni_rtevent_sock = __ni_rtevent_sock_open()))
 		return -1;
 
+	family = ni_netconfig_get_family_filter(ni_global_state_handle(0));
 	handle = __ni_rtevent_sock->user_data;
 	/* TODO: Move IPv6 info to separate function, dhcp4 does not need it */
 	if (!__ni_rtevent_join_group(handle, RTNLGRP_LINK) ||
-	    !__ni_rtevent_join_group(handle, RTNLGRP_IPV6_IFINFO)) {
+	    (family != AF_INET &&
+	     !__ni_rtevent_join_group(handle, RTNLGRP_IPV6_IFINFO))) {
 		ni_socket_release(__ni_rtevent_sock);
 		__ni_rtevent_sock = NULL;
 		return -1;
@@ -889,15 +892,19 @@ int
 ni_server_enable_interface_addr_events(void (*ifaddr_handler)(ni_netdev_t *, ni_event_t, const ni_address_t *))
 {
 	ni_rtevent_handle_t *handle;
+	unsigned int family;
 
 	if (!__ni_rtevent_sock || ni_global.interface_addr_event) {
 		ni_error("Interface address event handler already set");
 		return -1;
 	}
 
+	family = ni_netconfig_get_family_filter(ni_global_state_handle(0));
 	handle = __ni_rtevent_sock->user_data;
-	if (!__ni_rtevent_join_group(handle, RTNLGRP_IPV4_IFADDR) ||
-	    !__ni_rtevent_join_group(handle, RTNLGRP_IPV6_IFADDR)) {
+	if ((family != AF_INET6 &&
+	     !__ni_rtevent_join_group(handle, RTNLGRP_IPV4_IFADDR)) ||
+	    (family != AF_INET  &&
+	     !__ni_rtevent_join_group(handle, RTNLGRP_IPV6_IFADDR))) {
 		ni_error("Cannot add rtnetlink address event membership: %m");
 		return -1;
 	}

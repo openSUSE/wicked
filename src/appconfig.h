@@ -178,6 +178,7 @@ typedef struct ni_global {
 	char *			config_dir;
 	ni_config_t *		config;
 
+	ni_netconfig_t *	state;
 	void			(*interface_event)(ni_netdev_t *, ni_event_t);
 	void			(*interface_addr_event)(ni_netdev_t *, ni_event_t, const ni_address_t *);
 	void			(*interface_prefix_event)(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *);
@@ -186,12 +187,5 @@ typedef struct ni_global {
 } ni_global_t;
 
 extern ni_global_t	ni_global;
-
-static inline void
-__ni_assert_initialized(void)
-{
-	if (!ni_global.initialized)
-		ni_fatal("Library not initialized, please call ni_init() first");
-}
 
 #endif /* __NI_NETINFO_APPCONFIG_H__ */

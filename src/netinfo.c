@@ -36,7 +36,14 @@
 
 extern void		ni_addrconf_updater_free(ni_addrconf_updater_t **);
 
+typedef struct ni_netconfig_filter {
+	unsigned int		family;
+	unsigned int		discover;
+} ni_netconfig_filter_t;
+
 struct ni_netconfig {
+	ni_netconfig_filter_t	filter;
+
 	ni_netdev_t *		interfaces;
 	ni_modem_t *		modems;
 
@@ -161,6 +168,13 @@ ni_init_ex(const char *appname, ni_init_appdata_callback_t *cb, void *appdata)
 
 	ni_global.initialized = 1;
 	return 0;
+}
+
+static inline void
+ni_global_assert_initialized(void)
+{
+	if (!ni_global.initialized)
+		ni_fatal("Library not initialized, please call ni_init() first");
 }
 
 const char *
@@ -383,7 +397,7 @@ ni_server_listen_other_events(void (*event_handler)(ni_event_t))
 ni_dbus_server_t *
 ni_server_listen_dbus(const char *dbus_name)
 {
-	__ni_assert_initialized();
+	ni_global_assert_initialized();
 	if (dbus_name == NULL)
 		dbus_name = ni_global.config->dbus_name;
 	if (dbus_name == NULL) {
@@ -397,7 +411,7 @@ ni_server_listen_dbus(const char *dbus_name)
 ni_dbus_client_t *
 ni_create_dbus_client(const char *dbus_name)
 {
-	__ni_assert_initialized();
+	ni_global_assert_initialized();
 	if (dbus_name == NULL)
 		dbus_name = ni_global.config->dbus_name;
 	if (dbus_name == NULL) {
@@ -435,22 +449,29 @@ ni_server_dbus_xml_schema(void)
  * If refresh is 0, this will just return the current handle; if it is non-zero,
  * the current state is retrieved.
  */
+static inline ni_netconfig_t *
+ni_global_state_init(void)
+{
+	ni_global_assert_initialized();
+	if (ni_global.state)
+		return ni_global.state;
+
+	if (__ni_global_netlink == NULL) {
+		__ni_global_netlink = __ni_netlink_open(0);
+		if (__ni_global_netlink == NULL)
+			return NULL;
+	}
+
+	ni_global.state = ni_netconfig_new();
+	return ni_global.state;
+}
+
 ni_netconfig_t *
 ni_global_state_handle(int refresh)
 {
-	static ni_netconfig_t *nc = NULL;
+	ni_netconfig_t *nc = ni_global_state_init();
 
-	if (nc == NULL) {
-		if (__ni_global_netlink == NULL) {
-			__ni_global_netlink = __ni_netlink_open(0);
-			if (__ni_global_netlink == NULL)
-				return NULL;
-		}
-
-		nc = ni_netconfig_new();
-	}
-
-	if (refresh) {
+	if (nc && refresh) {
 		if (__ni_system_refresh_interfaces(nc) < 0) {
 			ni_error("failed to refresh interface list");
 			return NULL;
@@ -495,6 +516,41 @@ ni_netconfig_destroy(ni_netconfig_t *nc)
 {
 	__ni_netdev_list_destroy(&nc->interfaces);
 	memset(nc, 0, sizeof(*nc));
+}
+
+/*
+ * apply filter
+ */
+ni_bool_t
+ni_netconfig_set_discover_filter(ni_netconfig_t *nc, unsigned int flag)
+{
+	if (nc) {
+		nc->filter.discover |= flag;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_netconfig_discover_filtered(ni_netconfig_t *nc, unsigned int flag)
+{
+	return nc && nc->filter.discover & flag;
+}
+
+ni_bool_t
+ni_netconfig_set_family_filter(ni_netconfig_t *nc, unsigned int family)
+{
+	if (nc) {
+		nc->filter.family = family;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+unsigned int
+ni_netconfig_get_family_filter(ni_netconfig_t *nc)
+{
+	return nc ? nc->filter.family : AF_UNSPEC;
 }
 
 /*
