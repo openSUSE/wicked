@@ -524,7 +524,7 @@ failure:
 }
 
 int /* process run codes (for now) */
-ni_ovs_vsctl_bridge_port_add(const char *pname, const ni_ovs_bridge_port_config_t *pconf)
+ni_ovs_vsctl_bridge_port_add(const char *pname, const ni_ovs_bridge_port_config_t *pconf, ni_bool_t may_exist)
 {
 	const char *ovs_vsctl;
 	ni_shellcmd_t *cmd;
@@ -541,6 +541,9 @@ ni_ovs_vsctl_bridge_port_add(const char *pname, const ni_ovs_bridge_port_config_
 		return rv;
 
 	if (!ni_shellcmd_add_arg(cmd, ovs_vsctl))
+		goto failure;
+
+	if (may_exist && !ni_shellcmd_add_arg(cmd, "--may-exist"))
 		goto failure;
 
 	if (!ni_shellcmd_add_arg(cmd, "add-port"))
