@@ -284,6 +284,8 @@ main(int argc, char **argv)
 	}
 
 	ni_netconfig_set_family_filter(ni_global_state_handle(0), AF_INET6);
+	ni_netconfig_set_discover_filter(ni_global_state_handle(0),
+					NI_NETCONFIG_DISCOVER_LINK_EXTERN);
 
 	if (tester) {
 		/* Create necessary directories if not yet there */
