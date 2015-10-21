@@ -222,29 +222,19 @@ ni_nanny_policy_load(ni_nanny_t *mgr)
 
 		for (i = 0; i < files.count; ++i) {
 			char path[PATH_MAX];
-			char *doc_string;
-			FILE *fp;
+			xml_document_t *doc;
 
 			snprintf(path, sizeof(path), "%s/%s", nanny_dir, files.data[i]);
-			if (!(fp = fopen(path, "re"))) {
-				ni_error("Cannot open policy file '%s'", path);
-				continue;
-			}
-
-			doc_string = ni_file_read(fp, NULL, INT_MAX);
-			fclose(fp);
-			if (doc_string == NULL) {
+			doc = xml_document_read(path);
+			if (doc == NULL) {
 				ni_error("Unable to read policy file %s: %m", path);
 				continue;
 			}
 
-			if (!ni_nanny_create_policy(NULL, mgr, doc_string, TRUE)) {
+			if (!ni_nanny_create_policy(NULL, mgr, doc, TRUE)) {
 				ni_error("Unable to create policy from file '%s'", path);
-				ni_string_free(&doc_string);
-				continue;
 			}
-
-			ni_string_free(&doc_string);
+			xml_document_free(doc);
 		}
 	}
 
