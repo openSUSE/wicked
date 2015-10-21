@@ -38,6 +38,7 @@ extern void		ni_addrconf_updater_free(ni_addrconf_updater_t **);
 
 typedef struct ni_netconfig_filter {
 	unsigned int		family;
+	unsigned int		discover;
 } ni_netconfig_filter_t;
 
 struct ni_netconfig {
@@ -520,6 +521,22 @@ ni_netconfig_destroy(ni_netconfig_t *nc)
 /*
  * apply filter
  */
+ni_bool_t
+ni_netconfig_set_discover_filter(ni_netconfig_t *nc, unsigned int flag)
+{
+	if (nc) {
+		nc->filter.discover |= flag;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_netconfig_discover_filtered(ni_netconfig_t *nc, unsigned int flag)
+{
+	return nc && nc->filter.discover & flag;
+}
+
 ni_bool_t
 ni_netconfig_set_family_filter(ni_netconfig_t *nc, unsigned int family)
 {

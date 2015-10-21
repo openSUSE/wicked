@@ -1232,7 +1232,7 @@ __ni_process_ifinfomsg_af_ipv6(ni_netdev_t *dev, struct nlattr *nla, ni_bool_t *
 }
 
 static int
-__ni_process_ifinfomsg_af_spec(ni_netdev_t *dev, struct nlattr *ifla_af_spec)
+__ni_process_ifinfomsg_af_spec(ni_netdev_t *dev, struct nlattr *ifla_af_spec, ni_netconfig_t *nc)
 {
 	/*
 	 * not every newlink provides device sysctl's;
@@ -1260,8 +1260,11 @@ __ni_process_ifinfomsg_af_spec(ni_netdev_t *dev, struct nlattr *ifla_af_spec)
 		}
 	}
 
+		return 0;
+
 	/* don't read sysfs when device (name) is not ready */
-	if (ni_netdev_device_is_ready(dev)) {
+	if (ni_netdev_device_is_ready(dev) &&
+	    ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN)) {
 		if (!ipv4_conf) {
 			ni_system_ipv4_devinfo_get(dev, NULL);
 		}
@@ -1321,11 +1324,14 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		ni_oper_state_type_to_name(dev->link.oper_state));
 #endif
 
-	__ni_process_ifinfomsg_af_spec(dev, tb[IFLA_AF_SPEC]);
+	__ni_process_ifinfomsg_af_spec(dev, tb[IFLA_AF_SPEC], nc);
 	__ni_process_ifinfomsg_ipv6info(dev, tb[IFLA_PROTINFO]);
 
 	switch (dev->link.type) {
 	case NI_IFTYPE_ETHERNET:
+		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
+			break;
+
 		__ni_system_ethernet_refresh(dev);
 		break;
 
@@ -1356,6 +1362,9 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		break;
 
 	case NI_IFTYPE_WIRELESS:
+		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
+			break;
+
 		rv = ni_wireless_interface_refresh(dev);
 		if (rv == -NI_ERROR_RADIO_DISABLED) {
 			ni_debug_ifconfig("%s: radio disabled, not refreshing wireless info", dev->name);
@@ -1372,6 +1381,9 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		break;
 
 	case NI_IFTYPE_TEAM:
+		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
+			break;
+
 		/*
 		 * is using gennl, rtnl_link provides a kind only,
 		 * so we unfortunatelly have to ask teamd here and
@@ -1382,6 +1394,9 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		break;
 
 	case NI_IFTYPE_OVS_BRIDGE:
+		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
+			break;
+
 		if (ni_netdev_device_is_ready(dev))
 			ni_ovs_bridge_discover(dev, nc);
 		break;

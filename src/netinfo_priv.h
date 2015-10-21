@@ -29,6 +29,11 @@ struct ni_event_filter {
 	ni_uuid_t		uuid;
 };
 
+enum {
+	/* link details discover filter using external calls */
+	NI_NETCONFIG_DISCOVER_LINK_EXTERN = 1U << 0,
+};
+
 /*
  * These constants describe why/how the interface has been brought up
  */
@@ -42,6 +47,8 @@ extern void		ni_netconfig_device_remove(ni_netconfig_t *, ni_netdev_t *);
 extern ni_netdev_t **	ni_netconfig_device_list_head(ni_netconfig_t *);
 extern void		ni_netconfig_modem_append(ni_netconfig_t *, ni_modem_t *);
 
+extern ni_bool_t	ni_netconfig_set_discover_filter(ni_netconfig_t *, unsigned int);
+extern ni_bool_t	ni_netconfig_discover_filtered(ni_netconfig_t *, unsigned int);
 extern ni_bool_t	ni_netconfig_set_family_filter(ni_netconfig_t *, unsigned int);
 extern unsigned int	ni_netconfig_get_family_filter(ni_netconfig_t *);
 
