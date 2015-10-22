@@ -1,5 +1,5 @@
 /*
- *	wicked dhcp4 in test (request offer/lease) mode
+ *	wicked dhcp6 in test (request offer/lease) mode
  *
  *	Copyright (C) 2013-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
  *
@@ -22,25 +22,26 @@
  *		Marius Tomaschewski <mt@suse.de>
  *
  */
-#ifndef   __WICKED_DHCP4_TESTER_H__
-#define   __WICKED_DHCP4_TESTER_H__
+#ifndef   __WICKED_DHCP6_TESTER_H__
+#define   __WICKED_DHCP6_TESTER_H__
 
 enum {
-	DHCP4_TESTER_OUT_LEASE_INFO,
-	DHCP4_TESTER_OUT_LEASE_XML,
+	NI_DHCP6_TESTER_OUT_LEASE_INFO,
+	NI_DHCP6_TESTER_OUT_LEASE_XML,
 };
 
-typedef struct dhcp4_tester {
+typedef struct ni_dhcp6_tester {
 	const char *	ifname;
 	unsigned int	timeout;
 	const char *	request;
 	const char *	output;
 	unsigned int	outfmt;
-} dhcp4_tester_t;
+	ni_dhcp6_mode_t	mode;
+} ni_dhcp6_tester_t;
 
-extern dhcp4_tester_t *	dhcp4_tester_init(void);
-extern ni_bool_t	dhcp4_tester_set_outfmt(const char *, unsigned int *);
+extern ni_dhcp6_tester_t *	ni_dhcp6_tester_init(void);
+extern ni_bool_t		ni_dhcp6_tester_set_outfmt(const char *, unsigned int *);
 
-extern int		dhcp4_tester_run(dhcp4_tester_t *);
+extern int			ni_dhcp6_tester_run(ni_dhcp6_tester_t *);
 
-#endif /* __WICKED_DHCP4_TESTER_H__ */
+#endif /* __WICKED_DHCP6_TESTER_H__ */

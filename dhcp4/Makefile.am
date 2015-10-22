@@ -16,15 +16,6 @@ wickedd_dhcp4_LDFLAGS	= -rdynamic
 wickedd_dhcp4_LDADD	= $(top_builddir)/src/libwicked.la
 wickedd_dhcp4_SOURCES	= \
 	dbus-api.c	\
-	device.c	\
-	fsm.c		\
-	main.c		\
-	protocol.c	\
-	tester.c
-
-noinst_HEADERS		= \
-	dhcp.h		\
-	protocol.h	\
-	tester.h
+	main.c
 
 # vim: ai

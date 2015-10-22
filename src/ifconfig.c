@@ -202,7 +202,7 @@ ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev, const ni_netd
 			return -1;
 		}
 
-		ret = ni_ovs_vsctl_bridge_port_add(dev->name, &req->port->ovsbr);
+		ret = ni_ovs_vsctl_bridge_port_add(dev->name, &req->port->ovsbr, TRUE);
 		if (ret == 0)  {
 			ni_netdev_ref_set(&dev->link.masterdev,
 					master->name, master->link.ifindex);
@@ -257,7 +257,7 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 			if (master && master->link.type == NI_IFTYPE_OVS_SYSTEM) {
 				if (ifp_req->port && ifp_req->port->type == NI_IFTYPE_OVS_BRIDGE &&
 				    !ni_string_empty(ifp_req->port->ovsbr.bridge.name)) {
-					ni_ovs_vsctl_bridge_port_add(dev->name, &ifp_req->port->ovsbr);
+					ni_ovs_vsctl_bridge_port_add(dev->name, &ifp_req->port->ovsbr, TRUE);
 				}
 			}
 

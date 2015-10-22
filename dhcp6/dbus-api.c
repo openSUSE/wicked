@@ -34,8 +34,8 @@
 #include <wicked/objectmodel.h>
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
+#include "dhcp6/dbus-api.h"
 #include "appconfig.h"
-#include "dhcp6/dhcp6.h"
 #include "util_priv.h"
 
 static ni_dhcp6_request_t *	ni_objectmodel_dhcp6_request_from_dict(const ni_dbus_variant_t *);
@@ -271,43 +271,6 @@ static ni_dbus_method_t		ni_objectmodel_dhcp6_signals[] = {
 	{ NI_OBJECTMODEL_LEASE_LOST_SIGNAL },
 	{ NULL }
 };
-
-
-/*
- * Create/delete a dhcp6 request object
- */
-ni_dhcp6_request_t *
-ni_dhcp6_request_new(void)
-{
-	ni_dhcp6_request_t *req;
-
-	req = xcalloc(1, sizeof(*req));
-
-	/* Apply defaults */
-	req->enabled = TRUE; /* used by wickedd */
-	req->mode = NI_DHCP6_MODE_AUTO;
-	req->rapid_commit = TRUE;
-
-	/* By default, we try to obtain all sorts of config from the server */
-	req->update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET6);
-
-	return req;
-}
-
-void
-ni_dhcp6_request_free(ni_dhcp6_request_t *req)
-{
-	if(req) {
-		ni_string_free(&req->hostname);
-		ni_string_free(&req->clientid);
-		ni_dhcp6_ia_list_destroy(&req->ia_list);
-		/*
-		 * req->vendor_class
-		 * ....
-		 */
-		free(req);
-	}
-}
 
 
 /*

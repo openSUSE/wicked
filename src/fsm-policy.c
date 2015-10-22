@@ -20,17 +20,18 @@
  * The <match> expression
  */
 typedef struct ni_ifcondition	ni_ifcondition_t;
-typedef ni_bool_t	ni_ifcondition_check_fn_t(const ni_ifcondition_t *, ni_ifworker_t *);
+typedef ni_bool_t	ni_ifcondition_check_fn_t(const ni_ifcondition_t *, const ni_fsm_t *, ni_ifworker_t *);
+typedef void		ni_ifcondition_free_fn_t(ni_ifcondition_t *);
 
 struct ni_ifcondition {
-	ni_ifcondition_check_fn_t *check;
+	ni_ifcondition_check_fn_t *	check;
+	ni_ifcondition_free_fn_t *	free;
 
 	union {
-		ni_ifworker_type_t	type;
 		struct {
-			xml_node_t *	node;
-			ni_dbus_object_t *object;
-		} device;
+			ni_ifworker_type_t	type;
+			ni_ifcondition_t *	ref;
+		};
 		struct {
 			ni_ifcondition_t *left;
 			ni_ifcondition_t *right;
@@ -115,7 +116,7 @@ struct ni_fsm_policy {
 
 static void			__ni_fsm_policy_reset(ni_fsm_policy_t *);
 static ni_ifcondition_t *	ni_fsm_policy_conditions_from_xml(xml_node_t *);
-static ni_bool_t		ni_ifcondition_check(const ni_ifcondition_t *, ni_ifworker_t *);
+static ni_bool_t		ni_ifcondition_check(const ni_ifcondition_t *, const ni_fsm_t *, ni_ifworker_t *);
 static ni_ifcondition_t *	ni_ifcondition_from_xml(xml_node_t *);
 static void			ni_ifcondition_free(ni_ifcondition_t *);
 static ni_fsm_policy_action_t *	ni_fsm_policy_action_new(ni_fsm_policy_action_type_t, xml_node_t *, ni_fsm_policy_t *);
@@ -135,7 +136,9 @@ ni_fsm_policy_free(ni_fsm_policy_t *policy)
 {
 	if (policy) {
 		ni_string_free(&policy->name);
+		xml_node_free(policy->node);
 		__ni_fsm_policy_reset(policy);
+		memset(policy, 0, sizeof(*policy));
 		free(policy);
 	}
 }
@@ -166,7 +169,8 @@ __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 	xml_node_t *item;
 	const char *attr;
 
-	policy->node = node;
+	if (!policy)
+		return FALSE;
 
 	if (node == NULL)
 		return TRUE;
@@ -248,6 +252,8 @@ __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 		return FALSE;
 	}
 
+	xml_node_free(policy->node);
+	policy->node = xml_node_clone_ref(node);
 	policy->seq = __policy_seq++;
 	return TRUE;
 }
@@ -293,7 +299,9 @@ ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 	policy->create_action = temp.create_action;
 	policy->actions = temp.actions;
 	policy->match = temp.match;
-	policy->node = node;
+
+	xml_node_free(policy->node);
+	policy->node = temp.node;
 	return TRUE;
 }
 
@@ -367,7 +375,7 @@ ni_fsm_policy_location(const ni_fsm_policy_t *policy)
  * Check whether policy applies to this ifworker
  */
 static ni_bool_t
-ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
+ni_fsm_policy_applicable(const ni_fsm_t *fsm, ni_fsm_policy_t *policy, ni_ifworker_t *w)
 {
 	xml_node_t *node;
 	char *pname;
@@ -403,7 +411,7 @@ ni_fsm_policy_applicable(ni_fsm_policy_t *policy, ni_ifworker_t *w)
 		return FALSE;
 
 	/* 4th match check - <match> condition must be fulfilled */
-	if (!ni_ifcondition_check(policy->match, w)) {
+	if (!ni_ifcondition_check(policy->match, fsm, w)) {
 		ni_debug_nanny("%s: policy <match> condition is not met for worker %s",
 			policy->name, w->name);
 		return FALSE;
@@ -442,7 +450,7 @@ __ni_fsm_policy_compare(const void *a, const void *b)
  * Obtain the list of applicable policies
  */
 unsigned int
-ni_fsm_policy_get_applicable_policies(ni_fsm_t *fsm, ni_ifworker_t *w,
+ni_fsm_policy_get_applicable_policies(const ni_fsm_t *fsm, ni_ifworker_t *w,
 			const ni_fsm_policy_t **result, unsigned int max)
 {
 	unsigned int count = 0;
@@ -472,7 +480,7 @@ ni_fsm_policy_get_applicable_policies(ni_fsm_t *fsm, ni_ifworker_t *w,
 			continue;
 		}
 
-		if (ni_fsm_policy_applicable(policy, w)) {
+		if (ni_fsm_policy_applicable(fsm, policy, w)) {
 			if (count < max)
 				result[count++] = policy;
 		}
@@ -483,7 +491,7 @@ ni_fsm_policy_get_applicable_policies(ni_fsm_t *fsm, ni_ifworker_t *w,
 }
 
 ni_bool_t
-ni_fsm_exists_applicable_policy(ni_fsm_policy_t *list, ni_ifworker_t *w)
+ni_fsm_exists_applicable_policy(const ni_fsm_t *fsm, ni_fsm_policy_t *list, ni_ifworker_t *w)
 {
 	ni_fsm_policy_t *policy;
 
@@ -491,7 +499,7 @@ ni_fsm_exists_applicable_policy(ni_fsm_policy_t *list, ni_ifworker_t *w)
 		return FALSE;
 
 	for (policy = list; policy; policy = policy->next) {
-		if (ni_fsm_policy_applicable(policy, w))
+		if (ni_fsm_policy_applicable(fsm, policy, w))
 			return TRUE;
 	}
 
@@ -593,7 +601,7 @@ ni_fsm_policy_action_new(ni_fsm_policy_action_type_t type, xml_node_t *node, ni_
 			;
 	}
 
-	action = calloc(1, sizeof(*action));
+	action = xcalloc(1, sizeof(*action));
 	action->type = type;
 	action->data = node;
 
@@ -879,7 +887,7 @@ ni_fsm_template_multi_instance(const ni_fsm_policy_t *policy)
 }
 
 xml_node_t *
-ni_fsm_template_instantiate(ni_fsm_policy_t *policy, const ni_ifworker_array_t *devices)
+ni_fsm_template_instantiate(const ni_fsm_t *fsm, ni_fsm_policy_t *policy, const ni_ifworker_array_t *devices)
 {
 	ni_fsm_template_input_t *input;
 	ni_fsm_policy_action_t *action;
@@ -904,7 +912,7 @@ ni_fsm_template_instantiate(ni_fsm_policy_t *policy, const ni_ifworker_array_t *
 			if (input->device != NULL)
 				continue;
 
-			if (!ni_ifcondition_check(input->match, w))
+			if (!ni_ifcondition_check(input->match, fsm, w))
 				continue;
 
 			if (input->shared) {
@@ -1028,10 +1036,21 @@ ni_ifcondition_new(ni_ifcondition_check_fn_t *check_fn)
 {
 	ni_ifcondition_t *cond;
 
-	cond = calloc(1, sizeof(*cond));
+	cond = xcalloc(1, sizeof(*cond));
 	cond->check = check_fn;
 
 	return cond;
+}
+
+static void
+ni_ifcondition_free_args_string(ni_ifcondition_t *cond)
+{
+	ni_string_free(&cond->args.string);
+}
+static void
+ni_ifcondition_free_args_reference(ni_ifcondition_t *cond)
+{
+	ni_ifcondition_free(cond->args.ref);
 }
 
 static ni_ifcondition_t *
@@ -1045,6 +1064,7 @@ ni_ifcondition_new_cdata(ni_ifcondition_check_fn_t *check_fn, const xml_node_t *
 	}
 
 	cond = ni_ifcondition_new(check_fn);
+	cond->free = ni_ifcondition_free_args_string;
 	ni_string_dup(&cond->args.string, node->cdata);
 	return cond;
 }
@@ -1059,6 +1079,13 @@ ni_ifcondition_new_uint(ni_ifcondition_check_fn_t *check_fn, unsigned int value)
 	return cond;
 }
 
+static void
+ni_ifcondition_free_args_terms(ni_ifcondition_t *cond)
+{
+	ni_ifcondition_free(cond->args.terms.left);
+	ni_ifcondition_free(cond->args.terms.right);
+}
+
 static ni_ifcondition_t *
 ni_ifcondition_new_terms(ni_ifcondition_check_fn_t *check_fn,
 			ni_ifcondition_t *left,
@@ -1067,6 +1094,7 @@ ni_ifcondition_new_terms(ni_ifcondition_check_fn_t *check_fn,
 	ni_ifcondition_t *cond;
 
 	cond = ni_ifcondition_new(check_fn);
+	cond->free = ni_ifcondition_free_args_terms;
 	cond->args.terms.left = left;
 	cond->args.terms.right = right;
 	return cond;
@@ -1075,17 +1103,17 @@ ni_ifcondition_new_terms(ni_ifcondition_check_fn_t *check_fn,
 static void
 ni_ifcondition_free(ni_ifcondition_t *cond)
 {
+	if (cond && cond->free)
+		cond->free(cond);
 	free(cond);
-
-	/* XXX: delete subordinate terms */
 }
 
 static ni_bool_t
-ni_ifcondition_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+ni_ifcondition_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_assert(cond->check);
 
-	return cond->check(cond, w);
+	return cond->check(cond, fsm, w);
 }
 
 
@@ -1127,12 +1155,12 @@ ni_ifcondition_term2(xml_node_t *node, ni_ifcondition_check_fn_t *check_fn)
  * </and>
  */
 static ni_bool_t
-__ni_fsm_policy_match_and_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_and_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_bool_t rv;
 
-	rv = ni_ifcondition_check(cond->args.terms.left, w)
-	    && ni_ifcondition_check(cond->args.terms.right, w);
+	rv = ni_ifcondition_check(cond->args.terms.left, fsm, w)
+	    && ni_ifcondition_check(cond->args.terms.right, fsm, w);
 
 	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
 		ni_trace("%s: %s condition is %s",
@@ -1143,7 +1171,7 @@ __ni_fsm_policy_match_and_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
 }
 
 static ni_bool_t
-__ni_fsm_policy_match_and_children_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_and_children_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	unsigned int i;
 	ni_bool_t rv = FALSE;
@@ -1158,7 +1186,7 @@ __ni_fsm_policy_match_and_children_check(const ni_ifcondition_t *cond, ni_ifwork
 		else if (!ni_ifworker_is_factory_device(child))
 			continue;
 
-		rv = ni_ifcondition_check(cond->args.terms.left, child);
+		rv = ni_ifcondition_check(cond->args.terms.left, fsm, child);
 		if (rv)
 			break;
 	}
@@ -1207,12 +1235,12 @@ ni_ifcondition_and_child(xml_node_t *node)
  * </or>
  */
 static ni_bool_t
-__ni_fsm_policy_match_or_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_or_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_bool_t rv;
 
-	rv = ni_ifcondition_check(cond->args.terms.left, w)
-	    || ni_ifcondition_check(cond->args.terms.right, w);
+	rv = ni_ifcondition_check(cond->args.terms.left, fsm, w)
+	    || ni_ifcondition_check(cond->args.terms.right, fsm, w);
 
 	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
 		ni_trace("%s: %s condition is %s",
@@ -1233,9 +1261,9 @@ ni_ifcondition_or(xml_node_t *node)
  * </not>
  */
 static ni_bool_t
-__ni_fsm_policy_match_not_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_not_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
-	return !ni_ifcondition_check(cond->args.terms.left, w);
+	return !ni_ifcondition_check(cond->args.terms.left, fsm, w);
 }
 
 static ni_ifcondition_t *
@@ -1260,7 +1288,7 @@ ni_ifcondition_not(xml_node_t *node)
  * <type>modem</type>
  */
 static ni_bool_t
-__ni_fsm_policy_match_type_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_type_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	return cond->args.type == w->type;
 }
@@ -1287,7 +1315,7 @@ ni_ifcondition_type(xml_node_t *node)
  * <link-type>...</link-type>
  */
 static ni_bool_t
-__ni_fsm_policy_match_class_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_class_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_bool_t rv;
 
@@ -1302,7 +1330,7 @@ __ni_fsm_policy_match_class_check(const ni_ifcondition_t *cond, ni_ifworker_t *w
 }
 
 static ni_bool_t
-__ni_fsm_policy_match_linktype_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_linktype_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_bool_t rv;
 	ni_iftype_t iftype = (ni_iftype_t) cond->args.uint;
@@ -1369,7 +1397,7 @@ ni_ifcondition_linktype(xml_node_t *node)
  * <sharable>...</sharable>
  */
 static ni_bool_t
-__ni_fsm_policy_match_sharable_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_sharable_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	if (ni_string_eq(cond->args.string, "shared"))
 		return w->masterdev == NULL;
@@ -1397,7 +1425,7 @@ ni_ifcondition_sharable(xml_node_t *node)
  * <device:ifindex>...</device:ifindex>
  */
 static ni_bool_t
-__ni_fsm_policy_match_device_name_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_device_name_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_bool_t rv;
 
@@ -1410,12 +1438,12 @@ __ni_fsm_policy_match_device_name_check(const ni_ifcondition_t *cond, ni_ifworke
 	return rv;
 }
 static ni_bool_t
-__ni_fsm_policy_match_device_alias_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_device_alias_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	return ni_ifworker_match_netdev_alias(w, cond->args.string);
 }
 static ni_bool_t
-__ni_fsm_policy_match_device_ifindex_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_device_ifindex_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	unsigned int ifindex;
 
@@ -1472,7 +1500,7 @@ ni_ifcondition_device(xml_node_t *node)
  * Compare xyz to the contents of <control><mode> ...</mode></control>
  */
 static ni_bool_t
-__ni_fsm_policy_match_control_mode_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_control_mode_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	return ni_string_eq(w->control.mode, cond->args.string);
 }
@@ -1488,7 +1516,7 @@ ni_ifcondition_control_mode(xml_node_t *node)
  * Compare xyz to the contents of <control><boot-stage> ...</boot-stage></control>
  */
 static ni_bool_t
-__ni_fsm_policy_match_boot_stage_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_boot_stage_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	return ni_string_eq(w->control.boot_stage, cond->args.string);
 }
@@ -1503,7 +1531,7 @@ ni_ifcondition_boot_stage(xml_node_t *node)
  * <minimum-device-state>link-up</minimum-device-state>
  */
 static ni_bool_t
-__ni_fsm_policy_min_device_state_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_min_device_state_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 #if 0
 	ni_trace("%s: state is %u, need %u", w->name, w->fsm.state, cond->args.uint);
@@ -1528,7 +1556,7 @@ ni_ifcondition_min_device_state(xml_node_t *node)
  * <modem:foobar>...</modem:foobar>
  */
 static ni_bool_t
-__ni_fsm_policy_match_modem_equipment_id_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_modem_equipment_id_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_modem_t *modem;
 
@@ -1538,7 +1566,7 @@ __ni_fsm_policy_match_modem_equipment_id_check(const ni_ifcondition_t *cond, ni_
 }
 
 static ni_bool_t
-__ni_fsm_policy_match_modem_manufacturer_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_modem_manufacturer_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_modem_t *modem;
 
@@ -1548,7 +1576,7 @@ __ni_fsm_policy_match_modem_manufacturer_check(const ni_ifcondition_t *cond, ni_
 }
 
 static ni_bool_t
-__ni_fsm_policy_match_modem_model_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_modem_model_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_modem_t *modem;
 
@@ -1595,12 +1623,126 @@ ni_ifcondition_modem(xml_node_t *node)
 	return result;
 }
 
+static ni_bool_t
+__ni_fsm_policy_match_reference(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	unsigned int i;
+
+	if (cond && cond->args.ref && fsm) {
+		for (i = 0; i < fsm->workers.count; ++i) {
+			w = fsm->workers.data[i];
+			if (!w || w->type !=  cond->args.type)
+				continue;
+
+			if (ni_ifcondition_check(cond->args.ref, fsm, w))
+				return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_new_reference(ni_ifcondition_t *ref, ni_ifworker_type_t type)
+{
+	ni_ifcondition_t *cond;
+
+	if (ref) {
+		cond = ni_ifcondition_new(__ni_fsm_policy_match_reference);
+		cond->free = ni_ifcondition_free_args_reference;
+		cond->args.ref = ref;
+		cond->args.type = type;
+		return cond;
+	}
+	return NULL;
+}
+
+static inline ni_bool_t
+ni_ifcondition_reference_bind_type(ni_ifworker_type_t *bound, ni_ifworker_type_t type)
+{
+	if (*bound == NI_IFWORKER_TYPE_NONE) {
+		*bound = type;
+		return TRUE;
+	} else {
+		return *bound == type;
+	}
+}
+
+static ni_ifcondition_t *
+ni_ifcondition_reference_type_element(ni_ifworker_type_t *type, xml_node_t *node, const char *name)
+{
+	if (ni_string_eq(name, "device")) {
+		if (ni_ifcondition_reference_bind_type(type, NI_IFWORKER_TYPE_NETDEV))
+			return ni_ifcondition_device(node);
+
+		ni_error("%s: invalid <%s> reference element type mix", name, xml_node_location(node));
+		return NULL;
+	}
+	if (ni_string_eq(name, "modem")) {
+		if (ni_ifcondition_reference_bind_type(type, NI_IFWORKER_TYPE_MODEM))
+			return ni_ifcondition_modem(node);
+
+		ni_error("%s: invalid <%s> reference element type mix", name, xml_node_location(node));
+		return NULL;
+	}
+
+	ni_error("%s: unknown reference condition <%s>", xml_node_location(node), name);
+	return NULL;
+}
+
+/*
+ * <reference:device>...</reference:device>
+ * <reference:modem>...</reference:modem>
+ *
+ * Match a single property element of a referenced worker.
+ */
+static ni_ifcondition_t *
+ni_ifcondition_reference_element(xml_node_t *node, const char *name)
+{
+	ni_ifworker_type_t type = NI_IFWORKER_TYPE_NONE;
+	ni_ifcondition_t *cond;
+
+	cond = ni_ifcondition_reference_type_element(&type, node, name);
+	return ni_ifcondition_new_reference(cond, type);
+}
+
+/*
+ * <reference>...and device property match...</reference>
+ * <reference>...and modem property match...</reference>
+ *
+ * Each worker has a type (modem or device) and a reference is bond to
+ * the type of the 1st worker matching it's properties using an and term.
+ */
+static ni_ifcondition_t *
+ni_ifcondition_reference(xml_node_t *node)
+{
+	ni_ifcondition_t *result = NULL;
+	ni_ifworker_type_t type = NI_IFWORKER_TYPE_NONE;
+
+	for (node = node->children; node; node = node->next) {
+		ni_ifcondition_t *cond;
+
+		cond = ni_ifcondition_reference_type_element(&type, node, node->name);
+		if (cond == NULL) {
+			if (result)
+				ni_ifcondition_free(result);
+			return NULL;
+		}
+
+		if (result == NULL)
+			result = cond;
+		else
+			result = ni_ifcondition_and_terms(result, cond);
+	}
+
+	return ni_ifcondition_new_reference(result, type);
+}
+
 /*
  * <wireless>...</wireless>
  * <wireless:foobar>...</wireless:foobar>
  */
 static ni_bool_t
-__ni_fsm_policy_match_wireless_essid_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_wireless_essid_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_netdev_t *dev;
 	ni_wireless_t *wireless;
@@ -1677,7 +1819,7 @@ ni_ifcondition_wireless(xml_node_t *node)
  * <any>...</any>
  */
 static ni_bool_t
-__ni_fsm_policy_match_any_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_any_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	return TRUE;
 }
@@ -1692,7 +1834,7 @@ ni_ifcondition_any(xml_node_t *node)
  * <none>...</none>
  */
 static ni_bool_t
-__ni_fsm_policy_match_none_check(const ni_ifcondition_t *cond, ni_ifworker_t *w)
+__ni_fsm_policy_match_none_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	return FALSE;
 }
@@ -1738,6 +1880,10 @@ ni_ifcondition_from_xml(xml_node_t *node)
 		return ni_ifcondition_device(node);
 	if (!strncmp(node->name, "device:", sizeof("device:")-1))
 		return ni_ifcondition_device_element(node, node->name + sizeof("device:")-1);
+	if (!strcmp(node->name, "reference"))
+		return ni_ifcondition_reference(node);
+	if (!strncmp(node->name, "reference:", sizeof("reference:")-1))
+		return ni_ifcondition_reference_element(node, node->name + sizeof("reference:")-1);
 	if (!strcmp(node->name, "child"))
 		return ni_ifcondition_and_child(node);
 	if (!strcmp(node->name, "modem"))

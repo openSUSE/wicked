@@ -138,15 +138,15 @@ ni_rtnl_query_destroy(struct ni_rtnl_query *q)
 }
 
 static int
-ni_rtnl_query(struct ni_rtnl_query *q, unsigned int ifindex)
+ni_rtnl_query(struct ni_rtnl_query *q, unsigned int ifindex, unsigned int family)
 {
 	memset(q, 0, sizeof(*q));
 	q->ifindex = ifindex;
 
 	if (__ni_rtnl_query(&q->link_info, AF_UNSPEC, RTM_GETLINK) < 0
-	 || __ni_rtnl_query(&q->ipv6_info, AF_INET6, RTM_GETLINK) < 0
-	 || __ni_rtnl_query(&q->addr_info, AF_UNSPEC, RTM_GETADDR) < 0
-	 || __ni_rtnl_query(&q->route_info, AF_UNSPEC, RTM_GETROUTE) < 0) {
+	 || (family != AF_INET && __ni_rtnl_query(&q->ipv6_info, AF_INET6, RTM_GETLINK) < 0)
+	 || __ni_rtnl_query(&q->addr_info, family, RTM_GETADDR) < 0
+	 || __ni_rtnl_query(&q->route_info, family, RTM_GETROUTE) < 0) {
 		ni_rtnl_query_destroy(q);
 		return -1;
 	}
@@ -221,12 +221,12 @@ ni_rtnl_query_next_ipv6_link_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 }
 
 static int
-ni_rtnl_query_addr_info(struct ni_rtnl_query *q, unsigned int ifindex)
+ni_rtnl_query_addr_info(struct ni_rtnl_query *q, unsigned int ifindex, unsigned int family)
 {
 	memset(q, 0, sizeof(*q));
 	q->ifindex = ifindex;
 
-	if (__ni_rtnl_query(&q->addr_info, AF_UNSPEC, RTM_GETADDR) < 0) {
+	if (__ni_rtnl_query(&q->addr_info, family, RTM_GETADDR) < 0) {
 		ni_rtnl_query_destroy(q);
 		return -1;
 	}
@@ -253,7 +253,7 @@ ni_rtnl_query_next_addr_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 }
 
 static int
-ni_rtnl_query_route_info(struct ni_rtnl_query *q, unsigned int ifindex)
+ni_rtnl_query_route_info(struct ni_rtnl_query *q, unsigned int ifindex, unsigned int family)
 {
 	memset(q, 0, sizeof(*q));
 	q->ifindex = ifindex;
@@ -351,7 +351,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 				"Full refresh of all interfaces (enforced)");
 	}
 
-	if (ni_rtnl_query(&query, 0) < 0)
+	if (ni_rtnl_query(&query, 0, ni_netconfig_get_family_filter(nc)) < 0)
 		goto failed;
 
 	/* Find tail of iflist */
@@ -510,7 +510,7 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *dev)
 		__ni_global_seqno++;
 	} while (!__ni_global_seqno);
 
-	if (ni_rtnl_query(&query, dev->link.ifindex) < 0)
+	if (ni_rtnl_query(&query, dev->link.ifindex, ni_netconfig_get_family_filter(nc)) < 0)
 		goto failed;
 
 	dev->seq = 0;
@@ -586,7 +586,7 @@ __ni_system_refresh_interface_addrs(ni_netconfig_t *nc, ni_netdev_t *dev)
 		dev->seq = ++__ni_global_seqno;
 	} while (!dev->seq);
 
-	if (ni_rtnl_query_addr_info(&query, dev->link.ifindex) < 0)
+	if (ni_rtnl_query_addr_info(&query, dev->link.ifindex, ni_netconfig_get_family_filter(nc)) < 0)
 		goto failed;
 
 	__ni_address_list_reset_seq(dev->addrs);
@@ -623,7 +623,7 @@ __ni_system_refresh_interface_routes(ni_netconfig_t *nc, ni_netdev_t *dev)
 			dev->name);
 
 	__ni_global_seqno++;
-	if (ni_rtnl_query_route_info(&query, dev->link.ifindex) < 0)
+	if (ni_rtnl_query_route_info(&query, dev->link.ifindex, ni_netconfig_get_family_filter(nc)) < 0)
 		goto failed;
 
 	ni_netdev_clear_routes(dev);
@@ -1232,7 +1232,7 @@ __ni_process_ifinfomsg_af_ipv6(ni_netdev_t *dev, struct nlattr *nla, ni_bool_t *
 }
 
 static int
-__ni_process_ifinfomsg_af_spec(ni_netdev_t *dev, struct nlattr *ifla_af_spec)
+__ni_process_ifinfomsg_af_spec(ni_netdev_t *dev, struct nlattr *ifla_af_spec, ni_netconfig_t *nc)
 {
 	/*
 	 * not every newlink provides device sysctl's;
@@ -1260,8 +1260,11 @@ __ni_process_ifinfomsg_af_spec(ni_netdev_t *dev, struct nlattr *ifla_af_spec)
 		}
 	}
 
+		return 0;
+
 	/* don't read sysfs when device (name) is not ready */
-	if (ni_netdev_device_is_ready(dev)) {
+	if (ni_netdev_device_is_ready(dev) &&
+	    ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN)) {
 		if (!ipv4_conf) {
 			ni_system_ipv4_devinfo_get(dev, NULL);
 		}
@@ -1321,11 +1324,14 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		ni_oper_state_type_to_name(dev->link.oper_state));
 #endif
 
-	__ni_process_ifinfomsg_af_spec(dev, tb[IFLA_AF_SPEC]);
+	__ni_process_ifinfomsg_af_spec(dev, tb[IFLA_AF_SPEC], nc);
 	__ni_process_ifinfomsg_ipv6info(dev, tb[IFLA_PROTINFO]);
 
 	switch (dev->link.type) {
 	case NI_IFTYPE_ETHERNET:
+		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
+			break;
+
 		__ni_system_ethernet_refresh(dev);
 		break;
 
@@ -1356,6 +1362,9 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		break;
 
 	case NI_IFTYPE_WIRELESS:
+		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
+			break;
+
 		rv = ni_wireless_interface_refresh(dev);
 		if (rv == -NI_ERROR_RADIO_DISABLED) {
 			ni_debug_ifconfig("%s: radio disabled, not refreshing wireless info", dev->name);
@@ -1372,6 +1381,9 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		break;
 
 	case NI_IFTYPE_TEAM:
+		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
+			break;
+
 		/*
 		 * is using gennl, rtnl_link provides a kind only,
 		 * so we unfortunatelly have to ask teamd here and
@@ -1382,6 +1394,9 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		break;
 
 	case NI_IFTYPE_OVS_BRIDGE:
+		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
+			break;
+
 		if (ni_netdev_device_is_ready(dev))
 			ni_ovs_bridge_discover(dev, nc);
 		break;
@@ -2506,8 +2521,6 @@ int
 __ni_discover_addrconf(ni_netdev_t *dev)
 {
 	ni_addrconf_lease_t *lease;
-
-	__ni_assert_initialized();
 
 	for (lease = dev->leases; lease; lease = lease->next) {
 		switch (lease->family) {

@@ -44,6 +44,7 @@
 #include <wicked/socket.h>
 #include "netinfo_priv.h"
 #include "socket_priv.h"
+#include "modprobe.h"
 #include "buffer.h"
 
 #define MTU_MAX			1500
@@ -52,6 +53,9 @@
 #ifndef ETHERTYPE_LLDP
 # define ETHERTYPE_LLDP		0x88CC
 #endif
+
+#define	AFPACKET_MODULE_NAME	"af_packet"
+#define AFPACKET_MODULE_OPTS	NULL
 
 /* in case we have old headers files */
 #if defined(PACKET_AUXDATA) && !defined(HAVE_STRUCT_TPACKET_AUXDATA)
@@ -614,13 +618,25 @@ __ni_capture_enable_packet_auxdata(int fd)
 #endif
 }
 
+static void
+__ni_capture_init_once(void)
+{
+	static ni_bool_t done = FALSE;
+
+	if (done)
+		return;
+	done = TRUE;
+
+	/* load af_packet module we need for capturing */
+	ni_modprobe(AFPACKET_MODULE_NAME, AFPACKET_MODULE_OPTS);
+}
+
 ni_capture_t *
 ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t *protinfo, void (*receive)(ni_socket_t *))
 {
 	ni_packetaddr_t	addr;
 	ni_capture_t *capture = NULL;
 	ni_hwaddr_t destaddr;
-
 	int fd = -1;
 
 	if (devinfo->ifindex == 0) {
@@ -640,6 +656,8 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t
 		ni_error("cannot get broadcast address for %s (bad iftype)", devinfo->ifname);
 		return NULL;
 	}
+
+	__ni_capture_init_once();
 
 	if ((fd = socket (PF_PACKET, SOCK_DGRAM, htons(protinfo->eth_protocol))) < 0) {
 		ni_error("socket: %m");

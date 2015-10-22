@@ -249,33 +249,6 @@ static ni_dbus_method_t		ni_objectmodel_dhcp4_signals[] = {
 };
 
 /*
- * Create or delete a dhcp4 request object
- */
-ni_dhcp4_request_t *
-ni_dhcp4_request_new(void)
-{
-	ni_dhcp4_request_t *req;
-
-	req = xcalloc(1, sizeof(*req));
-	req->enabled = TRUE; /* used by wickedd */
-
-	/* By default, we try to obtain all sorts of config from the server */
-	req->update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);
-
-	return req;
-}
-
-void
-ni_dhcp4_request_free(ni_dhcp4_request_t *req)
-{
-	ni_string_free(&req->hostname);
-	ni_string_free(&req->clientid);
-	ni_string_free(&req->vendor_class);
-	ni_string_array_destroy(&req->user_class.class_id);
-	free(req);
-}
-
-/*
  * Properties associated with a DHCP4 request
  */
 static ni_dbus_class_t		ni_objectmodel_dhcp4req_class = {

@@ -40,6 +40,7 @@
 
 #include "dhcp6/dbus-api.h"
 #include "dhcp6/tester.h"
+#include "netinfo_priv.h"
 #include "duid.h"
 
 
@@ -110,7 +111,7 @@ static void			dhcp6_supplicant(void);
 int
 main(int argc, char **argv)
 {
-	dhcp6_tester_t * tester = NULL;
+	ni_dhcp6_tester_t * tester = NULL;
 	int c, status = NI_WICKED_RC_USAGE;
 
 	ni_log_init();
@@ -207,7 +208,7 @@ main(int argc, char **argv)
 		/* test run */
 		case OPT_TEST:
 			opt_foreground = TRUE;
-			tester = dhcp6_tester_init();
+			tester = ni_dhcp6_tester_init();
 			break;
 
 		case OPT_TEST_MODE:
@@ -236,7 +237,7 @@ main(int argc, char **argv)
 			break;
 
 		case OPT_TEST_OUTFMT:
-			if (!tester || !dhcp6_tester_set_outfmt(optarg,
+			if (!tester || !ni_dhcp6_tester_set_outfmt(optarg,
 						&tester->outfmt))
 				goto usage;
 			break;
@@ -282,15 +283,16 @@ main(int argc, char **argv)
 		opt_state_file = dirname;
 	}
 
-	/* We're using randomized timeouts. Seed the RNG */
-	ni_srandom();
+	ni_netconfig_set_family_filter(ni_global_state_handle(0), AF_INET6);
+	ni_netconfig_set_discover_filter(ni_global_state_handle(0),
+					NI_NETCONFIG_DISCOVER_LINK_EXTERN);
 
 	if (tester) {
 		/* Create necessary directories if not yet there */
 		ni_config_storedir();
 		ni_config_statedir();
 
-		return dhcp6_tester_run(tester);
+		return ni_dhcp6_tester_run(tester);
 	}
 
 	dhcp6_supplicant();
@@ -330,32 +332,6 @@ dhcp6_register_services(ni_dbus_server_t *server)
 	dhcp6_discover_devices(server);
 
 	ni_dhcp6_set_event_handler(dhcp6_protocol_event);
-}
-
-ni_bool_t
-ni_dhcp6_supported(const ni_netdev_t *ifp)
-{
-	/*
-	 * currently not enslaved ether and ib types only,
-	 * we've simply did not tested it on other links ...
-	 */
-	switch (ifp->link.hwaddr.type) {
-	case ARPHRD_ETHER:
-	case ARPHRD_INFINIBAND:
-		if (ifp->link.masterdev.index) {
-			ni_debug_dhcp("%s: DHCPv6 not supported on slaves",
-					ifp->name);
-			return FALSE;
-		}
-		break;
-	default:
-		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-				"%s: DHCPv6 not supported on %s interfaces",
-				ifp->name,
-				ni_linktype_type_to_name(ifp->link.type));
-		return FALSE;
-	}
-	return TRUE;
 }
 
 /*

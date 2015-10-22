@@ -788,7 +788,7 @@ ni_ifworker_array_find_by_objectpath(ni_ifworker_array_t *array, const char *obj
 }
 
 static ni_ifworker_t *
-ni_ifworker_array_find_by_name(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char *name)
+ni_ifworker_array_find_by_name(const ni_ifworker_array_t *array, ni_ifworker_type_t type, const char *name)
 {
 	unsigned int i;
 
@@ -859,7 +859,7 @@ ni_ifworker_array_remove_with_children(ni_ifworker_array_t *array, ni_ifworker_t
 }
 
 ni_ifworker_t *
-ni_fsm_ifworker_by_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
+ni_fsm_ifworker_by_name(const ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
 {
 	return ni_ifworker_array_find_by_name(&fsm->workers, type, name);
 }
@@ -959,14 +959,11 @@ ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
 	if (!w || ni_string_empty(ifname))
 		return FALSE;
 
-	/* ifworker name must be same as policy name here.
-	 * If device name matches policy name then we
-	 *  consider such a match as fulfilled.
-	 */
 	if (ni_string_eq(w->name, ifname))
 		return TRUE;
 
-	ni_error("device %s requested via match is not present", ifname);
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+			"device %s requested via match is not present", ifname);
 	return FALSE;
 }
 
@@ -2244,7 +2241,23 @@ ni_ifworker_check_state_req_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require
 			continue;
 		}
 
-		ni_debug_application("%s: waiting for %s worker %s to reach %s state %s",
+		/*
+		 * Manual tweak: When the cw device should be our master, is UP (thus
+		 * already configured), but not active/picked up by ifup, because not
+		 * directly related to current ifup run, just continue with enslave.
+		 * See bsc#948423 (comment 6ff) for more details.
+		 */
+		if (w->masterdev == cw && !ni_ifworker_active(cw) &&
+		    ni_netdev_device_is_up(cw->device) && w->device &&
+		    (ni_string_empty(w->device->link.masterdev.name) ||
+		     ni_string_eq(w->device->link.masterdev.name, cw->device->name))) {
+			ni_debug_application("%s: master %s is ready to enslave",
+					w->name, cw->name);
+			state_reached++;
+			continue;
+		}
+
+		ni_debug_application("%s: waiting for %sworker %s to reach %s state %s",
 				w->name, required ? "required " : "", cw->name,
 				csr->method,
 				ni_ifworker_state_name(wait_for_state));

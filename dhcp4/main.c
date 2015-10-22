@@ -23,10 +23,6 @@
 
 #include "dhcp4/dhcp.h"
 #include "dhcp4/tester.h"
-#include "modprobe.h"
-
-#define AFPACKET_MODULE_NAME	"af_packet"
-#define AFPACKET_MODULE_OPTS	NULL
 
 enum {
 	/* common */
@@ -98,7 +94,7 @@ extern ni_dbus_object_t *ni_objectmodel_register_dhcp4_device(ni_dbus_server_t *
 int
 main(int argc, char **argv)
 {
-	dhcp4_tester_t * tester = NULL;
+	ni_dhcp4_tester_t * tester = NULL;
 	int c, status = NI_WICKED_RC_USAGE;
 
 	ni_log_init();
@@ -193,7 +189,7 @@ main(int argc, char **argv)
 		/* test run */
 		case OPT_TEST:
 			opt_foreground = TRUE;
-			tester = dhcp4_tester_init();
+			tester = ni_dhcp4_tester_init();
 			break;
 
 		case OPT_TEST_REQUEST:
@@ -215,7 +211,7 @@ main(int argc, char **argv)
 			break;
 
 		case OPT_TEST_OUTFMT:
-			if (!tester || !dhcp4_tester_set_outfmt(optarg,
+			if (!tester || !ni_dhcp4_tester_set_outfmt(optarg,
 						&tester->outfmt))
 				goto usage;
 			break;
@@ -260,18 +256,16 @@ main(int argc, char **argv)
 		opt_state_file = dirname;
 	}
 
-	/* We're using randomized timeouts. Seed the RNG */
-	ni_srandom();
-
-	/* load af_packet module we need for capturing */
-	ni_modprobe(AFPACKET_MODULE_NAME, AFPACKET_MODULE_OPTS);
+	ni_netconfig_set_family_filter(ni_global_state_handle(0), AF_INET);
+	ni_netconfig_set_discover_filter(ni_global_state_handle(0),
+					NI_NETCONFIG_DISCOVER_LINK_EXTERN);
 
 	if (tester) {
 		/* Create necessary directories if not yet there */
 		ni_config_storedir();
 		ni_config_statedir();
 
-		return dhcp4_tester_run(tester);
+		return ni_dhcp4_tester_run(tester);
 	}
 
 	dhcp4_supplicant();
@@ -362,49 +356,6 @@ dhcp4_register_services(ni_dbus_server_t *server)
 	dhcp4_discover_devices(server);
 
 	ni_dhcp4_set_event_handler(dhcp4_protocol_event);
-}
-
-ni_bool_t
-ni_dhcp4_supported(const ni_netdev_t *ifp)
-{
-	/*
-	 * currently broadcast and arp capable ether and ib types only,
-	 * we've simply did not tested it on other links ...
-	 */
-	switch (ifp->link.hwaddr.type) {
-	case ARPHRD_ETHER:
-	case ARPHRD_INFINIBAND:
-		if (ifp->link.masterdev.index) {
-			ni_debug_dhcp("%s: DHCPv4 not supported on slaves",
-					ifp->name);
-			return FALSE;
-		}
-
-		if (!(ifp->link.ifflags & NI_IFF_ARP_ENABLED)) {
-			ni_debug_dhcp("%s: DHCPv4 not supported without "
-					"ARP support", ifp->name);
-			return FALSE;
-		}
-		/* Hmm... can this happen? */
-		if (!(ifp->link.ifflags & NI_IFF_BROADCAST_ENABLED)) {
-			ni_debug_dhcp("%s: DHCPv4 not supported without "
-					" broadcast support", ifp->name);
-			return FALSE;
-		}
-		if ((ifp->link.ifflags & NI_IFF_POINT_TO_POINT)) {
-			ni_debug_dhcp("%s: DHCPv4 not supported on point-"
-					"to-point interfaces", ifp->name);
-			return FALSE;
-		}
-		break;
-	default:
-		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-				"%s: DHCPv4 not supported on %s interfaces",
-				ifp->name,
-				ni_linktype_type_to_name(ifp->link.type));
-		return FALSE;
-	}
-	return TRUE;
 }
 
 /*

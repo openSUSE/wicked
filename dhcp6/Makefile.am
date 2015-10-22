@@ -16,18 +16,9 @@ wickedd_dhcp6_LDFLAGS	= -rdynamic
 wickedd_dhcp6_LDADD	= $(top_builddir)/src/libwicked.la
 wickedd_dhcp6_SOURCES	= \
 	dbus-api.c	\
-	device.c	\
-	fsm.c		\
-	main.c		\
-	protocol.c	\
-	tester.c
+	main.c
 
 noinst_HEADERS		= \
-	dbus-api.h	\
-	device.h	\
-	dhcp6.h		\
-	fsm.h		\
-	protocol.h	\
-	tester.h
+	dbus-api.h
 
 # vim: ai

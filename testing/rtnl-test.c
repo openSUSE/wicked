@@ -44,7 +44,6 @@ int main(int argc, char **argv)
 	if (ni_init(program_name) < 0)
 		return 1;
 
-	ni_srandom();
 	ni_wireless_set_scanning(FALSE);
 
 	if( ni_global_state_handle(1) == NULL)

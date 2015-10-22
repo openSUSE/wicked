@@ -1,7 +1,9 @@
 [Unit]
 Description=wicked network management service daemon
+Requisite=dbus.service
+Wants=wickedd-nanny.service wickedd-dhcp6.service wickedd-dhcp4.service wickedd-auto4.service
 After=local-fs.target dbus.service isdn.service rdma.service SuSEfirewall2_init.service
-Before=wicked.service network.target
+Before=wickedd-nanny.service wicked.service network.target
 
 [Service]
 Type=dbus
@@ -13,7 +15,6 @@ StandardError=null
 Restart=on-abort
 
 [Install]
-WantedBy=wicked.service
 Also=wickedd-nanny.service
 Also=wickedd-auto4.service
 Also=wickedd-dhcp4.service
