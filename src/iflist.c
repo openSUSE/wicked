@@ -2257,7 +2257,7 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 		const struct ifa_cacheinfo *ci;
 		ci = __ni_nla_get_data(sizeof(*ci), tb[IFA_CACHEINFO]);
 		if (ci) {
-			ni_timer_get_time(&ap->ipv6_cache_info.since);
+			ni_timer_get_time(&ap->ipv6_cache_info.acquired);
 			ap->ipv6_cache_info.valid_lft = ci->ifa_valid;
 			ap->ipv6_cache_info.preferred_lft = ci->ifa_prefered;
 		}
