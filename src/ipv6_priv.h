@@ -22,10 +22,10 @@ extern ni_ipv6_ra_pinfo_t *	ni_ipv6_ra_pinfo_list_remove(ni_ipv6_ra_pinfo_t **,
 
 
 extern void			ni_ipv6_ra_rdnss_list_destroy(ni_ipv6_ra_rdnss_t **);
-extern void			ni_ipv6_ra_rdnss_list_update(ni_ipv6_ra_rdnss_t **,
+extern ni_bool_t		ni_ipv6_ra_rdnss_list_update(ni_ipv6_ra_rdnss_t **,
 							const struct in6_addr *,
 							unsigned int lifetime,
-							unsigned int acquired);
+							const struct timeval *acquired);
 
 extern ni_bool_t		ni_icmpv6_ra_solicit(const ni_netdev_ref_t *,
 							const ni_hwaddr_t *);

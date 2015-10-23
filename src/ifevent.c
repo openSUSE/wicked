@@ -362,22 +362,36 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 	ni_ipv6_devinfo_t *ipv6;
 	ni_ipv6_ra_pinfo_t *pi, *old = NULL;
 	ni_netdev_t *dev;
-	struct timeval now;
 
 	if (!(pfx = ni_rtnl_prefixmsg(h, RTM_NEWPREFIX)))
 		return -1;
 
 	dev = ni_netdev_by_index(nc, pfx->prefix_ifindex);
-	if (dev == NULL)
+	if (!dev) {
+		ni_debug_events("ipv6 prefix info event for unknown device index: %u",
+				pfx->prefix_ifindex);
 		return 0;
+	}
 
 	ipv6 = ni_netdev_get_ipv6(dev);
+	if (!ipv6) {
+		ni_error("%s: unable to allocate device ipv6 structure: %m",
+				dev->name);
+		return -1;
+	}
 
-	pi = xcalloc(1, sizeof(*pi));
-	ni_timer_get_time(&now);
-	pi->acquired = now.tv_sec;
+	pi = calloc(1, sizeof(*pi));
+	if (!pi) {
+		ni_error("%s: unable to allocate ipv6 prefix info structure: %m",
+				dev->name);
+		return -1;
+	}
+
+	ni_timer_get_time(&pi->lifetime.acquired);
 
 	if (__ni_rtnl_parse_newprefix(dev->name, h, pfx, pi) < 0) {
+		ni_error("%s: unable to parse ipv6 prefix info event data",
+				dev->name);
 		free(pi);
 		return -1;
 	}
@@ -465,29 +479,55 @@ __ni_rtevent_process_rdnss_info(ni_netdev_t *dev, const struct nd_opt_hdr *opt,
 				size_t len)
 {
 	const struct ni_nd_opt_rdnss_info_p *ropt;
+	char buf[INET6_ADDRSTRLEN+1] = {'\0'};
 	const struct in6_addr* addr;
 	ni_ipv6_devinfo_t *ipv6;
 	unsigned int lifetime;
-	struct timeval now;
+	struct timeval acquired;
+	ni_bool_t emit = FALSE;
+	const char *server;
 
-	if (opt == NULL || len < (sizeof(*ropt) + sizeof(*addr)))
+	if (opt == NULL || len < (sizeof(*ropt) + sizeof(*addr))) {
+		ni_error("%s: unable to parse ipv6 rdnss info event data -- too short",
+				dev->name);
 		return -1;
+	}
+
+	ipv6 = ni_netdev_get_ipv6(dev);
+	if (!ipv6) {
+		ni_error("%s: unable to allocate device ipv6 structure: %m",
+				dev->name);
+		return -1;
+	}
 
 	ropt = (const struct ni_nd_opt_rdnss_info_p *)opt;
 
-	ipv6 = ni_netdev_get_ipv6(dev);
-
-	ni_timer_get_time(&now);
+	ni_timer_get_time(&acquired);
 	lifetime = ntohl(ropt->nd_opt_rdnss_lifetime);
 	len -= sizeof(*ropt);
 	addr = &ropt->nd_opt_rdnss_addr[0];
 	for ( ; len >= sizeof(*addr); len -= sizeof(*addr), ++addr) {
-		if (IN6_IS_ADDR_LOOPBACK(addr) || IN6_IS_ADDR_UNSPECIFIED(addr))
+		if (IN6_IS_ADDR_LOOPBACK(addr) || IN6_IS_ADDR_UNSPECIFIED(addr)) {
+			server = inet_ntop(AF_INET6, addr, buf, sizeof(buf));
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IPV6|NI_TRACE_EVENTS,
+					"%s: ignoring invalid rdnss server address %s",
+					dev->name, server);
 			continue;
-		ni_ipv6_ra_rdnss_list_update(&ipv6->radv.rdnss, addr,
-						lifetime, now.tv_sec);
+		}
+
+		if (!ni_ipv6_ra_rdnss_list_update(&ipv6->radv.rdnss, addr,
+					lifetime, &acquired)) {
+			server = inet_ntop(AF_INET6, addr, buf, sizeof(buf));
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_EVENTS,
+					"%s: failed to track ipv6 rnssl server %s",
+					dev->name, server);
+			continue;
+		}
+
+		emit = TRUE;
 	}
-	__ni_netdev_nduseropt_event(dev, NI_EVENT_RDNSS_UPDATE);
+	if (emit)
+		__ni_netdev_nduseropt_event(dev, NI_EVENT_RDNSS_UPDATE);
 	return 0;
 }
 
@@ -547,8 +587,11 @@ __ni_rtevent_nduseropt(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 		return -1;
 
 	dev = ni_netdev_by_index(nc, msg->nduseropt_ifindex);
-	if (dev == NULL)
+	if (!dev) {
+		ni_debug_events("ipv6 nd user option event for unknown device index: %u",
+				msg->nduseropt_ifindex);
 		return 0;
+	}
 
 	if (msg->nduseropt_icmp_type != ND_ROUTER_ADVERT ||
 	    msg->nduseropt_icmp_code != 0 ||
@@ -966,12 +1009,12 @@ ni_server_trace_interface_nduseropt_events(ni_netdev_t *dev, ni_event_t event)
 				 ipv6->radv.other_config ? "config"  : "unmanaged";
 
 			for (rdnss = ipv6->radv.rdnss; rdnss; rdnss = rdnss->next) {
-				if (rdnss->lifetime != 0xffffffff) {
-					snprintf(lifetime, sizeof(lifetime), "%u",
-								rdnss->lifetime);
-				} else {
+				if (rdnss->lifetime == 0xffffffff) {
 					snprintf(lifetime, sizeof(lifetime), "%s",
 								"infinite");
+				} else {
+					snprintf(lifetime, sizeof(lifetime), "%u",
+								rdnss->lifetime);
 				}
 				ni_trace("%s: update IPv6 RA<%s> RDNSS<%s>[%s]",
 					dev->name, rainfo,

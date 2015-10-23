@@ -18,8 +18,6 @@
 
 #define NI_PROC_SYS_NET_IPV6_DIR	"/proc/sys/net/ipv6"
 
-#define NI_IPV6_RA_RDNSS_ADDRS_CHUNK	4
-
 /*
  * index values for the variables in ipv6_devconf
  * defined in linux/ipv6.h + NI_IPV6_; we can't
@@ -406,7 +404,7 @@ ni_ipv6_ra_pinfo_list_remove(ni_ipv6_ra_pinfo_t **list, const ni_ipv6_ra_pinfo_t
 static ni_ipv6_ra_rdnss_t *
 ni_ipv6_ra_rdnss_new()
 {
-	return xcalloc(1, sizeof(ni_ipv6_ra_rdnss_t));
+	return calloc(1, sizeof(ni_ipv6_ra_rdnss_t));
 }
 
 static void
@@ -426,35 +424,44 @@ ni_ipv6_ra_rdnss_list_destroy(ni_ipv6_ra_rdnss_t **list)
 	}
 }
 
-void
+ni_bool_t
 ni_ipv6_ra_rdnss_list_update(ni_ipv6_ra_rdnss_t **list, const struct in6_addr *ipv6,
-				unsigned int lifetime, unsigned int acquired)
+				unsigned int lifetime, const struct timeval *acquired)
 {
 	ni_ipv6_ra_rdnss_t *rdnss, **pos;
 	ni_sockaddr_t addr;
 
-	if (!list || !ipv6)
-		return;
+	if (!list || !ipv6 || !acquired)
+		return FALSE;
 
 	ni_sockaddr_set_ipv6(&addr, *ipv6, 0);
 	for (pos = list; (rdnss = *pos); pos = &rdnss->next) {
 		if (ni_sockaddr_equal(&rdnss->server, &addr)) {
 			if (lifetime) {
 				rdnss->lifetime = lifetime;
-				rdnss->acquired = acquired;
+				rdnss->acquired = *acquired;
 			} else {
 				*pos = rdnss->next;
 				ni_ipv6_ra_rdnss_free(rdnss);
 			}
-			return;
+			return TRUE;
 		}
 	}
+
 	if (lifetime)  {
-		rdnss = *pos = ni_ipv6_ra_rdnss_new();
-		rdnss->server   = addr;
-		rdnss->lifetime = lifetime;
-		rdnss->acquired = acquired;
+		rdnss = ni_ipv6_ra_rdnss_new();
+		if (rdnss) {
+			rdnss->server   = addr;
+			rdnss->lifetime = lifetime;
+			rdnss->acquired = *acquired;
+			*pos = rdnss;
+			return TRUE;
+		}
+		return FALSE;
 	}
+
+	/* just nothing to do on removal event for untracked server */
+	return TRUE;
 }
 
 const char *
