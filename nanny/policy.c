@@ -76,7 +76,6 @@ ni_managed_policy_save(xml_node_t *pnode)
 
 	if (xml_node_print(pnode, fp) < 0) {
 		ni_error("Cannot write into %s policy temp file", path);
-		xml_node_free(pnode);
 		goto failure;
 	}
 
@@ -113,13 +112,12 @@ ni_objectmodel_managed_policy_init(ni_dbus_server_t *server)
  * managed_policy objects
  */
 ni_managed_policy_t *
-ni_managed_policy_new(ni_nanny_t *mgr, ni_fsm_policy_t *policy, xml_document_t *doc)
+ni_managed_policy_new(ni_nanny_t *mgr, ni_fsm_policy_t *policy)
 {
 	ni_managed_policy_t *mpolicy;
 
 	mpolicy = xcalloc(1, sizeof(*mpolicy));
 	mpolicy->fsm_policy = policy;
-	mpolicy->doc = doc;
 
 	mpolicy->next = mgr->policy_list;
 	mgr->policy_list = mpolicy;
@@ -129,10 +127,6 @@ ni_managed_policy_new(ni_nanny_t *mgr, ni_fsm_policy_t *policy, xml_document_t *
 void
 ni_managed_policy_free(ni_managed_policy_t *mpolicy)
 {
-	if (mpolicy && mpolicy->doc) {
-		xml_document_free(mpolicy->doc);
-		mpolicy->doc = NULL;
-	}
 	free(mpolicy);
 }
 
@@ -235,11 +229,9 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 		xml_document_free(doc);
 		return FALSE;
 	}
+	xml_document_free(doc);
 
 	mpolicy->owner = caller_uid;
-	if (mpolicy->doc)
-		xml_document_free(mpolicy->doc);
-	mpolicy->doc = doc;
 	mpolicy->seqno++;
 
 	ni_managed_policy_save(node);

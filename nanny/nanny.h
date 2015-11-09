@@ -69,7 +69,6 @@ struct ni_managed_policy {
 	uid_t			owner;
 	unsigned int		seqno;
 	ni_fsm_policy_t *	fsm_policy;
-	xml_document_t *	doc;
 };
 
 typedef struct ni_nanny_devmatch ni_nanny_devmatch_t;
@@ -153,7 +152,7 @@ extern void			ni_managed_device_set_policy(ni_managed_device_t *, ni_managed_pol
 extern void			ni_managed_device_down(ni_managed_device_t *mdev);
 extern ni_bool_t		ni_managed_policy_filename(const char *, char *, size_t);
 
-extern ni_managed_policy_t *	ni_managed_policy_new(ni_nanny_t *, ni_fsm_policy_t *, xml_document_t *);
+extern ni_managed_policy_t *	ni_managed_policy_new(ni_nanny_t *, ni_fsm_policy_t *);
 extern void			ni_managed_policy_free(ni_managed_policy_t *);
 
 extern const char *		ni_managed_state_to_string(ni_managed_state_t);
