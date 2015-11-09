@@ -199,8 +199,15 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 	const char *ifxml;
 	xml_node_t *node;
 
-	if ((mpolicy = ni_objectmodel_managed_policy_unwrap(object, error)) == NULL)
+	if ((mpolicy = ni_objectmodel_managed_policy_unwrap(object, error)) == NULL) {
+		dbus_set_error_const(error, NI_DBUS_ERROR_POLICY_DOESNOTEXIST, NULL);
 		return FALSE;
+	}
+
+	if (caller_uid != 0 && caller_uid != mpolicy->owner) {
+		dbus_set_error_const(error, NI_DBUS_ERROR_PERMISSION_DENIED, NULL);
+		return FALSE;
+	}
 
 	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &ifxml))
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);

@@ -868,20 +868,22 @@ ni_objectmodel_nanny_get_device(ni_dbus_object_t *object, const ni_dbus_method_t
 static dbus_bool_t
 ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 					unsigned int argc, const ni_dbus_variant_t *argv,
+					uid_t caller_uid,
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_dbus_object_t *policy_object;
 	xml_document_t *doc;
 	const char *doc_string;
 	ni_nanny_t *mgr;
-	ni_fsm_t *fsm;
 	int rv;
 
-	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL)
+	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL || mgr->fsm == NULL)
 		return FALSE;
 
-	fsm = mgr->fsm;
-	ni_assert(fsm);
+	if (caller_uid != 0) {
+		dbus_set_error_const(error, NI_DBUS_ERROR_PERMISSION_DENIED, NULL);
+		return FALSE;
+	}
 
 	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &doc_string) || ni_string_empty(doc_string))
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
@@ -936,14 +938,20 @@ ni_nanny_policy_drop(const char *pname)
 static dbus_bool_t
 ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 					unsigned int argc, const ni_dbus_variant_t *argv,
+					uid_t caller_uid,
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_fsm_policy_t *policy;
 	const char *name;
 	ni_nanny_t *mgr;
 
-	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL)
+	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL || mgr->fsm == NULL)
 		return FALSE;
+
+	if (caller_uid != 0) {
+		dbus_set_error_const(error, NI_DBUS_ERROR_PERMISSION_DENIED, NULL);
+		return FALSE;
+	}
 
 	if (argc != 1 || !ni_dbus_variant_get_string(&argv[0], &name))
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
@@ -1013,7 +1021,7 @@ ni_objectmodel_nanny_set_secret(ni_dbus_object_t *object, const ni_dbus_method_t
 	const char *element_path, *value;
 	ni_nanny_t *mgr;
 
-	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL)
+	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL || mgr->fsm == NULL)
 		return FALSE;
 
 	if (argc != 3
@@ -1030,10 +1038,10 @@ ni_objectmodel_nanny_set_secret(ni_dbus_object_t *object, const ni_dbus_method_t
 }
 
 static ni_dbus_method_t		ni_objectmodel_nanny_methods[] = {
-	{ "getDevice",		"s",		ni_objectmodel_nanny_get_device	},
-	{ "createPolicy",	"s",		ni_objectmodel_nanny_create_policy	},
-	{ "deletePolicy",	"s",		ni_objectmodel_nanny_delete_policy	},
-	{ "addSecret",		"a{sv}ss",	.handler_ex = ni_objectmodel_nanny_set_secret	},
+	{ "getDevice",		"s",		ni_objectmodel_nanny_get_device			 },
+	{ "createPolicy",	"s",		.handler_ex = ni_objectmodel_nanny_create_policy },
+	{ "deletePolicy",	"s",		.handler_ex = ni_objectmodel_nanny_delete_policy },
+	{ "addSecret",		"a{sv}ss",	.handler_ex = ni_objectmodel_nanny_set_secret	 },
 	{ NULL }
 };
 
