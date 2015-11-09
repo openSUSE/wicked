@@ -264,23 +264,6 @@ ni_nanny_get_policy(ni_nanny_t *mgr, const ni_fsm_policy_t *policy)
 	return NULL;
 }
 
-ni_bool_t
-ni_nanny_remove_policy(ni_nanny_t *mgr, ni_managed_policy_t *mpolicy)
-{
-	ni_managed_policy_t **pos, *cur;
-
-	ni_assert(mgr);
-	for (pos = &mgr->policy_list; (cur = *pos); pos = &cur->next) {
-		if (cur == mpolicy) {
-			*pos = cur->next;
-			ni_managed_policy_free(cur);
-			return TRUE;
-		}
-	}
-
-	return FALSE;
-}
-
 /*
  * Handle events from an rfkill switch
  */
@@ -965,41 +948,36 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 
 	/* Unregistering Policy dbus object */
 	if ((policy = ni_fsm_policy_by_name(mgr->fsm, name))) {
-		ni_managed_policy_t **pos, *cur;
+		ni_managed_policy_t *mpolicy;
 
-		for (pos = &mgr->policy_list; (cur = *pos); pos = &cur->next) {
-			if (cur->fsm_policy == policy) {
-				ni_dbus_server_t *server;
-				ni_ifworker_t *w = NULL;
+		if ((mpolicy = ni_nanny_get_policy(mgr, policy))) {
+			ni_dbus_server_t *server;
+			ni_ifworker_t *w = NULL;
 
-				if (!ni_fsm_policy_remove(mgr->fsm, policy))
-					return FALSE;
+			if (!ni_fsm_policy_remove(mgr->fsm, policy))
+				return FALSE;
 
-				ni_debug_nanny("Removed FSM policy %s", name);
+			ni_nanny_policy_drop(name);
+			ni_debug_nanny("Removed FSM policy %s", name);
 
-				w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, name);
-				if (w != NULL) {
-					ni_managed_device_t *mdev = ni_nanny_get_device(mgr, w);
-					if (mdev != NULL)
-						ni_managed_device_set_policy(mdev, NULL, NULL);
+			w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, name);
+			if (w != NULL) {
+				ni_managed_device_t *mdev = ni_nanny_get_device(mgr, w);
+				if (mdev != NULL)
+					ni_managed_device_set_policy(mdev, NULL, NULL);
 
-					ni_ifworker_set_config(w, NULL, NULL);
+				ni_ifworker_set_config(w, NULL, NULL);
 
-					ni_nanny_unschedule(&mgr->recheck, w);
-				}
-
-				*pos = cur->next;
-				server = ni_dbus_object_get_server(object);
-				if (!ni_objectmodel_unregister_managed_policy(server, cur, name))
-					return FALSE;
-
-				ni_nanny_policy_drop(name);
-
-				ni_dbus_message_append_object_path(reply,
-					ni_dbus_object_get_path(object));
-
-				return TRUE;
+				ni_nanny_unschedule(&mgr->recheck, w);
 			}
+
+			server = ni_dbus_object_get_server(object);
+			if (!ni_objectmodel_unregister_managed_policy(server, mpolicy, name))
+				return FALSE;
+
+			ni_dbus_message_append_object_path(reply, ni_dbus_object_get_path(object));
+
+			return TRUE;
 		}
 	}
 

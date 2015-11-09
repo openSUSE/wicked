@@ -121,6 +121,34 @@ ni_objectmodel_managed_policy_init(ni_dbus_server_t *server)
 }
 
 /*
+ * managed policy list primitives
+ */
+static inline void
+__ni_managed_policy_list_insert(ni_managed_policy_t **list, ni_managed_policy_t *mpolicy)
+{
+	mpolicy->pprev = list;
+	mpolicy->next = *list;
+	if (mpolicy->next)
+		mpolicy->next->pprev = &mpolicy->next;
+	*list = mpolicy;
+}
+
+static inline void
+__ni_managed_policy_list_unlink(ni_managed_policy_t *mpolicy)
+{
+	ni_managed_policy_t **pprev, *next;
+
+	pprev = mpolicy->pprev;
+	next = mpolicy->next;
+	if (pprev)
+		*pprev = mpolicy->next;
+	if (next)
+		next->pprev = pprev;
+	mpolicy->pprev = NULL;
+	mpolicy->next = NULL;
+}
+
+/*
  * managed_policy objects
  */
 ni_managed_policy_t *
@@ -128,18 +156,59 @@ ni_managed_policy_new(ni_nanny_t *mgr, ni_fsm_policy_t *policy)
 {
 	ni_managed_policy_t *mpolicy;
 
-	mpolicy = xcalloc(1, sizeof(*mpolicy));
-	mpolicy->fsm_policy = policy;
+	if (!mgr || !policy)
+		return NULL;
 
-	mpolicy->next = mgr->policy_list;
-	mgr->policy_list = mpolicy;
+	mpolicy = xcalloc(1, sizeof(*mpolicy));
+	mpolicy->refcount = 1;
+	mpolicy->fsm_policy = ni_fsm_policy_ref(policy);
+
+	__ni_managed_policy_list_insert(&mgr->policy_list, mpolicy);
+	return mpolicy;
+}
+
+ni_managed_policy_t *
+ni_managed_policy_ref(ni_managed_policy_t *mpolicy)
+{
+	if (mpolicy) {
+		ni_assert(mpolicy->refcount);
+		mpolicy->refcount++;
+	}
 	return mpolicy;
 }
 
 void
 ni_managed_policy_free(ni_managed_policy_t *mpolicy)
 {
-	free(mpolicy);
+	if (mpolicy) {
+		ni_assert(mpolicy->refcount);
+		mpolicy->refcount--;
+		if (mpolicy->refcount == 0) {
+			__ni_managed_policy_list_unlink(mpolicy);
+			ni_fsm_policy_free(mpolicy->fsm_policy);
+			free(mpolicy);
+		}
+	}
+}
+
+ni_dbus_object_t *
+ni_managed_policy_register(ni_nanny_t *mgr, ni_fsm_policy_t *policy)
+{
+	ni_managed_policy_t *mpolicy;
+	ni_dbus_object_t *object;
+
+	if (!mgr || !policy)
+		return NULL;
+
+	mpolicy = ni_managed_policy_new(mgr, policy);
+	if (!mpolicy)
+		return NULL;
+
+	object = ni_objectmodel_register_managed_policy(mgr->server, mpolicy);
+	if (!object)
+		ni_managed_policy_free(mpolicy);
+
+	return object;
 }
 
 /*
@@ -154,13 +223,13 @@ ni_objectmodel_register_managed_policy(ni_dbus_server_t *server, ni_managed_poli
 	snprintf(relative_path, sizeof(relative_path), "Policy/%s",
 					ni_fsm_policy_name(mpolicy->fsm_policy));
 	object = ni_dbus_server_register_object(server, relative_path, &ni_objectmodel_managed_policy_class, mpolicy);
-
-	ni_objectmodel_bind_compatible_interfaces(object);
+	if (object)
+		ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
 }
 
 /*
- * Unregister a modem from our dbus server.
+ * Unregister a policy from our dbus server.
  */
 dbus_bool_t
 ni_objectmodel_unregister_managed_policy(ni_dbus_server_t *server, ni_managed_policy_t *mpolicy, const char *name)
@@ -179,8 +248,12 @@ ni_objectmodel_unregister_managed_policy(ni_dbus_server_t *server, ni_managed_po
 static ni_managed_policy_t *
 ni_objectmodel_managed_policy_unwrap(const ni_dbus_object_t *object, DBusError *error)
 {
-	ni_managed_policy_t *mpolicy = object->handle;
+	ni_managed_policy_t *mpolicy;
 
+	if (!object)
+		return FALSE;
+
+	mpolicy = object->handle;
 	if (ni_dbus_object_isa(object, &ni_objectmodel_managed_policy_class))
 		return mpolicy;
 
