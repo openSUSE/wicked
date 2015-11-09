@@ -283,7 +283,6 @@ ni_nanny_addpolicy_node(xml_node_t *pnode, const char *origin)
 		return -1;
 	}
 
-	/* FIXME: is this an error, it perhaps just already exists? */
 	if (!ni_nanny_call_add_policy(name, pnode)) {
 		ni_debug_ifconfig("Adding policy %s from %s file failed", name,
 			ni_string_empty(origin) ? "unspecified origin" : origin);
@@ -358,55 +357,91 @@ ni_nanny_create_client(ni_dbus_object_t **root_p)
 	return client;
 }
 
+static int
+ni_nanny_call_create_policy(ni_dbus_object_t *root, const char *name, const char *policy_xml)
+{
+	char *policy_path = NULL;
+	int rv;
+
+	ni_debug_application("Calling %s.createPolicy(%s)", ni_dbus_object_get_path(root), name);
+	rv = ni_dbus_object_call_simple(root, NI_OBJECTMODEL_NANNY_INTERFACE, "createPolicy",
+					DBUS_TYPE_STRING, (void *)&policy_xml,
+					DBUS_TYPE_OBJECT_PATH, &policy_path);
+	if (rv < 0)
+		ni_debug_application("Call to %s.createPolicy(%s) failed: %s",
+				ni_dbus_object_get_path(root), name, ni_strerror(rv));
+	else
+		ni_debug_application("Successfully created nanny policy %s", policy_path);
+
+	ni_string_free(&policy_path);
+	return rv;
+}
+
+static int
+ni_nanny_call_update_policy(ni_dbus_object_t *root, const char *name, const char *policy_xml)
+{
+	ni_dbus_object_t *proxy;
+	char *policy_path = NULL;
+	const char *relative_path = NULL;
+	int rv;
+
+	ni_string_printf(&policy_path, NI_OBJECTMODEL_MANAGED_POLICY_LIST_PATH "/%s", name);
+	if (policy_path)
+		relative_path = ni_dbus_object_get_relative_path(root, policy_path);
+
+	if (ni_string_empty(relative_path)) {
+		ni_debug_application("Cannot create relative path to update nanny policy %s", name);
+		ni_string_free(&policy_path);
+		return -NI_ERROR_DBUS_CALL_FAILED;
+	}
+
+	if (!(proxy = ni_dbus_object_create(root, relative_path, NULL, NULL))) {
+		ni_debug_application("cannot create proxy object to update nanny policy %s", name);
+		ni_string_free(&policy_path);
+		return -NI_ERROR_DBUS_CALL_FAILED;
+	}
+
+	ni_debug_application("Calling %s.update()", ni_dbus_object_get_path(proxy));
+	rv = ni_dbus_object_call_simple(proxy,
+					NI_OBJECTMODEL_MANAGED_POLICY_INTERFACE, "update",
+					DBUS_TYPE_STRING, (void *)&policy_xml,
+					DBUS_TYPE_INVALID, NULL);
+	if (rv < 0)
+		ni_debug_application("Call to %s.update() failed: %s",
+				ni_dbus_object_get_path(proxy), ni_strerror(rv));
+	else
+		ni_debug_application("Successfully updated nanny policy %s", policy_path);
+
+	ni_dbus_object_free(proxy);
+	ni_string_free(&policy_path);
+	return rv;
+}
+
 ni_bool_t
 ni_nanny_call_add_policy(const char *name, xml_node_t *node)
 {
-	ni_dbus_object_t *root_object, *proxy;
-	const char *relative_path;
-	char *policy_path, *doc_string;
+	ni_dbus_object_t *root_object = NULL;
+	char *policy_xml = NULL;
 	int rv;
 
-	ni_nanny_create_client(&root_object);
-
-	if ((doc_string = xml_node_sprint(node)) == NULL) {
-		ni_debug_application("%s: unable to format <policy> node", __func__);
+	if (!ni_nanny_create_client(&root_object) || !root_object) {
+		ni_debug_application("Unable to create nanny client to add policy %s", name);
 		return FALSE;
 	}
 
-	rv = ni_dbus_object_call_simple(root_object,
-					NI_OBJECTMODEL_NANNY_INTERFACE, "createPolicy",
-					DBUS_TYPE_STRING, &doc_string,
-					DBUS_TYPE_OBJECT_PATH, &policy_path);
+	if ((policy_xml = xml_node_sprint(node)) == NULL) {
+		ni_debug_application("Unable to format nanny policy %s", name);
+		return FALSE;
+	}
 
+	rv = ni_nanny_call_create_policy(root_object, name, policy_xml);
 	if (rv == -NI_ERROR_POLICY_EXISTS) {
 		/* Policy exists, update it transparently */
-		char buffer[265];
-
-		snprintf(buffer, sizeof(buffer), NI_OBJECTMODEL_MANAGED_POLICY_LIST_PATH "/%s", name);
-		policy_path = strdup(buffer);
-	} else
-	if (rv < 0) {
-		ni_debug_application("Call to %s.createPolicy(%s) failed: %s",
-				ni_dbus_object_get_path(root_object), name,
-				ni_strerror(rv));
-		return FALSE;
+		rv = ni_nanny_call_update_policy(root_object, name, policy_xml);
 	}
 
-	relative_path = ni_dbus_object_get_relative_path(root_object, policy_path);
-	ni_assert(relative_path);
-
-	proxy = ni_dbus_object_create(root_object, relative_path, NULL, NULL);
-
-	ni_debug_application("About to call %s.update()", ni_dbus_object_get_path(proxy));
-	if ((rv = ni_dbus_object_call_simple(proxy,
-					NI_OBJECTMODEL_MANAGED_POLICY_INTERFACE, "update",
-					DBUS_TYPE_STRING, &doc_string,
-					DBUS_TYPE_INVALID, NULL)) < 0) {
-		ni_debug_application("Call to ManagedPolicy.update() failed: %s", ni_strerror(rv));
-		return FALSE;
-	}
-
-	return TRUE;
+	ni_string_free(&policy_xml);
+	return rv == 0;
 }
 
 ni_bool_t
