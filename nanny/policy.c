@@ -45,7 +45,7 @@ ni_managed_policy_filename(const char *name, char *path, size_t size)
 }
 
 static ni_bool_t
-ni_managed_policy_save(xml_node_t *pnode)
+ni_managed_policy_save_node(const xml_node_t *pnode)
 {
 	char path[PATH_MAX] = {'\0'};
 	char temp[PATH_MAX] = {'\0'};
@@ -94,6 +94,18 @@ failure:
 	}
 	unlink(temp);
 	return FALSE;
+}
+
+static ni_bool_t
+ni_managed_policy_save(const ni_managed_policy_t *mpolicy)
+{
+	const xml_node_t *node;
+
+	if (!mpolicy)
+		return FALSE;
+
+	node = ni_fsm_policy_node(mpolicy->fsm_policy);
+	return ni_managed_policy_save_node(node);
 }
 
 void
@@ -180,6 +192,21 @@ ni_objectmodel_managed_policy_unwrap(const ni_dbus_object_t *object, DBusError *
 }
 
 /*
+ * Save managed_policy data from dbus object
+ */
+ni_bool_t
+ni_objectmodel_managed_policy_save(ni_dbus_object_t *object)
+{
+	ni_managed_policy_t *mpolicy;
+
+	if (!object)
+		return FALSE;
+
+	mpolicy = ni_objectmodel_managed_policy_unwrap(object, NULL);
+	return ni_managed_policy_save(mpolicy);
+}
+
+/*
  * ManagedPolicy.update(s)
  */
 static dbus_bool_t
@@ -234,7 +261,11 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 	mpolicy->owner = caller_uid;
 	mpolicy->seqno++;
 
-	ni_managed_policy_save(node);
+	if (!ni_managed_policy_save(mpolicy)) {
+		ni_warn("Unable to save updated managed nanny policy %s",
+			ni_dbus_object_get_path(object));
+	}
+
 	return TRUE;
 }
 

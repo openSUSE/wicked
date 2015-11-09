@@ -912,6 +912,11 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 	}
 	xml_document_free(doc);
 
+	if (!ni_objectmodel_managed_policy_save(policy_object)) {
+		ni_warn("Unable to save created managed nanny policy %s",
+			ni_dbus_object_get_path(policy_object));
+	}
+
 	return ni_dbus_message_append_object_path(reply, ni_dbus_object_get_path(policy_object));
 }
 

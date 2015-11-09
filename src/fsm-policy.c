@@ -360,9 +360,18 @@ ni_fsm_policy_name(const ni_fsm_policy_t *policy)
 }
 
 /*
+ * Get the policy xml node
+ */
+const xml_node_t *
+ni_fsm_policy_node(const ni_fsm_policy_t *policy)
+{
+	return policy ? policy->node : NULL;
+}
+
+/*
  * Get the policy's location (if set)
  */
-xml_location_t *
+const xml_location_t *
 ni_fsm_policy_location(const ni_fsm_policy_t *policy)
 {
 	if (!policy || !policy->node)

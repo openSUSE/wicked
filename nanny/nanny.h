@@ -160,6 +160,7 @@ extern const char *		ni_managed_state_to_string(ni_managed_state_t);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_netdev(ni_dbus_server_t *, ni_managed_device_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_modem(ni_dbus_server_t *, ni_managed_device_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_policy(ni_dbus_server_t *, ni_managed_policy_t *);
+extern ni_bool_t		ni_objectmodel_managed_policy_save(ni_dbus_object_t *);
 extern dbus_bool_t		ni_objectmodel_unregister_managed_policy(ni_dbus_server_t *, ni_managed_policy_t *, const char*);
 extern void			ni_objectmodel_unregister_managed_device(ni_managed_device_t *);
 

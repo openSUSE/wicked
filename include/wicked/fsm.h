@@ -292,7 +292,8 @@ extern unsigned int		ni_fsm_policy_get_applicable_policies(const ni_fsm_t *, ni_
 extern ni_bool_t		ni_fsm_exists_applicable_policy(const ni_fsm_t *, ni_fsm_policy_t *, ni_ifworker_t *);
 extern xml_node_t *		ni_fsm_policy_transform_document(xml_node_t *, ni_fsm_policy_t * const *, unsigned int);
 extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
-extern xml_location_t *	ni_fsm_policy_location(const ni_fsm_policy_t *);
+extern const xml_node_t *	ni_fsm_policy_node(const ni_fsm_policy_t *);
+extern const xml_location_t *	ni_fsm_policy_location(const ni_fsm_policy_t *);
 extern const char *		ni_fsm_policy_get_origin(const ni_fsm_policy_t *);
 extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *tstamp);
 
