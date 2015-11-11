@@ -2504,7 +2504,7 @@ ni_ifworker_add_check_state_req(ni_ifworker_t *w, const char *method, ni_ifworke
 }
 
 static void
-ni_ifworker_get_check_state_reqs_for_method(ni_ifworker_t *w, ni_fsm_transition_t *action)
+__ni_ifworker_get_check_state_reqs_for_method(ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
 	ni_fsm_require_t **list, *req;
 
@@ -2671,6 +2671,7 @@ ni_ifworker_identify_device(ni_fsm_t *fsm, const xml_node_t *devnode, ni_ifworke
 	return best;
 }
 
+#if 0	/* unused */
 static ni_bool_t
 ni_ifworker_merge_policy(ni_ifworker_t *w, ni_fsm_policy_t *policy)
 {
@@ -2713,6 +2714,7 @@ ni_ifworker_apply_policies(ni_fsm_t *fsm, ni_ifworker_t *w)
 	w->use_default_policies = use_default_policies;
 	return TRUE;
 }
+#endif
 
 ni_ifworker_type_t
 ni_ifworker_type_from_string(const char *s)
@@ -3214,12 +3216,31 @@ ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 	ni_ifworker_release(w);
 }
 
+static void
+ni_ifworker_get_check_state_req_for_methods(ni_ifworker_t *w)
+{
+	unsigned int i;
+	ni_fsm_transition_t *at = w->fsm.action_table;
+
+	if (at == NULL)
+		return;
+
+	/* For each of the DBus calls we will execute on this device,
+	 * check whether there are constraints on child devices that
+	 * require the subordinate device to have a certain
+	 * minimum/maximum state.
+	 */
+	for (i = 0; i < at[i].next_state; ++i) {
+		ni_fsm_require_list_destroy(&at[i].require.list);
+		__ni_ifworker_get_check_state_reqs_for_method(w, &at[i]);
+	}
+}
+
 int
 ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 {
 	unsigned int min_state = w->target_range.min;
 	unsigned int max_state = w->target_range.max;
-	unsigned int j;
 	int rv;
 
 	if (min_state > max_state) {
@@ -3263,15 +3284,7 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 	if (w->target_state != NI_FSM_STATE_NONE)
 		ni_ifworker_set_timeout(fsm, w, timeout);
 
-	/* For each of the DBus calls we will execute on this device,
-	 * check whether there are constraints on child devices that
-	 * require the subordinate device to have a certain
-	 * minimum/maximum state.
-	 */
-	for (j = 0; j < w->fsm.action_table[j].next_state; ++j) {
-		ni_ifworker_get_check_state_reqs_for_method(w, &w->fsm.action_table[j]);
-	}
-
+	ni_ifworker_get_check_state_req_for_methods(w);
 	return 0;
 }
 
@@ -3430,14 +3443,14 @@ ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
 		.prompt_callback = ni_ifworker_prompt_later_cb,
 		.user_data = &user_data,
 	};
-	int rv;
+	int rv = 0;
 
 	if (prompt_now)
 		context.prompt_callback = ni_ifworker_prompt_cb;
 
 	/* First, check for factory interface */
 	if ((rv = ni_ifworker_bind_device_factory_api(w)) < 0)
-		return rv;
+		goto done;
 
 	if (w->device_api.factory_method && w->device_api.config) {
 		/* The XML validation code will do a pass over the part of our XML
@@ -3448,12 +3461,11 @@ ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
 		 */
 		if (!ni_dbus_xml_validate_argument(w->device_api.factory_method, 1, w->device_api.config, &context))
 			return -NI_ERROR_DOCUMENT_ERROR;
-		return 0;
 	}
 
-	/* For now, just apply policies here */
-	ni_ifworker_apply_policies(fsm, w);
-	return 0;
+done:
+	ni_ifworker_get_check_state_req_for_methods(w);
+	return rv;
 }
 
 /*
