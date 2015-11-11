@@ -33,9 +33,10 @@
   <define name="configuration"  class="dict" extends="infiniband:configuration"
           description="Infiniband child interface configuration">
 
-      <device type="string" description="Infiniband parent / lower device reference">
+    <device type="string" description="Infiniband parent / lower device reference">
       <meta:netif-reference shared="true"/>
-      <!-- meta:require check="netif-check-state" op="newDevice" min-state="device-exists" / -->
+      <meta:require check="netif-check-state" op="newDevice" min-state="device-setup" />
+      <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
     </device>
 
     <pkey type="uint16" description="Infiniband partition key"/>
