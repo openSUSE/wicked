@@ -118,6 +118,7 @@ extern ni_nanny_t *		ni_nanny_new(void);
 extern void			ni_nanny_start(ni_nanny_t *);
 extern void			ni_nanny_free(ni_nanny_t *);
 extern const char *		ni_nanny_statedir(void);
+extern void			ni_nanny_recheck_policies(ni_nanny_t *, const ni_string_array_t *);
 extern void			ni_nanny_schedule_recheck(ni_ifworker_array_t *, ni_ifworker_t *);
 extern void			ni_nanny_unschedule(ni_ifworker_array_t *, ni_ifworker_t *);
 extern unsigned int		ni_nanny_recheck_do(ni_nanny_t *mgr);

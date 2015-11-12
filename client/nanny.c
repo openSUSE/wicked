@@ -557,3 +557,55 @@ ni_nanny_call_device_disable(const char *ifname)
 {
 	return ni_nanny_call_device_void_method(ifname, "disable");
 }
+
+ni_bool_t
+ni_nanny_call_recheck(const ni_string_array_t *names)
+{
+	ni_dbus_variant_t call_resp = NI_DBUS_VARIANT_INIT;
+	ni_dbus_variant_t call_argv[1];
+	DBusError error = DBUS_ERROR_INIT;
+	ni_dbus_object_t *root_object = NULL;
+	unsigned int i, count;
+	ni_bool_t rv = FALSE;
+
+	if (!ni_nanny_create_client(&root_object) || !root_object) {
+		ni_debug_application("Unable to create nanny client");
+		return FALSE;
+	}
+
+	memset(call_argv, 0, sizeof(call_argv));
+	ni_dbus_variant_init_string_array(&call_argv[0]);
+	count = names ? names->count : 0;
+	for (i = 0; i < count; i++) {
+		const char *name = names->data[i];
+		if (ni_string_empty(name))
+			continue;
+
+		if  (!ni_dbus_variant_append_string_array(&call_argv[0], name)) {
+			ni_debug_application("Unable to contstuct %s.recheck() arguments",
+					ni_dbus_object_get_path(root_object));
+			goto cleanup;
+		}
+	}
+
+	ni_debug_application("Calling %s.recheck()", ni_dbus_object_get_path(root_object));
+	if (!(rv = ni_dbus_object_call_variant(root_object,
+					NI_OBJECTMODEL_NANNY_INTERFACE, "recheck",
+					1, call_argv, 1, &call_resp, &error))) {
+		if (dbus_error_is_set(&error)) {
+			ni_debug_application("Call to %s.recheck() failed: %s: %s",
+					ni_dbus_object_get_path(root_object),
+					error.name, error.message);
+		} else {
+			ni_debug_application("Call to %s.recheck() failed.",
+					ni_dbus_object_get_path(root_object));
+		}
+		dbus_error_free(&error);
+	}
+
+cleanup:
+	ni_dbus_variant_destroy(&call_argv[0]);
+	ni_dbus_variant_destroy(&call_resp);
+	return rv;
+}
+
