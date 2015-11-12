@@ -98,6 +98,8 @@ typedef enum {
 } ni_fsm_policy_type_t;
 
 struct ni_fsm_policy {
+	unsigned int			refcount;
+	ni_fsm_policy_t **		pprev;
 	ni_fsm_policy_t *		next;
 
 	unsigned int			seq;
@@ -115,6 +117,7 @@ struct ni_fsm_policy {
 
 
 static void			__ni_fsm_policy_reset(ni_fsm_policy_t *);
+static void			__ni_fsm_policy_destroy(ni_fsm_policy_t *);
 static ni_ifcondition_t *	ni_fsm_policy_conditions_from_xml(xml_node_t *);
 static ni_bool_t		ni_ifcondition_check(const ni_ifcondition_t *, const ni_fsm_t *, ni_ifworker_t *);
 static ni_ifcondition_t *	ni_ifcondition_from_xml(xml_node_t *);
@@ -129,18 +132,57 @@ static ni_fsm_template_input_t *ni_fsm_template_input_new(const char *id, ni_fsm
 static void			ni_fsm_template_input_free(ni_fsm_template_input_t *);
 
 /*
+ * fsm policy list primitives
+ */
+static inline void
+__ni_fsm_policy_list_insert(ni_fsm_policy_t **list, ni_fsm_policy_t *policy)
+{
+	policy->pprev = list;
+	policy->next = *list;
+	if (policy->next)
+		policy->next->pprev = &policy->next;
+	*list = policy;
+}
+
+static inline void
+__ni_fsm_policy_list_unlink(ni_fsm_policy_t *policy)
+{
+	ni_fsm_policy_t **pprev, *next;
+
+	pprev = policy->pprev;
+	next = policy->next;
+	if (pprev)
+		*pprev = next;
+	if (next)
+		next->pprev = pprev;
+	policy->pprev = NULL;
+	policy->next = NULL;
+}
+
+/*
  * Destructor for policy objects
  */
 void
 ni_fsm_policy_free(ni_fsm_policy_t *policy)
 {
 	if (policy) {
-		ni_string_free(&policy->name);
-		xml_node_free(policy->node);
-		__ni_fsm_policy_reset(policy);
-		memset(policy, 0, sizeof(*policy));
-		free(policy);
+		ni_assert(policy->refcount);
+		policy->refcount--;
+		if (policy->refcount == 0) {
+			__ni_fsm_policy_list_unlink(policy);
+			__ni_fsm_policy_destroy(policy);
+			free(policy);
+		}
 	}
+}
+
+static void
+__ni_fsm_policy_destroy(ni_fsm_policy_t *policy)
+{
+	__ni_fsm_policy_reset(policy);
+	ni_string_free(&policy->name);
+	xml_node_free(policy->node);
+	memset(policy, 0, sizeof(*policy));
 }
 
 static void
@@ -162,6 +204,10 @@ __ni_fsm_policy_reset(ni_fsm_policy_t *policy)
 	}
 }
 
+
+/*
+ * Constructor for policy objects
+ */
 static ni_bool_t
 __ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 {
@@ -262,9 +308,12 @@ ni_fsm_policy_t *
 ni_fsm_policy_new(ni_fsm_t *fsm, const char *name, xml_node_t *node)
 {
 	ni_fsm_policy_t *policy;
-	ni_fsm_policy_t *pos, **tail;
-	
+
+	if (!fsm || ni_string_empty(name) || xml_node_is_empty(node))
+		return NULL;
+
 	policy = xcalloc(1, sizeof(*policy));
+	policy->refcount = 1;
 	ni_string_dup(&policy->name, name);
 
 	if (!__ni_fsm_policy_from_xml(policy, node)) {
@@ -272,10 +321,17 @@ ni_fsm_policy_new(ni_fsm_t *fsm, const char *name, xml_node_t *node)
 		return NULL;
 	}
 
-	for (tail = &fsm->policies; (pos = *tail) != NULL; tail = &pos->next)
-		;
-	*tail = policy;
+	__ni_fsm_policy_list_insert(&fsm->policies, policy);
+	return policy;
+}
 
+ni_fsm_policy_t *
+ni_fsm_policy_ref(ni_fsm_policy_t *policy)
+{
+	if (policy) {
+		ni_assert(policy->refcount);
+		policy->refcount++;
+	}
 	return policy;
 }
 
@@ -289,8 +345,10 @@ ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 		return FALSE;
 
 	memset(&temp, 0, sizeof(temp));
-	if (!__ni_fsm_policy_from_xml(&temp, node))
+	if (!__ni_fsm_policy_from_xml(&temp, node)) {
+		__ni_fsm_policy_destroy(&temp);
 		return FALSE;
+	}
 
 	__ni_fsm_policy_reset(policy);
 	policy->type = temp.type;
@@ -303,6 +361,29 @@ ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 	xml_node_free(policy->node);
 	policy->node = temp.node;
 	return TRUE;
+}
+
+ni_bool_t
+ni_fsm_policy_remove(ni_fsm_t *fsm, ni_fsm_policy_t *policy)
+{
+	ni_fsm_policy_t *cur;
+
+	if (!fsm || !policy)
+		return FALSE;
+
+	for (cur = fsm->policies; cur; cur = cur->next) {
+		if (cur == policy) {
+			/*
+			 * force remove if in fsm list,
+			 * even it is not the last ref.
+			 */
+			__ni_fsm_policy_list_unlink(cur);
+			ni_fsm_policy_free(cur);
+			return TRUE;
+		}
+	}
+
+	return FALSE;
 }
 
 ni_bool_t
@@ -321,7 +402,7 @@ ni_fsm_policies_changed_since(const ni_fsm_t *fsm, unsigned int *tstamp)
 }
 
 ni_fsm_policy_t *
-ni_fsm_policy_by_name(ni_fsm_t *fsm, const char *name)
+ni_fsm_policy_by_name(const ni_fsm_t *fsm, const char *name)
 {
 	ni_fsm_policy_t *policy;
 
@@ -329,25 +410,7 @@ ni_fsm_policy_by_name(ni_fsm_t *fsm, const char *name)
 		if (policy->name && ni_string_eq(policy->name, name))
 			return policy;
 	}
-
 	return NULL;
-}
-
-ni_bool_t
-ni_fsm_policy_remove(ni_fsm_t *fsm, ni_fsm_policy_t *policy)
-{
-	ni_fsm_policy_t **pos, *cur;
-
-	ni_assert(fsm);
-	for (pos = &fsm->policies; (cur = *pos); pos = &cur->next) {
-		if (cur == policy) {
-			*pos = cur->next;
-			ni_fsm_policy_free(cur);
-			return TRUE;
-		}
-	}
-
-	return FALSE;
 }
 
 /*
@@ -356,13 +419,22 @@ ni_fsm_policy_remove(ni_fsm_t *fsm, ni_fsm_policy_t *policy)
 const char *
 ni_fsm_policy_name(const ni_fsm_policy_t *policy)
 {
-	return policy->name;
+	return policy ? policy->name : NULL;
+}
+
+/*
+ * Get the policy xml node
+ */
+const xml_node_t *
+ni_fsm_policy_node(const ni_fsm_policy_t *policy)
+{
+	return policy ? policy->node : NULL;
 }
 
 /*
  * Get the policy's location (if set)
  */
-xml_location_t *
+const xml_location_t *
 ni_fsm_policy_location(const ni_fsm_policy_t *policy)
 {
 	if (!policy || !policy->node)

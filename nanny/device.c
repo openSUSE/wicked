@@ -113,8 +113,10 @@ ni_managed_device_set_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpo
 	xml_node_free(mdev->selected_config);
 	mdev->selected_config = xml_node_clone_ref(config);
 
-	mdev->selected_policy = mpolicy;
-	mdev->selected_policy_seq = mpolicy? mpolicy->seqno : 0;
+	ni_managed_policy_free(mdev->selected_policy);
+	mdev->selected_policy = ni_managed_policy_ref(mpolicy);
+
+	mdev->selected_policy_seq = mpolicy ? mpolicy->seqno : 0;
 }
 
 void
@@ -169,8 +171,6 @@ ni_factory_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
 	ifmarker.persistent = w->control.persistent;
 
 	ni_ifworker_array_append(&ifmarked, w);
-	ni_fsm_pull_in_children(&ifmarked);
-
 	ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
 	ni_ifworker_array_destroy(&ifmarked);
 
@@ -380,7 +380,6 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 	ifmarker.persistent = w->control.persistent;
 
 	ni_ifworker_array_append(&ifmarked, w);
-	ni_fsm_pull_in_children(&ifmarked);
 
 	/* Binding: this validates the XML configuration document,
 	 * resolves any references to other devices (if there are any),
@@ -391,13 +390,16 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 
 	previous_state = mdev->state;
 	mdev->state = NI_MANAGED_STATE_BINDING;
-	if ((rv = ni_ifworker_bind_early(w, fsm, TRUE)) < 0)
+	if ((rv = ni_ifworker_bind_early(w, fsm, TRUE)) < 0) {
+		ni_ifworker_array_destroy(&ifmarked);
 		goto failed;
+	}
 
 	if (mdev->missing_secrets) {
 		/* FIXME: Emit an event listing the secrets we're missing.
 		 */
 		mdev->state = previous_state;
+		ni_ifworker_array_destroy(&ifmarked);
 		return -1;
 	}
 

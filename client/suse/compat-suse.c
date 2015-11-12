@@ -4667,7 +4667,7 @@ static void
 __ni_suse_adjust_ovs_system(ni_compat_netdev_t *compat)
 {
 	static const ni_ifworker_control_t control = {
-		"hotplug", NULL, FALSE, FALSE, NI_TRISTATE_DEFAULT, 0, 0
+		"hotplug", NULL, FALSE, FALSE, NI_TRISTATE_DISABLE, 0, 0
 	};
 	ni_ipv4_devinfo_t *ipv4;
 	ni_ipv6_devinfo_t *ipv6;

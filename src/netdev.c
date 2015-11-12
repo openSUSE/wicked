@@ -179,6 +179,7 @@ ni_netdev_guess_link_required(const ni_netdev_t *dev)
 	ni_tristate_t link_required = NI_TRISTATE_DEFAULT;
 
 	switch (dev->link.type) {
+	case NI_IFTYPE_OVS_SYSTEM:
 	case NI_IFTYPE_TUN:
 	case NI_IFTYPE_TAP:
 		ni_tristate_set(&link_required, FALSE);
