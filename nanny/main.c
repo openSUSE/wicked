@@ -238,6 +238,9 @@ ni_nanny_policy_load(ni_nanny_t *mgr)
 		}
 	}
 
+	if (files.count)
+		ni_nanny_recheck_policies(mgr, NULL);
+
 	ni_string_array_destroy(&files);
 	return TRUE;
 }
