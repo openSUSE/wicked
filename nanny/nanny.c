@@ -1044,7 +1044,7 @@ ni_nanny_recheck_policy(ni_nanny_t *mgr, ni_fsm_policy_t *policy)
 void
 ni_nanny_recheck_policies(ni_nanny_t *mgr, const ni_string_array_t *ifnames)
 {
-	ni_fsm_policy_t *policy;
+	ni_fsm_policy_t *policy = NULL;
 	unsigned int i, count = 0;
 
 	if (!ifnames || ifnames->count == 0) {
@@ -1066,6 +1066,7 @@ ni_nanny_recheck_policies(ni_nanny_t *mgr, const ni_string_array_t *ifnames)
 			if (!name || !(policy = ni_fsm_policy_by_name(mgr->fsm, name))) {
 				ni_string_free(&name);
 				ni_debug_application("Not scheduled any recheck for %s: no policy", ifname);
+				continue;
 			}
 			ni_string_free(&name);
 
