@@ -3566,14 +3566,12 @@ __get_ipaddr(const ni_sysconfig_t *sc, const char *ifname, const char *suffix, n
 	ap = ni_address_new(local_addr.ss_family, prefixlen, &local_addr, list);
 	if (ap && ap->family == AF_INET) {
 		var = __find_indexed_variable(sc, "BROADCAST", suffix);
-		if (var) {
-			ni_sockaddr_parse(&ap->bcast_addr, var->value, AF_INET);
-			if (ap->bcast_addr.ss_family != ap->family) {
-				ni_warn("ifcfg-%s: ignoring BROADCAST%s=%s (wrong address family)",
-						ifname, suffix, var->value);
-				ap->bcast_addr.ss_family = AF_UNSPEC;
-			}
-		} else {
+		if (var && ni_sockaddr_parse(&ap->bcast_addr, var->value, AF_INET) < 0) {
+			ni_warn("ifcfg-%s: ignoring BROADCAST%s=%s (unable to parse)",
+					ifname, suffix, var->value);
+			ap->bcast_addr.ss_family = AF_UNSPEC;
+		} else
+		if (ni_sockaddr_equal(&ap->bcast_addr, &ap->local_addr)) {
 			/* Clear the default, it's useless */
 			memset(&ap->bcast_addr, 0, sizeof(ap->bcast_addr));
 		}
@@ -3582,9 +3580,8 @@ __get_ipaddr(const ni_sysconfig_t *sc, const char *ifname, const char *suffix, n
 	if (prefixlen == ni_af_address_prefixlen(local_addr.ss_family))	{
 		var = __find_indexed_variable(sc, "REMOTE_IPADDR", suffix);
 		if (var) {
-			ni_sockaddr_parse(&ap->peer_addr, var->value, AF_UNSPEC);
-			if (ap->peer_addr.ss_family != ap->family) {
-				ni_warn("ifcfg-%s: ignoring REMOTE_IPADDR%s=%s (wrong address family)",
+			if (ni_sockaddr_parse(&ap->peer_addr, var->value, AF_UNSPEC) < 0) {
+				ni_warn("ifcfg-%s: ignoring REMOTE_IPADDR%s=%s (unable to parse)",
 						ifname, suffix, var->value);
 				ap->peer_addr.ss_family = AF_UNSPEC;
 			} else
