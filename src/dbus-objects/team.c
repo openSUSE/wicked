@@ -525,8 +525,8 @@ __ni_objectmodel_team_link_watch_to_dict(const ni_team_link_watch_t *lw, ni_dbus
 
 	switch(lw->type) {
 	case NI_TEAM_LINK_WATCH_ETHTOOL:
-		ni_dbus_dict_add_uint32(dict, "down_up", lw->ethtool.delay_up);
-		ni_dbus_dict_add_uint32(dict, "down_down", lw->ethtool.delay_down);
+		ni_dbus_dict_add_uint32(dict, "delay_up", lw->ethtool.delay_up);
+		ni_dbus_dict_add_uint32(dict, "delay_down", lw->ethtool.delay_down);
 		break;
 	case NI_TEAM_LINK_WATCH_ARP_PING:
 		if (lw->arp.source_host)
@@ -580,9 +580,9 @@ __ni_objectmodel_team_link_watch_from_dict(ni_team_link_watch_t *lw, const ni_db
 
 	switch(lw->type) {
 	case NI_TEAM_LINK_WATCH_ETHTOOL:
-		if (ni_dbus_dict_get_uint32(dict, "down_up", &value))
+		if (ni_dbus_dict_get_uint32(dict, "delay_up", &value))
 			lw->ethtool.delay_up = value;
-		if (ni_dbus_dict_get_uint32(dict, "down_down", &value))
+		if (ni_dbus_dict_get_uint32(dict, "delay_down", &value))
 			lw->ethtool.delay_down = value;
 		break;
 	case NI_TEAM_LINK_WATCH_ARP_PING:
