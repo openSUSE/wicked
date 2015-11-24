@@ -201,7 +201,7 @@ Same as for loadbalancer runner. Please refer to the section above.
 .SH LINK WATCH OPTIONS
 .TP
 .BR TEAM_LW_NAME
-Name of link watch to be used. The following types are available:
+Name of link watch to be used. It's possible to declare several link watches. The following types are available:
 .RS 7
 .PP
 .BR "ethtool "\(em
