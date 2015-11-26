@@ -193,7 +193,6 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	 */
 
 	ni_debug_nanny("%s(%s)", __func__, w->name);
-	w->use_default_policies = TRUE;
 	if ((count = ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES)) == 0) {
 		ni_debug_nanny("%s: no applicable policies", w->name);
 		return count;

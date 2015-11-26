@@ -533,9 +533,6 @@ ni_fsm_policy_get_applicable_policies(const ni_fsm_t *fsm, ni_ifworker_t *w,
 		return 0;
 	}
 
-	if (!w->use_default_policies)
-		return 0;
-
 	for (policy = fsm->policies; policy; policy = policy->next) {
 		if (!ni_ifpolicy_name_is_valid(policy->name)) {
 			ni_error("policy with invalid name %s", policy->name);

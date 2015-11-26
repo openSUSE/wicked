@@ -2671,51 +2671,6 @@ ni_ifworker_identify_device(ni_fsm_t *fsm, const xml_node_t *devnode, ni_ifworke
 	return best;
 }
 
-#if 0	/* unused */
-static ni_bool_t
-ni_ifworker_merge_policy(ni_ifworker_t *w, ni_fsm_policy_t *policy)
-{
-	ni_warn("%s(%s, %s) TBD", __func__, w->name, ni_fsm_policy_name(policy));
-	return TRUE;
-}
-
-static ni_bool_t
-ni_ifworker_apply_policies(ni_fsm_t *fsm, ni_ifworker_t *w)
-{
-	ni_bool_t use_default_policies = TRUE;
-	ni_fsm_policy_t *policy;
-	xml_node_t *config;
-
-	if (!xml_node_is_empty(w->config.node) &&
-	    (config = xml_node_get_child(w->config.node, "policies"))) {
-		xml_node_t *child;
-
-		for (child = config->children; child; child = child->next) {
-			if (ni_string_eq(child->name, "default"))
-				use_default_policies = TRUE;
-			else
-			if (ni_string_eq(child->name, "nodefault"))
-				use_default_policies = FALSE;
-			else
-			if (ni_string_eq(child->name, "policy")) {
-				if (!(policy = ni_fsm_policy_by_name(fsm, child->cdata))) {
-					ni_error("%s: unknown policy \"%s\"", w->name, child->cdata);
-					return FALSE;
-				}
-				ni_ifworker_merge_policy(w, policy);
-			} else {
-				ni_error("%s: ignoring unknown policy element <%s>",
-						xml_node_location(child), child->name);
-				continue;
-			}
-		}
-	}
-
-	w->use_default_policies = use_default_policies;
-	return TRUE;
-}
-#endif
-
 ni_ifworker_type_t
 ni_ifworker_type_from_string(const char *s)
 {
@@ -3503,10 +3458,8 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 
 		/* A worker without an ifnode is one that we discovered in the
 		 * system, but which we've not been asked to configure. */
-		if (!w->config.node) {
-			w->use_default_policies = TRUE;
+		if (!w->config.node)
 			continue;
-		}
 
 		ni_fsm_require_list_destroy(&w->fsm.check_state_req_list);
 		w->fsm.check_state_req_list = NULL;
