@@ -141,7 +141,7 @@ ni_managed_device_get_worker(const ni_managed_device_t *mdev)
 		return NULL;
 
 	if (!(w = ni_fsm_ifworker_by_ifindex(fsm, mdev->ifindex)))
-		ni_error("%s: no corresponding worker for ifindex %d", __func__, mdev->ifindex);
+		ni_debug_nanny("%s: no corresponding worker for ifindex %d", __func__, mdev->ifindex);
 
 	return w;
 }
