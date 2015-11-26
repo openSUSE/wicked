@@ -5228,9 +5228,6 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 	const char *event_name = ev->signal_name;
 	ni_event_t  event_type = ev->event_type;
 
-	if (fsm->process_event.callback)
-		fsm->process_event.callback(fsm, w, ev);
-
 	switch (ev->event_type) {
 	case NI_EVENT_DEVICE_READY:
 	case NI_EVENT_DEVICE_UP:
@@ -5251,6 +5248,9 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 	default:
 		break;
 	}
+
+	if (fsm->process_event.callback)
+		fsm->process_event.callback(fsm, w, ev);
 
 	if (!ni_uuid_is_null(&ev->event_uuid)) {
 		ni_objectmodel_callback_info_t *cb;
