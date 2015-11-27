@@ -750,13 +750,11 @@ ni_nanny_process_fsm_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 
 	case NI_EVENT_DEVICE_DOWN:
 	case NI_EVENT_LINK_DOWN:
-	case NI_EVENT_NETWORK_DOWN:
+		/* on down events in ifup run, fsm reverts state itself */
+		break;
+
 	case NI_EVENT_LINK_UP:
-	case NI_EVENT_LINK_ASSOCIATION_LOST:
-	case NI_EVENT_ADDRESS_LOST:
-		/* We should restart FSM on successful devices */
-		if (ni_ifworker_complete(w))
-			ni_ifworker_rearm(w);
+		/* once we use multiple policies, we've to recheck them */
 		break;
 
 	default:
