@@ -90,6 +90,9 @@ static ni_intmap_t	__ni_ethernet_port_types[] = {
 	{ "bnc",		NI_ETHERNET_PORT_BNC	},
 	{ "mii",		NI_ETHERNET_PORT_MII	},
 	{ "fibre",		NI_ETHERNET_PORT_FIBRE	},
+	{ "da",			NI_ETHERNET_PORT_DA	},
+	{ "none",		NI_ETHERNET_PORT_NONE	},
+	{ "other",		NI_ETHERNET_PORT_OTHER	},
 
 	{ NULL }
 	};
@@ -144,6 +147,9 @@ static const __ni_ethtool_map_t	__ni_ethtool_port_map[] = {
 	{ PORT_BNC,		NI_ETHERNET_PORT_BNC	},
 	{ PORT_MII,		NI_ETHERNET_PORT_MII	},
 	{ PORT_FIBRE,		NI_ETHERNET_PORT_FIBRE	},
+	{ PORT_DA,		NI_ETHERNET_PORT_DA	},
+	{ PORT_NONE,		NI_ETHERNET_PORT_NONE	},
+	{ PORT_OTHER,		NI_ETHERNET_PORT_OTHER	},
 	{ -1,			-1			}
 };
 
