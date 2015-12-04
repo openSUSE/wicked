@@ -1962,12 +1962,8 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 		 */
 	} else {
 		__ni_nla_get_addr(ifa->ifa_family, &ap->local_addr, tb[IFA_ADDRESS]);
-		if (tb[IFA_BROADCAST]) {
+		if (tb[IFA_BROADCAST])
 			__ni_nla_get_addr(ifa->ifa_family, &ap->bcast_addr, tb[IFA_BROADCAST]);
-		} else if(ifa->ifa_family == AF_INET && tb[IFA_ADDRESS] && ifa->ifa_prefixlen < 32) {
-			ap->bcast_addr = ap->local_addr;
-			ap->bcast_addr.sin.sin_addr.s_addr |= htonl(0xFFFFFFFFUL >> ifa->ifa_prefixlen);
-		}
 	}
 	__ni_nla_get_addr(ifa->ifa_family, &ap->anycast_addr, tb[IFA_ANYCAST]);
 
