@@ -1681,6 +1681,8 @@ ni_ifworker_revert_state(ni_ifworker_t *w, ni_event_t event)
 		/* until administrative DOWN is reverted */
 		state = NI_FSM_STATE_DEVICE_UP;
 		event = NI_EVENT_DEVICE_UP;
+		/* or it is a slave which has to enslave */
+		redo = w->masterdev != NULL;
 		break;
 
 	case NI_EVENT_LINK_DOWN:
