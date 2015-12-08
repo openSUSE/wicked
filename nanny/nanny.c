@@ -193,7 +193,6 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	 */
 
 	ni_debug_nanny("%s(%s)", __func__, w->name);
-	w->use_default_policies = TRUE;
 	if ((count = ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES)) == 0) {
 		ni_debug_nanny("%s: no applicable policies", w->name);
 		return count;
@@ -751,13 +750,11 @@ ni_nanny_process_fsm_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 
 	case NI_EVENT_DEVICE_DOWN:
 	case NI_EVENT_LINK_DOWN:
-	case NI_EVENT_NETWORK_DOWN:
+		/* on down events in ifup run, fsm reverts state itself */
+		break;
+
 	case NI_EVENT_LINK_UP:
-	case NI_EVENT_LINK_ASSOCIATION_LOST:
-	case NI_EVENT_ADDRESS_LOST:
-		/* We should restart FSM on successful devices */
-		if (ni_ifworker_complete(w))
-			ni_ifworker_rearm(w);
+		/* once we use multiple policies, we've to recheck them */
 		break;
 
 	default:

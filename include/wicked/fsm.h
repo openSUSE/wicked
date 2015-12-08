@@ -151,8 +151,6 @@ struct ni_ifworker {
 		xml_node_t *			node;
 	} config;
 
-	ni_bool_t		use_default_policies;
-
 	/* The security ID can be used as a set of identifiers
 	 * to look up user name/password/pin type info in a
 	 * database.

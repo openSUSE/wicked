@@ -59,6 +59,7 @@ static void			ni_ifworker_cancel_secondary_timeout(ni_ifworker_t *);
 static void			ni_ifworker_cancel_callbacks(ni_ifworker_t *, ni_objectmodel_callback_info_t **);
 static dbus_bool_t		ni_ifworker_waiting_for_events(ni_ifworker_t *);
 static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
+static ni_bool_t		ni_ifworker_revert_state(ni_ifworker_t *, ni_event_t);
 static ni_bool_t		ni_ifworker_del_child_master(xml_node_t *);
 static void			ni_fsm_clear_hierarchy(ni_ifworker_t *);
 
@@ -249,14 +250,44 @@ ni_fsm_transition_bind_reset(ni_fsm_transition_bind_t *bind)
 	memset(bind, 0, sizeof(*bind));
 }
 
+static ni_bool_t
+ni_fsm_transition_is_down(const ni_fsm_transition_t *action)
+{
+	return action->from_state > action->next_state;
+}
+
+static ni_fsm_transition_t *
+ni_fsm_transition_find(ni_fsm_transition_t *table, ni_fsm_state_t from, ni_fsm_state_t next)
+{
+	ni_fsm_transition_t *action;
+
+	for (action = table; action && action->next_state; action++) {
+		if (action->from_state == from && action->next_state == next)
+			return action;
+	}
+
+	return NULL;
+}
+
 static void
 ni_fsm_transition_reset(ni_fsm_transition_t *action)
 {
 	ni_fsm_transition_bind_t *bind;
 	unsigned int i;
 
-	for (i = 0, bind = action->binding; i < action->num_bindings; ++i, ++bind)
+	for (i = 0, bind = action->binding; i < action->num_bindings; ++i, ++bind) {
 		ni_fsm_transition_bind_reset(bind);
+		action->bound = 0;
+	}
+}
+
+static void
+ni_ifworker_cancel_action_table_callbacks(ni_ifworker_t *w)
+{
+	ni_fsm_transition_t *action;
+
+	for (action = w->fsm.action_table; action && action->next_state; action++)
+		ni_ifworker_cancel_callbacks(w, &action->callbacks);
 }
 
 static void
@@ -486,8 +517,7 @@ __ni_ifworker_done(ni_ifworker_t *w)
 
 	ni_ifworker_cancel_secondary_timeout(w);
 	ni_ifworker_cancel_timeout(w);
-
-	__ni_ifworker_reset_action_table(w);
+	ni_ifworker_cancel_action_table_callbacks(w);
 
 	if (w->progress.callback)
 		w->progress.callback(w, w->fsm.state);
@@ -1639,6 +1669,74 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 	ni_ifworker_update_state(w, min_state, max_state);
 }
 
+static ni_bool_t
+ni_ifworker_revert_state(ni_ifworker_t *w, ni_event_t event)
+{
+	ni_fsm_transition_t *action;
+	ni_fsm_state_t state;
+	ni_bool_t redo = FALSE;
+
+	switch (event) {
+	case NI_EVENT_DEVICE_DOWN:
+		/* until administrative DOWN is reverted */
+		state = NI_FSM_STATE_DEVICE_UP;
+		event = NI_EVENT_DEVICE_UP;
+		/* or it is a slave which has to enslave */
+		redo = w->masterdev != NULL;
+		break;
+
+	case NI_EVENT_LINK_DOWN:
+		/* until the link (carrier) is UP again */
+		state = NI_FSM_STATE_LINK_UP;
+		event = NI_EVENT_LINK_UP;
+		redo = TRUE;
+		break;
+
+	default:
+		return FALSE;
+	}
+
+	/* target is initialized, state more advanced, worker is started */
+	if (!w->target_state || state > w->fsm.state || !w->kickstarted)
+		return FALSE;
+
+	/* fsm actions are initialized to UP transitions */
+	if (!w->fsm.action_table || ni_fsm_transition_is_down(w->fsm.action_table))
+		return FALSE;
+
+	/* find transtion which will be completed by event */
+	action = ni_fsm_transition_find(w->fsm.action_table, state - 1, state);
+	if (!action || !action->bound)
+		return FALSE;
+
+	/* cancel all calbacks in the action table (if any) */
+	ni_ifworker_cancel_action_table_callbacks(w);
+
+	/* reset success/failure completion flags */
+	w->done = w->failed = 0;
+
+	/* revert worker fsm to the desired transition */
+	w->fsm.state = action->from_state;
+	w->fsm.next_action = action;
+
+	if (redo) {
+		/* and trigger to call the action again (wait link)*/
+		w->fsm.wait_for = NULL;
+
+		ni_debug_application("%s: reverted state to %s to execute the %s action",
+			w->name, ni_ifworker_state_name(w->fsm.state),
+			action->common.method_name);
+	} else {
+		/* in executed state to wait until the event arrives */
+		w->fsm.wait_for = action;
+
+		ni_debug_application("%s: reverted state to %s and waiting for %s event",
+			w->name, ni_ifworker_state_name(w->fsm.state),
+			ni_event_type_to_name(event));
+	}
+	return TRUE;
+}
+
 static void
 ni_ifworker_refresh_client_state(ni_ifworker_t *w, ni_client_state_t *cs)
 {
@@ -2671,51 +2769,6 @@ ni_ifworker_identify_device(ni_fsm_t *fsm, const xml_node_t *devnode, ni_ifworke
 	return best;
 }
 
-#if 0	/* unused */
-static ni_bool_t
-ni_ifworker_merge_policy(ni_ifworker_t *w, ni_fsm_policy_t *policy)
-{
-	ni_warn("%s(%s, %s) TBD", __func__, w->name, ni_fsm_policy_name(policy));
-	return TRUE;
-}
-
-static ni_bool_t
-ni_ifworker_apply_policies(ni_fsm_t *fsm, ni_ifworker_t *w)
-{
-	ni_bool_t use_default_policies = TRUE;
-	ni_fsm_policy_t *policy;
-	xml_node_t *config;
-
-	if (!xml_node_is_empty(w->config.node) &&
-	    (config = xml_node_get_child(w->config.node, "policies"))) {
-		xml_node_t *child;
-
-		for (child = config->children; child; child = child->next) {
-			if (ni_string_eq(child->name, "default"))
-				use_default_policies = TRUE;
-			else
-			if (ni_string_eq(child->name, "nodefault"))
-				use_default_policies = FALSE;
-			else
-			if (ni_string_eq(child->name, "policy")) {
-				if (!(policy = ni_fsm_policy_by_name(fsm, child->cdata))) {
-					ni_error("%s: unknown policy \"%s\"", w->name, child->cdata);
-					return FALSE;
-				}
-				ni_ifworker_merge_policy(w, policy);
-			} else {
-				ni_error("%s: ignoring unknown policy element <%s>",
-						xml_node_location(child), child->name);
-				continue;
-			}
-		}
-	}
-
-	w->use_default_policies = use_default_policies;
-	return TRUE;
-}
-#endif
-
 ni_ifworker_type_t
 ni_ifworker_type_from_string(const char *s)
 {
@@ -3463,8 +3516,8 @@ ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
 			return -NI_ERROR_DOCUMENT_ERROR;
 	}
 
-done:
 	ni_ifworker_get_check_state_req_for_methods(w);
+done:
 	return rv;
 }
 
@@ -3496,19 +3549,15 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 {
 	unsigned int i;
 
+	ni_fsm_events_block(fsm);
 	for (i = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
 		int rv;
 
 		/* A worker without an ifnode is one that we discovered in the
 		 * system, but which we've not been asked to configure. */
-		if (!w->config.node) {
-			w->use_default_policies = TRUE;
+		if (!w->config.node)
 			continue;
-		}
-
-		ni_fsm_require_list_destroy(&w->fsm.check_state_req_list);
-		w->fsm.check_state_req_list = NULL;
 
 		if ((rv = ni_ifworker_bind_early(w, fsm, FALSE)) < 0) {
 			if (destructive) {
@@ -3530,6 +3579,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 		}
 	}
 
+	ni_fsm_events_unblock(fsm);
 	if (ni_log_facility(NI_TRACE_APPLICATION))
 		ni_fsm_print_hierarchy(fsm);
 	return 0;
@@ -4377,7 +4427,7 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 		 * referenced node, and skip-unless-present is true, then we
 		 * do not perform this call.
 		 */
-		if (action->from_state > action->next_state)
+		if (ni_fsm_transition_is_down(action))
 			config = w->state.node;		/* down transition */
 		else
 			config = w->config.node;	/* up transition */
@@ -5228,9 +5278,6 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 	const char *event_name = ev->signal_name;
 	ni_event_t  event_type = ev->event_type;
 
-	if (fsm->process_event.callback)
-		fsm->process_event.callback(fsm, w, ev);
-
 	switch (ev->event_type) {
 	case NI_EVENT_DEVICE_READY:
 	case NI_EVENT_DEVICE_UP:
@@ -5248,9 +5295,15 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 				ni_ifworker_fail(w, "unable to start worker");
 			return;
 		}
+
 	default:
+		if (ni_ifworker_revert_state(w, event_type))
+			return;
 		break;
 	}
+
+	if (fsm->process_event.callback)
+		fsm->process_event.callback(fsm, w, ev);
 
 	if (!ni_uuid_is_null(&ev->event_uuid)) {
 		ni_objectmodel_callback_info_t *cb;
