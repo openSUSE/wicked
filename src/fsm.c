@@ -3516,8 +3516,8 @@ ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
 			return -NI_ERROR_DOCUMENT_ERROR;
 	}
 
-done:
 	ni_ifworker_get_check_state_req_for_methods(w);
+done:
 	return rv;
 }
 
