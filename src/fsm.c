@@ -2966,7 +2966,7 @@ ni_ifworker_check_loops(const ni_ifworker_t *w, unsigned int *counter)
 }
 
 static ni_bool_t
-ni_ifworkers_check_loops(ni_fsm_t *fsm, ni_ifworker_array_t *array)
+ni_ifworkers_check_loops(ni_fsm_t *fsm)
 {
 	unsigned int i, num_edges;
 
@@ -3038,8 +3038,6 @@ unsigned int
 ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const ni_ifmarker_t *marker)
 {
 	unsigned int i, count = 0;
-
-	ni_ifworkers_check_loops(fsm, marked);
 
 	/* Mark all our primary devices with the requested marker values */
 	for (i = 0; i < marked->count; ++i) {
@@ -3490,6 +3488,7 @@ int
 ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 {
 	unsigned int i;
+	int ret = 0;
 
 	ni_fsm_events_block(fsm);
 	for (i = 0; i < fsm->workers.count; ++i) {
@@ -3521,10 +3520,13 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 		}
 	}
 
+	if (!ni_ifworkers_check_loops(fsm))
+		ret = -1;
+
 	ni_fsm_events_unblock(fsm);
 	if (ni_log_facility(NI_TRACE_APPLICATION))
 		ni_fsm_print_hierarchy(fsm);
-	return 0;
+	return ret;
 }
 
 dbus_bool_t
