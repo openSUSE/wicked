@@ -274,7 +274,7 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 
 	/* Send policies to nanny */
 	for (i = 0; i < array->count; i++) {
-		ni_ifworker_t *w = array->data[array->count-1-i];
+		ni_ifworker_t *w = array->data[i];
 
 		if (!w || xml_node_is_empty(w->config.node))
 			continue;
