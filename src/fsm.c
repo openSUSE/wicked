@@ -2937,11 +2937,6 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 			ni_ifworker_array_append(result, w);
 	}
 
-	/* Collect all workers in the device graph, and sort them
-	 * by increasing depth.
-	 */
-	ni_ifworkers_flatten(result);
-
 	return result->count;
 }
 
@@ -2991,59 +2986,6 @@ ni_ifworkers_check_loops(ni_fsm_t *fsm, ni_ifworker_array_t *array)
 		}
 	}
 	return TRUE;
-}
-
-/*
- * Flatten the device graph by sorting the nodes by depth
- */
-static void
-__ni_ifworker_flatten(ni_ifworker_t *w, ni_ifworker_array_t *array, unsigned int depth)
-{
-	unsigned int i;
-
-	if (depth > w->depth)
-		w->depth = depth;
-
-	for (i = 0; i < w->children.count; ++i) {
-		ni_ifworker_t *child = w->children.data[i];
-
-		if (ni_ifworker_has_succeeded(child))
-			continue;
-
-		__ni_ifworker_flatten(child, array, depth + 1);
-	}
-}
-
-static int
-__ni_ifworker_depth_compare(const void *a, const void *b)
-{
-	const ni_ifworker_t *wa = *(const ni_ifworker_t **) a;
-	const ni_ifworker_t *wb = *(const ni_ifworker_t **) b;
-
-	return (int) (wa->depth - wb->depth);
-}
-
-void
-ni_ifworkers_flatten(ni_ifworker_array_t *array)
-{
-	unsigned int i;
-
-	/* Note, we take the array->count outside the loop.
-	 * Inside the loop, we're adding new ifworkers to the array,
-	 * and do that recursively. Avoid processing these newly
-	 * added devices twice.
-	 * NB a simple tail recursion won't work here.
-	 */
-	for (i = 0; i < array->count; ++i) {
-		ni_ifworker_t *w = array->data[i];
-
-		if (w->masterdev)
-			continue;
-
-		__ni_ifworker_flatten(w, array, 0);
-	}
-
-	qsort(array->data, array->count, sizeof(array->data[0]), __ni_ifworker_depth_compare);
 }
 
 static void
@@ -3144,7 +3086,7 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 		if (w->target_state != NI_FSM_STATE_NONE)
 			count++;
 	}
-	ni_ifworkers_flatten(&fsm->workers);
+
 	return count;
 }
 
