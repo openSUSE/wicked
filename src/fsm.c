@@ -3157,7 +3157,6 @@ ni_fsm_clear_hierarchy(ni_ifworker_t *w)
 		}
 	}
 
-	w->depth = 0;
 	ni_ifworker_array_destroy(&w->children);
 	ni_ifworker_array_destroy(&w->lowerdev_for);
 }
