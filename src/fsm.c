@@ -1864,7 +1864,7 @@ ni_ifworker_control_set_usercontrol(ni_ifworker_t *w, ni_bool_t value)
 {
 	unsigned int i;
 
-	if (!w)
+	if (!w || w->failed)
 		return FALSE;
 
 	if (w->control.usercontrol == value)
@@ -1900,7 +1900,7 @@ ni_ifworker_control_set_persistent(ni_ifworker_t *w, ni_bool_t value)
 {
 	unsigned int i;
 
-	if (!w)
+	if (!w || w->failed)
 		return FALSE;
 
 	if (w->control.persistent == value)
@@ -3072,6 +3072,11 @@ __ni_fsm_pull_in_children(ni_ifworker_t *w, ni_ifworker_array_t *array)
 	for (i = 0; i < w->children.count; i++) {
 		ni_ifworker_t *child = w->children.data[i];
 
+		if (child->failed) {
+			ni_debug_application("%s: ignoring failed child %s", w->name, child->name);
+			continue;
+		}
+
 		if (xml_node_is_empty(child->config.node))
 			ni_ifworker_generate_default_config(w, child);
 
@@ -3101,6 +3106,11 @@ ni_fsm_pull_in_children(ni_ifworker_array_t *array)
 
 	for (i = 0; i < array->count; i++) {
 		ni_ifworker_t *w = array->data[i];
+
+		if (w->failed) {
+			ni_debug_application("%s: ignoring failed worker", w->name);
+			continue;
+		}
 
 		__ni_fsm_pull_in_children(w, array);
 	}
