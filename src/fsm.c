@@ -243,6 +243,24 @@ ni_ifworker_new(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char 
 	return worker;
 }
 
+ni_ifworker_t *
+ni_ifworker_set_ref(ni_ifworker_t **ref, ni_ifworker_t *n)
+{
+	ni_ifworker_t *o;
+
+	if (!ref)
+		return NULL;
+
+	o = *ref;
+	if (n)
+		*ref = ni_ifworker_get(n);
+	else
+		*ref = NULL;
+	if (o)
+		ni_ifworker_release(o);
+	return n;
+}
+
 static void
 ni_fsm_transition_bind_reset(ni_fsm_transition_bind_t *bind)
 {
@@ -2942,48 +2960,106 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 
 /*
  * Check for loops in the device tree
- * We do this by counting edges - a graph has cycles iff there is a traversal
- * with more edges than the overall number of edges in the graph.
  */
-static ni_bool_t
-ni_ifworker_check_loops(const ni_ifworker_t *w, unsigned int *counter)
+static const char *
+ni_ifworker_guard_print(ni_stringbuf_t *buf, const ni_ifworker_array_t *guard, const char *sep)
 {
-	unsigned int i, nchildren = w->children.count;
-	ni_bool_t ret = TRUE;
+	const ni_ifworker_t *w;
+	unsigned int i;
 
-	/* ni_trace("%s(%s, %u)", __func__, w->name, *counter); */
-	if (nchildren > *counter)
-		return FALSE;
-	*counter -= nchildren;
-
-	for (i = 0; i < w->children.count && ret; ++i) {
-		ni_ifworker_t *child = w->children.data[i];
-
-		ret = ni_ifworker_check_loops(child, counter);
+	for (i = 0; i < guard->count; i++) {
+		w = guard->data[i];
+		if (i != 0)
+			ni_stringbuf_puts(buf, sep);
+		ni_stringbuf_puts(buf, w->name);
 	}
-
-	return ret;
+	return buf->string;
 }
 
 static ni_bool_t
-ni_ifworkers_check_loops(ni_fsm_t *fsm)
+ni_ifworker_references_ok(const ni_ifworker_array_t *guard, ni_ifworker_t *w)
 {
-	unsigned int i, num_edges;
-
-	for (i = num_edges = 0; i < fsm->workers.count; ++i) {
-		ni_ifworker_t *w = fsm->workers.data[i];
-
-		num_edges += w->children.count;
+	if (w->masterdev && w->lowerdev && ((w->masterdev == w->lowerdev) ||
+	    ni_string_eq(w->masterdev->name, w->lowerdev->name))) {
+		ni_ifworker_array_remove(&w->lowerdev->lowerdev_for, w);
+		ni_ifworker_array_remove(&w->masterdev->children, w);
+		ni_ifworker_set_ref(&w->lowerdev, NULL);
+		ni_ifworker_set_ref(&w->masterdev, NULL);
+		ni_ifworker_fail(w, "references %s as master and as lower device",
+				w->masterdev->name);
+		return FALSE;
 	}
 
-	for (i = 0; i < fsm->workers.count; ++i) {
-		ni_ifworker_t *w = fsm->workers.data[i];
-		unsigned int counter = num_edges;
+	if (w == w->lowerdev || (w->lowerdev && ni_string_eq(w->name, w->lowerdev->name))) {
+		ni_ifworker_array_remove(&w->lowerdev->lowerdev_for, w);
+		ni_ifworker_set_ref(&w->lowerdev, NULL);
+		ni_ifworker_fail(w, "references itself as lower device");
+		return FALSE;
+	}
 
-		if (!ni_ifworker_check_loops(w, &counter)) {
-			ni_ifworker_fail(w, "detected loop in device hierarchy");
+	if (w == w->masterdev || (w->masterdev && ni_string_eq(w->name, w->masterdev->name))) {
+		ni_ifworker_array_remove(&w->masterdev->children, w);
+		ni_ifworker_set_ref(&w->masterdev, NULL);
+		ni_ifworker_fail(w, "references itself as master device");
+		return FALSE;
+	}
+
+	if (ni_ifworker_array_index(guard, w) != -1) {
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+		ni_ifworker_guard_print(&buf, guard, " -> ");
+		ni_ifworker_fail(w, "reference loop in device hierarchy branch %s -> %s",
+				buf.string, w->name);
+		ni_stringbuf_destroy(&buf);
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifworker_break_loops(ni_ifworker_array_t *guard, ni_ifworker_t *w, unsigned int lvl)
+{
+	unsigned int i;
+
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_APPLICATION)) {
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+		ni_ifworker_guard_print(&buf, guard, " -> ");
+		ni_trace("%*s%s\t[master: %s, lower: %s, tree branch: %s -> %s]",
+				lvl, " ", w->name,
+				w->masterdev ? w->masterdev->name : NULL,
+				w->lowerdev ? w->lowerdev->name : NULL,
+				buf.string ? buf.string : "", w->name);
+		ni_stringbuf_destroy(&buf);
+	}
+
+	if (!ni_ifworker_references_ok(guard, w))
+		return FALSE;
+	ni_ifworker_array_append(guard, w);
+
+	for (i = 0; i < w->children.count; i++) {
+		ni_ifworker_t *c = w->children.data[i];
+
+		if (!ni_ifworker_break_loops(guard, c, lvl + 4)) {
+			ni_ifworker_array_remove(&w->children, c);
 			return FALSE;
 		}
+		ni_ifworker_array_remove(guard, c);
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifworkers_break_loops(ni_fsm_t *fsm)
+{
+	ni_ifworker_array_t guard = NI_IFWORKER_ARRAY_INIT;
+	ni_ifworker_t *w;
+	unsigned int i;
+
+	for (i = 0; i < fsm->workers.count; ++i) {
+		w = fsm->workers.data[i];
+		ni_ifworker_break_loops(&guard, w, 0);
+		ni_ifworker_array_destroy(&guard);
 	}
 	return TRUE;
 }
@@ -3487,7 +3563,6 @@ int
 ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 {
 	unsigned int i;
-	int ret = 0;
 
 	ni_fsm_events_block(fsm);
 	for (i = 0; i < fsm->workers.count; ++i) {
@@ -3519,13 +3594,12 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 		}
 	}
 
-	if (!ni_ifworkers_check_loops(fsm))
-		ret = -1;
-
+	ni_ifworkers_break_loops(fsm);
 	ni_fsm_events_unblock(fsm);
+
 	if (ni_log_facility(NI_TRACE_APPLICATION))
 		ni_fsm_print_hierarchy(fsm);
-	return ret;
+	return 0;
 }
 
 dbus_bool_t

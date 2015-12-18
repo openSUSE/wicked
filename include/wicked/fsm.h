@@ -346,6 +346,7 @@ extern void			ni_ifworker_success(ni_ifworker_t *);
 extern void			ni_ifworker_set_progress_callback(ni_ifworker_t *, void (*)(ni_ifworker_t *, ni_fsm_state_t), void *);
 extern void			ni_ifworker_set_completion_callback(ni_ifworker_t *, void (*)(ni_ifworker_t *), void *);
 extern ni_rfkill_type_t		ni_ifworker_get_rfkill_type(const ni_ifworker_t *);
+extern ni_ifworker_t *		ni_ifworker_set_ref(ni_ifworker_t **, ni_ifworker_t *);
 extern void			ni_ifworker_free(ni_ifworker_t *);
 
 extern ni_ifworker_control_t *	ni_ifworker_control_new(void);
