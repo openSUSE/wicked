@@ -202,7 +202,6 @@ struct ni_ifworker {
 	ni_ifworker_t *		masterdev;
 	ni_ifworker_t * 	lowerdev;
 
-	unsigned int		depth;		/* depth in device graph */
 	ni_ifworker_array_t	children;
 	ni_ifworker_array_t	lowerdev_for;
 };
@@ -320,7 +319,6 @@ extern ni_ifworker_t *		ni_fsm_recv_new_netif_path(ni_fsm_t *fsm, const char *pa
 extern ni_ifworker_t *		ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh);
 extern ni_ifworker_t *		ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path);
 extern void			ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w);
-extern void			ni_ifworkers_flatten(ni_ifworker_array_t *);
 extern void			ni_fsm_pull_in_children(ni_ifworker_array_t *);
 extern void			ni_fsm_wait_tentative_addrs(ni_fsm_t *);
 
@@ -348,6 +346,7 @@ extern void			ni_ifworker_success(ni_ifworker_t *);
 extern void			ni_ifworker_set_progress_callback(ni_ifworker_t *, void (*)(ni_ifworker_t *, ni_fsm_state_t), void *);
 extern void			ni_ifworker_set_completion_callback(ni_ifworker_t *, void (*)(ni_ifworker_t *), void *);
 extern ni_rfkill_type_t		ni_ifworker_get_rfkill_type(const ni_ifworker_t *);
+extern ni_ifworker_t *		ni_ifworker_set_ref(ni_ifworker_t **, ni_ifworker_t *);
 extern void			ni_ifworker_free(ni_ifworker_t *);
 
 extern ni_ifworker_control_t *	ni_ifworker_control_new(void);

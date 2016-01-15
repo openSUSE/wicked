@@ -662,7 +662,6 @@ usage:
 	}
 
 	ni_fsm_pull_in_children(&up_marked);
-	ni_ifworkers_flatten(&up_marked);
 
 	/* anything to ifup? */
 	if (up_marked.count) {
