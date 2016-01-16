@@ -149,7 +149,6 @@ __ni_leaseinfo_print_addrs(FILE *out, const char *prefix, ni_address_t *addrs,
 	ni_address_t *ap;
 	ni_sockaddr_t nm;
 	ni_sockaddr_t net;
-	ni_sockaddr_t brd;
 	unsigned int i;
 	char *buf = NULL;
 
@@ -175,10 +174,10 @@ __ni_leaseinfo_print_addrs(FILE *out, const char *prefix, ni_address_t *addrs,
 			__ni_leaseinfo_print_string(out, prefix, "NETWORK",
 						ni_sockaddr_print(&net), NULL, i);
 
-			ni_sockaddr_set_ipv4(&brd, net.sin.sin_addr, 0);
-			brd.sin.sin_addr.s_addr |= ~nm.sin.sin_addr.s_addr;
-			__ni_leaseinfo_print_string(out, prefix, "BROADCAST",
-						ni_sockaddr_print(&brd), NULL, i);
+			if (!ni_sockaddr_is_unspecified(&ap->bcast_addr)) {
+				__ni_leaseinfo_print_string(out, prefix, "BROADCAST",
+						ni_sockaddr_print(&ap->bcast_addr), NULL, i);
+			}
 
 			ni_string_printf(&buf, "%u", ap->prefixlen);
 			__ni_leaseinfo_print_string(out, prefix, "PREFIXLEN",

@@ -1482,9 +1482,9 @@ __ni_compat_generate_static_address_list(xml_node_t *afnode, ni_address_t *addr_
 		anode = xml_node_new("address", afnode);
 		xml_node_new_element("local", anode, ni_sockaddr_prefix_print(&ap->local_addr, ap->prefixlen));
 
-		if (ap->peer_addr.ss_family != AF_UNSPEC)
+		if (ap->peer_addr.ss_family == af)
 			xml_node_new_element("peer", anode, ni_sockaddr_print(&ap->peer_addr));
-		if (ap->bcast_addr.ss_family != AF_UNSPEC)
+		if (ap->bcast_addr.ss_family == af && af == AF_INET)
 			xml_node_new_element("broadcast", anode, ni_sockaddr_print(&ap->bcast_addr));
 		if (af == AF_INET && ap->label)
 			xml_node_new_element("label", anode, ap->label);
