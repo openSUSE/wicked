@@ -1828,6 +1828,9 @@ __ni_wpa_translate_caps(struct ni_dbus_dict_entry *entry, unsigned int *bits,
 static ni_intmap_t __ni_wpa_eap_method_names[] = {
 	{ "MD5",	NI_WIRELESS_EAP_MD5	},
 	{ "TLS",	NI_WIRELESS_EAP_TLS	},
+	{ "PAP",	NI_WIRELESS_EAP_PAP},
+	{ "CHAP",	NI_WIRELESS_EAP_CHAP},
+	{ "MSCHAP",	NI_WIRELESS_EAP_MSCHAP},
 	{ "MSCHAPV2",	NI_WIRELESS_EAP_MSCHAPV2},
 	{ "PEAP",	NI_WIRELESS_EAP_PEAP	},
 	{ "TTLS",	NI_WIRELESS_EAP_TTLS	},
@@ -1841,6 +1844,10 @@ static ni_intmap_t __ni_wpa_eap_method_names[] = {
 	{ "WSC",	NI_WIRELESS_EAP_WSC	},
 	{ "IKEV2",	NI_WIRELESS_EAP_IKEV2	},
 	{ "TNC",	NI_WIRELESS_EAP_TNC	},
+	{ "FAST",	NI_WIRELESS_EAP_FAST	},
+	{ "AKA",	NI_WIRELESS_EAP_AKA	},
+	{ "AKA'",	NI_WIRELESS_EAP_AKA_PRIME	},
+	{ "SIM",	NI_WIRELESS_EAP_SIM	},
 
 	{ NULL }
 };
