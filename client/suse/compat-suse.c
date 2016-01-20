@@ -3163,6 +3163,14 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 		}
 	}
 
+	if ((var = __find_indexed_variable(sc,"WIRELESS_EAP_AUTH", suffix))) {
+		if (!ni_wireless_name_to_eap_method(var->value, &net->wpa_eap.phase2.method)) {
+			ni_error("ifcfg-%s: wrong WIRELESS_EAP_AUTH%s value",
+				dev_name, suffix);
+			goto eap_failure;
+		}
+	}
+
 	/* wickedd: Default are both WPA and WPA2 */
 	if (__ni_wireless_parse_auth_proto(sc, &net->auth_proto, suffix, dev_name) < 0)
 		goto eap_failure;
@@ -3240,18 +3248,7 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 		}
 	}
 
-	/*wickedd: Default are TTLS PEAP TLS when not present and WIRELESS_AP_SCANMODE != 2 */
-	if ((var = __find_indexed_variable(sc,"WIRELESS_EAP_AUTH", suffix))) {
-		if (!ni_wireless_name_to_eap_method(var->value, &net->wpa_eap.phase2.method)) {
-			ni_error("ifcfg-%s: wrong WIRELESS_EAP_AUTH%s value",
-				dev_name, suffix);
-			goto eap_failure;
 		}
-	}
-	else if (NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH == ap_scan) {
-		ni_error("ifcfg-%s: WIRELESS_EAP_AUTH%s needed by WIRELESS_AP_SCANMODE=2",
-			dev_name, suffix);
-		goto eap_failure;
 	}
 
 	return TRUE;

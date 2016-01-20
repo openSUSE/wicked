@@ -202,11 +202,13 @@ struct ni_wireless_network {
 		char *			identity;
 		char *			anonid;
 
+		/* Outer authentication */
 		struct {
 			unsigned int peapver;
 			ni_bool_t peaplabel;
 		} phase1;
 
+		/* Inner authentication */
 		struct {
 			ni_wireless_eap_method_t method;
 			char *		password;
