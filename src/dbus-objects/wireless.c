@@ -222,6 +222,14 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 		if (ni_dbus_dict_get_uint32(child, "method", &value))
 			net->wpa_eap.method = value;
 
+		gchild = ni_dbus_dict_get(child, "phase1");
+		if (gchild && ni_dbus_variant_is_dict(gchild)) {
+			if (ni_dbus_dict_get_uint32(gchild, "peap-version", &value))
+				net->wpa_eap.phase1.peapver = value;
+			else
+				net->wpa_eap.phase1.peapver = -1U;
+		}
+
 		gchild = ni_dbus_dict_get(child, "phase2");
 		if (gchild && ni_dbus_variant_is_dict(gchild)) {
 			if (ni_dbus_dict_get_uint32(gchild, "method", &value))

@@ -1596,23 +1596,40 @@ __wpa_dbus_bss_set_password(ni_dbus_object_t *object, const ni_dbus_property_t *
 }
 
 static dbus_bool_t
-__wpa_dbus_bss_get_phase2(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+__wpa_dbus_bss_get_phase1(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 		ni_dbus_variant_t *argument, DBusError *error)
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
-	if (net->keymgmt_proto == NI_WIRELESS_KEY_MGMT_EAP
-	 && net->wpa_eap.phase2.method != NI_WIRELESS_EAP_NONE) {
-		const char *eap_name;
-		char buffer[64];
+	if (net->keymgmt_proto == NI_WIRELESS_KEY_MGMT_EAP) {
+		switch (net->wpa_eap.method) {
+		case NI_WIRELESS_EAP_NONE:
+		case NI_WIRELESS_EAP_PEAP:
+			if (net->wpa_eap.phase1.peapver != -1U)
+				ni_stringbuf_printf(&buf, "peapver=%u", net->wpa_eap.phase1.peapver);
 
-		eap_name = ni_wireless_eap_method_to_name(net->wpa_eap.phase2.method);
-		if (eap_name == NULL)
-			goto not_present;
-		snprintf(buffer, sizeof(buffer), "auth=%s", eap_name);
-		ni_dbus_variant_set_string(argument, buffer);
+			ni_dbus_variant_set_string(argument, buf.string);
+			ni_stringbuf_destroy(&buf);
+			break;
+
+		/* Ignore for now */
+		default:
+			break;
+		}
+
 		return TRUE;
 	}
+
+	return __ni_dbus_property_not_present_error(error, property);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_phase1(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	return FALSE;
+}
 
 static dbus_bool_t
 __wpa_dbus_bss_get_phase2(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
@@ -1747,6 +1764,7 @@ static ni_dbus_property_t	wpa_network_properties[] = {
 	WPA_BSS_PROPERTY(INT32, fragment_size, RO),
 
 	WPA_BSS_PROPERTY(STRING, eap, RO),
+	WPA_BSS_PROPERTY(STRING, phase1, RO),
 	WPA_BSS_PROPERTY(STRING, phase2, RO),
 	/* The following three are encoded as a byte array by NetworkManager */
 	WPA_BSS_PROPERTY(STRING, identity, RO),

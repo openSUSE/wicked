@@ -3235,7 +3235,8 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 		ni_string_dup(&net->wpa_eap.tls.client_key_passwd, var->value);
 	}
 
-	/* wickedd: Default is to allow both version 0 and 1 */
+	/* Default are version 0 and 1 */
+	net->wpa_eap.phase1.peapver = -1U;
 	if (NI_WIRELESS_EAP_PEAP == net->wpa_eap.method ||
 		NI_WIRELESS_EAP_NONE == net->wpa_eap.method) {
 		if ((var = __find_indexed_variable(sc,"WIRELESS_PEAP_VERSION", suffix))) {
