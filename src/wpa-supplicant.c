@@ -1606,6 +1606,7 @@ __wpa_dbus_bss_get_phase1(const ni_dbus_object_t *object, const ni_dbus_property
 		switch (net->wpa_eap.method) {
 		case NI_WIRELESS_EAP_NONE:
 		case NI_WIRELESS_EAP_PEAP:
+			ni_stringbuf_printf(&buf, "peaplabel=%u", net->wpa_eap.phase1.peaplabel);
 			if (net->wpa_eap.phase1.peapver != -1U)
 				ni_stringbuf_printf(&buf, "peapver=%u", net->wpa_eap.phase1.peapver);
 

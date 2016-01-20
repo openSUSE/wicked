@@ -183,6 +183,13 @@ When using WPA-EAP with PEAP authentication, you can use
 this variable to force which PEAP version (0 or 1) to be used.
 Default is to allow both.
 .TP
+.B WIRELESS_PEAP_LABEL
+When set to 1 the new label: "client PEAP encryption" can be enforced
+to be used during key derivation with version PEAPv1 or newer. Most existing
+PEAPv1 implementation tend to use the old label, "client EAP encryption",
+which is the default value for wpa_supplicant.
+Default value is 0.
+.TP
 .B WIRELESS_HIDDEN_SSID
 Defines whether hidden SSID scan support should be enabled.  Setting this to
 "no" can speed up scanning and makes the usage of WIRELESS_PRIORITY

@@ -166,6 +166,7 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 	const ni_dbus_variant_t *child;
 	const char *string;
 	uint32_t value;
+	dbus_bool_t  bool_value;
 
 	if (!ni_dbus_variant_is_dict(var)) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "expected dict argument");
@@ -228,6 +229,8 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 				net->wpa_eap.phase1.peapver = value;
 			else
 				net->wpa_eap.phase1.peapver = -1U;
+			if (ni_dbus_dict_get_bool(gchild, "peap-label", &bool_value))
+				net->wpa_eap.phase1.peaplabel = bool_value;
 		}
 
 		gchild = ni_dbus_dict_get(child, "phase2");

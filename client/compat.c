@@ -1079,6 +1079,9 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 					xml_node_new_element("peap-version", phase1, tmp);
 					ni_string_free(&tmp);
 				}
+
+				xml_node_new_element("peap-label", phase1,
+					ni_format_boolean(net->wpa_eap.phase1.peaplabel));
 			}
 
 			xml_node_t *phase2 = xml_node_new("phase2", wpa_eap);

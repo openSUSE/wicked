@@ -3247,8 +3247,12 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 				goto eap_failure;
 			}
 		}
-	}
 
+		if ((var = __find_indexed_variable(sc,"WIRELESS_PEAP_LABEL", suffix))) {
+			if (!ni_parse_boolean(var->value, &net->wpa_eap.phase1.peaplabel)) {
+				ni_error("ifcfg-%s: wrong WIRELESS_PEAP_LABEL%s value", dev_name, suffix);
+				goto eap_failure;
+			}
 		}
 	}
 
