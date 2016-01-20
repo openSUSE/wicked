@@ -216,8 +216,10 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 	if ((child = ni_dbus_dict_get(var, "wpa-eap")) != NULL) {
 		ni_dbus_variant_t *gchild;
 
-		net->auth_proto = NI_WIRELESS_AUTH_WPA2;
 		net->keymgmt_proto = NI_WIRELESS_KEY_MGMT_EAP;
+		if (!ni_dbus_dict_get_uint32(child, "auth-proto", &net->auth_proto))
+			net->auth_proto = NI_WIRELESS_AUTH_MODE_NONE;
+
 		if (ni_dbus_dict_get_string(child, "identity", &string))
 			ni_string_dup(&net->wpa_eap.identity, string);
 		if (ni_dbus_dict_get_uint32(child, "method", &value))
