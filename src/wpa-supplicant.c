@@ -1614,6 +1614,33 @@ __wpa_dbus_bss_get_phase2(const ni_dbus_object_t *object, const ni_dbus_property
 		return TRUE;
 	}
 
+static dbus_bool_t
+__wpa_dbus_bss_get_phase2(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_wireless_network_t *net = __wpa_get_network(object);
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	const char *eap_name;
+
+	if (net->keymgmt_proto == NI_WIRELESS_KEY_MGMT_EAP) {
+		switch (net->wpa_eap.method) {
+		/* For now autheap= option is not supported */
+		default:
+			if (NI_WIRELESS_EAP_NONE == net->wpa_eap.phase2.method)
+				eap_name = "any";
+			else {
+				eap_name = ni_wireless_eap_method_to_name(net->wpa_eap.phase2.method);
+				if (ni_string_empty(eap_name))
+					goto not_present;
+			}
+
+			ni_stringbuf_printf(&buf, "auth=%s", eap_name);
+			ni_dbus_variant_set_string(argument, buf.string);
+			ni_stringbuf_destroy(&buf);
+			return TRUE;
+		}
+	}
+
 not_present:
 	return __ni_dbus_property_not_present_error(error, property);
 }
