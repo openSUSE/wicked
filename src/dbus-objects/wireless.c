@@ -123,9 +123,6 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 		break;
 
 	case NI_WIRELESS_KEY_MGMT_EAP:
-		if (net->wpa_eap.method == NI_WIRELESS_EAP_NONE) {
-			/* TTLS PEAP TLS */
-		}
 		if (net->wpa_eap.identity == NULL) {
 			dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
 					"wpa-eap.identity|USERNAME|%s",

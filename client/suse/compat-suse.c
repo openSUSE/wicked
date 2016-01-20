@@ -3154,7 +3154,7 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 
 	net->keymgmt_proto = NI_WIRELESS_KEY_MGMT_EAP;
 
-	/*wickedd: Default are TTLS PEAP TLS when not present */
+	/* Default are TTLS PEAP TLS */
 	if ((var = __find_indexed_variable(sc,"WIRELESS_EAP_MODE", suffix))) {
 		if (!ni_wireless_name_to_eap_method(var->value, &net->wpa_eap.method)) {
 			ni_error("ifcfg-%s: wrong WIRELESS_EAP_MODE%s value",

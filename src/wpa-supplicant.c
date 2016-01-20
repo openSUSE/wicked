@@ -1496,16 +1496,28 @@ __wpa_dbus_bss_get_eap(const ni_dbus_object_t *object, const ni_dbus_property_t 
 		ni_dbus_variant_t *argument, DBusError *error)
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
-	const char *value;
+	const char *eap;
 
-	if (net->keymgmt_proto != NI_WIRELESS_KEY_MGMT_EAP
-	 && net->keymgmt_proto != NI_WIRELESS_KEY_MGMT_802_1X)
-		return __ni_dbus_property_not_present_error(error, property);
+	switch (net->keymgmt_proto) {
+		case NI_WIRELESS_KEY_MGMT_EAP:
+		case NI_WIRELESS_KEY_MGMT_802_1X:
+			if (NI_WIRELESS_EAP_NONE == net->wpa_eap.method)
+				eap = "TTLS PEAP TLS";
+			else {
+				eap = ni_wpa_eap_method_as_string(net->wpa_eap.method, error);
+				if (ni_string_empty(eap))
+					goto not_present;
+			}
+			break;
+		default:
+			goto not_present;
+	}
 
-	if (!(value = ni_wpa_eap_method_as_string(net->wpa_eap.method, error)))
-		return FALSE;
-	ni_dbus_variant_set_string(argument, value);
+	ni_dbus_variant_set_string(argument, eap);
 	return TRUE;
+
+not_present:
+	return __ni_dbus_property_not_present_error(error, property);
 }
 
 static dbus_bool_t
