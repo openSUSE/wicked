@@ -1496,16 +1496,28 @@ __wpa_dbus_bss_get_eap(const ni_dbus_object_t *object, const ni_dbus_property_t 
 		ni_dbus_variant_t *argument, DBusError *error)
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
-	const char *value;
+	const char *eap;
 
-	if (net->keymgmt_proto != NI_WIRELESS_KEY_MGMT_EAP
-	 && net->keymgmt_proto != NI_WIRELESS_KEY_MGMT_802_1X)
-		return __ni_dbus_property_not_present_error(error, property);
+	switch (net->keymgmt_proto) {
+		case NI_WIRELESS_KEY_MGMT_EAP:
+		case NI_WIRELESS_KEY_MGMT_802_1X:
+			if (NI_WIRELESS_EAP_NONE == net->wpa_eap.method)
+				eap = "TTLS PEAP TLS";
+			else {
+				eap = ni_wpa_eap_method_as_string(net->wpa_eap.method, error);
+				if (ni_string_empty(eap))
+					goto not_present;
+			}
+			break;
+		default:
+			goto not_present;
+	}
 
-	if (!(value = ni_wpa_eap_method_as_string(net->wpa_eap.method, error)))
-		return FALSE;
-	ni_dbus_variant_set_string(argument, value);
+	ni_dbus_variant_set_string(argument, eap);
 	return TRUE;
+
+not_present:
+	return __ni_dbus_property_not_present_error(error, property);
 }
 
 static dbus_bool_t
@@ -1584,22 +1596,67 @@ __wpa_dbus_bss_set_password(ni_dbus_object_t *object, const ni_dbus_property_t *
 }
 
 static dbus_bool_t
+__wpa_dbus_bss_get_phase1(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_wireless_network_t *net = __wpa_get_network(object);
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+	if (net->keymgmt_proto == NI_WIRELESS_KEY_MGMT_EAP) {
+		switch (net->wpa_eap.method) {
+		case NI_WIRELESS_EAP_NONE:
+		case NI_WIRELESS_EAP_PEAP:
+			ni_stringbuf_printf(&buf, "peaplabel=%u", net->wpa_eap.phase1.peaplabel);
+			if (net->wpa_eap.phase1.peapver != -1U)
+				ni_stringbuf_printf(&buf, "peapver=%u", net->wpa_eap.phase1.peapver);
+
+			ni_dbus_variant_set_string(argument, buf.string);
+			ni_stringbuf_destroy(&buf);
+			break;
+
+		/* Ignore for now */
+		default:
+			break;
+		}
+
+		return TRUE;
+	}
+
+	return __ni_dbus_property_not_present_error(error, property);
+}
+
+static dbus_bool_t
+__wpa_dbus_bss_set_phase1(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument, DBusError *error)
+{
+	return FALSE;
+}
+
+static dbus_bool_t
 __wpa_dbus_bss_get_phase2(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 		ni_dbus_variant_t *argument, DBusError *error)
 {
 	ni_wireless_network_t *net = __wpa_get_network(object);
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	const char *eap_name;
 
-	if (net->keymgmt_proto == NI_WIRELESS_KEY_MGMT_EAP
-	 && net->wpa_eap.phase2.method != NI_WIRELESS_EAP_NONE) {
-		const char *eap_name;
-		char buffer[64];
+	if (net->keymgmt_proto == NI_WIRELESS_KEY_MGMT_EAP) {
+		switch (net->wpa_eap.method) {
+		/* For now autheap= option is not supported */
+		default:
+			if (NI_WIRELESS_EAP_NONE == net->wpa_eap.phase2.method)
+				eap_name = "any";
+			else {
+				eap_name = ni_wireless_eap_method_to_name(net->wpa_eap.phase2.method);
+				if (ni_string_empty(eap_name))
+					goto not_present;
+			}
 
-		eap_name = ni_wireless_eap_method_to_name(net->wpa_eap.phase2.method);
-		if (eap_name == NULL)
-			goto not_present;
-		snprintf(buffer, sizeof(buffer), "auth=%s", eap_name);
-		ni_dbus_variant_set_string(argument, buffer);
-		return TRUE;
+			ni_stringbuf_printf(&buf, "auth=%s", eap_name);
+			ni_dbus_variant_set_string(argument, buf.string);
+			ni_stringbuf_destroy(&buf);
+			return TRUE;
+		}
 	}
 
 not_present:
@@ -1708,6 +1765,7 @@ static ni_dbus_property_t	wpa_network_properties[] = {
 	WPA_BSS_PROPERTY(INT32, fragment_size, RO),
 
 	WPA_BSS_PROPERTY(STRING, eap, RO),
+	WPA_BSS_PROPERTY(STRING, phase1, RO),
 	WPA_BSS_PROPERTY(STRING, phase2, RO),
 	/* The following three are encoded as a byte array by NetworkManager */
 	WPA_BSS_PROPERTY(STRING, identity, RO),
@@ -1828,6 +1886,9 @@ __ni_wpa_translate_caps(struct ni_dbus_dict_entry *entry, unsigned int *bits,
 static ni_intmap_t __ni_wpa_eap_method_names[] = {
 	{ "MD5",	NI_WIRELESS_EAP_MD5	},
 	{ "TLS",	NI_WIRELESS_EAP_TLS	},
+	{ "PAP",	NI_WIRELESS_EAP_PAP},
+	{ "CHAP",	NI_WIRELESS_EAP_CHAP},
+	{ "MSCHAP",	NI_WIRELESS_EAP_MSCHAP},
 	{ "MSCHAPV2",	NI_WIRELESS_EAP_MSCHAPV2},
 	{ "PEAP",	NI_WIRELESS_EAP_PEAP	},
 	{ "TTLS",	NI_WIRELESS_EAP_TTLS	},
@@ -1841,6 +1902,10 @@ static ni_intmap_t __ni_wpa_eap_method_names[] = {
 	{ "WSC",	NI_WIRELESS_EAP_WSC	},
 	{ "IKEV2",	NI_WIRELESS_EAP_IKEV2	},
 	{ "TNC",	NI_WIRELESS_EAP_TNC	},
+	{ "FAST",	NI_WIRELESS_EAP_FAST	},
+	{ "AKA",	NI_WIRELESS_EAP_AKA	},
+	{ "AKA'",	NI_WIRELESS_EAP_AKA_PRIME	},
+	{ "SIM",	NI_WIRELESS_EAP_SIM	},
 
 	{ NULL }
 };

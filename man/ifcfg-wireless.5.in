@@ -156,10 +156,14 @@ restrict it to one protocol, set this variable. When using
 WIRELESS_AP_SCANMODE 2, this variable needs to be set, otherwise
 TKIP will be used as fallback.
 .TP
+.B WIRELESS_EAP_MODE
+WPA-EAP can use different outer authentication (i.e. TLS tunnel) methods.
+Supported value is PEAP (TLS and TTLS not fully implemented yet.
+Default is to allow subset TTLS PEAP TLS.
+.TP
 .B WIRELESS_EAP_AUTH
-WPA-EAP can use different authentication modes. Supported
-values are TLS, PEAP, and TTLS. Default is to allow any.
-When using WIRELESS_AP_SCANMODE 2, this variable needs to be set.
+WPA-EAP can use different inner authentication with TLS tunnel methods.
+Supported values are PAP, CHAP, MSCHAP, MSCHAPv2. Default is to allow any.
 .TP
 .B WIRELESS_WPA_IDENTITY
 Needs to be set in conjunction with WPA-EAP. Set to your identity as
@@ -178,6 +182,13 @@ used with WPA-EAP protocols that support different tunnelled identities
 When using WPA-EAP with PEAP authentication, you can use
 this variable to force which PEAP version (0 or 1) to be used.
 Default is to allow both.
+.TP
+.B WIRELESS_PEAP_LABEL
+When set to 1 the new label: "client PEAP encryption" can be enforced
+to be used during key derivation with version PEAPv1 or newer. Most existing
+PEAPv1 implementation tend to use the old label, "client EAP encryption",
+which is the default value for wpa_supplicant.
+Default value is 0.
 .TP
 .B WIRELESS_HIDDEN_SSID
 Defines whether hidden SSID scan support should be enabled.  Setting this to
@@ -209,8 +220,8 @@ Some examples of different configuration types supported at the moment:
 .B WPA-EAP network configuration
 .nf
 	WIRELESS_AUTH_MODE='eap'
-	WIRELESS_EAP_AUTH='mschapv2'
 	WIRELESS_EAP_MODE='PEAP'
+	WIRELESS_EAP_AUTH='mschapv2'
 	WIRELESS_ESSID='example_ssid'
 	WIRELESS_MODE='Managed'
 	WIRELESS_PEAP_VERSION=''

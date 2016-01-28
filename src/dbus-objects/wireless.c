@@ -123,9 +123,6 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 		break;
 
 	case NI_WIRELESS_KEY_MGMT_EAP:
-		if (net->wpa_eap.method == NI_WIRELESS_EAP_NONE) {
-			/* TTLS PEAP TLS */
-		}
 		if (net->wpa_eap.identity == NULL) {
 			dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
 					"wpa-eap.identity|USERNAME|%s",
@@ -169,6 +166,7 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 	const ni_dbus_variant_t *child;
 	const char *string;
 	uint32_t value;
+	dbus_bool_t  bool_value;
 
 	if (!ni_dbus_variant_is_dict(var)) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "expected dict argument");
@@ -218,12 +216,24 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 	if ((child = ni_dbus_dict_get(var, "wpa-eap")) != NULL) {
 		ni_dbus_variant_t *gchild;
 
-		net->auth_proto = NI_WIRELESS_AUTH_WPA2;
 		net->keymgmt_proto = NI_WIRELESS_KEY_MGMT_EAP;
+		if (!ni_dbus_dict_get_uint32(child, "auth-proto", &net->auth_proto))
+			net->auth_proto = NI_WIRELESS_AUTH_MODE_NONE;
+
 		if (ni_dbus_dict_get_string(child, "identity", &string))
 			ni_string_dup(&net->wpa_eap.identity, string);
 		if (ni_dbus_dict_get_uint32(child, "method", &value))
 			net->wpa_eap.method = value;
+
+		gchild = ni_dbus_dict_get(child, "phase1");
+		if (gchild && ni_dbus_variant_is_dict(gchild)) {
+			if (ni_dbus_dict_get_uint32(gchild, "peap-version", &value))
+				net->wpa_eap.phase1.peapver = value;
+			else
+				net->wpa_eap.phase1.peapver = -1U;
+			if (ni_dbus_dict_get_bool(gchild, "peap-label", &bool_value))
+				net->wpa_eap.phase1.peaplabel = bool_value;
+		}
 
 		gchild = ni_dbus_dict_get(child, "phase2");
 		if (gchild && ni_dbus_variant_is_dict(gchild)) {

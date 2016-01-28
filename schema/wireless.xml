@@ -47,6 +47,7 @@
 	  <min value="0"/>
 	  <max value="1"/>
 	</peap-version>
+	<peap-label type="boolean"/>
       </phase1>
 
       <phase2 class="dict">
