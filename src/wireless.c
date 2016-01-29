@@ -595,9 +595,11 @@ ni_wireless_key_management_to_name(ni_wireless_key_mgmt_t mode)
 
 static ni_intmap_t __ni_wireless_eap_method_names[] = {
 	{ "none",	NI_WIRELESS_EAP_NONE	},
-	{ "any",	NI_WIRELESS_EAP_NONE	},
 	{ "md5",	NI_WIRELESS_EAP_MD5	},
 	{ "tls",	NI_WIRELESS_EAP_TLS	},
+	{ "pap",	NI_WIRELESS_EAP_PAP},
+	{ "chap",	NI_WIRELESS_EAP_CHAP},
+	{ "mschap",	NI_WIRELESS_EAP_MSCHAP},
 	{ "mschapv2",	NI_WIRELESS_EAP_MSCHAPV2},
 	{ "peap",	NI_WIRELESS_EAP_PEAP	},
 	{ "ttls",	NI_WIRELESS_EAP_TTLS	},
@@ -611,6 +613,10 @@ static ni_intmap_t __ni_wireless_eap_method_names[] = {
 	{ "wsc",	NI_WIRELESS_EAP_WSC	},
 	{ "ikev2",	NI_WIRELESS_EAP_IKEV2	},
 	{ "tnc",	NI_WIRELESS_EAP_TNC	},
+	{ "fast",	NI_WIRELESS_EAP_FAST	},
+	{ "aka",	NI_WIRELESS_EAP_AKA	},
+	{ "aka_prime",	NI_WIRELESS_EAP_AKA_PRIME	},
+	{ "sim",	NI_WIRELESS_EAP_SIM	},
 	{ NULL }
 };
 

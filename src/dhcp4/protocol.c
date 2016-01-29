@@ -1931,10 +1931,6 @@ parse_more:
 				"guessed netmask: %s, cidr: %u",
 				inet_ntoa(lease->dhcp4.netmask), pfxlen);
 	}
-	if (!lease->dhcp4.broadcast.s_addr) {
-		lease->dhcp4.broadcast.s_addr = lease->dhcp4.address.s_addr |
-						~lease->dhcp4.netmask.s_addr;
-	}
 	if (lease->dhcp4.address.s_addr) {
 		ni_sockaddr_t local_addr;
 		ni_address_t *ap;
@@ -1943,11 +1939,8 @@ parse_more:
 		local_addr.sin.sin_family = AF_INET;
 		local_addr.sin.sin_addr = lease->dhcp4.address;
 		ap = ni_address_new(AF_INET, pfxlen, &local_addr, &lease->addrs);
-		if (ap) {
-			memset(&ap->bcast_addr, 0, sizeof(ap->bcast_addr));
-			ap->bcast_addr.sin.sin_family = AF_INET;
-			ap->bcast_addr.sin.sin_addr = lease->dhcp4.broadcast;
-		}
+		if (ap && lease->dhcp4.broadcast.s_addr)
+			ni_sockaddr_set_ipv4(&ap->bcast_addr, lease->dhcp4.broadcast, 0);
 	}
 
 	if (classless_routes.count) {

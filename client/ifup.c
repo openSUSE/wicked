@@ -247,24 +247,6 @@ ni_ifup_start_policy(ni_ifworker_t *w)
 	if (!policy)
 		goto error;
 
-#if 0
-	/* Do we need this? */
-
-	/* Add link type to match node*/
-	if (dev) {
-		ni_debug_application("%s: adding link type (%s) to match",
-			w->name, ni_linktype_type_to_name(dev->link.type));
-		ni_ifpolicy_match_add_link_type(policy, dev->link.type);
-	}
-
-	ni_debug_application("%s: adding minimum device state (%s) to match",
-		w->name, ni_ifworker_state_name(w->fsm.state));
-
-	/* Add minimum device state to match node */
-	if (!ni_ifpolicy_match_add_min_state(policy, w->fsm.state))
-		goto error;
-#endif
-
 	ni_debug_application("%s: adding policy %s to nanny", w->name,
 		xml_node_get_attr(policy, NI_NANNY_IFPOLICY_NAME));
 
@@ -288,10 +270,11 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 {
 	unsigned int i;
 	ni_bool_t rv = TRUE;
+	ni_string_array_t names = NI_STRING_ARRAY_INIT;
 
 	/* Send policies to nanny */
 	for (i = 0; i < array->count; i++) {
-		ni_ifworker_t *w = array->data[array->count-1-i];
+		ni_ifworker_t *w = array->data[i];
 
 		if (!w || xml_node_is_empty(w->config.node))
 			continue;
@@ -301,37 +284,19 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
 
 		if (!ni_ifup_start_policy(w))
 			rv = FALSE;
-		else
+		else {
 			ni_info("%s: configuration applied to nanny", w->name);
-	}
-
-	/* Enable devices with policies */
-	for (i = 0; i < array->count; i++) {
-		ni_ifworker_t *w = array->data[array->count-1-i];
-		ni_netdev_t *dev = w ? w->device : NULL;
-
-		/* Ignore non-existing device */
-		if (!dev || !ni_netdev_device_is_ready(dev) ||
-		    xml_node_is_empty(w->config.node)) {
-			continue;
-		}
-
-		if (w->failed) {
-			ni_debug_application("%s: disabling failed device for nanny", w->name);
-			ni_nanny_call_device_disable(w->name);
-		}
-		else if (w->done) {
-			ni_debug_application("%s: enabling device for nanny", w->name);
-			if (!ni_nanny_call_device_enable(w->name)) {
-				ni_error("%s: unable to enable device", w->name);
-				rv = FALSE;
-			}
+			ni_string_array_append(&names, w->name);
 		}
 	}
 
+	/* Recheck policies on modified devices */
 	if (0 == array->count)
 		ni_note("ifup: no matching interfaces");
+	else
+		ni_nanny_call_recheck(&names);
 
+	ni_string_array_destroy(&names);
 	return rv;
 }
 
@@ -712,7 +677,6 @@ usage:
 	}
 
 	ni_fsm_pull_in_children(&ifmarked);
-	ni_ifworkers_flatten(&ifmarked);
 
 	if (!ni_ifup_hire_nanny(&ifmarked, set_persistent))
 		status = NI_WICKED_RC_NOT_CONFIGURED;

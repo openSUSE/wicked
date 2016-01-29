@@ -200,8 +200,10 @@ Same as for loadbalancer runner. Please refer to the section above.
 
 .SH LINK WATCH OPTIONS
 .TP
-.BR TEAM_LW_NAME
-Name of link watch to be used. The following types are available:
+.BR TEAM_LW_NAME[SUFFIX]
+Declares the type name of link watch (with the specified unique watch suffix).
+To declare several link watches, append the same suffix to all variables of one watch.
+The following types are available:
 .RS 7
 .PP
 .BR "ethtool "\(em
@@ -217,7 +219,7 @@ Similar to the previous, except that it uses IPv6 Neighbor Solicitation / Neighb
 
 .SH ETHTOOL LINK WATCH SPECIFIC OPTIONS
 .TP
-.BR TEAM_LW_ETHTOOL_DELAY_UP
+.BR TEAM_LW_ETHTOOL_DELAY_UP[SUFFIX]
 Delay between the link coming up and the runner being notified about it (in miliseconds).
 .RS 7
 .PP
@@ -225,7 +227,7 @@ Default:
 .BR "0"
 .RE
 .TP
-.BR TEAM_LW_ETHTOOL_DELAY_DOWN
+.BR TEAM_LW_ETHTOOL_DELAY_DOWN[SUFFIX]
 Delay between the link going down and the runner being notified about it (in miliseconds).
 .RS 7
 .PP
@@ -235,7 +237,7 @@ Default:
 
 .SH ARP PING LINK WATCH SPECIFIC OPTIONS
 .TP
-.BR TEAM_LW_ARP_PING_SOURCE_HOST
+.BR TEAM_LW_ARP_PING_SOURCE_HOST[SUFFIX]
 Hostname or IP address used in ARP request as source address.
 .RS 7
 .PP
@@ -243,13 +245,13 @@ Default:
 .BR "0.0.0.0"
 .RE
 .TP
-.BR TEAM_LW_ARP_PING_TARGET_HOST
+.BR TEAM_LW_ARP_PING_TARGET_HOST[SUFFIX]
 Hostname or IP address used in ARP request as destination address.
 .TP
-.BR TEAM_LW_ARP_PING_INTERVAL
+.BR TEAM_LW_ARP_PING_INTERVAL[SUFFIX]
 Interval between ARP requests being sent (in miliseconds).
 .TP
-.BR TEAM_LW_ARP_PING_INIT_WAIT
+.BR TEAM_LW_ARP_PING_INIT_WAIT[SUFFIX]
 Delay between link watch initialization and the first ARP request being sent (in miliseconds).
 .RS 7
 .PP
@@ -257,7 +259,7 @@ Default:
 .BR "0"
 .RE
 .TP
-.BR TEAM_LW_ARP_PING_VALIDATE_ACTIVE
+.BR TEAM_LW_ARP_PING_VALIDATE_ACTIVE[SUFFIX]
 Validate received ARP packets on active ports. Otherwise all incoming ARP packets will be considered as a good reply.
 .RS 7
 .PP
@@ -265,7 +267,7 @@ Default:
 .BR "false"
 .RE
 .TP
-.BR TEAM_LW_ARP_PING_VALIDATE_INACTIVE
+.BR TEAM_LW_ARP_PING_VALIDATE_INACTIVE[SUFFIX]
 Validate received ARP packets on inactive ports. Otherwise all incoming ARP packets will be considered as a good reply.
 .RS 7
 .PP
@@ -273,7 +275,7 @@ Default:
 .BR "false"
 .RE
 .TP
-.BR TEAM_LW_ARP_PING_SEND_ALWAYS
+.BR TEAM_LW_ARP_PING_SEND_ALWAYS[SUFFIX]
 Allow sending ARP requests on inactive ports.
 .RS 7
 .PP
@@ -282,7 +284,7 @@ Default:
 .PP
 .RE
 .TP
-.BR TEAM_LW_ARP_PING_MISSED_MAX
+.BR TEAM_LW_ARP_PING_MISSED_MAX[SUFFIX]
 Maximum number of missed ARP replies. If this number is exceeded, link is reported as down.
 .RS 7
 .PP
@@ -292,16 +294,16 @@ Default:
 
 .SH NS/NA PING LINK WATCH SPECIFIC OPTIONS
 .TP
-.BR TEAM_LW_NSNA_PING_TARGET_HOST
+.BR TEAM_LW_NSNA_PING_TARGET_HOST[SUFFIX]
 Hostname or IPv6 address used in NS packet as target address.
 .TP
-.BR TEAM_LW_NSNA_PING_INTERVAL
+.BR TEAM_LW_NSNA_PING_INTERVAL[SUFFIX]
 Interval between sending NS packets (in miliseconds).
 .TP
-.BR TEAM_LW_NSNA_PING_INIT_WAIT
+.BR TEAM_LW_NSNA_PING_INIT_WAIT[SUFFIX]
 Delay between link watch initialization and the first NS packet being sent (in miliseconds).
 .TP
-.BR TEAM_LW_NSNA_PING_MISSED_MAX
+.BR TEAM_LW_NSNA_PING_MISSED_MAX[SUFFIX]
 Maximum number of missed NA reply packets. If this number is exceeded, link is reported as down.
 .RS 7
 .PP
@@ -312,16 +314,54 @@ Default:
 .SH TEAM PORT SPECIFIC OPTIONS
 
 .TP
-.BR TEAM_PORT_DEVICE
+.BR TEAM_PORT_DEVICE[SUFFIX]
 Port device name. This option must not be empty for a given port.
 
 .TP
-.BR TEAM_PORT_QUEUE_ID
+.BR TEAM_PORT_QUEUE_ID[SUFFIX]
 ID of queue which this port should be mapped to.
 .RS 7
 .PP
 Default:
 .BR "None"
+.RE
+
+.TP
+.BR TEAM_PORT_STICKY[SUFFIX]
+Marks an activebackup runner port as sticky, to not unselect it, if another
+port with a higher priority or better parameters becomes available.
+.RS 7
+.PP
+Default:
+.BR "false"
+.RE
+
+.TP
+.BR TEAM_PORT_PRIO[SUFFIX]
+Port priority in activebackup runner. The higher number means higher priority.
+.RS 7
+.PP
+Default:
+.BR "0"
+.RE
+
+.TP
+.BR TEAM_PORT_LACP_PRIO[SUFFIX]
+Port priority according to LACP standard. The lower number means higher priority.
+.RS 7
+.PP
+Default:
+.BR "0"
+.RE
+
+.TP
+.BR TEAM_PORT_LACP_KEY[SUFFIX]
+Port key according to LACP standard. It is only possible to aggregate ports with
+the same key.
+.RS 7
+.PP
+Default:
+.BR "0"
 .RE
 
 
@@ -332,14 +372,24 @@ Example for a bonding interface on eth0 and eth1 using the backup mode
 .nf
    STARTMODE=auto
    BOOTPROTO=static
+   #IPADDR=...
+
    TEAM_RUNNER="loadbalance"
    TEAM_LB_TX_HASH="ipv4,ipv6,eth,vlan"
    TEAM_LB_TX_BALANCER_NAME="basic"
    TEAM_LB_TX_BALANCER_INTERVAL="100"
 
+   TEAM_PORT_DEVICE_1="eth1"
+   TEAM_PORT_DEVICE_2="eth2"
+
    TEAM_LW_NAME="ethtool"
    TEAM_LW_ETHTOOL_DELAY_UP="10"
    TEAM_LW_ETHTOOL_DELAY_DOWN="10"
+   # optionally, further watches, e.g:
+   TEAM_LW_NAME_1="nsna_ping"
+   TEAM_LW_NSNA_PING_INTERVAL_1="100"
+   TEAM_LW_NSNA_PING_MISSED_MAX_1="30"
+   TEAM_LW_NSNA_PING_TARGET_HOST="fe80::1"
 .fi
 
 .SH Additional Information

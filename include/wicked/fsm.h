@@ -151,8 +151,6 @@ struct ni_ifworker {
 		xml_node_t *			node;
 	} config;
 
-	ni_bool_t		use_default_policies;
-
 	/* The security ID can be used as a set of identifiers
 	 * to look up user name/password/pin type info in a
 	 * database.
@@ -204,7 +202,6 @@ struct ni_ifworker {
 	ni_ifworker_t *		masterdev;
 	ni_ifworker_t * 	lowerdev;
 
-	unsigned int		depth;		/* depth in device graph */
 	ni_ifworker_array_t	children;
 	ni_ifworker_array_t	lowerdev_for;
 };
@@ -283,16 +280,18 @@ extern ni_fsm_t *		ni_fsm_new(void);
 extern void			ni_fsm_free(ni_fsm_t *);
 
 extern ni_fsm_policy_t *	ni_fsm_policy_new(ni_fsm_t *, const char *, xml_node_t *);
+extern ni_fsm_policy_t *	ni_fsm_policy_ref(ni_fsm_policy_t *);
 extern void			ni_fsm_policy_free(ni_fsm_policy_t *);
 extern ni_bool_t		ni_fsm_policy_update(ni_fsm_policy_t *, xml_node_t *);
-extern ni_fsm_policy_t *	ni_fsm_policy_by_name(ni_fsm_t *, const char *);
 extern ni_bool_t		ni_fsm_policy_remove(ni_fsm_t *, ni_fsm_policy_t *);
+extern ni_fsm_policy_t *	ni_fsm_policy_by_name(const ni_fsm_t *, const char *);
 extern unsigned int		ni_fsm_policy_get_applicable_policies(const ni_fsm_t *, ni_ifworker_t *,
 						const ni_fsm_policy_t **, unsigned int);
 extern ni_bool_t		ni_fsm_exists_applicable_policy(const ni_fsm_t *, ni_fsm_policy_t *, ni_ifworker_t *);
 extern xml_node_t *		ni_fsm_policy_transform_document(xml_node_t *, ni_fsm_policy_t * const *, unsigned int);
 extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
-extern xml_location_t *	ni_fsm_policy_location(const ni_fsm_policy_t *);
+extern const xml_node_t *	ni_fsm_policy_node(const ni_fsm_policy_t *);
+extern const xml_location_t *	ni_fsm_policy_location(const ni_fsm_policy_t *);
 extern const char *		ni_fsm_policy_get_origin(const ni_fsm_policy_t *);
 extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *tstamp);
 
@@ -320,7 +319,6 @@ extern ni_ifworker_t *		ni_fsm_recv_new_netif_path(ni_fsm_t *fsm, const char *pa
 extern ni_ifworker_t *		ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh);
 extern ni_ifworker_t *		ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path);
 extern void			ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w);
-extern void			ni_ifworkers_flatten(ni_ifworker_array_t *);
 extern void			ni_fsm_pull_in_children(ni_ifworker_array_t *);
 extern void			ni_fsm_wait_tentative_addrs(ni_fsm_t *);
 
@@ -348,6 +346,7 @@ extern void			ni_ifworker_success(ni_ifworker_t *);
 extern void			ni_ifworker_set_progress_callback(ni_ifworker_t *, void (*)(ni_ifworker_t *, ni_fsm_state_t), void *);
 extern void			ni_ifworker_set_completion_callback(ni_ifworker_t *, void (*)(ni_ifworker_t *), void *);
 extern ni_rfkill_type_t		ni_ifworker_get_rfkill_type(const ni_ifworker_t *);
+extern ni_ifworker_t *		ni_ifworker_set_ref(ni_ifworker_t **, ni_ifworker_t *);
 extern void			ni_ifworker_free(ni_ifworker_t *);
 
 extern ni_ifworker_control_t *	ni_ifworker_control_new(void);

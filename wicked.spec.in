@@ -235,8 +235,8 @@ popd
 
 %pre service
 # upgrade from sysconfig[-network] scripts
-_id=`/usr/bin/systemctl --no-pager -p Id show network.service 2>/dev/null` || :
-if test "x${_id#Id=}" = "xnetwork.service" -a -x /etc/init.d/network ; then
+_id=`readlink /etc/systemd/system/network.service 2>/dev/null` || :
+if test "x${_id##*/}" = "xnetwork.service" -a -x /etc/init.d/network ; then
 	/etc/init.d/network stop-all-dhcp-clients || :
 fi
 %{service_add_pre wicked.service}
@@ -245,8 +245,8 @@ fi
 %{service_add_post wicked.service}
 # See bnc#843526: presets do not apply for upgrade / are not sufficient
 #                 to handle sysconfig-network|wicked -> wicked migration
-_id=`/usr/bin/systemctl --no-pager -p Id show network.service 2>/dev/null` || :
-case "${_id#Id=}" in
+_id=`readlink /etc/systemd/system/network.service 2>/dev/null` || :
+case "${_id##*/}" in
 ""|wicked.service|network.service)
 	/usr/bin/systemctl --system daemon-reload || :
 	/usr/bin/systemctl --force enable wicked.service || :

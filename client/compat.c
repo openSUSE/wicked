@@ -1072,9 +1072,16 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 
 			xml_node_t *phase1 = xml_node_new("phase1", wpa_eap);
 
-			if (ni_string_printf(&tmp, "%u", net->wpa_eap.phase1.peapver)) {
-				xml_node_new_element("peap-version", phase1, tmp);
-				ni_string_free(&tmp);
+			if (NI_WIRELESS_EAP_PEAP == net->wpa_eap.method ||
+			    NI_WIRELESS_EAP_NONE == net->wpa_eap.method) {
+				if (net->wpa_eap.phase1.peapver != -1U) {
+					ni_string_printf(&tmp, "%u", net->wpa_eap.phase1.peapver);
+					xml_node_new_element("peap-version", phase1, tmp);
+					ni_string_free(&tmp);
+				}
+
+				xml_node_new_element("peap-label", phase1,
+					ni_format_boolean(net->wpa_eap.phase1.peaplabel));
 			}
 
 			xml_node_t *phase2 = xml_node_new("phase2", wpa_eap);
@@ -1482,9 +1489,9 @@ __ni_compat_generate_static_address_list(xml_node_t *afnode, ni_address_t *addr_
 		anode = xml_node_new("address", afnode);
 		xml_node_new_element("local", anode, ni_sockaddr_prefix_print(&ap->local_addr, ap->prefixlen));
 
-		if (ap->peer_addr.ss_family != AF_UNSPEC)
+		if (ap->peer_addr.ss_family == af)
 			xml_node_new_element("peer", anode, ni_sockaddr_print(&ap->peer_addr));
-		if (ap->bcast_addr.ss_family != AF_UNSPEC)
+		if (ap->bcast_addr.ss_family == af && af == AF_INET)
 			xml_node_new_element("broadcast", anode, ni_sockaddr_print(&ap->bcast_addr));
 		if (af == AF_INET && ap->label)
 			xml_node_new_element("label", anode, ap->label);

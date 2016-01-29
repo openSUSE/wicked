@@ -444,6 +444,7 @@ __ni_objectmodel_set_address_list(ni_address_t **list,
 		return FALSE;
 	}
 
+	ni_address_list_destroy(list);
 	for (i = 0; i < argument->array.len; ++i) {
 		ni_dbus_variant_t *dict = &argument->variant_array_value[i];
 
@@ -504,6 +505,7 @@ __ni_objectmodel_set_address_dict(ni_address_t **list,
 	}
 
 	var = NULL;
+	ni_address_list_destroy(list);
 	while ((var = ni_dbus_dict_get_next(dict, "address", var)) != NULL) {
 		if (!ni_dbus_variant_is_dict(var))
 			return FALSE;
@@ -712,6 +714,7 @@ __ni_objectmodel_set_route_list(ni_route_table_t **list,
 		return FALSE;
 	}
 
+	ni_route_tables_destroy(list);
 	for (i = 0; i < argument->array.len; ++i) {
 		ni_dbus_variant_t *dict = &argument->variant_array_value[i];
 
@@ -779,6 +782,7 @@ __ni_objectmodel_set_route_dict(ni_route_table_t **list,
 	}
 
 	var = NULL;
+	ni_route_tables_destroy(list);
 	while ((var = ni_dbus_dict_get_next(dict, "route", var)) != NULL) {
 		if (!ni_dbus_variant_is_dict(var))
 			return FALSE;
