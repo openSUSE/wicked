@@ -3154,10 +3154,18 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 
 	net->keymgmt_proto = NI_WIRELESS_KEY_MGMT_EAP;
 
-	/*wickedd: Default are TTLS PEAP TLS when not present */
+	/* Default are TTLS PEAP TLS */
 	if ((var = __find_indexed_variable(sc,"WIRELESS_EAP_MODE", suffix))) {
 		if (!ni_wireless_name_to_eap_method(var->value, &net->wpa_eap.method)) {
 			ni_error("ifcfg-%s: wrong WIRELESS_EAP_MODE%s value",
+				dev_name, suffix);
+			goto eap_failure;
+		}
+	}
+
+	if ((var = __find_indexed_variable(sc,"WIRELESS_EAP_AUTH", suffix))) {
+		if (!ni_wireless_name_to_eap_method(var->value, &net->wpa_eap.phase2.method)) {
+			ni_error("ifcfg-%s: wrong WIRELESS_EAP_AUTH%s value",
 				dev_name, suffix);
 			goto eap_failure;
 		}
@@ -3227,7 +3235,8 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 		ni_string_dup(&net->wpa_eap.tls.client_key_passwd, var->value);
 	}
 
-	/* wickedd: Default is to allow both version 0 and 1 */
+	/* Default are version 0 and 1 */
+	net->wpa_eap.phase1.peapver = -1U;
 	if (NI_WIRELESS_EAP_PEAP == net->wpa_eap.method ||
 		NI_WIRELESS_EAP_NONE == net->wpa_eap.method) {
 		if ((var = __find_indexed_variable(sc,"WIRELESS_PEAP_VERSION", suffix))) {
@@ -3238,20 +3247,13 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 				goto eap_failure;
 			}
 		}
-	}
 
-	/*wickedd: Default are TTLS PEAP TLS when not present and WIRELESS_AP_SCANMODE != 2 */
-	if ((var = __find_indexed_variable(sc,"WIRELESS_EAP_AUTH", suffix))) {
-		if (!ni_wireless_name_to_eap_method(var->value, &net->wpa_eap.phase2.method)) {
-			ni_error("ifcfg-%s: wrong WIRELESS_EAP_AUTH%s value",
-				dev_name, suffix);
-			goto eap_failure;
+		if ((var = __find_indexed_variable(sc,"WIRELESS_PEAP_LABEL", suffix))) {
+			if (!ni_parse_boolean(var->value, &net->wpa_eap.phase1.peaplabel)) {
+				ni_error("ifcfg-%s: wrong WIRELESS_PEAP_LABEL%s value", dev_name, suffix);
+				goto eap_failure;
+			}
 		}
-	}
-	else if (NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH == ap_scan) {
-		ni_error("ifcfg-%s: WIRELESS_EAP_AUTH%s needed by WIRELESS_AP_SCANMODE=2",
-			dev_name, suffix);
-		goto eap_failure;
 	}
 
 	return TRUE;

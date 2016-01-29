@@ -53,6 +53,9 @@ typedef enum ni_wireless_eap_method {
 	NI_WIRELESS_EAP_NONE,
 	NI_WIRELESS_EAP_MD5,
 	NI_WIRELESS_EAP_TLS,
+	NI_WIRELESS_EAP_PAP,
+	NI_WIRELESS_EAP_CHAP,
+	NI_WIRELESS_EAP_MSCHAP,
 	NI_WIRELESS_EAP_MSCHAPV2,
 	NI_WIRELESS_EAP_PEAP,
 	NI_WIRELESS_EAP_TTLS,
@@ -66,6 +69,10 @@ typedef enum ni_wireless_eap_method {
 	NI_WIRELESS_EAP_WSC,
 	NI_WIRELESS_EAP_IKEV2,
 	NI_WIRELESS_EAP_TNC,
+	NI_WIRELESS_EAP_FAST,
+	NI_WIRELESS_EAP_AKA,
+	NI_WIRELESS_EAP_AKA_PRIME,
+	NI_WIRELESS_EAP_SIM,
 } ni_wireless_eap_method_t;
 
 /*
@@ -195,11 +202,13 @@ struct ni_wireless_network {
 		char *			identity;
 		char *			anonid;
 
+		/* Outer authentication */
 		struct {
 			unsigned int peapver;
 			ni_bool_t peaplabel;
 		} phase1;
 
+		/* Inner authentication */
 		struct {
 			ni_wireless_eap_method_t method;
 			char *		password;
