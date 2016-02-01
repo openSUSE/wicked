@@ -298,7 +298,14 @@ usage:
 				continue;
 			}
 			w->target_range.min = NI_FSM_STATE_NONE;
-			w->target_range.max = NI_FSM_STATE_DEVICE_READY;
+			switch (w->iftype) {
+			case NI_IFTYPE_TEAM:
+				w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
+				break;
+			default:
+				w->target_range.max = NI_FSM_STATE_DEVICE_READY;
+				break;
+			}
 			nmarked++;
 		} else
 		if (ni_ifcheck_device_configured(dev)) {
@@ -620,7 +627,14 @@ usage:
 				continue;
 			}
 			w->target_range.min = NI_FSM_STATE_NONE;
-			w->target_range.max = NI_FSM_STATE_DEVICE_READY;
+			switch (w->iftype) {
+			case NI_IFTYPE_TEAM:
+				w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
+				break;
+			default:
+				w->target_range.max = NI_FSM_STATE_DEVICE_READY;
+				break;
+			}
 			nmarked++;
 		} else
 		if (ni_ifcheck_device_configured(dev)) {
