@@ -21,7 +21,7 @@
    <define name="slave" class="dict">
      <device type="string">
        <meta:netif-reference shared="false" />
-       <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
+       <meta:require check="netif-check-state" op="linkUp" min-state="device-setup" />
      </device>
      <active type="boolean"/>
      <primary type="boolean"/>
