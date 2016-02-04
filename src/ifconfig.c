@@ -1408,6 +1408,8 @@ ni_system_ovs_bridge_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
 int
 ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t *bond, ni_netdev_t **dev_ret)
 {
+	int ret;
+
 	if (!ni_sysfs_bonding_available()) {
 		unsigned int i, success = 0;
 
@@ -1448,7 +1450,10 @@ ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t
 		}
 	}
 
-	return __ni_system_netdev_create(nc, ifname, 0, NI_IFTYPE_BOND, dev_ret);
+	ret = __ni_system_netdev_create(nc, ifname, 0, NI_IFTYPE_BOND, dev_ret);
+	if (ret == 0)
+		ni_system_bond_setup(nc, *dev_ret, bond);
+	return ret;
 }
 
 /*
