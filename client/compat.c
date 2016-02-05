@@ -400,7 +400,7 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 		case NI_BOND_MODE_ACTIVE_BACKUP:
 		case NI_BOND_MODE_BALANCE_TLB:
 		case NI_BOND_MODE_BALANCE_ALB:
-			if (ni_string_eq(bond->primary_slave, slave_name)) {
+			if (ni_string_eq(bond->primary_slave.name, slave_name)) {
 				xml_node_new_element("primary", slave, "true");
 			}
 			if (ni_string_eq(bond->active_slave, slave_name)) {

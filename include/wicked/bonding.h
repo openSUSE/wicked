@@ -96,7 +96,7 @@ struct ni_bonding {
 	ni_bool_t		tlb_dynamic_lb;
 	unsigned int		lp_interval;
 
-	char *			primary_slave;
+	ni_netdev_ref_t		primary_slave;
 	char *			active_slave;
 
 	ni_string_array_t	slave_names;

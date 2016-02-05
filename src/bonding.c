@@ -169,7 +169,7 @@ static inline void
 __ni_bonding_clear(ni_bonding_t *bonding)
 {
 	ni_string_free(&bonding->active_slave);
-	ni_string_free(&bonding->primary_slave);
+	ni_netdev_ref_destroy(&bonding->primary_slave);
 	ni_string_array_destroy(&bonding->slave_names);
 	ni_string_array_destroy(&bonding->arpmon.targets);
 	memset(bonding, 0, sizeof(*bonding));
@@ -417,7 +417,7 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 	default:
 		if (bonding->primary_reselect != NI_BOND_PRIMARY_RESELECT_ALWAYS)
 			return "primary reselect is not supported in current bonding mode";
-		if (bonding->primary_slave != NULL)
+		if (bonding->primary_slave.name != NULL)
 			return "primary slave is not supported in current bonding mode";
 		if (bonding->active_slave != NULL)
 			return "active slave is not supported in current bonding mode";
@@ -836,7 +836,7 @@ ni_bonding_parse_sysfs_attribute(ni_bonding_t *bonding, const char *attr, char *
 					&bonding->arpmon.validate_targets) < 0)
 			return -1;
 	} else if (!strcmp(attr, "primary")) {
-		ni_string_dup(&bonding->primary_slave, value);
+		ni_string_dup(&bonding->primary_slave.name, value);
 	} else if (!strcmp(attr, "active_slave")) {
 		ni_string_dup(&bonding->active_slave, value);
 	} else if (!strcmp(attr, "packets_per_slave")) {
@@ -933,9 +933,9 @@ ni_bonding_format_sysfs_attribute(const ni_bonding_t *bonding, const char *attr,
 			return 0;
 		snprintf(buffer, bufsize, "%s", bonding->active_slave);
 	} else if (!strcmp(attr, "primary")) {
-		if (!bonding->primary_slave)
+		if (!bonding->primary_slave.name)
 			return 0;
-		snprintf(buffer, bufsize, "%s", bonding->primary_slave);
+		snprintf(buffer, bufsize, "%s", bonding->primary_slave.name);
 	} else if (!strcmp(attr, "packets_per_slave")) {
 		snprintf(buffer, bufsize, "%u", bonding->packets_per_slave);
 	} else if (!strcmp(attr, "tlb_dynamic_lb")) {
@@ -1355,7 +1355,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "primary") == 0) {
-		ni_string_dup(&bond->primary_slave, value);
+		ni_string_dup(&bond->primary_slave.name, value);
 		return TRUE;
 	} else
 
