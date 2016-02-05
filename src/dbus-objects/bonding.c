@@ -377,17 +377,23 @@ __ni_objectmodel_bonding_get_slaves(const ni_dbus_object_t *object,
 		return FALSE;
 
 	ni_dbus_dict_array_init(result);
-	for (i = 0; i < bond->slave_names.count; ++i) {
-		const char *slave_name = bond->slave_names.data[i];
-		ni_dbus_variant_t *slave;
+	for (i = 0; i < bond->slaves.count; ++i) {
+		const ni_bonding_slave_t *slave = bond->slaves.data[i];
+		const char *slave_name;
+		ni_dbus_variant_t *dict;
 
-		slave = ni_dbus_dict_array_add(result);
+		/* should not happen, but better safe than sorry */
+		if (!slave || ni_string_empty(slave->device.name))
+			continue;
 
-		ni_dbus_dict_add_string(slave, "device", slave_name);
+		slave_name = slave->device.name;
+		dict = ni_dbus_dict_array_add(result);
+
+		ni_dbus_dict_add_string(dict, "device", slave_name);
 		if (bond->primary_slave.name && ni_string_eq(bond->primary_slave.name, slave_name))
-			ni_dbus_dict_add_bool(slave, "primary", TRUE);
+			ni_dbus_dict_add_bool(dict, "primary", TRUE);
 		if (bond->active_slave.name && ni_string_eq(bond->active_slave.name, slave_name))
-			ni_dbus_dict_add_bool(slave, "active", TRUE);
+			ni_dbus_dict_add_bool(dict, "active", TRUE);
 	}
 
 	return TRUE;
@@ -415,22 +421,23 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 
 	ni_netdev_ref_destroy(&bond->primary_slave);
 	ni_netdev_ref_destroy(&bond->active_slave);
-	ni_string_array_destroy(&bond->slave_names);
+	ni_bonding_slave_array_destroy(&bond->slaves);
 	for (i = 0, var = result->variant_array_value; i < result->array.len; ++i, ++var) {
 		dbus_bool_t is_primary = FALSE;
 		dbus_bool_t is_active = FALSE;
 		const char *slave_name;
 
-		if (!ni_dbus_dict_get_string(var, "device", &slave_name)) {
+		if (!ni_dbus_dict_get_string(var, "device", &slave_name) ||
+				ni_string_empty(slave_name)) {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 					"%s.%s property - missing device attribute",
 					object->path, property->name);
 			return FALSE;
 		}
-		if (ni_string_array_index(&bond->slave_names, slave_name) != -1) {
+		if (ni_bonding_has_slave(bond, slave_name)) {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s.%s property - duplicate slave devices",
-				object->path, property->name);
+				"%s.%s property - duplicate slave device %s",
+				object->path, property->name, slave_name);
 			return FALSE;
 		}
 
@@ -453,7 +460,7 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 			ni_string_dup(&bond->active_slave.name, slave_name);
 		}
 
-		ni_string_array_append(&bond->slave_names, slave_name);
+		ni_bonding_add_slave(bond, slave_name);
 	}
 	return TRUE;
 }

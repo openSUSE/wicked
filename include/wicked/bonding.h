@@ -111,7 +111,7 @@ struct ni_bonding {
 	ni_netdev_ref_t		primary_slave;
 	ni_netdev_ref_t		active_slave;
 
-	ni_string_array_t	slave_names;
+	ni_bonding_slave_array_t slaves;
 };
 
 extern int		ni_bonding_load(const char *options);
@@ -119,10 +119,11 @@ extern int		ni_bonding_load(const char *options);
 extern ni_bonding_t *	ni_bonding_new(void);
 extern void		ni_bonding_free(ni_bonding_t *);
 
+extern void		ni_bonding_get_slave_names(const ni_bonding_t *, ni_string_array_t *);
 extern ni_bool_t	ni_bonding_has_slave(ni_bonding_t *, const char *);
 extern ni_bool_t	ni_bonding_add_slave(ni_bonding_t *, const char *);
-extern ni_bool_t	ni_bonding_set_option(ni_bonding_t *, const char *, const char *);
 
+extern ni_bool_t	ni_bonding_set_option(ni_bonding_t *, const char *, const char *);
 extern int		ni_bonding_parse_sysfs_attrs(const char *, ni_bonding_t *);
 extern int		ni_bonding_write_sysfs_attrs(const char *ifname,
 						const ni_bonding_t *cfg_bond,

@@ -175,7 +175,7 @@ __ni_bonding_clear(ni_bonding_t *bonding)
 {
 	ni_netdev_ref_destroy(&bonding->primary_slave);
 	ni_netdev_ref_destroy(&bonding->active_slave);
-	ni_string_array_destroy(&bonding->slave_names);
+	ni_bonding_slave_array_destroy(&bonding->slaves);
 	ni_string_array_destroy(&bonding->arpmon.targets);
 	memset(bonding, 0, sizeof(*bonding));
 
@@ -476,6 +476,27 @@ ni_bonding_is_valid_arp_ip_target(const char *target)
 	return TRUE;
 }
 
+/*
+ * Copy the slave names into the name array
+ */
+void
+ni_bonding_get_slave_names(const ni_bonding_t *bonding, ni_string_array_t *array)
+{
+	unsigned int i;
+
+	if (!bonding || !array)
+		return;
+
+	ni_string_array_destroy(array);
+	for (i = 0; i < bonding->slaves.count; ++i) {
+		ni_bonding_slave_t *slave = bonding->slaves.data[i];
+
+		if (!slave || ni_string_empty(slave->device.name))
+			continue;
+
+		ni_string_array_append(array, slave->device.name);
+	}
+}
 
 /*
  * Report if the bond contains a slave device
@@ -483,16 +504,10 @@ ni_bonding_is_valid_arp_ip_target(const char *target)
 ni_bool_t
 ni_bonding_has_slave(ni_bonding_t *bonding, const char *ifname)
 {
-	unsigned int i;
-
-	if (!bonding || !ifname || !*ifname)
+	if (!bonding || ni_string_empty(ifname))
 		return FALSE;
 
-	for (i = 0; i < bonding->slave_names.count; ++i) {
-		if (ni_string_eq(bonding->slave_names.data[i], ifname))
-			return TRUE;
-	}
-	return FALSE;
+	return ni_bonding_slave_array_index_by_ifname(&bonding->slaves, ifname) != -1U;
 }
 
 /*
@@ -501,17 +516,21 @@ ni_bonding_has_slave(ni_bonding_t *bonding, const char *ifname)
 ni_bool_t
 ni_bonding_add_slave(ni_bonding_t *bonding, const char *ifname)
 {
+	ni_bonding_slave_t *slave;
+
 	if (!bonding || ni_string_empty(ifname))
 		return FALSE;
 
-	if (ni_bonding_has_slave(bonding, ifname)) {
-		ni_warn("Bonding slave %s already exists", ifname);
-		return TRUE;
+	if ((slave = ni_bonding_slave_new())) {
+
+		ni_netdev_ref_set_ifname(&slave->device, ifname);
+		if (ni_bonding_slave_array_append(&bonding->slaves, slave))
+			return TRUE;
+
+		ni_bonding_slave_free(slave);
 	}
-
-	return ni_string_array_append(&bonding->slave_names, ifname) == 0;
+	return FALSE;
 }
-
 
 /*
  * Set the bonding mode, using the strings supported by the
@@ -989,11 +1008,15 @@ ni_bonding_parse_sysfs_attrs(const char *ifname, ni_bonding_t *bonding)
 		{ "lp_interval",	TRUE  },
 		{ NULL,			FALSE },
 	};
+	ni_string_array_t slave_names = NI_STRING_ARRAY_INIT;
 	char *attrval = NULL;
 	unsigned int i;
 
 	__ni_bonding_clear(bonding);
-	ni_sysfs_bonding_get_slaves(ifname, &bonding->slave_names);
+	ni_sysfs_bonding_get_slaves(ifname, &slave_names);
+	for (i = 0; i < slave_names.count; ++i)
+		ni_bonding_add_slave(bonding, slave_names.data[i]);
+	ni_string_array_destroy(&slave_names);
 
 	for (i = 0; attrs[i].name; ++i) {
 		const char *attrname = attrs[i].name;

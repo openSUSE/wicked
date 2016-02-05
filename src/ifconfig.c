@@ -1509,8 +1509,9 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 	}
 #if 0
 	/* Filter out only currently available slaves */
-	for (i = 0; i < bond_cfg->slave_names.count; ++i) {
-		const char *name = bond_cfg->slave_names.data[i];
+	for (i = 0; i < bond_cfg->slaves.count; ++i) {
+		const ni_bonding_slave_t *slave = bond_cfg->slaves.data[i];
+		const char *name = slave ? slave->device.name : NULL;
 		ni_netdev_t *sdev;
 
 		if (name && (sdev = ni_netdev_by_name(nc, name))) {
@@ -1633,6 +1634,7 @@ ni_system_bond_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
 int
 ni_system_bond_add_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int slave_idx)
 {
+	ni_string_array_t slave_names = NI_STRING_ARRAY_INIT;
 	ni_bonding_t *bond = dev->bonding;
 	ni_netdev_t *slave_dev;
 
@@ -1661,14 +1663,18 @@ ni_system_bond_add_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int slav
 	}
 
 	/* Silently ignore duplicate slave attach */
-	if (ni_string_array_index(&bond->slave_names, slave_dev->name) >= 0)
+	if (ni_bonding_has_slave(bond, slave_dev->name))
 		return 0;
 
-	ni_bonding_add_slave(bond, slave_dev->name);
-	if (ni_sysfs_bonding_set_list_attr(dev->name, "slaves", &bond->slave_names) < 0) {
+	ni_bonding_get_slave_names(bond, &slave_names);
+	ni_string_array_append(&slave_names, slave_dev->name);
+	if (ni_sysfs_bonding_set_list_attr(dev->name, "slaves", &slave_names) < 0) {
+		ni_string_array_destroy(&slave_names);
 		ni_error("%s: could not update list of slaves", dev->name);
 		return -NI_ERROR_PERMISSION_DENIED;
 	}
+	ni_string_array_destroy(&slave_names);
+	ni_bonding_add_slave(bond, slave_dev->name);
 
 	return 0;
 }
@@ -1679,9 +1685,10 @@ ni_system_bond_add_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int slav
 int
 ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int slave_idx)
 {
+	ni_string_array_t slave_names = NI_STRING_ARRAY_INIT;
 	ni_bonding_t *bond = dev->bonding;
 	ni_netdev_t *slave_dev;
-	int idx;
+	unsigned int idx;
 
 	if (bond == NULL) {
 		ni_error("%s: %s is not a bonding device", __func__, dev->name);
@@ -1695,14 +1702,19 @@ ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int s
 	}
 
 	/* Silently ignore duplicate slave removal */
-	if ((idx = ni_string_array_index(&bond->slave_names, slave_dev->name)) < 0)
-		return 0;
+	if ((idx = ni_bonding_slave_array_index_by_ifindex(&bond->slaves, slave_idx)) == -1U) {
+		if ((idx = ni_bonding_slave_array_index_by_ifname( &bond->slaves, slave_dev->name)) == -1U)
+			return 0;
+	}
 
-	ni_string_array_remove_index(&bond->slave_names, idx);
-	if (ni_sysfs_bonding_set_list_attr(dev->name, "slaves", &bond->slave_names) < 0) {
+	ni_bonding_slave_array_delete(&bond->slaves, idx);
+	ni_bonding_get_slave_names(bond, &slave_names);
+	if (ni_sysfs_bonding_set_list_attr(dev->name, "slaves", &slave_names) < 0) {
+		ni_string_array_destroy(&slave_names);
 		ni_error("%s: could not update list of slaves", dev->name);
 		return -NI_ERROR_PERMISSION_DENIED;
 	}
+	ni_string_array_destroy(&slave_names);
 
 	return 0;
 }
