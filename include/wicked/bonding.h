@@ -97,7 +97,7 @@ struct ni_bonding {
 	unsigned int		lp_interval;
 
 	ni_netdev_ref_t		primary_slave;
-	char *			active_slave;
+	ni_netdev_ref_t		active_slave;
 
 	ni_string_array_t	slave_names;
 };

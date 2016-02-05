@@ -168,8 +168,8 @@ __ni_bonding_init(ni_bonding_t *bonding)
 static inline void
 __ni_bonding_clear(ni_bonding_t *bonding)
 {
-	ni_string_free(&bonding->active_slave);
 	ni_netdev_ref_destroy(&bonding->primary_slave);
+	ni_netdev_ref_destroy(&bonding->active_slave);
 	ni_string_array_destroy(&bonding->slave_names);
 	ni_string_array_destroy(&bonding->arpmon.targets);
 	memset(bonding, 0, sizeof(*bonding));
@@ -419,7 +419,7 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 			return "primary reselect is not supported in current bonding mode";
 		if (bonding->primary_slave.name != NULL)
 			return "primary slave is not supported in current bonding mode";
-		if (bonding->active_slave != NULL)
+		if (bonding->active_slave.name != NULL)
 			return "active slave is not supported in current bonding mode";
 		break;
 	}
@@ -838,7 +838,7 @@ ni_bonding_parse_sysfs_attribute(ni_bonding_t *bonding, const char *attr, char *
 	} else if (!strcmp(attr, "primary")) {
 		ni_string_dup(&bonding->primary_slave.name, value);
 	} else if (!strcmp(attr, "active_slave")) {
-		ni_string_dup(&bonding->active_slave, value);
+		ni_string_dup(&bonding->active_slave.name, value);
 	} else if (!strcmp(attr, "packets_per_slave")) {
 		if (ni_parse_uint(value, &bonding->packets_per_slave, 10) < 0)
 			return -1;
@@ -929,9 +929,9 @@ ni_bonding_format_sysfs_attribute(const ni_bonding_t *bonding, const char *attr,
 			return -1;
 		snprintf(buffer, bufsize, "%s", ptr);
 	} else if (!strcmp(attr, "active_slave")) {
-		if (!bonding->active_slave)
+		if (!bonding->active_slave.name)
 			return 0;
-		snprintf(buffer, bufsize, "%s", bonding->active_slave);
+		snprintf(buffer, bufsize, "%s", bonding->active_slave.name);
 	} else if (!strcmp(attr, "primary")) {
 		if (!bonding->primary_slave.name)
 			return 0;
@@ -1360,7 +1360,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	} else
 
 	if (strcmp(option, "active_slave") == 0) {
-		ni_string_dup(&bond->active_slave, value);
+		ni_string_dup(&bond->active_slave.name, value);
 		return TRUE;
 	} else
 
