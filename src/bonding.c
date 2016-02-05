@@ -18,6 +18,11 @@
 #include "sysfs.h"
 #include "modprobe.h"
 
+/*
+ * Slave array (re)allocation chunk
+ */
+#define NI_BONDING_SLAVE_ARRAY_CHUNK		4
+
 
 /*
  * Kernel module and default parameter.
@@ -1389,5 +1394,156 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	}
 
 	return FALSE;
+}
+
+ni_bonding_slave_t *
+ni_bonding_slave_new(void)
+{
+	ni_bonding_slave_t *slave;
+
+	slave = xcalloc(1, sizeof(*slave));
+	return slave;
+}
+
+void
+ni_bonding_slave_free(ni_bonding_slave_t *slave)
+{
+	if (slave) {
+		ni_netdev_ref_destroy(&slave->device);
+		free(slave);
+	}
+}
+
+static inline void
+ni_bonding_slave_array_init(ni_bonding_slave_array_t *array)
+{
+	memset(array, 0, sizeof(*array));
+}
+
+static void
+ni_bonding_slave_array_realloc(ni_bonding_slave_array_t *array, unsigned int newsize)
+{
+	ni_bonding_slave_t **newdata;
+	unsigned int i;
+
+	newsize += NI_BONDING_SLAVE_ARRAY_CHUNK;
+	newdata = xrealloc(array->data, newsize * sizeof(ni_bonding_slave_t *));
+	array->data = newdata;
+	for (i = array->count; i < newsize; ++i)
+		array->data[i] = NULL;
+}
+
+ni_bool_t
+ni_bonding_slave_array_append(ni_bonding_slave_array_t *array, ni_bonding_slave_t *slave)
+{
+	if (!array || !slave)
+		return FALSE;
+
+	if ((array->count % NI_BONDING_SLAVE_ARRAY_CHUNK) == 0)
+		ni_bonding_slave_array_realloc(array, array->count);
+
+	array->data[array->count++] = slave;
+	return TRUE;
+}
+
+ni_bonding_slave_t *
+ni_bonding_slave_array_remove(ni_bonding_slave_array_t *array, unsigned int index)
+{
+	ni_bonding_slave_t *slave;
+
+	if (!array || index >= array->count)
+		return NULL;
+
+	slave = array->data[index];
+	array->count--;
+	if (index < array->count) {
+		memmove(&array->data[index], &array->data[index + 1],
+			(array->count - index) * sizeof(slave));
+	}
+	array->data[array->count] = NULL;
+	return slave;
+}
+
+ni_bool_t
+ni_bonding_slave_array_delete(ni_bonding_slave_array_t *array, unsigned int index)
+{
+	ni_bonding_slave_t *slave;
+
+	if (!(slave = ni_bonding_slave_array_remove(array, index)))
+		return FALSE;
+
+	ni_bonding_slave_free(slave);
+	return TRUE;
+}
+
+void
+ni_bonding_slave_array_destroy(ni_bonding_slave_array_t *array)
+{
+	if (array) {
+		while (array->count > 0)
+			ni_bonding_slave_free(array->data[--array->count]);
+		free(array->data);
+
+		ni_bonding_slave_array_init(array);
+	}
+}
+
+unsigned int
+ni_bonding_slave_array_index_by_ifname(ni_bonding_slave_array_t *array, const char *ifname)
+{
+	unsigned int i;
+
+	if (!array || !ifname)
+		return -1U;
+
+	for (i = 0; i < array->count; ++i) {
+		ni_bonding_slave_t *slave = array->data[i];
+
+		if (slave && ni_string_eq(ifname, slave->device.name))
+			return i;
+	}
+	return -1U;
+}
+
+unsigned int
+ni_bonding_slave_array_index_by_ifindex(ni_bonding_slave_array_t *array, unsigned int ifindex)
+{
+	unsigned int i;
+
+	if (!array || !ifindex)
+		return -1U;
+
+	for (i = 0; i < array->count; ++i) {
+		ni_bonding_slave_t *slave = array->data[i];
+
+		if (slave && ifindex == slave->device.index)
+			return i;
+	}
+	return -1U;
+}
+
+ni_bonding_slave_t *
+ni_bonding_slave_array_get(ni_bonding_slave_array_t *array, unsigned int index)
+{
+	if (!array || index >= array->count)
+		return NULL;
+
+	return array->data[index];
+}
+
+ni_bonding_slave_t *
+ni_bonding_slave_array_get_by_ifname(ni_bonding_slave_array_t *array, const char *ifname)
+{
+	unsigned int index = ni_bonding_slave_array_index_by_ifname(array, ifname);
+
+	return ni_bonding_slave_array_get(array, index);
+}
+
+ni_bonding_slave_t *
+ni_bonding_slave_array_get_by_ifindex(ni_bonding_slave_array_t *array, unsigned int ifindex)
+{
+	unsigned int index = ni_bonding_slave_array_index_by_ifindex(array, ifindex);
+
+	return ni_bonding_slave_array_get(array, index);
 }
 

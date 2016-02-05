@@ -65,6 +65,18 @@ enum {
 	NI_BOND_PRIMARY_RESELECT_FAILURE = 2,
 };
 
+typedef struct ni_bonding_slave		ni_bonding_slave_t;
+typedef struct ni_bonding_slave_array	ni_bonding_slave_array_t;
+
+struct ni_bonding_slave {
+	ni_netdev_ref_t			device;
+};
+
+struct ni_bonding_slave_array {
+	unsigned int			count;
+	ni_bonding_slave_t **		data;
+};
+
 struct ni_bonding {
 	unsigned int		mode;
 
@@ -148,5 +160,16 @@ extern int		ni_bonding_primary_reselect_mode(const char *);
 extern const char *	ni_bonding_fail_over_mac_name(unsigned int);
 extern int		ni_bonding_fail_over_mac_mode(const char *);
 
+extern ni_bonding_slave_t *	ni_bonding_slave_new(void);
+extern void			ni_bonding_slave_free(ni_bonding_slave_t *);
+extern void			ni_bonding_slave_array_destroy(ni_bonding_slave_array_t *);
+extern ni_bool_t		ni_bonding_slave_array_append(ni_bonding_slave_array_t *, ni_bonding_slave_t *);
+extern ni_bool_t		ni_bonding_slave_array_delete(ni_bonding_slave_array_t *, unsigned int);
+extern ni_bonding_slave_t *	ni_bonding_slave_array_remove(ni_bonding_slave_array_t *, unsigned int);
+extern unsigned int		ni_bonding_slave_array_index_by_ifname(ni_bonding_slave_array_t *, const char *);
+extern unsigned int		ni_bonding_slave_array_index_by_ifindex(ni_bonding_slave_array_t *, unsigned int);
+extern ni_bonding_slave_t *	ni_bonding_slave_array_get(ni_bonding_slave_array_t *, unsigned int);
+extern ni_bonding_slave_t *	ni_bonding_slave_array_get_by_ifname(ni_bonding_slave_array_t *, const char *);
+extern ni_bonding_slave_t *	ni_bonding_slave_array_get_by_ifindex(ni_bonding_slave_array_t *, unsigned int);
 
 #endif /* __WICKED_BONDING_H__ */
