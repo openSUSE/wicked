@@ -1406,9 +1406,12 @@ ni_system_ovs_bridge_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
  * Create a bonding device
  */
 int
-ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t *bond, ni_netdev_t **dev_ret)
+ni_system_bond_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **dev_ret)
 {
 	int ret;
+
+	if (!cfg || cfg->link.type != NI_IFTYPE_BOND || ni_string_empty(cfg->name))
+		return -NI_ERROR_INVALID_ARGS;
 
 	if (!ni_sysfs_bonding_available()) {
 		unsigned int i, success = 0;
@@ -1429,30 +1432,30 @@ ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t
 		}
 	}
 
-	if (!ni_sysfs_bonding_is_master(ifname)) {
+	if (!ni_sysfs_bonding_is_master(cfg->name)) {
 		int success = 0;
 
-		ni_debug_ifconfig("%s: creating bond master", ifname);
-		if (ni_sysfs_bonding_add_master(ifname) >= 0) {
+		ni_debug_ifconfig("%s: creating bond master", cfg->name);
+		if (ni_sysfs_bonding_add_master(cfg->name) >= 0) {
 			unsigned int i;
 
 			/* Wait for bonding_masters to appear */
 			for (i = 0; i < 400; ++i) {
-				if ((success = ni_sysfs_bonding_is_master(ifname)) != 0)
+				if ((success = ni_sysfs_bonding_is_master(cfg->name)) != 0)
 					break;
 				usleep(25000);
 			}
 		}
 
 		if (!success) {
-			ni_error("unable to create bonding device %s", ifname);
+			ni_error("unable to create bonding device %s", cfg->name);
 			return -1;
 		}
 	}
 
-	ret = __ni_system_netdev_create(nc, ifname, 0, NI_IFTYPE_BOND, dev_ret);
-	if (ret == 0)
-		ni_system_bond_setup(nc, *dev_ret, bond);
+	ret = __ni_system_netdev_create(nc, cfg->name, 0, NI_IFTYPE_BOND, dev_ret);
+	if (ret == 0 /* && cfg->bonding */)
+		ni_system_bond_setup(nc, *dev_ret, cfg);
 	return ret;
 }
 
@@ -1460,7 +1463,7 @@ ni_system_bond_create(ni_netconfig_t *nc, const char *ifname, const ni_bonding_t
  * Set up a bonding device
  */
 int
-ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *bond_cfg)
+ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
 {
 	const char *complaint;
 	ni_bonding_t *bond;
@@ -1472,7 +1475,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 	unsigned int i;
 #endif
 
-	complaint = ni_bonding_validate(bond_cfg);
+	complaint = ni_bonding_validate(cfg->bonding);
 	if (complaint != NULL) {
 		ni_error("%s: cannot set up bonding device: %s", dev->name, complaint);
 		return -NI_ERROR_INVALID_ARGS;
@@ -1500,7 +1503,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 		ni_debug_ifconfig("%s: configuring bonding device (stage 0.%u.%u)",
 				dev->name, is_up, has_slaves);
 		ni_bonding_parse_sysfs_attrs(dev->name, bond);
-		if (ni_bonding_write_sysfs_attrs(dev->name, bond_cfg, bond,
+		if (ni_bonding_write_sysfs_attrs(dev->name, cfg->bonding, bond,
 						is_up, has_slaves) < 0) {
 			ni_error("%s: cannot configure bonding device (stage 0.%u.%u)",
 				dev->name, is_up, has_slaves);
@@ -1509,8 +1512,8 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 	}
 #if 0
 	/* Filter out only currently available slaves */
-	for (i = 0; i < bond_cfg->slaves.count; ++i) {
-		const ni_bonding_slave_t *slave = bond_cfg->slaves.data[i];
+	for (i = 0; i < cfg->bonding->slaves.count; ++i) {
+		ni_bonding_slave_t *slave = cfg->bonding->slaves.data[i];
 		const char *name = slave ? slave->device.name : NULL;
 		ni_netdev_t *sdev;
 
@@ -1575,7 +1578,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bonding_t *b
 		ni_debug_ifconfig("%s: configuring bonding device (stage 2.%u.%u)",
 				dev->name, is_up, has_slaves);
 		ni_bonding_parse_sysfs_attrs(dev->name, bond);
-		if (ni_bonding_write_sysfs_attrs(dev->name, bond_cfg, bond,
+		if (ni_bonding_write_sysfs_attrs(dev->name, cfg->bonding, bond,
 						is_up, has_slaves) < 0) {
 			ni_error("%s: cannot configure bonding device (stage 2.%u.%u)",
 				dev->name, is_up, has_slaves);

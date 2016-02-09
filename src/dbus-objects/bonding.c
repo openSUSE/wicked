@@ -49,66 +49,67 @@ ni_objectmodel_new_bond(ni_dbus_object_t *factory_object, const ni_dbus_method_t
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_dbus_server_t *server = ni_dbus_object_get_server(factory_object);
-	ni_netdev_t *ifp;
+	ni_netdev_t *cfg;
 	const char *ifname = NULL;
 
 	ni_assert(argc == 2);
 	if (!ni_dbus_variant_get_string(&argv[0], &ifname)
-	 || !(ifp = __ni_objectmodel_bond_device_arg(&argv[1])))
+	 || !(cfg = __ni_objectmodel_bond_device_arg(&argv[1])))
 		return ni_dbus_error_invalid_args(error, factory_object->path, method->name);
 
-	if (!(ifp = __ni_objectmodel_bond_newlink(ifp, ifname, error)))
+	if (!(cfg = __ni_objectmodel_bond_newlink(cfg, ifname, error)))
 		return FALSE;
 
-	return ni_objectmodel_netif_factory_result(server, reply, ifp, NULL, error);
+	return ni_objectmodel_netif_factory_result(server, reply, cfg, NULL, error);
 }
 
 static ni_netdev_t *
-__ni_objectmodel_bond_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusError *error)
+__ni_objectmodel_bond_newlink(ni_netdev_t *cfg, const char *ifname, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_netdev_t *new_ifp = NULL;
-	const ni_bonding_t *bond;
+	ni_netdev_t *dev = NULL;
 	int rv;
 
-	bond = ni_netdev_get_bonding(cfg_ifp);
+#if 0
+	ni_netdev_get_bonding(cfg);
+#endif
 
-	if (ifname == NULL && !(ifname = ni_netdev_make_name(nc, "bond", 0))) {
-		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create bonding interface - too many interfaces");
+	if (ni_string_empty(ifname) && !(ifname = ni_netdev_make_name(nc, "bond", 0))) {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Unable to create bonding interface - too many interfaces");
 		goto out;
 	}
-	ni_string_dup(&cfg_ifp->name, ifname);
-
-	if ((rv = ni_system_bond_create(nc, cfg_ifp->name, bond, &new_ifp)) < 0) {
+	if (!ni_netdev_name_is_valid(ifname)) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Unable to create bonding interface '%s'", cfg_ifp->name);
-		new_ifp = NULL;
+				"Unable to create bonding interface - invalid interface name '%s'",
+				ni_print_suspect(ifname, ni_string_len(ifname)));
 		goto out;
-#if 0
-		if (rv != -NI_ERROR_DEVICE_EXISTS
-		 && (ifname != NULL && strcmp(ifname, new_ifp->name))) {
-			dbus_set_error(error,
-					DBUS_ERROR_FAILED,
-					"Unable to create bonding interface: %s",
-					ni_strerror(rv));
+	}
+
+	ni_string_dup(&cfg->name, ifname);
+	if ((rv = ni_system_bond_create(nc, cfg, &dev)) < 0) {
+		if (rv != -NI_ERROR_DEVICE_EXISTS || dev == NULL
+		|| (ifname && dev && !ni_string_eq(ifname, dev->name))) {
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Unable to create bonding interface '%s'", ifname);
+			dev = NULL;
 			goto out;
 		}
 		ni_debug_dbus("Bonding interface exists (and name matches)");
-#endif
 	}
 
-	if (new_ifp->link.type != NI_IFTYPE_BOND) {
+	if (dev->link.type != NI_IFTYPE_BOND) {
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
 				"Unable to create bonding interface: new interface is of type %s",
-				ni_linktype_type_to_name(new_ifp->link.type));
-		new_ifp = NULL;
+				ni_linktype_type_to_name(dev->link.type));
+		dev = NULL;
 	}
 
 out:
-	if (cfg_ifp)
-		ni_netdev_put(cfg_ifp);
-	return new_ifp;
+	if (cfg)
+		ni_netdev_put(cfg);
+	return dev;
 }
 
 /*
@@ -120,21 +121,21 @@ ni_objectmodel_bond_setup(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 			ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_netdev_t *ifp, *cfg;
+	ni_netdev_t *dev, *cfg;
 	dbus_bool_t rv = FALSE;
 
 	/* we've already checked that argv matches our signature */
 	ni_assert(argc == 1);
 
-	if (!(ifp = ni_objectmodel_unwrap_netif(object, error)))
-		return FALSE;
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return ni_dbus_error_invalid_args(error, object->path, method->name);
 
 	if (!(cfg = __ni_objectmodel_bond_device_arg(&argv[0]))) {
 		ni_dbus_error_invalid_args(error, object->path, method->name);
 		goto out;
 	}
 
-	if (ni_system_bond_setup(nc, ifp, cfg->bonding) < 0) {
+	if (ni_system_bond_setup(nc, dev, cfg) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to set up bonding device");
 		goto out;
 	}
