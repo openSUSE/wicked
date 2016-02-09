@@ -1405,13 +1405,10 @@ ni_system_ovs_bridge_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
 /*
  * Create a bonding device
  */
-int
-ni_system_bond_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **dev_ret)
+static int
+ni_system_bond_create_sysfs(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **dev_ret)
 {
 	int ret;
-
-	if (!cfg || cfg->link.type != NI_IFTYPE_BOND || ni_string_empty(cfg->name))
-		return -NI_ERROR_INVALID_ARGS;
 
 	if (!ni_sysfs_bonding_available()) {
 		unsigned int i, success = 0;
@@ -1456,24 +1453,56 @@ ni_system_bond_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **
 	ret = __ni_system_netdev_create(nc, cfg->name, 0, NI_IFTYPE_BOND, dev_ret);
 	if (ret == 0 /* && cfg->bonding */)
 		ni_system_bond_setup(nc, *dev_ret, cfg);
+
 	return ret;
+}
+
+int
+ni_system_bond_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **dev_ret)
+{
+	if (!nc || !dev_ret || !cfg || cfg->link.type != NI_IFTYPE_BOND || ni_string_empty(cfg->name))
+		return -NI_ERROR_INVALID_ARGS;
+
+	return ni_system_bond_create_sysfs(nc, cfg, dev_ret);
 }
 
 /*
  * Set up a bonding device
  */
+static int
+ni_system_bond_setup_sysfs(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	ni_bonding_t *bond;
+	ni_bool_t is_up;
+
+	if ((bond = ni_netdev_get_bonding(dev)) == NULL) {
+		ni_error("%s: not a bonding interface ", dev->name);
+		return -1;
+	}
+
+	is_up = ni_netdev_device_is_up(dev);
+	ni_bonding_parse_sysfs_attrs(dev->name, bond);
+
+	ni_debug_ifconfig("%s: configuring bonding device (stage 0.%u.%u)",
+			dev->name, is_up, bond->slaves.count);
+	if (ni_bonding_write_sysfs_attrs(dev->name, cfg->bonding, bond,
+					is_up, bond->slaves.count > 0) < 0) {
+		ni_error("%s: cannot configure bonding device (stage 0.%u.%u)",
+			dev->name, is_up, bond->slaves.count);
+		return -1;
+	}
+	ni_bonding_parse_sysfs_attrs(dev->name, bond);
+
+	return 0;
+}
+
 int
 ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
 {
 	const char *complaint;
-	ni_bonding_t *bond;
-	ni_string_array_t enslaved;
-	ni_string_array_t slaves;
-	ni_bool_t is_up;
-	ni_bool_t has_slaves;
-#if 0
-	unsigned int i;
-#endif
+
+	if (!nc || !dev || !cfg || cfg->link.type != NI_IFTYPE_BOND)
+		return -NI_ERROR_INVALID_ARGS;
 
 	complaint = ni_bonding_validate(cfg->bonding);
 	if (complaint != NULL) {
@@ -1481,118 +1510,7 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cf
 		return -NI_ERROR_INVALID_ARGS;
 	}
 
-	if ((bond = ni_netdev_get_bonding(dev)) == NULL) {
-		ni_error("%s: not a bonding interface ", dev->name);
-		return -1;
-	}
-
-	/* Fetch the number of currently active slaves */
-	ni_string_array_init(&slaves);
-	ni_string_array_init(&enslaved);
-	ni_sysfs_bonding_get_slaves(dev->name, &enslaved);
-	has_slaves = enslaved.count > 0;
-
-	is_up = ni_netdev_device_is_up(dev);
-	if (!has_slaves) {
-		/*
-		 * Stage 0 -- pre-enslave:
-		 *
-		 * Most attributes need to be written prior to adding the first slave
-		 * or bringing up the bonding interface ...
-		 */
-		ni_debug_ifconfig("%s: configuring bonding device (stage 0.%u.%u)",
-				dev->name, is_up, has_slaves);
-		ni_bonding_parse_sysfs_attrs(dev->name, bond);
-		if (ni_bonding_write_sysfs_attrs(dev->name, cfg->bonding, bond,
-						is_up, has_slaves) < 0) {
-			ni_error("%s: cannot configure bonding device (stage 0.%u.%u)",
-				dev->name, is_up, has_slaves);
-			return -1;
-		}
-	}
-#if 0
-	/* Filter out only currently available slaves */
-	for (i = 0; i < cfg->bonding->slaves.count; ++i) {
-		ni_bonding_slave_t *slave = cfg->bonding->slaves.data[i];
-		const char *name = slave ? slave->device.name : NULL;
-		ni_netdev_t *sdev;
-
-		if (name && (sdev = ni_netdev_by_name(nc, name))) {
-			int ret;
-
-			if (!ni_netdev_device_is_ready(sdev)) {
-				ni_error("%s: cannot enslave %s, device is not ready",
-					dev->name, sdev->name);
-				continue;
-			}
-
-			if (sdev->link.masterdev.index) {
-				if (sdev->link.masterdev.index == dev->link.ifindex)
-					continue;
-
-				ni_error("%s: cannot enslave %s, already enslaved in %s[%u]",
-					dev->name, sdev->name, sdev->link.masterdev.name ?
-					sdev->link.masterdev.name : "", sdev->link.masterdev.index);
-				continue; /* ? */
-			} else
-			if (ni_string_array_index(&enslaved, name) != -1)
-				continue;
-
-			ret = __ni_rtnl_link_add_slave_down(sdev, dev->name, dev->link.ifindex);
-			if (ret == 0) {
-				ni_netdev_ref_set(&sdev->link.masterdev,
-						dev->name, dev->link.ifindex);
-			} else {
-				__ni_rtnl_link_down(sdev);
-				ni_string_array_append(&slaves, name);
-			}
-		}
-	}
-
-	if (slaves.count > 0) {
-		/*
-		 * Stage 1 -- enslave:
-		 */
-		ni_debug_ifconfig("%s: configuring bonding slaves (stage 1.%u.%u)",
-				dev->name, is_up, has_slaves);
-
-		/* Update the list of slave devices */
-		if (ni_sysfs_bonding_set_list_attr(dev->name, "slaves", &slaves) < 0) {
-			ni_string_array_destroy(&slaves);
-
-			ni_error("%s: could not update list of slaves", dev->name);
-			return -NI_ERROR_PERMISSION_DENIED;
-		}
-		ni_string_array_destroy(&slaves);
-	}
-
-	ni_sysfs_bonding_get_slaves(dev->name, &enslaved);
-	has_slaves = enslaved.count > 0;
-	if (has_slaves) {
-		/*
-		 * Stage 2 -- post-enslave:
-		 *
-		 * Some attributes as e.g. active_slave, can be set only when
-		 * the bond is running with at least one enslaved slaves.
-		 */
-		ni_debug_ifconfig("%s: configuring bonding device (stage 2.%u.%u)",
-				dev->name, is_up, has_slaves);
-		ni_bonding_parse_sysfs_attrs(dev->name, bond);
-		if (ni_bonding_write_sysfs_attrs(dev->name, cfg->bonding, bond,
-						is_up, has_slaves) < 0) {
-			ni_error("%s: cannot configure bonding device (stage 2.%u.%u)",
-				dev->name, is_up, has_slaves);
-			return -1;
-		}
-	} else {
-		ni_error("%s: bond is in a not operable state without any slave",
-				dev->name);
-		return -1;
-	}
-#endif
-	ni_bonding_parse_sysfs_attrs(dev->name, bond);
-
-	return 0;
+	return ni_system_bond_setup_sysfs(nc, dev, cfg);
 }
 
 /*
