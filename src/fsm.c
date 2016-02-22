@@ -2981,26 +2981,26 @@ ni_ifworker_references_ok(const ni_ifworker_array_t *guard, ni_ifworker_t *w)
 {
 	if (w->masterdev && w->lowerdev && ((w->masterdev == w->lowerdev) ||
 	    ni_string_eq(w->masterdev->name, w->lowerdev->name))) {
+		ni_ifworker_fail(w, "references %s as master and as lower device",
+				w->masterdev->name);
 		ni_ifworker_array_remove(&w->lowerdev->lowerdev_for, w);
 		ni_ifworker_array_remove(&w->masterdev->children, w);
 		ni_ifworker_set_ref(&w->lowerdev, NULL);
 		ni_ifworker_set_ref(&w->masterdev, NULL);
-		ni_ifworker_fail(w, "references %s as master and as lower device",
-				w->masterdev->name);
 		return FALSE;
 	}
 
 	if (w == w->lowerdev || (w->lowerdev && ni_string_eq(w->name, w->lowerdev->name))) {
+		ni_ifworker_fail(w, "references itself as lower device");
 		ni_ifworker_array_remove(&w->lowerdev->lowerdev_for, w);
 		ni_ifworker_set_ref(&w->lowerdev, NULL);
-		ni_ifworker_fail(w, "references itself as lower device");
 		return FALSE;
 	}
 
 	if (w == w->masterdev || (w->masterdev && ni_string_eq(w->name, w->masterdev->name))) {
+		ni_ifworker_fail(w, "references itself as master device");
 		ni_ifworker_array_remove(&w->masterdev->children, w);
 		ni_ifworker_set_ref(&w->masterdev, NULL);
-		ni_ifworker_fail(w, "references itself as master device");
 		return FALSE;
 	}
 
