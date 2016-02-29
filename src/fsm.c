@@ -295,7 +295,7 @@ ni_fsm_transition_reset(ni_fsm_transition_t *action)
 
 	for (i = 0, bind = action->binding; i < action->num_bindings; ++i, ++bind) {
 		ni_fsm_transition_bind_reset(bind);
-		action->bound = 0;
+		action->bound = FALSE;
 	}
 }
 
@@ -3272,7 +3272,11 @@ ni_ifworker_device_delete(ni_ifworker_t *w)
 	if (ni_ifworker_is_running(w))
 		ni_ifworker_fail(w, "device has been deleted");
 
+	w->target_range.min = NI_FSM_STATE_NONE;
+	w->target_range.max = __NI_FSM_STATE_MAX;
+
 	__ni_ifworker_destroy_action_table(w);
+	__ni_ifworker_reset_device_api(w);
 	ni_ifworker_rearm(w);
 	ni_fsm_clear_hierarchy(w);
 
