@@ -51,7 +51,7 @@
              slave after a link recovery has been detected."/>
      <downdelay type="uint32" description="Specifies the time, in milliseconds, to wait before disabling
 	     a slave after a link failure has been detected."/>
-     <carrier type="builtin-bonding-mii-carrier-detect"/>
+     <carrier-detect type="builtin-bonding-mii-carrier-detect"/>
    </miimon>
 
    <xmit-hash-policy type="builtin-bonding-xmit-hash-policy"/>

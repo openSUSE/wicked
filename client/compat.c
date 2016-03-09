@@ -385,7 +385,7 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 			xml_node_new_element("downdelay", miimon,
 				ni_sprint_uint(bond->miimon.downdelay));
 		}
-		xml_node_new_element("carrier", miimon,
+		xml_node_new_element("carrier-detect", miimon,
 			ni_bonding_mii_carrier_detect_name(bond->miimon.carrier_detect));
 	}
 
