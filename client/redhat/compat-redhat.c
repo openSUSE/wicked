@@ -342,7 +342,7 @@ try_bonding_slave(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_compat_netd
 	bonding = ni_netdev_get_bonding(master->dev);
 	if (ni_bonding_has_slave(bonding, var->value))
 		return TRUE;
-	return ni_bonding_add_slave(bonding, var->value);
+	return ni_bonding_add_slave(bonding, var->value) != NULL;
 }
 
 

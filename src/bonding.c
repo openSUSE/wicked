@@ -530,23 +530,23 @@ ni_bonding_has_slave(ni_bonding_t *bonding, const char *ifname)
 /*
  * Add a slave device to the bond
  */
-ni_bool_t
+ni_bonding_slave_t *
 ni_bonding_add_slave(ni_bonding_t *bonding, const char *ifname)
 {
 	ni_bonding_slave_t *slave;
 
 	if (!bonding || ni_string_empty(ifname))
-		return FALSE;
+		return NULL;
 
 	if ((slave = ni_bonding_slave_new())) {
 
 		ni_netdev_ref_set_ifname(&slave->device, ifname);
 		if (ni_bonding_slave_array_append(&bonding->slaves, slave))
-			return TRUE;
+			return slave;
 
 		ni_bonding_slave_free(slave);
 	}
-	return FALSE;
+	return NULL;
 }
 
 ni_bonding_slave_t *

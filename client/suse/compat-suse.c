@@ -1642,7 +1642,7 @@ try_add_bonding_slave(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *su
 				dev->name, suffix, var->value);
 		return TRUE; /* warn without to fail */
 	}
-	return ni_bonding_add_slave(bond, var->value);
+	return ni_bonding_add_slave(bond, var->value) != NULL;
 }
 
 static ni_bool_t

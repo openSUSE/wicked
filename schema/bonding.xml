@@ -23,8 +23,16 @@
        <meta:netif-reference shared="false" />
        <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
      </device>
+
      <active type="boolean"/>
      <primary type="boolean"/>
+
+     <state type="builtin-bonding-slave-state"/>
+     <mii-status type="builtin-bonding-slave-mii-status"/>
+     <perm-hwaddr type="ethernet-address"/>
+     <link-failures type="uint32"/>
+     <queue-id type="uint16"/>
+     <ad-aggregator-id type="uint16"/>
    </define>
    <slaves class="array" element-type="slave" constraint="required" minlen="1" />
 
