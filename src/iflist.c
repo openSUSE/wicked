@@ -64,7 +64,7 @@ static int		__ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h,
 static int		__ni_netdev_process_newroute(ni_netdev_t *, struct nlmsghdr *,
 					struct rtmsg *, ni_netconfig_t *);
 static int		__ni_discover_bridge(ni_netdev_t *);
-static int		__ni_discover_bond(ni_netdev_t *);
+static int		__ni_discover_bond(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static int		__ni_discover_addrconf(ni_netdev_t *);
 static int		__ni_discover_infiniband(ni_netdev_t *, ni_netconfig_t *);
 static int		__ni_discover_vlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
@@ -1344,7 +1344,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		__ni_discover_bridge(dev);
 		break;
 	case NI_IFTYPE_BOND:
-		__ni_discover_bond(dev);
+		__ni_discover_bond(dev, tb, nc);
 		break;
 
 	case NI_IFTYPE_VLAN:
@@ -2436,16 +2436,395 @@ __ni_discover_bridge(ni_netdev_t *dev)
  * Discover bonding configuration
  */
 static int
-__ni_discover_bond(ni_netdev_t *dev)
+__ni_discover_bond_netlink_ad_info(ni_netdev_t *dev, struct nlattr *ad_info, ni_netconfig_t *nc)
 {
-	ni_bonding_t *bonding;
+	/* static const */ struct nla_policy	__bond_ad_info_policy[IFLA_BOND_AD_INFO_MAX+1] = {
+		[IFLA_BOND_AD_INFO_AGGREGATOR]		= { .type = NLA_U16 },
+		[IFLA_BOND_AD_INFO_NUM_PORTS]		= { .type = NLA_U16 },
+		[IFLA_BOND_AD_INFO_ACTOR_KEY]		= { .type = NLA_U16 },
+		[IFLA_BOND_AD_INFO_PARTNER_KEY]		= { .type = NLA_U16 },
+		[IFLA_BOND_AD_INFO_PARTNER_MAC]		= { .type = NLA_UNSPEC },
+	};
+#define map_attr(attr)	[attr] = #attr
+	static const char *			__bond_ad_info_attrs[IFLA_BOND_AD_INFO_MAX+1] = {
+		map_attr(IFLA_BOND_AD_INFO_AGGREGATOR),
+		map_attr(IFLA_BOND_AD_INFO_NUM_PORTS),
+		map_attr(IFLA_BOND_AD_INFO_ACTOR_KEY),
+		map_attr(IFLA_BOND_AD_INFO_PARTNER_KEY),
+		map_attr(IFLA_BOND_AD_INFO_PARTNER_MAC),
+	};
+#undef  map_attr
+	struct nlattr *tb[IFLA_BOND_AD_INFO_MAX+1];
+	struct nlattr *aptr;
+	unsigned int attr, alen;
+	const char *name;
+	ni_bonding_t *bond = dev->bonding;
 
-	if (dev->link.type != NI_IFTYPE_BOND)
+	if (nla_parse_nested(tb, IFLA_BOND_AD_INFO_MAX, ad_info, __bond_ad_info_policy) < 0) {
+		ni_error("%s: unable to parse IFLA_BOND_AD_INFO attribute", dev->name);
+		return -1;
+	}
+
+	for (attr = IFLA_BOND_AD_INFO_AGGREGATOR; attr <= IFLA_BOND_AD_INFO_PARTNER_MAC; ++attr) {
+		if (!(aptr = tb[attr]))
+			continue;
+
+		name =  __bond_ad_info_attrs[attr];
+		switch (attr) {
+		case IFLA_BOND_AD_INFO_AGGREGATOR:
+			bond->ad_info.aggregator_id = nla_get_u16(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					bond->ad_info.aggregator_id);
+			break;
+
+		case IFLA_BOND_AD_INFO_NUM_PORTS:
+			bond->ad_info.ports = nla_get_u16(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					bond->ad_info.ports);
+			break;
+
+		case IFLA_BOND_AD_INFO_ACTOR_KEY:
+			bond->ad_info.actor_key = nla_get_u16(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					bond->ad_info.actor_key);
+			break;
+
+		case IFLA_BOND_AD_INFO_PARTNER_KEY:
+			bond->ad_info.partner_key = nla_get_u16(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					bond->ad_info.partner_key);
+			break;
+
+		case IFLA_BOND_AD_INFO_PARTNER_MAC:
+			if ((alen = nla_len(aptr)) != ni_link_address_length(ARPHRD_ETHER))
+				break;
+
+			memcpy(bond->ad_info.partner_mac.data, nla_data(aptr), alen);
+			bond->ad_info.partner_mac.len = alen;
+			bond->ad_info.partner_mac.type = ARPHRD_ETHER;
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_link_address_print(&bond->ad_info.partner_mac));
+			break;
+
+		default:
+			break;
+		}
+	}
+
+	return 0;
+}
+
+static int
+__ni_discover_bond_netlink_master(ni_netdev_t *dev, struct nlattr *info_data, ni_netconfig_t *nc)
+{
+	/* static const */ struct nla_policy	__bond_master_policy[IFLA_BOND_MAX+1] = {
+		[IFLA_BOND_MODE]			= { .type = NLA_U8	},
+		[IFLA_BOND_ACTIVE_SLAVE]		= { .type = NLA_U32	},
+		[IFLA_BOND_MIIMON]			= { .type = NLA_U32	},
+		[IFLA_BOND_UPDELAY]			= { .type = NLA_U32	},
+		[IFLA_BOND_DOWNDELAY]			= { .type = NLA_U32	},
+		[IFLA_BOND_USE_CARRIER]			= { .type = NLA_U8	},
+		[IFLA_BOND_ARP_INTERVAL]		= { .type = NLA_U32	},
+		[IFLA_BOND_ARP_IP_TARGET]		= { .type = NLA_NESTED	},
+		[IFLA_BOND_ARP_VALIDATE]		= { .type = NLA_U32	},
+		[IFLA_BOND_ARP_ALL_TARGETS]		= { .type = NLA_U32	},
+		[IFLA_BOND_PRIMARY]			= { .type = NLA_U32	},
+		[IFLA_BOND_PRIMARY_RESELECT]		= { .type = NLA_U8	},
+		[IFLA_BOND_FAIL_OVER_MAC]		= { .type = NLA_U8	},
+		[IFLA_BOND_XMIT_HASH_POLICY]		= { .type = NLA_U8	},
+		[IFLA_BOND_RESEND_IGMP]			= { .type = NLA_U32	},
+		[IFLA_BOND_NUM_PEER_NOTIF]		= { .type = NLA_U8	},
+		[IFLA_BOND_ALL_SLAVES_ACTIVE]		= { .type = NLA_U8	},
+		[IFLA_BOND_MIN_LINKS]			= { .type = NLA_U32	},
+		[IFLA_BOND_LP_INTERVAL]			= { .type = NLA_U32	},
+		[IFLA_BOND_PACKETS_PER_SLAVE]		= { .type = NLA_U32	},
+		[IFLA_BOND_AD_LACP_RATE]		= { .type = NLA_U8	},
+		[IFLA_BOND_AD_SELECT]			= { .type = NLA_U8	},
+		[IFLA_BOND_AD_INFO]			= { .type = NLA_NESTED	},
+	};
+#define map_attr(attr)	[attr] = #attr
+	static const char *			__bond_master_attrs[IFLA_BOND_MAX+1] = {
+		map_attr(IFLA_BOND_MODE),
+		map_attr(IFLA_BOND_ACTIVE_SLAVE),
+		map_attr(IFLA_BOND_MIIMON),
+		map_attr(IFLA_BOND_UPDELAY),
+		map_attr(IFLA_BOND_DOWNDELAY),
+		map_attr(IFLA_BOND_USE_CARRIER),
+		map_attr(IFLA_BOND_ARP_INTERVAL),
+		map_attr(IFLA_BOND_ARP_IP_TARGET),
+		map_attr(IFLA_BOND_ARP_VALIDATE),
+		map_attr(IFLA_BOND_ARP_ALL_TARGETS),
+		map_attr(IFLA_BOND_PRIMARY),
+		map_attr(IFLA_BOND_PRIMARY_RESELECT),
+		map_attr(IFLA_BOND_FAIL_OVER_MAC),
+		map_attr(IFLA_BOND_XMIT_HASH_POLICY),
+		map_attr(IFLA_BOND_RESEND_IGMP),
+		map_attr(IFLA_BOND_NUM_PEER_NOTIF),
+		map_attr(IFLA_BOND_ALL_SLAVES_ACTIVE),
+		map_attr(IFLA_BOND_MIN_LINKS),
+		map_attr(IFLA_BOND_LP_INTERVAL),
+		map_attr(IFLA_BOND_PACKETS_PER_SLAVE),
+		map_attr(IFLA_BOND_AD_LACP_RATE),
+		map_attr(IFLA_BOND_AD_SELECT),
+		map_attr(IFLA_BOND_AD_INFO),
+	};
+#undef  map_attr
+	struct nlattr *tb[IFLA_BOND_MAX+1];
+	struct nlattr *aptr, *nested;
+	ni_bonding_t *bond = dev->bonding;
+	const char *name;
+	unsigned int attr;
+	int rem;
+
+	if (nla_parse_nested(tb, IFLA_BOND_MAX, info_data, __bond_master_policy) < 0) {
+		ni_error("%s: Unable to parse bond IFLA_INFO_DATA", dev->name);
+		return -1;
+	}
+
+	bond->monitoring = 0;
+	for (attr = IFLA_BOND_MODE; attr <= IFLA_BOND_MAX; ++attr) {
+		if (!(aptr = tb[attr]))
+			continue;
+
+		name =  __bond_master_attrs[attr];
+		switch (attr) {
+		case IFLA_BOND_MODE:
+			bond->mode = nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u (%s)", dev->name, name,
+					bond->mode,
+					ni_bonding_mode_type_to_name(bond->mode));
+			break;
+		case IFLA_BOND_ACTIVE_SLAVE:
+			bond->active_slave.index = nla_get_u32(aptr);
+			if (!ni_netdev_ref_bind_ifname(&bond->active_slave, nc))
+				ni_string_free(&bond->active_slave.name);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u (%s)", dev->name, name,
+					bond->active_slave.index,
+					bond->active_slave.name);
+			break;
+		case IFLA_BOND_MIIMON:
+			bond->miimon.frequency = nla_get_u32(aptr);
+			if (bond->miimon.frequency > 0)
+				bond->monitoring = NI_BOND_MONITOR_MII;
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					bond->miimon.frequency);
+			break;
+		case IFLA_BOND_UPDELAY:
+			bond->miimon.updelay = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					bond->miimon.updelay);
+			break;
+		case IFLA_BOND_DOWNDELAY:
+			bond->miimon.downdelay = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					bond->miimon.downdelay);
+			break;
+		case IFLA_BOND_USE_CARRIER:
+			bond->miimon.carrier_detect = nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u (%s)", dev->name, name,
+					bond->miimon.carrier_detect,
+					ni_bonding_mii_carrier_detect_name(bond->miimon.carrier_detect));
+			break;
+		case IFLA_BOND_ARP_INTERVAL:
+			bond->arpmon.interval = nla_get_u32(aptr);
+			if (bond->arpmon.interval > 0)
+				bond->monitoring = NI_BOND_MONITOR_ARP;
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					bond->arpmon.interval);
+			break;
+		case IFLA_BOND_ARP_IP_TARGET:
+			ni_string_array_destroy(&bond->arpmon.targets);
+			nla_for_each_nested(nested, aptr, rem) {
+				ni_sockaddr_t addr = { .ss_family = AF_INET };
+				const char *ip;
+
+				addr.sin.sin_addr.s_addr = nla_get_u32(nested);
+				ip = ni_sockaddr_print(&addr);
+				ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+						"%s: get attr %s[%u]=%s", dev->name,
+						name, bond->arpmon.targets.count, ip);
+				if (ni_sockaddr_is_specified(&addr))
+					ni_string_array_append(&bond->arpmon.targets, ip);
+			}
+			break;
+		case IFLA_BOND_ARP_VALIDATE:
+			bond->arpmon.validate = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u (%s)", dev->name, name,
+					bond->arpmon.validate,
+					ni_bonding_arp_validate_type_to_name(bond->arpmon.validate));
+			break;
+		case IFLA_BOND_ARP_ALL_TARGETS:
+			bond->arpmon.validate_targets = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u (%s)", dev->name, name,
+					bond->arpmon.validate_targets,
+					ni_bonding_arp_validate_targets_to_name(bond->arpmon.validate_targets));
+			break;
+		case IFLA_BOND_PRIMARY:
+			bond->primary_slave.index = nla_get_u32(aptr);
+			if (!ni_netdev_ref_bind_ifname(&bond->primary_slave, nc))
+				ni_string_free(&bond->active_slave.name);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u (%s)", dev->name, name,
+					bond->primary_slave.index, bond->primary_slave.name);
+			break;
+		case IFLA_BOND_PRIMARY_RESELECT:
+			bond->primary_reselect = nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u (%s)", dev->name, name,
+					bond->primary_reselect,
+					ni_bonding_primary_reselect_name(bond->primary_reselect));
+			break;
+		case IFLA_BOND_FAIL_OVER_MAC:
+			bond->fail_over_mac = nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u (%s)", dev->name, name,
+					bond->fail_over_mac,
+					ni_bonding_fail_over_mac_name(bond->fail_over_mac));
+			break;
+		case IFLA_BOND_XMIT_HASH_POLICY:
+			bond->xmit_hash_policy = nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u (%s)", dev->name, name,
+					bond->xmit_hash_policy,
+					ni_bonding_xmit_hash_policy_to_name(bond->xmit_hash_policy));
+			break;
+		case IFLA_BOND_RESEND_IGMP:
+			bond->resend_igmp = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					bond->resend_igmp);
+			break;
+		case IFLA_BOND_NUM_PEER_NOTIF:
+			/* both (sysfs settings) are bound to same num_peer_notif */
+			bond->num_unsol_na = nla_get_u8(aptr);
+			bond->num_grat_arp = bond->num_unsol_na;
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					bond->num_unsol_na);
+			break;
+		case IFLA_BOND_ALL_SLAVES_ACTIVE:
+			bond->all_slaves_active = nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u (%s)", dev->name, name,
+					bond->all_slaves_active,
+					bond->all_slaves_active ? "on" : "off");
+			break;
+		case IFLA_BOND_MIN_LINKS:
+			bond->min_links = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					bond->min_links);
+			break;
+		case IFLA_BOND_LP_INTERVAL:
+			bond->lp_interval = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					bond->lp_interval);
+			break;
+#if 0
+		case IFLA_BOND_TLB_DYNAMIC_LP:
+			/* bonding 3.7.1 in linux-4.1.15 does not handle it via netlink */
+			bond->tlb_dynamic_lb = nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u (%s)", dev->name, name,
+					bond->tlb_dynamic_lb,
+					bond->tlb_dynamic_lb ? "on" : "off");
+			break;
+#endif
+		case IFLA_BOND_PACKETS_PER_SLAVE:
+			bond->packets_per_slave = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					bond->packets_per_slave);
+			break;
+		case IFLA_BOND_AD_LACP_RATE:
+			bond->lacp_rate = nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u (%s)", dev->name, name,
+					bond->lacp_rate,
+					ni_bonding_lacp_rate_name(bond->lacp_rate));
+			break;
+		case IFLA_BOND_AD_SELECT:
+			bond->ad_select = nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u (%s)", dev->name, name,
+					bond->ad_select,
+					ni_bonding_ad_select_name(bond->ad_select));
+			break;
+		case IFLA_BOND_AD_INFO:
+			(void)__ni_discover_bond_netlink_ad_info(dev, aptr, nc);
+			/* ignore errors, it is info only */
+			break;
+		default:
+			break;
+		}
+	}
+	return 0;
+}
+
+static int
+__ni_discover_bond_netlink(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
+{
+	/* static const */ struct nla_policy	__info_data_policy[IFLA_INFO_MAX+1] = {
+		[IFLA_INFO_KIND]			= { .type = NLA_STRING	},
+		[IFLA_INFO_DATA]			= { .type = NLA_NESTED	},
+		/* _here_, we handle only these attrs */
+	};
+	struct nlattr *info[IFLA_INFO_MAX+1];
+	static int fallback = 1;
+
+	if (!tb || !tb[IFLA_LINKINFO])
+		return fallback;
+
+	if (nla_parse_nested(info, IFLA_INFO_MAX, tb[IFLA_LINKINFO], __info_data_policy) < 0) {
+		ni_error("%s: Unable to parse IFLA_LINKINFO newlink attribute", dev->name);
+		return -1;
+	}
+
+	if (!info[IFLA_INFO_KIND] || !ni_string_eq("bond", nla_get_string(info[IFLA_INFO_KIND])))
+		return fallback; /* just a safe guard, we've already checked this   */
+
+	if (!info[IFLA_INFO_DATA])
+		return fallback; /* ahm... no data provided in this newlink message */
+
+	fallback = 0;		 /* disable sysfs fallback, kernel supports netlink */
+
+	return __ni_discover_bond_netlink_master(dev, info[IFLA_INFO_DATA], nc);
+}
+
+static int
+__ni_discover_bond(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
+{
+	ni_bonding_t *bond;
+	int ret;
+
+	if (!dev || dev->link.type != NI_IFTYPE_BOND)
 		return 0;
 
-	bonding = ni_netdev_get_bonding(dev);
+	if (!(bond = ni_netdev_get_bonding(dev))) {
+		ni_error("%s: Unable to discover bond interface details",
+			dev->name);
+		return -1;
+	}
 
-	if (ni_bonding_parse_sysfs_attrs(dev->name, bonding) < 0) {
+	if ((ret = __ni_discover_bond_netlink(dev, tb, nc)) <= 0)
+		return ret;
+
+	if (ni_bonding_parse_sysfs_attrs(dev->name, bond) < 0) {
 		ni_error("error retrieving bonding attribute from sysfs");
 		return -1;
 	}
