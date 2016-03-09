@@ -109,8 +109,8 @@ static int	__ni_netdev_update_mtu(ni_netconfig_t *nc, ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_addrconf_lease_t       *new_lease);
 
-static int	__ni_rtnl_link_create(const ni_netdev_t *cfg);
-static int	__ni_rtnl_link_change(ni_netdev_t *dev, const ni_netdev_t *cfg);
+static int	__ni_rtnl_link_create(ni_netconfig_t *nc, const ni_netdev_t *cfg);
+static int	__ni_rtnl_link_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg);
 
 static int	__ni_rtnl_link_change_mtu(ni_netdev_t *dev, unsigned int mtu);
 static int	__ni_rtnl_link_change_hwaddr(ni_netdev_t *dev, const ni_hwaddr_t *hwaddr);
@@ -837,7 +837,7 @@ ni_system_vlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 	}
 
 	ni_debug_ifconfig("%s: creating VLAN device", cfg->name);
-	if (__ni_rtnl_link_create(cfg)) {
+	if (__ni_rtnl_link_create(nc, cfg)) {
 		ni_error("unable to create vlan interface %s", cfg->name);
 		return -1;
 	}
@@ -848,13 +848,13 @@ ni_system_vlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 int
 ni_system_vlan_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
 {
-	return __ni_rtnl_link_change(dev, cfg);
+	return __ni_rtnl_link_change(nc, dev, cfg);
 }
 
 int
 ni_system_macvlan_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
 {
-	return __ni_rtnl_link_change(dev, cfg);
+	return __ni_rtnl_link_change(nc, dev, cfg);
 }
 
 /*
@@ -904,7 +904,7 @@ ni_system_macvlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 	cfg_iftype = ni_linktype_type_to_name(cfg->link.type);
 	ni_debug_ifconfig("%s: creating %s interface", cfg->name, cfg_iftype);
 
-	if (__ni_rtnl_link_create(cfg)) {
+	if (__ni_rtnl_link_create(nc, cfg)) {
 		ni_error("unable to create %s interface %s",
 			cfg_iftype, cfg->name);
 		return -1;
@@ -960,7 +960,7 @@ ni_system_dummy_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 
 	ni_debug_ifconfig("%s: creating dummy interface", cfg->name);
 
-	if ((err = __ni_rtnl_link_create(cfg)) && abs(err) != NLE_EXIST) {
+	if ((err = __ni_rtnl_link_create(nc, cfg)) && abs(err) != NLE_EXIST) {
 		ni_error("unable to create dummy interface %s", cfg->name);
 		return err;
 	}
@@ -971,7 +971,7 @@ ni_system_dummy_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 int
 ni_system_dummy_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
 {
-	return __ni_rtnl_link_change(dev, cfg);
+	return __ni_rtnl_link_change(nc, dev, cfg);
 }
 
 /*
@@ -1755,7 +1755,7 @@ ni_system_tuntap_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t 
 int
 ni_system_tap_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
 {
-	return __ni_rtnl_link_change(dev, cfg);
+	return __ni_rtnl_link_change(nc, dev, cfg);
 }
 
 /*
@@ -1907,7 +1907,7 @@ ni_system_tunnel_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 		return -1;
 	}
 
-	if (__ni_rtnl_link_create(cfg)) {
+	if (__ni_rtnl_link_create(nc, cfg)) {
 		ni_error("unable to create %s tunnel %s", ni_linktype_type_to_name(type),
 			cfg->name);
 		return -1;
@@ -1922,7 +1922,7 @@ ni_system_tunnel_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 int
 ni_system_tunnel_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
 {
-	return __ni_rtnl_link_change(dev, cfg);
+	return __ni_rtnl_link_change(nc, dev, cfg);
 }
 
 /*
@@ -2284,13 +2284,13 @@ nla_put_failure:
 }
 
 static int
-__ni_rtnl_link_create(const ni_netdev_t *cfg)
+__ni_rtnl_link_create(ni_netconfig_t *nc, const ni_netdev_t *cfg)
 {
 	struct ifinfomsg ifi;
 	struct nl_msg *msg;
 	int err = -1;
 
-	if (!cfg || ni_string_empty(cfg->name))
+	if (!nc || !cfg || ni_string_empty(cfg->name))
 		return -1;
 
 	memset(&ifi, 0, sizeof(ifi));
@@ -2375,12 +2375,12 @@ failed:
 }
 
 int
-__ni_rtnl_link_change(ni_netdev_t *dev, const ni_netdev_t *cfg)
+__ni_rtnl_link_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
 {
 	struct ifinfomsg ifi;
 	struct nl_msg *msg;
 
-	if (!dev || !cfg)
+	if (!nc || !dev || !cfg)
 		return -1;
 
 	memset(&ifi, 0, sizeof(ifi));
@@ -2392,7 +2392,8 @@ __ni_rtnl_link_change(ni_netdev_t *dev, const ni_netdev_t *cfg)
 		goto nla_put_failure;
 
 	if (!ni_netdev_link_is_up(dev)) {
-		if (cfg->name && __ni_rtnl_link_put_ifname(msg, cfg->name) < 0)
+		if (!ni_string_empty(cfg->name) && !ni_string_eq(dev->name, cfg->name) &&
+				__ni_rtnl_link_put_ifname(msg, cfg->name) < 0)
 			goto nla_put_failure;
 	}
 
