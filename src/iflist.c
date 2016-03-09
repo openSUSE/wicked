@@ -318,6 +318,88 @@ __ni_address_list_drop_by_seq(ni_address_t **tail, unsigned int seq)
 	}
 }
 
+static inline void
+__ni_refresh_bonding_master_bind(ni_netdev_t *master, ni_linkinfo_t *link, const char *ifname)
+{
+	const ni_netdev_ref_t ref = { .name = (char *)ifname, .index = link->ifindex };
+	ni_bonding_slave_t *slave;
+
+	slave = ni_bonding_bind_slave(master->bonding, &ref, master->name);
+	ni_bonding_slave_set_info(slave, link->slave.bond);
+}
+
+static void
+__ni_refresh_bind_master(ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	ni_netdev_t *master;
+
+	if (!dev->link.masterdev.index || dev->link.masterdev.name)
+		return;
+
+	if (!(master = ni_netdev_ref_bind_ifname(&dev->link.masterdev, nc))) {
+		ni_info("Interface %s references unknown master device (ifindex %u)",
+				dev->name, dev->link.masterdev.index);
+		return;
+	}
+
+	if (master->link.type != dev->link.slave.type)
+		return;
+
+	switch (dev->link.slave.type) {
+	case NI_IFTYPE_BOND:
+		__ni_refresh_bonding_master_bind(master, &dev->link, dev->name);
+		break;
+
+	default:
+		break;
+	}
+}
+
+static void
+__ni_refresh_bind_lower(ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	if (!dev->link.lowerdev.index || dev->link.lowerdev.name)
+		return;
+
+	if (!ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc)) {
+		ni_info("Interface %s references unknown lower device (ifindex %u)",
+			dev->name, dev->link.lowerdev.index);
+	}
+}
+
+static inline void
+__ni_refresh_bonding_master_unbind(ni_netdev_t *master, ni_linkinfo_t *link, const char *ifname)
+{
+	const ni_netdev_ref_t ref = { .name = (char *)ifname, .index = link->ifindex };
+
+	ni_bonding_unbind_slave(master->bonding, &ref, master->name);
+}
+
+static void
+__ni_refresh_unbind_master(ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	ni_netdev_t *master;
+
+	if (!dev->link.masterdev.index)
+		return;
+
+	if (!(master = ni_netdev_by_index(nc, dev->link.masterdev.index)))
+		return;
+
+	if (master->link.type != dev->link.slave.type)
+		return;
+
+	switch (dev->link.slave.type) {
+	case NI_IFTYPE_BOND:
+		__ni_refresh_bonding_master_unbind(master, &dev->link, dev->name);
+		break;
+
+	default:
+		break;
+	}
+}
+
+
 /*
  * Refresh all interfaces
  */
@@ -403,20 +485,8 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 	}
 
 	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
-		if (dev->link.masterdev.index && !dev->link.masterdev.name) {
-			if (!ni_netdev_ref_bind_ifname(&dev->link.masterdev, nc)) {
-				ni_info("Interface %s references unknown master device (ifindex %u)",
-					dev->name, dev->link.masterdev.index);
-			}
-			/* Ignore error and proceed */
-		}
-		if (dev->link.lowerdev.index && !dev->link.lowerdev.name) {
-			if (!ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc)) {
-				ni_info("Interface %s references unknown lower device (ifindex %u)",
-					dev->name, dev->link.lowerdev.index);
-			}
-			/* Ignore error and proceed */
-		}
+		__ni_refresh_bind_master(nc, dev);
+		__ni_refresh_bind_lower(nc, dev);
 	}
 
 	while (1) {
@@ -473,6 +543,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 		if (dev->seq != seqno) {
 			*tail = dev->next;
 			if (del_list == NULL) {
+				__ni_refresh_unbind_master(nc, dev);
 				ni_client_state_drop(dev->link.ifindex);
 				ni_netdev_put(dev);
 			} else {
@@ -935,6 +1006,208 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname)
 	}
 }
 
+static inline void
+__ni_process_ifinfomsg_masterdev_unbind(ni_linkinfo_t *link, const char *ifname,
+					unsigned int oindex, ni_netconfig_t *nc)
+{
+	const ni_netdev_ref_t ref = { .name = (char *)ifname, .index = link->ifindex };
+	ni_netdev_t *master;
+
+	if ((master = ni_netdev_by_index(nc, oindex))) {
+		switch (master->link.type) {
+		case NI_IFTYPE_BOND:
+			ni_bonding_unbind_slave(master->bonding, &ref, master->name);
+			break;
+		default:
+			break;
+		}
+	}
+	ni_netdev_ref_destroy(&link->masterdev);
+}
+
+static inline ni_netdev_t *
+__ni_process_ifinfomsg_masterdev_bind(ni_linkinfo_t *link, const char *ifname,
+				unsigned int mindex, ni_netconfig_t *nc)
+{
+	const ni_netdev_ref_t ref = { .name = (char *)ifname, .index = link->ifindex };
+	ni_netdev_t *master;
+
+	if ((master = ni_netdev_by_index(nc, mindex))) {
+		switch (master->link.type) {
+		case NI_IFTYPE_BOND:
+			ni_bonding_bind_slave(master->bonding, &ref, master->name);
+			break;
+		default:
+			break;
+		}
+		ni_netdev_ref_set(&link->masterdev, master->name, mindex);
+	} else {
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EVENTS,
+				"%s: unable to find master device with index %u",
+				ifname, mindex);
+		ni_netdev_ref_set(&link->masterdev, NULL, mindex);
+	}
+	return master;
+}
+
+static inline ni_netdev_t *
+__ni_process_ifinfomsg_masterdev(ni_linkinfo_t *link, const char *ifname,
+				unsigned int mindex, ni_netconfig_t *nc)
+{
+	unsigned int oindex = link->masterdev.index;
+
+	/*
+	 * old	| new	| todo
+	 * -------------------
+	 *  0	| 0	| --
+	 *  X	| X	| (re)bind to update ref names
+	 *  0	| X	| bind(X)
+	 *  X	| 0	| unbind(X)
+	 *  X	| Y	| unbind(X), bind(Y)
+	 */
+	if (oindex && oindex != mindex)
+		__ni_process_ifinfomsg_masterdev_unbind(link, ifname, oindex, nc);
+
+	if (mindex)
+		return __ni_process_ifinfomsg_masterdev_bind(link, ifname, mindex, nc);
+
+	return NULL;
+}
+
+static inline void
+__ni_process_ifinfomsg_bond_slave_data(ni_linkinfo_t *link, const char *ifname, struct nlattr *data)
+{
+	/* static const */ struct nla_policy	__slave_policy[IFLA_BOND_SLAVE_MAX+1] = {
+		[IFLA_BOND_SLAVE_STATE]			= { .type = NLA_U8      },
+		[IFLA_BOND_SLAVE_MII_STATUS]		= { .type = NLA_U8      },
+		[IFLA_BOND_SLAVE_LINK_FAILURE_COUNT]	= { .type = NLA_U32     },
+		[IFLA_BOND_SLAVE_PERM_HWADDR]		= { .type = NLA_UNSPEC	},
+		[IFLA_BOND_SLAVE_QUEUE_ID]		= { .type = NLA_U16     },
+		[IFLA_BOND_SLAVE_AD_AGGREGATOR_ID]	= { .type = NLA_U16     },
+	};
+#define map_attr(attr)  [attr] = #attr
+	static const char *			__slave_attrs[IFLA_BOND_SLAVE_MAX+1] = {
+		map_attr(IFLA_BOND_SLAVE_STATE),
+		map_attr(IFLA_BOND_SLAVE_MII_STATUS),
+		map_attr(IFLA_BOND_SLAVE_LINK_FAILURE_COUNT),
+		map_attr(IFLA_BOND_SLAVE_PERM_HWADDR),
+		map_attr(IFLA_BOND_SLAVE_QUEUE_ID),
+		map_attr(IFLA_BOND_SLAVE_AD_AGGREGATOR_ID),
+	};
+#undef  map_attr
+	struct nlattr *tb[IFLA_BOND_SLAVE_MAX+1], *aptr;
+	ni_bonding_slave_info_t *info;
+	unsigned int attr, alen;
+	const char *mapped;
+	const char *name;
+
+	memset(tb, 0, sizeof(tb));
+	if (nla_parse_nested(tb, IFLA_BOND_SLAVE_MAX, data, __slave_policy) < 0) {
+		ni_warn("%s: unable to parse bond slave data", ifname);
+		return;
+	}
+
+	info = link->slave.bond;
+	for (attr = IFLA_BOND_SLAVE_STATE; attr <= IFLA_BOND_SLAVE_MAX; ++attr) {
+		if (!(aptr = tb[attr]))
+			continue;
+
+		name = __slave_attrs[attr];
+		switch (attr) {
+		case IFLA_BOND_SLAVE_STATE:
+			info->state = nla_get_u8(aptr);
+			mapped = ni_bonding_slave_state_name(info->state);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+						"%s: get attr %s=%u (%s)", ifname, name,
+						info->state, mapped);
+			break;
+		case IFLA_BOND_SLAVE_MII_STATUS:
+			info->mii_status = nla_get_u8(aptr);
+			mapped = ni_bonding_slave_mii_status_name(info->mii_status);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+						"%s: get attr %s=%u (%s)", ifname, name,
+						info->mii_status, mapped);
+			break;
+		case IFLA_BOND_SLAVE_LINK_FAILURE_COUNT:
+			info->link_failure_count = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+						"%s: get attr %s=%u", ifname, name,
+						info->link_failure_count);
+			break;
+		case IFLA_BOND_SLAVE_PERM_HWADDR:
+			alen = nla_len(aptr);
+
+			if (alen != ni_link_address_length(ARPHRD_ETHER))
+				break;
+
+			memcpy(info->perm_hwaddr.data, nla_data(aptr), alen);
+			info->perm_hwaddr.len = alen;
+			info->perm_hwaddr.type = ARPHRD_ETHER;
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", ifname, name,
+					ni_link_address_print(&info->perm_hwaddr));
+			break;
+		case IFLA_BOND_SLAVE_QUEUE_ID:
+			info->queue_id = nla_get_u16(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+						"%s: get attr %s=%u", ifname, name,
+						info->queue_id);
+			break;
+		case IFLA_BOND_SLAVE_AD_AGGREGATOR_ID:
+			info->ad_aggregator_id = nla_get_u16(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+						"%s: get attr %s=%u", ifname, name,
+						info->ad_aggregator_id);
+
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+static inline void
+__ni_process_ifinfomsg_slave_data(ni_linkinfo_t *link, const char *ifname,
+		ni_netdev_t *master, const char *kind, struct nlattr *data)
+{
+	ni_netdev_slaveinfo_destroy(&link->slave);
+
+	ni_string_dup(&link->slave.kind, kind);
+	if (!__ni_linkinfo_kind_to_type(kind, &link->slave.type))
+		link->slave.type = NI_IFTYPE_UNKNOWN;
+
+	switch (link->slave.type) {
+	case NI_IFTYPE_BOND:
+		if (master && master->link.type != link->slave.type) {
+			ni_warn("%s: master %s link type does not match slaveinfo kind type",
+					master->name, ifname);
+			return;
+		}
+
+		if (!data) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: slave info does not provide any data", ifname);
+			return;
+		}
+
+		if (master) {
+			ni_bonding_slave_t *slave;
+
+			slave = ni_bonding_slave_array_get_by_ifindex(&master->bonding->slaves,	link->ifindex);
+			link->slave.bond = ni_bonding_slave_info_ref(ni_bonding_slave_get_info(slave));
+		} else {
+			link->slave.bond = ni_bonding_slave_info_new();
+		}
+
+		if (link->slave.bond)
+			__ni_process_ifinfomsg_bond_slave_data(link, ifname, data);
+		break;
+
+	default:
+		break;
+	}
+}
+
 /*
  * Refresh interface link layer given a parsed RTM_NEWLINK message attrs
  */
@@ -943,6 +1216,8 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 				struct nlattr **tb, struct nlmsghdr *h,
 				struct ifinfomsg *ifi, ni_netconfig_t *nc)
 {
+	ni_netdev_t *master;
+
 	link->hwaddr.type = link->hwpeer.type = ifi->ifi_type;
 	link->ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags, link->ifflags);
 
@@ -995,13 +1270,12 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 	}
 
 	if (tb[IFLA_MASTER]) {
-		link->masterdev.index = nla_get_u32(tb[IFLA_MASTER]);
-		if (!ni_netdev_ref_bind_ifname(&link->masterdev, nc)) {
-			/* Drop old ifname, we will try it again later */
-			ni_string_free(&link->masterdev.name);
-		}
+		master = __ni_process_ifinfomsg_masterdev(link, ifname,
+				nla_get_u32(tb[IFLA_MASTER]), nc);
 	} else if (link->masterdev.index) {
-		ni_netdev_ref_destroy(&link->masterdev);
+		master = __ni_process_ifinfomsg_masterdev(link, ifname, 0, nc);
+	} else {
+		master = NULL;
 	}
 
 	if (tb[IFLA_IFALIAS])
@@ -1058,9 +1332,15 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 	 * The generic tuntap driver has a LINKINFO containing only KIND ("tun").
 	 */
 	if (tb[IFLA_LINKINFO]) {
+		/* static const */ struct nla_policy	__info_policy[IFLA_INFO_MAX+1] = {
+			[IFLA_INFO_KIND]	= { .type = NLA_STRING  },
+			[IFLA_INFO_DATA]	= { .type = NLA_NESTED  },
+			[IFLA_INFO_SLAVE_KIND]	= { .type = NLA_STRING  },
+			[IFLA_INFO_SLAVE_DATA]	= { .type = NLA_NESTED  },
+		};
 		struct nlattr *nl_linkinfo[IFLA_INFO_MAX+1];
 
-		if (nla_parse_nested(nl_linkinfo, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
+		if (nla_parse_nested(nl_linkinfo, IFLA_INFO_MAX, tb[IFLA_LINKINFO], __info_policy) < 0) {
 			ni_error("unable to parse IFLA_LINKINFO");
 			return -1;
 		}
@@ -1075,6 +1355,12 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		} else {
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
 				"%s: extended link-info kind: %s", ifname, link->kind);
+		}
+
+		if (nl_linkinfo[IFLA_INFO_SLAVE_KIND]) {
+			__ni_process_ifinfomsg_slave_data(link, ifname, master,
+					nla_get_string(nl_linkinfo[IFLA_INFO_SLAVE_KIND]),
+					nl_linkinfo[IFLA_INFO_SLAVE_DATA]);
 		}
 	}
 

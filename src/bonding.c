@@ -133,6 +133,23 @@ static const ni_intmap_t	__map_user_carrier_detect[] = {
 	{ NULL }
 };
 
+/*
+ * Bonding slave state and mii_status maps
+ */
+static const ni_intmap_t	ni_bonding_slave_state_map[] = {
+	{ "active",		NI_BOND_SLAVE_STATE_ACTIVE	},
+	{ "backup",		NI_BOND_SLAVE_STATE_BACKUP	},
+
+	{ NULL,			-1U				}
+};
+static const ni_intmap_t	ni_bonding_slave_mii_status_map[] = {
+	{ "up",			NI_BOND_SLAVE_LINK_UP		},
+	{ "fail",		NI_BOND_SLAVE_LINK_FAIL		},
+	{ "down",		NI_BOND_SLAVE_LINK_DOWN		},
+	{ "back",		NI_BOND_SLAVE_LINK_BACK		},
+
+	{ NULL,			-1U				}
+};
 
 /*
  * Load bonding module with specified arguments.
@@ -532,6 +549,84 @@ ni_bonding_add_slave(ni_bonding_t *bonding, const char *ifname)
 	return FALSE;
 }
 
+ni_bonding_slave_t *
+ni_bonding_bind_slave(ni_bonding_t *bonding, const ni_netdev_ref_t *ref, const char *ifname)
+{
+	ni_bonding_slave_t *slave;
+
+	if (!bonding || !ref || !ref->index || ni_string_empty(ref->name)) {
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EVENTS,
+				"%s: bind of bonding slave %s[%u] skipped -- invalid args",
+				ifname, ref ? ref->name : NULL, ref ? ref->index : 0);
+		return NULL;
+	}
+
+	slave = ni_bonding_slave_array_get_by_ifindex(&bonding->slaves, ref->index);
+	if (slave) {
+		if (ni_string_eq(slave->device.name, ref->name)) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: bonding slave %s[%u] is up to date",
+					ifname, slave->device.name, slave->device.index);
+		} else {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: rebind of bonding slave %s[%u] ifname to %s",
+					ifname, slave->device.name, slave->device.index, ref->name);
+
+			ni_netdev_ref_set_ifname(&slave->device, ref->name);
+		}
+		return slave;
+	}
+
+	slave = ni_bonding_slave_new();
+	if (slave) {
+		ni_netdev_ref_set(&slave->device, ref->name, ref->index);
+		if (ni_bonding_slave_array_append(&bonding->slaves, slave)) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: bound new bonding slave %s[%u]",
+					ifname, slave->device.name, slave->device.index);
+			return slave;
+		}
+
+		ni_bonding_slave_free(slave);
+	}
+
+	ni_error("%s: unable to bind new slave %s[%u]", ifname, ref->name, ref->index);
+	return NULL;
+}
+
+ni_bool_t
+ni_bonding_unbind_slave(ni_bonding_t *bonding, const ni_netdev_ref_t *ref, const char *ifname)
+{
+	const ni_bonding_slave_t *slave;
+	unsigned int pos;
+
+	if (!bonding || !ref || !ref->index) {
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EVENTS,
+				"%s: unbind of bonding slave %s[%u] skipped -- invalid args",
+				ifname, ref ? ref->name : NULL, ref ? ref->index : 0);
+		return FALSE;
+	}
+
+	pos = ni_bonding_slave_array_index_by_ifindex(&bonding->slaves, ref->index);
+	if (pos != -1U) {
+		slave = ni_bonding_slave_array_get(&bonding->slaves, pos);
+
+		if (slave)
+			ref = &slave->device;
+
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+				"%s: unbind of bonding slave %s[%u] by ifindex",
+				ifname, ref->name, ref->index);
+
+		return ni_bonding_slave_array_delete(&bonding->slaves, pos);
+	}
+
+	ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EVENTS,
+			"%s: unbind of bonding slave %s[%u] skipped -- slave not found",
+			ifname, ref->name, ref->index);
+	return FALSE;
+}
+
 /*
  * Set the bonding mode, using the strings supported by the
  * module options
@@ -775,6 +870,18 @@ ni_bonding_arp_validate_targets_to_type(const char *name)
 	if (ni_parse_uint_maybe_mapped(name, __map_kern_arp_all_targets, &value, 10) < 0)
 		return -1;
 	return value;
+}
+
+const char *
+ni_bonding_slave_state_name(unsigned int mode)
+{
+	return ni_format_uint_mapped(mode, ni_bonding_slave_state_map);
+}
+
+const char *
+ni_bonding_slave_mii_status_name(unsigned int mode)
+{
+	return ni_format_uint_mapped(mode, ni_bonding_slave_mii_status_map);
 }
 
 /*
@@ -1419,6 +1526,49 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	return FALSE;
 }
 
+void
+ni_bonding_slave_info_reset(ni_bonding_slave_info_t *info)
+{
+	info->state = -1U;
+	info->mii_status = -1U;
+	info->queue_id = -1U;
+	info->ad_aggregator_id = -1U;
+	ni_link_address_init(&info->perm_hwaddr);
+}
+
+ni_bonding_slave_info_t *
+ni_bonding_slave_info_new(void)
+{
+	ni_bonding_slave_info_t *info;
+
+	info = xcalloc(1, sizeof(*info));
+	info->refcount = 1;
+	ni_bonding_slave_info_reset(info);
+	return info;
+}
+
+ni_bonding_slave_info_t *
+ni_bonding_slave_info_ref(ni_bonding_slave_info_t *info)
+{
+	if (info) {
+		ni_assert(info->refcount);
+		info->refcount++;
+	}
+	return info;
+}
+
+void
+ni_bonding_slave_info_free(ni_bonding_slave_info_t *info)
+{
+	if (info) {
+		ni_assert(info->refcount);
+		info->refcount--;
+
+		if (info->refcount == 0)
+			free(info);
+	}
+}
+
 ni_bonding_slave_t *
 ni_bonding_slave_new(void)
 {
@@ -1433,7 +1583,31 @@ ni_bonding_slave_free(ni_bonding_slave_t *slave)
 {
 	if (slave) {
 		ni_netdev_ref_destroy(&slave->device);
+		ni_bonding_slave_info_free(slave->info);
 		free(slave);
+	}
+}
+
+ni_bonding_slave_info_t *
+ni_bonding_slave_get_info(ni_bonding_slave_t *slave)
+{
+	if (slave) {
+		if (!slave->info)
+			slave->info = ni_bonding_slave_info_new();
+		return slave->info;
+	}
+	return NULL;
+}
+
+void
+ni_bonding_slave_set_info(ni_bonding_slave_t *slave, ni_bonding_slave_info_t *info)
+{
+	if (slave) {
+		ni_bonding_slave_info_t *temp;
+
+		temp = ni_bonding_slave_info_ref(info);
+		ni_bonding_slave_info_free(slave->info);
+		slave->info = temp;
 	}
 }
 

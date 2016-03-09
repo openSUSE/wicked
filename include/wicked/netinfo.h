@@ -20,6 +20,16 @@
 typedef struct ni_link_stats	ni_link_stats_t;
 typedef struct ni_ethtool_stats	ni_ethtool_stats_t;
 
+typedef struct ni_slaveinfo	ni_slaveinfo_t;
+struct ni_slaveinfo {
+	ni_iftype_t		type;
+	char *			kind;
+
+	union {
+	    ni_bonding_slave_info_t *	bond;
+	};
+};
+
 typedef struct ni_linkinfo ni_linkinfo_t;
 struct ni_linkinfo {
 	ni_iftype_t		type;
@@ -34,6 +44,7 @@ struct ni_linkinfo {
 	unsigned int		txqlen;
 	ni_netdev_ref_t		lowerdev;
 	ni_netdev_ref_t		masterdev;
+	ni_slaveinfo_t		slave;
 	unsigned int		oper_state;
 	char *			qdisc;
 	char *			kind;
@@ -230,6 +241,7 @@ extern ni_bool_t	ni_netdev_supports_arp(ni_netdev_t *);
 extern void             ni_netdev_clear_addresses(ni_netdev_t *);
 extern void             ni_netdev_clear_routes(ni_netdev_t *);
 extern void		ni_netdev_clear_event_filters(ni_netdev_t *);
+extern void		ni_netdev_slaveinfo_destroy(ni_slaveinfo_t *);
 
 extern const ni_uuid_t *ni_netdev_add_event_filter(ni_netdev_t *, unsigned int mask);
 extern const ni_uuid_t *ni_netdev_get_event_uuid(ni_netdev_t *, ni_event_t);
