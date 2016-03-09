@@ -75,6 +75,15 @@ typedef struct ni_config_rtnl_event {
 } ni_config_rtnl_event_t;
 
 typedef enum {
+	NI_CONFIG_BONDING_CTL_NETLINK = 0,
+	NI_CONFIG_BONDING_CTL_SYSFS,
+} ni_config_bonding_ctl_t;
+
+typedef struct ni_config_bonding {
+	ni_config_bonding_ctl_t	ctl;
+} ni_config_bonding_t;
+
+typedef enum {
 	NI_CONFIG_TEAMD_CTL_DETECT_ONCE = 0,
 	NI_CONFIG_TEAMD_CTL_DETECT,
 	NI_CONFIG_TEAMD_CTL_DBUS,
@@ -82,7 +91,7 @@ typedef enum {
 } ni_config_teamd_ctl_t;
 
 typedef struct ni_config_teamd {
-	ni_bool_t			enabled;
+	ni_bool_t		enabled;
 	ni_config_teamd_ctl_t	ctl;
 } ni_config_teamd_t;
 
@@ -142,6 +151,7 @@ typedef struct ni_config {
 
 	ni_config_rtnl_event_t	rtnl_event;
 
+	ni_config_bonding_t	bonding;
 	ni_config_teamd_t	teamd;
 } ni_config_t;
 
@@ -152,6 +162,8 @@ extern ni_extension_t *	ni_config_find_extension(ni_config_t *, const char *);
 extern ni_extension_t *	ni_config_find_system_updater(ni_config_t *, const char *);
 extern unsigned int	ni_config_addrconf_update_mask(ni_addrconf_mode_t, unsigned int);
 extern ni_bool_t	ni_config_use_nanny(void);
+
+extern ni_config_bonding_ctl_t	ni_config_bonding_ctl(void);
 
 extern ni_bool_t	ni_config_teamd_enable(ni_config_teamd_ctl_t);
 extern ni_bool_t	ni_config_teamd_disable(void);
