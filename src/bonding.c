@@ -213,6 +213,67 @@ ni_bonding_new(void)
 	return bonding;
 }
 
+ni_bonding_t *
+ni_bonding_clone(const ni_bonding_t *orig)
+{
+	ni_bonding_t *bond;
+	unsigned int i;
+
+	if (!orig || !(bond = ni_bonding_new()))
+		return NULL;
+
+#define C(x)	bond->x = orig->x
+	C(mode);
+	C(monitoring);
+
+	C(arpmon.interval);
+	C(arpmon.validate);
+	C(arpmon.validate_targets);
+	ni_string_array_copy(&bond->arpmon.targets, &orig->arpmon.targets);
+
+	C(miimon.frequency);
+	C(miimon.updelay);
+	C(miimon.downdelay);
+	C(miimon.carrier_detect);
+
+	C(xmit_hash_policy);
+	C(lacp_rate);
+	C(ad_select);
+	C(min_links);
+	C(resend_igmp);
+	C(num_grat_arp);
+	C(num_unsol_na);
+	C(fail_over_mac);
+	C(primary_reselect);
+	C(all_slaves_active);
+	C(packets_per_slave);
+	C(tlb_dynamic_lb);
+	C(lp_interval);
+
+	C(ad_info.aggregator_id);
+	C(ad_info.ports);
+	C(ad_info.actor_key);
+	C(ad_info.partner_key);
+	memcpy(&bond->ad_info.partner_mac, &orig->ad_info.partner_mac,
+			sizeof(bond->ad_info.partner_mac));
+
+	ni_netdev_ref_set(&bond->primary_slave, orig->primary_slave.name,
+						orig->primary_slave.index);
+	ni_netdev_ref_set(&bond->active_slave,  orig->active_slave.name,
+						orig->active_slave.index);
+
+	for (i = 0; i < orig->slaves.count; ++i) {
+		const ni_bonding_slave_t *o = orig->slaves.data[i];
+		ni_bonding_slave_t *s = ni_bonding_slave_new();
+		ni_netdev_ref_set(&s->device, o->device.name, o->device.index);
+		s->info = ni_bonding_slave_info_ref(o->info);
+		ni_bonding_slave_array_append(&bond->slaves, s);
+	}
+#undef C
+
+	return bond;
+}
+
 /*
  * Free bonding configuration
  */

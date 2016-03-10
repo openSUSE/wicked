@@ -147,6 +147,7 @@ struct ni_bonding {
 extern int		ni_bonding_load(const char *options);
 
 extern ni_bonding_t *	ni_bonding_new(void);
+extern ni_bonding_t *	ni_bonding_clone(const ni_bonding_t *);
 extern void		ni_bonding_free(ni_bonding_t *);
 
 extern void		ni_bonding_get_slave_names(const ni_bonding_t *, ni_string_array_t *);
