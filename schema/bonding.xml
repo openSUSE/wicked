@@ -9,7 +9,6 @@
  <!-- This is the device-info returned in interface reports -->
  <define name="device-info" class="dict">
    <mode type="builtin-bonding-mode"/>
-
    <!-- At least one slave element has to occur.
         Bonding requires at least one available slave at start time,
         other slaves can be added later (hotplugged).
@@ -91,6 +90,8 @@
      <min value="1"/>
      <max value="2147483647"/>
    </lp-interval>
+
+   <address class="array" element-type="byte" minlen="6" maxlen="20" notation="hwaddr"/>
  </define>
 
  <define name="properties" type="device-info"/>

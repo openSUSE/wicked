@@ -534,6 +534,32 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 	return TRUE;
 }
 
+static dbus_bool_t
+__ni_objectmodel_bonding_get_address(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+	return __ni_objectmodel_get_hwaddr(result, &dev->link.hwaddr);
+}
+
+static dbus_bool_t
+__ni_objectmodel_bonding_set_address(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+	return __ni_objectmodel_set_hwaddr(argument, &dev->link.hwaddr);
+}
+
 #define BONDING_INT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_INT_PROPERTY(bonding, dbus_name, member_name, rw)
 #define BONDING_STRING_PROPERTY(dbus_name, member_name, rw) \
@@ -570,6 +596,9 @@ static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 	__NI_DBUS_PROPERTY(
 			NI_DBUS_DICT_SIGNATURE,
 			arpmon, __ni_objectmodel_bonding, RO),
+
+	__NI_DBUS_PROPERTY(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING,
+			address, __ni_objectmodel_bonding, RO),
 
 	{ NULL }
 };
