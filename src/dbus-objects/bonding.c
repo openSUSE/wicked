@@ -321,7 +321,7 @@ __ni_objectmodel_bonding_set_arpmon(ni_dbus_object_t *object,
 
 	ni_dbus_dict_get_uint32(result, "interval", &bond->arpmon.interval);
 	ni_dbus_dict_get_uint32(result, "validate", &bond->arpmon.validate);
-	ni_dbus_dict_get_uint32(result, "validate_targets", &bond->arpmon.validate_targets);
+	ni_dbus_dict_get_uint32(result, "validate-targets", &bond->arpmon.validate_targets);
 	if ((var = ni_dbus_dict_get(result, "targets")) != NULL) {
 		ni_bool_t valid = TRUE;
 		unsigned int i;
