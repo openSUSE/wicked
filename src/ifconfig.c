@@ -99,6 +99,13 @@
 #define DUMMY_MODULE_OPTS "numdummies=0"
 #endif
 
+#ifndef	BOND_MAX_ARP_TARGETS
+#define	BOND_MAX_ARP_TARGETS		16
+#endif
+#ifndef	BOND_DEFAULT_MIIMON
+#define	BOND_DEFAULT_MIIMON		100
+#endif
+
 static int	__ni_netdev_update_addrs(ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_addrconf_lease_t       *new_lease);
@@ -1458,12 +1465,34 @@ ni_system_bond_create_sysfs(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netde
 }
 
 int
+ni_system_bond_create_netlink(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **dev_ret)
+{
+	int ret;
+
+	/* Load the bonding module */
+	if (ni_bonding_load(NULL) < 0)
+		return -1;
+
+	if ((ret = __ni_rtnl_link_create(nc, cfg)))
+		return -NI_ERROR_CANNOT_CONFIGURE_DEVICE;
+
+	return __ni_system_netdev_create(nc, cfg->name, 0, NI_IFTYPE_BOND, dev_ret);
+}
+
+int
 ni_system_bond_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **dev_ret)
 {
 	if (!nc || !dev_ret || !cfg || cfg->link.type != NI_IFTYPE_BOND || ni_string_empty(cfg->name))
 		return -NI_ERROR_INVALID_ARGS;
 
-	return ni_system_bond_create_sysfs(nc, cfg, dev_ret);
+	switch (ni_config_bonding_ctl()) {
+	case NI_CONFIG_BONDING_CTL_SYSFS:
+		return ni_system_bond_create_sysfs(nc, cfg, dev_ret);
+
+	case NI_CONFIG_BONDING_CTL_NETLINK:
+	default:
+		return ni_system_bond_create_netlink(nc, cfg, dev_ret);
+	}
 }
 
 /*
@@ -1497,6 +1526,31 @@ ni_system_bond_setup_sysfs(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev
 }
 
 int
+ni_system_bond_setup_netlink(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	int ret;
+
+	if ((ret = __ni_rtnl_link_change(nc, dev, cfg)) < 0) {
+		/*
+		 * kernel reports -errno, libnl translates them:
+		 *
+		 * errno	 libnl			reason
+		 * [13]EACCES    [27]NLE_NOACCESS	option not supported in mode
+		 *               [01]NLE_FAILURE	(EACCESS mapped to FAILURE?)
+		 * [39]ENOTEMPTY [01]NLE_FAILURE	bond with slaves, cannot set
+		 * [16]EBUSY	 [25]NLE_BUSY		bond is up, cannot set
+		 * [22]EINVAL	 [07]NLE_INVAL		unknown option, other errors
+		 *
+		 * we try to not run in all the constraints ...
+		 */
+		(void)__ni_system_refresh_interface(nc, dev);
+		return -NI_ERROR_CANNOT_CONFIGURE_DEVICE;
+	}
+
+	return 0;
+}
+
+int
 ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
 {
 	const char *complaint;
@@ -1510,7 +1564,14 @@ ni_system_bond_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cf
 		return -NI_ERROR_INVALID_ARGS;
 	}
 
-	return ni_system_bond_setup_sysfs(nc, dev, cfg);
+	switch (ni_config_bonding_ctl()) {
+	case NI_CONFIG_BONDING_CTL_SYSFS:
+		return ni_system_bond_setup_sysfs(nc, dev, cfg);
+
+	case NI_CONFIG_BONDING_CTL_NETLINK:
+	default:
+		return ni_system_bond_setup_netlink(nc, dev, cfg);
+	}
 }
 
 /*
@@ -2068,6 +2129,472 @@ nla_put_failure:
 }
 
 static int
+__ni_rtnl_link_put_bond_arp_ip_targets(struct nl_msg *msg, const char *ifname,
+				const char *name, unsigned int attr,
+				const ni_string_array_t *conf, ni_string_array_t *bond)
+{
+	struct nlattr *arp_ip_tgts;
+	unsigned int i, todo, done;
+	unsigned int limit = BOND_MAX_ARP_TARGETS;
+	const char *target;
+	ni_sockaddr_t addr;
+
+	if (ni_string_array_eq(conf, bond)) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+				"%s: skip attr %s=[%s]",
+				ifname, name, conf->count ? "..." : "");
+		return 1;
+	}
+
+	if (!(arp_ip_tgts = nla_nest_start(msg, attr)))
+		return -1;
+
+	todo = conf->count < limit ? conf->count : limit;
+	for (done = i = 0; i < todo; ++i) {
+		target = conf->data[i];
+
+		if (ni_sockaddr_parse(&addr, target, AF_INET) < 0)
+			continue;
+
+		if (nla_put_u32(msg, done, addr.sin.sin_addr.s_addr) != 0)
+			continue;
+
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG,
+			"%s: set  attr %s[%u]=%s", ifname, name, done, target);
+		done++;
+	}
+	nla_nest_end(msg, arp_ip_tgts);
+
+	if (done == 0) {
+		/* a reset with an empty nested attr data array
+		 * on arp to mii monitoring reconfigure request */
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG,
+				"%s: set  attr %s=[]", ifname, name);
+	}
+
+	return 0;
+}
+
+static int
+__ni_rtnl_link_put_bond_opt_debug(const char *ifname, const char *name,
+				int ret, unsigned int val, const char *str)
+{
+	unsigned int level = NI_LOG_DEBUG + ret;
+
+	if (str) {
+		ni_debug_verbose(level, NI_TRACE_IFCONFIG, "%s: %s attr %s=%u (%s)",
+				ifname, ret ? "skip" : "set ", name, val, str);
+	} else {
+		ni_debug_verbose(level, NI_TRACE_IFCONFIG, "%s: %s attr %s=%u",
+				ifname, ret ? "skip" : "set ", name, val);
+	}
+	return ret;
+}
+
+static int
+__ni_rtnl_link_put_bond_opt(ni_netconfig_t *nc,	struct nl_msg *msg, const char *ifname,
+				unsigned int attr, const char *name,
+				const ni_bonding_t *conf, ni_bonding_t *bond)
+{
+	unsigned int num_peer_notif;
+	ni_netdev_t *slave;
+	int ret = 1;
+
+	switch (attr) {
+	case IFLA_BOND_MODE:
+		if (conf->mode != bond->mode) {
+			NLA_PUT_U8 (msg, attr, conf->mode);
+			bond->mode = conf->mode;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->mode,
+				ni_bonding_mode_type_to_name(conf->mode));
+
+	case IFLA_BOND_MIIMON:
+		if (conf->miimon.frequency != bond->miimon.frequency && conf->miimon.frequency) {
+			NLA_PUT_U32(msg, attr, conf->miimon.frequency);
+			bond->monitoring = NI_BOND_MONITOR_MII;
+			bond->miimon.frequency = conf->miimon.frequency;
+			bond->arpmon.interval = 0;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->miimon.frequency, NULL);
+
+	case IFLA_BOND_UPDELAY:
+		if (conf->miimon.updelay != bond->miimon.updelay &&
+		    bond->monitoring == NI_BOND_MONITOR_MII) {
+			NLA_PUT_U32(msg, attr, conf->miimon.updelay);
+			bond->miimon.updelay = conf->miimon.updelay;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->miimon.updelay, NULL);
+
+	case IFLA_BOND_DOWNDELAY:
+		if (conf->miimon.downdelay != bond->miimon.downdelay &&
+		    bond->monitoring == NI_BOND_MONITOR_MII) {
+			NLA_PUT_U32(msg, attr, conf->miimon.downdelay);
+			bond->miimon.downdelay = conf->miimon.downdelay;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->miimon.downdelay, NULL);
+
+	case IFLA_BOND_USE_CARRIER:
+		if (conf->miimon.carrier_detect != bond->miimon.carrier_detect &&
+		    bond->monitoring == NI_BOND_MONITOR_MII) {
+			NLA_PUT_U8 (msg, attr, conf->miimon.carrier_detect);
+			bond->miimon.carrier_detect = conf->miimon.carrier_detect;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->miimon.carrier_detect,
+				ni_bonding_mii_carrier_detect_name(conf->miimon.carrier_detect));
+
+	case IFLA_BOND_ARP_INTERVAL:
+		if (conf->arpmon.interval != bond->arpmon.interval && conf->arpmon.interval) {
+			NLA_PUT_U32(msg, attr, conf->arpmon.interval);
+			bond->monitoring = NI_BOND_MONITOR_ARP;
+			bond->arpmon.interval = conf->arpmon.interval;
+			bond->miimon.frequency = 0;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->arpmon.interval, NULL);
+
+	case IFLA_BOND_ARP_VALIDATE:
+		if (conf->arpmon.validate != bond->arpmon.validate &&
+		    bond->monitoring == NI_BOND_MONITOR_ARP) {
+			NLA_PUT_U32(msg, attr, conf->arpmon.validate);
+			bond->arpmon.validate = conf->arpmon.validate;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->arpmon.validate,
+				ni_bonding_arp_validate_type_to_name(conf->arpmon.validate));
+
+	case IFLA_BOND_ARP_ALL_TARGETS:
+		if (conf->arpmon.validate_targets != bond->arpmon.validate_targets &&
+		    bond->monitoring == NI_BOND_MONITOR_ARP) {
+			NLA_PUT_U32(msg, attr, conf->arpmon.validate_targets);
+			bond->arpmon.validate_targets = conf->arpmon.validate_targets;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->arpmon.validate_targets,
+				ni_bonding_arp_validate_targets_to_name(conf->arpmon.validate_targets));
+
+	case IFLA_BOND_ARP_IP_TARGET:
+		if ((ret = __ni_rtnl_link_put_bond_arp_ip_targets(msg, ifname, name, attr,
+					&conf->arpmon.targets, &bond->arpmon.targets)) < 0)
+			goto nla_put_failure;
+		else if (ret == 0)
+			ni_string_array_copy(&bond->arpmon.targets, &conf->arpmon.targets);
+		return ret;
+
+	case IFLA_BOND_PRIMARY:
+		if (ni_string_empty(conf->primary_slave.name))
+			return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret, 0, NULL);
+
+		slave = ni_netdev_by_name(nc, conf->primary_slave.name);
+		if (!ni_netdev_device_is_ready(slave)) {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+					"%s: primary slave device %s is not yet ready",
+					ifname, conf->primary_slave.name);
+
+			return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+					slave ? slave->link.ifindex : 0,
+					conf->primary_slave.name);
+		}
+
+		if (slave->link.ifindex && slave->link.ifindex != bond->primary_slave.index) {
+			NLA_PUT_U32(msg, attr, slave->link.ifindex);
+			ni_netdev_ref_set(&bond->primary_slave, conf->primary_slave.name,
+								slave->link.ifindex);
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				slave->link.ifindex, conf->primary_slave.name);
+
+	case IFLA_BOND_PRIMARY_RESELECT:
+		if (conf->primary_reselect != bond->primary_reselect) {
+			NLA_PUT_U32(msg, attr, conf->primary_reselect);
+			bond->primary_reselect = bond->primary_reselect;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->primary_reselect,
+				ni_bonding_primary_reselect_name(conf->primary_reselect));
+
+	case IFLA_BOND_ACTIVE_SLAVE:
+		if (ni_string_empty(conf->active_slave.name))
+			return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret, 0, NULL);
+
+		slave = ni_netdev_by_name(nc, conf->active_slave.name);
+		if (!ni_netdev_device_is_ready(slave)) {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+						"%s: active slave device %s is not yet ready",
+						ifname, conf->active_slave.name);
+
+			return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+					slave ? slave->link.ifindex : 0,
+					conf->active_slave.name);
+		}
+
+		if (slave->link.ifindex && slave->link.ifindex != bond->active_slave.index) {
+			NLA_PUT_U32(msg, attr, slave->link.ifindex);
+			ni_netdev_ref_set(&bond->active_slave, conf->active_slave.name,
+								slave->link.ifindex);
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				slave->link.ifindex, conf->active_slave.name);
+
+	case IFLA_BOND_FAIL_OVER_MAC:
+		if (conf->fail_over_mac != bond->fail_over_mac) {
+			NLA_PUT_U8 (msg, attr, conf->fail_over_mac);
+			bond->fail_over_mac = conf->fail_over_mac;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->fail_over_mac,
+				ni_bonding_fail_over_mac_name(conf->fail_over_mac));
+
+	case IFLA_BOND_XMIT_HASH_POLICY:
+		if (conf->xmit_hash_policy != bond->xmit_hash_policy) {
+			NLA_PUT_U8 (msg, attr, conf->xmit_hash_policy);
+			bond->xmit_hash_policy = conf->xmit_hash_policy;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->xmit_hash_policy,
+				ni_bonding_xmit_hash_policy_to_name(conf->xmit_hash_policy));
+
+	case IFLA_BOND_RESEND_IGMP:
+		if (conf->resend_igmp != bond->resend_igmp) {
+			NLA_PUT_U32(msg, attr, conf->resend_igmp);
+			bond->resend_igmp = conf->resend_igmp;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->resend_igmp, NULL);
+
+	case IFLA_BOND_NUM_PEER_NOTIF:
+		num_peer_notif = bond->num_unsol_na;
+		if (conf->num_unsol_na != bond->num_unsol_na) {
+			NLA_PUT_U8 (msg, attr, conf->num_unsol_na);
+			num_peer_notif = conf->num_unsol_na;
+			bond->num_grat_arp = num_peer_notif;
+			bond->num_unsol_na = num_peer_notif;
+			ret = 0;
+		} else
+		if (conf->num_grat_arp != bond->num_grat_arp) {
+			NLA_PUT_U8 (msg, attr, conf->num_grat_arp);
+			num_peer_notif = conf->num_grat_arp;
+			bond->num_grat_arp = num_peer_notif;
+			bond->num_unsol_na = num_peer_notif;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				num_peer_notif, NULL);
+
+	case IFLA_BOND_ALL_SLAVES_ACTIVE:
+		if (conf->all_slaves_active != bond->all_slaves_active) {
+			NLA_PUT_U8 (msg, attr, conf->all_slaves_active);
+			bond->all_slaves_active = conf->all_slaves_active;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->all_slaves_active,
+				conf->all_slaves_active ? "on" : "off");
+
+	case IFLA_BOND_MIN_LINKS:
+		if (conf->min_links != bond->min_links) {
+			NLA_PUT_U32(msg, attr, conf->min_links);
+			bond->min_links = conf->min_links;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->min_links, NULL);
+
+	case IFLA_BOND_LP_INTERVAL:
+		if (conf->lp_interval != bond->lp_interval) {
+			NLA_PUT_U32(msg, attr, conf->lp_interval);
+			bond->lp_interval = conf->lp_interval;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->lp_interval, NULL);
+
+	case IFLA_BOND_PACKETS_PER_SLAVE:
+		if (conf->packets_per_slave != bond->packets_per_slave) {
+			NLA_PUT_U32(msg, attr, conf->packets_per_slave);
+			bond->packets_per_slave = conf->packets_per_slave;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->packets_per_slave, NULL);
+
+	case IFLA_BOND_AD_LACP_RATE:
+		if (conf->lacp_rate != bond->lacp_rate) {
+			NLA_PUT_U8 (msg, attr, conf->lacp_rate);
+			bond->lacp_rate = conf->lacp_rate;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->lacp_rate,
+				ni_bonding_lacp_rate_name(conf->lacp_rate));
+
+	case IFLA_BOND_AD_SELECT:
+		if (conf->ad_select != bond->ad_select) {
+			NLA_PUT_U8 (msg, attr, conf->ad_select);
+			bond->ad_select = conf->ad_select;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->ad_select,
+				ni_bonding_ad_select_name(conf->ad_select));
+
+	default:
+		ret = -1;
+	}
+
+nla_put_failure:
+	ni_error("%s: unable format bonding master attr %s", ifname, name);
+	return -1;
+}
+
+static int
+__ni_rtnl_link_put_bond(ni_netconfig_t *nc,	struct nl_msg *msg, ni_netdev_t *dev,
+			const char *ifname, const ni_netdev_t *cfg)
+{
+	static const struct ni_bonding_opt {
+		const char *	name;		/* netlink attribute as string     */
+		unsigned int	attr;		/* netlink attribute constant      */
+		unsigned int	modes;		/* bonding mode constraint mask    */
+		int		bstate;		/* <0: bond down, >0: bond up      */
+		int		slaves;		/* <0: no slaves, >0: wants slaves */
+	} ni_bonding_opt_table[] = {
+#define map_opt(opt,args...)	{ .name = #opt, .attr = opt, ##args }
+		map_opt(IFLA_BOND_MODE,			.bstate = -1, .slaves = -1),
+		map_opt(IFLA_BOND_MIIMON),
+		map_opt(IFLA_BOND_UPDELAY),
+		map_opt(IFLA_BOND_DOWNDELAY),
+		map_opt(IFLA_BOND_USE_CARRIER),
+		map_opt(IFLA_BOND_ARP_IP_TARGET),
+		map_opt(IFLA_BOND_ARP_INTERVAL,		.modes =~(NI_BIT(NI_BOND_MODE_802_3AD)
+								| NI_BIT(NI_BOND_MODE_BALANCE_ALB)
+								| NI_BIT(NI_BOND_MODE_BALANCE_TLB))),
+		map_opt(IFLA_BOND_ARP_VALIDATE,		.modes =~(NI_BIT(NI_BOND_MODE_802_3AD)
+								| NI_BIT(NI_BOND_MODE_BALANCE_ALB)
+								| NI_BIT(NI_BOND_MODE_BALANCE_TLB))),
+		map_opt(IFLA_BOND_ARP_ALL_TARGETS),
+		map_opt(IFLA_BOND_AD_LACP_RATE,		.modes  = NI_BIT(NI_BOND_MODE_802_3AD),
+							.bstate = -1),
+		map_opt(IFLA_BOND_AD_SELECT,		.modes  = NI_BIT(NI_BOND_MODE_802_3AD),
+							.bstate = -1),
+		map_opt(IFLA_BOND_XMIT_HASH_POLICY,	.modes  = NI_BIT(NI_BOND_MODE_802_3AD)
+								| NI_BIT(NI_BOND_MODE_BALANCE_XOR)
+								| NI_BIT(NI_BOND_MODE_BALANCE_TLB)),
+		map_opt(IFLA_BOND_PRIMARY,		.modes  = NI_BIT(NI_BOND_MODE_ACTIVE_BACKUP)
+								| NI_BIT(NI_BOND_MODE_BALANCE_ALB)
+								| NI_BIT(NI_BOND_MODE_BALANCE_TLB)),
+		map_opt(IFLA_BOND_PRIMARY_RESELECT),
+		map_opt(IFLA_BOND_ACTIVE_SLAVE,		.modes  = NI_BIT(NI_BOND_MODE_ACTIVE_BACKUP)
+								| NI_BIT(NI_BOND_MODE_BALANCE_ALB)
+								| NI_BIT(NI_BOND_MODE_BALANCE_TLB),
+							.bstate = 1, .slaves = 1),
+		map_opt(IFLA_BOND_MIN_LINKS),
+		map_opt(IFLA_BOND_FAIL_OVER_MAC,	.slaves = -1),
+		map_opt(IFLA_BOND_ALL_SLAVES_ACTIVE),
+		map_opt(IFLA_BOND_PACKETS_PER_SLAVE,	.modes  = NI_BIT(NI_BOND_MODE_BALANCE_RR)),
+		map_opt(IFLA_BOND_RESEND_IGMP),
+		map_opt(IFLA_BOND_LP_INTERVAL),
+		map_opt(IFLA_BOND_NUM_PEER_NOTIF),
+#undef  map_opt
+		{ NULL,	IFLA_BOND_UNSPEC, 0, 0, 0 }
+	};
+	const struct ni_bonding_opt *opt;
+	struct nlattr *		linkinfo;
+	struct nlattr *		infodata;
+	const ni_bonding_t *	conf;
+	ni_bonding_t *		bond;
+	ni_bool_t		is_up;
+	unsigned int		count;
+	int			ret;
+
+	if (!cfg || !cfg->bonding || ni_string_empty(ifname))
+		return -1;
+
+	conf = cfg->bonding;
+	bond = dev && dev->bonding ? ni_bonding_clone(dev->bonding) : ni_bonding_new();
+	ni_debug_ifconfig("%s(%s)", __func__, ifname);
+
+	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
+		goto nla_put_failure;
+
+	NLA_PUT_STRING(msg, IFLA_INFO_KIND, "bond");
+
+	if (!(infodata = nla_nest_start(msg, IFLA_INFO_DATA)))
+		goto nla_put_failure;
+
+	is_up = ni_netdev_device_is_up(dev);
+	for (count = 0, opt = ni_bonding_opt_table; opt->name; opt++) {
+		if (opt->modes && !(opt->modes & NI_BIT(bond->mode))) {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+					"%s: skip attr %s -- bond in mode %s", ifname, opt->name,
+					ni_bonding_mode_type_to_name(bond->mode));
+			continue;
+		}
+		if (opt->bstate < 0 && is_up) {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+					"%s: skip attr %s -- bond is up", ifname, opt->name);
+			continue;
+		}
+		if (opt->bstate > 0 && !is_up) {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+					"%s: skip attr %s -- bond is down", ifname, opt->name);
+			continue;
+		}
+		if (opt->slaves < 0 && bond->slaves.count) {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+					"%s: skip attr %s -- bond has %u slave%s", ifname, opt->name,
+					bond->slaves.count, bond->slaves.count > 1 ? "s" : "");
+			continue;
+		}
+		if (opt->slaves > 0 && !bond->slaves.count) {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+					"%s: skip attr %s -- bond has no slaves yet", ifname, opt->name);
+			continue;
+		}
+
+		if ((ret = __ni_rtnl_link_put_bond_opt(nc, msg, ifname, opt->attr, opt->name, conf, bond)) < 0)
+			goto nla_put_failure;
+		else if (ret == 0)
+			count++;
+	}
+
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+			"%s: sending %u bond master option%s", ifname, count, count == 1 ? "" : "s");
+
+	nla_nest_end(msg, infodata);
+	nla_nest_end(msg, linkinfo);
+
+	if (dev)
+		ni_netdev_set_bonding(dev, bond);
+	else
+		ni_bonding_free(bond);
+	return 0;
+
+nla_put_failure:
+	ni_bonding_free(bond);
+	return -1;
+}
+
+
+static int
 __ni_rtnl_link_put_vlan(struct nl_msg *msg,	const ni_netdev_t *cfg)
 {
 	struct nlattr *linkinfo;
@@ -2353,6 +2880,11 @@ __ni_rtnl_link_create(ni_netconfig_t *nc, const ni_netdev_t *cfg)
 			goto nla_put_failure;
 		break;
 
+	case NI_IFTYPE_BOND:
+		if (__ni_rtnl_link_put_bond(nc, msg, NULL, cfg->name, cfg) < 0)
+			goto nla_put_failure;
+		break;
+
 	default:
 		/* unknown one, case not (yet) there... */
 		ni_error("BUG: unable to create %s interface", cfg->name);
@@ -2429,6 +2961,11 @@ __ni_rtnl_link_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *c
 			goto nla_put_failure;
 		break;
 
+	case NI_IFTYPE_BOND:
+		if (__ni_rtnl_link_put_bond(nc, msg, dev, dev->name, cfg) < 0)
+			goto nla_put_failure;
+		break;
+
 	default:
 		break;
 	}
@@ -2436,7 +2973,7 @@ __ni_rtnl_link_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *c
 	if (ni_nl_talk(msg, NULL))
 		goto failed;
 
-	ni_debug_ifconfig("successfully modified interface %s", cfg->name);
+	ni_debug_ifconfig("successfully modified interface %s", dev->name);
 	nlmsg_free(msg);
 	return 0;
 
