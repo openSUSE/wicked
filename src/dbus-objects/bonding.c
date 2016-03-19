@@ -13,6 +13,7 @@
 #include <wicked/logging.h>
 #include <wicked/system.h>
 #include <wicked/bonding.h>
+#include <wicked/address.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/dbus-service.h>
 #include "dbus-common.h"
@@ -78,8 +79,29 @@ __ni_objectmodel_bond_newlink(ni_netdev_t *cfg, const char *ifname, DBusError *e
 				ni_print_suspect(ifname, ni_string_len(ifname)));
 		goto out;
 	}
-
 	ni_string_dup(&cfg->name, ifname);
+
+	if (cfg->link.hwaddr.len) {
+		/* the config address is opaque/void without a type set */
+		if (cfg->link.hwaddr.len == ni_link_address_length(ARPHRD_ETHER)) {
+			cfg->link.hwaddr.type = ARPHRD_ETHER;
+			if (ni_link_address_is_invalid(&cfg->link.hwaddr)) {
+				ni_warn("%s: cannot set invalid ethernet hardware address, ignoring '%s'",
+						ifname, ni_link_address_print(&cfg->link.hwaddr));
+				ni_link_address_init(&cfg->link.hwaddr);
+			}
+		} else
+		if (cfg->link.hwaddr.len == ni_link_address_length(ARPHRD_INFINIBAND)) {
+			ni_warn("%s: cannot set infiniband bonding hardware address, ignoring '%s'",
+					ifname, ni_link_address_print(&cfg->link.hwaddr));
+			ni_link_address_init(&cfg->link.hwaddr);
+		} else {
+			ni_warn("%s: cannot set unknown type hardware address, ignoring '%s'",
+					ifname, ni_link_address_print(&cfg->link.hwaddr));
+			ni_link_address_init(&cfg->link.hwaddr);
+		}
+	}
+
 	if ((rv = ni_system_bond_create(nc, cfg, &dev)) < 0) {
 		if (rv != -NI_ERROR_DEVICE_EXISTS || dev == NULL
 		|| (ifname && dev && !ni_string_eq(ifname, dev->name))) {
@@ -126,6 +148,40 @@ ni_objectmodel_bond_setup(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 	if (!(cfg = __ni_objectmodel_bond_device_arg(&argv[0]))) {
 		ni_dbus_error_invalid_args(error, object->path, method->name);
 		goto out;
+	}
+
+	if (cfg->link.hwaddr.len) {
+		/* the config address is opaque/void without a type set */
+		if (cfg->link.hwaddr.len == ni_link_address_length(ARPHRD_ETHER)) {
+			cfg->link.hwaddr.type = ARPHRD_ETHER;
+			if (ni_link_address_is_invalid(&cfg->link.hwaddr)) {
+				ni_warn("%s: cannot set invalid ethernet hardware address, ignoring '%s'",
+						dev->name, ni_link_address_print(&cfg->link.hwaddr));
+				ni_link_address_init(&cfg->link.hwaddr);
+			} else
+			if (dev && cfg->link.hwaddr.type != dev->link.hwaddr.type) {
+				ni_warn("%s: cannot set ethernet hardware address%s, ignoring '%s'",
+						dev->name, dev->link.hwaddr.type == ARPHRD_INFINIBAND ?
+						" on infiniband bonding" : "",
+						ni_link_address_print(&cfg->link.hwaddr));
+				ni_link_address_init(&cfg->link.hwaddr);
+			} else
+			if (ni_system_hwaddr_change(nc, dev, &cfg->link.hwaddr) < 0) {
+				ni_error("%s: failed to set ethernet hardware address to '%s",
+						dev->name, ni_link_address_print(&cfg->link.hwaddr));
+				/* clear it, otherwise setup (link change) could fail too */
+				ni_link_address_init(&cfg->link.hwaddr);
+			}
+		} else
+		if (cfg->link.hwaddr.len == ni_link_address_length(ARPHRD_INFINIBAND)) {
+			ni_warn("%s: cannot set infiniband bonding hardware address, ignoring '%s'",
+					dev->name, ni_link_address_print(&cfg->link.hwaddr));
+			ni_link_address_init(&cfg->link.hwaddr);
+		} else {
+			ni_warn("%s: cannot set unknown type hardware address, ignoring '%s'",
+					dev->name, ni_link_address_print(&cfg->link.hwaddr));
+			ni_link_address_init(&cfg->link.hwaddr);
+		}
 	}
 
 	if (ni_system_bond_setup(nc, dev, cfg) < 0) {
