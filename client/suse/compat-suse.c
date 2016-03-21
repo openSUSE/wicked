@@ -1688,6 +1688,7 @@ try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
 	const char *module_opts, *err;
+	const char *lladdr;
 	ni_bool_t enabled;
 
 	if (!ni_sysconfig_get_boolean(sc, "BONDING_MASTER", &enabled) || !enabled)
@@ -1715,6 +1716,15 @@ try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		ni_error("ifcfg-%s: bonding validation: %s",
 			dev->name, err);
 		return -1;
+	}
+
+	if ((lladdr = ni_sysconfig_get_value(sc, "LLADDR")) != NULL) {
+		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, lladdr) < 0) {
+			ni_link_address_init(&dev->link.hwaddr);
+			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
+				dev->name, lladdr);
+			return -1;
+		}
 	}
 
 	return 0;
