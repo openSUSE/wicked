@@ -502,6 +502,11 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 			(bond->all_slaves_active ? "true" : "false"));
 	}
 
+	if (compat->dev->link.hwaddr.len) {
+		xml_node_new_element("address", child,
+			ni_link_address_print(&compat->dev->link.hwaddr));
+	}
+
 	return TRUE;
 }
 
