@@ -2066,6 +2066,10 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 		ni_ifworker_set_dependencies_xml(w, child);
 
 	w->iftype = ni_ifworker_iftype_from_xml(ifnode);
+	if (w->iftype == NI_IFTYPE_UNKNOWN) {
+		if (ni_string_eq(w->name, ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM)))
+			w->iftype = NI_IFTYPE_OVS_SYSTEM;
+	}
 	ni_ifworker_extra_waittime_from_xml(w);
 }
 
