@@ -1410,7 +1410,7 @@ ni_ifworker_set_lower_device(ni_ifworker_t *child, ni_ifworker_t *lower, xml_nod
 		return TRUE;
 	}
 
-	if (xml_node_is_empty(child->lowerdev->config.node))
+	if (!xml_node_is_empty(child->lowerdev->config.node))
 		ni_string_dup(&location, xml_node_location(child->lowerdev->config.node));
 
 	ni_debug_application("%s (%s): subordinate interface already has a lower device %s (%s), cannot set to %s",

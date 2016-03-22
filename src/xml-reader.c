@@ -862,7 +862,7 @@ xml_node_location(const xml_node_t *node)
 {
 	static char buffer[PATH_MAX];
 
-	if (node->location) {
+	if (node && node->location) {
 		snprintf(buffer, sizeof(buffer), "%s:%u",
 				node->location->shared->filename,
 				node->location->line);
