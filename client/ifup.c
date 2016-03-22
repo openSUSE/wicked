@@ -113,6 +113,13 @@ __ni_ifup_generate_match_link_ref(xml_node_t *match, xml_node_t *link)
 	if (ni_string_empty(master->cdata))
 		return FALSE;
 
+	if (ni_string_eq(master->cdata, ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM))) {
+		if ((port = xml_node_get_child(link, NI_CLIENT_IFCONFIG_LINK_PORT)))
+			return __ni_ifup_generate_match_link_port_ref(match, port);
+
+		return FALSE;
+	}
+
 	if (!(ref = xml_node_new(NI_NANNY_IFPOLICY_MATCH_REF, match)))
 		return FALSE;
 
