@@ -3101,15 +3101,17 @@ __ni_fsm_pull_in_children(ni_ifworker_t *w, ni_ifworker_array_t *array)
 }
 
 void
-ni_fsm_pull_in_children(ni_ifworker_array_t *array)
+ni_fsm_pull_in_children(ni_ifworker_array_t *array, ni_fsm_t *fsm)
 {
+	int pull_ovs_system = 0;
+	ni_ifworker_t *w;
 	unsigned int i;
 
 	if (!array)
 		return;
 
 	for (i = 0; i < array->count; i++) {
-		ni_ifworker_t *w = array->data[i];
+		w = array->data[i];
 
 		if (w->failed) {
 			ni_debug_application("%s: ignoring failed worker", w->name);
@@ -3117,6 +3119,24 @@ ni_fsm_pull_in_children(ni_ifworker_array_t *array)
 		}
 
 		__ni_fsm_pull_in_children(w, array);
+
+		if (!pull_ovs_system) {
+			if (w->iftype == NI_IFTYPE_OVS_BRIDGE)
+				pull_ovs_system = 1;
+			else
+			if (w->iftype == NI_IFTYPE_OVS_SYSTEM)
+				pull_ovs_system = -1;
+		}
+	}
+
+	if (fsm && pull_ovs_system > 0) {
+		const char *name = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
+
+		w = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, name);
+		if (w && ni_ifworker_array_index(array, w) < 0)
+			ni_ifworker_array_append(array, w);
+		else if (!w)
+			ni_debug_application("%s: unable to find in configuration", name);
 	}
 }
 
