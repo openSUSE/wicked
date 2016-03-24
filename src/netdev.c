@@ -79,20 +79,37 @@ ni_netdev_clear_routes(ni_netdev_t *dev)
 	ni_route_tables_destroy(&dev->routes);
 }
 
+void
+ni_netdev_slaveinfo_destroy(ni_slaveinfo_t *slave)
+{
+	switch (slave->type) {
+	case NI_IFTYPE_BOND:
+		ni_bonding_slave_info_free(slave->bond);
+		break;
+	default:
+		break;
+	}
+	free(slave->kind);
+	memset(slave, 0, sizeof(*slave));
+}
+
 static void
 ni_netdev_free(ni_netdev_t *dev)
 {
 	ni_string_free(&dev->name);
+
+	/* Clear out linkinfo */
 	ni_string_free(&dev->link.qdisc);
 	ni_string_free(&dev->link.kind);
 	ni_string_free(&dev->link.alias);
 	ni_netdev_ref_destroy(&dev->link.lowerdev);
 	ni_netdev_ref_destroy(&dev->link.masterdev);
+	ni_netdev_slaveinfo_destroy(&dev->link.slave);
+	ni_netdev_set_link_stats(dev, NULL);
 
-	/* Clear out addresses, stats */
+	/* Clear out addresses, routes, ... */
 	ni_netdev_clear_addresses(dev);
 	ni_netdev_clear_routes(dev);
-	ni_netdev_set_link_stats(dev, NULL);
 	ni_netdev_set_ethernet(dev, NULL);
 	ni_netdev_set_infiniband(dev, NULL);
 	ni_netdev_set_bonding(dev, NULL);

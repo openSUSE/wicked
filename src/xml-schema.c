@@ -1407,34 +1407,39 @@ __ni_xs_intmap_build(const xml_node_t *node, const char *attr_name)
 	ni_intmap_t *result = NULL;
 	unsigned int i, count;
 	xml_node_t *child;
-	unsigned int last_value = 0;
 
 	/* Count the defined bits */
 	for (child = node->children, count = 0; child; child = child->next, ++count)
 		;
 
 	result = xcalloc(count + 1, sizeof(ni_intmap_t));
-	for (child = node->children, i = 0; child; child = child->next, ++i) {
+	for (child = node->children, i = 0; child; child = child->next) {
 		const char *attr_value;
 		unsigned int value;
 		char *ep = NULL;
 
 		attr_value = xml_node_get_attr(child, attr_name);
 		if (attr_value == NULL) {
-			value = last_value + 1;
-		} else {
-			value = strtoul(attr_value, &ep, 0);
-			if (*ep != '\0') {
-				ni_error("%s: bad enum/bitmap element <%s %s=\"%s\"> in constraints",
-						xml_node_location(child), child->name,
-						attr_name, attr_value);
-				goto failed;
-			}
+			if (ni_string_eq(child->name, "description"))
+				continue;
+
+			ni_debug_wicked_xml(child, NI_LOG_DEBUG3,
+				"ignoring %s enum/bitmap element without %s attribute",
+				node->name, attr_name);
+			continue;
 		}
 
-		result[i].name = strdup(child->name);
+		value = strtoul(attr_value, &ep, 0);
+		if (*ep != '\0') {
+			ni_error("%s: bad enum/bitmap element <%s %s=\"%s\"> in constraints",
+					xml_node_location(child), child->name,
+					attr_name, attr_value);
+			goto failed;
+		}
+
+		result[i].name = xstrdup(child->name);
 		result[i].value = value;
-		last_value = value;
+		i++;
 	}
 
 	return result;

@@ -70,6 +70,8 @@ static struct generic_map	generic_maps[] = {
 	MAP(BONDING_AD_SELECT, ni_bonding_ad_select_name),
 	MAP(BONDING_FAIL_OVER_MAC, ni_bonding_fail_over_mac_name),
 	MAP(BONDING_PRIMARY_RESELECT, ni_bonding_primary_reselect_name),
+	MAP(BONDING_SLAVE_STATE, ni_bonding_slave_state_name),
+	MAP(BONDING_SLAVE_MII_STATUS, ni_bonding_slave_mii_status_name),
 	MAP(ROUTE_TYPE, ni_route_type_type_to_name),
 	MAP(ROUTE_PROTOCOL, ni_route_protocol_type_to_name),
 	MAPN(ROUTE_SCOPE, ni_route_scope_type_to_name, 256),

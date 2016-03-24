@@ -147,6 +147,12 @@
   </description>
   <@@BONDING_PRIMARY_RESELECT_NAME@@ value="@@BONDING_PRIMARY_RESELECT_VALUE@@"/>
 </define>
+<define name="builtin-bonding-slave-state" type="uint32" constraint="enum">
+  <@@BONDING_SLAVE_STATE_NAME@@ value="@@BONDING_SLAVE_STATE_VALUE@@"/>
+</define>
+<define name="builtin-bonding-slave-mii-status" type="uint32" constraint="enum">
+  <@@BONDING_SLAVE_MII_STATUS_NAME@@ value="@@BONDING_SLAVE_MII_STATUS_VALUE@@"/>
+</define>
 
 <!-- Built-in route type/scope/table/protocol -->
 <define name="builtin-route-type" type="uint32" constraint="enum">

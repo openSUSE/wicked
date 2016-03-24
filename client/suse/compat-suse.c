@@ -1629,7 +1629,7 @@ try_add_bonding_slave(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *su
 	ni_var_t *var;
 
 	var = __find_indexed_variable(sc, "BONDING_SLAVE", suffix);
-	if (!var || !var->value)
+	if (!var || ni_string_empty(var->value))
 		return FALSE;
 
 	dev->link.type = NI_IFTYPE_BOND;
@@ -1637,7 +1637,12 @@ try_add_bonding_slave(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *su
 	if ((bond = ni_netdev_get_bonding(dev)) == NULL)
 		return FALSE;
 
-	return ni_bonding_add_slave(bond, var->value);
+	if (ni_bonding_has_slave(bond, var->value)) {
+		ni_warn("ifcfg-%s: Duplicate slave in BONDING_SLAVE%s=''%s'",
+				dev->name, suffix, var->value);
+		return TRUE; /* warn without to fail */
+	}
+	return ni_bonding_add_slave(bond, var->value) != NULL;
 }
 
 static ni_bool_t
@@ -1683,6 +1688,7 @@ try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
 	const char *module_opts, *err;
+	const char *lladdr;
 	ni_bool_t enabled;
 
 	if (!ni_sysconfig_get_boolean(sc, "BONDING_MASTER", &enabled) || !enabled)
@@ -1710,6 +1716,15 @@ try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		ni_error("ifcfg-%s: bonding validation: %s",
 			dev->name, err);
 		return -1;
+	}
+
+	if ((lladdr = ni_sysconfig_get_value(sc, "LLADDR")) != NULL) {
+		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, lladdr) < 0) {
+			ni_link_address_init(&dev->link.hwaddr);
+			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
+				dev->name, lladdr);
+			return -1;
+		}
 	}
 
 	return 0;
@@ -4628,17 +4643,21 @@ static void
 __ni_suse_adjust_bond_slaves(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master)
 {
 	ni_bonding_t *bond = ni_netdev_get_bonding(master->dev);
-	const char *slave;
+	ni_bonding_slave_t *slave;
+	const char *slave_name;
 	ni_netdev_t *dev;
 	unsigned int i;
 
-	for (i = 0; i < bond->slave_names.count; ++i) {
-		slave = bond->slave_names.data[i];
-		dev = __ni_suse_find_compat_device(netdevs, slave);
+	for (i = 0; i < bond->slaves.count; ++i) {
+		slave = bond->slaves.data[i];
+		if (!slave || ni_string_empty(slave->device.name))
+			continue;
+		slave_name = slave->device.name;
+		dev = __ni_suse_find_compat_device(netdevs, slave_name);
 		if (dev) {
 			__ni_suse_set_link_master(dev, master->dev->name, master->dev->name);
 		} else {
-			__ni_suse_create_compat_slave(netdevs, master, master->dev->name, slave);
+			__ni_suse_create_compat_slave(netdevs, master, master->dev->name, slave_name);
 		}
 	}
 }
