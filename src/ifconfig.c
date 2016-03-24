@@ -2904,7 +2904,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 			goto nla_put_failure;
 	}
 
-	if (ap->bcast_addr.ss_family != AF_UNSPEC
+	if (ap->bcast_addr.ss_family == AF_INET
 	 && !ni_sockaddr_equal(&ap->bcast_addr, &ap->local_addr)
 	 && addattr_sockaddr(msg, IFA_BROADCAST, &ap->bcast_addr) < 0)
 		goto nla_put_failure;
@@ -3275,6 +3275,23 @@ failed:
 	return -1;
 }
 
+static void
+__ni_netdev_addr_complete(ni_netdev_t *dev, ni_address_t *ap)
+{
+	/*
+	 * some code [e.g. getbroadcastnets() in glibc] expects,
+	 * that the broadcast address is always set, so we have
+	 * to calculate it ...
+	 */
+	if (dev->link.ifflags & NI_IFF_BROADCAST_ENABLED &&
+	    ap->family == AF_INET && ap->prefixlen < 31 &&
+	    ni_sockaddr_is_specified(&ap->local_addr) &&
+	    ni_sockaddr_is_unspecified(&ap->bcast_addr)) {
+		ap->bcast_addr = ap->local_addr;
+		ap->bcast_addr.sin.sin_addr.s_addr |= htonl(0xFFFFFFFFUL >> ap->prefixlen);
+	}
+}
+
 static ni_bool_t
 __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t *n)
 {
@@ -3586,6 +3603,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 			new_addr->seq = __ni_global_seqno;
 
 			/* Check whether we need to update */
+			__ni_netdev_addr_complete(dev, new_addr);
 			if (!__ni_netdev_addr_needs_update(dev->name, ap, new_addr)) {
 				ni_debug_ifconfig("%s: address %s/%u exists; no need to reconfigure",
 					dev->name,
@@ -3625,6 +3643,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 				ni_sockaddr_print(&ap->local_addr),
 				ap->prefixlen);
 
+		__ni_netdev_addr_complete(dev, ap);
 		if ((rv = __ni_rtnl_send_newaddr(dev, ap, NLM_F_CREATE)) < 0)
 			return rv;
 
