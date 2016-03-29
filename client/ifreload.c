@@ -345,7 +345,8 @@ usage:
 		goto cleanup;
 	}
 
-	ni_fsm_pull_in_children(&up_marked);
+	ni_fsm_pull_in_children(&up_marked, fsm);
+
 	/* Drop deleted or apply the up range */
 	ni_fsm_reset_matching_workers(fsm, &up_marked, &up_range, FALSE);
 
@@ -675,7 +676,7 @@ usage:
 		goto cleanup;
 	}
 
-	ni_fsm_pull_in_children(&up_marked);
+	ni_fsm_pull_in_children(&up_marked, fsm);
 
 	/* anything to ifup? */
 	if (up_marked.count) {
