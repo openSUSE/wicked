@@ -268,7 +268,7 @@ xml_process_element_nested(xml_reader_t *xr, xml_node_t *cur, unsigned int nesti
 			}
 
 			if (strcmp(identifier.string, "DOCTYPE")) {
-				xml_parse_error(xr, "Unexpected element: <!%s ...> not supported", identifier);
+				xml_parse_error(xr, "Unexpected element: <!%s ...> not supported", identifier.string);
 				goto error;
 			}
 
