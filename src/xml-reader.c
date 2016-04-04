@@ -712,10 +712,14 @@ xml_expand_entity(xml_reader_t *xr, ni_stringbuf_t *res)
 		}
 		if (isspace(cc))
 			continue;
+		if (entity.len + sizeof(char) >= entity.size) {
+			xml_parse_error(xr, "Entity is too long");
+			return FALSE;
+		}
 		ni_stringbuf_putc(&entity, cc);
 	}
 
-	if (!entity.string) {
+	if (ni_string_empty(entity.string)) {
 		xml_parse_error(xr, "Empty entity &;");
 		return FALSE;
 	}
