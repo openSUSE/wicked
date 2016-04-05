@@ -440,6 +440,22 @@ dbus	communicate directly with teamd via dbus
 unix	use unix socket control interface via teamdctl tool
 .TE
 .PP
+.TP
+.B bonding
+.IP
+The \fB<bonding>\fP element permits to specify whether to use netlink or
+sysfs to configure the bonding in its \fB<ctl>\fP sub-element:
+.IP
+.TS
+box;
+l|l
+lb|l.
+Option	Description
+=
+netlink	configure bonding via netlink (default)
+sysfs	configure bonding via sysfs (the old way)
+.TE
+.PP
 .\" --------------------------------------------------------
 .SH EXTENSIONS
 The functionality of \fBwickedd\fP can be extended through
