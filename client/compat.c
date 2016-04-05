@@ -342,7 +342,7 @@ static ni_bool_t
 __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	ni_bonding_t *bond;
-	xml_node_t *child, *slaves, *slave;
+	xml_node_t *child, *snodes, *snode;
 	unsigned int i;
 	int verbose = 0; /* do not supress defaults */
 
@@ -385,26 +385,29 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 			xml_node_new_element("downdelay", miimon,
 				ni_sprint_uint(bond->miimon.downdelay));
 		}
-		xml_node_new_element("carrier", miimon,
+		xml_node_new_element("carrier-detect", miimon,
 			ni_bonding_mii_carrier_detect_name(bond->miimon.carrier_detect));
 	}
 
-	slaves = xml_node_create(child, "slaves");
-	for (i = 0; i < bond->slave_names.count; ++i) {
-		const char *slave_name = bond->slave_names.data[i];
+	snodes = xml_node_create(child, "slaves");
+	for (i = 0; i < bond->slaves.count; ++i) {
+		ni_bonding_slave_t *slave = bond->slaves.data[i];
 
-		slave = xml_node_new("slave", slaves);
-		xml_node_new_element("device", slave, slave_name);
+		if (!slave || ni_string_empty(slave->device.name))
+			continue;
+
+		snode = xml_node_new("slave", snodes);
+		xml_node_new_element("device", snode, slave->device.name);
 
 		switch (bond->mode) {
 		case NI_BOND_MODE_ACTIVE_BACKUP:
 		case NI_BOND_MODE_BALANCE_TLB:
 		case NI_BOND_MODE_BALANCE_ALB:
-			if (ni_string_eq(bond->primary_slave, slave_name)) {
-				xml_node_new_element("primary", slave, "true");
+			if (ni_string_eq(bond->primary_slave.name, slave->device.name)) {
+				xml_node_new_element("primary", snode, "true");
 			}
-			if (ni_string_eq(bond->active_slave, slave_name)) {
-				xml_node_new_element("active", slave, "true");
+			if (ni_string_eq(bond->active_slave.name, slave->device.name)) {
+				xml_node_new_element("active", snode, "true");
 			}
 		default:
 			break;
@@ -497,6 +500,11 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 	if (verbose || bond->all_slaves_active) {
 		xml_node_new_element("all-slaves-active", child,
 			(bond->all_slaves_active ? "true" : "false"));
+	}
+
+	if (compat->dev->link.hwaddr.len) {
+		xml_node_new_element("address", child,
+			ni_link_address_print(&compat->dev->link.hwaddr));
 	}
 
 	return TRUE;

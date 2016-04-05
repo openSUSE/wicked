@@ -268,7 +268,7 @@ xml_process_element_nested(xml_reader_t *xr, xml_node_t *cur, unsigned int nesti
 			}
 
 			if (strcmp(identifier.string, "DOCTYPE")) {
-				xml_parse_error(xr, "Unexpected element: <!%s ...> not supported", identifier);
+				xml_parse_error(xr, "Unexpected element: <!%s ...> not supported", identifier.string);
 				goto error;
 			}
 
@@ -712,10 +712,14 @@ xml_expand_entity(xml_reader_t *xr, ni_stringbuf_t *res)
 		}
 		if (isspace(cc))
 			continue;
+		if (entity.len + sizeof(char) >= entity.size) {
+			xml_parse_error(xr, "Entity is too long");
+			return FALSE;
+		}
 		ni_stringbuf_putc(&entity, cc);
 	}
 
-	if (!entity.string) {
+	if (ni_string_empty(entity.string)) {
 		xml_parse_error(xr, "Empty entity &;");
 		return FALSE;
 	}
@@ -862,7 +866,7 @@ xml_node_location(const xml_node_t *node)
 {
 	static char buffer[PATH_MAX];
 
-	if (node->location) {
+	if (node && node->location) {
 		snprintf(buffer, sizeof(buffer), "%s:%u",
 				node->location->shared->filename,
 				node->location->line);

@@ -316,6 +316,30 @@ ni_string_array_is_uniq(const ni_string_array_t *nsa)
 	return 1;
 }
 
+int
+ni_string_array_cmp(const ni_string_array_t *la, const ni_string_array_t *ra)
+{
+	unsigned int i;
+	int ret;
+
+	if (!la || !ra)
+		return la > ra ? 1 : -1;
+
+	if (la->count != ra->count)
+		return la->count > ra->count ? 1 : -1;
+
+	for (ret = i = 0; i < la->count && !ret; ++i)
+		ret = ni_string_cmp(la->data[i], ra->data[i]);
+
+	return ret;
+}
+
+ni_bool_t
+ni_string_array_eq(const ni_string_array_t *la, const ni_string_array_t *ra)
+{
+	return ni_string_array_cmp(la, ra) == 0;
+}
+
 /*
  * Array of unsigned integers
  */

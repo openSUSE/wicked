@@ -64,6 +64,8 @@ typedef struct ni_opaque {
 
 #define NI_OPAQUE_INIT	{ .len = 0 }
 
+#define NI_BIT(nr)	(1U << (nr))
+
 typedef struct ni_bitfield {
 	unsigned int	size;
 	uint32_t *	field;
@@ -110,6 +112,8 @@ extern void		ni_string_array_comm(const ni_string_array_t *a, const ni_string_ar
 				ni_string_array_t *uniq_b,
 				ni_string_array_t *common);
 extern int		ni_string_array_is_uniq(const ni_string_array_t *);
+extern ni_bool_t	ni_string_array_eq(const ni_string_array_t *, const ni_string_array_t *);
+extern int		ni_string_array_cmp(const ni_string_array_t *, const ni_string_array_t *);
 
 extern void		ni_uint_array_init(ni_uint_array_t *);
 extern void		ni_uint_array_destroy(ni_uint_array_t *);
@@ -270,6 +274,25 @@ ni_string_eq_nocase(const char *a, const char *b)
 		return a == b;
 	return strcasecmp(a, b) == 0;
 }
+
+static inline int
+ni_string_cmp(const char *a, const char *b)
+{
+	if (a == NULL || b == NULL)
+		return a > b ? 1 : -1;
+	else
+		return strcmp(a, b);
+}
+
+static inline int
+ni_string_cmp_nocase(const char *a, const char *b)
+{
+	if (a == NULL || b == NULL)
+		return a > b ? 1 : -1;
+	else
+		return strcasecmp(a, b);
+}
+
 
 static inline ni_bool_t
 ni_string_contains(const char *haystack, const char *needle)

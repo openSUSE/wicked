@@ -113,6 +113,13 @@ __ni_ifup_generate_match_link_ref(xml_node_t *match, xml_node_t *link)
 	if (ni_string_empty(master->cdata))
 		return FALSE;
 
+	if (ni_string_eq(master->cdata, ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM))) {
+		if ((port = xml_node_get_child(link, NI_CLIENT_IFCONFIG_LINK_PORT)))
+			return __ni_ifup_generate_match_link_port_ref(match, port);
+
+		return FALSE;
+	}
+
 	if (!(ref = xml_node_new(NI_NANNY_IFPOLICY_MATCH_REF, match)))
 		return FALSE;
 
@@ -676,7 +683,7 @@ usage:
 			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
-	ni_fsm_pull_in_children(&ifmarked);
+	ni_fsm_pull_in_children(&ifmarked, fsm);
 
 	if (!ni_ifup_hire_nanny(&ifmarked, set_persistent))
 		status = NI_WICKED_RC_NOT_CONFIGURED;
@@ -947,7 +954,7 @@ usage:
 			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
-	ni_fsm_pull_in_children(&ifmarked);
+	ni_fsm_pull_in_children(&ifmarked, fsm);
 
 	/* Mark and start selected workers */
 	if (ifmarked.count)

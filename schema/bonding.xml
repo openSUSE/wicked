@@ -9,7 +9,6 @@
  <!-- This is the device-info returned in interface reports -->
  <define name="device-info" class="dict">
    <mode type="builtin-bonding-mode"/>
-
    <!-- At least one slave element has to occur.
         Bonding requires at least one available slave at start time,
         other slaves can be added later (hotplugged).
@@ -23,8 +22,16 @@
        <meta:netif-reference shared="false" />
        <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
      </device>
+
      <active type="boolean"/>
      <primary type="boolean"/>
+
+     <state type="builtin-bonding-slave-state"/>
+     <mii-status type="builtin-bonding-slave-mii-status"/>
+     <perm-hwaddr type="ethernet-address"/>
+     <link-failures type="uint32"/>
+     <queue-id type="uint16"/>
+     <ad-aggregator-id type="uint16"/>
    </define>
    <slaves class="array" element-type="slave" constraint="required" minlen="1" />
 
@@ -51,7 +58,7 @@
              slave after a link recovery has been detected."/>
      <downdelay type="uint32" description="Specifies the time, in milliseconds, to wait before disabling
 	     a slave after a link failure has been detected."/>
-     <carrier type="builtin-bonding-mii-carrier-detect"/>
+     <carrier-detect type="builtin-bonding-mii-carrier-detect"/>
    </miimon>
 
    <xmit-hash-policy type="builtin-bonding-xmit-hash-policy"/>
@@ -83,6 +90,8 @@
      <min value="1"/>
      <max value="2147483647"/>
    </lp-interval>
+
+   <address class="array" element-type="byte" minlen="6" maxlen="20" notation="hwaddr"/>
  </define>
 
  <define name="properties" type="device-info"/>

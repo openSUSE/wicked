@@ -43,6 +43,7 @@ static ni_bool_t	ni_config_parse_system_updater(ni_extension_t **, xml_node_t *)
 static ni_bool_t	ni_config_parse_extension(ni_extension_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_sources(ni_config_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_rtnl_event(ni_config_rtnl_event_t *, xml_node_t *);
+static ni_bool_t	ni_config_parse_bonding(ni_config_bonding_t *, const xml_node_t *);
 static ni_bool_t	ni_config_parse_teamd(ni_config_teamd_t *, const xml_node_t *);
 static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
 static const char *	ni_config_build_include(const char *, const char *);
@@ -241,6 +242,10 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 		} else
 		if (strcmp(child->name, "netlink-events") == 0) {
 			if (!ni_config_parse_rtnl_event(&conf->rtnl_event, child))
+				goto failed;
+		} else
+		if (strcmp(child->name, "bonding") == 0) {
+			if (!ni_config_parse_bonding(&conf->bonding, child))
 				goto failed;
 		} else
 		if (strcmp(child->name, "teamd") == 0) {
@@ -953,6 +958,63 @@ ni_config_parse_rtnl_event(ni_config_rtnl_event_t *conf, xml_node_t *node)
 	}
 	return TRUE;
 }
+
+/*
+ * bonding support config options
+ */
+static const ni_intmap_t	config_bonding_ctl_names[] = {
+	{ "netlink",		NI_CONFIG_BONDING_CTL_NETLINK	},
+	{ "sysfs",		NI_CONFIG_BONDING_CTL_SYSFS	},
+	{ NULL,			-1U				}
+};
+
+const char *
+ni_config_bonding_ctl_type_to_name(ni_config_bonding_ctl_t type)
+{
+	return ni_format_uint_mapped(type, config_bonding_ctl_names);
+}
+
+static ni_bool_t
+ni_config_bonding_ctl_name_to_type(const char *name, ni_config_bonding_ctl_t *type)
+{
+	unsigned int _type;
+
+	if (!name || !type)
+		return FALSE;
+
+	if (ni_parse_uint_mapped(name, config_bonding_ctl_names, &_type) != 0)
+		return FALSE;
+
+	*type = _type;
+	return TRUE;
+}
+
+ni_config_bonding_ctl_t
+ni_config_bonding_ctl(void)
+{
+	return ni_global.config ? ni_global.config->bonding.ctl : NI_CONFIG_BONDING_CTL_NETLINK;
+}
+
+static ni_bool_t
+ni_config_parse_bonding(ni_config_bonding_t *conf, const xml_node_t *node)
+{
+	const xml_node_t *child;
+
+	if (!conf || !node)
+		return FALSE;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "ctl")) {
+			if (!ni_config_bonding_ctl_name_to_type(child->cdata, &conf->ctl)) {
+				ni_error("%s: invalid <bonding><ctl>%s</ctl></bonding> option",
+						xml_node_location(child), child->cdata);
+				return FALSE;
+			}
+		}
+	}
+	return TRUE;
+}
+
 
 /*
  * teamd support config options

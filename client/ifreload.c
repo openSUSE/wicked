@@ -298,7 +298,14 @@ usage:
 				continue;
 			}
 			w->target_range.min = NI_FSM_STATE_NONE;
-			w->target_range.max = NI_FSM_STATE_DEVICE_READY;
+			switch (w->iftype) {
+			case NI_IFTYPE_TEAM:
+				w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
+				break;
+			default:
+				w->target_range.max = NI_FSM_STATE_DEVICE_READY;
+				break;
+			}
 			nmarked++;
 		} else
 		if (ni_ifcheck_device_configured(dev)) {
@@ -338,7 +345,8 @@ usage:
 		goto cleanup;
 	}
 
-	ni_fsm_pull_in_children(&up_marked);
+	ni_fsm_pull_in_children(&up_marked, fsm);
+
 	/* Drop deleted or apply the up range */
 	ni_fsm_reset_matching_workers(fsm, &up_marked, &up_range, FALSE);
 
@@ -620,7 +628,14 @@ usage:
 				continue;
 			}
 			w->target_range.min = NI_FSM_STATE_NONE;
-			w->target_range.max = NI_FSM_STATE_DEVICE_READY;
+			switch (w->iftype) {
+			case NI_IFTYPE_TEAM:
+				w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
+				break;
+			default:
+				w->target_range.max = NI_FSM_STATE_DEVICE_READY;
+				break;
+			}
 			nmarked++;
 		} else
 		if (ni_ifcheck_device_configured(dev)) {
@@ -661,7 +676,7 @@ usage:
 		goto cleanup;
 	}
 
-	ni_fsm_pull_in_children(&up_marked);
+	ni_fsm_pull_in_children(&up_marked, fsm);
 
 	/* anything to ifup? */
 	if (up_marked.count) {
