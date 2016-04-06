@@ -40,6 +40,7 @@ static const ni_intmap_t	__map_macvlan_mode[] = {
 	{ "pass-through",	NI_MACVLAN_MODE_PASSTHRU},
 	{ "passthru",		NI_MACVLAN_MODE_PASSTHRU},
 	{ "bridge",		NI_MACVLAN_MODE_BRIDGE	},
+	{ "source", 		NI_MACVLAN_MODE_SOURCE	},
 
 	{ NULL,			0			}
 };
@@ -80,6 +81,7 @@ ni_macvlan_validate(const ni_macvlan_t *macvlan)
 	case NI_MACVLAN_MODE_VEPA:
 	case NI_MACVLAN_MODE_PASSTHRU:
 	case NI_MACVLAN_MODE_BRIDGE:
+	case NI_MACVLAN_MODE_SOURCE:
 	case 0:
 		break;
 	}
