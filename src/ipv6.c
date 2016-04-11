@@ -138,6 +138,7 @@ __ni_ipv6_ra_info_reset(ni_ipv6_ra_info_t *radv)
 
 	ni_ipv6_ra_pinfo_list_destroy(&radv->pinfo);
 	ni_ipv6_ra_rdnss_list_destroy(&radv->rdnss);
+	ni_ipv6_ra_dnssl_list_destroy(&radv->dnssl);
 }
 
 /*
@@ -461,6 +462,73 @@ ni_ipv6_ra_rdnss_list_update(ni_ipv6_ra_rdnss_t **list, const struct in6_addr *i
 	}
 
 	/* just nothing to do on removal event for untracked server */
+	return TRUE;
+}
+
+static ni_ipv6_ra_dnssl_t *
+ni_ipv6_ra_dnssl_new()
+{
+	return calloc(1, sizeof(ni_ipv6_ra_dnssl_t));
+}
+
+static void
+ni_ipv6_ra_dnssl_free(ni_ipv6_ra_dnssl_t *dnssl)
+{
+	if (dnssl) {
+		ni_string_free(&dnssl->domain);
+		free(dnssl);
+	}
+}
+
+void
+ni_ipv6_ra_dnssl_list_destroy(ni_ipv6_ra_dnssl_t **list)
+{
+	ni_ipv6_ra_dnssl_t *dnssl;
+
+	while ((dnssl = *list)) {
+		*list = dnssl->next;
+		ni_ipv6_ra_dnssl_free(dnssl);
+	}
+}
+
+ni_bool_t
+ni_ipv6_ra_dnssl_list_update(ni_ipv6_ra_dnssl_t **list, const char *domain,
+				unsigned int lifetime, const struct timeval *acquired)
+{
+	ni_ipv6_ra_dnssl_t *dnssl, **pos;
+
+	if (!list || ni_string_empty(domain) || !acquired)
+		return FALSE;
+
+	for (pos = list; (dnssl = *pos); pos = &dnssl->next) {
+		if (ni_string_eq_nocase(dnssl->domain, domain)) {
+			if (lifetime) {
+				dnssl->lifetime = lifetime;
+				dnssl->acquired = *acquired;
+			} else {
+				*pos = dnssl->next;
+				ni_ipv6_ra_dnssl_free(dnssl);
+			}
+			return TRUE;
+		}
+	}
+
+	if (lifetime)  {
+		dnssl = ni_ipv6_ra_dnssl_new();
+		if (dnssl) {
+			dnssl->lifetime = lifetime;
+			dnssl->acquired = *acquired;
+			dnssl->domain = strdup(domain);
+			if (dnssl->domain) {
+				*pos = dnssl;
+				return TRUE;
+			}
+			ni_ipv6_ra_dnssl_free(dnssl);
+		}
+		return FALSE;
+	}
+
+	/* just nothing to do on removal event for untracked domain */
 	return TRUE;
 }
 

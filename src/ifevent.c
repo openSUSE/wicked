@@ -27,11 +27,11 @@
 #include "kernel.h"
 #include "appconfig.h"
 
-/* RFC 5006, RFC 6106 */
-#if defined(ND_OPT_RDNSS_INFORMATION)
-#define NI_ND_OPT_RDNSS_INFORMATION	ND_OPT_RDNSS_INFORMATION
-#else
-#define NI_ND_OPT_RDNSS_INFORMATION	25
+#ifndef NI_ND_OPT_RDNSS_INFORMATION
+#define NI_ND_OPT_RDNSS_INFORMATION	25	/* RFC 5006 */
+#endif
+#ifndef NI_ND_OPT_DNSSL_INFORMATION
+#define NI_ND_OPT_DNSSL_INFORMATION	31	/* RFC 6106 */
 #endif
 
 struct ni_nd_opt_rdnss_info_p
@@ -42,6 +42,16 @@ struct ni_nd_opt_rdnss_info_p
 	uint32_t	nd_opt_rdnss_lifetime;
 	/* followed by one or more IPv6 addresses */
 	struct in6_addr	nd_opt_rdnss_addr[];
+};
+
+struct ni_nd_opt_dnssl_info_p
+{
+	uint8_t		nd_opt_dnssl_type;
+	uint8_t		nd_opt_dnssl_len;
+	uint16_t	nd_opt_dnssl_resserved1;
+	uint32_t	nd_opt_dnssl_lifetime;
+	/* followed by one or more dns domains    */
+	unsigned char	nd_opt_dnssl_list[];
 };
 
 typedef struct ni_rtevent_handle
@@ -526,8 +536,83 @@ __ni_rtevent_process_rdnss_info(ni_netdev_t *dev, const struct nd_opt_hdr *opt,
 
 		emit = TRUE;
 	}
+
 	if (emit)
 		__ni_netdev_nduseropt_event(dev, NI_EVENT_RDNSS_UPDATE);
+	return 0;
+}
+
+static int
+__ni_rtevent_process_dnssl_info(ni_netdev_t *dev, const struct nd_opt_hdr *opt, size_t len)
+{
+	const struct ni_nd_opt_dnssl_info_p *dopt;
+	ni_ipv6_devinfo_t *ipv6;
+	unsigned int lifetime;
+	struct timeval acquired;
+	size_t length, cnt, off;
+	ni_bool_t emit = FALSE;
+	char domain[256];
+
+	if (opt == NULL || len < sizeof(*dopt)) {
+		ni_error("%s: unable to parse ipv6 dnssl info event data -- too short",
+				dev->name);
+		return -1;
+	}
+
+	ipv6 = ni_netdev_get_ipv6(dev);
+	if (!ipv6) {
+		ni_error("%s: unable to allocate device ipv6 structure: %m",
+				dev->name);
+		return -1;
+	}
+
+	dopt = (const struct ni_nd_opt_dnssl_info_p *)opt;
+	len -= sizeof(*dopt);
+
+	ni_timer_get_time(&acquired);
+	lifetime = ntohl(dopt->nd_opt_dnssl_lifetime);
+
+	length = 0;
+	domain[length] = '\0';
+	for (off = 0; off < len ; ) {
+		cnt = dopt->nd_opt_dnssl_list[off++];
+		if (cnt == 0) {
+			/* just padding */
+			if (domain[0] == '\0')
+				continue;
+
+			domain[length] = '\0';
+			if (!ni_check_domain_name(domain, length, 0)) {
+				ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_EVENTS,
+					"%s: ignoring suspect DNSSL domain: %s",
+					dev->name, ni_print_suspect(domain, length));
+			} else
+			if (!ni_ipv6_ra_dnssl_list_update(&ipv6->radv.dnssl,
+						domain, lifetime, &acquired)) {
+				ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_EVENTS,
+						"%s: unable to track ipv6 dnssl domain %s",
+						dev->name, domain);
+			} else
+				emit = TRUE;
+
+			length = 0;
+			domain[length] = '\0';
+			continue;
+		}
+
+		if ((off + cnt >= len) || (length + cnt + 2 > sizeof(domain)))
+			break;
+
+		if (length)
+			domain[length++] = '.';
+		memcpy(&domain[length], &dopt->nd_opt_dnssl_list[off], cnt);
+		off += cnt;
+		length += cnt;
+		domain[length] = '\0';
+	}
+
+	if (emit)
+		__ni_netdev_nduseropt_event(dev, NI_EVENT_DNSSL_UPDATE);
 	return 0;
 }
 
@@ -557,6 +642,14 @@ __ni_rtevent_process_nd_radv_opts(ni_netdev_t *dev, const struct nd_opt_hdr *opt
 		case NI_ND_OPT_RDNSS_INFORMATION:
 			if (__ni_rtevent_process_rdnss_info(dev, opt, opt_len) < 0) {
 				ni_error("%s: Cannot process RDNSS info option",
+					dev->name);
+				return -1;
+			}
+		break;
+
+		case NI_ND_OPT_DNSSL_INFORMATION:
+			if (__ni_rtevent_process_dnssl_info(dev, opt, opt_len) < 0) {
+				ni_error("%s: Cannot process DNSSL info option",
 					dev->name);
 				return -1;
 			}
@@ -1022,6 +1115,30 @@ ni_server_trace_interface_nduseropt_events(ni_netdev_t *dev, ni_event_t event)
 			}
 		}
 		break;
+
+	case NI_EVENT_DNSSL_UPDATE:
+		if (ipv6 && ipv6->radv.dnssl) {
+			ni_ipv6_ra_dnssl_t *dnssl;
+			char lifetime[32];
+			const char *rainfo;
+
+			rainfo = ipv6->radv.managed_addr ? "managed" :
+				 ipv6->radv.other_config ? "config"  : "unmanaged";
+			for (dnssl = ipv6->radv.dnssl; dnssl; dnssl = dnssl->next) {
+				if (dnssl->lifetime == 0xffffffff) {
+					snprintf(lifetime, sizeof(lifetime), "%s",
+								"infinite");
+				} else {
+					snprintf(lifetime, sizeof(lifetime), "%u",
+								dnssl->lifetime);
+				}
+				ni_trace("%s: update IPv6 RA<%s> DNSSL<%s>[%s]",
+						dev->name, rainfo,
+						dnssl->domain, lifetime);
+			}
+		}
+		break;
+
 	default:
 		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IPV6|NI_TRACE_EVENTS,
 			"%s: IPv6 RA %s event: ", dev->name, ni_event_type_to_name(event));
