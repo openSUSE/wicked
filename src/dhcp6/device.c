@@ -1208,8 +1208,8 @@ ni_dhcp6_prefix_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 	ni_server_trace_interface_prefix_events(ifp, event, pi);
 	switch (event) {
 	case NI_EVENT_PREFIX_UPDATE:
+		ni_dhcp6_device_refresh_mode(dev, ifp);
 		if (dev->config && dev->config->mode == NI_DHCP6_MODE_AUTO) {
-			ni_dhcp6_device_refresh_mode(dev, ifp);
 			ni_dhcp6_device_start(dev);
 		}
 		break;
