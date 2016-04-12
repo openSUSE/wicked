@@ -25,6 +25,6 @@ schema.xml: schema.xml.in
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
 
 wicked_doc_data	= \
-	WhyWicked.txt
+	FAQ.txt WhyWicked.txt
 
 # vim: ai
