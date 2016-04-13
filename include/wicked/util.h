@@ -279,7 +279,7 @@ static inline int
 ni_string_cmp(const char *a, const char *b)
 {
 	if (a == NULL || b == NULL)
-		return a > b ? 1 : -1;
+		return a > b ? 1 : a < b ? -1 : 0;
 	else
 		return strcmp(a, b);
 }
@@ -288,7 +288,7 @@ static inline int
 ni_string_cmp_nocase(const char *a, const char *b)
 {
 	if (a == NULL || b == NULL)
-		return a > b ? 1 : -1;
+		return a > b ? 1 : a < b ? -1 : 0;
 	else
 		return strcasecmp(a, b);
 }
