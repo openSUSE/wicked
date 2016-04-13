@@ -1,0 +1,50 @@
+
+Q: Why does wicked not request DHCPv6 IP address on my card?
+A: Wicked follows the network administrator configuration provided
+   by the router in its advertisements (IPv6 RA) by default and
+   starts DHCPv6 request if the Managed or OtherConfig flags in the
+   RA forwarded to it by the kernel is enabled.
+   When there is no IPv6 router on the network, the router sends an
+   IPv6 RA with DHCPv6 disabled, the firewall blocks icmpv6 traffic
+   or the network card is incorrectly reporting carrier detection,
+   wicked-dhcp6 may stay silent waiting for RA events.
+   Set FW_BOOT_FULL_INIT="yes" in /etc/sysconfig/SuSEfirewall2,
+   so the SuSEfirewall2_init.service does not block icmpv6 packets.
+   To provide/override the RA flags, set the DHCLIENT6_MODE=managed
+   either in the ifcfg(5) file or in /etc/sysconfig/network/dhcp.
+   See also ifcfg-dhcp(5) manual page.
+
+Q: My network is not IPv6 enabled, how to use DHCPv4 only?
+A: Change the ifcfg(5) config file to use BOOTPROTO=dhcp4 instead of
+   BOOTPROTO=dhcp. To disable IPv6 completely, you can use either
+   sysctl.conf(5) config file:
+     net.ipv6.conf.all.disable_ipv6 = 1
+     net.ipv6.conf.default.disable_ipv6 = 1
+   or the ipv6.disable=1 kernel boot parameter, e.g. in the
+   GRUB_CMDLINE_LINUX variables of /etc/default/grub.
+
+Q: Why is wicked not setting IP address on my network card?
+A: The network card probably does not have carrier.
+   Wicked monitors events and states and preforms the setup steps
+   according to state and layering of network device.
+   Once the carrier is detected (and e.g. wireless link
+   authentication was successful), it will start verifying the IP
+   addresses for duplicates and applying them.
+   To break the rules and apply the IP address before the carrier
+   is detected and layer 2 setup finished, you can disable it per
+   interface using LINK_REQUIRED=no in the ifcfg config file.
+   See also ifcfg(5) manual page.
+
+Q: Why wicked does not set my (default) static route?
+A: Each route using a gateway needs a direct route covering the
+   gateway. When there is a static IP address (IPADDR) defined
+   and it is in the same network as the gateway, the IP address
+   causes to prepend the direct route matching also the gateway.
+   Otherwise declare such route explicitely, for example, when
+   there is an IPADDR="192.168.1.2/24" (192.168.1 net), but the
+   router has the IP 192.168.0.1 (in 192.168.0 net), define an
+   explicit direct route for the gateway first:
+      192.168.0.1  -           - eth0
+      default      192.168.0.1 - eth0
+   See also routes(5) manual page.
+
