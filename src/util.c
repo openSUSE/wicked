@@ -323,7 +323,7 @@ ni_string_array_cmp(const ni_string_array_t *la, const ni_string_array_t *ra)
 	int ret;
 
 	if (!la || !ra)
-		return la > ra ? 1 : -1;
+		return la > ra ? 1 : la < ra ? -1 : 0;
 
 	if (la->count != ra->count)
 		return la->count > ra->count ? 1 : -1;
