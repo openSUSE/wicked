@@ -2444,6 +2444,8 @@ __ni_process_newroute_multipath(ni_route_t *rp, struct nlattr *multipath)
 	while (len >= sizeof(*rtnh) && len >= rtnh->rtnh_len) {
 		if (nh == NULL) {
 			*tail = nh = ni_route_nexthop_new();
+			if (!nh)
+				return -1;
 		}
 
 		if (__ni_process_newroute_nexthop(rp, nh, rtnh) != 0)
@@ -2591,7 +2593,9 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 		return 1;
 	}
 
-	rp = ni_route_new();
+	if (!(rp = ni_route_new()))
+		return -1;
+
 	rp->family = rtm->rtm_family;
 	rp->type = rtm->rtm_type;
 	rp->table = rtm->rtm_table;

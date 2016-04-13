@@ -516,6 +516,8 @@ __ni_suse_parse_route_hops(ni_route_nexthop_t *nh, ni_string_array_t *opts,
 	while ((opt = ni_string_array_at(opts, (*pos)++))) {
 		if (!strcmp(opt, "nexthop")) {
 			ni_route_nexthop_t *next = ni_route_nexthop_new();
+			if (!next)
+				return -1;
 			if (__ni_suse_parse_route_hops(next, opts, pos, ifname,
 							filename, line) < 0) {
 				ni_route_nexthop_free(next);
@@ -900,7 +902,8 @@ __ni_suse_route_parse(ni_route_table_t **routes, char *buffer, const char *ifnam
 	/*
 	 * Let's allocate a route and fill it directly
 	 */
-	rp = ni_route_new();
+	if (!(rp = ni_route_new()))
+		goto failure;
 
 	/*
 	 * We need an address either in gateway or in destination

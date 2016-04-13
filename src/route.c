@@ -1,8 +1,25 @@
 /*
- * Handling of ip routing.
+ *	Handling of ip routing.
  *
- * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
- * Copyright (C) 2012-2013 Marius Tomaschewski <mt@suse.de>
+ *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2012-2016 SUSE LINUX GmbH, Nuernberg, Germany.
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *	Authors:
+ *		Olaf Kirch <okir@suse.de>
+ *		Marius Tomaschewski <mt@suse.de>
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -11,6 +28,9 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <netlink/netlink.h>
+#if !defined(IP6_RT_PRIO_USER) || !defined(IP6_RT_PRIO_ADDRCONF)
+#include <linux/ipv6_route.h>
+#endif
 
 #include <wicked/logging.h>
 #include <wicked/netinfo.h>
@@ -24,7 +44,7 @@
 /*
  * Names for route type
  */
-static const ni_intmap_t	__ni_route_type_names[] = {
+static const ni_intmap_t	ni_route_type_names[] = {
 	{ "unicast",		RTN_UNICAST		},
 	{ "local",		RTN_LOCAL		},
 	{ "broadcast",		RTN_BROADCAST		},
@@ -43,7 +63,7 @@ static const ni_intmap_t	__ni_route_type_names[] = {
 /*
  * Names for route table
  */
-static const ni_intmap_t	__ni_route_table_names[] = {
+static const ni_intmap_t	ni_route_table_names[] = {
 	{ "compat",		RT_TABLE_COMPAT		},
 	{ "default",		RT_TABLE_DEFAULT	},
 	{ "main",		RT_TABLE_MAIN		},
@@ -55,7 +75,7 @@ static const ni_intmap_t	__ni_route_table_names[] = {
 /*
  * Names for route scope
  */
-static const ni_intmap_t	__ni_route_scope_names[] = {
+static const ni_intmap_t	ni_route_scope_names[] = {
 	{ "universe",		RT_SCOPE_UNIVERSE	},
 	{ "site",		RT_SCOPE_SITE		},
 	{ "link",		RT_SCOPE_LINK		},
@@ -68,7 +88,7 @@ static const ni_intmap_t	__ni_route_scope_names[] = {
 /*
  * Names for route protocol
  */
-static const ni_intmap_t	__ni_route_protocol_names[] = {
+static const ni_intmap_t	ni_route_protocol_names[] = {
 	{ "redirect",		RTPROT_REDIRECT		},
 	{ "kernel",		RTPROT_KERNEL		},
 	{ "boot",		RTPROT_BOOT		},
@@ -91,7 +111,7 @@ static const ni_intmap_t	__ni_route_protocol_names[] = {
  * Names for bit numbers of route [next-hop] flags and lock bits.
  * Note: We need the bits to generate a bitmap in constants.xml.
  */
-static const ni_intmap_t	__ni_route_flags_bits[] = {
+static const ni_intmap_t	ni_route_flags_bits[] = {
 	{ "notify",		8  /* RTM_F_NOTIFY   */	},
 	{ "cloned",		9  /* RTM_F_CLONED   */	},
 	{ "equalize",		10 /* RTM_F_EQUALIZE */	},
@@ -99,14 +119,14 @@ static const ni_intmap_t	__ni_route_flags_bits[] = {
 
 	{ NULL,			0			}
 };
-static const ni_intmap_t	__ni_route_nh_flags_bits[] = {
+static const ni_intmap_t	ni_route_nh_flags_bits[] = {
 	{ "dead",		0  /* RTNH_F_DEAD     */},
 	{ "pervasive",		1  /* RTNH_F_PERVASIVE*/},
 	{ "online",		2  /* RTNH_F_ONLINK   */},
 
 	{ NULL,			0			}
 };
-static const ni_intmap_t	__ni_route_mxlock_bits[] = {
+static const ni_intmap_t	ni_route_mxlock_bits[] = {
 	{ "mtu",		RTAX_MTU		},
 	{ "window",		RTAX_WINDOW		},
 	{ "rtt",		RTAX_RTT		},
@@ -136,7 +156,8 @@ ni_route_new(void)
 	ni_route_t *rp;
 
 	rp = xcalloc(1, sizeof(ni_route_t));
-	rp->users = 1;
+	if (rp)
+		rp->users = 1;
 	return rp;
 }
 
@@ -174,7 +195,9 @@ ni_route_create(unsigned int prefixlen, const ni_sockaddr_t *dest,
 		}
 	}
 
-	rp = ni_route_new();
+	if (!(rp = ni_route_new()))
+		return NULL;
+
 	rp->family = af;
 	rp->prefixlen = prefixlen;
 	rp->destination = *dest;
@@ -208,12 +231,24 @@ ni_route_t *
 ni_route_clone(const ni_route_t *src)
 {
 	ni_route_t *rp;
-	ni_route_nexthop_t *nh;
-	const ni_route_nexthop_t *srcnh;
 
-	rp = ni_route_new();
+	if (src) {
+		rp = ni_route_new();
+		if (ni_route_copy(rp, src))
+			return rp;
 
+		ni_route_free(rp);
+	}
+	return NULL;
+}
+
+static ni_bool_t
+ni_route_copy_options(ni_route_t *rp, const ni_route_t *src)
+{
+	if (!rp || !src)
+		return FALSE;
 #define C(x)	rp->x = src->x
+	C(owner);
 	C(family);
 	C(prefixlen);
 	C(destination);
@@ -243,16 +278,19 @@ ni_route_clone(const ni_route_t *src)
 	C(hoplimit);
 	C(features);
 	C(reordering);
+
+	C(ipv6_cache_info);
 #undef C
+	return TRUE;
+}
 
-	for (nh = &rp->nh, srcnh = &src->nh; srcnh; srcnh = srcnh->next, nh = nh->next) {
-		ni_route_nexthop_copy(nh, srcnh);
-		if (srcnh->next) {
-			nh->next = ni_route_nexthop_new();
-		}
-	}
+ni_bool_t
+ni_route_copy(ni_route_t *rp, const ni_route_t *src)
+{
+	if (!ni_route_copy_options(rp, src))
+		return FALSE;
 
-	return rp;
+	return ni_route_replace_hops(rp, &src->nh);
 }
 
 ni_route_t *
@@ -267,7 +305,7 @@ ni_route_ref(ni_route_t *rp)
 }
 
 static inline void
-__ni_route_free(ni_route_t *rp)
+do_route_free(ni_route_t *rp)
 {
 	ni_route_nexthop_list_destroy(&rp->nh.next);
 	ni_route_nexthop_destroy(&rp->nh);
@@ -284,13 +322,227 @@ ni_route_free(ni_route_t *rp)
 	ni_assert(rp->users);
 	rp->users--;
 	if (rp->users == 0) {
-		__ni_route_free(rp);
+		do_route_free(rp);
 	}
+}
+
+ni_bool_t
+ni_route_update_options(ni_route_t *rp, const ni_route_t *src)
+{
+	if (!rp || !src)
+		return FALSE;
+
+#define CC(x)	if (src->x) rp->x = src->x
+	CC(owner);
+	/* skip family, prefixlen */
+	CC(priority);
+	CC(flags);
+	CC(realm);
+	CC(mark);
+	CC(tos);
+	/* skip table, type */
+	CC(scope);
+	CC(protocol);
+	CC(lock);
+	CC(mtu);
+	CC(rtt);
+	CC(rttvar);
+	CC(window);
+	CC(cwnd);
+	CC(initcwnd);
+	CC(initrwnd);
+	CC(ssthresh);
+	CC(advmss);
+	CC(rto_min);
+	CC(hoplimit);
+	CC(features);
+	CC(reordering);
+#undef  CC
+	rp->ipv6_cache_info = src->ipv6_cache_info;
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_route_update(ni_route_t *rp, const ni_route_t *src)
+{
+	if (!rp || !src)
+		return FALSE;
+
+	if (rp->family != src->family)
+		return FALSE;
+
+	if (rp->table != src->table)
+		return FALSE;
+
+	if (rp->type  != src->type)
+		return FALSE;
+
+	if (rp->prefixlen != src->prefixlen)
+		return FALSE;
+
+	if (rp->prefixlen && !ni_sockaddr_equal(&rp->destination, &src->destination))
+		return FALSE;
+
+	if (!ni_route_replace_hops(rp, &src->nh))
+		return FALSE;
+
+	if (ni_sockaddr_is_specified(&src->pref_src))
+		rp->pref_src = src->pref_src;
+
+	return ni_route_update_options(rp, src);
+}
+
+ni_bool_t
+ni_route_replace_hops(ni_route_t *rp, const ni_route_nexthop_t *sh)
+{
+	ni_route_nexthop_t *nh;
+
+	if (!rp)
+		return FALSE;
+
+	ni_route_nexthop_list_destroy(&rp->nh.next);
+	ni_route_nexthop_destroy(&rp->nh);
+
+	for (nh = &rp->nh; sh; sh = sh->next, nh = nh->next) {
+		if (!ni_route_nexthop_copy(nh, sh))
+			return FALSE;
+		if (sh->next)
+			nh->next = ni_route_nexthop_new();
+	}
+	return TRUE;
+}
+
+ni_route_t *
+ni_route_squash_hops(const ni_route_array_t *routes, const ni_route_t *rp)
+{
+	ni_route_nexthop_t **tail = NULL, *nh;
+	const ni_route_nexthop_t *sh;
+	ni_route_t *result = NULL;
+	const ni_route_t *sr;
+	unsigned int i;
+
+	if (!rp || !routes || !routes->count)
+		return NULL;
+
+	result = ni_route_new();
+	if (!ni_route_copy_options(result, rp)) {
+		ni_route_free(result);
+		return NULL;
+	}
+
+	nh = &result->nh;
+	tail = &nh;
+	for (i = 0; i < routes->count; ++i) {
+		sr = routes->data[i];
+		for (sh = &sr->nh; sh; sh = sh->next) {
+			if (!(nh = *tail))
+				*tail = nh = ni_route_nexthop_new();
+
+			if (!ni_route_nexthop_copy(nh, sh)) {
+				ni_route_free(result);
+				return NULL;
+			}
+			tail = &nh->next;
+		}
+	}
+	return result;
+}
+
+unsigned int
+ni_route_expand_hops(ni_route_array_t *routes, const ni_route_t *rp)
+{
+	const ni_route_nexthop_t *nh;
+	ni_route_t *r = NULL;
+	unsigned int count;
+
+	if (!rp || !routes)
+		return FALSE;
+
+	count = routes->count;
+	for (nh = &rp->nh; nh; nh = nh->next) {
+		r = ni_route_new();
+
+		if (ni_route_copy_options(r, rp) &&
+		    ni_route_nexthop_copy(&r->nh, nh) &&
+		    ni_route_array_append(routes, r))
+			continue;
+
+		ni_route_free(r);
+		while (routes->count > count) {
+			if (!ni_route_array_delete(routes, routes->count - 1))
+				break;
+		}
+		return 0;
+	}
+	return routes->count - count;
+}
+
+ni_route_t *
+ni_route_drop_ifindex_hops(const ni_route_t *sr, unsigned int index)
+{
+	const ni_route_nexthop_t *sh;
+	ni_route_nexthop_t *nh, **tail = NULL;
+	ni_route_t *rp = NULL;
+
+	if (!sr || !index)
+		return NULL;
+
+	for (sh = &sr->nh; sh;  sh = sh->next) {
+		if (!sh->device.index || index == sh->device.index)
+			continue;
+		if (rp == NULL) {
+			rp = ni_route_new();
+			if (!rp)
+				return NULL;
+			nh = &rp->nh;
+			if (!ni_route_copy_options(rp, sr) ||
+			    !ni_route_nexthop_copy(nh, sh)) {
+				ni_route_free(rp);
+				return NULL;
+			}
+		} else {
+			*tail = nh = ni_route_nexthop_new();
+			if (!ni_route_nexthop_copy(nh, sh)) {
+				ni_route_free(rp);
+				return NULL;
+			}
+		}
+		tail = &nh->next;
+	}
+	return rp;
+}
+
+void
+ni_route_bind_ifname(ni_route_t *rp, ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	ni_route_nexthop_t  *nh;
+
+	/* Set device names in hops of a route discovered from system
+	 * with an optional dev as an resolved current/cached device.
+	 */
+	for (nh = &rp->nh; nh;  nh = nh->next)
+		ni_route_nexthop_bind_ifname(nh, nc, dev);
+}
+
+void
+ni_route_bind_ifindex(ni_route_t *rp, ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int ifflags)
+{
+	ni_route_nexthop_t  *nh;
+
+	/* Set device indices in hops of a configuration/lease route
+	 * with optional dev as the default (current/lease) device.
+	 */
+	for (nh = &rp->nh; nh;  nh = nh->next)
+		ni_route_nexthop_bind_ifindex(nh, nc, dev, ifflags);
 }
 
 ni_bool_t
 ni_route_equal_destination(const ni_route_t *r1, const ni_route_t *r2)
 {
+	if (ni_route_equal_ref(r1, r2))
+		return TRUE;
+
 	if (r1->family != r2->family)
 		return FALSE;
 
@@ -301,16 +553,75 @@ ni_route_equal_destination(const ni_route_t *r1, const ni_route_t *r2)
 		return FALSE;
 
 	if (r1->family == AF_INET) {
-		/* ipv4 matches routing entries by [prefix, tos, priority] */
+		/*
+		 * ipv4 matches routing entries by [prefix, tos, priority]
+		 */
 		if (r1->tos != r2->tos || r1->priority != r2->priority)
 			return FALSE;
 	} else
 	if (r1->family == AF_INET6) {
-		/* ipv6 matches routing entries by [dst pfx, src pfx, priority];
-		 * we don't support source routes yet. */
-		if (r1->priority != r2->priority)
+		/*
+		 * ipv6 matches routing entries by [src pfx, dst pfx, priority]
+		 * and automatically assigns priority (metrics) to them.
+		 *
+		 * we don't support source routes yet and filter them out, so
+		 * all routes have a "from all" source for now.
+		 */
+		unsigned int p1 = r1->priority;
+		unsigned int p2 = r2->priority;
+		if (!p1) {
+			if (!ni_route_type_needs_nexthop(r1->type))
+				p1 = IP6_RT_PRIO_USER;
+			else
+			if (ni_route_via_gateway(r1))
+				p1 = IP6_RT_PRIO_USER;
+			else
+				p1 = IP6_RT_PRIO_ADDRCONF;
+		}
+		if (!p2) {
+			if (!ni_route_type_needs_nexthop(r2->type))
+				p2 = IP6_RT_PRIO_USER;
+			else
+			if (ni_route_via_gateway(r2))
+				p2 = IP6_RT_PRIO_USER;
+			else
+				p2 = IP6_RT_PRIO_ADDRCONF;
+		}
+		if (p1 != p2)
 			return FALSE;
 	}
+	return TRUE;
+}
+
+ni_bool_t
+ni_route_equal_pref_source(const ni_route_t *r1, const ni_route_t *r2)
+{
+	return ni_sockaddr_equal(&r1->pref_src, &r2->pref_src);
+}
+
+ni_bool_t
+ni_route_equal_options(const ni_route_t *r1, const ni_route_t *r2)
+{
+#define NE(x)	if (r1->x != r2->x) return FALSE;
+	NE(realm);
+	NE(mark);
+	NE(scope);
+	NE(protocol);
+	NE(lock);
+	NE(mtu);
+	NE(rtt);
+	NE(rttvar);
+	NE(window);
+	NE(cwnd);
+	NE(initcwnd);
+	NE(initrwnd);
+	NE(ssthresh);
+	NE(advmss);
+	NE(rto_min);
+	NE(hoplimit);
+	NE(features);
+	NE(reordering);
+#undef  NE
 	return TRUE;
 }
 
@@ -319,10 +630,13 @@ ni_route_equal_gateways(const ni_route_t *r1, const ni_route_t *r2)
 {
 	const ni_route_nexthop_t *nh1, *nh2;
 
+	if (ni_route_equal_ref(r1, r2))
+		return TRUE;
+
 	nh1 = &r1->nh;
 	nh2 = &r2->nh;
 	while (nh1 && nh2) {
-		if (!ni_sockaddr_equal(&nh1->gateway, &nh2->gateway))
+		if (!ni_route_nexthop_equal_gateway(nh1, nh2))
 			return FALSE;
 		nh1 = nh1->next;
 		nh2 = nh2->next;
@@ -331,16 +645,110 @@ ni_route_equal_gateways(const ni_route_t *r1, const ni_route_t *r2)
 }
 
 ni_bool_t
+ni_route_equal_hops(const ni_route_t *r1, const ni_route_t *r2)
+{
+	const ni_route_nexthop_t *nh1, *nh2;
+
+	if (ni_route_equal_ref(r1, r2))
+		return TRUE;
+
+	nh1 = &r1->nh;
+	nh2 = &r2->nh;
+	while (nh1 && nh2) {
+		if (!ni_route_nexthop_equal(nh1, nh2))
+			return FALSE;
+		nh1 = nh1->next;
+		nh2 = nh2->next;
+	}
+	return ni_route_nexthop_equal(nh1, nh2);
+}
+
+ni_bool_t
+ni_route_equal_ref(const ni_route_t *r1, const ni_route_t *r2)
+{
+	return r1 == r2;
+}
+
+ni_bool_t
 ni_route_equal(const ni_route_t *r1, const ni_route_t *r2)
 {
+	if (!r1 || !r2)
+		return r1 == r2;
 
 	if (!ni_route_equal_destination(r1, r2))
 		return FALSE;
-	return ni_route_equal_gateways(r1, r2);
+
+	/* corner case? when a direct route without pref-src
+	 * exists and same prefix address gets added, kernel
+	 * will add a route (duplicate) with a pref-src set.
+	 */
+	if (!ni_route_equal_pref_source(r1, r2))
+		return FALSE;
+
+	if (!ni_route_equal_options(r1, r2))
+		return FALSE;
+
+	if (!ni_route_equal_hops(r1, r2))
+		return FALSE;
+
+	return TRUE;
 }
 
-const char *
-__ni_route_print_flags(ni_stringbuf_t *out, unsigned int flags,
+static int
+do_route_cmp_show(int ret, const char *what)
+{
+#ifdef NI_ROUTE_TRACE_CMP_LEVEL
+	if (ret) {
+		ni_debug_verbose(NI_ROUTE_TRACE_CMP_LEVEL, NI_TRACE_IFCONFIG,
+				"route %s cmp ==>> %d", what, ret);
+	}
+#endif
+	return ret;
+}
+
+static int
+ni_route_sort_cmp(const ni_route_t *r1, const ni_route_t *r2)
+{
+#define do_cmp(a, b)	(a > b ? 1 : a < b ? -1 : 0)
+	int ret;
+#ifdef NI_ROUTE_TRACE_CMP_LEVEL
+	ni_stringbuf_t out = NI_STRINGBUF_INIT_DYNAMIC;
+
+	ni_debug_verbose(NI_ROUTE_TRACE_CMP_LEVEL, NI_TRACE_IFCONFIG,
+			"route cmp 1: %s", ni_route_print(&out, r1));
+	ni_stringbuf_destroy(&out);
+
+	ni_debug_verbose(NI_ROUTE_TRACE_CMP_LEVEL, NI_TRACE_IFCONFIG,
+			"      and 2: %s", ni_route_print(&out, r2));
+	ni_stringbuf_destroy(&out);
+#endif
+	if (!r1 || !r2)
+		return do_route_cmp_show(do_cmp(r1, r2), "pointer");
+
+	if ((ret = do_cmp(r1->table, r2->table)))
+		return do_route_cmp_show(ret, "table");
+
+	if ((ret = do_cmp(r1->family, r2->family)))
+		return do_route_cmp_show(ret, "family");
+
+	if ((ret = (ni_route_via_gateway(r1) ? 1 : 0) - (ni_route_via_gateway(r2) ? 1 : 0)))
+		return do_route_cmp_show(ret, "via gw");
+
+	if ((ret = do_cmp(r1->prefixlen, r2->prefixlen)))
+		return do_route_cmp_show(-ret, "prefix-len");
+
+	if ((ret = ni_sockaddr_compare(&r1->destination, &r2->destination)))
+		return do_route_cmp_show(ret, "destination");
+
+	if ((ret = do_cmp(r1->priority, r2->priority)))
+		return do_route_cmp_show(ret, "priority");
+
+	return 0;
+#undef do_cmp
+}
+
+static const char *
+ni_route_print_flags(ni_stringbuf_t *out, unsigned int flags,
 		const ni_intmap_t *map, const char *prefix, const char *sep)
 {
 	size_t beg = out->len;
@@ -384,11 +792,19 @@ ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 					ni_sockaddr_print(&nh->gateway));
 		}
 		if (nh->device.name) {
-			ni_stringbuf_printf(out, " dev %s", nh->device.name);
-		} else if ((dev = ni_netdev_by_index(nc, nh->device.index))) {
-			ni_stringbuf_printf(out, " dev %s", dev->name);
-		} else /* if (nh->device.index) */ {
-			ni_stringbuf_printf(out, " dev #%u", nh->device.index);
+			if (nh->device.index)
+				ni_stringbuf_printf(out, " dev %s#%u",	nh->device.name,
+									nh->device.index);
+			else
+				ni_stringbuf_printf(out, " dev %s",	nh->device.name);
+		} else
+		if (nh->device.index) {
+			dev = nc ? ni_netdev_by_index(nc, nh->device.index) : NULL;
+			if (!dev || !dev->name)
+				ni_stringbuf_printf(out, " dev #%u",	nh->device.index);
+			else
+				ni_stringbuf_printf(out, " dev %s#%u",	dev->name,
+									dev->link.ifindex);
 		}
 		if (!rp->nh.next)
 			continue;
@@ -400,8 +816,8 @@ ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 			ni_stringbuf_printf(out, " realm %u", nh->realm);
 		}
 		if (nh->flags > 0) {
-			__ni_route_print_flags(out, nh->flags,
-					__ni_route_nh_flags_bits,
+			ni_route_print_flags(out, nh->flags,
+					ni_route_nh_flags_bits,
 					" flags ", "|");
 		}
 	}
@@ -437,8 +853,8 @@ ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 
 	/* other attrs */
 	if (rp->flags > 0) {
-		__ni_route_print_flags(out, rp->flags,
-				__ni_route_flags_bits, " flags ", "|");
+		ni_route_print_flags(out, rp->flags,
+				ni_route_flags_bits, " flags ", "|");
 	}
 	if (ni_sockaddr_is_specified(&rp->pref_src)) {
 		ni_stringbuf_printf(out, " pref-src %s",
@@ -543,7 +959,7 @@ ni_route_print(ni_stringbuf_t *out, const ni_route_t *rp)
 const char *
 ni_route_type_type_to_name(unsigned int type)
 {
-	return ni_format_uint_maybe_mapped(type, __ni_route_type_names);
+	return ni_format_uint_maybe_mapped(type, ni_route_type_names);
 }
 
 const char *
@@ -554,7 +970,7 @@ ni_route_table_type_to_name(unsigned int type, char **name)
 	if (!name)
 		return NULL;
 
-	if ((res = ni_format_uint_mapped(type, __ni_route_table_names))) {
+	if ((res = ni_format_uint_mapped(type, ni_route_table_names))) {
 		ni_string_dup(name, res);
 		return *name;
 	}
@@ -569,31 +985,31 @@ ni_route_table_type_to_name(unsigned int type, char **name)
 const char *
 ni_route_scope_type_to_name(unsigned int type)
 {
-	return ni_format_uint_maybe_mapped(type, __ni_route_scope_names);
+	return ni_format_uint_maybe_mapped(type, ni_route_scope_names);
 }
 
 const char *
 ni_route_protocol_type_to_name(unsigned int type)
 {
-	return ni_format_uint_maybe_mapped(type, __ni_route_protocol_names);
+	return ni_format_uint_maybe_mapped(type, ni_route_protocol_names);
 }
 
 const char *
 ni_route_flag_bit_to_name(unsigned int bit)
 {
-	return ni_format_uint_mapped(bit, __ni_route_flags_bits);
+	return ni_format_uint_mapped(bit, ni_route_flags_bits);
 }
 
 const char *
 ni_route_nh_flag_bit_to_name(unsigned int bit)
 {
-	return ni_format_uint_mapped(bit, __ni_route_nh_flags_bits);
+	return ni_format_uint_mapped(bit, ni_route_nh_flags_bits);
 }
 
 const char *
 ni_route_metrics_lock_bit_to_name(unsigned int bit)
 {
-	return ni_format_uint_mapped(bit, __ni_route_mxlock_bits);
+	return ni_format_uint_mapped(bit, ni_route_mxlock_bits);
 }
 
 ni_bool_t
@@ -604,7 +1020,7 @@ ni_route_type_name_to_type(const char *name, unsigned int *type)
 	if (!type || !name)
 		return FALSE;
 
-	if (ni_parse_uint_maybe_mapped(name, __ni_route_type_names, &value, 10) < 0)
+	if (ni_parse_uint_maybe_mapped(name, ni_route_type_names, &value, 10) < 0)
 		return FALSE;
 
 	*type = value;
@@ -620,7 +1036,7 @@ ni_route_table_name_to_type(const char *name, unsigned int *table)
 	if (!table || !name)
 		return FALSE;
 
-	if (ni_parse_uint_maybe_mapped(name, __ni_route_table_names, &value, 10) != -1) {
+	if (ni_parse_uint_maybe_mapped(name, ni_route_table_names, &value, 10) != -1) {
 		*table = value;
 		return TRUE;
 	}
@@ -649,7 +1065,7 @@ ni_route_scope_name_to_type(const char *name, unsigned int *scope)
 	if (!scope || !name)
 		return FALSE;
 
-	if (ni_parse_uint_maybe_mapped(name, __ni_route_scope_names, &value, 10) < 0)
+	if (ni_parse_uint_maybe_mapped(name, ni_route_scope_names, &value, 10) < 0)
 		return FALSE;
 
 	*scope = value;
@@ -664,7 +1080,7 @@ ni_route_protocol_name_to_type(const char *name, unsigned int *proto)
 	if (!proto || !name)
 		return FALSE;
 
-	if (ni_parse_uint_maybe_mapped(name, __ni_route_protocol_names, &value, 10) < 0)
+	if (ni_parse_uint_maybe_mapped(name, ni_route_protocol_names, &value, 10) < 0)
 		return FALSE;
 
 	*proto = value;
@@ -680,7 +1096,7 @@ ni_route_flags_get_names(unsigned int flags, ni_string_array_t *names)
 		return FALSE;
 
 	ni_string_array_destroy(names);
-	for (map = __ni_route_flags_bits; map->name; ++map) {
+	for (map = ni_route_flags_bits; map->name; ++map) {
 		if (flags & (1 << map->value)) {
 			ni_string_array_append(names, map->name);
 		}
@@ -697,7 +1113,7 @@ ni_route_nh_flags_get_names(unsigned int flags, ni_string_array_t *names)
 		return FALSE;
 
 	ni_string_array_destroy(names);
-	for (map = __ni_route_nh_flags_bits; map->name; ++map) {
+	for (map = ni_route_nh_flags_bits; map->name; ++map) {
 		if (flags & (1 << map->value)) {
 			ni_string_array_append(names, map->name);
 		}
@@ -711,7 +1127,7 @@ ni_route_metrics_lock_get_names(unsigned int lock, ni_string_array_t *names)
 	const ni_intmap_t *map;
 	unsigned int n = 0;
 
-	for (map = __ni_route_mxlock_bits; map->name; ++map) {
+	for (map = ni_route_mxlock_bits; map->name; ++map) {
 		if (lock & (1 << map->value)) {
 			ni_string_array_append(names, map->name);
 			++n;
@@ -725,7 +1141,7 @@ ni_route_metrics_lock_set(const char *name, unsigned int *lock)
 {
 	unsigned int bit = 0;
 
-	if (!lock || ni_parse_uint_mapped(name, __ni_route_mxlock_bits, &bit) < 0)
+	if (!lock || ni_parse_uint_mapped(name, ni_route_mxlock_bits, &bit) < 0)
 		return FALSE;
 
 	*lock |= (1 << bit);
@@ -813,6 +1229,50 @@ ni_route_is_valid_protocol(unsigned int protocol)
 	return protocol > RTPROT_UNSPEC && protocol <= UCHAR_MAX;
 }
 
+ni_bool_t
+ni_route_is_multipath(const ni_route_t *rp)
+{
+	return rp->nh.next != NULL;
+}
+
+ni_bool_t
+ni_route_contains_hop(const ni_route_t *rp, const ni_route_nexthop_t *nh)
+{
+	const ni_route_nexthop_t *hop = &rp->nh;
+
+	while ((hop = ni_route_nexthop_find_by_device(hop, &nh->device))) {
+		if (ni_route_nexthop_equal_gateway(hop, nh))
+			return TRUE;
+		hop = hop->next;
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_route_contains_hops(const ni_route_t *rp, const ni_route_nexthop_t *list)
+{
+	const ni_route_nexthop_t *nh;
+	ni_bool_t match = FALSE;
+
+	if (rp) for (nh = list; nh; nh = nh->next) {
+		if (!ni_route_contains_hop(rp, nh))
+			return FALSE;
+		match = TRUE;
+	}
+	return match;
+}
+
+ni_bool_t
+ni_route_via_gateway(const ni_route_t *rp)
+{
+	const ni_route_nexthop_t *nh;
+
+	for (nh = (rp ? &rp->nh : NULL); nh; nh = nh->next) {
+		if (ni_sockaddr_is_specified(&nh->gateway))
+			return TRUE;
+	}
+	return FALSE;
+}
 
 /*
  * ni_route_nexthop functions
@@ -828,6 +1288,7 @@ ni_route_nexthop_destroy(ni_route_nexthop_t *hop)
 {
 	if (hop) {
 		ni_netdev_ref_destroy(&hop->device);
+		memset(hop, 0, sizeof(*hop));
 	}
 }
 
@@ -840,7 +1301,7 @@ ni_route_nexthop_free(ni_route_nexthop_t *hop)
 	}
 }
 
-void
+ni_bool_t
 ni_route_nexthop_copy(ni_route_nexthop_t *dst, const ni_route_nexthop_t *src)
 {
 	if (src && dst) {
@@ -849,8 +1310,81 @@ ni_route_nexthop_copy(ni_route_nexthop_t *dst, const ni_route_nexthop_t *src)
 		dst->flags   = src->flags;
 		dst->realm   = src->realm;
 		dst->device.index = src->device.index;
-		if (src->device.name)
-			ni_string_dup(&dst->device.name, src->device.name);
+		return ni_string_dup(&dst->device.name, src->device.name);
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_route_nexthop_empty(const ni_route_nexthop_t *nh)
+{
+	if (nh) {
+		if (nh->device.index || nh->device.name)
+			return FALSE;
+		if (ni_sockaddr_is_specified(&nh->gateway))
+			return FALSE;
+	}
+	return TRUE;
+}
+
+ni_bool_t
+ni_route_nexthop_equal(const ni_route_nexthop_t *lh, const  ni_route_nexthop_t *rh)
+{
+	if (!lh || !rh)
+		return lh == rh;
+
+	if (!ni_route_nexthop_equal_device(lh, rh))
+		return FALSE;
+
+	return ni_route_nexthop_equal_gateway(lh, rh);
+}
+
+ni_bool_t
+ni_route_nexthop_equal_device(const ni_route_nexthop_t *lh, const  ni_route_nexthop_t *rh)
+{
+	if (lh->device.index && rh->device.index)
+		return lh->device.index == rh->device.index;
+	else
+		return ni_string_eq(lh->device.name, rh->device.name);
+}
+
+ni_bool_t
+ni_route_nexthop_equal_gateway(const ni_route_nexthop_t *lh, const  ni_route_nexthop_t *rh)
+{
+	return ni_sockaddr_equal(&lh->gateway, &rh->gateway);
+}
+
+ni_bool_t
+ni_route_nexthop_bound(const ni_route_nexthop_t *nh)
+{
+	return nh && nh->device.index;
+}
+
+void
+ni_route_nexthop_bind_ifname(ni_route_nexthop_t *nh, ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	if (dev && nh->device.index == dev->link.ifindex) {
+		if (!ni_string_eq(nh->device.name, dev->name))
+			ni_string_dup(&nh->device.name, dev->name);
+	} else {
+		ni_netdev_ref_bind_ifname(&nh->device, nc);
+	}
+}
+
+void
+ni_route_nexthop_bind_ifindex(ni_route_nexthop_t *nh, ni_netconfig_t *nc, ni_netdev_t *dev,
+				unsigned int ifflags)
+{
+	if (dev && ni_string_empty(nh->device.name))
+		ni_netdev_ref_set(&nh->device, dev->name, dev->link.ifindex);
+	else
+	if (dev && ni_string_eq(nh->device.name, dev->name))
+		ni_netdev_ref_set_ifindex(&nh->device, dev->link.ifindex);
+	else
+	if (!ni_string_empty(nh->device.name)) {
+		dev = ni_netdev_by_name(nc, nh->device.name);
+		if (dev && (dev->link.ifflags & ifflags))
+			nh->device.index = dev->link.ifindex;
 	}
 }
 
@@ -876,6 +1410,59 @@ ni_route_nexthop_list_destroy(ni_route_nexthop_t **list)
 		*list = hop->next;
 		ni_route_nexthop_free(hop);
 	}
+}
+
+const ni_route_nexthop_t *
+ni_route_nexthop_find_by_ifname(const ni_route_nexthop_t *head, const char *ifname)
+{
+	const ni_route_nexthop_t *nh;
+
+	for (nh = head; nh;  nh = nh->next) {
+		if (ni_string_eq(ifname, nh->device.name))
+			return nh;
+	}
+	return NULL;
+}
+
+const ni_route_nexthop_t *
+ni_route_nexthop_find_by_ifindex(const ni_route_nexthop_t *head, unsigned int ifindex)
+{
+	const ni_route_nexthop_t *nh;
+
+	for (nh = head; nh;  nh = nh->next) {
+		if (ifindex == nh->device.index)
+			return nh;
+	}
+	return NULL;
+}
+
+const ni_route_nexthop_t *
+ni_route_nexthop_find_by_device(const ni_route_nexthop_t *head, const ni_netdev_ref_t *device)
+{
+	const ni_route_nexthop_t *nh;
+
+	if (device) for (nh = head; nh;  nh = nh->next) {
+		if (nh->device.index && device->index) {
+			if (nh->device.index == device->index)
+				return nh;
+		} else {
+			if (ni_string_eq(nh->device.name, device->name))
+				return nh;
+		}
+	}
+	return NULL;
+}
+
+const ni_route_nexthop_t *
+ni_route_nexthop_find_by_gateway(const ni_route_nexthop_t *head, const ni_sockaddr_t *gateway)
+{
+	const ni_route_nexthop_t *nh;
+
+	if (gateway) for (nh = head; nh;  nh = nh->next) {
+		if (ni_sockaddr_equal(gateway, &nh->gateway))
+			return nh;
+	}
+	return NULL;
 }
 
 /*
@@ -915,19 +1502,25 @@ ni_route_array_destroy(ni_route_array_t *nra)
 	}
 }
 
-static void
-__ni_route_array_realloc(ni_route_array_t *nra, unsigned int newsize)
+static ni_bool_t
+ni_route_array_realloc(ni_route_array_t *nra, unsigned int newsize)
 {
 	ni_route_t **newdata;
 	unsigned int i;
 
+	if ((UINT_MAX - NI_ROUTE_ARRAY_CHUNK) <= newsize)
+		return FALSE;
+
 	newsize = (newsize + NI_ROUTE_ARRAY_CHUNK);
 	newdata = xrealloc(nra->data, newsize * sizeof(ni_route_t *));
+	if (!newdata)
+		return FALSE;
 
 	nra->data = newdata;
 	for (i = nra->count; i < newsize; ++i) {
 		nra->data[i] = NULL;
 	}
+	return TRUE;
 }
 
 ni_bool_t
@@ -936,9 +1529,9 @@ ni_route_array_append(ni_route_array_t *nra, ni_route_t *rp)
 	if (!nra || !rp)
 		return FALSE;
 
-	/* Hmm.. should we sort them here? */
-	if ((nra->count % NI_ROUTE_ARRAY_CHUNK) == 0)
-		__ni_route_array_realloc(nra, nra->count);
+	if ((nra->count % NI_ROUTE_ARRAY_CHUNK) == 0 &&
+	    !ni_route_array_realloc(nra, nra->count))
+		return FALSE;
 
 	nra->data[nra->count++] = rp;
 	return TRUE;
@@ -964,6 +1557,21 @@ ni_route_array_remove(ni_route_array_t *nra, unsigned int index)
 	return rp;
 }
 
+ni_route_t *
+ni_route_array_remove_ref(ni_route_array_t *nra, const ni_route_t *rp)
+{
+	unsigned int i;
+
+	if (!nra || !rp)
+		return NULL;
+
+	for (i = 0; i < nra->count; i++) {
+		if (rp == nra->data[i])
+			return ni_route_array_remove(nra, i);
+	}
+	return NULL;
+}
+
 ni_bool_t
 ni_route_array_delete(ni_route_array_t *nra, unsigned int index)
 {
@@ -971,6 +1579,18 @@ ni_route_array_delete(ni_route_array_t *nra, unsigned int index)
 
 	if ((rp = ni_route_array_remove(nra, index))) {
 		ni_route_free(rp);
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_route_array_delete_ref(ni_route_array_t *nra, const ni_route_t *rp)
+{
+	ni_route_t *r;
+
+	if ((r = ni_route_array_remove_ref(nra, rp))) {
+		ni_route_free(r);
 		return TRUE;
 	}
 	return FALSE;
@@ -1010,17 +1630,82 @@ ni_route_array_find_match(ni_route_array_t *nra, const ni_route_t *rp,
 	return NULL;
 }
 
+unsigned int
+ni_route_array_find_matches(ni_route_array_t *nra, const ni_route_t *rp,
+		ni_bool_t (*match)(const ni_route_t *, const ni_route_t *),
+		ni_route_array_t *matches)
+{
+	unsigned int count;
+	unsigned int i;
+	ni_route_t *r;
+
+	if (!nra || !rp || !match || !matches)
+		return 0;
+
+	count = matches->count;
+	for (i = 0; i < nra->count; ++i) {
+		if (!(r = nra->data[i]))
+			continue;
+
+		if (!match(r, rp))
+			continue;
+
+		/* do not add same route (another ref) multiple times */
+		if (!ni_route_array_find_match(matches, r, ni_route_equal_ref))
+			ni_route_array_append(matches, ni_route_ref(r));
+	}
+	return matches->count - count;
+}
+
+static int
+ni_route_sort_cmp_rev(const ni_route_t *r1, const ni_route_t *r2)
+{
+	return 0 - ni_route_sort_cmp(r1, r2);
+}
+
+static int
+ni_route_qsort_r_cmp(const void *_r1, const void *_r2, void *_cmp)
+{
+	const ni_route_t *r1 = *(const ni_route_t **)_r1;
+	const ni_route_t *r2 = *(const ni_route_t **)_r2;
+	ni_route_cmp_fn *rt_cmp = (ni_route_cmp_fn *)_cmp;
+	return rt_cmp(r1, r2);
+}
+
+void
+ni_route_array_qsort(ni_route_array_t *nra, ni_route_cmp_fn *cmp_fn)
+{
+	if (!nra || !nra->count || !cmp_fn)
+		return;
+
+	qsort_r(&nra->data[0], nra->count, sizeof(nra->data[0]),
+			ni_route_qsort_r_cmp, cmp_fn);
+}
+
+void
+ni_route_array_sort(ni_route_array_t *nra)
+{
+	ni_route_array_qsort(nra, ni_route_sort_cmp);
+}
+
+void
+ni_route_array_sort_rev(ni_route_array_t *nra)
+{
+	ni_route_array_qsort(nra, ni_route_sort_cmp_rev);
+}
+
 
 /*
  * ni_route_table functions
  */
 static inline ni_route_table_t *
-__ni_route_table_new(unsigned int tid)
+do_route_table_new(unsigned int tid)
 {
 	ni_route_table_t *tab;
 
 	tab = xcalloc(1, sizeof(*tab));
-	tab->tid = tid;
+	if (tab)
+		tab->tid = tid;
 	return tab;
 }
 
@@ -1030,7 +1715,7 @@ ni_route_table_new(unsigned int tid)
 	if (!ni_route_is_valid_table(tid))
 		return NULL;
 
-	return __ni_route_table_new(tid);
+	return do_route_table_new(tid);
 }
 
 void
@@ -1057,9 +1742,8 @@ ni_route_tables_add_route(ni_route_table_t **list, ni_route_t *rp)
 {
 	ni_route_table_t *tab;
 
-	if (rp && (tab = ni_route_tables_get(list, rp->table))) {
+	if (rp && (tab = ni_route_tables_get(list, rp->table)))
 		return ni_route_array_append(&tab->routes, rp);
-	}
 	return FALSE;
 }
 
@@ -1079,6 +1763,17 @@ ni_route_tables_add_routes(ni_route_table_t **list, ni_route_array_t *routes)
 	return TRUE;
 }
 
+ni_bool_t
+ni_route_tables_del_route(ni_route_table_t *list, ni_route_t *rp)
+{
+	ni_route_table_t *tab;
+
+	if (!rp || !(tab = ni_route_tables_find(list, rp->table)))
+		return FALSE;
+
+	return ni_route_array_delete_ref(&tab->routes, rp);
+}
+
 ni_route_t *
 ni_route_tables_find_match(ni_route_table_t *list, const ni_route_t *rp,
 		ni_bool_t (*match)(const ni_route_t *, const ni_route_t *))
@@ -1088,6 +1783,19 @@ ni_route_tables_find_match(ni_route_table_t *list, const ni_route_t *rp,
 	if (!rp || !(tab = ni_route_tables_find(list, rp->table)))
 		return NULL;
 	return ni_route_array_find_match(&tab->routes, rp, match);
+}
+
+unsigned int
+ni_route_tables_find_matches(ni_route_table_t *list, const ni_route_t *rp,
+		ni_bool_t (*match)(const ni_route_t *, const ni_route_t *),
+		ni_route_array_t *matches)
+{
+	ni_route_table_t *tab;
+
+	if (!rp || !(tab = ni_route_tables_find(list, rp->table)))
+		return 0;
+
+	return ni_route_array_find_matches(&tab->routes, rp, match, matches);
 }
 
 ni_route_table_t *
@@ -1105,12 +1813,24 @@ ni_route_tables_find(ni_route_table_t *list, unsigned int tid)
 	return NULL;
 }
 
+ni_bool_t
+ni_route_tables_empty(const ni_route_table_t *list)
+{
+	const ni_route_table_t *tab;
+
+	for (tab = list; tab; tab = tab->next) {
+		if (tab->routes.count)
+			return FALSE;
+	}
+	return TRUE;
+}
+
 ni_route_table_t *
 ni_route_tables_get(ni_route_table_t **list, unsigned int tid)
 {
 	ni_route_table_t *pos, *tab;
 
-	if (!list || tid == RT_TABLE_UNSPEC || tid == RT_TABLE_MAX)
+	if (!list || !ni_route_is_valid_table(tid))
 		return NULL;
 
 	while ((pos = *list) != NULL) {
@@ -1121,7 +1841,7 @@ ni_route_tables_get(ni_route_table_t **list, unsigned int tid)
 		list = &pos->next;
 	}
 
-	if ((tab = __ni_route_table_new(tid))) {
+	if ((tab = do_route_table_new(tid))) {
 		tab->next = pos;
 		*list = tab;
 	}

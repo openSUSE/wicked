@@ -976,7 +976,9 @@ __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_
 	ni_bool_t scope_ok = FALSE;
 	ni_bool_t table_ok = FALSE;
 
-	rp = ni_route_new();
+	if (!(rp = ni_route_new()))
+		goto failure;
+
 	rp->type = RTN_UNICAST;
 	rp->table = RT_TABLE_MAIN;
 	rp->scope = RT_SCOPE_NOWHERE;
@@ -1008,7 +1010,10 @@ __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_
 			nhdict = ni_dbus_dict_get_next(dict, "nexthop", nhdict);
 			if (nhdict) {
 				nhpos = &nh->next;
-				*nhpos = nh = ni_route_nexthop_new();
+				nh = ni_route_nexthop_new();
+				if (!nh)
+					goto failure;
+				*nhpos = nh;
 			} else {
 				nh = NULL;
 			}

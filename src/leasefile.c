@@ -707,6 +707,8 @@ __ni_addrconf_lease_route_nh_from_xml(ni_route_t *rp, const xml_node_t *node)
 				return -1;
 			if (nh == NULL) {
 				nh = ni_route_nexthop_new();
+				if (!nh)
+					return -1;
 				ni_route_nexthop_list_append(&rp->nh.next, nh);
 			}
 			nh->gateway = addr;
@@ -752,6 +754,8 @@ ni_addrconf_lease_routes_data_from_xml(ni_addrconf_lease_t *lease, const xml_nod
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, "route")) {
 			rp = ni_route_new();
+			if (!rp)
+				return -1;
 			rp->family = lease->family;
 			rp->table = ni_route_guess_table(rp);
 			if (__ni_addrconf_lease_route_from_xml(rp, child) != 0) {
