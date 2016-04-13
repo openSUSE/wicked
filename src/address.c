@@ -1195,7 +1195,7 @@ ni_ipv6_cache_info_rebase(ni_ipv6_cache_info_t *res, const ni_ipv6_cache_info_t 
 
 	*res = *lft;
 
-	if (!timerisset(&lft->since))
+	if (!timerisset(&lft->acquired))
 		return;
 
 	if (lft->valid_lft == -1U && lft->preferred_lft == -1U)
@@ -1206,11 +1206,11 @@ ni_ipv6_cache_info_rebase(ni_ipv6_cache_info_t *res, const ni_ipv6_cache_info_t 
 	else
 		now = *base;
 
-	if (!timercmp(&now, &lft->since, >))
+	if (!timercmp(&now, &lft->acquired, >))
 		return;
-	timersub(&now, &lft->since, &dif);
+	timersub(&now, &lft->acquired, &dif);
 
-	res->since = now;
+	res->acquired = now;
 	if (res->valid_lft == -1U)
 		rebase_lft(res->preferred_lft, (unsigned long)dif.tv_sec);
 	else

@@ -15,6 +15,7 @@
 #include <wicked/types.h>
 
 typedef struct ni_ipv6_ra_rdnss	ni_ipv6_ra_rdnss_t;
+typedef struct ni_ipv6_ra_dnssl	ni_ipv6_ra_dnssl_t;
 
 enum {
 	NI_IPV6_PRIVACY_DEFAULT		= -1,
@@ -57,7 +58,6 @@ struct ni_ipv6_ra_pinfo {
 	ni_bool_t		on_link;
 	ni_bool_t		autoconf;
 
-	unsigned int		acquired;
 	ni_ipv6_cache_info_t	lifetime;
 };
 
@@ -65,7 +65,15 @@ struct ni_ipv6_ra_rdnss {
 	ni_ipv6_ra_rdnss_t *	next;
 
 	ni_sockaddr_t		server;
-	unsigned int		acquired;
+	struct timeval		acquired;
+	unsigned int		lifetime;
+};
+
+struct ni_ipv6_ra_dnssl {
+	ni_ipv6_ra_dnssl_t *	next;
+
+	char *			domain;
+	struct timeval		acquired;
 	unsigned int		lifetime;
 };
 
@@ -75,6 +83,7 @@ struct ni_ipv6_ra_info {
 
 	ni_ipv6_ra_pinfo_t *	pinfo;
 	ni_ipv6_ra_rdnss_t *	rdnss;
+	ni_ipv6_ra_dnssl_t *	dnssl;
 };
 
 struct ni_ipv6_devinfo {

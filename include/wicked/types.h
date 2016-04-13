@@ -146,7 +146,7 @@ typedef struct ni_int_range {
 } ni_int_range_t;
 
 typedef struct ni_ipv6_cache_info {
-	struct timeval		since;
+	struct timeval		acquired;
 	unsigned int		valid_lft;
 	unsigned int		preferred_lft;
 } ni_ipv6_cache_info_t;

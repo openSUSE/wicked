@@ -496,6 +496,7 @@ static const ni_intmap_t		__event_names[] = {
 	{ "prefix-updated",		NI_EVENT_PREFIX_UPDATE },
 	{ "prefix-deleted",		NI_EVENT_PREFIX_DELETE },
 	{ "rdnss-updated",		NI_EVENT_RDNSS_UPDATE },
+	{ "dnssl-updated",		NI_EVENT_DNSSL_UPDATE },
 	{ "resolver-updated",		NI_EVENT_RESOLVER_UPDATED },
 	{ "hostname-updated",		NI_EVENT_HOSTNAME_UPDATED },
 	{ "generic-updated",		NI_EVENT_GENERIC_UPDATED },
