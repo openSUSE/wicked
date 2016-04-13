@@ -1618,7 +1618,8 @@ ni_teamd_service_show_property(const char *ifname, const char *property, char **
 		goto failure;
 
 	ptr = (char *)ni_buffer_head(&buf);
-	ni_string_set(result, ptr, ni_string_len(ptr));
+	if (!ni_string_set(result, ptr, ni_string_len(ptr)))
+		goto failure;
 
 	ni_buffer_destroy(&buf);
 	ni_shellcmd_release(cmd);
