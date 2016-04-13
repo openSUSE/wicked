@@ -549,6 +549,35 @@ __ni_sockaddr_data(const ni_sockaddr_t *ss, unsigned int *len)
 	return ((const unsigned char *) ss) + offset;
 }
 
+int
+ni_sockaddr_compare(const ni_sockaddr_t *ss1, const ni_sockaddr_t *ss2)
+{
+	const unsigned char *ap1, *ap2;
+	unsigned int len1, len2;
+
+	if (!ss1 || !ss2)
+		return ss1 > ss2 ? 1 : ss1 < ss2 ? -1 : 0;
+
+	if (ss1->ss_family != ss2->ss_family)
+		return ss1->ss_family - ss2->ss_family;
+
+	if (ss1->ss_family == AF_UNSPEC)
+		return 0;
+
+	ap1 = __ni_sockaddr_data(ss1, &len1);
+	ap2 = __ni_sockaddr_data(ss2, &len2);
+	if (!ap1 || !ap2)
+		return ap1 > ap2 ? 1 : ap1 < ap2 ? -1 : 0;
+
+	if (len1 != len2)
+		return len1 > len2 ? 1 : -1;
+
+	if (len1 == 0)
+		return 0;
+
+	return memcmp(ap1, ap2, len1);
+}
+
 ni_bool_t
 ni_sockaddr_equal(const ni_sockaddr_t *ss1, const ni_sockaddr_t *ss2)
 {

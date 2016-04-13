@@ -65,6 +65,7 @@ extern ni_bool_t	ni_sockaddr_is_linklocal(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_specified(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_unspecified(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_equal(const ni_sockaddr_t *, const ni_sockaddr_t *);
+extern int		ni_sockaddr_compare(const ni_sockaddr_t *, const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_prefix_match(unsigned int, const ni_sockaddr_t *, const ni_sockaddr_t *);
 
 extern void		ni_sockaddr_set_ipv4(ni_sockaddr_t *, struct in_addr, uint16_t);
