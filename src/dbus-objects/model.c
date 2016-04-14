@@ -724,3 +724,43 @@ ni_objectmodel_bind_extensions(void)
 	return 0;
 }
 
+static dbus_bool_t
+set_bind_netdev_ref_index_error(const char *ifname, const char *hint,
+				ni_netdev_ref_t *device, DBusError *error,
+				const char *reason)
+{
+	if (!error)
+		return FALSE;
+	dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+			"%s%sUnable to bind %s%sdevice %s%sindex: %s",
+			ifname ? ifname : "", ifname ? ":" : "",
+			hint ? hint : "", hint ? " " : "",
+			device && device->name ? ni_print_suspect(device->name, 15) : "",
+			device && device->name ? " " : "", reason);
+	return FALSE;
+}
+
+dbus_bool_t
+ni_objectmodel_bind_netdev_ref_index(const char *ifname, const char *hint,
+				ni_netdev_ref_t *device, ni_netconfig_t *nc,
+				DBusError *error)
+{
+	if (!ifname || !device || ni_string_empty(device->name))
+		return set_bind_netdev_ref_index_error(ifname, hint, device,
+				error, "incomplete arguments");
+
+	if (ni_string_eq(ifname, device->name))
+		return set_bind_netdev_ref_index_error(ifname, hint, device,
+				error, "invalid self-reference");
+
+	if (!ni_netdev_name_is_valid(device->name))
+		return set_bind_netdev_ref_index_error(ifname, hint, device,
+				error, "suspect device name");
+
+	if (!ni_netdev_ref_bind_ifindex(device, nc))
+		return set_bind_netdev_ref_index_error(ifname, hint, device,
+				error, "device does not exist");
+
+	return TRUE;
+}
+

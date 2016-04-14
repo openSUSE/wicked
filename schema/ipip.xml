@@ -9,6 +9,12 @@
 
  <!-- This are the properties used to configure the ipip tunnel -->
  <define name="configuration" class="dict">
+  <device type="string">
+    <meta:netif-reference shared="true"/>
+    <meta:require check="netif-check-state" op="newDevice" min-state="device-up" />
+    <meta:require check="netif-check-state" op="login" min-state="link-authenticated" />
+    <meta:require check="netif-check-state" op="linkUp" min-state="link-up" />
+  </device>
   <local-address   type="ipv4-address"/>
   <remote-address  type="ipv4-address"/>
   <ttl             type="uint16"/>	<!-- u8 from netlink -->

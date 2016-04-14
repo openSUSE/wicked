@@ -3356,6 +3356,20 @@ __try_tunnel_generic(const char *ifname, unsigned short arp_type,
 	const char *value = NULL;
 	unsigned int ui_value;
 
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_DEVICE"))) {
+		if (!ni_netdev_name_is_valid(value)) {
+			ni_error("ifcfg-%s: TUNNEL_DEVICE=\"%s\" suspect interface name",
+					ifname, value);
+			return -1;
+		}
+		if (ni_string_eq(value, ifname)) {
+			ni_error("ifcfg-%s: TUNNEL_DEVICE=\"%s\" invalid self-reference",
+					ifname, value);
+			return -1;
+		}
+		ni_string_dup(&link->lowerdev.name, value);
+	}
+
 	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_LOCAL_IPADDR"))) {
 		if (ni_link_address_parse(&link->hwaddr, arp_type, value) < 0) {
 			ni_error("ifcfg-%s: Cannot parse TUNNEL_LOCAL_IPADDR=\"%s\"",
