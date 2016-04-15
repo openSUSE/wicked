@@ -1187,6 +1187,9 @@ __ni_compat_generate_generic_tunnel(xml_node_t *ifnode, ni_linkinfo_t *link,
 	if (!ifnode)
 		return FALSE;
 
+	if (!ni_string_empty(link->lowerdev.name))
+		xml_node_new_element("device", ifnode, link->lowerdev.name);
+
 	xml_node_new_element("local-address", ifnode,
 			ni_link_address_print(&link->hwaddr));
 	xml_node_new_element("remote-address", ifnode,

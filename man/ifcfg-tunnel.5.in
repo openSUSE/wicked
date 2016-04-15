@@ -59,8 +59,6 @@ Here you have to set the tunnel protocol. This may be "sit" for IPv6 over IPv4
 tunnel, "gre" for universal IPv4 tunnel, "ipip" for IPv4 over IPv4 tunnel and
 "tap" or "tun" for the user space program driven tunnels.
 .TP
-.\"TODO: do we wish to support TUNNEL_DEVICE?
-.\".BR TUNNEL_LOCAL_IPADDR \ or \ TUNNEL_DEVICE
 .BR TUNNEL_LOCAL_IPADDR
 The address of the local tunnel's end must be directly specified in
 .B TUNNEL_LOCAL_IPADDR
@@ -77,6 +75,11 @@ variable. The address must be present on an existing interface of this host.
 .TP
 .B TUNNEL_REMOTE_IPADDR
 The address of the remote tunnel's end.
+.TP
+.BR TUNNEL_DEVICE
+Permits to specify an optional device name, to bind the tunnel to the device,
+so that tunneled packets will only be routed via this device and will not be
+able to escape to usable routes available on another devices.
 .TP
 .B TUNNEL_TTL
 Specify the

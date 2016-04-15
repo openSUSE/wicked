@@ -78,6 +78,11 @@ __ni_objectmodel_ipip_create(ni_netdev_t *cfg_ifp, const char *ifname, DBusError
 		ni_string_dup(&cfg_ifp->name, ifname);
 	}
 
+	if (!ni_string_empty(cfg_ifp->link.lowerdev.name) &&
+	    !ni_objectmodel_bind_netdev_ref_index(cfg_ifp->name, "ipip tunnel",
+					&cfg_ifp->link.lowerdev, nc, error))
+		goto out;
+
 	if (cfg_ifp->link.hwaddr.len) {
 		if (cfg_ifp->link.hwaddr.type == ARPHRD_VOID)
 			cfg_ifp->link.hwaddr.type = ARPHRD_TUNNEL;
@@ -191,6 +196,11 @@ ni_objectmodel_ipip_change(ni_dbus_object_t *object, const ni_dbus_method_t *met
 				"device is up", dev->name);
 		return TRUE;
 	}
+
+	if (!ni_string_empty(cfg->link.lowerdev.name) &&
+	    !ni_objectmodel_bind_netdev_ref_index(cfg->name, "ipip tunnel",
+					&cfg->link.lowerdev, nc, error))
+		return TRUE;
 
 	if (ni_system_tunnel_change(nc, dev, cfg) < 0) {
 		dbus_set_error(error,
@@ -330,6 +340,12 @@ __ni_objectmodel_ipip_set_remote_addr(ni_dbus_object_t *object,
 	}
 }
 
+static void *
+ni_objectmodel_get_netdev(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
+{
+	return ni_objectmodel_unwrap_netif(object, error);
+}
+
 /*
  * Property helper macros
  */
@@ -348,6 +364,7 @@ __ni_objectmodel_ipip_set_remote_addr(ni_dbus_object_t *object,
  * ipip service
  */
 static const ni_dbus_property_t	ni_objectmodel_ipip_property_table[] = {
+	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, device, link.lowerdev.name, RO),
 	IPIP_HWADDR_PROPERTY(local-address,	local_addr, RO),
 	IPIP_HWADDR_PROPERTY(remote-address,	remote_addr, RO),
 	IPIP_TUNNEL_UINT16_PROPERTY(ttl, ttl, RO),

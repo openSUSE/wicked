@@ -190,4 +190,7 @@ extern dbus_bool_t		__ni_objectmodel_get_ovs_bridge_port_config(const ni_ovs_bri
 extern dbus_bool_t		__ni_objectmodel_set_ovs_bridge_port_config(ni_ovs_bridge_port_config_t *,
 						const ni_dbus_variant_t *, DBusError *);
 
+extern dbus_bool_t		ni_objectmodel_bind_netdev_ref_index(const char *, const char *,
+						ni_netdev_ref_t *, ni_netconfig_t *, DBusError *);
+
 #endif /* __WICKED_OBJECTMODEL_P_H__ */

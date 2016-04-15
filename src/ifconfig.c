@@ -2711,8 +2711,17 @@ __ni_rtnl_link_put_tunnel(struct nl_msg *msg, const ni_linkinfo_t *link,
 	switch(type) {
 	case NI_IFTYPE_IPIP:
 	case NI_IFTYPE_SIT:
-		NLA_PUT_U8(msg, IFLA_IPTUN_PROTO, IPPROTO_IPV6);
-		NLA_PUT_U32(msg, IFLA_IPTUN_LINK, 0);
+		if (type == NI_IFTYPE_SIT)
+			NLA_PUT_U8(msg, IFLA_IPTUN_PROTO, IPPROTO_IPV6);
+#if 0
+		else
+			/*
+			 * (ipv4) ipip isn't using the IFLA_IPTUN_PROTO
+			 * attr, but sets it always to IPPROTO_IPIP
+			 */
+			NLA_PUT_U8(msg, IFLA_IPTUN_PROTO, IPPROTO_IPIP);
+#endif
+		NLA_PUT_U32(msg, IFLA_IPTUN_LINK, link->lowerdev.index);
 		NLA_PUT_U32(msg, IFLA_IPTUN_LOCAL, *local_ip);
 		NLA_PUT_U32(msg, IFLA_IPTUN_REMOTE, *remote_ip);
 		NLA_PUT_U8(msg, IFLA_IPTUN_TTL, tunnel->ttl);
@@ -2724,7 +2733,7 @@ __ni_rtnl_link_put_tunnel(struct nl_msg *msg, const ni_linkinfo_t *link,
 		break;
 
 	case NI_IFTYPE_GRE:
-		NLA_PUT_U32(msg, IFLA_GRE_LINK, 0);
+		NLA_PUT_U32(msg, IFLA_GRE_LINK, link->lowerdev.index);
 		NLA_PUT_U32(msg, IFLA_GRE_LOCAL, *local_ip);
 		NLA_PUT_U32(msg, IFLA_GRE_REMOTE, *remote_ip);
 		NLA_PUT_U8(msg, IFLA_GRE_TTL, tunnel->ttl);
