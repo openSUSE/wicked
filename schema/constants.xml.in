@@ -216,3 +216,14 @@
 <define name="builtin-team-lacp-select-policy" type="uint32" constraint="enum">
   <@@TEAM_LACP_SELECT_POLICY_NAME@@ value="@@TEAM_LACP_SELECT_POLICY_VALUE@@"/>
 </define>
+
+<!-- Build-in gre constants -->
+<define name="builtin-gre-flag-mask" type="uint32" constraint="bitmap">
+  <@@GRE_FLAG_BIT_NAME@@ bit="@@GRE_FLAG_BIT_VALUE@@"/>
+</define>
+<define name="builtin-gre-encap-type" type="uint16" constraint="enum">
+  <@@GRE_ENCAP_TYPE_NAME@@ value="@@GRE_ENCAP_TYPE_VALUE@@"/>
+</define>
+<define name="builtin-gre-encap-flag-mask" type="uint16" constraint="bitmap">
+  <@@GRE_ENCAP_FLAG_BIT_NAME@@ bit="@@GRE_ENCAP_FLAG_BIT_VALUE@@"/>
+</define>

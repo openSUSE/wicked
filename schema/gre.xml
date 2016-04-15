@@ -20,6 +20,15 @@
   <ttl             type="uint16"/>	<!-- u8 from netlink -->
   <tos             type="uint16"/>	<!-- u8 from netlink -->
   <pmtudisc        type="boolean"/>	<!-- u8 from netlink -->
+  <flags           type="builtin-gre-flag-mask"/>
+  <ikey            type="ipv4-address"/>
+  <okey            type="ipv4-address"/>
+  <!-- encap       class="dict">
+    <type          type="builtin-gre-encap-type"/>
+    <flags         type="builtin-gre-encap-flag-mask"/>
+    <sport         type="uint16"/>
+    <dport         type="uint16"/>
+  </encap -->
  </define>
 
  <!-- The same properties are returned in interface state reports -->

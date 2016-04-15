@@ -49,6 +49,7 @@
 #include "wicked-client.h"
 #include <netlink/netlink.h>
 #include <sys/param.h>
+#include <arpa/inet.h>
 
 #include "client/client_state.h"
 #include "appconfig.h"
@@ -1227,10 +1228,12 @@ __ni_compat_generate_ipip(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 static ni_bool_t
 __ni_compat_generate_gre(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
-	xml_node_t *child = NULL;
-	ni_gre_t *gre = NULL;
+	ni_string_array_t flags = NI_STRING_ARRAY_INIT;
 	ni_netdev_t *dev = compat->dev;
+	xml_node_t *child, *encap;
+	ni_gre_t *gre;
 	ni_bool_t rv;
+	char *str = NULL;
 
 	if (!(gre = ni_netdev_get_gre(dev)))
 		return FALSE;
@@ -1239,6 +1242,51 @@ __ni_compat_generate_gre(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 
 	rv = __ni_compat_generate_generic_tunnel(child, &dev->link,
 						&gre->tunnel);
+	if (!rv)
+		return rv;
+
+	if (gre->flags & NI_BIT(NI_GRE_FLAG_ISEQ))
+		ni_string_array_append(&flags, ni_gre_flag_bit_to_name(NI_GRE_FLAG_ISEQ));
+	if (gre->flags & NI_BIT(NI_GRE_FLAG_ICSUM))
+		ni_string_array_append(&flags, ni_gre_flag_bit_to_name(NI_GRE_FLAG_ICSUM));
+	if (gre->flags & NI_BIT(NI_GRE_FLAG_OSEQ))
+		ni_string_array_append(&flags, ni_gre_flag_bit_to_name(NI_GRE_FLAG_OSEQ));
+	if (gre->flags & NI_BIT(NI_GRE_FLAG_OCSUM))
+		ni_string_array_append(&flags, ni_gre_flag_bit_to_name(NI_GRE_FLAG_OCSUM));
+
+	if (!ni_string_empty(ni_string_join(&str, &flags, ", ")))
+		xml_node_new_element("flags", child, str);
+	ni_string_array_destroy(&flags);
+	ni_string_free(&str);
+
+	if (gre->flags & NI_BIT(NI_GRE_FLAG_IKEY))
+		xml_node_new_element("ikey", child, inet_ntoa(gre->ikey));
+	if (gre->flags & NI_BIT(NI_GRE_FLAG_OKEY))
+		xml_node_new_element("okey", child, inet_ntoa(gre->okey));
+
+	if (gre->encap.type == NI_GRE_ENCAP_TYPE_NONE)
+		return rv;
+
+	if (!(encap = xml_node_create(child, "encap")))
+		return FALSE;
+
+	xml_node_new_element("type", encap, ni_gre_encap_type_to_name(gre->encap.type));
+	if (gre->encap.flags & NI_BIT(NI_GRE_ENCAP_FLAG_CSUM))
+		ni_string_array_append(&flags, ni_gre_encap_flag_bit_to_name(NI_GRE_ENCAP_FLAG_CSUM));
+	if (gre->encap.flags & NI_BIT(NI_GRE_ENCAP_FLAG_CSUM6))
+		ni_string_array_append(&flags, ni_gre_encap_flag_bit_to_name(NI_GRE_ENCAP_FLAG_CSUM6));
+	if (gre->encap.flags & NI_BIT(NI_GRE_ENCAP_FLAG_REMCSUM))
+		ni_string_array_append(&flags, ni_gre_encap_flag_bit_to_name(NI_GRE_ENCAP_FLAG_REMCSUM));
+
+	if (!ni_string_empty(ni_string_join(&str, &flags, ", ")))
+		xml_node_new_element("flags", encap, str);
+	ni_string_array_destroy(&flags);
+	ni_string_free(&str);
+
+	if (gre->encap.sport)
+		xml_node_new_element_uint("sport", encap, gre->encap.sport);
+	if (gre->encap.dport)
+		xml_node_new_element_uint("dport", encap, gre->encap.dport);
 
 	return rv;
 }

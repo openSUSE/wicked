@@ -1853,8 +1853,6 @@ __ni_discover_tunnel(ni_tunnel_t *tunnel, unsigned int type, struct nlattr **inf
 			pmtudisc = nla_get_u8(info_data[IFLA_GRE_PMTUDISC]);
 			tunnel->pmtudisc = pmtudisc ? TRUE : FALSE;
 		}
-		if (info_data[IFLA_GRE_FLAGS])
-			tunnel->iflags = nla_get_u16(info_data[IFLA_GRE_FLAGS]);
 
 		break;
 	}
@@ -1940,6 +1938,8 @@ static int
 __ni_discover_gre(ni_netdev_t *dev, struct nlattr **link_info, struct nlattr **info_data)
 {
 	ni_gre_t *gre;
+	unsigned int iflags = 0;
+	unsigned int oflags = 0;
 
 	if (!(gre = ni_netdev_get_gre(dev)) ||
 		__ni_discover_tunnel(&gre->tunnel, NI_IFTYPE_GRE, info_data) < 0 ||
@@ -1948,6 +1948,54 @@ __ni_discover_gre(ni_netdev_t *dev, struct nlattr **link_info, struct nlattr **i
 			dev ? dev->name : NULL);
 		return -1;
 	}
+
+	gre->flags = 0;
+	gre->ikey.s_addr = 0;
+	gre->okey.s_addr = 0;
+
+	if (info_data[IFLA_GRE_IFLAGS]) {
+		iflags = nla_get_u16(info_data[IFLA_GRE_IFLAGS]);
+	}
+	if ((iflags & GRE_KEY) && info_data[IFLA_GRE_IKEY]) {
+		gre->flags |= NI_BIT(NI_GRE_FLAG_IKEY);
+		gre->ikey.s_addr = nla_get_u32(info_data[IFLA_GRE_IKEY]);
+	}
+	if (iflags & GRE_SEQ) {
+		gre->flags |= NI_BIT(NI_GRE_FLAG_ISEQ);
+	}
+	if (iflags & GRE_CSUM) {
+		gre->flags |= NI_BIT(NI_GRE_FLAG_ICSUM);
+	}
+
+	if (info_data[IFLA_GRE_OFLAGS]) {
+		oflags = nla_get_u16(info_data[IFLA_GRE_OFLAGS]);
+	}
+	if ((oflags & GRE_KEY) && info_data[IFLA_GRE_OKEY]) {
+		gre->flags |= NI_BIT(NI_GRE_FLAG_OKEY);
+		gre->okey.s_addr = nla_get_u32(info_data[IFLA_GRE_OKEY]);
+	}
+	if (oflags & GRE_SEQ) {
+		gre->flags |= NI_BIT(NI_GRE_FLAG_OSEQ);
+	}
+	if (oflags & GRE_CSUM) {
+		gre->flags |= NI_BIT(NI_GRE_FLAG_OCSUM);
+	}
+
+	if (info_data[IFLA_GRE_ENCAP_TYPE]) {
+		gre->encap.type = nla_get_u16(info_data[IFLA_GRE_ENCAP_TYPE]);
+	} else	gre->encap.type = NI_GRE_ENCAP_TYPE_NONE;
+
+	if (info_data[IFLA_GRE_ENCAP_FLAGS]) {
+		gre->encap.flags = nla_get_u16(info_data[IFLA_GRE_ENCAP_FLAGS]);
+	} else	gre->encap.flags = 0;
+
+	if (info_data[IFLA_GRE_ENCAP_SPORT]) {
+		gre->encap.sport = ntohs(nla_get_u16(info_data[IFLA_GRE_ENCAP_SPORT]));
+	} else	gre->encap.sport = 0;
+
+	if (info_data[IFLA_GRE_ENCAP_DPORT]) {
+		gre->encap.dport = ntohs(nla_get_u16(info_data[IFLA_GRE_ENCAP_DPORT]));
+	} else	gre->encap.dport = 0;
 
 	return 0;
 }

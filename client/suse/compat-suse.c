@@ -3443,8 +3443,12 @@ __try_tunnel_ipip(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 static int
 __try_tunnel_gre(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
+	ni_string_array_t flags = NI_STRING_ARRAY_INIT;
 	ni_netdev_t *dev = compat->dev;
 	ni_gre_t *gre = NULL;
+	ni_sockaddr_t addr;
+	const char *value;
+	unsigned int flag, i;
 	int rv = 0;
 
 	if (!(gre = ni_netdev_get_gre(dev)))
@@ -3453,6 +3457,91 @@ __try_tunnel_gre(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	/* Populate generic tunneling data from config. */
 	rv = __try_tunnel_generic(dev->name, ARPHRD_IPGRE, &dev->link,
 				&gre->tunnel, sc, compat);
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_GRE_FLAGS"))) {
+		ni_string_split(&flags, value, " \t", 0);
+		for (i = 0; i < flags.count; ++i) {
+			if (!ni_gre_flag_name_to_bit(flags.data[i], &flag)) {
+				ni_error("ifcfg-%s: Unsupported TUNNEL_GRE_FLAGS=\"%s\"",
+						dev->name, flags.data[i]);
+				ni_string_array_destroy(&flags);
+				return -1;
+			}
+			gre->flags |= NI_BIT(flag);
+		}
+		ni_string_array_destroy(&flags);
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_GRE_IKEY"))) {
+		if (strchr(value, '.') && ni_sockaddr_parse(&addr, value, AF_INET) == 0) {
+			gre->ikey.s_addr = addr.sin.sin_addr.s_addr;
+			gre->flags |= NI_BIT(NI_GRE_FLAG_IKEY);
+		} else
+		if (ni_parse_uint(value, &flag, 10) == 0) {
+			gre->ikey.s_addr = htons(flag);
+			gre->flags |= NI_BIT(NI_GRE_FLAG_IKEY);
+		} else {
+			ni_error("ifcfg-%s: Cannot parse TUNNEL_GRE_IKEY=\"%s\"",
+					dev->name, value);
+			return -1;
+		}
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_GRE_OKEY"))) {
+		if (strchr(value, '.') && ni_sockaddr_parse(&addr, value, AF_INET) == 0) {
+			gre->okey.s_addr = addr.sin.sin_addr.s_addr;
+			gre->flags |= NI_BIT(NI_GRE_FLAG_OKEY);
+		} else
+		if (ni_parse_uint(value, &flag, 10) == 0) {
+			gre->okey.s_addr = htons(flag);
+			gre->flags |= NI_BIT(NI_GRE_FLAG_OKEY);
+		} else {
+			ni_error("ifcfg-%s: Cannot parse TUNNEL_GRE_OKEY=\"%s\"",
+					dev->name, value);
+			return -1;
+		}
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_GRE_ENCAP_TYPE"))) {
+		if (!ni_gre_encap_name_to_type(value, &flag)) {
+			ni_error("ifcfg-%s: Unsupported TUNNEL_GRE_ENCAP_TYPE=\"%s\"",
+					dev->name, value);
+			return -1;
+		}
+		gre->encap.type = flag;
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_GRE_ENCAP_FLAGS"))) {
+		ni_string_split(&flags, value, " \t", 0);
+		for (i = 0; i < flags.count; ++i) {
+			if (!ni_gre_encap_flag_name_to_bit(flags.data[i], &flag)) {
+				ni_error("ifcfg-%s: Unsupported TUNNEL_GRE_ENCAP_FLAGS=\"%s\"",
+						dev->name, flags.data[i]);
+				ni_string_array_destroy(&flags);
+				return -1;
+			}
+			gre->encap.flags |= NI_BIT(flag);
+		}
+		ni_string_array_destroy(&flags);
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_GRE_ENCAP_SPORT"))) {
+		if (ni_parse_uint(value, &flag, 10) < 0 || flag > USHRT_MAX) {
+			ni_error("ifcfg-%s: Cannot parse TUNNEL_GRE_ENCAP_SPORT=\"%s\"",
+					dev->name, value);
+			return -1;
+		}
+		gre->encap.sport = flag;
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_GRE_ENCAP_DPORT"))) {
+		if (ni_parse_uint(value, &flag, 10) < 0 || flag > USHRT_MAX) {
+			ni_error("ifcfg-%s: Cannot parse TUNNEL_GRE_ENCAP_DPORT=\"%s\"",
+					dev->name, value);
+			return -1;
+		}
+		gre->encap.dport = flag;
+	}
 
 	return rv;
 }

@@ -243,7 +243,7 @@ ni_objectmodel_gre_delete(ni_dbus_object_t *object, const ni_dbus_method_t *meth
 /*
  * Currently only used to pull gre->tunnel data below, but kept around for later expansion.
  */
-static void *
+static ni_gre_t *
 ni_objectmodel_get_gre(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	ni_netdev_t *dev;
@@ -340,6 +340,170 @@ __ni_objectmodel_gre_set_remote_addr(ni_dbus_object_t *object,
 	}
 }
 
+static dbus_bool_t
+__ni_objectmodel_gre_get_flags(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	uint32_t flags = 0;
+	ni_gre_t *gre;
+
+	if (!(gre = ni_objectmodel_get_gre(object, FALSE, error)))
+		return FALSE;
+
+	flags = gre->flags & ~(NI_BIT(NI_GRE_FLAG_IKEY)|NI_BIT(NI_GRE_FLAG_OKEY));
+	if (!flags)
+		return FALSE;
+
+	ni_dbus_variant_set_uint32(result, flags);
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_gre_set_flags(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	uint32_t flags = 0;
+	ni_gre_t *gre;
+
+	if (!(gre = ni_objectmodel_get_gre(object, TRUE, error)))
+		return FALSE;
+
+	gre->flags &= (NI_BIT(NI_GRE_FLAG_IKEY)|NI_BIT(NI_GRE_FLAG_OKEY));
+	if (!ni_dbus_variant_get_uint32(argument, &flags))
+		return FALSE;
+
+	gre->flags |= flags;
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_gre_get_ikey(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_gre_t *gre;
+
+	if (!(gre = ni_objectmodel_get_gre(object, FALSE, error)))
+		return FALSE;
+
+	if (!(gre->flags & NI_BIT(NI_GRE_FLAG_IKEY)))
+		return FALSE;
+
+	ni_dbus_variant_set_byte_array(result, (unsigned char *)&gre->ikey, sizeof(gre->ikey));
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_gre_get_okey(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_gre_t *gre;
+
+	if (!(gre = ni_objectmodel_get_gre(object, FALSE, error)))
+		return FALSE;
+
+	if (!(gre->flags & NI_BIT(NI_GRE_FLAG_OKEY)))
+		return FALSE;
+
+	ni_dbus_variant_set_byte_array(result, (unsigned char *)&gre->okey, sizeof(gre->okey));
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_gre_set_ikey(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	unsigned int len;
+	ni_gre_t *gre;
+
+	if (!(gre = ni_objectmodel_get_gre(object, TRUE, error)))
+		return FALSE;
+
+	len = sizeof(gre->ikey);
+	gre->flags &= ~NI_BIT(NI_GRE_FLAG_IKEY);
+	if (!ni_dbus_variant_get_byte_array_minmax(argument,
+				(unsigned char *)&gre->ikey, &len, len, len))
+		return FALSE;
+
+	gre->flags |= NI_BIT(NI_GRE_FLAG_IKEY);
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_gre_set_okey(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	unsigned int len;
+	ni_gre_t *gre;
+
+	if (!(gre = ni_objectmodel_get_gre(object, TRUE, error)))
+		return FALSE;
+
+	len = sizeof(gre->okey);
+	gre->flags &= ~NI_BIT(NI_GRE_FLAG_OKEY);
+	if (!ni_dbus_variant_get_byte_array_minmax(argument,
+				(unsigned char *)&gre->okey, &len, len, len))
+		return FALSE;
+
+	gre->flags |= NI_BIT(NI_GRE_FLAG_OKEY);
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_gre_get_encap(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_gre_t *gre;
+
+	if (!(gre = ni_objectmodel_get_gre(object, FALSE, error)))
+		return FALSE;
+
+	if (gre->encap.type == NI_GRE_ENCAP_TYPE_NONE)
+		return FALSE;
+
+	ni_dbus_dict_add_uint16(result, "type",  gre->encap.type);
+	ni_dbus_dict_add_uint16(result, "flags", gre->encap.flags);
+	ni_dbus_dict_add_uint16(result, "sport", gre->encap.sport);
+	ni_dbus_dict_add_uint16(result, "dport", gre->encap.dport);
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_gre_set_encap(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_gre_t *gre;
+
+	if (!(gre = ni_objectmodel_get_gre(object, TRUE, error)))
+		return FALSE;
+
+	memset(&gre->encap, 0, sizeof(gre->encap));
+	ni_dbus_dict_get_uint16(argument, "type", &gre->encap.type);
+	if (gre->encap.type != NI_GRE_ENCAP_TYPE_FOU &&
+	    gre->encap.type != NI_GRE_ENCAP_TYPE_GUE)
+		return FALSE;
+
+	ni_dbus_dict_get_uint16(argument, "flags", &gre->encap.flags);
+	ni_dbus_dict_get_uint16(argument, "sport", &gre->encap.sport);
+	ni_dbus_dict_get_uint16(argument, "dport", &gre->encap.dport);
+	return TRUE;
+}
+
 static void *
 ni_objectmodel_get_netdev(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
@@ -349,10 +513,17 @@ ni_objectmodel_get_netdev(const ni_dbus_object_t *object, ni_bool_t write_access
 /*
  * Property helper macros
  */
-#define	GRE_PROPERTY_SIGNATURE(signature, dbus_name, rw) \
-		__NI_DBUS_PROPERTY(signature, dbus_name, __ni_objectmodel_gre, rw)
 #define GRE_HWADDR_PROPERTY(dbus_name, suffix, rw) \
 	___NI_DBUS_PROPERTY(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, \
+				dbus_name, suffix, __ni_objectmodel_gre, rw)
+#define GRE_IPV4_ADDR_PROPERTY(dbus_name, suffix, rw) \
+	___NI_DBUS_PROPERTY(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, \
+				dbus_name, suffix, __ni_objectmodel_gre, rw)
+#define GRE_FLAGS_UINT32_PROPERTY(dbus_name, suffix, rw) \
+	___NI_DBUS_PROPERTY(DBUS_TYPE_UINT32_AS_STRING, \
+				dbus_name, suffix, __ni_objectmodel_gre, rw)
+#define GRE_ENCAP_DICT_PROPERTY(dbus_name, suffix, rw) \
+	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, \
 				dbus_name, suffix, __ni_objectmodel_gre, rw)
 
 #define GRE_TUNNEL_UINT16_PROPERTY(dbus_type, type, rw) \
@@ -367,9 +538,13 @@ static const ni_dbus_property_t	ni_objectmodel_gre_property_table[] = {
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, device, link.lowerdev.name, RO),
 	GRE_HWADDR_PROPERTY(local-address,	local_addr, RO),
 	GRE_HWADDR_PROPERTY(remote-address,	remote_addr, RO),
-	GRE_TUNNEL_UINT16_PROPERTY(ttl, ttl, RO),
-	GRE_TUNNEL_UINT16_PROPERTY(tos, tos, RO),
-	GRE_TUNNEL_BOOL_PROPERTY(pmtudisc, pmtudisc, RO),
+	GRE_TUNNEL_UINT16_PROPERTY(ttl,		ttl, RO),
+	GRE_TUNNEL_UINT16_PROPERTY(tos,		tos, RO),
+	GRE_TUNNEL_BOOL_PROPERTY(pmtudisc,	pmtudisc, RO),
+	GRE_FLAGS_UINT32_PROPERTY(flags,	flags, RO),
+	GRE_IPV4_ADDR_PROPERTY(ikey,		ikey, RO),
+	GRE_IPV4_ADDR_PROPERTY(okey,		okey, RO),
+	GRE_ENCAP_DICT_PROPERTY(encap,		encap, RO),
 
 	{ NULL }
 };
