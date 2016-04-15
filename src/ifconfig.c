@@ -2697,13 +2697,9 @@ static int
 __ni_rtnl_link_put_tunnel(struct nl_msg *msg, const ni_linkinfo_t *link,
 			const ni_tunnel_t *tunnel, unsigned int type)
 {
-	struct nlattr *infodata;
 	uint32_t *local_ip;
 	uint32_t *remote_ip;
 	uint8_t pmtudisc;
-
-	if (!(infodata = nla_nest_start(msg, IFLA_INFO_DATA)))
-		goto nla_put_failure;
 
 	local_ip = (uint32_t *)link->hwaddr.data;
 	remote_ip = (uint32_t *)link->hwpeer.data;
@@ -2740,15 +2736,12 @@ __ni_rtnl_link_put_tunnel(struct nl_msg *msg, const ni_linkinfo_t *link,
 		NLA_PUT_U8(msg, IFLA_GRE_TOS, tunnel->tos);
 		pmtudisc = tunnel->pmtudisc ? 1 : 0;
 		NLA_PUT_U8(msg, IFLA_GRE_PMTUDISC, pmtudisc);
-		NLA_PUT_U16(msg, IFLA_GRE_FLAGS, tunnel->iflags);
 
 		break;
 
 	default:
 		break;
 	}
-
-	nla_nest_end(msg, infodata);
 
 	return 0;
 
@@ -2760,10 +2753,15 @@ static int
 __ni_rtnl_link_put_sit(struct nl_msg *msg, const ni_netdev_t *cfg)
 {
 	struct nlattr *linkinfo;
+	struct nlattr *infodata;
 
-	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
+	if (!cfg->sit || !(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
 		goto nla_put_failure;
+
 	NLA_PUT_STRING(msg, IFLA_INFO_KIND, "sit");
+
+	if (!(infodata = nla_nest_start(msg, IFLA_INFO_DATA)))
+		goto nla_put_failure;
 
 	if (cfg->sit->isatap)
 		cfg->sit->tunnel.iflags |= SIT_ISATAP;
@@ -2771,6 +2769,7 @@ __ni_rtnl_link_put_sit(struct nl_msg *msg, const ni_netdev_t *cfg)
 	if (__ni_rtnl_link_put_tunnel(msg, &cfg->link, &cfg->sit->tunnel, NI_IFTYPE_SIT) < 0)
 		goto nla_put_failure;
 
+	nla_nest_end(msg, infodata);
 	nla_nest_end(msg, linkinfo);
 
 	return 0;
@@ -2783,14 +2782,20 @@ static int
 __ni_rtnl_link_put_ipip(struct nl_msg *msg, const ni_netdev_t *cfg)
 {
 	struct nlattr *linkinfo;
+	struct nlattr *infodata;
 
-	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
+	if (!cfg->ipip || !(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
 		goto nla_put_failure;
+
 	NLA_PUT_STRING(msg, IFLA_INFO_KIND, "ipip");
+
+	if (!(infodata = nla_nest_start(msg, IFLA_INFO_DATA)))
+		goto nla_put_failure;
 
 	if (__ni_rtnl_link_put_tunnel(msg, &cfg->link, &cfg->ipip->tunnel, NI_IFTYPE_IPIP) < 0)
 		goto nla_put_failure;
 
+	nla_nest_end(msg, infodata);
 	nla_nest_end(msg, linkinfo);
 
 	return 0;
@@ -2803,14 +2808,83 @@ static int
 __ni_rtnl_link_put_gre(struct nl_msg *msg, const ni_netdev_t *cfg)
 {
 	struct nlattr *linkinfo;
+	struct nlattr *infodata;
+	uint32_t *ipaddr;
+	uint16_t flags;
 
-	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
+	if (!cfg->gre || !(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
 		goto nla_put_failure;
+
 	NLA_PUT_STRING(msg, IFLA_INFO_KIND, "gre");
+
+	if (!(infodata = nla_nest_start(msg, IFLA_INFO_DATA)))
+		goto nla_put_failure;
 
 	if (__ni_rtnl_link_put_tunnel(msg, &cfg->link, &cfg->gre->tunnel, NI_IFTYPE_GRE) < 0)
 		goto nla_put_failure;
 
+	flags = 0;
+	if (cfg->gre->flags & NI_BIT(NI_GRE_FLAG_IKEY))
+		flags |= GRE_KEY;
+	if (cfg->gre->flags & NI_BIT(NI_GRE_FLAG_ISEQ))
+		flags |= GRE_SEQ;
+	if (cfg->gre->flags & NI_BIT(NI_GRE_FLAG_ICSUM))
+		flags |= GRE_CSUM;
+
+	ipaddr = (uint32_t *)cfg->link.hwpeer.data;
+	if (!cfg->gre->ikey.s_addr && IN_MULTICAST(ntohl(*ipaddr))) {
+		cfg->gre->ikey.s_addr = *ipaddr;
+		flags |= GRE_KEY;
+	}
+
+	NLA_PUT_U16(msg, IFLA_GRE_IFLAGS, flags);
+	NLA_PUT_U32(msg, IFLA_GRE_IKEY, cfg->gre->ikey.s_addr);
+
+	flags = 0;
+	if (cfg->gre->flags & NI_BIT(NI_GRE_FLAG_OKEY))
+		flags |= GRE_KEY;
+	if (cfg->gre->flags & NI_BIT(NI_GRE_FLAG_OSEQ))
+		flags |= GRE_SEQ;
+	if (cfg->gre->flags & NI_BIT(NI_GRE_FLAG_OCSUM))
+		flags |= GRE_CSUM;
+
+	ipaddr = (uint32_t *)cfg->link.hwpeer.data;
+	if (!cfg->gre->okey.s_addr && IN_MULTICAST(ntohl(*ipaddr))) {
+		cfg->gre->okey.s_addr = *ipaddr;
+		flags |= GRE_KEY;
+	}
+
+	NLA_PUT_U16(msg, IFLA_GRE_OFLAGS, flags);
+	NLA_PUT_U32(msg, IFLA_GRE_OKEY, cfg->gre->okey.s_addr);
+
+#if 0	/* does not work up to leap kernel */
+	switch (cfg->gre->encap.type) {
+	case NI_GRE_ENCAP_TYPE_FOU:
+		NLA_PUT_U16(msg, IFLA_GRE_ENCAP_TYPE, TUNNEL_ENCAP_FOU);
+		break;
+	case NI_GRE_ENCAP_TYPE_GUE:
+		NLA_PUT_U16(msg, IFLA_GRE_ENCAP_TYPE, TUNNEL_ENCAP_GUE);
+		break;
+	case NI_GRE_ENCAP_TYPE_NONE:
+	default:
+		NLA_PUT_U16(msg, IFLA_GRE_ENCAP_TYPE, TUNNEL_ENCAP_NONE);
+		break;
+	}
+
+	flags = 0;
+	if (cfg->gre->encap.flags & NI_BIT(NI_GRE_ENCAP_FLAG_CSUM))
+		flags |= TUNNEL_ENCAP_FLAG_CSUM;
+	if (cfg->gre->encap.flags & NI_BIT(NI_GRE_ENCAP_FLAG_CSUM6))
+		flags |= TUNNEL_ENCAP_FLAG_CSUM6;
+	if (cfg->gre->encap.flags & NI_BIT(NI_GRE_ENCAP_FLAG_REMCSUM))
+		flags |= TUNNEL_ENCAP_FLAG_REMCSUM;
+
+	NLA_PUT_U16(msg, IFLA_GRE_ENCAP_FLAGS, flags);
+	NLA_PUT_U16(msg, IFLA_GRE_ENCAP_SPORT, htons(cfg->gre->encap.sport));
+	NLA_PUT_U16(msg, IFLA_GRE_ENCAP_DPORT, htons(cfg->gre->encap.dport));
+#endif
+
+	nla_nest_end(msg, infodata);
 	nla_nest_end(msg, linkinfo);
 
 	return 0;

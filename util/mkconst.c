@@ -24,6 +24,7 @@
 #include <wicked/team.h>
 #include <wicked/route.h>
 #include <wicked/infiniband.h>
+#include <wicked/tunneling.h>
 #include <wicked/macvlan.h>
 #include <wicked/vlan.h>
 #include <wicked/lldp.h>
@@ -89,6 +90,9 @@ static struct generic_map	generic_maps[] = {
 	MAP(TEAM_TX_BALANCER, ni_team_tx_balancer_type_to_name),
 	MAP(TEAM_AB_HWADDR_POLICY, ni_team_ab_hwaddr_policy_type_to_name),
 	MAP(TEAM_LACP_SELECT_POLICY, ni_team_lacp_select_policy_type_to_name),
+	MAP(GRE_FLAG_BIT, ni_gre_flag_bit_to_name),
+	MAP(GRE_ENCAP_TYPE, ni_gre_encap_type_to_name),
+	MAP(GRE_ENCAP_FLAG_BIT, ni_gre_encap_flag_bit_to_name),
 
 	{ NULL }
 };
