@@ -2341,7 +2341,7 @@ __ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrm
 
 
 static inline ni_bool_t
-__ni_newroute_filter_msg(struct rtmsg *rtm)
+ni_rtnl_route_filter_msg(struct rtmsg *rtm)
 {
 	switch (rtm->rtm_family) {
 	case AF_INET:
@@ -2397,8 +2397,7 @@ __ni_newroute_filter_msg(struct rtmsg *rtm)
 }
 
 static int
-__ni_process_newroute_nexthop(ni_route_t *rp, ni_route_nexthop_t *nh,
-				struct rtnexthop *rtnh)
+ni_rtnl_route_parse_nexthop(ni_route_t *rp, ni_route_nexthop_t *nh, struct rtnexthop *rtnh)
 {
 	if (rtnh->rtnh_ifindex <= 0) {
 		ni_warn("Cannot parse rtnl multipath route with interface index %d",
@@ -2435,7 +2434,7 @@ __ni_process_newroute_nexthop(ni_route_t *rp, ni_route_nexthop_t *nh,
 }
 
 static int
-__ni_process_newroute_multipath(ni_route_t *rp, struct nlattr *multipath)
+ni_rtnl_route_parse_multipath(ni_route_t *rp, struct nlattr *multipath)
 {
 	struct rtnexthop *rtnh = RTA_DATA(multipath);
 	size_t len = nla_len(multipath);
@@ -2448,7 +2447,7 @@ __ni_process_newroute_multipath(ni_route_t *rp, struct nlattr *multipath)
 				return -1;
 		}
 
-		if (__ni_process_newroute_nexthop(rp, nh, rtnh) != 0)
+		if (ni_rtnl_route_parse_nexthop(rp, nh, rtnh) != 0)
 			return 1;
 
 		len -= RTNH_ALIGN(rtnh->rtnh_len);
@@ -2460,7 +2459,25 @@ __ni_process_newroute_multipath(ni_route_t *rp, struct nlattr *multipath)
 }
 
 static int
-__ni_process_newroute_metrics(ni_route_t *rp, struct nlattr *metrics)
+ni_rtnl_route_parse_singlepath(ni_route_t *rp, struct nlattr **tb)
+{
+	if (tb[RTA_GATEWAY] != NULL) {
+		if (__ni_nla_get_addr(rp->family, &rp->nh.gateway, tb[RTA_GATEWAY]) != 0) {
+			ni_warn("Cannot parse rtnl route gateway address");
+			return -1;
+		}
+	}
+
+	if (tb[RTA_OIF] != NULL)
+		rp->nh.device.index = nla_get_u32(tb[RTA_OIF]);
+	if (tb[RTA_FLOW] != NULL)
+		rp->realm = nla_get_u32(tb[RTA_FLOW]);
+
+	return 0;
+}
+
+static int
+ni_rtnl_route_parse_metrics(ni_route_t *rp, struct nlattr *metrics)
 {
 	struct nlattr *rtattrs[__RTAX_MAX+1], *rtax;
 
@@ -2505,6 +2522,67 @@ __ni_process_newroute_metrics(ni_route_t *rp, struct nlattr *metrics)
 	if ((rtax = rtattrs[RTAX_INITRWND]) != NULL)
 		rp->initrwnd = nla_get_u32(rtax);
 #endif
+
+	return 0;
+}
+
+int
+ni_rtnl_route_parse_msg(struct nlmsghdr *h, struct rtmsg *rtm, ni_route_t *rp)
+{
+	struct nlattr *tb[RTA_MAX+1];
+
+	if (!rtm || !h || !rp)
+		return -1;
+
+	memset(tb, 0, sizeof(tb));
+	if (nlmsg_parse(h, sizeof(*rtm), tb, RTN_MAX, NULL) < 0) {
+		ni_warn("Cannot parse rtnl route message");
+		return -1;
+	}
+
+	rp->family = rtm->rtm_family;
+	rp->type = rtm->rtm_type;
+	rp->table = rtm->rtm_table;
+	if (tb[RTA_TABLE] != NULL) {
+		rp->table = nla_get_u32(tb[RTA_TABLE]);
+	}
+	rp->scope = rtm->rtm_scope;
+	rp->protocol = rtm->rtm_protocol;
+	rp->flags = rtm->rtm_flags;
+	rp->tos = rtm->rtm_tos;
+
+	rp->prefixlen = rtm->rtm_dst_len;
+	if (rtm->rtm_dst_len == 0) {
+		rp->destination.ss_family = rtm->rtm_family;
+	} else
+	if (__ni_nla_get_addr(rtm->rtm_family, &rp->destination, tb[RTA_DST]) != 0) {
+		ni_warn("Cannot parse rtnl route destination address");
+		return -1;
+	}
+
+	if (tb[RTA_MULTIPATH] != NULL) {
+		if (ni_rtnl_route_parse_multipath(rp, tb[RTA_MULTIPATH]) != 0)
+			return -1;
+	} else {
+		if (ni_rtnl_route_parse_singlepath(rp, tb) != 0)
+			return -1;
+	}
+
+	if (tb[RTA_PREFSRC] != NULL)
+		__ni_nla_get_addr(rtm->rtm_family, &rp->pref_src, tb[RTA_PREFSRC]);
+
+	if (tb[RTA_PRIORITY] != NULL)
+		rp->priority = nla_get_u32(tb[RTA_PRIORITY]);
+
+#if defined(HAVE_RTA_MARK)
+	if (tb[RTA_MARK] != NULL)
+		rp->mark = nla_get_u32(tb[RTA_MARK]);
+#endif
+
+	if (tb[RTA_METRICS] != NULL) {
+		if (ni_rtnl_route_parse_metrics(rp, tb[RTA_METRICS]) != 0)
+			return -1;
+	}
 
 	return 0;
 }
@@ -2564,7 +2642,6 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 				struct rtmsg *rtm, ni_netconfig_t *nc)
 {
 	ni_addrconf_lease_t *lease;
-	struct nlattr *tb[RTA_MAX+1];
 	ni_route_t *rp;
 	int ret = 1;
 
@@ -2584,80 +2661,14 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 #endif
 
 	/* filter unwanted / unsupported  msgs */
-	if (__ni_newroute_filter_msg(rtm))
+	if (ni_rtnl_route_filter_msg(rtm))
 		return 1;
 
-	memset(tb, 0, sizeof(tb));
-	if (nlmsg_parse(h, sizeof(*rtm), tb, RTN_MAX, NULL) < 0) {
-		ni_warn("Cannot parse rtnl route message");
-		return 1;
-	}
+	rp = ni_route_new();
+	rp->seq = dev ? dev->seq : __ni_global_seqno;
 
-	if (!(rp = ni_route_new()))
-		return -1;
-
-	rp->family = rtm->rtm_family;
-	rp->type = rtm->rtm_type;
-	rp->table = rtm->rtm_table;
-	if (tb[RTA_TABLE] != NULL) {
-		rp->table = nla_get_u32(tb[RTA_TABLE]);
-	}
-	rp->scope = rtm->rtm_scope;
-	rp->protocol = rtm->rtm_protocol;
-	rp->flags = rtm->rtm_flags;
-	rp->tos = rtm->rtm_tos;
-
-	rp->prefixlen = rtm->rtm_dst_len;
-	if (rtm->rtm_dst_len == 0) {
-		rp->destination.ss_family = rtm->rtm_family;
-	} else
-	if (__ni_nla_get_addr(rtm->rtm_family, &rp->destination, tb[RTA_DST]) != 0) {
-		ni_warn("Cannot parse rtnl route destination address");
+	if ((ret = ni_rtnl_route_parse_msg(h, rtm, rp)) != 0)
 		goto failure;
-	}
-
-	if (dev) {
-		rp->seq = dev->seq;
-		rp->nh.device.index = dev->link.ifindex;
-		/*
-		 * Hmm... not now.
-		 * Better to resolve it when needed I think, so we
-		 * don't need to care about interface renames.
-		 */
-#if 0
-		ni_string_dup(&rp->nh.device.name, dev->name);
-#endif
-	}
-	if (tb[RTA_GATEWAY] != NULL) {
-		if (__ni_nla_get_addr(rtm->rtm_family, &rp->nh.gateway,
-					tb[RTA_GATEWAY]) != 0) {
-			ni_warn("Cannot parse rtnl route gateway address");
-			goto failure;
-		}
-	} else
-	if (tb[RTA_MULTIPATH] != NULL) {
-		if (__ni_process_newroute_multipath(rp, tb[RTA_MULTIPATH]) != 0)
-			goto failure;
-	}
-
-	if (tb[RTA_PREFSRC] != NULL)
-		__ni_nla_get_addr(rtm->rtm_family, &rp->pref_src, tb[RTA_PREFSRC]);
-
-	if (tb[RTA_PRIORITY] != NULL)
-		rp->priority = nla_get_u32(tb[RTA_PRIORITY]);
-
-	if (tb[RTA_FLOW] != NULL)
-		rp->realm = nla_get_u32(tb[RTA_FLOW]);
-
-#if defined(HAVE_RTA_MARK)
-	if (tb[RTA_MARK] != NULL)
-		rp->mark = nla_get_u32(tb[RTA_MARK]);
-#endif
-
-	if (tb[RTA_METRICS] != NULL) {
-		if (__ni_process_newroute_metrics(rp, tb[RTA_METRICS]) != 0)
-			goto failure;
-	}
 
 	/* Add routes to the device[s] references in hops -- once */
 	if ((ret = __ni_netdev_record_newroute(nc, dev, rp)) < 0)
