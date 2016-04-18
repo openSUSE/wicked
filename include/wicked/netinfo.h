@@ -186,16 +186,6 @@ ni_addrconf_lease_t *	ni_netdev_get_lease(ni_netdev_t *, unsigned int, ni_addrco
 ni_addrconf_lease_t *	ni_netdev_get_lease_by_uuid(ni_netdev_t *, const ni_uuid_t *);
 ni_addrconf_lease_t *	ni_netdev_get_lease_by_owner(ni_netdev_t *, const char *);
 
-extern ni_route_t *	ni_netdev_add_route(ni_netdev_t *,
-				unsigned int prefix_len,
-				const ni_sockaddr_t *dest,
-				const ni_sockaddr_t *gw,
-				unsigned int table);
-
-extern ni_address_t *	ni_netdev_add_address(ni_netdev_t *ifp, unsigned int af,
-				unsigned int prefix_len,
-				const ni_sockaddr_t *local_addr);
-
 extern ni_address_t *	ni_netdev_get_addresses(ni_netdev_t *, unsigned int af);
 extern ni_ethernet_t *	ni_netdev_get_ethernet(ni_netdev_t *);
 extern ni_infiniband_t *ni_netdev_get_infiniband(ni_netdev_t *);

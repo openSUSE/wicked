@@ -4278,7 +4278,7 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 					ni_stringbuf_destroy(&buf);
 					new_route->owner = new_lease->type;
 					new_route->seq = __ni_global_seqno;
-					__ni_netdev_record_newroute(nc, dev, new_route);
+					ni_netconfig_route_add(nc, new_route, dev);
 
 					continue;
 				}
@@ -4322,7 +4322,7 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 
 			rp->owner = new_lease->type;
 			rp->seq = __ni_global_seqno;
-			__ni_netdev_record_newroute(nc, dev, rp);
+			ni_netconfig_route_add(nc, rp, dev);
 		}
 	}
 

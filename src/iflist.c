@@ -253,12 +253,11 @@ ni_rtnl_query_next_addr_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 }
 
 static int
-ni_rtnl_query_route_info(struct ni_rtnl_query *q, unsigned int ifindex, unsigned int family)
+ni_rtnl_query_route_info(struct ni_rtnl_query *q, unsigned int family)
 {
 	memset(q, 0, sizeof(*q));
-	q->ifindex = ifindex;
 
-	if (__ni_rtnl_query(&q->route_info, AF_UNSPEC, RTM_GETROUTE) < 0) {
+	if (__ni_rtnl_query(&q->route_info, family, RTM_GETROUTE) < 0) {
 		ni_rtnl_query_destroy(q);
 		return -1;
 	}
@@ -267,27 +266,16 @@ ni_rtnl_query_route_info(struct ni_rtnl_query *q, unsigned int ifindex, unsigned
 }
 
 static inline struct rtmsg *
-ni_rtnl_query_next_route_info(struct ni_rtnl_query *q, struct nlmsghdr **hp, unsigned int *oif_idxp)
+ni_rtnl_query_next_route_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 {
 	struct nlmsghdr *h;
 
 	while ((h = __ni_rtnl_info_next(&q->route_info)) != NULL) {
-		unsigned oif_index = 0;
-		struct nlattr *rta;
 		struct rtmsg *rtm;
 
 		if (!(rtm = ni_rtnl_rtmsg(h, RTM_NEWROUTE)))
 			continue;
 
-		rta = nlmsg_find_attr(h, sizeof(*rtm), RTA_OIF);
-		if (rta != NULL)
-			oif_index = nla_get_u32(rta);
-
-		if (q->ifindex && oif_index != q->ifindex)
-			continue;
-
-		if (oif_idxp)
-			*oif_idxp = oif_index;
 		*hp = h;
 		return rtm;
 	}
@@ -295,7 +283,7 @@ ni_rtnl_query_next_route_info(struct ni_rtnl_query *q, struct nlmsghdr **hp, uns
 }
 
 static void
-__ni_address_list_reset_seq(ni_address_t *addrs)
+ni_address_list_reset_seq(ni_address_t *addrs)
 {
 	ni_address_t *ap;
 
@@ -304,7 +292,7 @@ __ni_address_list_reset_seq(ni_address_t *addrs)
 }
 
 static void
-__ni_address_list_drop_by_seq(ni_address_t **tail, unsigned int seq)
+ni_address_list_drop_by_seq(ni_address_t **tail, unsigned int seq)
 {
 	ni_address_t *ap;
 
@@ -316,6 +304,51 @@ __ni_address_list_drop_by_seq(ni_address_t **tail, unsigned int seq)
 			tail = &ap->next;
 		}
 	}
+}
+
+static void
+ni_route_array_reset_seq(ni_route_array_t *routes)
+{
+	unsigned int i;
+	ni_route_t *rp;
+
+	for (i = 0; i < routes->count; ++i) {
+		if ((rp = routes->data[i]))
+			rp->seq = 0;
+	}
+}
+
+static void
+ni_route_tables_reset_seq(ni_route_table_t *tab)
+{
+	for ( ; tab; tab = tab->next)
+		ni_route_array_reset_seq(&tab->routes);
+}
+
+static void
+ni_route_array_drop_by_seq(ni_netconfig_t *nc, ni_route_array_t *routes, unsigned int seq)
+{
+	unsigned int i;
+	ni_route_t *rp;
+
+	for (i = 0; i < routes->count; ) {
+		rp = routes->data[i];
+		if (rp->seq != seq) {
+			if (ni_route_array_remove(routes, i) == rp) {
+				ni_netconfig_route_del(nc, rp, NULL);
+				ni_route_free(rp);
+				continue;
+			}
+		}
+		i++;
+	}
+}
+
+static void
+ni_route_tables_drop_by_seq(ni_netconfig_t *nc, ni_route_table_t *tab, unsigned int seq)
+{
+	for ( ; tab; tab = tab->next)
+		ni_route_array_drop_by_seq(nc, &tab->routes, seq);
 }
 
 static inline void
@@ -474,8 +507,8 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 				ni_string_dup(&dev->name, ifname);
 
 			/* Clear out addresses and routes */
-			__ni_address_list_reset_seq(dev->addrs);
-			ni_netdev_clear_routes(dev);
+			ni_address_list_reset_seq(dev->addrs);
+			ni_route_tables_reset_seq(dev->routes);
 		}
 
 		dev->seq = seqno;
@@ -517,29 +550,19 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 
 	while (1) {
 		struct rtmsg *rtm;
-		unsigned int oif_index = 0;
 
-		if (!(rtm = ni_rtnl_query_next_route_info(&query, &h, &oif_index)))
+		if (!(rtm = ni_rtnl_query_next_route_info(&query, &h)))
 			break;
 
-		if (oif_index) {
-			dev = ni_netdev_by_index(nc, oif_index);
-			if (dev == NULL) {
-				ni_error("route specifies OIF=%u; not found!", oif_index);
-				continue;
-			}
-		} else {
-			dev = NULL;
-		}
-
-		if (__ni_netdev_process_newroute(dev, h, rtm, nc) < 0)
+		if (__ni_netdev_process_newroute(NULL, h, rtm, nc) < 0)
 			ni_error("Problem parsing RTM_NEWROUTE message");
 	}
 
 	/* Cull any interfaces that went away */
 	tail = ni_netconfig_device_list_head(nc);
 	while ((dev = *tail) != NULL) {
-		__ni_address_list_drop_by_seq(&dev->addrs, seqno);
+		ni_address_list_drop_by_seq(&dev->addrs, seqno);
+		ni_route_tables_drop_by_seq(nc, dev->routes, seqno);
 		if (dev->seq != seqno) {
 			*tail = dev->next;
 			if (del_list == NULL) {
@@ -604,8 +627,8 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *dev)
 
 		/* Clear out addresses and routes */
 		dev->seq = __ni_global_seqno;
-		__ni_address_list_reset_seq(dev->addrs);
-		ni_netdev_clear_routes(dev);
+		ni_address_list_reset_seq(dev->addrs);
+		ni_route_tables_reset_seq(dev->routes);
 
 		if (__ni_netdev_process_newlink(dev, h, ifi, nc) < 0)
 			ni_error("Problem parsing RTM_NEWLINK message for %s", dev->name);
@@ -620,17 +643,18 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *dev)
 		if (__ni_netdev_process_newaddr(dev, h, ifa) < 0)
 			ni_error("Problem parsing RTM_NEWADDR message for %s", dev->name);
 	}
-	__ni_address_list_drop_by_seq(&dev->addrs, dev->seq);
+	ni_address_list_drop_by_seq(&dev->addrs, dev->seq);
 
 	while (1) {
 		struct rtmsg *rtm;
 
-		if (!(rtm = ni_rtnl_query_next_route_info(&query, &h, NULL)))
+		if (!(rtm = ni_rtnl_query_next_route_info(&query, &h)))
 			break;
 
 		if (__ni_netdev_process_newroute(dev, h, rtm, nc) < 0)
 			ni_error("Problem parsing RTM_NEWROUTE message");
 	}
+	ni_route_tables_drop_by_seq(nc, dev->routes, dev->seq);
 
 	res = 0;
 
@@ -660,7 +684,7 @@ __ni_system_refresh_interface_addrs(ni_netconfig_t *nc, ni_netdev_t *dev)
 	if (ni_rtnl_query_addr_info(&query, dev->link.ifindex, ni_netconfig_get_family_filter(nc)) < 0)
 		goto failed;
 
-	__ni_address_list_reset_seq(dev->addrs);
+	ni_address_list_reset_seq(dev->addrs);
 	while (1) {
 		struct ifaddrmsg *ifa;
 
@@ -670,7 +694,7 @@ __ni_system_refresh_interface_addrs(ni_netconfig_t *nc, ni_netdev_t *dev)
 		if (__ni_netdev_process_newaddr(dev, h, ifa) < 0)
 			ni_error("Problem parsing RTM_NEWADDR message for %s", dev->name);
 	}
-	__ni_address_list_drop_by_seq(&dev->addrs, dev->seq);
+	ni_address_list_drop_by_seq(&dev->addrs, dev->seq);
 
 	res = 0;
 
@@ -683,6 +707,48 @@ failed:
  * Refresh routes
  */
 int
+__ni_system_refresh_routes(ni_netconfig_t *nc)
+{
+	struct ni_rtnl_query query;
+	struct nlmsghdr *h;
+	unsigned int seqno;
+	ni_netdev_t *dev;
+	int res = -1;
+
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+			"Refresh all routes");
+
+	do {
+		seqno = ++__ni_global_seqno;
+	} while (!seqno);
+
+	if (ni_rtnl_query_route_info(&query, ni_netconfig_get_family_filter(nc)) < 0)
+		goto failed;
+
+	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next)
+		ni_route_tables_reset_seq(dev->routes);
+
+	while (1) {
+		struct rtmsg *rtm;
+
+		if (!(rtm = ni_rtnl_query_next_route_info(&query, &h)))
+			break;
+
+		if (__ni_netdev_process_newroute(NULL, h, rtm, nc) < 0)
+			ni_error("Problem parsing RTM_NEWROUTE message");
+	}
+
+	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next)
+		ni_route_tables_drop_by_seq(nc, dev->routes, seqno);
+
+	res = 0;
+
+failed:
+	ni_rtnl_query_destroy(&query);
+	return res;
+}
+
+int
 __ni_system_refresh_interface_routes(ni_netconfig_t *nc, ni_netdev_t *dev)
 {
 	struct ni_rtnl_query query;
@@ -693,20 +759,24 @@ __ni_system_refresh_interface_routes(ni_netconfig_t *nc, ni_netdev_t *dev)
 			"Refresh of %s interface routes",
 			dev->name);
 
-	__ni_global_seqno++;
-	if (ni_rtnl_query_route_info(&query, dev->link.ifindex, ni_netconfig_get_family_filter(nc)) < 0)
+	do {
+		dev->seq = ++__ni_global_seqno;
+	} while (!dev->seq);
+
+	if (ni_rtnl_query_route_info(&query, ni_netconfig_get_family_filter(nc)) < 0)
 		goto failed;
 
-	ni_netdev_clear_routes(dev);
+	ni_route_tables_reset_seq(dev->routes);
 	while (1) {
 		struct rtmsg *rtm;
 
-		if (!(rtm = ni_rtnl_query_next_route_info(&query, &h, NULL)))
+		if (!(rtm = ni_rtnl_query_next_route_info(&query, &h)))
 			break;
 
 		if (__ni_netdev_process_newroute(dev, h, rtm, nc) < 0)
 			ni_error("Problem parsing RTM_NEWROUTE message");
 	}
+	ni_route_tables_drop_by_seq(nc, dev->routes, dev->seq);
 
 	res = 0;
 
@@ -2280,7 +2350,7 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 
 	ap = ni_address_list_find(dev->addrs, &tmp.local_addr);
 	if (!ap) {
-		ap = ni_netdev_add_address(dev, tmp.family, tmp.prefixlen, &tmp.local_addr);
+		ap = ni_address_new(tmp.family, tmp.prefixlen, &tmp.local_addr, &dev->addrs);
 		if (!ap) {
 			ni_string_free(&tmp.label);
 			return -1;
@@ -2338,7 +2408,6 @@ __ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrm
 {
 	return __ni_netdev_process_newaddr_event(dev, h, ifa, NULL);
 }
-
 
 static inline ni_bool_t
 ni_rtnl_route_filter_msg(struct rtmsg *rtm)
@@ -2588,61 +2657,10 @@ ni_rtnl_route_parse_msg(struct nlmsghdr *h, struct rtmsg *rtm, ni_route_t *rp)
 }
 
 int
-__ni_netdev_record_newroute(ni_netconfig_t *nc, ni_netdev_t *dev, ni_route_t *rp)
-{
-	ni_stringbuf_t  buf = NI_STRINGBUF_INIT_DYNAMIC;
-	ni_uint_array_t idx = NI_UINT_ARRAY_INIT;
-	ni_route_nexthop_t *nh;
-	int ret = 1;
-
-	if (!nc || !rp)
-		return -1;
-
-	for (nh = &rp->nh; ret != -1 && nh; nh = nh->next) {
-		if (nh->device.index == 0 ||
-		    ni_uint_array_contains(&idx, nh->device.index))
-			continue;
-
-		if (!dev || (nh->device.index != dev->link.ifindex)) {
-			dev = ni_netdev_by_index(nc, nh->device.index);
-		}
-
-		if (!dev) {
-			ni_warn("Unable to find route device with index %u: %s",
-				nh->device.index, ni_route_print(&buf, rp));
-			ni_stringbuf_destroy(&buf);
-			ret = -1;
-		} else
-		if (!ni_route_tables_add_route(&dev->routes, ni_route_ref(rp))) {
-			ni_warn("Unable to record route for device %s[%u]: %s",
-				dev->name, dev->link.ifindex, ni_route_print(&buf, rp));
-			ni_stringbuf_destroy(&buf);
-			ret = -1;
-		} else
-		if (!ni_uint_array_append(&idx, nh->device.index)) {
-			ni_warn("Unable to track route device index %u",
-				nh->device.index);
-			ret = -1;
-		} else {
-#if 0
-			ni_debug_ifconfig("Route recorded for device %s[%u]: %s",
-				dev->name, dev->link.ifindex, ni_route_print(&buf, rp));
-			ni_stringbuf_destroy(&buf);
-#endif
-			ret = 0;
-		}
-	}
-
-	ni_uint_array_destroy(&idx);
-	return ret;
-}
-
-int
 __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 				struct rtmsg *rtm, ni_netconfig_t *nc)
 {
-	ni_addrconf_lease_t *lease;
-	ni_route_t *rp;
+	ni_route_t *rp, *r;
 	int ret = 1;
 
 #if 0
@@ -2670,19 +2688,38 @@ __ni_netdev_process_newroute(ni_netdev_t *dev, struct nlmsghdr *h,
 	if ((ret = ni_rtnl_route_parse_msg(h, rtm, rp)) != 0)
 		goto failure;
 
-	/* Add routes to the device[s] references in hops -- once */
-	if ((ret = __ni_netdev_record_newroute(nc, dev, rp)) < 0)
+	/* skip routes not related to the specified device */
+	if (dev && !ni_route_nexthop_find_by_ifindex(&rp->nh, dev->link.ifindex))
 		goto failure;
 
-	(void)lease;
-#if 0
-	/* See if this route is owned by a lease */
-	if (dev) {
-		lease = __ni_netdev_route_to_lease(dev, rp);
-		if (lease)
-			rp->owner = lease->type;
+	/* apply lease owner info from equal old route if any */
+	if (dev && (r = ni_route_tables_find_match(dev->routes, rp, ni_route_equal))) {
+		if (rp->seq != r->seq) {
+			rp->owner = r->owner;
+			ni_netconfig_route_del(nc, r, dev);
+		}
+	} else {
+		ni_route_nexthop_t *nh;
+		ni_netdev_t *d;
+
+		for (nh = &rp->nh; nh; nh = nh->next) {
+			if (!(d = ni_netdev_by_index(nc, nh->device.index)))
+				continue;
+
+			if (!(r = ni_route_tables_find_match(d->routes, rp, ni_route_equal)))
+				continue;
+
+			if (rp->seq != r->seq) {
+				rp->owner = r->owner;
+				ni_netconfig_route_del(nc, r, d);
+				break;
+			}
+		}
 	}
-#endif
+
+	/* Add route to the device references in hops */
+	if ((ret = ni_netconfig_route_add(nc, rp, dev)) < 0)
+		goto failure;
 
 failure:
 	/* Release our reference */
