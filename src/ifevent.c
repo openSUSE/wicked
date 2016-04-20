@@ -74,6 +74,8 @@ static int	__ni_rtevent_newaddr(ni_netconfig_t *, const struct sockaddr_nl *, st
 static int	__ni_rtevent_deladdr(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_newroute(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_delroute(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
+static int	__ni_rtevent_newrule(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
+static int	__ni_rtevent_delrule(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_nduseropt(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 
 static const char *	__ni_rtevent_msg_name(unsigned int);
@@ -117,6 +119,13 @@ __ni_netinfo_route_event(ni_netconfig_t *nc, ni_event_t ev, const ni_route_t *rp
 {
 	if (ni_global.route_event)
 		ni_global.route_event(nc, ev, rp);
+}
+
+static inline void
+__ni_netinfo_rule_event(ni_netconfig_t *nc, ni_event_t ev, const ni_rule_t *rule)
+{
+	if (ni_global.rule_event)
+		ni_global.rule_event(nc, ev, rule);
 }
 
 /*
@@ -165,6 +174,14 @@ __ni_rtevent_process(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 
 	case RTM_DELROUTE:
 		rv = __ni_rtevent_delroute(nc, nladdr, h);
+		break;
+
+	case RTM_NEWRULE:
+		rv = __ni_rtevent_newrule(nc, nladdr, h);
+		break;
+
+	case RTM_DELRULE:
+		rv = __ni_rtevent_delrule(nc, nladdr, h);
 		break;
 
 	case RTM_NEWNDUSEROPT:
@@ -579,6 +596,64 @@ __ni_rtevent_delroute(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, stru
 
 	ni_route_free(rp);
 	return 0;
+}
+
+static int
+__ni_rtevent_newrule(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
+{
+	struct fib_rule_hdr *frh;
+	ni_rule_t *rule;
+	ni_rule_t *old;
+	int ret;
+
+	if (!(frh = ni_rtnl_fibrulemsg(h, RTM_NEWRULE)))
+		return -1;
+
+	rule = ni_rule_new();
+	if ((ret = ni_rtnl_rule_parse_msg(h, frh, rule)) != 0) {
+		ni_rule_free(rule);
+		return ret;
+	}
+
+	old = NULL;
+	if (ni_netconfig_rule_del(nc, rule, &old) == 0)
+		ni_rule_free(old);
+
+	if ((ret = ni_netconfig_rule_add(nc, rule)) != 0) {
+		ni_rule_free(rule);
+		return ret;
+	}
+
+	__ni_netinfo_rule_event(nc, NI_EVENT_RULE_UPDATE, rule);
+	ni_rule_free(rule);
+	return ret;
+}
+
+static int
+__ni_rtevent_delrule(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
+{
+	struct fib_rule_hdr *frh;
+	ni_rule_t *rule;
+	ni_rule_t *old;
+	int ret;
+
+	if (!(frh = ni_rtnl_fibrulemsg(h, RTM_NEWRULE)))
+		return -1;
+
+	rule = ni_rule_new();
+	if ((ret = ni_rtnl_rule_parse_msg(h, frh, rule)) != 0) {
+		ni_rule_free(rule);
+		return ret;
+	}
+
+	old = NULL;
+	if ((ret = ni_netconfig_rule_del(nc, rule, &old)) == 0) {
+		__ni_netinfo_rule_event(nc, NI_EVENT_RULE_DELETE, old);
+		ni_rule_free(old);
+	}
+
+	ni_rule_free(rule);
+	return ret;
 }
 
 static int
@@ -1279,7 +1354,7 @@ ni_server_trace_route_events(ni_netconfig_t *nc, ni_event_t event, const ni_rout
 		family_trace = 0;
 		break;
 	}
-	ni_debug_verbose(NI_LOG_DEBUG2, family_trace|NI_TRACE_EVENTS,
+	ni_debug_verbose(NI_LOG_DEBUG2, family_trace|NI_TRACE_ROUTE|NI_TRACE_EVENTS,
 			"%s event: %s", ni_event_type_to_name(event),
 			ni_route_print(&buf, rp));
 	ni_stringbuf_destroy(&buf);
@@ -1296,7 +1371,7 @@ ni_server_enable_route_events(void (*route_handler)(ni_netconfig_t *, ni_event_t
 	}
 	if (ni_global.route_event) {
 		ni_error("Route event handler already set");
-		return -1;
+		return 1;
 	}
 
 	handle = __ni_rtevent_sock->user_data;
@@ -1306,6 +1381,53 @@ ni_server_enable_route_events(void (*route_handler)(ni_netconfig_t *, ni_event_t
 		return -1;
 	}
 	ni_global.route_event = route_handler;
+	return 0;
+}
+
+void
+ni_server_trace_rule_events(ni_netconfig_t *nc, ni_event_t event, const ni_rule_t *rule)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	unsigned int family_trace;
+
+	switch (rule->family) {
+	case AF_INET:
+		family_trace = NI_TRACE_IPV4;
+		break;
+	case AF_INET6:
+		family_trace = NI_TRACE_IPV6;
+		break;
+	default:
+		family_trace = 0;
+		break;
+	}
+	ni_debug_verbose(NI_LOG_DEBUG2, family_trace|NI_TRACE_ROUTE|NI_TRACE_EVENTS,
+			"%s event: %s", ni_event_type_to_name(event),
+			ni_rule_print(&buf, rule));
+	ni_stringbuf_destroy(&buf);
+}
+
+int
+ni_server_enable_rule_events(void (*rule_handler)(ni_netconfig_t *, ni_event_t, const ni_rule_t *))
+{
+	ni_rtevent_handle_t *handle;
+
+	if (!__ni_rtevent_sock) {
+		ni_error("Event monitor not enabled");
+		return -1;
+	}
+	if (ni_global.rule_event) {
+		ni_error("Rule event handler already set");
+		return 1;
+	}
+
+	handle = __ni_rtevent_sock->user_data;
+	if (!__ni_rtevent_join_group(handle, RTNLGRP_IPV4_RULE) < 0 ||
+	    !__ni_rtevent_join_group(handle, RTNLGRP_IPV6_RULE) < 0) {
+		ni_error("Cannot add rtnetlink rule event membership: %m");
+		return -1;
+	}
+	ni_global.rule_event = rule_handler;
 	return 0;
 }
 
@@ -1321,6 +1443,7 @@ ni_server_deactivate_interface_events(void)
 		ni_socket_deactivate(sock);
 		ni_socket_release(sock);
 	}
+	ni_global.rule_event = NULL;
 	ni_global.route_event = NULL;
 	ni_global.interface_event = NULL;
 	ni_global.interface_addr_event = NULL;

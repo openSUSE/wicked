@@ -136,12 +136,14 @@ extern int		ni_server_enable_interface_addr_events(void (*handler)(ni_netdev_t *
 extern int		ni_server_enable_interface_prefix_events(void (*handler)(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *));
 extern int		ni_server_enable_interface_nduseropt_events(void (*handler)(ni_netdev_t *, ni_event_t));
 extern int		ni_server_enable_route_events(void (*handler)(ni_netconfig_t *, ni_event_t, const ni_route_t *));
+extern int		ni_server_enable_rule_events(void (*handler)(ni_netconfig_t *, ni_event_t, const ni_rule_t *));
 extern int		ni_server_enable_interface_uevents(void);
 extern void		ni_server_disable_interface_uevents(void);
 extern void		ni_server_trace_interface_addr_events(ni_netdev_t *, ni_event_t, const ni_address_t *);
 extern void		ni_server_trace_interface_prefix_events(ni_netdev_t *, ni_event_t, const ni_ipv6_ra_pinfo_t *);
 extern void		ni_server_trace_interface_nduseropt_events(ni_netdev_t *, ni_event_t);
 extern void		ni_server_trace_route_events(ni_netconfig_t *, ni_event_t, const ni_route_t *);
+extern void		ni_server_trace_rule_events(ni_netconfig_t *, ni_event_t, const ni_rule_t *);
 extern void		ni_server_deactivate_interface_events(void);
 extern void		ni_server_deactivate_interface_uevents(void);
 extern ni_bool_t	ni_server_disabled_uevents(void);

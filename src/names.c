@@ -497,6 +497,8 @@ static const ni_intmap_t		__event_names[] = {
 	{ "prefix-deleted",		NI_EVENT_PREFIX_DELETE },
 	{ "route-updated",		NI_EVENT_ROUTE_UPDATE },
 	{ "route-deleted",		NI_EVENT_ROUTE_DELETE },
+	{ "rule-updated",		NI_EVENT_RULE_UPDATE },
+	{ "rule-deleted",		NI_EVENT_RULE_DELETE },
 	{ "rdnss-updated",		NI_EVENT_RDNSS_UPDATE },
 	{ "dnssl-updated",		NI_EVENT_DNSSL_UPDATE },
 	{ "resolver-updated",		NI_EVENT_RESOLVER_UPDATED },
