@@ -38,6 +38,8 @@
 #include "util_priv.h"
 
 #define NI_ROUTE_ARRAY_CHUNK		16
+#define NI_RULE_ARRAY_CHUNK		4
+
 #define IPROUTE2_RT_TABLES_FILE		"/etc/iproute2/rt_tables"
 
 
@@ -1857,5 +1859,628 @@ ni_route_tables_destroy(ni_route_table_t **list)
 		*list = tab->next;
 		ni_route_table_free(tab);
 	}
+}
+
+/*
+ * routing policy rules
+ */
+ni_rule_t *
+ni_rule_new(void)
+{
+	ni_rule_t *rule;
+
+	rule = xcalloc(1, sizeof(*rule));
+	if (rule) {
+		rule->refcount = 1;
+
+		rule->suppress_prefixlen = -1U;
+		rule->suppress_ifgroup = -1U;
+	}
+	return rule;
+}
+
+ni_rule_t *
+ni_rule_ref(ni_rule_t *rule)
+{
+	if (rule) {
+		ni_assert(rule->refcount);
+		rule->refcount++;
+	}
+	return rule;
+}
+
+ni_bool_t
+ni_rule_copy(ni_rule_t *dst, const ni_rule_t *src)
+{
+	if (!dst || !src)
+		return FALSE;
+
+#define C(x)	dst->x = src->x
+	C(owner);
+	C(set);
+	C(seq);
+
+	C(family);
+	C(flags);
+	C(pref);
+	C(table);
+	C(action);
+	C(target);
+	C(src);
+	C(dst);
+	C(tos);
+	C(realm);
+	C(fwmark);
+	C(fwmask);
+	C(suppress_prefixlen);
+	C(suppress_ifgroup);
+	C(iif.index);
+	C(oif.index);
+#undef C
+	if (!ni_string_dup(&dst->iif.name, src->iif.name))
+		return FALSE;
+	if (!ni_string_dup(&dst->oif.name, src->oif.name))
+		return FALSE;
+	return TRUE;
+}
+
+ni_rule_t *
+ni_rule_clone(const ni_rule_t *src)
+{
+	ni_rule_t *dst;
+
+	if (src) {
+		dst = ni_rule_new();
+		if (ni_rule_copy(dst, src))
+			return dst;
+
+		ni_rule_free(dst);
+	}
+	return NULL;
+}
+
+static void
+do_rule_free(ni_rule_t *rule)
+{
+	ni_netdev_ref_destroy(&rule->iif);
+	ni_netdev_ref_destroy(&rule->oif);
+	free(rule);
+}
+
+void
+ni_rule_free(ni_rule_t *rule)
+{
+	if (rule) {
+		ni_assert(rule->refcount);
+		rule->refcount--;
+		if (rule->refcount == 0)
+			do_rule_free(rule);
+	}
+}
+
+#ifndef NI_RULE_TRACE_CMP_LEVEL
+#define NI_RULE_TRACE_CMP_LEVEL		NI_LOG_DEBUG1
+#define NI_RULE_TRACE_CMP_SHOW_ALL	0
+#endif
+
+static int
+do_rule_cmp_show(int ret, const char *what)
+{
+#ifdef NI_RULE_TRACE_CMP_LEVEL
+	if (NI_RULE_TRACE_CMP_SHOW_ALL || ret)
+	ni_debug_verbose(NI_RULE_TRACE_CMP_LEVEL, NI_TRACE_IFCONFIG,
+			"rule %s cmp ==>> %d", what, ret);
+#endif
+	return ret;
+}
+
+static int
+ni_rule_cmp_match(const ni_rule_t *r1, const ni_rule_t *r2)
+{
+#define do_cmp(a, b)    (a > b ? 1 : a < b ? -1 : 0)
+	int ret;
+
+	/* pref is auto assigned by the kernel, except explicitly
+	 * requested by the user. compare only, when both rules
+	 * have their final prefs assigned, so we can match(find)
+	 * an "auto" rules against rules with final prefs.
+	 */
+	if ((r1->set & NI_RULE_SET_PREF) && (r2->set & NI_RULE_SET_PREF)) {
+		if ((ret = do_rule_cmp_show(do_cmp(r1->pref, r2->pref), "pref")))
+			return ret;
+	}
+
+	if ((ret = do_rule_cmp_show(do_cmp((r1->flags & NI_BIT(NI_RULE_INVERT)),
+					   (r2->flags & NI_BIT(NI_RULE_INVERT))),
+				"invert")))
+		return ret;
+
+	if ((ret = do_rule_cmp_show(do_cmp(r1->src.len, r2->src.len), "src.len")))
+		return ret;
+	if (r1->src.len && (ret = do_rule_cmp_show(ni_sockaddr_compare(&r1->src.addr, &r2->src.addr),
+				"src.addr")))
+		return ret;
+
+	if ((ret = do_rule_cmp_show(do_cmp(r1->dst.len, r2->dst.len), "dst.len")))
+		return ret;
+	if (r1->dst.len && (ret = do_rule_cmp_show(ni_sockaddr_compare(&r1->dst.addr, &r2->dst.addr),
+				"dst.addr")))
+		return ret;
+
+	if ((ret = do_rule_cmp_show(do_cmp(r1->tos, r2->tos), "tos")))
+		return ret;
+
+	if ((ret = do_rule_cmp_show(do_cmp(r1->fwmark, r2->fwmark), "fwmark")))
+		return ret;
+	if ((ret = do_rule_cmp_show(do_cmp(r1->fwmask, r2->fwmask), "fwmask")))
+		return ret;
+
+	if ((ret = do_rule_cmp_show(ni_string_cmp(r1->iif.name, r2->iif.name), "iif.name")))
+		return ret;
+	if ((ret = do_rule_cmp_show(ni_string_cmp(r1->oif.name, r2->oif.name), "oif.name")))
+		return ret;
+
+	return 0;
+#undef  do_cmp
+}
+
+static int
+ni_rule_cmp_action(const ni_rule_t *r1, const ni_rule_t *r2)
+{
+#define do_cmp(a, b)    (a > b ? 1 : a < b ? -1 : 0)
+	int ret;
+
+	if ((ret = do_rule_cmp_show(do_cmp(r1->action, r2->action), "action")))
+		return ret;
+
+	if ((ret = do_rule_cmp_show(do_cmp(r1->table, r2->table), "table")))
+		return ret;
+
+	if ((ret = do_rule_cmp_show(do_cmp(r1->target, r2->target), "target")))
+		return ret;
+
+	return 0;
+#undef  do_cmp
+}
+
+static int
+ni_rule_cmp_suppressors(const ni_rule_t *r1, const ni_rule_t *r2)
+{
+#define do_cmp(a, b)    (a > b ? 1 : a < b ? -1 : 0)
+	int ret;
+
+	if ((ret = do_rule_cmp_show(do_cmp(r1->suppress_prefixlen, r2->suppress_prefixlen),
+					"suppress_prefixlen")))
+		return ret;
+
+	if ((ret = do_rule_cmp_show(do_cmp(r1->suppress_ifgroup, r2->suppress_ifgroup),
+					"suppress_ifgroup")))
+		return ret;
+
+	return 0;
+#undef	do_cmp
+}
+
+static int
+ni_rule_cmp(const ni_rule_t *r1, const ni_rule_t *r2)
+{
+#define do_cmp(a, b)    (a > b ? 1 : a < b ? -1 : 0)
+	int ret;
+
+	if (!r1 || !r2)
+		return do_rule_cmp_show(do_cmp(r1, r2), "pointer");
+
+	if ((ret = do_rule_cmp_show(do_cmp(r1->family, r2->family), "family")))
+		return ret;
+
+	if ((ret = do_rule_cmp_show(ni_rule_cmp_match(r1, r2), "match")))
+		return ret;
+
+	if ((ret = do_rule_cmp_show(ni_rule_cmp_action(r1, r2), "action")))
+		return ret;
+
+	if ((ret = do_rule_cmp_show(ni_rule_cmp_suppressors(r1, r2), "suppressors")))
+		return ret;
+
+	return do_rule_cmp_show(0, "equal rule");
+#undef do_cmp
+}
+
+ni_bool_t
+ni_rule_equal(const ni_rule_t *r1, const ni_rule_t *r2)
+{
+#ifdef NI_RULE_TRACE_CMP_LEVEL
+	ni_stringbuf_t out = NI_STRINGBUF_INIT_DYNAMIC;
+
+	ni_rule_print(&out, r1);
+	ni_stringbuf_puts(&out, ") =?= (");
+	ni_rule_print(&out, r2);
+	ni_debug_verbose(NI_RULE_TRACE_CMP_LEVEL, NI_TRACE_IFCONFIG,
+			"rule cmp (%s)", out.string);
+	ni_stringbuf_destroy(&out);
+#endif
+
+	return ni_rule_cmp(r1, r2) == 0;
+}
+
+ni_bool_t
+ni_rule_equal_ref(const ni_rule_t *r1, const ni_rule_t *r2)
+{
+	return r1 == r1;
+}
+
+ni_bool_t
+ni_rule_equal_match(const ni_rule_t *r1, const ni_rule_t *r2)
+{
+	int ret;
+
+#define do_cmp(a, b)    (a > b ? 1 : a < b ? -1 : 0)
+	if (!r1 || !r2)
+		return do_rule_cmp_show(do_cmp(r1, r2), "pointer");
+
+	if ((ret = do_rule_cmp_show(do_cmp(r1->family, r2->family), "family")))
+		return ret;
+
+	return do_rule_cmp_show(ni_rule_cmp_match(r1, r2), "match") == 0;
+#undef do_cmp
+}
+
+ni_bool_t
+ni_rule_equal_action(const ni_rule_t *r1, const ni_rule_t *r2)
+{
+	int ret;
+
+#define do_cmp(a, b)    (a > b ? 1 : a < b ? -1 : 0)
+	if (!r1 || !r2)
+		return do_rule_cmp_show(do_cmp(r1, r2), "pointer");
+
+	if ((ret = do_rule_cmp_show(do_cmp(r1->family, r2->family), "family")))
+		return ret;
+
+	return do_rule_cmp_show(ni_rule_cmp_action(r1, r2), "action") == 0;
+#undef do_cmp
+}
+
+static const ni_intmap_t	ni_rule_action_names[] = {
+	{ "lookup",		NI_RULE_ACTION_TO_TBL		},
+	{ "goto",		NI_RULE_ACTION_GOTO		},
+	{ "nop",		NI_RULE_ACTION_NOP		},
+	{ "blackhole",		NI_RULE_ACTION_BLACKHOLE	},
+	{ "unreachable",	NI_RULE_ACTION_UNREACHABLE	},
+	{ "prohibit",		NI_RULE_ACTION_PROHIBIT		},
+	{ NULL,			NI_RULE_ACTION_NONE		}
+};
+
+const char *
+ni_rule_action_type_to_name(unsigned int type)
+{
+	return ni_format_uint_mapped(type, ni_rule_action_names);
+}
+
+ni_bool_t
+ni_rule_action_name_to_type(const char *name, unsigned int *type)
+{
+	return ni_parse_uint_mapped(name, ni_rule_action_names, type) == 0;
+}
+
+#if 0
+static const ni_intmap_t	ni_rule_flag_bit_names[] = {
+	{ "permanent",		NI_RULE_PERMANENT		},
+	{ "invert",		NI_RULE_INVERT			},
+	{ "unresolved",		NI_RULE_UNRESOLVED		},
+	{ "iif-detached",	NI_RULE_IIF_DETACHED		},
+	{ "oif-detached",	NI_RULE_OIF_DETACHED		},
+	{ NULL,			-1U				}
+};
+
+const char *
+ni_rule_flag_bit_to_name(unsigned int bit)
+{
+	return ni_format_uint_mapped(bit, ni_rule_flag_bit_names);
+}
+
+ni_bool_t
+ni_rule_flag_name_to_bit(const char *name, unsigned int *bit)
+{
+	return ni_parse_uint_mapped(name, ni_rule_flag_bit_names, bit) == 0;
+}
+#endif
+
+const char *
+ni_rule_print(ni_stringbuf_t *out, const ni_rule_t *rule)
+{
+	char *tmp = NULL;
+	const char *ptr;
+
+	if (!out || !rule || rule->family == AF_UNSPEC || rule->action == NI_RULE_ACTION_NONE)
+		return NULL;
+
+	if ((ptr = ni_addrfamily_type_to_name(rule->family)))
+		ni_stringbuf_printf(out, "%s", ptr);
+
+	if (rule->set & NI_RULE_SET_PREF)
+		ni_stringbuf_printf(out, " pref %u", rule->pref);
+	else
+		ni_stringbuf_printf(out, " pref auto");
+
+	if (rule->flags & NI_BIT(NI_RULE_INVERT))
+		ni_stringbuf_printf(out, " not", rule->pref);
+
+	if (rule->src.len)
+		ni_stringbuf_printf(out, " from %s/%u",
+				ni_sockaddr_print(&rule->src.addr), rule->src.len);
+	else
+		ni_stringbuf_printf(out, " from all");
+
+	if (rule->dst.len)
+		ni_stringbuf_printf(out, " to %s/%u",
+				ni_sockaddr_print(&rule->dst.addr), rule->dst.len);
+
+	if (rule->iif.name)
+		ni_stringbuf_printf(out, " iif %s%s", rule->iif.name,
+				rule->flags & NI_BIT(NI_RULE_IIF_DETACHED) ?
+				" [detached]" : "");
+
+	if (rule->oif.name)
+		ni_stringbuf_printf(out, " oif %s%s", rule->oif.name,
+				rule->flags & NI_BIT(NI_RULE_OIF_DETACHED) ?
+				" [detached]" : "");
+
+	if (rule->tos)
+		ni_stringbuf_printf(out, " tos 0x%02x", rule->tos);
+
+	if (rule->fwmark || rule->fwmask) {
+		if (rule->fwmask != 0xFFFFFFFF)
+			ni_stringbuf_printf(out, " fwmark 0x%x/0x%x",
+					rule->fwmark, rule->fwmask);
+		else
+			ni_stringbuf_printf(out, " fwmark 0x%x", rule->fwmark);
+	}
+
+	if (rule->realm)
+		ni_stringbuf_printf(out, " realm %u", rule->realm);
+
+	if (rule->table) {
+		if ((ptr = ni_route_table_type_to_name(rule->table, &tmp)))
+			ni_stringbuf_printf(out, " table %s", ptr);
+		else
+			ni_stringbuf_printf(out, " table %u", rule->table);
+		ni_string_free(&tmp);
+
+		if (rule->suppress_prefixlen && rule->suppress_prefixlen != -1U)
+			ni_stringbuf_printf(out, " suppress-prefixlen %u",
+					rule->suppress_prefixlen);
+
+		if (rule->suppress_ifgroup && rule->suppress_ifgroup != -1U)
+			ni_stringbuf_printf(out, " suppress-ifgroup %u",
+					rule->suppress_prefixlen);
+	}
+
+	switch (rule->action) {
+	case NI_RULE_ACTION_TO_TBL:
+		break;
+
+	case NI_RULE_ACTION_GOTO:
+		ni_stringbuf_printf(out, " goto %u%s", rule->target,
+				rule->flags & NI_BIT(NI_RULE_UNRESOLVED) ?
+				" [unresolved]" : "");
+		break;
+
+	case NI_RULE_ACTION_NOP:
+		ni_stringbuf_printf(out, " nop");
+		break;
+
+	case NI_RULE_ACTION_BLACKHOLE:
+		ni_stringbuf_printf(out, " blackhole");
+		break;
+
+	case NI_RULE_ACTION_UNREACHABLE:
+		ni_stringbuf_printf(out, " unreachable");
+		break;
+
+	case NI_RULE_ACTION_PROHIBIT:
+		ni_stringbuf_printf(out, " prohibit");
+		break;
+
+	case RTN_NAT:
+		/* NAT is gone in >2.6, but kernel ignores the
+		 * map-to addr and does not reject the type...
+		 */
+		ni_stringbuf_printf(out, " masquerade [deprecated]");
+		break;
+
+	default:
+		break;
+	}
+
+	return out ? out->string : NULL;
+}
+
+void
+ni_rule_array_init(ni_rule_array_t *rules)
+{
+	memset(rules, 0, sizeof(*rules));
+}
+
+void
+ni_rule_array_destroy(ni_rule_array_t *rules)
+{
+	if (rules) {
+		while (rules->count) {
+			rules->count--;
+			ni_rule_free(rules->data[rules->count]);
+		}
+		free(rules->data);
+		rules->data = NULL;
+	}
+}
+
+ni_rule_array_t *
+ni_rule_array_new(void)
+{
+	return xcalloc(1, sizeof(ni_rule_array_t));
+}
+
+void
+ni_rule_array_free(ni_rule_array_t *rules)
+{
+	ni_rule_array_destroy(rules);
+	free(rules);
+}
+
+unsigned int
+ni_rule_array_index(const ni_rule_array_t *rules, const ni_rule_t *rule)
+{
+	unsigned int i;
+	ni_rule_t *r;
+
+	if (rules) {
+		for (i = 0; i < rules->count; ++i) {
+			r = rules->data[i];
+			if (r == rule)
+				return i;
+		}
+	}
+	return -1U;
+}
+
+static ni_bool_t
+ni_rule_array_realloc(ni_rule_array_t *rules, unsigned int newsize)
+{
+	ni_rule_t **newdata;
+	unsigned int i;
+
+	if ((UINT_MAX - NI_RULE_ARRAY_CHUNK) <= newsize)
+		return FALSE;
+
+	newsize = (newsize + NI_RULE_ARRAY_CHUNK);
+	newdata = xrealloc(rules->data, newsize * sizeof(ni_rule_t *));
+	if (!newdata)
+		return FALSE;
+
+	rules->data = newdata;
+	for (i = rules->count; i < newsize; ++i)
+		rules->data[i] = NULL;
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_rule_array_append(ni_rule_array_t *rules, ni_rule_t *rule)
+{
+	if (!rules || !rule)
+		return FALSE;
+
+	if ((rules->count % NI_RULE_ARRAY_CHUNK) == 0 &&
+	    !ni_rule_array_realloc(rules, rules->count))
+		return FALSE;
+
+	rules->data[rules->count++] = rule;
+	return TRUE;
+}
+
+ni_bool_t
+ni_rule_array_insert(ni_rule_array_t *rules, unsigned int index, ni_rule_t *rule)
+{
+	if (!rules || !rule)
+		return FALSE;
+
+	if (index >= rules->count)
+		return ni_rule_array_append(rules, rule);
+
+	if ((rules->count % NI_RULE_ARRAY_CHUNK) == 0 &&
+	    !ni_rule_array_realloc(rules, rules->count))
+		return FALSE;
+
+	memmove(&rules->data[index + 1], &rules->data[index],
+		(rules->count - index) * sizeof(ni_rule_t *));
+	rules->data[index] = rule;
+	rules->count++;
+	return TRUE;
+}
+
+ni_bool_t
+ni_rule_array_delete(ni_rule_array_t *rules, unsigned int index)
+{
+	ni_rule_t *rule;
+
+	if ((rule = ni_rule_array_remove(rules, index))) {
+		ni_rule_free(rule);
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_rule_t *
+ni_rule_array_remove(ni_rule_array_t *rules, unsigned int index)
+{
+	ni_rule_t *rule;
+
+	if (!rules || index >= rules->count)
+		return NULL;
+
+	rule = rules->data[index];
+	rules->count--;
+	if (index < rules->count) {
+		memmove(&rules->data[index], &rules->data[index + 1],
+			(rules->count - index) * sizeof(ni_rule_t *));
+	}
+	rules->data[rules->count] = NULL;
+
+	/* Don't bother with shrinking the array. It's not worth the trouble */
+	return rule;
+}
+
+ni_rule_t *
+ni_rule_array_get(ni_rule_array_t *rules, unsigned int index)
+{
+	if (!rules || index >= rules->count)
+		return NULL;
+	return rules->data[index];
+}
+
+ni_rule_t *
+ni_rule_array_find_match(const ni_rule_array_t *rules, const ni_rule_t *rule,
+		ni_bool_t (*match)(const ni_rule_t *, const ni_rule_t *))
+{
+	unsigned int i;
+	ni_rule_t *r;
+
+	if (!rules || !rule || !match)
+		return NULL;
+
+	for (i = 0; i < rules->count; ++i) {
+		r = rules->data[i];
+		if (r && match(r, rule))
+			return r;
+	}
+
+	return NULL;
+}
+
+unsigned int
+ni_rule_array_find_matches(const ni_rule_array_t *rules, const ni_rule_t *rule,
+		ni_bool_t (*match)(const ni_rule_t *, const ni_rule_t *),
+		ni_rule_array_t *matches)
+{
+	unsigned int i, count = 0;
+	ni_rule_t *r;
+
+	if (!rules || !rule || !match || !matches)
+		return count;
+
+	for (i = 0; i < rules->count; ++i) {
+		r = rules->data[i];
+		if (!r || !match(r, rule))
+			continue;
+
+		if (ni_rule_array_index(matches, r) != -1U)
+			continue;
+
+		if (ni_rule_array_append(matches, ni_rule_ref(r)))
+			count++;
+	}
+
+	return count;
 }
 

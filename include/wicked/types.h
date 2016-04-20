@@ -29,6 +29,8 @@ typedef struct ni_netconfig	ni_netconfig_t;
 typedef struct ni_netdev	ni_netdev_t;
 typedef struct ni_route		ni_route_t;
 typedef struct ni_route_table	ni_route_table_t;
+typedef struct ni_rule		ni_rule_t;
+typedef struct ni_rule_array	ni_rule_array_t;
 typedef struct ni_vlan		ni_vlan_t;
 typedef struct ni_macvlan	ni_macvlan_t;
 typedef struct ni_bridge	ni_bridge_t;

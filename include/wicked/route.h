@@ -35,6 +35,7 @@
 
 
 #define NI_ROUTE_ARRAY_INIT	{ .count = 0, .data = NULL }
+#define NI_RULE_ARRAY_INIT	{ .count = 0, .data = NULL }
 
 
 typedef struct ni_route_nexthop {
@@ -100,6 +101,69 @@ struct ni_route_table {
 	unsigned int		tid;
 	ni_route_array_t	routes;
 };
+
+enum {
+	/* bit numbers */
+	NI_RULE_PERMANENT		= 0U,
+	NI_RULE_INVERT,
+	NI_RULE_UNRESOLVED,
+	NI_RULE_IIF_DETACHED,
+	NI_RULE_OIF_DETACHED,
+};
+
+enum {
+	NI_RULE_ACTION_NONE		= 0U,
+	NI_RULE_ACTION_TO_TBL		= 1U,
+	NI_RULE_ACTION_GOTO		= 2U,
+	NI_RULE_ACTION_NOP		= 3U,
+	/* reserved */
+	NI_RULE_ACTION_BLACKHOLE	= 6U,
+	NI_RULE_ACTION_UNREACHABLE	= 7U,
+	NI_RULE_ACTION_PROHIBIT		= 8U,
+};
+
+enum {
+	/* attr is set flags */
+	NI_RULE_SET_PREF		= NI_BIT(0),
+};
+
+typedef struct ni_rule_prefix {
+	unsigned int		len;
+	ni_sockaddr_t		addr;
+} ni_rule_prefix_t;
+
+struct ni_rule {
+	unsigned int		refcount;
+
+	ni_uuid_t		owner;		/* configured through lease */
+	unsigned int		seq;
+	unsigned int		set;
+
+	unsigned int		family;
+	unsigned int		flags;
+	unsigned int		pref;		/* priority alias preference */
+	unsigned int		table;
+	unsigned int		action;
+	unsigned int		target;
+
+	ni_rule_prefix_t	src;
+	ni_rule_prefix_t	dst;
+	ni_netdev_ref_t		iif;
+	ni_netdev_ref_t		oif;
+
+	unsigned int		tos;
+	unsigned int		realm;
+	unsigned int		fwmark;
+	unsigned int		fwmask;
+	unsigned int		suppress_prefixlen;
+	unsigned int		suppress_ifgroup;
+};
+
+typedef struct ni_rule_array  {
+	unsigned int		count;
+	ni_rule_t **		data;
+} ni_rule_array_t;
+
 
 typedef int			ni_route_cmp_fn(const ni_route_t *, const ni_route_t *);
 
@@ -220,5 +284,34 @@ extern ni_route_table_t *	ni_route_tables_find(ni_route_table_t *, unsigned int)
 extern ni_bool_t		ni_route_tables_empty(const ni_route_table_t *);
 extern ni_route_table_t *	ni_route_tables_get(ni_route_table_t **, unsigned int);
 extern void			ni_route_tables_destroy(ni_route_table_t **);
+
+extern ni_rule_t *		ni_rule_new(void);
+extern ni_rule_t *		ni_rule_ref(ni_rule_t *);
+extern ni_bool_t		ni_rule_copy(ni_rule_t *, const ni_rule_t *);
+extern ni_rule_t *		ni_rule_clone(const ni_rule_t *);
+extern void			ni_rule_free(ni_rule_t *);
+extern ni_bool_t		ni_rule_equal(const ni_rule_t *, const ni_rule_t *);
+extern ni_bool_t		ni_rule_equal_ref(const ni_rule_t *, const ni_rule_t *);
+extern ni_bool_t		ni_rule_equal_match(const ni_rule_t *, const ni_rule_t *);
+extern ni_bool_t		ni_rule_equal_action(const ni_rule_t *, const ni_rule_t *);
+extern const char *		ni_rule_print(ni_stringbuf_t *, const ni_rule_t *);
+extern const char *		ni_rule_action_type_to_name(unsigned int);
+extern ni_bool_t		ni_rule_action_name_to_type(const char *, unsigned int *);
+
+extern ni_rule_array_t *	ni_rule_array_new(void);
+extern void			ni_rule_array_free(ni_rule_array_t *);
+extern void			ni_rule_array_init(ni_rule_array_t *);
+extern void			ni_rule_array_destroy(ni_rule_array_t *);
+extern unsigned int		ni_rule_array_index(const ni_rule_array_t *, const ni_rule_t *);
+extern ni_bool_t		ni_rule_array_append(ni_rule_array_t *, ni_rule_t *);
+extern ni_bool_t		ni_rule_array_insert(ni_rule_array_t *, unsigned int, ni_rule_t *);
+extern ni_bool_t		ni_rule_array_delete(ni_rule_array_t *, unsigned int);
+extern ni_rule_t *		ni_rule_array_remove(ni_rule_array_t *, unsigned int);
+extern ni_rule_t *		ni_rule_array_get(ni_rule_array_t *, unsigned int);
+extern ni_rule_t *		ni_rule_array_find_match(const ni_rule_array_t *, const ni_rule_t *,
+					ni_bool_t (*match)(const ni_rule_t *, const ni_rule_t *));
+extern unsigned int		ni_rule_array_find_matches(const ni_rule_array_t *, const ni_rule_t *,
+					ni_bool_t (*match)(const ni_rule_t *, const ni_rule_t *),
+					ni_rule_array_t *);
 
 #endif /* WICKED_ROUTE_H */
