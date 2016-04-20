@@ -47,6 +47,10 @@ struct ni_netconfig {
 	ni_netdev_t *		interfaces;
 	ni_modem_t *		modems;
 
+	struct {
+		ni_rule_array_t	rules;
+	}			route;
+
 	unsigned char		initialized;
 };
 
@@ -515,6 +519,7 @@ void
 ni_netconfig_destroy(ni_netconfig_t *nc)
 {
 	__ni_netdev_list_destroy(&nc->interfaces);
+	ni_rule_array_destroy(&nc->route.rules);
 	memset(nc, 0, sizeof(*nc));
 }
 
@@ -706,6 +711,89 @@ ni_netconfig_route_del(ni_netconfig_t *nc, ni_route_t *rp, ni_netdev_t *dev)
 	ni_route_free(rp);
 	return ret;
 }
+
+ni_rule_array_t *
+ni_netconfig_rule_array(ni_netconfig_t *nc)
+{
+	return nc ? &nc->route.rules : NULL;
+}
+
+int
+ni_netconfig_rule_add(ni_netconfig_t *nc, ni_rule_t *rule)
+{
+	unsigned int i, last = 0;
+	ni_rule_array_t *rules;
+	const ni_rule_t *r;
+
+	if (!(rules = ni_netconfig_rule_array(nc)) || !rule)
+		return -1;
+
+	for (i = 0; i < rules->count; ++i) {
+		r = rules->data[i];
+		if (r->pref > rule->pref)
+			break;
+		last = i + 1;
+	}
+
+	if (!ni_rule_array_insert(rules, last, ni_rule_ref(rule))) {
+		ni_error("%s: unable to insert routing policy rule", __func__);
+		return -1;
+	}
+
+	return 0;
+}
+
+int
+ni_netconfig_rule_del(ni_netconfig_t *nc, const ni_rule_t *rule, ni_rule_t **pdel)
+{
+	ni_rule_array_t *rules;
+	unsigned int i;
+	ni_rule_t *r;
+
+	if (!(rules = ni_netconfig_rule_array(nc)) || !rule)
+		return -1;
+
+	for (i = 0; i < rules->count; ++i) {
+		r = rules->data[i];
+		if (!ni_rule_equal(r, rule))
+			continue;
+
+		if (pdel) {
+			*pdel = ni_rule_array_remove(rules, i);
+			if (!*pdel) {
+				ni_error("%s: unable to remove policy rule", __func__);
+				return -1;
+			}
+		} else {
+			if (!ni_rule_array_delete(rules, i)) {
+				ni_error("%s: unable to remove policy rule", __func__);
+				return -1;
+			}
+		}
+
+		return 0;
+	}
+	return 1;
+}
+
+ni_rule_t *
+ni_netconfig_rule_find(ni_netconfig_t *nc, const ni_rule_t *rule)
+{
+	ni_rule_array_t *rules;
+	unsigned int i;
+	ni_rule_t *r;
+
+	if (!(rules = ni_netconfig_rule_array(nc)) || !rule)
+		return NULL;
+
+	for (i = 0; i < rules->count; ++i) {
+		r = rules->data[i];
+		if (ni_rule_equal(r, rule))
+			return r;
+	}
+	return NULL;
+}
+
 
 /*
  * Find interface by name

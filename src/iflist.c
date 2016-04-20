@@ -48,6 +48,7 @@
 #  endif
 #endif
 #include <linux/if_tunnel.h>
+#include <linux/fib_rules.h>
 
 #include "netinfo_priv.h"
 #include "sysfs.h"
@@ -63,6 +64,8 @@ static int		__ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h,
 					struct ifaddrmsg *ifa);
 static int		__ni_netdev_process_newroute(ni_netdev_t *, struct nlmsghdr *,
 					struct rtmsg *, ni_netconfig_t *);
+static int		__ni_netdev_process_newrule(struct nlmsghdr *, struct fib_rule_hdr *,
+					ni_netconfig_t *);
 static int		__ni_discover_bridge(ni_netdev_t *);
 static int		__ni_discover_bond(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static int		__ni_discover_addrconf(ni_netdev_t *);
@@ -87,6 +90,7 @@ struct ni_rtnl_query {
 	struct ni_rtnl_info	addr_info;
 	struct ni_rtnl_info	ipv6_info;
 	struct ni_rtnl_info	route_info;
+	struct ni_rtnl_info	rule_info;
 	unsigned int		ifindex;
 };
 
@@ -135,6 +139,7 @@ ni_rtnl_query_destroy(struct ni_rtnl_query *q)
 	ni_nlmsg_list_destroy(&q->addr_info.nlmsg_list);
 	ni_nlmsg_list_destroy(&q->ipv6_info.nlmsg_list);
 	ni_nlmsg_list_destroy(&q->route_info.nlmsg_list);
+	ni_nlmsg_list_destroy(&q->rule_info.nlmsg_list);
 }
 
 static int
@@ -146,7 +151,8 @@ ni_rtnl_query(struct ni_rtnl_query *q, unsigned int ifindex, unsigned int family
 	if (__ni_rtnl_query(&q->link_info, AF_UNSPEC, RTM_GETLINK) < 0
 	 || (family != AF_INET && __ni_rtnl_query(&q->ipv6_info, AF_INET6, RTM_GETLINK) < 0)
 	 || __ni_rtnl_query(&q->addr_info, family, RTM_GETADDR) < 0
-	 || __ni_rtnl_query(&q->route_info, family, RTM_GETROUTE) < 0) {
+	 || __ni_rtnl_query(&q->route_info, family, RTM_GETROUTE) < 0
+	 || __ni_rtnl_query(&q->rule_info, family, RTM_GETRULE) < 0) {
 		ni_rtnl_query_destroy(q);
 		return -1;
 	}
@@ -282,6 +288,36 @@ ni_rtnl_query_next_route_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
 	return NULL;
 }
 
+static int
+ni_rtnl_query_rule_info(struct ni_rtnl_query *q, unsigned int family)
+{
+	memset(q, 0, sizeof(*q));
+
+	if (__ni_rtnl_query(&q->rule_info, family, RTM_GETRULE) < 0) {
+		ni_rtnl_query_destroy(q);
+		return -1;
+	}
+
+	return 0;
+}
+
+static inline struct fib_rule_hdr *
+ni_rtnl_query_next_rule_info(struct ni_rtnl_query *q, struct nlmsghdr **hp)
+{
+	struct nlmsghdr *h;
+
+	while ((h = __ni_rtnl_info_next(&q->rule_info)) != NULL) {
+		struct fib_rule_hdr *frh;
+
+		if (!(frh = __ni_rtnl_msgdata(h, RTM_NEWRULE, sizeof(struct fib_rule_hdr))))
+			continue;
+
+		*hp = h;
+		return frh;
+	}
+	return NULL;
+}
+
 static void
 ni_address_list_reset_seq(ni_address_t *addrs)
 {
@@ -349,6 +385,42 @@ ni_route_tables_drop_by_seq(ni_netconfig_t *nc, ni_route_table_t *tab, unsigned 
 {
 	for ( ; tab; tab = tab->next)
 		ni_route_array_drop_by_seq(nc, &tab->routes, seq);
+}
+
+static void
+ni_netconfig_rules_reset_seq(ni_netconfig_t *nc)
+{
+	ni_rule_array_t *rules;
+	unsigned int i;
+	ni_rule_t *ru;
+
+	if (!(rules = ni_netconfig_rule_array(nc)))
+		return;
+
+	for (i = 0; i < rules->count; ++i) {
+		if ((ru = rules->data[i]))
+			ru->seq = 0;
+	}
+}
+
+static void
+ni_netconfig_rules_drop_by_seq(ni_netconfig_t *nc, unsigned int seq)
+{
+	ni_rule_array_t *rules;
+	unsigned int i;
+	ni_rule_t *ru;
+
+	if (!(rules = ni_netconfig_rule_array(nc)))
+		return;
+
+	for (i = 0; i < rules->count; ) {
+		ru = rules->data[i];
+		if (ru->seq != seq) {
+			ni_rule_array_delete(rules, i);
+		} else {
+			i++;
+		}
+	}
 }
 
 static inline void
@@ -558,6 +630,19 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 			ni_error("Problem parsing RTM_NEWROUTE message");
 	}
 
+	ni_netconfig_rules_reset_seq(nc);
+	while (1) {
+		struct fib_rule_hdr *frh;
+
+		if (!(frh = ni_rtnl_query_next_rule_info(&query, &h)))
+			break;
+
+		h->nlmsg_type = RTM_GETRULE; /* make refresh visible */
+		if (__ni_netdev_process_newrule(h, frh, nc) < 0)
+			ni_error("Problem parsing RTM_NEWRULE message");
+	}
+	ni_netconfig_rules_drop_by_seq(nc, seqno);
+
 	/* Cull any interfaces that went away */
 	tail = ni_netconfig_device_list_head(nc);
 	while ((dev = *tail) != NULL) {
@@ -656,6 +741,19 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *dev)
 	}
 	ni_route_tables_drop_by_seq(nc, dev->routes, dev->seq);
 
+	ni_netconfig_rules_reset_seq(nc);
+	while (1) {
+		struct fib_rule_hdr *frh;
+
+		if (!(frh = ni_rtnl_query_next_rule_info(&query, &h)))
+			break;
+
+		h->nlmsg_type = RTM_GETRULE; /* make refresh visible */
+		if (__ni_netdev_process_newrule(h, frh, nc) < 0)
+			ni_error("Problem parsing RTM_NEWRULE message");
+	}
+	ni_netconfig_rules_drop_by_seq(nc, __ni_global_seqno);
+
 	res = 0;
 
 failed:
@@ -706,6 +804,44 @@ failed:
 /*
  * Refresh routes
  */
+int
+__ni_system_refresh_rules(ni_netconfig_t *nc)
+{
+	struct ni_rtnl_query query;
+	struct nlmsghdr *h;
+	unsigned int seqno;
+	int res = -1;
+
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+			"Refresh route rules");
+
+	do {
+		seqno = ++__ni_global_seqno;
+	} while (!seqno);
+
+	if (ni_rtnl_query_rule_info(&query, ni_netconfig_get_family_filter(nc)) < 0)
+		goto failed;
+
+	ni_netconfig_rules_reset_seq(nc);
+	while (1) {
+		struct fib_rule_hdr *frh;
+
+		if (!(frh = ni_rtnl_query_next_rule_info(&query, &h)))
+			break;
+
+		h->nlmsg_type = RTM_GETRULE; /* make refresh visible */
+		if (__ni_netdev_process_newrule(h, frh, nc) < 0)
+			ni_error("Problem parsing RTM_NEWRULE message");
+	}
+	ni_netconfig_rules_drop_by_seq(nc, seqno);
+
+	res = 0;
+
+failed:
+	ni_rtnl_query_destroy(&query);
+	return res;
+}
+
 int
 __ni_system_refresh_routes(ni_netconfig_t *nc)
 {
@@ -2409,7 +2545,7 @@ __ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrm
 	return __ni_netdev_process_newaddr_event(dev, h, ifa, NULL);
 }
 
-static inline ni_bool_t
+ni_bool_t
 ni_rtnl_route_filter_msg(struct rtmsg *rtm)
 {
 	switch (rtm->rtm_family) {
@@ -2726,6 +2862,191 @@ failure:
 	ni_route_free(rp);
 	return ret;
 }
+
+int
+ni_rtnl_rule_parse_msg(struct nlmsghdr *h, struct fib_rule_hdr *frh, ni_rule_t *rule)
+{
+#define RULE_LOG_LEVEL		NI_LOG_DEBUG
+	struct nlattr *tb[FRA_MAX+1];
+	const char *prefix;
+	char *tmp = NULL;
+
+	if (!frh || !h || !rule)
+		return -1;
+
+	switch (h->nlmsg_type) {
+	case RTM_NEWRULE:
+		prefix = "new";
+		break;
+	case RTM_DELRULE:
+		prefix = "del";
+		break;
+	/* a request msg */
+	case RTM_GETRULE:
+		prefix = "get";
+		break;
+	default:
+		return -1;
+	}
+
+	switch (frh->family) {
+	case AF_INET:
+	case AF_INET6:
+		rule->family  = frh->family;
+		break;
+
+	/* no mrules for now */
+	case RTNL_FAMILY_IPMR:
+	case RTNL_FAMILY_IP6MR:
+	default:
+		return 1;
+	}
+
+	if (nlmsg_parse(h, sizeof(*frh), tb, FRA_MAX, NULL) < 0) {
+		ni_warn("%s rule: cannot parse rtnl route rule message", prefix);
+		return -1;
+	}
+
+	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+			"%s rule family: %u (%s)", prefix, rule->family,
+			ni_addrfamily_type_to_name(rule->family));
+
+	rule->flags = frh->flags;
+	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+			"%s rule flags:%s%s%s%s%s", prefix,
+			rule->flags & NI_BIT(NI_RULE_PERMANENT)    ? " permanent"    : "",
+			rule->flags & NI_BIT(NI_RULE_INVERT)       ? " invert"       : "",
+			rule->flags & NI_BIT(NI_RULE_UNRESOLVED)   ? " unresolved"   : "",
+			rule->flags & NI_BIT(NI_RULE_IIF_DETACHED) ? " iif-detatched": "",
+			rule->flags & NI_BIT(NI_RULE_OIF_DETACHED) ? " oif-detatched": "");
+
+	if (tb[FRA_PRIORITY])
+		rule->pref = nla_get_u32(tb[FRA_PRIORITY]);
+	rule->set |= NI_RULE_SET_PREF;
+	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+			"%s rule pref: %u", prefix, rule->pref);
+
+	if ((rule->src.len = frh->src_len) == 0)
+		rule->src.addr.ss_family = rule->family;
+	else
+	if (tb[FRA_SRC] && __ni_nla_get_addr(rule->family, &rule->src.addr, tb[FRA_SRC]))
+		return -1;
+	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+			"%s rule src: %s/%u", prefix,
+			ni_sockaddr_print(&rule->src.addr), rule->src.len);
+
+	if ((rule->dst.len = frh->dst_len) == 0)
+		rule->dst.addr.ss_family = rule->family;
+	else
+	if (tb[FRA_DST] && __ni_nla_get_addr(rule->family, &rule->dst.addr, tb[FRA_DST]))
+		return -1;
+	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+			"%s rule dst: %s/%u", prefix,
+			ni_sockaddr_print(&rule->dst.addr), rule->dst.len);
+
+	if (tb[FRA_IIFNAME])
+		ni_netdev_ref_set(&rule->iif, nla_get_string(tb[FRA_IIFNAME]), 0);
+	else
+		ni_netdev_ref_destroy(&rule->iif);
+	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+			"%s rule iifname: %s", prefix, rule->iif.name);
+
+	if (tb[FRA_OIFNAME])
+		ni_netdev_ref_set(&rule->oif, nla_get_string(tb[FRA_OIFNAME]), 0);
+	else
+		ni_netdev_ref_destroy(&rule->oif);
+	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+			"%s rule oifname: %s", prefix, rule->oif.name);
+
+	if (tb[FRA_FWMARK])
+		rule->fwmark = nla_get_u32(tb[FRA_FWMARK]);
+	if (tb[FRA_FWMASK])
+		rule->fwmask = nla_get_u32(tb[FRA_FWMASK]);
+	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+			"%s rule fwmark: 0x%x/0x%x", prefix, rule->fwmark, rule->fwmask);
+
+	rule->tos     = frh->tos;
+	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+			"%s rule tos: %u", prefix, rule->tos);
+
+	rule->table   = frh->table;
+	if (tb[FRA_TABLE])
+		rule->table = nla_get_u32(tb[FRA_TABLE]);
+	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+			"%s rule table: %u (%s)", prefix, rule->table,
+			ni_route_table_type_to_name(rule->table, &tmp));
+	ni_string_free(&tmp);
+
+	if (tb[FRA_SUPPRESS_PREFIXLEN])
+		rule->suppress_prefixlen = nla_get_u32(tb[FRA_SUPPRESS_PREFIXLEN]);
+	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+			"%s rule supress prefixlen: %u", prefix, rule->suppress_prefixlen);
+
+	if (tb[FRA_SUPPRESS_IFGROUP])
+		rule->suppress_ifgroup = nla_get_u32(tb[FRA_SUPPRESS_IFGROUP]);
+	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+			"%s rule supress ifgroup: %u", prefix, rule->suppress_ifgroup);
+
+	if (tb[FRA_FLOW])
+		rule->realm = nla_get_u32(tb[FRA_FLOW]);
+	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+			"%s rule realm: %u", prefix, rule->realm);
+
+	rule->action  = frh->action;
+	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+			"%s rule action: %u", prefix, rule->action);
+	switch (rule->action) {
+	case FR_ACT_GOTO:
+		if (tb[FRA_GOTO])
+			rule->target = nla_get_u32(tb[FRA_GOTO]);
+
+		ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+				"%s rule target: %u", prefix, rule->target);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+int
+__ni_netdev_process_newrule(struct nlmsghdr *h, struct fib_rule_hdr *frh, ni_netconfig_t *nc)
+{
+	ni_stringbuf_t out = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_rule_t *rule;
+	ni_rule_t *old;
+	int ret = 1;
+
+	rule = ni_rule_new();
+	if ((ret = ni_rtnl_rule_parse_msg(h, frh, rule)) != 0)
+		goto failure;
+
+	rule->seq = __ni_global_seqno;
+	if ((old = ni_netconfig_rule_find(nc, rule))) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+				"replace rule %s [owner %s, seq %u -> seq %u",
+				ni_rule_print(&out, rule),
+				ni_uuid_print(&old->owner),
+				old->seq, rule->seq);
+		ni_stringbuf_destroy(&out);
+
+		if (old->seq != rule->seq) {
+			rule->owner = old->owner;
+			ni_netconfig_rule_del(nc, old, NULL);
+		}
+	} else {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
+				"adding new rule %s", ni_rule_print(&out, rule));
+		ni_stringbuf_destroy(&out);
+	}
+	ret = ni_netconfig_rule_add(nc, rule);
+
+failure:
+	ni_rule_free(rule);
+	return ret;
+}
+
 
 /*
  * Discover bridge topology

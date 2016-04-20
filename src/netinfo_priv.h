@@ -48,6 +48,10 @@ extern ni_netdev_t **	ni_netconfig_device_list_head(ni_netconfig_t *);
 extern void		ni_netconfig_modem_append(ni_netconfig_t *, ni_modem_t *);
 extern int		ni_netconfig_route_add(ni_netconfig_t *, ni_route_t *, ni_netdev_t *);
 extern int		ni_netconfig_route_del(ni_netconfig_t *, ni_route_t *, ni_netdev_t *);
+extern int		ni_netconfig_rule_add(ni_netconfig_t *, ni_rule_t *);
+extern int		ni_netconfig_rule_del(ni_netconfig_t *, const ni_rule_t *, ni_rule_t **);
+extern ni_rule_t *	ni_netconfig_rule_find(ni_netconfig_t *, const ni_rule_t *);
+extern ni_rule_array_t *ni_netconfig_rule_array(ni_netconfig_t *);
 
 extern ni_bool_t	ni_netconfig_set_discover_filter(ni_netconfig_t *, unsigned int);
 extern ni_bool_t	ni_netconfig_discover_filtered(ni_netconfig_t *, unsigned int);
@@ -79,6 +83,7 @@ extern int		__ni_system_refresh_interface(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_system_refresh_interface_addrs(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_system_refresh_interface_routes(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_system_refresh_routes(ni_netconfig_t *);
+extern int		__ni_system_refresh_rules(ni_netconfig_t *);
 extern int		__ni_device_refresh_link_info(ni_netconfig_t *, ni_linkinfo_t *);
 extern int		__ni_device_refresh_ipv6_link_info(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_system_interface_configure(ni_netconfig_t *, ni_netdev_t *, const ni_netdev_t *);
