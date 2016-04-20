@@ -484,12 +484,17 @@ ni_ifstatus_show_routes(const ni_netdev_t *dev, ni_bool_t verbose)
 	ni_route_table_t *tab;
 	ni_route_t *rp;
 	unsigned int i;
+	const char *ptr;
 
 	for (tab = dev->routes; tab; tab = tab->next) {
 		for (i = 0; i < tab->routes.count; ++i) {
 			rp = tab->routes.data[i];
 			if (verbose) {
 				ni_route_print(&buf, rp);
+
+				if ((ptr = ni_addrconf_type_to_name(rp->owner)))
+					ni_stringbuf_printf(&buf, " [%s]", ptr);
+
 				if_printf("", "route:", "%s\n", buf.string);
 			} else {
 				if (!(rp->table == RT_TABLE_MAIN))
@@ -513,6 +518,15 @@ ni_ifstatus_show_routes(const ni_netdev_t *dev, ni_bool_t verbose)
 					printf(" via %s%s", ni_sockaddr_print(&rp->nh.gateway),
 							rp->nh.next ? ",..." : "");
 				}
+
+				if (rp->priority)
+					printf(" metric %u", rp->priority);
+
+				if ((ptr = ni_addrconf_type_to_name(rp->owner)))
+					printf(" [%s]", ptr);
+				else
+				if ((ptr = ni_route_protocol_type_to_name(rp->protocol)))
+					printf(" proto %s", ptr);
 
 				printf("\n");
 			}
