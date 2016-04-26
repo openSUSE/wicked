@@ -1136,6 +1136,11 @@ ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 	ni_address_list_destroy(&lease->addrs);
 	ni_route_tables_destroy(&lease->routes);
 
+	if (lease->rules) {
+		ni_rule_array_free(lease->rules);
+		lease->rules = NULL;
+	}
+
 	if (lease->nis) {
 		ni_nis_info_free(lease->nis);
 		lease->nis = NULL;
