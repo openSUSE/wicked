@@ -74,6 +74,30 @@
 
  <define name="assigned-route-list" class="array" element-type="assigned-route" />
 
+ <define name="assigned-rule"  class="dict">
+   <match class="dict">
+     <priority     type="uint32" />
+     <invert       type="boolean"/>
+     <from         type="network-address-prefix"/>
+     <to           type="network-address"/>
+     <iif          type="string" />
+     <oif          type="string" />
+     <tos          type="uint32" />
+     <fwmark       type="uint32" />
+     <fwmask       type="uint32" />
+   </match>
+   <action class="dict">
+    <type          type="builtin-rule-action-type" />
+    <table         type="string" />
+    <target        type="uint32" />
+    <realm         type="uint32" />
+   </action>
+   <suppress      class="dict" >
+    <prefix-length type="uint32" />
+    <if-group      type="uint32" />
+   </suppress>
+ </define>
+
  <!-- Generic per-address family settings -->
  <define name="af-info" class="dict">
     <enabled type="boolean" />
