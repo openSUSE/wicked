@@ -30,6 +30,7 @@
 #include <wicked/client.h>
 #include <wicked/objectmodel.h>
 #include <wicked/addrconf.h>
+#include <wicked/route.h>
 #include <wicked/fsm.h>
 #include <wicked/ovs.h>
 
@@ -53,6 +54,8 @@ typedef struct ni_compat_netdev {
 	struct {
 		ni_ovs_bridge_port_config_t ovsbr;
 	} link_port;
+
+	ni_rule_array_t		rules;
 
 	struct {
 		ni_bool_t	enabled;
