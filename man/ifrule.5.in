@@ -1,0 +1,72 @@
+.\"
+.\" SUSE man page ifrule(5)
+.\" Copyright (c) 2016 SUSE LINUX GmbH, Nuernberg, Germany.
+.\" Please send bugfixes or comments as described at <http://bugs.opensuse.org>.
+.\"
+.\" Author:
+.\" 	Marius Tomaschewski
+.\"
+.\"
+.TH IFROUTE 5 "May 2016" "sysconfig" "Network configuration"
+.\"
+.SH NAME
+.\"
+ifrule \- configure routing policy rules
+.SH SYNOPSIS
+.BI /etc/sysconfig/network/ifrule-\fR<\fIinterface\fR>
+.\"
+.SH DESCRIPTION
+The
+.BI /etc/sysconfig/network/ifrule-\fR<\fIinterface\fR>
+file is parsed together with the
+.BI /etc/sysconfig/network/ifcfg-\fR<\fIinterface\fR>
+file to apply static routing policy rules while setup of the given interface.
+.PP
+
+The currently assigned rules can be seen by issuing:
+.PP
+.RS
+.B ip\ -4\ rule\ show ;
+.B ip\ -6\ rule\ show
+.RE
+.PP
+.\"
+.SH SYNTAX
+The files are using a quite similar syntax as the \fBip rule add\fR command,
+prepended with a \fBipv4\fR or \fBipv6\fR address family.
+The address family can be omitted, when either the \fBfrom\fR or the \fBto\fR
+prefix contains an IP address.
+
+Lines beginning with \fB#\fR and \fBblank lines\fR are ignored.
+
+.SH EXAMPLES
+.PP
+Example rules causing to lookup separate routing tables depending on the
+source IP address.
+.sp
+.nf
+.ne 7
+ipv4 from 192.168.235.42   table 42
+ipv4 from 192.168.156.51   table 51
+
+ipv6 from 2001:DB8:235::42 table 42
+ipv6 from 2001:DB8:156::51 table 51
+.fi
+
+.PP
+Custom table id names can be defined in \fI/etc/iproute2/rt_tables\fR.
+.PP
+Note: \fInat\fR rules are not supported by current kernels (>2.6) any more.
+
+.PP
+.\"
+.SH FILES
+.BI /etc/sysconfig/network/ifule-\fR<\fIinterface\fR>
+.\"
+.SH AUTHOR
+.nf
+Marius Tomaschewski
+.fi
+.SH SEE ALSO
+.BR ip-rule (8)
+.BR /etc/iproute2/rt_tables
