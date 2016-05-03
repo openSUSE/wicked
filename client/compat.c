@@ -173,6 +173,8 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 		ni_ifworker_control_free(compat->control);
 		ni_var_array_destroy(&compat->scripts);
 
+		ni_rule_array_destroy(&compat->rules);
+
 		ni_string_free(&compat->dhcp4.hostname);
 		ni_string_free(&compat->dhcp4.client_id);
 		ni_string_free(&compat->dhcp4.vendor_class);
@@ -1536,6 +1538,127 @@ __ni_compat_generate_static_route_list(xml_node_t *afnode, ni_route_table_t *rou
 }
 
 static void
+__ni_compat_generate_static_rule_match(xml_node_t *rnode, const ni_rule_t *rule, const char *ifname)
+{
+	xml_node_t *node;
+
+	node = xml_node_new("match", NULL);
+
+	if (rule->set & NI_RULE_SET_PREF)
+		xml_node_new_element_uint("priority", node, rule->pref);
+
+	if (rule->flags & NI_BIT(NI_RULE_INVERT))
+		xml_node_new_element("invert", node, "true");
+
+	if (!ni_sockaddr_is_unspecified(&rule->src.addr))
+		xml_node_new_element("from", node,
+			ni_sockaddr_prefix_print(&rule->src.addr, rule->src.len));
+
+	if (!ni_sockaddr_is_unspecified(&rule->dst.addr))
+		xml_node_new_element("to", node,
+			ni_sockaddr_prefix_print(&rule->dst.addr, rule->dst.len));
+
+	if (!ni_string_empty(rule->iif.name))
+		xml_node_new_element("iif", node, rule->iif.name);
+
+	if (!ni_string_empty(rule->oif.name))
+		xml_node_new_element("oif", node, rule->oif.name);
+
+	if (rule->fwmark)
+		xml_node_new_element_uint("fwmark", node, rule->fwmark);
+
+	if (rule->fwmask && rule->fwmask != -1U)
+		xml_node_new_element_uint("fwmask", node, rule->fwmask);
+
+	if (rule->tos)
+		xml_node_new_element_uint("tos", node, rule->tos);
+
+	if (node->children || node->attrs.count || node->cdata)
+		xml_node_add_child(rnode, node);
+	else
+		xml_node_free(node);
+}
+
+static void
+__ni_compat_generate_static_rule_action(xml_node_t *rnode, const ni_rule_t *rule, const char *ifname)
+{
+	xml_node_t *node;
+	char *tmp = NULL;
+
+	node = xml_node_new("action", NULL);
+
+	xml_node_new_element("type", node, ni_rule_action_type_to_name(rule->action));
+
+	if (rule->table != RT_TABLE_UNSPEC && rule->table != RT_TABLE_MAIN) {
+		if (ni_route_table_type_to_name(rule->table, &tmp))
+			xml_node_new_element("table", node, tmp);
+		ni_string_free(&tmp);
+	}
+
+	if (rule->target)
+		xml_node_new_element_uint("target", node, rule->target);
+	if (rule->realm)
+		xml_node_new_element_uint("realm", node, rule->realm);
+
+	if (node->children || node->attrs.count || node->cdata)
+		xml_node_add_child(rnode, node);
+	else
+		xml_node_free(node);
+}
+
+static void
+__ni_compat_generate_static_rule_suppress(xml_node_t *rnode, const ni_rule_t *rule, const char *ifname)
+{
+	xml_node_t *node;
+
+	node = xml_node_new("suppress", NULL);
+
+	if (rule->suppress_prefixlen != -1U)
+		xml_node_new_element_uint("prefix-length", node, rule->suppress_prefixlen);
+
+	if (rule->suppress_ifgroup != -1U)
+		xml_node_new_element_uint("if-group", node, rule->suppress_ifgroup);
+
+	if (node->children || node->attrs.count || node->cdata)
+		xml_node_add_child(rnode, node);
+	else
+		xml_node_free(node);
+}
+
+static void
+__ni_compat_generate_static_rule(xml_node_t *aconf, const ni_rule_t *r, const char *ifname)
+{
+	xml_node_t *rnode;
+
+	if (!aconf || !r || !r->family || !r->action)
+		return;
+
+	if (!(rnode = xml_node_new("rule", aconf)))
+		return;
+
+	__ni_compat_generate_static_rule_match(rnode, r, ifname);
+	__ni_compat_generate_static_rule_action(rnode, r, ifname);
+	__ni_compat_generate_static_rule_suppress(rnode, r, ifname);
+}
+
+static void
+__ni_compat_generate_static_rule_list(xml_node_t *afnode, const ni_rule_array_t *rules, const char *ifname, unsigned int af)
+{
+	const ni_rule_t *r;
+	unsigned int i;
+
+	if (!afnode || !rules || !af)
+		return;
+
+	for (i = 0; i < rules->count; ++i) {
+		r = rules->data[i];
+		if (!r || r->family != af)
+			continue;
+		__ni_compat_generate_static_rule(afnode, r, ifname);
+	}
+}
+
+static void
 __ni_compat_generate_static_address_list(xml_node_t *afnode, ni_address_t *addr_list, unsigned int af)
 {
 	ni_address_t *ap;
@@ -1578,6 +1701,7 @@ __ni_compat_generate_static_addrconf(xml_node_t *ifnode, const ni_compat_netdev_
 
 	__ni_compat_generate_static_address_list(afnode, dev->addrs, af);
 	__ni_compat_generate_static_route_list(afnode, dev->routes, dev->name, af);
+	__ni_compat_generate_static_rule_list(afnode, &compat->rules, dev->name, af);
 
 	if (afnode->children) {
 		xml_node_add_child(ifnode, afnode);

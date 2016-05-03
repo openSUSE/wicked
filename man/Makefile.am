@@ -30,6 +30,7 @@ generated			= \
 	ifcfg.5			\
 	ifcfg-dhcp.5		\
 	ifroute.5		\
+	ifrule.5		\
 	ifsysctl.5		\
 	ifdown.8		\
 	ifstatus.8		\

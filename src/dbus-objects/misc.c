@@ -37,6 +37,8 @@ static dbus_bool_t		__ni_objectmodel_address_to_dict(const ni_address_t *, ni_db
 static ni_address_t *		__ni_objectmodel_address_from_dict(ni_address_t **, const ni_dbus_variant_t *);
 static dbus_bool_t		__ni_objectmodel_route_to_dict(const ni_route_t *, ni_dbus_variant_t *);
 static ni_route_t *		__ni_objectmodel_route_from_dict(ni_route_table_t **, const ni_dbus_variant_t *);
+static dbus_bool_t		ni_objectmodel_rule_to_dict(const ni_rule_t *, ni_dbus_variant_t *);
+static dbus_bool_t		ni_objectmodel_rule_from_dict(ni_rule_t *, const ni_dbus_variant_t *);
 
 /*
  * Helper functions for getting and setting socket addresses
@@ -697,6 +699,39 @@ __ni_objectmodel_get_route_list(ni_route_table_t *list,
 	return rv;
 }
 
+dbus_bool_t
+__ni_objectmodel_get_rule_list(ni_rule_array_t *rules, unsigned int family,
+				ni_dbus_variant_t *result, DBusError *error)
+{
+	unsigned int i;
+	const ni_rule_t *rule;
+	dbus_bool_t rv = TRUE;
+
+	if (!rules)
+		return TRUE;
+	if (!result)
+		return FALSE;
+
+	for (i = 0; rv && i < rules->count; ++i) {
+		ni_dbus_variant_t *dict;
+
+		if ((rule = rules->data[i]) == NULL)
+			continue;
+
+		if (family != AF_UNSPEC && family != rule->family)
+			continue;
+
+		/* Append a new element to the array */
+		if (!(dict = ni_dbus_dict_array_add(result)))
+			return FALSE;
+		ni_dbus_variant_init_dict(dict);
+
+		rv = ni_objectmodel_rule_to_dict(rule, dict);
+	}
+
+	return rv;
+}
+
 /*
  * Build a route list from a dbus dict
  */
@@ -719,6 +754,45 @@ __ni_objectmodel_set_route_list(ni_route_table_t **list,
 		ni_dbus_variant_t *dict = &argument->variant_array_value[i];
 
 		(void) __ni_objectmodel_route_from_dict(list, dict);
+	}
+	return TRUE;
+}
+
+dbus_bool_t
+__ni_objectmodel_set_rule_list(ni_rule_array_t **rules, unsigned int family,
+				const ni_dbus_variant_t *argument, DBusError *error)
+{
+	const ni_dbus_variant_t *dict;
+	ni_rule_t *rule;
+	unsigned int i;
+
+	if (!rules || !ni_dbus_variant_is_dict_array(argument)) {
+		if (error) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s: argument type mismatch",
+				__FUNCTION__);
+		}
+		return FALSE;
+	}
+
+	ni_rule_array_destroy(*rules);
+	if (!(*rules = ni_rule_array_new()))
+		return FALSE;
+
+	for (i = 0; i < argument->array.len; ++i) {
+		dict = &argument->variant_array_value[i];
+
+		if (!(rule = ni_rule_new())) {
+			ni_error("%s: unable to allocate routing rule structure", __func__);
+			return FALSE;
+		}
+
+		rule->family = family;
+		if (!ni_objectmodel_rule_from_dict(rule, dict))
+			ni_rule_free(rule);
+		else
+		if (!ni_rule_array_append(*rules, rule))
+			ni_rule_free(rule);
 	}
 	return TRUE;
 }
@@ -774,10 +848,12 @@ __ni_objectmodel_set_route_dict(ni_route_table_t **list,
 {
 	ni_dbus_variant_t *var;
 
-	if (!ni_dbus_variant_is_dict(dict)) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s: argument type mismatch",
-				__FUNCTION__);
+	if (!list || !ni_dbus_variant_is_dict(dict)) {
+		if (error) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"%s: argument type mismatch",
+					__FUNCTION__);
+		}
 		return FALSE;
 	}
 
@@ -791,10 +867,80 @@ __ni_objectmodel_set_route_dict(ni_route_table_t **list,
 	return TRUE;
 }
 
+dbus_bool_t
+__ni_objectmodel_get_rule_dict(ni_rule_array_t *rules, unsigned int family,
+				ni_dbus_variant_t *result, DBusError *error)
+{
+	const ni_rule_t *rule;
+	unsigned int i;
+	dbus_bool_t rv = TRUE;
+
+	if (!rules)
+		return TRUE;
+	if (!result)
+		return FALSE;
+
+	for (i = 0; rv && i < rules->count; ++i) {
+		ni_dbus_variant_t *dict;
+
+		if ((rule = rules->data[i]) == NULL)
+				continue;
+
+		if (family != AF_UNSPEC && family != rule->family)
+			continue;
+
+		/* Append a new element to the array */
+		dict = ni_dbus_dict_add(result, "rule");
+		ni_dbus_variant_init_dict(dict);
+
+		rv = ni_objectmodel_rule_to_dict(rule, dict);
+	}
+
+	return rv;
+}
+
+dbus_bool_t
+__ni_objectmodel_set_rule_dict(ni_rule_array_t **rules, unsigned int family,
+				const ni_dbus_variant_t *dict, DBusError *error)
+{
+	const ni_dbus_variant_t *var;
+	ni_rule_t *rule;
+
+	if (!rules || !ni_dbus_variant_is_dict(dict)) {
+		if (error) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"%s: argument type mismatch",
+					__FUNCTION__);
+		}
+		return FALSE;
+	}
+
+	var = NULL;
+	ni_rule_array_destroy(*rules);
+	if (!(*rules = ni_rule_array_new()))
+		return FALSE;
+
+	while ((var = ni_dbus_dict_get_next(dict, "rule", var)) != NULL) {
+		if (!ni_dbus_variant_is_dict(var))
+			return FALSE;
+
+		if (!(rule = ni_rule_new()))
+			return FALSE;
+
+		rule->family = family;
+		if (!ni_objectmodel_rule_from_dict(rule, var))
+			ni_rule_free(rule);
+		else
+		if (!ni_rule_array_append(*rules, rule))
+			ni_rule_free(rule);
+	}
+	return TRUE;
+}
+
 /*
  * Common functions to represent an assigned route as a dict
  */
-dbus_bool_t
+static dbus_bool_t
 __ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
 {
 	const ni_route_nexthop_t *nh;
@@ -966,7 +1112,7 @@ __ni_objectmodel_route_kern_from_dict(ni_route_t *rp, const ni_dbus_variant_t *r
 	return TRUE;
 }
 
-ni_route_t *
+static ni_route_t *
 __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_t *dict)
 {
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
@@ -976,7 +1122,9 @@ __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_
 	ni_bool_t scope_ok = FALSE;
 	ni_bool_t table_ok = FALSE;
 
-	rp = ni_route_new();
+	if (!(rp = ni_route_new()))
+		goto failure;
+
 	rp->type = RTN_UNICAST;
 	rp->table = RT_TABLE_MAIN;
 	rp->scope = RT_SCOPE_NOWHERE;
@@ -1008,7 +1156,10 @@ __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_
 			nhdict = ni_dbus_dict_get_next(dict, "nexthop", nhdict);
 			if (nhdict) {
 				nhpos = &nh->next;
-				*nhpos = nh = ni_route_nexthop_new();
+				nh = ni_route_nexthop_new();
+				if (!nh)
+					goto failure;
+				*nhpos = nh;
 			} else {
 				nh = NULL;
 			}
@@ -1098,6 +1249,276 @@ failure:
 		ni_route_free(rp);
 	}
 	return NULL;
+}
+
+static dbus_bool_t
+ni_objectmodel_rule_match_to_dict(const ni_rule_t *rule, ni_dbus_variant_t *dict)
+{
+	if (!(dict = ni_dbus_dict_add(dict, "match")))
+		return FALSE;
+
+	ni_dbus_variant_init_dict(dict);
+
+	if ((rule->set & NI_RULE_SET_PREF) &&
+	    !ni_dbus_dict_add_uint32(dict, "priority", rule->pref))
+		return FALSE;
+
+	if ((rule->flags & NI_BIT(NI_RULE_INVERT)) &&
+	    !ni_dbus_dict_add_bool(dict, "invert", TRUE))
+		return FALSE;
+
+	if (!ni_sockaddr_is_unspecified(&rule->src.addr) &&
+	    !__ni_objectmodel_dict_add_sockaddr_prefix(dict, "from",
+					&rule->src.addr, rule->src.len))
+		return FALSE;
+	if (!ni_sockaddr_is_unspecified(&rule->dst.addr) &&
+	    !__ni_objectmodel_dict_add_sockaddr_prefix(dict, "to",
+					&rule->dst.addr, rule->dst.len))
+		return FALSE;
+
+	if (!ni_string_empty(rule->iif.name) &&
+	    !ni_dbus_dict_add_string(dict, "iif", rule->iif.name))
+		return FALSE;
+	if (!ni_string_empty(rule->oif.name) &&
+	    !ni_dbus_dict_add_string(dict, "oif", rule->oif.name))
+		return FALSE;
+
+	if (rule->fwmark &&
+	    !ni_dbus_dict_add_uint32(dict, "fwmark", rule->fwmark))
+		return FALSE;
+	if (rule->fwmark && rule->fwmask != -1U &&
+	    !ni_dbus_dict_add_uint32(dict, "fwmask", rule->fwmask))
+		return FALSE;
+	if (rule->tos &&
+	    !ni_dbus_dict_add_uint32(dict, "tos", rule->tos))
+		return FALSE;
+
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_rule_action_to_dict(const ni_rule_t *rule, ni_dbus_variant_t *dict)
+{
+	char *tmp = NULL;
+
+	if (!(dict = ni_dbus_dict_add(dict, "action")))
+		return FALSE;
+
+	ni_dbus_variant_init_dict(dict);
+
+	if (!ni_dbus_dict_add_uint32(dict, "type", rule->action))
+		return FALSE;
+
+	if (ni_route_is_valid_table(rule->table)) {
+		if (!ni_route_table_type_to_name(rule->table, &tmp) ||
+		    !ni_dbus_dict_add_string(dict, "table", tmp)) {
+			ni_string_free(&tmp);
+			return FALSE;
+		}
+		ni_string_free(&tmp);
+	}
+
+	if (rule->target &&
+	    !ni_dbus_dict_add_uint32(dict, "target", rule->target))
+		return FALSE;
+	if (rule->realm &&
+	    !ni_dbus_dict_add_uint32(dict, "realm", rule->realm))
+		return FALSE;
+
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_rule_suppressor_to_dict(const ni_rule_t *rule, ni_dbus_variant_t *dict)
+{
+	if (rule->suppress_prefixlen != -1U || rule->suppress_ifgroup != -1U)
+		return TRUE;
+
+	if (!(dict = ni_dbus_dict_add(dict, "suppress")))
+		return FALSE;
+
+	ni_dbus_variant_init_dict(dict);
+
+	if (rule->suppress_prefixlen != -1U &&
+	    !ni_dbus_dict_add_uint32(dict, "prefix-length", rule->suppress_prefixlen))
+		return FALSE;
+
+	if (rule->suppress_ifgroup != -1U &&
+	    !ni_dbus_dict_add_uint32(dict, "if-group", rule->suppress_ifgroup))
+		return FALSE;
+
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_rule_to_dict(const ni_rule_t *rule, ni_dbus_variant_t *dict)
+{
+	ni_stringbuf_t out = NI_STRINGBUF_INIT_DYNAMIC;
+
+	if (!dict || !rule || rule->family == AF_UNSPEC ||
+			rule->action == NI_RULE_ACTION_NONE)
+		return FALSE;
+
+	ni_trace("rule(%s) to dict: family {rule: %u, src: %u, dst: %u}",
+		ni_rule_print(&out, rule), rule->family,
+		rule->src.addr.ss_family, rule->dst.addr.ss_family);
+	ni_stringbuf_destroy(&out);
+
+	if (!ni_objectmodel_rule_match_to_dict(rule, dict))
+		return FALSE;
+
+	if (!ni_objectmodel_rule_action_to_dict(rule, dict))
+		return FALSE;
+
+	if (!ni_objectmodel_rule_suppressor_to_dict(rule, dict))
+		return FALSE;
+
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_rule_match_from_dict(ni_rule_t *rule, const ni_dbus_variant_t *dict)
+{
+	const char *ptr;
+	dbus_bool_t bval;
+
+	if (ni_dbus_dict_get_uint32(dict, "priority", &rule->pref))
+		rule->set |= NI_RULE_SET_PREF;
+
+	ni_dbus_dict_get_uint32(dict, "fwmark", &rule->fwmark);
+	ni_dbus_dict_get_uint32(dict, "fwmask", &rule->fwmask);
+	ni_dbus_dict_get_uint32(dict, "tos",    &rule->tos);
+
+	if (ni_dbus_dict_get_bool(dict, "invert", &bval) && bval)
+		rule->flags |= NI_BIT(NI_RULE_INVERT);
+
+	if (__ni_objectmodel_dict_get_sockaddr_prefix(dict, "from",
+				&rule->src.addr, &rule->src.len)) {
+		if (rule->family == AF_UNSPEC)
+			rule->family = rule->src.addr.ss_family;
+		else
+		if (rule->family != rule->src.addr.ss_family)
+			return FALSE;
+		else
+		if (rule->src.len > ni_af_address_prefixlen(rule->family))
+			return FALSE;
+	} else {
+		memset(&rule->src, 0, sizeof(rule->src));
+		rule->src.addr.ss_family = rule->family;
+	}
+
+	if (__ni_objectmodel_dict_get_sockaddr_prefix(dict, "to",
+				&rule->dst.addr, &rule->dst.len)) {
+		if (rule->family == AF_UNSPEC)
+			rule->family = rule->dst.addr.ss_family;
+		else
+		if (rule->family != rule->dst.addr.ss_family)
+			return FALSE;
+		else
+		if (rule->dst.len > ni_af_address_prefixlen(rule->family))
+			return FALSE;
+	} else {
+		memset(&rule->dst, 0, sizeof(rule->dst));
+		rule->dst.addr.ss_family = rule->family;
+	}
+
+	if (ni_dbus_dict_get_string(dict, "iif", &ptr)) {
+		if (!ni_netdev_name_is_valid(ptr) ||
+		    !ni_string_dup(&rule->iif.name, ptr))
+			return FALSE;
+	}
+	if (ni_dbus_dict_get_string(dict, "oif", &ptr)) {
+		if (!ni_netdev_name_is_valid(ptr) ||
+		    !ni_string_dup(&rule->oif.name, ptr))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_rule_action_from_dict(ni_rule_t *rule, const ni_dbus_variant_t *dict)
+{
+	const char *ptr;
+
+	if (ni_dbus_dict_get_uint32(dict, "type", &rule->action) &&
+	    !ni_rule_action_type_to_name(rule->action))
+		return FALSE;
+
+	if (ni_dbus_dict_get_uint32(dict, "target", &rule->target)) {
+		if (rule->action == NI_RULE_ACTION_NONE)
+			rule->action = NI_RULE_ACTION_GOTO;
+		else
+		if (rule->action != NI_RULE_ACTION_GOTO) {
+			ni_debug_dbus("%s: invalid rule target in action %s", __func__,
+					ni_rule_action_type_to_name(rule->action));
+			return FALSE;
+		}
+	} else
+	if (rule->action == NI_RULE_ACTION_GOTO) {
+		ni_debug_dbus("%s: rule action %s requires a target rule", __func__,
+				ni_rule_action_type_to_name(rule->action));
+		return FALSE;
+	}
+
+	if (ni_dbus_dict_get_string(dict, "table", &ptr)) {
+		if (!ni_route_table_name_to_type(ptr, &rule->table) ||
+		    !ni_route_is_valid_table(rule->table))
+			return FALSE;
+
+		if (rule->action == NI_RULE_ACTION_NONE)
+			rule->action = NI_RULE_ACTION_TO_TBL;
+	} else {
+		if (rule->action == NI_RULE_ACTION_TO_TBL)
+			rule->table = RT_TABLE_MAIN;
+	}
+
+	ni_dbus_dict_get_uint32(dict, "realm", &rule->realm);
+
+	return rule->action != NI_RULE_ACTION_NONE;
+}
+
+static dbus_bool_t
+ni_objectmodel_rule_suppressor_from_dict(ni_rule_t *rule, const ni_dbus_variant_t *dict)
+{
+	ni_dbus_dict_get_uint32(dict, "prefix-length", &rule->suppress_prefixlen);
+	ni_dbus_dict_get_uint32(dict, "if-group", &rule->suppress_ifgroup);
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_rule_from_dict(ni_rule_t *rule, const ni_dbus_variant_t *dict)
+{
+	ni_stringbuf_t out = NI_STRINGBUF_INIT_DYNAMIC;
+	const ni_dbus_variant_t *child;
+
+	if ((child = ni_dbus_dict_get(dict, "match")) &&
+	    !ni_objectmodel_rule_match_from_dict(rule, child)) {
+		ni_debug_dbus("%s: invalid rule match", __func__);
+		return FALSE;
+	} else {
+		if (rule->src.addr.ss_family == AF_UNSPEC)
+			rule->src.addr.ss_family = rule->family;
+		if (rule->dst.addr.ss_family == AF_UNSPEC)
+			rule->dst.addr.ss_family = rule->family;
+	}
+
+	if (!(child = ni_dbus_dict_get(dict, "action")) ||
+	    !ni_objectmodel_rule_action_from_dict(rule, child)) {
+		ni_debug_dbus("%s: invalid rule action", __func__);
+		return FALSE;
+	}
+
+	if ((child = ni_dbus_dict_get(dict, "suppress")) &&
+	    !ni_objectmodel_rule_suppressor_from_dict(rule, child))
+		return FALSE;
+
+	ni_trace("rule(%s) from dict: family {rule: %u, src: %u, dst: %u}",
+			ni_rule_print(&out, rule), rule->family,
+			rule->src.addr.ss_family, rule->dst.addr.ss_family);
+	ni_stringbuf_destroy(&out);
+
+	return TRUE;
 }
 
 /*
@@ -1219,6 +1640,12 @@ __ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 		child = ni_dbus_dict_add(result, "routes");
 		ni_dbus_dict_array_init(child);
 		if (!__ni_objectmodel_get_route_list(lease->routes, child, error))
+			return FALSE;
+	}
+	if (lease->rules && lease->rules->count) {
+		child = ni_dbus_dict_add(result, "rules");
+		ni_dbus_dict_array_init(child);
+		if (!__ni_objectmodel_get_rule_list(lease->rules, lease->family, child, error))
 			return FALSE;
 	}
 
@@ -1435,6 +1862,10 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 
 	if ((child = ni_dbus_dict_get(argument, "routes")) != NULL
 	 && !__ni_objectmodel_set_route_list(&lease->routes, child, error))
+		return FALSE;
+
+	if ((child = ni_dbus_dict_get(argument, "rules")) != NULL
+	 && !__ni_objectmodel_set_rule_list(&lease->rules, lease->family, child, error))
 		return FALSE;
 
 	if (!__ni_objectmodel_set_resolver_dict(&lease->resolver, argument, error))

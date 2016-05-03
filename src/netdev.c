@@ -214,28 +214,6 @@ ni_netdev_guess_link_required(const ni_netdev_t *dev)
 }
 
 /*
- * This is a convenience function for adding addresses to an interface.
- */
-ni_address_t *
-ni_netdev_add_address(ni_netdev_t *dev, unsigned int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr)
-{
-	return ni_address_new(af, prefix_len, local_addr, &dev->addrs);
-}
-
-/*
- * This is a convenience function for adding routes to an interface.
- */
-ni_route_t *
-ni_netdev_add_route(ni_netdev_t *dev,
-				unsigned int prefix_len,
-				const ni_sockaddr_t *dest,
-				const ni_sockaddr_t *gw,
-				unsigned int table)
-{
-	return ni_route_create(prefix_len, dest, gw, table, &dev->routes);
-}
-
-/*
  * Get the interface's VLAN information
  */
 ni_vlan_t *

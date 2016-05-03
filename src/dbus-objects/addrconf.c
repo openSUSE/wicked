@@ -366,6 +366,7 @@ ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, unsigned int ad
 
 	if (!__ni_objectmodel_set_address_dict(&lease->addrs, dict, error)
 	 || !__ni_objectmodel_set_route_dict(&lease->routes, dict, error)
+	 || !__ni_objectmodel_set_rule_dict(&lease->rules, addrfamily, dict, error)
 	 || !__ni_objectmodel_set_resolver_dict(&lease->resolver, dict, error)) {
 		ni_addrconf_lease_free(lease);
 		return FALSE;

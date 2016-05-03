@@ -47,6 +47,10 @@ struct ni_netconfig {
 	ni_netdev_t *		interfaces;
 	ni_modem_t *		modems;
 
+	struct {
+		ni_rule_array_t	rules;
+	}			route;
+
 	unsigned char		initialized;
 };
 
@@ -515,6 +519,7 @@ void
 ni_netconfig_destroy(ni_netconfig_t *nc)
 {
 	__ni_netdev_list_destroy(&nc->interfaces);
+	ni_rule_array_destroy(&nc->route.rules);
 	memset(nc, 0, sizeof(*nc));
 }
 
@@ -613,6 +618,184 @@ ni_netconfig_modem_append(ni_netconfig_t *nc, ni_modem_t *modem)
 }
 
 /*
+ * Manage routing tables
+ */
+int
+ni_netconfig_route_add(ni_netconfig_t *nc, ni_route_t *rp, ni_netdev_t *dev)
+{
+	ni_stringbuf_t  buf = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_uint_array_t idx = NI_UINT_ARRAY_INIT;
+	ni_route_nexthop_t *nh;
+	int ret = 1;
+
+	/* dev is only a hint */
+	if (!nc || !rp)
+		return -1;
+
+	for (nh = &rp->nh; ret != -1 && nh; nh = nh->next) {
+		if (nh->device.index == 0 ||
+		    ni_uint_array_contains(&idx, nh->device.index))
+			continue;
+
+		if (!dev || (nh->device.index != dev->link.ifindex)) {
+			dev = ni_netdev_by_index(nc, nh->device.index);
+		}
+
+		if (!dev) {
+			ni_warn("Unable to find route device with index %u: %s",
+				nh->device.index, ni_route_print(&buf, rp));
+			ni_stringbuf_destroy(&buf);
+			ret = -1;
+		} else
+		if (!ni_route_tables_find_match(dev->routes, rp, ni_route_equal_ref) &&
+		    !ni_route_tables_add_route(&dev->routes, ni_route_ref(rp))) {
+			ni_warn("Unable to record route for device %s[%u]: %s",
+				dev->name, dev->link.ifindex, ni_route_print(&buf, rp));
+			ni_stringbuf_destroy(&buf);
+			ret = -1;
+		} else
+		if (!ni_uint_array_append(&idx, nh->device.index)) {
+			ni_warn("Unable to track route device index %u",
+				nh->device.index);
+			ret = -1;
+		} else {
+			ni_string_dup(&nh->device.name, dev->name);
+			ret = 0;
+
+			if (ni_log_level_at(NI_LOG_DEBUG2)) {
+				ni_debug_ifconfig("Route recorded for device %s[%u]: %s [owner %s]",
+						dev->name, dev->link.ifindex, ni_route_print(&buf, rp),
+						ni_addrconf_type_to_name(rp->owner));
+				ni_stringbuf_destroy(&buf);
+			}
+		}
+	}
+
+	if (ret == 1 && ni_log_level_at(NI_LOG_DEBUG1)) {
+		ni_debug_ifconfig("Route not recorded for any device: %s [owner %s]",
+				ni_route_print(&buf, rp), ni_addrconf_type_to_name(rp->owner));
+		ni_stringbuf_destroy(&buf);
+	}
+
+	ni_uint_array_destroy(&idx);
+	return ret;
+}
+
+int
+ni_netconfig_route_del(ni_netconfig_t *nc, ni_route_t *rp, ni_netdev_t *dev)
+{
+	ni_route_nexthop_t *nh;
+	int ret = 1;
+
+	/* dev is only a hint */
+	if (!nc || !ni_route_ref(rp))
+		return -1;
+
+	if (dev && ni_route_tables_del_route(dev->routes, rp))
+		ret = 0;
+
+	for (nh = &rp->nh; nh; nh = nh->next) {
+		if (!nh->device.index)
+			continue;
+
+		if (dev && nh->device.index == dev->link.ifindex)
+			continue;
+
+		if (!(dev = ni_netdev_by_index(nc, nh->device.index)))
+			continue;
+
+		if (ni_route_tables_del_route(dev->routes, rp))
+			ret = 0;
+	}
+
+	ni_route_free(rp);
+	return ret;
+}
+
+ni_rule_array_t *
+ni_netconfig_rule_array(ni_netconfig_t *nc)
+{
+	return nc ? &nc->route.rules : NULL;
+}
+
+int
+ni_netconfig_rule_add(ni_netconfig_t *nc, ni_rule_t *rule)
+{
+	unsigned int i, last = 0;
+	ni_rule_array_t *rules;
+	const ni_rule_t *r;
+
+	if (!(rules = ni_netconfig_rule_array(nc)) || !rule)
+		return -1;
+
+	for (i = 0; i < rules->count; ++i) {
+		r = rules->data[i];
+		if (r->pref > rule->pref)
+			break;
+		last = i + 1;
+	}
+
+	if (!ni_rule_array_insert(rules, last, ni_rule_ref(rule))) {
+		ni_error("%s: unable to insert routing policy rule", __func__);
+		return -1;
+	}
+
+	return 0;
+}
+
+int
+ni_netconfig_rule_del(ni_netconfig_t *nc, const ni_rule_t *rule, ni_rule_t **pdel)
+{
+	ni_rule_array_t *rules;
+	unsigned int i;
+	ni_rule_t *r;
+
+	if (!(rules = ni_netconfig_rule_array(nc)) || !rule)
+		return -1;
+
+	for (i = 0; i < rules->count; ++i) {
+		r = rules->data[i];
+		if (!ni_rule_equal(r, rule))
+			continue;
+
+		if (pdel) {
+			*pdel = ni_rule_array_remove(rules, i);
+			if (!*pdel) {
+				ni_error("%s: unable to remove policy rule", __func__);
+				return -1;
+			}
+		} else {
+			if (!ni_rule_array_delete(rules, i)) {
+				ni_error("%s: unable to remove policy rule", __func__);
+				return -1;
+			}
+		}
+
+		return 0;
+	}
+	return 1;
+}
+
+ni_rule_t *
+ni_netconfig_rule_find(ni_netconfig_t *nc, const ni_rule_t *rule)
+{
+	ni_rule_array_t *rules;
+	unsigned int i;
+	ni_rule_t *r;
+
+	if (!(rules = ni_netconfig_rule_array(nc)) || !rule)
+		return NULL;
+
+	for (i = 0; i < rules->count; ++i) {
+		r = rules->data[i];
+		if (ni_rule_equal(r, rule))
+			return r;
+	}
+	return NULL;
+}
+
+
+/*
  * Find interface by name
  */
 ni_netdev_t *
@@ -621,7 +804,7 @@ ni_netdev_by_name(ni_netconfig_t *nc, const char *name)
 	ni_netdev_t *dev;
 
 	for (dev = nc->interfaces; dev; dev = dev->next) {
-		if (dev->name && !strcmp(dev->name, name))
+		if (dev->name && ni_string_eq(dev->name, name))
 			return dev;
 	}
 
@@ -952,6 +1135,11 @@ ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
 
 	ni_address_list_destroy(&lease->addrs);
 	ni_route_tables_destroy(&lease->routes);
+
+	if (lease->rules) {
+		ni_rule_array_free(lease->rules);
+		lease->rules = NULL;
+	}
 
 	if (lease->nis) {
 		ni_nis_info_free(lease->nis);

@@ -46,6 +46,12 @@ extern void		ni_netconfig_device_append(ni_netconfig_t *, ni_netdev_t *);
 extern void		ni_netconfig_device_remove(ni_netconfig_t *, ni_netdev_t *);
 extern ni_netdev_t **	ni_netconfig_device_list_head(ni_netconfig_t *);
 extern void		ni_netconfig_modem_append(ni_netconfig_t *, ni_modem_t *);
+extern int		ni_netconfig_route_add(ni_netconfig_t *, ni_route_t *, ni_netdev_t *);
+extern int		ni_netconfig_route_del(ni_netconfig_t *, ni_route_t *, ni_netdev_t *);
+extern int		ni_netconfig_rule_add(ni_netconfig_t *, ni_rule_t *);
+extern int		ni_netconfig_rule_del(ni_netconfig_t *, const ni_rule_t *, ni_rule_t **);
+extern ni_rule_t *	ni_netconfig_rule_find(ni_netconfig_t *, const ni_rule_t *);
+extern ni_rule_array_t *ni_netconfig_rule_array(ni_netconfig_t *);
 
 extern ni_bool_t	ni_netconfig_set_discover_filter(ni_netconfig_t *, unsigned int);
 extern ni_bool_t	ni_netconfig_discover_filtered(ni_netconfig_t *, unsigned int);
@@ -63,7 +69,7 @@ extern void		__ni_netdev_track_ipv6_autoconf(ni_netdev_t *, int);
 extern unsigned int	__ni_netdev_translate_ifflags(unsigned int, unsigned int);
 extern void		__ni_netdev_process_events(ni_netconfig_t *, ni_netdev_t *, unsigned int);
 extern void		__ni_netdev_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
-extern int		__ni_netdev_record_newroute(ni_netconfig_t *nc, ni_netdev_t *dev, ni_route_t *rp);
+
 extern int		__ni_ipv4_devconf_process_flags(ni_netdev_t *, int32_t *, unsigned int);
 extern int		__ni_ipv6_devconf_process_flags(ni_netdev_t *, int32_t *, unsigned int);
 
@@ -76,6 +82,8 @@ extern int		__ni_system_refresh_interfaces(ni_netconfig_t *nc);
 extern int		__ni_system_refresh_interface(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_system_refresh_interface_addrs(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_system_refresh_interface_routes(ni_netconfig_t *, ni_netdev_t *);
+extern int		__ni_system_refresh_routes(ni_netconfig_t *);
+extern int		__ni_system_refresh_rules(ni_netconfig_t *);
 extern int		__ni_device_refresh_link_info(ni_netconfig_t *, ni_linkinfo_t *);
 extern int		__ni_device_refresh_ipv6_link_info(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_system_interface_configure(ni_netconfig_t *, ni_netdev_t *, const ni_netdev_t *);

@@ -68,6 +68,7 @@
 #  endif
 #endif
 #include <linux/if_tunnel.h>
+#include <linux/fib_rules.h>
 
 #include "netinfo_priv.h"
 #include "util_priv.h"
@@ -112,6 +113,9 @@ static int	__ni_netdev_update_addrs(ni_netdev_t *dev,
 static int	__ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_addrconf_lease_t       *new_lease);
+static int	__ni_netdev_update_rules(ni_netconfig_t *nc, ni_netdev_t *dev,
+				const ni_addrconf_lease_t *old_lease,
+				ni_addrconf_lease_t       *new_lease);
 static int	__ni_netdev_update_mtu(ni_netconfig_t *nc, ni_netdev_t *dev,
 				const ni_addrconf_lease_t *old_lease,
 				ni_addrconf_lease_t       *new_lease);
@@ -133,6 +137,8 @@ static int	__ni_rtnl_send_deladdr(ni_netdev_t *, const ni_address_t *);
 static int	__ni_rtnl_send_newaddr(ni_netdev_t *, const ni_address_t *, int);
 static int	__ni_rtnl_send_delroute(ni_netdev_t *, ni_route_t *);
 static int	__ni_rtnl_send_newroute(ni_netdev_t *, ni_route_t *, int);
+static int	__ni_rtnl_send_newrule(const ni_rule_t *, int);
+static int	__ni_rtnl_send_delrule(const ni_rule_t *);
 
 static int	__ni_system_netdev_create(ni_netconfig_t *nc,
 					const char *ifname, unsigned int ifindex,
@@ -520,6 +526,9 @@ __ni_addrconf_action_routes_apply(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	if ((res = __ni_netdev_update_routes(nc, dev, lease->old, lease)) < 0)
 		return res;
 
+	if ((res = __ni_netdev_update_rules(nc, dev, lease->old, lease)) < 0)
+		return res;
+
 	if ((res = __ni_system_refresh_interface_routes(nc, dev)) < 0)
 		return res;
 
@@ -559,6 +568,9 @@ __ni_addrconf_action_routes_remove(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 		return res;
 
 	if ((res = __ni_netdev_update_routes(nc, dev, lease->old, NULL)) < 0)
+		return res;
+
+	if ((res = __ni_netdev_update_rules(nc, dev, lease->old, NULL)) < 0)
 		return res;
 
 	if ((res = __ni_system_refresh_interface_routes(nc, dev)) < 0)
@@ -3834,6 +3846,144 @@ failed:
 	return -1;
 }
 
+static int
+ni_rtnl_rule_msg_put(struct nl_msg *msg, const ni_rule_t *rule)
+{
+	if (ni_route_is_valid_table(rule->table))
+		NLA_PUT_U32(msg, FRA_TABLE, rule->table);
+
+	if (rule->set & NI_RULE_SET_PREF)
+		NLA_PUT_U32(msg, FRA_PRIORITY, rule->pref);
+
+	if (rule->fwmark)
+		NLA_PUT_U32(msg, FRA_FWMARK, rule->fwmark);
+
+	if (rule->fwmask)
+		NLA_PUT_U32(msg, FRA_FWMASK, rule->fwmask);
+
+	if (rule->realm)
+		NLA_PUT_U32(msg, FRA_FLOW, rule->realm);
+
+	if (rule->action == NI_RULE_ACTION_GOTO)
+		NLA_PUT_U32(msg, FRA_GOTO, rule->target);
+
+	if (!ni_string_empty(rule->iif.name))
+		NLA_PUT_STRING(msg, FRA_IIFNAME, rule->iif.name);
+
+	if (!ni_string_empty(rule->oif.name))
+		NLA_PUT_STRING(msg, FRA_OIFNAME, rule->oif.name);
+
+	if (rule->dst.len && !ni_sockaddr_is_unspecified(&rule->dst.addr) &&
+			addattr_sockaddr(msg, FRA_DST, &rule->dst.addr))
+		goto nla_put_failure;
+
+	if (rule->src.len && !ni_sockaddr_is_unspecified(&rule->src.addr) &&
+			addattr_sockaddr(msg, FRA_SRC, &rule->src.addr))
+		goto nla_put_failure;
+
+	if (rule->suppress_ifgroup && rule->suppress_ifgroup != -1U)
+		NLA_PUT_U32(msg, FRA_SUPPRESS_IFGROUP, rule->suppress_ifgroup);
+
+	if (rule->suppress_prefixlen && rule->suppress_prefixlen != -1U)
+		NLA_PUT_U32(msg, FRA_SUPPRESS_PREFIXLEN, rule->suppress_prefixlen);
+
+	return 0;
+
+nla_put_failure:
+	return -1;
+}
+
+static int
+__ni_rtnl_send_newrule(const ni_rule_t *rule, int flags)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	struct nl_msg *msg;
+	struct fib_rule_hdr frh;
+	int err;
+
+	ni_debug_ifconfig("%s(%s%s)", __FUNCTION__,
+			flags & NLM_F_REPLACE ? "replace " :
+			flags & NLM_F_CREATE  ? "create " : "",
+			ni_rule_print(&buf, rule));
+	ni_stringbuf_destroy(&buf);
+
+	memset(&frh, 0, sizeof(frh));
+	frh.family = rule->family;
+	frh.action = rule->action;
+	frh.table = rule->table > RT_TABLE_LOCAL ? RT_TABLE_UNSPEC : rule->table;
+	frh.dst_len = rule->dst.len && !ni_sockaddr_is_unspecified(&rule->dst.addr) ? rule->dst.len : 0;
+	frh.src_len = rule->src.len && !ni_sockaddr_is_unspecified(&rule->src.addr) ? rule->src.len : 0;
+	if (rule->flags & NI_BIT(NI_RULE_INVERT))
+		frh.flags |= FIB_RULE_INVERT;
+	frh.tos = rule->tos;
+
+	msg = nlmsg_alloc_simple(RTM_NEWRULE, NLM_F_REQUEST | flags);
+	if (nlmsg_append(msg, &frh, sizeof(frh), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	if (ni_rtnl_rule_msg_put(msg, rule) < 0)
+		goto nla_put_failure;
+
+	if ((err = ni_nl_talk(msg, NULL)) && abs(err) != NLE_EXIST) {
+		ni_error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_rule_print(&buf, rule));
+		ni_stringbuf_destroy(&buf);
+		goto failed;
+	}
+
+	nlmsg_free(msg);
+	return 0;
+
+nla_put_failure:
+	ni_error("failed to encode netlink NEWRULE message attribute");
+failed:
+	nlmsg_free(msg);
+	return -1;
+}
+
+static int
+__ni_rtnl_send_delrule(const ni_rule_t *rule)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	struct fib_rule_hdr frh;
+	struct nl_msg *msg;
+	int err;
+
+	ni_debug_ifconfig("%s(%s)", __FUNCTION__, ni_rule_print(&buf, rule));
+	ni_stringbuf_destroy(&buf);
+
+	memset(&frh, 0, sizeof(frh));
+	frh.family = rule->family;
+	frh.action = rule->action;
+	frh.table = rule->table > RT_TABLE_LOCAL ? RT_TABLE_UNSPEC : rule->table;
+	frh.dst_len = rule->dst.len && !ni_sockaddr_is_unspecified(&rule->dst.addr) ? rule->dst.len : 0;
+	frh.src_len = rule->src.len && !ni_sockaddr_is_unspecified(&rule->src.addr) ? rule->src.len : 0;
+	if (rule->flags & NI_BIT(NI_RULE_INVERT))
+		frh.flags |= FIB_RULE_INVERT;
+	frh.tos = rule->tos;
+
+	msg = nlmsg_alloc_simple(RTM_DELRULE, NLM_F_REQUEST);
+	if (nlmsg_append(msg, &frh, sizeof(frh), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	if (ni_rtnl_rule_msg_put(msg, rule) < 0)
+		goto nla_put_failure;
+
+	if ((err = ni_nl_talk(msg, NULL)) && abs(err) != NLE_OBJ_NOTFOUND) {
+		ni_error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_rule_print(&buf, rule));
+		ni_stringbuf_destroy(&buf);
+		goto failed;
+	}
+
+	nlmsg_free(msg);
+	return 0;
+
+nla_put_failure:
+	ni_error("failed to encode netlink DELRULE message attribute");
+failed:
+	nlmsg_free(msg);
+	return -1;
+}
+
 static void
 __ni_netdev_addr_complete(ni_netdev_t *dev, ni_address_t *ap)
 {
@@ -4361,7 +4511,7 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 					ni_stringbuf_destroy(&buf);
 					new_route->owner = new_lease->type;
 					new_route->seq = __ni_global_seqno;
-					__ni_netdev_record_newroute(nc, dev, new_route);
+					ni_netconfig_route_add(nc, new_route, dev);
 
 					continue;
 				}
@@ -4405,12 +4555,304 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 
 			rp->owner = new_lease->type;
 			rp->seq = __ni_global_seqno;
-			__ni_netdev_record_newroute(nc, dev, rp);
+			ni_netconfig_route_add(nc, rp, dev);
 		}
 	}
 
 	return rv;
 }
+
+const ni_addrconf_lease_t *
+ni_netdev_find_rule_uuid_owner(ni_netdev_t *dev, ni_rule_t *rule, unsigned int minprio)
+{
+	const ni_addrconf_lease_t *lease;
+
+	if (!dev || !rule || ni_uuid_is_null(&rule->owner))
+		return NULL;
+
+	if (!(lease = ni_netdev_get_lease_by_uuid(dev, &rule->owner)))
+		return NULL;
+
+	if (lease->family != rule->family)
+		return NULL;
+
+	if (lease->state != NI_ADDRCONF_STATE_GRANTED)
+		return NULL;
+
+	if (ni_addrconf_lease_get_priority(lease) < minprio)
+		return NULL;
+
+	if (!ni_rule_array_find_match(lease->rules, rule, ni_rule_equal))
+		return NULL;
+
+	return lease;
+}
+
+const ni_addrconf_lease_t *
+ni_netdev_find_rule_lost_owner(ni_netdev_t *dev, ni_rule_t *rule, unsigned int minprio)
+{
+	const ni_addrconf_lease_t *found = NULL;
+	const ni_addrconf_lease_t *lease;
+	unsigned int prio;
+
+	if (!dev || !rule)
+		return NULL;
+
+	for (lease = dev->leases; lease; lease = lease->next) {
+		if (lease->family != rule->family)
+			continue;
+
+		if (lease->state != NI_ADDRCONF_STATE_GRANTED)
+			continue;
+
+		if ((prio = ni_addrconf_lease_get_priority(lease)) < minprio)
+			continue;
+
+		if (!ni_rule_array_find_match(lease->rules, rule, ni_rule_equal))
+			continue;
+
+		if (!found || prio > ni_addrconf_lease_get_priority(found))
+			found = lease;
+	}
+
+	return found;
+}
+
+static const ni_addrconf_lease_t *
+ni_netinfo_find_rule_uuid_owner(ni_netconfig_t *nc, ni_rule_t *rule, unsigned int minprio)
+{
+	const ni_addrconf_lease_t *found = NULL;
+	const ni_addrconf_lease_t *lease;
+	unsigned int prio;
+	ni_netdev_t *dev;
+
+	if (!nc || !rule || ni_uuid_is_null(&rule->owner))
+		return NULL;
+
+	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
+		if (!(lease = ni_netdev_find_rule_uuid_owner(dev, rule, minprio)))
+			continue;
+
+		prio = ni_addrconf_lease_get_priority(lease);
+		if (!found || prio > ni_addrconf_lease_get_priority(found))
+			found = lease;
+	}
+
+	if (found) {
+		ni_trace("found uuid rule owner");
+	}
+	return found;
+}
+
+static const ni_addrconf_lease_t *
+ni_netinfo_find_rule_lost_owner(ni_netconfig_t *nc, ni_rule_t *rule, unsigned int minprio)
+{
+	const ni_addrconf_lease_t *found = NULL;
+	const ni_addrconf_lease_t *lease;
+	unsigned int prio;
+	ni_netdev_t *dev;
+
+	if (!nc || !rule)
+		return NULL;
+
+	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
+		if (!(lease = ni_netdev_find_rule_lost_owner(dev, rule, minprio)))
+			continue;
+
+		prio = ni_addrconf_lease_get_priority(lease);
+		if (!found || prio > ni_addrconf_lease_get_priority(found))
+			found = lease;
+	}
+
+	if (found) {
+		ni_trace("found lost rule owner");
+	}
+	return found;
+}
+
+static const ni_addrconf_lease_t *
+ni_netinfo_find_rule_owner(ni_netconfig_t *nc, ni_rule_t *rule, unsigned int minprio)
+{
+	const ni_addrconf_lease_t *found;
+
+	if ((found = ni_netinfo_find_rule_uuid_owner(nc, rule, minprio)))
+		return found;
+
+	return ni_netinfo_find_rule_lost_owner(nc, rule, minprio);
+}
+
+static int
+__ni_netdev_update_rules(ni_netconfig_t *nc, ni_netdev_t *dev,
+			const ni_addrconf_lease_t *old_lease,
+			ni_addrconf_lease_t       *new_lease)
+{
+	ni_stringbuf_t out = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_rule_array_t del_rules = NI_RULE_ARRAY_INIT;
+	ni_rule_array_t mod_rules = NI_RULE_ARRAY_INIT;
+	const ni_addrconf_lease_t *lease;
+	ni_rule_array_t *old_rules;
+	ni_rule_array_t *new_rules;
+	ni_rule_t *rule, *r;
+	unsigned int prio;
+	unsigned int i;
+
+	do {
+		__ni_global_seqno++;
+	} while (!__ni_global_seqno);
+
+	if (new_lease && (new_rules = new_lease->rules)) {
+		old_rules = old_lease ? old_lease->rules : NULL;
+
+		for (i = 0; i < new_rules->count; ++i) {
+			rule = new_rules->data[i];
+
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+					"%s: checking new lease rule %s",
+					dev->name, ni_rule_print(&out, rule));
+			ni_stringbuf_destroy(&out);
+
+			if (!rule || ni_rule_array_index(&mod_rules, rule) != -1U)
+				continue;
+
+			r = ni_rule_array_find_match(old_rules, rule, ni_rule_equal);
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+					"%s: rule to %s: %s", dev->name,
+					r ? "update" : "create",
+					ni_rule_print(&out, rule));
+			ni_stringbuf_destroy(&out);
+
+			rule->seq = r ? __ni_global_seqno : 0;
+			ni_rule_array_append(&mod_rules, ni_rule_ref(rule));
+		}
+	} else {
+		ni_trace("%s: no new lease rules", dev->name);
+	}
+
+	if (old_lease && (old_rules = old_lease->rules)) {
+		new_rules = new_lease ? new_lease->rules : NULL;
+
+		for (i = 0; i < old_rules->count; ++i) {
+			rule = old_rules->data[i];
+
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+					"%s: checking old lease rule %s",
+					dev->name, ni_rule_print(&out, rule));
+			ni_stringbuf_destroy(&out);
+
+			if (!rule || ni_rule_array_index(&del_rules, rule) != -1U)
+				continue;
+
+			if (ni_rule_array_find_match(&mod_rules, rule, ni_rule_equal))
+				continue;
+
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+					"%s: rule to delete: %s",
+					dev->name, ni_rule_print(&out, rule));
+			ni_stringbuf_destroy(&out);
+
+			ni_rule_array_append(&del_rules, ni_rule_ref(rule));
+		}
+	} else {
+		ni_trace("%s: no old lease rules", dev->name);
+	}
+
+	for (i = 0; i < del_rules.count; ++i) {
+		rule = del_rules.data[i];
+
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+				"%s: about to modify rule %s",
+				dev->name, ni_rule_print(&out, rule));
+		ni_stringbuf_destroy(&out);
+
+		if ((r = ni_netconfig_rule_find(nc, rule))) {
+			const char *is_ours = "";
+
+			if (ni_uuid_is_null(&r->owner) && ni_uuid_equal(&old_lease->uuid, &r->owner))
+				is_ours = "is ours ";
+
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+					"%s: rule to delete exist: %s <owner uuid %s%s>",
+					dev->name, ni_rule_print(&out, r),
+					ni_uuid_print(&r->owner), is_ours);
+
+			if ((lease = ni_netinfo_find_rule_owner(nc, r, 0))) {
+				ni_trace("%s: keeping rule, lease %s:%s uuid %s prio %u provides the rule",
+						dev->name,
+						ni_addrfamily_type_to_name(lease->family),
+						ni_addrconf_type_to_name(lease->type),
+						ni_uuid_print(&lease->uuid),
+						ni_addrconf_lease_get_priority(lease));
+				ni_trace("%s: taking over rule lease owner", dev->name);
+				r->owner = lease->uuid;
+				continue;
+			}
+
+			/* OK to delete -- no other lease provides it */
+			if (__ni_rtnl_send_delrule(rule) < 0)
+				continue;
+
+			ni_netconfig_rule_del(nc, rule, NULL);
+		}
+	}
+
+	for (i = 0; i < mod_rules.count; ++i) {
+		rule = mod_rules.data[i];
+
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+				"%s: about to apply rule %s",
+				dev->name, ni_rule_print(&out, rule));
+		ni_stringbuf_destroy(&out);
+
+		if ((r = ni_netconfig_rule_find(nc, rule))) {
+			const char *is_ours = "";
+
+			if (old_lease && ni_uuid_is_null(&r->owner) && ni_uuid_equal(&old_lease->uuid, &r->owner))
+				is_ours = "is ours ";
+
+			prio = ni_addrconf_lease_get_priority(new_lease);
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+					"%s: rule to apply exist: %s <owner uuid %s%s> check minprio %u owner>",
+					dev->name, ni_rule_print(&out, r),
+					ni_uuid_print(&r->owner), is_ours, prio);
+
+			if ((lease = ni_netinfo_find_rule_owner(nc, r, prio))) {
+				ni_trace("%s: keeping rule lease %s:%s owner %s prio %u (ours %u)",
+						dev->name,
+						ni_addrfamily_type_to_name(lease->family),
+						ni_addrconf_type_to_name(lease->type),
+						ni_uuid_print(&lease->uuid),
+						ni_addrconf_lease_get_priority(lease), prio);
+			} else {
+				ni_trace("%s: taking over rule lease owner", dev->name);
+				r->owner = new_lease->uuid;
+			}
+			continue;
+		} else {
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+					"%s: applying new rule %s",
+					dev->name, ni_rule_print(&out, rule));
+			ni_stringbuf_destroy(&out);
+		}
+
+		if (!(r = ni_rule_clone(rule))) {
+			ni_error("%s: unable to clone rule: %s", dev->name,
+					ni_rule_print(&out, rule));
+			ni_stringbuf_destroy(&out);
+			continue;
+		}
+
+		r->seq = __ni_global_seqno;
+		r->owner = new_lease->uuid;
+		if (__ni_rtnl_send_newrule(r, NLM_F_REPLACE) < 0) {
+			ni_rule_free(r);
+		} else {
+			ni_netconfig_rule_add(nc, r);
+		}
+	}
+
+	return 0;
+}
+
 
 /*
  * Get the MTU specified by this lease

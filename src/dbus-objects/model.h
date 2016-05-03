@@ -175,6 +175,10 @@ extern dbus_bool_t		__ni_objectmodel_get_route_dict(ni_route_table_t *list,
 extern dbus_bool_t		__ni_objectmodel_set_route_dict(ni_route_table_t **list,
 						const ni_dbus_variant_t *dict,
 						DBusError *error);
+extern dbus_bool_t		__ni_objectmodel_get_rule_dict(ni_rule_array_t *rules, unsigned int family,
+						ni_dbus_variant_t *result, DBusError *error);
+extern dbus_bool_t		__ni_objectmodel_set_rule_dict(ni_rule_array_t **rules, unsigned int family,
+						const ni_dbus_variant_t *dict, DBusError *error);
 extern dbus_bool_t		__ni_objectmodel_get_domain_string(const ni_dbus_variant_t *,
 						const char *, const char **);
 extern dbus_bool_t		__ni_objectmodel_set_resolver_dict(ni_resolver_info_t **,

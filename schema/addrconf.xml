@@ -101,6 +101,7 @@
   <define name="request" class="dict">
     <address type="network-interface:assigned-address" />
     <route type="network-interface:assigned-route" />
+    <rule type="network-interface:assigned-rule" />
     <hostname type="string" />
     <resolver class="dict">
       <default-domain type="string" />
@@ -137,6 +138,7 @@
   <define name="request" class="dict">
     <address type="network-interface:assigned-address" />
     <route type="network-interface:assigned-route" />
+    <rule type="network-interface:assigned-rule" />
     <hostname type="string" />
     <resolver class="dict">
       <default-domain type="string" />
