@@ -36,6 +36,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/route.h>
 #include "util_priv.h"
+#include "debug.h"
 
 #define NI_ROUTE_ARRAY_CHUNK		16
 #define NI_RULE_ARRAY_CHUNK		4
@@ -1957,11 +1958,6 @@ ni_rule_free(ni_rule_t *rule)
 			do_rule_free(rule);
 	}
 }
-
-#ifndef NI_RULE_TRACE_CMP_LEVEL
-#define NI_RULE_TRACE_CMP_LEVEL		NI_LOG_DEBUG1
-#define NI_RULE_TRACE_CMP_SHOW_ALL	0
-#endif
 
 static int
 do_rule_cmp_show(int ret, const char *what)
