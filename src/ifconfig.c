@@ -3795,7 +3795,7 @@ ni_rtnl_rule_msg_put(struct nl_msg *msg, const ni_rule_t *rule)
 		goto nla_put_failure;
 
 	if (rule->src.len && !ni_sockaddr_is_unspecified(&rule->src.addr) &&
-			addattr_sockaddr(msg, FRA_SRC, &rule->dst.addr))
+			addattr_sockaddr(msg, FRA_SRC, &rule->src.addr))
 		goto nla_put_failure;
 
 	if (rule->suppress_ifgroup && rule->suppress_ifgroup != -1U)
