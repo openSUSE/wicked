@@ -1092,7 +1092,7 @@ ni_system_infiniband_child_create(ni_netconfig_t *nc,
 	 *       but we need it for object path in factory.
 	 */
 	for (i = 0; i < 400; ++i) {
-		if (!ni_sysfs_netif_exists(tmpname, "ifindex"))
+		if (!ni_netdev_name_to_index(tmpname))
 			usleep(25000);
 		success = 1;
 		break;
@@ -1386,7 +1386,7 @@ ni_system_ovs_bridge_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netde
 
 	/* Wait for sysfs to appear */
 	for (i = 0; i < 400; ++i) {
-		if (ni_sysfs_netif_exists(cfg->name, "ifindex"))
+		if (ni_netdev_name_to_index(cfg->name))
 			break;
 		usleep(25000);
 	}
@@ -1730,7 +1730,7 @@ ni_system_team_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **
 
 	/* Wait for sysfs to appear */
 	for (i = 0; i < 400; ++i) {
-		if (ni_sysfs_netif_exists(cfg->name, "ifindex"))
+		if (ni_netdev_name_to_index(cfg->name))
 			break;
 		usleep(25000);
 	}
