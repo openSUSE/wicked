@@ -967,10 +967,8 @@ ni_string_set(char **pp, const char *value, size_t len)
 		newval[len] = '\0';
 	}
 
-	if (*pp) {
-		free(*pp);
-		*pp = newval;
-	}
+	free(*pp);
+	*pp = newval;
 
 	return TRUE;
 }
