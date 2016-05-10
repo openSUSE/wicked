@@ -1401,16 +1401,22 @@ ni_teamd_config_file_write(const char *instance, const ni_team_t *config, const 
 	if (fchown(fd, owner, group) < 0) {
 		ni_error("Unable to change ownership of %s to UID: %u, GID: %u (%m)\n",
 			filename, owner, group);
+		fclose(fp);
+		unlink(tempname);
+		free(filename);
 		return -1;
 	}
 
 	if (fchmod(fd, NI_TEAMD_CONFIG_FILE_MODE) < 0) {
 		ni_error("Unable to change permissions of %s (%m)\n", filename);
+		fclose(fp);
+		unlink(tempname);
+		free(filename);
 		return -1;
 	}
 	fclose(fp);
 
-	if ((fd = rename(tempname, filename)) != 0) {
+	if (rename(tempname, filename) != 0) {
 		ni_error("%s: unable to commit teamd config file to '%s'", instance, filename);
 		unlink(tempname);
 		free(filename);
@@ -1418,7 +1424,7 @@ ni_teamd_config_file_write(const char *instance, const ni_team_t *config, const 
 	}
 
 	ni_debug_ifconfig("%s: teamd config file written to '%s'", instance, filename);
-        free(filename);
+	free(filename);
 	return 0;
 }
 
