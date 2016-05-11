@@ -41,6 +41,7 @@
 #include "dbus-objects/model.h"
 #include "appconfig.h"
 #include "util_priv.h"
+#include "systemctl.h"
 #include "process.h"
 #include "buffer.h"
 #include "teamd.h"
@@ -91,7 +92,25 @@ struct ni_teamd_client {
 	ni_shellcmd_t *		cmd;
 };
 
-static const char *		ni_teamd_service_show_property(const char *, const char *, char **);
+static inline const char *
+ni_teamd_service_show_property(const char *ifname, const char *property, char **result)
+{
+	char *service = NULL;
+	const char *ret;
+
+	/*
+	 * systemctl --no-pager -p ${property} show teamd@${ifname}.service
+	 *  -->	${property}=...
+	 *  e.g.:
+	 * 	BusName=
+	 * 	BusName=org.libteam.teamd.team1
+	 */
+	ni_string_printf(&service, NI_TEAMD_SERVICE_FMT, ifname);
+	ret = ni_systemctl_service_show_property(service, property, result);
+
+	ni_string_free(&service);
+	return ret;
+}
 
 /*
  * === dbus client ===
@@ -1442,206 +1461,41 @@ ni_teamd_config_file_remove(const char *instance)
 	return ret;
 }
 
-const char *ni_systemctl_tool_path()
-{
-	static const char *paths[] = {
-		"/usr/bin/systemctl",
-		"/bin/systemctl",
-		NULL
-	};
-	const char *path = ni_find_executable(paths);
-	if (!path)
-		ni_warn_once("unable to find systemctl utility");
-	return path;
-}
-
 /*
  * teamd systemd instance service methods
  */
 int
 ni_teamd_service_start(const ni_netdev_t *cfg)
 {
-	const char *systemctl;
-	char *service = NULL;
-	ni_shellcmd_t *cmd;
-	ni_process_t *pi;
 	int rv;
+	char *service = NULL;
 
 	if (!cfg || ni_string_empty(cfg->name) || !cfg->team)
 		return -1;
 
-	if (!(systemctl = ni_systemctl_tool_path()))
+	if (ni_teamd_config_file_write(cfg->name, cfg->team, &cfg->link.hwaddr) < 0)
 		return -1;
-
-	if (!(cmd = ni_shellcmd_new(NULL)))
-		return -1;
-
-	if (!ni_shellcmd_add_arg(cmd, systemctl))
-		goto failure;
-
-	if (!ni_shellcmd_add_arg(cmd, "start"))
-		goto failure;
 
 	ni_string_printf(&service, NI_TEAMD_SERVICE_FMT, cfg->name);
-	if (!service || !ni_shellcmd_add_arg(cmd, service))
-		goto failure;
+	rv = ni_systemctl_service_start(service);
+	if (rv < 0)
+		ni_teamd_config_file_remove(cfg->name);
 
-	if (ni_teamd_config_file_write(cfg->name, cfg->team, &cfg->link.hwaddr) < 0)
-		goto failure;
-
-	if (!(pi = ni_process_new(cmd)))
-		goto failure;
-	ni_shellcmd_release(cmd);
-
-	rv = ni_process_run_and_wait(pi);
-	ni_process_free(pi);
-	free(service);
-
+	ni_string_free(&service);
 	return rv;
-
-failure:
-	if (cmd)
-		ni_shellcmd_release(cmd);
-	if (service)
-		free(service);
-	return -1;
 }
 
 int
 ni_teamd_service_stop(const char *ifname)
 {
-	const char *systemctl;
-	char *service = NULL;
-	ni_shellcmd_t *cmd;
-	ni_process_t *pi;
 	int rv;
-
-	if (ni_string_empty(ifname))
-		return -1;
-
-	if (!(cmd = ni_shellcmd_new(NULL)))
-		return -1;
-
-	if (!(systemctl = ni_systemctl_tool_path()))
-		return -1;
-
-	if (!ni_shellcmd_add_arg(cmd, systemctl))
-		goto failure;
-
-	if (!ni_shellcmd_add_arg(cmd, "stop"))
-		goto failure;
+	char *service = NULL;
 
 	ni_string_printf(&service, NI_TEAMD_SERVICE_FMT, ifname);
-	if (!service || !ni_shellcmd_add_arg(cmd, service))
-		goto failure;
-
-	if (!(pi = ni_process_new(cmd)))
-		goto failure;
-	ni_shellcmd_release(cmd);
-
-	rv = ni_process_run_and_wait(pi);
-	ni_process_free(pi);
-
+	rv = ni_systemctl_service_stop(service);
 	ni_teamd_config_file_remove(ifname);
-	free(service);
 
-	return rv;
-
-failure:
-	if (cmd)
-		ni_shellcmd_release(cmd);
-	if (service)
-		free(service);
-	return -1;
-}
-
-static const char *
-ni_teamd_service_show_property(const char *ifname, const char *property, char **result)
-{
-	const char *systemctl;
-	char *complete = NULL;
-	char *service = NULL;
-	char *ptr;
-	ni_shellcmd_t *cmd;
-	ni_process_t *pi;
-	ni_buffer_t buf;
-	int rv;
-
-	if (ni_string_empty(ifname) || ni_string_empty(property) || !result)
-		return NULL;
-
-	if (!ni_string_printf(&complete, "%s=", property))
-		return NULL;
-
-	/*
-	 * systemctl --no-pager -p ${property} show teamd@${ifname}.service
-	 *  -->	${property}=...
-	 *  e.g.:
-	 * 	BusName=
-	 * 	BusName=org.libteam.teamd.team1
-	 */
-	if (!(systemctl = ni_systemctl_tool_path()))
-		return NULL;
-
-	ni_buffer_init_dynamic(&buf, 1024);
-	if (!(cmd = ni_shellcmd_new(NULL)))
-		goto failure;
-
-	if (!ni_shellcmd_add_arg(cmd, systemctl))
-		goto failure;
-
-	if (!ni_shellcmd_add_arg(cmd, "--no-pager"))
-		goto failure;
-
-	if (!ni_shellcmd_add_arg(cmd, "-p"))
-		goto failure;
-
-	if (!ni_shellcmd_add_arg(cmd, property))
-		goto failure;
-
-	if (!ni_shellcmd_add_arg(cmd, "show"))
-		goto failure;
-
-	ni_string_printf(&service, NI_TEAMD_SERVICE_FMT, ifname);
-	if (!service || !ni_shellcmd_add_arg(cmd, service))
-		goto failure;
-
-	if (!(pi = ni_process_new(cmd)))
-		goto failure;
-
-	rv = ni_process_run_and_capture_output(pi, &buf);
-	ni_process_free(pi);
-	if (rv)
-		goto failure;
-
-	ni_buffer_putc(&buf, '\0');
-	ptr = (char *)ni_buffer_head(&buf);
-	ptr[strcspn(ptr, "\n\r")] = '\0';
-	if (!ni_string_startswith(ptr, complete))
-		goto failure;
-
-	if (!ni_buffer_pull_head(&buf, ni_string_len(complete)))
-		goto failure;
-
-	ptr = (char *)ni_buffer_head(&buf);
-	if (!ni_string_set(result, ptr, ni_string_len(ptr)))
-		goto failure;
-
-	ni_buffer_destroy(&buf);
-	ni_shellcmd_release(cmd);
 	ni_string_free(&service);
-	ni_string_free(&complete);
-	return *result;
-
-failure:
-	ni_error("%s: unable to to query teamd service bus name", ifname);
-	if (complete)
-		free(complete);
-	if (service)
-		free(service);
-	if (cmd)
-		ni_shellcmd_release(cmd);
-	ni_buffer_destroy(&buf);
-	return NULL;
+	return rv;
 }
 
