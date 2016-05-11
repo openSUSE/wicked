@@ -1184,6 +1184,7 @@ ni_link_address_is_invalid(const ni_hwaddr_t *hwa)
 		return TRUE;
 
 	case ARPHRD_NONE:
+	case ARPHRD_PPP:
 		return hwa->len != 0;
 
 	case ARPHRD_INFINIBAND:

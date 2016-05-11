@@ -1092,7 +1092,6 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname)
 		switch (link->hwaddr.type) {
 		case ARPHRD_LOOPBACK:
 			tmp_link_type = NI_IFTYPE_LOOPBACK;
-
 			break;
 
 		case ARPHRD_ETHER:
@@ -1133,7 +1132,6 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname)
 						tmp_link_type = NI_IFTYPE_OVS_BRIDGE;
 				}
 			}
-
 			break;
 
 		case ARPHRD_INFINIBAND:
@@ -1141,7 +1139,10 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname)
 				tmp_link_type = NI_IFTYPE_INFINIBAND_CHILD;
 			else
 				tmp_link_type = NI_IFTYPE_INFINIBAND;
+			break;
 
+		case ARPHRD_PPP:
+			tmp_link_type = NI_IFTYPE_PPP;
 			break;
 
 		case ARPHRD_SLIP:
@@ -1155,27 +1156,22 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname)
 						tmp_link_type = NI_IFTYPE_IUCV;
 				ni_string_free(&path);
 			}
-
 			break;
 
 		case ARPHRD_SIT:
 			tmp_link_type = NI_IFTYPE_SIT;
-
 			break;
 
 		case ARPHRD_IPGRE:
 			tmp_link_type = NI_IFTYPE_GRE;
-
 			break;
 
 		case ARPHRD_TUNNEL:
 			tmp_link_type = NI_IFTYPE_IPIP;
-
 			break;
 
 		case ARPHRD_TUNNEL6:
 			tmp_link_type = NI_IFTYPE_TUNNEL6;
-
 			break;
 
 		default:
