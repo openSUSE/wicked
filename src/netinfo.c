@@ -868,6 +868,15 @@ ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *parent_name, uint
 	return NULL;
 }
 
+unsigned int
+ni_netdev_name_to_index(const char *name)
+{
+	if (ni_string_empty(name))
+		return 0;
+
+	return if_nametoindex(name);
+}
+
 /*
  * Create a unique interface name
  */
