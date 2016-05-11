@@ -29,7 +29,8 @@ systemd_unit_files		= \
 	systemd/wickedd-auto4.service	\
 	systemd/wickedd-dhcp4.service	\
 	systemd/wickedd-dhcp6.service	\
-	systemd/wickedd-nanny.service
+	systemd/wickedd-nanny.service	\
+	systemd/wickedd-pppd@.service
 
 systemd_dbus_files		= \
 	systemd/org.opensuse.Network.AUTO4.service \

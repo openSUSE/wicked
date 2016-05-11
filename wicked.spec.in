@@ -238,10 +238,10 @@ _id=`readlink /etc/systemd/system/network.service 2>/dev/null` || :
 if test "x${_id##*/}" = "xnetwork.service" -a -x /etc/init.d/network ; then
 	/etc/init.d/network stop-all-dhcp-clients || :
 fi
-%{service_add_pre wicked.service}
+%{service_add_pre wicked.service wickedd-pppd@*.service}
 
 %post service
-%{service_add_post wicked.service}
+%{service_add_post wicked.service wickedd-pppd@*.service}
 # See bnc#843526: presets do not apply for upgrade / are not sufficient
 #                 to handle sysconfig-network|wicked -> wicked migration
 _id=`readlink /etc/systemd/system/network.service 2>/dev/null` || :
@@ -257,11 +257,11 @@ esac
 # - stopping wickedd should be sufficient ... other just to be sure.
 # - stopping of the wicked.service does not stop network, but removes
 #   the wicked.service --> network.service link and resets its status.
-%{service_del_preun wickedd.service wickedd-auto4.service wickedd-dhcp4.service wickedd-dhcp6.service wickedd-nanny.service wicked.service}
+%{service_del_preun wickedd.service wickedd-auto4.service wickedd-dhcp4.service wickedd-dhcp6.service wickedd-nanny.service wicked.service wickedd-pppd@*.service}
 
 %postun service
 # restart wickedd after upgrade
-%{service_del_postun wickedd.service}
+%{service_del_postun wickedd.service wickedd-pppd@*.service}
 
 %else
 
@@ -368,6 +368,7 @@ fi
 %_unitdir/wickedd-nanny.service
 %_unitdir/wickedd.service
 %_unitdir/wicked.service
+%_unitdir/wickedd-pppd@.service
 %attr(0600,root,root) %config /etc/sysconfig/network/ifcfg-lo
 %_sbindir/ifup
 %if "%_sbindir" != "/sbin"

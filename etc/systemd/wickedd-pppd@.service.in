@@ -1,0 +1,9 @@
+[Unit]
+Description=PPPD Daemon for device %I
+ConditionFileNotEmpty=/run/wicked/pppd/options.%I
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/pppd ifname %I nodetach file /run/wicked/pppd/options.%I
+Restart=on-failure
+RestartPreventExitStatus=1 2 5 19
