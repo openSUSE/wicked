@@ -120,6 +120,7 @@ ni_objectmodel_register_netif_services(void)
 	ni_objectmodel_register_netif_service(NI_IFTYPE_GRE, &ni_objectmodel_gre_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_INFINIBAND, &ni_objectmodel_ibparent_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_INFINIBAND_CHILD, &ni_objectmodel_ibchild_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_PPP, &ni_objectmodel_ppp_service);
 
 	if (ni_config_teamd_enabled())
 		ni_objectmodel_register_netif_factory_service(&ni_objectmodel_team_factory_service);
@@ -136,6 +137,7 @@ ni_objectmodel_register_netif_services(void)
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_sit_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_ipip_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_gre_factory_service);
+	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_ppp_factory_service);
 
 	/* Register all builtin naming services */
 	ni_objectmodel_register_ns_builtin();
