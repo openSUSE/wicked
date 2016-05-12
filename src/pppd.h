@@ -28,6 +28,7 @@
 #include <wicked/types.h>
 #include <wicked/ppp.h>
 
+extern int				ni_pppd_config_file_remove(const char *);
 extern int				ni_pppd_discover(ni_netdev_t *, ni_netconfig_t *);
 
 extern int				ni_pppd_service_start(const ni_netdev_t *);

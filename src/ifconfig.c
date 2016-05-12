@@ -1868,7 +1868,9 @@ ni_system_ppp_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **d
 	}
 
 	ret = __ni_system_netdev_create(nc, cfg->name, 0, NI_IFTYPE_PPP, dev_ret);
-	if (dev_ret && *dev_ret) {
+	if (ret < 0)
+		ni_pppd_config_file_remove(cfg->name);
+	else if (dev_ret && *dev_ret) {
 		ni_pppd_discover(*dev_ret, nc);
 	}
 

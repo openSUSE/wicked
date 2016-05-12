@@ -637,7 +637,7 @@ done:
 	return ret;
 }
 
-static int
+int
 ni_pppd_config_file_remove(const char *instance)
 {
 	char *filename = NULL;
