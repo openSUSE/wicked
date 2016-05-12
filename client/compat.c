@@ -33,6 +33,7 @@
 #include <wicked/ethernet.h>
 #include <wicked/infiniband.h>
 #include <wicked/bonding.h>
+#include <wicked/ppp.h>
 #include <wicked/team.h>
 #include <wicked/ovs.h>
 #include <wicked/bridge.h>
@@ -752,6 +753,138 @@ __ni_compat_generate_team(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 
 	if (!__ni_compat_generate_team_ports(tnode, &team->ports))
 		return FALSE;
+
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_compat_generate_ppp_mode(xml_node_t *tnode, const ni_ppp_mode_t *mode)
+{
+	xml_node_t *rnode;
+	const char *name;
+
+	if (!tnode || !mode)
+		return FALSE;
+
+	if (!(name = ni_ppp_mode_type_to_name(mode->type)))
+		return FALSE;
+
+	rnode = xml_node_new("mode", tnode);
+	xml_node_add_attr(rnode, "name", name);
+
+	switch (mode->type) {
+	case NI_PPP_MODE_PPPOE: {
+		const ni_ppp_mode_pppoe_t *pppoe = &mode->pppoe;
+
+		if (!ni_string_empty(pppoe->device.name))
+			xml_node_new_element("device", rnode, pppoe->device.name);
+	}
+	break;
+
+	default:
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+__ni_compat_generate_ppp(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	const ni_ppp_t *ppp;
+	const ni_ppp_config_t *conf;
+	xml_node_t *pnode, *node;
+
+	ppp = ni_netdev_get_ppp(compat->dev);
+	pnode = xml_node_create(ifnode, "ppp");
+
+	if (!__ni_compat_generate_ppp_mode(pnode, &ppp->mode))
+		return FALSE;
+
+	conf = &ppp->config;
+	if (conf->debug)
+		xml_node_new_element("debug", pnode, ni_format_boolean(conf->debug));
+	xml_node_new_element("demand", pnode, ni_format_boolean(conf->demand));
+	xml_node_new_element("persist", pnode, ni_format_boolean(conf->persist));
+	if (conf->idle != -1U)
+		xml_node_new_element("idle", pnode, ni_sprint_uint(conf->idle));
+	if (conf->maxfail != -1U)
+		xml_node_new_element("maxfail", pnode, ni_sprint_uint(conf->maxfail));
+	if (conf->holdoff != -1U)
+		xml_node_new_element("holdoff", pnode, ni_sprint_uint(conf->holdoff));
+
+	xml_node_new_element("usepeerdns", pnode, ni_format_boolean(conf->usepeerdns));
+	xml_node_new_element("defaultroute", pnode, ni_format_boolean(conf->defaultroute));
+
+	xml_node_new_element("multilink", pnode, ni_format_boolean(conf->multilink));
+	if (!ni_string_empty(conf->endpoint))
+		xml_node_new_element("endpoint", pnode, conf->endpoint);
+
+	if ((node = xml_node_new("auth", NULL))) {
+		if (!ni_string_empty(conf->auth.username))
+			xml_node_new_element("username", node, conf->auth.username);
+		if (!ni_string_empty(conf->auth.password))
+			xml_node_new_element("password", node, conf->auth.password);
+
+		if (node->children)
+			xml_node_add_child(pnode, node);
+		else
+			xml_node_free(node);
+	}
+
+	if ((node = xml_node_new("ipv4", NULL))) {
+		xml_node_t *ipcp;
+
+		if (ni_sockaddr_is_specified(&conf->ipv4.local_ip))
+			xml_node_new_element("local-ip", node,
+					ni_sockaddr_print(&conf->ipv4.local_ip));
+		if (ni_sockaddr_is_specified(&conf->ipv4.remote_ip))
+			xml_node_new_element("remote-ip", node,
+					ni_sockaddr_print(&conf->ipv4.remote_ip));
+
+		if ((ipcp = xml_node_new("ipcp", NULL))) {
+			xml_node_new_element("accept-local", ipcp,
+					ni_format_boolean(conf->ipv4.ipcp.accept_local));
+			xml_node_new_element("accept-remote", ipcp,
+					ni_format_boolean(conf->ipv4.ipcp.accept_remote));
+
+			if (ipcp->children)
+				xml_node_add_child(node, ipcp);
+			else
+				xml_node_free(ipcp);
+		}
+		if (node->children)
+			xml_node_add_child(pnode, node);
+		else
+			xml_node_free(node);
+	}
+
+	if ((node = xml_node_new("ipv6", NULL))) {
+		xml_node_t *ipcp;
+
+		xml_node_new_element("enabled", node, ni_format_boolean(conf->ipv6.enabled));
+		if (conf->ipv6.enabled) {
+			if (ni_sockaddr_is_specified(&conf->ipv6.local_ip))
+				xml_node_new_element("local-ip", node,
+						ni_sockaddr_print(&conf->ipv6.local_ip));
+			if (ni_sockaddr_is_specified(&conf->ipv6.remote_ip))
+				xml_node_new_element("remote-ip", node,
+						ni_sockaddr_print(&conf->ipv6.remote_ip));
+
+			if ((ipcp = xml_node_new("ipcp", NULL))) {
+				xml_node_new_element("accept-local", ipcp,
+						ni_format_boolean(conf->ipv6.ipcp.accept_local));
+				if (ipcp->children)
+					xml_node_add_child(node, ipcp);
+				else
+					xml_node_free(ipcp);
+			}
+		}
+		if (node->children)
+			xml_node_add_child(pnode, node);
+		else
+			xml_node_free(node);
+	}
 
 	return TRUE;
 }
@@ -2032,6 +2165,10 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 
 	case NI_IFTYPE_BOND:
 		__ni_compat_generate_bonding(ifnode, compat);
+		break;
+
+	case NI_IFTYPE_PPP:
+		__ni_compat_generate_ppp(ifnode, compat);
 		break;
 
 	case NI_IFTYPE_TEAM:
