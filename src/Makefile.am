@@ -87,6 +87,7 @@ libwicked_la_SOURCES		= \
 	openvpn.c		\
 	ovs.c			\
 	ppp.c			\
+	pppd.c			\
 	process.c		\
 	resolver.c		\
 	rfkill.c		\
@@ -212,6 +213,7 @@ wicked_headers			= \
 	modprobe.h		\
 	netinfo_priv.h		\
 	ovs.h			\
+	pppd.h			\
 	process.h		\
 	socket_priv.h		\
 	sysfs.h			\

@@ -64,8 +64,6 @@ extern int		__ni_wireless_get_essid(const char *, char *, size_t);
 
 extern int		__ni_tuntap_create(const ni_netdev_t *);
 
-extern char *		__ni_ppp_create_device(ni_ppp_t *, const char *);
-
 extern int		__ni_netdev_rename(const char *old_name, const char *new_name);
 extern int		__ni_rtnl_link_rename(unsigned int ifindex, const char *oldname, const char *newname);
 

@@ -78,9 +78,12 @@ extern int		ni_system_tuntap_delete(ni_netdev_t *);
 extern int		ni_system_tap_create(ni_netconfig_t *, const char *,
 				ni_netdev_t **);
 extern int		ni_system_tap_delete(ni_netdev_t *);
-extern int		ni_system_ppp_create(ni_netconfig_t *, const char *,
-				ni_ppp_t *, ni_netdev_t **);
-extern int		ni_system_ppp_delete(ni_netdev_t *);
+extern int		ni_system_ppp_create(ni_netconfig_t *nc,
+				const ni_netdev_t *, ni_netdev_t **);
+extern int		ni_system_ppp_setup(ni_netconfig_t *nc, ni_netdev_t *,
+				const ni_netdev_t *);
+extern int		ni_system_ppp_shutdown(ni_netdev_t *);
+extern int		ni_system_ppp_delete(ni_netconfig_t *nc, ni_netdev_t *);
 
 extern int		ni_system_tunnel_create(ni_netconfig_t *, const ni_netdev_t *,
 				ni_netdev_t **, unsigned int);

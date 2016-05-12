@@ -78,6 +78,7 @@
 #include "process.h"
 #include "debug.h"
 #include "modprobe.h"
+#include "pppd.h"
 #include "teamd.h"
 #include "ovs.h"
 
@@ -1845,48 +1846,67 @@ ni_system_tuntap_delete(ni_netdev_t *dev)
 }
 
 /*
- * Create a ppp interface
+ * Create a ppp device
  */
 int
-ni_system_ppp_create(ni_netconfig_t *nc, const char *ifname, ni_ppp_t *cfg, ni_netdev_t **dev_ret)
+ni_system_ppp_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **dev_ret)
 {
-	ni_ppp_t *ppp;
-	char *newname;
+	unsigned int i;
 	int ret;
 
-	ni_debug_ifconfig("%s: creating ppp interface", ifname);
-
-	ppp = ni_ppp_new(NULL);
-	if ((newname = __ni_ppp_create_device(ppp, ifname)) == NULL) {
-		ni_error("__ni_ppp_create_device(%s) failed", ifname);
-		ni_ppp_free(ppp);
+	if (!cfg || cfg->link.type != NI_IFTYPE_PPP || !cfg->ppp)
 		return -1;
+
+	if (ni_pppd_service_start(cfg))
+		return -1;
+
+	/* Wait for sysfs to appear */
+	for (i = 0; i < 400; ++i) {
+		if (ni_netdev_name_to_index(cfg->name))
+			break;
+		usleep(25000);
 	}
 
-	if (cfg) {
-		ppp->config = cfg->config;
-		cfg->config = NULL;
+	ret = __ni_system_netdev_create(nc, cfg->name, 0, NI_IFTYPE_PPP, dev_ret);
+	if (dev_ret && *dev_ret) {
+		ni_pppd_discover(*dev_ret, nc);
 	}
 
-	ret = __ni_system_netdev_create(nc, newname, 0, NI_IFTYPE_PPP, dev_ret);
-	if (ret == 0 && dev_ret && *dev_ret)
-		ni_netdev_set_ppp(*dev_ret, ppp);
 	return ret;
+}
+
+int
+ni_system_ppp_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	ni_ppp_t *ppp = dev ? ni_netdev_get_ppp(dev) : NULL;
+
+	if (ppp && cfg && cfg->link.type == NI_IFTYPE_PPP) {
+		ni_pppd_discover(dev, nc);
+		return 0;
+	}
+
+	return -1;
+}
+
+int
+ni_system_ppp_shutdown(ni_netdev_t *dev)
+{
+	if (!dev || dev->link.type != NI_IFTYPE_PPP)
+		return -1;
+
+	return 0;
 }
 
 /*
  * Delete a ppp interface
  */
 int
-ni_system_ppp_delete(ni_netdev_t *dev)
+ni_system_ppp_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
 {
-	ni_ppp_t *ppp;
+	if (!dev || dev->link.type != NI_IFTYPE_PPP)
+		return -1;
 
-	if ((ppp = dev->ppp) == NULL)
-		return 0;
-
-	ni_ppp_close(ppp);
-	return 0;
+	return ni_pppd_service_stop(dev->name) ? -1 : 0;
 }
 
 static int

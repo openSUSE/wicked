@@ -282,53 +282,6 @@ error:
 }
 
 /*
- * Create a ppp device
- */
-char *
-__ni_ppp_create_device(ni_ppp_t *ppp, const char *ifname)
-{
-	int devfd, ifunit = -1;
-
-	if (ppp->devfd >= 0) {
-		ni_error("%s: this ppp handle already has a devfd?", __func__);
-		return NULL;
-	}
-
-	if ((devfd = open(CONFIG_PPP_CHRDEV_PATH, O_RDWR)) < 0) {
-		ni_error("unable to open %s: %m", CONFIG_PPP_CHRDEV_PATH);
-		return NULL;
-	}
-
-	/* If we're asked to create a device named pppN, assume we should be
-	 * creating the device with the specified ppp unit N */
-	if (ifname && !strncmp(ifname, "ppp", 3)) {
-		if(ni_parse_int(ifname + 3, &ifunit, 10) >= 0 && ifunit >= 0)
-			ifname = NULL;
-		else
-			ifunit = -1;
-	}
-
-	if (ioctl(devfd, PPPIOCNEWUNIT, &ifunit) < 0) {
-		ni_error("unable to create new PPP network device: %m");
-		close(devfd);
-		return NULL;
-	}
-
-	snprintf(ppp->devname, sizeof(ppp->devname), "ppp%u", ifunit);
-	if (ifname != NULL) {
-		if (__ni_netdev_rename(ppp->devname, ifname) < 0) {
-			close(devfd);
-			return NULL;
-		}
-		strncpy(ppp->devname, ifname, sizeof(ppp->devname));
-	}
-
-	ppp->devfd = devfd;
-	ppp->unit = ifunit;
-	return ppp->devname;
-}
-
-/*
  * rtnetlink attribute handling
  */
 const void *

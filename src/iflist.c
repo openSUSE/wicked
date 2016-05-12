@@ -28,6 +28,7 @@
 #include <wicked/macvlan.h>
 #include <wicked/wireless.h>
 #include <wicked/infiniband.h>
+#include <wicked/ppp.h>
 #include <wicked/tuntap.h>
 #include <wicked/tunneling.h>
 #include <wicked/linkstats.h>
@@ -54,6 +55,7 @@
 #include "sysfs.h"
 #include "kernel.h"
 #include "appconfig.h"
+#include "pppd.h"
 #include "teamd.h"
 #include "ovs.h"
 
@@ -1842,6 +1844,11 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 	case NI_IFTYPE_MACVLAN:
 	case NI_IFTYPE_MACVTAP:
 		__ni_discover_macvlan(dev, tb, nc);
+		break;
+
+	case NI_IFTYPE_PPP:
+		if (ni_netdev_device_is_ready(dev))
+			ni_pppd_discover(dev, nc);
 		break;
 
 	case NI_IFTYPE_TUN:
