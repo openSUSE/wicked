@@ -1847,6 +1847,9 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		break;
 
 	case NI_IFTYPE_PPP:
+		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
+			break;
+
 		if (ni_netdev_device_is_ready(dev))
 			ni_pppd_discover(dev, nc);
 		break;
