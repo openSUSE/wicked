@@ -1,145 +1,96 @@
-<!--
-  -- PPP Service definition
-  -->
 <service name="ppp" interface="org.opensuse.Network.PPP" object-class="netif-ppp">
+ <description>
+   This link-layer service is provided by all PPP devices.
 
- <!-- This is the linkinfo returned in interface reports -->
- <define name="linkinfo" class="dict">
-  <!-- Maximum Receive Unit -->
-  <mru type="uint32"/>
+   PPP devices can be created through the org.opensuse.Network.PPP.Factory
+   factory interface.
+ </description>
 
-  <!-- user name and password. If the <auth> element is present, it must
-    -- have <user> and <password> children.
-    -- If these elements are absent, the wicked client will prompt for
-    -- them.
-    -- If you do not need to authenticate (eg when using a GSM usb stick)
-    -- omit the <auth> element completely.
-    -->
-  <auth class="dict">
-    <protocol type="uint32" constraint="enum">
-      <pap value="0"/>
-      <chap value="1"/>
-      <ms-chap value="2"/>
-      <ms-chapv2 value="3"/>
-      <eap value="4"/>
-    </protocol>
+  <define name="pppoe-config" class="dict">
+    <device       type="string">
+      <meta:netif-reference shared="true"/>
+      <meta:require check="netif-check-state" op="newDevice" min-state="link-up" />
+      <meta:require check="netif-check-state" op="login" min-state="link-authenticated" />
+      <meta:require check="netif-check-state" op="linkUp" min-state="link-up" />
+    </device>
+  </define>
 
-    <hostname type="string"/>
-    <user type="string" constraint="required">
-      <meta:user-input type="user" prompt="Please enter ppp user name"/>
-    </user>
-    <password type="string" constraint="required">
-      <meta:user-input type="password" prompt="Please enter ppp password"/>
-    </password>
-  </auth>
+  <define name="auth-config" class="dict">
+    <hostname     type="string"/>
+    <username     type="string"/>
+    <password     type="string"/>
+  </define>
 
-  <!-- The number to dial -->
-  <number type="string"/>
+  <define name="dns-config" class="dict">
+    <usepeerdns   type="boolean"/>
+    <dns1         type="network-address"/>
+    <dns2         type="network-address"/>
+  </define>
 
-  <!-- disconnect after n seconds of link idle -->
-  <idle-timeout type="uint32"/>
+  <define name="ipv4-config" class="dict">
+    <local-ip     type="network-address"/>
+    <remote-ip    type="network-address"/>
+    <ipcp         class="dict">
+      <accept-local  type="boolean"/>
+      <accept-remote type="boolean"/>
+    </ipcp>
+  </define>
 
- </define>
+  <define name="ipv6-config" class="dict">
+    <enabled      type="boolean"/>
+    <local-ip     type="network-address"/>
+    <remote-ip    type="network-address"/>
+    <ipcp         class="dict">
+      <accept-local  type="boolean"/>
+    </ipcp>
+  </define>
 
- <!-- Override the linkUp method of the netif base interface.
-   -- This will start a ppp daemon process for this device.
-   --
-   -- For now, we ignore any and all of the usual link parameters,
-   -- and let the ppp daemon handle all that stuff.
-   -->
- <method name="linkUp">
-   <arguments>
-     <request type="interface:link-request">
-       <meta:mapping document-node="/link" />
-     </request>
-   </arguments>
-   <return>
-     <interface:callback-info/>
-   </return>
- </method>
+  <define name="configuration" class="dict">
+    <mode class="union" switch="name">
+      <pppoe      type="pppoe-config"/>
+    </mode>
 
- <!-- Override the linkDown method of the netif base interface.
-   -- This will shut down the ppp daemon process and wait for
-   -- it to exit.
-   -->
- <method name="linkDown">
-   <return>
-     <interface:callback-info/>
-   </return>
- </method>
+    <debug        type="boolean"/>
 
- <method name="deleteDevice">
-   <!-- no arguments, no return code -->
- </method>
+    <demand       type="boolean"/>
+    <persist      type="boolean"/>
+    <idle         type="uint32"/>
+    <maxfail      type="uint32"/>
+    <holdoff      type="uint32"/>
+
+    <multilink    type="boolean"/>
+    <endpoint     type="string"/>
+
+    <dns          type="dns-config"/>
+    <defaultroute type="boolean"/>
+
+    <auth         type="auth-config"/>  
+    <ipv4         type="ipv4-config"/>
+    <ipv6         type="ipv6-config"/>
+  </define>
+
+  <define name="properties" type="ppp:configuration"/>
+
+  <method name="changeDevice">
+    <arguments>
+      <config type="ppp:configuration">
+	<meta:mapping document-node="/ppp"/>
+      </config>
+    </arguments>
+  </method>
+
 </service>
 
-<!--
-     Factory service for PPP over serial devices.
-
-     The link configuration is expected to be contained in the <ppp>
-     element. It inherits all properties from the base PPP linkinfo, and adds
-     a <device> element that references a modem device.
-  -->
-<service name="ppp-serial-factory" interface="org.opensuse.Network.PPP.Factory" object-class="netif-list">
- <define name="ppp-serial-linkinfo" class="dict" extends="ppp:linkinfo">
-   <!-- The modem device. We need to subclass for ppp over ethernet,
-     -- since this will reference an ethernet device instead of a modem.
-     -->
-   <device type="string" constraint="required">
-     <meta:modem-reference shared="false"/>
-     <meta:require check="netif-check-state" op="newDevice" min-state="device-up" />
-     <meta:require check="netif-check-state" op="linkUp" min-state="link-up"/>
-   </device>
- </define>
-
- <!-- "Create" ppp device.
-   -- This will create a pppX device and a ppp config file.
-   -- The config file isn't used until the client invokes the linkUp method.
-   -->
- <method name="newDevice">
-  <arguments>
-   <name type="string"/>
-   <config type="ppp-serial-linkinfo">
-    <meta:mapping document-node="/ppp"/>
-   </config>
-  </arguments>
-
-  <return>
-   <string/>		<!-- this is really an object handle -->
-  </return>
- </method>
-</service>
-
-<!--
-     Define the PPP over Ethernet device
-
-     The link configuration is expected to be contained in the <pppoe>
-     element. It inherits all properties from the base PPP linkinfo, and adds
-     a <device> element that references an Ethernet device.
-  -->
-<service name="pppoe-factory" interface="org.opensuse.Network.PPPoE.Factory" object-class="netif-list">
- <define name="pppoe-linkinfo" class="dict" extends="ppp:linkinfo">
-  <device type="string">
-    <meta:netif-reference shared="true" object-class="netif-ethernet"/>
-    <meta:require check="netif-check-state" op="newDevice" min-state="device-up" />
-    <meta:require check="netif-check-state" op="login" min-state="link-authenticated" />
-    <meta:require check="netif-check-state" op="linkUp" min-state="link-up" />
-  </device>
- </define>
-
- <!-- "Create" ppp device.
-   -- This will create a pppX device and a ppp config file.
-   -- The config file isn't used until the client invokes the linkUp method.
-   -->
- <method name="newDevice">
-  <arguments>
-   <name type="string"/>
-   <config type="pppoe-linkinfo">
-    <meta:mapping document-node="/pppoe"/>
-   </config>
-  </arguments>
-  <return>
-   <string/> <!-- this is really an object handle -->
-  </return>
- </method>
+<service name="ppp-factory" interface="org.opensuse.Network.PPP.Factory" object-class="netif-list">
+  <method name="newDevice">
+    <arguments>
+     <name type="string"/>
+     <config type="ppp:configuration">
+      <meta:mapping document-node="/ppp"/>
+     </config>
+    </arguments>
+    <return>
+     <string/>
+    </return>
+  </method>
 </service>

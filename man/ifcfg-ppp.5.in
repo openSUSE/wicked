@@ -1,0 +1,263 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\"
+.TH IFCFG-PPP 5 "May 2016" "wicked" "Network configuration"
+.\" ...
+
+.SH NAME
+ifcfg-ppp \- interface ppp configuration
+.SH SYNOPSIS
+.B /etc/sysconfig/network/ifcfg-*
+
+.B /etc/sysconfig/network/providers/provider*
+
+.SH PPP Interfaces
+To setup a PPP interface you need a configuration file ifcfg-ppp<X> (hint: an arbitrary name might be used for ppp device e.g. dsl0 for DSL connection) with the usual network settings. But you must add additional variables:
+.TP
+.BR PPPMODE\ {pppoe|pppoatm|pptp|isdn|serial|modem}
+must be set to one of the following types to identify this interface as a ppp interface:
+.RS 7
+.PP
+.BR "pppoe "\(em
+Point-to-Point over Ethernet (PPPoE) device type.
+.PP
+.BR "pppoatm "\(em
+Point-to-Point over Asynchronous Transfer Mode (PPPoATM) device type. Currently NOT SUPPORTED.
+.PP
+.BR "pptp "\(em
+Point-to-Point Tunneling Protocol (PPTP) device type. Currently NOT SUPPORTED.
+.PP
+.BR "isdn "\(em
+Point-to-Point for ISDN connection types. NOT SUPPORTED.
+.PP
+.BR "serial "\(em
+Point-to-Point for general serial connections via fixed line or modem. NOT SUPPORTED.
+.PP
+.BR "modem "\(em
+Point-to-Point for connections using 3G/UMTS modems. NOT SUPPORTED.
+.RE
+
+.BR PROVIDER\ [filename]
+.RS 7
+Variable specifing the filename of a provider configuration file in the /etc/sysconfig/network/providers/
+directory. The provider file contains provider specific configuration options.
+.PP
+.RE
+
+.BR PPPDEBUG\ { true | false }
+.RS 7
+Enables pppd instance debug mode.
+.PP
+.RE
+
+.SH PPPoE MODE SPECIFIC OPTIONS
+.TP
+.BR DEVICE\ [ifname]
+.RS 7
+Variable specifing the real, subordinate ethernet device interface name to be used to establish PPP connection.
+.PP
+.RE
+
+.SH PROVIDER FILE CONFIGURATION OPTIONS
+.TP
+.BR DEFAULTROUTE\ { true | false }
+.RS 7
+Set a default route in the system routing tables, using the peer as the gateway. The default route is only
+set when IPCP negotiation succeeded and automatically removed when PPP connection stops.
+The current default route in the routing tables will be replaced with the new default route.
+
+Default: true
+.RE
+
+.BR DEMAND\ { true | false }
+.RS 7
+Initiate the link only when data traffic is present. This option allows the remote IP address to be specified.
+The interface is initially pre-configured and enabled for IP traffic, but without connection to the peer.
+Upon traffic the connection to the peer happens along with negotiation, authentication, etc.
+
+Default: false
+.RE
+
+.BR IDLETIME\ [seconds]
+.RS 7
+Specifies the time in seconds after which the idle link is disconnected. The link is idle when no data
+traffic is being sent or received. For more info please refer to pppd(8).
+
+Default: 600
+.RE
+
+.BR AUTODNS\ { true | false }
+.RS 7
+Obtain the DNS server addresses from the peer. The addresses (if any) are passed to the /etc/ppp/ip-up
+script in the environment variables DNS1 and DNS2, and the environment variable USEPEERDNS will be set to 1.
+The option requires the MODIFYDNS variable to be set to true in order to take any effect.
+
+Default: true
+.RE
+
+.BR DNS1 / DNS2\ [IP-address]
+.RS 7
+Specify the DNS server addresses to set in the system with lowered preference than the server
+provided by the peer, e.g. initiate the connection on dns queries in demand dialing mode,
+or as fallback when the peer does not provide any dns servers.
+The servers are applied by wicked using the /etc/ppp/{pre-start,post-stop} scripts.
+.RE
+
+.BR MODIFYIP/MODIFYIP6\ { true | false }
+.RS 7
+When user specified local and/or remote IP addresses for the link, this options allows for modification
+of the user addresses with the addresses negotiated with the peer. In order to set the user addresses prior
+negotiation with the peer, the DEMAND variable must be set to true.
+Without this option, the pppd instance will not accept different values in the IPCP negotiation.
+
+Default: true
+.RE
+
+.BR IPADDR\ [IP-address]
+.RS 7
+IPv4 address to be set as a local IP of the PPP connection.
+.RE
+
+.BR REMOTE_IPADDR\ [IP-address]
+.RS 7
+IPv4 address to be set as a remote IP of the PPP connection.
+.RE
+
+.BR IPADDR6\ [local interface identifier]
+.RS 7
+IPv6 local identifier to be set as a local IP of the PPP connection.
+.RE
+
+.BR REMOTE_IPADDR6\ [remote interface identifier]
+.RS 7
+IPv6 remote identifier to be set as a remote IP of the PPP connection.
+.RE
+
+.BR MULTILINK\ { true | false }
+.RS 7
+Enables the PPP multilink protocol. If supported by the peer, the link created can become part of a bundle
+between the local system and the peer.
+
+Default: false
+.RE
+
+.BR ENDPOINT\ [discriminator]
+.RS 7
+Sets the endpoint discriminator sent by local host to the peer during multilink negotiation. For more
+information please refer to the pppd(8).
+Must be specified when MULTILINK variable is set to true.
+.RE
+
+.BR AUTO_RECONNECT\ { true | false }
+.RS 7
+Instructs the pppd instance to automatically try to reopen the terminated connection when set to true.
+Otherwise the pppd instance exits immidiately after a connection has been made and terminated.
+The number of attempts can be specified using MAXFAIL variable.
+The delay between the attempts can be specified using AUTO_RECONNECT_DELAY variable.
+
+Default: false
+.RE
+
+.BR AUTO_RECONNECT_DELAY\ [seconds]
+.RS 7
+Specifies the number of seconds of the delay between reconnection attempts when AUTO_RECONNECT variable
+is set to true.
+
+Default: 15
+.RE
+
+.BR MAXFAIL\ [num]
+.RS 7
+Specifies the number of reconnection attempts to be made by pppd instance when unable to establish
+the connection.
+
+Default: 10
+.RE
+
+.BR USERNAME\ [string]
+.RS 7
+Specifies the user name used for authenticating the local system to the peer.
+.RE
+
+.BR PASSWORD\ [string]
+.RS 7
+Specifies the user password used for authenticating the local system to the peer.
+.RE
+.RE
+
+.SH Example
+Example of a simple DSL related PPPoE interface configuration and its corresponding provider file:
+
+.BR
+.I /etc/sysconfig/network/ifcfg-dsl0
+.nf
+    STARTMODE='auto'
+    BOOTPROTO='static'
+    DEVICE='eth0'
+    PPPMODE='pppoe'
+    PROVIDER='provider0'
+.fi
+
+.I /etc/sysconfig/network/provider/provider0
+    PROVIDER='Provider name'
+    AUTODNS='false'
+    AUTO_RECONNECT='true'
+    DEFAULTROUTE='true'
+    DEMAND='false'
+    IDLETIME=''
+    MODIFYIP='false'
+    IPADDR=''
+    REMOTE_IPADDR=''
+    MODIFYDNS='false'
+    USERNAME='user'
+    PASSWORD='XXXXXXXXXX'
+.fi
+
+Example of an advanced DSL related PPPoE interface configuration and its corresponding provider file.
+
+.BR
+.I /etc/sysconfig/network/ifcfg-dsl1
+.nf
+    STARTMODE='auto'
+    BOOTPROTO='static'
+    DEVICE='eth1'
+    PPPMODE='pppoe'
+    PROVIDER='provider1'
+.fi
+
+.I /etc/sysconfig/network/provider/provider1
+    PROVIDER='Provider name'
+    AUTODNS='false'
+    AUTO_RECONNECT='true'
+    DEFAULTROUTE='true'
+    DEMAND='true'
+    IDLETIME=''
+    MODIFYIP='true'
+    IPADDR='10.0.0.1'
+    REMOTE_IPADDR='10.0.0.2'
+    MODIFYDNS='false'
+    USERNAME='user'
+    PASSWORD='XXXXXXXXXX'
+.fi
+
+.SH Additional Information
+
+For additional and more general information take a look into
+.BR pppd (8).
+or
+.BR pppoe (8)
+
+.SH COPYRIGHT
+Copyright (C) 2016 SUSE Linux GmbH, Nuernberg, Germany.
+.SH BUGS
+Please report bugs at <http://bugs.opensuse.org>
+.SH AUTHOR
+.nf
+Pawel Wieczorkiewicz -- original ppp man page
+.fi
+.SH "SEE ALSO"
+.BR pppd (8),
+.BR ifcfg (5),
+.BR wicked (8),
+.BR pppoe (8),
+.BR netconfig (8)

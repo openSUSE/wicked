@@ -28,6 +28,7 @@
 #include <wicked/macvlan.h>
 #include <wicked/wireless.h>
 #include <wicked/infiniband.h>
+#include <wicked/ppp.h>
 #include <wicked/tuntap.h>
 #include <wicked/tunneling.h>
 #include <wicked/linkstats.h>
@@ -54,6 +55,7 @@
 #include "sysfs.h"
 #include "kernel.h"
 #include "appconfig.h"
+#include "pppd.h"
 #include "teamd.h"
 #include "ovs.h"
 
@@ -1092,7 +1094,6 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname)
 		switch (link->hwaddr.type) {
 		case ARPHRD_LOOPBACK:
 			tmp_link_type = NI_IFTYPE_LOOPBACK;
-
 			break;
 
 		case ARPHRD_ETHER:
@@ -1133,7 +1134,6 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname)
 						tmp_link_type = NI_IFTYPE_OVS_BRIDGE;
 				}
 			}
-
 			break;
 
 		case ARPHRD_INFINIBAND:
@@ -1141,7 +1141,10 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname)
 				tmp_link_type = NI_IFTYPE_INFINIBAND_CHILD;
 			else
 				tmp_link_type = NI_IFTYPE_INFINIBAND;
+			break;
 
+		case ARPHRD_PPP:
+			tmp_link_type = NI_IFTYPE_PPP;
 			break;
 
 		case ARPHRD_SLIP:
@@ -1155,27 +1158,22 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname)
 						tmp_link_type = NI_IFTYPE_IUCV;
 				ni_string_free(&path);
 			}
-
 			break;
 
 		case ARPHRD_SIT:
 			tmp_link_type = NI_IFTYPE_SIT;
-
 			break;
 
 		case ARPHRD_IPGRE:
 			tmp_link_type = NI_IFTYPE_GRE;
-
 			break;
 
 		case ARPHRD_TUNNEL:
 			tmp_link_type = NI_IFTYPE_IPIP;
-
 			break;
 
 		case ARPHRD_TUNNEL6:
 			tmp_link_type = NI_IFTYPE_TUNNEL6;
-
 			break;
 
 		default:
@@ -1846,6 +1844,14 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 	case NI_IFTYPE_MACVLAN:
 	case NI_IFTYPE_MACVTAP:
 		__ni_discover_macvlan(dev, tb, nc);
+		break;
+
+	case NI_IFTYPE_PPP:
+		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
+			break;
+
+		if (ni_netdev_device_is_ready(dev))
+			ni_pppd_discover(dev, nc);
 		break;
 
 	case NI_IFTYPE_TUN:

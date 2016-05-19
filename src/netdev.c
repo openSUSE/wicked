@@ -524,14 +524,15 @@ ni_netdev_get_ppp(ni_netdev_t *dev)
 {
 	if (dev->link.type != NI_IFTYPE_PPP)
 		return NULL;
+	if (!dev->ppp)
+		dev->ppp = ni_ppp_new();
 	return dev->ppp;
 }
 
 void
 ni_netdev_set_ppp(ni_netdev_t *dev, ni_ppp_t *ppp)
 {
-	if (dev->ppp)
-		ni_ppp_free(dev->ppp);
+	ni_ppp_free(dev->ppp);
 	dev->ppp = ppp;
 }
 

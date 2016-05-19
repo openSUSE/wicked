@@ -1,287 +1,226 @@
 /*
- * Handling ppp interface information.
+ *	PPP device support
  *
- * Copyright (C) 2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2016 SUSE Linux GmbH, Nuernberg, Germany.
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License along
+ *	with this program; if not, see <http://www.gnu.org/licenses/> or write
+ *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+ *	Boston, MA 02110-1301 USA.
+ *
+ *	Authors:
+ *		Olaf Kirch <okir@suse.de>
+ *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
+ *		Marius Tomaschewski <mt@suse.de>
  */
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
-#include <unistd.h>
+#include <stdlib.h>
+#include <sys/mman.h>
 
-#include <wicked/netinfo.h>
+#include <wicked/util.h>
 #include <wicked/ppp.h>
-#include <wicked/modem.h>
-#include "netinfo_priv.h"
 #include "util_priv.h"
 
-#define NI_PPPDEV_TAG	"pppdev"
+/*
+ * Map ppp mode names to constants
+ */
+static const ni_intmap_t	ni_ppp_mode_names[] = {
+	{ "pppoe",		NI_PPP_MODE_PPPOE	},
+	{ "pppoatm",		NI_PPP_MODE_PPPOATM	},
+	{ "pptp",		NI_PPP_MODE_PPTP	},
+	{ "isdn",		NI_PPP_MODE_ISDN	},
+	{ "serial",		NI_PPP_MODE_SERIAL	},
 
-static ni_bool_t	__ni_ppp_tag_to_index(const char *, unsigned int *);
+	{ NULL,			-1U			}
+};
 
-ni_ppp_t *
-ni_ppp_new(const char *tag)
+const char *
+ni_ppp_mode_type_to_name(ni_ppp_mode_type_t type)
 {
-	static unsigned int next_index;
-	char tagbuf[64];
+	return ni_format_uint_mapped(type, ni_ppp_mode_names);
+}
+
+ni_bool_t
+ni_ppp_mode_name_to_type(const char *name, ni_ppp_mode_type_t *type)
+{
+	unsigned int _type;
+
+	if (!name || !type)
+		return FALSE;
+
+	if (ni_parse_uint_mapped(name, ni_ppp_mode_names, &_type) != 0)
+		return FALSE;
+
+	*type = _type;
+	return TRUE;
+}
+
+/*
+ * ppp config
+ */
+void
+ni_ppp_config_init(ni_ppp_config_t *conf)
+{
+	if (conf) {
+		memset(conf, 0, sizeof(*conf));
+
+		conf->idle    = -1U;
+		conf->maxfail = -1U;
+		conf->holdoff = -1U;
+
+		conf->dns.usepeerdns = TRUE;
+
+		conf->ipv4.ipcp.accept_local = TRUE;
+		conf->ipv4.ipcp.accept_remote = TRUE;
+
+		conf->ipv6.enabled = TRUE;
+		conf->ipv6.ipcp.accept_local = TRUE;
+	}
+}
+
+static ni_bool_t
+ni_ppp_config_copy(ni_ppp_config_t *dst, const ni_ppp_config_t *src)
+{
+	if (!src || !dst)
+		return FALSE;
+
+	dst->demand		= src->demand;
+	dst->persist		= src->persist;
+	dst->idle		= src->idle;
+	dst->maxfail		= src->maxfail;
+	dst->holdoff		= src->holdoff;
+
+	dst->multilink		= src->multilink;
+	ni_string_dup(&dst->endpoint, src->endpoint);
+
+	ni_string_dup(&dst->auth.hostname, src->auth.hostname);
+	ni_string_dup(&dst->auth.username, src->auth.username);
+	ni_string_dup(&dst->auth.password, src->auth.password);
+
+	dst->dns		= src->dns;
+
+	dst->ipv4		= src->ipv4;
+	dst->ipv6		= src->ipv6;
+
+	return TRUE;
+}
+
+static void
+ni_ppp_config_destroy(ni_ppp_config_t *conf)
+{
+	if (conf) {
+		ni_string_free(&conf->endpoint);
+
+		ni_string_free(&conf->auth.hostname);
+		ni_string_free(&conf->auth.username);
+		ni_string_free(&conf->auth.password);
+
+		memset(conf, 0, sizeof(*conf));
+	}
+}
+
+/*
+ * ppp device
+ */
+ni_ppp_t *
+ni_ppp_new(void)
+{
 	ni_ppp_t *ppp;
 
-	if (tag != NULL) {
-		unsigned int index;
-
-		if (!__ni_ppp_tag_to_index(tag, &index))
-			return NULL;
-		if (index >= next_index)
-			next_index = index + 1;
-	} else {
-		snprintf(tagbuf, sizeof(tagbuf), NI_PPPDEV_TAG "%u", next_index++);
-		tag = tagbuf;
-	}
-
-
 	ppp = xcalloc(1, sizeof(*ppp));
-
-	ppp->temp_state = ni_tempstate_new(tag);
-	ppp->unit = -1;
-	ppp->devfd = -1;
+	if (ppp) {
+		ni_ppp_config_init(&ppp->config);
+	}
 	return ppp;
 }
 
-void
-ni_ppp_close(ni_ppp_t *ppp)
+static void
+ni_ppp_mode_destroy(ni_ppp_mode_t *mode)
 {
-	if (ppp->devfd >= 0)
-		close(ppp->devfd);
-	ppp->unit = -1;
-	ppp->devfd = -1;
+	if (!mode)
+		return;
+
+	switch (mode->type) {
+	case NI_PPP_MODE_PPPOE:
+		ni_netdev_ref_destroy(&mode->pppoe.device);
+		break;
+	default:
+		break;
+	}
+	memset(mode, 0, sizeof(*mode));
+}
+
+void
+ni_ppp_mode_init(ni_ppp_mode_t *mode, ni_ppp_mode_type_t type)
+{
+	memset(mode, 0, sizeof(*mode));
+	mode->type = type;
+}
+
+
+static inline void
+ni_ppp_mode_copy(ni_ppp_mode_t *new_mode, ni_ppp_mode_t *old_mode)
+{
+	ni_ppp_mode_pppoe_t *new_pppoe;
+	ni_ppp_mode_pppoe_t *old_pppoe;
+	ni_netdev_ref_t *old_device;
+
+	if (!new_mode || !old_mode)
+		return;
+
+	ni_ppp_mode_init(new_mode, old_mode->type);
+	switch (old_mode->type) {
+	case NI_PPP_MODE_PPPOE:
+		new_pppoe = &new_mode->pppoe;
+		old_pppoe = &old_mode->pppoe;
+		old_device = &old_pppoe->device;
+		ni_netdev_ref_init(&new_pppoe->device, old_device->name, old_device->index);
+		break;
+	default:
+		break;
+	}
+}
+
+ni_ppp_t *
+ni_ppp_clone(ni_ppp_t *old_ppp)
+{
+	ni_ppp_t *new_ppp;
+
+	if (!old_ppp)
+		return NULL;
+
+	new_ppp = ni_ppp_new();
+	ni_ppp_mode_copy(&new_ppp->mode, &old_ppp->mode);
+	ni_ppp_config_copy(&new_ppp->config, &old_ppp->config);
+	return new_ppp;
+}
+
+static void
+ni_ppp_destroy(ni_ppp_t *ppp)
+{
+	if (ppp) {
+		ni_ppp_mode_destroy(&ppp->mode);
+		ni_ppp_config_destroy(&ppp->config);
+	}
 }
 
 void
 ni_ppp_free(ni_ppp_t *ppp)
 {
-	ni_ppp_close(ppp);
-
-	ni_tempstate_finish(ppp->temp_state);
-	ppp->temp_state = NULL;
-
-	if (ppp->config)
-		ni_ppp_config_free(ppp->config);
-
+	ni_ppp_destroy(ppp);
 	free(ppp);
 }
-
-/*
- * Handle ppp_config
- */
-ni_ppp_config_t *
-ni_ppp_config_new(void)
-{
-	ni_ppp_config_t *conf;
-
-	conf = xcalloc(1, sizeof(*conf));
-	return conf;
-}
-
-void
-ni_ppp_config_free(ni_ppp_config_t *conf)
-{
-	ni_string_free(&conf->device.object_path);
-	ni_string_free(&conf->device.name);
-	if (conf->device.modem) {
-		ni_modem_release(conf->device.modem);
-		conf->device.modem = NULL;
-	}
-	if (conf->device.ethernet) {
-		ni_netdev_put(conf->device.ethernet);
-		conf->device.ethernet = NULL;
-	}
-	ni_string_free(&conf->number);
-	if (conf->auth) {
-		ni_ppp_authconfig_free(conf->auth);
-		conf->auth = NULL;
-	}
-
-	free(conf);
-}
-
-ni_ppp_authconfig_t *
-ni_ppp_authconfig_new(void)
-{
-	ni_ppp_authconfig_t *auth;
-
-	auth = xcalloc(1, sizeof(*auth));
-	return auth;
-}
-
-void
-ni_ppp_authconfig_free(ni_ppp_authconfig_t *auth)
-{
-	ni_string_free(&auth->username);
-	ni_string_free(&auth->password);
-	ni_string_free(&auth->hostname);
-	free(auth);
-}
-
-/*
- * Write the configuration file
- */
-int
-ni_ppp_write_config(const ni_ppp_t *ppp)
-{
-	ni_ppp_config_t *conf;
-	char *configpath;
-	char *quoted = NULL;
-	FILE *fp;
-
-	if ((conf = ppp->config) == NULL) {
-		ni_error("no configuration attached to ppp device");
-		return -1;
-	}
-
-	configpath = ni_tempstate_mkfile(ppp->temp_state, "config");
-	if ((fp = fopen(configpath, "w")) == NULL) {
-		ni_error("unable to open %s for writing: %m", configpath);
-		return -1;
-	}
-
-	fprintf(fp, "ifname %s\n", ppp->devname);
-	fprintf(fp, "unit %u\n", ppp->unit);
-
-	fprintf(fp, "usepeerdns\n");
-	fprintf(fp, "defaultroute\n");
-	if (conf->device.modem) {
-		ni_modem_t *modem = conf->device.modem;
-		
-		fprintf(fp, "modem\n");
-		if (modem->use_lock_file)
-			fprintf(fp, "lock\n");
-	}
-	if (conf->mru)
-		fprintf(fp, "mru %u\n", conf->mru);
-	if (conf->idle_timeout)
-		fprintf(fp, "idle %u\n", conf->idle_timeout);
-
-	if (conf->auth) {
-		ni_ppp_authconfig_t *auth = conf->auth;
-
-		configpath = ni_tempstate_mkfile(ppp->temp_state, "auth");
-		fprintf(fp, "file %s\n", configpath);
-		fclose(fp);
-
-		fp = fopen(configpath, "w");
-		if (fp == NULL) {
-			ni_error("unable to open %s for writing: %m", configpath);
-			return -1;
-		}
-
-		if (auth->hostname) {
-			quoted = ni_quote(auth->hostname, "");
-			fprintf(fp, "name %s\n", quoted);
-			ni_string_free(&quoted);
-		}
-		if (auth->username) {
-			quoted = ni_quote(auth->username, "");
-			fprintf(fp, "user %s\n", quoted);
-			ni_string_free(&quoted);
-		}
-		if (auth->password) {
-			quoted = ni_quote(auth->password, "");
-			fprintf(fp, "password %s\n", quoted);
-			ni_string_free(&quoted);
-		}
-	}
-
-	if (fp)
-		fclose(fp);
-	return -1;
-}
-
-/*
- * Given a tag like "pppdev0", extract the index.
- */
-static ni_bool_t
-__ni_ppp_tag_to_index(const char *tag, unsigned int *indexp)
-{
-	static const unsigned int prefixlen = sizeof(NI_PPPDEV_TAG) - 1;
-
-	if (strncmp(tag, NI_PPPDEV_TAG, prefixlen))
-		return FALSE;
-	return ni_parse_uint(tag + prefixlen, indexp, 10) >= 0;
-}
-
-static ni_bool_t
-__ni_ppp_check_username(const char *username, size_t  len)
-{
-	if (!username || len == 0 || len >= 256)
-		return FALSE;
-
-	/*
-	 * Hmm... ppp seems to allow almost everything;
-	 * let's check it is printable + simple space
-	 * and tab for now...
-	 */
-	return ni_check_printable(username, len);
-}
-
-static ni_bool_t
-__ni_ppp_check_password(const char *password, size_t  len)
-{
-	if (!password || len == 0 || len >= 256)
-		return FALSE;
-
-	/*
-	 * Hmm... ppp seems to allow almost everything;
-	 * let's check if it is printable + simple space
-	 * and tab for now...
-	 */
-	return ni_check_printable(password, len);
-}
-
-static ni_bool_t
-__ni_ppp_check_authconfig(const ni_ppp_authconfig_t *auth)
-{
-	size_t len;
-
-	if (!auth)
-		return FALSE;
-
-	if ((len = ni_string_len(auth->username)) > 0) {
-		if(!__ni_ppp_check_username(auth->username, len))
-			return FALSE;
-	} else {
-		return FALSE;	/* mandatory */
-	}
-
-	if ((len = ni_string_len(auth->password)) > 0) {
-		if(!__ni_ppp_check_password(auth->password, len))
-			return FALSE;
-	} else {
-		return FALSE;	/* mandatory */
-	}
-
-	if (auth->hostname) {
-		len = ni_string_len(auth->hostname);
-		if(!ni_check_domain_name(auth->hostname, len, 0))
-			return FALSE;
-	}
-	return TRUE;
-}
-
-static ni_bool_t
-__ni_ppp_check_config(const ni_ppp_config_t *conf)
-{
-	if (!conf)
-		return FALSE;
-
-	return __ni_ppp_check_authconfig(conf->auth);
-}
-
-ni_bool_t
-ni_ppp_check_config(const ni_ppp_t *ppp)
-{
-	if (!ppp)
-		return FALSE;
-
-	return __ni_ppp_check_config(ppp->config);
-}
-

@@ -52,6 +52,7 @@
 #include <wicked/ethernet.h>
 #include <wicked/infiniband.h>
 #include <wicked/bonding.h>
+#include <wicked/ppp.h>
 #include <wicked/team.h>
 #include <wicked/ovs.h>
 #include <wicked/bridge.h>
@@ -3646,6 +3647,218 @@ try_wireless(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 }
 
 /*
+ * Handle provider files
+ */
+static ni_sysconfig_t *
+__ni_suse_read_provider(const char *sibling, const char *provider)
+{
+	const char *filename;
+
+	filename = ni_sibling_path_printf(sibling, "providers/%s", provider);
+	if (ni_string_empty(filename) || !ni_file_exists(filename))
+		return NULL;
+	return ni_sysconfig_read(filename);
+}
+
+static int
+try_pppoe(const ni_sysconfig_t *sc, const ni_sysconfig_t *psc, const char *name, ni_ppp_mode_pppoe_t *pppoe)
+{
+	const char *value;
+
+	if (!sc || !psc || !pppoe || ni_string_empty(name))
+		return -1;
+
+	value = ni_sysconfig_get_value(sc, "DEVICE");
+	if (ni_string_empty(value) || !ni_netdev_name_is_valid(value) ||
+	    !ni_netdev_ref_set_ifname(&pppoe->device, value)) {
+		ni_error("ifcfg-%s: PPPoE config without valid ethernet device name: '%s'", name, value ? value : "");
+		return -1;
+	}
+
+	return 0;
+}
+
+/*
+ * Handle all sorts of PPP
+ */
+static int
+try_ppp(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	ni_sysconfig_t *psc = NULL;
+	const char *value;
+	ni_bool_t bval;
+	ni_ppp_t *ppp;
+	int ret = -1;
+
+	if ((value = ni_sysconfig_get_value(sc, "PPPMODE")) == NULL)
+		return 1;
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config contains ppp variables",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		goto done;
+	}
+
+	/* just drop old if any */
+	ni_netdev_set_ppp(dev, NULL);
+
+	dev->link.type = NI_IFTYPE_PPP;
+	ppp = ni_netdev_get_ppp(dev);
+
+	if (!ni_ppp_mode_name_to_type(value, &ppp->mode.type)) {
+		ni_error("ifcfg-%s: unsupported ppp mode '%s'", dev->name, value);
+		goto done;
+	}
+
+	if (ni_sysconfig_get_boolean(sc, "PPPDEBUG", &bval))
+		ppp->config.debug = bval;
+
+	value = ni_sysconfig_get_value(sc, "PROVIDER");
+	if (!ni_string_empty(value)) {
+		psc = __ni_suse_read_provider(sc->pathname, value);
+		if (!psc) {
+			ni_error("ifcfg-%s: unable to read provider file '%s'", dev->name, value);
+			goto done;
+		}
+	}
+
+	if (!psc) {
+		ni_error("ifcfg-%s: no valid PROVIDER is specified", dev->name);
+		goto done;
+	}
+
+	value = ni_sysconfig_get_value(psc, "DEFAULTROUTE");
+	if (ni_parse_boolean(value, &ppp->config.defaultroute) < 0)
+		ppp->config.defaultroute = TRUE;
+
+	if (ni_sysconfig_get_boolean(psc, "DEMAND", &bval))
+		ppp->config.demand = bval;
+
+	value = ni_sysconfig_get_value(psc, "IDLETIME");
+	if (!ni_string_empty(value) && ni_parse_uint(value, &ppp->config.idle, 10) < 0) {
+		ni_error("ifcfg-%s: unable to parse IDLETIME='%s'", dev->name, value);
+		goto done;
+	}
+
+	ni_string_dup(&ppp->config.auth.username, ni_sysconfig_get_value(psc, "USERNAME"));
+	ni_string_dup(&ppp->config.auth.password, ni_sysconfig_get_value(psc, "PASSWORD"));
+	ni_string_dup(&ppp->config.auth.hostname, ni_sysconfig_get_value(psc, "HOSTNAME"));
+
+	value = ni_sysconfig_get_value(psc, "AUTODNS");
+	if (ni_parse_boolean(value, &ppp->config.dns.usepeerdns) < 0)
+		ppp->config.dns.usepeerdns = TRUE;
+
+	value = ni_sysconfig_get_value(psc, "DNS1");
+	if (!ni_string_empty(value)) {
+		if (ni_sockaddr_parse(&ppp->config.dns.dns1, value, AF_INET) < 0) {
+			ni_error("ifcfg-%s: unable to parse DNS1='%s'", dev->name, value);
+			goto done;
+		}
+	}
+	value = ni_sysconfig_get_value(psc, "DNS2");
+	if (!ni_string_empty(value)) {
+		if (ni_sockaddr_parse(&ppp->config.dns.dns2, value, AF_INET) < 0) {
+			ni_error("ifcfg-%s: unable to parse DNS2='%s'", dev->name, value);
+			goto done;
+		}
+	}
+
+	value = ni_sysconfig_get_value(psc, "MODIFYIP");
+	if (ni_parse_boolean(value, &bval) == 0) {
+		ppp->config.ipv4.ipcp.accept_local = bval;
+		ppp->config.ipv4.ipcp.accept_remote = bval;
+		ppp->config.ipv6.ipcp.accept_local = bval;
+	}
+	value = ni_sysconfig_get_value(psc, "MODIFYIP6");
+	if (ni_parse_boolean(value, &bval) == 0)
+		ppp->config.ipv6.ipcp.accept_local = bval;
+
+	value = ni_sysconfig_get_value(psc, "IPADDR");
+	if (!ni_string_empty(value)) {
+		if (ni_sockaddr_parse(&ppp->config.ipv4.local_ip, value, AF_INET) < 0) {
+			ni_error("ifcfg-%s: unable to parse IPADDR='%s'", dev->name, value);
+			goto done;
+		}
+	}
+
+	value = ni_sysconfig_get_value(psc, "REMOTE_IPADDR");
+	if (ni_string_empty(value))
+		value = ni_sysconfig_get_value(psc, "PTPADDR");
+	if (!ni_string_empty(value)) {
+		if (ni_sockaddr_parse(&ppp->config.ipv4.remote_ip, value, AF_INET) < 0) {
+			ni_error("ifcfg-%s: unable to parse REMOTE_IPADDR/PTPADDR='%s'", dev->name, value);
+			goto done;
+		}
+	}
+
+	value = ni_sysconfig_get_value(psc, "IPADDR6");
+	if (!ni_string_empty(value)) {
+		if (ni_sockaddr_parse(&ppp->config.ipv6.local_ip, value, AF_INET6) < 0) {
+			ni_error("ifcfg-%s: unable to parse IPADDR6='%s'", dev->name, value);
+			goto done;
+		}
+	}
+
+	value = ni_sysconfig_get_value(psc, "REMOTE_IPADDR6");
+	if (ni_string_empty(value))
+		value = ni_sysconfig_get_value(psc, "PTPADDR6");
+	if (!ni_string_empty(value)) {
+		if (ni_sockaddr_parse(&ppp->config.ipv6.remote_ip, value, AF_INET6) < 0) {
+			ni_error("ifcfg-%s: unable to parse REMOTE_IPADDR6/PTPADDR6='%s'", dev->name, value);
+			goto done;
+		}
+	}
+
+	if (ni_sysconfig_get_boolean(psc, "MULTILINK", &bval))
+		ppp->config.multilink = bval;
+	ni_string_dup(&ppp->config.endpoint, ni_sysconfig_get_value(psc, "ENDPOINT"));
+
+	if (ni_sysconfig_get_boolean(psc, "AUTO_RECONNECT", &bval))
+		ppp->config.persist = bval;
+
+	value = ni_sysconfig_get_value(psc, "AUTO_RECONNECT_DELAY");
+	if (!ni_string_empty(value) && ni_parse_uint(value, &ppp->config.holdoff, 10) < 0) {
+		ni_error("ifcfg-%s: unable to parse AUTO_RECONNECT_DELAY='%s'", dev->name, value);
+		goto done;
+	}
+
+	value = ni_sysconfig_get_value(psc, "MAXFAIL");
+	if (!ni_string_empty(value) && ni_parse_uint(value, &ppp->config.maxfail, 10) < 0) {
+		ni_error("ifcfg-%s: unable to parse MAXFAIL='%s'", dev->name, value);
+		goto done;
+	}
+
+	ret = 0;
+	switch (ppp->mode.type) {
+	case NI_PPP_MODE_PPPOE:
+		ret = try_pppoe(sc, psc, dev->name, &ppp->mode.pppoe);
+		break;
+	case NI_PPP_MODE_PPPOATM:
+		/* PPPoATM support is not implemented */
+		break;
+	case NI_PPP_MODE_PPTP:
+		/* PPTP support is not implemented */
+		break;
+	case NI_PPP_MODE_ISDN:
+		/* ISDN support is not implemented */
+		break;
+	case NI_PPP_MODE_SERIAL:
+		/* PPP SERIAL support is not implemented */
+		break;
+	default:
+		/* should not happen */
+		ret = -1;
+		break;
+	}
+
+done:
+	if (psc)
+		ni_sysconfig_destroy(psc);
+	return ret;
+}
+
+/*
  * Handle Tunnel interfaces
  */
 static int
@@ -4589,10 +4802,13 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ni_ipv4_devinfo_t *ipv4;
 	ni_ipv6_devinfo_t *ipv6;
 
-	if ((bootproto = ni_sysconfig_get_value(sc, "BOOTPROTO")) == NULL)
-		bootproto = "static";
-	else if (!bootproto[0] || ni_string_eq(dev->name, "lo"))
-		bootproto = "static";
+	bootproto = ni_sysconfig_get_value(sc, "BOOTPROTO");
+	if (ni_string_empty(bootproto) || ni_string_eq(dev->name, "lo")) {
+		if (dev->link.type == NI_IFTYPE_PPP)
+			bootproto = "ppp";
+		else
+			bootproto = "static";
+	}
 
 	ipv4 = ni_netdev_get_ipv4(dev);
 	ipv6 = ni_netdev_get_ipv6(dev);
@@ -4625,6 +4841,12 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			ni_tristate_set(&ipv4->conf.arp_notify, ni_string_eq(value, "yes"));
 		}
 	}
+
+	if (dev->link.type == NI_IFTYPE_PPP && dev->ppp && !ipv6->conf.enabled)
+		dev->ppp->config.ipv6.enabled = FALSE;
+
+	if (ni_string_eq_nocase(bootproto, "ppp"))
+		return TRUE;
 
 	/* Hmm... ignore this config completely -> ibft firmware */
 	if (ni_string_eq_nocase(bootproto, "ibft")) {
@@ -5270,6 +5492,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	    try_macvlan(sc, compat)    < 0 ||
 	    try_dummy(sc, compat)      < 0 ||
 	    try_tunnel(sc, compat)     < 0 ||
+	    try_ppp(sc, compat)        < 0 ||
 	    try_wireless(sc, compat)   < 0 ||
 	    try_infiniband(sc, compat) < 0 ||
 	    /* keep ethernet the last one */
