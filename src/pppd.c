@@ -857,10 +857,14 @@ ni_pppd_service_start(const ni_netdev_t *cfg)
 	if (ni_pppd_config_file_write(cfg->name, cfg->ppp) < 0)
 		return -1;
 
+	(void)ni_pppd_call_pre_start(cfg);
+
 	ni_string_printf(&service, NI_PPPD_SERVICE_FMT, cfg->name);
 	rv = ni_systemctl_service_start(service);
-	if (rv < 0)
+	if (rv < 0) {
 		ni_pppd_config_file_remove(cfg->name);
+		ni_pppd_call_post_stop(cfg->name);
+	}
 
 	ni_string_free(&service);
 	return rv;
@@ -875,6 +879,7 @@ ni_pppd_service_stop(const char *ifname)
 	ni_string_printf(&service, NI_PPPD_SERVICE_FMT, ifname);
 	rv = ni_systemctl_service_stop(service);
 	ni_pppd_config_file_remove(ifname);
+	ni_pppd_call_post_stop(ifname);
 
 	ni_string_free(&service);
 	return rv;
