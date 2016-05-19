@@ -42,6 +42,8 @@ extern ni_shellcmd_t *		ni_shellcmd_new(const ni_string_array_t *args);
 extern ni_shellcmd_t *		ni_shellcmd_parse(const char *command);
 extern ni_bool_t		ni_shellcmd_add_arg(ni_shellcmd_t *, const char *);
 extern ni_bool_t		ni_shellcmd_fmt_arg(ni_shellcmd_t *, const char *, ...);
+extern void			ni_shellcmd_setenv(ni_shellcmd_t *, const char *, const char *);
+
 extern ni_shellcmd_t *		ni_shellcmd_hold(ni_shellcmd_t *);
 extern void			ni_shellcmd_free(ni_shellcmd_t *);
 static inline void		ni_shellcmd_release(ni_shellcmd_t *cmd)
