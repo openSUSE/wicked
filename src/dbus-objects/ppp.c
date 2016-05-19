@@ -435,6 +435,8 @@ ni_objectmodel_ppp_config_get_dns(const ni_dbus_object_t *object, const ni_dbus_
 	if (!(conf = ni_objectmodel_get_ppp_config(object, FALSE, error)))
 		return FALSE;
 
+	ni_dbus_dict_add_bool(result, "usepeerdns", conf->dns.usepeerdns);
+
 	if (ni_sockaddr_is_specified(&conf->dns.dns1)) {
 		if (!__ni_objectmodel_dict_add_sockaddr(result, "dns1", &conf->dns.dns1))
 			return FALSE;
@@ -460,6 +462,9 @@ ni_objectmodel_ppp_config_set_dns(ni_dbus_object_t *object, const ni_dbus_proper
 
 	if (!(conf = ni_objectmodel_get_ppp_config(object, TRUE, error)))
 		return FALSE;
+
+	if (ni_dbus_dict_get_bool(argument, "usepeerdns", &b))
+		conf->dns.usepeerdns = b;
 
 	__ni_objectmodel_dict_get_sockaddr(argument, "dns1", &conf->dns.dns1);
 	__ni_objectmodel_dict_get_sockaddr(argument, "dns2", &conf->dns.dns2);
@@ -636,7 +641,6 @@ static const ni_dbus_property_t	ni_objectmodel_ppp_device_properties[] = {
 	PPP_UINT_PROPERTY(ppp_config,	holdoff, holdoff, RO),
 	PPP_BOOL_PROPERTY(ppp_config,	multilink, multilink, RO),
 	PPP_STRING_PROPERTY(ppp_config,	endpoint, endpoint, RO),
-	PPP_BOOL_PROPERTY(ppp_config,	usepeerdns, usepeerdns, RO),
 	PPP_BOOL_PROPERTY(ppp_config,	defaultroute, defaultroute, RO),
 	PPP_DICT_PROPERTY(ppp_config,	dns, dns, RO),
 	PPP_DICT_PROPERTY(ppp_config,	auth, auth, RO),

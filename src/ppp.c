@@ -82,6 +82,8 @@ ni_ppp_config_init(ni_ppp_config_t *conf)
 		conf->maxfail = -1U;
 		conf->holdoff = -1U;
 
+		conf->dns.usepeerdns = TRUE;
+
 		conf->ipv4.ipcp.accept_local = TRUE;
 		conf->ipv4.ipcp.accept_remote = TRUE;
 

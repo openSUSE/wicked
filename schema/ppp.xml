@@ -22,6 +22,7 @@
   </define>
 
   <define name="dns-config" class="dict">
+    <usepeerdns   type="boolean"/>
     <dns1         type="network-address"/>
     <dns2         type="network-address"/>
   </define>
@@ -61,7 +62,6 @@
     <endpoint     type="string"/>
 
     <dns          type="dns-config"/>
-    <usepeerdns   type="boolean"/>
     <defaultroute type="boolean"/>
 
     <auth         type="auth-config"/>  

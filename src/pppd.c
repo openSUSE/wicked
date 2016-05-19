@@ -213,7 +213,7 @@ ni_pppd_config_dump(ni_stringbuf_t *dump, const ni_ppp_config_t *config)
 	if (config->holdoff != -1U)
 		ni_stringbuf_printf(dump, "holdoff %u\n", config->holdoff);
 
-	if (config->usepeerdns)
+	if (config->dns.usepeerdns)
 		ni_stringbuf_printf(dump, "usepeerdns\n");
 #if 0
 	if (ni_sockaddr_is_ipv4_specified(&config->dns.dns1))
@@ -489,7 +489,7 @@ ni_pppd_config_file_read(const char *instance, ni_ppp_t *ppp)
 			/* ignore */
 		} else
 		if (ni_string_eq(var->name, "usepeerdns")) {
-			conf->usepeerdns = TRUE;
+			conf->dns.usepeerdns = TRUE;
 		} else
 		if (ni_string_eq(var->name, "ms-dns")) {
 #if 0

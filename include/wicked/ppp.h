@@ -63,6 +63,7 @@ struct ni_ppp_auth_config {
 };
 
 struct ni_ppp_dns_config {
+	ni_bool_t			usepeerdns;
 	ni_sockaddr_t			dns1;
 	ni_sockaddr_t			dns2;
 };
@@ -99,7 +100,6 @@ struct ni_ppp_config {
 	ni_bool_t			multilink;
 	char *				endpoint;
 
-	ni_bool_t			usepeerdns;
 	ni_bool_t			defaultroute;
 
 	ni_ppp_dns_config_t		dns;

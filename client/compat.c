@@ -813,9 +813,6 @@ __ni_compat_generate_ppp(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	if (conf->holdoff != -1U)
 		xml_node_new_element("holdoff", pnode, ni_sprint_uint(conf->holdoff));
 
-	xml_node_new_element("usepeerdns", pnode, ni_format_boolean(conf->usepeerdns));
-	xml_node_new_element("defaultroute", pnode, ni_format_boolean(conf->defaultroute));
-
 	xml_node_new_element("multilink", pnode, ni_format_boolean(conf->multilink));
 	if (!ni_string_empty(conf->endpoint))
 		xml_node_new_element("endpoint", pnode, conf->endpoint);
@@ -832,7 +829,10 @@ __ni_compat_generate_ppp(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 			xml_node_free(node);
 	}
 
+	xml_node_new_element("defaultroute", pnode, ni_format_boolean(conf->defaultroute));
+
 	if ((node = xml_node_create(pnode, "dns"))) {
+		xml_node_new_element("usepeerdns", node, ni_format_boolean(conf->dns.usepeerdns));
 
 		if (ni_sockaddr_is_specified(&conf->dns.dns1))
 			xml_node_new_element("dns1", node,
