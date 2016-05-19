@@ -215,6 +215,13 @@ ni_pppd_config_dump(ni_stringbuf_t *dump, const ni_ppp_config_t *config)
 
 	if (config->usepeerdns)
 		ni_stringbuf_printf(dump, "usepeerdns\n");
+#if 0
+	if (ni_sockaddr_is_ipv4_specified(&config->dns.dns1))
+		ni_stringbuf_printf(dump, "ms-dns", ni_sockaddr_print(&config->dns.dns1));
+	if (ni_sockaddr_is_ipv4_specified(&config->dns.dns2))
+		ni_stringbuf_printf(dump, "ms-dns", ni_sockaddr_print(&config->dns.dns2));
+#endif
+
 	if (config->defaultroute) {
 		ni_stringbuf_printf(dump, "defaultroute\n");
 		ni_stringbuf_printf(dump, "replacedefaultroute\n");
@@ -483,6 +490,15 @@ ni_pppd_config_file_read(const char *instance, ni_ppp_t *ppp)
 		} else
 		if (ni_string_eq(var->name, "usepeerdns")) {
 			conf->usepeerdns = TRUE;
+		} else
+		if (ni_string_eq(var->name, "ms-dns")) {
+#if 0
+			if (!ni_sockaddr_is_specified(&conf->dns.dns1))
+				ni_sockaddr_parse(&conf->dns.dns2, var->value, AF_INET);
+			else
+			if (!ni_sockaddr_is_specified(&conf->dns.dns2))
+				ni_sockaddr_parse(&conf->dns.dns2, var->value, AF_INET);
+#endif
 		} else
 		if (ni_string_eq(var->name, "persist")) {
 			conf->persist = TRUE;

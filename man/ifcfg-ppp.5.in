@@ -95,6 +95,14 @@ The option requires the MODIFYDNS variable to be set to true in order to take an
 Default: true
 .RE
 
+.BR DNS1 / DNS2\ [IP-address]
+.RS 7
+Specify the DNS server addresses to set in the system with lowered preference than the server
+provided by the peer, e.g. initiate the connection on dns queries in demand dialing mode,
+or as fallback when the peer does not provide any dns servers.
+The servers are applied by wicked using the /etc/ppp/{pre-start,post-stop} scripts.
+.RE
+
 .BR MODIFYIP/MODIFYIP6\ { true | false }
 .RS 7
 When user specified local and/or remote IP addresses for the link, this options allows for modification
@@ -252,3 +260,4 @@ Pawel Wieczorkiewicz -- original ppp man page
 .BR ifcfg (5),
 .BR wicked (8),
 .BR pppoe (8),
+.BR netconfig (8)

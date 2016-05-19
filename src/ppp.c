@@ -109,6 +109,8 @@ ni_ppp_config_copy(ni_ppp_config_t *dst, const ni_ppp_config_t *src)
 	ni_string_dup(&dst->auth.username, src->auth.username);
 	ni_string_dup(&dst->auth.password, src->auth.password);
 
+	dst->dns		= src->dns;
+
 	dst->ipv4		= src->ipv4;
 	dst->ipv6		= src->ipv6;
 

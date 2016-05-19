@@ -427,6 +427,53 @@ ni_objectmodel_ppp_config_set_auth(ni_dbus_object_t *object, const ni_dbus_prope
 }
 
 static dbus_bool_t
+ni_objectmodel_ppp_config_get_dns(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result, DBusError *error)
+{
+	const ni_ppp_config_t *conf;
+
+	if (!(conf = ni_objectmodel_get_ppp_config(object, FALSE, error)))
+		return FALSE;
+
+	if (ni_sockaddr_is_specified(&conf->dns.dns1)) {
+		if (!__ni_objectmodel_dict_add_sockaddr(result, "dns1", &conf->dns.dns1))
+			return FALSE;
+	}
+
+	if (ni_sockaddr_is_specified(&conf->dns.dns2)) {
+		if (!__ni_objectmodel_dict_add_sockaddr(result, "dns2", &conf->dns.dns2))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_ppp_config_set_dns(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_ppp_config_t *conf;
+	dbus_bool_t b;
+
+	if (!ni_dbus_variant_is_dict(argument))
+		return FALSE;
+
+	if (!(conf = ni_objectmodel_get_ppp_config(object, TRUE, error)))
+		return FALSE;
+
+	__ni_objectmodel_dict_get_sockaddr(argument, "dns1", &conf->dns.dns1);
+	__ni_objectmodel_dict_get_sockaddr(argument, "dns2", &conf->dns.dns2);
+
+#if 0	/* limitted to IPv4? */
+	if (conf->dns.dns1.ss_family != AF_UNSPEC && conf->dns.dns1.ss_family != AF_INET)
+		return FALSE;
+	if (conf->dns.dns2.ss_family != AF_UNSPEC && conf->dns.dns2.ss_family != AF_INET)
+		return FALSE;
+#endif
+	return TRUE;
+}
+
+static dbus_bool_t
 ni_objectmodel_ppp_config_get_ipv4(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result, DBusError *error)
 {
@@ -591,6 +638,7 @@ static const ni_dbus_property_t	ni_objectmodel_ppp_device_properties[] = {
 	PPP_STRING_PROPERTY(ppp_config,	endpoint, endpoint, RO),
 	PPP_BOOL_PROPERTY(ppp_config,	usepeerdns, usepeerdns, RO),
 	PPP_BOOL_PROPERTY(ppp_config,	defaultroute, defaultroute, RO),
+	PPP_DICT_PROPERTY(ppp_config,	dns, dns, RO),
 	PPP_DICT_PROPERTY(ppp_config,	auth, auth, RO),
 	PPP_DICT_PROPERTY(ppp_config,	ipv4, ipv4, RO),
 	PPP_DICT_PROPERTY(ppp_config,	ipv6, ipv6, RO),

@@ -21,6 +21,11 @@
     <password     type="string"/>
   </define>
 
+  <define name="dns-config" class="dict">
+    <dns1         type="network-address"/>
+    <dns2         type="network-address"/>
+  </define>
+
   <define name="ipv4-config" class="dict">
     <local-ip     type="network-address"/>
     <remote-ip    type="network-address"/>
@@ -55,6 +60,7 @@
     <multilink    type="boolean"/>
     <endpoint     type="string"/>
 
+    <dns          type="dns-config"/>
     <usepeerdns   type="boolean"/>
     <defaultroute type="boolean"/>
 

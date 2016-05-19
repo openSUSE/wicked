@@ -3741,13 +3741,28 @@ try_ppp(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		goto done;
 	}
 
-	value = ni_sysconfig_get_value(psc, "AUTODNS");
-	if (ni_parse_boolean(value, &ppp->config.usepeerdns) < 0)
-		ppp->config.usepeerdns = TRUE;
-
 	ni_string_dup(&ppp->config.auth.username, ni_sysconfig_get_value(psc, "USERNAME"));
 	ni_string_dup(&ppp->config.auth.password, ni_sysconfig_get_value(psc, "PASSWORD"));
 	ni_string_dup(&ppp->config.auth.hostname, ni_sysconfig_get_value(psc, "HOSTNAME"));
+
+	value = ni_sysconfig_get_value(psc, "AUTODNS");
+	if (ni_parse_boolean(value, &ppp->config.dns.usepeerdns) < 0)
+		ppp->config.dns.usepeerdns = TRUE;
+
+	value = ni_sysconfig_get_value(psc, "DNS1");
+	if (!ni_string_empty(value)) {
+		if (ni_sockaddr_parse(&ppp->config.dns.dns1, value, AF_INET) < 0) {
+			ni_error("ifcfg-%s: unable to parse DNS1='%s'", dev->name, value);
+			goto done;
+		}
+	}
+	value = ni_sysconfig_get_value(psc, "DNS2");
+	if (!ni_string_empty(value)) {
+		if (ni_sockaddr_parse(&ppp->config.dns.dns2, value, AF_INET) < 0) {
+			ni_error("ifcfg-%s: unable to parse DNS2='%s'", dev->name, value);
+			goto done;
+		}
+	}
 
 	value = ni_sysconfig_get_value(psc, "MODIFYIP");
 	if (ni_parse_boolean(value, &bval) == 0) {

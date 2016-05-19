@@ -28,6 +28,7 @@
 
 typedef struct ni_ppp_config			ni_ppp_config_t;
 typedef struct ni_ppp_auth_config		ni_ppp_auth_config_t;
+typedef struct ni_ppp_dns_config		ni_ppp_dns_config_t;
 typedef struct ni_ppp_ipv4_config		ni_ppp_ipv4_config_t;
 typedef struct ni_ppp_ipv6_config		ni_ppp_ipv6_config_t;
 
@@ -59,6 +60,11 @@ struct ni_ppp_auth_config {
 	char *				hostname;
 	char *				username;
 	char *				password;
+};
+
+struct ni_ppp_dns_config {
+	ni_sockaddr_t			dns1;
+	ni_sockaddr_t			dns2;
 };
 
 struct ni_ppp_ipv4_config {
@@ -96,6 +102,7 @@ struct ni_ppp_config {
 	ni_bool_t			usepeerdns;
 	ni_bool_t			defaultroute;
 
+	ni_ppp_dns_config_t		dns;
 	ni_ppp_auth_config_t		auth;
 	ni_ppp_ipv4_config_t		ipv4;
 	ni_ppp_ipv6_config_t		ipv6;

@@ -832,6 +832,16 @@ __ni_compat_generate_ppp(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 			xml_node_free(node);
 	}
 
+	if ((node = xml_node_create(pnode, "dns"))) {
+
+		if (ni_sockaddr_is_specified(&conf->dns.dns1))
+			xml_node_new_element("dns1", node,
+					ni_sockaddr_print(&conf->dns.dns1));
+		if (ni_sockaddr_is_specified(&conf->dns.dns2))
+			xml_node_new_element("dns2", node,
+					ni_sockaddr_print(&conf->dns.dns2));
+	}
+
 	if ((node = xml_node_new("ipv4", NULL))) {
 		xml_node_t *ipcp;
 
