@@ -40,6 +40,7 @@
 #include "dbus-objects/model.h"
 #include "util_priv.h"
 #include "systemctl.h"
+#include "process.h"
 #include "pppd.h"
 
 #define NI_PPPD_DAEMON_NAME		"pppd"
@@ -51,6 +52,10 @@
 #define NI_PPPD_SERVICE_FMT		"wickedd-pppd@%s.service"
 
 #define NI_PPPD_PLUGIN_PPPOE		"rp-pppoe.so"
+
+#define NI_PPPD_PRE_START		"/etc/ppp/pre-start"
+#define NI_PPPD_POST_STOP		"/etc/ppp/post-stop"
+
 
 /*
  * pppd startup config file
@@ -730,6 +735,109 @@ ni_pppd_discover(ni_netdev_t *dev, ni_netconfig_t *nc)
 
 failure:
 	ni_ppp_free(ppp);
+	return -1;
+}
+
+static inline int
+ni_pppd_call_pre_start(const ni_netdev_t *cfg)
+{
+	ni_shellcmd_t *cmd;
+	ni_process_t *pi;
+	int rv;
+
+	if (!(cmd = ni_shellcmd_new(NULL)))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(cmd, NI_PPPD_PRE_START))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(cmd, cfg->name))
+		goto failure;
+
+	ni_shellcmd_setenv(cmd, "IFNAME", cfg->name);
+	ni_shellcmd_setenv(cmd, "LINKNAME", cfg->name);
+
+	switch (cfg->ppp->mode.type) {
+	case NI_PPP_MODE_PPPOE:
+		if (!ni_shellcmd_add_arg(cmd, cfg->ppp->mode.pppoe.device.name))
+			goto failure;
+		ni_shellcmd_setenv(cmd, "DEVICE", cfg->ppp->mode.pppoe.device.name);
+		break;
+	default:
+		if (!ni_shellcmd_add_arg(cmd, ""))
+			goto failure;
+		break;
+	}
+
+	if (!ni_shellcmd_add_arg(cmd, "0"))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(cmd, "0.0.0.0"))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(cmd, "0.0.0.0"))
+		goto failure;
+
+	if (ni_sockaddr_is_specified(&cfg->ppp->config.dns.dns1))
+		ni_shellcmd_setenv(cmd, "DNS1", ni_sockaddr_print(&cfg->ppp->config.dns.dns1));
+	if (ni_sockaddr_is_specified(&cfg->ppp->config.dns.dns2))
+		ni_shellcmd_setenv(cmd, "DNS2", ni_sockaddr_print(&cfg->ppp->config.dns.dns2));
+
+	if (!(pi = ni_process_new(cmd)))
+		goto failure;
+
+	ni_shellcmd_release(cmd);
+	rv = ni_process_run_and_wait(pi);
+	ni_process_free(pi);
+
+	return rv;
+
+failure:
+	if (cmd)
+		ni_shellcmd_release(cmd);
+	return -1;
+}
+
+static inline int
+ni_pppd_call_post_stop(const char *ifname)
+{
+	ni_shellcmd_t *cmd;
+	ni_process_t *pi;
+	int rv;
+
+	if (!(cmd = ni_shellcmd_new(NULL)))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(cmd, NI_PPPD_POST_STOP))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(cmd, ifname))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(cmd, ""))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(cmd, "0"))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(cmd, "0.0.0.0"))
+		goto failure;
+
+	if (!ni_shellcmd_add_arg(cmd, "0.0.0.0"))
+		goto failure;
+
+	if (!(pi = ni_process_new(cmd)))
+		goto failure;
+
+	ni_shellcmd_release(cmd);
+	rv = ni_process_run_and_wait(pi);
+	ni_process_free(pi);
+
+	return rv;
+
+failure:
+	if (cmd)
+		ni_shellcmd_release(cmd);
 	return -1;
 }
 
