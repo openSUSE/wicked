@@ -163,31 +163,37 @@ ni_address_is_linklocal(const ni_address_t *laddr)
 ni_bool_t
 ni_address_is_tentative(const ni_address_t *laddr)
 {
-	return laddr->flags & IFA_F_TENTATIVE;
+	return laddr->flags & IFA_F_TENTATIVE ? TRUE : FALSE;
 }
 
 ni_bool_t
 ni_address_is_duplicate(const ni_address_t *laddr)
 {
-	return laddr->flags & IFA_F_DADFAILED;
+	return laddr->flags & IFA_F_DADFAILED ? TRUE : FALSE;
 }
 
 ni_bool_t
 ni_address_is_temporary(const ni_address_t *laddr)
 {
-	return laddr->flags & IFA_F_TEMPORARY;
+	return laddr->flags & IFA_F_TEMPORARY ? TRUE : FALSE;
 }
 
 ni_bool_t
 ni_address_is_permanent(const ni_address_t *laddr)
 {
-	return laddr->flags & IFA_F_PERMANENT;
+	return laddr->flags & IFA_F_PERMANENT ? TRUE : FALSE;
 }
 
 ni_bool_t
 ni_address_is_deprecated(const ni_address_t *laddr)
 {
-	return laddr->flags & IFA_F_DEPRECATED;
+	return laddr->flags & IFA_F_DEPRECATED ? TRUE : FALSE;
+}
+
+ni_bool_t
+ni_address_is_mngtmpaddr(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_MANAGETEMPADDR ? TRUE : FALSE;
 }
 
 ni_bool_t
