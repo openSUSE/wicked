@@ -175,6 +175,7 @@ noinst_HEADERS			= \
 system_headers			= \
 	linux/dcbnl.h		\
 	linux/ethtool.h		\
+	linux/if_addr.h		\
 	linux/if_link.h		\
 	linux/if_tunnel.h
 
