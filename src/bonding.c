@@ -8,6 +8,7 @@
 #endif
 
 #include <arpa/inet.h>
+#include <net/if_arp.h>
 #include <limits.h>
 
 #include <wicked/netinfo.h>
@@ -182,6 +183,8 @@ __ni_bonding_init(ni_bonding_t *bonding)
 	bonding->packets_per_slave = 1;
 	bonding->tlb_dynamic_lb = TRUE;
 	bonding->lp_interval = 1;
+	bonding->ad_actor_sys_prio = 65535;
+	ni_link_address_init(&bonding->ad_actor_system);
 }
 
 /*
@@ -250,6 +253,10 @@ ni_bonding_clone(const ni_bonding_t *orig)
 	C(tlb_dynamic_lb);
 	C(lp_interval);
 
+	C(ad_user_port_key);
+	C(ad_actor_sys_prio);
+	memcpy(&bond->ad_actor_system, &orig->ad_actor_system,
+			sizeof(bond->ad_actor_system));
 	C(ad_info.aggregator_id);
 	C(ad_info.ports);
 	C(ad_info.actor_key);
@@ -438,6 +445,16 @@ ni_bonding_validate(const ni_bonding_t *bonding)
 
 		if (bonding->min_links > INT_MAX)
 			return "ieee802-3ad min-links option not in range 0-INT_MAX";
+
+		if (bonding->ad_user_port_key > 1023)
+			return "ieee802-3ad user port key is not in range 0-1023";
+		if (bonding->ad_actor_sys_prio < 1)
+			return "ieee802-3ad actor system prio is not in range 1-65535";
+		if (bonding->ad_actor_system.len &&
+		    bonding->ad_actor_system.type != ARPHRD_ETHER &&
+		    ni_link_address_is_invalid(&bonding->ad_actor_system))
+			return "ieee802-3ad actor system is not a valid ethernet address";
+
 	} else {
 		if (bonding->lacp_rate != NI_BOND_LACP_RATE_SLOW)
 			return "lacp rate only valid in ieee802-3ad mode";
@@ -1425,6 +1442,29 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 			return FALSE;
 
 		bond->ad_select = tmp;
+		return TRUE;
+	} else
+
+	if (strcmp(option, "ad_user_port_key") == 0) {
+		if (ni_parse_uint(value, &tmp, 0) < 0 || tmp > 1023)
+			return FALSE;
+		bond->ad_user_port_key = tmp;
+		return TRUE;
+	} else
+
+	if (strcmp(option, "ad_actor_sys_prio") == 0) {
+		if (ni_parse_uint(value, &tmp, 0) < 0 || tmp < 1 || tmp > 65535)
+			return FALSE;
+		bond->ad_actor_sys_prio = tmp;
+		return TRUE;
+	} else
+
+	if (strcmp(option, "ad_actor_system") == 0) {
+		if (ni_link_address_parse(&bond->ad_actor_system, ARPHRD_ETHER, value) < 0 ||
+		    ni_link_address_is_invalid(&bond->ad_actor_system)) {
+			ni_link_address_init(&bond->ad_actor_system);
+			return FALSE;
+		}
 		return TRUE;
 	} else
 

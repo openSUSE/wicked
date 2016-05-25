@@ -451,6 +451,18 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 			xml_node_new_element("ad-select", child,
 				ni_bonding_ad_select_name(bond->ad_select));
 		}
+		if (verbose || bond->ad_user_port_key) {
+			xml_node_new_element("ad-user-port-key", child,
+				ni_sprint_uint(bond->ad_user_port_key));
+		}
+		if (verbose || bond->ad_actor_sys_prio != 65535) {
+			xml_node_new_element("ad-actor-sys-prio", child,
+				ni_sprint_uint(bond->ad_actor_sys_prio));
+		}
+		if (bond->ad_actor_system.len) {
+			xml_node_new_element("ad-actor-system", child,
+				ni_link_address_print(&bond->ad_actor_system));
+		}
 		if (verbose || bond->min_links > 0) {
 			xml_node_new_element("min-links", child,
 					ni_sprint_uint(bond->min_links));

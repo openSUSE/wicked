@@ -1495,8 +1495,16 @@ ni_system_bond_create_netlink(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_net
 int
 ni_system_bond_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **dev_ret)
 {
+	const char *complaint;
+
 	if (!nc || !dev_ret || !cfg || cfg->link.type != NI_IFTYPE_BOND || ni_string_empty(cfg->name))
 		return -NI_ERROR_INVALID_ARGS;
+
+	complaint = ni_bonding_validate(cfg->bonding);
+	if (complaint != NULL) {
+		ni_error("%s: cannot set up bonding device: %s", cfg->name, complaint);
+		return -NI_ERROR_INVALID_ARGS;
+	}
 
 	switch (ni_config_bonding_ctl()) {
 	case NI_CONFIG_BONDING_CTL_SYSFS:
@@ -2471,6 +2479,16 @@ __ni_rtnl_link_put_bond_opt(ni_netconfig_t *nc,	struct nl_msg *msg, const char *
 		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
 				conf->packets_per_slave, NULL);
 
+	case IFLA_BOND_TLB_DYNAMIC_LB:
+		if (conf->tlb_dynamic_lb != bond->tlb_dynamic_lb) {
+			NLA_PUT_U8 (msg, attr, conf->tlb_dynamic_lb ? 1 : 0);
+			bond->tlb_dynamic_lb = conf->tlb_dynamic_lb;
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				conf->tlb_dynamic_lb,
+				conf->tlb_dynamic_lb ? "on" : "off");
+
 	case IFLA_BOND_AD_LACP_RATE:
 		if (conf->lacp_rate != bond->lacp_rate) {
 			NLA_PUT_U8 (msg, attr, conf->lacp_rate);
@@ -2490,6 +2508,32 @@ __ni_rtnl_link_put_bond_opt(ni_netconfig_t *nc,	struct nl_msg *msg, const char *
 		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
 				conf->ad_select,
 				ni_bonding_ad_select_name(conf->ad_select));
+
+	case IFLA_BOND_AD_USER_PORT_KEY:
+		if (conf->ad_user_port_key != bond->ad_user_port_key) {
+			NLA_PUT_U16(msg, attr, conf->ad_user_port_key);
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				0, "a key");
+
+	case IFLA_BOND_AD_ACTOR_SYS_PRIO:
+		if (conf->ad_actor_sys_prio != bond->ad_actor_sys_prio) {
+			NLA_PUT_U16(msg, attr, conf->ad_actor_sys_prio);
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				0, "a prio");
+
+	case IFLA_BOND_AD_ACTOR_SYSTEM:
+		if (conf->ad_actor_system.len &&
+		    !ni_link_address_is_invalid(&conf->ad_actor_system) &&
+		    !ni_link_address_equal(&conf->ad_actor_system, &bond->ad_actor_system)) {
+			NLA_PUT(msg, attr, conf->ad_actor_system.len, conf->ad_actor_system.data);
+			ret = 0;
+		}
+		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
+				0, "a mac");
 
 	default:
 		ret = -1;
@@ -2529,6 +2573,12 @@ __ni_rtnl_link_put_bond(ni_netconfig_t *nc,	struct nl_msg *msg, ni_netdev_t *dev
 							.bstate = -1),
 		map_opt(IFLA_BOND_AD_SELECT,		.modes  = NI_BIT(NI_BOND_MODE_802_3AD),
 							.bstate = -1),
+		map_opt(IFLA_BOND_AD_ACTOR_SYS_PRIO,	.modes  = NI_BIT(NI_BOND_MODE_802_3AD),
+							.bstate = -1),
+		map_opt(IFLA_BOND_AD_USER_PORT_KEY,	.modes  = NI_BIT(NI_BOND_MODE_802_3AD),
+							.bstate = -1),
+		map_opt(IFLA_BOND_AD_ACTOR_SYSTEM,	.modes  = NI_BIT(NI_BOND_MODE_802_3AD),
+							.bstate = -1),
 		map_opt(IFLA_BOND_XMIT_HASH_POLICY,	.modes  = NI_BIT(NI_BOND_MODE_802_3AD)
 								| NI_BIT(NI_BOND_MODE_BALANCE_XOR)
 								| NI_BIT(NI_BOND_MODE_BALANCE_TLB)),
@@ -2540,6 +2590,8 @@ __ni_rtnl_link_put_bond(ni_netconfig_t *nc,	struct nl_msg *msg, ni_netdev_t *dev
 								| NI_BIT(NI_BOND_MODE_BALANCE_ALB)
 								| NI_BIT(NI_BOND_MODE_BALANCE_TLB),
 							.bstate = 1, .slaves = 1),
+		map_opt(IFLA_BOND_TLB_DYNAMIC_LB,	.modes  = NI_BIT(NI_BOND_MODE_BALANCE_TLB),
+							.bstate = -1),
 		map_opt(IFLA_BOND_MIN_LINKS),
 		map_opt(IFLA_BOND_FAIL_OVER_MAC,	.slaves = -1),
 		map_opt(IFLA_BOND_ALL_SLAVES_ACTIVE),

@@ -130,6 +130,9 @@ struct ni_bonding {
 	unsigned int		packets_per_slave;
 	ni_bool_t		tlb_dynamic_lb;
 	unsigned int		lp_interval;
+	uint16_t		ad_user_port_key;
+	uint16_t		ad_actor_sys_prio;
+	ni_hwaddr_t		ad_actor_system;
 	struct ni_bonding_ad_info {
 		unsigned int	aggregator_id;
 		unsigned int	ports;
