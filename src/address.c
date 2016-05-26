@@ -1219,6 +1219,37 @@ ni_link_address_is_invalid(const ni_hwaddr_t *hwa)
 /*
  * Adjust IPv6 lifetimes in address cache info
  */
+unsigned int
+ni_lifetime_left(unsigned int lifetime, const struct timeval *acquired, const struct timeval *current)
+{
+	struct timeval now, dif;
+
+	switch (lifetime) {
+	case NI_LIFETIME_INFINITE:
+	case NI_LIFETIME_EXPIRED:
+		return lifetime;
+
+	default:
+		if (!acquired || !timerisset(acquired))
+			return lifetime;
+		break;
+	}
+
+	if (!current || !timerisset(current)) {
+		ni_timer_get_time(&now);
+		current = &now;
+	}
+
+	if (timercmp(current, acquired, >)) {
+		timersub(current, acquired, &dif);
+		if (lifetime >= dif.tv_sec) {
+			lifetime -= dif.tv_sec;
+			return lifetime;
+		}
+	}
+	return NI_LIFETIME_EXPIRED;
+}
+
 void
 ni_ipv6_cache_info_rebase(ni_ipv6_cache_info_t *res, const ni_ipv6_cache_info_t *lft, const struct timeval *base)
 {
