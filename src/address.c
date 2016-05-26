@@ -17,6 +17,7 @@
 #include <netinet/if_ether.h>
 #include <netinet/if_tr.h>
 #include <net/if_arp.h>
+#include <linux/if_addr.h>
 #include <linux/if_infiniband.h>
 #include <netlink/netlink.h>
 
@@ -24,13 +25,6 @@
 #include <wicked/netinfo.h>
 #include <wicked/socket.h>
 #include "util_priv.h"
-
-#ifndef IFA_F_MANAGETEMPADDR
-#define IFA_F_MANAGETEMPADDR	0x100
-#endif
-#ifndef IFA_F_NOPREFIXROUTE
-#define IFA_F_NOPREFIXROUTE	0x200
-#endif
 
 #ifndef offsetof
 # define offsetof(type, member) \
@@ -108,6 +102,8 @@ static const ni_intmap_t	__ni_address_ipv6_flag_map[] = {
 	{ "permanent",		IFA_F_PERMANENT		},
 	{ "mngtmpaddr",		IFA_F_MANAGETEMPADDR	},
 	{ "noprefixroute",	IFA_F_NOPREFIXROUTE	},
+	{ "autojoin",		IFA_F_MCAUTOJOIN	},
+	{ "stable-privacy",	IFA_F_STABLE_PRIVACY	},
 	{ NULL,			0			}
 };
 
