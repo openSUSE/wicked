@@ -518,8 +518,8 @@ ni_ipv6_ra_dnssl_list_update(ni_ipv6_ra_dnssl_t **list, const char *domain,
 		if (dnssl) {
 			dnssl->lifetime = lifetime;
 			dnssl->acquired = *acquired;
-			dnssl->domain = strdup(domain);
-			if (dnssl->domain) {
+			if (ni_string_dup(&dnssl->domain, domain)) {
+				ni_string_tolower(dnssl->domain);
 				*pos = dnssl;
 				return TRUE;
 			}
