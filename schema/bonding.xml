@@ -64,6 +64,9 @@
    <xmit-hash-policy type="builtin-bonding-xmit-hash-policy"/>
    <lacp-rate type="builtin-bonding-lacp-rate"/>
    <ad-select type="builtin-bonding-ad-select"/>
+   <ad-user-port-key  type="uint16"/>
+   <ad-actor-sys-prio type="uint16"/>
+   <ad-actor-system   type="ethernet-address"/>
    <fail-over-mac type="builtin-bonding-fail-over-mac"/>
    <primary-reselect type="builtin-bonding-primary-reselect"/>
 

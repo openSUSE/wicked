@@ -591,6 +591,39 @@ __ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
+__ni_objectmodel_bonding_get_ad_actor_system(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	const ni_bonding_t *bond;
+
+	if (!(bond = __ni_objectmodel_bonding_read_handle(object, error)))
+		return FALSE;
+	return __ni_objectmodel_get_hwaddr(result, &bond->ad_actor_system);
+}
+
+static dbus_bool_t
+__ni_objectmodel_bonding_set_ad_actor_system(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_bonding_t *bond;
+
+	if (!(bond = __ni_objectmodel_bonding_write_handle(object, error)))
+		return FALSE;
+
+	ni_link_address_init(&bond->ad_actor_system);
+	if (__ni_objectmodel_set_hwaddr(argument, &bond->ad_actor_system)) {
+		if (bond->ad_actor_system.len == ni_link_address_length(ARPHRD_ETHER))
+			bond->ad_actor_system.type = ARPHRD_ETHER;
+		return TRUE;
+	}
+	return TRUE;
+}
+
+static dbus_bool_t
 __ni_objectmodel_bonding_get_address(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -622,6 +655,8 @@ __ni_objectmodel_bonding_set_address(ni_dbus_object_t *object,
 	NI_DBUS_GENERIC_STRING_PROPERTY(bonding, dbus_name, member_name, rw)
 #define BONDING_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(bonding, dbus_name, member_name, rw)
+#define BONDING_UINT16_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_UINT16_PROPERTY(bonding, dbus_name, member_name, rw)
 #define BONDING_BOOL_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_BOOL_PROPERTY(bonding, dbus_name, member_name, rw)
 #define BONDING_STRING_ARRAY_PROPERTY(dbus_name, member_name, rw) \
@@ -632,6 +667,10 @@ static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 	BONDING_UINT_PROPERTY(xmit-hash-policy, xmit_hash_policy, RO),
 	BONDING_UINT_PROPERTY(lacp-rate, lacp_rate, RO),
 	BONDING_UINT_PROPERTY(ad-select, ad_select, RO),
+	BONDING_UINT16_PROPERTY(ad-user-port-key, ad_user_port_key, RO),
+	BONDING_UINT16_PROPERTY(ad-actor-sys-prio, ad_actor_sys_prio, RO),
+	___NI_DBUS_PROPERTY(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING,
+			ad-actor-system, ad_actor_system, __ni_objectmodel_bonding, RO),
 	BONDING_UINT_PROPERTY(min-links, min_links, RO),
 	BONDING_UINT_PROPERTY(resend-igmp, resend_igmp, RO),
 	BONDING_UINT_PROPERTY(num-grat-arp, num_grat_arp, RO),

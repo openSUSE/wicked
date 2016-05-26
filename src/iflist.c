@@ -3259,6 +3259,10 @@ __ni_discover_bond_netlink_master(ni_netdev_t *dev, struct nlattr *info_data, ni
 		[IFLA_BOND_AD_LACP_RATE]		= { .type = NLA_U8	},
 		[IFLA_BOND_AD_SELECT]			= { .type = NLA_U8	},
 		[IFLA_BOND_AD_INFO]			= { .type = NLA_NESTED	},
+		[IFLA_BOND_AD_USER_PORT_KEY]		= { .type = NLA_U16	},
+		[IFLA_BOND_AD_ACTOR_SYS_PRIO]		= { .type = NLA_U16	},
+		[IFLA_BOND_AD_ACTOR_SYSTEM]		= { .type = NLA_UNSPEC	},
+		[IFLA_BOND_TLB_DYNAMIC_LB]		= { .type = NLA_U8	},
 	};
 #define map_attr(attr)	[attr] = #attr
 	static const char *			__bond_master_attrs[IFLA_BOND_MAX+1] = {
@@ -3285,6 +3289,10 @@ __ni_discover_bond_netlink_master(ni_netdev_t *dev, struct nlattr *info_data, ni
 		map_attr(IFLA_BOND_AD_LACP_RATE),
 		map_attr(IFLA_BOND_AD_SELECT),
 		map_attr(IFLA_BOND_AD_INFO),
+		map_attr(IFLA_BOND_AD_USER_PORT_KEY),
+		map_attr(IFLA_BOND_AD_ACTOR_SYS_PRIO),
+		map_attr(IFLA_BOND_AD_ACTOR_SYSTEM),
+		map_attr(IFLA_BOND_TLB_DYNAMIC_LB),
 	};
 #undef  map_attr
 	struct nlattr *tb[IFLA_BOND_MAX+1];
@@ -3448,16 +3456,13 @@ __ni_discover_bond_netlink_master(ni_netdev_t *dev, struct nlattr *info_data, ni
 					"%s: get attr %s=%u", dev->name, name,
 					bond->lp_interval);
 			break;
-#if 0
-		case IFLA_BOND_TLB_DYNAMIC_LP:
-			/* bonding 3.7.1 in linux-4.1.15 does not handle it via netlink */
+		case IFLA_BOND_TLB_DYNAMIC_LB:
 			bond->tlb_dynamic_lb = nla_get_u8(aptr);
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
 					"%s: get attr %s=%u (%s)", dev->name, name,
 					bond->tlb_dynamic_lb,
 					bond->tlb_dynamic_lb ? "on" : "off");
 			break;
-#endif
 		case IFLA_BOND_PACKETS_PER_SLAVE:
 			bond->packets_per_slave = nla_get_u32(aptr);
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
@@ -3477,6 +3482,27 @@ __ni_discover_bond_netlink_master(ni_netdev_t *dev, struct nlattr *info_data, ni
 					"%s: get attr %s=%u (%s)", dev->name, name,
 					bond->ad_select,
 					ni_bonding_ad_select_name(bond->ad_select));
+			break;
+		case IFLA_BOND_AD_USER_PORT_KEY:
+			/* do not log it */
+			bond->ad_user_port_key = nla_get_u16(aptr);
+			break;
+		case IFLA_BOND_AD_ACTOR_SYS_PRIO:
+			/* do not log it */
+			bond->ad_actor_sys_prio = nla_get_u16(aptr);
+			break;
+		case IFLA_BOND_AD_ACTOR_SYSTEM:
+			/* do not log it */
+			if ((unsigned int)nla_len(aptr) == ni_link_address_length(ARPHRD_ETHER)) {
+				ni_link_address_set(&bond->ad_actor_system,
+						ARPHRD_ETHER, nla_data(aptr), nla_len(aptr));
+				/* kernel accepts only valid macs, but reports as-is;
+				 * we have to filter out e.g. a 00:00:00:00:00:00 mac.
+				 */
+				if (!ni_link_address_is_invalid(&bond->ad_actor_system))
+					break;
+			}
+			ni_link_address_init(&bond->ad_actor_system);
 			break;
 		case IFLA_BOND_AD_INFO:
 			(void)__ni_discover_bond_netlink_ad_info(dev, aptr, nc);
