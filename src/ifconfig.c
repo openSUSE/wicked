@@ -544,6 +544,22 @@ __ni_addrconf_action_system_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	return 0;
 }
 
+int
+__ni_addrconf_action_write_lease(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	lease->state = NI_ADDRCONF_STATE_GRANTED;
+	ni_addrconf_lease_file_write(dev->name, lease);
+	return 0;
+}
+
+int
+__ni_addrconf_action_remove_lease(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	lease->state = NI_ADDRCONF_STATE_RELEASED;
+	ni_addrconf_lease_file_write(dev->name, lease);
+	return 0;
+}
+
 static int
 __ni_addrconf_action_addrs_remove(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 {
@@ -594,20 +610,12 @@ __ni_addrconf_action_mtu_restore(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 
 }
 
-typedef struct ni_addrconf_action ni_addrconf_action_t;
-
 struct ni_addrconf_action {
 	int		(*func)(ni_netdev_t *dev, ni_addrconf_lease_t *lease);
 	const char *	info;
 };
 
-struct ni_addrconf_updater {
-	/* do we need some data here ? */
-	const ni_addrconf_action_t *action;
-};
-
-
-static const ni_addrconf_action_t	__applying_actions[] = {
+static const ni_addrconf_action_t	updater_applying_common[] = {
 	{ __ni_addrconf_action_mtu_apply,	"adjusting mtu"		},
 	{ __ni_addrconf_action_addrs_apply,	"applying addresses"	},
 	{ __ni_addrconf_action_addrs_verify,	"verifying adressses"	},
@@ -616,28 +624,84 @@ static const ni_addrconf_action_t	__applying_actions[] = {
 	{ NULL,	NULL }
 };
 
-static const ni_addrconf_action_t	__removing_actions[] = {
+static const ni_addrconf_action_t	updater_removing_common[] = {
 	{ __ni_addrconf_action_addrs_remove,	"removing addresses"	},
 	{ __ni_addrconf_action_routes_remove,	"removing routes"	},
 	{ __ni_addrconf_action_system_update,	"removing system config"},
 	{ __ni_addrconf_action_mtu_restore,	"reverting mtu change"	},
-	{ NULL,		NULL						}
+	{ NULL,	NULL }
+};
+
+static const ni_addrconf_action_t	updater_applying_auto6[] = {
+	{ __ni_addrconf_action_write_lease,	"writting lease file"   },
+	{ __ni_addrconf_action_system_update,	"applying system config"},
+	{ NULL, NULL }
+};
+
+static const ni_addrconf_action_t	updater_removing_auto6[] = {
+	{ __ni_addrconf_action_system_update,	"applying system config"},
+	{ __ni_addrconf_action_remove_lease,	"removing lease file"   },
+	{ NULL, NULL }
 };
 
 static ni_addrconf_updater_t *
-ni_addrconf_updater_new(const ni_addrconf_action_t *action)
+ni_addrconf_updater_new(const ni_addrconf_action_t *action, const ni_netdev_t *dev)
 {
 	ni_addrconf_updater_t *updater;
 
 	updater = xcalloc(1, sizeof(*updater));
-	updater->action = action;
+	if (updater) {
+		updater->action = action;
+		if (dev)
+			ni_netdev_ref_set(&updater->device, dev->name, dev->link.ifindex);
+	}
 	return updater;
+}
+
+ni_addrconf_updater_t *
+ni_addrconf_updater_new_applying(ni_addrconf_lease_t *lease, const ni_netdev_t *dev)
+{
+	if (!lease)
+		return NULL;
+
+	ni_addrconf_updater_free(&lease->updater);
+	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_AUTOCONF) {
+		lease->updater = ni_addrconf_updater_new(updater_applying_auto6, dev);
+	} else {
+		lease->updater = ni_addrconf_updater_new(updater_applying_common, dev);
+	}
+	return lease->updater;
+}
+
+ni_addrconf_updater_t *
+ni_addrconf_updater_new_removing(ni_addrconf_lease_t *lease, const ni_netdev_t *dev)
+{
+	if (!lease)
+		return NULL;
+
+	ni_addrconf_updater_free(&lease->updater);
+	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_AUTOCONF) {
+		lease->updater = ni_addrconf_updater_new(updater_removing_auto6, dev);
+	} else {
+		lease->updater = ni_addrconf_updater_new(updater_removing_common, dev);
+	}
+	return lease->updater;
+}
+
+static inline void
+ni_addrconf_updater_destroy(ni_addrconf_updater_t *updater)
+{
+	if (updater->timer)
+		ni_timer_cancel(updater->timer);
+	updater->timer = NULL;
+	ni_netdev_ref_destroy(&updater->device);
 }
 
 void
 ni_addrconf_updater_free(ni_addrconf_updater_t **updater)
 {
 	if (updater && *updater) {
+		ni_addrconf_updater_destroy(*updater);
 		free(*updater);
 		*updater = NULL;
 	}
@@ -703,13 +767,14 @@ __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease
 	if (lease->old) {
 		ni_addrconf_updater_free(&lease->old->updater);
 	}
+
 	if (lease->state == NI_ADDRCONF_STATE_GRANTED) {
 		/* lease apply on ifup success/update */
 		lease->state = NI_ADDRCONF_STATE_APPLYING;
 		ni_netdev_set_lease(dev, lease);
 		*lease_p = NULL;
 
-		lease->updater = ni_addrconf_updater_new(__applying_actions);
+		lease->updater = ni_addrconf_updater_new_applying(lease, dev);
 		res = ni_addrconf_updater_execute(dev, lease);
 
 		/* we do not need the old lease any more */
@@ -730,7 +795,7 @@ __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease
 		 * if not, we have nothing what we could revert.
 		 */
 		if (lease->old) {
-			lease->updater = ni_addrconf_updater_new(__removing_actions);
+			lease->updater = ni_addrconf_updater_new_removing(lease, dev);
 			res = ni_addrconf_updater_execute(dev, lease);
 
 			/* we do not need the old lease any more */
@@ -742,7 +807,7 @@ __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease
 	} else {
 		/* lease drop on ifdown */
 		if (lease->old) {
-			lease->updater = ni_addrconf_updater_new(__removing_actions);
+			lease->updater = ni_addrconf_updater_new_removing(lease, dev);
 			ni_addrconf_updater_execute(dev, lease);
 		}
 		/*
