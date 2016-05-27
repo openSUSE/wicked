@@ -75,6 +75,7 @@ struct ni_netdev {
 	/* Network layer */
 	ni_ipv4_devinfo_t *	ipv4;
 	ni_ipv6_devinfo_t *	ipv6;
+	ni_auto6_t *		auto6;
 
 	/* Assigned leases */
 	ni_addrconf_lease_t *	leases;
@@ -208,6 +209,7 @@ extern ni_ipip_t *	ni_netdev_get_ipip(ni_netdev_t *);
 extern ni_gre_t *	ni_netdev_get_gre(ni_netdev_t *);
 extern ni_ppp_t *	ni_netdev_get_ppp(ni_netdev_t *);
 extern ni_lldp_t *	ni_netdev_get_lldp(ni_netdev_t *);
+extern ni_auto6_t *	ni_netdev_get_auto6(ni_netdev_t *);
 extern void		ni_netdev_set_bonding(ni_netdev_t *, ni_bonding_t *);
 extern void		ni_netdev_set_team(ni_netdev_t *, ni_team_t *);
 extern void		ni_netdev_set_vlan(ni_netdev_t *, ni_vlan_t *);
@@ -226,6 +228,7 @@ extern void		ni_netdev_set_gre(ni_netdev_t *, ni_gre_t *);
 extern void		ni_netdev_set_ppp(ni_netdev_t *, ni_ppp_t *);
 extern void		ni_netdev_set_dcb(ni_netdev_t *, ni_dcb_t *);
 extern void		ni_netdev_set_lldp(ni_netdev_t *, ni_lldp_t *);
+extern void		ni_netdev_set_auto6(ni_netdev_t *, ni_auto6_t *);
 extern void		ni_netdev_set_pci(ni_netdev_t *, ni_pci_dev_t *);
 extern void		ni_netdev_set_client_state(ni_netdev_t *, ni_client_state_t *);
 extern ni_client_state_t *	ni_netdev_get_client_state(ni_netdev_t *);

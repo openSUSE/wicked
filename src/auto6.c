@@ -41,8 +41,69 @@
 #define NI_AUTO6_UPDATER_JITTER		100	/* initial delay timeout jitter */
 #define NI_AUTO6_UPDATER_TIMEOUT	500	/* step timeout	*/
 
-
 static void				ni_auto6_updater_set_timer(ni_addrconf_updater_t *);
+static void				ni_auto6_expire_set_timer(ni_auto6_t *, unsigned int);
+
+struct ni_auto6 {
+	ni_netdev_ref_t			device;
+
+	struct {
+		const ni_timer_t *	timer;
+	} expire;
+};
+
+ni_auto6_t *
+ni_auto6_new(const ni_netdev_t *dev)
+{
+	ni_auto6_t *auto6;
+
+	if (!dev || !dev->link.ifindex)
+		return NULL;
+
+	auto6 = xcalloc(1, sizeof(*auto6));
+	if (auto6) {
+		ni_netdev_ref_set(&auto6->device, dev->name, dev->link.ifindex);
+	}
+	return auto6;
+}
+
+static inline void
+ni_auto6_destroy(ni_auto6_t *auto6)
+{
+	if (auto6->expire.timer) {
+		ni_timer_cancel(auto6->expire.timer);
+		auto6->expire.timer = NULL;
+	}
+	ni_netdev_ref_destroy(&auto6->device);
+}
+
+void
+ni_auto6_free(ni_auto6_t *auto6)
+{
+	if (auto6) {
+		ni_auto6_destroy(auto6);
+		free(auto6);
+	}
+}
+
+ni_auto6_t *
+ni_netdev_get_auto6(ni_netdev_t *dev)
+{
+	if (!dev->auto6)
+		dev->auto6 = ni_auto6_new(dev);
+	else
+	if (!ni_string_eq(dev->name, dev->auto6->device.name))
+		ni_netdev_ref_set_ifname(&dev->auto6->device, dev->name);
+	return dev->auto6;
+}
+
+void
+ni_netdev_set_auto6(ni_netdev_t *dev, ni_auto6_t *auto6)
+{
+	if (dev->auto6)
+		ni_auto6_free(dev->auto6);
+	dev->auto6 = NULL;
+}
 
 /*
  * Lease
@@ -97,6 +158,7 @@ ni_auto6_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t *lease, unsigned int
 	updater->timeout    = delay;
 	updater->jitter.max = NI_AUTO6_UPDATER_JITTER;
 	ni_auto6_updater_set_timer(updater);
+	lease->time_acquired = updater->started.tv_sec;
 }
 
 static void
@@ -208,6 +270,15 @@ ni_auto6_on_netdev_event(ni_netdev_t *dev, ni_event_t event)
 	if (!dev)
 		return;
 
+	if (!dev->ipv6 || dev->ipv6->conf.enabled == NI_TRISTATE_DISABLE) {
+		ni_netdev_set_auto6(dev, NULL);
+		if ((lease = ni_auto6_get_lease(dev))) {
+			ni_auto6_remove_lease(dev, lease);
+			ni_netdev_unset_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
+		}
+		return;
+	}
+
 	switch (event) {
 	case NI_EVENT_LINK_UP:
 		break;
@@ -217,6 +288,7 @@ ni_auto6_on_netdev_event(ni_netdev_t *dev, ni_event_t event)
 	case NI_EVENT_DEVICE_UP:
 		break;
 	case NI_EVENT_DEVICE_DOWN:
+		ni_netdev_set_auto6(dev, NULL);
 		if ((lease = ni_auto6_get_lease(dev))) {
 			ni_auto6_remove_lease(dev, lease);
 			ni_netdev_unset_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
@@ -270,7 +342,6 @@ ni_auto6_lease_rdnss_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	ni_string_array_t *old, cur = NI_STRING_ARRAY_INIT;
 	ni_ipv6_ra_rdnss_t *rdnss;
 	ni_bool_t changed = FALSE;
-	struct timeval now;
 
 	if (!dev || !dev->ipv6 || !lease)
 		return changed;
@@ -282,7 +353,6 @@ ni_auto6_lease_rdnss_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	 * rdnss servers received with lifetime of 0 are not in the list,
 	 * so we put unexpired servers and report if something changed.
 	 */
-	ni_timer_get_time(&now);
 	old = &lease->resolver->dns_servers;
 	for (rdnss = dev->ipv6->radv.rdnss; rdnss; rdnss = rdnss->next) {
 		const char *ptr;
@@ -290,9 +360,6 @@ ni_auto6_lease_rdnss_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 
 		ptr = ni_sockaddr_print(&rdnss->server);
 		if (ni_string_empty(ptr))
-			continue;
-
-		if (!ni_lifetime_left(rdnss->lifetime, &rdnss->acquired, &now))
 			continue;
 
 		if ((i = (unsigned int)ni_string_array_index(old, ptr)) != -1U)
@@ -317,7 +384,6 @@ ni_auto6_lease_dnssl_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	ni_string_array_t *old, cur = NI_STRING_ARRAY_INIT;
 	ni_ipv6_ra_dnssl_t *dnssl;
 	ni_bool_t changed = FALSE;
-	struct timeval now;
 
 	if (!dev || !dev->ipv6 || !lease)
 		return changed;
@@ -329,7 +395,6 @@ ni_auto6_lease_dnssl_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	 * rdnss servers received with lifetime of 0 are not in the list,
 	 * so we put unexpired domains and report if something changed.
 	 */
-	ni_timer_get_time(&now);
 	old = &lease->resolver->dns_search;
 	for (dnssl = dev->ipv6->radv.dnssl; dnssl; dnssl = dnssl->next) {
 		const char *ptr;
@@ -337,9 +402,6 @@ ni_auto6_lease_dnssl_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 
 		ptr = dnssl->domain;
 		if (ni_string_empty(ptr))
-			continue;
-
-		if (!ni_lifetime_left(dnssl->lifetime, &dnssl->acquired, &now))
 			continue;
 
 		if ((i = (unsigned int)ni_string_array_index(old, ptr)) != -1U)
@@ -362,6 +424,8 @@ void
 ni_auto6_on_nduseropt_events(ni_netdev_t *dev, ni_event_t event)
 {
 	ni_addrconf_lease_t *lease;
+	unsigned int lifetime;
+	struct timeval now;
 	ni_bool_t changed;
 
 	if (!dev)
@@ -385,11 +449,15 @@ ni_auto6_on_nduseropt_events(ni_netdev_t *dev, ni_event_t event)
 
 	switch (event) {
 	case NI_EVENT_RDNSS_UPDATE:
-		changed = ni_auto6_lease_rdnss_update(dev, lease);
-		break;
-
 	case NI_EVENT_DNSSL_UPDATE:
-		changed = ni_auto6_lease_dnssl_update(dev, lease);
+		ni_timer_get_time(&now);
+		lifetime = ni_ipv6_ra_info_expire(&dev->ipv6->radv, &now);
+		ni_auto6_expire_set_timer(ni_netdev_get_auto6(dev), lifetime);
+		/* we expire both, so also update both in the lease */
+		if (ni_auto6_lease_rdnss_update(dev, lease))
+			changed = TRUE;
+		if (ni_auto6_lease_dnssl_update(dev, lease))
+			changed = TRUE;
 		break;
 
 	default:
@@ -405,6 +473,89 @@ ni_auto6_on_nduseropt_events(ni_netdev_t *dev, ni_event_t event)
 
 		/* delay, as there may be more events to process ... */
 		ni_auto6_update_lease(dev, lease, NI_AUTO6_UPDATER_DELAY);
+	}
+}
+
+/*
+ * Expire handling
+ */
+static void
+ni_auto6_expire_update_lease(ni_netdev_t *dev)
+{
+	ni_addrconf_lease_t *lease;
+	ni_bool_t changed = FALSE;
+
+	if (!dev || !(lease = ni_auto6_get_lease(dev)))
+		return;
+
+	switch (lease->state) {
+	case NI_ADDRCONF_STATE_NONE:
+	case NI_ADDRCONF_STATE_RELEASING:
+	case NI_ADDRCONF_STATE_RELEASED:
+		return;
+
+	default:
+		break;
+	}
+
+	if (dev->ipv6 && (dev->ipv6->radv.rdnss || dev->ipv6->radv.dnssl)) {
+		if (ni_auto6_lease_rdnss_update(dev, lease))
+			changed = TRUE;
+		if (ni_auto6_lease_dnssl_update(dev, lease))
+			changed = TRUE;
+
+		if (changed)
+			ni_auto6_update_lease(dev, lease, NI_AUTO6_UPDATER_DELAY);
+	} else {
+		/* drop to avoid empty granted lease */
+		ni_auto6_remove_lease(dev, lease);
+		ni_netdev_unset_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
+	}
+}
+
+static void
+ni_auto6_expire_timeout(void *user_data, const ni_timer_t *timer)
+{
+	ni_auto6_t *auto6 = user_data;;
+	unsigned int lifetime;
+	ni_netconfig_t *nc;
+	ni_netdev_t *dev;
+	struct timeval now;
+
+	if (!auto6 || auto6->expire.timer != timer)
+		return;
+
+	auto6->expire.timer = NULL;
+
+	if (!(nc = ni_global_state_handle(0)))
+		return;
+
+	if (!(dev = ni_netdev_by_index(nc, auto6->device.index)))
+		return;
+
+	if (!dev->ipv6)
+		return;
+
+	ni_timer_get_time(&now);
+	lifetime = ni_ipv6_ra_info_expire(&dev->ipv6->radv, &now);
+	ni_auto6_expire_set_timer(ni_netdev_get_auto6(dev), lifetime);
+	ni_auto6_expire_update_lease(dev);
+}
+
+static void
+ni_auto6_expire_set_timer(ni_auto6_t *auto6, unsigned int lifetime)
+{
+	unsigned long timeout;
+
+	if (!auto6 || lifetime == NI_LIFETIME_EXPIRED || lifetime == NI_LIFETIME_INFINITE)
+		return;
+
+	timeout = lifetime * 1000;
+	if (auto6->expire.timer) {
+		auto6->expire.timer = ni_timer_rearm(auto6->expire.timer, timeout);
+	}
+	if (!auto6->expire.timer) {
+		auto6->expire.timer = ni_timer_register(timeout, ni_auto6_expire_timeout, auto6);
 	}
 }
 

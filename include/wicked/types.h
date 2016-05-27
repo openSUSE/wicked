@@ -63,6 +63,7 @@ typedef struct ni_ipv4_devinfo	ni_ipv4_devinfo_t;
 typedef struct ni_ipv4_devconf	ni_ipv4_devconf_t;
 typedef struct ni_ipv6_devinfo	ni_ipv6_devinfo_t;
 typedef struct ni_ipv6_devconf	ni_ipv6_devconf_t;
+typedef struct ni_auto6		ni_auto6_t;
 typedef struct ni_event_filter	ni_event_filter_t;
 typedef struct ni_modem		ni_modem_t;
 typedef struct ni_pci_dev	ni_pci_dev_t;
