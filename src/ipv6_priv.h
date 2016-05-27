@@ -13,8 +13,13 @@
 #include <wicked/ipv6.h>
 
 extern void			ni_ipv6_ra_info_flush(ni_ipv6_ra_info_t *);
+extern unsigned int		ni_ipv6_ra_info_expire(ni_ipv6_ra_info_t *,
+							const struct timeval *);
 
+extern void			ni_ipv6_ra_pinfo_free(ni_ipv6_ra_pinfo_t *);
 extern void			ni_ipv6_ra_pinfo_list_destroy(ni_ipv6_ra_pinfo_t **);
+extern unsigned int		ni_ipv6_ra_pinfo_list_expire(ni_ipv6_ra_pinfo_t **,
+							const struct timeval *);
 extern void			ni_ipv6_ra_pinfo_list_prepend(ni_ipv6_ra_pinfo_t **,
 							ni_ipv6_ra_pinfo_t *);
 extern ni_ipv6_ra_pinfo_t *	ni_ipv6_ra_pinfo_list_remove(ni_ipv6_ra_pinfo_t **,
@@ -22,12 +27,16 @@ extern ni_ipv6_ra_pinfo_t *	ni_ipv6_ra_pinfo_list_remove(ni_ipv6_ra_pinfo_t **,
 
 
 extern void			ni_ipv6_ra_rdnss_list_destroy(ni_ipv6_ra_rdnss_t **);
+extern unsigned int		ni_ipv6_ra_rdnss_list_expire(ni_ipv6_ra_rdnss_t **,
+							const struct timeval *);
 extern ni_bool_t		ni_ipv6_ra_rdnss_list_update(ni_ipv6_ra_rdnss_t **,
 							const struct in6_addr *,
 							unsigned int lifetime,
 							const struct timeval *);
 
 extern void			ni_ipv6_ra_dnssl_list_destroy(ni_ipv6_ra_dnssl_t **);
+extern unsigned int		ni_ipv6_ra_dnssl_list_expire(ni_ipv6_ra_dnssl_t **,
+							const struct timeval *);
 extern ni_bool_t		ni_ipv6_ra_dnssl_list_update(ni_ipv6_ra_dnssl_t **,
 							const char *domain,
 							unsigned int lifetime,

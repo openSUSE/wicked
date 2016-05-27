@@ -437,7 +437,7 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 	if (__ni_rtnl_parse_newprefix(dev->name, h, pfx, pi) < 0) {
 		ni_error("%s: unable to parse ipv6 prefix info event data",
 				dev->name);
-		free(pi);
+		ni_ipv6_ra_pinfo_free(pi);
 		return -1;
 	}
 
@@ -449,7 +449,7 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 		} else {
 			/* A lifetime of 0 means the router requests a prefix remove;
 			 * at least 3.0.x kernel set valid lft to 0 and keep pref. */
-			free(pi);
+			ni_ipv6_ra_pinfo_free(pi);
 			__ni_netdev_prefix_event(dev, NI_EVENT_PREFIX_DELETE, old);
 		}
 		free(old);
@@ -459,7 +459,7 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 		__ni_netdev_prefix_event(dev, NI_EVENT_PREFIX_UPDATE, pi);
 	} else {
 		/* Request to remove unhandled prefix (missed event?), ignore it. */
-		free(pi);
+		ni_ipv6_ra_pinfo_free(pi);
 	}
 
 	return 0;
