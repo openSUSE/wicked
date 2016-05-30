@@ -24,6 +24,7 @@
 #include <netinet/ip.h>
 #include <netlink/msg.h>
 #include <netlink/errno.h>
+#include <sys/time.h>
 #include <time.h>
 
 #include <wicked/netinfo.h>
@@ -481,7 +482,7 @@ __ni_addrconf_action_addrs_verify_check(ni_netdev_t *dev, ni_addrconf_lease_t *l
 }
 
 static int
-__ni_addrconf_action_addrs_verify(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+__ni_addrconf_action_addrs_verify_loop(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 	unsigned int loops = 50;
@@ -513,6 +514,43 @@ __ni_addrconf_action_addrs_verify(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	} while (res && loops-- > 0);
 
 	return 0;
+}
+
+static int
+__ni_addrconf_action_addrs_verify_timed(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	int res;
+
+	/* updater is executed on address updates removing tentative flags */
+	if ((res = __ni_addrconf_action_addrs_verify_check(dev, lease)) == 0)
+		return res;
+
+	/* This should not happen for auto6 addresses as the
+	 * kernel is never applying any without link-up, but
+	 * we may want to use it for other leases as well.
+	 *
+	 * In case the client is configured to ignore link-up
+	 * and sets IPs already at device-up [without waiting
+	 * for link detection], we detect dadfailed above, but
+	 * do not wait util the kernel verified the addresses:
+	 * kernel will not even set link local or start dad
+	 * without link-up [detected carrier / lower UP] ...
+	 */
+	if (!ni_netdev_link_is_up(dev))
+		return 0;
+
+	return res;
+}
+
+static int
+__ni_addrconf_action_addrs_verify(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	ni_addrconf_updater_t *updater = lease->updater;
+
+	if (updater && updater->timeout && timerisset(&updater->started))
+		return __ni_addrconf_action_addrs_verify_timed(dev, lease);
+	else
+		return __ni_addrconf_action_addrs_verify_loop(dev, lease);
 }
 
 static int
@@ -633,6 +671,7 @@ static const ni_addrconf_action_t	updater_removing_common[] = {
 };
 
 static const ni_addrconf_action_t	updater_applying_auto6[] = {
+	{ __ni_addrconf_action_addrs_verify,	"verifying adressses"	},
 	{ __ni_addrconf_action_write_lease,	"writting lease file"   },
 	{ __ni_addrconf_action_system_update,	"applying system config"},
 	{ NULL, NULL }
@@ -734,7 +773,8 @@ ni_addrconf_updater_execute(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 					ni_addrfamily_type_to_name(lease->family),
 					ni_addrconf_type_to_name(lease->type),
 					ni_addrconf_state_to_name(lease->state),
-					(res < 0 ? "failed" : "success"), res);
+					(res < 0 ? "failure" :
+					 res > 0 ? "deferred" : "success"), res);
 		}
 		if (res)
 			break;
