@@ -300,39 +300,186 @@ ni_auto6_on_netdev_event(ni_netdev_t *dev, ni_event_t event)
 	}
 }
 
+static ni_bool_t
+ni_auto6_is_autoconf_prefix(const ni_ipv6_ra_pinfo_t *pi)
+{
+	return pi && pi->length == 64 && pi->autoconf;
+}
+
+static ni_bool_t
+ni_auto6_lease_address_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease, const ni_address_t *ap)
+{
+	ni_bool_t changed = FALSE;
+	ni_address_t *la;
+
+	if ((la = ni_address_list_find(lease->addrs, &ap->local_addr))) {
+		if (ap->owner != NI_ADDRCONF_NONE && ap->owner != NI_ADDRCONF_AUTOCONF) {
+			changed = TRUE;
+			__ni_address_list_remove(&lease->addrs, la);
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+					"%s: removed address %s/%u in %s:%s lease (owner %s)",
+					dev->name,
+					ni_sockaddr_print(&la->local_addr), la->prefixlen,
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_addrconf_type_to_name(ap->owner));
+		} else {
+			changed = TRUE;
+			ni_address_copy(la, ap);
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+					"%s: updated address %s/%u in %s:%s lease (owner %s)",
+					dev->name,
+					ni_sockaddr_print(&la->local_addr), la->prefixlen,
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_addrconf_type_to_name(ap->owner));
+		}
+	} else
+	if ((la = ni_address_new(ap->family, ap->prefixlen, &ap->local_addr, &lease->addrs))) {
+		changed = TRUE;
+		ni_address_copy(la, ap);
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+				"%s: added address %s/%u to %s:%s lease (owner %s)",
+				dev->name,
+				ni_sockaddr_print(&la->local_addr), la->prefixlen,
+				ni_addrfamily_type_to_name(lease->family),
+				ni_addrconf_type_to_name(lease->type),
+				ni_addrconf_type_to_name(ap->owner));
+	}
+	return changed;
+}
+
 void
 ni_auto6_on_prefix_event(ni_netdev_t *dev, ni_event_t event, const ni_ipv6_ra_pinfo_t *pi)
 {
+	ni_addrconf_lease_t *lease;
+	ni_bool_t changed = FALSE;
+	ni_address_t *ap, *la, **pos;
+
 	if (!dev || !pi)
+		return;
+
+	if (!ni_auto6_is_autoconf_prefix(pi))
 		return;
 
 	switch (event) {
 	case NI_EVENT_PREFIX_UPDATE:
+		if (!(lease = ni_auto6_get_lease(dev))) {
+			if ((lease = ni_auto6_new_lease(NI_ADDRCONF_STATE_GRANTED, NULL))) {
+				ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+						"%s: create %s:%s lease in state %s", dev->name,
+						ni_addrfamily_type_to_name(lease->family),
+						ni_addrconf_type_to_name(lease->type),
+						ni_addrconf_state_to_name(lease->state));
+				ni_netdev_set_lease(dev, lease);
+			} else {
+				ni_warn("%s: failed to create a %s:%s lease: %m", dev->name,
+						ni_addrfamily_type_to_name(AF_INET6),
+						ni_addrconf_type_to_name(NI_ADDRCONF_AUTOCONF));
+				return;
+			}
+		}
+
+		__ni_system_refresh_interface_addrs(ni_global_state_handle(0), dev);
+		for (ap = dev->addrs; ap; ap = ap->next) {
+			if (ap->family != AF_INET6)
+				continue;
+			if (ap->prefixlen != pi->length)
+				continue;
+			if (!ni_address_is_mngtmpaddr(ap))
+				continue;
+			if (ni_sockaddr_is_ipv6_linklocal(&ap->local_addr))
+				continue;
+
+			if (ni_auto6_lease_address_update(dev, lease, ap))
+				changed = TRUE;
+		}
 		break;
 
 	case NI_EVENT_PREFIX_DELETE:
+		if (!(lease = ni_auto6_get_lease(dev)))
+			break;
+
+		for (pos = &lease->addrs; (la = *pos); ) {
+			if (ni_sockaddr_prefix_match(pi->length, &pi->prefix, &la->local_addr)) {
+				changed = TRUE;
+				ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+						"%s: removed address %s/%u to %s:%s lease", dev->name,
+						ni_sockaddr_print(&la->local_addr), la->prefixlen,
+						ni_addrfamily_type_to_name(lease->family),
+						ni_addrconf_type_to_name(lease->type));
+				*pos = la->next;
+				ni_address_free(la);
+			} else {
+				pos = &la->next;
+			}
+		}
 		break;
 
 	default:
 		break;
+	}
+	if (changed) {
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+			"%s: update %s:%s lease in state %s", dev->name,
+			ni_addrfamily_type_to_name(lease->family),
+			ni_addrconf_type_to_name(lease->type),
+			ni_addrconf_state_to_name(lease->state));
+
+		ni_auto6_update_lease(dev, lease, NI_AUTO6_UPDATER_DELAY);
 	}
 }
 
 void
 ni_auto6_on_address_event(ni_netdev_t *dev, ni_event_t event, const ni_address_t *ap)
 {
+	ni_addrconf_lease_t *lease;
+	ni_bool_t changed = FALSE;
+	ni_address_t *la;
+
 	if (!dev || !ap || ap->family != AF_INET6)
+		return;
+
+	if (ni_sockaddr_is_ipv6_linklocal(&ap->local_addr))
+		return;
+	if (!ni_address_is_mngtmpaddr(ap))
+		return;
+
+	if (!(lease = ni_auto6_get_lease(dev)))
 		return;
 
 	switch (event) {
 	case NI_EVENT_ADDRESS_UPDATE:
+		if (ni_auto6_lease_address_update(dev, lease, ap))
+			changed = TRUE;
 		break;
 
 	case NI_EVENT_ADDRESS_DELETE:
+		if ((la = ni_address_list_find(lease->addrs, &ap->local_addr))) {
+			changed = TRUE;
+			__ni_address_list_remove(&lease->addrs, la);
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+					"%s: deleted address %s/%u in %s:%s lease (owner %s)",
+					dev->name,
+					ni_sockaddr_print(&la->local_addr), la->prefixlen,
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_addrconf_type_to_name(ap->owner));
+		}
 		break;
 
 	default:
 		break;
+	}
+
+	if (changed) {
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+			"%s: update %s:%s lease in state %s", dev->name,
+			ni_addrfamily_type_to_name(lease->family),
+			ni_addrconf_type_to_name(lease->type),
+			ni_addrconf_state_to_name(lease->state));
+
+		ni_auto6_update_lease(dev, lease, NI_AUTO6_UPDATER_DELAY);
 	}
 }
 
