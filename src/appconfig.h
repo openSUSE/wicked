@@ -131,9 +131,13 @@ typedef struct ni_config {
 		ni_server_preference_t	preferred_server[NI_DHCP_SERVER_PREFERENCES_MAX];
 	    } dhcp6;
 
-	    struct ni_config_autoip {
+	    struct ni_config_auto4 {
 	        unsigned int	allow_update;
-	    } autoip;
+	    } auto4;
+
+	    struct ni_config_auto6 {
+	        unsigned int	allow_update;
+	    } auto6;
 	} addrconf;
 
 	char *			dbus_xml_schema_file;
