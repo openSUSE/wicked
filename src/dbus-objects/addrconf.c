@@ -31,6 +31,7 @@
 #include "model.h"
 #include "debug.h"
 #include "util_priv.h"
+#include "auto6.h"
 
 
 const ni_dbus_class_t		ni_objectmodel_addrconf_device_class = {
@@ -77,10 +78,11 @@ static dbus_bool_t	ni_objectmodel_addrconf_fallback_release(ni_netdev_t *dev, un
 static dbus_bool_t	ni_objectmodel_addrconf_fallback_reinstall(ni_netdev_t *dev, ni_addrconf_lease_t *lease);
 
 #define NI_OBJECTMODEL_ADDRCONF_IPV4STATIC_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv4.static"
+#define NI_OBJECTMODEL_ADDRCONF_IPV6STATIC_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv6.static"
 #define NI_OBJECTMODEL_ADDRCONF_IPV4DHCP_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv4.dhcp"
 #define NI_OBJECTMODEL_ADDRCONF_IPV6DHCP_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv6.dhcp"
 #define NI_OBJECTMODEL_ADDRCONF_IPV4AUTO_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv4.auto"
-#define NI_OBJECTMODEL_ADDRCONF_IPV6STATIC_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv6.static"
+#define NI_OBJECTMODEL_ADDRCONF_IPV6AUTO_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv6.auto"
 
 void
 ni_objectmodel_register_addrconf_classes(void)
@@ -997,6 +999,22 @@ ni_objectmodel_addrconf_fallback_reinstall(ni_netdev_t *dev, ni_addrconf_lease_t
 }
 
 /*
+ * Configure IPv6 autoconf
+ */
+static dbus_bool_t
+ni_objectmodel_addrconf_ipv6_auto_drop(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	return ni_auto6_release(dev) == 0;
+}
+
+/*
  * Generic lease properties
  */
 static dbus_bool_t
@@ -1124,6 +1142,24 @@ __ni_objectmodel_addrconf_ipv4_auto_set_lease(ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
+__ni_objectmodel_addrconf_ipv6_auto_get_lease(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_get_lease(object, NI_ADDRCONF_AUTOCONF, AF_INET6, result, error);
+}
+
+static dbus_bool_t
+__ni_objectmodel_addrconf_ipv6_auto_set_lease(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	return __ni_objectmodel_addrconf_generic_set_lease(object, NI_ADDRCONF_AUTOCONF, AF_INET6, argument, error);
+}
+
+static dbus_bool_t
 __ni_objectmodel_addrconf_ipv6_static_get_lease(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -1166,6 +1202,11 @@ static ni_dbus_property_t		ni_objectmodel_addrconf_ipv4_auto_properties[] = {
 	{ NULL }
 };
 
+static ni_dbus_property_t		ni_objectmodel_addrconf_ipv6_auto_properties[] = {
+	__NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, lease, __ni_objectmodel_addrconf_ipv6_auto, RO),
+	{ NULL }
+};
+
 /*
  * Addrconf methods
  */
@@ -1196,6 +1237,11 @@ static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_dhcp_methods[] = {
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4_auto_methods[] = {
 	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv4_auto_request },
 	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv4_auto_drop },
+	{ NULL }
+};
+
+static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_auto_methods[] = {
+	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv6_auto_drop },
 	{ NULL }
 };
 
@@ -1230,6 +1276,12 @@ ni_dbus_service_t			ni_objectmodel_addrconf_ipv4_auto_service = {
 	.name		= NI_OBJECTMODEL_ADDRCONF_IPV4AUTO_INTERFACE,
 	.methods	= ni_objectmodel_addrconf_ipv4_auto_methods,
 	.properties	= ni_objectmodel_addrconf_ipv4_auto_properties,
+};
+
+ni_dbus_service_t			ni_objectmodel_addrconf_ipv6_auto_service = {
+	.name		= NI_OBJECTMODEL_ADDRCONF_IPV6AUTO_INTERFACE,
+	.methods	= ni_objectmodel_addrconf_ipv6_auto_methods,
+	.properties	= ni_objectmodel_addrconf_ipv6_auto_properties,
 };
 
 
@@ -1352,3 +1404,4 @@ ni_objectmodel_set_auto4_request_dict(ni_auto4_request_t *req, const ni_dbus_var
 
 	return ni_dbus_object_set_properties_from_dict(&obj, &ni_objectmodel_auto4_request_service, dict, error);
 }
+

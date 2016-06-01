@@ -25,6 +25,10 @@
 #include <wicked/types.h>
 #include <wicked/ipv6.h>
 
+
+extern int			ni_auto6_release(ni_netdev_t *);
+
+
 extern void			ni_auto6_on_netdev_event(ni_netdev_t *, ni_event_t);
 extern void			ni_auto6_on_prefix_event(ni_netdev_t *, ni_event_t,
 							const ni_ipv6_ra_pinfo_t *);

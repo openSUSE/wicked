@@ -30,11 +30,13 @@
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/resolver.h>
+#include <wicked/objectmodel.h>
 
 #include "netinfo_priv.h"
 #include "ipv6_priv.h"
 #include "util_priv.h"
 #include "leasefile.h"
+#include "appconfig.h"
 #include "auto6.h"
 
 #define NI_AUTO6_UPDATER_DELAY		500	/* initial delay timeout	*/
@@ -67,13 +69,25 @@ ni_auto6_new(const ni_netdev_t *dev)
 	return auto6;
 }
 
-static inline void
-ni_auto6_destroy(ni_auto6_t *auto6)
+static void
+ni_auto6_expire_disarm(ni_auto6_t *auto6)
 {
 	if (auto6->expire.timer) {
 		ni_timer_cancel(auto6->expire.timer);
 		auto6->expire.timer = NULL;
 	}
+}
+
+static void
+ni_auto6_disarm(ni_auto6_t *auto6)
+{
+	ni_auto6_expire_disarm(auto6);
+}
+
+static void
+ni_auto6_destroy(ni_auto6_t *auto6)
+{
+	ni_auto6_disarm(auto6);
 	ni_netdev_ref_destroy(&auto6->device);
 }
 
@@ -103,6 +117,35 @@ ni_netdev_set_auto6(ni_netdev_t *dev, ni_auto6_t *auto6)
 	if (dev->auto6)
 		ni_auto6_free(dev->auto6);
 	dev->auto6 = NULL;
+}
+
+ni_bool_t
+ni_auto6_send_event(ni_dbus_server_t *server, ni_netdev_t *dev, ni_event_t event, ni_uuid_t *uuid)
+{
+	ni_dbus_object_t *object = ni_objectmodel_get_netif_object(server, dev);
+
+	if (object)
+		return ni_objectmodel_send_netif_event(server, object, event, uuid);
+	return FALSE;
+}
+
+const ni_address_t *
+ni_auto6_get_linklocal(ni_netdev_t *dev)
+{
+	const ni_address_t *ll = NULL;
+	const ni_address_t *ap;
+
+	for (ap = dev ? dev->addrs : NULL; ap; ap = ap->next) {
+		if (!ni_sockaddr_is_ipv6_linklocal(&ap->local_addr))
+			continue;
+
+		if (!ni_address_is_tentative(ap) && !ni_address_is_duplicate(ap))
+			return ap;
+
+		if (!ll || !ni_address_is_duplicate(ap))
+			ll = ap;
+	}
+	return ll;
 }
 
 /*
@@ -135,10 +178,12 @@ ni_auto6_new_lease(int state, const ni_uuid_t *uuid)
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_AUTOCONF, AF_INET6);
 	if (lease) {
 		lease->state = state;
-		if (uuid)
-			lease->uuid = *uuid;
-		else
+		lease->flags = NI_BIT(NI_ADDRCONF_FLAGS_OPTIONAL);
+		lease->update= ni_config_addrconf_update_mask(NI_ADDRCONF_AUTOCONF, AF_INET6);
+		if (ni_uuid_is_null(uuid))
 			ni_uuid_generate(&lease->uuid);
+		else
+			lease->uuid = *uuid;
 	}
 	return lease;
 }
@@ -186,6 +231,11 @@ ni_auto6_updater_execute(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 		return -1;
 
 	ret = ni_addrconf_updater_execute(dev, lease);
+	if (ret == 0 && !lease->updater) {
+		if (lease->state == NI_ADDRCONF_STATE_GRANTED)
+			ni_auto6_send_event(NULL, dev, NI_EVENT_ADDRESS_ACQUIRED, &lease->uuid);
+		return ret;
+	}
 	if (ret > 0) {
 		struct timeval now;
 
@@ -205,11 +255,14 @@ ni_auto6_updater_execute(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 			if (updater->timeout > NI_AUTO6_UPDATER_JITTER)
 				updater->jitter.max = NI_AUTO6_UPDATER_JITTER;
 			ni_auto6_updater_set_timer(updater);
+			return ret;
 		}
 	}
 	if (ret < 0) {
 		lease->state = NI_ADDRCONF_STATE_FAILED;
 		ni_addrconf_updater_free(&lease->updater);
+
+		ni_auto6_send_event(NULL, dev, NI_EVENT_ADDRESS_LOST, &lease->uuid);
 	}
 	return ret;
 }
@@ -265,17 +318,15 @@ ni_auto6_updater_set_timer(ni_addrconf_updater_t *updater)
 void
 ni_auto6_on_netdev_event(ni_netdev_t *dev, ni_event_t event)
 {
-	ni_addrconf_lease_t *lease;
-
 	if (!dev)
 		return;
 
+	/*
+	 * this does not work -- the kernel sends us a NEWLINK on enable, but
+	 * forgets it on disable (sysctl -w net.ipv6.conf.foo0.disable_ipv6=1)
+	 */
 	if (!dev->ipv6 || dev->ipv6->conf.enabled == NI_TRISTATE_DISABLE) {
-		ni_netdev_set_auto6(dev, NULL);
-		if ((lease = ni_auto6_get_lease(dev))) {
-			ni_auto6_remove_lease(dev, lease);
-			ni_netdev_unset_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
-		}
+		ni_auto6_release(dev);
 		return;
 	}
 
@@ -288,11 +339,7 @@ ni_auto6_on_netdev_event(ni_netdev_t *dev, ni_event_t event)
 	case NI_EVENT_DEVICE_UP:
 		break;
 	case NI_EVENT_DEVICE_DOWN:
-		ni_netdev_set_auto6(dev, NULL);
-		if ((lease = ni_auto6_get_lease(dev))) {
-			ni_auto6_remove_lease(dev, lease);
-			ni_netdev_unset_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
-		}
+		ni_auto6_release(dev);
 		break;
 
 	default:
@@ -440,8 +487,13 @@ ni_auto6_on_address_event(ni_netdev_t *dev, ni_event_t event, const ni_address_t
 	if (!dev || !ap || ap->family != AF_INET6)
 		return;
 
-	if (ni_sockaddr_is_ipv6_linklocal(&ap->local_addr))
+	if (ni_sockaddr_is_ipv6_linklocal(&ap->local_addr)) {
+		__ni_system_refresh_interface_addrs(ni_global_state_handle(0), dev);
+		if (!ni_auto6_get_linklocal(dev))
+			ni_auto6_release(dev);
 		return;
+	}
+
 	if (!ni_address_is_mngtmpaddr(ap))
 		return;
 
@@ -501,6 +553,13 @@ ni_auto6_lease_rdnss_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	 * so we put unexpired servers and report if something changed.
 	 */
 	old = &lease->resolver->dns_servers;
+	if (!(lease->update & NI_BIT(NI_ADDRCONF_UPDATE_DNS))) {
+		if (old->count) {
+			changed = TRUE;
+			ni_string_array_destroy(old);
+		}
+		return changed;
+	}
 	for (rdnss = dev->ipv6->radv.rdnss; rdnss; rdnss = rdnss->next) {
 		const char *ptr;
 		unsigned int i;
@@ -543,6 +602,13 @@ ni_auto6_lease_dnssl_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	 * so we put unexpired domains and report if something changed.
 	 */
 	old = &lease->resolver->dns_search;
+	if (!(lease->update & NI_BIT(NI_ADDRCONF_UPDATE_DNS))) {
+		if (old->count) {
+			changed = TRUE;
+			ni_string_array_destroy(old);
+		}
+		return changed;
+	}
 	for (dnssl = dev->ipv6->radv.dnssl; dnssl; dnssl = dnssl->next) {
 		const char *ptr;
 		unsigned int i;
@@ -704,5 +770,28 @@ ni_auto6_expire_set_timer(ni_auto6_t *auto6, unsigned int lifetime)
 	if (!auto6->expire.timer) {
 		auto6->expire.timer = ni_timer_register(timeout, ni_auto6_expire_timeout, auto6);
 	}
+}
+
+/*
+ * Auto6 service operations
+ */
+int
+ni_auto6_release(ni_netdev_t *dev)
+{
+	ni_addrconf_lease_t *lease;
+
+	if (!dev)
+		return -1;
+
+	if (dev->auto6)
+		ni_auto6_disarm(dev->auto6);
+
+	if ((lease = ni_auto6_get_lease(dev))) {
+		ni_auto6_remove_lease(dev, lease);
+		ni_netdev_unset_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
+	}
+
+	ni_netdev_set_auto6(dev, NULL);
+	return 0;
 }
 

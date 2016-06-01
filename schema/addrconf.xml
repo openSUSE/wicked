@@ -295,3 +295,16 @@
   </method>
 </service>
 
+<!-- =================================================
+     IPv6 autoconf address configuration service
+     ================================================= -->
+<service name="ipv6:auto" interface="org.opensuse.Network.Addrconf.ipv6.auto" object-class="netif">
+
+  <define name="properties" type="interface:addrconf-lease"/>
+
+  <method name="dropLease">
+    <return>
+      <addrconf:callback-info/>
+    </return>
+  </method>
+</service>
