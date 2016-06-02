@@ -39,20 +39,53 @@
 #include "appconfig.h"
 #include "auto6.h"
 
-#define NI_AUTO6_UPDATER_DELAY		500	/* initial delay timeout	*/
-#define NI_AUTO6_UPDATER_JITTER		100	/* initial delay timeout jitter */
-#define NI_AUTO6_UPDATER_TIMEOUT	500	/* step timeout	*/
+#define NI_AUTO6_UPDATER_DELAY		500	/* initial delay timeout in ms         */
+#define NI_AUTO6_UPDATER_JITTER		100	/* initial delay timeout jitter in ms  */
+#define NI_AUTO6_UPDATER_TIMEOUT	500	/* step timeout	in ms                  */
+
+#define NI_AUTO6_ACQUIRE_DELAY		0	/* initial acquire start delay in sec  */
+#define NI_AUTO6_ACQUIRE_TIMEOUT	1	/* acquire step timeout in sec         */
+#define NI_AUTO6_ACQUIRE_DEADLINE	10	/* defer lease request deadline in sec */
+#define NI_AUTO6_ACQUIRE_SEND_RS	2	/* solicits we send in ifup on UP link */
 
 static void				ni_auto6_updater_set_timer(ni_addrconf_updater_t *);
 static void				ni_auto6_expire_set_timer(ni_auto6_t *, unsigned int);
+static void				ni_auto6_acquire_set_timer(ni_auto6_t *, unsigned int);
 
 struct ni_auto6 {
 	ni_netdev_ref_t			device;
+
+	ni_bool_t			enabled;
+	ni_uuid_t			uuid;
+
+	struct {
+		struct timeval		start;
+		const ni_timer_t *	timer;
+		unsigned int		deadline;
+
+		unsigned int		send_rs;
+	} acquire;
 
 	struct {
 		const ni_timer_t *	timer;
 	} expire;
 };
+
+void
+ni_auto6_request_init(ni_auto6_request_t *req)
+{
+	if (req) {
+		memset(req, 0, sizeof(*req));
+		req->enabled = FALSE;
+		req->defer_timeout = NI_AUTO6_ACQUIRE_DEADLINE;
+	}
+}
+
+void
+ni_auto6_request_destroy(ni_auto6_request_t *req)
+{
+	ni_auto6_request_init(req);
+}
 
 ni_auto6_t *
 ni_auto6_new(const ni_netdev_t *dev)
@@ -64,9 +97,20 @@ ni_auto6_new(const ni_netdev_t *dev)
 
 	auto6 = xcalloc(1, sizeof(*auto6));
 	if (auto6) {
+		auto6->enabled = TRUE;
 		ni_netdev_ref_set(&auto6->device, dev->name, dev->link.ifindex);
 	}
 	return auto6;
+}
+
+static void
+ni_auto6_acquire_disarm(ni_auto6_t *auto6)
+{
+	if (auto6->acquire.timer) {
+		ni_timer_cancel(auto6->acquire.timer);
+		auto6->acquire.timer = NULL;
+		timerclear(&auto6->acquire.start);
+	}
 }
 
 static void
@@ -81,7 +125,16 @@ ni_auto6_expire_disarm(ni_auto6_t *auto6)
 static void
 ni_auto6_disarm(ni_auto6_t *auto6)
 {
+	ni_auto6_acquire_disarm(auto6);
 	ni_auto6_expire_disarm(auto6);
+}
+
+static void
+ni_auto6_reset(ni_auto6_t *auto6)
+{
+	auto6->acquire.deadline = 0;
+	auto6->acquire.send_rs  = 0;
+	ni_auto6_disarm(auto6);
 }
 
 static void
@@ -117,6 +170,73 @@ ni_netdev_set_auto6(ni_netdev_t *dev, ni_auto6_t *auto6)
 	if (dev->auto6)
 		ni_auto6_free(dev->auto6);
 	dev->auto6 = NULL;
+}
+
+static ni_bool_t
+ni_netdev_auto6_supported(ni_netdev_t *dev)
+{
+	ni_ipv6_devinfo_t *ipv6;
+
+	if (!dev)
+		return FALSE;
+
+	/*
+	 * ipv6 is not supported (disabled via boot param)
+	 */
+	if (!ni_ipv6_supported())
+		return FALSE;
+
+	/*
+	 * ipv6 not discovered or wiped from device
+	 */
+	if (!(ipv6 = dev->ipv6))
+		return FALSE;
+
+	/*
+	 * ipv6 disabled on this device
+	 */
+	if (ni_tristate_is_disabled(dev->ipv6->conf.enabled))
+		return FALSE;
+
+	/*
+	 * device may support ipv6, but not doing autoconfig
+	 *
+	 * accept_ra = 1 is a default set also on devices
+	 * not doing/supporting autoconfig (e.g. loopback),
+	 * so it is not really an reliable setting ...
+	 */
+	switch (dev->link.type) {
+	case NI_IFTYPE_LOOPBACK:
+		return FALSE;
+	default:
+		break;
+	}
+	if (!(dev->link.ifflags & NI_IFF_ARP_ENABLED))
+		return FALSE;
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_netdev_auto6_enabled(ni_netdev_t *dev)
+{
+	/* ipv6 is disabled or auto6 not supported */
+	if (!ni_netdev_auto6_supported(dev))
+		return FALSE;
+
+	/*
+	 * when forwarding is enabled, autoconfig is disabled,
+	 * except accept_ra = 2 is set as well.
+	 */
+	if (ni_tristate_is_enabled(dev->ipv6->conf.forwarding)) {
+		if (dev->ipv6->conf.accept_ra <= NI_IPV6_ACCEPT_RA_HOST)
+			return FALSE;
+	} else {
+		if (dev->ipv6->conf.accept_ra == NI_IPV6_ACCEPT_RA_DISABLED)
+			return FALSE;
+	}
+
+	return TRUE;
 }
 
 ni_bool_t
@@ -230,6 +350,9 @@ ni_auto6_updater_execute(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	if (!(updater = lease->updater))
 		return -1;
 
+	if (dev->auto6)
+		ni_auto6_acquire_disarm(dev->auto6);
+
 	ret = ni_addrconf_updater_execute(dev, lease);
 	if (ret == 0 && !lease->updater) {
 		if (lease->state == NI_ADDRCONF_STATE_GRANTED)
@@ -327,6 +450,7 @@ ni_auto6_on_netdev_event(ni_netdev_t *dev, ni_event_t event)
 	 */
 	if (!dev->ipv6 || dev->ipv6->conf.enabled == NI_TRISTATE_DISABLE) {
 		ni_auto6_release(dev);
+		ni_netdev_set_auto6(dev, NULL);
 		return;
 	}
 
@@ -340,6 +464,7 @@ ni_auto6_on_netdev_event(ni_netdev_t *dev, ni_event_t event)
 		break;
 	case NI_EVENT_DEVICE_DOWN:
 		ni_auto6_release(dev);
+		ni_netdev_set_auto6(dev, NULL);
 		break;
 
 	default:
@@ -407,6 +532,9 @@ ni_auto6_on_prefix_event(ni_netdev_t *dev, ni_event_t event, const ni_ipv6_ra_pi
 		return;
 
 	if (!ni_auto6_is_autoconf_prefix(pi))
+		return;
+
+	if (dev->auto6 && !dev->auto6->enabled)
 		return;
 
 	switch (event) {
@@ -489,10 +617,15 @@ ni_auto6_on_address_event(ni_netdev_t *dev, ni_event_t event, const ni_address_t
 
 	if (ni_sockaddr_is_ipv6_linklocal(&ap->local_addr)) {
 		__ni_system_refresh_interface_addrs(ni_global_state_handle(0), dev);
-		if (!ni_auto6_get_linklocal(dev))
+		if (!ni_auto6_get_linklocal(dev)) {
 			ni_auto6_release(dev);
+			ni_netdev_set_auto6(dev, NULL);
+		}
 		return;
 	}
+
+	if (dev->auto6 && !dev->auto6->enabled)
+		return;
 
 	if (!ni_address_is_mngtmpaddr(ap))
 		return;
@@ -644,6 +777,9 @@ ni_auto6_on_nduseropt_events(ni_netdev_t *dev, ni_event_t event)
 	if (!dev)
 		return;
 
+	if (dev->auto6 && !dev->auto6->enabled)
+		return;
+
 	if (!(lease = ni_auto6_get_lease(dev))) {
 		if ((lease = ni_auto6_new_lease(NI_ADDRCONF_STATE_GRANTED, NULL))) {
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
@@ -775,6 +911,169 @@ ni_auto6_expire_set_timer(ni_auto6_t *auto6, unsigned int lifetime)
 /*
  * Auto6 service operations
  */
+static void
+ni_auto6_acquire_run(void *user_data, const ni_timer_t *timer)
+{
+	ni_auto6_t *auto6 = user_data;
+	ni_addrconf_lease_t *lease;
+	const ni_address_t *ap;
+	unsigned int left;
+	ni_netconfig_t *nc;
+	ni_netdev_t *dev;
+
+	if (!auto6 || auto6->acquire.timer != timer)
+		return;
+
+	auto6->acquire.timer = NULL;
+
+	if (!(nc = ni_global_state_handle(0)))
+		return;
+
+	if (!(dev = ni_netdev_by_index(nc, auto6->device.index)))
+		return;
+
+	if (!ni_netdev_auto6_enabled(dev)) {
+		ni_warn("%s: ipv6:auto seems to be disabled in the kernel", dev->name);
+		/* cancel waiting in the client fsm / nanny */
+		ni_auto6_send_event(NULL, dev, NI_EVENT_ADDRESS_LOST, &auto6->uuid);
+		/* let it also forget / remove the lease */
+		ni_auto6_send_event(NULL, dev, NI_EVENT_ADDRESS_RELEASED, NULL);
+		return;
+	}
+
+	if (!(lease = ni_auto6_get_lease(dev))) {
+		ni_warn("%s: ipv6:auto lease request has been removed", dev->name);
+		ni_auto6_send_event(NULL, dev, NI_EVENT_ADDRESS_LOST, &auto6->uuid);
+		return;
+	}
+
+	if (!ni_netdev_device_is_up(dev)) {
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+				"%s: link is not even set UP, fail", dev->name);
+		lease->state = NI_ADDRCONF_STATE_FAILED;
+		ni_auto6_send_event(NULL, dev, NI_EVENT_ADDRESS_LOST, &lease->uuid);
+		return;
+	}
+
+	if (!ni_netdev_link_is_up(dev)) {
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+				"%s: link is not ready yet, defer", dev->name);
+		lease->state = NI_ADDRCONF_STATE_REQUESTING;
+		ni_auto6_send_event(NULL, dev, NI_EVENT_ADDRESS_DEFERRED, &lease->uuid);
+		return;
+	}
+
+	/*
+	 * kernel sets link local on transition to link-up,
+	 * so when it is not set or duplicate, just fail.
+	 */
+	if (!(ap = ni_auto6_get_linklocal(dev))) {
+		__ni_system_refresh_interface_addrs(nc, dev);
+		if (!(ap = ni_auto6_get_linklocal(dev))) {
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+					"%s: no link-local address assigned, fail", dev->name);
+			lease->state = NI_ADDRCONF_STATE_FAILED;
+			ni_auto6_send_event(NULL, dev, NI_EVENT_ADDRESS_LOST, &lease->uuid);
+			return;
+		}
+	}
+	if (ni_address_is_duplicate(ap)) {
+		ni_warn("%s: ipv6 link-local address %s is duplicate, fail", dev->name,
+				ni_sockaddr_print(&ap->local_addr));
+		lease->state = NI_ADDRCONF_STATE_FAILED;
+		ni_auto6_send_event(NULL, dev, NI_EVENT_ADDRESS_LOST, &lease->uuid);
+		return;
+	}
+
+	if (!(left = ni_lifetime_left(auto6->acquire.deadline, &auto6->acquire.start, NULL))) {
+		ni_auto6_send_event(NULL, dev, NI_EVENT_ADDRESS_DEFERRED, &lease->uuid);
+		return;
+	}
+
+	if (ni_address_is_tentative(ap)) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+				"%s: link-local address %s is tentative, wait up to %usec...",
+				dev->name, ni_sockaddr_print(&ap->local_addr), left);
+		/* the kernel sends rs itself, just let it do it's work */
+		auto6->acquire.send_rs = 0;
+	} else
+	if (auto6->acquire.send_rs) {
+		/*
+		 * the link address was already ready to use
+		 * (e.g. wickedd restarted or ifup ; ifup);
+		 * send router solicit ourselfs to get an RA
+		 * update and (re)apply the lease.
+		 */
+		auto6->acquire.send_rs--;
+		if (ni_icmpv6_ra_solicit(&auto6->device, NULL)) {
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+					"%s: ipv6 router solicit sent, waiting up to %usec for RA",
+					dev->name, left);
+		} else {
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+					"%s: failed to send ipv6 router solicit", dev->name);
+		}
+	} else {
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+				"%s: waiting up to %usec for ipv6 router advertisement",
+				dev->name, left);
+	}
+
+	ni_auto6_acquire_set_timer(auto6, NI_AUTO6_ACQUIRE_TIMEOUT);
+}
+
+static void
+ni_auto6_acquire_set_timer(ni_auto6_t *auto6, unsigned int delay)
+{
+	unsigned long timeout = delay * 1000;
+
+	if (auto6->acquire.timer)
+		auto6->acquire.timer = ni_timer_rearm(auto6->acquire.timer, timeout);
+
+	if (!auto6->acquire.timer)
+		auto6->acquire.timer = ni_timer_register(timeout, ni_auto6_acquire_run, auto6);
+}
+
+int
+ni_auto6_acquire(ni_netdev_t *dev, const ni_auto6_request_t *req)
+{
+	ni_addrconf_lease_t *lease;
+	ni_auto6_t *auto6;
+
+	if (!dev || !(auto6 = ni_netdev_get_auto6(dev)) || !req)
+		return -1;
+
+	if (!req->enabled)
+		return ni_auto6_release(dev);
+
+	ni_uuid_generate(&auto6->uuid);
+	if (!(lease = ni_auto6_get_lease(dev))) {
+		if ((lease = ni_auto6_new_lease(NI_ADDRCONF_STATE_REQUESTING, &auto6->uuid))) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
+					"%s: create %s:%s lease in state %s", dev->name,
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_addrconf_state_to_name(lease->state));
+		} else {
+			ni_error("%s: failed to create a %s:%s lease: %m", dev->name,
+					ni_addrfamily_type_to_name(AF_INET6),
+					ni_addrconf_type_to_name(NI_ADDRCONF_AUTOCONF));
+			return -1;
+		}
+		ni_netdev_set_lease(dev, lease);
+	} else {
+		lease->state = NI_ADDRCONF_STATE_REQUESTING;
+		lease->uuid  = auto6->uuid;
+	}
+
+	auto6->acquire.deadline = req->defer_timeout;
+	auto6->acquire.send_rs  = NI_AUTO6_ACQUIRE_SEND_RS;
+
+	ni_timer_get_time(&auto6->acquire.start);
+	ni_auto6_acquire_set_timer(auto6, NI_AUTO6_ACQUIRE_DELAY);
+	return 0;
+}
+
 int
 ni_auto6_release(ni_netdev_t *dev)
 {
@@ -783,15 +1082,16 @@ ni_auto6_release(ni_netdev_t *dev)
 	if (!dev)
 		return -1;
 
-	if (dev->auto6)
-		ni_auto6_disarm(dev->auto6);
+	if (dev->auto6) {
+		dev->auto6->enabled = FALSE;
+		ni_auto6_reset(dev->auto6);
+	}
 
 	if ((lease = ni_auto6_get_lease(dev))) {
 		ni_auto6_remove_lease(dev, lease);
 		ni_netdev_unset_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
 	}
 
-	ni_netdev_set_auto6(dev, NULL);
 	return 0;
 }
 

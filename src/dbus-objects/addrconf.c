@@ -31,6 +31,7 @@
 #include "model.h"
 #include "debug.h"
 #include "util_priv.h"
+#include "appconfig.h"
 #include "auto6.h"
 
 
@@ -76,6 +77,7 @@ static dbus_bool_t	ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forw
 static dbus_bool_t	ni_objectmodel_addrconf_fallback_request(ni_netdev_t *dev, unsigned int family);
 static dbus_bool_t	ni_objectmodel_addrconf_fallback_release(ni_netdev_t *dev, unsigned int family);
 static dbus_bool_t	ni_objectmodel_addrconf_fallback_reinstall(ni_netdev_t *dev, ni_addrconf_lease_t *lease);
+static dbus_bool_t	ni_objectmodel_set_auto6_request_dict(ni_auto6_request_t *, const ni_dbus_variant_t *, DBusError *);
 
 #define NI_OBJECTMODEL_ADDRCONF_IPV4STATIC_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv4.static"
 #define NI_OBJECTMODEL_ADDRCONF_IPV6STATIC_INTERFACE	NI_OBJECTMODEL_ADDRCONF_INTERFACE ".ipv6.static"
@@ -1002,6 +1004,42 @@ ni_objectmodel_addrconf_fallback_reinstall(ni_netdev_t *dev, ni_addrconf_lease_t
  * Configure IPv6 autoconf
  */
 static dbus_bool_t
+ni_objectmodel_addrconf_ipv6_auto_request(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_addrconf_lease_t *lease;
+	ni_auto6_request_t req;
+	ni_netdev_t *dev;
+	int ret;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	ni_auto6_request_init(&req);
+	if (argc != 1 || !ni_objectmodel_set_auto6_request_dict(&req, &argv[0], error)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s.%s: expected one auto6 request dict argument",
+				NI_OBJECTMODEL_ADDRCONF_IPV6AUTO_INTERFACE, method->name);
+		return FALSE;
+	}
+
+	ret = ni_auto6_acquire(dev, &req);
+	ni_auto6_request_destroy(&req);
+	if (ret == 0 && (lease = ni_netdev_get_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF))) {
+		ni_objectmodel_callback_data_t data = { .lease = lease };
+
+		return __ni_objectmodel_return_callback_info(reply,
+				NI_EVENT_ADDRESS_ACQUIRED, &lease->uuid, &data, error);
+	} else {
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"%s.%s: failed to acquire lease",
+				NI_OBJECTMODEL_ADDRCONF_IPV6AUTO_INTERFACE, method->name);
+	}
+	return FALSE;
+}
+
+static dbus_bool_t
 ni_objectmodel_addrconf_ipv6_auto_drop(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
@@ -1241,6 +1279,7 @@ static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4_auto_methods[] = {
 };
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_auto_methods[] = {
+	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv6_auto_request },
 	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv6_auto_drop },
 	{ NULL }
 };
@@ -1403,5 +1442,26 @@ ni_objectmodel_set_auto4_request_dict(ni_auto4_request_t *req, const ni_dbus_var
 	obj.class = &ni_objectmodel_auto4_request_class;
 
 	return ni_dbus_object_set_properties_from_dict(&obj, &ni_objectmodel_auto4_request_service, dict, error);
+}
+
+/*
+ * Auto6 request from dict
+ */
+static dbus_bool_t
+ni_objectmodel_set_auto6_request_dict(ni_auto6_request_t *req, const ni_dbus_variant_t *dict, DBusError *error)
+{
+	dbus_bool_t enabled;
+
+	(void)error;
+
+	if (!req || !dict || !ni_dbus_variant_is_dict(dict))
+		return FALSE;
+
+	if (ni_dbus_dict_get_bool(dict, "enabled", &enabled))
+		req->enabled = enabled;
+
+	ni_dbus_dict_get_uint32(dict, "defer-timeout", &req->defer_timeout);
+
+	return TRUE;
 }
 

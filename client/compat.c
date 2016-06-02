@@ -2026,6 +2026,24 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 	return dhcp;
 }
 
+static xml_node_t *
+__ni_compat_generate_auto6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	xml_node_t *aconf;
+
+	if (!compat->auto6.enabled)
+		return NULL;
+
+	aconf = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv6:auto", 0, 0);
+
+	if (aconf && compat->auto6.defer_timeout != -1U) {
+		xml_node_dict_set(aconf, "defer-timeout",
+				ni_sprint_timeout(compat->auto6.defer_timeout));
+	}
+
+	return aconf;
+}
+
 static ni_bool_t
 __ni_compat_generate_ipv4_devconf(xml_node_t *ifnode, const ni_ipv4_devinfo_t *ipv4, ni_iftype_t iftype)
 {
@@ -2258,15 +2276,16 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 
 	__ni_compat_generate_ipv4_devconf(ifnode, dev->ipv4, dev->link.type);
 	if (dev->ipv4 && !ni_tristate_is_disabled(dev->ipv4->conf.enabled)) {
-		__ni_compat_generate_static_addrconf(ifnode, compat, AF_INET);
 		__ni_compat_generate_dhcp4_addrconf(ifnode, compat);
 		__ni_compat_generate_auto4_addrconf(ifnode, compat);
+		__ni_compat_generate_static_addrconf(ifnode, compat, AF_INET);
 	}
 
 	__ni_compat_generate_ipv6_devconf(ifnode, dev->ipv6);
 	if (dev->ipv6 && !ni_tristate_is_disabled(dev->ipv6->conf.enabled)) {
-		__ni_compat_generate_static_addrconf(ifnode, compat, AF_INET6);
 		__ni_compat_generate_dhcp6_addrconf(ifnode, compat);
+		__ni_compat_generate_auto6_addrconf(ifnode, compat);
+		__ni_compat_generate_static_addrconf(ifnode, compat, AF_INET6);
 	}
 
 	return TRUE;
