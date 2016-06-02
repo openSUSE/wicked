@@ -5322,6 +5322,10 @@ address_acquired_callback_handler(ni_ifworker_t *w, const ni_objectmodel_callbac
 					return 0;
 			}
 		}
+
+		if (ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_OPTIONAL))
+			return 0;
+
 		return 1;	/* do not advance state, wait until timeout */
 	}
 
