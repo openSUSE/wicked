@@ -4795,6 +4795,7 @@ static ni_bool_t
 __ni_suse_addrconf_auto6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
+	ni_sysconfig_t *merged;
 
 	if (!dev || !dev->ipv6 || ni_tristate_is_disabled(dev->ipv6->conf.enabled))
 		goto ignored;
@@ -4829,12 +4830,12 @@ __ni_suse_addrconf_auto6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	compat->auto6.enabled = TRUE;
-	if (!ni_sysconfig_get_integer(__ni_suse_dhcp_defaults, "AUTO6_WAIT_AT_BOOT",
-				&compat->auto6.defer_timeout) &&
-	    !ni_sysconfig_get_integer(sc, "AUTO6_WAIT_AT_BOOT",
-				&compat->auto6.defer_timeout))
-		compat->auto6.defer_timeout = -1U; /* use a built-in default */
-
+	compat->auto6.defer_timeout = -1U; /* use a built-in default */
+	if ((merged = ni_sysconfig_merge_defaults(sc, __ni_suse_config_defaults))) {
+		ni_sysconfig_get_integer(merged, "AUTO6_WAIT_AT_BOOT",
+				&compat->auto6.defer_timeout);
+		ni_sysconfig_destroy(merged);
+	}
 	return TRUE;
 
 ignored:
