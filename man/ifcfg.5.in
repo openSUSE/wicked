@@ -100,7 +100,7 @@ Without nanny, an \fIifup\fR call preforms a one-shot setup.
 .\"or bridge ports.
 
 .TP
-.BR BOOTPROTO\  { static* | dhcp | dhcp4 | dhcp6 | autoip | dhcp+autoip | 6to4 | none }
+.BR BOOTPROTO\  { static* | dhcp | dhcp4 | dhcp6 | autoip | dhcp+autoip | auto6 | 6to4 | none }
 Setup protocol. If this variable is empty or missing, it defaults to \fBstatic\fR.
 .RS
 .PD 0
@@ -126,9 +126,16 @@ that is, a DHCPv4 route with same metrics as a static one will be skipped.
 DHCPv6 does not support routing options, an IPv6 Router Advertisement (RA)
 is applying them.
 .TP
-.B autoip dhcp+autoip
+.B auto4 autoip dhcp+autoip
 .br
-may be used for a IPv4 zeroconf setup or as fall back to autoip if dhcp fails.
+may be used for a IPv4 zeroconf setup or as fall back to autoip if dhcp4 fails.
+.TP
+.BR auto6
+.br
+can be used to request to wait for IPv6 autoconfig (in kernel), usable also
+in combination with dhcp or static modes, e.g. dhcp+auto6 to request dhcp4,
+dhcp6 and also wait for auto6. Default is to not wait, but apply the RDNSS
+and DNSSL resolver (lowerered prio in netconfig) settings when they arrive.
 .TP
 .BR 6to4
 .br
@@ -281,6 +288,11 @@ e.g.:
 
 The NIC driver may reject settings as not supported (e.g. '-K iface lro off')
 or also when the link is not up.
+.TP
+.B AUTO6_WAIT_AT_BOOT\ { number of seconds\fB }
+Permits to specify how long to wait for IPv6 autoconfig when requested
+with the auto6 or +auto6 tag in BOOTPROTO variable.
+When unset, a wicked built-in default defer time (10sec) is used.
 .TP
 .B CHECK_DUPLICATE_IP\ { yes \fR| no\fB }
 Whether to detect duplicate IPv4 addresses or not. Set to "no" to disable it.
