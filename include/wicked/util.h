@@ -377,6 +377,8 @@ extern const char *	ni_string_join(char **str, const ni_string_array_t *nsa, con
 extern unsigned int	ni_string_split(ni_string_array_t *nsa, const char *str, const char *sep, unsigned int);
 extern ni_bool_t	ni_string_ishex(const char *);
 extern int		ni_string_remove_char(char *, int);
+extern void		ni_string_tolower(char *);
+extern void		ni_string_toupper(char *);
 
 extern char *		ni_sprint_hex(const unsigned char *, size_t);
 extern const char *	ni_sprint_uint(unsigned int);

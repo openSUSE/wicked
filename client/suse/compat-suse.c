@@ -4792,6 +4792,59 @@ __ni_suse_addrconf_auto4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 }
 
 static ni_bool_t
+__ni_suse_addrconf_auto6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	ni_sysconfig_t *merged;
+
+	if (!dev || !dev->ipv6 || ni_tristate_is_disabled(dev->ipv6->conf.enabled))
+		goto ignored;
+
+	switch (dev->link.type) {
+	case NI_IFTYPE_LOOPBACK:
+	case NI_IFTYPE_DUMMY:
+	case NI_IFTYPE_PPP:
+	case NI_IFTYPE_TUN:
+	case NI_IFTYPE_SIT:
+	case NI_IFTYPE_ISDN:
+	case NI_IFTYPE_IPIP:
+	case NI_IFTYPE_TUNNEL6:
+	case NI_IFTYPE_SLIP:
+	case NI_IFTYPE_CTCM:
+	case NI_IFTYPE_IUCV:
+	case NI_IFTYPE_OVS_SYSTEM:
+		goto ignored;
+	default:
+		break;
+	}
+
+	if (compat->auto6.enabled)
+		return TRUE;
+
+	if (ni_tristate_is_enabled(dev->ipv6->conf.forwarding)) {
+		if (dev->ipv6->conf.accept_ra <= NI_IPV6_ACCEPT_RA_HOST)
+			goto ignored;
+	} else {
+		if (dev->ipv6->conf.accept_ra == NI_IPV6_ACCEPT_RA_DISABLED)
+			goto ignored;
+	}
+
+	compat->auto6.enabled = TRUE;
+	compat->auto6.defer_timeout = -1U; /* use a built-in default */
+	if ((merged = ni_sysconfig_merge_defaults(sc, __ni_suse_config_defaults))) {
+		ni_sysconfig_get_integer(merged, "AUTO6_WAIT_AT_BOOT",
+				&compat->auto6.defer_timeout);
+		ni_sysconfig_destroy(merged);
+	}
+	return TRUE;
+
+ignored:
+	ni_warn("ifcfg-%s: BOOTPROTO auto6 not enabled due to (sysctl) constraints", dev->name);
+	return FALSE;
+}
+
+
+static ni_bool_t
 __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
@@ -4890,6 +4943,9 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			/* dhcp4 requested or required if primary  */
 			__ni_suse_addrconf_auto4(sc, compat, primary);
 		}
+		else if (ni_string_eq(s, "auto6")) {
+			__ni_suse_addrconf_auto6(sc, compat);
+		}
 		else {
 			ni_debug_readwrite("ifcfg-%s: Unknown BOOTPROTO=\"%s\""
 					" value \"%s\"", dev->name, bootproto, s);
@@ -4900,6 +4956,7 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	/* static is always included in the "+" variants */
 	__ni_suse_addrconf_static(sc, compat);
+
 	return TRUE;
 }
 

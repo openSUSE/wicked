@@ -29,6 +29,7 @@
 #include <wicked/wireless.h>
 #include <wicked/modem.h>
 #include "udev-utils.h"
+#include "auto6.h"
 
 enum {
 	OPT_HELP,
@@ -382,6 +383,8 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 	if (dbus_server) {
 		ni_dbus_object_t *object;
 
+		ni_auto6_on_netdev_event(dev, event);
+
 		object = ni_objectmodel_get_netif_object(dbus_server, dev);
 		if (!object && event == NI_EVENT_DEVICE_CREATE) {
 			/* A new netif was discovered or we've created one;
@@ -436,18 +439,21 @@ static void
 handle_interface_addr_events(ni_netdev_t *dev, ni_event_t event, const ni_address_t *ap)
 {
 	ni_server_trace_interface_addr_events(dev, event, ap);
+	ni_auto6_on_address_event(dev, event, ap);
 }
 
 static void
 handle_interface_prefix_events(ni_netdev_t *dev, ni_event_t event, const ni_ipv6_ra_pinfo_t *pi)
 {
 	ni_server_trace_interface_prefix_events(dev, event, pi);
+	ni_auto6_on_prefix_event(dev, event, pi);
 }
 
 static void
 handle_interface_nduseropt_events(ni_netdev_t *dev, ni_event_t event)
 {
 	ni_server_trace_interface_nduseropt_events(dev, event);
+	ni_auto6_on_nduseropt_events(dev, event);
 }
 
 static void

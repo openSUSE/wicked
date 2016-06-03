@@ -17,6 +17,7 @@
 #include <netinet/if_ether.h>
 #include <netinet/if_tr.h>
 #include <net/if_arp.h>
+#include <linux/if_addr.h>
 #include <linux/if_infiniband.h>
 #include <netlink/netlink.h>
 
@@ -24,13 +25,6 @@
 #include <wicked/netinfo.h>
 #include <wicked/socket.h>
 #include "util_priv.h"
-
-#ifndef IFA_F_MANAGETEMPADDR
-#define IFA_F_MANAGETEMPADDR	0x100
-#endif
-#ifndef IFA_F_NOPREFIXROUTE
-#define IFA_F_NOPREFIXROUTE	0x200
-#endif
 
 #ifndef offsetof
 # define offsetof(type, member) \
@@ -108,6 +102,8 @@ static const ni_intmap_t	__ni_address_ipv6_flag_map[] = {
 	{ "permanent",		IFA_F_PERMANENT		},
 	{ "mngtmpaddr",		IFA_F_MANAGETEMPADDR	},
 	{ "noprefixroute",	IFA_F_NOPREFIXROUTE	},
+	{ "autojoin",		IFA_F_MCAUTOJOIN	},
+	{ "stable-privacy",	IFA_F_STABLE_PRIVACY	},
 	{ NULL,			0			}
 };
 
@@ -167,31 +163,37 @@ ni_address_is_linklocal(const ni_address_t *laddr)
 ni_bool_t
 ni_address_is_tentative(const ni_address_t *laddr)
 {
-	return laddr->flags & IFA_F_TENTATIVE;
+	return laddr->flags & IFA_F_TENTATIVE ? TRUE : FALSE;
 }
 
 ni_bool_t
 ni_address_is_duplicate(const ni_address_t *laddr)
 {
-	return laddr->flags & IFA_F_DADFAILED;
+	return laddr->flags & IFA_F_DADFAILED ? TRUE : FALSE;
 }
 
 ni_bool_t
 ni_address_is_temporary(const ni_address_t *laddr)
 {
-	return laddr->flags & IFA_F_TEMPORARY;
+	return laddr->flags & IFA_F_TEMPORARY ? TRUE : FALSE;
 }
 
 ni_bool_t
 ni_address_is_permanent(const ni_address_t *laddr)
 {
-	return laddr->flags & IFA_F_PERMANENT;
+	return laddr->flags & IFA_F_PERMANENT ? TRUE : FALSE;
 }
 
 ni_bool_t
 ni_address_is_deprecated(const ni_address_t *laddr)
 {
-	return laddr->flags & IFA_F_DEPRECATED;
+	return laddr->flags & IFA_F_DEPRECATED ? TRUE : FALSE;
+}
+
+ni_bool_t
+ni_address_is_mngtmpaddr(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_MANAGETEMPADDR ? TRUE : FALSE;
 }
 
 ni_bool_t
@@ -1217,6 +1219,37 @@ ni_link_address_is_invalid(const ni_hwaddr_t *hwa)
 /*
  * Adjust IPv6 lifetimes in address cache info
  */
+unsigned int
+ni_lifetime_left(unsigned int lifetime, const struct timeval *acquired, const struct timeval *current)
+{
+	struct timeval now, dif;
+
+	switch (lifetime) {
+	case NI_LIFETIME_INFINITE:
+	case NI_LIFETIME_EXPIRED:
+		return lifetime;
+
+	default:
+		if (!acquired || !timerisset(acquired))
+			return lifetime;
+		break;
+	}
+
+	if (!current || !timerisset(current)) {
+		ni_timer_get_time(&now);
+		current = &now;
+	}
+
+	if (timercmp(current, acquired, >)) {
+		timersub(current, acquired, &dif);
+		if (lifetime >= dif.tv_sec) {
+			lifetime -= dif.tv_sec;
+			return lifetime;
+		}
+	}
+	return NI_LIFETIME_EXPIRED;
+}
+
 void
 ni_ipv6_cache_info_rebase(ni_ipv6_cache_info_t *res, const ni_ipv6_cache_info_t *lft, const struct timeval *base)
 {

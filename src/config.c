@@ -34,6 +34,7 @@ static const char *__ni_ifconfig_source_types[] = {
 
 static ni_bool_t	ni_config_parse_addrconf_dhcp4(struct ni_config_dhcp4 *, xml_node_t *);
 static ni_bool_t	ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *, xml_node_t *);
+static ni_bool_t	ni_config_parse_addrconf_auto6(struct ni_config_auto6 *, xml_node_t *);
 static void		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static void		ni_config_parse_fslocation(ni_config_fslocation_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_objectmodel_extension(ni_extension_t **, xml_node_t *);
@@ -51,6 +52,7 @@ static unsigned int	ni_config_addrconf_update_mask_all(void);
 static unsigned int	ni_config_addrconf_update_mask_dhcp4(void);
 static unsigned int	ni_config_addrconf_update_mask_dhcp6(void);
 static unsigned int	ni_config_addrconf_update_mask_auto4(void);
+static unsigned int	ni_config_addrconf_update_mask_auto6(void);
 
 /*
  * Create an empty config object
@@ -65,7 +67,8 @@ ni_config_new()
 	conf->addrconf.default_allow_update = ni_config_addrconf_update_mask_all();
 	conf->addrconf.dhcp4.allow_update   = ni_config_addrconf_update_mask_dhcp4();
 	conf->addrconf.dhcp6.allow_update   = ni_config_addrconf_update_mask_dhcp6();
-	conf->addrconf.autoip.allow_update  = ni_config_addrconf_update_mask_auto4();
+	conf->addrconf.auto4.allow_update   = ni_config_addrconf_update_mask_auto4();
+	conf->addrconf.auto6.allow_update   = ni_config_addrconf_update_mask_auto6();
 
 	ni_config_fslocation_init(&conf->piddir,   WICKED_PIDDIR,   0755);
 	ni_config_fslocation_init(&conf->statedir, WICKED_STATEDIR, 0755);
@@ -213,6 +216,10 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 
 				if (!strcmp(gchild->name, "dhcp6")
 				 && !ni_config_parse_addrconf_dhcp6(&conf->addrconf.dhcp6, gchild))
+					goto failed;
+
+				if (!strcmp(gchild->name, "auto6")
+				 && !ni_config_parse_addrconf_auto6(&conf->addrconf.auto6, gchild))
 					goto failed;
 			}
 		} else
@@ -681,6 +688,20 @@ ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 		if (!strcmp(child->name, "allow-update")) {
 			ni_config_parse_update_targets(&dhcp6->allow_update, child);
 			dhcp6->allow_update &= ni_config_addrconf_update_mask_dhcp6();
+		}
+	}
+	return TRUE;
+}
+
+ni_bool_t
+ni_config_parse_addrconf_auto6(struct ni_config_auto6 *auto6, xml_node_t *node)
+{
+	xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "allow-update")) {
+			ni_config_parse_update_targets(&auto6->allow_update, child);
+			auto6->allow_update &= ni_config_addrconf_update_mask_auto6();
 		}
 	}
 	return TRUE;
@@ -1222,6 +1243,12 @@ ni_config_addrconf_update_mask_auto4(void)
 	return __NI_ADDRCONF_UPDATE_NONE;		/* IP address only */
 }
 
+static unsigned int
+ni_config_addrconf_update_mask_auto6(void)
+{
+	return NI_BIT(NI_ADDRCONF_UPDATE_DNS);
+}
+
 unsigned int
 ni_config_addrconf_update_mask(ni_addrconf_mode_t type, unsigned int family)
 {
@@ -1240,8 +1267,12 @@ ni_config_addrconf_update_mask(ni_addrconf_mode_t type, unsigned int family)
 	case NI_ADDRCONF_AUTOCONF:
 		switch (family) {
 		case AF_INET:
-			mask = conf ? conf->addrconf.autoip.allow_update :
+			mask = conf ? conf->addrconf.auto4.allow_update :
 				ni_config_addrconf_update_mask_auto4();
+			break;
+		case AF_INET6:
+			mask = conf ? conf->addrconf.auto6.allow_update :
+				ni_config_addrconf_update_mask_auto6();
 			break;
 		default: ;
 		}

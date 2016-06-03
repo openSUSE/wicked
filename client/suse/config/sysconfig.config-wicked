@@ -1,3 +1,12 @@
+## Type:        integer
+## Default:     ""
+#
+# How log to wait for IPv6 autoconfig in ifup when requested with
+# the auto6 or +auto6 tag in BOOTPROTO variable.
+# When unset, a wicked built-in default defer time (10sec) is used.
+#
+AUTO6_WAIT_AT_BOOT=""
+
 ## Type:        string
 ## Default:     ""
 #

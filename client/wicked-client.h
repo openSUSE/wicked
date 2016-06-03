@@ -101,6 +101,10 @@ typedef struct ni_compat_netdev {
 
 		unsigned int	update;
 	} dhcp6;
+	struct {
+		ni_bool_t	enabled;
+		unsigned int    defer_timeout;
+	} auto6;
 } ni_compat_netdev_t;
 
 typedef struct ni_compat_netdev_array {

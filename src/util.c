@@ -1099,6 +1099,24 @@ ni_string_remove_char(char *str, int c)
 	return n;
 }
 
+void
+ni_string_tolower(char *str)
+{
+	size_t i, len = ni_string_len(str);
+
+	for (i = 0; i < len; ++i)
+		str[i] = tolower(str[i]);
+}
+
+void
+ni_string_toupper(char *str)
+{
+	size_t i, len = ni_string_len(str);
+
+	for (i = 0; i < len; ++i)
+		str[i] = toupper(str[i]);
+}
+
 char *
 ni_sprint_hex(const unsigned char *data, size_t len)
 {

@@ -233,6 +233,12 @@ __ifstatus_of_device_leases(ni_netdev_t *dev, unsigned int *st)
 				buf.string);
 			ni_stringbuf_destroy(&buf);
 		}
+
+		/* skip optional "nice to have leases" */
+		if (ni_addrconf_flag_bit_is_set(lease->flags,
+					NI_ADDRCONF_FLAGS_OPTIONAL))
+			continue;
+
 		__ifstatus_of_device_lease(dev, lease, st);
 	}
 }

@@ -38,6 +38,7 @@ libwicked_la_SOURCES		= \
 	address.c		\
 	arp.c			\
 	async-resolver.c	\
+	auto6.c			\
 	bonding.c		\
 	bridge.c		\
 	buffer.c		\
@@ -181,6 +182,7 @@ system_headers			= \
 
 wicked_headers			= \
 	appconfig.h		\
+	auto6.h			\
 	buffer.h		\
 	client/client_state.h	\
 	client/ifconfig.h	\

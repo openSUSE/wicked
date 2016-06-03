@@ -2472,7 +2472,10 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 	ap->family	= ifa->ifa_family;
 	ap->prefixlen	= ifa->ifa_prefixlen;
 	ap->scope	= ifa->ifa_scope;
-	ap->flags	= ifa->ifa_flags;
+	if (tb[IFA_FLAGS])
+		ap->flags = nla_get_u32(tb[IFA_FLAGS]);
+	else
+		ap->flags = ifa->ifa_flags;
 
 	if (ni_log_level_at(NI_LOG_DEBUG3) && (ni_log_facility(NI_TRACE_EVENTS))) {
 		ni_trace("newaddr(%s): family %d, prefixlen %u, scope %u, flags %u",
@@ -2566,7 +2569,7 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 	}
 
 #if 0
-	ni_debug_ifconfig("%s[%u]: address %s scope %s, flags%s%s%s%s%s%s%s%s [%02x], lft{%u,%u}, owned by %s",
+	ni_debug_ifconfig("%s[%u]: address %s scope %s, flags%s%s%s%s%s%s%s%s%s%s%s%s [%02x], lft{%u,%u}, owned by %s",
 			dev->name, dev->link.ifindex,
 			ni_sockaddr_print(&ap->local_addr),
 			(ap->scope == RT_SCOPE_HOST)? "host" :
@@ -2581,6 +2584,10 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 			(ap->flags & IFA_F_OPTIMISTIC)?  " optimistic": "",
 			(ap->flags & IFA_F_HOMEADDRESS)? " home"      : "",
 			(ap->flags & IFA_F_NODAD)?       " nodad"     : "",
+			(ap->flags & IFA_F_MANAGETEMPADDR)	? " mngtmpaddr" : "",
+			(ap->flags & IFA_F_NOPREFIXROUTE)	? " noprefixroute" : "",
+			(ap->flags & IFA_F_MCAUTOJOIN)		? " mcautojoin" : "",
+			(ap->flags & IFA_F_STABLE_PRIVACY)	? " stable-privacy" : "",
 			(unsigned int)ap->flags,
 			ap->ipv6_cache_info.valid_lft,
 			ap->ipv6_cache_info.preferred_lft,

@@ -7,8 +7,11 @@
 #include "config.h"
 #endif
 
+#include <sys/time.h>
+
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <wicked/socket.h>
 #include <wicked/ipv6.h>
 #include <errno.h>
 
@@ -116,7 +119,7 @@ ni_ipv6_supported(void)
  * Reset to ipv6 config defaults
  */
 static void
-__ni_ipv6_devconf_reset(ni_ipv6_devconf_t *conf)
+ni_ipv6_devconf_reset(ni_ipv6_devconf_t *conf)
 {
 	conf->enabled = NI_TRISTATE_DEFAULT;
 	conf->forwarding = NI_TRISTATE_DEFAULT;
@@ -131,14 +134,12 @@ __ni_ipv6_devconf_reset(ni_ipv6_devconf_t *conf)
  * Reset to ipv6 config defaults
  */
 static void
-__ni_ipv6_ra_info_reset(ni_ipv6_ra_info_t *radv)
+ni_ipv6_ra_info_reset(ni_ipv6_ra_info_t *radv)
 {
 	radv->managed_addr = FALSE;
 	radv->other_config = FALSE;
 
-	ni_ipv6_ra_pinfo_list_destroy(&radv->pinfo);
-	ni_ipv6_ra_rdnss_list_destroy(&radv->rdnss);
-	ni_ipv6_ra_dnssl_list_destroy(&radv->dnssl);
+	ni_ipv6_ra_info_flush(radv);
 }
 
 /*
@@ -170,8 +171,8 @@ ni_ipv6_devinfo_new(void)
 	ni_ipv6_devinfo_t *ipv6;
 
 	ipv6 = xcalloc(1, sizeof(*ipv6));
-	__ni_ipv6_devconf_reset(&ipv6->conf);
-	__ni_ipv6_ra_info_reset(&ipv6->radv);
+	ni_ipv6_devconf_reset(&ipv6->conf);
+	ni_ipv6_ra_info_reset(&ipv6->radv);
 	return ipv6;
 }
 
@@ -179,7 +180,7 @@ void
 ni_ipv6_devinfo_free(ni_ipv6_devinfo_t *ipv6)
 {
 	if (ipv6)
-		__ni_ipv6_ra_info_reset(&ipv6->radv);
+		ni_ipv6_ra_info_reset(&ipv6->radv);
 	free(ipv6);
 }
 
@@ -193,8 +194,8 @@ ni_system_ipv6_devinfo_get(ni_netdev_t *dev, ni_ipv6_devinfo_t *ipv6)
 		ipv6 = ni_netdev_get_ipv6(dev);
 
 	if (!ni_ipv6_supported()) {
-		__ni_ipv6_devconf_reset(&ipv6->conf);
-		__ni_ipv6_ra_info_reset(&ipv6->radv);
+		ni_ipv6_devconf_reset(&ipv6->conf);
+		ni_ipv6_ra_info_reset(&ipv6->radv);
 		ipv6->conf.enabled = NI_TRISTATE_DISABLE;
 		return 0;
 	}
@@ -236,8 +237,8 @@ ni_system_ipv6_devinfo_get(ni_netdev_t *dev, ni_ipv6_devinfo_t *ipv6)
 		ni_warn("%s: cannot get ipv6 device attributes", dev->name);
 
 		/* Reset to defaults */
-		__ni_ipv6_devconf_reset(&ipv6->conf);
-		__ni_ipv6_ra_info_reset(&ipv6->radv);
+		ni_ipv6_devconf_reset(&ipv6->conf);
+		ni_ipv6_ra_info_reset(&ipv6->radv);
 	}
 
 	return 0;
@@ -302,7 +303,7 @@ ni_system_ipv6_devinfo_set(ni_netdev_t *dev, const ni_ipv6_devconf_t *conf)
 
 	/* If we're disabling IPv6 on this interface, we're done! */
 	if (ni_tristate_is_disabled(conf->enabled)) {
-		__ni_ipv6_ra_info_reset(&dev->ipv6->radv);
+		ni_ipv6_ra_info_reset(&dev->ipv6->radv);
 		return 0;
 	}
 
@@ -365,6 +366,37 @@ void
 ni_ipv6_ra_info_flush(ni_ipv6_ra_info_t *radv)
 {
 	ni_ipv6_ra_pinfo_list_destroy(&radv->pinfo);
+	ni_ipv6_ra_rdnss_list_destroy(&radv->rdnss);
+	ni_ipv6_ra_dnssl_list_destroy(&radv->dnssl);
+}
+
+unsigned int
+ni_ipv6_ra_info_expire(ni_ipv6_ra_info_t *radv, const struct timeval *current)
+{
+	unsigned int left, lifetime = NI_LIFETIME_INFINITE;
+	struct timeval now;
+
+	if (!current || !timerisset(current)) {
+		ni_timer_get_time(&now);
+		current = &now;
+	}
+
+	if ((left = ni_ipv6_ra_pinfo_list_expire(&radv->pinfo, current)) && left < lifetime)
+		lifetime = left;
+
+	if ((left = ni_ipv6_ra_rdnss_list_expire(&radv->rdnss, current)) && left < lifetime)
+		lifetime = left;
+
+	if ((left = ni_ipv6_ra_dnssl_list_expire(&radv->dnssl, current)) && left < lifetime)
+		lifetime = left;
+
+	return lifetime;
+}
+
+void
+ni_ipv6_ra_pinfo_free(ni_ipv6_ra_pinfo_t *pi)
+{
+	free(pi);
 }
 
 void
@@ -381,8 +413,33 @@ ni_ipv6_ra_pinfo_list_destroy(ni_ipv6_ra_pinfo_t **list)
 
 	while ((pi = *list) != NULL) {
 		*list = pi->next;
-		free(pi);
+		ni_ipv6_ra_pinfo_free(pi);
 	}
+}
+
+unsigned int
+ni_ipv6_ra_pinfo_list_expire(ni_ipv6_ra_pinfo_t **list, const struct timeval *current)
+{
+	unsigned int left, lifetime = NI_LIFETIME_INFINITE;
+	ni_ipv6_ra_pinfo_t *cur, **pos;
+
+	if (!list)
+		return lifetime;
+
+	for (pos = list; (cur = *pos) != NULL; ) {
+		ni_ipv6_cache_info_t *ci = &cur->lifetime;
+
+		left = ni_lifetime_left(ci->valid_lft, &ci->acquired, current);
+		if (left) {
+			if (left < lifetime)
+				lifetime = left;
+			pos = &cur->next;
+		} else {
+			*pos = cur->next;
+			ni_ipv6_ra_pinfo_free(cur);
+		}
+	}
+	return lifetime;
 }
 
 ni_ipv6_ra_pinfo_t *
@@ -423,6 +480,29 @@ ni_ipv6_ra_rdnss_list_destroy(ni_ipv6_ra_rdnss_t **list)
 		*list = rdnss->next;
 		ni_ipv6_ra_rdnss_free(rdnss);
 	}
+}
+
+unsigned int
+ni_ipv6_ra_rdnss_list_expire(ni_ipv6_ra_rdnss_t **list, const struct timeval *current)
+{
+	unsigned int left, lifetime = NI_LIFETIME_INFINITE;
+	ni_ipv6_ra_rdnss_t *cur, **pos;
+
+	if (!list)
+		return lifetime;
+
+	for (pos = list; (cur = *pos) != NULL; ) {
+		left = ni_lifetime_left(cur->lifetime, &cur->acquired, current);
+		if (left) {
+			if (left < lifetime)
+				lifetime = left;
+			pos = &cur->next;
+		} else {
+			*pos = cur->next;
+			ni_ipv6_ra_rdnss_free(cur);
+		}
+	}
+	return lifetime;
 }
 
 ni_bool_t
@@ -491,6 +571,29 @@ ni_ipv6_ra_dnssl_list_destroy(ni_ipv6_ra_dnssl_t **list)
 	}
 }
 
+unsigned int
+ni_ipv6_ra_dnssl_list_expire(ni_ipv6_ra_dnssl_t **list, const struct timeval *current)
+{
+	unsigned int left, lifetime = NI_LIFETIME_INFINITE;
+	ni_ipv6_ra_dnssl_t *cur, **pos;
+
+	if (!list)
+		return lifetime;
+
+	for (pos = list; (cur = *pos) != NULL; ) {
+		left = ni_lifetime_left(cur->lifetime, &cur->acquired, current);
+		if (left) {
+			if (left < lifetime)
+				lifetime = left;
+			pos = &cur->next;
+		} else {
+			*pos = cur->next;
+			ni_ipv6_ra_dnssl_free(cur);
+		}
+	}
+	return lifetime;
+}
+
 ni_bool_t
 ni_ipv6_ra_dnssl_list_update(ni_ipv6_ra_dnssl_t **list, const char *domain,
 				unsigned int lifetime, const struct timeval *acquired)
@@ -518,8 +621,8 @@ ni_ipv6_ra_dnssl_list_update(ni_ipv6_ra_dnssl_t **list, const char *domain,
 		if (dnssl) {
 			dnssl->lifetime = lifetime;
 			dnssl->acquired = *acquired;
-			dnssl->domain = strdup(domain);
-			if (dnssl->domain) {
+			if (ni_string_dup(&dnssl->domain, domain)) {
+				ni_string_tolower(dnssl->domain);
 				*pos = dnssl;
 				return TRUE;
 			}
