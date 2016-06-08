@@ -192,7 +192,8 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	 * changed. If it did, then we give it another try.
 	 */
 
-	ni_debug_nanny("%s(%s)", __func__, w->name);
+	ni_debug_nanny("%s(%s[%u], %s)", __func__, w->name, w->ifindex,
+					mdev ? "managed" : "unmanaged");
 	if ((count = ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES)) == 0) {
 		ni_debug_nanny("%s: no applicable policies", w->name);
 		return count;
@@ -733,12 +734,58 @@ ni_objectmodel_nanny_unwrap(const ni_dbus_object_t *object, DBusError *error)
  * visible WLANs)
  */
 static void
+ni_nanny_process_rename_event(ni_nanny_t *mgr, ni_ifworker_t *w)
+{
+	ni_ifworker_t *c;
+	unsigned int i;
+	ni_bool_t rebuild = FALSE;
+
+	if (!mgr || !mgr->fsm)
+		return;
+
+	if (!w || !ni_netdev_device_is_ready(w->device))
+		return;
+
+	/* cleanup config only worker if any */
+	for (i = 0; i < mgr->fsm->workers.count; ) {
+		c = mgr->fsm->workers.data[i];
+		if (c && c != w && c->type == w->type && !c->ifindex && ni_string_eq(c->name, w->name)) {
+			ni_debug_application("%s: removing obsolete config only worker", c->name);
+			ni_nanny_unschedule(&mgr->recheck, c);
+			if (ni_nanny_get_device(mgr, c))
+				ni_nanny_unregister_device(mgr, c);
+
+			rebuild = TRUE;
+			if (ni_ifworker_array_remove_index(&mgr->fsm->workers, i))
+				continue;
+		}
+		i++;
+	}
+
+	/* apply matching policies and rearm */
+	if (ni_fsm_exists_applicable_policy(mgr->fsm, mgr->fsm->policies, w)) {
+		ni_debug_application("%s: schedule recheck for renamed device (%s)",
+				w->name, w->old_name);
+		ni_nanny_schedule_recheck(&mgr->recheck, w);
+		ni_ifworker_rearm(w);
+		rebuild = TRUE;
+	}
+
+	if (rebuild)
+		ni_fsm_build_hierarchy(mgr->fsm, FALSE);
+}
+
+static void
 ni_nanny_process_fsm_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 {
 	ni_nanny_t *mgr = fsm->process_event.user_data;
 	ni_managed_device_t *mdev;
 
 	switch (ev->event_type) {
+	case NI_EVENT_DEVICE_RENAME:
+		ni_nanny_process_rename_event(mgr, w);
+		break;
+
 	case NI_EVENT_DEVICE_READY:
 	case NI_EVENT_DEVICE_UP:
 		ni_nanny_register_device(mgr, w);
