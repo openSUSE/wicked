@@ -2901,7 +2901,9 @@ failure:
 int
 ni_rtnl_rule_parse_msg(struct nlmsghdr *h, struct fib_rule_hdr *frh, ni_rule_t *rule)
 {
-#define RULE_LOG_LEVEL		NI_LOG_DEBUG
+#ifndef RULE_LOG_LEVEL
+#define RULE_LOG_LEVEL		NI_LOG_DEBUG2
+#endif
 	struct nlattr *tb[FRA_MAX+1];
 	const char *prefix;
 	char *tmp = NULL;
