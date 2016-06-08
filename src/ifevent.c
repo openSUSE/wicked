@@ -339,14 +339,22 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 			 * to rename1 event. This sometimes causes that we find eth1 in
 			 * our device list [eth1 -> rename2 event in the read buffer].
 			 *
-			 * Just update the name of the conflicting device in advance too.
-			 * Next DELLINK will cleanup it, next NEWLINK event will emit the
-			 * device-change (at least) or even delete (see above) when the
-			 * ifindex is not valid any more.
+			 * Just update the name of the conflicting device in advance too
+			 * and when the interface does not exist any more, emit events.
 			 */
 			char *current = if_indextoname(conflict->link.ifindex, namebuf);
-			ni_string_dup(&conflict->name, current ? current : "dead");
-			__ni_netdev_event(nc, conflict, NI_EVENT_DEVICE_RENAME);
+			if (current) {
+				ni_string_dup(&conflict->name, current);
+				__ni_netdev_event(nc, conflict, NI_EVENT_DEVICE_RENAME);
+			} else {
+				unsigned int ifflags = conflict->link.ifflags;
+				conflict->link.ifflags = 0;
+				conflict->deleted = 1;
+
+				__ni_netdev_process_events(nc, conflict, ifflags);
+				ni_client_state_drop(conflict->link.ifindex);
+				ni_netconfig_device_remove(nc, conflict);
+			}
 		}
 	}
 
