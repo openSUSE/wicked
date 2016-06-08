@@ -1926,16 +1926,18 @@ __ni_discover_vlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 	 * provide this.
 	 */
 	if (!tb[IFLA_LINKINFO]) {
-		ni_debug_ifconfig("%s: no extended linkinfo data provided",
-				dev ? dev->name : NULL);
-		return 0;
+		ni_debug_ifconfig("%s: no extended vlan linkinfo provided", dev->name);
+		return 1;
 	}
-
 	if (nla_parse_nested(link_info, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
-		ni_error("%s: unable to parse IFLA_LINKINFO", dev->name);
+		ni_error("%s: unable to parse vlan IFLA_LINKINFO", dev->name);
 		return -1;
 	}
 
+	if (!link_info[IFLA_INFO_DATA]) {
+		ni_debug_events("%s: no extended vlan linkinfo data provided", dev->name);
+		return 1;
+	}
 	if (nla_parse_nested(info_data, IFLA_VLAN_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
 		ni_error("%s: unable to parse vlan IFLA_INFO_DATA", dev->name);
 		return -1;
@@ -1965,7 +1967,7 @@ int
 __ni_discover_macvlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 {
 	struct nlattr *link_info[IFLA_INFO_MAX+1];
-	struct nlattr *info_data[IFLA_VLAN_MAX+1];
+	struct nlattr *info_data[IFLA_MACVLAN_MAX+1];
 	ni_macvlan_t *macvlan;
 
 	if (!dev || !tb || !(macvlan = ni_netdev_get_macvlan(dev))) {
@@ -1978,16 +1980,18 @@ __ni_discover_macvlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 	 * provide this.
 	 */
 	if (!tb[IFLA_LINKINFO]) {
-		ni_debug_ifconfig("%s: no extended linkinfo data provided",
-				dev ? dev->name : NULL);
-		return 0;
+		ni_debug_ifconfig("%s: no extended macvlan linkinfo provided", dev->name);
+		return 1;
 	}
-
 	if (nla_parse_nested(link_info, IFLA_INFO_MAX, tb[IFLA_LINKINFO], NULL) < 0) {
-		ni_error("%s: unable to parse IFLA_LINKINFO", dev->name);
+		ni_error("%s: unable to parse macvlan IFLA_LINKINFO", dev->name);
 		return -1;
 	}
 
+	if (!link_info[IFLA_INFO_DATA]) {
+		ni_debug_events("%s: no extended vlan linkinfo data provided", dev->name);
+		return 1;
+	}
 	if (nla_parse_nested(info_data, IFLA_MACVLAN_MAX, link_info[IFLA_INFO_DATA], NULL) < 0) {
 		ni_error("%s: unable to parse macvlan IFLA_INFO_DATA", dev->name);
 		return -1;
