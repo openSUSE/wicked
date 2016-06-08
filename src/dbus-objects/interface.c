@@ -1116,6 +1116,7 @@ static ni_intmap_t	__ni_objectmodel_event_names[] = {
 	{ "deviceCreate",		NI_EVENT_DEVICE_CREATE },
 	{ "deviceDelete",		NI_EVENT_DEVICE_DELETE },
 	{ "deviceChange",		NI_EVENT_DEVICE_CHANGE },
+	{ "deviceRename",		NI_EVENT_DEVICE_RENAME },
 	{ "deviceReady",		NI_EVENT_DEVICE_READY },
 	{ "deviceUp",			NI_EVENT_DEVICE_UP },
 	{ "deviceDown",			NI_EVENT_DEVICE_DOWN },

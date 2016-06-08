@@ -477,6 +477,7 @@ static const ni_intmap_t		__event_names[] = {
 	{ "device-create",		NI_EVENT_DEVICE_CREATE },
 	{ "device-delete",		NI_EVENT_DEVICE_DELETE },
 	{ "device-change",		NI_EVENT_DEVICE_CHANGE },
+	{ "device-rename",		NI_EVENT_DEVICE_RENAME },
 	{ "device-ready",		NI_EVENT_DEVICE_READY },
 	{ "device-up",			NI_EVENT_DEVICE_UP },
 	{ "device-down",		NI_EVENT_DEVICE_DOWN },

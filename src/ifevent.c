@@ -305,6 +305,7 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 			ni_debug_events("%s[%u]: device renamed to %s",
 					old->name, old->link.ifindex, ifname);
 			ni_string_dup(&old->name, ifname);
+			__ni_netdev_event(nc, old, NI_EVENT_DEVICE_RENAME);
 		}
 		dev = old;
 		old_flags = old->link.ifflags;
@@ -345,6 +346,7 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 			 */
 			char *current = if_indextoname(conflict->link.ifindex, namebuf);
 			ni_string_dup(&conflict->name, current ? current : "dead");
+			__ni_netdev_event(nc, conflict, NI_EVENT_DEVICE_RENAME);
 		}
 	}
 
