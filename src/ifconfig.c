@@ -4830,6 +4830,12 @@ __ni_netdev_update_rules(ni_netconfig_t *nc, ni_netdev_t *dev,
 		ni_trace("%s: no old lease rules", dev->name);
 	}
 
+	if (!del_rules.count && !mod_rules.count)
+		return 0;
+
+	if (__ni_system_refresh_rules(nc))
+		return -1;
+
 	for (i = 0; i < del_rules.count; ++i) {
 		rule = del_rules.data[i];
 
@@ -4923,6 +4929,8 @@ __ni_netdev_update_rules(ni_netconfig_t *nc, ni_netdev_t *dev,
 			ni_netconfig_rule_add(nc, r);
 		}
 	}
+
+	(void)__ni_system_refresh_rules(nc);
 
 	return 0;
 }
