@@ -411,6 +411,12 @@
       e.g. udev finished its rename work and the name is final.
     </description>
   </signal>
+  <signal name="deviceRename">
+    <description>
+      This signal is emitted whenever the kernel emits newlink event and wickedd
+      detects a rename of a device.
+    </description>
+  </signal>
   <signal name="deviceChange">
     <description>
       This generic signal is emitted whenever the kernel emits newlink event

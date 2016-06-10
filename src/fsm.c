@@ -411,6 +411,7 @@ ni_ifworker_free(ni_ifworker_t *w)
 	__ni_ifworker_destroy_fsm(w);
 	xml_node_free(w->state.node);
 	ni_string_free(&w->name);
+	ni_string_free(&w->old_name);
 	free(w);
 }
 
@@ -869,22 +870,33 @@ ni_ifworker_array_clone(ni_ifworker_array_t *array)
 }
 
 ni_bool_t
+ni_ifworker_array_remove_index(ni_ifworker_array_t *array, unsigned int index)
+{
+	unsigned int i;
+
+	if (!array || index >= array->count)
+		return FALSE;
+
+	if (array->data[index])
+		ni_ifworker_release(array->data[index]);
+
+	array->count--;
+	for (i = index; i < array->count; ++i)
+		array->data[i] = array->data[i + 1];
+	array->data[array->count] = NULL;
+
+	return TRUE;
+}
+
+ni_bool_t
 ni_ifworker_array_remove(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
-	unsigned int i, j;
+	unsigned int i;
 	ni_bool_t found = FALSE;
 
 	for (i = 0; i < array->count; ) {
 		if (w == array->data[i]) {
-			ni_ifworker_release(w);
-
-			/* Shift remainder of array down one position */
-			array->count -= 1;
-			for (j = i; j < array->count; ++j)
-				array->data[j] = array->data[j + 1];
-			array->data[array->count] = NULL;
-
-			found = TRUE;
+			found = ni_ifworker_array_remove_index(array, i);
 		} else {
 			++i;
 		}
@@ -3940,6 +3952,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 {
 	ni_netdev_t *dev = ni_objectmodel_unwrap_netif(object, NULL);
 	ni_ifworker_t *found = NULL;
+	ni_bool_t renamed = FALSE;
 
 	if (dev == NULL || dev->name == NULL || refresh) {
 		if (!ni_dbus_object_refresh_children(object)) {
@@ -3972,8 +3985,13 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 			found = ni_ifworker_new(&fsm->workers, NI_IFWORKER_TYPE_NETDEV, dev->name);
 			found->readonly = fsm->readonly;
 		} else {
-			ni_debug_application("received refresh for ready device %s (%s)",
-						dev->name, object->path);
+			renamed = !ni_string_eq(found->name, dev->name);
+			if (renamed)
+				ni_debug_application("received refresh renaming ready device %s to %s (%s)",
+							found->name, dev->name, object->path);
+			else
+				ni_debug_application("received refresh for ready device %s (%s)",
+							dev->name, object->path);
 		}
 		if (dev->client_state)
 			ni_ifworker_refresh_client_state(found, dev->client_state);
@@ -3989,7 +4007,12 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 			found = ni_ifworker_new(&fsm->pending, NI_IFWORKER_TYPE_NETDEV, dev->name);
 			found->readonly = fsm->readonly;
 		} else {
-			ni_debug_application("received refresh for non-ready device %s (%s)",
+			renamed = !ni_string_eq(found->name, dev->name);
+			if (renamed)
+				ni_debug_application("received refresh renaming non-ready device %s to %s (%s)",
+						found->name, dev->name, object->path);
+			else
+				ni_debug_application("received refresh for non-ready device %s (%s)",
 						dev->name, object->path);
 		}
 	}
@@ -4002,8 +4025,12 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		ni_netdev_put(found->device);
 	found->device = dev;
 
-	if (!ni_string_eq(found->name, dev->name))
+	if (renamed) {
+		ni_string_dup(&found->old_name, found->name);
 		ni_string_dup(&found->name, dev->name);
+	} else {
+		ni_string_free(&found->old_name);
+	}
 
 	found->ifindex = dev->link.ifindex;
 	found->object = object;
@@ -5446,6 +5473,75 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 done: ;
 }
 
+static ni_ifworker_t *
+ni_fsm_process_rename_find_pending_worker(ni_fsm_t *fsm, const ni_ifworker_t *w)
+{
+	ni_ifworker_t *c;
+	unsigned int i;
+
+	for (i = 0; fsm->workers.count; ++i) {
+		c = fsm->workers.data[i];
+		if (!c || c == w || c->type != w->type || c->device)
+			continue;
+		if (!c->pending || !ni_string_eq(c->name, w->name))
+			continue;
+		return c;
+	}
+	return NULL;
+}
+
+static ni_ifworker_t *
+ni_fsm_process_rename_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
+{
+	ni_ifworker_t *w, *c;
+
+	if ((w = ni_fsm_recv_new_netif_path(fsm, ev->object_path)))
+		ni_debug_events("%s: device renamed to %s", w->old_name, w->name);
+
+	if (ni_config_use_nanny() || !w || !ni_netdev_device_is_ready(w->device))
+		return w;
+
+	if (!(c = ni_fsm_process_rename_find_pending_worker(fsm, w)))
+		return w;
+
+	/* move device to pending config worker */
+	ni_debug_application("%s: moving device to pending worker", c->name);
+	if (c->device)
+		ni_netdev_put(c->device);
+	c->device = ni_netdev_get(w->device);
+	c->object = w->object;
+	c->ifindex = w->ifindex;
+	ni_string_dup(&c->object_path, w->object_path);
+
+	/* reset moved device on renamed worker */
+	ni_netdev_put(w->device);
+	w->device = NULL;
+	w->object = NULL;
+	w->ifindex = 0;
+	ni_string_free(&w->object_path);
+
+	if (ni_ifworker_active(w)) {
+		/* when the worker is in use, fail */
+		ni_ifworker_reset(w);
+		ni_string_dup(&w->name, w->old_name ? w->old_name : "renamed");
+		ni_ifworker_fail(w, "active device has been renamed to %s", c->name);
+	} else {
+		/* otherwise reset it and remove   */
+		ni_ifworker_reset(w);
+		ni_ifworker_array_remove(&fsm->workers, w);
+	}
+
+	ni_fsm_build_hierarchy(fsm, FALSE);
+
+	/* kickstart and return the pending worker */
+	c->pending = FALSE;
+	if (ni_ifworker_start(fsm, c, fsm->worker_timeout) < 0) {
+		ni_ifworker_fail(c, "unable to start worker");
+		return NULL;
+	}
+	return c;
+}
+
 static void
 ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 {
@@ -5471,6 +5567,10 @@ ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 	 * change with uuid followed by the unsolicited event without uuid.
 	 */
 	switch (ev->event_type) {
+	case NI_EVENT_DEVICE_RENAME:
+		w = ni_fsm_process_rename_event(fsm, ev);
+		break;
+
 	case NI_EVENT_DEVICE_READY:
 		if (w && w->fsm.state >= NI_FSM_STATE_DEVICE_READY) {
 			if (ni_netdev_device_is_ready(w->device))
