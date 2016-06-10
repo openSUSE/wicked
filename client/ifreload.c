@@ -316,7 +316,7 @@ usage:
 	}
 
 	if (0 == nmarked && 0 == up_marked.count) {
-		ni_note("ifreload: no matching interfaces");
+		ni_note("ifreload: no configuration changes to reload");
 		status = NI_WICKED_RC_SUCCESS;
 		goto cleanup;
 	}
@@ -646,7 +646,7 @@ usage:
 	}
 
 	if (0 == nmarked && 0 == up_marked.count) {
-		ni_note("ifreload: no matching interfaces");
+		ni_note("ifreload: no configuration changes to reload");
 		status = NI_WICKED_RC_SUCCESS;
 		goto cleanup;
 	}
