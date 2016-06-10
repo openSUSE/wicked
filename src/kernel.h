@@ -90,6 +90,8 @@ extern int	ni_nl_dump_store(int af, int type, struct ni_nlmsg_list *list);
 extern void	ni_nlmsg_list_init(struct ni_nlmsg_list *);
 extern void	ni_nlmsg_list_destroy(struct ni_nlmsg_list *);
 
+extern const char *	ni_rtnl_msg_type_to_name(unsigned int, const char *);
+
 static inline void *
 __ni_rtnl_msgdata(struct nlmsghdr *h, int expected_type, size_t min_size)
 {

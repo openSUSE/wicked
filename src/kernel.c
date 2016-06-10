@@ -542,15 +542,17 @@ ni_nl_dump_store(int af, int type, struct ni_nlmsg_list *list)
 		.list = list,
 	};
 	struct nl_cb *cb;
+	const char *name;
 	int rv;
 
+	name = ni_rtnl_msg_type_to_name(type, __func__);
 	if (!__ni_global_netlink || !(nl_sock = __ni_global_netlink->nl_sock)) {
-		ni_error("%s: no netlink socket", __func__);
+		ni_error("%s: no netlink socket", name);
 		return -NLE_BAD_SOCK;
 	}
 
 	if ((rv = nl_rtgen_request(nl_sock, type, af, NLM_F_DUMP)) < 0) {
-		ni_error("%s: failed to send request", __func__);
+		ni_error("%s: failed to send request", name);
 		return rv;
 	}
 
@@ -567,16 +569,16 @@ retry:
 	case -NLE_AGAIN:
 		/* debug only, we retry to receive */
 		ni_debug_socket("%s: failed to receive response: %s",
-				__func__, nl_geterror(rv));
+				name, nl_geterror(rv));
 		goto retry;
 	case -NLE_DUMP_INTR:
 		/* debug only, we repeat the query */
 		ni_debug_socket("%s: failed to receive response: %s",
-				__func__, nl_geterror(rv));
+				name, nl_geterror(rv));
 		break;
 	default:
 		ni_error("%s: failed to receive response: %s",
-				__func__, nl_geterror(rv));
+				name, nl_geterror(rv));
 		break;
 	}
 	nl_cb_put(cb);
@@ -605,5 +607,105 @@ ni_nl_talk(struct nl_msg *msg, struct ni_nlmsg_list *list)
 
 		return __ni_nl_talk(__ni_global_netlink, msg, __ni_nl_dump_valid, &data);
 	}
+}
+
+#define ni_t2n(x)	[x] = #x
+static const char *	ni_rtnl_msg_type_names[RTM_MAX] = {
+#ifdef	RTM_NEWLINK
+	ni_t2n(RTM_NEWLINK),
+	ni_t2n(RTM_DELLINK),
+	ni_t2n(RTM_GETLINK),
+	ni_t2n(RTM_SETLINK),
+#endif
+#ifdef	RTM_NEWADDR
+	ni_t2n(RTM_NEWADDR),
+	ni_t2n(RTM_DELADDR),
+	ni_t2n(RTM_GETADDR),
+#endif
+#ifdef	RTM_NEWROUTE
+	ni_t2n(RTM_NEWROUTE),
+	ni_t2n(RTM_DELROUTE),
+	ni_t2n(RTM_GETROUTE),
+#endif
+#ifdef	RTM_NEWNEIGH
+	ni_t2n(RTM_NEWNEIGH),
+	ni_t2n(RTM_DELNEIGH),
+	ni_t2n(RTM_GETNEIGH),
+#endif
+#ifdef	RTM_NEWRULE
+	ni_t2n(RTM_NEWRULE),
+	ni_t2n(RTM_DELRULE),
+	ni_t2n(RTM_GETRULE),
+#endif
+#ifdef	RTM_NEWQDISC
+	ni_t2n(RTM_NEWQDISC),
+	ni_t2n(RTM_DELQDISC),
+	ni_t2n(RTM_GETQDISC),
+#endif
+#ifdef	RTM_NEWTCLASS
+	ni_t2n(RTM_NEWTCLASS),
+	ni_t2n(RTM_DELTCLASS),
+	ni_t2n(RTM_GETTCLASS),
+#endif
+#ifdef	RTM_NEWTFILTER
+	ni_t2n(RTM_NEWTFILTER),
+	ni_t2n(RTM_DELTFILTER),
+	ni_t2n(RTM_GETTFILTER),
+#endif
+#ifdef	RTM_NEWACTION
+	ni_t2n(RTM_NEWACTION),
+	ni_t2n(RTM_DELACTION),
+	ni_t2n(RTM_GETACTION),
+#endif
+#ifdef	RTM_NEWPREFIX
+	ni_t2n(RTM_NEWPREFIX),
+#endif
+#ifdef	RTM_GETMULTICAST
+	ni_t2n(RTM_GETMULTICAST),
+#endif
+#ifdef	RTM_GETANYCAST
+	ni_t2n(RTM_GETANYCAST),
+#endif
+#ifdef	RTM_NEWNEIGHTBL
+	ni_t2n(RTM_NEWNEIGHTBL),
+	ni_t2n(RTM_GETNEIGHTBL),
+	ni_t2n(RTM_SETNEIGHTBL),
+#endif
+#ifdef	RTM_NEWNDUSEROPT
+	ni_t2n(RTM_NEWNDUSEROPT),
+#endif
+#ifdef	RTM_NEWADDRLABEL
+	ni_t2n(RTM_NEWADDRLABEL),
+	ni_t2n(RTM_DELADDRLABEL),
+	ni_t2n(RTM_GETADDRLABEL),
+#endif
+#ifdef	RTM_GETDCB
+	ni_t2n(RTM_GETDCB),
+	ni_t2n(RTM_SETDCB),
+#endif
+#ifdef	RTM_NEWNETCONF
+	ni_t2n(RTM_NEWNETCONF),
+	ni_t2n(RTM_GETNETCONF),
+#endif
+#ifdef	RTM_NEWMDB
+	ni_t2n(RTM_NEWMDB),
+	ni_t2n(RTM_DELMDB),
+	ni_t2n(RTM_GETMDB),
+#endif
+#ifdef	RTM_NEWNSID
+	ni_t2n(RTM_NEWNSID),
+	ni_t2n(RTM_DELNSID),
+	ni_t2n(RTM_GETNSID),
+#endif
+};
+#undef	ni_t2n
+
+const char *
+ni_rtnl_msg_type_to_name(unsigned int type, const char *unknown)
+{
+	if (type > RTM_BASE && type < RTM_MAX)
+		return ni_rtnl_msg_type_names[type];
+	else
+		return unknown;
 }
 
