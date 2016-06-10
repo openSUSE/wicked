@@ -153,8 +153,7 @@ ni_rtnl_query(struct ni_rtnl_query *q, unsigned int ifindex, unsigned int family
 	if (__ni_rtnl_query(&q->link_info, AF_UNSPEC, RTM_GETLINK) < 0
 	 || (family != AF_INET && __ni_rtnl_query(&q->ipv6_info, AF_INET6, RTM_GETLINK) < 0)
 	 || __ni_rtnl_query(&q->addr_info, family, RTM_GETADDR) < 0
-	 || __ni_rtnl_query(&q->route_info, family, RTM_GETROUTE) < 0
-	 || __ni_rtnl_query(&q->rule_info, family, RTM_GETRULE) < 0) {
+	 || __ni_rtnl_query(&q->route_info, family, RTM_GETROUTE) < 0) {
 		ni_rtnl_query_destroy(q);
 		return -1;
 	}
@@ -632,19 +631,6 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 			ni_error("Problem parsing RTM_NEWROUTE message");
 	}
 
-	ni_netconfig_rules_reset_seq(nc);
-	while (1) {
-		struct fib_rule_hdr *frh;
-
-		if (!(frh = ni_rtnl_query_next_rule_info(&query, &h)))
-			break;
-
-		h->nlmsg_type = RTM_GETRULE; /* make refresh visible */
-		if (__ni_netdev_process_newrule(h, frh, nc) < 0)
-			ni_error("Problem parsing RTM_NEWRULE message");
-	}
-	ni_netconfig_rules_drop_by_seq(nc, seqno);
-
 	/* Cull any interfaces that went away */
 	tail = ni_netconfig_device_list_head(nc);
 	while ((dev = *tail) != NULL) {
@@ -665,6 +651,12 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 			tail = &dev->next;
 		}
 	}
+
+	/* issue separate query ingnoring the error to not break
+	 * the bootstrap, e.g. when a kernel lacks rule support.
+	 */
+	if (!ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_ROUTE_RULES))
+		(void)__ni_system_refresh_rules(nc);
 
 	res = 0;
 
@@ -742,19 +734,6 @@ __ni_system_refresh_interface(ni_netconfig_t *nc, ni_netdev_t *dev)
 			ni_error("Problem parsing RTM_NEWROUTE message");
 	}
 	ni_route_tables_drop_by_seq(nc, dev->routes, dev->seq);
-
-	ni_netconfig_rules_reset_seq(nc);
-	while (1) {
-		struct fib_rule_hdr *frh;
-
-		if (!(frh = ni_rtnl_query_next_rule_info(&query, &h)))
-			break;
-
-		h->nlmsg_type = RTM_GETRULE; /* make refresh visible */
-		if (__ni_netdev_process_newrule(h, frh, nc) < 0)
-			ni_error("Problem parsing RTM_NEWRULE message");
-	}
-	ni_netconfig_rules_drop_by_seq(nc, __ni_global_seqno);
 
 	res = 0;
 
@@ -2931,7 +2910,9 @@ failure:
 int
 ni_rtnl_rule_parse_msg(struct nlmsghdr *h, struct fib_rule_hdr *frh, ni_rule_t *rule)
 {
-#define RULE_LOG_LEVEL		NI_LOG_DEBUG
+#ifndef RULE_LOG_LEVEL
+#define RULE_LOG_LEVEL		NI_LOG_DEBUG2
+#endif
 	struct nlattr *tb[FRA_MAX+1];
 	const char *prefix;
 	char *tmp = NULL;

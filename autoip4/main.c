@@ -406,7 +406,8 @@ autoip4_supplicant(void)
 
 	ni_netconfig_set_family_filter(ni_global_state_handle(0), AF_INET);
 	ni_netconfig_set_discover_filter(ni_global_state_handle(0),
-					NI_NETCONFIG_DISCOVER_LINK_EXTERN);
+					NI_NETCONFIG_DISCOVER_LINK_EXTERN|
+					NI_NETCONFIG_DISCOVER_ROUTE_RULES);
 
 	ni_objectmodel_autoip4_init();
 

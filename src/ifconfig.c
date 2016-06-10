@@ -4885,7 +4885,7 @@ __ni_netdev_update_rules(ni_netconfig_t *nc, ni_netdev_t *dev,
 		for (i = 0; i < new_rules->count; ++i) {
 			rule = new_rules->data[i];
 
-			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
 					"%s: checking new lease rule %s",
 					dev->name, ni_rule_print(&out, rule));
 			ni_stringbuf_destroy(&out);
@@ -4894,7 +4894,7 @@ __ni_netdev_update_rules(ni_netconfig_t *nc, ni_netdev_t *dev,
 				continue;
 
 			r = ni_rule_array_find_match(old_rules, rule, ni_rule_equal);
-			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
 					"%s: rule to %s: %s", dev->name,
 					r ? "update" : "create",
 					ni_rule_print(&out, rule));
@@ -4904,7 +4904,8 @@ __ni_netdev_update_rules(ni_netconfig_t *nc, ni_netdev_t *dev,
 			ni_rule_array_append(&mod_rules, ni_rule_ref(rule));
 		}
 	} else {
-		ni_trace("%s: no new lease rules", dev->name);
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+				"%s: no new lease rules", dev->name);
 	}
 
 	if (old_lease && (old_rules = old_lease->rules)) {
@@ -4913,7 +4914,7 @@ __ni_netdev_update_rules(ni_netconfig_t *nc, ni_netdev_t *dev,
 		for (i = 0; i < old_rules->count; ++i) {
 			rule = old_rules->data[i];
 
-			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
 					"%s: checking old lease rule %s",
 					dev->name, ni_rule_print(&out, rule));
 			ni_stringbuf_destroy(&out);
@@ -4924,7 +4925,7 @@ __ni_netdev_update_rules(ni_netconfig_t *nc, ni_netdev_t *dev,
 			if (ni_rule_array_find_match(&mod_rules, rule, ni_rule_equal))
 				continue;
 
-			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
 					"%s: rule to delete: %s",
 					dev->name, ni_rule_print(&out, rule));
 			ni_stringbuf_destroy(&out);
@@ -4932,8 +4933,15 @@ __ni_netdev_update_rules(ni_netconfig_t *nc, ni_netdev_t *dev,
 			ni_rule_array_append(&del_rules, ni_rule_ref(rule));
 		}
 	} else {
-		ni_trace("%s: no old lease rules", dev->name);
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+				"%s: no old lease rules", dev->name);
 	}
+
+	if (!del_rules.count && !mod_rules.count)
+		return 0;
+
+	if (__ni_system_refresh_rules(nc))
+		return -1;
 
 	for (i = 0; i < del_rules.count; ++i) {
 		rule = del_rules.data[i];
@@ -4955,13 +4963,15 @@ __ni_netdev_update_rules(ni_netconfig_t *nc, ni_netdev_t *dev,
 					ni_uuid_print(&r->owner), is_ours);
 
 			if ((lease = ni_netinfo_find_rule_owner(nc, r, 0))) {
-				ni_trace("%s: keeping rule, lease %s:%s uuid %s prio %u provides the rule",
+				ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+						"%s: keeping rule, lease %s:%s uuid %s prio %u provides the rule",
 						dev->name,
 						ni_addrfamily_type_to_name(lease->family),
 						ni_addrconf_type_to_name(lease->type),
 						ni_uuid_print(&lease->uuid),
 						ni_addrconf_lease_get_priority(lease));
-				ni_trace("%s: taking over rule lease owner", dev->name);
+				ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+						"%s: taking over rule lease owner", dev->name);
 				r->owner = lease->uuid;
 				continue;
 			}
@@ -4995,14 +5005,16 @@ __ni_netdev_update_rules(ni_netconfig_t *nc, ni_netdev_t *dev,
 					ni_uuid_print(&r->owner), is_ours, prio);
 
 			if ((lease = ni_netinfo_find_rule_owner(nc, r, prio))) {
-				ni_trace("%s: keeping rule lease %s:%s owner %s prio %u (ours %u)",
+				ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+						"%s: keeping rule lease %s:%s owner %s prio %u (ours %u)",
 						dev->name,
 						ni_addrfamily_type_to_name(lease->family),
 						ni_addrconf_type_to_name(lease->type),
 						ni_uuid_print(&lease->uuid),
 						ni_addrconf_lease_get_priority(lease), prio);
 			} else {
-				ni_trace("%s: taking over rule lease owner", dev->name);
+				ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
+						"%s: taking over rule lease owner", dev->name);
 				r->owner = new_lease->uuid;
 			}
 			continue;
@@ -5028,6 +5040,8 @@ __ni_netdev_update_rules(ni_netconfig_t *nc, ni_netdev_t *dev,
 			ni_netconfig_rule_add(nc, r);
 		}
 	}
+
+	(void)__ni_system_refresh_rules(nc);
 
 	return 0;
 }

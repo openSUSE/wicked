@@ -78,8 +78,6 @@ static int	__ni_rtevent_newrule(ni_netconfig_t *, const struct sockaddr_nl *, st
 static int	__ni_rtevent_delrule(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 static int	__ni_rtevent_nduseropt(ni_netconfig_t *, const struct sockaddr_nl *, struct nlmsghdr *);
 
-static const char *	__ni_rtevent_msg_name(unsigned int);
-
 
 /*
  * Helper to trigger interface events
@@ -138,7 +136,7 @@ __ni_rtevent_process(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 #if 0
 	const char *rtnl_name;
 
-	if ((rtnl_name = __ni_rtevent_msg_name(h->nlmsg_type)) != NULL)
+	if ((rtnl_name = ni_rtnl_msg_type_to_name(h->nlmsg_type, NULL)) != NULL)
 		ni_debug_events("received %s event", rtnl_name);
 	else
 		ni_debug_events("received rtnetlink event %u", h->nlmsg_type);
@@ -912,32 +910,11 @@ __ni_rtevent_process_cb(struct nl_msg *msg, void *ptr)
 	nlh = nlmsg_hdr(msg);
 	if (__ni_rtevent_process(nc, sender, nlh) < 0) {
 		ni_debug_events("ignoring %s rtnetlink event",
-			__ni_rtevent_msg_name(nlh->nlmsg_type));
+			ni_rtnl_msg_type_to_name(nlh->nlmsg_type, "unknown"));
 		return NL_SKIP;
 	}
 
 	return NL_OK;
-}
-
-/*
- * Helper returning name of a rtnetlink message
- */
-static const char *
-__ni_rtevent_msg_name(unsigned int nlmsg_type)
-{
-#define _t2n(x)	[x] = #x
-	static const char *rtnl_name[RTM_MAX] = {
-	_t2n(RTM_NEWLINK),	_t2n(RTM_DELLINK),
-	_t2n(RTM_NEWADDR),	_t2n(RTM_DELADDR),
-	_t2n(RTM_NEWROUTE),	_t2n(RTM_DELROUTE),
-	_t2n(RTM_NEWPREFIX),	_t2n(RTM_NEWNDUSEROPT),
-	};
-#undef _t2n
-
-	if (nlmsg_type < RTM_MAX && rtnl_name[nlmsg_type])
-		return rtnl_name[nlmsg_type];
-	else
-		return NULL;
 }
 
 static ni_bool_t	__ni_rtevent_restart(ni_socket_t *sock);
