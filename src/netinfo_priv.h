@@ -32,6 +32,7 @@ struct ni_event_filter {
 enum {
 	/* link details discover filter using external calls */
 	NI_NETCONFIG_DISCOVER_LINK_EXTERN = 1U << 0,
+	NI_NETCONFIG_DISCOVER_ROUTE_RULES = 1U << 1,
 };
 
 /*

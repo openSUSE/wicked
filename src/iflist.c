@@ -655,7 +655,9 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 	/* issue separate query ingnoring the error to not break
 	 * the bootstrap, e.g. when a kernel lacks rule support.
 	 */
-	(void)__ni_system_refresh_rules(nc);
+	if (!ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_ROUTE_RULES))
+		(void)__ni_system_refresh_rules(nc);
+
 	res = 0;
 
 failed:
