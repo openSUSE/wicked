@@ -1609,7 +1609,9 @@ __ni_suse_startmode(const ni_sysconfig_t *sc)
 			ni_sysconfig_get_integer(sc, "IFPLUGD_PRIORITY", &control->link_priority);
 		}
 
-		if ((value = ni_sysconfig_get_value(sc, "LINK_REQUIRED"))) {
+		if (!(value = ni_sysconfig_get_value(sc, "LINK_REQUIRED")))
+			value = ni_sysconfig_get_value(__ni_suse_config_defaults, "LINK_REQUIRED");
+		if (value) {
 			/* otherwise assume "auto" */
 			if (ni_string_eq(value, "yes"))
 				ni_tristate_set(&control->link_required, TRUE);
