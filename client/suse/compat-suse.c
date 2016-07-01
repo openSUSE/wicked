@@ -4199,6 +4199,74 @@ try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
  *   REMOTE_IPADDR_x
  */
 static ni_bool_t
+__get_ipaddr_lft(const char *val, unsigned int *lft)
+{
+	if (ni_string_eq(val, "forever") || ni_string_eq(val, "infinite"))
+		*lft = NI_LIFETIME_INFINITE;
+	else
+	if (!ni_parse_uint(val, lft, 0))
+		return FALSE;
+	return TRUE;
+}
+
+static ni_bool_t
+__get_ipaddr_opts(const char *value, ni_address_t *ap)
+{
+	ni_string_array_t opts = NI_STRING_ARRAY_INIT;
+	unsigned int valid_lft = NI_LIFETIME_INFINITE;
+	unsigned int preferred_lft = NI_LIFETIME_INFINITE;
+	const char *opt, *val;
+	unsigned int pos = 0;
+	ni_bool_t ret = TRUE;
+
+	/*
+	 * All about ipv6 -- anything useful to consider for ipv4?
+	 */
+	if (ap->family != AF_INET6)
+		return TRUE;
+
+	ni_string_split(&opts, value, " \t", 0);
+
+	while ((opt = ni_string_array_at(&opts, pos++))) {
+		if (ni_string_eq(opt, "valid_lft")) {
+			val = ni_string_array_at(&opts, pos++);
+			if (!__get_ipaddr_lft(val, &valid_lft))
+				ret = FALSE;
+		}
+		else
+		if (ni_string_eq(opt, "preferred_lft")) {
+			val = ni_string_array_at(&opts, pos++);
+			if (!__get_ipaddr_lft(val, &preferred_lft))
+				ret = FALSE;
+		}
+		else
+		if (ni_string_eq(opt, "nodad"))
+			ap->flags |= IFA_F_NODAD;
+		else
+		if (ni_string_eq(opt, "noprefixroute"))
+			ap->flags |= IFA_F_NOPREFIXROUTE;
+		else
+		if (ni_string_eq(opt, "autojoin"))
+			ap->flags |= IFA_F_MCAUTOJOIN;
+		else
+		if (ni_string_eq(opt, "home") || ni_string_eq(opt, "homeaddress"))
+			ap->flags |= IFA_F_HOMEADDRESS;
+		else
+			ret = FALSE;
+	}
+
+	if (preferred_lft > valid_lft)
+		preferred_lft = valid_lft;
+
+	if (preferred_lft != NI_LIFETIME_INFINITE) {
+		ap->ipv6_cache_info.valid_lft = valid_lft;
+		ap->ipv6_cache_info.preferred_lft = preferred_lft;
+	}
+
+	return ret;
+}
+
+static ni_bool_t
 __get_ipaddr(const ni_sysconfig_t *sc, const char *ifname, const char *suffix, ni_address_t **list)
 {
 	ni_var_t *var;
@@ -4281,6 +4349,25 @@ __get_ipaddr(const ni_sysconfig_t *sc, const char *ifname, const char *suffix, n
 			} else {
 				ni_string_dup(&ap->label, var->value);
 			}
+		}
+	}
+
+	var = __find_indexed_variable(sc, "SCOPE", suffix);
+	if (var && !ni_string_empty(var->value)) {
+		unsigned int scope;
+		if (!ni_route_scope_name_to_type(var->value, &scope)) {
+			ni_info("ifcfg-%s: ignoring %s='%s' unknown scope",
+					ifname, var->name, var->value);
+		} else {
+			ap->scope = scope;
+		}
+	}
+
+	var = __find_indexed_variable(sc, "IP_OPTIONS", suffix);
+	if (var && !ni_string_empty(var->value)) {
+		if (!__get_ipaddr_opts(var->value, ap)) {
+			ni_info("ifcfg-%s: %s='%s' contains unsupported options",
+					ifname, var->name, var->value);
 		}
 	}
 

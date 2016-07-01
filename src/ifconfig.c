@@ -3630,6 +3630,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 	ifa.ifa_index = dev->link.ifindex;
 	ifa.ifa_family = ap->family;
 	ifa.ifa_prefixlen = ap->prefixlen;
+	ifa.ifa_flags = ap->flags & 0xff;
 
 	/* Handle ifa_scope */
 	if (ap->scope >= 0)
@@ -3642,6 +3643,9 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 	msg = nlmsg_alloc_simple(RTM_NEWADDR, flags);
 	if (nlmsg_append(msg, &ifa, sizeof(ifa), NLMSG_ALIGNTO) < 0)
 		goto nla_put_failure;
+
+	if (ap->flags)
+		NLA_PUT_U32(msg, IFA_FLAGS, ap->flags);
 
 	if (addattr_sockaddr(msg, IFA_LOCAL, &ap->local_addr) < 0)
 		goto nla_put_failure;

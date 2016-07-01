@@ -80,6 +80,7 @@ static const ni_intmap_t	ni_route_table_names[] = {
  */
 static const ni_intmap_t	ni_route_scope_names[] = {
 	{ "universe",		RT_SCOPE_UNIVERSE	},
+	{ "global",		RT_SCOPE_UNIVERSE	},
 	{ "site",		RT_SCOPE_SITE		},
 	{ "link",		RT_SCOPE_LINK		},
 	{ "host",		RT_SCOPE_HOST		},
