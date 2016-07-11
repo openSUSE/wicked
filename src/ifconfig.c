@@ -3630,6 +3630,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 	ifa.ifa_index = dev->link.ifindex;
 	ifa.ifa_family = ap->family;
 	ifa.ifa_prefixlen = ap->prefixlen;
+	ifa.ifa_flags = ap->flags & 0xff;
 
 	/* Handle ifa_scope */
 	if (ap->scope >= 0)
@@ -3642,6 +3643,9 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 	msg = nlmsg_alloc_simple(RTM_NEWADDR, flags);
 	if (nlmsg_append(msg, &ifa, sizeof(ifa), NLMSG_ALIGNTO) < 0)
 		goto nla_put_failure;
+
+	if (ap->flags)
+		NLA_PUT_U32(msg, IFA_FLAGS, ap->flags);
 
 	if (addattr_sockaddr(msg, IFA_LOCAL, &ap->local_addr) < 0)
 		goto nla_put_failure;
@@ -3677,10 +3681,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 		}
 	}
 
-	if (ap->family == AF_INET6
-		&& ap->ipv6_cache_info.valid_lft
-		&& ap->ipv6_cache_info.preferred_lft)
-	{
+	if (ap->family == AF_INET6 && ap->ipv6_cache_info.valid_lft) {
 		struct ifa_cacheinfo ci;
 
 		memset(&ci, 0, sizeof(ci));
@@ -3688,10 +3689,11 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 		ci.ifa_prefered = ap->ipv6_cache_info.preferred_lft;
 
 		if (ci.ifa_prefered > ci.ifa_valid) {
-			ni_error("ipv6 address prefered lifetime %u cannot "
-				 " be greater than the valid lifetime %u",
-				 ci.ifa_prefered, ci.ifa_valid);
-			goto failed;
+			ni_warn("%s: ipv6 address %s/%u prefered lifetime %u cannot "
+				" be greater than the valid lifetime %u", dev->name,
+				ni_sockaddr_print(&ap->local_addr), ap->prefixlen,
+				ci.ifa_prefered, ci.ifa_valid);
+			ci.ifa_prefered = ci.ifa_valid;
 		}
 
 		if (nla_put(msg, IFA_CACHEINFO, sizeof(ci), &ci) < 0)

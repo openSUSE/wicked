@@ -1818,6 +1818,7 @@ __ni_compat_generate_static_address_list(xml_node_t *afnode, ni_address_t *addr_
 {
 	ni_address_t *ap;
 	xml_node_t *anode;
+	const char *ptr;
 
 	for (ap = addr_list; ap; ap = ap->next) {
 		if (ap->family != af)
@@ -1832,6 +1833,27 @@ __ni_compat_generate_static_address_list(xml_node_t *afnode, ni_address_t *addr_
 			xml_node_new_element("broadcast", anode, ni_sockaddr_print(&ap->bcast_addr));
 		if (af == AF_INET && ap->label)
 			xml_node_new_element("label", anode, ap->label);
+
+		if (ap->scope >= 0 && (ptr = ni_route_scope_type_to_name(ap->scope)))
+			xml_node_new_element("scope", anode, ptr);
+
+		if (ap->flags)
+			xml_node_new_element_uint("flags", anode, ap->flags);
+
+		/* We are applying static address, but at least valid_lft = infinite,
+		 * preferred_lft = 0 is a valid case to apply deprecated addresses...
+		 * A valid_lft = preferred_lft = 0 means unspecified / omit lifetimes.
+		 */
+		if (ap->ipv6_cache_info.valid_lft &&
+		    ap->ipv6_cache_info.preferred_lft != NI_LIFETIME_INFINITE) {
+			xml_node_t *cache_info = xml_node_new("cache-info", anode);
+			if (cache_info) {
+				xml_node_new_element_uint("valid-lifetime", cache_info,
+							ap->ipv6_cache_info.valid_lft);
+				xml_node_new_element_uint("preferred-lifetime", cache_info,
+							ap->ipv6_cache_info.preferred_lft);
+			}
+		}
 	}
 }
 
