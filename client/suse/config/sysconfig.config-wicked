@@ -7,6 +7,19 @@
 #
 AUTO6_WAIT_AT_BOOT=""
 
+## Type:        list(auto,yes,no)
+## Default:     "auto"
+#
+# Permits to specify/modify a global ifcfg default. Use with care!
+#
+# This settings breaks rules for many things, which require carrier
+# before they can start, e.g. L2 link protocols, link authentication,
+# ipv4 duplicate address detection, ipv6 duplicate detection will
+# happen "post-mortem" and maybe even cause to disable ipv6 at all.
+# See also "man ifcfg" for further informations.
+#
+LINK_REQUIRED="auto"
+
 ## Type:        string
 ## Default:     ""
 #
