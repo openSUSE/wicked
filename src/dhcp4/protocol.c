@@ -662,6 +662,9 @@ __ni_dhcp4_build_msg_discover(const ni_dhcp4_device_t *dev,
 		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 
+	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf) < 0)
+		return -1;
+
 	return 0;
 }
 
