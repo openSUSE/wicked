@@ -73,6 +73,7 @@ typedef enum ni_iftype {
 	NI_IFTYPE_TEAM,
 	NI_IFTYPE_OVS_SYSTEM,
 	NI_IFTYPE_OVS_BRIDGE,
+	NI_IFTYPE_OVS_UNSPEC,
 
 	__NI_IFTYPE_MAX
 } ni_iftype_t;
