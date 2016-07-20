@@ -56,6 +56,7 @@ libwicked_la_SOURCES		= \
 	dbus-object.c		\
 	dbus-server.c		\
 	dbus-xml.c		\
+	dhcp.c			\
 	duid.c			\
 	errors.c		\
 	ethernet.c		\
@@ -205,6 +206,7 @@ wicked_headers			= \
 	dhcp6/options.h		\
 	dhcp6/protocol.h	\
 	dhcp6/tester.h		\
+	dhcp.h			\
 	duid.h			\
 	ibft.h			\
 	ipv6_priv.h		\

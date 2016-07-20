@@ -32,6 +32,7 @@
 #include "sysfs.h"
 #include "modem-manager.h"
 #include "dhcp6/options.h"
+#include "dhcp.h"
 #include <gcrypt.h>
 
 extern void		ni_addrconf_updater_free(ni_addrconf_updater_t **);
@@ -1093,17 +1094,20 @@ ni_addrconf_lease_new(int type, int family)
 	ni_addrconf_lease_t *lease;
 
 	lease = calloc(1, sizeof(*lease));
-	lease->seqno = __ni_global_seqno++;
-	lease->type = type;
-	lease->family = family;
-	ni_config_addrconf_update_mask(lease->type, lease->family);
+	if (lease) {
+		lease->seqno = __ni_global_seqno++;
+		lease->type = type;
+		lease->family = family;
+		ni_config_addrconf_update_mask(lease->type, lease->family);
+	}
 	return lease;
 }
 
 void
 ni_addrconf_lease_free(ni_addrconf_lease_t *lease)
 {
-	ni_addrconf_lease_destroy(lease);
+	if (lease)
+		ni_addrconf_lease_destroy(lease);
 	free(lease);
 }
 
@@ -1115,6 +1119,8 @@ ni_addrconf_lease_dhcp4_destroy(struct ni_addrconf_lease_dhcp4 *dhcp4)
 		ni_string_free(&dhcp4->boot_file);
 		ni_string_free(&dhcp4->root_path);
 		ni_string_free(&dhcp4->message);
+
+		ni_dhcp_option_list_destroy(&dhcp4->options);
 	}
 }
 
@@ -1127,6 +1133,8 @@ ni_addrconf_lease_dhcp6_destroy(struct ni_addrconf_lease_dhcp6 *dhcp6)
 
 		ni_string_free(&dhcp6->boot_url);
 		ni_string_array_destroy(&dhcp6->boot_params);
+
+		ni_dhcp_option_list_destroy(&dhcp6->options);
 	}
 }
 
