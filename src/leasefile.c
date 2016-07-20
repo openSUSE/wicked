@@ -45,6 +45,7 @@
 
 #include "appconfig.h"
 #include "leasefile.h"
+#include "dhcp.h"
 #include "dhcp4/lease.h"
 #include "dhcp6/lease.h"
 #include "netinfo_priv.h"
@@ -392,6 +393,48 @@ ni_addrconf_lease_ptz_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 		ret = 0;
 	}
 	return ret;
+}
+
+int
+ni_addrconf_lease_opts_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+{
+	const ni_dhcp_option_t *options = NULL, *opt;
+	xml_node_t *child;
+	char *name = NULL;
+	char *hstr = NULL;
+
+	if (lease->family == AF_INET  && lease->type == NI_ADDRCONF_DHCP)
+		options = lease->dhcp4.options;
+	else
+	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_DHCP)
+		options = lease->dhcp6.options;
+	else
+		return 1;
+
+	for (opt = options; opt; opt = opt->next) {
+		if (!opt->code)
+			continue;
+		if (!ni_string_printf(&name, "unknown-%u", opt->code))
+			continue;
+
+		if (!(child = xml_node_new(name, node)))
+			continue;
+
+		xml_node_new_element_uint("code", child, opt->code);
+		if (!opt->len || !opt->data)
+			continue;
+
+		if ((hstr = ni_sprint_hex(opt->data, opt->len))) {
+			xml_node_new_element("data", child, hstr);
+			free(hstr);
+		}
+	}
+	ni_string_free(&name);
+
+	if (node->children)
+		return 0;
+	else
+		return 1;
 }
 
 int
@@ -1006,6 +1049,54 @@ ni_addrconf_lease_ptz_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t
 		    !ni_string_empty(child->cdata)) {
 			ni_string_dup(&lease->posix_tz_dbname, child->cdata);
 		}
+	}
+	return 0;
+}
+
+int
+ni_addrconf_lease_opts_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+{
+	ni_dhcp_option_t **options = NULL, *opt;
+	const xml_node_t *child;
+
+	if (!lease || !node)
+		return 1;
+
+	if (lease->family == AF_INET  && lease->type == NI_ADDRCONF_DHCP)
+		options = &lease->dhcp4.options;
+	else
+	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_DHCP)
+		options = &lease->dhcp6.options;
+	else
+		return 1;
+
+	for (child = node->children; child; child = child->next) {
+		const xml_node_t *cnode, *dnode;
+		unsigned int code, len;
+		unsigned char *data;
+		size_t size;
+
+		if (!(cnode = xml_node_get_child(child, "code")))
+			continue;
+		if (ni_parse_uint(cnode->cdata, &code, 10) != 0 || !code)
+			continue;
+
+		if ((dnode = xml_node_get_child(child, "data"))) {
+			if (!(size = ni_string_len(dnode->cdata)))
+				continue;
+
+			size = (size / 3) + 1;
+			if (!(data = calloc(1, size)))
+				continue;
+
+			len = ni_parse_hex(dnode->cdata, data, size);
+			opt = ni_dhcp_option_new(code, len, data);
+			free(data);
+		} else {
+			opt = ni_dhcp_option_new(code, 0, NULL);
+		}
+		if (!ni_dhcp_option_list_append(options, opt))
+			ni_dhcp_option_free(opt);
 	}
 	return 0;
 }

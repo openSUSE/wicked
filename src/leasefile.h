@@ -57,6 +57,7 @@
 #define NI_ADDRCONF_LEASE_XML_LPR_DATA_NODE		"lpr"
 #define NI_ADDRCONF_LEASE_XML_LOG_DATA_NODE		"log"
 #define NI_ADDRCONF_LEASE_XML_PTZ_DATA_NODE		"timezone"
+#define NI_ADDRCONF_LEASE_XML_OPTS_DATA_NODE		"options"
 
 
 /*
@@ -97,6 +98,8 @@ extern int
 ni_addrconf_lease_lpr_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
 extern int
 ni_addrconf_lease_ptz_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+extern int
+ni_addrconf_lease_opts_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
 
 
 /*
@@ -126,6 +129,8 @@ extern int
 ni_addrconf_lease_lpr_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
 extern int
 ni_addrconf_lease_ptz_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+extern int
+ni_addrconf_lease_opts_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
 
 
 #endif /* __WICKED_ADDRCONF_LEASEFILE_H__ */
