@@ -24,7 +24,7 @@
 #include "netinfo_priv.h"
 #include "buffer.h"
 
-#include "dhcp4/dhcp.h"
+#include "dhcp4/dhcp4.h"
 #include "dhcp4/protocol.h"
 
 

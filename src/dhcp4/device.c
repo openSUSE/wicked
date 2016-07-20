@@ -22,7 +22,7 @@
 #include "netinfo_priv.h"
 #include "appconfig.h"
 
-#include "dhcp4/dhcp.h"
+#include "dhcp4/dhcp4.h"
 #include "dhcp4/protocol.h"
 
 

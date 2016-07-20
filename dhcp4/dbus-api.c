@@ -24,7 +24,7 @@
 #include <wicked/dbus-errors.h>
 #include <wicked/objectmodel.h>
 #include "appconfig.h"
-#include "dhcp4/dhcp.h"
+#include "dhcp4/dhcp4.h"
 
 static ni_dhcp4_request_t *	ni_objectmodel_dhcp4_request_from_dict(const ni_dbus_variant_t *);
 static void			__ni_objectmodel_dhcp4_device_release(ni_dbus_object_t *);

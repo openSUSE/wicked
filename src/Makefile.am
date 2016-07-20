@@ -194,12 +194,12 @@ wicked_headers			= \
 	dbus-objects/model.h	\
 	dbus-server.h		\
 	debug.h			\
-	dhcp4/dhcp.h		\
+	dhcp4/dhcp4.h		\
 	dhcp4/lease.h		\
 	dhcp4/protocol.h	\
 	dhcp4/tester.h		\
 	dhcp6/device.h		\
-	dhcp6/dhcp.h		\
+	dhcp6/dhcp6.h		\
 	dhcp6/lease.h		\
 	dhcp6/fsm.h		\
 	dhcp6/options.h		\

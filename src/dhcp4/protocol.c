@@ -39,7 +39,7 @@
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
 #include <wicked/xml.h>
-#include "dhcp4/dhcp.h"
+#include "dhcp4/dhcp4.h"
 #include "dhcp4/protocol.h"
 #include "buffer.h"
 #include "socket_priv.h"

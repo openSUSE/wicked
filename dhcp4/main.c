@@ -21,7 +21,7 @@
 #include <wicked/logging.h>
 #include <wicked/objectmodel.h>
 
-#include "dhcp4/dhcp.h"
+#include "dhcp4/dhcp4.h"
 #include "dhcp4/tester.h"
 
 enum {
