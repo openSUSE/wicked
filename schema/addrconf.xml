@@ -198,6 +198,8 @@
     <update type="builtin-addrconf-update-mask" />
     <hostname type="string" />
     <route-priority type="uint32" />
+
+    <request-options class="array" element-type="string" element-name="option" />
   </define>
   <define name="properties" type="interface:addrconf-lease"/>
 

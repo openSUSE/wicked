@@ -154,6 +154,8 @@ struct ni_dhcp4_request {
 	char *			hostname;
 	unsigned int		route_priority;
 
+	ni_string_array_t	request_options;
+
 	/* Options what to update based on the info received from
 	 * the DHCP4 server.
 	 * This is a bitmap; individual bits correspond to
@@ -188,6 +190,7 @@ struct ni_dhcp4_config {
 	/* A combination of DHCP4_DO_* flags above */
 	unsigned int		update;
 	unsigned int		doflags;
+	ni_uint_array_t		request_options;
 
 	unsigned int		route_priority;
 
