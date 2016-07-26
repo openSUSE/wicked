@@ -97,6 +97,8 @@ typedef struct ni_dhcp4_user_class {
 	ni_string_array_t               class_id;
 } ni_dhcp4_user_class_t;
 
+typedef struct ni_dhcp_option		ni_dhcp_option_t;
+
 typedef struct ni_addrconf_updater	ni_addrconf_updater_t;
 
 struct ni_addrconf_lease {
@@ -164,6 +166,8 @@ struct ni_addrconf_lease {
 		char *			boot_file;
 		char *			root_path;
 		char *			message;
+
+		ni_dhcp_option_t *	options;
 	    } dhcp4;
 	    struct ni_addrconf_lease_dhcp6 {
 		ni_opaque_t		client_id;
@@ -175,6 +179,8 @@ struct ni_addrconf_lease {
 		struct ni_dhcp6_ia *	ia_list;
 		char *			boot_url;
 		ni_string_array_t	boot_params;
+
+		ni_dhcp_option_t *	options;
 	    } dhcp6;
 	};
 };

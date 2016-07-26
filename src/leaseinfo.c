@@ -46,6 +46,7 @@
 
 #include "util_priv.h"
 #include "dhcp6/options.h"
+#include "dhcp.h"
 
 static const char *	__ni_keyword_format(char **, const char *,
 					const char *, unsigned int);
@@ -98,10 +99,7 @@ __ni_leaseinfo_print_string(FILE *out, const char *prefix, const char *name,
 	char *key = NULL;
 	const char *val_to_print = NULL;
 
-	if (!val && !default_val)
-		return;
-
-	if (strlen(val) == 0 && !default_val)
+	if (ni_string_empty(val) && !default_val)
 		return;
 
 	val_to_print = val ? val : default_val;
@@ -391,6 +389,27 @@ __ni_leaseinfo_print_netbios(FILE *out, const char *prefix,
 				NULL, 0);
 }
 
+static void
+__ni_leaseinfo_print_dhcp_opts(FILE *out, const char *prefix,
+			const ni_dhcp_option_t *options, unsigned int af)
+{
+	const ni_dhcp_option_t *opt;
+	char *name = NULL;
+	char *hstr = NULL;
+
+	for (opt = options; opt; opt = opt->next) {
+		if (!opt->code)
+			continue;
+		if (!ni_string_printf(&name, "UNKNOWN_%u", opt->code))
+			continue;
+
+		hstr = ni_sprint_hex(opt->data, opt->len);
+		__ni_leaseinfo_print_string(out, prefix, name, hstr, "", 0);
+		ni_string_free(&hstr);
+	}
+	ni_string_free(&name);
+}
+
 #if 0
 static const char *
 __ni_leaseinfo_strftime(time_t t)
@@ -485,6 +504,9 @@ __ni_leaseinfo_dhcp4_dump(FILE *out, const ni_addrconf_lease_t *lease,
 			lease->dhcp4.mtu);
 	}
 
+	__ni_leaseinfo_print_dhcp_opts(out, prefix, lease->dhcp4.options,
+					lease->family);
+
 	ni_string_free(&key);
 }
 
@@ -541,6 +563,9 @@ __ni_leaseinfo_dhcp6_dump(FILE *out, const ni_addrconf_lease_t *lease,
 					"BOOTFILEPARAM", param, NULL, i);
 		}
 	}
+
+	__ni_leaseinfo_print_dhcp_opts(out, prefix, lease->dhcp6.options,
+							lease->family);
 
 	ni_string_free(&key);
 }

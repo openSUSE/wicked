@@ -39,8 +39,9 @@
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
 #include <wicked/xml.h>
-#include "dhcp4/dhcp.h"
+#include "dhcp4/dhcp4.h"
 #include "dhcp4/protocol.h"
+#include "dhcp.h"
 #include "buffer.h"
 #include "socket_priv.h"
 
@@ -368,6 +369,8 @@ __ni_dhcp4_build_msg_put_option_request(const ni_dhcp4_device_t *dev,
 {
 	const ni_dhcp4_config_t *options = dev->config;
 	unsigned int params_begin;
+	ni_uint_array_t oro = NI_UINT_ARRAY_INIT;
+	unsigned int i, code;
 
 	switch (msg_code) {
 	case DHCP4_DISCOVER:
@@ -380,13 +383,13 @@ __ni_dhcp4_build_msg_put_option_request(const ni_dhcp4_device_t *dev,
 
 	params_begin = ni_dhcp4_option_begin(msgbuf, DHCP4_PARAMETERREQUESTLIST);
 	if (msg_code != DHCP4_INFORM) {
-		ni_buffer_putc(msgbuf, DHCP4_RENEWALTIME);
-		ni_buffer_putc(msgbuf, DHCP4_REBINDTIME);
+		ni_uint_array_append(&oro, DHCP4_RENEWALTIME);
+		ni_uint_array_append(&oro, DHCP4_REBINDTIME);
 	}
-	ni_buffer_putc(msgbuf, DHCP4_NETMASK);
-	ni_buffer_putc(msgbuf, DHCP4_BROADCAST);
+	ni_uint_array_append(&oro, DHCP4_NETMASK);
+	ni_uint_array_append(&oro, DHCP4_BROADCAST);
 	if (options->doflags & DHCP4_DO_MTU) {
-		ni_buffer_putc(msgbuf, DHCP4_MTU);
+		ni_uint_array_append(&oro, DHCP4_MTU);
 	}
 
 	/*
@@ -395,66 +398,77 @@ __ni_dhcp4_build_msg_put_option_request(const ni_dhcp4_device_t *dev,
 	 * Keep them in front also on request... just in case.
 	 */
 	if (options->doflags & DHCP4_DO_CSR) {
-		ni_buffer_putc(msgbuf, DHCP4_CSR);
+		ni_uint_array_append(&oro, DHCP4_CSR);
 	}
 	if (options->doflags & DHCP4_DO_MSCSR) {
-		ni_buffer_putc(msgbuf, DHCP4_MSCSR);
+		ni_uint_array_append(&oro, DHCP4_MSCSR);
 	}
 	if (options->doflags & DHCP4_DO_GATEWAY) {
-		ni_buffer_putc(msgbuf, DHCP4_STATICROUTE);
-		ni_buffer_putc(msgbuf, DHCP4_ROUTERS);
+		ni_uint_array_append(&oro, DHCP4_STATICROUTE);
+		ni_uint_array_append(&oro, DHCP4_ROUTERS);
 	}
 	if (options->doflags & DHCP4_DO_HOSTNAME) {
 		if (options->fqdn == FQDN_DISABLE) {
-			ni_buffer_putc(msgbuf, DHCP4_HOSTNAME);
+			ni_uint_array_append(&oro, DHCP4_HOSTNAME);
 		} else {
-			ni_buffer_putc(msgbuf, DHCP4_FQDN);
+			ni_uint_array_append(&oro, DHCP4_FQDN);
 		}
 	}
 	if (options->doflags & DHCP4_DO_DNS) {
-		ni_buffer_putc(msgbuf, DHCP4_DNSSEARCH);
-		ni_buffer_putc(msgbuf, DHCP4_DNSDOMAIN);
-		ni_buffer_putc(msgbuf, DHCP4_DNSSERVER);
+		ni_uint_array_append(&oro, DHCP4_DNSSEARCH);
+		ni_uint_array_append(&oro, DHCP4_DNSDOMAIN);
+		ni_uint_array_append(&oro, DHCP4_DNSSERVER);
 	}
 	if (options->doflags & DHCP4_DO_NIS) {
-		ni_buffer_putc(msgbuf, DHCP4_NISDOMAIN);
-		ni_buffer_putc(msgbuf, DHCP4_NISSERVER);
+		ni_uint_array_append(&oro, DHCP4_NISDOMAIN);
+		ni_uint_array_append(&oro, DHCP4_NISSERVER);
 	}
 	if (options->doflags & DHCP4_DO_NTP) {
-		ni_buffer_putc(msgbuf, DHCP4_NTPSERVER);
+		ni_uint_array_append(&oro, DHCP4_NTPSERVER);
 	}
 	if (options->doflags & DHCP4_DO_ROOT) {
-		ni_buffer_putc(msgbuf, DHCP4_ROOTPATH);
+		ni_uint_array_append(&oro, DHCP4_ROOTPATH);
 	}
 	if (options->doflags & DHCP4_DO_LPR) {
-		ni_buffer_putc(msgbuf, DHCP4_LPRSERVER);
+		ni_uint_array_append(&oro, DHCP4_LPRSERVER);
 	}
 	if (options->doflags & DHCP4_DO_LOG) {
-		ni_buffer_putc(msgbuf, DHCP4_LOGSERVER);
+		ni_uint_array_append(&oro, DHCP4_LOGSERVER);
 	}
 	if (options->doflags & DHCP4_DO_NDS) {
-		ni_buffer_putc(msgbuf, DHCP4_NDS_SERVER);
-		ni_buffer_putc(msgbuf, DHCP4_NDS_TREE);
-		ni_buffer_putc(msgbuf, DHCP4_NDS_CTX);
+		ni_uint_array_append(&oro, DHCP4_NDS_SERVER);
+		ni_uint_array_append(&oro, DHCP4_NDS_TREE);
+		ni_uint_array_append(&oro, DHCP4_NDS_CTX);
 	}
 	if (options->doflags & DHCP4_DO_SIP) {
-		ni_buffer_putc(msgbuf, DHCP4_SIPSERVER);
+		ni_uint_array_append(&oro, DHCP4_SIPSERVER);
 	}
 	if (options->doflags & DHCP4_DO_SMB) {
-		ni_buffer_putc(msgbuf, DHCP4_NETBIOSNAMESERVER);
-		ni_buffer_putc(msgbuf, DHCP4_NETBIOSDDSERVER);
-		ni_buffer_putc(msgbuf, DHCP4_NETBIOSNODETYPE);
-		ni_buffer_putc(msgbuf, DHCP4_NETBIOSSCOPE);
+		ni_uint_array_append(&oro, DHCP4_NETBIOSNAMESERVER);
+		ni_uint_array_append(&oro, DHCP4_NETBIOSDDSERVER);
+		ni_uint_array_append(&oro, DHCP4_NETBIOSNODETYPE);
+		ni_uint_array_append(&oro, DHCP4_NETBIOSSCOPE);
 	}
 	if (options->doflags & DHCP4_DO_POSIX_TZ) {
-		ni_buffer_putc(msgbuf, DHCP4_POSIX_TZ_STRING);
-		ni_buffer_putc(msgbuf, DHCP4_POSIX_TZ_DBNAME);
+		ni_uint_array_append(&oro, DHCP4_POSIX_TZ_STRING);
+		ni_uint_array_append(&oro, DHCP4_POSIX_TZ_DBNAME);
+	}
+
+	for (i = 0; i < options->request_options.count; ++i) {
+		code = options->request_options.data[i];
+		if (!ni_uint_array_contains(&oro, code))
+			ni_uint_array_append(&oro, code);
+	}
+	for (i = 0; i < oro.count; ++i) {
+		code = oro.data[i];
+		ni_buffer_putc(msgbuf, code);
 	}
 	ni_dhcp4_option_end(msgbuf, params_begin);
 
 	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
 			"%s: using an option request", dev->ifname);
 
+	ni_uint_array_destroy(&oro);
 	return 0;
 }
 
@@ -1630,9 +1644,6 @@ ni_dhcp4_apply_routes(ni_addrconf_lease_t *lease, ni_route_array_t *routes)
 
 /*
  * Parse a DHCP4 response.
- * FIXME: RFC2131 states that the server is allowed to split a DHCP4 option into
- * several (partial) options if the total length exceeds 255 octets. We don't
- * handle this yet.
  */
 int
 ni_dhcp4_parse_response(const ni_dhcp4_message_t *message, ni_buffer_t *options, ni_addrconf_lease_t **leasep)
@@ -1653,6 +1664,7 @@ ni_dhcp4_parse_response(const ni_dhcp4_message_t *message, ni_buffer_t *options,
 	int use_bootserver = 1;
 	int use_bootfile = 1;
 	unsigned int pfxlen;
+	ni_dhcp_option_t *opts = NULL, *opt;
 
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET);
 
@@ -1674,26 +1686,73 @@ parse_more:
 		option = ni_dhcp4_option_next(options, &buf);
 
 		//ni_debug_dhcp("handle option %s (%d)", ni_dhcp4_option_name(option), option);
-		if (option == DHCP4_PAD)
-			continue;
-
 		if (option == DHCP4_END)
 			break;
 
-		if (option < 0)
-			goto error;
+		switch (option) {
+		case DHCP4_PAD:
+			continue;
+
+		case DHCP4_MESSAGETYPE:
+			option = ni_buffer_getc(&buf);
+			if (option == EOF || msg_type != -1)
+				goto error;
+			msg_type = option;
+			continue;
+
+		case DHCP4_OPTIONSOVERLOADED:
+			if (options != &overload_buf) {
+				opt_overload = ni_buffer_getc(&buf);
+				if (opt_overload == EOF)
+					goto error;
+			} else {
+				ni_debug_dhcp("DHCP4: ignoring OVERLOAD option in overloaded data");
+				if (ni_buffer_getc(&buf) == EOF)
+					goto error;
+			}
+			continue;
+
+		default:
+			if (option < 0)
+				goto error;
+			break;
+		}
 
 		if (ni_buffer_count(&buf) == 0) {
 			ni_error("option %d has zero length", option);
 			goto error;
 		}
 
-		switch (option) {
-		case DHCP4_MESSAGETYPE:
-			msg_type = ni_buffer_getc(&buf);
-			if (msg_type == EOF)
-				goto error;
+		if ((opt = ni_dhcp_option_list_find(opts, option))) {
+			if (ni_dhcp_option_append(opt, ni_buffer_count(&buf), ni_buffer_head(&buf)))
+				ni_buffer_pull_head(&buf, ni_buffer_count(&buf));
+		} else
+		if ((opt = ni_dhcp_option_new(option, ni_buffer_count(&buf), ni_buffer_head(&buf)))) {
+			if (ni_dhcp_option_list_append(&opts, opt))
+				ni_buffer_pull_head(&buf, ni_buffer_count(&buf));
+			else
+				ni_dhcp_option_free(opt);
+		} else {
+			ni_debug_dhcp("unable to allocate DHCP4 option %s", ni_dhcp4_option_name(option));
 			continue;
+		}
+
+		if (buf.underflow) {
+			ni_debug_dhcp("unable to parse DHCP4 option %s: too short",
+					ni_dhcp4_option_name(option));
+		} else if (ni_buffer_count(&buf)) {
+			ni_debug_dhcp("excess data in DHCP4 option %s - %u bytes left",
+					ni_dhcp4_option_name(option),
+					ni_buffer_count(&buf));
+		}
+	}
+
+	while ((opt = ni_dhcp_option_list_pull(&opts))) {
+		ni_buffer_t buf;
+		int option = opt->code;
+
+		ni_buffer_init_reader(&buf, opt->data, opt->len);
+		switch (option) {
 		case DHCP4_ADDRESS:
 			ni_dhcp4_option_get_ipv4(&buf, &lease->dhcp4.address);
 			break;
@@ -1797,8 +1856,7 @@ parse_more:
 		case DHCP4_CSR:
 		case DHCP4_MSCSR:
 			ni_route_array_destroy(&classless_routes);
-			if (ni_dhcp4_decode_csr(&buf, &classless_routes) < 0)
-				goto error;
+			ni_dhcp4_decode_csr(&buf, &classless_routes);
 			break;
 
 		case DHCP4_SIPSERVER:
@@ -1807,26 +1865,12 @@ parse_more:
 
 		case DHCP4_STATICROUTE:
 			ni_route_array_destroy(&static_routes);
-			if (ni_dhcp4_decode_static_routes(&buf, &static_routes) < 0)
-				goto error;
+			ni_dhcp4_decode_static_routes(&buf, &static_routes);
 			break;
 
 		case DHCP4_ROUTERS:
 			ni_route_array_destroy(&default_routes);
-			if (ni_dhcp4_decode_routers(&buf, &default_routes) < 0)
-				goto error;
-			break;
-
-		case DHCP4_OPTIONSOVERLOADED:
-			if (options != &overload_buf) {
-				opt_overload = ni_buffer_getc(&buf);
-				if (opt_overload == EOF)
-					goto error;
-			} else {
-				ni_debug_dhcp("DHCP4: ignoring OVERLOAD option in overloaded data");
-				if (ni_buffer_getc(&buf) == EOF)
-					goto error;
-			}
+			ni_dhcp4_decode_routers(&buf, &default_routes);
 			break;
 
 		case DHCP4_FQDN:
@@ -1844,19 +1888,25 @@ parse_more:
 			break;
 
 		default:
-			ni_debug_dhcp("ignoring unsupported DHCP4 code %u", option);
+			ni_debug_dhcp("adding unparsed DHCP4 option %s code %u len %u",
+					ni_dhcp4_option_name(option), option, opt->len);
+
+			if (ni_dhcp_option_list_append(&lease->dhcp4.options, opt)) {
+				ni_buffer_clear(&buf);
+				opt = NULL;
+			}
 			break;
 		}
 
+		ni_dhcp_option_free(opt);
 		if (buf.underflow) {
-			ni_debug_dhcp("unable to parse DHCP4 option %s: too short",
-					ni_dhcp4_option_name(option));
+			ni_debug_dhcp("unable to parse DHCP4 option %s (%u): too short",
+					ni_dhcp4_option_name(option), option);
 		} else if (ni_buffer_count(&buf)) {
-			ni_debug_dhcp("excess data in DHCP4 option %s - %u bytes left",
-					ni_dhcp4_option_name(option),
+			ni_debug_dhcp("excess data in DHCP4 option %s (%u): %u data bytes left",
+					ni_dhcp4_option_name(option), option,
 					ni_buffer_count(&buf));
 		}
-
 	}
 
 	if (options->underflow) {
@@ -1996,6 +2046,7 @@ done:
 	ni_string_array_destroy(&dns_domain);
 	ni_string_array_destroy(&nis_servers);
 	ni_string_free(&nisdomain);
+	ni_dhcp_option_list_destroy(&opts);
 
 	return msg_type;
 

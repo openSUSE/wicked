@@ -40,7 +40,7 @@
 #include <wicked/system.h>
 #include <wicked/xml.h>
 
-#include "dhcp4/dhcp.h"
+#include "dhcp4/dhcp4.h"
 #include "dhcp4/tester.h"
 
 

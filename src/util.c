@@ -1127,13 +1127,13 @@ ni_sprint_hex(const unsigned char *data, size_t len)
 		return NULL;
 
 	hex_len = (len << 1) + len + 1;
+	buffer = (char *) malloc(hex_len);
 
-	buffer = (char *) xmalloc(hex_len);
+	if (ni_format_hex(data, len, buffer, hex_len))
+		return buffer;
 
-	if (!ni_format_hex(data, len, buffer, hex_len))
-		return NULL;
-
-	return buffer;
+	free(buffer);
+	return NULL;
 }
 
 const char *
@@ -1541,8 +1541,12 @@ ni_format_hex(const unsigned char *data, unsigned int datalen, char *namebuf, si
 {
 	unsigned int i, j;
 
+	if (!data || !namebuf || !namelen)
+		return NULL;
+
+	namebuf[0] = '\0';
 	for (i = j = 0; i < datalen; ++i) {
-		if (j + 4 >= namelen)
+		if (j + 3 >= namelen)
 			break;
 		if (i)
 			namebuf[j++] = ':';
@@ -1557,7 +1561,6 @@ ni_print_hex(const unsigned char *data, unsigned int datalen)
 {
 	static char addrbuf[512]; /* >= ni_opaque_t data * 3 */
 
-	addrbuf[0] = '\0';
 	return ni_format_hex(data, datalen, addrbuf, sizeof(addrbuf));
 }
 

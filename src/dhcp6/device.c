@@ -35,7 +35,7 @@
 #include <wicked/vlan.h>
 #include <wicked/ipv6.h>
 
-#include "dhcp6/dhcp.h"
+#include "dhcp6/dhcp6.h"
 #include "dhcp6/device.h"
 #include "dhcp6/protocol.h"
 #include "dhcp6/fsm.h"

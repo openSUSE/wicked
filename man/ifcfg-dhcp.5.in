@@ -67,6 +67,10 @@ compliant array, otherwise DHCLIENT_USER_CLASS_ID is used as string.
 Specifies the user class identifier [array] to send in dhcp requests.
 The DHCLIENT_USER_CLASS_FORMAT variable specified how to interpret it.
 .TP
+.BR DHCLIENT_REQUEST_OPTION[SUFFIX]
+Specifies a space separate list of additional DHCPv4 options to request.
+Currently limited to numeric option codes only.
+.TP
 .BR DHCLIENT_LEASE_TIME
 Specifies the lease time (in seconds), that is suggested to the server. Default
 is unset which means to use the lease time offered by the server.

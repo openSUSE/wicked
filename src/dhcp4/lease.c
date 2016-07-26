@@ -142,6 +142,7 @@ ni_dhcp4_lease_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 		{ NI_ADDRCONF_LEASE_XML_LPR_DATA_NODE, ni_addrconf_lease_lpr_data_to_xml },
 		{ NI_ADDRCONF_LEASE_XML_LOG_DATA_NODE, ni_addrconf_lease_log_data_to_xml },
 		{ NI_ADDRCONF_LEASE_XML_PTZ_DATA_NODE, ni_addrconf_lease_ptz_data_to_xml },
+		{ NI_ADDRCONF_LEASE_XML_OPTS_DATA_NODE, ni_addrconf_lease_opts_data_to_xml },
 		{ NULL,	NULL }
 	};
 	xml_node_t *data;
@@ -336,6 +337,10 @@ ni_dhcp4_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 		} else
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_PTZ_DATA_NODE)) {
 			if (ni_addrconf_lease_ptz_data_from_xml(lease, child) < 0)
+				return -1;
+		} else
+		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_OPTS_DATA_NODE)) {
+			if (ni_addrconf_lease_opts_data_from_xml(lease, child) < 0)
 				return -1;
 		}
 	}

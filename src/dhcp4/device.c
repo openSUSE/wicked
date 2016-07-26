@@ -22,7 +22,7 @@
 #include "netinfo_priv.h"
 #include "appconfig.h"
 
-#include "dhcp4/dhcp.h"
+#include "dhcp4/dhcp4.h"
 #include "dhcp4/protocol.h"
 
 
@@ -113,9 +113,11 @@ ni_dhcp4_device_stop(ni_dhcp4_device_t *dev)
 void
 ni_dhcp4_device_set_config(ni_dhcp4_device_t *dev, ni_dhcp4_config_t *config)
 {
-	if (dev->config && dev->config->user_class.class_id.count)
+	if (dev->config) {
 		ni_string_array_destroy(&dev->config->user_class.class_id);
-	free(dev->config);
+		ni_uint_array_destroy(&dev->config->request_options);
+		free(dev->config);
+	}
 	dev->config = config;
 }
 
@@ -256,6 +258,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 {
 	ni_dhcp4_config_t *config;
 	const char *classid;
+	unsigned int i, n;
 	size_t len;
 	int rv;
 
@@ -332,6 +335,18 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_trace("  update-flags    %s", __ni_dhcp4_print_doflags(config->doflags));
 		ni_trace("  recover_lease   %s", config->recover_lease ? "true" : "false");
 		ni_trace("  release_lease   %s", config->release_lease ? "true" : "false");
+	}
+	for (n = i = 0; i < info->request_options.count; ++i) {
+		const char *option = info->request_options.data[i];
+		unsigned int code;
+
+		if (ni_parse_uint(option, &code, 10) || !code || code >= 255)
+			continue;
+
+		if (!ni_uint_array_contains(&config->request_options, code)) {
+			ni_debug_dhcp("  request-option[%u]: %u", n++, code);
+			ni_uint_array_append(&config->request_options, code);
+		}
 	}
 
 	ni_dhcp4_device_set_config(dev, config);
@@ -839,6 +854,7 @@ ni_dhcp4_request_free(ni_dhcp4_request_t *req)
 	ni_string_free(&req->clientid);
 	ni_string_free(&req->vendor_class);
 	ni_string_array_destroy(&req->user_class.class_id);
+	ni_string_array_destroy(&req->request_options);
 	free(req);
 }
 

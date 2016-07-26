@@ -180,6 +180,7 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 		ni_string_free(&compat->dhcp4.client_id);
 		ni_string_free(&compat->dhcp4.vendor_class);
 		ni_string_array_destroy(&compat->dhcp4.user_class.class_id);
+		ni_string_array_destroy(&compat->dhcp4.request_options);
 
 		ni_string_free(&compat->dhcp6.hostname);
 		ni_string_free(&compat->dhcp6.client_id);
@@ -1979,6 +1980,22 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 
 	if (compat->dhcp4.user_class.class_id.count) {
 		__ni_compat_generate_dhcp4_user_class(dhcp, &compat->dhcp4.user_class);
+	}
+
+	if (compat->dhcp4.request_options.count) {
+		xml_node_t *req;
+		unsigned int i;
+
+		req = xml_node_new("request-options", NULL);
+		for (i = 0; req && i < compat->dhcp4.request_options.count; ++i) {
+			const char *opt = compat->dhcp4.request_options.data[i];
+			xml_node_new_element("option", req, opt);
+		}
+		if (req->children) {
+			xml_node_add_child(dhcp, req);
+		} else {
+			xml_node_free(req);
+		}
 	}
 
 	return dhcp;
