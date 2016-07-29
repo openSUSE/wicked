@@ -429,7 +429,7 @@ ni_ifstatus_show_iftype(const ni_netdev_t *dev, ni_bool_t verbose)
 }
 
 static inline void
-ni_ifstatus_show_addrs(const ni_netdev_t *dev, ni_bool_t verbose)
+ni_ifstatus_show_addrs(ni_netdev_t *dev, ni_bool_t verbose)
 {
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_address_t *ap;
@@ -448,6 +448,18 @@ ni_ifstatus_show_addrs(const ni_netdev_t *dev, ni_bool_t verbose)
 
 		if ((owner = ni_addrconf_type_to_name(ap->owner)))
 			printf(" [%s]", owner);
+		else
+		if (ap->family == AF_INET6 && ni_address_is_temporary(ap)) {
+			/*
+			 * we currently do not track all the temporary/privacy
+			 * autoconf addresses, but mngtmpaddr only, so assume
+			 * it is from autoconf as even dhcp6 would request one,
+			 * it would also track it.
+			 */
+			if (ni_netdev_get_lease(dev, ap->family, NI_ADDRCONF_AUTOCONF)
+			&&  (owner = ni_addrconf_type_to_name(NI_ADDRCONF_AUTOCONF)))
+				printf(" [%s]", owner);
+		}
 
 		if (verbose) {
 			ni_address_format_flags(&buf, ap->family, ap->flags, "|");
