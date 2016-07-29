@@ -438,10 +438,10 @@ ni_system_updater_install(ni_updater_t *updater, const ni_addrconf_lease_t *leas
 	ni_bool_t result = FALSE;
 	int rv = 0;
 
-	ni_debug_ifconfig("Updating system %s settings from %s/%s lease",
-					ni_updater_name(updater->kind),
-					ni_addrconf_type_to_name(lease->type),
-					ni_addrfamily_type_to_name(lease->family));
+	ni_debug_ifconfig("Updating system %s settings from %s %s:%s lease",
+					ni_updater_name(updater->kind), ifname,
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type));
 
 	if (!updater->proc_install)
 		return TRUE;
@@ -586,10 +586,10 @@ ni_system_updater_remove(ni_updater_t *updater, const ni_addrconf_lease_t *lease
 	ni_string_array_t arguments = NI_STRING_ARRAY_INIT;
 	ni_bool_t result = FALSE;
 
-	ni_debug_ifconfig("Removing system %s settings from %s %s/%s lease",
+	ni_debug_ifconfig("Removing system %s settings from %s %s:%s lease",
 			ni_updater_name(updater->kind), ifname,
-			ni_addrconf_type_to_name(lease->type),
-			ni_addrfamily_type_to_name(lease->family));
+			ni_addrfamily_type_to_name(lease->family),
+			ni_addrconf_type_to_name(lease->type));
 
 	if (!updater->proc_remove)
 		return TRUE;
@@ -712,7 +712,12 @@ ni_system_update_from_lease(const ni_addrconf_lease_t *lease, const unsigned int
 	int ret;
 	unsigned int kind;
 
-	ni_debug_ifconfig("%s()", __func__);
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+			"%s(%s, %s:%s in state %s)", __func__, ifname,
+			ni_addrfamily_type_to_name(lease->family),
+			ni_addrconf_type_to_name(lease->type),
+			ni_addrconf_state_to_name(lease->state));
+
 	ni_system_updaters_init();
 
 	for (kind = 0; kind < __NI_ADDRCONF_UPDATER_MAX; ++kind) {
