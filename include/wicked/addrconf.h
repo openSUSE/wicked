@@ -205,6 +205,7 @@ ni_addrconf_lease_is_valid(const ni_addrconf_lease_t *lease)
 
 extern int		ni_addrconf_lease_file_write(const char *, ni_addrconf_lease_t *);
 extern ni_addrconf_lease_t *ni_addrconf_lease_file_read(const char *, int, int);
+extern ni_bool_t	ni_addrconf_lease_file_exists(const char *, int, int);
 extern void		ni_addrconf_lease_file_remove(const char *, int, int);
 
 extern int		ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *, xml_node_t **);
