@@ -686,7 +686,8 @@ ni_system_update_remove_matching_leases(ni_updater_t *updater,
 			 * information from the system.
 			 */
 			if (!ni_string_eq(src->d_ref.name, ifname) ||
-			    lease->state != NI_ADDRCONF_STATE_APPLYING) {
+			    (lease->state != NI_ADDRCONF_STATE_GRANTED &&
+			     lease->state != NI_ADDRCONF_STATE_APPLYING)) {
 				ni_system_updater_remove(updater, src->lease, src->d_ref.name);
 			}
 
