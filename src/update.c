@@ -230,19 +230,20 @@ ni_system_updaters_init(void)
 
 		/* Create runtime directories for resolver and hostname extensions. */
 		if (!(ni_extension_statedir(name))) {
-			updater->enabled = 0;
+			updater->enabled = FALSE;
 		} else
 		if (updater->proc_install == NULL) {
 			ni_warn("system-updater %s configured, but no install script defined", name);
-			updater->enabled = 0;
-		} else
-		if (updater->proc_backup == NULL || updater->proc_restore == NULL) {
-			ni_warn("system-updater %s configured, but no backup/restore script defined", name);
-			updater->proc_backup = updater->proc_restore = NULL;
+			updater->enabled = FALSE;
 		} else
 		if (updater->proc_remove == NULL) {
 			ni_warn("system-updater %s configured, but no remove script defined", name);
-			updater->enabled = 0;
+			updater->enabled = FALSE;
+		}
+		if (updater->proc_backup == NULL || updater->proc_restore == NULL) {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+				"system-updater %s configured, but no backup/restore script defined", name);
+			updater->proc_backup = updater->proc_restore = NULL;
 		}
 	}
 }
