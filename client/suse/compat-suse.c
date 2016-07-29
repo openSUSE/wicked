@@ -4947,10 +4947,22 @@ __ni_suse_addrconf_auto6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	compat->auto6.enabled = TRUE;
-	compat->auto6.defer_timeout = -1U; /* use a built-in default */
+	compat->auto6.defer_timeout = -1U; /* use a built-in timeout by default */
 	if ((merged = ni_sysconfig_merge_defaults(sc, __ni_suse_config_defaults))) {
+		const char *value;
+
 		ni_sysconfig_get_integer(merged, "AUTO6_WAIT_AT_BOOT",
-				&compat->auto6.defer_timeout);
+					&compat->auto6.defer_timeout);
+
+		if ((value = ni_sysconfig_get_value(merged, "AUTO6_UPDATE"))) {
+			unsigned int temp = __NI_ADDRCONF_UPDATE_NONE;
+
+			if (ni_addrconf_update_flags_parse(&temp, value, " \t"))
+				compat->auto6.update &= temp;
+			else
+				ni_warn("ifcfg-%s: unknown flags in AUTO6_UPDATE='%s'",
+					dev->name, value);
+		}
 		ni_sysconfig_destroy(merged);
 	}
 	return TRUE;

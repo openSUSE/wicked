@@ -130,6 +130,8 @@ ni_compat_netdev_new(const char *ifname)
 	compat->dhcp6.recover_lease = TRUE;
 	compat->dhcp6.release_lease = FALSE;
 
+	compat->auto6.update = ni_config_addrconf_update_mask(NI_ADDRCONF_AUTOCONF, AF_INET6);
+
 	return compat;
 }
 
@@ -2073,7 +2075,7 @@ __ni_compat_generate_auto6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 	if (!compat->auto6.enabled)
 		return NULL;
 
-	aconf = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv6:auto", 0, 0);
+	aconf = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv6:auto", 0, compat->auto6.update);
 
 	if (aconf && compat->auto6.defer_timeout != -1U) {
 		xml_node_dict_set(aconf, "defer-timeout",

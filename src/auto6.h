@@ -30,6 +30,7 @@ typedef struct ni_auto6_request ni_auto6_request_t;
 struct ni_auto6_request {
 	ni_bool_t		enabled;
 	unsigned int		defer_timeout;
+	unsigned int		update;
 };
 
 extern void			ni_auto6_request_init(ni_auto6_request_t *);
