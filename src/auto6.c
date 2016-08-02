@@ -56,6 +56,7 @@ struct ni_auto6 {
 	ni_netdev_ref_t			device;
 
 	ni_bool_t			enabled;
+	ni_tristate_t			update;
 	ni_uuid_t			uuid;
 
 	struct {
@@ -78,6 +79,7 @@ ni_auto6_request_init(ni_auto6_request_t *req)
 		memset(req, 0, sizeof(*req));
 		req->enabled = FALSE;
 		req->defer_timeout = NI_AUTO6_ACQUIRE_DEADLINE;
+		req->update = ni_config_addrconf_update_mask(NI_ADDRCONF_AUTOCONF, AF_INET6);
 	}
 }
 
@@ -98,6 +100,7 @@ ni_auto6_new(const ni_netdev_t *dev)
 	auto6 = xcalloc(1, sizeof(*auto6));
 	if (auto6) {
 		auto6->enabled = TRUE;
+		auto6->update = NI_TRISTATE_DEFAULT;
 		ni_netdev_ref_set(&auto6->device, dev->name, dev->link.ifindex);
 	}
 	return auto6;
@@ -132,6 +135,7 @@ ni_auto6_disarm(ni_auto6_t *auto6)
 static void
 ni_auto6_reset(ni_auto6_t *auto6)
 {
+	auto6->update = NI_TRISTATE_DEFAULT;
 	auto6->acquire.deadline = 0;
 	auto6->acquire.send_rs  = 0;
 	ni_auto6_disarm(auto6);
@@ -674,8 +678,10 @@ ni_auto6_lease_rdnss_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	ni_string_array_t *old, cur = NI_STRING_ARRAY_INIT;
 	ni_ipv6_ra_rdnss_t *rdnss;
 	ni_bool_t changed = FALSE;
+	ni_bool_t update = FALSE;
+	ni_auto6_t *auto6;
 
-	if (!dev || !dev->ipv6 || !lease)
+	if (!dev || !dev->ipv6 || !lease || !(auto6 = ni_netdev_get_auto6(dev)))
 		return changed;
 
 	if (!lease->resolver && !(lease->resolver = ni_resolver_info_new()))
@@ -686,7 +692,12 @@ ni_auto6_lease_rdnss_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	 * so we put unexpired servers and report if something changed.
 	 */
 	old = &lease->resolver->dns_servers;
-	if (!(lease->update & NI_BIT(NI_ADDRCONF_UPDATE_DNS))) {
+	if (auto6->update == NI_TRISTATE_DEFAULT)
+		update = !ni_tristate_is_disabled(dev->ipv6->conf.autoconf);
+	else
+	if (lease->update & NI_BIT(NI_ADDRCONF_UPDATE_DNS))
+		update = TRUE;
+	if (!update) {
 		if (old->count) {
 			changed = TRUE;
 			ni_string_array_destroy(old);
@@ -723,8 +734,10 @@ ni_auto6_lease_dnssl_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	ni_string_array_t *old, cur = NI_STRING_ARRAY_INIT;
 	ni_ipv6_ra_dnssl_t *dnssl;
 	ni_bool_t changed = FALSE;
+	ni_bool_t update = FALSE;
+	ni_auto6_t *auto6;
 
-	if (!dev || !dev->ipv6 || !lease)
+	if (!dev || !dev->ipv6 || !lease || !(auto6 = ni_netdev_get_auto6(dev)))
 		return changed;
 
 	if (!lease->resolver && !(lease->resolver = ni_resolver_info_new()))
@@ -735,7 +748,12 @@ ni_auto6_lease_dnssl_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 	 * so we put unexpired domains and report if something changed.
 	 */
 	old = &lease->resolver->dns_search;
-	if (!(lease->update & NI_BIT(NI_ADDRCONF_UPDATE_DNS))) {
+	if (auto6->update == NI_TRISTATE_DEFAULT)
+		update = !ni_tristate_is_disabled(dev->ipv6->conf.autoconf);
+	else
+	if (lease->update & NI_BIT(NI_ADDRCONF_UPDATE_DNS))
+		update = TRUE;
+	if (!update) {
 		if (old->count) {
 			changed = TRUE;
 			ni_string_array_destroy(old);
@@ -777,7 +795,7 @@ ni_auto6_on_nduseropt_events(ni_netdev_t *dev, ni_event_t event)
 	if (!dev)
 		return;
 
-	if (dev->auto6 && !dev->auto6->enabled)
+	if (dev->auto6 && (!dev->auto6->enabled || dev->auto6->update == NI_TRISTATE_DISABLE))
 		return;
 
 	if (!(lease = ni_auto6_get_lease(dev))) {
@@ -1066,6 +1084,8 @@ ni_auto6_acquire(ni_netdev_t *dev, const ni_auto6_request_t *req)
 		lease->uuid  = auto6->uuid;
 	}
 
+	lease->update           = req->update;
+	ni_tristate_set(&auto6->update, req->update);
 	auto6->acquire.deadline = req->defer_timeout;
 	auto6->acquire.send_rs  = NI_AUTO6_ACQUIRE_SEND_RS;
 

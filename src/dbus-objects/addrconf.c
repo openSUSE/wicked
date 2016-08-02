@@ -1462,6 +1462,9 @@ ni_objectmodel_set_auto6_request_dict(ni_auto6_request_t *req, const ni_dbus_var
 
 	ni_dbus_dict_get_uint32(dict, "defer-timeout", &req->defer_timeout);
 
+	if (!ni_dbus_dict_get_uint32(dict, "update", &req->update))
+		req->update = 0;
+
 	return TRUE;
 }
 

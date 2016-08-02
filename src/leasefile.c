@@ -1351,3 +1351,24 @@ __ni_addrconf_lease_file_path(char **path, const char *dir,
 	return ni_string_printf(path, "%s/lease-%s-%s-%s.xml", dir, ifname, t, f);
 }
 
+ni_bool_t
+ni_addrconf_lease_file_exists(const char *ifname, int type, int family)
+{
+	char *filename = NULL;
+
+	if (__ni_addrconf_lease_file_path(&filename, ni_config_statedir(), ifname, type, family)) {
+		if (ni_file_exists(filename)) {
+			ni_string_free(&filename);
+			return TRUE;
+		}
+	}
+	if (__ni_addrconf_lease_file_path(&filename, ni_config_storedir(), ifname, type, family)) {
+		if (ni_file_exists(filename)) {
+			ni_string_free(&filename);
+			return TRUE;
+		}
+	}
+	ni_string_free(&filename);
+	return FALSE;
+}
+

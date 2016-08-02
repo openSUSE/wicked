@@ -79,8 +79,6 @@
   </system-updater>
 
   <system-updater name="generic" format="info">
-    <action name="backup" command="@wicked_extensionsdir@/netconfig backup"/>
-    <action name="restore" command="@wicked_extensionsdir@/netconfig restore"/>
     <action name="install" command="@wicked_extensionsdir@/netconfig install"/>
     <action name="remove" command="@wicked_extensionsdir@/netconfig remove"/>
   </system-updater>

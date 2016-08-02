@@ -294,6 +294,12 @@ Permits to specify how long to wait for IPv6 autoconfig when requested
 with the auto6 or +auto6 tag in BOOTPROTO variable.
 When unset, a wicked built-in default defer time (10sec) is used.
 .TP
+.B AUTO6_UPDATE\ { all \fR| dns | none\fB }
+Permits to specify whether to update dns (rdnss,dnssl) from IPv6 RA when
+requested with the auto6 or +auto6 tag in BOOTPROTO variable. Without an
+explicit request, the dns settings are updated, when the autoconf sysctl
+(address autoconf) is enabled.
+.TP
 .B CHECK_DUPLICATE_IP\ { yes \fR| no\fB }
 Whether to detect duplicate IPv4 addresses or not. Set to "no" to disable it.
 By default, duplicate IPv4 addresses checks are enabled on ARP capable devices.

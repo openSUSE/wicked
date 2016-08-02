@@ -106,6 +106,7 @@ typedef struct ni_compat_netdev {
 	struct {
 		ni_bool_t	enabled;
 		unsigned int    defer_timeout;
+		unsigned int	update;
 	} auto6;
 } ni_compat_netdev_t;
 

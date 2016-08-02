@@ -304,6 +304,7 @@
   <define name="request" class="dict">
     <enabled type="boolean"/>
     <defer-timeout type="uint32" />
+    <update type="builtin-addrconf-update-mask" />
   </define>
   <define name="properties" type="interface:addrconf-lease"/>
 

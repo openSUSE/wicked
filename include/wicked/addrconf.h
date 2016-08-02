@@ -205,6 +205,7 @@ ni_addrconf_lease_is_valid(const ni_addrconf_lease_t *lease)
 
 extern int		ni_addrconf_lease_file_write(const char *, ni_addrconf_lease_t *);
 extern ni_addrconf_lease_t *ni_addrconf_lease_file_read(const char *, int, int);
+extern ni_bool_t	ni_addrconf_lease_file_exists(const char *, int, int);
 extern void		ni_addrconf_lease_file_remove(const char *, int, int);
 
 extern int		ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *, xml_node_t **);
@@ -225,6 +226,7 @@ extern const char *	ni_addrconf_flags_format(ni_stringbuf_t *, unsigned int, con
 extern const char *	ni_addrconf_update_flag_to_name(unsigned int);
 extern ni_bool_t	ni_addrconf_update_name_to_flag(const char *, unsigned int *);
 extern void		ni_addrconf_update_set(unsigned int *, unsigned int, ni_bool_t);
+extern ni_bool_t	ni_addrconf_update_flags_parse(unsigned int *, const char *, const char *);
 extern const char *	ni_addrconf_update_flags_format(ni_stringbuf_t *, unsigned int, const char *);
 
 extern const char *	ni_dhcp6_mode_type_to_name(unsigned int);

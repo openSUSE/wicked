@@ -7,6 +7,15 @@
 #
 AUTO6_WAIT_AT_BOOT=""
 
+## Type:        list(all,dns,none,"")
+## Default:     ""
+#
+# Whether to update system (DNS) settings from IPv6 RA when requested
+# with the auto6 or +auto6 tag in BOOTPROTO variable.
+# Defaults to update if autoconf sysctl (address autoconf) is enabled.
+#
+AUTO6_UPDATE=""
+
 ## Type:        list(auto,yes,no)
 ## Default:     "auto"
 #
