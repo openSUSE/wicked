@@ -1047,7 +1047,30 @@ __ni_netdev_translate_ifflags(unsigned int ifflags, unsigned int prev)
 }
 
 static void
-__ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname)
+__ni_process_ifinfomsg_ovs_type(ni_iftype_t *type, const char *ifname, ni_netconfig_t *nc)
+{
+	static const char *ovs_system = NULL;
+
+	/* special, reserved openvswitch datapath device name */
+	if (ovs_system == NULL)
+		ovs_system = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
+
+	if (ni_string_eq(ifname, ovs_system))
+		*type = NI_IFTYPE_OVS_SYSTEM;
+
+	/* we don't know whether this is really a bridge or some
+	 * other ovs device until we were able to query ovs about.
+	 * Until then, it is an unspecified ovs device.
+	 */
+	if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
+		return;
+
+	if (ni_ovs_vsctl_bridge_exists(ifname) == 0)
+		*type = NI_IFTYPE_OVS_BRIDGE;
+}
+
+static void
+__ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname, ni_netconfig_t *nc)
 {
 	ni_iftype_t tmp_link_type = NI_IFTYPE_UNKNOWN;
 	struct ethtool_drvinfo drv_info;
@@ -1067,6 +1090,10 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname)
 		 */
 		if (link->hwaddr.type == ARPHRD_ETHER)
 			tmp_link_type = NI_IFTYPE_TAP;
+		break;
+
+	case NI_IFTYPE_OVS_UNSPEC:
+		__ni_process_ifinfomsg_ovs_type(&tmp_link_type, ifname, nc);
 		break;
 
 	case NI_IFTYPE_UNKNOWN:
@@ -1102,15 +1129,8 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname)
 				} else if (!strcmp(driver, "802.1Q VLAN Support")) {
 					tmp_link_type = NI_IFTYPE_VLAN;
 				} else if (!strcmp(driver, "openvswitch")) {
-					static const char *ovs_system = NULL;
-
-					/* special openvswitch datapath (master) device */
-					if (ovs_system == NULL)
-						ovs_system = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
-					if (ni_string_eq(ifname, ovs_system))
-						tmp_link_type = NI_IFTYPE_OVS_SYSTEM;
-					else
-						tmp_link_type = NI_IFTYPE_OVS_BRIDGE;
+					tmp_link_type = NI_IFTYPE_OVS_UNSPEC;
+					__ni_process_ifinfomsg_ovs_type(&tmp_link_type, ifname, nc);
 				}
 			}
 			break;
@@ -1181,8 +1201,8 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname)
 			link->type = tmp_link_type;
 		}
 	} else
-	if (link->type != tmp_link_type) {
-		/* We're trying to re-assign a link type, Disallow. */
+	if (link->type != tmp_link_type && tmp_link_type != NI_IFTYPE_OVS_UNSPEC) {
+		/* We're trying to re-assign a link type, complain. */
 		ni_error("%s: Ignoring attempt to reset existing interface link type from %s to %s",
 			ifname, ni_linktype_type_to_name(link->type),
 			ni_linktype_type_to_name(tmp_link_type));
@@ -1548,7 +1568,7 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 	}
 
 	/* Attempt to determine linktype. */
-	__ni_process_ifinfomsg_linktype(link, ifname);
+	__ni_process_ifinfomsg_linktype(link, ifname, nc);
 
 	return 0;
 }

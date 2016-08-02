@@ -77,6 +77,7 @@ static const ni_intmap_t	__linktype_names[] = {
 	{ "team",		NI_IFTYPE_TEAM },
 	{ "ovs-system",		NI_IFTYPE_OVS_SYSTEM },
 	{ "ovs-bridge",		NI_IFTYPE_OVS_BRIDGE },
+	{ "ovs",		NI_IFTYPE_OVS_UNSPEC },
 
 	{ NULL }
 };
@@ -114,6 +115,7 @@ static const ni_intmap_t	__linkinfo_kind_names[] = {
 	{ "sit",		NI_IFTYPE_SIT },
 	{ "ipip",		NI_IFTYPE_IPIP },
 	{ "gre",		NI_IFTYPE_GRE },
+	{ "openvswitch",	NI_IFTYPE_OVS_UNSPEC }, /* new in 4.4 kernels */
 
 	{ NULL }
 };
