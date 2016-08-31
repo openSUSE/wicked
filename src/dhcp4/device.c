@@ -901,3 +901,27 @@ ni_dhcp4_supported(const ni_netdev_t *ifp)
 	return TRUE;
 }
 
+void
+ni_dhcp4_new_xid(ni_dhcp4_device_t *cur)
+{
+	ni_dhcp4_device_t *dev;
+	unsigned int xid;
+
+	if (!cur)
+		return;
+
+	do {
+		do {
+			xid = random();
+		} while (!xid);
+
+		for (dev = ni_dhcp4_active; dev; dev = dev->next) {
+			if (xid == dev->dhcp4.xid) {
+				xid = 0;
+				break;
+			}
+		}
+	} while (!xid);
+
+	cur->dhcp4.xid = xid;
+}
