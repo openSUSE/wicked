@@ -29,7 +29,6 @@
 static unsigned int	ni_dhcp4_do_bits(unsigned int);
 static const char *	__ni_dhcp4_print_doflags(unsigned int);
 
-static uint32_t ni_dhcp4_xid;
 ni_dhcp4_device_t *	ni_dhcp4_active;
 
 /*
@@ -487,7 +486,7 @@ ni_dhcp4_release(ni_dhcp4_device_t *dev, const ni_uuid_t *lease_uuid)
 	 * server's reply. We just keep our fingers crossed that it's
 	 * getting out. If it doesn't, it's rather likely the network
 	 * is hosed anyway, so there's little point in delaying. */
-	ni_dhcp4_fsm_release(dev);
+	ni_dhcp4_fsm_release_init(dev);
 
 	ni_dhcp4_device_stop(dev);
 	return 0;
@@ -617,11 +616,6 @@ ni_dhcp4_device_send_message(ni_dhcp4_device_t *dev, unsigned int msg_code, cons
 	ni_timeout_param_t timeout;
 	int rv;
 
-	/* Assign a new XID to this message */
-	if (ni_dhcp4_xid == 0)
-		ni_dhcp4_xid = random();
-	dev->dhcp4.xid = ni_dhcp4_xid++;
-
 	dev->transmit.msg_code = msg_code;
 	dev->transmit.lease = lease;
 
@@ -681,11 +675,6 @@ ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_co
 		.sin_addr.s_addr = lease->dhcp4.server_id.s_addr,
 		.sin_port = htons(DHCP4_SERVER_PORT),
 	};
-
-	/* Assign a new XID to this message */
-	if (ni_dhcp4_xid == 0)
-		ni_dhcp4_xid = random();
-	dev->dhcp4.xid = ni_dhcp4_xid++;
 
 	dev->transmit.msg_code = msg_code;
 	dev->transmit.lease = lease;
