@@ -218,6 +218,7 @@ extern int		ni_dhcp4_acquire(ni_dhcp4_device_t *, const ni_dhcp4_request_t *);
 extern int		ni_dhcp4_release(ni_dhcp4_device_t *, const ni_uuid_t *);
 extern void		ni_dhcp4_restart_leases(void);
 
+extern const char *	ni_dhcp4_fsm_state_name(enum fsm_state);
 extern void		ni_dhcp4_fsm_init_device(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_fsm_release_init(ni_dhcp4_device_t *);
 extern int		ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *, ni_buffer_t *);
