@@ -28,6 +28,7 @@
 #include <wicked/ovs.h>
 #include <xml-schema.h>
 
+#include "dbus-objects/model.h"
 #include "client/ifconfig.h"
 #include "appconfig.h"
 #include "util_priv.h"
@@ -5208,23 +5209,80 @@ release:
 	return nrequested;
 }
 
-/* Workaround implementing temporarly missing auto6 wait */
 static ni_bool_t
-__ni_fsm_device_with_tentative_addrs(ni_netdev_t *dev)
+ni_call_netif_refresh_tentative_addresses(ni_dbus_variant_t *result)
 {
-	ni_address_t *ap;
+	ni_dbus_variant_t args = NI_DBUS_VARIANT_INIT;
+	ni_dbus_object_t *list_object = NULL;
+	DBusError error = DBUS_ERROR_INIT;
+	dbus_bool_t rv;
 
-	for (ap = dev->addrs; ap; ap = ap->next) {
-		if (ap->family != AF_INET6)
+	if (!result || !(list_object = ni_call_get_netif_list_object()))
+		return FALSE;
+
+	ni_dbus_variant_init_dict(&args);
+	ni_dbus_dict_add_bool	(&args, "refresh",	TRUE);
+	ni_dbus_dict_add_uint32	(&args, "family",	AF_INET6);
+	ni_dbus_dict_add_bool	(&args, "tentative",	TRUE);
+	ni_dbus_dict_add_bool	(&args, "duplicate",	FALSE);
+
+	rv = ni_dbus_object_call_variant(list_object, NULL, "getAddresses",
+						1, &args, 1, result, &error);
+	if (!rv) {
+		ni_dbus_print_error(&error, "%s.getAddresses() failed",
+				ni_dbus_object_get_path(list_object));
+		dbus_error_free(&error);
+	}
+	ni_dbus_variant_destroy(&args);
+	return rv;
+}
+
+static ni_bool_t
+ni_fsm_have_tentative_addrs(ni_fsm_t *fsm)
+{
+	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+	ni_address_t *list = NULL, *ap;
+	dbus_bool_t found = FALSE;
+	ni_dbus_variant_t *entry;
+	ni_dbus_variant_t *array;
+	const char *path;
+	unsigned int i;
+
+	if (!ni_call_netif_refresh_tentative_addresses(&result)) {
+		ni_dbus_variant_destroy(&result);
+		return found;
+	}
+
+	for (i = 0; (entry = ni_dbus_dict_get_entry(&result, i, &path)); ++i) {
+		const char * ifname  = NULL;
+		uint32_t     ifflags = 0;
+
+		/*
+		 * the result provides the device context & status aka ifflags,
+		 * so we basically don't need to refresh + lookup workers devs.
+		 */
+		ni_dbus_dict_get_string(entry, "name",   &ifname);
+		ni_dbus_dict_get_uint32(entry, "status", &ifflags);
+		if (!(array = ni_dbus_dict_get(entry, "addresses")))
 			continue;
 
-		if (ni_address_is_tentative(ap)) {
-			ni_debug_application("-- the address %s is tentative",
-				ni_sockaddr_print(&ap->local_addr));
-			return TRUE;
+		if (!(ifflags & NI_IFF_LINK_UP))
+			continue;
+
+		if (!__ni_objectmodel_set_address_list(&list, array, NULL))
+			continue;
+
+		for (ap = list; ap; ap = ap->next) {
+			ni_debug_application("%s: address %s is tentative",
+					ifname,
+					ni_sockaddr_print(&ap->local_addr));
+			found = TRUE;
 		}
+		ni_address_list_destroy(&list);
 	}
-	return FALSE;
+	ni_dbus_variant_destroy(&result);
+
+	return found;
 }
 
 void
@@ -5235,28 +5293,14 @@ ni_fsm_wait_tentative_addrs(ni_fsm_t *fsm)
 	if (!fsm)
 		return;
 
-	if (!ni_fsm_refresh_state(fsm))
-		return;
-
-	for (i = 0; count && i < fsm->workers.count; i++) {
-		ni_ifworker_t *w = fsm->workers.data[i];
-
-		if (!w->done || !w->device)
-			continue;
-
-		if (!ni_netdev_link_is_up(w->device))
-			continue;
-
-		ni_debug_application("%s: tentative addresses check", w->name);
-
-		if (__ni_fsm_device_with_tentative_addrs(w->device)) {
-			usleep(250000);
-			count--;
-			if (!ni_fsm_refresh_state(fsm))
-				return;
-			i--; /* recheck this worker */
-		}
+	ni_debug_application("waiting for tentative addresses");
+	for (i = 0; i < count; i++) {
+		if (!ni_fsm_have_tentative_addrs(fsm))
+			break;
+		usleep(250000);
 	}
+
+	ni_fsm_refresh_state(fsm);
 }
 
 static inline ni_addrconf_lease_t *
