@@ -34,8 +34,6 @@
 #include "dhcp.h"
 
 static dbus_bool_t		__ni_objectmodel_callback_info_to_dict(const ni_objectmodel_callback_info_t *, ni_dbus_variant_t *);
-static dbus_bool_t		__ni_objectmodel_address_to_dict(const ni_address_t *, ni_dbus_variant_t *);
-static ni_address_t *		__ni_objectmodel_address_from_dict(ni_address_t **, const ni_dbus_variant_t *);
 static dbus_bool_t		__ni_objectmodel_route_to_dict(const ni_route_t *, ni_dbus_variant_t *);
 static ni_route_t *		__ni_objectmodel_route_from_dict(ni_route_table_t **, const ni_dbus_variant_t *);
 static dbus_bool_t		ni_objectmodel_rule_to_dict(const ni_rule_t *, ni_dbus_variant_t *);
@@ -440,10 +438,12 @@ __ni_objectmodel_set_address_list(ni_address_t **list,
 {
 	unsigned int i;
 
-	if (!ni_dbus_variant_is_dict_array(argument)) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s: argument type mismatch",
-				__FUNCTION__);
+	if (!list || !argument || !ni_dbus_variant_is_dict_array(argument)) {
+		if (error) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"%s: argument type mismatch",
+					__FUNCTION__);
+		}
 		return FALSE;
 	}
 
@@ -649,7 +649,8 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 				ap->owner = NI_ADDRCONF_NONE;
 		}
 
-		ni_address_list_append(list, ap);
+		if (list)
+			ni_address_list_append(list, ap);
 	}
 
 	return ap;

@@ -84,6 +84,7 @@ extern int		__ni_system_refresh_interfaces(ni_netconfig_t *nc);
 extern int		__ni_system_refresh_interface(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_system_refresh_interface_addrs(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_system_refresh_interface_routes(ni_netconfig_t *, ni_netdev_t *);
+extern int		__ni_system_refresh_addrs(ni_netconfig_t *, unsigned int);
 extern int		__ni_system_refresh_routes(ni_netconfig_t *);
 extern int		__ni_system_refresh_rules(ni_netconfig_t *);
 extern int		__ni_device_refresh_link_info(ni_netconfig_t *, ni_linkinfo_t *);

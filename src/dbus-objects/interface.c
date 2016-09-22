@@ -308,9 +308,157 @@ ni_objectmodel_netif_list_identify_device(ni_dbus_object_t *object, const ni_dbu
 	return TRUE;
 }
 
+/*
+ * InterfaceList.getAddresses
+ */
+static dbus_bool_t
+ni_objectmodel_netif_list_get_addresses_args(const ni_dbus_variant_t *args,
+					dbus_bool_t *refresh, unsigned int *family,
+					ni_tristate_t *tentative, ni_tristate_t *duplicate)
+{
+	dbus_bool_t bv;
+	uint32_t u32;
+
+	if (!ni_dbus_variant_is_dict(args))
+			return FALSE;
+
+	ni_dbus_dict_get_bool(args, "refresh", refresh);
+
+	if (ni_dbus_dict_get_uint32(args, "family", &u32))
+		*family = u32;
+
+	if (ni_dbus_dict_get_bool(args, "tentative", &bv))
+		ni_tristate_set(tentative, bv);
+
+	if (ni_dbus_dict_get_bool(args, "duplicate", &bv))
+		ni_tristate_set(duplicate, bv);
+
+	return TRUE;
+}
+
+static dbus_bool_t
+match_netif_list_get_addresses_tristate(ni_tristate_t want, dbus_bool_t flag)
+{
+	if (ni_tristate_is_set(want)) {
+		/* include if flag set */
+		if (ni_tristate_is_enabled(want) && !flag)
+			return FALSE;
+
+		/* exclude if flag set */
+		if (ni_tristate_is_disabled(want) && flag)
+			return FALSE;
+	}
+	return TRUE;
+}
+
+static dbus_bool_t
+match_netif_list_get_addresses_filter(const ni_address_t *ap, unsigned int family,
+				ni_tristate_t tentative, ni_tristate_t duplicate)
+{
+	if (family != AF_UNSPEC && (family != ap->family))
+		return FALSE;
+
+	if (!match_netif_list_get_addresses_tristate(tentative, ni_address_is_tentative(ap)))
+		return FALSE;
+
+	if (!match_netif_list_get_addresses_tristate(duplicate, ni_address_is_duplicate(ap)))
+		return FALSE;
+
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_netif_list_get_addresses(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_tristate_t duplicate = NI_TRISTATE_DEFAULT;
+	ni_tristate_t tentative = NI_TRISTATE_DEFAULT;
+	unsigned int family = AF_UNSPEC;
+	dbus_bool_t refresh = TRUE;
+	ni_netdev_t *dev;
+	dbus_bool_t rv;
+
+	if (!reply || !argv || argc != 1 ||
+	    !ni_objectmodel_netif_list_get_addresses_args(&argv[0], &refresh, &family,
+							  &tentative, &duplicate)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"%s.%s: invalid refresh and filter argument dict",
+				object->path, method->name);
+		return FALSE;
+	}
+
+	NI_TRACE_ENTER_ARGS("refresh=%s, family=%s, tentative=%s, duplicate=%s",
+			ni_format_boolean(refresh),
+			ni_addrfamily_type_to_name(family),
+			tentative == NI_TRISTATE_DEFAULT ? "ignored" :
+			tentative == NI_TRISTATE_DISABLE ? "exclude" :
+			tentative == NI_TRISTATE_ENABLE  ? "include" : NULL,
+			duplicate == NI_TRISTATE_DEFAULT ? "ignored" :
+			duplicate == NI_TRISTATE_DISABLE ? "exclude" :
+			duplicate == NI_TRISTATE_ENABLE  ? "include" : NULL);
+
+	/* if refresh, then all (it updates default state);
+	 * just return a filtered result when requested ...
+	 */
+	if (refresh && (!nc || __ni_system_refresh_addrs(nc, AF_UNSPEC) < 0)) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to refresh address list");
+		return FALSE;
+	}
+
+	ni_dbus_variant_init_dict(&result);
+	for (dev = nc ? ni_netconfig_devlist(nc) : NULL; dev; dev = dev->next) {
+		ni_dbus_variant_t *addresses = NULL;
+		const ni_address_t *ap;
+		const char *path;
+
+		path = ni_objectmodel_netif_full_path(dev);
+		if (ni_string_empty(path))
+			continue;
+
+		for (ap = dev->addrs; ap; ap = ap->next) {
+			ni_dbus_variant_t *dict;
+
+			/* some sanity checks ... */
+			if (ap->family == AF_UNSPEC)
+				continue;
+			if (ap->family != ap->local_addr.ss_family)
+				continue;
+
+			if (!match_netif_list_get_addresses_filter(ap,
+						family, tentative, duplicate))
+				continue;
+
+			if (!addresses) {
+				if (!(dict = ni_dbus_dict_add(&result, path)))
+					break;
+
+				ni_dbus_variant_init_dict(dict);
+				ni_dbus_dict_add_string(dict, "name",  dev->name);
+				ni_dbus_dict_add_uint32(dict, "index", dev->link.ifindex);
+				ni_dbus_dict_add_uint32(dict, "status", dev->link.ifflags);
+
+				if (!(addresses = ni_dbus_dict_add(dict, "addresses")))
+					break;
+				ni_dbus_dict_array_init(addresses);
+			}
+
+			if ((dict = ni_dbus_dict_array_add(addresses)))
+				__ni_objectmodel_address_to_dict(ap, dict);
+		}
+	}
+
+	rv = ni_dbus_message_serialize_variants(reply, 1, &result, error);
+	ni_dbus_variant_destroy(&result);
+	return rv;
+}
+
 static ni_dbus_method_t		ni_objectmodel_netif_list_methods[] = {
 	{ "deviceByName",	"s",		ni_objectmodel_netif_list_device_by_name },
 	{ "identifyDevice",	"sa{sv}",	ni_objectmodel_netif_list_identify_device },
+	{ "getAddresses",	"a{sv}",	ni_objectmodel_netif_list_get_addresses },
 	{ NULL }
 };
 
