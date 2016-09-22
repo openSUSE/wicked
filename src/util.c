@@ -359,18 +359,21 @@ ni_uint_array_destroy(ni_uint_array_t *nua)
 	}
 }
 
-static void
-__ni_uint_array_realloc(ni_uint_array_t *nua, unsigned int newsize)
+static ni_bool_t
+ni_uint_array_realloc(ni_uint_array_t *nua, unsigned int newsize)
 {
 	unsigned int *newdata, i;
 
 	newsize = newsize + NI_UINT_ARRAY_CHUNK;
 	newdata = realloc(nua->data, newsize * sizeof(unsigned int));
+	if (!newdata)
+		return FALSE;
 
 	nua->data = newdata;
 	for (i = nua->count; i < newsize; ++i) {
 		nua->data[i] = 0;
 	}
+	return TRUE;
 }
 
 ni_bool_t
@@ -379,11 +382,48 @@ ni_uint_array_append(ni_uint_array_t *nua, unsigned int num)
 	if (!nua)
 		return FALSE;
 
-	if ((nua->count % NI_UINT_ARRAY_CHUNK) == 0)
-		__ni_uint_array_realloc(nua, nua->count);
+	if ((nua->count % NI_UINT_ARRAY_CHUNK) == 0 &&
+	    !ni_uint_array_realloc(nua, nua->count))
+		return FALSE;
 
 	nua->data[nua->count++] = num;
 	return TRUE;
+}
+
+ni_bool_t
+ni_uint_array_remove_at(ni_uint_array_t *nua, unsigned int index)
+{
+	if(!nua || index >= nua->count)
+		return FALSE;
+
+	nua->count--;
+	if (index < nua->count) {
+		memmove(&nua->data[index], &nua->data[index + 1],
+			(nua->count - index) * sizeof(unsigned int));
+	}
+	nua->data[nua->count] = 0;
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_uint_array_remove(ni_uint_array_t *nua, unsigned int num)
+{
+	return ni_uint_array_remove_at(nua, ni_uint_array_index(nua, num));
+}
+
+unsigned int
+ni_uint_array_index(ni_uint_array_t *nua, unsigned int num)
+{
+	unsigned int i;
+
+	if (nua) {
+		for (i = 0; i < nua->count; ++i) {
+			if (num == nua->data[i])
+				return i;
+		}
+	}
+	return -1U;
 }
 
 ni_bool_t
@@ -398,6 +438,26 @@ ni_uint_array_contains(ni_uint_array_t *nua, unsigned int num)
 		}
 	}
 	return FALSE;
+}
+
+ni_bool_t
+ni_uint_array_get(ni_uint_array_t *nua, unsigned int index, unsigned int *num)
+{
+	if (!num || !nua || index >= nua->count)
+		return FALSE;
+
+	*num = nua->data[index];
+	return TRUE;
+}
+
+ni_bool_t
+ni_uint_array_set(ni_uint_array_t *nua, unsigned int index, unsigned int num)
+{
+	if (!nua || index >= nua->count)
+		return FALSE;
+
+	nua->data[index] = num;
+	return TRUE;
 }
 
 /*
