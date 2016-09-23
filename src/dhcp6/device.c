@@ -1081,36 +1081,51 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 /*
  * Process a request to unconfigure the device (ie drop the lease).
  */
-int
-ni_dhcp6_release(ni_dhcp6_device_t *dev, const ni_uuid_t *lease_uuid)
+void
+ni_dhcp6_start_release(void *user_data, const ni_timer_t *timer)
 {
-	char *rel_uuid = NULL;
-	char *our_uuid = NULL;
+	ni_dhcp6_device_t *dev = user_data;
 
-	if (dev->lease == NULL) {
-		ni_error("%s: no lease set", dev->ifname);
-		return -NI_ERROR_ADDRCONF_NO_LEASE;
-	}
+	if (dev->fsm.timer != timer)
+		return;
+	dev->fsm.timer = NULL;
 
-	ni_string_dup(&rel_uuid, ni_uuid_print(lease_uuid));
-	ni_string_dup(&our_uuid, ni_uuid_print(&dev->lease->uuid));
-
-	if (lease_uuid && !ni_uuid_equal(lease_uuid, &dev->lease->uuid)) {
-		ni_warn("%s: lease UUID %s to release does not match current lease UUID %s",
-			dev->ifname, rel_uuid, our_uuid);
-		ni_string_free(&rel_uuid);
-		ni_string_free(&our_uuid);
-		return -NI_ERROR_ADDRCONF_NO_LEASE;
-	}
-	ni_string_free(&our_uuid);
-
-	ni_note("%s: Request to release DHCPv6 lease%s%s",  dev->ifname,
-		rel_uuid ? " with UUID " : "", rel_uuid ? rel_uuid : "");
-	ni_string_free(&rel_uuid);
-
+	/* We just send out a singe RELEASE without waiting for the
+	 * server's reply. We just keep our fingers crossed that it's
+	 * getting out. If it doesn't, it's rather likely the network
+	 * is hosed anyway, so there's little point in delaying. */
 	ni_dhcp6_fsm_release(dev);
 	ni_dhcp6_device_stop(dev);
-	return 0;
+	ni_dhcp6_device_set_request(dev, NULL);
+}
+
+int
+ni_dhcp6_release(ni_dhcp6_device_t *dev, const ni_uuid_t *req_uuid)
+{
+	char *rel_uuid = NULL;
+
+	ni_string_dup(&rel_uuid, ni_uuid_print(req_uuid));
+	if (dev->lease == NULL || dev->config == NULL) {
+		ni_info("%s: Request to release DHCPv6 lease%s%s: no lease", dev->ifname,
+			rel_uuid ? " using UUID " : "", rel_uuid ? rel_uuid : "");
+		ni_string_free(&rel_uuid);
+
+		ni_dhcp6_device_stop(dev);
+		ni_dhcp6_device_set_request(dev, NULL);
+		return -NI_ERROR_ADDRCONF_NO_LEASE;
+	}
+
+	ni_note("%s: Request to release DHCPv6 lease%s%s: releasing...", dev->ifname,
+			rel_uuid ? " using UUID " : "", rel_uuid ? rel_uuid : "");
+	ni_string_free(&rel_uuid);
+
+	dev->lease->uuid = *req_uuid;
+	dev->config->uuid = *req_uuid;
+
+	ni_dhcp6_fsm_reset(dev);
+	dev->fsm.state = NI_DHCP6_STATE_RELEASING;
+	dev->fsm.timer = ni_timer_register(0, ni_dhcp6_start_release, dev);
+	return 1;
 }
 
 /*
