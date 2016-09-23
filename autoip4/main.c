@@ -353,6 +353,8 @@ autoip4_device_destroy(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 	if ((dev = ni_autoip_device_by_index(ifp->link.ifindex)) != NULL) {
 		ni_debug_autoip("%s: Destroying autoip4 device with index %u",
 				ifp->name, ifp->link.ifindex);
+		ni_autoip_device_stop(dev);
+		ni_autoip_device_set_request(dev, NULL);
 		ni_dbus_server_unregister_object(server, dev);
 	}
 }

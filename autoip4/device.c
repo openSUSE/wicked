@@ -95,8 +95,6 @@ ni_autoip_device_close(ni_autoip_device_t *dev)
 void
 ni_autoip_device_stop(ni_autoip_device_t *dev)
 {
-	/* Clear the lease. This will trigger an event to wickedd
-	 * with a lease that has state RELEASED. */
 	ni_autoip_device_drop_lease(dev);
 	ni_autoip_device_close(dev);
 }
@@ -201,6 +199,16 @@ ni_autoip_device_start(ni_autoip_device_t *dev)
 	return 0;
 }
 
+void
+ni_autoip_device_set_request(ni_autoip_device_t *dev, const ni_auto4_request_t *request)
+{
+	if (dev) {
+		ni_auto4_request_destroy(&dev->request);
+		if (request)
+			ni_auto4_request_copy(&dev->request, request);
+	}
+}
+
 /*
  * Acquire an IPv4ll lease
  */
@@ -210,11 +218,13 @@ ni_autoip_acquire(ni_autoip_device_t *dev, const ni_auto4_request_t *request)
 	if (!dev || !request)
 		return -1;
 
-	ni_auto4_request_copy(&dev->request, request);
+	ni_autoip_device_stop(dev);
+	ni_autoip_device_set_request(dev, request);
 	ni_note("%s: Request to acquire AUTOv4 lease with UUID %s",
 			dev->ifname, ni_uuid_print(&request->uuid));
 
-	dev->lease = ni_addrconf_lease_file_read(dev->ifname, NI_ADDRCONF_AUTOCONF, AF_INET);
+	ni_autoip_device_set_lease(dev, ni_addrconf_lease_file_read(dev->ifname,
+					NI_ADDRCONF_AUTOCONF, AF_INET));
 	if (ni_autoip_device_start(dev) < 0)
 		return -1;
 	return 1;

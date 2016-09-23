@@ -57,6 +57,7 @@ typedef void		ni_autoip_event_handler_t(enum ni_lease_event,
 						ni_addrconf_lease_t *lease);
 
 extern void		ni_autoip_set_event_handler(ni_autoip_event_handler_t);
+extern void		ni_autoip_device_set_request(ni_autoip_device_t *, const ni_auto4_request_t *);
 
 extern int		ni_autoip_acquire(ni_autoip_device_t *, const ni_auto4_request_t *);
 extern int		ni_autoip_release(ni_autoip_device_t *, const ni_uuid_t *);
