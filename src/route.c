@@ -2103,7 +2103,7 @@ ni_rule_equal(const ni_rule_t *r1, const ni_rule_t *r2)
 ni_bool_t
 ni_rule_equal_ref(const ni_rule_t *r1, const ni_rule_t *r2)
 {
-	return r1 == r1;
+	return r1 == r2;
 }
 
 ni_bool_t
