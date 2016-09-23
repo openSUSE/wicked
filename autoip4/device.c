@@ -230,35 +230,47 @@ ni_autoip_acquire(ni_autoip_device_t *dev, const ni_auto4_request_t *request)
 	return 1;
 }
 
-int
-ni_autoip_release(ni_autoip_device_t *dev, const ni_uuid_t *uuid)
+static void
+ni_autoip_start_release(void *user_data, const ni_timer_t *timer)
 {
-	char *rel_uuid = NULL;
-	char *our_uuid = NULL;
+	ni_autoip_device_t *dev = user_data;
 
-	if (dev->lease == NULL) {
-		ni_debug_autoip("%s: no lease set", dev->ifname);
-		return -NI_ERROR_ADDRCONF_NO_LEASE;
-	}
-
-	ni_string_dup(&rel_uuid, ni_uuid_is_null(uuid) ? NULL : ni_uuid_print(uuid));
-	ni_string_dup(&our_uuid, ni_uuid_print(&dev->lease->uuid));
-
-	if (!ni_uuid_is_null(uuid) && !ni_uuid_equal(uuid, &dev->lease->uuid)) {
-		ni_warn("%s: lease UUID %s to release does not match current lease UUID %s",
-			dev->ifname, rel_uuid, our_uuid);
-		ni_string_free(&rel_uuid);
-		ni_string_free(&our_uuid);
-		return -NI_ERROR_ADDRCONF_NO_LEASE;
-	}
-	ni_string_free(&our_uuid);
-
-	ni_note("%s: Request to release AUTOv4 lease%s%s",  dev->ifname,
-		rel_uuid ? " with UUID " : "", rel_uuid ? rel_uuid : "");
-	ni_string_free(&rel_uuid);
+	if (dev->fsm.timer != timer)
+		return;
+	dev->fsm.timer = NULL;
 
 	ni_autoip_fsm_release(dev);
 	ni_autoip_device_stop(dev);
-	ni_auto4_request_destroy(&dev->request);
-	return 0;
+	ni_autoip_device_set_request(dev, NULL);
 }
+
+int
+ni_autoip_release(ni_autoip_device_t *dev, const ni_uuid_t *req_uuid)
+{
+	char *rel_uuid = NULL;
+
+	ni_string_dup(&rel_uuid, ni_uuid_print(req_uuid));
+	if (dev->lease == NULL || !dev->request.enabled) {
+		ni_info("%s: Request to release AUTOv4%s%s: no lease", dev->ifname,
+			rel_uuid ? " using UUID " : "", rel_uuid ? rel_uuid : "");
+		ni_string_free(&rel_uuid);
+
+		ni_autoip_device_stop(dev);
+		ni_autoip_device_set_request(dev, NULL);
+		return -NI_ERROR_ADDRCONF_NO_LEASE;
+	}
+	ni_note("%s: Request to release AUTOv4 lease%s%s: releasing...",  dev->ifname,
+			rel_uuid ? " with UUID " : "", rel_uuid ? rel_uuid : "");
+	ni_string_free(&rel_uuid);
+
+	/* we do not send out any release request, but an event
+	 * about the released lease, which should be sent after
+	 * we've returned TRUE result about to the caller...
+	 */
+	ni_autoip_device_close(dev);
+	dev->lease->uuid = *req_uuid;
+	dev->request.uuid = *req_uuid;
+	dev->fsm.timer = ni_timer_register(0, ni_autoip_start_release, dev);
+	return 1;
+}
+
