@@ -39,6 +39,7 @@
 #include <wicked/objectmodel.h>
 
 #include "dhcp6/dbus-api.h"
+#include "dhcp6/device.h"
 #include "dhcp6/tester.h"
 #include "netinfo_priv.h"
 #include "duid.h"
@@ -373,12 +374,14 @@ dhcp6_device_create(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 static void
 dhcp6_device_destroy(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 {
-        ni_dhcp6_device_t *dev;
+	ni_dhcp6_device_t *dev;
 
 	if ((dev = ni_dhcp6_device_by_index(ifp->link.ifindex)) != NULL) {
 		ni_debug_dhcp("%s: Destroying dhcp6 device with index %u",
 				ifp->name, ifp->link.ifindex);
-                ni_dbus_server_unregister_object(server, dev);
+		ni_dhcp6_device_stop(dev);
+		ni_dhcp6_device_set_request(dev, NULL);
+		ni_dbus_server_unregister_object(server, dev);
 	}
 }
 
