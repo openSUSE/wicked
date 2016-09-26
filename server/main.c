@@ -28,6 +28,7 @@
 #include <wicked/objectmodel.h>
 #include <wicked/wireless.h>
 #include <wicked/modem.h>
+#include "netinfo_priv.h"
 #include "udev-utils.h"
 #include "auto6.h"
 
@@ -438,7 +439,29 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 static void
 handle_interface_addr_events(ni_netdev_t *dev, ni_event_t event, const ni_address_t *ap)
 {
+	ni_addrconf_lease_t *lease, *next;
+
 	ni_server_trace_interface_addr_events(dev, event, ap);
+
+	if (ap->family != AF_INET6)
+		return;
+
+	/* call ipv6 address verify which may wait for */
+	for (lease = dev->leases; lease; lease = next) {
+		next = lease->next;
+
+		if (lease->family != AF_INET6)
+			continue;
+
+		if (lease->type == NI_ADDRCONF_AUTOCONF)
+			continue; /* separately, bellow */
+
+		if (lease->state != NI_ADDRCONF_STATE_APPLYING)
+			continue;
+
+		ni_addrconf_updater_execute(dev, lease);
+	}
+
 	ni_auto6_on_address_event(dev, event, ap);
 }
 

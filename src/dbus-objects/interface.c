@@ -1099,7 +1099,7 @@ ni_objectmodel_netif_install_lease(ni_dbus_object_t *object, const ni_dbus_metho
 	 * Note, lease may be NULL after this, as the interface object
 	 * takes ownership of it.
 	 */
-	rv = __ni_system_interface_update_lease(dev, &lease);
+	rv = __ni_system_interface_update_lease(dev, &lease, __NI_EVENT_MAX);
 	if (rv < 0) {
 		ni_dbus_set_error_from_code(error, rv,
 				"failed to install intrinsic lease on interface %s", dev->name);
