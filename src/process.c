@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
@@ -20,6 +21,7 @@
 #include "process.h"
 
 static int				__ni_process_run(ni_process_t *, int *);
+static int				__ni_process_run_info(ni_process_t *);
 static ni_socket_t *			__ni_process_get_output(ni_process_t *, int);
 static const ni_string_array_t *	__ni_default_environment(void);
 
@@ -197,10 +199,18 @@ ni_process_free(ni_process_t *pi)
 {
 	if (ni_process_running(pi)) {
 		if (kill(pi->pid, SIGKILL) < 0)
-			ni_error("Unable to kill process %d (%s): %m", pi->pid, pi->process->command);
+			ni_info("Unable to kill process %d (%s): %m",
+					pi->pid, pi->process->command);
+		else if (waitpid(pi->pid, &pi->status, 0) < 0)
+			ni_error("Cannot retrieve status for process %d (%s): %m",
+					pi->pid, pi->process->command);
+		else
+			__ni_process_run_info(pi);
 	}
 
 	if (pi->socket != NULL) {
+		if (pi->socket->user_data == pi)
+			pi->socket->user_data = NULL;
 		ni_socket_close(pi->socket);
 		pi->socket = NULL;
 	}
@@ -370,21 +380,38 @@ ni_process_run(ni_process_t *pi)
 static int
 __ni_process_run_info(ni_process_t *pi)
 {
+	struct timeval now;
+	char runtime[64] = {'\0'};
 	int rv;
 
+	if (!pi)
+		return NI_PROCESS_FAILURE;
+
+	ni_timer_get_time(&now);
+	if (timerisset(&pi->started) && timercmp(&now, &pi->started, >)) {
+		struct timeval delta;
+
+		timersub(&now, &pi->started, &delta);
+		snprintf(runtime, sizeof(runtime), " [%ldm%ld.%lds]",
+				delta.tv_sec / 60, delta.tv_sec % 60,
+				delta.tv_usec / 1000);
+	}
+
 	if ((rv = ni_process_exit_status(pi)) != NI_PROCESS_FAILURE) {
-		ni_debug_extension("subprocess %d (%s) exited with status %d",
-				pi->pid, pi->process->command, rv);
+		ni_debug_extension("subprocess %d (%s) exited with status %d%s",
+				pi->pid, pi->process->command, rv, runtime);
 		return rv;
 	} else
 	if ((rv = ni_process_signaled(pi)) != NI_PROCESS_FAILURE) {
-		ni_debug_extension("subprocess %d (%s) died with signal %d%s",
+		ni_debug_extension("subprocess %d (%s) died with signal %d%s%s",
 				pi->pid, pi->process->command, rv,
-				ni_process_core_dumped(pi) ? " (core dumped)" : "");
+				ni_process_core_dumped(pi) ? " (core dumped)" : "",
+				runtime);
 		return NI_PROCESS_TERMSIG;
 	} else {
-		ni_debug_extension("subprocess %d (%s) transcended into nirvana",
-				pi->pid, pi->process->command);
+		ni_debug_extension("subprocess %d (%s) transcended into nirvana%s",
+				pi->pid, pi->process->command,
+				runtime);
 		return NI_PROCESS_UNKNOWN;
 	}
 }
@@ -458,7 +485,6 @@ ni_process_run_and_capture_output(ni_process_t *pi, ni_buffer_t *out_buffer)
 		ni_error("%s: waitpid returns error (%m)", __func__);
 		rv = NI_PROCESS_WAITPID;
 	}
-
 	if (pi->notify_callback)
 		pi->notify_callback(pi);
 
@@ -478,7 +504,7 @@ __ni_process_run(ni_process_t *pi, int *pfd)
 		return NI_PROCESS_FAILURE;
 	}
 
-	if (!ni_file_executable(arg0)) {
+	if (!pi->exec && !ni_file_executable(arg0)) {
 		ni_error("Unable to run %s; does not exist or is not executable", arg0);
 		return NI_PROCESS_COMMAND;
 	}
@@ -491,6 +517,7 @@ __ni_process_run(ni_process_t *pi, int *pfd)
 	}
 	pi->pid = pid;
 	pi->status = -1;
+	ni_timer_get_time(&pi->started);
 
 	if (pid == 0) {
 		int maxfd;
@@ -518,11 +545,18 @@ __ni_process_run(ni_process_t *pi, int *pfd)
 		ni_string_array_append(&pi->argv, NULL);
 		ni_string_array_append(&pi->environ, NULL);
 
-		arg0 = pi->argv.data[0];
-		execve(arg0, pi->argv.data, pi->environ.data);
+		if (pi->exec) {
+			pi->status = pi->exec(pi->argv.count - 1, pi->argv.data,
+						pi->environ.data);
 
-		ni_error("%s: cannot execute %s: %m", __func__, arg0);
-		exit(127);
+			exit(pi->status < 0 ? 127 : pi->status);
+		} else {
+			arg0 = pi->argv.data[0];
+			execve(arg0, pi->argv.data, pi->environ.data);
+
+			ni_error("%s: cannot execute %s: %m", __func__, arg0);
+			exit(127);
+		}
 	}
 
 	return NI_PROCESS_SUCCESS;

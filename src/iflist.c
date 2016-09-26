@@ -746,6 +746,55 @@ failed:
  * Refresh addresses
  */
 int
+__ni_system_refresh_addrs(ni_netconfig_t *nc, unsigned int family)
+{
+	struct ni_rtnl_query query;
+	struct nlmsghdr *h;
+	unsigned int seqno;
+	ni_netdev_t *dev;
+	int res = -1;
+
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+			"Refresh of all %s%saddresses",
+			family == AF_UNSPEC ? "" :
+			ni_addrfamily_type_to_name(family),
+			family == AF_UNSPEC ? "" : " ");
+	do {
+		seqno = ++__ni_global_seqno;
+	} while (!seqno);
+
+	if (ni_rtnl_query_addr_info(&query, 0, family) < 0)
+		goto failed;
+
+	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next) {
+		ni_address_list_reset_seq(dev->addrs);
+		dev->seq = seqno;
+	}
+
+	while (1) {
+		struct ifaddrmsg *ifa;
+
+		if (!(ifa = ni_rtnl_query_next_addr_info(&query, &h)))
+			break;
+
+		if ((dev = ni_netdev_by_index(nc, ifa->ifa_index)) == NULL)
+			continue;
+
+		if (__ni_netdev_process_newaddr(dev, h, ifa) < 0)
+			ni_error("Problem parsing RTM_NEWADDR message for %s", dev->name);
+	}
+
+	for (dev = ni_netconfig_devlist(nc); dev; dev = dev->next)
+		ni_address_list_drop_by_seq(&dev->addrs, seqno);
+
+	res = 0;
+
+failed:
+	ni_rtnl_query_destroy(&query);
+	return res;
+}
+
+int
 __ni_system_refresh_interface_addrs(ni_netconfig_t *nc, ni_netdev_t *dev)
 {
 	struct ni_rtnl_query query;
@@ -753,7 +802,7 @@ __ni_system_refresh_interface_addrs(ni_netconfig_t *nc, ni_netdev_t *dev)
 	int res = -1;
 
 	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
-			"Refresh of %s interface address",
+			"Refresh of %s interface addresses",
 			dev->name);
 
 	do {

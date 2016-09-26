@@ -27,11 +27,13 @@ struct ni_process {
 
 	pid_t			pid;
 	int			status;
-	ni_socket_t *		socket;
+	struct timeval		started;
 
+	int			(*exec)(int argc, char *const argv[], char *const envp[]);
 	ni_string_array_t	argv;
 	ni_string_array_t	environ;
 
+	ni_socket_t *		socket;
 	ni_tempstate_t *	temp_state;
 
 	void			(*notify_callback)(ni_process_t *);

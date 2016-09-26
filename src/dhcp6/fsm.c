@@ -1579,10 +1579,9 @@ __ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev, unsigned int nretries)
 			return -1;
 
 		dev->fsm.state = NI_DHCP6_STATE_RELEASING;
-		rv = ni_dhcp6_device_transmit_init(dev);
-		if (nretries) {
+		if (nretries != -1U)
 			dev->retrans.params.nretries = nretries;
-		}
+		rv = ni_dhcp6_device_transmit_init(dev);
 	} else {
 		ni_debug_dhcp("%s: Retransmitting DHCPv6 Release", dev->ifname);
 
@@ -1604,7 +1603,8 @@ ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev)
 
 	/* When all IA's are expired, just commit a release */
 	if (ni_dhcp6_lease_with_active_address(dev->lease)) {
-		__ni_dhcp6_fsm_release(dev, 0);
+		if (dev->config->release_lease)
+			__ni_dhcp6_fsm_release(dev, 0);
 		return ni_dhcp6_fsm_commit_lease(dev, NULL);
 	}
 

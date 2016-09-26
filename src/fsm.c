@@ -28,6 +28,7 @@
 #include <wicked/ovs.h>
 #include <xml-schema.h>
 
+#include "dbus-objects/model.h"
 #include "client/ifconfig.h"
 #include "appconfig.h"
 #include "util_priv.h"
@@ -1653,50 +1654,54 @@ ni_ifworker_update_state(ni_ifworker_t *w, unsigned int min_state, unsigned int 
 static void
 ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 {
-	unsigned int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
+	unsigned int new_state = NI_FSM_STATE_NONE;
 
 	if (!w->fsm.wait_for)
 		return;
 
 	switch (event_type) {
 	case NI_EVENT_DEVICE_DELETE:
-		max_state = NI_FSM_STATE_DEVICE_EXISTS - 1;
+		new_state = NI_FSM_STATE_DEVICE_EXISTS - 1;
 		break;
 	case NI_EVENT_DEVICE_DOWN:
-		max_state = NI_FSM_STATE_DEVICE_UP - 1;
+		new_state = NI_FSM_STATE_DEVICE_UP - 1;
 		break;
 	case NI_EVENT_DEVICE_CREATE:
-		min_state = NI_FSM_STATE_DEVICE_EXISTS;
+		new_state = NI_FSM_STATE_DEVICE_EXISTS;
 		break;
 	case NI_EVENT_DEVICE_READY:
-		min_state = NI_FSM_STATE_DEVICE_READY;
+		new_state = NI_FSM_STATE_DEVICE_READY;
 		break;
 	case NI_EVENT_DEVICE_UP:
-		min_state = NI_FSM_STATE_DEVICE_UP;
+		new_state = NI_FSM_STATE_DEVICE_UP;
 		break;
 	case NI_EVENT_LINK_UP:
-		min_state = NI_FSM_STATE_LINK_UP;
+		new_state = NI_FSM_STATE_LINK_UP;
 		break;
 	case NI_EVENT_LINK_DOWN:
-		max_state = NI_FSM_STATE_LINK_UP - 1;
+		new_state = NI_FSM_STATE_LINK_UP - 1;
 		break;
 	case NI_EVENT_ADDRESS_ACQUIRED:
-		min_state = NI_FSM_STATE_ADDRCONF_UP;
+		new_state = NI_FSM_STATE_ADDRCONF_UP;
 		break;
 	case NI_EVENT_ADDRESS_RELEASED:
-		max_state = NI_FSM_STATE_ADDRCONF_UP - 1;
+		new_state = NI_FSM_STATE_ADDRCONF_UP - 1;
 		break;
 	default:
-		break;
+		return;
 	}
 
-	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
-		"%s: advance fsm state by signal %s: <%s..%s>", w->name,
-		ni_objectmodel_event_to_signal(event_type),
-		ni_ifworker_state_name(min_state),
-		ni_ifworker_state_name(max_state));
+	if (new_state == w->fsm.wait_for->next_state) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+			"%s: advance fsm state %s by signal %s: %s in transition <%s..%s>",
+			w->name, ni_ifworker_state_name(w->fsm.state),
+			ni_objectmodel_event_to_signal(event_type),
+			ni_ifworker_state_name(new_state),
+			ni_ifworker_state_name(w->fsm.wait_for->from_state),
+			ni_ifworker_state_name(w->fsm.wait_for->next_state));
 
-	ni_ifworker_update_state(w, min_state, max_state);
+		ni_ifworker_set_state(w, new_state);
+	}
 }
 
 static ni_bool_t
@@ -5208,23 +5213,80 @@ release:
 	return nrequested;
 }
 
-/* Workaround implementing temporarly missing auto6 wait */
 static ni_bool_t
-__ni_fsm_device_with_tentative_addrs(ni_netdev_t *dev)
+ni_call_netif_refresh_tentative_addresses(ni_dbus_variant_t *result)
 {
-	ni_address_t *ap;
+	ni_dbus_variant_t args = NI_DBUS_VARIANT_INIT;
+	ni_dbus_object_t *list_object = NULL;
+	DBusError error = DBUS_ERROR_INIT;
+	dbus_bool_t rv;
 
-	for (ap = dev->addrs; ap; ap = ap->next) {
-		if (ap->family != AF_INET6)
+	if (!result || !(list_object = ni_call_get_netif_list_object()))
+		return FALSE;
+
+	ni_dbus_variant_init_dict(&args);
+	ni_dbus_dict_add_bool	(&args, "refresh",	TRUE);
+	ni_dbus_dict_add_uint32	(&args, "family",	AF_INET6);
+	ni_dbus_dict_add_bool	(&args, "tentative",	TRUE);
+	ni_dbus_dict_add_bool	(&args, "duplicate",	FALSE);
+
+	rv = ni_dbus_object_call_variant(list_object, NULL, "getAddresses",
+						1, &args, 1, result, &error);
+	if (!rv) {
+		ni_dbus_print_error(&error, "%s.getAddresses() failed",
+				ni_dbus_object_get_path(list_object));
+		dbus_error_free(&error);
+	}
+	ni_dbus_variant_destroy(&args);
+	return rv;
+}
+
+static ni_bool_t
+ni_fsm_have_tentative_addrs(ni_fsm_t *fsm)
+{
+	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
+	ni_address_t *list = NULL, *ap;
+	dbus_bool_t found = FALSE;
+	ni_dbus_variant_t *entry;
+	ni_dbus_variant_t *array;
+	const char *path;
+	unsigned int i;
+
+	if (!ni_call_netif_refresh_tentative_addresses(&result)) {
+		ni_dbus_variant_destroy(&result);
+		return found;
+	}
+
+	for (i = 0; (entry = ni_dbus_dict_get_entry(&result, i, &path)); ++i) {
+		const char * ifname  = NULL;
+		uint32_t     ifflags = 0;
+
+		/*
+		 * the result provides the device context & status aka ifflags,
+		 * so we basically don't need to refresh + lookup workers devs.
+		 */
+		ni_dbus_dict_get_string(entry, "name",   &ifname);
+		ni_dbus_dict_get_uint32(entry, "status", &ifflags);
+		if (!(array = ni_dbus_dict_get(entry, "addresses")))
 			continue;
 
-		if (ni_address_is_tentative(ap)) {
-			ni_debug_application("-- the address %s is tentative",
-				ni_sockaddr_print(&ap->local_addr));
-			return TRUE;
+		if (!(ifflags & NI_IFF_LINK_UP))
+			continue;
+
+		if (!__ni_objectmodel_set_address_list(&list, array, NULL))
+			continue;
+
+		for (ap = list; ap; ap = ap->next) {
+			ni_debug_application("%s: address %s is tentative",
+					ifname,
+					ni_sockaddr_print(&ap->local_addr));
+			found = TRUE;
 		}
+		ni_address_list_destroy(&list);
 	}
-	return FALSE;
+	ni_dbus_variant_destroy(&result);
+
+	return found;
 }
 
 void
@@ -5235,28 +5297,14 @@ ni_fsm_wait_tentative_addrs(ni_fsm_t *fsm)
 	if (!fsm)
 		return;
 
-	if (!ni_fsm_refresh_state(fsm))
-		return;
-
-	for (i = 0; count && i < fsm->workers.count; i++) {
-		ni_ifworker_t *w = fsm->workers.data[i];
-
-		if (!w->done || !w->device)
-			continue;
-
-		if (!ni_netdev_link_is_up(w->device))
-			continue;
-
-		ni_debug_application("%s: tentative addresses check", w->name);
-
-		if (__ni_fsm_device_with_tentative_addrs(w->device)) {
-			usleep(250000);
-			count--;
-			if (!ni_fsm_refresh_state(fsm))
-				return;
-			i--; /* recheck this worker */
-		}
+	ni_debug_application("waiting for tentative addresses");
+	for (i = 0; i < count; i++) {
+		if (!ni_fsm_have_tentative_addrs(fsm))
+			break;
+		usleep(250000);
 	}
+
+	ni_fsm_refresh_state(fsm);
 }
 
 static inline ni_addrconf_lease_t *

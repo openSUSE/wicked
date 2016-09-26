@@ -402,6 +402,8 @@ dhcp4_device_destroy(ni_dbus_server_t *server, const ni_netdev_t *ifp)
 	if ((dev = ni_dhcp4_device_by_index(ifp->link.ifindex)) != NULL) {
 		ni_debug_dhcp("%s: Destroying dhcp4 device with index %u",
 				ifp->name, ifp->link.ifindex);
+		ni_dhcp4_device_stop(dev);
+		ni_dhcp4_device_set_request(dev, NULL);
 		ni_dbus_server_unregister_object(server, dev);
 	}
 }

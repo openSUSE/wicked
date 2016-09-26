@@ -456,31 +456,14 @@ __ni_dhcp4_print_doflags(unsigned int flags)
 /*
  * Process a request to unconfigure the device (ie drop the lease).
  */
-int
-ni_dhcp4_release(ni_dhcp4_device_t *dev, const ni_uuid_t *lease_uuid)
+static void
+ni_dhcp4_start_release(void *user_data, const ni_timer_t *timer)
 {
-	char *rel_uuid = NULL;
-	char *our_uuid = NULL;
+	ni_dhcp4_device_t *dev = user_data;
 
-	if (dev->lease == NULL) {
-		ni_error("%s: no lease set", dev->ifname);
-		return -NI_ERROR_ADDRCONF_NO_LEASE;
-	}
-
-	ni_string_dup(&rel_uuid, ni_uuid_print(lease_uuid));
-	ni_string_dup(&our_uuid, ni_uuid_print(&dev->lease->uuid));
-	if (lease_uuid && !ni_uuid_equal(lease_uuid, &dev->lease->uuid)) {
-		ni_warn("%s: lease UUID %s to release does not match current lease UUID %s",
-			dev->ifname, rel_uuid, our_uuid);
-		ni_string_free(&rel_uuid);
-		ni_string_free(&our_uuid);
-		return -NI_ERROR_ADDRCONF_NO_LEASE;
-	}
-	ni_string_free(&our_uuid);
-
-	ni_note("%s: Request to release DHCPv4 lease%s%s",  dev->ifname,
-		rel_uuid ? " with UUID " : "", rel_uuid ? rel_uuid : "");
-	ni_string_free(&rel_uuid);
+	if (dev->defer.timer != timer)
+		return;
+	dev->defer.timer = NULL;
 
 	/* We just send out a singe RELEASE without waiting for the
 	 * server's reply. We just keep our fingers crossed that it's
@@ -489,7 +472,45 @@ ni_dhcp4_release(ni_dhcp4_device_t *dev, const ni_uuid_t *lease_uuid)
 	ni_dhcp4_fsm_release_init(dev);
 
 	ni_dhcp4_device_stop(dev);
-	return 0;
+}
+
+int
+ni_dhcp4_release(ni_dhcp4_device_t *dev, const ni_uuid_t *req_uuid)
+{
+	char *rel_uuid = NULL;
+
+	ni_string_dup(&rel_uuid, ni_uuid_print(req_uuid));
+	if (dev->lease == NULL || dev->config == NULL) {
+		ni_info("%s: Request to release DHCPv4 lease%s%s: no lease",
+			dev->ifname,
+			rel_uuid ? " with UUID " : "", rel_uuid ? rel_uuid : "");
+
+		ni_string_free(&rel_uuid);
+		ni_dhcp4_device_drop_lease(dev);
+		ni_dhcp4_device_stop(dev);
+		return -NI_ERROR_ADDRCONF_NO_LEASE;
+	}
+
+	ni_note("%s: Request to release DHCPv4 lease%s%s: releasing...",
+		dev->ifname,
+		rel_uuid ? " with UUID " : "", rel_uuid ? rel_uuid : "");
+	ni_string_free(&rel_uuid);
+
+	dev->lease->uuid = *req_uuid;
+	dev->config->uuid = *req_uuid;
+	dev->fsm.state = NI_DHCP4_STATE_INIT;
+	ni_dhcp4_device_disarm_retransmit(dev);
+	if (dev->fsm.timer) {
+		ni_timer_cancel(dev->fsm.timer);
+		dev->fsm.timer = NULL;
+	}
+	ni_dhcp4_device_drop_best_offer(dev);
+	ni_dhcp4_device_arp_close(dev);
+
+	if (dev->defer.timer)
+		ni_timer_cancel(dev->defer.timer);
+	dev->defer.timer = ni_timer_register(0, ni_dhcp4_start_release, dev);
+	return 1;
 }
 
 /*
@@ -560,14 +581,17 @@ ni_dhcp4_device_start(ni_dhcp4_device_t *dev)
 	nc = ni_global_state_handle(0);
 	if(!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex))) {
 		ni_error("%s: unable to start device", dev->ifname);
+		ni_dhcp4_device_stop(dev);
 		return -1;
 	}
 
 	/* Reuse defer pointer for this one-shot timer */
 	msec = ni_timeout_randomize(msec, &jitter);
+	if (dev->defer.timer)
+		ni_timer_cancel(dev->defer.timer);
 	dev->defer.timer = ni_timer_register(msec, ni_dhcp4_device_start_delayed, dev);
 
-	return !ni_netdev_link_is_up(ifp);
+	return 1;
 }
 
 void

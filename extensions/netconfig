@@ -56,6 +56,21 @@ remove)
 	/sbin/netconfig remove -i "$ifname" -s "wicked-$type-$family" 2>/dev/null
 ;;
 
+batch)
+	filename=$1
+	format=$2
+	if test -n "$filename" -a -f "$filename" ; then
+		case $format in
+		info)
+			/sbin/netconfig batch < "$filename"
+		;;
+		*)
+			echo "$0: Unsupported data format type." >&2
+		;;
+		esac
+	fi
+;;
+
 *)
 	echo "$0: command '$cmd' not supported" >&2
 	exit 1
