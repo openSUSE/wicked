@@ -105,6 +105,7 @@ struct ni_updater {
 	ni_shellcmd_t *			proc_restore;
 	ni_shellcmd_t *			proc_install;
 	ni_shellcmd_t *			proc_remove;
+	ni_shellcmd_t *			proc_batch;
 };
 
 static ni_updater_t			updaters[__NI_ADDRCONF_UPDATER_MAX];
@@ -121,6 +122,8 @@ static const ni_intmap_t		ni_updater_kind_names[] = {
 	{ "generic",			NI_ADDRCONF_UPDATER_GENERIC	},
 	{ NULL,				__NI_ADDRCONF_UPDATER_MAX	}
 };
+
+static ni_bool_t			ni_system_updater_generic_batch_test(ni_updater_t *);
 
 /*
  * Get the name of an updater
@@ -552,16 +555,22 @@ ni_system_updaters_init(void)
 		updater->proc_restore = ni_extension_script_find(ex, "restore");
 		updater->proc_install = ni_extension_script_find(ex, "install");
 		updater->proc_remove = ni_extension_script_find(ex, "remove");
+		if (kind == NI_ADDRCONF_UPDATER_GENERIC) {
+			if ((updater->proc_batch = ni_extension_script_find(ex, "batch"))) {
+				if (!ni_system_updater_generic_batch_test(updater))
+					updater->proc_batch = NULL;
+			}
+		}
 
 		/* Create runtime directories for resolver and hostname extensions. */
 		if (!(ni_extension_statedir(name))) {
 			updater->enabled = FALSE;
 		} else
-		if (updater->proc_install == NULL) {
+		if (updater->proc_install == NULL && updater->proc_batch == NULL) {
 			ni_warn("system-updater %s configured, but no install script defined", name);
 			updater->enabled = FALSE;
 		} else
-		if (updater->proc_remove == NULL) {
+		if (updater->proc_remove == NULL && updater->proc_batch == NULL) {
 			ni_warn("system-updater %s configured, but no remove script defined", name);
 			updater->enabled = FALSE;
 		}
@@ -912,6 +921,228 @@ cleanup:
 }
 
 static int
+ni_system_updater_generic_batch_add(FILE *out, const ni_updater_job_t *job, const char *ident)
+{
+	char *filename = NULL;
+	char *command = NULL;
+	int ret = -1;
+
+	switch (job->flow) {
+	case NI_UPDATER_FLOW_INSTALL:
+		filename = ni_leaseinfo_path(job->device.name,	job->lease->type,
+								job->lease->family);
+		if (!filename)
+			goto cleanup;
+
+		if (!ni_string_printf(&command, "modify -i %s -s wicked-%s-%s -I %s",
+					job->device.name,
+					ni_addrconf_type_to_name(job->lease->type),
+					ni_addrfamily_type_to_name(job->lease->family),
+					filename))
+			goto cleanup;
+
+		if (fprintf(out, "%s\n", command) <= 0)
+			goto cleanup;
+
+		ni_leaseinfo_dump(NULL, job->lease, job->device.name, NULL);
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EXTENSION,
+				"%s add: %s", ident, command);
+		ret = 0;
+		break;
+
+	case NI_UPDATER_FLOW_REMOVAL:
+		if (!ni_string_printf(&command, "remove -i %s -s wicked-%s-%s",
+					job->device.name,
+					ni_addrconf_type_to_name(job->lease->type),
+					ni_addrfamily_type_to_name(job->lease->family)))
+			goto cleanup;
+
+		if (fprintf(out, "%s\n", command) <= 0)
+			goto cleanup;
+
+		ni_leaseinfo_remove(job->device.name, job->lease->type, job->lease->family);
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EXTENSION,
+				"%s add: %s", ident, command);
+
+		ret = 0;
+		break;
+	default:
+		break;
+	}
+
+cleanup:
+	ni_string_free(&command);
+	ni_string_free(&filename);
+	return ret;
+}
+
+static ni_process_t *
+ni_system_updater_generic_batch_create(ni_updater_t *updater, char **filename, FILE **out)
+{
+	ni_process_t *pi = NULL;
+	const char *statedir;
+	FILE *fp = NULL;
+	int fd;
+
+	statedir = ni_extension_statedir(ni_updater_name(updater->kind));
+	if (!statedir)
+		goto cleanup;
+
+	if (!statedir || !ni_string_printf(filename, "%s/batch.XXXXXX", statedir))
+		goto cleanup;
+
+	if (!(pi = ni_process_new(updater->proc_batch)))
+		goto cleanup;
+
+	if (!pi->argv.count || !ni_file_executable(pi->argv.data[0]))
+		goto cleanup;
+
+	if (!(pi->temp_state = ni_tempstate_new("batch")))
+		goto cleanup;
+
+	if (!(fd = mkstemp(*filename)) < 0)
+		goto cleanup;
+
+	ni_string_array_append(&pi->argv, *filename);
+	ni_string_array_append(&pi->argv, "info");
+	ni_tempstate_add_file(pi->temp_state, *filename);
+
+	if (!(fp = fdopen(fd, "w"))) {
+		close(fd);
+		goto cleanup;
+	}
+
+	*out = fp;
+	return pi;
+
+cleanup:
+	ni_string_free(filename);
+	if (pi)
+		ni_process_free(pi);
+	return NULL;
+}
+
+static ni_bool_t
+ni_system_updater_generic_batch_test(ni_updater_t *updater)
+{
+	ni_process_t *pi = NULL;
+	char *filename = NULL;
+	ni_bool_t ret = FALSE;
+	const char *ident;
+	FILE *out = NULL;
+
+	if (!updater->proc_batch || ni_string_empty(updater->proc_batch->command))
+		return ret;
+
+	ident = ni_basename(updater->proc_batch->command);
+	if (!ni_string_eq(ident, "netconfig batch")) {
+		ni_note("disabling %s batch updater action '%s': only netconfig supported",
+				ni_updater_name(updater->kind), ident);
+		return ret;
+	}
+
+	if (!(pi = ni_system_updater_generic_batch_create(updater, &filename, &out)))
+		goto cleanup;
+
+	fflush(out);
+	fclose(out);
+	out = NULL;
+	ret = ni_process_run_and_wait(pi) == NI_PROCESS_SUCCESS;
+
+cleanup:
+	if (out)
+		fclose(out);
+	if (pi)
+		ni_process_free(pi);
+	ni_string_free(&filename);
+	if (!ret) {
+		ni_note("disabling %s batch updater action '%s': test failure, "
+				"update to sysconfig-netconfig >= 0.84",
+				ni_updater_name(updater->kind), ident);
+	}
+	return ret;
+}
+
+static int
+ni_system_updater_generic_batch_call(ni_updater_t *updater, ni_updater_job_t *job)
+{
+	ni_process_t *pi = NULL;
+	char *filename = NULL;
+	ni_updater_job_t *j;
+	const char *ident;
+	FILE *out = NULL;
+	int ret = -1;
+
+	if (!updater->proc_batch || !updater->proc_batch->command)
+		return -1;
+
+	ident = ni_basename(updater->proc_batch->command);
+	pi = ni_system_updater_generic_batch_create(updater, &filename, &out);
+	if (!pi) {
+		ni_error("%s: unable to create %s file to update lease %s:%s in state %s",
+				job->device.name, ident,
+				ni_addrfamily_type_to_name(job->lease->family),
+				ni_addrconf_type_to_name(job->lease->type),
+				ni_addrconf_state_to_name(job->lease->state));
+		goto cleanup;
+	} else {
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EXTENSION,
+				"%s: created %s file to update lease %s:%s in state %s",
+				job->device.name, ident,
+				ni_addrfamily_type_to_name(job->lease->family),
+				ni_addrconf_type_to_name(job->lease->type),
+				ni_addrconf_state_to_name(job->lease->state));
+	}
+
+	if (ni_system_updater_generic_batch_add(out, job, ident) < 0)
+		goto cleanup;
+
+	/* pickup pending job actions to the batch */
+	for (j = job->next; (j = ni_updater_job_list_find_pending(&j)); j = j->next) {
+		unsigned int pos;
+
+		if ((pos = ni_uint_array_index(&j->updater, j->kind)) == -1U)
+			continue;
+
+		if (ni_system_updater_generic_batch_add(out, j, ident) < 0)
+			break;
+
+		ni_uint_array_remove_at(&j->updater, pos);
+	}
+
+	if (fprintf(out, "update\n") <= 0)
+		goto cleanup;
+	ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EXTENSION, "%s add: update", ident);
+
+	fflush(out);
+	fclose(out);
+	out = NULL;
+
+	ret = ni_process_run(pi);
+	if (ret == NI_PROCESS_SUCCESS) {
+		job->process = pi;
+		pi->user_data = ni_updater_job_ref(job);
+		pi->notify_callback = ni_system_updater_notify;
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EXTENSION,
+			"%s: started lease %s:%s in state %s %s updater (%s) with pid %d",
+			job->device.name,
+			ni_addrfamily_type_to_name(job->lease->family),
+			ni_addrconf_type_to_name(job->lease->type),
+			ni_addrconf_state_to_name(job->lease->state),
+			ni_updater_name(job->kind),
+			ni_basename(pi->process->command), pi->pid);
+		pi = NULL;
+	}
+
+cleanup:
+	if (out)
+		fclose(out);
+	if (pi)
+		ni_process_free(pi);
+	ni_string_free(&filename);
+	return ret;
+}
+static int
 ni_system_updater_generic_wait(ni_updater_t *updater, ni_updater_job_t *job)
 {
 	int ret;
@@ -930,6 +1161,9 @@ ni_system_updater_generic_install_call(ni_updater_t *updater, ni_updater_job_t *
 {
 	ni_string_array_t args = NI_STRING_ARRAY_INIT;
 	int ret = -1;
+
+	if (updater->proc_batch)
+		return ni_system_updater_generic_batch_call(updater, job);
 
 	if (!ni_system_updater_common_args(&args, job->device.name,
 				job->lease->type, job->lease->family))
@@ -969,6 +1203,9 @@ ni_system_updater_generic_remove_call(ni_updater_t *updater, ni_updater_job_t *j
 	ni_string_array_t args = NI_STRING_ARRAY_INIT;
 	ni_updater_source_t *src;
 	int ret = -1;
+
+	if (updater->proc_batch)
+		return ni_system_updater_generic_batch_call(updater, job);
 
 	/* Call remove action only, when we applied it */
 	src = ni_updater_sources_remove_match(&updater->sources, &job->device, job->lease);

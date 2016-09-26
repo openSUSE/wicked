@@ -81,6 +81,7 @@
   <system-updater name="generic" format="info">
     <action name="install" command="@wicked_extensionsdir@/netconfig install"/>
     <action name="remove" command="@wicked_extensionsdir@/netconfig remove"/>
+    <action name="batch" command="@wicked_extensionsdir@/netconfig batch"/>
   </system-updater>
 
   <teamd>
