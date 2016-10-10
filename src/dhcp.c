@@ -80,8 +80,9 @@ ni_dhcp_option_append(ni_dhcp_option_t *opt, unsigned int len, unsigned char *da
 	if (!newdata)
 		return FALSE;
 
-	opt->len = newsize;
+	opt->data = newdata;
 	memcpy(opt->data + opt->len, data, len);
+	opt->len  = newsize;
 	return TRUE;
 }
 
