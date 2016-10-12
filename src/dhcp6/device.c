@@ -243,6 +243,7 @@ __ni_dhcp6_device_config_free(ni_dhcp6_config_t *config)
 		ni_string_array_destroy(&config->user_class);
 		ni_string_array_destroy(&config->vendor_class.data);
 		ni_var_array_destroy(&config->vendor_opts.data);
+		ni_uint_array_destroy(&config->request_options);
 		free(config);
 	}
 }
@@ -908,6 +909,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 {
 	ni_dhcp6_config_t *config;
 	const char *mode;
+	unsigned int i;
 	size_t len;
 	int rv;
 
@@ -1022,6 +1024,17 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	/* TODO: get from req info */
 	ni_dhcp6_config_vendor_class(&config->vendor_class.en, &config->vendor_class.data);
 	ni_dhcp6_config_vendor_opts(&config->vendor_opts.en, &config->vendor_opts.data);
+
+	for (i = 0; i < req->request_options.count; ++i) {
+		const char *option = req->request_options.data[i];
+		unsigned int code;
+
+		if (ni_parse_uint(option, &code, 10) || !code || code >= 65536)
+			continue;
+
+		if (!ni_uint_array_contains(&config->request_options, code))
+			ni_uint_array_append(&config->request_options, code);
+	}
 
 	/*
 	 * This basically fails only if we can't find netdev (any more)
@@ -1477,6 +1490,7 @@ ni_dhcp6_request_free(ni_dhcp6_request_t *req)
 		ni_string_free(&req->hostname);
 		ni_string_free(&req->clientid);
 		ni_dhcp6_ia_list_destroy(&req->ia_list);
+		ni_string_array_destroy(&req->request_options);
 		/*
 		 * req->vendor_class
 		 * ....

@@ -102,6 +102,8 @@ typedef struct ni_compat_netdev {
 		ni_bool_t	release_lease;
 
 		unsigned int	update;
+
+		ni_string_array_t request_options;
 	} dhcp6;
 	struct {
 		ni_bool_t	enabled;

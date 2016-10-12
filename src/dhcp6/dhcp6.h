@@ -91,6 +91,8 @@ struct ni_dhcp6_request {
 	unsigned int		update;
 
 	ni_dhcp6_ia_t *		ia_list;	/* IA_{NA,TA,PD}'s to request   */
+
+	ni_string_array_t	request_options;
 };
 
 
@@ -153,6 +155,7 @@ struct ni_dhcp6_config {
 	unsigned int		update;
 
 	ni_dhcp6_ia_t *		ia_list;	/* IA_{NA,TA,PD}'s to request   */
+	ni_uint_array_t		request_options;
 };
 
 

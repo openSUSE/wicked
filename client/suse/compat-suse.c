@@ -4629,7 +4629,8 @@ __ni_suse_parse_dhcp4_user_class(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 }
 
 static void
-__ni_suse_parse_dhcp4_req_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, const char *prefix)
+__ni_suse_parse_dhcp_req_options(const ni_sysconfig_t *sc, ni_string_array_t *options, const char *prefix,
+				unsigned int code_min, unsigned int code_max)
 {
 	ni_string_array_t vars = NI_STRING_ARRAY_INIT;
 	ni_string_array_t opts = NI_STRING_ARRAY_INIT;
@@ -4645,9 +4646,20 @@ __ni_suse_parse_dhcp4_req_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *
 			const char *opt = opts.data[j];
 
 			/* numeric option codes only for now */
-			if (ni_parse_uint(opt, &code, 10) || !code || code >= 255)
+			if (ni_parse_uint(opt, &code, 10)) {
+				ni_warn("%s: Cannot parse %s option code '%s'",
+						ni_basename(sc->pathname), vars.data[i],
+						opt);
 				continue;
-			ni_string_array_append(&compat->dhcp4.request_options, opt);
+			} else
+			if (code < code_min || code_max < code) {
+				ni_warn("%s: %s option code %u is out of range (%u..%u)",
+						ni_basename(sc->pathname), vars.data[i],
+						code, code_min, code_max);
+				continue;
+			}
+
+			ni_string_array_append(options, opt);
 		}
 		ni_string_array_destroy(&opts);
 	}
@@ -4740,7 +4752,8 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 		}
 	}
 
-	__ni_suse_parse_dhcp4_req_options(sc, compat, "DHCLIENT_REQUEST_OPTION");
+	__ni_suse_parse_dhcp_req_options(sc, &compat->dhcp4.request_options,
+					"DHCLIENT_REQUEST_OPTION", 1, 254);
 
 	return ret;
 }
@@ -4827,6 +4840,9 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 					NI_ADDRCONF_UPDATE_HOSTNAME, FALSE);
 		}
 	}
+
+	__ni_suse_parse_dhcp_req_options(sc, &compat->dhcp6.request_options,
+					"DHCLIENT6_REQUEST_OPTION", 1, 65534);
 
 	return ret;
 }

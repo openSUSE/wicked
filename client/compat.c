@@ -186,6 +186,7 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 
 		ni_string_free(&compat->dhcp6.hostname);
 		ni_string_free(&compat->dhcp6.client_id);
+		ni_string_array_destroy(&compat->dhcp6.request_options);
 
 		free(compat);
 	}
@@ -2064,6 +2065,23 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 	if (compat->dhcp6.vendor_class)
 		xml_node_dict_set(dhcp, "vendor-class", compat->dhcp6.vendor_class);
 #endif
+
+	if (compat->dhcp6.request_options.count) {
+		xml_node_t *req;
+		unsigned int i;
+
+		req = xml_node_new("request-options", NULL);
+		for (i = 0; req && i < compat->dhcp6.request_options.count; ++i) {
+			const char *opt = compat->dhcp6.request_options.data[i];
+			xml_node_new_element("option", req, opt);
+		}
+		if (req->children) {
+			xml_node_add_child(dhcp, req);
+		} else {
+			xml_node_free(req);
+		}
+	}
+
 	return dhcp;
 }
 

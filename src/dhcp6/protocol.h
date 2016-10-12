@@ -252,7 +252,8 @@ extern const char *	ni_dhcp6_print_time(time_t);
 extern const char *	ni_dhcp6_address_print(const struct in6_addr *);
 
 extern void		ni_dhcp6_option_request_init(ni_dhcp6_option_request_t *);
-extern int		ni_dhcp6_option_request_append(ni_dhcp6_option_request_t *, uint16_t);
+extern ni_bool_t	ni_dhcp6_option_request_append(ni_dhcp6_option_request_t *, uint16_t);
+extern ni_bool_t	ni_dhcp6_option_request_contains(ni_dhcp6_option_request_t *, uint16_t);
 extern void		ni_dhcp6_option_request_destroy(ni_dhcp6_option_request_t *);
 
 #endif /* __WICKED_DHCP6_PROTOCOL_H__ */

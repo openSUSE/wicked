@@ -1141,26 +1141,47 @@ ni_dhcp6_option_request_destroy(ni_dhcp6_option_request_t *ora)
 	memset(ora, 0, sizeof(*ora));
 }
 
-static void
-__ni_dhcp6_option_request_realloc(ni_dhcp6_option_request_t *ora, unsigned int newsize)
+static ni_bool_t
+ni_dhcp6_option_request_realloc(ni_dhcp6_option_request_t *ora, unsigned int newsize)
+{
+	unsigned int i;
+	uint16_t *options;
+
+	if (!ora)
+		return FALSE;
+
+	newsize += NI_DHCP6_OPTION_REQUEST_CHUNK;
+	options = xrealloc(ora->options, newsize * sizeof(uint16_t));
+	if (!options)
+		return FALSE;
+
+	ora->options = options;
+	for (i = ora->count; i < newsize; ++i)
+		ora->options[i] = 0;
+	return TRUE;
+}
+
+ni_bool_t
+ni_dhcp6_option_request_append(ni_dhcp6_option_request_t *ora, uint16_t option)
+{
+	if ((ora->count % NI_DHCP6_OPTION_REQUEST_CHUNK) == 0 &&
+	    !ni_dhcp6_option_request_realloc(ora, ora->count))
+		return FALSE;
+
+	ora->options[ora->count++] = htons(option);
+	return TRUE;
+}
+
+ni_bool_t
+ni_dhcp6_option_request_contains(ni_dhcp6_option_request_t *ora, uint16_t option)
 {
 	unsigned int i;
 
-	newsize += NI_DHCP6_OPTION_REQUEST_CHUNK;
-	ora->options = xrealloc(ora->options, newsize * sizeof(uint16_t));
-
-	for (i = ora->count; i < newsize; ++i)
-		ora->options[i] = 0;
-}
-
-int
-ni_dhcp6_option_request_append(ni_dhcp6_option_request_t *ora, uint16_t option)
-{
-	if ((ora->count % NI_DHCP6_OPTION_REQUEST_CHUNK) == 0)
-		__ni_dhcp6_option_request_realloc(ora, ora->count);
-
-	ora->options[ora->count++] = htons(option);
-	return 0;
+	for (i = 0; i < ora->count; ++i) {
+		if (ora->options[i] == htons(option))
+			return TRUE;
+	}
+	return FALSE;
 }
 
 static ni_dhcp6_ia_addr_t *
@@ -1324,6 +1345,17 @@ __ni_dhcp6_build_oro_opts(ni_dhcp6_device_t *dev,
 	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_SIP_SERVER_D);
 	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_SIP_SERVER_A);
 	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_FQDN);
+
+	if (dev->config) {
+		unsigned int i, code;
+
+		for (i = 0; i < dev->config->request_options.count; ++i) {
+			code = dev->config->request_options.data[i];
+
+			if (!ni_dhcp6_option_request_contains(oro,  code))
+				ni_dhcp6_option_request_append(oro, code);
+		}
+	}
 
 	return oro->count > 0 ? 0 : -1;
 }
