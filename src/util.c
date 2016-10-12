@@ -2951,9 +2951,10 @@ ni_check_domain_name(const char *ptr, size_t len, int dots)
 				return FALSE;
 		} else if ( *p == '.') {
 			/* each label has to be 1-63 characters;
-			   we allow [.] at the end ('foo.bar.')   */
+			   we allow [.] at the end ('foo.bar.'),
+			   but do not count it                    */
 			ssize_t d = (ssize_t)(p - ptr);
-			if( d <= 0 || d >= 64)
+			if( d <= 0 || d >= 64 || dots < 0)
 				return FALSE;
 			ptr = p + 1; /* jump to the next label    */
 			if(dots > 0 && len > 0)
@@ -2963,7 +2964,7 @@ ni_check_domain_name(const char *ptr, size_t len, int dots)
 			return FALSE;
 		}
 	}
-	return dots ? FALSE : TRUE;
+	return dots > 0 ? FALSE : TRUE;
 }
 
 ni_bool_t
