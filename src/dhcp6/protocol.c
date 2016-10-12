@@ -50,6 +50,7 @@
 #include "dhcp6/device.h"
 #include "dhcp6/protocol.h"
 #include "dhcp6/fsm.h"
+#include "dhcp.h"
 #include "socket_priv.h"
 #include "netinfo_priv.h"
 #include "buffer.h"
@@ -2606,6 +2607,7 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 	ni_string_array_t temp = NI_STRING_ARRAY_INIT;
 	ni_string_array_t nis_servers = NI_STRING_ARRAY_INIT;
 	ni_string_array_t nis_domains = NI_STRING_ARRAY_INIT;
+	ni_dhcp_option_t *opt;
 	char *str = NULL;
 	struct timeval elapsed;
 	unsigned int i;
@@ -2850,6 +2852,7 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 			}
 		break;
 		case NI_DHCP6_OPTION_ORO:
+			/* we use this function reparse + log our requests. */
 			if (request) {
 				ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
@@ -2870,22 +2873,32 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 							buf.string);
 				}
 				ni_stringbuf_destroy(&buf);
-				break;
+			} else {
+				ni_debug_dhcp("Ignoring invalid option request option %s",
+						ni_dhcp6_option_name(option));
 			}
-
-			/* fall through */
+			/* discard option data to not report excess data, ... */
+			ni_buffer_pull_head(&optbuf, ni_buffer_count(&optbuf));
+		break;
 
 		default:
 #ifdef	NI_DHCP6_HEXDUMP_LEVEL
 			__ni_dhcp6_hexdump(&hexbuf, &optbuf);
 			ni_debug_verbose(NI_DHCP6_HEXDUMP_LEVEL, NI_TRACE_DHCP,
-					"unsupported option %s hexdump: %s",
+					"unknown option %s hexdump: %s",
 					ni_dhcp6_option_name(option),
 					hexbuf.string);
 			ni_stringbuf_destroy(&hexbuf);
-#else
-			ni_debug_dhcp("unsupported option %s", ni_dhcp6_option_name(option));
 #endif
+			opt = ni_dhcp_option_new(option, ni_buffer_count(&optbuf), ni_buffer_head(&optbuf));
+			if (ni_dhcp_option_list_append(&lease->dhcp6.options, opt)) {
+				ni_debug_dhcp("unparsed[%s]: length %u", ni_dhcp6_option_name(option),
+									 ni_buffer_count(&optbuf));
+			} else {
+				ni_debug_dhcp("failed to add unparsed option %s length %u to lease",
+						ni_dhcp6_option_name(option), ni_buffer_count(&optbuf));
+				ni_dhcp_option_free(opt);
+			}
 			ni_buffer_pull_head(&optbuf, ni_buffer_count(&optbuf));
 		break;
 		}
