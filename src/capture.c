@@ -575,11 +575,14 @@ ni_capture_devinfo_refresh(ni_capture_devinfo_t *devinfo, const char *ifname, co
 	devinfo->hwaddr = link->hwaddr;
 
 	if (devinfo->iftype != link->type) {
-		ni_debug_socket("%s: reconfig changes device type! d%u l%u", devinfo->ifname, devinfo->iftype, link->type);
-		return -1;
+		ni_debug_socket("%s: reconfig changes device type from %s(%u) to %s(%u)",
+				devinfo->ifname,
+				ni_linktype_type_to_name(devinfo->iftype), devinfo->iftype,
+				ni_linktype_type_to_name(link->type), link->type);
 	}
 	if (devinfo->ifindex != link->ifindex) {
-		ni_error("%s: reconfig changes device index! d%u l%u", devinfo->ifname, devinfo->ifindex, link->ifindex);
+		ni_error("%s: reconfig changes device index from %u to %u",
+				devinfo->ifname, devinfo->ifindex, link->ifindex);
 		return -1;
 	}
 
