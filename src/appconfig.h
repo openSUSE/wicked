@@ -95,6 +95,50 @@ typedef struct ni_config_teamd {
 	ni_config_teamd_ctl_t	ctl;
 } ni_config_teamd_t;
 
+typedef struct ni_config_dhcp4 {
+	struct ni_config_dhcp4 *next;
+	char *			device;
+
+	unsigned int		allow_update;
+	char *			vendor_class;
+	unsigned int		lease_time;
+	ni_string_array_t	ignore_servers;
+
+	unsigned int		num_preferred_servers;
+	ni_server_preference_t	preferred_server[NI_DHCP_SERVER_PREFERENCES_MAX];
+
+	ni_dhcp_option_decl_t *	custom_options;
+} ni_config_dhcp4_t;
+
+typedef struct ni_config_dhcp6 {
+	struct ni_config_dhcp6 *next;
+	char *			device;
+
+	char *			default_duid;
+	unsigned int		allow_update;
+	unsigned int		lease_time;
+
+	ni_string_array_t 	user_class_data;
+	unsigned int		vendor_class_en;
+	ni_string_array_t	vendor_class_data;
+	unsigned int		vendor_opts_en;
+	ni_var_array_t		vendor_opts_data;
+
+	ni_string_array_t	ignore_servers;
+	unsigned int		num_preferred_servers;
+	ni_server_preference_t	preferred_server[NI_DHCP_SERVER_PREFERENCES_MAX];
+
+	ni_dhcp_option_decl_t *	custom_options;
+} ni_config_dhcp6_t;
+
+typedef struct ni_config_auto4 {
+	unsigned int	allow_update;
+} ni_config_auto4_t;
+
+typedef struct ni_config_auto6 {
+	unsigned int	allow_update;
+} ni_config_auto6_t;
+
 typedef struct ni_config {
 	ni_config_fslocation_t	piddir;
 	ni_config_fslocation_t	storedir;
@@ -105,39 +149,12 @@ typedef struct ni_config {
 	struct {
 	    unsigned int		default_allow_update;
 
-	    struct ni_config_dhcp4 {
-	        unsigned int		allow_update;
-		char *			vendor_class;
-		unsigned int		lease_time;
-		ni_string_array_t	ignore_servers;
+	    ni_config_dhcp4_t		dhcp4;
+	    ni_config_dhcp6_t		dhcp6;
 
-		unsigned int		num_preferred_servers;
-		ni_server_preference_t	preferred_server[NI_DHCP_SERVER_PREFERENCES_MAX];
-	    } dhcp4;
+	    ni_config_auto4_t		auto4;
+	    ni_config_auto6_t		auto6;
 
-	    struct ni_config_dhcp6 {
-		char *			default_duid;
-	        unsigned int		allow_update;
-		unsigned int		lease_time;
-
-		ni_string_array_t 	user_class_data;
-		unsigned int		vendor_class_en;
-		ni_string_array_t	vendor_class_data;
-		unsigned int		vendor_opts_en;
-		ni_var_array_t		vendor_opts_data;
-
-		ni_string_array_t	ignore_servers;
-		unsigned int		num_preferred_servers;
-		ni_server_preference_t	preferred_server[NI_DHCP_SERVER_PREFERENCES_MAX];
-	    } dhcp6;
-
-	    struct ni_config_auto4 {
-	        unsigned int	allow_update;
-	    } auto4;
-
-	    struct ni_config_auto6 {
-	        unsigned int	allow_update;
-	    } auto6;
 	} addrconf;
 
 	char *			dbus_xml_schema_file;
@@ -166,6 +183,9 @@ extern ni_extension_t *	ni_config_find_extension(ni_config_t *, const char *);
 extern ni_extension_t *	ni_config_find_system_updater(ni_config_t *, const char *);
 extern unsigned int	ni_config_addrconf_update_mask(ni_addrconf_mode_t, unsigned int);
 extern ni_bool_t	ni_config_use_nanny(void);
+
+extern const ni_config_dhcp4_t *	ni_config_dhcp4_find_device(const char *);
+extern const ni_config_dhcp6_t *	ni_config_dhcp6_find_device(const char *);
 
 extern ni_config_bonding_ctl_t	ni_config_bonding_ctl(void);
 
