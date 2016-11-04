@@ -238,6 +238,8 @@ extern void		ni_srandom(void);
 
 extern ni_bool_t	ni_try_mlock(const void *, size_t);
 
+extern ni_bool_t	ni_uint_in_range(const ni_uint_range_t *, const unsigned int);
+
 /* Use this in mainloop-like functions to check at defined execution points
  * whether we were signaled in the meantime.
  */

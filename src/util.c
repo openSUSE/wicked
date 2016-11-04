@@ -2719,6 +2719,12 @@ xstrdup(const char *string)
 	return p;
 }
 
+ni_bool_t
+ni_uint_in_range(const ni_uint_range_t *range, const unsigned int value)
+{
+	return range ? value >= range->min && value <= range->max : FALSE;
+}
+
 /*
  * ni_opaque_t encapsulates a (small) chunk of binary data
  */
