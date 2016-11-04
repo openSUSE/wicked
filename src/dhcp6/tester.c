@@ -170,6 +170,14 @@ ni_dhcp6_tester_req_xml_init(ni_dhcp6_request_t *req, xml_document_t *doc)
 			if (!ni_duid_parse_hex(&duid, child->cdata))
 				goto failure;
 			ni_string_dup(&req->clientid, child->cdata);
+		} else
+		if (ni_string_eq(child->name, "request-options")) {
+			xml_node_t *opt;
+			for (opt = child->children; opt; opt = opt->next) {
+				if (ni_string_empty(opt->cdata))
+					continue;
+				ni_string_array_append(&req->request_options, opt->cdata);
+			}
 		}
 	}
 

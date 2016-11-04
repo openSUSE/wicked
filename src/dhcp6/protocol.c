@@ -2924,8 +2924,8 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 #endif
 			opt = ni_dhcp_option_new(option, ni_buffer_count(&optbuf), ni_buffer_head(&optbuf));
 			if (ni_dhcp_option_list_append(&lease->dhcp6.options, opt)) {
-				ni_debug_dhcp("unparsed[%s]: length %u", ni_dhcp6_option_name(option),
-									 ni_buffer_count(&optbuf));
+				ni_debug_dhcp("unparsed option %s: length %u",
+						ni_dhcp6_option_name(option), ni_buffer_count(&optbuf));
 			} else {
 				ni_debug_dhcp("failed to add unparsed option %s length %u to lease",
 						ni_dhcp6_option_name(option), ni_buffer_count(&optbuf));
