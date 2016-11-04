@@ -408,42 +408,69 @@ ni_addrconf_lease_ptz_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 	return ret;
 }
 
-int
-ni_addrconf_lease_opts_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
+static xml_node_t *
+ni_addrconf_lease_opts_data_unknown_to_xml(const ni_dhcp_option_t *opt)
 {
-	const ni_dhcp_option_t *options = NULL, *opt;
-	xml_node_t *child;
+	xml_node_t *node = NULL;
 	char *name = NULL;
 	char *hstr = NULL;
 
-	(void)ifname;
-	if (lease->family == AF_INET  && lease->type == NI_ADDRCONF_DHCP)
+	if (!ni_string_printf(&name, "unknown-%u", opt->code))
+		goto failure;
+
+	if (!(node = xml_node_new(name, NULL)))
+		goto failure;
+
+	xml_node_new_element_uint("code", node, opt->code);
+	if (opt->len && opt->data) {
+		if (!(hstr = ni_sprint_hex(opt->data, opt->len)))
+			goto failure;
+		xml_node_new_element("data", node, hstr);
+	}
+
+	return node;
+
+failure:
+	ni_string_free(&hstr);
+	ni_string_free(&name);
+	xml_node_free(node);
+	return NULL;
+}
+
+int
+ni_addrconf_lease_opts_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
+{
+	const ni_dhcp_option_t *options, *opt;
+	const ni_dhcp_option_decl_t *declared;
+
+	if (lease->family == AF_INET  && lease->type == NI_ADDRCONF_DHCP) {
+		const ni_config_dhcp4_t *config = ni_config_dhcp4_find_device(ifname);
+		declared = config ? config->custom_options : NULL;
 		options = lease->dhcp4.options;
-	else
-	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_DHCP)
+	} else
+	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_DHCP) {
+		const ni_config_dhcp6_t *config = ni_config_dhcp6_find_device(ifname);
+		declared = config ? config->custom_options : NULL;
 		options = lease->dhcp6.options;
-	else
+	} else
 		return 1;
 
 	for (opt = options; opt; opt = opt->next) {
+		const ni_dhcp_option_decl_t *decl;
+		xml_node_t *ret;
+
 		if (!opt->code)
 			continue;
-		if (!ni_string_printf(&name, "unknown-%u", opt->code))
-			continue;
 
-		if (!(child = xml_node_new(name, node)))
-			continue;
-
-		xml_node_new_element_uint("code", child, opt->code);
-		if (!opt->len || !opt->data)
-			continue;
-
-		if ((hstr = ni_sprint_hex(opt->data, opt->len))) {
-			xml_node_new_element("data", child, hstr);
-			free(hstr);
+		decl = ni_dhcp_option_decl_list_find_by_code(declared, opt->code);
+		if (decl) {
+			ret = ni_dhcp_option_to_xml(opt, decl);
+		} else {
+			ret = ni_addrconf_lease_opts_data_unknown_to_xml(opt);
 		}
+		if (ret)
+			xml_node_add_child(node, ret);
 	}
-	ni_string_free(&name);
 
 	if (node->children)
 		return 0;
@@ -1078,48 +1105,75 @@ ni_addrconf_lease_ptz_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t
 	return 0;
 }
 
+static ni_dhcp_option_t *
+ni_addrconf_lease_opts_data_unknown_from_xml(const xml_node_t *node)
+{
+	const xml_node_t *cnode, *dnode;
+	ni_dhcp_option_t *opt;
+	unsigned char *data;
+	unsigned int code;
+	size_t size;
+	int len;
+
+	if (!(cnode = xml_node_get_child(node, "code")))
+		return NULL;
+
+	if (ni_parse_uint(cnode->cdata, &code, 10) != 0 || !code)
+		return NULL;
+
+	if (!(opt = ni_dhcp_option_new(code, 0, NULL)))
+		return NULL;
+
+	if (!(dnode = xml_node_get_child(node, "data")))
+		return opt;
+
+	if (!(size = ni_string_len(dnode->cdata)))
+		return opt;
+
+	size = (size / 3) + 1;
+	data = calloc(1, size);
+	if (data && (len = ni_parse_hex(dnode->cdata, data, size)) > 0) {
+		ni_dhcp_option_append(opt, len, data);
+		free(data);
+		return opt;
+	} else {
+		ni_dhcp_option_free(opt);
+		free(data);
+		return NULL;
+	}
+}
+
 int
 ni_addrconf_lease_opts_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	ni_dhcp_option_t **options = NULL, *opt;
+	const ni_dhcp_option_decl_t *declared;
 	const xml_node_t *child;
 
-	(void)ifname;
 	if (!lease || !node)
 		return 1;
 
-	if (lease->family == AF_INET  && lease->type == NI_ADDRCONF_DHCP)
+	if (lease->family == AF_INET  && lease->type == NI_ADDRCONF_DHCP) {
+		const ni_config_dhcp4_t *config = ni_config_dhcp4_find_device(ifname);
+		declared = config ? config->custom_options : NULL;
 		options = &lease->dhcp4.options;
-	else
-	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_DHCP)
+	} else
+	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_DHCP) {
+		const ni_config_dhcp6_t *config = ni_config_dhcp6_find_device(ifname);
+		declared = config ? config->custom_options : NULL;
 		options = &lease->dhcp6.options;
-	else
+	} else
 		return 1;
 
 	for (child = node->children; child; child = child->next) {
-		const xml_node_t *cnode, *dnode;
-		unsigned int code, len;
-		unsigned char *data;
-		size_t size;
+		const ni_dhcp_option_decl_t *decl;
 
-		if (!(cnode = xml_node_get_child(child, "code")))
-			continue;
-		if (ni_parse_uint(cnode->cdata, &code, 10) != 0 || !code)
-			continue;
-
-		if ((dnode = xml_node_get_child(child, "data"))) {
-			if (!(size = ni_string_len(dnode->cdata)))
-				continue;
-
-			size = (size / 3) + 1;
-			if (!(data = calloc(1, size)))
-				continue;
-
-			len = ni_parse_hex(dnode->cdata, data, size);
-			opt = ni_dhcp_option_new(code, len, data);
-			free(data);
+		opt  = NULL;
+		decl = ni_dhcp_option_decl_list_find_by_name(declared, child->name);
+		if (decl) {
+			opt = ni_dhcp_option_from_xml(child, decl);
 		} else {
-			opt = ni_dhcp_option_new(code, 0, NULL);
+			opt = ni_addrconf_lease_opts_data_unknown_from_xml(child);
 		}
 		if (!ni_dhcp_option_list_append(options, opt))
 			ni_dhcp_option_free(opt);
