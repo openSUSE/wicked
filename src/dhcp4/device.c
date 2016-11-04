@@ -24,10 +24,12 @@
 
 #include "dhcp4/dhcp4.h"
 #include "dhcp4/protocol.h"
+#include "dhcp.h"
 
 
 static unsigned int	ni_dhcp4_do_bits(unsigned int);
 static const char *	__ni_dhcp4_print_doflags(unsigned int);
+static void		ni_dhcp4_config_set_request_options(const char *, ni_uint_array_t *, const ni_string_array_t *);
 
 ni_dhcp4_device_t *	ni_dhcp4_active;
 
@@ -257,7 +259,6 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 {
 	ni_dhcp4_config_t *config;
 	const char *classid;
-	unsigned int i, n;
 	size_t len;
 	int rv;
 
@@ -335,18 +336,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_trace("  recover_lease   %s", config->recover_lease ? "true" : "false");
 		ni_trace("  release_lease   %s", config->release_lease ? "true" : "false");
 	}
-	for (n = i = 0; i < info->request_options.count; ++i) {
-		const char *option = info->request_options.data[i];
-		unsigned int code;
-
-		if (ni_parse_uint(option, &code, 10) || !code || code >= 255)
-			continue;
-
-		if (!ni_uint_array_contains(&config->request_options, code)) {
-			ni_debug_dhcp("  request-option[%u]: %u", n++, code);
-			ni_uint_array_append(&config->request_options, code);
-		}
-	}
+	ni_dhcp4_config_set_request_options(dev->ifname, &config->request_options, &info->request_options);
 
 	ni_dhcp4_device_set_config(dev, config);
 
@@ -843,6 +833,34 @@ unsigned int
 ni_dhcp4_config_max_lease_time(void)
 {
 	return ni_global.config->addrconf.dhcp4.lease_time;
+}
+
+static void
+ni_dhcp4_config_set_request_options(const char *ifname, ni_uint_array_t *cfg, const ni_string_array_t *req)
+{
+	const ni_config_dhcp4_t *dhconf = ni_config_dhcp4_find_device(ifname);
+	const ni_dhcp_option_decl_t *custom_options = dhconf ? dhconf->custom_options : NULL;
+	unsigned int i, n;
+
+	for (n = i = 0; i < req->count; ++i) {
+		const char *opt = req->data[i];
+		const ni_dhcp_option_decl_t *decl;
+		unsigned int code;
+
+		if ((decl = ni_dhcp_option_decl_list_find_by_name(custom_options, opt)))
+			code = decl->code;
+		else if (ni_parse_uint(opt, &code, 10) < 0)
+			continue;
+
+		if (!code || code >= 255)
+			continue;
+
+		if (!ni_uint_array_contains(cfg, code)) {
+			ni_debug_dhcp("  request-option[%u]: %u %s", n++, code,
+							decl ? decl->name : "");
+			ni_uint_array_append(cfg, code);
+		}
+	}
 }
 
 /*
