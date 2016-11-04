@@ -208,8 +208,8 @@ extern ni_addrconf_lease_t *ni_addrconf_lease_file_read(const char *, int, int);
 extern ni_bool_t	ni_addrconf_lease_file_exists(const char *, int, int);
 extern void		ni_addrconf_lease_file_remove(const char *, int, int);
 
-extern int		ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *, xml_node_t **);
-extern int		ni_addrconf_lease_from_xml(ni_addrconf_lease_t **, const xml_node_t *);
+extern int		ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *, xml_node_t **, const char *);
+extern int		ni_addrconf_lease_from_xml(ni_addrconf_lease_t **, const xml_node_t *, const char *);
 
 extern int		ni_addrconf_name_to_type(const char *);
 extern const char *	ni_addrconf_type_to_name(unsigned int);

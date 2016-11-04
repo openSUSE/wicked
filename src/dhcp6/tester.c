@@ -98,7 +98,7 @@ ni_dhcp6_tester_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *
 			if (dhcp6_tester_opts.outfmt == NI_DHCP6_TESTER_OUT_LEASE_XML) {
 				xml_node_t *xml = NULL;
 
-				if (ni_addrconf_lease_to_xml(lease, &xml) != 0) {
+				if (ni_addrconf_lease_to_xml(lease, &xml, dev->ifname) != 0) {
 					if (dhcp6_tester_opts.output)
 						fclose(fp);
 					dhcp6_tester_status = NI_WICKED_RC_ERROR;

@@ -28,16 +28,16 @@
 #define   __WICKED_DHCP4_LEASE_H__
 
 int
-ni_dhcp4_lease_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_dhcp4_lease_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 
 int
-ni_dhcp4_lease_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_dhcp4_lease_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 
 
 int
-ni_dhcp4_lease_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_dhcp4_lease_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 
 int
-ni_dhcp4_lease_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_dhcp4_lease_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 
 #endif /* __WICKED_DHCP4_LEASE_H__ */
