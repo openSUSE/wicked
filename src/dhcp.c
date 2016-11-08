@@ -1260,7 +1260,7 @@ ni_dhcp_option_decl_parse_xml_type(ni_dhcp_option_decl_t **list, xml_node_t *nod
 			goto failure;
 		}
 	} else {
-		for (child = node->children; child; child = child->next) {
+		for (type = NULL, child = node->children; child; child = child->next) {
 			if ((type = ni_dhcp_option_type_find(child->name)))
 				break;
 		}
