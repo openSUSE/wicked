@@ -147,8 +147,34 @@ static int	__ni_system_netdev_create(ni_netconfig_t *nc,
 					const char *ifname, unsigned int ifindex,
 					ni_iftype_t iftype, ni_netdev_t **dev_ret);
 
+static int	ni_system_bond_setup_netlink(ni_netconfig_t *, ni_netdev_t *, const ni_netdev_t *);
+
 static int
-ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev, const ni_netdev_req_t *req)
+ni_system_bond_enslave_update(ni_netconfig_t *nc, ni_netdev_t *dev, ni_netdev_t *master)
+{
+	ni_bonding_t *bond;
+
+	if (!dev || !master || !(bond = master->bonding))
+		return -1;
+
+	if (!bond->primary_slave.index && ni_string_eq(dev->name, bond->primary_slave.name)) {
+		switch (ni_config_bonding_ctl()) {
+			case NI_CONFIG_BONDING_CTL_SYSFS:
+				/* kernel tracks the name and adjusts itself  */
+			break;
+			case NI_CONFIG_BONDING_CTL_NETLINK:
+			default:
+				/* netlink is by ifindex and we track ourself */
+				return ni_system_bond_setup_netlink(nc, master, master);
+			break;
+		}
+	}
+	return 1;
+}
+
+static int
+ni_system_interface_enslave(ni_netconfig_t *nc, ni_netdev_t *master, ni_netdev_t *dev,
+				const ni_netdev_req_t *req)
 {
 	int ret = -1;
 
@@ -176,6 +202,7 @@ ni_system_interface_enslave(ni_netdev_t *master, ni_netdev_t *dev, const ni_netd
 		if (ret == 0) {
 			ni_netdev_ref_set(&dev->link.masterdev,
 					master->name, master->link.ifindex);
+			ni_system_bond_enslave_update(nc, dev, master);
 		}
 		break;
 	case NI_IFTYPE_TEAM:
@@ -289,7 +316,7 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 			int ret;
 
 			master = ni_netdev_by_name(nc, ifp_req->master.name);
-			ret = ni_system_interface_enslave(master, dev, ifp_req);
+			ret = ni_system_interface_enslave(nc, master, dev, ifp_req);
 			if (!master || master->link.type != NI_IFTYPE_OVS_SYSTEM)
 				return ret;
 		}
@@ -1897,7 +1924,7 @@ ni_system_bond_setup_sysfs(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev
 	return 0;
 }
 
-int
+static int
 ni_system_bond_setup_netlink(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
 {
 	int ret;
@@ -2586,7 +2613,7 @@ __ni_rtnl_link_put_bond_opt_debug(const char *ifname, const char *name,
 
 static int
 __ni_rtnl_link_put_bond_opt(ni_netconfig_t *nc,	struct nl_msg *msg, const char *ifname,
-				unsigned int attr, const char *name,
+				unsigned int ifindex, unsigned int attr, const char *name,
 				const ni_bonding_t *conf, ni_bonding_t *bond)
 {
 	unsigned int num_peer_notif;
@@ -2692,11 +2719,13 @@ __ni_rtnl_link_put_bond_opt(ni_netconfig_t *nc,	struct nl_msg *msg, const char *
 			return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret, 0, NULL);
 
 		slave = ni_netdev_by_name(nc, conf->primary_slave.name);
-		if (!ni_netdev_device_is_ready(slave)) {
+		if (!ni_netdev_device_is_ready(slave) || slave->link.masterdev.index != ifindex) {
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
 					"%s: primary slave device %s is not yet ready",
 					ifname, conf->primary_slave.name);
 
+			/* track the config ifname to retry after enslave */
+			ni_netdev_ref_set_ifname(&bond->primary_slave, conf->primary_slave.name);
 			return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
 					slave ? slave->link.ifindex : 0,
 					conf->primary_slave.name);
@@ -3007,7 +3036,8 @@ __ni_rtnl_link_put_bond(ni_netconfig_t *nc,	struct nl_msg *msg, ni_netdev_t *dev
 			continue;
 		}
 
-		if ((ret = __ni_rtnl_link_put_bond_opt(nc, msg, ifname, opt->attr, opt->name, conf, bond)) < 0)
+		if ((ret = __ni_rtnl_link_put_bond_opt(nc, msg, ifname, dev ? dev->link.ifindex : 0,
+							opt->attr, opt->name, conf, bond)) < 0)
 			goto nla_put_failure;
 		else if (ret == 0)
 			count++;
