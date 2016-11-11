@@ -151,6 +151,7 @@ struct ni_addrconf_lease {
 		ni_opaque_t		client_id;
 		struct in_addr		server_id;
 		struct in_addr		relay_addr;
+		char *			sender_hwa;
 
 		struct in_addr		address;
 		struct in_addr		netmask;

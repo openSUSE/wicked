@@ -117,6 +117,8 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf, n
 				sender ? " sender " : "", sender ? sender : "");
 		return -1;
 	}
+	ni_string_dup(&lease->dhcp4.sender_hwa, sender);
+	sender = lease->dhcp4.sender_hwa;
 
 	if (dev->config->client_id.len && !lease->dhcp4.client_id.len) {
 		/*
@@ -153,7 +155,6 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf, n
 		return -1;
 	}
 
-	sender = ni_capture_from_hwaddr_print(from);
 	ni_debug_dhcp("%s: received %s message xid 0x%x in state %s%s%s",
 			dev->ifname, ni_dhcp4_message_name(msg_code), message->xid,
 			ni_dhcp4_fsm_state_name(dev->fsm.state),
@@ -180,7 +181,6 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf, n
 		int weight = 0;
 
 		if (ni_dhcp4_config_ignore_server(srv_addr)) {
-			sender = ni_capture_from_hwaddr_print(from);
 			ni_debug_dhcp("%s: ignoring DHCP4 offer from %s%s%s%s (blacklisted)",
 					dev->ifname, inet_ntoa(srv_addr),
 					sender ? " (" : "",

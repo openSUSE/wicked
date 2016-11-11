@@ -88,6 +88,9 @@ __ni_dhcp4_lease_head_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 		ni_sockaddr_set_ipv4(&addr, lease->dhcp4.relay_addr, 0);
 		xml_node_new_element("relay-address", node, ni_sockaddr_print(&addr));
 	}
+	if (lease->dhcp4.sender_hwa) {
+		xml_node_new_element("sender-hw-address", node, lease->dhcp4.sender_hwa);
+	}
 	if (lease->dhcp4.lease_time)
 		xml_node_new_element_uint("lease-time", node, lease->dhcp4.lease_time);
 	if (lease->dhcp4.renewal_time)
