@@ -128,12 +128,13 @@ static void
 ni_dhcp4_socket_recv(ni_socket_t *sock)
 {
 	ni_capture_t *capture = sock->user_data;
+	ni_sockaddr_t from;
 	ni_buffer_t buf;
 
-	if (ni_capture_recv(capture, &buf) >= 0) {
+	if (ni_capture_recv(capture, &buf, &from) >= 0) {
 		ni_dhcp4_device_t *dev = ni_capture_get_user_data(capture);
 
-		ni_dhcp4_fsm_process_dhcp4_packet(dev, &buf);
+		ni_dhcp4_fsm_process_dhcp4_packet(dev, &buf, &from);
 	}
 }
 

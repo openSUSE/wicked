@@ -71,7 +71,7 @@ ni_dhcp4_fsm_init_device(ni_dhcp4_device_t *dev)
 }
 
 int
-ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
+ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf, ni_sockaddr_t *from)
 {
 	ni_dhcp4_message_t *message;
 	ni_addrconf_lease_t *lease = NULL;
