@@ -1686,7 +1686,7 @@ parse_more:
 		option = ni_dhcp4_option_next(options, &buf);
 
 		//ni_debug_dhcp("handle option %s (%d)", ni_dhcp4_option_name(option), option);
-		if (option == DHCP4_END)
+		if (option == DHCP4_END || option < 0)
 			break;
 
 		switch (option) {
@@ -1703,24 +1703,24 @@ parse_more:
 		case DHCP4_OPTIONSOVERLOADED:
 			if (options != &overload_buf) {
 				opt_overload = ni_buffer_getc(&buf);
-				if (opt_overload == EOF)
-					goto error;
+				if (opt_overload == EOF) {
+					ni_debug_dhcp("DHCP4: ignoring invalid OVERLOAD option");
+					opt_overload = 0;
+				}
+			} else if (ni_buffer_getc(&buf) == EOF) {
+				ni_debug_dhcp("DHCP4: ignoring invalid OVERLOAD option in overloaded data");
 			} else {
 				ni_debug_dhcp("DHCP4: ignoring OVERLOAD option in overloaded data");
-				if (ni_buffer_getc(&buf) == EOF)
-					goto error;
 			}
 			continue;
 
 		default:
-			if (option < 0)
-				goto error;
 			break;
 		}
 
 		if (ni_buffer_count(&buf) == 0) {
-			ni_error("option %d has zero length", option);
-			goto error;
+			ni_debug_dhcp("%s has zero length", ni_dhcp4_option_name(option));
+			continue;
 		}
 
 		if ((opt = ni_dhcp_option_list_find(opts, option))) {
@@ -1745,6 +1745,11 @@ parse_more:
 					ni_dhcp4_option_name(option),
 					ni_buffer_count(&buf));
 		}
+	}
+
+	if (options->underflow) {
+		ni_debug_dhcp("unable to parse DHCP4 response: truncated packet");
+		goto error;
 	}
 
 	while ((opt = ni_dhcp_option_list_pull(&opts))) {
@@ -1907,11 +1912,6 @@ parse_more:
 					ni_dhcp4_option_name(option), option,
 					ni_buffer_count(&buf));
 		}
-	}
-
-	if (options->underflow) {
-		ni_debug_dhcp("unable to parse DHCP4 response: truncated packet");
-		goto error;
 	}
 
 	if (opt_overload) {
