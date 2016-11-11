@@ -493,7 +493,7 @@ ni_capture_from_hwaddr_print(const ni_sockaddr_t *from)
 }
 
 int
-ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp, ni_sockaddr_t *from)
+ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp, ni_sockaddr_t *from, const char *hint)
 {
 	void *payload;
 	size_t payload_len;
@@ -505,12 +505,15 @@ ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp, ni_sockaddr_t *from)
 				  capture->mtu, &partial_checksum, from);
 
 	if (bytes < 0) {
-		ni_error("%s: cannot read from socket: %m", __FUNCTION__);
+		ni_error("%s: %s cannot read %s%spacket from socket: %m",
+				capture->ifname, __FUNCTION__,
+				hint ? hint : "", hint ? " " : "");
 		return -1;
 	}
 
 	lladdr = ni_capture_from_hwaddr_print(from);
-	ni_debug_socket("%s: incoming packet%s%s%s", capture->ifname,
+	ni_debug_socket("%s: incoming %s%spacket%s%s%s", capture->ifname,
+			hint ? hint : "", hint ? " " : "",
 			(partial_checksum ? " with partial checksum" : ""),
 			lladdr ? " from " : "", lladdr ? lladdr : "");
 
@@ -520,7 +523,9 @@ ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp, ni_sockaddr_t *from)
 		payload = ni_capture_inspect_udp_header(capture->buffer, bytes,
 						&payload_len, partial_checksum);
 		if (payload == NULL) {
-			ni_debug_socket("bad IP/UDP packet header");
+			ni_debug_socket("%s: bad IP/UDP %s%spacket header",
+					capture->ifname,
+					hint ? hint : "", hint ? " " : "");
 			return -1;
 		}
 		break;
@@ -532,7 +537,8 @@ ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp, ni_sockaddr_t *from)
 		break;
 
 	default:
-		ni_error("%s: cannot handle ethertype %u", __FUNCTION__, capture->protocol);
+		ni_error("%s: %s cannot handle ethertype %u", capture->ifname,
+				__FUNCTION__, capture->protocol);
 		return -1;
 	}
 

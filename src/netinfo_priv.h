@@ -151,7 +151,7 @@ typedef struct ni_capture_protinfo {
 extern int		ni_capture_devinfo_init(ni_capture_devinfo_t *, const char *, const ni_linkinfo_t *);
 extern int		ni_capture_devinfo_refresh(ni_capture_devinfo_t *, const char *, const ni_linkinfo_t *);
 extern ni_capture_t *	ni_capture_open(const ni_capture_devinfo_t *, const ni_capture_protinfo_t *, void (*)(ni_socket_t *));
-extern int		ni_capture_recv(ni_capture_t *, ni_buffer_t *, ni_sockaddr_t *);
+extern int		ni_capture_recv(ni_capture_t *, ni_buffer_t *, ni_sockaddr_t *, const char *);
 extern ni_bool_t	ni_capture_from_hwaddr_set(ni_hwaddr_t *, const ni_sockaddr_t *);
 extern const char *	ni_capture_from_hwaddr_print(const ni_sockaddr_t *);
 extern ssize_t		ni_capture_send(ni_capture_t *, const ni_buffer_t *, const ni_timeout_param_t *);
