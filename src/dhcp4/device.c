@@ -808,10 +808,9 @@ ni_dhcp4_config_vendor_class(void)
 }
 
 int
-ni_dhcp4_config_ignore_server(struct in_addr addr)
+ni_dhcp4_config_ignore_server(const char *name)
 {
 	const struct ni_config_dhcp4 *dhconf = &ni_global.config->addrconf.dhcp4;
-	const char *name = inet_ntoa(addr);
 
 	return (ni_string_array_index(&dhconf->ignore_servers, name) >= 0);
 }
@@ -824,7 +823,7 @@ ni_dhcp4_config_have_server_preference(void)
 }
 
 int
-ni_dhcp4_config_server_preference(struct in_addr addr)
+ni_dhcp4_config_server_preference_ipaddr(struct in_addr addr)
 {
 	const struct ni_config_dhcp4 *dhconf = &ni_global.config->addrconf.dhcp4;
 	const ni_server_preference_t *pref = dhconf->preferred_server;
@@ -835,6 +834,28 @@ ni_dhcp4_config_server_preference(struct in_addr addr)
 			continue;
 		if (pref->address.sin.sin_addr.s_addr == addr.s_addr)
 			return pref->weight;
+	}
+	return 0;
+}
+
+int
+ni_dhcp4_config_server_preference_hwaddr(const ni_hwaddr_t *hwaddr)
+{
+	const struct ni_config_dhcp4 *dhconf = &ni_global.config->addrconf.dhcp4;
+	const ni_server_preference_t *pref = dhconf->preferred_server;
+	unsigned int i;
+
+	if (!hwaddr || !hwaddr->len)
+		return 0;
+
+	for (i = 0; i < dhconf->num_preferred_servers; ++i, ++pref) {
+		if (pref->serverid.len != (size_t)hwaddr->len + 1)
+			continue;
+		if ((unsigned short)pref->serverid.data[0] != hwaddr->type)
+			continue;
+		if (memcmp(&pref->serverid.data[1], hwaddr->data, hwaddr->len))
+			continue;
+		return pref->weight;
 	}
 	return 0;
 }

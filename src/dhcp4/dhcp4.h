@@ -267,9 +267,10 @@ extern int		ni_dhcp4_xml_from_lease(const ni_addrconf_lease_t *, xml_node_t *);
 extern int		ni_dhcp4_xml_to_lease(ni_addrconf_lease_t *, const xml_node_t *);
 
 extern const char *	ni_dhcp4_config_vendor_class(void);
-extern int		ni_dhcp4_config_ignore_server(struct in_addr);
+extern int		ni_dhcp4_config_ignore_server(const char *);
 extern int		ni_dhcp4_config_have_server_preference(void);
-extern int		ni_dhcp4_config_server_preference(struct in_addr);
+extern int		ni_dhcp4_config_server_preference_ipaddr(struct in_addr);
+extern int		ni_dhcp4_config_server_preference_hwaddr(const ni_hwaddr_t *);
 extern unsigned int	ni_dhcp4_config_max_lease_time(void);
 extern void		ni_dhcp4_config_free(ni_dhcp4_config_t *);
 

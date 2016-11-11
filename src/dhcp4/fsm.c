@@ -75,7 +75,7 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf, n
 {
 	ni_dhcp4_message_t *message;
 	ni_addrconf_lease_t *lease = NULL;
-	const char *sender;
+	const char *sender = NULL;
 	int msg_code;
 
 	if (dev->fsm.state == NI_DHCP4_STATE_VALIDATING) {
@@ -178,9 +178,19 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf, n
 	 * servers to ignore, and preferred servers. */
 	if (msg_code == DHCP4_OFFER && dev->fsm.state == NI_DHCP4_STATE_SELECTING) {
 		struct in_addr srv_addr = lease->dhcp4.server_id;
+		const char *ipaddr = inet_ntoa(srv_addr);
+		ni_hwaddr_t hwaddr;
 		int weight = 0;
 
-		if (ni_dhcp4_config_ignore_server(srv_addr)) {
+		if (sender && ni_dhcp4_config_ignore_server(sender)) {
+			ni_debug_dhcp("%s: ignoring DHCP4 offer from %s%s%s%s (blacklisted)",
+					dev->ifname, inet_ntoa(srv_addr),
+					sender ? " (" : "",
+					sender ? sender : "",
+					sender ? ")" : "");
+			goto out;
+		}
+		if (ipaddr && ni_dhcp4_config_ignore_server(ipaddr)) {
 			ni_debug_dhcp("%s: ignoring DHCP4 offer from %s%s%s%s (blacklisted)",
 					dev->ifname, inet_ntoa(srv_addr),
 					sender ? " (" : "",
@@ -196,7 +206,9 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf, n
 		if (!dev->dhcp4.accept_any_offer) {
 
 			/* Check if we have any preferred servers. */
-			weight = ni_dhcp4_config_server_preference(srv_addr);
+			ni_capture_from_hwaddr_set(&hwaddr, from);
+			if (!(weight = ni_dhcp4_config_server_preference_ipaddr(srv_addr)))
+				weight = ni_dhcp4_config_server_preference_hwaddr(&hwaddr);
 
 			/* If we're refreshing an existing lease (eg after link disconnect
 			 * and reconnect), we accept the offer if it comes from the same
@@ -220,12 +232,16 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf, n
 					ni_dhcp4_device_set_best_offer(dev, lease, weight);
 					return 0;
 				}
-				goto out;
+				/* OK, but it is better than previous */
+			} else {
+				/* If the weight has maximum value, just accept this offer. */
+				ni_dhcp4_device_set_best_offer(dev, lease, weight);
+				lease = NULL;
 			}
-			/* If the weight has maximum value, just accept this offer. */
+		} else {
+			ni_dhcp4_device_set_best_offer(dev, lease, weight);
+			lease = NULL;
 		}
-		ni_dhcp4_device_set_best_offer(dev, lease, weight);
-		lease = NULL;
 	}
 
 	/* We've received a valid response; if something goes wrong now
