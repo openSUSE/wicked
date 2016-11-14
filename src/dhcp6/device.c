@@ -523,7 +523,6 @@ void
 ni_dhcp6_device_refresh_mode(ni_dhcp6_device_t *dev, ni_netdev_t *ifp)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_ipv6_devinfo_t *ipv6;
 
 	if (!nc || !dev || (!ifp && !(ifp = ni_dhcp6_device_netdev(dev))))
 		return;
@@ -538,9 +537,7 @@ ni_dhcp6_device_refresh_mode(ni_dhcp6_device_t *dev, ni_netdev_t *ifp)
 	 * to send a NEWLINK event, even other things in the RA, as
 	 * the managed/other-config flags we wait for changed.
 	 */
-	ipv6 = ni_netdev_get_ipv6(ifp);
-	if (!ipv6->radv.managed_addr && !ipv6->radv.other_config)
-		__ni_device_refresh_ipv6_link_info(nc, ifp);
+	__ni_device_refresh_ipv6_link_info(nc, ifp);
 
 	ni_dhcp6_device_update_mode(dev, ifp);
 }
@@ -1038,8 +1035,10 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 
 	ni_dhcp6_device_set_config(dev, config);
 
-	if (config->mode == NI_DHCP6_MODE_AUTO)
-		ni_dhcp6_device_update_mode(dev, NULL);
+	if (config->mode == NI_DHCP6_MODE_AUTO) {
+		/* refresh in case kernel forgot a newlink on RA */
+		ni_dhcp6_device_refresh_mode(dev, NULL);
+	}
 
 	if (config->mode == NI_DHCP6_MODE_AUTO) {
 		unsigned int deadline = 0;
@@ -1220,16 +1219,20 @@ void
 ni_dhcp6_prefix_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event,
 			const ni_ipv6_ra_pinfo_t *pi)
 {
-	ni_server_trace_interface_prefix_events(ifp, event, pi);
 	switch (event) {
 	case NI_EVENT_PREFIX_UPDATE:
-		ni_dhcp6_device_refresh_mode(dev, ifp);
 		if (dev->config && dev->config->mode == NI_DHCP6_MODE_AUTO) {
+			/* refresh in case kernel forgot a newlink on RA */
+			ni_dhcp6_device_refresh_mode(dev, ifp);
+			ni_server_trace_interface_prefix_events(ifp, event, pi);
 			ni_dhcp6_device_start(dev);
+		} else {
+			ni_server_trace_interface_prefix_events(ifp, event, pi);
 		}
 		break;
 
 	case NI_EVENT_PREFIX_DELETE:
+			ni_server_trace_interface_prefix_events(ifp, event, pi);
 	default:
 		break;
 	}
