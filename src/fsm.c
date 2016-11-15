@@ -2855,10 +2855,14 @@ ni_ifworker_type_from_object_path(const char *path, const char **suffix)
 unsigned int
 ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_array_t *result)
 {
+	void (*logit)(const char *, ...) __fmtattr;
 	unsigned int i;
 
 	if (ni_string_eq(match->name, "all")) {
 		match->name = NULL;
+		logit = ni_info;
+	} else {
+		logit = ni_note;
 	}
 
 	for (i = 0; i < fsm->workers.count; ++i) {
@@ -2883,27 +2887,27 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 
 		/* skipping ifworkers without xml configuration */
 		if (match->require_config && !w->config.node) {
-			ni_info("skipping %s interface: "
+			logit("skipping %s interface: "
 				"no configuration provided", w->name);
 			continue;
 		}
 		/* skipping ifworkers of interfaces not configured in the past */
 		if (match->require_configured &&
 		    ni_string_empty(w->config.meta.origin)) {
-			ni_info("skipping %s interface: "
+			logit("skipping %s interface: "
 				"device is not configured by wicked yet", w->name);
 			continue;
 		}
 		/* skipping ifworkers of interfaces in the persistent mode */
 		if (!match->allow_persistent && w->control.persistent) {
-			ni_info("skipping %s interface: "
+			logit("skipping %s interface: "
 				"persistent mode is on", w->name);
 			continue;
 		}
 
 		/* skipping ifworkers of interfaces user must not control */
 		if (!w->control.usercontrol && geteuid() != 0) {
-			ni_debug_application("skipping %s interface: "
+			logit("skipping %s interface: "
 				"user control is not allowed", w->name);
 			continue;
 		}
@@ -2944,8 +2948,8 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 			else {
 				if (w->masterdev) {
 					if (ni_ifworker_array_index(result, w->masterdev) < 0) {
-						ni_info("skipping %s interface: "
-							"unable to ifdown due to masterdev dependency to: %s",
+						logit("skipping %s interface: "
+							"unable to ifdown due to master device dependency to: %s",
 							w->name, w->masterdev->name);
 						continue;
 					}
@@ -2959,8 +2963,8 @@ ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_ar
 						ni_ifworker_t *dep = w->lowerdev_for.data[i];
 
 						if (ni_ifworker_array_index(result, dep) < 0) {
-							ni_info("skipping %s interface: "
-								"unable to ifdown due to lowerdev dependency to: %s",
+							logit("skipping %s interface: "
+								"unable to ifdown due to lower device dependency to: %s",
 								w->name, dep->name);
 							missing_dep = TRUE;
 						}
