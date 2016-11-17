@@ -256,7 +256,7 @@ ni_buffer_put_uint16(ni_buffer_t *bp, uint16_t value)
 static inline int
 ni_buffer_get_uint16(ni_buffer_t *bp, uint16_t *var)
 {
-	if (ni_buffer_put(bp, var, sizeof(*var)) < 0)
+	if (ni_buffer_get(bp, var, sizeof(*var)) < 0)
 		return -1;
 	*var = ntohs(*var);
 	return 0;
@@ -272,7 +272,7 @@ ni_buffer_put_uint32(ni_buffer_t *bp, uint32_t value)
 static inline int
 ni_buffer_get_uint32(ni_buffer_t *bp, uint32_t *var)
 {
-	if (ni_buffer_put(bp, var, sizeof(*var)) < 0)
+	if (ni_buffer_get(bp, var, sizeof(*var)) < 0)
 		return -1;
 	*var = ntohl(*var);
 	return 0;

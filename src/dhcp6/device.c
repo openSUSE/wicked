@@ -43,6 +43,7 @@
 #include "util_priv.h"
 #include "netinfo_priv.h"
 #include "duid.h"
+#include "dhcp.h"
 
 
 /*
@@ -84,7 +85,10 @@ static void			ni_dhcp6_device_free(ni_dhcp6_device_t *);
 static void			ni_dhcp6_device_set_config(ni_dhcp6_device_t *, ni_dhcp6_config_t *);
 
 static int			ni_dhcp6_device_transmit_arm_delay(ni_dhcp6_device_t *);
-static void			ni_dhcp6_device_retransmit_arm(ni_dhcp6_device_t *dev);
+static void			ni_dhcp6_device_retransmit_arm(ni_dhcp6_device_t *);
+
+static void			ni_dhcp6_device_config_free(ni_dhcp6_config_t *);
+static void			ni_dhcp6_config_set_request_options(const char *, ni_uint_array_t *, const ni_string_array_t *);
 
 
 /*
@@ -236,13 +240,14 @@ ni_dhcp6_device_set_request(ni_dhcp6_device_t *dev, ni_dhcp6_request_t *request)
  * Device handle config set helper
  */
 static void
-__ni_dhcp6_device_config_free(ni_dhcp6_config_t *config)
+ni_dhcp6_device_config_free(ni_dhcp6_config_t *config)
 {
 	if (config) {
 		ni_dhcp6_ia_list_destroy(&config->ia_list);
 		ni_string_array_destroy(&config->user_class);
 		ni_string_array_destroy(&config->vendor_class.data);
 		ni_var_array_destroy(&config->vendor_opts.data);
+		ni_uint_array_destroy(&config->request_options);
 		free(config);
 	}
 }
@@ -251,7 +256,7 @@ static void
 ni_dhcp6_device_set_config(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config)
 {
 	if (dev->config && dev->config != config)
-		__ni_dhcp6_device_config_free(dev->config);
+		ni_dhcp6_device_config_free(dev->config);
 	dev->config = config;
 }
 
@@ -981,7 +986,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	if(!ni_dhcp6_config_init_duid(dev, config, req->clientid)) {
 		size_t len;
 
-		__ni_dhcp6_device_config_free(config);
+		ni_dhcp6_device_config_free(config);
 		if ((len = ni_string_len(req->clientid))) {
 			ni_string_printf(err, "Unable to parse hex client DUID '%s'",
 				ni_print_suspect(req->clientid, len));
@@ -1022,6 +1027,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	/* TODO: get from req info */
 	ni_dhcp6_config_vendor_class(&config->vendor_class.en, &config->vendor_class.data);
 	ni_dhcp6_config_vendor_opts(&config->vendor_opts.en, &config->vendor_opts.data);
+	ni_dhcp6_config_set_request_options(dev->ifname, &config->request_options, &req->request_options);
 
 	/*
 	 * This basically fails only if we can't find netdev (any more)
@@ -1030,7 +1036,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 		ni_dhcp6_device_show_addrs(dev);
 		rv = ni_dhcp6_device_find_lladdr(dev);
 		if (rv < 0) {
-			__ni_dhcp6_device_config_free(config);
+			ni_dhcp6_device_config_free(config);
 			ni_string_dup(err, "Cannot read network device settings");
 			return -NI_ERROR_GENERAL_FAILURE;
 		}
@@ -1405,6 +1411,31 @@ ni_dhcp6_config_max_lease_time(void)
 	return ni_global.config->addrconf.dhcp6.lease_time;
 }
 
+static void
+ni_dhcp6_config_set_request_options(const char *ifname, ni_uint_array_t *cfg, const ni_string_array_t *req)
+{
+	const ni_config_dhcp6_t *dhconf = ni_config_dhcp6_find_device(ifname);
+	const ni_dhcp_option_decl_t *custom_options = dhconf ? dhconf->custom_options : NULL;
+	unsigned int i;
+
+	for (i = 0; i < req->count; ++i) {
+		const char *opt = req->data[i];
+		const ni_dhcp_option_decl_t *decl;
+		unsigned int code;
+
+		if ((decl = ni_dhcp_option_decl_list_find_by_name(custom_options, opt)))
+			code = decl->code;
+		else if (ni_parse_uint(opt, &code, 10) < 0)
+			continue;
+
+		if (!code || code >= 65535)
+			continue;
+
+		if (!ni_uint_array_contains(cfg, code))
+			ni_uint_array_append(cfg, code);
+	}
+}
+
 ni_string_array_t *
 ni_dhcp6_get_ia_addrs(struct ni_dhcp6_ia *ia_list, ni_var_array_t *p_lft, ni_var_array_t *v_lft)
 {
@@ -1477,6 +1508,7 @@ ni_dhcp6_request_free(ni_dhcp6_request_t *req)
 		ni_string_free(&req->hostname);
 		ni_string_free(&req->clientid);
 		ni_dhcp6_ia_list_destroy(&req->ia_list);
+		ni_string_array_destroy(&req->request_options);
 		/*
 		 * req->vendor_class
 		 * ....

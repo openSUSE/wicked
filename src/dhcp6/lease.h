@@ -27,15 +27,15 @@
 #define   __WICKED_DHCP6_LEASE_H__
 
 extern int
-ni_dhcp6_lease_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_dhcp6_lease_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 
 extern int
-ni_dhcp6_lease_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_dhcp6_lease_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 
 extern int
-ni_dhcp6_lease_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_dhcp6_lease_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 
 extern int
-ni_dhcp6_lease_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_dhcp6_lease_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 
 #endif /* __WICKED_DHCP6_LEASE_H__ */

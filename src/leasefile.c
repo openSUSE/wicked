@@ -135,12 +135,13 @@ __ni_string_array_to_xml(const ni_string_array_t *array, const char *name, xml_n
 }
 
 int
-ni_addrconf_lease_addrs_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_addrconf_lease_addrs_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
 	unsigned int count = 0;
 	xml_node_t *anode;
 	ni_address_t *ap;
 
+	(void)ifname;
 	for (ap = lease->addrs; ap; ap = ap->next) {
 		if (lease->family != ap->local_addr.ss_family ||
 			!ni_sockaddr_is_specified(&ap->local_addr))
@@ -178,7 +179,7 @@ ni_addrconf_lease_addrs_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t
 }
 
 int
-ni_addrconf_lease_routes_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_addrconf_lease_routes_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
 	ni_route_table_t *tab;
 	ni_route_nexthop_t *nh;
@@ -187,6 +188,7 @@ ni_addrconf_lease_routes_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_
 	unsigned int count = 0;
 	unsigned int i;
 
+	(void)ifname;
 	/* A very limitted view */
 	for (tab = lease->routes; tab; tab = tab->next) {
 		if (tab->tid != 254) /* RT_TABLE_MAIN for now */
@@ -222,11 +224,12 @@ ni_addrconf_lease_routes_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_
 }
 
 int
-ni_addrconf_lease_dns_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_addrconf_lease_dns_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
 	ni_resolver_info_t *dns;
 	unsigned int count = 0;
 
+	(void)ifname;
 	dns = lease->resolver;
 	if (!dns || (ni_string_empty(dns->default_domain) &&
 			dns->dns_servers.count == 0 &&
@@ -246,12 +249,14 @@ ni_addrconf_lease_dns_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 }
 
 int
-ni_addrconf_lease_nis_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_addrconf_lease_nis_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
 	unsigned int count = 0;
 	unsigned int i, j;
 	ni_nis_info_t *nis;
 	xml_node_t *data;
+
+	(void)ifname;
 
 	nis = lease->nis;
 	if (!nis)
@@ -307,16 +312,18 @@ ni_addrconf_lease_nis_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 }
 
 int
-ni_addrconf_lease_ntp_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_addrconf_lease_ntp_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
+	(void)ifname;
 	return __ni_string_array_to_xml(&lease->ntp_servers, "server", node);
 }
 
 int
-ni_addrconf_lease_nds_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_addrconf_lease_nds_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
 	unsigned int count = 0;
 
+	(void)ifname;
 	if (__ni_string_array_to_xml(&lease->nds_servers, "server", node) == 0)
 		count++;
 	if (__ni_string_array_to_xml(&lease->nds_context, "context", node) == 0)
@@ -329,11 +336,12 @@ ni_addrconf_lease_nds_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 }
 
 int
-ni_addrconf_lease_smb_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_addrconf_lease_smb_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
 	unsigned int count = 0;
 	const char *nbt;
 
+	(void)ifname;
 	if (__ni_string_array_to_xml(&lease->netbios_name_servers, "name-server", node) == 0)
 		count++;
 	if (__ni_string_array_to_xml(&lease->netbios_dd_servers, "dd-server", node) == 0)
@@ -350,16 +358,18 @@ ni_addrconf_lease_smb_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 }
 
 int
-ni_addrconf_lease_sip_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_addrconf_lease_sip_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
+	(void)ifname;
 	return __ni_string_array_to_xml(&lease->sip_servers, "server", node);
 }
 
 int
-ni_addrconf_lease_slp_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_addrconf_lease_slp_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
 	unsigned int count = 0;
 
+	(void)ifname;
 	if (__ni_string_array_to_xml(&lease->slp_scopes, "scopes", node) == 0)
 		count++;
 	if (__ni_string_array_to_xml(&lease->slp_servers, "server", node) == 0)
@@ -368,22 +378,25 @@ ni_addrconf_lease_slp_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 }
 
 int
-ni_addrconf_lease_lpr_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_addrconf_lease_lpr_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
+	(void)ifname;
 	return __ni_string_array_to_xml(&lease->lpr_servers, "server", node);
 }
 
 int
-ni_addrconf_lease_log_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_addrconf_lease_log_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
+	(void)ifname;
 	return __ni_string_array_to_xml(&lease->log_servers, "server", node);
 }
 
 int
-ni_addrconf_lease_ptz_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_addrconf_lease_ptz_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
 	unsigned int ret = 1;
 
+	(void)ifname;
 	if (!ni_string_empty(lease->posix_tz_string)) {
 		xml_node_new_element("posix-string", node, lease->posix_tz_string);
 		ret = 0;
@@ -395,41 +408,69 @@ ni_addrconf_lease_ptz_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 	return ret;
 }
 
-int
-ni_addrconf_lease_opts_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+static xml_node_t *
+ni_addrconf_lease_opts_data_unknown_to_xml(const ni_dhcp_option_t *opt)
 {
-	const ni_dhcp_option_t *options = NULL, *opt;
-	xml_node_t *child;
+	xml_node_t *node = NULL;
 	char *name = NULL;
 	char *hstr = NULL;
 
-	if (lease->family == AF_INET  && lease->type == NI_ADDRCONF_DHCP)
+	if (!ni_string_printf(&name, "unknown-%u", opt->code))
+		goto failure;
+
+	if (!(node = xml_node_new(name, NULL)))
+		goto failure;
+
+	xml_node_new_element_uint("code", node, opt->code);
+	if (opt->len && opt->data) {
+		if (!(hstr = ni_sprint_hex(opt->data, opt->len)))
+			goto failure;
+		xml_node_new_element("data", node, hstr);
+	}
+
+	return node;
+
+failure:
+	ni_string_free(&hstr);
+	ni_string_free(&name);
+	xml_node_free(node);
+	return NULL;
+}
+
+int
+ni_addrconf_lease_opts_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
+{
+	const ni_dhcp_option_t *options, *opt;
+	const ni_dhcp_option_decl_t *declared;
+
+	if (lease->family == AF_INET  && lease->type == NI_ADDRCONF_DHCP) {
+		const ni_config_dhcp4_t *config = ni_config_dhcp4_find_device(ifname);
+		declared = config ? config->custom_options : NULL;
 		options = lease->dhcp4.options;
-	else
-	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_DHCP)
+	} else
+	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_DHCP) {
+		const ni_config_dhcp6_t *config = ni_config_dhcp6_find_device(ifname);
+		declared = config ? config->custom_options : NULL;
 		options = lease->dhcp6.options;
-	else
+	} else
 		return 1;
 
 	for (opt = options; opt; opt = opt->next) {
+		const ni_dhcp_option_decl_t *decl;
+		xml_node_t *ret;
+
 		if (!opt->code)
 			continue;
-		if (!ni_string_printf(&name, "unknown-%u", opt->code))
-			continue;
 
-		if (!(child = xml_node_new(name, node)))
-			continue;
-
-		xml_node_new_element_uint("code", child, opt->code);
-		if (!opt->len || !opt->data)
-			continue;
-
-		if ((hstr = ni_sprint_hex(opt->data, opt->len))) {
-			xml_node_new_element("data", child, hstr);
-			free(hstr);
+		decl = ni_dhcp_option_decl_list_find_by_code(declared, opt->code);
+		if (decl) {
+			ret = ni_dhcp_option_to_xml(opt, decl);
+		} else {
+			ret = ni_addrconf_lease_opts_data_unknown_to_xml(opt);
 		}
+		if (ret)
+			xml_node_add_child(node, ret);
 	}
-	ni_string_free(&name);
 
 	if (node->children)
 		return 0;
@@ -437,7 +478,7 @@ ni_addrconf_lease_opts_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t 
 		return 1;
 }
 
-int
+static int
 __ni_addrconf_lease_info_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 {
 	char hex[32] = { '\0' };
@@ -456,11 +497,11 @@ __ni_addrconf_lease_info_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *no
 }
 
 static int
-ni_addrconf_lease_static_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_addrconf_lease_static_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
 	static const struct group_map {
 		const char *name;
-		int       (*func)(const ni_addrconf_lease_t *lease, xml_node_t *node);
+		int       (*func)(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 	} *g, group_map[] = {
 		{ NI_ADDRCONF_LEASE_XML_ADDRS_DATA_NODE, ni_addrconf_lease_addrs_data_to_xml },
 		{ NI_ADDRCONF_LEASE_XML_ROUTES_DATA_NODE, ni_addrconf_lease_routes_data_to_xml },
@@ -474,7 +515,7 @@ ni_addrconf_lease_static_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_
 
 	for (g = group_map; g && g->name && g->func; ++g) {
 		data = xml_node_new(g->name, NULL);
-		if (g->func(lease, data) == 0) {
+		if (g->func(lease, data, ifname) == 0) {
 			xml_node_add_child(node, data);
 		} else {
 			xml_node_free(data);
@@ -484,7 +525,7 @@ ni_addrconf_lease_static_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_
 }
 
 static int
-__ni_addrconf_lease_static_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+__ni_addrconf_lease_static_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
 	xml_node_t *data;
 	int ret = 1;
@@ -495,7 +536,7 @@ __ni_addrconf_lease_static_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 	if (!(data = ni_addrconf_lease_xml_new_type_node(lease, NULL)))
 		return -1;
 
-	if ((ret = ni_addrconf_lease_static_data_to_xml(lease, data)) == 0)
+	if ((ret = ni_addrconf_lease_static_data_to_xml(lease, data, ifname)) == 0)
 		xml_node_add_child(node, data);
 	else
 		xml_node_free(data);
@@ -503,20 +544,20 @@ __ni_addrconf_lease_static_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 }
 
 static int
-__ni_addrconf_lease_dhcp_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+__ni_addrconf_lease_dhcp_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
 	switch (lease->family) {
 	case AF_INET:
-		return ni_dhcp4_lease_to_xml(lease, node);
+		return ni_dhcp4_lease_to_xml(lease, node, ifname);
 	case AF_INET6:
-		return ni_dhcp6_lease_to_xml(lease, node);
+		return ni_dhcp6_lease_to_xml(lease, node, ifname);
 	default:
 		return -1;
 	}
 }
 
 int
-ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t **result)
+ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t **result, const char *ifname)
 {
 	xml_node_t *node;
 	int ret = -1;
@@ -535,7 +576,7 @@ ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t **result)
 		if ((ret = __ni_addrconf_lease_info_to_xml(lease, node)) != 0)
 			break;
 
-		if ((ret = __ni_addrconf_lease_static_to_xml(lease, node)) != 0)
+		if ((ret = __ni_addrconf_lease_static_to_xml(lease, node, ifname)) != 0)
 			break;
 		break;
 
@@ -543,7 +584,7 @@ ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t **result)
 		if ((ret = __ni_addrconf_lease_info_to_xml(lease, node)) != 0)
 			break;
 
-		if ((ret = __ni_addrconf_lease_dhcp_to_xml(lease, node)) != 0)
+		if ((ret = __ni_addrconf_lease_dhcp_to_xml(lease, node, ifname)) != 0)
 			break;
 
 		break;
@@ -607,7 +648,7 @@ __ni_addrconf_lease_info_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *
 }
 
 static int
-__ni_addrconf_lease_static_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+__ni_addrconf_lease_static_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	xml_node_t *child;
 
@@ -616,15 +657,15 @@ __ni_addrconf_lease_static_data_from_xml(ni_addrconf_lease_t *lease, const xml_n
 			ni_string_dup(&lease->hostname, child->cdata);
 		} else
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_ADDRS_DATA_NODE)) {
-			if (ni_addrconf_lease_addrs_data_from_xml(lease, child) < 0)
+			if (ni_addrconf_lease_addrs_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		}
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_ROUTES_DATA_NODE)) {
-			if (ni_addrconf_lease_routes_data_from_xml(lease, child) < 0)
+			if (ni_addrconf_lease_routes_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		}
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_DNS_DATA_NODE)) {
-			if (ni_addrconf_lease_dns_data_from_xml(lease, child) < 0)
+			if (ni_addrconf_lease_dns_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		}
 	}
@@ -632,7 +673,7 @@ __ni_addrconf_lease_static_data_from_xml(ni_addrconf_lease_t *lease, const xml_n
 }
 
 static int
-__ni_addrconf_lease_static_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+__ni_addrconf_lease_static_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	if (!node || !lease)
 		return -1;
@@ -640,25 +681,24 @@ __ni_addrconf_lease_static_from_xml(ni_addrconf_lease_t *lease, const xml_node_t
 	if (!(node = ni_addrconf_lease_xml_get_type_node(lease, node)))
 		return -1;
 
-	return __ni_addrconf_lease_static_data_from_xml(lease, node);
+	return __ni_addrconf_lease_static_data_from_xml(lease, node, ifname);
 }
 
 static int
-__ni_addrconf_lease_dhcp_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+__ni_addrconf_lease_dhcp_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	switch (lease->family) {
 	case AF_INET:
-		return ni_dhcp4_lease_from_xml(lease, node);
+		return ni_dhcp4_lease_from_xml(lease, node, ifname);
 	case AF_INET6:
-		return ni_dhcp6_lease_from_xml(lease, node);
+		return ni_dhcp6_lease_from_xml(lease, node, ifname);
 	default:
 		return -1;
 	}
 }
 
 static int
-__ni_addrconf_lease_addr_from_xml(ni_address_t **ap_list, unsigned int family,
-					const xml_node_t *node)
+__ni_addrconf_lease_addr_from_xml(ni_address_t **ap_list, unsigned int family, const xml_node_t *node)
 {
 	const xml_node_t *child;
 	ni_sockaddr_t addr;
@@ -721,10 +761,11 @@ failure:
 }
 
 int
-ni_addrconf_lease_addrs_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_addrconf_lease_addrs_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	const xml_node_t *child;
 
+	(void)ifname;
 	for (child = node->children; child; child = child->next) {
 		if (!ni_string_eq(child->name, "address"))
 			continue;
@@ -789,11 +830,12 @@ __ni_addrconf_lease_route_from_xml(ni_route_t *rp, const xml_node_t *node)
 }
 
 int
-ni_addrconf_lease_routes_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_addrconf_lease_routes_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	const xml_node_t *child;
 	ni_route_t *rp;
 
+	(void)ifname;
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, "route")) {
 			rp = ni_route_new();
@@ -814,11 +856,12 @@ ni_addrconf_lease_routes_data_from_xml(ni_addrconf_lease_t *lease, const xml_nod
 }
 
 int
-ni_addrconf_lease_dns_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_addrconf_lease_dns_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	ni_resolver_info_t *dns;
 	const xml_node_t *child;
 
+	(void)ifname;
 	if (!(dns = ni_resolver_info_new()))
 		return -1;
 
@@ -853,11 +896,11 @@ ni_addrconf_lease_dns_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t
 }
 
 int
-ni_addrconf_lease_dns_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_addrconf_lease_dns_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	if (!(node = xml_node_get_child(node, "dns")))
 		return 1;
-	return ni_addrconf_lease_dns_data_from_xml(lease, node);
+	return ni_addrconf_lease_dns_data_from_xml(lease, node, ifname);
 }
 
 int
@@ -895,11 +938,12 @@ __ni_addrconf_lease_nis_domain_from_xml(ni_nis_info_t *nis, const xml_node_t *no
 }
 
 int
-ni_addrconf_lease_nis_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_addrconf_lease_nis_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	const xml_node_t *child, *gc;
 	ni_nis_info_t *nis;
 
+	(void)ifname;
 	if (!(nis = ni_nis_info_new()))
 		return -1;
 
@@ -945,10 +989,11 @@ ni_addrconf_lease_nis_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t
 }
 
 int
-ni_addrconf_lease_nds_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_addrconf_lease_nds_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	const xml_node_t *child;
 
+	(void)ifname;
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, "tree") && !ni_string_empty(child->cdata)) {
 			ni_string_dup(&lease->nds_tree, child->cdata);
@@ -964,10 +1009,11 @@ ni_addrconf_lease_nds_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t
 }
 
 int
-ni_addrconf_lease_smb_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_addrconf_lease_smb_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	const xml_node_t *child;
 
+	(void)ifname;
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, "type") && child->cdata) {
 			if (!ni_netbios_node_type_to_code(child->cdata, &lease->netbios_type))
@@ -1000,16 +1046,18 @@ __ni_string_array_from_xml(ni_string_array_t *array, const char *name, const xml
 }
 
 int
-ni_addrconf_lease_ntp_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_addrconf_lease_ntp_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
+	(void)ifname;
 	return __ni_string_array_from_xml(&lease->ntp_servers, "server", node);
 }
 
 int
-ni_addrconf_lease_slp_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_addrconf_lease_slp_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	int ret;
 
+	(void)ifname;
 	if ((ret = __ni_string_array_from_xml(&lease->slp_servers, "server", node)) != 0)
 		return ret;
 	if ((ret = __ni_string_array_from_xml(&lease->slp_scopes, "scope", node)) != 0)
@@ -1018,28 +1066,32 @@ ni_addrconf_lease_slp_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t
 }
 
 int
-ni_addrconf_lease_sip_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_addrconf_lease_sip_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
+	(void)ifname;
 	return __ni_string_array_from_xml(&lease->sip_servers, "server", node);
 }
 
 int
-ni_addrconf_lease_log_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_addrconf_lease_log_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
+	(void)ifname;
 	return __ni_string_array_from_xml(&lease->log_servers, "server", node);
 }
 
 int
-ni_addrconf_lease_lpr_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_addrconf_lease_lpr_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
+	(void)ifname;
 	return __ni_string_array_from_xml(&lease->lpr_servers, "server", node);
 }
 
 int
-ni_addrconf_lease_ptz_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_addrconf_lease_ptz_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	const xml_node_t *child;
 
+	(void)ifname;
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, "posix-string") &&
 		    !ni_string_empty(child->cdata)) {
@@ -1053,47 +1105,75 @@ ni_addrconf_lease_ptz_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t
 	return 0;
 }
 
+static ni_dhcp_option_t *
+ni_addrconf_lease_opts_data_unknown_from_xml(const xml_node_t *node)
+{
+	const xml_node_t *cnode, *dnode;
+	ni_dhcp_option_t *opt;
+	unsigned char *data;
+	unsigned int code;
+	size_t size;
+	int len;
+
+	if (!(cnode = xml_node_get_child(node, "code")))
+		return NULL;
+
+	if (ni_parse_uint(cnode->cdata, &code, 10) != 0 || !code)
+		return NULL;
+
+	if (!(opt = ni_dhcp_option_new(code, 0, NULL)))
+		return NULL;
+
+	if (!(dnode = xml_node_get_child(node, "data")))
+		return opt;
+
+	if (!(size = ni_string_len(dnode->cdata)))
+		return opt;
+
+	size = (size / 3) + 1;
+	data = calloc(1, size);
+	if (data && (len = ni_parse_hex(dnode->cdata, data, size)) > 0) {
+		ni_dhcp_option_append(opt, len, data);
+		free(data);
+		return opt;
+	} else {
+		ni_dhcp_option_free(opt);
+		free(data);
+		return NULL;
+	}
+}
+
 int
-ni_addrconf_lease_opts_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_addrconf_lease_opts_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	ni_dhcp_option_t **options = NULL, *opt;
+	const ni_dhcp_option_decl_t *declared;
 	const xml_node_t *child;
 
 	if (!lease || !node)
 		return 1;
 
-	if (lease->family == AF_INET  && lease->type == NI_ADDRCONF_DHCP)
+	if (lease->family == AF_INET  && lease->type == NI_ADDRCONF_DHCP) {
+		const ni_config_dhcp4_t *config = ni_config_dhcp4_find_device(ifname);
+		declared = config ? config->custom_options : NULL;
 		options = &lease->dhcp4.options;
-	else
-	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_DHCP)
+	} else
+	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_DHCP) {
+		const ni_config_dhcp6_t *config = ni_config_dhcp6_find_device(ifname);
+		declared = config ? config->custom_options : NULL;
 		options = &lease->dhcp6.options;
-	else
+	} else
 		return 1;
 
 	for (child = node->children; child; child = child->next) {
-		const xml_node_t *cnode, *dnode;
-		unsigned int code, len;
-		unsigned char *data;
-		size_t size;
+		const ni_dhcp_option_decl_t *decl;
 
-		if (!(cnode = xml_node_get_child(child, "code")))
-			continue;
-		if (ni_parse_uint(cnode->cdata, &code, 10) != 0 || !code)
-			continue;
-
-		if ((dnode = xml_node_get_child(child, "data"))) {
-			if (!(size = ni_string_len(dnode->cdata)))
-				continue;
-
-			size = (size / 3) + 1;
-			if (!(data = calloc(1, size)))
-				continue;
-
-			len = ni_parse_hex(dnode->cdata, data, size);
-			opt = ni_dhcp_option_new(code, len, data);
-			free(data);
+		opt  = NULL;
+		decl = ni_dhcp_option_decl_list_find_by_name(declared, child->name);
+		if (decl) {
+			opt = ni_dhcp_option_from_xml(child, decl);
 		} else {
-			opt = ni_dhcp_option_new(code, 0, NULL);
+			opt = ni_addrconf_lease_opts_data_unknown_from_xml(child);
 		}
 		if (!ni_dhcp_option_list_append(options, opt))
 			ni_dhcp_option_free(opt);
@@ -1102,7 +1182,7 @@ ni_addrconf_lease_opts_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_
 }
 
 int
-ni_addrconf_lease_from_xml(ni_addrconf_lease_t **leasep, const xml_node_t *root)
+ni_addrconf_lease_from_xml(ni_addrconf_lease_t **leasep, const xml_node_t *root, const char *ifname)
 {
 	const xml_node_t *node = root;
 	ni_addrconf_lease_t *lease;
@@ -1127,11 +1207,11 @@ ni_addrconf_lease_from_xml(ni_addrconf_lease_t **leasep, const xml_node_t *root)
 	case NI_ADDRCONF_STATIC:
 	case NI_ADDRCONF_AUTOCONF:
 	case NI_ADDRCONF_INTRINSIC:
-		ret = __ni_addrconf_lease_static_from_xml(lease, node);
+		ret = __ni_addrconf_lease_static_from_xml(lease, node, ifname);
 		break;
 
 	case NI_ADDRCONF_DHCP:
-		ret = __ni_addrconf_lease_dhcp_from_xml(lease, node);
+		ret = __ni_addrconf_lease_dhcp_from_xml(lease, node, ifname);
 		break;
 	default: ;		/* fall through error */
 	}
@@ -1178,7 +1258,7 @@ ni_addrconf_lease_file_write(const char *ifname, ni_addrconf_lease_t *lease)
 	}
 
 	ni_debug_dhcp("Preparing xml lease data for '%s'", filename);
-	if ((ret = ni_addrconf_lease_to_xml(lease, &xml)) != 0) {
+	if ((ret = ni_addrconf_lease_to_xml(lease, &xml, ifname)) != 0) {
 		if (ret > 0) {
 			ni_debug_dhcp("Skipped, %s:%s leases are disabled",
 		                        ni_addrfamily_type_to_name(lease->family),
@@ -1303,7 +1383,7 @@ ni_addrconf_lease_file_read(const char *ifname, int type, int family)
 		return NULL;
 	}
 
-	if (ni_addrconf_lease_from_xml(&lease, xml) < 0) {
+	if (ni_addrconf_lease_from_xml(&lease, xml, ifname) < 0) {
 		ni_error("Unable to parse xml lease file '%s'", filename);
 		ni_string_free(&filename);
 		xml_node_free(xml);

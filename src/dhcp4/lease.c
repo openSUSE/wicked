@@ -125,11 +125,11 @@ __ni_dhcp4_lease_head_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 }
 
 int
-ni_dhcp4_lease_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_dhcp4_lease_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
 	static const struct group_map {
 		const char *name;
-		int       (*func)(const ni_addrconf_lease_t *lease, xml_node_t *node);
+		int       (*func)(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 	} *g, group_map[] = {
 		{ NI_ADDRCONF_LEASE_XML_ROUTES_DATA_NODE, ni_addrconf_lease_routes_data_to_xml },
 		{ NI_ADDRCONF_LEASE_XML_DNS_DATA_NODE, ni_addrconf_lease_dns_data_to_xml },
@@ -158,7 +158,7 @@ ni_dhcp4_lease_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 
 	for (g = group_map; g && g->name && g->func; ++g) {
 		data = xml_node_new(g->name, NULL);
-		if (g->func(lease, data) == 0) {
+		if (g->func(lease, data, ifname) == 0) {
 			xml_node_add_child(node, data);
 		} else {
 			xml_node_free(data);
@@ -169,7 +169,7 @@ ni_dhcp4_lease_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 }
 
 int
-ni_dhcp4_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
+ni_dhcp4_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, const char *ifname)
 {
 	xml_node_t *data;
 	int ret;
@@ -180,7 +180,7 @@ ni_dhcp4_lease_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 	if (!(data = ni_addrconf_lease_xml_new_type_node(lease, NULL)))
 		return -1;
 
-	if ((ret = ni_dhcp4_lease_data_to_xml(lease, data)) == 0)
+	if ((ret = ni_dhcp4_lease_data_to_xml(lease, data, ifname)) == 0)
 		xml_node_add_child(node, data);
 	else
 		xml_node_free(data);
@@ -214,7 +214,7 @@ __ni_dhcp4_lease_boot_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *nod
 }
 
 int
-ni_dhcp4_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_dhcp4_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	xml_node_t *child;
 	unsigned int value;
@@ -295,52 +295,52 @@ ni_dhcp4_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 		} else
 
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_ROUTES_DATA_NODE)) {
-			if (ni_addrconf_lease_routes_data_from_xml(lease, child) < 0)
+			if (ni_addrconf_lease_routes_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		} else
 
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_DNS_DATA_NODE)) {
-			if (ni_addrconf_lease_dns_data_from_xml(lease, child) < 0)
+			if (ni_addrconf_lease_dns_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		} else
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_NTP_DATA_NODE)) {
-			if (ni_addrconf_lease_ntp_data_from_xml(lease, child) < 0)
+			if (ni_addrconf_lease_ntp_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		} else
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_NIS_DATA_NODE)) {
-			if (ni_addrconf_lease_nis_data_from_xml(lease, child) < 0)
+			if (ni_addrconf_lease_nis_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		} else
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_NDS_DATA_NODE)) {
-			if (ni_addrconf_lease_nds_data_from_xml(lease, child) < 0)
+			if (ni_addrconf_lease_nds_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		} else
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_SMB_DATA_NODE)) {
-			if (ni_addrconf_lease_smb_data_from_xml(lease, child) < 0)
+			if (ni_addrconf_lease_smb_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		} else
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_SIP_DATA_NODE)) {
-			if (ni_addrconf_lease_sip_data_from_xml(lease, child) < 0)
+			if (ni_addrconf_lease_sip_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		} else
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_SLP_DATA_NODE)) {
-			if (ni_addrconf_lease_slp_data_from_xml(lease, child) < 0)
+			if (ni_addrconf_lease_slp_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		} else
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_LOG_DATA_NODE)) {
-			if (ni_addrconf_lease_log_data_from_xml(lease, child) < 0)
+			if (ni_addrconf_lease_log_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		} else
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_LPR_DATA_NODE)) {
-			if (ni_addrconf_lease_lpr_data_from_xml(lease, child) < 0)
+			if (ni_addrconf_lease_lpr_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		} else
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_PTZ_DATA_NODE)) {
-			if (ni_addrconf_lease_ptz_data_from_xml(lease, child) < 0)
+			if (ni_addrconf_lease_ptz_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		} else
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_OPTS_DATA_NODE)) {
-			if (ni_addrconf_lease_opts_data_from_xml(lease, child) < 0)
+			if (ni_addrconf_lease_opts_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		}
 	}
@@ -348,7 +348,7 @@ ni_dhcp4_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 }
 
 int
-ni_dhcp4_lease_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
+ni_dhcp4_lease_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node, const char *ifname)
 {
 	if (!node || !lease)
 		return -1;
@@ -359,5 +359,5 @@ ni_dhcp4_lease_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node)
 	if (!(node = ni_addrconf_lease_xml_get_type_node(lease, node)))
 		return -1;
 
-	return ni_dhcp4_lease_data_from_xml(lease, node);
+	return ni_dhcp4_lease_data_from_xml(lease, node, ifname);
 }

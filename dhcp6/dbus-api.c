@@ -291,6 +291,8 @@ static ni_dbus_class_t		ni_objectmodel_dhcp6_request_class = {
 	NI_DBUS_GENERIC_BOOL_PROPERTY(dhcp6_request, dbus_name, member_name, rw)
 #define DHCP6REQ_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __dhcp6_request, rw)
+#define DHCP6REQ_STRING_ARRAY_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_STRING_ARRAY_PROPERTY(dhcp6_request, dbus_name, member_name, rw)
 
 static ni_dhcp6_request_t *
 __ni_objectmodel_get_dhcp6_request(const ni_dbus_object_t *object, DBusError *error)
@@ -330,6 +332,7 @@ static ni_dbus_property_t	dhcp6_request_properties[] = {
 	DHCP6REQ_BOOL_PROPERTY(release-lease, release_lease, RO),
 	DHCP6REQ_UINT_PROPERTY(update, update, RO),
 	DHCP6REQ_STRING_PROPERTY(hostname, hostname, RO),
+	DHCP6REQ_STRING_ARRAY_PROPERTY(request-options, request_options, RO),
 	{ NULL },
 };
 

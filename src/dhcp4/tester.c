@@ -95,7 +95,7 @@ ni_dhcp4_tester_protocol_event(enum ni_dhcp4_event ev, const ni_dhcp4_device_t *
 			if (dhcp4_tester_opts.outfmt == NI_DHCP4_TESTER_OUT_LEASE_XML) {
 				xml_node_t *xml = NULL;
 
-				if (ni_addrconf_lease_to_xml(lease, &xml) != 0) {
+				if (ni_addrconf_lease_to_xml(lease, &xml, dev->ifname) != 0) {
 					if (dhcp4_tester_opts.output)
 						fclose(fp);
 					dhcp4_tester_status = NI_WICKED_RC_ERROR;
@@ -177,6 +177,14 @@ ni_dhcp4_tester_req_xml_init(ni_dhcp4_request_t *req, xml_document_t *doc)
 		if (ni_string_eq(child->name, "release-lease")) {
 			if (ni_parse_boolean(child->cdata, &req->release_lease) != 0)
 				goto failure;
+		} else
+		if (ni_string_eq(child->name, "request-options")) {
+			xml_node_t *opt;
+			for (opt = child->children; opt; opt = opt->next) {
+				if (ni_string_empty(opt->cdata))
+					continue;
+				ni_string_array_append(&req->request_options, opt->cdata);
+			}
 		}
 	}
 

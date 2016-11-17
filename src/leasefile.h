@@ -75,62 +75,62 @@ ni_addrconf_lease_xml_get_type_node(const ni_addrconf_lease_t *, const xml_node_
  * convert lease / data to xml
  */
 extern int
-ni_addrconf_lease_addrs_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_addrconf_lease_addrs_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_routes_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_addrconf_lease_routes_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_dns_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_addrconf_lease_dns_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_nis_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_addrconf_lease_nis_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_ntp_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_addrconf_lease_ntp_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_nds_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_addrconf_lease_nds_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_smb_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_addrconf_lease_smb_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_sip_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_addrconf_lease_sip_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_slp_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_addrconf_lease_slp_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_log_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_addrconf_lease_log_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_lpr_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_addrconf_lease_lpr_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_ptz_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_addrconf_lease_ptz_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_opts_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *);
+ni_addrconf_lease_opts_data_to_xml(const ni_addrconf_lease_t *, xml_node_t *, const char *);
 
 
 /*
  * convert xml to lease / data
  */
 extern int
-ni_addrconf_lease_addrs_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_addrconf_lease_addrs_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_routes_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_addrconf_lease_routes_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_dns_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_addrconf_lease_dns_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_nis_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_addrconf_lease_nis_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_ntp_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_addrconf_lease_ntp_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_nds_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_addrconf_lease_nds_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_smb_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_addrconf_lease_smb_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_sip_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_addrconf_lease_sip_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_slp_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_addrconf_lease_slp_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_log_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_addrconf_lease_log_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_lpr_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_addrconf_lease_lpr_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_ptz_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_addrconf_lease_ptz_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 extern int
-ni_addrconf_lease_opts_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *);
+ni_addrconf_lease_opts_data_from_xml(ni_addrconf_lease_t *, const xml_node_t *, const char *);
 
 
 #endif /* __WICKED_ADDRCONF_LEASEFILE_H__ */

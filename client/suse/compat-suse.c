@@ -70,6 +70,7 @@
 #include "appconfig.h"
 #include "util_priv.h"
 #include "duid.h"
+#include "dhcp.h"
 #include "client/suse/ifsysctl.h"
 #include "client/wicked-client.h"
 
@@ -4629,7 +4630,9 @@ __ni_suse_parse_dhcp4_user_class(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 }
 
 static void
-__ni_suse_parse_dhcp4_req_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, const char *prefix)
+__ni_suse_parse_dhcp_req_options(const ni_sysconfig_t *sc, ni_string_array_t *options,
+				const char *prefix, const ni_dhcp_option_decl_t *custom,
+				unsigned int code_min, unsigned int code_max)
 {
 	ni_string_array_t vars = NI_STRING_ARRAY_INIT;
 	ni_string_array_t opts = NI_STRING_ARRAY_INIT;
@@ -4642,12 +4645,28 @@ __ni_suse_parse_dhcp4_req_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *
 		value = ni_sysconfig_get_value(sc, vars.data[i]);
 		ni_string_split(&opts, value, " ", 0);
 		for (j = 0; j < opts.count; ++j) {
+			const ni_dhcp_option_decl_t *decl;
 			const char *opt = opts.data[j];
 
-			/* numeric option codes only for now */
-			if (ni_parse_uint(opt, &code, 10) || !code || code >= 255)
+			if ((decl = ni_dhcp_option_decl_list_find_by_name(custom, opt)))
+				opt = decl->name;
+			else
+			if (ni_parse_uint(opt, &code, 10)) {
+				ni_warn("%s: Cannot parse %s option code '%s'",
+						ni_basename(sc->pathname), vars.data[i],
+						opt);
 				continue;
-			ni_string_array_append(&compat->dhcp4.request_options, opt);
+			} else
+			if (code < code_min || code_max < code) {
+				ni_warn("%s: %s option code %u is out of range (%u..%u)",
+						ni_basename(sc->pathname), vars.data[i],
+						code, code_min, code_max);
+				continue;
+			} else
+			if ((decl = ni_dhcp_option_decl_list_find_by_code(custom, code)))
+				opt = decl->name;
+
+			ni_string_array_append(options, opt);
 		}
 		ni_string_array_destroy(&opts);
 	}
@@ -4658,7 +4677,8 @@ __ni_suse_parse_dhcp4_req_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *
  * Process DHCPv4 addrconf
  */
 static ni_bool_t
-__ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+__ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat,
+				const ni_config_dhcp4_t *config)
 {
 	const char *string;
 	unsigned int uint;
@@ -4740,8 +4760,9 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 		}
 	}
 
-	__ni_suse_parse_dhcp4_req_options(sc, compat, "DHCLIENT_REQUEST_OPTION");
-
+	__ni_suse_parse_dhcp_req_options(sc, &compat->dhcp4.request_options,
+					"DHCLIENT_REQUEST_OPTION", config ?
+					config->custom_options : NULL, 1, 254);
 	return ret;
 }
 
@@ -4749,7 +4770,8 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
  * Process DHCPv6 addrconf
  */
 static ni_bool_t
-__ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+__ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat,
+				const ni_config_dhcp6_t *config)
 {
 	ni_bool_t ret = TRUE;
 	unsigned int uint;
@@ -4828,12 +4850,17 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 		}
 	}
 
+	__ni_suse_parse_dhcp_req_options(sc, &compat->dhcp6.request_options,
+					"DHCLIENT6_REQUEST_OPTION", config ?
+					config->custom_options : NULL, 1, 65534);
+
 	return ret;
 }
 
 static ni_bool_t
 __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
 {
+	const ni_config_dhcp4_t *config = NULL;
 	ni_netdev_t *dev = compat->dev;
 	ni_sysconfig_t *merged;
 
@@ -4850,8 +4877,9 @@ __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 	compat->dhcp4.recover_lease = TRUE;
 	compat->dhcp4.release_lease = FALSE;
 
+	config = ni_config_dhcp4_find_device(dev->name);
 	if ((merged = ni_sysconfig_merge_defaults(sc, __ni_suse_dhcp_defaults))) {
-		__ni_suse_addrconf_dhcp4_options(merged, compat);
+		__ni_suse_addrconf_dhcp4_options(merged, compat, config);
 		ni_sysconfig_destroy(merged);
 	}
 
@@ -4863,6 +4891,7 @@ __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 static ni_bool_t
 __ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_bool_t required)
 {
+	const ni_config_dhcp6_t *config = NULL;
 	ni_netdev_t *dev = compat->dev;
 	ni_sysconfig_t *merged;
 
@@ -4877,8 +4906,9 @@ __ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 	compat->dhcp6.recover_lease = TRUE;
 	compat->dhcp6.release_lease = FALSE;
 
+	config = ni_config_dhcp6_find_device(dev->name);
 	if ((merged = ni_sysconfig_merge_defaults(sc, __ni_suse_dhcp_defaults))) {
-		__ni_suse_addrconf_dhcp6_options(merged, compat);
+		__ni_suse_addrconf_dhcp6_options(merged, compat, config);
 		ni_sysconfig_destroy(merged);
 	}
 

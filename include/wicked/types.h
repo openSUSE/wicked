@@ -160,4 +160,9 @@ typedef struct ni_ipv6_cache_info {
 typedef struct ni_ipv6_ra_info	ni_ipv6_ra_info_t;
 typedef struct ni_ipv6_ra_pinfo	ni_ipv6_ra_pinfo_t;
 
+/*
+ * Custom dhcp option declaration
+ */
+typedef struct ni_dhcp_option_decl ni_dhcp_option_decl_t;
+
 #endif /* __WICKED_TYPES_H__ */

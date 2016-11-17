@@ -24,6 +24,7 @@
 #include "util_priv.h"
 #include "appconfig.h"
 #include "xml-schema.h"
+#include "dhcp.h"
 
 static const char *__ni_ifconfig_source_types[] = {
 	"firmware:",
@@ -32,9 +33,9 @@ static const char *__ni_ifconfig_source_types[] = {
 	NULL
 };
 
-static ni_bool_t	ni_config_parse_addrconf_dhcp4(struct ni_config_dhcp4 *, xml_node_t *);
-static ni_bool_t	ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *, xml_node_t *);
-static ni_bool_t	ni_config_parse_addrconf_auto6(struct ni_config_auto6 *, xml_node_t *);
+static ni_bool_t	ni_config_parse_addrconf_dhcp4(ni_config_t *, xml_node_t *);
+static ni_bool_t	ni_config_parse_addrconf_dhcp6(ni_config_t *, xml_node_t *);
+static ni_bool_t	ni_config_parse_addrconf_auto6(ni_config_auto6_t *, xml_node_t *);
 static void		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static void		ni_config_parse_fslocation(ni_config_fslocation_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_objectmodel_extension(ni_extension_t **, xml_node_t *);
@@ -85,6 +86,141 @@ ni_config_new()
 	return conf;
 }
 
+static ni_config_dhcp4_t *
+ni_config_dhcp4_new(void)
+{
+	return calloc(1, sizeof(ni_config_dhcp4_t));
+}
+static ni_config_dhcp4_t *
+ni_config_dhcp4_clone(const ni_config_dhcp4_t *src, const char *device)
+{
+	ni_config_dhcp4_t *dst;
+
+	if (!src || !(dst = ni_config_dhcp4_new()))
+		return NULL;
+
+	ni_string_dup(&dst->device, device);
+
+	dst->lease_time = src->lease_time;
+	dst->allow_update = src->allow_update;
+	ni_string_dup(&dst->vendor_class, src->vendor_class);
+	ni_string_array_copy(&dst->ignore_servers, &src->ignore_servers);
+	memcpy(&dst->preferred_server, &src->preferred_server, sizeof(dst->preferred_server));
+	ni_dhcp_option_decl_list_copy(&dst->custom_options, src->custom_options);
+	return dst;
+}
+static void
+ni_config_dhcp4_destroy(ni_config_dhcp4_t *dhcp4)
+{
+	ni_string_free(&dhcp4->vendor_class);
+	ni_string_array_destroy(&dhcp4->ignore_servers);
+	ni_dhcp_option_decl_list_destroy(&dhcp4->custom_options);
+
+	ni_string_free(&dhcp4->device);
+	if (dhcp4->next) {
+		ni_config_dhcp4_destroy(dhcp4->next);
+		free(dhcp4->next);
+	}
+}
+static ni_config_dhcp4_t *
+ni_config_dhcp4_list_find(ni_config_dhcp4_t *list, const char *device)
+{
+	ni_config_dhcp4_t *dhcp;
+
+	/* search at device specific list->next */
+	for (dhcp = list ? list->next : NULL; dhcp; dhcp = dhcp->next) {
+		if (ni_string_eq(dhcp->device, device))
+			return dhcp;
+	}
+	return NULL;
+}
+const ni_config_dhcp4_t *
+ni_config_dhcp4_find_device(const char *device)
+{
+	ni_config_dhcp4_t *dhcp;
+	ni_config_t *conf;
+
+	if (!(conf = ni_global.config))
+		return NULL;
+
+	if ((dhcp = ni_config_dhcp4_list_find(&conf->addrconf.dhcp4, device)))
+		return dhcp;
+
+	return &conf->addrconf.dhcp4;
+}
+
+static ni_config_dhcp6_t *
+ni_config_dhcp6_new(void)
+{
+	return calloc(1, sizeof(ni_config_dhcp6_t));
+}
+static ni_config_dhcp6_t *
+ni_config_dhcp6_clone(const ni_config_dhcp6_t *src, const char *device)
+{
+	ni_config_dhcp6_t *dst;
+
+	if (!src || !(dst = ni_config_dhcp6_new()))
+		return NULL;
+
+	ni_string_dup(&dst->device, device);
+
+	dst->lease_time = src->lease_time;
+	dst->allow_update = src->allow_update;
+	ni_string_dup(&dst->default_duid, src->default_duid);
+
+	ni_string_array_copy(&dst->user_class_data, &src->user_class_data);
+	dst->vendor_class_en = src->vendor_class_en;
+	ni_string_array_copy(&dst->vendor_class_data, &src->vendor_class_data);
+	dst->vendor_opts_en = src->vendor_opts_en;
+	ni_var_array_copy(&dst->vendor_opts_data, &src->vendor_opts_data);
+	ni_string_array_copy(&dst->ignore_servers, &src->ignore_servers);
+	memcpy(&dst->preferred_server, &src->preferred_server, sizeof(dst->preferred_server));
+	ni_dhcp_option_decl_list_copy(&dst->custom_options, src->custom_options);
+	return dst;
+}
+static void
+ni_config_dhcp6_destroy(ni_config_dhcp6_t *dhcp6)
+{
+	ni_string_free(&dhcp6->default_duid);
+	ni_string_array_destroy(&dhcp6->user_class_data);
+	ni_string_array_destroy(&dhcp6->vendor_class_data);
+	ni_var_array_destroy(&dhcp6->vendor_opts_data);
+	ni_string_array_destroy(&dhcp6->ignore_servers);
+	ni_dhcp_option_decl_list_destroy(&dhcp6->custom_options);
+
+	ni_string_free(&dhcp6->device);
+	if (dhcp6->next) {
+		ni_config_dhcp6_destroy(dhcp6->next);
+		free(dhcp6->next);
+	}
+}
+static ni_config_dhcp6_t *
+ni_config_dhcp6_list_find(ni_config_dhcp6_t *list, const char *device)
+{
+	ni_config_dhcp6_t *dhcp;
+
+	/* search at device specific list->next */
+	for (dhcp = list ? list->next : NULL; dhcp; dhcp = dhcp->next) {
+		if (ni_string_eq(dhcp->device, device))
+			return dhcp;
+	}
+	return NULL;
+}
+const ni_config_dhcp6_t *
+ni_config_dhcp6_find_device(const char *device)
+{
+	ni_config_dhcp6_t *dhcp;
+	ni_config_t *conf;
+
+	if (!(conf = ni_global.config))
+		return NULL;
+
+	if ((dhcp = ni_config_dhcp6_list_find(&conf->addrconf.dhcp6, device)))
+		return dhcp;
+
+	return &conf->addrconf.dhcp6;
+}
+
 void
 ni_config_free(ni_config_t *conf)
 {
@@ -100,6 +236,10 @@ ni_config_free(ni_config_t *conf)
 	ni_config_fslocation_destroy(&conf->storedir);
 	ni_config_fslocation_destroy(&conf->statedir);
 	ni_config_fslocation_destroy(&conf->backupdir);
+
+	ni_config_dhcp4_destroy(&conf->addrconf.dhcp4);
+	ni_config_dhcp6_destroy(&conf->addrconf.dhcp6);
+
 	free(conf);
 }
 
@@ -211,11 +351,11 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 					ni_config_parse_update_targets(&conf->addrconf.default_allow_update, gchild);
 
 				if (!strcmp(gchild->name, "dhcp4")
-				 && !ni_config_parse_addrconf_dhcp4(&conf->addrconf.dhcp4, gchild))
+				 && !ni_config_parse_addrconf_dhcp4(conf, gchild))
 					goto failed;
 
 				if (!strcmp(gchild->name, "dhcp6")
-				 && !ni_config_parse_addrconf_dhcp6(&conf->addrconf.dhcp6, gchild))
+				 && !ni_config_parse_addrconf_dhcp6(conf, gchild))
 					goto failed;
 
 				if (!strcmp(gchild->name, "auto6")
@@ -324,8 +464,22 @@ too_long:
 	return NULL;
 }
 
-ni_bool_t
-ni_config_parse_addrconf_dhcp4(struct ni_config_dhcp4 *dhcp4, xml_node_t *node)
+static ni_bool_t
+ni_config_parse_dhcp4_definitions(struct ni_config_dhcp4 *dhcp4, xml_node_t *node)
+{
+	xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "option")) {
+			ni_dhcp_option_decl_parse_xml(&dhcp4->custom_options, child,
+							1, 254, "dhcp4", 5);
+		}
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+ni_config_parse_addrconf_dhcp4_nodes(ni_config_dhcp4_t *dhcp4, xml_node_t *node)
 {
 	xml_node_t *child;
 
@@ -375,10 +529,50 @@ ni_config_parse_addrconf_dhcp4(struct ni_config_dhcp4 *dhcp4, xml_node_t *node)
 		if (!strcmp(child->name, "allow-update")) {
 			ni_config_parse_update_targets(&dhcp4->allow_update, child);
 			dhcp4->allow_update &= ni_config_addrconf_update_mask_dhcp4();
+		} else
+		if (ni_string_eq(child->name, "define")) {
+			ni_config_parse_dhcp4_definitions(dhcp4, child);
 		}
 	}
 	return TRUE;
 }
+
+static ni_bool_t
+ni_config_parse_addrconf_dhcp4(ni_config_t *conf, xml_node_t *node)
+{
+	ni_config_dhcp4_t *dhcp4 = &conf->addrconf.dhcp4;
+	ni_config_dhcp4_t **tail;
+	xml_node_t *child;
+	const char *name;
+
+	if (!ni_config_parse_addrconf_dhcp4_nodes(dhcp4, node))
+		return FALSE;
+
+	for (child = node->children; child; child = child->next) {
+		if (!ni_string_eq(child->name, "device") || !child->children)
+			continue;
+
+		name = xml_node_get_attr(child, "name");
+		if (ni_string_empty(name)) {
+			ni_warn("%s: <%s> element lacks name attribute",
+				xml_node_location(child), child->name);
+			continue;
+		}
+
+		if (!(dhcp4 = ni_config_dhcp4_list_find(&conf->addrconf.dhcp4, name))) {
+			tail = &conf->addrconf.dhcp4.next;
+			while ((dhcp4 = *tail))
+				tail = &dhcp4->next;
+
+			dhcp4 = ni_config_dhcp4_clone(&conf->addrconf.dhcp4, name);
+			*tail = dhcp4;
+		}
+		ni_config_parse_addrconf_dhcp4_nodes(dhcp4, child);
+	}
+
+	return TRUE;
+}
+
 
 static int
 __ni_config_parse_dhcp6_class_data(xml_node_t *node, ni_string_array_t *data, const char *parent)
@@ -551,10 +745,27 @@ __ni_config_parse_dhcp6_vendor_opts_nodes(xml_node_t *node, ni_var_array_t *opts
 	return 0;
 }
 
-ni_bool_t
-ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
+static ni_bool_t
+ni_config_parse_dhcp6_definitions(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 {
 	xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "option")) {
+			ni_dhcp_option_decl_parse_xml(&dhcp6->custom_options, child,
+							1, 65534, "dhcp6", 5);
+		}
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
+{
+	xml_node_t *child;
+
+	if (!dhcp6 || !node)
+		return FALSE;
 
 	for (child = node->children; child; child = child->next) {
 		const char *attrval;
@@ -688,13 +899,52 @@ ni_config_parse_addrconf_dhcp6(struct ni_config_dhcp6 *dhcp6, xml_node_t *node)
 		if (!strcmp(child->name, "allow-update")) {
 			ni_config_parse_update_targets(&dhcp6->allow_update, child);
 			dhcp6->allow_update &= ni_config_addrconf_update_mask_dhcp6();
+		} else
+		if (ni_string_eq(child->name, "define")) {
+			ni_config_parse_dhcp6_definitions(dhcp6, child);
 		}
 	}
 	return TRUE;
 }
 
+static ni_bool_t
+ni_config_parse_addrconf_dhcp6(ni_config_t *conf, xml_node_t *node)
+{
+	ni_config_dhcp6_t *dhcp6 = &conf->addrconf.dhcp6;
+	ni_config_dhcp6_t **tail;
+	xml_node_t *child;
+	const char *name;
+
+	if (!ni_config_parse_addrconf_dhcp6_nodes(dhcp6, node))
+		return FALSE;
+
+	for (child = node->children; child; child = child->next) {
+		if (!ni_string_eq(child->name, "device") || !child->children)
+			continue;
+
+		name = xml_node_get_attr(child, "name");
+		if (ni_string_empty(name)) {
+			ni_warn("%s: <%s> element lacks name attribute",
+				xml_node_location(child), child->name);
+			continue;
+		}
+
+		if (!(dhcp6 = ni_config_dhcp6_list_find(&conf->addrconf.dhcp6, name))) {
+			tail = &conf->addrconf.dhcp6.next;
+			while ((dhcp6 = *tail))
+				tail = &dhcp6->next;
+
+			dhcp6 = ni_config_dhcp6_clone(&conf->addrconf.dhcp6, name);
+			*tail = dhcp6;
+		}
+		ni_config_parse_addrconf_dhcp6_nodes(dhcp6, child);
+	}
+
+	return TRUE;
+}
+
 ni_bool_t
-ni_config_parse_addrconf_auto6(struct ni_config_auto6 *auto6, xml_node_t *node)
+ni_config_parse_addrconf_auto6(ni_config_auto6_t *auto6, xml_node_t *node)
 {
 	xml_node_t *child;
 

@@ -268,15 +268,28 @@ supplicant. See below for a list of options.
 .\" --------------------------------------------------------
 .SH DHCP4 SUPPLICANT OPTIONS
 The DHCP4 client can be configured through the options listed below.
-All of them must be nested like this:
+All of them must be nested in the config node like this:
 .PP
 .nf
 .B "  <addrconf>
 .B "    <dhcp4>
-.I "       ... options
+.I "      ...
 .B "    </dhcp4>
 .B "  </addrconf>
 .fi
+
+or inside a device name context like:
+.PP
+.nf
+.B "  <addrconf>
+.B "    <dhcp4>
+.B "      <device name=\(dqeth0\(dq >
+.I "        ...
+.B "      </device>
+.B "    </dhcp4>
+.B "  </addrconf>
+.fi
+
 .TP
 .B vendor-class
 Specifies the string to be used as the vendor-class option in the DHCP
@@ -294,18 +307,19 @@ lease time to one hour:
 .TP
 .B ignore-server
 Using the \fBip\fB attribute of this element, you can specify the
-IP address of a faulty DHCP server that should be ignored:
+IP or HW address (currently ethernet devices only) of a faulty DHCP
+server that should be ignored:
 .IP
 .B "  <ignore-server ip=\(dq192.168.8.1\(dq />
+.B "  <ignore-server mac=\(dq52:54:00:02:c2:67\(dq />
 .TP
 .B prefer-server
 Specify a preferred DHCP server, together with a numeric value indicating its
 preference. Again, the address of the server is specified using the
-\fBip\fP attribute.
+\fBip\fP or mac attribute.
 .IP
 The numeric preference value is given by the \fBweight\fP,
-and should range from -1 to 100.
-Higher numbers indicate a higher preference.
+and should range from -1 to 100. Higher numbers indicate a higher preference.
 A negative value will cause the server to be ignored. If a response from
 a server with a weight of 100 is received, it will be selected immediately.
 Otherwise, the supplicant will wait for about one minute, and select the
@@ -328,19 +342,47 @@ The following example will ignore 192.168.8.1, always use the information from
 Specify the list of system services that \fBwicked\fP will configure based
 on the DHCP lease received. For the syntax of this element, please refer
 to the description of \fBdefault-allow-update\fP above.
+
+.TP
+.B define
+Permits to define list of custom dhcp \fBoption\fRs not covered by wicked yet.
+The dhcp4 option codes are 8-bit (1..254) bytes.
+
+For non-standard options, it is recommended is to use the DHCPv4 private option
+code range 224 to 254, see \fBRFC3942\fR (section 4), \fBRFC 2939\fR and
+\fBwww.iana.org/assignments/bootp-dhcp-parameters\fR to avoid conflicts with
+options that are or may be defined and implemented later.
+
+To request support for a specific standard option, issue a feature request
+at https://fate.suse.com/ or https://features.opensuse.org/ (hermes).
+See \fBCUSTOM DHCP OPTIONS\fR section for more details.
+
 .PP
 .\" --------------------------------------------------------
 .SH DHCP6 SUPPLICANT OPTIONS
 The DHCP6 client can be configured through the options listed below.
-All of them must be nested like this:
+All of them must be nested in the config node like this:
 .PP
 .nf
 .B "  <addrconf>
 .B "    <dhcp6>
-.I "       ... options
+.I "      ...
 .B "    </dhcp6>
 .B "  </addrconf>
 .fi
+
+or inside a device name context like:
+.PP
+.nf
+.B "  <addrconf>
+.B "    <dhcp6>
+.B "      <device name=\(dqeth0\(dq >
+.I "        ...
+.B "      </device>
+.B "    </dhcp6>
+.B "  </addrconf>
+.fi
+
 .TP
 .B default-duid
 DHCPv6 uses a so-called DUID to identify a DHCP client (rather than the
@@ -412,10 +454,133 @@ to the third if not:
 Specify the list of system services that \fBwicked\fP will configure based
 on the DHCP lease received. For the syntax of this element, please refer
 to the description of \fBdefault-allow-update\fP above.
+
+.TP
+.B define
+Permits to define list of custom dhcp \fBoption\fRs not covered by wicked yet.
+The dhcp6 option codes are 16-bit (1..65534) integers.
+
+See \fBhttp://www.iana.org/assignments/dhcpv6-parameters\fR and \fBRFC7227\fR.
+
+To request support for a specific standard option, issue a feature request
+at https://fate.suse.com/ or https://features.opensuse.org/ (hermes).
+See \fBCUSTOM DHCP OPTIONS\fR section for more details.
+
+.TP
 .B Note:
 The DHCPv6 protocol does not define any routing options, which are applied
 by IPv6 Router Advertisement (RA) or require static configuration.
-The current NIS / ypbind implementation does supported IPv6 at all.
+The current NIS / ypbind implementation on linux does supported IPv6 at all.
+
+.PP
+.\" --------------------------------------------------------
+.SH CUSTOM DHCP OPTIONS
+A custom \fBoption\fR defines a \fBname\fR for a dhcp option \fBcode\fR and
+a format how to interpret raw data of the dhcp option. This option definition is
+used to parse and format lease-xml files, (format) leaseinfo dump files and the
+\fBname\fR can be used to request options (oro alias option-request-option).
+
+The \fBname\fR has to be a valid keyword and is restricted to a word of 1..63
+alphanumeric and \(dq-\(dq characters (same to a hostname without any dots).
+
+The current implementation supports the following simple \fBtype\fRs (scalars):
+.TP
+.BR opaque\ [fixed-length=\(dq<length\ in\ bytes>\(dq\ |\ embedded-length=\(dq1|2|uint8|uint16\(dq]
+Opaque data or not printable string formatted as a hex-string (xx:xx:xx) with
+variable length. The \fBfixed-length\fR attribute permits adjust it to a \\0
+padded fixed-length data field and the \fBembedded-length\fR attribute to
+interpret the initial 1 (uint8) or 2 (uint16) bytes as data length (RFC7227).
+.TP
+.BR string\ [fixed-length=\(dq<length\ in\ bytes>\(dq\ |\ embedded-length=\(dq1|2|uint8|uint16\(dq]
+A \fBprintable\fR variable-length string (without a \\0 null-termination).
+The \fBfixed-length\fR attribute permits to adjust it to a \\0 padded
+fixed-length string and the \fBembedded-length\fR attribute to interpret
+the initial 1 (uint8) or 2 (uint16) bytes as the string length (RFC7227).
+.TP
+.BR bool
+A single byte value interpeted as boolean (0 is \(dqfalse\(dq, otherwise \(dqtrue\(dq).
+.TP
+.BR int8\ |\ int16\ |\ int32\ |\ int64\ uint8\ |\ uint16\ |\ uint32\ |\ uint64\ [notation=\(dqhex\(dq]
+A signed or unsigned interger in decimal or optionally, in a 0x.. hex notation.
+.TP
+.BR ipv4-address\ |\ ipv6-address
+IPv4 and IPv6 address types
+.TP
+.BR ipv4-prefix\ |\ ipv6-prefix
+An RFC3442 / RFC7227 prefix (destination descriptor) with compact encoded
+prefix-length byte followed by the significant octets of the network address.
+.PP
+These simple \fBtypes\fR can be combined together in \fBstruct\fRs and \fBarray\fRs.
+
+A \fBstruct\fRs consists of one or more \fBmember\fRs, which contain a \fBname\fR
+and a member \fBtype\fR, \fBstruct\fR or \fBarray\fR. The last member in a \fBstruct\fR
+is allowed to contain be variable length type.
+An array contains an element \fBname\fR and fixed-length \fBtype\fR or \fBstruct\fR.
+
+A simple type can be specified in the node name (<string/>) or in the data of the type
+node (<type>string</type>).
+
+Examples:
+.PP
+.nf
+.I "  <!--
+.I "       global or device specific definitions of dhcp4/dhcp6 options
+.I "       under <config><addrconf><dhcp4> or <config><addrconf><dhcp6>
+.I "  -->
+.B "  <define>
+.B "    <option>
+.B "      <code>224</code>
+.B "      <name>foo-server</name>
+.B "      <type>ipv4-address</type>
+.B "    </option>
+.B "    <option>
+.B "      <code>225</code>
+.B "      <name>foo-path</name>
+.B "      <string/>
+.B "    </option>
+.B "    <option>
+.B "      <code>250</code>
+.B "      <name>test-cls-routes</name> <!-- RFC3442 classless route format -->
+.B "      <array>
+.B "        <name>route</name>
+.B "        <struct>
+.B "          <member>
+.B "            <name>destination</name>
+.B "            <ipv4-prefix/>
+.B "          </member>
+.B "          <member>
+.B "            <name>gateway</name>
+.B "            <ipv4-address/>
+.B "          </member>
+.B "        </struct>
+.B "      </array>
+.B "    </option>
+.B "    <option>
+.B "      <code>251</code>
+.B "      <name>six-addresses</code>
+.B "      <array>
+.B "        <name>ip</name>
+.B "        <ipv6-address/>
+.B "      </array>
+.B "    </option>
+.B "  </define>
+.fi
+
+To test the option definition, the \(dqwicked test\(dq call can be used:
+.PP
+.nf
+.B " wicked test dhcp4 --request - eth1 <<EOF
+.I "  <request type="offer">
+.I "    <request-options>
+.I "      <option>224</option>
+.I "      <option>test-cls-routes</option>
+.I "    </request-options>
+.I "  </request>
+.B " EOF
+.fi
+before adding the option requests to the ifcfg or xml configuration and
+restarting wickedd (\(dqrcwickedd restart\(dq) to apply to the supplicant.
+
 .PP
 .\" --------------------------------------------------------
 .SH SERVER ONLY OPTIONS
@@ -530,9 +695,10 @@ This extension class supports shell scripts only.
 .SH "SEE ALSO"
 .BR wickedd (8),
 .BR netconfig (8),
+.BR RFC3942
 .SH COPYRIGHT
-Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+Copyright (C) 2014-2016 SUSE LINUX GmbH, Nuernberg, Germany.
 .SH BUGS
-Please report bugs at <https://bugzilla.novell.com/index.cgi>
+Please report bugs at <https://bugzilla.suse.com/>
 .SH AUTHORS
 Olaf Kirch

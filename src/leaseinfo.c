@@ -31,6 +31,7 @@
 #include <inttypes.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <time.h>
 
 #include <wicked/leaseinfo.h>
@@ -44,6 +45,7 @@
 #include <wicked/nis.h>
 #include <wicked/route.h>
 
+#include "appconfig.h"
 #include "util_priv.h"
 #include "dhcp6/options.h"
 #include "dhcp.h"
@@ -58,10 +60,10 @@ static void		__ni_leaseinfo_print_string_array(FILE *, const char *,
 					const char *);
 static void		__ni_leaseinfo_dhcp4_dump(FILE *,
 				const ni_addrconf_lease_t *,
-				const char *);
+				const char *, const char *);
 static void		__ni_leaseinfo_dhcp6_dump(FILE *,
 				const ni_addrconf_lease_t *,
-				const char *);
+				const char *, const char *);
 static void		__ni_leaseinfo_print_addrs(FILE *, const char *,
 					ni_address_t *, unsigned int);
 static void		__ni_leaseinfo_print_routes(FILE *, const char *,
@@ -389,25 +391,75 @@ __ni_leaseinfo_print_netbios(FILE *out, const char *prefix,
 				NULL, 0);
 }
 
+static ni_bool_t
+__ni_leaseinfo_convert_dhcp_name(ni_stringbuf_t *result, const char *prefix, const char *name)
+{
+	size_t i, old, len = ni_string_len(name);
+
+	if (!result || !len)
+		return FALSE;
+
+	if (!ni_string_empty(prefix))
+		ni_stringbuf_puts(result, prefix);
+
+	old = result->len;
+	for (i = 0; i < len; ++i) {
+		switch (name[i]) {
+		case '-':
+		case '_':
+			break;
+		case '.':
+		case '/':
+			ni_stringbuf_putc(result, '_');
+			break;
+		default:
+			ni_stringbuf_putc(result, toupper(name[i]));
+			break;
+		}
+	}
+	return !ni_string_empty(result->string + old);
+}
+
 static void
 __ni_leaseinfo_print_dhcp_opts(FILE *out, const char *prefix,
-			const ni_dhcp_option_t *options, unsigned int af)
+				const ni_dhcp_option_decl_t *custom,
+				const ni_dhcp_option_t *options)
 {
+	ni_stringbuf_t name = NI_STRINGBUF_INIT_DYNAMIC;
+	const ni_dhcp_option_decl_t *decl;
 	const ni_dhcp_option_t *opt;
-	char *name = NULL;
+	ni_var_array_t *vars;
 	char *hstr = NULL;
 
 	for (opt = options; opt; opt = opt->next) {
 		if (!opt->code)
 			continue;
-		if (!ni_string_printf(&name, "UNKNOWN_%u", opt->code))
+
+		ni_stringbuf_clear(&name);
+		decl = ni_dhcp_option_decl_list_find_by_code(custom, opt->code);
+		if (decl && (vars = ni_dhcp_option_to_vars(opt, decl))) {
+			unsigned int i;
+			ni_var_t *var;
+
+			for (i = 0, var = vars->data; i < vars->count; ++i, ++var) {
+				if (__ni_leaseinfo_convert_dhcp_name(&name, "OPTION_", var->name))
+					__ni_leaseinfo_print_string(out, prefix, name.string,
+							var->value, NULL, 0);
+				ni_stringbuf_destroy(&name);
+			}
+			ni_var_array_free(vars);
+			continue;
+		}
+
+		if (ni_stringbuf_printf(&name, "UNKNOWN_%u", opt->code) < 0 ||
+				ni_string_empty(name.string))
 			continue;
 
 		hstr = ni_sprint_hex(opt->data, opt->len);
-		__ni_leaseinfo_print_string(out, prefix, name, hstr, "", 0);
+		__ni_leaseinfo_print_string(out, prefix, name.string, hstr, "", 0);
 		ni_string_free(&hstr);
 	}
-	ni_string_free(&name);
+	ni_stringbuf_destroy(&name);
 }
 
 #if 0
@@ -428,8 +480,9 @@ __ni_leaseinfo_strftime(time_t t)
 
 static void
 __ni_leaseinfo_dhcp4_dump(FILE *out, const ni_addrconf_lease_t *lease,
-			const char *prefix)
+			const char *ifname, const char *prefix)
 {
+	const ni_config_dhcp4_t *config;
 	char *key = NULL;
 	ni_sockaddr_t sa;
 
@@ -504,16 +557,19 @@ __ni_leaseinfo_dhcp4_dump(FILE *out, const ni_addrconf_lease_t *lease,
 			lease->dhcp4.mtu);
 	}
 
-	__ni_leaseinfo_print_dhcp_opts(out, prefix, lease->dhcp4.options,
-					lease->family);
+	config = ni_config_dhcp4_find_device(ifname);
+	__ni_leaseinfo_print_dhcp_opts(out, prefix, config ?
+			config->custom_options : NULL,
+			lease->dhcp4.options);
 
 	ni_string_free(&key);
 }
 
 static void
 __ni_leaseinfo_dhcp6_dump(FILE *out, const ni_addrconf_lease_t *lease,
-			const char *prefix)
+			const char *ifname, const char *prefix)
 {
+	const ni_config_dhcp6_t *config;
 	char *key = NULL;
 	ni_sockaddr_t sa;
 
@@ -564,8 +620,10 @@ __ni_leaseinfo_dhcp6_dump(FILE *out, const ni_addrconf_lease_t *lease,
 		}
 	}
 
-	__ni_leaseinfo_print_dhcp_opts(out, prefix, lease->dhcp6.options,
-							lease->family);
+	config = ni_config_dhcp6_find_device(ifname);
+	__ni_leaseinfo_print_dhcp_opts(out, prefix, config ?
+			config->custom_options : NULL,
+			lease->dhcp6.options);
 
 	ni_string_free(&key);
 }
@@ -727,10 +785,10 @@ ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 	case NI_ADDRCONF_DHCP:
 		switch (lease->family) {
 		case AF_INET:
-			__ni_leaseinfo_dhcp4_dump(out, lease, prefix);
+			__ni_leaseinfo_dhcp4_dump(out, lease, ifname, prefix);
 			break;
 		case AF_INET6:
-			__ni_leaseinfo_dhcp6_dump(out, lease, prefix);
+			__ni_leaseinfo_dhcp6_dump(out, lease, ifname, prefix);
 			break;
 		default:
 			ni_error("Unsupported lease family (%u).", lease->family);
