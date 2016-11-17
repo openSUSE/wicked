@@ -726,11 +726,12 @@ static void
 ni_lldp_receive(ni_socket_t *sock)
 {
 	ni_capture_t *capture = sock->user_data;
+	ni_sockaddr_t from;
 	ni_buffer_t buf;
 
 	/* FIXME: we need to store the MAC address we received this packet from.
 	 * This is needed for DCBX tie-breaking among other things. */
-	if (ni_capture_recv(capture, &buf) >= 0) {
+	if (ni_capture_recv(capture, &buf, &from, "lldp") >= 0) {
 		ni_lldp_agent_t *agent = ni_capture_get_user_data(capture);
 		ni_buffer_t raw_id_buf;
 		const void *raw_id;

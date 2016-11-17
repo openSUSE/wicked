@@ -13,11 +13,13 @@
 #include <ctype.h>
 #include <limits.h>
 #include <dlfcn.h>
+#include <netinet/if_ether.h>
 
 #include <wicked/util.h>
 #include <wicked/wicked.h>
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
+#include <wicked/address.h>
 #include <wicked/xpath.h>
 #include <wicked/dbus.h>
 #include "netinfo_priv.h"
@@ -488,27 +490,57 @@ ni_config_parse_addrconf_dhcp4_nodes(ni_config_dhcp4_t *dhcp4, xml_node_t *node)
 
 		if (!strcmp(child->name, "vendor-class"))
 			ni_string_dup(&dhcp4->vendor_class, child->cdata);
+		else
 		if (!strcmp(child->name, "lease-time") && child->cdata)
 			dhcp4->lease_time = strtoul(child->cdata, NULL, 0);
-		if (!strcmp(child->name, "ignore-server")
-		 && (attrval = xml_node_get_attr(child, "ip")) != NULL)
-			ni_string_array_append(&dhcp4->ignore_servers, attrval);
-		if (!strcmp(child->name, "prefer-server")
-		 && (attrval = xml_node_get_attr(child, "ip")) != NULL) {
+		else
+		if (!strcmp(child->name, "ignore-server")) {
+			if ((attrval = xml_node_get_attr(child, "ip")) != NULL)
+				ni_string_array_append(&dhcp4->ignore_servers, attrval);
+			else
+			if ((attrval = xml_node_get_attr(child, "mac")) != NULL)
+				ni_string_array_append(&dhcp4->ignore_servers, attrval);
+		} else
+		if (!strcmp(child->name, "prefer-server")) {
 			ni_server_preference_t *pref;
 
 			if (dhcp4->num_preferred_servers >= NI_DHCP_SERVER_PREFERENCES_MAX) {
 				ni_warn("config: too many <prefer-server> elements");
 				continue;
 			}
+			pref = &dhcp4->preferred_server[dhcp4->num_preferred_servers];
+			memset(pref, 0, sizeof(*pref));
 
-			pref = &dhcp4->preferred_server[dhcp4->num_preferred_servers++];
-			if (ni_sockaddr_parse(&pref->address, attrval, AF_INET) < 0) {
-				ni_error("config: unable to parse <prefer-server ip=\"%s\">",
-						attrval);
-				return FALSE;
+			if ((attrval = xml_node_get_attr(child, "ip")) != NULL) {
+				if (ni_sockaddr_parse(&pref->address, attrval, AF_INET) < 0) {
+					ni_warn("config: unable to parse <prefer-server ip=\"%s\">",
+							attrval);
+					continue;
+				}
+			} else
+			if ((attrval = xml_node_get_attr(child, "mac")) != NULL) {
+				ni_hwaddr_t hwaddr;
+
+				if (ni_link_address_parse(&hwaddr, ARPHRD_ETHER, attrval) < 0) {
+					ni_warn("config: unable to parse <prefer-server mac=\"%s\">",
+							attrval);
+					continue;
+				} else
+				if (sizeof(pref->serverid.data) < (size_t)hwaddr.len + 1) {
+					ni_warn("config: <prefer-server mac=\"%s\"> is too long",
+							attrval);
+					continue;
+				} else {
+					pref->serverid.len = hwaddr.len + 1;
+					pref->serverid.data[0] = hwaddr.type;
+					memcpy(&pref->serverid.data[1], hwaddr.data, hwaddr.len);
+				}
+			} else {
+				ni_warn("config: missing prefer-server ip=... or mac=...");
+				continue;
 			}
 
+			dhcp4->num_preferred_servers++;
 			pref->weight = 100;
 			if ((attrval = xml_node_get_attr(child, "weight")) != NULL) {
 				if (!strcmp(attrval, "always")) {
@@ -525,7 +557,7 @@ ni_config_parse_addrconf_dhcp4_nodes(ni_config_dhcp4_t *dhcp4, xml_node_t *node)
 					}
 				}
 			}
-		}
+		} else
 		if (!strcmp(child->name, "allow-update")) {
 			ni_config_parse_update_targets(&dhcp4->allow_update, child);
 			dhcp4->allow_update &= ni_config_addrconf_update_mask_dhcp4();

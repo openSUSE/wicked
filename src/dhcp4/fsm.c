@@ -71,42 +71,54 @@ ni_dhcp4_fsm_init_device(ni_dhcp4_device_t *dev)
 }
 
 int
-ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
+ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf, ni_sockaddr_t *from)
 {
 	ni_dhcp4_message_t *message;
 	ni_addrconf_lease_t *lease = NULL;
+	const char *sender = NULL;
 	int msg_code;
 
 	if (dev->fsm.state == NI_DHCP4_STATE_VALIDATING) {
 		/* We arrive here, when some dhcp4 packet arrives after
 		 * we've got and processed an ACK already. Just ignore.
 		 */
-		ni_debug_dhcp("%s: ignoring dhcp4 packet arrived in state VALIDATING",
-				dev->ifname);
+		sender = ni_capture_from_hwaddr_print(from);
+		ni_debug_dhcp("%s: ignoring dhcp4 packet%s%s arrived in state VALIDATING",
+				dev->ifname, sender ? " from " : "", sender ? sender : "");
 		return -1;
 	}
 
 	if (!(message = ni_buffer_pull_head(msgbuf, sizeof(*message)))) {
-		ni_debug_dhcp("%s: short DHCP4 packet (%u bytes)", dev->ifname,
-				ni_buffer_count(msgbuf));
+		sender = ni_capture_from_hwaddr_print(from);
+		ni_debug_dhcp("%s: short dhcp4 packet (%u bytes)%s%s", dev->ifname,
+				ni_buffer_count(msgbuf),
+				sender ? " sender " : "", sender ? sender : "");
 		return -1;
 	}
 	if (dev->dhcp4.xid == 0) {
-		ni_debug_dhcp("%s: unexpected packet with 0 xid", dev->ifname);
+		sender = ni_capture_from_hwaddr_print(from);
+		ni_debug_dhcp("%s: unexpected packet with 0 xid%s%s", dev->ifname,
+				sender ? " sender " : "", sender ? sender : "");
 		return -1;
 	}
 	if (dev->dhcp4.xid != message->xid) {
-		ni_debug_dhcp("%s: ignoring packet with wrong xid 0x%x (expected 0x%x)",
-				dev->ifname, htonl(message->xid), htonl(dev->dhcp4.xid));
+		sender = ni_capture_from_hwaddr_print(from);
+		ni_debug_dhcp("%s: ignoring packet with wrong xid 0x%x (expected 0x%x)%s%s",
+				dev->ifname, htonl(message->xid), htonl(dev->dhcp4.xid),
+				sender ? " sender " : "", sender ? sender : "");
 		return -1;
 	}
 
 	msg_code = ni_dhcp4_parse_response(message, msgbuf, &lease);
+	sender = ni_capture_from_hwaddr_print(from);
 	if (msg_code < 0) {
 		/* Ignore this message, time out later */
-		ni_error("unable to parse DHCP4 response");
+		ni_error("%s: unable to parse DHCP4 response%s%s", dev->ifname,
+				sender ? " sender " : "", sender ? sender : "");
 		return -1;
 	}
+	ni_string_dup(&lease->dhcp4.sender_hwa, sender);
+	sender = lease->dhcp4.sender_hwa;
 
 	if (dev->config->client_id.len && !lease->dhcp4.client_id.len) {
 		/*
@@ -138,13 +150,15 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 		 *   If the two client identifiers do not match, the client MUST
 		 *   silently discard the message.
 		 */
-		ni_debug_dhcp("%s: ignoring packet with not matching client-id", dev->ifname);
+		ni_debug_dhcp("%s: ignoring packet with not matching client-id%s%s",
+				dev->ifname, sender ? " sender " : "", sender ? sender : "");
 		return -1;
 	}
 
-	ni_debug_dhcp("%s: received %s message xid 0x%x in state %s",
+	ni_debug_dhcp("%s: received %s message xid 0x%x in state %s%s%s",
 			dev->ifname, ni_dhcp4_message_name(msg_code), message->xid,
-			ni_dhcp4_fsm_state_name(dev->fsm.state));
+			ni_dhcp4_fsm_state_name(dev->fsm.state),
+			sender ? " sender " : "", sender ? sender : "");
 
 	if (lease->dhcp4.client_id.len) {
 		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
@@ -164,11 +178,24 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 	 * servers to ignore, and preferred servers. */
 	if (msg_code == DHCP4_OFFER && dev->fsm.state == NI_DHCP4_STATE_SELECTING) {
 		struct in_addr srv_addr = lease->dhcp4.server_id;
+		const char *ipaddr = inet_ntoa(srv_addr);
+		ni_hwaddr_t hwaddr;
 		int weight = 0;
 
-		if (ni_dhcp4_config_ignore_server(srv_addr)) {
-			ni_debug_dhcp("%s: ignoring DHCP4 offer from %s",
-					dev->ifname, inet_ntoa(srv_addr));
+		if (sender && ni_dhcp4_config_ignore_server(sender)) {
+			ni_debug_dhcp("%s: ignoring DHCP4 offer from %s%s%s%s (blacklisted)",
+					dev->ifname, inet_ntoa(srv_addr),
+					sender ? " (" : "",
+					sender ? sender : "",
+					sender ? ")" : "");
+			goto out;
+		}
+		if (ipaddr && ni_dhcp4_config_ignore_server(ipaddr)) {
+			ni_debug_dhcp("%s: ignoring DHCP4 offer from %s%s%s%s (blacklisted)",
+					dev->ifname, inet_ntoa(srv_addr),
+					sender ? " (" : "",
+					sender ? sender : "",
+					sender ? ")" : "");
 			goto out;
 		}
 
@@ -179,7 +206,9 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 		if (!dev->dhcp4.accept_any_offer) {
 
 			/* Check if we have any preferred servers. */
-			weight = ni_dhcp4_config_server_preference(srv_addr);
+			ni_capture_from_hwaddr_set(&hwaddr, from);
+			if (!(weight = ni_dhcp4_config_server_preference_ipaddr(srv_addr)))
+				weight = ni_dhcp4_config_server_preference_hwaddr(&hwaddr);
 
 			/* If we're refreshing an existing lease (eg after link disconnect
 			 * and reconnect), we accept the offer if it comes from the same
@@ -189,9 +218,9 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 			 && dev->lease->dhcp4.server_id.s_addr == srv_addr.s_addr)
 				weight = 100;
 
-			ni_debug_dhcp("received lease offer from %s; server weight=%d (best offer=%d)",
-					inet_ntoa(lease->dhcp4.server_id), weight,
-					dev->best_offer.weight);
+			ni_debug_dhcp("%s: received lease offer from %s; server weight=%d (best offer=%d)",
+					dev->ifname, inet_ntoa(lease->dhcp4.server_id),
+					weight,	dev->best_offer.weight);
 
 			/* negative weight means never. */
 			if (weight < 0)
@@ -203,12 +232,16 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 					ni_dhcp4_device_set_best_offer(dev, lease, weight);
 					return 0;
 				}
-				goto out;
+				/* OK, but it is better than previous */
+			} else {
+				/* If the weight has maximum value, just accept this offer. */
+				ni_dhcp4_device_set_best_offer(dev, lease, weight);
+				lease = NULL;
 			}
-			/* If the weight has maximum value, just accept this offer. */
+		} else {
+			ni_dhcp4_device_set_best_offer(dev, lease, weight);
+			lease = NULL;
 		}
-		ni_dhcp4_device_set_best_offer(dev, lease, weight);
-		lease = NULL;
 	}
 
 	/* We've received a valid response; if something goes wrong now
@@ -284,7 +317,7 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf)
 		break;
 	default:
 	ignore:
-		ni_debug_dhcp("ignoring %s in state %s",
+		ni_debug_dhcp("%s: ignoring %s in state %s", dev->ifname,
 				ni_dhcp4_message_name(msg_code),
 				ni_dhcp4_fsm_state_name(dev->fsm.state));
 		break;

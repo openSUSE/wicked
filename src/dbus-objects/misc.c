@@ -1614,6 +1614,10 @@ __ni_objectmodel_get_addrconf_dhcp4_dict(const struct ni_addrconf_lease_dhcp4 *d
 		ni_dbus_dict_add_string(dict, "relay-address",
 				inet_ntoa(dhcp4->relay_addr));
 	}
+	if (dhcp4->sender_hwa) {
+		ni_dbus_dict_add_string(dict, "sender-hw-address",
+				dhcp4->sender_hwa);
+	}
 	if (dhcp4->mtu) {
 		ni_dbus_dict_add_uint16(dict, "mtu", dhcp4->mtu);
 	}
@@ -1834,6 +1838,8 @@ __ni_objectmodel_set_addrconf_dhcp4_data(struct ni_addrconf_lease_dhcp4 *dhcp4,
 			return FALSE;
 		dhcp4->relay_addr = addr.sin.sin_addr;
 	}
+	if (ni_dbus_dict_get_string(dict, "sender-hw-address", &string_value))
+		ni_string_dup(&dhcp4->sender_hwa, string_value);
 	if (ni_dbus_dict_get_uint16(dict, "mtu", &value16))
 		dhcp4->mtu = value16;
 	if (ni_dbus_dict_get_uint32(dict, "lease-time", &value32))

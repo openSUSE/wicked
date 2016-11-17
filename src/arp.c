@@ -64,7 +64,7 @@ ni_arp_socket_recv(ni_socket_t *sock)
 	ni_capture_t *capture = sock->user_data;
 	ni_buffer_t buf;
 
-	if (ni_capture_recv(capture, &buf) >= 0) {
+	if (ni_capture_recv(capture, &buf, NULL, "arp") >= 0) {
 		ni_arp_socket_t *arph = ni_capture_get_user_data(capture);
 		ni_arp_packet_t packet;
 

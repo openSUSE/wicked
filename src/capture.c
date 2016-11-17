@@ -417,7 +417,7 @@ __ni_capture_socket_check_timeout(ni_socket_t *sock, const struct timeval *now)
  * Capture receive handling
  */
 int
-__ni_capture_recv(int fd, void *buf, size_t len, ni_bool_t *partial_csum)
+__ni_capture_recv(int fd, void *buf, size_t len, ni_bool_t *partial_csum, ni_sockaddr_t *from)
 {
 #if defined(PACKET_AUXDATA)
 	/* use 2 times bigger buffer to catch possible additions... */
@@ -431,6 +431,8 @@ __ni_capture_recv(int fd, void *buf, size_t len, ni_bool_t *partial_csum)
 		.msg_iovlen = 1,
 		.msg_control = cbuf,
 		.msg_controllen = sizeof(cbuf),
+		.msg_name = from ? from : NULL,
+		.msg_namelen = from ? sizeof(from->ss) : 0,
 	};
 	struct cmsghdr *cmsg;
 	struct tpacket_auxdata *aux;
@@ -438,6 +440,8 @@ __ni_capture_recv(int fd, void *buf, size_t len, ni_bool_t *partial_csum)
 
 	*partial_csum = FALSE;
 	memset(cbuf, 0, sizeof(cbuf));
+	if (from)
+		memset(from, 0, sizeof(*from));
 
 	if ((bytes = recvmsg (fd, &msg, 0)) < 0)
 		return bytes;
@@ -461,24 +465,57 @@ __ni_capture_recv(int fd, void *buf, size_t len, ni_bool_t *partial_csum)
 #endif
 }
 
+ni_bool_t
+ni_capture_from_hwaddr_set(ni_hwaddr_t *hwaddr, const ni_sockaddr_t *from)
+{
+	struct sockaddr_ll *ll;
+
+	if (!hwaddr || !from || from->ss_family != AF_PACKET)
+		return FALSE;
+
+	ll = (struct sockaddr_ll *)&from->ss;
+	if (ll->sll_halen != ni_link_address_length(ll->sll_hatype))
+		return FALSE;
+
+	if (ni_link_address_set(hwaddr, ll->sll_hatype, ll->sll_addr, ll->sll_halen))
+		return FALSE;
+	return TRUE;
+}
+
+const char *
+ni_capture_from_hwaddr_print(const ni_sockaddr_t *from)
+{
+	ni_hwaddr_t hwaddr;
+
+	if (!ni_capture_from_hwaddr_set(&hwaddr, from))
+		return NULL;
+	return ni_link_address_print(&hwaddr);
+}
+
 int
-ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp)
+ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp, ni_sockaddr_t *from, const char *hint)
 {
 	void *payload;
 	size_t payload_len;
 	ssize_t bytes;
 	ni_bool_t partial_checksum = FALSE;
+	const char *lladdr;
 
 	bytes = __ni_capture_recv(capture->sock->__fd, capture->buffer,
-				  capture->mtu, &partial_checksum);
+				  capture->mtu, &partial_checksum, from);
 
 	if (bytes < 0) {
-		ni_error("%s: cannot read from socket: %m", __FUNCTION__);
+		ni_error("%s: %s cannot read %s%spacket from socket: %m",
+				capture->ifname, __FUNCTION__,
+				hint ? hint : "", hint ? " " : "");
 		return -1;
 	}
 
-	ni_debug_socket("%s: incoming packet%s", capture->ifname,
-			(partial_checksum ? " with partial checksum" : ""));
+	lladdr = ni_capture_from_hwaddr_print(from);
+	ni_debug_socket("%s: incoming %s%spacket%s%s%s", capture->ifname,
+			hint ? hint : "", hint ? " " : "",
+			(partial_checksum ? " with partial checksum" : ""),
+			lladdr ? " from " : "", lladdr ? lladdr : "");
 
 	switch (capture->protocol) {
 	case ETHERTYPE_IP:
@@ -486,7 +523,9 @@ ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp)
 		payload = ni_capture_inspect_udp_header(capture->buffer, bytes,
 						&payload_len, partial_checksum);
 		if (payload == NULL) {
-			ni_debug_socket("bad IP/UDP packet header");
+			ni_debug_socket("%s: bad IP/UDP %s%spacket header",
+					capture->ifname,
+					hint ? hint : "", hint ? " " : "");
 			return -1;
 		}
 		break;
@@ -498,7 +537,8 @@ ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp)
 		break;
 
 	default:
-		ni_error("%s: cannot handle ethertype %u", __FUNCTION__, capture->protocol);
+		ni_error("%s: %s cannot handle ethertype %u", capture->ifname,
+				__FUNCTION__, capture->protocol);
 		return -1;
 	}
 

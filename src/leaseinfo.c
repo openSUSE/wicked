@@ -501,11 +501,14 @@ __ni_leaseinfo_dhcp4_dump(FILE *out, const ni_addrconf_lease_t *lease,
 		__ni_leaseinfo_print_string(out, prefix, "SERVERID",
 					ni_sockaddr_print(&sa), NULL, 0);
 	}
-
 	ni_sockaddr_set_ipv4(&sa, lease->dhcp4.relay_addr, 0);
 	if (ni_sockaddr_is_specified(&sa)) {
 		__ni_leaseinfo_print_string(out, prefix, "RELAYADDR",
 					ni_sockaddr_print(&sa), NULL, 0);
+	}
+	if (lease->dhcp4.sender_hwa) {
+		__ni_leaseinfo_print_string(out, prefix, "SENDERHWADDR",
+					lease->dhcp4.sender_hwa, NULL, 0);
 	}
 
 	if (lease->time_acquired) {
