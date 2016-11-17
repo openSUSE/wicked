@@ -69,7 +69,8 @@ The DHCLIENT_USER_CLASS_FORMAT variable specified how to interpret it.
 .TP
 .BR DHCLIENT_REQUEST_OPTION[SUFFIX]
 Specifies a space separate list of additional DHCPv4 options to request.
-Currently limited to numeric option codes only.
+The options can be specified by their code number or by name when defined
+as custom dhcp option (see wicked-config.5 man page).
 .TP
 .BR DHCLIENT_LEASE_TIME
 Specifies the lease time (in seconds), that is suggested to the server. Default
@@ -155,6 +156,11 @@ safely say "yes" here. For a roaming notebook with X kept running,
  When set to "AUTO", the current hostname from /etc/hostname is sent.
  Use this variable to override it with another hostname, or leave it
  empty to not send any hostname.
+.TP
+.BR DHCLIENT6_REQUEST_OPTION[SUFFIX]
+Specifies a space separate list of additional DHCPv6 options to request.
+The options can be specified by their code number or by name when defined
+as custom dhcp option (see wicked-config.5 man page).
 .TP
 .BR DHCLIENT6_LEASE_TIME
  Specifies the preferred lifetime (in seconds) used as T1/renewal
