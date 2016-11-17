@@ -577,6 +577,7 @@ __ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict
 	if (ap->bcast_addr.ss_family == ap->family)
 		__ni_objectmodel_dict_add_sockaddr(dict, "broadcast", &ap->bcast_addr);
 
+	ni_dbus_dict_add_uint32(dict, "scope", ap->scope);
 	if (ap->flags)
 		ni_dbus_dict_add_uint32(dict, "flags", ap->flags);
 
@@ -606,6 +607,7 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 	ni_address_t *ap = NULL;
 	ni_sockaddr_t local_addr;
 	unsigned int prefixlen;
+	uint32_t scope;
 
 	if (__ni_objectmodel_dict_get_sockaddr_prefix(dict, "local", &local_addr, &prefixlen)) {
 		const ni_dbus_variant_t *var;
@@ -618,6 +620,9 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 		__ni_objectmodel_dict_get_sockaddr(dict, "peer", &ap->peer_addr);
 		__ni_objectmodel_dict_get_sockaddr(dict, "anycast", &ap->anycast_addr);
 		__ni_objectmodel_dict_get_sockaddr(dict, "broadcast", &ap->bcast_addr);
+
+		if (ni_dbus_dict_get_uint32(dict, "scope", &scope) && scope <= RT_SCOPE_NOWHERE)
+			ap->scope = scope;
 
 		/* Do we need to translate them and map to names?
 		 * The usable flags differ between address families and

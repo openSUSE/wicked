@@ -9,6 +9,7 @@
    <peer type="network-address"/>
    <anycast type="network-address"/>
    <broadcast type="network-address"/>
+   <scope type="builtin-route-scope"/>
 
    <!-- currently raw flags -->
    <flags type="uint32"/>
