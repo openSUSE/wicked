@@ -1231,7 +1231,10 @@ ni_dhcp6_prefix_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 			/* refresh in case kernel forgot a newlink on RA */
 			ni_dhcp6_device_refresh_mode(dev, ifp);
 			ni_server_trace_interface_prefix_events(ifp, event, pi);
-			ni_dhcp6_device_start(dev);
+			if (dev->config->mode == NI_DHCP6_MODE_AUTO)
+				ni_dhcp6_send_event(NI_DHCP6_EVENT_DEFERRED, dev, NULL);
+			else
+				ni_dhcp6_device_start(dev);
 		} else {
 			ni_server_trace_interface_prefix_events(ifp, event, pi);
 		}
