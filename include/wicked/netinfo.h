@@ -256,19 +256,6 @@ extern void		ni_netdev_ref_destroy(ni_netdev_ref_t *);
 extern ni_netdev_req_t *ni_netdev_req_new(void);
 extern void		ni_netdev_req_free(ni_netdev_req_t *req);
 
-extern ni_bool_t	ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw);
-extern ni_bool_t	ni_address_is_loopback(const ni_address_t *laddr);
-extern ni_bool_t	ni_address_is_linklocal(const ni_address_t *laddr);
-extern ni_bool_t	ni_address_is_duplicate(const ni_address_t *laddr);
-extern ni_bool_t	ni_address_is_tentative(const ni_address_t *laddr);
-extern ni_bool_t	ni_address_is_temporary(const ni_address_t *laddr);
-extern ni_bool_t	ni_address_is_permanent(const ni_address_t *laddr);
-extern ni_bool_t	ni_address_is_deprecated(const ni_address_t *laddr);
-extern ni_bool_t	ni_address_is_mngtmpaddr(const ni_address_t *laddr);
-
-extern void		ni_address_set_tentative(ni_address_t *, ni_bool_t);
-extern void		ni_address_set_duplicate(ni_address_t *, ni_bool_t);
-
 extern void		ni_link_address_init(ni_hwaddr_t *);
 extern int		ni_link_address_format(const ni_hwaddr_t *ss,
 				char *abuf, size_t buflen);

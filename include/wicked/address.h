@@ -111,6 +111,19 @@ extern void		ni_address_free(ni_address_t *);
 extern ni_bool_t	ni_address_equal_ref(const ni_address_t *, const ni_address_t *);
 extern ni_bool_t	ni_address_equal_local_addr(const ni_address_t *, const ni_address_t *);
 extern const char *	ni_address_format_flags(ni_stringbuf_t *, unsigned int, unsigned int, const char *);
+extern ni_bool_t	ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw);
+extern ni_bool_t	ni_address_is_loopback(const ni_address_t *laddr);
+extern ni_bool_t	ni_address_is_linklocal(const ni_address_t *laddr);
+extern ni_bool_t	ni_address_is_duplicate(const ni_address_t *laddr);
+extern ni_bool_t	ni_address_is_tentative(const ni_address_t *laddr);
+extern ni_bool_t	ni_address_is_temporary(const ni_address_t *laddr);
+extern ni_bool_t	ni_address_is_permanent(const ni_address_t *laddr);
+extern ni_bool_t	ni_address_is_deprecated(const ni_address_t *laddr);
+extern ni_bool_t	ni_address_is_mngtmpaddr(const ni_address_t *laddr);
+
+extern void		ni_address_set_tentative(ni_address_t *, ni_bool_t);
+extern void		ni_address_set_duplicate(ni_address_t *, ni_bool_t);
+
 extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
 extern void		ni_address_list_destroy(ni_address_t **);
 extern void		ni_address_list_dedup(ni_address_t **);
