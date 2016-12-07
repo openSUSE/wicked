@@ -11,6 +11,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <limits.h>
 #include <ctype.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -26,6 +27,8 @@
 #include <wicked/socket.h>
 #include "util_priv.h"
 
+#define	NI_ADDRESS_ARRAY_CHUNK		16
+
 #ifndef offsetof
 # define offsetof(type, member) \
 	((unsigned long) &(((type *) NULL)->member))
@@ -36,6 +39,18 @@ static const unsigned char *__ni_sockaddr_data(const ni_sockaddr_t *, unsigned i
 /*
  * ni_address functions
  */
+static ni_address_t *
+do_address_new(void)
+{
+	ni_address_t *ap;
+
+	ap = xcalloc(1, sizeof(*ap));
+	if (ap) {
+		ap->refcount = 1;
+	}
+	return ap;
+}
+
 ni_address_t *
 ni_address_new(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr, ni_address_t **list_head)
 {
@@ -44,7 +59,10 @@ ni_address_new(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr,
 	if (local_addr && local_addr->ss_family != af)
 		return NULL;
 
-	ap = xcalloc(1, sizeof(*ap));
+	ap = do_address_new();
+	if (!ap)
+		return NULL;
+
 	ap->family = af;
 	ap->prefixlen = prefix_len;
 	ap->scope = -1;
@@ -55,6 +73,17 @@ ni_address_new(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr,
 		ni_address_list_append(list_head, ap);
 	}
 	return ap;
+}
+
+ni_address_t *
+ni_address_ref(ni_address_t *ap)
+{
+	if (ap) {
+		ni_assert(ap->refcount);
+		ap->refcount++;
+		return ap;
+	}
+	return NULL;
 }
 
 ni_bool_t
@@ -77,11 +106,46 @@ ni_address_copy(ni_address_t *dst, const ni_address_t *src)
 	return FALSE;
 }
 
+ni_address_t *
+ni_address_clone(const ni_address_t *src)
+{
+	ni_address_t *dst;
+
+	dst = do_address_new();
+	if (ni_address_copy(dst, src))
+		return dst;
+
+	ni_address_free(dst);
+	return NULL;
+}
+
 void
 ni_address_free(ni_address_t *ap)
 {
-	ni_string_free(&ap->label);
-	free(ap);
+	if (ap) {
+		ni_assert(ap->refcount);
+		ap->refcount--;
+		if (ap->refcount != 0)
+			return;
+
+		ni_string_free(&ap->label);
+		free(ap);
+	}
+}
+
+ni_bool_t
+ni_address_equal_ref(const ni_address_t *ap1, const ni_address_t *ap2)
+{
+	return ap1 == ap2;
+}
+
+ni_bool_t
+ni_address_equal_local_addr(const ni_address_t *ap1, const ni_address_t *ap2)
+{
+	if (!ap1 || !ap2)
+		return ni_address_equal_ref(ap1, ap2);
+	else
+		return ni_sockaddr_equal(&ap1->local_addr, &ap2->local_addr);
 }
 
 static const ni_intmap_t	__ni_address_ipv4_flag_map[] = {
@@ -305,6 +369,185 @@ ni_address_list_destroy(ni_address_t **list)
 		*list = ap->next;
 		ni_address_free(ap);
 	}
+}
+
+void
+ni_address_array_init(ni_address_array_t *array)
+{
+	memset(array, 0, sizeof(*array));
+}
+
+void
+ni_address_array_destroy(ni_address_array_t *array)
+{
+	if (array) {
+		while (array->count) {
+			array->count--;
+			ni_address_free(array->data[array->count]);
+		}
+		free(array->data);
+		array->data = NULL;
+	}
+}
+
+static ni_bool_t
+ni_address_array_realloc(ni_address_array_t *array, unsigned int newlen)
+{
+	ni_address_t ** newdata;
+	size_t          newsize;
+	unsigned int    i;
+
+	if (!array || (UINT_MAX - NI_ADDRESS_ARRAY_CHUNK) <= newlen)
+		return FALSE;
+
+	newlen += NI_ADDRESS_ARRAY_CHUNK;
+	newsize = newlen * sizeof(ni_address_t *);
+	newdata = xrealloc(array->data, newsize);
+	if (!newdata)
+		return FALSE;
+
+	array->data = newdata;
+	for (i = array->count; i < newlen; ++i)
+		array->data[i] = NULL;
+	return TRUE;
+}
+
+ni_bool_t
+ni_address_array_append(ni_address_array_t *array, ni_address_t *ap)
+{
+	if (!array)
+		return FALSE;
+
+	if ((array->count % NI_ADDRESS_ARRAY_CHUNK) == 0 &&
+	    !ni_address_array_realloc(array, array->count))
+		return FALSE;
+
+	array->data[array->count++] = ap;
+	return TRUE;
+}
+
+ni_address_t *
+ni_address_array_remove_at(ni_address_array_t *array, unsigned int index)
+{
+	ni_address_t *ap;
+
+	if (!array || index >= array->count)
+		return NULL;
+
+	ap = array->data[index];
+	array->count--;
+	if (index < array->count) {
+		memmove(&array->data[index], &array->data[index + 1],
+			(array->count - index) * sizeof(ni_address_t *));
+	}
+	array->data[array->count] = NULL;
+
+	return ap;
+}
+
+ni_bool_t
+ni_address_array_delete_at(ni_address_array_t *array, unsigned int index)
+{
+	if (!array || index >= array->count)
+		return FALSE;
+
+	ni_address_free(ni_address_array_remove_at(array, index));
+	return TRUE;
+}
+
+ni_address_t *
+ni_address_array_remove(ni_address_array_t *array, const ni_address_t *ap)
+{
+	unsigned int index;
+
+	if ((index = ni_address_array_index(array, ap)) == -1U)
+		return NULL;
+	return ni_address_array_remove_at(array, index);
+}
+
+ni_bool_t
+ni_address_array_delete(ni_address_array_t *array, const ni_address_t *ap)
+{
+	unsigned int index;
+
+	if ((index = ni_address_array_index(array, ap)) == -1U)
+		return FALSE;
+	return ni_address_array_delete_at(array, index);
+}
+
+ni_address_t *
+ni_address_array_at(ni_address_array_t *array, unsigned int index)
+{
+	if (!array || index >= array->count)
+		return NULL;
+
+	return array->data[index];
+}
+
+ni_bool_t
+ni_address_array_get(ni_address_array_t *array, unsigned int index, ni_address_t **ret)
+{
+	if (!array || index >= array->count || !ret)
+		return FALSE;
+
+	*ret = array->data[index];
+	return TRUE;
+}
+
+ni_bool_t
+ni_address_array_set(ni_address_array_t *array, unsigned int index, ni_address_t *ap)
+{
+	ni_address_t *a;
+
+	if (!array || index >= array->count)
+		return FALSE;
+
+	a = array->data[index];
+	if (!ni_address_equal_ref(a, ap)) {
+		ni_address_free(a);
+		array->data[index] = ap;
+	}
+	return TRUE;
+}
+
+unsigned int
+ni_address_array_index(const ni_address_array_t *array, const ni_address_t *ap)
+{
+	const ni_address_t *a;
+	unsigned int i;
+
+	if (array) {
+		for (i = 0; i < array->count; ++i) {
+			a = array->data[i];
+			if (ni_address_equal_ref(a, ap))
+				return i;
+		}
+	}
+	return -1U;
+}
+
+ni_address_t *
+ni_address_array_find_match(ni_address_array_t *array, const ni_address_t *ap, unsigned int *index,
+				ni_bool_t (*match)(const ni_address_t *, const ni_address_t *))
+{
+	ni_address_t *a;
+	unsigned int i;
+
+	if (array) {
+		match = match ?: ni_address_equal_ref;
+
+		for (i = index ? *index : 0; i < array->count; ++i) {
+			a = array->data[i];
+			if (match(a, ap)) {
+				if (index)
+					*index = i;
+				return a;
+			}
+		}
+	}
+	if (index)
+		*index = -1U;
+	return NULL;
 }
 
 

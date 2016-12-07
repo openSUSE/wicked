@@ -31,6 +31,7 @@ typedef struct ni_sockaddr_array {
 } ni_sockaddr_array_t;
 
 typedef struct ni_address {
+	unsigned int		refcount;
 	struct ni_address *	next;
 
 	ni_addrconf_mode_t	owner;		/* configured through lease */
@@ -49,6 +50,12 @@ typedef struct ni_address {
 	ni_ipv6_cache_info_t	ipv6_cache_info;
 } ni_address_t;
 
+typedef struct ni_address_array {
+	unsigned int		count;
+	ni_address_t **		data;
+} ni_address_array_t;
+
+#define NI_ADDRESS_ARRAY_INIT	{ .count = 0, .data = NULL }
 
 extern ni_bool_t	ni_sockaddr_is_ipv4_loopback(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_ipv4_linklocal(const ni_sockaddr_t *);
@@ -97,14 +104,32 @@ extern unsigned int	ni_af_address_prefixlen(int af);
 extern ni_address_t *	ni_address_new(int af, unsigned int prefix_len,
 					const ni_sockaddr_t *local_addr,
 					ni_address_t **list);
+extern ni_address_t *	ni_address_ref(ni_address_t *);
 extern ni_bool_t	ni_address_copy(ni_address_t *, const ni_address_t *);
+extern ni_address_t *	ni_address_clone(const ni_address_t *);
 extern void		ni_address_free(ni_address_t *);
+extern ni_bool_t	ni_address_equal_ref(const ni_address_t *, const ni_address_t *);
+extern ni_bool_t	ni_address_equal_local_addr(const ni_address_t *, const ni_address_t *);
 extern const char *	ni_address_format_flags(ni_stringbuf_t *, unsigned int, unsigned int, const char *);
 extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
 extern void		ni_address_list_destroy(ni_address_t **);
 extern void		ni_address_list_dedup(ni_address_t **);
 extern ni_address_t *	ni_address_list_find(ni_address_t *, const ni_sockaddr_t *);
 extern unsigned int	ni_address_list_count(ni_address_t *list);
+
+extern void		ni_address_array_init(ni_address_array_t *);
+extern void		ni_address_array_destroy(ni_address_array_t *);
+extern ni_bool_t	ni_address_array_append(ni_address_array_t *, ni_address_t *);
+extern ni_bool_t	ni_address_array_delete(ni_address_array_t *, const ni_address_t *);
+extern ni_bool_t	ni_address_array_delete_at(ni_address_array_t *, unsigned int);
+extern ni_address_t *	ni_address_array_remove(ni_address_array_t *, const ni_address_t *);
+extern ni_address_t *	ni_address_array_remove_at(ni_address_array_t *, unsigned int);
+extern ni_address_t *	ni_address_array_at(ni_address_array_t *, unsigned int);
+extern ni_bool_t	ni_address_array_get(ni_address_array_t *, unsigned int, ni_address_t **);
+extern ni_bool_t	ni_address_array_set(ni_address_array_t *, unsigned int, ni_address_t *);
+extern unsigned int	ni_address_array_index(const ni_address_array_t *, const ni_address_t *);
+extern ni_address_t *	ni_address_array_find_match(ni_address_array_t *, const ni_address_t *, unsigned int *,
+					ni_bool_t (*match)(const ni_address_t *, const ni_address_t *));
 
 extern unsigned int	ni_lifetime_left(unsigned int, const struct timeval *, const struct timeval *);
 extern void		ni_ipv6_cache_info_rebase(ni_ipv6_cache_info_t *, const ni_ipv6_cache_info_t *,
