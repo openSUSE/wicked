@@ -50,6 +50,13 @@
       <gro type="tristate"/>
       <lro type="tristate"/>
     </offload>
+
+    <ring class="dict">
+      <tx type="uint32"/>
+      <rx type="uint32"/>
+      <rx-jumbo type="uint32"/>
+      <rx-mini type="uint32"/>
+    </ring>
   </define>
 
   <define name="properties" class="dict" extends="ethernet:configuration">

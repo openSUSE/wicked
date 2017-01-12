@@ -340,6 +340,69 @@ __ni_objectmodel_ethernet_set_offload(ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
+__ni_objectmodel_ethernet_get_ring(const ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		ni_dbus_variant_t *result,
+		DBusError *error)
+{
+	const ni_ethernet_t *eth;
+
+	if (!(eth = __ni_objectmodel_ethernet_read_handle(object, error)))
+		return FALSE;
+
+	if (eth->ring.supported == NI_TRISTATE_DISABLE)
+		return FALSE;
+
+	if (eth->ring.tx) {
+		ni_dbus_dict_add_int32(result, "tx", eth->ring.tx);
+	}
+
+	if (eth->ring.rx) {
+		ni_dbus_dict_add_int32(result, "rx", eth->ring.rx);
+	}
+
+	if (eth->ring.rx_jumbo) {
+		ni_dbus_dict_add_int32(result, "rx-jumbo", eth->ring.rx_jumbo);
+	}
+
+	if (eth->ring.rx_mini) {
+		ni_dbus_dict_add_int32(result, "rx-mini", eth->ring.rx_mini);
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_ethernet_set_ring(ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument,
+		DBusError *error)
+{
+	ni_ethernet_t *eth;
+
+	if (!(eth = __ni_objectmodel_ethernet_write_handle(object, error)))
+		return FALSE;
+
+	if (!ni_dbus_dict_get_uint32(argument, "tx", &eth->ring.tx)) {
+		eth->ring.tx = 0;
+	}
+
+	if (!ni_dbus_dict_get_uint32(argument, "rx", &eth->ring.rx)) {
+		eth->ring.rx = 0;
+	}
+
+	if (!ni_dbus_dict_get_uint32(argument, "rx-jumbo", &eth->ring.rx_jumbo)) {
+		eth->ring.rx_jumbo = 0;
+	}
+
+	if (!ni_dbus_dict_get_uint32(argument, "rx-mini", &eth->ring.rx_mini)) {
+		eth->ring.rx_mini = 0;
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
 __ni_objectmodel_ethernet_get_link_speed(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
@@ -501,6 +564,11 @@ const ni_dbus_property_t	ni_objectmodel_ethernet_property_table[] = {
 	__NI_DBUS_PROPERTY(
 			NI_DBUS_DICT_SIGNATURE,
 			offload, __ni_objectmodel_ethernet, RO),
+	__NI_DBUS_PROPERTY(
+			NI_DBUS_DICT_SIGNATURE,
+			ring, __ni_objectmodel_ethernet, RO),
+
+
 
 	{ NULL }
 };

@@ -1881,6 +1881,29 @@ try_add_ethtool_offload(ni_ethtool_offload_t *offload, const char *opt, const ch
 	}
 }
 
+/* get ringparams from wicked config */
+static void
+try_add_ethtool_ring(ni_netdev_t *dev, const char *opt, const char *val)
+{
+
+	ni_ethernet_t *eth = ni_netdev_get_ethernet(dev);
+
+	if (ni_string_eq(opt, "tx")) {
+		ni_parse_uint(val, &eth->ring.tx, 10);
+	} else
+	if (ni_string_eq(opt, "rx")) {
+		ni_parse_uint(val, &eth->ring.rx, 10);
+	} else
+	if (ni_string_eq(opt, "rx-jumbo")) {
+		ni_parse_uint(val, &eth->ring.rx_jumbo, 10);
+	} else
+	if (ni_string_eq(opt, "rx-mini")) {
+		ni_parse_uint(val, &eth->ring.rx_mini, 10);
+	}
+
+
+}
+
 static void
 try_add_ethtool_options(ni_netdev_t *dev, const char *type,
 			ni_string_array_t *opts, unsigned int start)
@@ -1896,6 +1919,12 @@ try_add_ethtool_options(ni_netdev_t *dev, const char *type,
 	if (ni_string_eq(type, "-s") || ni_string_eq(type, "--change")) {
 		for (i = start; (i + 1) < opts->count; i+=2) {
 			try_add_ethtool_common(dev, opts->data[i],
+						opts->data[i + 1]);
+		}
+	} else
+	if (ni_string_eq(type, "-G") || ni_string_eq(type, "--set-ring")) {
+		for (i = start; (i + 1) < opts->count; i+=2) {
+			try_add_ethtool_ring(dev, opts->data[i],
 						opts->data[i + 1]);
 		}
 	}

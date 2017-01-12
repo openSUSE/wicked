@@ -245,6 +245,36 @@ __ni_compat_generate_eth_offload_node(xml_node_t *parent, const ni_ethtool_offlo
 
 }
 
+/* generate ring information */
+static void
+ni_compat_generate_eth_ring_node(xml_node_t *parent, const ni_ethtool_ring_t *ring)
+{
+	xml_node_t *node;
+
+	if (!parent || !ring)
+		return;
+
+	node = xml_node_new("ring", NULL);
+	if (ring->tx) {
+		xml_node_new_element_uint("tx", node, ring->tx);
+	}
+	if (ring->rx) {
+		xml_node_new_element_uint("rx", node, ring->rx);
+	}
+	if (ring->rx_jumbo) {
+		xml_node_new_element_uint("rx-jumbo", node, ring->rx_jumbo);
+	}
+	if (ring->rx_mini) {
+		xml_node_new_element_uint("rx-mini", node, ring->rx_mini);
+	}
+
+	if (node->children)
+		xml_node_add_child(parent, node);
+	else
+		xml_node_free(node);
+
+}
+
 static void
 __ni_compat_generate_eth_node(xml_node_t *child, const ni_ethernet_t *eth)
 {
@@ -287,6 +317,7 @@ __ni_compat_generate_eth_node(xml_node_t *child, const ni_ethernet_t *eth)
 	}
 
 	__ni_compat_generate_eth_offload_node(child, &eth->offload);
+	ni_compat_generate_eth_ring_node(child, &eth->ring);
 }
 
 static ni_bool_t

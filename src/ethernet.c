@@ -56,6 +56,7 @@ static void	__ni_system_ethernet_get(const char *, ni_ethernet_t *);
 static void	__ni_system_ethernet_set(const char *, ni_ethernet_t *);
 static int	__ni_ethtool_get_gset(const char *, ni_ethernet_t *);
 static void	ni_ethtool_offload_init(ni_ethtool_offload_t *);
+static void	ni_ethtool_ring_init(ni_ethtool_ring_t *);
 
 /*
  * Allocate ethernet struct
@@ -71,6 +72,7 @@ ni_ethernet_new(void)
 	ni_link_address_init(&ether->wol.sopass);
 	ether->autoneg_enable		= NI_TRISTATE_DEFAULT;
 	ni_ethtool_offload_init(&ether->offload);
+	ni_ethtool_ring_init(&ether->ring);
 
 	return ether;
 }
@@ -672,6 +674,126 @@ __ni_system_ethernet_refresh(ni_netdev_t *dev)
 	ni_netdev_set_ethernet(dev, ether);
 }
 
+static void
+ni_ethtool_ring_init(ni_ethtool_ring_t *ring)
+{
+	if (ring)
+		ring->supported = NI_TRISTATE_DEFAULT;
+}
+
+static int
+ni_ethtool_get_ring(const char *ifname, ni_ethtool_ring_t *ring)
+{
+	struct ethtool_ringparam tmp;
+
+	if (ring->supported == NI_TRISTATE_DISABLE)
+		return -1;
+
+	tmp.cmd = ETHTOOL_GRINGPARAM;
+	memset(&tmp, 0, sizeof(tmp));
+	if (__ni_ethtool(ifname, ETHTOOL_GRINGPARAM, &tmp) < 0) {
+		if (errno != EOPNOTSUPP && errno != ENODEV)
+			ni_warn("%s: ETHTOOL_GRINGPARAM failed: %m", ifname);
+		else
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
+				"%s: ETHTOOL_GRINGPARAM failed: %m", ifname);
+
+		ring->supported = NI_TRISTATE_DISABLE;
+		return -1;
+	}
+
+	ring->tx = tmp.tx_pending;
+	ring->rx = tmp.rx_pending;
+	ring->rx_jumbo = tmp.rx_jumbo_pending;
+	ring->rx_mini = tmp.rx_mini_pending;
+	return 0;
+}
+
+ni_bool_t
+ni_ethtool_validate_ring_param(unsigned int *curr, unsigned int wanted,
+		unsigned int max, char *rparam, const char *ifname)
+{
+	if (wanted > max) {
+		ni_warn("%s: ETHTOOL_OPTIONS %s crossed max(%u) limit",
+				ifname, rparam, max);
+		return FALSE;
+	}
+
+	if (!curr || *curr == wanted) {
+		return FALSE;
+	}
+
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
+			"%s: ETHTOOL_OPTIONS changed %s from %u to  %u\n",
+			ifname, rparam, *curr, wanted);
+	*curr = wanted;
+	return TRUE;
+}
+
+static int
+ni_ethtool_set_ring(const char *ifname, ni_ethtool_ring_t *ring)
+{
+	struct ethtool_ringparam tmp;
+	ni_bool_t changed = FALSE;
+
+	if (ring->supported == NI_TRISTATE_DISABLE)
+		return -1;
+
+	tmp.cmd = ETHTOOL_GRINGPARAM;
+	memset(&tmp, 0, sizeof(tmp));
+	if (__ni_ethtool(ifname, ETHTOOL_GRINGPARAM, &tmp) < 0) {
+		if (errno != EOPNOTSUPP && errno != ENODEV)
+			ni_warn("%s: ETHTOOL_GRINGPARAM failed: %m", ifname);
+		else
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
+					"%s: ETHTOOL_GRINGPARAM failed: %m", ifname);
+
+		ring->supported = NI_TRISTATE_DISABLE;
+		return -1;
+	}
+
+	if (ni_ethtool_validate_ring_param(&tmp.tx_pending, ring->tx,
+				tmp.tx_max_pending, "tx", ifname)) {
+		changed = TRUE;
+	}
+
+	if (ni_ethtool_validate_ring_param(&tmp.rx_pending, ring->rx,
+				tmp.tx_max_pending, "rx", ifname)) {
+		changed = TRUE;
+	}
+
+	if (ni_ethtool_validate_ring_param(&tmp.rx_jumbo_pending,
+				ring->rx_jumbo,	tmp.rx_jumbo_max_pending, "rx-jumbo", ifname)) {
+		changed = TRUE;
+	}
+
+	if (ni_ethtool_validate_ring_param(&tmp.rx_mini_pending,
+				ring->rx_mini, tmp.rx_mini_max_pending, "rx-mini", ifname)) {
+		changed = TRUE;
+	}
+
+	if (!changed) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+				"%s: no ring parameter changed", ifname);
+		return 0;
+	}
+
+	if (__ni_ethtool(ifname, ETHTOOL_SRINGPARAM, &tmp) < 0) {
+		if (errno != EOPNOTSUPP && errno != ENODEV)
+			ni_warn("%s: ETHTOOL_SRINGPARAM failed: %m", ifname);
+		else
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
+					"%s: ETHTOOL_SRINGPARAM failed: %m", ifname);
+		return -1;
+	}
+	else {
+		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG,
+				"%s: applied ring parameters", ifname);
+	}
+
+	return 0;
+}
+
 void
 __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 {
@@ -679,6 +801,7 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 	__ni_ethtool_get_offload(ifname, &ether->offload);
 	__ni_ethtool_get_permanent_address(ifname, &ether->permanent_address);
 	__ni_ethtool_get_gset(ifname, ether);
+	ni_ethtool_get_ring(ifname, &ether->ring);
 }
 
 /*
@@ -870,4 +993,5 @@ __ni_system_ethernet_set(const char *ifname, ni_ethernet_t *ether)
 	__ni_ethtool_set_wol(ifname, &ether->wol);
 	__ni_ethtool_set_offload(ifname, &ether->offload);
 	__ni_ethtool_set_sset(ifname, ether);
+	ni_ethtool_set_ring(ifname, &ether->ring);
 }
