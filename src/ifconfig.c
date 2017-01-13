@@ -4461,6 +4461,34 @@ __ni_netdev_addr_complete(ni_netdev_t *dev, ni_address_t *ap)
 	}
 }
 
+static ni_bool_t
+__ni_netdev_addr_label_update(const char *ifname, const char *olabel, const char *nlabel)
+{
+	char buff[IFNAMSIZ] = { '\0' };
+	const char *label;
+
+	if (!ifname || !olabel)
+		return FALSE;
+
+	if (nlabel) {
+		/* request to set explicit label */
+		if (!ni_string_startswith(nlabel, ifname)) {
+			snprintf(buff, sizeof(buff), "%s:%s",
+					ifname, nlabel);
+			label = buff;
+		} else {
+			label = nlabel;
+		}
+	} else {
+		/* request to reset it to ifname */
+		label = ifname;
+	}
+
+	if (!ni_string_eq(olabel, label))
+		return -1;
+	return 0;
+}
+
 static int
 __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t *n)
 {
@@ -4484,10 +4512,8 @@ __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t 
 
 	switch (o->family) {
 	case AF_INET:
-		if (n->label && !ni_string_eq(o->label, n->label))
-			return -1;	/* request to set it */
-		if (!n->label && !ni_string_eq(o->label, ifname))
-			return -1;	/* request to remove */
+		if (__ni_netdev_addr_label_update(ifname, o->label, n->label))
+			return -1;
 		break;
 
 	case AF_INET6:
