@@ -353,19 +353,19 @@ __ni_objectmodel_ethernet_get_ring(const ni_dbus_object_t *object,
 	if (eth->ring.supported == NI_TRISTATE_DISABLE)
 		return FALSE;
 
-	if (eth->ring.tx) {
+	if (eth->ring.tx != NI_ETHTOOL_RING_DEFAULT) {
 		ni_dbus_dict_add_int32(result, "tx", eth->ring.tx);
 	}
 
-	if (eth->ring.rx) {
+	if (eth->ring.rx != NI_ETHTOOL_RING_DEFAULT) {
 		ni_dbus_dict_add_int32(result, "rx", eth->ring.rx);
 	}
 
-	if (eth->ring.rx_jumbo) {
+	if (eth->ring.rx_jumbo != NI_ETHTOOL_RING_DEFAULT) {
 		ni_dbus_dict_add_int32(result, "rx-jumbo", eth->ring.rx_jumbo);
 	}
 
-	if (eth->ring.rx_mini) {
+	if (eth->ring.rx_mini != NI_ETHTOOL_RING_DEFAULT) {
 		ni_dbus_dict_add_int32(result, "rx-mini", eth->ring.rx_mini);
 	}
 
@@ -384,19 +384,19 @@ __ni_objectmodel_ethernet_set_ring(ni_dbus_object_t *object,
 		return FALSE;
 
 	if (!ni_dbus_dict_get_uint32(argument, "tx", &eth->ring.tx)) {
-		eth->ring.tx = 0;
+		eth->ring.tx = NI_ETHTOOL_RING_DEFAULT;
 	}
 
 	if (!ni_dbus_dict_get_uint32(argument, "rx", &eth->ring.rx)) {
-		eth->ring.rx = 0;
+		eth->ring.rx = NI_ETHTOOL_RING_DEFAULT;
 	}
 
 	if (!ni_dbus_dict_get_uint32(argument, "rx-jumbo", &eth->ring.rx_jumbo)) {
-		eth->ring.rx_jumbo = 0;
+		eth->ring.rx_jumbo = NI_ETHTOOL_RING_DEFAULT;
 	}
 
 	if (!ni_dbus_dict_get_uint32(argument, "rx-mini", &eth->ring.rx_mini)) {
-		eth->ring.rx_mini = 0;
+		eth->ring.rx_mini = NI_ETHTOOL_RING_DEFAULT;
 	}
 
 	return TRUE;
