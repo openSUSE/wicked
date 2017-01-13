@@ -4461,33 +4461,33 @@ __ni_netdev_addr_complete(ni_netdev_t *dev, ni_address_t *ap)
 	}
 }
 
-static ni_bool_t
+static int
 __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t *n)
 {
 	if (n->scope != -1 && o->scope != n->scope)
-		return TRUE;
+		return -1;
 
 	if (o->prefixlen != n->prefixlen)
-		return TRUE;
+		return -1;
 
 	if (!ni_sockaddr_equal(&o->local_addr, &n->local_addr))
-		return TRUE;
+		return -1;
 
 	if (!ni_sockaddr_equal(&o->peer_addr, &n->peer_addr))
-		return TRUE;
+		return -1;
 
 	if (!ni_sockaddr_equal(&o->bcast_addr, &n->bcast_addr))
-		return TRUE;
+		return -1;
 
 	if (!ni_sockaddr_equal(&o->anycast_addr, &n->anycast_addr))
-		return TRUE;
+		return -1;
 
 	switch (o->family) {
 	case AF_INET:
 		if (n->label && !ni_string_eq(o->label, n->label))
-			return TRUE;	/* request to set it */
+			return -1;	/* request to set it */
 		if (!n->label && !ni_string_eq(o->label, ifname))
-			return TRUE;	/* request to remove */
+			return -1;	/* request to remove */
 		break;
 
 	case AF_INET6:
@@ -4504,34 +4504,13 @@ __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t 
 		if ((nlft.valid_lft || nlft.preferred_lft) &&
 		    (olft.valid_lft     != nlft.valid_lft ||
 		     olft.preferred_lft != nlft.preferred_lft))
-			return TRUE;
+			return 1;
 	}	break;
 
 	default:
 		break;
 	}
 	return FALSE;
-}
-
-static ni_bool_t
-__ni_netdev_addr_can_replace(ni_address_t *o, ni_address_t *n)
-{
-	if (o->prefixlen != n->prefixlen)
-		return FALSE;
-
-	if (!ni_sockaddr_equal(&o->local_addr, &n->local_addr))
-		return FALSE;
-
-	if (!ni_sockaddr_equal(&o->peer_addr, &n->peer_addr))
-		return FALSE;
-
-	if (!ni_sockaddr_equal(&o->bcast_addr, &n->bcast_addr))
-		return FALSE;
-
-	if (!ni_sockaddr_equal(&o->anycast_addr, &n->anycast_addr))
-		return FALSE;
-
-	return TRUE;
 }
 
 /*
@@ -4832,12 +4811,14 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		}
 
 		if (new_addr != NULL) {
+			int replace;
+
 			/* mark it to skip in add loop */
 			new_addr->seq = __ni_global_seqno;
 
 			/* Check whether we need to update */
 			__ni_netdev_addr_complete(dev, new_addr);
-			if (!__ni_netdev_addr_needs_update(dev->name, ap, new_addr)) {
+			if (!(replace = __ni_netdev_addr_needs_update(dev->name, ap, new_addr))) {
 				ni_debug_ifconfig("%s: address %s/%u exists; no need to reconfigure",
 					dev->name,
 					ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
@@ -4852,7 +4833,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 					dev->name,
 					ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 
-			if (!__ni_netdev_addr_can_replace(ap, new_addr))
+			if (replace < 0)
 				__ni_rtnl_send_deladdr(dev, ap);
 
 			if ((rv = __ni_rtnl_send_newaddr(dev, new_addr, NLM_F_REPLACE)) < 0)
