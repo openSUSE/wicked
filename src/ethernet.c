@@ -677,8 +677,13 @@ __ni_system_ethernet_refresh(ni_netdev_t *dev)
 static void
 ni_ethtool_ring_init(ni_ethtool_ring_t *ring)
 {
-	if (ring)
+	if (ring) {
 		ring->supported = NI_TRISTATE_DEFAULT;
+		ring->tx	= NI_ETHTOOL_RING_DEFAULT;
+		ring->rx	= NI_ETHTOOL_RING_DEFAULT;
+		ring->rx_mini	= NI_ETHTOOL_RING_DEFAULT;
+		ring->rx_jumbo	= NI_ETHTOOL_RING_DEFAULT;
+	}
 }
 
 static int
@@ -713,13 +718,15 @@ ni_bool_t
 ni_ethtool_validate_ring_param(unsigned int *curr, unsigned int wanted,
 		unsigned int max, char *rparam, const char *ifname)
 {
+	if (wanted == NI_ETHTOOL_RING_DEFAULT)
+		return FALSE;
+
+	if (!curr || *curr == wanted)
+		return FALSE;
+
 	if (wanted > max) {
 		ni_warn("%s: ETHTOOL_OPTIONS %s crossed max(%u) limit",
 				ifname, rparam, max);
-		return FALSE;
-	}
-
-	if (!curr || *curr == wanted) {
 		return FALSE;
 	}
 

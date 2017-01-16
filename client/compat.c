@@ -255,16 +255,16 @@ ni_compat_generate_eth_ring_node(xml_node_t *parent, const ni_ethtool_ring_t *ri
 		return;
 
 	node = xml_node_new("ring", NULL);
-	if (ring->tx) {
+	if (ring->tx != NI_ETHTOOL_RING_DEFAULT) {
 		xml_node_new_element_uint("tx", node, ring->tx);
 	}
-	if (ring->rx) {
+	if (ring->rx != NI_ETHTOOL_RING_DEFAULT) {
 		xml_node_new_element_uint("rx", node, ring->rx);
 	}
-	if (ring->rx_jumbo) {
+	if (ring->rx_jumbo != NI_ETHTOOL_RING_DEFAULT) {
 		xml_node_new_element_uint("rx-jumbo", node, ring->rx_jumbo);
 	}
-	if (ring->rx_mini) {
+	if (ring->rx_mini != NI_ETHTOOL_RING_DEFAULT) {
 		xml_node_new_element_uint("rx-mini", node, ring->rx_mini);
 	}
 

@@ -58,6 +58,8 @@ typedef struct ni_ethtool_offload {
 	ni_tristate_t	lro;
 } ni_ethtool_offload_t;
 
+#define NI_ETHTOOL_RING_DEFAULT		-1U
+
 typedef struct ni_ethtool_ring {
 	ni_tristate_t	supported;
 	unsigned int	tx;
