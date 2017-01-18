@@ -196,6 +196,37 @@ extern int		ni_arp_send_grat_reply(ni_arp_socket_t *, struct in_addr);
 extern int		ni_arp_send_grat_request(ni_arp_socket_t *, struct in_addr);
 extern int		ni_arp_send(ni_arp_socket_t *, const ni_arp_packet_t *);
 
+typedef struct ni_arp_verify {
+	unsigned int		nprobes;
+
+	unsigned int		wait_ms;
+	struct timeval		started;
+
+	ni_address_array_t	ipaddrs;
+} ni_arp_verify_t;
+
+extern void		ni_arp_verify_init(ni_arp_verify_t *, unsigned int, unsigned int);
+extern void		ni_arp_verify_reset(ni_arp_verify_t *, unsigned int, unsigned int);
+extern void		ni_arp_verify_destroy(ni_arp_verify_t *);
+extern unsigned int	ni_arp_verify_add_address(ni_arp_verify_t *,  ni_address_t *);
+extern void		ni_arp_verify_process(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
+extern ni_bool_t	ni_arp_verify_send(ni_arp_socket_t *, ni_arp_verify_t *, unsigned int *);
+
+typedef struct ni_arp_notify {
+	unsigned int		nclaims;
+
+	unsigned int		wait_ms;
+	struct timeval		started;
+
+	ni_address_array_t	ipaddrs;
+} ni_arp_notify_t;
+
+extern void		ni_arp_notify_init(ni_arp_notify_t *, unsigned int, unsigned int);
+extern void		ni_arp_notify_reset(ni_arp_notify_t *, unsigned int, unsigned int);
+extern void		ni_arp_notify_destroy(ni_arp_notify_t *);
+extern unsigned int	ni_arp_notify_add_address(ni_arp_notify_t *,  ni_address_t *);
+extern ni_bool_t	ni_arp_notify_send(ni_arp_socket_t *, ni_arp_notify_t *, unsigned int *);
+
 /* netdev reques port config */
 struct ni_netdev_port_req {
 	ni_iftype_t				type;
