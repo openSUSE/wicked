@@ -3898,6 +3898,7 @@ __ni_netdev_address_in_list(ni_address_t *list, const ni_address_t *ap)
 static int
 __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 {
+	unsigned int omit = IFA_F_TENTATIVE|IFA_F_DADFAILED;
 	struct ifaddrmsg ifa;
 	struct nl_msg *msg;
 	int err;
@@ -3909,7 +3910,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 	ifa.ifa_index = dev->link.ifindex;
 	ifa.ifa_family = ap->family;
 	ifa.ifa_prefixlen = ap->prefixlen;
-	ifa.ifa_flags = ap->flags & 0xff;
+	ifa.ifa_flags = (ap->flags & ~omit) & 0xff;
 
 	/* Handle ifa_scope */
 	if (ap->scope >= 0)
@@ -3924,7 +3925,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 		goto nla_put_failure;
 
 	if (ap->flags)
-		NLA_PUT_U32(msg, IFA_FLAGS, ap->flags);
+		NLA_PUT_U32(msg, IFA_FLAGS, (ap->flags & ~omit));
 
 	if (addattr_sockaddr(msg, IFA_LOCAL, &ap->local_addr) < 0)
 		goto nla_put_failure;
