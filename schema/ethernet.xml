@@ -57,6 +57,31 @@
       <rx-jumbo type="uint32"/>
       <rx-mini type="uint32"/>
     </ring>
+
+	<coalesce class="dict">
+	  <aadaptive-rx type="tristate"/>
+	  <adaptive-tx type="tristate"/>
+	  <rx-usecs type="uint32"/>
+	  <rx-frames type="uint32"/>
+	  <rx-usecs-irq type="uint32"/>
+	  <rx-frames-irq type="uint32"/>
+	  <tx-usecs type="uint32"/>
+	  <tx-frames type="uint32"/>
+	  <tx-usecs-irq type="uint32"/>
+	  <tx-frames-irq type="uint32"/>
+	  <stats-block-usecs type="uint32"/>
+	  <pkt-rate-low type="uint32"/>
+	  <rx-usecs-low type="uint32"/>
+	  <rx-frames-low type="uint32"/>
+	  <tx-usecs-low type="uint32"/>
+	  <tx-frames-low type="uint32"/>
+	  <pkt-rate-high type="uint32"/>
+	  <rx-usecs-high type="uint32"/>
+	  <rx-frames-high type="uint32"/>
+	  <tx-usecs-high type="uint32"/>
+	  <tx-frames-high type="uint32"/>
+	</coalesce>
+
   </define>
 
   <define name="properties" class="dict" extends="ethernet:configuration">
