@@ -1881,13 +1881,21 @@ try_add_ethtool_offload(ni_ethtool_offload_t *offload, const char *opt, const ch
 	}
 }
 
-/* get coalesce from wicked config */
+/* get coalesce from ifcfg config */
 static void
 try_add_ethtool_coalesce(ni_netdev_t *dev, const char *opt, const char *val)
 {
-
 	ni_ethernet_t *eth = ni_netdev_get_ethernet(dev);
+	ni_bool_t bval;
 
+	if (ni_string_eq(opt, "adaptive-rx")) {
+		if (ni_parse_boolean(val, &bval) == 0)
+			ni_tristate_set(&eth->coalesce.adaptive_rx, bval);
+	} else
+	if (ni_string_eq(opt, "adaptive-tx")) {
+		if (ni_parse_boolean(val, &bval) == 0)
+			ni_tristate_set(&eth->coalesce.adaptive_tx, bval);
+	} else
 	if (ni_string_eq(opt, "rx-usecs")) {
 		ni_parse_uint(val, &eth->coalesce.rx_usecs, 10);
 	} else

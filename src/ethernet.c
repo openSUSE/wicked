@@ -57,7 +57,7 @@ static void	__ni_system_ethernet_set(const char *, ni_ethernet_t *);
 static int	__ni_ethtool_get_gset(const char *, ni_ethernet_t *);
 static void	ni_ethtool_offload_init(ni_ethtool_offload_t *);
 static void	ni_ethtool_ring_init(ni_ethtool_ring_t *);
-static void ni_ethtool_ring_coalesce_init(ni_ethtool_coalesce_t *coalesce);
+static void	ni_ethtool_coalesce_init(ni_ethtool_coalesce_t *coalesce);
 
 /*
  * Allocate ethernet struct
@@ -74,7 +74,7 @@ ni_ethernet_new(void)
 	ether->autoneg_enable		= NI_TRISTATE_DEFAULT;
 	ni_ethtool_offload_init(&ether->offload);
 	ni_ethtool_ring_init(&ether->ring);
-	ni_ethtool_ring_coalesce_init(&ether->coalesce);
+	ni_ethtool_coalesce_init(&ether->coalesce);
 
 	return ether;
 }
@@ -700,7 +700,7 @@ ni_ethtool_validate_uint_param(unsigned int *curr, unsigned int wanted,
 }
 
 static void
-ni_ethtool_ring_coalesce_init(ni_ethtool_coalesce_t *coalesce)
+ni_ethtool_coalesce_init(ni_ethtool_coalesce_t *coalesce)
 {
 	if (coalesce) {
 		coalesce->supported = NI_TRISTATE_DEFAULT;

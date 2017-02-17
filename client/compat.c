@@ -245,7 +245,7 @@ __ni_compat_generate_eth_offload_node(xml_node_t *parent, const ni_ethtool_offlo
 
 }
 
-/* generate coalesce information */
+/* generate coalesce configuration */
 static void
 ni_compat_generate_eth_coalesce_node(xml_node_t *parent, const ni_ethtool_coalesce_t *coalesce)
 {
@@ -255,6 +255,12 @@ ni_compat_generate_eth_coalesce_node(xml_node_t *parent, const ni_ethtool_coales
 		return;
 
 	node = xml_node_new("coalesce", NULL);
+
+	if (coalesce->adaptive_rx != NI_TRISTATE_DEFAULT)
+		xml_node_new_element("adaptive-rx", node, ni_format_boolean(coalesce->adaptive_rx));
+
+	if (coalesce->adaptive_tx != NI_TRISTATE_DEFAULT)
+		xml_node_new_element("adaptive-tx", node, ni_format_boolean(coalesce->adaptive_tx));
 
 	if (coalesce->rx_usecs != NI_ETHTOOL_RING_DEFAULT) {
 		xml_node_new_element_uint("rx-usecs", node, coalesce->rx_usecs);

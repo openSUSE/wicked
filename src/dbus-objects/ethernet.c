@@ -353,65 +353,71 @@ __ni_objectmodel_ethernet_get_coalesce(const ni_dbus_object_t *object,
 	if (eth->coalesce.supported == NI_TRISTATE_DISABLE)
 		return FALSE;
 
+	if (eth->coalesce.adaptive_rx != NI_TRISTATE_DEFAULT)
+		ni_dbus_dict_add_int32(result, "adaptive-rx", eth->coalesce.adaptive_rx);
+
+	if (eth->coalesce.adaptive_tx != NI_TRISTATE_DEFAULT)
+		ni_dbus_dict_add_int32(result, "adaptive-tx", eth->coalesce.adaptive_tx);
+
 	if (eth->coalesce.rx_usecs != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "rx-usecs", eth->coalesce.rx_usecs);
+		ni_dbus_dict_add_uint32(result, "rx-usecs", eth->coalesce.rx_usecs);
 	}
 	if (eth->coalesce.rx_frames != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "rx-frames", eth->coalesce.rx_frames);
+		ni_dbus_dict_add_uint32(result, "rx-frames", eth->coalesce.rx_frames);
 	}
 	if (eth->coalesce.rx_usecs_irq != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "rx-usecs-irq", eth->coalesce.rx_usecs_irq);
+		ni_dbus_dict_add_uint32(result, "rx-usecs-irq", eth->coalesce.rx_usecs_irq);
 	}
 	if (eth->coalesce.rx_frames_irq != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "rx-frames-irq", eth->coalesce.rx_frames_irq);
+		ni_dbus_dict_add_uint32(result, "rx-frames-irq", eth->coalesce.rx_frames_irq);
 	}
 	if (eth->coalesce.tx_usecs != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "tx-usecs", eth->coalesce.tx_usecs);
+		ni_dbus_dict_add_uint32(result, "tx-usecs", eth->coalesce.tx_usecs);
 	}
 	if (eth->coalesce.tx_frames != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "tx-frames", eth->coalesce.tx_frames);
+		ni_dbus_dict_add_uint32(result, "tx-frames", eth->coalesce.tx_frames);
 	}
 	if (eth->coalesce.tx_usecs_irq != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "tx-usecs-irq", eth->coalesce.tx_usecs_irq);
+		ni_dbus_dict_add_uint32(result, "tx-usecs-irq", eth->coalesce.tx_usecs_irq);
 	}
 	if (eth->coalesce.tx_frames_irq != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "tx-frames-irq", eth->coalesce.tx_frames_irq);
+		ni_dbus_dict_add_uint32(result, "tx-frames-irq", eth->coalesce.tx_frames_irq);
 	}
 	if (eth->coalesce.stats_block_usecs != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "stats-block-usecs", eth->coalesce.stats_block_usecs);
+		ni_dbus_dict_add_uint32(result, "stats-block-usecs", eth->coalesce.stats_block_usecs);
 	}
 	if (eth->coalesce.pkt_rate_low != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "pkt-rate-low", eth->coalesce.pkt_rate_low);
+		ni_dbus_dict_add_uint32(result, "pkt-rate-low", eth->coalesce.pkt_rate_low);
 	}
 	if (eth->coalesce.rx_usecs_low != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "rx-usecs-low", eth->coalesce.rx_usecs_low);
+		ni_dbus_dict_add_uint32(result, "rx-usecs-low", eth->coalesce.rx_usecs_low);
 	}
 	if (eth->coalesce.rx_frames_low != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "rx-frames-low", eth->coalesce.rx_frames_low);
+		ni_dbus_dict_add_uint32(result, "rx-frames-low", eth->coalesce.rx_frames_low);
 	}
 	if (eth->coalesce.tx_usecs_low != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "tx-usecs-low", eth->coalesce.tx_usecs_low);
+		ni_dbus_dict_add_uint32(result, "tx-usecs-low", eth->coalesce.tx_usecs_low);
 	}
 	if (eth->coalesce.tx_frames_low != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "tx-frames-low", eth->coalesce.tx_frames_low);
+		ni_dbus_dict_add_uint32(result, "tx-frames-low", eth->coalesce.tx_frames_low);
 	}
 	if (eth->coalesce.pkt_rate_high != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "pkt-rate-high", eth->coalesce.pkt_rate_high);
+		ni_dbus_dict_add_uint32(result, "pkt-rate-high", eth->coalesce.pkt_rate_high);
 	}
 	if (eth->coalesce.rx_usecs_high != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "rx-usecs-high", eth->coalesce.rx_usecs_high);
+		ni_dbus_dict_add_uint32(result, "rx-usecs-high", eth->coalesce.rx_usecs_high);
 	}
 	if (eth->coalesce.rx_frames_high != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "rx-frames-high", eth->coalesce.rx_frames_high);
+		ni_dbus_dict_add_uint32(result, "rx-frames-high", eth->coalesce.rx_frames_high);
 	}
 	if (eth->coalesce.tx_usecs_high != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "tx-usecs-high", eth->coalesce.tx_usecs_high);
+		ni_dbus_dict_add_uint32(result, "tx-usecs-high", eth->coalesce.tx_usecs_high);
 	}
 	if (eth->coalesce.tx_frames_high != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "tx-frames-high", eth->coalesce.tx_frames_high);
+		ni_dbus_dict_add_uint32(result, "tx-frames-high", eth->coalesce.tx_frames_high);
 	}
 	if (eth->coalesce.sample_interval != NI_ETHTOOL_COALESCE_DEFAULT) {
-		ni_dbus_dict_add_int32(result, "sample-interval", eth->coalesce.sample_interval);
+		ni_dbus_dict_add_uint32(result, "sample-interval", eth->coalesce.sample_interval);
 	}
 
 	return TRUE;
@@ -428,65 +434,71 @@ __ni_objectmodel_ethernet_set_coalesce(ni_dbus_object_t *object,
 	if (!(eth = __ni_objectmodel_ethernet_write_handle(object, error)))
 		return FALSE;
 
+	if (!ni_dbus_dict_get_int32(argument, "adaptive-rx", &eth->coalesce.adaptive_rx))
+		eth->coalesce.adaptive_rx = NI_TRISTATE_DEFAULT;
+
+	if (!ni_dbus_dict_get_int32(argument, "adaptive-tx", &eth->coalesce.adaptive_tx))
+		eth->coalesce.adaptive_tx = NI_TRISTATE_DEFAULT;
+
 	if (!ni_dbus_dict_get_uint32(argument, "rx-usecs", &eth->coalesce.rx_usecs)) {
-		eth->coalesce.rx_usecs = 0;
+		eth->coalesce.rx_usecs = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "rx-frames", &eth->coalesce.rx_frames)) {
-		eth->coalesce.rx_frames = 0;
+		eth->coalesce.rx_frames = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "rx-usecs-irq", &eth->coalesce.rx_usecs_irq)) {
-		eth->coalesce.rx_usecs_irq = 0;
+		eth->coalesce.rx_usecs_irq = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "rx-frames-irq", &eth->coalesce.rx_frames_irq)) {
-		eth->coalesce.rx_frames_irq = 0;
+		eth->coalesce.rx_frames_irq = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "tx-usecs", &eth->coalesce.tx_usecs)) {
-		eth->coalesce.tx_usecs = 0;
+		eth->coalesce.tx_usecs = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "tx-frames", &eth->coalesce.tx_frames)) {
-		eth->coalesce.tx_frames = 0;
+		eth->coalesce.tx_frames = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "tx-usecs-irq", &eth->coalesce.tx_usecs_irq)) {
-		eth->coalesce.tx_usecs_irq = 0;
+		eth->coalesce.tx_usecs_irq = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "tx-frames-irq", &eth->coalesce.tx_frames_irq)) {
-		eth->coalesce.tx_frames_irq = 0;
+		eth->coalesce.tx_frames_irq = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "stats-block-usecs", &eth->coalesce.stats_block_usecs)) {
-		eth->coalesce.stats_block_usecs = 0;
+		eth->coalesce.stats_block_usecs = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "pkt-rate-low", &eth->coalesce.pkt_rate_low)) {
-		eth->coalesce.pkt_rate_low = 0;
+		eth->coalesce.pkt_rate_low = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "rx-usecs-low", &eth->coalesce.rx_usecs_low)) {
-		eth->coalesce.rx_usecs_low = 0;
+		eth->coalesce.rx_usecs_low = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "rx-frames-low", &eth->coalesce.rx_frames_low)) {
-		eth->coalesce.rx_frames_low = 0;
+		eth->coalesce.rx_frames_low = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "tx-usecs-low", &eth->coalesce.tx_usecs_low)) {
-		eth->coalesce.tx_usecs_low = 0;
+		eth->coalesce.tx_usecs_low = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "tx-frames-low", &eth->coalesce.tx_frames_low)) {
-		eth->coalesce.tx_frames_low = 0;
+		eth->coalesce.tx_frames_low = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "pkt-rate-high", &eth->coalesce.pkt_rate_high)) {
-		eth->coalesce.pkt_rate_high = 0;
+		eth->coalesce.pkt_rate_high = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "rx-usecs-high", &eth->coalesce.rx_usecs_high)) {
-		eth->coalesce.rx_usecs_high = 0;
+		eth->coalesce.rx_usecs_high = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "rx-frames-high", &eth->coalesce.rx_frames_high)) {
-		eth->coalesce.rx_frames_high = 0;
+		eth->coalesce.rx_frames_high = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "tx-usecs-high", &eth->coalesce.tx_usecs_high)) {
-		eth->coalesce.tx_usecs_high = 0;
+		eth->coalesce.tx_usecs_high = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "tx-frames-high", &eth->coalesce.tx_frames_high)) {
-		eth->coalesce.tx_frames_high = 0;
+		eth->coalesce.tx_frames_high = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 	if (!ni_dbus_dict_get_uint32(argument, "sample-interval", &eth->coalesce.sample_interval)) {
-		eth->coalesce.sample_interval = 0;
+		eth->coalesce.sample_interval = NI_ETHTOOL_COALESCE_DEFAULT;
 	}
 
 	return TRUE;
