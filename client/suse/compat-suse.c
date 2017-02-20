@@ -1896,66 +1896,66 @@ try_add_ethtool_coalesce(ni_netdev_t *dev, const char *opt, const char *val)
 		if (ni_parse_boolean(val, &bval) == 0)
 			ni_tristate_set(&eth->coalesce.adaptive_tx, bval);
 	} else
+	if (ni_string_eq(opt, "pkt-rate-low")) {
+		ni_parse_uint(val, &eth->coalesce.pkt_rate_low, 10);
+	} else
+	if (ni_string_eq(opt, "pkt-rate-high")) {
+		ni_parse_uint(val, &eth->coalesce.pkt_rate_high, 10);
+	} else
+	if (ni_string_eq(opt, "sample-interval")) {
+		ni_parse_uint(val, &eth->coalesce.sample_interval, 10);
+	} else
+	if (ni_string_eq(opt, "stats-block-usecs")) {
+		ni_parse_uint(val, &eth->coalesce.stats_block_usecs, 10);
+	} else
 	if (ni_string_eq(opt, "rx-usecs")) {
 		ni_parse_uint(val, &eth->coalesce.rx_usecs, 10);
+	} else
+	if (ni_string_eq(opt, "rx-usecs-irq")) {
+		ni_parse_uint(val, &eth->coalesce.rx_usecs_irq, 10);
+	} else
+	if (ni_string_eq(opt, "rx-usecs-low")) {
+		ni_parse_uint(val, &eth->coalesce.rx_usecs_low, 10);
+	} else
+	if (ni_string_eq(opt, "rx-usecs-high")) {
+		ni_parse_uint(val, &eth->coalesce.rx_usecs_high, 10);
 	} else
 	if (ni_string_eq(opt, "rx-frames")) {
 		ni_parse_uint(val, &eth->coalesce.rx_frames, 10);
 	} else
-	if (ni_string_eq(opt, "rx-usecs-irq")) {
-		ni_parse_uint(val, &eth->coalesce.rx_usecs_irq, 10);
-		} else
 	if (ni_string_eq(opt, "rx-frames-irq")) {
 		ni_parse_uint(val, &eth->coalesce.rx_frames_irq, 10);
-		} else
-	if (ni_string_eq(opt, "tx-usecs")) {
-		ni_parse_uint(val, &eth->coalesce.tx_usecs, 10);
-		} else
-	if (ni_string_eq(opt, "tx-frames")) {
-		ni_parse_uint(val, &eth->coalesce.tx_frames, 10);
-		} else
-	if (ni_string_eq(opt, "tx-usecs-irq")) {
-		ni_parse_uint(val, &eth->coalesce.tx_usecs_irq, 10);
-		} else
-	if (ni_string_eq(opt, "tx-frames-irq")) {
-		ni_parse_uint(val, &eth->coalesce.tx_frames_irq, 10);
-		} else
-	if (ni_string_eq(opt, "stats-block-usecs")) {
-		ni_parse_uint(val, &eth->coalesce.stats_block_usecs, 10);
-		} else
-	if (ni_string_eq(opt, "pkt-rate-low")) {
-		ni_parse_uint(val, &eth->coalesce.pkt_rate_low, 10);
-		} else
-	if (ni_string_eq(opt, "rx-usecs-low")) {
-		ni_parse_uint(val, &eth->coalesce.rx_usecs_low, 10);
-		} else
+	} else
 	if (ni_string_eq(opt, "rx-frames-low")) {
 		ni_parse_uint(val, &eth->coalesce.rx_frames_low, 10);
-		} else
-	if (ni_string_eq(opt, "tx-usecs-low")) {
-		ni_parse_uint(val, &eth->coalesce.tx_usecs_low, 10);
-		} else
-	if (ni_string_eq(opt, "tx-frames-low")) {
-		ni_parse_uint(val, &eth->coalesce.tx_frames_low, 10);
-		} else
-	if (ni_string_eq(opt, "pkt-rate-high")) {
-		ni_parse_uint(val, &eth->coalesce.pkt_rate_high, 10);
-		} else
-	if (ni_string_eq(opt, "rx-usecs-high")) {
-		ni_parse_uint(val, &eth->coalesce.rx_usecs_high, 10);
-		} else
+	} else
 	if (ni_string_eq(opt, "rx-frames-high")) {
 		ni_parse_uint(val, &eth->coalesce.rx_frames_high, 10);
-		} else
+	} else
+	if (ni_string_eq(opt, "tx-usecs")) {
+		ni_parse_uint(val, &eth->coalesce.tx_usecs, 10);
+	} else
+	if (ni_string_eq(opt, "tx-usecs-irq")) {
+		ni_parse_uint(val, &eth->coalesce.tx_usecs_irq, 10);
+	} else
+	if (ni_string_eq(opt, "tx-usecs-low")) {
+		ni_parse_uint(val, &eth->coalesce.tx_usecs_low, 10);
+	} else
 	if (ni_string_eq(opt, "tx-usecs-high")) {
 		ni_parse_uint(val, &eth->coalesce.tx_usecs_high, 10);
-		} else
+	} else
+	if (ni_string_eq(opt, "tx-frames")) {
+		ni_parse_uint(val, &eth->coalesce.tx_frames, 10);
+	} else
+	if (ni_string_eq(opt, "tx-frames-irq")) {
+		ni_parse_uint(val, &eth->coalesce.tx_frames_irq, 10);
+	} else
+	if (ni_string_eq(opt, "tx-frames-low")) {
+		ni_parse_uint(val, &eth->coalesce.tx_frames_low, 10);
+	} else
 	if (ni_string_eq(opt, "tx-frames-high")) {
 		ni_parse_uint(val, &eth->coalesce.tx_frames_high, 10);
-		} else
-	if (ni_string_eq(opt, "sample-interval")) {
-		ni_parse_uint(val, &eth->coalesce.sample_interval, 10);
-		}
+	}
 }
 
 /* get ringparams from wicked config */
