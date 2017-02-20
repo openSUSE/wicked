@@ -81,6 +81,7 @@
       <tx-frames type="uint32"/>
       <tx-usecs-irq type="uint32"/>
       <tx-frames-irq type="uint32"/>
+      <sample-interval type="uint32"/>
       <stats-block-usecs type="uint32"/>
       <pkt-rate-low type="uint32"/>
       <rx-usecs-low type="uint32"/>
