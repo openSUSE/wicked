@@ -330,6 +330,33 @@ ni_compat_generate_eth_coalesce_node(xml_node_t *parent, const ni_ethtool_coales
 
 }
 
+/* generate eee configuration */
+static void
+ni_compat_generate_eth_eee_node(xml_node_t *parent, const ni_ethtool_eee_t *eee)
+{
+	xml_node_t *node;
+
+	if (!parent || !eee)
+		return;
+
+	node = xml_node_new("eee", NULL);
+	if (eee->status.enabled != NI_TRISTATE_DEFAULT)
+		xml_node_new_element("enabled", node, ni_format_boolean(eee->status.enabled));
+
+	if (eee->speed.advertised != NI_ETHTOOL_EEE_DEFAULT)
+		xml_node_new_element_uint("advertise", node, eee->speed.advertised);
+
+	if (eee->tx_lpi.enabled != NI_TRISTATE_DEFAULT)
+		xml_node_new_element("tx-lpi", node, ni_format_boolean(eee->tx_lpi.enabled));
+	if (eee->tx_lpi.timer != NI_ETHTOOL_EEE_DEFAULT)
+		xml_node_new_element_uint("tx-timer", node, eee->tx_lpi.timer);
+
+	if (node->children)
+		xml_node_add_child(parent, node);
+	else
+		xml_node_free(node);
+}
+
 /* generate ring information */
 static void
 ni_compat_generate_eth_ring_node(xml_node_t *parent, const ni_ethtool_ring_t *ring)
@@ -402,6 +429,7 @@ __ni_compat_generate_eth_node(xml_node_t *child, const ni_ethernet_t *eth)
 	}
 
 	__ni_compat_generate_eth_offload_node(child, &eth->offload);
+	ni_compat_generate_eth_eee_node(child, &eth->eee);
 	ni_compat_generate_eth_ring_node(child, &eth->ring);
 	ni_compat_generate_eth_coalesce_node(child, &eth->coalesce);
 }

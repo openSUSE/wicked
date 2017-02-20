@@ -58,6 +58,26 @@ typedef struct ni_ethtool_offload {
 	ni_tristate_t	lro;
 } ni_ethtool_offload_t;
 
+#define NI_ETHTOOL_EEE_DEFAULT		-1U
+
+typedef struct ni_ethtool_eee {
+	ni_tristate_t	supported;
+
+	struct {
+		ni_tristate_t	enabled;
+		ni_tristate_t	active;
+	} status;
+	struct {
+		unsigned int	supported;
+		unsigned int	advertised;
+		unsigned int	lp_advertised;
+	} speed;
+	struct {
+		ni_tristate_t	enabled;
+		unsigned int	timer;
+	} tx_lpi;
+} ni_ethtool_eee_t;
+
 #define NI_ETHTOOL_RING_DEFAULT		-1U
 
 typedef struct ni_ethtool_ring {
@@ -112,6 +132,7 @@ struct ni_ethernet {
 
 	ni_ethernet_wol_t	wol;
 	ni_ethtool_offload_t	offload;
+	ni_ethtool_eee_t	eee;
 	ni_ethtool_ring_t       ring;
 	ni_ethtool_coalesce_t   coalesce;
 
