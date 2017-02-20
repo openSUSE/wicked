@@ -505,6 +505,71 @@ __ni_objectmodel_ethernet_set_coalesce(ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
+__ni_objectmodel_ethernet_get_eee(const ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		ni_dbus_variant_t *result,
+		DBusError *error)
+{
+	const ni_ethernet_t *eth;
+
+	if (!(eth = __ni_objectmodel_ethernet_read_handle(object, error)))
+		return FALSE;
+
+	if (eth->eee.supported == NI_TRISTATE_DISABLE)
+		return FALSE;
+
+	if (eth->eee.status.enabled != NI_TRISTATE_DEFAULT)
+		ni_dbus_dict_add_int32(result, "enabled", eth->eee.status.enabled);
+	if (eth->eee.status.active != NI_TRISTATE_DEFAULT)
+		ni_dbus_dict_add_int32(result, "active", eth->eee.status.active);
+
+	if (eth->eee.speed.supported != NI_ETHTOOL_EEE_DEFAULT)
+		ni_dbus_dict_add_uint32(result, "supported", eth->eee.speed.supported);
+	if (eth->eee.speed.advertised != NI_ETHTOOL_EEE_DEFAULT)
+		ni_dbus_dict_add_uint32(result, "advertise", eth->eee.speed.advertised);
+	if (eth->eee.speed.lp_advertised != NI_ETHTOOL_EEE_DEFAULT)
+		ni_dbus_dict_add_uint32(result, "lp-advertised", eth->eee.speed.lp_advertised);
+
+	if (eth->eee.tx_lpi.enabled != NI_TRISTATE_DEFAULT)
+		ni_dbus_dict_add_int32(result, "tx-lpi", eth->eee.tx_lpi.enabled);
+	if (eth->eee.tx_lpi.timer != NI_ETHTOOL_EEE_DEFAULT)
+		ni_dbus_dict_add_uint32(result, "tx-timer", eth->eee.tx_lpi.timer);
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_ethernet_set_eee(ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument,
+		DBusError *error)
+{
+	ni_ethernet_t *eth;
+
+	if (!(eth = __ni_objectmodel_ethernet_write_handle(object, error)))
+		return FALSE;
+
+	if (!ni_dbus_dict_get_int32(argument, "enabled", &eth->eee.status.enabled))
+		eth->eee.status.enabled = NI_TRISTATE_DEFAULT;
+	if (!ni_dbus_dict_get_int32(argument, "active",  &eth->eee.status.active))
+		eth->eee.status.active = NI_TRISTATE_DEFAULT;
+
+	if (!ni_dbus_dict_get_uint32(argument, "supported", &eth->eee.speed.supported))
+		eth->eee.speed.supported = NI_ETHTOOL_EEE_DEFAULT;
+	if (!ni_dbus_dict_get_uint32(argument, "advertise", &eth->eee.speed.advertised))
+		eth->eee.speed.advertised = NI_ETHTOOL_EEE_DEFAULT;
+	if (!ni_dbus_dict_get_uint32(argument, "lp-advertised", &eth->eee.speed.lp_advertised))
+		eth->eee.speed.lp_advertised = NI_ETHTOOL_EEE_DEFAULT;
+
+	if (!ni_dbus_dict_get_int32(argument, "tx-lpi", &eth->eee.tx_lpi.enabled))
+		eth->eee.tx_lpi.enabled = NI_TRISTATE_DEFAULT;
+	if (!ni_dbus_dict_get_uint32(argument, "tx-timer", &eth->eee.tx_lpi.timer))
+		eth->eee.tx_lpi.timer = NI_ETHTOOL_EEE_DEFAULT;
+
+	return TRUE;
+}
+
+static dbus_bool_t
 __ni_objectmodel_ethernet_get_ring(const ni_dbus_object_t *object,
 		const ni_dbus_property_t *property,
 		ni_dbus_variant_t *result,
@@ -729,6 +794,9 @@ const ni_dbus_property_t	ni_objectmodel_ethernet_property_table[] = {
 	__NI_DBUS_PROPERTY(
 			NI_DBUS_DICT_SIGNATURE,
 			offload, __ni_objectmodel_ethernet, RO),
+	__NI_DBUS_PROPERTY(
+			NI_DBUS_DICT_SIGNATURE,
+			eee, __ni_objectmodel_ethernet, RO),
 	__NI_DBUS_PROPERTY(
 			NI_DBUS_DICT_SIGNATURE,
 			ring, __ni_objectmodel_ethernet, RO),

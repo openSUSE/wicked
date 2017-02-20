@@ -32,6 +32,7 @@ static void		ni_xs_service_free(ni_xs_service_t *);
 static ni_bool_t	ni_xs_type_build_constraints(ni_xs_type_t **, const xml_node_t *, ni_xs_group_array_t *);
 static const char *	ni_xs_get_description(const xml_node_t *);
 static ni_xs_type_t *	ni_xs_type_set_description(ni_xs_type_t *, const xml_node_t *);
+static ni_xs_intmap_t *	ni_xs_build_bitmask_constraint(const xml_node_t *);
 static ni_xs_intmap_t *	ni_xs_build_bitmap_constraint(const xml_node_t *);
 static ni_xs_intmap_t *	ni_xs_build_enum_constraint(const xml_node_t *);
 static ni_xs_range_t *	ni_xs_build_range_constraint(const xml_node_t *);
@@ -44,6 +45,7 @@ static void		ni_xs_group_array_append(ni_xs_group_array_t *, ni_xs_group_t *);
 static void		ni_xs_group_array_copy(ni_xs_group_array_t *, const ni_xs_group_array_t *);
 static void		ni_xs_group_array_destroy(ni_xs_group_array_t *);
 static ni_xs_group_t *	ni_xs_group_get(ni_xs_group_array_t *, unsigned int, const char *);
+static void		ni_xs_scalar_set_bitmask(ni_xs_type_t *, ni_xs_intmap_t *);
 static void		ni_xs_scalar_set_bitmap(ni_xs_type_t *, ni_xs_intmap_t *);
 static void		ni_xs_scalar_set_enum(ni_xs_type_t *, ni_xs_intmap_t *);
 static void		ni_xs_scalar_set_range(ni_xs_type_t *, ni_xs_range_t *);
@@ -138,6 +140,7 @@ ni_xs_type_clone(const ni_xs_type_t *src)
 			dst = ni_xs_scalar_new(scalar_info->basic_name, scalar_info->type);
 
 			/* we clone the constraints as well */
+			ni_xs_scalar_set_bitmask(dst, scalar_info->constraint.bitmask);
 			ni_xs_scalar_set_bitmap(dst, scalar_info->constraint.bitmap);
 			ni_xs_scalar_set_enum(dst, scalar_info->constraint.enums);
 			ni_xs_scalar_set_range(dst, scalar_info->constraint.range);
@@ -256,6 +259,7 @@ ni_xs_type_free(ni_xs_type_t *type)
 			ni_xs_scalar_info_t *scalar_info = type->u.scalar_info;
 
 			ni_xs_scalar_set_enum(type, NULL);
+			ni_xs_scalar_set_bitmask(type, NULL);
 			ni_xs_scalar_set_bitmap(type, NULL);
 			ni_xs_scalar_set_range(type, NULL);
 
@@ -1359,6 +1363,15 @@ ni_xs_type_build_constraints(ni_xs_type_t **type_p, const xml_node_t *node, ni_x
 			if(scalar_info) /* FIXME: unused */
 				;
 #endif
+			if (!strcmp(attrValue, "bitmask")) {
+				ni_xs_intmap_t *map;
+
+				if (!(map = ni_xs_build_bitmask_constraint(node)))
+					return FALSE;
+				ni_xs_scalar_set_bitmask(type, map);
+				ni_xs_intmap_free(map);
+				continue;
+			} else
 			if (!strcmp(attrValue, "bitmap")) {
 				ni_xs_intmap_t *map;
 
@@ -1400,6 +1413,10 @@ ni_xs_type_build_constraints(ni_xs_type_t **type_p, const xml_node_t *node, ni_x
  *  <name attr="..."/>
  * where name specifies the name of the value. The attribute can be either
  * "bit" or "value".
+ * An optional name attribte permits to specify the map name and permits to use
+ * e.g. names starting with a number:
+ *  <map name="64bit" attr="1"/>
+ *
  */
 static ni_intmap_t *
 __ni_xs_intmap_build(const xml_node_t *node, const char *attr_name)
@@ -1415,12 +1432,16 @@ __ni_xs_intmap_build(const xml_node_t *node, const char *attr_name)
 	result = xcalloc(count + 1, sizeof(ni_intmap_t));
 	for (child = node->children, i = 0; child; child = child->next) {
 		const char *attr_value;
+		const char *name_value;
 		unsigned int value;
 		char *ep = NULL;
 
+		if (!(name_value = xml_node_get_attr(child, "name")))
+			name_value = child->name;
+
 		attr_value = xml_node_get_attr(child, attr_name);
 		if (attr_value == NULL) {
-			if (ni_string_eq(child->name, "description"))
+			if (ni_string_eq(name_value, "description"))
 				continue;
 
 			ni_debug_wicked_xml(child, NI_LOG_DEBUG3,
@@ -1432,12 +1453,12 @@ __ni_xs_intmap_build(const xml_node_t *node, const char *attr_name)
 		value = strtoul(attr_value, &ep, 0);
 		if (*ep != '\0') {
 			ni_error("%s: bad enum/bitmap element <%s %s=\"%s\"> in constraints",
-					xml_node_location(child), child->name,
+					xml_node_location(child), name_value,
 					attr_name, attr_value);
 			goto failed;
 		}
 
-		result[i].name = xstrdup(child->name);
+		result[i].name = xstrdup(name_value);
 		result[i].value = value;
 		i++;
 	}
@@ -1480,6 +1501,12 @@ ni_xs_intmap_t *
 ni_xs_build_bitmap_constraint(const xml_node_t *node)
 {
 	return ni_xs_intmap_build(node, "bit");
+}
+
+ni_xs_intmap_t *
+ni_xs_build_bitmask_constraint(const xml_node_t *node)
+{
+	return ni_xs_intmap_build(node, "value");
 }
 
 void
@@ -1540,6 +1567,26 @@ ni_xs_build_range_constraint(const xml_node_t *node)
 	}
 
 	return ni_xs_range_new(min, max);
+}
+
+void
+ni_xs_scalar_set_bitmask(ni_xs_type_t *type, ni_xs_intmap_t *map)
+{
+	ni_xs_scalar_info_t *scalar_info;
+
+	if (map) {
+		ni_assert(map->refcount);
+		map->refcount++;
+
+		/* FIXME: warn if there's a conflicting scalar constraint */
+	}
+
+	scalar_info = ni_xs_scalar_info(type);
+	ni_assert(scalar_info);
+
+	if (scalar_info->constraint.bitmask)
+		ni_xs_intmap_free(scalar_info->constraint.bitmask);
+	scalar_info->constraint.bitmask = map;
 }
 
 void

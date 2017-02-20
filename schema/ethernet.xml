@@ -51,6 +51,18 @@
       <lro type="tristate"/>
     </offload>
 
+    <eee class="dict">
+      <enabled type="tristate"/>
+      <active  type="tristate"/>			<!-- read-only system property -->
+
+      <supported type="uint32" constraint="bitmask"/>	<!-- read-only system property -->
+      <advertise type="uint32" constraint="bitmask"/>
+      <lp-advertised type="uint32" constraint="bitmask"/><!-- read-only system property -->
+
+      <tx-lpi type="tristate"/>
+      <tx-timer type="uint32"/>
+    </eee>
+
     <ring class="dict">
       <tx type="uint32"/>
       <rx type="uint32"/>

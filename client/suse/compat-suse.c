@@ -1958,6 +1958,32 @@ try_add_ethtool_coalesce(ni_netdev_t *dev, const char *opt, const char *val)
 		}
 }
 
+/* get eee settings from ifcfg variable */
+static void
+try_add_ethtool_eee(ni_netdev_t *dev, const char *opt, const char *val)
+{
+	ni_ethernet_t *eth = ni_netdev_get_ethernet(dev);
+	ni_bool_t bval;
+
+	if (!eth)
+		return;
+
+	if (ni_string_eq(opt, "eee")) {
+		if (ni_parse_boolean(val, &bval) == 0)
+			ni_tristate_set(&eth->eee.status.enabled, bval);
+	} else
+	if (ni_string_eq(opt, "advertise")) {
+		ni_parse_uint(val, &eth->eee.speed.advertised, 16);
+	} else
+	if (ni_string_eq(opt, "tx-lpi")) {
+		if (ni_parse_boolean(val, &bval) == 0)
+			ni_tristate_set(&eth->eee.tx_lpi.enabled, bval);
+	} else
+	if (ni_string_eq(opt, "tx-timer")) {
+		ni_parse_uint(val, &eth->eee.tx_lpi.timer, 16);
+	}
+}
+
 /* get ringparams from wicked config */
 static void
 try_add_ethtool_ring(ni_netdev_t *dev, const char *opt, const char *val)
@@ -1996,6 +2022,12 @@ try_add_ethtool_options(ni_netdev_t *dev, const char *type,
 	if (ni_string_eq(type, "-s") || ni_string_eq(type, "--change")) {
 		for (i = start; (i + 1) < opts->count; i+=2) {
 			try_add_ethtool_common(dev, opts->data[i],
+						opts->data[i + 1]);
+		}
+	} else
+	if (/* no short eee option */  ni_string_eq(type, "--set-eee")) {
+		for (i = start; (i + 1) < opts->count; i+=2) {
+			try_add_ethtool_eee(dev, opts->data[i],
 						opts->data[i + 1]);
 		}
 	} else
