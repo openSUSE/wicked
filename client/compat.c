@@ -343,8 +343,12 @@ ni_compat_generate_eth_eee_node(xml_node_t *parent, const ni_ethtool_eee_t *eee)
 	if (eee->status.enabled != NI_TRISTATE_DEFAULT)
 		xml_node_new_element("enabled", node, ni_format_boolean(eee->status.enabled));
 
-	if (eee->speed.advertised != NI_ETHTOOL_EEE_DEFAULT)
-		xml_node_new_element_uint("advertise", node, eee->speed.advertised);
+	if (eee->speed.advertised != NI_ETHTOOL_EEE_DEFAULT) {
+		char hexnum[64] = { '\0' };
+
+		snprintf(hexnum, sizeof(hexnum), "0x%x", eee->speed.advertised);
+		xml_node_new_element("advertise", node, hexnum);
+	}
 
 	if (eee->tx_lpi.enabled != NI_TRISTATE_DEFAULT)
 		xml_node_new_element("tx-lpi", node, ni_format_boolean(eee->tx_lpi.enabled));
