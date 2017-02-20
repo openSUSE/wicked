@@ -258,70 +258,54 @@ ni_compat_generate_eth_coalesce_node(xml_node_t *parent, const ni_ethtool_coales
 
 	if (coalesce->adaptive_rx != NI_TRISTATE_DEFAULT)
 		xml_node_new_element("adaptive-rx", node, ni_format_boolean(coalesce->adaptive_rx));
-
 	if (coalesce->adaptive_tx != NI_TRISTATE_DEFAULT)
 		xml_node_new_element("adaptive-tx", node, ni_format_boolean(coalesce->adaptive_tx));
 
-	if (coalesce->rx_usecs != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("rx-usecs", node, coalesce->rx_usecs);
-	}
-	if (coalesce->rx_frames != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("rx-frames", node, coalesce->rx_frames);
-	}
-	if (coalesce->rx_usecs_irq != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("rx-usecs-irq", node, coalesce->rx_usecs_irq);
-	}
-	if (coalesce->rx_frames_irq != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("rx-frames-irq", node, coalesce->rx_frames_irq);
-	}
-	if (coalesce->tx_usecs != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("tx-usecs", node, coalesce->tx_usecs);
-	}
-	if (coalesce->tx_frames != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("tx-frames", node, coalesce->tx_frames);
-	}
-	if (coalesce->tx_usecs_irq != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("tx-usecs-irq", node, coalesce->tx_usecs_irq);
-	}
-	if (coalesce->tx_frames_irq != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("tx-frames-irq", node, coalesce->tx_frames_irq);
-	}
-	if (coalesce->stats_block_usecs != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("stats-block-usecs", node, coalesce->stats_block_usecs);
-	}
-	if (coalesce->pkt_rate_low != NI_ETHTOOL_RING_DEFAULT) {
+	if (coalesce->pkt_rate_low != NI_ETHTOOL_RING_DEFAULT)
 		xml_node_new_element_uint("pkt-rate-low", node, coalesce->pkt_rate_low);
-	}
-	if (coalesce->rx_usecs_low != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("rx-usecs-low", node, coalesce->rx_usecs_low);
-	}
-	if (coalesce->rx_frames_low != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("rx-frames-low", node, coalesce->rx_frames_low);
-	}
-	if (coalesce->tx_usecs_low != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("tx-usecs-low", node, coalesce->tx_usecs_low);
-	}
-	if (coalesce->tx_frames_low != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("tx-frames-low", node, coalesce->tx_frames_low);
-	}
-	if (coalesce->pkt_rate_high != NI_ETHTOOL_RING_DEFAULT) {
+	if (coalesce->pkt_rate_high != NI_ETHTOOL_RING_DEFAULT)
 		xml_node_new_element_uint("pkt-rate-high", node, coalesce->pkt_rate_high);
-	}
-	if (coalesce->rx_usecs_high != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("rx-usecs-high", node, coalesce->rx_usecs_high);
-	}
-	if (coalesce->rx_frames_high != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("rx-frames-high", node, coalesce->rx_frames_high);
-	}
-	if (coalesce->tx_usecs_high != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("tx-usecs-high", node, coalesce->tx_usecs_high);
-	}
-	if (coalesce->tx_frames_high != NI_ETHTOOL_RING_DEFAULT) {
-		xml_node_new_element_uint("tx-frames-high", node, coalesce->tx_frames_high);
-	}
-	if (coalesce->sample_interval != NI_ETHTOOL_RING_DEFAULT) {
+
+	if (coalesce->sample_interval != NI_ETHTOOL_RING_DEFAULT)
 		xml_node_new_element_uint("sample-interval", node, coalesce->sample_interval);
-	}
+	if (coalesce->stats_block_usecs != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("stats-block-usecs", node, coalesce->stats_block_usecs);
+
+	if (coalesce->rx_usecs != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("rx-usecs", node, coalesce->rx_usecs);
+	if (coalesce->rx_usecs_irq != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("rx-usecs-irq", node, coalesce->rx_usecs_irq);
+	if (coalesce->rx_usecs_low != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("rx-usecs-low", node, coalesce->rx_usecs_low);
+	if (coalesce->rx_usecs_high != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("rx-usecs-high", node, coalesce->rx_usecs_high);
+
+	if (coalesce->rx_frames != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("rx-frames", node, coalesce->rx_frames);
+	if (coalesce->rx_frames_irq != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("rx-frames-irq", node, coalesce->rx_frames_irq);
+	if (coalesce->rx_frames_low != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("rx-frames-low", node, coalesce->rx_frames_low);
+	if (coalesce->rx_frames_high != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("rx-frames-high", node, coalesce->rx_frames_high);
+
+	if (coalesce->tx_usecs != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("tx-usecs", node, coalesce->tx_usecs);
+	if (coalesce->tx_usecs_irq != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("tx-usecs-irq", node, coalesce->tx_usecs_irq);
+	if (coalesce->tx_usecs_low != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("tx-usecs-low", node, coalesce->tx_usecs_low);
+	if (coalesce->tx_usecs_high != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("tx-usecs-high", node, coalesce->tx_usecs_high);
+
+	if (coalesce->tx_frames != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("tx-frames", node, coalesce->tx_frames);
+	if (coalesce->tx_frames_irq != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("tx-frames-irq", node, coalesce->tx_frames_irq);
+	if (coalesce->tx_frames_low != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("tx-frames-low", node, coalesce->tx_frames_low);
+	if (coalesce->tx_frames_high != NI_ETHTOOL_RING_DEFAULT)
+		xml_node_new_element_uint("tx-frames-high", node, coalesce->tx_frames_high);
 
 	if (node->children)
 		xml_node_add_child(parent, node);
