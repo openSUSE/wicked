@@ -40,6 +40,7 @@ static dbus_bool_t	ni_dbus_serialize_xml_struct(xml_node_t *, const ni_xs_type_t
 static dbus_bool_t	ni_dbus_serialize_xml_union(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_array(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
 static dbus_bool_t	ni_dbus_serialize_xml_dict(xml_node_t *, const ni_xs_type_t *, ni_dbus_variant_t *);
+static dbus_bool_t	ni_dbus_serialize_xml_bitmask(const xml_node_t *, const ni_xs_scalar_info_t *, unsigned long *);
 static dbus_bool_t	ni_dbus_serialize_xml_bitmap(const xml_node_t *, const ni_xs_scalar_info_t *, unsigned long *);
 static dbus_bool_t	ni_dbus_deserialize_xml(const ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static dbus_bool_t	ni_dbus_deserialize_xml_scalar(const ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
@@ -537,6 +538,37 @@ ni_dbus_deserialize_xml(const ni_dbus_variant_t *var, const ni_xs_type_t *type, 
  * XML -> dbus_variant conversion for scalars
  */
 static dbus_bool_t
+ni_dbus_serialize_xml_bitmask(const xml_node_t *node, const ni_xs_scalar_info_t *scalar_info, unsigned long *result)
+{
+	ni_string_array_t bit_name_arr = NI_STRING_ARRAY_INIT;
+	const ni_intmap_t *bits;
+	unsigned long value = 0, v;
+	unsigned int i, bv;
+
+	if (!node || !result || !scalar_info || !scalar_info->constraint.bitmask->bits)
+		return FALSE;
+
+	bits = scalar_info->constraint.bitmask->bits;
+	ni_string_split(&bit_name_arr, node->cdata, " ,|\t\n", 0);
+	for (i = 0; i < bit_name_arr.count; ++i) {
+		if (ni_parse_ulong(bit_name_arr.data[i], &v, 16) == 0) {
+			value |= v;
+		} else
+		if (ni_parse_uint_mapped(bit_name_arr.data[i], bits, &bv) == 0) {
+			value |= bv;
+		} else {
+			ni_error("%s: unknown bitmask value name <%s>",
+				xml_node_location(node),
+				bit_name_arr.data[i]);
+			return FALSE;
+		}
+	}
+
+	*result = value;
+	return TRUE;
+}
+
+static dbus_bool_t
 ni_dbus_serialize_xml_bitmap(const xml_node_t *node, const ni_xs_scalar_info_t *scalar_info, unsigned long *result)
 {
 	const ni_intmap_t *bits = scalar_info->constraint.bitmap->bits;
@@ -636,6 +668,9 @@ ni_dbus_validate_xml_scalar(xml_node_t *node, const ni_xs_type_t *type, const ni
 	if (scalar_info->constraint.bitmap)
 		return ni_dbus_serialize_xml_bitmap(node, scalar_info, &value);
 
+	if (scalar_info->constraint.bitmask)
+		return ni_dbus_serialize_xml_bitmask(node, scalar_info, &value);
+
 	/* This signals a "flag" type element, ie we simply test for its presence or
 	 * absence. */
 	if (scalar_info->type == DBUS_TYPE_INVALID) {
@@ -674,6 +709,15 @@ ni_dbus_serialize_xml_scalar(xml_node_t *node, const ni_xs_type_t *type, ni_dbus
 		unsigned long value;
 
 		if (!ni_dbus_serialize_xml_bitmap(node, scalar_info, &value)
+		 || !ni_dbus_variant_init_signature(var, ni_xs_type_to_dbus_signature(type)))
+			return FALSE;
+		return ni_dbus_variant_set_ulong(var, value);
+	}
+
+	if (scalar_info->constraint.bitmask) {
+		unsigned long value;
+
+		if (!ni_dbus_serialize_xml_bitmask(node, scalar_info, &value)
 		 || !ni_dbus_variant_init_signature(var, ni_xs_type_to_dbus_signature(type)))
 			return FALSE;
 		return ni_dbus_variant_set_ulong(var, value);
@@ -724,6 +768,32 @@ ni_dbus_deserialize_xml_scalar(const ni_dbus_variant_t *var, const ni_xs_type_t 
 					__func__, node->name);
 			return FALSE;
 		}
+		return TRUE;
+	}
+
+	if (scalar_info->constraint.bitmask) {
+		const ni_intmap_t *bits = scalar_info->constraint.bitmask->bits;
+		ni_string_array_t bit_name_arr = NI_STRING_ARRAY_INIT;
+		unsigned long value = 0;
+
+		if (!ni_dbus_variant_get_ulong(var, &value))
+			return FALSE;
+
+		for (; bits->name; ++bits) {
+			if ((value & bits->value) != bits->value)
+				continue;
+
+			ni_string_array_append(&bit_name_arr, bits->name);
+			value &= ~(bits->value);
+		}
+		if (value) {
+			char num[64] = { '\0' };
+			snprintf(num, sizeof(num), "0x%lx", value);
+			ni_string_array_append(&bit_name_arr, num);
+		}
+
+		ni_string_join(&node->cdata, &bit_name_arr, " | ");
+		ni_string_array_destroy(&bit_name_arr);
 		return TRUE;
 	}
 

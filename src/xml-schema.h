@@ -82,6 +82,21 @@
  *	as
  *	  <disposition> <archive/> <secret/> </disposition>
  *
+ * bitmask
+ * 	If a numeric type constraint is bitmask, the individual bits and/or their
+ * 	masks can be named. In this case, the XML representation will be an
+ * 	element containing known names and if unknown also a hex number separated,
+ * 	by "|", e.g.:
+ * 	  <define name="my-mask-type" ype="uint32" contstraint="bitmask">
+ * 	    <map name="foobar"  value="0x3" />
+ * 	    <map name="bar"     value="0x2" />
+ * 	    <map name="foo"     value="0x1" />
+ *        </define>
+ *        <my-mask type="my-mask-type"/>
+ *
+ *      If the variable my-mask takes on the value 7, it would be represented as
+ *        <my-mask>foobar | 0x4</my-mask>
+ *
  * All types can be constrained by one or more of the following
  *
  * required
@@ -249,6 +264,7 @@ struct ni_xs_scalar_info {
 		ni_xs_intmap_t *enums;
 		ni_xs_range_t *	range;
 		ni_xs_intmap_t *bitmap;
+		ni_xs_intmap_t *bitmask;
 	} constraint;
 };
 
