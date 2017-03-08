@@ -60,6 +60,7 @@ typedef struct ni_address_array {
 extern ni_bool_t	ni_sockaddr_is_ipv4_loopback(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_ipv4_linklocal(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_ipv4_broadcast(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_ipv4_multicast(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_ipv4_specified(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_ipv4_unspecified(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_ipv6_loopback(const ni_sockaddr_t *);
@@ -72,6 +73,7 @@ extern ni_bool_t	ni_sockaddr_is_ipv6_specified(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_ipv6_unspecified(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_loopback(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_linklocal(const ni_sockaddr_t *);
+extern ni_bool_t	ni_sockaddr_is_multicast(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_specified(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_is_unspecified(const ni_sockaddr_t *);
 extern ni_bool_t	ni_sockaddr_equal(const ni_sockaddr_t *, const ni_sockaddr_t *);

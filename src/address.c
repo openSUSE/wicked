@@ -636,6 +636,15 @@ ni_sockaddr_is_ipv4_broadcast(const ni_sockaddr_t *saddr)
 }
 
 ni_bool_t
+ni_sockaddr_is_ipv4_multicast(const ni_sockaddr_t *saddr)
+{
+	if (saddr->ss_family == AF_INET) {
+		return IN_MULTICAST(ntohl(saddr->sin.sin_addr.s_addr));
+	}
+	return FALSE;
+}
+
+ni_bool_t
 ni_sockaddr_is_ipv4_specified(const ni_sockaddr_t *saddr)
 {
 	if (saddr->ss_family == AF_INET) {
@@ -749,6 +758,19 @@ ni_sockaddr_is_linklocal(const ni_sockaddr_t *saddr)
 		return ni_sockaddr_is_ipv4_linklocal(saddr);
 	case AF_INET6:
 		return ni_sockaddr_is_ipv6_linklocal(saddr);
+	default:
+		return FALSE;
+	}
+}
+
+ni_bool_t
+ni_sockaddr_is_multicast(const ni_sockaddr_t *saddr)
+{
+	switch (saddr->ss_family) {
+	case AF_INET:
+		return ni_sockaddr_is_ipv4_multicast(saddr);
+	case AF_INET6:
+		return ni_sockaddr_is_ipv6_multicast(saddr);
 	default:
 		return FALSE;
 	}
