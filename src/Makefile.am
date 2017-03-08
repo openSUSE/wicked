@@ -110,6 +110,7 @@ libwicked_la_SOURCES		= \
 	update.c		\
 	util.c			\
 	vlan.c			\
+	vxlan.c			\
 	wireless.c		\
 	wpa-supplicant.c	\
 	xml.c			\
