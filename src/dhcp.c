@@ -1815,3 +1815,37 @@ failure:
 	return FALSE;
 }
 
+/*
+ * DHCP fqdn option utilities
+ */
+static const ni_intmap_t	ni_dhcp_fqdn_update_mode_map[] = {
+	{ "both",		NI_DHCP_FQDN_UPDATE_BOTH	},
+	{ "none",		NI_DHCP_FQDN_UPDATE_NONE	},
+	{ "ptr",		NI_DHCP_FQDN_UPDATE_PTR		},
+
+	{ NULL,			-1U				}
+};
+
+const char *
+ni_dhcp_fqdn_update_mode_to_name(unsigned int mode)
+{
+	return ni_format_uint_mapped(mode, ni_dhcp_fqdn_update_mode_map);
+}
+
+ni_bool_t
+ni_dhcp_fqdn_update_name_to_mode(const char *name, unsigned int *mode)
+{
+	return ni_parse_uint_mapped(name, ni_dhcp_fqdn_update_mode_map, mode) == 0;
+}
+
+void
+ni_dhcp_fqdn_init(ni_dhcp_fqdn_t *fqdn)
+{
+	if (fqdn) {
+		fqdn->enabled = NI_TRISTATE_DEFAULT;
+		fqdn->update  = NI_DHCP_FQDN_UPDATE_BOTH;
+		fqdn->encode  = TRUE;
+		fqdn->qualify = TRUE;
+	}
+}
+
