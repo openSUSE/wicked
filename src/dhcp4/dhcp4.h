@@ -151,6 +151,7 @@ struct ni_dhcp4_request {
 	char *			vendor_class;
 	ni_dhcp4_user_class_t	user_class;
 
+	ni_dhcp_fqdn_t		fqdn;
 	char *			hostname;
 	unsigned int		route_priority;
 

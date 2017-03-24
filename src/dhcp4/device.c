@@ -898,6 +898,9 @@ ni_dhcp4_request_new(void)
 	/* By default, we try to obtain all sorts of config from the server */
 	req->update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);
 
+	/* default: enable + update mode depends on request hostname + dots */
+	ni_dhcp_fqdn_init(&req->fqdn);
+
 	return req;
 }
 
