@@ -142,7 +142,8 @@ struct ni_dhcp6_config {
 	ni_opaque_t		client_duid;	/* raw client id to use		*/
 	ni_opaque_t		server_duid;	/* destination raw server id	*/
 
-	char			hostname[256];
+	ni_dhcp_fqdn_t		fqdn;
+	char			hostname[255];
 	ni_string_array_t	user_class;
 	struct {
 	    unsigned int	en;

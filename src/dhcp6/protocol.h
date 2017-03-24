@@ -198,6 +198,23 @@ typedef struct ni_dhcp6_option_request {
 
 
 /*
+ * DHCPv6 specific FQDN option bits/flags
+ * https://tools.ietf.org/html/rfc4704#section-4.1
+ */
+enum {
+	NI_DHCP6_FQDN_FLAG_S		= NI_BIT(0),
+	NI_DHCP6_FQDN_FLAG_O		= NI_BIT(1),
+	NI_DHCP6_FQDN_FLAG_N		= NI_BIT(2),
+	NI_DHCP6_FQDN_UPDATE_PTR	= 0x00,
+	NI_DHCP6_FQDN_UPDATE_BOTH	= NI_DHCP6_FQDN_FLAG_S,
+	NI_DHCP6_FQDN_UPDATE_NONE	= NI_DHCP6_FQDN_FLAG_N,
+	NI_DHCP6_FQDN_UPDATE_MASK	= NI_DHCP6_FQDN_FLAG_S
+					| NI_DHCP6_FQDN_FLAG_N,
+	NI_DHCP6_FQDN_OVERRIDE		= NI_DHCP6_FQDN_FLAG_O,
+};
+
+
+/*
  * functions used in device.c and fsm.c
  */
 extern const char *	ni_dhcp6_message_name(unsigned int);
