@@ -77,6 +77,7 @@ struct ni_dhcp6_request {
 	ni_bool_t		release_lease;	/* release lease on drop request	*/
 
 	/* Options controlling what to put into the lease request */
+	ni_dhcp_fqdn_t		fqdn;
 	char *			hostname;
 	char *			clientid;
 #if 0
