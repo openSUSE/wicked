@@ -123,12 +123,14 @@ ni_compat_netdev_new(const char *ifname)
 	compat->dhcp4.recover_lease = TRUE;
 	compat->dhcp4.release_lease = FALSE;
 	compat->dhcp4.user_class.format = -1U;
+	ni_dhcp_fqdn_init(&compat->dhcp4.fqdn);
 
 	compat->dhcp6.update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET6);
 	compat->dhcp6.mode = NI_DHCP6_MODE_AUTO;
 	compat->dhcp6.rapid_commit = TRUE;
 	compat->dhcp6.recover_lease = TRUE;
 	compat->dhcp6.release_lease = FALSE;
+	ni_dhcp_fqdn_init(&compat->dhcp6.fqdn);
 
 	compat->auto6.update = ni_config_addrconf_update_mask(NI_ADDRCONF_AUTOCONF, AF_INET6);
 
@@ -2062,6 +2064,38 @@ __ni_compat_generate_dynamic_addrconf(xml_node_t *ifnode, const char *name, unsi
 	return aconf;
 }
 
+static xml_node_t *
+__ni_compat_generate_dhcp_fqdn(xml_node_t *dhcp, const ni_dhcp_fqdn_t *fqdn, unsigned int family, ni_bool_t update)
+{
+	ni_dhcp_fqdn_t dflt;
+	xml_node_t *node;
+
+	node = xml_node_new("fqdn", NULL);
+
+	ni_dhcp_fqdn_init(&dflt);
+	if (fqdn->enabled != dflt.enabled)
+		xml_node_new_element("enabled", node, ni_format_boolean(fqdn->enabled));
+
+	if (fqdn->enabled != NI_TRISTATE_DISABLE) {
+		if (fqdn->qualify != dflt.qualify)
+			xml_node_new_element("qualify", node, ni_format_boolean(FALSE));
+
+		if (update && fqdn->update != dflt.update)
+			xml_node_new_element("update", node, ni_dhcp_fqdn_update_mode_to_name(fqdn->update));
+
+		if (family == AF_INET && fqdn->encode != dflt.encode)
+			xml_node_new_element("encode", node, ni_format_boolean(FALSE));
+	}
+
+	if (node->children) {
+		xml_node_add_child(dhcp, node);
+	} else {
+		xml_node_free(node);
+	}
+	return node;
+}
+
+
 /*
  * Generate XML for user-class data. We want to support both rfc3004 and non-standardized
  * string case and allow for specification of formatting.
@@ -2098,6 +2132,9 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 
 	if (compat->dhcp4.hostname)
 		xml_node_dict_set(dhcp, "hostname", compat->dhcp4.hostname);
+
+	__ni_compat_generate_dhcp_fqdn(dhcp, &compat->dhcp4.fqdn, AF_INET,
+						!!compat->dhcp4.hostname);
 
 	if (compat->dhcp4.route_priority)
 		xml_node_dict_set(dhcp, "route-priority",
@@ -2181,10 +2218,11 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 	xml_node_dict_set(dhcp, "rapid-commit",
 			ni_format_boolean(compat->dhcp6.rapid_commit));
 
-
 	if (compat->dhcp6.hostname)
 		xml_node_dict_set(dhcp, "hostname", compat->dhcp6.hostname);
 
+	__ni_compat_generate_dhcp_fqdn(dhcp, &compat->dhcp6.fqdn, AF_INET6,
+					!!compat->dhcp6.hostname);
 
 	if (compat->dhcp6.start_delay)
 		xml_node_dict_set(dhcp, "start-delay",
