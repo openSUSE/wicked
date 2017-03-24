@@ -302,64 +302,143 @@ ni_dhcp4_option_get_string(ni_buffer_t *bp, char **var, unsigned int *lenp)
 }
 
 static int
-__ni_dhcp4_build_msg_put_our_hostname(const ni_dhcp4_device_t *dev,
-					ni_buffer_t *msgbuf)
+ni_dhcp4_build_msg_put_fqdn_name(ni_buffer_t *optbuf, const ni_dhcp_fqdn_t *fqdn,
+				const char *hostname)
 {
-	const ni_dhcp4_config_t *options = dev->config;
-	size_t len = ni_string_len(options->hostname);
+	if (fqdn->encode) {
+		if (!ni_dhcp_domain_encode(optbuf, hostname, fqdn->qualify))
+			return -1;
+	} else {
+		/* See https://tools.ietf.org/html/rfc4702#section-2.3.1
+		 *
+		 * If deprecated ascii has been requested, we've to send
+		 * as single label only.
+		 */
+		const char *ptr;
+		size_t len;
 
-	if (!len)
-		return 1; /* skipped hint */
+		if ((ptr = strchr(hostname, '.')))
+			len = ptr - hostname;
+		else
+			len = ni_string_len(hostname);
 
-	if (options->fqdn == FQDN_DISABLE) {
+		if (ni_buffer_put(optbuf, hostname, len) < 0)
+			return -1;
+	}
+	return 0;
+}
+
+static int
+ni_dhcp4_build_msg_put_fqdn_option(const ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf,
+				const ni_dhcp_fqdn_t *fqdn, const char *hostname)
+{
+	unsigned char	optdata[255 + 3] = {'\0'};
+	ni_buffer_t	databuf, optbuf;
+	uint8_t		flags;
+	size_t		len;
+
+	/* return success without to do anything */
+	if (fqdn->enabled != NI_TRISTATE_ENABLE)
+		return 0;
+
+	/*
+	 * http://tools.ietf.org/html/rfc4702#section-2.1
+	 *
+	 * The format of the Flags field is:
+	 *
+	 *       0 1 2 3 4 5 6 7
+	 *      +-+-+-+-+-+-+-+-+
+	 *      |  MBZ  |N|E|O|S|
+	 *      +-+-+-+-+-+-+-+-+
+	 *
+	 * S: 1 ==> Client requests server to update A RR (FQDN-to-address)
+	 *      <== Server has taken responsibility for A RR updates
+	 * O: 0 ==> Client sets this bit to 0.
+	 *      <== Whether the server has overridden the client's "S" bit.
+	 * E: 1 <=> name in canonical DNS format, 0 for deprecated ascii
+	 * N: 0 ==> Client sets to 0 to request to update PTR RR (+ A RR).
+	 *      <== A server SHALL (0) or SHALL NOT (1) perform DNS updates.
+	 *          If the "N" bit is 1, the "S" bit MUST be 0.
+	 *
+	 * Remaining MBZ bits are reserved and MUST be cleared and ignored.
+	 */
+	switch (fqdn->update) {
+	case NI_DHCP_FQDN_UPDATE_PTR:
+		flags = NI_DHCP4_FQDN_UPDATE_PTR;
+		break;
+	case NI_DHCP_FQDN_UPDATE_BOTH:
+		flags = NI_DHCP4_FQDN_UPDATE_BOTH;
+		break;
+	case NI_DHCP_FQDN_UPDATE_NONE:
+		flags = NI_DHCP4_FQDN_UPDATE_NONE;
+		break;
+	default:
+		return -1; /* invalid request */
+	}
+
+	if (fqdn->encode)
+		flags |= NI_DHCP4_FQDN_ENCODE;
+
+	/* construct the option data into a temporary buffer */
+	ni_buffer_init(&databuf, optdata, sizeof(optdata));
+	if (ni_buffer_putc(&databuf, flags) < 0 || /* 0000NEOS   flags  */
+	    ni_buffer_putc(&databuf, 0)     < 0 || /* deprecated rdata1 */
+	    ni_buffer_putc(&databuf, 0)      < 0)   /* deprecared rdata2 */
+		return 1;
+
+	if (!ni_string_empty(hostname) &&
+	    ni_dhcp4_build_msg_put_fqdn_name(&databuf, fqdn, hostname) < 0)
+		return 1;
+
+	/* data constructed, concatenate into msg buffer tail room if fits */
+	ni_buffer_init(&optbuf, ni_buffer_tail(msgbuf), ni_buffer_tailroom(msgbuf));
+	while ((len = ni_buffer_count(&databuf))) {
+		if (len > 255)
+			len = 255;
+		if (ni_buffer_putc(&optbuf, DHCP4_FQDN) < 0 ||
+		    ni_buffer_putc(&optbuf, len)        < 0 ||
+		    ni_buffer_put (&optbuf, ni_buffer_pull_head(&databuf, len), len) < 0)
+			return 1;
+	}
+
+	/* commit the option by pushing the tail of the msg buffer */
+	if (!ni_buffer_push_tail(msgbuf, ni_buffer_count(&optbuf)))
+		return -1;	/* msg buf is overflow marked now  */
+
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+			"%s: using fqdn name update: %s", dev->ifname, hostname);
+
+	return 0;
+}
+
+static int
+__ni_dhcp4_build_msg_put_our_hostname(const ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf,
+					const ni_dhcp_fqdn_t *fqdn, const char *hostname)
+{
+	if (fqdn->enabled == NI_TRISTATE_DISABLE) {
 		char hname[64] = {'\0'}, *end;
+		size_t len;
 
 		/*
 		 * Truncate the domain part if fqdn to avoid attempts
-		 * to update DNS with foo.bar + update-domain.
+		 * to update DNS with foo.bar + update-domain as this
+		 * is considered to be relative to the update domain.
 		 */
-		strncat(hname, options->hostname, sizeof(hname)-1);
-		if ((end = strchr(hname, '.')))
-			*end = '\0';
+		if ((len = ni_string_len(hostname))) {
+			strncat(hname, hostname, sizeof(hname)-1);
+			if ((end = strchr(hname, '.')))
+				*end = '\0';
+		}
 
-		len = ni_string_len(hname);
-		if (ni_check_domain_name(hname, len, 0)) {
+		if ((len = ni_string_len(hname))) {
 			ni_dhcp4_option_puts(msgbuf, DHCP4_HOSTNAME, hname);
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-				"%s: using hostname: %s", dev->ifname, hname);
-		} else {
-			ni_info("%s: not sending suspect hostname: '%s'",
-				dev->ifname, ni_print_suspect(hname, len));
+					"%s: using hostname: %s", dev->ifname, hname);
+		} else
 			return 1;
-		}
 	} else
-	if (ni_check_domain_name(options->hostname, len, 0)) {
-		/* IETF DHC-FQDN option(81)
-		 * http://tools.ietf.org/html/rfc4702#section-2.1
-		 *
-		 * Flags: 0000NEOS
-		 * S: 1 => Client requests Server to update
-		 *         a RR in DNS as well as PTR
-		 * O: 1 => Server indicates to client that
-		 *         DNS has been updated
-		 * E: 1 => Name data is DNS format
-		 * N: 1 => Client requests Server to not
-		 *         update DNS
-		 */
-		ni_buffer_putc(msgbuf, DHCP4_FQDN);
-		ni_buffer_putc(msgbuf, len + 3);
-		ni_buffer_putc(msgbuf, options->fqdn & 0x9);
-		ni_buffer_putc(msgbuf, 0);	/* from server for PTR RR */
-		ni_buffer_putc(msgbuf, 0);	/* from server for A RR if S=1 */
-		ni_buffer_put(msgbuf, options->hostname, len);
-		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-				"%s: using fqdn: %s", dev->ifname,
-				options->hostname);
-	} else {
-		ni_info("%s: not sending suspect fqdn: '%s'",
-			dev->ifname, ni_print_suspect(options->hostname, len));
+	if (!ni_dhcp4_build_msg_put_fqdn_option(dev, msgbuf, fqdn, hostname))
 		return 1;
-	}
 
 	return 0;
 }
@@ -409,9 +488,10 @@ __ni_dhcp4_build_msg_put_option_request(const ni_dhcp4_device_t *dev,
 		ni_uint_array_append(&oro, DHCP4_ROUTERS);
 	}
 	if (options->doflags & DHCP4_DO_HOSTNAME) {
-		if (options->fqdn == FQDN_DISABLE) {
+		if (options->fqdn.enabled == NI_TRISTATE_DISABLE) {
 			ni_uint_array_append(&oro, DHCP4_HOSTNAME);
-		} else {
+		} else
+		if (options->fqdn.enabled == NI_TRISTATE_ENABLE) {
 			ni_uint_array_append(&oro, DHCP4_FQDN);
 		}
 	}
@@ -677,7 +757,7 @@ __ni_dhcp4_build_msg_discover(const ni_dhcp4_device_t *dev,
 		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 
-	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf) < 0)
+	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf, &options->fqdn, options->hostname) < 0)
 		return -1;
 
 	return 0;
@@ -813,6 +893,7 @@ __ni_dhcp4_build_msg_request_offer(const ni_dhcp4_device_t *dev,
 	unsigned int msg_code = DHCP4_REQUEST;
 	ni_dhcp4_message_t *message;
 	ni_sockaddr_t addr;
+	const ni_dhcp_fqdn_t *fqdn;
 
 	/* Request an offer provided by a server (id!) while discover */
 	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
@@ -839,7 +920,12 @@ __ni_dhcp4_build_msg_request_offer(const ni_dhcp4_device_t *dev,
 			"%s: using offered ip-address: %s",
 			dev->ifname, ni_sockaddr_print(&addr));
 
-	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf) < 0)
+	if (lease->fqdn.enabled == NI_TRISTATE_DEFAULT)
+		fqdn = &options->fqdn;
+	else
+		fqdn = &lease->fqdn;
+	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf, fqdn,
+			lease->hostname ? lease->hostname : options->hostname) < 0)
 		return -1;
 
 	if (__ni_dhcp4_build_msg_put_option_request(dev, msg_code, msgbuf) <  0)
@@ -873,6 +959,7 @@ __ni_dhcp4_build_msg_request_renew(const ni_dhcp4_device_t *dev,
 	unsigned int msg_code = DHCP4_REQUEST;
 	ni_dhcp4_message_t *message;
 	ni_sockaddr_t addr;
+	const ni_dhcp_fqdn_t *fqdn;
 
 	/* Request a lease renewal (unicast to server, no id) */
 	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
@@ -896,7 +983,12 @@ __ni_dhcp4_build_msg_request_renew(const ni_dhcp4_device_t *dev,
 	if (__ni_dhcp4_build_msg_put_client_id(dev, msg_code, message, msgbuf) <  0)
 		return -1;
 
-	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf) < 0)
+	if (lease->fqdn.enabled == NI_TRISTATE_DEFAULT)
+		fqdn = &options->fqdn;
+	else
+		fqdn = &lease->fqdn;
+	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf, fqdn,
+			lease->hostname ? lease->hostname : options->hostname) < 0)
 		return -1;
 
 	if (__ni_dhcp4_build_msg_put_option_request(dev, msg_code, msgbuf) <  0)
@@ -932,6 +1024,7 @@ __ni_dhcp4_build_msg_request_rebind(const ni_dhcp4_device_t *dev,
 	unsigned int msg_code = DHCP4_REQUEST;
 	ni_dhcp4_message_t *message;
 	ni_sockaddr_t addr;
+	const ni_dhcp_fqdn_t *fqdn;
 
 	/* Request a lease rebind from another server (no id) */
 	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
@@ -955,7 +1048,12 @@ __ni_dhcp4_build_msg_request_rebind(const ni_dhcp4_device_t *dev,
 	if (__ni_dhcp4_build_msg_put_client_id(dev, msg_code, message, msgbuf) <  0)
 		return -1;
 
-	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf) < 0)
+	if (lease->fqdn.enabled == NI_TRISTATE_DEFAULT)
+		fqdn = &options->fqdn;
+	else
+		fqdn = &lease->fqdn;
+	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf, fqdn,
+			lease->hostname ? lease->hostname : options->hostname) < 0)
 		return -1;
 
 	if (__ni_dhcp4_build_msg_put_option_request(dev, msg_code, msgbuf) <  0)
@@ -991,6 +1089,7 @@ __ni_dhcp4_build_msg_request_reboot(const ni_dhcp4_device_t *dev,
 	unsigned int msg_code = DHCP4_REQUEST;
 	ni_dhcp4_message_t *message;
 	ni_sockaddr_t addr;
+	const ni_dhcp_fqdn_t *fqdn;
 
 	/* Request an lease after reboot to reuse old lease (no server id) */
 	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
@@ -1014,7 +1113,12 @@ __ni_dhcp4_build_msg_request_reboot(const ni_dhcp4_device_t *dev,
 			"%s: using reused ip-address: %s",
 			dev->ifname, ni_sockaddr_print(&addr));
 
-	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf) < 0)
+	if (lease->fqdn.enabled == NI_TRISTATE_DEFAULT)
+		fqdn = &options->fqdn;
+	else
+		fqdn = &lease->fqdn;
+	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf, fqdn,
+			lease->hostname ? lease->hostname : options->hostname) < 0)
 		return -1;
 
 	if (__ni_dhcp4_build_msg_put_option_request(dev, msg_code, msgbuf) <  0)
@@ -1514,6 +1618,59 @@ ni_dhcp4_option_get_domain_list(ni_buffer_t *bp, ni_string_array_t *var,
 }
 
 static int
+ni_dhcp4_option_get_fqdn(ni_buffer_t *bp, char **hostname, ni_dhcp_fqdn_t *fqdn)
+{
+	/* FLAGS + deprecated/ignored RCODE1 and RCODE2 1-octet fields (set to 255) */
+	unsigned int flags;
+	uint8_t octets[3];
+	char *temp = NULL;
+	size_t len;
+
+	if (ni_buffer_get(bp, &octets[0], sizeof(octets)) < 0)
+		return -1;
+
+	flags = octets[0];
+	switch (flags & NI_DHCP4_FQDN_UPDATE_MASK) {
+	case NI_DHCP4_FQDN_UPDATE_PTR:
+		fqdn->update = NI_DHCP_FQDN_UPDATE_PTR;
+		break;
+	case NI_DHCP4_FQDN_UPDATE_BOTH:
+		fqdn->update = NI_DHCP_FQDN_UPDATE_BOTH;
+		break;
+	case NI_DHCP4_FQDN_UPDATE_NONE:
+		fqdn->update = NI_DHCP_FQDN_UPDATE_NONE;
+		break;
+	default:
+		return -1;
+	}
+
+	if (flags & NI_DHCP4_FQDN_ENCODE) {
+		fqdn->encode = TRUE;
+		if (!ni_dhcp_domain_decode(bp, &temp)) {
+			ni_warn("Failed to decode fqdn hostname data");
+			return -1;
+		}
+
+		len = ni_string_len(temp);
+		if (len && !ni_check_domain_name(temp, len, 0)) {
+			ni_warn("Discarded suspect fqdn hostname: '%s'",
+					ni_print_suspect(temp, len));
+			ni_string_free(&temp);
+			return -1;
+		}
+		ni_string_free(hostname);
+		*hostname = temp;
+	} else
+	if (ni_buffer_count(bp)) {
+		if (!ni_dhcp4_option_get_domain(bp, hostname, "fqdn hostname"))
+			return -1;
+	}
+
+	fqdn->enabled = NI_TRISTATE_ENABLE;
+	return 0;
+}
+
+static int
 ni_dhcp4_option_get_pathname(ni_buffer_t *bp, char **var, const char *what)
 {
 	unsigned int len;
@@ -1647,7 +1804,8 @@ ni_dhcp4_apply_routes(ni_addrconf_lease_t *lease, ni_route_array_t *routes)
  * Parse a DHCP4 response.
  */
 int
-ni_dhcp4_parse_response(const ni_dhcp4_message_t *message, ni_buffer_t *options, ni_addrconf_lease_t **leasep)
+ni_dhcp4_parse_response(const ni_dhcp4_config_t *config, const ni_dhcp4_message_t *message,
+			ni_buffer_t *options, ni_addrconf_lease_t **leasep)
 {
 	ni_buffer_t overload_buf;
 	ni_addrconf_lease_t *lease;
@@ -1673,6 +1831,8 @@ ni_dhcp4_parse_response(const ni_dhcp4_message_t *message, ni_buffer_t *options,
 	lease->type = NI_ADDRCONF_DHCP;
 	lease->family = AF_INET;
 	lease->time_acquired = time(NULL);
+	lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
+	lease->fqdn.qualify = config->fqdn.qualify;
 
 	lease->dhcp4.address.s_addr = message->yiaddr;
 	lease->dhcp4.boot_saddr.s_addr = message->siaddr;
@@ -1794,9 +1954,14 @@ parse_more:
 				lease->dhcp4.mtu = 0;
 			}
 			break;
+		case DHCP4_FQDN:
+			ni_dhcp4_option_get_fqdn(&buf, &lease->hostname, &lease->fqdn);
+			break;
 		case DHCP4_HOSTNAME:
-			ni_dhcp4_option_get_domain(&buf, &lease->hostname,
-							"hostname");
+			if (lease->fqdn.enabled != NI_TRISTATE_ENABLE) {
+				ni_dhcp4_option_get_domain(&buf, &lease->hostname,
+								"hostname");
+			}
 			break;
 		case DHCP4_DNSDOMAIN:
 			ni_dhcp4_option_get_domain_list(&buf, &dns_domain,
@@ -1877,10 +2042,6 @@ parse_more:
 		case DHCP4_ROUTERS:
 			ni_route_array_destroy(&default_routes);
 			ni_dhcp4_decode_routers(&buf, &default_routes);
-			break;
-
-		case DHCP4_FQDN:
-			/* We ignore replies about FQDN */
 			break;
 
 		case DHCP4_POSIX_TZ_STRING:

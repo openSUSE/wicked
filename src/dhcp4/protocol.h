@@ -123,15 +123,22 @@ enum DHCP4_OPTIONS {
 #define DHCP4_OVERLOAD_BOOTFILE		0x01
 #define DHCP4_OVERLOAD_SERVERNAME	0x02
 
-/* SetFQDNHostName values - lsnybble used in flags
- * byte (see buildmsg.c), hsnybble to create order
- * and to allow 0x00 to mean disable
+/*
+ * DHCPv4 specific FQDN option bits/flags
+ * https://tools.ietf.org/html/rfc4702#section-2.1
  */
-enum FQQN {
-	FQDN_DISABLE    = 0x00,
-	FQDN_NONE       = 0x18,
-	FQDN_PTR        = 0x20,
-	FQDN_BOTH       = 0x31
+enum {
+	NI_DHCP4_FQDN_FLAG_S		= NI_BIT(0),
+	NI_DHCP4_FQDN_FLAG_O		= NI_BIT(1),
+	NI_DHCP4_FQDN_FLAG_E		= NI_BIT(2),
+	NI_DHCP4_FQDN_FLAG_N		= NI_BIT(3),
+	NI_DHCP4_FQDN_UPDATE_PTR	= 0x00,
+	NI_DHCP4_FQDN_UPDATE_BOTH	= NI_DHCP4_FQDN_FLAG_S,
+	NI_DHCP4_FQDN_UPDATE_NONE	= NI_DHCP4_FQDN_FLAG_N,
+	NI_DHCP4_FQDN_UPDATE_MASK	= NI_DHCP4_FQDN_FLAG_S
+					| NI_DHCP4_FQDN_FLAG_N,
+	NI_DHCP4_FQDN_OVERRIDE		= NI_DHCP4_FQDN_FLAG_O,
+	NI_DHCP4_FQDN_ENCODE		= NI_DHCP4_FQDN_FLAG_E,
 };
 
 /* Sizes for DHCP4 options */

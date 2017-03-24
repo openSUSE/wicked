@@ -109,7 +109,7 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf, n
 		return -1;
 	}
 
-	msg_code = ni_dhcp4_parse_response(message, msgbuf, &lease);
+	msg_code = ni_dhcp4_parse_response(dev->config, message, msgbuf, &lease);
 	sender = ni_capture_from_hwaddr_print(from);
 	if (msg_code < 0) {
 		/* Ignore this message, time out later */
@@ -398,6 +398,8 @@ __ni_dhcp4_fsm_discover(ni_dhcp4_device_t *dev, int scan_offers)
 	if ((lease = dev->lease) == NULL)
 		lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET);
 	lease->uuid = dev->config->uuid;
+	lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
+	lease->fqdn.qualify = dev->config->fqdn.qualify;
 
 	dev->fsm.state = NI_DHCP4_STATE_SELECTING;
 	dev->dhcp4.accept_any_offer = 1;
@@ -935,6 +937,9 @@ ni_dhcp4_recover_lease(ni_dhcp4_device_t *dev)
 	lease = ni_addrconf_lease_file_read(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
 	if (!lease)
 		return -1;
+
+	lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
+	lease->fqdn.qualify = dev->config->fqdn.qualify;
 
 	/* We cannot renew/rebind/reboot without it */
 	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.server_id, 0);

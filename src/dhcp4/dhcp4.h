@@ -173,9 +173,9 @@ struct ni_dhcp4_config {
 	unsigned int		flags;
 	ni_dhcp4_run_t		dry_run;
 
-	char			hostname[256];
+	ni_dhcp_fqdn_t		fqdn;
+	char			hostname[255];
 	char			classid[48];
-	int			fqdn;
 
 	ni_opaque_t		client_id;
 	ni_dhcp4_user_class_t	user_class;
@@ -230,7 +230,8 @@ extern int		ni_dhcp4_build_message(const ni_dhcp4_device_t *,
 extern void		ni_dhcp4_fsm_link_up(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_fsm_link_down(ni_dhcp4_device_t *);
 
-extern int		ni_dhcp4_parse_response(const ni_dhcp4_message_t *, ni_buffer_t *, ni_addrconf_lease_t **);
+extern int		ni_dhcp4_parse_response(const ni_dhcp4_config_t *, const ni_dhcp4_message_t *,
+						ni_buffer_t *, ni_addrconf_lease_t **);
 
 extern int		ni_dhcp4_socket_open(ni_dhcp4_device_t *);
 
