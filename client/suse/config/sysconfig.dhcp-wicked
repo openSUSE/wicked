@@ -1,0 +1,71 @@
+## Type:        list(enabled,disabled,default,)
+## Default:     ""
+#
+# Default is to use the FQDN option, when the DHCLIENT_HOSTNAME_OPTION
+# variable is set to a full hostname, that is, when it contains a dot.
+# When DHCLIENT_HOSTNAME_OPTION is set to AUTO, short hostname from
+# /etc/hostname is send via hostname option 12 (same as SLES-11).
+#
+DHCLIENT_FQDN_ENABLED=""
+
+## Type:        list(both,ptr,none,)
+## Default:     ""
+#
+# Request to update A and PTR or only the PTR DNS records using the
+# hostname specified in DHCLIENT_HOSTNAME_OPTION variable.
+# Default is to update 'both' when hostname is set or 'none' when
+# the hostname is empty and DHCLIENT_FQDN_ENABLED is set to enabled.
+#
+DHCLIENT_FQDN_UPDATE=""
+
+## Type:        yesno
+## Default:     yes
+#
+# Qualify relative sub-domains/hostname in the DHCLIENT_HOSTNAME_OPTION
+# variable adding a final dot ('foo.bar' -> 'foo.bar.').
+# When disabled, the DHCP server may append it's update domain to the
+# hostname (e.g. 'foo.bar' -> 'foo.bar.example.net').
+#
+DHCLIENT_FQDN_QUALIFY="yes"
+
+## Type:        yesno
+## Default:     yes
+#
+# The FQDN option is encoding hostnames using canonical DNS wire format
+# by default. This flag permits to enable use of the deprecated ascii
+# format limited to a single label (host hostname) for compatibility
+# purposes with draft implementation, which may be unsupported and cause
+# that a DHCP server ignores the fqdn option request completely.
+#
+DHCLIENT_FQDN_ENCODE="yes"
+
+## Type:        list(enabled,disabled,default,)
+## Default:     ""
+#
+# Default is to use the FQDN option, when the DHCLIENT6_HOSTNAME_OPTION
+# variable provides a hostname.
+# When DHCLIENT6_HOSTNAME_OPTION is set to AUTO, short hostname from the
+# /etc/hostname file is send (same to SLES-11).
+#
+DHCLIENT6_FQDN_ENABLED=""
+
+## Type:        list(both,ptr,none,)
+## Default:     ""
+#
+# Request to update AAAA and PTR or only the PTR DNS records using the
+# hostname specified in DHCLIENT6_HOSTNAME_OPTION variable.
+# Default is to update \fIboth\fR when hostname is given or \fInone\fR
+# when hostname is empty and DHCLIENT6_FQDN_ENABLED is set to enabled.
+#
+DHCLIENT6_FQDN_UPDATE=""
+
+## Type:        yesno
+## Default:     yes
+#
+# Qualify relative sub-domains/hostname in the DHCLIENT6_HOSTNAME_OPTION
+# variable adding a final dot ('foo.bar' -> 'foo.bar.').
+# When disabled, the DHCP server may append it's update domain to the
+# hostname (e.g. 'foo.bar' -> 'foo.bar.example.net').
+#
+DHCLIENT6_FQDN_QUALIFY="yes"
+
