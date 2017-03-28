@@ -2745,8 +2745,8 @@ __ni_rtnl_link_put_bond_opt(ni_netconfig_t *nc,	struct nl_msg *msg, const char *
 
 	case IFLA_BOND_PRIMARY_RESELECT:
 		if (conf->primary_reselect != bond->primary_reselect) {
-			NLA_PUT_U32(msg, attr, conf->primary_reselect);
-			bond->primary_reselect = bond->primary_reselect;
+			NLA_PUT_U8(msg, attr, conf->primary_reselect);
+			bond->primary_reselect = conf->primary_reselect;
 			ret = 0;
 		}
 		return __ni_rtnl_link_put_bond_opt_debug(ifname, name, ret,
