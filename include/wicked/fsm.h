@@ -488,6 +488,12 @@ ni_ifworker_is_factory_device(const ni_ifworker_t *w)
 	return  w->device_api.factory_service && w->device_api.factory_method;
 }
 
+static inline ni_bool_t
+ni_ifworker_is_hotplug_device(const ni_ifworker_t *w)
+{
+	return  ni_string_eq(w->control.mode, "hotplug") || ni_string_eq(w->control.mode, "ifplugd");
+}
+
 /*
  * Return true if the worker has been created from config file and has no real device
  */

@@ -3202,8 +3202,14 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 			continue;
 
 		if (!ni_ifworker_is_device_created(w) && !ni_ifworker_is_factory_device(w)) {
-			w->pending = TRUE;
-			ni_ifworker_set_timeout(fsm, w, fsm->worker_timeout);
+			if (!ni_ifworker_is_hotplug_device(w)) {
+				/* Wait for missing devices not marked as hotplug */
+				w->pending = TRUE;
+				ni_ifworker_set_timeout(fsm, w, fsm->worker_timeout);
+			}
+			else
+				ni_debug_application("%s: hotplug device not present - skipping", w->name);
+
 			count++;
 			continue;
 		}
