@@ -19,7 +19,7 @@ a specific interface, simply redefine the variable in the appropriate ifcfg-
 file.
 .SH DHVPv4 Specific Variables
 .TP
-.BR DHCLIENT_SET_HOSTNAME\  { yes | no* }
+.BR DHCLIENT_SET_HOSTNAME\  { \fIno\fR* | yes }
 Should the DHCPv4 client set the hostname?
 When it is likely that this would occur during a running X session,
 your DISPLAY variable could be screwed up and you won't be able to open
@@ -28,7 +28,7 @@ If it happens during booting it won't be a problem and you can
 safely say "yes" here. For a roaming notebook with X kept running, "no"
 makes more sense.
 .TP
-.BR DHCLIENT_HOSTNAME_OPTION\  { "AUTO"* | }
+.BR DHCLIENT_HOSTNAME_OPTION\  { \fIAUTO\fR* | <a\ host\ name> |\ }
 Specifies the hostname option field when DHCPv4 client sends messages.
 Some DHCP servers will update nameserver entries (dynamic DNS) to it.
 Also, some DHCP servers, notably those used by @Home Networks, require
@@ -37,6 +37,31 @@ messages from clients.
 When set to "AUTO", the current hostname from /etc/hostname is sent.
 Use this variable to override it with another hostname, or leave it
 empty to not send any hostname.
+.TP
+.BR DHCLIENT_FQDN_ENABLED\ { enabled | disabled | \fIdefault\fR* |\ }
+Default is to use the FQDN option, when the DHCLIENT_HOSTNAME_OPTION
+variable is set to a full hostname, that is, when it contains a dot.
+When DHCLIENT_HOSTNAME_OPTION is set to AUTO, short hostname from
+/etc/hostname is send via hostname option 12 (same as SLES-11).
+.TP
+.BR DHCLIENT_FQDN_UPDATE\ { both | ptr | none |\ }
+Request to update A and PTR or only the PTR DNS records using the
+hostname specified in the DHCLIENT_HOSTNAME_OPTION variable.
+Default is to update \fIboth\fR when hostname is given or \fInone\fR
+when hostname is empty and DHCLIENT_FQDN_ENABLED is set to enabled.
+.TP
+.BR DHCLIENT_FQDN_QUALIFY\ { \fIyes\fR* | no }
+Qualify relative sub-domains/hostname in the DHCLIENT_HOSTNAME_OPTION
+variable adding a final dot ('foo.bar' -> 'foo.bar.').
+When disabled, the DHCP server may append it's update domain the host-
+name (e.g. 'foo.bar' -> 'foo.bar.example.net').
+.TP
+.BR DHCLIENT_FQDN_ENCODE\ { \fIyes\fR* | no }
+The FQDN option is encoding hostnames using canonical DNS wire format
+by default. This flag permits to enable use of the deprecated ascii
+format limited to a single label (short hostname) for compatibility
+purposes with draft implementation, which may be unsupported and
+cause that a DHCP server ignores the fqdn option requests completely.
 .TP
 .BR DHCLIENT_SET_DEFAULT_ROUTE\  { yes* | no }
 Should the DHCP client set a default route (default Gateway)?
@@ -150,12 +175,30 @@ If it happens during booting it won't be a problem and you can
 safely say "yes" here. For a roaming notebook with X kept running,
 "no" makes more sense.
 .TP
-.BR DHCLIENT6_HOSTNAME_OPTION\  { "AUTO"* | }
- Specifies the hostname option field when DHCPv6 client sends messages.
- Some DHCP servers will update nameserver entries (dynamic DNS) to it.
- When set to "AUTO", the current hostname from /etc/hostname is sent.
- Use this variable to override it with another hostname, or leave it
- empty to not send any hostname.
+.BR DHCLIENT6_HOSTNAME_OPTION\ { \fIAUTO\fR* | <a\ host\ name> |\ }
+Specifies the hostname option field when DHCPv6 client sends messages.
+Some DHCP servers will update nameserver entries (dynamic DNS) to it.
+When set to "AUTO", the current hostname from /etc/hostname is sent.
+Use this variable to override it with another hostname, or leave it
+empty to not send any hostname.
+.TP
+.BR DHCLIENT6_FQDN_ENABLED\ { enabled | disabled | \fIdefault\fR* |\ }
+Default is to use the FQDN option, when the DHCLIENT6_HOSTNAME_OPTION
+variable provides a hostname.
+When DHCLIENT6_HOSTNAME_OPTION is set to AUTO, short hostname from the
+/etc/hostname file is send (same to SLES-11).
+.TP
+.BR DHCLIENT6_FQDN_UPDATE\ { both | ptr | none |\ }
+Request to update AAAA and PTR or only the PTR DNS records using the
+hostname specified in DHCLIENT6_HOSTNAME_OPTION variable.
+Default is to update \fIboth\fR when hostname is set or \fInone\fR
+when hostname is empty and DHCLIENT6_FQDN_ENABLED is set to enabled.
+.TP
+.BR DHCLIENT6_FQDN_QUALIFY\ { \fIyes\fR* | no }
+Qualify relative sub-domains/hostname in the DHCLIENT6_HOSTNAME_OPTION
+variable adding a final dot ('foo.bar' -> 'foo.bar.').
+When disabled, the DHCP server may append it's update domain the host-
+name (e.g. 'foo.bar' -> 'foo.bar.example.net').
 .TP
 .BR DHCLIENT6_REQUEST_OPTION[SUFFIX]
 Specifies a space separate list of additional DHCPv6 options to request.

@@ -155,6 +155,34 @@ ni_dhcp4_tester_req_xml_init(ni_dhcp4_request_t *req, xml_document_t *doc)
 				goto failure;
 			ni_string_dup(&req->hostname, child->cdata);
 		} else
+		if (ni_string_eq(child->name, "fqdn")) {
+			const xml_node_t *ptr;
+
+			for (ptr = child->children; ptr; ptr = ptr->next) {
+				if (ni_string_eq(ptr->name, "enabled")) {
+					ni_bool_t b;
+					if (ni_parse_boolean(ptr->cdata, &b) == 0)
+						ni_tristate_set(&req->fqdn.enabled, b);
+					else
+					if (ni_string_eq(ptr->cdata, "default"))
+						req->fqdn.enabled = NI_TRISTATE_DEFAULT;
+					else
+						goto failure;
+				} else
+				if (ni_string_eq(ptr->name, "update")) {
+					if (!ni_dhcp_fqdn_update_name_to_mode(ptr->cdata, &req->fqdn.update))
+						goto failure;
+				} else
+				if (ni_string_eq(ptr->name, "encode")) {
+					if (ni_parse_boolean(ptr->cdata, &req->fqdn.encode) != 0)
+						goto failure;
+				} else
+				if (ni_string_eq(ptr->name, "qualify")) {
+					if (ni_parse_boolean(ptr->cdata, &req->fqdn.qualify) != 0)
+						goto failure;
+				}
+			}
+		} else
 		if (ni_string_eq(child->name, "clientid")) {
 			ni_opaque_t duid;
 

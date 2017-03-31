@@ -197,6 +197,16 @@
 
     <update type="builtin-addrconf-update-mask" />
     <hostname type="string" />
+    <fqdn class="dict">
+      <enabled type="tristate"/>
+      <update  type="uint32" constraint="enum">
+        <none  value="8"/>
+        <both  value="1"/>
+        <ptr   value="0"/>
+      </update>
+      <encode type="boolean"/>
+      <qualify type="boolean"/>
+    </fqdn>
     <route-priority type="uint32" />
 
     <request-options class="array" element-type="string" element-name="option" />
@@ -246,6 +256,15 @@
 
     <update type="builtin-addrconf-update-mask" />
     <hostname type="string" />
+    <fqdn class="dict">
+      <enabled type="tristate"/>
+      <update  type="uint32" constraint="enum">
+        <none  value="8"/>
+        <both  value="1"/>
+        <ptr   value="0"/>
+      </update>
+      <qualify type="boolean"/>
+    </fqdn>
 
     <request-options class="array" element-type="string" element-name="option" />
   </define>

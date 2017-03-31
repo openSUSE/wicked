@@ -1010,9 +1010,14 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 		}
 	}
 
+	/* There is no hostname option, we always use FQDN option */
+	config->fqdn = req->fqdn;
 	if ((len = ni_string_len(req->hostname)) > 0) {
 		if (ni_check_domain_name(req->hostname, len, 0)) {
 			strncpy(config->hostname, req->hostname, sizeof(config->hostname) - 1);
+
+			if (config->fqdn.enabled == NI_TRISTATE_DEFAULT)
+				ni_tristate_set(&config->fqdn.enabled, TRUE);
 		} else {
 			ni_debug_dhcp(
 				"%s: Discarded suspect hostname in DHCPv6 acquire request %s: '%s'",
@@ -1020,6 +1025,10 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 				ni_print_suspect(req->hostname, len));
 		}
 	}
+	if (config->fqdn.enabled == NI_TRISTATE_DEFAULT)
+		ni_tristate_set(&config->fqdn.enabled, FALSE);
+	if (config->fqdn.enabled == NI_TRISTATE_ENABLE && ni_string_empty(config->hostname))
+		config->fqdn.update = NI_DHCP_FQDN_UPDATE_NONE;
 
 	/* TODO: get from req info */
 	ni_dhcp6_config_vendor_class(&config->vendor_class.en, &config->vendor_class.data);
@@ -1500,6 +1509,9 @@ ni_dhcp6_request_new(void)
 
 	/* By default, we try to obtain all sorts of config from the server */
 	req->update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET6);
+
+	/* default: enable + update mode depends on hostname settings in req */
+	ni_dhcp_fqdn_init(&req->fqdn);
 
 	return req;
 }

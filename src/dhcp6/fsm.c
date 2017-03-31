@@ -1105,6 +1105,9 @@ __fsm_parse_client_options(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg,
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
 	lease->type = NI_ADDRCONF_DHCP;
 	lease->time_acquired = time(NULL);
+	lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
+	lease->fqdn.qualify = dev->config->fqdn.qualify;
+
 	/* set the server address in the lease */
 	memcpy(&lease->dhcp6.server_addr, &msg->sender, sizeof(lease->dhcp6.server_addr));
 
@@ -1265,6 +1268,8 @@ ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 			/* TODO: add addrs from interface as hint */
 		}
 		lease->uuid = dev->config->uuid;
+		lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
+		lease->fqdn.qualify = dev->config->fqdn.qualify;
 
 		dev->dhcp6.xid = 0;
 		ni_dhcp6_device_drop_best_offer(dev);
@@ -1310,6 +1315,8 @@ ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 			/* TODO: add addrs from interface as hint */
 		}
 		lease->uuid = dev->config->uuid;
+		lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
+		lease->fqdn.qualify = dev->config->fqdn.qualify;
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_SOLICIT, &dev->message, lease) != 0)
 			goto cleanup;

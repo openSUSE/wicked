@@ -267,6 +267,9 @@ static ni_dbus_class_t		ni_objectmodel_dhcp4req_class = {
 	__NI_DBUS_PROPERTY(signature, __name, __dhcp4_request, rw)
 #define DHCP4REQ_STRING_ARRAY_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_STRING_ARRAY_PROPERTY(dhcp4_request, dbus_name, member_name, rw)
+#define DHCP4REQ_DICT_PROPERTY(member, fstem, rw) \
+	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, member, fstem, \
+				ni_objectmodel_dhcp4_request, rw)
 
 static ni_dhcp4_request_t *
 __ni_objectmodel_get_dhcp4_request(const ni_dbus_object_t *object, DBusError *error)
@@ -291,7 +294,7 @@ ni_objectmodel_get_dhcp4_request(const ni_dbus_object_t *object, ni_bool_t write
 }
 
 static dbus_bool_t
-__dhcp4_request_set_user_class(ni_dbus_object_t *object,
+ni_objectmodel_dhcp4_request_set_user_class(ni_dbus_object_t *object,
 			const ni_dbus_property_t *property,
 			const ni_dbus_variant_t *argument,
 			DBusError *error)
@@ -350,7 +353,7 @@ __dhcp4_request_set_user_class(ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
-__dhcp4_request_get_user_class(const ni_dbus_object_t *object,
+ni_objectmodel_dhcp4_request_get_user_class(const ni_dbus_object_t *object,
 			const ni_dbus_property_t *property,
 			ni_dbus_variant_t *result,
 			DBusError *error)
@@ -389,13 +392,79 @@ __dhcp4_request_get_user_class(const ni_dbus_object_t *object,
 	return TRUE;
 }
 
+static dbus_bool_t
+ni_objectmodel_dhcp4_request_get_fqdn(const ni_dbus_object_t *object,
+			const ni_dbus_property_t *property,
+			ni_dbus_variant_t *result,
+			DBusError *error)
+{
+	const ni_dhcp4_request_t *req = NULL;
+
+	if (!(req = __ni_objectmodel_get_dhcp4_request(object, error)))
+		return FALSE;
+
+	if (req->fqdn.enabled != NI_TRISTATE_DEFAULT)
+		ni_dbus_dict_add_int32(result, "enabled", req->fqdn.enabled);
+
+	if (req->fqdn.enabled != NI_TRISTATE_DISABLE) {
+		ni_dbus_dict_add_int32(result, "update", req->fqdn.update);
+		ni_dbus_dict_add_bool (result, "encode", req->fqdn.encode);
+		ni_dbus_dict_add_bool (result, "qualify", req->fqdn.qualify);
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_dhcp4_request_set_fqdn(ni_dbus_object_t *object,
+			const ni_dbus_property_t *property,
+			const ni_dbus_variant_t *argument,
+			DBusError *error)
+{
+	ni_dhcp4_request_t *req = NULL;
+	dbus_bool_t bval;
+	int32_t update;
+
+	if (!(req = __ni_objectmodel_get_dhcp4_request(object, error)))
+		return FALSE;
+
+	if (!ni_dbus_dict_get_int32(argument, "enabled", &req->fqdn.enabled))
+		req->fqdn.enabled = NI_TRISTATE_DEFAULT;
+
+	if (req->fqdn.enabled != NI_TRISTATE_DISABLE) {
+		if (!ni_dbus_dict_get_int32(argument, "update", &update))
+			req->fqdn.update = NI_DHCP_FQDN_UPDATE_BOTH;
+		else
+			switch (update) {
+			case NI_DHCP_FQDN_UPDATE_BOTH:
+			case NI_DHCP_FQDN_UPDATE_NONE:
+			case NI_DHCP_FQDN_UPDATE_PTR:
+				req->fqdn.update = update;
+				break;
+			default:
+				return FALSE;
+			}
+
+		if (!ni_dbus_dict_get_bool(argument, "encoded", &bval))
+			req->fqdn.encode = TRUE;
+		else
+			req->fqdn.encode = bval;
+
+		if (!ni_dbus_dict_get_bool(argument, "qualify", &bval))
+			req->fqdn.qualify = TRUE;
+		else
+			req->fqdn.qualify = bval;
+	}
+	return TRUE;
+}
+
 static ni_dbus_property_t	dhcp4_request_properties[] = {
 	DHCP4REQ_BOOL_PROPERTY(enabled, enabled, RO),
 	DHCP4REQ_UUID_PROPERTY(uuid, uuid, RO),
 	DHCP4REQ_UINT_PROPERTY(flags, flags, RO),
 	DHCP4REQ_STRING_PROPERTY(client-id, clientid, RO),
 	DHCP4REQ_STRING_PROPERTY(vendor-class, vendor_class, RO),
-	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, user-class, user_class, __dhcp4_request, RO),
+	DHCP4REQ_DICT_PROPERTY(user-class, user_class, RO),
 	DHCP4REQ_UINT_PROPERTY(start-delay, start_delay, RO),
 	DHCP4REQ_UINT_PROPERTY(defer-timeout, defer_timeout, RO),
 	DHCP4REQ_UINT_PROPERTY(acquire-timeout, acquire_timeout, RO),
@@ -404,6 +473,7 @@ static ni_dbus_property_t	dhcp4_request_properties[] = {
 	DHCP4REQ_BOOL_PROPERTY(release-lease, release_lease, RO),
 	DHCP4REQ_UINT_PROPERTY(update, update, RO),
 	DHCP4REQ_STRING_PROPERTY(hostname, hostname, RO),
+	DHCP4REQ_DICT_PROPERTY(fqdn, fqdn, RO),
 	DHCP4REQ_UINT_PROPERTY(route-priority, route_priority, RO),
 
 	DHCP4REQ_STRING_ARRAY_PROPERTY(request-options, request_options, RO),

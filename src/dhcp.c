@@ -1729,3 +1729,123 @@ ni_dhcp_option_to_vars(const ni_dhcp_option_t *opt, const ni_dhcp_option_decl_t 
 	}
 }
 
+/*
+ * Utility functions
+ */
+ni_bool_t
+ni_dhcp_domain_encode(ni_buffer_t *bp, const char *domain, ni_bool_t qualify)
+{
+	unsigned int dot = 0;
+	const char *end;
+	size_t tot, len;
+	uint8_t cc;
+
+	tot = ni_string_len(domain);
+	if (!tot || tot > 254)
+		return FALSE;
+
+	while (domain && *domain) {
+		end = strchr(domain, '.');
+		if( end) {
+			len = (size_t)(end - domain);
+			tot -= len + 1;
+			end++;
+			dot++;
+		} else {
+			len = tot;
+		}
+
+		if (!len || len > 63)
+			return FALSE;
+
+		cc = len;
+		if (ni_buffer_put(bp, &cc, 1) < 0)
+			return FALSE;
+
+		if (ni_buffer_put(bp, domain, len) < 0)
+			return FALSE;
+
+		domain = end;
+	}
+
+	if (domain || (qualify && dot)) {
+		cc = 0;
+		if (ni_buffer_put(bp, &cc, 1) < 0)
+			return FALSE;
+	}
+	return TRUE;
+}
+
+ni_bool_t
+ni_dhcp_domain_decode(ni_buffer_t *bp, char **domain)
+{
+	ni_stringbuf_t out = NI_STRINGBUF_INIT_DYNAMIC;
+	char label[64] = {'\0'};
+	size_t len;
+
+	while (ni_buffer_count(bp) && !bp->underflow) {
+		if ((ssize_t)(len = ni_buffer_getc(bp)) == EOF) {
+			bp->underflow = 1;
+			goto failure;
+		}
+
+		if (len & 0xC0)
+			goto failure;
+
+		if (!ni_stringbuf_empty(&out))
+			ni_stringbuf_putc(&out, '.');
+
+		if (len == 0)
+			break;
+
+		if (ni_buffer_get(bp, label, len) < 0)
+			goto failure;
+
+		label[len] = '\0';
+		ni_stringbuf_puts(&out, label);
+	}
+
+	if (ni_string_dup(domain, out.string)) {
+		ni_stringbuf_destroy(&out);
+		return TRUE;
+	}
+
+failure:
+	ni_stringbuf_destroy(&out);
+	return FALSE;
+}
+
+/*
+ * DHCP fqdn option utilities
+ */
+static const ni_intmap_t	ni_dhcp_fqdn_update_mode_map[] = {
+	{ "both",		NI_DHCP_FQDN_UPDATE_BOTH	},
+	{ "none",		NI_DHCP_FQDN_UPDATE_NONE	},
+	{ "ptr",		NI_DHCP_FQDN_UPDATE_PTR		},
+
+	{ NULL,			-1U				}
+};
+
+const char *
+ni_dhcp_fqdn_update_mode_to_name(unsigned int mode)
+{
+	return ni_format_uint_mapped(mode, ni_dhcp_fqdn_update_mode_map);
+}
+
+ni_bool_t
+ni_dhcp_fqdn_update_name_to_mode(const char *name, unsigned int *mode)
+{
+	return ni_parse_uint_mapped(name, ni_dhcp_fqdn_update_mode_map, mode) == 0;
+}
+
+void
+ni_dhcp_fqdn_init(ni_dhcp_fqdn_t *fqdn)
+{
+	if (fqdn) {
+		fqdn->enabled = NI_TRISTATE_DEFAULT;
+		fqdn->update  = NI_DHCP_FQDN_UPDATE_BOTH;
+		fqdn->encode  = TRUE;
+		fqdn->qualify = TRUE;
+	}
+}
+

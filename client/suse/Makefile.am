@@ -28,7 +28,8 @@ noinst_HEADERS					= \
 						  ifsysctl.h
 
 suse_fillupdir					= ${localstatedir}/adm/fillup-templates
-suse_fillup_DATA				= config/sysconfig.config-wicked
+suse_fillup_DATA				= config/sysconfig.config-wicked \
+						  config/sysconfig.dhcp-wicked
 
 suse_configdir					= $(sysconfdir)/sysconfig/network
 suse_config_DATA				= config/ifcfg-lo

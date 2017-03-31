@@ -61,6 +61,7 @@ typedef struct ni_compat_netdev {
 		ni_bool_t	enabled;
 		unsigned int	flags;
 
+		ni_dhcp_fqdn_t  fqdn;
 		char *		hostname;
 		char *		client_id;
 		char *		vendor_class;
@@ -90,6 +91,7 @@ typedef struct ni_compat_netdev {
 		unsigned int	mode;
 		ni_bool_t	rapid_commit;
 
+		ni_dhcp_fqdn_t  fqdn;
 		char *		hostname;
 		char *		client_id;
 

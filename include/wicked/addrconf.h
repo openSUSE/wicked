@@ -72,6 +72,23 @@ enum {
 };
 
 /*
+ * DHCP FQDN option update
+ */
+typedef enum {
+	NI_DHCP_FQDN_UPDATE_BOTH,	/* server updates A/AAAA and PTR RR  */
+	NI_DHCP_FQDN_UPDATE_NONE,	/* server does not update DNS        */
+	NI_DHCP_FQDN_UPDATE_PTR,	/* server updates PTR RR only        */
+} ni_dhcp_fqdn_update_t;
+
+typedef struct ni_dhcp_fqdn {
+	ni_tristate_t		enabled;
+	ni_dhcp_fqdn_update_t	update;
+	ni_bool_t		encode;	/* DHCP6 ignored, DHCP4: default true,
+					   false for deprecated ascii format */
+	ni_bool_t		qualify;/* qualify subdomains, default: true */
+} ni_dhcp_fqdn_t;
+
+/*
  * DHCP6 run/configuration mode
  */
 typedef enum ni_dhcp6_mode {
@@ -120,6 +137,7 @@ struct ni_addrconf_lease {
 
 	unsigned int		update;
 
+	ni_dhcp_fqdn_t		fqdn;
 	char *			hostname;
 	ni_address_t *		addrs;
 	ni_route_table_t *	routes;
@@ -235,6 +253,10 @@ extern int		ni_dhcp6_mode_name_to_type(const char *, unsigned int *);
 
 extern const char *	ni_dhcp4_user_class_format_type_to_name(unsigned int);
 extern int		ni_dhcp4_user_class_format_name_to_type(const char *, unsigned int *);
+
+extern void		ni_dhcp_fqdn_init(ni_dhcp_fqdn_t *);
+extern const char *	ni_dhcp_fqdn_update_mode_to_name(unsigned int);
+extern ni_bool_t	ni_dhcp_fqdn_update_name_to_mode(const char *, unsigned int *);
 
 extern const char *	ni_netbios_node_type_to_name(unsigned int);
 extern ni_bool_t	ni_netbios_node_type_to_code(const char *, unsigned int *);

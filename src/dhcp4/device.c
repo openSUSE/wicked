@@ -288,14 +288,28 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	if (info->lease_time && info->lease_time < config->max_lease_time)
 		config->max_lease_time = info->lease_time;
 
+	/*
+	 * RFC 4702 section 3.1 defines, that a client sending the fqdn
+	 * option (81), MUST NOT send the Host Name option (12) and
+	 * prefer the fqdn option in server responses.
+	 * We're using the request/config hostname field for both options.
+	 */
+	config->fqdn = info->fqdn;
 	if ((len = ni_string_len(info->hostname)) > 0) {
 		if (ni_check_domain_name(info->hostname, len, 0)) {
 			strncpy(config->hostname, info->hostname, sizeof(config->hostname) - 1);
+
+			if (config->fqdn.enabled == NI_TRISTATE_DEFAULT)
+				ni_tristate_set(&config->fqdn.enabled, !!strchr(config->hostname, '.'));
 		} else {
 			ni_debug_dhcp("Discarded request to use suspect hostname: '%s'",
 				ni_print_suspect(info->hostname, len));
 		}
 	}
+	if (config->fqdn.enabled == NI_TRISTATE_DEFAULT)
+		ni_tristate_set(&config->fqdn.enabled, FALSE);
+	if (config->fqdn.enabled == NI_TRISTATE_ENABLE && ni_string_empty(config->hostname))
+		config->fqdn.update = NI_DHCP4_FQDN_UPDATE_NONE;
 
 	if (!ni_dhcp4_parse_client_id(&config->client_id, dev->system.hwaddr.type,
 				info->clientid)) {
@@ -322,6 +336,12 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_trace("  lease-time      %u", config->max_lease_time);
 		ni_trace("  start-delay     %u", config->start_delay);
 		ni_trace("  hostname        %s", config->hostname[0]? config->hostname : "<none>");
+		if (config->fqdn.enabled == NI_TRISTATE_ENABLE) {
+			ni_trace("  fqdn            update %s, encode %s, qualify %s",
+					ni_dhcp_fqdn_update_mode_to_name(config->fqdn.update),
+					ni_format_boolean(config->fqdn.encode),
+					ni_format_boolean(config->fqdn.qualify));
+		}
 		ni_trace("  vendor-class    %s", config->classid[0]? config->classid : "<none>");
 		if (config->user_class.class_id.count) {
 			char *userclass = NULL;
@@ -340,7 +360,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 
 	ni_dhcp4_device_set_config(dev, config);
 
-	if (!dev->lease && config->dry_run != NI_DHCP4_RUN_OFFER)
+	if (!dev->lease && config->dry_run != NI_DHCP4_RUN_OFFER && config->recover_lease)
 		ni_dhcp4_recover_lease(dev);
 
 	if (dev->lease) {
@@ -897,6 +917,9 @@ ni_dhcp4_request_new(void)
 
 	/* By default, we try to obtain all sorts of config from the server */
 	req->update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);
+
+	/* default: enable + update mode depends on request hostname + dots */
+	ni_dhcp_fqdn_init(&req->fqdn);
 
 	return req;
 }

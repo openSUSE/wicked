@@ -38,6 +38,7 @@
 #include <wicked/logging.h>
 #include <wicked/netinfo.h>
 #include <wicked/socket.h>
+#include <wicked/addrconf.h>
 #include <wicked/resolver.h>
 #include <wicked/ipv6.h>
 #if 0
@@ -718,47 +719,16 @@ failure:
 }
 
 static int
-ni_dhcp6_fqdn_encode(ni_buffer_t *bp, const char *fqdn)
+ni_dhcp6_option_put_fqdn(ni_buffer_t *msgbuf, const ni_dhcp_fqdn_t *fqdn, const char *hostname)
 {
-	const char *end;
-	size_t tot, len;
-	uint8_t cc;
+	unsigned char	optdata[255 + 1] = {'\0'};
+	ni_buffer_t	databuf, optbuf;
+	uint8_t		flags;
 
-	if ((tot = ni_string_len(fqdn)) > 255)
-		return -1;
+	/* return success without to do anything */
+	if (fqdn->enabled != NI_TRISTATE_ENABLE)
+		return 0;
 
-	while (fqdn && *fqdn) {
-		end = strchr(fqdn, '.');
-		if( end) {
-			len = (size_t)(end - fqdn);
-			tot -= len + 1;
-			end++;
-		} else {
-			len = tot;
-		}
-
-		if (len > 63)
-			return -1;
-
-		if (len == 0)
-			break;
-
-		cc = len;
-		if (ni_buffer_put(bp, &cc, 1) < 0)
-			return -1;
-
-		if (ni_buffer_put(bp, fqdn, len) < 0)
-			return -1;
-
-		fqdn = end;
-	}
-	cc = 0;
-	return ni_buffer_put(bp, &cc, 1);
-}
-
-static inline int
-ni_dhcp6_option_put_fqdn(ni_buffer_t *bp, const char *hostname, ni_bool_t update_dns, ni_bool_t update_aaaa)
-{
 	/*
 	 * http://tools.ietf.org/html/rfc4704#section-4.1
 	 *
@@ -779,33 +749,40 @@ ni_dhcp6_option_put_fqdn(ni_buffer_t *bp, const char *hostname, ni_bool_t update
 	 *
 	 * Remaining MBZ bits are reserved and MUST be cleared and ignored.
 	 */
-	ni_buffer_t data;
-	uint8_t flags = 4;
-
-	if (update_dns) {
-		flags = update_aaaa ? 1 : 0;
+	switch (fqdn->update) {
+	case NI_DHCP_FQDN_UPDATE_PTR:
+		flags = NI_DHCP6_FQDN_UPDATE_PTR;
+		break;
+	case NI_DHCP_FQDN_UPDATE_BOTH:
+		flags = NI_DHCP6_FQDN_UPDATE_BOTH;
+		break;
+	case NI_DHCP_FQDN_UPDATE_NONE:
+		flags = NI_DHCP6_FQDN_UPDATE_NONE;
+		break;
+	default:
+		return -1; /* invalid request */
 	}
 
-	ni_buffer_init(&data, ni_buffer_tail(bp), ni_buffer_tailroom(bp));
-	if (ni_buffer_reserve_head(&data, sizeof(ni_dhcp6_option_header_t)) < 0)
-		goto failure;
+	/* construct the option data into a temporary buffer */
+	ni_buffer_init(&databuf, optdata, sizeof(optdata));
+	if (ni_buffer_putc(&databuf, flags) < 0)
+		return 1;
+	if (!ni_string_empty(hostname) &&
+			!ni_dhcp_domain_encode(&databuf, hostname, fqdn->qualify))
+		return 1;
 
-	if (ni_buffer_put(&data, &flags, 1) < 0)
-		goto failure;
+	/* data constructed, write if fits into msg buffer tail room */
+	ni_buffer_init(&optbuf, ni_buffer_tail(msgbuf), ni_buffer_tailroom(msgbuf));
+	if (ni_dhcp6_option_put(&optbuf, NI_DHCP6_OPTION_FQDN,
+				ni_buffer_head(&databuf),
+				ni_buffer_count(&databuf)) < 0)
+		return 1;
 
-	if (ni_string_len(hostname)) {
-		if( ni_dhcp6_fqdn_encode(&data, hostname) < 0)
-			goto failure;
-	}
-
-	if (ni_dhcp6_option_put(bp, NI_DHCP6_OPTION_FQDN, NULL, ni_buffer_count(&data)) < 0)
-		goto failure;
+	/* commit the option by pushing the tail of the msg buffer */
+	if (!ni_buffer_push_tail(msgbuf, ni_buffer_count(&optbuf)))
+		return -1;	/* msg buf is overflow marked now  */
 
 	return 0;
-failure:
-	if (data.overflow)
-		bp->overflow = 1;
-	return -1;
 }
 
 static int
@@ -1018,6 +995,51 @@ ni_dhcp6_option_get_printable_array(ni_buffer_t *bp, ni_string_array_t *result,
 failure:
 	ni_string_array_destroy(&temp);
 	return -1;
+}
+
+static int
+ni_dhcp6_option_get_fqdn(ni_buffer_t *bp, ni_dhcp_fqdn_t *fqdn, char **hostname)
+{
+	unsigned int flags;
+	uint8_t octets[1];
+	char *temp = NULL;
+	size_t len;
+
+	if (ni_buffer_get(bp, &octets[0], sizeof(octets)) < 0)
+		return -1;
+
+	flags = octets[0];
+	switch (flags & NI_DHCP6_FQDN_UPDATE_MASK) {
+	case NI_DHCP6_FQDN_UPDATE_PTR:
+		fqdn->update = NI_DHCP_FQDN_UPDATE_PTR;
+		break;
+	case NI_DHCP6_FQDN_UPDATE_BOTH:
+		fqdn->update = NI_DHCP_FQDN_UPDATE_BOTH;
+		break;
+	case NI_DHCP6_FQDN_UPDATE_NONE:
+		fqdn->update = NI_DHCP_FQDN_UPDATE_NONE;
+		break;
+	default:
+		return -1;
+	}
+	fqdn->encode =  TRUE; /* always */
+
+	if (!ni_dhcp_domain_decode(bp, &temp))
+		return -1;
+
+	len = ni_string_len(temp);
+	if (len && !ni_check_domain_name(temp, len, 0)) {
+		ni_warn("Discarded suspect fqdn hostname: '%s'",
+				ni_print_suspect(temp, len));
+		ni_string_free(&temp);
+		return -1;
+	}
+
+	ni_string_free(hostname);
+	*hostname = temp;
+	fqdn->enabled = NI_TRISTATE_ENABLE;
+
+	return 0;
 }
 
 static int
@@ -1383,11 +1405,8 @@ __ni_dhcp6_build_solicit_opts(ni_dhcp6_device_t *dev,
 	ni_dhcp6_option_request_destroy(&oro);
 
 	/* Not a request yet, just to get answer what server can do */
-	if (ni_string_len(dev->config->hostname)) {
-		if (ni_dhcp6_option_put_fqdn(msg_buf, dev->config->hostname,
-						TRUE, TRUE) < 0)
-			goto cleanup;
-	}
+	if (ni_dhcp6_option_put_fqdn(msg_buf, &dev->config->fqdn, dev->config->hostname) < 0)
+		goto cleanup;
 
 	/* TODO: user class, vendor class, vendor opts */
 
@@ -1422,6 +1441,7 @@ __ni_dhcp6_build_request_opts(ni_dhcp6_device_t *dev,
 	ni_dhcp6_option_request_t oro = NI_DHCP6_OPTION_REQUEST_INIT;
 	ni_dhcp6_ia_t *ia, *ia_list = NULL;
 	unsigned int ia_count = 0;
+	const ni_dhcp_fqdn_t *fqdn;
 
 	/* The server-id we request it from (MUST) */
 	if (lease->dhcp6.server_id.len == 0 ||
@@ -1438,12 +1458,14 @@ __ni_dhcp6_build_request_opts(ni_dhcp6_device_t *dev,
 	}
 	ni_dhcp6_option_request_destroy(&oro);
 
-	/* FQDN update request */
-	if (ni_string_len(dev->config->hostname)) {
-		if (ni_dhcp6_option_put_fqdn(msg_buf, dev->config->hostname,
-						TRUE, TRUE) < 0)
+	/* FQDN (update) request */
+	if (lease->fqdn.enabled == NI_TRISTATE_DEFAULT)
+		fqdn = &dev->config->fqdn;
+	else
+		fqdn = &lease->fqdn;
+	if (ni_dhcp6_option_put_fqdn(msg_buf, fqdn, dev->lease->hostname ?
+				dev->lease->hostname : dev->config->hostname) < 0)
 			goto cleanup;
-	}
 
 	/* TODO: user class, vendor class, vendor opts */
 
@@ -1477,6 +1499,7 @@ __ni_dhcp6_build_renew_opts(ni_dhcp6_device_t *dev,
 	ni_dhcp6_option_request_t oro = NI_DHCP6_OPTION_REQUEST_INIT;
 	ni_dhcp6_ia_t *ia, *ia_list = NULL;
 	unsigned int ia_count = 0;
+	const ni_dhcp_fqdn_t *fqdn;
 
 	/* The server-id we've got the IAs before (MUST) */
 	if (lease->dhcp6.server_id.len == 0 ||
@@ -1493,12 +1516,14 @@ __ni_dhcp6_build_renew_opts(ni_dhcp6_device_t *dev,
 	}
 	ni_dhcp6_option_request_destroy(&oro);
 
-	/* FQDN update request */
-	if (ni_string_len(dev->config->hostname)) {
-		if (ni_dhcp6_option_put_fqdn(msg_buf, dev->config->hostname,
-						TRUE, TRUE) < 0)
+	/* FQDN (update) request */
+	if (lease->fqdn.enabled == NI_TRISTATE_DEFAULT)
+		fqdn = &dev->config->fqdn;
+	else
+		fqdn = &lease->fqdn;
+	if (ni_dhcp6_option_put_fqdn(msg_buf, fqdn, dev->lease->hostname ?
+				dev->lease->hostname : dev->config->hostname) < 0)
 			goto cleanup;
-	}
 
 	/* TODO: user class, vendor class, vendor opts */
 
@@ -1532,6 +1557,7 @@ __ni_dhcp6_build_rebind_opts(ni_dhcp6_device_t *dev,
 	ni_dhcp6_option_request_t oro = NI_DHCP6_OPTION_REQUEST_INIT;
 	ni_dhcp6_ia_t *ia, *ia_list = NULL;
 	unsigned int ia_count = 0;
+	const ni_dhcp_fqdn_t *fqdn;
 
 	/* Add option request options */
 	if (__ni_dhcp6_build_oro_opts(dev, msg_type, &oro, lease) < 0 ||
@@ -1541,12 +1567,14 @@ __ni_dhcp6_build_rebind_opts(ni_dhcp6_device_t *dev,
 	}
 	ni_dhcp6_option_request_destroy(&oro);
 
-	/* FQDN update request */
-	if (ni_string_len(dev->config->hostname)) {
-		if (ni_dhcp6_option_put_fqdn(msg_buf, dev->config->hostname,
-						TRUE, TRUE) < 0)
+	/* FQDN (update) request */
+	if (lease->fqdn.enabled == NI_TRISTATE_DEFAULT)
+		fqdn = &dev->config->fqdn;
+	else
+		fqdn = &lease->fqdn;
+	if (ni_dhcp6_option_put_fqdn(msg_buf, fqdn, dev->lease->hostname ?
+				dev->lease->hostname : dev->config->hostname) < 0)
 			goto cleanup;
-	}
 
 	/* TODO: user class, vendor class, vendor opts */
 
@@ -2769,6 +2797,11 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 				}
 			}
 			ni_string_array_destroy(&temp);
+		break;
+		case NI_DHCP6_OPTION_FQDN:
+			if (ni_dhcp6_option_get_fqdn(&optbuf, &lease->fqdn, &lease->hostname) == 0) {
+				ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option), lease->hostname);
+			}
 		break;
 		case NI_DHCP6_OPTION_SIP_SERVER_A:
 			if (ni_dhcp6_decode_address_list(&optbuf, &temp) == 0) {

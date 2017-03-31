@@ -2943,26 +2943,27 @@ ni_check_domain_name(const char *ptr, size_t len, int dots)
 {
 	const char *p;
 
-	/* not empty or complete length not over 255 characters
-	   additionally, we allow a [.] at the end ('foo.bar.')   */
-	if (!ptr || len == 0 || len >= 256)
+	/* not empty or complete length not over 254 characters
+	   including a qualifying [.] at the end ('foo.bar.'),
+	   what are 255 octets on dns wire rfc1035#section-3.1    */
+	if (!ptr || len == 0 || len > 254)
+		return FALSE;
+	if (len == 254 && ptr[len-1] != '.')
 		return FALSE;
 
 	/* consists of [[:alnum:]-]+ labels separated by [.]      */
-	/* a [_] is against RFC but seems to be "widely used"...  */
 	for (p=ptr; *p && len-- > 0; p++) {
-		if ( *p == '-' || *p == '_') {
+		if ( *p == '-') {
 			/* not allowed at begin or end of a label */
 			if ((p - ptr) == 0 || len == 0 || p[1] == '.')
 				return FALSE;
 		} else if ( *p == '.') {
-			/* each label has to be 1-63 characters;
-			   we allow [.] at the end ('foo.bar.'),
-			   but do not count it                    */
+			/* each label has to be 1-63 characters   */
 			ssize_t d = (ssize_t)(p - ptr);
-			if( d <= 0 || d >= 64 || dots < 0)
+			if( d <= 0 || d > 63 || dots < 0)
 				return FALSE;
 			ptr = p + 1; /* jump to the next label    */
+			/* we do not count the final [.] in dots  */
 			if(dots > 0 && len > 0)
 				dots--;
 		} else if ( !isalnum((unsigned char)*p)) {

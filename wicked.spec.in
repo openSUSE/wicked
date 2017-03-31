@@ -289,6 +289,7 @@ fi
 
 %post
 %{fillup_only -dns config wicked network}
+%{fillup_only -dns dhcp wicked network}
 # reload dbus after install or upgrade to apply new policies
 /usr/bin/systemctl reload dbus.service 2>/dev/null || :
 
@@ -357,6 +358,7 @@ fi
 %_mandir/man8/ifstatus.8*
 %_mandir/man8/ifup.8*
 %_localstatedir/adm/fillup-templates/sysconfig.config-wicked
+%_localstatedir/adm/fillup-templates/sysconfig.dhcp-wicked
 %attr(0750,root,root) %dir        %wicked_storedir
 
 %if %{with systemd}

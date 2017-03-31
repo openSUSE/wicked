@@ -4826,19 +4826,47 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 {
 	const char *string;
 	unsigned int uint;
+	ni_bool_t bvalue;
 	ni_bool_t ret = TRUE;
 
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_FQDN_ENABLED")) != NULL) {
+		if (ni_parse_boolean(string, &bvalue) == 0)
+			ni_tristate_set(&compat->dhcp4.fqdn.enabled, bvalue);
+	}
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_HOSTNAME_OPTION")) != NULL) {
+		if (!strcasecmp(string, "FQDN")) {
+			ni_string_dup(&compat->dhcp4.hostname, __ni_suse_default_hostname);
+		} else
 		if (!strcasecmp(string, "AUTO")) {
 			ni_string_dup(&compat->dhcp4.hostname, __ni_suse_default_hostname);
+			if (compat->dhcp4.fqdn.enabled != NI_TRISTATE_ENABLE) {
+				char *ptr;
+
+				/* defaults same to SLES-11: truncate the
+				 * hostname to send via hostname option 12 */
+				ptr = compat->dhcp4.hostname;
+				if (ni_string_len(ptr) && (ptr = strchr(ptr, '.')))
+					*ptr = '\0';
+			}
 		} else
 		if (ni_check_domain_name(string, ni_string_len(string), 0)) {
 			ni_string_dup(&compat->dhcp4.hostname, string);
 		} else {
 			ni_warn("%s: Cannot parse DHCLIENT_HOSTNAME_OPTION='%s'",
-				ni_basename(sc->pathname), string);
+				ni_basename(sc->pathname),
+				ni_print_suspect(string, ni_string_len(string)));
 			ret = FALSE;
 		}
+	}
+	if (compat->dhcp4.fqdn.enabled != NI_TRISTATE_DISABLE) {
+		if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_FQDN_QUALIFY")) != NULL)
+			ni_parse_boolean(string, &compat->dhcp4.fqdn.qualify);
+		if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_FQDN_ENCODE")) != NULL)
+			ni_parse_boolean(string, &compat->dhcp4.fqdn.encode);
+		if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_FQDN_UPDATE")) != NULL)
+			ni_dhcp_fqdn_update_name_to_mode(string, &compat->dhcp4.fqdn.update);
+		if (ni_string_empty(compat->dhcp4.hostname))
+			compat->dhcp4.fqdn.update = NI_DHCP_FQDN_UPDATE_NONE;
 	}
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_CLIENT_ID")) != NULL)
@@ -4920,6 +4948,7 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 	ni_bool_t ret = TRUE;
 	unsigned int uint;
 	const char *string;
+	ni_bool_t bvalue;
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_MODE")) != NULL) {
 		if (ni_dhcp6_mode_name_to_type(string, &compat->dhcp6.mode) != 0) {
@@ -4942,16 +4971,39 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 		}
 	}
 
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_FQDN_ENABLED")) != NULL) {
+		if (ni_parse_boolean(string, &bvalue) == 0)
+			ni_tristate_set(&compat->dhcp6.fqdn.enabled, bvalue);
+	}
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_HOSTNAME_OPTION")) != NULL) {
-		if (!strcasecmp(string, "AUTO")) {
+		if (!strcasecmp(string, "FQDN")) {
 			ni_string_dup(&compat->dhcp6.hostname, __ni_suse_default_hostname);
-		} else if (ni_check_domain_name(string, ni_string_len(string), 0)) {
+		} else
+		if (!strcasecmp(string, "AUTO")) {
+			char *ptr;
+
+			/* defaults same to SLES-11: truncate the name */
+			ni_string_dup(&compat->dhcp6.hostname, __ni_suse_default_hostname);
+			ptr = compat->dhcp6.hostname;
+			if (ni_string_len(ptr) && (ptr = strchr(ptr, '.')))
+				*ptr = '\0';
+		} else
+		if (ni_check_domain_name(string, ni_string_len(string), 0)) {
 			ni_string_dup(&compat->dhcp6.hostname, string);
 		} else {
 			ni_warn("%s: Cannot parse DHCLIENT6_HOSTNAME_OPTION='%s'",
-				ni_basename(sc->pathname), string);
+				ni_basename(sc->pathname),
+				ni_print_suspect(string, ni_string_len(string)));
 			ret = FALSE;
 		}
+	}
+	if (compat->dhcp6.fqdn.enabled != NI_TRISTATE_DISABLE) {
+		if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_FQDN_QUALIFY")) != NULL)
+			ni_parse_boolean(string, &compat->dhcp6.fqdn.qualify);
+		if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_FQDN_UPDATE")) != NULL)
+			ni_dhcp_fqdn_update_name_to_mode(string, &compat->dhcp6.fqdn.update);
+		if (ni_string_empty(compat->dhcp6.hostname))
+			compat->dhcp6.fqdn.update = NI_DHCP_FQDN_UPDATE_NONE;
 	}
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_CLIENT_ID")) != NULL) {
