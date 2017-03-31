@@ -34,6 +34,7 @@
 #include <wicked/bonding.h>
 #include <wicked/team.h>
 #include <wicked/vlan.h>
+#include <wicked/vxlan.h>
 #include <wicked/macvlan.h>
 #include <wicked/system.h>
 #include <wicked/wireless.h>
@@ -143,6 +144,8 @@ static int	__ni_rtnl_send_delroute(ni_netdev_t *, ni_route_t *);
 static int	__ni_rtnl_send_newroute(ni_netdev_t *, ni_route_t *, int);
 static int	__ni_rtnl_send_newrule(const ni_rule_t *, int);
 static int	__ni_rtnl_send_delrule(const ni_rule_t *);
+
+static int	addattr_sockaddr(struct nl_msg *, int, const ni_sockaddr_t *);
 
 static int	__ni_system_netdev_create(ni_netconfig_t *nc,
 					const char *ifname, unsigned int ifindex,
@@ -1252,12 +1255,6 @@ ni_system_vlan_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *c
 	return __ni_rtnl_link_change(nc, dev, cfg);
 }
 
-int
-ni_system_macvlan_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
-{
-	return __ni_rtnl_link_change(nc, dev, cfg);
-}
-
 /*
  * Delete a VLAN interface
  */
@@ -1266,6 +1263,64 @@ ni_system_vlan_delete(ni_netdev_t *dev)
 {
 	if (__ni_rtnl_link_delete(dev)) {
 		ni_error("could not destroy VLAN interface %s", dev->name);
+		return -1;
+	}
+	return 0;
+}
+
+/*
+ * Create/change/delete a vxlan interface
+ */
+int
+ni_system_vxlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
+						ni_netdev_t **dev_ret)
+{
+	ni_netdev_t *dev;
+	const char *iftype = NULL;
+
+	if (!nc || !dev_ret || !cfg || !cfg->name || !cfg->vxlan)
+		return -1;
+
+	*dev_ret = NULL;
+
+	dev = ni_netdev_by_name(nc, cfg->name);
+	if (dev != NULL) {
+		iftype = ni_linktype_type_to_name(dev->link.type);
+		/* This is not necessarily an error */
+		if (dev->link.type == cfg->link.type) {
+			ni_debug_ifconfig("A %s interface %s already exists",
+					iftype, dev->name);
+			*dev_ret = dev;
+		} else {
+			ni_error("A %s interface with the name %s already exists",
+				iftype, dev->name);
+		}
+		return -NI_ERROR_DEVICE_EXISTS;
+	}
+
+	iftype = ni_linktype_type_to_name(cfg->link.type);
+	ni_debug_ifconfig("%s: creating %s interface", cfg->name, iftype);
+
+	if (__ni_rtnl_link_create(nc, cfg)) {
+		ni_error("%s: unable to create %s interface", cfg->name, iftype);
+		return -1;
+	}
+
+	return __ni_system_netdev_create(nc, cfg->name, 0, cfg->link.type, dev_ret);
+}
+
+int
+ni_system_vxlan_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	return __ni_rtnl_link_change(nc, dev, cfg);
+}
+
+int
+ni_system_vxlan_delete(ni_netdev_t *dev)
+{
+	if (__ni_rtnl_link_delete(dev)) {
+		ni_error("%s: could not destroy %s interface", dev->name,
+				ni_linktype_type_to_name(dev->link.type));
 		return -1;
 	}
 	return 0;
@@ -1312,6 +1367,12 @@ ni_system_macvlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
 	}
 
 	return __ni_system_netdev_create(nc, cfg->name, 0, cfg->link.type, dev_ret);
+}
+
+int
+ni_system_macvlan_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	return __ni_rtnl_link_change(nc, dev, cfg);
 }
 
 /*
@@ -3115,6 +3176,375 @@ nla_put_failure:
 }
 
 static int
+ni_rtnl_link_put_vxlan_opt(ni_netconfig_t *nc, struct nl_msg *msg, const char *ifname,
+			unsigned int ifindex, unsigned int attr, const char *name,
+			const ni_vxlan_t *conf, const ni_vxlan_t *vxlan)
+{
+	unsigned int level = NI_LOG_DEBUG;
+	unsigned int val = -1U;
+	const char * str = NULL;
+	int ret = 1;
+
+	switch (attr) {
+	case IFLA_VXLAN_LINK:
+		return ret;
+
+	case IFLA_VXLAN_ID:
+		if (conf->id != vxlan->id) {
+			NLA_PUT_U32(msg, attr, conf->id);
+			ret = 0;
+		}
+		val = conf->id;
+		break;
+
+	case IFLA_VXLAN_GROUP:
+		if (conf->remote_ip.ss_family == AF_INET  &&
+		    !ni_sockaddr_equal(&conf->remote_ip, &vxlan->remote_ip)) {
+			if (addattr_sockaddr(msg, attr, &conf->remote_ip) < 0)
+				goto nla_put_failure;
+			ret = 0;
+		}
+		if (!(str = ni_sockaddr_print(&conf->remote_ip)))
+			str = "(none)";
+		break;
+
+	case IFLA_VXLAN_GROUP6:
+		if (conf->remote_ip.ss_family == AF_INET6 &&
+		    !ni_sockaddr_equal(&conf->remote_ip, &vxlan->remote_ip)) {
+			if (addattr_sockaddr(msg, attr, &conf->remote_ip) < 0)
+				goto nla_put_failure;
+			ret = 0;
+		}
+		if (!(str = ni_sockaddr_print(&conf->remote_ip)))
+			str = "(none)";
+		break;
+
+	case IFLA_VXLAN_LOCAL:
+		if (conf->local_ip.ss_family == AF_INET  &&
+		    !ni_sockaddr_equal(&conf->local_ip, &vxlan->local_ip)) {
+			if (addattr_sockaddr(msg, attr, &conf->local_ip) < 0)
+				goto nla_put_failure;
+			ret = 0;
+		}
+		if (!(str = ni_sockaddr_print(&conf->local_ip)))
+			str = "(none)";
+		break;
+
+	case IFLA_VXLAN_LOCAL6:
+		if (conf->local_ip.ss_family == AF_INET6 &&
+		    !ni_sockaddr_equal(&conf->local_ip, &vxlan->local_ip)) {
+			if (addattr_sockaddr(msg, attr, &conf->local_ip) < 0)
+				goto nla_put_failure;
+			ret = 0;
+		}
+		if (!(str = ni_sockaddr_print(&conf->local_ip)))
+			str = "(none)";
+		break;
+
+	case IFLA_VXLAN_TOS:
+		if (conf->tos != vxlan->tos) {
+			NLA_PUT_U8(msg, attr, conf->tos);
+			ret = 0;
+		}
+		val = conf->tos;
+		break;
+
+	case IFLA_VXLAN_TTL:
+		if (conf->ttl != vxlan->ttl) {
+			NLA_PUT_U8(msg, attr, conf->ttl);
+			ret = 0;
+		}
+		val = conf->ttl;
+		break;
+
+	case IFLA_VXLAN_AGEING:
+		if (conf->ageing && conf->ageing != vxlan->ageing) {
+			NLA_PUT_U32(msg, attr, conf->ageing);
+			ret = 0;
+		}
+		val = conf->ageing;
+		break;
+
+	case IFLA_VXLAN_LIMIT:
+		if (conf->maxaddr != vxlan->maxaddr) {
+			NLA_PUT_U32(msg, attr, conf->maxaddr);
+			ret = 0;
+		}
+		val = conf->maxaddr;
+		break;
+
+	case IFLA_VXLAN_PORT:
+		/* omit if port is 0 (IANA: 4789, kernel default: 8472) */
+		if (conf->dst_port && conf->dst_port != vxlan->dst_port) {
+			NLA_PUT_U16(msg, attr, conf->dst_port);
+			ret = 0;
+		}
+		val = conf->dst_port;
+		break;
+
+	case IFLA_VXLAN_PORT_RANGE:
+		if ((vxlan->src_port.low != vxlan->src_port.low) ||
+		    (vxlan->src_port.high != vxlan->src_port.high)) {
+			struct ifla_vxlan_port_range p;
+			p.low  = htons(conf->src_port.low);
+			p.high = htons(conf->src_port.high);
+			if (nla_put(msg, attr, sizeof(p), &p) < 0)
+				goto nla_put_failure;
+			ret = 0;
+		}
+		ni_debug_verbose(level + ret, NI_TRACE_IFCONFIG,
+				"%s: %s attr %s=%u..%u",
+				ifname, ret ? "skip" : "set ", name,
+				conf->src_port.low, conf->src_port.high);
+		return ret;
+
+	case IFLA_VXLAN_LEARNING:
+		if (conf->learning != vxlan->learning) {
+			NLA_PUT_U8(msg, attr, conf->learning);
+			ret = 0;
+		}
+		val = conf->learning;
+		str = ni_format_boolean(val);
+		break;
+
+	case IFLA_VXLAN_PROXY:
+		if (conf->proxy != vxlan->proxy) {
+			NLA_PUT_U8(msg, attr, conf->proxy);
+			ret = 0;
+		}
+		val = conf->proxy;
+		str = ni_format_boolean(val);
+		break;
+
+	case IFLA_VXLAN_RSC:
+		if (conf->rsc != vxlan->rsc) {
+			NLA_PUT_U8(msg, attr, conf->rsc);
+			ret = 0;
+		}
+		val = conf->rsc;
+		str = ni_format_boolean(val);
+		break;
+
+	case IFLA_VXLAN_L2MISS:
+		if (conf->l2miss != vxlan->l2miss) {
+			NLA_PUT_U8(msg, attr, conf->l2miss);
+			ret = 0;
+		}
+		val = conf->l2miss;
+		str = ni_format_boolean(val);
+		break;
+
+	case IFLA_VXLAN_L3MISS:
+		if (conf->l3miss != vxlan->l3miss) {
+			NLA_PUT_U8(msg, attr, conf->l3miss);
+			ret = 0;
+		}
+		val = conf->l3miss;
+		str = ni_format_boolean(val);
+		break;
+
+	case IFLA_VXLAN_UDP_CSUM:
+		if (conf->udp_csum != vxlan->udp_csum) {
+			NLA_PUT_U8(msg, attr, conf->udp_csum);
+			ret = 0;
+		}
+		val = conf->udp_csum;
+		str = ni_format_boolean(val);
+		break;
+
+	case IFLA_VXLAN_UDP_ZERO_CSUM6_TX:
+		if (conf->udp6_zero_csum_tx != vxlan->udp6_zero_csum_tx) {
+			NLA_PUT_U8(msg, attr, conf->udp6_zero_csum_tx);
+			ret = 0;
+		}
+		val = conf->udp6_zero_csum_tx;
+		str = ni_format_boolean(val);
+		break;
+
+	case IFLA_VXLAN_UDP_ZERO_CSUM6_RX:
+		if (conf->udp6_zero_csum_rx != vxlan->udp6_zero_csum_rx) {
+			NLA_PUT_U8(msg, attr, conf->udp6_zero_csum_rx);
+			ret = 0;
+		}
+		val = conf->udp6_zero_csum_rx;
+		str = ni_format_boolean(val);
+		break;
+
+	case IFLA_VXLAN_REMCSUM_TX:
+		if (conf->rem_csum_tx != vxlan->rem_csum_tx) {
+			NLA_PUT_U8(msg, attr, conf->rem_csum_tx);
+			ret = 0;
+		}
+		val = conf->rem_csum_tx;
+		str = ni_format_boolean(val);
+		break;
+
+	case IFLA_VXLAN_REMCSUM_RX:
+		if (conf->rem_csum_rx != vxlan->rem_csum_rx) {
+			NLA_PUT_U8(msg, attr, conf->rem_csum_rx);
+			ret = 0;
+		}
+		val = conf->rem_csum_rx;
+		str = ni_format_boolean(val);
+		break;
+
+	case IFLA_VXLAN_REMCSUM_NOPARTIAL:
+		if (conf->rem_csum_partial != vxlan->rem_csum_partial) {
+			NLA_PUT_U8(msg, attr, !conf->rem_csum_partial);
+			ret = 0;
+		}
+		val = !conf->rem_csum_partial;
+		str = ni_format_boolean(val);
+		break;
+
+	case IFLA_VXLAN_COLLECT_METADATA:
+		if (conf->collect_metadata != vxlan->collect_metadata) {
+			NLA_PUT_U8(msg, attr, conf->collect_metadata);
+			ret = 0;
+		}
+		val = conf->collect_metadata;
+		str = ni_format_boolean(val);
+		break;
+
+	case IFLA_VXLAN_GBP:
+		if (conf->gbp && conf->gbp != vxlan->gbp) {
+			NLA_PUT_FLAG(msg, attr);
+			ret = 0;
+		}
+		val = conf->gbp;
+		str = ni_format_boolean(val);
+		break;
+#if 0
+	case IFLA_VXLAN_GPE:
+		if (conf->gpe && conf->gpe != vxlan->gpe) {
+			NLA_PUT_FLAG(msg, attr);
+			ret = 0;
+		}
+		val = conf->gpe;
+		str = ni_format_boolean(val);
+		break;
+#endif
+	default:
+		ret = -1;
+		goto nla_put_failure;
+	}
+
+	if (str && val != -1U) {
+		ni_debug_verbose(level + ret, NI_TRACE_IFCONFIG, "%s: %s attr %s=%u (%s)",
+				ifname, ret ? "skip" : "set ", name, val, str);
+	} else if (str) {
+		ni_debug_verbose(level, NI_TRACE_IFCONFIG, "%s: %s attr %s=%s",
+				ifname, ret ? "skip" : "set ", name, str);
+	} else {
+		ni_debug_verbose(level, NI_TRACE_IFCONFIG, "%s: %s attr %s=%u",
+				ifname, ret ? "skip" : "set ", name, val);
+	}
+	return ret;
+
+nla_put_failure:
+	ni_error("%s: unable to format vxlan netlink attr %s", ifname, name);
+	return -1;
+}
+
+static int
+ni_rtnl_link_put_vxlan(ni_netconfig_t *nc, struct nl_msg *msg, ni_netdev_t *dev,
+			const char *ifname, const ni_netdev_t *cfg)
+{
+#define map_attr(attr)  [attr] = #attr
+	static const char *			vxlan_attr_names[IFLA_VXLAN_MAX + 1] = {
+		map_attr(IFLA_VXLAN_ID),
+		map_attr(IFLA_VXLAN_LINK),
+		map_attr(IFLA_VXLAN_GROUP),
+		map_attr(IFLA_VXLAN_GROUP6),
+		map_attr(IFLA_VXLAN_LOCAL),
+		map_attr(IFLA_VXLAN_LOCAL6),
+		map_attr(IFLA_VXLAN_TOS),
+		map_attr(IFLA_VXLAN_TTL),
+		map_attr(IFLA_VXLAN_LIMIT),
+		map_attr(IFLA_VXLAN_PORT),
+		map_attr(IFLA_VXLAN_PORT_RANGE),
+		map_attr(IFLA_VXLAN_LEARNING),
+		map_attr(IFLA_VXLAN_AGEING),
+		map_attr(IFLA_VXLAN_PROXY),
+		map_attr(IFLA_VXLAN_RSC),
+		map_attr(IFLA_VXLAN_L2MISS),
+		map_attr(IFLA_VXLAN_L3MISS),
+		map_attr(IFLA_VXLAN_COLLECT_METADATA),
+		map_attr(IFLA_VXLAN_UDP_CSUM),
+		map_attr(IFLA_VXLAN_UDP_ZERO_CSUM6_TX),
+		map_attr(IFLA_VXLAN_UDP_ZERO_CSUM6_RX),
+		map_attr(IFLA_VXLAN_REMCSUM_TX),
+		map_attr(IFLA_VXLAN_REMCSUM_RX),
+		map_attr(IFLA_VXLAN_REMCSUM_NOPARTIAL),
+		map_attr(IFLA_VXLAN_GBP),
+#if 0
+		map_attr(IFLA_VXLAN_GPE),
+#endif
+	};
+#undef	map_attr
+	struct nlattr *linkinfo;
+	struct nlattr *infodata;
+	const ni_vxlan_t *conf;
+	ni_vxlan_t *vxlan;
+	unsigned int attr;
+	const char *name;
+
+	ni_debug_ifconfig("%s(%s)", __func__, ifname);
+
+	if (!cfg || !(conf = cfg->vxlan) || ni_string_empty(ifname))
+		return -1;
+
+	vxlan = dev ? ni_netdev_get_vxlan(dev) : ni_vxlan_new();
+	if (!vxlan)
+		return -1;
+
+	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
+		goto nla_put_failure;
+
+	NLA_PUT_STRING(msg, IFLA_INFO_KIND, "vxlan");
+
+	if (!(infodata = nla_nest_start(msg, IFLA_INFO_DATA)))
+		goto nla_put_failure;
+
+	attr = IFLA_VXLAN_LINK;
+	name = vxlan_attr_names[attr];
+	if (!dev || dev->link.lowerdev.index != cfg->link.lowerdev.index) {
+		NLA_PUT_U32(msg, attr, cfg->link.lowerdev.index);
+		ni_debug_verbose(NI_LOG_DEBUG + 0, NI_TRACE_IFCONFIG,
+				"%s: %s attr %s=%u (%s)",
+				ifname, "set ", name,
+				cfg->link.lowerdev.index,
+				cfg->link.lowerdev.name);
+	} else {
+		ni_debug_verbose(NI_LOG_DEBUG + 1, NI_TRACE_IFCONFIG,
+				"%s: %s attr %s=%u (%s)",
+				ifname, "skip", name,
+				cfg->link.lowerdev.index,
+				cfg->link.lowerdev.name);
+	}
+
+	for (attr = IFLA_VXLAN_ID; attr <= IFLA_VXLAN_MAX; ++attr) {
+		name = vxlan_attr_names[attr];
+		if (ni_rtnl_link_put_vxlan_opt(nc, msg, ifname,
+					dev ? dev->link.ifindex : 0,
+					attr, name, conf, vxlan) < 0)
+			goto nla_put_failure;
+	}
+
+	nla_nest_end(msg, infodata);
+	nla_nest_end(msg, linkinfo);
+
+	if (!dev)
+		ni_vxlan_free(vxlan);
+	return 0;
+
+nla_put_failure:
+	if (!dev)
+		ni_vxlan_free(vxlan);
+	return -1;
+}
+
+static int
 __ni_rtnl_link_put_macvlan(struct nl_msg *msg,	const ni_netdev_t *cfg)
 {
 	struct nlattr *linkinfo;
@@ -3393,6 +3823,14 @@ __ni_rtnl_link_create(ni_netconfig_t *nc, const ni_netdev_t *cfg)
 
 		break;
 
+	case NI_IFTYPE_VXLAN:
+		if (ni_rtnl_link_put_vxlan(nc, msg, NULL, cfg->name, cfg) < 0)
+			goto nla_put_failure;
+
+		if (__ni_rtnl_link_put_hwaddr(msg, &cfg->link.hwaddr) < 0)
+			goto nla_put_failure;
+		break;
+
 	case NI_IFTYPE_MACVLAN:
 	case NI_IFTYPE_MACVTAP:
 		if (__ni_rtnl_link_put_macvlan(msg, cfg) < 0)
@@ -3486,6 +3924,14 @@ __ni_rtnl_link_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *c
 	case NI_IFTYPE_VLAN:
 		if (__ni_rtnl_link_put_vlan(msg, cfg) < 0)
 			goto nla_put_failure;
+		break;
+
+	case NI_IFTYPE_VXLAN:
+		/* AFAIS, it's not supported by the kernel */
+#if 0
+		if (ni_rtnl_link_put_vxlan(nc, msg, dev, dev->name, cfg) < 0)
+			goto nla_put_failure;
+#endif
 		break;
 
 	case NI_IFTYPE_MACVLAN:
@@ -3845,7 +4291,7 @@ nla_put_failure:
 	goto out;
 }
 
-static inline int
+static int
 addattr_sockaddr(struct nl_msg *msg, int type, const ni_sockaddr_t *addr)
 {
 	unsigned int offset, len;
