@@ -28,6 +28,7 @@ wicked_schema_files		= \
 	ipip.xml		\
 	gre.xml			\
 	vlan.xml		\
+	vxlan.xml		\
 	wicked.xml		\
 	wireless.xml
 

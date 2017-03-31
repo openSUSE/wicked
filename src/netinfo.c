@@ -884,7 +884,7 @@ ni_netdev_name_to_index(const char *name)
 const char *
 ni_netdev_make_name(ni_netconfig_t *nc, const char *stem, unsigned int first)
 {
-	static char namebuf[64];
+	static char namebuf[IFNAMSIZ];
 	unsigned int num;
 
 	for (num = first; num < 65536; ++num) {
