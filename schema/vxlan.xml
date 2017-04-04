@@ -29,12 +29,14 @@
    <dst-port          type="uint16"/>
    <ttl               type="uint16"/>
    <tos               type="uint16"/>
+   <ageing            type="uint32"/>
+   <max-address       type="uint32"/>
    <learning          type="boolean"/>
    <proxy             type="boolean"/>
    <rsc               type="boolean"/>
    <l2miss            type="boolean"/>
    <l3miss            type="boolean"/>
-   <udp_csum          type="boolean"/>
+   <udp-csum          type="boolean"/>
    <udp6-zero-csum-rx type="boolean"/>
    <udp6-zero-csum-tx type="boolean"/>
    <rem-csum-rx       type="boolean"/>
