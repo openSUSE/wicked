@@ -38,6 +38,7 @@
 #include <wicked/ovs.h>
 #include <wicked/bridge.h>
 #include <wicked/vlan.h>
+#include <wicked/vxlan.h>
 #include <wicked/macvlan.h>
 #include <wicked/tuntap.h>
 #include <wicked/tunneling.h>
@@ -1193,6 +1194,86 @@ __ni_compat_generate_vlan(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 }
 
 static ni_bool_t
+__ni_compat_generate_vxlan(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	ni_vxlan_t *vxlan;
+	xml_node_t *child;
+
+	if (!(vxlan = ni_netdev_get_vxlan(compat->dev)))
+		return FALSE;
+	if (!(child = xml_node_create(ifnode, "vxlan")))
+		return FALSE;
+
+	/* netdev properties/relations */
+	if (compat->dev->link.hwaddr.len)
+		xml_node_new_element("address", child,
+				ni_link_address_print(&compat->dev->link.hwaddr));
+	if (!ni_string_empty(compat->dev->link.lowerdev.name))
+		xml_node_new_element("device", child, compat->dev->link.lowerdev.name);
+
+	/* vxlan specific properties */
+	xml_node_new_element_uint("id", child, vxlan->id);
+
+	if (ni_sockaddr_is_specified(&vxlan->local_ip))
+		xml_node_new_element("local-ip", child, ni_sockaddr_print(&vxlan->local_ip));
+	if (ni_sockaddr_is_specified(&vxlan->remote_ip))
+		xml_node_new_element("local-ip", child, ni_sockaddr_print(&vxlan->remote_ip));
+
+	if (vxlan->src_port.low || vxlan->src_port.high) {
+		xml_node_t *sport;
+		if ((sport = xml_node_create(child, "src-port"))) {
+			xml_node_new_element_uint("low",  sport, vxlan->src_port.low);
+			xml_node_new_element_uint("high", sport, vxlan->src_port.high);
+		}
+	}
+	if (vxlan->dst_port)
+		xml_node_new_element_uint("dst-port", child, vxlan->dst_port);
+
+	if (vxlan->ttl)
+		xml_node_new_element_uint("ttl", child, vxlan->ttl);
+	if (vxlan->tos)
+		xml_node_new_element_uint("tos", child, vxlan->tos);
+
+	if (vxlan->ageing)
+		xml_node_new_element_uint("ageing", child, vxlan->ageing);
+	if (vxlan->maxaddr)
+		xml_node_new_element_uint("max-address", child, vxlan->maxaddr);
+
+	if (!vxlan->learning)
+		xml_node_new_element("learning", child, ni_format_boolean(vxlan->learning));
+	if (vxlan->proxy)
+		xml_node_new_element("proxy", child, ni_format_boolean(vxlan->proxy));
+	if (vxlan->rsc)
+		xml_node_new_element("rsc", child, ni_format_boolean(vxlan->rsc));
+	if (vxlan->l2miss)
+		xml_node_new_element("l2miss", child, ni_format_boolean(vxlan->l2miss));
+	if (vxlan->l3miss)
+		xml_node_new_element("l3miss", child, ni_format_boolean(vxlan->l3miss));
+
+	if (vxlan->udp_csum)
+		xml_node_new_element("udp-csum", child, ni_format_boolean(vxlan->udp_csum));
+	if (vxlan->udp6_zero_csum_rx)
+		xml_node_new_element("udp6-zero-csum-rx", child, ni_format_boolean(vxlan->udp6_zero_csum_rx));
+	if (vxlan->udp6_zero_csum_tx)
+		xml_node_new_element("udp6-zero-csum-tx", child, ni_format_boolean(vxlan->udp6_zero_csum_tx));
+
+	if (vxlan->rem_csum_rx)
+		xml_node_new_element("rem-csum-rx", child, ni_format_boolean(vxlan->rem_csum_rx));
+	if (vxlan->rem_csum_tx)
+		xml_node_new_element("rem-csum-tx", child, ni_format_boolean(vxlan->rem_csum_tx));
+	if (!vxlan->rem_csum_partial)
+		xml_node_new_element("rem-csum-partial", child, ni_format_boolean(vxlan->rem_csum_partial));
+
+	if (vxlan->collect_metadata)
+		xml_node_new_element("collect-metadata", child, ni_format_boolean(vxlan->collect_metadata));
+	if (vxlan->gbp)
+		xml_node_new_element("gpb", child, ni_format_boolean(vxlan->gbp));
+	if (vxlan->gpe)
+		xml_node_new_element("gpe", child, ni_format_boolean(vxlan->gpe));
+	return TRUE;
+}
+
+static ni_bool_t
 __ni_compat_generate_macvlan(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	ni_macvlan_t *macvlan;
@@ -2274,6 +2355,7 @@ __ni_compat_generate_ipv4_devconf(xml_node_t *ifnode, const ni_ipv4_devinfo_t *i
 	case NI_IFTYPE_BRIDGE:
 	case NI_IFTYPE_BOND:
 	case NI_IFTYPE_VLAN:
+	case NI_IFTYPE_VXLAN:
 	case NI_IFTYPE_MACVLAN:
 	case NI_IFTYPE_MACVTAP:
 	case NI_IFTYPE_INFINIBAND:
@@ -2433,6 +2515,10 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 
 	case NI_IFTYPE_VLAN:
 		__ni_compat_generate_vlan(ifnode, compat);
+		break;
+
+	case NI_IFTYPE_VXLAN:
+		__ni_compat_generate_vxlan(ifnode, compat);
 		break;
 
 	case NI_IFTYPE_MACVLAN:
