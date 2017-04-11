@@ -1463,8 +1463,8 @@ __ni_dhcp6_build_request_opts(ni_dhcp6_device_t *dev,
 		fqdn = &dev->config->fqdn;
 	else
 		fqdn = &lease->fqdn;
-	if (ni_dhcp6_option_put_fqdn(msg_buf, fqdn, dev->lease->hostname ?
-				dev->lease->hostname : dev->config->hostname) < 0)
+	if (ni_dhcp6_option_put_fqdn(msg_buf, fqdn, lease->hostname ?
+				lease->hostname : dev->config->hostname) < 0)
 			goto cleanup;
 
 	/* TODO: user class, vendor class, vendor opts */
@@ -1521,8 +1521,8 @@ __ni_dhcp6_build_renew_opts(ni_dhcp6_device_t *dev,
 		fqdn = &dev->config->fqdn;
 	else
 		fqdn = &lease->fqdn;
-	if (ni_dhcp6_option_put_fqdn(msg_buf, fqdn, dev->lease->hostname ?
-				dev->lease->hostname : dev->config->hostname) < 0)
+	if (ni_dhcp6_option_put_fqdn(msg_buf, fqdn, lease->hostname ?
+				lease->hostname : dev->config->hostname) < 0)
 			goto cleanup;
 
 	/* TODO: user class, vendor class, vendor opts */
@@ -1572,8 +1572,8 @@ __ni_dhcp6_build_rebind_opts(ni_dhcp6_device_t *dev,
 		fqdn = &dev->config->fqdn;
 	else
 		fqdn = &lease->fqdn;
-	if (ni_dhcp6_option_put_fqdn(msg_buf, fqdn, dev->lease->hostname ?
-				dev->lease->hostname : dev->config->hostname) < 0)
+	if (ni_dhcp6_option_put_fqdn(msg_buf, fqdn, lease->hostname ?
+				lease->hostname : dev->config->hostname) < 0)
 			goto cleanup;
 
 	/* TODO: user class, vendor class, vendor opts */
