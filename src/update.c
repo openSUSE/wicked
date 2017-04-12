@@ -76,6 +76,7 @@ struct ni_updater_job {
 	unsigned int			refcount;
 	ni_updater_job_t **		pprev;
 	ni_updater_job_t *		next;
+	unsigned long			nr;
 
 	ni_netdev_ref_t			device;
 	const ni_addrconf_lease_t *	lease;
@@ -110,6 +111,7 @@ struct ni_updater {
 
 static ni_updater_t			updaters[__NI_ADDRCONF_UPDATER_MAX];
 static ni_updater_job_t *		job_list = NULL;
+static unsigned long			job_nr = 0;
 
 static const ni_intmap_t		ni_updater_format_names[] = {
 	{ "info",			NI_ADDRCONF_UPDATER_FORMAT_INFO	},
@@ -320,8 +322,8 @@ do_updater_job_list_append(ni_updater_job_t **list, ni_updater_job_t *job)
 	do_updater_job_list_insert(tail, job);
 }
 
-static inline ni_bool_t
-do_updater_job_list_unlink(ni_updater_job_t *job)
+static ni_bool_t
+ni_updater_job_list_unlink(ni_updater_job_t *job)
 {
 	ni_updater_job_t **pprev, *next;
 
@@ -336,10 +338,41 @@ do_updater_job_list_unlink(ni_updater_job_t *job)
 	return pprev != NULL;
 }
 
+static const char *
+ni_updater_job_info(ni_stringbuf_t *out, const ni_updater_job_t *job)
+{
+	const char *kind;
+
+	if (!out || !job)
+		return NULL;
+
+	kind = ni_updater_name(job->kind);
+	ni_stringbuf_clear(out);
+
+	ni_stringbuf_printf(out,
+			"%s %s job[%lu](%u) on device %s[%u] for lease %s:%s state %s%s%s%s%s",
+			job->state == NI_UPDATER_JOB_PENDING  ? "pending"  :
+			job->state == NI_UPDATER_JOB_RUNNING  ? "running"  :
+			job->state == NI_UPDATER_JOB_FINISHED ? "finished" : "broken",
+			job->flow  == NI_UPDATER_FLOW_INSTALL ? "install"  :
+			job->flow  == NI_UPDATER_FLOW_REMOVAL ? "remove"   : "invalid",
+			job->nr,  job->refcount,
+			job->device.name, job->device.index,
+			ni_addrfamily_type_to_name(job->lease->family),
+			ni_addrconf_type_to_name(job->lease->type),
+			ni_addrconf_state_to_name(job->lease->state),
+			ni_process_running(job->process) ?
+				" subprocess " : "", job->process ?
+				ni_sprint_uint(job->process->pid) : "",
+			kind ? " kind " : "", kind ? kind : "");
+	return out->string;
+}
+
 static ni_updater_job_t *
 ni_updater_job_new(ni_updater_job_t **list, const ni_addrconf_lease_t *lease,
 			unsigned int ifindex, const char *ifname)
 {
+	ni_stringbuf_t out = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_updater_job_t *job;
 	int kind;
 
@@ -350,6 +383,7 @@ ni_updater_job_new(ni_updater_job_t **list, const ni_addrconf_lease_t *lease,
 	if (!job)
 		return NULL;
 
+	job->nr = job_nr++; /* for debugging purposes only */
 	job->refcount = 1;
 	if (!ni_netdev_ref_set(&job->device, ifname, ifindex)) {
 		free(job);
@@ -375,6 +409,10 @@ ni_updater_job_new(ni_updater_job_t **list, const ni_addrconf_lease_t *lease,
 	}
 	ni_uint_array_get(&job->updater, 0, &job->kind);
 
+	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EXTENSION,
+			"created %s", ni_updater_job_info(&out, job));
+	ni_stringbuf_destroy(&out);
+
 	do_updater_job_list_append(list, job);
 
 	return job;
@@ -391,9 +429,15 @@ ni_updater_job_ref(ni_updater_job_t *job)
 	return job;
 }
 
-static inline void
-do_updater_job_destroy(ni_updater_job_t *job)
+static void
+ni_updater_job_destroy(ni_updater_job_t *job)
 {
+	ni_stringbuf_t out = NI_STRINGBUF_INIT_DYNAMIC;
+
+	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EXTENSION,
+			"destroy %s", ni_updater_job_info(&out, job));
+	ni_stringbuf_destroy(&out);
+
 	ni_netdev_ref_destroy(&job->device);
 	ni_uint_array_destroy(&job->updater);
 	job->kind = __NI_ADDRCONF_UPDATER_MAX;
@@ -415,8 +459,8 @@ ni_updater_job_free(ni_updater_job_t *job)
 
 		job->refcount--;
 		if (job->refcount == 0) {
-			do_updater_job_list_unlink(job);
-			do_updater_job_destroy(job);
+			ni_updater_job_list_unlink(job);
+			ni_updater_job_destroy(job);
 			free(job);
 		}
 	}
@@ -425,22 +469,16 @@ ni_updater_job_free(ni_updater_job_t *job)
 static void
 ni_updater_job_cancel(ni_updater_job_t *job)
 {
+	ni_stringbuf_t out = NI_STRINGBUF_INIT_DYNAMIC;
 	if (job) {
-		if (job->state != NI_UPDATER_JOB_FINISHED) {
-			ni_debug_ifconfig("%s: canceling %s job to %s lease %s:%s in state %s%s%s",
-				job->device.name,
-				job->state == NI_UPDATER_JOB_PENDING  ? "pending"  :
-				job->state == NI_UPDATER_JOB_RUNNING  ? "running"  :
-				job->state == NI_UPDATER_JOB_FINISHED ? "finished" : "broken state",
-				job->flow  == NI_UPDATER_FLOW_INSTALL ? "install"  :
-				job->flow  == NI_UPDATER_FLOW_REMOVAL ? "remove"   : "broken flow",
-				ni_addrfamily_type_to_name(job->lease->family),
-				ni_addrconf_type_to_name(job->lease->type),
-				ni_addrconf_state_to_name(job->lease->state),
-				ni_process_running(job->process) ?
-					" executing subprocess " : "",
-					job->process ? ni_sprint_uint(job->process->pid) : "");
-		}
+		if (job->state != NI_UPDATER_JOB_FINISHED || job->process)
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EXTENSION,
+					"cancel %s", ni_updater_job_info(&out, job));
+		else
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EXTENSION,
+					"cleanup %s", ni_updater_job_info(&out, job));
+		ni_stringbuf_destroy(&out);
+
 		job->kind    = __NI_ADDRCONF_UPDATER_MAX;
 		job->state   = NI_UPDATER_JOB_FINISHED;
 		job->result  = -1;
@@ -641,8 +679,8 @@ ni_system_updater_notify(ni_process_t *pi)
 	job->process = NULL;
 	job->result = ni_process_exit_status(pi);
 	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EXTENSION,
-		"%s: lease %s:%s in state %s %s updater (%s) pid %d finished, status %d",
-			job->device.name,
+		"%s: job[%lu](%u) notify for lease %s:%s in state %s %s updater (%s) pid %d finished, status %d",
+			job->device.name, job->nr, job->refcount,
 			ni_addrfamily_type_to_name(job->lease->family),
 			ni_addrconf_type_to_name(job->lease->type),
 			ni_addrconf_state_to_name(job->lease->state),
@@ -1712,7 +1750,9 @@ ni_addrconf_updater_set_job(ni_addrconf_updater_t *updater, ni_updater_job_t *jo
 {
 	if (updater && job) {
 		if (job != ni_addrconf_updater_get_job(updater)) {
-			ni_addrconf_updater_set_data(updater, job,
+			ni_updater_job_t *ref = ni_updater_job_ref(job);
+
+			ni_addrconf_updater_set_data(updater, ref,
 					do_addrconf_updater_job_cleanup);
 		}
 		return TRUE;
@@ -1749,9 +1789,14 @@ static int
 ni_updater_job_execute(ni_updater_job_t *job)
 {
 	ni_updater_t *updater = NULL;
+	ni_stringbuf_t out = NI_STRINGBUF_INIT_DYNAMIC;
 
 	if (!job)
 		return -1;
+
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EXTENSION,
+			"executing %s", ni_updater_job_info(&out, job));
+	ni_stringbuf_destroy(&out);
 
 	switch (job->state) {
 	case NI_UPDATER_JOB_FINISHED:
@@ -1784,14 +1829,22 @@ skip:
 	job->kind  = __NI_ADDRCONF_UPDATER_MAX;
 	ni_uint_array_destroy(&job->updater);
 
-	if ((job = ni_updater_job_list_find_pending(&job_list)))
-		ni_updater_job_call_updater(job);
+	ni_trace("finished %s", ni_updater_job_info(&out, job));
+	ni_stringbuf_destroy(&out);
+
+	/* call updater to trigger it to fetch the status of it's job    */
+	ni_updater_job_call_updater(job);
+
+	/* remove job from the processing list and release the reference */
+	ni_updater_job_list_unlink(job);
+	ni_updater_job_free(job);
 	return 0;
 }
 
 int
 ni_system_update_from_lease(const ni_addrconf_lease_t *lease, const unsigned int ifindex, const char *ifname)
 {
+	ni_stringbuf_t out = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_updater_job_t *job, *found;
 
 	if (!lease || !ifindex || ni_string_empty(ifname))
@@ -1800,13 +1853,7 @@ ni_system_update_from_lease(const ni_addrconf_lease_t *lease, const unsigned int
 	ni_system_updaters_init();
 
 	job = ni_addrconf_updater_get_job(lease->updater);
-	if (job) {
-		if (ni_updater_job_finished(job)) {
-			if ((found = ni_updater_job_list_find_pending(&job_list)))
-				ni_updater_job_call_updater(found);
-			return 0;
-		}
-	} else {
+	if (!job) {
 		job = ni_updater_job_new(&job_list, lease, ifindex, ifname);
 		if (!ni_addrconf_updater_set_job(lease->updater, job)) {
 			ni_updater_job_free(job);
@@ -1814,16 +1861,32 @@ ni_system_update_from_lease(const ni_addrconf_lease_t *lease, const unsigned int
 		}
 	}
 
-	if ((found = ni_updater_job_list_find_running(&job_list))) {
-		if (found != job) {
-			return 1;
+	do {
+		if ((found = ni_updater_job_list_find_running(&job_list))) {
+			if (ni_updater_job_execute(found) == 1) {
+				ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EXTENSION,
+						"deferred by %s",
+						ni_updater_job_info(&out, found));
+				ni_stringbuf_destroy(&out);
+				return 1;
+			}
 		}
-	} else
-	if ((found = ni_updater_job_list_find_pending(&job_list))) {
-		if (found != job) {
-			ni_updater_job_call_updater(found);
-			return 1;
+		if ((found = ni_updater_job_list_find_pending(&job_list))) {
+			if (ni_updater_job_execute(found) == 1) {
+				ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EXTENSION,
+						"deferred by %s",
+						ni_updater_job_info(&out, found));
+				ni_stringbuf_destroy(&out);
+				return 1;
+			}
 		}
+	} while (found && job != found);
+
+	if (ni_updater_job_finished(job)) {
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EXTENSION, "%s",
+				ni_updater_job_info(&out, job));
+		ni_stringbuf_destroy(&out);
+		return 0;
 	}
 
 	return ni_updater_job_execute(job);

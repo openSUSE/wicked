@@ -96,8 +96,6 @@ ni_netdev_slaveinfo_destroy(ni_slaveinfo_t *slave)
 static void
 ni_netdev_free(ni_netdev_t *dev)
 {
-	ni_string_free(&dev->name);
-
 	/* Clear out linkinfo */
 	ni_string_free(&dev->link.qdisc);
 	ni_string_free(&dev->link.kind);
@@ -137,6 +135,7 @@ ni_netdev_free(ni_netdev_t *dev)
 
 	ni_addrconf_lease_list_destroy(&dev->leases);
 
+	ni_string_free(&dev->name);
 	free(dev);
 }
 
