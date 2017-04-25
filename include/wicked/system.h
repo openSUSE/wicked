@@ -34,6 +34,11 @@ extern int		ni_system_vlan_create(ni_netconfig_t *,
 extern int		ni_system_vlan_change(ni_netconfig_t *, ni_netdev_t *,
 				const ni_netdev_t *);
 extern int		ni_system_vlan_delete(ni_netdev_t *);
+extern int		ni_system_vxlan_create(ni_netconfig_t *,
+				const ni_netdev_t *, ni_netdev_t **);
+extern int		ni_system_vxlan_change(ni_netconfig_t *, ni_netdev_t *,
+				const ni_netdev_t *);
+extern int		ni_system_vxlan_delete(ni_netdev_t *);
 extern int		ni_system_macvlan_create(ni_netconfig_t *,
 				const ni_netdev_t *, ni_netdev_t **);
 extern int		ni_system_macvlan_change(ni_netconfig_t *, ni_netdev_t *,

@@ -1,0 +1,79 @@
+<!--
+     VXLAN Service definition
+  -->
+<service name="vxlan" interface="org.opensuse.Network.VXLAN" object-class="netif-vxlan">
+ <description>
+   This link-layer service is provided by all VXLAN devices.
+   VXLAN devices can be created through the org.opensuse.Network.VXLAN.Factory factory interface.
+ </description>
+
+ <!-- This is the linkinfo returned in interface reports -->
+ <define name="base-config" class="dict">
+   <address           type="ethernet-address"/>
+ </define>
+ <define name="configuration" class="dict" extends="vxlan:base-config">
+   <device            type="string">
+     <meta:netif-reference shared="true"/>
+     <meta:require check="netif-check-state" op="newDevice" min-state="device-up" />
+     <meta:require check="netif-check-state" op="login" min-state="link-authenticated" />
+     <meta:require check="netif-check-state" op="linkUp" min-state="link-up" />
+   </device>
+
+   <id                type="uint32"/>
+   <local-ip          type="network-address"/>
+   <remote-ip         type="network-address"/>
+   <src-port class="dict">
+     <low             type="uint16"/>
+     <high            type="uint16"/>
+   </src-port>
+   <dst-port          type="uint16"/>
+   <ttl               type="uint16"/>
+   <tos               type="uint16"/>
+   <ageing            type="uint32"/>
+   <max-address       type="uint32"/>
+   <learning          type="boolean"/>
+   <proxy             type="boolean"/>
+   <rsc               type="boolean"/>
+   <l2miss            type="boolean"/>
+   <l3miss            type="boolean"/>
+   <udp-csum          type="boolean"/>
+   <udp6-zero-csum-rx type="boolean"/>
+   <udp6-zero-csum-tx type="boolean"/>
+   <rem-csum-rx       type="boolean"/>
+   <rem-csum-tx       type="boolean"/>
+   <rem-csum-partial  type="boolean"/>
+   <collect-metadata  type="boolean"/>
+   <gbp               type="boolean"/>
+   <!-- gpe           type="boolean"/ -->
+ </define>
+
+ <!-- the properties of a VXLAN device: -->
+ <define name="properties" type="configuration"/>
+
+ <method name="changeDevice">
+  <arguments>
+   <config type="vxlan:base-config">
+    <meta:mapping document-node="/vxlan" skip-unless-present="true"/>
+   </config>
+  </arguments>
+ </method>
+
+ <method name="deleteDevice">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="vxlan-factory" interface="org.opensuse.Network.VXLAN.Factory" object-class="netif-list">
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <config type="vxlan:configuration">
+    <meta:mapping document-node="/vxlan"/>
+   </config>
+  </arguments>
+  <return>
+   <!-- this is really an object handle -->
+   <string/>
+  </return>
+ </method>
+</service>

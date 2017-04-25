@@ -21,6 +21,7 @@
 #include <wicked/infiniband.h>
 #include <wicked/wireless.h>
 #include <wicked/vlan.h>
+#include <wicked/vxlan.h>
 #include <wicked/macvlan.h>
 #include <wicked/openvpn.h>
 #include <wicked/ppp.h>
@@ -117,6 +118,7 @@ ni_netdev_free(ni_netdev_t *dev)
 	ni_netdev_set_bridge(dev, NULL);
 	ni_netdev_set_ovs_bridge(dev, NULL);
 	ni_netdev_set_vlan(dev, NULL);
+	ni_netdev_set_vxlan(dev, NULL);
 	ni_netdev_set_macvlan(dev, NULL);
 	ni_netdev_set_ipip(dev, NULL);
 	ni_netdev_set_sit(dev, NULL);
@@ -231,6 +233,25 @@ ni_netdev_set_vlan(ni_netdev_t *dev, ni_vlan_t *vlan)
 	if (dev->vlan)
 		ni_vlan_free(dev->vlan);
 	dev->vlan = vlan;
+}
+
+/*
+ * Get the interface's VXLAN information
+ */
+ni_vxlan_t *
+ni_netdev_get_vxlan(ni_netdev_t *dev)
+{
+	if (!dev->vxlan)
+		dev->vxlan = ni_vxlan_new();
+	return dev->vxlan;
+}
+
+void
+ni_netdev_set_vxlan(ni_netdev_t *dev, ni_vxlan_t *vxlan)
+{
+	if (dev->vxlan)
+		ni_vxlan_free(dev->vxlan);
+	dev->vxlan = vxlan;
 }
 
 /*

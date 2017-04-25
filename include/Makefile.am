@@ -43,6 +43,7 @@ wicked_include_HEADERS		= \
 	wicked/types.h		\
 	wicked/util.h		\
 	wicked/vlan.h		\
+	wicked/vxlan.h		\
 	wicked/wicked.h		\
 	wicked/wireless.h	\
 	wicked/xml.h		\

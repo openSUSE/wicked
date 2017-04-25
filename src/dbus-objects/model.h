@@ -95,6 +95,8 @@ extern ni_dbus_service_t	ni_objectmodel_team_service;
 extern ni_dbus_service_t	ni_objectmodel_team_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_vlan_service;
 extern ni_dbus_service_t	ni_objectmodel_vlan_factory_service;
+extern ni_dbus_service_t	ni_objectmodel_vxlan_service;
+extern ni_dbus_service_t	ni_objectmodel_vxlan_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_macvlan_service;
 extern ni_dbus_service_t	ni_objectmodel_macvlan_factory_service;
 extern ni_dbus_service_t	ni_objectmodel_macvtap_service;

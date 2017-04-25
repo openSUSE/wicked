@@ -110,6 +110,7 @@ libwicked_la_SOURCES		= \
 	update.c		\
 	util.c			\
 	vlan.c			\
+	vxlan.c			\
 	wireless.c		\
 	wpa-supplicant.c	\
 	xml.c			\
@@ -146,6 +147,7 @@ libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/ipip.c	\
 	dbus-objects/gre.c	\
 	dbus-objects/vlan.c	\
+	dbus-objects/vxlan.c	\
 	dbus-objects/wireless.c
 
 libwicked_dhcp4_la_CFLAGS		= $(libwicked_la_CFLAGS)

@@ -1,0 +1,159 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\"
+.TH IFCFG-VXLAN 5 "April 2017" "wicked" "Network configuration"
+.\" ...
+
+.SH NAME
+ifcfg-vxlan \- Virtual eXtended LAN interface configuration
+.SH SYNOPSIS
+.B /etc/sysconfig/network/ifcfg-*
+
+.SH VXLANs
+To setup a vxlan interface, you need a configuration file that contains
+the following variable set to \fByes\fR:
+.TP
+.B VXLAN\ { \fRyes\fB | no }
+
+.PP
+It may contain also the following options:
+
+.TP
+.B VXLAN_ID\ { 0\fR..16777215\fB }
+Specifies the VXLAN Network Identifier (Segment Identifier).
+
+.TP
+.B VXLAN_DEVICE\ { \fR<name>\fB }
+Specifies the link device name to use for tunnel endpoint communication.
+
+.TP
+.B VXLAN_REMOTE_IP\ { \fR<IPv4>\fB | \fR<IPv6>\fB }
+Specifies the unicast or multicast destination IP address. A multicast
+address requires a link device in via \fBVXLAN_DEVICE\fR.
+
+.TP
+.B VXLAN_LOCAL_IP\  { \fR<IPv4>\fB | \fR<IPv6>\fB }
+Specifies source IP address to use in outgoing packets.
+
+.TP
+.B VXLAN_DST_PORT\ { 0\fR..65535\fB }
+The UDP destination port of the remote tunnel endpoint. IANA assigned
+port is 4789 while the linux kernel is using port 8472.
+
+.TP
+.B VXLAN_SRC_PORT_LOW \ { 0\fR..65535\fB }
+.TP
+.B VXLAN_SRC_PORT_HIGH \ { 0\fR..65535\fB }
+The UDP source port range to use in communication with tunnel endpoint.
+
+.TP
+.B VXLAN_TTL\ { 0\fR..255\fB }
+The TTL aka hop-limit for to use in outgoing packets.
+
+.TP
+.B VXLAN_TOS\ { 0\fR..255\fB }
+The TOS to set in outgoing packets.
+
+.TP
+.B VXLAN_AGEING\ { 0 | \fR<secs>\fB }
+Lifetime in seconds of the FDB entries in the kernel.
+
+.TP
+.B VXLAN_MAX_ADDRS\ { 0 | \fR<max>\fB }
+Maximal number of addresses/entries in the FDB.
+
+.TP
+.B VXLAN_LEARNING\ { yes | \fRno\fB }
+Disables to not learn unknown source link layer address.
+
+.TP
+.B VXLAN_PROXY\ { \fRyes\fB | no }
+Enables ARP/NDP proxy.
+
+.TP
+.B VXLAN_RSC\ { \fRyes\fB | no }
+Enables route short circuit.
+
+.TP
+.B VXLAN_L2MISS\ { \fRyes\fB | no }
+Enables netlink link-layer address miss notification generation.
+
+.TP
+.B VXLAN_L3MISS\ { \fRyes\fB | no }
+Enables netlink ip address miss notification generation.
+
+.TP
+.B VXLAN_UDP_CSUM\ { \fRyes\fB | no }
+Enables to calculate UDP checksums.
+
+.TP
+.B VXLAN_UDP6_ZERO_CSUM_TX \ { \fRyes\fB | no }
+Enables to calculate UDP checksums.
+
+.TP
+.B VXLAN_UDP6_ZERO_CSUM_RX \ { \fRyes\fB | no }
+Specified if UDP checksums are received.
+
+.TP
+.B VXLAN_REM_CSUM_TX \ { \fRyes\fB | no }
+Enables/disables transmit checksum offloading.
+
+.TP
+.B VXLAN_REM_CSUM_RX \ { \fRyes\fB | no }
+Enables/disables receive checksum offloading.
+
+.TP
+.B VXLAN_REM_CSUM_PARTIAL \ { \fRyes\fB | no }
+Disables partial gro checksum handling.
+
+.TP
+.B VXLAN_COLLECT_METADATA \ { \fRyes\fB | no }
+Whether to collect metadata on external control plane of interal FDB.
+
+.TP
+.B VXLAN_GBP \ { \fRyes\fB | no }
+Enables Group Policy extension.
+
+
+.PP
+An ifcfg- file for the interface specified by \fBVXLAN_DEVICE\fR must
+also be provided. In the most basic case, it should at least contain
+STARTMODE='auto'.
+
+The rest of the VXLAN interface IP and routes configuration do not differ
+from ordinary interfaces. See also \fIman\ ifcfg\fR and \fIman\ routes\fR
+for details.
+
+.SH EXAMPLES
+.TP
+Sets up \fIvxlan0\fR vxlan interface on top of \fBeth0\fR:
+
+.I ifcfg-vxlan0
+.nf
+   STARTMODE='auto'
+   VXLAN='\fByes\fR'
+   IPADDR='192.168.3.27/24'
+.fi
+
+.TP
+Sets up \fIvxlan0\fR vxlan interface with an ID/VNI 1 and linked to the \fBeth0\fR device:
+
+.I ifcfg-vxlan0
+.nf
+   STARTMODE='auto'
+   VXLAN='\fByes\fR'
+   VXLAN_DEVICE='\fBeth0\fR'
+.fi
+
+.SH COPYRIGHT
+Copyright (C) 2017 SUSE LINUX, Nuernberg, Germany.
+.SH BUGS
+Please report bugs at <https://bugzilla.novell.com/index.cgi>
+.SH AUTHORS
+.nf
+Marius Tomaschewski
+.fi
+.SH "SEE ALSO"
+.BR ifcfg (5),
+.BR routes (5),
+.BR wicked (8).

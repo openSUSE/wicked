@@ -25,6 +25,7 @@
 #include <wicked/bonding.h>
 #include <wicked/system.h>
 #include <wicked/vlan.h>
+#include <wicked/vxlan.h>
 #include <wicked/macvlan.h>
 #include <wicked/wireless.h>
 #include <wicked/infiniband.h>
@@ -81,6 +82,7 @@ static void		__ni_tunnel_gre_trace(ni_netdev_t *, struct nlattr **);
 static int		__ni_discover_sit(ni_netdev_t *, struct nlattr **, struct nlattr**);
 static int		__ni_discover_ipip(ni_netdev_t *, struct nlattr **, struct nlattr**);
 static int		__ni_discover_gre(ni_netdev_t *, struct nlattr **, struct nlattr**);
+static int		ni_discover_vxlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 
 struct ni_rtnl_info {
 	struct ni_nlmsg_list	nlmsg_list;
@@ -1889,6 +1891,10 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		__ni_discover_vlan(dev, tb, nc);
 		break;
 
+	case NI_IFTYPE_VXLAN:
+		ni_discover_vxlan(dev, tb, nc);
+		break;
+
 	case NI_IFTYPE_MACVLAN:
 	case NI_IFTYPE_MACVTAP:
 		__ni_discover_macvlan(dev, tb, nc);
@@ -2008,6 +2014,284 @@ __ni_discover_vlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 
 	vlan->tag = nla_get_u16(info_data[IFLA_VLAN_ID]);
 
+	return 0;
+}
+
+int
+ni_discover_vxlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
+{
+	/* static const */ struct nla_policy	info_policy[IFLA_INFO_MAX + 1] = {
+		[IFLA_INFO_KIND]		= { .type = NLA_STRING  },
+		[IFLA_INFO_DATA]		= { .type = NLA_NESTED  },
+	};
+	/* static const */ struct nla_policy	vxlan_policy[IFLA_VXLAN_MAX + 1] = {
+		[IFLA_VXLAN_ID]			= { .type = NLA_U32 },
+		[IFLA_VXLAN_LINK]		= { .type = NLA_U32 },
+		[IFLA_VXLAN_GROUP]		= { .type = NLA_UNSPEC },
+		[IFLA_VXLAN_GROUP6]		= { .type = NLA_UNSPEC },
+		[IFLA_VXLAN_LOCAL]		= { .type = NLA_UNSPEC },
+		[IFLA_VXLAN_LOCAL6]		= { .type = NLA_UNSPEC },
+		[IFLA_VXLAN_TOS]		= { .type = NLA_U8 },
+		[IFLA_VXLAN_TTL]		= { .type = NLA_U8 },
+		[IFLA_VXLAN_AGEING]		= { .type = NLA_U32 },
+		[IFLA_VXLAN_LIMIT]		= { .type = NLA_U32 },
+		[IFLA_VXLAN_PORT]		= { .type = NLA_U16 },
+		[IFLA_VXLAN_PORT_RANGE]		= { .type = NLA_UNSPEC },
+		[IFLA_VXLAN_LEARNING]		= { .type = NLA_U8 },
+		[IFLA_VXLAN_PROXY]		= { .type = NLA_U8 },
+		[IFLA_VXLAN_RSC]		= { .type = NLA_U8 },
+		[IFLA_VXLAN_L2MISS]		= { .type = NLA_U8 },
+		[IFLA_VXLAN_L3MISS]		= { .type = NLA_U8 },
+		[IFLA_VXLAN_COLLECT_METADATA]	= { .type = NLA_U8 },
+		[IFLA_VXLAN_UDP_CSUM]		= { .type = NLA_U8 },
+		[IFLA_VXLAN_UDP_ZERO_CSUM6_TX]	= { .type = NLA_U8 },
+		[IFLA_VXLAN_UDP_ZERO_CSUM6_RX]	= { .type = NLA_U8 },
+		[IFLA_VXLAN_REMCSUM_TX]		= { .type = NLA_U8 },
+		[IFLA_VXLAN_REMCSUM_RX]		= { .type = NLA_U8 },
+		[IFLA_VXLAN_REMCSUM_NOPARTIAL]	= { .type = NLA_FLAG },
+		[IFLA_VXLAN_GBP]		= { .type = NLA_FLAG },
+	};
+#define map_attr(attr)  [attr] = #attr
+	static const char *			vxlan_attr_names[IFLA_VXLAN_MAX + 1] = {
+		map_attr(IFLA_VXLAN_ID),
+		map_attr(IFLA_VXLAN_LINK),
+		map_attr(IFLA_VXLAN_GROUP),
+		map_attr(IFLA_VXLAN_GROUP6),
+		map_attr(IFLA_VXLAN_LOCAL),
+		map_attr(IFLA_VXLAN_LOCAL6),
+		map_attr(IFLA_VXLAN_TOS),
+		map_attr(IFLA_VXLAN_TTL),
+		map_attr(IFLA_VXLAN_LIMIT),
+		map_attr(IFLA_VXLAN_PORT),
+		map_attr(IFLA_VXLAN_PORT_RANGE),
+		map_attr(IFLA_VXLAN_LEARNING),
+		map_attr(IFLA_VXLAN_AGEING),
+		map_attr(IFLA_VXLAN_PROXY),
+		map_attr(IFLA_VXLAN_RSC),
+		map_attr(IFLA_VXLAN_L2MISS),
+		map_attr(IFLA_VXLAN_L3MISS),
+		map_attr(IFLA_VXLAN_COLLECT_METADATA),
+		map_attr(IFLA_VXLAN_UDP_CSUM),
+		map_attr(IFLA_VXLAN_UDP_ZERO_CSUM6_TX),
+		map_attr(IFLA_VXLAN_UDP_ZERO_CSUM6_RX),
+		map_attr(IFLA_VXLAN_REMCSUM_TX),
+		map_attr(IFLA_VXLAN_REMCSUM_RX),
+		map_attr(IFLA_VXLAN_REMCSUM_NOPARTIAL),
+		map_attr(IFLA_VXLAN_GBP),
+	};
+	struct nlattr *info[IFLA_INFO_MAX + 1];
+	struct nlattr *data[IFLA_VXLAN_MAX + 1];
+	struct nlattr *aptr;
+	ni_vxlan_t *vxlan;
+	unsigned int attr;
+	const char *name;
+
+	if (!nc || !dev || !tb || !tb[IFLA_LINKINFO])
+		return -1;
+
+	if (!(vxlan = ni_netdev_get_vxlan(dev))) {
+		ni_error("%s: Unable to allocate vxlan interface structure", dev->name);
+		return -1;
+	}
+
+	/* get kind (safe guard, already checked) + vxlan data attrs */
+	if (nla_parse_nested(info, IFLA_INFO_MAX, tb[IFLA_LINKINFO], info_policy) < 0 ||
+	    !info[IFLA_INFO_KIND] ||
+	    !ni_string_eq("vxlan", nla_get_string(info[IFLA_INFO_KIND]))) {
+		ni_error("%s: Unable to parse IFLA_LINKINFO newlink attribute", dev->name);
+		return -1;
+	}
+	if (!info[IFLA_INFO_DATA] ||
+	    nla_parse_nested(data, IFLA_VXLAN_MAX, info[IFLA_INFO_DATA], vxlan_policy) < 0) {
+		ni_error("%s: Unable to parse vxlan link info data newlink attribute", dev->name);
+		return -1;
+	}
+
+	/* reset properties the kernel may omit if unset */
+	vxlan->gbp = FALSE;
+	vxlan->learning = TRUE;
+	vxlan->rem_csum_partial = TRUE;
+	ni_netdev_ref_destroy(&dev->link.lowerdev);
+	memset(&vxlan->local_ip, 0, sizeof(vxlan->local_ip));
+	memset(&vxlan->remote_ip, 0, sizeof(vxlan->remote_ip));
+	for (attr = IFLA_VXLAN_ID; attr <= IFLA_VXLAN_MAX; ++attr) {
+		if (!(aptr = data[attr]))
+			continue;
+
+		name = vxlan_attr_names[attr];
+		switch (attr) {
+		case IFLA_VXLAN_ID:
+			vxlan->id = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					vxlan->id);
+			break;
+		case IFLA_VXLAN_LINK:
+			dev->link.lowerdev.index = nla_get_u32(aptr);
+			ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u (%s)", dev->name, name,
+					dev->link.lowerdev.index,
+					dev->link.lowerdev.name);
+			break;
+		case IFLA_VXLAN_GROUP:
+			__ni_nla_get_addr(AF_INET, &vxlan->remote_ip, aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_sockaddr_print(&vxlan->remote_ip));
+			break;
+		case IFLA_VXLAN_GROUP6:
+			__ni_nla_get_addr(AF_INET6, &vxlan->remote_ip, aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_sockaddr_print(&vxlan->remote_ip));
+			break;
+		case IFLA_VXLAN_LOCAL:
+			__ni_nla_get_addr(AF_INET, &vxlan->local_ip, aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_sockaddr_print(&vxlan->local_ip));
+			break;
+		case IFLA_VXLAN_LOCAL6:
+			__ni_nla_get_addr(AF_INET6, &vxlan->local_ip, aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_sockaddr_print(&vxlan->local_ip));
+			break;
+		case IFLA_VXLAN_TOS:
+			vxlan->tos = nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					vxlan->tos);
+			break;
+		case IFLA_VXLAN_TTL:
+			vxlan->ttl = nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					vxlan->ttl);
+			break;
+		case IFLA_VXLAN_AGEING:
+			vxlan->ageing = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					vxlan->ageing);
+			break;
+		case IFLA_VXLAN_LIMIT:
+			vxlan->maxaddr = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					vxlan->maxaddr);
+			break;
+		case IFLA_VXLAN_PORT_RANGE:
+			{
+				const struct ifla_vxlan_port_range *p;
+				if ((p = __ni_nla_get_data(sizeof(*p), aptr))) {
+					vxlan->src_port.low  = ntohs(p->low);
+					vxlan->src_port.high = ntohs(p->high);
+				}
+			}
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u..%u", dev->name, name,
+					vxlan->src_port.low, vxlan->src_port.high);
+			break;
+		case IFLA_VXLAN_PORT:
+			vxlan->dst_port = ntohs(nla_get_u16(aptr));
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", dev->name, name,
+					vxlan->dst_port);
+			break;
+		case IFLA_VXLAN_LEARNING:
+			vxlan->learning = !!nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_format_boolean(vxlan->learning));
+			break;
+		case IFLA_VXLAN_PROXY:
+			vxlan->proxy = !!nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_format_boolean(vxlan->proxy));
+			break;
+		case IFLA_VXLAN_RSC:
+			vxlan->rsc = !!nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_format_boolean(vxlan->rsc));
+			break;
+		case IFLA_VXLAN_L2MISS:
+			vxlan->l2miss = !!nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_format_boolean(vxlan->l2miss));
+			break;
+		case IFLA_VXLAN_L3MISS:
+			vxlan->l3miss = !!nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_format_boolean(vxlan->l3miss));
+			break;
+		case IFLA_VXLAN_COLLECT_METADATA:
+			vxlan->collect_metadata = !!nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_format_boolean(vxlan->collect_metadata));
+			break;
+		case IFLA_VXLAN_UDP_CSUM:
+			vxlan->udp_csum = !!nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_format_boolean(vxlan->udp_csum));
+			break;
+		case IFLA_VXLAN_UDP_ZERO_CSUM6_TX:
+			vxlan->udp6_zero_csum_tx = !!nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_format_boolean(vxlan->udp6_zero_csum_tx));
+			break;
+		case IFLA_VXLAN_UDP_ZERO_CSUM6_RX:
+			vxlan->udp6_zero_csum_rx = !!nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_format_boolean(vxlan->udp6_zero_csum_rx));
+			break;
+		case IFLA_VXLAN_REMCSUM_TX:
+			vxlan->rem_csum_tx = !!nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_format_boolean(vxlan->rem_csum_tx));
+			break;
+		case IFLA_VXLAN_REMCSUM_RX:
+			vxlan->rem_csum_rx = !!nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_format_boolean(vxlan->rem_csum_rx));
+			break;
+		case IFLA_VXLAN_REMCSUM_NOPARTIAL:
+			vxlan->rem_csum_partial = !nla_get_flag(aptr); /* !inverted! */
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_format_boolean(!(vxlan->rem_csum_partial)));
+			break;
+		case IFLA_VXLAN_GBP:
+			vxlan->gbp = !!nla_get_flag(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_format_boolean(vxlan->gbp));
+			break;
+#if 0
+		case IFLA_VXLAN_GPE:
+			vxlan->gpe = !!nla_get_flag(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%s", dev->name, name,
+					ni_format_boolean(vxlan->gpe));
+			break;
+#endif
+		default:
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+				"%s: get attr #%u (unknown)", dev->name, attr);
+			break;
+		}
+	}
 	return 0;
 }
 

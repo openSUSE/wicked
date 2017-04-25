@@ -57,6 +57,7 @@
 #include <wicked/ovs.h>
 #include <wicked/bridge.h>
 #include <wicked/vlan.h>
+#include <wicked/vxlan.h>
 #include <wicked/macvlan.h>
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
@@ -3029,6 +3030,228 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	return 0;
 }
 
+static int
+try_vxlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+	ni_vxlan_t *vxlan;
+	ni_bool_t enabled;
+	unsigned int val;
+	const char *str;
+
+	if (!ni_sysconfig_get_boolean(sc, "VXLAN", &enabled) || !enabled)
+		return 1;
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config contains vlan variables",
+				dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
+
+	dev->link.type = NI_IFTYPE_VXLAN;
+	vxlan = ni_netdev_get_vxlan(dev);
+
+	/* netdev properties/relations */
+	if ((str = ni_sysconfig_get_value(sc, "LLADDR"))) {
+		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, str) < 0) {
+			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_DEVICE"))) {
+		if (!ni_netdev_name_is_valid(str) || ni_string_eq(str, dev->name)) {
+			ni_error("ifcfg-%s: Invalid name in VXLAN_DEVICE=\"%s\"",
+					dev->name, ni_print_suspect(str, 15));
+			return -1;
+		}
+		ni_string_dup(&dev->link.lowerdev.name, str);
+	}
+
+	/* vxlan specific properties */
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_ID"))) {
+		if (ni_parse_uint(str, &vxlan->id, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_ID=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_LOCAL_IP"))) {
+		if (ni_sockaddr_parse(&vxlan->local_ip, str, AF_UNSPEC) < 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_LOCAL_IP=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_REMOTE_IP"))) {
+		if (ni_sockaddr_parse(&vxlan->remote_ip, str, AF_UNSPEC) < 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_REMOTE_IP=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_SRC_PORT_LOW"))) {
+		if (ni_parse_uint(str, &val, 10) < 0 || val > 0xffffU) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_SRC_PORT_LOW=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+		vxlan->src_port.low = val;
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_SRC_PORT_HIGH"))) {
+		if (ni_parse_uint(str, &val, 10) < 0 || val > 0xffffU) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_SRC_PORT_HIGH=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+		vxlan->src_port.high = val;
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_DST_PORT"))) {
+		if (ni_parse_uint(str, &val, 10) < 0 || val > 0xffffU) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_DST_PORT=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+		vxlan->dst_port = val;
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_TTL"))) {
+		if (ni_parse_uint(str, &val, 10) < 0 || val > 0xffU) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_TTL=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+		vxlan->ttl = val;
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_TOS"))) {
+		if (ni_parse_uint(str, &val, 10) < 0 || val > 0xffU) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_TOS=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+		vxlan->tos = val;
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_AGEING"))) {
+		if (ni_parse_uint(str, &vxlan->ageing, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_AGEING=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_MAX_ADDRS"))) {
+		if (ni_parse_uint(str, &vxlan->maxaddr, 10) < 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_MAX_ADDRS=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_LEARNING"))) {
+		if (ni_parse_boolean(str, &vxlan->learning) != 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_LEARNING=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_PROXY"))) {
+		if (ni_parse_boolean(str, &vxlan->proxy) != 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_PROXY=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_RSC"))) {
+		if (ni_parse_boolean(str, &vxlan->rsc) != 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_RSC=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_L2MISS"))) {
+		if (ni_parse_boolean(str, &vxlan->l2miss) != 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_L2MISS=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_L3MISS"))) {
+		if (ni_parse_boolean(str, &vxlan->l3miss) != 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_L3MISS=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_UDP_CSUM"))) {
+		if (ni_parse_boolean(str, &vxlan->udp_csum) != 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_UDP_CSUM=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_UDP6_ZERO_CSUM_RX"))) {
+		if (ni_parse_boolean(str, &vxlan->udp6_zero_csum_rx) != 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_UDP6_ZERO_CSUM_RX=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_UDP6_ZERO_CSUM_TX"))) {
+		if (ni_parse_boolean(str, &vxlan->udp6_zero_csum_tx) != 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_UDP6_ZERO_CSUM_TX=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_REM_CSUM_RX"))) {
+		if (ni_parse_boolean(str, &vxlan->rem_csum_rx) != 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_REM_CSUM_RX=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_REM_CSUM_TX"))) {
+		if (ni_parse_boolean(str, &vxlan->rem_csum_tx) != 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_REM_CSUM_TX=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_REM_CSUM_PARTIAL"))) {
+		if (ni_parse_boolean(str, &vxlan->rem_csum_partial) != 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_REM_CSUM_PARTIAL=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_COLLECT_METADATA"))) {
+		if (ni_parse_boolean(str, &vxlan->collect_metadata) != 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_COLLECT_METADATA=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_GBP"))) {
+		if (ni_parse_boolean(str, &vxlan->gbp) != 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_GBP=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+#if 0
+	if ((str = ni_sysconfig_get_value(sc, "VXLAN_GPE"))) {
+		if (ni_parse_boolean(str, &vxlan->gpe) != 0) {
+			ni_error("ifcfg-%s: Cannot parse VXLAN_GBP=\"%s\"",
+					dev->name, str);
+			return -1;
+		}
+	}
+#endif
+
+	if ((str = ni_vxlan_validate(vxlan, &dev->link.lowerdev))) {
+		ni_error("ifcfg-%s: %s", dev->name, str);
+		return -1;
+	}
+	return 0;
+}
+
 /*
  * MACVLAN/MACVTAP is recognized by [MACVLAN|MACVTAP]_DEVICE entry which
  * specifies the lower device to use. The lower device, obviously, has to
@@ -5901,6 +6124,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	    try_team(sc, compat)       < 0 ||
 	    try_bridge(sc, compat)     < 0 ||
 	    try_vlan(sc, compat)       < 0 ||
+	    try_vxlan(sc, compat)      < 0 ||
 	    try_macvlan(sc, compat)    < 0 ||
 	    try_dummy(sc, compat)      < 0 ||
 	    try_tunnel(sc, compat)     < 0 ||

@@ -345,6 +345,7 @@ fi
 %_mandir/man5/ifcfg-team.5*
 %_mandir/man5/ifcfg-tunnel.5*
 %_mandir/man5/ifcfg-vlan.5*
+%_mandir/man5/ifcfg-vxlan.5*
 %_mandir/man5/ifcfg-wireless.5*
 %_mandir/man5/ifcfg.5*
 %_mandir/man5/ifcfg-dhcp.5*
