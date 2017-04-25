@@ -3190,10 +3190,8 @@ ni_rtnl_link_put_vxlan_opt(ni_netconfig_t *nc, struct nl_msg *msg, const char *i
 		return ret;
 
 	case IFLA_VXLAN_ID:
-		if (conf->id != vxlan->id) {
-			NLA_PUT_U32(msg, attr, conf->id);
-			ret = 0;
-		}
+		NLA_PUT_U32(msg, attr, conf->id);
+		ret = 0;
 		val = conf->id;
 		break;
 
