@@ -1198,6 +1198,8 @@ ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_ty
 		ni_debug_application("%s: <%s> identified device as \"%s\"",
 				origin, devnode->name, child->name);
 		xml_node_set_cdata(devnode, child->name);
+		if (namespace)
+			xml_node_del_attr(devnode, "namespace");
 	} else {
 		ni_error("%s: empty device reference in <%s> element",
 			origin, devnode->name);
@@ -3503,7 +3505,7 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 			w->device_api.factory_service = service;
 			w->device_api.factory_method = method;
 			xml_node_free(w->device_api.config);
-			w->device_api.config = xml_node_clone_ref(config);
+			w->device_api.config = xml_node_clone(config, NULL);
 		}
 	}
 
@@ -3545,7 +3547,7 @@ ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
 	w->device_api.service = service;
 	w->device_api.method = method;
 	xml_node_free(w->device_api.config);
-	w->device_api.config = xml_node_clone_ref(config);
+	w->device_api.config = xml_node_clone(config, NULL);
 	return 1;
 }
 
@@ -4537,7 +4539,7 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 			};
 			ni_dbus_xml_validate_context_t context;
 
-			bind->config = xml_node_clone_ref(bind->config);
+			bind->config = xml_node_clone(bind->config, NULL);
 			context.metadata_callback = ni_ifworker_xml_metadata_callback;
 			context.prompt_callback = ni_ifworker_prompt_cb;
 			context.user_data = action;
@@ -4788,7 +4790,7 @@ ni_ifworker_bind_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 	bind->service = w->device_api.factory_service;
 	bind->method = w->device_api.factory_method;
 	xml_node_free(bind->config);
-	bind->config = xml_node_clone_ref(w->device_api.config);
+	bind->config = xml_node_clone(w->device_api.config, NULL);
 	action->num_bindings++;
 
 	rv = ni_ifworker_map_method_requires(w, action, bind->service, bind->method);
