@@ -1219,7 +1219,7 @@ __ni_compat_generate_vxlan(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	if (ni_sockaddr_is_specified(&vxlan->local_ip))
 		xml_node_new_element("local-ip", child, ni_sockaddr_print(&vxlan->local_ip));
 	if (ni_sockaddr_is_specified(&vxlan->remote_ip))
-		xml_node_new_element("local-ip", child, ni_sockaddr_print(&vxlan->remote_ip));
+		xml_node_new_element("remote-ip", child, ni_sockaddr_print(&vxlan->remote_ip));
 
 	if (vxlan->src_port.low || vxlan->src_port.high) {
 		xml_node_t *sport;
