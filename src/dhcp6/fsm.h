@@ -62,5 +62,7 @@ extern int			ni_dhcp6_fsm_retransmit(ni_dhcp6_device_t *dev);
 
 extern void			ni_dhcp6_fsm_address_event(ni_dhcp6_device_t *, ni_netdev_t *,
 								ni_event_t, const ni_address_t *);
+extern void			ni_dhcp6_send_event(enum ni_dhcp6_event, const ni_dhcp6_device_t *, ni_addrconf_lease_t *);
+
 
 #endif /* __WICKED_DHCP6_FSM_H__ */

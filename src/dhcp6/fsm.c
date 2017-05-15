@@ -71,8 +71,6 @@ static unsigned int		ni_dhcp6_fsm_get_expire_timeout(ni_dhcp6_device_t *);
 static unsigned int		ni_dhcp6_fsm_mark_renew_ia(ni_dhcp6_device_t *);
 static unsigned int		ni_dhcp6_fsm_mark_rebind_ia(ni_dhcp6_device_t *);
 
-static void			ni_dhcp6_send_event(enum ni_dhcp6_event, const ni_dhcp6_device_t *, ni_addrconf_lease_t *);
-
 static int			__fsm_parse_client_options(ni_dhcp6_device_t *, struct ni_dhcp6_message *, ni_buffer_t *);
 
 
@@ -2049,7 +2047,7 @@ ni_dhcp6_set_event_handler(ni_dhcp6_event_handler_t func)
         ni_dhcp6_fsm_event_handler = func;
 }
 
-static void
+void
 ni_dhcp6_send_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 {
         if (ni_dhcp6_fsm_event_handler)
