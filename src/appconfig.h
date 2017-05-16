@@ -101,9 +101,16 @@ typedef enum {
 	NI_CONFIG_DHCP4_ROUTES_CLASS,
 } ni_config_dhcp4_routes_t;
 
+typedef enum {
+	NI_CONFIG_DHCP4_CID_TYPE_HWADDR = 1,
+	NI_CONFIG_DHCP4_CID_TYPE_DHCPv6,
+} ni_config_dhcp4_cid_type_t;
+
 typedef struct ni_config_dhcp4 {
 	struct ni_config_dhcp4 *next;
 	char *			device;
+
+	unsigned int		create_cid;
 
 	unsigned int		allow_update;
 	unsigned int		routes_opts;
@@ -122,6 +129,9 @@ typedef struct ni_config_dhcp6 {
 	char *			device;
 
 	char *			default_duid;
+	unsigned int		create_duid;
+	ni_bool_t		device_duid;
+
 	unsigned int		allow_update;
 	unsigned int		lease_time;
 
