@@ -1,7 +1,7 @@
 /*
  *	DHCP Unique Identifier (DUID) utilities
  *
- *	Copyright (C) 2012 Marius Tomaschewski <mt@suse.de>
+ *	Copyright (C) 2012-2017 SUSE LINUX GmbH, Nuernberg, Germany.
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,10 +13,12 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- *	Boston, MA 02110-1301 USA.
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *      Authors:
+ *              Marius Tomaschewski <mt@suse.de>
+ *              Nirmoy Das <ndas@suse.de>
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -41,6 +43,7 @@
 #include <wicked/util.h>
 #include <wicked/xml.h>
 
+#include "appconfig.h"
 #include "util_priv.h"
 #include "buffer.h"
 #include "duid.h"
@@ -892,5 +895,78 @@ ni_duid_map_to_vars(ni_duid_map_t *map, ni_var_array_t *vars)
 		ni_var_array_set(vars, name, node->cdata);
 	}
 	return TRUE;
+}
+
+ni_bool_t
+ni_duid_acquire(ni_opaque_t *duid, const ni_netdev_t *dev, ni_netconfig_t *nc, const char *requested)
+{
+	const ni_config_dhcp6_t *conf;
+	const char *    scope = NULL;
+	const char *    hex = NULL;
+	ni_duid_map_t * map;
+
+	if (!duid || !dev)
+		return FALSE;
+
+	if (!(conf = ni_config_dhcp6_find_device(dev->name)))
+		return FALSE;
+
+	if (!(map = ni_duid_map_load(NULL)))
+		return FALSE;
+
+	/*
+	 * The requested duid is always in per-device scope as it is
+	 * from a per device request to acquire a lease. Again, all
+	 * devices should use same DUID according to the DHCPv6 RFCs.
+	 * We update the duid map with it for use in DHCP4 0xff CID.
+	 * A request with invalid DUID string is simply ignored.
+	 */
+	if (requested && ni_duid_parse_hex(duid, requested)) {
+		scope = dev->name;
+
+		if (ni_duid_map_get_duid(map, scope, &hex, NULL) && ni_string_eq(hex, requested))
+			goto cleanup;
+
+		goto update;
+	}
+
+	/*
+	 * When there is a duid requesed in the config, update the
+	 * map if not yet there and use it.
+	 */
+	if (conf->device_duid)
+		scope = dev->name;
+
+	if (ni_duid_map_get_duid(map, scope, &hex, duid))
+		goto cleanup;
+
+	requested = conf->default_duid;
+	if (requested && ni_duid_parse_hex(duid, requested)) {
+		if (ni_duid_map_get_duid(map, scope, &hex, NULL) && ni_string_eq(hex, requested))
+			goto cleanup;
+
+		goto update;
+	}
+
+	if (!ni_duid_create(duid, conf->create_duid, nc, dev))
+		goto failure;
+
+update:
+	if (!(hex = ni_duid_print_hex(duid)))
+		goto failure;
+
+	if (!ni_duid_map_set(map, scope, hex))
+		goto failure;
+
+	if (!ni_duid_map_save(map))
+		goto failure;
+
+cleanup:
+	ni_duid_map_free(map);
+	return TRUE;
+
+failure:
+	ni_duid_map_free(map);
+	return FALSE;
 }
 
