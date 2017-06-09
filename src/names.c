@@ -256,8 +256,11 @@ static const ni_intmap_t	__addrconf_update_flags[] = {
 	{ "smb",		NI_ADDRCONF_UPDATE_SMB           },
 	{ "nds",		NI_ADDRCONF_UPDATE_NDS           },
 	{ "slp",		NI_ADDRCONF_UPDATE_SLP           },
+	{ "sip",		NI_ADDRCONF_UPDATE_SIP           },
 	{ "log",		NI_ADDRCONF_UPDATE_LOG           },
 	{ "mtu",		NI_ADDRCONF_UPDATE_MTU           },
+	{ "tz",			NI_ADDRCONF_UPDATE_TZ            },
+	{ "boot",		NI_ADDRCONF_UPDATE_BOOT		 },
 
 	{ NULL }
 };

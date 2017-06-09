@@ -943,7 +943,12 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	config->uuid = req->uuid;
 	config->mode = req->mode;
 	config->flags= req->flags;
-	config->update = req->update;
+	if (req->update == -1U) {
+		config->update = ni_config_addrconf_update(dev->ifname, NI_ADDRCONF_DHCP, AF_INET6);
+	} else {
+		config->update = req->update;
+		config->update &= ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET6);
+	}
 	config->dry_run	= req->dry_run;
 
 	ni_timer_get_time(&dev->start_time);
@@ -1508,7 +1513,7 @@ ni_dhcp6_request_new(void)
 	req->rapid_commit = TRUE;
 
 	/* By default, we try to obtain all sorts of config from the server */
-	req->update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET6);
+	req->update = -1U;	/* apply wicked-config(5) defaults later */
 
 	/* default: enable + update mode depends on hostname settings in req */
 	ni_dhcp_fqdn_init(&req->fqdn);
