@@ -245,6 +245,7 @@ extern const char *	ni_addrconf_flags_format(ni_stringbuf_t *, unsigned int, con
 extern const char *	ni_addrconf_update_flag_to_name(unsigned int);
 extern ni_bool_t	ni_addrconf_update_name_to_flag(const char *, unsigned int *);
 extern void		ni_addrconf_update_set(unsigned int *, unsigned int, ni_bool_t);
+extern ni_bool_t	ni_addrconf_update_flags_parse_names(unsigned int *, const ni_string_array_t *);
 extern ni_bool_t	ni_addrconf_update_flags_parse(unsigned int *, const char *, const char *);
 extern const char *	ni_addrconf_update_flags_format(ni_stringbuf_t *, unsigned int, const char *);
 
