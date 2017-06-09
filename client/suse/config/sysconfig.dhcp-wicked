@@ -39,6 +39,24 @@ DHCLIENT_FQDN_QUALIFY="yes"
 #
 DHCLIENT_FQDN_ENCODE="yes"
 
+## Type:	list(,default,none,all,dns,ntp,nis,tz,boot,smb,nds,slp,sip,log)
+## Default:	""
+#
+# This variable permits to specify a space separated list of build-in
+# facility names supported by the dhcp4 client modifying the default
+# options used in requests and to update system settings (via netconfig).
+#
+# When empty, default settings configured in wicked-config(5) or built-in
+# defaults are used. The special "default", "all", and "none" sets enable
+# to request none, the built-in default set or all supported options,
+# respectively. A "no-" or "-" in the front of a facility name permit to
+# remove/disable it from the currently applied set, e.g. "default,-nis"
+# disables request for nis options.
+# More specific variables as DHCLIENT_SET_DEFAULT_ROUTE,_SET_HOSTNAME or
+# the MTU option have higher precedence.
+#
+DHCLIENT_UPDATE=""
+
 ## Type:        list(enabled,disabled,default,)
 ## Default:     ""
 #
@@ -69,3 +87,19 @@ DHCLIENT6_FQDN_UPDATE=""
 #
 DHCLIENT6_FQDN_QUALIFY="yes"
 
+## Type:	list(,default,none,all,dns,ntp,tz,boot,nis,sip)
+## Default:	""
+#
+# This variable permits to specify a space separated list of build-in
+# facility names supported by the dhcp6 client modifying the default
+# options used in requests and to update system settings (via netconfig).
+#
+# When empty, default settings configured in wicked-config(5) or built-in
+# defaults are used. The special "default", "all", and "none" sets enable
+# to request none, the built-in default set or all supported options,
+# respectively. A "no-" or "-" in the front of a facility name permit to
+# remove/disable it from the currently applied set, e.g. "default,-nis"
+# disables request for nis options.
+# The more specific variable DHCLIENT6_SET_HOSTNAME has higher precedence.
+#
+DHCLIENT6_UPDATE=""
