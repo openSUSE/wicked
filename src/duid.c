@@ -31,6 +31,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <arpa/inet.h>
+#include <net/if_arp.h>
 
 #include <wicked/logging.h>
 #include <wicked/netinfo.h>
@@ -74,6 +75,21 @@ static const ni_intmap_t	ni_duid_type_names[] = {
 	{ NULL,			0			}
 };
 
+/*
+ * Note: only types we support duid ll[t] creation + aliases.
+ *
+ * The complete arp-type mapping is in src/names.c and available
+ * via the ni_arphrd_type_to_name() and related functions.
+ */
+static const ni_intmap_t	ni_duid_hwtype_names[] = {
+	{ "ethernet",		ARPHRD_ETHER		},
+	{ "ether",		ARPHRD_ETHER		},
+	{ "infiniband",		ARPHRD_INFINIBAND	},
+	{ "ipoib",		ARPHRD_INFINIBAND	},
+
+	{ NULL,			ARPHRD_VOID		}
+};
+
 
 const ni_intmap_t *
 ni_duid_type_map(void)
@@ -91,6 +107,26 @@ ni_bool_t
 ni_duid_type_by_name(const char *name, unsigned int *type)
 {
 	if (!type || ni_parse_uint_mapped(name, ni_duid_type_names, type) < 0)
+		return FALSE;
+	return TRUE;
+}
+
+const ni_intmap_t *
+ni_duid_hwtype_map(void)
+{
+	return ni_duid_hwtype_names;
+}
+
+const char *
+ni_duid_hwtype_to_name(unsigned int hwtype)
+{
+	return ni_format_uint_mapped(hwtype, ni_duid_hwtype_names);
+}
+
+ni_bool_t
+ni_duid_hwtype_by_name(const char *name, unsigned int *hwtype)
+{
+	if (!hwtype || ni_parse_uint_maybe_mapped(name, ni_duid_hwtype_names, hwtype, 0) < 0)
 		return FALSE;
 	return TRUE;
 }
