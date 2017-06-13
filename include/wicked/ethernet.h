@@ -56,6 +56,10 @@ typedef struct ni_ethtool_offload {
 	ni_tristate_t	gso;
 	ni_tristate_t	gro;
 	ni_tristate_t	lro;
+	ni_tristate_t	rxvlan;
+	ni_tristate_t	txvlan;
+	ni_tristate_t	ntuple;
+	ni_tristate_t	rxhash;
 } ni_ethtool_offload_t;
 
 #define NI_ETHTOOL_EEE_DEFAULT		-1U

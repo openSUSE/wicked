@@ -521,6 +521,10 @@ ni_ethtool_offload_init(ni_ethtool_offload_t *offload)
 		offload->gso		= NI_TRISTATE_DEFAULT;
 		offload->gro		= NI_TRISTATE_DEFAULT;
 		offload->lro		= NI_TRISTATE_DEFAULT;
+		offload->rxvlan		= NI_TRISTATE_DEFAULT;
+		offload->txvlan		= NI_TRISTATE_DEFAULT;
+		offload->ntuple		= NI_TRISTATE_DEFAULT;
+		offload->rxhash		= NI_TRISTATE_DEFAULT;
 	}
 }
 
@@ -551,6 +555,14 @@ __ni_ethtool_get_offload(const char *ifname, ni_ethtool_offload_t *offload)
 	value = __ni_ethtool_get_value(ifname, &__ethtool_gflags);
 	if (value >= 0) {
 		offload->lro = (value & ETH_FLAG_LRO) ?
+			NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
+		offload->rxvlan = (value & ETH_FLAG_RXVLAN) ?
+			NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
+		offload->txvlan = (value & ETH_FLAG_TXVLAN) ?
+			NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
+		offload->ntuple = (value & ETH_FLAG_NTUPLE) ?
+			NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
+		offload->rxhash = (value & ETH_FLAG_RXHASH) ?
 			NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
 	}
 
@@ -587,6 +599,26 @@ __ni_ethtool_set_offload(const char *ifname, ni_ethtool_offload_t *offload)
 				value |= ETH_FLAG_LRO;
 			else
 				value &= ~ETH_FLAG_LRO;
+
+			if (offload->rxvlan == NI_TRISTATE_ENABLE)
+				value |= ETH_FLAG_RXVLAN;
+			else
+				value &= ~ETH_FLAG_RXVLAN;
+
+			if (offload->txvlan == NI_TRISTATE_ENABLE)
+				value |= ETH_FLAG_TXVLAN;
+			else
+				value &= ~ETH_FLAG_TXVLAN;
+
+			if (offload->ntuple == NI_TRISTATE_ENABLE)
+				value |= ETH_FLAG_NTUPLE;
+			else
+				value &= ~ETH_FLAG_NTUPLE;
+
+			if (offload->rxhash == NI_TRISTATE_ENABLE)
+				value |= ETH_FLAG_RXHASH;
+			else
+				value &= ~ETH_FLAG_RXHASH;
 		}
 
 		__ni_ethtool_set_value(ifname, &__ethtool_sflags, value);

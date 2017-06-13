@@ -286,6 +286,14 @@ __ni_objectmodel_ethernet_get_offload(const ni_dbus_object_t *object,
 		ni_dbus_dict_add_int32(result, "gro", eth->offload.gro);
 	if (ni_tristate_is_set(eth->offload.lro))
 		ni_dbus_dict_add_int32(result, "lro", eth->offload.lro);
+	if (ni_tristate_is_set(eth->offload.rxvlan))
+		ni_dbus_dict_add_int32(result, "rxvlan", eth->offload.rxvlan);
+	if (ni_tristate_is_set(eth->offload.txvlan))
+		ni_dbus_dict_add_int32(result, "txvlan", eth->offload.txvlan);
+	if (ni_tristate_is_set(eth->offload.ntuple))
+		ni_dbus_dict_add_int32(result, "ntuple", eth->offload.ntuple);
+	if (ni_tristate_is_set(eth->offload.rxhash))
+		ni_dbus_dict_add_int32(result, "rxhash", eth->offload.rxhash);
 
 	return TRUE;
 }
@@ -335,6 +343,14 @@ __ni_objectmodel_ethernet_set_offload(ni_dbus_object_t *object,
 					&eth->offload.gro);
 	__ni_objectmodel_set_tristate(argument, "lro",
 					&eth->offload.lro);
+	__ni_objectmodel_set_tristate(argument, "rxvlan",
+					&eth->offload.rxvlan);
+	__ni_objectmodel_set_tristate(argument, "txvlan",
+					&eth->offload.txvlan);
+	__ni_objectmodel_set_tristate(argument, "ntuple",
+					&eth->offload.ntuple);
+	__ni_objectmodel_set_tristate(argument, "rxhash",
+					&eth->offload.rxhash);
 
 	return TRUE;
 }
