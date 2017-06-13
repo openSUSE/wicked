@@ -47,62 +47,20 @@
 /*
  * compiler (gcc) specific ...
  */
-#define PACKED __attribute__((__packed__))
+#define NI_PACKED __attribute__((__packed__))
 
 /*
- * DUID type 1, Link-layer address plus time
- *
- * http://tools.ietf.org/html/rfc3315#section-9.2
- */
-typedef struct ni_duid_llt {
-	uint16_t		type;		/* type 1                     */
-	uint16_t		hwtype;         /* link layer address type    */
-	uint32_t		v6time;		/* second since 2001 % 2^32   */
-	unsigned char		hwaddr[];	/* link layer address         */
-} ni_duid_llt_t;
-
-/*
- * DUID type 2, Vendor-assigned unique ID based on Enterprise Number
- *
- * http://tools.ietf.org/html/rfc3315#section-9.3
- */
-typedef struct ni_duid_en {
-	uint16_t		type;		/* type 2                     */
-	uint32_t		enterprise;	/* vendor enterprise-number   */
-	char			identifier[];	/* vendor unique identifier   */
-} ni_duid_en_t;
-
-/*
- * DUID type 3, Link-layer address
- *
- * http://tools.ietf.org/html/rfc3315#section-9.4
- */
-typedef struct ni_duid_ll {
-	uint16_t		type;		/* type 3                     */
-	uint16_t		hwtype;		/* RFC 826 hardware type code */
-	unsigned char		hwaddr[];	/* link layer address         */
-} ni_duid_ll_t;
-
-/*
- * DUID type 4, UUID-Based DHCPv6 Unique Identifier
- *
- * http://tools.ietf.org/html/rfc6355
- * http://tools.ietf.org/html/rfc4122
- */
-typedef struct ni_duid_uuid {
-	uint16_t		type;		/* type 4                     */
-	ni_uuid_t		uuid;		/* RFC4122 UUID as bytes      */
-} ni_duid_uuid_t;
-
-/*
- * DUID typed data
+ * DUID typed packed data union
  */
 typedef union ni_duid_data {
 	ni_duid_uuid_t		uuid;
 	ni_duid_llt_t		llt;
 	ni_duid_ll_t		ll;
 	ni_duid_en_t		en;
-} PACKED ni_duid_data_t;
+} NI_PACKED ni_duid_data_t;
+
+#undef NI_PACKED
+
 
 /*
  * Well-known DUID type name map
