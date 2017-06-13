@@ -56,7 +56,9 @@
 #define NI_DUID_TYPE_LL		3
 #define NI_DUID_TYPE_UUID	4
 
-/* TODO: MAC based uuid duid, see http://tools.ietf.org/html/rfc4122#section-4.1.6  */
+extern const ni_intmap_t *	ni_duid_type_map(void);
+extern const char *		ni_duid_type_to_name(unsigned int type);
+extern ni_bool_t		ni_duid_type_by_name(const char *name, unsigned int *type);
 
 extern ni_bool_t		ni_duid_init_llt(ni_opaque_t *duid, unsigned short arp_type, const void *hwaddr, size_t len);
 extern ni_bool_t		ni_duid_init_ll (ni_opaque_t *duid, unsigned short arp_type, const void *hwaddr, size_t len);

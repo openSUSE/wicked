@@ -104,6 +104,38 @@ typedef union ni_duid_data {
 	ni_duid_en_t		en;
 } PACKED ni_duid_data_t;
 
+/*
+ * Well-known DUID type name map
+ */
+static const ni_intmap_t	ni_duid_type_names[] = {
+	{ "en",			NI_DUID_TYPE_EN		},
+	{ "ll",			NI_DUID_TYPE_LL		},
+	{ "llt",		NI_DUID_TYPE_LLT	},
+	{ "uuid",		NI_DUID_TYPE_UUID	},
+
+	{ NULL,			0			}
+};
+
+
+const ni_intmap_t *
+ni_duid_type_map(void)
+{
+	return ni_duid_type_names;
+}
+
+const char *
+ni_duid_type_to_name(unsigned int type)
+{
+	return ni_format_uint_mapped(type, ni_duid_type_names);
+}
+
+ni_bool_t
+ni_duid_type_by_name(const char *name, unsigned int *type)
+{
+	if (!type || ni_parse_uint_mapped(name, ni_duid_type_names, type) < 0)
+		return FALSE;
+	return TRUE;
+}
 
 ni_bool_t
 ni_duid_init_llt(ni_opaque_t *duid, unsigned short arp_type, const void *hwaddr, size_t len)
