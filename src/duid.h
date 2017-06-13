@@ -51,6 +51,7 @@
  * http://tools.ietf.org/html/rfc3315#section-9.1
  * http://tools.ietf.org/html/rfc6355#section-6
  */
+#define NI_DUID_TYPE_ANY	0		/* unset, not a defined type  */
 #define NI_DUID_TYPE_LLT	1
 #define NI_DUID_TYPE_EN		2
 #define NI_DUID_TYPE_LL		3
@@ -119,8 +120,8 @@ extern const ni_intmap_t *	ni_duid_hwtype_map(void);
 extern const char *		ni_duid_hwtype_to_name(unsigned int hwtype);
 extern ni_bool_t		ni_duid_hwtype_by_name(const char *name, unsigned int *hwtype);
 
-extern ni_bool_t		ni_duid_init_llt(ni_opaque_t *duid, unsigned short arp_type, const void *hwaddr, size_t len);
-extern ni_bool_t		ni_duid_init_ll (ni_opaque_t *duid, unsigned short arp_type, const void *hwaddr, size_t len);
+extern ni_bool_t		ni_duid_init_llt(ni_opaque_t *duid, unsigned short hwtype, const void *hwaddr, size_t len);
+extern ni_bool_t		ni_duid_init_ll (ni_opaque_t *duid, unsigned short hwtype, const void *hwaddr, size_t len);
 extern ni_bool_t		ni_duid_init_en (ni_opaque_t *duid, unsigned int enumber, const void *identifier, size_t len);
 extern ni_bool_t		ni_duid_init_uuid(ni_opaque_t *duid, const ni_uuid_t *uuid);
 
@@ -132,10 +133,20 @@ extern const char *		ni_duid_format_hex(char **hex, const ni_opaque_t *duid);
 
 static inline const char *	ni_duid_print_hex(const ni_opaque_t *duid)
 {
-	return ni_print_hex(duid->data, duid->len);
+	return duid ? ni_print_hex(duid->data, duid->len) : NULL;
 }
 
 extern int			ni_duid_load(ni_opaque_t *, const char *, const char *);
 extern int			ni_duid_save(const ni_opaque_t *, const char *, const char *);
+
+extern ni_bool_t		ni_duid_create_en (ni_opaque_t *duid, const char *enumber, const char *identifier);
+extern ni_bool_t		ni_duid_create_ll (ni_opaque_t *duid, const char *hwtype, const char *hwaddr);
+extern ni_bool_t		ni_duid_create_llt(ni_opaque_t *duid, const char *hwtype, const char *hwaddr);
+extern ni_bool_t		ni_duid_create_uuid_string(ni_opaque_t *duid, const char *string);
+extern ni_bool_t		ni_duid_create_uuid_machine_id(ni_opaque_t *duid, const char *filename);
+extern ni_bool_t		ni_duid_create_uuid_dmi_product_id(ni_opaque_t *duid, const char *filename);
+extern ni_bool_t		ni_duid_create_from_device(ni_opaque_t *duid, uint16_t type, const ni_netdev_t *dev);
+extern ni_bool_t		ni_duid_create_pref_device(ni_opaque_t *duid, uint16_t type, ni_netconfig_t *nc, const ni_netdev_t *preferred);
+extern ni_bool_t		ni_duid_create(ni_opaque_t *duid, uint16_t type, ni_netconfig_t *nc, const ni_netdev_t *preferred);
 
 #endif /* __WICKED_DUID_H__ */
