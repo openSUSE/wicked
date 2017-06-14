@@ -25,6 +25,8 @@
 #include "dhcp4/dhcp4.h"
 #include "dhcp4/protocol.h"
 #include "dhcp.h"
+#include "iaid.h"
+#include "duid.h"
 
 
 static unsigned int	ni_dhcp4_do_bits(const ni_config_dhcp4_t *, unsigned int);
@@ -318,11 +320,8 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	if (config->fqdn.enabled == NI_TRISTATE_ENABLE && ni_string_empty(config->hostname))
 		config->fqdn.update = NI_DHCP4_FQDN_UPDATE_NONE;
 
-	if (!ni_dhcp4_parse_client_id(&config->client_id, dev->system.hwaddr.type,
-				info->clientid)) {
-		/* Set client ID from interface hwaddr */
-		ni_dhcp4_set_client_id(&config->client_id, &dev->system.hwaddr);
-	}
+	if (!ni_dhcp4_parse_client_id(&config->client_id, dev->system.hwaddr.type, info->clientid))
+		ni_dhcp4_set_config_client_id(&config->client_id, dev);
 
 	if ((classid = info->vendor_class) == NULL)
 		classid = ni_dhcp4_config_vendor_class();
@@ -791,7 +790,118 @@ ni_dhcp4_device_arp_close(ni_dhcp4_device_t *dev)
 }
 
 /*
- * Parse a client id
+ * Set the client ID from a link layer type and address, according to RFC 2132#section-9.14
+ */
+ni_bool_t
+ni_dhcp4_set_hwaddr_client_id(ni_opaque_t *raw, const ni_hwaddr_t *hwa)
+{
+	if (!raw || !hwa || !hwa->len)
+		return FALSE;
+
+	if ((size_t)hwa->len + 1 > sizeof(raw->data))
+		return FALSE;
+
+	raw->data[0] = hwa->type;
+	memcpy(raw->data + 1, hwa->data, hwa->len);
+	raw->len = hwa->len + 1;
+	return TRUE;
+}
+
+/*
+ * Set the client ID from DHCPv6 IAID and DUID, according to RFC 4361
+ */
+ni_bool_t
+ni_dhcp4_set_dhcpv6_client_id(ni_opaque_t *raw, unsigned int iaid, const ni_opaque_t *duid)
+{
+	if (!raw || !duid)
+		return FALSE;
+
+	if (sizeof(iaid) + duid->len + 1 > sizeof(raw->data))
+		return FALSE;
+
+	raw->data[0] = 0xff;
+	iaid = htonl(iaid);
+	memcpy(raw->data + 1, &iaid, sizeof(iaid));
+	memcpy(raw->data + 1 + sizeof(iaid), duid->data, duid->len);
+	raw->len = sizeof(iaid) + duid->len + 1;
+	return TRUE;
+
+}
+
+/*
+ * Set the client ID as defined in the wicked-config(5)
+ */
+ni_bool_t
+ni_dhcp4_set_config_client_id(ni_opaque_t *raw, const ni_dhcp4_device_t *dev)
+{
+	const ni_config_dhcp4_t *dhcp4;
+	ni_netconfig_t *nc;
+	ni_netdev_t *ndev;
+	unsigned int iaid;
+	ni_opaque_t  duid;
+	unsigned int type;
+
+	if (!raw || !dev || !(nc = ni_global_state_handle(0)))
+		return FALSE;
+
+	if (!(ndev = ni_netdev_by_index(nc, dev->link.ifindex)))
+		return FALSE;
+
+	dhcp4 = ni_config_dhcp4_find_device(dev->ifname);
+	if (!(type = dhcp4 ? dhcp4->create_cid : 0)) {
+		/*
+		 * We should allways use dhcp6 based client-id as
+		 * specified in RFC 4361, also on ethernet...
+		 *
+		 * This is also required to update DDNS records for
+		 * DHCPv6 and DHCPv4 IP addresses in same zone (the
+		 * server maintains a dhcid DNS record using it).
+		 *
+		 * Unfortunatelly, it would be a default behavior
+		 * change and may cause non-matching lease as well
+		 * as (ipv4 only) ddns update issues:
+		 *
+		 * There are many exising dhcp servers in the wild
+		 * relying on or using (static) leases with the
+		 * the "old" dhcp4 link address (mac) client-id,
+		 * incl. updated ddns records using it already...
+		 *
+		 * DHCPv4 over infiniband RFC mandates DHCPv6 based
+		 * client-id, on ethernet it currently requires to
+		 * enable it.
+		 */
+		switch (dev->system.hwaddr.type) {
+		case ARPHRD_ETHER:
+			type = NI_CONFIG_DHCP4_CID_TYPE_HWADDR;
+			break;
+
+		case ARPHRD_INFINIBAND:
+		default:
+			type = NI_CONFIG_DHCP4_CID_TYPE_DHCPv6;
+			break;
+		}
+	}
+
+	switch (type) {
+	case NI_CONFIG_DHCP4_CID_TYPE_DHCPv6:
+		if (!ni_iaid_acquire(&iaid, ndev, 0))
+			return FALSE;
+
+		if (!ni_duid_acquire(&duid, ndev, nc, NULL))
+			return FALSE;
+
+		return ni_dhcp4_set_dhcpv6_client_id(raw, iaid, &duid);
+
+	case NI_CONFIG_DHCP4_CID_TYPE_HWADDR:
+		return ni_dhcp4_set_hwaddr_client_id(raw, &dev->system.hwaddr);
+
+	default:
+		return FALSE;
+	}
+}
+
+/*
+ * Parse requested client id
  */
 ni_bool_t
 ni_dhcp4_parse_client_id(ni_opaque_t *raw, unsigned short arp_type, const char *cooked)
@@ -804,7 +914,7 @@ ni_dhcp4_parse_client_id(ni_opaque_t *raw, unsigned short arp_type, const char *
 
 	/* Check if it's a hardware address */
 	if (ni_link_address_parse(&hwaddr, arp_type, cooked) == 0)
-		return ni_dhcp4_set_client_id(raw, &hwaddr);
+		return ni_dhcp4_set_hwaddr_client_id(raw, &hwaddr);
 
 	/* Try to parse as a client-id hex string */
 	raw->len = ni_parse_hex(cooked, raw->data, sizeof(raw->data));
@@ -816,27 +926,9 @@ ni_dhcp4_parse_client_id(ni_opaque_t *raw, unsigned short arp_type, const char *
 	if (len > sizeof(raw->data) - 1)
 		len = sizeof(raw->data) - 1;
 
-	raw->data[0] = 0x00;
+	raw->data[0] = 0x00; /* RFC 2132#section-9.14, other */
 	memcpy(raw->data + 1, cooked, len);
 	raw->len = len + 1;
-	return TRUE;
-}
-
-/*
- * Set the client ID from a link layer address, according to RFC 2131
- */
-ni_bool_t
-ni_dhcp4_set_client_id(ni_opaque_t *raw, const ni_hwaddr_t *hwa)
-{
-	if (!raw || !hwa)
-		return FALSE;
-
-	if ((size_t)hwa->len + 1 > sizeof(raw->data))
-		return FALSE;
-
-	raw->data[0] = hwa->type;
-	memcpy(raw->data + 1, hwa->data, hwa->len);
-	raw->len = hwa->len + 1;
 	return TRUE;
 }
 
