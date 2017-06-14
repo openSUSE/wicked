@@ -938,7 +938,7 @@ ni_netdev_ref_set_ifindex(ni_netdev_ref_t *ref, unsigned int ifindex)
 }
 
 ni_netdev_t *
-ni_netdev_ref_resolve(ni_netdev_ref_t *ref, ni_netconfig_t *nc)
+ni_netdev_ref_resolve(const ni_netdev_ref_t *ref, ni_netconfig_t *nc)
 {
 	ni_netdev_t *dev = NULL;
 

@@ -251,7 +251,7 @@ extern ni_bool_t	ni_netdev_ref_init(ni_netdev_ref_t *, const char *, unsigned in
 extern ni_bool_t	ni_netdev_ref_set(ni_netdev_ref_t *, const char *, unsigned int);
 extern ni_bool_t	ni_netdev_ref_set_ifname(ni_netdev_ref_t *, const char *);
 extern ni_bool_t	ni_netdev_ref_set_ifindex(ni_netdev_ref_t *, unsigned int);
-extern ni_netdev_t *	ni_netdev_ref_resolve(ni_netdev_ref_t *, ni_netconfig_t *);
+extern ni_netdev_t *	ni_netdev_ref_resolve(const ni_netdev_ref_t *, ni_netconfig_t *);
 extern ni_netdev_t *	ni_netdev_ref_bind_ifindex(ni_netdev_ref_t *, ni_netconfig_t *);
 extern ni_netdev_t *	ni_netdev_ref_bind_ifname (ni_netdev_ref_t *, ni_netconfig_t *);
 extern void		ni_netdev_ref_destroy(ni_netdev_ref_t *);
