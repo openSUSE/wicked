@@ -142,9 +142,6 @@ static inline const char *	ni_duid_print_hex(const ni_opaque_t *duid)
 	return duid ? ni_print_hex(duid->data, duid->len) : NULL;
 }
 
-extern int			ni_duid_load(ni_opaque_t *, const char *, const char *);
-extern int			ni_duid_save(const ni_opaque_t *, const char *, const char *);
-
 extern ni_bool_t		ni_duid_create_en (ni_opaque_t *duid, const char *enumber, const char *identifier);
 extern ni_bool_t		ni_duid_create_ll (ni_opaque_t *duid, const char *hwtype, const char *hwaddr);
 extern ni_bool_t		ni_duid_create_llt(ni_opaque_t *duid, const char *hwtype, const char *hwaddr);

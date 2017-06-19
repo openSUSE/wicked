@@ -42,6 +42,7 @@
 #include "appconfig.h"
 #include "util_priv.h"
 #include "netinfo_priv.h"
+#include "iaid.h"
 #include "duid.h"
 #include "dhcp.h"
 
@@ -76,7 +77,6 @@
 #define NI_DHCP6_VENDOR_VERSION_STRING		NI_DHCP6_PACKAGE_NAME"/"NI_DHCP6_PACKAGE_VERSION
 #endif
 
-static ni_opaque_t		ni_dhcp6_duid;
 ni_dhcp6_device_t *		ni_dhcp6_active;
 
 static void			ni_dhcp6_device_close(ni_dhcp6_device_t *);
@@ -316,38 +316,32 @@ ni_dhcp6_device_uptime(const ni_dhcp6_device_t *dev, unsigned int clamp)
 	return (uptime < clamp) ? uptime : clamp;
 }
 
-int
-ni_dhcp6_device_iaid(const ni_dhcp6_device_t *dev, uint32_t *iaid)
+ni_bool_t
+ni_dhcp6_device_iaid(const ni_dhcp6_device_t *dev, unsigned int *iaid)
 {
+	unsigned int migrate;
 	ni_netconfig_t *nc;
-	ni_netdev_t *ifp;
-	size_t len, off;
-	uint32_t tmp;
+	ni_netdev_t *ndev;
+
+	if (!dev || !iaid)
+		return FALSE;
 
 	nc = ni_global_state_handle(0);
-	if(!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex))) {
+	if(!nc || !(ndev = ni_netdev_by_index(nc, dev->link.ifindex))) {
 		ni_error("%s: Unable to find network interface by index %u",
 			dev->ifname, dev->link.ifindex);
-		return -1;
+		return FALSE;
 	}
 
-	/* FIXME: simple iaid with 4 last byte of the mac */
+	if (!(migrate = dev->iaid) && dev->lease) {
+		if (!(migrate = ni_dhcp6_lease_ia_na_iaid(dev->lease)))
+			migrate = ni_dhcp6_lease_ia_ta_iaid(dev->lease);
+	}
 
-	*iaid = 0;
-	if (ifp->link.hwaddr.len > 4) {
-		off = ifp->link.hwaddr.len - 4;
-		memcpy(iaid, ifp->link.hwaddr.data + off, sizeof(*iaid));
-		return 0;
-	}
-	if ((len = ni_string_len(dev->ifname))) {
-		memcpy(&tmp, dev->ifname, len % sizeof(tmp));
-		*iaid ^= tmp;
-		if (ifp->vlan && ifp->vlan->tag > 0)
-			*iaid ^= ifp->vlan->tag;
-		*iaid ^= dev->link.ifindex;
-		return 0;
-	}
-	return -1;
+	if (!ni_iaid_acquire(iaid, ndev, migrate))
+		return FALSE;
+
+	return TRUE;
 }
 
 void
@@ -800,96 +794,42 @@ ni_dhcp6_device_retransmit(ni_dhcp6_device_t *dev)
 	return 0;
 }
 
-void
-ni_dhcp6_generate_duid(ni_dhcp6_device_t *dev, ni_opaque_t *duid)
-{
-	ni_netconfig_t *nc;
-	ni_netdev_t *ifp;
-	ni_uuid_t uuid;
-
-	nc = ni_global_state_handle(0);
-	if(!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex))) {
-		ni_error("%s: Unable to find network interface by index %u",
-			dev->ifname, dev->link.ifindex);
-		return;
-	}
-
-	/* try the current interface first */
-	if (ifp->link.hwaddr.len) {
-		if(ni_duid_init_llt(duid, ifp->link.hwaddr.type,
-				ifp->link.hwaddr.data, ifp->link.hwaddr.len))
-			return;
-	}
-
-	/* then another one */
-	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
-		if (ifp->link.ifindex == dev->link.ifindex)
-			continue;
-
-		switch(ifp->link.hwaddr.type) {
-		case ARPHRD_ETHER:
-		case ARPHRD_IEEE802:
-		case ARPHRD_INFINIBAND:
-			if (ifp->link.hwaddr.len) {
-				if(ni_duid_init_llt(duid, ifp->link.hwaddr.type,
-						ifp->link.hwaddr.data, ifp->link.hwaddr.len))
-					return;
-			}
-		break;
-		}
-	}
-
-	/*
-	 * TODO:
-	 * 1) MAC based uuid duid, see
-	 *    http://tools.ietf.org/html/rfc4122#section-4.1.6
-	 * 2) There should be some system unique uuid at least on x86_64
-	 */
-	memset(&uuid, 0, sizeof(uuid));
-	ni_uuid_generate(&uuid);
-	ni_duid_init_uuid(duid, &uuid);
-}
-
-static inline int
-ni_dhcp6_duid_load(ni_opaque_t *duid)
-{
-	return ni_duid_load(duid, NULL, NULL);
-}
-
-static inline int
-ni_dhcp6_duid_save(const ni_opaque_t *duid)
-{
-	return ni_duid_save(duid, NULL, NULL);
-}
-
 static ni_bool_t
 ni_dhcp6_config_init_duid(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config, const char *preferred)
 {
-	ni_bool_t save = TRUE;
+	ni_netconfig_t *nc;
+	ni_netdev_t *ndev;
 
-	if (preferred) {
-		ni_duid_parse_hex(&config->client_duid, preferred);
+	nc = ni_global_state_handle(0);
+	if(!nc || !(ndev = ni_netdev_by_index(nc, dev->link.ifindex))) {
+		ni_error("%s: Unable to find network interface by index %u",
+				dev->ifname, dev->link.ifindex);
+		return FALSE;
 	}
-	if (config->client_duid.len == 0) {
-		ni_dhcp6_config_default_duid(&config->client_duid);
+
+	if (!ni_duid_acquire(&config->client_duid, ndev, nc, preferred))
+		return FALSE;
+
+	return TRUE;
+}
+
+static int
+ni_dhcp6_recover_lease(ni_dhcp6_device_t *dev)
+{
+	ni_addrconf_lease_t *lease;
+
+	if (!dev || dev->lease)
+		return 1;
+
+	lease = ni_addrconf_lease_file_read(dev->ifname, NI_ADDRCONF_DHCP, AF_INET6);
+	if (!ni_addrconf_lease_is_valid(lease)) {
+		ni_addrconf_lease_free(lease);
+		return -1;
 	}
-	if (config->client_duid.len == 0 && ni_dhcp6_duid.len > 0) {
-		ni_duid_copy(&config->client_duid, &ni_dhcp6_duid);
-	}
-	if (config->client_duid.len == 0) {
-		if(ni_dhcp6_duid_load(&config->client_duid) == 0)
-			save = FALSE;
-	}
-	if (config->client_duid.len == 0) {
-		ni_dhcp6_generate_duid(dev, &config->client_duid);
-	}
-	if (config->client_duid.len > 0 && save) {
-		(void)ni_dhcp6_duid_save(&config->client_duid);
-	}
-	if (config->client_duid.len > 0 && !ni_dhcp6_duid.len) {
-		ni_duid_copy(&ni_dhcp6_duid, &config->client_duid);
-	}
-	return (config->client_duid.len > 0);
+
+	dev->lease = lease;
+
+	return 0;
 }
 
 static inline unsigned int
@@ -978,13 +918,14 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	config->recover_lease	= req->recover_lease;
 	config->release_lease	= req->release_lease;
 
-	/*
-         * Make sure we have a DUID for client-id
-	 * Hmm... Should we fail back to req->uuid?
-         */
-	if (!dev->iaid)
-		ni_dhcp6_device_iaid(dev, &dev->iaid);
-	if(!ni_dhcp6_config_init_duid(dev, config, req->clientid)) {
+	if (!dev->lease && config->dry_run != NI_DHCP6_RUN_OFFER && config->recover_lease)
+		ni_dhcp6_recover_lease(dev);
+
+	if (!ni_dhcp6_device_iaid(dev, &dev->iaid)) {
+		ni_string_printf(err, "Unable to generate a device IAID");
+		return -NI_ERROR_GENERAL_FAILURE;
+	}
+	if (!ni_dhcp6_config_init_duid(dev, config, req->clientid)) {
 		size_t len;
 
 		ni_dhcp6_device_config_free(config);
@@ -1322,20 +1263,6 @@ ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 /*
  * Functions for accessing various global DHCP configuration options
  */
-const char *
-ni_dhcp6_config_default_duid(ni_opaque_t *duid)
-{
-	const struct ni_config_dhcp6 *dhconf = &ni_global.config->addrconf.dhcp6;
-
-	if (ni_string_empty(dhconf->default_duid))
-		return NULL;
-
-	if (!ni_duid_parse_hex(duid, dhconf->default_duid))
-		return NULL;
-
-	return dhconf->default_duid;
-}
-
 int
 ni_dhcp6_config_user_class(ni_string_array_t *user_class_data)
 {

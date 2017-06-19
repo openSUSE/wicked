@@ -287,42 +287,6 @@ ni_duid_format_hex(char **hex, const ni_opaque_t *duid)
 	return *hex;
 }
 
-int
-ni_duid_load(ni_opaque_t *duid, const char *filename, const char *name)
-{
-	ni_duid_map_t *map;
-	int rv = -1;
-
-	if (!duid || !(map = ni_duid_map_load(filename)))
-		return rv;
-
-	if (ni_duid_map_get_duid(map, NULL, &name, duid))
-		rv = 0;
-
-	ni_duid_map_free(map);
-	return rv;
-}
-
-int
-ni_duid_save(const ni_opaque_t *duid, const char *filename, const char *name)
-{
-	ni_duid_map_t *map;
-	int rv = -1;
-
-	if (!duid || !duid->len || !(map = ni_duid_map_load(filename)))
-		return rv;
-
-	name = ni_duid_print_hex(duid);
-	if (ni_string_empty(name) || !ni_duid_map_set(map, NULL, name))
-		return rv;
-
-	if (ni_duid_map_save(map))
-		rv = 0;
-
-	ni_duid_map_free(map);
-	return rv;
-}
-
 static ni_bool_t
 ni_duid_create_parse_hwaddr(ni_hwaddr_t *hwa, unsigned short hwtype, const char *hwaddr)
 {
