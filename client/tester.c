@@ -37,7 +37,6 @@
 #include <wicked/address.h>
 #include <wicked/addrconf.h>
 
-#include "tester.h"
 #include "dhcp4/tester.h"
 #include "dhcp6/tester.h"
 #include "netinfo_priv.h"
