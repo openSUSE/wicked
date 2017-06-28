@@ -28,6 +28,7 @@
 #include <string.h>
 #include <limits.h>
 #include <errno.h>
+#include <ctype.h>
 #include <endian.h>
 #include <stdint.h>
 #include <inttypes.h>
@@ -1847,5 +1848,31 @@ ni_dhcp_fqdn_init(ni_dhcp_fqdn_t *fqdn)
 		fqdn->encode  = TRUE;
 		fqdn->qualify = TRUE;
 	}
+}
+
+ni_bool_t
+ni_dhcp_check_user_class_id(const char *id, size_t len)
+{
+	const unsigned char *ptr = (const unsigned char *)id;
+
+	if (!id || len == 0)
+		return FALSE;
+
+	for (; *ptr && len-- > 0; ++ptr) {
+		switch (*ptr) {
+		case '+':
+		case '-':
+		case '_':
+		case '.':
+		case ':':
+		case '/':
+			break;
+		default:
+			if (!isalnum(*ptr))
+				return FALSE;
+			break;
+		}
+	}
+	return TRUE;
 }
 
