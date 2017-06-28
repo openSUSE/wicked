@@ -4961,7 +4961,7 @@ __ni_suse_parse_dhcp4_user_class(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 				ni_string_array_destroy(&names);
 				ni_string_array_destroy(&compat->dhcp4.user_class.class_id);
 				return FALSE;
-			} else if (!ni_check_domain_name(string, length, 0)) {
+			} else if (!ni_dhcp_check_user_class_id(string, length)) {
 				ni_warn("%s: %s contains suspect class id element: '%s'",
 					ni_basename(sc->pathname), prefix,
 					ni_print_suspect(string, length));
@@ -4982,7 +4982,7 @@ __ni_suse_parse_dhcp4_user_class(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 				ni_print_suspect(string, length));
 
 			return FALSE;
-		} else if (!ni_check_domain_name(string, length, 0)) {
+		} else if (!ni_dhcp_check_user_class_id(string, length)) {
 			ni_warn("%s: %s contains suspect class id string: '%s'",
 				ni_basename(sc->pathname), prefix,
 				ni_print_suspect(string, length));
