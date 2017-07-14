@@ -895,6 +895,9 @@ ni_dhcp4_set_config_client_id(ni_opaque_t *raw, const ni_dhcp4_device_t *dev)
 	case NI_CONFIG_DHCP4_CID_TYPE_HWADDR:
 		return ni_dhcp4_set_hwaddr_client_id(raw, &dev->system.hwaddr);
 
+	case NI_CONFIG_DHCP4_CID_TYPE_DISABLE:
+		return TRUE;
+
 	default:
 		return FALSE;
 	}

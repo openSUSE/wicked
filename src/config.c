@@ -499,6 +499,9 @@ static const ni_intmap_t	config_dhcp6_cid_type_names[] = {
 	{ "dhcpv6",		NI_CONFIG_DHCP4_CID_TYPE_DHCPv6 },
 	{ "dhcp6",		NI_CONFIG_DHCP4_CID_TYPE_DHCPv6 },
 
+	{ "disable",		NI_CONFIG_DHCP4_CID_TYPE_DISABLE},
+	{ "none",		NI_CONFIG_DHCP4_CID_TYPE_DISABLE},
+
 	{ NULL,			-1U				}
 };
 
