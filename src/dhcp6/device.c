@@ -108,9 +108,6 @@ ni_dhcp6_device_new(const char *ifname, const ni_linkinfo_t *link)
 	ni_string_dup(&dev->ifname, ifname);
 	dev->link.ifindex = link->ifindex;
 
-	/* FIXME: for now, we always generate one */
-	ni_dhcp6_device_iaid(dev, &dev->iaid);
-
 	dev->fsm.state = NI_DHCP6_STATE_INIT;
 
 	/* append to end of list */
@@ -943,7 +940,12 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	config->uuid = req->uuid;
 	config->mode = req->mode;
 	config->flags= req->flags;
-	config->update = req->update;
+	if (req->update == -1U) {
+		config->update = ni_config_addrconf_update(dev->ifname, NI_ADDRCONF_DHCP, AF_INET6);
+	} else {
+		config->update = req->update;
+		config->update &= ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET6);
+	}
 	config->dry_run	= req->dry_run;
 
 	ni_timer_get_time(&dev->start_time);
@@ -980,6 +982,8 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
          * Make sure we have a DUID for client-id
 	 * Hmm... Should we fail back to req->uuid?
          */
+	if (!dev->iaid)
+		ni_dhcp6_device_iaid(dev, &dev->iaid);
 	if(!ni_dhcp6_config_init_duid(dev, config, req->clientid)) {
 		size_t len;
 
@@ -1508,7 +1512,7 @@ ni_dhcp6_request_new(void)
 	req->rapid_commit = TRUE;
 
 	/* By default, we try to obtain all sorts of config from the server */
-	req->update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET6);
+	req->update = -1U;	/* apply wicked-config(5) defaults later */
 
 	/* default: enable + update mode depends on hostname settings in req */
 	ni_dhcp_fqdn_init(&req->fqdn);

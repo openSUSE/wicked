@@ -484,8 +484,10 @@ __ni_dhcp4_build_msg_put_option_request(const ni_dhcp4_device_t *dev,
 		ni_uint_array_append(&oro, DHCP4_MSCSR);
 	}
 	if (options->doflags & DHCP4_DO_GATEWAY) {
-		ni_uint_array_append(&oro, DHCP4_STATICROUTE);
 		ni_uint_array_append(&oro, DHCP4_ROUTERS);
+	}
+	if (options->doflags & DHCP4_DO_STATIC_ROUTES) {
+		ni_uint_array_append(&oro, DHCP4_STATICROUTE);
 	}
 	if (options->doflags & DHCP4_DO_HOSTNAME) {
 		if (options->fqdn.enabled == NI_TRISTATE_DISABLE) {

@@ -256,8 +256,11 @@ static const ni_intmap_t	__addrconf_update_flags[] = {
 	{ "smb",		NI_ADDRCONF_UPDATE_SMB           },
 	{ "nds",		NI_ADDRCONF_UPDATE_NDS           },
 	{ "slp",		NI_ADDRCONF_UPDATE_SLP           },
+	{ "sip",		NI_ADDRCONF_UPDATE_SIP           },
 	{ "log",		NI_ADDRCONF_UPDATE_LOG           },
 	{ "mtu",		NI_ADDRCONF_UPDATE_MTU           },
+	{ "tz",			NI_ADDRCONF_UPDATE_TZ            },
+	{ "boot",		NI_ADDRCONF_UPDATE_BOOT		 },
 
 	{ NULL }
 };
@@ -292,33 +295,67 @@ ni_addrconf_update_set(unsigned int *mask, unsigned int flag, ni_bool_t enable)
 }
 
 ni_bool_t
-ni_addrconf_update_flags_parse(unsigned int *flags, const char *value, const char *sep)
+ni_addrconf_update_flags_parse_names(unsigned int *flags, const ni_string_array_t *names)
 {
-	ni_string_array_t list = NI_STRING_ARRAY_INIT;
+	unsigned int mask = __NI_ADDRCONF_UPDATE_NONE;
 	unsigned int flag, i;
 	ni_bool_t ret = TRUE;
+	const char *name;
+
+	if (!flags || !names)
+		return FALSE;
+
+	for (i = 0; i < names->count; ++i) {
+		if (!(name = names->data[i]))
+			continue;
+
+		if (ni_string_eq(name, "all")) {
+			mask = -1U; /* ~none */
+		} else
+		if (ni_string_eq(name, "none")) {
+			mask = __NI_ADDRCONF_UPDATE_NONE;
+		} else
+		if (ni_string_eq(name, "default")) {
+			mask = *flags;
+		} else {
+			ni_bool_t set = TRUE;
+
+			if (ni_string_startswith(name, "no-")) {
+				set = FALSE;
+				name += 3;
+			} else
+			if (ni_string_startswith(name, "-")) {
+				set = FALSE;
+				name += 1;
+			}
+
+			if (ni_addrconf_update_name_to_flag(name, &flag)) {
+				ni_addrconf_update_set(&mask, flag, set);
+			} else {
+				ni_debug_readwrite("unknown addrconf update flag \"%s\"",
+						names->data[i]);
+				ret = FALSE;
+			}
+		}
+	}
+
+	*flags = mask;
+	return ret;
+}
+
+ni_bool_t
+ni_addrconf_update_flags_parse(unsigned int *flags, const char *value, const char *sep)
+{
+	ni_string_array_t names = NI_STRING_ARRAY_INIT;
+	ni_bool_t ret = FALSE;
 
 	if (!flags || !value || ni_string_empty(sep))
 		return FALSE;
 
-	if (ni_string_empty(value) || ni_string_eq(value, "none")) {
-		*flags = __NI_ADDRCONF_UPDATE_NONE;
-		return TRUE;
-	}
-	if (ni_string_eq(value, "all")) {
-		*flags = -1U;
-		return TRUE;
-	}
+	if (ni_string_split(&names, value, sep, 0))
+		ret = ni_addrconf_update_flags_parse_names(flags, &names);
+	ni_string_array_destroy(&names);
 
-	*flags = __NI_ADDRCONF_UPDATE_NONE;
-	ni_string_split(&list, value, sep, 0);
-	for (i = 0; ret && i < list.count; ++i) {
-		if (ni_addrconf_update_name_to_flag(list.data[i], &flag))
-			ni_addrconf_update_set(flags, flag, TRUE);
-		else
-			ret = FALSE;
-	}
-	ni_string_array_destroy(&list);
 	return ret;
 }
 

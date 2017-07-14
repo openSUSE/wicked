@@ -5052,6 +5052,17 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 	ni_bool_t bvalue;
 	ni_bool_t ret = TRUE;
 
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_UPDATE")) != NULL) {
+		if (ni_addrconf_update_flags_parse(&uint, string, " \t,")) {
+			uint &= ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);
+			compat->dhcp4.update = uint;
+		} else {
+			ni_warn("%s: Unknown flags in DHCLIENT_UPDATE='%s'",
+				ni_basename(sc->pathname),
+				ni_print_suspect(string, ni_string_len(string)));
+		}
+	}
+
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_FQDN_ENABLED")) != NULL) {
 		if (ni_parse_boolean(string, &bvalue) == 0)
 			ni_tristate_set(&compat->dhcp4.fqdn.enabled, bvalue);
@@ -5172,6 +5183,18 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 	unsigned int uint;
 	const char *string;
 	ni_bool_t bvalue;
+
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_UPDATE")) != NULL) {
+		if (ni_addrconf_update_flags_parse(&uint, string, " \t,")) {
+			uint &= ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET6);
+			compat->dhcp6.update = uint;
+		} else {
+			ni_warn("%s: Unknown flags in DHCLIENT6_UPDATE='%s'",
+				ni_basename(sc->pathname),
+				ni_print_suspect(string, ni_string_len(string)));
+			ret = FALSE;
+		}
+	}
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_MODE")) != NULL) {
 		if (ni_dhcp6_mode_name_to_type(string, &compat->dhcp6.mode) != 0) {
@@ -5404,13 +5427,15 @@ __ni_suse_addrconf_auto6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 					&compat->auto6.defer_timeout);
 
 		if ((value = ni_sysconfig_get_value(merged, "AUTO6_UPDATE"))) {
-			unsigned int temp = __NI_ADDRCONF_UPDATE_NONE;
+			unsigned int temp;
 
-			if (ni_addrconf_update_flags_parse(&temp, value, " \t"))
-				compat->auto6.update &= temp;
-			else
+			if (ni_addrconf_update_flags_parse(&temp, value, " \t,")) {
+				temp &= ni_config_addrconf_update_mask(NI_ADDRCONF_AUTOCONF, AF_INET6);
+				compat->auto6.update = temp;
+			} else {
 				ni_warn("ifcfg-%s: unknown flags in AUTO6_UPDATE='%s'",
-					dev->name, value);
+					dev->name, ni_print_suspect(value, ni_string_len(value)));
+			}
 		}
 		ni_sysconfig_destroy(merged);
 	}

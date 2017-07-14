@@ -224,18 +224,31 @@ information provided by address configuration to apply.
 Most dynamic address configuration protocols, including DHCP, do not just provide
 a list of addresses and routes to install for the managed network interface,
 but can be used to provide information such as a list of DNS servers, directory
-information (for e.g. NIS), etc. A system receiving that information is free
-to reconfigure some of its services based on this information.
-For instance, it makes a lot of sense to configure the resolver library
-to use the DNS servers specified by a DHCP server.  On the other hand,
-for security reasons you may want to ignore any NIS information received
-via DHCP.
+information (for e.g. NIS), etc. A system receiving that information is free to
+reconfigure some of its services based on this information.
+For instance, it makes a lot of sense to configure the resolver library to use
+the DNS servers specified by a DHCP server. On the other hand, you may want to
+ignore any NIS information received via DHCP.
 .IP
-The \fB<default-allow-update>\fP element allows you to control which
-system services \fBwicked\fP will consider to update.  It contains a list
-of empty XML elements naming system facilities to update. The special
-elements \fB<all>\fP and \fB<none>\fP enable and disable any and all
-updates, respectively. Other valid updaters are:
+The \fB<default-allow-update>\fP is applied to static and intrinsic leases, which
+do not have an own, type and address family specific \fB<allow-update>\fP element
+as available under the \fB<dhcp6>\fP, \fB<dhcp4>\fP, \fB<auto6>\fP and \fB<auto4>\fP
+sub-elements, which support a sub-set of the possible facilities listed here.
+The \fB<default-allow-update>\fP and the type specific \fB<allow-update>\fR elements
+enable you to control which system services \fBwicked\fP will (request and) consider
+to update in the system.
+.IP
+It contains a list of either empty XML elements e.g. (<dns/><ntp/>) naming system
+the facilities or alternatively, a space separated string list (dns ntp) with the
+facility names.
+The special elements \fBdefault\fR, \fBnone\fP and \fBall\fP enable and disable
+the default, none and all updates, respectively. A \fBno-\fR or a \fB-\fR in the
+front of a facility name permits to remove/disable a facility from the currently
+applied set and enable further supported facilities, e.g. \fBdefault,-nis,slp\fR
+is applying a modified \fBdefault\fR set with disabled \fBnis\fR and the optional
+\fBslp\fR facility enabled additionally.
+.IP
+The following updater facilities are currently defined:
 .IP
 .TS
 box;
@@ -248,9 +261,15 @@ hostname	system hostname
 dns	update resolv.conf or dns server (via netconfig)
 nis	NIS client (via netconfig)
 ntp	NTP servers (via netconfig)
-smb	SMB client (not implemented)
-slp	SLP client (not implemented)
-log	syslog servers (not implemented)
+smb	SMB settings (no netconfig module implemented)
+nds	NDS servers (no netconfig module implemented)
+slp	SLP client (no netconfig module implemented)
+sip	SIP client (no netconfig module implemented)
+log	syslog servers (no netconfig module implemented)
+lpr	print servers (no netconfig module implemented)
+tz	posix time zone (no netconfig module implemented)
+mtu	adjust iterface mtu (dhcp4)
+boot	root-path (dhcp4)/boot-url (dhcp6) used in the initrd
 .TE
 
 .IP
@@ -265,6 +284,10 @@ supplicant. See below for a list of options.
 .B dhcp6
 This element can be used to control the behavior of the DHCP6
 supplicant. See below for a list of options.
+.TP
+.B auto6
+This element can be used to control the behavior of AUTO6 processing.
+.TP
 .\" --------------------------------------------------------
 .SH DHCP4 SUPPLICANT OPTIONS
 The DHCP4 client can be configured through the options listed below.
@@ -294,6 +317,7 @@ or inside a device name context like:
 .B vendor-class
 Specifies the string to be used as the vendor-class option in the DHCP
 request. By default, no vendor-class option is sent.
+
 .TP
 .B lease-time
 Specifies the lease time to request in the DHCP request, in seconds. This also
@@ -304,6 +328,7 @@ lease time to one hour:
 .IP
 .B "  <lease-time>3600</lease-time>
 .PP
+
 .TP
 .B ignore-server
 Using the \fBip\fB attribute of this element, you can specify the
@@ -312,6 +337,7 @@ server that should be ignored:
 .IP
 .B "  <ignore-server ip=\(dq192.168.8.1\(dq />
 .B "  <ignore-server mac=\(dq52:54:00:02:c2:67\(dq />
+
 .TP
 .B prefer-server
 Specify a preferred DHCP server, together with a numeric value indicating its
@@ -337,11 +363,35 @@ The following example will ignore 192.168.8.1, always use the information from
 .B "  <prefer-server ip=\(dq192.168.8.10\(dq weight=\(dq100\(dq />
 .B "  <prefer-server ip=\(dq192.168.8.7\(dq  weight=\(dq50\(dq />
 .fi
+
 .TP
 .B allow-update
 Specify the list of system services that \fBwicked\fP will configure based
 on the DHCP lease received. For the syntax of this element, please refer
-to the description of \fBdefault-allow-update\fP above.
+to the description of \fBdefault-allow-update\fP above. \fBdhcp4\fR supports
+all update facilities.
+.TP
+.B route-options
+Specify a space separated list of routing options to request from dhcp4 server.
+.IP
+.TS
+box;
+l|l|l
+lb|lb|lb.
+Name		Alias	Description
+=
+classless	csr	RFC 3442 classless static route option 121
+ms-classless	mscsr	MS classless static route option code 249 (pre RFC 3442)
+static-routes	class	Obsolete option 33 requesting static class routes
+.TE
+
+.IP
+The RFC 3442 classless static route option provides all routes with a netmask,
+includes the default routers and has priority over other routing options.
+By default, wicked requests classless (121) as well as class static routes (33)
+and the default routers option (3) (when enabled in allow-update) to be
+compatible to old servers or servers not configured to provide classless,
+but only a default router option.
 
 .TP
 .B define
@@ -403,6 +453,7 @@ make sure to delete that file before restarting the DHCPv6 supplicant.
 .\"  vendor-class
 .\"  vendor-opts
 .\"
+
 .TP
 .B lease-time
 Specifies the lease time to request in the DHCP request, in seconds. This also
@@ -413,6 +464,7 @@ lease time to one hour:
 .IP
 .B "  <lease-time>3600</lease-time>
 .PP
+
 .TP
 .B ignore-server
 Using the \fBip\fB attribute of this element, you can specify the
@@ -422,6 +474,7 @@ IP address of a faulty DHCP server that should be ignored:
 .\" are almost always link-local addrs, not the global unicast
 .\" address; thanks to relying on multicast exclusively).
 .\" 
+
 .TP
 .B prefer-server
 Specify a preferred DHCP server, together with a numeric value indicating its
@@ -449,11 +502,32 @@ to the third if not:
 .B "  <prefer-server id=\(dq00:44:01:02:04:01\(dq weight=\(dq100\(dq />
 .B "  <prefer-server id=\(dq00:44:01:02:04:02\(dq weight=\(dq50\(dq />
 .fi
+
 .TP
 .B allow-update
 Specify the list of system services that \fBwicked\fP will configure based
 on the DHCP lease received. For the syntax of this element, please refer
-to the description of \fBdefault-allow-update\fP above.
+to the description of \fBdefault-allow-update\fP above. \fBDHCPv6\fR allows
+the following update facilities:
+.IP
+.TS
+box;
+l|l
+lb|lb.
+Name	Description
+=
+hostname	system hostname (fqdn)
+dns	update resolv.conf or dns server (via netconfig)
+ntp	NTP servers (via netconfig)
+sip	SIP client (optional, no netconfig module implemented)
+nis	NIS client (optional, no netconfig module, not supported by ypbind)
+tz	posix time zone (no netconfig module implemented)
+boot	boot-url used in the initrd
+.TE
+
+.IP
+Note: \fBDHCPv6\fR protocol does not provide any options to request routing
+settings, which are applied via a router advertisement (\fBIPv6 RA\fR).
 
 .TP
 .B define

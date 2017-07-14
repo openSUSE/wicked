@@ -27,8 +27,8 @@
 #include "dhcp.h"
 
 
-static unsigned int	ni_dhcp4_do_bits(unsigned int);
-static const char *	__ni_dhcp4_print_doflags(unsigned int);
+static unsigned int	ni_dhcp4_do_bits(const ni_config_dhcp4_t *, unsigned int);
+static const char *	ni_dhcp4_print_doflags(unsigned int);
 static void		ni_dhcp4_config_set_request_options(const char *, ni_uint_array_t *, const ni_string_array_t *);
 
 ni_dhcp4_device_t *	ni_dhcp4_active;
@@ -277,7 +277,14 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	config->acquire_timeout = info->acquire_timeout;
 	config->uuid = info->uuid;
 	config->flags = info->flags;
-	config->update = info->update;
+	if (info->update == -1U) {
+		config->update = ni_config_addrconf_update(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
+	} else {
+		config->update = info->update;
+		config->update &= ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);
+	}
+	config->doflags = ni_dhcp4_do_bits(ni_config_dhcp4_find_device(dev->ifname), config->update);
+
 	config->route_priority = info->route_priority;
 	config->recover_lease = info->recover_lease;
 	config->release_lease = info->release_lease;
@@ -327,9 +334,6 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		ni_string_array_copy(&config->user_class.class_id, &info->user_class.class_id);
 	}
 
-	config->doflags = DHCP4_DO_DEFAULT;
-	config->doflags |= ni_dhcp4_do_bits(info->update);
-
 	if (ni_log_facility(NI_TRACE_DHCP)) {
 		ni_trace("Received request:");
 		ni_trace("  acquire-timeout %u", config->acquire_timeout);
@@ -352,7 +356,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		}
 		ni_trace("  client-id       %s", ni_print_hex(config->client_id.data, config->client_id.len));
 		ni_trace("  uuid            %s", ni_uuid_print(&config->uuid));
-		ni_trace("  update-flags    %s", __ni_dhcp4_print_doflags(config->doflags));
+		ni_trace("  update-flags    %s", ni_dhcp4_print_doflags(config->doflags));
 		ni_trace("  recover_lease   %s", config->recover_lease ? "true" : "false");
 		ni_trace("  release_lease   %s", config->release_lease ? "true" : "false");
 	}
@@ -406,7 +410,7 @@ ni_dhcp4_restart_leases(void)
  * DHCP4_DO_* masks
  */
 static unsigned int
-ni_dhcp4_do_bits(unsigned int update_flags)
+ni_dhcp4_do_bits(const ni_config_dhcp4_t *conf, unsigned int update_flags)
 {
 	static unsigned int	do_mask[32] = {
 	[NI_ADDRCONF_UPDATE_DEFAULT_ROUTE]	= DHCP4_DO_GATEWAY,
@@ -414,30 +418,60 @@ ni_dhcp4_do_bits(unsigned int update_flags)
 	[NI_ADDRCONF_UPDATE_DNS]		= DHCP4_DO_DNS,
 	[NI_ADDRCONF_UPDATE_NIS]		= DHCP4_DO_NIS,
 	[NI_ADDRCONF_UPDATE_NTP]		= DHCP4_DO_NTP,
+	[NI_ADDRCONF_UPDATE_NDS]		= DHCP4_DO_NDS,
+	[NI_ADDRCONF_UPDATE_SMB]		= DHCP4_DO_SMB,
+	[NI_ADDRCONF_UPDATE_SIP]		= DHCP4_DO_SIP,
+	[NI_ADDRCONF_UPDATE_LPR]		= DHCP4_DO_LPR,
+	[NI_ADDRCONF_UPDATE_LOG]		= DHCP4_DO_LOG,
 	[NI_ADDRCONF_UPDATE_MTU]		= DHCP4_DO_MTU,
+	[NI_ADDRCONF_UPDATE_BOOT]		= DHCP4_DO_ROOT,
+	[NI_ADDRCONF_UPDATE_TZ]			= DHCP4_DO_POSIX_TZ,
 	};
-	unsigned int bit, result = 0;
+	unsigned int bit, result = DHCP4_DO_ARP | DHCP4_DO_CSR
+				 | DHCP4_DO_STATIC_ROUTES;
 
 	for (bit = 0; bit < 32; ++bit) {
-		if (update_flags & (1 << bit))
+		if (update_flags & NI_BIT(bit))
 			result |= do_mask[bit];
+		else
+			result &= ~do_mask[bit];
 	}
+
+	if (conf && conf->routes_opts != -1U) {
+		result &= ~(DHCP4_DO_CSR|DHCP4_DO_STATIC_ROUTES);
+
+		if (conf->routes_opts & NI_BIT(NI_CONFIG_DHCP4_ROUTES_CSR))
+			result |= DHCP4_DO_CSR;
+		if (conf->routes_opts & NI_BIT(NI_CONFIG_DHCP4_ROUTES_MSCSR))
+			result |= DHCP4_DO_MSCSR;
+		if (conf->routes_opts & NI_BIT(NI_CONFIG_DHCP4_ROUTES_CLASS))
+			result |= DHCP4_DO_STATIC_ROUTES;
+	}
+
 	return result;
 }
 
 static const char *
-__ni_dhcp4_print_doflags(unsigned int flags)
+ni_dhcp4_print_doflags(unsigned int flags)
 {
 	static ni_intmap_t flag_names[] = {
 	{ "arp",		DHCP4_DO_ARP		},
 	{ "csr",		DHCP4_DO_CSR		},
 	{ "mscsr",		DHCP4_DO_MSCSR		},
+	{ "static-routes",	DHCP4_DO_STATIC_ROUTES	},
 	{ "gateway",		DHCP4_DO_GATEWAY	},
 	{ "hostname",		DHCP4_DO_HOSTNAME	},
 	{ "dns",		DHCP4_DO_DNS		},
 	{ "nis",		DHCP4_DO_NIS		},
 	{ "ntp",		DHCP4_DO_NTP		},
+	{ "nds",		DHCP4_DO_NDS		},
+	{ "smb",		DHCP4_DO_SMB		},
+	{ "sip",		DHCP4_DO_SIP		},
+	{ "lpr",		DHCP4_DO_LPR		},
+	{ "log",		DHCP4_DO_LOG		},
+	{ "tz",			DHCP4_DO_POSIX_TZ	},
 	{ "mtu",		DHCP4_DO_MTU		},
+	{ "root",		DHCP4_DO_ROOT		},
 	{ NULL }
 	};
 	static char buffer[1024];
@@ -915,8 +949,8 @@ ni_dhcp4_request_new(void)
 	req = xcalloc(1, sizeof(*req));
 	req->enabled = TRUE; /* used by wickedd */
 
-	/* By default, we try to obtain all sorts of config from the server */
-	req->update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);
+	/* By default, we try to obtain all sorts of settings from the server */
+	req->update = -1U; /* apply wicked-config(5) defaults later */
 
 	/* default: enable + update mode depends on request hostname + dots */
 	ni_dhcp_fqdn_init(&req->fqdn);
