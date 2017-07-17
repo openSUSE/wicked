@@ -397,7 +397,7 @@ variable name.
 - \fIcompat:suse:<script>\fR scheme:
 .in +4n
 Permits to specify a script or script directory either as an absolute
-path or relative to the /etc/sysconfig/network/script directory, e.g.:
+path or relative to the /etc/sysconfig/network/scripts directory, e.g.:
 
 .br
 	POST_UP_SCRIPT="compat:suse:post-up-script1"
