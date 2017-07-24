@@ -135,6 +135,7 @@ typedef struct ni_config_dhcp6 {
 
 	unsigned int		allow_update;
 	unsigned int		lease_time;
+	unsigned int		release_nretries;
 
 	ni_string_array_t 	user_class_data;
 	unsigned int		vendor_class_en;

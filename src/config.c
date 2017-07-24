@@ -80,6 +80,7 @@ ni_config_new()
 	conf->addrconf.auto4.allow_update   = ni_config_addrconf_update_auto4();
 	conf->addrconf.auto6.allow_update   = ni_config_addrconf_update_auto6();
 	conf->addrconf.dhcp4.routes_opts = -1U;
+	conf->addrconf.dhcp6.release_nretries = -1U;
 
 	ni_config_fslocation_init(&conf->piddir,   WICKED_PIDDIR,   0755);
 	ni_config_fslocation_init(&conf->statedir, WICKED_STATEDIR, 0755);
@@ -1070,6 +1071,9 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 		} else
 		if (!strcmp(child->name, "lease-time") && child->cdata) {
 			dhcp6->lease_time = strtoul(child->cdata, NULL, 0);
+		} else
+		if (!strcmp(child->name, "release-retransmits") && child->cdata) {
+			dhcp6->release_nretries = strtoul(child->cdata, NULL, 0);
 		} else
 		if (!strcmp(child->name, "ignore-server")
 		 && (attrval = xml_node_get_attr(child, "ip")) != NULL) {

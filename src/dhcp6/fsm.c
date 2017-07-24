@@ -203,6 +203,19 @@ ni_dhcp6_fsm_retransmit(ni_dhcp6_device_t *dev)
 	}
 }
 
+int
+ni_dhcp6_fsm_retransmit_end(ni_dhcp6_device_t *dev)
+{
+	switch (dev->fsm.state) {
+	case NI_DHCP6_STATE_RELEASING:
+		ni_dhcp6_fsm_commit_lease(dev, NULL);
+		ni_dhcp6_device_stop(dev);
+		return 0;
+	default:
+		return -1;
+	}
+}
+
 void
 ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *dev, unsigned long msec)
 {
@@ -442,6 +455,7 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 		break;
 
 	case NI_DHCP6_STATE_RELEASING:
+		ni_dhcp6_fsm_commit_lease(dev, NULL);
 		ni_dhcp6_device_drop_lease(dev);
 		ni_dhcp6_device_stop(dev);
 		break;
@@ -1586,7 +1600,7 @@ __ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev, unsigned int nretries)
 			return -1;
 
 		dev->fsm.state = NI_DHCP6_STATE_RELEASING;
-		if (nretries != -1U)
+		if (nretries < (unsigned int)dev->retrans.params.nretries)
 			dev->retrans.params.nretries = nretries;
 		rv = ni_dhcp6_device_transmit_init(dev);
 	} else {
@@ -1603,20 +1617,19 @@ __ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev, unsigned int nretries)
 int
 ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev)
 {
-	if (dev->config == NULL) {
-		ni_debug_dhcp("%s: not configured, dropping lease", dev->ifname);
-		return ni_dhcp6_fsm_commit_lease(dev, NULL);
-	}
+	unsigned int nretries;
 
 	/* When all IA's are expired, just commit a release */
 	if (ni_dhcp6_lease_with_active_address(dev->lease)) {
-		if (dev->config->release_lease)
-			__ni_dhcp6_fsm_release(dev, 0);
-		return ni_dhcp6_fsm_commit_lease(dev, NULL);
+		if (dev->config && dev->config->release_lease) {
+			nretries = ni_dhcp6_config_release_nretries(dev->ifname);
+			if (__ni_dhcp6_fsm_release(dev, nretries) == 0)
+				return 1;
+		}
 	}
 
 	if (dev->lease)
-		ni_dhcp6_fsm_commit_lease(dev, NULL);
+		ni_dhcp6_send_event(NI_DHCP6_EVENT_RELEASED, dev, dev->lease);
 	return 0;
 }
 
