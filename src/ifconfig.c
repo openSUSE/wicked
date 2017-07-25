@@ -5563,7 +5563,7 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 			ni_stringbuf_destroy(&buf);
 
 			if ((rv = __ni_rtnl_send_newroute(dev, rp, NLM_F_CREATE)) < 0)
-				return rv;
+				continue;
 
 			rp->owner = new_lease->type;
 			rp->seq = __ni_global_seqno;
