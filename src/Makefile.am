@@ -64,6 +64,7 @@ libwicked_la_SOURCES		= \
 	firmware.c		\
 	fsm.c			\
 	fsm-policy.c		\
+	iaid.c			\
 	ibft.c			\
 	icmpv6.c		\
 	ifconfig.c		\
@@ -210,6 +211,7 @@ wicked_headers			= \
 	dhcp6/tester.h		\
 	dhcp.h			\
 	duid.h			\
+	iaid.h			\
 	ibft.h			\
 	ipv6_priv.h		\
 	json.h			\

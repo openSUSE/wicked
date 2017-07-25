@@ -268,7 +268,7 @@ sip	SIP client (no netconfig module implemented)
 log	syslog servers (no netconfig module implemented)
 lpr	print servers (no netconfig module implemented)
 tz	posix time zone (no netconfig module implemented)
-mtu	adjust iterface mtu (dhcp4)
+mtu	adjust interface mtu (dhcp4)
 boot	root-path (dhcp4)/boot-url (dhcp6) used in the initrd
 .TE
 
@@ -312,6 +312,34 @@ or inside a device name context like:
 .B "    </dhcp4>
 .B "  </addrconf>
 .fi
+
+.TP
+.B create-cid
+Specifies the standard client-id type to use:
+.IP
+.TS
+box;
+l|l|l
+lb|lb|l.
+Type	Alias	Description
+=
+rfc2132	hwaddr	use hardware/link layer type, followed by the address
+rfc4361	dhcp6	use 0xff as type, followed by DHCPv6 IAID and DUID
+disable	none	disables creation (custom client-id is send if given)
+.TE
+.PP
+By default, wickedd-dhcp4 is using the most common \fBrfc2132 on ethernet\fR
+to maintain compatibility with existing installations and a \fBrfc4361 on
+infiniband\fR, where it is mandated by the infiniband dhcp rfc4390.
+Later versions may change to use the rfc4361 client-id also for ethernet.
+
+When set to \fBdisable\fR, no client-id is created and send by default, except
+when the interface config request to acquire a lease contains a custom one.
+
+The new rfc4361 client-id is required to perform DDNS updates for ipv4 (A) and
+ipv6 (AAAA) address records in the same DNS zone (domain).
+Note, that a change of the client-id usually causes to disassociate the lease
+and/or DNS records, because it is used in the DHCID DNS record (see rfc4701).
 
 .TP
 .B vendor-class
@@ -435,17 +463,100 @@ or inside a device name context like:
 
 .TP
 .B default-duid
-DHCPv6 uses a so-called DUID to identify a DHCP client (rather than the
-MAC address used by DHCPv4). By default, \fBwickedd-dhcp6\fP will try to
-generate a DUID based on the link layer address of the device. Using the
-\fB<default-duid>\fP element, you can override this behavior and specify
-a global, unique DUID that will be used across all interfaces. The DUID
-notation is a string of hex octets, separated by colons - pretty similar
-to the standard notiation Ethernet address.
+DHCPv6 uses a so-called DUID to identify a DHCP client and an IAID, that
+refers to an interface.
+.br
+DHCPv4 constructs its client-id using the IAID and DUID as well, when
+enabled to use a rfc4361 client-id in the \fB<dhcp4><create-cid>\fP
+config option.
+.br
+By default, \fBwickedd-dhcp6\fP will try to generate a DUID based on the
+link layer address (MAC) of the device and time (DUID-LLT).
+
+The \fBdefault-duid\fP element permits to override this behavior and either
+specify an explicit DUID as a string of colon separated hex octets, e.g.:
+.nf
+.B "      <default-duid>00:03:00:01:02:00:00:00:00:02</default-duid>
+.fi
+or an advise which duid type to construct or import expressed in a child
+element:
+.nf
+.B "      <default-duid><\fIduid type element\fB/></default-duid>
+.fi
+using one of the following duid type elements:
+.RS
+.TP
+\fBllt\fR, DUID type 1, Link-layer address plus time:
+.RS
+.PP
+Permits to specify the link/hardware type and address in its \fBhardware\fR
+and \fBaddress\fR elements, e.g.:
+.nf
+.B "        <llt>
+.B "          <hardware>ethernet</hardware><address>02:00:00:00:00:02</address>
+.B "        </llt>
+.fi
+Without arguments, wicked will create the duid-llt using the hardware type
+and address of the actual device that requests a duid first.
+The time inside of the DUID is set automatically to the duid creation time.
+.RE
+.TP
+\fBen\fR, DUID type 2, Vendor Based on IANA Enterprise Number:
+.RS
+.PP
+Permits to specify a vendor type DUID-EN based on the IANA assigned enterprise
+number and an machine identifier specified in the \fBenterprise-number\fR and
+\fBidentifier\fR elements, e.g. using IANA number 7057 assigned to SUSE:
+.nf
+.B "        <en>
+.B "          <enterprise-number>7057</enterprise-number>
+.B "          <identifier>02:00:00:00:00:02</identifier>
+.B "        </en>
+.fi
+.RE
+
+.TP
+\fBll\fR, DUID type 3, Link-layer address (without time):
+.RS
+Usage is as for type 1 duid llt, the duid does not contain a time.
+.RE
+.TP
+\fBuuid\fR, DUID type 4, UUID-Based Unique Identifier:
+.RS
+Permits to specify the effective UUID to use, e.g.:
+.nf
+.B "        <uuid>80d732e7-b8dc-45ef-bdae-f9f5e6925cef</uuid>
+.fi
+or import it from /etc/machine-id file:
+.nf
+.B "        <uuid><machine-id/></uuid>
+or using an explicit path to the machine-id file:
+.B "        <uuid><machine-id>/etc/machine-id</machine-id></uuid>
+.fi
+or the DMI product id (problematic, may be not available or not unique):
+.nf
+.B "        <uuid><dmi-product-id/></uuid>
+.fi
+Without arguments, wicked will try to import the machine-id with a fallback
+to the DMI product id when no machine-id file exists.
+.RE
+.RE
 .IP
-Note that \fBwickedd-dhcp6\fP stores the generated DUIDs in
-\fB@wicked_statedir@/duid.xml\fP. If you change the default DUID, you should
-make sure to delete that file before restarting the DHCPv6 supplicant.
+Additionally, the \fBdefault-duid\fR element supports a \fBper-device\fP attribute.
+When enabled via \fB<default-duid per-device="true"/>\fR, wicked changes to a
+non-standard behavior and maintains a separate duid for each device instead of the
+same ("default") DUID for all interfaces and a \fBper device/interface IAID\fR.
+
+This permits to workaround some special cases, where the hosts should appear to the
+server using multiple identities, that is to behave as multiple machines instead as
+one with multiple interfaces.
+
+.IP
+The \fBwickedd\fP daemons store the generated DUIDs in \fB@wicked_statedir@/duid.xml\fP
+file. The \fBwicked duid\fR utility command permits to review and modify the duid as
+needed.
+
+.B Note: When you change the DUID, make sure to restart the \fIwickedd\fB service.
 .PP
 .\"
 .\" Not documented, not fully working:
@@ -572,10 +683,10 @@ fixed-length string and the \fBembedded-length\fR attribute to interpret
 the initial 1 (uint8) or 2 (uint16) bytes as the string length (RFC7227).
 .TP
 .BR bool
-A single byte value interpeted as boolean (0 is \(dqfalse\(dq, otherwise \(dqtrue\(dq).
+A single byte value interpreted as boolean (0 is \(dqfalse\(dq, otherwise \(dqtrue\(dq).
 .TP
 .BR int8\ |\ int16\ |\ int32\ |\ int64\ uint8\ |\ uint16\ |\ uint32\ |\ uint64\ [notation=\(dqhex\(dq]
-A signed or unsigned interger in decimal or optionally, in a 0x.. hex notation.
+A signed or unsigned integer in decimal or optionally, in a 0x.. hex notation.
 .TP
 .BR ipv4-address\ |\ ipv6-address
 IPv4 and IPv6 address types
@@ -716,7 +827,7 @@ An example would look like this:
 .B "          command=\(dq@wicked_extensionsdir@/hostname install\(dq/>
 .fi
 .IP
-When defininig script extensions, it is possible to define additional environment
+When defining script extensions, it is possible to define additional environment
 variables that get passed to the script. This mechanism is explained in more
 detail below.
 .PP
@@ -734,7 +845,7 @@ The configuration for the hostname updater might look like this:
 .PP
 .nf
 .B "  <system-updater name="hostname">
-.B "    <script name=\(dqbackup\(dq command=\(dq@wicked_extensionsdir@/hostnane backup\(dq/>
+.B "    <script name=\(dqbackup\(dq command=\(dq@wicked_extensionsdir@/hostname backup\(dq/>
 .B "    <script name=\(dqrestore\(dq command=\(dq@wicked_extensionsdir@/hostname restore\(dq/>
 .B "    <script name=\(dqinstall\(dq command=\(dq@wicked_extensionsdir@/hostname install\(dq/>
 .B "    <script name=\(dqinstall\(dq command=\(dq@wicked_extensionsdir@/hostname remove\(dq/>

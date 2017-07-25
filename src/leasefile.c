@@ -631,6 +631,10 @@ __ni_addrconf_lease_info_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *
 			if (ni_uuid_parse(&lease->uuid, child->cdata) != 0)
 				return -1;
 		} else
+		if (ni_string_eq(child->name, "state")) {
+			if ((lease->state = ni_addrconf_name_to_state(child->cdata)) < 0)
+				lease->state = NI_ADDRCONF_STATE_NONE;
+		} else
 		if (ni_string_eq(child->name, "update")) {
 			if (ni_parse_uint(child->cdata, &lease->update, 16) != 0)
 				return -1;

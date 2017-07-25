@@ -53,6 +53,8 @@ endif
 wicked_SOURCES			= \
 	arputil.c		\
 	compat.c		\
+	duid.c			\
+	iaid.c			\
 	ifup.c			\
 	ifdown.c		\
 	ifcheck.c		\
@@ -65,14 +67,13 @@ wicked_SOURCES			= \
 	tester.c
 
 noinst_HEADERS			= \
-	arputil.h		\
 	ifup.h			\
 	ifdown.h		\
 	ifcheck.h		\
 	ifreload.h		\
 	ifstatus.h		\
+	main.h			\
 	reachable.h		\
-	tester.h		\
 	wicked-client.h
 
 install-data-local:

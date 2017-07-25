@@ -258,7 +258,7 @@ extern void		ni_dhcp4_device_retransmit(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_device_force_retransmit(ni_dhcp4_device_t *, unsigned int);
 extern void		ni_dhcp4_device_arp_close(ni_dhcp4_device_t *);
 extern ni_bool_t	ni_dhcp4_parse_client_id(ni_opaque_t *, unsigned short, const char *);
-extern ni_bool_t	ni_dhcp4_set_client_id(ni_opaque_t *, const ni_hwaddr_t *);
+extern ni_bool_t	ni_dhcp4_set_config_client_id(ni_opaque_t *, const ni_dhcp4_device_t *);
 extern void		ni_dhcp4_new_xid(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_device_set_best_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t *, int);
 extern void		ni_dhcp4_device_drop_best_offer(ni_dhcp4_device_t *);
