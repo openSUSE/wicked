@@ -774,22 +774,25 @@ ni_dhcp6_device_retransmit_advance(ni_dhcp6_device_t *dev)
 
 		return TRUE;
 	}
-	ni_debug_dhcp("Retransmissions are disabled");
+	ni_debug_dhcp("%s: retransmission limit reached", dev->ifname);
 	return FALSE;
 }
 
 int
 ni_dhcp6_device_retransmit(ni_dhcp6_device_t *dev)
 {
+	int rv;
+
 	if (!ni_dhcp6_device_retransmit_advance(dev)) {
+		rv = ni_dhcp6_fsm_retransmit_end(dev);
 		ni_dhcp6_device_retransmit_disarm(dev);
-		return -1;
+		return rv;
 	}
 
-	if (ni_dhcp6_fsm_retransmit(dev) < 0)
-		return -1;
+	if ((rv = ni_dhcp6_fsm_retransmit(dev)) < 0)
+		return rv;
 
-	ni_debug_dhcp("Retransmitted, next deadline at %s",
+	ni_debug_dhcp("%s: retransmitted, next deadline at %s", dev->ifname,
 			ni_dhcp6_print_timeval(&dev->retrans.deadline));
 	return 0;
 }
@@ -1049,13 +1052,12 @@ ni_dhcp6_start_release(void *user_data, const ni_timer_t *timer)
 		return;
 	dev->fsm.timer = NULL;
 
-	/* We just send out a singe RELEASE without waiting for the
-	 * server's reply. We just keep our fingers crossed that it's
-	 * getting out. If it doesn't, it's rather likely the network
-	 * is hosed anyway, so there's little point in delaying. */
-	ni_dhcp6_fsm_release(dev);
-	ni_dhcp6_device_stop(dev);
 	ni_dhcp6_device_set_request(dev, NULL);
+	if (ni_dhcp6_fsm_release(dev) > 0)
+		return;
+
+	ni_dhcp6_device_drop_lease(dev);
+	ni_dhcp6_device_stop(dev);
 }
 
 int
@@ -1069,8 +1071,9 @@ ni_dhcp6_release(ni_dhcp6_device_t *dev, const ni_uuid_t *req_uuid)
 			rel_uuid ? " using UUID " : "", rel_uuid ? rel_uuid : "");
 		ni_string_free(&rel_uuid);
 
-		ni_dhcp6_device_stop(dev);
 		ni_dhcp6_device_set_request(dev, NULL);
+		ni_dhcp6_device_drop_lease(dev);
+		ni_dhcp6_device_stop(dev);
 		return -NI_ERROR_ADDRCONF_NO_LEASE;
 	}
 
@@ -1352,6 +1355,14 @@ unsigned int
 ni_dhcp6_config_max_lease_time(void)
 {
 	return ni_global.config->addrconf.dhcp6.lease_time;
+}
+
+unsigned int
+ni_dhcp6_config_release_nretries(const char *ifname)
+{
+	const ni_config_dhcp6_t *conf = ni_config_dhcp6_find_device(ifname);
+	/* >0: RFC 3315 Section 18.1.6, SHOULD retransmit one or more times */
+	return conf && conf->release_nretries ? conf->release_nretries : -1U;
 }
 
 static void

@@ -575,6 +575,10 @@ lease time to one hour:
 .IP
 .B "  <lease-time>3600</lease-time>
 .PP
+.TP
+.B release-retransmits
+Specifies the number of lease release retransmissions in the range 1..5.
+Default is to send up to 5 (REL_MAX_RC) retransmissions.
 
 .TP
 .B ignore-server

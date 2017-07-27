@@ -59,6 +59,7 @@ extern void			ni_dhcp6_fsm_reset(ni_dhcp6_device_t *dev);
 extern int			ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev);
 
 extern int			ni_dhcp6_fsm_retransmit(ni_dhcp6_device_t *dev);
+extern int			ni_dhcp6_fsm_retransmit_end(ni_dhcp6_device_t *dev);
 
 extern void			ni_dhcp6_fsm_address_event(ni_dhcp6_device_t *, ni_netdev_t *,
 								ni_event_t, const ni_address_t *);
