@@ -63,6 +63,13 @@
       <tx-timer type="uint32"/>
     </eee>
 
+    <channels class="dict">
+      <tx type="uint32"/>
+      <rx type="uint32"/>
+      <other type="uint32"/>
+      <combined type="uint32"/>
+    </channels>
+
     <ring class="dict">
       <tx type="uint32"/>
       <rx type="uint32"/>
