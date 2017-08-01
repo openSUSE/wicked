@@ -62,6 +62,14 @@
       <tx-lpi type="tristate"/>
       <tx-timer type="uint32"/>
     </eee>
+	
+    <channel class="dict">
+      <tx type="uint32"/>
+      <rx type="uint32"/>
+      <other type="uint32"/>
+      <combined type="uint32"/>
+    </channel>
+
 
     <ring class="dict">
       <tx type="uint32"/>
