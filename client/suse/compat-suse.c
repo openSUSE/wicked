@@ -1985,6 +1985,29 @@ try_add_ethtool_eee(ni_netdev_t *dev, const char *opt, const char *val)
 	}
 }
 
+/* get channels params from wicked config */
+static void
+try_add_ethtool_channels(ni_netdev_t *dev, const char *opt, const char *val)
+{
+
+	ni_ethernet_t *eth = ni_netdev_get_ethernet(dev);
+
+	if (ni_string_eq(opt, "tx")) {
+		ni_parse_uint(val, &eth->channels.tx, 10);
+	} else
+	if (ni_string_eq(opt, "rx")) {
+		ni_parse_uint(val, &eth->channels.rx, 10);
+	} else
+	if (ni_string_eq(opt, "other")) {
+		ni_parse_uint(val, &eth->channels.other, 10);
+	} else
+	if (ni_string_eq(opt, "combined")) {
+		ni_parse_uint(val, &eth->channels.combined, 10);
+	}
+
+
+}
+
 /* get ringparams from wicked config */
 static void
 try_add_ethtool_ring(ni_netdev_t *dev, const char *opt, const char *val)
@@ -2041,6 +2064,12 @@ try_add_ethtool_options(ni_netdev_t *dev, const char *type,
 	if (ni_string_eq(type, "-C") || ni_string_eq(type, "--coalesce")) {
 		for (i = start; (i + 1) < opts->count; i+=2) {
 			try_add_ethtool_coalesce(dev, opts->data[i],
+						opts->data[i + 1]);
+		}
+	}
+	if (ni_string_eq(type, "-L") || ni_string_eq(type, "--set-channels")) {
+		for (i = start; (i + 1) < opts->count; i+=2) {
+			try_add_ethtool_channels(dev, opts->data[i],
 						opts->data[i + 1]);
 		}
 	}
