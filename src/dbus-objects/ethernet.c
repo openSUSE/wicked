@@ -570,6 +570,69 @@ __ni_objectmodel_ethernet_set_eee(ni_dbus_object_t *object,
 }
 
 static dbus_bool_t
+__ni_objectmodel_ethernet_get_channel(const ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		ni_dbus_variant_t *result,
+		DBusError *error)
+{
+	const ni_ethernet_t *eth;
+
+	if (!(eth = __ni_objectmodel_ethernet_read_handle(object, error)))
+		return FALSE;
+
+	if (eth->channel.supported == NI_TRISTATE_DISABLE)
+		return FALSE;
+
+	if (eth->channel.tx != NI_ETHTOOL_CHANNEL_DEFAULT) {
+		ni_dbus_dict_add_int32(result, "tx", eth->channel.tx);
+	}
+
+	if (eth->channel.rx != NI_ETHTOOL_CHANNEL_DEFAULT) {
+		ni_dbus_dict_add_int32(result, "rx", eth->channel.rx);
+	}
+
+	if (eth->channel.other != NI_ETHTOOL_CHANNEL_DEFAULT) {
+		ni_dbus_dict_add_int32(result, "other", eth->channel.other);
+	}
+
+	if (eth->channel.combined != NI_ETHTOOL_CHANNEL_DEFAULT) {
+		ni_dbus_dict_add_int32(result, "combined", eth->channel.combined);
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_ethernet_set_channel(ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument,
+		DBusError *error)
+{
+	ni_ethernet_t *eth;
+
+	if (!(eth = __ni_objectmodel_ethernet_write_handle(object, error)))
+		return FALSE;
+
+	if (!ni_dbus_dict_get_uint32(argument, "tx", &eth->channel.tx)) {
+		eth->channel.tx = NI_ETHTOOL_CHANNEL_DEFAULT;
+	}
+
+	if (!ni_dbus_dict_get_uint32(argument, "rx", &eth->channel.rx)) {
+		eth->channel.rx = NI_ETHTOOL_CHANNEL_DEFAULT;
+	}
+
+	if (!ni_dbus_dict_get_uint32(argument, "other", &eth->channel.other)) {
+		eth->channel.other = NI_ETHTOOL_CHANNEL_DEFAULT;
+	}
+
+	if (!ni_dbus_dict_get_uint32(argument, "combined", &eth->channel.combined)) {
+		eth->channel.combined = NI_ETHTOOL_CHANNEL_DEFAULT;
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
 __ni_objectmodel_ethernet_get_ring(const ni_dbus_object_t *object,
 		const ni_dbus_property_t *property,
 		ni_dbus_variant_t *result,
@@ -803,6 +866,9 @@ const ni_dbus_property_t	ni_objectmodel_ethernet_property_table[] = {
 	__NI_DBUS_PROPERTY(
 			NI_DBUS_DICT_SIGNATURE,
 			coalesce, __ni_objectmodel_ethernet, RO),
+	__NI_DBUS_PROPERTY(
+			NI_DBUS_DICT_SIGNATURE,
+			channel, __ni_objectmodel_ethernet, RO),
 
 
 

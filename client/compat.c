@@ -364,6 +364,35 @@ ni_compat_generate_eth_eee_node(xml_node_t *parent, const ni_ethtool_eee_t *eee)
 		xml_node_free(node);
 }
 
+/* generate channel information */
+static void
+ni_compat_generate_eth_channel_node(xml_node_t *parent, const ni_ethtool_channel_t *channel)
+{
+	xml_node_t *node;
+
+	if (!parent || !channel)
+		return;
+
+	node = xml_node_new("channel", NULL);
+	if (channel->tx != NI_ETHTOOL_CHANNEL_DEFAULT) {
+		xml_node_new_element_uint("tx", node, channel->tx);
+	}
+	if (channel->rx != NI_ETHTOOL_CHANNEL_DEFAULT) {
+		xml_node_new_element_uint("rx", node, channel->rx);
+	}
+	if (channel->other != NI_ETHTOOL_CHANNEL_DEFAULT) {
+		xml_node_new_element_uint("other", node, channel->other);
+	}
+	if (channel->combined != NI_ETHTOOL_CHANNEL_DEFAULT) {
+		xml_node_new_element_uint("combined", node, channel->combined);
+	}
+
+	if (node->children)
+		xml_node_add_child(parent, node);
+	else
+		xml_node_free(node);
+
+}
 /* generate ring information */
 static void
 ni_compat_generate_eth_ring_node(xml_node_t *parent, const ni_ethtool_ring_t *ring)
@@ -439,6 +468,7 @@ __ni_compat_generate_eth_node(xml_node_t *child, const ni_ethernet_t *eth)
 	ni_compat_generate_eth_eee_node(child, &eth->eee);
 	ni_compat_generate_eth_ring_node(child, &eth->ring);
 	ni_compat_generate_eth_coalesce_node(child, &eth->coalesce);
+	ni_compat_generate_eth_channel_node(child, &eth->channel);
 }
 
 static ni_bool_t

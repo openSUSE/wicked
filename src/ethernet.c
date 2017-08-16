@@ -59,6 +59,7 @@ static void	ni_ethtool_offload_init(ni_ethtool_offload_t *);
 static void	ni_ethtool_eee_init(ni_ethtool_eee_t *);
 static void	ni_ethtool_ring_init(ni_ethtool_ring_t *);
 static void	ni_ethtool_coalesce_init(ni_ethtool_coalesce_t *coalesce);
+static void	ni_ethtool_channel_init(ni_ethtool_channel_t *);
 
 /*
  * Allocate ethernet struct
@@ -77,6 +78,7 @@ ni_ethernet_new(void)
 	ni_ethtool_eee_init(&ether->eee);
 	ni_ethtool_ring_init(&ether->ring);
 	ni_ethtool_coalesce_init(&ether->coalesce);
+	ni_ethtool_channel_init(&ether->channel);
 
 	return ether;
 }
@@ -1090,6 +1092,82 @@ ni_ethtool_set_ring(const char *ifname, ni_ethtool_ring_t *ring)
 	return 0;
 }
 
+	static void
+ni_ethtool_channel_init(ni_ethtool_channel_t *channel)
+{
+	if (channel) {
+		channel->supported = NI_TRISTATE_DEFAULT;
+		channel->tx	= NI_ETHTOOL_CHANNEL_DEFAULT;
+		channel->rx	= NI_ETHTOOL_CHANNEL_DEFAULT;
+		channel->other	= NI_ETHTOOL_CHANNEL_DEFAULT;
+		channel->combined	= NI_ETHTOOL_CHANNEL_DEFAULT;
+	}
+}
+
+static int
+ni_ethtool_get_channel(const char *ifname, ni_ethtool_channel_t *channel)
+{
+	struct ethtool_channels tmp;
+
+	if (channel->supported == NI_TRISTATE_DISABLE)
+		return -1;
+
+	tmp.cmd = ETHTOOL_GCHANNELS;
+	memset(&tmp, 0, sizeof(tmp));
+	if (__ni_ethtool(ifname, ETHTOOL_GCHANNELS, &tmp) < 0) {
+		if (errno != EOPNOTSUPP && errno != ENODEV)
+			ni_warn("%s: getting ethtool.channel options failed: %m", ifname);
+		else
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
+				"%s: getting ethtool.channel options failed: %m", ifname);
+
+		if (errno != EOPNOTSUPP)
+			channel->supported = NI_TRISTATE_DISABLE;
+		return -1;
+	}
+
+	channel->tx = tmp.tx_count;
+	channel->rx = tmp.rx_count;
+	channel->other = tmp.other_count;
+	channel->combined = tmp.combined_count;
+	return 0;
+}
+
+static int
+ni_ethtool_set_channel(const char *ifname, ni_ethtool_channel_t *channel)
+{
+	struct ethtool_channels tmp;
+
+	if (channel->supported == NI_TRISTATE_DISABLE)
+		return -1;
+
+	tmp.cmd = ETHTOOL_GCHANNELS;
+	memset(&tmp, 0, sizeof(tmp));
+	if (__ni_ethtool(ifname, ETHTOOL_GCHANNELS, &tmp) < 0) {
+		if (errno != EOPNOTSUPP && errno != ENODEV)
+			ni_warn("%s: getting ethtool.channel options failed: %m", ifname);
+		else
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG,
+				"%s: getting ethtool.channel options failed: %m", ifname);
+
+		if (errno != EOPNOTSUPP)
+			channel->supported = NI_TRISTATE_DISABLE;
+		return -1;
+	}
+
+	ni_ethtool_set_uint_param(ifname, &tmp, ETHTOOL_SCHANNELS, "channel",
+			"tx", tmp.max_tx, &tmp.tx_count, channel->tx);
+	ni_ethtool_set_uint_param(ifname, &tmp, ETHTOOL_SCHANNELS, "channel",
+			"rx", tmp.max_rx, &tmp.rx_count, channel->rx);
+	ni_ethtool_set_uint_param(ifname, &tmp, ETHTOOL_SCHANNELS, "channel",
+			"other", tmp.max_other,
+			&tmp.other_count, channel->other);
+	ni_ethtool_set_uint_param(ifname, &tmp, ETHTOOL_SCHANNELS, "channel",
+				"combined", tmp.max_combined,
+				&tmp.combined_count, channel->combined);
+
+	return 0;
+}
 void
 __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 {
@@ -1100,6 +1178,7 @@ __ni_system_ethernet_get(const char *ifname, ni_ethernet_t *ether)
 	ni_ethtool_get_eee(ifname, &ether->eee);
 	ni_ethtool_get_ring(ifname, &ether->ring);
 	ni_ethtool_get_coalesce(ifname, &ether->coalesce);
+	ni_ethtool_get_channel(ifname, &ether->channel);
 }
 
 /*
@@ -1294,4 +1373,5 @@ __ni_system_ethernet_set(const char *ifname, ni_ethernet_t *ether)
 	ni_ethtool_set_eee(ifname, &ether->eee);
 	ni_ethtool_set_ring(ifname, &ether->ring);
 	ni_ethtool_set_coalesce(ifname, &ether->coalesce);
+	ni_ethtool_set_channel(ifname, &ether->channel);
 }

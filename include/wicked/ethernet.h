@@ -78,6 +78,16 @@ typedef struct ni_ethtool_eee {
 	} tx_lpi;
 } ni_ethtool_eee_t;
 
+#define NI_ETHTOOL_CHANNEL_DEFAULT		-1U
+
+typedef struct ni_ethtool_channel {
+	ni_tristate_t	supported;
+	unsigned int	tx;
+	unsigned int	rx;
+	unsigned int	other;
+	unsigned int	combined;
+} ni_ethtool_channel_t;
+
 #define NI_ETHTOOL_RING_DEFAULT		-1U
 
 typedef struct ni_ethtool_ring {
@@ -135,6 +145,7 @@ struct ni_ethernet {
 	ni_ethtool_eee_t	eee;
 	ni_ethtool_ring_t       ring;
 	ni_ethtool_coalesce_t   coalesce;
+	ni_ethtool_channel_t   channel;
 
 	unsigned int		identify_time;
 };
