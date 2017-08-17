@@ -1878,6 +1878,18 @@ try_add_ethtool_offload(ni_ethtool_offload_t *offload, const char *opt, const ch
 		} else
 		if (ni_string_eq(opt, "lro")) {
 			ni_parse_ethtool_onoff(val, &offload->lro);
+		} else
+		if (ni_string_eq(opt, "rxvlan")) {
+			ni_parse_ethtool_onoff(val, &offload->rxvlan);
+		} else
+		if (ni_string_eq(opt, "txvlan")) {
+			ni_parse_ethtool_onoff(val, &offload->txvlan);
+		} else
+		if (ni_string_eq(opt, "ntuple")) {
+			ni_parse_ethtool_onoff(val, &offload->ntuple);
+		} else
+		if (ni_string_eq(opt, "rxhash")) {
+			ni_parse_ethtool_onoff(val, &offload->rxhash);
 		}
 	}
 }
