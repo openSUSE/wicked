@@ -267,6 +267,20 @@ static __ni_ioctl_info_t __ethtool_gstrings = { ETHTOOL_GSTRINGS, "GSTRINGS" };
 static __ni_ioctl_info_t __ethtool_gstats = { ETHTOOL_GSTATS, "GSTATS" };
 static __ni_ioctl_info_t __ethtool_gwol = { ETHTOOL_GWOL, "GWOL" };
 static __ni_ioctl_info_t __ethtool_swol = { ETHTOOL_SWOL, "SWOL" };
+static __ni_ioctl_info_t __ethtool_grxcsum = { ETHTOOL_GRXCSUM, "GRXCSUM" };
+static __ni_ioctl_info_t __ethtool_srxcsum = { ETHTOOL_SRXCSUM, "SRXCSUM" };
+static __ni_ioctl_info_t __ethtool_stxcsum = { ETHTOOL_STXCSUM, "STXCSUM" };
+static __ni_ioctl_info_t __ethtool_gtxcsum = { ETHTOOL_GTXCSUM, "GTXCSUM" };
+static __ni_ioctl_info_t __ethtool_gsg = { ETHTOOL_GSG, "GSG" };
+static __ni_ioctl_info_t __ethtool_ssg = { ETHTOOL_SSG, "SSG" };
+static __ni_ioctl_info_t __ethtool_gtso = { ETHTOOL_GTSO, "GTSO" };
+static __ni_ioctl_info_t __ethtool_stso = { ETHTOOL_STSO, "STSO" };
+static __ni_ioctl_info_t __ethtool_gufo = { ETHTOOL_GUFO, "GUFO" };
+static __ni_ioctl_info_t __ethtool_sufo = { ETHTOOL_SUFO, "SUFO" };
+static __ni_ioctl_info_t __ethtool_ggso = { ETHTOOL_GGSO, "GGSO" };
+static __ni_ioctl_info_t __ethtool_sgso = { ETHTOOL_SGSO, "SGSO" };
+static __ni_ioctl_info_t __ethtool_ggro = { ETHTOOL_GGRO, "GGRO" };
+static __ni_ioctl_info_t __ethtool_sgro = { ETHTOOL_SGRO, "SGRO" };
 
 static int
 __ni_ethtool_do(const char *ifname, __ni_ioctl_info_t *ioc, void *evp)
@@ -533,14 +547,6 @@ ni_ethtool_offload_init(ni_ethtool_offload_t *offload)
 static int
 __ni_ethtool_get_offload(const char *ifname, ni_ethtool_offload_t *offload)
 {
-	__ni_ioctl_info_t __ethtool_grxcsum = { ETHTOOL_GRXCSUM, "GRXCSUM" };
-	__ni_ioctl_info_t __ethtool_gtxcsum = { ETHTOOL_GTXCSUM, "GTXCSUM" };
-	__ni_ioctl_info_t __ethtool_gsg = { ETHTOOL_GSG, "GSG" };
-	__ni_ioctl_info_t __ethtool_gtso = { ETHTOOL_GTSO, "GTSO" };
-	__ni_ioctl_info_t __ethtool_gufo = { ETHTOOL_GUFO, "GUFO" };
-	__ni_ioctl_info_t __ethtool_ggso = { ETHTOOL_GGSO, "GGSO" };
-	__ni_ioctl_info_t __ethtool_ggro = { ETHTOOL_GGRO, "GGRO" };
-
 	int value;
 
 	if (ni_string_empty(ifname) || !offload)
@@ -556,32 +562,59 @@ __ni_ethtool_get_offload(const char *ifname, ni_ethtool_offload_t *offload)
 
 	value = __ni_ethtool_get_value(ifname, &__ethtool_gflags);
 	if (value >= 0) {
-		offload->lro = (value & ETH_FLAG_LRO) ?
-			NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
-		offload->rxvlan = (value & ETH_FLAG_RXVLAN) ?
-			NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
-		offload->txvlan = (value & ETH_FLAG_TXVLAN) ?
-			NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
-		offload->ntuple = (value & ETH_FLAG_NTUPLE) ?
-			NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
-		offload->rxhash = (value & ETH_FLAG_RXHASH) ?
-			NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
+		ni_tristate_set(&offload->lro,    value & ETH_FLAG_LRO);
+		ni_tristate_set(&offload->rxvlan, value & ETH_FLAG_RXVLAN);
+		ni_tristate_set(&offload->txvlan, value & ETH_FLAG_TXVLAN);
+		ni_tristate_set(&offload->ntuple, value & ETH_FLAG_NTUPLE);
+		ni_tristate_set(&offload->rxhash, value & ETH_FLAG_RXHASH);
 	}
 
 	return 0;
 }
 
 static int
+__ni_ethtool_set_offload_sflag(const char *ifname, ni_tristate_t want,
+				unsigned int sflag, const char *name)
+{
+	int value;
+
+	if (!ni_tristate_is_set(want))
+		return 1;
+
+	value = __ni_ethtool_get_value(ifname, &__ethtool_gflags);
+	if (value < 0)
+		return -1;
+
+	if (ni_tristate_is_enabled(want)) {
+		if (value & sflag)
+			return 0;
+		value |= sflag;
+	} else {
+		if (!(value & sflag))
+			return 0;
+		value &= ~sflag;
+	}
+
+	if (__ni_ethtool_set_value(ifname, &__ethtool_sflags, value) < 0) {
+		if (errno != EOPNOTSUPP && errno != ENODEV)
+			ni_warn("%s: failed to set ethtool.offload.%s to %s: %m",
+					ifname, name, ni_format_boolean(value & sflag));
+		else
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
+				"%s: failed to set ethtool.offload.%s to %s: %m",
+				ifname, name, ni_format_boolean(value & sflag));
+		return -1;
+	} else {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+				"%s: applied ethtool.offload.%s = %s",
+				ifname, name, ni_format_boolean(value & sflag));
+		return 0;
+	}
+}
+
+static int
 __ni_ethtool_set_offload(const char *ifname, ni_ethtool_offload_t *offload)
 {
-	__ni_ioctl_info_t __ethtool_srxcsum = { ETHTOOL_SRXCSUM, "SRXCSUM" };
-	__ni_ioctl_info_t __ethtool_stxcsum = { ETHTOOL_STXCSUM, "STXCSUM" };
-	__ni_ioctl_info_t __ethtool_ssg = { ETHTOOL_SSG, "SSG" };
-	__ni_ioctl_info_t __ethtool_stso = { ETHTOOL_STSO, "STSO" };
-	__ni_ioctl_info_t __ethtool_sufo = { ETHTOOL_SUFO, "SUFO" };
-	__ni_ioctl_info_t __ethtool_sgso = { ETHTOOL_SGSO, "SGSO" };
-	__ni_ioctl_info_t __ethtool_sgro = { ETHTOOL_SGRO, "SGRO" };
-
 	if (ni_string_empty(ifname) || !offload)
 		return -1;
 
@@ -593,38 +626,11 @@ __ni_ethtool_set_offload(const char *ifname, ni_ethtool_offload_t *offload)
 	__ni_ethtool_set_tristate(ifname, &__ethtool_sgso, offload->gso);
 	__ni_ethtool_set_tristate(ifname, &__ethtool_sgro, offload->gro);
 
-	if (offload->lro != NI_TRISTATE_DEFAULT) {
-		int value = __ni_ethtool_get_value(ifname, &__ethtool_gflags);
-
-		if (value >= 0) {
-			if (offload->lro == NI_TRISTATE_ENABLE)
-				value |= ETH_FLAG_LRO;
-			else
-				value &= ~ETH_FLAG_LRO;
-
-			if (offload->rxvlan == NI_TRISTATE_ENABLE)
-				value |= ETH_FLAG_RXVLAN;
-			else
-				value &= ~ETH_FLAG_RXVLAN;
-
-			if (offload->txvlan == NI_TRISTATE_ENABLE)
-				value |= ETH_FLAG_TXVLAN;
-			else
-				value &= ~ETH_FLAG_TXVLAN;
-
-			if (offload->ntuple == NI_TRISTATE_ENABLE)
-				value |= ETH_FLAG_NTUPLE;
-			else
-				value &= ~ETH_FLAG_NTUPLE;
-
-			if (offload->rxhash == NI_TRISTATE_ENABLE)
-				value |= ETH_FLAG_RXHASH;
-			else
-				value &= ~ETH_FLAG_RXHASH;
-		}
-
-		__ni_ethtool_set_value(ifname, &__ethtool_sflags, value);
-	}
+	__ni_ethtool_set_offload_sflag(ifname, offload->lro,    ETH_FLAG_LRO,    "lro");
+	__ni_ethtool_set_offload_sflag(ifname, offload->rxvlan, ETH_FLAG_RXVLAN, "rxvlan");
+	__ni_ethtool_set_offload_sflag(ifname, offload->txvlan, ETH_FLAG_TXVLAN, "txvlan");
+	__ni_ethtool_set_offload_sflag(ifname, offload->ntuple, ETH_FLAG_NTUPLE, "ntuple");
+	__ni_ethtool_set_offload_sflag(ifname, offload->rxhash, ETH_FLAG_RXHASH, "rxhash");
 
 	return 0;
 }
