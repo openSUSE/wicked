@@ -49,6 +49,10 @@
       <gso type="tristate"/>
       <gro type="tristate"/>
       <lro type="tristate"/>
+      <rxvlan type="tristate"/>
+      <txvlan type="tristate"/>
+      <ntuple type="tristate"/>
+      <rxhash type="tristate"/>
     </offload>
 
     <eee class="dict">

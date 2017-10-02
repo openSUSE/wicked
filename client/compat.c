@@ -240,6 +240,10 @@ __ni_compat_generate_eth_offload_node(xml_node_t *parent, const ni_ethtool_offlo
 	__ni_compat_optional_tristate("gso", node, offload->gso);
 	__ni_compat_optional_tristate("gro", node, offload->gro);
 	__ni_compat_optional_tristate("lro", node, offload->lro);
+	__ni_compat_optional_tristate("rxvlan", node, offload->rxvlan);
+	__ni_compat_optional_tristate("txvlan", node, offload->txvlan);
+	__ni_compat_optional_tristate("ntuple", node, offload->ntuple);
+	__ni_compat_optional_tristate("rxhash", node, offload->rxhash);
 
 	if (node->children)
 		xml_node_add_child(parent, node);
