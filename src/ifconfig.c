@@ -199,6 +199,23 @@ ni_system_interface_enslave(ni_netconfig_t *nc, ni_netdev_t *master, ni_netdev_t
 		}
 	}
 
+	if (!dev->link.masterdev.index) {
+		/*
+		 * cleanup slave before enslaving it -- this has to
+		 * happen in down state to not cause side effects
+		 * (vanishing sysctl/procfs subtrees, ...).
+		 */
+		if (ni_netdev_device_is_up(dev))
+			__ni_rtnl_link_down(dev);
+
+		/* link is down, safe to remove all addrs and routes */
+		__ni_system_interface_flush_addrs(nc, dev);
+		__ni_system_interface_flush_routes(nc, dev);
+
+		/* TODO: trigger regular remove instead to wipe them */
+		ni_addrconf_lease_list_destroy(&dev->leases);
+	}
+
 	switch (master->link.type) {
 	case NI_IFTYPE_BOND:
 		ret = __ni_rtnl_link_add_slave_down(dev, master->name,
