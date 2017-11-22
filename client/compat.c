@@ -178,6 +178,7 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 			ni_netdev_put(compat->dev);
 		ni_ifworker_control_free(compat->control);
 		ni_var_array_destroy(&compat->scripts);
+		ni_string_free(&compat->firewall.zone);
 
 		ni_rule_array_destroy(&compat->rules);
 
@@ -2552,6 +2553,14 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 				}
 			}
 			ni_string_array_destroy(&scripts);
+		}
+	}
+	if (compat->firewall.enabled) {
+		xml_node_t *fw;
+
+		if ((fw = xml_node_create(ifnode, "firewall"))) {
+			if (!ni_string_empty(compat->firewall.zone))
+				xml_node_new_element("zone", fw, compat->firewall.zone);
 		}
 	}
 

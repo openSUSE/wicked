@@ -46,6 +46,10 @@ typedef struct ni_compat_netdev {
 	ni_netdev_t *		dev;
 	ni_ifworker_control_t * control;
 	ni_var_array_t		scripts;
+	struct {
+		ni_bool_t	enabled;
+		char *		zone;
+	} firewall;
 
 	struct {
 		ni_hwaddr_t	hwaddr;
