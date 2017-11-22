@@ -1,39 +1,19 @@
 <!--
   -- This service describes how an interface should be protected through
   -- a firewall.
-  -- All of this is still very simplistic, and the whole point of doing it
-  -- this way is to show how it *could* be done.
   -->
 <service name="firewall" interface="org.opensuse.Network.Firewall" object-class="netif">
-  <define name="proto_t" type="uint32" constraint="enum">
-    <tcp/>
-    <udp/>
-    <icmp/>
-    <tcp6/>
-    <udp6/>
-    <icmp6/>
-  </define>
-  <define name="fw-port" class="dict">
-    <number type="uint16"/>
-    <protocol type="proto_t"/>
-  </define>
-  <define name="fw-port-array" class="array" element-type="fw-port"/>
 
   <define name="fw-request" class="dict">
     <!-- By specifying a fw zone, you can select one of several preset security levels -->
     <zone type="string"/>
 
-    <!-- In addition to the default protection, you can ask the firewall service
-      -- to block or open specific ports
-      -->
-    <open-ports type="fw-port-array"/>
-    <blocked-ports type="fw-port-array"/>
   </define>
 
   <method name="firewallUp">
     <arguments>
       <config type="fw-request">
-        <meta:mapping document-node="/firewall"/>
+        <meta:mapping document-node="/firewall" skip-unless-present="true"/>
       </config>
     </arguments>
   </method>
