@@ -1091,7 +1091,6 @@ __ni_dhcp4_build_msg_request_reboot(const ni_dhcp4_device_t *dev,
 	unsigned int msg_code = DHCP4_REQUEST;
 	ni_dhcp4_message_t *message;
 	ni_sockaddr_t addr;
-	const ni_dhcp_fqdn_t *fqdn;
 
 	/* Request an lease after reboot to reuse old lease (no server id) */
 	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
@@ -1115,12 +1114,8 @@ __ni_dhcp4_build_msg_request_reboot(const ni_dhcp4_device_t *dev,
 			"%s: using reused ip-address: %s",
 			dev->ifname, ni_sockaddr_print(&addr));
 
-	if (lease->fqdn.enabled == NI_TRISTATE_DEFAULT)
-		fqdn = &options->fqdn;
-	else
-		fqdn = &lease->fqdn;
-	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf, fqdn,
-			lease->hostname ? lease->hostname : options->hostname) < 0)
+	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf, &options->fqdn,
+				options->hostname) < 0)
 		return -1;
 
 	if (__ni_dhcp4_build_msg_put_option_request(dev, msg_code, msgbuf) <  0)
