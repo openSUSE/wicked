@@ -27,7 +27,7 @@ libwicked_client_suse_la_SOURCES		= \
 noinst_HEADERS					= \
 						  ifsysctl.h
 
-suse_fillupdir					= ${localstatedir}/adm/fillup-templates
+suse_fillupdir					= /usr/share/fillup-templates
 suse_fillup_DATA				= config/sysconfig.config-wicked \
 						  config/sysconfig.dhcp-wicked
 
