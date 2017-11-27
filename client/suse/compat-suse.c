@@ -5822,6 +5822,25 @@ __ni_suse_get_scripts(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	__ni_suse_qualify_scripts(compat, "post-down", value);
 }
 
+static void
+ni_suse_ifcfg_get_firewall(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_sysconfig_t *merged;
+	const char *value;
+
+	if ((merged = ni_sysconfig_merge_defaults(sc, __ni_suse_config_defaults))) {
+
+		ni_sysconfig_get_boolean(merged, "FIREWALL", &compat->firewall.enabled);
+		if (compat->firewall.enabled) {
+			value = ni_sysconfig_get_value(sc, "ZONE");
+			if (!ni_string_empty(value))
+				ni_string_dup(&compat->firewall.zone, value);
+		}
+		ni_sysconfig_destroy(merged);
+	}
+}
+
+
 /*
  * Read ifsysctl file
  */
@@ -6208,6 +6227,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	__ni_suse_read_ifsysctl(sc, compat);
 	__ni_suse_bootproto(sc, compat);
 	__ni_suse_get_scripts(sc, compat);
+	ni_suse_ifcfg_get_firewall(sc, compat);
 
 	/* FIXME: What to do with these:
 		NAME
