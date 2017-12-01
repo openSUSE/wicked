@@ -200,6 +200,12 @@ AM_CONDITIONAL([wicked_compat_auto],	[test "X$with_compat" = "Xauto"])
 AM_CONDITIONAL([wicked_compat_suse],	[test "X$with_compat" = "Xsuse"])
 AM_CONDITIONAL([wicked_compat_redhat],	[test "X$with_compat" = "Xredhat"])
 
+# suse sysconfig fillup template directory
+AC_ARG_WITH([fillup-templatesdir], [AS_HELP_STRING([--with-fillup-templatesdir@<:@=DIR@:>@],
+	    [sysconfig fillup template directory [${localstatedir}/adm/fillup-templates]])],,
+	    [with_fillup_templatesdir="${localstatedir}/adm/fillup-templates"])
+AC_SUBST(fillup_templatesdir,	"$with_fillup_templatesdir")
+
 # Enable system extensions (e.g. _GNU_SOURCE)
 AC_USE_SYSTEM_EXTENSIONS
 
