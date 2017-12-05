@@ -123,6 +123,7 @@ extern ni_bool_t	ni_address_is_permanent(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_deprecated(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_mngtmpaddr(const ni_address_t *laddr);
 
+extern void		ni_address_set_temporary(ni_address_t *, ni_bool_t);
 extern void		ni_address_set_tentative(ni_address_t *, ni_bool_t);
 extern void		ni_address_set_duplicate(ni_address_t *, ni_bool_t);
 

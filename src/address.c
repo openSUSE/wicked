@@ -288,6 +288,15 @@ ni_address_set_duplicate(ni_address_t *laddr, ni_bool_t duplicate)
 		laddr->flags &= ~IFA_F_DADFAILED;
 }
 
+void
+ni_address_set_temporary(ni_address_t *laddr, ni_bool_t temporary)
+{
+	if (temporary)
+		laddr->flags |= IFA_F_TEMPORARY;
+	else
+		laddr->flags &= ~IFA_F_TEMPORARY;
+}
+
 /*
  * ni_address list functions
  */
