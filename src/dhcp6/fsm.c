@@ -774,6 +774,8 @@ __fsm_confirm_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 		if (dev->lease &&
 		    msg->lease->dhcp6.status->code == NI_DHCP6_STATUS_SUCCESS) {
 			ni_dhcp6_fsm_reset(dev);
+			ni_address_list_destroy(&dev->lease->addrs);
+			ni_dhcp6_ia_copy_to_lease_addrs(dev, dev->lease);
 			ni_dhcp6_fsm_commit_lease(dev, dev->lease);
 			rv = 0;
 		} else
