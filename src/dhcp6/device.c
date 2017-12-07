@@ -816,23 +816,22 @@ ni_dhcp6_config_init_duid(ni_dhcp6_device_t *dev, ni_dhcp6_config_t *config, con
 	return TRUE;
 }
 
-static int
+static ni_addrconf_lease_t *
 ni_dhcp6_recover_lease(ni_dhcp6_device_t *dev)
 {
-	ni_addrconf_lease_t *lease;
+	ni_addrconf_lease_t *lease = NULL;
 
-	if (!dev || dev->lease)
-		return 1;
+	if (!dev)
+		return NULL;
 
 	lease = ni_addrconf_lease_file_read(dev->ifname, NI_ADDRCONF_DHCP, AF_INET6);
-	if (!ni_addrconf_lease_is_valid(lease)) {
+	if (!ni_addrconf_lease_is_valid(lease) ||
+	    lease->type != NI_ADDRCONF_DHCP || lease->family != AF_INET6) {
 		ni_addrconf_lease_free(lease);
-		return -1;
+		return NULL;
 	}
 
-	dev->lease = lease;
-
-	return 0;
+	return lease;
 }
 
 static inline unsigned int
@@ -922,7 +921,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	config->release_lease	= req->release_lease;
 
 	if (!dev->lease && config->dry_run != NI_DHCP6_RUN_OFFER && config->recover_lease)
-		ni_dhcp6_recover_lease(dev);
+		ni_dhcp6_device_set_lease(dev, ni_dhcp6_recover_lease(dev));
 
 	if (!ni_dhcp6_device_iaid(dev, &dev->iaid)) {
 		ni_string_printf(err, "Unable to generate a device IAID");
