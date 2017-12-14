@@ -4022,6 +4022,7 @@ __ni_rtnl_link_change_mtu(ni_netdev_t *dev, unsigned int mtu)
 {
 	struct ifinfomsg ifi;
 	struct nl_msg *msg;
+	int err;
 
 	if (!dev || !mtu)
 		return -1;
@@ -4030,15 +4031,20 @@ __ni_rtnl_link_change_mtu(ni_netdev_t *dev, unsigned int mtu)
 	ifi.ifi_family = AF_UNSPEC;
 	ifi.ifi_index = dev->link.ifindex;
 
-	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST);
+	if (!(msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST)))
+		goto nla_put_failure;
+
 	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
 		goto nla_put_failure;
 
 	if (__ni_rtnl_link_put_mtu(msg, mtu) < 0)
 		goto nla_put_failure;
 
-	if (ni_nl_talk(msg, NULL))
+	if ((err = ni_nl_talk(msg, NULL))) {
+		ni_error("failed to modify interface %s mtu to %u: %s",
+				dev->name, mtu, nl_geterror(err));
 		goto failed;
+	}
 
 	ni_debug_ifconfig("successfully modified interface %s mtu to %u",
 			dev->name, mtu);
