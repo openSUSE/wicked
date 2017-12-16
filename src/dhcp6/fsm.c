@@ -757,36 +757,51 @@ __fsm_confirm_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 		 * any Reply messages that do not indicate a NotOnLink status, the
 		 * client can use the addresses in the IA and ignore any messages
 		 * that indicate a NotOnLink status.[...]"
-		 *
-		 * Basically it means we have to use best_offer here and wait for
-		 * (success) message similar with solicit...
 		 */
 		if (!dev->lease) {
 			ni_string_printf(hint, "confirm reply without a lease?!");
 			goto cleanup;
 		}
 
+
 		if (msg->lease->dhcp6.status == NULL) {
 			ni_string_printf(hint, "confirm reply without status");
 			goto cleanup;
-		}
-
-		if (dev->lease &&
-		    msg->lease->dhcp6.status->code == NI_DHCP6_STATUS_SUCCESS) {
-			ni_dhcp6_fsm_reset(dev);
-			ni_dhcp6_fsm_commit_lease(dev, dev->lease);
-			rv = 0;
 		} else
 		if (msg->lease->dhcp6.status->code == NI_DHCP6_STATUS_NOTONLINK) {
+			ni_note("%s: link change confirmation in reply with status %s - %s",
+					dev->ifname,
+					ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
+					msg->lease->dhcp6.status->message);
+
+			ni_dhcp6_fsm_reset(dev);
 			ni_dhcp6_device_drop_lease(dev);
-			ni_dhcp6_device_restart(dev);
+			ni_dhcp6_fsm_solicit(dev);
 			rv = 0;
-		} else {
-			ni_string_printf(hint, "status %s - %s",
-				ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
-				msg->lease->dhcp6.status->message);
 			goto cleanup;
+		} else
+		if (msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
+			ni_debug_dhcp("%s: no link change indication in reply with status %s - %s",
+					dev->ifname,
+					ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
+					msg->lease->dhcp6.status->message);
+		} else {
+			ni_note("%s: link confirmed in reply with status %s - %s",
+					dev->ifname,
+					ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
+					msg->lease->dhcp6.status->message);
 		}
+
+		ni_dhcp6_fsm_reset(dev);
+		ni_address_list_destroy(&dev->lease->addrs);
+		if (ni_dhcp6_ia_copy_to_lease_addrs(dev, dev->lease)) {
+			ni_dhcp6_fsm_commit_lease(dev, dev->lease);
+		} else {
+			/* expired in the meantime */
+			ni_dhcp6_fsm_solicit(dev);
+		}
+
+		rv = 0;
 	break;
 
 	default:

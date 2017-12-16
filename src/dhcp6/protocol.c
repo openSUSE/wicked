@@ -2642,7 +2642,7 @@ ni_dhcp6_option_request_dump(ni_buffer_t *optbuf, ni_stringbuf_t *buf)
 }
 
 static unsigned int
-__find_pinfo_prefixlen(const ni_dhcp6_device_t *dev, const ni_sockaddr_t *addr)
+ni_dhcp6_find_pinfo_prefixlen(const ni_dhcp6_device_t *dev, const ni_sockaddr_t *addr)
 {
 	const ni_ipv6_ra_pinfo_t *pinfo;
 	unsigned int prefixlen = 0;
@@ -2660,8 +2660,8 @@ __find_pinfo_prefixlen(const ni_dhcp6_device_t *dev, const ni_sockaddr_t *addr)
 	return prefixlen;
 }
 
-static unsigned int
-__copy_ia_na_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
+unsigned int
+ni_dhcp6_ia_copy_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 {
 	ni_address_t * ap;
 	ni_dhcp6_ia_t * ia;
@@ -2671,7 +2671,8 @@ __copy_ia_na_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_t *l
 	unsigned int plen;
 
 	for (ia = lease->dhcp6.ia_list; ia; ia = ia->next) {
-		if (ia->type != NI_DHCP6_OPTION_IA_NA)
+		if (ia->type != NI_DHCP6_OPTION_IA_NA &&
+		    ia->type != NI_DHCP6_OPTION_IA_TA)
 			continue;
 
 		if (ia->status.code != NI_DHCP6_STATUS_SUCCESS)
@@ -2688,24 +2689,29 @@ __copy_ia_na_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_t *l
 
 			ni_sockaddr_set_ipv6(&sadr, iadr->addr, 0);
 
-			plen = __find_pinfo_prefixlen(dev, &sadr);
+			plen = ni_dhcp6_find_pinfo_prefixlen(dev, &sadr);
 			if (plen >= 4 && plen <= 128) {
-				ni_debug_dhcp("%s: Using RA prefix info length %u",
+				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+						"%s: using RA prefix info length %u",
 						dev->ifname, plen);
 			} else {
 				plen = 64;
-				ni_debug_dhcp("%s: Using default prefix length %u",
+				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+						"%s: using default prefix length %u",
 						dev->ifname, plen);
 			}
 
 			ap = ni_address_new(AF_INET6, plen, &sadr, &lease->addrs);
 			if (ap) {
+				ap->ipv6_cache_info.acquired.tv_sec = ia->time_acquired;
 				ap->ipv6_cache_info.preferred_lft = iadr->preferred_lft;
 				ap->ipv6_cache_info.valid_lft = iadr->valid_lft;
 
-				ni_debug_dhcp("%s: added IPv6 address %s/%u to lease candidate",
-					dev->ifname, ni_sockaddr_print(&ap->local_addr),
-					ap->prefixlen);
+				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+						"%s: added %sDHCPv6 address %s/%u to lease",
+						dev->ifname, ni_address_is_temporary(ap) ?
+						"temporary " : "",
+						ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
 			}
 		}
 	}
@@ -3042,7 +3048,7 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 	}
 
 	/* FIXME: too early here -- do it after parsing depending on the state? */
-	__copy_ia_na_to_lease_addrs(dev, lease);
+	ni_dhcp6_ia_copy_to_lease_addrs(dev, lease);
 
 	ni_string_array_destroy(&nis_servers);
 	ni_string_array_destroy(&nis_domains);
