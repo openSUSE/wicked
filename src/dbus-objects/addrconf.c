@@ -749,7 +749,7 @@ ni_objectmodel_addrconf_forwarder_call(ni_dbus_addrconf_forwarder_t *forwarder,
 	if (forwarder->supplicant.client == NULL) {
 		forwarder->supplicant.client = ni_create_dbus_client(forwarder->supplicant.bus_name);
 		if (forwarder->supplicant.client == NULL) {
-			dbus_set_error(error, "unable to create call forwarder for %s",
+			dbus_set_error(error, DBUS_ERROR_FAILED, "unable to create call forwarder for %s",
 					forwarder->supplicant.bus_name);
 			return FALSE;
 		}
