@@ -8,5 +8,5 @@ Version: @PACKAGE_VERSION@
 Description: network configuration infrastructure library
 Cflags: -I${includedir}
 Libs: -L${libdir} -l@PACKAGE_NAME@
-Requires: dbus-1 libnl-1
+Requires: dbus-1 libnl-3.0 libnl-route-3.0
 
