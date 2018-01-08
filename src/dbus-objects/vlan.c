@@ -390,14 +390,14 @@ const ni_dbus_property_t	ni_objectmodel_vlan_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_vlan_methods[] = {
-	{ "changeDevice",	"a{sv}",		ni_objectmodel_vlan_change },
-	{ "deleteDevice",	"",			ni_objectmodel_vlan_delete },
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_vlan_change },
+	{ "deleteDevice",	"",		.handler = ni_objectmodel_vlan_delete },
 
 	{ NULL }
 };
 
 static ni_dbus_method_t		ni_objectmodel_vlan_factory_methods[] = {
-	{ "newDevice",		"sa{sv}",		ni_objectmodel_vlan_newlink },
+	{ "newDevice",		"sa{sv}",	.handler = ni_objectmodel_vlan_newlink },
 
 	{ NULL }
 };

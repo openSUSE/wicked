@@ -279,7 +279,7 @@ __ni_dbus_object_manager_get_managed_objects(ni_dbus_object_t *object,
 }
 
 static ni_dbus_method_t	__ni_dbus_object_manager_methods[] = {
-	{ "GetManagedObjects",		NULL,		__ni_dbus_object_manager_get_managed_objects },
+	{ "GetManagedObjects",	NULL,	.handler = __ni_dbus_object_manager_get_managed_objects },
 	{ NULL }
 };
 
@@ -467,9 +467,9 @@ __ni_dbus_object_properties_set(ni_dbus_object_t *object, const ni_dbus_method_t
 }
 
 static ni_dbus_method_t	__ni_dbus_object_properties_methods[] = {
-	{ "GetAll",		"s",		__ni_dbus_object_properties_getall },
-	{ "Get",		"ss",		__ni_dbus_object_properties_get },
-	{ "Set",		"ssv",		__ni_dbus_object_properties_set },
+	{ "GetAll",		"s",		.handler = __ni_dbus_object_properties_getall },
+	{ "Get",		"ss",		.handler = __ni_dbus_object_properties_get },
+	{ "Set",		"ssv",		.handler = __ni_dbus_object_properties_set },
 	{ NULL }
 };
 
@@ -496,7 +496,7 @@ __ni_dbus_object_introspectable_introspect(ni_dbus_object_t *object, const ni_db
 }
 
 static ni_dbus_method_t	__ni_dbus_object_introspectable_methods[] = {
-	{ "Introspect",		"",		__ni_dbus_object_introspectable_introspect },
+	{ "Introspect",		"",		.handler = __ni_dbus_object_introspectable_introspect },
 	{ NULL }
 };
 

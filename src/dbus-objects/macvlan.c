@@ -508,26 +508,26 @@ const ni_dbus_property_t	ni_objectmodel_macvlan_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_macvlan_methods[] = {
-	{ "changeDevice",	"a{sv}",	ni_objectmodel_macvlan_change },
-	{ "deleteDevice",	"",		ni_objectmodel_macvlan_delete },
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_macvlan_change },
+	{ "deleteDevice",	"",		.handler = ni_objectmodel_macvlan_delete },
 	{ NULL }
 };
 
 static ni_dbus_method_t		ni_objectmodel_macvlan_factory_methods[] = {
-	{ "newDevice",		"sa{sv}",	ni_objectmodel_macvlan_newlink },
+	{ "newDevice",		"sa{sv}",	.handler = ni_objectmodel_macvlan_newlink },
 
 	{ NULL }
 };
 
 /* MACVTAP Methods */
 static ni_dbus_method_t		ni_objectmodel_macvtap_methods[] = {
-	{ "changeDevice",	"a{sv}",	ni_objectmodel_macvtap_change },
-	{ "deleteDevice",	"",		ni_objectmodel_macvtap_delete },
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_macvtap_change },
+	{ "deleteDevice",	"",		.handler = ni_objectmodel_macvtap_delete },
 	{ NULL }
 };
 
 static ni_dbus_method_t		ni_objectmodel_macvtap_factory_methods[] = {
-	{ "newDevice",		"sa{sv}",	ni_objectmodel_macvtap_newlink },
+	{ "newDevice",		"sa{sv}",	.handler = ni_objectmodel_macvtap_newlink },
 
 	{ NULL }
 };

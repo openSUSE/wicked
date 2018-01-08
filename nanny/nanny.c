@@ -1163,7 +1163,7 @@ ni_objectmodel_nanny_recheck(ni_dbus_object_t *object, const ni_dbus_method_t *m
 }
 
 static ni_dbus_method_t		ni_objectmodel_nanny_methods[] = {
-	{ "getDevice",		"s",		ni_objectmodel_nanny_get_device			 },
+	{ "getDevice",		"s",		.handler = ni_objectmodel_nanny_get_device	 },
 	{ "createPolicy",	"s",		.handler_ex = ni_objectmodel_nanny_create_policy },
 	{ "deletePolicy",	"s",		.handler_ex = ni_objectmodel_nanny_delete_policy },
 	{ "addSecret",		"a{sv}ss",	.handler_ex = ni_objectmodel_nanny_set_secret	 },

@@ -403,9 +403,9 @@ ni_objectmodel_other_event(ni_dbus_server_t *server, ni_event_t event, const ni_
  * The interface for the dbus root node. Nothing much for now.
  */
 static ni_dbus_method_t		ni_objectmodel_netif_root_signals[] = {
-	{ "resolverUpdated",	"",		NULL },
-	{ "hostnameUpdated",	"",		NULL },
-	{ "genericUpdated",	"",		NULL },
+	{ "resolverUpdated",	"",		.handler = NULL },
+	{ "hostnameUpdated",	"",		.handler = NULL },
+	{ "genericUpdated",	"",		.handler = NULL },
 
 	{ NULL }
 };

@@ -439,14 +439,14 @@ static __ni_kernel_map_t	__ni_wireless_cipher_map[] = {
 	{ IW_IE_CIPHER_CCMP,	NI_WIRELESS_CIPHER_CCMP },
 	{ IW_IE_CIPHER_WRAP,	NI_WIRELESS_CIPHER_WRAP },
 	{ IW_IE_CIPHER_WEP104,	NI_WIRELESS_CIPHER_WEP104 },
-	{ -1 }
+	{ -1,			-1 }
 };
 
 static __ni_kernel_map_t	__ni_wireless_key_mgmt_map[] = {
 	{ IW_IE_KEY_MGMT_NONE,	NI_WIRELESS_KEY_MGMT_NONE },
 	{ IW_IE_KEY_MGMT_PSK,	NI_WIRELESS_KEY_MGMT_PSK },
 	{ IW_IE_KEY_MGMT_802_1X,NI_WIRELESS_KEY_MGMT_802_1X },
-	{ -1 }
+	{ -1,			-1 }
 };
 
 static int

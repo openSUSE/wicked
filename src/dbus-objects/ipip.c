@@ -375,8 +375,8 @@ static const ni_dbus_property_t	ni_objectmodel_ipip_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_ipip_methods[] = {
-	{ "changeDevice",	"a{sv}",	ni_objectmodel_ipip_change },
-	{ "deleteDevice",	"",		ni_objectmodel_ipip_delete },
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_ipip_change },
+	{ "deleteDevice",	"",		.handler = ni_objectmodel_ipip_delete },
 
 	{ NULL }
 };
@@ -391,7 +391,7 @@ ni_dbus_service_t		ni_objectmodel_ipip_service = {
  * ipip factory service
  */
 static ni_dbus_method_t		ni_objectmodel_ipip_factory_methods[] = {
-	{ "newDevice",		"sa{sv}",	ni_objectmodel_ipip_create },
+	{ "newDevice",		"sa{sv}",	.handler = ni_objectmodel_ipip_create },
 
 	{ NULL }
 };

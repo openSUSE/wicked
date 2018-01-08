@@ -27,7 +27,7 @@ static dbus_bool_t		__ni_dbus_object_get_one_property(const ni_dbus_object_t *ob
 static const char *		__ni_dbus_object_child_path(const ni_dbus_object_t *, const char *);
 
 const ni_dbus_class_t		ni_dbus_anonymous_class = {
-	"<anonymous>"
+	.name = "<anonymous>"
 };
 
 /*

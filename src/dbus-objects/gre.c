@@ -550,8 +550,8 @@ static const ni_dbus_property_t	ni_objectmodel_gre_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_gre_methods[] = {
-	{ "changeDevice",	"a{sv}",	ni_objectmodel_gre_change },
-	{ "deleteDevice",	"",		ni_objectmodel_gre_delete },
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_gre_change },
+	{ "deleteDevice",	"",		.handler = ni_objectmodel_gre_delete },
 
 	{ NULL }
 };
@@ -566,7 +566,7 @@ ni_dbus_service_t		ni_objectmodel_gre_service = {
  * gre tunnel factory service
  */
 static ni_dbus_method_t		ni_objectmodel_gre_factory_methods[] = {
-	{ "newDevice",		"sa{sv}",	ni_objectmodel_gre_create },
+	{ "newDevice",		"sa{sv}",	.handler = ni_objectmodel_gre_create },
 
 	{ NULL }
 };

@@ -397,18 +397,14 @@ static const ni_dbus_property_t	ni_objectmodel_bridge_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_bridge_methods[] = {
-	{ "changeDevice",	"a{sv}",			ni_objectmodel_bridge_setup },
-	{ "shutdownDevice",	"",				ni_objectmodel_shutdown_bridge },
-	{ "deleteDevice",	"",				ni_objectmodel_delete_bridge },
-#if 0
-	{ "addPort",		DBUS_TYPE_OJECT_AS_STRING,	ni_objectmodel_bridge_add_port },
-	{ "removePort",		DBUS_TYPE_OJECT_AS_STRING,	ni_objectmodel_bridge_remove_port },
-#endif
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_bridge_setup },
+	{ "shutdownDevice",	"",		.handler = ni_objectmodel_shutdown_bridge },
+	{ "deleteDevice",	"",		.handler = ni_objectmodel_delete_bridge },
 	{ NULL }
 };
 
 static ni_dbus_method_t		ni_objectmodel_bridge_factory_methods[] = {
-	{ "newDevice",		"sa{sv}",			ni_objectmodel_new_bridge },
+	{ "newDevice",		"sa{sv}",	.handler = ni_objectmodel_new_bridge },
 
 	{ NULL }
 };

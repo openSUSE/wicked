@@ -183,16 +183,18 @@ static uint16_t
 ipudp_checksum(const struct ip *iph, const struct udphdr *uhp,
 		const void *data, size_t length)
 {
-	struct udphdr uh = {
-		.uh_sport = uhp->uh_sport,
-		.uh_dport = uhp->uh_dport,
-		.uh_ulen = uhp->uh_ulen,
-	};
+	struct udphdr uh;
 	uint32_t csum;
 	union {
 		uint8_t c[2];
 		uint16_t s;
 	} bs;
+
+	uh.uh_sport = uhp->uh_sport;
+	uh.uh_dport = uhp->uh_dport;
+	uh.uh_ulen = uhp->uh_ulen;
+	uh.uh_sum = 0;
+
 	bs.c[0] = 0;
 	bs.c[1] = IPPROTO_UDP;
 

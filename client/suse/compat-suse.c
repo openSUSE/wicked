@@ -5621,12 +5621,12 @@ static const ni_ifscript_type_t		ni_ifscript_types[] = {
 	{ "wicked",	{ .qualify = ni_ifscript_qualify_wicked		} },
 	{ "compat",	{ .qualify = ni_ifscript_qualify_compat		} },
 	{ "systemd",	{ .qualify = ni_ifscript_qualify_systemd	} },
-	{ NULL,		{ 						} },
+	{ NULL,		{ .qualify = NULL				} },
 };
 
 static const ni_ifscript_type_t		ni_ifscript_types_compat[] = {
 	{ "suse",	{ .qualify = ni_ifscript_qualify_compat_suse	} },
-	{ NULL,		{						} },
+	{ NULL,		{ .qualify = NULL				} },
 };
 
 static const ni_ifscript_type_t *

@@ -260,15 +260,15 @@ failed:
 }
 
 static ni_dbus_method_t		ni_objectmodel_dhcp6_methods[] = {
-	{ "acquire",		"aya{sv}",		ni_objectmodel_dhcp6_acquire_svc },
-	{ "drop",		"ay",			ni_objectmodel_dhcp6_drop_svc },
+	{ "acquire",		"aya{sv}",	.handler = ni_objectmodel_dhcp6_acquire_svc },
+	{ "drop",		"ay",		.handler = ni_objectmodel_dhcp6_drop_svc },
 	{ NULL }
 };
 
 static ni_dbus_method_t		ni_objectmodel_dhcp6_signals[] = {
-	{ NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL },
-	{ NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL },
-	{ NI_OBJECTMODEL_LEASE_LOST_SIGNAL },
+	{ .name = NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL },
+	{ .name = NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL },
+	{ .name = NI_OBJECTMODEL_LEASE_LOST_SIGNAL },
 	{ NULL }
 };
 
@@ -278,7 +278,6 @@ static ni_dbus_method_t		ni_objectmodel_dhcp6_signals[] = {
  */
 static ni_dbus_class_t		ni_objectmodel_dhcp6_request_class = {
 	.name		= "dhcp6-request",
-	//FIXME: no .destroy ?
 };
 
 #define DHCP6REQ_STRING_PROPERTY(dbus_name, member_name, rw) \
