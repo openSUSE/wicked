@@ -290,7 +290,7 @@ __do_arp_validate(struct arp_handle *handle)
 }
 
 int
-ni_do_arp(int argc, char **argv)
+ni_do_arp(const char *caller, int argc, char **argv)
 {
 	static struct option      options[] = {
 		{ "help",         no_argument,       NULL, OPT_HELP        },
