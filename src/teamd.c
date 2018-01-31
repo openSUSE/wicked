@@ -118,13 +118,8 @@ ni_teamd_service_show_property(const char *ifname, const char *property, char **
 static void			ni_teamd_dbus_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 
 static ni_dbus_class_t		ni_objectmodel_teamd_client_class = {
-	"teamd-client"
+	.name = "teamd-client"
 };
-#if 0
-static ni_dbus_class_t		ni_objectmodel_teamd_device_class = {
-	"teamd-device"
-};
-#endif
 
 static const ni_intmap_t	ni_teamd_dbus_error_names[] = {
 	{ NULL,			-1			}

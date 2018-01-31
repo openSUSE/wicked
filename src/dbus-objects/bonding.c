@@ -700,20 +700,14 @@ static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 
 
 static ni_dbus_method_t		ni_objectmodel_bond_methods[] = {
-	{ "changeDevice",	"a{sv}",			ni_objectmodel_bond_setup },
-	{ "shutdownDevice",	"",				__ni_objectmodel_shutdown_bond },
-	{ "deleteDevice",	"",				__ni_objectmodel_delete_bond },
-#if 0
-	{ "addSlave",		DBUS_TYPE_OJECT_AS_STRING,	__ni_objectmodel_bond_add_slave },
-	{ "removeSlave",	DBUS_TYPE_OJECT_AS_STRING,	__ni_objectmodel_bond_remove_slave },
-	{ "setActive",		DBUS_TYPE_OJECT_AS_STRING,	__ni_objectmodel_bond_add_active },
-	{ "setPrimary",		DBUS_TYPE_OJECT_AS_STRING,	__ni_objectmodel_bond_set_primary },
-#endif
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_bond_setup },
+	{ "shutdownDevice",	"",		.handler = __ni_objectmodel_shutdown_bond },
+	{ "deleteDevice",	"",		.handler = __ni_objectmodel_delete_bond },
 	{ NULL }
 };
 
 static ni_dbus_method_t		ni_objectmodel_bond_factory_methods[] = {
-	{ "newDevice",		"sa{sv}",			ni_objectmodel_new_bond },
+	{ "newDevice",		"sa{sv}",	.handler = ni_objectmodel_new_bond },
 
 	{ NULL }
 };

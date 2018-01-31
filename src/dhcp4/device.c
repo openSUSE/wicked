@@ -739,12 +739,9 @@ transient_failure:
 int
 ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
 {
-	struct sockaddr_in sin = {
-		.sin_family = AF_INET,
-		.sin_addr.s_addr = lease->dhcp4.server_id.s_addr,
-		.sin_port = htons(DHCP4_SERVER_PORT),
-	};
+	ni_sockaddr_t addr;
 
+	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.server_id, DHCP4_SERVER_PORT);
 	dev->transmit.msg_code = msg_code;
 	dev->transmit.lease = lease;
 
@@ -757,7 +754,8 @@ ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_co
 
 	if (ni_dhcp4_device_prepare_message(dev) < 0)
 		return -1;
-	if (sendto(dev->listen_fd, ni_buffer_head(&dev->message), ni_buffer_count(&dev->message), 0, (struct sockaddr *)&sin, sizeof(sin)) < 0)
+	if (sendto(dev->listen_fd, ni_buffer_head(&dev->message), ni_buffer_count(&dev->message), 0,
+				&addr.sa, sizeof(addr.sin)) < 0)
 		ni_error("%s: sendto failed: %m", dev->ifname);
 	return 0;
 }

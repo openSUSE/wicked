@@ -892,7 +892,7 @@ const ni_dbus_property_t	ni_objectmodel_ethernet_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_ethernet_methods[] = {
-	{ "changeDevice",	"a{sv}",		ni_objectmodel_ethernet_setup },
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_ethernet_setup },
 	{ NULL }
 };
 

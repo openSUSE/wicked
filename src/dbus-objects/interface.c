@@ -458,9 +458,9 @@ ni_objectmodel_netif_list_get_addresses(ni_dbus_object_t *object, const ni_dbus_
 }
 
 static ni_dbus_method_t		ni_objectmodel_netif_list_methods[] = {
-	{ "deviceByName",	"s",		ni_objectmodel_netif_list_device_by_name },
-	{ "identifyDevice",	"sa{sv}",	ni_objectmodel_netif_list_identify_device },
-	{ "getAddresses",	"a{sv}",	ni_objectmodel_netif_list_get_addresses },
+	{ "deviceByName",	"s",		.handler = ni_objectmodel_netif_list_device_by_name },
+	{ "identifyDevice",	"sa{sv}",	.handler = ni_objectmodel_netif_list_identify_device },
+	{ "getAddresses",	"a{sv}",	.handler = ni_objectmodel_netif_list_get_addresses },
 	{ NULL }
 };
 
@@ -1362,17 +1362,17 @@ ni_objectmodel_netif_destroy(ni_dbus_object_t *object)
 }
 
 static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
-	{ "linkUp",		"a{sv}",		ni_objectmodel_netif_link_up },
-	{ "linkDown",		"",			ni_objectmodel_netif_link_down },
-	{ "installLease",	"a{sv}",		ni_objectmodel_netif_install_lease },
-	{ "setClientControl",	"a{sv}",		ni_objectmodel_netif_set_client_state_control },
-	{ "setClientConfig",	"a{sv}",		ni_objectmodel_netif_set_client_state_config },
-	{ "setClientScripts",	"a{sv}",		ni_objectmodel_netif_set_client_state_scripts },
-	{ "linkMonitor",	"",			ni_objectmodel_netif_link_monitor },
-	{ "getNames",		"",			ni_objectmodel_netif_get_names },
-	{ "clearEventFilters",	"",			ni_objectmodel_netif_clear_event_filters },
-	{ "waitDeviceReady",	"",			ni_objectmodel_netif_wait_device_ready },
-	{ "waitLinkUp",		"",			ni_objectmodel_netif_wait_link_up },
+	{ "linkUp",		"a{sv}",	.handler = ni_objectmodel_netif_link_up },
+	{ "linkDown",		"",		.handler = ni_objectmodel_netif_link_down },
+	{ "installLease",	"a{sv}",	.handler = ni_objectmodel_netif_install_lease },
+	{ "setClientControl",	"a{sv}",	.handler = ni_objectmodel_netif_set_client_state_control },
+	{ "setClientConfig",	"a{sv}",	.handler = ni_objectmodel_netif_set_client_state_config },
+	{ "setClientScripts",	"a{sv}",	.handler = ni_objectmodel_netif_set_client_state_scripts },
+	{ "linkMonitor",	"",		.handler = ni_objectmodel_netif_link_monitor },
+	{ "getNames",		"",		.handler = ni_objectmodel_netif_get_names },
+	{ "clearEventFilters",	"",		.handler = ni_objectmodel_netif_clear_event_filters },
+	{ "waitDeviceReady",	"",		.handler = ni_objectmodel_netif_wait_device_ready },
+	{ "waitLinkUp",		"",		.handler = ni_objectmodel_netif_wait_link_up },
 	{ NULL }
 };
 

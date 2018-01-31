@@ -897,14 +897,14 @@ static ni_dbus_property_t	ni_objectmodel_team_properties[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_team_methods[] = {
-	{ "changeDevice",	"a{sv}",			__ni_objectmodel_team_setup },
-	{ "shutdownDevice",	"",				__ni_objectmodel_shutdown_team },
-	{ "deleteDevice",	"",				__ni_objectmodel_delete_team },
+	{ "changeDevice",	"a{sv}",	.handler = __ni_objectmodel_team_setup },
+	{ "shutdownDevice",	"",		.handler = __ni_objectmodel_shutdown_team },
+	{ "deleteDevice",	"",		.handler = __ni_objectmodel_delete_team },
 	{ NULL }
 };
 
 static ni_dbus_method_t		ni_objectmodel_team_factory_methods[] = {
-	{ "newDevice",		"sa{sv}",			ni_objectmodel_new_team },
+	{ "newDevice",		"sa{sv}",	.handler = ni_objectmodel_new_team },
 	{ NULL }
 };
 

@@ -237,15 +237,15 @@ failed:
 }
 
 static ni_dbus_method_t		ni_objectmodel_dhcp4_methods[] = {
-	{ "acquire",		"aya{sv}",		__ni_objectmodel_dhcp4_acquire_svc },
-	{ "drop",		"ay",			__ni_objectmodel_dhcp4_drop_svc },
+	{ "acquire",		"aya{sv}",	.handler = __ni_objectmodel_dhcp4_acquire_svc },
+	{ "drop",		"ay",		.handler = __ni_objectmodel_dhcp4_drop_svc },
 	{ NULL }
 };
 
 static ni_dbus_method_t		ni_objectmodel_dhcp4_signals[] = {
-	{ NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL },
-	{ NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL },
-	{ NI_OBJECTMODEL_LEASE_LOST_SIGNAL },
+	{ .name = NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL },
+	{ .name = NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL },
+	{ .name = NI_OBJECTMODEL_LEASE_LOST_SIGNAL },
 	{ NULL }
 };
 

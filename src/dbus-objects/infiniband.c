@@ -332,7 +332,7 @@ const ni_dbus_property_t	ni_objectmodel_ibparent_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_ibparent_methods[] = {
-	{ "changeDevice",	"a{sv}",		ni_objectmodel_ib_setup },
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_ib_setup },
 
 	{ NULL }
 };
@@ -347,14 +347,14 @@ const ni_dbus_property_t	ni_objectmodel_ibchild_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_ibchild_methods[] = {
-	{ "changeDevice",	"a{sv}",		ni_objectmodel_ib_setup  },
-	{ "deleteDevice",	"",			ni_objectmodel_ib_delete },
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_ib_setup  },
+	{ "deleteDevice",	"",		.handler = ni_objectmodel_ib_delete },
 
 	{ NULL }
 };
 
 static ni_dbus_method_t		ni_objectmodel_ibchild_factory_methods[] = {
-	{ "newDevice",		"sa{sv}",		ni_objectmodel_ib_newchild},
+	{ "newDevice",		"sa{sv}",	.handler = ni_objectmodel_ib_newchild},
 	{ NULL }
 };
 

@@ -650,13 +650,13 @@ static const ni_dbus_property_t	ni_objectmodel_ppp_device_properties[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_ppp_device_methods[] = {
-	{ "changeDevice",	"a{sv}",	ni_objectmodel_ppp_device_change   },
-	{ "deleteDevice",	"",		ni_objectmodel_ppp_device_delete   },
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_ppp_device_change   },
+	{ "deleteDevice",	"",		.handler = ni_objectmodel_ppp_device_delete   },
 	{ NULL }
 };
 
 static ni_dbus_method_t		ni_objectmodel_ppp_factory_methods[] = {
-	{ "newDevice",		"sa{sv}",	ni_objectmodel_ppp_device_new },
+	{ "newDevice",		"sa{sv}",	.handler = ni_objectmodel_ppp_device_new },
 	{ NULL }
 };
 
