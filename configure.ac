@@ -39,6 +39,15 @@ if test "x$enable_lldp" = "xyes" ; then
 	AC_DEFINE([NI_ENABLE_LLDP], [], [Enable lldp support])
 fi
 
+# Whether to use rfc4361 dhcp4 client-id by default
+AC_ARG_ENABLE([dhcp4-rfc4361-cid],
+	      [AS_HELP_STRING([--disable-dhcp4-rfc4361-cid],
+	       [disable to not use rfc4361 DHCPv4 client-id by default])],,
+	      [enable_dhcp4_rfc4361_cid=yes])
+if test "x$enable_dhcp4_rfc4361_cid" = "xyes" ; then
+	AC_DEFINE([NI_DHCP4_RFC4361_CID], [1], [Enable to use rfc4361 DHCPv4 client-id by default])
+fi
+
 # Whether to enable nanny use
 AC_ARG_ENABLE([nanny-use],
 	      [AS_HELP_STRING([--disable-nanny-use],
