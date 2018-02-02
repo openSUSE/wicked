@@ -870,9 +870,10 @@ ni_dhcp4_set_config_client_id(ni_opaque_t *raw, const ni_dhcp4_device_t *dev)
 		 */
 		switch (dev->system.hwaddr.type) {
 		case ARPHRD_ETHER:
+#ifndef NI_DHCP4_RFC4361_CID
 			type = NI_CONFIG_DHCP4_CID_TYPE_HWADDR;
 			break;
-
+#endif
 		case ARPHRD_INFINIBAND:
 		default:
 			type = NI_CONFIG_DHCP4_CID_TYPE_DHCPv6;

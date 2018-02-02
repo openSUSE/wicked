@@ -1,7 +1,7 @@
 #
 # spec file for package wicked
 #
-# Copyright (c) 2010-2017 SUSE LINUX GmbH, Nuernberg, Germany.
+# Copyright (c) 2018 SUSE LINUX GmbH, Nuernberg, Germany.
 #
 # All modifications and additions to the file contributed by third parties
 # remain the property of their copyright owners, unless otherwise agreed
@@ -41,6 +41,11 @@ BuildRequires:  libtool
 BuildRequires:  make
 Requires(pre):  libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
 
+%if 0%{?suse_version} >= 1500
+%bcond_without  rfc4361_cid
+%else
+%bcond_with     rfc4361_cid
+%endif
 %if 0%{?suse_version} >= 1230
 %bcond_without  systemd
 %bcond_with     dbusstart
@@ -182,6 +187,9 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS"
 	--with-storedir=%{wicked_storedir}\
 	--with-compat=suse		\
 	--with-fillup-templatesdir=%{_fillupdir}\
+%if %{without rfc4361_cid}
+	--disable-dhcp4-rfc4361-cid	\
+%endif
 %if %{without use_nanny}
 	--disable-nanny-use		\
 %endif
