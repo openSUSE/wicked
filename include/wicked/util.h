@@ -85,9 +85,15 @@ typedef enum ni_daemon_close {
 
 extern void		ni_bitfield_init(ni_bitfield_t *);
 extern void		ni_bitfield_destroy(ni_bitfield_t *);
-extern void		ni_bitfield_setbit(ni_bitfield_t *, unsigned int);
-extern void		ni_bitfield_clearbit(ni_bitfield_t *, unsigned int);
-extern int		ni_bitfield_testbit(const ni_bitfield_t *, unsigned int);
+extern unsigned int	ni_bitfield_words(const ni_bitfield_t *);
+extern size_t		ni_bitfield_bytes(const ni_bitfield_t *);
+extern size_t		ni_bitfield_bits(const ni_bitfield_t *);
+extern const void *	ni_bitfield_get_data(const ni_bitfield_t *);
+extern ni_bool_t	ni_bitfield_set_data(ni_bitfield_t *, const void *, size_t);
+extern ni_bool_t	ni_bitfield_setbit(ni_bitfield_t *, unsigned int);
+extern ni_bool_t	ni_bitfield_clearbit(ni_bitfield_t *, unsigned int);
+extern ni_bool_t	ni_bitfield_turnbit(ni_bitfield_t *, unsigned int, ni_bool_t);
+extern ni_bool_t	ni_bitfield_testbit(const ni_bitfield_t *, unsigned int);
 
 extern void		ni_string_free(char **);
 extern void		ni_string_clear(char **);
