@@ -60,6 +60,7 @@ libwicked_la_SOURCES		= \
 	duid.c			\
 	errors.c		\
 	ethernet.c		\
+	ethtool.c		\
 	extension.c		\
 	firmware.c		\
 	fsm.c			\
@@ -127,6 +128,7 @@ libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/bonding.c	\
 	dbus-objects/bridge.c	\
 	dbus-objects/ethernet.c	\
+	dbus-objects/ethtool.c	\
 	dbus-objects/infiniband.c\
 	dbus-objects/interface.c\
 	dbus-objects/ipv4.c	\

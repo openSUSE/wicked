@@ -105,6 +105,7 @@ ni_objectmodel_register_netif_services(void)
 	/* LLDP agent */
 	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_lldp_service);
 
+	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_ethtool_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_ETHERNET, &ni_objectmodel_ethernet_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_VLAN, &ni_objectmodel_vlan_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_VXLAN, &ni_objectmodel_vxlan_service);

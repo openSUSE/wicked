@@ -340,6 +340,8 @@ discover_state(ni_dbus_server_t *server)
 		for (modem = ni_netconfig_modem_list(nc); modem; modem = modem->list.next)
 			ni_objectmodel_register_modem(server, modem);
 #endif
+		/* refresh to get all (also is_ready only) properties */
+		ni_global_state_handle(1);
 	}
 }
 

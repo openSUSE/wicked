@@ -101,6 +101,7 @@ struct ni_netdev {
 	ni_dcb_t *		dcb;
 
 	ni_pci_dev_t *		pci_dev;
+	ni_ethtool_t *		ethtool;
 
 	ni_event_filter_t *	event_filter;
 };
@@ -194,6 +195,7 @@ ni_addrconf_lease_t *	ni_netdev_get_lease_by_uuid(ni_netdev_t *, const ni_uuid_t
 ni_addrconf_lease_t *	ni_netdev_get_lease_by_owner(ni_netdev_t *, const char *);
 
 extern ni_address_t *	ni_netdev_get_addresses(ni_netdev_t *, unsigned int af);
+extern ni_ethtool_t *	ni_netdev_get_ethtool(ni_netdev_t *);
 extern ni_ethernet_t *	ni_netdev_get_ethernet(ni_netdev_t *);
 extern ni_infiniband_t *ni_netdev_get_infiniband(ni_netdev_t *);
 extern ni_bonding_t *	ni_netdev_get_bonding(ni_netdev_t *);
@@ -219,6 +221,7 @@ extern void		ni_netdev_set_vxlan(ni_netdev_t *, ni_vxlan_t *);
 extern void		ni_netdev_set_macvlan(ni_netdev_t *, ni_macvlan_t *);
 extern void		ni_netdev_set_bridge(ni_netdev_t *, ni_bridge_t *);
 extern void		ni_netdev_set_ovs_bridge(ni_netdev_t *, ni_ovs_bridge_t *);
+extern void		ni_netdev_set_ethtool(ni_netdev_t *, ni_ethtool_t *);
 extern void		ni_netdev_set_ethernet(ni_netdev_t *, ni_ethernet_t *);
 extern void		ni_netdev_set_infiniband(ni_netdev_t *, ni_infiniband_t *);
 extern void		ni_netdev_set_link_stats(ni_netdev_t *, ni_link_stats_t *);
