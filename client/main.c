@@ -182,6 +182,7 @@ main(int argc, char **argv)
 				"  iaid        [subcommand]\n"
 				"  duid        [subcommand]\n"
 				"  arp         [options] <ifname> <IP>\n"
+				"  ethtool     [options] <ifname> <...>\n"
 				"\n", program);
 			goto done;
 
@@ -326,6 +327,9 @@ main(int argc, char **argv)
 	} else
 	if (!strcmp(cmd, "arp")) {
 		status = ni_do_arp(program, argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "ethtool")) {
+		status = ni_do_ethtool(program, argc - optind, argv + optind);
 	} else {
 		fprintf(stderr, "Unsupported command %s\n", cmd);
 		goto usage;
