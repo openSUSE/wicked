@@ -258,6 +258,27 @@ for nicpath in "${IBFT_ROOT}/${IBFT_NICS}"*; do
 		EOF
 	fi
 
+	nic_driver=$(wicked ethtool "$nic_name" --show-driver-info 2>/dev/null | \
+			sed -n 's/^[ \t]driver: \(.*\)/\1/p')
+	case $nic_driver in
+	bnx2x)
+		if wicked ethtool "$nic_name" --show-priv-flags 2>/dev/null | \
+			grep -qis 'Storage only interface: on' ; then
+			cat <<-EOF
+			  <!-- storage-only interface -->
+			  <ipv4>
+			    <enabled>false</enabled>
+			  </ipv4>
+			  <ipv6>
+			    <enabled>false</enabled>
+			  </ipv6>
+			</interface>
+			EOF
+			continue 2
+		fi
+	;;
+	esac
+
 	if [ $nic_origin -ne 3 -a -n "$nic_ipaddr" ]; then
 		case $nic_gateway in
 		"")
