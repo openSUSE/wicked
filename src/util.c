@@ -733,51 +733,104 @@ ni_bitfield_destroy(ni_bitfield_t *bf)
 	memset(bf, 0, sizeof(*bf));
 }
 
-static inline void
-__ni_bitfield_grow(ni_bitfield_t *bf, unsigned int nbits)
+unsigned int
+ni_bitfield_words(const ni_bitfield_t *bf)
 {
-	unsigned int nwords = (nbits + 31) / 32;
+	return bf ? bf->size : 0;
+}
 
-	if (nwords >= bf->size) {
-		const unsigned int local_words = sizeof(bf->__local_field);
+size_t
+ni_bitfield_bytes(const ni_bitfield_t *bf)
+{
+	return bf ? bf->size * sizeof(uint32_t) : 0;
+}
 
-		if (nwords <= local_words) {
-			memset(bf->__local_field, 0, local_words);
+size_t
+ni_bitfield_bits(const ni_bitfield_t *bf)
+{
+	return bf ? bf->size * 32 : 0;
+}
+
+static inline ni_bool_t
+ni_bitfield_grow(ni_bitfield_t *bf, unsigned int bit)
+{
+	unsigned int nwords = (bit + 32) / 32;
+
+	if (nwords > bf->size) {
+		const unsigned int local_bytes = sizeof(bf->__local_field);
+		const unsigned int local_words = local_bytes / sizeof(uint32_t);
+
+		if (nwords < local_words) {
 			bf->field = bf->__local_field;
-			bf->size = local_words;
+			bf->size = nwords;
 		} else {
 			uint32_t *new_field;
 
-			new_field = xcalloc(nwords, sizeof(uint32_t));
+			new_field = calloc(nwords, sizeof(uint32_t));
+			if (!new_field)
+				return FALSE;
 			if (bf->size)
-				memcpy(new_field, bf->field, bf->size);
+				memcpy(new_field, bf->field, ni_bitfield_bytes(bf));
 			if (bf->field && bf->field != bf->__local_field)
 				free(bf->field);
 			bf->field = new_field;
 			bf->size = nwords;
 		}
 	}
+	return TRUE;
 }
 
-void
+ni_bool_t
+ni_bitfield_set_data(ni_bitfield_t *bf, const void *data, size_t len)
+{
+	if (!bf || !data || !len || len % 4)
+		return FALSE;
+
+	if (!ni_bitfield_grow(bf, (len * 8) - 1))
+		return FALSE;
+
+	memcpy(bf->field, data, len);
+	return TRUE;
+}
+
+const void *
+ni_bitfield_get_data(const ni_bitfield_t *bf)
+{
+	return bf ? (const void *)bf->field : NULL;
+}
+
+ni_bool_t
 ni_bitfield_setbit(ni_bitfield_t *bf, unsigned int bit)
 {
-	__ni_bitfield_grow(bf, bit);
-	bf->field[bit / 32] = (1 << (bit % 32));
+	if (!bf || !ni_bitfield_grow(bf, bit))
+		return FALSE;
+	bf->field[bit / 32] |= (1 << (bit % 32));
+	return TRUE;
 }
 
-void
+ni_bool_t
 ni_bitfield_clearbit(ni_bitfield_t *bf, unsigned int bit)
 {
-	__ni_bitfield_grow(bf, bit);
+	if (!bf || !ni_bitfield_grow(bf, bit))
+		return FALSE;
 	bf->field[bit / 32] &= ~(1 << (bit % 32));
+	return TRUE;
 }
 
-int
+ni_bool_t
+ni_bitfield_turnbit(ni_bitfield_t *bf, unsigned int bit, ni_bool_t onoff)
+{
+	if (onoff)
+		return ni_bitfield_setbit(bf, bit);
+	else
+		return ni_bitfield_clearbit(bf, bit);
+}
+
+ni_bool_t
 ni_bitfield_testbit(const ni_bitfield_t *bf, unsigned int bit)
 {
-	if (bit / 32 >= bf->size)
-		return 0;
+	if (!bf || bit / 32 >= bf->size)
+		return FALSE;
 	return !!(bf->field[bit / 32] & (1 << (bit % 32)));
 }
 

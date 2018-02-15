@@ -1,0 +1,35 @@
+<!--
+  Ethtool service definition
+  -->
+<service name="ethtool" interface="org.opensuse.Network.Ethtool" object-class="netif">
+
+  <define name="ethtool-priv-flag"   class="dict">
+    <name                       type="string"/>
+    <enabled                    type="boolean"/>
+  </define>
+
+  <define name="configuration"  class="dict">
+    <private-flags              class="array" element-type="ethtool-priv-flag" element-name="flag" />
+  </define>
+
+  <define name="properties"     class="dict" extends="ethtool:configuration">
+    <driver-info                class="dict">
+      <driver                     type="string"/>
+      <version                    type="string"/>
+      <bus-info                   type="string"/>
+      <firmware-version           type="string"/>
+      <expansion-rom-version      type="string"/>
+      <supports                   type="builtin-ethtool-driver-supports-mask"/>
+    </driver-info>
+  </define>
+
+  <method name="changeDevice">
+    <arguments>
+      <config type="ethtool:configuration">
+        <meta:mapping document-node="/ethtool" skip-unless-present="true" />
+      </config>
+    </arguments>
+  </method>
+
+</service>
+

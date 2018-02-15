@@ -96,6 +96,7 @@ extern int		__ni_system_interface_flush_addrs(ni_netconfig_t *, ni_netdev_t *);
 extern int		__ni_system_interface_flush_routes(ni_netconfig_t *, ni_netdev_t *);
 extern void		__ni_system_ethernet_refresh(ni_netdev_t *);
 extern void		__ni_system_ethernet_update(ni_netdev_t *, ni_ethernet_t *);
+extern void		ni_system_ethtool_refresh(ni_netdev_t *);
 
 /* FIXME: These should go elsewhere, maybe runtime.h */
 extern int		__ni_system_interface_update_lease(ni_netdev_t *, ni_addrconf_lease_t **, ni_event_t);

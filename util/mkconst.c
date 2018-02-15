@@ -17,6 +17,7 @@
 #include <net/if_arp.h>
 
 #include <wicked/netinfo.h>
+#include <wicked/ethtool.h>
 #include <wicked/addrconf.h>
 #include <wicked/logging.h>
 #include <wicked/wireless.h>
@@ -94,6 +95,7 @@ static struct generic_map	generic_maps[] = {
 	MAP(GRE_FLAG_BIT, ni_gre_flag_bit_to_name),
 	MAP(GRE_ENCAP_TYPE, ni_gre_encap_type_to_name),
 	MAP(GRE_ENCAP_FLAG_BIT, ni_gre_encap_flag_bit_to_name),
+	MAP(ETHTOOL_DRIVER_SUPPORTS, ni_ethtool_driver_supports_map_bit),
 
 	{ NULL }
 };

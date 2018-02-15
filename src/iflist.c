@@ -1867,6 +1867,9 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 	__ni_process_ifinfomsg_af_spec(dev, tb[IFLA_AF_SPEC], nc);
 	__ni_process_ifinfomsg_ipv6info(dev, tb[IFLA_PROTINFO]);
 
+	if (!ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
+		ni_system_ethtool_refresh(dev);
+
 	switch (dev->link.type) {
 	case NI_IFTYPE_ETHERNET:
 		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))

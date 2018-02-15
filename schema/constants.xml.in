@@ -232,3 +232,6 @@
 <define name="builtin-gre-encap-flag-mask" type="uint16" constraint="bitmap">
   <@@GRE_ENCAP_FLAG_BIT_NAME@@ bit="@@GRE_ENCAP_FLAG_BIT_VALUE@@"/>
 </define>
+<define name="builtin-ethtool-driver-supports-mask" type="uint32" constraint="bitmap">
+  <@@ETHTOOL_DRIVER_SUPPORTS_NAME@@ bit="@@ETHTOOL_DRIVER_SUPPORTS_VALUE@@"/>
+</define>
