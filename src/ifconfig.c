@@ -3298,8 +3298,8 @@ ni_rtnl_link_put_vxlan_opt(ni_netconfig_t *nc, struct nl_msg *msg, const char *i
 		break;
 
 	case IFLA_VXLAN_PORT_RANGE:
-		if ((vxlan->src_port.low != vxlan->src_port.low) ||
-		    (vxlan->src_port.high != vxlan->src_port.high)) {
+		if ((vxlan->src_port.low != conf->src_port.low) ||
+		    (vxlan->src_port.high != conf->src_port.high)) {
 			struct ifla_vxlan_port_range p;
 			p.low  = htons(conf->src_port.low);
 			p.high = htons(conf->src_port.high);
