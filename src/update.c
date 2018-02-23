@@ -1038,7 +1038,7 @@ ni_system_updater_generic_batch_create(ni_updater_t *updater, char **filename, F
 	if (!(pi->temp_state = ni_tempstate_new("batch")))
 		goto cleanup;
 
-	if (!(fd = mkstemp(*filename)) < 0)
+	if ((fd = mkstemp(*filename)) < 0)
 		goto cleanup;
 
 	ni_string_array_append(&pi->argv, *filename);

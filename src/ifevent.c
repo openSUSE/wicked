@@ -1362,8 +1362,8 @@ ni_server_enable_route_events(void (*route_handler)(ni_netconfig_t *, ni_event_t
 	}
 
 	handle = __ni_rtevent_sock->user_data;
-	if (!__ni_rtevent_join_group(handle, RTNLGRP_IPV4_ROUTE) < 0 ||
-	    !__ni_rtevent_join_group(handle, RTNLGRP_IPV6_ROUTE) < 0) {
+	if (!__ni_rtevent_join_group(handle, RTNLGRP_IPV4_ROUTE) ||
+	    !__ni_rtevent_join_group(handle, RTNLGRP_IPV6_ROUTE)) {
 		ni_error("Cannot add rtnetlink route event membership: %m");
 		return -1;
 	}
@@ -1409,8 +1409,8 @@ ni_server_enable_rule_events(void (*rule_handler)(ni_netconfig_t *, ni_event_t, 
 	}
 
 	handle = __ni_rtevent_sock->user_data;
-	if (!__ni_rtevent_join_group(handle, RTNLGRP_IPV4_RULE) < 0 ||
-	    !__ni_rtevent_join_group(handle, RTNLGRP_IPV6_RULE) < 0) {
+	if (!__ni_rtevent_join_group(handle, RTNLGRP_IPV4_RULE) ||
+	    !__ni_rtevent_join_group(handle, RTNLGRP_IPV6_RULE)) {
 		ni_error("Cannot add rtnetlink rule event membership: %m");
 		return -1;
 	}
