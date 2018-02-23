@@ -174,7 +174,7 @@ ni_objectmodel_dhcp6_acquire_svc(ni_dbus_object_t *object, const ni_dbus_method_
 	if (argc != 1) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"method %s called with %d arguments (expected 1)",
-				argc);
+				method->name, argc);
 		goto failed;
 	}
 

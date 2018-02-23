@@ -169,7 +169,7 @@ ni_objectmodel_shutdown_bridge(ni_dbus_object_t *object, const ni_dbus_method_t 
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
 	if (ni_system_bridge_shutdown(dev) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Error shutting bridge interface down", dev->name);
+				"Error shutting down bridge interface %s", dev->name);
 		return FALSE;
 	}
 
@@ -193,7 +193,7 @@ ni_objectmodel_delete_bridge(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
 	if (ni_system_bridge_delete(nc, dev) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Error deleting bridge interface", dev->name);
+				"Error deleting bridge interface %s", dev->name);
 		return FALSE;
 	}
 

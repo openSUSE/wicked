@@ -503,7 +503,7 @@ ni_objectmodel_addrconf_static_drop(ni_dbus_object_t *object, unsigned int addrf
 		/* unable to start removal / some allocation error */
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
-				"%s: failed to drop %s:%s lease",
+				"%s: failed to drop %s:%s lease", dev->name,
 				ni_addrfamily_type_to_name(addrfamily),
 				ni_addrconf_type_to_name(NI_ADDRCONF_STATIC));
 		return FALSE;
@@ -720,7 +720,7 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 		/* unable to start removal / some allocation error */
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
-				"%s: failed to drop %s:%s lease",
+				"%s: failed to drop %s:%s lease", dev->name,
 				ni_addrfamily_type_to_name(forwarder->addrfamily),
 				ni_addrconf_type_to_name(forwarder->addrconf));
 		return FALSE;

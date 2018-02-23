@@ -115,7 +115,7 @@ __ni_objectmodel_gre_create(ni_netdev_t *cfg_ifp, const char *ifname, DBusError 
 		if (rv != -NI_ERROR_DEVICE_EXISTS || dev == NULL
 			|| (ifname && dev && !ni_string_eq(dev->name, ifname))) {
 			dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Unable to create gre tunnel: %s");
+				"Unable to create gre tunnel: %s", cfg_ifp->name);
 			dev = NULL;
 			goto out;
 		}

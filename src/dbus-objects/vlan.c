@@ -101,7 +101,7 @@ __ni_objectmodel_vlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 	if (ni_string_eq(cfg_ifp->name, cfg_ifp->link.lowerdev.name)) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Cannot create vlan interface: "
-				"vlan name %s equal with lower device name");
+				"vlan name %s equal with lower device name", cfg_ifp->name);
 		return NULL;
 	}
 
