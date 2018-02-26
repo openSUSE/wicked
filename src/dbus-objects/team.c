@@ -208,7 +208,7 @@ __ni_objectmodel_shutdown_team(ni_dbus_object_t *object, const ni_dbus_method_t 
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
 	if (ni_system_team_shutdown(dev) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Error shutting team interface down", dev->name);
+				"Error shutting down team interface %s", dev->name);
 		return FALSE;
 	}
 
@@ -236,7 +236,7 @@ __ni_objectmodel_delete_team(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
 	if (ni_system_team_delete(nc, dev) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Error deleting team interface", dev->name);
+				"Error deleting team interface %s", dev->name);
 		return FALSE;
 	}
 

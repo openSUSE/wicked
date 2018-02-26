@@ -160,7 +160,7 @@ ni_objectmodel_ppp_device_delete(ni_dbus_object_t *object, const ni_dbus_method_
 
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
 	if (ni_system_ppp_delete(nc, dev) < 0) {
-		dbus_set_error(error, DBUS_ERROR_FAILED, "Error deleting ppp interface", dev->name);
+		dbus_set_error(error, DBUS_ERROR_FAILED, "Error deleting ppp interface %s", dev->name);
 		return FALSE;
 	}
 
@@ -186,7 +186,7 @@ ni_objectmodel_ppp_handle(const ni_dbus_object_t *object, ni_bool_t write_access
 	if (!(ppp = ni_netdev_get_ppp(dev))) {
 		if (error)
 			dbus_set_error(error, DBUS_ERROR_FAILED,
-					"Error getting ppp handle for interface");
+					"Error getting ppp handle for interface %s", dev->name);
 		return NULL;
 	}
 	return ppp;
