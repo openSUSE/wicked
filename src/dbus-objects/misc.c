@@ -182,6 +182,8 @@ __ni_objectmodel_set_hwaddr(const ni_dbus_variant_t *argument, ni_hwaddr_t *hwad
 dbus_bool_t
 __ni_objectmodel_get_hwaddr(ni_dbus_variant_t *result, const ni_hwaddr_t *hwaddr)
 {
+	if (!hwaddr->len)
+		return FALSE;
 	ni_dbus_variant_set_byte_array(result, hwaddr->data, hwaddr->len);
 	return TRUE;
 }
