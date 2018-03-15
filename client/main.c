@@ -140,8 +140,9 @@ main(int argc, char **argv)
 		default:
 		usage:
 			fprintf(stderr,
-				"%s [options] cmd path\n"
-				"This command understands the following options\n"
+				"%s [options] <command> ...\n"
+				"\n"
+				"Options:\n"
 				"  --help\n"
 				"  --version\n"
 				"  --config filename\n"
@@ -160,30 +161,28 @@ main(int argc, char **argv)
 				"  --systemd\n"
 				"        Enables behavior required by systemd service\n"
 				"\n"
-				"Supported commands:\n"
+				"Commands:\n"
 				"  ifup        [options] <ifname ...>|all\n"
 				"  ifdown      [options] <ifname ...>|all\n"
 				"  ifcheck     [options] <ifname ...>|all\n"
 				"  ifreload    [options] <ifname ...>|all\n"
 				"  ifstatus    [options] <ifname ...>|all\n"
 				"  show        [options] <ifname ...>|all\n"
-#ifdef MODEM
-				"  show-xml    [--raw] [--modem] <ifname|all>\n"
-#endif
-				"  show-xml    [--raw] <ifname|all>\n"
-				"  show-config [--raw] [source]\n"
-				"  nanny       [subcommand]\n"
-				"  lease       [subcommand]\n"
-				"  check       [subcommand]\n"
-				"  getnames    [subcommand]\n"
-				"  convert     [subcommand]\n"
+				"  show-xml    [options]\n"
+				"  show-config [options]\n"
+				"  convert     [options]\n"
+				"  getnames    [options]\n"
 				"  xpath       [options] expr ...\n"
-				"  test        [subcommand]\n"
-				"  iaid        [subcommand]\n"
-				"  duid        [subcommand]\n"
-				"  arp         [options] <ifname> <IP>\n"
 				"  ethtool     [options] <ifname> <...>\n"
-				"\n", program);
+				"  nanny       <action> ...\n"
+				"  lease       <action> ...\n"
+				"  check       <action> ...\n"
+				"  test        <action> ...\n"
+				"  iaid        <action> ...\n"
+				"  duid        <action> ...\n"
+				"  arp         <action> ...\n"
+				"\n"
+				, program);
 			goto done;
 
 		case OPT_VERSION:

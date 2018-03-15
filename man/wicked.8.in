@@ -22,9 +22,11 @@ wicked \- network management utility
 .br
 .BI "wicked [" global-options "] getnames [" options "] " device ...
 .br
-.BI "wicked [" global-options "] duid [" options "] [" command "] ...
+.BI "wicked [" global-options "] duid [" options "] <" action "> ...
 .br
-.BI "wicked [" global-options "] iaid [" options "] [" command "] ...
+.BI "wicked [" global-options "] iaid [" options "] <" action "> ...
+.br
+.BI "wicked [" global-options "] arp <" action "> [" options "] ...
 .br
 .PP
 .\" ----------------------------------------
@@ -639,6 +641,33 @@ Retrieves the IAID of a given interface.
 .B dump\fB\ show
 Shows all IAID's and interfaces stored in the persistent duid file.
 
+.\" ----------------------------------------
+.SH arp - send ARP requests
+This command permits to verify/probe IPv4 addresses for duplicates, notify/announce
+about own IP address use to neighbours and ping neighbours using ARP requests.
+.PP
+.TP
+.B verify [--count n] [--interval ms] <ifname> <IP address>
+Sends given number (default 3) of IPv4 duplicate address detections probes
+in intervals (default random range 1000..2000ms) to verify, that given IP
+address is not already in use on the interface.
+On a reply indicating a duplicate address, status code 4 is returned.
+.TP
+.B notify [--count n] [--interval ms] <ifname> <IP address>
+Notify about/Announce the use of the IPv4 address to the neighbours on an
+interface by sending a number (default 2) of gratuitous ARP requests in
+the given interval (default 2000ms) between the packets.
+When no notify were sent, the status code 7 is returned.
+.TP
+.B ping [--count n] [--interval ms] [--replies n] [--timeout ms] [--from-ip ip] <ifname> <IP address>
+ARP ping a neighbour with specified IP address on an interface
+with first or the specified source IP address and an interval
+(default 1000ms) between the packets.
+To limit the number of pings to send, use the count parameter.
+The replies parameter permits to specify the number of replies
+expected in the time given by timeout or the count and interval
+parameters to report a success status code 0 or status code 7
+when the expected replies do not arrive.
 .\" ----------------------------------------
 .SH xpath - retrieve data from an XML blob
 The \fBwickedd\fP server can be enhanced to support new network device types
