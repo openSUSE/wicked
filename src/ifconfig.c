@@ -291,6 +291,7 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 	if (dev == NULL)
 		return -NI_ERROR_INVALID_ARGS;
 
+	__ni_system_refresh_interface(nc, dev);
 	ni_debug_ifconfig("%s(%s)", __func__, dev->name);
 
 	/* FIXME: perform sanity check on configuration data,
@@ -302,6 +303,14 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 		 * master manages the link of a slave, redirect to enslave
 		 * when there is a master set.
 		 */
+		if (dev->link.masterdev.index) {
+			master = ni_netdev_by_index(nc, dev->link.masterdev.index);
+			if (master)
+				__ni_system_refresh_interface(nc, master);
+			else
+				__ni_system_refresh_interfaces(nc);
+		}
+
 		if (dev->link.masterdev.index) {
 			if (!dev->link.masterdev.name)
 				ni_netdev_ref_bind_ifname(&dev->link.masterdev, nc);
