@@ -474,6 +474,7 @@ ni_var_array_free(ni_var_array_t *nva)
 {
 	if (nva) {
 		ni_var_array_destroy(nva);
+		free(nva);
 	}
 }
 

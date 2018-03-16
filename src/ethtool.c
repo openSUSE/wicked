@@ -139,6 +139,8 @@ ni_ethtool_get_gstrings(const char *ifname, const char *hint, unsigned int sset,
 	}
 
 	/* ensure the strings are null-terminated */
+	if (gstrings->len > count)
+		gstrings->len = count;
 	for (i = 0; i < gstrings->len; i++)
 		gstrings->data[(i + 1) * ETH_GSTRING_LEN - 1] = 0;
 
@@ -295,8 +297,7 @@ ni_ethtool_get_priv_flags_names(const char *ifname, ni_ethtool_t *ethtool, ni_st
 	}
 
 	ni_stringbuf_init(&buf);
-	count = gstrings->len;
-	for (i = 0; i < count; ++i) {
+	for (i = 0; i < gstrings->len; ++i) {
 		name = (const char *)(gstrings->data + i * ETH_GSTRING_LEN);
 		ni_stringbuf_put(&buf, name, ETH_GSTRING_LEN);
 		ni_stringbuf_trim_head(&buf, " \t\n");
@@ -346,15 +347,15 @@ ni_ethtool_get_priv_flags(const char *ifname, ni_ethtool_t *ethtool)
 			return -ENOMEM;
 	}
 
-	if (!ethtool->priv_flags->names.count) {
-		ret = ni_ethtool_get_priv_flags_names(ifname, ethtool, &ethtool->priv_flags->names);
-		if (ret < 0)
-			goto cleanup;
+	ethtool->priv_flags->bitmap = 0;
+	ret = ni_ethtool_get_priv_flags_bitmap(ifname, ethtool, &ethtool->priv_flags->bitmap);
+	if (ret < 0) {
+		ni_ethtool_set_supported(ethtool, NI_ETHTOOL_SUPP_GET_PRIV_FLAGS, ret != -EOPNOTSUPP);
+		goto cleanup;
 	}
 
-	ethtool->priv_flags->bitmap = 0;
-	if (ethtool->priv_flags->names.count) {
-		ret = ni_ethtool_get_priv_flags_bitmap(ifname, ethtool, &ethtool->priv_flags->bitmap);
+	if (!ethtool->priv_flags->names.count) {
+		ret = ni_ethtool_get_priv_flags_names(ifname, ethtool, &ethtool->priv_flags->names);
 		if (ret < 0)
 			goto cleanup;
 	}
