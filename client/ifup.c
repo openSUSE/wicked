@@ -55,21 +55,8 @@ struct ni_nanny_fsm_monitor {
 static xml_node_t *
 __ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w)
 {
-	ni_iftype_t iftype;
-	const char *type;
-
 	if (!node || !w || ni_string_empty(w->name))
 		return NULL;
-
-	/* Conditional <link-type> generation */
-	iftype = ni_ifworker_iftype_from_xml(w->config.node);
-	type = ni_linktype_type_to_name(iftype);
-
-	if (iftype != NI_IFTYPE_UNKNOWN && !ni_string_empty(type)) {
-		if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_LINK_TYPE, node, type))
-			return NULL; /* Error */
-	}
-
 	return xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, node, w->name);
 }
 
