@@ -523,7 +523,7 @@ __dump_fake_xml(const ni_dbus_variant_t *variant, unsigned int indent, const cha
 }
 
 static ni_bool_t
-__dump_object_xml(const char *object_path, const ni_dbus_variant_t *variant, 
+__dump_object_xml(const char *object_path, const ni_dbus_variant_t *variant,
 	ni_xs_scope_t *schema, xml_node_t *parent, const ni_string_array_t *filter)
 {
 	xml_node_t *object_node;
@@ -537,14 +537,14 @@ __dump_object_xml(const char *object_path, const ni_dbus_variant_t *variant,
 	}
 
 	object_node = xml_node_new("object", NULL);
-	xml_node_add_attr(object_node, "path", object_path);	
+	xml_node_add_attr(object_node, "path", object_path);
 
 	if (filter && !filter->count)
-		filter = NULL;	
+		filter = NULL;
 
 	for (entry = variant->dict_array_value, index = 0; index < variant->array.len; ++index, ++entry) {
-		interface_name = entry->key;		
-		if (filter 
+		interface_name = entry->key;
+		if (filter
 		 && ni_string_eq(interface_name, NI_OBJECTMODEL_NETIF_INTERFACE)
 		 && ni_dbus_dict_get_string(&entry->datum, "name", &ifname)
 		 && ni_string_array_index(filter, ifname) == -1) {
@@ -575,12 +575,15 @@ __dump_schema_xml(const ni_dbus_variant_t *variant, ni_xs_scope_t *schema, const
 
 	if (!ni_dbus_variant_is_dict(variant)) {
 		ni_error("%s: dbus data is not a dict", __func__);
+		xml_node_free(root);
 		return NULL;
 	}
-	
+
 	for (entry = variant->dict_array_value, index = 0; index < variant->array.len; ++index, ++entry) {
-		if (!__dump_object_xml(entry->key, &entry->datum, schema, root, filter))
-			return NULL;		
+		if (!__dump_object_xml(entry->key, &entry->datum, schema, root, filter)) {
+			xml_node_free(root);
+			return NULL;
+		}
 	}
 
 	return root;
@@ -632,12 +635,14 @@ do_show_xml(int argc, char **argv)
 		case OPT_HELP:
 		usage:
 			fprintf(stderr,
-				"wicked [options] show-xml <ifname|all>\n"
-				"\nSupported options:\n"
+				"wicked show-xml [options] [ifname ... |all]\n"
+				"\n"
+				"Supported options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
 				"  --raw\n"
-				"      Show raw dbus reply in pseudo-xml, rather than using the schema\n"
+				"      Show raw dbus reply in pseudo-xml, rather than using the schema.\n"
+				"      This option effectively disables the ifname filter. \n"
 #ifdef MODEM
 				"  --modem\n"
 				"      List Modems\n"
@@ -647,7 +652,10 @@ do_show_xml(int argc, char **argv)
 		}
 	}
 
-	/* warning: this is a shallow-copy from argv, 
+	if (opt_raw && optind != argc)
+		goto usage;
+
+	/* warning: this is a shallow-copy from argv,
 	 * use this only with _index() for filtering */
 	ifnames.count = argc - optind;
 	ifnames.data = argv + optind;
