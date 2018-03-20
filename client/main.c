@@ -553,8 +553,7 @@ __dump_object_xml(const char *object_path, const ni_dbus_variant_t *variant,
 		}
 
 		/* Ignore well-known interfaces that never have properties */
-		if (!strcmp(interface_name, "org.freedesktop.DBus.ObjectManager")
-		 || !strcmp(interface_name, "org.freedesktop.DBus.Properties"))
+		if (!ni_string_startswith(interface_name, NI_OBJECTMODEL_NAMESPACE))
 			continue;
 
 		ni_dbus_xml_deserialize_properties(schema, interface_name, &entry->datum, object_node);
