@@ -610,7 +610,6 @@ do_show_xml(int argc, char **argv)
 	ni_dbus_object_t *list_object, *object;
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
-	const char *ifname = NULL;
 	int opt_raw = FALSE;
 #ifdef MODEM
 	int opt_modems = 0;
