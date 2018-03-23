@@ -1489,14 +1489,12 @@ __ni_system_infiniband_setup(const char *ifname, unsigned int mode, unsigned int
 	    ni_sysfs_netif_put_string(ifname, "mode", mstr) < 0) {
 		ni_error("%s: Cannot set infiniband IPoIB connection-mode '%s'",
 			ifname, mstr);
-		ret = -1;
 	}
 
 	if ((umcast == 0 || umcast == 1) &&
 	    ni_sysfs_netif_put_uint(ifname, "umcast", umcast) < 0) {
 		ni_error("%s: Cannot set infiniband IPoIB user-multicast '%s' (%u)",
 			ifname, ni_infiniband_get_umcast_name(umcast), umcast);
-		ret = -1;
 	}
 
 	return ret;
