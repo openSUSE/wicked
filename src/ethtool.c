@@ -231,7 +231,7 @@ ni_ethtool_get_driver_info(const char *ifname, ni_ethtool_t *ethtool)
 	return 0;
 }
 
-static const ni_intmap_t	ni_ethternet_driver_supports_bits[] = {
+static const ni_intmap_t	ni_ethtool_driver_supports_bits[] = {
 	{ "priv-flags",		NI_ETHTOOL_DRIVER_SUPP_PRIV_FLAGS	},
 	{ "statistics",		NI_ETHTOOL_DRIVER_SUPP_STATS		},
 	{ "selftest",		NI_ETHTOOL_DRIVER_SUPP_TEST		},
@@ -244,7 +244,7 @@ static const ni_intmap_t	ni_ethternet_driver_supports_bits[] = {
 const char *
 ni_ethtool_driver_supports_map_bit(ni_ethtool_driver_supports_bit_t bit)
 {
-	return ni_format_uint_mapped(bit, ni_ethternet_driver_supports_bits);
+	return ni_format_uint_mapped(bit, ni_ethtool_driver_supports_bits);
 }
 
 /*
