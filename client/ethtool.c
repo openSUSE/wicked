@@ -42,19 +42,19 @@ struct ethtool_args {
 
 struct ethtool_opt {
 	const char *	name;
-	int		(*func)(const char *, ni_ethtool_t *, struct ethtool_args *args);
+	int		(*func)(const ni_netdev_ref_t *, ni_ethtool_t *, struct ethtool_args *args);
 	const char *	usage;
 };
 
 
 static int
-get_ethtool_driver_info(const char *ifname, ni_ethtool_t *ethtool, struct ethtool_args *args)
+get_ethtool_driver_info(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, struct ethtool_args *args)
 {
 	const ni_ethtool_driver_info_t *info;
 	unsigned int n;
 
 	(void)args;
-	if (ni_ethtool_get_driver_info(ifname, ethtool) < 0 || !(info = ethtool->driver_info))
+	if (ni_ethtool_get_driver_info(ref, ethtool) < 0 || !(info = ethtool->driver_info))
 		return -1;
 
 	printf("driver-info:\n");
@@ -78,14 +78,14 @@ get_ethtool_driver_info(const char *ifname, ni_ethtool_t *ethtool, struct ethtoo
 }
 
 static int
-get_ethtool_priv_flags(const char *ifname, ni_ethtool_t *ethtool, struct ethtool_args *args)
+get_ethtool_priv_flags(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, struct ethtool_args *args)
 {
 	const ni_ethtool_priv_flags_t *pflags;
 	const char *name;
 	unsigned int n;
 
 	(void)args;
-	if (ni_ethtool_get_priv_flags(ifname, ethtool) < 0 || !(pflags = ethtool->priv_flags))
+	if (ni_ethtool_get_priv_flags(ref, ethtool) < 0 || !(pflags = ethtool->priv_flags))
 		return -1;
 
 	printf("private-flags:\n");
@@ -97,7 +97,7 @@ get_ethtool_priv_flags(const char *ifname, ni_ethtool_t *ethtool, struct ethtool
 }
 
 static int
-set_ethtool_priv_flags(const char *ifname, ni_ethtool_t *ethtool, struct ethtool_args *args)
+set_ethtool_priv_flags(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, struct ethtool_args *args)
 {
 	ni_ethtool_priv_flags_t *pflags;
 	ni_bool_t enabled;
@@ -119,7 +119,7 @@ set_ethtool_priv_flags(const char *ifname, ni_ethtool_t *ethtool, struct ethtool
 			pflags->bitmap |= NI_BIT(pflags->names.count - 1);
 	}
 
-	ret = ni_ethtool_set_priv_flags(ifname, ethtool, pflags);
+	ret = ni_ethtool_set_priv_flags(ref, ethtool, pflags);
 
 cleanup:
 	ni_ethtool_priv_flags_free(pflags);
@@ -184,8 +184,8 @@ ni_do_ethtool(const char *caller, int argc, char **argv)
 	};
 	int c, n, status = NI_WICKED_RC_USAGE;
 	const struct ethtool_opt *opt;
-	ni_netdev_t *dev = NULL;
-	ni_ethtool_t *ethtool;
+	ni_netdev_ref_t ref = { 0, NULL };
+	ni_ethtool_t *ethtool = NULL;
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
@@ -220,13 +220,13 @@ ni_do_ethtool(const char *caller, int argc, char **argv)
 	}
 
 	status = NI_WICKED_RC_ERROR;
-	dev = ni_netdev_new(argv[optind], if_nametoindex(argv[optind]));
-	if (!dev || !dev->link.ifindex) {
+	ni_netdev_ref_init(&ref, argv[optind], if_nametoindex(argv[optind]));
+	if (!ref.index) {
 		fprintf(stderr, "%s: cannot find interface with name '%s'", argv[0], argv[optind]);
 		goto cleanup;
 	}
-	if (!(ethtool = ni_netdev_get_ethtool(dev))) {
-		fprintf(stderr, "%s: cannot allocate ethtool parameters for '%s'", argv[0], dev->name);
+	if (!(ethtool = ni_ethtool_new())) {
+		fprintf(stderr, "%s: cannot allocate ethtool parameters for '%s'", argv[0], ref.name);
 		goto cleanup;
 	}
 
@@ -238,7 +238,7 @@ ni_do_ethtool(const char *caller, int argc, char **argv)
 
 			ethtool_args_set(&args, &argn, argc - n - 1, argv + n + 1);
 			n += args.argc + 1;
-			if (opt->func(dev->name, ethtool, &args) < 0)
+			if (opt->func(&ref, ethtool, &args) < 0)
 				status = NI_WICKED_RC_ERROR;
 			argv[n] = argn;
 		} else
@@ -251,8 +251,8 @@ ni_do_ethtool(const char *caller, int argc, char **argv)
 	}
 
 cleanup:
-	if (dev)
-		ni_netdev_put(dev);
+	ni_ethtool_free(ethtool);
+	ni_netdev_ref_destroy(&ref);
 	return status;
 }
 

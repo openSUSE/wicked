@@ -84,12 +84,12 @@ extern void				ni_ethtool_free(ni_ethtool_t *);
 extern ni_ethtool_driver_info_t *	ni_ethtool_driver_info_new(void);
 extern void				ni_ethtool_driver_info_free(ni_ethtool_driver_info_t *);
 extern const char *			ni_ethtool_driver_supports_map_bit(ni_ethtool_driver_supports_bit_t);
-extern int				ni_ethtool_get_driver_info(const char *, ni_ethtool_t *);
+extern int				ni_ethtool_get_driver_info(const ni_netdev_ref_t *, ni_ethtool_t *);
 
 extern ni_ethtool_priv_flags_t *	ni_ethtool_priv_flags_new(void);
 extern void				ni_ethtool_priv_flags_free(ni_ethtool_priv_flags_t *);
-extern int				ni_ethtool_get_priv_flags(const char *, ni_ethtool_t *);
-extern int				ni_ethtool_set_priv_flags(const char *, ni_ethtool_t *,
+extern int				ni_ethtool_get_priv_flags(const ni_netdev_ref_t *, ni_ethtool_t *);
+extern int				ni_ethtool_set_priv_flags(const ni_netdev_ref_t *, ni_ethtool_t *,
 								const ni_ethtool_priv_flags_t *);
 
 #endif /* WICKED_ETHTOOL_H */

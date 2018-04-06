@@ -67,18 +67,24 @@ typedef struct ni_ethtool_cmd_info {
 } ni_ethtool_cmd_info_t;
 
 static int
-ni_ethtool_call(const char *ifname, const ni_ethtool_cmd_info_t *ioc, void *evp, const char *flag)
+ni_ethtool_call(const ni_netdev_ref_t *ref, const ni_ethtool_cmd_info_t *ioc, void *evp, const char *flag)
 {
 	int ret;
 
-	ret = __ni_ethtool(ifname, ioc->cmd, evp);
+	/*
+	 * unfortunately the ethtool ioctl is not considering ifr.ifr_ifindex;
+	 * we're using ref in hope there will be ethtool over netlink one day.
+	 */
+	ret = __ni_ethtool(ref->name, ioc->cmd, evp);
 	if (ret < 0) {
 		ret = -errno;
 		if (errno != EOPNOTSUPP && errno != ENODEV)
-			ni_warn("%s: ethtool %s%s failed: %m", ifname, ioc->name, flag ? flag : "");
+			ni_warn("%s[%u]: ethtool %s%s failed: %m",
+					ref->name, ref->index, ioc->name, flag ? flag : "");
 		else
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
-				"%s: ethtool %s%s failed: %m", ifname, ioc->name, flag ? flag : "");
+					"%s[%u]: ethtool %s%s failed: %m",
+					ref->name, ref->index, ioc->name, flag ? flag : "");
 		errno = -ret;
 	}
 	return ret;
@@ -88,7 +94,7 @@ ni_ethtool_call(const char *ifname, const ni_ethtool_cmd_info_t *ioc, void *evp,
  * ethtool gstring set utils
  */
 static unsigned int
-ni_ethtool_get_gstring_count(const char *ifname, const char *hint, unsigned int sset)
+ni_ethtool_get_gstring_count(const ni_netdev_ref_t *ref, const char *hint, unsigned int sset)
 {
 	static const ni_ethtool_cmd_info_t NI_ETHTOOL_CMD_GSSET_INFO = {
 		ETHTOOL_GSSET_INFO,     "get "
@@ -101,7 +107,7 @@ ni_ethtool_get_gstring_count(const char *ifname, const char *hint, unsigned int 
 	memset(&sset_info, 0, sizeof(sset_info));
 	sset_info.hdr.sset_mask = (1ULL << sset);
 
-	if (ni_ethtool_call(ifname, &NI_ETHTOOL_CMD_GSSET_INFO, &sset_info, hint) < 0)
+	if (ni_ethtool_call(ref, &NI_ETHTOOL_CMD_GSSET_INFO, &sset_info, hint) < 0)
 		return 0;
 
 	errno = 0;
@@ -112,7 +118,7 @@ ni_ethtool_get_gstring_count(const char *ifname, const char *hint, unsigned int 
 }
 
 static struct ethtool_gstrings *
-ni_ethtool_get_gstrings(const char *ifname, const char *hint, unsigned int sset, unsigned int count)
+ni_ethtool_get_gstrings(const ni_netdev_ref_t *ref, const char *hint, unsigned int sset, unsigned int count)
 {
 	ni_ethtool_cmd_info_t NI_ETHTOOL_CMD_GSTRINGS = {
 		ETHTOOL_GSTRINGS, "get "
@@ -125,13 +131,13 @@ ni_ethtool_get_gstrings(const char *ifname, const char *hint, unsigned int sset,
 
 	gstrings = calloc(1, sizeof(*gstrings) + count * ETH_GSTRING_LEN);
 	if (!gstrings) {
-		ni_warn("%s: unable to allocate %u ethtool %s", ifname, count, hint);
+		ni_warn("%s: unable to allocate %u ethtool %s", ref->name, count, hint);
 		return NULL;
 	}
 
 	gstrings->string_set = sset;
 	gstrings->len = count;
-	if (ni_ethtool_call(ifname, &NI_ETHTOOL_CMD_GSTRINGS, gstrings, hint) < 0) {
+	if (ni_ethtool_call(ref, &NI_ETHTOOL_CMD_GSTRINGS, gstrings, hint) < 0) {
 		int err = errno;
 		free(gstrings);
 		errno = err;
@@ -174,7 +180,7 @@ ni_ethtool_driver_info_new(void)
 }
 
 int
-ni_ethtool_get_driver_info(const char *ifname, ni_ethtool_t *ethtool)
+ni_ethtool_get_driver_info(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool)
 {
 	static const ni_ethtool_cmd_info_t NI_ETHTOOL_CMD_GDRVINFO = {
 		ETHTOOL_GDRVINFO,      "get driver-info"
@@ -190,7 +196,7 @@ ni_ethtool_get_driver_info(const char *ifname, ni_ethtool_t *ethtool)
 	ethtool->driver_info = NULL;
 
 	memset(&drv_info, 0, sizeof(drv_info));
-	ret = ni_ethtool_call(ifname, &NI_ETHTOOL_CMD_GDRVINFO, &drv_info, NULL);
+	ret = ni_ethtool_call(ref, &NI_ETHTOOL_CMD_GDRVINFO, &drv_info, NULL);
 	ni_ethtool_set_supported(ethtool, NI_ETHTOOL_SUPP_GET_DRIVER_INFO,
 				ret != -EOPNOTSUPP);
 	if (ret < 0)
@@ -269,14 +275,14 @@ ni_ethtool_priv_flags_new(void)
 }
 
 static inline int
-ni_ethtool_get_priv_flags_names(const char *ifname, ni_ethtool_t *ethtool, ni_string_array_t *names)
+ni_ethtool_get_priv_flags_names(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, ni_string_array_t *names)
 {
 	struct ethtool_gstrings *gstrings;
 	unsigned int count, i;
 	ni_stringbuf_t buf;
 	const char *name;
 
-	count = ni_ethtool_get_gstring_count(ifname, " priv-flags count", ETH_SS_PRIV_FLAGS);
+	count = ni_ethtool_get_gstring_count(ref, " priv-flags count", ETH_SS_PRIV_FLAGS);
 	if (!count) {
 		if (errno == EOPNOTSUPP && ethtool->driver_info)
 			count = ethtool->driver_info->supports.n_priv_flags;
@@ -288,7 +294,7 @@ ni_ethtool_get_priv_flags_names(const char *ifname, ni_ethtool_t *ethtool, ni_st
 	}
 	if (count > 32)
 		count = 32;
-	gstrings = ni_ethtool_get_gstrings(ifname, " priv-flags names", ETH_SS_PRIV_FLAGS, count);
+	gstrings = ni_ethtool_get_gstrings(ref, " priv-flags names", ETH_SS_PRIV_FLAGS, count);
 	if (!gstrings) {
 		if (errno == EOPNOTSUPP)
 			ni_ethtool_set_supported(ethtool, NI_ETHTOOL_SUPP_GET_PRIV_FLAGS, FALSE);
@@ -315,7 +321,7 @@ ni_ethtool_get_priv_flags_names(const char *ifname, ni_ethtool_t *ethtool, ni_st
 }
 
 static inline int
-ni_ethtool_get_priv_flags_bitmap(const char *ifname, ni_ethtool_t *ethtool, unsigned int *bitmap)
+ni_ethtool_get_priv_flags_bitmap(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, unsigned int *bitmap)
 {
 	static const ni_ethtool_cmd_info_t NI_ETHTOOL_CMD_GPFLAGS = {
 		ETHTOOL_GPFLAGS,	"get priv-flag values"
@@ -324,7 +330,7 @@ ni_ethtool_get_priv_flags_bitmap(const char *ifname, ni_ethtool_t *ethtool, unsi
 	int ret;
 
 	memset(&ecmd, 0, sizeof(ecmd));
-	ret = ni_ethtool_call(ifname, &NI_ETHTOOL_CMD_GPFLAGS, &ecmd, NULL);
+	ret = ni_ethtool_call(ref, &NI_ETHTOOL_CMD_GPFLAGS, &ecmd, NULL);
 	ni_ethtool_set_supported(ethtool, NI_ETHTOOL_SUPP_GET_PRIV_FLAGS,
 				ret != -EOPNOTSUPP);
 	if (ret < 0)
@@ -335,7 +341,7 @@ ni_ethtool_get_priv_flags_bitmap(const char *ifname, ni_ethtool_t *ethtool, unsi
 }
 
 int
-ni_ethtool_get_priv_flags(const char *ifname, ni_ethtool_t *ethtool)
+ni_ethtool_get_priv_flags(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool)
 {
 	int ret = 0;
 
@@ -348,14 +354,14 @@ ni_ethtool_get_priv_flags(const char *ifname, ni_ethtool_t *ethtool)
 	}
 
 	ethtool->priv_flags->bitmap = 0;
-	ret = ni_ethtool_get_priv_flags_bitmap(ifname, ethtool, &ethtool->priv_flags->bitmap);
+	ret = ni_ethtool_get_priv_flags_bitmap(ref, ethtool, &ethtool->priv_flags->bitmap);
 	if (ret < 0) {
 		ni_ethtool_set_supported(ethtool, NI_ETHTOOL_SUPP_GET_PRIV_FLAGS, ret != -EOPNOTSUPP);
 		goto cleanup;
 	}
 
 	if (!ethtool->priv_flags->names.count) {
-		ret = ni_ethtool_get_priv_flags_names(ifname, ethtool, &ethtool->priv_flags->names);
+		ret = ni_ethtool_get_priv_flags_names(ref, ethtool, &ethtool->priv_flags->names);
 		if (ret < 0)
 			goto cleanup;
 	}
@@ -369,7 +375,7 @@ cleanup:
 }
 
 int
-ni_ethtool_set_priv_flags(const char *ifname, ni_ethtool_t *ethtool, const ni_ethtool_priv_flags_t *pflags)
+ni_ethtool_set_priv_flags(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, const ni_ethtool_priv_flags_t *pflags)
 {
 	static const ni_ethtool_cmd_info_t NI_ETHTOOL_CMD_SPFLAGS = {
 		ETHTOOL_SPFLAGS,	"set priv-flags"
@@ -382,7 +388,7 @@ ni_ethtool_set_priv_flags(const char *ifname, ni_ethtool_t *ethtool, const ni_et
 
 	if (!pflags || !pflags->names.count)
 		return 1; /* nothing to set */
-	if (!ethtool->priv_flags && (ret = ni_ethtool_get_priv_flags(ifname, ethtool)) < 0)
+	if (!ethtool->priv_flags && (ret = ni_ethtool_get_priv_flags(ref, ethtool)) < 0)
 		return ret;
 	if (!ethtool->priv_flags || !ethtool->priv_flags->names.count)
 		return -EOPNOTSUPP;
@@ -399,13 +405,13 @@ ni_ethtool_set_priv_flags(const char *ifname, ni_ethtool_t *ethtool, const ni_et
 		bit = ni_string_array_index(&ethtool->priv_flags->names, name);
 		if (bit == -1U) {
 			ni_info("%s: unable to set unknown driver private flag '%s'",
-					ifname, name);
+					ref->name, name);
 			continue;
 		}
 
 		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
 				"%s: setting driver private flag '%s' to %s",
-				ifname, name, ni_format_boolean(enabled));
+				ref->name, name, ni_format_boolean(enabled));
 		if (enabled)
 			ecmd.data |= NI_BIT(bit);
 		else
@@ -414,7 +420,7 @@ ni_ethtool_set_priv_flags(const char *ifname, ni_ethtool_t *ethtool, const ni_et
 	if (ecmd.data == ethtool->priv_flags->bitmap)
 		return 0;
 
-	ret = ni_ethtool_call(ifname, &NI_ETHTOOL_CMD_SPFLAGS, &ecmd, NULL);
+	ret = ni_ethtool_call(ref, &NI_ETHTOOL_CMD_SPFLAGS, &ecmd, NULL);
 	ni_ethtool_set_supported(ethtool, NI_ETHTOOL_SUPP_SET_PRIV_FLAGS,
 				ret != -EOPNOTSUPP);
 	if (ret < 0)
@@ -430,13 +436,16 @@ static ni_bool_t
 ni_ethtool_refresh(ni_netdev_t *dev)
 {
 	ni_ethtool_t *ethtool;
+	ni_netdev_ref_t ref;
 
 	if (!dev || !(ethtool = ni_netdev_get_ethtool(dev)))
 		return FALSE;
 
+	ref.name = dev->name;
+	ref.index = dev->link.ifindex;
 	if (!ethtool->driver_info)
-		ni_ethtool_get_driver_info(dev->name, ethtool);
-	ni_ethtool_get_priv_flags(dev->name, ethtool);
+		ni_ethtool_get_driver_info(&ref, ethtool);
+	ni_ethtool_get_priv_flags(&ref, ethtool);
 
 	return TRUE;
 }
@@ -453,14 +462,18 @@ ni_system_ethtool_refresh(ni_netdev_t *dev)
 int
 ni_system_ethtool_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
 {
+	ni_netdev_ref_t ref;
+
 	if (!ni_netdev_device_is_ready(dev) || !dev->link.ifindex)
 		return -1;
 
 	if (!dev->ethtool && !ni_ethtool_refresh(dev))
 		return -1;
 
+	ref.name = dev->name;
+	ref.index = dev->link.ifindex;
 	if (cfg && cfg->ethtool) {
-		ni_ethtool_set_priv_flags(dev->name, dev->ethtool, cfg->ethtool->priv_flags);
+		ni_ethtool_set_priv_flags(&ref, dev->ethtool, cfg->ethtool->priv_flags);
 		ni_ethtool_refresh(dev);
 	}
 	return 0;
