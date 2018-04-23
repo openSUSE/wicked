@@ -235,3 +235,21 @@
 <define name="builtin-ethtool-driver-supports-mask" type="uint32" constraint="bitmap">
   <@@ETHTOOL_DRIVER_SUPPORTS_NAME@@ bit="@@ETHTOOL_DRIVER_SUPPORTS_VALUE@@"/>
 </define>
+<define name="builtin-ethtool-link-duplex-type" type="uint32" constraint="enum">
+  <@@ETHTOOL_LINK_DUPLEX_NAME@@ value="@@ETHTOOL_LINK_DUPLEX_VALUE@@"/>
+</define>
+<define name="builtin-ethtool-link-port-type" type="uint32" constraint="enum">
+  <@@ETHTOOL_LINK_PORT_NAME@@ value="@@ETHTOOL_LINK_PORT_VALUE@@"/>
+</define>
+<define name="builtin-ethtool-link-mdix-type" type="uint32" constraint="enum">
+  <@@ETHTOOL_LINK_MDIX_NAME@@ value="@@ETHTOOL_LINK_MDIX_VALUE@@"/>
+</define>
+<define name="builtin-ethtool-link-mdio-type" type="uint32" constraint="bitmask">
+  <@@ETHTOOL_LINK_MDIO_NAME@@ value="@@ETHTOOL_LINK_MDIO_VALUE@@"/>
+</define>
+<define name="builtin-ethtool-link-xcvr-type" type="uint32" constraint="enum">
+  <@@ETHTOOL_LINK_XCVR_NAME@@ value="@@ETHTOOL_LINK_XCVR_VALUE@@"/>
+</define>
+<define name="builtin-ethtool-wol-flag-mask" type="uint32" constraint="bitmap">
+  <@@ETHTOOL_WOL_FLAG_NAME@@  bit="@@ETHTOOL_WOL_FLAG_VALUE@@"/>
+</define>
