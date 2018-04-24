@@ -345,7 +345,9 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, xml_do
 		rv = 0;
 		goto error;
 	}
-	else if ((policy = ni_fsm_policy_new(fsm, pname, pnode))) {
+	if (ni_ifconfig_migrate(pnode))
+		ni_debug_nanny("Migrated policy \"%s\" to current schema", pname);
+	if ((policy = ni_fsm_policy_new(fsm, pname, pnode))) {
 		ni_managed_policy_t *mpolicy;
 		ni_dbus_object_t *po_tmp = NULL;
 
