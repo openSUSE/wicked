@@ -283,3 +283,199 @@ ni_convert_cfg_into_policy_doc(xml_document_t *ifconfig)
 
 	return ifconfig;
 }
+
+static ni_bool_t
+ni_ifconfig_migrate_ethtool_link_settings_add(xml_node_t *ethtool, const char *name, const char *value)
+{
+	xml_node_t *link;
+
+	if ((link = xml_node_get_child(ethtool, "link-settings")))
+		return xml_node_new_element(name, link, value) != NULL;
+	else
+	if ((link = xml_node_new("link-settings", ethtool)))
+		return xml_node_new_element(name, link, value) != NULL;
+
+	return FALSE;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_ethtool_eee(xml_node_t *ethtool, const xml_node_t *orig)
+{
+	const xml_node_t *entry;
+	xml_node_t *eee, *adv;
+
+	if (!(eee = xml_node_new("eee", NULL)))
+		return FALSE;
+
+	for (entry = orig->children; entry; entry = entry->next) {
+		if (ni_string_eq(entry->name, "advertise")) {
+			if ((adv = xml_node_new(entry->name, eee)))
+				xml_node_new_element("mode", adv, entry->cdata);
+		} else {
+			xml_node_new_element(entry->name, eee, entry->cdata);
+		}
+	}
+	if (eee->children)
+		xml_node_add_child(ethtool, eee);
+	else
+		xml_node_free(eee);
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_ethtool_features(xml_node_t *ethtool, const xml_node_t *offloads)
+{
+	xml_node_t *features, *feature;
+	const xml_node_t *offload;
+	ni_bool_t enabled;
+
+	if (!(features = xml_node_new("features", NULL)))
+		return FALSE;
+
+	for (offload = offloads->children; offload; offload = offload->next) {
+		/* it's a tristate, but we omit the non-boolean values */
+		if (ni_parse_boolean(offload->cdata, &enabled))
+			continue;
+
+		if ((feature = xml_node_new("feature", features))) {
+			xml_node_new_element("name", feature, offload->name);
+			xml_node_new_element("enabled", feature, ni_format_boolean(enabled));
+		}
+	}
+	if (features->children)
+		xml_node_add_child(ethtool, features);
+	else
+		xml_node_free(features);
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_ethtool(xml_node_t *ethernet, xml_node_t *ethtool)
+{
+	ni_bool_t modified = FALSE;
+	xml_node_t *orig;
+
+	if ((orig = xml_node_get_child(ethernet, "autoneg-enable"))) {
+		ni_ifconfig_migrate_ethtool_link_settings_add(ethtool, "autoneg", orig->cdata);
+		xml_node_delete_child_node(ethernet, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "link-speed"))) {
+		ni_ifconfig_migrate_ethtool_link_settings_add(ethtool, "speed", orig->cdata);
+		xml_node_delete_child_node(ethernet, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "port-type"))) {
+		ni_ifconfig_migrate_ethtool_link_settings_add(ethtool, "port", orig->cdata);
+		xml_node_delete_child_node(ethernet, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "duplex"))) {
+		ni_ifconfig_migrate_ethtool_link_settings_add(ethtool, "duplex", orig->cdata);
+		xml_node_delete_child_node(ethernet, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "wake-on-lan"))) {
+		xml_node_reparent(ethtool, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "eee"))) {
+		ni_ifconfig_migrate_ethtool_eee(ethtool, orig);
+		xml_node_delete_child_node(ethernet, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "ring"))) {
+		xml_node_reparent(ethtool, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "offload"))) {
+		ni_ifconfig_migrate_ethtool_features(ethtool, orig);
+		xml_node_delete_child_node(ethernet, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "channels"))) {
+		xml_node_reparent(ethtool, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "coalesce"))) {
+		xml_node_reparent(ethtool, orig);
+		modified = TRUE;
+	}
+	return modified;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_config_node(xml_node_t *config)
+{
+	ni_bool_t modified = FALSE;
+	xml_node_t *old, *new;
+
+	if ((old = xml_node_get_child(config, "ethernet"))) {
+		if ((new = xml_node_new("ethtool", NULL))) {
+			modified = ni_ifconfig_migrate_ethtool(old, new);
+			if (!xml_node_get_child(config, "ethtool") && new->children)
+				xml_node_add_child(config, new);
+			else
+				xml_node_free(new);
+		}
+		/* keep the (maybe empty) ethernet node,
+		 * because it is an iftype giving one */
+	}
+	return modified;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_node(xml_node_t *node, ni_bool_t *modified)
+{
+	if (!modified || xml_node_is_empty(node))
+		return FALSE;
+
+	if (ni_ifconfig_is_config(node)) {
+		/* ifconfig with the effective config data */
+		if (ni_ifconfig_migrate_config_node(node))
+			*modified = TRUE;
+		return TRUE;
+	} else
+	if (ni_ifconfig_is_policy(node)) {
+		xml_node_t *action = NULL;
+
+		/* policy action contains the config data  */
+		if ((action = xml_node_get_child(node, NI_NANNY_IFPOLICY_MERGE))) {
+			if (ni_ifconfig_migrate_config_node(action))
+				*modified = TRUE;
+			return TRUE;
+		}
+		if ((action = xml_node_get_child(node, NI_NANNY_IFPOLICY_CREATE))) {
+			if (ni_ifconfig_migrate_config_node(action))
+				*modified = TRUE;
+			return TRUE;
+		}
+		if ((action = xml_node_get_child(node, NI_NANNY_IFPOLICY_REPLACE))) {
+			if (ni_ifconfig_migrate_config_node(action))
+				*modified = TRUE;
+			return TRUE;
+		}
+	}
+	/* not a ifconfig or ifpolicy node */
+	return FALSE;
+}
+
+ni_bool_t
+ni_ifconfig_migrate(xml_node_t *node)
+{
+	ni_bool_t modified = FALSE;
+	xml_node_t *child;
+
+	if (!node)
+		return FALSE;
+
+	/* node itself is a config or policy node  */
+	if (ni_ifconfig_migrate_node(node, &modified))
+		return modified;
+
+	/* node is a document root with children   */
+	for (child = node->children; child; child = child->next)
+		ni_ifconfig_migrate_node(child, &modified);
+
+	return modified;
+}
