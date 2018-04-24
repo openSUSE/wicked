@@ -18,7 +18,6 @@
 #include "client/client_state.h"
 
 typedef struct ni_link_stats	ni_link_stats_t;
-typedef struct ni_ethtool_stats	ni_ethtool_stats_t;
 
 typedef struct ni_slaveinfo	ni_slaveinfo_t;
 struct ni_slaveinfo {
@@ -52,7 +51,6 @@ struct ni_linkinfo {
 	unsigned int		saved_mtu;
 
 	ni_link_stats_t *	stats;
-	ni_ethtool_stats_t *	ethtool_stats;
 };
 
 struct ni_netdev {

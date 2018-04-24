@@ -1036,26 +1036,6 @@ done:
 }
 
 /*
- * Refresh interface statistics.
- * We assume that IFLA_STATS have already been covered by a generic ni_refresh;
- * all we want to do here is potentially retrieve additional stats eg via
- * ethtool.
- */
-int
-__ni_system_interface_stats_refresh(ni_netconfig_t *nc, ni_netdev_t *dev)
-{
-	int rv = 0;
-
-	if (dev->link.ethtool_stats
-	 && (rv = __ni_ethtool_stats_refresh(dev->name, dev->link.ethtool_stats)) < 0)
-		return rv;
-
-	/* More stats may go here, such as routing statistics */
-
-	return 0;
-}
-
-/*
  * Translate interface flags
  */
 unsigned int
