@@ -57,6 +57,16 @@ DHCLIENT_FQDN_ENCODE="yes"
 #
 DHCLIENT_UPDATE=""
 
+## Type:	list(,yes,no)
+## Default:	""
+#
+# Request broadcast responses from dhcp-server.
+#
+# The default behaviour is to not request broadcast responses for any type
+# of devices except of Infiniband, where it is mandatory and enabled.
+#
+DHCLIENT_BROADCAST=""
+
 ## Type:        list(enabled,disabled,default,)
 ## Default:     ""
 #

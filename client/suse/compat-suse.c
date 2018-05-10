@@ -5093,6 +5093,12 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 	ni_bool_t bvalue;
 	ni_bool_t ret = TRUE;
 
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_BROADCAST")) != NULL) {
+		if (ni_parse_boolean(string, &bvalue) == 0) {
+			ni_tristate_set(&compat->dhcp4.broadcast, bvalue);
+		}
+	}
+
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_UPDATE")) != NULL) {
 		if (ni_addrconf_update_flags_parse(&uint, string, " \t,")) {
 			uint &= ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);

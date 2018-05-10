@@ -194,6 +194,7 @@
     <lease-time type="uint32" />
     <recover-lease type="boolean" />
     <release-lease type="boolean" />
+    <broadcast type="tristate" />
 
     <update type="builtin-addrconf-update-mask" />
     <hostname type="string" />

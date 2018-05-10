@@ -44,6 +44,7 @@ enum {
 	OPT_TEST_REQUEST,
 	OPT_TEST_OUTPUT,
 	OPT_TEST_OUTFMT,
+	OPT_TEST_BROADCAST,
 };
 
 static struct option	options[] = {
@@ -68,6 +69,7 @@ static struct option	options[] = {
 	{ "test-timeout",	required_argument,	NULL,	OPT_TEST_TIMEOUT },
 	{ "test-output",	required_argument,	NULL,	OPT_TEST_OUTPUT  },
 	{ "test-format",	required_argument,	NULL,	OPT_TEST_OUTFMT  },
+	{ "test-broadcast",	no_argument,		NULL,	OPT_TEST_BROADCAST},
 
 	{ NULL,			no_argument,		NULL,	0 }
 };
@@ -134,6 +136,7 @@ main(int argc, char **argv)
 				"       --test-timeout <timeout in sec> (default: 20+10)\n"
 				"       --test-output  <output file name>\n"
 				"       --test-format  <leaseinfo|lease-xml>\n"
+				"       --test-broadcast\n"
 				, program_name);
 			return status;
 
@@ -214,6 +217,12 @@ main(int argc, char **argv)
 			if (!tester || !ni_dhcp4_tester_set_outfmt(optarg,
 						&tester->outfmt))
 				goto usage;
+			break;
+
+		case OPT_TEST_BROADCAST:
+			if (!tester)
+				goto usage;
+			tester->broadcast = NI_TRISTATE_ENABLE;
 			break;
 		}
 	}
