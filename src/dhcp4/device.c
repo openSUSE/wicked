@@ -290,6 +290,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	config->route_priority = info->route_priority;
 	config->recover_lease = info->recover_lease;
 	config->release_lease = info->release_lease;
+	config->broadcast = info->broadcast;
 
 	config->max_lease_time = ni_dhcp4_config_max_lease_time();
 	if (config->max_lease_time == 0)
@@ -1042,6 +1043,8 @@ ni_dhcp4_request_new(void)
 
 	req = xcalloc(1, sizeof(*req));
 	req->enabled = TRUE; /* used by wickedd */
+
+	req->broadcast = NI_TRISTATE_DEFAULT;
 
 	/* By default, we try to obtain all sorts of settings from the server */
 	req->update = -1U; /* apply wicked-config(5) defaults later */

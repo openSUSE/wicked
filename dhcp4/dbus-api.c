@@ -258,6 +258,8 @@ static ni_dbus_class_t		ni_objectmodel_dhcp4req_class = {
 
 #define DHCP4REQ_STRING_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_STRING_PROPERTY(dhcp4_request, dbus_name, member_name, rw)
+#define DHCP4REQ_INT_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_INT_PROPERTY(dhcp4_request, dbus_name, member_name, rw)	
 #define DHCP4REQ_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(dhcp4_request, dbus_name, member_name, rw)
 #define DHCP4REQ_UUID_PROPERTY(dbus_name, member_name, rw) \
@@ -472,6 +474,7 @@ static ni_dbus_property_t	dhcp4_request_properties[] = {
 	DHCP4REQ_UINT_PROPERTY(lease-time, lease_time, RO),
 	DHCP4REQ_BOOL_PROPERTY(recover-lease, recover_lease, RO),
 	DHCP4REQ_BOOL_PROPERTY(release-lease, release_lease, RO),
+	DHCP4REQ_INT_PROPERTY(broadcast, broadcast, RO),
 	DHCP4REQ_UINT_PROPERTY(update, update, RO),
 	DHCP4REQ_STRING_PROPERTY(hostname, hostname, RO),
 	DHCP4REQ_DICT_PROPERTY(fqdn, fqdn, RO),

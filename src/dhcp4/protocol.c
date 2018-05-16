@@ -648,10 +648,14 @@ __ni_dhcp4_build_msg_put_hwspec(const ni_dhcp4_device_t *dev, ni_dhcp4_message_t
 			message->hwlen = dev->system.hwaddr.len;
 			memcpy(&message->chaddr, dev->system.hwaddr.data, dev->system.hwaddr.len);
 		}
+		if (ni_tristate_is_enabled(dev->config->broadcast))
+			message->flags = htons(BROADCAST_FLAG);
 		break;
 
 	case ARPHRD_IEEE1394:
 	case ARPHRD_INFINIBAND:
+		if (ni_tristate_is_disabled(dev->config->broadcast))
+			ni_warn_once("%s: broadcast is mandatory on infiniband", dev->ifname);
 		/* See http://tools.ietf.org/html/rfc4390
 		 *
 		 * Note: set the ciaddr before if needed.

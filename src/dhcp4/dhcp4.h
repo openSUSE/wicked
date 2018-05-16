@@ -160,6 +160,7 @@ struct ni_dhcp4_request {
 	 * This is a bitmap; individual bits correspond to
 	 * NI_ADDRCONF_UPDATE_* (this is an index enum, not a bitmask) */
 	unsigned int		update;
+	ni_tristate_t		broadcast;
 };
 
 /*
@@ -190,6 +191,8 @@ struct ni_dhcp4_config {
 	unsigned int		update;
 	unsigned int		doflags;
 	ni_uint_array_t		request_options;
+
+	ni_tristate_t		broadcast;
 
 	unsigned int		route_priority;
 

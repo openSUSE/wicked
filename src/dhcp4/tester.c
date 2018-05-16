@@ -54,6 +54,7 @@ ni_dhcp4_tester_init(void)
 	memset(&dhcp4_tester_opts, 0, sizeof(dhcp4_tester_opts));
 	dhcp4_tester_opts.outfmt  = NI_DHCP4_TESTER_OUT_LEASE_INFO;
 	dhcp4_tester_opts.timeout = 0;
+	dhcp4_tester_opts.broadcast = NI_TRISTATE_DEFAULT;
 	dhcp4_tester_status = NI_WICKED_RC_NOT_RUNNING;
 	return &dhcp4_tester_opts;
 }
@@ -339,6 +340,8 @@ ni_dhcp4_tester_run(ni_dhcp4_tester_t *opts)
 
 	if (opts->timeout && opts->timeout != -1U)
 		req->acquire_timeout = opts->timeout;
+
+	req->broadcast = opts->broadcast;
 
 	if ((rv = ni_dhcp4_acquire(dev, req)) < 0) {
 		ni_error("%s: DHCP4v6 acquire request %s failed: %s",

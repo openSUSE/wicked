@@ -149,6 +149,13 @@ remove/disable it from the currently applied set, e.g. "default,-nis"
 disables request for nis options.
 More specific variables as DHCLIENT_SET_DEFAULT_ROUTE,DHCLIENT_SET_HOSTNAME
 or the MTU option have higher precedence.
+.TP
+.BR DHCLIENT_BROADCAST\ { yes | \fIno\fR* }
+Request broadcast responses from dhcp-server.
+
+The default behaviour is to not request broadcast responses for any type
+of devices except of Infiniband, where it is enabled by default and not 
+possible to disable.
 
 .SH DHCPv6 Specific Variables
 .TP

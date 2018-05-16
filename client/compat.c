@@ -123,6 +123,7 @@ ni_compat_netdev_new(const char *ifname)
 	compat->dhcp4.update = ni_config_addrconf_update(ifname, NI_ADDRCONF_DHCP, AF_INET);
 	compat->dhcp4.recover_lease = TRUE;
 	compat->dhcp4.release_lease = FALSE;
+	compat->dhcp4.broadcast = NI_TRISTATE_DEFAULT;
 	compat->dhcp4.user_class.format = -1U;
 	ni_dhcp_fqdn_init(&compat->dhcp4.fqdn);
 
@@ -2277,6 +2278,10 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 				ni_format_boolean(compat->dhcp4.recover_lease));
 	xml_node_dict_set(dhcp, "release-lease",
 				ni_format_boolean(compat->dhcp4.release_lease));
+
+	if (compat->dhcp4.broadcast != NI_TRISTATE_DEFAULT)
+		xml_node_dict_set(dhcp, "broadcast",
+				ni_format_boolean(compat->dhcp4.broadcast));
 
 	if (compat->dhcp4.client_id)
 		xml_node_dict_set(dhcp, "client-id", compat->dhcp4.client_id);
