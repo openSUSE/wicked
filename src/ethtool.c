@@ -44,6 +44,7 @@ enum {
 	NI_ETHTOOL_SUPP_GET_PERM_HWADDR,
 	NI_ETHTOOL_SUPP_GET_PRIV_FLAGS,
 	NI_ETHTOOL_SUPP_SET_PRIV_FLAGS,
+	NI_ETHTOOL_SUPP_GET_LINK_DETECTED,
 	NI_ETHTOOL_SUPP_GET_LINK_LEGACY,
 	NI_ETHTOOL_SUPP_SET_LINK_LEGACY,
 	NI_ETHTOOL_SUPP_GET_LINK_SETTINGS,
@@ -542,6 +543,29 @@ ni_ethtool_set_priv_flags(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, con
 	if (ret < 0)
 		return ret;
 
+	return 0;
+}
+
+int
+ni_ethtool_get_link_detected(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool)
+{
+	static const ni_ethtool_cmd_info_t NI_ETHTOOL_CMD_GLINK  = {
+		ETHTOOL_GLINK,		"get link detection (GLINK"
+	};
+	struct ethtool_value ecmd;
+	int ret;
+
+	if (!ni_ethtool_supported(ethtool, NI_ETHTOOL_SUPP_GET_LINK_DETECTED))
+		return -EOPNOTSUPP;
+
+	memset(&ecmd, 0, sizeof(ecmd));
+	ret = ni_ethtool_call(ref, &NI_ETHTOOL_CMD_GLINK, &ecmd,  NULL);
+	ni_ethtool_set_supported(ethtool, NI_ETHTOOL_SUPP_GET_LINK_DETECTED,
+			ret != -EOPNOTSUPP);
+	if (ret < 0)
+		return ret;
+
+	ni_tristate_set(&ethtool->link_detected, !!ecmd.data);
 	return 0;
 }
 
@@ -3437,6 +3461,7 @@ ni_ethtool_refresh(ni_netdev_t *dev)
 	if (!ethtool->driver_info)
 		ni_ethtool_get_driver_info(&ref, ethtool);
 	ni_ethtool_get_priv_flags(&ref, ethtool);
+	ni_ethtool_get_link_detected(&ref, ethtool);
 	ni_ethtool_get_link_settings(&ref, ethtool);
 	ni_ethtool_get_wake_on_lan(&ref, ethtool);
 	ni_ethtool_get_features(&ref, ethtool, FALSE);
@@ -3514,6 +3539,8 @@ ni_ethtool_init(ni_ethtool_t *ethtool)
 		/* initially, everything is supported */
 		for (flag = 0; flag < NI_ETHTOOL_SUPPORT_MAX; ++flag)
 			ni_bitfield_setbit(&ethtool->supported, flag);
+
+		ethtool->link_detected = NI_TRISTATE_DEFAULT;
 	}
 }
 

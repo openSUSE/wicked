@@ -139,6 +139,21 @@ cleanup:
 
 
 /*
+ * link-detected
+ */
+static int
+get_ethtool_link_detected(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, struct ethtool_args *args)
+{
+	(void)args;
+	if (ni_ethtool_get_link_detected(ref, ethtool) < 0 || !ni_tristate_is_set(ethtool->link_detected))
+		return -1;
+
+	printf("link-detected: %s\n", ni_format_boolean(ethtool->link_detected));
+	return 0;
+}
+
+
+/*
  * link-settings
  */
 static inline ni_bool_t
@@ -1012,6 +1027,7 @@ static const struct ethtool_opt	ethtool_opts[] = {
 	{	"--get-driver-info",	.func	= get_ethtool_driver_info,			},
 	{	"--get-private-flags",	.func	= get_ethtool_priv_flags,			},
 	{	"--get-priv-flags",	.func	= get_ethtool_priv_flags,	.alias = TRUE	},
+	{	"--get-link-detected",	.func	= get_ethtool_link_detected,			},
 	{	"--get-link-settings",	.func	= get_ethtool_link_settings,			},
 	{	"--get-wake-on-lan",	.func	= get_ethtool_wake_on_lan,			},
 	{	"--get-wol",		.func	= get_ethtool_wake_on_lan,	.alias = TRUE	},

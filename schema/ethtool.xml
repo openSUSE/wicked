@@ -114,8 +114,9 @@
       <expansion-rom-version      type="string"/>
       <supports                   type="builtin-ethtool-driver-supports-mask"/>
     </driver-info>
-    <private-flags              class="array" element-type="ethtool:priv-flag" element-name="flag"/>
+    <link-detected              type="tristate"/>
     <link-settings              type="ethtool:link-settings-info"/>
+    <private-flags              class="array" element-type="ethtool:priv-flag" element-name="flag"/>
     <wake-on-lan class="dict">
       <support                  type="builtin-ethtool-wol-flag-mask"/>
       <options                  type="builtin-ethtool-wol-flag-mask"/>

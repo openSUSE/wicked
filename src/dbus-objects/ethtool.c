@@ -280,6 +280,41 @@ ni_objectmodel_ethtool_set_priv_flags(ni_dbus_object_t *object,
 /*
  * get/set ethtool.link_settings
  */
+static dbus_bool_t
+ni_objectmodel_ethtool_get_link_detected(const ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		ni_dbus_variant_t *result,
+		DBusError *error)
+{
+	const ni_ethtool_t *ethtool;
+
+	if (!(ethtool = ni_objectmodel_ethtool_read_handle(object, error)))
+		return FALSE;
+
+	if (!ni_tristate_is_set(ethtool->link_detected))
+		return FALSE;
+
+	ni_dbus_variant_set_int32(result, ethtool->link_detected);
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_ethtool_set_link_detected(ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument,
+		DBusError *error)
+{
+	ni_ethtool_t *ethtool;
+
+	if (!(ethtool = ni_objectmodel_ethtool_write_handle(object, error)))
+		return FALSE;
+
+	return ni_dbus_variant_get_int32(argument, &ethtool->link_detected);
+}
+
+/*
+ * get/set ethtool.link_settings
+ */
 static const ni_ethtool_link_settings_t *
 ni_objectmodel_ethtool_link_settings_read_handle(const ni_dbus_object_t *object,
 		DBusError *error)
@@ -1260,14 +1295,18 @@ ni_objectmodel_ethtool_set_coalesce(ni_dbus_object_t *object,
 #define ETHTOOL_DICTS_PROPERTY(dbus_name, fstem_name, rw) \
 	___NI_DBUS_PROPERTY(NI_DBUS_DICT_ARRAY_SIGNATURE, dbus_name, \
 			fstem_name, ni_objectmodel_ethtool, rw)
+#define	ETHTOOL_UINT_PROPERTY(dbus_name, fstem_name, rw) \
+	___NI_DBUS_PROPERTY(DBUS_TYPE_UINT32_AS_STRING, dbus_name, \
+			fstem_name, ni_objectmodel_ethtool, rw)
 
 static const ni_dbus_property_t		ni_objectmodel_ethtool_properties[] = {
 	/* read-only (show-xml) info    */
 	ETHTOOL_DICT_PROPERTY	(driver-info,	driver_info,		RO),
+	ETHTOOL_UINT_PROPERTY	(link-detected,	link_detected,		RO),
 
 	/* also setup config properties */
-	ETHTOOL_DICTS_PROPERTY  (private-flags,	priv_flags,		RO),
 	ETHTOOL_DICT_PROPERTY	(link-settings,	link_settings,		RO),
+	ETHTOOL_DICTS_PROPERTY  (private-flags,	priv_flags,		RO),
 	ETHTOOL_DICT_PROPERTY	(wake-on-lan,	wake_on_lan,		RO),
 	ETHTOOL_DICTS_PROPERTY	(features,	features,		RO),
 	ETHTOOL_DICT_PROPERTY	(eee,		eee,			RO),

@@ -266,8 +266,9 @@ struct ni_ethtool {
 
 	/* read-only info        */
 	ni_ethtool_driver_info_t *	driver_info;
+	ni_tristate_t			link_detected;
 
-	/* configurable (later)  */
+	/* configurable          */
 	ni_ethtool_priv_flags_t *	priv_flags;
 	ni_ethtool_link_settings_t *	link_settings;
 	ni_ethtool_wake_on_lan_t *	wake_on_lan;
@@ -287,6 +288,7 @@ extern void				ni_ethtool_driver_info_free(ni_ethtool_driver_info_t *);
 extern const char *			ni_ethtool_driver_supports_map_bit(ni_ethtool_driver_supports_bit_t);
 extern int				ni_ethtool_get_driver_info(const ni_netdev_ref_t *, ni_ethtool_t *);
 extern int				ni_ethtool_get_permanent_address(const ni_netdev_ref_t *, ni_ethtool_t *, ni_hwaddr_t *);
+extern int				ni_ethtool_get_link_detected(const ni_netdev_ref_t *, ni_ethtool_t *);
 
 extern ni_ethtool_priv_flags_t *	ni_netdev_get_ethtool_priv_flags(ni_netdev_t *);
 extern ni_ethtool_priv_flags_t *	ni_ethtool_priv_flags_new(void);
