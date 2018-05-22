@@ -1491,8 +1491,51 @@ ni_link_address_is_invalid(const ni_hwaddr_t *hwa)
 }
 
 /*
- * Adjust IPv6 lifetimes in address cache info
+ * Address, ... cache-info lifetime utils.
  */
+static const ni_intmap_t	ni_lifetime_valid_names_map[] = {
+	{ "infinite",		NI_LIFETIME_INFINITE	},
+	{ "expired",		NI_LIFETIME_EXPIRED	},
+
+	{ NULL,			0			}
+};
+
+static const ni_intmap_t	ni_lifetime_preferred_names_map[] = {
+	{ "infinite",		NI_LIFETIME_INFINITE	},
+	{ "deprecated",		NI_LIFETIME_EXPIRED	},
+
+	{ NULL,			0			}
+};
+
+static const char *
+ni_lifetime_print(ni_stringbuf_t *out, unsigned int lft, const ni_intmap_t *map)
+{
+	const char *str;
+
+	if (out) {
+		str = map ? ni_format_uint_mapped(lft, map) : NULL;
+		if (str)
+			ni_stringbuf_puts(out, str);
+		else
+			ni_stringbuf_printf(out, "%u", lft);
+
+		return out->string;
+	}
+	return NULL;
+}
+
+const char *
+ni_lifetime_print_valid(ni_stringbuf_t *out, unsigned int lft)
+{
+	return ni_lifetime_print(out, lft, ni_lifetime_valid_names_map);
+}
+
+const char *
+ni_lifetime_print_preferred(ni_stringbuf_t *out, unsigned int lft)
+{
+	return ni_lifetime_print(out, lft, ni_lifetime_preferred_names_map);
+}
+
 unsigned int
 ni_lifetime_left(unsigned int lifetime, const struct timeval *acquired, const struct timeval *current)
 {

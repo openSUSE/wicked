@@ -147,6 +147,8 @@ extern unsigned int	ni_address_array_index(const ni_address_array_t *, const ni_
 extern ni_address_t *	ni_address_array_find_match(ni_address_array_t *, const ni_address_t *, unsigned int *,
 					ni_bool_t (*match)(const ni_address_t *, const ni_address_t *));
 
+extern const char *	ni_lifetime_print_valid(ni_stringbuf_t *, unsigned int);
+extern const char *	ni_lifetime_print_preferred(ni_stringbuf_t *, unsigned int);
 extern unsigned int	ni_lifetime_left(unsigned int, const struct timeval *, const struct timeval *);
 extern void		ni_ipv6_cache_info_rebase(ni_ipv6_cache_info_t *, const ni_ipv6_cache_info_t *,
 					const struct timeval *);
