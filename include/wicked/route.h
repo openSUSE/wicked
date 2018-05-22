@@ -84,8 +84,6 @@ struct ni_route {
 	unsigned int		hoplimit;
 	unsigned int		features;
 	unsigned int		reordering;
-
-	ni_ipv6_cache_info_t	ipv6_cache_info;
 };
 
 typedef struct ni_route_array	ni_route_array_t;
