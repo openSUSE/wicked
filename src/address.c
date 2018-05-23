@@ -25,6 +25,7 @@
 #include <wicked/logging.h>
 #include <wicked/netinfo.h>
 #include <wicked/socket.h>
+#include <wicked/route.h>
 #include "util_priv.h"
 
 #define	NI_ADDRESS_ARRAY_CHUNK		16
@@ -206,6 +207,62 @@ ni_address_format_flags(ni_stringbuf_t *buf, unsigned int family,
 		}
 	}
 	return buf->string;
+}
+
+const char *
+ni_address_print(ni_stringbuf_t *out, const ni_address_t *ap)
+{
+	ni_stringbuf_t flags = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_address_cache_info_t lft;
+	const char *beg, *ptr;
+
+	if (!out || !ap || ap->family == AF_UNSPEC)
+		return NULL;
+
+	beg = out->string;
+	if ((ptr = ni_addrfamily_type_to_name(ap->family)))
+		ni_stringbuf_printf(out, "%s", ptr);
+
+	if (ni_sockaddr_is_specified(&ap->local_addr)) {
+		ni_stringbuf_printf(out, " %s", ni_sockaddr_print(&ap->local_addr));
+		if (ap->prefixlen)
+			ni_stringbuf_printf(out, "/%u", ap->prefixlen);
+	} else
+	if (ni_sockaddr_is_specified(&ap->anycast_addr)) {
+		ni_stringbuf_printf(out, " anycast %s", ni_sockaddr_print(&ap->anycast_addr));
+		if (ap->prefixlen)
+			ni_stringbuf_printf(out, "/%u", ap->prefixlen);
+	}
+	if (ni_sockaddr_is_specified(&ap->peer_addr))
+		ni_stringbuf_printf(out, " peer %s", ni_sockaddr_print(&ap->peer_addr));
+	else
+	if (ni_sockaddr_is_specified(&ap->bcast_addr))
+		ni_stringbuf_printf(out, " brd %s", ni_sockaddr_print(&ap->local_addr));
+
+	if (ni_route_is_valid_scope(ap->scope) &&
+	    (ptr = ni_route_scope_type_to_name(ap->scope)))
+		ni_stringbuf_printf(out, " scope %s", ptr);
+
+	if (ap->cache_info.preferred_lft == NI_LIFETIME_INFINITE)
+		ni_address_format_flags(&flags, ap->family, ap->flags | IFA_F_PERMANENT, NULL);
+	else
+		ni_address_format_flags(&flags, ap->family, ap->flags & ~IFA_F_PERMANENT, NULL);
+	if (flags.string)
+		ni_stringbuf_printf(out, " flags %s", flags.string);
+	ni_stringbuf_destroy(&flags);
+
+	if (ap->family == AF_INET && ap->label)
+		ni_stringbuf_printf(out, " label %s", ap->label);
+
+	ni_address_cache_info_rebase(&lft, &ap->cache_info, NULL);
+	if (lft.preferred_lft != NI_LIFETIME_INFINITE) {
+		ni_stringbuf_printf(out, " valid-lft ");
+		ni_lifetime_print_valid(out, lft.valid_lft);
+		ni_stringbuf_printf(out, " pref-lft ");
+		ni_lifetime_print_preferred(out, lft.preferred_lft);
+	}
+
+	return beg ? beg : out->string;
 }
 
 ni_bool_t

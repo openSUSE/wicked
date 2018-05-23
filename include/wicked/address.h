@@ -119,6 +119,7 @@ extern void		ni_address_free(ni_address_t *);
 extern ni_bool_t	ni_address_equal_ref(const ni_address_t *, const ni_address_t *);
 extern ni_bool_t	ni_address_equal_local_addr(const ni_address_t *, const ni_address_t *);
 extern const char *	ni_address_format_flags(ni_stringbuf_t *, unsigned int, unsigned int, const char *);
+extern const char *	ni_address_print(ni_stringbuf_t *, const ni_address_t *);
 extern ni_bool_t	ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw);
 extern ni_bool_t	ni_address_is_loopback(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_linklocal(const ni_address_t *laddr);
