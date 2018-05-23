@@ -47,6 +47,8 @@ do_address_new(void)
 	ap = xcalloc(1, sizeof(*ap));
 	if (ap) {
 		ap->refcount = 1;
+		ap->cache_info.valid_lft = NI_LIFETIME_INFINITE;
+		ap->cache_info.preferred_lft = NI_LIFETIME_INFINITE;
 	}
 	return ap;
 }
@@ -1578,7 +1580,9 @@ ni_address_cache_info_rebase(ni_address_cache_info_t *res, const ni_address_cach
 	if (!timerisset(&lft->acquired))
 		return;
 
-	if (lft->valid_lft == -1U && lft->preferred_lft == -1U)
+	if (lft->valid_lft == NI_LIFETIME_INFINITE &&
+	    (lft->preferred_lft == NI_LIFETIME_INFINITE ||
+	     lft->preferred_lft == NI_LIFETIME_EXPIRED))
 		return;
 
 	if (!base || !timerisset(base))
@@ -1591,13 +1595,13 @@ ni_address_cache_info_rebase(ni_address_cache_info_t *res, const ni_address_cach
 	timersub(&now, &lft->acquired, &dif);
 
 	res->acquired = now;
-	if (res->valid_lft == -1U)
+	if (res->valid_lft == NI_LIFETIME_INFINITE)
 		rebase_lft(res->preferred_lft, (unsigned long)dif.tv_sec);
 	else
 	if (rebase_lft(res->valid_lft, (unsigned long)dif.tv_sec))
 		rebase_lft(res->preferred_lft, (unsigned long)dif.tv_sec);
 	else
-		res->preferred_lft = 0;
+		res->preferred_lft = NI_LIFETIME_EXPIRED;
 	#undef rebase_lft
 }
 
