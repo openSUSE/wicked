@@ -4372,13 +4372,17 @@ __ni_netdev_address_in_list(ni_address_t *list, const ni_address_t *ap)
 static int
 __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 {
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned int omit = IFA_F_TENTATIVE|IFA_F_DADFAILED;
 	struct ifaddrmsg ifa;
 	struct nl_msg *msg;
 	int err;
 
-	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__,
-			ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
+	ni_debug_ifconfig("%s(%s, %s %s)", __FUNCTION__, dev->name,
+			flags & NLM_F_REPLACE ? "replace " :
+			flags & NLM_F_CREATE  ? "create " : "",
+			ni_address_print(&buf, ap));
+	ni_stringbuf_destroy(&buf);
 
 	memset(&ifa, 0, sizeof(ifa));
 	ifa.ifa_index = dev->link.ifindex;
@@ -4442,13 +4446,8 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 		ci.ifa_valid = ap->cache_info.valid_lft;
 		ci.ifa_prefered = ap->cache_info.preferred_lft;
 
-		if (ci.ifa_prefered > ci.ifa_valid) {
-			ni_warn("%s: ipv6 address %s/%u prefered lifetime %u cannot "
-				" be greater than the valid lifetime %u", dev->name,
-				ni_sockaddr_print(&ap->local_addr), ap->prefixlen,
-				ci.ifa_prefered, ci.ifa_valid);
+		if (ci.ifa_prefered > ci.ifa_valid)
 			ci.ifa_prefered = ci.ifa_valid;
-		}
 
 		if (nla_put(msg, IFA_CACHEINFO, sizeof(ci), &ci) < 0)
 			goto nla_put_failure;
