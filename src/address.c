@@ -100,7 +100,7 @@ ni_address_copy(ni_address_t *dst, const ni_address_t *src)
 		dst->peer_addr	= src->peer_addr;
 		dst->bcast_addr	= src->bcast_addr;
 		dst->anycast_addr    = src->anycast_addr;
-		dst->ipv6_cache_info = src->ipv6_cache_info;
+		dst->cache_info = src->cache_info;
 		ni_string_dup(&dst->label, src->label);
 	}
 	return FALSE;
@@ -1568,7 +1568,7 @@ ni_lifetime_left(unsigned int lifetime, const struct timeval *acquired, const st
 }
 
 void
-ni_ipv6_cache_info_rebase(ni_ipv6_cache_info_t *res, const ni_ipv6_cache_info_t *lft, const struct timeval *base)
+ni_address_cache_info_rebase(ni_address_cache_info_t *res, const ni_address_cache_info_t *lft, const struct timeval *base)
 {
 	#define rebase_lft(lft, dif) (lft -= lft > dif ? dif : lft)
 	struct timeval now, dif;

@@ -479,12 +479,12 @@ ni_ifstatus_show_addrs(ni_netdev_t *dev, ni_bool_t verbose)
 					if_printf("", " ", "%s", buf.string);
 				}
 				ni_stringbuf_destroy(&buf);
-				if (ap->ipv6_cache_info.valid_lft != -1U) {
+				if (ap->cache_info.valid_lft != -1U) {
 					ni_stringbuf_printf(&buf, "%u",
-						ap->ipv6_cache_info.valid_lft);
+						ap->cache_info.valid_lft);
 					ni_stringbuf_puts(&buf, "/");
 					ni_stringbuf_printf(&buf, "%u",
-						ap->ipv6_cache_info.preferred_lft);
+						ap->cache_info.preferred_lft);
 					printf(" lifetime %s", buf.string);
 				}
 			}

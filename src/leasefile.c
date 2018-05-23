@@ -167,12 +167,12 @@ ni_addrconf_lease_addrs_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t
 		if (ap->family == AF_INET && ap->label)
 			xml_node_new_element("label", anode, ap->label);
 
-		if (ap->ipv6_cache_info.preferred_lft || ap->ipv6_cache_info.valid_lft) {
+		if (ap->cache_info.preferred_lft || ap->cache_info.valid_lft) {
 			xml_node_t *cnode = xml_node_new("cache-info", anode);
 			xml_node_new_element_uint("preferred-lifetime", cnode,
-					ap->ipv6_cache_info.preferred_lft);
+					ap->cache_info.preferred_lft);
 			xml_node_new_element_uint("valid-lifetime", cnode,
-					ap->ipv6_cache_info.valid_lft);
+					ap->cache_info.valid_lft);
 		}
 	}
 	return count ? 0 : 1;
@@ -747,12 +747,12 @@ __ni_addrconf_lease_addr_from_xml(ni_address_t **ap_list, unsigned int family, c
 		if ((cnode = xml_node_get_child(child, "preferred-lifetime"))) {
 			if (ni_parse_uint(child->cdata, &lft, 10) != 0)
 				goto failure;
-			ap->ipv6_cache_info.preferred_lft = lft;
+			ap->cache_info.preferred_lft = lft;
 		}
 		if ((cnode = xml_node_get_child(child, "valid-lifetime"))) {
 			if (ni_parse_uint(child->cdata, &lft, 10) != 0)
 				goto failure;
-			ap->ipv6_cache_info.valid_lft = lft;
+			ap->cache_info.valid_lft = lft;
 		}
 	}
 

@@ -2703,9 +2703,9 @@ ni_dhcp6_ia_copy_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_
 
 			ap = ni_address_new(AF_INET6, plen, &sadr, &lease->addrs);
 			if (ap) {
-				ap->ipv6_cache_info.acquired.tv_sec = ia->time_acquired;
-				ap->ipv6_cache_info.preferred_lft = iadr->preferred_lft;
-				ap->ipv6_cache_info.valid_lft = iadr->valid_lft;
+				ap->cache_info.acquired.tv_sec = ia->time_acquired;
+				ap->cache_info.preferred_lft = iadr->preferred_lft;
+				ap->cache_info.valid_lft = iadr->valid_lft;
 
 				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
 						"%s: added %sDHCPv6 address %s/%u to lease",

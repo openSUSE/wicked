@@ -2859,9 +2859,9 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 		const struct ifa_cacheinfo *ci;
 		ci = __ni_nla_get_data(sizeof(*ci), tb[IFA_CACHEINFO]);
 		if (ci) {
-			ni_timer_get_time(&ap->ipv6_cache_info.acquired);
-			ap->ipv6_cache_info.valid_lft = ci->ifa_valid;
-			ap->ipv6_cache_info.preferred_lft = ci->ifa_prefered;
+			ni_timer_get_time(&ap->cache_info.acquired);
+			ap->cache_info.valid_lft = ci->ifa_valid;
+			ap->cache_info.preferred_lft = ci->ifa_prefered;
 		}
 	}
 
@@ -2894,7 +2894,7 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 	ap->peer_addr = tmp.peer_addr;
 	ap->bcast_addr = tmp.bcast_addr;
 	ap->anycast_addr = tmp.anycast_addr;
-	ap->ipv6_cache_info = tmp.ipv6_cache_info;
+	ap->cache_info = tmp.cache_info;
 	if (!ni_string_eq(ap->label, tmp.label)) {
 		ni_string_dup(&ap->label, tmp.label);
 	}
@@ -2928,8 +2928,8 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 			(ap->flags & IFA_F_MCAUTOJOIN)		? " mcautojoin" : "",
 			(ap->flags & IFA_F_STABLE_PRIVACY)	? " stable-privacy" : "",
 			(unsigned int)ap->flags,
-			ap->ipv6_cache_info.valid_lft,
-			ap->ipv6_cache_info.preferred_lft,
+			ap->cache_info.valid_lft,
+			ap->cache_info.preferred_lft,
 			(ap->owner ? ni_addrconf_type_to_name(ap->owner) : "none"));
 #endif
 

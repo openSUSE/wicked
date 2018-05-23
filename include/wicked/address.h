@@ -30,6 +30,12 @@ typedef struct ni_sockaddr_array {
 	ni_sockaddr_t *		data;
 } ni_sockaddr_array_t;
 
+typedef struct ni_address_cache_info {
+	struct timeval		acquired;
+	unsigned int		valid_lft;
+	unsigned int		preferred_lft;
+} ni_address_cache_info_t;
+
 typedef struct ni_address {
 	unsigned int		refcount;
 	struct ni_address *	next;
@@ -47,7 +53,7 @@ typedef struct ni_address {
 	ni_sockaddr_t		bcast_addr;
 	char *			label;
 
-	ni_ipv6_cache_info_t	ipv6_cache_info;
+	ni_address_cache_info_t	cache_info;
 } ni_address_t;
 
 typedef struct ni_address_array {
@@ -150,7 +156,7 @@ extern ni_address_t *	ni_address_array_find_match(ni_address_array_t *, const ni
 extern const char *	ni_lifetime_print_valid(ni_stringbuf_t *, unsigned int);
 extern const char *	ni_lifetime_print_preferred(ni_stringbuf_t *, unsigned int);
 extern unsigned int	ni_lifetime_left(unsigned int, const struct timeval *, const struct timeval *);
-extern void		ni_ipv6_cache_info_rebase(ni_ipv6_cache_info_t *, const ni_ipv6_cache_info_t *,
+extern void		ni_address_cache_info_rebase(ni_address_cache_info_t *, const ni_address_cache_info_t *,
 					const struct timeval *);
 
 #endif /* __WICKED_ADDRESS_H__ */

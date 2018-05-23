@@ -569,7 +569,7 @@ failure:
 dbus_bool_t
 __ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict)
 {
-	ni_ipv6_cache_info_t lft;
+	ni_address_cache_info_t lft;
 
 	__ni_objectmodel_dict_add_sockaddr_prefix(dict, "local", &ap->local_addr, ap->prefixlen);
 	if (ap->peer_addr.ss_family == ap->family)
@@ -586,7 +586,7 @@ __ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict
 	if (ap->family == AF_INET && ap->label)
 		ni_dbus_dict_add_string(dict, "label", ap->label);
 
-	ni_ipv6_cache_info_rebase(&lft, &ap->ipv6_cache_info, NULL);
+	ni_address_cache_info_rebase(&lft, &ap->cache_info, NULL);
 	if (lft.valid_lft) {
 		ni_dbus_variant_t *var;
 
@@ -647,8 +647,8 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 				ni_address_free(ap);
 				return NULL;
 			}
-			ap->ipv6_cache_info.preferred_lft = prefered_lft;
-			ap->ipv6_cache_info.valid_lft = valid_lft;
+			ap->cache_info.preferred_lft = prefered_lft;
+			ap->cache_info.valid_lft = valid_lft;
 		}
 
 		if (ni_dbus_dict_get_uint32(dict, "owner", &ap->owner)) {

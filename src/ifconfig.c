@@ -4435,12 +4435,12 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 		}
 	}
 
-	if (ap->family == AF_INET6 && ap->ipv6_cache_info.valid_lft) {
+	if (ap->cache_info.valid_lft) {
 		struct ifa_cacheinfo ci;
 
 		memset(&ci, 0, sizeof(ci));
-		ci.ifa_valid = ap->ipv6_cache_info.valid_lft;
-		ci.ifa_prefered = ap->ipv6_cache_info.preferred_lft;
+		ci.ifa_valid = ap->cache_info.valid_lft;
+		ci.ifa_prefered = ap->cache_info.preferred_lft;
 
 		if (ci.ifa_prefered > ci.ifa_valid) {
 			ni_warn("%s: ipv6 address %s/%u prefered lifetime %u cannot "
@@ -4993,12 +4993,12 @@ __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t 
 
 	case AF_INET6:
 	{
-		ni_ipv6_cache_info_t olft, nlft;
+		ni_address_cache_info_t olft, nlft;
 		struct timeval now;
 
 		ni_timer_get_time(&now);
-		ni_ipv6_cache_info_rebase(&olft, &o->ipv6_cache_info, &now);
-		ni_ipv6_cache_info_rebase(&nlft, &n->ipv6_cache_info, &now);
+		ni_address_cache_info_rebase(&olft, &o->cache_info, &now);
+		ni_address_cache_info_rebase(&nlft, &n->cache_info, &now);
 
 		/* (invalid) 0 lifetimes mean unset/not provided by the lease;
 		 * kernel uses ~0 (infinity) / permanent address when omitted */
