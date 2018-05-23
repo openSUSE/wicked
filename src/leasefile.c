@@ -33,6 +33,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <errno.h>
+#include <inttypes.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -481,7 +482,7 @@ ni_addrconf_lease_opts_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t 
 static int
 __ni_addrconf_lease_info_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 {
-	char hex[32] = { '\0' };
+	char buf[32] = { '\0' };
 
 	xml_node_new_element("family", node, ni_addrfamily_type_to_name(lease->family));
 	xml_node_new_element("type", node, ni_addrconf_type_to_name(lease->type));
@@ -490,9 +491,12 @@ __ni_addrconf_lease_info_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *no
 	if (!ni_uuid_is_null(&lease->uuid))
 		xml_node_new_element("uuid", node, ni_uuid_print(&lease->uuid));
 	xml_node_new_element("state", node, ni_addrconf_state_to_name(lease->state));
-	snprintf(hex, sizeof(hex), "0x%08x", lease->update);
-	xml_node_new_element("update", node, hex);
-	xml_node_new_element_uint("acquired", node, lease->time_acquired);
+
+	snprintf(buf, sizeof(buf), "%"PRId64, (int64_t)lease->acquired.tv_sec);
+	xml_node_new_element("acquired", node, buf);
+
+	snprintf(buf, sizeof(buf), "0x%08x", lease->update);
+	xml_node_new_element("update", node, buf);
 	return 0;
 }
 
@@ -641,7 +645,14 @@ __ni_addrconf_lease_info_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *
 			update = TRUE;
 		}
 		if (ni_string_eq(child->name, "acquired")) {
-			if (ni_parse_uint(child->cdata, &lease->time_acquired, 10) != 0)
+			int64_t acquired;
+
+			if (ni_parse_int64(child->cdata, &acquired, 10) || acquired < 0)
+				return -1;
+
+			lease->acquired.tv_sec = acquired;
+			lease->acquired.tv_usec = 0;
+			if ((int64_t)lease->acquired.tv_sec != acquired)
 				return -1;
 		}
 	}

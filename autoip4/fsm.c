@@ -186,7 +186,7 @@ ni_autoip_fsm_build_lease(ni_autoip_device_t *dev)
 	ni_route_create(16, &addr, NULL, 0, &lease->routes);
 
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
-	lease->time_acquired = time(NULL);
+	ni_timer_get_time(&lease->acquired);
 	lease->uuid = dev->request.uuid;
 	lease->flags = dev->request.flags;
 

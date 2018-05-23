@@ -1831,7 +1831,7 @@ ni_dhcp4_parse_response(const ni_dhcp4_config_t *config, const ni_dhcp4_message_
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
 	lease->type = NI_ADDRCONF_DHCP;
 	lease->family = AF_INET;
-	lease->time_acquired = time(NULL);
+	ni_timer_get_time(&lease->acquired);
 	lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
 	lease->fqdn.qualify = config->fqdn.qualify;
 
