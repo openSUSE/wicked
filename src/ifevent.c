@@ -440,7 +440,7 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 		return -1;
 	}
 
-	ni_timer_get_time(&pi->lifetime.acquired);
+	ni_timer_get_time(&pi->acquired);
 
 	if (__ni_rtnl_parse_newprefix(dev->name, h, pfx, pi) < 0) {
 		ni_error("%s: unable to parse ipv6 prefix info event data",
@@ -450,7 +450,7 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 	}
 
 	if ((old = ni_ipv6_ra_pinfo_list_remove(&ipv6->radv.pinfo, pi)) != NULL) {
-		if (pi->lifetime.valid_lft > 0) {
+		if (pi->valid_lft > 0) {
 			/* Replace with updated prefix info - most recent in front */
 			ni_ipv6_ra_pinfo_list_prepend(&ipv6->radv.pinfo, pi);
 			__ni_netdev_prefix_event(dev, NI_EVENT_PREFIX_UPDATE, pi);
@@ -461,7 +461,7 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 			__ni_netdev_prefix_event(dev, NI_EVENT_PREFIX_DELETE, old);
 		}
 		free(old);
-	} else if (pi->lifetime.valid_lft > 0) {
+	} else if (pi->valid_lft > 0) {
 		/* Add prefix info - most recent in front */
 		ni_ipv6_ra_pinfo_list_prepend(&ipv6->radv.pinfo, pi);
 		__ni_netdev_prefix_event(dev, NI_EVENT_PREFIX_UPDATE, pi);
@@ -1211,15 +1211,22 @@ ni_server_enable_interface_addr_events(void (*ifaddr_handler)(ni_netdev_t *, ni_
 void
 ni_server_trace_interface_prefix_events(ni_netdev_t *dev, ni_event_t event, const ni_ipv6_ra_pinfo_t *pi)
 {
+	char vbuf[32] = {'\0'}, pbuf[32] = {'\0'};
+	ni_stringbuf_t vlft = NI_STRINGBUF_INIT_BUFFER(vbuf);
+	ni_stringbuf_t plft = NI_STRINGBUF_INIT_BUFFER(pbuf);
+
 	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IPV6|NI_TRACE_EVENTS,
-			"%s: %s IPv6 RA<%s> Prefix<%s/%u %s,%s>[%u, %u]", dev->name,
-			(event == NI_EVENT_PREFIX_UPDATE ? "update" : "delete"),
-			(dev->ipv6 && dev->ipv6->radv.managed_addr ? "managed" :
-			(dev->ipv6 && dev->ipv6->radv.other_config ? "config" : "unmanaged")),
-			ni_sockaddr_print(&pi->prefix), pi->length,
-			(pi->on_link ? "onlink" : "not-onlink"),
-			(pi->autoconf ? "autoconf" : "no-autoconf"),
-			pi->lifetime.preferred_lft, pi->lifetime.valid_lft);
+		"%s: %s IPv6 RA<%s> Prefix<%s/%u %s,%s>[%s,%s]", dev->name,
+		(event == NI_EVENT_PREFIX_UPDATE ? "update" : "delete"),
+		(dev->ipv6 && dev->ipv6->radv.managed_addr ? "managed" :
+		(dev->ipv6 && dev->ipv6->radv.other_config ? "config" : "unmanaged")),
+		ni_sockaddr_print(&pi->prefix), pi->length,
+		(pi->on_link ? "onlink" : "not-onlink"),
+		(pi->autoconf ? "autoconf" : "no-autoconf"),
+		ni_lifetime_print_valid(&vlft, pi->valid_lft),
+		ni_lifetime_print_preferred(&plft, pi->preferred_lft));
+	ni_stringbuf_destroy(&vlft);
+	ni_stringbuf_destroy(&plft);
 }
 
 int
@@ -1254,23 +1261,20 @@ ni_server_trace_interface_nduseropt_events(ni_netdev_t *dev, ni_event_t event)
 	case NI_EVENT_RDNSS_UPDATE:
 		if (ipv6 && ipv6->radv.rdnss) {
 			ni_ipv6_ra_rdnss_t *rdnss;
-			char lifetime[32];
+			char buf[32] = {'\0'};
 			const char *rainfo;
 
 			rainfo = ipv6->radv.managed_addr ? "managed" :
 				 ipv6->radv.other_config ? "config"  : "unmanaged";
 
 			for (rdnss = ipv6->radv.rdnss; rdnss; rdnss = rdnss->next) {
-				if (rdnss->lifetime == 0xffffffff) {
-					snprintf(lifetime, sizeof(lifetime), "%s",
-								"infinite");
-				} else {
-					snprintf(lifetime, sizeof(lifetime), "%u",
-								rdnss->lifetime);
-				}
+				ni_stringbuf_t lft = NI_STRINGBUF_INIT_BUFFER(buf);
+
 				ni_trace("%s: update IPv6 RA<%s> RDNSS<%s>[%s]",
 					dev->name, rainfo,
-					ni_sockaddr_print(&rdnss->server), lifetime);
+					ni_sockaddr_print(&rdnss->server),
+					ni_lifetime_print_valid(&lft, rdnss->lifetime));
+				ni_stringbuf_destroy(&lft);
 			}
 		}
 		break;
@@ -1278,22 +1282,18 @@ ni_server_trace_interface_nduseropt_events(ni_netdev_t *dev, ni_event_t event)
 	case NI_EVENT_DNSSL_UPDATE:
 		if (ipv6 && ipv6->radv.dnssl) {
 			ni_ipv6_ra_dnssl_t *dnssl;
-			char lifetime[32];
+			char buf[32] = {'\0'};
 			const char *rainfo;
 
 			rainfo = ipv6->radv.managed_addr ? "managed" :
 				 ipv6->radv.other_config ? "config"  : "unmanaged";
 			for (dnssl = ipv6->radv.dnssl; dnssl; dnssl = dnssl->next) {
-				if (dnssl->lifetime == 0xffffffff) {
-					snprintf(lifetime, sizeof(lifetime), "%s",
-								"infinite");
-				} else {
-					snprintf(lifetime, sizeof(lifetime), "%u",
-								dnssl->lifetime);
-				}
+				ni_stringbuf_t lft = NI_STRINGBUF_INIT_BUFFER(buf);
+
 				ni_trace("%s: update IPv6 RA<%s> DNSSL<%s>[%s]",
-						dev->name, rainfo,
-						dnssl->domain, lifetime);
+					dev->name, rainfo, dnssl->domain,
+					ni_lifetime_print_valid(&lft, dnssl->lifetime));
+				ni_stringbuf_destroy(&lft);
 			}
 		}
 		break;

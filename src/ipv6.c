@@ -427,9 +427,7 @@ ni_ipv6_ra_pinfo_list_expire(ni_ipv6_ra_pinfo_t **list, const struct timeval *cu
 		return lifetime;
 
 	for (pos = list; (cur = *pos) != NULL; ) {
-		ni_ipv6_cache_info_t *ci = &cur->lifetime;
-
-		left = ni_lifetime_left(ci->valid_lft, &ci->acquired, current);
+		left = ni_lifetime_left(cur->valid_lft, &cur->acquired, current);
 		if (left) {
 			if (left < lifetime)
 				lifetime = left;

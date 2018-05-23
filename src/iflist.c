@@ -2762,8 +2762,8 @@ __ni_rtnl_parse_newprefix(const char *ifname, struct nlmsghdr *h, struct prefixm
 	if (tb[PREFIX_CACHEINFO]) {
 		cache_info = __ni_nla_get_data(sizeof(*cache_info), tb[PREFIX_CACHEINFO]);
 		if (cache_info) {
-			pi->lifetime.preferred_lft = cache_info->preferred_time;
-			pi->lifetime.valid_lft = cache_info->valid_time;
+			pi->preferred_lft = cache_info->preferred_time;
+			pi->valid_lft = cache_info->valid_time;
 		} else {
 			ni_error("%s: cannot get rtnl PREFIX message lifetimes data", ifname);
 			return -1;
