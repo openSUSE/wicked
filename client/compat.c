@@ -2114,10 +2114,8 @@ __ni_compat_generate_static_address_list(xml_node_t *afnode, ni_address_t *addr_
 
 		/* We are applying static address, but at least valid_lft = infinite,
 		 * preferred_lft = 0 is a valid case to apply deprecated addresses...
-		 * A valid_lft = preferred_lft = 0 means unspecified / omit lifetimes.
 		 */
-		if (ap->cache_info.valid_lft &&
-		    ap->cache_info.preferred_lft != NI_LIFETIME_INFINITE) {
+		if (ap->cache_info.preferred_lft != NI_LIFETIME_INFINITE) {
 			xml_node_t *cache_info = xml_node_new("cache-info", anode);
 			if (cache_info) {
 				xml_node_new_element_uint("valid-lifetime", cache_info,

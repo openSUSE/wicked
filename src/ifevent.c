@@ -450,7 +450,7 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 	}
 
 	if ((old = ni_ipv6_ra_pinfo_list_remove(&ipv6->radv.pinfo, pi)) != NULL) {
-		if (pi->valid_lft > 0) {
+		if (pi->valid_lft != NI_LIFETIME_EXPIRED) {
 			/* Replace with updated prefix info - most recent in front */
 			ni_ipv6_ra_pinfo_list_prepend(&ipv6->radv.pinfo, pi);
 			__ni_netdev_prefix_event(dev, NI_EVENT_PREFIX_UPDATE, pi);
@@ -461,7 +461,7 @@ __ni_rtevent_newprefix(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 			__ni_netdev_prefix_event(dev, NI_EVENT_PREFIX_DELETE, old);
 		}
 		free(old);
-	} else if (pi->valid_lft > 0) {
+	} else if (pi->valid_lft != NI_LIFETIME_EXPIRED) {
 		/* Add prefix info - most recent in front */
 		ni_ipv6_ra_pinfo_list_prepend(&ipv6->radv.pinfo, pi);
 		__ni_netdev_prefix_event(dev, NI_EVENT_PREFIX_UPDATE, pi);

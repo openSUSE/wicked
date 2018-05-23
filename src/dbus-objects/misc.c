@@ -587,7 +587,7 @@ __ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict
 		ni_dbus_dict_add_string(dict, "label", ap->label);
 
 	ni_address_cache_info_rebase(&lft, &ap->cache_info, NULL);
-	if (lft.valid_lft) {
+	if (lft.preferred_lft != NI_LIFETIME_INFINITE) {
 		ni_dbus_variant_t *var;
 
 		var = ni_dbus_dict_add(dict, "cache-info");
@@ -637,16 +637,17 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 		}
 
 		if ((var = ni_dbus_dict_get(dict, "cache-info")) != NULL) {
-			uint32_t prefered_lft = 0, valid_lft = 0;
+			uint32_t prefered_lft = NI_LIFETIME_INFINITE;
+			uint32_t valid_lft = NI_LIFETIME_INFINITE;
 
 			ni_dbus_dict_get_uint32(var, "preferred-lifetime", &prefered_lft);
 			ni_dbus_dict_get_uint32(var, "valid-lifetime", &valid_lft);
 
 			/* as they're there, they've to be valid */
-			if (!valid_lft || prefered_lft > valid_lft) {
-				ni_address_free(ap);
-				return NULL;
-			}
+			if (prefered_lft > valid_lft)
+				prefered_lft = valid_lft;
+			if (prefered_lft != NI_LIFETIME_INFINITE)
+				ni_timer_get_time(&ap->cache_info.acquired);
 			ap->cache_info.preferred_lft = prefered_lft;
 			ap->cache_info.valid_lft = valid_lft;
 		}

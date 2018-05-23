@@ -479,7 +479,7 @@ ni_ifstatus_show_addrs(ni_netdev_t *dev, ni_bool_t verbose)
 					if_printf("", " ", "%s", buf.string);
 				}
 				ni_stringbuf_destroy(&buf);
-				if (ap->cache_info.valid_lft != -1U) {
+				if (ap->cache_info.preferred_lft != NI_LIFETIME_INFINITE) {
 					ni_stringbuf_printf(&buf, "%u",
 						ap->cache_info.valid_lft);
 					ni_stringbuf_puts(&buf, "/");

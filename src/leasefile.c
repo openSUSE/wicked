@@ -167,7 +167,7 @@ ni_addrconf_lease_addrs_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t
 		if (ap->family == AF_INET && ap->label)
 			xml_node_new_element("label", anode, ap->label);
 
-		if (ap->cache_info.preferred_lft || ap->cache_info.valid_lft) {
+		if (ap->cache_info.preferred_lft != NI_LIFETIME_INFINITE) {
 			xml_node_t *cnode = xml_node_new("cache-info", anode);
 			xml_node_new_element_uint("preferred-lifetime", cnode,
 					ap->cache_info.preferred_lft);

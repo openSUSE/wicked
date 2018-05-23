@@ -4435,7 +4435,7 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 		}
 	}
 
-	if (ap->cache_info.valid_lft) {
+	if (ap->cache_info.preferred_lft != NI_LIFETIME_INFINITE) {
 		struct ifa_cacheinfo ci;
 
 		memset(&ci, 0, sizeof(ci));
