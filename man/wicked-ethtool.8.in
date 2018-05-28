@@ -1,0 +1,258 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\"
+.TH wicked-ethtool 8 "June 2018" "wicked" "Network configuration"
+.SH NAME
+wicked ethtool command permits to query/configure parameters of NIC and it's device driver.
+
+.SH SYNOPSIS
+.B  wicked ethtool
+.I <interface>
+.b
+.B <
+.I --action
+.B [
+.I arguments
+.B ]
+.B >
+
+.SH NOTATION
+We use the terms
+.B NIC, interface, device
+and
+.B tx/rx queue
+in a dedicated way. A
+.B device or NIC
+is always a piece of hardware representing a network interface, a PCI or
+PCMCIA card or a USB device. An
+.B interface
+then is the name of the network interface it gets from the kernel, when the
+device has been registered. A queue is typically implemented as a first-in, first-out (FIFO) ring buffer. Network device use transmit or receive queue
+.B (tx/rx queue)
+for storing/buffring network packet data
+
+.SH DESCRIPTION
+.B wicked ethtool
+can be used to configure a NIC as well as to query
+NIC related parameters like speed, link status, driver info and varius other.
+.B wicked ethtool
+doesn't require any file or a dbus server running which is suitable for dracut environment.
+
+Note, that the behavior depends on the effective kernel driver implementing an ethtool option.
+Some drivers may ignore the requested option, e.g. specified advertise modes for autonegotiation.
+
+.SH ACTION
+.IP "The following are the ethtool actions"
+.PP
+.TP
+.B --get-driver-info
+Query an interface for driver information
+.TP
+.B --get-private-flags
+Query private flags of an interface defined by its device driver.
+.TP
+.B --get-link-detected
+Query the link carrier detection status
+.TP
+.B --get-link-settings
+Query ethernet card properties such as speed, autoneg, transceiver, port, supported and advertising link modes.
+.TP
+.B --get-features|--get-offload
+Query status of NIC protocol offload and other features.
+.TP
+.B --get-wake-on-lan|--get-wol
+Query wake-on-lan settings.
+.TP
+.B --get-eee
+Query NIC support of Energy-Efficient Ethernet as per IEEE 802.3az specifications.
+.TP
+.B --get-ring
+Query  NIC driver's rx/tx queue size.
+.TP
+.B --get-channels
+Query NIC's multi-queue settings.
+.TP
+.B --get-coalesce
+Query interrupt rate information for a NIC.
+.TP
+.B --set-priv-flags <priv-flags> <on|off>
+Enable/disable private flags defined by the NIC driver.
+.nf
+.B "    #wicked ethtool eth0 --set-priv-flags disable-tpe-recovery on
+	Note: Private flags are NIC driver specific, The flag in the example above
+	tested on Emulex OneConnect NIC
+.TP
+.B --set-link-settings <setting-name> <value>
+Configure NIC's link related settings.
+
+.RS
+.TP
+.B autoneg <on|off>
+Enable or disable autonegotiation. With disabled autonegotioation,
+the speed and duplex can be used to set a fixed link mode.
+
+With enabled autonegotiation, the spead and duplex are read-only and
+the advertise parameter can be used to specify an explicit set of
+supported modes to advertise. Alternatively, wicked can create the
+advertise set using speed and duplex to filter known supported modes.
+
+To \fBdisable\fR autonegotiation and use a fixed link mode:
+.nf
+.B # wicked ethtool eth0 --set-link-settings autoneg off speed 1000 duplex full
+.ni
+
+To \fBenable\fR autonegotiation and limit/filter advertised modes by speed and duplex:
+.nf
+.B # wicked ethtool eth0 --set-link-settings autoneg on speed 1000 duplex full
+.ni
+
+.TP
+.B advertise <mode,...>
+Set a specific set of comma separated speed modes to advertise in autonegotiation:
+.nf
+.B # wicked ethtool eth0 --set-link-settings autoneg on advertise 100baseT-Half,100baseT-Full
+.ni
+
+or as hex number list or bitmask, e.g. for modes without a known name:
+.nf
+.B # wicked ethtool eth0 --set-link-settings autoneg on advertise 0x60000,0x800000
+.ni
+
+To query the list of supported mode names for a specific interface, use:
+.nf
+.B # wicked ethtool eth0 --get-link-setting
+.ni
+
+.TP
+.B speed <N>
+Set a fixed link speed in Mb/s while disabled autonegotiation or limit/filter
+supported autonegotiation advertise modes by desired speed and duplex.
+
+.TP
+.B duplex <half|full>
+Set a fixed duplex mode while disabled autonegotiation or limit/filter
+supported autonegotiation advertise modes by desired speed and duplex.
+
+.TP
+.B  port <TP|AUI|BNC|MII|DA|Fibre|Other>
+Set port type of the NIC:
+.nf
+.B # wicked ethtool eth0 --set-link-settings speed port TP
+.ni
+
+.TP
+.B mdix <mdi|mdi-x|auto-mdi|auto-mdi-x>
+Set mdi type for a port:
+.nf
+.B "    #wicked ethtool eth1 --set-link-settings mdix auto-mdi-x
+.ni
+
+.TP
+.B phy-address <0-255>
+Configure MDIO address of PHY:
+.nf
+.B "    #wicked ethtool eth0 --set-link-settings phy-address 0
+.ni
+
+.TP
+.B transceiver <internal|external>
+Configure transceiver type:
+.nf
+.B "    #wicked ethtool eth0 --set-link-settings transceiver internal
+.ni
+
+.RE
+.TP
+.B --set-features <feature-name on|off>
+Enable or disable device specific protocol offload and feature settings:
+.nf
+.B "    #wicked ethtool eth0 --set-features rx-gro on
+.ni
+.TP
+.B --set-eee
+Configure eee related settings:
+.RS
+.TP
+.B eee <on|off>
+Enable/disable eee settings:
+.nf
+.B "    #wicked ethtool eth0 --set-eee eee on
+.ni
+
+.TP
+.B tx-lpi <on|off>
+Configure tx low power idle settings:
+.nf
+.B "    #wicked ethtool eth0 --set-eee tx-lpi on
+.ni
+
+.TP
+.B tx-timer <N>
+Set interface(in microseconds) delays prior to asserting its tx lpi:
+.nf
+.B "    #wicked ethtool eth0 --set-eee tx-timer 100
+.ni
+
+.TP
+.B advertise <mode,...>
+Configure speeds for which the device should advertise EEE capabilities:
+.nf
+.B "    #wicked ethtool eth0 --set-eee advertise 100baseT-Half,100baseT-Full
+.ni
+.RE
+.TP
+.B --set-channels <rx|tx|other|combined> <N>
+Configure rx/tx queue use by the NIC:
+.nf
+.B "    #wicked ethtool eth0 --set-channels combined 4
+.ni
+
+.TP
+.B --set-ring <rx|tx|rx-jumbo|rx-mini> <N>
+Configure rx/tx queue size use by the NIC:
+.nf
+.B "    #wicked ethtool eth0 --set-ring rx 2
+.ni
+
+.TP
+.B --set-coalesce <coalesce-name> <on|off|N>
+Configure interrupts rate settings of NIC:
+.nf
+.B "    #wicked ethtool eth0 --set-coalesce rx-usecs 10
+.B "    #wicked ethtool eth0 --set-coalesce  adaptive-rx on
+.ni
+
+.TP
+.B --set-wol
+Configure wake-on-lan settings:
+.RS
+.TP
+.B options <list of options with or without comma-separated >
+.nf
+.B "    #wicked ethtool eth1 --set-wol options pumba
+.B "    #wicked ethtool eth1 --set-wol options p,u,m,b,a
+.B "    #wicked ethtool eth0 --set-wol options phy,unicast,multicast,broadcast,magic
+.ni
+.TP
+.B sopass <a colon-separated bytes in hex>
+Set the SecureOn™ password:
+.nf
+.B "    #wicked ethtool eth0 --set-wol sopass 02:42:ca:66:ce:a8
+.RE
+
+.SH COPYRIGHT
+Copyright (c) 2018 SUSE LINUX GmbH, Nuernberg, Germany.
+.SH BUGS
+Please report bugs at <https://bugzilla.novell.com/index.cgi>
+.SH AUTHORS
+.nf
+Nirmoy Das
+.fi
+.SH "SEE ALSO"
+.BR ifcfg (5),
+.BR routes (5),
+.BR wicked (8),
+.BR ifcfg-wireless (5),
+.BR ifcfg-tunnel (5),
+.BR ifcfg-vlan (5),
+.BR ifcfg-bonding (5),

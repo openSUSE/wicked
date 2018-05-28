@@ -1,4 +1,4 @@
-.TH WICKED 8 "16 July 2012
+.TH wicked 8 "June 2018" "wicked" "Network configuration"
 .SH NAME
 wicked \- network management utility
 .SH SYNOPSIS
@@ -27,6 +27,8 @@ wicked \- network management utility
 .BI "wicked [" global-options "] iaid [" options "] <" action "> ...
 .br
 .BI "wicked [" global-options "] arp <" action "> [" options "] ...
+.br
+.BI "wicked [" global-options "] ethtool [" interface "] --action [" arguments "] ...
 .br
 .PP
 .\" ----------------------------------------
@@ -669,6 +671,10 @@ expected in the time given by timeout or the count and interval
 parameters to report a success status code 0 or status code 7
 when the expected replies do not arrive.
 .\" ----------------------------------------
+.SH ethtool - Show and modify ethtool options
+Please read the \fBwicked-ethtool\fR(8) manual page.
+
+.\" ----------------------------------------
 .SH xpath - retrieve data from an XML blob
 The \fBwickedd\fP server can be enhanced to support new network device types
 via extension commands \(em usually shell scripts. When invoking such a script,
@@ -755,13 +761,14 @@ evaluated \fIrelative to each node\fP. Note the use of the question mark in
 the \fBpriority\fP term, marking the field as optional.
 .\" ----------------------------------------
 .SH "SEE ALSO"
-\fBwickedd\fP(8), \fBwicked-config\fP(5).
+\fBwickedd\fP(8), \fBwicked-config\fP(5), \fBwicked-ethtool\fP(8)
 .\" ----------------------------------------
 .SH COPYRIGHT
-Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+Copyright (C) 2018 SUSE LINUX GmbH, Nuernberg, Germany.
 .SH BUGS
-Please report bugs at <https://bugzilla.novell.com/index.cgi>
+Please report bugs as described at <http://bugs.opensuse.org>
 .SH AUTHORS
 Olaf Kirch
 Pawel Wieczorkiewicz
 Karol Mroz
+Nirmoy Das
