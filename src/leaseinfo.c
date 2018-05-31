@@ -517,17 +517,17 @@ __ni_leaseinfo_dhcp4_dump(FILE *out, const ni_addrconf_lease_t *lease,
 				(int64_t) lease->acquired.tv_sec);
 	}
 	if (lease->dhcp4.lease_time)  {
-		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
+		fprintf(out, "%s='%"PRIu32"'\n", __ni_keyword_format
 				(&key, prefix, "LEASETIME", 0),
 				lease->dhcp4.lease_time);
 	}
 	if (lease->dhcp4.renewal_time) {
-		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
+		fprintf(out, "%s='%"PRIu32"'\n", __ni_keyword_format
 				(&key, prefix, "RENEWALTIME", 0),
 				lease->dhcp4.renewal_time);
 	}
 	if (lease->dhcp4.rebind_time) {
-		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
+		fprintf(out, "%s='%"PRIu32"'\n", __ni_keyword_format
 				(&key, prefix, "REBINDTIME", 0),
 				lease->dhcp4.rebind_time);
 	}
