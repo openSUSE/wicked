@@ -4022,7 +4022,6 @@ __ni_rtnl_link_change_mtu(ni_netdev_t *dev, unsigned int mtu)
 {
 	struct ifinfomsg ifi;
 	struct nl_msg *msg;
-	int err;
 
 	if (!dev || !mtu)
 		return -1;
@@ -4031,20 +4030,15 @@ __ni_rtnl_link_change_mtu(ni_netdev_t *dev, unsigned int mtu)
 	ifi.ifi_family = AF_UNSPEC;
 	ifi.ifi_index = dev->link.ifindex;
 
-	if (!(msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST)))
-		goto nla_put_failure;
-
+	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST);
 	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
 		goto nla_put_failure;
 
 	if (__ni_rtnl_link_put_mtu(msg, mtu) < 0)
 		goto nla_put_failure;
 
-	if ((err = ni_nl_talk(msg, NULL))) {
-		ni_error("failed to modify interface %s mtu to %u: %s",
-				dev->name, mtu, nl_geterror(err));
+	if (ni_nl_talk(msg, NULL))
 		goto failed;
-	}
 
 	ni_debug_ifconfig("successfully modified interface %s mtu to %u",
 			dev->name, mtu);
@@ -5569,7 +5563,7 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 			ni_stringbuf_destroy(&buf);
 
 			if ((rv = __ni_rtnl_send_newroute(dev, rp, NLM_F_CREATE)) < 0)
-				continue;
+				return rv;
 
 			rp->owner = new_lease->type;
 			rp->seq = __ni_global_seqno;

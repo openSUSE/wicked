@@ -25,7 +25,6 @@
 #include <wicked/objectmodel.h>
 #include "appconfig.h"
 #include "dhcp4/dhcp4.h"
-#include "dhcp.h"
 
 static ni_dhcp4_request_t *	ni_objectmodel_dhcp4_request_from_dict(const ni_dbus_variant_t *);
 static void			__ni_objectmodel_dhcp4_device_release(ni_dbus_object_t *);
@@ -330,7 +329,7 @@ ni_objectmodel_dhcp4_request_set_user_class(ni_dbus_object_t *object,
 		if (format == NI_DHCP4_USER_CLASS_STRING && uc->class_id.count)
 			break; /* only one user class identifier for this format type */
 
-		if (!ni_dhcp_check_user_class_id(var->string_value, len)) {
+		if (!ni_check_domain_name(var->string_value, len, 0)) {
 			ni_warn("Suspect user class id string: '%s' obtained. Skipping.",
 				ni_print_suspect(var->string_value, len));
 			return FALSE;

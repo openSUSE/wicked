@@ -925,9 +925,20 @@ ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			}
 		}
 
-		if  (req->mtu != dev->link.mtu)
-		     ni_system_mtu_change(nc, dev, req->mtu);
+		/*
+		 * MTU change on device-up interfaces quite often causes either
+		 * error -16 (busy) or sets all upper interfaces LOWERLAYERDOWN.
+		 */
+		if (ni_netdev_device_is_up(dev)) {
+			ni_debug_objectmodel("Skipping MTU change on %s: device is up",
+					dev->name);
+			req->mtu = 0;
+		}
 
+		if (req->mtu != dev->link.mtu &&
+		    ni_system_mtu_change(nc, dev, req->mtu) < 0) {
+			ni_info("Unable to set %s MTU to %u", dev->name, req->mtu);
+		}
 		req->mtu = 0;
 	}
 

@@ -400,7 +400,6 @@ __ni_dhcp4_fsm_discover(ni_dhcp4_device_t *dev, int scan_offers)
 	lease->uuid = dev->config->uuid;
 	lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
 	lease->fqdn.qualify = dev->config->fqdn.qualify;
-	ni_string_free(&lease->hostname);
 
 	dev->fsm.state = NI_DHCP4_STATE_SELECTING;
 	dev->dhcp4.accept_any_offer = 1;
@@ -528,10 +527,6 @@ ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *dev)
 	if (expire_time > now && deadline > expire_time)
 		deadline = expire_time;
 	dev->config->capture_timeout = deadline - now;
-
-	dev->lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
-	dev->lease->fqdn.qualify = dev->config->fqdn.qualify;
-	ni_string_free(&dev->lease->hostname);
 
 	ni_dhcp4_fsm_set_timeout(dev, dev->config->capture_timeout);
 	ni_dhcp4_device_send_message(dev, DHCP4_REQUEST, dev->lease);
@@ -945,7 +940,6 @@ ni_dhcp4_recover_lease(ni_dhcp4_device_t *dev)
 
 	lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
 	lease->fqdn.qualify = dev->config->fqdn.qualify;
-	ni_string_free(&lease->hostname);
 
 	/* We cannot renew/rebind/reboot without it */
 	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.server_id, 0);

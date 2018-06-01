@@ -1985,29 +1985,6 @@ try_add_ethtool_eee(ni_netdev_t *dev, const char *opt, const char *val)
 	}
 }
 
-/* get channels params from wicked config */
-static void
-try_add_ethtool_channels(ni_netdev_t *dev, const char *opt, const char *val)
-{
-
-	ni_ethernet_t *eth = ni_netdev_get_ethernet(dev);
-
-	if (ni_string_eq(opt, "tx")) {
-		ni_parse_uint(val, &eth->channels.tx, 10);
-	} else
-	if (ni_string_eq(opt, "rx")) {
-		ni_parse_uint(val, &eth->channels.rx, 10);
-	} else
-	if (ni_string_eq(opt, "other")) {
-		ni_parse_uint(val, &eth->channels.other, 10);
-	} else
-	if (ni_string_eq(opt, "combined")) {
-		ni_parse_uint(val, &eth->channels.combined, 10);
-	}
-
-
-}
-
 /* get ringparams from wicked config */
 static void
 try_add_ethtool_ring(ni_netdev_t *dev, const char *opt, const char *val)
@@ -2064,12 +2041,6 @@ try_add_ethtool_options(ni_netdev_t *dev, const char *type,
 	if (ni_string_eq(type, "-C") || ni_string_eq(type, "--coalesce")) {
 		for (i = start; (i + 1) < opts->count; i+=2) {
 			try_add_ethtool_coalesce(dev, opts->data[i],
-						opts->data[i + 1]);
-		}
-	}
-	if (ni_string_eq(type, "-L") || ni_string_eq(type, "--set-channels")) {
-		for (i = start; (i + 1) < opts->count; i+=2) {
-			try_add_ethtool_channels(dev, opts->data[i],
 						opts->data[i + 1]);
 		}
 	}
@@ -4990,7 +4961,7 @@ __ni_suse_parse_dhcp4_user_class(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 				ni_string_array_destroy(&names);
 				ni_string_array_destroy(&compat->dhcp4.user_class.class_id);
 				return FALSE;
-			} else if (!ni_dhcp_check_user_class_id(string, length)) {
+			} else if (!ni_check_domain_name(string, length, 0)) {
 				ni_warn("%s: %s contains suspect class id element: '%s'",
 					ni_basename(sc->pathname), prefix,
 					ni_print_suspect(string, length));
@@ -5011,7 +4982,7 @@ __ni_suse_parse_dhcp4_user_class(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 				ni_print_suspect(string, length));
 
 			return FALSE;
-		} else if (!ni_dhcp_check_user_class_id(string, length)) {
+		} else if (!ni_check_domain_name(string, length, 0)) {
 			ni_warn("%s: %s contains suspect class id string: '%s'",
 				ni_basename(sc->pathname), prefix,
 				ni_print_suspect(string, length));
