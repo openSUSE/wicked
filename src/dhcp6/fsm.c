@@ -1133,7 +1133,7 @@ __fsm_parse_client_options(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg,
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
 	lease->type = NI_ADDRCONF_DHCP;
-	lease->time_acquired = time(NULL);
+	ni_timer_get_time(&lease->acquired);
 	lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
 	lease->fqdn.qualify = dev->config->fqdn.qualify;
 
@@ -1826,7 +1826,7 @@ __ni_dhcp6_fsm_mark_ia_by_time(ni_dhcp6_device_t *dev,  unsigned int (*get_ia_ti
 		rt = get_ia_time(ia);
 
 		if ((aq = ia->time_acquired) == 0)
-			aq = dev->lease->time_acquired;
+			aq = dev->lease->acquired.tv_sec;
 
 		if (now.tv_sec > aq) {
 			diff = (now.tv_sec - aq);
@@ -1892,7 +1892,7 @@ __ni_dhcp6_fsm_get_timeout(ni_dhcp6_device_t *dev, unsigned int (*get_ia_time)(n
 		aq = ia->time_acquired;
 		ni_timer_get_time(&now);
 
-		if (aq == 0 && (aq = dev->lease->time_acquired) == 0) {
+		if (aq == 0 && (aq = dev->lease->acquired.tv_sec) == 0) {
 			ni_warn("%s(%s): lease/ia time_acquired is 0 ?!",
 				dev->ifname, __func__);
 			aq = now.tv_sec;
@@ -1951,7 +1951,7 @@ ni_dhcp6_fsm_get_expire_timeout(ni_dhcp6_device_t *dev)
 		at = ia->time_acquired;
 		ni_timer_get_time(&now);
 
-		if (at == 0 && (at = dev->lease->time_acquired) == 0) {
+		if (at == 0 && (at = dev->lease->acquired.tv_sec) == 0) {
 			ni_warn("%s(%s): lease/ia time_acquired is 0 ?!",
 				dev->ifname, __func__);
 			at = now.tv_sec;

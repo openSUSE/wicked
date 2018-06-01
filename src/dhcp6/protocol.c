@@ -1329,7 +1329,7 @@ ni_dhcp6_build_reparse(ni_dhcp6_device_t *dev, void *data, size_t len)
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
 	lease->type = NI_ADDRCONF_DHCP;
-	lease->time_acquired = time(NULL);
+	ni_timer_get_time(&lease->acquired);	
 
 	rv = __ni_dhcp6_parse_client_options(dev, &buf, lease, TRUE);
 	ni_addrconf_lease_free(lease);
@@ -2703,9 +2703,9 @@ ni_dhcp6_ia_copy_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_
 
 			ap = ni_address_new(AF_INET6, plen, &sadr, &lease->addrs);
 			if (ap) {
-				ap->ipv6_cache_info.acquired.tv_sec = ia->time_acquired;
-				ap->ipv6_cache_info.preferred_lft = iadr->preferred_lft;
-				ap->ipv6_cache_info.valid_lft = iadr->valid_lft;
+				ap->cache_info.acquired.tv_sec = ia->time_acquired;
+				ap->cache_info.preferred_lft = iadr->preferred_lft;
+				ap->cache_info.valid_lft = iadr->valid_lft;
 
 				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
 						"%s: added %sDHCPv6 address %s/%u to lease",
@@ -2808,15 +2808,15 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 		break;
 		case NI_DHCP6_OPTION_IA_NA:
 			ni_dhcp6_option_parse_ia_na(&optbuf, &lease->dhcp6.ia_list,
-							lease->time_acquired);
+							lease->acquired.tv_sec);
 		break;
 		case NI_DHCP6_OPTION_IA_TA:
 			ni_dhcp6_option_parse_ia_ta(&optbuf, &lease->dhcp6.ia_list,
-							lease->time_acquired);
+							lease->acquired.tv_sec);
 		break;
 		case NI_DHCP6_OPTION_IA_PD:
 			ni_dhcp6_option_parse_ia_pd(&optbuf, &lease->dhcp6.ia_list,
-							lease->time_acquired);
+							lease->acquired.tv_sec);
 		break;
 		case NI_DHCP6_OPTION_DNS_SERVERS:
 			if (lease->resolver == NULL) {

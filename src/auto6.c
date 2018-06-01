@@ -333,7 +333,7 @@ ni_auto6_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t *lease, unsigned int
 		if (!(updater = ni_addrconf_updater_new_applying(lease, dev, NI_EVENT_ADDRESS_ACQUIRED)))
 			return;
 	}
-	lease->time_acquired = updater->started.tv_sec;
+	lease->acquired = updater->started;
 	ni_addrconf_updater_background(updater, delay);
 }
 

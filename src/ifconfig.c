@@ -4372,13 +4372,17 @@ __ni_netdev_address_in_list(ni_address_t *list, const ni_address_t *ap)
 static int
 __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 {
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned int omit = IFA_F_TENTATIVE|IFA_F_DADFAILED;
 	struct ifaddrmsg ifa;
 	struct nl_msg *msg;
 	int err;
 
-	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__,
-			ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
+	ni_debug_ifconfig("%s(%s, %s %s)", __FUNCTION__, dev->name,
+			flags & NLM_F_REPLACE ? "replace " :
+			flags & NLM_F_CREATE  ? "create " : "",
+			ni_address_print(&buf, ap));
+	ni_stringbuf_destroy(&buf);
 
 	memset(&ifa, 0, sizeof(ifa));
 	ifa.ifa_index = dev->link.ifindex;
@@ -4435,20 +4439,15 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 		}
 	}
 
-	if (ap->family == AF_INET6 && ap->ipv6_cache_info.valid_lft) {
+	if (ap->cache_info.preferred_lft != NI_LIFETIME_INFINITE) {
 		struct ifa_cacheinfo ci;
 
 		memset(&ci, 0, sizeof(ci));
-		ci.ifa_valid = ap->ipv6_cache_info.valid_lft;
-		ci.ifa_prefered = ap->ipv6_cache_info.preferred_lft;
+		ci.ifa_valid = ap->cache_info.valid_lft;
+		ci.ifa_prefered = ap->cache_info.preferred_lft;
 
-		if (ci.ifa_prefered > ci.ifa_valid) {
-			ni_warn("%s: ipv6 address %s/%u prefered lifetime %u cannot "
-				" be greater than the valid lifetime %u", dev->name,
-				ni_sockaddr_print(&ap->local_addr), ap->prefixlen,
-				ci.ifa_prefered, ci.ifa_valid);
+		if (ci.ifa_prefered > ci.ifa_valid)
 			ci.ifa_prefered = ci.ifa_valid;
-		}
 
 		if (nla_put(msg, IFA_CACHEINFO, sizeof(ci), &ci) < 0)
 			goto nla_put_failure;
@@ -4993,12 +4992,12 @@ __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t 
 
 	case AF_INET6:
 	{
-		ni_ipv6_cache_info_t olft, nlft;
+		ni_address_cache_info_t olft, nlft;
 		struct timeval now;
 
 		ni_timer_get_time(&now);
-		ni_ipv6_cache_info_rebase(&olft, &o->ipv6_cache_info, &now);
-		ni_ipv6_cache_info_rebase(&nlft, &n->ipv6_cache_info, &now);
+		ni_address_cache_info_rebase(&olft, &o->cache_info, &now);
+		ni_address_cache_info_rebase(&nlft, &n->cache_info, &now);
 
 		/* (invalid) 0 lifetimes mean unset/not provided by the lease;
 		 * kernel uses ~0 (infinity) / permanent address when omitted */

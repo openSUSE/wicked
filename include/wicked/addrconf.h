@@ -136,8 +136,7 @@ struct ni_addrconf_lease {
 
 	ni_uuid_t		uuid;
 	int			state;
-
-	unsigned int		time_acquired;
+	struct timeval		acquired;
 
 	unsigned int		update;
 

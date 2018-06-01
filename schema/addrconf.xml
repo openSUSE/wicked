@@ -22,7 +22,7 @@
     <state type="builtin-addrconf-state"
     		description="State of the lease - usually GRANTED or RELEASED"/>
 
-    <acquired type="uint32" 
+    <acquired type="int64"
     		description="Timestamp when the lease was acquired"/>
     <update type="builtin-addrconf-update-mask"
     		description="This is a bitmap describing which system services should be configured through this lease" />

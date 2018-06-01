@@ -25,6 +25,7 @@
 #include <wicked/logging.h>
 #include <wicked/netinfo.h>
 #include <wicked/socket.h>
+#include <wicked/route.h>
 #include "util_priv.h"
 
 #define	NI_ADDRESS_ARRAY_CHUNK		16
@@ -47,6 +48,8 @@ do_address_new(void)
 	ap = xcalloc(1, sizeof(*ap));
 	if (ap) {
 		ap->refcount = 1;
+		ap->cache_info.valid_lft = NI_LIFETIME_INFINITE;
+		ap->cache_info.preferred_lft = NI_LIFETIME_INFINITE;
 	}
 	return ap;
 }
@@ -100,7 +103,7 @@ ni_address_copy(ni_address_t *dst, const ni_address_t *src)
 		dst->peer_addr	= src->peer_addr;
 		dst->bcast_addr	= src->bcast_addr;
 		dst->anycast_addr    = src->anycast_addr;
-		dst->ipv6_cache_info = src->ipv6_cache_info;
+		dst->cache_info = src->cache_info;
 		ni_string_dup(&dst->label, src->label);
 	}
 	return FALSE;
@@ -204,6 +207,62 @@ ni_address_format_flags(ni_stringbuf_t *buf, unsigned int family,
 		}
 	}
 	return buf->string;
+}
+
+const char *
+ni_address_print(ni_stringbuf_t *out, const ni_address_t *ap)
+{
+	ni_stringbuf_t flags = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_address_cache_info_t lft;
+	const char *beg, *ptr;
+
+	if (!out || !ap || ap->family == AF_UNSPEC)
+		return NULL;
+
+	beg = out->string;
+	if ((ptr = ni_addrfamily_type_to_name(ap->family)))
+		ni_stringbuf_printf(out, "%s", ptr);
+
+	if (ni_sockaddr_is_specified(&ap->local_addr)) {
+		ni_stringbuf_printf(out, " %s", ni_sockaddr_print(&ap->local_addr));
+		if (ap->prefixlen)
+			ni_stringbuf_printf(out, "/%u", ap->prefixlen);
+	} else
+	if (ni_sockaddr_is_specified(&ap->anycast_addr)) {
+		ni_stringbuf_printf(out, " anycast %s", ni_sockaddr_print(&ap->anycast_addr));
+		if (ap->prefixlen)
+			ni_stringbuf_printf(out, "/%u", ap->prefixlen);
+	}
+	if (ni_sockaddr_is_specified(&ap->peer_addr))
+		ni_stringbuf_printf(out, " peer %s", ni_sockaddr_print(&ap->peer_addr));
+	else
+	if (ni_sockaddr_is_specified(&ap->bcast_addr))
+		ni_stringbuf_printf(out, " brd %s", ni_sockaddr_print(&ap->local_addr));
+
+	if (ni_route_is_valid_scope(ap->scope) &&
+	    (ptr = ni_route_scope_type_to_name(ap->scope)))
+		ni_stringbuf_printf(out, " scope %s", ptr);
+
+	if (ap->cache_info.preferred_lft == NI_LIFETIME_INFINITE)
+		ni_address_format_flags(&flags, ap->family, ap->flags | IFA_F_PERMANENT, NULL);
+	else
+		ni_address_format_flags(&flags, ap->family, ap->flags & ~IFA_F_PERMANENT, NULL);
+	if (flags.string)
+		ni_stringbuf_printf(out, " flags %s", flags.string);
+	ni_stringbuf_destroy(&flags);
+
+	if (ap->family == AF_INET && ap->label)
+		ni_stringbuf_printf(out, " label %s", ap->label);
+
+	ni_address_cache_info_rebase(&lft, &ap->cache_info, NULL);
+	if (lft.preferred_lft != NI_LIFETIME_INFINITE) {
+		ni_stringbuf_printf(out, " valid-lft ");
+		ni_lifetime_print_valid(out, lft.valid_lft);
+		ni_stringbuf_printf(out, " pref-lft ");
+		ni_lifetime_print_preferred(out, lft.preferred_lft);
+	}
+
+	return beg ? beg : out->string;
 }
 
 ni_bool_t
@@ -1491,8 +1550,51 @@ ni_link_address_is_invalid(const ni_hwaddr_t *hwa)
 }
 
 /*
- * Adjust IPv6 lifetimes in address cache info
+ * Address, ... cache-info lifetime utils.
  */
+static const ni_intmap_t	ni_lifetime_valid_names_map[] = {
+	{ "infinite",		NI_LIFETIME_INFINITE	},
+	{ "expired",		NI_LIFETIME_EXPIRED	},
+
+	{ NULL,			0			}
+};
+
+static const ni_intmap_t	ni_lifetime_preferred_names_map[] = {
+	{ "infinite",		NI_LIFETIME_INFINITE	},
+	{ "deprecated",		NI_LIFETIME_EXPIRED	},
+
+	{ NULL,			0			}
+};
+
+static const char *
+ni_lifetime_print(ni_stringbuf_t *out, unsigned int lft, const ni_intmap_t *map)
+{
+	const char *str;
+
+	if (out) {
+		str = map ? ni_format_uint_mapped(lft, map) : NULL;
+		if (str)
+			ni_stringbuf_puts(out, str);
+		else
+			ni_stringbuf_printf(out, "%u", lft);
+
+		return out->string;
+	}
+	return NULL;
+}
+
+const char *
+ni_lifetime_print_valid(ni_stringbuf_t *out, unsigned int lft)
+{
+	return ni_lifetime_print(out, lft, ni_lifetime_valid_names_map);
+}
+
+const char *
+ni_lifetime_print_preferred(ni_stringbuf_t *out, unsigned int lft)
+{
+	return ni_lifetime_print(out, lft, ni_lifetime_preferred_names_map);
+}
+
 unsigned int
 ni_lifetime_left(unsigned int lifetime, const struct timeval *acquired, const struct timeval *current)
 {
@@ -1525,7 +1627,7 @@ ni_lifetime_left(unsigned int lifetime, const struct timeval *acquired, const st
 }
 
 void
-ni_ipv6_cache_info_rebase(ni_ipv6_cache_info_t *res, const ni_ipv6_cache_info_t *lft, const struct timeval *base)
+ni_address_cache_info_rebase(ni_address_cache_info_t *res, const ni_address_cache_info_t *lft, const struct timeval *base)
 {
 	#define rebase_lft(lft, dif) (lft -= lft > dif ? dif : lft)
 	struct timeval now, dif;
@@ -1535,7 +1637,9 @@ ni_ipv6_cache_info_rebase(ni_ipv6_cache_info_t *res, const ni_ipv6_cache_info_t 
 	if (!timerisset(&lft->acquired))
 		return;
 
-	if (lft->valid_lft == -1U && lft->preferred_lft == -1U)
+	if (lft->valid_lft == NI_LIFETIME_INFINITE &&
+	    (lft->preferred_lft == NI_LIFETIME_INFINITE ||
+	     lft->preferred_lft == NI_LIFETIME_EXPIRED))
 		return;
 
 	if (!base || !timerisset(base))
@@ -1548,13 +1652,13 @@ ni_ipv6_cache_info_rebase(ni_ipv6_cache_info_t *res, const ni_ipv6_cache_info_t 
 	timersub(&now, &lft->acquired, &dif);
 
 	res->acquired = now;
-	if (res->valid_lft == -1U)
+	if (res->valid_lft == NI_LIFETIME_INFINITE)
 		rebase_lft(res->preferred_lft, (unsigned long)dif.tv_sec);
 	else
 	if (rebase_lft(res->valid_lft, (unsigned long)dif.tv_sec))
 		rebase_lft(res->preferred_lft, (unsigned long)dif.tv_sec);
 	else
-		res->preferred_lft = 0;
+		res->preferred_lft = NI_LIFETIME_EXPIRED;
 	#undef rebase_lft
 }
 

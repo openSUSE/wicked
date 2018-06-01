@@ -150,12 +150,6 @@ typedef struct ni_int_range {
 	int			min, max;
 } ni_int_range_t;
 
-typedef struct ni_ipv6_cache_info {
-	struct timeval		acquired;
-	unsigned int		valid_lft;
-	unsigned int		preferred_lft;
-} ni_ipv6_cache_info_t;
-
 /*
  * Prototypes for ipv6 devinfo RA details
  */

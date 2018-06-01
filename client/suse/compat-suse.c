@@ -4696,8 +4696,8 @@ __get_ipaddr_opts(const char *value, ni_address_t *ap)
 		preferred_lft = valid_lft;
 
 	if (preferred_lft != NI_LIFETIME_INFINITE) {
-		ap->ipv6_cache_info.valid_lft = valid_lft;
-		ap->ipv6_cache_info.preferred_lft = preferred_lft;
+		ap->cache_info.valid_lft = valid_lft;
+		ap->cache_info.preferred_lft = preferred_lft;
 	}
 
 	return ret;

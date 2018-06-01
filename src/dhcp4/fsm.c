@@ -455,7 +455,7 @@ ni_dhcp4_fsm_renewal(ni_dhcp4_device_t *dev, ni_bool_t oneshot)
 	time_t expire_time, deadline = now + 10;
 	ni_bool_t retry = FALSE;
 
-	expire_time = dev->lease->time_acquired + dev->lease->dhcp4.rebind_time;
+	expire_time = dev->lease->acquired.tv_sec + dev->lease->dhcp4.rebind_time;
 	if (expire_time > now || oneshot) {
 		ni_info("%s: Initiating renewal of DHCPv4 lease", dev->ifname);
 		if (expire_time > now && deadline > expire_time)
@@ -486,7 +486,7 @@ ni_dhcp4_fsm_rebind(ni_dhcp4_device_t *dev, ni_bool_t oneshot)
 
 	ni_info("%s: Initiating rebind of DHCPv4 lease", dev->ifname);
 
-	expire_time = dev->lease->time_acquired + dev->lease->dhcp4.lease_time;
+	expire_time = dev->lease->acquired.tv_sec + dev->lease->dhcp4.lease_time;
 	if (expire_time > now || oneshot) {
 		dev->config->capture_timeout = dev->config->capture_max_timeout;
 		if (expire_time - now < dev->config->capture_timeout)
@@ -524,7 +524,7 @@ ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *dev)
 	dev->start_time = time(NULL);
 	dev->fsm.state = NI_DHCP4_STATE_REBOOT;
 
-	expire_time = dev->lease->time_acquired + dev->lease->dhcp4.rebind_time;
+	expire_time = dev->lease->acquired.tv_sec + dev->lease->dhcp4.rebind_time;
 	if (expire_time > now && deadline > expire_time)
 		deadline = expire_time;
 	dev->config->capture_timeout = deadline - now;
