@@ -22,6 +22,7 @@
  *		Olaf Kirch <okir@suse.de>
  *		Marius Tomaschewski <mt@suse.de>
  *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
+ *		Nirmoy Das <ndas@suse.de>
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -65,6 +66,7 @@
 #include <wicked/ipv6.h>
 #include <wicked/tuntap.h>
 #include <wicked/tunneling.h>
+#include <wicked/ethtool.h>
 
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
@@ -1726,7 +1728,7 @@ try_infiniband(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 }
 
 /*
- * Handle Ethernet devices
+ * Handle ethtool service config
  */
 static inline void
 ni_parse_ethtool_onoff(const char *input, ni_tristate_t *flag)
@@ -1739,8 +1741,23 @@ ni_parse_ethtool_onoff(const char *input, ni_tristate_t *flag)
 	}
 }
 
+
+static inline void
+ni_parse_ethtool_mdi_onoff(const char *input, uint8_t *val)
+{
+	if (ni_string_eq(input, "on")) {
+		*val = NI_ETHTOOL_MDI_X;
+	} else
+	if (ni_string_eq(input, "off")) {
+		*val = NI_ETHTOOL_MDI;
+	} else
+	if (ni_string_eq(input, "auto")) {
+		*val = NI_ETHTOOL_MDI_AUTO;
+	}
+}
+
 static inline ni_bool_t
-ni_parse_ethtool_wol_options(const char *input, ni_ethernet_wol_t *wol)
+ni_parse_ethtool_wol_options(const char *input, ni_ethtool_wake_on_lan_t *wol)
 {
 	ni_bool_t disabled = FALSE;
 	unsigned int options = 0;
@@ -1750,25 +1767,25 @@ ni_parse_ethtool_wol_options(const char *input, ni_ethernet_wol_t *wol)
 	while(*input) {
 		switch (*input) {
 		case 'p':
-			options |= (1 << NI_ETHERNET_WOL_PHY);
+			options |= NI_BIT(NI_ETHTOOL_WOL_PHY);
 			break;
 		case 'u':
-			options |= (1 << NI_ETHERNET_WOL_UCAST);
+			options |= NI_BIT(NI_ETHTOOL_WOL_UCAST);
 			break;
 		case 'm':
-			options |= (1 << NI_ETHERNET_WOL_MCAST);
+			options |= NI_BIT(NI_ETHTOOL_WOL_MCAST);
 			break;
 		case 'b':
-			options |= (1 << NI_ETHERNET_WOL_BCAST);
+			options |= NI_BIT(NI_ETHTOOL_WOL_BCAST);
 			break;
 		case 'a':
-			options |= (1 << NI_ETHERNET_WOL_ARP);
+			options |= NI_BIT(NI_ETHTOOL_WOL_ARP);
 			break;
 		case 'g':
-			options |= (1 << NI_ETHERNET_WOL_MAGIC);
+			options |= NI_BIT(NI_ETHTOOL_WOL_MAGIC);
 			break;
 		case 's':
-			options |= (1 << NI_ETHERNET_WOL_SECUREON);
+			options |= NI_BIT(NI_ETHTOOL_WOL_SECUREON);
 			break;
 		case 'd':
 			disabled = TRUE;
@@ -1778,8 +1795,9 @@ ni_parse_ethtool_wol_options(const char *input, ni_ethernet_wol_t *wol)
 		}
 		input++;
 	}
+
 	if (disabled) {
-		wol->options = __NI_ETHERNET_WOL_DISABLE;
+		wol->options = NI_ETHTOOL_WOL_DISABLE;
 	} else
 	if (options) {
 		wol->options = options;
@@ -1788,109 +1806,112 @@ ni_parse_ethtool_wol_options(const char *input, ni_ethernet_wol_t *wol)
 }
 
 static inline ni_bool_t
-ni_parse_ethtool_wol_sopass(const char *input, ni_ethernet_wol_t *wol)
+ni_parse_ethtool_wol_sopass(const char *input, ni_ethtool_wake_on_lan_t *wol, const char *ifname)
 {
 	if (!input || !wol)
 		return FALSE;
 
-	if (ni_link_address_parse(&wol->sopass, ARPHRD_ETHER, input) < 0)
+
+	if (ni_link_address_parse(&wol->sopass, ARPHRD_ETHER, input) < 0) {
 		return FALSE;
+	}
+	if (!(wol->options & NI_BIT(NI_ETHTOOL_WOL_SECUREON))) {
+		ni_warn("ifcfg-%s: secureon was disabled , enabling secureon", ifname);
+		wol->options |= NI_BIT(NI_ETHTOOL_WOL_SECUREON);
+	}
 
 	return TRUE;
 }
 
+static void
+add_ethtool_advertise(ni_bitfield_t *bitfield, const char *val)
+{
+	ni_string_array_t modes = NI_STRING_ARRAY_INIT;
+	unsigned int bit, i;
+
+	ni_string_split(&modes, val, ",", 0);
+	for (i = 0; i < modes.count; i++) {
+		const char *name = modes.data[i];
+
+		if (ni_ethtool_link_adv_type(name, &bit))
+			ni_bitfield_setbit(bitfield, bit);
+		else
+			ni_bitfield_parse(bitfield, name, 0);
+	}
+	ni_string_array_destroy(&modes);
+}
 
 static void
 try_add_ethtool_common(ni_netdev_t *dev, const char *opt, const char *val)
 {
-	static const ni_intmap_t __ethtool_speed_map[] = {
-		{ "10",		10	},
-		{ "100",	100	},
-		{ "1000",	1000	},
-		{ "2500",	2500	},
-		{ "10000",	10000	},
-		{ NULL,		0	}
-	};
-	static const ni_intmap_t __ethtool_port_map[] = {
-		{ "tp",		NI_ETHERNET_PORT_TP	},
-		{ "aui",	NI_ETHERNET_PORT_AUI	},
-		{ "bnc",	NI_ETHERNET_PORT_BNC	},
-		{ "mii",	NI_ETHERNET_PORT_MII	},
-		{ "fibre",	NI_ETHERNET_PORT_FIBRE	},
-		{ NULL,		0			},
-	};
-	ni_ethernet_t *eth = ni_netdev_get_ethernet(dev);
+	ni_ethtool_link_settings_t *link = ni_netdev_get_ethtool_link_settings(dev);
+	ni_ethtool_wake_on_lan_t   *wol;
 	unsigned int tmp;
 
 	if (ni_string_eq(opt, "speed")) {
-		if (ni_parse_uint_mapped(val, __ethtool_speed_map, &tmp) == 0)
-			eth->link_speed = tmp;
+		if (ni_parse_uint(val, &tmp, 0) == 0 && tmp && tmp <= INT_MAX)
+			link->speed = tmp;
 	} else
 	if (ni_string_eq(opt, "port")) {
-		if (ni_parse_uint_mapped(val, __ethtool_port_map, &tmp) == 0)
-			eth->port_type = tmp;
+		if (ni_ethtool_link_port_type(val, &tmp))
+			link->port = tmp;
 	} else
 	if (ni_string_eq(opt, "duplex")) {
-		if (ni_string_eq(val, "half")) {
-			eth->duplex = NI_ETHERNET_DUPLEX_HALF;
-		} else
-		if (ni_string_eq(val, "full")) {
-			eth->duplex = NI_ETHERNET_DUPLEX_FULL;
-		}
+		if (ni_ethtool_link_duplex_type(val, &tmp))
+			link->duplex = tmp;
 	} else
 	if (ni_string_eq(opt, "autoneg")) {
-		ni_parse_ethtool_onoff(val, &eth->autoneg_enable);
-	}
-	else
+		ni_parse_ethtool_onoff(val, &link->autoneg);
+	} else
+	if (ni_string_eq(opt, "advertise")) {
+		add_ethtool_advertise(&link->advertising, val);
+	} else
+	if (ni_string_eq(opt, "mdix")) {
+		ni_parse_ethtool_mdi_onoff(val, &link->tp_mdix);
+	} else
+	if (ni_string_eq(opt, "phyad")) {
+		if (ni_parse_uint(val, &tmp, 0) == 0)
+			link->phy_address = tmp;
+	} else
+	if (ni_string_eq(opt, "xcvr")) {
+		uint32_t xcvr;
+		if (ni_ethtool_link_xcvr_type(val, &xcvr) && xcvr <= NI_ETHTOOL_XCVR_UNKNOWN)
+			link->transceiver = xcvr;
+	} else
 	if (ni_string_eq(opt, "wol")) {
-		ni_parse_ethtool_wol_options(val, &eth->wol);
+		if ((wol = ni_netdev_get_ethtool_wake_on_lan(dev)))
+			ni_parse_ethtool_wol_options(val,  wol);
 	}
 	else
 	if (ni_string_eq(opt, "sopass")) {
-		ni_parse_ethtool_wol_sopass(val, &eth->wol);
+		if ((wol = ni_netdev_get_ethtool_wake_on_lan(dev)))
+			ni_parse_ethtool_wol_sopass(val, wol, dev->name);
 	}
 }
 
 static void
-try_add_ethtool_offload(ni_ethtool_offload_t *offload, const char *opt, const char *val)
+try_add_ethtool_priv(ni_netdev_t *dev, const char *opt, const char *val)
 {
-	if (offload) {
-		if (ni_string_eq(opt, "rx")) {
-			ni_parse_ethtool_onoff(val, &offload->rx_csum);
-		} else
-		if (ni_string_eq(opt, "tx")) {
-			ni_parse_ethtool_onoff(val, &offload->tx_csum);
-		} else
-		if (ni_string_eq(opt, "sg")) {
-			ni_parse_ethtool_onoff(val, &offload->scatter_gather);
-		} else
-		if (ni_string_eq(opt, "tso")) {
-			ni_parse_ethtool_onoff(val, &offload->tso);
-		} else
-		if (ni_string_eq(opt, "ufo")) {
-			ni_parse_ethtool_onoff(val, &offload->ufo);
-		} else
-		if (ni_string_eq(opt, "gso")) {
-			ni_parse_ethtool_onoff(val, &offload->gso);
-		} else
-		if (ni_string_eq(opt, "gro")) {
-			ni_parse_ethtool_onoff(val, &offload->gro);
-		} else
-		if (ni_string_eq(opt, "lro")) {
-			ni_parse_ethtool_onoff(val, &offload->lro);
-		} else
-		if (ni_string_eq(opt, "rxvlan")) {
-			ni_parse_ethtool_onoff(val, &offload->rxvlan);
-		} else
-		if (ni_string_eq(opt, "txvlan")) {
-			ni_parse_ethtool_onoff(val, &offload->txvlan);
-		} else
-		if (ni_string_eq(opt, "ntuple")) {
-			ni_parse_ethtool_onoff(val, &offload->ntuple);
-		} else
-		if (ni_string_eq(opt, "rxhash")) {
-			ni_parse_ethtool_onoff(val, &offload->rxhash);
-		}
+	ni_ethtool_priv_flags_t *priv_flags = ni_netdev_get_ethtool_priv_flags(dev);
+	int bit = priv_flags->names.count;
+	ni_bool_t enabled;
+
+	ni_string_array_append(&priv_flags->names, opt);
+	if (ni_parse_boolean(val, &enabled) == 0 && enabled)
+		priv_flags->bitmap |= NI_BIT(bit);
+}
+
+static void
+try_add_ethtool_features(ni_netdev_t *dev, const char *opt, const char *val)
+{
+	ni_ethtool_features_t *features = ni_netdev_get_ethtool_features(dev);
+	ni_bool_t enabled;
+
+
+	if (features) {
+		ni_parse_boolean(val, &enabled);
+		ni_ethtool_features_set(features, opt,
+			(enabled ? NI_ETHTOOL_FEATURE_ON : NI_ETHTOOL_FEATURE_OFF));
 	}
 }
 
@@ -1898,102 +1919,102 @@ try_add_ethtool_offload(ni_ethtool_offload_t *offload, const char *opt, const ch
 static void
 try_add_ethtool_coalesce(ni_netdev_t *dev, const char *opt, const char *val)
 {
-	ni_ethernet_t *eth = ni_netdev_get_ethernet(dev);
+	ni_ethtool_coalesce_t *coalesce = ni_netdev_get_ethtool_coalesce(dev);
 	ni_bool_t bval;
 
 	if (ni_string_eq(opt, "adaptive-rx")) {
 		if (ni_parse_boolean(val, &bval) == 0)
-			ni_tristate_set(&eth->coalesce.adaptive_rx, bval);
+			ni_tristate_set(&coalesce->adaptive_rx, bval);
 	} else
 	if (ni_string_eq(opt, "adaptive-tx")) {
 		if (ni_parse_boolean(val, &bval) == 0)
-			ni_tristate_set(&eth->coalesce.adaptive_tx, bval);
+			ni_tristate_set(&coalesce->adaptive_tx, bval);
 	} else
 	if (ni_string_eq(opt, "rx-usecs")) {
-		ni_parse_uint(val, &eth->coalesce.rx_usecs, 10);
+		ni_parse_uint(val, &coalesce->rx_usecs, 10);
 	} else
 	if (ni_string_eq(opt, "rx-frames")) {
-		ni_parse_uint(val, &eth->coalesce.rx_frames, 10);
+		ni_parse_uint(val, &coalesce->rx_frames, 10);
 	} else
 	if (ni_string_eq(opt, "rx-usecs-irq")) {
-		ni_parse_uint(val, &eth->coalesce.rx_usecs_irq, 10);
-		} else
+		ni_parse_uint(val, &coalesce->rx_usecs_irq, 10);
+	} else
 	if (ni_string_eq(opt, "rx-frames-irq")) {
-		ni_parse_uint(val, &eth->coalesce.rx_frames_irq, 10);
-		} else
+		ni_parse_uint(val, &coalesce->rx_frames_irq, 10);
+	} else
 	if (ni_string_eq(opt, "tx-usecs")) {
-		ni_parse_uint(val, &eth->coalesce.tx_usecs, 10);
-		} else
+		ni_parse_uint(val, &coalesce->tx_usecs, 10);
+	} else
 	if (ni_string_eq(opt, "tx-frames")) {
-		ni_parse_uint(val, &eth->coalesce.tx_frames, 10);
-		} else
+		ni_parse_uint(val, &coalesce->tx_frames, 10);
+	} else
 	if (ni_string_eq(opt, "tx-usecs-irq")) {
-		ni_parse_uint(val, &eth->coalesce.tx_usecs_irq, 10);
-		} else
+		ni_parse_uint(val, &coalesce->tx_usecs_irq, 10);
+	} else
 	if (ni_string_eq(opt, "tx-frames-irq")) {
-		ni_parse_uint(val, &eth->coalesce.tx_frames_irq, 10);
-		} else
+		ni_parse_uint(val, &coalesce->tx_frames_irq, 10);
+	} else
 	if (ni_string_eq(opt, "stats-block-usecs")) {
-		ni_parse_uint(val, &eth->coalesce.stats_block_usecs, 10);
-		} else
+		ni_parse_uint(val, &coalesce->stats_block_usecs, 10);
+	} else
 	if (ni_string_eq(opt, "pkt-rate-low")) {
-		ni_parse_uint(val, &eth->coalesce.pkt_rate_low, 10);
-		} else
+		ni_parse_uint(val, &coalesce->pkt_rate_low, 10);
+	} else
 	if (ni_string_eq(opt, "rx-usecs-low")) {
-		ni_parse_uint(val, &eth->coalesce.rx_usecs_low, 10);
-		} else
+		ni_parse_uint(val, &coalesce->rx_usecs_low, 10);
+	} else
 	if (ni_string_eq(opt, "rx-frames-low")) {
-		ni_parse_uint(val, &eth->coalesce.rx_frames_low, 10);
-		} else
+		ni_parse_uint(val, &coalesce->rx_frames_low, 10);
+	} else
 	if (ni_string_eq(opt, "tx-usecs-low")) {
-		ni_parse_uint(val, &eth->coalesce.tx_usecs_low, 10);
-		} else
+		ni_parse_uint(val, &coalesce->tx_usecs_low, 10);
+	} else
 	if (ni_string_eq(opt, "tx-frames-low")) {
-		ni_parse_uint(val, &eth->coalesce.tx_frames_low, 10);
-		} else
+		ni_parse_uint(val, &coalesce->tx_frames_low, 10);
+	} else
 	if (ni_string_eq(opt, "pkt-rate-high")) {
-		ni_parse_uint(val, &eth->coalesce.pkt_rate_high, 10);
-		} else
+		ni_parse_uint(val, &coalesce->pkt_rate_high, 10);
+	} else
 	if (ni_string_eq(opt, "rx-usecs-high")) {
-		ni_parse_uint(val, &eth->coalesce.rx_usecs_high, 10);
-		} else
+		ni_parse_uint(val, &coalesce->rx_usecs_high, 10);
+	} else
 	if (ni_string_eq(opt, "rx-frames-high")) {
-		ni_parse_uint(val, &eth->coalesce.rx_frames_high, 10);
-		} else
+		ni_parse_uint(val, &coalesce->rx_frames_high, 10);
+	} else
 	if (ni_string_eq(opt, "tx-usecs-high")) {
-		ni_parse_uint(val, &eth->coalesce.tx_usecs_high, 10);
-		} else
+		ni_parse_uint(val, &coalesce->tx_usecs_high, 10);
+	} else
 	if (ni_string_eq(opt, "tx-frames-high")) {
-		ni_parse_uint(val, &eth->coalesce.tx_frames_high, 10);
-		} else
+		ni_parse_uint(val, &coalesce->tx_frames_high, 10);
+	} else
 	if (ni_string_eq(opt, "sample-interval")) {
-		ni_parse_uint(val, &eth->coalesce.sample_interval, 10);
-		}
+		ni_parse_uint(val, &coalesce->sample_interval, 10);
+	}
 }
 
 /* get eee settings from ifcfg variable */
 static void
 try_add_ethtool_eee(ni_netdev_t *dev, const char *opt, const char *val)
 {
-	ni_ethernet_t *eth = ni_netdev_get_ethernet(dev);
+	ni_ethtool_eee_t *eee = ni_netdev_get_ethtool_eee(dev);
 	ni_bool_t bval;
 
-	if (!eth)
+	if (!eee)
 		return;
 
 	if (ni_string_eq(opt, "eee")) {
 		if (ni_parse_boolean(val, &bval) == 0)
-			ni_tristate_set(&eth->eee.status.enabled, bval);
+			ni_tristate_set(&eee->status.enabled, bval);
 	} else
 	if (ni_string_eq(opt, "advertise")) {
-		ni_parse_uint(val, &eth->eee.speed.advertised, 16);
+		add_ethtool_advertise(&eee->speed.advertising, val);
 	} else
 	if (ni_string_eq(opt, "tx-lpi")) {
 		if (ni_parse_boolean(val, &bval) == 0)
-			ni_tristate_set(&eth->eee.tx_lpi.enabled, bval);
+			ni_tristate_set(&eee->tx_lpi.enabled, bval);
 	} else
 	if (ni_string_eq(opt, "tx-timer")) {
-		ni_parse_uint(val, &eth->eee.tx_lpi.timer, 16);
+		ni_parse_uint(val, &eee->tx_lpi.timer, 10);
 	}
 }
 
@@ -2001,46 +2022,40 @@ try_add_ethtool_eee(ni_netdev_t *dev, const char *opt, const char *val)
 static void
 try_add_ethtool_channels(ni_netdev_t *dev, const char *opt, const char *val)
 {
-
-	ni_ethernet_t *eth = ni_netdev_get_ethernet(dev);
+	ni_ethtool_channels_t *channels = ni_netdev_get_ethtool_channels(dev);
 
 	if (ni_string_eq(opt, "tx")) {
-		ni_parse_uint(val, &eth->channels.tx, 10);
+		ni_parse_uint(val, &channels->tx, 10);
 	} else
 	if (ni_string_eq(opt, "rx")) {
-		ni_parse_uint(val, &eth->channels.rx, 10);
+		ni_parse_uint(val, &channels->rx, 10);
 	} else
 	if (ni_string_eq(opt, "other")) {
-		ni_parse_uint(val, &eth->channels.other, 10);
+		ni_parse_uint(val, &channels->other, 10);
 	} else
 	if (ni_string_eq(opt, "combined")) {
-		ni_parse_uint(val, &eth->channels.combined, 10);
+		ni_parse_uint(val, &channels->combined, 10);
 	}
-
-
 }
 
 /* get ringparams from wicked config */
 static void
 try_add_ethtool_ring(ni_netdev_t *dev, const char *opt, const char *val)
 {
-
-	ni_ethernet_t *eth = ni_netdev_get_ethernet(dev);
+	ni_ethtool_ring_t *ring = ni_netdev_get_ethtool_ring(dev);
 
 	if (ni_string_eq(opt, "tx")) {
-		ni_parse_uint(val, &eth->ring.tx, 10);
+		ni_parse_uint(val, &ring->tx, 10);
 	} else
 	if (ni_string_eq(opt, "rx")) {
-		ni_parse_uint(val, &eth->ring.rx, 10);
+		ni_parse_uint(val, &ring->rx, 10);
 	} else
 	if (ni_string_eq(opt, "rx-jumbo")) {
-		ni_parse_uint(val, &eth->ring.rx_jumbo, 10);
+		ni_parse_uint(val, &ring->rx_jumbo, 10);
 	} else
 	if (ni_string_eq(opt, "rx-mini")) {
-		ni_parse_uint(val, &eth->ring.rx_mini, 10);
+		ni_parse_uint(val, &ring->rx_mini, 10);
 	}
-
-
 }
 
 static void
@@ -2049,15 +2064,20 @@ try_add_ethtool_options(ni_netdev_t *dev, const char *type,
 {
 	unsigned int i;
 
-	if (ni_string_eq(type, "-K") || ni_string_eq(type, "--offload")) {
-		for (i = start; (i + 1) < opts->count; i+=2) {
-			try_add_ethtool_offload(&dev->ethernet->offload, opts->data[i],
-						opts->data[i + 1]);
-		}
-	} else
 	if (ni_string_eq(type, "-s") || ni_string_eq(type, "--change")) {
 		for (i = start; (i + 1) < opts->count; i+=2) {
 			try_add_ethtool_common(dev, opts->data[i],
+						opts->data[i + 1]);
+		}
+	} else
+	if (/* no short option */ ni_string_eq(type, "--set-priv-flags")) {
+		for (i = start; (i + 1) < opts->count; i+=2) {
+			try_add_ethtool_priv(dev, opts->data[i], opts->data[i + 1]);
+		}
+	} else
+	if (ni_string_eq(type, "-K") || ni_string_eq(type, "--offload")) {
+		for (i = start; (i + 1) < opts->count; i+=2) {
+			try_add_ethtool_features(dev, opts->data[i],
 						opts->data[i + 1]);
 		}
 	} else
@@ -2098,8 +2118,7 @@ try_add_ethtool_vars(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 	if (!var || ni_string_empty(var->value))
 		return TRUE; /* do not abort, just take next suffix */
 
-	dev->link.type = NI_IFTYPE_ETHERNET;
-	if (!ni_netdev_get_ethernet(dev))
+	if (!ni_netdev_get_ethtool(dev))
 		return FALSE;
 
 	/*
@@ -2120,6 +2139,21 @@ try_add_ethtool_vars(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 }
 
 static int
+ni_suse_ifcfg_get_ethtool(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+
+	/* process ETHTOOL_OPTIONS[SUFFIX] array */
+	if (__process_indexed_variables(sc, dev, "ETHTOOL_OPTIONS",
+					try_add_ethtool_vars) < 0) {
+		ni_error("ifcfg-%s: Cannot parse ETHTOOL_OPTIONS variables",
+				dev->name);
+		return -1;
+	}
+	return 0;
+}
+
+static int
 try_ethernet(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
@@ -2137,14 +2171,6 @@ try_ethernet(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		dev->link.type = NI_IFTYPE_ETHERNET;
 		if (!ni_netdev_get_ethernet(dev))
 			return FALSE;
-	}
-
-	/* process ETHTOOL_OPTIONS[SUFFIX] array */
-	if (__process_indexed_variables(sc, dev, "ETHTOOL_OPTIONS",
-					try_add_ethtool_vars) < 0) {
-		ni_error("ifcfg-%s: Cannot parse ETHTOOL_OPTIONS variables",
-				dev->name);
-		return -1;
 	}
 
 	return dev->link.type == NI_IFTYPE_ETHERNET ? 0 : 1;
@@ -6234,6 +6260,7 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	__ni_suse_bootproto(sc, compat);
 	__ni_suse_get_scripts(sc, compat);
 	ni_suse_ifcfg_get_firewall(sc, compat);
+	ni_suse_ifcfg_get_ethtool(sc, compat);
 
 	/* FIXME: What to do with these:
 		NAME

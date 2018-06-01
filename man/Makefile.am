@@ -17,6 +17,7 @@ generated			= \
 	wicked.7		\
 	wicked.8		\
 	wickedd.8		\
+	wicked-ethtool.8	\
 	ifcfg-bonding.5		\
 	ifcfg-bridge.5		\
 	ifcfg-dummy.5		\

@@ -835,6 +835,98 @@ ni_bitfield_testbit(const ni_bitfield_t *bf, unsigned int bit)
 	return !!(bf->field[bit / 32] & (1 << (bit % 32)));
 }
 
+ni_bool_t
+ni_bitfield_isset(const ni_bitfield_t *bf)
+{
+	unsigned int word;
+
+	if (bf) {
+		for (word = 0; word < bf->size; ++word) {
+			if (bf->field[word])
+				return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_bitfield_parse(ni_bitfield_t *bf, const char *hexstr, unsigned int nwords)
+{
+	unsigned int words;
+	unsigned int i;
+	size_t slen;
+
+	if (ni_string_startswith(hexstr, "0x"))
+		hexstr += 2;
+
+	if (!(slen = ni_string_len(hexstr)))
+		return FALSE;
+
+	words = (slen + 8) / 8;
+	if (nwords && nwords < words)
+		return FALSE;
+
+	if (!ni_bitfield_grow(bf, words * 32))
+		return FALSE;
+
+	for (i = 0; i < slen; ++i) {
+		const unsigned int shift = (slen - 1 - i) * 4;
+		uint32_t *word = &bf->field[shift / 32];
+		uint32_t nibble;
+
+		if ('0' <= hexstr[i] && hexstr[i] <= '9')
+			nibble = hexstr[i] - '0';
+		else
+		if ('a' <= hexstr[i] && hexstr[i] <= 'f')
+			nibble = 0xa + hexstr[i] - 'a';
+		else
+		if ('A' <= hexstr[i] && hexstr[i] <= 'F')
+			nibble = 0xa + hexstr[i] - 'A';
+		else {
+			ni_bitfield_destroy(bf);
+			return FALSE;
+		}
+
+		*word |= (nibble << (shift % 32));
+	}
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_bitfield_format(const ni_bitfield_t *bf, char **hexstr, ni_bool_t lstrip)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	unsigned int words;
+	ni_bool_t ret;
+
+	words = ni_bitfield_words(bf);
+	if (!words || !hexstr)
+		return FALSE;
+
+	if (lstrip) {
+		while (words > 1 && !bf->field[words - 1])
+			words--;
+	}
+
+	ni_stringbuf_puts(&buf, "0x");
+	for ( ; words > 0; words--) {
+		char temp[9] = {'\0'};
+
+		if (lstrip) {
+			lstrip = FALSE;
+			snprintf(temp, sizeof(temp), "%x", bf->field[words - 1]);
+		} else {
+			snprintf(temp, sizeof(temp), "%08x", bf->field[words - 1]);
+		}
+		ni_stringbuf_puts(&buf, temp);
+	}
+
+	ret = ni_string_dup(hexstr, buf.string);
+	ni_stringbuf_destroy(&buf);
+	return ret;
+}
+
 /*
  * Scan directory and return all file names matching the given prefix.
  */

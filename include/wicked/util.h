@@ -72,7 +72,7 @@ typedef struct ni_bitfield {
 	uint32_t	__local_field[4];
 } ni_bitfield_t;
 
-#define NI_BITFIELD_INIT { 0, NULL }
+#define NI_BITFIELD_INIT { 0, NULL, { 0, 0, 0, 0 } }
 
 typedef enum ni_daemon_close {
 	NI_DAEMON_CLOSE_NONE	= 0,
@@ -94,6 +94,9 @@ extern ni_bool_t	ni_bitfield_setbit(ni_bitfield_t *, unsigned int);
 extern ni_bool_t	ni_bitfield_clearbit(ni_bitfield_t *, unsigned int);
 extern ni_bool_t	ni_bitfield_turnbit(ni_bitfield_t *, unsigned int, ni_bool_t);
 extern ni_bool_t	ni_bitfield_testbit(const ni_bitfield_t *, unsigned int);
+extern ni_bool_t	ni_bitfield_isset(const ni_bitfield_t *);
+extern ni_bool_t	ni_bitfield_parse(ni_bitfield_t *, const char *, unsigned int);
+extern ni_bool_t	ni_bitfield_format(const ni_bitfield_t *, char **, ni_bool_t);
 
 extern void		ni_string_free(char **);
 extern void		ni_string_clear(char **);

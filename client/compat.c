@@ -22,6 +22,7 @@
  *		Olaf Kirch <okir@suse.de>
  *		Marius Tomaschewski <mt@suse.de>
  *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
+ *		Nirmoy Das <ndas@suse.de>
  */
 #include <net/if_arp.h>
 #include <wicked/logging.h>
@@ -48,6 +49,7 @@
 #include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
 #include <wicked/util.h>
+#include <wicked/ethtool.h>
 #include "wicked-client.h"
 #include <netlink/netlink.h>
 #include <sys/param.h>
@@ -57,6 +59,7 @@
 #include "appconfig.h"
 #include "util_priv.h"
 
+static ni_bool_t ni_compat_generate_ethtool_link_advertise(xml_node_t *, const ni_bitfield_t *);
 /*
  * Compat ifconfig handling functions
  */
@@ -223,40 +226,9 @@ __ni_compat_optional_tristate(const char *name, xml_node_t *node, ni_tristate_t 
 	}
 }
 
-static void
-__ni_compat_generate_eth_offload_node(xml_node_t *parent, const ni_ethtool_offload_t *offload)
-{
-	xml_node_t *node;
-
-	if (!parent || !offload)
-		return;
-
-	/* generate offload and other information */
-	node = xml_node_new("offload", NULL);
-
-	__ni_compat_optional_tristate("rx-csum", node, offload->rx_csum);
-	__ni_compat_optional_tristate("tx-csum", node, offload->tx_csum);
-	__ni_compat_optional_tristate("scatter-gather", node, offload->scatter_gather);
-	__ni_compat_optional_tristate("tso", node, offload->tso);
-	__ni_compat_optional_tristate("ufo", node, offload->ufo);
-	__ni_compat_optional_tristate("gso", node, offload->gso);
-	__ni_compat_optional_tristate("gro", node, offload->gro);
-	__ni_compat_optional_tristate("lro", node, offload->lro);
-	__ni_compat_optional_tristate("rxvlan", node, offload->rxvlan);
-	__ni_compat_optional_tristate("txvlan", node, offload->txvlan);
-	__ni_compat_optional_tristate("ntuple", node, offload->ntuple);
-	__ni_compat_optional_tristate("rxhash", node, offload->rxhash);
-
-	if (node->children)
-		xml_node_add_child(parent, node);
-	else
-		xml_node_free(node);
-
-}
-
 /* generate coalesce configuration */
 static void
-ni_compat_generate_eth_coalesce_node(xml_node_t *parent, const ni_ethtool_coalesce_t *coalesce)
+ni_compat_generate_ethtool_coalesce(xml_node_t *parent, const ni_ethtool_coalesce_t *coalesce)
 {
 	xml_node_t *node;
 
@@ -341,7 +313,7 @@ ni_compat_generate_eth_coalesce_node(xml_node_t *parent, const ni_ethtool_coales
 
 /* generate eee configuration */
 static void
-ni_compat_generate_eth_eee_node(xml_node_t *parent, const ni_ethtool_eee_t *eee)
+ni_compat_generate_ethtool_eee(xml_node_t *parent, const ni_ethtool_eee_t *eee)
 {
 	xml_node_t *node;
 
@@ -352,12 +324,7 @@ ni_compat_generate_eth_eee_node(xml_node_t *parent, const ni_ethtool_eee_t *eee)
 	if (eee->status.enabled != NI_TRISTATE_DEFAULT)
 		xml_node_new_element("enabled", node, ni_format_boolean(eee->status.enabled));
 
-	if (eee->speed.advertised != NI_ETHTOOL_EEE_DEFAULT) {
-		char hexnum[64] = { '\0' };
-
-		snprintf(hexnum, sizeof(hexnum), "0x%x", eee->speed.advertised);
-		xml_node_new_element("advertise", node, hexnum);
-	}
+	ni_compat_generate_ethtool_link_advertise(node, &eee->speed.advertising);
 
 	if (eee->tx_lpi.enabled != NI_TRISTATE_DEFAULT)
 		xml_node_new_element("tx-lpi", node, ni_format_boolean(eee->tx_lpi.enabled));
@@ -372,7 +339,7 @@ ni_compat_generate_eth_eee_node(xml_node_t *parent, const ni_ethtool_eee_t *eee)
 
 /* generate channels information */
 static void
-ni_compat_generate_eth_channels_node(xml_node_t *parent, const ni_ethtool_channels_t *channels)
+ni_compat_generate_ethtool_channels(xml_node_t *parent, const ni_ethtool_channels_t *channels)
 {
 	xml_node_t *node;
 
@@ -401,7 +368,7 @@ ni_compat_generate_eth_channels_node(xml_node_t *parent, const ni_ethtool_channe
 }
 /* generate ring information */
 static void
-ni_compat_generate_eth_ring_node(xml_node_t *parent, const ni_ethtool_ring_t *ring)
+ni_compat_generate_ethtool_ring(xml_node_t *parent, const ni_ethtool_ring_t *ring)
 {
 	xml_node_t *node;
 
@@ -429,54 +396,6 @@ ni_compat_generate_eth_ring_node(xml_node_t *parent, const ni_ethtool_ring_t *ri
 
 }
 
-static void
-__ni_compat_generate_eth_node(xml_node_t *child, const ni_ethernet_t *eth)
-{
-	const char *ptr;
-
-	/* generate common <ethernet> node settings */
-	if (eth->link_speed) {
-		xml_node_new_element_uint("link-speed", child, eth->link_speed);
-	}
-	if (eth->port_type != NI_ETHERNET_PORT_DEFAULT &&
-	    (ptr = ni_ethernet_port_type_to_name(eth->port_type))) {
-		xml_node_new_element("port-type", child, ptr);
-	}
-	if (eth->duplex == NI_ETHERNET_DUPLEX_HALF) {
-		xml_node_new_element("duplex", child, "half");
-	} else
-	if (eth->duplex == NI_ETHERNET_DUPLEX_FULL) {
-		xml_node_new_element("duplex", child, "full");
-	}
-	__ni_compat_optional_tristate("autoneg-enable", child, eth->autoneg_enable);
-
-	if (eth->wol.options != __NI_ETHERNET_WOL_DEFAULT) {
-		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
-		xml_node_t *wol = xml_node_new("wake-on-lan", NULL);
-
-		ni_ethernet_wol_options_format(&buf, eth->wol.options, "|");
-		xml_node_new_element("options", wol, buf.string);
-		ni_stringbuf_destroy(&buf);
-
-		if (eth->wol.options & (1<<NI_ETHERNET_WOL_SECUREON)
-				&& eth->wol.sopass.len) {
-			xml_node_new_element("sopass", wol,
-					ni_link_address_print(&eth->wol.sopass));
-		}
-
-		if (wol->children)
-			xml_node_add_child(child, wol);
-		else
-			xml_node_free(wol);
-	}
-
-	__ni_compat_generate_eth_offload_node(child, &eth->offload);
-	ni_compat_generate_eth_eee_node(child, &eth->eee);
-	ni_compat_generate_eth_ring_node(child, &eth->ring);
-	ni_compat_generate_eth_coalesce_node(child, &eth->coalesce);
-	ni_compat_generate_eth_channels_node(child, &eth->channels);
-}
-
 static ni_bool_t
 __ni_compat_generate_ethernet(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
@@ -489,9 +408,6 @@ __ni_compat_generate_ethernet(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 			ni_link_address_print(&dev->link.hwaddr));
 	}
 
-	if (dev->ethernet) {
-		__ni_compat_generate_eth_node(child, dev->ethernet);
-	}
 	return TRUE;
 }
 
@@ -2499,6 +2415,196 @@ __ni_compat_generate_ipv6_devconf(xml_node_t *ifnode, const ni_ipv6_devinfo_t *i
 }
 
 static ni_bool_t
+ni_compat_generate_ethtool_link_advertise(xml_node_t *parent, const ni_bitfield_t *bitfield)
+{
+	ni_bitfield_t unknown = NI_BITFIELD_INIT;
+	unsigned int bit, bits;
+	xml_node_t *node;
+	const char *name;
+	char *hex = NULL;
+
+	if (!parent || !ni_bitfield_isset(bitfield))
+		return FALSE;
+
+	if (!(node = xml_node_new("advertise", NULL)))
+		return FALSE;
+
+	bits = ni_bitfield_bits(bitfield);
+	for (bit = 0; bit < bits; ++bit) {
+		if (!ni_bitfield_testbit(bitfield, bit))
+			continue;
+
+		if ((name = ni_ethtool_link_adv_name(bit)))
+			xml_node_new_element("mode", node, name);
+		else
+			ni_bitfield_setbit(&unknown, bit);
+	}
+
+	if (ni_bitfield_isset(&unknown)) {
+		ni_bitfield_format(&unknown, &hex, FALSE);
+		xml_node_new_element("mode", node, hex);
+		ni_string_free(&hex);
+	}
+	ni_bitfield_destroy(&unknown);
+
+	if (node->children)
+		xml_node_add_child(parent, node);
+	else
+		xml_node_free(node);
+	return TRUE;
+}
+
+static void
+ni_compat_generate_ethtool_link(xml_node_t *parent, const ni_ethtool_link_settings_t *link)
+{
+	xml_node_t *node;
+	const char *ptr;
+
+	if (!parent || !link || !(node = xml_node_new("link-settings", NULL)))
+		return;
+
+	__ni_compat_optional_tristate("autoneg", node, link->autoneg);
+
+	if (link->speed != NI_ETHTOOL_SPEED_UNKNOWN)
+		xml_node_new_element_uint("speed", node, link->speed);
+
+	if (link->port != NI_ETHTOOL_PORT_DEFAULT &&
+	    (ptr = ni_ethtool_link_port_name(link->port))) {
+		xml_node_new_element("port", node, ptr);
+	}
+
+	if (link->duplex !=  NI_ETHTOOL_DUPLEX_UNKNOWN &&
+	    (ptr = ni_ethtool_link_duplex_name(link->duplex))) {
+		xml_node_new_element("duplex", node, ptr);
+	}
+
+	if (link->tp_mdix != NI_ETHTOOL_MDI_INVALID)
+		xml_node_new_element_uint("mdix", node, link->tp_mdix);
+	if (link->phy_address != NI_ETHTOOL_PHYAD_UNKNOWN)
+		xml_node_new_element_uint("phy-address", node, link->phy_address);
+	if (link->transceiver != NI_ETHTOOL_XCVR_UNKNOWN)
+		xml_node_new_element_uint("transceiver", node, link->transceiver);
+
+	ni_compat_generate_ethtool_link_advertise(node, &link->advertising);
+
+	if (node->children)
+		xml_node_add_child(parent, node);
+	else
+		xml_node_free(node);
+	return;
+}
+
+static void
+ni_compat_generate_ethtool_priv(xml_node_t *parent, const ni_ethtool_priv_flags_t *priv)
+{
+	xml_node_t *node;
+	int i;
+	int priv_count;
+
+	if (!parent || !priv || !(node = xml_node_new("private-flags", NULL)))
+		return;
+
+	priv_count = priv->names.count;
+	for (i = 0; i < priv_count; ++i) {
+		const char *name = priv->names.data[i];
+		if (ni_string_empty(name))
+			continue;
+		xml_node_t *flag = xml_node_new("flag", node);
+		xml_node_new_element("name", flag, name);
+		xml_node_new_element("enabled", flag, ni_format_boolean(priv->bitmap & NI_BIT(i)));
+	}
+
+	if (node->children)
+		xml_node_add_child(parent, node);
+	else
+		xml_node_free(node);
+	return;
+}
+
+static void
+ni_compat_generate_ethtool_wol(xml_node_t *parent, const ni_ethtool_wake_on_lan_t *wol)
+{
+	xml_node_t *node;
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+	if (!parent || !wol || !(node = xml_node_new("wake-on-lan", NULL)))
+		return;
+
+	ni_ethtool_wol_flags_format(&buf, wol->options, ", ");
+	xml_node_new_element("options", node, buf.string);
+
+	if (node->children)
+		xml_node_add_child(parent, node);
+	else
+		xml_node_free(node);
+
+	ni_stringbuf_destroy(&buf);
+	return;
+
+}
+
+static void
+ni_compat_generate_ethtool_features(xml_node_t *parent, const ni_ethtool_features_t *features)
+{
+	xml_node_t *node;
+	const ni_ethtool_feature_t *feature;
+	int i;
+	int count;
+
+	if (!parent || !features || !(node = xml_node_new("features", NULL)))
+		return;
+
+	count = features->count;
+	for (i = 0; i < count; ++i) {
+		const char *ptr;
+
+		if (!(feature = features->data[i]))
+			continue;
+
+		ptr = ni_format_boolean(feature->value & NI_ETHTOOL_FEATURE_ON);
+		xml_node_t *feature_node = xml_node_new("feature", node);
+		xml_node_new_element("name", feature_node, feature->map.name);
+		xml_node_new_element("enabled", feature_node, ptr);
+	}
+
+	if (node->children)
+		xml_node_add_child(parent, node);
+	else
+		xml_node_free(node);
+
+	return;
+}
+
+static void
+ni_compat_generate_ethtool(xml_node_t *parent, const ni_compat_netdev_t *compat)
+{
+	const ni_ethtool_t *ethtool;
+	xml_node_t *node;
+
+	if (!compat || !compat->dev || !(ethtool = compat->dev->ethtool))
+		return;
+
+	if (!(node = xml_node_new("ethtool", NULL)))
+		return;
+
+	ni_compat_generate_ethtool_link(node, ethtool->link_settings);
+	ni_compat_generate_ethtool_priv(node, ethtool->priv_flags);
+	ni_compat_generate_ethtool_wol(node, ethtool->wake_on_lan);
+	ni_compat_generate_ethtool_features(node, ethtool->features);
+
+	ni_compat_generate_ethtool_eee(node, ethtool->eee);
+	ni_compat_generate_ethtool_channels(node, ethtool->channels);
+	ni_compat_generate_ethtool_ring(node, ethtool->ring);
+	ni_compat_generate_ethtool_coalesce(node, ethtool->coalesce);
+
+	if (node->children)
+		xml_node_add_child(parent, node);
+	else
+		xml_node_free(node);
+	return;
+}
+
+static ni_bool_t
 __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
@@ -2667,6 +2773,9 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 		__ni_compat_generate_auto6_addrconf(ifnode, compat);
 		__ni_compat_generate_static_addrconf(ifnode, compat, AF_INET6);
 	}
+
+	if (dev->ethtool)
+		ni_compat_generate_ethtool(ifnode, compat);
 
 	return TRUE;
 }
