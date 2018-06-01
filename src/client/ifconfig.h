@@ -82,6 +82,7 @@ extern ni_bool_t		ni_nanny_call_add_secret(const ni_security_id_t *, const char 
 extern ni_bool_t		ni_nanny_call_recheck(const ni_string_array_t *);
 
 extern ni_bool_t		ni_ifconfig_generate_uuid(const xml_node_t *, ni_uuid_t *);
+extern ni_bool_t		ni_ifconfig_migrate(xml_node_t *);
 
 static inline ni_bool_t
 ni_ifconfig_is_config(xml_node_t *ifnode)

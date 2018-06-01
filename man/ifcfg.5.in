@@ -397,7 +397,7 @@ variable name.
 - \fIcompat:suse:<script>\fR scheme:
 .in +4n
 Permits to specify a script or script directory either as an absolute
-path or relative to the /etc/sysconfig/network/script directory, e.g.:
+path or relative to the /etc/sysconfig/network/scripts directory, e.g.:
 
 .br
 	POST_UP_SCRIPT="compat:suse:post-up-script1"
@@ -414,6 +414,15 @@ the variable name.
 to not execute any old and not-compatible sysconfig ifup scripts (which may
 depend on different files, internal state, ...). Once the script has been
 adopted, prepend e.g. the "compat:suse:" scheme to activate.
+.TP
+.BR FIREWALL \ {\fByes\fR|no}
+Permits to disable the execution of the firewall extension scripts hooks on
+if\fBup\fR and if\fBdown\fR of an interface.
+.TP
+.BR ZONE \ [ NAME ]
+The per-interface firewall \fBzone\fR name passed to the firewall extension
+script to assign the interface to the specified zone instead of a default one
+(when supported by the firewall framework, e.g. firewalld).
 
 
 .SH GENERAL VARIABLES

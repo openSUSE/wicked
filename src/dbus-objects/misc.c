@@ -182,6 +182,8 @@ __ni_objectmodel_set_hwaddr(const ni_dbus_variant_t *argument, ni_hwaddr_t *hwad
 dbus_bool_t
 __ni_objectmodel_get_hwaddr(ni_dbus_variant_t *result, const ni_hwaddr_t *hwaddr)
 {
+	if (!hwaddr->len)
+		return FALSE;
 	ni_dbus_variant_set_byte_array(result, hwaddr->data, hwaddr->len);
 	return TRUE;
 }
@@ -567,7 +569,7 @@ failure:
 dbus_bool_t
 __ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict)
 {
-	ni_ipv6_cache_info_t lft;
+	ni_address_cache_info_t lft;
 
 	__ni_objectmodel_dict_add_sockaddr_prefix(dict, "local", &ap->local_addr, ap->prefixlen);
 	if (ap->peer_addr.ss_family == ap->family)
@@ -584,8 +586,8 @@ __ni_objectmodel_address_to_dict(const ni_address_t *ap, ni_dbus_variant_t *dict
 	if (ap->family == AF_INET && ap->label)
 		ni_dbus_dict_add_string(dict, "label", ap->label);
 
-	ni_ipv6_cache_info_rebase(&lft, &ap->ipv6_cache_info, NULL);
-	if (lft.valid_lft) {
+	ni_address_cache_info_rebase(&lft, &ap->cache_info, NULL);
+	if (lft.preferred_lft != NI_LIFETIME_INFINITE) {
 		ni_dbus_variant_t *var;
 
 		var = ni_dbus_dict_add(dict, "cache-info");
@@ -635,18 +637,19 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 		}
 
 		if ((var = ni_dbus_dict_get(dict, "cache-info")) != NULL) {
-			uint32_t prefered_lft = 0, valid_lft = 0;
+			uint32_t prefered_lft = NI_LIFETIME_INFINITE;
+			uint32_t valid_lft = NI_LIFETIME_INFINITE;
 
 			ni_dbus_dict_get_uint32(var, "preferred-lifetime", &prefered_lft);
 			ni_dbus_dict_get_uint32(var, "valid-lifetime", &valid_lft);
 
 			/* as they're there, they've to be valid */
-			if (!valid_lft || prefered_lft > valid_lft) {
-				ni_address_free(ap);
-				return NULL;
-			}
-			ap->ipv6_cache_info.preferred_lft = prefered_lft;
-			ap->ipv6_cache_info.valid_lft = valid_lft;
+			if (prefered_lft > valid_lft)
+				prefered_lft = valid_lft;
+			if (prefered_lft != NI_LIFETIME_INFINITE)
+				ni_timer_get_time(&ap->cache_info.acquired);
+			ap->cache_info.preferred_lft = prefered_lft;
+			ap->cache_info.valid_lft = valid_lft;
 		}
 
 		if (ni_dbus_dict_get_uint32(dict, "owner", &ap->owner)) {
@@ -1701,14 +1704,14 @@ __ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 	ni_dbus_variant_t *child;
 
 	ni_dbus_dict_add_uint32(result, "state", lease->state);
-	ni_dbus_dict_add_uint32(result, "acquired", lease->time_acquired);
-	ni_dbus_dict_add_uint32(result, "update", lease->update);
+	ni_dbus_dict_add_int64(result, "acquired", lease->acquired.tv_sec);
 
 	ni_dbus_dict_add_uint32(result, "flags", lease->flags);
 	if (!(child = ni_dbus_dict_add(result, "uuid")))
 		return FALSE;
 	ni_dbus_variant_set_uuid(child, &lease->uuid);
 
+	ni_dbus_dict_add_uint32(result, "update", lease->update);
 	if (lease->hostname)
 		ni_dbus_dict_add_string(result, "hostname", lease->hostname);
 
@@ -1926,11 +1929,14 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 	const ni_dbus_variant_t *child;
 	const char *string_value;
 	uint32_t value32;
+	int64_t value64;
 
 	if (ni_dbus_dict_get_uint32(argument, "state", &value32))
 		lease->state = value32;
-	if (ni_dbus_dict_get_uint32(argument, "acquired", &value32))
-		lease->time_acquired = value32;
+	if (ni_dbus_dict_get_int64(argument, "acquired", &value64)) {
+		lease->acquired.tv_sec = value64;
+		lease->acquired.tv_usec = 0;
+	}
 
 	if (ni_dbus_dict_get_uint32(argument, "update", &value32))
 		lease->update = value32;

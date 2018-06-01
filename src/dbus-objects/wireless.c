@@ -540,8 +540,8 @@ const ni_dbus_property_t	ni_objectmodel_wireless_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_wireless_methods[] = {
-	{ "setScanning",	DBUS_TYPE_BOOLEAN_AS_STRING,	ni_objectmodel_wireless_set_scanning	},
-	{ "changeDevice",	"a{sv}",			ni_objectmodel_wireless_change_device	},
+	{ "setScanning",	DBUS_TYPE_BOOLEAN_AS_STRING,	.handler = ni_objectmodel_wireless_set_scanning	},
+	{ "changeDevice",	"a{sv}",			.handler = ni_objectmodel_wireless_change_device },
 
 	{ NULL }
 };

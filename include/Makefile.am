@@ -13,6 +13,7 @@ wicked_include_HEADERS		= \
 	wicked/dbus-errors.h	\
 	wicked/dbus-service.h	\
 	wicked/dcb.h		\
+	wicked/ethtool.h	\
 	wicked/ethernet.h	\
 	wicked/fsm.h		\
 	wicked/infiniband.h	\

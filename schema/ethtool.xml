@@ -1,0 +1,148 @@
+<!--
+  Ethtool service definition
+  -->
+<service name="ethtool" interface="org.opensuse.Network.Ethtool" object-class="netif">
+
+  <define name="priv-flag"      class="dict">
+    <name                       type="string"/>
+    <enabled                    type="boolean"/>
+  </define>
+
+  <define name="advertising-type"    class="dict">
+    <autoneg                    type="boolean"/>
+    <port-types                 class="array" element-type="string" element-name="type"/>
+    <speed-modes                class="array" element-type="string" element-name="mode"/>
+    <pause-frames               class="array" element-type="string" element-name="type"/>
+    <fec-modes                  class="array" element-type="string" element-name="mode"/>
+    <unknown                    type="string"/>
+  </define>
+
+  <define name="feature-type"   class="dict">
+    <name                       type="string"/>
+    <enabled                    type="boolean"/>
+    <fixed                      type="boolean"/>
+    <requested                  type="boolean"/>
+  </define>
+
+  <define name="link-settings-conf"  class="dict">
+    <autoneg                    type="tristate"/>
+    <speed                      type="uint32"/>
+    <duplex                     type="builtin-ethtool-link-duplex-type"/>
+    <port                       type="builtin-ethtool-link-port-type"/>
+    <mdix                       type="builtin-ethtool-link-mdix-type"/>
+    <phy-address                type="uint32"/>
+    <transceiver                type="builtin-ethtool-link-xcvr-type"/>
+    <advertise                  class="array" element-type="string" element-name="mode"/>
+  </define>
+  <define name="link-settings-info"  class="dict" extends="ethtool:link-settings-conf">
+    <mdio                       type="builtin-ethtool-link-mdio-type"/>
+    <supported                  type="ethtool:advertising-type"/>
+    <advertising                type="ethtool:advertising-type"/>
+    <lp-advertising             type="ethtool:advertising-type"/>
+  </define>
+
+  <define name="ring-type"      class="dict">
+    <tx                         type="uint32"/>
+    <rx                         type="uint32"/>
+    <rx-mini                    type="uint32"/>
+    <rx-jumbo                   type="uint32"/>
+  </define>
+
+  <define name="channels-type"  class="dict">
+    <tx                         type="uint32"/>
+    <rx                         type="uint32"/>
+    <other                      type="uint32"/>
+    <combined                   type="uint32"/>
+  </define>
+
+  <define name="coalesce-type"  class="dict">
+    <adaptive-tx                type="tristate"/>
+    <adaptive-rx                type="tristate"/>
+
+    <pkt-rate-low               type="uint32"/>
+    <pkt-rate-high              type="uint32"/>
+
+    <sample-interval            type="uint32"/>
+    <stats-block-usecs          type="uint32"/>
+
+    <tx-usecs                   type="uint32"/>
+    <tx-usecs-irq               type="uint32"/>
+    <tx-usecs-low               type="uint32"/>
+    <tx-usecs-high              type="uint32"/>
+
+    <tx-frames                  type="uint32"/>
+    <tx-frames-irq              type="uint32"/>
+    <tx-frames-low              type="uint32"/>
+    <tx-frames-high             type="uint32"/>
+
+    <rx-usecs                   type="uint32"/>
+    <rx-usecs-irq               type="uint32"/>
+    <rx-usecs-low               type="uint32"/>
+    <rx-usecs-high              type="uint32"/>
+
+    <rx-frames                  type="uint32"/>
+    <rx-frames-irq              type="uint32"/>
+    <rx-frames-low              type="uint32"/>
+    <rx-frames-high             type="uint32"/>
+  </define>
+
+  <define name="configuration"  class="dict">
+    <private-flags              class="array" element-type="ethtool:priv-flag" element-name="flag"/>
+    <link-settings              type="link-settings-conf"/>
+    <wake-on-lan class="dict">
+      <options                  type="builtin-ethtool-wol-flag-mask"/>
+      <sopass                   type="ethernet-address"/>
+    </wake-on-lan>
+    <features                   class="array" element-type="ethtool:feature-type" element-name="feature"/>
+    <eee                        class="dict">
+      <enabled                  type="tristate"/>
+      <tx-lpi                   type="tristate"/>
+      <tx-timer                 type="uint32"/>
+      <advertise                class="array" element-type="string" element-name="mode"/>
+    </eee>
+    <ring                       type="ring-type"/>
+    <channels                   type="channels-type"/>
+    <coalesce                   type="coalesce-type"/>
+  </define>
+
+  <define name="properties"     class="dict">
+    <driver-info                class="dict">
+      <driver                     type="string"/>
+      <version                    type="string"/>
+      <bus-info                   type="string"/>
+      <firmware-version           type="string"/>
+      <expansion-rom-version      type="string"/>
+      <supports                   type="builtin-ethtool-driver-supports-mask"/>
+    </driver-info>
+    <link-detected              type="tristate"/>
+    <link-settings              type="ethtool:link-settings-info"/>
+    <private-flags              class="array" element-type="ethtool:priv-flag" element-name="flag"/>
+    <wake-on-lan class="dict">
+      <support                  type="builtin-ethtool-wol-flag-mask"/>
+      <options                  type="builtin-ethtool-wol-flag-mask"/>
+    </wake-on-lan>
+    <features                   class="array" element-type="ethtool:feature-type" element-name="feature"/>
+    <eee                        class="dict">
+      <enabled                  type="tristate"/>
+      <active                   type="tristate"/>
+      <tx-lpi                   type="tristate"/>
+      <tx-timer                 type="uint32"/>
+      <supported                class="array" element-type="string" element-name="mode"/>
+      <advertising              class="array" element-type="string" element-name="mode"/>
+      <lp-advertising           class="array" element-type="string" element-name="mode"/>
+    </eee>
+    <ring                       type="ring-type"/>
+    <channels                   type="channels-type"/>
+    <coalesce                   type="coalesce-type"/>
+  </define>
+
+  <method name="changeDevice">
+    <arguments>
+      <config type="ethtool:configuration">
+        <meta:mapping document-node="/ethtool" skip-unless-present="true" />
+      </config>
+    </arguments>
+  </method>
+
+</service>
+

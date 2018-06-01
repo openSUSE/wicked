@@ -78,7 +78,7 @@ ni_auto6_request_init(ni_auto6_request_t *req)
 		memset(req, 0, sizeof(*req));
 		req->enabled = FALSE;
 		req->defer_timeout = NI_AUTO6_ACQUIRE_DEADLINE;
-		req->update = ni_config_addrconf_update_mask(NI_ADDRCONF_AUTOCONF, AF_INET6);
+		req->update = -1U; /* apply wicked-config(5) defaults later */
 	}
 }
 
@@ -333,7 +333,7 @@ ni_auto6_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t *lease, unsigned int
 		if (!(updater = ni_addrconf_updater_new_applying(lease, dev, NI_EVENT_ADDRESS_ACQUIRED)))
 			return;
 	}
-	lease->time_acquired = updater->started.tv_sec;
+	lease->acquired = updater->started;
 	ni_addrconf_updater_background(updater, delay);
 }
 
@@ -1007,8 +1007,13 @@ ni_auto6_acquire(ni_netdev_t *dev, const ni_auto6_request_t *req)
 		lease->uuid  = auto6->uuid;
 	}
 
-	lease->update           = req->update;
-	ni_tristate_set(&auto6->update, req->update);
+	if (req->update == -1U) {
+		lease->update = ni_config_addrconf_update(dev->name, NI_ADDRCONF_AUTOCONF, AF_INET6);
+	} else {
+		lease->update = req->update;
+		lease->update &= ni_config_addrconf_update_mask(NI_ADDRCONF_AUTOCONF, AF_INET6);
+	}
+	ni_tristate_set(&auto6->update, !!lease->update);
 	auto6->acquire.deadline = req->defer_timeout;
 	auto6->acquire.send_rs  = NI_AUTO6_ACQUIRE_SEND_RS;
 

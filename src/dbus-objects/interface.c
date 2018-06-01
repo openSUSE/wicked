@@ -105,6 +105,7 @@ ni_objectmodel_register_netif_services(void)
 	/* LLDP agent */
 	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_lldp_service);
 
+	ni_objectmodel_register_netif_service(NI_IFTYPE_UNKNOWN, &ni_objectmodel_ethtool_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_ETHERNET, &ni_objectmodel_ethernet_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_VLAN, &ni_objectmodel_vlan_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_VXLAN, &ni_objectmodel_vxlan_service);
@@ -458,9 +459,9 @@ ni_objectmodel_netif_list_get_addresses(ni_dbus_object_t *object, const ni_dbus_
 }
 
 static ni_dbus_method_t		ni_objectmodel_netif_list_methods[] = {
-	{ "deviceByName",	"s",		ni_objectmodel_netif_list_device_by_name },
-	{ "identifyDevice",	"sa{sv}",	ni_objectmodel_netif_list_identify_device },
-	{ "getAddresses",	"a{sv}",	ni_objectmodel_netif_list_get_addresses },
+	{ "deviceByName",	"s",		.handler = ni_objectmodel_netif_list_device_by_name },
+	{ "identifyDevice",	"sa{sv}",	.handler = ni_objectmodel_netif_list_identify_device },
+	{ "getAddresses",	"a{sv}",	.handler = ni_objectmodel_netif_list_get_addresses },
 	{ NULL }
 };
 
@@ -925,20 +926,9 @@ ni_objectmodel_netif_link_up(ni_dbus_object_t *object, const ni_dbus_method_t *m
 			}
 		}
 
-		/*
-		 * MTU change on device-up interfaces quite often causes either
-		 * error -16 (busy) or sets all upper interfaces LOWERLAYERDOWN.
-		 */
-		if (ni_netdev_device_is_up(dev)) {
-			ni_debug_objectmodel("Skipping MTU change on %s: device is up",
-					dev->name);
-			req->mtu = 0;
-		}
+		if  (req->mtu != dev->link.mtu)
+		     ni_system_mtu_change(nc, dev, req->mtu);
 
-		if (req->mtu != dev->link.mtu &&
-		    ni_system_mtu_change(nc, dev, req->mtu) < 0) {
-			ni_info("Unable to set %s MTU to %u", dev->name, req->mtu);
-		}
 		req->mtu = 0;
 	}
 
@@ -1373,17 +1363,17 @@ ni_objectmodel_netif_destroy(ni_dbus_object_t *object)
 }
 
 static ni_dbus_method_t		ni_objectmodel_netif_methods[] = {
-	{ "linkUp",		"a{sv}",		ni_objectmodel_netif_link_up },
-	{ "linkDown",		"",			ni_objectmodel_netif_link_down },
-	{ "installLease",	"a{sv}",		ni_objectmodel_netif_install_lease },
-	{ "setClientControl",	"a{sv}",		ni_objectmodel_netif_set_client_state_control },
-	{ "setClientConfig",	"a{sv}",		ni_objectmodel_netif_set_client_state_config },
-	{ "setClientScripts",	"a{sv}",		ni_objectmodel_netif_set_client_state_scripts },
-	{ "linkMonitor",	"",			ni_objectmodel_netif_link_monitor },
-	{ "getNames",		"",			ni_objectmodel_netif_get_names },
-	{ "clearEventFilters",	"",			ni_objectmodel_netif_clear_event_filters },
-	{ "waitDeviceReady",	"",			ni_objectmodel_netif_wait_device_ready },
-	{ "waitLinkUp",		"",			ni_objectmodel_netif_wait_link_up },
+	{ "linkUp",		"a{sv}",	.handler = ni_objectmodel_netif_link_up },
+	{ "linkDown",		"",		.handler = ni_objectmodel_netif_link_down },
+	{ "installLease",	"a{sv}",	.handler = ni_objectmodel_netif_install_lease },
+	{ "setClientControl",	"a{sv}",	.handler = ni_objectmodel_netif_set_client_state_control },
+	{ "setClientConfig",	"a{sv}",	.handler = ni_objectmodel_netif_set_client_state_config },
+	{ "setClientScripts",	"a{sv}",	.handler = ni_objectmodel_netif_set_client_state_scripts },
+	{ "linkMonitor",	"",		.handler = ni_objectmodel_netif_link_monitor },
+	{ "getNames",		"",		.handler = ni_objectmodel_netif_get_names },
+	{ "clearEventFilters",	"",		.handler = ni_objectmodel_netif_clear_event_filters },
+	{ "waitDeviceReady",	"",		.handler = ni_objectmodel_netif_wait_device_ready },
+	{ "waitLinkUp",		"",		.handler = ni_objectmodel_netif_wait_link_up },
 	{ NULL }
 };
 

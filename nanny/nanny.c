@@ -345,7 +345,9 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, xml_do
 		rv = 0;
 		goto error;
 	}
-	else if ((policy = ni_fsm_policy_new(fsm, pname, pnode))) {
+	if (ni_ifconfig_migrate(pnode))
+		ni_debug_nanny("Migrated policy \"%s\" to current schema", pname);
+	if ((policy = ni_fsm_policy_new(fsm, pname, pnode))) {
 		ni_managed_policy_t *mpolicy;
 		ni_dbus_object_t *po_tmp = NULL;
 
@@ -1163,7 +1165,7 @@ ni_objectmodel_nanny_recheck(ni_dbus_object_t *object, const ni_dbus_method_t *m
 }
 
 static ni_dbus_method_t		ni_objectmodel_nanny_methods[] = {
-	{ "getDevice",		"s",		ni_objectmodel_nanny_get_device			 },
+	{ "getDevice",		"s",		.handler = ni_objectmodel_nanny_get_device	 },
 	{ "createPolicy",	"s",		.handler_ex = ni_objectmodel_nanny_create_policy },
 	{ "deletePolicy",	"s",		.handler_ex = ni_objectmodel_nanny_delete_policy },
 	{ "addSecret",		"a{sv}ss",	.handler_ex = ni_objectmodel_nanny_set_secret	 },

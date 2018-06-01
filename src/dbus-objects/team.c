@@ -208,7 +208,7 @@ __ni_objectmodel_shutdown_team(ni_dbus_object_t *object, const ni_dbus_method_t 
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
 	if (ni_system_team_shutdown(dev) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Error shutting team interface down", dev->name);
+				"Error shutting down team interface %s", dev->name);
 		return FALSE;
 	}
 
@@ -236,7 +236,7 @@ __ni_objectmodel_delete_team(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
 	if (ni_system_team_delete(nc, dev) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Error deleting team interface", dev->name);
+				"Error deleting team interface %s", dev->name);
 		return FALSE;
 	}
 
@@ -897,14 +897,14 @@ static ni_dbus_property_t	ni_objectmodel_team_properties[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_team_methods[] = {
-	{ "changeDevice",	"a{sv}",			__ni_objectmodel_team_setup },
-	{ "shutdownDevice",	"",				__ni_objectmodel_shutdown_team },
-	{ "deleteDevice",	"",				__ni_objectmodel_delete_team },
+	{ "changeDevice",	"a{sv}",	.handler = __ni_objectmodel_team_setup },
+	{ "shutdownDevice",	"",		.handler = __ni_objectmodel_shutdown_team },
+	{ "deleteDevice",	"",		.handler = __ni_objectmodel_delete_team },
 	{ NULL }
 };
 
 static ni_dbus_method_t		ni_objectmodel_team_factory_methods[] = {
-	{ "newDevice",		"sa{sv}",			ni_objectmodel_new_team },
+	{ "newDevice",		"sa{sv}",	.handler = ni_objectmodel_new_team },
 	{ NULL }
 };
 

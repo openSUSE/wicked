@@ -74,10 +74,10 @@ This option allows to set a metric/priority for DHCPv4 routes. Default is 0.
 .BR DHCLIENT_CLIENT_ID
 Specifies a client identifier string. By default an id derived from the
 hardware address of the network interface is sent as client identifier.
-.TP
-.BR DHCLIENT_VENDOR_CLASS_ID
-Specifies the vendor class identifier string. The default is DHCP client
-specific.
+.\" .TP
+.\" .BR DHCLIENT_VENDOR_CLASS_ID
+.\" Specifies the vendor class identifier string. The default is DHCP client
+.\" specific.
 .TP
 .BR DHCLIENT_USER_CLASS_FORMAT\ { string* | rfc3004 }
 Specifies the format of the DHCLIENT_USER_CLASS_ID variable.
@@ -135,6 +135,27 @@ The DHCP client will stop processing / fail after this time when it does
 not get a reply from the DHCP server. Before you set this variable, take a
 look at DHCLIENT_WAIT_AT_BOOT allowing to continue in background instead.
 Default value is 0.
+.TP
+.BR DHCLIENT_UPDATE\ {default,none,all,dns,ntp,nis,tz,boot,smb,nds,slp,sip,log}
+This variable permits to specify a space separated list of build-in
+facility names supported by the dhcp4 client modifying the default
+options used in requests and to update system settings (via netconfig).
+
+When empty, default settings configured in wicked-config(5) or built-in
+defaults are used. The special "default", "all", and "none" sets enable
+to request none, the built-in default set or all supported options,
+respectively. A "no-" or "-" in the front of a facility name permit to
+remove/disable it from the currently applied set, e.g. "default,-nis"
+disables request for nis options.
+More specific variables as DHCLIENT_SET_DEFAULT_ROUTE,DHCLIENT_SET_HOSTNAME
+or the MTU option have higher precedence.
+.TP
+.BR DHCLIENT_BROADCAST\ { yes | \fIno\fR* }
+Request broadcast responses from dhcp-server.
+
+The default behaviour is to not request broadcast responses for any type
+of devices except of Infiniband, where it is enabled by default and not 
+possible to disable.
 
 .SH DHCPv6 Specific Variables
 .TP
@@ -240,6 +261,19 @@ Default is 15 seconds.
 The DHCPv6 client will stop processing / fail after this time when it does
 not get a reply from the DHCPv6 server. Before you set this variable, take a
 look at DHCLIENT6_WAIT_AT_BOOT allowing to continue in background instead.
+.TP
+.BR DHCLIENT6_UPDATE\ {default,none,all,dns,ntp,tz,boot,nis,sip}
+This variable permits to specify a space separated list of build-in
+facility names supported by the dhcp6 client modifying the default
+options used in requests and to update system settings (via netconfig).
+
+When empty, default settings configured in wicked-config(5) or built-in
+defaults are used. The special "default", "all", and "none" sets enable
+to request none, the built-in default set or all supported options,
+respectively. A "no-" or "-" in the front of a facility name permit to
+remove/disable it from the currently applied set, e.g. "default,-nis"
+disables request for nis options.
+The more specific variable DHCLIENT6_SET_HOSTNAME has higher precedence.
 .TP
 
 .SH COPYRIGHT

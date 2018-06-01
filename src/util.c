@@ -474,6 +474,7 @@ ni_var_array_free(ni_var_array_t *nva)
 {
 	if (nva) {
 		ni_var_array_destroy(nva);
+		free(nva);
 	}
 }
 
@@ -733,52 +734,197 @@ ni_bitfield_destroy(ni_bitfield_t *bf)
 	memset(bf, 0, sizeof(*bf));
 }
 
-static inline void
-__ni_bitfield_grow(ni_bitfield_t *bf, unsigned int nbits)
+unsigned int
+ni_bitfield_words(const ni_bitfield_t *bf)
 {
-	unsigned int nwords = (nbits + 31) / 32;
+	return bf ? bf->size : 0;
+}
 
-	if (nwords >= bf->size) {
-		const unsigned int local_words = sizeof(bf->__local_field);
+size_t
+ni_bitfield_bytes(const ni_bitfield_t *bf)
+{
+	return bf ? bf->size * sizeof(uint32_t) : 0;
+}
 
-		if (nwords <= local_words) {
-			memset(bf->__local_field, 0, local_words);
+size_t
+ni_bitfield_bits(const ni_bitfield_t *bf)
+{
+	return bf ? bf->size * 32 : 0;
+}
+
+static inline ni_bool_t
+ni_bitfield_grow(ni_bitfield_t *bf, unsigned int bit)
+{
+	unsigned int nwords = (bit + 32) / 32;
+
+	if (nwords > bf->size) {
+		const unsigned int local_bytes = sizeof(bf->__local_field);
+		const unsigned int local_words = local_bytes / sizeof(uint32_t);
+
+		if (nwords < local_words) {
 			bf->field = bf->__local_field;
-			bf->size = local_words;
+			bf->size = nwords;
 		} else {
 			uint32_t *new_field;
 
-			new_field = xcalloc(nwords, sizeof(uint32_t));
+			new_field = calloc(nwords, sizeof(uint32_t));
+			if (!new_field)
+				return FALSE;
 			if (bf->size)
-				memcpy(new_field, bf->field, bf->size);
+				memcpy(new_field, bf->field, ni_bitfield_bytes(bf));
 			if (bf->field && bf->field != bf->__local_field)
 				free(bf->field);
 			bf->field = new_field;
 			bf->size = nwords;
 		}
 	}
+	return TRUE;
 }
 
-void
+ni_bool_t
+ni_bitfield_set_data(ni_bitfield_t *bf, const void *data, size_t len)
+{
+	if (!bf || !data || !len || len % 4)
+		return FALSE;
+
+	if (!ni_bitfield_grow(bf, (len * 8) - 1))
+		return FALSE;
+
+	memcpy(bf->field, data, len);
+	return TRUE;
+}
+
+const void *
+ni_bitfield_get_data(const ni_bitfield_t *bf)
+{
+	return bf ? (const void *)bf->field : NULL;
+}
+
+ni_bool_t
 ni_bitfield_setbit(ni_bitfield_t *bf, unsigned int bit)
 {
-	__ni_bitfield_grow(bf, bit);
-	bf->field[bit / 32] = (1 << (bit % 32));
+	if (!bf || !ni_bitfield_grow(bf, bit))
+		return FALSE;
+	bf->field[bit / 32] |= (1 << (bit % 32));
+	return TRUE;
 }
 
-void
+ni_bool_t
 ni_bitfield_clearbit(ni_bitfield_t *bf, unsigned int bit)
 {
-	__ni_bitfield_grow(bf, bit);
+	if (!bf || !ni_bitfield_grow(bf, bit))
+		return FALSE;
 	bf->field[bit / 32] &= ~(1 << (bit % 32));
+	return TRUE;
 }
 
-int
+ni_bool_t
+ni_bitfield_turnbit(ni_bitfield_t *bf, unsigned int bit, ni_bool_t onoff)
+{
+	if (onoff)
+		return ni_bitfield_setbit(bf, bit);
+	else
+		return ni_bitfield_clearbit(bf, bit);
+}
+
+ni_bool_t
 ni_bitfield_testbit(const ni_bitfield_t *bf, unsigned int bit)
 {
-	if (bit / 32 >= bf->size)
-		return 0;
+	if (!bf || bit / 32 >= bf->size)
+		return FALSE;
 	return !!(bf->field[bit / 32] & (1 << (bit % 32)));
+}
+
+ni_bool_t
+ni_bitfield_isset(const ni_bitfield_t *bf)
+{
+	unsigned int word;
+
+	if (bf) {
+		for (word = 0; word < bf->size; ++word) {
+			if (bf->field[word])
+				return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_bitfield_parse(ni_bitfield_t *bf, const char *hexstr, unsigned int nwords)
+{
+	unsigned int words;
+	unsigned int i;
+	size_t slen;
+
+	if (ni_string_startswith(hexstr, "0x"))
+		hexstr += 2;
+
+	if (!(slen = ni_string_len(hexstr)))
+		return FALSE;
+
+	words = (slen + 8) / 8;
+	if (nwords && nwords < words)
+		return FALSE;
+
+	if (!ni_bitfield_grow(bf, words * 32))
+		return FALSE;
+
+	for (i = 0; i < slen; ++i) {
+		const unsigned int shift = (slen - 1 - i) * 4;
+		uint32_t *word = &bf->field[shift / 32];
+		uint32_t nibble;
+
+		if ('0' <= hexstr[i] && hexstr[i] <= '9')
+			nibble = hexstr[i] - '0';
+		else
+		if ('a' <= hexstr[i] && hexstr[i] <= 'f')
+			nibble = 0xa + hexstr[i] - 'a';
+		else
+		if ('A' <= hexstr[i] && hexstr[i] <= 'F')
+			nibble = 0xa + hexstr[i] - 'A';
+		else {
+			ni_bitfield_destroy(bf);
+			return FALSE;
+		}
+
+		*word |= (nibble << (shift % 32));
+	}
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_bitfield_format(const ni_bitfield_t *bf, char **hexstr, ni_bool_t lstrip)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	unsigned int words;
+	ni_bool_t ret;
+
+	words = ni_bitfield_words(bf);
+	if (!words || !hexstr)
+		return FALSE;
+
+	if (lstrip) {
+		while (words > 1 && !bf->field[words - 1])
+			words--;
+	}
+
+	ni_stringbuf_puts(&buf, "0x");
+	for ( ; words > 0; words--) {
+		char temp[9] = {'\0'};
+
+		if (lstrip) {
+			lstrip = FALSE;
+			snprintf(temp, sizeof(temp), "%x", bf->field[words - 1]);
+		} else {
+			snprintf(temp, sizeof(temp), "%08x", bf->field[words - 1]);
+		}
+		ni_stringbuf_puts(&buf, temp);
+	}
+
+	ret = ni_string_dup(hexstr, buf.string);
+	ni_stringbuf_destroy(&buf);
+	return ret;
 }
 
 /*

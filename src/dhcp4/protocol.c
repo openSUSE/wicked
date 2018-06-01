@@ -484,8 +484,10 @@ __ni_dhcp4_build_msg_put_option_request(const ni_dhcp4_device_t *dev,
 		ni_uint_array_append(&oro, DHCP4_MSCSR);
 	}
 	if (options->doflags & DHCP4_DO_GATEWAY) {
-		ni_uint_array_append(&oro, DHCP4_STATICROUTE);
 		ni_uint_array_append(&oro, DHCP4_ROUTERS);
+	}
+	if (options->doflags & DHCP4_DO_STATIC_ROUTES) {
+		ni_uint_array_append(&oro, DHCP4_STATICROUTE);
 	}
 	if (options->doflags & DHCP4_DO_HOSTNAME) {
 		if (options->fqdn.enabled == NI_TRISTATE_DISABLE) {
@@ -646,10 +648,14 @@ __ni_dhcp4_build_msg_put_hwspec(const ni_dhcp4_device_t *dev, ni_dhcp4_message_t
 			message->hwlen = dev->system.hwaddr.len;
 			memcpy(&message->chaddr, dev->system.hwaddr.data, dev->system.hwaddr.len);
 		}
+		if (ni_tristate_is_enabled(dev->config->broadcast))
+			message->flags = htons(BROADCAST_FLAG);
 		break;
 
 	case ARPHRD_IEEE1394:
 	case ARPHRD_INFINIBAND:
+		if (ni_tristate_is_disabled(dev->config->broadcast))
+			ni_warn_once("%s: broadcast is mandatory on infiniband", dev->ifname);
 		/* See http://tools.ietf.org/html/rfc4390
 		 *
 		 * Note: set the ciaddr before if needed.
@@ -1089,7 +1095,6 @@ __ni_dhcp4_build_msg_request_reboot(const ni_dhcp4_device_t *dev,
 	unsigned int msg_code = DHCP4_REQUEST;
 	ni_dhcp4_message_t *message;
 	ni_sockaddr_t addr;
-	const ni_dhcp_fqdn_t *fqdn;
 
 	/* Request an lease after reboot to reuse old lease (no server id) */
 	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
@@ -1113,12 +1118,8 @@ __ni_dhcp4_build_msg_request_reboot(const ni_dhcp4_device_t *dev,
 			"%s: using reused ip-address: %s",
 			dev->ifname, ni_sockaddr_print(&addr));
 
-	if (lease->fqdn.enabled == NI_TRISTATE_DEFAULT)
-		fqdn = &options->fqdn;
-	else
-		fqdn = &lease->fqdn;
-	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf, fqdn,
-			lease->hostname ? lease->hostname : options->hostname) < 0)
+	if (__ni_dhcp4_build_msg_put_our_hostname(dev, msgbuf, &options->fqdn,
+				options->hostname) < 0)
 		return -1;
 
 	if (__ni_dhcp4_build_msg_put_option_request(dev, msg_code, msgbuf) <  0)
@@ -1830,7 +1831,7 @@ ni_dhcp4_parse_response(const ni_dhcp4_config_t *config, const ni_dhcp4_message_
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
 	lease->type = NI_ADDRCONF_DHCP;
 	lease->family = AF_INET;
-	lease->time_acquired = time(NULL);
+	ni_timer_get_time(&lease->acquired);
 	lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
 	lease->fqdn.qualify = config->fqdn.qualify;
 

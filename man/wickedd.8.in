@@ -26,7 +26,7 @@ Component	Description
 wickedd-nanny	Event driven policy daemon responsible for hotplugging.
 wickedd-dhcp6	DHCPv6 client supplicant
 wickedd-dhcp4	DHCPv4 client supplicant
-wickedd-auto4	IPv6 autoip supplicant
+wickedd-auto4	IPv4 autoip supplicant
 .TE
 .PP
 Further, it communicates also with external supplicants:

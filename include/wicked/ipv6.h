@@ -58,13 +58,16 @@ struct ni_ipv6_ra_pinfo {
 	ni_bool_t		on_link;
 	ni_bool_t		autoconf;
 
-	ni_ipv6_cache_info_t	lifetime;
+	struct timeval		acquired;
+	unsigned int		valid_lft;
+	unsigned int		preferred_lft;
 };
 
 struct ni_ipv6_ra_rdnss {
 	ni_ipv6_ra_rdnss_t *	next;
 
 	ni_sockaddr_t		server;
+
 	struct timeval		acquired;
 	unsigned int		lifetime;
 };
@@ -73,6 +76,7 @@ struct ni_ipv6_ra_dnssl {
 	ni_ipv6_ra_dnssl_t *	next;
 
 	char *			domain;
+
 	struct timeval		acquired;
 	unsigned int		lifetime;
 };

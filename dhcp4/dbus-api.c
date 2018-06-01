@@ -25,6 +25,7 @@
 #include <wicked/objectmodel.h>
 #include "appconfig.h"
 #include "dhcp4/dhcp4.h"
+#include "dhcp.h"
 
 static ni_dhcp4_request_t *	ni_objectmodel_dhcp4_request_from_dict(const ni_dbus_variant_t *);
 static void			__ni_objectmodel_dhcp4_device_release(ni_dbus_object_t *);
@@ -158,7 +159,7 @@ __ni_objectmodel_dhcp4_acquire_svc(ni_dbus_object_t *object, const ni_dbus_metho
 	if (argc != 1) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"method %s called with %d arguments (expected 1)",
-				argc);
+				method->name, argc);
 		goto failed;
 	}
 
@@ -236,15 +237,15 @@ failed:
 }
 
 static ni_dbus_method_t		ni_objectmodel_dhcp4_methods[] = {
-	{ "acquire",		"aya{sv}",		__ni_objectmodel_dhcp4_acquire_svc },
-	{ "drop",		"ay",			__ni_objectmodel_dhcp4_drop_svc },
+	{ "acquire",		"aya{sv}",	.handler = __ni_objectmodel_dhcp4_acquire_svc },
+	{ "drop",		"ay",		.handler = __ni_objectmodel_dhcp4_drop_svc },
 	{ NULL }
 };
 
 static ni_dbus_method_t		ni_objectmodel_dhcp4_signals[] = {
-	{ NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL },
-	{ NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL },
-	{ NI_OBJECTMODEL_LEASE_LOST_SIGNAL },
+	{ .name = NI_OBJECTMODEL_LEASE_ACQUIRED_SIGNAL },
+	{ .name = NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL },
+	{ .name = NI_OBJECTMODEL_LEASE_LOST_SIGNAL },
 	{ NULL }
 };
 
@@ -257,6 +258,8 @@ static ni_dbus_class_t		ni_objectmodel_dhcp4req_class = {
 
 #define DHCP4REQ_STRING_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_STRING_PROPERTY(dhcp4_request, dbus_name, member_name, rw)
+#define DHCP4REQ_INT_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_INT_PROPERTY(dhcp4_request, dbus_name, member_name, rw)	
 #define DHCP4REQ_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(dhcp4_request, dbus_name, member_name, rw)
 #define DHCP4REQ_UUID_PROPERTY(dbus_name, member_name, rw) \
@@ -329,7 +332,7 @@ ni_objectmodel_dhcp4_request_set_user_class(ni_dbus_object_t *object,
 		if (format == NI_DHCP4_USER_CLASS_STRING && uc->class_id.count)
 			break; /* only one user class identifier for this format type */
 
-		if (!ni_check_domain_name(var->string_value, len, 0)) {
+		if (!ni_dhcp_check_user_class_id(var->string_value, len)) {
 			ni_warn("Suspect user class id string: '%s' obtained. Skipping.",
 				ni_print_suspect(var->string_value, len));
 			return FALSE;
@@ -471,6 +474,7 @@ static ni_dbus_property_t	dhcp4_request_properties[] = {
 	DHCP4REQ_UINT_PROPERTY(lease-time, lease_time, RO),
 	DHCP4REQ_BOOL_PROPERTY(recover-lease, recover_lease, RO),
 	DHCP4REQ_BOOL_PROPERTY(release-lease, release_lease, RO),
+	DHCP4REQ_INT_PROPERTY(broadcast, broadcast, RO),
 	DHCP4REQ_UINT_PROPERTY(update, update, RO),
 	DHCP4REQ_STRING_PROPERTY(hostname, hostname, RO),
 	DHCP4REQ_DICT_PROPERTY(fqdn, fqdn, RO),

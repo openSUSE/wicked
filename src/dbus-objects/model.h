@@ -84,6 +84,7 @@ extern ni_dbus_server_t *	__ni_objectmodel_server;
 extern ni_xs_scope_t *		__ni_objectmodel_schema;
 extern ni_dbus_service_t	ni_objectmodel_ipv4_service;
 extern ni_dbus_service_t	ni_objectmodel_ipv6_service;
+extern ni_dbus_service_t	ni_objectmodel_ethtool_service;
 extern ni_dbus_service_t	ni_objectmodel_ethernet_service;
 extern ni_dbus_service_t	ni_objectmodel_bridge_service;
 extern ni_dbus_service_t	ni_objectmodel_bridge_factory_service;

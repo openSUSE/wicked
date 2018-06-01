@@ -36,6 +36,7 @@ typedef struct ni_dhcp4_tester {
 	const char *	request;
 	const char *	output;
 	unsigned int	outfmt;
+	ni_tristate_t	broadcast;
 } ni_dhcp4_tester_t;
 
 extern ni_dhcp4_tester_t *	ni_dhcp4_tester_init(void);

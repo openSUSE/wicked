@@ -95,11 +95,26 @@ typedef struct ni_config_teamd {
 	ni_config_teamd_ctl_t	ctl;
 } ni_config_teamd_t;
 
+typedef enum {
+	NI_CONFIG_DHCP4_ROUTES_CSR,
+	NI_CONFIG_DHCP4_ROUTES_MSCSR,
+	NI_CONFIG_DHCP4_ROUTES_CLASS,
+} ni_config_dhcp4_routes_t;
+
+typedef enum {
+	NI_CONFIG_DHCP4_CID_TYPE_HWADDR = 1U,
+	NI_CONFIG_DHCP4_CID_TYPE_DHCPv6,
+	NI_CONFIG_DHCP4_CID_TYPE_DISABLE,
+} ni_config_dhcp4_cid_type_t;
+
 typedef struct ni_config_dhcp4 {
 	struct ni_config_dhcp4 *next;
 	char *			device;
 
+	unsigned int		create_cid;
+
 	unsigned int		allow_update;
+	unsigned int		routes_opts;
 	char *			vendor_class;
 	unsigned int		lease_time;
 	ni_string_array_t	ignore_servers;
@@ -115,8 +130,12 @@ typedef struct ni_config_dhcp6 {
 	char *			device;
 
 	char *			default_duid;
+	unsigned int		create_duid;
+	ni_bool_t		device_duid;
+
 	unsigned int		allow_update;
 	unsigned int		lease_time;
+	unsigned int		release_nretries;
 
 	ni_string_array_t 	user_class_data;
 	unsigned int		vendor_class_en;
@@ -182,6 +201,7 @@ extern ni_config_t *	ni_config_parse(const char *, ni_init_appdata_callback_t *,
 extern ni_extension_t *	ni_config_find_extension(ni_config_t *, const char *);
 extern ni_extension_t *	ni_config_find_system_updater(ni_config_t *, const char *);
 extern unsigned int	ni_config_addrconf_update_mask(ni_addrconf_mode_t, unsigned int);
+extern unsigned int	ni_config_addrconf_update(const char *, ni_addrconf_mode_t, unsigned int);
 extern ni_bool_t	ni_config_use_nanny(void);
 
 extern const ni_config_dhcp4_t *	ni_config_dhcp4_find_device(const char *);

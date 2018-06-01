@@ -478,13 +478,13 @@ const ni_dbus_property_t	ni_objectmodel_vxlan_property_table[] = {
 
 /* VXLAN method tables */
 static ni_dbus_method_t		ni_objectmodel_vxlan_methods[] = {
-	{ "changeDevice",	"a{sv}",	ni_objectmodel_vxlan_change },
-	{ "deleteDevice",	"",		ni_objectmodel_vxlan_delete },
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_vxlan_change },
+	{ "deleteDevice",	"",		.handler = ni_objectmodel_vxlan_delete },
 	{ NULL }
 };
 
 static ni_dbus_method_t		ni_objectmodel_vxlan_factory_methods[] = {
-	{ "newDevice",		"sa{sv}",	ni_objectmodel_vxlan_newlink },
+	{ "newDevice",		"sa{sv}",	.handler = ni_objectmodel_vxlan_newlink },
 
 	{ NULL }
 };

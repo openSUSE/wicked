@@ -511,23 +511,23 @@ __ni_leaseinfo_dhcp4_dump(FILE *out, const ni_addrconf_lease_t *lease,
 					lease->dhcp4.sender_hwa, NULL, 0);
 	}
 
-	if (lease->time_acquired) {
-		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
+	if (lease->acquired.tv_sec) {
+		fprintf(out, "%s='%"PRId64"'\n", __ni_keyword_format
 				(&key, prefix, "ACQUIRED", 0),
-				lease->time_acquired);
+				(int64_t) lease->acquired.tv_sec);
 	}
 	if (lease->dhcp4.lease_time)  {
-		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
+		fprintf(out, "%s='%"PRIu32"'\n", __ni_keyword_format
 				(&key, prefix, "LEASETIME", 0),
 				lease->dhcp4.lease_time);
 	}
 	if (lease->dhcp4.renewal_time) {
-		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
+		fprintf(out, "%s='%"PRIu32"'\n", __ni_keyword_format
 				(&key, prefix, "RENEWALTIME", 0),
 				lease->dhcp4.renewal_time);
 	}
 	if (lease->dhcp4.rebind_time) {
-		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
+		fprintf(out, "%s='%"PRIu32"'\n", __ni_keyword_format
 				(&key, prefix, "REBINDTIME", 0),
 				lease->dhcp4.rebind_time);
 	}
@@ -576,10 +576,10 @@ __ni_leaseinfo_dhcp6_dump(FILE *out, const ni_addrconf_lease_t *lease,
 	char *key = NULL;
 	ni_sockaddr_t sa;
 
-	if (lease->time_acquired) {
-		fprintf(out, "%s='%"PRIu16"'\n", __ni_keyword_format
+	if (lease->acquired.tv_sec) {
+		fprintf(out, "%s='%"PRIu64"'\n", __ni_keyword_format
 				(&key, prefix, "ACQUIRED", 0),
-				lease->time_acquired);
+				(uint64_t) lease->acquired.tv_sec);
 	}
 
 	if (lease->dhcp6.client_id.len) {

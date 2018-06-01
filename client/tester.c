@@ -37,7 +37,6 @@
 #include <wicked/address.h>
 #include <wicked/addrconf.h>
 
-#include "tester.h"
 #include "dhcp4/tester.h"
 #include "dhcp6/tester.h"
 #include "netinfo_priv.h"
@@ -52,6 +51,7 @@ ni_do_test_dhcp4(const char *caller, int argc, char **argv)
 		OPT_TEST_REQUEST = 'r',
 		OPT_TEST_OUTPUT	 = 'o',
 		OPT_TEST_OUTFMT	 = 'F',
+		OPT_TEST_BROADCAST = 'b',
 	};
 	static struct option	options[] = {
 		{ "help",	no_argument,		NULL,	OPT_HELP	},
@@ -59,6 +59,7 @@ ni_do_test_dhcp4(const char *caller, int argc, char **argv)
 		{ "timeout",	required_argument,	NULL,	OPT_TEST_TIMEOUT},
 		{ "output",	required_argument,	NULL,	OPT_TEST_OUTPUT	},
 		{ "format",	required_argument,	NULL,	OPT_TEST_OUTFMT	},
+		{ "broadcast",	no_argument,		NULL,	OPT_TEST_BROADCAST},
 		{ NULL,		no_argument,		NULL,	0		}
 	};
 	int opt = 0, status = NI_WICKED_RC_USAGE;
@@ -77,7 +78,7 @@ ni_do_test_dhcp4(const char *caller, int argc, char **argv)
 	}
 
 	optind = 1;
-	while ((opt = getopt_long(argc, argv, "+hr:t:o:F:", options, NULL)) != EOF) {
+	while ((opt = getopt_long(argc, argv, "+hr:t:o:F:b", options, NULL)) != EOF) {
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
@@ -90,10 +91,11 @@ ni_do_test_dhcp4(const char *caller, int argc, char **argv)
 				"Options:\n"
 				"  --help, -h      show this help text and exit.\n"
 				"\n"
-				"  --timeout, -t   <timeout in sec> (default: 20+10)\n"
-				"  --request, -r   <request.xml>\n"
-				"  --output, -o    <output file name>\n"
-				"  --format, -F    <leaseinfo|lease-xml>\n"
+				"  --timeout, -t   	<timeout in sec> (default: 20+10)\n"
+				"  --request, -r   	<request.xml>\n"
+				"  --output, -o    	<output file name>\n"
+				"  --format, -F    	<leaseinfo|lease-xml>\n"
+				"  --broadcast, -b	request broadcast responses from server\n"
 				"\n", program);
 			goto cleanup;
 
@@ -129,6 +131,10 @@ ni_do_test_dhcp4(const char *caller, int argc, char **argv)
 				status = NI_WICKED_RC_ERROR;
 				goto cleanup;
 			}
+			break;
+
+		case OPT_TEST_BROADCAST:
+			tester->broadcast = NI_TRISTATE_ENABLE;
 			break;
 		}
 	}

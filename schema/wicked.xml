@@ -8,6 +8,7 @@
 <include name="constants.xml"/>
 <include name="scripts.xml"/>
 <include name="protocol.xml"/>
+<include name="ethtool.xml"/>
 <include name="ethernet.xml"/>
 <include name="vlan.xml"/>
 <include name="vxlan.xml"/>

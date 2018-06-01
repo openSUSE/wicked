@@ -46,6 +46,10 @@ typedef struct ni_compat_netdev {
 	ni_netdev_t *		dev;
 	ni_ifworker_control_t * control;
 	ni_var_array_t		scripts;
+	struct {
+		ni_bool_t	enabled;
+		char *		zone;
+	} firewall;
 
 	struct {
 		ni_hwaddr_t	hwaddr;
@@ -74,6 +78,7 @@ typedef struct ni_compat_netdev {
 		unsigned int	lease_time;
 		ni_bool_t	recover_lease;
 		ni_bool_t	release_lease;
+		ni_tristate_t	broadcast;
 
 		unsigned int	route_priority;
 		unsigned int	update;

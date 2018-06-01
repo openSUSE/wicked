@@ -282,8 +282,6 @@ ni_route_copy_options(ni_route_t *rp, const ni_route_t *src)
 	C(hoplimit);
 	C(features);
 	C(reordering);
-
-	C(ipv6_cache_info);
 #undef C
 	return TRUE;
 }
@@ -362,8 +360,6 @@ ni_route_update_options(ni_route_t *rp, const ni_route_t *src)
 	CC(features);
 	CC(reordering);
 #undef  CC
-	rp->ipv6_cache_info = src->ipv6_cache_info;
-
 	return TRUE;
 }
 

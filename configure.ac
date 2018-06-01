@@ -39,6 +39,15 @@ if test "x$enable_lldp" = "xyes" ; then
 	AC_DEFINE([NI_ENABLE_LLDP], [], [Enable lldp support])
 fi
 
+# Whether to use rfc4361 dhcp4 client-id by default
+AC_ARG_ENABLE([dhcp4-rfc4361-cid],
+	      [AS_HELP_STRING([--disable-dhcp4-rfc4361-cid],
+	       [disable to not use rfc4361 DHCPv4 client-id by default])],,
+	      [enable_dhcp4_rfc4361_cid=yes])
+if test "x$enable_dhcp4_rfc4361_cid" = "xyes" ; then
+	AC_DEFINE([NI_DHCP4_RFC4361_CID], [1], [Enable to use rfc4361 DHCPv4 client-id by default])
+fi
+
 # Whether to enable nanny use
 AC_ARG_ENABLE([nanny-use],
 	      [AS_HELP_STRING([--disable-nanny-use],
@@ -199,6 +208,12 @@ esac
 AM_CONDITIONAL([wicked_compat_auto],	[test "X$with_compat" = "Xauto"])
 AM_CONDITIONAL([wicked_compat_suse],	[test "X$with_compat" = "Xsuse"])
 AM_CONDITIONAL([wicked_compat_redhat],	[test "X$with_compat" = "Xredhat"])
+
+# suse sysconfig fillup template directory
+AC_ARG_WITH([fillup-templatesdir], [AS_HELP_STRING([--with-fillup-templatesdir@<:@=DIR@:>@],
+	    [sysconfig fillup template directory [${localstatedir}/adm/fillup-templates]])],,
+	    [with_fillup_templatesdir="${localstatedir}/adm/fillup-templates"])
+AC_SUBST(fillup_templatesdir,	"$with_fillup_templatesdir")
 
 # Enable system extensions (e.g. _GNU_SOURCE)
 AC_USE_SYSTEM_EXTENSIONS

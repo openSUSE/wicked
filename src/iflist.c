@@ -1036,26 +1036,6 @@ done:
 }
 
 /*
- * Refresh interface statistics.
- * We assume that IFLA_STATS have already been covered by a generic ni_refresh;
- * all we want to do here is potentially retrieve additional stats eg via
- * ethtool.
- */
-int
-__ni_system_interface_stats_refresh(ni_netconfig_t *nc, ni_netdev_t *dev)
-{
-	int rv = 0;
-
-	if (dev->link.ethtool_stats
-	 && (rv = __ni_ethtool_stats_refresh(dev->name, dev->link.ethtool_stats)) < 0)
-		return rv;
-
-	/* More stats may go here, such as routing statistics */
-
-	return 0;
-}
-
-/*
  * Translate interface flags
  */
 unsigned int
@@ -1866,6 +1846,9 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 
 	__ni_process_ifinfomsg_af_spec(dev, tb[IFLA_AF_SPEC], nc);
 	__ni_process_ifinfomsg_ipv6info(dev, tb[IFLA_PROTINFO]);
+
+	if (!ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
+		ni_system_ethtool_refresh(dev);
 
 	switch (dev->link.type) {
 	case NI_IFTYPE_ETHERNET:
@@ -2759,8 +2742,8 @@ __ni_rtnl_parse_newprefix(const char *ifname, struct nlmsghdr *h, struct prefixm
 	if (tb[PREFIX_CACHEINFO]) {
 		cache_info = __ni_nla_get_data(sizeof(*cache_info), tb[PREFIX_CACHEINFO]);
 		if (cache_info) {
-			pi->lifetime.preferred_lft = cache_info->preferred_time;
-			pi->lifetime.valid_lft = cache_info->valid_time;
+			pi->preferred_lft = cache_info->preferred_time;
+			pi->valid_lft = cache_info->valid_time;
 		} else {
 			ni_error("%s: cannot get rtnl PREFIX message lifetimes data", ifname);
 			return -1;
@@ -2856,9 +2839,9 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 		const struct ifa_cacheinfo *ci;
 		ci = __ni_nla_get_data(sizeof(*ci), tb[IFA_CACHEINFO]);
 		if (ci) {
-			ni_timer_get_time(&ap->ipv6_cache_info.acquired);
-			ap->ipv6_cache_info.valid_lft = ci->ifa_valid;
-			ap->ipv6_cache_info.preferred_lft = ci->ifa_prefered;
+			ni_timer_get_time(&ap->cache_info.acquired);
+			ap->cache_info.valid_lft = ci->ifa_valid;
+			ap->cache_info.preferred_lft = ci->ifa_prefered;
 		}
 	}
 
@@ -2891,7 +2874,7 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 	ap->peer_addr = tmp.peer_addr;
 	ap->bcast_addr = tmp.bcast_addr;
 	ap->anycast_addr = tmp.anycast_addr;
-	ap->ipv6_cache_info = tmp.ipv6_cache_info;
+	ap->cache_info = tmp.cache_info;
 	if (!ni_string_eq(ap->label, tmp.label)) {
 		ni_string_dup(&ap->label, tmp.label);
 	}
@@ -2925,8 +2908,8 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 			(ap->flags & IFA_F_MCAUTOJOIN)		? " mcautojoin" : "",
 			(ap->flags & IFA_F_STABLE_PRIVACY)	? " stable-privacy" : "",
 			(unsigned int)ap->flags,
-			ap->ipv6_cache_info.valid_lft,
-			ap->ipv6_cache_info.preferred_lft,
+			ap->cache_info.valid_lft,
+			ap->cache_info.preferred_lft,
 			(ap->owner ? ni_addrconf_type_to_name(ap->owner) : "none"));
 #endif
 

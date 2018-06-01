@@ -30,6 +30,12 @@ typedef struct ni_sockaddr_array {
 	ni_sockaddr_t *		data;
 } ni_sockaddr_array_t;
 
+typedef struct ni_address_cache_info {
+	struct timeval		acquired;
+	unsigned int		valid_lft;
+	unsigned int		preferred_lft;
+} ni_address_cache_info_t;
+
 typedef struct ni_address {
 	unsigned int		refcount;
 	struct ni_address *	next;
@@ -47,7 +53,7 @@ typedef struct ni_address {
 	ni_sockaddr_t		bcast_addr;
 	char *			label;
 
-	ni_ipv6_cache_info_t	ipv6_cache_info;
+	ni_address_cache_info_t	cache_info;
 } ni_address_t;
 
 typedef struct ni_address_array {
@@ -113,6 +119,7 @@ extern void		ni_address_free(ni_address_t *);
 extern ni_bool_t	ni_address_equal_ref(const ni_address_t *, const ni_address_t *);
 extern ni_bool_t	ni_address_equal_local_addr(const ni_address_t *, const ni_address_t *);
 extern const char *	ni_address_format_flags(ni_stringbuf_t *, unsigned int, unsigned int, const char *);
+extern const char *	ni_address_print(ni_stringbuf_t *, const ni_address_t *);
 extern ni_bool_t	ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw);
 extern ni_bool_t	ni_address_is_loopback(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_linklocal(const ni_address_t *laddr);
@@ -123,6 +130,7 @@ extern ni_bool_t	ni_address_is_permanent(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_deprecated(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_mngtmpaddr(const ni_address_t *laddr);
 
+extern void		ni_address_set_temporary(ni_address_t *, ni_bool_t);
 extern void		ni_address_set_tentative(ni_address_t *, ni_bool_t);
 extern void		ni_address_set_duplicate(ni_address_t *, ni_bool_t);
 
@@ -146,8 +154,10 @@ extern unsigned int	ni_address_array_index(const ni_address_array_t *, const ni_
 extern ni_address_t *	ni_address_array_find_match(ni_address_array_t *, const ni_address_t *, unsigned int *,
 					ni_bool_t (*match)(const ni_address_t *, const ni_address_t *));
 
+extern const char *	ni_lifetime_print_valid(ni_stringbuf_t *, unsigned int);
+extern const char *	ni_lifetime_print_preferred(ni_stringbuf_t *, unsigned int);
 extern unsigned int	ni_lifetime_left(unsigned int, const struct timeval *, const struct timeval *);
-extern void		ni_ipv6_cache_info_rebase(ni_ipv6_cache_info_t *, const ni_ipv6_cache_info_t *,
+extern void		ni_address_cache_info_rebase(ni_address_cache_info_t *, const ni_address_cache_info_t *,
 					const struct timeval *);
 
 #endif /* __WICKED_ADDRESS_H__ */

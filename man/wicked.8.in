@@ -1,4 +1,4 @@
-.TH WICKED 8 "16 July 2012
+.TH wicked 8 "June 2018" "wicked" "Network configuration"
 .SH NAME
 wicked \- network management utility
 .SH SYNOPSIS
@@ -21,6 +21,14 @@ wicked \- network management utility
 .BI "wicked [" global-options "] xpath [" options "] " format ...
 .br
 .BI "wicked [" global-options "] getnames [" options "] " device ...
+.br
+.BI "wicked [" global-options "] duid [" options "] <" action "> ...
+.br
+.BI "wicked [" global-options "] iaid [" options "] <" action "> ...
+.br
+.BI "wicked [" global-options "] arp <" action "> [" options "] ...
+.br
+.BI "wicked [" global-options "] ethtool [" interface "] --action [" arguments "] ...
 .br
 .PP
 .\" ----------------------------------------
@@ -505,6 +513,168 @@ Instead of querying network devices, interpret the given interface name
 as a modem device.
 .PP
 .\" ----------------------------------------
+.SH duid - set, get, create a new DUID
+This command permits to show, get, set or create a new DHCP Unique Identifier
+(DUID) and store it in \fBwicked\fP's persistent duid file.
+A DUID is used to identify DHCP clients and servers (hosts), is unique across
+them and should not change over time if at all possible.
+.br
+For complete description, please refer to https://tools.ietf.org/html/rfc3315#section-9
+.PP
+The set, get, create commands also permit to store the duid per-device in the
+persistent duid file using the \fB--scope <ifname>\fR parameter, which is used
+when configured to appear with multiple identities to the dhcp servers.
+See the dhcp6 \fBdefault-duid\fR and dhcp4 \fRcreate-cid\fR node descriptions
+in the \fRwicked-config(5)\fR manual page.
+.TP
+.B create <type> [--scope <ifname>] [--update]
+Constructs a DUID of a specific type and when requested used with the
+\fB--update\fP option, also store in wicked's persistent duid file.
+.RS
+.TP
+- DUID type 1, Link-layer address plus time:
+.nf
+.B "    # wicked duid create llt [ [ifname] | <hwtype> <hwaddr> ]
+.fi
+.RS
+.TP
+To specify the hardware address type and address (MAC), use e.g.:
+.nf
+.B "    # wicked duid create llt ethernet 02:00:00:00:00:01
+.fi
+.TP
+To specify to use the hardware address of an interface, use e.g.:
+.nf
+.B "    # wicked duid create llt eth0
+.fi
+.TP
+Without arguments, wicked will search for an existing interface it can use:
+.nf
+.B "    # wicked duid create llt
+.fi
+.PP
+Currently supported hardware types are ethernet and infiniband.
+The time is set to duid creation time (since 2001) automatically.
+.RE
+.TP
+- DUID type 2, Vendor Based on IANA Enterprise Number:
+.nf
+.B "    # wicked duid create en <enterprise-number> <machine-identifier>
+.fi
+.RS
+.PP
+To create a duid en using for example the enterprise number assigned to SUSE
+and an opaque unique machine identifier noted as colon-separated hex bytes, use:
+.nf
+.B "    # wicked duid create en 7057 02:00:00:00:00:02
+.fi
+.TP
+See also http://www.iana.org/assignments/enterprise-numbers.
+.RE
+.TP
+- DUID type 3, Link-layer address:
+.nf
+.B "    # wicked duid create ll [ [ifname] | <hwtype> <hwaddr> ]
+.fi
+.RS
+.TP
+Usage is as for type 1 duid llt, the duid does not contain a time.
+.RE
+.TP
+- DUID type 4, UUID-Based Unique Identifier:
+.nf
+.B "    # wicked duid create uuid [ <uuid> | --machine-id | --product-id ]
+.fi
+.RS
+.PP
+Creates a DUID using specified UUID in its common format format, by importing
+the systemd /etc/machine-id file or the DMI product id uuid (problematic),
+use e.g.:
+.nf
+.B "    # wicked duid create uuid 35bc57cb-c327-4908-9592-57ad07e8aa77
+.B "    # wicked duid create uuid --machine-id
+.B "    # wicked duid create uuid --product-id
+.fi
+.RE
+.RE
+
+.TP
+.B set [--scope <ifname>] <duid>
+Stores duid in colon-separated hex bytes notation to the persistent duid file, e.g.:
+.nf
+.B "    # wicked duid set 00:04:8b:69:45:16:ce:fb:4a:1d:b0:3a:c0:02:b6:b7:55:36
+.fi
+.TP
+.B del [--scope <ifname>]
+Deletes the duid stored in the persistent duid file.
+.TP
+.B get [--scope <ifname>]
+Retrieves the duid stored in the persistent duid file.
+.TP
+.B dump\ \fRor\fB\ show
+Shows all duid's stored in the persistent duid file.
+.PP
+.\" ----------------------------------------
+.SH iaid - set, get, create a new IAID
+This command permits to show, get, set or create a new DHCP Identity Association
+Identifier (IAID).
+.br
+An IAID is a 32bit number used to associate a collection of addresses (temporary,
+non-temporary or prefix address) to an interface/device of a client.
+.br
+Wicked automatically maintains one IAID per interface in it's persistent iaid file.
+This command permits to adjust them when/as needed.
+.PP
+For complete description, please refer to https://tools.ietf.org/html/rfc3315#section-10
+.TP
+.B create [--update] <ifname>
+Constructs an IAID for a given interface and if requested with \fB--update\fR,
+also stores it in the persistent iaid file.
+.TP
+.B set <ifname> <iaid>
+Stores the specified 32bit iaid number for an interface in the persistent iaid file.
+.TP
+.B del <ifname>
+Deletes the IAID of a given interface.
+.TP
+.B get <ifname>
+Retrieves the IAID of a given interface.
+.TP
+.B dump\fB\ show
+Shows all IAID's and interfaces stored in the persistent duid file.
+
+.\" ----------------------------------------
+.SH arp - send ARP requests
+This command permits to verify/probe IPv4 addresses for duplicates, notify/announce
+about own IP address use to neighbours and ping neighbours using ARP requests.
+.PP
+.TP
+.B verify [--count n] [--interval ms] <ifname> <IP address>
+Sends given number (default 3) of IPv4 duplicate address detections probes
+in intervals (default random range 1000..2000ms) to verify, that given IP
+address is not already in use on the interface.
+On a reply indicating a duplicate address, status code 4 is returned.
+.TP
+.B notify [--count n] [--interval ms] <ifname> <IP address>
+Notify about/Announce the use of the IPv4 address to the neighbours on an
+interface by sending a number (default 2) of gratuitous ARP requests in
+the given interval (default 2000ms) between the packets.
+When no notify were sent, the status code 7 is returned.
+.TP
+.B ping [--count n] [--interval ms] [--replies n] [--timeout ms] [--from-ip ip] <ifname> <IP address>
+ARP ping a neighbour with specified IP address on an interface
+with first or the specified source IP address and an interval
+(default 1000ms) between the packets.
+To limit the number of pings to send, use the count parameter.
+The replies parameter permits to specify the number of replies
+expected in the time given by timeout or the count and interval
+parameters to report a success status code 0 or status code 7
+when the expected replies do not arrive.
+.\" ----------------------------------------
+.SH ethtool - Show and modify ethtool options
+Please read the \fBwicked-ethtool\fR(8) manual page.
+
+.\" ----------------------------------------
 .SH xpath - retrieve data from an XML blob
 The \fBwickedd\fP server can be enhanced to support new network device types
 via extension commands \(em usually shell scripts. When invoking such a script,
@@ -591,13 +761,14 @@ evaluated \fIrelative to each node\fP. Note the use of the question mark in
 the \fBpriority\fP term, marking the field as optional.
 .\" ----------------------------------------
 .SH "SEE ALSO"
-\fBwickedd\fP(8), \fBwicked-config\fP(5).
+\fBwickedd\fP(8), \fBwicked-config\fP(5), \fBwicked-ethtool\fP(8)
 .\" ----------------------------------------
 .SH COPYRIGHT
-Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+Copyright (C) 2018 SUSE LINUX GmbH, Nuernberg, Germany.
 .SH BUGS
-Please report bugs at <https://bugzilla.novell.com/index.cgi>
+Please report bugs as described at <http://bugs.opensuse.org>
 .SH AUTHORS
 Olaf Kirch
 Pawel Wieczorkiewicz
 Karol Mroz
+Nirmoy Das

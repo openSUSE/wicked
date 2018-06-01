@@ -22,6 +22,8 @@ extern int		ni_system_mtu_change(ni_netconfig_t *, ni_netdev_t *,
 				unsigned int mtu);
 extern int		ni_system_hwaddr_change(ni_netconfig_t *, ni_netdev_t *,
 				const ni_hwaddr_t *);
+extern int		ni_system_ethtool_setup(ni_netconfig_t *, ni_netdev_t *,
+				const ni_netdev_t *);
 extern int		ni_system_ethernet_setup(ni_netconfig_t *, ni_netdev_t *,
 				const ni_netdev_t *);
 extern int		ni_system_infiniband_setup(ni_netconfig_t *, ni_netdev_t *,

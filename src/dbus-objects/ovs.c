@@ -171,7 +171,7 @@ __ni_objectmodel_ovs_bridge_shutdown(ni_dbus_object_t *object, const ni_dbus_met
 
 	if (ni_system_ovs_bridge_shutdown(dev) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Error shutting ovs bridge interface down", dev->name);
+				"Error shutting down ovs bridge interface %s", dev->name);
 		return FALSE;
 	}
 	return TRUE;
@@ -195,7 +195,7 @@ __ni_objectmodel_ovs_bridge_delete(ni_dbus_object_t *object, const ni_dbus_metho
 	NI_TRACE_ENTER_ARGS("dev=%s", dev->name);
 	if (ni_system_ovs_bridge_delete(nc, dev) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Error deleting ovs bridge interface", dev->name);
+				"Error deleting ovs bridge interface %s", dev->name);
 		return FALSE;
 	}
 
@@ -447,14 +447,14 @@ static ni_dbus_property_t	ni_objectmodel_ovs_bridge_properties[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_ovs_bridge_methods[] = {
-	{ "changeDevice",	"a{sv}",			__ni_objectmodel_ovs_bridge_setup },
-	{ "shutdownDevice",	"",				__ni_objectmodel_ovs_bridge_shutdown },
-	{ "deleteDevice",	"",				__ni_objectmodel_ovs_bridge_delete },
+	{ "changeDevice",	"a{sv}",	.handler = __ni_objectmodel_ovs_bridge_setup },
+	{ "shutdownDevice",	"",		.handler = __ni_objectmodel_ovs_bridge_shutdown },
+	{ "deleteDevice",	"",		.handler = __ni_objectmodel_ovs_bridge_delete },
 	{ NULL }
 };
 
 static ni_dbus_method_t		ni_objectmodel_ovs_bridge_factory_methods[] = {
-	{ "newDevice",		"sa{sv}",			__ni_objectmodel_ovs_bridge_create },
+	{ "newDevice",		"sa{sv}",	.handler = __ni_objectmodel_ovs_bridge_create },
 	{ NULL }
 };
 

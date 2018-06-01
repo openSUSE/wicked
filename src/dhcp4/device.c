@@ -25,10 +25,12 @@
 #include "dhcp4/dhcp4.h"
 #include "dhcp4/protocol.h"
 #include "dhcp.h"
+#include "iaid.h"
+#include "duid.h"
 
 
-static unsigned int	ni_dhcp4_do_bits(unsigned int);
-static const char *	__ni_dhcp4_print_doflags(unsigned int);
+static unsigned int	ni_dhcp4_do_bits(const ni_config_dhcp4_t *, unsigned int);
+static const char *	ni_dhcp4_print_doflags(unsigned int);
 static void		ni_dhcp4_config_set_request_options(const char *, ni_uint_array_t *, const ni_string_array_t *);
 
 ni_dhcp4_device_t *	ni_dhcp4_active;
@@ -277,10 +279,18 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	config->acquire_timeout = info->acquire_timeout;
 	config->uuid = info->uuid;
 	config->flags = info->flags;
-	config->update = info->update;
+	if (info->update == -1U) {
+		config->update = ni_config_addrconf_update(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
+	} else {
+		config->update = info->update;
+		config->update &= ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);
+	}
+	config->doflags = ni_dhcp4_do_bits(ni_config_dhcp4_find_device(dev->ifname), config->update);
+
 	config->route_priority = info->route_priority;
 	config->recover_lease = info->recover_lease;
 	config->release_lease = info->release_lease;
+	config->broadcast = info->broadcast;
 
 	config->max_lease_time = ni_dhcp4_config_max_lease_time();
 	if (config->max_lease_time == 0)
@@ -311,11 +321,8 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	if (config->fqdn.enabled == NI_TRISTATE_ENABLE && ni_string_empty(config->hostname))
 		config->fqdn.update = NI_DHCP4_FQDN_UPDATE_NONE;
 
-	if (!ni_dhcp4_parse_client_id(&config->client_id, dev->system.hwaddr.type,
-				info->clientid)) {
-		/* Set client ID from interface hwaddr */
-		ni_dhcp4_set_client_id(&config->client_id, &dev->system.hwaddr);
-	}
+	if (!ni_dhcp4_parse_client_id(&config->client_id, dev->system.hwaddr.type, info->clientid))
+		ni_dhcp4_set_config_client_id(&config->client_id, dev);
 
 	if ((classid = info->vendor_class) == NULL)
 		classid = ni_dhcp4_config_vendor_class();
@@ -326,9 +333,6 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		config->user_class.format = info->user_class.format;
 		ni_string_array_copy(&config->user_class.class_id, &info->user_class.class_id);
 	}
-
-	config->doflags = DHCP4_DO_DEFAULT;
-	config->doflags |= ni_dhcp4_do_bits(info->update);
 
 	if (ni_log_facility(NI_TRACE_DHCP)) {
 		ni_trace("Received request:");
@@ -352,7 +356,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		}
 		ni_trace("  client-id       %s", ni_print_hex(config->client_id.data, config->client_id.len));
 		ni_trace("  uuid            %s", ni_uuid_print(&config->uuid));
-		ni_trace("  update-flags    %s", __ni_dhcp4_print_doflags(config->doflags));
+		ni_trace("  update-flags    %s", ni_dhcp4_print_doflags(config->doflags));
 		ni_trace("  recover_lease   %s", config->recover_lease ? "true" : "false");
 		ni_trace("  release_lease   %s", config->release_lease ? "true" : "false");
 	}
@@ -406,7 +410,7 @@ ni_dhcp4_restart_leases(void)
  * DHCP4_DO_* masks
  */
 static unsigned int
-ni_dhcp4_do_bits(unsigned int update_flags)
+ni_dhcp4_do_bits(const ni_config_dhcp4_t *conf, unsigned int update_flags)
 {
 	static unsigned int	do_mask[32] = {
 	[NI_ADDRCONF_UPDATE_DEFAULT_ROUTE]	= DHCP4_DO_GATEWAY,
@@ -414,30 +418,60 @@ ni_dhcp4_do_bits(unsigned int update_flags)
 	[NI_ADDRCONF_UPDATE_DNS]		= DHCP4_DO_DNS,
 	[NI_ADDRCONF_UPDATE_NIS]		= DHCP4_DO_NIS,
 	[NI_ADDRCONF_UPDATE_NTP]		= DHCP4_DO_NTP,
+	[NI_ADDRCONF_UPDATE_NDS]		= DHCP4_DO_NDS,
+	[NI_ADDRCONF_UPDATE_SMB]		= DHCP4_DO_SMB,
+	[NI_ADDRCONF_UPDATE_SIP]		= DHCP4_DO_SIP,
+	[NI_ADDRCONF_UPDATE_LPR]		= DHCP4_DO_LPR,
+	[NI_ADDRCONF_UPDATE_LOG]		= DHCP4_DO_LOG,
 	[NI_ADDRCONF_UPDATE_MTU]		= DHCP4_DO_MTU,
+	[NI_ADDRCONF_UPDATE_BOOT]		= DHCP4_DO_ROOT,
+	[NI_ADDRCONF_UPDATE_TZ]			= DHCP4_DO_POSIX_TZ,
 	};
-	unsigned int bit, result = 0;
+	unsigned int bit, result = DHCP4_DO_ARP | DHCP4_DO_CSR
+				 | DHCP4_DO_STATIC_ROUTES;
 
 	for (bit = 0; bit < 32; ++bit) {
-		if (update_flags & (1 << bit))
+		if (update_flags & NI_BIT(bit))
 			result |= do_mask[bit];
+		else
+			result &= ~do_mask[bit];
 	}
+
+	if (conf && conf->routes_opts != -1U) {
+		result &= ~(DHCP4_DO_CSR|DHCP4_DO_STATIC_ROUTES);
+
+		if (conf->routes_opts & NI_BIT(NI_CONFIG_DHCP4_ROUTES_CSR))
+			result |= DHCP4_DO_CSR;
+		if (conf->routes_opts & NI_BIT(NI_CONFIG_DHCP4_ROUTES_MSCSR))
+			result |= DHCP4_DO_MSCSR;
+		if (conf->routes_opts & NI_BIT(NI_CONFIG_DHCP4_ROUTES_CLASS))
+			result |= DHCP4_DO_STATIC_ROUTES;
+	}
+
 	return result;
 }
 
 static const char *
-__ni_dhcp4_print_doflags(unsigned int flags)
+ni_dhcp4_print_doflags(unsigned int flags)
 {
 	static ni_intmap_t flag_names[] = {
 	{ "arp",		DHCP4_DO_ARP		},
 	{ "csr",		DHCP4_DO_CSR		},
 	{ "mscsr",		DHCP4_DO_MSCSR		},
+	{ "static-routes",	DHCP4_DO_STATIC_ROUTES	},
 	{ "gateway",		DHCP4_DO_GATEWAY	},
 	{ "hostname",		DHCP4_DO_HOSTNAME	},
 	{ "dns",		DHCP4_DO_DNS		},
 	{ "nis",		DHCP4_DO_NIS		},
 	{ "ntp",		DHCP4_DO_NTP		},
+	{ "nds",		DHCP4_DO_NDS		},
+	{ "smb",		DHCP4_DO_SMB		},
+	{ "sip",		DHCP4_DO_SIP		},
+	{ "lpr",		DHCP4_DO_LPR		},
+	{ "log",		DHCP4_DO_LOG		},
+	{ "tz",			DHCP4_DO_POSIX_TZ	},
 	{ "mtu",		DHCP4_DO_MTU		},
+	{ "root",		DHCP4_DO_ROOT		},
 	{ NULL }
 	};
 	static char buffer[1024];
@@ -706,12 +740,9 @@ transient_failure:
 int
 ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
 {
-	struct sockaddr_in sin = {
-		.sin_family = AF_INET,
-		.sin_addr.s_addr = lease->dhcp4.server_id.s_addr,
-		.sin_port = htons(DHCP4_SERVER_PORT),
-	};
+	ni_sockaddr_t addr;
 
+	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.server_id, DHCP4_SERVER_PORT);
 	dev->transmit.msg_code = msg_code;
 	dev->transmit.lease = lease;
 
@@ -724,7 +755,8 @@ ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_co
 
 	if (ni_dhcp4_device_prepare_message(dev) < 0)
 		return -1;
-	if (sendto(dev->listen_fd, ni_buffer_head(&dev->message), ni_buffer_count(&dev->message), 0, (struct sockaddr *)&sin, sizeof(sin)) < 0)
+	if (sendto(dev->listen_fd, ni_buffer_head(&dev->message), ni_buffer_count(&dev->message), 0,
+				&addr.sa, sizeof(addr.sin)) < 0)
 		ni_error("%s: sendto failed: %m", dev->ifname);
 	return 0;
 }
@@ -757,7 +789,122 @@ ni_dhcp4_device_arp_close(ni_dhcp4_device_t *dev)
 }
 
 /*
- * Parse a client id
+ * Set the client ID from a link layer type and address, according to RFC 2132#section-9.14
+ */
+ni_bool_t
+ni_dhcp4_set_hwaddr_client_id(ni_opaque_t *raw, const ni_hwaddr_t *hwa)
+{
+	if (!raw || !hwa || !hwa->len)
+		return FALSE;
+
+	if ((size_t)hwa->len + 1 > sizeof(raw->data))
+		return FALSE;
+
+	raw->data[0] = hwa->type;
+	memcpy(raw->data + 1, hwa->data, hwa->len);
+	raw->len = hwa->len + 1;
+	return TRUE;
+}
+
+/*
+ * Set the client ID from DHCPv6 IAID and DUID, according to RFC 4361
+ */
+ni_bool_t
+ni_dhcp4_set_dhcpv6_client_id(ni_opaque_t *raw, unsigned int iaid, const ni_opaque_t *duid)
+{
+	if (!raw || !duid)
+		return FALSE;
+
+	if (sizeof(iaid) + duid->len + 1 > sizeof(raw->data))
+		return FALSE;
+
+	raw->data[0] = 0xff;
+	iaid = htonl(iaid);
+	memcpy(raw->data + 1, &iaid, sizeof(iaid));
+	memcpy(raw->data + 1 + sizeof(iaid), duid->data, duid->len);
+	raw->len = sizeof(iaid) + duid->len + 1;
+	return TRUE;
+
+}
+
+/*
+ * Set the client ID as defined in the wicked-config(5)
+ */
+ni_bool_t
+ni_dhcp4_set_config_client_id(ni_opaque_t *raw, const ni_dhcp4_device_t *dev)
+{
+	const ni_config_dhcp4_t *dhcp4;
+	ni_netconfig_t *nc;
+	ni_netdev_t *ndev;
+	unsigned int iaid;
+	ni_opaque_t  duid;
+	unsigned int type;
+
+	if (!raw || !dev || !(nc = ni_global_state_handle(0)))
+		return FALSE;
+
+	if (!(ndev = ni_netdev_by_index(nc, dev->link.ifindex)))
+		return FALSE;
+
+	dhcp4 = ni_config_dhcp4_find_device(dev->ifname);
+	if (!(type = dhcp4 ? dhcp4->create_cid : 0)) {
+		/*
+		 * We should allways use dhcp6 based client-id as
+		 * specified in RFC 4361, also on ethernet...
+		 *
+		 * This is also required to update DDNS records for
+		 * DHCPv6 and DHCPv4 IP addresses in same zone (the
+		 * server maintains a dhcid DNS record using it).
+		 *
+		 * Unfortunatelly, it would be a default behavior
+		 * change and may cause non-matching lease as well
+		 * as (ipv4 only) ddns update issues:
+		 *
+		 * There are many exising dhcp servers in the wild
+		 * relying on or using (static) leases with the
+		 * the "old" dhcp4 link address (mac) client-id,
+		 * incl. updated ddns records using it already...
+		 *
+		 * DHCPv4 over infiniband RFC mandates DHCPv6 based
+		 * client-id, on ethernet it currently requires to
+		 * enable it.
+		 */
+		switch (dev->system.hwaddr.type) {
+		case ARPHRD_ETHER:
+#ifndef NI_DHCP4_RFC4361_CID
+			type = NI_CONFIG_DHCP4_CID_TYPE_HWADDR;
+			break;
+#endif
+		case ARPHRD_INFINIBAND:
+		default:
+			type = NI_CONFIG_DHCP4_CID_TYPE_DHCPv6;
+			break;
+		}
+	}
+
+	switch (type) {
+	case NI_CONFIG_DHCP4_CID_TYPE_DHCPv6:
+		if (!ni_iaid_acquire(&iaid, ndev, 0))
+			return FALSE;
+
+		if (!ni_duid_acquire(&duid, ndev, nc, NULL))
+			return FALSE;
+
+		return ni_dhcp4_set_dhcpv6_client_id(raw, iaid, &duid);
+
+	case NI_CONFIG_DHCP4_CID_TYPE_HWADDR:
+		return ni_dhcp4_set_hwaddr_client_id(raw, &dev->system.hwaddr);
+
+	case NI_CONFIG_DHCP4_CID_TYPE_DISABLE:
+		return TRUE;
+
+	default:
+		return FALSE;
+	}
+}
+
+/*
+ * Parse requested client id
  */
 ni_bool_t
 ni_dhcp4_parse_client_id(ni_opaque_t *raw, unsigned short arp_type, const char *cooked)
@@ -770,7 +917,7 @@ ni_dhcp4_parse_client_id(ni_opaque_t *raw, unsigned short arp_type, const char *
 
 	/* Check if it's a hardware address */
 	if (ni_link_address_parse(&hwaddr, arp_type, cooked) == 0)
-		return ni_dhcp4_set_client_id(raw, &hwaddr);
+		return ni_dhcp4_set_hwaddr_client_id(raw, &hwaddr);
 
 	/* Try to parse as a client-id hex string */
 	raw->len = ni_parse_hex(cooked, raw->data, sizeof(raw->data));
@@ -782,27 +929,9 @@ ni_dhcp4_parse_client_id(ni_opaque_t *raw, unsigned short arp_type, const char *
 	if (len > sizeof(raw->data) - 1)
 		len = sizeof(raw->data) - 1;
 
-	raw->data[0] = 0x00;
+	raw->data[0] = 0x00; /* RFC 2132#section-9.14, other */
 	memcpy(raw->data + 1, cooked, len);
 	raw->len = len + 1;
-	return TRUE;
-}
-
-/*
- * Set the client ID from a link layer address, according to RFC 2131
- */
-ni_bool_t
-ni_dhcp4_set_client_id(ni_opaque_t *raw, const ni_hwaddr_t *hwa)
-{
-	if (!raw || !hwa)
-		return FALSE;
-
-	if ((size_t)hwa->len + 1 > sizeof(raw->data))
-		return FALSE;
-
-	raw->data[0] = hwa->type;
-	memcpy(raw->data + 1, hwa->data, hwa->len);
-	raw->len = hwa->len + 1;
 	return TRUE;
 }
 
@@ -915,8 +1044,10 @@ ni_dhcp4_request_new(void)
 	req = xcalloc(1, sizeof(*req));
 	req->enabled = TRUE; /* used by wickedd */
 
-	/* By default, we try to obtain all sorts of config from the server */
-	req->update = ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);
+	req->broadcast = NI_TRISTATE_DEFAULT;
+
+	/* By default, we try to obtain all sorts of settings from the server */
+	req->update = -1U; /* apply wicked-config(5) defaults later */
 
 	/* default: enable + update mode depends on request hostname + dots */
 	ni_dhcp_fqdn_init(&req->fqdn);

@@ -1,6 +1,24 @@
 #!/bin/bash
 #
 # Copyright (C) 2012, Olaf Kirch <okir@suse.de>
+# Copyright (C) 2012-2017, SUSE LINUX GmbH, Nuernberg, Germany.
+#
+#       This program is free software; you can redistribute it and/or modify
+#       it under the terms of the GNU General Public License as published by
+#       the Free Software Foundation; either version 2 of the License, or
+#       (at your option) any later version.
+#
+#       This program is distributed in the hope that it will be useful,
+#       but WITHOUT ANY WARRANTY; without even the implied warranty of
+#       MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#       GNU General Public License for more details.
+#
+#       You should have received a copy of the GNU General Public License along
+#       with this program; if not, see <http://www.gnu.org/licenses/>.
+#
+#       Authors:
+#		Olaf Kirch <okir@suse.de>
+#		Marius Tomaschewski <mt@suse.de>
 #
 # This extension scripts implements all supported interface operations
 # related to firewalling.
@@ -16,22 +34,68 @@
 # this extension script to handle these.
 #
 
-scriptdir=`dirname $0`
-if [ -f "$scriptdir/functions" ]; then
-	. "$scriptdir/functions"
-fi
+###
+### remove comment chars to trace this script:
+###
+#exec 2>/tmp/wicked-firewall.$$.trace
+#set -vx
 
-command=$1
+wicked="/usr/sbin/wicked"
+systemctl="/usr/bin/systemctl"
+firewalld_cmd="/usr/bin/firewall-cmd"
+firewalld_service="firewalld.service"
+
+shopt -s nullglob
+action=$1
 shift
 
-case $command in
-up|down)
-	# For now, do nothing - just pretend we were successful
-	;;
+wicked_config_get_zone()
+{
+	test "X$1" != "X" -a -f "$1" || return 0
+	$wicked xpath --file "$1" --reference '/arguments/config' '%{?zone}' 2>/dev/null
+}
+
+firewalld_is_active()
+{
+	test -x "$firewalld_cmd" && \
+		"$systemctl" -q is-active "$firewalld_service" &>/dev/null
+}
+
+firewalld_up()
+{
+	test "X$WICKED_INTERFACE_NAME" = "X" && return 1
+
+	local ZONE=`wicked_config_get_zone "$WICKED_ARGFILE"`
+	if test "X$ZONE" = "X" ; then
+		ZONE=`"$firewalld_cmd" --get-default-zone 2>/dev/null`
+		test "X$ZONE" = "X" && return 1
+	fi
+	"$firewalld_cmd" --zone="$ZONE" --change-interface="$WICKED_INTERFACE_NAME" &>/dev/null
+}
+
+firewalld_down()
+{
+	test "X$WICKED_INTERFACE_NAME" = "X" && return 1
+
+	"$firewalld_cmd" --remove-interface="$WICKED_INTERFACE_NAME" &>/dev/null
+}
+
+case $action in
+up)
+	if firewalld_is_active ;  then
+		firewalld_up
+	fi
+;;
+
+down)
+	if firewalld_is_active ; then
+		firewalld_down
+	fi
+;;
 
 *)
-	wicked_error "Unsupported script action $command"
-	;;
+	logger -p user.debug -t "wicked-firewall" "Unsupported script action '$action'"
+;;
 esac
 
 exit 0

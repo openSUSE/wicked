@@ -93,8 +93,11 @@ typedef struct ni_dhcp4_device {
 #define NI_DHCP4_REQUEST_TIMEOUT		60	/* seconds */
 #define NI_DHCP4_ARP_TIMEOUT		200	/* msec */
 
+/*
+ * common NI_ADDRCONF_UPDATE_* + dhcp4 specific options
+ */
 enum {
-	DHCP4_DO_ARP		= 0x00000001, /* TODO: -> wickedd */
+	DHCP4_DO_ARP		= 0x00000001,
 	DHCP4_DO_HOSTNAME	= 0x00000002,
 	DHCP4_DO_DNS		= 0x00000004,
 	DHCP4_DO_NIS		= 0x00000008,
@@ -110,13 +113,8 @@ enum {
 	DHCP4_DO_LOG		= 0x00002000,
 	DHCP4_DO_POSIX_TZ	= 0x00004000,
 	DHCP4_DO_MTU		= 0x00008000,
-	DHCP4_DO_DEFAULT	= DHCP4_DO_ARP|DHCP4_DO_HOSTNAME|DHCP4_DO_DNS|
-				  DHCP4_DO_NIS|DHCP4_DO_NTP|DHCP4_DO_CSR|
-				  DHCP4_DO_GATEWAY|DHCP4_DO_ROOT|
-				  DHCP4_DO_NDS|DHCP4_DO_SMB|DHCP4_DO_SIP|
-				  DHCP4_DO_LPR|DHCP4_DO_LOG|DHCP4_DO_POSIX_TZ
+	DHCP4_DO_STATIC_ROUTES	= 0x00010000,
 };
-
 
 /*
  * fsm (dry) run modes
@@ -162,6 +160,7 @@ struct ni_dhcp4_request {
 	 * This is a bitmap; individual bits correspond to
 	 * NI_ADDRCONF_UPDATE_* (this is an index enum, not a bitmask) */
 	unsigned int		update;
+	ni_tristate_t		broadcast;
 };
 
 /*
@@ -192,6 +191,8 @@ struct ni_dhcp4_config {
 	unsigned int		update;
 	unsigned int		doflags;
 	ni_uint_array_t		request_options;
+
+	ni_tristate_t		broadcast;
 
 	unsigned int		route_priority;
 
@@ -260,7 +261,7 @@ extern void		ni_dhcp4_device_retransmit(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_device_force_retransmit(ni_dhcp4_device_t *, unsigned int);
 extern void		ni_dhcp4_device_arp_close(ni_dhcp4_device_t *);
 extern ni_bool_t	ni_dhcp4_parse_client_id(ni_opaque_t *, unsigned short, const char *);
-extern ni_bool_t	ni_dhcp4_set_client_id(ni_opaque_t *, const ni_hwaddr_t *);
+extern ni_bool_t	ni_dhcp4_set_config_client_id(ni_opaque_t *, const ni_dhcp4_device_t *);
 extern void		ni_dhcp4_new_xid(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_device_set_best_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t *, int);
 extern void		ni_dhcp4_device_drop_best_offer(ni_dhcp4_device_t *);

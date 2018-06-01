@@ -44,6 +44,7 @@ typedef struct ni_team		ni_team_t;
 typedef struct ni_team_port_config ni_team_port_config_t;
 typedef struct ni_wireless	ni_wireless_t;
 typedef struct ni_wireless_scan	ni_wireless_scan_t;
+typedef struct ni_ethtool	ni_ethtool_t;
 typedef struct ni_ethernet	ni_ethernet_t;
 typedef struct ni_infiniband	ni_infiniband_t;
 typedef struct ni_openvpn	ni_openvpn_t;
@@ -148,12 +149,6 @@ ni_uint_range_update_max(ni_uint_range_t *r, unsigned int max)
 typedef struct ni_int_range {
 	int			min, max;
 } ni_int_range_t;
-
-typedef struct ni_ipv6_cache_info {
-	struct timeval		acquired;
-	unsigned int		valid_lft;
-	unsigned int		preferred_lft;
-} ni_ipv6_cache_info_t;
 
 /*
  * Prototypes for ipv6 devinfo RA details

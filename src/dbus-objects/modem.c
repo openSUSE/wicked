@@ -344,7 +344,7 @@ ni_objectmodel_modem_list_identify_device(ni_dbus_object_t *object, const ni_dbu
 }
 
 static ni_dbus_method_t		ni_objectmodel_modem_list_methods[] = {
-	{ "identifyDevice",	"a{sv}",	ni_objectmodel_modem_list_identify_device },
+	{ "identifyDevice",	"a{sv}",	.handler = ni_objectmodel_modem_list_identify_device },
 	{ NULL }
 };
 
@@ -737,10 +737,10 @@ static ni_dbus_property_t	ni_objectmodel_modem_properties[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_modem_methods[] = {
-	{ "changeDevice",	"a{sv}",		ni_objectmodel_modem_change_device },
-	{ "linkUp",		"a{sv}",		ni_objectmodel_modem_connect },
-	{ "linkDown",		"",			ni_objectmodel_modem_disconnect },
-	{ "setClientState",	"a{sv}",		ni_objectmodel_modem_set_client_state },
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_modem_change_device },
+	{ "linkUp",		"a{sv}",	.handler = ni_objectmodel_modem_connect },
+	{ "linkDown",		"",		.handler = ni_objectmodel_modem_disconnect },
+	{ "setClientState",	"a{sv}",	.handler = ni_objectmodel_modem_set_client_state },
 	{ NULL }
 };
 

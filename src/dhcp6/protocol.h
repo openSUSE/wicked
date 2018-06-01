@@ -262,6 +262,7 @@ extern unsigned int	ni_dhcp6_ia_get_renewal_time(ni_dhcp6_ia_t *);
 extern ni_bool_t	ni_dhcp6_ia_is_active(ni_dhcp6_ia_t *, struct timeval *);
 extern unsigned int	ni_dhcp6_ia_list_count_active(ni_dhcp6_ia_t *, struct timeval *now);
 extern int		ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **, const ni_dhcp6_ia_t *, ni_bool_t);
+extern unsigned int	ni_dhcp6_ia_copy_to_lease_addrs(const ni_dhcp6_device_t *, ni_addrconf_lease_t *);
 
 extern const char *	ni_dhcp6_print_timeval(const struct timeval *);
 extern const char *	ni_dhcp6_print_time(time_t);

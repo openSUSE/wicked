@@ -503,7 +503,7 @@ ni_objectmodel_addrconf_static_drop(ni_dbus_object_t *object, unsigned int addrf
 		/* unable to start removal / some allocation error */
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
-				"%s: failed to drop %s:%s lease",
+				"%s: failed to drop %s:%s lease", dev->name,
 				ni_addrfamily_type_to_name(addrfamily),
 				ni_addrconf_type_to_name(NI_ADDRCONF_STATIC));
 		return FALSE;
@@ -720,7 +720,7 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 		/* unable to start removal / some allocation error */
 		dbus_set_error(error,
 				DBUS_ERROR_FAILED,
-				"%s: failed to drop %s:%s lease",
+				"%s: failed to drop %s:%s lease", dev->name,
 				ni_addrfamily_type_to_name(forwarder->addrfamily),
 				ni_addrconf_type_to_name(forwarder->addrconf));
 		return FALSE;
@@ -749,7 +749,7 @@ ni_objectmodel_addrconf_forwarder_call(ni_dbus_addrconf_forwarder_t *forwarder,
 	if (forwarder->supplicant.client == NULL) {
 		forwarder->supplicant.client = ni_create_dbus_client(forwarder->supplicant.bus_name);
 		if (forwarder->supplicant.client == NULL) {
-			dbus_set_error(error, "unable to create call forwarder for %s",
+			dbus_set_error(error, DBUS_ERROR_FAILED, "unable to create call forwarder for %s",
 					forwarder->supplicant.bus_name);
 			return FALSE;
 		}
@@ -1521,38 +1521,38 @@ static ni_dbus_property_t		ni_objectmodel_addrconf_ipv6_auto_properties[] = {
  * Addrconf methods
  */
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4_static_methods[] = {
-	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv4_static_request },
-	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv4_static_drop },
+	{ "requestLease",	"a{sv}",	.handler = ni_objectmodel_addrconf_ipv4_static_request },
+	{ "dropLease",		"",		.handler = ni_objectmodel_addrconf_ipv4_static_drop },
 	{ NULL }
 };
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_static_methods[] = {
-	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv6_static_request },
-	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv6_static_drop },
+	{ "requestLease",	"a{sv}",	.handler = ni_objectmodel_addrconf_ipv6_static_request },
+	{ "dropLease",		"",		.handler = ni_objectmodel_addrconf_ipv6_static_drop },
 	{ NULL }
 };
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4_dhcp_methods[] = {
-	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv4_dhcp_request },
-	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv4_dhcp_drop },
+	{ "requestLease",	"a{sv}",	.handler = ni_objectmodel_addrconf_ipv4_dhcp_request },
+	{ "dropLease",		"",		.handler = ni_objectmodel_addrconf_ipv4_dhcp_drop },
 	{ NULL }
 };
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_dhcp_methods[] = {
-	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv6_dhcp_request },
-	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv6_dhcp_drop },
+	{ "requestLease",	"a{sv}",	.handler = ni_objectmodel_addrconf_ipv6_dhcp_request },
+	{ "dropLease",		"",		.handler = ni_objectmodel_addrconf_ipv6_dhcp_drop },
 	{ NULL }
 };
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4_auto_methods[] = {
-	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv4_auto_request },
-	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv4_auto_drop },
+	{ "requestLease",	"a{sv}",	.handler = ni_objectmodel_addrconf_ipv4_auto_request },
+	{ "dropLease",		"",		.handler = ni_objectmodel_addrconf_ipv4_auto_drop },
 	{ NULL }
 };
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_auto_methods[] = {
-	{ "requestLease",	"a{sv}",		ni_objectmodel_addrconf_ipv6_auto_request },
-	{ "dropLease",		"",			ni_objectmodel_addrconf_ipv6_auto_drop },
+	{ "requestLease",	"a{sv}",	.handler = ni_objectmodel_addrconf_ipv6_auto_request },
+	{ "dropLease",		"",		.handler = ni_objectmodel_addrconf_ipv6_auto_drop },
 	{ NULL }
 };
 

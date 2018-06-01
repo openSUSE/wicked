@@ -33,6 +33,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <errno.h>
+#include <inttypes.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -167,12 +168,12 @@ ni_addrconf_lease_addrs_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t
 		if (ap->family == AF_INET && ap->label)
 			xml_node_new_element("label", anode, ap->label);
 
-		if (ap->ipv6_cache_info.preferred_lft || ap->ipv6_cache_info.valid_lft) {
+		if (ap->cache_info.preferred_lft != NI_LIFETIME_INFINITE) {
 			xml_node_t *cnode = xml_node_new("cache-info", anode);
 			xml_node_new_element_uint("preferred-lifetime", cnode,
-					ap->ipv6_cache_info.preferred_lft);
+					ap->cache_info.preferred_lft);
 			xml_node_new_element_uint("valid-lifetime", cnode,
-					ap->ipv6_cache_info.valid_lft);
+					ap->cache_info.valid_lft);
 		}
 	}
 	return count ? 0 : 1;
@@ -481,7 +482,7 @@ ni_addrconf_lease_opts_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t 
 static int
 __ni_addrconf_lease_info_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 {
-	char hex[32] = { '\0' };
+	char buf[32] = { '\0' };
 
 	xml_node_new_element("family", node, ni_addrfamily_type_to_name(lease->family));
 	xml_node_new_element("type", node, ni_addrconf_type_to_name(lease->type));
@@ -490,9 +491,12 @@ __ni_addrconf_lease_info_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *no
 	if (!ni_uuid_is_null(&lease->uuid))
 		xml_node_new_element("uuid", node, ni_uuid_print(&lease->uuid));
 	xml_node_new_element("state", node, ni_addrconf_state_to_name(lease->state));
-	snprintf(hex, sizeof(hex), "0x%08x", lease->update);
-	xml_node_new_element("update", node, hex);
-	xml_node_new_element_uint("acquired", node, lease->time_acquired);
+
+	snprintf(buf, sizeof(buf), "%"PRId64, (int64_t)lease->acquired.tv_sec);
+	xml_node_new_element("acquired", node, buf);
+
+	snprintf(buf, sizeof(buf), "0x%08x", lease->update);
+	xml_node_new_element("update", node, buf);
 	return 0;
 }
 
@@ -631,13 +635,24 @@ __ni_addrconf_lease_info_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *
 			if (ni_uuid_parse(&lease->uuid, child->cdata) != 0)
 				return -1;
 		} else
+		if (ni_string_eq(child->name, "state")) {
+			if ((lease->state = ni_addrconf_name_to_state(child->cdata)) < 0)
+				lease->state = NI_ADDRCONF_STATE_NONE;
+		} else
 		if (ni_string_eq(child->name, "update")) {
 			if (ni_parse_uint(child->cdata, &lease->update, 16) != 0)
 				return -1;
 			update = TRUE;
 		}
 		if (ni_string_eq(child->name, "acquired")) {
-			if (ni_parse_uint(child->cdata, &lease->time_acquired, 10) != 0)
+			int64_t acquired;
+
+			if (ni_parse_int64(child->cdata, &acquired, 10) || acquired < 0)
+				return -1;
+
+			lease->acquired.tv_sec = acquired;
+			lease->acquired.tv_usec = 0;
+			if ((int64_t)lease->acquired.tv_sec != acquired)
 				return -1;
 		}
 	}
@@ -743,12 +758,12 @@ __ni_addrconf_lease_addr_from_xml(ni_address_t **ap_list, unsigned int family, c
 		if ((cnode = xml_node_get_child(child, "preferred-lifetime"))) {
 			if (ni_parse_uint(child->cdata, &lft, 10) != 0)
 				goto failure;
-			ap->ipv6_cache_info.preferred_lft = lft;
+			ap->cache_info.preferred_lft = lft;
 		}
 		if ((cnode = xml_node_get_child(child, "valid-lifetime"))) {
 			if (ni_parse_uint(child->cdata, &lft, 10) != 0)
 				goto failure;
-			ap->ipv6_cache_info.valid_lft = lft;
+			ap->cache_info.valid_lft = lft;
 		}
 	}
 

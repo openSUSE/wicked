@@ -135,7 +135,7 @@ const ni_dbus_property_t	ni_objectmodel_ipv6_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_ipv6_methods[] = {
-	{ "changeProtocol",	"a{sv}",		ni_objectmodel_ipv6_change_protocol },
+	{ "changeProtocol",	"a{sv}",	.handler = ni_objectmodel_ipv6_change_protocol },
 	{ NULL }
 };
 

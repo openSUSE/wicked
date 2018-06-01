@@ -115,7 +115,7 @@ __ni_objectmodel_sit_create(ni_netdev_t *cfg_ifp, const char *ifname, DBusError 
 		if (rv != -NI_ERROR_DEVICE_EXISTS || dev == NULL
 			|| (ifname && dev && !ni_string_eq(dev->name, ifname))) {
 			dbus_set_error(error, DBUS_ERROR_FAILED,
-				"Unable to create sit tunnel: %s");
+				"Unable to create sit tunnel: %s", cfg_ifp->name);
 			dev = NULL;
 			goto out;
 		}
@@ -377,8 +377,8 @@ static const ni_dbus_property_t	ni_objectmodel_sit_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_sit_methods[] = {
-	{ "changeDevice",	"a{sv}",	ni_objectmodel_sit_change },
-	{ "deleteDevice",	"",		ni_objectmodel_sit_delete },
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_sit_change },
+	{ "deleteDevice",	"",		.handler = ni_objectmodel_sit_delete },
 
 	{ NULL }
 };
@@ -393,7 +393,7 @@ ni_dbus_service_t		ni_objectmodel_sit_service = {
  * sitN point-to-point tunnel factory service
  */
 static ni_dbus_method_t		ni_objectmodel_sit_factory_methods[] = {
-	{ "newDevice",		"sa{sv}",	ni_objectmodel_sit_create },
+	{ "newDevice",		"sa{sv}",	.handler = ni_objectmodel_sit_create },
 
 	{ NULL }
 };

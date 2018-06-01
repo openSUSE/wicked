@@ -199,6 +199,23 @@ ni_system_interface_enslave(ni_netconfig_t *nc, ni_netdev_t *master, ni_netdev_t
 		}
 	}
 
+	if (!dev->link.masterdev.index) {
+		/*
+		 * cleanup slave before enslaving it -- this has to
+		 * happen in down state to not cause side effects
+		 * (vanishing sysctl/procfs subtrees, ...).
+		 */
+		if (ni_netdev_device_is_up(dev))
+			__ni_rtnl_link_down(dev);
+
+		/* link is down, safe to remove all addrs and routes */
+		__ni_system_interface_flush_addrs(nc, dev);
+		__ni_system_interface_flush_routes(nc, dev);
+
+		/* TODO: trigger regular remove instead to wipe them */
+		ni_addrconf_lease_list_destroy(&dev->leases);
+	}
+
 	switch (master->link.type) {
 	case NI_IFTYPE_BOND:
 		ret = __ni_rtnl_link_add_slave_down(dev, master->name,
@@ -274,6 +291,7 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 	if (dev == NULL)
 		return -NI_ERROR_INVALID_ARGS;
 
+	__ni_system_refresh_interface(nc, dev);
 	ni_debug_ifconfig("%s(%s)", __func__, dev->name);
 
 	/* FIXME: perform sanity check on configuration data,
@@ -285,6 +303,14 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 		 * master manages the link of a slave, redirect to enslave
 		 * when there is a master set.
 		 */
+		if (dev->link.masterdev.index) {
+			master = ni_netdev_by_index(nc, dev->link.masterdev.index);
+			if (master)
+				__ni_system_refresh_interface(nc, master);
+			else
+				__ni_system_refresh_interfaces(nc);
+		}
+
 		if (dev->link.masterdev.index) {
 			if (!dev->link.masterdev.name)
 				ni_netdev_ref_bind_ifname(&dev->link.masterdev, nc);
@@ -1463,14 +1489,12 @@ __ni_system_infiniband_setup(const char *ifname, unsigned int mode, unsigned int
 	    ni_sysfs_netif_put_string(ifname, "mode", mstr) < 0) {
 		ni_error("%s: Cannot set infiniband IPoIB connection-mode '%s'",
 			ifname, mstr);
-		ret = -1;
 	}
 
 	if ((umcast == 0 || umcast == 1) &&
 	    ni_sysfs_netif_put_uint(ifname, "umcast", umcast) < 0) {
 		ni_error("%s: Cannot set infiniband IPoIB user-multicast '%s' (%u)",
 			ifname, ni_infiniband_get_umcast_name(umcast), umcast);
-		ret = -1;
 	}
 
 	return ret;
@@ -3281,8 +3305,8 @@ ni_rtnl_link_put_vxlan_opt(ni_netconfig_t *nc, struct nl_msg *msg, const char *i
 		break;
 
 	case IFLA_VXLAN_PORT_RANGE:
-		if ((vxlan->src_port.low != vxlan->src_port.low) ||
-		    (vxlan->src_port.high != vxlan->src_port.high)) {
+		if ((vxlan->src_port.low != conf->src_port.low) ||
+		    (vxlan->src_port.high != conf->src_port.high)) {
 			struct ifla_vxlan_port_range p;
 			p.low  = htons(conf->src_port.low);
 			p.high = htons(conf->src_port.high);
@@ -4022,6 +4046,7 @@ __ni_rtnl_link_change_mtu(ni_netdev_t *dev, unsigned int mtu)
 {
 	struct ifinfomsg ifi;
 	struct nl_msg *msg;
+	int err;
 
 	if (!dev || !mtu)
 		return -1;
@@ -4030,15 +4055,20 @@ __ni_rtnl_link_change_mtu(ni_netdev_t *dev, unsigned int mtu)
 	ifi.ifi_family = AF_UNSPEC;
 	ifi.ifi_index = dev->link.ifindex;
 
-	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST);
+	if (!(msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST)))
+		goto nla_put_failure;
+
 	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
 		goto nla_put_failure;
 
 	if (__ni_rtnl_link_put_mtu(msg, mtu) < 0)
 		goto nla_put_failure;
 
-	if (ni_nl_talk(msg, NULL))
+	if ((err = ni_nl_talk(msg, NULL))) {
+		ni_error("failed to modify interface %s mtu to %u: %s",
+				dev->name, mtu, nl_geterror(err));
 		goto failed;
+	}
 
 	ni_debug_ifconfig("successfully modified interface %s mtu to %u",
 			dev->name, mtu);
@@ -4342,13 +4372,17 @@ __ni_netdev_address_in_list(ni_address_t *list, const ni_address_t *ap)
 static int
 __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 {
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned int omit = IFA_F_TENTATIVE|IFA_F_DADFAILED;
 	struct ifaddrmsg ifa;
 	struct nl_msg *msg;
 	int err;
 
-	ni_debug_ifconfig("%s(%s/%u)", __FUNCTION__,
-			ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
+	ni_debug_ifconfig("%s(%s, %s %s)", __FUNCTION__, dev->name,
+			flags & NLM_F_REPLACE ? "replace " :
+			flags & NLM_F_CREATE  ? "create " : "",
+			ni_address_print(&buf, ap));
+	ni_stringbuf_destroy(&buf);
 
 	memset(&ifa, 0, sizeof(ifa));
 	ifa.ifa_index = dev->link.ifindex;
@@ -4405,20 +4439,15 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 		}
 	}
 
-	if (ap->family == AF_INET6 && ap->ipv6_cache_info.valid_lft) {
+	if (ap->cache_info.preferred_lft != NI_LIFETIME_INFINITE) {
 		struct ifa_cacheinfo ci;
 
 		memset(&ci, 0, sizeof(ci));
-		ci.ifa_valid = ap->ipv6_cache_info.valid_lft;
-		ci.ifa_prefered = ap->ipv6_cache_info.preferred_lft;
+		ci.ifa_valid = ap->cache_info.valid_lft;
+		ci.ifa_prefered = ap->cache_info.preferred_lft;
 
-		if (ci.ifa_prefered > ci.ifa_valid) {
-			ni_warn("%s: ipv6 address %s/%u prefered lifetime %u cannot "
-				" be greater than the valid lifetime %u", dev->name,
-				ni_sockaddr_print(&ap->local_addr), ap->prefixlen,
-				ci.ifa_prefered, ci.ifa_valid);
+		if (ci.ifa_prefered > ci.ifa_valid)
 			ci.ifa_prefered = ci.ifa_valid;
-		}
 
 		if (nla_put(msg, IFA_CACHEINFO, sizeof(ci), &ci) < 0)
 			goto nla_put_failure;
@@ -4963,12 +4992,12 @@ __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t 
 
 	case AF_INET6:
 	{
-		ni_ipv6_cache_info_t olft, nlft;
+		ni_address_cache_info_t olft, nlft;
 		struct timeval now;
 
 		ni_timer_get_time(&now);
-		ni_ipv6_cache_info_rebase(&olft, &o->ipv6_cache_info, &now);
-		ni_ipv6_cache_info_rebase(&nlft, &n->ipv6_cache_info, &now);
+		ni_address_cache_info_rebase(&olft, &o->cache_info, &now);
+		ni_address_cache_info_rebase(&nlft, &n->cache_info, &now);
 
 		/* (invalid) 0 lifetimes mean unset/not provided by the lease;
 		 * kernel uses ~0 (infinity) / permanent address when omitted */
@@ -5563,7 +5592,7 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 			ni_stringbuf_destroy(&buf);
 
 			if ((rv = __ni_rtnl_send_newroute(dev, rp, NLM_F_CREATE)) < 0)
-				return rv;
+				continue;
 
 			rp->owner = new_lease->type;
 			rp->seq = __ni_global_seqno;

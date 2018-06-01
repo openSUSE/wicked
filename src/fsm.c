@@ -4919,7 +4919,7 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	},
 
 	/* This sets any device attributes, such as a MAC address */
-	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_SETUP, "changeDevice", .call_overloading = TRUE),
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_SETUP, "changeDevice", .call_overloading = FALSE),
 
 	/* This sets the per-interface protocol attributes, such as forwarding */
 	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_PROTOCOLS_UP, "changeProtocol"),

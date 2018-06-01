@@ -101,7 +101,7 @@ __ni_objectmodel_vlan_newlink(ni_netdev_t *cfg_ifp, const char *ifname, DBusErro
 	if (ni_string_eq(cfg_ifp->name, cfg_ifp->link.lowerdev.name)) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Cannot create vlan interface: "
-				"vlan name %s equal with lower device name");
+				"vlan name %s equal with lower device name", cfg_ifp->name);
 		return NULL;
 	}
 
@@ -390,14 +390,14 @@ const ni_dbus_property_t	ni_objectmodel_vlan_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_vlan_methods[] = {
-	{ "changeDevice",	"a{sv}",		ni_objectmodel_vlan_change },
-	{ "deleteDevice",	"",			ni_objectmodel_vlan_delete },
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_vlan_change },
+	{ "deleteDevice",	"",		.handler = ni_objectmodel_vlan_delete },
 
 	{ NULL }
 };
 
 static ni_dbus_method_t		ni_objectmodel_vlan_factory_methods[] = {
-	{ "newDevice",		"sa{sv}",		ni_objectmodel_vlan_newlink },
+	{ "newDevice",		"sa{sv}",	.handler = ni_objectmodel_vlan_newlink },
 
 	{ NULL }
 };

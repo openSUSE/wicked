@@ -581,6 +581,17 @@ ni_netconfig_device_append(ni_netconfig_t *nc, ni_netdev_t *dev)
 	__ni_netdev_list_append(&nc->interfaces, dev);
 }
 
+static inline void
+ni_netconfig_device_unbind_slave_index(ni_netconfig_t *nc, unsigned int master)
+{
+	ni_netdev_t *dev;
+
+	for (dev = nc->interfaces; dev; dev = dev->next) {
+		if (dev->link.masterdev.index == master)
+			ni_netdev_ref_destroy(&dev->link.masterdev);
+	}
+}
+
 void
 ni_netconfig_device_remove(ni_netconfig_t *nc, ni_netdev_t *dev)
 {
@@ -589,6 +600,7 @@ ni_netconfig_device_remove(ni_netconfig_t *nc, ni_netdev_t *dev)
 	for (pos = &nc->interfaces; (cur = *pos) != NULL; pos = &cur->next) {
 		if (cur == dev) {
 			*pos = cur->next;
+			ni_netconfig_device_unbind_slave_index(nc, cur->link.ifindex);
 			ni_netdev_put(cur);
 			return;
 		}
@@ -938,7 +950,7 @@ ni_netdev_ref_set_ifindex(ni_netdev_ref_t *ref, unsigned int ifindex)
 }
 
 ni_netdev_t *
-ni_netdev_ref_resolve(ni_netdev_ref_t *ref, ni_netconfig_t *nc)
+ni_netdev_ref_resolve(const ni_netdev_ref_t *ref, ni_netconfig_t *nc)
 {
 	ni_netdev_t *dev = NULL;
 

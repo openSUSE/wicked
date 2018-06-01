@@ -61,11 +61,11 @@ struct ni_wpa_client {
 };
 
 static ni_dbus_class_t		ni_objectmodel_wpa_class = {
-	"wpa"
+	.name = "wpa-client"
 };
 static ni_dbus_class_t		ni_objectmodel_wpanet_class;
 static ni_dbus_class_t		ni_objectmodel_wpadev_class = {
-	"wpa-device"
+	.name = "wpa-device"
 };
 static ni_dbus_service_t	ni_wpa_bssid_service;
 static ni_dbus_service_t	ni_wpa_network_service;

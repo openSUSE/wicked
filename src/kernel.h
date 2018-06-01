@@ -39,19 +39,7 @@ __ni_rta_get_uint16(uint16_t *val, struct rtattr *rta)
 	return 0;
 }
 
-struct ni_ethtool_counter {
-	char *		name;
-	uint64_t	value;
-};
-struct ni_ethtool_stats {
-	unsigned int	count;
-	struct ni_ethtool_counter *data;
-};
-
 extern int		__ni_ethtool(const char *, int, void *);
-extern ni_ethtool_stats_t *__ni_ethtool_stats_init(const char *, const struct ethtool_drvinfo *);
-extern int		__ni_ethtool_stats_refresh(const char *, ni_ethtool_stats_t *);
-extern void		__ni_ethtool_stats_free(ni_ethtool_stats_t *);
 extern int		__ni_wireless_ext(const ni_netdev_t *dev, int cmd,
 				void *data, size_t data_len, unsigned int flags);
 extern int		__ni_brioctl_add_bridge(const char *);

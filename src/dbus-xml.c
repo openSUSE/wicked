@@ -414,7 +414,7 @@ ni_dbus_serialize_error(DBusError *error, xml_node_t *node)
 	if ((error_name = xml_node_get_attr(node, "name")) == NULL)
 		error_name = DBUS_ERROR_FAILED;
 
-	dbus_set_error(error, error_name,
+	dbus_set_error(error, error_name, "%s",
 			node->cdata? node->cdata : "extension call failed (no error message returned by script)");
 }
 

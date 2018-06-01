@@ -55,8 +55,7 @@
 #include "ifcheck.h"
 #include "ifreload.h"
 #include "ifstatus.h"
-#include "arputil.h"
-#include "tester.h"
+#include "main.h"
 
 enum {
 	OPT_HELP,
@@ -141,8 +140,9 @@ main(int argc, char **argv)
 		default:
 		usage:
 			fprintf(stderr,
-				"%s [options] cmd path\n"
-				"This command understands the following options\n"
+				"%s [options] <command> ...\n"
+				"\n"
+				"Options:\n"
 				"  --help\n"
 				"  --version\n"
 				"  --config filename\n"
@@ -161,27 +161,28 @@ main(int argc, char **argv)
 				"  --systemd\n"
 				"        Enables behavior required by systemd service\n"
 				"\n"
-				"Supported commands:\n"
+				"Commands:\n"
 				"  ifup        [options] <ifname ...>|all\n"
 				"  ifdown      [options] <ifname ...>|all\n"
 				"  ifcheck     [options] <ifname ...>|all\n"
 				"  ifreload    [options] <ifname ...>|all\n"
 				"  ifstatus    [options] <ifname ...>|all\n"
 				"  show        [options] <ifname ...>|all\n"
-#ifdef MODEM
-				"  show-xml    [--raw] [--modem] <ifname|all>\n"
-#endif
-				"  show-xml    [--raw] <ifname|all>\n"
-				"  show-config [--raw] [source]\n"
-				"  nanny       [subcommand]\n"
-				"  lease       [subcommand]\n"
-				"  check       [subcommand]\n"
-				"  getnames    [subcommand]\n"
-				"  convert     [subcommand]\n"
+				"  show-xml    [options]\n"
+				"  show-config [options]\n"
+				"  convert     [options]\n"
+				"  getnames    [options]\n"
 				"  xpath       [options] expr ...\n"
-				"  test        [subcommand]\n"
-				"  arp         [options] <ifname> <IP>\n"
-				"\n", program);
+				"  ethtool     [options] <ifname> <...>\n"
+				"  nanny       <action> ...\n"
+				"  lease       <action> ...\n"
+				"  check       <action> ...\n"
+				"  test        <action> ...\n"
+				"  iaid        <action> ...\n"
+				"  duid        <action> ...\n"
+				"  arp         <action> ...\n"
+				"\n"
+				, program);
 			goto done;
 
 		case OPT_VERSION:
@@ -314,11 +315,20 @@ main(int argc, char **argv)
 	if (!strcmp(cmd, "convert")) {
 		status = do_convert(argc - optind, argv + optind);
 	} else
+	if (!strcmp(cmd, "duid")) {
+		status = ni_do_duid(program, argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "iaid")) {
+		status = ni_do_iaid(program, argc - optind, argv + optind);
+	} else
 	if (!strcmp(cmd, "test")) {
 		status = ni_do_test(program, argc - optind, argv + optind);
 	} else
 	if (!strcmp(cmd, "arp")) {
-		status = ni_do_arp(argc - optind, argv + optind);
+		status = ni_do_arp(program, argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "ethtool")) {
+		status = ni_do_ethtool(program, argc - optind, argv + optind);
 	} else {
 		fprintf(stderr, "Unsupported command %s\n", cmd);
 		goto usage;
@@ -512,37 +522,52 @@ __dump_fake_xml(const ni_dbus_variant_t *variant, unsigned int indent, const cha
 	}
 }
 
-static xml_node_t *
-__dump_object_xml(const char *object_path, const ni_dbus_variant_t *variant, ni_xs_scope_t *schema, xml_node_t *parent)
+static ni_bool_t
+__dump_object_xml(const char *object_path, const ni_dbus_variant_t *variant,
+	ni_xs_scope_t *schema, xml_node_t *parent, const ni_string_array_t *filter)
 {
 	xml_node_t *object_node;
 	ni_dbus_dict_entry_t *entry;
 	unsigned int index;
+	const char *ifname, *interface_name;
 
 	if (!ni_dbus_variant_is_dict(variant)) {
 		ni_error("%s: dbus data is not a dict", __func__);
-		return NULL;
+		return FALSE;
 	}
 
-	object_node = xml_node_new("object", parent);
+	object_node = xml_node_new("object", NULL);
 	xml_node_add_attr(object_node, "path", object_path);
 
+	if (filter && !filter->count)
+		filter = NULL;
+
 	for (entry = variant->dict_array_value, index = 0; index < variant->array.len; ++index, ++entry) {
-		const char *interface_name = entry->key;
+		interface_name = entry->key;
+		if (filter
+		 && ni_string_eq(interface_name, NI_OBJECTMODEL_NETIF_INTERFACE)
+		 && ni_dbus_dict_get_string(&entry->datum, "name", &ifname)
+		 && ni_string_array_index(filter, ifname) == -1) {
+			xml_node_free(object_node);
+			return TRUE;
+		}
 
 		/* Ignore well-known interfaces that never have properties */
-		if (!strcmp(interface_name, "org.freedesktop.DBus.ObjectManager")
-		 || !strcmp(interface_name, "org.freedesktop.DBus.Properties"))
+		if (!ni_string_startswith(interface_name, NI_OBJECTMODEL_NAMESPACE))
 			continue;
 
 		ni_dbus_xml_deserialize_properties(schema, interface_name, &entry->datum, object_node);
 	}
 
-	return object_node;
+	if (object_node->children)
+		xml_node_add_child(parent, object_node);
+	else
+		xml_node_free(object_node);
+	return TRUE;
 }
 
 static xml_node_t *
-__dump_schema_xml(const ni_dbus_variant_t *variant, ni_xs_scope_t *schema)
+__dump_schema_xml(const ni_dbus_variant_t *variant, ni_xs_scope_t *schema, const ni_string_array_t *filter)
 {
 	xml_node_t *root = xml_node_new(NULL, NULL);
 	ni_dbus_dict_entry_t *entry;
@@ -550,12 +575,15 @@ __dump_schema_xml(const ni_dbus_variant_t *variant, ni_xs_scope_t *schema)
 
 	if (!ni_dbus_variant_is_dict(variant)) {
 		ni_error("%s: dbus data is not a dict", __func__);
+		xml_node_free(root);
 		return NULL;
 	}
 
 	for (entry = variant->dict_array_value, index = 0; index < variant->array.len; ++index, ++entry) {
-		if (!__dump_object_xml(entry->key, &entry->datum, schema, root))
+		if (!__dump_object_xml(entry->key, &entry->datum, schema, root, filter)) {
+			xml_node_free(root);
 			return NULL;
+		}
 	}
 
 	return root;
@@ -582,12 +610,12 @@ do_show_xml(int argc, char **argv)
 	ni_dbus_object_t *list_object, *object;
 	ni_dbus_variant_t result = NI_DBUS_VARIANT_INIT;
 	DBusError error = DBUS_ERROR_INIT;
-	const char *ifname = NULL;
 	int opt_raw = FALSE;
 #ifdef MODEM
 	int opt_modems = 0;
 #endif
 	int c, rv = 1;
+	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", local_options, NULL)) != EOF) {
@@ -606,12 +634,14 @@ do_show_xml(int argc, char **argv)
 		case OPT_HELP:
 		usage:
 			fprintf(stderr,
-				"wicked [options] show-xml <ifname|all>\n"
-				"\nSupported options:\n"
+				"wicked show-xml [options] [ifname ... |all]\n"
+				"\n"
+				"Supported options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
 				"  --raw\n"
-				"      Show raw dbus reply in pseudo-xml, rather than using the schema\n"
+				"      Show raw dbus reply in pseudo-xml, rather than using the schema.\n"
+				"      This option effectively disables the ifname filter. \n"
 #ifdef MODEM
 				"  --modem\n"
 				"      List Modems\n"
@@ -621,12 +651,17 @@ do_show_xml(int argc, char **argv)
 		}
 	}
 
-	if (optind < argc)
-		ifname = argv[optind++];
-	(void)ifname; /* FIXME; not used yet */
-
-	if (optind != argc)
+	if (opt_raw && optind != argc)
 		goto usage;
+
+	/* warning: this is a shallow-copy from argv,
+	 * use this only with _index() for filtering */
+	ifnames.count = argc - optind;
+	ifnames.data = argv + optind;
+	if (ni_string_array_index(&ifnames, "all") != -1) {
+		ifnames.count = 0;
+		ifnames.data = NULL;
+	}
 
 	if (!(object = ni_call_create_client()))
 		return 1;
@@ -660,7 +695,7 @@ do_show_xml(int argc, char **argv)
 		ni_xs_scope_t *schema = ni_objectmodel_init(NULL);
 		xml_node_t *tree;
 
-		tree = __dump_schema_xml(&result, schema);
+		tree = __dump_schema_xml(&result, schema, &ifnames);
 		if (tree == NULL) {
 			ni_error("unable to represent properties as xml");
 			goto out;
@@ -1727,4 +1762,3 @@ do_convert(int argc, char **argv)
 
 	return do_show_config(argc, argv, "compat:");
 }
-
