@@ -328,10 +328,9 @@ rfc4361	dhcp6	use 0xff as type, followed by DHCPv6 IAID and DUID
 disable	none	disables creation (custom client-id is send if given)
 .TE
 .PP
-By default, wickedd-dhcp4 is using the most common \fBrfc2132 on ethernet\fR
-to maintain compatibility with existing installations and a \fBrfc4361 on
-infiniband\fR, where it is mandated by the infiniband dhcp rfc4390.
-Later versions may change to use the rfc4361 client-id also for ethernet.
+By default, wickedd-dhcp4 is using the \fBrfc4361\fR client-id now . For
+compatibility reasons with some older DHCPv4 servers it might be required
+to switch to rfc2132, i.e. to maintain compatibility with existing installations.
 
 When set to \fBdisable\fR, no client-id is created and send by default, except
 when the interface config request to acquire a lease contains a custom one.
@@ -466,9 +465,10 @@ or inside a device name context like:
 DHCPv6 uses a so-called DUID to identify a DHCP client and an IAID, that
 refers to an interface.
 .br
-DHCPv4 constructs its client-id using the IAID and DUID as well, when
-enabled to use a rfc4361 client-id in the \fB<dhcp4><create-cid>\fP
-config option.
+DHCPv4 now also constructs its client-id using the IAID and DUID as well 
+by default following rfc4361 in favour of the older rfc2132 unless we 
+set it otherwise either in the \fB<dhcp4><create-cid>\fP config option
+or by using the --disable-dhcp4-rfc4361-cid build flag when compiling wicked.
 .br
 By default, \fBwickedd-dhcp6\fP will try to generate a DUID based on the
 link layer address (MAC) of the device and time (DUID-LLT).
