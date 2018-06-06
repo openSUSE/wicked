@@ -287,7 +287,8 @@ supplicant. See below for a list of options.
 .TP
 .B auto6
 This element can be used to control the behavior of AUTO6 processing.
-.TP
+
+.PP
 .\" --------------------------------------------------------
 .SH DHCP4 SUPPLICANT OPTIONS
 The DHCP4 client can be configured through the options listed below.
@@ -323,20 +324,36 @@ l|l|l
 lb|lb|l.
 Type	Alias	Description
 =
-rfc2132	hwaddr	use hardware/link layer type, followed by the address
 rfc4361	dhcp6	use 0xff as type, followed by DHCPv6 IAID and DUID
+rfc2132	hwaddr	use hardware/link layer type, followed by the address
 disable	none	disables creation (custom client-id is send if given)
 .TE
 .PP
-By default, wickedd-dhcp4 is using the \fBrfc4361\fR client-id now . For
-compatibility reasons with some older DHCPv4 servers it might be required
-to switch to rfc2132, i.e. to maintain compatibility with existing installations.
+When the interface configuration does not provide an explicit client-id
+(DHCLIENT_CLIENT_ID in ifcfg files or <client-id> xml config/policy node),
+wicked will generate a DHCPv4 client-id as specified in this option.
 
-When set to \fBdisable\fR, no client-id is created and send by default, except
-when the interface config request to acquire a lease contains a custom one.
+When set to \fBrfc4361\fR, wicked will create a DHCPv4 client-id using the
+DHCPv6 IAID and DUID (see <dhcp6><default-duid> option).
+This new rfc4361 client-id is required to perform DDNS updates for ipv4 (A)
+and ipv6 (AAAA) address records in the same DNS zone (domain) and mandatory
+to use on infiniband interfaces.
 
-The new rfc4361 client-id is required to perform DDNS updates for ipv4 (A) and
-ipv6 (AAAA) address records in the same DNS zone (domain).
+When set to \fBrfc2132\fR, wicked will create a DHCPv4 client-id using the
+network interface hardware-type and address. This may be needed to maintain
+compatibility to e.g. DHCPv4 servers with static leases explicitly bound to
+a \fBrfc2132\fR client-id or having trouble to provide a lease to a dhcp4
+client using the new and longer \fBrfc4361\fR client-id.
+
+When set to \fBdisable\fR, no client-id is created and send by default (except
+when the interface config request to acquire a lease contains a custom/explicit one).
+
+When unspecified, the default behavior depends on the --enable-dhcp4-rfc4361-cid
+(default) and --disable-dhcp4-rfc4361-cid configure options, allowing to revert
+to use the old \fBrfc2132\fR client-id at compile time, i.e. to prereserve
+behavior like in older releases, but permit to change to enable the new rfc4361
+client-id default at runtime.
+
 Note, that a change of the client-id usually causes to disassociate the lease
 and/or DNS records, because it is used in the DHCID DNS record (see rfc4701).
 
@@ -465,10 +482,8 @@ or inside a device name context like:
 DHCPv6 uses a so-called DUID to identify a DHCP client and an IAID, that
 refers to an interface.
 .br
-DHCPv4 now also constructs its client-id using the IAID and DUID as well 
-by default following rfc4361 in favour of the older rfc2132 unless we 
-set it otherwise either in the \fB<dhcp4><create-cid>\fP config option
-or by using the --disable-dhcp4-rfc4361-cid build flag when compiling wicked.
+DHCPv4 now also defaults to construct its client-id using the DHCPv6 IAID
+and DUID as well (see <dhcp4><create-cid> option).
 .br
 By default, \fBwickedd-dhcp6\fP will try to generate a DUID based on the
 link layer address (MAC) of the device and time (DUID-LLT).
