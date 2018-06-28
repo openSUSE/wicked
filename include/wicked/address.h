@@ -131,8 +131,14 @@ extern ni_bool_t	ni_address_is_deprecated(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_mngtmpaddr(const ni_address_t *laddr);
 
 extern void		ni_address_set_temporary(ni_address_t *, ni_bool_t);
+extern void		ni_address_set_mngtmpaddr(ni_address_t *, ni_bool_t);
 extern void		ni_address_set_tentative(ni_address_t *, ni_bool_t);
 extern void		ni_address_set_duplicate(ni_address_t *, ni_bool_t);
+
+extern unsigned int	ni_address_valid_lft(const ni_address_t *, const struct timeval *);
+extern unsigned int	ni_address_preferred_lft(const ni_address_t *, const struct timeval *);
+extern ni_bool_t	ni_address_lft_is_valid(const ni_address_t *, const struct timeval *);
+extern ni_bool_t	ni_address_lft_is_preferred(const ni_address_t *, const struct timeval *);
 
 extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
 extern void		ni_address_list_destroy(ni_address_t **);
