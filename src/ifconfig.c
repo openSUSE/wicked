@@ -4441,10 +4441,12 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 
 	if (ap->cache_info.preferred_lft != NI_LIFETIME_INFINITE) {
 		struct ifa_cacheinfo ci;
+		struct timeval now;
 
 		memset(&ci, 0, sizeof(ci));
-		ci.ifa_valid = ap->cache_info.valid_lft;
-		ci.ifa_prefered = ap->cache_info.preferred_lft;
+		ni_timer_get_time(&now);
+		ci.ifa_valid = ni_address_valid_lft(ap, &now);
+		ci.ifa_prefered = ni_address_preferred_lft(ap, &now);
 
 		if (ci.ifa_prefered > ci.ifa_valid)
 			ci.ifa_prefered = ci.ifa_valid;
@@ -5352,6 +5354,9 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 			if (replace < 0)
 				__ni_rtnl_send_deladdr(dev, ap);
 
+			if (!ni_address_lft_is_valid(new_addr, NULL))
+				continue;
+
 			if ((rv = __ni_rtnl_send_newaddr(dev, new_addr, NLM_F_REPLACE)) < 0)
 				continue;
 
@@ -5380,6 +5385,9 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		unsigned int count = 0;
 
 		if (ap->seq == __ni_global_seqno)
+			continue;
+
+		if (!ni_address_lft_is_valid(ap, NULL))
 			continue;
 
 		if (ni_address_is_duplicate(ap))
