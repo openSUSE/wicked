@@ -1354,7 +1354,7 @@ ni_suse_parse_rule(ni_rule_t *rule, ni_string_array_t *opts,
 		} else
 		if (ni_string_eq(opt, "iif") || ni_string_eq(opt, "dev")) {
 			val = ni_string_array_at(opts, pos++);
-			if (!ni_netdev_name_is_valid(val)) {
+			if (ni_netdev_name_is_valid(val) != NULL) {
 				ni_error("%s[%u]: Invalid routing rule input interface '%s'",
 						filename, line, val);
 				return -1;
@@ -1363,7 +1363,7 @@ ni_suse_parse_rule(ni_rule_t *rule, ni_string_array_t *opts,
 		} else
 		if (ni_string_eq(opt, "oif")) {
 			val = ni_string_array_at(opts, pos++);
-			if (!ni_netdev_name_is_valid(val)) {
+			if (ni_netdev_name_is_valid(val) != NULL) {
 				ni_error("%s[%u]: Invalid routing rule output interface '%s'",
 						filename, line, val);
 				return -1;
@@ -1521,6 +1521,7 @@ static ni_compat_netdev_t *
 __ni_suse_read_interface(const char *filename, const char *ifname)
 {
 	const char *basename = ni_basename(filename);
+	const char *suspect_reason = NULL;
 	size_t pfxlen = sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1;
 	ni_compat_netdev_t *compat = NULL;
 	ni_sysconfig_t *sc;
@@ -1539,8 +1540,9 @@ __ni_suse_read_interface(const char *filename, const char *ifname)
 		ifname = basename + pfxlen;
 	}
 
-	if (!ni_netdev_name_is_valid(ifname)) {
-		ni_error("Rejecting suspect interface name: %s", ifname);
+	suspect_reason = ni_netdev_name_is_valid(ifname);
+	if (suspect_reason != NULL) {
+		ni_error("%s: %s", suspect_reason, ifname);
 		return NULL;
 	}
 
@@ -2754,7 +2756,7 @@ try_add_ovs_bridge_port(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *
 		return FALSE;
 
 	var = __find_indexed_variable(sc, "OVS_BRIDGE_PORT_DEVICE", suffix);
-	if (!var || !ni_netdev_name_is_valid(var->value)) {
+	if (!var || ni_netdev_name_is_valid(var->value) != NULL) {
 		size_t len;
 		if (var && (len = ni_string_len(var->value))) {
 			ni_error("ifcfg-%s: Suspect device in OVS_BRIDGE_PORT_DEVICE%s='%s'",
@@ -2796,7 +2798,7 @@ try_ovs_bridge(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ovsbr = ni_netdev_get_ovs_bridge(dev);
 
 	if ((parent = ni_sysconfig_get_value(sc, "OVS_BRIDGE_VLAN_PARENT"))) {
-		if (!ni_netdev_name_is_valid(parent)) {
+		if (ni_netdev_name_is_valid(parent) != NULL) {
 			ni_error("ifcfg-%s: Suspect device in OVS_BRIDGE_VLAN_PARENT='%s'",
 					dev->name, ni_print_suspect(parent, ni_string_len(parent)));
 			return -1;
@@ -2935,7 +2937,7 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		     name != NULL;
 		     name = strtok_r(NULL, " \t", &name_pos)) {
 
-			if (!ni_netdev_name_is_valid(name)) {
+			if (ni_netdev_name_is_valid(name) != NULL) {
 				ni_error("ifcfg-%s: BRIDGE_PORTS='%s' "
 					 "rejecting suspect port name '%s'",
 					 dev->name, value, name);
@@ -3127,7 +3129,7 @@ try_vxlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		}
 	}
 	if ((str = ni_sysconfig_get_value(sc, "VXLAN_DEVICE"))) {
-		if (!ni_netdev_name_is_valid(str) || ni_string_eq(str, dev->name)) {
+		if (ni_netdev_name_is_valid(str) != NULL || ni_string_eq(str, dev->name)) {
 			ni_error("ifcfg-%s: Invalid name in VXLAN_DEVICE=\"%s\"",
 					dev->name, ni_print_suspect(str, 15));
 			return -1;
@@ -4106,7 +4108,7 @@ try_pppoe(const ni_sysconfig_t *sc, const ni_sysconfig_t *psc, const char *name,
 		return -1;
 
 	value = ni_sysconfig_get_value(sc, "DEVICE");
-	if (ni_string_empty(value) || !ni_netdev_name_is_valid(value) ||
+	if (ni_string_empty(value) || ni_netdev_name_is_valid(value) != NULL ||
 	    !ni_netdev_ref_set_ifname(&pppoe->device, value)) {
 		ni_error("ifcfg-%s: PPPoE config without valid ethernet device name: '%s'", name, value ? value : "");
 		return -1;
@@ -4353,7 +4355,7 @@ __try_tunnel_generic(const char *ifname, unsigned short arp_type,
 	unsigned int ui_value;
 
 	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_DEVICE"))) {
-		if (!ni_netdev_name_is_valid(value)) {
+		if (ni_netdev_name_is_valid(value) != NULL) {
 			ni_error("ifcfg-%s: TUNNEL_DEVICE=\"%s\" suspect interface name",
 					ifname, value);
 			return -1;

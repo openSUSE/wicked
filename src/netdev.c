@@ -1018,13 +1018,16 @@ ni_netdev_supports_arp(ni_netdev_t *dev)
 	return FALSE;
 }
 
-static size_t
-__ni_netdev_name_is_valid(const char *ifname)
+const char *
+ni_netdev_name_is_valid(const char *ifname)
 {
-	size_t i, len = ni_string_len(ifname);
+	const char *black_list[] = {
+		"all", "default", NULL
+	}, **ptr;
 
+	size_t i, len = ni_string_len(ifname);
 	if (!len || len >= IFNAMSIZ)
-		return 0;
+		return "Rejecting interface name due to excesive length";
 
 	for(i = 0; i < len; ++i) {
 		if(isalnum((unsigned char)ifname[i]) ||
@@ -1032,30 +1035,18 @@ __ni_netdev_name_is_valid(const char *ifname)
 				ifname[i] == '_' ||
 				ifname[i] == '.')
 			continue;
-		return 0;
+		return "Rejecting interface name due to ilegal characters";
 	}
-	return len;
-}
-
-ni_bool_t
-ni_netdev_name_is_valid(const char *ifname)
-{
-	const char *black_list[] = {
-		"all", "default", NULL
-	}, **ptr;
-
-	if (!__ni_netdev_name_is_valid(ifname))
-		return FALSE;
 
 	if (!isalnum((unsigned char)ifname[0]))
-		return FALSE;
+		return "Rejecting interface name due to non-alphanumeric characters";
 
 	for (ptr = black_list; *ptr; ptr++) {
 		if (ni_string_eq(*ptr, ifname))
-			return FALSE;
+			return "Rejecting interface name due to blacklisted name";
 	}
 
-	return TRUE;
+	return NULL;
 }
 
 static size_t

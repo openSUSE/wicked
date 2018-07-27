@@ -1151,7 +1151,7 @@ ni_objectmodel_nanny_recheck(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	for (i = 0; i < argv[0].array.len; ++i) {
 		const char *ifname = argv[0].string_array_value[i];
 
-		if (ni_netdev_name_is_valid(ifname) && ni_string_array_append(&ifnames, ifname) == 0)
+		if (ni_netdev_name_is_valid(ifname) == NULL && ni_string_array_append(&ifnames, ifname) == 0)
 			continue;
 
 		ni_string_array_destroy(&ifnames);

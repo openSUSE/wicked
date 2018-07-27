@@ -73,7 +73,7 @@ __ni_objectmodel_bond_newlink(ni_netdev_t *cfg, const char *ifname, DBusError *e
 				"Unable to create bonding interface - too many interfaces");
 		goto out;
 	}
-	if (!ni_netdev_name_is_valid(ifname)) {
+	if (ni_netdev_name_is_valid(ifname) != NULL) {
 		dbus_set_error(error, DBUS_ERROR_FAILED,
 				"Unable to create bonding interface - invalid interface name '%s'",
 				ni_print_suspect(ifname, ni_string_len(ifname)));

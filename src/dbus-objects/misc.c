@@ -1063,7 +1063,7 @@ __ni_objectmodel_route_nexthop_from_dict(ni_route_nexthop_t *nh, const ni_dbus_v
 	}
 
 	if (ni_dbus_dict_get_string(nhdict, "device", &string)) {
-		if (!ni_netdev_name_is_valid(string)) {
+		if (ni_netdev_name_is_valid(string) != NULL) {
 			ni_debug_dbus("%s: invalid route hop device name: %s", __func__,
 					ni_print_suspect(string, ni_string_len(string)));
 			return FALSE;
@@ -1433,12 +1433,12 @@ ni_objectmodel_rule_match_from_dict(ni_rule_t *rule, const ni_dbus_variant_t *di
 	}
 
 	if (ni_dbus_dict_get_string(dict, "iif", &ptr)) {
-		if (!ni_netdev_name_is_valid(ptr) ||
+		if (ni_netdev_name_is_valid(ptr) != NULL ||
 		    !ni_string_dup(&rule->iif.name, ptr))
 			return FALSE;
 	}
 	if (ni_dbus_dict_get_string(dict, "oif", &ptr)) {
-		if (!ni_netdev_name_is_valid(ptr) ||
+		if (ni_netdev_name_is_valid(ptr) != NULL ||
 		    !ni_string_dup(&rule->oif.name, ptr))
 			return FALSE;
 	}
