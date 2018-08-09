@@ -392,7 +392,7 @@ The numeric preference value is given by the \fBweight\fP,
 and should range from -1 to 100. Higher numbers indicate a higher preference.
 A negative value will cause the server to be ignored. If a response from
 a server with a weight of 100 is received, it will be selected immediately.
-Otherwise, the supplicant will wait for about one minute, and select the
+Otherwise, the supplicant will wait for about one second, and select the
 server with the highest preference afterwards.
 .IP
 The special keywords \fBnever\fP and \fBalways\fP correspond to -1 and
@@ -404,7 +404,7 @@ The following example will ignore 192.168.8.1, always use the information from
 .IP
 .nf
 .B "  <prefer-server ip=\(dq192.168.8.1\(dq  weight=\(dqnever\(dq />
-.B "  <prefer-server ip=\(dq192.168.8.10\(dq weight=\(dq100\(dq />
+.B "  <prefer-server mac=\(dq02:03:04:05:06:07\(dq weight=\(dqalways\(dq />
 .B "  <prefer-server ip=\(dq192.168.8.7\(dq  weight=\(dq50\(dq />
 .fi
 
@@ -596,41 +596,31 @@ Specifies the number of lease release retransmissions in the range 1..5.
 Default is to send up to 5 (REL_MAX_RC) retransmissions.
 
 .TP
-.B ignore-server
-Using the \fBip\fB attribute of this element, you can specify the
-IP address of a faulty DHCP server that should be ignored:
-.\"
-.\" Working but useless (the IPv6 server addresses we get
-.\" are almost always link-local addrs, not the global unicast
-.\" address; thanks to relying on multicast exclusively).
-.\" 
-
-.TP
 .B prefer-server
 Specify a preferred DHCP server, together with a numeric value indicating its
 preference. The server is identified using its DUID, which has to be specified
 via the \fBid\fP attribute.
 .IP
 The numeric preference value is given by the \fBweight\fP,
-and should range from -1 to 100.
+and should range from -1 to 255.
 Higher numbers indicate a higher preference.
 A negative value will cause the server to be ignored. If a response from
-a server with a weight of 100 is received, it will be selected immediately.
-Otherwise, the supplicant will wait for about one minute, and select the
-server with the highest preference afterwards.
+a server with a weight of 255 is received, it will be selected immediately.
+Otherwise, the supplicant will wait for about one second, and select the
+server providing an offer with the best request match and the highest preference afterwards.
 .IP
 The special keywords \fBnever\fP and \fBalways\fP correspond to -1 and
-100, respectively. If no \fBweight\fP attribute is given, it defaults to
-\fBalways\fP (100).
+255, respectively. If no \fBweight\fP attribute is given, it defaults to
+\fBalways\fP (255).
 .IP
 The following example will ignore DHCP offers from the first server,
 always use the information from the second (if available), and fall back
 to the third if not:
 .IP
 .nf
-.B "  <prefer-server id=\(dq00:44:01:02:04:00\(dq weight=\(dqnever\(dq />
-.B "  <prefer-server id=\(dq00:44:01:02:04:01\(dq weight=\(dq100\(dq />
-.B "  <prefer-server id=\(dq00:44:01:02:04:02\(dq weight=\(dq50\(dq />
+.B "  <prefer-server id=\(dq00:03:00:01:02:03:04:05:06:07\(dq weight=\(dqnever\(dq />
+.B "  <prefer-server ip=\(dq2001:DB8::1\(dq weight=\(dqalways\(dq />
+.B "  <prefer-server ip=\(dq2001:DB8::2\(dq weight=\(dq50\(dq />
 .fi
 
 .TP
