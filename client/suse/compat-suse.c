@@ -5623,8 +5623,8 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			__ni_suse_addrconf_auto6(sc, compat);
 		}
 		else {
-			ni_debug_readwrite("ifcfg-%s: Unknown BOOTPROTO=\"%s\""
-					" value \"%s\"", dev->name, bootproto, s);
+			ni_error("ifcfg-%s: Unknown value in BOOTPROTO=\"%s\"",
+					dev->name, bootproto);
 		}
 		primary = FALSE;
 	}
