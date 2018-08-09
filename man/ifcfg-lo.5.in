@@ -35,7 +35,7 @@ Sets up loopback interface \fBlo\fR:
 \fBifcfg\fR file marks it \fBSTARTMODE=nfsroot\fR to skip a shutdown on network \fBifdown\fR requests.
 
 .SH BUGS
-Please report bugs at <http://www.suse.de/feedback>
+Please report bugs at <http://bugs.opensuse.org>
 .SH AUTHOR
 .nf
 Marius Tomaschewski <mt@suse.de>
