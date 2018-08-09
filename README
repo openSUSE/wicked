@@ -93,6 +93,17 @@ single function that lets you create an interface of the requested type.
 These factory interfaces are attched to the
 /org/opensuse/Network/Interfaces list node.
 
+Frequently Asked Questions
+==========================
+
+We have a FAQ section hosted in our GitHub's wiki, be sure to check that 
+out for common questions about usage or Wicked in general:
+
+        https://github.com/openSUSE/wicked/wiki/FAQ
+
+For any questions not answered on the FAQ, please read our section 
+below: "Where to discuss or report bugs"
+
 What's currently supported
 ==========================
 
