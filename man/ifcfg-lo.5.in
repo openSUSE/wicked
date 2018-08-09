@@ -31,11 +31,15 @@ Sets up loopback interface \fBlo\fR:
 
 .fi
 
+\fBNote\fR: Loopback is automatically created and set up by the Linux kernel.
+\fBifcfg\fR file marks it \fBSTARTMODE=nfsroot\fR to skip a shutdown on network \fBifdown\fR requests.
+
 .SH BUGS
 Please report bugs at <http://www.suse.de/feedback>
 .SH AUTHOR
 .nf
 Marius Tomaschewski <mt@suse.de>
+Mikhail Kasimov <mikhail.kasimov@gmail.com>
 .fi
 .SH "SEE ALSO"
 .BR routes (5),
