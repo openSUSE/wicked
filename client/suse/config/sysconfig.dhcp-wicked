@@ -97,6 +97,17 @@ DHCLIENT6_FQDN_UPDATE=""
 #
 DHCLIENT6_FQDN_QUALIFY="yes"
 
+## Type:        string
+## Default:     ""
+#
+# specify a client ID for DHCPv6
+#
+# This option allows to manually specify a client identifier (DUID) as a colon 
+# separated hex byte string for DHCPv6. It disables the default behavior to
+# maintain the client-id automatically, see wicked-config(5) and `wicked duid --help`
+# for more details.
+DHCLIENT6_CLIENT_ID=""
+
 ## Type:	list(,default,none,all,dns,ntp,tz,boot,nis,sip)
 ## Default:	""
 #
