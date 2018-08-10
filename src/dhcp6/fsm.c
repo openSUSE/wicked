@@ -1815,8 +1815,8 @@ static unsigned int
 __ni_dhcp6_fsm_mark_ia_by_time(ni_dhcp6_device_t *dev,  unsigned int (*get_ia_time)(ni_dhcp6_ia_t *),
 							unsigned int flag)
 {
-	unsigned int rt, diff, aq;
 	unsigned int count;
+	unsigned int rt;
 	struct timeval now;
 	ni_dhcp6_ia_t *ia;
 
@@ -1825,12 +1825,11 @@ __ni_dhcp6_fsm_mark_ia_by_time(ni_dhcp6_device_t *dev,  unsigned int (*get_ia_ti
 	for (ia = dev->lease->dhcp6.ia_list; ia; ia = ia->next) {
 		rt = get_ia_time(ia);
 
-		if ((aq = ia->time_acquired) == 0)
-			aq = dev->lease->acquired.tv_sec;
+		if (timercmp(&now, &ia->acquired, >)) {
+			struct timeval dif;
 
-		if (now.tv_sec > aq) {
-			diff = (now.tv_sec - aq);
-			if (diff + 1 >= rt) {
+			timersub(&now, &ia->acquired, &dif);
+			if (dif.tv_sec + 1 >= rt) {
 				ia->flags |= flag;
 				++ count;
 			}
@@ -1875,9 +1874,9 @@ __ni_dhcp6_fsm_find_lowest_ia(ni_dhcp6_ia_t *list, unsigned int (*get_ia_time)(n
 static unsigned int
 __ni_dhcp6_fsm_get_timeout(ni_dhcp6_device_t *dev, unsigned int (*get_ia_time)(ni_dhcp6_ia_t *))
 {
-	unsigned int lt, aq, diff;
 	struct timeval now;
 	ni_dhcp6_ia_t *ia = NULL;
+	unsigned int lt;
 
 	ia = __ni_dhcp6_fsm_find_lowest_ia(dev->lease->dhcp6.ia_list,
 						get_ia_time, &lt);
@@ -1889,18 +1888,14 @@ __ni_dhcp6_fsm_get_timeout(ni_dhcp6_device_t *dev, unsigned int (*get_ia_time)(n
 		return lt;
 
 	if (lt > 0) {
-		aq = ia->time_acquired;
 		ni_timer_get_time(&now);
 
-		if (aq == 0 && (aq = dev->lease->acquired.tv_sec) == 0) {
-			ni_warn("%s(%s): lease/ia time_acquired is 0 ?!",
-				dev->ifname, __func__);
-			aq = now.tv_sec;
-		}
-		if (now.tv_sec > aq) {
-			diff = (now.tv_sec - aq);
-			if (lt > diff)
-				lt -= diff;
+		if (timercmp(&now, &ia->acquired, >)) {
+			struct timeval dif;
+
+			timersub(&now, &ia->acquired, &dif);
+			if (lt > dif.tv_sec)
+				lt -= dif.tv_sec;
 		}
 	}
 	return lt;
@@ -1922,9 +1917,9 @@ ni_dhcp6_fsm_get_rebind_timeout(ni_dhcp6_device_t *dev)
 static unsigned int
 ni_dhcp6_fsm_get_expire_timeout(ni_dhcp6_device_t *dev)
 {
-	unsigned int lt, at, diff;
 	struct timeval now;
 	ni_dhcp6_ia_t *ia = NULL;
+	unsigned int lt;
 
 	ia = __ni_dhcp6_fsm_find_lowest_ia(dev->lease->dhcp6.ia_list,
 				ni_dhcp6_ia_min_preferred_lft, &lt);
@@ -1948,18 +1943,14 @@ ni_dhcp6_fsm_get_expire_timeout(ni_dhcp6_device_t *dev)
 
 	lt = ni_dhcp6_ia_max_preferred_lft(ia);
 	if (lt > 0) {
-		at = ia->time_acquired;
 		ni_timer_get_time(&now);
 
-		if (at == 0 && (at = dev->lease->acquired.tv_sec) == 0) {
-			ni_warn("%s(%s): lease/ia time_acquired is 0 ?!",
-				dev->ifname, __func__);
-			at = now.tv_sec;
-		}
-		if (now.tv_sec > at) {
-			diff = (now.tv_sec - at);
-			if (lt > diff)
-				lt -= diff;
+		if (timercmp(&now, &ia->acquired, >)) {
+			struct timeval dif;
+
+			timersub(&now, &ia->acquired, &dif);
+			if (lt > dif.tv_sec)
+				lt -= dif.tv_sec;
 		}
 	}
 	return lt;

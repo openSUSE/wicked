@@ -27,6 +27,8 @@
 #include "config.h"
 #endif
 
+#include <inttypes.h>
+
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/xml.h>
@@ -121,17 +123,20 @@ __ni_dhcp6_lease_ia_data_to_xml(const ni_dhcp6_ia_t *ia, xml_node_t *node)
 	const ni_dhcp6_ia_addr_t *iadr;
 	xml_node_t *iadr_node;
 	unsigned int count = 0;
+	char buf[32] = { '\0' };
 	int ret;
 
 	switch (ia->type) {
 	case NI_DHCP6_OPTION_IA_TA:
 		xml_node_new_element_uint("interface-id", node, ia->iaid);
-		xml_node_new_element_uint("acquired", node, ia->time_acquired);
+		snprintf(buf, sizeof(buf), "%"PRId64, (int64_t)ia->acquired.tv_sec);
+		xml_node_new_element("acquired", node, buf);
 		break;
 	case NI_DHCP6_OPTION_IA_NA:
 	case NI_DHCP6_OPTION_IA_PD:
 		xml_node_new_element_uint("interface-id", node, ia->iaid);
-		xml_node_new_element_uint("acquired", node, ia->time_acquired);
+		snprintf(buf, sizeof(buf), "%"PRId64, (int64_t)ia->acquired.tv_sec);
+		xml_node_new_element("acquired", node, buf);
 		xml_node_new_element_uint("renewal-time", node, ia->renewal_time);
 		xml_node_new_element_uint("rebind-time", node, ia->rebind_time);
 		break;
@@ -375,8 +380,13 @@ __ni_dhcp6_lease_ia_data_from_xml(ni_dhcp6_ia_t *ia, const xml_node_t *node)
 				return -1;
 		} else
 		if (ni_string_eq(child->name, "acquired")) {
-			if (ni_parse_uint(child->cdata, &ia->time_acquired, 10) != 0)
+			int64_t acquired;
+
+			if (ni_parse_int64(child->cdata, &acquired, 10))
 				return -1;
+
+			ia->acquired.tv_sec = acquired;
+			ia->acquired.tv_usec = 0;
 		} else
 		if (ni_string_eq(child->name, "renewal-time") &&
 		    ia->type != NI_DHCP6_OPTION_IA_TA) {

@@ -56,7 +56,7 @@ struct ni_dhcp6_ia {
 
 	uint16_t		type;
 	uint32_t		iaid;
-	uint32_t		time_acquired;
+	struct timeval		acquired;
 	uint32_t		renewal_time;
 	uint32_t		rebind_time;
 	ni_dhcp6_ia_addr_t *	addrs;

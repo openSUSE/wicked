@@ -413,7 +413,7 @@ ni_dhcp6_print_timeval(const struct timeval *tv)
 
 	buf[0] = '\0';
 	strftime(buf, sizeof(buf), "%T", localtime(&tv->tv_sec));
-	snprintf(buf + strlen(buf), sizeof(buf)-strlen(buf), ".%ld", tv->tv_usec);
+	snprintf(buf + strlen(buf), sizeof(buf)-strlen(buf), ".%ld", tv->tv_usec/1000);
 	return buf;
 }
 
@@ -2069,14 +2069,14 @@ ni_dhcp6_ia_is_active(ni_dhcp6_ia_t *ia, struct timeval *now)
 {
 	unsigned int lft;
 
-	if (!now || !ia || ia->time_acquired == 0)
+	if (!now || !ia || !timerisset(&ia->acquired))
 		return FALSE;
 
 	lft = ni_dhcp6_ia_max_valid_lft(ia);
 	if (lft == NI_DHCP6_INFINITE_LIFETIME)
 		return TRUE;
 
-	return (uint64_t)ia->time_acquired + lft > (uint64_t)now->tv_sec + 1;
+	return ia->acquired.tv_sec + lft > now->tv_sec + 1;
 }
 
 unsigned int
@@ -2145,7 +2145,7 @@ ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **dst, const ni_dhcp6_ia_t *src, ni_bool_t c
 			nia->flags = ia->flags;
 			nia->rebind_time = ia->rebind_time;
 			nia->renewal_time = ia->renewal_time;
-			nia->time_acquired = ia->time_acquired;
+			nia->acquired = ia->acquired;
 			nia->status.code = ia->status.code;
 			nia->status.message = xstrdup(ia->status.message);
 		}
@@ -2476,13 +2476,16 @@ failure:
 }
 
 static int
-ni_dhcp6_option_parse_ia_na(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_na_list, uint32_t time_acquired)
+ni_dhcp6_option_parse_ia_na(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_na_list, const struct timeval *acquired)
 {
 	ni_dhcp6_ia_t *ia;
 
 	ia = xcalloc(1, sizeof(*ia));
 	ia->type = NI_DHCP6_OPTION_IA_NA;
-	ia->time_acquired = time_acquired;
+	if (acquired && timerisset(acquired))
+		ia->acquired = *acquired;
+	else
+		ni_timer_get_time(&ia->acquired);
 
 	if (ni_dhcp6_option_get32(bp, &ia->iaid) < 0)
 		goto failure;
@@ -2494,7 +2497,7 @@ ni_dhcp6_option_parse_ia_na(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_na_list, uint32
 	ni_debug_dhcp("%s: iaid=%u, T1=%u, T2=%u [acquired at %s]",
 		ni_dhcp6_option_name(ia->type), ia->iaid,
 		ia->renewal_time, ia->rebind_time,
-		ni_dhcp6_print_time(ia->time_acquired));
+		ni_dhcp6_print_timeval(&ia->acquired));
 
 	if (__ni_dhcp6_option_parse_ia_options(bp, ia) < 0)
 		goto failure;
@@ -2524,20 +2527,23 @@ failure:
 }
 
 static int
-ni_dhcp6_option_parse_ia_ta(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_ta_list, uint32_t time_acquired)
+ni_dhcp6_option_parse_ia_ta(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_ta_list, const struct timeval *acquired)
 {
 	ni_dhcp6_ia_t *ia;
 
 	ia = xcalloc(1, sizeof(*ia));
 	ia->type = NI_DHCP6_OPTION_IA_TA;
-	ia->time_acquired = time_acquired;
+	if (acquired && timerisset(acquired))
+		ia->acquired = *acquired;
+	else
+		ni_timer_get_time(&ia->acquired);
 
 	if (ni_dhcp6_option_get32(bp, &ia->iaid) < 0)
 		goto failure;
 
 	ni_debug_dhcp("%s: iaid=%u [acquired at %s]",
 		ni_dhcp6_option_name(ia->type), ia->iaid,
-		ni_dhcp6_print_time(ia->time_acquired));
+		ni_dhcp6_print_timeval(&ia->acquired));
 
 	if (__ni_dhcp6_option_parse_ia_options(bp, ia) < 0)
 		goto failure;
@@ -2551,13 +2557,16 @@ failure:
 }
 
 static int
-ni_dhcp6_option_parse_ia_pd(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_pd_list, uint32_t time_acquired)
+ni_dhcp6_option_parse_ia_pd(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_pd_list, const struct timeval *acquired)
 {
 	ni_dhcp6_ia_t *ia;
 
 	ia = xcalloc(1, sizeof(*ia));
 	ia->type = NI_DHCP6_OPTION_IA_PD;
-	ia->time_acquired = time_acquired;
+	if (acquired && timerisset(acquired))
+		ia->acquired = *acquired;
+	else
+		ni_timer_get_time(&ia->acquired);
 
 	if (ni_dhcp6_option_get32(bp, &ia->iaid) < 0)
 		goto failure;
@@ -2569,7 +2578,7 @@ ni_dhcp6_option_parse_ia_pd(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_pd_list, uint32
 	ni_debug_dhcp("%s: iaid=%u, T1=%u, T2=%u [acquired at %s]",
 		ni_dhcp6_option_name(ia->type), ia->iaid,
 		ia->renewal_time, ia->rebind_time,
-		ni_dhcp6_print_time(ia->time_acquired));
+		ni_dhcp6_print_timeval(&ia->acquired));
 
 	if (__ni_dhcp6_option_parse_ia_options(bp, ia) < 0)
 		goto failure;
@@ -2703,7 +2712,7 @@ ni_dhcp6_ia_copy_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_
 
 			ap = ni_address_new(AF_INET6, plen, &sadr, &lease->addrs);
 			if (ap) {
-				ap->cache_info.acquired.tv_sec = ia->time_acquired;
+				ap->cache_info.acquired = ia->acquired;
 				ap->cache_info.preferred_lft = iadr->preferred_lft;
 				ap->cache_info.valid_lft = iadr->valid_lft;
 
@@ -2808,15 +2817,15 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 		break;
 		case NI_DHCP6_OPTION_IA_NA:
 			ni_dhcp6_option_parse_ia_na(&optbuf, &lease->dhcp6.ia_list,
-							lease->acquired.tv_sec);
+								&lease->acquired);
 		break;
 		case NI_DHCP6_OPTION_IA_TA:
 			ni_dhcp6_option_parse_ia_ta(&optbuf, &lease->dhcp6.ia_list,
-							lease->acquired.tv_sec);
+								&lease->acquired);
 		break;
 		case NI_DHCP6_OPTION_IA_PD:
 			ni_dhcp6_option_parse_ia_pd(&optbuf, &lease->dhcp6.ia_list,
-							lease->acquired.tv_sec);
+								&lease->acquired);
 		break;
 		case NI_DHCP6_OPTION_DNS_SERVERS:
 			if (lease->resolver == NULL) {
