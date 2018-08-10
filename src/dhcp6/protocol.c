@@ -2136,13 +2136,13 @@ ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **dst, const ni_dhcp6_ia_t *src, ni_bool_t c
 	const ni_dhcp6_ia_t *ia;
 	ni_dhcp6_ia_t *nia;
 
-	/* TODO: Merge multiple ia's of same type into one? */
 	ni_dhcp6_ia_list_destroy(dst);
 	for (ia = src; ia; ia = ia->next) {
 		if ((nia = ni_dhcp6_ia_new(ia->type, ia->iaid)) == NULL)
 			goto failure;
 
 		if( !clean) {
+			nia->flags = ia->flags;
 			nia->rebind_time = ia->rebind_time;
 			nia->renewal_time = ia->renewal_time;
 			nia->time_acquired = ia->time_acquired;
@@ -2349,7 +2349,7 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_t *ia, uint16_t ad
 				ni_dhcp6_option_name(addr_type),
 				(unsigned int)iadr->plen);
 		/* DISCARD */
-		ni_dhcp6_ia_addr_destory(iadr);
+		ni_dhcp6_ia_addr_free(iadr);
 		return 1;
 	}
 
@@ -2369,7 +2369,7 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_t *ia, uint16_t ad
 				ni_dhcp6_option_name(addr_type),
 				iadr->preferred_lft, iadr->valid_lft);
 		/* DISCARD */
-		ni_dhcp6_ia_addr_destory(iadr);
+		ni_dhcp6_ia_addr_free(iadr);
 		return 1;
 	}
 
@@ -2377,7 +2377,7 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_t *ia, uint16_t ad
 	return 0;
 
 failure:
-	ni_dhcp6_ia_addr_destory(iadr);
+	ni_dhcp6_ia_addr_free(iadr);
 	return -1;
 }
 
@@ -2511,7 +2511,7 @@ ni_dhcp6_option_parse_ia_na(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_na_list, uint32
 			ni_dhcp6_option_name(ia->type),
 			ia->renewal_time, ia->rebind_time);
 		/* DISCARD */
-		ni_dhcp6_ia_destroy(ia);
+		ni_dhcp6_ia_free(ia);
 		return 1;
 	}
 
@@ -2519,7 +2519,7 @@ ni_dhcp6_option_parse_ia_na(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_na_list, uint32
 	return 0;
 
 failure:
-	ni_dhcp6_ia_destroy(ia);
+	ni_dhcp6_ia_free(ia);
 	return -1;
 }
 
@@ -2546,7 +2546,7 @@ ni_dhcp6_option_parse_ia_ta(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_ta_list, uint32
 	return 0;
 
 failure:
-	ni_dhcp6_ia_destroy(ia);
+	ni_dhcp6_ia_free(ia);
 	return -1;
 }
 
@@ -2585,14 +2585,14 @@ ni_dhcp6_option_parse_ia_pd(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_pd_list, uint32
 			ni_dhcp6_option_name(ia->type),
 			ia->renewal_time, ia->rebind_time);
 		/* DISCARD */
-		ni_dhcp6_ia_destroy(ia);
+		ni_dhcp6_ia_free(ia);
 	}
 
 	ni_dhcp6_ia_list_append(ia_pd_list, ia);
 	return 0;
 
 failure:
-	ni_dhcp6_ia_destroy(ia);
+	ni_dhcp6_ia_free(ia);
 	return -1;
 }
 

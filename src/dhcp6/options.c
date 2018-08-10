@@ -106,38 +106,88 @@ ni_dhcp6_ia_addr_new(const struct in6_addr addr, unsigned int plen)
 {
 	ni_dhcp6_ia_addr_t *iadr;
 
-	iadr = xcalloc(1, sizeof(*iadr));
-	iadr->addr = addr;
-	iadr->plen = plen;
+	iadr = calloc(1, sizeof(*iadr));
+	if (iadr) {
+		iadr->addr = addr;
+		iadr->plen = plen;
+	}
 	return iadr;
 }
 
 void
-ni_dhcp6_ia_addr_destory(ni_dhcp6_ia_addr_t *iadr)
+ni_dhcp6_ia_addr_free(ni_dhcp6_ia_addr_t *iadr)
 {
-	ni_dhcp6_status_clear(&iadr->status);
-	free(iadr);
+	if (iadr) {
+		ni_dhcp6_status_clear(&iadr->status);
+		free(iadr);
+	}
 }
 
 
 /*
  * ia address list
  */
-void
+ni_bool_t
 ni_dhcp6_ia_addr_list_append(ni_dhcp6_ia_addr_t **list, ni_dhcp6_ia_addr_t *iadr)
 {
-	while (*list)
-		list = &(*list)->next;
-	*list = iadr;
+	if (list && iadr) {
+		while (*list)
+			list = &(*list)->next;
+		*list = iadr;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_dhcp6_ia_addr_list_remove(ni_dhcp6_ia_addr_t **list, ni_dhcp6_ia_addr_t *iadr)
+{
+	ni_dhcp6_ia_addr_t **pos, *cur;
+
+	if (list && iadr) {
+		for (pos = list; (cur = *pos); pos = &cur->next) {
+			if (iadr == cur) {
+				*pos =  cur->next;
+				cur->next = NULL;
+				return TRUE;
+			}
+		}
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_dhcp6_ia_addr_list_delete(ni_dhcp6_ia_addr_t **list, ni_dhcp6_ia_addr_t *iadr)
+{
+	if (ni_dhcp6_ia_addr_list_remove(list, iadr)) {
+		ni_dhcp6_ia_addr_free(iadr);
+		return TRUE;
+	}
+	return FALSE;
+}
+
+size_t
+ni_dhcp6_ia_addr_list_count(const ni_dhcp6_ia_addr_t *list)
+{
+	const ni_dhcp6_ia_addr_t *iadr;
+	size_t count = 0;
+
+	for (iadr = list; iadr; iadr = iadr->next)
+		count++;
+
+	return count;
 }
 
 void
 ni_dhcp6_ia_addr_list_destroy(ni_dhcp6_ia_addr_t **list)
 {
 	ni_dhcp6_ia_addr_t *iadr;
-	while ((iadr = *list) != NULL) {
-		*list = iadr->next;
-		ni_dhcp6_ia_addr_destory(iadr);
+
+	if (list) {
+		while ((iadr = *list)) {
+			*list = iadr->next;
+			ni_dhcp6_ia_addr_free(iadr);
+		}
 	}
 }
 
@@ -150,40 +200,90 @@ ni_dhcp6_ia_new(unsigned int type, unsigned int iaid)
 {
 	ni_dhcp6_ia_t *ia;
 
-	ia = xcalloc(1, sizeof(*ia));
-	ia->type = type;
-	ia->iaid = iaid;
+	ia = calloc(1, sizeof(*ia));
+	if (ia) {
+		ia->type = type;
+		ia->iaid = iaid;
+	}
 	return ia;
 }
 
 void
-ni_dhcp6_ia_destroy(ni_dhcp6_ia_t *ia)
+ni_dhcp6_ia_free(ni_dhcp6_ia_t *ia)
 {
-	ni_dhcp6_status_clear(&ia->status);
-	ni_dhcp6_ia_addr_list_destroy(&ia->addrs);
-	free(ia);
+	if (ia) {
+		ni_dhcp6_status_clear(&ia->status);
+		ni_dhcp6_ia_addr_list_destroy(&ia->addrs);
+		free(ia);
+	}
 }
 
 
 /*
  * ia list
  */
+ni_bool_t
+ni_dhcp6_ia_list_append(ni_dhcp6_ia_t **list, ni_dhcp6_ia_t *ia)
+{
+	if (list && ia) {
+		while (*list)
+			list = &(*list)->next;
+		*list = ia;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_dhcp6_ia_list_remove(ni_dhcp6_ia_t **list, ni_dhcp6_ia_t *ia)
+{
+	ni_dhcp6_ia_t **pos, *cur;
+
+	if (list && ia) {
+		for (pos = list; (cur = *pos); pos = &cur->next) {
+			if (ia == cur) {
+				*pos =  cur->next;
+				cur->next = NULL;
+				return TRUE;
+			}
+		}
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_dhcp6_ia_list_delete(ni_dhcp6_ia_t **list, ni_dhcp6_ia_t *ia)
+{
+	if (ni_dhcp6_ia_list_remove(list, ia)) {
+		ni_dhcp6_ia_free(ia);
+		return TRUE;
+	}
+	return FALSE;
+}
+
+size_t
+ni_dhcp6_ia_list_count(const ni_dhcp6_ia_t *list)
+{
+	const ni_dhcp6_ia_t *ia;
+	size_t count = 0;
+
+	for (ia = list; ia; ia = ia->next)
+		count++;
+
+	return count;
+}
+
 void
 ni_dhcp6_ia_list_destroy(ni_dhcp6_ia_t **list)
 {
 	ni_dhcp6_ia_t *ia;
-	while ((ia = *list) != NULL) {
-		*list = ia->next;
-		ni_dhcp6_ia_destroy(ia);
-	}
-}
 
-void
-ni_dhcp6_ia_list_append(ni_dhcp6_ia_t **list, ni_dhcp6_ia_t *ia)
-{
-	while (*list)
-		list = &(*list)->next;
-	*list = ia;
+	if (list) {
+		while ((ia = *list) != NULL) {
+			*list = ia->next;
+			ni_dhcp6_ia_free(ia);
+		}
+	}
 }
 
 /*

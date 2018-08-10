@@ -392,7 +392,7 @@ __ni_dhcp6_lease_ia_data_from_xml(ni_dhcp6_ia_t *ia, const xml_node_t *node)
 			iadr = ni_dhcp6_ia_addr_new(in6addr_any, 0);
 			ret = __ni_dhcp6_lease_ia_addr_from_xml(iadr, ia->type, child);
 			if (ret) {
-				ni_dhcp6_ia_addr_destory(iadr);
+				ni_dhcp6_ia_addr_free(iadr);
 				if (ret < 0)
 					return ret;
 			} else {
@@ -419,7 +419,7 @@ __ni_dhcp6_lease_ia_type_from_xml(ni_dhcp6_ia_t **ia_list, unsigned int ia_type,
 		ni_dhcp6_ia_list_append(ia_list, ia);
 		return 0;
 	} else {
-		ni_dhcp6_ia_destroy(ia);
+		ni_dhcp6_ia_free(ia);
 	}
 	return 0;
 }
