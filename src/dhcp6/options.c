@@ -27,6 +27,7 @@
 #endif
 
 #include <stdlib.h>
+#include <stdint.h>
 #include <wicked/util.h>
 #include "dhcp6/options.h"
 #include "util_priv.h"
@@ -34,7 +35,7 @@
 /*
  * status
  */
-static const char *	__dhcp6_status_codes[__NI_DHCP6_STATUS_MAX] = {
+static const char *	ni_dhcp6_status_code_names[NI_DHCP6_STATUS_CODE_MAX] = {
 	[NI_DHCP6_STATUS_SUCCESS]	= "Success",
 	[NI_DHCP6_STATUS_FAILURE]	= "UnspecFail",
 	[NI_DHCP6_STATUS_NOADDRS]	= "NoAddrsAvail",
@@ -49,27 +50,41 @@ ni_dhcp6_status_name(unsigned int code)
 	static char namebuf[64];
 	const char *name = NULL;
 
-	if (code < __NI_DHCP6_STATUS_MAX)
-		name = __dhcp6_status_codes[code];
+	if (code < NI_DHCP6_STATUS_CODE_MAX)
+		name = ni_dhcp6_status_code_names[code];
 
-	if (!name) {
+	if (!name && code <= UINT16_MAX) {
 		snprintf(namebuf, sizeof(namebuf), "[%u]", code);
 		name = namebuf;
 	}
 	return name;
 }
 
+unsigned int
+ni_dhcp6_status_code(const ni_dhcp6_status_t *status)
+{
+	return status ? status->code : -1U;
+}
+
+const char *
+ni_dhcp6_status_message(const ni_dhcp6_status_t *status)
+{
+	return status ? status->message : NULL;
+}
+
 ni_dhcp6_status_t *
 ni_dhcp6_status_new(void)
 {
-	return xcalloc(1, sizeof(ni_dhcp6_status_t));
+	return calloc(1, sizeof(ni_dhcp6_status_t));
 }
 
 void
 ni_dhcp6_status_clear(ni_dhcp6_status_t *status)
 {
-	status->code = 0;
-	ni_string_free(&status->message);
+	if (status) {
+		status->code = 0;
+		ni_string_free(&status->message);
+	}
 }
 
 void

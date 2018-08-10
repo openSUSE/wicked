@@ -89,7 +89,7 @@ enum NI_DHCP6_STATUS_CODE {
 	NI_DHCP6_STATUS_NOTONLINK		= 4,
 	NI_DHCP6_STATUS_USEMULTICAST		= 5,
 
-	__NI_DHCP6_STATUS_MAX
+	NI_DHCP6_STATUS_CODE_MAX
 };
 
 /*
@@ -179,7 +179,8 @@ extern ni_dhcp6_status_t *	ni_dhcp6_status_new(void);
 extern void			ni_dhcp6_status_clear(ni_dhcp6_status_t *);
 extern void			ni_dhcp6_status_destroy(ni_dhcp6_status_t **);
 extern const char *		ni_dhcp6_status_name(unsigned int);
-
+extern unsigned int		ni_dhcp6_status_code(const ni_dhcp6_status_t *);
+extern const char *		ni_dhcp6_status_message(const ni_dhcp6_status_t *);
 
 extern const char *		ni_dhcp6_option_name(unsigned int);
 
