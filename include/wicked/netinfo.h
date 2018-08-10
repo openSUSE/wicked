@@ -287,7 +287,7 @@ extern const char *	ni_oper_state_type_to_name(int);
 
 extern const char *	ni_strerror(int errcode);
 
-extern ni_bool_t	ni_netdev_name_is_valid(const char *);
+extern const char *	ni_netdev_name_is_valid(const char *);
 extern ni_bool_t	ni_netdev_alias_label_is_valid(const char *, const char *);
 
 extern ni_bool_t	ni_netdev_device_is_ready(ni_netdev_t *);

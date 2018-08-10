@@ -127,7 +127,7 @@ ni_do_duid_get(int argc, char **argv)
 	if (argc - optind)
 		goto usage;
 
-	if (scope && !ni_netdev_name_is_valid(scope)) {
+	if (scope && ni_netdev_name_is_valid(scope) != NULL) {
 		fprintf(stderr, "%s: invalid scope interface name '%s'\n", argv[0],
 				ni_print_suspect(scope, ni_string_len(scope)));
 		status = NI_WICKED_RC_ERROR;
@@ -190,7 +190,7 @@ ni_do_duid_del(int argc, char **argv)
 	if (argc - optind)
 		goto usage;
 
-	if (scope && !ni_netdev_name_is_valid(scope)) {
+	if (scope && ni_netdev_name_is_valid(scope) != NULL) {
 		fprintf(stderr, "%s: invalid scope interface name '%s'\n", argv[0],
 				ni_print_suspect(scope, ni_string_len(scope)));
 		status = NI_WICKED_RC_ERROR;
@@ -258,7 +258,7 @@ ni_do_duid_set(int argc, char **argv)
 		goto usage;
 	}
 
-	if (scope && !ni_netdev_name_is_valid(scope)) {
+	if (scope && ni_netdev_name_is_valid(scope) != NULL) {
 		fprintf(stderr, "%s: invalid scope interface name '%s'\n", argv[0],
 				ni_print_suspect(scope, ni_string_len(scope)));
 		status = NI_WICKED_RC_ERROR;
@@ -366,7 +366,7 @@ ni_do_duid_create_en(int argc, char **argv)
 	}
 
 	status = NI_WICKED_RC_ERROR;
-	if (scope && !ni_netdev_name_is_valid(scope)) {
+	if (scope && ni_netdev_name_is_valid(scope) != NULL) {
 		fprintf(stderr, "%s: invalid scope interface name '%s'\n", argv[0],
 				ni_print_suspect(scope, ni_string_len(scope)));
 		goto cleanup;
@@ -479,7 +479,7 @@ ni_do_duid_create_ll_type(uint16_t type, int argc, char **argv)
 	}
 
 	status = NI_WICKED_RC_ERROR;
-	if (scope && !ni_netdev_name_is_valid(scope)) {
+	if (scope && ni_netdev_name_is_valid(scope) != NULL) {
 		fprintf(stderr, "%s: invalid scope interface name '%s'\n", argv[0],
 				ni_print_suspect(scope, ni_string_len(scope)));
 		goto cleanup;
@@ -638,7 +638,7 @@ ni_do_duid_create_uuid(int argc, char **argv)
 	}
 
 	status = NI_WICKED_RC_ERROR;
-	if (scope && !ni_netdev_name_is_valid(scope)) {
+	if (scope && ni_netdev_name_is_valid(scope) != NULL) {
 		fprintf(stderr, "%s: invalid scope interface name '%s'\n", argv[0],
 				ni_print_suspect(scope, ni_string_len(scope)));
 		goto cleanup;

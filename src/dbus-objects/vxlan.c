@@ -71,7 +71,7 @@ ni_objectmodel_vxlan_create(ni_netdev_t *cfg, const char *ifname, DBusError *err
 		}
 		ifname = cfg->name;
 	} else
-	if (!ni_netdev_name_is_valid(ifname)) {
+	if (ni_netdev_name_is_valid(ifname) != NULL) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Unable to create %s interface: "
 				"invalid interface name '%s'",
@@ -185,7 +185,7 @@ ni_objectmodel_vxlan_change(ni_dbus_object_t *object, const ni_dbus_method_t *me
 	if (ni_string_empty(cfg->name))
 		ni_string_dup(&cfg->name, dev->name);
 	else
-	if (!ni_netdev_name_is_valid(cfg->name)) {
+	if (ni_netdev_name_is_valid(cfg->name) != NULL) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Unable to rename %s interface '%s': "
 				"invalid interface name '%s'",

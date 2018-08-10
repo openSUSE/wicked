@@ -125,7 +125,7 @@ ni_do_iaid_get(int argc, char **argv)
 		goto usage;
 	}
 
-	if (!ni_netdev_name_is_valid(ifname)) {
+	if (ni_netdev_name_is_valid(ifname) != NULL) {
 		fprintf(stderr, "%s: invalid interface name '%s'\n", argv[0],
 				ni_print_suspect(ifname, ni_string_len(ifname)));
 		status = NI_WICKED_RC_ERROR;
@@ -183,7 +183,7 @@ ni_do_iaid_del(int argc, char **argv)
 		goto usage;
 	}
 
-	if (!ni_netdev_name_is_valid(ifname)) {
+	if (ni_netdev_name_is_valid(ifname) != NULL) {
 		fprintf(stderr, "%s: invalid interface name '%s'\n", argv[0],
 				ni_print_suspect(ifname, ni_string_len(ifname)));
 		status = NI_WICKED_RC_ERROR;
@@ -251,7 +251,7 @@ ni_do_iaid_set(int argc, char **argv)
 		goto usage;
 	}
 
-	if (!ni_netdev_name_is_valid(ifname)) {
+	if (ni_netdev_name_is_valid(ifname) != NULL) {
 		fprintf(stderr, "%s: invalid interface name '%s'\n", argv[0],
 				ni_print_suspect(ifname, ni_string_len(ifname)));
 		status = NI_WICKED_RC_ERROR;
@@ -334,7 +334,7 @@ ni_do_iaid_create(int argc, char **argv)
 		goto usage;
 	}
 
-	if (!ni_netdev_name_is_valid(ifname)) {
+	if (ni_netdev_name_is_valid(ifname) != NULL) {
 		fprintf(stderr, "%s: invalid interface name '%s'\n", argv[0],
 				ni_print_suspect(ifname, ni_string_len(ifname)));
 		status = NI_WICKED_RC_ERROR;

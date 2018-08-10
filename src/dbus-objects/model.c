@@ -753,7 +753,7 @@ ni_objectmodel_bind_netdev_ref_index(const char *ifname, const char *hint,
 		return set_bind_netdev_ref_index_error(ifname, hint, device,
 				error, "invalid self-reference");
 
-	if (!ni_netdev_name_is_valid(device->name))
+	if (ni_netdev_name_is_valid(device->name) != NULL)
 		return set_bind_netdev_ref_index_error(ifname, hint, device,
 				error, "suspect device name");
 
