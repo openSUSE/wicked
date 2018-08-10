@@ -4441,10 +4441,12 @@ __ni_rtnl_send_newaddr(ni_netdev_t *dev, const ni_address_t *ap, int flags)
 
 	if (ap->cache_info.preferred_lft != NI_LIFETIME_INFINITE) {
 		struct ifa_cacheinfo ci;
+		struct timeval now;
 
 		memset(&ci, 0, sizeof(ci));
-		ci.ifa_valid = ap->cache_info.valid_lft;
-		ci.ifa_prefered = ap->cache_info.preferred_lft;
+		ni_timer_get_time(&now);
+		ci.ifa_valid = ni_address_valid_lft(ap, &now);
+		ci.ifa_prefered = ni_address_preferred_lft(ap, &now);
 
 		if (ci.ifa_prefered > ci.ifa_valid)
 			ci.ifa_prefered = ci.ifa_valid;
@@ -4964,6 +4966,27 @@ __ni_netdev_addr_label_update(const char *ifname, const char *olabel, const char
 }
 
 static int
+__ni_netdev_addr_needs_lft_update(const char *ifname, ni_address_t *o, ni_address_t *n)
+{
+	unsigned int valid_lft;
+	struct timeval now;
+
+	ni_timer_get_time(&now);
+	valid_lft = ni_address_valid_lft(n, &now);
+
+	if (valid_lft == NI_LIFETIME_EXPIRED)
+		return -1;
+
+	if (ni_address_valid_lft(o, &now) != valid_lft)
+		return 1;
+
+	if (ni_address_preferred_lft(o, &now) != ni_address_preferred_lft(n, &now))
+		return 1;
+
+	return 0;
+}
+
+static int
 __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t *n)
 {
 	if (n->scope != -1 && o->scope != n->scope)
@@ -4991,26 +5014,21 @@ __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t 
 		break;
 
 	case AF_INET6:
-	{
-		ni_address_cache_info_t olft, nlft;
-		struct timeval now;
+		/* do not try to update dhcp6 address lifetimes, but
+		 * delete and re-add to enforce duplicate detection.
+		 */
+		switch (n->owner) {
+		case NI_ADDRCONF_DHCP:
+			return -1;
 
-		ni_timer_get_time(&now);
-		ni_address_cache_info_rebase(&olft, &o->cache_info, &now);
-		ni_address_cache_info_rebase(&nlft, &n->cache_info, &now);
-
-		/* (invalid) 0 lifetimes mean unset/not provided by the lease;
-		 * kernel uses ~0 (infinity) / permanent address when omitted */
-		if ((nlft.valid_lft || nlft.preferred_lft) &&
-		    (olft.valid_lft     != nlft.valid_lft ||
-		     olft.preferred_lft != nlft.preferred_lft))
-			return 1;
-	}	break;
+		default:
+			return __ni_netdev_addr_needs_lft_update(ifname, o, n);
+		}
 
 	default:
 		break;
 	}
-	return FALSE;
+	return 0;
 }
 
 /*
@@ -5336,6 +5354,9 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 			if (replace < 0)
 				__ni_rtnl_send_deladdr(dev, ap);
 
+			if (!ni_address_lft_is_valid(new_addr, NULL))
+				continue;
+
 			if ((rv = __ni_rtnl_send_newaddr(dev, new_addr, NLM_F_REPLACE)) < 0)
 				continue;
 
@@ -5364,6 +5385,9 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		unsigned int count = 0;
 
 		if (ap->seq == __ni_global_seqno)
+			continue;
+
+		if (!ni_address_lft_is_valid(ap, NULL))
 			continue;
 
 		if (ni_address_is_duplicate(ap))

@@ -356,6 +356,42 @@ ni_address_set_temporary(ni_address_t *laddr, ni_bool_t temporary)
 		laddr->flags &= ~IFA_F_TEMPORARY;
 }
 
+void
+ni_address_set_mngtmpaddr(ni_address_t *laddr, ni_bool_t temporary)
+{
+	if (temporary)
+		laddr->flags |= IFA_F_MANAGETEMPADDR;
+	else
+		laddr->flags &= ~IFA_F_MANAGETEMPADDR;
+}
+
+unsigned int
+ni_address_valid_lft(const ni_address_t *ap, const struct timeval *current)
+{
+	return ap ? ni_lifetime_left(ap->cache_info.valid_lft,
+			&ap->cache_info.acquired, current) : NI_LIFETIME_EXPIRED;
+}
+
+unsigned int
+ni_address_preferred_lft(const ni_address_t *ap, const struct timeval *current)
+{
+	return ap ? ni_lifetime_left(ap->cache_info.preferred_lft,
+			&ap->cache_info.acquired, current) : NI_LIFETIME_EXPIRED;
+}
+
+ni_bool_t
+ni_address_lft_is_valid(const ni_address_t *ap, const struct timeval *current)
+{
+	return ni_address_valid_lft(ap, current) != NI_LIFETIME_EXPIRED;
+}
+
+ni_bool_t
+ni_address_lft_is_preferred(const ni_address_t *ap, const struct timeval *current)
+{
+	return ni_address_preferred_lft(ap, current) != NI_LIFETIME_EXPIRED;
+}
+
+
 /*
  * ni_address list functions
  */
