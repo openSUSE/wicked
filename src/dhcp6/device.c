@@ -269,11 +269,12 @@ ni_dhcp6_device_set_lease(ni_dhcp6_device_t *dev,  ni_addrconf_lease_t *lease)
 
 void
 ni_dhcp6_device_set_best_offer(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease,
-		int weight)
+		int pref, int weight)
 {
 	if (dev->best_offer.lease && dev->best_offer.lease != lease)
 		ni_addrconf_lease_free(dev->best_offer.lease);
 	dev->best_offer.lease = lease;
+	dev->best_offer.pref = pref;
 	dev->best_offer.weight = weight;
 	if (dev->config && lease)
 		lease->uuid = dev->config->uuid;
@@ -293,6 +294,7 @@ ni_dhcp6_device_drop_lease(ni_dhcp6_device_t *dev)
 void
 ni_dhcp6_device_drop_best_offer(ni_dhcp6_device_t *dev)
 {
+	dev->best_offer.pref = -1;
 	dev->best_offer.weight = -1;
 	if (dev->best_offer.lease)
 		ni_addrconf_lease_free(dev->best_offer.lease);

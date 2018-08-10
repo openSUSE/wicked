@@ -466,17 +466,26 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 }
 
 static inline ni_bool_t
-__fsm_select_best_offer(const ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *lease, int weight)
+__fsm_select_best_offer(const ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *lease, int pref, int weight)
 {
 	/* when we don't have any or this is a better offer, remember it */
 	if (dev->best_offer.lease == NULL || dev->best_offer.weight < weight)
 		return TRUE;
 
-	/* ignore when we have a better offer */
+	/* ignore when we have an offer providing more requested things */
 	if (dev->best_offer.weight > weight) {
 		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-				"We have a better offer than weight %d", weight);
+				"%s: we have a better offer than weight %d",
+				dev->ifname, weight);
 		return FALSE;
+	}
+
+	/* prefer offer from server with a higher server preference */
+	if (dev->best_offer.pref < pref) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: prefer offer from server with higher preference %d",
+				dev->ifname, pref);
+		return TRUE;
 	}
 
 	/* prefer equal weight offer from the last server we've used */
@@ -495,6 +504,7 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 {
 	unsigned int count;
 	int weight = 0;
+	int pref = 0;
 	int rv = 1;
 
 	switch (msg->type) {
@@ -535,10 +545,17 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		/* check if the config provides/overrides the preference */
 		if (!ni_dhcp6_config_server_preference(	&msg->lease->dhcp6.server_addr,
 							&msg->lease->dhcp6.server_id,
-							&weight)) {
-			weight = msg->lease->dhcp6.server_pref;
+							&pref)) {
+			pref = msg->lease->dhcp6.server_pref;
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+					"%s: dhcp6 server preference %u",
+					dev->ifname, msg->lease->dhcp6.server_pref);
+		} else {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+					"%s: dhcp6 server preference %u overriden by config to %d",
+					dev->ifname, msg->lease->dhcp6.server_pref, pref);
 		}
-		if (weight < 0) {
+		if (pref < 0) {
 			ni_string_printf(hint, "blacklisted server");
 			goto cleanup;
 		}
@@ -555,27 +572,27 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 			goto cleanup;
 		}
 
-		if(__fsm_select_best_offer(dev, msg->lease, weight)) {
-			ni_dhcp6_device_set_best_offer(dev, msg->lease, weight);
+		if (__fsm_select_best_offer(dev, msg->lease, pref, weight)) {
+			ni_dhcp6_device_set_best_offer(dev, msg->lease, pref, weight);
 			msg->lease = NULL;
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-					"recorded regular offer with weight %d",
-					dev->best_offer.weight);
+					"%s: recorded regular offer with pref %d and weight %d",
+					dev->ifname, dev->best_offer.pref, dev->best_offer.weight);
 		} else if (!dev->best_offer.lease) {
-			ni_string_printf(hint, "unacceptable regular offer with weight %d",
-						weight);
+			ni_string_printf(hint, "%s: unacceptable regular offer with pref %d and weight %d",
+						dev->ifname, pref, weight);
 			goto cleanup;
 		}
 
-		if (dev->best_offer.lease && dev->retrans.count > 1) {
+		if (dev->best_offer.lease && dev->retrans.count > 0) {
 			/* if the weight has maximum value, just accept this offer */
-			if (dev->best_offer.weight > 255) {
+			if (dev->best_offer.pref > 254) {
 				ni_dhcp6_fsm_timer_cancel(dev);
 				rv = ni_dhcp6_fsm_accept_offer(dev);
 			} else {
 				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-						"waiting for better offers than weight %d",
-						dev->best_offer.weight);
+						"%s: waiting for better offers than pref %d and weight %d",
+						dev->ifname, dev->best_offer.pref, dev->best_offer.weight);
 			}
 		}
 		rv = 0;
@@ -619,15 +636,23 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		 */
 
 		/* check if the config provides/overrides the preference */
-		if (!ni_dhcp6_config_server_preference( &msg->lease->dhcp6.server_addr,
+		if (!ni_dhcp6_config_server_preference(	&msg->lease->dhcp6.server_addr,
 							&msg->lease->dhcp6.server_id,
-							&weight)) {
-			weight = msg->lease->dhcp6.server_pref;
+							&pref)) {
+			pref = msg->lease->dhcp6.server_pref;
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+					"%s: dhcp6 server preference %u",
+					dev->ifname, msg->lease->dhcp6.server_pref);
+		} else {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+					"%s: dhcp6 server preference %u overriden by config to %d",
+					dev->ifname, msg->lease->dhcp6.server_pref, pref);
 		}
-		if (weight < 0) {
+		if (pref < 0) {
 			ni_string_printf(hint, "blacklisted server");
 			goto cleanup;
 		}
+
 		/* reset weight for offers without any lease addrs */
 		count = ni_address_list_count(msg->lease->addrs);
 		if (!count) {
@@ -636,27 +661,27 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 		}
 		weight += count;
 
-		if(__fsm_select_best_offer(dev, msg->lease, weight)) {
-			ni_dhcp6_device_set_best_offer(dev, msg->lease, weight);
+		if (__fsm_select_best_offer(dev, msg->lease, pref, weight)) {
+			ni_dhcp6_device_set_best_offer(dev, msg->lease, pref, weight);
 			msg->lease = NULL;
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-					"recorded rapid-commit offer with weight %d",
-					dev->best_offer.weight);
+					"%s: recorded rapid-commit offer with pref %d and weight %d",
+					dev->ifname, dev->best_offer.pref, dev->best_offer.weight);
 		} else if (!dev->best_offer.lease) {
-			ni_string_printf(hint, "unacceptable rapid-commmit offer with weight %d",
-						weight);
+			ni_string_printf(hint, "%s: unacceptable rapid-commmit offer with pref %d and weight %d",
+						dev->ifname, pref, weight);
 			goto cleanup;
 		}
 
-		if (dev->best_offer.lease && dev->retrans.count > 1) {
+		if (dev->best_offer.lease && dev->retrans.count > 0) {
 			/* if the weight has maximum value, just accept this offer */
-			if (dev->best_offer.weight > 255) {
+			if (dev->best_offer.pref > 254) {
 				ni_dhcp6_fsm_timer_cancel(dev);
 				rv = ni_dhcp6_fsm_accept_offer(dev);
 			} else {
 				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-						"waiting for better offers than weight %d",
-						dev->best_offer.weight);
+						"%s: waiting for better offers than pref %d and weight %d",
+						dev->ifname, dev->best_offer.pref, dev->best_offer.weight);
 			}
 		}
 		rv = 0;
@@ -1055,6 +1080,7 @@ static int
 __fsm_inforeq_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
 {
 	int weight = 0;
+	int pref = 0;
 	int rv = 1;
 
 	switch (msg->type) {
@@ -1072,46 +1098,54 @@ __fsm_inforeq_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 		/* check if the config provides/overrides the preference */
 		if (!ni_dhcp6_config_server_preference(	&msg->lease->dhcp6.server_addr,
 							&msg->lease->dhcp6.server_id,
-							&weight)) {
-			weight = msg->lease->dhcp6.server_pref;
+							&pref)) {
+			pref = msg->lease->dhcp6.server_pref;
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+					"%s: dhcp6 server preference %u",
+					dev->ifname, msg->lease->dhcp6.server_pref);
+		} else {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+					"%s: dhcp6 server preference %u overriden by config to %d",
+					dev->ifname, msg->lease->dhcp6.server_pref, pref);
 		}
-		if (weight < 0) {
+		if (pref < 0) {
 			ni_string_printf(hint, "blacklisted server");
 			goto cleanup;
 		}
+
 		if (ni_address_list_count(msg->lease->addrs) > 0) {
 			ni_string_printf(hint, "info reply containing addresses?");
 			goto cleanup;
 		}
 		if (msg->lease->resolver && msg->lease->resolver->dns_servers.count) {
-			weight += msg->lease->resolver->dns_servers.count;
-			weight += msg->lease->resolver->dns_search.count;
+			weight += !!msg->lease->resolver->dns_servers.count;
+			weight += !!msg->lease->resolver->dns_search.count;
 		} else {
-			ni_debug_dhcp("lease offer without resolver settings");
+			ni_debug_dhcp("%s: lease offer without resolver settings", dev->ifname);
 			weight = 0;
 		}
 
-		if(__fsm_select_best_offer(dev, msg->lease, weight)) {
-			ni_dhcp6_device_set_best_offer(dev, msg->lease, weight);
+		if(__fsm_select_best_offer(dev, msg->lease, pref, weight)) {
+			ni_dhcp6_device_set_best_offer(dev, msg->lease, pref, weight);
 			msg->lease = NULL;
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-					"recorded info offer with weight %d",
-					dev->best_offer.weight);
+					"%s: recorded info offer with pref %d and weight %d",
+					dev->ifname, dev->best_offer.pref, dev->best_offer.weight);
 		} else if (!dev->best_offer.lease) {
-			ni_string_printf(hint, "unacceptable info offer with weight %d",
-						weight);
+			ni_string_printf(hint, "%s: unacceptable info offer with pref %d and weight %d",
+						dev->ifname, pref, weight);
 			goto cleanup;
 		}
 
 		if (dev->best_offer.lease) {
 			/* if the weight has maximum value, just accept this offer */
-			if (dev->best_offer.weight > 255) {
+			if (dev->best_offer.pref > 254) {
 				ni_dhcp6_fsm_timer_cancel(dev);
 				rv = ni_dhcp6_fsm_accept_offer(dev);
 			} else {
 				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-						"waiting for better offers than weight %d",
-						dev->best_offer.weight);
+						"%s: waiting for better offers than pred %d and weight %d",
+						dev->ifname, dev->best_offer.pref, dev->best_offer.weight);
 			}
 		}
 		rv = 0;

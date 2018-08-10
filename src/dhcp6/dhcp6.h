@@ -222,7 +222,8 @@ struct ni_dhcp6_device {
 
 	struct {
 	   ni_addrconf_lease_t *lease;
-	   int			weight;
+	   int			pref;		/* server preference */
+	   int			weight;		/* our offer weight  */
 	} best_offer;
 
 };
