@@ -700,6 +700,8 @@ __fsm_request_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 			ni_string_printf(hint, "status %s - %s",
 						ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
 						msg->lease->dhcp6.status->message);
+			ni_dhcp6_device_drop_best_offer(dev);
+			ni_dhcp6_device_restart(dev);
 			goto cleanup;
 		} else {
 			ni_dhcp6_ia_t *ia;
