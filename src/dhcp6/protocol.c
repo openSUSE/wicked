@@ -413,7 +413,7 @@ ni_dhcp6_print_timeval(const struct timeval *tv)
 
 	buf[0] = '\0';
 	strftime(buf, sizeof(buf), "%T", localtime(&tv->tv_sec));
-	snprintf(buf + strlen(buf), sizeof(buf)-strlen(buf), ".%ld", tv->tv_usec/1000);
+	snprintf(buf + strlen(buf), sizeof(buf)-strlen(buf), ".%03ld", tv->tv_usec/1000);
 	return buf;
 }
 

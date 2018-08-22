@@ -835,7 +835,7 @@ ni_addrconf_updater_action_call(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 
 		if (updater->action->info) {
 			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG,
-					"%s: %s for %s:%s lease in state %s: %s [%s %ldm%ld.%lds]",
+					"%s: %s for %s:%s lease in state %s: %s [%s %ldm%ld.%03lds]",
 					dev->name, updater->action->info,
 					ni_addrfamily_type_to_name(lease->family),
 					ni_addrconf_type_to_name(lease->type),
@@ -905,7 +905,7 @@ ni_addrconf_updater_execute(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 		} else {
 			timerclear(&delta);
 		}
-		ni_debug_ifconfig("%s: updater for lease %s:%s in state %s finished: %s [%ldm%ld.%lds]",
+		ni_debug_ifconfig("%s: updater for lease %s:%s in state %s finished: %s [%ldm%ld.%03lds]",
 				dev->name,
 				ni_addrfamily_type_to_name(lease->family),
 				ni_addrconf_type_to_name(lease->type),
