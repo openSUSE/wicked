@@ -392,7 +392,7 @@ __ni_process_run_info(ni_process_t *pi)
 		struct timeval delta;
 
 		timersub(&now, &pi->started, &delta);
-		snprintf(runtime, sizeof(runtime), " [%ldm%ld.%lds]",
+		snprintf(runtime, sizeof(runtime), " [%ldm%ld.%03lds]",
 				delta.tv_sec / 60, delta.tv_sec % 60,
 				delta.tv_usec / 1000);
 	}

@@ -56,7 +56,7 @@ struct ni_dhcp6_ia {
 
 	uint16_t		type;
 	uint32_t		iaid;
-	uint32_t		time_acquired;
+	struct timeval		acquired;
 	uint32_t		renewal_time;
 	uint32_t		rebind_time;
 	ni_dhcp6_ia_addr_t *	addrs;
@@ -89,7 +89,7 @@ enum NI_DHCP6_STATUS_CODE {
 	NI_DHCP6_STATUS_NOTONLINK		= 4,
 	NI_DHCP6_STATUS_USEMULTICAST		= 5,
 
-	__NI_DHCP6_STATUS_MAX
+	NI_DHCP6_STATUS_CODE_MAX
 };
 
 /*
@@ -179,25 +179,36 @@ extern ni_dhcp6_status_t *	ni_dhcp6_status_new(void);
 extern void			ni_dhcp6_status_clear(ni_dhcp6_status_t *);
 extern void			ni_dhcp6_status_destroy(ni_dhcp6_status_t **);
 extern const char *		ni_dhcp6_status_name(unsigned int);
-
+extern unsigned int		ni_dhcp6_status_code(const ni_dhcp6_status_t *);
+extern const char *		ni_dhcp6_status_message(const ni_dhcp6_status_t *);
 
 extern const char *		ni_dhcp6_option_name(unsigned int);
 
 
 extern ni_dhcp6_ia_addr_t *	ni_dhcp6_ia_addr_new(const struct in6_addr,
 							unsigned int);
-extern void			ni_dhcp6_ia_addr_destory(ni_dhcp6_ia_addr_t *);
+extern void			ni_dhcp6_ia_addr_free(ni_dhcp6_ia_addr_t *);
 
-extern void			ni_dhcp6_ia_addr_list_append(ni_dhcp6_ia_addr_t **,
+extern ni_bool_t		ni_dhcp6_ia_addr_list_append(ni_dhcp6_ia_addr_t **,
 								ni_dhcp6_ia_addr_t *);
+extern ni_bool_t		ni_dhcp6_ia_addr_list_remove(ni_dhcp6_ia_addr_t **,
+								ni_dhcp6_ia_addr_t *);
+extern ni_bool_t		ni_dhcp6_ia_addr_list_delete(ni_dhcp6_ia_addr_t **,
+								ni_dhcp6_ia_addr_t *);
+extern size_t			ni_dhcp6_ia_addr_list_count(const ni_dhcp6_ia_addr_t *);
 extern void			ni_dhcp6_ia_addr_list_destroy(ni_dhcp6_ia_addr_t **);
 
 
 extern ni_dhcp6_ia_t *		ni_dhcp6_ia_new(unsigned int, unsigned int);
-extern void			ni_dhcp6_ia_destroy(ni_dhcp6_ia_t *);
+extern void			ni_dhcp6_ia_free(ni_dhcp6_ia_t *);
 
-extern void			ni_dhcp6_ia_list_destroy(ni_dhcp6_ia_t **);
-extern void			ni_dhcp6_ia_list_append(ni_dhcp6_ia_t **,
+extern ni_bool_t		ni_dhcp6_ia_list_append(ni_dhcp6_ia_t **,
 							ni_dhcp6_ia_t *);
+extern ni_bool_t		ni_dhcp6_ia_list_remove(ni_dhcp6_ia_t **,
+							ni_dhcp6_ia_t *);
+extern ni_bool_t		ni_dhcp6_ia_list_delete(ni_dhcp6_ia_t **,
+							ni_dhcp6_ia_t *);
+extern size_t			ni_dhcp6_ia_list_count(const ni_dhcp6_ia_t *);
+extern void			ni_dhcp6_ia_list_destroy(ni_dhcp6_ia_t **);
 
 #endif /* __WICKED_DHCP6_OPTIONS_H__ */
