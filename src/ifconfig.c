@@ -492,16 +492,27 @@ __ni_addrconf_action_addrs_apply(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 static int
 __ni_addrconf_action_addrs_verify_check(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 {
-	ni_address_t *ap;
+	unsigned int duplicates = 0;
+	unsigned int tentative = 0;
+	unsigned int verified = 0;
+	const ni_address_t *ap;
+	ni_address_t *la;
 
 	if (lease->family != AF_INET6)
 		return 0;
 
 	/*
 	 * returns:
-	 *      1 if lease or link-local addresses are still tentative and
+	 *      1 if lease or link-local addresses are still tentative
 	 *      0 they're not tentative any more
-	 *     -1 if they're duplicate.
+	 *     -1 if they're only duplicates
+	 *
+	 * The dynamic/finite lifetime dhcp6 addresses are deleted from the
+	 * interface (dev->addrs) by the kernel, and our deletion callback
+	 * in wickedd server marks them dadfailed in the device leases we
+	 * currently apply. An address with infinite lifetime will remain
+	 * on the interface marked dadfailed by the kernel.
+	 * wickedd-dhcp6 monitors, declines and resolicits automatically.
 	 */
 	for (ap = dev->addrs; ap; ap = ap->next) {
 		if (ap->family != AF_INET6)
@@ -516,33 +527,58 @@ __ni_addrconf_action_addrs_verify_check(ni_netdev_t *dev, ni_addrconf_lease_t *l
 			continue;
 
 		if (ni_address_is_duplicate(ap)) {
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG,
+					"%s: lease %s:%s address %s is duplicate",
+					dev->name,
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_sockaddr_print(&ap->local_addr));
+
+			if ((la = ni_address_list_find(lease->addrs, &ap->local_addr)))
+				ni_address_set_duplicate(la, TRUE);
+			else	/* shouldn't happen, ...count it just in case */
+				duplicates++;
+		} else
+		if (ni_address_is_tentative(ap)) {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+					"%s: lease %s:%s address %s is tentative",
+					dev->name,
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_sockaddr_print(&ap->local_addr));
+			tentative++;
+		}
+	}
+
+	if (tentative)
+		return 1;	/*  wait until dad finished for all addresses */
+
+	for (la = lease->addrs; la; la = la->next) {
+		if (ni_address_is_duplicate(la)) {
 			ni_warn("%s: lease %s:%s address %s is duplicate",
 					dev->name,
 					ni_addrfamily_type_to_name(lease->family),
 					ni_addrconf_type_to_name(lease->type),
-					ni_sockaddr_print(&ap->local_addr));
-			/*
-			 * DHCPv6 monitors dad state and declines automatically
-			 */
-			if (lease->type != NI_ADDRCONF_DHCP)
-				lease->state = NI_ADDRCONF_STATE_REQUESTING;
-			else
-				lease->state = NI_ADDRCONF_STATE_FAILED;
-
-			return -1;	/* abort */
-		} else
-		if (ni_address_is_tentative(ap)) {
-			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG,
-				"%s: lease %s:%s address %s is tentative",
-					dev->name,
-					ni_addrfamily_type_to_name(lease->family),
-					ni_addrconf_type_to_name(lease->type),
-					ni_sockaddr_print(&ap->local_addr));
-			return 1;	/* defer */
+					ni_sockaddr_print(&la->local_addr));
+			duplicates++;
+		} else {
+			ap = ni_address_list_find(dev->addrs, &la->local_addr);
+			if (ap && !ni_address_is_duplicate(ap))
+				verified++;
 		}
 	}
 
-	return 0;
+	if (duplicates && !verified) {
+		if (lease->type == NI_ADDRCONF_DHCP)
+			lease->state = NI_ADDRCONF_STATE_REQUESTING;
+		else
+		if (lease->type == NI_ADDRCONF_STATIC)
+			lease->state = NI_ADDRCONF_STATE_FAILED;
+
+		return -1;	/* abort further apply, there is no usable IP */
+	}
+
+	return 0;		/* continue to apply, there is a verified IP  */
 }
 
 static int
@@ -624,6 +660,39 @@ __ni_addrconf_action_addrs_verify(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 }
 
 static int
+__ni_addrconf_action_verify_address_apply(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	unsigned int duplicates = 0;
+	unsigned int verified = 0;
+	const ni_address_t *la, *ap;
+
+	if (lease->family != AF_INET6)
+		return 0;
+
+	for (la = lease->addrs; la; la = la->next) {
+		if (ni_address_is_duplicate(la)) {
+			duplicates++;
+			continue;
+		}
+		ap = ni_address_list_find(dev->addrs, &la->local_addr);
+		if (ap && !ni_address_is_duplicate(ap))
+			verified++;
+	}
+
+	/* when all applied addresses are duplicates, we failed */
+	if (duplicates && !verified) {
+		lease->state = NI_ADDRCONF_STATE_FAILED;
+		return -1;
+	}
+
+	/* change to requesting, dhcp6 declines and re-solicits */
+	if (duplicates && lease->type == NI_ADDRCONF_DHCP)
+		lease->state = NI_ADDRCONF_STATE_REQUESTING;
+
+	return 0;
+}
+
+static int
 __ni_addrconf_action_routes_apply(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
@@ -654,6 +723,12 @@ __ni_addrconf_action_system_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 
 	ni_addrconf_updater_set_data(lease->updater, NULL, NULL);
 	return 0;
+}
+
+static int
+__ni_addrconf_action_verify_apply(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	return __ni_addrconf_action_verify_address_apply(dev, lease);
 }
 
 int
@@ -736,6 +811,7 @@ static const ni_addrconf_action_t	updater_applying_common[] = {
 	{ __ni_addrconf_action_addrs_verify,	"verifying adressses"	},
 	{ __ni_addrconf_action_routes_apply,	"applying routes"	},
 	{ __ni_addrconf_action_system_update,	"applying system config"},
+	{ __ni_addrconf_action_verify_apply,	"verifying apply state" },
 	{ NULL,	NULL }
 };
 
@@ -943,6 +1019,14 @@ ni_addrconf_updater_execute(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 		case NI_ADDRCONF_STATE_FAILED:
 			if (event != NI_EVENT_ADDRESS_RELEASED &&
 			    event != NI_EVENT_ADDRESS_LOST)
+				ret = -1;
+			break;
+
+		case NI_ADDRCONF_STATE_REQUESTING:
+			/* reenter requesting on partial success */
+			if (event == NI_EVENT_ADDRESS_ACQUIRED)
+				event = NI_EVENT_ADDRESS_DEFERRED;
+			else
 				ret = -1;
 			break;
 
