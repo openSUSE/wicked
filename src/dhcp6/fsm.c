@@ -994,6 +994,10 @@ cleanup:
 static int
 __fsm_decline_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
 {
+	ni_dhcp6_ia_addr_t *iadr, *next;
+	ni_dhcp6_ia_t *ia;
+	ni_sockaddr_t ip;
+	int resolicit = 0;
 	int rv = 1;
 
 	switch (msg->type) {
@@ -1006,7 +1010,82 @@ __fsm_decline_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 			goto cleanup;
 		}
 
-		ni_error("Can't parse DECLINE message replies");
+		for (ia = msg->lease->dhcp6.ia_list; ia; ia = ia->next) {
+			for (iadr = ia->addrs; iadr; iadr = iadr->next) {
+
+				ni_sockaddr_set_ipv6(&ip, iadr->addr, 0);
+				ni_debug_dhcp("%s: %s id %u address %s decline status: %s - %s",
+						dev->ifname, ni_dhcp6_option_name(ia->type),
+						ia->iaid, ni_sockaddr_print(&ip),
+						ni_dhcp6_status_name(iadr->status.code),
+						ni_dhcp6_status_message(&iadr->status));
+			}
+			if (!ia->addrs && ia->status.message || ia->status.code) {
+				ni_debug_dhcp("%s: %s id %u decline status: %s - %s",
+						dev->ifname, ni_dhcp6_option_name(ia->type),
+						ia->iaid,
+						ni_dhcp6_status_name(ia->status.code),
+						ni_dhcp6_status_message(&ia->status));
+			}
+		}
+		if (msg->lease->dhcp6.status) {
+			ni_debug_dhcp("%s: decline reply status: %s - %s", dev->ifname,
+					ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
+					ni_dhcp6_status_message(msg->lease->dhcp6.status));
+		}
+
+		/*
+		 * https://tools.ietf.org/html/rfc7550#section-4.4.5
+		 * (https://tools.ietf.org/html/rfc3315#section-18.1.8)
+		 * "[...]
+		 * When the client receives a valid Reply message in response to a
+		 * Decline message, the client considers the Decline event completed,
+		 * regardless of the Status Code option(s) returned by the server.
+		 * [...]"
+		 *
+		 * https://tools.ietf.org/html/rfc7550#section-4.6
+		 * "[...]
+		 * The client SHOULD retain the non-conflicting bindings. The client SHOULD
+		 * treat the failure to acquire a binding as a result of the conflict, to be
+		 * equivalent to not having received the binding, insofar as it behaves when
+		 * sending Renew and Rebind messages.
+		 * [...]"
+		 */
+		for (ia = dev->lease->dhcp6.ia_list; ia; ia = ia->next) {
+			if (!ni_dhcp6_ia_type_na(ia) && !ni_dhcp6_ia_type_ta(ia))
+				continue;
+
+			if (!ia->addrs)
+				continue;	/* already empty before */
+
+			for (iadr = ia->addrs; iadr; iadr = next) {
+				next = iadr->next;
+
+				if (iadr->flags & NI_DHCP6_IA_ADDR_DECLINE) {
+					ni_sockaddr_set_ipv6(&ip, iadr->addr, 0);
+					ni_debug_dhcp("%s: deleting declined %s id %u address %s",
+							dev->ifname, ni_dhcp6_option_name(ia->type),
+							ia->iaid, ni_sockaddr_print(&ip));
+
+					ni_dhcp6_ia_addr_list_delete(&ia->addrs, iadr);
+				}
+			}
+			if (!ia->addrs) {
+				resolicit++;	/* retry to get new one */
+				ni_debug_dhcp("%s: retrigger solicit due to empty %s id %u",
+					dev->ifname, ni_dhcp6_option_name(ia->type), ia->iaid);
+			}
+		}
+
+		ni_addrconf_lease_file_write(dev->ifname, dev->lease);
+		ni_dhcp6_fsm_reset(dev);
+		if (resolicit) {
+			ni_dhcp6_fsm_solicit(dev);
+		} else {
+			ni_dhcp6_fsm_bound(dev);
+		}
+
+		rv = 0;
 	break;
 
 	default:
