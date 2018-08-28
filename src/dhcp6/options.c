@@ -123,6 +123,18 @@ ni_dhcp6_ia_addr_free(ni_dhcp6_ia_addr_t *iadr)
 	}
 }
 
+ni_bool_t
+ni_dhcp6_ia_addr_equal_address(const ni_dhcp6_ia_addr_t *a, const ni_dhcp6_ia_addr_t *b)
+{
+	return IN6_ARE_ADDR_EQUAL(&a->addr, &b->addr);
+}
+
+ni_bool_t
+ni_dhcp6_ia_addr_equal_prefix(const ni_dhcp6_ia_addr_t *a, const ni_dhcp6_ia_addr_t *b)
+{
+	return a->plen == b->plen && ni_dhcp6_ia_addr_equal_address(a, b);
+}
+
 
 /*
  * ia address list

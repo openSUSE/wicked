@@ -189,6 +189,11 @@ extern ni_dhcp6_ia_addr_t *	ni_dhcp6_ia_addr_new(const struct in6_addr,
 							unsigned int);
 extern void			ni_dhcp6_ia_addr_free(ni_dhcp6_ia_addr_t *);
 
+extern ni_bool_t		ni_dhcp6_ia_addr_equal_address(const ni_dhcp6_ia_addr_t *,
+							const ni_dhcp6_ia_addr_t *);
+extern ni_bool_t		ni_dhcp6_ia_addr_equal_prefix(const ni_dhcp6_ia_addr_t *,
+							const ni_dhcp6_ia_addr_t *);
+
 extern ni_bool_t		ni_dhcp6_ia_addr_list_append(ni_dhcp6_ia_addr_t **,
 								ni_dhcp6_ia_addr_t *);
 extern ni_bool_t		ni_dhcp6_ia_addr_list_remove(ni_dhcp6_ia_addr_t **,
