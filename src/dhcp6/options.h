@@ -189,6 +189,11 @@ extern ni_dhcp6_ia_addr_t *	ni_dhcp6_ia_addr_new(const struct in6_addr,
 							unsigned int);
 extern void			ni_dhcp6_ia_addr_free(ni_dhcp6_ia_addr_t *);
 
+extern ni_bool_t		ni_dhcp6_ia_addr_equal_address(const ni_dhcp6_ia_addr_t *,
+							const ni_dhcp6_ia_addr_t *);
+extern ni_bool_t		ni_dhcp6_ia_addr_equal_prefix(const ni_dhcp6_ia_addr_t *,
+							const ni_dhcp6_ia_addr_t *);
+
 extern ni_bool_t		ni_dhcp6_ia_addr_list_append(ni_dhcp6_ia_addr_t **,
 								ni_dhcp6_ia_addr_t *);
 extern ni_bool_t		ni_dhcp6_ia_addr_list_remove(ni_dhcp6_ia_addr_t **,
@@ -198,6 +203,11 @@ extern ni_bool_t		ni_dhcp6_ia_addr_list_delete(ni_dhcp6_ia_addr_t **,
 extern size_t			ni_dhcp6_ia_addr_list_count(const ni_dhcp6_ia_addr_t *);
 extern void			ni_dhcp6_ia_addr_list_destroy(ni_dhcp6_ia_addr_t **);
 
+typedef ni_bool_t		ni_dhcp6_ia_addr_match_fn_t(const ni_dhcp6_ia_addr_t *,
+							const ni_dhcp6_ia_addr_t *);
+extern ni_dhcp6_ia_addr_t *	ni_dhcp6_ia_addr_list_find(ni_dhcp6_ia_addr_t *,
+							const ni_dhcp6_ia_addr_t *,
+							ni_dhcp6_ia_addr_match_fn_t *);
 
 extern ni_dhcp6_ia_t *		ni_dhcp6_ia_new(unsigned int, unsigned int);
 extern void			ni_dhcp6_ia_free(ni_dhcp6_ia_t *);
@@ -210,5 +220,11 @@ extern ni_bool_t		ni_dhcp6_ia_list_delete(ni_dhcp6_ia_t **,
 							ni_dhcp6_ia_t *);
 extern size_t			ni_dhcp6_ia_list_count(const ni_dhcp6_ia_t *);
 extern void			ni_dhcp6_ia_list_destroy(ni_dhcp6_ia_t **);
+
+typedef ni_bool_t		ni_dhcp6_ia_match_fn_t(const ni_dhcp6_ia_t *,
+							const ni_dhcp6_ia_t *);
+extern ni_dhcp6_ia_t *		ni_dhcp6_ia_list_find(ni_dhcp6_ia_t *,
+							const ni_dhcp6_ia_t *,
+							ni_dhcp6_ia_match_fn_t *);
 
 #endif /* __WICKED_DHCP6_OPTIONS_H__ */

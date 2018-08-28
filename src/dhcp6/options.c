@@ -123,6 +123,18 @@ ni_dhcp6_ia_addr_free(ni_dhcp6_ia_addr_t *iadr)
 	}
 }
 
+ni_bool_t
+ni_dhcp6_ia_addr_equal_address(const ni_dhcp6_ia_addr_t *a, const ni_dhcp6_ia_addr_t *b)
+{
+	return IN6_ARE_ADDR_EQUAL(&a->addr, &b->addr);
+}
+
+ni_bool_t
+ni_dhcp6_ia_addr_equal_prefix(const ni_dhcp6_ia_addr_t *a, const ni_dhcp6_ia_addr_t *b)
+{
+	return a->plen == b->plen && ni_dhcp6_ia_addr_equal_address(a, b);
+}
+
 
 /*
  * ia address list
@@ -189,6 +201,23 @@ ni_dhcp6_ia_addr_list_destroy(ni_dhcp6_ia_addr_t **list)
 			ni_dhcp6_ia_addr_free(iadr);
 		}
 	}
+}
+
+ni_dhcp6_ia_addr_t *
+ni_dhcp6_ia_addr_list_find(ni_dhcp6_ia_addr_t *head, const ni_dhcp6_ia_addr_t *adr,
+			ni_dhcp6_ia_addr_match_fn_t *match)
+{
+	ni_dhcp6_ia_addr_t *cur;
+
+	if (!adr || !match)
+		return NULL;
+
+	for (cur = head; cur; cur = cur->next) {
+		if (match(cur, adr))
+			return cur;
+	}
+
+	return NULL;
 }
 
 
@@ -285,6 +314,24 @@ ni_dhcp6_ia_list_destroy(ni_dhcp6_ia_t **list)
 		}
 	}
 }
+
+ni_dhcp6_ia_t *
+ni_dhcp6_ia_list_find(ni_dhcp6_ia_t *head, const ni_dhcp6_ia_t *ia,
+			ni_dhcp6_ia_match_fn_t *match)
+{
+	ni_dhcp6_ia_t *cur;
+
+	if (!ia || !match)
+		return NULL;
+
+	for (cur = head; cur; cur = cur->next) {
+		if (match(cur, ia))
+			return cur;
+	}
+
+	return NULL;
+}
+
 
 /*
  * Map DHCP6 options to names
