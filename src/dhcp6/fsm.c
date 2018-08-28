@@ -1997,11 +1997,11 @@ ni_dhcp6_fsm_get_expire_timeout(ni_dhcp6_device_t *dev)
  * interface address event handlers
  */
 static void
-__ni_dhcp6_fsm_ia_addr_update(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni_address_t *addr)
+ni_dhcp6_fsm_ia_addr_update(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni_address_t *addr)
 {
 	ni_address_t *ap;
-	struct ni_dhcp6_ia *ia;
-	struct ni_dhcp6_ia_addr *iadr;
+	ni_dhcp6_ia_t *ia;
+	ni_dhcp6_ia_addr_t *iadr;
 	unsigned int tentative = 0;
 	unsigned int duplicate = 0;
 
@@ -2010,7 +2010,7 @@ __ni_dhcp6_fsm_ia_addr_update(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni
 			continue;
 
 		for (ia = dev->lease->dhcp6.ia_list; ia; ia = ia->next) {
-			if (ia->type != NI_DHCP6_OPTION_IA_NA ||
+			if (ia->type != NI_DHCP6_OPTION_IA_NA &&
 			    ia->type != NI_DHCP6_OPTION_IA_TA)
 				continue;
 
@@ -2051,7 +2051,40 @@ __ni_dhcp6_fsm_ia_addr_update(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni
 }
 
 static void
-__ni_dhcp6_fsm_address_update(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, const ni_address_t *addr)
+ni_dhcp6_fsm_ia_addr_delete(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni_address_t *addr)
+{
+	ni_dhcp6_ia_t *ia;
+	ni_dhcp6_ia_addr_t *iadr;
+	unsigned int duplicate = 0;
+
+	if (!addr || addr->family != AF_INET6)
+		return;
+
+	for (ia = dev->lease->dhcp6.ia_list; ia; ia = ia->next) {
+		if (ia->type != NI_DHCP6_OPTION_IA_NA &&
+		    ia->type != NI_DHCP6_OPTION_IA_TA)
+			continue;
+
+		for (iadr = ia->addrs; iadr; iadr = iadr->next) {
+			if (!IN6_ARE_ADDR_EQUAL(&iadr->addr, &addr->local_addr.six.sin6_addr))
+				continue;
+
+			if (ni_address_is_tentative(addr)) {
+				duplicate++;
+
+				iadr->flags |= NI_DHCP6_IA_ADDR_DECLINE;
+				ni_debug_dhcp("%s: duplicate address %s deleted, marked for decline",
+						dev->ifname, ni_sockaddr_print(&addr->local_addr));
+			}
+		}
+	}
+
+	if (duplicate)
+		ni_dhcp6_fsm_decline(dev);
+}
+
+static void
+ni_dhcp6_fsm_address_update(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, const ni_address_t *addr)
 {
 	switch (dev->fsm.state) {
 	case NI_DHCP6_STATE_INIT:
@@ -2062,7 +2095,22 @@ __ni_dhcp6_fsm_address_update(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, const ni
 
 	case NI_DHCP6_STATE_VALIDATING:
 		if (dev->lease) {
-			__ni_dhcp6_fsm_ia_addr_update(ifp, dev, addr);
+			ni_dhcp6_fsm_ia_addr_update(ifp, dev, addr);
+		}
+	break;
+
+	default:
+	break;
+	}
+}
+
+static void
+ni_dhcp6_fsm_address_delete(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, const ni_address_t *addr)
+{
+	switch (dev->fsm.state) {
+	case NI_DHCP6_STATE_VALIDATING:
+		if (dev->lease) {
+			ni_dhcp6_fsm_ia_addr_delete(ifp, dev, addr);
 		}
 	break;
 
@@ -2074,20 +2122,14 @@ __ni_dhcp6_fsm_address_update(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, const ni
 void
 ni_dhcp6_fsm_address_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event, const ni_address_t *addr)
 {
-#if 0
-	if (addr && addr->family == AF_INET6) {
-		ni_debug_events("%s: received interface ipv6 address event: %s %s",
-			dev->ifname, ni_event_type_to_name(event),
-			ni_sockaddr_print(&addr->local_addr));
-	}
-#endif
-
+	ni_server_trace_interface_addr_events(ifp, event, addr);
 	switch (event) {
 	case NI_EVENT_ADDRESS_UPDATE:
-		__ni_dhcp6_fsm_address_update(dev, ifp, addr);
+		ni_dhcp6_fsm_address_update(dev, ifp, addr);
 	break;
 
 	case NI_EVENT_ADDRESS_DELETE:
+		ni_dhcp6_fsm_address_delete(dev, ifp, addr);
 	break;
 
 	default:
