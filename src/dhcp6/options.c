@@ -191,6 +191,23 @@ ni_dhcp6_ia_addr_list_destroy(ni_dhcp6_ia_addr_t **list)
 	}
 }
 
+ni_dhcp6_ia_addr_t *
+ni_dhcp6_ia_addr_list_find(ni_dhcp6_ia_addr_t *head, const ni_dhcp6_ia_addr_t *adr,
+			ni_dhcp6_ia_addr_match_fn_t *match)
+{
+	ni_dhcp6_ia_addr_t *cur;
+
+	if (!adr || !match)
+		return NULL;
+
+	for (cur = head; cur; cur = cur->next) {
+		if (match(cur, adr))
+			return cur;
+	}
+
+	return NULL;
+}
+
 
 /*
  * ia
@@ -285,6 +302,24 @@ ni_dhcp6_ia_list_destroy(ni_dhcp6_ia_t **list)
 		}
 	}
 }
+
+ni_dhcp6_ia_t *
+ni_dhcp6_ia_list_find(ni_dhcp6_ia_t *head, const ni_dhcp6_ia_t *ia,
+			ni_dhcp6_ia_match_fn_t *match)
+{
+	ni_dhcp6_ia_t *cur;
+
+	if (!ia || !match)
+		return NULL;
+
+	for (cur = head; cur; cur = cur->next) {
+		if (match(cur, ia))
+			return cur;
+	}
+
+	return NULL;
+}
+
 
 /*
  * Map DHCP6 options to names
