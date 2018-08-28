@@ -461,6 +461,15 @@ handle_interface_addr_events(ni_netdev_t *dev, ni_event_t event, const ni_addres
 		if (lease->state != NI_ADDRCONF_STATE_APPLYING)
 			continue;
 
+		if ((event == NI_EVENT_ADDRESS_UPDATE && ni_address_is_duplicate(ap)) ||
+		    (event == NI_EVENT_ADDRESS_DELETE && ni_address_is_tentative(ap))) {
+			ni_address_t *la;
+
+			/* mark addresses detected as duplicate in the lease
+			 * for further handing in the lease apply procedure. */
+			if ((la = ni_address_list_find(lease->addrs, &ap->local_addr)))
+				ni_address_set_duplicate(la, TRUE);
+		}
 		ni_addrconf_updater_execute(dev, lease);
 	}
 
