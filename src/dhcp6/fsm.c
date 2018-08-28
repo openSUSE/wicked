@@ -1592,28 +1592,63 @@ ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *dev)
 	return rv;
 }
 
+static ni_bool_t
+ni_dhcp6_fsm_decline_info(const ni_dhcp6_device_t *dev, const ni_dhcp6_ia_t *ia_list,
+				const char *info, const char *warn)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	const ni_dhcp6_ia_addr_t *iadr;
+	const ni_dhcp6_ia_t *ia;
+	ni_sockaddr_t ip;
+
+	ip.ss_family = AF_UNSPEC;
+	for (ia = ia_list; ia; ia = ia->next) {
+		if (ia->type != NI_DHCP6_OPTION_IA_NA &&
+		    ia->type != NI_DHCP6_OPTION_IA_TA)
+			continue;
+
+		for (iadr = ia->addrs; iadr; iadr = iadr->next) {
+			if (!(iadr->flags & NI_DHCP6_IA_ADDR_DECLINE))
+				continue;
+
+			if (ip.ss_family == AF_UNSPEC && info)
+				ni_info("%s: %s", dev->ifname, info);
+
+			ni_sockaddr_set_ipv6(&ip, iadr->addr, 0);
+			if (info) {
+				ni_stringbuf_puts(&buf, ni_sockaddr_print(&ip));
+				ni_stringbuf_puts(&buf, " valid-lft ");
+				ni_lifetime_print_valid(&buf, iadr->valid_lft);
+				ni_stringbuf_puts(&buf, " preferred-lft ");
+				ni_lifetime_print_preferred(&buf, iadr->preferred_lft);
+				ni_info("%s:    %s %s", dev->ifname,
+						ni_dhcp6_option_name(ia->type), buf.string);
+				ni_stringbuf_destroy(&buf);
+			}
+		}
+	}
+
+	if (ip.ss_family == AF_UNSPEC && warn)
+		ni_warn("%s: %s", dev->ifname, warn);
+
+	return ip.ss_family != AF_UNSPEC;
+}
+
 static int
 ni_dhcp6_fsm_decline(ni_dhcp6_device_t *dev)
 {
-	ni_string_array_t *iaddrs = NULL;
 	int rv = -1;
 
 	if (!dev->lease)
 		return -1;
 
+
 	if (dev->retrans.count == 0) {
-		unsigned int i;
 
-		iaddrs = ni_dhcp6_get_ia_addrs(dev->lease->dhcp6.ia_list, NULL, NULL);
-
-		if (iaddrs && iaddrs->count) {
-			ni_warn("%s: Declining DHCPv6 lease with addresses:", dev->ifname);
-			for (i = 0; i < iaddrs->count; ++i)
-				ni_warn("    %s", iaddrs->data[i]);
-			ni_string_array_destroy(iaddrs);
-		} else {
-			ni_warn("%s: Declining DHCPv6 lease", dev->ifname);
-		}
+		if (!ni_dhcp6_fsm_decline_info(dev, dev->lease->dhcp6.ia_list,
+				"Initiating DHCPv6 lease addresses decline",
+				"No DHCPv6 lease address marked to decline"))
+			return -1;
 
 		dev->dhcp6.xid = 0;
 		if (ni_dhcp6_init_message(dev, NI_DHCP6_DECLINE, dev->lease) != 0)
@@ -1622,7 +1657,10 @@ ni_dhcp6_fsm_decline(ni_dhcp6_device_t *dev)
 		dev->fsm.state = NI_DHCP6_STATE_DECLINING;
 		rv = ni_dhcp6_device_transmit_init(dev);
 	} else {
-		ni_debug_dhcp("%s: Retransmitting DHCPv6 Decline", dev->ifname);
+		if (!ni_dhcp6_fsm_decline_info(dev, dev->lease->dhcp6.ia_list,
+				"Retransmitting DHCPv6 lease addresses decline",
+				"No DHCPv6 lease address marked to decline"))
+			return -1;
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_DECLINE, &dev->message, dev->lease) != 0)
 			return -1;
