@@ -1720,6 +1720,9 @@ __ni_dhcp6_build_inforeq_opts(ni_dhcp6_device_t *dev,
 	ni_dhcp6_option_request_t oro = NI_DHCP6_OPTION_REQUEST_INIT;
 
 	/* Add option request options */
+	if (!ni_dhcp6_option_request_append(&oro, NI_DHCP6_OPTION_INFO_REFRESH_TIME))
+		goto cleanup;
+
 	if (__ni_dhcp6_build_oro_opts(dev, msg_type, &oro, lease) < 0 ||
 	    ni_dhcp6_option_put(msg_buf, NI_DHCP6_OPTION_ORO, oro.options,
 				sizeof(uint16_t) * oro.count) < 0) {
@@ -2768,6 +2771,12 @@ __ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer, ni_
 			if (ni_dhcp6_option_get8(&optbuf, &lease->dhcp6.server_pref) == 0) {
 				ni_debug_dhcp("%s: %u", ni_dhcp6_option_name(option),
 						(unsigned int)lease->dhcp6.server_pref);
+			}
+		break;
+		case NI_DHCP6_OPTION_INFO_REFRESH_TIME:
+			if (ni_dhcp6_option_get32(&optbuf, &lease->dhcp6.info_refresh) == 0) {
+				ni_debug_dhcp("%s: %u", ni_dhcp6_option_name(option),
+						(unsigned int)lease->dhcp6.info_refresh);
 			}
 		break;
 		case NI_DHCP6_OPTION_UNICAST:

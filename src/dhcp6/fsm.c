@@ -437,7 +437,10 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 		break;
 
 	case NI_DHCP6_STATE_BOUND:
-		ni_dhcp6_fsm_renew(dev);
+		if (dev->config->mode == NI_DHCP6_MODE_INFO)
+			ni_dhcp6_fsm_request_info(dev);
+		else
+			ni_dhcp6_fsm_renew(dev);
 		break;
 
 	case NI_DHCP6_STATE_RENEWING:
@@ -1755,7 +1758,6 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 		 */
 
 		ni_dhcp6_device_set_lease(dev, lease);
-		dev->fsm.state = NI_DHCP6_STATE_BOUND;
 
 		iaddrs = ni_dhcp6_get_ia_addrs(dev->lease->dhcp6.ia_list, &p_lft, &v_lft);
 
@@ -1776,11 +1778,6 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 			ni_note("%s: Committed DHCPv6 lease", dev->ifname);
 		}
 
-		if (dev->config->dry_run == NI_DHCP6_RUN_NORMAL) {
-			dev->fsm.state = NI_DHCP6_STATE_VALIDATING;
-			ni_dhcp6_fsm_set_timeout_msec(dev, NI_DHCP6_WAIT_IAADDR_READY);
-		}
-
 		if (dev->config->dry_run != NI_DHCP6_RUN_OFFER) {
 			ni_addrconf_lease_file_write(dev->ifname, lease);
 		}
@@ -1789,7 +1786,14 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 		if (dev->config->dry_run != NI_DHCP6_RUN_NORMAL) {
 			ni_dhcp6_device_drop_lease(dev);
 			ni_dhcp6_device_stop(dev);
+		} else if (dev->config->mode == NI_DHCP6_MODE_INFO) {
+			dev->fsm.state = NI_DHCP6_STATE_BOUND;
+			ni_dhcp6_fsm_bound(dev);
+		} else {
+			dev->fsm.state = NI_DHCP6_STATE_VALIDATING;
+			ni_dhcp6_fsm_set_timeout_msec(dev, NI_DHCP6_WAIT_IAADDR_READY);
 		}
+
 	} else {
 		if ((lease = dev->lease) != NULL) {
 			ni_note("%s: Dropped DHCPv6 lease with UUID %s",
@@ -1813,6 +1817,43 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 }
 
 static int
+ni_dhcp6_fsm_bound_info(ni_dhcp6_device_t *dev)
+{
+	ni_uint_range_t range;
+	unsigned int refresh;
+	struct timeval now;
+
+	dev->fsm.state = NI_DHCP6_STATE_BOUND;
+
+	refresh = ni_dhcp6_config_info_refresh_time(dev->ifname, &range);
+	if (dev->lease->dhcp6.info_refresh) {
+		if (ni_uint_in_range(&range, dev->lease->dhcp6.info_refresh))
+			refresh = dev->lease->dhcp6.info_refresh;
+		else if (dev->lease->dhcp6.info_refresh < range.min)
+			refresh = range.min;
+		else if (dev->lease->dhcp6.info_refresh > range.max)
+			refresh = range.max;
+	}
+
+	ni_timer_get_time(&now);
+	refresh = ni_lifetime_left(refresh, &dev->lease->acquired, &now);
+
+	switch (refresh) {
+	case NI_LIFETIME_INFINITE:
+		/* don't refresh */
+		break;
+
+	case NI_LIFETIME_EXPIRED:
+		return ni_dhcp6_fsm_request_info(dev);
+
+	default:
+		ni_dhcp6_fsm_set_timeout_msec(dev, (unsigned long)refresh * 1000);
+		break;
+	}
+	return 0;
+}
+
+static int
 ni_dhcp6_fsm_bound(ni_dhcp6_device_t *dev)
 {
 	unsigned int timeout;
@@ -1820,6 +1861,9 @@ ni_dhcp6_fsm_bound(ni_dhcp6_device_t *dev)
 
 	if (!dev->lease)
 		return -1;
+
+	if (dev->config->mode == NI_DHCP6_MODE_INFO)
+		return ni_dhcp6_fsm_bound_info(dev);
 
 	timeout = ni_dhcp6_fsm_get_renewal_timeout(dev);
 	if (timeout > 0) {
