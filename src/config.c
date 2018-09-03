@@ -81,6 +81,7 @@ ni_config_new()
 	conf->addrconf.auto6.allow_update   = ni_config_addrconf_update_auto6();
 	conf->addrconf.dhcp4.routes_opts = -1U;
 	conf->addrconf.dhcp6.release_nretries = -1U;
+	conf->addrconf.dhcp6.info_refresh.range.max = NI_LIFETIME_INFINITE;
 
 	ni_config_fslocation_init(&conf->piddir,   WICKED_PIDDIR,   0755);
 	ni_config_fslocation_init(&conf->statedir, WICKED_STATEDIR, 0755);
@@ -1074,6 +1075,44 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 		} else
 		if (!strcmp(child->name, "release-retransmits") && child->cdata) {
 			dhcp6->release_nretries = strtoul(child->cdata, NULL, 0);
+		} else
+		if (!strcmp(child->name, "info-refresh-time")) {
+			const char *attrval;
+			unsigned int value;
+
+			dhcp6->info_refresh.time = 0; /* 0 for rfc defaults */
+			dhcp6->info_refresh.range.min = 0;
+			dhcp6->info_refresh.range.max = NI_LIFETIME_INFINITE;
+
+			if ((attrval = xml_node_get_attr(child, "min"))) {
+				if (ni_parse_uint(attrval, &value, 10) == 0 &&
+				    ni_uint_in_range(&dhcp6->info_refresh.range, value))
+					ni_uint_range_update_min(&dhcp6->info_refresh.range, value);
+				else
+					ni_warn("config: discarding invalid info-refresh-time min attibute");
+			}
+
+			if ((attrval = xml_node_get_attr(child, "max"))) {
+				if (ni_parse_uint(attrval, &value, 10) == 0 &&
+				    ni_uint_in_range(&dhcp6->info_refresh.range, value))
+					ni_uint_range_update_max(&dhcp6->info_refresh.range, value);
+				else
+					ni_warn("config: discarding invalid info-refresh-time max attibute");
+			}
+
+			if (!ni_string_empty(child->cdata)) {
+				if (ni_string_eq(child->cdata, "infinite")) {
+					value = NI_LIFETIME_INFINITE;
+				} else
+				if (ni_parse_uint(child->cdata, &value, 10)) {
+					ni_warn("config: discarding invalid info-refresh-time value");
+					value = 0;
+				}
+				if (value && !ni_uint_in_range(&dhcp6->info_refresh.range, value))
+					ni_warn("config: discarding invalid info-refresh-time value");
+				else
+					dhcp6->info_refresh.time = value;
+			}
 		} else
 		if (!strcmp(child->name, "ignore-server")
 		 && (attrval = xml_node_get_attr(child, "ip")) != NULL) {

@@ -1366,6 +1366,24 @@ ni_dhcp6_config_release_nretries(const char *ifname)
 	return conf && conf->release_nretries ? conf->release_nretries : -1U;
 }
 
+unsigned int
+ni_dhcp6_config_info_refresh_time(const char *ifname, ni_uint_range_t *range)
+{
+	const ni_config_dhcp6_t *conf = ni_config_dhcp6_find_device(ifname);
+
+	range->min = NI_DHCP6_IRT_MINIMUM;
+	range->max = NI_LIFETIME_INFINITE;
+	if (conf) {
+		if (conf->info_refresh.range.min)
+			range->min = conf->info_refresh.range.min;
+		ni_uint_range_update_max(range, conf->info_refresh.range.max);
+		if (conf->info_refresh.time &&
+		    ni_uint_in_range(range, conf->info_refresh.time))
+			return conf->info_refresh.time;
+	}
+	return NI_DHCP6_IRT_DEFAULT;
+}
+
 static void
 ni_dhcp6_config_set_request_options(const char *ifname, ni_uint_array_t *cfg, const ni_string_array_t *req)
 {
