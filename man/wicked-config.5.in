@@ -590,10 +590,20 @@ lease time to one hour:
 .IP
 .B "  <lease-time>3600</lease-time>
 .PP
+
 .TP
 .B release-retransmits
 Specifies the number of lease release retransmissions in the range 1..5.
 Default is to send up to 5 (REL_MAX_RC) retransmissions.
+
+.TP
+.B info-refresh-time
+Specifies a different default for the RFC4242 info refresh time used when the
+dhcp6 server does not provide any and permits also to adjust the acceptable
+time range in the \fBmin\fR and \fBmax\fR attributes, e.g.:
+.IP
+.B "  <info-refresh-time min="600" max="604800">86400</info-refresh-time>
+.PP
 
 .TP
 .B prefer-server

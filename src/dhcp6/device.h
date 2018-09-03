@@ -56,5 +56,6 @@ extern ni_bool_t	ni_dhcp6_config_have_server_preference(void);
 extern ni_bool_t	ni_dhcp6_config_server_preference(const struct in6_addr *, const ni_opaque_t *, int *);
 extern unsigned int	ni_dhcp6_config_max_lease_time(void);
 extern unsigned int	ni_dhcp6_config_release_nretries(const char *);
+extern unsigned int	ni_dhcp6_config_info_refresh_time(const char *, ni_uint_range_t *);
 
 #endif /* __WICKED_DHCP6_DEVICE_H__ */

@@ -133,6 +133,13 @@ enum NI_DHCP6_MSG_TYPE {
 #define NI_DHCP6_MAX_JITTER	    100	/* Randomization factor [± 0.1]*/
 
 /*
+ * Information-Request Refresh-Time
+ * https://tools.ietf.org/html/rfc4242#section-3.1
+ */
+#define NI_DHCP6_IRT_DEFAULT	  86400	/* default refresh time in sec  */
+#define NI_DHCP6_IRT_MINIMUM	    600 /* minimum refresh time         */
+
+/*
  * Option Format
  * http://tools.ietf.org/html/rfc3315#section-22.1
  */
