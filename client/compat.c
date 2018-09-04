@@ -396,6 +396,33 @@ ni_compat_generate_ethtool_ring(xml_node_t *parent, const ni_ethtool_ring_t *rin
 
 }
 
+/* generate pause information */
+static void
+ni_compat_generate_ethtool_pause(xml_node_t *parent, const ni_ethtool_pause_t *pause)
+{
+	xml_node_t *node;
+
+	if (!parent || !pause)
+		return;
+
+	node = xml_node_new("pause", NULL);
+	if (pause->tx != NI_TRISTATE_DEFAULT) {
+		xml_node_new_element("tx", node, ni_format_boolean(pause->tx));
+	}
+	if (pause->rx != NI_TRISTATE_DEFAULT) {
+		xml_node_new_element("rx", node, ni_format_boolean(pause->rx));
+	}
+	if (pause->autoneg != NI_TRISTATE_DEFAULT) {
+		xml_node_new_element("autoneg", node, ni_format_boolean(pause->autoneg));
+	}
+
+	if (node->children)
+		xml_node_add_child(parent, node);
+	else
+		xml_node_free(node);
+
+}
+
 static ni_bool_t
 __ni_compat_generate_ethernet(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
@@ -2594,6 +2621,7 @@ ni_compat_generate_ethtool(xml_node_t *parent, const ni_compat_netdev_t *compat)
 	ni_compat_generate_ethtool_channels(node, ethtool->channels);
 	ni_compat_generate_ethtool_ring(node, ethtool->ring);
 	ni_compat_generate_ethtool_coalesce(node, ethtool->coalesce);
+	ni_compat_generate_ethtool_pause(node, ethtool->pause);
 
 	if (node->children)
 		xml_node_add_child(parent, node);

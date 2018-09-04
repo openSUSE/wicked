@@ -77,6 +77,8 @@ enum {
 	NI_ETHTOOL_SUPP_SET_CHANNELS,
 	NI_ETHTOOL_SUPP_GET_COALESCE,
 	NI_ETHTOOL_SUPP_SET_COALESCE,
+	NI_ETHTOOL_SUPP_GET_PAUSE,
+	NI_ETHTOOL_SUPP_SET_PAUSE,
 
 	NI_ETHTOOL_SUPPORT_MAX
 };
@@ -3443,6 +3445,112 @@ ni_ethtool_set_coalesce(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, const
 	return 0;
 }
 
+/*
+ * pause (GPAUSEPARAM,SPAUSEPARAM)
+ */
+void
+ni_ethtool_pause_free(ni_ethtool_pause_t *pause)
+{
+	free(pause);
+}
+
+ni_ethtool_pause_t *
+ni_ethtool_pause_new(void)
+{
+	ni_ethtool_pause_t *pause;
+
+	pause = calloc(1, sizeof(*pause));
+	if (pause) {
+		pause->tx	   = NI_TRISTATE_DEFAULT;
+		pause->rx          = NI_TRISTATE_DEFAULT;
+		pause->autoneg     = NI_TRISTATE_DEFAULT;
+	}
+
+	return pause;
+}
+
+int
+ni_ethtool_get_pause(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool)
+{
+	static const ni_ethtool_cmd_info_t NI_ETHTOOL_CMD_GPAUSE = {
+		ETHTOOL_GPAUSEPARAM,		"get pause"
+	};
+	struct ethtool_pauseparam ecmd;
+	ni_ethtool_pause_t *pause;
+	int ret;
+
+	if (!ni_ethtool_supported(ethtool, NI_ETHTOOL_SUPP_GET_PAUSE))
+		return -EOPNOTSUPP;
+
+	ni_ethtool_pause_free(ethtool->pause);
+	ethtool->pause = NULL;
+
+	memset(&ecmd, 0, sizeof(ecmd));
+	ret = ni_ethtool_call(ref, &NI_ETHTOOL_CMD_GPAUSE, &ecmd, NULL);
+	ni_ethtool_set_supported(ethtool, NI_ETHTOOL_SUPP_GET_PAUSE,
+			ret != -EOPNOTSUPP);
+	if (ret < 0)
+		return ret;
+
+	if (!(pause = ni_ethtool_pause_new()))
+		return -ENOMEM;
+	ni_tristate_set(&pause->tx, ecmd.tx_pause);
+	ni_tristate_set(&pause->rx, ecmd.rx_pause);
+	ni_tristate_set(&pause->autoneg, ecmd.autoneg);
+
+	ethtool->pause = pause;
+	return ret;
+}
+
+int
+ni_ethtool_set_pause(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, const ni_ethtool_pause_t *cfg)
+{
+	static const ni_ethtool_cmd_info_t NI_ETHTOOL_CMD_GPAUSE = {
+		ETHTOOL_GPAUSEPARAM,		"get pause"
+	};
+	static const ni_ethtool_cmd_info_t NI_ETHTOOL_CMD_SPAUSE = {
+		ETHTOOL_SPAUSEPARAM,		"set pause"
+	};
+	struct ethtool_pauseparam ecmd;
+	int ret;
+
+	if (!cfg)
+		return 1;
+
+	if (!ni_ethtool_supported(ethtool, NI_ETHTOOL_SUPP_GET_PAUSE) ||
+	    !ni_ethtool_supported(ethtool, NI_ETHTOOL_SUPP_SET_PAUSE))
+		return -EOPNOTSUPP;
+
+	memset(&ecmd, 0, sizeof(ecmd));
+	ret = ni_ethtool_call(ref, &NI_ETHTOOL_CMD_GPAUSE, &ecmd, NULL);
+	ni_ethtool_set_supported(ethtool, NI_ETHTOOL_SUPP_GET_PAUSE,
+			ret != -EOPNOTSUPP);
+	if (ret < 0)
+		return ret;
+
+	if (cfg->tx != NI_TRISTATE_DEFAULT) {
+		ni_ethtool_set_uint_param(ref, ethtool, NI_ETHTOOL_SUPP_SET_PAUSE,
+				&NI_ETHTOOL_CMD_SPAUSE, &ecmd, "tx",
+				cfg->tx, &ecmd.tx_pause,
+				NI_TRISTATE_ENABLE);
+	}
+
+	if (cfg->rx != NI_TRISTATE_DEFAULT) {
+		ni_ethtool_set_uint_param(ref, ethtool, NI_ETHTOOL_SUPP_SET_PAUSE,
+				&NI_ETHTOOL_CMD_SPAUSE, &ecmd, "rx",
+				cfg->rx, &ecmd.rx_pause,
+				NI_TRISTATE_ENABLE);
+	}
+
+	if (cfg->autoneg != NI_TRISTATE_DEFAULT) {
+		ni_ethtool_set_uint_param(ref, ethtool, NI_ETHTOOL_SUPP_SET_PAUSE,
+				&NI_ETHTOOL_CMD_SPAUSE, &ecmd, "autoneg",
+				cfg->autoneg, &ecmd.autoneg,
+				NI_TRISTATE_ENABLE);
+	}
+	return 0;
+}
+
 
 /*
  * main system refresh and setup functions
@@ -3469,6 +3577,7 @@ ni_ethtool_refresh(ni_netdev_t *dev)
 	ni_ethtool_get_ring(&ref, ethtool);
 	ni_ethtool_get_channels(&ref, ethtool);
 	ni_ethtool_get_coalesce(&ref, ethtool);
+	ni_ethtool_get_pause(&ref, ethtool);
 
 	return TRUE;
 }
@@ -3504,6 +3613,7 @@ ni_system_ethtool_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t 
 		ni_ethtool_set_ring(&ref, dev->ethtool, cfg->ethtool->ring);
 		ni_ethtool_set_channels(&ref, dev->ethtool, cfg->ethtool->channels);
 		ni_ethtool_set_coalesce(&ref, dev->ethtool, cfg->ethtool->coalesce);
+		ni_ethtool_set_pause(&ref, dev->ethtool, cfg->ethtool->pause);
 		ni_ethtool_refresh(dev);
 	}
 	return 0;
@@ -3668,6 +3778,18 @@ ni_netdev_get_ethtool_coalesce(ni_netdev_t *dev)
 	if (!ethtool->coalesce)
 		ethtool->coalesce = ni_ethtool_coalesce_new();
 	return ethtool->coalesce;
+}
+
+ni_ethtool_pause_t *
+ni_netdev_get_ethtool_pause(ni_netdev_t *dev)
+{
+	ni_ethtool_t *ethtool;
+
+	if (!(ethtool = ni_netdev_get_ethtool(dev)))
+		return NULL;
+	if (!ethtool->pause)
+		ethtool->pause = ni_ethtool_pause_new();
+	return ethtool->pause;
 }
 
 void

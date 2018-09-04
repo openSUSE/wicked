@@ -1285,6 +1285,61 @@ ni_objectmodel_ethtool_set_coalesce(ni_dbus_object_t *object,
 	return TRUE;
 }
 
+/*
+ * get/set ethtool.pause
+ */
+static dbus_bool_t
+ni_objectmodel_ethtool_get_pause(const ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		ni_dbus_variant_t *result,
+		DBusError *error)
+{
+	const ni_ethtool_t *ethtool;
+	const ni_ethtool_pause_t *pause;
+
+	if (!(ethtool = ni_objectmodel_ethtool_read_handle(object, error)))
+		return FALSE;
+
+	if (!(pause = ethtool->pause))
+		return FALSE;
+
+	if (pause->tx != NI_TRISTATE_DEFAULT)
+		ni_dbus_dict_add_int32(result, "tx", pause->tx);
+
+	if (pause->rx != NI_TRISTATE_DEFAULT)
+		ni_dbus_dict_add_int32(result, "rx", pause->rx);
+
+	if (pause->autoneg != NI_TRISTATE_DEFAULT)
+		ni_dbus_dict_add_int32(result, "autoneg", pause->autoneg);
+
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_ethtool_set_pause(ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument,
+		DBusError *error)
+{
+	ni_ethtool_t *ethtool;
+	ni_ethtool_pause_t *pause;
+
+	if (!(ethtool = ni_objectmodel_ethtool_write_handle(object, error)))
+		return FALSE;
+
+	ni_ethtool_pause_free(ethtool->pause);
+	if (!(ethtool->pause = ni_ethtool_pause_new()))
+		return FALSE;
+	pause = ethtool->pause;
+
+	ni_dbus_dict_get_int32(argument, "tx", &pause->tx);
+	ni_dbus_dict_get_int32(argument, "rx", &pause->rx);
+	ni_dbus_dict_get_int32(argument, "autoneg", &pause->autoneg);
+
+	return TRUE;
+}
+
+
 
 /*
  * ethtool service properties
@@ -1313,6 +1368,7 @@ static const ni_dbus_property_t		ni_objectmodel_ethtool_properties[] = {
 	ETHTOOL_DICT_PROPERTY	(ring,		ring,			RO),
 	ETHTOOL_DICT_PROPERTY	(channels,	channels,		RO),
 	ETHTOOL_DICT_PROPERTY	(coalesce,	coalesce,		RO),
+	ETHTOOL_DICT_PROPERTY	(pause,	        pause,   		RO),
 
 	{ NULL }
 };

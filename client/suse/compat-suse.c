@@ -2058,6 +2058,27 @@ try_add_ethtool_ring(ni_netdev_t *dev, const char *opt, const char *val)
 	}
 }
 
+/* get pause params from wicked config */
+static void
+try_add_ethtool_pause(ni_netdev_t *dev, const char *opt, const char *val)
+{
+	ni_ethtool_pause_t *pause = ni_netdev_get_ethtool_pause(dev);
+	ni_bool_t bval;
+
+	if (ni_string_eq(opt, "tx")) {
+		if (ni_parse_boolean(val, &bval) == 0)
+			ni_tristate_set(&pause->tx, bval);
+	} else
+	if (ni_string_eq(opt, "rx")) {
+		if (ni_parse_boolean(val, &bval) == 0)
+			ni_tristate_set(&pause->rx, bval);
+	} else
+	if (ni_string_eq(opt, "autoneg")) {
+		if (ni_parse_boolean(val, &bval) == 0)
+			ni_tristate_set(&pause->autoneg, bval);
+	}
+}
+
 static void
 try_add_ethtool_options(ni_netdev_t *dev, const char *type,
 			ni_string_array_t *opts, unsigned int start)
@@ -2102,6 +2123,12 @@ try_add_ethtool_options(ni_netdev_t *dev, const char *type,
 	if (ni_string_eq(type, "-L") || ni_string_eq(type, "--set-channels")) {
 		for (i = start; (i + 1) < opts->count; i+=2) {
 			try_add_ethtool_channels(dev, opts->data[i],
+						opts->data[i + 1]);
+		}
+	} else
+	if (ni_string_eq(type, "-A") || ni_string_eq(type, "--pause")) {
+		for (i = start; (i + 1) < opts->count; i+=2) {
+			try_add_ethtool_pause(dev, opts->data[i],
 						opts->data[i + 1]);
 		}
 	}

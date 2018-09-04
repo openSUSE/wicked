@@ -257,6 +257,11 @@ typedef struct ni_ethtool_coalesce {
 	unsigned int			rx_frames_high;
 } ni_ethtool_coalesce_t;
 
+typedef struct ni_ethtool_pause {
+	ni_tristate_t			tx;
+	ni_tristate_t			rx;
+	ni_tristate_t			autoneg;
+} ni_ethtool_pause_t;
 
 /*
  * device ethtool structure
@@ -277,6 +282,7 @@ struct ni_ethtool {
 	ni_ethtool_ring_t *		ring;
 	ni_ethtool_channels_t *		channels;
 	ni_ethtool_coalesce_t *		coalesce;
+	ni_ethtool_pause_t *		pause;
 };
 
 extern ni_ethtool_t *			ni_ethtool_new(void);
@@ -374,5 +380,12 @@ extern void				ni_ethtool_coalesce_free(ni_ethtool_coalesce_t *);
 extern int				ni_ethtool_get_coalesce(const ni_netdev_ref_t *, ni_ethtool_t *);
 extern int				ni_ethtool_set_coalesce(const ni_netdev_ref_t *, ni_ethtool_t *,
 								const ni_ethtool_coalesce_t *);
+
+extern ni_ethtool_pause_t *		ni_netdev_get_ethtool_pause(ni_netdev_t *);
+extern ni_ethtool_pause_t *		ni_ethtool_pause_new(void);
+extern void				ni_ethtool_pause_free(ni_ethtool_pause_t *);
+extern int				ni_ethtool_get_pause(const ni_netdev_ref_t *, ni_ethtool_t *);
+extern int				ni_ethtool_set_pause(const ni_netdev_ref_t *, ni_ethtool_t *,
+								const ni_ethtool_pause_t *);
 
 #endif /* WICKED_ETHTOOL_H */
