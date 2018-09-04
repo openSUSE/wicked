@@ -163,7 +163,7 @@ ni_ethtool_set_uint_param(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, uns
 	ret = ni_ethtool_call(ref, info, ecmd, param);
 	ni_ethtool_set_supported(ethtool, supported, ret != -EOPNOTSUPP);
 
-	if (ret == 0)
+	if (ret != 0)
 		*curr = save;
 	return ret;
 }
