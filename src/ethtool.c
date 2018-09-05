@@ -2943,7 +2943,7 @@ ni_ethtool_set_eee(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, const ni_e
 				cfg->tx_lpi.timer, &ecmd.tx_lpi_timer,
 				NI_ETHTOOL_EEE_DEFAULT);
 	}
-	return -EOPNOTSUPP;
+	return ret;
 }
 
 
