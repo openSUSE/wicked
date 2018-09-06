@@ -1889,6 +1889,21 @@ ni_ethtool_set_wake_on_lan(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, co
  * which are stored in the (bitmap) feature->index.
  */
 typedef enum {
+	/* constants used to set via old offload ioctls */
+	NI_ETHTOOL_FEATURE_F_LEGACY_SG,
+	NI_ETHTOOL_FEATURE_F_LEGACY_HW_CSUM,
+	NI_ETHTOOL_FEATURE_F_LEGACY_HW_VLAN_CTAG_TX,
+	NI_ETHTOOL_FEATURE_F_LEGACY_HW_VLAN_CTAG_RX,
+	NI_ETHTOOL_FEATURE_F_LEGACY_GSO,
+	NI_ETHTOOL_FEATURE_F_LEGACY_GRO,
+	NI_ETHTOOL_FEATURE_F_LEGACY_TSO,
+	NI_ETHTOOL_FEATURE_F_LEGACY_UFO,
+	NI_ETHTOOL_FEATURE_F_LEGACY_LRO,
+	NI_ETHTOOL_FEATURE_F_LEGACY_NTUPLE,
+	NI_ETHTOOL_FEATURE_F_LEGACY_RXHASH,
+	NI_ETHTOOL_FEATURE_F_LEGACY_RXCSUM,
+
+	/* constants used to set via new feature ioctl */
 	NI_ETHTOOL_FEATURE_F_SG,
 	NI_ETHTOOL_FEATURE_F_IP_CSUM,
 	NI_ETHTOOL_FEATURE_F_HW_CSUM,
@@ -1915,16 +1930,16 @@ typedef enum {
 	NI_ETHTOOL_FEATURE_F_GSO_GRE_CSUM,
 	NI_ETHTOOL_FEATURE_F_GSO_SCTP,
 	NI_ETHTOOL_FEATURE_F_GSO_ESP,
+	NI_ETHTOOL_FEATURE_F_GRO,
 	NI_ETHTOOL_FEATURE_F_GRO_HW,
 	NI_ETHTOOL_FEATURE_F_LLTX,
 	NI_ETHTOOL_FEATURE_F_NETNS_LOCAL,
-	NI_ETHTOOL_FEATURE_F_GRO,
 	NI_ETHTOOL_FEATURE_F_LRO,
-	NI_ETHTOOL_FEATURE_F_TSO,
 	NI_ETHTOOL_FEATURE_F_UFO,
 	NI_ETHTOOL_FEATURE_F_TSO_ECN,
 	NI_ETHTOOL_FEATURE_F_TSO_MANGLEID,
 	NI_ETHTOOL_FEATURE_F_TSO6,
+	NI_ETHTOOL_FEATURE_F_TSO,
 	NI_ETHTOOL_FEATURE_F_FSO,
 	NI_ETHTOOL_FEATURE_F_FCOE_CRC,
 	NI_ETHTOOL_FEATURE_F_SCTP_CSUM,
@@ -1950,30 +1965,30 @@ static const ni_intmap_t		ni_ethtool_feature_name_map[] = {
 	/* known feature name and alias map, -1U and allocated name for unknown features
 	 * k: kernel name, l: long ethtool name, s: short ethtool name, w: old schema */
 /*k*/	{ "tx-scatter-gather",			NI_ETHTOOL_FEATURE_F_SG			},
-/*l,w*/	{ "scatter-gather",			NI_ETHTOOL_FEATURE_F_SG			},
-/*s*/	{ "sg",					NI_ETHTOOL_FEATURE_F_SG			},
+/*s*/	{ "sg",					NI_ETHTOOL_FEATURE_F_LEGACY_SG		},
+/*l,w*/	{ "scatter-gather",			NI_ETHTOOL_FEATURE_F_LEGACY_SG		},
 	{ "tx-checksum-ipv4",			NI_ETHTOOL_FEATURE_F_IP_CSUM		},
 /*k*/	{ "tx-checksum-ip-generic",		NI_ETHTOOL_FEATURE_F_HW_CSUM		},
-/*l*/	{ "tx-checksumming",			NI_ETHTOOL_FEATURE_F_HW_CSUM		},
-/*w*/	{ "tx-csum",				NI_ETHTOOL_FEATURE_F_HW_CSUM		},
-/*s*/	{ "tx",					NI_ETHTOOL_FEATURE_F_HW_CSUM		},
+/*s*/	{ "tx",					NI_ETHTOOL_FEATURE_F_LEGACY_HW_CSUM	},
+/*l*/	{ "tx-checksumming",			NI_ETHTOOL_FEATURE_F_LEGACY_HW_CSUM	},
+/*w*/	{ "tx-csum",				NI_ETHTOOL_FEATURE_F_LEGACY_HW_CSUM	},
 	{ "tx-checksum-ipv6",			NI_ETHTOOL_FEATURE_F_IPV6_CSUM		},
 	{ "highdma",				NI_ETHTOOL_FEATURE_F_HIGHDMA		},
 	{ "tx-scatter-gather-fraglist",		NI_ETHTOOL_FEATURE_F_FRAGLIST		},
 /*k*/	{ "tx-vlan-hw-insert",			NI_ETHTOOL_FEATURE_F_HW_VLAN_CTAG_TX	},
-/*l*/	{ "tx-vlan-offload",			NI_ETHTOOL_FEATURE_F_HW_VLAN_CTAG_TX	},
-/*s,w*/	{ "txvlan",				NI_ETHTOOL_FEATURE_F_HW_VLAN_CTAG_TX	},
+/*s,w*/	{ "txvlan",				NI_ETHTOOL_FEATURE_F_LEGACY_HW_VLAN_CTAG_TX	},
+/*l*/	{ "tx-vlan-offload",			NI_ETHTOOL_FEATURE_F_LEGACY_HW_VLAN_CTAG_TX	},
 /*k*/	{ "rx-vlan-hw-parse",			NI_ETHTOOL_FEATURE_F_HW_VLAN_CTAG_RX	},
-/*l*/	{ "rx-vlan-offload",			NI_ETHTOOL_FEATURE_F_HW_VLAN_CTAG_RX	},
-/*s,w*/	{ "rxvlan",				NI_ETHTOOL_FEATURE_F_HW_VLAN_CTAG_RX	},
+/*s,w*/	{ "rxvlan",				NI_ETHTOOL_FEATURE_F_LEGACY_HW_VLAN_CTAG_RX	},
+/*l*/	{ "rx-vlan-offload",			NI_ETHTOOL_FEATURE_F_LEGACY_HW_VLAN_CTAG_RX	},
 	{ "rx-vlan-filter",			NI_ETHTOOL_FEATURE_F_HW_VLAN_CTAG_FILTER},
 	{ "tx-vlan-stag-hw-insert",		NI_ETHTOOL_FEATURE_F_HW_VLAN_STAG_TX	},
 	{ "rx-vlan-stag-hw-parse",		NI_ETHTOOL_FEATURE_F_HW_VLAN_STAG_RX	},
 	{ "rx-vlan-stag-filter",		NI_ETHTOOL_FEATURE_F_HW_VLAN_STAG_FILTER},
 	{ "vlan-challenged",			NI_ETHTOOL_FEATURE_F_VLAN_CHALLENGED	},
 /*k*/	{ "tx-generic-segmentation",		NI_ETHTOOL_FEATURE_F_GSO		},
-/*s,w*/	{ "gso",				NI_ETHTOOL_FEATURE_F_GSO		},
-/*l*/	{ "generic-segmentation-offload",	NI_ETHTOOL_FEATURE_F_GSO		},
+/*s,w*/	{ "gso",				NI_ETHTOOL_FEATURE_F_LEGACY_GSO		},
+/*l*/	{ "generic-segmentation-offload",	NI_ETHTOOL_FEATURE_F_LEGACY_GSO		},
 	{ "tx-gso-robust",			NI_ETHTOOL_FEATURE_F_GSO_ROBUST		},
 	{ "tx-gso-partial",			NI_ETHTOOL_FEATURE_F_GSO_PARTIAL	},
 	{ "tx-gre-segmentation",		NI_ETHTOOL_FEATURE_F_GSO_GRE		},
@@ -1989,18 +2004,18 @@ static const ni_intmap_t		ni_ethtool_feature_name_map[] = {
 	{ "tx-lockless",			NI_ETHTOOL_FEATURE_F_LLTX		},
 	{ "netns-local",			NI_ETHTOOL_FEATURE_F_NETNS_LOCAL	},
 /*k*/	{ "rx-gro",				NI_ETHTOOL_FEATURE_F_GRO		},
-/*l*/	{ "generic-receive-offload",		NI_ETHTOOL_FEATURE_F_GRO		},
-/*s,w*/	{ "gro",				NI_ETHTOOL_FEATURE_F_GRO		},
+/*s,w*/	{ "gro",				NI_ETHTOOL_FEATURE_F_LEGACY_GRO		},
+/*l*/	{ "generic-receive-offload",		NI_ETHTOOL_FEATURE_F_LEGACY_GRO		},
 	{ "rx-gro-hw",				NI_ETHTOOL_FEATURE_F_GRO_HW		},
 /*k*/	{ "rx-lro",				NI_ETHTOOL_FEATURE_F_LRO		},
-/*l*/	{ "large-receive-offload",		NI_ETHTOOL_FEATURE_F_LRO		},
-/*s,w*/	{ "lro",				NI_ETHTOOL_FEATURE_F_LRO		},
+/*s,w*/	{ "lro",				NI_ETHTOOL_FEATURE_F_LEGACY_LRO		},
+/*l*/	{ "large-receive-offload",		NI_ETHTOOL_FEATURE_F_LEGACY_LRO		},
 /*k*/	{ "tx-tcp-segmentation",		NI_ETHTOOL_FEATURE_F_TSO		},
-/*l*/	{ "tcp-segmentation-offload",		NI_ETHTOOL_FEATURE_F_TSO		},
-/*s,w*/	{ "tso",				NI_ETHTOOL_FEATURE_F_TSO		},
+/*s,w*/	{ "tso",				NI_ETHTOOL_FEATURE_F_LEGACY_TSO		},
+/*l*/	{ "tcp-segmentation-offload",		NI_ETHTOOL_FEATURE_F_LEGACY_TSO		},
 /*k*/	{ "tx-udp-fragmentation",		NI_ETHTOOL_FEATURE_F_UFO		},
-/*l*/	{ "udp-fragmentation-offload",		NI_ETHTOOL_FEATURE_F_UFO		},
-/*s,w*/	{ "ufo",				NI_ETHTOOL_FEATURE_F_UFO		},
+/*s,w*/	{ "ufo",				NI_ETHTOOL_FEATURE_F_LEGACY_UFO		},
+/*l*/	{ "udp-fragmentation-offload",		NI_ETHTOOL_FEATURE_F_LEGACY_UFO		},
 	{ "tx-tcp-ecn-segmentation",		NI_ETHTOOL_FEATURE_F_TSO_ECN		},
 	{ "tx-tcp-mangleid-segmentation",	NI_ETHTOOL_FEATURE_F_TSO_MANGLEID	},
 	{ "tx-tcp6-segmentation",		NI_ETHTOOL_FEATURE_F_TSO6		},
@@ -2009,15 +2024,15 @@ static const ni_intmap_t		ni_ethtool_feature_name_map[] = {
 	{ "tx-checksum-sctp",			NI_ETHTOOL_FEATURE_F_SCTP_CSUM		},
 	{ "fcoe-mtu",				NI_ETHTOOL_FEATURE_F_FCOE_MTU		},
 /*k*/	{ "rx-ntuple-filter",			NI_ETHTOOL_FEATURE_F_NTUPLE		},
-/*l*/	{ "ntuple-filters",			NI_ETHTOOL_FEATURE_F_NTUPLE		},
-/*s,w*/	{ "ntuple",				NI_ETHTOOL_FEATURE_F_NTUPLE		},
+/*s,w*/	{ "ntuple",				NI_ETHTOOL_FEATURE_F_LEGACY_NTUPLE	},
+/*l*/	{ "ntuple-filters",			NI_ETHTOOL_FEATURE_F_LEGACY_NTUPLE	},
 /*k*/	{ "rx-hashing",				NI_ETHTOOL_FEATURE_F_RXHASH		},
-/*l*/	{ "receive-hashing",			NI_ETHTOOL_FEATURE_F_RXHASH		},
-/*s,w*/	{ "rxhash",				NI_ETHTOOL_FEATURE_F_RXHASH		},
+/*s,w*/	{ "rxhash",				NI_ETHTOOL_FEATURE_F_LEGACY_RXHASH	},
+/*l*/	{ "receive-hashing",			NI_ETHTOOL_FEATURE_F_LEGACY_RXHASH	},
 /*k*/	{ "rx-checksum",			NI_ETHTOOL_FEATURE_F_RXCSUM		},
-/*l*/	{ "rx-checksumming",			NI_ETHTOOL_FEATURE_F_RXCSUM		},
-/*w*/	{ "rx-csum",				NI_ETHTOOL_FEATURE_F_RXCSUM		},
-/*s*/	{ "rx",					NI_ETHTOOL_FEATURE_F_RXCSUM		},
+/*s*/	{ "rx",					NI_ETHTOOL_FEATURE_F_LEGACY_RXCSUM	},
+/*l*/	{ "rx-checksumming",			NI_ETHTOOL_FEATURE_F_LEGACY_RXCSUM	},
+/*w*/	{ "rx-csum",				NI_ETHTOOL_FEATURE_F_LEGACY_RXCSUM	},
 	{ "tx-nocache-copy",			NI_ETHTOOL_FEATURE_F_NOCACHE_COPY	},
 	{ "loopback",				NI_ETHTOOL_FEATURE_F_LOOPBACK		},
 	{ "rx-fcs",				NI_ETHTOOL_FEATURE_F_RXFCS		},
@@ -2042,6 +2057,29 @@ static ni_bool_t
 ni_ethtool_feature_type(const char *name, unsigned int *type)
 {
 	return ni_parse_uint_mapped(name, ni_ethtool_feature_name_map, type) == 0;
+}
+
+static ni_bool_t
+ni_ethtool_feature_is_legacy(unsigned int type)
+{
+	switch (type) {
+	case NI_ETHTOOL_FEATURE_F_LEGACY_SG:
+	case NI_ETHTOOL_FEATURE_F_LEGACY_HW_CSUM:
+	case NI_ETHTOOL_FEATURE_F_LEGACY_HW_VLAN_CTAG_TX:
+	case NI_ETHTOOL_FEATURE_F_LEGACY_HW_VLAN_CTAG_RX:
+	case NI_ETHTOOL_FEATURE_F_LEGACY_TSO:
+	case NI_ETHTOOL_FEATURE_F_LEGACY_GSO:
+	case NI_ETHTOOL_FEATURE_F_LEGACY_GRO:
+	case NI_ETHTOOL_FEATURE_F_LEGACY_UFO:
+	case NI_ETHTOOL_FEATURE_F_LEGACY_LRO:
+	case NI_ETHTOOL_FEATURE_F_LEGACY_NTUPLE:
+	case NI_ETHTOOL_FEATURE_F_LEGACY_RXHASH:
+	case NI_ETHTOOL_FEATURE_F_LEGACY_RXCSUM:
+		return TRUE;
+
+	default:
+		return FALSE;
+	}
 }
 
 static void
@@ -2623,7 +2661,7 @@ ni_ethtool_set_features_legacy(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool
 
 		value = !!(feature->value & NI_ETHTOOL_FEATURE_ON);
 		switch (feature->map.value) {
-		case NI_ETHTOOL_FEATURE_F_RXCSUM:
+		case NI_ETHTOOL_FEATURE_F_LEGACY_RXCSUM:
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
 					"%s: ethtool request to set feature '%s' to %s",
 					ref->name, feature->map.name, value ? "on" : "off");
@@ -2631,7 +2669,7 @@ ni_ethtool_set_features_legacy(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool
 					NI_ETHTOOL_SUPP_SET_LEGACY_RXCSUM,
 					&NI_ETHTOOL_CMD_SRXCSUM, NULL, value);
 			break;
-		case NI_ETHTOOL_FEATURE_F_HW_CSUM:
+		case NI_ETHTOOL_FEATURE_F_LEGACY_HW_CSUM:
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
 					"%s: ethtool request to set feature '%s' to %s",
 					ref->name, feature->map.name, value ? "on" : "off");
@@ -2639,7 +2677,7 @@ ni_ethtool_set_features_legacy(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool
 					NI_ETHTOOL_SUPP_SET_LEGACY_TXCSUM,
 					&NI_ETHTOOL_CMD_STXCSUM, NULL, value);
 			break;
-		case NI_ETHTOOL_FEATURE_F_SG:
+		case NI_ETHTOOL_FEATURE_F_LEGACY_SG:
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
 					"%s: ethtool request to set feature '%s' to %s",
 					ref->name, feature->map.name, value ? "on" : "off");
@@ -2648,7 +2686,7 @@ ni_ethtool_set_features_legacy(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool
 					&NI_ETHTOOL_CMD_SSG, NULL, value);
 			break;
 
-		case NI_ETHTOOL_FEATURE_F_TSO:
+		case NI_ETHTOOL_FEATURE_F_LEGACY_TSO:
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
 					"%s: ethtool request to set feature '%s' to %s",
 					ref->name, feature->map.name, value ? "on" : "off");
@@ -2657,7 +2695,7 @@ ni_ethtool_set_features_legacy(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool
 					&NI_ETHTOOL_CMD_STSO, NULL, value);
 			break;
 
-		case NI_ETHTOOL_FEATURE_F_UFO:
+		case NI_ETHTOOL_FEATURE_F_LEGACY_UFO:
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
 					"%s: ethtool request to set feature '%s' to %s",
 					ref->name, feature->map.name, value ? "on" : "off");
@@ -2666,7 +2704,7 @@ ni_ethtool_set_features_legacy(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool
 					&NI_ETHTOOL_CMD_SUFO, NULL, value);
 			break;
 
-		case NI_ETHTOOL_FEATURE_F_GSO:
+		case NI_ETHTOOL_FEATURE_F_LEGACY_GSO:
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
 					"%s: ethtool request to set feature '%s' to %s",
 					ref->name, feature->map.name, value ? "on" : "off");
@@ -2675,7 +2713,7 @@ ni_ethtool_set_features_legacy(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool
 					&NI_ETHTOOL_CMD_SGSO, NULL, value);
 			break;
 
-		case NI_ETHTOOL_FEATURE_F_GRO:
+		case NI_ETHTOOL_FEATURE_F_LEGACY_GRO:
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
 					"%s: ethtool request to set feature '%s' to %s",
 					ref->name, feature->map.name, value ? "on" : "off");
@@ -2684,7 +2722,7 @@ ni_ethtool_set_features_legacy(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool
 					&NI_ETHTOOL_CMD_SGRO, NULL, value);
 			break;
 
-		case NI_ETHTOOL_FEATURE_F_LRO:
+		case NI_ETHTOOL_FEATURE_F_LEGACY_LRO:
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
 					"%s: ethtool request to set feature '%s' to %s",
 					ref->name, feature->map.name, value ? "on" : "off");
@@ -2692,7 +2730,7 @@ ni_ethtool_set_features_legacy(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool
 					ETH_FLAG_TXVLAN, value);
 			break;
 
-		case NI_ETHTOOL_FEATURE_F_HW_VLAN_CTAG_TX:
+		case NI_ETHTOOL_FEATURE_F_LEGACY_HW_VLAN_CTAG_TX:
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
 					"%s: ethtool request to set feature '%s' to %s",
 					ref->name, feature->map.name, value ? "on" : "off");
@@ -2700,7 +2738,7 @@ ni_ethtool_set_features_legacy(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool
 					ETH_FLAG_TXVLAN, value);
 			break;
 
-		case NI_ETHTOOL_FEATURE_F_HW_VLAN_CTAG_RX:
+		case NI_ETHTOOL_FEATURE_F_LEGACY_HW_VLAN_CTAG_RX:
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
 					"%s: ethtool request to set feature '%s' to %s",
 					ref->name, feature->map.name, value ? "on" : "off");
@@ -2708,14 +2746,14 @@ ni_ethtool_set_features_legacy(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool
 					ETH_FLAG_RXVLAN, value);
 			break;
 
-		case NI_ETHTOOL_FEATURE_F_NTUPLE:
+		case NI_ETHTOOL_FEATURE_F_LEGACY_NTUPLE:
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
 					"%s: ethtool request to set feature '%s' to %s",
 					ref->name, feature->map.name, value ? "on" : "off");
 			ni_ethtool_set_legacy_flag_bit(ref, ethtool, "ntuple",
 					ETH_FLAG_NTUPLE, value);
 			break;
-		case NI_ETHTOOL_FEATURE_F_RXHASH:
+		case NI_ETHTOOL_FEATURE_F_LEGACY_RXHASH:
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
 					"%s: ethtool request to set feature '%s' to %s",
 					ref->name, feature->map.name, value ? "on" : "off");
@@ -2724,10 +2762,16 @@ ni_ethtool_set_features_legacy(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool
 			break;
 
 		case NI_ETHTOOL_FEATURE_UNKNOWN:
+			if (ni_ethtool_supported(ethtool, NI_ETHTOOL_SUPP_SET_FEATURES))
+				break;
+
 			ni_warn("%s: cannot set unknown feature '%s' using legacy ioctl",
 					ref->name, feature->map.name);
 			break;
 		default:
+			if (ni_ethtool_supported(ethtool, NI_ETHTOOL_SUPP_SET_FEATURES))
+				break;
+
 			ni_warn("%s: cannot set unsupported feature '%s' using legacy ioctl",
 					ref->name, feature->map.name);
 			break;
@@ -2779,9 +2823,17 @@ ni_ethtool_set_features_current(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtoo
 
 		have = ni_ethtool_features_get(ethtool->features, want->map.name);
 		if (!have || have->index == -1U || have->index >= count) {
-			ni_warn("%s: unable to %s unsupported feature '%s'",
-				ref->name, !!(want->value & NI_ETHTOOL_FEATURE_ON) ?
-				"enable" : "disable", want->map.name);
+			/* Don't complain about known legacy offload ioctl's,
+			 * which may represent a set of multiple features...
+			 * To set them via features, use their feature name,
+			 * not their legacy offload name.
+			 */
+			if (ni_ethtool_feature_is_legacy(want->map.value))
+				continue;
+
+			ni_warn("%s: cannot set unsupported feature '%s' to '%s'",
+				ref->name, want->map.name,
+				!!(want->value & NI_ETHTOOL_FEATURE_ON) ? "on" : "off");
 			continue;
 		}
 
@@ -2813,13 +2865,15 @@ int
 ni_ethtool_set_features(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool,
 			const ni_ethtool_features_t *cfg)
 {
-	int ret;
+	int current, legacy;
 
-	ret = ni_ethtool_set_features_current(ref, ethtool, cfg);
-	if (ret != -EOPNOTSUPP)
-		return ret;
+	legacy = ni_ethtool_set_features_legacy(ref, ethtool, cfg);
 
-	return ni_ethtool_set_features_legacy(ref, ethtool, cfg);
+	current = ni_ethtool_set_features_current(ref, ethtool, cfg);
+	if (current == -EOPNOTSUPP)
+		return legacy;
+
+	return current;
 }
 
 
