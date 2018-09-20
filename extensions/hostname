@@ -1,7 +1,7 @@
 #!/bin/bash
 
 hostnamedir=/var/run/wicked/extension/hostname
-defaulthostname=/etc/HOSTNAME
+defaulthostname=/etc/hostname
 
 type=""
 family=""
@@ -39,7 +39,7 @@ get_current_hostname()
 
 case $cmd in
 backup)
-	: # /etc/HOSTNAME is not modified by `hostname`, so no need for explicit backup.
+	: # /etc/hostname is not modified by `hostname`, so no need for explicit backup.
 ;;
 
 restore)
