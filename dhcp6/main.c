@@ -123,6 +123,7 @@ main(int argc, char **argv)
 		/* common */
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,

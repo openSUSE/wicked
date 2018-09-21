@@ -1750,6 +1750,7 @@ __ni_objectmodel_netdev_req_get_port(const ni_dbus_object_t *object, const ni_db
 	case NI_IFTYPE_OVS_BRIDGE:
 		if ((name = ni_linktype_type_to_name(req->port->type)))
 			break;
+		/* fall through */
 	default:
 		return ni_dbus_error_property_not_present(error, object->path, property->name);
 	}

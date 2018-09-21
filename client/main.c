@@ -137,6 +137,7 @@ main(int argc, char **argv)
 		switch (c) {
 		case OPT_HELP:
 			status = NI_WICKED_ST_OK;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,

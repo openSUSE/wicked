@@ -302,6 +302,7 @@ do_arp_verify_run(struct arp_handle *handle, const char *caller, int argc, char 
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -550,6 +551,7 @@ do_arp_notify_run(struct arp_handle *handle, const char *caller, int argc, char 
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -729,6 +731,7 @@ do_arp_ping_run(struct arp_handle *handle, const char *caller, int argc, char **
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -1080,6 +1083,7 @@ ni_do_arp(const char *caller, int argc, char **argv)
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
