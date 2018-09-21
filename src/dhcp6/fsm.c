@@ -1023,7 +1023,7 @@ __fsm_decline_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 						ni_dhcp6_status_name(iadr->status.code),
 						ni_dhcp6_status_message(&iadr->status));
 			}
-			if (!ia->addrs && ia->status.message || ia->status.code) {
+			if (!ia->addrs && (ia->status.message || ia->status.code)) {
 				ni_debug_dhcp("%s: %s id %u decline status: %s - %s",
 						dev->ifname, ni_dhcp6_option_name(ia->type),
 						ia->iaid,
