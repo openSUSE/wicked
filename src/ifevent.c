@@ -513,15 +513,25 @@ __ni_rtevent_deladdr(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		return 0;
 
 	if (__ni_rtnl_parse_newaddr(dev->link.ifflags, h, ifa, &tmp) < 0) {
-		ni_error("Problem parsing RTM_DELADDR message for %s", dev->name);
+		ni_error("Problem parsing %s message for %s", dev->name,
+				ni_rtnl_msg_type_to_name(h->nlmsg_type, NULL));
 		return -1;
 	}
 
-	if ((ap = ni_address_list_find(dev->addrs, &tmp.local_addr)) != NULL) {
-		__ni_netdev_addr_event(dev, NI_EVENT_ADDRESS_DELETE, ap);
-
+	/* Remove the address when we track it */
+	if ((ap = ni_address_list_find(dev->addrs, &tmp.local_addr)) != NULL)
 		__ni_address_list_remove(&dev->addrs, ap);
-	}
+
+	/* Tentative IPv6 addresses are not exposed via NEWADDR events,
+	 * but in manuall address lookup / dump only.
+	 * For dynamic (aka finite-lifetime) addresses, there is either
+	 * a NEWADDR after the duplicate address detection successfully
+	 * finished or DELADDR for the (untracked) tentative address,
+	 * which we want to process as well, so emit event regardless
+	 * if we tracked it or not.
+	 */
+	__ni_netdev_addr_event(dev, NI_EVENT_ADDRESS_DELETE, &tmp);
+
 	ni_string_free(&tmp.label);
 
 	return 0;

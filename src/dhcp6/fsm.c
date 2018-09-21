@@ -997,6 +997,10 @@ cleanup:
 static int
 __fsm_decline_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
 {
+	ni_dhcp6_ia_addr_t *iadr, *next;
+	ni_dhcp6_ia_t *ia;
+	ni_sockaddr_t ip;
+	int resolicit = 0;
 	int rv = 1;
 
 	switch (msg->type) {
@@ -1009,7 +1013,82 @@ __fsm_decline_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 			goto cleanup;
 		}
 
-		ni_error("Can't parse DECLINE message replies");
+		for (ia = msg->lease->dhcp6.ia_list; ia; ia = ia->next) {
+			for (iadr = ia->addrs; iadr; iadr = iadr->next) {
+
+				ni_sockaddr_set_ipv6(&ip, iadr->addr, 0);
+				ni_debug_dhcp("%s: %s id %u address %s decline status: %s - %s",
+						dev->ifname, ni_dhcp6_option_name(ia->type),
+						ia->iaid, ni_sockaddr_print(&ip),
+						ni_dhcp6_status_name(iadr->status.code),
+						ni_dhcp6_status_message(&iadr->status));
+			}
+			if (!ia->addrs && ia->status.message || ia->status.code) {
+				ni_debug_dhcp("%s: %s id %u decline status: %s - %s",
+						dev->ifname, ni_dhcp6_option_name(ia->type),
+						ia->iaid,
+						ni_dhcp6_status_name(ia->status.code),
+						ni_dhcp6_status_message(&ia->status));
+			}
+		}
+		if (msg->lease->dhcp6.status) {
+			ni_debug_dhcp("%s: decline reply status: %s - %s", dev->ifname,
+					ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
+					ni_dhcp6_status_message(msg->lease->dhcp6.status));
+		}
+
+		/*
+		 * https://tools.ietf.org/html/rfc7550#section-4.4.5
+		 * (https://tools.ietf.org/html/rfc3315#section-18.1.8)
+		 * "[...]
+		 * When the client receives a valid Reply message in response to a
+		 * Decline message, the client considers the Decline event completed,
+		 * regardless of the Status Code option(s) returned by the server.
+		 * [...]"
+		 *
+		 * https://tools.ietf.org/html/rfc7550#section-4.6
+		 * "[...]
+		 * The client SHOULD retain the non-conflicting bindings. The client SHOULD
+		 * treat the failure to acquire a binding as a result of the conflict, to be
+		 * equivalent to not having received the binding, insofar as it behaves when
+		 * sending Renew and Rebind messages.
+		 * [...]"
+		 */
+		for (ia = dev->lease->dhcp6.ia_list; ia; ia = ia->next) {
+			if (!ni_dhcp6_ia_type_na(ia) && !ni_dhcp6_ia_type_ta(ia))
+				continue;
+
+			if (!ia->addrs)
+				continue;	/* already empty before */
+
+			for (iadr = ia->addrs; iadr; iadr = next) {
+				next = iadr->next;
+
+				if (iadr->flags & NI_DHCP6_IA_ADDR_DECLINE) {
+					ni_sockaddr_set_ipv6(&ip, iadr->addr, 0);
+					ni_debug_dhcp("%s: deleting declined %s id %u address %s",
+							dev->ifname, ni_dhcp6_option_name(ia->type),
+							ia->iaid, ni_sockaddr_print(&ip));
+
+					ni_dhcp6_ia_addr_list_delete(&ia->addrs, iadr);
+				}
+			}
+			if (!ia->addrs) {
+				resolicit++;	/* retry to get new one */
+				ni_debug_dhcp("%s: retrigger solicit due to empty %s id %u",
+					dev->ifname, ni_dhcp6_option_name(ia->type), ia->iaid);
+			}
+		}
+
+		ni_addrconf_lease_file_write(dev->ifname, dev->lease);
+		ni_dhcp6_fsm_reset(dev);
+		if (resolicit) {
+			ni_dhcp6_fsm_solicit(dev);
+		} else {
+			ni_dhcp6_fsm_bound(dev);
+		}
+
+		rv = 0;
 	break;
 
 	default:
@@ -1595,28 +1674,63 @@ ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *dev)
 	return rv;
 }
 
+static ni_bool_t
+ni_dhcp6_fsm_decline_info(const ni_dhcp6_device_t *dev, const ni_dhcp6_ia_t *ia_list,
+				const char *info, const char *warn)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	const ni_dhcp6_ia_addr_t *iadr;
+	const ni_dhcp6_ia_t *ia;
+	ni_sockaddr_t ip;
+
+	ip.ss_family = AF_UNSPEC;
+	for (ia = ia_list; ia; ia = ia->next) {
+		if (ia->type != NI_DHCP6_OPTION_IA_NA &&
+		    ia->type != NI_DHCP6_OPTION_IA_TA)
+			continue;
+
+		for (iadr = ia->addrs; iadr; iadr = iadr->next) {
+			if (!(iadr->flags & NI_DHCP6_IA_ADDR_DECLINE))
+				continue;
+
+			if (ip.ss_family == AF_UNSPEC && info)
+				ni_info("%s: %s", dev->ifname, info);
+
+			ni_sockaddr_set_ipv6(&ip, iadr->addr, 0);
+			if (info) {
+				ni_stringbuf_puts(&buf, ni_sockaddr_print(&ip));
+				ni_stringbuf_puts(&buf, " valid-lft ");
+				ni_lifetime_print_valid(&buf, iadr->valid_lft);
+				ni_stringbuf_puts(&buf, " preferred-lft ");
+				ni_lifetime_print_preferred(&buf, iadr->preferred_lft);
+				ni_info("%s:    %s %s", dev->ifname,
+						ni_dhcp6_option_name(ia->type), buf.string);
+				ni_stringbuf_destroy(&buf);
+			}
+		}
+	}
+
+	if (ip.ss_family == AF_UNSPEC && warn)
+		ni_warn("%s: %s", dev->ifname, warn);
+
+	return ip.ss_family != AF_UNSPEC;
+}
+
 static int
 ni_dhcp6_fsm_decline(ni_dhcp6_device_t *dev)
 {
-	ni_string_array_t *iaddrs = NULL;
 	int rv = -1;
 
 	if (!dev->lease)
 		return -1;
 
+
 	if (dev->retrans.count == 0) {
-		unsigned int i;
 
-		iaddrs = ni_dhcp6_get_ia_addrs(dev->lease->dhcp6.ia_list, NULL, NULL);
-
-		if (iaddrs && iaddrs->count) {
-			ni_warn("%s: Declining DHCPv6 lease with addresses:", dev->ifname);
-			for (i = 0; i < iaddrs->count; ++i)
-				ni_warn("    %s", iaddrs->data[i]);
-			ni_string_array_destroy(iaddrs);
-		} else {
-			ni_warn("%s: Declining DHCPv6 lease", dev->ifname);
-		}
+		if (!ni_dhcp6_fsm_decline_info(dev, dev->lease->dhcp6.ia_list,
+				"Initiating DHCPv6 lease addresses decline",
+				"No DHCPv6 lease address marked to decline"))
+			return -1;
 
 		dev->dhcp6.xid = 0;
 		if (ni_dhcp6_init_message(dev, NI_DHCP6_DECLINE, dev->lease) != 0)
@@ -1625,7 +1739,10 @@ ni_dhcp6_fsm_decline(ni_dhcp6_device_t *dev)
 		dev->fsm.state = NI_DHCP6_STATE_DECLINING;
 		rv = ni_dhcp6_device_transmit_init(dev);
 	} else {
-		ni_debug_dhcp("%s: Retransmitting DHCPv6 Decline", dev->ifname);
+		if (!ni_dhcp6_fsm_decline_info(dev, dev->lease->dhcp6.ia_list,
+				"Retransmitting DHCPv6 lease addresses decline",
+				"No DHCPv6 lease address marked to decline"))
+			return -1;
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_DECLINE, &dev->message, dev->lease) != 0)
 			return -1;
@@ -2041,11 +2158,11 @@ ni_dhcp6_fsm_get_expire_timeout(ni_dhcp6_device_t *dev)
  * interface address event handlers
  */
 static void
-__ni_dhcp6_fsm_ia_addr_update(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni_address_t *addr)
+ni_dhcp6_fsm_ia_addr_update(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni_address_t *addr)
 {
 	ni_address_t *ap;
-	struct ni_dhcp6_ia *ia;
-	struct ni_dhcp6_ia_addr *iadr;
+	ni_dhcp6_ia_t *ia;
+	ni_dhcp6_ia_addr_t *iadr;
 	unsigned int tentative = 0;
 	unsigned int duplicate = 0;
 
@@ -2054,7 +2171,7 @@ __ni_dhcp6_fsm_ia_addr_update(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni
 			continue;
 
 		for (ia = dev->lease->dhcp6.ia_list; ia; ia = ia->next) {
-			if (ia->type != NI_DHCP6_OPTION_IA_NA ||
+			if (ia->type != NI_DHCP6_OPTION_IA_NA &&
 			    ia->type != NI_DHCP6_OPTION_IA_TA)
 				continue;
 
@@ -2095,7 +2212,40 @@ __ni_dhcp6_fsm_ia_addr_update(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni
 }
 
 static void
-__ni_dhcp6_fsm_address_update(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, const ni_address_t *addr)
+ni_dhcp6_fsm_ia_addr_delete(ni_netdev_t *ifp, ni_dhcp6_device_t *dev, const ni_address_t *addr)
+{
+	ni_dhcp6_ia_t *ia;
+	ni_dhcp6_ia_addr_t *iadr;
+	unsigned int duplicate = 0;
+
+	if (!addr || addr->family != AF_INET6)
+		return;
+
+	for (ia = dev->lease->dhcp6.ia_list; ia; ia = ia->next) {
+		if (ia->type != NI_DHCP6_OPTION_IA_NA &&
+		    ia->type != NI_DHCP6_OPTION_IA_TA)
+			continue;
+
+		for (iadr = ia->addrs; iadr; iadr = iadr->next) {
+			if (!IN6_ARE_ADDR_EQUAL(&iadr->addr, &addr->local_addr.six.sin6_addr))
+				continue;
+
+			if (ni_address_is_tentative(addr)) {
+				duplicate++;
+
+				iadr->flags |= NI_DHCP6_IA_ADDR_DECLINE;
+				ni_debug_dhcp("%s: duplicate address %s deleted, marked for decline",
+						dev->ifname, ni_sockaddr_print(&addr->local_addr));
+			}
+		}
+	}
+
+	if (duplicate)
+		ni_dhcp6_fsm_decline(dev);
+}
+
+static void
+ni_dhcp6_fsm_address_update(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, const ni_address_t *addr)
 {
 	switch (dev->fsm.state) {
 	case NI_DHCP6_STATE_INIT:
@@ -2106,7 +2256,22 @@ __ni_dhcp6_fsm_address_update(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, const ni
 
 	case NI_DHCP6_STATE_VALIDATING:
 		if (dev->lease) {
-			__ni_dhcp6_fsm_ia_addr_update(ifp, dev, addr);
+			ni_dhcp6_fsm_ia_addr_update(ifp, dev, addr);
+		}
+	break;
+
+	default:
+	break;
+	}
+}
+
+static void
+ni_dhcp6_fsm_address_delete(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, const ni_address_t *addr)
+{
+	switch (dev->fsm.state) {
+	case NI_DHCP6_STATE_VALIDATING:
+		if (dev->lease) {
+			ni_dhcp6_fsm_ia_addr_delete(ifp, dev, addr);
 		}
 	break;
 
@@ -2118,20 +2283,14 @@ __ni_dhcp6_fsm_address_update(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, const ni
 void
 ni_dhcp6_fsm_address_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event, const ni_address_t *addr)
 {
-#if 0
-	if (addr && addr->family == AF_INET6) {
-		ni_debug_events("%s: received interface ipv6 address event: %s %s",
-			dev->ifname, ni_event_type_to_name(event),
-			ni_sockaddr_print(&addr->local_addr));
-	}
-#endif
-
+	ni_server_trace_interface_addr_events(ifp, event, addr);
 	switch (event) {
 	case NI_EVENT_ADDRESS_UPDATE:
-		__ni_dhcp6_fsm_address_update(dev, ifp, addr);
+		ni_dhcp6_fsm_address_update(dev, ifp, addr);
 	break;
 
 	case NI_EVENT_ADDRESS_DELETE:
+		ni_dhcp6_fsm_address_delete(dev, ifp, addr);
 	break;
 
 	default:
