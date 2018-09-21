@@ -469,6 +469,7 @@ xml_get_token(xml_reader_t *xr, ni_stringbuf_t *res)
 	switch (xr->state) {
 	default:
 		xml_parse_error(xr, "Unexpected state %u in XML reader", xr->state);
+		return None;
 
 	case Error:
 		return None;

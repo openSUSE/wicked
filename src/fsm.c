@@ -4828,6 +4828,8 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 		case NI_IFWORKER_TYPE_NETDEV:
 			if (ni_parse_uint(relative_path, &w->ifindex, 10) == 0)
 				break;
+
+			/* fall through */
 		default:
 			ni_ifworker_fail(w, "invalid device path %s", object_path);
 			ni_string_free(&object_path);
@@ -5419,7 +5421,7 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 	const char *event_name = ev->signal_name;
 	ni_event_t  event_type = ev->event_type;
 
-	switch (ev->event_type) {
+	switch (event_type) {
 	case NI_EVENT_DEVICE_READY:
 	case NI_EVENT_DEVICE_UP:
 		/* Rebuild hierarchy */
@@ -5436,6 +5438,7 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 				ni_ifworker_fail(w, "unable to start worker");
 			return;
 		}
+		break;
 
 	default:
 		if (ni_ifworker_revert_state(w, event_type))

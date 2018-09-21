@@ -1214,6 +1214,7 @@ ni_do_ethtool(const char *caller, int argc, char **argv)
 		switch (c) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
