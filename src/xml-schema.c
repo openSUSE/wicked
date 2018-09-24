@@ -1548,21 +1548,26 @@ ni_xs_range_t *
 ni_xs_build_range_constraint(const xml_node_t *node)
 {
 	unsigned long min = 0, max = ~0UL;
-	const char *ep;
+	const char *attr;
 
-	if ((ep = xml_node_get_attr(node, "min")) != NULL) {
-		min = strtoul(ep, (char **) ep, 0);
-		if (*ep) {
-			ni_error("%s: invalid min value for range constraint", xml_node_location(node));
+	if ((attr = xml_node_get_attr(node, "min")) != NULL) {
+		if (ni_parse_ulong(attr, &min, 0)) {
+			ni_error("%s: invalid min value for range constraint",
+					xml_node_location(node));
 			return NULL;
 		}
 	}
-	if ((ep = xml_node_get_attr(node, "max")) != NULL) {
-		max = strtoul(ep, (char **) ep, 0);
-		if (*ep) {
-			ni_error("%s: invalid max value for range constraint", xml_node_location(node));
+	if ((attr = xml_node_get_attr(node, "max")) != NULL) {
+		if (ni_parse_ulong(attr, &max, 0)) {
+			ni_error("%s: invalid max value for range constraint",
+					xml_node_location(node));
 			return NULL;
 		}
+	}
+
+	if (min > max) {
+		ni_error("%s: invalid range constraint", xml_node_location(node));
+		return NULL;
 	}
 
 	return ni_xs_range_new(min, max);
