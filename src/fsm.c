@@ -405,6 +405,7 @@ void
 ni_ifworker_free(ni_ifworker_t *w)
 {
 	ni_ifworker_reset(w);
+	ni_ifworker_control_destroy(&w->control);
 	if (w->device)
 		ni_netdev_put(w->device);
 	if (w->modem)
