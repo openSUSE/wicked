@@ -345,9 +345,13 @@ dbus_bool_t
 ni_dbus_message_iter_get_array_array(DBusMessageIter *iter, ni_dbus_variant_t *variant)
 {
 	dbus_bool_t rv = TRUE;
+	char *signature;
 
-	ni_dbus_array_array_init(variant, 
-			dbus_message_iter_get_signature(iter));
+	if (!(signature = dbus_message_iter_get_signature(iter)))
+		return FALSE;
+
+	ni_dbus_array_array_init(variant, signature);
+	ni_string_free(&signature);
 
 	while (rv && dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_ARRAY) {
 		ni_dbus_variant_t *elem;
