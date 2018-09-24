@@ -1064,6 +1064,7 @@ ni_nanny_recheck_policy(ni_nanny_t *mgr, ni_fsm_policy_t *policy)
 					ni_fsm_policy_name(policy), origin);
 			return FALSE;
 		}
+		xml_node_free(config);
 	}
 	if (w == NULL) {
 		w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV,
