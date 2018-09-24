@@ -786,7 +786,7 @@ ni_xs_process_method(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 				ni_error("%s: cannot parse <return> element", xml_node_location(node));
 				return -1;
 			}
-			method->retval = ni_xs_type_hold(type);
+			method->retval = type;
 		} else
 		if (ni_string_eq(child->name, "description")) {
 			ni_string_dup(&method->description, child->cdata);
@@ -1168,7 +1168,6 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 				ni_error("%s: array definition references unknown element type <%s>", __func__, typeAttr);
 				return NULL;
 			}
-			ni_xs_type_hold(elementType);
 		} else {
 			elementType = ni_xs_build_one_type(node, scope);
 			if (elementType == NULL)
@@ -1802,6 +1801,7 @@ ni_xs_build_one_type(xml_node_t *node, ni_xs_scope_t *scope)
 			ni_xs_scope_free(localdict);
 		} else {
 			result = ni_xs_scope_lookup(scope, child->name);
+			ni_xs_type_hold(result);
 		}
 		if (result == NULL) {
 			ni_error("%s: unknown type or class <%s>", xml_node_location(child), child->name);
@@ -1814,10 +1814,10 @@ ni_xs_build_one_type(xml_node_t *node, ni_xs_scope_t *scope)
 		goto error;
 	}
 
-	ni_xs_type_hold(result);
 	return result;
 
 error:
+	ni_xs_type_release(result);
 	return NULL;
 }
 
