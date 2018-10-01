@@ -108,7 +108,9 @@ ni_objectmodel_register_managed_netdev(ni_dbus_server_t *server, ni_managed_devi
 	if (!(w = ni_managed_device_get_worker(mdev)))
 		return NULL;
 
-	dev = ni_ifworker_get_netdev(w);
+	if (!(dev = ni_ifworker_get_netdev(w)))
+		return NULL;
+
 	snprintf(relative_path, sizeof(relative_path), "Interface/%u", dev->link.ifindex);
 	object = ni_dbus_server_register_object(server, relative_path, &ni_objectmodel_managed_netdev_class, mdev);
 

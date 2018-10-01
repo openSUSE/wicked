@@ -449,16 +449,19 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	if (ni_nanny_get_device(mgr, w) != NULL)
 		return;
 
-	mdev = ni_managed_device_new(mgr, w->ifindex, &mgr->device_list);
+	if (!(mdev = ni_managed_device_new(mgr, w->ifindex, &mgr->device_list)))
+		return;
+
 	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
-		mdev->object = ni_objectmodel_register_managed_netdev(mgr->server, mdev);
-		dev_class = ni_objectmodel_link_class(w->device->link.type);
+		if ((mdev->object = ni_objectmodel_register_managed_netdev(mgr->server, mdev)))
+			dev_class = ni_objectmodel_link_class(w->device->link.type);
 	} else
 	if (w->type == NI_IFWORKER_TYPE_MODEM) {
-		mdev->object = ni_objectmodel_register_managed_modem(mgr->server, mdev);
-		dev_class = ni_objectmodel_modem_get_class(w->modem->type);
+		if ((mdev->object = ni_objectmodel_register_managed_modem(mgr->server, mdev)))
+			dev_class = ni_objectmodel_modem_get_class(w->modem->type);
 	}
-
+	if (!mdev->object || dev_class)
+		return;
 
 	for (match = mgr->enable; match; match = match->next) {
 		switch (match->type) {
@@ -481,7 +484,7 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	}
 
 	ni_debug_nanny("new device %s, class %s%s%s", w->name,
-			mdev->object->class->name,
+			mdev->object->class ? mdev->object->class->name : NULL,
 			mdev->allowed? ", user control allowed" : "",
 			mdev->monitor? ", monitored (auto-enabled)" : "");
 
