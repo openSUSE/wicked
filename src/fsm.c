@@ -239,9 +239,10 @@ ni_ifworker_new(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char 
 
 	worker = __ni_ifworker_new(type, name);
 	ni_ifworker_array_append(array, worker);
-	worker->refcount--;
-
-	return worker;
+	if (ni_ifworker_release(worker))
+		return worker;
+	else
+		return NULL;
 }
 
 ni_ifworker_t *
@@ -787,6 +788,9 @@ ni_ifworker_array_new(void)
 void
 ni_ifworker_array_append(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
+	if (!array || !w)
+		return;
+
 	array->data = realloc(array->data, (array->count + 1) * sizeof(array->data[0]));
 	array->data[array->count++] = ni_ifworker_get(w);
 }
@@ -3940,10 +3944,10 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 static ni_bool_t
 __ni_ifworker_refresh_netdevs(ni_fsm_t *fsm)
 {
-	static ni_dbus_object_t *list_object = NULL;
+	ni_dbus_object_t *list_object;
 	ni_dbus_object_t *object;
 
-	if (!list_object && !(list_object = ni_call_get_netif_list_object())) {
+	if (!(list_object = ni_call_get_netif_list_object())) {
 		ni_error("unable to get server's interface list");
 		return FALSE;
 	}
@@ -3995,7 +3999,8 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 			ni_debug_application("received new ready device %s (%s)",
 						dev->name, object->path);
 			found = ni_ifworker_new(&fsm->workers, NI_IFWORKER_TYPE_NETDEV, dev->name);
-			found->readonly = fsm->readonly;
+			if (found)
+				found->readonly = fsm->readonly;
 		} else {
 			renamed = !ni_string_eq(found->name, dev->name);
 			if (renamed)
@@ -4005,7 +4010,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 				ni_debug_application("received refresh for ready device %s (%s)",
 							dev->name, object->path);
 		}
-		if (dev->client_state)
+		if (dev->client_state && found)
 			ni_ifworker_refresh_client_state(found, dev->client_state);
 	} else {
 		/* even we we've created it and know the object-path/ifindex
@@ -4017,7 +4022,8 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 			ni_debug_application("received new non-ready device %s (%s)",
 					dev->name, object->path);
 			found = ni_ifworker_new(&fsm->pending, NI_IFWORKER_TYPE_NETDEV, dev->name);
-			found->readonly = fsm->readonly;
+			if (found)
+				found->readonly = fsm->readonly;
 		} else {
 			renamed = !ni_string_eq(found->name, dev->name);
 			if (renamed)
@@ -4028,6 +4034,9 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 						dev->name, object->path);
 		}
 	}
+
+	if (!found)
+		return NULL;
 
 	if (!found->object_path)
 		ni_string_dup(&found->object_path, object->path);
@@ -4119,6 +4128,9 @@ ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		ni_debug_application("received new modem %s (%s)", modem->device, object->path);
 		found = ni_ifworker_new(&fsm->workers, NI_IFWORKER_TYPE_MODEM, modem->device);
 	}
+
+	if (!found)
+		return NULL;
 
 	if (!found->object_path)
 		ni_string_dup(&found->object_path, object->path);
@@ -5189,6 +5201,8 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			ni_fsm_events_unblock(fsm);
 release:
 			ni_ifworker_release(w);
+
+			ni_dbus_objects_garbage_collect();
 		}
 
 		if (!made_progress)
