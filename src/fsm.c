@@ -377,22 +377,13 @@ ni_ifworker_rearm(ni_ifworker_t *w)
 void
 ni_ifworker_reset(ni_ifworker_t *w)
 {
-	ni_ifworker_cancel_secondary_timeout(w);
-	ni_ifworker_cancel_timeout(w);
-
-	ni_string_free(&w->object_path);
+	/* Reset client state config and control */
 	ni_ifworker_control_init(&w->control);
-	ni_string_free(&w->config.meta.origin);
 	ni_security_id_destroy(&w->security_id);
+	ni_client_state_config_reset(&w->config.meta);
 
-	/* When detaching children, clear their lowerdev/masterdev ownership info */
+	/* Clear lowerdev/masterdev relations */
 	ni_fsm_clear_hierarchy(w);
-
-	w->target_range.min = NI_FSM_STATE_NONE;
-	w->target_range.max = __NI_FSM_STATE_MAX;
-
-	/* Clear config and stats*/
-	ni_client_state_config_init(&w->config.meta);
 
 	ni_ifworker_rearm(w);
 	__ni_ifworker_reset_device_api(w);
@@ -400,19 +391,43 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	w->readonly = FALSE;
 	w->dead = FALSE;
 	w->pending = FALSE;
+
+	w->target_range.min = NI_FSM_STATE_NONE;
+	w->target_range.max = __NI_FSM_STATE_MAX;
 }
 
 void
 ni_ifworker_free(ni_ifworker_t *w)
 {
-	ni_ifworker_reset(w);
+	/* Destroy client state config and control */
 	ni_ifworker_control_destroy(&w->control);
+	ni_security_id_destroy(&w->security_id);
+	ni_client_state_config_reset(&w->config.meta);
+
+	/* Destroy config and state nodes */
+	xml_node_free(w->config.node);
+	xml_node_free(w->state.node);
+
+	/* Clear lowerdev/masterdev relations */
+	ni_fsm_clear_hierarchy(w);
+
+	ni_ifworker_rearm(w);
+	__ni_ifworker_destroy_fsm(w);
+	__ni_ifworker_reset_device_api(w);
+
+	w->readonly = FALSE;
+	w->dead = FALSE;
+	w->pending = FALSE;
+
+	w->target_range.min = NI_FSM_STATE_NONE;
+	w->target_range.max = __NI_FSM_STATE_MAX;
+
+	ni_string_free(&w->object_path);
 	if (w->device)
 		ni_netdev_put(w->device);
 	if (w->modem)
 		ni_modem_release(w->modem);
-	__ni_ifworker_destroy_fsm(w);
-	xml_node_free(w->state.node);
+
 	ni_string_free(&w->name);
 	ni_string_free(&w->old_name);
 	free(w);
