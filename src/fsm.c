@@ -3970,11 +3970,10 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	ni_ifworker_t *found = NULL;
 	ni_bool_t renamed = FALSE;
 
+	/* note: dev is a not yet referece counted object->handle */
 	if (dev == NULL || dev->name == NULL || refresh) {
-		if (!ni_dbus_object_refresh_children(object)) {
-			ni_error("%s: failed to refresh netdev object", object->path);
+		if (!ni_dbus_object_refresh_children(object))
 			return NULL;
-		}
 
 		dev = ni_objectmodel_unwrap_netif(object, NULL);
 	}
@@ -4816,6 +4815,8 @@ ni_ifworker_bind_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 static int
 ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
+	ni_netdev_t *dev;
+
 	/* Initially, enable waiting for this action */
 	w->fsm.wait_for = action;
 
@@ -4865,6 +4866,10 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 			ni_ifworker_fail(w, "unable to refresh new device");
 			return -1;
 		}
+
+		dev = ni_netdev_get(ni_objectmodel_unwrap_netif(w->object, NULL));
+		ni_netdev_put(w->device);
+		w->device = dev;
 
 		ni_fsm_schedule_bind_methods(fsm, w);
 	}
@@ -5684,6 +5689,11 @@ ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 		ni_fsm_process_device_delete_event(fsm, ev, w);
 		return;
 
+	case NI_EVENT_DEVICE_CREATE:
+		/* when there is no worker yet with assigned object-path,
+		 * we refresh and allocate a pending worker first. */
+		break;
+
 	case NI_EVENT_DEVICE_RENAME:
 		w = ni_fsm_process_rename_event(fsm, ev);
 		break;
@@ -5719,13 +5729,25 @@ ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 		break;
 	}
 
-	if (!w && !(w = ni_fsm_recv_new_netif_path(fsm, ev->object_path))) {
-		ni_error("%s: Cannot find corresponding worker for %s",
-				__func__, ev->object_path);
-		return;
+	if (!w) {
+		/* fetch netif object properties and assign device to
+		 * the pending fsm worker set or to config/ready worker.
+		 */
+		if (!ni_fsm_recv_new_netif_path(fsm, ev->object_path)) {
+			ni_debug_application("%s: refresh failed, cannot process %s worker %s event",
+					__func__, ev->object_path, ni_objectmodel_event_to_signal(ev->event_type));
+			return;
+		}
+		w = ni_fsm_ifworker_by_object_path(fsm, ev->object_path);
+		if (!w) {
+			ni_debug_application("%s: No ready fsm worker for %s found to process %s event",
+						__func__, ev->object_path, ni_objectmodel_event_to_signal(ev->event_type));
+				return;
+		}
 	}
 
 	ni_ifworker_get(w);
+	/* process non-pending/ready or factory worker events */
 	ni_fsm_process_worker_event(fsm, w, ev);
 	ni_ifworker_release(w);
 }
