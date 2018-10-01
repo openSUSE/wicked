@@ -5601,14 +5601,55 @@ ni_fsm_process_rename_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 }
 
 static void
+ni_fsm_process_device_delete_event(ni_fsm_t *fsm, ni_fsm_event_t *ev, ni_ifworker_t *w)
+{
+	ni_dbus_object_t *netif_list;
+	ni_dbus_object_t *object;
+
+	/* device-ready worker exist and is possibly also active */
+	if (w) {
+		ni_ifworker_get(w);
+		ni_fsm_process_worker_event(fsm, w, ev);
+		ni_ifworker_release(w);
+		ni_debug_application("deleted worker device with object path %s",
+					ev->object_path);
+	}
+
+	/* we may have a created but not yet ready/pending worker */
+	w = ni_ifworker_array_find_by_objectpath(&fsm->pending, ev->object_path);
+	if (w) {
+		ni_ifworker_get(w);
+		ni_ifworker_array_remove(&fsm->pending, w);
+		ni_ifworker_release(w);
+		ni_debug_application("deleted pending device worker with object path %s",
+					ev->object_path);
+	}
+
+	/* finally, we may also have an netif-list device object */
+	if ((netif_list = ni_call_get_netif_list_object())) {
+		for (object = netif_list->children; object; ) {
+			if (ni_string_eq(object->path, ev->object_path)) {
+				ni_dbus_object_free(object);
+				ni_debug_application("deleted object %s from netif-list",
+					ev->object_path);
+				object = NULL;
+			} else {
+				object = object->next;
+			}
+		}
+	}
+}
+
+static void
 ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 {
-	ni_ifworker_t *w = ni_fsm_ifworker_by_object_path(fsm, ev->object_path);
+	ni_ifworker_t *w;
 
 	fsm->event_seq += 1;
 
-	ni_debug_events("%s: process event signal %s from %s; uuid=<%s>",
-			w ? w->name : "",
+	w = ni_fsm_ifworker_by_object_path(fsm, ev->object_path);
+
+	ni_debug_events("process event signal %s from %s; uuid=<%s>",
 			ni_objectmodel_event_to_signal(ev->event_type),
 			ev->object_path, ni_uuid_print(&ev->event_uuid));
 
@@ -5625,6 +5666,10 @@ ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 	 * change with uuid followed by the unsolicited event without uuid.
 	 */
 	switch (ev->event_type) {
+	case NI_EVENT_DEVICE_DELETE:
+		ni_fsm_process_device_delete_event(fsm, ev, w);
+		return;
+
 	case NI_EVENT_DEVICE_RENAME:
 		w = ni_fsm_process_rename_event(fsm, ev);
 		break;
@@ -5783,6 +5828,7 @@ ni_fsm_do(ni_fsm_t *fsm, long *timeout_p)
 
 		fsm->timeout_count = 0;
 		*timeout_p = ni_timer_next_timeout();
+		ni_dbus_objects_garbage_collect();
 	} while (fsm->timeout_count);
 
 	return pending_workers;
