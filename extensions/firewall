@@ -66,10 +66,7 @@ firewalld_up()
 	test "X$WICKED_INTERFACE_NAME" = "X" && return 1
 
 	local ZONE=`wicked_config_get_zone "$WICKED_ARGFILE"`
-	if test "X$ZONE" = "X" ; then
-		ZONE=`"$firewalld_cmd" --get-default-zone 2>/dev/null`
-		test "X$ZONE" = "X" && return 1
-	fi
+
 	"$firewalld_cmd" --zone="$ZONE" --change-interface="$WICKED_INTERFACE_NAME" &>/dev/null
 }
 
