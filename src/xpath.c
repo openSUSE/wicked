@@ -127,7 +127,7 @@ xpath_expression_parse(const char *expr)
 failed:
 	ni_error("unable to parse XPATH expression \"%s\"", orig_expr);
 	if (tree)
-		xpath_enode_free(tree);
+		xpath_expression_free(tree);
 	return NULL;
 }
 
@@ -149,16 +149,22 @@ xpath_expression_eval(const xpath_enode_t *enode, xml_node_t *xn)
 /*
  * Free a parsed XPATH expression
  */
-void
-xpath_expression_free(xpath_enode_t *enode)
+static inline void
+xpath_expr_free(xpath_enode_t *enode, unsigned int depth, const char *info)
 {
 	if (!enode)
 		return;
-	if (enode->left)
-		xpath_enode_free(enode->left);
-	if (enode->right)
-		xpath_enode_free(enode->right);
+	xtrace("xpath_expression_free(%*.s%s %s %s)", depth, " ", info,
+		enode->ops ? enode->ops->name : NULL, enode->identifier);
+	xpath_expr_free(enode->left,  depth + 2, "left ");
+	xpath_expr_free(enode->right, depth + 2, "right");
 	xpath_enode_free(enode);
+}
+
+void
+xpath_expression_free(xpath_enode_t *enode)
+{
+	xpath_expr_free(enode, 0, "expr ");
 }
 
 /*
@@ -442,7 +448,7 @@ handle_function:
 failed:
 	/* ni_error("xpath: syntax error in expression \"%s\" at position %s", expr, pos); */
 	if (current)
-		xpath_enode_free(current);
+		xpath_expression_free(current);
 	return NULL;
 }
 

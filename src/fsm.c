@@ -239,9 +239,10 @@ ni_ifworker_new(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char 
 
 	worker = __ni_ifworker_new(type, name);
 	ni_ifworker_array_append(array, worker);
-	worker->refcount--;
-
-	return worker;
+	if (ni_ifworker_release(worker))
+		return worker;
+	else
+		return NULL;
 }
 
 ni_ifworker_t *
@@ -376,22 +377,13 @@ ni_ifworker_rearm(ni_ifworker_t *w)
 void
 ni_ifworker_reset(ni_ifworker_t *w)
 {
-	ni_ifworker_cancel_secondary_timeout(w);
-	ni_ifworker_cancel_timeout(w);
-
-	ni_string_free(&w->object_path);
+	/* Reset client state config and control */
 	ni_ifworker_control_init(&w->control);
-	ni_string_free(&w->config.meta.origin);
 	ni_security_id_destroy(&w->security_id);
+	ni_client_state_config_reset(&w->config.meta);
 
-	/* When detaching children, clear their lowerdev/masterdev ownership info */
+	/* Clear lowerdev/masterdev relations */
 	ni_fsm_clear_hierarchy(w);
-
-	w->target_range.min = NI_FSM_STATE_NONE;
-	w->target_range.max = __NI_FSM_STATE_MAX;
-
-	/* Clear config and stats*/
-	ni_client_state_config_init(&w->config.meta);
 
 	ni_ifworker_rearm(w);
 	__ni_ifworker_reset_device_api(w);
@@ -399,18 +391,43 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	w->readonly = FALSE;
 	w->dead = FALSE;
 	w->pending = FALSE;
+
+	w->target_range.min = NI_FSM_STATE_NONE;
+	w->target_range.max = __NI_FSM_STATE_MAX;
 }
 
 void
 ni_ifworker_free(ni_ifworker_t *w)
 {
-	ni_ifworker_reset(w);
+	/* Destroy client state config and control */
+	ni_ifworker_control_destroy(&w->control);
+	ni_security_id_destroy(&w->security_id);
+	ni_client_state_config_reset(&w->config.meta);
+
+	/* Destroy config and state nodes */
+	xml_node_free(w->config.node);
+	xml_node_free(w->state.node);
+
+	/* Clear lowerdev/masterdev relations */
+	ni_fsm_clear_hierarchy(w);
+
+	ni_ifworker_rearm(w);
+	__ni_ifworker_destroy_fsm(w);
+	__ni_ifworker_reset_device_api(w);
+
+	w->readonly = FALSE;
+	w->dead = FALSE;
+	w->pending = FALSE;
+
+	w->target_range.min = NI_FSM_STATE_NONE;
+	w->target_range.max = __NI_FSM_STATE_MAX;
+
+	ni_string_free(&w->object_path);
 	if (w->device)
 		ni_netdev_put(w->device);
 	if (w->modem)
 		ni_modem_release(w->modem);
-	__ni_ifworker_destroy_fsm(w);
-	xml_node_free(w->state.node);
+
 	ni_string_free(&w->name);
 	ni_string_free(&w->old_name);
 	free(w);
@@ -786,6 +803,9 @@ ni_ifworker_array_new(void)
 void
 ni_ifworker_array_append(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
+	if (!array || !w)
+		return;
+
 	array->data = realloc(array->data, (array->count + 1) * sizeof(array->data[0]));
 	array->data[array->count++] = ni_ifworker_get(w);
 }
@@ -3939,10 +3959,10 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 static ni_bool_t
 __ni_ifworker_refresh_netdevs(ni_fsm_t *fsm)
 {
-	static ni_dbus_object_t *list_object = NULL;
+	ni_dbus_object_t *list_object;
 	ni_dbus_object_t *object;
 
-	if (!list_object && !(list_object = ni_call_get_netif_list_object())) {
+	if (!(list_object = ni_call_get_netif_list_object())) {
 		ni_error("unable to get server's interface list");
 		return FALSE;
 	}
@@ -3965,11 +3985,10 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	ni_ifworker_t *found = NULL;
 	ni_bool_t renamed = FALSE;
 
+	/* note: dev is a not yet referece counted object->handle */
 	if (dev == NULL || dev->name == NULL || refresh) {
-		if (!ni_dbus_object_refresh_children(object)) {
-			ni_error("%s: failed to refresh netdev object", object->path);
+		if (!ni_dbus_object_refresh_children(object))
 			return NULL;
-		}
 
 		dev = ni_objectmodel_unwrap_netif(object, NULL);
 	}
@@ -3994,7 +4013,8 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 			ni_debug_application("received new ready device %s (%s)",
 						dev->name, object->path);
 			found = ni_ifworker_new(&fsm->workers, NI_IFWORKER_TYPE_NETDEV, dev->name);
-			found->readonly = fsm->readonly;
+			if (found)
+				found->readonly = fsm->readonly;
 		} else {
 			renamed = !ni_string_eq(found->name, dev->name);
 			if (renamed)
@@ -4004,7 +4024,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 				ni_debug_application("received refresh for ready device %s (%s)",
 							dev->name, object->path);
 		}
-		if (dev->client_state)
+		if (dev->client_state && found)
 			ni_ifworker_refresh_client_state(found, dev->client_state);
 	} else {
 		/* even we we've created it and know the object-path/ifindex
@@ -4016,7 +4036,8 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 			ni_debug_application("received new non-ready device %s (%s)",
 					dev->name, object->path);
 			found = ni_ifworker_new(&fsm->pending, NI_IFWORKER_TYPE_NETDEV, dev->name);
-			found->readonly = fsm->readonly;
+			if (found)
+				found->readonly = fsm->readonly;
 		} else {
 			renamed = !ni_string_eq(found->name, dev->name);
 			if (renamed)
@@ -4027,6 +4048,9 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 						dev->name, object->path);
 		}
 	}
+
+	if (!found)
+		return NULL;
 
 	if (!found->object_path)
 		ni_string_dup(&found->object_path, object->path);
@@ -4118,6 +4142,9 @@ ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		ni_debug_application("received new modem %s (%s)", modem->device, object->path);
 		found = ni_ifworker_new(&fsm->workers, NI_IFWORKER_TYPE_MODEM, modem->device);
 	}
+
+	if (!found)
+		return NULL;
 
 	if (!found->object_path)
 		ni_string_dup(&found->object_path, object->path);
@@ -4803,6 +4830,8 @@ ni_ifworker_bind_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 static int
 ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
+	ni_netdev_t *dev;
+
 	/* Initially, enable waiting for this action */
 	w->fsm.wait_for = action;
 
@@ -4852,6 +4881,10 @@ ni_ifworker_call_device_factory(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 			ni_ifworker_fail(w, "unable to refresh new device");
 			return -1;
 		}
+
+		dev = ni_netdev_get(ni_objectmodel_unwrap_netif(w->object, NULL));
+		ni_netdev_put(w->device);
+		w->device = dev;
 
 		ni_fsm_schedule_bind_methods(fsm, w);
 	}
@@ -5188,6 +5221,8 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			ni_fsm_events_unblock(fsm);
 release:
 			ni_ifworker_release(w);
+
+			ni_dbus_objects_garbage_collect();
 		}
 
 		if (!made_progress)
@@ -5600,14 +5635,55 @@ ni_fsm_process_rename_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 }
 
 static void
+ni_fsm_process_device_delete_event(ni_fsm_t *fsm, ni_fsm_event_t *ev, ni_ifworker_t *w)
+{
+	ni_dbus_object_t *netif_list;
+	ni_dbus_object_t *object;
+
+	/* device-ready worker exist and is possibly also active */
+	if (w) {
+		ni_ifworker_get(w);
+		ni_fsm_process_worker_event(fsm, w, ev);
+		ni_ifworker_release(w);
+		ni_debug_application("deleted worker device with object path %s",
+					ev->object_path);
+	}
+
+	/* we may have a created but not yet ready/pending worker */
+	w = ni_ifworker_array_find_by_objectpath(&fsm->pending, ev->object_path);
+	if (w) {
+		ni_ifworker_get(w);
+		ni_ifworker_array_remove(&fsm->pending, w);
+		ni_ifworker_release(w);
+		ni_debug_application("deleted pending device worker with object path %s",
+					ev->object_path);
+	}
+
+	/* finally, we may also have an netif-list device object */
+	if ((netif_list = ni_call_get_netif_list_object())) {
+		for (object = netif_list->children; object; ) {
+			if (ni_string_eq(object->path, ev->object_path)) {
+				ni_dbus_object_free(object);
+				ni_debug_application("deleted object %s from netif-list",
+					ev->object_path);
+				object = NULL;
+			} else {
+				object = object->next;
+			}
+		}
+	}
+}
+
+static void
 ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 {
-	ni_ifworker_t *w = ni_fsm_ifworker_by_object_path(fsm, ev->object_path);
+	ni_ifworker_t *w;
 
 	fsm->event_seq += 1;
 
-	ni_debug_events("%s: process event signal %s from %s; uuid=<%s>",
-			w ? w->name : "",
+	w = ni_fsm_ifworker_by_object_path(fsm, ev->object_path);
+
+	ni_debug_events("process event signal %s from %s; uuid=<%s>",
 			ni_objectmodel_event_to_signal(ev->event_type),
 			ev->object_path, ni_uuid_print(&ev->event_uuid));
 
@@ -5624,6 +5700,15 @@ ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 	 * change with uuid followed by the unsolicited event without uuid.
 	 */
 	switch (ev->event_type) {
+	case NI_EVENT_DEVICE_DELETE:
+		ni_fsm_process_device_delete_event(fsm, ev, w);
+		return;
+
+	case NI_EVENT_DEVICE_CREATE:
+		/* when there is no worker yet with assigned object-path,
+		 * we refresh and allocate a pending worker first. */
+		break;
+
 	case NI_EVENT_DEVICE_RENAME:
 		w = ni_fsm_process_rename_event(fsm, ev);
 		break;
@@ -5659,13 +5744,25 @@ ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 		break;
 	}
 
-	if (!w && !(w = ni_fsm_recv_new_netif_path(fsm, ev->object_path))) {
-		ni_error("%s: Cannot find corresponding worker for %s",
-				__func__, ev->object_path);
-		return;
+	if (!w) {
+		/* fetch netif object properties and assign device to
+		 * the pending fsm worker set or to config/ready worker.
+		 */
+		if (!ni_fsm_recv_new_netif_path(fsm, ev->object_path)) {
+			ni_debug_application("%s: refresh failed, cannot process %s worker %s event",
+					__func__, ev->object_path, ni_objectmodel_event_to_signal(ev->event_type));
+			return;
+		}
+		w = ni_fsm_ifworker_by_object_path(fsm, ev->object_path);
+		if (!w) {
+			ni_debug_application("%s: No ready fsm worker for %s found to process %s event",
+						__func__, ev->object_path, ni_objectmodel_event_to_signal(ev->event_type));
+				return;
+		}
 	}
 
 	ni_ifworker_get(w);
+	/* process non-pending/ready or factory worker events */
 	ni_fsm_process_worker_event(fsm, w, ev);
 	ni_ifworker_release(w);
 }
@@ -5782,6 +5879,7 @@ ni_fsm_do(ni_fsm_t *fsm, long *timeout_p)
 
 		fsm->timeout_count = 0;
 		*timeout_p = ni_timer_next_timeout();
+		ni_dbus_objects_garbage_collect();
 	} while (fsm->timeout_count);
 
 	return pending_workers;

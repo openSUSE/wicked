@@ -83,7 +83,6 @@ ni_dbus_message_get_next_dict_entry(DBusMessageIter *iter_dict, struct ni_dbus_d
 	if (!dbus_message_iter_next(&iter_dict_entry))
 		goto error;
 
-	/* ni_debug_dbus("decoding entry %s of type %s", key, dbus_message_iter_get_signature(&iter_dict_entry)); */
 	if (!ni_dbus_message_iter_get_variant(&iter_dict_entry, &entry->datum))
 		goto error;
 

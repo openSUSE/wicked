@@ -89,22 +89,38 @@ __ni_call_get_proxy_object(const ni_dbus_service_t *service, const char *relativ
 }
 
 /*
- * Obtain an object handle for Wicked.Interface
+ * Obtain a service handle for Wicked.InterfacaList
+ */
+static const ni_dbus_service_t *
+ni_call_get_netif_list_service(void)
+{
+	static const ni_dbus_service_t *list_service = NULL;
+
+	if (list_service)
+	       return list_service;
+
+	list_service = ni_objectmodel_service_by_name(NI_OBJECTMODEL_NETIFLIST_INTERFACE);
+	return list_service;
+}
+
+/*
+ * Obtain an object handle for Wicked.InterfaceList
  */
 ni_dbus_object_t *
 ni_call_get_netif_list_object(void)
 {
-	static const ni_dbus_service_t *netif_list_service;
-	ni_dbus_object_t *list_object;
+	static ni_dbus_object_t *list_object = NULL;
+	const ni_dbus_service_t *list_service;
 
-	if (netif_list_service == NULL) {
-		netif_list_service = ni_objectmodel_service_by_name(NI_OBJECTMODEL_NETIFLIST_INTERFACE);
-		ni_assert(netif_list_service);
-	}
+	if (list_object)
+		return list_object;
 
-	list_object = __ni_call_get_proxy_object(netif_list_service, "Interface");
+	if (!(list_service = ni_call_get_netif_list_service()))
+		return NULL;
 
-	ni_dbus_object_set_default_interface(list_object, netif_list_service->name);
+	if ((list_object = __ni_call_get_proxy_object(list_service, "Interface")))
+		ni_dbus_object_set_default_interface(list_object, list_service->name);
+
 	return list_object;
 }
 

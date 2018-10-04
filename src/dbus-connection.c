@@ -317,6 +317,10 @@ ni_dbus_connection_call(ni_dbus_connection_t *connection,
 				"unable to send DBus message (errno=%d)", errno);
 		return NULL;
 	}
+	if (!pending) {
+		dbus_set_error (error, DBUS_ERROR_DISCONNECTED, "Connection is closed");
+		return NULL;
+	}
 
 	dbus_pending_call_block(pending);
 
@@ -326,6 +330,7 @@ ni_dbus_connection_call(ni_dbus_connection_t *connection,
 		__ni_dbus_connection_dispatch(connection);
 
 	reply = dbus_pending_call_steal_reply(pending);
+	dbus_pending_call_unref (pending);
 
 	if (reply == NULL) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "dbus: no reply");
@@ -362,7 +367,11 @@ ni_dbus_connection_call_async(ni_dbus_connection_t *connection,
 	DBusPendingCall *pending;
 
 	if (!dbus_connection_send_with_reply(connection->conn, call, &pending, timeout)) {
-		ni_error("dbus_connection_send_with_reply: %m");
+		ni_error("dbus: unable to send async message (errno=%d): %m", errno);
+		return -NI_ERROR_DBUS_CALL_FAILED;
+	}
+	if (!pending) {
+		ni_error("dbus: connection is closed: %m");
 		return -NI_ERROR_DBUS_CALL_FAILED;
 	}
 

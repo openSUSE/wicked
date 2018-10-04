@@ -392,15 +392,27 @@ extern void			ni_fsm_set_user_prompt_fn(ni_fsm_t *, ni_fsm_user_prompt_fn_t *, v
 static inline ni_ifworker_t *
 ni_ifworker_get(ni_ifworker_t *w)
 {
-	w->refcount++;
+	if (w) {
+		ni_assert(w->refcount);
+		w->refcount++;
+	}
 	return w;
 }
 
-static inline void
-ni_ifworker_release(ni_ifworker_t *state)
+static inline unsigned int
+ni_ifworker_release(ni_ifworker_t *w)
 {
-	if (--(state->refcount) == 0)
-		ni_ifworker_free(state);
+	if (w) {
+		ni_assert(w->refcount);
+		w->refcount--;
+
+		if (w->refcount == 0) {
+			ni_ifworker_free(w);
+		} else {
+			return w->refcount;
+		}
+	}
+	return 0;
 }
 
 static inline ni_bool_t

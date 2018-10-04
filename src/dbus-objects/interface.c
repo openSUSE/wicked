@@ -1357,8 +1357,6 @@ ni_objectmodel_netif_destroy(ni_dbus_object_t *object)
 		return;
 
 	NI_TRACE_ENTER_ARGS("object=%s, dev=%p", object->path, ifp);
-	ni_assert(ifp);
-	ni_client_state_drop(ifp->link.ifindex);
 	ni_netdev_put(ifp);
 }
 
