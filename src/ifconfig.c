@@ -3382,7 +3382,7 @@ ni_rtnl_link_put_vxlan_opt(ni_netconfig_t *nc, struct nl_msg *msg, const char *i
 	case IFLA_VXLAN_PORT:
 		/* omit if port is 0 (IANA: 4789, kernel default: 8472) */
 		if (conf->dst_port && conf->dst_port != vxlan->dst_port) {
-			NLA_PUT_U16(msg, attr, conf->dst_port);
+			NLA_PUT_U16(msg, attr, htons(conf->dst_port));
 			ret = 0;
 		}
 		val = conf->dst_port;
