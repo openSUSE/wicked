@@ -1647,7 +1647,7 @@ __wpa_dbus_bss_get_phase2(const ni_dbus_object_t *object, const ni_dbus_property
 			if (NI_WIRELESS_EAP_NONE == net->wpa_eap.phase2.method)
 				eap_name = "any";
 			else {
-				eap_name = ni_wireless_eap_method_to_name(net->wpa_eap.phase2.method);
+				eap_name = ni_wpa_eap_method_as_string(net->wpa_eap.phase2.method, error);
 				if (ni_string_empty(eap_name))
 					goto not_present;
 			}
