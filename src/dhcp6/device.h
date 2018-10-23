@@ -41,7 +41,7 @@ extern void		ni_dhcp6_device_stop(ni_dhcp6_device_t *);
 
 extern void		ni_dhcp6_device_set_lease(ni_dhcp6_device_t *,  ni_addrconf_lease_t *);
 extern void		ni_dhcp6_device_drop_lease(ni_dhcp6_device_t *);
-extern void		ni_dhcp6_device_set_best_offer(ni_dhcp6_device_t *, ni_addrconf_lease_t *, int);
+extern void		ni_dhcp6_device_set_best_offer(ni_dhcp6_device_t *, ni_addrconf_lease_t *, int, int);
 extern void		ni_dhcp6_device_drop_best_offer(ni_dhcp6_device_t *);
 
 extern unsigned int	ni_dhcp6_device_uptime(const ni_dhcp6_device_t *, unsigned int);
@@ -56,5 +56,6 @@ extern ni_bool_t	ni_dhcp6_config_have_server_preference(void);
 extern ni_bool_t	ni_dhcp6_config_server_preference(const struct in6_addr *, const ni_opaque_t *, int *);
 extern unsigned int	ni_dhcp6_config_max_lease_time(void);
 extern unsigned int	ni_dhcp6_config_release_nretries(const char *);
+extern unsigned int	ni_dhcp6_config_info_refresh_time(const char *, ni_uint_range_t *);
 
 #endif /* __WICKED_DHCP6_DEVICE_H__ */

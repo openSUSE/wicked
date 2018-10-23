@@ -371,12 +371,12 @@ This behavior can be fine-tuned using the following options:
 .TP
 .BI "\-\-quiet "
 Used to obtain status return codes only. No information is output,
-so can be used for scrpiting.
+so can be used for scripting.
 .TP
 .BI "\-\-brief "
 Displays device status for specified interfaces.
 .TP
-.BI "\-\-ifconfig " filenam
+.BI "\-\-ifconfig " filename
 Note that this is ifstatus specfic (ie. root only).
 Used to alter the source of the specified interface configurations.
 .PP
@@ -417,7 +417,7 @@ definition(s) from firmware services like iBFT.
 .TP
 .BI "\-\-quiet "
 Used to obtain status return codes only. No information is output,
-so can be used for scrpiting.
+so can be used for scripting.
 .TP
 .BI "\-\-missed "
 Check if the interface is missed.

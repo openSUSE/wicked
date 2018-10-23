@@ -1018,6 +1018,84 @@ set_ethtool_coalesce(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, struct e
 	return ret;
 }
 
+/*
+ * pause
+ */
+static int
+get_ethtool_pause(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, struct ethtool_args *args)
+{
+	ni_ethtool_pause_t *pause;
+
+	if (ni_ethtool_get_pause(ref, ethtool) < 0 || !(pause = ethtool->pause))
+		return -1;
+
+	printf("pause:\n");
+	printf("\ttx: %s\n", pause->tx ? "on" : "off");
+	printf("\trx: %s\n", pause->rx ? "on" : "off");
+	printf("\tautoneg: %s\n", pause->autoneg ? "on" : "off");
+
+	return 0;
+}
+
+static int
+set_ethtool_pause(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, struct ethtool_args *args)
+{
+	ni_ethtool_pause_t *pause;
+	char *key = NULL, *val = NULL;
+	ni_bool_t enabled;
+	int ret = -1, n;
+
+	if (!(pause = ni_ethtool_pause_new()))
+		return ret;
+
+	for (n = 0; n < args->argc && args->argv[n]; ++n) {
+		key = args->argv[n++];
+		if (n < args->argc)
+			val = args->argv[n];
+		else
+			break;
+		if (ni_string_eq(key, "tx")) {
+			if (ni_parse_boolean(val, &enabled) != 0)
+				break;
+			ni_tristate_set(&pause->tx, enabled);
+		} else
+		if (ni_string_eq(key, "rx")) {
+			if (ni_parse_boolean(val, &enabled) != 0)
+				break;
+			ni_tristate_set(&pause->rx, enabled);
+		} else
+		if (ni_string_eq(key, "autoneg")) {
+			if (ni_parse_boolean(val, &enabled) != 0)
+				break;
+			ni_tristate_set(&pause->autoneg, enabled);
+		} else {
+			val = key;
+			key = NULL;
+			break;
+		}
+
+		key = NULL;
+		val = NULL;
+	}
+
+	if (key) {
+		if (val)
+			fprintf(stderr, "%s: cannot parse pause '%s' argument '%s'\n",
+					ref->name, key, val);
+		else
+			fprintf(stderr, "%s: missing pause '%s' value argument\n",
+					ref->name, key);
+	} else {
+		if (val)
+			fprintf(stderr, "%s: unknown pause setting name '%s'\n",
+					ref->name, val);
+		else
+			ret = ni_ethtool_set_pause(ref, ethtool, pause);
+	}
+	ni_ethtool_pause_free(pause);
+	return ret;
+}
+
 
 /*
  * option table
@@ -1037,6 +1115,7 @@ static const struct ethtool_opt	ethtool_opts[] = {
 	{	"--get-ring",		.func	= get_ethtool_ring,				},
 	{	"--get-channels",	.func	= get_ethtool_channels,				},
 	{	"--get-coalesce",	.func	= get_ethtool_coalesce,				},
+	{	"--get-pause",	        .func	= get_ethtool_pause,		                },
 
 	/* show == alias to get */
 	{	"--show-driver-info",	.func	= get_ethtool_driver_info,	.alias = TRUE	},
@@ -1051,6 +1130,7 @@ static const struct ethtool_opt	ethtool_opts[] = {
 	{	"--show-ring",		.func	= get_ethtool_ring,		.alias = TRUE	},
 	{	"--show-channels",	.func	= get_ethtool_channels,		.alias = TRUE	},
 	{	"--show-coalesce",	.func	= get_ethtool_coalesce,		.alias = TRUE	},
+	{	"--show-pause",	        .func	= get_ethtool_pause,		.alias = TRUE	},
 
 	{	"",			.func	= NULL,		.usage = ""			},
 
@@ -1074,6 +1154,8 @@ static const struct ethtool_opt	ethtool_opts[] = {
 					.usage	= "[rx 1] ..."					},
 	{	"--set-coalesce",	.func	= set_ethtool_coalesce,
 					.usage	= "[coalesce-name on|off|N] ..."		},
+	{	"--set-pause",	        .func	= set_ethtool_pause,
+					.usage	= "[pause-name on|off] ..."			},
 
 	{	NULL										}
 };
@@ -1132,6 +1214,7 @@ ni_do_ethtool(const char *caller, int argc, char **argv)
 		switch (c) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,

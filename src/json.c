@@ -853,6 +853,7 @@ ni_json_string_escape_map(unsigned char uc, const ni_json_format_options_t *opti
 		case '"':	return "\\\"";
 		case '/':	if (options->flags & NI_JSON_ESCAPE_SLASH)
 					return "\\/";
+				return NULL;
 		default:	return NULL;
 	}
 }

@@ -54,7 +54,7 @@ static void		ni_xs_scalar_set_range(ni_xs_type_t *, ni_xs_range_t *);
  * Constructor functions for basic and complex types
  */
 static ni_xs_type_t *
-__ni_xs_type_new(unsigned int class)
+ni_xs_type_new(unsigned int class)
 {
 	ni_xs_type_t *type = xcalloc(1, sizeof(*type));
 
@@ -66,7 +66,7 @@ __ni_xs_type_new(unsigned int class)
 ni_xs_type_t *
 ni_xs_scalar_new(const char *basic_name, unsigned int scalar_type)
 {
-	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_SCALAR);
+	ni_xs_type_t *type = ni_xs_type_new(NI_XS_TYPE_SCALAR);
 
 	type->u.scalar_info = xcalloc(1, sizeof(ni_xs_scalar_info_t));
 	type->u.scalar_info->basic_name = basic_name;
@@ -77,7 +77,7 @@ ni_xs_scalar_new(const char *basic_name, unsigned int scalar_type)
 ni_xs_type_t *
 ni_xs_struct_new(ni_xs_name_type_array_t *children)
 {
-	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_STRUCT);
+	ni_xs_type_t *type = ni_xs_type_new(NI_XS_TYPE_STRUCT);
 
 	type->u.struct_info = xcalloc(1, sizeof(ni_xs_struct_info_t));
 	if (children)
@@ -88,7 +88,7 @@ ni_xs_struct_new(ni_xs_name_type_array_t *children)
 ni_xs_type_t *
 ni_xs_union_new(ni_xs_name_type_array_t *children, const char *discriminant)
 {
-	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_UNION);
+	ni_xs_type_t *type = ni_xs_type_new(NI_XS_TYPE_UNION);
 
 	type->u.union_info = xcalloc(1, sizeof(ni_xs_union_info_t));
 	if (children)
@@ -100,7 +100,7 @@ ni_xs_union_new(ni_xs_name_type_array_t *children, const char *discriminant)
 ni_xs_type_t *
 ni_xs_dict_new(ni_xs_name_type_array_t *children)
 {
-	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_DICT);
+	ni_xs_type_t *type = ni_xs_type_new(NI_XS_TYPE_DICT);
 
 	type->u.dict_info = xcalloc(1, sizeof(ni_xs_dict_info_t));
 	if (children)
@@ -111,7 +111,7 @@ ni_xs_dict_new(ni_xs_name_type_array_t *children)
 ni_xs_type_t *
 ni_xs_array_new(ni_xs_type_t *elementType, const char *elementName, unsigned long minlen, unsigned long maxlen)
 {
-	ni_xs_type_t *type = __ni_xs_type_new(NI_XS_TYPE_ARRAY);
+	ni_xs_type_t *type = ni_xs_type_new(NI_XS_TYPE_ARRAY);
 
 	type->u.array_info = xcalloc(1, sizeof(struct ni_xs_array_info));
 	type->u.array_info->element_type = ni_xs_type_hold(elementType);
@@ -360,7 +360,7 @@ ni_xs_name_type_array_copy(ni_xs_name_type_array_t *dst, const ni_xs_name_type_a
 }
 
 static ni_xs_type_t *
-__ni_xs_name_type_array_find(const ni_xs_name_type_array_t *array, const char *name)
+ni_xs_name_type_array_find_local(const ni_xs_name_type_array_t *array, const char *name)
 {
 	ni_xs_name_type_t *def;
 	unsigned int i;
@@ -375,7 +375,7 @@ __ni_xs_name_type_array_find(const ni_xs_name_type_array_t *array, const char *n
 const ni_xs_type_t *
 ni_xs_name_type_array_find(const ni_xs_name_type_array_t *array, const char *name)
 {
-	return __ni_xs_name_type_array_find(array, name);
+	return ni_xs_name_type_array_find_local(array, name);
 }
 
 /*
@@ -449,7 +449,7 @@ ni_xs_scope_lookup_scope(const ni_xs_scope_t *scope, const char *name)
 ni_xs_type_t *
 ni_xs_scope_lookup_local(const ni_xs_scope_t *dict, const char *name)
 {
-	return __ni_xs_name_type_array_find(&dict->types, name);
+	return ni_xs_name_type_array_find_local(&dict->types, name);
 }
 
 ni_xs_type_t *
@@ -786,7 +786,7 @@ ni_xs_process_method(xml_node_t *node, ni_xs_service_t *service, ni_xs_scope_t *
 				ni_error("%s: cannot parse <return> element", xml_node_location(node));
 				return -1;
 			}
-			method->retval = ni_xs_type_hold(type);
+			method->retval = type;
 		} else
 		if (ni_string_eq(child->name, "description")) {
 			ni_string_dup(&method->description, child->cdata);
@@ -1168,7 +1168,6 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 				ni_error("%s: array definition references unknown element type <%s>", __func__, typeAttr);
 				return NULL;
 			}
-			ni_xs_type_hold(elementType);
 		} else {
 			elementType = ni_xs_build_one_type(node, scope);
 			if (elementType == NULL)
@@ -1242,7 +1241,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 		}
 	} else
 	if (!strcmp(className, "void")) {
-		type = __ni_xs_type_new(NI_XS_TYPE_VOID);
+		type = ni_xs_type_new(NI_XS_TYPE_VOID);
 	} else {
 		ni_error("%s: unknown class=\"%s\"", xml_node_location(node), className);
 		return NULL;
@@ -1549,21 +1548,26 @@ ni_xs_range_t *
 ni_xs_build_range_constraint(const xml_node_t *node)
 {
 	unsigned long min = 0, max = ~0UL;
-	const char *ep;
+	const char *attr;
 
-	if ((ep = xml_node_get_attr(node, "min")) != NULL) {
-		min = strtoul(ep, (char **) ep, 0);
-		if (*ep) {
-			ni_error("%s: invalid min value for range constraint", xml_node_location(node));
+	if ((attr = xml_node_get_attr(node, "min")) != NULL) {
+		if (ni_parse_ulong(attr, &min, 0)) {
+			ni_error("%s: invalid min value for range constraint",
+					xml_node_location(node));
 			return NULL;
 		}
 	}
-	if ((ep = xml_node_get_attr(node, "max")) != NULL) {
-		max = strtoul(ep, (char **) ep, 0);
-		if (*ep) {
-			ni_error("%s: invalid max value for range constraint", xml_node_location(node));
+	if ((attr = xml_node_get_attr(node, "max")) != NULL) {
+		if (ni_parse_ulong(attr, &max, 0)) {
+			ni_error("%s: invalid max value for range constraint",
+					xml_node_location(node));
 			return NULL;
 		}
+	}
+
+	if (min > max) {
+		ni_error("%s: invalid range constraint", xml_node_location(node));
+		return NULL;
 	}
 
 	return ni_xs_range_new(min, max);
@@ -1802,6 +1806,7 @@ ni_xs_build_one_type(xml_node_t *node, ni_xs_scope_t *scope)
 			ni_xs_scope_free(localdict);
 		} else {
 			result = ni_xs_scope_lookup(scope, child->name);
+			ni_xs_type_hold(result);
 		}
 		if (result == NULL) {
 			ni_error("%s: unknown type or class <%s>", xml_node_location(child), child->name);
@@ -1814,10 +1819,10 @@ ni_xs_build_one_type(xml_node_t *node, ni_xs_scope_t *scope)
 		goto error;
 	}
 
-	ni_xs_type_hold(result);
 	return result;
 
 error:
+	ni_xs_type_release(result);
 	return NULL;
 }
 

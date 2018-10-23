@@ -148,25 +148,26 @@ ni_netdev_free(ni_netdev_t *dev)
 ni_netdev_t *
 ni_netdev_get(ni_netdev_t *dev)
 {
-	if (!dev->users)
-		return NULL;
-	dev->users++;
+	if (dev) {
+		ni_assert(dev->users);
+		dev->users++;
+	}
 	return dev;
 }
 
-int
+unsigned int
 ni_netdev_put(ni_netdev_t *dev)
 {
-	if (!dev->users) {
-		ni_error("ni_netdev_put: bad mojo");
-		return 0;
+	if (dev) {
+		ni_assert(dev->users);
+		dev->users--;
+
+		if (dev->users == 0)
+			ni_netdev_free(dev);
+		else
+			return dev->users;
 	}
-	dev->users--;
-	if (dev->users == 0) {
-		ni_netdev_free(dev);
-		return 0;
-	}
-	return dev->users;
+	return 0;
 }
 
 ni_bool_t

@@ -72,6 +72,7 @@ __ni_sysctl_rewrite_to_slash(char *ptr)
 			switch (sep) {
 			case 0:
 				sep = '/';
+				break;
 			case '/':
 				break;
 			default:
@@ -83,8 +84,11 @@ __ni_sysctl_rewrite_to_slash(char *ptr)
 			switch (sep) {
 			case 0:
 				sep = '.';
+				*p = '/';
+				break;
 			case '.':
 				*p = '/';
+				break;
 			default:
 				break;
 			}
@@ -108,8 +112,11 @@ __ni_sysctl_rewrite_to_dot(char *ptr)
 			switch (sep) {
 			case 0:
 				sep = '/';
+				*p = '.';
+				break;
 			case '/':
 				*p = '.';
+				break;
 			default:
 				break;
 			}
@@ -118,6 +125,7 @@ __ni_sysctl_rewrite_to_dot(char *ptr)
 			switch (sep) {
 			case 0:
 				sep = '.';
+				break;
 			case '.':
 				break;
 			default:

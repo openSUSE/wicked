@@ -647,13 +647,11 @@ __ni_addrconf_lease_info_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *
 		if (ni_string_eq(child->name, "acquired")) {
 			int64_t acquired;
 
-			if (ni_parse_int64(child->cdata, &acquired, 10) || acquired < 0)
+			if (ni_parse_int64(child->cdata, &acquired, 10))
 				return -1;
 
 			lease->acquired.tv_sec = acquired;
 			lease->acquired.tv_usec = 0;
-			if ((int64_t)lease->acquired.tv_sec != acquired)
-				return -1;
 		}
 	}
 	if (!update)

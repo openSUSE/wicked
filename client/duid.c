@@ -56,6 +56,7 @@ ni_do_duid_dump(int argc, char **argv)
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -112,6 +113,7 @@ ni_do_duid_get(int argc, char **argv)
 			break;
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -175,6 +177,7 @@ ni_do_duid_del(int argc, char **argv)
 			break;
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -235,6 +238,7 @@ ni_do_duid_set(int argc, char **argv)
 			break;
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -339,6 +343,7 @@ ni_do_duid_create_en(int argc, char **argv)
 			break;
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -445,6 +450,7 @@ ni_do_duid_create_ll_type(uint16_t type, int argc, char **argv)
 			break;
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -606,6 +612,7 @@ ni_do_duid_create_uuid(int argc, char **argv)
 			break;
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -706,6 +713,7 @@ ni_do_duid_create(int argc, char **argv)
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -772,6 +780,7 @@ ni_do_duid(const char *caller, int argc, char **argv)
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,

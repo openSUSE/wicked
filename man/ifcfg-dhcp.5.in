@@ -221,6 +221,12 @@ variable adding a final dot ('foo.bar' -> 'foo.bar.').
 When disabled, the DHCP server may append it's update domain the host-
 name (e.g. 'foo.bar' -> 'foo.bar.example.net').
 .TP
+.BR DHCLIENT6_CLIENT_ID
+This option allows to manually specify a client identifier (DUID) as a colon 
+separated hex byte string for DHCPv6. It disables the default behavior to
+maintain the client-id automatically, see wicked-config(5) and `wicked duid --help`
+for more details.
+.TP
 .BR DHCLIENT6_REQUEST_OPTION[SUFFIX]
 Specifies a space separate list of additional DHCPv6 options to request.
 The options can be specified by their code number or by name when defined

@@ -182,7 +182,7 @@ extern const char *	ni_netdev_make_name(ni_netconfig_t *, const char *, unsigned
 
 extern ni_netdev_t *	ni_netdev_new(const char *name, unsigned int ifindex);
 extern ni_netdev_t *	ni_netdev_get(ni_netdev_t *ifp);
-extern int		ni_netdev_put(ni_netdev_t *ifp);
+extern unsigned int	ni_netdev_put(ni_netdev_t *ifp);
 extern int		ni_netdev_update(ni_netdev_t *ifp);
 extern int		ni_netdev_guess_type(ni_netdev_t *ifp);
 

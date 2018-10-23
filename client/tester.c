@@ -82,6 +82,7 @@ ni_do_test_dhcp4(const char *caller, int argc, char **argv)
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -201,6 +202,7 @@ ni_do_test_dhcp6(const char *caller, int argc, char **argv)
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -304,6 +306,7 @@ ni_do_test(const char *caller, int argc, char **argv)
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,

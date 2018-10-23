@@ -280,8 +280,11 @@ __ni_uevent_MurmurHash2(const void * key, int len, uint32_t seed)
 	/* Handle the last few bytes of the input array */
 	switch (len) {
 		case 3: h ^= data[2] << 16;
+			/* fall through */
 		case 2: h ^= data[1] << 8;
+			/* fall through */
 		case 1: h ^= data[0];
+			/* fall through */
 		default:
 			h *= m;
 			break;

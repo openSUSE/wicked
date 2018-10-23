@@ -55,6 +55,7 @@ ni_do_iaid_dump(int argc, char **argv)
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -106,6 +107,7 @@ ni_do_iaid_get(int argc, char **argv)
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -164,6 +166,7 @@ ni_do_iaid_del(int argc, char **argv)
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -231,6 +234,7 @@ ni_do_iaid_set(int argc, char **argv)
 
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -314,6 +318,7 @@ ni_do_iaid_create(int argc, char **argv)
 
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,
@@ -394,6 +399,7 @@ ni_do_iaid(const char *caller, int argc, char **argv)
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			fprintf(stderr,

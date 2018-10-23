@@ -197,6 +197,7 @@ struct ni_addrconf_lease {
 		uint8_t			server_pref;
 		struct in6_addr		server_addr;
 		ni_bool_t		rapid_commit;
+		uint32_t		info_refresh;
 		struct ni_dhcp6_status *status;
 		struct ni_dhcp6_ia *	ia_list;
 		char *			boot_url;

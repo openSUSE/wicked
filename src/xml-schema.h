@@ -373,9 +373,11 @@ ni_xs_type_hold(ni_xs_type_t *type)
 static inline void
 ni_xs_type_release(ni_xs_type_t *type)
 {
-	ni_assert(type->refcount);
-	if (--(type->refcount) == 0)
-		ni_xs_type_free(type);
+	if (type) {
+		ni_assert(type->refcount);
+		if (--(type->refcount) == 0)
+			ni_xs_type_free(type);
+	}
 }
 
 static inline ni_xs_scalar_info_t *

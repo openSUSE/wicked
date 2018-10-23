@@ -269,11 +269,12 @@ ni_dhcp6_device_set_lease(ni_dhcp6_device_t *dev,  ni_addrconf_lease_t *lease)
 
 void
 ni_dhcp6_device_set_best_offer(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease,
-		int weight)
+		int pref, int weight)
 {
 	if (dev->best_offer.lease && dev->best_offer.lease != lease)
 		ni_addrconf_lease_free(dev->best_offer.lease);
 	dev->best_offer.lease = lease;
+	dev->best_offer.pref = pref;
 	dev->best_offer.weight = weight;
 	if (dev->config && lease)
 		lease->uuid = dev->config->uuid;
@@ -293,6 +294,7 @@ ni_dhcp6_device_drop_lease(ni_dhcp6_device_t *dev)
 void
 ni_dhcp6_device_drop_best_offer(ni_dhcp6_device_t *dev)
 {
+	dev->best_offer.pref = -1;
 	dev->best_offer.weight = -1;
 	if (dev->best_offer.lease)
 		ni_addrconf_lease_free(dev->best_offer.lease);
@@ -1362,6 +1364,24 @@ ni_dhcp6_config_release_nretries(const char *ifname)
 	const ni_config_dhcp6_t *conf = ni_config_dhcp6_find_device(ifname);
 	/* >0: RFC 3315 Section 18.1.6, SHOULD retransmit one or more times */
 	return conf && conf->release_nretries ? conf->release_nretries : -1U;
+}
+
+unsigned int
+ni_dhcp6_config_info_refresh_time(const char *ifname, ni_uint_range_t *range)
+{
+	const ni_config_dhcp6_t *conf = ni_config_dhcp6_find_device(ifname);
+
+	range->min = NI_DHCP6_IRT_MINIMUM;
+	range->max = NI_LIFETIME_INFINITE;
+	if (conf) {
+		if (conf->info_refresh.range.min)
+			range->min = conf->info_refresh.range.min;
+		ni_uint_range_update_max(range, conf->info_refresh.range.max);
+		if (conf->info_refresh.time &&
+		    ni_uint_in_range(range, conf->info_refresh.time))
+			return conf->info_refresh.time;
+	}
+	return NI_DHCP6_IRT_DEFAULT;
 }
 
 static void

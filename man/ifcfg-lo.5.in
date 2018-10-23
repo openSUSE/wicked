@@ -1,0 +1,47 @@
+.\" Process this file with
+.\" groff -man -Tascii foo.1
+.\"
+.TH IFCFG-LO 5 "AUGUST 2018" "wicked" "Network configuration"
+.\" ...
+
+.SH NAME
+ifcfg-lo \- loopback network LAN interface configuration
+.SH SYNOPSIS
+.B /etc/sysconfig/network/ifcfg-lo*
+
+The local loopback mechanism is used to run a network service on a host without requiring a physical network interface or making the network service inaccessible from/to the other networks the computer may be connected to.
+
+The name \fBlocalhost\fR normally resolves to \fB127.0.0.1\fR (IPv4 loopback address) and to \fB::1\fR (IPv6 loopback address).
+
+\fBExample\fR: A locally installed website/service may be accessed via a web-browser by the URL \fBhttp://localhost\fR to display its home/configuration page.
+
+.SH EXAMPLES
+.TP
+Sets up loopback interface \fBlo\fR:
+
+.I ifcfg-lo
+.nf
+   IPADDR=127.0.0.1/8
+   NETMASK=255.0.0.0
+   NETWORK=127.0.0.0
+   STARTMODE=nfsroot
+   BOOTPROTO=static
+   USERCONTROL=no
+   FIREWALL=no
+
+.fi
+
+\fBNote\fR: Loopback is automatically created and set up by the Linux kernel.
+\fBifcfg\fR file marks it \fBSTARTMODE=nfsroot\fR to skip a shutdown on network \fBifdown\fR requests.
+
+.SH BUGS
+Please report bugs at <http://bugs.opensuse.org>
+.SH AUTHOR
+.nf
+Marius Tomaschewski <mt@suse.de>
+Mikhail Kasimov <mikhail.kasimov@gmail.com>
+.fi
+.SH "SEE ALSO"
+.BR routes (5),
+.BR ifcfg (5),
+.BR wicked (8).

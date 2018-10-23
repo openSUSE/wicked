@@ -270,6 +270,7 @@ ni_do_ifcheck(int argc, char **argv)
 
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
 		default:
 		usage:
 			ni_client_get_state_strings(&sb, NULL);

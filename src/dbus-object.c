@@ -113,11 +113,14 @@ __ni_dbus_object_free(ni_dbus_object_t *object)
 	if (object->client_object)
 		__ni_dbus_client_object_destroy(object);
 
-	ni_string_free(&object->name);
-	ni_string_free(&object->path);
-
 	while ((child = object->children) != NULL)
 		__ni_dbus_object_free(child);
+
+	if (object->handle && object->class && object->class->destroy)
+		object->class->destroy(object);
+
+	ni_string_free(&object->name);
+	ni_string_free(&object->path);
 
 	free(object->interfaces);
 	free(object);

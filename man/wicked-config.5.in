@@ -287,7 +287,8 @@ supplicant. See below for a list of options.
 .TP
 .B auto6
 This element can be used to control the behavior of AUTO6 processing.
-.TP
+
+.PP
 .\" --------------------------------------------------------
 .SH DHCP4 SUPPLICANT OPTIONS
 The DHCP4 client can be configured through the options listed below.
@@ -323,21 +324,36 @@ l|l|l
 lb|lb|l.
 Type	Alias	Description
 =
-rfc2132	hwaddr	use hardware/link layer type, followed by the address
 rfc4361	dhcp6	use 0xff as type, followed by DHCPv6 IAID and DUID
+rfc2132	hwaddr	use hardware/link layer type, followed by the address
 disable	none	disables creation (custom client-id is send if given)
 .TE
 .PP
-By default, wickedd-dhcp4 is using the most common \fBrfc2132 on ethernet\fR
-to maintain compatibility with existing installations and a \fBrfc4361 on
-infiniband\fR, where it is mandated by the infiniband dhcp rfc4390.
-Later versions may change to use the rfc4361 client-id also for ethernet.
+When the interface configuration does not provide an explicit client-id
+(DHCLIENT_CLIENT_ID in ifcfg files or <client-id> xml config/policy node),
+wicked will generate a DHCPv4 client-id as specified in this option.
 
-When set to \fBdisable\fR, no client-id is created and send by default, except
-when the interface config request to acquire a lease contains a custom one.
+When set to \fBrfc4361\fR, wicked will create a DHCPv4 client-id using the
+DHCPv6 IAID and DUID (see <dhcp6><default-duid> option).
+This new rfc4361 client-id is required to perform DDNS updates for ipv4 (A)
+and ipv6 (AAAA) address records in the same DNS zone (domain) and mandatory
+to use on infiniband interfaces.
 
-The new rfc4361 client-id is required to perform DDNS updates for ipv4 (A) and
-ipv6 (AAAA) address records in the same DNS zone (domain).
+When set to \fBrfc2132\fR, wicked will create a DHCPv4 client-id using the
+network interface hardware-type and address. This may be needed to maintain
+compatibility to e.g. DHCPv4 servers with static leases explicitly bound to
+a \fBrfc2132\fR client-id or having trouble to provide a lease to a dhcp4
+client using the new and longer \fBrfc4361\fR client-id.
+
+When set to \fBdisable\fR, no client-id is created and send by default (except
+when the interface config request to acquire a lease contains a custom/explicit one).
+
+When unspecified, the default behavior depends on the --enable-dhcp4-rfc4361-cid
+(default) and --disable-dhcp4-rfc4361-cid configure options, allowing to revert
+to use the old \fBrfc2132\fR client-id at compile time, i.e. to prereserve
+behavior like in older releases, but permit to change to enable the new rfc4361
+client-id default at runtime.
+
 Note, that a change of the client-id usually causes to disassociate the lease
 and/or DNS records, because it is used in the DHCID DNS record (see rfc4701).
 
@@ -376,7 +392,7 @@ The numeric preference value is given by the \fBweight\fP,
 and should range from -1 to 100. Higher numbers indicate a higher preference.
 A negative value will cause the server to be ignored. If a response from
 a server with a weight of 100 is received, it will be selected immediately.
-Otherwise, the supplicant will wait for about one minute, and select the
+Otherwise, the supplicant will wait for about one second, and select the
 server with the highest preference afterwards.
 .IP
 The special keywords \fBnever\fP and \fBalways\fP correspond to -1 and
@@ -388,7 +404,7 @@ The following example will ignore 192.168.8.1, always use the information from
 .IP
 .nf
 .B "  <prefer-server ip=\(dq192.168.8.1\(dq  weight=\(dqnever\(dq />
-.B "  <prefer-server ip=\(dq192.168.8.10\(dq weight=\(dq100\(dq />
+.B "  <prefer-server mac=\(dq02:03:04:05:06:07\(dq weight=\(dqalways\(dq />
 .B "  <prefer-server ip=\(dq192.168.8.7\(dq  weight=\(dq50\(dq />
 .fi
 
@@ -466,9 +482,8 @@ or inside a device name context like:
 DHCPv6 uses a so-called DUID to identify a DHCP client and an IAID, that
 refers to an interface.
 .br
-DHCPv4 constructs its client-id using the IAID and DUID as well, when
-enabled to use a rfc4361 client-id in the \fB<dhcp4><create-cid>\fP
-config option.
+DHCPv4 now also defaults to construct its client-id using the DHCPv6 IAID
+and DUID as well (see <dhcp4><create-cid> option).
 .br
 By default, \fBwickedd-dhcp6\fP will try to generate a DUID based on the
 link layer address (MAC) of the device and time (DUID-LLT).
@@ -575,20 +590,20 @@ lease time to one hour:
 .IP
 .B "  <lease-time>3600</lease-time>
 .PP
+
 .TP
 .B release-retransmits
 Specifies the number of lease release retransmissions in the range 1..5.
 Default is to send up to 5 (REL_MAX_RC) retransmissions.
 
 .TP
-.B ignore-server
-Using the \fBip\fB attribute of this element, you can specify the
-IP address of a faulty DHCP server that should be ignored:
-.\"
-.\" Working but useless (the IPv6 server addresses we get
-.\" are almost always link-local addrs, not the global unicast
-.\" address; thanks to relying on multicast exclusively).
-.\" 
+.B info-refresh-time
+Specifies a different default for the RFC4242 info refresh time used when the
+dhcp6 server does not provide any and permits also to adjust the acceptable
+time range in the \fBmin\fR and \fBmax\fR attributes, e.g.:
+.IP
+.B "  <info-refresh-time min="600" max="604800">86400</info-refresh-time>
+.PP
 
 .TP
 .B prefer-server
@@ -597,25 +612,25 @@ preference. The server is identified using its DUID, which has to be specified
 via the \fBid\fP attribute.
 .IP
 The numeric preference value is given by the \fBweight\fP,
-and should range from -1 to 100.
+and should range from -1 to 255.
 Higher numbers indicate a higher preference.
 A negative value will cause the server to be ignored. If a response from
-a server with a weight of 100 is received, it will be selected immediately.
-Otherwise, the supplicant will wait for about one minute, and select the
-server with the highest preference afterwards.
+a server with a weight of 255 is received, it will be selected immediately.
+Otherwise, the supplicant will wait for about one second, and select the
+server providing an offer with the best request match and the highest preference afterwards.
 .IP
 The special keywords \fBnever\fP and \fBalways\fP correspond to -1 and
-100, respectively. If no \fBweight\fP attribute is given, it defaults to
-\fBalways\fP (100).
+255, respectively. If no \fBweight\fP attribute is given, it defaults to
+\fBalways\fP (255).
 .IP
 The following example will ignore DHCP offers from the first server,
 always use the information from the second (if available), and fall back
 to the third if not:
 .IP
 .nf
-.B "  <prefer-server id=\(dq00:44:01:02:04:00\(dq weight=\(dqnever\(dq />
-.B "  <prefer-server id=\(dq00:44:01:02:04:01\(dq weight=\(dq100\(dq />
-.B "  <prefer-server id=\(dq00:44:01:02:04:02\(dq weight=\(dq50\(dq />
+.B "  <prefer-server id=\(dq00:03:00:01:02:03:04:05:06:07\(dq weight=\(dqnever\(dq />
+.B "  <prefer-server ip=\(dq2001:DB8::1\(dq weight=\(dqalways\(dq />
+.B "  <prefer-server ip=\(dq2001:DB8::2\(dq weight=\(dq50\(dq />
 .fi
 
 .TP

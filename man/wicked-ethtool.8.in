@@ -88,10 +88,10 @@ Configure NIC's link related settings.
 .RS
 .TP
 .B autoneg <on|off>
-Enable or disable autonegotiation. With disabled autonegotioation,
+Enable or disable autonegotiation. With disabled autonegotiation,
 the speed and duplex can be used to set a fixed link mode.
 
-With enabled autonegotiation, the spead and duplex are read-only and
+With enabled autonegotiation, the speed and duplex are read-only and
 the advertise parameter can be used to specify an explicit set of
 supported modes to advertise. Alternatively, wicked can create the
 advertise set using speed and duplex to filter known supported modes.
