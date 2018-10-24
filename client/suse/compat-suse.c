@@ -4080,6 +4080,16 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 				goto eap_failure;
 			}
 		}
+
+		if (net->wpa_eap.phase2.method == NI_WIRELESS_EAP_NONE) {
+			if (net->wpa_eap.phase1.peapver == 1)
+				net->wpa_eap.phase2.method = NI_WIRELESS_EAP_GTC;
+			else
+				net->wpa_eap.phase2.method = NI_WIRELESS_EAP_MSCHAPV2;
+
+			ni_warn("ifcfg-%s: assuming WIRELESS_EAP_AUTH%s='%s'", dev_name, suffix,
+					ni_wireless_eap_method_to_name(net->wpa_eap.phase2.method));
+		}
 	}
 
 	return TRUE;
