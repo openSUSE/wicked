@@ -304,14 +304,22 @@ run_interface_server(void)
 void
 discover_udev_netdev_state(ni_netdev_t *dev)
 {
-	if (!dev || ni_netdev_device_is_ready(dev))
+	if (!dev)
 		return;
 
-	if (ni_netdev_device_always_ready(dev))
-		dev->link.ifflags |= NI_IFF_DEVICE_READY;
-	else
-	if (ni_udev_netdev_is_ready(dev))
-		dev->link.ifflags |= NI_IFF_DEVICE_READY;
+	if (!ni_netdev_device_is_ready(dev)) {
+		if (ni_netdev_device_always_ready(dev))
+			dev->link.ifflags |= NI_IFF_DEVICE_READY;
+		else
+		if (ni_udev_netdev_is_ready(dev))
+			dev->link.ifflags |= NI_IFF_DEVICE_READY;
+	}
+
+	/* query ethtool settings which are guarded by ready
+	 * flag (rules processed / already renamed by udev)
+	 * as ethtool is a query by ifname...
+	 */
+	ni_system_ethtool_refresh(dev);
 }
 
 void
@@ -340,8 +348,6 @@ discover_state(ni_dbus_server_t *server)
 		for (modem = ni_netconfig_modem_list(nc); modem; modem = modem->list.next)
 			ni_objectmodel_register_modem(server, modem);
 #endif
-		/* refresh to get all (also is_ready only) properties */
-		ni_global_state_handle(1);
 	}
 }
 
@@ -405,7 +411,7 @@ handle_interface_event(ni_netdev_t *dev, ni_event_t event)
 		if (!object) {
 			/* usually a "bad event", e.g. when the underlying netdev
 			 * does not exists any more, but events still arrive ... */
-			ni_debug_events("cannot handle %s event for model \"%s\" - no dbus object",
+			ni_error("cannot handle %s event for model \"%s\" - no dbus object",
 					ni_event_type_to_name(event), dev->name);
 			return;
 		}
