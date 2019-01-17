@@ -215,6 +215,13 @@ AC_ARG_WITH([fillup-templatesdir], [AS_HELP_STRING([--with-fillup-templatesdir@<
 	    [with_fillup_templatesdir="${localstatedir}/adm/fillup-templates"])
 AC_SUBST(fillup_templatesdir,	"$with_fillup_templatesdir")
 
+AC_ARG_ENABLE([relro], [AS_HELP_STRING([--disable-relro],
+			  [do not link binaries with full relro (relocation read-only) hardening])],
+	    [if test "$enableval" = yes ; then
+	       AC_SUBST(LDFLAGS,	["-Wl,-z,relro,-z,now $LDFLAGS"])
+	     fi],
+	    [AC_SUBST(LDFLAGS,	["-Wl,-z,relro,-z,now $LDFLAGS"])])
+
 # Enable system extensions (e.g. _GNU_SOURCE)
 AC_USE_SYSTEM_EXTENSIONS
 
