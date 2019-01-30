@@ -5571,7 +5571,7 @@ ni_fsm_process_rename_find_pending_worker(ni_fsm_t *fsm, const ni_ifworker_t *w)
 	ni_ifworker_t *c;
 	unsigned int i;
 
-	for (i = 0; fsm->workers.count; ++i) {
+	for (i = 0; i < fsm->workers.count; ++i) {
 		c = fsm->workers.data[i];
 		if (!c || c == w || c->type != w->type || c->device)
 			continue;
