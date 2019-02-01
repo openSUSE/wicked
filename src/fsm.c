@@ -3915,6 +3915,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 	ni_ifworker_t *w;
 	unsigned int i;
 
+	ni_fsm_events_block(fsm);
 	for (i = 0; i < fsm->workers.count; ++i) {
 		w = fsm->workers.data[i];
 
@@ -3949,6 +3950,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 		if (w->object != NULL)
 			ni_ifworker_update_state(w, NI_FSM_STATE_DEVICE_EXISTS, __NI_FSM_STATE_MAX);
 	}
+	ni_fsm_events_unblock(fsm);
 
 	return TRUE;
 }
