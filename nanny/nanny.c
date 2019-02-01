@@ -93,6 +93,7 @@ ni_nanny_start(ni_nanny_t *mgr)
 	mgr->fsm = ni_fsm_new();
 	mgr->fsm->worker_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
 
+	ni_fsm_events_block(mgr->fsm);
 	ni_fsm_set_user_prompt_fn(mgr->fsm, ni_nanny_prompt, mgr);
 	ni_fsm_set_process_event_callback(mgr->fsm, ni_nanny_process_fsm_event, mgr);
 
@@ -117,6 +118,7 @@ ni_nanny_start(ni_nanny_t *mgr)
 		if (!ni_fsm_create_client(mgr->fsm))
 			ni_fatal("Unable to create FSM client");
 	}
+	ni_fsm_events_unblock(mgr->fsm);
 }
 
 void
