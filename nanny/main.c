@@ -259,8 +259,6 @@ babysit(void)
 	if (ni_init_ex("nanny", ni_nanny_config_callback, mgr) < 0)
 		ni_fatal("error in configuration file");
 
-	ni_nanny_start(mgr);
-
 	if (!opt_foreground) {
 		ni_daemon_close_t close_flags = NI_DAEMON_CLOSE_STD;
 
@@ -270,6 +268,8 @@ babysit(void)
 		if (ni_server_background(program_name, close_flags) < 0)
 			ni_fatal("unable to background server");
 	}
+
+	ni_nanny_start(mgr);
 
 	if (ni_config_use_nanny()) {
 		ni_rfkill_open(handle_rfkill_event, mgr);
