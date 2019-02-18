@@ -2727,7 +2727,7 @@ ni_ethtool_set_features_legacy(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool
 					"%s: ethtool request to set feature '%s' to %s",
 					ref->name, feature->map.name, value ? "on" : "off");
 			ni_ethtool_set_legacy_flag_bit(ref, ethtool, "lro",
-					ETH_FLAG_TXVLAN, value);
+					ETH_FLAG_LRO, value);
 			break;
 
 		case NI_ETHTOOL_FEATURE_F_LEGACY_HW_VLAN_CTAG_TX:
