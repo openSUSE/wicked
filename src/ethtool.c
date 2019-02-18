@@ -2618,7 +2618,7 @@ ni_ethtool_set_legacy_flag_bit(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool
 
 		ret = ni_ethtool_set_value(ref, ethtool,
 				NI_ETHTOOL_SUPP_SET_LEGACY_FLAGS,
-				&NI_ETHTOOL_CMD_SFLAGS, "lro", value);
+				&NI_ETHTOOL_CMD_SFLAGS, name, value);
 	}
 	return ret;
 }
