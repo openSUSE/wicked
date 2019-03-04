@@ -10,12 +10,14 @@ wickedd_dhcp4_CPPFLAGS		= -I$(top_srcdir)	\
 
 wickedd_dhcp4_CFLAGS		= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
-				  $(LIBGCRYPT_CFLAGS)
+				  $(LIBGCRYPT_CFLAGS)	\
+				  $(LIBSYSTEMD_CFLAGS)
 
-wickedd_dhcp4_LDFLAGS	= -rdynamic
-wickedd_dhcp4_LDADD	= $(top_builddir)/src/libwicked.la
-wickedd_dhcp4_SOURCES	= \
-	dbus-api.c	\
+wickedd_dhcp4_LDFLAGS		= -rdynamic		\
+				  $(LIBSYSTEMD_LIBS)
+wickedd_dhcp4_LDADD		= $(top_builddir)/src/libwicked.la
+wickedd_dhcp4_SOURCES		= \
+	dbus-api.c		\
 	main.c
 
 # vim: ai

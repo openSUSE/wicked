@@ -17,6 +17,9 @@
 #include <getopt.h>
 #include <limits.h>
 #include <errno.h>
+#ifdef HAVE_SYSTEMD_SD_DAEMON_H
+#include <systemd/sd-daemon.h>
+#endif
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -278,6 +281,12 @@ babysit(void)
 	}
 	else
 		ni_file_remove_recursively(ni_nanny_statedir());
+
+#ifdef HAVE_SYSTEMD_SD_DAEMON_H
+	if (opt_systemd) {
+		sd_notify(0, "READY=1");
+	}
+#endif
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout = NI_IFWORKER_INFINITE_TIMEOUT;

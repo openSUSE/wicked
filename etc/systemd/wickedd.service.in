@@ -6,7 +6,7 @@ After=local-fs.target dbus.service isdn.service rdma.service SuSEfirewall2_init.
 Before=wickedd-nanny.service wicked.service network.target
 
 [Service]
-Type=dbus
+Type=notify
 BusName=org.opensuse.Network
 LimitCORE=infinity
 EnvironmentFile=-/etc/sysconfig/network/config
