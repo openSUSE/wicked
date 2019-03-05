@@ -83,6 +83,8 @@ Requires(pre):       util-linux
 %endif
 
 %if %{with systemd}
+BuildRequires: systemd-devel
+BuildRequires: systemd-rpm-macros
 %{?systemd_requires}
 %if 0%{?suse_version:1}
 Requires(pre):  %fillup_prereq
