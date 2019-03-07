@@ -7,7 +7,6 @@ PartOf=wickedd.service
 
 [Service]
 Type=notify
-BusName=org.opensuse.Network.DHCP6
 LimitCORE=infinity
 EnvironmentFile=-/etc/sysconfig/network/config
 ExecStart=@wicked_supplicantdir@/wickedd-dhcp6 --systemd --foreground

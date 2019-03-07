@@ -7,7 +7,6 @@ PartOf=wickedd.service
 
 [Service]
 Type=notify
-BusName=org.opensuse.Network.Nanny
 LimitCORE=infinity
 EnvironmentFile=-/etc/sysconfig/network/config
 ExecStart=@wicked_sbindir@/wickedd-nanny --systemd --foreground
