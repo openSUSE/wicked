@@ -9,6 +9,7 @@ Before=wickedd-nanny.service wicked.service network.target
 Type=notify
 LimitCORE=infinity
 EnvironmentFile=-/etc/sysconfig/network/config
+ExecStartPre=-/usr/bin/udevadm settle
 ExecStart=@wicked_sbindir@/wickedd --systemd --foreground
 StandardError=null
 Restart=on-abort
