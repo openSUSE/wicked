@@ -768,6 +768,98 @@ cleanup:
 	return rv;
 }
 
+static const ni_dhcp6_ia_addr_t *
+ni_fsm_confirm_process_find_ia_addrs_status(const ni_dhcp6_ia_addr_t *addrs, unsigned int status)
+{
+	const ni_dhcp6_ia_addr_t *iaddr;
+
+	for (iaddr = addrs; iaddr; iaddr = iaddr->next) {
+		if (ni_dhcp6_status_code(&iaddr->status) == status)
+			return iaddr;
+	}
+	return NULL;
+}
+
+static const ni_dhcp6_ia_t *
+ni_fsm_confirm_process_find_ia_status(const ni_dhcp6_ia_t *ia_list, unsigned int status,
+					const ni_dhcp6_ia_addr_t **iaddr)
+{
+	const ni_dhcp6_ia_t *ia;
+
+	for (ia = ia_list; ia; ia = ia->next) {
+		if ((*iaddr = ni_fsm_confirm_process_find_ia_addrs_status(ia->addrs, status)))
+			return ia;
+		else if (ni_dhcp6_status_code(&ia->status) == status)
+			return ia;
+	}
+	return NULL;
+}
+
+static int
+ni_fsm_confirm_process_reply_status(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *lease, char **hint)
+{
+	const ni_dhcp6_ia_addr_t *iaddr = NULL;
+	const ni_dhcp6_status_t *status;
+	const ni_dhcp6_ia_t *ia;
+	const char *message;
+
+	if ((ia = ni_fsm_confirm_process_find_ia_status(lease->dhcp6.ia_list, NI_DHCP6_STATUS_NOTONLINK, &iaddr))) {
+		status = iaddr ? &iaddr->status : &ia->status;
+		message = ni_dhcp6_status_message(status);
+
+		ni_note("%s: link change confirmation in reply with status %s", dev->ifname,
+				message ? message : ni_dhcp6_status_name(status->code));
+
+		return NI_DHCP6_STATUS_NOTONLINK;
+	} else if (ni_dhcp6_status_code(lease->dhcp6.status) == NI_DHCP6_STATUS_NOTONLINK) {
+		status = lease->dhcp6.status;
+		message = ni_dhcp6_status_message(status);
+
+		ni_note("%s: link change confirmation in reply with status %s", dev->ifname,
+				message ? message : ni_dhcp6_status_name(status->code));
+		return NI_DHCP6_STATUS_NOTONLINK;
+	}
+
+	if (ni_fsm_confirm_process_find_ia_status(lease->dhcp6.ia_list, NI_DHCP6_STATUS_FAILURE, &iaddr)) {
+		status = iaddr ? &iaddr->status : &ia->status;
+		message = ni_dhcp6_status_message(status);
+
+		ni_string_printf(hint, "link confirmation failure from server with status %s",
+				message ? message : ni_dhcp6_status_name(status->code));
+		return NI_DHCP6_STATUS_FAILURE;
+	} else if (ni_dhcp6_status_code(lease->dhcp6.status) == NI_DHCP6_STATUS_FAILURE) {
+		status = lease->dhcp6.status;
+		message = ni_dhcp6_status_message(status);
+
+		ni_string_printf(hint, "link confirmation failure from server with status %s",
+				message ? message : ni_dhcp6_status_name(status->code));
+		return NI_DHCP6_STATUS_FAILURE;
+	}
+
+	if (ni_fsm_confirm_process_find_ia_status(lease->dhcp6.ia_list, NI_DHCP6_STATUS_SUCCESS, &iaddr)) {
+		status = iaddr ? &iaddr->status : &ia->status;
+		message = ni_dhcp6_status_message(status);
+
+		ni_note("%s: link confirmation in reply with status %s", dev->ifname,
+				message ? message : ni_dhcp6_status_name(status->code));
+	} else if (ni_dhcp6_status_code(lease->dhcp6.status) == NI_DHCP6_STATUS_SUCCESS) {
+		status = lease->dhcp6.status;
+		message = ni_dhcp6_status_message(status);
+
+		ni_note("%s: link confirmation in reply with status %s", dev->ifname,
+				message ? message : ni_dhcp6_status_name(status->code));
+	} else {
+		status = lease->dhcp6.status;
+		message = ni_dhcp6_status_message(status);
+		if (!message)
+			message = ni_dhcp6_status_name(ni_dhcp6_status_code(status));
+
+		ni_note("%s: link confirmation reply without link change indication from server%s%s",
+				dev->ifname, message ? " with status " : "", message ? message : "");
+	}
+	return NI_DHCP6_STATUS_SUCCESS;
+}
+
 static int
 __fsm_confirm_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
 {
@@ -780,58 +872,53 @@ __fsm_confirm_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 		/*
 		 * http://tools.ietf.org/html/rfc3315#section-18.1.8
 		 * "[...]
+		 * If the client receives a Reply message with a Status Code containing
+		 * UnspecFail, the server is indicating that it was unable to process
+		 * the message due to an unspecified failure condition. If the client
+		 * retransmits [...] client MUST limit the rate [..] and [..] duration
+		 *  [...]
 		 * When the client receives a NotOnLink status from the server in
 		 * response to a Confirm message, the client performs DHCP server
 		 * solicitation, as described in section 17, and client-initiated
 		 * configuration as described in section 18. If the client receives
 		 * any Reply messages that do not indicate a NotOnLink status, the
 		 * client can use the addresses in the IA and ignore any messages
-		 * that indicate a NotOnLink status.[...]"
+		 * that indicate a NotOnLink status.
+		 *  [...]"
 		 */
 		if (!dev->lease) {
 			ni_string_printf(hint, "confirm reply without a lease?!");
 			goto cleanup;
 		}
 
-
-		if (msg->lease->dhcp6.status == NULL) {
-			ni_string_printf(hint, "confirm reply without status");
-			goto cleanup;
-		} else
-		if (msg->lease->dhcp6.status->code == NI_DHCP6_STATUS_NOTONLINK) {
-			ni_note("%s: link change confirmation in reply with status %s - %s",
-					dev->ifname,
-					ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
-					msg->lease->dhcp6.status->message);
-
+		switch (ni_fsm_confirm_process_reply_status(dev, msg->lease, hint)) {
+		case NI_DHCP6_STATUS_NOTONLINK:
+			/* NotOnLink: confirmation that link changed ==>> re-solicit  */
 			ni_dhcp6_fsm_reset(dev);
 			ni_dhcp6_device_drop_lease(dev);
 			ni_dhcp6_fsm_solicit(dev);
 			rv = 0;
 			goto cleanup;
-		} else
-		if (msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
-			ni_debug_dhcp("%s: no link change indication in reply with status %s - %s",
-					dev->ifname,
-					ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
-					msg->lease->dhcp6.status->message);
-		} else {
-			ni_note("%s: link confirmed in reply with status %s - %s",
-					dev->ifname,
-					ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
-					msg->lease->dhcp6.status->message);
-		}
 
-		ni_dhcp6_fsm_reset(dev);
-		ni_address_list_destroy(&dev->lease->addrs);
-		if (ni_dhcp6_ia_copy_to_lease_addrs(dev, dev->lease)) {
-			ni_dhcp6_fsm_commit_lease(dev, dev->lease);
-		} else {
-			/* expired in the meantime */
-			ni_dhcp6_fsm_solicit(dev);
-		}
+		case NI_DHCP6_STATUS_FAILURE:
+			/* UnspecFail: rate/duration already limitted, ignore & go on */
+			goto cleanup;
 
-		rv = 0;
+		case NI_DHCP6_STATUS_SUCCESS:
+			/* Success: explicit confirmation that link did not changed   */
+		default:
+			/* Any another failures do not signal link change (NotOnLink) */
+			ni_dhcp6_fsm_reset(dev);
+			ni_address_list_destroy(&dev->lease->addrs);
+			if (ni_dhcp6_ia_copy_to_lease_addrs(dev, dev->lease)) {
+				ni_dhcp6_fsm_commit_lease(dev, dev->lease);
+			} else {
+				/* expired in the meantime */
+				ni_dhcp6_fsm_solicit(dev);
+			}
+			rv = 0;
+			goto cleanup;
+		}
 	break;
 
 	default:
