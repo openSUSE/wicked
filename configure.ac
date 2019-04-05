@@ -261,6 +261,12 @@ AC_SUBST(REQUIRE_LIBGCRYPT)
 PKG_CHECK_MODULES(LIBNL, [libnl-3.0 libnl-route-3.0])
 PKG_CHECK_MODULES(LIBDBUS, [dbus-1])
 
+# Check for systemd modules.
+if test "X$enable_systemd" = Xyes; then
+	PKG_CHECK_MODULES(LIBSYSTEMD, [libsystemd])
+	AC_CHECK_HEADERS([systemd/sd-daemon.h],[],[AC_MSG_ERROR([Cannot find sd-daemon.h header file])])
+fi
+
 # Checks for header files.
 AC_CHECK_HEADER([iwlib.h],[],[AC_MSG_ERROR([Please install libiw-devel to get wireless.h])])
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h netinet/in.h])
