@@ -44,7 +44,8 @@
 #include "dhcp6/device.h"
 #include "dhcp6/tester.h"
 #include "duid.h"
-#include "src/netinfo_priv.h"
+#include "appconfig.h"
+#include "netinfo_priv.h"
 
 /* TODO: get rid of these static things */
 static ni_dhcp6_tester_t	dhcp6_tester_opts;
@@ -285,6 +286,9 @@ ni_dhcp6_tester_run(ni_dhcp6_tester_t *opts)
 		ni_error("Cannot allocate dhcp6 request for '%s'", opts->ifname);
 		goto failure;
 	}
+
+	req->update = ni_config_addrconf_update(ifp->name, NI_ADDRCONF_DHCP, AF_INET6);
+	req->update |= NI_BIT(NI_ADDRCONF_UPDATE_HOSTNAME);
 
 	if (!ni_dhcp6_tester_req_init(req, opts->request))
 		goto failure;

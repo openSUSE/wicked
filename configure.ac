@@ -215,6 +215,13 @@ AC_ARG_WITH([fillup-templatesdir], [AS_HELP_STRING([--with-fillup-templatesdir@<
 	    [with_fillup_templatesdir="${localstatedir}/adm/fillup-templates"])
 AC_SUBST(fillup_templatesdir,	"$with_fillup_templatesdir")
 
+AC_ARG_ENABLE([relro], [AS_HELP_STRING([--disable-relro],
+			  [do not link binaries with full relro (relocation read-only) hardening])],
+	    [if test "$enableval" = yes ; then
+	       AC_SUBST(LDFLAGS,	["-Wl,-z,relro,-z,now $LDFLAGS"])
+	     fi],
+	    [AC_SUBST(LDFLAGS,	["-Wl,-z,relro,-z,now $LDFLAGS"])])
+
 # Enable system extensions (e.g. _GNU_SOURCE)
 AC_USE_SYSTEM_EXTENSIONS
 
@@ -253,6 +260,12 @@ AC_SUBST(REQUIRE_LIBGCRYPT)
 # Checks for pkg-config modules.
 PKG_CHECK_MODULES(LIBNL, [libnl-3.0 libnl-route-3.0])
 PKG_CHECK_MODULES(LIBDBUS, [dbus-1])
+
+# Check for systemd modules.
+if test "X$enable_systemd" = Xyes; then
+	PKG_CHECK_MODULES(LIBSYSTEMD, [libsystemd])
+	AC_CHECK_HEADERS([systemd/sd-daemon.h],[],[AC_MSG_ERROR([Cannot find sd-daemon.h header file])])
+fi
 
 # Checks for header files.
 AC_CHECK_HEADER([iwlib.h],[],[AC_MSG_ERROR([Please install libiw-devel to get wireless.h])])
