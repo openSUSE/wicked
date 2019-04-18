@@ -17,6 +17,9 @@
 #include <getopt.h>
 #include <limits.h>
 #include <errno.h>
+#ifdef HAVE_SYSTEMD_SD_DAEMON_H
+#include <systemd/sd-daemon.h>
+#endif
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -259,8 +262,6 @@ babysit(void)
 	if (ni_init_ex("nanny", ni_nanny_config_callback, mgr) < 0)
 		ni_fatal("error in configuration file");
 
-	ni_nanny_start(mgr);
-
 	if (!opt_foreground) {
 		ni_daemon_close_t close_flags = NI_DAEMON_CLOSE_STD;
 
@@ -271,6 +272,8 @@ babysit(void)
 			ni_fatal("unable to background server");
 	}
 
+	ni_nanny_start(mgr);
+
 	if (ni_config_use_nanny()) {
 		ni_rfkill_open(handle_rfkill_event, mgr);
 		ni_nanny_discover_state(mgr);
@@ -278,6 +281,12 @@ babysit(void)
 	}
 	else
 		ni_file_remove_recursively(ni_nanny_statedir());
+
+#ifdef HAVE_SYSTEMD_SD_DAEMON_H
+	if (opt_systemd) {
+		sd_notify(0, "READY=1");
+	}
+#endif
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout = NI_IFWORKER_INFINITE_TIMEOUT;

@@ -17,6 +17,9 @@
 #include <getopt.h>
 #include <errno.h>
 #include <net/if_arp.h>
+#ifdef HAVE_SYSTEMD_SD_DAEMON_H
+#include <systemd/sd-daemon.h>
+#endif
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -428,6 +431,12 @@ autoip4_supplicant(void)
 		if (ni_server_background(program_name, close_flags) < 0)
 			ni_fatal("unable to background server");
 	}
+
+#ifdef HAVE_SYSTEMD_SD_DAEMON_H
+	if (opt_systemd) {
+		sd_notify(0, "READY=1");
+	}
+#endif
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout;

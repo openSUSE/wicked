@@ -6,10 +6,10 @@ After=local-fs.target dbus.service isdn.service rdma.service SuSEfirewall2_init.
 Before=wickedd-nanny.service wicked.service network.target
 
 [Service]
-Type=dbus
-BusName=org.opensuse.Network
+Type=notify
 LimitCORE=infinity
 EnvironmentFile=-/etc/sysconfig/network/config
+ExecStartPre=-/usr/bin/udevadm settle
 ExecStart=@wicked_sbindir@/wickedd --systemd --foreground
 StandardError=null
 Restart=on-abort

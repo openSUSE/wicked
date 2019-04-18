@@ -98,6 +98,7 @@ __ni_ethtool(const char *ifname, int cmd, void *data)
 {
 	struct ifreq ifr;
 
+	memset(&ifr, 0, sizeof(ifr));
 	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
 	((struct ethtool_cmd *) data)->cmd = cmd;
 	ifr.ifr_data = data;
@@ -116,6 +117,7 @@ __ni_wireless_ext(const ni_netdev_t *dev, int cmd,
 {
 	struct iwreq iwr;
 
+	memset(&iwr, 0, sizeof(iwr));
 	strncpy(iwr.ifr_name, dev->name, IFNAMSIZ);
 	iwr.u.data.pointer = data;
 	iwr.u.data.length = data_len;

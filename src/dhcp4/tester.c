@@ -40,6 +40,7 @@
 #include <wicked/system.h>
 #include <wicked/xml.h>
 
+#include "appconfig.h"
 #include "dhcp4/dhcp4.h"
 #include "dhcp4/tester.h"
 
@@ -231,7 +232,6 @@ ni_dhcp4_tester_req_init(ni_dhcp4_request_t *req, const char *request)
 {
 	/* Apply some defaults */
 	req->dry_run = NI_DHCP4_RUN_OFFER;
-	req->update = ~0;
 	req->acquire_timeout = 10;
 
 	if (!ni_string_empty(request)) {
@@ -295,6 +295,9 @@ ni_dhcp4_tester_run(ni_dhcp4_tester_t *opts)
 		ni_error("Cannot allocate dhcp4 request");
 		goto failure;
 	}
+
+	req->update = ni_config_addrconf_update(ifp->name, NI_ADDRCONF_DHCP, AF_INET);
+	req->update |= NI_BIT(NI_ADDRCONF_UPDATE_HOSTNAME);
 
 	if (!ni_dhcp4_tester_req_init(req, opts->request))
 		goto failure;
