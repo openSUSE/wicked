@@ -6,8 +6,7 @@ Before=wickedd.service wicked.service network.target
 PartOf=wickedd.service
 
 [Service]
-Type=dbus
-BusName=org.opensuse.Network.DHCP4
+Type=notify
 LimitCORE=infinity
 EnvironmentFile=-/etc/sysconfig/network/config
 ExecStart=@wicked_supplicantdir@/wickedd-dhcp4 --systemd --foreground

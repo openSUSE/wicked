@@ -33,6 +33,9 @@
 #include <limits.h>
 #include <errno.h>
 #include <net/if_arp.h>
+#ifdef HAVE_SYSTEMD_SD_DAEMON_H
+#include <systemd/sd-daemon.h>
+#endif
 
 #include <wicked/types.h>
 #include <wicked/logging.h>
@@ -457,6 +460,12 @@ dhcp6_supplicant(void)
 
 	if (opt_recover_state)
 		dhcp6_recover_state(opt_state_file);
+
+#ifdef HAVE_SYSTEMD_SD_DAEMON_H
+	if (opt_systemd) {
+		sd_notify(0, "READY=1");
+	}
+#endif
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
