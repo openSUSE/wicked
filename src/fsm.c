@@ -68,10 +68,7 @@ static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
 static inline void		ni_ifworker_update_client_state_config(ni_ifworker_t *w);
 static void			ni_ifworker_update_client_state_scripts(ni_ifworker_t *w);
 static void			ni_fsm_events_destroy(ni_fsm_event_t **);
-static inline void		ni_fsm_events_block(ni_fsm_t *);
-static inline void		ni_fsm_events_unblock(ni_fsm_t *);
 static void			ni_fsm_process_event(ni_fsm_t *, ni_fsm_event_t *);
-static void			ni_fsm_process_events(ni_fsm_t *);
 
 
 ni_fsm_t *
@@ -161,7 +158,7 @@ ni_fsm_events_destroy(ni_fsm_event_t **events)
 	}
 }
 
-static inline void
+void
 ni_fsm_events_block(ni_fsm_t *fsm)
 {
 	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS, "block fsm events %u -> %u",
@@ -169,7 +166,7 @@ ni_fsm_events_block(ni_fsm_t *fsm)
 	fsm->block_events++;
 }
 
-static inline void
+void
 ni_fsm_events_unblock(ni_fsm_t *fsm)
 {
 	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS, "unblock fsm events %u -> %u",
@@ -178,7 +175,7 @@ ni_fsm_events_unblock(ni_fsm_t *fsm)
 	fsm->block_events--;
 }
 
-static void
+void
 ni_fsm_process_events(ni_fsm_t *fsm)
 {
 	ni_fsm_event_t *ev;
@@ -3918,6 +3915,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 	ni_ifworker_t *w;
 	unsigned int i;
 
+	ni_fsm_events_block(fsm);
 	for (i = 0; i < fsm->workers.count; ++i) {
 		w = fsm->workers.data[i];
 
@@ -3952,6 +3950,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 		if (w->object != NULL)
 			ni_ifworker_update_state(w, NI_FSM_STATE_DEVICE_EXISTS, __NI_FSM_STATE_MAX);
 	}
+	ni_fsm_events_unblock(fsm);
 
 	return TRUE;
 }
@@ -5571,7 +5570,7 @@ ni_fsm_process_rename_find_pending_worker(ni_fsm_t *fsm, const ni_ifworker_t *w)
 	ni_ifworker_t *c;
 	unsigned int i;
 
-	for (i = 0; fsm->workers.count; ++i) {
+	for (i = 0; i < fsm->workers.count; ++i) {
 		c = fsm->workers.data[i];
 		if (!c || c == w || c->type != w->type || c->device)
 			continue;

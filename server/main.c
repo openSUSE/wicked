@@ -19,6 +19,9 @@
 #include <getopt.h>
 #include <limits.h>
 #include <errno.h>
+#ifdef HAVE_SYSTEMD_SD_DAEMON_H
+#include <systemd/sd-daemon.h>
+#endif
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -278,6 +281,12 @@ run_interface_server(void)
 
 	if (opt_recover_state)
 		recover_state(opt_state_file);
+
+#ifdef HAVE_SYSTEMD_SD_DAEMON_H
+	if (opt_systemd) {
+		sd_notify(0, "READY=1");
+	}
+#endif
 
 	while (!ni_caught_terminal_signal()) {
 		long timeout;
