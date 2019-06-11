@@ -51,7 +51,7 @@ probe)
 		call_probe "$arg" || status=$?
 	done
 ;;
-bind|up)
+bind|up|add)
 	while [ $# -gt 0 ]; do
 		name=$1 ; shift
 		test -f "/tmp/if${name}.devinfo" || {
@@ -73,7 +73,7 @@ bind|up)
 		test $settle -ne 0 && udevadm settle
 	done
 ;;
-unbind|down)
+unbind|down|del)
 	while [ $# -gt 0 ]; do
 		name=$1 ; shift
 		test -d "/sys/class/net/$name" || { status=1 ; continue; }
@@ -87,7 +87,7 @@ unbind|down)
 
 		echo "echo -n '$DEVICE' > '$DRVPATH/unbind'"
 		echo -n "$DEVICE" > "$DRVPATH/unbind" && {
-			rm "/tmp/if${name}.devinfo"
+			rm -f "/tmp/if${name}.devinfo"
 			{
 				echo "DEVICE='$DEVICE'"
 				echo "DEVPATH='$DEVPATH'"
