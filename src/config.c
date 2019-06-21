@@ -113,9 +113,11 @@ ni_config_dhcp4_clone(const ni_config_dhcp4_t *src, const char *device)
 
 	ni_string_dup(&dst->device, device);
 
-	dst->lease_time = src->lease_time;
+	dst->create_cid = src->create_cid;
 	dst->allow_update = src->allow_update;
+	dst->routes_opts = src->routes_opts;
 	ni_string_dup(&dst->vendor_class, src->vendor_class);
+	dst->lease_time = src->lease_time;
 	ni_string_array_copy(&dst->ignore_servers, &src->ignore_servers);
 	memcpy(&dst->preferred_server, &src->preferred_server, sizeof(dst->preferred_server));
 	ni_dhcp_option_decl_list_copy(&dst->custom_options, src->custom_options);
