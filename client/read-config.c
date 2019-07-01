@@ -170,7 +170,8 @@ ni_ifconfig_guess_compat_type(const ni_ifconfig_type_t *map,
 	return ni_ifconfig_find_map(map, "redhat", sizeof("redhat")-1);
 #endif
 #ifdef COMPAT_AUTO
-	if (ni_file_exists_fmt("%s%s", (root ? root : ""), "/etc/SuSE-release"))
+	if (ni_file_exists_fmt("%s%s", (root ? root : ""), "/etc/SuSE-release") ||
+	    ni_file_exists_fmt("%s%s", (root ? root : ""), "/etc/SUSE-brand"))
 		return ni_ifconfig_find_map(map, "suse", sizeof("suse")-1);
 
 	if (ni_file_exists_fmt("%s%s", (root ? root : ""), "/etc/redhat-release"))
