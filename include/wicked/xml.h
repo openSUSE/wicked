@@ -34,7 +34,6 @@ struct xml_document {
 	struct xml_node *	root;
 };
 
-typedef struct xml_document_array	xml_document_array_t;
 struct xml_document_array {
 	unsigned int		count;
 	xml_document_t **	data;
