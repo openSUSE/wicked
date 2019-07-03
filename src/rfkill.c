@@ -129,7 +129,7 @@ __ni_rfkill_recv(ni_socket_t *sock)
 		if (!sw->soft_blocked && !sw->hard_blocked)
 			continue;
 
-		switch (RFKILL_TYPE_ALL) {
+		switch (sw->type) {
 		case RFKILL_TYPE_ALL:
 			for (type = 0; type < __NI_RFKILL_TYPE_MAX; ++type)
 				state[type] = TRUE;
