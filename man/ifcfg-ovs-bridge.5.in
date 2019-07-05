@@ -39,12 +39,22 @@ itself is configured via dhcp:
 
 .I ifcfg-ovsbr0
 .nf
-	STARTMODE='auto'
+	STARTMODE='nfsroot'
 	BOOTPROTO='dhcp'
 	OVS_BRIDGE='yes'
 	OVS_BRIDGE_PORT_DEVICE_2='eth2'
 	OVS_BRIDGE_PORT_DEVICE_3='eth3'
 .fi
+
+.PP
+.B Note:
+.I STARTMODE='nfsroot'
+.R is recommended if additional ports are created on the bridge
+e.g. with \fIovs-vsctl\fR. This start mode prevents the bridge from being teared
+down at system shutdown, which would cause all configuration saved in the
+openvswitch data base to be lost after rebooting the system. If no such local
+configuration is made, e.g. because the bridge is only used for ports being
+dynamically added by \fIlibvirt\fR, other start modes can be used as well.
 
 .SH ADDITIONAL INFORMATION
 For additional and more general information have a look into documentation
