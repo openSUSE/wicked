@@ -3030,6 +3030,14 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		return -1;
 	}
 
+	if ((value = ni_sysconfig_get_value(sc, "LLADDR")) != NULL) {
+		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, value) < 0) {
+			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
+				dev->name, value);
+			return -1;
+		}
+	}
+
 	return 0;
 }
 
