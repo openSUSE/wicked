@@ -1,7 +1,7 @@
 [Unit]
 Description=wicked network nanny service
 Requisite=dbus.service
-After=local-fs.target dbus.service SuSEfirewall2_init.service wickedd.service
+After=local-fs.target dbus.service SuSEfirewall2_init.service wickedd.service haveged.service
 Before=wicked.service network.target
 PartOf=wickedd.service
 

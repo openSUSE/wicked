@@ -1,8 +1,8 @@
 [Unit]
 Description=wicked network management service daemon
 Requisite=dbus.service
-Wants=wickedd-nanny.service wickedd-dhcp6.service wickedd-dhcp4.service wickedd-auto4.service
-After=local-fs.target dbus.service isdn.service rdma.service SuSEfirewall2_init.service
+Wants=wickedd-nanny.service wickedd-dhcp6.service wickedd-dhcp4.service wickedd-auto4.service haveged.service
+After=local-fs.target dbus.service isdn.service rdma.service SuSEfirewall2_init.service haveged.service
 Before=wickedd-nanny.service wicked.service network.target
 
 [Service]
