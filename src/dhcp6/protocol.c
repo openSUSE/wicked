@@ -1871,10 +1871,15 @@ ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_ad
 	int rv;
 
 	/* Assign a new XID to this message */
-	ni_timer_get_time(&dev->retrans.start);
 	do {
 		dev->dhcp6.xid = random() & NI_DHCP6_XID_MASK;
 	} while (dev->dhcp6.xid == 0);
+
+	if(!ni_dhcp6_set_message_timing(dev, msg_code)) {
+		ni_error("%s: unable to init %s message timings", dev->ifname,
+			ni_dhcp6_message_name(msg_code));
+		return -1;
+	}
 
 	ni_debug_dhcp("%s: building %s with xid 0x%x", dev->ifname,
 		ni_dhcp6_message_name(msg_code), dev->dhcp6.xid);
@@ -1886,8 +1891,11 @@ ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_ad
 		return -1;
 	}
 
-	if(!ni_dhcp6_set_message_timing(dev, msg_code))
-		return -1;
+	/*
+	 * Set the transmission start after the initial message is build,
+	 * so the elapsed time is 0 in the initial message we transmit.
+	 */
+	ni_timer_get_time(&dev->retrans.start);
 
 #if 0
 	/*
@@ -3297,12 +3305,13 @@ ni_dhcp6_set_message_timing(ni_dhcp6_device_t *dev, unsigned int msg_type)
 		dev->retrans.params   = __dhcp6_msg_timings[msg_type].params;
 		dev->retrans.duration = __dhcp6_msg_timings[msg_type].duration;
 
-#if 0
+#if 1
 		/*
 		 * Note: MRD of 0 means unlimited in RFC, nretries 0 means no retries
 		 *	 (one transmit attempt only) and nretries < 0 means unlimited.
 		 */
-		ni_trace("%s TIMING: IDT(%us), IRT(%us), MRT(%us), MRC(%u), MRD(%us), RND(%.3fs)\n",
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_DHCP,
+			"%s TIMING: IDT(%us), IRT(%us), MRT(%us), MRC(%u), MRD(%us), RND(%.3fs)\n",
 			ni_dhcp6_message_name(msg_type),
 			dev->retrans.delay/1000,
 			dev->retrans.params.timeout/1000,
