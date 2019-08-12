@@ -697,7 +697,7 @@ ni_dhcp4_device_send_message(ni_dhcp4_device_t *dev, unsigned int msg_code, cons
 	}
 
 	ni_debug_dhcp("%s: sending %s with xid 0x%x in state %s", dev->ifname,
-			ni_dhcp4_message_name(msg_code), htonl(dev->dhcp4.xid),
+			ni_dhcp4_message_name(msg_code), dev->dhcp4.xid,
 			ni_dhcp4_fsm_state_name(dev->fsm.state));
 
 	if ((rv = ni_dhcp4_device_prepare_message(dev)) < 0)
@@ -755,7 +755,7 @@ ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_co
 		return -1;
 	}
 
-	ni_debug_dhcp("sending %s with xid 0x%x", ni_dhcp4_message_name(msg_code), htonl(dev->dhcp4.xid));
+	ni_debug_dhcp("sending %s with xid 0x%x", ni_dhcp4_message_name(msg_code), dev->dhcp4.xid);
 
 	if (ni_dhcp4_device_prepare_message(dev) < 0)
 		return -1;

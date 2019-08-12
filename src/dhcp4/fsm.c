@@ -101,10 +101,10 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf, n
 				sender ? " sender " : "", sender ? sender : "");
 		return -1;
 	}
-	if (dev->dhcp4.xid != message->xid) {
+	if (dev->dhcp4.xid != ntohl(message->xid)) {
 		sender = ni_capture_from_hwaddr_print(from);
 		ni_debug_dhcp("%s: ignoring packet with wrong xid 0x%x (expected 0x%x)%s%s",
-				dev->ifname, htonl(message->xid), htonl(dev->dhcp4.xid),
+				dev->ifname, ntohl(message->xid), dev->dhcp4.xid,
 				sender ? " sender " : "", sender ? sender : "");
 		return -1;
 	}
@@ -156,7 +156,7 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf, n
 	}
 
 	ni_debug_dhcp("%s: received %s message xid 0x%x in state %s%s%s",
-			dev->ifname, ni_dhcp4_message_name(msg_code), message->xid,
+			dev->ifname, ni_dhcp4_message_name(msg_code), ntohl(message->xid),
 			ni_dhcp4_fsm_state_name(dev->fsm.state),
 			sender ? " sender " : "", sender ? sender : "");
 
