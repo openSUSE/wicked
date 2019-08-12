@@ -1661,7 +1661,7 @@ static int
 ni_dhcp6_fsm_renew(ni_dhcp6_device_t *dev)
 {
 	unsigned int deadline;
-	struct timeval now;
+	struct timeval duration;
 	int rv = -1;
 
 	if (!dev->lease)
@@ -1677,11 +1677,11 @@ ni_dhcp6_fsm_renew(ni_dhcp6_device_t *dev)
 		}
 
 		deadline = ni_dhcp6_fsm_get_rebind_timeout(dev);
-		ni_timer_get_time(&now);
-		now.tv_sec += deadline;
+		ni_timer_get_time(&duration);
+		duration.tv_sec += deadline;
 
-		ni_info("%s: Initiating renewal of DHCPv6 lease, duration %u sec until %s",
-				dev->ifname, deadline, ni_dhcp6_print_timeval(&now));
+		ni_info("%s: Initiating renewal of DHCPv6 lease, duration %s",
+				dev->ifname, ni_dhcp6_print_timeval(&duration));
 
 		dev->dhcp6.xid = 0;
 		if (ni_dhcp6_init_message(dev, NI_DHCP6_RENEW, dev->lease) != 0)
@@ -1709,7 +1709,7 @@ static int
 ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *dev)
 {
 	unsigned int deadline;
-	struct timeval now;
+	struct timeval duration;
 	int rv = -1;
 
 	if (!dev->lease)
@@ -1732,11 +1732,11 @@ ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *dev)
 		}
 
 		deadline = ni_dhcp6_fsm_get_expire_timeout(dev);
-		ni_timer_get_time(&now);
-		now.tv_sec += deadline;
+		ni_timer_get_time(&duration);
+		duration.tv_sec += deadline;
 
-		ni_info("%s: Initiating rebind of DHCPv6 lease, duration %u sec until %s",
-			dev->ifname, deadline, ni_dhcp6_print_timeval(&now));
+		ni_info("%s: Initiating rebind of DHCPv6 lease, duration %s",
+			dev->ifname, ni_dhcp6_print_timeval(&duration));
 
 		dev->dhcp6.xid = 0;
 		if (ni_dhcp6_init_message(dev, NI_DHCP6_REBIND, dev->lease) != 0)
@@ -2061,7 +2061,7 @@ static int
 ni_dhcp6_fsm_bound(ni_dhcp6_device_t *dev)
 {
 	unsigned int timeout;
-	struct timeval now;
+	struct timeval start;
 
 	if (!dev->lease)
 		return -1;
@@ -2079,12 +2079,12 @@ ni_dhcp6_fsm_bound(ni_dhcp6_device_t *dev)
 					dev->ifname,
 					ni_dhcp6_fsm_state_name(dev->fsm.state));
 		} else {
-			ni_timer_get_time(&now);
-			now.tv_sec += timeout;
+			ni_timer_get_time(&start);
+			start.tv_sec += timeout;
 
-			ni_debug_dhcp("%s: Reached %s state, scheduled RENEW in %u sec at %s",
+			ni_debug_dhcp("%s: Reached %s state, scheduled RENEW to start in %s",
 					dev->ifname, ni_dhcp6_fsm_state_name(dev->fsm.state),
-					timeout, ni_dhcp6_print_timeval(&now));
+					ni_dhcp6_print_timeval(&start));
 
 			ni_dhcp6_fsm_set_timeout_msec(dev, timeout * 1000);
 		}

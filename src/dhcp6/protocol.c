@@ -409,21 +409,9 @@ ni_dhcp6_process_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, const struc
 const char *
 ni_dhcp6_print_timeval(const struct timeval *tv)
 {
-	static char buf[64];
+	static char buf[64] = {'\0'};
 
-	buf[0] = '\0';
-	strftime(buf, sizeof(buf), "%T", localtime(&tv->tv_sec));
-	snprintf(buf + strlen(buf), sizeof(buf)-strlen(buf), ".%03ld", tv->tv_usec/1000);
-	return buf;
-}
-
-const char *
-ni_dhcp6_print_time(time_t t)
-{
-	static char buf[64];
-
-	buf[0] = '\0';
-	strftime(buf, sizeof(buf), "%T", localtime(&t));
+	snprintf(buf, sizeof(buf), "%ldm%ld.%03lds", tv->tv_sec / 60, tv->tv_sec % 60, tv->tv_usec / 1000);
 	return buf;
 }
 
@@ -451,10 +439,10 @@ ni_dhcp6_socket_get_timeout(const ni_socket_t *sock, struct timeval *tv)
 	if (timerisset(&dev->retrans.deadline)) {
 		*tv = dev->retrans.deadline;
 #if 0
-		ni_trace("%s: get socket timeout for socket [fd=%d]: %s",
+		ni_trace("%s: get socket timeout for socket [fd=%d]: deadline %s",
 				dev->ifname, sock->__fd, ni_dhcp6_print_timeval(tv));
 	} else {
-		ni_trace("%s: get socket timeout for socket [fd=%d]: unset",
+		ni_trace("%s: get socket timeout for socket [fd=%d]: no deadline",
 				dev->ifname, sock->__fd);
 #endif
 	}
@@ -474,14 +462,14 @@ ni_dhcp6_socket_check_timeout(ni_socket_t *sock, const struct timeval *now)
 
 	if (timerisset(&dev->retrans.deadline) && timercmp(&dev->retrans.deadline, now, <)) {
 #if 0
-		ni_trace("%s: check socket timeout for socket [fd=%d]: %s",
+		ni_trace("%s: check socket timeout for socket [fd=%d]: deadline %s",
 				dev->ifname, sock->__fd,
 				ni_dhcp6_print_timeval(&dev->retrans.deadline));
 #endif
 		ni_dhcp6_device_retransmit(dev);
 #if 0
 	} else {
-		ni_trace("%s: check socket timeout for socket [fd=%d]: unset",
+		ni_trace("%s: check socket timeout for socket [fd=%d]: no deadline",
 				dev->ifname, sock->__fd);
 #endif
 	}
@@ -2497,10 +2485,9 @@ ni_dhcp6_option_parse_ia_na(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_na_list, const 
 	if (ni_dhcp6_option_get32(bp, &ia->rebind_time) < 0)
 		goto failure;
 
-	ni_debug_dhcp("%s: iaid=%u, T1=%u, T2=%u [acquired at %s]",
+	ni_debug_dhcp("%s: iaid=%u, T1=%u, T2=%u",
 		ni_dhcp6_option_name(ia->type), ia->iaid,
-		ia->renewal_time, ia->rebind_time,
-		ni_dhcp6_print_timeval(&ia->acquired));
+		ia->renewal_time, ia->rebind_time);
 
 	if (__ni_dhcp6_option_parse_ia_options(bp, ia) < 0)
 		goto failure;
@@ -2544,9 +2531,8 @@ ni_dhcp6_option_parse_ia_ta(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_ta_list, const 
 	if (ni_dhcp6_option_get32(bp, &ia->iaid) < 0)
 		goto failure;
 
-	ni_debug_dhcp("%s: iaid=%u [acquired at %s]",
-		ni_dhcp6_option_name(ia->type), ia->iaid,
-		ni_dhcp6_print_timeval(&ia->acquired));
+	ni_debug_dhcp("%s: iaid=%u",
+		ni_dhcp6_option_name(ia->type), ia->iaid);
 
 	if (__ni_dhcp6_option_parse_ia_options(bp, ia) < 0)
 		goto failure;
@@ -2578,10 +2564,9 @@ ni_dhcp6_option_parse_ia_pd(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_pd_list, const 
 	if (ni_dhcp6_option_get32(bp, &ia->rebind_time) < 0)
 		goto failure;
 
-	ni_debug_dhcp("%s: iaid=%u, T1=%u, T2=%u [acquired at %s]",
+	ni_debug_dhcp("%s: iaid=%u, T1=%u, T2=%u",
 		ni_dhcp6_option_name(ia->type), ia->iaid,
-		ia->renewal_time, ia->rebind_time,
-		ni_dhcp6_print_timeval(&ia->acquired));
+		ia->renewal_time, ia->rebind_time);
 
 	if (__ni_dhcp6_option_parse_ia_options(bp, ia) < 0)
 		goto failure;

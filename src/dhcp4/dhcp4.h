@@ -51,7 +51,7 @@ typedef struct ni_dhcp4_device {
 
 	ni_capture_devinfo_t	system;
 
-	time_t			start_time;	/* when we starting managing */
+	struct timeval		start_time;	/* when we starting managing */
 
 	ni_dhcp4_request_t *	request;
 	ni_dhcp4_config_t *	config;

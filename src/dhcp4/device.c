@@ -58,7 +58,7 @@ ni_dhcp4_device_new(const char *ifname, const ni_linkinfo_t *link)
 		return NULL;
 	}
 
-	dev->start_time = time(NULL);
+	ni_timer_get_time(&dev->start_time);
 	dev->fsm.state = NI_DHCP4_STATE_INIT;
 
 	/* append to end of list */
@@ -184,10 +184,14 @@ ni_dhcp4_device_put(ni_dhcp4_device_t *dev)
 unsigned int
 ni_dhcp4_device_uptime(const ni_dhcp4_device_t *dev, unsigned int clamp)
 {
-	unsigned int uptime;
+	struct timeval now, uptime;
 
-	uptime = time(NULL) - dev->start_time;
-	return (uptime < clamp)? uptime : clamp;
+	ni_timer_get_time(&now);
+	if (timercmp(&now, &dev->start_time, >))
+		timersub(&now, &dev->start_time, &uptime);
+	else
+		timerclear(&uptime);
+	return (uptime.tv_sec < clamp) ? uptime.tv_sec : clamp;
 }
 
 void
