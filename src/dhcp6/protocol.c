@@ -3106,14 +3106,14 @@ ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, const struct in6_addr *send
 	case NI_DHCP6_REPLY:
 	case NI_DHCP6_ADVERTISE:
 		if (dev->dhcp6.xid == 0) {
-			ni_error("%s: ignoring unexpected %s message xid 0x%06x from %s",
+			ni_debug_dhcp("%s: ignoring unexpected %s message xid 0x%06x from %s",
 				dev->ifname,
 				ni_dhcp6_message_name(msg_type), msg_xid,
 				ni_dhcp6_address_print(sender));
 			return -1;
 		}
 		if (dev->dhcp6.xid != msg_xid) {
-			ni_error("%s: ignoring unexpected %s message xid 0x%06x (expecting 0x%06x) from %s",
+			ni_debug_dhcp("%s: ignoring unexpected %s message xid 0x%06x (expecting 0x%06x) from %s",
 				dev->ifname,
 				ni_dhcp6_message_name(msg_type),
 				msg_xid, dev->dhcp6.xid,
@@ -3133,7 +3133,7 @@ ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, const struct in6_addr *send
 	break;
 #endif
 	default:
-		ni_error("%s: ignoring unexpected %s message xid 0x%06x from %s",
+		ni_debug_dhcp("%s: ignoring unexpected %s message xid 0x%06x from %s",
 				dev->ifname,
 				ni_dhcp6_message_name(msg_type), msg_xid,
 				ni_dhcp6_address_print(sender));
