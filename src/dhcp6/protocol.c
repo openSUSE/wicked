@@ -2654,6 +2654,10 @@ ni_dhcp6_find_pinfo_prefixlen(const ni_dhcp6_device_t *dev, const ni_sockaddr_t 
 
 	pinfo = ni_dhcp6_device_ra_pinfo(dev, NULL);
 	for ( ; pinfo; pinfo = pinfo->next) {
+		/* asured on-link prefixes only */
+		if (!pinfo->on_link)
+			continue;
+
 		/* find highest matching prefix */
 		if (!ni_sockaddr_prefix_match(pinfo->length, &pinfo->prefix, addr))
 			continue;
@@ -2694,16 +2698,18 @@ ni_dhcp6_ia_copy_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_
 
 			ni_sockaddr_set_ipv6(&sadr, iadr->addr, 0);
 
-			plen = ni_dhcp6_find_pinfo_prefixlen(dev, &sadr);
-			if (plen >= 4 && plen <= 128) {
-				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-						"%s: using RA prefix info length %u",
-						dev->ifname, plen);
-			} else {
-				plen = 64;
-				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-						"%s: using default prefix length %u",
-						dev->ifname, plen);
+			if (!(plen = dev->config->address_len)) {
+				plen = ni_dhcp6_find_pinfo_prefixlen(dev, &sadr);
+				if (plen >= 4 && plen <= ni_af_address_prefixlen(AF_INET6)) {
+					ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+							"%s: using RA prefix info length %u",
+							dev->ifname, plen);
+				} else {
+					plen = ni_af_address_prefixlen(AF_INET6);
+					ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+							"%s: using default prefix length %u",
+							dev->ifname, plen);
+				}
 			}
 
 			ap = ni_address_new(AF_INET6, plen, &sadr, &lease->addrs);

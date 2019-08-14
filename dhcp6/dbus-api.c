@@ -384,6 +384,7 @@ static ni_dbus_property_t	dhcp6_request_properties[] = {
 	DHCP6REQ_UINT_PROPERTY(flags, flags, RO),
 	DHCP6REQ_UINT_PROPERTY(mode, mode, RO),
 	DHCP6REQ_BOOL_PROPERTY(rapid-commit, rapid_commit, RO),
+	DHCP6REQ_UINT_PROPERTY(address-length, address_len, RO),
 	DHCP6REQ_STRING_PROPERTY(client-id, clientid, RO),
 	//DHCP6REQ_STRING_PROPERTY(vendor-class, vendor_class, RO),
 	DHCP6REQ_UINT_PROPERTY(start-delay, start_delay, RO),

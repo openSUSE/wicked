@@ -891,6 +891,9 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	}
 	config->dry_run	= req->dry_run;
 
+	if (req->address_len <= ni_af_address_prefixlen(AF_INET6))
+		config->address_len = req->address_len;
+
 	ni_timer_get_time(&dev->start_time);
 	config->start_delay	= __nondefault(req->start_delay,
 					NI_DHCP6_START_DELAY);

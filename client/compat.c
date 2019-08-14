@@ -2283,6 +2283,11 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 	if ((ptr = ni_dhcp6_mode_type_to_name(compat->dhcp6.mode)) != NULL)
 		xml_node_dict_set(dhcp, "mode", ptr);
 
+	if (compat->dhcp6.address_len) {
+		xml_node_dict_set(dhcp, "address-length",
+				ni_sprint_uint(compat->dhcp6.address_len));
+	}
+
 	xml_node_dict_set(dhcp, "rapid-commit",
 			ni_format_boolean(compat->dhcp6.rapid_commit));
 

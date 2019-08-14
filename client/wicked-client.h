@@ -95,6 +95,7 @@ typedef struct ni_compat_netdev {
 
 		unsigned int	mode;
 		ni_bool_t	rapid_commit;
+		unsigned int	address_len;
 
 		ni_dhcp_fqdn_t  fqdn;
 		char *		hostname;
