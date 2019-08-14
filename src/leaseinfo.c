@@ -44,6 +44,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/nis.h>
 #include <wicked/route.h>
+#include <wicked/socket.h>	/* ni_time functions */
 
 #include "appconfig.h"
 #include "util_priv.h"
@@ -486,6 +487,7 @@ __ni_leaseinfo_dhcp4_dump(FILE *out, const ni_addrconf_lease_t *lease,
 	char *key = NULL;
 	ni_sockaddr_t sa;
 
+
 	/*
 	 * Hmm...
 	 * Address and netmask specified as part of generic dump, so not
@@ -511,10 +513,13 @@ __ni_leaseinfo_dhcp4_dump(FILE *out, const ni_addrconf_lease_t *lease,
 					lease->dhcp4.sender_hwa, NULL, 0);
 	}
 
-	if (lease->acquired.tv_sec) {
+	{
+		struct timeval acquired;
+
+		ni_time_timer_to_real(&lease->acquired, &acquired);
 		fprintf(out, "%s='%"PRId64"'\n", __ni_keyword_format
 				(&key, prefix, "ACQUIRED", 0),
-				(int64_t) lease->acquired.tv_sec);
+				(int64_t) acquired.tv_sec);
 	}
 	if (lease->dhcp4.lease_time)  {
 		fprintf(out, "%s='%"PRIu32"'\n", __ni_keyword_format
@@ -576,10 +581,13 @@ __ni_leaseinfo_dhcp6_dump(FILE *out, const ni_addrconf_lease_t *lease,
 	char *key = NULL;
 	ni_sockaddr_t sa;
 
-	if (lease->acquired.tv_sec) {
+	{
+		struct timeval acquired;
+
+		ni_time_timer_to_real(&lease->acquired, &acquired);
 		fprintf(out, "%s='%"PRIu64"'\n", __ni_keyword_format
 				(&key, prefix, "ACQUIRED", 0),
-				(uint64_t) lease->acquired.tv_sec);
+				(uint64_t) acquired.tv_sec);
 	}
 
 	if (lease->dhcp6.client_id.len) {

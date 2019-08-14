@@ -468,7 +468,7 @@ __ni_objectmodel_wireless_get_scan(const ni_dbus_object_t *object,
 	if (!(scan = __ni_objectmodel_get_scan(object, error)))
 		return TRUE;
 
-	ni_dbus_dict_add_uint32(result, "timestamp", scan->timestamp);
+	ni_dbus_dict_add_int64(result, "timestamp", scan->timestamp.tv_sec);
 	for (i = 0; i < scan->networks.count; ++i) {
 		child = ni_dbus_dict_add(result, "network");
 		ni_dbus_variant_init_dict(child);
@@ -488,17 +488,19 @@ __ni_objectmodel_wireless_set_scan(ni_dbus_object_t *object,
 	ni_wireless_t *wlan;
 	ni_wireless_scan_t *scan;
 	const ni_dbus_variant_t *child;
-	uint32_t valu32;
+	int64_t value64;
 
 	if (!(wlan = __ni_objectmodel_wireless_write_handle(object, error)))
 		return FALSE;
 
 	if ((scan = wlan->scan) != NULL)
 		ni_wireless_scan_free(scan);
-	wlan->scan = scan = ni_wireless_scan_new(NULL, 0);
 
-	if (ni_dbus_dict_get_uint32(argument, "timestamp", &valu32))
-		scan->timestamp = valu32;
+	wlan->scan = scan = ni_wireless_scan_new(NULL, 0);
+	if (ni_dbus_dict_get_int64(argument, "timestamp", &value64)) {
+		scan->timestamp.tv_sec = value64;
+		scan->timestamp.tv_usec = 0;
+	}
 
 	child = NULL;
 	while ((child = ni_dbus_dict_get_next(argument, "network", child)) != NULL) {

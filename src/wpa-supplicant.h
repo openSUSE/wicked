@@ -38,7 +38,7 @@ struct ni_wpa_interface {
 	ni_dbus_object_t *	proxy;
 
 	struct {
-		time_t		timestamp;
+		struct timeval	timestamp;
 		unsigned char	pending;
 	} scan;
 
