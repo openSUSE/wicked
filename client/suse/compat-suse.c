@@ -5322,6 +5322,16 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 		}
 	}
 
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_ADDRESS_LENGTH")) != NULL) {
+		if (ni_parse_uint(string, &uint, 10) == 0 &&
+		    uint <= ni_af_address_prefixlen(AF_INET6)) {
+			compat->dhcp6.address_len = uint;
+		} else {
+			ni_warn("%s: Invalid length in DHCLIENT6_ADDRESS_LENGTH='%s'",
+					ni_basename(sc->pathname), string);
+		}
+	}
+
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_RAPID_COMMIT")) != NULL) {
 		if (!strcasecmp(string, "yes")) {
 			compat->dhcp6.rapid_commit = TRUE;

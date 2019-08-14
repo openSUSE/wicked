@@ -243,6 +243,7 @@
 
     <mode type="builtin-dhcp6-mode"/>
     <rapid-commit type="boolean"/>
+    <address-length type="uint32"/>
 
     <client-id type="string" />
     <!-- vendor-class type="string" / -->
