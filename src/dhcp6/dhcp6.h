@@ -67,6 +67,7 @@ struct ni_dhcp6_request {
 	ni_dhcp6_run_t		dry_run;         /* normal run or get offer/lease only	*/
 	ni_dhcp6_mode_t		mode;		 /* follow ra, request info/addr	*/
 	ni_bool_t		rapid_commit;	 /* try to use rapid commit flow	*/
+	unsigned int		address_len;	/* address prefix length to use         */
 
 	unsigned int		start_delay;	/* how long to delay start */
 	unsigned int		defer_timeout;	/* how long we try before we defer	*/
@@ -130,6 +131,7 @@ struct ni_dhcp6_config {
 	ni_dhcp6_mode_t		mode;
 	ni_dhcp6_run_t		dry_run;
 	ni_bool_t		rapid_commit;
+	unsigned int		address_len;
 
 	unsigned int		start_delay;
 	unsigned int		defer_timeout;

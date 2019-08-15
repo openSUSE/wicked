@@ -3030,6 +3030,14 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		return -1;
 	}
 
+	if ((value = ni_sysconfig_get_value(sc, "LLADDR")) != NULL) {
+		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, value) < 0) {
+			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
+				dev->name, value);
+			return -1;
+		}
+	}
+
 	return 0;
 }
 
@@ -5311,6 +5319,16 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 			ni_warn("%s: Cannot parse DHCLIENT6_MODE='%s'",
 				ni_basename(sc->pathname), string);
 			ret = FALSE;
+		}
+	}
+
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_ADDRESS_LENGTH")) != NULL) {
+		if (ni_parse_uint(string, &uint, 10) == 0 &&
+		    uint <= ni_af_address_prefixlen(AF_INET6)) {
+			compat->dhcp6.address_len = uint;
+		} else {
+			ni_warn("%s: Invalid length in DHCLIENT6_ADDRESS_LENGTH='%s'",
+					ni_basename(sc->pathname), string);
 		}
 	}
 

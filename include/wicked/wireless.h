@@ -168,7 +168,7 @@ struct ni_wireless_network {
 	unsigned int			fragment_size;		/* used with EAP */
 
 	struct ni_wireless_scan_info {
-		time_t			timestamp;
+		struct timeval 		timestamp;
 		ni_bool_t		updating;		/* retrieving new scan info */
 		int			noise;
 		double			level;			/* in dBm*/
@@ -267,16 +267,16 @@ struct ni_wireless {
 
 struct ni_wireless_scan {
 	/* Scanning interval */
-	unsigned int		interval;
+	unsigned int			interval;
 
 	/* Time in seconds after which we forget BSSes */
-	unsigned int		max_age;
+	unsigned int			max_age;
 
-	time_t			timestamp;
-	time_t			lifetime;
-	ni_wireless_network_array_t networks;
+	struct timeval			timestamp;
+	unsigned int			lifetime;
+	ni_wireless_network_array_t	networks;
 
-	const ni_timer_t *	timer;
+	const ni_timer_t *		timer;
 };
 
 extern void		ni_wireless_set_scanning(ni_bool_t enable);

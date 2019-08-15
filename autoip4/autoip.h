@@ -42,7 +42,7 @@ struct ni_autoip_device {
 	    unsigned int	nprobes;
 	    unsigned int	nclaims;
 	    unsigned int	nconflicts;
-	    time_t		last_defense;
+	    struct timeval	last_defense;
 	} autoip;
 
 	ni_auto4_request_t 	request;

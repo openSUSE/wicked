@@ -31,6 +31,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
+#include <wicked/socket.h>	/* ni_time functions */
 #include <wicked/xml.h>
 
 #include "duid.h"
@@ -121,6 +122,7 @@ __ni_dhcp6_lease_ia_data_to_xml(const ni_dhcp6_ia_t *ia, xml_node_t *node)
 	const char *ia_address = ni_dhcp6_option_name(NI_DHCP6_OPTION_IA_ADDRESS);
 	const char *ia_prefix  = ni_dhcp6_option_name(NI_DHCP6_OPTION_IA_PREFIX);
 	const ni_dhcp6_ia_addr_t *iadr;
+	struct timeval acquired;
 	xml_node_t *iadr_node;
 	unsigned int count = 0;
 	char buf[32] = { '\0' };
@@ -129,13 +131,15 @@ __ni_dhcp6_lease_ia_data_to_xml(const ni_dhcp6_ia_t *ia, xml_node_t *node)
 	switch (ia->type) {
 	case NI_DHCP6_OPTION_IA_TA:
 		xml_node_new_element_uint("interface-id", node, ia->iaid);
-		snprintf(buf, sizeof(buf), "%"PRId64, (int64_t)ia->acquired.tv_sec);
+		ni_time_timer_to_real(&ia->acquired, &acquired);
+		snprintf(buf, sizeof(buf), "%"PRId64, (int64_t)acquired.tv_sec);
 		xml_node_new_element("acquired", node, buf);
 		break;
 	case NI_DHCP6_OPTION_IA_NA:
 	case NI_DHCP6_OPTION_IA_PD:
 		xml_node_new_element_uint("interface-id", node, ia->iaid);
-		snprintf(buf, sizeof(buf), "%"PRId64, (int64_t)ia->acquired.tv_sec);
+		ni_time_timer_to_real(&ia->acquired, &acquired);
+		snprintf(buf, sizeof(buf), "%"PRId64, (int64_t)acquired.tv_sec);
 		xml_node_new_element("acquired", node, buf);
 		xml_node_new_element_uint("renewal-time", node, ia->renewal_time);
 		xml_node_new_element_uint("rebind-time", node, ia->rebind_time);
@@ -374,19 +378,22 @@ __ni_dhcp6_lease_ia_data_from_xml(ni_dhcp6_ia_t *ia, const xml_node_t *node)
 		iadr_name = ni_dhcp6_option_name(NI_DHCP6_OPTION_IA_ADDRESS);
 	}
 
+	ni_timer_get_time(&ia->acquired); /* pre-init */
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, "interface-id")) {
 			if (ni_parse_uint(child->cdata, &ia->iaid, 10) !=  0)
 				return -1;
 		} else
 		if (ni_string_eq(child->name, "acquired")) {
-			int64_t acquired;
+			struct timeval acquired;
+			int64_t sec;
 
-			if (ni_parse_int64(child->cdata, &acquired, 10))
+			if (ni_parse_int64(child->cdata, &sec, 10))
 				return -1;
 
-			ia->acquired.tv_sec = acquired;
-			ia->acquired.tv_usec = 0;
+			acquired.tv_sec = sec;
+			acquired.tv_usec = 0;
+			ni_time_real_to_timer(&acquired, &ia->acquired);
 		} else
 		if (ni_string_eq(child->name, "renewal-time") &&
 		    ia->type != NI_DHCP6_OPTION_IA_TA) {
