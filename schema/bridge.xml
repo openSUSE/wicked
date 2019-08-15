@@ -58,11 +58,11 @@
     <gc-interval type="double"   description="Garbage collection interval for the bridge" />
   </define>
 
-
   <!-- This are bridge configuration properties inclusive ports -->
   <define name="configuration" class="dict" extends="bridge:bridge-config"
           description="Bridge and port configuration properties">
     <ports class="array" element-type="bridge:port-config" element-name="port" />
+    <address  type="ethernet-address"/>
   </define>
 
   <!-- This are all bridge properties returned in service interface reports -->
@@ -78,6 +78,7 @@
     <!-- we may implement more status information properties here -->
 
     <ports class="array" element-type="bridge:port-status" element-name="port" />
+    <address  type="ethernet-address"/>
   </define>
 
   <method name="changeDevice">

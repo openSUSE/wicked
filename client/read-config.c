@@ -43,6 +43,7 @@
 
 #include "wicked-client.h"
 #include "client/ifconfig.h"
+#include "client/read-config.h"
 
 #if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
 extern ni_bool_t	__ni_suse_get_ifconfig(const char *, const char *,
@@ -52,23 +53,6 @@ extern ni_bool_t	__ni_suse_get_ifconfig(const char *, const char *,
 extern ni_bool_t	__ni_redhat_get_ifconfig(const char *, const char *,
 						ni_compat_ifconfig_t *);
 #endif
-
-
-typedef struct ni_ifconfig_type	ni_ifconfig_type_t;
-struct ni_ifconfig_type {
-	const char *			name;
-	struct {
-		ni_bool_t		(*read)(xml_document_array_t *,
-						const char *,
-						const char *,
-						const char *,
-						ni_bool_t,
-						ni_bool_t);
-	    const ni_ifconfig_type_t *	(*guess)(const ni_ifconfig_type_t *,
-						const char *root,
-						const char *path);
-	} ops;
-};
 
 static ni_bool_t	ni_ifconfig_read_wicked(xml_document_array_t *,
 						const char *,
@@ -111,10 +95,11 @@ static ni_bool_t	ni_ifconfig_read_firmware(xml_document_array_t *,
 						ni_bool_t,
 						ni_bool_t);
 
-static const ni_ifconfig_type_t *
-__ni_ifconfig_find_map(const ni_ifconfig_type_t *map, const char *name, size_t len)
+const ni_ifconfig_type_t *
+ni_ifconfig_find_map(const ni_ifconfig_type_t *map, const char *name, size_t len)
 {
 	const ni_ifconfig_type_t *pos = map;
+
 	if (pos) {
 		while (pos->name) {
 			if (name && strlen(pos->name) == len &&
@@ -126,16 +111,48 @@ __ni_ifconfig_find_map(const ni_ifconfig_type_t *map, const char *name, size_t l
 	return pos;
 }
 
-static const ni_ifconfig_type_t *
+const ni_ifconfig_type_t *
 ni_ifconfig_find_type(const ni_ifconfig_type_t *map, const char *root,
 			const char *path, const char *name, size_t len)
 {
 	const ni_ifconfig_type_t *ret;
 
-	ret = __ni_ifconfig_find_map(map, name, len);
+	ret = ni_ifconfig_find_map(map, name, len);
 
 	if (!name && ret && ret->ops.guess) {
 		ret = ret->ops.guess(map, root, path);
+	}
+	return ret;
+}
+
+ni_bool_t
+ni_ifconfig_read_subtype(xml_document_array_t *array, const ni_ifconfig_type_t *type,
+			const char *root, const char *path, ni_bool_t prio, ni_bool_t raw,
+			const char *supertype)
+{
+	const ni_ifconfig_type_t *map;
+	const char *sub_path = path;
+	const char *sub_name = NULL;
+	char *sub_type = NULL;
+	ni_bool_t ret = FALSE;
+	size_t len;
+
+	if (!array || !type)
+		return ret;
+
+	len = strcspn(path, ":");
+	if (path[len] == ':') {
+		sub_name = len ? path : NULL;
+		sub_path = path + len + 1;
+	}
+
+	map = ni_ifconfig_find_type(type, root, path, sub_name, len);
+	if (map && map->name && map->ops.read) {
+		ni_string_printf(&sub_type, "%s:%s", supertype, map->name);
+		ret = map->ops.read(array, sub_type, root, sub_path, prio, raw);
+		ni_string_free(&sub_type);
+	} else {
+		ni_error("Unsupported ifconfig type %s:%.*s", supertype, (int)len, sub_name);
 	}
 	return ret;
 }
@@ -147,17 +164,18 @@ ni_ifconfig_guess_compat_type(const ni_ifconfig_type_t *map,
 	(void)path;
 
 #ifdef COMPAT_SUSE
-	return __ni_ifconfig_find_map(map, "suse", sizeof("suse")-1);
+	return ni_ifconfig_find_map(map, "suse", sizeof("suse")-1);
 #endif
 #ifdef COMPAT_REDHAT
-	return __ni_ifconfig_find_map(map, "redhat", sizeof("redhat")-1);
+	return ni_ifconfig_find_map(map, "redhat", sizeof("redhat")-1);
 #endif
 #ifdef COMPAT_AUTO
-	if (ni_file_exists_fmt("%s%s", (root ? root : ""), "/etc/SuSE-release"))
-		return __ni_ifconfig_find_map(map, "suse", sizeof("suse")-1);
+	if (ni_file_exists_fmt("%s%s", (root ? root : ""), "/etc/SuSE-release") ||
+	    ni_file_exists_fmt("%s%s", (root ? root : ""), "/etc/SUSE-brand"))
+		return ni_ifconfig_find_map(map, "suse", sizeof("suse")-1);
 
 	if (ni_file_exists_fmt("%s%s", (root ? root : ""), "/etc/redhat-release"))
-		return __ni_ifconfig_find_map(map, "redhat", sizeof("redhat")-1);
+		return ni_ifconfig_find_map(map, "redhat", sizeof("redhat")-1);
 #endif
 
 	return NULL;
@@ -167,22 +185,22 @@ const ni_ifconfig_type_t *
 ni_ifconfig_guess_wicked_type(const ni_ifconfig_type_t *map,
 			const char *root, const char *path)
 {
-	return __ni_ifconfig_find_map(map, "xml", sizeof("xml")-1);
+	return ni_ifconfig_find_map(map, "xml", sizeof("xml")-1);
 }
 
 const ni_ifconfig_type_t *
 ni_ifconfig_guess_type(const ni_ifconfig_type_t *map,
 			const char *root, const char *path)
 {
-	return __ni_ifconfig_find_map(map, "wicked", sizeof("wicked")-1);
+	return ni_ifconfig_find_map(map, "wicked", sizeof("wicked")-1);
 }
 
-static const ni_ifconfig_type_t	__ni_ifconfig_types_wicked[] = {
+static const ni_ifconfig_type_t		ni_ifconfig_types_wicked[] = {
 	{ "xml",	{ .read = ni_ifconfig_read_wicked_xml	} },
 	{ NULL,		{ .guess= ni_ifconfig_guess_wicked_type	} },
 };
 
-static const ni_ifconfig_type_t	__ni_ifconfig_types_compat[] = {
+static const ni_ifconfig_type_t		ni_ifconfig_types_compat[] = {
 #if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
 	{ "suse",	{ .read = ni_ifconfig_read_compat_suse	} },
 #endif
@@ -192,7 +210,7 @@ static const ni_ifconfig_type_t	__ni_ifconfig_types_compat[] = {
 	{ NULL,		{ .guess= ni_ifconfig_guess_compat_type } },
 };
 
-static const ni_ifconfig_type_t	__ni_ifconfig_types[] = {
+static const ni_ifconfig_type_t		ni_ifconfig_types[] = {
 	{ "wicked",	{ .read = ni_ifconfig_read_wicked	} },
 	{ "compat",	{ .read = ni_ifconfig_read_compat	} },
 	{ "firmware",	{ .read = ni_ifconfig_read_firmware	} },
@@ -242,7 +260,7 @@ ni_ifconfig_read(xml_document_array_t *array, const char *root, const char *path
 		_path = path + len + 1;
 	}
 
-	map = ni_ifconfig_find_type(__ni_ifconfig_types, root, path, _name, len);
+	map = ni_ifconfig_find_type(ni_ifconfig_types, root, path, _name, len);
 	if (map && map->name && map->ops.read) {
 		return map->ops.read(array, map->name, root, _path, check_prio, raw);
 	}
@@ -506,34 +524,9 @@ ni_ifconfig_read_wicked_xml(xml_document_array_t *array, const char *type,
 
 ni_bool_t
 ni_ifconfig_read_wicked(xml_document_array_t *array, const char *type,
-			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
+			const char *root, const char *path, ni_bool_t prio, ni_bool_t raw)
 {
-	const ni_ifconfig_type_t *map;
-	const char *_path = path;
-	const char *_name = NULL;
-	char *_type = NULL;
-	size_t len;
-
-	len = strcspn(path, ":");
-	if (path[len] == ':') {
-		_name = len ? path : NULL;
-		_path = path + len + 1;
-	}
-
-	map = ni_ifconfig_find_type(__ni_ifconfig_types_wicked, root, path, _name, len);
-	if (map && map->name && map->ops.read) {
-		ni_string_printf(&_type, "%s:%s", type, map->name);
-		if (map->ops.read(array, _type, root, _path, check_prio, raw)) {
-			ni_string_free(&_type);
-			return TRUE;
-		}
-		ni_string_free(&_type);
-	}
-	else {
-		ni_error("Unsupported ifconfig type %s:%.*s", type, (int)len, _name);
-	}
-
-	return FALSE;
+	return ni_ifconfig_read_subtype(array, ni_ifconfig_types_wicked, root, path, prio, raw, type);
 }
 
 /*
@@ -580,32 +573,7 @@ ni_bool_t
 ni_ifconfig_read_compat(xml_document_array_t *array, const char *type,
 			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
 {
-	const ni_ifconfig_type_t *map;
-	const char *_path = path;
-	const char *_name = NULL;
-	char *_type = NULL;
-	size_t len;
-
-	len = strcspn(path, ":");
-	if (path[len] == ':') {
-		_name = len ? path : NULL;
-		_path = path + len + 1;
-	}
-
-	map = ni_ifconfig_find_type(__ni_ifconfig_types_compat, root, path, _name, len);
-	if (map && map->name && map->ops.read) {
-		ni_string_printf(&_type, "%s:%s", type, map->name);
-		if (map->ops.read(array, _type, root, _path, check_prio, raw)) {
-			ni_string_free(&_type);
-			return TRUE;
-		}
-		ni_string_free(&_type);
-	}
-	else {
-		ni_error("Unsupported ifconfig type %s:%.*s", type, (int)len, _name);
-	}
-
-	return FALSE;
+	return ni_ifconfig_read_subtype(array, ni_ifconfig_types_compat, root, path, check_prio, raw, type);
 }
 
 ni_bool_t
@@ -744,4 +712,3 @@ ni_ifconfig_metadata_clear(xml_node_t *root)
 		xml_node_del_attr(ifnode, NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE);
 	}
 }
-

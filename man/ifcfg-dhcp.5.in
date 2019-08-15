@@ -187,6 +187,13 @@ This option allows the DHCPv6 client to indicate its desire to accept
 rapid commit leases using two-packet exchange (solicitation, lease ack)
 instead of the four packet (solicitation, offer, request, lease ack).
 .TP
+.BR DHCLIENT6_ADDRESS_LENGTH\ { length }
+Permits to specify explicit prefix-length to use for the DHCPv6 address,
+e.g. 64 to use address as 2001:db8::1/64 or 80 for 2001:db8::1/80.
+When 0 or unspecified (default), prefix-length of the smallest on-link
+prefix (highest /length number) in the IPv6 router advertisement matching
+the address is used or 128 (see also rfc5942).
+.TP
 .BR DHCLIENT6_SET_HOSTNAME\  { yes | no* }
 Should the DHCPv6 client set the hostname?
 When it is likely that this would occur during a running X session,

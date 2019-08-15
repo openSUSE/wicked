@@ -144,7 +144,7 @@ ni_socket_array_wait(ni_socket_array_t *array, long timeout)
 		socket_count++;
 	}
 
-	gettimeofday(&now, NULL);
+	ni_timer_get_time(&now);
 	if (timerisset(&expires)) {
 		struct timeval delta;
 		long delta_ms;
@@ -220,7 +220,7 @@ done_with_this_socket:
 		ni_socket_release(sock);
 	}
 
-	gettimeofday(&now, NULL);
+	ni_timer_get_time(&now);
 	for (i = 0; i < array->count && i < socket_count; ++i) {
 		ni_socket_t *sock = array->data[i];
 
