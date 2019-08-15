@@ -1095,6 +1095,7 @@ __ni_compat_generate_ovs_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *co
 static ni_bool_t
 __ni_compat_generate_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
+	const ni_netdev_t *dev = compat->dev;
 	ni_bridge_t *bridge;
 	xml_node_t *child;
 	xml_node_t *ports;
@@ -1149,6 +1150,11 @@ __ni_compat_generate_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *compat
 			xml_node_new_element("path-cost", portnode, tmp);
 			ni_string_free(&tmp);
 		}
+	}
+
+	if (dev->link.hwaddr.len) {
+		xml_node_new_element("address", child,
+			ni_link_address_print(&dev->link.hwaddr));
 	}
 
 	return TRUE;
@@ -2276,6 +2282,11 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 
 	if ((ptr = ni_dhcp6_mode_type_to_name(compat->dhcp6.mode)) != NULL)
 		xml_node_dict_set(dhcp, "mode", ptr);
+
+	if (compat->dhcp6.address_len) {
+		xml_node_dict_set(dhcp, "address-length",
+				ni_sprint_uint(compat->dhcp6.address_len));
+	}
 
 	xml_node_dict_set(dhcp, "rapid-commit",
 			ni_format_boolean(compat->dhcp6.rapid_commit));

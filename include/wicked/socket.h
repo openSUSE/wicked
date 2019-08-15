@@ -39,6 +39,8 @@ extern void *		ni_timer_cancel(const ni_timer_t *);
 extern const ni_timer_t *ni_timer_rearm(const ni_timer_t *, unsigned long);
 extern long		ni_timer_next_timeout(void);
 extern int		ni_timer_get_time(struct timeval *tv);
+extern int		ni_time_timer_to_real(const struct timeval *, struct timeval *);
+extern int		ni_time_real_to_timer(const struct timeval *, struct timeval *);
 
 extern ni_socket_t *	ni_socket_hold(ni_socket_t *);
 extern void		ni_socket_release(ni_socket_t *);

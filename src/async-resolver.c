@@ -96,7 +96,7 @@ gaicb_list_resolve(struct gaicb **greqs, unsigned int nreqs, unsigned int timeou
 			return -1;
 		}
 
-		gettimeofday(&deadline, NULL);
+		ni_timer_get_time(&deadline);
 		deadline.tv_sec += timeout;
 
 		while (1) {
@@ -104,13 +104,12 @@ gaicb_list_resolve(struct gaicb **greqs, unsigned int nreqs, unsigned int timeou
 			struct timespec ts;
 			int status;
 
-			gettimeofday(&now, NULL);
+			ni_timer_get_time(&now);
 			if (timercmp(&now, &deadline, >=))
 				break;
 
 			timersub(&deadline, &now, &delta);
-			ts.tv_sec = delta.tv_sec;
-			ts.tv_nsec = 1000 * delta.tv_usec;
+			TIMEVAL_TO_TIMESPEC(&delta, &ts);
 
 			status = gai_suspend((const struct gaicb * const *) greqs, nreqs, &ts);
 			if (status == EAI_ALLDONE || status == EAI_AGAIN)

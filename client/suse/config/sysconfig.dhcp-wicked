@@ -124,3 +124,15 @@ DHCLIENT6_CLIENT_ID=""
 # The more specific variable DHCLIENT6_SET_HOSTNAME has higher precedence.
 #
 DHCLIENT6_UPDATE=""
+
+#
+# Type:		integer
+# Default:	""
+#
+# Permits to specify explicit prefix-length to use for the DHCPv6 address,
+# e.g. 64 to use address as 2001:db8::1/64 or 80 for 2001:db8::1/80.
+# When 0 or unspecified (default), prefix-length of the smallest on-link
+# prefix (highest /length number) in the IPv6 router advertisement matching
+# the address is used or 128 (see also rfc5942).
+#
+DHCLIENT6_ADDRESS_LENGTH=""
