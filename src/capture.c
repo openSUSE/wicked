@@ -343,7 +343,7 @@ ni_capture_force_retransmit(ni_capture_t *capture, unsigned int delay)
 	if (timerisset(&capture->retrans.deadline)) {
 		struct timeval *deadline = &capture->retrans.deadline;
 
-		gettimeofday(deadline, NULL);
+		ni_timer_get_time(deadline);
 		deadline->tv_sec += delay;
 	}
 }

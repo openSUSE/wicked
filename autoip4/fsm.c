@@ -147,7 +147,7 @@ ni_autoip_fsm_conflict(ni_autoip_device_t *dev)
 void
 ni_autoip_fsm_defend(ni_autoip_device_t *dev, const ni_hwaddr_t *hwa)
 {
-	time_t now = time(NULL);
+	struct timeval now, delta;
 
 	if (dev->fsm.state != NI_AUTOIP_STATE_CLAIMED) {
 		ni_error("%s: shouldn't be called in state %s", __FUNCTION__,
@@ -155,17 +155,22 @@ ni_autoip_fsm_defend(ni_autoip_device_t *dev, const ni_hwaddr_t *hwa)
 		return;
 	}
 
-	if (dev->autoip.last_defense && now - dev->autoip.last_defense < IPV4LL_DEFEND_INTERVAL) {
-		ni_debug_autoip("%s: failed to defend address %s (claimed by %s)", dev->ifname,
-				inet_ntoa(dev->autoip.candidate),
-				ni_link_address_print(hwa));
-		ni_autoip_fsm_conflict(dev);
-	} else {
-		dev->autoip.last_defense = now;
-		ni_arp_send_reply(dev->arp_socket,
-				dev->autoip.candidate,
-				hwa, dev->autoip.candidate);
+	ni_timer_get_time(&now);
+	if (timerisset(&dev->autoip.last_defense) && timercmp(&now, &dev->autoip.last_defense, >)) {
+		timersub(&now, &dev->autoip.last_defense, &delta);
+		if (delta.tv_sec < IPV4LL_DEFEND_INTERVAL) {
+			ni_debug_autoip("%s: failed to defend address %s (claimed by %s)", dev->ifname,
+					inet_ntoa(dev->autoip.candidate),
+					ni_link_address_print(hwa));
+			ni_autoip_fsm_conflict(dev);
+			return;
+		}
 	}
+
+	dev->autoip.last_defense = now;
+	ni_arp_send_reply(dev->arp_socket,
+			dev->autoip.candidate,
+			hwa, dev->autoip.candidate);
 }
 
 ni_addrconf_lease_t *
@@ -261,13 +266,13 @@ ni_autoip_send_arp(ni_autoip_device_t *dev)
 			dev->fsm.state = NI_AUTOIP_STATE_CLAIMED;
 			ni_autoip_fsm_commit_lease(dev, ni_autoip_fsm_build_lease(dev));
 			dev->autoip.nconflicts = 0;
-			dev->autoip.last_defense = 0;
+			timerclear(&dev->autoip.last_defense);
 		}
 	} else {
 		dev->fsm.state = NI_AUTOIP_STATE_CLAIMED;
 		ni_autoip_fsm_commit_lease(dev, ni_autoip_fsm_build_lease(dev));
 		dev->autoip.nconflicts = 0;
-		dev->autoip.last_defense = 0;
+		timerclear(&dev->autoip.last_defense);
 	}
 	return 0;
 }

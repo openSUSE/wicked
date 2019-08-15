@@ -409,21 +409,9 @@ ni_dhcp6_process_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, const struc
 const char *
 ni_dhcp6_print_timeval(const struct timeval *tv)
 {
-	static char buf[64];
+	static char buf[64] = {'\0'};
 
-	buf[0] = '\0';
-	strftime(buf, sizeof(buf), "%T", localtime(&tv->tv_sec));
-	snprintf(buf + strlen(buf), sizeof(buf)-strlen(buf), ".%03ld", tv->tv_usec/1000);
-	return buf;
-}
-
-const char *
-ni_dhcp6_print_time(time_t t)
-{
-	static char buf[64];
-
-	buf[0] = '\0';
-	strftime(buf, sizeof(buf), "%T", localtime(&t));
+	snprintf(buf, sizeof(buf), "%ldm%ld.%03lds", tv->tv_sec / 60, tv->tv_sec % 60, tv->tv_usec / 1000);
 	return buf;
 }
 
@@ -451,10 +439,10 @@ ni_dhcp6_socket_get_timeout(const ni_socket_t *sock, struct timeval *tv)
 	if (timerisset(&dev->retrans.deadline)) {
 		*tv = dev->retrans.deadline;
 #if 0
-		ni_trace("%s: get socket timeout for socket [fd=%d]: %s",
+		ni_trace("%s: get socket timeout for socket [fd=%d]: deadline %s",
 				dev->ifname, sock->__fd, ni_dhcp6_print_timeval(tv));
 	} else {
-		ni_trace("%s: get socket timeout for socket [fd=%d]: unset",
+		ni_trace("%s: get socket timeout for socket [fd=%d]: no deadline",
 				dev->ifname, sock->__fd);
 #endif
 	}
@@ -474,14 +462,14 @@ ni_dhcp6_socket_check_timeout(ni_socket_t *sock, const struct timeval *now)
 
 	if (timerisset(&dev->retrans.deadline) && timercmp(&dev->retrans.deadline, now, <)) {
 #if 0
-		ni_trace("%s: check socket timeout for socket [fd=%d]: %s",
+		ni_trace("%s: check socket timeout for socket [fd=%d]: deadline %s",
 				dev->ifname, sock->__fd,
 				ni_dhcp6_print_timeval(&dev->retrans.deadline));
 #endif
 		ni_dhcp6_device_retransmit(dev);
 #if 0
 	} else {
-		ni_trace("%s: check socket timeout for socket [fd=%d]: unset",
+		ni_trace("%s: check socket timeout for socket [fd=%d]: no deadline",
 				dev->ifname, sock->__fd);
 #endif
 	}
@@ -1883,10 +1871,15 @@ ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_ad
 	int rv;
 
 	/* Assign a new XID to this message */
-	ni_timer_get_time(&dev->retrans.start);
 	do {
 		dev->dhcp6.xid = random() & NI_DHCP6_XID_MASK;
 	} while (dev->dhcp6.xid == 0);
+
+	if(!ni_dhcp6_set_message_timing(dev, msg_code)) {
+		ni_error("%s: unable to init %s message timings", dev->ifname,
+			ni_dhcp6_message_name(msg_code));
+		return -1;
+	}
 
 	ni_debug_dhcp("%s: building %s with xid 0x%x", dev->ifname,
 		ni_dhcp6_message_name(msg_code), dev->dhcp6.xid);
@@ -1898,8 +1891,11 @@ ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_ad
 		return -1;
 	}
 
-	if(!ni_dhcp6_set_message_timing(dev, msg_code))
-		return -1;
+	/*
+	 * Set the transmission start after the initial message is build,
+	 * so the elapsed time is 0 in the initial message we transmit.
+	 */
+	ni_timer_get_time(&dev->retrans.start);
 
 #if 0
 	/*
@@ -2497,10 +2493,9 @@ ni_dhcp6_option_parse_ia_na(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_na_list, const 
 	if (ni_dhcp6_option_get32(bp, &ia->rebind_time) < 0)
 		goto failure;
 
-	ni_debug_dhcp("%s: iaid=%u, T1=%u, T2=%u [acquired at %s]",
+	ni_debug_dhcp("%s: iaid=%u, T1=%u, T2=%u",
 		ni_dhcp6_option_name(ia->type), ia->iaid,
-		ia->renewal_time, ia->rebind_time,
-		ni_dhcp6_print_timeval(&ia->acquired));
+		ia->renewal_time, ia->rebind_time);
 
 	if (__ni_dhcp6_option_parse_ia_options(bp, ia) < 0)
 		goto failure;
@@ -2544,9 +2539,8 @@ ni_dhcp6_option_parse_ia_ta(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_ta_list, const 
 	if (ni_dhcp6_option_get32(bp, &ia->iaid) < 0)
 		goto failure;
 
-	ni_debug_dhcp("%s: iaid=%u [acquired at %s]",
-		ni_dhcp6_option_name(ia->type), ia->iaid,
-		ni_dhcp6_print_timeval(&ia->acquired));
+	ni_debug_dhcp("%s: iaid=%u",
+		ni_dhcp6_option_name(ia->type), ia->iaid);
 
 	if (__ni_dhcp6_option_parse_ia_options(bp, ia) < 0)
 		goto failure;
@@ -2578,10 +2572,9 @@ ni_dhcp6_option_parse_ia_pd(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_pd_list, const 
 	if (ni_dhcp6_option_get32(bp, &ia->rebind_time) < 0)
 		goto failure;
 
-	ni_debug_dhcp("%s: iaid=%u, T1=%u, T2=%u [acquired at %s]",
+	ni_debug_dhcp("%s: iaid=%u, T1=%u, T2=%u",
 		ni_dhcp6_option_name(ia->type), ia->iaid,
-		ia->renewal_time, ia->rebind_time,
-		ni_dhcp6_print_timeval(&ia->acquired));
+		ia->renewal_time, ia->rebind_time);
 
 	if (__ni_dhcp6_option_parse_ia_options(bp, ia) < 0)
 		goto failure;
@@ -2661,6 +2654,10 @@ ni_dhcp6_find_pinfo_prefixlen(const ni_dhcp6_device_t *dev, const ni_sockaddr_t 
 
 	pinfo = ni_dhcp6_device_ra_pinfo(dev, NULL);
 	for ( ; pinfo; pinfo = pinfo->next) {
+		/* asured on-link prefixes only */
+		if (!pinfo->on_link)
+			continue;
+
 		/* find highest matching prefix */
 		if (!ni_sockaddr_prefix_match(pinfo->length, &pinfo->prefix, addr))
 			continue;
@@ -2701,16 +2698,18 @@ ni_dhcp6_ia_copy_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_
 
 			ni_sockaddr_set_ipv6(&sadr, iadr->addr, 0);
 
-			plen = ni_dhcp6_find_pinfo_prefixlen(dev, &sadr);
-			if (plen >= 4 && plen <= 128) {
-				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-						"%s: using RA prefix info length %u",
-						dev->ifname, plen);
-			} else {
-				plen = 64;
-				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-						"%s: using default prefix length %u",
-						dev->ifname, plen);
+			if (!(plen = dev->config->address_len)) {
+				plen = ni_dhcp6_find_pinfo_prefixlen(dev, &sadr);
+				if (plen >= 4 && plen <= ni_af_address_prefixlen(AF_INET6)) {
+					ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+							"%s: using RA prefix info length %u",
+							dev->ifname, plen);
+				} else {
+					plen = ni_af_address_prefixlen(AF_INET6);
+					ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+							"%s: using default prefix length %u",
+							dev->ifname, plen);
+				}
 			}
 
 			ap = ni_address_new(AF_INET6, plen, &sadr, &lease->addrs);
@@ -3106,14 +3105,14 @@ ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, const struct in6_addr *send
 	case NI_DHCP6_REPLY:
 	case NI_DHCP6_ADVERTISE:
 		if (dev->dhcp6.xid == 0) {
-			ni_error("%s: ignoring unexpected %s message xid 0x%06x from %s",
+			ni_debug_dhcp("%s: ignoring unexpected %s message xid 0x%06x from %s",
 				dev->ifname,
 				ni_dhcp6_message_name(msg_type), msg_xid,
 				ni_dhcp6_address_print(sender));
 			return -1;
 		}
 		if (dev->dhcp6.xid != msg_xid) {
-			ni_error("%s: ignoring unexpected %s message xid 0x%06x (expecting 0x%06x) from %s",
+			ni_debug_dhcp("%s: ignoring unexpected %s message xid 0x%06x (expecting 0x%06x) from %s",
 				dev->ifname,
 				ni_dhcp6_message_name(msg_type),
 				msg_xid, dev->dhcp6.xid,
@@ -3133,7 +3132,7 @@ ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, const struct in6_addr *send
 	break;
 #endif
 	default:
-		ni_error("%s: ignoring unexpected %s message xid 0x%06x from %s",
+		ni_debug_dhcp("%s: ignoring unexpected %s message xid 0x%06x from %s",
 				dev->ifname,
 				ni_dhcp6_message_name(msg_type), msg_xid,
 				ni_dhcp6_address_print(sender));
@@ -3312,12 +3311,13 @@ ni_dhcp6_set_message_timing(ni_dhcp6_device_t *dev, unsigned int msg_type)
 		dev->retrans.params   = __dhcp6_msg_timings[msg_type].params;
 		dev->retrans.duration = __dhcp6_msg_timings[msg_type].duration;
 
-#if 0
+#if 1
 		/*
 		 * Note: MRD of 0 means unlimited in RFC, nretries 0 means no retries
 		 *	 (one transmit attempt only) and nretries < 0 means unlimited.
 		 */
-		ni_trace("%s TIMING: IDT(%us), IRT(%us), MRT(%us), MRC(%u), MRD(%us), RND(%.3fs)\n",
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_DHCP,
+			"%s TIMING: IDT(%us), IRT(%us), MRT(%us), MRC(%u), MRD(%us), RND(%.3fs)\n",
 			ni_dhcp6_message_name(msg_type),
 			dev->retrans.delay/1000,
 			dev->retrans.params.timeout/1000,

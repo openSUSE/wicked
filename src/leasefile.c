@@ -482,6 +482,7 @@ ni_addrconf_lease_opts_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t 
 static int
 __ni_addrconf_lease_info_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node)
 {
+	struct timeval acquired;
 	char buf[32] = { '\0' };
 
 	xml_node_new_element("family", node, ni_addrfamily_type_to_name(lease->family));
@@ -492,7 +493,8 @@ __ni_addrconf_lease_info_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *no
 		xml_node_new_element("uuid", node, ni_uuid_print(&lease->uuid));
 	xml_node_new_element("state", node, ni_addrconf_state_to_name(lease->state));
 
-	snprintf(buf, sizeof(buf), "%"PRId64, (int64_t)lease->acquired.tv_sec);
+	ni_time_timer_to_real(&lease->acquired, &acquired);
+	snprintf(buf, sizeof(buf), "%"PRId64, (int64_t)acquired.tv_sec);
 	xml_node_new_element("acquired", node, buf);
 
 	snprintf(buf, sizeof(buf), "0x%08x", lease->update);
@@ -616,6 +618,7 @@ __ni_addrconf_lease_info_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *
 	if (!lease || !node)
 		return -1;
 
+	ni_timer_get_time(&lease->acquired); /* pre-init */
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, "family")) {
 			if ((value = ni_addrfamily_name_to_type(child->cdata)) == -1)
@@ -645,13 +648,15 @@ __ni_addrconf_lease_info_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *
 			update = TRUE;
 		}
 		if (ni_string_eq(child->name, "acquired")) {
-			int64_t acquired;
+			struct timeval acquired;
+			int64_t sec;
 
-			if (ni_parse_int64(child->cdata, &acquired, 10))
+			if (ni_parse_int64(child->cdata, &sec, 10))
 				return -1;
 
-			lease->acquired.tv_sec = acquired;
-			lease->acquired.tv_usec = 0;
+			acquired.tv_sec = sec;
+			acquired.tv_usec = 0;
+			ni_time_real_to_timer(&acquired, &lease->acquired);
 		}
 	}
 	if (!update)

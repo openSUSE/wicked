@@ -697,14 +697,14 @@ __ni_dhcp4_build_msg_init_head(const ni_dhcp4_device_t *dev,
 
 	memset(message, 0, sizeof(*message));
 	message->op = DHCP4_BOOTREQUEST;
-	message->xid = dev->dhcp4.xid;
+	message->xid = htonl(dev->dhcp4.xid);
 	message->secs = htons(ni_dhcp4_device_uptime(dev, 0xFFFF));
 	message->cookie = htonl(MAGIC_COOKIE);
 	message->hwtype = dev->system.hwaddr.type;
 
 	ni_dhcp4_option_put8(msgbuf, DHCP4_MESSAGETYPE, msg_code);
 	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-			"%s: xid: %x, secs: %u", dev->ifname,
+			"%s: xid: 0x%x, secs: %u", dev->ifname,
 			ntohl(message->xid), ntohs(message->secs));
 	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
 			"%s: using message type: %s", dev->ifname,

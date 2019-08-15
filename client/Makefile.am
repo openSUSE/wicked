@@ -75,6 +75,7 @@ noinst_HEADERS			= \
 	ifstatus.h		\
 	main.h			\
 	reachable.h		\
+	read-config.h		\
 	wicked-client.h
 
 install-data-local:

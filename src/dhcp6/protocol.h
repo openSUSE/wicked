@@ -272,7 +272,6 @@ extern int		ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **, const ni_dhcp6_ia_t *, ni_bo
 extern unsigned int	ni_dhcp6_ia_copy_to_lease_addrs(const ni_dhcp6_device_t *, ni_addrconf_lease_t *);
 
 extern const char *	ni_dhcp6_print_timeval(const struct timeval *);
-extern const char *	ni_dhcp6_print_time(time_t);
 
 extern const char *	ni_dhcp6_address_print(const struct in6_addr *);
 

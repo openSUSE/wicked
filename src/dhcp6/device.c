@@ -727,8 +727,8 @@ ni_dhcp6_device_retransmit_disarm(ni_dhcp6_device_t *dev)
 	ni_timer_get_time(&now);
 
 	if (dev->dhcp6.xid || dev->retrans.params.timeout) {
-		ni_debug_dhcp("%s: disarming retransmission at %s",
-				dev->ifname, ni_dhcp6_print_timeval(&now));
+		ni_debug_dhcp("%s: disarming xid 0x%06x retransmission",
+				dev->ifname, dev->dhcp6.xid);
 	}
 
 	dev->dhcp6.xid = 0;
@@ -767,16 +767,15 @@ ni_dhcp6_device_retransmit_advance(ni_dhcp6_device_t *dev)
 				&dev->retrans.deadline,
 				&dev->retrans.params);
 
-		ni_debug_dhcp("%s: increased retransmission timeout from %u to %u [%d .. %d]: %s",
-				dev->ifname, old_timeout,
+		ni_debug_dhcp("%s: advanced xid 0x%06x retransmission timeout from %u to %u [%d .. %d]",
+				dev->ifname, dev->dhcp6.xid, old_timeout,
 				dev->retrans.params.timeout,
 				dev->retrans.params.jitter.min,
-				dev->retrans.params.jitter.max,
-				ni_dhcp6_print_timeval(&dev->retrans.deadline));
+				dev->retrans.params.jitter.max);
 
 		return TRUE;
 	}
-	ni_debug_dhcp("%s: retransmission limit reached", dev->ifname);
+	ni_debug_dhcp("%s: xid 0x%06x retransmission limit reached", dev->ifname, dev->dhcp6.xid);
 	return FALSE;
 }
 
@@ -794,8 +793,8 @@ ni_dhcp6_device_retransmit(ni_dhcp6_device_t *dev)
 	if ((rv = ni_dhcp6_fsm_retransmit(dev)) < 0)
 		return rv;
 
-	ni_debug_dhcp("%s: retransmitted, next deadline at %s", dev->ifname,
-			ni_dhcp6_print_timeval(&dev->retrans.deadline));
+	ni_debug_dhcp("%s: xid 0x%06x retransmitted, next deadline in %s", dev->ifname,
+			dev->dhcp6.xid, ni_dhcp6_print_timeval(&dev->retrans.deadline));
 	return 0;
 }
 
@@ -891,6 +890,9 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 		config->update &= ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET6);
 	}
 	config->dry_run	= req->dry_run;
+
+	if (req->address_len <= ni_af_address_prefixlen(AF_INET6))
+		config->address_len = req->address_len;
 
 	ni_timer_get_time(&dev->start_time);
 	config->start_delay	= __nondefault(req->start_delay,
@@ -1254,10 +1256,9 @@ ni_dhcp6_device_transmit(ni_dhcp6_device_t *dev)
 		ni_timer_get_time(&now);
 		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_DHCP,
 				"%s: %s message #%u, xid 0x%x sent with %zd of %zu"
-				" byte to %s at %s",
+				" byte to %s",
 				dev->ifname, name, dev->retrans.count, xid, rv, cnt,
-				ni_sockaddr_print(&dev->mcast.dest),
-				ni_dhcp6_print_timeval(&now));
+				ni_sockaddr_print(&dev->mcast.dest));
 
 		ni_buffer_clear(&dev->message);
 		return 0;

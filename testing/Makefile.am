@@ -34,6 +34,7 @@ xpath_test_SOURCES		= xpath-test.c
 essid_test_SOURCES		= essid-test.c
 cstate_test_SOURCES		= cstate-test.c
 
-EXTRA_DIST			= ibft xpath
+EXTRA_DIST			= ibft xpath \
+				  scripts/ifbind.sh
 
 # vim: ai
