@@ -142,7 +142,7 @@ ni_dhcp6_tester_parse_pd_req(ni_dhcp6_request_t *req, const xml_node_t *prefix)
 	if (!(pr = ni_dhcp6_prefix_req_new()))
 		return FALSE;
 
-	if (!(hint = ni_dhcp6_ia_addr_new(addr.six.sin6_addr, plen))) {
+	if (!(hint = ni_dhcp6_ia_prefix_new(addr.six.sin6_addr, plen))) {
 		ni_dhcp6_prefix_req_free(pr);
 		return FALSE;
 	}

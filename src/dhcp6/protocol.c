@@ -921,6 +921,33 @@ ni_dhcp6_option_get_ipv6(ni_buffer_t *bp, struct in6_addr *addr)
 }
 
 static int
+ni_dhcp6_option_get_ia_pd_exclude(ni_buffer_t *bp, ni_dhcp6_ia_addr_t *iadr)
+{
+	uint16_t len, off, bits, n;
+	struct in6_addr temp;
+
+	if (ni_dhcp6_option_get8(bp, &iadr->excl->plen) < 0)
+		return -1;
+
+	if (iadr->plen >= iadr->excl->plen ||
+	    iadr->excl->plen > ni_af_address_prefixlen(AF_INET6))
+		return -1;
+
+	bits = iadr->excl->plen - iadr->plen - 1;
+	off  = iadr->plen / 8;
+	len  = (bits / 8) + 1;
+
+	if (ni_buffer_get(bp, &temp, len) < 0)
+		return -1;
+
+	memcpy(&iadr->excl->addr, &iadr->addr, off);
+	for (n = 0; n < len; ++n)
+		iadr->excl->addr.s6_addr[off+n] = temp.s6_addr[n];
+
+	return 0;
+}
+
+static int
 ni_dhcp6_option_get_sockaddr(ni_buffer_t *bp, ni_sockaddr_t *addr, unsigned int family)
 {
 	int rv = -1;
@@ -1215,7 +1242,7 @@ __ni_dhcp6_build_ia_addr(unsigned int msg_type, const ni_dhcp6_ia_addr_t *iadr)
 	break;
 	}
 
-	iadr_new = ni_dhcp6_ia_addr_new(iadr->addr, iadr->plen);
+	iadr_new = ni_dhcp6_ia_addr_new(iadr->type, iadr->addr, iadr->plen);
 	switch (msg_type) {
 	case NI_DHCP6_CONFIRM:
 		iadr_new->preferred_lft = 0;
@@ -2218,6 +2245,8 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_t *ia, uint16_t ad
 	iadr = xcalloc(1, sizeof(*iadr));
 
 	if (ia->type == NI_DHCP6_OPTION_IA_PD) {
+		iadr->type = addr_type; /* ia-prefix or pd-exclude */
+
 		if (ni_dhcp6_option_get32(bp, &iadr->preferred_lft) < 0)
 			goto failure;
 
@@ -2237,6 +2266,8 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_t *ia, uint16_t ad
 			ni_dhcp6_address_print(&iadr->addr), iadr->plen,
 			iadr->preferred_lft, iadr->valid_lft);
 	} else {
+		iadr->type = addr_type; /* ia-address */
+
 		if (ni_dhcp6_option_get_ipv6(bp, &iadr->addr) < 0)
 			goto failure;
 
@@ -2251,6 +2282,40 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_t *ia, uint16_t ad
 			ni_dhcp6_option_name(addr_type),
 			ni_dhcp6_address_print(&iadr->addr),
 			iadr->preferred_lft, iadr->valid_lft);
+	}
+
+	/*
+	 * Nonsense prefix-length sanity check.
+	 */
+	if (ia->type == NI_DHCP6_OPTION_IA_PD &&
+	    (iadr->plen < 4 || iadr->plen > ni_af_address_prefixlen(AF_INET6))) {
+		ni_debug_dhcp("%s.%s: discarding due to invalid prefix length: %u",
+				ni_dhcp6_option_name(ia->type),
+				ni_dhcp6_option_name(addr_type),
+				(unsigned int)iadr->plen);
+		/* DISCARD */
+		ni_dhcp6_ia_addr_free(iadr);
+		return 1;
+	}
+
+	/* rfc3315#section-22.6:
+	 *   A client discards any addresses for which the preferred
+	 *   lifetime is greater than the valid lifetime.
+	 *
+	 * rfc3633#section-10:
+	 *   A requesting router discards any prefixes for which the
+	 *   preferred lifetime is greater than the valid lifetime.
+	 *
+	 */
+	if (iadr->preferred_lft > iadr->valid_lft) {
+		ni_debug_dhcp("%s.%s: discarding due to invalid lifetimes:"
+				" preferred %u, valid %u",
+				ni_dhcp6_option_name(ia->type),
+				ni_dhcp6_option_name(addr_type),
+				iadr->preferred_lft, iadr->valid_lft);
+		/* DISCARD */
+		ni_dhcp6_ia_addr_free(iadr);
+		return 1;
 	}
 
 	while( ni_buffer_count(bp) && !bp->underflow) {
@@ -2297,7 +2362,14 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_t *ia, uint16_t ad
 				}
 			}
 		break;
-
+		case NI_DHCP6_OPTION_PD_EXCLUDE:
+			if (iadr->type != NI_DHCP6_OPTION_IA_PREFIX || iadr->excl)
+				goto failure;
+			if (!(iadr->excl = ni_dhcp6_ia_pd_excl_new(in6addr_any, 0)))
+				goto failure;
+			if (!ni_dhcp6_option_get_ia_pd_exclude(&optbuf, iadr))
+				goto failure;
+			break;
 		default:
 			ni_debug_dhcp("%s.%s: option %s ignored",
 				ni_dhcp6_option_name(ia->type),
@@ -2322,44 +2394,6 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_t *ia, uint16_t ad
 				ni_buffer_count(&optbuf));
 			/* goto failure; */
 		}
-	}
-
-	/* TODO:
-	 * - should parse & check separately?
-	 * - also discard nonsense address/prefixes
-	 */
-
-	/*
-	 * Nonsense prefix-length sanity check.
-	 */
-	if (ia->type == NI_DHCP6_OPTION_IA_PD && (iadr->plen < 4 || iadr->plen > 128)) {
-		ni_debug_dhcp("%s.%s: discarding due to invalid prefix length: %u",
-				ni_dhcp6_option_name(ia->type),
-				ni_dhcp6_option_name(addr_type),
-				(unsigned int)iadr->plen);
-		/* DISCARD */
-		ni_dhcp6_ia_addr_free(iadr);
-		return 1;
-	}
-
-	/* rfc3315#section-22.6:
-	 *   A client discards any addresses for which the preferred
-	 *   lifetime is greater than the valid lifetime.
-	 *
-	 * rfc3633#section-10:
-	 *   A requesting router discards any prefixes for which the
-	 *   preferred lifetime is greater than the valid lifetime.
-	 *
-	 */
-	if (iadr->preferred_lft > iadr->valid_lft) {
-		ni_debug_dhcp("%s.%s: discarding due to invalid lifetimes:"
-				" preferred %u, valid %u",
-				ni_dhcp6_option_name(ia->type),
-				ni_dhcp6_option_name(addr_type),
-				iadr->preferred_lft, iadr->valid_lft);
-		/* DISCARD */
-		ni_dhcp6_ia_addr_free(iadr);
-		return 1;
 	}
 
 	ni_dhcp6_ia_addr_list_append(&ia->addrs, iadr);

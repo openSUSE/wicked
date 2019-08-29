@@ -102,6 +102,12 @@ __ni_dhcp6_lease_ia_addr_to_xml(const ni_dhcp6_ia_addr_t *iadr, uint16_t type,
 		ni_string_printf(&tmp, "%s/%u", ni_sockaddr_print(&addr), iadr->plen);
 		xml_node_new_element("prefix",  node, tmp);
 		ni_string_free(&tmp);
+		if (iadr->excl && (iadr->excl->plen > iadr->plen)) {
+			ni_sockaddr_set_ipv6(&addr, iadr->excl->addr, 0);
+			ni_string_printf(&tmp, "%s/%u", ni_sockaddr_print(&addr), iadr->excl->plen);
+			xml_node_new_element("exclude",  node, tmp);
+			ni_string_free(&tmp);
+		}
 		break;
 
 	default:
@@ -354,6 +360,12 @@ __ni_dhcp6_lease_ia_addr_from_xml(ni_dhcp6_ia_addr_t *iadr, unsigned int type,
 		if (ni_string_eq(child->name, "status")) {
 			if (__ni_dhcp6_lease_status_from_xml(&iadr->status, child) < 0)
 				return -1;
+		} else
+		if (type == NI_DHCP6_OPTION_IA_PD && ni_string_eq(child->name, "exclude")) {
+			if (iadr->excl || !ni_sockaddr_prefix_parse(child->cdata, &addr, &value) ||
+					value == 0 || value > 128 || addr.ss_family != AF_INET6)
+				return -1;
+			iadr->excl = ni_dhcp6_ia_pd_excl_new(addr.six.sin6_addr, value);
 		}
 	}
 
@@ -406,7 +418,10 @@ __ni_dhcp6_lease_ia_data_from_xml(ni_dhcp6_ia_t *ia, const xml_node_t *node)
 				return -1;
 		} else
 		if (ni_string_eq(child->name, iadr_name)) {
-			iadr = ni_dhcp6_ia_addr_new(in6addr_any, 0);
+			if (ia->type == NI_DHCP6_OPTION_IA_PD)
+				iadr = ni_dhcp6_ia_prefix_new(in6addr_any, 0);
+			else
+				iadr = ni_dhcp6_ia_address_new(in6addr_any, 0);
 			ret = __ni_dhcp6_lease_ia_addr_from_xml(iadr, ia->type, child);
 			if (ret) {
 				ni_dhcp6_ia_addr_free(iadr);

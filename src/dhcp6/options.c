@@ -97,21 +97,63 @@ ni_dhcp6_status_destroy(ni_dhcp6_status_t **status)
 	}
 }
 
-
 /*
- * ia address
+ * ia addr
  */
-ni_dhcp6_ia_addr_t *
-ni_dhcp6_ia_addr_new(const struct in6_addr addr, unsigned int plen)
+extern ni_dhcp6_ia_addr_t *
+ni_dhcp6_ia_addr_new(unsigned int type, const struct in6_addr addr, unsigned int plen)
 {
 	ni_dhcp6_ia_addr_t *iadr;
 
 	iadr = calloc(1, sizeof(*iadr));
 	if (iadr) {
+		iadr->type = type;
 		iadr->addr = addr;
 		iadr->plen = plen;
 	}
 	return iadr;
+}
+
+/*
+ * ia-address
+ */
+ni_dhcp6_ia_addr_t *
+ni_dhcp6_ia_address_new(const struct in6_addr addr, unsigned int plen)
+{
+	return ni_dhcp6_ia_addr_new(NI_DHCP6_OPTION_IA_ADDRESS, addr, plen);
+}
+/*
+ * ia-prefix
+ */
+ni_dhcp6_ia_addr_t *
+ni_dhcp6_ia_prefix_new(const struct in6_addr addr, unsigned int plen)
+{
+	return ni_dhcp6_ia_addr_new(NI_DHCP6_OPTION_IA_PREFIX, addr, plen);
+}
+
+/*
+ * ia-prefix pd-exclude
+ */
+ni_dhcp6_ia_pd_excl_t *
+ni_dhcp6_ia_pd_excl_new(const struct in6_addr addr, unsigned int plen)
+{
+	ni_dhcp6_ia_pd_excl_t *excl;
+
+	excl = calloc(1, sizeof(*excl));
+	if (excl) {
+		excl->addr = addr;
+		excl->plen = plen;
+	}
+	return excl;
+}
+
+void
+ni_dhcp6_ia_pd_excl_free(ni_dhcp6_ia_pd_excl_t **excl)
+{
+	if (excl && *excl) {
+		free(*excl);
+		*excl = NULL;
+	}
 }
 
 ni_dhcp6_ia_addr_t *
@@ -119,8 +161,11 @@ ni_dhcp6_ia_addr_clone(const ni_dhcp6_ia_addr_t *iadr, ni_bool_t clean)
 {
 	ni_dhcp6_ia_addr_t *nadr;
 
-	if (!iadr || !(nadr = ni_dhcp6_ia_addr_new(iadr->addr, iadr->plen)))
+	if (!iadr || !(nadr = ni_dhcp6_ia_addr_new(iadr->type, iadr->addr, iadr->plen)))
 		return NULL;
+
+	if (iadr->excl && !(nadr->excl = ni_dhcp6_ia_pd_excl_new(iadr->excl->addr, iadr->excl->plen)))
+		goto failure;
 
 	if (!clean) {
 		nadr->flags = iadr->flags;
@@ -143,6 +188,7 @@ ni_dhcp6_ia_addr_free(ni_dhcp6_ia_addr_t *iadr)
 {
 	if (iadr) {
 		ni_dhcp6_status_clear(&iadr->status);
+		ni_dhcp6_ia_pd_excl_free(&iadr->excl);
 		free(iadr);
 	}
 }

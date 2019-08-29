@@ -34,15 +34,22 @@ struct ni_dhcp6_status {
 	char *			message;
 };
 
+typedef struct ni_dhcp6_ia_pd_excl {
+	struct in6_addr		addr;
+	uint8_t			plen;
+} ni_dhcp6_ia_pd_excl_t;
+
 struct ni_dhcp6_ia_addr {
 	ni_dhcp6_ia_addr_t *	next;
 	unsigned int		flags;
 
+	uint16_t		type;
 	struct in6_addr		addr;
 	uint8_t			plen;
 	uint32_t		preferred_lft;
 	uint32_t		valid_lft;
 	ni_dhcp6_status_t	status;
+	ni_dhcp6_ia_pd_excl_t * excl;
 };
 
 struct ni_dhcp6_ia {
@@ -179,8 +186,13 @@ extern const char *		ni_dhcp6_status_message(const ni_dhcp6_status_t *);
 
 extern const char *		ni_dhcp6_option_name(unsigned int);
 
+extern ni_dhcp6_ia_pd_excl_t *	ni_dhcp6_ia_pd_excl_new(const struct in6_addr, unsigned int);
+extern void			ni_dhcp6_ia_pd_excl_free(ni_dhcp6_ia_pd_excl_t **);
 
-extern ni_dhcp6_ia_addr_t *	ni_dhcp6_ia_addr_new(const struct in6_addr,
+extern ni_dhcp6_ia_addr_t *	ni_dhcp6_ia_prefix_new (const struct in6_addr, unsigned int);
+extern ni_dhcp6_ia_addr_t *	ni_dhcp6_ia_address_new(const struct in6_addr, unsigned int);
+
+extern ni_dhcp6_ia_addr_t *	ni_dhcp6_ia_addr_new(unsigned int, const struct in6_addr,
 							unsigned int);
 extern ni_dhcp6_ia_addr_t *	ni_dhcp6_ia_addr_clone(const ni_dhcp6_ia_addr_t *, ni_bool_t);
 extern void			ni_dhcp6_ia_addr_free(ni_dhcp6_ia_addr_t *);

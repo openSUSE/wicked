@@ -442,7 +442,7 @@ ni_objectmodel_dhcp6_request_set_prefix(ni_dbus_object_t *object,
 		if (!(pr = ni_dhcp6_prefix_req_new()))
 			return FALSE;
 
-		if (!(hint = ni_dhcp6_ia_addr_new(addr.six.sin6_addr, plen))) {
+		if (!(hint = ni_dhcp6_ia_prefix_new(addr.six.sin6_addr, plen))) {
 			ni_dhcp6_prefix_req_free(pr);
 			return FALSE;
 		}
