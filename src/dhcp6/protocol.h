@@ -181,19 +181,6 @@ typedef union ni_dhcp6_packet_header {
 } ni_dhcp6_packet_header_t;
 
 /*
-typedef struct ni_dhcp6_option {
-	uint16_t			code;
-	uint16_t			len;
-	unsigned char			data[];
-} ni_dhcp6_option_t;
-
-typedef struct ni_dhcp6_option_array {
-	unsigned int			count;
-	ni_dhcp6_option_t *		data;
-} ni_dhcp6_option_array_t;
-*/
-
-/*
  * Option request option code array
  */
 typedef struct ni_dhcp6_option_request {
@@ -203,6 +190,17 @@ typedef struct ni_dhcp6_option_request {
 
 #define NI_DHCP6_OPTION_REQUEST_INIT	{ .count = 0, .options = NULL }
 
+/*
+ * Structure we parse messages into
+ */
+typedef struct ni_dhcp6_message {
+	unsigned int			type;
+	unsigned int			xid;
+
+	ni_bool_t			request;
+	struct in6_addr			sender;
+	ni_addrconf_lease_t *		lease;
+} ni_dhcp6_message_t;
 
 /*
  * DHCPv6 specific FQDN option bits/flags
@@ -237,14 +235,10 @@ extern ni_int_range_t	ni_dhcp6_jitter_rebase(unsigned int msec, int lower, int u
 extern ni_bool_t	ni_dhcp6_set_message_timing(ni_dhcp6_device_t *dev, unsigned int msg_type);
 
 
-extern int		ni_dhcp6_parse_client_header(ni_buffer_t *msgbuf,
-							unsigned int *msg_type, unsigned int *msg_xid);
-
-extern int		ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer,
-							ni_addrconf_lease_t *lease);
-
-extern int		ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, const struct in6_addr *sender,
-							unsigned int msg_type, unsigned int msg_xid);
+extern int		ni_dhcp6_parse_client_header(ni_dhcp6_message_t *msg, ni_buffer_t *msgbuf);
+extern int		ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg);
+extern int		ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg,
+							ni_buffer_t *optbuf);
 
 extern int		ni_dhcp6_mcast_socket_open(ni_dhcp6_device_t *);
 extern void		ni_dhcp6_mcast_socket_close(ni_dhcp6_device_t *);

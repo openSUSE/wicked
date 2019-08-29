@@ -37,14 +37,6 @@
 #include "duid.h"
 
 
-struct ni_dhcp6_message {
-	struct in6_addr		sender;
-	unsigned int		type;
-	unsigned int		xid;
-
-	ni_addrconf_lease_t *	lease;
-};
-
 static void			ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *);
 static void			ni_dhcp6_fsm_fail_timeout(ni_dhcp6_device_t *);
 static void             	__ni_dhcp6_fsm_timeout(void *, const ni_timer_t *);
@@ -73,7 +65,7 @@ static unsigned int		ni_dhcp6_fsm_mark_rebind_ia(ni_dhcp6_device_t *);
 
 static void			ni_dhcp6_send_event(enum ni_dhcp6_event, const ni_dhcp6_device_t *, ni_addrconf_lease_t *);
 
-static int			__fsm_parse_client_options(ni_dhcp6_device_t *, struct ni_dhcp6_message *, ni_buffer_t *);
+static int			ni_dhcp6_fsm_parse_client_options(ni_dhcp6_device_t *, ni_dhcp6_message_t *, ni_buffer_t *);
 
 
 
@@ -515,7 +507,7 @@ __fsm_select_best_offer(const ni_dhcp6_device_t *dev, const ni_addrconf_lease_t 
 }
 
 static int
-__fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
+ni_dhcp6_fsm_select_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, ni_buffer_t *optbuf, char **hint)
 {
 	unsigned int count;
 	int weight = 0;
@@ -524,7 +516,7 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 
 	switch (msg->type) {
 	case NI_DHCP6_ADVERTISE:
-		if (__fsm_parse_client_options(dev, msg, opts) < 0)
+		if (ni_dhcp6_fsm_parse_client_options(dev, msg, optbuf) < 0)
 			return -1;
 
 
@@ -614,7 +606,7 @@ __fsm_select_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, n
 	break;
 
 	case NI_DHCP6_REPLY:
-		if (__fsm_parse_client_options(dev, msg, opts) < 0)
+		if (ni_dhcp6_fsm_parse_client_options(dev, msg, optbuf) < 0)
 			return -1;
 
 		if (!msg->lease->dhcp6.rapid_commit) {
@@ -711,13 +703,13 @@ cleanup:
 }
 
 static int
-__fsm_request_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
+ni_dhcp6_fsm_request_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, ni_buffer_t *optbuf, char **hint)
 {
 	int rv = 1;
 
 	switch (msg->type) {
 	case NI_DHCP6_REPLY:
-		if (__fsm_parse_client_options(dev, msg, opts) < 0)
+		if (ni_dhcp6_fsm_parse_client_options(dev, msg, optbuf) < 0)
 			return -1;
 
 		if (!dev->best_offer.lease) {
@@ -781,7 +773,7 @@ cleanup:
 }
 
 static const ni_dhcp6_ia_addr_t *
-ni_fsm_confirm_process_find_ia_addrs_status(const ni_dhcp6_ia_addr_t *addrs, unsigned int status)
+ni_dhcp6_fsm_confirm_process_find_ia_addrs_status(const ni_dhcp6_ia_addr_t *addrs, unsigned int status)
 {
 	const ni_dhcp6_ia_addr_t *iaddr;
 
@@ -793,13 +785,13 @@ ni_fsm_confirm_process_find_ia_addrs_status(const ni_dhcp6_ia_addr_t *addrs, uns
 }
 
 static const ni_dhcp6_ia_t *
-ni_fsm_confirm_process_find_ia_status(const ni_dhcp6_ia_t *ia_list, unsigned int status,
+ni_dhcp6_fsm_confirm_process_find_ia_status(const ni_dhcp6_ia_t *ia_list, unsigned int status,
 					const ni_dhcp6_ia_addr_t **iaddr)
 {
 	const ni_dhcp6_ia_t *ia;
 
 	for (ia = ia_list; ia; ia = ia->next) {
-		if ((*iaddr = ni_fsm_confirm_process_find_ia_addrs_status(ia->addrs, status)))
+		if ((*iaddr = ni_dhcp6_fsm_confirm_process_find_ia_addrs_status(ia->addrs, status)))
 			return ia;
 		else if (ni_dhcp6_status_code(&ia->status) == status)
 			return ia;
@@ -808,14 +800,14 @@ ni_fsm_confirm_process_find_ia_status(const ni_dhcp6_ia_t *ia_list, unsigned int
 }
 
 static int
-ni_fsm_confirm_process_reply_status(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *lease, char **hint)
+ni_dhcp6_fsm_confirm_process_reply_status(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *lease, char **hint)
 {
 	const ni_dhcp6_ia_addr_t *iaddr = NULL;
 	const ni_dhcp6_status_t *status;
 	const ni_dhcp6_ia_t *ia;
 	const char *message;
 
-	if ((ia = ni_fsm_confirm_process_find_ia_status(lease->dhcp6.ia_list, NI_DHCP6_STATUS_NOTONLINK, &iaddr))) {
+	if ((ia = ni_dhcp6_fsm_confirm_process_find_ia_status(lease->dhcp6.ia_list, NI_DHCP6_STATUS_NOTONLINK, &iaddr))) {
 		status = iaddr ? &iaddr->status : &ia->status;
 		message = ni_dhcp6_status_message(status);
 
@@ -832,7 +824,7 @@ ni_fsm_confirm_process_reply_status(ni_dhcp6_device_t *dev, const ni_addrconf_le
 		return NI_DHCP6_STATUS_NOTONLINK;
 	}
 
-	if (ni_fsm_confirm_process_find_ia_status(lease->dhcp6.ia_list, NI_DHCP6_STATUS_FAILURE, &iaddr)) {
+	if (ni_dhcp6_fsm_confirm_process_find_ia_status(lease->dhcp6.ia_list, NI_DHCP6_STATUS_FAILURE, &iaddr)) {
 		status = iaddr ? &iaddr->status : &ia->status;
 		message = ni_dhcp6_status_message(status);
 
@@ -848,7 +840,7 @@ ni_fsm_confirm_process_reply_status(ni_dhcp6_device_t *dev, const ni_addrconf_le
 		return NI_DHCP6_STATUS_FAILURE;
 	}
 
-	if (ni_fsm_confirm_process_find_ia_status(lease->dhcp6.ia_list, NI_DHCP6_STATUS_SUCCESS, &iaddr)) {
+	if (ni_dhcp6_fsm_confirm_process_find_ia_status(lease->dhcp6.ia_list, NI_DHCP6_STATUS_SUCCESS, &iaddr)) {
 		status = iaddr ? &iaddr->status : &ia->status;
 		message = ni_dhcp6_status_message(status);
 
@@ -873,13 +865,13 @@ ni_fsm_confirm_process_reply_status(ni_dhcp6_device_t *dev, const ni_addrconf_le
 }
 
 static int
-__fsm_confirm_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
+ni_dhcp6_fsm_confirm_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, ni_buffer_t *optbuf, char **hint)
 {
 	int rv = 1;
 
 	switch (msg->type) {
 	case NI_DHCP6_REPLY:
-		if (__fsm_parse_client_options(dev, msg, opts) < 0)
+		if (ni_dhcp6_fsm_parse_client_options(dev, msg, optbuf) < 0)
 			return -1;
 		/*
 		 * http://tools.ietf.org/html/rfc3315#section-18.1.8
@@ -903,7 +895,7 @@ __fsm_confirm_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 			goto cleanup;
 		}
 
-		switch (ni_fsm_confirm_process_reply_status(dev, msg->lease, hint)) {
+		switch (ni_dhcp6_fsm_confirm_process_reply_status(dev, msg->lease, hint)) {
 		case NI_DHCP6_STATUS_NOTONLINK:
 			/* NotOnLink: confirmation that link changed ==>> re-solicit  */
 			ni_dhcp6_fsm_reset(dev);
@@ -942,13 +934,13 @@ cleanup:
 }
 
 static int
-__fsm_renew_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
+ni_dhcp6_fsm_renew_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, ni_buffer_t *optbuf, char **hint)
 {
 	int rv = 1;
 
 	switch (msg->type) {
 	case NI_DHCP6_REPLY:
-		if (__fsm_parse_client_options(dev, msg, opts) < 0)
+		if (ni_dhcp6_fsm_parse_client_options(dev, msg, optbuf) < 0)
 			return -1;
 
 		if (!dev->lease) {
@@ -999,13 +991,13 @@ cleanup:
 
 
 static int
-__fsm_rebind_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
+ni_dhcp6_fsm_rebind_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, ni_buffer_t *optbuf, char **hint)
 {
 	int rv = 1;
 
 	switch (msg->type) {
 	case NI_DHCP6_REPLY:
-		if (__fsm_parse_client_options(dev, msg, opts) < 0)
+		if (ni_dhcp6_fsm_parse_client_options(dev, msg, optbuf) < 0)
 			return -1;
 
 		if (!dev->lease) {
@@ -1094,7 +1086,7 @@ cleanup:
 
 
 static int
-__fsm_decline_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
+ni_dhcp6_fsm_decline_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, ni_buffer_t *optbuf, char **hint)
 {
 	ni_dhcp6_ia_addr_t *iadr, *next;
 	ni_dhcp6_ia_t *ia;
@@ -1104,7 +1096,7 @@ __fsm_decline_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 
 	switch (msg->type) {
 	case NI_DHCP6_REPLY:
-		if (__fsm_parse_client_options(dev, msg, opts) < 0)
+		if (ni_dhcp6_fsm_parse_client_options(dev, msg, optbuf) < 0)
 			return -1;
 
 		if (!dev->lease) {
@@ -1199,13 +1191,13 @@ cleanup:
 }
 
 static int
-__fsm_release_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
+ni_dhcp6_fsm_release_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, ni_buffer_t *optbuf, char **hint)
 {
 	int rv = 1;
 
 	switch (msg->type) {
 	case NI_DHCP6_REPLY:
-		if (__fsm_parse_client_options(dev, msg, opts) < 0)
+		if (ni_dhcp6_fsm_parse_client_options(dev, msg, optbuf) < 0)
 			return -1;
 
 		if (!dev->lease) {
@@ -1260,7 +1252,7 @@ cleanup:
 }
 
 static int
-__fsm_inforeq_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts, char **hint)
+ni_dhcp6_fsm_inforeq_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, ni_buffer_t *optbuf, char **hint)
 {
 	int weight = 0;
 	int pref = 0;
@@ -1268,7 +1260,7 @@ __fsm_inforeq_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 
 	switch (msg->type) {
 	case NI_DHCP6_REPLY:
-		if (__fsm_parse_client_options(dev, msg, opts) < 0)
+		if (ni_dhcp6_fsm_parse_client_options(dev, msg, optbuf) < 0)
 			return -1;
 
 		if (msg->lease->dhcp6.status && msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
@@ -1343,11 +1335,14 @@ cleanup:
 }
 
 static int
-__fsm_parse_client_options(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, ni_buffer_t *opts)
+ni_dhcp6_fsm_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, ni_buffer_t *optbuf)
 {
 	ni_addrconf_lease_t *lease = NULL;
 
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_DHCP, AF_INET6);
+	if (!(msg->lease = lease))
+		return -1;
+
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
 	lease->type = NI_ADDRCONF_DHCP;
 	ni_timer_get_time(&lease->acquired);
@@ -1357,7 +1352,7 @@ __fsm_parse_client_options(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg,
 	/* set the server address in the lease */
 	memcpy(&lease->dhcp6.server_addr, &msg->sender, sizeof(lease->dhcp6.server_addr));
 
-	if (ni_dhcp6_parse_client_options(dev, opts, lease) < 0) {
+	if (ni_dhcp6_parse_client_options(dev, msg, optbuf) < 0) {
 		ni_error("%s: unable to parse options in %s message xid 0x%06x from %s",
 			dev->ifname, ni_dhcp6_message_name(msg->type),
 			msg->xid, ni_dhcp6_address_print(&msg->sender));
@@ -1383,7 +1378,6 @@ __fsm_parse_client_options(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg,
 		goto failure;
 	}
 
-	msg->lease = lease;
 	return 0;
 
 failure:
@@ -1392,51 +1386,44 @@ failure:
 }
 
 int
-ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, unsigned int msg_type, unsigned int msg_xid,
-					ni_buffer_t *options, const struct in6_addr *sender)
+ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, ni_buffer_t *optbuf)
 {
 	static unsigned int err_xid = 0;
 	static unsigned int err_cnt = 0;
 	char * hint = NULL;
-	struct ni_dhcp6_message msg;
 	int state = dev->fsm.state;
 	int rv = 1;
 
-	msg.sender = *sender;
-	msg.type = msg_type;
-	msg.xid = msg_xid;
-	msg.lease = NULL;
-
 	ni_debug_dhcp("%s: received %s message xid 0x%06x in state %s from %s",
-			dev->ifname, ni_dhcp6_message_name(msg.type), msg.xid,
+			dev->ifname, ni_dhcp6_message_name(msg->type), msg->xid,
 			ni_dhcp6_fsm_state_name(dev->fsm.state),
-			ni_dhcp6_address_print(&msg.sender));
+			ni_dhcp6_address_print(&msg->sender));
 
 	ni_string_printf(&hint, "unexpected");
 	switch (state) {
 	case NI_DHCP6_STATE_SELECTING:
-		rv = __fsm_select_process_msg(dev, &msg, options, &hint);
+		rv = ni_dhcp6_fsm_select_process_msg(dev, msg, optbuf, &hint);
 	break;
 	case NI_DHCP6_STATE_REQUESTING:
-		rv = __fsm_request_process_msg(dev, &msg, options, &hint);
+		rv = ni_dhcp6_fsm_request_process_msg(dev, msg, optbuf, &hint);
 	break;
 	case NI_DHCP6_STATE_CONFIRMING:
-		rv = __fsm_confirm_process_msg(dev, &msg, options, &hint);
+		rv = ni_dhcp6_fsm_confirm_process_msg(dev, msg, optbuf, &hint);
 	break;
 	case NI_DHCP6_STATE_RENEWING:
-		rv = __fsm_renew_process_msg(dev, &msg, options, &hint);
+		rv = ni_dhcp6_fsm_renew_process_msg(dev, msg, optbuf, &hint);
 	break;
 	case NI_DHCP6_STATE_REBINDING:
-		rv = __fsm_rebind_process_msg(dev, &msg, options, &hint);
+		rv = ni_dhcp6_fsm_rebind_process_msg(dev, msg, optbuf, &hint);
 	break;
 	case NI_DHCP6_STATE_DECLINING:
-		rv = __fsm_decline_process_msg(dev, &msg, options, &hint);
+		rv = ni_dhcp6_fsm_decline_process_msg(dev, msg, optbuf, &hint);
 	break;
 	case NI_DHCP6_STATE_RELEASING:
-		rv = __fsm_release_process_msg(dev, &msg, options, &hint);
+		rv = ni_dhcp6_fsm_release_process_msg(dev, msg, optbuf, &hint);
 	break;
 	case NI_DHCP6_STATE_REQUESTING_INFO:
-		rv = __fsm_inforeq_process_msg(dev, &msg, options, &hint);
+		rv = ni_dhcp6_fsm_inforeq_process_msg(dev, msg, optbuf, &hint);
 	break;
 
 	default:
@@ -1444,8 +1431,8 @@ ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, unsigned int msg_typ
 	}
 
 	if (rv > 0) {
-		if (err_xid != msg_xid) {
-			err_xid = msg_xid;
+		if (err_xid != msg->xid) {
+			err_xid = msg->xid;
 			err_cnt = 0;
 		} else {
 			err_cnt++;
@@ -1454,23 +1441,25 @@ ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, unsigned int msg_typ
 		if ((err_cnt % 5) == 0) {
 			ni_note("%s: ignoring %s message xid 0x%06x"
 					" in state %s from %s%s%s",
-				dev->ifname, ni_dhcp6_message_name(msg_type),
-				msg_xid, ni_dhcp6_fsm_state_name(state),
-				ni_dhcp6_address_print(sender),
+				dev->ifname, ni_dhcp6_message_name(msg->type),
+				msg->xid, ni_dhcp6_fsm_state_name(state),
+				ni_dhcp6_address_print(&msg->sender),
 				(hint ? ": " : ""), (hint ? hint : ""));
 		} else {
 			ni_debug_dhcp("%s: ignoring %s message xid 0x%06x"
 					" in state %s from %s%s%s",
-				dev->ifname, ni_dhcp6_message_name(msg_type),
-				msg_xid, ni_dhcp6_fsm_state_name(state),
-				ni_dhcp6_address_print(sender),
+				dev->ifname, ni_dhcp6_message_name(msg->type),
+				msg->xid, ni_dhcp6_fsm_state_name(state),
+				ni_dhcp6_address_print(&msg->sender),
 				(hint ? ": " : ""), (hint ? hint : ""));
 		}
 	}
 	ni_string_free(&hint);
 
-	if (msg.lease != NULL && msg.lease != dev->lease)
-		ni_addrconf_lease_free(msg.lease);
+	if (msg->lease != NULL && msg->lease != dev->lease) {
+		ni_addrconf_lease_free(msg->lease);
+		msg->lease = NULL;
+	}
 
 	return rv;
 }
