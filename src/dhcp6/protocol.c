@@ -1387,7 +1387,6 @@ __ni_dhcp6_build_solicit_opts(ni_dhcp6_device_t *dev,
 				const ni_addrconf_lease_t *lease)
 {
 	ni_dhcp6_option_request_t oro = NI_DHCP6_OPTION_REQUEST_INIT;
-	ni_dhcp6_ia_t *ia;
 
 	/* Inform servers if we accept a rapit commit */
 	if (dev->config->rapid_commit &&
@@ -1408,20 +1407,63 @@ __ni_dhcp6_build_solicit_opts(ni_dhcp6_device_t *dev,
 
 	/* TODO: user class, vendor class, vendor opts */
 
-	/* Init ia list if empty */
-	if (dev->config->ia_list == NULL) {
-		if (dev->iaid == 0 && !ni_dhcp6_device_iaid(dev, &dev->iaid))
-			goto cleanup;
+	/* Add IA's to the request either from hints in the config
+	 * or init new/empty IAs set depending on mode bits. */
+	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_MANAGED)) {
+		ni_bool_t add = TRUE;
+		ni_dhcp6_ia_t *ia;
 
-		ni_dhcp6_ia_t *ia = ni_dhcp6_ia_na_new(dev->iaid);
-		ni_dhcp6_ia_set_default_lifetimes(ia, dev->config->lease_time);
-		ni_dhcp6_ia_list_append(&dev->config->ia_list, ia);
+		for (ia = dev->config->ia_list; ia && add; ia = ia->next) {
+			if (!ni_dhcp6_ia_type_na(ia))
+				continue;
+
+			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
+				goto cleanup;
+
+			add = FALSE;
+		}
+
+		if (add) {
+			if (!dev->iaid && !ni_dhcp6_device_iaid(dev, &dev->iaid))
+				goto cleanup;
+
+			if (!(ia = ni_dhcp6_ia_na_new(dev->iaid)))
+				goto cleanup;
+
+			ni_dhcp6_ia_set_default_lifetimes(ia, dev->config->lease_time);
+			ni_dhcp6_ia_list_append(&dev->config->ia_list, ia);
+
+			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
+				goto cleanup;
+		}
 	}
-	/* Add the IAs to the message */
-	for (ia = dev->config->ia_list; ia; ia = ia->next) {
-		/* empty IAs are fine here */
-		if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
-			goto cleanup;
+	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_PREFIX)) {
+		ni_bool_t add = TRUE;
+		ni_dhcp6_ia_t *ia;
+
+		for (ia = dev->config->ia_list; ia && add; ia = ia->next) {
+			if (!ni_dhcp6_ia_type_pd(ia))
+				continue;
+
+			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
+				goto cleanup;
+
+			add = FALSE;
+		}
+
+		if (add) {
+			if (!dev->iaid && !ni_dhcp6_device_iaid(dev, &dev->iaid))
+				goto cleanup;
+
+			if (!(ia = ni_dhcp6_ia_pd_new(dev->iaid)))
+				goto cleanup;
+
+			ni_dhcp6_ia_set_default_lifetimes(ia, dev->config->lease_time);
+			ni_dhcp6_ia_list_append(&dev->config->ia_list, ia);
+
+			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
+				goto cleanup;
+		}
 	}
 
 	return 0;
