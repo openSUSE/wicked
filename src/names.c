@@ -394,25 +394,98 @@ ni_addrfamily_type_to_name(unsigned int type)
 /*
  * Map DHCP6 configuration modes
  */
-static const ni_intmap_t	__dhcp6_modes[] = {
+static const ni_intmap_t	ni_dhcp6_mode_names[] = {
 	{ "auto",		NI_DHCP6_MODE_AUTO	},
 	{ "info",		NI_DHCP6_MODE_INFO	},
+	{ "config",		NI_DHCP6_MODE_INFO	},
 	{ "managed",		NI_DHCP6_MODE_MANAGED	},
+	{ "address",		NI_DHCP6_MODE_MANAGED	},
+	{ "prefix",		NI_DHCP6_MODE_PREFIX	},
 
 	{ NULL,			NI_DHCP6_MODE_AUTO	}
 };
 
-const char *
-ni_dhcp6_mode_type_to_name(unsigned int type)
+const ni_intmap_t *
+ni_dhcp6_mode_map(void)
 {
-	return ni_format_uint_mapped(type, __dhcp6_modes);
+	return ni_dhcp6_mode_names;
 }
 
-int
-ni_dhcp6_mode_name_to_type(const char *name, unsigned int *type)
+const char *
+ni_dhcp6_mode_flag_to_name(ni_dhcp6_mode_t flag)
 {
-	return ni_parse_uint_mapped(name, __dhcp6_modes, type);
+	return ni_format_uint_mapped(flag, ni_dhcp6_mode_names);
 }
+
+ni_bool_t
+ni_dhcp6_mode_name_to_flag(const char *name, ni_dhcp6_mode_t *flag)
+{
+	return ni_parse_uint_mapped(name, ni_dhcp6_mode_names, flag) == 0;
+}
+
+unsigned int
+ni_dhcp6_mode_adjust(unsigned int mode)
+{
+	/* prefix + managed include info as well */
+	if  (mode & NI_BIT(NI_DHCP6_MODE_MANAGED)) {
+		mode &= ~NI_BIT(NI_DHCP6_MODE_INFO);
+		mode &= ~NI_BIT(NI_DHCP6_MODE_AUTO);
+	} else
+	if (mode & NI_BIT(NI_DHCP6_MODE_INFO)) {
+		mode &= ~NI_BIT(NI_DHCP6_MODE_AUTO);
+	}
+	if (mode & NI_BIT(NI_DHCP6_MODE_PREFIX)) {
+		mode &= ~NI_BIT(NI_DHCP6_MODE_INFO);
+	}
+
+	/* use auto when nothing specific given  */
+	if (!mode)
+		mode = NI_BIT(NI_DHCP6_MODE_AUTO);
+	else
+		mode &= NI_BIT(NI_DHCP6_MODE_AUTO) |
+			NI_BIT(NI_DHCP6_MODE_INFO) |
+			NI_BIT(NI_DHCP6_MODE_MANAGED) |
+			NI_BIT(NI_DHCP6_MODE_PREFIX);
+	return mode;
+}
+
+ni_bool_t
+ni_dhcp6_mode_parse(unsigned int *mode, const char *string)
+{
+	ni_string_array_t flags = NI_STRING_ARRAY_INIT;
+	unsigned int i, flag;
+
+	if (!mode)
+		return FALSE;
+
+	*mode = 0;
+
+	ni_string_split(&flags, string, ",|+ ", 0);
+	for (i = 0; i < flags.count; ++i) {
+		if (ni_dhcp6_mode_name_to_flag(flags.data[i], &flag))
+			*mode |= NI_BIT(flag);
+		else
+			goto failure;
+	}
+
+	*mode = ni_dhcp6_mode_adjust(*mode);
+
+	ni_string_array_destroy(&flags);
+	return TRUE;
+
+failure:
+	*mode = 0;
+	ni_string_array_destroy(&flags);
+	return FALSE;
+}
+
+const char *
+ni_dhcp6_mode_format(ni_stringbuf_t *buff, unsigned int mask, const char *sep)
+{
+	mask = ni_dhcp6_mode_adjust(mask);
+	return ni_format_bitmap(buff, ni_dhcp6_mode_names, mask, sep ? sep : ",");
+}
+
 
 /* Map DHCP4 user-class formats */
 static const ni_intmap_t	__dhcp4_user_class_formats[] = {

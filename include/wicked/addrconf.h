@@ -98,7 +98,8 @@ typedef struct ni_dhcp_fqdn {
 typedef enum ni_dhcp6_mode {
 	NI_DHCP6_MODE_AUTO,		/* Follow router advertisement hint  */
 	NI_DHCP6_MODE_INFO,		/* Request configuration info only   */
-	NI_DHCP6_MODE_MANAGED		/* Request address and configuration */
+	NI_DHCP6_MODE_MANAGED,		/* Request address and configuration */
+	NI_DHCP6_MODE_PREFIX		/* Request delegation prefix (+info) */
 } ni_dhcp6_mode_t;
 
 
@@ -253,9 +254,6 @@ extern ni_bool_t	ni_addrconf_update_flags_parse_names(unsigned int *, const ni_s
 extern ni_bool_t	ni_addrconf_update_flags_parse(unsigned int *, const char *, const char *);
 extern const char *	ni_addrconf_update_flags_format(ni_stringbuf_t *, unsigned int, const char *);
 
-extern const char *	ni_dhcp6_mode_type_to_name(unsigned int);
-extern int		ni_dhcp6_mode_name_to_type(const char *, unsigned int *);
-
 extern const char *	ni_dhcp4_user_class_format_type_to_name(unsigned int);
 extern int		ni_dhcp4_user_class_format_name_to_type(const char *, unsigned int *);
 
@@ -279,5 +277,12 @@ extern ni_bool_t		ni_auto4_request_copy(ni_auto4_request_t *, const ni_auto4_req
 extern void			ni_auto4_request_init(ni_auto4_request_t *, ni_bool_t);
 extern void			ni_auto4_request_destroy(ni_auto4_request_t *);
 extern void			ni_auto4_request_free(ni_auto4_request_t *);
+
+extern const ni_intmap_t *	ni_dhcp6_mode_map(void);
+extern const char *		ni_dhcp6_mode_flag_to_name(ni_dhcp6_mode_t);
+extern ni_bool_t		ni_dhcp6_mode_name_to_flag(const char *, ni_dhcp6_mode_t *);
+extern unsigned int		ni_dhcp6_mode_adjust(unsigned int);
+extern ni_bool_t		ni_dhcp6_mode_parse(unsigned int *, const char *);
+extern const char *		ni_dhcp6_mode_format(ni_stringbuf_t *, unsigned int, const char *);
 
 #endif /* __WICKED_ADDRCONF_H__ */

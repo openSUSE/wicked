@@ -131,7 +131,7 @@ ni_compat_netdev_new(const char *ifname)
 	ni_dhcp_fqdn_init(&compat->dhcp4.fqdn);
 
 	compat->dhcp6.update = ni_config_addrconf_update(ifname, NI_ADDRCONF_DHCP, AF_INET6);
-	compat->dhcp6.mode = NI_DHCP6_MODE_AUTO;
+	compat->dhcp6.mode = NI_BIT(NI_DHCP6_MODE_AUTO);
 	compat->dhcp6.rapid_commit = TRUE;
 	compat->dhcp6.recover_lease = TRUE;
 	compat->dhcp6.release_lease = FALSE;
@@ -2271,6 +2271,7 @@ __ni_compat_generate_auto4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 static xml_node_t *
 __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	xml_node_t *dhcp;
 	const char *ptr;
 
@@ -2280,8 +2281,10 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 	dhcp = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv6:dhcp",
 			compat->dhcp6.flags, compat->dhcp6.update);
 
-	if ((ptr = ni_dhcp6_mode_type_to_name(compat->dhcp6.mode)) != NULL)
+	if ((ptr = ni_dhcp6_mode_format(&buf, compat->dhcp6.mode, NULL))) {
 		xml_node_dict_set(dhcp, "mode", ptr);
+		ni_stringbuf_destroy(&buf);
+	}
 
 	if (compat->dhcp6.address_len) {
 		xml_node_dict_set(dhcp, "address-length",

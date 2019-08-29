@@ -5315,7 +5315,7 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 	}
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_MODE")) != NULL) {
-		if (ni_dhcp6_mode_name_to_type(string, &compat->dhcp6.mode) != 0) {
+		if (!ni_dhcp6_mode_parse(&compat->dhcp6.mode, string)) {
 			ni_warn("%s: Cannot parse DHCLIENT6_MODE='%s'",
 				ni_basename(sc->pathname), string);
 			ret = FALSE;

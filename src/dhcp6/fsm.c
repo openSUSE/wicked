@@ -110,23 +110,25 @@ ni_dhcp6_lease_with_active_address(const ni_addrconf_lease_t *lease)
 int
 ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev)
 {
-	if (!dev->config)
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+	if (!dev->config || !dev->config->mode)
 		return -1;
 
-	switch (dev->config->mode) {
-	default:
-		ni_error("%s: fsm start in invalid mode %u",
-			dev->ifname, dev->config->mode);
-		return -1;
-
-	case NI_DHCP6_MODE_AUTO:
+	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO)) {
 		/* this should not happen */
 		ni_warn("%s: fsm start in mode %s", dev->ifname,
-			ni_dhcp6_mode_type_to_name(dev->config->mode));
+			ni_dhcp6_mode_format(&buf, dev->config->mode, NULL));
+		ni_stringbuf_destroy(&buf);
 		return 1;	/* not ready, wait for RA hint */
+	}
 
-	case NI_DHCP6_MODE_INFO:
+	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_INFO)) {
 		ni_dhcp6_fsm_reset(dev);
+
+		ni_info("%s: fsm start in mode %s", dev->ifname,
+			ni_dhcp6_mode_format(&buf, dev->config->mode, NULL));
+		ni_stringbuf_destroy(&buf);
 
 		if (ni_dhcp6_lease_with_active_address(dev->lease)) {
 			return __ni_dhcp6_fsm_release(dev, 0);
@@ -134,9 +136,14 @@ ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev)
 
 		ni_dhcp6_device_drop_lease(dev);
 		return ni_dhcp6_fsm_request_info(dev);
+	}
 
-	case NI_DHCP6_MODE_MANAGED:
+	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_MANAGED)) {
 		ni_dhcp6_fsm_reset(dev);
+
+		ni_info("%s: fsm start in mode %s", dev->ifname,
+			ni_dhcp6_mode_format(&buf, dev->config->mode, NULL));
+		ni_stringbuf_destroy(&buf);
 
 		if (ni_dhcp6_lease_with_active_address(dev->lease)) {
 			return ni_dhcp6_fsm_confirm_lease(dev, dev->lease);
@@ -145,6 +152,9 @@ ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev)
 		ni_dhcp6_device_drop_lease(dev);
 		return ni_dhcp6_fsm_solicit(dev);
 	}
+
+	ni_error("%s: fsm start in invalid mode %u", dev->ifname, dev->config->mode);
+	return -1;
 }
 
 void
@@ -437,7 +447,7 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 		break;
 
 	case NI_DHCP6_STATE_BOUND:
-		if (dev->config->mode == NI_DHCP6_MODE_INFO)
+		if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_INFO))
 			ni_dhcp6_fsm_request_info(dev);
 		else
 			ni_dhcp6_fsm_renew(dev);
@@ -1223,7 +1233,7 @@ __fsm_release_process_msg(ni_dhcp6_device_t *dev, struct ni_dhcp6_message *msg, 
 					msg->lease->dhcp6.status->message);
 
 			ni_dhcp6_fsm_reset(dev);
-			if (dev->config->mode == NI_DHCP6_MODE_INFO) {
+			if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_INFO)) {
 				ni_dhcp6_device_drop_lease(dev);
 				ni_dhcp6_fsm_restart(dev);
 			} else {
@@ -1913,7 +1923,7 @@ ni_dhcp6_fsm_accept_offer(ni_dhcp6_device_t *dev)
 		ni_dhcp6_send_event(NI_DHCP6_EVENT_ACQUIRED, dev, offer);
 
 		/* When it is a rapid-commit lease, release */
-		if (dev->config->mode != NI_DHCP6_MODE_INFO &&
+		if (!(dev->config->mode & NI_BIT(NI_DHCP6_MODE_INFO)) &&
 		    offer->dhcp6.rapid_commit) {
 			/* reset best offer, apply and release */
 			dev->best_offer.lease = NULL;
@@ -1930,7 +1940,7 @@ ni_dhcp6_fsm_accept_offer(ni_dhcp6_device_t *dev)
 		return 0;
 	} else {
 		/* When it is a rapid-commit lease, commit */
-		if (dev->config->mode == NI_DHCP6_MODE_INFO ||
+		if ((dev->config->mode & NI_BIT(NI_DHCP6_MODE_INFO)) ||
 		    offer->dhcp6.rapid_commit) {
 			/* reset best offer, commit as lease */
 			dev->best_offer.lease = NULL;
@@ -1990,7 +2000,7 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 		if (dev->config->dry_run != NI_DHCP6_RUN_NORMAL) {
 			ni_dhcp6_device_drop_lease(dev);
 			ni_dhcp6_device_stop(dev);
-		} else if (dev->config->mode == NI_DHCP6_MODE_INFO) {
+		} else if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_INFO)) {
 			dev->fsm.state = NI_DHCP6_STATE_BOUND;
 			ni_dhcp6_fsm_bound(dev);
 		} else {
@@ -2066,7 +2076,7 @@ ni_dhcp6_fsm_bound(ni_dhcp6_device_t *dev)
 	if (!dev->lease)
 		return -1;
 
-	if (dev->config->mode == NI_DHCP6_MODE_INFO)
+	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_INFO))
 		return ni_dhcp6_fsm_bound_info(dev);
 
 	timeout = ni_dhcp6_fsm_get_renewal_timeout(dev);

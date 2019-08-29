@@ -56,7 +56,7 @@ static struct generic_map	generic_maps[] = {
 	MAPN(ADDRCONF_STATE, ni_addrconf_state_to_name, __NI_ADDRCONF_STATE_MAX),
 	MAP(ADDRCONF_FLAG_BIT, ni_addrconf_flag_bit_to_name),
 	MAP(ADDRCONF_UPDATE_FLAG, ni_addrconf_update_flag_to_name),
-	MAP(DHCP6_MODE, ni_dhcp6_mode_type_to_name),
+	MAP(DHCP6_MODE_BIT, ni_dhcp6_mode_flag_to_name),
 	MAP(WIRELESS_MODE, ni_wireless_mode_to_name),
 	MAP(WIRELESS_SECURITY, ni_wireless_security_to_name),
 	MAP(WIRELESS_AUTH, ni_wireless_auth_mode_to_name),

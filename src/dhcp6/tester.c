@@ -56,7 +56,7 @@ ni_dhcp6_tester_init(void)
 {
 	memset(&dhcp6_tester_opts, 0, sizeof(dhcp6_tester_opts));
 	dhcp6_tester_opts.outfmt  = NI_DHCP6_TESTER_OUT_LEASE_INFO;
-	dhcp6_tester_opts.mode    = NI_DHCP6_MODE_AUTO;
+	dhcp6_tester_opts.mode    = NI_BIT(NI_DHCP6_MODE_AUTO);
 	dhcp6_tester_opts.timeout = 0;
 	dhcp6_tester_status = NI_WICKED_RC_NOT_RUNNING;
 	return &dhcp6_tester_opts;
@@ -152,7 +152,7 @@ ni_dhcp6_tester_req_xml_init(ni_dhcp6_request_t *req, xml_document_t *doc)
 				goto failure;
 		} else
 		if (ni_string_eq(child->name, "mode")) {
-			if (ni_dhcp6_mode_name_to_type(child->cdata, &req->mode) != 0)
+			if (!ni_dhcp6_mode_parse(&req->mode, child->cdata))
 				goto failure;
 		} else
 		if (ni_string_eq(child->name, "acquire-timeout")) {
@@ -221,7 +221,7 @@ ni_dhcp6_tester_req_init(ni_dhcp6_request_t *req, const char *request)
 	/* Apply some defaults */
 	req->dry_run = NI_DHCP6_RUN_OFFER;
 	req->acquire_timeout = 10;
-	req->mode = NI_DHCP6_MODE_AUTO;
+	req->mode = NI_BIT(NI_DHCP6_MODE_AUTO);
 
 	if (!ni_string_empty(request)) {
 		xml_document_t *doc;
@@ -356,7 +356,7 @@ ni_dhcp6_tester_run(ni_dhcp6_tester_t *opts)
 		long timeout;
 
 		timeout = ni_timer_next_timeout();
-		if (dev->config && dev->config->mode == NI_DHCP6_MODE_AUTO) {
+		if (dev->config && (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO))) {
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
 					"%s: DHCPv6 mode is auto", dev->ifname);
 
@@ -366,7 +366,7 @@ ni_dhcp6_tester_run(ni_dhcp6_tester_t *opts)
 				break;
 
 			ni_dhcp6_device_update_mode(dev, NULL);
-			if (dev->config && dev->config->mode == NI_DHCP6_MODE_AUTO) {
+			if (dev->config && (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO))) {
 				if (timeout > 1000)
 					timeout = 1000;
 			}
