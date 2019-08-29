@@ -114,6 +114,30 @@ ni_dhcp6_ia_addr_new(const struct in6_addr addr, unsigned int plen)
 	return iadr;
 }
 
+ni_dhcp6_ia_addr_t *
+ni_dhcp6_ia_addr_clone(const ni_dhcp6_ia_addr_t *iadr, ni_bool_t clean)
+{
+	ni_dhcp6_ia_addr_t *nadr;
+
+	if (!iadr || !(nadr = ni_dhcp6_ia_addr_new(iadr->addr, iadr->plen)))
+		return NULL;
+
+	if (!clean) {
+		nadr->flags = iadr->flags;
+		nadr->valid_lft = iadr->valid_lft;
+		nadr->preferred_lft = iadr->preferred_lft;
+		nadr->status.code = iadr->status.code;
+		nadr->status.message = xstrdup(iadr->status.message);
+		if (iadr->status.message && !nadr->status.message)
+			goto failure;
+	}
+	return nadr;
+
+failure:
+	ni_dhcp6_ia_addr_free(nadr);
+	return NULL;
+}
+
 void
 ni_dhcp6_ia_addr_free(ni_dhcp6_ia_addr_t *iadr)
 {
@@ -178,6 +202,26 @@ ni_dhcp6_ia_addr_list_delete(ni_dhcp6_ia_addr_t **list, ni_dhcp6_ia_addr_t *iadr
 	return FALSE;
 }
 
+ni_bool_t
+ni_dhcp6_ia_addr_list_copy(ni_dhcp6_ia_addr_t **dst, const ni_dhcp6_ia_addr_t *src, ni_bool_t clean)
+{
+	const ni_dhcp6_ia_addr_t *iadr;
+	ni_dhcp6_ia_addr_t *nadr;
+
+	ni_dhcp6_ia_addr_list_destroy(dst);
+	for (iadr = src; iadr; iadr = iadr->next) {
+		nadr = ni_dhcp6_ia_addr_clone(iadr, clean);
+
+		if (!ni_dhcp6_ia_addr_list_append(dst, nadr))
+			goto failure;
+	}
+	return TRUE;
+
+failure:
+	ni_dhcp6_ia_addr_list_destroy(dst);
+	return FALSE;
+}
+
 size_t
 ni_dhcp6_ia_addr_list_count(const ni_dhcp6_ia_addr_t *list)
 {
@@ -237,6 +281,35 @@ ni_dhcp6_ia_new(unsigned int type, unsigned int iaid)
 	return ia;
 }
 
+ni_dhcp6_ia_t *
+ni_dhcp6_ia_clone(const ni_dhcp6_ia_t *ia, ni_bool_t clean)
+{
+	ni_dhcp6_ia_t *nia;
+
+	if (!ia || !(nia = ni_dhcp6_ia_new(ia->type, ia->iaid)))
+		return NULL;
+
+	if (!clean) {
+		nia->flags = ia->flags;
+		nia->rebind_time = ia->rebind_time;
+		nia->renewal_time = ia->renewal_time;
+		nia->acquired = ia->acquired;
+		nia->status.code = ia->status.code;
+		nia->status.message = xstrdup(ia->status.message);
+		if (ia->status.message && !nia->status.message)
+			goto failure;
+	}
+
+	if (!ni_dhcp6_ia_addr_list_copy(&nia->addrs, ia->addrs, clean))
+		goto failure;
+
+	return nia;
+
+failure:
+	ni_dhcp6_ia_free(nia);
+	return NULL;
+}
+
 void
 ni_dhcp6_ia_free(ni_dhcp6_ia_t *ia)
 {
@@ -287,6 +360,27 @@ ni_dhcp6_ia_list_delete(ni_dhcp6_ia_t **list, ni_dhcp6_ia_t *ia)
 		ni_dhcp6_ia_free(ia);
 		return TRUE;
 	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **dst, const ni_dhcp6_ia_t *src, ni_bool_t clean)
+{
+	const ni_dhcp6_ia_t *ia;
+	ni_dhcp6_ia_t *nia;
+
+	ni_dhcp6_ia_list_destroy(dst);
+	for (ia = src; ia; ia = ia->next) {
+		if (!(nia = ni_dhcp6_ia_clone(ia, clean)))
+			goto failure;
+
+		if (!ni_dhcp6_ia_list_append(dst, nia))
+			goto failure;
+	}
+	return TRUE;
+
+failure:
+	ni_dhcp6_ia_list_destroy(dst);
 	return FALSE;
 }
 

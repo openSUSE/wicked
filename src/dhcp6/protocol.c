@@ -2129,58 +2129,6 @@ ni_dhcp6_ia_set_default_lifetimes(ni_dhcp6_ia_t *ia, unsigned int pref_time)
 	__ni_dhcp6_ia_set_default_lifetimes(ia, pref_time);
 }
 
-int
-ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **dst, const ni_dhcp6_ia_t *src, ni_bool_t clean)
-{
-	const ni_dhcp6_ia_t *ia;
-	ni_dhcp6_ia_t *nia;
-
-	ni_dhcp6_ia_list_destroy(dst);
-	for (ia = src; ia; ia = ia->next) {
-		if ((nia = ni_dhcp6_ia_new(ia->type, ia->iaid)) == NULL)
-			goto failure;
-
-		if( !clean) {
-			nia->flags = ia->flags;
-			nia->rebind_time = ia->rebind_time;
-			nia->renewal_time = ia->renewal_time;
-			nia->acquired = ia->acquired;
-			nia->status.code = ia->status.code;
-			nia->status.message = xstrdup(ia->status.message);
-		}
-		if (ni_dhcp6_ia_addr_list_copy(&nia->addrs, ia->addrs, clean) < 0)
-			goto failure;
-
-		ni_dhcp6_ia_list_append(dst, nia);
-	}
-	return 0;
-
-failure:
-	ni_dhcp6_ia_list_destroy(dst);
-	return -1;
-}
-
-int
-ni_dhcp6_ia_addr_list_copy(ni_dhcp6_ia_addr_t **dst, const ni_dhcp6_ia_addr_t *src, ni_bool_t clean)
-{
-	const ni_dhcp6_ia_addr_t *iadr;
-	ni_dhcp6_ia_addr_t *nadr;
-
-	ni_dhcp6_ia_addr_list_destroy(dst);
-	for (iadr = src; iadr; iadr = iadr->next) {
-		nadr = ni_dhcp6_ia_addr_new(iadr->addr, iadr->plen);
-		if (!clean) {
-			nadr->flags = iadr->flags;
-			nadr->valid_lft = iadr->valid_lft;
-			nadr->preferred_lft = iadr->preferred_lft;
-			nadr->status.code = iadr->status.code;
-			nadr->status.message = xstrdup(iadr->status.message);
-		}
-		ni_dhcp6_ia_addr_list_append(dst, nadr);
-	}
-	return 0;
-}
-
 ni_bool_t
 ni_dhcp6_ia_addr_is_usable(const ni_dhcp6_ia_addr_t *iadr)
 {
