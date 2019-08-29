@@ -102,10 +102,6 @@ typedef enum ni_dhcp6_mode {
 	NI_DHCP6_MODE_PREFIX		/* Request delegation prefix (+info) */
 } ni_dhcp6_mode_t;
 
-
-struct ni_dhcp6_status;
-struct ni_dhcp6_ia;
-
 /*
  * DHCPv4 user class structure
  */
@@ -199,8 +195,8 @@ struct ni_addrconf_lease {
 		struct in6_addr		server_addr;
 		ni_bool_t		rapid_commit;
 		uint32_t		info_refresh;
-		struct ni_dhcp6_status *status;
-		struct ni_dhcp6_ia *	ia_list;
+		ni_dhcp6_status_t *	status;
+		ni_dhcp6_ia_t *		ia_list;
 		char *			boot_url;
 		ni_string_array_t	boot_params;
 

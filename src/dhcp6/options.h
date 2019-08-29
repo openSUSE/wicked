@@ -29,11 +29,6 @@
 #include <wicked/address.h>
 
 
-typedef struct ni_dhcp6_status	ni_dhcp6_status_t;
-typedef struct ni_dhcp6_ia_addr	ni_dhcp6_ia_addr_t;
-typedef struct ni_dhcp6_ia	ni_dhcp6_ia_t;
-
-
 struct ni_dhcp6_status {
 	uint16_t		code;
 	char *			message;

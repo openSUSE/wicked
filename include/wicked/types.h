@@ -163,4 +163,12 @@ typedef struct ni_ipv6_ra_pinfo	ni_ipv6_ra_pinfo_t;
  */
 typedef struct ni_dhcp_option_decl ni_dhcp_option_decl_t;
 
+/*
+ * Common DHCPv6 declarations
+ */
+typedef struct ni_dhcp6_status		ni_dhcp6_status_t;
+typedef struct ni_dhcp6_ia		ni_dhcp6_ia_t;
+typedef struct ni_dhcp6_ia_addr		ni_dhcp6_ia_addr_t;
+typedef struct ni_dhcp6_pd_request	ni_dhcp6_pd_request_t;
+
 #endif /* __WICKED_TYPES_H__ */
