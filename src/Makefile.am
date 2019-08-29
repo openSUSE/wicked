@@ -210,6 +210,7 @@ wicked_headers			= \
 	dhcp6/fsm.h		\
 	dhcp6/options.h		\
 	dhcp6/protocol.h	\
+	dhcp6/request.h		\
 	dhcp6/tester.h		\
 	dhcp.h			\
 	duid.h			\

@@ -169,6 +169,6 @@ typedef struct ni_dhcp_option_decl ni_dhcp_option_decl_t;
 typedef struct ni_dhcp6_status		ni_dhcp6_status_t;
 typedef struct ni_dhcp6_ia		ni_dhcp6_ia_t;
 typedef struct ni_dhcp6_ia_addr		ni_dhcp6_ia_addr_t;
-typedef struct ni_dhcp6_pd_request	ni_dhcp6_pd_request_t;
+typedef struct ni_dhcp6_prefix_req	ni_dhcp6_prefix_req_t;
 
 #endif /* __WICKED_TYPES_H__ */

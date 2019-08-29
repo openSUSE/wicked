@@ -969,19 +969,32 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 		}
 	}
 
-	/*
-	 * Hmm... in info mode we don't need any IA's,
-	 *        in auto mode, we don't know yet ...
-	 */
-	if (!(config->mode & NI_BIT(NI_DHCP6_MODE_INFO))) {
-		if (req->ia_list == NULL) {
-			ni_dhcp6_ia_t *ia = ni_dhcp6_ia_na_new(dev->iaid);
-			ni_dhcp6_ia_set_default_lifetimes(ia, config->lease_time);
+	/* Copy IA-PD (only) with prefix-hint to the config for later use.
+	 * Another IA's aren't using a hint and will be added according to
+	 * the managed/info mode bit later to request automatically.
+	 *
+	 * Once we support multiple prefixes, we will need to sort requests
+	 * by iaid into a unique list of IAs + per-ia prefix hints. */
+	if ((config->mode & NI_BIT(NI_DHCP6_MODE_PREFIX)) && req->prefix_reqs) {
+		const ni_dhcp6_prefix_req_t *pr;
+		ni_dhcp6_ia_addr_t *ph, *padr;
+		ni_dhcp6_ia_t *ia;
+
+		for (pr = req->prefix_reqs; pr; pr = pr->next) {
+			/* one IA using our iaid + hint for now */
+			if (!(ia = ni_dhcp6_ia_pd_new(dev->iaid)))
+				continue;
+
+			for (ph = pr->hints; ph; ph = ph->next) {
+				if (!ph->plen)
+					continue;
+
+				padr = ni_dhcp6_ia_addr_clone(ph, FALSE);
+				ni_dhcp6_ia_addr_list_append(&ia->addrs, padr);
+				break; /* one pd hint per ia only */
+			}
 			ni_dhcp6_ia_list_append(&config->ia_list, ia);
-		} else {
-			/* TODO: Merge multiple ia's of same type into one?
-			 *       for tests we take it as is -- at the moment */
-			ni_dhcp6_ia_list_copy(&config->ia_list, req->ia_list, FALSE);
+			break; /* one ia-pd only */
 		}
 	}
 
@@ -1506,13 +1519,59 @@ ni_dhcp6_request_free(ni_dhcp6_request_t *req)
 	if(req) {
 		ni_string_free(&req->hostname);
 		ni_string_free(&req->clientid);
-		ni_dhcp6_ia_list_destroy(&req->ia_list);
+		ni_dhcp6_prefix_req_list_destroy(&req->prefix_reqs);
 		ni_string_array_destroy(&req->request_options);
 		/*
 		 * req->vendor_class
 		 * ....
 		 */
 		free(req);
+	}
+}
+
+ni_dhcp6_prefix_req_t *
+ni_dhcp6_prefix_req_new(void)
+{
+	ni_dhcp6_prefix_req_t *req;
+
+	req = calloc(1, sizeof(*req));
+	return req;
+}
+
+void
+ni_dhcp6_prefix_req_free(ni_dhcp6_prefix_req_t *req)
+{
+	if (req) {
+		ni_dhcp6_ia_addr_list_destroy(&req->hints);
+#if 0
+		ni_netdev_ref_destroy(&req->device);
+#endif
+		free(req);
+	}
+}
+
+ni_bool_t
+ni_dhcp6_prefix_req_list_append(ni_dhcp6_prefix_req_t **list, ni_dhcp6_prefix_req_t *req)
+{
+	if (list && req) {
+		while (*list)
+			list = &(*list)->next;
+		*list = req;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+void
+ni_dhcp6_prefix_req_list_destroy(ni_dhcp6_prefix_req_t **list)
+{
+	ni_dhcp6_prefix_req_t *req;
+
+	if (list) {
+		while ((req = *list)) {
+			*list = req->next;
+			ni_dhcp6_prefix_req_free(req);
+		}
 	}
 }
 

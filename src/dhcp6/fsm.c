@@ -136,24 +136,26 @@ ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev)
 
 		ni_dhcp6_device_drop_lease(dev);
 		return ni_dhcp6_fsm_request_info(dev);
-	}
-
-	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_MANAGED)) {
+	} else {
 		ni_dhcp6_fsm_reset(dev);
 
 		ni_info("%s: fsm start in mode %s", dev->ifname,
 			ni_dhcp6_mode_format(&buf, dev->config->mode, NULL));
 		ni_stringbuf_destroy(&buf);
 
-		if (ni_dhcp6_lease_with_active_address(dev->lease)) {
-			return ni_dhcp6_fsm_confirm_lease(dev, dev->lease);
+		if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_PREFIX)) {
+			;
+		} else
+		if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_MANAGED)) {
+			if (ni_dhcp6_lease_with_active_address(dev->lease)) {
+				return ni_dhcp6_fsm_confirm_lease(dev, dev->lease);
+			}
 		}
 
 		ni_dhcp6_device_drop_lease(dev);
 		return ni_dhcp6_fsm_solicit(dev);
 	}
 
-	ni_error("%s: fsm start in invalid mode %u", dev->ifname, dev->config->mode);
 	return -1;
 }
 

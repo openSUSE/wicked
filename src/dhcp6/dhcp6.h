@@ -27,6 +27,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/socket.h>
 #include "dhcp6/options.h"
+#include "dhcp6/request.h"
 #include "buffer.h"
 
 /*
@@ -92,15 +93,11 @@ struct ni_dhcp6_request {
 	 * NI_ADDRCONF_UPDATE_* (this is an index enum, not a bitmask) */
 	unsigned int		update;
 
-	ni_dhcp6_ia_t *		ia_list;	/* IA_{NA,TA,PD}'s to request   */
+	ni_dhcp6_prefix_req_t *	prefix_reqs;
 
 	ni_string_array_t	request_options;
 };
 
-
-/*
- * -- request methods
- */
 extern ni_dhcp6_request_t *	ni_dhcp6_request_new(void);
 extern void			ni_dhcp6_request_free(ni_dhcp6_request_t *);
 

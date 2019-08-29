@@ -122,6 +122,44 @@ ni_dhcp6_tester_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *
 }
 
 static ni_bool_t
+ni_dhcp6_tester_parse_pd_req(ni_dhcp6_request_t *req, const xml_node_t *prefix)
+{
+	ni_dhcp6_prefix_req_t *pr;
+	ni_dhcp6_ia_addr_t *hint;
+	ni_sockaddr_t addr;
+	unsigned int plen;
+	xml_node_t *ptr;
+
+	if (!req || !(ptr = xml_node_get_child(prefix, "hint")) || ni_string_empty(ptr->cdata))
+		return FALSE;
+
+	if (!ni_sockaddr_prefix_parse(ptr->cdata, &addr, &plen))
+		return FALSE;
+
+	if (addr.ss_family != AF_INET6 || !plen || plen >= ni_af_address_prefixlen(AF_INET6))
+		return FALSE;
+
+	if (!(pr = ni_dhcp6_prefix_req_new()))
+		return FALSE;
+
+	if (!(hint = ni_dhcp6_ia_addr_new(addr.six.sin6_addr, plen))) {
+		ni_dhcp6_prefix_req_free(pr);
+		return FALSE;
+	}
+
+	if (!ni_dhcp6_ia_addr_list_append(&pr->hints, hint)) {
+		ni_dhcp6_ia_addr_free(hint);
+		ni_dhcp6_prefix_req_free(pr);
+		return FALSE;
+	}
+	if (!ni_dhcp6_prefix_req_list_append(&req->prefix_reqs, pr)) {
+		ni_dhcp6_prefix_req_free(pr);
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static ni_bool_t
 ni_dhcp6_tester_req_xml_init(ni_dhcp6_request_t *req, xml_document_t *doc)
 {
 	xml_node_t *xml, *child;
@@ -195,6 +233,10 @@ ni_dhcp6_tester_req_xml_init(ni_dhcp6_request_t *req, xml_document_t *doc)
 			if (!ni_duid_parse_hex(&duid, child->cdata))
 				goto failure;
 			ni_string_dup(&req->clientid, child->cdata);
+		} else
+		if (ni_string_eq(child->name, "prefix")) {
+			if (!ni_dhcp6_tester_parse_pd_req(req, child))
+				goto failure;
 		} else
 		if (ni_string_eq(child->name, "request-options")) {
 			xml_node_t *opt;
