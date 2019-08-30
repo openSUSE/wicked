@@ -302,8 +302,6 @@ extern ni_bool_t		ni_dhcp6_ia_type_na(const ni_dhcp6_ia_t *);
 extern ni_bool_t		ni_dhcp6_ia_type_ta(const ni_dhcp6_ia_t *);
 extern ni_bool_t		ni_dhcp6_ia_type_pd(const ni_dhcp6_ia_t *);
 
-extern ni_string_array_t *	ni_dhcp6_get_ia_addrs(struct ni_dhcp6_ia *, ni_var_array_t *, ni_var_array_t *);
-
 extern const ni_opaque_t *	ni_dhcp6_lease_duid(const ni_addrconf_lease_t *);
 extern unsigned int		ni_dhcp6_lease_ia_na_iaid(const ni_addrconf_lease_t *);
 extern unsigned int		ni_dhcp6_lease_ia_ta_iaid(const ni_addrconf_lease_t *);

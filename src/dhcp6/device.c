@@ -1445,50 +1445,6 @@ ni_dhcp6_config_set_request_options(const char *ifname, ni_uint_array_t *cfg, co
 	}
 }
 
-ni_string_array_t *
-ni_dhcp6_get_ia_addrs(struct ni_dhcp6_ia *ia_list, ni_var_array_t *p_lft, ni_var_array_t *v_lft)
-{
-	ni_string_array_t *addrs = NULL;
-	const ni_dhcp6_ia_t *ia = NULL;
-
-	addrs = xcalloc(1, sizeof(ni_string_array_t));
-
-	for (ia = ia_list; ia; ia = ia->next) {
-		const ni_dhcp6_ia_addr_t *iaddr = NULL;
-		ni_sockaddr_t addr;
-		const char *addr_str = NULL;
-		for (iaddr = ia->addrs; iaddr; iaddr = iaddr->next) {
-			ni_sockaddr_set_ipv6(&addr, iaddr->addr, 0);
-			switch (ia->type) {
-			case NI_DHCP6_OPTION_IA_TA:
-			case NI_DHCP6_OPTION_IA_NA:
-				addr_str = ni_sockaddr_print(&addr);
-				ni_string_array_append(addrs, addr_str);
-				break;
-
-			case NI_DHCP6_OPTION_IA_PD:
-				addr_str = ni_sockaddr_prefix_print(&addr, iaddr->plen);
-				ni_string_array_append(addrs, addr_str);
-				break;
-
-			default:
-				break;
-			}
-
-			if (p_lft)
-				ni_var_array_set_uint(p_lft,
-						addr_str,
-						iaddr->preferred_lft);
-			if (v_lft)
-				ni_var_array_set_uint(v_lft,
-						addr_str,
-						iaddr->valid_lft);
-		}
-	}
-
-	return addrs;
-}
-
 /*
  * Create/delete a dhcp6 request object
  */

@@ -182,6 +182,106 @@ ni_dhcp6_fsm_count_lease_iadrs(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t
 	return total;
 }
 
+static unsigned int
+ni_dhcp6_fsm_show_lease_iaddrs(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease,
+				void (*show)(const char *, ...), const char *fmt, ...)
+{
+	ni_stringbuf_t msg = NI_STRINGBUF_INIT_DYNAMIC;
+	const ni_dhcp6_ia_addr_t *iadr;
+	const ni_dhcp6_ia_t *ia;
+	unsigned int total = 0;
+	struct timeval now;
+	va_list ap;
+
+	if (!dev || !lease || !show)
+		return 0;
+
+	va_start(ap, fmt);
+	if (fmt)
+		ni_stringbuf_vprintf(&msg, fmt, ap);
+	va_end(ap);
+
+	if (ni_timer_get_time(&now) < 0)
+		return 0;
+
+	for (ia = lease->dhcp6.ia_list; ia; ia = ia->next) {
+		if (ia->status.code != NI_DHCP6_STATUS_SUCCESS)
+			continue;
+
+		for (iadr = ia->addrs; iadr; iadr = iadr->next) {
+			unsigned int valid_lft;
+			unsigned int pref_lft;
+			ni_sockaddr_t addr;
+
+			if (ia->status.code != NI_DHCP6_STATUS_SUCCESS)
+				continue;
+			if (!ni_dhcp6_ia_addr_is_usable(iadr))
+				continue;
+
+			pref_lft = ni_dhcp6_ia_addr_preferred_lft(iadr, &ia->acquired, &now);
+			valid_lft = ni_dhcp6_ia_addr_valid_lft(iadr, &ia->acquired, &now);
+
+			if (!ni_string_empty(msg.string)) {
+				show("%s", msg.string);
+				ni_stringbuf_clear(&msg);
+			}
+
+			total++;
+
+			ni_sockaddr_set_ipv6(&addr, iadr->addr, 0);
+			ni_stringbuf_printf(&msg, "%s    %s%s.%s %s/%u, pref-lft %u, valid-lft %u",
+						dev->ifname, valid_lft ? "+" : "-",
+						ni_dhcp6_option_name(ia->type),
+						ni_dhcp6_ia_type_pd(ia) ? "prefix" : "address",
+						ni_sockaddr_print(&addr), iadr->plen,
+						pref_lft, valid_lft);
+
+			if (ni_dhcp6_ia_type_pd(ia) && iadr->excl) {
+				ni_sockaddr_set_ipv6(&addr, iadr->excl->addr, 0);
+				ni_stringbuf_printf(&msg, ", exclusion %s/%u",
+						ni_sockaddr_print(&addr), iadr->excl->plen);
+			}
+
+			if (!ni_string_empty(msg.string))
+					show("%s", msg.string);
+			ni_stringbuf_clear(&msg);
+		}
+	}
+
+	return total;
+}
+
+static void
+ni_dhcp6_fsm_show_lease_ia_status(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease,
+				void (*show)(const char *, ...))
+{
+	const ni_dhcp6_ia_addr_t *iadr;
+	const ni_dhcp6_ia_t *ia;
+	const char *msg;
+
+	if (!dev || !lease)
+		return;
+
+	for (ia = lease->dhcp6.ia_list; ia; ia = ia->next) {
+		if (ia->status.code != NI_DHCP6_STATUS_SUCCESS) {
+			msg = ni_dhcp6_status_message(&ia->status);
+			show("%s: %s status %s%s%s", dev->ifname,
+					ni_dhcp6_option_name(ia->type),
+					ni_dhcp6_status_name(ia->status.code),
+					msg ? ": " : "", msg ? msg : "");
+		} else
+		for (iadr = ia->addrs; iadr; iadr = iadr->next) {
+			if (ia->status.code != NI_DHCP6_STATUS_SUCCESS) {
+				msg = ni_dhcp6_status_message(&ia->status);
+				show("%s: %s status %s%s%s", dev->ifname,
+					ni_dhcp6_option_name(ia->type),
+					ni_dhcp6_status_name(ia->status.code),
+					msg ? ": " : "", msg ? msg : "");
+			}
+		}
+	}
+}
+
 int
 ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev)
 {
@@ -621,6 +721,8 @@ ni_dhcp6_fsm_select_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg,
 				ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
 				msg->lease->dhcp6.status->message);
 			goto cleanup;
+		} else {
+			ni_dhcp6_fsm_show_lease_ia_status(dev, msg->lease, ni_info);
 		}
 
 		/* check if the config provides/overrides the preference */
@@ -699,6 +801,8 @@ ni_dhcp6_fsm_select_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg,
 						ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
 						msg->lease->dhcp6.status->message);
 			goto cleanup;
+		} else {
+			ni_dhcp6_fsm_show_lease_ia_status(dev, msg->lease, ni_info);
 		}
 
 		/*
@@ -2093,11 +2197,6 @@ ni_dhcp6_fsm_accept_offer(ni_dhcp6_device_t *dev)
 static int
 ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 {
-	ni_string_array_t *iaddrs = NULL;
-	ni_var_array_t p_lft = NI_VAR_ARRAY_INIT; /* ia_addr preferred_lft */
-	ni_var_array_t v_lft = NI_VAR_ARRAY_INIT; /* ia_addr valid_lft */
-	unsigned int i;
-
 	if (lease) {
 		/* OK, now we can provide the lease to wicked,
 		 * that will set the IPs causing kernel to
@@ -2110,23 +2209,9 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 
 		ni_dhcp6_device_set_lease(dev, lease);
 
-		iaddrs = ni_dhcp6_get_ia_addrs(dev->lease->dhcp6.ia_list, &p_lft, &v_lft);
-
-		if (iaddrs && iaddrs->count) {
-			ni_note("%s: Committed DHCPv6 lease with addresses:", dev->ifname);
-			for (i = 0; i < iaddrs->count; ++i) {
-				uint32_t pref_lft;
-				uint32_t valid_lft;
-				ni_var_array_get_uint(&p_lft, iaddrs->data[i], &pref_lft);
-				ni_var_array_get_uint(&v_lft, iaddrs->data[i], &valid_lft);
-				ni_note("    %s, pref-lft %u, valid-lft %u",
-					iaddrs->data[i], pref_lft, valid_lft);
-			}
-			ni_var_array_destroy(&p_lft);
-			ni_var_array_destroy(&v_lft);
-			ni_string_array_destroy(iaddrs);
-		} else {
-			ni_note("%s: Committed DHCPv6 lease", dev->ifname);
+		if (!ni_dhcp6_fsm_show_lease_iaddrs(dev, lease, ni_note,
+			"%s: Committing DHCPv6 lease with:", dev->ifname)) {
+			ni_note("%s: Committing empty DHCPv6 lease", dev->ifname);
 		}
 
 		if (dev->config->dry_run != NI_DHCP6_RUN_OFFER) {
