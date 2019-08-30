@@ -543,6 +543,8 @@ static const char *__dhcp6_option_names[__NI_DHCP6_OPTION_MAX] = {
 	[NI_DHCP6_OPTION_RSOO]              =	"rsoo",
 	[NI_DHCP6_OPTION_PD_EXCLUDE]        =	"pd-exclude",
 	[NI_DHCP6_OPTION_VSS]               =	"vss",
+	[NI_DHCP6_OPTION_SOL_MAX_RT]        =	"sol-max-rt",
+	[NI_DHCP6_OPTION_INF_MAX_RT]        =	"inf-max-rt",
 };
 
 const char *

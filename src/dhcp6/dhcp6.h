@@ -129,6 +129,7 @@ struct ni_dhcp6_config {
 	ni_dhcp6_run_t		dry_run;
 	ni_bool_t		rapid_commit;
 	unsigned int		address_len;
+	unsigned int		max_rt;
 
 	unsigned int		start_delay;
 	unsigned int		defer_timeout;

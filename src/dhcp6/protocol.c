@@ -1362,6 +1362,11 @@ __ni_dhcp6_build_oro_opts(ni_dhcp6_device_t *dev,
 				const ni_addrconf_lease_t *lease)
 {
 	ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_PREFERENCE);
+	if (msg_type == NI_DHCP6_SOLICIT)
+		ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_SOL_MAX_RT);
+	else
+	if (msg_type == NI_DHCP6_INFO_REQUEST)
+		ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_INF_MAX_RT);
 	if (dev->config->update & NI_BIT(NI_ADDRCONF_UPDATE_DNS)) {
 		ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_DNS_SERVERS);
 		ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_DNS_DOMAINS);
@@ -2801,6 +2806,32 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, n
 			if (ni_dhcp6_option_get8(&optbuf, &lease->dhcp6.server_pref) == 0) {
 				ni_debug_dhcp("%s: %u", ni_dhcp6_option_name(option),
 						(unsigned int)lease->dhcp6.server_pref);
+			}
+		break;
+		case NI_DHCP6_OPTION_SOL_MAX_RT:
+			if (dev->fsm.state != NI_DHCP6_STATE_REQUESTING_INFO &&
+			    ni_dhcp6_option_get32(&optbuf, &msg->max_rt) == 0) {
+				if (msg->max_rt >= NI_DHCP6_SOL_MAX_RT_MIN &&
+				    msg->max_rt <= NI_DHCP6_SOL_MAX_RT_MAX) {
+					ni_debug_dhcp("%s: %u", ni_dhcp6_option_name(option), msg->max_rt);
+				} else {
+					ni_debug_dhcp("%s: out of range %u", ni_dhcp6_option_name(option),
+							msg->max_rt);
+					msg->max_rt = 0;
+				}
+			}
+		break;
+		case NI_DHCP6_OPTION_INF_MAX_RT:
+			if (dev->fsm.state == NI_DHCP6_STATE_REQUESTING_INFO &&
+			    ni_dhcp6_option_get32(&optbuf, &msg->max_rt) == 0) {
+				if (msg->max_rt >= NI_DHCP6_INF_MAX_RT_MIN &&
+				    msg->max_rt <= NI_DHCP6_INF_MAX_RT_MAX) {
+					ni_debug_dhcp("%s: %u", ni_dhcp6_option_name(option), msg->max_rt);
+				} else {
+					ni_debug_dhcp("%s: out of range %u", ni_dhcp6_option_name(option),
+							msg->max_rt);
+					msg->max_rt = 0;
+				}
 			}
 		break;
 		case NI_DHCP6_OPTION_INFO_REFRESH_TIME:

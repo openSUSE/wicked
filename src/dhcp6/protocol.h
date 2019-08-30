@@ -41,6 +41,19 @@
 #define NI_DHCP6_MIN_PREF_LIFETIME	(30)		/* min. accepted from config */
 
 /*
+ * Modification to Default Values of SOL_MAX_RT and INF_MAX_RT options
+ * https://tools.ietf.org/html/rfc7083#section-4
+ * https://tools.ietf.org/html/rfc7083#section-5
+ * Dynamic Host Configuration Protocol for IPv6 (DHCPv6) [update 2018]:
+ * https://tools.ietf.org/html/rfc8415#section-21.24
+ * https://tools.ietf.org/html/rfc8415#section-21.25
+ */
+#define NI_DHCP6_SOL_MAX_RT_MIN		60		/* 60 seconds       */
+#define NI_DHCP6_SOL_MAX_RT_MAX		86400		/* 1 day in seconds */
+#define NI_DHCP6_INF_MAX_RT_MIN		60		/* 60 seconds       */
+#define NI_DHCP6_INF_MAX_RT_MAX		86400		/* 1 day in seconds */
+
+/*
  * Client/Server Message Formats, transaction-id
  * http://tools.ietf.org/html/rfc3315#section-6
  */
@@ -108,7 +121,7 @@ enum NI_DHCP6_MSG_TYPE {
  */
 #define	NI_DHCP6_SOL_MAX_DELAY	   1000	/* Max delay of first Solicit  */
 #define NI_DHCP6_SOL_TIMEOUT	   1000	/* Initial Solicit timeout     */
-#define NI_DHCP6_SOL_MAX_RT	 120000	/* Max Solicit timeout value   */
+#define NI_DHCP6_SOL_MAX_RT	3600000	/* Max Solicit timeout value   */
 #define NI_DHCP6_REQ_TIMEOUT	   1000	/* Initial Request timeout     */
 #define NI_DHCP6_REQ_MAX_RC	     10	/* Max Request retry attempts  */
 #define NI_DHCP6_REQ_MAX_RT	  30000	/* Max Request timeout value   */
@@ -122,7 +135,7 @@ enum NI_DHCP6_MSG_TYPE {
 #define NI_DHCP6_REB_MAX_RT	 600000	/* Max Rebind timeout value    */
 #define NI_DHCP6_INF_MAX_DELAY	   1000	/* Max delay of first Info-req */
 #define NI_DHCP6_INF_TIMEOUT	   1000	/* Initial Info-req timeout    */
-#define NI_DHCP6_INF_MAX_RT	 120000	/* Max Info-req timeout value  */
+#define NI_DHCP6_INF_MAX_RT	 360000	/* Max Info-req timeout value  */
 #define NI_DHCP6_REL_TIMEOUT	   1000	/* Initial Release timeout     */
 #define NI_DHCP6_REL_MAX_RC	      5	/* Max Release attempts        */
 #define NI_DHCP6_DEC_TIMEOUT	   1000	/* Initial Decline timeout     */
@@ -198,6 +211,7 @@ typedef struct ni_dhcp6_message {
 	unsigned int			xid;
 
 	ni_bool_t			request;
+	unsigned int			max_rt;
 	struct in6_addr			sender;
 	ni_addrconf_lease_t *		lease;
 } ni_dhcp6_message_t;

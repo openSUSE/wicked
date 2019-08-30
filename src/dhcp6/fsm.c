@@ -520,6 +520,12 @@ ni_dhcp6_fsm_select_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg,
 		if (ni_dhcp6_fsm_parse_client_options(dev, msg, optbuf) < 0)
 			return -1;
 
+		if (dev->config->max_rt) {
+			if (msg->max_rt != dev->config->max_rt)
+				dev->config->max_rt = -1U;	/* inconsistent -> disable */
+		} else if (msg->max_rt) {
+			dev->config->max_rt = msg->max_rt;	/* new setting  -> apply   */
+		}
 
 		if (msg->lease->dhcp6.rapid_commit) {
 			ni_string_printf(hint, "advertise with rapid commit option");
@@ -609,6 +615,13 @@ ni_dhcp6_fsm_select_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg,
 	case NI_DHCP6_REPLY:
 		if (ni_dhcp6_fsm_parse_client_options(dev, msg, optbuf) < 0)
 			return -1;
+
+		if (dev->config->max_rt) {
+			if (msg->max_rt != dev->config->max_rt)
+				dev->config->max_rt = -1U;	/* inconsistent -> disable */
+		} else if (msg->max_rt) {
+			dev->config->max_rt = msg->max_rt;	/* new setting  -> apply   */
+		}
 
 		if (!msg->lease->dhcp6.rapid_commit) {
 			ni_string_printf(hint, "rapid commit not set");
@@ -1264,6 +1277,13 @@ ni_dhcp6_fsm_inforeq_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg
 		if (ni_dhcp6_fsm_parse_client_options(dev, msg, optbuf) < 0)
 			return -1;
 
+		if (dev->config->max_rt) {
+			if (msg->max_rt != dev->config->max_rt)
+				dev->config->max_rt = -1U;	/* inconsistent -> disable */
+		} else if (msg->max_rt) {
+			dev->config->max_rt = msg->max_rt;	/* new setting  -> apply   */
+		}
+
 		if (msg->lease->dhcp6.status && msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
 			ni_string_printf(hint, "status %s - %s",
 						ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
@@ -1507,6 +1527,7 @@ ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 		lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
 		lease->fqdn.qualify = dev->config->fqdn.qualify;
 
+		dev->config->max_rt = 0;
 		dev->dhcp6.xid = 0;
 		ni_dhcp6_device_drop_best_offer(dev);
 		if (ni_dhcp6_init_message(dev, NI_DHCP6_SOLICIT, lease) != 0)
@@ -1553,6 +1574,9 @@ ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 		lease->uuid = dev->config->uuid;
 		lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
 		lease->fqdn.qualify = dev->config->fqdn.qualify;
+
+		if (dev->config->max_rt && dev->config->max_rt != -1U)
+			dev->retrans.params.max_timeout = dev->config->max_rt;
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_SOLICIT, &dev->message, lease) != 0)
 			goto cleanup;
@@ -1607,6 +1631,7 @@ ni_dhcp6_fsm_request_info(ni_dhcp6_device_t *dev)
 				dev->ifname);
 
 		dev->dhcp6.xid = 0;
+		dev->config->max_rt = 0;
 		if (ni_dhcp6_init_message(dev, NI_DHCP6_INFO_REQUEST, NULL) != 0)
 			return -1;
 
@@ -1619,6 +1644,9 @@ ni_dhcp6_fsm_request_info(ni_dhcp6_device_t *dev)
 	} else {
 		ni_debug_dhcp("%s: Retransmitting DHCPv6 Info Request",
 				dev->ifname);
+
+		if (dev->config->max_rt && dev->config->max_rt != -1U)
+			dev->retrans.params.max_timeout = dev->config->max_rt;
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_INFO_REQUEST, &dev->message, NULL) != 0)
 			return -1;
