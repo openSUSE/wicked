@@ -137,12 +137,12 @@ enum NI_DHCP6_MSG_TYPE {
 #define NI_DHCP6_INF_TIMEOUT	   1000	/* Initial Info-req timeout    */
 #define NI_DHCP6_INF_MAX_RT	 360000	/* Max Info-req timeout value  */
 #define NI_DHCP6_REL_TIMEOUT	   1000	/* Initial Release timeout     */
-#define NI_DHCP6_REL_MAX_RC	      5	/* Max Release attempts        */
+#define NI_DHCP6_REL_MAX_RC	      4	/* Max Release attempts        */
 #define NI_DHCP6_DEC_TIMEOUT	   1000	/* Initial Decline timeout     */
-#define NI_DHCP6_DEC_MAX_RC	      5	/* Max Decline attempts        */
+#define NI_DHCP6_DEC_MAX_RC	      4	/* Max Decline attempts        */
 #define NI_DHCP6_REC_TIMEOUT	   2000	/* Initial Reconfigure timeout */
 #define NI_DHCP6_REC_MAX_RC	      8	/* Max Reconfigure attempts    */
-#define NI_DHCP6_HOP_COUNT_LIMIT     32	/* Max hop count in Relay-fwd  */
+#define NI_DHCP6_HOP_COUNT_LIMIT      8	/* Max hop count in Relay-fwd  */
 #define NI_DHCP6_MAX_JITTER	    100	/* Randomization factor [± 0.1]*/
 
 /*
