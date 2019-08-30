@@ -69,6 +69,8 @@ static void		__ni_leaseinfo_print_addrs(FILE *, const char *,
 					ni_address_t *, unsigned int);
 static void		__ni_leaseinfo_print_routes(FILE *, const char *,
 					ni_route_table_t *, unsigned int);
+static void		__ni_leaseinfo_print_prefixes(FILE *, const char *,
+					ni_dhcp6_ia_t *);
 static void		__ni_leaseinfo_print_nis(FILE *, const char *,
 					ni_nis_info_t *);
 static void		__ni_leaseinfo_print_resolver(FILE *, const char *,
@@ -291,6 +293,51 @@ __ni_leaseinfo_print_routes(FILE *out, const char *prefix,
 	ni_string_array_destroy(&routes_entry_arr);
 	ni_string_array_destroy(&gw_entry_arr);
 	ni_string_free(&name);
+}
+
+static void
+__ni_leaseinfo_print_prefixes(FILE *out, const char *prefix, ni_dhcp6_ia_t *ia_list)
+{
+	const ni_dhcp6_ia_addr_t *iadr;
+	const ni_dhcp6_ia_t *ia;
+	unsigned int index = 0;
+	struct timeval now;
+
+	ni_timer_get_time(&now);
+	for (ia = ia_list; ia; ia = ia->next) {
+		if (!ni_dhcp6_ia_type_pd(ia))
+			continue;
+
+		for (iadr = ia->addrs; iadr; iadr = iadr->next) {
+			ni_sockaddr_t addr;
+			unsigned int plft;
+			unsigned int vlft;
+			char *val = NULL;
+
+			if (!(vlft = ni_dhcp6_ia_addr_valid_lft(iadr, &ia->acquired, &now)))
+				continue;
+			plft = ni_dhcp6_ia_addr_preferred_lft(iadr, &ia->acquired, &now);
+
+			ni_sockaddr_set_ipv6(&addr, iadr->addr, 0);
+			ni_string_printf(&val, "%s/%u", ni_sockaddr_print(&addr), iadr->plen);
+			__ni_leaseinfo_print_string(out, prefix, "PREFIX_ADDRESS", val, NULL, index);
+			ni_string_free(&val);
+
+			__ni_leaseinfo_print_string(out, prefix, "PREFIX_PREF_LFT",
+					ni_sprint_uint(plft), NULL, index);
+			__ni_leaseinfo_print_string(out, prefix, "PREFIX_VALID_LFT",
+					ni_sprint_uint(vlft), NULL, index);
+
+			if (iadr->excl) {
+				ni_sockaddr_set_ipv6(&addr, iadr->excl->addr, 0);
+				ni_string_printf(&val, "%s/%u", ni_sockaddr_print(&addr), iadr->excl->plen);
+				__ni_leaseinfo_print_string(out, prefix, "PREFIX_EXCLUDE", val, NULL, index);
+				ni_string_free(&val);
+			}
+
+			index++;
+		}
+	}
 }
 
 static void
@@ -666,6 +713,9 @@ __ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 	__ni_leaseinfo_print_addrs(out, prefix, lease->addrs, lease->family);
 
 	__ni_leaseinfo_print_routes(out, prefix, lease->routes, lease->family);
+
+	if (lease->family == AF_INET6)
+		__ni_leaseinfo_print_prefixes(out, prefix, lease->dhcp6.ia_list);
 
 	/* Only applicable for ipv4. */
 	if (lease->family == AF_INET)
