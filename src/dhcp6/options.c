@@ -205,6 +205,40 @@ ni_dhcp6_ia_addr_equal_prefix(const ni_dhcp6_ia_addr_t *a, const ni_dhcp6_ia_add
 	return a->plen == b->plen && ni_dhcp6_ia_addr_equal_address(a, b);
 }
 
+ni_bool_t
+ni_dhcp6_ia_addr_is_deleted(const ni_dhcp6_ia_addr_t *iadr)
+{
+	/* This is a stop using this iadr order from server. */
+	return iadr && iadr->valid_lft == NI_LIFETIME_EXPIRED;
+}
+
+ni_bool_t
+ni_dhcp6_ia_addr_is_usable(const ni_dhcp6_ia_addr_t *iadr)
+{
+	/* This is an invalid iadr lifetime combination. */
+	if (!iadr || iadr->preferred_lft > iadr->valid_lft)
+		return FALSE;
+
+	/* This is some well-known nonsense we reject...  */
+	if (IN6_IS_ADDR_UNSPECIFIED(&iadr->addr) ||
+	    IN6_IS_ADDR_LOOPBACK(&iadr->addr) ||
+	    IN6_IS_ADDR_LINKLOCAL(&iadr->addr) ||
+	    IN6_IS_ADDR_MULTICAST(&iadr->addr))
+		return FALSE;
+	return TRUE;
+}
+
+unsigned int
+ni_dhcp6_ia_addr_valid_lft(const ni_dhcp6_ia_addr_t *iadr, const struct timeval *acquired, const struct timeval *now)
+{
+	return iadr ? ni_lifetime_left(iadr->valid_lft, acquired, now) : NI_LIFETIME_EXPIRED;
+}
+
+unsigned int
+ni_dhcp6_ia_addr_preferred_lft(const ni_dhcp6_ia_addr_t *iadr, const struct timeval *acquired, const struct timeval *now)
+{
+	return iadr ? ni_lifetime_left(iadr->preferred_lft, acquired, now) : NI_LIFETIME_EXPIRED;
+}
 
 /*
  * ia address list

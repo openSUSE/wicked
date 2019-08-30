@@ -260,8 +260,6 @@ extern ssize_t		ni_dhcp6_socket_send(ni_socket_t *, const ni_buffer_t *, const n
 
 
 /* FIXME: cleanup */
-extern ni_bool_t	ni_dhcp6_ia_addr_is_usable(const ni_dhcp6_ia_addr_t *);
-
 extern unsigned int	ni_dhcp6_ia_release_matching(ni_dhcp6_ia_t *, struct in6_addr *,
 									unsigned int);
 extern void		ni_dhcp6_ia_set_default_lifetimes(ni_dhcp6_ia_t *, unsigned int);

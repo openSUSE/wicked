@@ -203,6 +203,14 @@ extern ni_bool_t		ni_dhcp6_ia_addr_equal_address(const ni_dhcp6_ia_addr_t *,
 extern ni_bool_t		ni_dhcp6_ia_addr_equal_prefix(const ni_dhcp6_ia_addr_t *,
 							const ni_dhcp6_ia_addr_t *);
 
+extern ni_bool_t		ni_dhcp6_ia_addr_is_usable(const ni_dhcp6_ia_addr_t *);
+extern ni_bool_t		ni_dhcp6_ia_addr_is_deleted(const ni_dhcp6_ia_addr_t *);
+
+extern unsigned int		ni_dhcp6_ia_addr_valid_lft(const ni_dhcp6_ia_addr_t *,
+							const struct timeval *, const struct timeval *);
+extern unsigned int		ni_dhcp6_ia_addr_preferred_lft(const ni_dhcp6_ia_addr_t *,
+							const struct timeval *, const struct timeval *);
+
 extern ni_bool_t		ni_dhcp6_ia_addr_list_append(ni_dhcp6_ia_addr_t **,
 								ni_dhcp6_ia_addr_t *);
 extern ni_bool_t		ni_dhcp6_ia_addr_list_remove(ni_dhcp6_ia_addr_t **,

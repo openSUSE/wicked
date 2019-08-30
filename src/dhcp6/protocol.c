@@ -2206,22 +2206,6 @@ ni_dhcp6_ia_set_default_lifetimes(ni_dhcp6_ia_t *ia, unsigned int pref_time)
 	__ni_dhcp6_ia_set_default_lifetimes(ia, pref_time);
 }
 
-ni_bool_t
-ni_dhcp6_ia_addr_is_usable(const ni_dhcp6_ia_addr_t *iadr)
-{
-	/* This is a stop using this IP order from server */
-	if (iadr->preferred_lft == 0 || iadr->valid_lft == 0)
-		return FALSE;
-
-	/* This is some well-known nonsense we reject...  */
-	if (IN6_IS_ADDR_UNSPECIFIED(&iadr->addr) ||
-	    IN6_IS_ADDR_LOOPBACK(&iadr->addr) ||
-	    IN6_IS_ADDR_LINKLOCAL(&iadr->addr) ||
-	    IN6_IS_ADDR_MULTICAST(&iadr->addr))
-		return FALSE;
-	return TRUE;
-}
-
 unsigned int
 ni_dhcp6_ia_release_matching(ni_dhcp6_ia_t *list, struct in6_addr *addr, unsigned int plen)
 {
