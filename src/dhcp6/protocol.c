@@ -1952,10 +1952,19 @@ ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_ad
 		dev->dhcp6.xid = random() & NI_DHCP6_XID_MASK;
 	} while (dev->dhcp6.xid == 0);
 
-	if(!ni_dhcp6_set_message_timing(dev, msg_code)) {
-		ni_error("%s: unable to init %s message timings", dev->ifname,
-			ni_dhcp6_message_name(msg_code));
-		return -1;
+	if (dev->fsm.state == NI_DHCP6_STATE_CONFIRMING && msg_code == NI_DHCP6_REBIND) {
+		if(!ni_dhcp6_set_message_timing(dev, NI_DHCP6_CONFIRM)) {
+			ni_error("%s: unable to init %s message timings", dev->ifname,
+				ni_dhcp6_message_name(msg_code));
+			return -1;
+		}
+		dev->fsm.state = NI_DHCP6_STATE_REBINDING;
+	} else {
+		if(!ni_dhcp6_set_message_timing(dev, msg_code)) {
+			ni_error("%s: unable to init %s message timings", dev->ifname,
+				ni_dhcp6_message_name(msg_code));
+			return -1;
+		}
 	}
 
 	ni_debug_dhcp("%s: building %s with xid 0x%x", dev->ifname,

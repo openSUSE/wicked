@@ -48,6 +48,8 @@ static int			ni_dhcp6_fsm_solicit      (ni_dhcp6_device_t *);
 static int			__ni_dhcp6_fsm_release    (ni_dhcp6_device_t *, unsigned int);
 static int			ni_dhcp6_fsm_request_lease(ni_dhcp6_device_t *, const ni_addrconf_lease_t *);
 static int			ni_dhcp6_fsm_confirm_lease(ni_dhcp6_device_t *, const ni_addrconf_lease_t *);
+static int			ni_dhcp6_fsm_confirm_prefix(ni_dhcp6_device_t *, const ni_addrconf_lease_t *);
+static int			ni_dhcp6_fsm_confirm_address(ni_dhcp6_device_t *, const ni_addrconf_lease_t *);
 static int			ni_dhcp6_fsm_renew(ni_dhcp6_device_t *);
 static int			ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *);
 static int			ni_dhcp6_fsm_decline(ni_dhcp6_device_t *);
@@ -210,20 +212,16 @@ ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev)
 		ni_dhcp6_device_drop_lease(dev);
 		return ni_dhcp6_fsm_request_info(dev);
 	} else {
+		int ret;
+
 		ni_dhcp6_fsm_reset(dev);
 
 		ni_info("%s: fsm start in mode %s", dev->ifname,
 			ni_dhcp6_mode_format(&buf, dev->config->mode, NULL));
 		ni_stringbuf_destroy(&buf);
 
-		if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_PREFIX)) {
-			;
-		} else
-		if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_MANAGED)) {
-			if (ni_dhcp6_lease_with_active_address(dev->lease)) {
-				return ni_dhcp6_fsm_confirm_lease(dev, dev->lease);
-			}
-		}
+		if (!(ret = ni_dhcp6_fsm_confirm_lease(dev, dev->lease)))
+			return ret;
 
 		ni_dhcp6_device_drop_lease(dev);
 		return ni_dhcp6_fsm_solicit(dev);
@@ -262,7 +260,7 @@ ni_dhcp6_fsm_retransmit(ni_dhcp6_device_t *dev)
 		return ni_dhcp6_fsm_request_lease(dev, dev->best_offer.lease);
 
 	case NI_DHCP6_STATE_CONFIRMING:
-		return ni_dhcp6_fsm_confirm_lease(dev, dev->lease);
+		return ni_dhcp6_fsm_confirm_address(dev, dev->lease);
 
 	case NI_DHCP6_STATE_RENEWING:
 		return ni_dhcp6_fsm_renew(dev);
@@ -1711,15 +1709,60 @@ ni_dhcp6_fsm_request_info(ni_dhcp6_device_t *dev)
 }
 
 static int
-ni_dhcp6_fsm_confirm_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *lease)
+ni_dhcp6_fsm_confirm_prefix(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *lease)
 {
 	int rv = -1;
 
-	if (!lease)
+	if (!dev || !lease)
 		return -1;
 
 	if (dev->retrans.count == 0) {
-		ni_debug_dhcp("%s: Initiating DHCPv6 Lease Confirmation",
+		struct timeval now;
+		ni_dhcp6_ia_t *ia = NULL;
+		unsigned int lt, deadline = NI_LIFETIME_EXPIRED;
+
+		/* mark all to rebind and get max deadline */
+		ni_timer_get_time(&now);
+		for (ia = dev->lease->dhcp6.ia_list; ia; ia = ia->next) {
+			ia->flags |= NI_DHCP6_IA_REBIND;
+
+			lt = ni_lifetime_left(ni_dhcp6_ia_max_valid_lft(ia), &ia->acquired, &now);
+			if (deadline < lt)
+				deadline = lt;
+		}
+		if (deadline == NI_LIFETIME_EXPIRED)
+			return -1;
+
+		ni_debug_dhcp("%s: Initiating DHCPv6 Prefix Rebind Confirmation",
+				dev->ifname);
+
+		dev->dhcp6.xid = 0;
+		/* init rebind message, but with confirm timings */
+		dev->fsm.state = NI_DHCP6_STATE_CONFIRMING;
+		if (ni_dhcp6_init_message(dev, NI_DHCP6_REBIND, lease) != 0)
+			return -1;
+
+		/* reselect new when last prefix expires earlier */
+		if (deadline != NI_LIFETIME_EXPIRED &&
+		    (deadline * 1000) < dev->retrans.duration)
+			dev->retrans.duration = deadline * 1000;
+
+		dev->fsm.state = NI_DHCP6_STATE_REBINDING;
+		rv = ni_dhcp6_device_transmit_init(dev);
+	}
+	return rv;
+}
+
+static int
+ni_dhcp6_fsm_confirm_address(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *lease)
+{
+	int rv = -1;
+
+	if (!dev || !lease)
+		return -1;
+
+	if (dev->retrans.count == 0) {
+		ni_debug_dhcp("%s: Initiating DHCPv6 Address Confirmation",
 				dev->ifname);
 
 		dev->dhcp6.xid = 0;
@@ -1730,7 +1773,7 @@ ni_dhcp6_fsm_confirm_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *le
 		rv = ni_dhcp6_device_transmit_init(dev);
 	} else if (dev->fsm.state == NI_DHCP6_STATE_CONFIRMING) {
 
-		ni_debug_dhcp("%s: Retransmitting DHCPv6 Lease Confirmation",
+		ni_debug_dhcp("%s: Retransmitting DHCPv6 Address Confirmation",
 				dev->ifname);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_CONFIRM, &dev->message, lease) != 0)
@@ -1739,6 +1782,26 @@ ni_dhcp6_fsm_confirm_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *le
 		rv = ni_dhcp6_device_transmit(dev);
 	}
 	return rv;
+}
+
+static int
+ni_dhcp6_fsm_confirm_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *lease)
+{
+	struct ni_dhcp6_ia_addr_counts usable;
+
+	if (!dev || !lease)
+		return -1;
+
+	ni_dhcp6_fsm_count_lease_iadrs(dev, dev->lease, &usable, NULL);
+	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_PREFIX)) {
+		if (usable.pd)
+			return ni_dhcp6_fsm_confirm_prefix(dev, dev->lease);
+	} else
+	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_MANAGED)) {
+		if (usable.na)
+			return ni_dhcp6_fsm_confirm_address(dev, dev->lease);
+	}
+	return 1;
 }
 
 static int
