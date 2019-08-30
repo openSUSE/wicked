@@ -100,6 +100,86 @@ ni_dhcp6_lease_with_active_address(const ni_addrconf_lease_t *lease)
 	return ni_dhcp6_ia_list_count_active(lease->dhcp6.ia_list, &now) > 0;
 }
 
+struct ni_dhcp6_ia_addr_counts {
+	unsigned int pd;
+	unsigned int na;
+	unsigned int ta;
+};
+
+static void
+ni_dhcp6_fsm_count_iadr_type(unsigned int type, struct ni_dhcp6_ia_addr_counts *counts)
+{
+	if (!counts)
+		return;
+
+	switch (type) {
+	case NI_DHCP6_OPTION_IA_PD:
+		counts->pd++;
+		break;
+	case NI_DHCP6_OPTION_IA_NA:
+		counts->na++;
+		break;
+	case NI_DHCP6_OPTION_IA_TA:
+		counts->ta++;
+		break;
+	}
+}
+
+static unsigned int
+ni_dhcp6_fsm_count_lease_iadrs(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *lease,
+				struct ni_dhcp6_ia_addr_counts *usable,
+				struct ni_dhcp6_ia_addr_counts *expired)
+{
+	const ni_dhcp6_ia_addr_t *iadr;
+	const ni_dhcp6_ia_t *ia;
+	struct timeval now;
+	unsigned int total = 0;
+
+	if (usable)
+		memset(usable, 0, sizeof(*usable));
+	if (expired)
+		memset(expired, 0, sizeof(*expired));
+
+	if (!dev || !lease || !lease->dhcp6.ia_list)
+		return 0;
+
+	if (ni_timer_get_time(&now) < 0)
+		return 0;
+
+	for (ia = lease->dhcp6.ia_list; ia; ia = ia->next) {
+		if (ia->status.code != NI_DHCP6_STATUS_SUCCESS)
+			continue;
+
+		for (iadr = ia->addrs; iadr; iadr = iadr->next) {
+			if (ia->status.code != NI_DHCP6_STATUS_SUCCESS)
+				continue;
+
+			if (!ni_dhcp6_ia_addr_is_usable(iadr))
+				continue;
+
+			if (ni_dhcp6_ia_addr_valid_lft(iadr, &ia->acquired, &now))
+				ni_dhcp6_fsm_count_iadr_type(ia->type, usable);
+			else
+				ni_dhcp6_fsm_count_iadr_type(ia->type, expired);
+		}
+	}
+
+	if (usable) {
+		if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_PREFIX))
+			total += usable->pd;
+		if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_MANAGED))
+			total += usable->na;
+	}
+	if (expired) {
+		if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_PREFIX))
+			total += expired->pd;
+		if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_MANAGED))
+			total += expired->na;
+	}
+
+	return total;
+}
+
 int
 ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev)
 {
@@ -510,7 +590,7 @@ __fsm_select_best_offer(const ni_dhcp6_device_t *dev, const ni_addrconf_lease_t 
 static int
 ni_dhcp6_fsm_select_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, ni_buffer_t *optbuf, char **hint)
 {
-	unsigned int count;
+	unsigned int count = 0;
 	int weight = 0;
 	int pref = 0;
 	int rv = 1;
@@ -543,17 +623,6 @@ ni_dhcp6_fsm_select_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg,
 				ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
 				msg->lease->dhcp6.status->message);
 			goto cleanup;
-		} else {
-			ni_dhcp6_ia_t *ia;
-			for (ia = msg->lease->dhcp6.ia_list; ia; ia = ia->next) {
-				if (ia->status.code == NI_DHCP6_STATUS_NOADDRS) {
-					ni_string_printf(hint, "status %s - %s",
-						ni_dhcp6_status_name(ia->status.code),
-						ia->status.message ? ia->status.message :
-						"no addresses available");
-					goto cleanup;
-				}
-			}
 		}
 
 		/* check if the config provides/overrides the preference */
@@ -569,21 +638,19 @@ ni_dhcp6_fsm_select_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg,
 					"%s: dhcp6 server preference %u overriden by config to %d",
 					dev->ifname, msg->lease->dhcp6.server_pref, pref);
 		}
+
 		if (pref < 0) {
 			ni_string_printf(hint, "blacklisted server");
 			goto cleanup;
-		}
-
-		/* Hmm... we currently do not request prefixes;
-		 * server forgot to set NI_DHCP6_STATUS_NOADDRS,
-		 * reset weight for offers without any lease addrs
-		 */
-		count = ni_address_list_count(msg->lease->addrs);
-		if (count) {
-			weight += count;
 		} else {
-			ni_string_printf(hint, "lease offer without address");
-			goto cleanup;
+			struct ni_dhcp6_ia_addr_counts usable;
+
+			if (!(count = ni_dhcp6_fsm_count_lease_iadrs(dev, msg->lease, &usable, NULL))) {
+				ni_string_printf(hint, "lease offer without usable address");
+				goto cleanup;
+			} else {
+				weight += count;
+			}
 		}
 
 		if (__fsm_select_best_offer(dev, msg->lease, pref, weight)) {
@@ -624,31 +691,16 @@ ni_dhcp6_fsm_select_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg,
 		}
 
 		if (!msg->lease->dhcp6.rapid_commit) {
-			ni_string_printf(hint, "rapid commit not set");
+			ni_string_printf(hint, "solicit reply without enabled rapid-commit");
 			goto cleanup;
 		}
 
-
-		/*
-		 * Hmm...
-		 */
 		if (msg->lease->dhcp6.status &&
 			msg->lease->dhcp6.status->code != NI_DHCP6_STATUS_SUCCESS) {
 			ni_string_printf(hint, "status %s - %s",
 						ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
 						msg->lease->dhcp6.status->message);
 			goto cleanup;
-		} else {
-			ni_dhcp6_ia_t *ia;
-			for (ia = msg->lease->dhcp6.ia_list; ia; ia = ia->next) {
-				if (ia->status.code == NI_DHCP6_STATUS_NOADDRS) {
-					ni_string_printf(hint, "status %s - %s",
-						ni_dhcp6_status_name(ia->status.code),
-						ia->status.message ? ia->status.message :
-						"no addresses available");
-					goto cleanup;
-				}
-			}
 		}
 
 		/*
@@ -669,18 +721,20 @@ ni_dhcp6_fsm_select_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg,
 					"%s: dhcp6 server preference %u overriden by config to %d",
 					dev->ifname, msg->lease->dhcp6.server_pref, pref);
 		}
+
 		if (pref < 0) {
 			ni_string_printf(hint, "blacklisted server");
 			goto cleanup;
-		}
+		} else {
+			struct ni_dhcp6_ia_addr_counts usable;
 
-		/* reset weight for offers without any lease addrs */
-		count = ni_address_list_count(msg->lease->addrs);
-		if (!count) {
-			ni_string_printf(hint, "rapid-commit lease without address");
-			goto cleanup;
+			if (!(count = ni_dhcp6_fsm_count_lease_iadrs(dev, msg->lease, &usable, NULL))) {
+				ni_string_printf(hint, "rapid-commit lease without usable address");
+				goto cleanup;
+			} else {
+				weight += count;
+			}
 		}
-		weight += count;
 
 		if (__fsm_select_best_offer(dev, msg->lease, pref, weight)) {
 			ni_dhcp6_device_set_best_offer(dev, msg->lease, pref, weight);
