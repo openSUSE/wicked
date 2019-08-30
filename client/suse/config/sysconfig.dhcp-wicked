@@ -136,3 +136,15 @@ DHCLIENT6_UPDATE=""
 # the address is used or 128 (see also rfc5942).
 #
 DHCLIENT6_ADDRESS_LENGTH=""
+
+#
+# Type:		string
+# Default:	""
+#
+# Permits to specify an explicit prefix-length (e.g. ::/56) or a specific
+# prefix with a length (e.g. 2001:db8::/48), that are sent to the DHCPv6
+# server as hint when prefix delegation request mode is enabled in the
+# DHCLIENT6_MODE variable.
+#
+DHCLIENT6_PREFIX_HINT=""
+

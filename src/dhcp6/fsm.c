@@ -32,6 +32,7 @@
 
 #include "dhcp6/dhcp6.h"
 #include "dhcp6/device.h"
+#include "dhcp6/options.h"
 #include "dhcp6/protocol.h"
 #include "dhcp6/fsm.h"
 #include "duid.h"

@@ -74,6 +74,8 @@
 #include "util_priv.h"
 #include "duid.h"
 #include "dhcp.h"
+#include "dhcp6/options.h"
+#include "dhcp6/request.h"
 #include "client/suse/ifsysctl.h"
 #include "client/wicked-client.h"
 
@@ -5319,6 +5321,30 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 			ni_warn("%s: Cannot parse DHCLIENT6_MODE='%s'",
 				ni_basename(sc->pathname), string);
 			ret = FALSE;
+		}
+	}
+
+	if (compat->dhcp6.mode & NI_BIT(NI_DHCP6_MODE_PREFIX)) {
+		if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_PREFIX_HINT"))) {
+			ni_dhcp6_prefix_req_t *pr = NULL;
+			ni_dhcp6_ia_addr_t *hint = NULL;
+			ni_sockaddr_t addr;
+			unsigned int plen;
+
+			if (!ni_sockaddr_prefix_parse(string, &addr, &plen) || !plen ||
+			    addr.ss_family != AF_INET6 || plen >= ni_af_address_prefixlen(AF_INET6)) {
+				 ni_warn("%s: Invalid prefix hint in DHCLIENT6_PREFIX_HINT='%s'",
+						 ni_basename(sc->pathname), string);
+				ret = FALSE;
+			} else
+			if (!(pr = ni_dhcp6_prefix_req_new()) ||
+			    !(hint = ni_dhcp6_ia_prefix_new(addr.six.sin6_addr, plen)) ||
+			    !ni_dhcp6_ia_addr_list_append(&pr->hints, hint) ||
+			    !ni_dhcp6_prefix_req_list_append(&compat->dhcp6.prefix_reqs, pr)) {
+				ni_warn("%s: Unable to allocate prefix hint for DHCLIENT6_PREFIX_HINT='%s'",
+						ni_basename(sc->pathname), string);
+				ret = FALSE;
+			}
 		}
 	}
 

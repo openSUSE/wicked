@@ -58,6 +58,8 @@
 #include "client/client_state.h"
 #include "appconfig.h"
 #include "util_priv.h"
+#include "dhcp6/options.h"
+#include "dhcp6/request.h"
 
 static ni_bool_t ni_compat_generate_ethtool_link_advertise(xml_node_t *, const ni_bitfield_t *);
 /*
@@ -194,6 +196,7 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 
 		ni_string_free(&compat->dhcp6.hostname);
 		ni_string_free(&compat->dhcp6.client_id);
+		ni_dhcp6_prefix_req_list_destroy(&compat->dhcp6.prefix_reqs);
 		ni_string_array_destroy(&compat->dhcp6.request_options);
 
 		free(compat);
@@ -2284,6 +2287,30 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 	if ((ptr = ni_dhcp6_mode_format(&buf, compat->dhcp6.mode, NULL))) {
 		xml_node_dict_set(dhcp, "mode", ptr);
 		ni_stringbuf_destroy(&buf);
+	}
+
+	if (compat->dhcp6.prefix_reqs) {
+		ni_dhcp6_prefix_req_t *pr;
+		ni_dhcp6_ia_addr_t *hint;
+		xml_node_t *prnode = NULL;
+		ni_sockaddr_t addr;
+
+		for (pr = compat->dhcp6.prefix_reqs; pr; pr = pr->next) {
+			for (hint = pr->hints; hint; hint = hint->next) {
+				if (!hint->plen)
+					continue;
+
+				ni_sockaddr_set_ipv6(&addr, hint->addr, 0);
+				if (!(prnode = xml_node_new("request-prefix", dhcp)))
+					continue;
+
+				xml_node_new_element("hint", prnode,
+					ni_sockaddr_prefix_print(&addr, hint->plen));
+
+				break; /* one hint only */
+			}
+			break; /* one prefix for now */
+		}
 	}
 
 	if (compat->dhcp6.address_len) {
