@@ -128,12 +128,13 @@ __ni_dhcp6_lease_ia_data_to_xml(const ni_dhcp6_ia_t *ia, xml_node_t *node)
 	const char *ia_address = ni_dhcp6_option_name(NI_DHCP6_OPTION_IA_ADDRESS);
 	const char *ia_prefix  = ni_dhcp6_option_name(NI_DHCP6_OPTION_IA_PREFIX);
 	const ni_dhcp6_ia_addr_t *iadr;
-	struct timeval acquired;
+	struct timeval acquired, now;
 	xml_node_t *iadr_node;
 	unsigned int count = 0;
 	char buf[32] = { '\0' };
 	int ret;
 
+	ni_timer_get_time(&now);
 	switch (ia->type) {
 	case NI_DHCP6_OPTION_IA_TA:
 		xml_node_new_element_uint("interface-id", node, ia->iaid);
@@ -155,6 +156,10 @@ __ni_dhcp6_lease_ia_data_to_xml(const ni_dhcp6_ia_t *ia, xml_node_t *node)
 	}
 
 	for (iadr = ia->addrs; iadr; iadr = iadr->next) {
+		/* omit expired and deletions (valid_lft == 0) */
+		if (!ni_dhcp6_ia_addr_valid_lft(iadr, &ia->acquired, &now))
+			continue;
+
 		switch (ia->type) {
 		case NI_DHCP6_OPTION_IA_NA:
 		case NI_DHCP6_OPTION_IA_TA:
