@@ -229,8 +229,14 @@ extern ni_dhcp6_ia_addr_t *	ni_dhcp6_ia_addr_list_find(ni_dhcp6_ia_addr_t *,
 							ni_dhcp6_ia_addr_match_fn_t *);
 
 extern ni_dhcp6_ia_t *		ni_dhcp6_ia_new(unsigned int, unsigned int);
+extern ni_dhcp6_ia_t *		ni_dhcp6_ia_na_new(unsigned int iaid);
+extern ni_dhcp6_ia_t *		ni_dhcp6_ia_ta_new(unsigned int iaid);
+extern ni_dhcp6_ia_t *		ni_dhcp6_ia_pd_new(unsigned int iaid);
 extern ni_dhcp6_ia_t *		ni_dhcp6_ia_clone(const ni_dhcp6_ia_t *, ni_bool_t);
 extern void			ni_dhcp6_ia_free(ni_dhcp6_ia_t *);
+extern ni_bool_t		ni_dhcp6_ia_type_na(const ni_dhcp6_ia_t *);
+extern ni_bool_t		ni_dhcp6_ia_type_ta(const ni_dhcp6_ia_t *);
+extern ni_bool_t		ni_dhcp6_ia_type_pd(const ni_dhcp6_ia_t *);
 
 extern ni_bool_t		ni_dhcp6_ia_list_append(ni_dhcp6_ia_t **,
 							ni_dhcp6_ia_t *);

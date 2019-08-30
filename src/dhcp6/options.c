@@ -360,6 +360,21 @@ ni_dhcp6_ia_new(unsigned int type, unsigned int iaid)
 	}
 	return ia;
 }
+ni_dhcp6_ia_t *
+ni_dhcp6_ia_na_new(unsigned int iaid)
+{
+	return ni_dhcp6_ia_new(NI_DHCP6_OPTION_IA_NA, iaid);
+}
+ni_dhcp6_ia_t *
+ni_dhcp6_ia_ta_new(unsigned int iaid)
+{
+	return ni_dhcp6_ia_new(NI_DHCP6_OPTION_IA_TA, iaid);
+}
+ni_dhcp6_ia_t *
+ni_dhcp6_ia_pd_new(unsigned int iaid)
+{
+	return ni_dhcp6_ia_new(NI_DHCP6_OPTION_IA_PD, iaid);
+}
 
 ni_dhcp6_ia_t *
 ni_dhcp6_ia_clone(const ni_dhcp6_ia_t *ia, ni_bool_t clean)
@@ -400,6 +415,21 @@ ni_dhcp6_ia_free(ni_dhcp6_ia_t *ia)
 	}
 }
 
+ni_bool_t
+ni_dhcp6_ia_type_na(const ni_dhcp6_ia_t *ia)
+{
+	return ia->type == NI_DHCP6_OPTION_IA_NA;
+}
+ni_bool_t
+ni_dhcp6_ia_type_ta(const ni_dhcp6_ia_t *ia)
+{
+	return ia->type == NI_DHCP6_OPTION_IA_TA;
+}
+ni_bool_t
+ni_dhcp6_ia_type_pd(const ni_dhcp6_ia_t *ia)
+{
+	return ia->type == NI_DHCP6_OPTION_IA_PD;
+}
 
 /*
  * ia list
