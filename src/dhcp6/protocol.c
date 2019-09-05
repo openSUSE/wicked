@@ -581,7 +581,7 @@ ni_dhcp6_option_put_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_addr_t *iadr, unsign
 
 	if (iadr->plen > 0) {
 		option = NI_DHCP6_OPTION_IA_PREFIX;
-#if 1
+#if 0
 		ni_debug_dhcp("%s.%s: %s/%u, preferred_lft: %u, valid_lft: %u",
 				ni_dhcp6_option_name(iatype),
 				ni_dhcp6_option_name(option),
@@ -601,7 +601,7 @@ ni_dhcp6_option_put_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_addr_t *iadr, unsign
 			goto failure;
 	} else {
 		option = NI_DHCP6_OPTION_IA_ADDRESS;
-#if 1
+#if 0
 		ni_debug_dhcp("%s.%s: %s, preferred_lft: %u, valid_lft: %u",
 				ni_dhcp6_option_name(iatype),
 				ni_dhcp6_option_name(option),
