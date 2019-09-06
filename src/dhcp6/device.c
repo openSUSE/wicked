@@ -394,7 +394,7 @@ ni_dhcp6_device_start(ni_dhcp6_device_t *dev)
 		return -1;
 	}
 
-	if (dev->config->mode == NI_DHCP6_MODE_AUTO)
+	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO))
 		return 1;
 
 	ni_dhcp6_device_show_addrs(dev);
@@ -409,6 +409,7 @@ ni_dhcp6_device_start(ni_dhcp6_device_t *dev)
 int
 ni_dhcp6_device_restart(ni_dhcp6_device_t *dev)
 {
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	char *err = NULL;
 	int rv = -1;
 
@@ -419,15 +420,17 @@ ni_dhcp6_device_restart(ni_dhcp6_device_t *dev)
 
 	ni_debug_dhcp("%s: Restart DHCPv6 acquire request %s in mode %s",
 		dev->ifname, ni_uuid_print(&dev->request->uuid),
-		ni_dhcp6_mode_type_to_name(dev->request->mode));
+		ni_dhcp6_mode_format(&buf, dev->request->mode, NULL));
+	ni_stringbuf_destroy(&buf);
 
 	if ((rv = ni_dhcp6_acquire(dev, dev->request, &err)) >= 0)
 		return rv;
 
 	ni_error("%s: Cannot restart DHCPv6 acquire request %s in mode %s%s%s",
 		dev->ifname, ni_uuid_print(&dev->request->uuid),
-		ni_dhcp6_mode_type_to_name(dev->request->mode),
+		ni_dhcp6_mode_format(&buf, dev->request->mode, NULL),
 		(err ? ": " : ""), (err ? err : ""));
+	ni_stringbuf_destroy(&buf);
 	ni_string_free(&err);
 
 	/* Also discard the request */
@@ -543,15 +546,39 @@ ni_dhcp6_device_refresh_mode(ni_dhcp6_device_t *dev, ni_netdev_t *ifp)
 void
 ni_dhcp6_device_update_mode(ni_dhcp6_device_t *dev, const ni_netdev_t *ifp)
 {
+	ni_stringbuf_t old = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_stringbuf_t new = NI_STRINGBUF_INIT_DYNAMIC;
+	unsigned int omode = 0;
+
 	if (!ifp && !(ifp = ni_dhcp6_device_netdev(dev)))
 		return;
 
 	if (ifp->ipv6 && dev->config) {
-		if (ifp->ipv6->radv.managed_addr)
-			dev->config->mode = NI_DHCP6_MODE_MANAGED;
-		else
-		if (ifp->ipv6->radv.other_config)
-			dev->config->mode = NI_DHCP6_MODE_INFO;
+		omode = dev->config->mode;
+
+		if (ifp->ipv6->radv.managed_addr) {
+			dev->config->mode |= NI_BIT(NI_DHCP6_MODE_MANAGED);
+		} else
+		if (ifp->ipv6->radv.other_config) {
+
+			dev->config->mode |= NI_BIT(NI_DHCP6_MODE_INFO);
+		}
+		dev->config->mode = ni_dhcp6_mode_adjust(dev->config->mode);
+		dev->config->mode &= ~NI_BIT(NI_DHCP6_MODE_AUTO);
+
+		if (omode != dev->config->mode) {
+			ni_dhcp6_mode_format(&old, omode, NULL);
+			ni_dhcp6_mode_format(&new, dev->config->mode, NULL);
+			ni_debug_dhcp("%s: updated dhcp6 mode from %s to %s",
+					dev->ifname, old.string, new.string ?
+					new.string : "off");
+			ni_stringbuf_destroy(&old);
+			ni_stringbuf_destroy(&new);
+		}
+	} else {
+		ni_debug_dhcp("%s: cannot update dhcp6 mode - no %s available",
+				dev->ifname,
+				ifp->ipv6 ? "dhcp6 config" : "ipv6 settings");
 	}
 }
 
@@ -848,6 +875,7 @@ __nondefault(unsigned int req, unsigned int def)
 int
 ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **err)
 {
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_dhcp6_config_t *config;
 	const char *mode;
 	size_t len;
@@ -862,27 +890,22 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 		return -NI_ERROR_INVALID_ARGS;
 	}
 
-	switch (req->mode) {
-	case NI_DHCP6_MODE_AUTO:
-	case NI_DHCP6_MODE_INFO:
-	case NI_DHCP6_MODE_MANAGED:
+	config = xcalloc(1, sizeof(*config));
+	config->uuid = req->uuid;
+	config->mode = ni_dhcp6_mode_adjust(req->mode);
+	config->flags= req->flags;
+
+	if ((mode = ni_dhcp6_mode_format(&buf, config->mode, NULL))) {
 		ni_note("%s: Request to acquire DHCPv6 lease with UUID %s in mode %s",
-			dev->ifname, ni_uuid_print(&req->uuid),
-			ni_dhcp6_mode_type_to_name(req->mode));
-		break;
-	default:
-		if ((mode = ni_dhcp6_mode_type_to_name(req->mode)) != NULL) {
-			ni_string_printf(err, "unsupported mode %s", mode);
-		} else {
-			ni_string_printf(err, "invalid mode %u", req->mode);
-		}
+			dev->ifname, ni_uuid_print(&config->uuid), mode);
+		ni_stringbuf_destroy(&buf);
+	} else {
+		ni_string_printf(err, "invalid DHCPv6 request mode 0x%x (0x%x)",
+				req->mode, config->mode);
+		ni_dhcp6_device_config_free(config);
 		return -NI_ERROR_INVALID_ARGS;
 	}
 
-	config = xcalloc(1, sizeof(*config));
-	config->uuid = req->uuid;
-	config->mode = req->mode;
-	config->flags= req->flags;
 	if (req->update == -1U) {
 		config->update = ni_config_addrconf_update(dev->ifname, NI_ADDRCONF_DHCP, AF_INET6);
 	} else {
@@ -929,6 +952,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 
 	if (!ni_dhcp6_device_iaid(dev, &dev->iaid)) {
 		ni_string_printf(err, "Unable to generate a device IAID");
+		ni_dhcp6_device_config_free(config);
 		return -NI_ERROR_GENERAL_FAILURE;
 	}
 	if (!ni_dhcp6_config_init_duid(dev, config, req->clientid)) {
@@ -945,19 +969,32 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 		}
 	}
 
-	/*
-	 * Hmm... in info mode we don't need any IA's,
-	 *        in auto mode, we don't know yet ...
-	 */
-	if (config->mode != NI_DHCP6_MODE_INFO) {
-		if (req->ia_list == NULL) {
-			ni_dhcp6_ia_t *ia = ni_dhcp6_ia_na_new(dev->iaid);
-			ni_dhcp6_ia_set_default_lifetimes(ia, config->lease_time);
+	/* Copy IA-PD (only) with prefix-hint to the config for later use.
+	 * Another IA's aren't using a hint and will be added according to
+	 * the managed/info mode bit later to request automatically.
+	 *
+	 * Once we support multiple prefixes, we will need to sort requests
+	 * by iaid into a unique list of IAs + per-ia prefix hints. */
+	if ((config->mode & NI_BIT(NI_DHCP6_MODE_PREFIX)) && req->prefix_reqs) {
+		const ni_dhcp6_prefix_req_t *pr;
+		ni_dhcp6_ia_addr_t *ph, *padr;
+		ni_dhcp6_ia_t *ia;
+
+		for (pr = req->prefix_reqs; pr; pr = pr->next) {
+			/* one IA using our iaid + hint for now */
+			if (!(ia = ni_dhcp6_ia_pd_new(dev->iaid)))
+				continue;
+
+			for (ph = pr->hints; ph; ph = ph->next) {
+				if (!ph->plen)
+					continue;
+
+				padr = ni_dhcp6_ia_addr_clone(ph, FALSE);
+				ni_dhcp6_ia_addr_list_append(&ia->addrs, padr);
+				break; /* one pd hint per ia only */
+			}
 			ni_dhcp6_ia_list_append(&config->ia_list, ia);
-		} else {
-			/* TODO: Merge multiple ia's of same type into one?
-			 *       for tests we take it as is -- at the moment */
-			ni_dhcp6_ia_list_copy(&config->ia_list, req->ia_list, FALSE);
+			break; /* one ia-pd only */
 		}
 	}
 
@@ -1001,13 +1038,11 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 
 	ni_dhcp6_device_set_config(dev, config);
 
-	if (config->mode == NI_DHCP6_MODE_AUTO) {
+	if (config->mode & NI_BIT(NI_DHCP6_MODE_AUTO)) {
+		unsigned int deadline = 0;
+
 		/* refresh in case kernel forgot a newlink on RA */
 		ni_dhcp6_device_refresh_mode(dev, NULL);
-	}
-
-	if (config->mode == NI_DHCP6_MODE_AUTO) {
-		unsigned int deadline = 0;
 
 		if (config->defer_timeout) {
 			/*
@@ -1134,7 +1169,7 @@ ni_dhcp6_device_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 	break;
 
 	case NI_EVENT_DEVICE_CHANGE:
-		if (dev->config && dev->config->mode == NI_DHCP6_MODE_AUTO) {
+		if (dev->config && (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO))) {
 			ni_dhcp6_device_update_mode(dev, ifp);
 			ni_dhcp6_device_start(dev);
 		}
@@ -1187,7 +1222,7 @@ ni_dhcp6_prefix_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 {
 	switch (event) {
 	case NI_EVENT_PREFIX_UPDATE:
-		if (dev->config && dev->config->mode == NI_DHCP6_MODE_AUTO) {
+		if (dev->config && (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO))) {
 			/* refresh in case kernel forgot a newlink on RA */
 			ni_dhcp6_device_refresh_mode(dev, ifp);
 			ni_server_trace_interface_prefix_events(ifp, event, pi);
@@ -1410,50 +1445,6 @@ ni_dhcp6_config_set_request_options(const char *ifname, ni_uint_array_t *cfg, co
 	}
 }
 
-ni_string_array_t *
-ni_dhcp6_get_ia_addrs(struct ni_dhcp6_ia *ia_list, ni_var_array_t *p_lft, ni_var_array_t *v_lft)
-{
-	ni_string_array_t *addrs = NULL;
-	const ni_dhcp6_ia_t *ia = NULL;
-
-	addrs = xcalloc(1, sizeof(ni_string_array_t));
-
-	for (ia = ia_list; ia; ia = ia->next) {
-		const ni_dhcp6_ia_addr_t *iaddr = NULL;
-		ni_sockaddr_t addr;
-		const char *addr_str = NULL;
-		for (iaddr = ia->addrs; iaddr; iaddr = iaddr->next) {
-			ni_sockaddr_set_ipv6(&addr, iaddr->addr, 0);
-			switch (ia->type) {
-			case NI_DHCP6_OPTION_IA_TA:
-			case NI_DHCP6_OPTION_IA_NA:
-				addr_str = ni_sockaddr_print(&addr);
-				ni_string_array_append(addrs, addr_str);
-				break;
-
-			case NI_DHCP6_OPTION_IA_PD:
-				addr_str = ni_sockaddr_prefix_print(&addr, iaddr->plen);
-				ni_string_array_append(addrs, addr_str);
-				break;
-
-			default:
-				break;
-			}
-
-			if (p_lft)
-				ni_var_array_set_uint(p_lft,
-						addr_str,
-						iaddr->preferred_lft);
-			if (v_lft)
-				ni_var_array_set_uint(v_lft,
-						addr_str,
-						iaddr->valid_lft);
-		}
-	}
-
-	return addrs;
-}
-
 /*
  * Create/delete a dhcp6 request object
  */
@@ -1466,7 +1457,7 @@ ni_dhcp6_request_new(void)
 
 	/* Apply defaults */
 	req->enabled = TRUE; /* used by wickedd */
-	req->mode = NI_DHCP6_MODE_AUTO;
+	req->mode = NI_BIT(NI_DHCP6_MODE_AUTO);
 	req->rapid_commit = TRUE;
 
 	/* By default, we try to obtain all sorts of config from the server */
@@ -1484,13 +1475,59 @@ ni_dhcp6_request_free(ni_dhcp6_request_t *req)
 	if(req) {
 		ni_string_free(&req->hostname);
 		ni_string_free(&req->clientid);
-		ni_dhcp6_ia_list_destroy(&req->ia_list);
+		ni_dhcp6_prefix_req_list_destroy(&req->prefix_reqs);
 		ni_string_array_destroy(&req->request_options);
 		/*
 		 * req->vendor_class
 		 * ....
 		 */
 		free(req);
+	}
+}
+
+ni_dhcp6_prefix_req_t *
+ni_dhcp6_prefix_req_new(void)
+{
+	ni_dhcp6_prefix_req_t *req;
+
+	req = calloc(1, sizeof(*req));
+	return req;
+}
+
+void
+ni_dhcp6_prefix_req_free(ni_dhcp6_prefix_req_t *req)
+{
+	if (req) {
+		ni_dhcp6_ia_addr_list_destroy(&req->hints);
+#if 0
+		ni_netdev_ref_destroy(&req->device);
+#endif
+		free(req);
+	}
+}
+
+ni_bool_t
+ni_dhcp6_prefix_req_list_append(ni_dhcp6_prefix_req_t **list, ni_dhcp6_prefix_req_t *req)
+{
+	if (list && req) {
+		while (*list)
+			list = &(*list)->next;
+		*list = req;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+void
+ni_dhcp6_prefix_req_list_destroy(ni_dhcp6_prefix_req_t **list)
+{
+	ni_dhcp6_prefix_req_t *req;
+
+	if (list) {
+		while ((req = *list)) {
+			*list = req->next;
+			ni_dhcp6_prefix_req_free(req);
+		}
 	}
 }
 
