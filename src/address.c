@@ -320,6 +320,12 @@ ni_address_is_mngtmpaddr(const ni_address_t *laddr)
 }
 
 ni_bool_t
+ni_address_is_noprefixroute(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_NOPREFIXROUTE;
+}
+
+ni_bool_t
 ni_address_can_reach(const ni_address_t *laddr, const ni_sockaddr_t *gw)
 {
 	if (laddr->family != gw->ss_family)
@@ -363,6 +369,15 @@ ni_address_set_mngtmpaddr(ni_address_t *laddr, ni_bool_t temporary)
 		laddr->flags |= IFA_F_MANAGETEMPADDR;
 	else
 		laddr->flags &= ~IFA_F_MANAGETEMPADDR;
+}
+
+void
+ni_address_set_noprefixroute(ni_address_t *laddr, ni_bool_t noprefixroute)
+{
+	if (noprefixroute)
+		laddr->flags |= IFA_F_NOPREFIXROUTE;
+	else
+		laddr->flags &= ~IFA_F_NOPREFIXROUTE;
 }
 
 unsigned int
