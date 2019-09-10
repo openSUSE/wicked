@@ -287,9 +287,13 @@ ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev)
 {
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
-	if (!dev->config || !dev->config->mode)
+	if (!dev || !dev->config)
 		return -1;
 
+	if (!dev->config->mode) {
+		ni_info("%s: dhcp6 disabled in device ipv6 ra info", dev->ifname);
+		return 1;       /* not (yet) enabled to start */
+	} else
 	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO)) {
 		/* this should not happen */
 		ni_warn("%s: fsm start in mode %s", dev->ifname,
