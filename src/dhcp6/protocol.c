@@ -1415,6 +1415,39 @@ __ni_dhcp6_build_oro_opts(ni_dhcp6_device_t *dev,
 	return oro->count > 0 ? 0 : -1;
 }
 
+static unsigned int
+__ni_dhcp6_build_config_ia_list(ni_dhcp6_device_t *dev, ni_buffer_t *msg_buf,
+				unsigned int ia_na, unsigned int ia_pd)
+{
+	unsigned int count = 0;
+	ni_dhcp6_ia_t *ia;
+
+	/* Add IA's to the request from hints in the config depending on mode bits. */
+	if (ia_na && dev->config->mode & NI_BIT(NI_DHCP6_MODE_MANAGED)) {
+		for (ia = dev->config->ia_list; ia; ia = ia->next) {
+			if (!ni_dhcp6_ia_type_na(ia))
+				continue;
+
+			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
+				return 0;
+
+			count++;
+		}
+	}
+	if (ia_pd && dev->config->mode & NI_BIT(NI_DHCP6_MODE_PREFIX)) {
+		for (ia = dev->config->ia_list; ia; ia = ia->next) {
+			if (!ni_dhcp6_ia_type_pd(ia))
+				continue;
+
+			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
+				return 0;
+
+			count++;
+		}
+	}
+	return count;
+}
+
 static int
 __ni_dhcp6_build_solicit_opts(ni_dhcp6_device_t *dev,
 				unsigned int msg_type,
@@ -1442,64 +1475,8 @@ __ni_dhcp6_build_solicit_opts(ni_dhcp6_device_t *dev,
 
 	/* TODO: user class, vendor class, vendor opts */
 
-	/* Add IA's to the request either from hints in the config
-	 * or init new/empty IAs set depending on mode bits. */
-	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_MANAGED)) {
-		ni_bool_t add = TRUE;
-		ni_dhcp6_ia_t *ia;
-
-		for (ia = dev->config->ia_list; ia && add; ia = ia->next) {
-			if (!ni_dhcp6_ia_type_na(ia))
-				continue;
-
-			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
-				goto cleanup;
-
-			add = FALSE;
-		}
-
-		if (add) {
-			if (!dev->iaid && !ni_dhcp6_device_iaid(dev, &dev->iaid))
-				goto cleanup;
-
-			if (!(ia = ni_dhcp6_ia_na_new(dev->iaid)))
-				goto cleanup;
-
-			ni_dhcp6_ia_set_default_lifetimes(ia, dev->config->lease_time);
-			ni_dhcp6_ia_list_append(&dev->config->ia_list, ia);
-
-			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
-				goto cleanup;
-		}
-	}
-	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_PREFIX)) {
-		ni_bool_t add = TRUE;
-		ni_dhcp6_ia_t *ia;
-
-		for (ia = dev->config->ia_list; ia && add; ia = ia->next) {
-			if (!ni_dhcp6_ia_type_pd(ia))
-				continue;
-
-			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
-				goto cleanup;
-
-			add = FALSE;
-		}
-
-		if (add) {
-			if (!dev->iaid && !ni_dhcp6_device_iaid(dev, &dev->iaid))
-				goto cleanup;
-
-			if (!(ia = ni_dhcp6_ia_pd_new(dev->iaid)))
-				goto cleanup;
-
-			ni_dhcp6_ia_set_default_lifetimes(ia, dev->config->lease_time);
-			ni_dhcp6_ia_list_append(&dev->config->ia_list, ia);
-
-			if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
-				goto cleanup;
-		}
-	}
+	if (!__ni_dhcp6_build_config_ia_list(dev, msg_buf, 1, 1))
+		goto cleanup;
 
 	return 0;
 cleanup:
@@ -1610,6 +1587,7 @@ __ni_dhcp6_build_renew_opts(ni_dhcp6_device_t *dev,
 
 		if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
 			goto cleanup;
+
 		ia_count++;
 	}
 	if (!ia_count)
@@ -1631,6 +1609,7 @@ __ni_dhcp6_build_rebind_opts(ni_dhcp6_device_t *dev,
 {
 	ni_dhcp6_option_request_t oro = NI_DHCP6_OPTION_REQUEST_INIT;
 	ni_dhcp6_ia_t *ia, *ia_list = NULL;
+	unsigned int ia_na = 0, ia_pd = 0;
 	unsigned int ia_count = 0;
 	const ni_dhcp_fqdn_t *fqdn;
 
@@ -1661,8 +1640,19 @@ __ni_dhcp6_build_rebind_opts(ni_dhcp6_device_t *dev,
 
 		if (ni_dhcp6_option_put_ia(msg_buf, ia) < 0)
 			goto cleanup;
-		ia_count++;
+
+		if (ni_dhcp6_ia_type_na(ia))
+			ia_na++;
+		else
+		if (ni_dhcp6_ia_type_pd(ia))
+			ia_pd++;
 	}
+	/* pickup missed IAs from config */
+	if (dev->fsm.state == NI_DHCP6_STATE_CONFIRMING)
+		ia_count = __ni_dhcp6_build_config_ia_list(dev, msg_buf, !ia_na, !ia_pd);
+
+	ia_count += ia_pd;
+	ia_count += ia_na;
 	if (!ia_count)
 		goto cleanup;
 	ni_dhcp6_ia_list_destroy(&ia_list);
@@ -1958,7 +1948,6 @@ ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_ad
 				ni_dhcp6_message_name(msg_code));
 			return -1;
 		}
-		dev->fsm.state = NI_DHCP6_STATE_REBINDING;
 	} else {
 		if(!ni_dhcp6_set_message_timing(dev, msg_code)) {
 			ni_error("%s: unable to init %s message timings", dev->ifname,
@@ -1976,6 +1965,7 @@ ni_dhcp6_init_message(ni_dhcp6_device_t *dev, unsigned int msg_code, const ni_ad
 			ni_dhcp6_message_name(msg_code));
 		return -1;
 	}
+	dev->fsm.state = NI_DHCP6_STATE_REBINDING;
 
 	/*
 	 * Set the transmission start after the initial message is build,

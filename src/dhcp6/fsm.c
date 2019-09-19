@@ -1656,6 +1656,68 @@ ni_dhcp6_remaining_time(struct timeval *start, unsigned int timeout)
 	return timeout > dif.tv_sec ? timeout - dif.tv_sec : 0;
 }
 
+ni_bool_t
+ni_dhcp6_config_update_ia_list(ni_dhcp6_device_t *dev)
+{
+	ni_dhcp6_ia_t **pos, *ia;
+	unsigned int count;
+
+	if (!dev || !dev->config)
+		return FALSE;
+
+	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_MANAGED)) {
+		for (count = 0, ia = dev->config->ia_list; ia; ia = ia->next) {
+			if (ni_dhcp6_ia_type_na(ia))
+				count++;
+		}
+		if (!count) {
+			if (!dev->iaid && !ni_dhcp6_device_iaid(dev, &dev->iaid))
+				return FALSE;
+			if (!(ia = ni_dhcp6_ia_na_new(dev->iaid)))
+				return FALSE;
+
+			ni_dhcp6_ia_set_default_lifetimes(ia, dev->config->lease_time);
+			ni_dhcp6_ia_list_append(&dev->config->ia_list, ia);
+		}
+	} else {
+		pos = &dev->config->ia_list;
+		while ((ia = *pos)) {
+			if (ni_dhcp6_ia_type_na(ia)) {
+				*pos = ia->next;
+				ni_dhcp6_ia_free(ia);
+			} else {
+				pos = &ia->next;
+			}
+		}
+	}
+	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_PREFIX)) {
+		for (count = 0, ia = dev->config->ia_list; ia; ia = ia->next) {
+			if (ni_dhcp6_ia_type_pd(ia))
+				count++;
+		}
+		if (!count) {
+			if (!dev->iaid && !ni_dhcp6_device_iaid(dev, &dev->iaid))
+				return FALSE;
+			if (!(ia = ni_dhcp6_ia_pd_new(dev->iaid)))
+				return FALSE;
+
+			ni_dhcp6_ia_set_default_lifetimes(ia, dev->config->lease_time);
+			ni_dhcp6_ia_list_append(&dev->config->ia_list, ia);
+		}
+	} else {
+		pos = &dev->config->ia_list;
+		while ((ia = *pos)) {
+			if (ni_dhcp6_ia_type_pd(ia)) {
+				*pos = ia->next;
+				ni_dhcp6_ia_free(ia);
+			} else {
+				pos = &ia->next;
+			}
+		}
+	}
+	return TRUE;
+}
+
 static int
 ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 {
@@ -1675,6 +1737,7 @@ ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 	 *
 	 * If not, create a dummy lease with NULL fields.
 	 */
+	ni_dhcp6_config_update_ia_list(dev);
 	if (dev->retrans.count == 0) {
 		ni_info("%s: Initiating DHCPv6 Server Solicitation",
 			dev->ifname);
@@ -1900,6 +1963,7 @@ ni_dhcp6_fsm_confirm_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *le
 	if (!dev || !lease)
 		return -1;
 
+	ni_dhcp6_config_update_ia_list(dev);
 	ni_dhcp6_fsm_count_lease_iadrs(dev, dev->lease, &usable, NULL);
 	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_PREFIX)) {
 		if (usable.pd)
