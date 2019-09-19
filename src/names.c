@@ -482,7 +482,6 @@ failure:
 const char *
 ni_dhcp6_mode_format(ni_stringbuf_t *buff, unsigned int mask, const char *sep)
 {
-	mask = ni_dhcp6_mode_adjust(mask);
 	return ni_format_bitmap(buff, ni_dhcp6_mode_names, mask, sep ? sep : ",");
 }
 

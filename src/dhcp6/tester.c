@@ -296,12 +296,13 @@ ni_dhcp6_tester_run(ni_dhcp6_tester_t *opts)
 	ni_dhcp6_device_t *dev = NULL;
 	ni_dhcp6_request_t *req = NULL;
 	unsigned int link_timeout = 20;
+	struct timeval start_time;
 	char *errdetail = NULL;
 	int rv;
 
+	ni_timer_get_time(&start_time);
 	if (opts->timeout && opts->timeout != -1U) {
 		link_timeout = (opts->timeout * 2) / 3;
-		opts->timeout -= link_timeout;
 	}
 
 	if (!opts || ni_string_empty(opts->ifname))
@@ -371,7 +372,7 @@ ni_dhcp6_tester_run(ni_dhcp6_tester_t *opts)
 
 			if (ni_dhcp6_device_check_ready(dev))
 				break;
-		} while (link_timeout-- > 1);
+		} while (ni_lifetime_left(link_timeout, &start_time, NULL) > 1);
 
 		if (!ifp || !ni_dhcp6_device_check_ready(dev) || !link_timeout) {
 			ni_error("%s: Unable to bring IPv6 link up",
@@ -381,7 +382,7 @@ ni_dhcp6_tester_run(ni_dhcp6_tester_t *opts)
 	}
 
 	if (opts->timeout && opts->timeout != -1U)
-		req->acquire_timeout = opts->timeout;
+		req->acquire_timeout = ni_lifetime_left(opts->timeout, &start_time, NULL);
 
 	if ((rv = ni_dhcp6_acquire(dev, req, &errdetail)) < 0) {
 		ni_error("%s: DHCPv6 acquire request %s failed: %s%s[%s]",
@@ -407,8 +408,8 @@ ni_dhcp6_tester_run(ni_dhcp6_tester_t *opts)
 			if (__ni_system_refresh_interface(nc, ifp))
 				break;
 
-			ni_dhcp6_device_update_mode(dev, NULL);
-			if (dev->config && (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO))) {
+			ni_dhcp6_device_update_mode(dev, ifp);
+			if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO)) {
 				if (timeout > 1000)
 					timeout = 1000;
 			}

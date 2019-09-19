@@ -83,6 +83,10 @@ static void			ni_dhcp6_device_close(ni_dhcp6_device_t *);
 static void			ni_dhcp6_device_free(ni_dhcp6_device_t *);
 
 static void			ni_dhcp6_device_set_config(ni_dhcp6_device_t *, ni_dhcp6_config_t *);
+static void			ni_dhcp6_device_start_timer_init(ni_timeout_param_t *);
+static void			ni_dhcp6_device_start_timer_cancel(ni_dhcp6_device_t *);
+
+static ni_bool_t		ni_dhcp6_device_refresh_mode(ni_dhcp6_device_t *, ni_netdev_t *);
 
 static int			ni_dhcp6_device_transmit_arm_delay(ni_dhcp6_device_t *);
 static void			ni_dhcp6_device_retransmit_arm(ni_dhcp6_device_t *);
@@ -147,6 +151,20 @@ ni_dhcp6_device_put(ni_dhcp6_device_t *dev)
 		ni_dhcp6_device_free(dev);
 }
 
+static ni_netdev_t *
+ni_dhcp6_device_netdev(const ni_dhcp6_device_t *dev)
+{
+	ni_netconfig_t *nc;
+	ni_netdev_t *ifp;
+
+	nc = ni_global_state_handle(0);
+	if (!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex))) {
+		ni_error("%s: Unable to find network interface by index %u",
+			dev->ifname, dev->link.ifindex);
+		return NULL;
+	}
+	return ifp;
+}
 
 /*
  * Cleanup functions
@@ -166,6 +184,11 @@ ni_dhcp6_device_close(ni_dhcp6_device_t *dev)
 void
 ni_dhcp6_device_stop(ni_dhcp6_device_t *dev)
 {
+	/*
+	 * Cancel start timer if any
+	 */
+	ni_dhcp6_device_start_timer_cancel(dev);
+
 	/*
 	 * Reset FSM timers and go to init state
 	 */
@@ -385,24 +408,138 @@ ni_dhcp6_device_show_addrs(ni_dhcp6_device_t *dev)
 	}
 }
 
+static void
+ni_dhcp6_device_start_timeout_cb(void *user_data, const ni_timer_t *timer)
+{
+	ni_dhcp6_device_t *dev = user_data;
+
+	if (!dev || dev->start_timer != timer)
+		return;
+	dev->start_timer = NULL;
+
+	ni_timeout_recompute(&dev->start_params);
+	ni_dhcp6_device_start(dev);
+}
+
+static void
+ni_dhcp6_device_start_timer_cancel(ni_dhcp6_device_t *dev)
+{
+	if (dev && dev->start_timer) {
+		ni_timer_cancel(dev->start_timer);
+		dev->start_timer = NULL;
+	}
+}
+
+static inline void
+ni_dhcp6_device_start_timer_init(ni_timeout_param_t *tmo)
+{
+	memset(tmo, 0, sizeof(*tmo));
+	tmo->jitter.max  = 100;
+	tmo->timeout     = 1000;
+	tmo->max_timeout = 3600000;
+	tmo->nretries    = NI_DHCP6_UNLIMITED;
+	tmo->increment   = NI_DHCP6_EXP_BACKOFF;
+}
+
+static int
+ni_dhcp6_device_start_timer_arm(ni_dhcp6_device_t *dev)
+{
+	unsigned long timeout;
+
+	timeout = ni_timeout_randomize(dev->start_params.timeout, &dev->start_params.jitter);
+	if (dev->start_timer) {
+		ni_timer_rearm(dev->start_timer, timeout);
+	} else {
+		dev->start_timer = ni_timer_register(timeout, ni_dhcp6_device_start_timeout_cb, dev);
+	}
+	return 1;
+}
+
+static inline int
+ni_dhcp6_device_start_auto_prefix(ni_dhcp6_device_t *dev)
+{
+	struct timeval now;
+	struct timeval end;
+	unsigned int defer;
+	ni_netdev_t *ifp;
+
+	/* auto + prefix:
+	 * wait a bit until ready + RA arrives, but then
+	 * start to request prefix and complete it later.
+	 */
+	if (!(ifp = ni_dhcp6_device_netdev(dev)))
+		return -1;
+
+	ni_dhcp6_device_show_addrs(dev);
+	if (!ni_dhcp6_device_is_ready(dev, ifp))
+		return ni_dhcp6_device_start_timer_arm(dev);
+
+	/* refresh in case kernel forgot to send it
+	 * (we increment timeout between attempts) */
+	if (dev->config->dry_run != NI_DHCP6_RUN_NORMAL)
+		ni_dhcp6_device_refresh_mode(dev, ifp);
+
+	/* request prefix after 1/3 defer timeout */
+	ni_timer_get_time(&now);
+	end = dev->start_time;
+	if (!(defer = (dev->config->defer_timeout / 3)))
+		defer = dev->config->acquire_timeout / 3;
+	end.tv_sec += defer;
+	if (timercmp(&end, &now, >) &&
+	    (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO)))
+		return ni_dhcp6_device_start_timer_arm(dev);
+
+	ni_dhcp6_device_start_timer_cancel(dev);
+	return ni_dhcp6_fsm_start(dev);
+}
+
+static inline int
+ni_dhcp6_device_start_auto(ni_dhcp6_device_t *dev)
+{
+	ni_netdev_t *ifp;
+
+	/* auto:
+	 * wait until ready + RA arrived
+	 */
+	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_PREFIX))
+		return ni_dhcp6_device_start_auto_prefix(dev);
+
+	if (!(ifp = ni_dhcp6_device_netdev(dev)))
+		return -1;
+
+	ni_dhcp6_device_show_addrs(dev);
+	if (!ni_dhcp6_device_is_ready(dev, ifp))
+		return ni_dhcp6_device_start_timer_arm(dev);
+
+	/* refresh in case kernel forgot to send it
+	 * (we increment timeout between attempts) */
+	if (dev->config->dry_run != NI_DHCP6_RUN_NORMAL)
+		ni_dhcp6_device_refresh_mode(dev, ifp);
+
+	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO))
+		return ni_dhcp6_device_start_timer_arm(dev);
+
+	ni_dhcp6_device_start_timer_cancel(dev);
+	return ni_dhcp6_fsm_start(dev);
+}
+
 int
 ni_dhcp6_device_start(ni_dhcp6_device_t *dev)
 {
-	if (!dev->config) {
+	if (!dev || !dev->config) {
 		ni_error("%s: Cannot start DHCPv6 without config",
 			dev->ifname);
 		return -1;
 	}
 
 	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO))
-		return 1;
+		return ni_dhcp6_device_start_auto(dev);
 
 	ni_dhcp6_device_show_addrs(dev);
 	if (!ni_dhcp6_device_is_ready(dev, NULL))
-		return 1;
+		return ni_dhcp6_device_start_timer_arm(dev);
 
-	dev->failed = 0;
-
+	ni_dhcp6_device_start_timer_cancel(dev);
 	return ni_dhcp6_fsm_start(dev);
 }
 
@@ -505,28 +642,13 @@ ni_dhcp6_device_find_lladdr(ni_dhcp6_device_t *dev)
 	return rv;
 }
 
-static ni_netdev_t *
-ni_dhcp6_device_netdev(const ni_dhcp6_device_t *dev)
-{
-	ni_netconfig_t *nc;
-	ni_netdev_t *ifp;
-
-	nc = ni_global_state_handle(0);
-	if (!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex))) {
-		ni_error("%s: Unable to find network interface by index %u",
-			dev->ifname, dev->link.ifindex);
-		return NULL;
-	}
-	return ifp;
-}
-
-void
+static ni_bool_t
 ni_dhcp6_device_refresh_mode(ni_dhcp6_device_t *dev, ni_netdev_t *ifp)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
 
 	if (!nc || !dev || (!ifp && !(ifp = ni_dhcp6_device_netdev(dev))))
-		return;
+		return FALSE;
 
 	/*
 	 * Refresh ipv6 link info on NEWPREFIX events in auto mode
@@ -540,10 +662,10 @@ ni_dhcp6_device_refresh_mode(ni_dhcp6_device_t *dev, ni_netdev_t *ifp)
 	 */
 	__ni_device_refresh_ipv6_link_info(nc, ifp);
 
-	ni_dhcp6_device_update_mode(dev, ifp);
+	return ni_dhcp6_device_update_mode(dev, ifp);
 }
 
-void
+ni_bool_t
 ni_dhcp6_device_update_mode(ni_dhcp6_device_t *dev, const ni_netdev_t *ifp)
 {
 	ni_stringbuf_t old = NI_STRINGBUF_INIT_DYNAMIC;
@@ -551,35 +673,34 @@ ni_dhcp6_device_update_mode(ni_dhcp6_device_t *dev, const ni_netdev_t *ifp)
 	unsigned int omode = 0;
 
 	if (!ifp && !(ifp = ni_dhcp6_device_netdev(dev)))
-		return;
+		return FALSE;
 
-	if (ifp->ipv6 && dev->config) {
+	if (ni_ipv6_devinfo_ra_received(ifp->ipv6) && dev->config) {
 		omode = dev->config->mode;
 
 		if (ifp->ipv6->radv.managed_addr) {
 			dev->config->mode |= NI_BIT(NI_DHCP6_MODE_MANAGED);
+			dev->config->mode = ni_dhcp6_mode_adjust(dev->config->mode);
 		} else
 		if (ifp->ipv6->radv.other_config) {
-
 			dev->config->mode |= NI_BIT(NI_DHCP6_MODE_INFO);
+			dev->config->mode = ni_dhcp6_mode_adjust(dev->config->mode);
+		} else {
+			dev->config->mode &= ~NI_BIT(NI_DHCP6_MODE_AUTO);
 		}
-		dev->config->mode = ni_dhcp6_mode_adjust(dev->config->mode);
-		dev->config->mode &= ~NI_BIT(NI_DHCP6_MODE_AUTO);
 
 		if (omode != dev->config->mode) {
 			ni_dhcp6_mode_format(&old, omode, NULL);
 			ni_dhcp6_mode_format(&new, dev->config->mode, NULL);
 			ni_debug_dhcp("%s: updated dhcp6 mode from %s to %s",
 					dev->ifname, old.string, new.string ?
-					new.string : "off");
+					new.string : "disabled");
 			ni_stringbuf_destroy(&old);
 			ni_stringbuf_destroy(&new);
+			return TRUE;
 		}
-	} else {
-		ni_debug_dhcp("%s: cannot update dhcp6 mode - no %s available",
-				dev->ifname,
-				ifp->ipv6 ? "dhcp6 config" : "ipv6 settings");
 	}
+	return FALSE;
 }
 
 ni_bool_t
@@ -918,6 +1039,8 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 		config->address_len = req->address_len;
 
 	ni_timer_get_time(&dev->start_time);
+	ni_dhcp6_device_start_timer_init(&dev->start_params);
+
 	config->start_delay	= __nondefault(req->start_delay,
 					NI_DHCP6_START_DELAY);
 
@@ -1038,31 +1161,28 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 
 	ni_dhcp6_device_set_config(dev, config);
 
-	if (config->mode & NI_BIT(NI_DHCP6_MODE_AUTO)) {
+	if (config->defer_timeout) {
 		unsigned int deadline = 0;
 
-		/* refresh in case kernel forgot a newlink on RA */
-		ni_dhcp6_device_refresh_mode(dev, NULL);
+		/*
+		 * set timer to emit lease-deferred signal to wicked
+		 * when there is no IPv6 RA on the network or DHCPv6
+		 * is not used (managed and other-config unset).
+		 */
+		deadline = config->defer_timeout * 1000;
+		ni_dhcp6_fsm_set_timeout_msec(dev, deadline);
+		dev->fsm.fail_on_timeout = 0;
+	} else
+	if (config->acquire_timeout) {
+		unsigned int deadline = 0;
 
-		if (config->defer_timeout) {
-			/*
-			 * set timer to emit lease-deferred signal to wicked
-			 * when there is no IPv6 RA on the network or DHCPv6
-			 * is not used (managed and other-config unset).
-			 */
-			deadline = config->defer_timeout * 1000;
-			ni_dhcp6_fsm_set_timeout_msec(dev, deadline);
-			dev->fsm.fail_on_timeout = 0;
-		} else
-		if (config->acquire_timeout) {
-			/*
-			 * immediatelly set timer to fail after timeout,
-			 * that is to drop config, disarm fsm and stop.
-			 */
-			deadline = config->acquire_timeout * 1000;
-			ni_dhcp6_fsm_set_timeout_msec(dev, deadline);
-			dev->fsm.fail_on_timeout = 1;
-		}
+		/*
+		 * immediatelly set timer to fail after timeout,
+		 * that is to drop config, disarm fsm and stop.
+		 */
+		deadline = config->acquire_timeout * 1000;
+		ni_dhcp6_fsm_set_timeout_msec(dev, deadline);
+		dev->fsm.fail_on_timeout = 1;
 	}
 
 	/*
@@ -1122,6 +1242,7 @@ ni_dhcp6_release(ni_dhcp6_device_t *dev, const ni_uuid_t *req_uuid)
 	dev->lease->uuid = *req_uuid;
 	dev->config->uuid = *req_uuid;
 
+	ni_dhcp6_device_start_timer_cancel(dev);
 	ni_dhcp6_fsm_reset(dev);
 	dev->fsm.state = NI_DHCP6_STATE_RELEASING;
 	dev->fsm.timer = ni_timer_register(0, ni_dhcp6_start_release, dev);

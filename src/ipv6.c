@@ -153,6 +153,24 @@ ni_netdev_get_ipv6(ni_netdev_t *dev)
 	return dev->ipv6;
 }
 
+ni_bool_t
+ni_netdev_ipv6_is_ready(const ni_netdev_t *dev)
+{
+	return dev && ni_ipv6_devinfo_is_ready(dev->ipv6);
+}
+
+ni_bool_t
+ni_netdev_ipv6_ra_received(const ni_netdev_t *dev)
+{
+	return dev && ni_ipv6_devinfo_ra_received(dev->ipv6);
+}
+
+ni_bool_t
+ni_netdev_ipv6_ra_requested(const ni_netdev_t *dev)
+{
+	return dev && ni_ipv6_devinfo_ra_requested(dev->ipv6);
+}
+
 void
 ni_netdev_set_ipv6(ni_netdev_t *dev, ni_ipv6_devconf_t *conf)
 {
@@ -182,6 +200,24 @@ ni_ipv6_devinfo_free(ni_ipv6_devinfo_t *ipv6)
 	if (ipv6)
 		ni_ipv6_ra_info_reset(&ipv6->radv);
 	free(ipv6);
+}
+
+ni_bool_t
+ni_ipv6_devinfo_is_ready(const ni_ipv6_devinfo_t *ipv6)
+{
+	return ipv6 && (ipv6->flags & NI_BIT(NI_IPV6_READY));
+}
+
+ni_bool_t
+ni_ipv6_devinfo_ra_received(const ni_ipv6_devinfo_t *ipv6)
+{
+	return ipv6 && (ipv6->flags & NI_BIT(NI_IPV6_RA_RCVD));
+}
+
+ni_bool_t
+ni_ipv6_devinfo_ra_requested(const ni_ipv6_devinfo_t *ipv6)
+{
+	return ipv6 && (ipv6->flags & NI_BIT(NI_IPV6_RS_SENT));
 }
 
 /*
