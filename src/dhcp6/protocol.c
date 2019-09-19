@@ -3201,9 +3201,6 @@ ni_dhcp6_message_xid(unsigned int header_xid)
 /*
  * ni_timeout_t settings we're using in the timing table
  */
-#define NI_DHCP6_EXP_BACKOFF	     -1 /* exponential increment type  */
-#define NI_DHCP6_UNLIMITED	     -1 /* unlimited number of retries */
-
 typedef struct ni_dhcp6_timing {
 	unsigned int		delay;
 	unsigned int		jitter;

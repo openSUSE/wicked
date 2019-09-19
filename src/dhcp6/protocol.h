@@ -153,6 +153,12 @@ enum NI_DHCP6_MSG_TYPE {
 #define NI_DHCP6_IRT_MINIMUM	    600 /* minimum refresh time         */
 
 /*
+ * Timeout and backoff handling initializers
+ */
+#define NI_DHCP6_EXP_BACKOFF	     -1 /* exponential increment type  */
+#define NI_DHCP6_UNLIMITED	     -1 /* unlimited number of retries */
+
+/*
  * Option Format
  * http://tools.ietf.org/html/rfc3315#section-22.1
  */

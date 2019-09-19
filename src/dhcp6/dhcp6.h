@@ -66,7 +66,7 @@ struct ni_dhcp6_request {
 
 	/* Options controlling which and how to make the requests */
 	ni_dhcp6_run_t		dry_run;         /* normal run or get offer/lease only	*/
-	ni_dhcp6_mode_t		mode;		 /* follow ra, request info/addr	*/
+	unsigned int		mode;		 /* follow ra, request info/addr/prefix */
 	ni_bool_t		rapid_commit;	 /* try to use rapid commit flow	*/
 	unsigned int		address_len;	/* address prefix length to use         */
 
@@ -125,7 +125,7 @@ struct ni_dhcp6_config {
 	ni_uuid_t		uuid;
 	unsigned int		flags;
 
-	ni_dhcp6_mode_t		mode;
+	unsigned int		mode;		/* auto,info,managed,prefix mask */
 	ni_dhcp6_run_t		dry_run;
 	ni_bool_t		rapid_commit;
 	unsigned int		address_len;
@@ -186,6 +186,8 @@ struct ni_dhcp6_device {
 	} mcast;
 
 	struct timeval		start_time;	/* when we started managing     */
+	const ni_timer_t *	start_timer;	/* for ready and auto/follow-ra */
+	ni_timeout_param_t	start_params;	/* ready wait parameters        */
 	ni_dhcp6_request_t *	request;	/* the wicked request params	*/
 	ni_dhcp6_config_t *	config;		/* config built from request	*/
 	ni_addrconf_lease_t *	lease;		/* last acquired lease		*/

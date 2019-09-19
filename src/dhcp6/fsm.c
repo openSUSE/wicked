@@ -287,19 +287,9 @@ ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev)
 {
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
-	if (!dev || !dev->config)
+	if (!dev->config) {
+		ni_error("%s: cannot start fsm without configuration", dev->ifname);
 		return -1;
-
-	if (!dev->config->mode) {
-		ni_info("%s: dhcp6 disabled in device ipv6 ra info", dev->ifname);
-		return 1;       /* not (yet) enabled to start */
-	} else
-	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO)) {
-		/* this should not happen */
-		ni_warn("%s: fsm start in mode %s", dev->ifname,
-			ni_dhcp6_mode_format(&buf, dev->config->mode, NULL));
-		ni_stringbuf_destroy(&buf);
-		return 1;	/* not ready, wait for RA hint */
 	}
 
 	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_INFO)) {
@@ -315,7 +305,9 @@ ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev)
 
 		ni_dhcp6_device_drop_lease(dev);
 		return ni_dhcp6_fsm_request_info(dev);
-	} else {
+	} else
+	if ((dev->config->mode & NI_BIT(NI_DHCP6_MODE_PREFIX)) ||
+	    (dev->config->mode & NI_BIT(NI_DHCP6_MODE_MANAGED))) {
 		int ret;
 
 		ni_dhcp6_fsm_reset(dev);
@@ -329,9 +321,42 @@ ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev)
 
 		ni_dhcp6_device_drop_lease(dev);
 		return ni_dhcp6_fsm_solicit(dev);
-	}
+	} else
+	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO)) {
+		/* this function should not be called in pure mode=auto
+		 * and we should not arrive here, thus warn about ... */
+		ni_warn("%s: cannot start fsm in mode %s without IPv6 router RA",
+				dev->ifname,
+				ni_dhcp6_mode_format(&buf, dev->config->mode, NULL));
+		ni_stringbuf_destroy(&buf);
+		/* return without to report failure via dbus and wait until timeout
+		 * before we defer ("maybe we get RA leter") or fail to acquire the
+		 * lease -- as advised in config.
+		 */
+		return 1;
+	} else
+	if (dev->config->mode) {
+		ni_error("%s: cannot start fsm with invalid mode 0x%x configuration",
+			dev->ifname, dev->config->mode);
+		return -1;
+	} else {
+		ni_note("%s: DHCPv6 is disabled by IPv6 router RA", dev->ifname);
 
-	return -1;
+		/* we have received an RA that disables DHCPv6, so we're done.
+		 * It's useless to wait until defer/acquire timeout before we
+		 * report it to the callers (nanny, ifup). Report it now:
+		 */
+		if (dev->fsm.fail_on_timeout)
+			ni_dhcp6_send_event(NI_DHCP6_EVENT_LOST, dev, NULL);
+		else
+			ni_dhcp6_send_event(NI_DHCP6_EVENT_DEFERRED, dev, NULL);
+		ni_dhcp6_fsm_reset(dev);
+
+		/* Reapply mode=auto continue to monitor RA for an "upgrade" (router
+		 * reconfiguration) and return without to trigger a dbus failure. */
+		dev->config->mode |= NI_DHCP6_MODE_AUTO;
+		return 1;
+	}
 }
 
 void
