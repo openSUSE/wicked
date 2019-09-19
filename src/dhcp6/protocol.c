@@ -2710,7 +2710,11 @@ ni_dhcp6_ia_copy_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_
 				ap->cache_info.acquired = ia->acquired;
 				ap->cache_info.preferred_lft = iadr->preferred_lft;
 				ap->cache_info.valid_lft = iadr->valid_lft;
-				ni_address_set_noprefixroute(ap, TRUE);
+				/* do not set noprefixroute on a non-/128 config override
+				 * to apply the override as usable on-link prefix length */
+				if (!dev->config->address_len &&
+					plen != ni_af_address_prefixlen(AF_INET6))
+					ni_address_set_noprefixroute(ap, TRUE);
 
 				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
 						"%s: added %sDHCPv6 address %s/%u to lease",
