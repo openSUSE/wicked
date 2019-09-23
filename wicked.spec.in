@@ -239,7 +239,7 @@ ln -sf %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_sbindir/rcnetwork
 %if %{without wicked_devel}
 pushd $RPM_BUILD_ROOT
 rm -rfv \
-	.%_libdir/libwicked*.so \
+	.%_libdir/libwicked.so \
 	.%_datadir/pkgconfig/wicked.pc \
 	.%_mandir/man7/wicked.7* \
 	.%_includedir/wicked
@@ -437,6 +437,6 @@ fi
 
 %files -n libwicked@LIBWICKED_PACKAGE_SUFFIX@
 %defattr (-,root,root)
-%_libdir/libwicked*.so.*
+%_libdir/libwicked-*.so*
 
 %changelog
