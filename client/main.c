@@ -97,13 +97,11 @@ ni_bool_t		opt_systemd;
 unsigned int ni_wait_for_interfaces;
 
 static int		do_show_xml(int, char **);
-static int		do_show_config(int, char **, const char *);
 extern int		do_nanny(int, char **);
 extern int		do_lease(int, char **);
 extern int		do_check(int, char **);
 static int		do_xpath(int, char **);
 static int		do_get_names(int, char **);
-static int		do_convert(int, char **);
 
 static void
 show_exec_info(int argc, char **argv)
@@ -169,12 +167,12 @@ main(int argc, char **argv)
 				"  ifreload    [options] <ifname ...>|all\n"
 				"  ifstatus    [options] <ifname ...>|all\n"
 				"  show        [options] <ifname ...>|all\n"
-				"  show-xml    [options]\n"
-				"  show-config [options]\n"
-				"  convert     [options]\n"
+				"  show-xml    [options] [<ifname ...>|all]\n"
+				"  show-config [options] [<ifname ...>|all]\n"
+				"  convert     [options] [<ifname ...>|all]\n"
+				"  ethtool     [options] <ifname> <...>\n"
 				"  getnames    [options]\n"
 				"  xpath       [options] expr ...\n"
-				"  ethtool     [options] <ifname> <...>\n"
 				"  nanny       <action> ...\n"
 				"  lease       <action> ...\n"
 				"  check       <action> ...\n"
@@ -296,7 +294,10 @@ main(int argc, char **argv)
 		status = do_show_xml(argc - optind, argv + optind);
 	} else
 	if (!strcmp(cmd, "show-config")) {
-		status = do_show_config(argc - optind, argv + optind, NULL);
+		status = ni_wicked_convert(program, argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "convert")) {
+		status = ni_wicked_convert(program, argc - optind, argv + optind);
 	} else
 	if (!strcmp(cmd, "nanny")) {
 		status = do_nanny(argc - optind, argv + optind);
@@ -312,9 +313,6 @@ main(int argc, char **argv)
 	} else
 	if (!strcmp(cmd, "getnames")) {
 		status = do_get_names(argc - optind, argv + optind);
-	} else
-	if (!strcmp(cmd, "convert")) {
-		status = do_convert(argc - optind, argv + optind);
 	} else
 	if (!strcmp(cmd, "duid")) {
 		status = ni_do_duid(program, argc - optind, argv + optind);
@@ -711,153 +709,6 @@ do_show_xml(int argc, char **argv)
 out:
 	ni_dbus_variant_destroy(&result);
 	return rv;
-}
-
-int
-do_show_config(int argc, char **argv, const char *root_schema)
-{
-	enum { OPT_HELP, OPT_RAW, OPT_OUTPUT };
-	static struct option options[] = {
-		{ "help",	no_argument, NULL, OPT_HELP },
-		{ "raw",	no_argument, NULL, OPT_RAW},
-		{ "output",     required_argument, NULL, OPT_OUTPUT },
-		{ NULL }
-	};
-
-	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
-	ni_bool_t opt_raw = FALSE;
-	const char *opt_output = NULL;
-	unsigned i;
-	int c;
-
-	optind = 1;
-	while ((c = getopt_long(argc, argv, "", options, NULL)) != EOF) {
-		switch (c) {
-		case OPT_RAW:
-			opt_raw = TRUE;
-			break;
-
-		case OPT_OUTPUT:
-			opt_output = optarg;
-			break;
-
-		default:
-		case OPT_HELP:
-			fprintf(stderr,
-				"wicked [options] show-config [options] [SOURCE...]\n"
-				"Where SOURCE is one of the following:\n"
-				"\t'firmware:'\n"
-				"\t'compat:'\n"
-				"\t'wicked:[PATH]'\n"
-				"\tPATH - to the specific file or dir\n"
-				"\n"
-				"\nSupported options:\n"
-				"  --help\n"
-				"      Show this help text.\n"
-				"  --raw\n"
-				"      Do not display <client-state> tags\n"
-				"  --output <path>\n"
-				"      Specify output file\n"
-				);
-			return 1;
-		}
-	}
-
-	if (optind == argc) {
-		/* Print all */
-		const ni_string_array_t *cs_array = ni_config_sources("ifconfig");
-		ni_assert(cs_array);
-
-		for (i = 0; i < cs_array->count; i++) {
-			if (!root_schema || !strcmp(root_schema, cs_array->data[i])) {
-				if (!ni_ifconfig_read(&docs, opt_global_rootdir,
-				    cs_array->data[i], FALSE, opt_raw)) {
-					ni_error("Unable to read config source %s",
-						cs_array->data[i]);
-					return 1;
-				}
-			}
-		}
-	}
-	else {
-		while(optind < argc) {
-			char *path = NULL;
-			if (!root_schema)
-				path = argv[optind++];
-			else
-				ni_string_printf(&path, "%s%s", root_schema, argv[optind++]);
-
-			if (!ni_ifconfig_read(&docs, opt_global_rootdir,
-			    path, FALSE, opt_raw)) {
-				ni_error("Unable to read config source %s", path);
-				return 1;
-			}
-
-			if (root_schema)
-				ni_string_free(&path);
-		}
-	}
-
-	if (opt_output == NULL) {
-		for (i = 0; i < docs.count; i++)
-			xml_node_print(docs.data[i]->root, stdout);
-	}
-	else if (ni_isdir(opt_output)) {
-		for (i = 0; i < docs.count; i++) {
-			xml_document_t *result = docs.data[i];
-			unsigned int seq = 0;
-			xml_node_t *ifnode;
-
-			/* Write resulting XML document as a bunch of files, one per interface */
-			for (ifnode = result->root->children; ifnode; ifnode = ifnode->next) {
-				char pathbuf[4096];
-				xml_node_t *namenode;
-				const char *ifname;
-				FILE *fp;
-
-				namenode = xml_node_get_child(ifnode, "name");
-				if (!namenode) {
-					/* FIXME: add config source location */
-					ni_error("Config file %s does not contain <name> node", "");
-					break;
-				}
-
-				if ((ifname = namenode->cdata) != NULL) {
-					snprintf(pathbuf, sizeof(pathbuf), "%s/%s.xml", opt_output, ifname);
-				} else {
-					const char *ns;
-
-					if (!(ns = xml_node_get_attr(namenode, "namespace"))) {
-						/* FIXME: add config source location */
-						ni_error("Interface node in config file %s has"
-							"invalid <name> element", "");
-						break;
-					}
-					snprintf(pathbuf, sizeof(pathbuf), "%s/id-%s-%u.xml",
-							opt_output, ns, seq++);
-				}
-
-				if ((fp = fopen(pathbuf, "w")) == NULL)
-					ni_fatal("unable to open %s for writing: %m", pathbuf);
-
-				xml_node_print(ifnode, fp);
-				fclose(fp);
-			}
-		}
-	}
-	else {
-		FILE *fp;
-
-		if ((fp = fopen(opt_output, "w")) == NULL)
-			ni_fatal("unable to open %s for writing: %m", opt_output);
-
-		for (i = 0; i < docs.count; i++)
-			xml_node_print(docs.data[i]->root, fp);
-		fclose(fp);
-	}
-
-	xml_document_array_destroy(&docs);
-	return 0;
 }
 
 /*
@@ -1718,48 +1569,3 @@ write_dbus_error(const char *filename, const char *name, const char *fmt, ...)
 	xml_document_free(doc);
 }
 
-/*
- * Read native sysconfig files and display resulting XML
- */
-int
-do_convert(int argc, char **argv)
-{
-	enum { OPT_HELP, OPT_RAW, OPT_OUTPUT };
-	static struct option options[] = {
-		{ "help",	no_argument, NULL, OPT_HELP },
-		{ "raw",	no_argument, NULL, OPT_RAW},
-		{ "output",     required_argument, NULL, OPT_OUTPUT },
-		{ NULL }
-	};
-
-	int c;
-
-	optind = 1;
-	while ((c = getopt_long(argc, argv, "", options, NULL)) != EOF) {
-		switch (c) {
-		case OPT_RAW:
-		case OPT_OUTPUT:
-			break;
-		default:
-		case OPT_HELP:
-			fprintf(stderr,
-				"Usage: wicked convert [options] [path ...]\n"
-				"\n"
-				"This will parse one or more files/directories in legacy format,\n"
-				"and render their content as XML.\n"
-				"If no path is given, a format-specific default path is used.\n"
-				"\n"
-				"Supported options:\n"
-				"  --help\n"
-				"      Show this help text.\n"
-				"  --raw\n"
-				"      Do not display <client-state> tags\n"
-				"  --output <path>\n"
-				"      Specify output file\n"
-			       );
-			return 0;
-		}
-	}
-
-	return do_show_config(argc, argv, "compat:");
-}

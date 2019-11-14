@@ -52,9 +52,10 @@ endif
 
 wicked_SOURCES			= \
 	arputil.c		\
-	ethtool.c		\
 	compat.c		\
+	convert.c		\
 	duid.c			\
+	ethtool.c		\
 	iaid.c			\
 	ifup.c			\
 	ifdown.c		\
