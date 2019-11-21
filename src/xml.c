@@ -371,7 +371,7 @@ xml_node_add_attr_uint(xml_node_t *node, const char *name, unsigned int value)
 void
 xml_node_add_attr_ulong(xml_node_t *node, const char *name, unsigned long value)
 {
-	ni_var_array_set_long(&node->attrs, name, value);
+	ni_var_array_set_ulong(&node->attrs, name, value);
 }
 
 void
