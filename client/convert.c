@@ -39,6 +39,7 @@
 #include <wicked/xml.h>
 
 #include "appconfig.h"
+#include "read-config.h"
 #include "wicked-client.h"
 #include "client/ifconfig.h"
 
@@ -360,8 +361,20 @@ ni_wicked_convert(const char *caller, int argc, char **argv)
 	status = NI_WICKED_RC_SUCCESS;
 	for (i = 0; i < sources.count; ++i) {
 		const char *source = sources.data[i];
+		ni_ifconfig_kind_t kind;
 
-		if (!ni_ifconfig_read(&docs, opt_global_rootdir, source, FALSE, opt_raw)) {
+		switch (opt_convert) {
+		case CONVERT_CONFIG:
+			kind = NI_IFCONFIG_KIND_CONFIG;
+			break;
+
+		case CONVERT_COMPAT:
+		default:
+			kind = NI_IFCONFIG_KIND_DEFAULT;
+			break;
+		}
+
+		if (!ni_ifconfig_read(&docs, opt_global_rootdir, source, kind, FALSE, opt_raw)) {
 			ni_error("Unable to read config source '%s'", source);
 			status = NI_WICKED_RC_ERROR;
 			goto cleanup;

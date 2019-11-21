@@ -46,6 +46,7 @@
 #include <wicked/xpath.h>
 #include <wicked/fsm.h>
 
+#include "read-config.h"
 #include "wicked-client.h"
 #include "client/ifconfig.h"
 
@@ -95,8 +96,9 @@ do_nanny_addpolicy(int argc, char **argv)
 
 	while (optind < argc) {
 		const char *path = argv[optind++];
-		if (!ni_ifconfig_read(&docs, opt_global_rootdir, path, TRUE, TRUE)) {
-			ni_error("Unable to read config source from %s", path);
+		if (!ni_ifconfig_read(&docs, opt_global_rootdir, path,
+					NI_IFCONFIG_KIND_POLICY, TRUE, TRUE)) {
+			ni_error("Unable to read config source '%s'", path);
 			xml_document_array_destroy(&docs);
 			return NI_WICKED_RC_ERROR;
 		}

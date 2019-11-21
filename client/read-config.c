@@ -58,18 +58,21 @@ static ni_bool_t	ni_ifconfig_read_wicked(xml_document_array_t *,
 						const char *,
 						const char *,
 						const char *,
+						ni_ifconfig_kind_t,
 						ni_bool_t,
 						ni_bool_t);
 static ni_bool_t	ni_ifconfig_read_wicked_xml(xml_document_array_t *,
 						const char *,
 						const char *,
 						const char *,
+						ni_ifconfig_kind_t,
 						ni_bool_t,
 						ni_bool_t);
 static ni_bool_t	ni_ifconfig_read_compat(xml_document_array_t *,
 						const char *,
 						const char *,
 						const char *,
+						ni_ifconfig_kind_t,
 						ni_bool_t,
 						ni_bool_t);
 #if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
@@ -77,6 +80,7 @@ static ni_bool_t	ni_ifconfig_read_compat_suse(xml_document_array_t *,
 						const char *,
 						const char *,
 						const char *,
+						ni_ifconfig_kind_t,
 						ni_bool_t,
 						ni_bool_t);
 #endif
@@ -85,6 +89,7 @@ static ni_bool_t	ni_ifconfig_read_compat_redhat(xml_document_array_t *,
 						const char *,
 						const char *,
 						const char *,
+						ni_ifconfig_kind_t,
 						ni_bool_t,
 						ni_bool_t);
 #endif
@@ -92,6 +97,7 @@ static ni_bool_t	ni_ifconfig_read_firmware(xml_document_array_t *,
 						const char *,
 						const char *,
 						const char *,
+						ni_ifconfig_kind_t,
 						ni_bool_t,
 						ni_bool_t);
 
@@ -127,8 +133,8 @@ ni_ifconfig_find_type(const ni_ifconfig_type_t *map, const char *root,
 
 ni_bool_t
 ni_ifconfig_read_subtype(xml_document_array_t *array, const ni_ifconfig_type_t *type,
-			const char *root, const char *path, ni_bool_t prio, ni_bool_t raw,
-			const char *supertype)
+			const char *root, const char *path, ni_ifconfig_kind_t kind,
+			ni_bool_t prio, ni_bool_t raw, const char *supertype)
 {
 	const ni_ifconfig_type_t *map;
 	const char *sub_path = path;
@@ -149,7 +155,7 @@ ni_ifconfig_read_subtype(xml_document_array_t *array, const ni_ifconfig_type_t *
 	map = ni_ifconfig_find_type(type, root, path, sub_name, len);
 	if (map && map->name && map->ops.read) {
 		ni_string_printf(&sub_type, "%s:%s", supertype, map->name);
-		ret = map->ops.read(array, sub_type, root, sub_path, prio, raw);
+		ret = map->ops.read(array, sub_type, root, sub_path, kind, prio, raw);
 		ni_string_free(&sub_type);
 	} else {
 		ni_error("Unsupported ifconfig type %s:%.*s", supertype, (int)len, sub_name);
@@ -221,10 +227,11 @@ ni_bool_t
 ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *opt_ifconfig, ni_bool_t check_prio, ni_bool_t raw)
 {
 	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
+	ni_ifconfig_kind_t kind = NI_IFCONFIG_KIND_CONFIG; /* load into fsm */
 	unsigned int i;
 
 	for (i = 0; i < opt_ifconfig->count; ++i) {
-		if (!ni_ifconfig_read(&docs, root, opt_ifconfig->data[i], check_prio, raw)) {
+		if (!ni_ifconfig_read(&docs, root, opt_ifconfig->data[i], kind, check_prio, raw)) {
 			xml_document_array_destroy(&docs);
 			return FALSE;
 		}
@@ -247,7 +254,7 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *opt_ifconfi
 }
 
 ni_bool_t
-ni_ifconfig_read(xml_document_array_t *array, const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
+ni_ifconfig_read(xml_document_array_t *array, const char *root, const char *path, ni_ifconfig_kind_t kind, ni_bool_t check_prio, ni_bool_t raw)
 {
 	const ni_ifconfig_type_t *map;
 	const char *_path = path;
@@ -262,7 +269,7 @@ ni_ifconfig_read(xml_document_array_t *array, const char *root, const char *path
 
 	map = ni_ifconfig_find_type(ni_ifconfig_types, root, path, _name, len);
 	if (map && map->name && map->ops.read) {
-		return map->ops.read(array, map->name, root, _path, check_prio, raw);
+		return map->ops.read(array, map->name, root, _path, kind, check_prio, raw);
 	}
 
 	ni_error("Unsupported ifconfig type %.*s", (int)len, path);
@@ -403,8 +410,9 @@ ni_ifconfig_validate_adding_doc(xml_document_t *config_doc, ni_bool_t check_prio
  * Read ifconfig
  */
 static ni_bool_t
-ni_ifconfig_read_wicked_xml_file(xml_document_array_t *docs, const char *type,
-			const char *root, const char *pathname, ni_bool_t check_prio, ni_bool_t raw)
+ni_ifconfig_read_wicked_xml_file(xml_document_array_t *docs,
+			const char *type, const char *root, const char *pathname,
+			ni_ifconfig_kind_t kind, ni_bool_t check_prio, ni_bool_t raw)
 {
 	ni_client_state_config_t conf = NI_CLIENT_STATE_CONFIG_INIT;
 	char pathbuf[PATH_MAX] = {'\0'};
@@ -462,8 +470,9 @@ ni_ifconfig_read_wicked_xml_file(xml_document_array_t *docs, const char *type,
 }
 
 static ni_bool_t
-ni_ifconfig_read_wicked_xml_dir(xml_document_array_t *docs, const char *type,
-			const char *root, const char *pathname, ni_bool_t check_prio, ni_bool_t raw)
+ni_ifconfig_read_wicked_xml_dir(xml_document_array_t *docs,
+			const char *type, const char *root, const char *pathname,
+			ni_ifconfig_kind_t kind, ni_bool_t check_prio, ni_bool_t raw)
 {
 	char pathbuf[PATH_MAX] = {'\0'};
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
@@ -480,7 +489,9 @@ ni_ifconfig_read_wicked_xml_dir(xml_document_array_t *docs, const char *type,
 	if (ni_scandir(pathname, "*.xml", &files) != 0) {
 		for (i = 0; i < files.count; ++i) {
 			/* Ignore wrong xml config files - warning only */
-			if (ni_ifconfig_read_wicked_xml_file(docs, type, pathname, files.data[i], check_prio, raw))
+			if (ni_ifconfig_read_wicked_xml_file(docs, type,
+						pathname, files.data[i],
+						kind, check_prio, raw))
 				empty = FALSE;
 		}
 	}
@@ -493,8 +504,9 @@ ni_ifconfig_read_wicked_xml_dir(xml_document_array_t *docs, const char *type,
 }
 
 ni_bool_t
-ni_ifconfig_read_wicked_xml(xml_document_array_t *array, const char *type,
-			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
+ni_ifconfig_read_wicked_xml(xml_document_array_t *array,
+			const char *type, const char *root, const char *path,
+			ni_ifconfig_kind_t kind, ni_bool_t check_prio, ni_bool_t raw)
 {
 	char *ifconfig_dir = NULL;
 	char pathbuf[PATH_MAX];
@@ -514,19 +526,20 @@ ni_ifconfig_read_wicked_xml(xml_document_array_t *array, const char *type,
 
 	/* At the moment only XML is supported */
 	if (ni_isreg(pathbuf))
-		rv = ni_ifconfig_read_wicked_xml_file(array, type, root, path, check_prio, raw);
+		rv = ni_ifconfig_read_wicked_xml_file(array, type, root, path, kind, check_prio, raw);
 	else if (ni_isdir(pathbuf))
-		rv = ni_ifconfig_read_wicked_xml_dir(array, type, root, path, check_prio, raw);
+		rv = ni_ifconfig_read_wicked_xml_dir(array, type, root, path, kind, check_prio, raw);
 
 	ni_string_free(&ifconfig_dir);
 	return rv;
 }
 
 ni_bool_t
-ni_ifconfig_read_wicked(xml_document_array_t *array, const char *type,
-			const char *root, const char *path, ni_bool_t prio, ni_bool_t raw)
+ni_ifconfig_read_wicked(xml_document_array_t *array,
+			const char *type, const char *root, const char *path,
+			ni_ifconfig_kind_t kind, ni_bool_t prio, ni_bool_t raw)
 {
-	return ni_ifconfig_read_subtype(array, ni_ifconfig_types_wicked, root, path, prio, raw, type);
+	return ni_ifconfig_read_subtype(array, ni_ifconfig_types_wicked, root, path, kind, prio, raw, type);
 }
 
 /*
@@ -534,8 +547,9 @@ ni_ifconfig_read_wicked(xml_document_array_t *array, const char *type,
  */
 #if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
 ni_bool_t
-ni_ifconfig_read_compat_suse(xml_document_array_t *array, const char *type,
-			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
+ni_ifconfig_read_compat_suse(xml_document_array_t *array,
+			const char *type, const char *root, const char *path,
+			ni_ifconfig_kind_t kind, ni_bool_t check_prio, ni_bool_t raw)
 {
 	ni_compat_ifconfig_t conf;
 	ni_bool_t rv;
@@ -553,8 +567,9 @@ ni_ifconfig_read_compat_suse(xml_document_array_t *array, const char *type,
 
 #if defined(COMPAT_AUTO) || defined(COMPAT_REDHAT)
 ni_bool_t
-ni_ifconfig_read_compat_redhat(xml_document_array_t *array, const char *type,
-			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
+ni_ifconfig_read_compat_redhat(xml_document_array_t *array,
+			const char *type, const char *root, const char *path,
+			ni_ifconfig_kind_t kind, ni_bool_t check_prio, ni_bool_t raw)
 {
 	ni_compat_ifconfig_t conf;
 	ni_bool_t rv;
@@ -570,15 +585,17 @@ ni_ifconfig_read_compat_redhat(xml_document_array_t *array, const char *type,
 #endif
 
 ni_bool_t
-ni_ifconfig_read_compat(xml_document_array_t *array, const char *type,
-			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
+ni_ifconfig_read_compat(xml_document_array_t *array,
+			const char *type, const char *root, const char *path,
+			ni_ifconfig_kind_t kind, ni_bool_t check_prio, ni_bool_t raw)
 {
-	return ni_ifconfig_read_subtype(array, ni_ifconfig_types_compat, root, path, check_prio, raw, type);
+	return ni_ifconfig_read_subtype(array, ni_ifconfig_types_compat, root, path, kind, check_prio, raw, type);
 }
 
 ni_bool_t
-ni_ifconfig_read_firmware(xml_document_array_t *array, const char *type,
-			const char *root, const char *path, ni_bool_t check_prio, ni_bool_t raw)
+ni_ifconfig_read_firmware(xml_document_array_t *array,
+			const char *type, const char *root, const char *path,
+			ni_ifconfig_kind_t kind, ni_bool_t check_prio, ni_bool_t raw)
 {
 	xml_document_t *config_doc;
 	ni_client_state_config_t conf = NI_CLIENT_STATE_CONFIG_INIT;
