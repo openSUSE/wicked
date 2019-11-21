@@ -169,6 +169,7 @@ main(int argc, char **argv)
 				"  show        [options] <ifname ...>|all\n"
 				"  show-xml    [options] [<ifname ...>|all]\n"
 				"  show-config [options] [<ifname ...>|all]\n"
+				"  show-policy [options] [<ifname ...>|all]\n"
 				"  convert     [options] [<ifname ...>|all]\n"
 				"  ethtool     [options] <ifname> <...>\n"
 				"  getnames    [options]\n"
@@ -294,6 +295,9 @@ main(int argc, char **argv)
 		status = do_show_xml(argc - optind, argv + optind);
 	} else
 	if (!strcmp(cmd, "show-config")) {
+		status = ni_wicked_convert(program, argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "show-policy")) {
 		status = ni_wicked_convert(program, argc - optind, argv + optind);
 	} else
 	if (!strcmp(cmd, "convert")) {

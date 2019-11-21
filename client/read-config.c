@@ -41,6 +41,7 @@
 #include <wicked/logging.h>
 #include <wicked/netinfo.h>
 
+#include "appconfig.h"
 #include "wicked-client.h"
 #include "client/ifconfig.h"
 #include "client/read-config.h"
@@ -185,6 +186,23 @@ ni_ifconfig_guess_compat_type(const ni_ifconfig_type_t *map,
 #endif
 
 	return NULL;
+}
+
+static inline ni_ifconfig_kind_t
+ni_ifconfig_kind_guess(ni_ifconfig_kind_t kind)
+{
+	switch (kind) {
+	case NI_IFCONFIG_KIND_POLICY:
+	case NI_IFCONFIG_KIND_CONFIG:
+		return kind;
+
+	case NI_IFCONFIG_KIND_DEFAULT:
+	default:
+		if (ni_config_use_nanny())
+			return NI_IFCONFIG_KIND_POLICY;
+		else
+			return NI_IFCONFIG_KIND_CONFIG;
+	}
 }
 
 const ni_ifconfig_type_t *
@@ -558,7 +576,16 @@ ni_ifconfig_read_compat_suse(xml_document_array_t *array,
 
 	/* TODO: apply timeout */
 	if ((rv = __ni_suse_get_ifconfig(root, path, &conf))) {
-		ni_compat_generate_interfaces(array, &conf, check_prio, raw);
+#if 0
+		/* TODO:
+		 * we currently convert config to policy later
+		 */
+		kind = ni_ifconfig_kind_guess(kind);
+#endif
+		if (kind == NI_IFCONFIG_KIND_POLICY)
+			ni_compat_generate_policies(array, &conf, check_prio, raw);
+		else
+			ni_compat_generate_interfaces(array, &conf, check_prio, raw);
 	}
 	ni_compat_ifconfig_destroy(&conf);
 	return rv;
@@ -576,7 +603,16 @@ ni_ifconfig_read_compat_redhat(xml_document_array_t *array,
 
 	ni_compat_ifconfig_init(&conf, type);
 	if ((rv = __ni_redhat_get_ifconfig(root, path, &conf))) {
-		ni_compat_generate_interfaces(array, &conf, check_prio, raw);
+#if 0
+		/* TODO:
+		 * we currently convert config to policy later
+		 */
+		kind = ni_ifconfig_kind_guess(kind);
+#endif
+		if (kind == NI_IFCONFIG_KIND_POLICY)
+			ni_compat_generate_policies(array, &conf, check_prio, raw);
+		else
+			ni_compat_generate_interfaces(array, &conf, check_prio, raw);
 	}
 
 	ni_compat_ifconfig_destroy(&conf);

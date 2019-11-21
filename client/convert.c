@@ -1,5 +1,5 @@
 /*
- *	wicked convert, show-config
+ *	wicked convert, show-config, show-policy
  *
  *	Copyright (C) 2019 SUSE Software Solutions Germany GmbH, Germany.
  *
@@ -61,6 +61,21 @@ ni_wicked_convert_match_config(xml_node_t *node, const char *match)
 }
 
 static ni_bool_t
+ni_wicked_convert_match_policy(xml_node_t *node, const char *match)
+{
+	xml_node_t *child;
+
+	/* match (final ifname in the) config inside the policy action */
+	if ((child = xml_node_get_child(node, NI_NANNY_IFPOLICY_MERGE)))
+		return ni_wicked_convert_match_config(child, match);
+	else
+	if ((child = xml_node_get_child(node, NI_NANNY_IFPOLICY_REPLACE)))
+		return ni_wicked_convert_match_config(child, match);
+
+	return FALSE;
+}
+
+static ni_bool_t
 ni_wicked_convert_match(xml_node_t *node, ni_string_array_t *filter)
 {
 	const char *match;
@@ -75,9 +90,31 @@ ni_wicked_convert_match(xml_node_t *node, ni_string_array_t *filter)
 			if (ni_wicked_convert_match_config(node, match))
 				return TRUE;
 		}
+	} else
+	if (ni_ifconfig_is_policy(node)) {
+		if (!filter || !filter->count)
+			return TRUE;
+
+		for (i = 0; i < filter->count; ++i) {
+			match = filter->data[i];
+			if (ni_wicked_convert_match_policy(node, match))
+				return TRUE;
+		}
 	}
 
 	return FALSE; /* omit any non-ifconfig nodes */
+}
+
+static ni_bool_t
+ni_wicked_convert_policy_filename(char **filename, xml_node_t *node, const char *dirname)
+{
+	const char *name = xml_node_get_attr(node, "name");
+
+	/* simply the policy name */
+	if (ni_string_empty(name))
+		return FALSE;
+
+	return !!ni_string_printf(filename, "%s/%s.xml", dirname, name);
 }
 
 static ni_bool_t
@@ -103,6 +140,9 @@ ni_wicked_convert_node_filename(char **filename, xml_node_t *node, const char *d
 {
 	if (ni_ifconfig_is_config(node))
 		return ni_wicked_convert_config_filename(filename, node, dirname);
+	else
+	if (ni_ifconfig_is_policy(node))
+		return ni_wicked_convert_policy_filename(filename, node, dirname);
 	else
 		return FALSE;
 }
@@ -249,11 +289,15 @@ ni_wicked_convert(const char *caller, int argc, char **argv)
 	enum {
 		CONVERT_COMPAT,
 		CONVERT_CONFIG,
+		CONVERT_POLICY,
 	} opt_convert = CONVERT_COMPAT;
 	unsigned int i;
 
 	if (ni_string_eq(argv[0], "show-config"))
 		opt_convert = CONVERT_CONFIG;
+	else
+	if (ni_string_eq(argv[0], "show-policy"))
+		opt_convert = CONVERT_POLICY;
 
 	ni_string_printf(&program, "%s %s",	caller  ? caller  : "wicked",
 						argv[0] ? argv[0] : "convert");
@@ -336,7 +380,7 @@ ni_wicked_convert(const char *caller, int argc, char **argv)
 	}
 	if (!sources.count) {
 		/* A "wicked convert" converts the "compat:" schemes to xml while
-		 * a "wicked show-config" converts all to config
+		 * a "wicked show-config/-policy" converts all to config/policy
 		 */
 		if (opt_convert == CONVERT_COMPAT)
 			ni_string_array_append(&sources, "compat:");
@@ -364,6 +408,10 @@ ni_wicked_convert(const char *caller, int argc, char **argv)
 		ni_ifconfig_kind_t kind;
 
 		switch (opt_convert) {
+		case CONVERT_POLICY:
+			kind = NI_IFCONFIG_KIND_POLICY;
+			break;
+
 		case CONVERT_CONFIG:
 			kind = NI_IFCONFIG_KIND_CONFIG;
 			break;
