@@ -55,6 +55,7 @@
 #include <sys/param.h>
 #include <arpa/inet.h>
 
+#include "client/ifconfig.h"
 #include "client/client_state.h"
 #include "appconfig.h"
 #include "util_priv.h"
@@ -2672,7 +2673,7 @@ ni_compat_generate_ethtool(xml_node_t *parent, const ni_compat_netdev_t *compat)
 }
 
 static ni_bool_t
-__ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+ni_compat_generate_ifnode_content(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
 	xml_node_t *linknode;
@@ -2848,60 +2849,226 @@ __ni_compat_generate_ifcfg(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 }
 
 static xml_node_t *
-ni_compat_generate_ifcfg(const ni_compat_netdev_t *compat, xml_document_t *doc)
+ni_compat_generate_interface(xml_document_t *doc, const ni_compat_netdev_t *compat)
 {
-	xml_node_t *ifnode, *namenode;
+	xml_node_t *root, *ifnode, *namenode;
 
-	ifnode = xml_node_new("interface", xml_document_root(doc));
+	if (!compat || !compat->dev || !(root = xml_document_root(doc)))
+		return NULL;
 
-	namenode = xml_node_new("name", ifnode);
-	if (compat->identify.hwaddr.len &&
-	    compat->identify.hwaddr.type == ARPHRD_ETHER) {
-		xml_node_add_attr(namenode, "namespace", "ethernet");
-		xml_node_new_element("permanent-address", namenode,
+	if (!(ifnode = xml_node_new("interface", NULL)))
+		return NULL;
+
+	if((namenode = xml_node_new("name", ifnode))) {
+		if (compat->identify.hwaddr.len &&
+		    compat->identify.hwaddr.type == ARPHRD_ETHER) {
+			/* whatever the name currently is, just use the name of
+			 * the ethernet device with given permanent-address */
+			xml_node_add_attr(namenode, "namespace", "ethernet");
+			xml_node_new_element("permanent-address", namenode,
 				ni_link_address_print(&compat->identify.hwaddr));
-	} else {
-		xml_node_set_cdata(namenode, compat->dev->name);
+		} else {
+			/* we identify it by persistent/perdictable ifname */
+			xml_node_set_cdata(namenode, compat->dev->name);
+		}
+
+		if (ni_compat_generate_ifnode_content(ifnode, compat)) {
+			xml_node_add_child(root, ifnode);
+			return ifnode;
+		}
 	}
 
-	__ni_compat_generate_ifcfg(ifnode, compat);
-	return ifnode;
+	xml_node_free(ifnode);
+	return NULL;
+}
+
+static ni_bool_t
+ni_compat_generate_policy_match(xml_node_t *match, const ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+
+	ni_trace(" - generate policy match for %s: type=%s, master=%s, lower=%s",
+			dev->name, ni_linktype_type_to_name(dev->link.type),
+			dev->link.masterdev.name, dev->link.lowerdev.name);
+
+	/* properties we want to match */
+
+#if 0	/* TODO: */
+	if (compat->identify.hwaddr.len &&
+	    compat->identify.hwaddr.type == ARPHRD_ETHER) {
+		/* TODO */
+	} /* else */
+#endif
+	if (!ni_string_empty(compat->dev->name))
+		xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, match, compat->dev->name);
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_compat_generate_policy_action(xml_node_t *action, const ni_compat_netdev_t *compat)
+{
+	ni_netdev_t *dev = compat->dev;
+
+	ni_trace(" - generate policy action %s for %s: type=%s, master=%s, lower=%s",
+			action->name,
+			dev->name, ni_linktype_type_to_name(dev->link.type),
+			dev->link.masterdev.name, dev->link.lowerdev.name);
+
+	/* name we want to have at the end (rename to it if needed) */
+	if (!ni_string_empty(compat->dev->name))
+		xml_node_new_element("name", action, compat->dev->name);
+
+	if (!ni_compat_generate_ifnode_content(action, compat))
+		return FALSE;
+
+	return TRUE;
+}
+
+static xml_node_t *
+ni_compat_generate_policy(xml_document_t *doc, const ni_compat_netdev_t *compat, unsigned int nr)
+{
+	xml_node_t *root, *ifpolicy, *match, *action;
+	char *pname = NULL;
+
+	if (!compat || !compat->dev || !(root = xml_document_root(doc)))
+		return NULL;
+
+	if (!(ifpolicy = xml_node_new(NI_NANNY_IFPOLICY, NULL)))
+		return NULL;
+
+	if (ni_string_empty(compat->dev->name))
+		ni_string_printf(&pname, "%s_%u", NI_NANNY_IFPOLICY, nr);
+	else
+		pname = ni_ifpolicy_name_from_ifname(compat->dev->name);
+
+	ni_trace("* generate policy[%u] for %s: name=%s", nr, compat->dev->name, pname);
+	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_NAME, pname);
+	ni_string_free(&pname);
+
+	if ((match = xml_node_new(NI_NANNY_IFPOLICY_MATCH, NULL))) {
+		if (ni_compat_generate_policy_match(match, compat)) {
+			xml_node_add_child(ifpolicy, match);
+		} else {
+			xml_node_free(match);
+			match = NULL;
+		}
+	}
+
+	if ((action = xml_node_new(NI_NANNY_IFPOLICY_MERGE, NULL))) {
+		if (ni_compat_generate_policy_action(action, compat)) {
+			xml_node_add_child(ifpolicy, action);
+		} else {
+			xml_node_free(action);
+			action = NULL;
+		}
+	}
+
+	if (!match || xml_node_is_empty(action)) {
+		xml_node_free(ifpolicy);
+		return NULL;
+	} else {
+		xml_node_add_child(root, ifpolicy);
+		return root;
+	}
 }
 
 unsigned int
 ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t *ifcfg, ni_bool_t check_prio, ni_bool_t raw)
 {
-	xml_document_t *config_doc;
+	unsigned int count, i;
+	xml_document_t *doc;
 	xml_node_t *root;
-	unsigned int i;
 
-	if (!ifcfg)
+	if (!array || !ifcfg)
 		return 0;
 
+	count = array->count;
 	for (i = 0; i < ifcfg->netdevs.count; ++i) {
 		ni_compat_netdev_t *compat = ifcfg->netdevs.data[i];
-		ni_client_state_t *cs = ni_netdev_get_client_state(compat->dev);
-		ni_client_state_config_t *conf = &cs->config;
+		ni_client_state_config_t *conf;
+		ni_client_state_t *cs;
 
-		config_doc = xml_document_new();
-		root = xml_document_root(config_doc);
+		if (!compat || !(cs = ni_netdev_get_client_state(compat->dev)))
+			continue;
+
+		conf = &cs->config;
+		doc = xml_document_new();
+		if (!(root = xml_document_root(doc)))
+			goto cleanup;
 
 		if (ni_string_empty(conf->origin))
 			ni_string_dup(&conf->origin, ifcfg->schema);
 
-		ni_compat_generate_ifcfg(compat, config_doc);
+		xml_node_location_relocate(root, conf->origin);
+		if (!xml_node_location_filename(root))
+			goto cleanup;
+
+		if (!ni_compat_generate_interface(doc, compat))
+			goto cleanup;
+
 		if (!raw)
 			ni_ifconfig_metadata_add_to_node(root, conf);
 
-		xml_node_location_relocate(root, conf->origin);
-
-		if (ni_ifconfig_validate_adding_doc(config_doc, check_prio)) {
+		if (ni_ifconfig_validate_adding_doc(doc, check_prio)) {
 			ni_debug_ifconfig("%s: %s", __func__, xml_node_location(root));
-			xml_document_array_append(array, config_doc);
+			xml_document_array_append(array, doc);
 		} else {
-			xml_document_free(config_doc);
+	cleanup:
+			xml_document_free(doc);
 		}
 	}
 
-	return i;
+	return count - array->count;
 }
+
+unsigned int
+ni_compat_generate_policies(xml_document_array_t *array, ni_compat_ifconfig_t *ifcfg,
+				ni_bool_t check_prio, ni_bool_t raw)
+{
+	unsigned int count, i;
+	xml_document_t *doc;
+	xml_node_t *root;
+
+	if (!array || !ifcfg)
+		return 0;
+
+	count = array->count;
+	for (i = 0; i < ifcfg->netdevs.count; ++i) {
+		ni_compat_netdev_t *compat = ifcfg->netdevs.data[i];
+		ni_client_state_config_t *conf;
+		ni_client_state_t *cs;
+
+		if (!compat || !(cs = ni_netdev_get_client_state(compat->dev)))
+			continue;
+
+		conf = &cs->config;
+		doc = xml_document_new();
+		if (!(root = xml_document_root(doc)))
+			goto cleanup;
+
+		if (ni_string_empty(conf->origin))
+			ni_string_dup(&conf->origin, ifcfg->schema);
+
+		xml_node_location_relocate(root, conf->origin);
+		if (!xml_node_location_filename(root))
+			goto cleanup;
+
+		if (!ni_compat_generate_policy(doc, compat, array->count + 1))
+			goto cleanup;
+
+		if (!raw)
+			ni_ifconfig_metadata_add_to_node(root, conf);
+
+		if (ni_ifconfig_validate_adding_doc(doc, check_prio)) {
+			ni_debug_ifconfig("%s: %s", __func__, xml_node_location(root));
+			xml_document_array_append(array, doc);
+		} else {
+	cleanup:
+			xml_document_free(doc);
+		}
+	}
+
+	return count - array->count;
+}
+
