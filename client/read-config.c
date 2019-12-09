@@ -4,6 +4,7 @@
  *		wicked:
  *		compat:
  *		firmware:
+ *		dracut:
  *	along their assosciated sub-types.
  *
  *	Copyright (C) 2010-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
@@ -45,6 +46,7 @@
 #include "wicked-client.h"
 #include "client/ifconfig.h"
 #include "client/read-config.h"
+#include "dracut/dracut.h"
 
 #if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
 extern ni_bool_t	__ni_suse_get_ifconfig(const char *, const char *,
@@ -238,6 +240,7 @@ static const ni_ifconfig_type_t		ni_ifconfig_types[] = {
 	{ "wicked",	{ .read = ni_ifconfig_read_wicked	} },
 	{ "compat",	{ .read = ni_ifconfig_read_compat	} },
 	{ "firmware",	{ .read = ni_ifconfig_read_firmware	} },
+	{ "dracut",	{ .read = ni_ifconfig_read_dracut	} },
 	{ NULL,		{ .guess= ni_ifconfig_guess_type	} },
 };
 
