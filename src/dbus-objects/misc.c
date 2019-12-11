@@ -32,6 +32,7 @@
 #include "model.h"
 #include "debug.h"
 #include "dhcp.h"
+#include "dhcp6/options.h"
 
 static dbus_bool_t		__ni_objectmodel_callback_info_to_dict(const ni_objectmodel_callback_info_t *, ni_dbus_variant_t *);
 static dbus_bool_t		__ni_objectmodel_route_to_dict(const ni_route_t *, ni_dbus_variant_t *);
@@ -1658,6 +1659,126 @@ __ni_objectmodel_get_addrconf_dhcp4_dict(const struct ni_addrconf_lease_dhcp4 *d
 }
 
 static void
+ni_objectmodel_get_addrconf_dhcp6_ia_entry_dict(ni_dbus_variant_t *dict, const ni_dhcp6_ia_addr_t *iadr, const char *type)
+{
+	ni_sockaddr_t addr;
+
+	if (!dict || !iadr || !type)
+		return;
+
+	switch (iadr->type) {
+	case NI_DHCP6_OPTION_IA_ADDRESS:
+		ni_dbus_dict_add_string(dict, "type", type);
+		ni_sockaddr_set_ipv6(&addr, iadr->addr, 0);
+		__ni_objectmodel_dict_add_sockaddr(dict, "address", &addr);
+		ni_dbus_dict_add_uint32(dict, "preferred-lft", iadr->preferred_lft);
+		ni_dbus_dict_add_uint32(dict, "valid-lft", iadr->valid_lft);
+		break;
+	case NI_DHCP6_OPTION_IA_PREFIX:
+		ni_dbus_dict_add_string(dict, "type", type);
+		ni_sockaddr_set_ipv6(&addr, iadr->addr, 0);
+		__ni_objectmodel_dict_add_sockaddr_prefix(dict, "prefix", &addr, iadr->plen);
+		ni_dbus_dict_add_uint32(dict, "preferred-lft", iadr->preferred_lft);
+		ni_dbus_dict_add_uint32(dict, "valid-lft", iadr->valid_lft);
+		if (iadr->excl && !IN6_IS_ADDR_UNSPECIFIED(&iadr->excl->addr) &&
+				iadr->excl->plen && iadr->plen <= iadr->excl->plen) {
+			ni_sockaddr_set_ipv6(&addr, iadr->excl->addr, 0);
+			__ni_objectmodel_dict_add_sockaddr_prefix(dict, "exclude", &addr, iadr->excl->plen);
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+static void
+ni_objectmodel_get_addrconf_dhcp6_ia_entry_array(ni_dbus_variant_t *dict, const ni_dhcp6_ia_addr_t *entries)
+{
+	ni_dbus_variant_t *array = NULL;
+	ni_dbus_variant_t *edict = NULL;
+	const ni_dhcp6_ia_addr_t *iadr;
+	const char *type;
+
+	if (!dict || !entries)
+		return;
+
+	for (iadr = entries; iadr; iadr = iadr->next) {
+		if (iadr->status.code != NI_DHCP6_STATUS_SUCCESS)
+			continue;
+
+		if (IN6_IS_ADDR_UNSPECIFIED(&iadr->addr))
+			continue;
+
+		if (!(type = ni_dhcp6_option_name(iadr->type)))
+			continue;
+
+		if (!array) {
+			if (!(array = ni_dbus_dict_add(dict, "entries")))
+				continue;
+			ni_dbus_dict_array_init(array);
+		}
+		if (!(edict = ni_dbus_dict_array_add(array)))
+			continue;
+
+		ni_objectmodel_get_addrconf_dhcp6_ia_entry_dict(edict, iadr, type);
+	}
+
+}
+
+static void
+ni_objectmodel_get_addrconf_dhcp6_ia_dict(ni_dbus_variant_t *dict, const ni_dhcp6_ia_t *ia, const char *type)
+{
+	if (!dict || !ia || !type)
+		return;
+
+	ni_dbus_dict_add_string(dict, "type", type);
+	ni_dbus_dict_add_uint32(dict, "iaid", ia->iaid);
+	ni_dbus_dict_add_int64(dict,  "acquired", ia->acquired.tv_sec);
+	switch (ia->type) {
+	case NI_DHCP6_OPTION_IA_NA:
+	case NI_DHCP6_OPTION_IA_PD:
+		ni_dbus_dict_add_uint32(dict, "renewal-time", ia->renewal_time);
+		ni_dbus_dict_add_uint32(dict, "rebind-time", ia->rebind_time);
+		break;
+	case NI_DHCP6_OPTION_IA_TA:
+	default:
+		break;
+	}
+	ni_objectmodel_get_addrconf_dhcp6_ia_entry_array(dict, ia->addrs);
+}
+
+static void
+ni_objectmodel_get_addrconf_dhcp6_ia_array(ni_dbus_variant_t *dict, const ni_dhcp6_ia_t *entries)
+{
+	ni_dbus_variant_t *array = NULL;
+	ni_dbus_variant_t *edict = NULL;
+	const ni_dhcp6_ia_t *ia;
+	const char *type;
+
+	if (!dict || !entries)
+		return;
+
+	for (ia = entries; ia; ia = ia->next) {
+		if (ia->status.code != NI_DHCP6_STATUS_SUCCESS)
+			continue;
+
+		if (!(type = ni_dhcp6_option_name(ia->type)))
+			continue;
+
+		if (!array) {
+			if (!(array = ni_dbus_dict_add(dict, "ias")))
+				continue;
+			ni_dbus_dict_array_init(array);
+		}
+
+		if (!(edict = ni_dbus_dict_array_add(array)))
+			continue;
+
+		ni_objectmodel_get_addrconf_dhcp6_ia_dict(edict, ia, type);
+	}
+}
+
+static void
 __ni_objectmodel_get_addrconf_dhcp6_dict(const struct ni_addrconf_lease_dhcp6 *dhcp6,
 					ni_dbus_variant_t *dict)
 {
@@ -1683,8 +1804,6 @@ __ni_objectmodel_get_addrconf_dhcp6_dict(const struct ni_addrconf_lease_dhcp6 *d
 		ni_dbus_dict_add_bool(dict, "rapid-commit", dhcp6->rapid_commit);
 	}
 
-	/* Hmm... status + ia_list: only if we need it */
-
 	if (dhcp6->boot_url) {
 		ni_dbus_dict_add_string(dict, "bootfile-url", dhcp6->boot_url);
 	}
@@ -1693,6 +1812,7 @@ __ni_objectmodel_get_addrconf_dhcp6_dict(const struct ni_addrconf_lease_dhcp6 *d
 							&dhcp6->boot_params);
 	}
 
+	ni_objectmodel_get_addrconf_dhcp6_ia_array(dict, dhcp6->ia_list);
 	__ni_objectmodel_get_addrconf_dhcp_opts_dict(dhcp6->options, dict, 0, 65535);
 }
 
@@ -1871,6 +1991,162 @@ __ni_objectmodel_set_addrconf_dhcp4_data(struct ni_addrconf_lease_dhcp4 *dhcp4,
 }
 
 static dbus_bool_t
+ni_objectmodel_set_addrconf_dhcp6_ia_entry_dict(ni_dhcp6_ia_addr_t *iadr, const ni_dbus_variant_t *dict)
+{
+	const ni_dbus_variant_t *var;
+	const char *type = NULL;
+	ni_sockaddr_t addr;
+	unsigned int plen;
+
+	if (!iadr || !dict || !ni_dbus_variant_is_dict(dict))
+		return FALSE;
+
+	if (!ni_dbus_dict_get_string(dict, "type", &type))
+		return FALSE;
+
+	if (ni_string_eq(type, ni_dhcp6_option_name(NI_DHCP6_OPTION_IA_ADDRESS)))
+		iadr->type = NI_DHCP6_OPTION_IA_ADDRESS;
+	else
+	if (ni_string_eq(type, ni_dhcp6_option_name(NI_DHCP6_OPTION_IA_PREFIX)))
+		iadr->type = NI_DHCP6_OPTION_IA_PREFIX;
+	else
+		return FALSE;
+
+	switch (iadr->type) {
+	case NI_DHCP6_OPTION_IA_ADDRESS:
+		if (!__ni_objectmodel_dict_get_sockaddr(dict, "address", &addr) ||
+		    !ni_sockaddr_is_ipv6_specified(&addr))
+			return FALSE;
+		iadr->addr = addr.six.sin6_addr;
+		if (!ni_dbus_dict_get_uint32(dict, "preferred-lft", &iadr->preferred_lft))
+			return FALSE;
+		if (!ni_dbus_dict_get_uint32(dict, "valid-lft", &iadr->valid_lft))
+			return FALSE;
+		break;
+	case NI_DHCP6_OPTION_IA_PREFIX:
+		if (!__ni_objectmodel_dict_get_sockaddr_prefix(dict, "prefix", &addr, &plen) ||
+				addr.ss_family != AF_INET6 || !plen || plen > 128)
+			return FALSE;
+		iadr->addr = addr.six.sin6_addr;
+		iadr->plen = plen;
+		if (!ni_dbus_dict_get_uint32(dict, "preferred-lft", &iadr->preferred_lft))
+			return FALSE;
+		if (!ni_dbus_dict_get_uint32(dict, "valid-lft", &iadr->valid_lft))
+			return FALSE;
+		if ((var = ni_dbus_dict_get(dict, "exclude"))) {
+			if (!__ni_objectmodel_get_sockaddr_prefix(var, &addr, &plen) ||
+			    !ni_sockaddr_is_ipv6_specified(&addr) || iadr->plen >= plen || plen > 128)
+				return FALSE;
+			iadr->excl = ni_dhcp6_ia_pd_excl_new(addr.six.sin6_addr, plen);
+		}
+		break;
+	default:
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_set_addrconf_dhcp6_ia_entry_array(ni_dhcp6_ia_addr_t **entries, const ni_dbus_variant_t *array)
+{
+	const ni_dbus_variant_t *edict;
+	ni_dhcp6_ia_addr_t *iadr;
+	unsigned int i;
+
+	if (!entries || !array || !ni_dbus_variant_is_dict_array(array))
+		return FALSE;
+
+	ni_dhcp6_ia_addr_list_destroy(entries);
+	for (i = 0; i < array->array.len; ++i) {
+		edict = &array->variant_array_value[i];
+		if (!ni_dbus_variant_is_dict(edict))
+			continue;
+
+		if (!(iadr = ni_dhcp6_ia_addr_new(0, in6addr_any, 0)))
+			continue;
+
+		if (!ni_objectmodel_set_addrconf_dhcp6_ia_entry_dict(iadr, edict) ||
+		    !ni_dhcp6_ia_addr_list_append(entries, iadr))
+			ni_dhcp6_ia_addr_free(iadr);
+	}
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_set_addrconf_dhcp6_ia_dict(ni_dhcp6_ia_t *ia, const ni_dbus_variant_t *dict)
+{
+	const ni_dbus_variant_t *array;
+	const char *type = NULL;
+
+	if (!ia || !dict || !ni_dbus_variant_is_dict(dict))
+		return FALSE;
+
+	if (!ni_dbus_dict_get_string(dict, "type", &type))
+		return FALSE;
+
+	if (ni_string_eq(type, ni_dhcp6_option_name(NI_DHCP6_OPTION_IA_PD)))
+		ia->type = NI_DHCP6_OPTION_IA_PD;
+	else
+	if (ni_string_eq(type, ni_dhcp6_option_name(NI_DHCP6_OPTION_IA_NA)))
+		ia->type = NI_DHCP6_OPTION_IA_NA;
+	else
+	if (ni_string_eq(type, ni_dhcp6_option_name(NI_DHCP6_OPTION_IA_TA)))
+		ia->type = NI_DHCP6_OPTION_IA_TA;
+	else
+		return FALSE;
+
+	if (!ni_dbus_dict_get_uint32(dict, "iaid", &ia->iaid))
+		return FALSE;
+	if (!ni_dbus_dict_get_int64(dict, "acquired", &ia->acquired.tv_sec))
+		return FALSE;
+
+	switch (ia->type) {
+	case NI_DHCP6_OPTION_IA_PD:
+	case NI_DHCP6_OPTION_IA_NA:
+		if (!ni_dbus_dict_get_uint32(dict, "renewal-time", &ia->renewal_time))
+			return FALSE;
+		if (!ni_dbus_dict_get_uint32(dict, "rebind-time", &ia->rebind_time))
+			return FALSE;
+		break;
+	case NI_DHCP6_OPTION_IA_TA:
+	default:
+		break;
+	}
+
+	if ((array = ni_dbus_dict_get(dict, "entries")) &&
+		!ni_objectmodel_set_addrconf_dhcp6_ia_entry_array(&ia->addrs, array))
+		return FALSE;
+	else
+		return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_set_addrconf_dhcp6_ia_array(ni_dhcp6_ia_t **entries, const ni_dbus_variant_t *array)
+{
+	const ni_dbus_variant_t *edict;
+	ni_dhcp6_ia_t *ia;
+	unsigned int i;
+
+	if (!entries || !array || !ni_dbus_variant_is_dict_array(array))
+		return FALSE;
+
+	ni_dhcp6_ia_list_destroy(entries);
+	for (i = 0; i < array->array.len; ++i) {
+		edict = &array->variant_array_value[i];
+		if (!ni_dbus_variant_is_dict(edict))
+			continue;
+
+		if (!(ia = ni_dhcp6_ia_new(0, 0)))
+			continue;
+
+		if (!ni_objectmodel_set_addrconf_dhcp6_ia_dict(ia, edict) ||
+		    !ni_dhcp6_ia_list_append(entries, ia))
+			ni_dhcp6_ia_free(ia);
+	}
+	return TRUE;
+}
+
+static dbus_bool_t
 __ni_objectmodel_set_addrconf_dhcp6_data(struct ni_addrconf_lease_dhcp6 *dhcp6,
 					const ni_dbus_variant_t *dict,
 					DBusError *error)
@@ -1914,6 +2190,10 @@ __ni_objectmodel_set_addrconf_dhcp6_data(struct ni_addrconf_lease_dhcp6 *dhcp6,
 	if ((var = ni_dbus_dict_get(dict, "bootfile-params")) != NULL
 	 && !__ni_objectmodel_get_printable_array(&dhcp6->boot_params, var,
 						error, "bootfile-params"))
+		return FALSE;
+
+	if ((var = ni_dbus_dict_get(dict, "ias")) &&
+		!ni_objectmodel_set_addrconf_dhcp6_ia_array(&dhcp6->ia_list, var))
 		return FALSE;
 
 	__ni_objectmodel_set_addrconf_dhcp_opts_dict(&dhcp6->options, dict, 0, 65535);

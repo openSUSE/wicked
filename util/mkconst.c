@@ -39,14 +39,17 @@ static void		generate(char *, const char *, const ni_intmap_t *);
 struct generic_map {
 	const char *		prefix;
 	unsigned int		prefix_len;
+	const ni_intmap_t *	(*getmap)(void);
 	const char *		(*mapfunc)(unsigned int);
 	unsigned int		max_value;
 };
 
 #define MAP(name, func) \
-	{ #name, sizeof(#name) - 1, func, 128 }
+	{ #name, sizeof(#name) - 1, NULL, func, 128 }
 #define MAPN(name, func, max) \
-	{ #name, sizeof(#name) - 1, func, max }
+	{ #name, sizeof(#name) - 1, NULL, func, max }
+#define GETMAP(name, func) \
+	{ #name, sizeof(#name) - 1, func, NULL, 0 }
 static struct generic_map	generic_maps[] = {
 	MAPN(IFTYPE, ni_linktype_type_to_name, __NI_IFTYPE_MAX),
 	MAP(IFFLAGS, ni_linkflags_bit_to_name),
@@ -56,7 +59,7 @@ static struct generic_map	generic_maps[] = {
 	MAPN(ADDRCONF_STATE, ni_addrconf_state_to_name, __NI_ADDRCONF_STATE_MAX),
 	MAP(ADDRCONF_FLAG_BIT, ni_addrconf_flag_bit_to_name),
 	MAP(ADDRCONF_UPDATE_FLAG, ni_addrconf_update_flag_to_name),
-	MAP(DHCP6_MODE, ni_dhcp6_mode_type_to_name),
+	GETMAP(DHCP6_MODE_BIT, ni_dhcp6_mode_map),
 	MAP(WIRELESS_MODE, ni_wireless_mode_to_name),
 	MAP(WIRELESS_SECURITY, ni_wireless_security_to_name),
 	MAP(WIRELESS_AUTH, ni_wireless_auth_mode_to_name),
@@ -126,8 +129,13 @@ main(int argc, char **argv)
 		for (map = generic_maps; map->prefix; ++map) {
 			if (!strncmp(atat + 2, map->prefix, map->prefix_len)
 			 && !strncmp(atat + 2 + map->prefix_len, "_NAME@@", 7)) {
-				generate(buffer, map->prefix,
+				if (map->getmap) {
+					generate(buffer, map->prefix, map->getmap());
+				} else
+				if (map->mapfunc) {
+					generate(buffer, map->prefix,
 						buildmap(map->mapfunc, map->max_value));
+				}
 				goto found;
 			}
 		}
