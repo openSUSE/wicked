@@ -9,20 +9,16 @@ AM_INIT_AUTOMAKE([foreign dist-bzip2 no-dist-gzip subdir-objects])
 #
 # Note: We consider libwicked as an internal helper library,
 # rather than a general purporse library with rock solid ABI.
-# The program/package version and the library version do not
-# correspond 1:1 with each other, the version is encoded.
-# We intentionally break binary compatibility at minor level.
+# We intentionally break binary compatibility at rev level.
 #
 set -- ${VERSION//./ }
 MAJ=$(($1))
 MIN=$(($2))
 REV=$(($3))
-# optional fix/patch level
-FIX=0
 
 # Calculate package (soname version) suffix for the spec file.
-AC_SUBST(LIBWICKED_PACKAGE_SUFFIX, "-${MAJ}-${MIN}")
-AC_SUBST(LIBWICKED_LTLINK_VERSION, "-release ${MAJ} -version-number ${MIN}:${REV}:${FIX}")
+AC_SUBST(LIBWICKED_PACKAGE_SUFFIX, "-${MAJ}_${MIN}_${REV}")
+AC_SUBST(LIBWICKED_LTLINK_VERSION, "-release ${MAJ}.${MIN}.${REV}")
 
 #AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_SRCDIR([src/config.c])
