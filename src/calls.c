@@ -352,7 +352,7 @@ ni_call_device_method_common(ni_dbus_object_t *object,
 				1, &result,
 				&error)) {
 
-		if (error_ctx) {
+		if (error_ctx && error_ctx->handler) {
 			rv = error_ctx->handler(error_ctx, &error);
 			if (rv > 0) {
 				ni_warn("Whaaah. Error context handler returns positive code. "

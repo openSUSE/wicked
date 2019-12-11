@@ -149,7 +149,7 @@ __ni_wireless_do_scan(ni_netdev_t *dev)
 	ni_wpa_interface_t *wpa_dev;
 	ni_wireless_t *wlan;
 	ni_wireless_scan_t *scan;
-	time_t now;
+	struct timeval now;
 
 	wlan = dev->wireless;
 	if ((scan = wlan->scan) == NULL) {
@@ -189,13 +189,13 @@ __ni_wireless_do_scan(ni_netdev_t *dev)
 	}
 
 	/* If we haven't seen a scan in a long time, request one. */
-	now = time(NULL);
-	if (scan->timestamp + scan->interval < now) {
+	ni_timer_get_time(&now);
+	if (timerisset(&scan->timestamp) && scan->timestamp.tv_sec + scan->interval < now.tv_sec) {
 		/* We can do this only if the device is up */
 		if (dev->link.ifflags & NI_IFF_DEVICE_UP) {
-			if (scan->timestamp)
+			if (now.tv_sec > scan->timestamp.tv_sec)
 				ni_debug_wireless("%s: requesting wireless scan (last scan was %u seconds ago)",
-						dev->name, (unsigned int) (now - scan->timestamp));
+						dev->name, (unsigned int)(now.tv_sec - scan->timestamp.tv_sec));
 			else
 				ni_debug_wireless("%s: requesting wireless scan", dev->name);
 			ni_wpa_interface_request_scan(wpa_dev, scan);

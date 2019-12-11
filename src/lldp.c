@@ -73,7 +73,7 @@ struct ni_lldp_agent {
 
 struct ni_lldp_peer {
 	ni_lldp_peer_t *	next;
-	time_t			expires;
+	struct timeval		expires;
 	ni_lldp_t *		data;
 	unsigned int		raw_id_len;
 	unsigned char		raw_id[0];
@@ -639,15 +639,15 @@ ni_lldp_agent_update(ni_lldp_agent_t *agent, ni_lldp_t *lldp, const void *raw_id
 {
 	ni_lldp_peer_t **pos, *peer, *found = NULL;
 	unsigned int npeers = 0;
-	time_t now;
+	struct timeval now;
 
-	now = time(NULL);
+	ni_timer_get_time(&now);
 
 	pos = &agent->peers;
 
 	/* First, expire any old entries. Note that peers are sorted by order
 	 * of increasing expiry timeout. */
-	while ((peer = *pos) != NULL && peer->expires <= now)
+	while ((peer = *pos) != NULL && timercmp(&peer->expires, &now, <=))
 		ni_lldp_peer_unlink_and_free(pos);
 
 	while ((peer = *pos) != NULL) {
@@ -683,12 +683,13 @@ ni_lldp_agent_update(ni_lldp_agent_t *agent, ni_lldp_t *lldp, const void *raw_id
 	}
 
 	/* Update/init the peer info */
-	found->expires = now + lldp->ttl;
+	found->expires = now;
+	found->expires.tv_sec += lldp->ttl;
 	found->data = lldp;
 
 	/* Insert in order of increasing timeout */
 	pos = &agent->peers;
-	while ((peer = *pos) != NULL && peer->expires < found->expires)
+	while ((peer = *pos) != NULL && timercmp(&peer->expires, &found->expires, <))
 		*pos = peer->next;
 
 	found->next = *pos;

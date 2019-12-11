@@ -7,6 +7,7 @@
 #include "config.h"
 #endif
 
+#include <time.h>
 #include <sys/time.h>
 #include <wicked/socket.h>
 #include "netinfo_priv.h"
@@ -148,14 +149,99 @@ __ni_timer_disarm(const ni_timer_t *handle)
 	return NULL;
 }
 
+static inline int
+ni_time_get_realtime(struct timeval *tv)
+{
+	struct timespec ts;
+	int ret;
+
+	if ((ret = clock_gettime(CLOCK_REALTIME, &ts)) == 0)
+		TIMESPEC_TO_TIMEVAL(tv, &ts);
+
+	return ret;
+}
+
+static inline int
+ni_time_get_monotonic(struct timeval *tv)
+{
+	struct timespec ts;
+	int ret;
+
+	if ((ret = clock_gettime(CLOCK_MONOTONIC, &ts)) == 0)
+		TIMESPEC_TO_TIMEVAL(tv, &ts);
+
+	return ret;
+}
+
+static inline int
+ni_time_get_boottime(struct timeval *tv)
+{
+	struct timespec ts;
+	int ret;
+
+	if ((ret = clock_gettime(CLOCK_BOOTTIME, &ts)) == 0)
+		TIMESPEC_TO_TIMEVAL(tv, &ts);
+
+	return ret;
+}
+
 int
 ni_timer_get_time(struct timeval *tv)
 {
-	/*
-	 * The wallclock time has to be used because leases are stored on disk.
-	 * Using CLOCK_BOOTTIME is the alternative without persistant leases.
-	 */
-	return gettimeofday(tv, NULL);
+	return ni_time_get_boottime(tv);
+}
+
+/*
+ * The wallclock time has to be used in leases when stored on disk
+ */
+int
+ni_time_timer_to_real(const struct timeval *ttime, struct timeval *real)
+{
+	struct timeval tnow, rnow, diff;
+	int ret;
+
+	if (!ttime || !real)
+		return -1;
+
+	if (!timerisset(ttime)) {
+		ni_warn("%s: timer time reference unset", __func__);
+		return ni_time_get_realtime(real);
+	}
+
+	if ((ret = ni_timer_get_time(&tnow)) != 0)
+		return ret;
+
+	if ((ret = ni_time_get_realtime(&rnow)) != 0)
+		return ret;
+
+	timersub(&tnow, ttime, &diff);
+	timersub(&rnow, &diff, real);
+	return 0;
+}
+
+int
+ni_time_real_to_timer(const struct timeval *real, struct timeval *ttime)
+{
+	struct timeval tnow, rnow, diff;
+	int ret;
+
+	if (!ttime || !real)
+		return -1;
+
+	if (!timerisset(real)) {
+		ni_warn("%s: real time reference unset", __func__);
+		return ni_timer_get_time(ttime);
+	}
+
+	if ((ret = ni_timer_get_time(&tnow)) != 0)
+		return ret;
+
+	if ((ret = ni_time_get_realtime(&rnow)) != 0)
+		return ret;
+
+	timersub(&rnow, real, &diff);
+	timersub(&tnow, &diff, ttime);
+	return 0;
 }
 
 /*

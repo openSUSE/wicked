@@ -34,7 +34,6 @@ struct xml_document {
 	struct xml_node *	root;
 };
 
-typedef struct xml_document_array	xml_document_array_t;
 struct xml_document_array {
 	unsigned int		count;
 	xml_document_t **	data;
@@ -129,7 +128,7 @@ extern const ni_var_t *	xml_node_get_attr_var(const xml_node_t *, const char *);
 extern ni_bool_t	xml_node_get_attr_uint(const xml_node_t *, const char *, unsigned int *);
 extern ni_bool_t	xml_node_get_attr_ulong(const xml_node_t *, const char *, unsigned long *);
 extern ni_bool_t	xml_node_get_attr_double(const xml_node_t *, const char *, double *);
-extern inline xml_node_t *	xml_node_get_child(const xml_node_t *, const char *);
+extern xml_node_t *	xml_node_get_child(const xml_node_t *, const char *);
 extern xml_node_t *	xml_node_get_next_child(const xml_node_t *, const char *, const xml_node_t *);
 extern xml_node_t *	xml_node_get_child_with_attrs(const xml_node_t *, const char *,
 					const ni_var_array_t *);
@@ -148,9 +147,9 @@ extern const char *	xml_node_get_path(ni_stringbuf_t *, const xml_node_t *, cons
 
 extern void		xml_location_free(xml_location_t *);
 extern xml_location_t *	xml_location_clone(const xml_location_t *);
-inline xml_location_t *	xml_location_create(const char *, unsigned int);
-inline const char *	xml_node_location_filename(const xml_node_t *);
-inline unsigned int	xml_node_location_line(const xml_node_t *);
+extern xml_location_t *	xml_location_create(const char *, unsigned int);
+extern const char *	xml_node_location_filename(const xml_node_t *);
+extern unsigned int	xml_node_location_line(const xml_node_t *);
 extern const char *	xml_node_location(const xml_node_t *);
 extern void		xml_node_location_set(xml_node_t *, xml_location_t *);
 extern void		xml_node_location_modify(xml_node_t *, const char *);

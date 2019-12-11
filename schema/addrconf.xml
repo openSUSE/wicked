@@ -243,6 +243,7 @@
 
     <mode type="builtin-dhcp6-mode"/>
     <rapid-commit type="boolean"/>
+    <address-length type="uint32"/>
 
     <client-id type="string" />
     <!-- vendor-class type="string" / -->
@@ -266,6 +267,10 @@
       </update>
       <qualify type="boolean"/>
     </fqdn>
+
+    <request-prefix class="dict">
+      <hint type="network-address-prefix"/>
+    </request-prefix>
 
     <request-options class="array" element-type="string" element-name="option" />
   </define>

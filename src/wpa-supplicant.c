@@ -29,6 +29,7 @@
 #include "config.h"
 #endif
 
+#include <sys/time.h>
 #include <time.h>
 #include <net/if_arp.h>
 #include <netinet/if_ether.h>
@@ -352,14 +353,17 @@ ni_wpa_interface_expire_networks(ni_wpa_interface_t *dev, unsigned int max_age)
 	ni_dbus_object_t *dev_object, *pos, *cur;
 	ni_wireless_network_t *net;
 	unsigned int num_expired = 0;
-	time_t now;
+	struct timeval expired;
 
 	if ((dev_object = dev->proxy) == NULL)
 		return 0;
 
-	now = time(NULL) - max_age;
-	for (net = ni_wpa_interface_first_network(dev, &pos, &cur); net; net = ni_wpa_interface_next_network(dev, &pos, &cur)) {
-		if (net->scan_info.timestamp && net->scan_info.timestamp < now) {
+	ni_timer_get_time(&expired);
+	expired.tv_sec -= max_age;
+	for (net = ni_wpa_interface_first_network(dev, &pos, &cur); net;
+	     net = ni_wpa_interface_next_network(dev, &pos, &cur)) {
+		if (timerisset(&net->scan_info.timestamp) &&
+		    timercmp(&net->scan_info.timestamp, &expired, <)) {
 			/* This will also remove child from the list of dev_object->children */
 			ni_dbus_object_free(cur);
 			num_expired++;
@@ -583,7 +587,8 @@ ni_wpa_interface_request_scan(ni_wpa_interface_t *wpa_dev, ni_wireless_scan_t *s
 			DBUS_TYPE_INVALID, NULL,
 			DBUS_TYPE_UINT32, &value);
 
-	wpa_dev->scan.timestamp = scan->timestamp = time(NULL);
+	ni_timer_get_time(&scan->timestamp);
+	wpa_dev->scan.timestamp = scan->timestamp;
 	wpa_dev->scan.pending = 1;
 	return rv;
 }
@@ -622,7 +627,7 @@ ni_wpa_interface_retrieve_scan(ni_wpa_interface_t *wpa_dev, ni_wireless_scan_t *
 	if (ni_wpa_interface_expire_networks(wpa_dev, scan->interval + 1) == 0) {
 		/* Nothing pruned. If we didn't receive new scan results in the
 		 * mean time, there's nothing we need to do. */
-		if (scan->timestamp == wpa_dev->scan.timestamp)
+		if (!timercmp(&scan->timestamp, &wpa_dev->scan.timestamp, !=))
 			return FALSE;
 
 		send_event = TRUE;
@@ -638,7 +643,7 @@ ni_wpa_interface_retrieve_scan(ni_wpa_interface_t *wpa_dev, ni_wireless_scan_t *
 		 * new network from wpa-supplicant. In this case, the access_point has not been
 		 * set yet.
 		 */
-		if (net->scan_info.timestamp && net->access_point.len != 0) {
+		if (timerisset(&net->scan_info.timestamp) && net->access_point.len != 0) {
 			ni_wireless_network_array_append(&scan->networks, net);
 			if (!net->notified) {
 				net->notified = TRUE;
@@ -919,7 +924,7 @@ ni_wpa_interface_scan_results(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 	if (rv >= 0) {
 		unsigned int i;
 
-		wpa_dev->scan.timestamp = time(NULL);
+		ni_timer_get_time(&wpa_dev->scan.timestamp);
 		for (i = 0; i < object_path_count; ++i) {
 			const char *path = object_path_array[i];
 			ni_dbus_object_t *net_object;
@@ -1824,7 +1829,7 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 		ni_debug_wireless("%s: essid changed", ni_link_address_print(&net->access_point));
 		net->notified = FALSE;
 	}
-	net->scan_info.timestamp = time(NULL);
+	ni_timer_get_time(&net->scan_info.timestamp);
 
 	ni_dbus_variant_destroy(&dict);
 	return;

@@ -38,6 +38,12 @@ enum {
 	NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL=  2,
 };
 
+enum {
+	NI_IPV6_READY			= 0U,
+	NI_IPV6_RS_SENT			= 1,
+	NI_IPV6_RA_RCVD			= 2,
+};
+
 struct ni_ipv6_devconf {
 	ni_tristate_t		enabled;
 	ni_tristate_t		forwarding;
@@ -91,17 +97,24 @@ struct ni_ipv6_ra_info {
 };
 
 struct ni_ipv6_devinfo {
+	unsigned int		flags;
+
 	ni_ipv6_devconf_t	conf;
 	ni_ipv6_ra_info_t	radv;
 };
 
 extern ni_bool_t		ni_ipv6_supported(void);
-
 extern ni_ipv6_devinfo_t *	ni_netdev_get_ipv6(ni_netdev_t *);
 extern void			ni_netdev_set_ipv6(ni_netdev_t *, ni_ipv6_devconf_t *);
+extern ni_bool_t		ni_netdev_ipv6_is_ready(const ni_netdev_t *);
+extern ni_bool_t		ni_netdev_ipv6_ra_received(const ni_netdev_t *);
+extern ni_bool_t		ni_netdev_ipv6_ra_requested(const ni_netdev_t *);
 
 extern ni_ipv6_devinfo_t *	ni_ipv6_devinfo_new(void);
 extern void			ni_ipv6_devinfo_free(ni_ipv6_devinfo_t *);
+extern ni_bool_t		ni_ipv6_devinfo_is_ready(const ni_ipv6_devinfo_t *);
+extern ni_bool_t		ni_ipv6_devinfo_ra_received(const ni_ipv6_devinfo_t *);
+extern ni_bool_t		ni_ipv6_devinfo_ra_requested(const ni_ipv6_devinfo_t *);
 
 extern int			ni_system_ipv6_devinfo_get(ni_netdev_t *, ni_ipv6_devinfo_t *);
 extern int			ni_system_ipv6_devinfo_set(ni_netdev_t *, const ni_ipv6_devconf_t *);

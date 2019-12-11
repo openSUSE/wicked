@@ -920,7 +920,7 @@ xml_location_new(struct xml_location_shared *shared_location, unsigned int line)
 	return location;
 }
 
-inline xml_location_t *
+xml_location_t *
 xml_location_create(const char *filename, unsigned int line)
 {
 	xml_location_t *location;
@@ -951,7 +951,7 @@ xml_node_location_modify(xml_node_t *node, const char *filename)
 }
 
 static void
-__xml_node_location_relocate(xml_node_t *node, struct xml_location_shared *shared)
+xml_node_location_shared_relocate(xml_node_t *node, struct xml_location_shared *shared)
 {
 	xml_node_t *child;
 
@@ -964,7 +964,7 @@ __xml_node_location_relocate(xml_node_t *node, struct xml_location_shared *share
 	}
 
 	for (child = node->children; child; child = child->next)
-		__xml_node_location_relocate(child, shared);
+		xml_node_location_shared_relocate(child, shared);
 }
 
 void
@@ -974,7 +974,7 @@ xml_node_location_relocate(xml_node_t *node, const char *filename)
 
 	if (node && !ni_string_empty(filename)) {
 		if ((shared = xml_location_shared_new(filename))) {
-			__xml_node_location_relocate(node, shared);
+			xml_node_location_shared_relocate(node, shared);
 			xml_location_shared_release(shared);
 		}
 	}

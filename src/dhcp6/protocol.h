@@ -41,6 +41,19 @@
 #define NI_DHCP6_MIN_PREF_LIFETIME	(30)		/* min. accepted from config */
 
 /*
+ * Modification to Default Values of SOL_MAX_RT and INF_MAX_RT options
+ * https://tools.ietf.org/html/rfc7083#section-4
+ * https://tools.ietf.org/html/rfc7083#section-5
+ * Dynamic Host Configuration Protocol for IPv6 (DHCPv6) [update 2018]:
+ * https://tools.ietf.org/html/rfc8415#section-21.24
+ * https://tools.ietf.org/html/rfc8415#section-21.25
+ */
+#define NI_DHCP6_SOL_MAX_RT_MIN		60		/* 60 seconds       */
+#define NI_DHCP6_SOL_MAX_RT_MAX		86400		/* 1 day in seconds */
+#define NI_DHCP6_INF_MAX_RT_MIN		60		/* 60 seconds       */
+#define NI_DHCP6_INF_MAX_RT_MAX		86400		/* 1 day in seconds */
+
+/*
  * Client/Server Message Formats, transaction-id
  * http://tools.ietf.org/html/rfc3315#section-6
  */
@@ -108,7 +121,7 @@ enum NI_DHCP6_MSG_TYPE {
  */
 #define	NI_DHCP6_SOL_MAX_DELAY	   1000	/* Max delay of first Solicit  */
 #define NI_DHCP6_SOL_TIMEOUT	   1000	/* Initial Solicit timeout     */
-#define NI_DHCP6_SOL_MAX_RT	 120000	/* Max Solicit timeout value   */
+#define NI_DHCP6_SOL_MAX_RT	3600000	/* Max Solicit timeout value   */
 #define NI_DHCP6_REQ_TIMEOUT	   1000	/* Initial Request timeout     */
 #define NI_DHCP6_REQ_MAX_RC	     10	/* Max Request retry attempts  */
 #define NI_DHCP6_REQ_MAX_RT	  30000	/* Max Request timeout value   */
@@ -122,14 +135,14 @@ enum NI_DHCP6_MSG_TYPE {
 #define NI_DHCP6_REB_MAX_RT	 600000	/* Max Rebind timeout value    */
 #define NI_DHCP6_INF_MAX_DELAY	   1000	/* Max delay of first Info-req */
 #define NI_DHCP6_INF_TIMEOUT	   1000	/* Initial Info-req timeout    */
-#define NI_DHCP6_INF_MAX_RT	 120000	/* Max Info-req timeout value  */
+#define NI_DHCP6_INF_MAX_RT	 360000	/* Max Info-req timeout value  */
 #define NI_DHCP6_REL_TIMEOUT	   1000	/* Initial Release timeout     */
-#define NI_DHCP6_REL_MAX_RC	      5	/* Max Release attempts        */
+#define NI_DHCP6_REL_MAX_RC	      4	/* Max Release attempts        */
 #define NI_DHCP6_DEC_TIMEOUT	   1000	/* Initial Decline timeout     */
-#define NI_DHCP6_DEC_MAX_RC	      5	/* Max Decline attempts        */
+#define NI_DHCP6_DEC_MAX_RC	      4	/* Max Decline attempts        */
 #define NI_DHCP6_REC_TIMEOUT	   2000	/* Initial Reconfigure timeout */
 #define NI_DHCP6_REC_MAX_RC	      8	/* Max Reconfigure attempts    */
-#define NI_DHCP6_HOP_COUNT_LIMIT     32	/* Max hop count in Relay-fwd  */
+#define NI_DHCP6_HOP_COUNT_LIMIT      8	/* Max hop count in Relay-fwd  */
 #define NI_DHCP6_MAX_JITTER	    100	/* Randomization factor [± 0.1]*/
 
 /*
@@ -138,6 +151,12 @@ enum NI_DHCP6_MSG_TYPE {
  */
 #define NI_DHCP6_IRT_DEFAULT	  86400	/* default refresh time in sec  */
 #define NI_DHCP6_IRT_MINIMUM	    600 /* minimum refresh time         */
+
+/*
+ * Timeout and backoff handling initializers
+ */
+#define NI_DHCP6_EXP_BACKOFF	     -1 /* exponential increment type  */
+#define NI_DHCP6_UNLIMITED	     -1 /* unlimited number of retries */
 
 /*
  * Option Format
@@ -181,19 +200,6 @@ typedef union ni_dhcp6_packet_header {
 } ni_dhcp6_packet_header_t;
 
 /*
-typedef struct ni_dhcp6_option {
-	uint16_t			code;
-	uint16_t			len;
-	unsigned char			data[];
-} ni_dhcp6_option_t;
-
-typedef struct ni_dhcp6_option_array {
-	unsigned int			count;
-	ni_dhcp6_option_t *		data;
-} ni_dhcp6_option_array_t;
-*/
-
-/*
  * Option request option code array
  */
 typedef struct ni_dhcp6_option_request {
@@ -203,6 +209,18 @@ typedef struct ni_dhcp6_option_request {
 
 #define NI_DHCP6_OPTION_REQUEST_INIT	{ .count = 0, .options = NULL }
 
+/*
+ * Structure we parse messages into
+ */
+typedef struct ni_dhcp6_message {
+	unsigned int			type;
+	unsigned int			xid;
+
+	ni_bool_t			request;
+	unsigned int			max_rt;
+	struct in6_addr			sender;
+	ni_addrconf_lease_t *		lease;
+} ni_dhcp6_message_t;
 
 /*
  * DHCPv6 specific FQDN option bits/flags
@@ -237,14 +255,10 @@ extern ni_int_range_t	ni_dhcp6_jitter_rebase(unsigned int msec, int lower, int u
 extern ni_bool_t	ni_dhcp6_set_message_timing(ni_dhcp6_device_t *dev, unsigned int msg_type);
 
 
-extern int		ni_dhcp6_parse_client_header(ni_buffer_t *msgbuf,
-							unsigned int *msg_type, unsigned int *msg_xid);
-
-extern int		ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_buffer_t *buffer,
-							ni_addrconf_lease_t *lease);
-
-extern int		ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, const struct in6_addr *sender,
-							unsigned int msg_type, unsigned int msg_xid);
+extern int		ni_dhcp6_parse_client_header(ni_dhcp6_message_t *msg, ni_buffer_t *msgbuf);
+extern int		ni_dhcp6_check_client_header(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg);
+extern int		ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg,
+							ni_buffer_t *optbuf);
 
 extern int		ni_dhcp6_mcast_socket_open(ni_dhcp6_device_t *);
 extern void		ni_dhcp6_mcast_socket_close(ni_dhcp6_device_t *);
@@ -252,9 +266,6 @@ extern ssize_t		ni_dhcp6_socket_send(ni_socket_t *, const ni_buffer_t *, const n
 
 
 /* FIXME: cleanup */
-extern ni_bool_t	ni_dhcp6_ia_addr_is_usable(const ni_dhcp6_ia_addr_t *);
-extern int		ni_dhcp6_ia_addr_list_copy(ni_dhcp6_ia_addr_t **, const ni_dhcp6_ia_addr_t *, ni_bool_t);
-
 extern unsigned int	ni_dhcp6_ia_release_matching(ni_dhcp6_ia_t *, struct in6_addr *,
 									unsigned int);
 extern void		ni_dhcp6_ia_set_default_lifetimes(ni_dhcp6_ia_t *, unsigned int);
@@ -268,11 +279,9 @@ extern unsigned int	ni_dhcp6_ia_get_renewal_time(ni_dhcp6_ia_t *);
 
 extern ni_bool_t	ni_dhcp6_ia_is_active(ni_dhcp6_ia_t *, struct timeval *);
 extern unsigned int	ni_dhcp6_ia_list_count_active(ni_dhcp6_ia_t *, struct timeval *now);
-extern int		ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **, const ni_dhcp6_ia_t *, ni_bool_t);
 extern unsigned int	ni_dhcp6_ia_copy_to_lease_addrs(const ni_dhcp6_device_t *, ni_addrconf_lease_t *);
 
 extern const char *	ni_dhcp6_print_timeval(const struct timeval *);
-extern const char *	ni_dhcp6_print_time(time_t);
 
 extern const char *	ni_dhcp6_address_print(const struct in6_addr *);
 

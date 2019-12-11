@@ -253,7 +253,7 @@ ni_do_test_dhcp6(const char *caller, int argc, char **argv)
 			break;
 
 		case OPT_TEST_MODE:
-			if (ni_dhcp6_mode_name_to_type(optarg, &tester->mode) < 0) {
+			if (!ni_dhcp6_mode_parse(&tester->mode, optarg)) {
 				fprintf(stderr, "%s: unable to parse request mode option '%s'\n",
 						program, optarg);
 				status = NI_WICKED_RC_ERROR;

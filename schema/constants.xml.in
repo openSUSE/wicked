@@ -34,8 +34,8 @@
 </define>
 
 <!-- Built-in dhcp6 run/configuration mode types -->
-<define name="builtin-dhcp6-mode" type="uint32" constraint="enum">
-  <@@DHCP6_MODE_NAME@@ value="@@DHCP6_MODE_VALUE@@"/>
+<define name="builtin-dhcp6-mode" type="uint32" constraint="bitmap">
+  <@@DHCP6_MODE_BIT_NAME@@ bit="@@DHCP6_MODE_BIT_VALUE@@"/>
 </define>
 
 <!-- Built-in interface status flags -->

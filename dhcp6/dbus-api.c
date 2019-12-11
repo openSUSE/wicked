@@ -34,7 +34,9 @@
 #include <wicked/objectmodel.h>
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
+#include "dbus-objects/misc.h"
 #include "dhcp6/dbus-api.h"
+#include "dbus-common.h"
 #include "appconfig.h"
 #include "util_priv.h"
 
@@ -378,12 +380,94 @@ ni_objectmodel_dhcp6_request_set_fqdn(ni_dbus_object_t *object,
 	return TRUE;
 }
 
+static dbus_bool_t
+ni_objectmodel_dhcp6_request_get_prefix(const ni_dbus_object_t *object,
+			const ni_dbus_property_t *property,
+			ni_dbus_variant_t *result,
+			DBusError *error)
+{
+	const ni_dhcp6_request_t *req;
+	const ni_dhcp6_prefix_req_t *pr;
+	const ni_dhcp6_ia_addr_t *hint;
+	ni_sockaddr_t addr;
+
+	if (!(req = __ni_objectmodel_get_dhcp6_request(object, error)))
+		return FALSE;
+
+	if (!req->prefix_reqs)
+		return TRUE;
+
+	if (!ni_dbus_variant_is_dict(result))
+		ni_dbus_variant_init_dict(result);
+
+	for (pr = req->prefix_reqs; pr; pr = pr->next) {
+		for (hint = pr->hints; hint; hint = hint->next) {
+			if (!hint->plen)
+				continue;
+
+			ni_sockaddr_set_ipv6(&addr, hint->addr, 0);
+			if (!__ni_objectmodel_dict_add_sockaddr_prefix(result, "hint", &addr, hint->plen))
+				return FALSE;
+			break;
+		}
+		break;
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_dhcp6_request_set_prefix(ni_dbus_object_t *object,
+			const ni_dbus_property_t *property,
+			const ni_dbus_variant_t *argument,
+			DBusError *error)
+{
+	ni_dhcp6_request_t *req;
+	ni_dhcp6_prefix_req_t *pr;
+	ni_dhcp6_ia_addr_t *hint;
+	ni_sockaddr_t addr;
+	unsigned int plen;
+
+	if (!(req = __ni_objectmodel_get_dhcp6_request(object, error)))
+		return FALSE;
+
+	if (!ni_dbus_variant_is_dict(argument))
+		return FALSE;
+
+	if (__ni_objectmodel_dict_get_sockaddr_prefix(argument, "hint", &addr, &plen) && plen) {
+
+		if (addr.ss_family != AF_INET6 || plen >= ni_af_address_prefixlen(AF_INET6))
+			return FALSE;
+
+		if (!(pr = ni_dhcp6_prefix_req_new()))
+			return FALSE;
+
+		if (!(hint = ni_dhcp6_ia_prefix_new(addr.six.sin6_addr, plen))) {
+			ni_dhcp6_prefix_req_free(pr);
+			return FALSE;
+		}
+		if (!ni_dhcp6_ia_addr_list_append(&pr->hints, hint)) {
+			ni_dhcp6_ia_addr_free(hint);
+			ni_dhcp6_prefix_req_free(pr);
+			return FALSE;
+		}
+
+		if (!ni_dhcp6_prefix_req_list_append(&req->prefix_reqs, pr)) {
+			ni_dhcp6_prefix_req_free(pr);
+			return FALSE;
+		}
+	}
+
+	return TRUE;
+}
+
 static ni_dbus_property_t	dhcp6_request_properties[] = {
 	DHCP6REQ_BOOL_PROPERTY(enabled, enabled, RO),
 	DHCP6REQ_UUID_PROPERTY(uuid, uuid, RO),
 	DHCP6REQ_UINT_PROPERTY(flags, flags, RO),
 	DHCP6REQ_UINT_PROPERTY(mode, mode, RO),
 	DHCP6REQ_BOOL_PROPERTY(rapid-commit, rapid_commit, RO),
+	DHCP6REQ_UINT_PROPERTY(address-length, address_len, RO),
 	DHCP6REQ_STRING_PROPERTY(client-id, clientid, RO),
 	//DHCP6REQ_STRING_PROPERTY(vendor-class, vendor_class, RO),
 	DHCP6REQ_UINT_PROPERTY(start-delay, start_delay, RO),
@@ -395,6 +479,7 @@ static ni_dbus_property_t	dhcp6_request_properties[] = {
 	DHCP6REQ_UINT_PROPERTY(update, update, RO),
 	DHCP6REQ_STRING_PROPERTY(hostname, hostname, RO),
 	DHCP6REQ_DICT_PROPERTY(fqdn, fqdn, RO),
+	DHCP6REQ_DICT_PROPERTY(request-prefix, prefix, RO),
 	DHCP6REQ_STRING_ARRAY_PROPERTY(request-options, request_options, RO),
 	{ NULL },
 };

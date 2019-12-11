@@ -159,7 +159,7 @@ possible to disable.
 
 .SH DHCPv6 Specific Variables
 .TP
-.BR DHCLIENT6_MODE\  { auto* | info | managed }
+.BR DHCLIENT6_MODE\  { auto* | info | managed | prefix }
 This option allows to specify the request mode used by the DHCPv6
 client when the BOOTPROTO is set to dhcp or dhcp6, and overrides
 the "Managed Address Configuration" and the "Other Configuration"
@@ -179,6 +179,11 @@ Request other configuration (dns,ntp) only, no IP address.
 .B managed
 .br
 Request IP address as well as other configuration.
+.TP
+.B prefix
+.br
+Request a prefix for delegation, usable also in combination
+with auto and managed mode, i.e. auto+prefix or managed+prefix.
 .PD
 .RE
 .TP
@@ -186,6 +191,19 @@ Request IP address as well as other configuration.
 This option allows the DHCPv6 client to indicate its desire to accept
 rapid commit leases using two-packet exchange (solicitation, lease ack)
 instead of the four packet (solicitation, offer, request, lease ack).
+.TP
+.BR DHCLIENT6_PREFIX_HINT\ { prefix/length }
+Permits to specify an explicit prefix-length (e.g. ::/56) or a specific
+prefix with a length (e.g. 2001:db8::/48), that are sent to the DHCPv6
+server as hint when prefix delegation request mode is enabled in the
+DHCLIENT6_MODE variable.
+.TP
+.BR DHCLIENT6_ADDRESS_LENGTH\ { length }
+Permits to specify explicit prefix-length to use for the DHCPv6 address,
+e.g. 64 to use address as 2001:db8::1/64 or 80 for 2001:db8::1/80.
+When 0 or unspecified (default), prefix-length of the smallest on-link
+prefix (highest /length number) in the IPv6 router advertisement matching
+the address is used or 128 (see also rfc5942).
 .TP
 .BR DHCLIENT6_SET_HOSTNAME\  { yes | no* }
 Should the DHCPv6 client set the hostname?

@@ -219,7 +219,7 @@ main(int argc, char **argv)
 		case OPT_TEST_MODE:
 			if (!tester || ni_string_empty(optarg))
 				goto usage;
-			if (ni_dhcp6_mode_name_to_type(optarg, &tester->mode) < 0)
+			if (!ni_dhcp6_mode_parse(&tester->mode, optarg))
 				goto usage;
 			break;
 

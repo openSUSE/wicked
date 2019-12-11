@@ -58,6 +58,8 @@
 #include "client/client_state.h"
 #include "appconfig.h"
 #include "util_priv.h"
+#include "dhcp6/options.h"
+#include "dhcp6/request.h"
 
 static ni_bool_t ni_compat_generate_ethtool_link_advertise(xml_node_t *, const ni_bitfield_t *);
 /*
@@ -131,7 +133,7 @@ ni_compat_netdev_new(const char *ifname)
 	ni_dhcp_fqdn_init(&compat->dhcp4.fqdn);
 
 	compat->dhcp6.update = ni_config_addrconf_update(ifname, NI_ADDRCONF_DHCP, AF_INET6);
-	compat->dhcp6.mode = NI_DHCP6_MODE_AUTO;
+	compat->dhcp6.mode = NI_BIT(NI_DHCP6_MODE_AUTO);
 	compat->dhcp6.rapid_commit = TRUE;
 	compat->dhcp6.recover_lease = TRUE;
 	compat->dhcp6.release_lease = FALSE;
@@ -194,6 +196,7 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 
 		ni_string_free(&compat->dhcp6.hostname);
 		ni_string_free(&compat->dhcp6.client_id);
+		ni_dhcp6_prefix_req_list_destroy(&compat->dhcp6.prefix_reqs);
 		ni_string_array_destroy(&compat->dhcp6.request_options);
 
 		free(compat);
@@ -1095,6 +1098,7 @@ __ni_compat_generate_ovs_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *co
 static ni_bool_t
 __ni_compat_generate_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
+	const ni_netdev_t *dev = compat->dev;
 	ni_bridge_t *bridge;
 	xml_node_t *child;
 	xml_node_t *ports;
@@ -1149,6 +1153,11 @@ __ni_compat_generate_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *compat
 			xml_node_new_element("path-cost", portnode, tmp);
 			ni_string_free(&tmp);
 		}
+	}
+
+	if (dev->link.hwaddr.len) {
+		xml_node_new_element("address", child,
+			ni_link_address_print(&dev->link.hwaddr));
 	}
 
 	return TRUE;
@@ -2265,6 +2274,7 @@ __ni_compat_generate_auto4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 static xml_node_t *
 __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	xml_node_t *dhcp;
 	const char *ptr;
 
@@ -2274,8 +2284,39 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 	dhcp = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv6:dhcp",
 			compat->dhcp6.flags, compat->dhcp6.update);
 
-	if ((ptr = ni_dhcp6_mode_type_to_name(compat->dhcp6.mode)) != NULL)
+	if ((ptr = ni_dhcp6_mode_format(&buf, compat->dhcp6.mode, NULL))) {
 		xml_node_dict_set(dhcp, "mode", ptr);
+		ni_stringbuf_destroy(&buf);
+	}
+
+	if (compat->dhcp6.prefix_reqs) {
+		ni_dhcp6_prefix_req_t *pr;
+		ni_dhcp6_ia_addr_t *hint;
+		xml_node_t *prnode = NULL;
+		ni_sockaddr_t addr;
+
+		for (pr = compat->dhcp6.prefix_reqs; pr; pr = pr->next) {
+			for (hint = pr->hints; hint; hint = hint->next) {
+				if (!hint->plen)
+					continue;
+
+				ni_sockaddr_set_ipv6(&addr, hint->addr, 0);
+				if (!(prnode = xml_node_new("request-prefix", dhcp)))
+					continue;
+
+				xml_node_new_element("hint", prnode,
+					ni_sockaddr_prefix_print(&addr, hint->plen));
+
+				break; /* one hint only */
+			}
+			break; /* one prefix for now */
+		}
+	}
+
+	if (compat->dhcp6.address_len) {
+		xml_node_dict_set(dhcp, "address-length",
+				ni_sprint_uint(compat->dhcp6.address_len));
+	}
 
 	xml_node_dict_set(dhcp, "rapid-commit",
 			ni_format_boolean(compat->dhcp6.rapid_commit));

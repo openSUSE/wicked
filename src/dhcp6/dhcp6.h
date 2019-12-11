@@ -27,6 +27,7 @@
 #include <wicked/addrconf.h>
 #include <wicked/socket.h>
 #include "dhcp6/options.h"
+#include "dhcp6/request.h"
 #include "buffer.h"
 
 /*
@@ -65,8 +66,9 @@ struct ni_dhcp6_request {
 
 	/* Options controlling which and how to make the requests */
 	ni_dhcp6_run_t		dry_run;         /* normal run or get offer/lease only	*/
-	ni_dhcp6_mode_t		mode;		 /* follow ra, request info/addr	*/
+	unsigned int		mode;		 /* follow ra, request info/addr/prefix */
 	ni_bool_t		rapid_commit;	 /* try to use rapid commit flow	*/
+	unsigned int		address_len;	/* address prefix length to use         */
 
 	unsigned int		start_delay;	/* how long to delay start */
 	unsigned int		defer_timeout;	/* how long we try before we defer	*/
@@ -91,15 +93,11 @@ struct ni_dhcp6_request {
 	 * NI_ADDRCONF_UPDATE_* (this is an index enum, not a bitmask) */
 	unsigned int		update;
 
-	ni_dhcp6_ia_t *		ia_list;	/* IA_{NA,TA,PD}'s to request   */
+	ni_dhcp6_prefix_req_t *	prefix_reqs;
 
 	ni_string_array_t	request_options;
 };
 
-
-/*
- * -- request methods
- */
 extern ni_dhcp6_request_t *	ni_dhcp6_request_new(void);
 extern void			ni_dhcp6_request_free(ni_dhcp6_request_t *);
 
@@ -127,9 +125,11 @@ struct ni_dhcp6_config {
 	ni_uuid_t		uuid;
 	unsigned int		flags;
 
-	ni_dhcp6_mode_t		mode;
+	unsigned int		mode;		/* auto,info,managed,prefix mask */
 	ni_dhcp6_run_t		dry_run;
 	ni_bool_t		rapid_commit;
+	unsigned int		address_len;
+	unsigned int		max_rt;
 
 	unsigned int		start_delay;
 	unsigned int		defer_timeout;
@@ -186,6 +186,8 @@ struct ni_dhcp6_device {
 	} mcast;
 
 	struct timeval		start_time;	/* when we started managing     */
+	const ni_timer_t *	start_timer;	/* for ready and auto/follow-ra */
+	ni_timeout_param_t	start_params;	/* ready wait parameters        */
 	ni_dhcp6_request_t *	request;	/* the wicked request params	*/
 	ni_dhcp6_config_t *	config;		/* config built from request	*/
 	ni_addrconf_lease_t *	lease;		/* last acquired lease		*/
@@ -293,16 +295,6 @@ enum ni_dhcp6_ia_flags {
 	NI_DHCP6_IA_CONFIRM		= 1U<<2,	/* IA needs confirm     */
 #endif
 };
-
-extern ni_dhcp6_ia_t *		ni_dhcp6_ia_na_new(unsigned int iaid);
-extern ni_dhcp6_ia_t *		ni_dhcp6_ia_ta_new(unsigned int iaid);
-extern ni_dhcp6_ia_t *		ni_dhcp6_ia_pd_new(unsigned int iaid);
-
-extern ni_bool_t		ni_dhcp6_ia_type_na(const ni_dhcp6_ia_t *);
-extern ni_bool_t		ni_dhcp6_ia_type_ta(const ni_dhcp6_ia_t *);
-extern ni_bool_t		ni_dhcp6_ia_type_pd(const ni_dhcp6_ia_t *);
-
-extern ni_string_array_t *	ni_dhcp6_get_ia_addrs(struct ni_dhcp6_ia *, ni_var_array_t *, ni_var_array_t *);
 
 extern const ni_opaque_t *	ni_dhcp6_lease_duid(const ni_addrconf_lease_t *);
 extern unsigned int		ni_dhcp6_lease_ia_na_iaid(const ni_addrconf_lease_t *);

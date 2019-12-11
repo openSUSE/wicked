@@ -16,6 +16,7 @@
 #include <signal.h>
 #include <getopt.h>
 #include <errno.h>
+#include <net/if_arp.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
@@ -143,6 +144,19 @@ ni_objectmodel_bridge_setup(ni_dbus_object_t *object, const ni_dbus_method_t *me
 	if (ni_system_bridge_setup(nc, ifp, cfg->bridge) < 0) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to set up bridging device");
 		goto out;
+	}
+
+	if (cfg->link.hwaddr.len) {
+		if (cfg->link.hwaddr.type == ARPHRD_VOID)
+		    cfg->link.hwaddr.type = ARPHRD_ETHER;
+
+		if (cfg->link.hwaddr.type != ARPHRD_ETHER ||
+		    ni_link_address_is_invalid(&cfg->link.hwaddr) ||
+		    ni_system_hwaddr_change(nc, ifp, &cfg->link.hwaddr) < 0) {
+			ni_error("Unable to change link address on bridge interface %s to '%s'",
+					ifp->name, ni_link_address_print(&cfg->link.hwaddr));
+			/* fail? */
+		}
 	}
 
 	rv = TRUE;
@@ -367,6 +381,32 @@ __ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_var
 	return TRUE;
 }
 
+static dbus_bool_t
+ni_objectmodel_bridge_get_address(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+	return __ni_objectmodel_get_hwaddr(result, &dev->link.hwaddr);
+}
+
+static dbus_bool_t
+ni_objectmodel_bridge_set_address(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+	return __ni_objectmodel_set_hwaddr(argument, &dev->link.hwaddr);
+}
+
 #define BRIDGE_INT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_INT_PROPERTY(bridge, dbus_name, member_name, rw)
 #define BRIDGE_UINT_PROPERTY(dbus_name, member_name, rw) \
@@ -380,6 +420,9 @@ __ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_var
 
 #define WICKED_BRIDGE_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_bridge, rw)
+#define BRIDGE_HWADDR_PROPERTY(dbus_name, rw) \
+	__NI_DBUS_PROPERTY(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, \
+			dbus_name, ni_objectmodel_bridge, rw)
 
 static const ni_dbus_property_t	ni_objectmodel_bridge_property_table[] = {
 	BRIDGE_BOOL_PROPERTY(stp, stp, RO),
@@ -392,6 +435,8 @@ static const ni_dbus_property_t	ni_objectmodel_bridge_property_table[] = {
 	/* ports is an array of dicts */
 	WICKED_BRIDGE_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,
 			ports, RO),
+
+	BRIDGE_HWADDR_PROPERTY(address, RO),
 
 	{ NULL }
 };
