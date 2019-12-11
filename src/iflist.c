@@ -1604,6 +1604,77 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 	return 0;
 }
 
+static int
+ni_process_ifinfomsg_ifla_inet6_flags(ni_netdev_t *dev, struct nlattr *ifla_inet6_flags)
+{
+	ni_bool_t old_managed_addr;
+	ni_bool_t old_other_config;
+	ni_ipv6_devinfo_t *ipv6;
+	unsigned int old_flags;
+	unsigned int flags = 0;
+
+	if (!ifla_inet6_flags || !dev || !(ipv6 = ni_netdev_get_ipv6(dev)))
+		return -1;
+
+	flags = nla_get_u32(ifla_inet6_flags);
+
+	old_flags = ipv6->flags;
+	if (flags & IF_READY)
+		ipv6->flags |= NI_BIT(NI_IPV6_READY);
+	else
+		ipv6->flags &= ~NI_BIT(NI_IPV6_READY);
+	if (flags & IF_RS_SENT)
+		ipv6->flags |= NI_BIT(NI_IPV6_RS_SENT);
+	else
+		ipv6->flags &= ~NI_BIT(NI_IPV6_RS_SENT);
+	if (flags & IF_RA_RCVD)
+		ipv6->flags |= NI_BIT(NI_IPV6_RA_RCVD);
+	else
+		ipv6->flags &= ~NI_BIT(NI_IPV6_RA_RCVD);
+
+	if (old_flags != ipv6->flags) {
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+				"%s: IPv6 %s - RA %s",
+				dev->name,
+				ipv6->flags & NI_BIT(NI_IPV6_READY)   ? "is ready"  : "is not ready",
+				ipv6->flags & NI_BIT(NI_IPV6_RA_RCVD) ? "received"  :
+				ipv6->flags & NI_BIT(NI_IPV6_RS_SENT) ? "requested" : "unrequested");
+	}
+
+	old_managed_addr = ipv6->radv.managed_addr;
+	old_other_config = ipv6->radv.other_config;
+	if (flags & IF_RA_MANAGED) {
+		ipv6->radv.managed_addr = TRUE;
+		ipv6->radv.other_config = TRUE;
+		if (ipv6->radv.managed_addr != old_managed_addr ||
+		    ipv6->radv.other_config != old_other_config) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+				"%s: obtain config and address via DHCPv6",
+				dev->name);
+		}
+	} else
+	if (flags & IF_RA_OTHERCONF) {
+		ipv6->radv.managed_addr = FALSE;
+		ipv6->radv.other_config = TRUE;
+		if (ipv6->radv.managed_addr != old_managed_addr ||
+		    ipv6->radv.other_config != old_other_config) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+				"%s: obtain config only via DHCPv6",
+				dev->name);
+		}
+	} else {
+		ipv6->radv.managed_addr = FALSE;
+		ipv6->radv.other_config = FALSE;
+		if (ipv6->radv.managed_addr != old_managed_addr ||
+		    ipv6->radv.other_config != old_other_config) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+				"%s: no DHCPv6 suggestion in RA",
+				dev->name);
+		}
+	}
+	return 0;
+}
+
 /*
  * Refresh interface ipv6 protocol info given a parsed RTM_NEWLINK message attr
  */
@@ -1612,47 +1683,10 @@ __ni_process_ifinfomsg_ipv6info(ni_netdev_t *dev, struct nlattr *ifla_protinfo)
 {
 	if (ifla_protinfo) {
 		struct nlattr *ipv6info[IFLA_INET6_MAX + 1];
-		unsigned int flags = 0;
-		ni_bool_t old_managed_addr;
-		ni_bool_t old_other_config;
-		ni_ipv6_devinfo_t *ipv6;
 
 		nla_parse_nested(ipv6info, IFLA_INET6_MAX, ifla_protinfo, NULL);
 		if (ipv6info[IFLA_INET6_FLAGS])
-			flags = nla_get_u32(ipv6info[IFLA_INET6_FLAGS]);
-
-		ipv6 = ni_netdev_get_ipv6(dev);
-		old_managed_addr = ipv6->radv.managed_addr;
-		old_other_config = ipv6->radv.other_config;
-		if (flags & IF_RA_MANAGED) {
-			ipv6->radv.managed_addr = TRUE;
-			ipv6->radv.other_config = TRUE;
-			if (ipv6->radv.managed_addr != old_managed_addr ||
-			    ipv6->radv.other_config != old_other_config) {
-				ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
-					"%s: obtain config and address via DHCPv6",
-					dev->name);
-			}
-		} else
-		if (flags & IF_RA_OTHERCONF) {
-			ipv6->radv.managed_addr = FALSE;
-			ipv6->radv.other_config = TRUE;
-			if (ipv6->radv.managed_addr != old_managed_addr ||
-			    ipv6->radv.other_config != old_other_config) {
-				ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
-					"%s: obtain config only via DHCPv6",
-					dev->name);
-			}
-		} else {
-			ipv6->radv.managed_addr = FALSE;
-			ipv6->radv.other_config = FALSE;
-			if (ipv6->radv.managed_addr != old_managed_addr ||
-			    ipv6->radv.other_config != old_other_config) {
-				ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
-					"%s: no DHCPv6 suggestion in RA",
-					dev->name);
-			}
-		}
+			ni_process_ifinfomsg_ifla_inet6_flags(dev, ipv6info[IFLA_INET6_FLAGS]);
 	}
 	return 0;
 }
@@ -1742,6 +1776,9 @@ __ni_process_ifinfomsg_af_ipv6(ni_netdev_t *dev, struct nlattr *nla, ni_bool_t *
 	memset(tb, 0, sizeof(tb));
 	if (nla_parse_nested(tb, IFLA_INET6_MAX, nla, NULL) < 0)
 		return -1;
+
+	if (tb[IFLA_INET6_FLAGS])
+		ni_process_ifinfomsg_ifla_inet6_flags(dev, tb[IFLA_INET6_FLAGS]);
 
 	if (tb[IFLA_INET6_CONF]) {
 		if (!__ni_process_ifinfomsg_af_ipv6_conf(dev, tb[IFLA_INET6_CONF]) && ipv6_conf)
@@ -1845,7 +1882,8 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 #endif
 
 	__ni_process_ifinfomsg_af_spec(dev, tb[IFLA_AF_SPEC], nc);
-	__ni_process_ifinfomsg_ipv6info(dev, tb[IFLA_PROTINFO]);
+	if (ifi->ifi_family == AF_INET6)
+		__ni_process_ifinfomsg_ipv6info(dev, tb[IFLA_PROTINFO]);
 
 	if (!ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
 		ni_system_ethtool_refresh(dev);

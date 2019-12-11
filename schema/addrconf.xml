@@ -268,6 +268,10 @@
       <qualify type="boolean"/>
     </fqdn>
 
+    <request-prefix class="dict">
+      <hint type="network-address-prefix"/>
+    </request-prefix>
+
     <request-options class="array" element-type="string" element-name="option" />
   </define>
   <define name="properties" type="interface:addrconf-lease"/>

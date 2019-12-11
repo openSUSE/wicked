@@ -204,7 +204,18 @@ enum {
 
 #ifndef IF_RA_OTHERCONF
 #define IF_RA_OTHERCONF 0x80
+#endif
+#ifndef IF_RA_MANAGED
 #define IF_RA_MANAGED   0x40
+#endif
+#ifndef IF_RA_RCVD
+#define IF_RA_RCVD	0x20
+#endif
+#ifndef IF_RS_SENT
+#define IF_RS_SENT	0x10
+#endif
+#ifndef IF_READY
+#define IF_READY	0x80000000
 #endif
 
 #endif /* __NETINFO_KERNEL_H__ */
