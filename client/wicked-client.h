@@ -111,7 +111,9 @@ typedef struct ni_compat_netdev {
 
 		unsigned int	update;
 
-		ni_string_array_t request_options;
+		ni_dhcp6_prefix_req_t *	prefix_reqs;
+
+		ni_string_array_t 	request_options;
 	} dhcp6;
 	struct {
 		ni_bool_t	enabled;

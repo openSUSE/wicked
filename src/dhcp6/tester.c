@@ -56,7 +56,7 @@ ni_dhcp6_tester_init(void)
 {
 	memset(&dhcp6_tester_opts, 0, sizeof(dhcp6_tester_opts));
 	dhcp6_tester_opts.outfmt  = NI_DHCP6_TESTER_OUT_LEASE_INFO;
-	dhcp6_tester_opts.mode    = NI_DHCP6_MODE_AUTO;
+	dhcp6_tester_opts.mode    = NI_BIT(NI_DHCP6_MODE_AUTO);
 	dhcp6_tester_opts.timeout = 0;
 	dhcp6_tester_status = NI_WICKED_RC_NOT_RUNNING;
 	return &dhcp6_tester_opts;
@@ -122,6 +122,44 @@ ni_dhcp6_tester_protocol_event(enum ni_dhcp6_event ev, const ni_dhcp6_device_t *
 }
 
 static ni_bool_t
+ni_dhcp6_tester_parse_pd_req(ni_dhcp6_request_t *req, const xml_node_t *prefix)
+{
+	ni_dhcp6_prefix_req_t *pr;
+	ni_dhcp6_ia_addr_t *hint;
+	ni_sockaddr_t addr;
+	unsigned int plen;
+	xml_node_t *ptr;
+
+	if (!req || !(ptr = xml_node_get_child(prefix, "hint")) || ni_string_empty(ptr->cdata))
+		return FALSE;
+
+	if (!ni_sockaddr_prefix_parse(ptr->cdata, &addr, &plen))
+		return FALSE;
+
+	if (addr.ss_family != AF_INET6 || !plen || plen >= ni_af_address_prefixlen(AF_INET6))
+		return FALSE;
+
+	if (!(pr = ni_dhcp6_prefix_req_new()))
+		return FALSE;
+
+	if (!(hint = ni_dhcp6_ia_prefix_new(addr.six.sin6_addr, plen))) {
+		ni_dhcp6_prefix_req_free(pr);
+		return FALSE;
+	}
+
+	if (!ni_dhcp6_ia_addr_list_append(&pr->hints, hint)) {
+		ni_dhcp6_ia_addr_free(hint);
+		ni_dhcp6_prefix_req_free(pr);
+		return FALSE;
+	}
+	if (!ni_dhcp6_prefix_req_list_append(&req->prefix_reqs, pr)) {
+		ni_dhcp6_prefix_req_free(pr);
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static ni_bool_t
 ni_dhcp6_tester_req_xml_init(ni_dhcp6_request_t *req, xml_document_t *doc)
 {
 	xml_node_t *xml, *child;
@@ -152,7 +190,7 @@ ni_dhcp6_tester_req_xml_init(ni_dhcp6_request_t *req, xml_document_t *doc)
 				goto failure;
 		} else
 		if (ni_string_eq(child->name, "mode")) {
-			if (ni_dhcp6_mode_name_to_type(child->cdata, &req->mode) != 0)
+			if (!ni_dhcp6_mode_parse(&req->mode, child->cdata))
 				goto failure;
 		} else
 		if (ni_string_eq(child->name, "acquire-timeout")) {
@@ -196,6 +234,10 @@ ni_dhcp6_tester_req_xml_init(ni_dhcp6_request_t *req, xml_document_t *doc)
 				goto failure;
 			ni_string_dup(&req->clientid, child->cdata);
 		} else
+		if (ni_string_eq(child->name, "prefix")) {
+			if (!ni_dhcp6_tester_parse_pd_req(req, child))
+				goto failure;
+		} else
 		if (ni_string_eq(child->name, "request-options")) {
 			xml_node_t *opt;
 			for (opt = child->children; opt; opt = opt->next) {
@@ -221,7 +263,7 @@ ni_dhcp6_tester_req_init(ni_dhcp6_request_t *req, const char *request)
 	/* Apply some defaults */
 	req->dry_run = NI_DHCP6_RUN_OFFER;
 	req->acquire_timeout = 10;
-	req->mode = NI_DHCP6_MODE_AUTO;
+	req->mode = NI_BIT(NI_DHCP6_MODE_AUTO);
 
 	if (!ni_string_empty(request)) {
 		xml_document_t *doc;
@@ -254,12 +296,13 @@ ni_dhcp6_tester_run(ni_dhcp6_tester_t *opts)
 	ni_dhcp6_device_t *dev = NULL;
 	ni_dhcp6_request_t *req = NULL;
 	unsigned int link_timeout = 20;
+	struct timeval start_time;
 	char *errdetail = NULL;
 	int rv;
 
+	ni_timer_get_time(&start_time);
 	if (opts->timeout && opts->timeout != -1U) {
 		link_timeout = (opts->timeout * 2) / 3;
-		opts->timeout -= link_timeout;
 	}
 
 	if (!opts || ni_string_empty(opts->ifname))
@@ -329,7 +372,7 @@ ni_dhcp6_tester_run(ni_dhcp6_tester_t *opts)
 
 			if (ni_dhcp6_device_check_ready(dev))
 				break;
-		} while (link_timeout-- > 1);
+		} while (ni_lifetime_left(link_timeout, &start_time, NULL) > 1);
 
 		if (!ifp || !ni_dhcp6_device_check_ready(dev) || !link_timeout) {
 			ni_error("%s: Unable to bring IPv6 link up",
@@ -339,7 +382,7 @@ ni_dhcp6_tester_run(ni_dhcp6_tester_t *opts)
 	}
 
 	if (opts->timeout && opts->timeout != -1U)
-		req->acquire_timeout = opts->timeout;
+		req->acquire_timeout = ni_lifetime_left(opts->timeout, &start_time, NULL);
 
 	if ((rv = ni_dhcp6_acquire(dev, req, &errdetail)) < 0) {
 		ni_error("%s: DHCPv6 acquire request %s failed: %s%s[%s]",
@@ -356,7 +399,7 @@ ni_dhcp6_tester_run(ni_dhcp6_tester_t *opts)
 		long timeout;
 
 		timeout = ni_timer_next_timeout();
-		if (dev->config && dev->config->mode == NI_DHCP6_MODE_AUTO) {
+		if (dev->config && (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO))) {
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
 					"%s: DHCPv6 mode is auto", dev->ifname);
 
@@ -365,8 +408,8 @@ ni_dhcp6_tester_run(ni_dhcp6_tester_t *opts)
 			if (__ni_system_refresh_interface(nc, ifp))
 				break;
 
-			ni_dhcp6_device_update_mode(dev, NULL);
-			if (dev->config && dev->config->mode == NI_DHCP6_MODE_AUTO) {
+			ni_dhcp6_device_update_mode(dev, ifp);
+			if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO)) {
 				if (timeout > 1000)
 					timeout = 1000;
 			}
