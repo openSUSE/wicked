@@ -402,7 +402,7 @@ __ni_process_run_info(ni_process_t *pi)
 				pi->pid, pi->process->command, rv, runtime);
 		return rv;
 	} else
-	if ((rv = ni_process_signaled(pi)) != NI_PROCESS_FAILURE) {
+	if ((rv = ni_process_term_signal(pi)) != NI_PROCESS_FAILURE) {
 		ni_debug_extension("subprocess %d (%s) died with signal %d%s%s",
 				pi->pid, pi->process->command, rv,
 				ni_process_core_dumped(pi) ? " (core dumped)" : "",
