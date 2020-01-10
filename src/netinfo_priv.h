@@ -122,7 +122,7 @@ extern int		__ni_wireless_link_event(ni_netconfig_t *, ni_netdev_t *, void *, si
 
 static inline ni_bool_t	__ni_addrconf_should_update(unsigned int mask, unsigned int bit)
 {
-	return !!(mask & (1 << bit));
+	return !!(mask & NI_BIT(bit));
 }
 
 /*

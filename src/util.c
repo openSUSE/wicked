@@ -1030,7 +1030,7 @@ ni_bitfield_setbit(ni_bitfield_t *bf, unsigned int bit)
 {
 	if (!bf || !ni_bitfield_grow(bf, bit))
 		return FALSE;
-	bf->field[bit / 32] |= (1 << (bit % 32));
+	bf->field[bit / 32] |= NI_BIT(bit % 32u);
 	return TRUE;
 }
 
@@ -1039,7 +1039,7 @@ ni_bitfield_clearbit(ni_bitfield_t *bf, unsigned int bit)
 {
 	if (!bf || !ni_bitfield_grow(bf, bit))
 		return FALSE;
-	bf->field[bit / 32] &= ~(1 << (bit % 32));
+	bf->field[bit / 32] &= ~NI_BIT(bit % 32u);
 	return TRUE;
 }
 
@@ -1057,7 +1057,7 @@ ni_bitfield_testbit(const ni_bitfield_t *bf, unsigned int bit)
 {
 	if (!bf || bit / 32 >= bf->size)
 		return FALSE;
-	return !!(bf->field[bit / 32] & (1 << (bit % 32)));
+	return !!(bf->field[bit / 32] & NI_BIT(bit % 32u));
 }
 
 ni_bool_t
@@ -2032,7 +2032,7 @@ ni_format_bitmap(ni_stringbuf_t *buf, const ni_intmap_t *map,
 		sep = "|";
 
 	for (i = 0; map->name; ++map) {
-		flag = (1 << map->value);
+		flag = NI_BIT(map->value);
 		if (flags & flag) {
 			flags &= ~flag;
 			if (i++)
