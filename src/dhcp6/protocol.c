@@ -354,7 +354,6 @@ ni_dhcp6_socket_recv(ni_socket_t *sock)
 static int
 ni_dhcp6_process_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, const struct in6_addr *sender)
 {
-	ni_dhcp6_packet_header_t *header;
 	ni_dhcp6_message_t msg;
 	int rv = -1;
 
@@ -376,8 +375,8 @@ ni_dhcp6_process_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, const struc
 	/*
 	 * peek header only
 	 */
-	header = ni_buffer_head(msgbuf);
-	switch(header->type) {
+	uint8_t *type = ni_buffer_head(msgbuf);
+	switch(*type) {
 		/* handle client response msgs */
 		case NI_DHCP6_ADVERTISE:
 		case NI_DHCP6_REPLY:
@@ -399,7 +398,7 @@ ni_dhcp6_process_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, const struc
 		default:
 			ni_debug_dhcp("%s: received %s message in state %s from %s: discarding",
 					dev->ifname,
-					ni_dhcp6_message_name(header->type),
+					ni_dhcp6_message_name(*type),
 					ni_dhcp6_fsm_state_name(dev->fsm.state),
 					ni_dhcp6_address_print(&msg.sender));
 		break;
@@ -3098,15 +3097,16 @@ failure:
 int
 ni_dhcp6_parse_client_header(ni_dhcp6_message_t *msg, ni_buffer_t *msgbuf)
 {
-	ni_dhcp6_client_header_t * header;
+	ni_dhcp6_client_header_t header;
 
 	if (!msgbuf || !msg)
 		return -1;
 
-	header = ni_buffer_pull_head(msgbuf, sizeof(*header));
-	if (header) {
-		msg->type = header->type;
-		msg->xid  = ni_dhcp6_message_xid(header->xid);
+	const char *header_src = ni_buffer_pull_head(msgbuf, sizeof(header));
+	if (header_src) {
+		memcpy(&header, header_src, sizeof(header));
+		msg->type = header.type;
+		msg->xid  = ni_dhcp6_message_xid(header.xid);
 		return 0;
 	}
 	return -1;
