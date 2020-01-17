@@ -1488,6 +1488,7 @@ do_check(int argc, char **argv)
 				if (opt_dbus_error_file) {
 					write_dbus_error(opt_dbus_error_file,
 							NI_DBUS_ERROR_UNRESOLVABLE_HOSTNAME,
+							"%s",
 							hostname);
 					opt_dbus_error_file = NULL;
 				}
@@ -1509,6 +1510,7 @@ do_check(int argc, char **argv)
 					if (opt_dbus_error_file) {
 						write_dbus_error(opt_dbus_error_file,
 								NI_DBUS_ERROR_UNREACHABLE_ADDRESS,
+								"%s",
 								hostname);
 						opt_dbus_error_file = NULL;
 					}

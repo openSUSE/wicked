@@ -610,7 +610,7 @@ ni_dbus_serialize_xml_bitmap(const xml_node_t *node, const ni_xs_scalar_info_t *
 
 		/* May left shift past width of value if bb >= 32, but as ret
 		 * will be FALSE assignment to result will not happen. */
-		value |= 1 << bb;
+		value |= NI_BIT(bb);
 	}
 
 	ni_string_array_destroy(&bit_name_arr);
