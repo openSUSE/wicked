@@ -1909,6 +1909,12 @@ parse_more:
 		}
 	}
 
+	// We should have a msg_type by now
+	if (msg_type < 0) {
+		ni_debug_dhcp("unable to parse DHCP4 response: missing msg type");
+		goto error;
+	}
+
 	if (options->underflow) {
 		ni_debug_dhcp("unable to parse DHCP4 response: truncated packet");
 		goto error;
