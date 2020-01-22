@@ -1070,7 +1070,7 @@ ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *dev)
 	if (dev->arp.handle == NULL) {
 		dev->arp.handle = ni_arp_socket_open(&dev->system,
 				ni_dhcp4_fsm_process_arp_packet, dev);
-		if (!dev->arp.handle->user_data) {
+		if (!dev->arp.handle || !dev->arp.handle->user_data) {
 			ni_error("%s: unable to create ARP handle", dev->ifname);
 			return -1;
 		}
