@@ -84,7 +84,7 @@ Requires(pre):       util-linux
 %endif
 
 %if %{with systemd}
-BuildRequires:  systemd-devel
+BuildRequires:  pkgconfig(libsystemd)
 BuildRequires:  systemd-rpm-macros
 %{?systemd_requires}
 %if 0%{?suse_version:1}
