@@ -153,6 +153,7 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf, n
 		 */
 		ni_debug_dhcp("%s: ignoring packet with not matching client-id%s%s",
 				dev->ifname, sender ? " sender " : "", sender ? sender : "");
+		ni_addrconf_lease_free(lease);
 		return -1;
 	}
 
