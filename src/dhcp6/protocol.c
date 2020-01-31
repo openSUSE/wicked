@@ -2573,7 +2573,7 @@ ni_dhcp6_option_parse_ia_pd(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_pd_list, const 
 			ni_dhcp6_option_name(ia->type),
 			ia->renewal_time, ia->rebind_time);
 		/* DISCARD */
-		ni_dhcp6_ia_free(ia);
+		goto discard;
 	}
 
 	ni_dhcp6_ia_list_append(ia_pd_list, ia);
@@ -2582,6 +2582,10 @@ ni_dhcp6_option_parse_ia_pd(ni_buffer_t *bp,  ni_dhcp6_ia_t **ia_pd_list, const 
 failure:
 	ni_dhcp6_ia_free(ia);
 	return -1;
+
+discard:
+	ni_dhcp6_ia_free(ia);
+	return 0;
 }
 
 static int
