@@ -10,6 +10,7 @@
 *.diff
 *.patch
 .*
+!.editorconfig
 compile
 core
 cscope.*
