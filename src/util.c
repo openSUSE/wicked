@@ -652,7 +652,7 @@ ni_var_array_insert(ni_var_array_t *nva, unsigned int pos, const char *name, con
 {
 	ni_var_t *var, tmp = NI_VAR_INIT;
 
-	if (!nva || !name)
+	if (!nva)
 		return FALSE;
 
 	if (!ni_var_set(&tmp, name, value))
@@ -857,7 +857,7 @@ ni_var_array_set(ni_var_array_t *nva, const char *name, const char *value)
 {
 	ni_var_t *var;
 
-	if (!nva || !name)
+	if (!nva)
 		return FALSE;
 
 	if ((var = ni_var_array_get(nva, name))) {
