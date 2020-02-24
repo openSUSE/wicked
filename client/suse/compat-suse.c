@@ -602,6 +602,43 @@ __ni_suse_parse_route_hops(ni_route_nexthop_t *nh, ni_string_array_t *opts,
 }
 
 int
+ni_suse_route_parse_time(const char *input, unsigned int *result)
+{
+        static const ni_intmap_t        time_map[] = {
+                { "msecs",              0               },
+                { "msec",               0               },
+                { "ms",                 0               },
+                { "secs",               1000            },
+                { "sec",                1000            },
+                { "s",                  1000            },
+                { NULL,                 0               }
+        };
+        unsigned int factor = 0;
+        unsigned long value;
+        char *end = NULL;
+
+        if (!result || !input || !*input || *input == '-') {
+                errno = EINVAL;
+                return -1;
+        }
+
+        errno = 0;
+        value = strtoul(input, (char **) &end, 10);
+        if (errno)
+                return -1;
+        if (*end && ni_parse_uint_mapped(end, time_map, &factor) < 0) {
+                errno = EINVAL;
+                return -1;
+        }
+
+        if (factor)
+                value *= factor;
+
+        *result = value;
+        return 0;
+}
+
+int
 __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 				unsigned int *pos, const char *ifname,
 				const char *filename, unsigned int line)
@@ -701,7 +738,7 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 					return -1;
 				val = ni_string_array_at(opts, (*pos)++);
 			}
-			if (ni_parse_uint(val, &tmp, 10) < 0)
+			if (ni_suse_route_parse_time(val, &tmp) < 0)
 				return -1;
 			rp->rtt = tmp;
 		} else
@@ -712,7 +749,7 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 					return -1;
 				val = ni_string_array_at(opts, (*pos)++);
 			}
-			if (ni_parse_uint(val, &tmp, 10) < 0)
+			if (ni_suse_route_parse_time(val, &tmp) < 0)
 				return -1;
 			rp->rttvar = tmp;
 		} else
@@ -802,7 +839,7 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 					return -1;
 				val = ni_string_array_at(opts, (*pos)++);
 			}
-			if (ni_parse_uint(val, &tmp, 10) < 0)
+			if (ni_suse_route_parse_time(val, &tmp) < 0)
 				return -1;
 			rp->rto_min = tmp;
 		} else
