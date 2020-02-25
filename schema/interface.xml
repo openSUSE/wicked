@@ -65,7 +65,7 @@
      <hoplimit   type="uint32" />
      <initcwnd   type="uint32" />
      <features   type="uint32" />
-     <rto-min    type="uint32" />
+     <rto_min    type="uint32" />
      <initrwnd   type="uint32" />
    </metrics>
 

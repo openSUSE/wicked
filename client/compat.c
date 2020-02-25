@@ -1801,7 +1801,7 @@ __ni_compat_generate_static_route_metrics(xml_node_t *mnode, const ni_route_t *r
 		xml_node_new_element("features", mnode, ni_sprint_uint(rp->features));
 	}
 	if (rp->rto_min > 0) {
-		xml_node_new_element("rto-min", mnode, ni_sprint_uint(rp->rto_min));
+		xml_node_new_element("rto_min", mnode, ni_sprint_uint(rp->rto_min));
 	}
 	if (rp->initrwnd > 0) {
 		xml_node_new_element("initrwnd", mnode, ni_sprint_uint(rp->initrwnd));
@@ -3071,4 +3071,3 @@ ni_compat_generate_policies(xml_document_array_t *array, ni_compat_ifconfig_t *i
 
 	return count - array->count;
 }
-
