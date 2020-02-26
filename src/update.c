@@ -1528,7 +1528,7 @@ ni_system_updater_hostname_lookup_call(ni_updater_t *updater, ni_updater_job_t *
 				ni_addrconf_type_to_name(job->lease->type),
 				ni_addrconf_state_to_name(job->lease->state),
 				ni_updater_name(job->kind),
-				ni_basename(shellcmd->command), pi->pid);
+				ni_basename(pi->process->command), pi->pid);
 	} else {
 		ni_process_free(pi);
 	}

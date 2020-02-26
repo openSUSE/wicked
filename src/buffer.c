@@ -25,7 +25,8 @@ ni_buffer_ensure_tailroom(ni_buffer_t *bp, unsigned int min_room)
 		unsigned char *new_base;
 
 		new_base = xmalloc(new_size);
-		memcpy(new_base, bp->base, bp->size);
+		if (bp->size)
+			memcpy(new_base, bp->base, bp->size);
 		bp->base = new_base;
 		bp->allocated = 1;
 	}

@@ -3688,7 +3688,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 	ni_ifworker_t *w = closure->worker;
 	ni_ifworker_t *cw = NULL;
 	xml_node_t *cwmeta = NULL;
-	ni_ifworker_type_t cwtype;
+	ni_ifworker_type_t cwtype = NI_IFWORKER_TYPE_NONE;
 	unsigned int requires = 0;
 	xml_node_t *mchild;
 
