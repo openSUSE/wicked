@@ -717,7 +717,7 @@ ni_auto6_on_nduseropt_events(ni_netdev_t *dev, ni_event_t event)
 	ni_addrconf_lease_t *lease;
 	unsigned int lifetime;
 	struct timeval now;
-	ni_bool_t changed;
+	ni_bool_t changed = FALSE;
 
 	if (!dev)
 		return;

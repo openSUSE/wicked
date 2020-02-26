@@ -1587,6 +1587,7 @@ ni_dhcp6_fsm_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *ms
 	return 0;
 
 failure:
+	msg->lease = NULL;
 	ni_addrconf_lease_free(lease);
 	return -1;
 }
