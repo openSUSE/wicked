@@ -119,7 +119,7 @@ ni_macvlan_name_to_flag(const char *name, unsigned int *flag)
 const char *
 ni_macvlan_flag_bit_name(unsigned int bit)
 {
-	return bit < 32 ? ni_macvlan_flag_to_name(1 << bit) : NULL;
+	return bit < 32 ? ni_macvlan_flag_to_name(NI_BIT(bit)) : NULL;
 }
 
 ni_bool_t

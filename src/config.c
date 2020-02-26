@@ -1147,7 +1147,7 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 				int len;
 
 				/* DUID is "opaque", but has 2 bytes type + up to 128 bytes */
-				if ((len = sizeof(pref->serverid.data)) > 130)
+				if ((len = pref->serverid.len) > 130)
 					len = 130;
 
 				 /* DUID-LL has 2+2 fixed bytes + variable length hwaddress
