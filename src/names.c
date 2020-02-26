@@ -226,16 +226,16 @@ ni_addrconf_flag_bit_set(unsigned int *mask, unsigned int flag, ni_bool_t enable
 {
 	if (mask) {
 		if (enable)
-			*mask |=  (1U << flag);
+			*mask |=  NI_BIT(flag);
 		else
-			*mask &= ~(1U << flag);
+			*mask &= ~NI_BIT(flag);
 	}
 }
 
 ni_bool_t
 ni_addrconf_flag_bit_is_set(unsigned int flags, unsigned int flag)
 {
-	return flags & (1 << flag);
+	return flags & NI_BIT(flag);
 }
 
 const char *
@@ -288,9 +288,9 @@ ni_addrconf_update_set(unsigned int *mask, unsigned int flag, ni_bool_t enable)
 {
 	if (mask) {
 		if (enable)
-			*mask |= (1 << flag);
+			*mask |= NI_BIT(flag);
 		else
-			*mask &= ~(1 << flag);
+			*mask &= ~NI_BIT(flag);
 	}
 }
 
@@ -690,7 +690,7 @@ ni_linkflags_bit_to_name(unsigned int bit)
 {
 	if (bit >= 32)
 		return NULL;
-	return ni_format_uint_mapped(1 << bit, __ni_linkifflag_names);
+	return ni_format_uint_mapped(NI_BIT(bit), __ni_linkifflag_names);
 }
 
 const char *
