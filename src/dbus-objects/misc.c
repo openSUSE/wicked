@@ -1058,7 +1058,7 @@ __ni_objectmodel_route_nexthop_from_dict(ni_route_nexthop_t *nh, const ni_dbus_v
 	 */
 	if (ni_dbus_dict_get(nhdict, "gateway")) {
 		if (!__ni_objectmodel_dict_get_sockaddr(nhdict, "gateway", &nh->gateway)) {
-			ni_debug_dbus("%s: invalid route hop gateway %u", __func__, value);
+			ni_debug_dbus("%s: invalid route hop gateway", __func__);
 			return FALSE;
 		}
 	}
