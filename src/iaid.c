@@ -445,7 +445,6 @@ ni_iaid_map_del_iaid(ni_iaid_map_t *map, unsigned int iaid)
 ni_bool_t
 ni_iaid_create_hwaddr(unsigned int *iaid, const ni_hwaddr_t *hwa)
 {
-	uint32_t *ptr;
 	size_t off;
 
 	if (!iaid || !hwa)
@@ -458,8 +457,8 @@ ni_iaid_create_hwaddr(unsigned int *iaid, const ni_hwaddr_t *hwa)
 		return FALSE;
 
 	off = hwa->len - sizeof(*iaid);
-	ptr = (uint32_t *)(hwa->data + off);
-	*iaid = ntohl(*ptr);
+	memcpy(iaid, hwa->data + off, sizeof(uint32_t));
+	*iaid = ntohl(*iaid);
 	return TRUE;
 }
 

@@ -52,9 +52,9 @@ ni_timer_cancel(const ni_timer_t *handle)
 
 	if ((timer = __ni_timer_disarm(handle)) != NULL) {
 		user_data = timer->user_data;
-		free(timer);
 		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_TIMER,
 				"%s: released timer %p", __func__, timer);
+		free(timer);
 	} else {
 		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_TIMER,
 				"%s: timer %p NOT found", __func__, handle);

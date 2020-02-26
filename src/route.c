@@ -2197,7 +2197,7 @@ ni_rule_print(ni_stringbuf_t *out, const ni_rule_t *rule)
 		ni_stringbuf_printf(out, " pref auto");
 
 	if (rule->flags & NI_BIT(NI_RULE_INVERT))
-		ni_stringbuf_printf(out, " not", rule->pref);
+		ni_stringbuf_printf(out, " not");
 
 	if (rule->src.len)
 		ni_stringbuf_printf(out, " from %s/%u",
