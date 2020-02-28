@@ -5994,26 +5994,66 @@ ni_suse_ifcfg_get_firewall(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 /*
  * Read ifsysctl file
  */
-static void
-__ifsysctl_get_int(ni_var_array_t *vars, const char *path, const char *ifname,
-					const char *attr, int *value, int base)
+static const ni_var_t *
+__ifsysctl_get_var(ni_var_array_t *vars, const char *path, const char *ifname, const char *attr)
 {
 	const char *names[] = { "all", "default", ifname, NULL };
 	const char **name;
-	ni_var_t *var;
+	const ni_var_t *ret = NULL;
+	const ni_var_t *var;
 
 	for (name = names; *name; name++) {
 		var = ni_ifsysctl_vars_get(vars, "%s/%s/%s", path, *name, attr);
-		if (!var)
+		if (!var || ni_string_empty(var->value))
 			continue;
-		if (ni_parse_int(var->value, value, base) < 0) {
-			ni_debug_readwrite("Can't parse sysctl '%s'='%s' as integer",
-					var->name, var->value);
-		} else {
-			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_READWRITE,
-				"Parsed sysctl '%s'='%s'", var->name, var->value);
-		}
+		ret = var;
 	}
+	return ret;
+}
+
+static const char *
+__ifsysctl_get_str(ni_var_array_t *vars, const char *path, const char *ifname, const char *attr)
+{
+	const ni_var_t *var;
+
+	if ((var = __ifsysctl_get_var(vars, path, ifname, attr)))
+		return var->value;
+	return NULL;
+}
+
+static ni_bool_t
+__ifsysctl_get_int(ni_var_array_t *vars, const char *path, const char *ifname,
+					const char *attr, int *value, int base)
+{
+	const ni_var_t *var;
+
+	if (!(var = __ifsysctl_get_var(vars, path, ifname, attr)))
+		return FALSE;
+
+	if (ni_parse_int(var->value, value, base) < 0) {
+		ni_debug_readwrite("Can't parse sysctl '%s'='%s' as integer",
+				var->name, var->value);
+		return FALSE;
+	} else {
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_READWRITE,
+				"Parsed sysctl '%s'='%s'", var->name, var->value);
+		return TRUE;
+	}
+}
+
+static ni_bool_t
+__ifsysctl_get_ipv6(ni_var_array_t *vars, const char *path, const char *ifname,
+					const char *attr, struct in6_addr *ipv6)
+{
+	ni_sockaddr_t addr;
+	const char *str;
+
+	str = __ifsysctl_get_str(vars, path, ifname, attr);
+	if (!str || ni_sockaddr_parse(&addr, str, AF_INET6) < 0)
+		return FALSE;
+
+	*ipv6 = addr.six.sin6_addr;
+	return TRUE;
 }
 
 static void
@@ -6101,6 +6141,13 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
 				"accept-redirects", &ipv6->conf.accept_redirects);
+
+	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
+				"addr_gen_mode", &ipv6->conf.privacy, 10);
+
+	__ifsysctl_get_ipv6(&ifsysctl, "net/ipv6/conf", dev->name,
+				"stable_secret", &ipv6->conf.stable_secret);
+
 	return TRUE;
 }
 
