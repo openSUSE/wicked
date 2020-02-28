@@ -128,6 +128,8 @@ ni_ipv6_devconf_reset(ni_ipv6_devconf_t *conf)
 	conf->accept_ra = NI_IPV6_ACCEPT_RA_DEFAULT;
 	conf->accept_dad = NI_IPV6_ACCEPT_DAD_DEFAULT;
 	conf->accept_redirects = NI_TRISTATE_DEFAULT;
+	conf->addr_gen_mode = NI_IPV6_ADDR_GEN_MODE_DEFAULT;
+	conf->stable_secret = in6addr_any;
 }
 
 /*
@@ -722,6 +724,19 @@ ni_ipv6_devconf_accept_dad_to_name(int accept_dad)
 		accept_dad = NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL;
 
 	return ni_format_uint_mapped(accept_dad, __accept_dad_names);
+}
+
+const char *
+ni_ipv6_devconf_addr_gen_mode_to_name(int addr_gen_mode)
+{
+	static const ni_intmap_t	addr_gen_mode_map[] = {
+		{ "eui64",		NI_IPV6_ADDR_GEN_MODE_EUI64		},
+		{ "none",		NI_IPV6_ADDR_GEN_MODE_NONE		},
+		{ "stable-privacy",	NI_IPV6_ADDR_GEN_MODE_STABLE_PRIVACY	},
+		{ "random",		NI_IPV6_ADDR_GEN_MODE_RANDOM		},
+		{ NULL,			NI_IPV6_ADDR_GEN_MODE_DEFAULT		}
+	};
+	return ni_format_uint_mapped(addr_gen_mode, addr_gen_mode_map);
 }
 
 static inline const char *
