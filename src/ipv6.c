@@ -309,6 +309,11 @@ ni_system_ipv6_devinfo_get(ni_netdev_t *dev, ni_ipv6_devinfo_t *ipv6)
 		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "accept_redirects", &val) >= 0)
 			ni_tristate_set(&ipv6->conf.accept_redirects, !!val);
 
+		if (ni_sysctl_ipv6_ifconfig_get_int(dev->name, "addr_gen_mode", &val) >= 0)
+			ipv6->conf.addr_gen_mode = val;
+
+		/* omit reading stable_secret, see ni_system_ipv6_devinfo_set */
+
 	} else {
 		ni_warn("%s: cannot get ipv6 device attributes", dev->name);
 
@@ -353,6 +358,7 @@ __tristate_changed(ni_tristate_t cfg, ni_tristate_t sys)
 int
 ni_system_ipv6_devinfo_set(ni_netdev_t *dev, const ni_ipv6_devconf_t *conf)
 {
+	struct in6_addr stable_secret = in6addr_any;
 	ni_ipv6_devinfo_t *ipv6;
 	int ret;
 
@@ -435,6 +441,27 @@ ni_system_ipv6_devinfo_set(ni_netdev_t *dev, const ni_ipv6_devconf_t *conf)
 			ipv6->conf.accept_redirects = conf->accept_redirects;
 	}
 
+	if (__tristate_changed(conf->addr_gen_mode, ipv6->conf.addr_gen_mode)) {
+		ret = __change_int(dev->name, "addr_gen_mode", conf->addr_gen_mode);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
+			ipv6->conf.addr_gen_mode = conf->addr_gen_mode;
+	}
+
+	/* netlink omits stable_secret, but because it usually provides *
+	 * other sysctls, our sysfs get function (above) isn't called.  *
+	 * try avoid i/o errors due to not readable stable_secret.      */
+	if (ipv6->conf.addr_gen_mode == NI_IPV6_ADDR_GEN_MODE_STABLE_PRIVACY)
+		ni_sysctl_ipv6_ifconfig_get_ipv6(dev->name, "stable_secret", &stable_secret);
+	if (memcmp(&in6addr_any, &conf->stable_secret, sizeof(struct in6_addr)) ||
+	    (ipv6->conf.addr_gen_mode == NI_IPV6_ADDR_GEN_MODE_STABLE_PRIVACY &&
+	     memcmp(&stable_secret, &conf->stable_secret, sizeof(struct in6_addr)))) {
+		ret = ni_sysctl_ipv6_ifconfig_set_ipv6(dev->name, "stable_secret",
+				conf->stable_secret);
+		if (ret < 0)
+			return ret;
+	}
 	return 0;
 }
 
@@ -812,6 +839,13 @@ __ni_ipv6_devconf_process_flag(ni_netdev_t *dev, unsigned int flag, int value)
 	case NI_IPV6_DEVCONF_USE_TEMPADDR:
 		ipv6->conf.privacy = value < -1 ? -1 : value > 2 ? 2 : value;
 		break;
+	case NI_IPV6_DEVCONF_ADDR_GEN_MODE:
+		ipv6->conf.addr_gen_mode = value < 0 ? 0 : value;
+		break;
+	case NI_IPV6_DEVCONF_STABLE_SECRET:
+		/* omitted via netlink using an int32_t array */
+		unused = 2;
+		break;
 	default:
 		/* TODO: handle more (all) of them */
 		unused = 1;
@@ -819,7 +853,7 @@ __ni_ipv6_devconf_process_flag(ni_netdev_t *dev, unsigned int flag, int value)
 	}
 
 	level = NI_LOG_DEBUG1 + unused;
-	if (ni_debug_guard(level, NI_TRACE_EVENTS|NI_TRACE_IPV6)) {
+	if (unused < 2 && ni_debug_guard(level, NI_TRACE_EVENTS|NI_TRACE_IPV6)) {
 		const char *name;
 
 		name = ni_ipv6_devconf_flag_to_sysctl_name(flag);
