@@ -6095,9 +6095,9 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
 				"forwarding", &ipv4->conf.forwarding);
 	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
-				"arp-notify", &ipv4->conf.arp_notify);
+				"arp_notify", &ipv4->conf.arp_notify);
 	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
-				"accept-redirects", &ipv4->conf.accept_redirects);
+				"accept_redirects", &ipv4->conf.accept_redirects);
 
 	ipv6 = ni_netdev_get_ipv6(dev);
 	ni_tristate_set(&ipv6->conf.enabled, !__ni_ipv6_disbled);
@@ -6133,14 +6133,14 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 				"autoconf", &ipv6->conf.autoconf);
 
 	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
-				"privacy", &ipv6->conf.privacy, 10);
+				"use_tempaddr", &ipv6->conf.privacy, 10);
 	if (ipv6->conf.privacy > NI_IPV6_PRIVACY_PREFER_TEMPORARY)
 		ipv6->conf.privacy = NI_IPV6_PRIVACY_PREFER_TEMPORARY;
 	else if (ipv6->conf.privacy < NI_IPV6_PRIVACY_DEFAULT)
 		ipv6->conf.privacy = NI_IPV6_PRIVACY_DISABLED;
 
 	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
-				"accept-redirects", &ipv6->conf.accept_redirects);
+				"accept_redirects", &ipv6->conf.accept_redirects);
 
 	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
 				"addr_gen_mode", &ipv6->conf.privacy, 10);
