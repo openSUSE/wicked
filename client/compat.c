@@ -2443,6 +2443,7 @@ static ni_bool_t
 __ni_compat_generate_ipv6_devconf(xml_node_t *ifnode, const ni_ipv6_devinfo_t *ipv6)
 {
 	xml_node_t *node;
+	const char *value;
 
 	if (!ipv6)
 		return TRUE;
@@ -2471,6 +2472,15 @@ __ni_compat_generate_ipv6_devconf(xml_node_t *ifnode, const ni_ipv6_devinfo_t *i
 	}
 	__ni_compat_optional_tristate("accept-redirects", node,
 						ipv6->conf.accept_redirects);
+
+	if ((value = ni_ipv6_devconf_addr_gen_mode_to_name(ipv6->conf.addr_gen_mode)))
+		xml_node_new_element("addr-gen-mode", node, value);
+
+	if (!IN6_IS_ADDR_UNSPECIFIED(&ipv6->conf.stable_secret)) {
+		ni_sockaddr_t addr;
+		ni_sockaddr_set_ipv6(&addr, ipv6->conf.stable_secret, 0);
+		xml_node_new_element("stable-secret", node, ni_sockaddr_print(&addr));
+	}
 
 	if (node->children) {
 		xml_node_add_child(ifnode, node);

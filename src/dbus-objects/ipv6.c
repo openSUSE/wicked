@@ -24,6 +24,7 @@
 #include <wicked/dbus-service.h>
 #include <wicked/system.h>
 #include <wicked/ipv6.h>
+#include <netinet/in.h>
 #include "netinfo_priv.h"
 #include "dbus-common.h"
 #include "model.h"
@@ -95,7 +96,7 @@ __ni_objectmodel_protocol_arg(const ni_dbus_variant_t *dict, const ni_dbus_servi
  * Functions for dealing with IPv6 properties
  */
 static ni_ipv6_devinfo_t *
-__ni_objectmodel_ipv6_devinfo_handle(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
+ni_objectmodel_ipv6_devinfo_handle(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	ni_netdev_t *dev;
 	ni_ipv6_devinfo_t *ipv6_info;
@@ -113,14 +114,55 @@ __ni_objectmodel_ipv6_devinfo_handle(const ni_dbus_object_t *object, ni_bool_t w
 	 return ipv6_info;
 }
 
-void *
+static void *
 ni_objectmodel_get_ipv6_devinfo(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
-	return __ni_objectmodel_ipv6_devinfo_handle(object, write_access, error);
+	return ni_objectmodel_ipv6_devinfo_handle(object, write_access, error);
+}
+
+static dbus_bool_t
+ni_objectmodel_ipv6_devconf_get_stable_secret(const ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result,
+				DBusError *error)
+{
+	const ni_ipv6_devinfo_t *info;
+
+	if (!(info = ni_objectmodel_ipv6_devinfo_handle(object, FALSE, error)))
+		return FALSE;
+
+	if (IN6_IS_ADDR_UNSPECIFIED(&info->conf.stable_secret))
+		return FALSE;
+
+	ni_dbus_variant_set_byte_array(result,
+			(const unsigned char *)&info->conf.stable_secret,
+			sizeof(info->conf.stable_secret));
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_ipv6_devconf_set_stable_secret(ni_dbus_object_t *object,
+				const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument,
+				DBusError *error)
+{
+	ni_ipv6_devinfo_t *info;
+	unsigned int len = 0;
+
+	if (!(info = ni_objectmodel_ipv6_devinfo_handle(object, TRUE, error)))
+		return FALSE;
+
+	return ni_dbus_variant_get_byte_array_minmax(argument,
+				(unsigned char *)&info->conf.stable_secret, &len,
+				sizeof(info->conf.stable_secret),
+				sizeof(info->conf.stable_secret));
 }
 
 #define IPV6_INT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_INT_PROPERTY(ipv6_devinfo, dbus_name, member_name, rw)
+#define IPV6_CONF_PROPERTY(dbus_name, member_name, rw) \
+	___NI_DBUS_PROPERTY(DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING, \
+			dbus_name, member_name, ni_objectmodel_ipv6_devconf, RO)
 
 const ni_dbus_property_t	ni_objectmodel_ipv6_property_table[] = {
 	IPV6_INT_PROPERTY(enabled, conf.enabled, RO),
@@ -130,6 +172,8 @@ const ni_dbus_property_t	ni_objectmodel_ipv6_property_table[] = {
 	IPV6_INT_PROPERTY(autoconf, conf.autoconf, RO),
 	IPV6_INT_PROPERTY(privacy, conf.privacy, RO),
 	IPV6_INT_PROPERTY(accept-redirects, conf.accept_redirects, RO),
+	IPV6_INT_PROPERTY(addr-gen-mode, conf.addr_gen_mode, RO),
+	IPV6_CONF_PROPERTY(stable-secret, stable_secret, RO),
 
 	{ NULL }
 };
