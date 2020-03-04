@@ -39,8 +39,13 @@ BuildRequires:  autoconf
 BuildRequires:  automake
 BuildRequires:  libtool
 BuildRequires:  make
-Provides:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
-Obsoletes:      libwicked-0-6 <= %{version}
+%if %{with wicked_devel}
+# libwicked-%{version}.so shlib package compatible match for wicked-devel
+Provides:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}-%{release}
+%endif
+# uninstall obsolete libwicked-0-6 (libwicked-0.so.6, wicked < 0.6.60)
+Provides:       libwicked-0-6 = %{version}
+Obsoletes:      libwicked-0-6 < %{version}
 
 %if 0%{?suse_version} >= 1500
 %bcond_without  rfc4361_cid
@@ -155,7 +160,7 @@ Summary:        Network configuration infrastructure - Development files
 Group:          Development/Libraries/C and C++
 Requires:       dbus-1-devel
 Requires:       libnl3-devel
-Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}
+Requires:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}-%{release}
 
 %description devel
 Wicked is a network configuration infrastructure incorporating a number
