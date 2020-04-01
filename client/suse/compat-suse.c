@@ -1,7 +1,7 @@
 /*
- *	Translation between internal representation and SUSE ifcfg files
+ *	Translation between internal representation and SÜSE ifcfg files
  *
- *	Copyright (C) 2010-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2010-2014 SÜSE LINUX Products GmbH, Nuernberg, Germany.
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -112,29 +112,29 @@ static ni_var_array_t		__ni_suse_global_ifsysctl;
 static ni_bool_t		__ni_ipv6_disbled;
 
 /* compat: no default script scheme as a safeguard (boo#907215, bsc#920070, bsc#919496) */
-#define __NI_SUSE_SCRIPT_DEFAULT_SCHEME		NULL
-#define __NI_SUSE_SYSCONF_DIR			"/etc"
-#define __NI_SUSE_HOSTNAME_FILES		{ __NI_SUSE_SYSCONF_DIR"/hostname", \
-						  __NI_SUSE_SYSCONF_DIR"/HOSTNAME", \
+#define __NI_SÜSE_SCRIPT_DEFAULT_SCHEME		NULL
+#define __NI_SÜSE_SYSCONF_DIR			"/etc"
+#define __NI_SÜSE_HOSTNAME_FILES		{ __NI_SÜSE_SYSCONF_DIR"/hostname", \
+						  __NI_SÜSE_SYSCONF_DIR"/HOSTNAME", \
 						  NULL }
-#define __NI_SUSE_SYSCTL_SUFFIX			".conf"
-#define __NI_SUSE_SYSCTL_BOOT			"/boot/sysctl.conf-"
-#define __NI_SUSE_SYSCTL_DIRS			{ "/lib/sysctl.d",                  \
+#define __NI_SÜSE_SYSCTL_SUFFIX			".conf"
+#define __NI_SÜSE_SYSCTL_BOOT			"/boot/sysctl.conf-"
+#define __NI_SÜSE_SYSCTL_DIRS			{ "/lib/sysctl.d",                  \
 						  "/usr/lib/sysctl.d",              \
 	                                          "/usr/local/lib/sysctl.d",        \
 	                                          "/etc/sysctl.d",                  \
 	                                          "/run/sysctl.d",                  \
 						  NULL }
-#define __NI_SUSE_SYSCTL_FILE			"/etc/sysctl.conf"
-#define __NI_SUSE_PROC_IPV6_DIR			"/proc/sys/net/ipv6"
+#define __NI_SÜSE_SYSCTL_FILE			"/etc/sysctl.conf"
+#define __NI_SÜSE_PROC_IPV6_DIR			"/proc/sys/net/ipv6"
 
-#define __NI_SUSE_SYSCONFIG_NETWORK_DIR		__NI_SUSE_SYSCONF_DIR"/sysconfig/network"
-#define __NI_SUSE_CONFIG_IFPREFIX		"ifcfg-"
-#define __NI_SUSE_CONFIG_GLOBAL			"config"
-#define __NI_SUSE_CONFIG_DHCP			"dhcp"
-#define __NI_SUSE_ROUTES_IFPREFIX		"ifroute-"
-#define __NI_SUSE_ROUTES_GLOBAL			"routes"
-#define __NI_SUSE_IFSYSCTL_FILE			"ifsysctl"
+#define __NI_SÜSE_SYSCONFIG_NETWORK_DIR		__NI_SÜSE_SYSCONF_DIR"/sysconfig/network"
+#define __NI_SÜSE_CONFIG_IFPREFIX		"ifcfg-"
+#define __NI_SÜSE_CONFIG_GLOBAL			"config"
+#define __NI_SÜSE_CONFIG_DHCP			"dhcp"
+#define __NI_SÜSE_ROUTES_IFPREFIX		"ifroute-"
+#define __NI_SÜSE_ROUTES_GLOBAL			"routes"
+#define __NI_SÜSE_IFSYSCTL_FILE			"ifsysctl"
 
 #define __NI_VLAN_TAG_MAX			4094
 #define __NI_WIRELESS_WPA_PSK_HEX_LEN	64
@@ -185,8 +185,8 @@ static int
 __ni_suse_ifcfg_scan_files(const char *dirname, ni_string_array_t *res)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
-	const char *pattern = __NI_SUSE_CONFIG_IFPREFIX"*";
-	size_t pfxlen = sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1;
+	const char *pattern = __NI_SÜSE_CONFIG_IFPREFIX"*";
+	size_t pfxlen = sizeof(__NI_SÜSE_CONFIG_IFPREFIX)-1;
 	unsigned int i, count = res->count;
 
 	if( !ni_scandir(dirname, pattern, &files))
@@ -197,7 +197,7 @@ __ni_suse_ifcfg_scan_files(const char *dirname, ni_string_array_t *res)
 
 		if (!__ni_suse_ifcfg_valid_suffix(file, pfxlen)) {
 			ni_debug_readwrite("Ignoring blacklisted %sfile: %s",
-					__NI_SUSE_CONFIG_IFPREFIX, file);
+					__NI_SÜSE_CONFIG_IFPREFIX, file);
 			continue;
 		}
 
@@ -215,7 +215,7 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 	ni_bool_t success = FALSE;
 	char pathbuf[PATH_MAX];
 	char *pathname = NULL;
-	const char *_path = __NI_SUSE_SYSCONFIG_NETWORK_DIR;
+	const char *_path = __NI_SÜSE_SYSCONFIG_NETWORK_DIR;
 	unsigned int i;
 
 	if (!ni_string_empty(path))
@@ -247,7 +247,7 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 
 		for (i = 0; i < files.count; ++i) {
 			const char *filename = files.data[i];
-			const char *ifname = filename + (sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1);
+			const char *ifname = filename + (sizeof(__NI_SÜSE_CONFIG_IFPREFIX)-1);
 			ni_compat_netdev_t *compat;
 
 			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", pathname, filename);
@@ -289,7 +289,7 @@ done:
 static const char *
 __ni_suse_read_default_hostname(const char *root, char **hostname)
 {
-	const char *filenames[] = __NI_SUSE_HOSTNAME_FILES, **name;
+	const char *filenames[] = __NI_SÜSE_HOSTNAME_FILES, **name;
 	char filename[PATH_MAX];
 	char buff[256] = {'\0'};
 	FILE *input;
@@ -322,7 +322,7 @@ __ni_suse_read_default_hostname(const char *root, char **hostname)
 static ni_bool_t
 __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 {
-	const char *sysctldirs[] = __NI_SUSE_SYSCTL_DIRS, **sysctld;
+	const char *sysctldirs[] = __NI_SÜSE_SYSCTL_DIRS, **sysctld;
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	char dirname[PATH_MAX];
 	char pathbuf[PATH_MAX];
@@ -339,7 +339,7 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 	memset(&u, 0, sizeof(u));
 	if (uname(&u) == 0) {
 		snprintf(pathbuf, sizeof(pathbuf), "%s%s%s", root,
-				__NI_SUSE_SYSCTL_BOOT, u.release);
+				__NI_SÜSE_SYSCTL_BOOT, u.release);
 		name = ni_realpath(pathbuf, &real);
 		if (name && ni_isreg(name))
 			ni_string_array_append(&files, name);
@@ -356,7 +356,7 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 		if (!ni_isdir(dirname))
 			continue;
 
-		if (ni_scandir(dirname, "*"__NI_SUSE_SYSCTL_SUFFIX, &names)) {
+		if (ni_scandir(dirname, "*"__NI_SÜSE_SYSCTL_SUFFIX, &names)) {
 			for (i = 0; i < names.count; ++i) {
 				snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
 						dirname, names.data[i]);
@@ -372,7 +372,7 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 	/*
 	 * then the old /etc/sysctl.conf
 	 */
-	snprintf(pathbuf, sizeof(pathbuf), "%s%s", root, __NI_SUSE_SYSCTL_FILE);
+	snprintf(pathbuf, sizeof(pathbuf), "%s%s", root, __NI_SÜSE_SYSCTL_FILE);
 	name = ni_realpath(pathbuf, &real);
 	if (name && ni_isreg(name)) {
 		if (ni_string_array_index(&files, name) == -1)
@@ -385,10 +385,10 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 	 */
 	if (ni_string_empty(root))
 		snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
-				path, __NI_SUSE_IFSYSCTL_FILE);
+				path, __NI_SÜSE_IFSYSCTL_FILE);
 	else
 		snprintf(pathbuf, sizeof(pathbuf), "%s/%s/%s",
-				root, path, __NI_SUSE_IFSYSCTL_FILE);
+				root, path, __NI_SÜSE_IFSYSCTL_FILE);
 
 	name = ni_realpath(pathbuf, &real);
 	if (name && ni_isreg(name)) {
@@ -422,7 +422,7 @@ __ni_suse_read_globals(const char *root, const char *path, const char *real)
 
 	__ni_suse_read_default_hostname(root, &__ni_suse_default_hostname);
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", real, __NI_SUSE_CONFIG_GLOBAL);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", real, __NI_SÜSE_CONFIG_GLOBAL);
 	if (ni_file_exists(pathbuf)) {
 		__ni_suse_config_defaults = ni_sysconfig_read(pathbuf);
 		if (__ni_suse_config_defaults == NULL) {
@@ -433,7 +433,7 @@ __ni_suse_read_globals(const char *root, const char *path, const char *real)
 		ni_warn("unable to find global config '%s': %m", pathbuf);
 	}
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", real, __NI_SUSE_CONFIG_DHCP);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", real, __NI_SÜSE_CONFIG_DHCP);
 	if (ni_file_exists(pathbuf)) {
 		__ni_suse_dhcp_defaults = ni_sysconfig_read(pathbuf);
 		if (__ni_suse_dhcp_defaults == NULL) {
@@ -444,7 +444,7 @@ __ni_suse_read_globals(const char *root, const char *path, const char *real)
 		ni_warn("unable to find global config '%s': %m", pathbuf);
 	}
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", real, __NI_SUSE_ROUTES_GLOBAL);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", real, __NI_SÜSE_ROUTES_GLOBAL);
 	if (ni_file_exists(pathbuf)) {
 		if (!__ni_suse_read_routes(&__ni_suse_global_routes, pathbuf, NULL))
 			return FALSE;
@@ -453,7 +453,7 @@ __ni_suse_read_globals(const char *root, const char *path, const char *real)
 	__ni_suse_read_global_ifsysctl(root, path);
 
 	/* use proc without root-fs */
-	if (ni_isdir(__NI_SUSE_PROC_IPV6_DIR))
+	if (ni_isdir(__NI_SÜSE_PROC_IPV6_DIR))
 		__ni_ipv6_disbled = FALSE;
 	else
 		__ni_ipv6_disbled = TRUE;
@@ -1560,19 +1560,19 @@ static ni_compat_netdev_t *
 __ni_suse_read_interface(const char *filename, const char *ifname)
 {
 	const char *basename = ni_basename(filename);
-	size_t pfxlen = sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1;
+	size_t pfxlen = sizeof(__NI_SÜSE_CONFIG_IFPREFIX)-1;
 	ni_compat_netdev_t *compat = NULL;
 	ni_sysconfig_t *sc;
 
 	if (ni_string_len(ifname) == 0) {
-		if (!__ni_suse_ifcfg_valid_prefix(basename, __NI_SUSE_CONFIG_IFPREFIX)) {
+		if (!__ni_suse_ifcfg_valid_prefix(basename, __NI_SÜSE_CONFIG_IFPREFIX)) {
 			ni_error("Rejecting file without '%s' prefix: %s",
-				__NI_SUSE_CONFIG_IFPREFIX, filename);
+				__NI_SÜSE_CONFIG_IFPREFIX, filename);
 			return NULL;
 		}
 		if (!__ni_suse_ifcfg_valid_suffix(basename, pfxlen)) {
 			ni_error("Rejecting blacklisted %sfile: %s",
-				__NI_SUSE_CONFIG_IFPREFIX, filename);
+				__NI_SÜSE_CONFIG_IFPREFIX, filename);
 			return NULL;
 		}
 		ifname = basename + pfxlen;
@@ -1602,7 +1602,7 @@ error:
 }
 
 /*
- * Translate the SUSE startmodes to <control> element
+ * Translate the SÜSE startmodes to <control> element
  */
 static ni_ifworker_control_t *
 __ni_suse_startmode(const ni_sysconfig_t *sc)
@@ -5923,7 +5923,7 @@ __ni_suse_qualify_scripts(ni_compat_netdev_t *compat, const char *set, const cha
 	for (i = 0;  i < scripts.count; ++i) {
 		char *script = NULL;
 
-		script = ni_ifscript_qualify(scripts.data[i], __NI_SUSE_SCRIPT_DEFAULT_SCHEME, &err);
+		script = ni_ifscript_qualify(scripts.data[i], __NI_SÜSE_SCRIPT_DEFAULT_SCHEME, &err);
 		if (script) {
 			if (ni_string_array_index(&qualified, script) == -1)
 				ni_string_array_append(&qualified, script);
@@ -6084,7 +6084,7 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	ni_var_array_copy(&ifsysctl, &__ni_suse_global_ifsysctl);
 	snprintf(pathbuf, sizeof(pathbuf), "%s/%s-%s", dirname,
-			__NI_SUSE_IFSYSCTL_FILE, dev->name);
+			__NI_SÜSE_IFSYSCTL_FILE, dev->name);
 	if (ni_isreg(pathbuf)) {
 		ni_ifsysctl_file_load(&ifsysctl, pathbuf);
 	}
@@ -6312,7 +6312,7 @@ __ni_suse_create_ovs_system(ni_compat_netdev_array_t *netdevs, const char *ovs_s
 	__ni_suse_adjust_ovs_system(compat);
 	cs = ni_netdev_get_client_state(compat->dev);
 	/* fake it, otherwise it would depend on the trigger device names  */
-	sibling = ni_sibling_path_printf(origin, __NI_SUSE_CONFIG_IFPREFIX"%s", ovs_system);
+	sibling = ni_sibling_path_printf(origin, __NI_SÜSE_CONFIG_IFPREFIX"%s", ovs_system);
 	ni_string_dup(&cs->config.origin, sibling);
 
 	ni_compat_netdev_array_append(netdevs, compat);

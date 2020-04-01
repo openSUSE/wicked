@@ -241,7 +241,7 @@ typedef enum {
 	NI_WICKED_RC_NOT_CONFIGURED	= NI_LSB_RC_NOT_CONFIGURED,
 	NI_WICKED_RC_NOT_RUNNING	= NI_LSB_RC_NOT_RUNNING,
 	NI_WICKED_RC_NO_DEVICE		= NI_LSB_RC_NOT_RUNNING,
-	NI_WICKED_RC_IN_PROGRESS	= 12,	/*!< 12 for SUSE's ifup compatibility	*/
+	NI_WICKED_RC_IN_PROGRESS	= 12,	/*!< 12 for SÜSE's ifup compatibility	*/
  } ni_return_code_t;
 
 typedef enum {

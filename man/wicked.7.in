@@ -177,7 +177,7 @@ address configuration mechanisms to step on each other's toes.
 .BR wicked (7),
 .BR wicked-config (5).
 .SH COPYRIGHT
-Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+Copyright (C) 2014 SÜSE LINUX Products GmbH, Nuernberg, Germany.
 .SH BUGS
 Please report bugs at <https://bugzilla.novell.com/index.cgi>
 .SH AUTHORS

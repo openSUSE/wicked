@@ -521,7 +521,7 @@ The time inside of the DUID is set automatically to the duid creation time.
 .PP
 Permits to specify a vendor type DUID-EN based on the IANA assigned enterprise
 number and an machine identifier specified in the \fBenterprise-number\fR and
-\fBidentifier\fR elements, e.g. using IANA number 7057 assigned to SUSE:
+\fBidentifier\fR elements, e.g. using IANA number 7057 assigned to SÜSE:
 .nf
 .B "        <en>
 .B "          <enterprise-number>7057</enterprise-number>
@@ -901,7 +901,7 @@ This extension class supports shell scripts only.
 .BR netconfig (8),
 .BR RFC3942
 .SH COPYRIGHT
-Copyright (C) 2014-2016 SUSE LINUX GmbH, Nuernberg, Germany.
+Copyright (C) 2014-2016 SÜSE LINUX GmbH, Nuernberg, Germany.
 .SH BUGS
 Please report bugs at <https://bugzilla.suse.com/>
 .SH AUTHORS

@@ -253,7 +253,7 @@ When not specified, the user space program has to run with UID 0.
 .\"user space program (e.g. openvpn) is started directly in ifup,
 .\"are not supported yet.
 .SH COPYRIGHT
-Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+Copyright (C) 2014 SÜSE LINUX Products GmbH, Nuernberg, Germany.
 .SH BUGS
 Please report bugs at <https://bugzilla.novell.com/index.cgi>
 .SH AUTHORS

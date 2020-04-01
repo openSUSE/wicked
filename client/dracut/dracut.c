@@ -1,7 +1,7 @@
 /*
  *	wicked client configuration reading in dracut.
  *
- *	Copyright (C) 2019 SUSE Software Solutions Germany GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2019 SÜSE Software Solutions Germany GmbH, Nuernberg, Germany.
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by

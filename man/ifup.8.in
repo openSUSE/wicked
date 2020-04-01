@@ -136,7 +136,7 @@ wicked generates debug output when called with
 option set to a particular facility (e.g. all). Please use it, when something wrong is happening.
 
 .SH COPYRIGHT
-Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+Copyright (C) 2014 SÜSE LINUX Products GmbH, Nuernberg, Germany.
 .SH BUGS
 Please report bugs at <https://bugzilla.novell.com/index.cgi>
 .SH AUTHORS

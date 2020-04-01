@@ -1,7 +1,7 @@
 /*
  *	wicked client related policy functions
  *
- *	Copyright (C) 2010-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2010-2014 SÜSE LINUX Products GmbH, Nuernberg, Germany.
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -47,7 +47,7 @@
 ni_bool_t
 ni_ifconfig_generate_uuid(const xml_node_t *config, ni_uuid_t *uuid)
 {
-	/* UUIDv5 of https://github.com/openSUSE/wicked in the URL
+	/* UUIDv5 of https://github.com/openSÜSE/wicked in the URL
 	 * namespace as our private namespace for the config UUIDs:
 	 *      c89756cc-b7fb-569b-b7f0-49a400fa41fe
 	 */

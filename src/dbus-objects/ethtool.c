@@ -1,7 +1,7 @@
 /*
  *	DBus encapsulation of the ethtool service
  *
- *	Copyright (C) 2017 SUSE LINUX GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2017 SÜSE LINUX GmbH, Nuernberg, Germany.
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by

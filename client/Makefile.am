@@ -26,7 +26,7 @@ if wicked_compat_auto
 wicked_CPPFLAGS			+= -DCOMPAT_AUTO
 else
 if wicked_compat_suse
-wicked_CPPFLAGS			+= -DCOMPAT_SUSE
+wicked_CPPFLAGS			+= -DCOMPAT_SÜSE
 endif
 if wicked_compat_redhat
 wicked_CPPFLAGS			+= -DCOMPAT_REDHAT

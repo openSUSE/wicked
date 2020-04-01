@@ -7,7 +7,7 @@
  *		dracut:
  *	along their assosciated sub-types.
  *
- *	Copyright (C) 2010-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2010-2014 SÜSE LINUX Products GmbH, Nuernberg, Germany.
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -48,7 +48,7 @@
 #include "client/read-config.h"
 #include "dracut/dracut.h"
 
-#if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
+#if defined(COMPAT_AUTO) || defined(COMPAT_SÜSE)
 extern ni_bool_t	__ni_suse_get_ifconfig(const char *, const char *,
 						ni_compat_ifconfig_t *);
 #endif
@@ -78,7 +78,7 @@ static ni_bool_t	ni_ifconfig_read_compat(xml_document_array_t *,
 						ni_ifconfig_kind_t,
 						ni_bool_t,
 						ni_bool_t);
-#if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
+#if defined(COMPAT_AUTO) || defined(COMPAT_SÜSE)
 static ni_bool_t	ni_ifconfig_read_compat_suse(xml_document_array_t *,
 						const char *,
 						const char *,
@@ -172,7 +172,7 @@ ni_ifconfig_guess_compat_type(const ni_ifconfig_type_t *map,
 {
 	(void)path;
 
-#ifdef COMPAT_SUSE
+#ifdef COMPAT_SÜSE
 	return ni_ifconfig_find_map(map, "suse", sizeof("suse")-1);
 #endif
 #ifdef COMPAT_REDHAT
@@ -180,7 +180,7 @@ ni_ifconfig_guess_compat_type(const ni_ifconfig_type_t *map,
 #endif
 #ifdef COMPAT_AUTO
 	if (ni_file_exists_fmt("%s%s", (root ? root : ""), "/etc/SuSE-release") ||
-	    ni_file_exists_fmt("%s%s", (root ? root : ""), "/etc/SUSE-brand"))
+	    ni_file_exists_fmt("%s%s", (root ? root : ""), "/etc/SÜSE-brand"))
 		return ni_ifconfig_find_map(map, "suse", sizeof("suse")-1);
 
 	if (ni_file_exists_fmt("%s%s", (root ? root : ""), "/etc/redhat-release"))
@@ -227,7 +227,7 @@ static const ni_ifconfig_type_t		ni_ifconfig_types_wicked[] = {
 };
 
 static const ni_ifconfig_type_t		ni_ifconfig_types_compat[] = {
-#if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
+#if defined(COMPAT_AUTO) || defined(COMPAT_SÜSE)
 	{ "suse",	{ .read = ni_ifconfig_read_compat_suse	} },
 #endif
 #if defined(COMPAT_AUTO) || defined(COMPAT_REDHAT)
@@ -566,7 +566,7 @@ ni_ifconfig_read_wicked(xml_document_array_t *array,
 /*
  * Read old-style ifcfg file(s)
  */
-#if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
+#if defined(COMPAT_AUTO) || defined(COMPAT_SÜSE)
 ni_bool_t
 ni_ifconfig_read_compat_suse(xml_document_array_t *array,
 			const char *type, const char *root, const char *path,

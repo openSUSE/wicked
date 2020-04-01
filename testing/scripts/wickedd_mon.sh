@@ -2,7 +2,7 @@
 #
 ###############################################################
 #                                                             #
-# SUSE Linux Products GmbH 2013                               #
+# SÜSE Linux Products GmbH 2013                               #
 #                                                             #
 # Interfaces monitor for wickedd                              #
 #                                                             #

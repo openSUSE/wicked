@@ -1,7 +1,7 @@
 /*
  *	wicked convert, show-config, show-policy
  *
- *	Copyright (C) 2019 SUSE Software Solutions Germany GmbH, Germany.
+ *	Copyright (C) 2019 SÜSE Software Solutions Germany GmbH, Germany.
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by

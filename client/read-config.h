@@ -1,7 +1,7 @@
 /*
  *	wicked client configuration reading along their assosciated sub-types.
  *
- *	Copyright (C) 2010-2018 SUSE LINUX GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2010-2018 SÜSE LINUX GmbH, Nuernberg, Germany.
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by

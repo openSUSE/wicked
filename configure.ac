@@ -3,7 +3,7 @@
 AC_PREREQ([2.63])
 AC_INIT([wicked], esyscmd([tr -d '\n' < VERSION]),
 	[http://bugs.opensuse.org], [wicked],
-	[https://github.com/openSUSE/wicked])
+	[https://github.com/openSÜSE/wicked])
 AM_INIT_AUTOMAKE([foreign dist-bzip2 no-dist-gzip subdir-objects])
 
 #

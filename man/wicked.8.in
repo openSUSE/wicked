@@ -563,7 +563,7 @@ The time is set to duid creation time (since 2001) automatically.
 .fi
 .RS
 .PP
-To create a duid en using for example the enterprise number assigned to SUSE
+To create a duid en using for example the enterprise number assigned to SÜSE
 and an opaque unique machine identifier noted as colon-separated hex bytes, use:
 .nf
 .B "    # wicked duid create en 7057 02:00:00:00:00:02
@@ -764,7 +764,7 @@ the \fBpriority\fP term, marking the field as optional.
 \fBwickedd\fP(8), \fBwicked-config\fP(5), \fBwicked-ethtool\fP(8)
 .\" ----------------------------------------
 .SH COPYRIGHT
-Copyright (C) 2018 SUSE LINUX GmbH, Nuernberg, Germany.
+Copyright (C) 2018 SÜSE LINUX GmbH, Nuernberg, Germany.
 .SH BUGS
 Please report bugs as described at <http://bugs.opensuse.org>
 .SH AUTHORS

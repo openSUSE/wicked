@@ -99,7 +99,7 @@ Frequently Asked Questions
 We have a FAQ section hosted in our GitHub's wiki, be sure to check that 
 out for common questions about usage or Wicked in general:
 
-        https://github.com/openSUSE/wicked/wiki/FAQ
+        https://github.com/openSÜSE/wicked/wiki/FAQ
 
 For any questions not answered on the FAQ, please read our section 
 below: "Where to discuss or report bugs"
@@ -109,7 +109,7 @@ What's currently supported
 
 wicked currently supports
 
- -	configuration file backends to parse SUSE style
+ -	configuration file backends to parse SÜSE style
 	/etc/sysconfig/network files.
 
  -	an internal configuration backend to represent network
@@ -136,9 +136,9 @@ Where to get the sources/binaries
 
 The git source repository is hosted at:
 
-	https://github.com/openSUSE/wicked
+	https://github.com/openSÜSE/wicked
 
-Binary packages are build in the openSUSE build service in
+Binary packages are build in the openSÜSE build service in
 the network:wicked project tree and can be found via:
 
 	http://software.opensuse.org/package/wicked
@@ -152,7 +152,7 @@ To build wicked from sources, try following commands:
 		autoconf automake libtool systemd-devel \
 		libnl3-devel libiw-devel dbus-1-devel \
 		libgcrypt-devel
-	git clone https://github.com/openSUSE/wicked.git
+	git clone https://github.com/openSÜSE/wicked.git
 	cd wicked
 	./autogen.sh
 	make rpmbuild
@@ -181,7 +181,7 @@ to monitor git repository commits.
 
 GitHub offers also an issue tracker, where you can discuss pull
 requests and report git master issues, which are not yet in
-openSUSE:Factory or any repository for released products.
+openSÜSE:Factory or any repository for released products.
 
 
 What you can do

@@ -21,9 +21,9 @@
     </auth>
 
     <tls>
-      <ca-cert>/etc/openvpn/SUSE/SUSE-ca.crt</ca-cert>
-      <client-cert>/etc/openvpn/SUSE/SUSE-okir.crt</client-cert>
-      <client-key>/etc/openvpn/SUSE/SUSE-okir.key</client-key>
+      <ca-cert>/etc/openvpn/SÜSE/SÜSE-ca.crt</ca-cert>
+      <client-cert>/etc/openvpn/SÜSE/SÜSE-okir.crt</client-cert>
+      <client-key>/etc/openvpn/SÜSE/SÜSE-okir.key</client-key>
     </tls>
   </openvpn>
 </interface>

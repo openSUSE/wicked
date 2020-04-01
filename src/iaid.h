@@ -1,7 +1,7 @@
 /*
  *	DHCP Identity Association Identifier (IAID) utilities
  *
- *	Copyright (C) 2016 SUSE LINUX GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2016 SÜSE LINUX GmbH, Nuernberg, Germany.
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by

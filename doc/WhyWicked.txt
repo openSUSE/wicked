@@ -340,8 +340,8 @@ These hooks don't exist yet, but will be implemented soonishly.
 Where can I find it?
 ====================
 
-Currently, you can find the source at https://github.com/openSUSE/wicked/
-Packages for testing on openSUSE are work in progress.
+Currently, you can find the source at https://github.com/openSÜSE/wicked/
+Packages for testing on openSÜSE are work in progress.
 
 
 28. August 2012

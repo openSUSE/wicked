@@ -40,7 +40,7 @@ suffix. This is only used in conjuntion with wpa_supplicant.
 .TP
 .B WIRELESS_WPA_DRIVER
 This variable allows to override the wpa driver name that should be used
-by the wpa_supplicant. In most cases "nl80211" (default on openSUSE 11.3)
+by the wpa_supplicant. In most cases "nl80211" (default on openSÜSE 11.3)
 or "wext" (old default) can be used, but there are few exceptions.
 .br
 The new "nl80211" wpa driver supports wireless regulatory domain, that
@@ -258,7 +258,7 @@ Some examples of different configuration types supported at the moment:
 .fi
 
 .SH COPYRIGHT
-Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+Copyright (C) 2014 SÜSE LINUX Products GmbH, Nuernberg, Germany.
 .SH BUGS
 Please report bugs at <https://bugzilla.novell.com/index.cgi>
 .SH AUTHORS

@@ -1,7 +1,7 @@
 /*
  *	wicked client utilities to parse sysctl/ifsysctl files.
  *
- *	Copyright (C) 2011-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2011-2014 SÜSE LINUX Products GmbH, Nuernberg, Germany.
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -22,8 +22,8 @@
  *		Marius Tomaschewski <mt@suse.de>
  *
  */
-#ifndef   __WICKED_CLIENT_SUSE_IFSYSCTL_H__
-#define   __WICKED_CLIENT_SUSE_IFSYSCTL_H__
+#ifndef   __WICKED_CLIENT_SÜSE_IFSYSCTL_H__
+#define   __WICKED_CLIENT_SÜSE_IFSYSCTL_H__
 
 #include <wicked/util.h>
 
@@ -64,4 +64,4 @@ extern ni_bool_t	ni_ifsysctl_vars_set(ni_var_array_t *vars,
 					const char *value,
 					const char *keyfmt, ...);
 
-#endif /* __WICKED_CLIENT_SUSE_IFSYSCTL_H__ */
+#endif /* __WICKED_CLIENT_SÜSE_IFSYSCTL_H__ */

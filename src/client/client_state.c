@@ -2,7 +2,7 @@
  * Routines for runtime-persistent interface fsm ifup state used
  * while ifdown to stop managed interfaces.
  *
- * Copyright (C) 2011 SUSE LINUX Products GmbH, Nuernberg, Germany.
+ * Copyright (C) 2011 SÜSE LINUX Products GmbH, Nuernberg, Germany.
  * Authors: Marius Tomaschewski <mt@suse.de>
  *          Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
  *

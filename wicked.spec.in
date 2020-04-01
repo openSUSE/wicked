@@ -1,7 +1,7 @@
 #
 # spec file for package wicked
 #
-# Copyright (c) 2020 SUSE LLC
+# Copyright (c) 2020 SÜSE LLC
 #
 # All modifications and additions to the file contributed by third parties
 # remain the property of their copyright owners, unless otherwise agreed
@@ -27,12 +27,12 @@ URL:            @PACKAGE_URL@
 Source0:        %{name}-%{version}.tar.bz2
 Source1:        wicked-rpmlintrc
 #
-# Upstream First - openSUSE Build Service Policy:
+# Upstream First - openSÜSE Build Service Policy:
 #
 # Never add any patches to this package without the upstream commit id in
 # the patch. Any patches added here without a very good reason to make an
 # exception will be silently removed with the next version update.
-# Please use pull requests at https://github.com/openSUSE/wicked/ instead.
+# Please use pull requests at https://github.com/openSÜSE/wicked/ instead.
 #
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 BuildRequires:  autoconf
