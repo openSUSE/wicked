@@ -6257,6 +6257,37 @@ __ni_suse_adjust_bond_slaves(ni_compat_netdev_array_t *netdevs, ni_compat_netdev
 }
 
 static void
+ __ni_suse_adjust_team_ports(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master)
+{
+	ni_team_t *team = ni_netdev_get_team(master->dev);
+	const char *port;
+	ni_netdev_t *dev;
+	unsigned int i;
+	ni_bool_t nsna_enabled = FALSE;
+	ni_team_link_watch_t *lw;
+	ni_ipv6_devinfo_t *ipv6;
+
+	for (i = 0; i < team->link_watch.count; i++) {
+		lw = team->link_watch.data[i];
+		if (lw && lw->type == NI_TEAM_LINK_WATCH_NSNA_PING)
+			nsna_enabled = TRUE;
+	}
+
+	if (!nsna_enabled)
+		return;
+
+	for (i = 0; i < team->ports.count; i++) {
+		if (!team->ports.data[i])
+			continue;
+		port = team->ports.data[i]->device.name;
+		dev = __ni_suse_find_compat_device(netdevs, port);
+		if (dev && (ipv6 = ni_netdev_get_ipv6(dev)))
+			ni_tristate_set(&ipv6->conf.enabled, TRUE);
+	}
+
+}
+
+static void
 __ni_suse_adjust_bridge_ports(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master)
 {
 	ni_bridge_t *bridge = ni_netdev_get_bridge(master->dev);
@@ -6369,6 +6400,8 @@ __ni_suse_adjust_slaves(ni_compat_netdev_array_t *netdevs)
 		case NI_IFTYPE_OVS_BRIDGE:
 			__ni_suse_adjust_ovs_bridge_ports(netdevs, compat);
 			break;
+		case NI_IFTYPE_TEAM:
+			__ni_suse_adjust_team_ports(netdevs, compat);
 		default:
 			break;
 		}
