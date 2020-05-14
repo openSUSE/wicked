@@ -3688,6 +3688,66 @@ ni_fsm_print_config_hierarchy(const ni_fsm_t *fsm)
 	}
 }
 
+static const char *
+ni_fsm_print_device_name_info(ni_stringbuf_t *info, const ni_ifworker_t *w)
+{
+	if (!info || !w || !w->device)
+		return NULL;
+
+	ni_stringbuf_printf(info, "%s[%u]", w->device->name, w->device->link.ifindex);
+	return info->string;
+}
+
+static void
+ni_fsm_print_system_device_worker_hierarchy(const ni_fsm_t *fsm, const ni_ifworker_t *w, unsigned int depth)
+{
+	ni_stringbuf_t info = NI_STRINGBUF_INIT_DYNAMIC;
+	unsigned int i;
+
+	if (!w || !w->device)
+		return;
+
+	if (!depth) {
+		ni_debug_application("%s", ni_fsm_print_device_name_info(&info, w));
+		ni_stringbuf_destroy(&info);
+	}
+
+	depth += 4;
+	for (i = 0; i < fsm->workers.count; ++i) {
+		ni_ifworker_t *c = fsm->workers.data[i];
+
+		if (!c || !c->device || c->type != w->type)
+			continue;
+
+		if (ni_string_eq(w->device->link.lowerdev.name, c->name)) {
+			ni_debug_application("%*s %s", depth, "+--", ni_fsm_print_device_name_info(&info, c));
+			ni_stringbuf_destroy(&info);
+			ni_fsm_print_system_device_worker_hierarchy(fsm, c, depth + 1);
+		} else
+		if (ni_string_eq(c->device->link.masterdev.name, w->name)) {
+			ni_debug_application("%*s %s", depth, "*--", ni_fsm_print_device_name_info(&info, c));
+			ni_stringbuf_destroy(&info);
+			ni_fsm_print_system_device_worker_hierarchy(fsm, c, depth + 1);
+		}
+	}
+}
+
+void
+ni_fsm_print_system_hierarchy(const ni_fsm_t *fsm)
+{
+	ni_ifworker_t *w;
+	unsigned int i;
+
+	ni_debug_application("System device hierarchy structure:");
+	for (i = 0; i < fsm->workers.count; ++i) {
+		w = fsm->workers.data[i];
+
+		if (w && w->type == NI_IFWORKER_TYPE_NETDEV && w->device &&
+		    ni_string_empty(w->device->link.masterdev.name))
+			ni_fsm_print_system_device_worker_hierarchy(fsm, w, 0);
+	}
+}
+
 int
 ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 {
