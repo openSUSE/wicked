@@ -3912,88 +3912,6 @@ ni_ifworker_prompt_later_cb(xml_node_t *node, const ni_xs_type_t *xs_type, const
 	return -NI_ERROR_RETRY_OPERATION;
 }
 
-static void
-ni_fsm_refresh_master_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
-{
-	const char *mname;
-	ni_netdev_t *dev;
-
-	if (!fsm || !w || !(dev = w->device))
-		return;
-
-	mname = dev->link.masterdev.name;
-	if (ni_string_empty(mname))
-		return;
-
-	w->masterdev = ni_fsm_ifworker_by_name(fsm,
-			NI_IFWORKER_TYPE_NETDEV, mname);
-
-	if (w->masterdev) {
-		ni_ifworker_array_t *children = &w->masterdev->children;
-
-		if (ni_ifworker_array_index(children, w) < 0)
-			ni_ifworker_array_append(children, w);
-	}
-}
-
-static void
-ni_fsm_refresh_lower_dev(ni_fsm_t *fsm, ni_ifworker_t *w)
-{
-	ni_ifworker_t *lower;
-	const char *lname;
-	ni_netdev_t *dev;
-
-	if (!fsm || !w || !(dev = w->device))
-		return;
-
-	lname = dev->link.lowerdev.name;
-	if (ni_string_empty(lname))
-		return;
-
-	lower = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, lname);
-	if (!lower)
-		return;
-
-	w->lowerdev = lower;
-	if (ni_ifworker_array_index(&lower->lowerdev_for, w) < 0)
-		ni_ifworker_array_append(&lower->lowerdev_for, w);
-
-	if (ni_ifworker_array_index(&w->children, lower) < 0)
-		ni_ifworker_array_append(&w->children, lower);
-}
-
-static void
-ni_fsm_refresh_ovs_bridge(ni_fsm_t *fsm, ni_ifworker_t *w)
-{
-	ni_ifworker_t *ow;
-	ni_netdev_t *dev;
-	const char *name;
-	unsigned int i;
-
-	if (!fsm || !w || !(dev = w->device))
-		return;
-
-	if (dev->link.type != NI_IFTYPE_OVS_BRIDGE || !dev->ovsbr)
-		return;
-
-	if ((name = dev->ovsbr->config.vlan.parent.name) && !ni_string_empty(name)) {
-		ow = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, name);
-		if (ow && ni_ifworker_array_index(&w->children, ow) < 0)
-			ni_ifworker_array_append(&w->children, ow);
-	}
-
-	for (i = 0; i < dev->ovsbr->ports.count; ++i) {
-		const ni_ovs_bridge_port_t *port = dev->ovsbr->ports.data[i];
-
-		if (!port || !(name = port->device.name) || ni_string_empty(name))
-			continue;
-
-		ow = ni_fsm_ifworker_by_name(fsm, NI_IFWORKER_TYPE_NETDEV, name);
-		if (ow && ni_ifworker_array_index(&w->children, ow) < 0)
-			ni_ifworker_array_append(&w->children, ow);
-	}
-}
-
 ni_bool_t
 ni_fsm_refresh_state(ni_fsm_t *fsm)
 {
@@ -4025,11 +3943,6 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 
 	for (i = 0; i < fsm->workers.count; ++i) {
 		w = fsm->workers.data[i];
-
-		/* Rebuild hierarchy */
-		ni_fsm_refresh_master_dev(fsm, w);
-		ni_fsm_refresh_lower_dev(fsm, w);
-		ni_fsm_refresh_ovs_bridge(fsm, w);
 
 		/* Set initial state of existing devices */
 		if (w->object != NULL)
@@ -5543,11 +5456,7 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 	switch (event_type) {
 	case NI_EVENT_DEVICE_READY:
 	case NI_EVENT_DEVICE_UP:
-		/* Rebuild hierarchy */
-		ni_fsm_refresh_master_dev(fsm, w);
-		ni_fsm_refresh_lower_dev(fsm, w);
-
-		/* Rebuild hierarchy in case of new device shows up */
+		/* Rebuild hierarchy in case a new device shows up */
 		ni_fsm_build_hierarchy(fsm, FALSE);
 
 		/* Handle devices which were not present on ifup */
