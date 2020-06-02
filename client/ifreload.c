@@ -48,24 +48,20 @@
 #include "ifstatus.h"
 
 static int
-ni_do_ifreload_direct(int argc, char **argv)
+ni_do_ifreload_direct(const char *caller, int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_IFCONFIG, OPT_PERSISTENT, OPT_TRANSIENT,
-		OPT_TIMEOUT,
-#ifdef NI_TEST_HACKS
-		OPT_IGNORE_PRIO, OPT_IGNORE_STARTMODE,
-#endif
+	enum  {
+		OPT_HELP	= 'h',
+		OPT_IFCONFIG	= 'i',
+		OPT_TIMEOUT	= 't',
+		OPT_PERSISTENT	= 'P',
+		OPT_TRANSIENT	= 'T',
 	};
-
 	static struct option ifreload_options[] = {
 		{ "help",		no_argument,		NULL,	OPT_HELP },
 		{ "ifconfig",		required_argument,	NULL,	OPT_IFCONFIG },
 		{ "timeout",		required_argument,	NULL,	OPT_TIMEOUT },
 		{ "transient",		no_argument,		NULL,	OPT_TRANSIENT },
-#ifdef NI_TEST_HACKS
-		{ "ignore-prio",	no_argument,		NULL, 	OPT_IGNORE_PRIO },
-		{ "ignore-startmode",	no_argument,		NULL,	OPT_IGNORE_STARTMODE },
-#endif
 		{ "persistent",		no_argument,		NULL,	OPT_PERSISTENT },
 
 		{ NULL,			no_argument,		NULL,	0 }
@@ -75,11 +71,11 @@ ni_do_ifreload_direct(int argc, char **argv)
 	ni_ifworker_array_t down_marked = NI_IFWORKER_ARRAY_INIT;
 	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	ni_ifmatcher_t ifmatch;
-	ni_bool_t check_prio = TRUE;
 	ni_bool_t opt_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
 	unsigned int opt_timeout = 0;
 	int c, status = NI_WICKED_RC_USAGE;
+	char *saved_argv0, *program = NULL;
 	unsigned int nmarked, i;
 	const ni_uint_range_t up_range = {
 		.min = __NI_FSM_STATE_MAX - 1,
@@ -97,22 +93,16 @@ ni_do_ifreload_direct(int argc, char **argv)
 	ni_assert(fsm);
 	ni_fsm_require_register_type("reachable", ni_ifworker_reachability_check_new);
 
+	ni_string_printf(&program, "%s %s",	caller  ? caller  : "wicked",
+						argv[0] ? argv[0] : "ifreload");
+	saved_argv0 = argv[0];
+	argv[0] = program;
 	optind = 1;
-	while ((c = getopt_long(argc, argv, "", ifreload_options, NULL)) != EOF) {
+	while ((c = getopt_long(argc, argv, "+hi:t:PT", ifreload_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_IFCONFIG:
 			ni_string_array_append(&opt_ifconfig, optarg);
 			break;
-
-#ifdef NI_TEST_HACKS
-		case OPT_IGNORE_PRIO:
-			check_prio = FALSE;
-			break;
-
-		case OPT_IGNORE_STARTMODE:
-			ifmatch.ignore_startmode = TRUE;
-			break;
-#endif
 
 		case OPT_PERSISTENT:
 			opt_persistent = TRUE;
@@ -128,8 +118,8 @@ ni_do_ifreload_direct(int argc, char **argv)
 			} else if (ni_parse_uint(optarg, &opt_timeout, 10) >= 0) {
 				opt_timeout *= 1000; /* sec -> msec */
 			} else {
-				ni_error("ifup: cannot parse timeout option \"%s\"",
-						optarg);
+				ni_error("%s: cannot parse timeout option \"%s\"",
+						program, optarg);
 				goto usage;
 			}
 			break;
@@ -138,7 +128,7 @@ ni_do_ifreload_direct(int argc, char **argv)
 		case OPT_HELP:
 usage:
 			fprintf(stderr,
-				"wicked [options] ifreload [ifreload-options] <ifname ...>|all\n"
+				"%s [ifreload-options] <ifname ...>|all\n"
 				"\nSupported ifreload-options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
@@ -148,28 +138,21 @@ usage:
 				"      Read interface configuration(s) from file\n"
 				"  --timeout <sec>\n"
 				"      Timeout after <sec> seconds\n"
-#ifdef NI_TEST_HACKS
-				"  --ignore-prio\n"
-				"      Ignore checking the config origin priorities\n"
-				"  --ignore-startmode\n"
-				"      Ignore checking the STARTMODE=off and STARTMODE=manual configs\n"
-#endif
 				"  --persistent\n"
 				"      Set interface into persistent mode (no regular ifdown allowed)\n"
-				);
+				, program);
 			goto cleanup;
 		}
 	}
 
 	/* at least one argument is required */
 	if (optind >= argc) {
-		fprintf(stderr, "Missing interface argument\n");
+		fprintf(stderr, "%s: missing interface argument\n", program);
 		goto usage;
-	} else for (c = optind; c < argc; ++c) {
-			if (ni_string_empty(argv[c])) {
-				printf("ARG: %s\n", argv[c]);
-				goto usage;
-			}
+	}
+	for (c = optind; c < argc; ++c) {
+		if (ni_string_empty(argv[c]))
+			goto usage;
 	}
 
 	if (!ni_fsm_create_client(fsm)) {
@@ -197,7 +180,7 @@ usage:
 		}
 	}
 
-	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, check_prio, TRUE)) {
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE, TRUE)) {
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 		goto cleanup;
 	}
@@ -381,28 +364,26 @@ cleanup:
 	ni_string_array_destroy(&opt_ifconfig);
 	ni_ifworker_array_destroy(&down_marked);
 	ni_ifworker_array_destroy(&up_marked);
+	ni_string_free(&program);
+	argv[0] = saved_argv0;
 	return status;
 }
 
 static int
-ni_do_ifreload_nanny(int argc, char **argv)
+ni_do_ifreload_nanny(const char *caller, int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_IFCONFIG, OPT_PERSISTENT, OPT_TRANSIENT,
-		OPT_TIMEOUT,
-#ifdef NI_TEST_HACKS
-		OPT_IGNORE_PRIO, OPT_IGNORE_STARTMODE,
-#endif
+	enum  {
+		OPT_HELP	= 'h',
+		OPT_IFCONFIG	= 'i',
+		OPT_TIMEOUT	= 't',
+		OPT_PERSISTENT	= 'P',
+		OPT_TRANSIENT	= 'T',
 	};
-
 	static struct option ifreload_options[] = {
 		{ "help",		no_argument,		NULL,	OPT_HELP },
 		{ "ifconfig",		required_argument,	NULL,	OPT_IFCONFIG },
 		{ "timeout",		required_argument,	NULL,	OPT_TIMEOUT },
 		{ "transient",		no_argument,		NULL,	OPT_TRANSIENT },
-#ifdef NI_TEST_HACKS
-		{ "ignore-prio",	no_argument,		NULL, 	OPT_IGNORE_PRIO },
-		{ "ignore-startmode",	no_argument,		NULL,	OPT_IGNORE_STARTMODE },
-#endif
 		{ "persistent",		no_argument,		NULL,	OPT_PERSISTENT },
 
 		{ NULL,			no_argument,		NULL,	0 }
@@ -413,11 +394,11 @@ ni_do_ifreload_nanny(int argc, char **argv)
 	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	ni_nanny_fsm_monitor_t *monitor = NULL;
 	ni_ifmatcher_t ifmatch;
-	ni_bool_t check_prio = TRUE;
-	ni_bool_t set_persistent = FALSE;
+	ni_bool_t opt_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
 	unsigned int opt_timeout = 0;
 	int c, status = NI_WICKED_RC_USAGE;
+	char *saved_argv0, *program = NULL;
 	unsigned int nmarked, i;
 	ni_fsm_t *fsm;
 
@@ -431,25 +412,19 @@ ni_do_ifreload_nanny(int argc, char **argv)
 	ni_assert(fsm);
 	ni_fsm_require_register_type("reachable", ni_ifworker_reachability_check_new);
 
+	ni_string_printf(&program, "%s %s",	caller  ? caller  : "wicked",
+						argv[0] ? argv[0] : "ifreload");
+	saved_argv0 = argv[0];
+	argv[0] = program;
 	optind = 1;
-	while ((c = getopt_long(argc, argv, "", ifreload_options, NULL)) != EOF) {
+	while ((c = getopt_long(argc, argv, "+hi:t:PT", ifreload_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_IFCONFIG:
 			ni_string_array_append(&opt_ifconfig, optarg);
 			break;
 
-#ifdef NI_TEST_HACKS
-		case OPT_IGNORE_PRIO:
-			check_prio = FALSE;
-			break;
-
-		case OPT_IGNORE_STARTMODE:
-			ifmatch.ignore_startmode = TRUE;
-			break;
-#endif
-
 		case OPT_PERSISTENT:
-			set_persistent = TRUE;
+			opt_persistent = TRUE;
 			break;
 
 		case OPT_TRANSIENT:
@@ -462,8 +437,8 @@ ni_do_ifreload_nanny(int argc, char **argv)
 			} else if (ni_parse_uint(optarg, &opt_timeout, 10) >= 0) {
 				opt_timeout *= 1000; /* sec -> msec */
 			} else {
-				ni_error("ifup: cannot parse timeout option \"%s\"",
-						optarg);
+				ni_error("%s: cannot parse timeout option \"%s\"",
+						program, optarg);
 				goto usage;
 			}
 			break;
@@ -472,7 +447,7 @@ ni_do_ifreload_nanny(int argc, char **argv)
 		case OPT_HELP:
 usage:
 			fprintf(stderr,
-				"wicked [options] ifreload [ifreload-options] <ifname ...>|all\n"
+				"%s [ifreload-options] <ifname ...>|all\n"
 				"\nSupported ifreload-options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
@@ -482,28 +457,21 @@ usage:
 				"      Read interface configuration(s) from file\n"
 				"  --timeout <sec>\n"
 				"      Timeout after <sec> seconds\n"
-#ifdef NI_TEST_HACKS
-				"  --ignore-prio\n"
-				"      Ignore checking the config origin priorities\n"
-				"  --ignore-startmode\n"
-				"      Ignore checking the STARTMODE=off and STARTMODE=manual configs\n"
-#endif
 				"  --persistent\n"
 				"      Set interface into persistent mode (no regular ifdown allowed)\n"
-				);
+				, program);
 			goto cleanup;
 		}
 	}
 
 	/* at least one argument is required */
 	if (optind >= argc) {
-		fprintf(stderr, "Missing interface argument\n");
+		fprintf(stderr, "%s: missing interface argument\n", program);
 		goto usage;
-	} else for (c = optind; c < argc; ++c) {
-			if (ni_string_empty(argv[c])) {
-				printf("ARG: %s\n", argv[c]);
-				goto usage;
-			}
+	}
+	for (c = optind; c < argc; ++c) {
+		if (ni_string_empty(argv[c]))
+			goto usage;
 	}
 
 	if (!ni_fsm_create_client(fsm)) {
@@ -531,7 +499,7 @@ usage:
 		}
 	}
 
-	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, check_prio, TRUE)) {
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE, TRUE)) {
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 		goto cleanup;
 	}
@@ -689,7 +657,7 @@ usage:
 
 		/* And trigger up */
 		ni_debug_application("Reloading all changed devices");
-		if (!ni_ifup_hire_nanny(&up_marked, set_persistent))
+		if (!ni_ifup_hire_nanny(&up_marked, opt_persistent))
 			status = NI_WICKED_RC_NOT_CONFIGURED;
 
 		/* Wait for device up-transition progress events */
@@ -717,14 +685,16 @@ cleanup:
 	ni_string_array_destroy(&opt_ifconfig);
 	ni_ifworker_array_destroy(&down_marked);
 	ni_ifworker_array_destroy(&up_marked);
+	ni_string_free(&program);
+	argv[0] = saved_argv0;
 	return status;
 }
 
 int
-ni_do_ifreload(int argc, char **argv)
+ni_do_ifreload(const char *caller, int argc, char **argv)
 {
 	if (ni_config_use_nanny())
-		return ni_do_ifreload_nanny(argc, argv);
+		return ni_do_ifreload_nanny(caller, argc, argv);
 	else
-		return ni_do_ifreload_direct(argc, argv);
+		return ni_do_ifreload_direct(caller, argc, argv);
 }

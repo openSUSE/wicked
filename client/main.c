@@ -283,7 +283,7 @@ main(int argc, char **argv)
 		status = ni_do_ifcheck(argc - optind, argv + optind);
 	} else
 	if (!strcmp(cmd, "ifreload")) {
-		status = ni_do_ifreload(argc - optind, argv + optind);
+		status = ni_do_ifreload(program, argc - optind, argv + optind);
 	} else
 	if (!strcmp(cmd, "ifstatus")) {
 		status = ni_do_ifstatus(argc - optind, argv + optind);
