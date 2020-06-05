@@ -133,6 +133,7 @@ static int	__ni_rtnl_link_change_hwaddr(ni_netdev_t *dev, const ni_hwaddr_t *hwa
 
 static int	__ni_rtnl_link_up(const ni_netdev_t *, const ni_netdev_req_t *);
 static int	__ni_rtnl_link_down(const ni_netdev_t *);
+static int	__ni_rtnl_link_unenslave(const ni_netdev_t *);
 static int	__ni_rtnl_link_delete(const ni_netdev_t *);
 
 static int	__ni_rtnl_link_add_port_up(const ni_netdev_t *, const char *, unsigned int);
@@ -281,6 +282,75 @@ ni_system_interface_enslave(ni_netconfig_t *nc, ni_netdev_t *master, ni_netdev_t
 	return ret;
 }
 
+static int
+ni_system_interface_unenslave(ni_netconfig_t *nc, ni_netdev_t *dev)
+{
+	ni_netdev_t *master;
+	char *bridge = NULL;
+
+	if (!nc || !dev || !dev->link.masterdev.index)
+		return -1;
+
+	master = ni_netdev_by_index(nc, dev->link.masterdev.index);
+	if (!master) {
+		ni_error("%s: unable to find master interface %s#%u",
+				dev->name, dev->link.masterdev.name,
+				dev->link.masterdev.index);
+		return -1;
+	}
+
+	switch (master->link.type) {
+		case NI_IFTYPE_OVS_SYSTEM:
+			if (ni_ovs_vsctl_bridge_port_to_bridge(dev->name, &bridge)) {
+				ni_error("%s: unable to find ovs bridge interface to unenslave",
+						dev->name);
+				return -1;
+			}
+			if (ni_ovs_vsctl_bridge_port_del(bridge, dev->name)) {
+				ni_error("%s: unable to unenslave port from ovs-bridge %s",
+						dev->name, bridge);
+				return -1;
+			}
+			break;
+
+		case NI_IFTYPE_TEAM:
+			if (ni_teamd_port_unenslave(master, dev)) {
+				ni_error("%s: unable to unenslave port from team %s",
+						dev->name, master->name);
+				return -1;
+			}
+			break;
+
+		case NI_IFTYPE_BOND:
+			if (__ni_rtnl_link_unenslave(dev) != NLE_SUCCESS)
+				return -1;
+
+			if (dev->bonding) {
+				ni_bonding_slave_array_t *slaves = &dev->bonding->slaves;
+				unsigned int i;
+
+				i = ni_bonding_slave_array_index_by_ifindex(slaves, dev->link.ifindex);
+				ni_bonding_slave_array_delete(slaves, i);
+			}
+			break;
+
+		case NI_IFTYPE_BRIDGE:
+			if (__ni_rtnl_link_unenslave(dev) != NLE_SUCCESS)
+				return -1;
+
+			if (dev->bridge) {
+				ni_bridge_del_port_ifindex(dev->bridge, dev->link.ifindex);
+			}
+			break;
+
+		default:
+			if (__ni_rtnl_link_unenslave(dev) != NLE_SUCCESS)
+				return -1;
+			break;
+	}
+	return 0;
+}
+
 int
 ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req)
 {
@@ -374,7 +444,10 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 
 		/* Now take down the link for real */
 		ni_debug_ifconfig("shutting down interface %s", dev->name);
-		if (__ni_rtnl_link_down(dev)) {
+		if (dev->link.masterdev.index && ni_system_interface_unenslave(nc, dev)) {
+			ni_error("unable to shut down and unenslave %s", dev->name);
+			return -1;
+		} else if (__ni_rtnl_link_down(dev)) {
 			ni_error("unable to shut down interface %s", dev->name);
 			return -1;
 		}
@@ -4265,6 +4338,51 @@ __ni_rtnl_link_delete(const ni_netdev_t *dev)
 	default:
 		return rv;
 	}
+}
+
+/*
+ * Set the interface link down and unenslave from master
+ */
+int
+__ni_rtnl_link_unenslave(const ni_netdev_t *dev)
+{
+	struct ifinfomsg ifi;
+	struct nl_msg *msg;
+	int err = 0;
+
+	if (!dev->link.masterdev.index)
+		return __ni_rtnl_link_down(dev);
+
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+	ifi.ifi_index = dev->link.ifindex;
+	ifi.ifi_change = IFF_UP;
+
+	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST);
+	if (!msg || nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	NLA_PUT_U32(msg, IFLA_MASTER, 0);
+
+	if ((err = ni_nl_talk(msg, NULL)) != NLE_SUCCESS)
+		goto nl_talk_failed;
+
+	ni_debug_ifconfig("%s: successfully set down and unenslaved from master %s#%u",
+			dev->name, dev->link.masterdev.name, dev->link.masterdev.index);
+
+cleanup:
+	nlmsg_free(msg);
+	return err;
+
+nla_put_failure:
+	ni_error("%s: failed to encode netlink message to unenslave from master %s: %s",
+			dev->name, dev->link.masterdev.name, nl_geterror(err));
+	goto cleanup;
+
+nl_talk_failed:
+	ni_error("%s: failed to set down and unenslave from master %s: %s",
+			dev->name, dev->link.masterdev.name, nl_geterror(err));
+	goto cleanup;
 }
 
 /*
