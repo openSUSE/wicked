@@ -187,14 +187,9 @@ ni_system_interface_enslave(ni_netconfig_t *nc, ni_netdev_t *master, ni_netdev_t
 		return -1;
 
 	if (dev->link.masterdev.index) {
-		if (dev->link.masterdev.index == master->link.ifindex) {
-			ni_debug_ifconfig("%s: already enslaved into %s[#%u]",
-					dev->name, dev->link.masterdev.name,
-					dev->link.masterdev.index);
-			return 0;
-		} else {
-			ni_error("%s: already enslaved into %s[#%u]",
-					dev->name, dev->link.masterdev.name,
+		if (dev->link.masterdev.index != master->link.ifindex) {
+			ni_error("%s: already enslaved into %s[#%u]", dev->name,
+					dev->link.masterdev.name,
 					dev->link.masterdev.index);
 			return -1;
 		}
@@ -219,6 +214,9 @@ ni_system_interface_enslave(ni_netconfig_t *nc, ni_netdev_t *master, ni_netdev_t
 
 	switch (master->link.type) {
 	case NI_IFTYPE_BOND:
+		if (dev->link.masterdev.index)
+			return 0;
+
 		ret = __ni_rtnl_link_add_slave_down(dev, master->name,
 						master->link.ifindex);
 		if (ret == 0) {
@@ -352,11 +350,12 @@ ni_system_interface_unenslave(ni_netconfig_t *nc, ni_netdev_t *dev)
 }
 
 int
-ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req)
+ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *req)
 {
 	ni_netconfig_t *nc = ni_global_state_handle(0);
-	ni_netdev_t *master;
+	ni_netdev_t *master = NULL, *current;
 	unsigned int ifflags;
+	int ret;
 
 	if (dev == NULL)
 		return -NI_ERROR_INVALID_ARGS;
@@ -367,63 +366,66 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 	/* FIXME: perform sanity check on configuration data,
 	 *        cleanup the tweaks we've added
 	 */
-	ifflags = ifp_req? ifp_req->ifflags : 0;
+	ifflags = req ? req->ifflags : 0;
 	if (ifflags & (NI_IFF_DEVICE_UP|NI_IFF_LINK_UP|NI_IFF_NETWORK_UP)) {
-		/*
-		 * master manages the link of a slave, redirect to enslave
-		 * when there is a master set.
-		 */
+
+		/* make sure, our reference devices are up-to-date */
 		if (dev->link.masterdev.index) {
-			master = ni_netdev_by_index(nc, dev->link.masterdev.index);
-			if (master)
-				__ni_system_refresh_interface(nc, master);
+			current = ni_netdev_by_index(nc, dev->link.masterdev.index);
+			if (current)
+				__ni_system_refresh_interface(nc, current);
 			else
 				__ni_system_refresh_interfaces(nc);
 		}
 
-		if (dev->link.masterdev.index) {
-			if (!dev->link.masterdev.name)
-				ni_netdev_ref_bind_ifname(&dev->link.masterdev, nc);
-
-			ni_debug_ifconfig("%s: already enslaved in master %s[#%u]",
-					dev->name, dev->link.masterdev.name ?
-					dev->link.masterdev.name : "",
-					dev->link.masterdev.index);
-
-			master = ni_netdev_by_index(nc, dev->link.masterdev.index);
-			if (master && master->link.type == NI_IFTYPE_TEAM && ni_config_teamd_enabled()) {
-				if (ifp_req->port && master->link.type == ifp_req->port->type)
-					ni_teamd_port_enslave(master, dev, &ifp_req->port->team);
-
-				ni_teamd_discover(master);
+		if (req && !ni_string_empty(req->master.name)) {
+			master = ni_netdev_by_name(nc, req->master.name);
+			if (!master) {
+				ni_error("%s: unable to find requested master inteface %s",
+						dev->name, req->master.name);
+				return -1;
 			}
-			if (master && master->link.type == NI_IFTYPE_OVS_SYSTEM) {
-				if (ifp_req->port && ifp_req->port->type == NI_IFTYPE_OVS_BRIDGE &&
-				    !ni_string_empty(ifp_req->port->ovsbr.bridge.name)) {
-					ni_ovs_vsctl_bridge_port_add(dev->name, &ifp_req->port->ovsbr, TRUE);
+
+			if (dev->link.masterdev.index &&
+			    dev->link.masterdev.index != master->link.ifindex) {
+				ni_note("%s: unenslave from current master %s[#%u]",
+						dev->name, dev->link.masterdev.name,
+						dev->link.masterdev.index);
+
+				if ((ret = ni_system_interface_unenslave(nc, dev)))
+					return ret;
+
+				current = ni_netdev_by_index(nc, dev->link.masterdev.index);
+				if (current) {
+					__ni_system_refresh_interface(nc, current);
+					__ni_system_refresh_interface(nc, dev);
+				} else {
+					__ni_system_refresh_interfaces(nc);
 				}
 			}
 
-			if (ni_netdev_device_is_up(dev))
-				return 0;
-
-			if (master &&  (master->link.type == NI_IFTYPE_BOND ||
-					master->link.type == NI_IFTYPE_TEAM))
-				return 0;
+			if ((ret = ni_system_interface_enslave(nc, master, dev, req)))
+				return ret;
 		} else
-		/* config lookup for master and redirect to master's enslave */
-		if (ifp_req && !ni_string_empty(ifp_req->master.name)) {
-			int ret;
+		if (dev->link.masterdev.index) {
+			ni_note("%s: unenslave from current master %s[#%u]",
+					dev->name, dev->link.masterdev.name,
+					dev->link.masterdev.index);
 
-			master = ni_netdev_by_name(nc, ifp_req->master.name);
-			ret = ni_system_interface_enslave(nc, master, dev, ifp_req);
-			if (!master || master->link.type != NI_IFTYPE_OVS_SYSTEM)
+			if ((ret = ni_system_interface_unenslave(nc, dev)))
 				return ret;
 		}
 
+		if (ni_netdev_device_is_up(dev))
+			return 0;
+
+		if (master && (master->link.type == NI_IFTYPE_BOND ||
+				master->link.type == NI_IFTYPE_TEAM))
+			return 0;
+
 		ni_debug_ifconfig("bringing up %s", dev->name);
 
-		if (__ni_rtnl_link_up(dev, ifp_req)) {
+		if (__ni_rtnl_link_up(dev, req)) {
 			ni_error("%s: failed to bring up interface (rtnl error)",
 					dev->name);
 			return -1;
@@ -432,10 +434,6 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *ifp_req
 		if (dev->link.type == NI_IFTYPE_WIRELESS)
 			ni_wireless_connect(dev);
 	} else {
-		/* FIXME: Shut down any addrconf services on this interface?
-		 * We should expect these services to detect the link down event...
-		 */
-
 		if (dev->link.type == NI_IFTYPE_WIRELESS)
 			ni_wireless_disconnect(dev);
 
