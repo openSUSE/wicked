@@ -1,0 +1,3 @@
+include:
+  - project: 'wicked-maintainers/wicked-ci'
+    file: '/wicked-ci.yml'
