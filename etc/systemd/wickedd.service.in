@@ -1,9 +1,9 @@
 [Unit]
 Description=wicked network management service daemon
 Requisite=dbus.service
-Wants=wickedd-nanny.service wickedd-dhcp6.service wickedd-dhcp4.service wickedd-auto4.service systemd-udev-settle.service
-After=local-fs.target dbus.service isdn.service rdma.service network-pre.target SuSEfirewall2_init.service systemd-udev-settle.service openvswitch.service
-Before=wickedd-nanny.service wicked.service network.target
+Wants=wickedd-nanny.service wickedd-dhcp6.service wickedd-dhcp4.service wickedd-auto4.service
+After=local-fs.target dbus.service isdn.service rdma.service network-pre.target SuSEfirewall2_init.service
+Before=wickedd-nanny.service network.target
 
 [Service]
 Type=notify
@@ -18,3 +18,4 @@ Also=wickedd-nanny.service
 Also=wickedd-auto4.service
 Also=wickedd-dhcp4.service
 Also=wickedd-dhcp6.service
+Alias=network.service
