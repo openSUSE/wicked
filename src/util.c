@@ -665,11 +665,12 @@ ni_var_array_insert(ni_var_array_t *nva, unsigned int pos, const char *name, con
 	}
 
 	if (pos >= nva->count) {
-		var = &nva->data[nva->count++];
+		var = &nva->data[nva->count];
 	} else {
 		memmove(&nva->data[pos + 1], &nva->data[pos], (nva->count - pos) * sizeof(ni_var_t));
 		var = &nva->data[pos];
 	}
+	nva->count++;
 	var->name = tmp.name;
 	var->value = tmp.value;
 	return TRUE;
