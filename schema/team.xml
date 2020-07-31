@@ -15,7 +15,7 @@
   </define>
 
   <define name="activebackup-runner" class="dict">
-    <hwaddr-policy     type="builtin-team-ab-hwaddr-policy" />
+    <hwaddr_policy     type="builtin-team-ab-hwaddr-policy" />
   </define>
 
   <define name="loadbalance-runner" class="dict">
