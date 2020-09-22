@@ -48,24 +48,20 @@
 #include "ifstatus.h"
 
 static int
-ni_do_ifreload_direct(int argc, char **argv)
+ni_do_ifreload_direct(const char *caller, int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_IFCONFIG, OPT_PERSISTENT, OPT_TRANSIENT,
-		OPT_TIMEOUT,
-#ifdef NI_TEST_HACKS
-		OPT_IGNORE_PRIO, OPT_IGNORE_STARTMODE,
-#endif
+	enum  {
+		OPT_HELP	= 'h',
+		OPT_IFCONFIG	= 'i',
+		OPT_TIMEOUT	= 't',
+		OPT_PERSISTENT	= 'P',
+		OPT_TRANSIENT	= 'T',
 	};
-
 	static struct option ifreload_options[] = {
 		{ "help",		no_argument,		NULL,	OPT_HELP },
 		{ "ifconfig",		required_argument,	NULL,	OPT_IFCONFIG },
 		{ "timeout",		required_argument,	NULL,	OPT_TIMEOUT },
 		{ "transient",		no_argument,		NULL,	OPT_TRANSIENT },
-#ifdef NI_TEST_HACKS
-		{ "ignore-prio",	no_argument,		NULL, 	OPT_IGNORE_PRIO },
-		{ "ignore-startmode",	no_argument,		NULL,	OPT_IGNORE_STARTMODE },
-#endif
 		{ "persistent",		no_argument,		NULL,	OPT_PERSISTENT },
 
 		{ NULL,			no_argument,		NULL,	0 }
@@ -75,11 +71,11 @@ ni_do_ifreload_direct(int argc, char **argv)
 	ni_ifworker_array_t down_marked = NI_IFWORKER_ARRAY_INIT;
 	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	ni_ifmatcher_t ifmatch;
-	ni_bool_t check_prio = TRUE;
 	ni_bool_t opt_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
 	unsigned int opt_timeout = 0;
 	int c, status = NI_WICKED_RC_USAGE;
+	char *saved_argv0, *program = NULL;
 	unsigned int nmarked, i;
 	const ni_uint_range_t up_range = {
 		.min = __NI_FSM_STATE_MAX - 1,
@@ -97,22 +93,16 @@ ni_do_ifreload_direct(int argc, char **argv)
 	ni_assert(fsm);
 	ni_fsm_require_register_type("reachable", ni_ifworker_reachability_check_new);
 
+	ni_string_printf(&program, "%s %s",	caller  ? caller  : "wicked",
+						argv[0] ? argv[0] : "ifreload");
+	saved_argv0 = argv[0];
+	argv[0] = program;
 	optind = 1;
-	while ((c = getopt_long(argc, argv, "", ifreload_options, NULL)) != EOF) {
+	while ((c = getopt_long(argc, argv, "+hi:t:PT", ifreload_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_IFCONFIG:
 			ni_string_array_append(&opt_ifconfig, optarg);
 			break;
-
-#ifdef NI_TEST_HACKS
-		case OPT_IGNORE_PRIO:
-			check_prio = FALSE;
-			break;
-
-		case OPT_IGNORE_STARTMODE:
-			ifmatch.ignore_startmode = TRUE;
-			break;
-#endif
 
 		case OPT_PERSISTENT:
 			opt_persistent = TRUE;
@@ -128,8 +118,8 @@ ni_do_ifreload_direct(int argc, char **argv)
 			} else if (ni_parse_uint(optarg, &opt_timeout, 10) >= 0) {
 				opt_timeout *= 1000; /* sec -> msec */
 			} else {
-				ni_error("ifup: cannot parse timeout option \"%s\"",
-						optarg);
+				ni_error("%s: cannot parse timeout option \"%s\"",
+						program, optarg);
 				goto usage;
 			}
 			break;
@@ -138,7 +128,7 @@ ni_do_ifreload_direct(int argc, char **argv)
 		case OPT_HELP:
 usage:
 			fprintf(stderr,
-				"wicked [options] ifreload [ifreload-options] <ifname ...>|all\n"
+				"%s [ifreload-options] <ifname ...>|all\n"
 				"\nSupported ifreload-options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
@@ -148,28 +138,21 @@ usage:
 				"      Read interface configuration(s) from file\n"
 				"  --timeout <sec>\n"
 				"      Timeout after <sec> seconds\n"
-#ifdef NI_TEST_HACKS
-				"  --ignore-prio\n"
-				"      Ignore checking the config origin priorities\n"
-				"  --ignore-startmode\n"
-				"      Ignore checking the STARTMODE=off and STARTMODE=manual configs\n"
-#endif
 				"  --persistent\n"
 				"      Set interface into persistent mode (no regular ifdown allowed)\n"
-				);
+				, program);
 			goto cleanup;
 		}
 	}
 
 	/* at least one argument is required */
 	if (optind >= argc) {
-		fprintf(stderr, "Missing interface argument\n");
+		fprintf(stderr, "%s: missing interface argument\n", program);
 		goto usage;
-	} else for (c = optind; c < argc; ++c) {
-			if (ni_string_empty(argv[c])) {
-				printf("ARG: %s\n", argv[c]);
-				goto usage;
-			}
+	}
+	for (c = optind; c < argc; ++c) {
+		if (ni_string_empty(argv[c]))
+			goto usage;
 	}
 
 	if (!ni_fsm_create_client(fsm)) {
@@ -197,7 +180,7 @@ usage:
 		}
 	}
 
-	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, check_prio, TRUE)) {
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE, TRUE)) {
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 		goto cleanup;
 	}
@@ -381,28 +364,288 @@ cleanup:
 	ni_string_array_destroy(&opt_ifconfig);
 	ni_ifworker_array_destroy(&down_marked);
 	ni_ifworker_array_destroy(&up_marked);
+	ni_string_free(&program);
+	argv[0] = saved_argv0;
 	return status;
 }
 
-static int
-ni_do_ifreload_nanny(int argc, char **argv)
+static ni_bool_t
+ifreload_mark_add(ni_ifworker_array_t *marked, ni_ifworker_t *w)
 {
-	enum  { OPT_HELP, OPT_IFCONFIG, OPT_PERSISTENT, OPT_TRANSIENT,
-		OPT_TIMEOUT,
-#ifdef NI_TEST_HACKS
-		OPT_IGNORE_PRIO, OPT_IGNORE_STARTMODE,
-#endif
-	};
+	if (ni_ifworker_array_index(marked, w) != -1)
+		return FALSE;
 
+	ni_ifworker_array_append(marked, w);
+	return TRUE;
+}
+
+static inline void
+ifreload_mark_down_lower_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *lower,
+				void (*logit)(const char *, ...) __fmtattr)
+{
+	ni_ifworker_t *w;
+	unsigned int i;
+
+	/* we need to shutdown also all depending worker devices c
+	 * that can't exist without w device (c->lowerdev == w) */
+	for (i = 0; i < fsm->workers.count; ++i) {
+		w = fsm->workers.data[i];
+
+		if (!w || w->lowerdev != lower)
+			continue;
+
+		if (ni_ifcheck_device_is_persistent(w->device)) {
+			logit("skipping %s shutdown: persistent mode is on", w->name);
+			continue;
+		}
+
+		w->target_range.min = NI_FSM_STATE_NONE;
+		w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
+
+		if (!ifreload_mark_add(marked, w))
+			continue;
+
+		logit("marked %s for shutdown (config: %s, device: %s, target state %s) as dependency",
+				w->name,
+				ni_ifcheck_worker_config_exists(w) ? "exists" :
+				ni_ifcheck_device_configured(w->device) ? "deleted" : "-",
+				ni_ifcheck_worker_device_exists(w) ? "exists" : "-",
+				ni_ifworker_state_name(w->target_range.max));
+	}
+}
+
+static ni_bool_t
+ifreload_mark_down(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *w,
+				void (*logit)(const char *, ...) __fmtattr)
+{
+	/* ifdown is disabled when persistent mode is on (todo: add --force?) */
+	if (ni_ifcheck_device_is_persistent(w->device)) {
+		logit("skipping %s shutdown: persistent mode is on", w->name);
+		return FALSE;
+	}
+
+	/* initialize as if the config would have been modified */
+	if (ni_ifcheck_worker_config_exists(w)) {
+		w->target_range.min = NI_FSM_STATE_NONE;
+		w->target_range.max = NI_FSM_STATE_DEVICE_READY;
+
+		/* the config has been modified, but some changes require deletion */
+		if (w->iftype == NI_IFTYPE_TEAM) {
+			/* e.g. the team runner (mode) changes require teamd restart */
+			w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
+		} else
+		if (w->iftype != NI_IFTYPE_UNKNOWN) {
+			/* if type changed, e.g. device is bond with bridge config */
+			if (w->device && w->device->link.type != w->iftype)
+				w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
+		}
+	} else
+	if (ni_ifcheck_device_configured(w->device)) {
+		/* config has been removed, so just delete it if applicable (=virtual) */
+		w->target_range.min = NI_FSM_STATE_NONE;
+		w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
+		ni_client_state_config_reset(&w->config.meta);
+	} else
+	if (!ni_ifcheck_worker_device_exists(w)) {
+		/* when the device does not exists, delete policy in nanny (if any) */
+		w->target_range.min = NI_FSM_STATE_NONE;
+		w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
+	} else {
+		/* do not shut down devices we don't handle */
+		logit("skipping %s shutdown: device was not configured by wicked", w->name);
+		return FALSE;
+	}
+
+	/* shut down depending devices because this one is deleted */
+	if (w->target_range.max == NI_FSM_STATE_DEVICE_DOWN)
+		ifreload_mark_down_lower_deps(fsm, marked, w, logit);
+
+	if (!ifreload_mark_add(marked, w))
+		return FALSE;
+
+	logit("marked %s for shutdown (config: %s, device: %s, target state %s)",
+			w->name,
+			ni_ifcheck_worker_config_exists(w) ? "exists" :
+			ni_ifcheck_device_configured(w->device) ? "deleted" : "-",
+			ni_ifcheck_worker_device_exists(w) ? "exists" : "-",
+			ni_ifworker_state_name(w->target_range.max));
+
+	return TRUE;
+}
+
+static void
+ifreload_mark_up_slave_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *master,
+				void (*logit)(const char *, ...) __fmtattr)
+{
+	ni_ifworker_t *w;
+	unsigned int i;
+
+	for (i = 0; i < fsm->workers.count; ++i) {
+		w = fsm->workers.data[i];
+
+		if (!w || w->masterdev != master)
+			continue;
+
+		if (!ni_ifcheck_worker_config_exists(w)) {
+			logit("skipping %s set-up: no configuration available", w->name);
+			continue;
+		}
+
+		if (!ifreload_mark_add(marked, w))
+			continue;
+
+		logit("marked %s for set-up (config: %s, device: %s, target state %s) as dependency",
+				w->name,
+				(ni_ifcheck_worker_config_exists(w) ?
+				 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
+				 (ni_ifcheck_device_configured(w->device) ? "deleted" : "-")),
+				(ni_ifcheck_worker_device_exists(w) ? "exists" : "-"),
+				ni_ifworker_state_name(w->target_range.max));
+	}
+}
+
+static void
+ifreload_mark_up_master(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *w,
+				void (*logit)(const char *, ...) __fmtattr)
+{
+	if (!ni_ifcheck_worker_config_exists(w)) {
+		logit("skipping %s set-up: no configuration available", w->name);
+		return;
+	}
+
+	if (!ifreload_mark_add(marked, w))
+		return;
+
+	logit("marked %s for set-up (config %s, device %s, target state %s) as dependency",
+			w->name,
+			(ni_ifcheck_worker_config_exists(w) ?
+			 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
+			 (ni_ifcheck_device_configured(w->device) ? "deleted" : "-")),
+			(ni_ifcheck_worker_device_exists(w) ? "exists" : "-"),
+			ni_ifworker_state_name(w->target_range.max));
+}
+
+static void
+ifreload_mark_up_lower_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *lower,
+				void (*logit)(const char *, ...) __fmtattr)
+{
+	ni_ifworker_t *w;
+	unsigned int i;
+
+	for (i = 0; i < fsm->workers.count; ++i) {
+		w = fsm->workers.data[i];
+
+		if (!w || w->lowerdev != lower)
+			continue;
+
+		if (!ni_ifcheck_worker_config_exists(w)) {
+			logit("skipping %s set-up: no configuration available", w->name);
+			continue;
+		}
+
+		/* e.g. a vlan [w] can't exist without it's lowerdev [l]
+		 * and is deleted as dependency to deletion of lower [l].
+		 * for now, we need to trigger set-up of it's master [m]
+		 * (team0 [l] <-lower- team0.42 [w] -master-> [m] br42)
+		 * to ensure it gets (re-)enslaved into it.
+		 */
+		if (w->masterdev)
+			ifreload_mark_up_master(fsm, marked, w->masterdev, logit);
+
+		if (!ifreload_mark_add(marked, w))
+			continue;
+
+		logit("marked %s for set-up (config %s, device %s, target state %s) as dependency",
+				w->name,
+				(ni_ifcheck_worker_config_exists(w) ?
+				 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
+				 (ni_ifcheck_device_configured(w->device) ? "deleted" : "-")),
+				(ni_ifcheck_worker_device_exists(w) ? "exists" : "-"),
+				ni_ifworker_state_name(w->target_range.max));
+	}
+}
+
+static ni_bool_t
+ifreload_mark_up(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *w,
+				void (*logit)(const char *, ...) __fmtattr)
+{
+	if (!ni_ifcheck_worker_config_exists(w)) {
+		logit("skipping %s set-up: no configuration available", w->name);
+		return FALSE;
+	}
+
+	/* trigger set-up for slaves to (re-)enslave them */
+	ifreload_mark_up_slave_deps(fsm, marked, w, logit);
+
+	/* trigger set-up for devices we're base / lower
+	 * for as they can't exists without their base */
+	ifreload_mark_up_lower_deps(fsm, marked, w, logit);
+
+	if (!ifreload_mark_add(marked, w))
+		return FALSE;
+
+	logit("marked %s for set-up (config %s, device %s, target state %s)",
+			w->name,
+			(ni_ifcheck_worker_config_exists(w) ?
+			 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
+			 (ni_ifcheck_device_configured(w->device) ? "deleted" : "-")),
+			(ni_ifcheck_worker_device_exists(w) ? "exists" : "-"),
+			ni_ifworker_state_name(w->target_range.max));
+
+	return TRUE;
+}
+
+static void
+ifreload_mark_workers(const ni_fsm_t *fsm, ni_ifworker_array_t *down_marked, ni_ifworker_array_t *up_marked, const char *ifname)
+{
+	void (*logit)(const char *, ...) __fmtattr = ifname ? ni_note : ni_info;
+	ni_ifworker_t *w;
+	unsigned int i;
+
+	/* shutdown if config changed + dependencies */
+	for (i = 0; i < fsm->workers.count; ++i) {
+		w = fsm->workers.data[i];
+
+		if (w->type != NI_IFWORKER_TYPE_NETDEV)
+			continue;
+
+		if (ifname && !ni_string_eq(w->name, ifname))
+			continue;
+
+		if (!ni_ifcheck_worker_config_matches(w))
+			ifreload_mark_down(fsm, down_marked, w, logit);
+	}
+
+	/* set-up if config changed + dependencies */
+	for (i = 0; i < fsm->workers.count; ++i) {
+		w = fsm->workers.data[i];
+
+		if (w->type != NI_IFWORKER_TYPE_NETDEV)
+			continue;
+
+		if (ifname && !ni_string_eq(w->name, ifname))
+			continue;
+
+		if (!ni_ifcheck_worker_config_matches(w))
+			ifreload_mark_up(fsm, up_marked, w, logit);
+	}
+}
+
+static int
+ni_do_ifreload_nanny(const char *caller, int argc, char **argv)
+{
+	enum  {
+		OPT_HELP	= 'h',
+		OPT_IFCONFIG	= 'i',
+		OPT_TIMEOUT	= 't',
+		OPT_PERSISTENT	= 'P',
+		OPT_TRANSIENT	= 'T',
+	};
 	static struct option ifreload_options[] = {
 		{ "help",		no_argument,		NULL,	OPT_HELP },
 		{ "ifconfig",		required_argument,	NULL,	OPT_IFCONFIG },
 		{ "timeout",		required_argument,	NULL,	OPT_TIMEOUT },
 		{ "transient",		no_argument,		NULL,	OPT_TRANSIENT },
-#ifdef NI_TEST_HACKS
-		{ "ignore-prio",	no_argument,		NULL, 	OPT_IGNORE_PRIO },
-		{ "ignore-startmode",	no_argument,		NULL,	OPT_IGNORE_STARTMODE },
-#endif
 		{ "persistent",		no_argument,		NULL,	OPT_PERSISTENT },
 
 		{ NULL,			no_argument,		NULL,	0 }
@@ -412,44 +655,31 @@ ni_do_ifreload_nanny(int argc, char **argv)
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	ni_nanny_fsm_monitor_t *monitor = NULL;
-	ni_ifmatcher_t ifmatch;
-	ni_bool_t check_prio = TRUE;
-	ni_bool_t set_persistent = FALSE;
+	ni_bool_t opt_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
 	unsigned int opt_timeout = 0;
 	int c, status = NI_WICKED_RC_USAGE;
-	unsigned int nmarked, i;
+	char *saved_argv0, *program = NULL;
+	unsigned int i;
 	ni_fsm_t *fsm;
-
-	/* Allow ifreload on all interfaces with a changed config */
-	memset(&ifmatch, 0, sizeof(ifmatch));
-	ifmatch.require_configured = FALSE;
-	ifmatch.allow_persistent = TRUE;
-	ifmatch.require_config = FALSE;
 
 	fsm = ni_fsm_new();
 	ni_assert(fsm);
 	ni_fsm_require_register_type("reachable", ni_ifworker_reachability_check_new);
 
+	ni_string_printf(&program, "%s %s",	caller  ? caller  : "wicked",
+						argv[0] ? argv[0] : "ifreload");
+	saved_argv0 = argv[0];
+	argv[0] = program;
 	optind = 1;
-	while ((c = getopt_long(argc, argv, "", ifreload_options, NULL)) != EOF) {
+	while ((c = getopt_long(argc, argv, "+hi:t:PT", ifreload_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_IFCONFIG:
 			ni_string_array_append(&opt_ifconfig, optarg);
 			break;
 
-#ifdef NI_TEST_HACKS
-		case OPT_IGNORE_PRIO:
-			check_prio = FALSE;
-			break;
-
-		case OPT_IGNORE_STARTMODE:
-			ifmatch.ignore_startmode = TRUE;
-			break;
-#endif
-
 		case OPT_PERSISTENT:
-			set_persistent = TRUE;
+			opt_persistent = TRUE;
 			break;
 
 		case OPT_TRANSIENT:
@@ -462,8 +692,8 @@ ni_do_ifreload_nanny(int argc, char **argv)
 			} else if (ni_parse_uint(optarg, &opt_timeout, 10) >= 0) {
 				opt_timeout *= 1000; /* sec -> msec */
 			} else {
-				ni_error("ifup: cannot parse timeout option \"%s\"",
-						optarg);
+				ni_error("%s: cannot parse timeout option \"%s\"",
+						program, optarg);
 				goto usage;
 			}
 			break;
@@ -472,7 +702,7 @@ ni_do_ifreload_nanny(int argc, char **argv)
 		case OPT_HELP:
 usage:
 			fprintf(stderr,
-				"wicked [options] ifreload [ifreload-options] <ifname ...>|all\n"
+				"%s [ifreload-options] <ifname ...>|all\n"
 				"\nSupported ifreload-options:\n"
 				"  --help\n"
 				"      Show this help text.\n"
@@ -482,28 +712,21 @@ usage:
 				"      Read interface configuration(s) from file\n"
 				"  --timeout <sec>\n"
 				"      Timeout after <sec> seconds\n"
-#ifdef NI_TEST_HACKS
-				"  --ignore-prio\n"
-				"      Ignore checking the config origin priorities\n"
-				"  --ignore-startmode\n"
-				"      Ignore checking the STARTMODE=off and STARTMODE=manual configs\n"
-#endif
 				"  --persistent\n"
 				"      Set interface into persistent mode (no regular ifdown allowed)\n"
-				);
+				, program);
 			goto cleanup;
 		}
 	}
 
 	/* at least one argument is required */
 	if (optind >= argc) {
-		fprintf(stderr, "Missing interface argument\n");
+		fprintf(stderr, "%s: missing interface argument\n", program);
 		goto usage;
-	} else for (c = optind; c < argc; ++c) {
-			if (ni_string_empty(argv[c])) {
-				printf("ARG: %s\n", argv[c]);
-				goto usage;
-			}
+	}
+	for (c = optind; c < argc; ++c) {
+		if (ni_string_empty(argv[c]))
+			goto usage;
 	}
 
 	if (!ni_fsm_create_client(fsm)) {
@@ -531,7 +754,7 @@ usage:
 		}
 	}
 
-	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, check_prio, TRUE)) {
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE, TRUE)) {
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 		goto cleanup;
 	}
@@ -554,108 +777,61 @@ usage:
 		ni_debug_application("wait %u seconds for interfaces",
 					fsm->worker_timeout/1000);
 
-	/* Build the up tree */
+	/* Build the up a config relations/hierarchy tree */
 	if (ni_fsm_build_hierarchy(fsm, FALSE) < 0) {
-		ni_error("ifreload: unable to build device hierarchy");
+		ni_error("ifreload: unable to build device config hierarchy");
 		/* Severe error we always explicitly return */
 		status = NI_WICKED_RC_ERROR;
 		goto cleanup;
 	}
 
 	status = NI_WICKED_RC_SUCCESS;
-	nmarked = 0;
 	for (c = optind; c < argc; ++c) {
-		ifmatch.name = argv[c];
-		ifmatch.ignore_startmode = TRUE;
+		const char *ifname = argv[c];
 
-		/* Getting an array of ifworkers matching arguments */
-		ni_fsm_get_matching_workers(fsm, &ifmatch, &down_marked);
-
-		if (ni_string_eq(ifmatch.name, "all") ||
-		    ni_string_empty(ifmatch.name)) {
-			ni_string_array_destroy(&ifnames);
+		if (ni_string_eq(ifname, "all") || ni_string_empty(ifname)) {
+			ifreload_mark_workers(fsm, &down_marked, &up_marked, NULL);
 			break;
-		}
-
-		if (ni_string_array_index(&ifnames, ifmatch.name) < 0)
-			ni_string_array_append(&ifnames, ifmatch.name);
-	}
-
-	for (i = 0; i < down_marked.count; ++i) {
-		ni_ifworker_t *w = down_marked.data[i];
-		ni_netdev_t *dev = w->device;
-
-		/* skip unused devices without config */
-		if (!ni_ifcheck_worker_config_exists(w) &&
-		    !ni_ifcheck_device_configured(dev)) {
-			ni_info("skipping %s interface: no configuration exists and "
-				"device is not configured by wicked", w->name);
-			continue;
-		}
-
-		/* skip if config has not been changed */
-		if (ni_ifcheck_worker_config_matches(w)) {
-			ni_info("skipping %s interface: "
-				"configuration unchanged", w->name);
-			continue;
-		}
-
-		/* Remember all changed devices */
-		if (ni_ifcheck_worker_config_exists(w) &&
-		    !ni_string_eq_nocase(w->control.mode, "off")) {
-			ni_ifworker_array_append(&up_marked, w);
-		}
-
-		/* Do not ifdown non-existing device */
-		if (!dev) {
-			ni_info("skipping ifdown operation for %s interface: "
-				"non-existing device", w->name);
-			continue;
-		}
-
-		/* Persistent do not go down but up only */
-		if (ni_ifcheck_device_is_persistent(dev)) {
-			ni_info("skipping ifdown operation for %s interface: "
-				"persistent device", w->name);
-			continue;
-		}
-
-		/* Decide how much down we go */
-		if (ni_ifcheck_worker_config_exists(w)) {
-			if (!ni_ifcheck_device_configured(dev)) {
-				ni_info("skipping ifdown operation for %s interface: "
-					"device is not configured by wicked", w->name);
-				continue;
-			}
-			w->target_range.min = NI_FSM_STATE_NONE;
-			switch (w->iftype) {
-			case NI_IFTYPE_TEAM:
-				w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
-				break;
-			default:
-				w->target_range.max = NI_FSM_STATE_DEVICE_READY;
-				break;
-			}
-			nmarked++;
-		} else
-		if (ni_ifcheck_device_configured(dev)) {
-			w->target_range.min = NI_FSM_STATE_NONE;
-			w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
-			nmarked++;
+		} else {
+			ifreload_mark_workers(fsm, &down_marked, &up_marked, ifname);
 		}
 	}
 
-	if (0 == nmarked && 0 == up_marked.count) {
+	if (opt_persistent) {
+		for (i = 0; i < up_marked.count; ++i) {
+			ni_ifworker_t *w = up_marked.data[i];
+			ni_ifworker_control_set_persistent(w, TRUE);
+		}
+	}
+
+	if (!down_marked.count && !up_marked.count) {
 		ni_note("ifreload: no configuration changes to reload");
 		status = NI_WICKED_RC_SUCCESS;
 		goto cleanup;
 	}
 
 	/* anything to ifdown? e.g. persistent devices are skipped here */
-	if (nmarked) {
+	if (down_marked.count) {
 		/* Run ifdown part of the reload */
 		ni_debug_application("Shutting down unneeded devices");
+
+		/* delete policies */
 		ni_ifdown_fire_nanny(&down_marked);
+
+		/* remove delete policy only workers without devices */
+		for (i = 0; i < down_marked.count; ++i) {
+			ni_ifworker_t *w = down_marked.data[i];
+
+			if (ni_ifcheck_worker_device_exists(w))
+				continue;
+			if (ni_ifcheck_device_configured(w->device))
+				continue;
+
+			if (ni_ifworker_array_remove(&down_marked, w))
+				--i;
+		}
+
+		/* shutdown existing devices configured by us */
 		if (ni_fsm_start_matching_workers(fsm, &down_marked)) {
 			/* Execute the down run */
 			if (ni_fsm_schedule(fsm) != 0)
@@ -689,7 +865,7 @@ usage:
 
 		/* And trigger up */
 		ni_debug_application("Reloading all changed devices");
-		if (!ni_ifup_hire_nanny(&up_marked, set_persistent))
+		if (!ni_ifup_hire_nanny(&up_marked, opt_persistent))
 			status = NI_WICKED_RC_NOT_CONFIGURED;
 
 		/* Wait for device up-transition progress events */
@@ -717,14 +893,16 @@ cleanup:
 	ni_string_array_destroy(&opt_ifconfig);
 	ni_ifworker_array_destroy(&down_marked);
 	ni_ifworker_array_destroy(&up_marked);
+	ni_string_free(&program);
+	argv[0] = saved_argv0;
 	return status;
 }
 
 int
-ni_do_ifreload(int argc, char **argv)
+ni_do_ifreload(const char *caller, int argc, char **argv)
 {
 	if (ni_config_use_nanny())
-		return ni_do_ifreload_nanny(argc, argv);
+		return ni_do_ifreload_nanny(caller, argc, argv);
 	else
-		return ni_do_ifreload_direct(argc, argv);
+		return ni_do_ifreload_direct(caller, argc, argv);
 }
