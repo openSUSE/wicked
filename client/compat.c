@@ -2236,6 +2236,9 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 
 	if (compat->dhcp4.client_id)
 		xml_node_dict_set(dhcp, "client-id", compat->dhcp4.client_id);
+	else
+	if (compat->dhcp4.create_cid)
+		xml_node_dict_set(dhcp, "create-cid", ni_config_dhcp4_cid_type_format(compat->dhcp4.create_cid));
 	if (compat->dhcp4.vendor_class)
 		xml_node_dict_set(dhcp, "vendor-class", compat->dhcp4.vendor_class);
 
