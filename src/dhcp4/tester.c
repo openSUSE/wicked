@@ -185,7 +185,7 @@ ni_dhcp4_tester_req_xml_init(ni_dhcp4_request_t *req, xml_document_t *doc)
 				}
 			}
 		} else
-		if (ni_string_eq(child->name, "clientid")) {
+		if (ni_string_eq(child->name, "client-id")) {
 			ni_opaque_t duid;
 
 			if (ni_parse_hex(child->cdata, duid.data, sizeof(duid.data)) <= 0)

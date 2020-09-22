@@ -226,7 +226,7 @@ ni_dhcp6_tester_req_xml_init(ni_dhcp6_request_t *req, xml_document_t *doc)
 				}
 			}
 		} else
-		if (ni_string_eq(child->name, "clientid")) {
+		if (ni_string_eq(child->name, "client-id")) {
 			ni_opaque_t duid;
 
 			ni_duid_clear(&duid);
