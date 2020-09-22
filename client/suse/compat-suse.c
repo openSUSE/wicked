@@ -5262,6 +5262,13 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_CLIENT_ID")) != NULL)
 		ni_string_dup(&compat->dhcp4.client_id, string);
+	else
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_CREATE_CID")) != NULL) {
+		if (!ni_config_dhcp4_cid_type_parse(&compat->dhcp4.create_cid, string))
+			ni_warn("%s: Cannot parse DHCLIENT_CREATE_CID='%s' option",
+					ni_basename(sc->pathname),
+					ni_print_suspect(string, ni_string_len(string)));
+	}
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_VENDOR_CLASS_ID")) != NULL)
 		ni_string_dup(&compat->dhcp4.vendor_class, string);

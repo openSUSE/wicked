@@ -68,6 +68,7 @@ typedef struct ni_compat_netdev {
 		ni_dhcp_fqdn_t  fqdn;
 		char *		hostname;
 		char *		client_id;
+		unsigned int	create_cid;
 		char *		vendor_class;
 		ni_dhcp4_user_class_t user_class;
 

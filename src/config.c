@@ -509,13 +509,18 @@ static const ni_intmap_t	config_dhcp6_cid_type_names[] = {
 	{ "disable",		NI_CONFIG_DHCP4_CID_TYPE_DISABLE},
 	{ "none",		NI_CONFIG_DHCP4_CID_TYPE_DISABLE},
 
-	{ NULL,			-1U				}
+	{ NULL,			NI_CONFIG_DHCP4_CID_TYPE_AUTO	}
 };
 
-static ni_bool_t
+const char *
+ni_config_dhcp4_cid_type_format(ni_config_dhcp4_cid_type_t type)
+{
+	return ni_format_uint_mapped(type, config_dhcp6_cid_type_names);
+}
+ni_bool_t
 ni_config_dhcp4_cid_type_parse(ni_config_dhcp4_cid_type_t *type, const char *name)
 {
-	return ni_parse_uint_mapped(name, config_dhcp6_cid_type_names, type);
+	return ni_parse_uint_mapped(name, config_dhcp6_cid_type_names, type) == 0;
 }
 
 static ni_bool_t

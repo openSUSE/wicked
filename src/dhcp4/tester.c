@@ -192,6 +192,10 @@ ni_dhcp4_tester_req_xml_init(ni_dhcp4_request_t *req, xml_document_t *doc)
 				goto failure;
 			ni_string_dup(&req->clientid, child->cdata);
 		} else
+		if (ni_string_eq(child->name, "create-cid")) {
+			if (!ni_config_dhcp4_cid_type_parse(&req->create_cid, child->cdata))
+				goto failure;
+		} else
 		if(ni_string_eq(child->name, "start-delay")) {
 			if (ni_parse_uint(child->cdata, &req->start_delay, 10) != 0)
 				goto failure;
