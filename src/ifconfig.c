@@ -4911,6 +4911,7 @@ __ni_rtnl_send_delroute(ni_netdev_t *dev, ni_route_t *rp)
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	struct rtmsg rt;
 	struct nl_msg *msg;
+	int err;
 
 	ni_debug_ifconfig("%s(%s)", __FUNCTION__, ni_route_print(&buf, rp));
 	ni_stringbuf_destroy(&buf);
@@ -4940,8 +4941,10 @@ __ni_rtnl_send_delroute(ni_netdev_t *dev, ni_route_t *rp)
 
 	NLA_PUT_U32(msg, RTA_OIF, dev->link.ifindex);
 
-	if (ni_nl_talk(msg, NULL) < 0) {
-		ni_error("%s(%s): rtnl_talk failed", __FUNCTION__, ni_route_print(&buf, rp));
+	if ((err = ni_nl_talk(msg, NULL)) < 0) {
+		ni_error("%s(%s): rtnl_talk failed[%d]: %s", __func__,
+				ni_route_print(&buf, rp),
+				err, nl_geterror(err));
 		ni_stringbuf_destroy(&buf);
 		goto failed;
 	}
@@ -5764,8 +5767,9 @@ __ni_netdev_update_routes(ni_netconfig_t *nc, ni_netdev_t *dev,
 					dev->name, ni_route_print(&buf, rp));
 			ni_stringbuf_destroy(&buf);
 
-			if ((rv = __ni_rtnl_send_delroute(dev, rp)) < 0)
-				return rv;
+			if ((__ni_rtnl_send_delroute(dev, rp)) < 0) {
+				continue;
+			}
 		}
 	}
 
