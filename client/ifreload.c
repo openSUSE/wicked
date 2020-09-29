@@ -405,7 +405,7 @@ ifreload_mark_down_lower_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, 
 		if (!ifreload_mark_add(marked, w))
 			continue;
 
-		logit("marked %s for shutdown (config: %s, device: %s, target state %s) as dependency",
+		ni_debug_ifconfig("marked %s for shutdown (config: %s, device: %s, target state %s) as dependency",
 				w->name,
 				ni_ifcheck_worker_config_exists(w) ? "exists" :
 				ni_ifcheck_device_configured(w->device) ? "deleted" : "-",
@@ -484,7 +484,7 @@ ifreload_mark_down(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker
 	if (!ifreload_mark_add(marked, w))
 		return FALSE;
 
-	logit("marked %s for shutdown (config: %s, device: %s, target state %s)",
+	ni_debug_ifconfig("marked %s for shutdown (config: %s, device: %s, target state %s)",
 			w->name,
 			ni_ifcheck_worker_config_exists(w) ? "exists" :
 			ni_ifcheck_device_configured(w->device) ? "deleted" : "-",
@@ -515,7 +515,7 @@ ifreload_mark_up_slave_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni
 		if (!ifreload_mark_add(marked, w))
 			continue;
 
-		logit("marked %s for set-up (config: %s, device: %s, target state %s) as dependency",
+		ni_debug_ifconfig("marked %s for set-up (config: %s, device: %s, target state %s) as dependency",
 				w->name,
 				(ni_ifcheck_worker_config_exists(w) ?
 				 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
@@ -537,7 +537,7 @@ ifreload_mark_up_master(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifw
 	if (!ifreload_mark_add(marked, w))
 		return;
 
-	logit("marked %s for set-up (config %s, device %s, target state %s) as dependency",
+	ni_debug_ifconfig("marked %s for set-up (config %s, device %s, target state %s) as dependency",
 			w->name,
 			(ni_ifcheck_worker_config_exists(w) ?
 			 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
@@ -576,7 +576,7 @@ ifreload_mark_up_lower_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni
 		if (!ifreload_mark_add(marked, w))
 			continue;
 
-		logit("marked %s for set-up (config %s, device %s, target state %s) as dependency",
+		ni_debug_ifconfig("marked %s for set-up (config %s, device %s, target state %s) as dependency",
 				w->name,
 				(ni_ifcheck_worker_config_exists(w) ?
 				 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
@@ -605,7 +605,7 @@ ifreload_mark_up(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t
 	if (!ifreload_mark_add(marked, w))
 		return FALSE;
 
-	logit("marked %s for set-up (config %s, device %s, target state %s)",
+	ni_debug_ifconfig("marked %s for set-up (config %s, device %s, target state %s)",
 			w->name,
 			(ni_ifcheck_worker_config_exists(w) ?
 			 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
