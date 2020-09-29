@@ -416,7 +416,8 @@ ifreload_mark_down_lower_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, 
 
 static ni_bool_t
 ifreload_mark_down(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *w,
-				void (*logit)(const char *, ...) __fmtattr)
+				void (*logit)(const char *, ...) __fmtattr,
+				unsigned int depth)
 {
 	/* ifdown is disabled when persistent mode is on (todo: add --force?) */
 	if (ni_ifcheck_device_is_persistent(w->device)) {
@@ -454,6 +455,26 @@ ifreload_mark_down(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker
 		/* do not shut down devices we don't handle */
 		logit("skipping %s shutdown: device was not configured by wicked", w->name);
 		return FALSE;
+	}
+
+	if (depth && ni_ifcheck_worker_device_exists(w)) {
+		ni_ifworker_t *c;
+		unsigned int i;
+
+		for (i = 0; i < fsm->workers.count; ++i) {
+			c = fsm->workers.data[i];
+
+			if (!ni_ifcheck_worker_device_exists(c))
+				continue;
+
+			if (!ni_string_eq(c->device->link.masterdev.name, w->name))
+				continue;
+
+			if (!ni_ifcheck_worker_config_matches(c)) {
+				ni_trace("exec ifreload_mark_workers down: %s", c->name);
+				ifreload_mark_down(fsm, marked, c, logit, depth - 1);
+			}
+		}
 	}
 
 	/* shut down depending devices because this one is deleted */
@@ -613,7 +634,7 @@ ifreload_mark_workers(const ni_fsm_t *fsm, ni_ifworker_array_t *down_marked, ni_
 			continue;
 
 		if (!ni_ifcheck_worker_config_matches(w))
-			ifreload_mark_down(fsm, down_marked, w, logit);
+			ifreload_mark_down(fsm, down_marked, w, logit, 1);
 	}
 
 	/* set-up if config changed + dependencies */
