@@ -405,7 +405,7 @@ ifreload_mark_down_lower_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, 
 		if (!ifreload_mark_add(marked, w))
 			continue;
 
-		logit("marked %s for shutdown (config: %s, device: %s, target state %s) as dependency",
+		ni_debug_ifconfig("marked %s for shutdown (config: %s, device: %s, target state %s) as dependency",
 				w->name,
 				ni_ifcheck_worker_config_exists(w) ? "exists" :
 				ni_ifcheck_device_configured(w->device) ? "deleted" : "-",
@@ -416,7 +416,8 @@ ifreload_mark_down_lower_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, 
 
 static ni_bool_t
 ifreload_mark_down(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *w,
-				void (*logit)(const char *, ...) __fmtattr)
+				void (*logit)(const char *, ...) __fmtattr,
+				unsigned int depth)
 {
 	/* ifdown is disabled when persistent mode is on (todo: add --force?) */
 	if (ni_ifcheck_device_is_persistent(w->device)) {
@@ -456,6 +457,26 @@ ifreload_mark_down(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker
 		return FALSE;
 	}
 
+	if (depth && ni_ifcheck_worker_device_exists(w)) {
+		ni_ifworker_t *c;
+		unsigned int i;
+
+		for (i = 0; i < fsm->workers.count; ++i) {
+			c = fsm->workers.data[i];
+
+			if (!ni_ifcheck_worker_device_exists(c))
+				continue;
+
+			if (!ni_string_eq(c->device->link.masterdev.name, w->name))
+				continue;
+
+			if (!ni_ifcheck_worker_config_matches(c)) {
+				ni_trace("exec ifreload_mark_workers down: %s", c->name);
+				ifreload_mark_down(fsm, marked, c, logit, depth - 1);
+			}
+		}
+	}
+
 	/* shut down depending devices because this one is deleted */
 	if (w->target_range.max == NI_FSM_STATE_DEVICE_DOWN)
 		ifreload_mark_down_lower_deps(fsm, marked, w, logit);
@@ -463,7 +484,7 @@ ifreload_mark_down(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker
 	if (!ifreload_mark_add(marked, w))
 		return FALSE;
 
-	logit("marked %s for shutdown (config: %s, device: %s, target state %s)",
+	ni_debug_ifconfig("marked %s for shutdown (config: %s, device: %s, target state %s)",
 			w->name,
 			ni_ifcheck_worker_config_exists(w) ? "exists" :
 			ni_ifcheck_device_configured(w->device) ? "deleted" : "-",
@@ -494,7 +515,7 @@ ifreload_mark_up_slave_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni
 		if (!ifreload_mark_add(marked, w))
 			continue;
 
-		logit("marked %s for set-up (config: %s, device: %s, target state %s) as dependency",
+		ni_debug_ifconfig("marked %s for set-up (config: %s, device: %s, target state %s) as dependency",
 				w->name,
 				(ni_ifcheck_worker_config_exists(w) ?
 				 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
@@ -516,7 +537,7 @@ ifreload_mark_up_master(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifw
 	if (!ifreload_mark_add(marked, w))
 		return;
 
-	logit("marked %s for set-up (config %s, device %s, target state %s) as dependency",
+	ni_debug_ifconfig("marked %s for set-up (config %s, device %s, target state %s) as dependency",
 			w->name,
 			(ni_ifcheck_worker_config_exists(w) ?
 			 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
@@ -555,7 +576,7 @@ ifreload_mark_up_lower_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni
 		if (!ifreload_mark_add(marked, w))
 			continue;
 
-		logit("marked %s for set-up (config %s, device %s, target state %s) as dependency",
+		ni_debug_ifconfig("marked %s for set-up (config %s, device %s, target state %s) as dependency",
 				w->name,
 				(ni_ifcheck_worker_config_exists(w) ?
 				 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
@@ -584,7 +605,7 @@ ifreload_mark_up(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t
 	if (!ifreload_mark_add(marked, w))
 		return FALSE;
 
-	logit("marked %s for set-up (config %s, device %s, target state %s)",
+	ni_debug_ifconfig("marked %s for set-up (config %s, device %s, target state %s)",
 			w->name,
 			(ni_ifcheck_worker_config_exists(w) ?
 			 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
@@ -613,7 +634,7 @@ ifreload_mark_workers(const ni_fsm_t *fsm, ni_ifworker_array_t *down_marked, ni_
 			continue;
 
 		if (!ni_ifcheck_worker_config_matches(w))
-			ifreload_mark_down(fsm, down_marked, w, logit);
+			ifreload_mark_down(fsm, down_marked, w, logit, 1);
 	}
 
 	/* set-up if config changed + dependencies */
