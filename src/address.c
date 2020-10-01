@@ -1447,7 +1447,7 @@ ni_link_address_parse(ni_hwaddr_t *hwa, unsigned short arp_type, const char *str
 	if ((len = ni_parse_hex(string, tmp.data, NI_MAXHWADDRLEN)) < 0)
 		return -1;
 
-	if (ni_link_address_length(arp_type) != (unsigned int)len)
+	if (arp_type != ARPHRD_VOID && ni_link_address_length(arp_type) != (unsigned int)len)
 		return -1;
 
 	memcpy(hwa->data, tmp.data, len);
@@ -1712,4 +1712,3 @@ ni_address_cache_info_rebase(ni_address_cache_info_t *res, const ni_address_cach
 		res->preferred_lft = NI_LIFETIME_EXPIRED;
 	#undef rebase_lft
 }
-

@@ -102,7 +102,8 @@ typedef enum {
 } ni_config_dhcp4_routes_t;
 
 typedef enum {
-	NI_CONFIG_DHCP4_CID_TYPE_HWADDR = 1U,
+	NI_CONFIG_DHCP4_CID_TYPE_AUTO = 0U,
+	NI_CONFIG_DHCP4_CID_TYPE_HWADDR,
 	NI_CONFIG_DHCP4_CID_TYPE_DHCPv6,
 	NI_CONFIG_DHCP4_CID_TYPE_DISABLE,
 } ni_config_dhcp4_cid_type_t;
@@ -209,6 +210,8 @@ extern unsigned int	ni_config_addrconf_update(const char *, ni_addrconf_mode_t, 
 extern ni_bool_t	ni_config_use_nanny(void);
 
 extern const ni_config_dhcp4_t *	ni_config_dhcp4_find_device(const char *);
+extern const char *			ni_config_dhcp4_cid_type_format(ni_config_dhcp4_cid_type_t);
+extern ni_bool_t			ni_config_dhcp4_cid_type_parse(ni_config_dhcp4_cid_type_t *, const char *);
 extern const ni_config_dhcp6_t *	ni_config_dhcp6_find_device(const char *);
 
 extern ni_config_bonding_ctl_t	ni_config_bonding_ctl(void);

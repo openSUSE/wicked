@@ -27,6 +27,6 @@
 #ifndef   __WICKED_CLIENT_IFRELOAD_H__
 #define   __WICKED_CLIENT_IFRELOAD_H__
 
-extern int		ni_do_ifreload(int argc, char **argv);
+extern int		ni_do_ifreload(const char *caller, int argc, char **argv);
 
 #endif /* __WICKED_CLIENT_IFRELOAD_H__ */

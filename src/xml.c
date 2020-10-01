@@ -44,19 +44,19 @@ xml_document_new()
 xml_node_t *
 xml_document_root(xml_document_t *doc)
 {
-	return doc->root;
+	return doc ? doc->root : NULL;
 }
 
 const char *
 xml_document_type(const xml_document_t *doc)
 {
-	return doc->dtd;
+	return doc ? doc->dtd : NULL;
 }
 
 void
 xml_document_set_root(xml_document_t *doc, xml_node_t *root)
 {
-	if (doc->root != root) {
+	if (doc && doc->root != root) {
 		xml_node_free(doc->root);
 		doc->root = root;
 	}
@@ -65,9 +65,12 @@ xml_document_set_root(xml_document_t *doc, xml_node_t *root)
 xml_node_t *
 xml_document_take_root(xml_document_t *doc)
 {
-	xml_node_t *root = doc->root;
+	xml_node_t *root = NULL;
 
-	doc->root = NULL;
+	if (doc) {
+		root = doc->root;
+		doc->root = NULL;
+	}
 	return root;
 }
 
@@ -371,7 +374,7 @@ xml_node_add_attr_uint(xml_node_t *node, const char *name, unsigned int value)
 void
 xml_node_add_attr_ulong(xml_node_t *node, const char *name, unsigned long value)
 {
-	ni_var_array_set_long(&node->attrs, name, value);
+	ni_var_array_set_ulong(&node->attrs, name, value);
 }
 
 void

@@ -30,4 +30,6 @@ extern int	ni_do_duid(const char *caller, int argc, char **argv);
 extern int	ni_do_iaid(const char *caller, int argc, char **argv);
 extern int	ni_do_ethtool(const char *caller, int argc, char **argv);
 
+extern int	ni_wicked_convert(const char *caller, int argc, char **argv);
+
 #endif /* WICKED_CLIENT_MAIN_H */

@@ -461,6 +461,70 @@ ni_uint_array_set(ni_uint_array_t *nua, unsigned int index, unsigned int num)
 }
 
 /*
+ * Variable utils
+ */
+ni_bool_t
+ni_var_set(ni_var_t *var, const char *name, const char *value)
+{
+	if (var) {
+		ni_var_t old = {
+			.name  = var->name,
+			.value = var->value
+		};
+
+		var->name  = xstrdup(name);
+		var->value = xstrdup(value);
+
+		if ((name  && !var->name) ||
+		    (value && !var->value)) {
+			ni_var_destroy(var);
+			return FALSE;
+		}
+
+		ni_var_destroy(&old);
+		return TRUE;
+	}
+	return FALSE;
+}
+
+int
+ni_var_name_cmp(const ni_var_t *v1, const ni_var_t *v2)
+{
+	if (!v1 || !v2)
+		return v1 == v2;
+	return ni_string_cmp(v1->name, v2->name);
+}
+
+int
+ni_var_value_cmp(const ni_var_t *v1, const ni_var_t *v2)
+{
+	if (!v1 || !v2)
+		return v1 == v2;
+	return ni_string_cmp(v1->value, v2->value);
+}
+
+ni_bool_t
+ni_var_name_equal(const ni_var_t *v1, const ni_var_t *v2)
+{
+	return ni_var_name_cmp(v1, v2) == 0;
+}
+
+ni_bool_t
+ni_var_value_equal(const ni_var_t *v1, const ni_var_t *v2)
+{
+	return ni_var_value_cmp(v1, v2) == 0;
+}
+
+void
+ni_var_destroy(ni_var_t *var)
+{
+	if (var) {
+		ni_string_free(&var->name);
+		ni_string_free(&var->value);
+	}
+}
+
+/*
  * Array of variables
  */
 ni_var_array_t *
@@ -497,33 +561,26 @@ ni_var_array_destroy(ni_var_array_t *nva)
 	memset(nva, 0, sizeof(*nva));
 }
 
-ni_var_t *
-ni_var_array_get(const ni_var_array_t *nva, const char *name)
-{
-	unsigned int i;
-	ni_var_t *var;
-
-	for (i = 0, var = nva->data; i < nva->count; ++i, ++var) {
-		if (ni_string_eq(var->name, name))
-			return var;
-	}
-	return NULL;
-}
-
-static void
-__ni_var_array_realloc(ni_var_array_t *nva, unsigned int newsize)
+static inline ni_bool_t
+ni_var_array_realloc(ni_var_array_t *nva, unsigned int newsize)
 {
 	unsigned int i;
 	ni_var_t *newdata;
 
+	if ((UINT_MAX - NI_VAR_ARRAY_CHUNK) <= newsize)
+		return FALSE;
+
 	newsize = (newsize + NI_VAR_ARRAY_CHUNK);
 	newdata = xrealloc(nva->data, newsize * sizeof(ni_var_t));
+	if (!newdata)
+		return FALSE;
 
 	nva->data = newdata;
 	for (i = nva->count; i < newsize; ++i) {
 		nva->data[i].name = NULL;
 		nva->data[i].value = NULL;
 	}
+	return TRUE;
 }
 
 ni_bool_t
@@ -562,58 +619,112 @@ ni_var_array_remove(ni_var_array_t *array, const char *name)
 	return FALSE;
 }
 
-static void
-__ni_var_array_append(ni_var_array_t *nva, const char *name, const char *value)
-{
-	ni_var_t *var;
-
-	if ((nva->count % NI_VAR_ARRAY_CHUNK) == 0)
-		__ni_var_array_realloc(nva, nva->count);
-	var = &nva->data[nva->count++];
-	var->name = xstrdup(name);
-	var->value = xstrdup(value);
-}
-
-void
-ni_var_array_set(ni_var_array_t *nva, const char *name, const char *value)
-{
-	ni_var_t *var;
-
-	if ((var = ni_var_array_get(nva, name)) == NULL) {
-		if ((nva->count % NI_VAR_ARRAY_CHUNK) == 0)
-			__ni_var_array_realloc(nva, nva->count);
-
-		var = &nva->data[nva->count++];
-		var->name = xstrdup(name);
-		var->value = NULL;
-	}
-
-	ni_string_dup(&var->value, value);
-}
-
-void
+ni_bool_t
 ni_var_array_copy(ni_var_array_t *dst, const ni_var_array_t *src)
 {
 	unsigned int i;
 
+	if (!dst || !src)
+		return FALSE;
+
 	for (i = 0; i < src->count; ++i) {
 		const ni_var_t *var = &src->data[i];
-		__ni_var_array_append(dst, var->name, var->value);
+		if (!ni_var_array_append(dst, var->name, var->value))
+			return FALSE;
 	}
+	return TRUE;
 }
 
-void
+ni_bool_t
 ni_var_array_move(ni_var_array_t *dst, ni_var_array_t *src)
 {
+	if (!dst || !src)
+		return FALSE;
+
 	ni_var_array_destroy(dst);
 	*dst = *src;
 	memset(src, 0, sizeof(*src));
+	return TRUE;
+}
+
+ni_bool_t
+ni_var_array_insert(ni_var_array_t *nva, unsigned int pos, const char *name, const char *value)
+{
+	ni_var_t *var, tmp = NI_VAR_INIT;
+
+	if (!nva)
+		return FALSE;
+
+	if (!ni_var_set(&tmp, name, value))
+		return FALSE;
+
+	if ((nva->count % NI_VAR_ARRAY_CHUNK) == 0 &&
+	    !ni_var_array_realloc(nva, nva->count)) {
+		ni_var_destroy(&tmp);
+		return FALSE;
+	}
+
+	if (pos >= nva->count) {
+		var = &nva->data[nva->count];
+	} else {
+		memmove(&nva->data[pos + 1], &nva->data[pos], (nva->count - pos) * sizeof(ni_var_t));
+		var = &nva->data[pos];
+	}
+	nva->count++;
+	var->name = tmp.name;
+	var->value = tmp.value;
+	return TRUE;
+}
+
+ni_bool_t
+ni_var_array_append(ni_var_array_t *nva, const char *name, const char *value)
+{
+	return ni_var_array_insert(nva, -1U, name, value);
+}
+
+unsigned int
+ni_var_array_find(const ni_var_array_t *nva, unsigned int pos, const ni_var_t *var,
+		ni_bool_t (*match)(const ni_var_t *, const ni_var_t *),
+		const ni_var_t **ret)
+{
+	const ni_var_t *ptr;
+
+	if (!nva || !var || !match)
+		return -1U;
+
+	for ( ; pos < nva->count; ++pos) {
+		ptr = &nva->data[pos];
+		if (match(ptr, var)) {
+			if (ret)
+				*ret = ptr;
+			return pos;
+		}
+	}
+	return -1U;
+}
+
+ni_var_t *
+ni_var_array_get(const ni_var_array_t *nva, const char *name)
+{
+	unsigned int i;
+	ni_var_t *var;
+
+	if (nva) {
+		for (i = 0, var = nva->data; i < nva->count; ++i, ++var) {
+			if (ni_string_eq(var->name, name))
+				return var;
+		}
+	}
+	return NULL;
 }
 
 int
 ni_var_array_get_string(ni_var_array_t *nva, const char *name, char **p)
 {
 	ni_var_t *var;
+
+	if (!nva || !p)
+		return -1; /* Error */
 
 	if (*p) {
 		free(*p);
@@ -629,9 +740,31 @@ ni_var_array_get_string(ni_var_array_t *nva, const char *name, char **p)
 }
 
 int
+ni_var_array_get_int(ni_var_array_t *nva, const char *name, int *p)
+{
+	ni_var_t *var;
+
+	if (!nva || !p)
+		return -1; /* Error */
+
+	*p = 0;
+	if ((var = ni_var_array_get(nva, name)) != NULL) {
+		if (ni_parse_int(var->value, p, 0) < 0)
+			return -1; /* Error */
+		else
+			return 1; /* Found */
+	}
+
+	return 0; /* Not found */
+}
+
+int
 ni_var_array_get_uint(ni_var_array_t *nva, const char *name, unsigned int *p)
 {
 	ni_var_t *var;
+
+	if (!nva || !p)
+		return -1; /* Error */
 
 	*p = 0;
 	if ((var = ni_var_array_get(nva, name)) != NULL) {
@@ -645,9 +778,69 @@ ni_var_array_get_uint(ni_var_array_t *nva, const char *name, unsigned int *p)
 }
 
 int
+ni_var_array_get_long(ni_var_array_t *nva, const char *name, long *p)
+{
+	ni_var_t *var;
+
+	if (!nva || !p)
+		return -1; /* Error */
+
+	*p = 0;
+	if ((var = ni_var_array_get(nva, name)) != NULL) {
+		if (ni_parse_long(var->value, p, 0) < 0)
+			return -1; /* Error */
+		else
+			return 1; /* Found */
+	}
+
+	return 0; /* Not found */
+}
+
+int
+ni_var_array_get_ulong(ni_var_array_t *nva, const char *name, unsigned long *p)
+{
+	ni_var_t *var;
+
+	if (!nva || !p)
+		return -1; /* Error */
+
+	*p = 0;
+	if ((var = ni_var_array_get(nva, name)) != NULL) {
+		if (ni_parse_ulong(var->value, p, 0) < 0)
+			return -1; /* Error */
+		else
+			return 1; /* Found */
+	}
+
+	return 0; /* Not found */
+}
+
+int
+ni_var_array_get_double(ni_var_array_t *nva, const char *name, double *p)
+{
+	ni_var_t *var;
+
+	if (!nva || !p)
+		return -1; /* Error */
+
+	*p = 0;
+	if ((var = ni_var_array_get(nva, name)) != NULL) {
+		if (ni_parse_double(var->value, p) < 0)
+			return -1; /* Error */
+		else
+			return 1; /* Found */
+	}
+
+	return 0; /* Not found */
+}
+
+int
 ni_var_array_get_boolean(ni_var_array_t *nva, const char *name, ni_bool_t *p)
 {
 	ni_var_t *var;
+
+	if (!nva || !p)
+		return -1; /* Error */
 
 	*p = 0;
 	if ((var = ni_var_array_get(nva, name)) != NULL) {
@@ -660,37 +853,70 @@ ni_var_array_get_boolean(ni_var_array_t *nva, const char *name, ni_bool_t *p)
 	return 0; /* Not found */
 }
 
-void
+ni_bool_t
+ni_var_array_set(ni_var_array_t *nva, const char *name, const char *value)
+{
+	ni_var_t *var;
+
+	if (!nva)
+		return FALSE;
+
+	if ((var = ni_var_array_get(nva, name))) {
+		return ni_string_dup(&var->value, value);
+	} else {
+		return ni_var_array_append(nva, name, value);
+	}
+}
+
+ni_bool_t
+ni_var_array_set_int(ni_var_array_t *nva, const char *name, int value)
+{
+	char buffer[32];
+
+	snprintf(buffer, sizeof(buffer), "%d", value);
+	return ni_var_array_set(nva, name, buffer);
+}
+
+ni_bool_t
 ni_var_array_set_uint(ni_var_array_t *nva, const char *name, unsigned int value)
 {
 	char buffer[32];
 
 	snprintf(buffer, sizeof(buffer), "%u", value);
-	ni_var_array_set(nva, name, buffer);
+	return ni_var_array_set(nva, name, buffer);
 }
 
-void
-ni_var_array_set_long(ni_var_array_t *nva, const char *name, unsigned long value)
+ni_bool_t
+ni_var_array_set_long(ni_var_array_t *nva, const char *name, long value)
+{
+	char buffer[32];
+
+	snprintf(buffer, sizeof(buffer), "%ld", value);
+	return ni_var_array_set(nva, name, buffer);
+}
+
+ni_bool_t
+ni_var_array_set_ulong(ni_var_array_t *nva, const char *name, unsigned long value)
 {
 	char buffer[32];
 
 	snprintf(buffer, sizeof(buffer), "%lu", value);
-	ni_var_array_set(nva, name, buffer);
+	return ni_var_array_set(nva, name, buffer);
 }
 
-void
+ni_bool_t
 ni_var_array_set_double(ni_var_array_t *nva, const char *name, double value)
 {
 	char buffer[32];
 
 	snprintf(buffer, sizeof(buffer), "%g", value);
-	ni_var_array_set(nva, name, buffer);
+	return ni_var_array_set(nva, name, buffer);
 }
 
-void
+ni_bool_t
 ni_var_array_set_boolean(ni_var_array_t *nva, const char *name, int value)
 {
-	ni_var_array_set(nva, name, value? "yes" : "no");
+	return ni_var_array_set(nva, name, value? "yes" : "no");
 }
 
 void

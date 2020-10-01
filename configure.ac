@@ -336,6 +336,7 @@ AC_CONFIG_FILES([
 	client/Makefile
 	client/suse/Makefile
 	client/redhat/Makefile
+	client/dracut/Makefile
 	server/Makefile
 	nanny/Makefile
 	dhcp4/Makefile
@@ -350,4 +351,3 @@ AC_CONFIG_FILES([
 	wicked.spec
 ])
 AC_OUTPUT
-

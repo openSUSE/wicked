@@ -67,6 +67,15 @@ DHCLIENT_UPDATE=""
 #
 DHCLIENT_BROADCAST=""
 
+## Type:        list(,rfc4361,dhcpv6,dhcp6,rfc2132,hwaddr,none,disable)
+#
+# Overrides the DHCPv4 client-identifier type to use specified in the
+# wicked-config(5) `create-cid` option, the interface type specific
+# client-id type and compile time defaults.
+# Note: e.g. DHCP over Infiniband (IPoIB) mandates an rfc4361 client-id.
+#
+DHCLIENT_CREATE_CID=""
+
 ## Type:        list(enabled,disabled,default,)
 ## Default:     ""
 #

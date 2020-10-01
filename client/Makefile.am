@@ -14,6 +14,7 @@ if wicked_compat_redhat
 SUBDIRS				+= redhat
 endif
 endif
+SUBDIRS				+= dracut
 
 wicked_sbin_PROGRAMS		= wicked
 
@@ -49,12 +50,14 @@ if wicked_compat_redhat
 wicked_LDADD			+= $(builddir)/redhat/libwicked-client-redhat.la
 endif
 endif
+wicked_LDADD			+= $(builddir)/dracut/libwicked-client-dracut.la
 
 wicked_SOURCES			= \
 	arputil.c		\
-	ethtool.c		\
 	compat.c		\
+	convert.c		\
 	duid.c			\
+	ethtool.c		\
 	iaid.c			\
 	ifup.c			\
 	ifdown.c		\
