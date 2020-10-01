@@ -466,6 +466,7 @@ static ni_dbus_property_t	dhcp4_request_properties[] = {
 	DHCP4REQ_UUID_PROPERTY(uuid, uuid, RO),
 	DHCP4REQ_UINT_PROPERTY(flags, flags, RO),
 	DHCP4REQ_STRING_PROPERTY(client-id, clientid, RO),
+	DHCP4REQ_UINT_PROPERTY(create-cid, create_cid, RO),
 	DHCP4REQ_STRING_PROPERTY(vendor-class, vendor_class, RO),
 	DHCP4REQ_DICT_PROPERTY(user-class, user_class, RO),
 	DHCP4REQ_UINT_PROPERTY(start-delay, start_delay, RO),

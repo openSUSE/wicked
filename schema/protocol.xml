@@ -55,6 +55,13 @@
       <prefer-temporary value="2"/>
     </privacy>
     <accept-redirects type="tristate" />
+    <addr-gen-mode    type="int32" constraint="enum">
+      <eui64            value="0"/>
+      <none             value="1"/>
+      <stable-privacy   value="2"/>
+      <random           value="3"/>
+    </addr-gen-mode>
+    <stable-secret    type="ipv6-address" />
   </define>
 
   <method name="changeProtocol">

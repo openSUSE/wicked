@@ -4,6 +4,8 @@ Requirements
 
 These devel packages should be installed to compile wicked from source:
 
+  gcc
+  make
   automake
   autoconf
   libtool

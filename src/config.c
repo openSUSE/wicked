@@ -52,7 +52,7 @@ static ni_bool_t	ni_config_parse_rtnl_event(ni_config_rtnl_event_t *, xml_node_t
 static ni_bool_t	ni_config_parse_bonding(ni_config_bonding_t *, const xml_node_t *);
 static ni_bool_t	ni_config_parse_teamd(ni_config_teamd_t *, const xml_node_t *);
 static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
-static const char *	ni_config_build_include(const char *, const char *);
+static const char *	ni_config_build_include(char *, size_t, const char *, const char *);
 static unsigned int	ni_config_addrconf_update_mask_all(void);
 static unsigned int	ni_config_addrconf_update_mask_dhcp4(void);
 static unsigned int	ni_config_addrconf_update_mask_dhcp6(void);
@@ -282,6 +282,7 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 	/* Loop over all elements in the config file */
 	for (child = node->children; child; child = child->next) {
 		if (strcmp(child->name, "include") == 0) {
+			char fullname[PATH_MAX + 1] = {'\0'};
 			const char *attrval, *path;
 			ni_bool_t optional = FALSE;
 
@@ -296,7 +297,7 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 				ni_error("%s: <include> element lacks filename", xml_node_location(child));
 				goto failed;
 			}
-			if (!(path = ni_config_build_include(filename, attrval)))
+			if (!(path = ni_config_build_include(fullname, sizeof(fullname), filename, attrval)))
 				goto failed;
 			/* If the file is marked as optional, but does not exist, silently
 			 * skip it */
@@ -453,25 +454,27 @@ ni_config_parse(const char *filename, ni_init_appdata_callback_t *cb, void *appd
 }
 
 const char *
-ni_config_build_include(const char *parent_filename, const char *incl_filename)
+ni_config_build_include(char *fullname, size_t size,
+		const char *parent_filename, const char *incl_filename)
 {
-	char fullname[PATH_MAX + 1];
-
-	if (incl_filename[0] != '/') {
-		unsigned int i;
+	if (parent_filename && incl_filename && incl_filename[0] != '/') {
+		size_t i;
 
 		i = strlen(parent_filename);
-		if (i >= PATH_MAX)
+		if (i >= size)
 			goto too_long;
-		strcpy(fullname, parent_filename);
 
-		while (i && fullname[i-1] != '/')
+		strncpy(fullname, parent_filename, size - 1);
+		fullname[size - 1] = '\0';
+
+		while (i && fullname[i - 1] != '/')
 			--i;
 		fullname[i] = '\0';
 
-		if (i + strlen(incl_filename) >= PATH_MAX)
+		if (i + strlen(incl_filename) >= size)
 			goto too_long;
-		strcpy(&fullname[i], incl_filename);
+
+		strncat(fullname, incl_filename, size - i - 1);
 		incl_filename = fullname;
 	}
 	return incl_filename;
@@ -506,13 +509,18 @@ static const ni_intmap_t	config_dhcp6_cid_type_names[] = {
 	{ "disable",		NI_CONFIG_DHCP4_CID_TYPE_DISABLE},
 	{ "none",		NI_CONFIG_DHCP4_CID_TYPE_DISABLE},
 
-	{ NULL,			-1U				}
+	{ NULL,			NI_CONFIG_DHCP4_CID_TYPE_AUTO	}
 };
 
-static ni_bool_t
+const char *
+ni_config_dhcp4_cid_type_format(ni_config_dhcp4_cid_type_t type)
+{
+	return ni_format_uint_mapped(type, config_dhcp6_cid_type_names);
+}
+ni_bool_t
 ni_config_dhcp4_cid_type_parse(ni_config_dhcp4_cid_type_t *type, const char *name)
 {
-	return ni_parse_uint_mapped(name, config_dhcp6_cid_type_names, type);
+	return ni_parse_uint_mapped(name, config_dhcp6_cid_type_names, type) == 0;
 }
 
 static ni_bool_t
