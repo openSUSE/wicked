@@ -38,6 +38,8 @@ struct ni_variable {
 	char *		value;
 };
 
+#define NI_VAR_INIT		{ .name = NULL, .value = NULL }
+
 typedef struct ni_var_array ni_var_array_t;
 struct ni_var_array {
 	ni_var_array_t *next;
@@ -134,26 +136,43 @@ extern ni_bool_t	ni_uint_array_contains(ni_uint_array_t *, unsigned int);
 extern ni_bool_t	ni_uint_array_get(ni_uint_array_t *, unsigned int, unsigned int *);
 extern ni_bool_t	ni_uint_array_set(ni_uint_array_t *, unsigned int, unsigned int);
 
+extern ni_bool_t	ni_var_set(ni_var_t *, const char *, const char *);
+extern int		ni_var_name_cmp(const ni_var_t *, const ni_var_t *);
+extern int		ni_var_value_cmp(const ni_var_t *, const ni_var_t *);
+extern ni_bool_t	ni_var_name_equal(const ni_var_t *, const ni_var_t *);
+extern ni_bool_t	ni_var_value_equal(const ni_var_t *, const ni_var_t *);
+extern void		ni_var_destroy(ni_var_t *);
+
 extern ni_var_array_t *	ni_var_array_new(void);
 extern void		ni_var_array_free(ni_var_array_t *);
 extern void		ni_var_array_init(ni_var_array_t *);
 extern ni_bool_t	ni_var_array_remove_at(ni_var_array_t *, unsigned int);
 extern ni_bool_t	ni_var_array_remove(ni_var_array_t *, const char *);
 extern void		ni_var_array_destroy(ni_var_array_t *);
-extern void		ni_var_array_copy(ni_var_array_t *, const ni_var_array_t *);
-extern void		ni_var_array_move(ni_var_array_t *, ni_var_array_t *);
-extern ni_var_t *	ni_var_array_get(const ni_var_array_t *, const char *name);
-extern void		ni_var_array_set(ni_var_array_t *, const char *name, const char *value);
+extern ni_bool_t	ni_var_array_copy(ni_var_array_t *, const ni_var_array_t *);
+extern ni_bool_t	ni_var_array_move(ni_var_array_t *, ni_var_array_t *);
+extern ni_bool_t	ni_var_array_insert(ni_var_array_t *, unsigned int, const char *, const char *);
+extern ni_bool_t	ni_var_array_append(ni_var_array_t *, const char *, const char *);
+extern unsigned int	ni_var_array_find(const ni_var_array_t *, unsigned int, const ni_var_t *,
+					ni_bool_t (*match)(const ni_var_t *, const ni_var_t *),
+					const ni_var_t **);
 
+extern ni_var_t *	ni_var_array_get(const ni_var_array_t *, const char *);
 extern int		ni_var_array_get_string(ni_var_array_t *, const char *, char **);
+extern int		ni_var_array_get_int(ni_var_array_t *, const char *, int *);
 extern int		ni_var_array_get_uint(ni_var_array_t *, const char *, unsigned int *);
-extern int		ni_var_array_get_long(ni_var_array_t *, const char *, unsigned long *);
+extern int		ni_var_array_get_long(ni_var_array_t *, const char *, long *);
+extern int		ni_var_array_get_ulong(ni_var_array_t *, const char *, unsigned long *);
 extern int		ni_var_array_get_double(ni_var_array_t *, const char *, double *);
 extern int		ni_var_array_get_boolean(ni_var_array_t *, const char *, ni_bool_t *);
-extern void		ni_var_array_set_uint(ni_var_array_t *, const char *name, unsigned int);
-extern void		ni_var_array_set_long(ni_var_array_t *, const char *name, unsigned long);
-extern void		ni_var_array_set_double(ni_var_array_t *, const char *name, double);
-extern void		ni_var_array_set_boolean(ni_var_array_t *, const char *name, int);
+
+extern ni_bool_t	ni_var_array_set(ni_var_array_t *, const char *, const char *);
+extern ni_bool_t	ni_var_array_set_int(ni_var_array_t *, const char *, int);
+extern ni_bool_t	ni_var_array_set_uint(ni_var_array_t *, const char *, unsigned int);
+extern ni_bool_t	ni_var_array_set_long(ni_var_array_t *, const char *, long);
+extern ni_bool_t	ni_var_array_set_ulong(ni_var_array_t *, const char *, unsigned long);
+extern ni_bool_t	ni_var_array_set_double(ni_var_array_t *, const char *, double);
+extern ni_bool_t	ni_var_array_set_boolean(ni_var_array_t *, const char *, int);
 
 extern void		ni_var_array_list_append(ni_var_array_t **, ni_var_array_t *);
 extern void		ni_var_array_list_destroy(ni_var_array_t **);

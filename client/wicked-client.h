@@ -68,6 +68,7 @@ typedef struct ni_compat_netdev {
 		ni_dhcp_fqdn_t  fqdn;
 		char *		hostname;
 		char *		client_id;
+		unsigned int	create_cid;
 		char *		vendor_class;
 		ni_dhcp4_user_class_t user_class;
 
@@ -146,10 +147,11 @@ extern void			ni_compat_netdev_array_destroy(ni_compat_netdev_array_t *);
 extern void			ni_compat_ifconfig_init(ni_compat_ifconfig_t *, const char *);
 extern void			ni_compat_ifconfig_destroy(ni_compat_ifconfig_t *);
 extern unsigned int		ni_compat_generate_interfaces(xml_document_array_t *, ni_compat_ifconfig_t *, ni_bool_t, ni_bool_t);
+extern unsigned int		ni_compat_generate_policies(xml_document_array_t *, ni_compat_ifconfig_t *, ni_bool_t, ni_bool_t);
 extern void			ni_compat_netdev_set_origin(ni_compat_netdev_t *, const char *, const char *);
 
-extern ni_bool_t		ni_ifconfig_read(xml_document_array_t *, const char *, const char *, ni_bool_t, ni_bool_t);
-extern ni_bool_t		ni_ifconfig_load(ni_fsm_t *, const char *, ni_string_array_t *, ni_bool_t, ni_bool_t);
+extern ni_bool_t		ni_ifconfig_load(ni_fsm_t *, const char *, ni_string_array_t *,
+						ni_bool_t, ni_bool_t);
 
 extern const ni_string_array_t *ni_config_sources(const char *);
 

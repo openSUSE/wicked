@@ -1,7 +1,7 @@
 #
 # spec file for package wicked
 #
-# Copyright (c) 2019 SUSE LINUX GmbH, Nuernberg, Germany.
+# Copyright (c) 2020 SUSE LLC
 #
 # All modifications and additions to the file contributed by third parties
 # remain the property of their copyright owners, unless otherwise agreed
@@ -12,7 +12,7 @@
 # license that conforms to the Open Source Definition (Version 1.9)
 # published by the Open Source Initiative.
 
-# Please submit bugfixes or comments via http://bugs.opensuse.org/
+# Please submit bugfixes or comments via https://bugs.opensuse.org/
 #
 
 
@@ -21,9 +21,9 @@ Name:           wicked
 Version:        @PACKAGE_VERSION@
 Release:        %{release_prefix}.0.0
 Summary:        Network configuration infrastructure
-License:        GPL-2.0
+License:        GPL-2.0-or-later
 Group:          System/Management
-Url:            @PACKAGE_URL@
+URL:            @PACKAGE_URL@
 Source0:        %{name}-%{version}.tar.bz2
 Source1:        wicked-rpmlintrc
 #
@@ -89,7 +89,7 @@ Requires(pre):       util-linux
 %endif
 
 %if %{with systemd}
-BuildRequires:  systemd-devel
+BuildRequires:  pkgconfig(libsystemd)
 BuildRequires:  systemd-rpm-macros
 %{?systemd_requires}
 %if 0%{?suse_version:1}
@@ -424,6 +424,5 @@ fi
 %_datadir/pkgconfig/wicked.pc
 %_mandir/man7/wicked.7*
 %endif
-
 
 %changelog

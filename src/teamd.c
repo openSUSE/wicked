@@ -67,6 +67,7 @@
 #define NI_TEAMD_CALL_STATE_ITEM_SET		"StateItemValueSet"
 
 #define NI_TEAMD_CALL_PORT_ADD			"PortAdd"
+#define NI_TEAMD_CALL_PORT_REMOVE		"PortRemove"
 #define NI_TEAMD_CALL_PORT_CONFIG_UPDATE	"PortConfigUpdate"
 
 
@@ -77,6 +78,7 @@ typedef struct ni_teamd_client_ops {
 	int	(*ctl_state_get_item)(ni_teamd_client_t *, const char *, char **);
 	int	(*ctl_state_set_item)(ni_teamd_client_t *, const char *, const char *);
 	int	(*ctl_port_add)(ni_teamd_client_t *, const char *);
+	int	(*ctl_port_remove)(ni_teamd_client_t *, const char *);
 	int	(*ctl_port_config_update)(ni_teamd_client_t *, const char *, const char *);
 } ni_teamd_client_ops_t;
 
@@ -293,6 +295,33 @@ ni_teamd_dbus_ctl_port_add(ni_teamd_client_t *tdc, const char *port_name)
 }
 
 static int
+ni_teamd_dbus_ctl_port_remove(ni_teamd_client_t *tdc, const char *port_name)
+{
+	ni_dbus_message_t *call, *reply;
+	DBusError error;
+	int rv = 0;
+
+	if (ni_string_empty(port_name))
+		return -NI_ERROR_INVALID_ARGS;
+
+	dbus_error_init(&error);
+	call = ni_dbus_object_call_new(tdc->proxy, NI_TEAMD_CALL_PORT_REMOVE, 0);
+	ni_dbus_message_append_string(call, port_name);
+	if ((reply = ni_dbus_client_call(tdc->dbus, call, &error)) == NULL) {
+		rv = -NI_ERROR_DBUS_CALL_FAILED;
+		if (dbus_error_is_set(&error))
+			rv = ni_dbus_client_translate_error(tdc->dbus, &error);
+	}
+
+	if (rv < 0) {
+		ni_debug_application("Call to %s."NI_TEAMD_CALL_PORT_REMOVE"(%s) failed: %s",
+				ni_dbus_object_get_path(tdc->proxy), port_name, ni_strerror(rv));
+	}
+
+	return rv;
+}
+
+static int
 ni_teamd_dbus_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, const char *port_conf)
 {
 	ni_dbus_message_t *call, *reply;
@@ -435,6 +464,31 @@ ni_teamd_unix_ctl_port_add(ni_teamd_client_t *tdc, const char *port_name)
 }
 
 int
+ni_teamd_unix_ctl_port_remove(ni_teamd_client_t *tdc, const char *port_name)
+{
+	ni_process_t *pi;
+	int rv;
+
+	if (ni_string_empty(port_name))
+		return -1;
+
+	if (!(pi = ni_process_new(tdc->cmd)))
+		return -1;
+
+	ni_string_array_append(&pi->argv, "port");
+	ni_string_array_append(&pi->argv, "remove");
+	ni_string_array_append(&pi->argv, port_name);
+
+	rv = ni_process_run_and_wait(pi);
+	ni_process_free(pi);
+	if (rv) {
+		ni_error("%s: unable to remove team port %s", tdc->instance, port_name);
+		return -1;
+	}
+	return 0;
+}
+
+int
 ni_teamd_unix_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, const char *port_conf)
 {
 	ni_process_t *pi;
@@ -471,6 +525,7 @@ static const ni_teamd_client_ops_t	teamd_dbus_ops = {
 	.ctl_state_get_item	= ni_teamd_dbus_ctl_state_get_item,
 	.ctl_state_set_item	= ni_teamd_dbus_ctl_state_set_item,
 	.ctl_port_add		= ni_teamd_dbus_ctl_port_add,
+	.ctl_port_remove	= ni_teamd_dbus_ctl_port_remove,
 	.ctl_port_config_update	= ni_teamd_dbus_ctl_port_config_update,
 };
 
@@ -478,6 +533,7 @@ static const ni_teamd_client_ops_t	teamd_unix_ops = {
 	.destroy		= ni_teamd_unix_client_destroy,
 	.ctl_config_dump	= ni_teamd_unix_ctl_config_dump,
 	.ctl_port_add		= ni_teamd_unix_ctl_port_add,
+	.ctl_port_remove	= ni_teamd_unix_ctl_port_remove,
 	.ctl_port_config_update	= ni_teamd_unix_ctl_port_config_update,
 };
 
@@ -643,6 +699,14 @@ ni_teamd_ctl_port_add(ni_teamd_client_t *tdc, const char *port_name)
 }
 
 int
+ni_teamd_ctl_port_remove(ni_teamd_client_t *tdc, const char *port_name)
+{
+	if (!tdc || !tdc->ops.ctl_port_remove)
+		return -1;
+	return tdc->ops.ctl_port_remove(tdc, port_name);
+}
+
+int
 ni_teamd_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, const char *port_conf)
 {
 	if (!tdc || !tdc->ops.ctl_port_config_update)
@@ -702,7 +766,29 @@ ni_teamd_port_enslave(const ni_netdev_t *master, const ni_netdev_t *port, const 
 	ret = 0;
 
 failure:
-        ni_teamd_client_free(tdc);
+	ni_teamd_client_free(tdc);
+	return ret;
+}
+
+int
+ni_teamd_port_unenslave(const ni_netdev_t *master, const ni_netdev_t *port)
+{
+	ni_teamd_client_t *tdc;
+	int ret = -1;
+
+	if (!master || !master->name || !port || !port->name)
+		return -1;
+
+	if (!(tdc = ni_teamd_client_open(master->name)))
+		return -1;
+
+	if (ni_teamd_ctl_port_remove(tdc, port->name) < 0)
+		goto failure;
+
+	ret = 0;
+
+failure:
+	ni_teamd_client_free(tdc);
 	return ret;
 }
 

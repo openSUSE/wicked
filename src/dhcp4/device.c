@@ -326,7 +326,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		config->fqdn.update = NI_DHCP4_FQDN_UPDATE_NONE;
 
 	if (!ni_dhcp4_parse_client_id(&config->client_id, dev->system.hwaddr.type, info->clientid))
-		ni_dhcp4_set_config_client_id(&config->client_id, dev);
+		ni_dhcp4_set_config_client_id(&config->client_id, dev, info->create_cid);
 
 	if ((classid = info->vendor_class) == NULL)
 		classid = ni_dhcp4_config_vendor_class();
@@ -835,14 +835,14 @@ ni_dhcp4_set_dhcpv6_client_id(ni_opaque_t *raw, unsigned int iaid, const ni_opaq
  * Set the client ID as defined in the wicked-config(5)
  */
 ni_bool_t
-ni_dhcp4_set_config_client_id(ni_opaque_t *raw, const ni_dhcp4_device_t *dev)
+ni_dhcp4_set_config_client_id(ni_opaque_t *raw, const ni_dhcp4_device_t *dev,
+				unsigned int create_cid)
 {
 	const ni_config_dhcp4_t *dhcp4;
 	ni_netconfig_t *nc;
 	ni_netdev_t *ndev;
 	unsigned int iaid;
 	ni_opaque_t  duid;
-	unsigned int type;
 
 	if (!raw || !dev || !(nc = ni_global_state_handle(0)))
 		return FALSE;
@@ -850,8 +850,13 @@ ni_dhcp4_set_config_client_id(ni_opaque_t *raw, const ni_dhcp4_device_t *dev)
 	if (!(ndev = ni_netdev_by_index(nc, dev->link.ifindex)))
 		return FALSE;
 
-	dhcp4 = ni_config_dhcp4_find_device(dev->ifname);
-	if (!(type = dhcp4 ? dhcp4->create_cid : 0)) {
+	if (create_cid == NI_CONFIG_DHCP4_CID_TYPE_AUTO) {
+		/* use wicked-config(5) setting if any */
+		if ((dhcp4 = ni_config_dhcp4_find_device(dev->ifname)))
+			create_cid = dhcp4->create_cid;
+	}
+
+	if (create_cid == NI_CONFIG_DHCP4_CID_TYPE_AUTO) {
 		/*
 		 * We should allways use dhcp6 based client-id as
 		 * specified in RFC 4361, also on ethernet...
@@ -876,17 +881,17 @@ ni_dhcp4_set_config_client_id(ni_opaque_t *raw, const ni_dhcp4_device_t *dev)
 		switch (dev->system.hwaddr.type) {
 		case ARPHRD_ETHER:
 #ifndef NI_DHCP4_RFC4361_CID
-			type = NI_CONFIG_DHCP4_CID_TYPE_HWADDR;
+			create_cid = NI_CONFIG_DHCP4_CID_TYPE_HWADDR;
 			break;
 #endif
 		case ARPHRD_INFINIBAND:
 		default:
-			type = NI_CONFIG_DHCP4_CID_TYPE_DHCPv6;
+			create_cid = NI_CONFIG_DHCP4_CID_TYPE_DHCPv6;
 			break;
 		}
 	}
 
-	switch (type) {
+	switch (create_cid) {
 	case NI_CONFIG_DHCP4_CID_TYPE_DHCPv6:
 		if (!ni_iaid_acquire(&iaid, ndev, 0))
 			return FALSE;
@@ -902,6 +907,7 @@ ni_dhcp4_set_config_client_id(ni_opaque_t *raw, const ni_dhcp4_device_t *dev)
 	case NI_CONFIG_DHCP4_CID_TYPE_DISABLE:
 		return TRUE;
 
+	case NI_CONFIG_DHCP4_CID_TYPE_AUTO:
 	default:
 		return FALSE;
 	}

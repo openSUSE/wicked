@@ -25,6 +25,12 @@
 #ifndef WICKED_CLIENT_READ_CONFIG_H
 #define WICKED_CLIENT_READ_CONFIG_H
 
+typedef enum {
+	NI_IFCONFIG_KIND_DEFAULT,
+	NI_IFCONFIG_KIND_CONFIG,
+	NI_IFCONFIG_KIND_POLICY,
+} ni_ifconfig_kind_t;
+
 typedef struct ni_ifconfig_type		ni_ifconfig_type_t;
 
 struct ni_ifconfig_type {
@@ -34,6 +40,7 @@ struct ni_ifconfig_type {
 						const char *,
 						const char *,
 						const char *,
+						ni_ifconfig_kind_t,
 						ni_bool_t,
 						ni_bool_t);
 	    const ni_ifconfig_type_t *	(*guess)(const ni_ifconfig_type_t *,
@@ -44,10 +51,16 @@ struct ni_ifconfig_type {
 
 extern const ni_ifconfig_type_t *	ni_ifconfig_find_map(const ni_ifconfig_type_t *,
 					const char *, size_t);
+
 extern const ni_ifconfig_type_t *	ni_ifconfig_find_type(const ni_ifconfig_type_t *,
 					const char *, const char *, const char *, size_t);
+
 extern ni_bool_t			ni_ifconfig_read_subtype(xml_document_array_t *,
 					const ni_ifconfig_type_t *, const char *,
-					const char *, ni_bool_t, ni_bool_t, const char *);
+					const char *, ni_ifconfig_kind_t,
+					ni_bool_t, ni_bool_t, const char *);
+
+extern ni_bool_t			ni_ifconfig_read(xml_document_array_t *, const char *,
+					const char *, ni_ifconfig_kind_t, ni_bool_t, ni_bool_t);
 
 #endif /* WICKED_CLIENT_READ_CONFIG_H */

@@ -559,21 +559,27 @@ ni_sysctl_ipv4_ifconfig_is_present(const char *ifname)
 }
 
 int
-ni_sysctl_ipv4_ifconfig_get_int(const char *ifname, const char *ctl_name, int *value)
+ni_sysctl_ipv4_ifconfig_get(const char *ifname, const char *ctl_name, char **result)
 {
 	const char *pathname = __ni_sysctl_ipv4_ifconfig_path(ifname, ctl_name);
+
+	if (!result || __ni_sysfs_read_string(pathname, result) < 0 || !*result) {
+		ni_error("%s: unable to read file: %m", pathname);
+		return -1;
+	}
+	return 0;
+}
+
+int
+ni_sysctl_ipv4_ifconfig_get_int(const char *ifname, const char *ctl_name, int *value)
+{
 	char *result = NULL;
 	int ret;
 
 	*value = 0;
-	if (__ni_sysfs_read_string(pathname, &result) < 0) {
-		ni_error("%s: unable to read file: %m", pathname);
+	if (ni_sysctl_ipv4_ifconfig_get(ifname, ctl_name, &result) < 0)
 		return -1;
-	}
-	if (result == NULL) {
-		ni_error("%s: empty file", pathname);
-		return -1;
-	}
+
 	ret = ni_parse_int(result, value, 0);
 	ni_string_free(&result);
 	return ret;
@@ -582,22 +588,22 @@ ni_sysctl_ipv4_ifconfig_get_int(const char *ifname, const char *ctl_name, int *v
 int
 ni_sysctl_ipv4_ifconfig_get_uint(const char *ifname, const char *ctl_name, unsigned int *value)
 {
-	const char *pathname = __ni_sysctl_ipv4_ifconfig_path(ifname, ctl_name);
 	char *result = NULL;
 	int ret;
 
 	*value = 0;
-	if (__ni_sysfs_read_string(pathname, &result) < 0) {
-		ni_error("%s: unable to read file: %m", pathname);
+	if (ni_sysctl_ipv4_ifconfig_get(ifname, ctl_name, &result) < 0)
 		return -1;
-	}
-	if (result == NULL) {
-		ni_error("%s: empty file", pathname);
-		return -1;
-	}
+
 	ret = ni_parse_uint(result, value, 0);
 	ni_string_free(&result);
 	return ret;
+}
+
+int
+ni_sysctl_ipv4_ifconfig_set(const char *ifname, const char *ctl_name, const char *newval)
+{
+	return __ni_sysfs_printf(__ni_sysctl_ipv4_ifconfig_path(ifname, ctl_name), "%s", newval ? newval : "");
 }
 
 int
@@ -636,21 +642,27 @@ ni_sysctl_ipv6_ifconfig_is_present(const char *ifname)
 }
 
 int
-ni_sysctl_ipv6_ifconfig_get_int(const char *ifname, const char *ctl_name, int *value)
+ni_sysctl_ipv6_ifconfig_get(const char *ifname, const char *ctl_name, char **result)
 {
 	const char *pathname = __ni_sysctl_ipv6_ifconfig_path(ifname, ctl_name);
+
+	if (!result || __ni_sysfs_read_string(pathname, result) < 0 || !*result) {
+		ni_error("%s: unable to read file: %m", pathname);
+		return -1;
+	}
+	return 0;
+}
+
+int
+ni_sysctl_ipv6_ifconfig_get_int(const char *ifname, const char *ctl_name, int *value)
+{
 	char *result = NULL;
 	int ret;
 
 	*value = 0;
-	if (__ni_sysfs_read_string(pathname, &result) < 0) {
-		ni_error("%s: unable to read file: %m", pathname);
+	if (ni_sysctl_ipv6_ifconfig_get(ifname, ctl_name, &result) < 0)
 		return -1;
-	}
-	if (result == NULL) {
-		ni_error("%s: empty file", pathname);
-		return -1;
-	}
+
 	ret = ni_parse_int(result, value, 0);
 	ni_string_free(&result);
 	return ret;
@@ -659,22 +671,40 @@ ni_sysctl_ipv6_ifconfig_get_int(const char *ifname, const char *ctl_name, int *v
 int
 ni_sysctl_ipv6_ifconfig_get_uint(const char *ifname, const char *ctl_name, unsigned int *value)
 {
-	const char *pathname = __ni_sysctl_ipv6_ifconfig_path(ifname, ctl_name);
 	char *result = NULL;
 	int ret;
 
 	*value = 0;
-	if (__ni_sysfs_read_string(pathname, &result) < 0) {
-		ni_error("%s: unable to read file: %m", pathname);
+	if (ni_sysctl_ipv6_ifconfig_get(ifname, ctl_name, &result) < 0)
 		return -1;
-	}
-	if (result == NULL) {
-		ni_error("%s: empty file", pathname);
-		return -1;
-	}
+
 	ret = ni_parse_uint(result, value, 0);
 	ni_string_free(&result);
 	return ret;
+}
+
+int
+ni_sysctl_ipv6_ifconfig_get_ipv6(const char *ifname, const char *ctl_name, struct in6_addr *ipv6)
+{
+	char *result = NULL;
+	ni_sockaddr_t addr;
+	int ret;
+
+	*ipv6 = in6addr_any;
+	if (ni_sysctl_ipv6_ifconfig_get(ifname, ctl_name, &result) < 0)
+		return -1;
+
+	if ((ret = ni_sockaddr_parse(&addr, result, AF_INET6)) == 0)
+		*ipv6 = addr.six.sin6_addr;
+
+	ni_string_free(&result);
+	return ret;
+}
+
+int
+ni_sysctl_ipv6_ifconfig_set(const char *ifname, const char *ctl_name, const char *newval)
+{
+	return __ni_sysfs_printf(__ni_sysctl_ipv6_ifconfig_path(ifname, ctl_name), "%s", newval ? newval : "");
 }
 
 int
@@ -687,6 +717,19 @@ int
 ni_sysctl_ipv6_ifconfig_set_uint(const char *ifname, const char *ctl_name, unsigned int newval)
 {
 	return __ni_sysfs_printf(__ni_sysctl_ipv6_ifconfig_path(ifname, ctl_name), "%u", newval);
+}
+
+int
+ni_sysctl_ipv6_ifconfig_set_ipv6(const char *ifname, const char *ctl_name, const struct in6_addr newval)
+{
+	ni_sockaddr_t addr;
+	char abuf[128] = {'\0'};
+
+	ni_sockaddr_set_ipv6(&addr, newval, 0);
+	if (!ni_sockaddr_format(&addr, abuf, sizeof(abuf)))
+		return -1;
+
+	return ni_sysctl_ipv6_ifconfig_set(ifname, ctl_name, abuf);
 }
 
 /*
