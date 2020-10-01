@@ -39,6 +39,14 @@ enum {
 };
 
 enum {
+	NI_IPV6_ADDR_GEN_MODE_DEFAULT	= -1,
+	NI_IPV6_ADDR_GEN_MODE_EUI64	=  0,
+	NI_IPV6_ADDR_GEN_MODE_NONE,
+	NI_IPV6_ADDR_GEN_MODE_STABLE_PRIVACY,
+	NI_IPV6_ADDR_GEN_MODE_RANDOM,
+};
+
+enum {
 	NI_IPV6_READY			= 0U,
 	NI_IPV6_RS_SENT			= 1,
 	NI_IPV6_RA_RCVD			= 2,
@@ -50,6 +58,9 @@ struct ni_ipv6_devconf {
 	ni_tristate_t		accept_redirects;
 	int			accept_ra;
 	int			accept_dad;
+
+	int			addr_gen_mode;
+	struct in6_addr		stable_secret;
 
 	ni_tristate_t		autoconf;
 	int			privacy; /* -1 for lo & p-t-p otherwise 0, 1, >1 */
@@ -122,5 +133,6 @@ extern int			ni_system_ipv6_devinfo_set(ni_netdev_t *, const ni_ipv6_devconf_t *
 extern const char *		ni_ipv6_devconf_privacy_to_name(int privacy);
 extern const char *		ni_ipv6_devconf_accept_ra_to_name(int accept_ra);
 extern const char *		ni_ipv6_devconf_accept_dad_to_name(int accept_dad);
+extern const char *		ni_ipv6_devconf_addr_gen_mode_to_name(int addr_gen_mode);
 
 #endif /* __WICKED_IPv6_H__ */

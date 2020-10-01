@@ -74,6 +74,12 @@ This option allows to set a metric/priority for DHCPv4 routes. Default is 0.
 .BR DHCLIENT_CLIENT_ID
 Specifies a client identifier string. By default an id derived from the
 hardware address of the network interface is sent as client identifier.
+.TP
+.BR DHCLIENT_CREATE_CID\ { | rfc4361 | dhcpv6 | dhcp6 | rfc2132 | hwaddr | none | disable }
+Overrides the DHCPv4 client-identifier type to use specified in the
+wicked-config(5) `create-cid` option, the interface type specific
+client-id type and compile time defaults.
+Note: e.g. DHCP over Infiniband (IPoIB) mandates an rfc4361 client-id.
 .\" .TP
 .\" .BR DHCLIENT_VENDOR_CLASS_ID
 .\" Specifies the vendor class identifier string. The default is DHCP client

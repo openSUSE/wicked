@@ -1,0 +1,28 @@
+# EditorConfig: http://EditorConfig.org
+
+# top-most EditorConfig file
+root = true
+
+[*]
+insert_final_newline = true
+trim_trailing_whitespace = true
+charset = utf-8
+indent_style = tab
+indent_size = 8
+
+[**{.xml.in,.xml,.conf}]
+indent_style = space
+indent_size = 2
+
+[man/*.{0..9}.in]
+indent_style = space
+indent_size = 3
+
+[man/*.{0..9}]
+indent_style = space
+indent_size = 3
+
+[doc/schema/*.html]
+indent_style = space
+indent_size = 1
+

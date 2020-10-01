@@ -602,6 +602,43 @@ __ni_suse_parse_route_hops(ni_route_nexthop_t *nh, ni_string_array_t *opts,
 }
 
 int
+ni_suse_route_parse_time(const char *input, unsigned int *result)
+{
+        static const ni_intmap_t        time_map[] = {
+                { "msecs",              0               },
+                { "msec",               0               },
+                { "ms",                 0               },
+                { "secs",               1000            },
+                { "sec",                1000            },
+                { "s",                  1000            },
+                { NULL,                 0               }
+        };
+        unsigned int factor = 0;
+        unsigned long value;
+        char *end = NULL;
+
+        if (!result || !input || !*input || *input == '-') {
+                errno = EINVAL;
+                return -1;
+        }
+
+        errno = 0;
+        value = strtoul(input, (char **) &end, 10);
+        if (errno)
+                return -1;
+        if (*end && ni_parse_uint_mapped(end, time_map, &factor) < 0) {
+                errno = EINVAL;
+                return -1;
+        }
+
+        if (factor)
+                value *= factor;
+
+        *result = value;
+        return 0;
+}
+
+int
 __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 				unsigned int *pos, const char *ifname,
 				const char *filename, unsigned int line)
@@ -701,7 +738,7 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 					return -1;
 				val = ni_string_array_at(opts, (*pos)++);
 			}
-			if (ni_parse_uint(val, &tmp, 10) < 0)
+			if (ni_suse_route_parse_time(val, &tmp) < 0)
 				return -1;
 			rp->rtt = tmp;
 		} else
@@ -712,7 +749,7 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 					return -1;
 				val = ni_string_array_at(opts, (*pos)++);
 			}
-			if (ni_parse_uint(val, &tmp, 10) < 0)
+			if (ni_suse_route_parse_time(val, &tmp) < 0)
 				return -1;
 			rp->rttvar = tmp;
 		} else
@@ -802,7 +839,7 @@ __ni_suse_route_parse_opts(ni_route_t *rp, ni_string_array_t *opts,
 					return -1;
 				val = ni_string_array_at(opts, (*pos)++);
 			}
-			if (ni_parse_uint(val, &tmp, 10) < 0)
+			if (ni_suse_route_parse_time(val, &tmp) < 0)
 				return -1;
 			rp->rto_min = tmp;
 		} else
@@ -5225,6 +5262,13 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_CLIENT_ID")) != NULL)
 		ni_string_dup(&compat->dhcp4.client_id, string);
+	else
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_CREATE_CID")) != NULL) {
+		if (!ni_config_dhcp4_cid_type_parse(&compat->dhcp4.create_cid, string))
+			ni_warn("%s: Cannot parse DHCLIENT_CREATE_CID='%s' option",
+					ni_basename(sc->pathname),
+					ni_print_suspect(string, ni_string_len(string)));
+	}
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_VENDOR_CLASS_ID")) != NULL)
 		ni_string_dup(&compat->dhcp4.vendor_class, string);
@@ -5957,26 +6001,66 @@ ni_suse_ifcfg_get_firewall(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 /*
  * Read ifsysctl file
  */
-static void
-__ifsysctl_get_int(ni_var_array_t *vars, const char *path, const char *ifname,
-					const char *attr, int *value, int base)
+static const ni_var_t *
+__ifsysctl_get_var(ni_var_array_t *vars, const char *path, const char *ifname, const char *attr)
 {
 	const char *names[] = { "all", "default", ifname, NULL };
 	const char **name;
-	ni_var_t *var;
+	const ni_var_t *ret = NULL;
+	const ni_var_t *var;
 
 	for (name = names; *name; name++) {
 		var = ni_ifsysctl_vars_get(vars, "%s/%s/%s", path, *name, attr);
-		if (!var)
+		if (!var || ni_string_empty(var->value))
 			continue;
-		if (ni_parse_int(var->value, value, base) < 0) {
-			ni_debug_readwrite("Can't parse sysctl '%s'='%s' as integer",
-					var->name, var->value);
-		} else {
-			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_READWRITE,
-				"Parsed sysctl '%s'='%s'", var->name, var->value);
-		}
+		ret = var;
 	}
+	return ret;
+}
+
+static const char *
+__ifsysctl_get_str(ni_var_array_t *vars, const char *path, const char *ifname, const char *attr)
+{
+	const ni_var_t *var;
+
+	if ((var = __ifsysctl_get_var(vars, path, ifname, attr)))
+		return var->value;
+	return NULL;
+}
+
+static ni_bool_t
+__ifsysctl_get_int(ni_var_array_t *vars, const char *path, const char *ifname,
+					const char *attr, int *value, int base)
+{
+	const ni_var_t *var;
+
+	if (!(var = __ifsysctl_get_var(vars, path, ifname, attr)))
+		return FALSE;
+
+	if (ni_parse_int(var->value, value, base) < 0) {
+		ni_debug_readwrite("Can't parse sysctl '%s'='%s' as integer",
+				var->name, var->value);
+		return FALSE;
+	} else {
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_READWRITE,
+				"Parsed sysctl '%s'='%s'", var->name, var->value);
+		return TRUE;
+	}
+}
+
+static ni_bool_t
+__ifsysctl_get_ipv6(ni_var_array_t *vars, const char *path, const char *ifname,
+					const char *attr, struct in6_addr *ipv6)
+{
+	ni_sockaddr_t addr;
+	const char *str;
+
+	str = __ifsysctl_get_str(vars, path, ifname, attr);
+	if (!str || ni_sockaddr_parse(&addr, str, AF_INET6) < 0)
+		return FALSE;
+
+	*ipv6 = addr.six.sin6_addr;
+	return TRUE;
 }
 
 static void
@@ -6018,9 +6102,9 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
 				"forwarding", &ipv4->conf.forwarding);
 	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
-				"arp-notify", &ipv4->conf.arp_notify);
+				"arp_notify", &ipv4->conf.arp_notify);
 	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
-				"accept-redirects", &ipv4->conf.accept_redirects);
+				"accept_redirects", &ipv4->conf.accept_redirects);
 
 	ipv6 = ni_netdev_get_ipv6(dev);
 	ni_tristate_set(&ipv6->conf.enabled, !__ni_ipv6_disbled);
@@ -6056,14 +6140,21 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 				"autoconf", &ipv6->conf.autoconf);
 
 	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
-				"privacy", &ipv6->conf.privacy, 10);
+				"use_tempaddr", &ipv6->conf.privacy, 10);
 	if (ipv6->conf.privacy > NI_IPV6_PRIVACY_PREFER_TEMPORARY)
 		ipv6->conf.privacy = NI_IPV6_PRIVACY_PREFER_TEMPORARY;
 	else if (ipv6->conf.privacy < NI_IPV6_PRIVACY_DEFAULT)
 		ipv6->conf.privacy = NI_IPV6_PRIVACY_DISABLED;
 
 	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
-				"accept-redirects", &ipv6->conf.accept_redirects);
+				"accept_redirects", &ipv6->conf.accept_redirects);
+
+	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
+				"addr_gen_mode", &ipv6->conf.privacy, 10);
+
+	__ifsysctl_get_ipv6(&ifsysctl, "net/ipv6/conf", dev->name,
+				"stable_secret", &ipv6->conf.stable_secret);
+
 	return TRUE;
 }
 
@@ -6170,6 +6261,37 @@ __ni_suse_adjust_bond_slaves(ni_compat_netdev_array_t *netdevs, ni_compat_netdev
 			__ni_suse_create_compat_slave(netdevs, master, master->dev->name, slave_name);
 		}
 	}
+}
+
+static void
+ __ni_suse_adjust_team_ports(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master)
+{
+	ni_team_t *team = ni_netdev_get_team(master->dev);
+	const char *port;
+	ni_netdev_t *dev;
+	unsigned int i;
+	ni_bool_t nsna_enabled = FALSE;
+	ni_team_link_watch_t *lw;
+	ni_ipv6_devinfo_t *ipv6;
+
+	for (i = 0; i < team->link_watch.count; i++) {
+		lw = team->link_watch.data[i];
+		if (lw && lw->type == NI_TEAM_LINK_WATCH_NSNA_PING)
+			nsna_enabled = TRUE;
+	}
+
+	if (!nsna_enabled)
+		return;
+
+	for (i = 0; i < team->ports.count; i++) {
+		if (!team->ports.data[i])
+			continue;
+		port = team->ports.data[i]->device.name;
+		dev = __ni_suse_find_compat_device(netdevs, port);
+		if (dev && (ipv6 = ni_netdev_get_ipv6(dev)))
+			ni_tristate_set(&ipv6->conf.enabled, TRUE);
+	}
+
 }
 
 static void
@@ -6285,6 +6407,8 @@ __ni_suse_adjust_slaves(ni_compat_netdev_array_t *netdevs)
 		case NI_IFTYPE_OVS_BRIDGE:
 			__ni_suse_adjust_ovs_bridge_ports(netdevs, compat);
 			break;
+		case NI_IFTYPE_TEAM:
+			__ni_suse_adjust_team_ports(netdevs, compat);
 		default:
 			break;
 		}

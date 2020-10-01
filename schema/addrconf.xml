@@ -178,6 +178,15 @@
     <flags type="builtin-addrconf-flags" />
 
     <client-id type="string" />
+    <create-cid type="uint32" constraint="enum">
+      <rfc2132  value="1"/>
+      <hwaddr   value="1"/>
+      <rfc4361  value="2"/>
+      <dhcpv6   value="2"/>
+      <dhcp6    value="2"/>
+      <disable  value="3"/>
+      <none     value="3"/>
+    </create-cid>
     <vendor-class type="string" />
     <user-class class="dict">
       <format type="uint32" constraint="enum">
