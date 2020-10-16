@@ -410,7 +410,6 @@ ni_do_iaid(const char *caller, int argc, char **argv)
 				"  --help, -h           show this help text and exit.\n"
 				"\n"
 				"Supported Commands:\n"
-				"  help                 show this help text and exit.\n"
 				"  dump, show           show the iaid map contents\n"
 				"  get <ifname>         get current device iaid\n"
 				"  del <ifname>         delete current device iaid\n"
@@ -430,11 +429,6 @@ ni_do_iaid(const char *caller, int argc, char **argv)
 	ni_string_printf(&command, "%s %s", program, cmd);
 	argv[optind] = command;
 
-	if (ni_string_eq(cmd, "help")) {
-		argv[optind] = (char *)cmd;
-		status = NI_WICKED_RC_SUCCESS;
-		goto usage;
-	} else
 	if (ni_string_eq(cmd, "dump") || ni_string_eq(cmd, "show")) {
 		status = ni_do_iaid_dump(argc - optind, argv + optind);
 	} else
@@ -462,4 +456,3 @@ cleanup:
 	ni_string_free(&program);
 	return status;
 }
-

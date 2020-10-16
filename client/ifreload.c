@@ -130,15 +130,15 @@ usage:
 			fprintf(stderr,
 				"%s [ifreload-options] <ifname ...>|all\n"
 				"\nSupported ifreload-options:\n"
-				"  --help\n"
+				"  --help, -h\n"
 				"      Show this help text.\n"
-				"  --transient\n"
+				"  --transient, -T\n"
 				"      Enable transient interface return codes\n"
-				"  --ifconfig <filename>\n"
+				"  --ifconfig, -i <filename>\n"
 				"      Read interface configuration(s) from file\n"
-				"  --timeout <sec>\n"
+				"  --timeout, -t <sec>\n"
 				"      Timeout after <sec> seconds\n"
-				"  --persistent\n"
+				"  --persistent, -P\n"
 				"      Set interface into persistent mode (no regular ifdown allowed)\n"
 				, program);
 			goto cleanup;
@@ -669,7 +669,7 @@ ni_do_ifreload_nanny(const char *caller, int argc, char **argv)
 		{ "transient",		no_argument,		NULL,	OPT_TRANSIENT },
 		{ "persistent",		no_argument,		NULL,	OPT_PERSISTENT },
 
-		{ NULL,			no_argument,		NULL,	0 }
+		{ NULL }
 	};
 	ni_ifworker_array_t up_marked = NI_IFWORKER_ARRAY_INIT;
 	ni_ifworker_array_t down_marked = NI_IFWORKER_ARRAY_INIT;
@@ -725,15 +725,15 @@ usage:
 			fprintf(stderr,
 				"%s [ifreload-options] <ifname ...>|all\n"
 				"\nSupported ifreload-options:\n"
-				"  --help\n"
+				"  --help, -h\n"
 				"      Show this help text.\n"
-				"  --transient\n"
+				"  --transient, -T\n"
 				"      Enable transient interface return codes\n"
-				"  --ifconfig <filename>\n"
+				"  --ifconfig, -i <filename>\n"
 				"      Read interface configuration(s) from file\n"
-				"  --timeout <sec>\n"
+				"  --timeout, -t <sec>\n"
 				"      Timeout after <sec> seconds\n"
-				"  --persistent\n"
+				"  --persistent, -P\n"
 				"      Set interface into persistent mode (no regular ifdown allowed)\n"
 				, program);
 			goto cleanup;

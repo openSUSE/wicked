@@ -272,7 +272,11 @@ static int
 do_arp_verify_run(struct arp_handle *handle, const char *caller, int argc, char **argv)
 {
 	enum {
-		OPT_QUIET, OPT_VERBOSE, OPT_HELP, OPT_INTERVAL, OPT_COUNT,
+		OPT_QUIET	= 'q',
+		OPT_VERBOSE	= 'v',
+		OPT_HELP	= 'h',
+		OPT_INTERVAL	= 'I',
+		OPT_COUNT	= 'C',
 	};
 	static struct option      options[] = {
 		{ "help",         no_argument,       NULL, OPT_HELP        },
@@ -298,7 +302,7 @@ do_arp_verify_run(struct arp_handle *handle, const char *caller, int argc, char 
 
 	optind = 1;
 	ni_assert(handle && handle->ops);
-	while ((opt = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
+	while ((opt = getopt_long(argc, argv, "+hqvC:I:", options, NULL)) != EOF) {
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
@@ -310,17 +314,17 @@ do_arp_verify_run(struct arp_handle *handle, const char *caller, int argc, char 
 				"  %s [options ...] <ifname> <IP address>\n"
 				"\n"
 				"Supported options:\n"
-				"  --help\n"
+				"  --help, -h\n"
 				"      Show this help text.\n"
-				"  --quiet\n"
+				"  --quiet, -q\n"
 				"      Return exit status only\n"
-				"  --verbose\n"
+				"  --verbose, -v\n"
 				"      Show a result info (default)\n"
 				"\n"
-				"  --count <count>\n"
+				"  --count, -C <count>\n"
 				"      Send <count> duplicate address detection probes\n"
 				"      (default: 3). Returns 4 when address is in use.\n"
-				"  --interval <msec>\n"
+				"  --interval, -I <msec>\n"
 				"      DAD probing packet sending interval in msec\n"
 				"      (default: 1000..2000).\n"
 				, argv[0]
@@ -521,7 +525,11 @@ static int
 do_arp_notify_run(struct arp_handle *handle, const char *caller, int argc, char **argv)
 {
 	enum {
-		OPT_QUIET, OPT_VERBOSE, OPT_HELP, OPT_INTERVAL, OPT_COUNT,
+		OPT_QUIET	= 'q',
+		OPT_VERBOSE	= 'v',
+		OPT_HELP	= 'h',
+		OPT_INTERVAL	= 'I',
+		OPT_COUNT	= 'C',
 	};
 	static struct option      options[] = {
 		{ "help",         no_argument,       NULL, OPT_HELP        },
@@ -547,7 +555,7 @@ do_arp_notify_run(struct arp_handle *handle, const char *caller, int argc, char 
 
 	optind = 1;
 	ni_assert(handle && handle->ops);
-	while ((opt = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
+	while ((opt = getopt_long(argc, argv, "+hqvC:I:", options, NULL)) != EOF) {
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
@@ -559,17 +567,17 @@ do_arp_notify_run(struct arp_handle *handle, const char *caller, int argc, char 
 				"  %s [options ...] <ifname> <IP address>\n"
 				"\n"
 				"Supported options:\n"
-				"  --help\n"
+				"  --help, -h\n"
 				"      Show this help text.\n"
-				"  --quiet\n"
+				"  --quiet, -q\n"
 				"      Return exit status only\n"
-				"  --verbose\n"
+				"  --verbose, -v\n"
 				"      Show a result info (default)\n"
 				"\n"
-				"  --count <count>\n"
+				"  --count, -C <count>\n"
 				"      Announce IP address use (gratuitous ARP) <count> times\n"
 				"      (default: 2).\n"
-				"  --interval <msec>\n"
+				"  --interval, -I <msec>\n"
 				"      Announcement packet sending interval in msec\n"
 				"      (default: 2000).\n"
 				, argv[0]
@@ -696,8 +704,14 @@ static int
 do_arp_ping_run(struct arp_handle *handle, const char *caller, int argc, char **argv)
 {
 	enum {
-		OPT_QUIET, OPT_VERBOSE, OPT_HELP, OPT_INTERVAL, OPT_COUNT,
-		OPT_TIMEOUT, OPT_REPLIES, OPT_FROM_IP
+		OPT_QUIET	= 'q',
+		OPT_VERBOSE	= 'v',
+		OPT_HELP	= 'h',
+		OPT_INTERVAL	= 'I',
+		OPT_COUNT	= 'C',
+		OPT_TIMEOUT	= 't',
+		OPT_REPLIES	= 'r',
+		OPT_FROM_IP	= 'f',
 	};
 	static struct option      options[] = {
 		{ "help",         no_argument,       NULL, OPT_HELP        },
@@ -727,7 +741,7 @@ do_arp_ping_run(struct arp_handle *handle, const char *caller, int argc, char **
 
 	optind = 1;
 	ni_assert(handle && handle->ops);
-	while ((opt = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
+	while ((opt = getopt_long(argc, argv, "+hqvC:I:t:", options, NULL)) != EOF) {
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
@@ -739,22 +753,22 @@ do_arp_ping_run(struct arp_handle *handle, const char *caller, int argc, char **
 				"  %s [options ...] <ifname> <IP address>\n"
 				"\n"
 				"Supported options:\n"
-				"  --help\n"
+				"  --help, -h\n"
 				"      Show this help text.\n"
-				"  --quiet\n"
+				"  --quiet, -q\n"
 				"      Return exit status only\n"
-				"  --verbose\n"
+				"  --verbose, -v\n"
 				"      Show a result info (default)\n"
 				"\n"
-				"  --count <count> | inf\n"
+				"  --count, -C <count> | inf\n"
 				"      Ping specified IP address <count> times\n"
 				"      (default: infinite).\n"
-				"  --interval <msec>\n"
+				"  --interval, -I <msec>\n"
 				"      Packet sending interval in msec\n"
 				"      (default: 1000).\n"
 				"  --replies <count>\n"
 				"      Wait unitil specified number of ping replies\n"
-				"  --timeout <msec>\n"
+				"  --timeout, -t <msec>\n"
 				"      Wait for ping replies until given timeout in msec\n"
 				"  --from-ip <source ip>\n"
 				"      Use specified IP address as the ping source\n"
@@ -1046,8 +1060,12 @@ int
 ni_do_arp(const char *caller, int argc, char **argv)
 {
 	enum {
-		OPT_QUIET, OPT_VERBOSE, OPT_HELP, OPT_INTERVAL,
-		OPT_VERIFY, OPT_NOTIFY,
+		OPT_QUIET	= 'q',
+		OPT_VERBOSE	= 'v',
+		OPT_HELP	= 'h',
+		OPT_INTERVAL	= 'I',
+		OPT_VERIFY	= 'V',
+		OPT_NOTIFY	= 'N',
 	};
 	static struct option      options[] = {
 		{ "help",         no_argument,       NULL, OPT_HELP        },
@@ -1071,7 +1089,7 @@ ni_do_arp(const char *caller, int argc, char **argv)
 
 	if (ni_string_printf(&command, "%s %s",
 				caller  ? caller  : "wicked",
-				argv[0] ? argv[0] : "duid")) {
+				argv[0] ? argv[0] : "arp")) {
 		caller  = argv[0];
 		argv[0] = command;
 	} else {
@@ -1079,7 +1097,7 @@ ni_do_arp(const char *caller, int argc, char **argv)
 	}
 
 	optind = 1;
-	while ((opt = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
+	while ((opt = getopt_long(argc, argv, "+hqvV:N:I:", options, NULL)) != EOF) {
 		switch (opt) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
@@ -1091,11 +1109,11 @@ ni_do_arp(const char *caller, int argc, char **argv)
 				"  %s [options] <action> [action options] <ifname> <IP address>\n"
 				"\n"
 				"Common options:\n"
-				"  --help\n"
+				"  --help, -h\n"
 				"      Show this help text.\n"
-				"  --quiet\n"
+				"  --quiet, -q\n"
 				"      Return exit status only\n"
-				"  --verbose\n"
+				"  --verbose, -v\n"
 				"      Show a result info (default)\n"
 				"\n"
 				"Deprecated options:\n"
@@ -1223,4 +1241,3 @@ cleanup:
 	ni_string_free(&command);
 	return status;
 }
-

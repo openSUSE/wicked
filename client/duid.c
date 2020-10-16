@@ -791,8 +791,7 @@ ni_do_duid(const char *caller, int argc, char **argv)
 				"  --help, -h           show this help text and exit.\n"
 				"\n"
 				"Supported commands:\n"
-				"  help                 show this help text and exit.\n"
-				"  dump, show		show the duid map contents\n"
+				"  dump, show           show the duid map contents\n"
 				"  get [options]        get current duid\n"
 				"  del [options]        delete current duid\n"
 				"  set [options] <duid> set/update the duid\n"
@@ -811,11 +810,6 @@ ni_do_duid(const char *caller, int argc, char **argv)
 	ni_string_printf(&command, "%s %s", program, cmd);
 	argv[optind] = command;
 
-	if (ni_string_eq(cmd, "help")) {
-		argv[optind] = (char *)cmd;
-		status = NI_WICKED_RC_SUCCESS;
-		goto usage;
-	} else
 	if (ni_string_eq(cmd, "dump") || ni_string_eq(cmd, "show")) {
 		status = ni_do_duid_dump(argc - optind, argv + optind);
 	} else
@@ -843,4 +837,3 @@ cleanup:
 	ni_string_free(&program);
 	return status;
 }
-

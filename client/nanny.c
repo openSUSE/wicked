@@ -196,25 +196,29 @@ do_nanny_recheck(int argc, char **argv)
 int
 do_nanny(int argc, char **argv)
 {
-	enum  { OPT_HELP, };
+	enum { OPT_HELP = 'h' };
 	static struct option nanny_options[] = {
-		{ "help", no_argument, NULL, OPT_HELP },
+		{ "help",	no_argument,	NULL, OPT_HELP },
+
 		{ NULL }
 	};
 	const char *command;
 	int c;
 
 	optind = 1;
-	while ((c = getopt_long(argc, argv, "+", nanny_options, NULL)) != EOF) {
+	while ((c = getopt_long(argc, argv, "+h", nanny_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_HELP:
 		default:
 usage:
 			fprintf(stderr,
 				"wicked [options] nanny <subcommand>\n"
-				"\nSupported subcommands:\n"
-				"  --help\n"
+				"\n"
+				"Supported global options:\n"
+				"  --help, -h\n"
 				"      Show this help text.\n"
+				"\n"
+				"Supported subcommands:\n"
 				"  enable <device>\n"
 				"  disable <device>\n"
 				"  addpolicy <filename>\n"
@@ -248,7 +252,7 @@ usage:
 		return do_nanny_disable(argc, argv);
 	if (ni_string_eq(command, "addsecret"))
 		return do_nanny_addsecret(argc, argv);
-	
+
 	ni_error("Unsupported nanny subcommand \"%s\"", command);
 	goto usage;
 }
@@ -610,4 +614,3 @@ cleanup:
 	ni_dbus_variant_destroy(&call_resp);
 	return rv;
 }
-

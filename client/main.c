@@ -58,17 +58,15 @@
 #include "main.h"
 
 enum {
-	OPT_HELP,
-	OPT_VERSION,
-	OPT_CONFIGFILE,
-	OPT_DEBUG,
-	OPT_LOG_LEVEL,
-	OPT_LOG_TARGET,
-	OPT_SYSTEMD,
-
-	OPT_DRYRUN,
-	OPT_ROOTDIR,
-	OPT_LINK_TIMEOUT,
+	OPT_HELP	= 'h',
+	OPT_VERSION	= 'v',
+	OPT_CONFIGFILE	= 'c',
+	OPT_DEBUG	= 'd',
+	OPT_LOG_LEVEL	= 'l',
+	OPT_LOG_TARGET	= 'L',
+	OPT_SYSTEMD	= 's',
+	OPT_DRYRUN	= 'n',
+	OPT_ROOTDIR	= 'r'
 };
 
 static struct option	options[] = {
@@ -131,7 +129,7 @@ main(int argc, char **argv)
 	ni_log_init();
 	program = ni_basename(argv[0]);
 
-	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
+	while ((c = getopt_long(argc, argv, "+hvc:d:l:L:s", options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_HELP:
 			status = NI_WICKED_ST_OK;
@@ -142,22 +140,22 @@ main(int argc, char **argv)
 				"%s [options] <command> ...\n"
 				"\n"
 				"Options:\n"
-				"  --help\n"
-				"  --version\n"
-				"  --config filename\n"
+				"  --help, -h\n"
+				"  --version, -v\n"
+				"  --config, -c filename\n"
 				"        Use alternative configuration file.\n"
-				"  --log-target target\n"
+				"  --log-target, -L target\n"
 				"        Set log destination to <stderr|syslog>.\n"
-				"  --log-level level\n"
+				"  --log-level, -l level\n"
 				"        Set log level to <error|warning|notice|info|debug>.\n"
-				"  --debug facility\n"
+				"  --debug, -d facility\n"
 				"        Enable debugging for debug <facility>.\n"
 				"        Use '--debug help' for a list of facilities.\n"
-				"  --dry-run\n"
+				"  --dry-run, -n\n"
 				"        Do not change the system in any way.\n"
-				"  --root-directory\n"
+				"  --root-directory, -r\n"
 				"        Search all config files below this directory.\n"
-				"  --systemd\n"
+				"  --systemd, -s\n"
 				"        Enables behavior required by systemd service\n"
 				"\n"
 				"Commands:\n"
@@ -599,17 +597,17 @@ int
 do_show_xml(int argc, char **argv)
 {
 	enum {
-		OPT_HELP,
-		OPT_RAW,
+		OPT_HELP	= 'h',
+		OPT_RAW		= 'R',
 #ifdef MODEM
-		OPT_MODEMS,
+		OPT_MODEMS	= 'm',
 #endif
 	};
 	static struct option local_options[] = {
-		{ "help", no_argument, NULL, OPT_HELP },
-		{ "raw", no_argument, NULL, OPT_RAW },
+		{ "help",	no_argument,	NULL, OPT_HELP	},
+		{ "raw",	no_argument,	NULL, OPT_RAW	},
 #ifdef MODEM
-		{ "modem", no_argument, NULL, OPT_MODEMS },
+		{ "modem",	no_argument,	NULL, OPT_MODEMS},
 #endif
 		{ NULL }
 	};
@@ -624,7 +622,12 @@ do_show_xml(int argc, char **argv)
 	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 
 	optind = 1;
-	while ((c = getopt_long(argc, argv, "", local_options, NULL)) != EOF) {
+#ifdef MODEM
+	while ((c = getopt_long(argc, argv, "hrm", local_options, NULL)) != EOF) {
+#else
+	while ((c = getopt_long(argc, argv, "hR", local_options, NULL)) != EOF) {
+#endif
+
 		switch (c) {
 		case OPT_RAW:
 			opt_raw = TRUE;
@@ -643,13 +646,13 @@ do_show_xml(int argc, char **argv)
 				"wicked show-xml [options] [ifname ... |all]\n"
 				"\n"
 				"Supported options:\n"
-				"  --help\n"
+				"  --help, -h\n"
 				"      Show this help text.\n"
-				"  --raw\n"
+				"  --raw, -R\n"
 				"      Show raw dbus reply in pseudo-xml, rather than using the schema.\n"
 				"      This option effectively disables the ifname filter. \n"
 #ifdef MODEM
-				"  --modem\n"
+				"  --modem, -m\n"
 				"      List Modems\n"
 #endif
 				);
@@ -742,11 +745,16 @@ out:
 int
 do_xpath(int argc, char **argv)
 {
-	enum { OPT_HELP, OPT_REFERENCE, OPT_FILE };
+	enum {
+		OPT_HELP	= 'h',
+		OPT_REFERENCE	= 'r',
+		OPT_FILE	= 'f',
+	};
 	static struct option xpath_options[] = {
-		{ "help", no_argument, NULL, OPT_HELP },
-		{ "reference", required_argument, NULL, OPT_REFERENCE },
-		{ "file", required_argument, NULL, OPT_FILE },
+		{ "help",	no_argument,		NULL, OPT_HELP		},
+		{ "reference",	required_argument,	NULL, OPT_REFERENCE	},
+		{ "file",	required_argument,	NULL, OPT_FILE		},
+
 		{ NULL }
 	};
 	const char *opt_reference = NULL, *opt_file = "-";
@@ -755,7 +763,7 @@ do_xpath(int argc, char **argv)
 	int c;
 
 	optind = 1;
-	while ((c = getopt_long(argc, argv, "", xpath_options, NULL)) != EOF) {
+	while ((c = getopt_long(argc, argv, "hr:f:", xpath_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_REFERENCE:
 			opt_reference = optarg;
@@ -972,11 +980,26 @@ __validate_netmask(const char *addrstring, int af, const char *subcmd, unsigned 
 int
 do_lease(int argc, char **argv)
 {
+	enum { OPT_HELP = 'h' };
+	static struct option lease_options[] = {
+		{ "help",	no_argument,	NULL, OPT_HELP	},
+
+		{ NULL }
+	};
 	const char *opt_file, *opt_cmd, *opt_subcmd;
 	xml_document_t *doc;
 	xml_node_t *lease_node;
 	xml_node_t *type_node = NULL, *fmly_node = NULL;
 	int c, ret = 1;
+
+	optind = 1;
+	while ((c = getopt_long(argc, argv, "+h", lease_options, NULL)) != EOF) {
+		switch (c) {
+		case OPT_HELP:
+		default:
+			goto usage;
+		}
+	}
 
 	if (argc <= 2)
 		goto usage;
@@ -1233,16 +1256,19 @@ do_lease(int argc, char **argv)
 			ni_error("unable to install addrconf lease");
 			goto failed;
 		}
-	} else if (!strcmp(opt_cmd, "help")) {
+	} else if (!strcmp(opt_cmd, "help") || !strcmp(opt_cmd, "h")) {
 		ret = 0;
 		goto usage;
 	} else {
 		ni_error("unsupported command wicked %s %s", argv[0], opt_cmd);
 usage:
 		fprintf(stderr,
-			"Usage: wicked lease <filename> cmd ...\n"
-			"Where cmd is one of the following:\n"
-			"  --help\n"
+			"Usage: wicked lease [options] <filename> <subcommand> ...\n"
+			"Common options:\n"
+			"  --help, -h\n"
+			"      Show this help text.\n"
+			"\n"
+			"Supported subcommands:\n"
 			"  new [type <addrconf-type>] [family <address-family>]\n"
 			"  set [hostname <hostname>] [state <addrconf-state>]\n"
 			"  {set|add}-address <ipaddr>/prefixlen [netmask <ipmask>] [peer <ipaddr>]\n"
@@ -1274,17 +1300,17 @@ int
 do_get_names(int argc, char **argv)
 {
 	enum {
-		OPT_HELP,
-		OPT_XML,
+		OPT_HELP	= 'h',
+		OPT_XML		= 'x',
 #ifdef MODEM
-		OPT_MODEMS,
+		OPT_MODEMS = 109,
 #endif
 	};
 	static struct option local_options[] = {
-		{ "help", no_argument, NULL, OPT_HELP },
-		{ "xml", no_argument, NULL, OPT_XML },
+		{ "help",	no_argument,	NULL, OPT_HELP	},
+		{ "xml",	no_argument,	NULL, OPT_XML	},
 #ifdef MODEM
-		{ "modem", no_argument, NULL, OPT_MODEMS },
+		{ "modem",	no_argument,	NULL, OPT_MODEMS},
 #endif
 		{ NULL }
 	};
@@ -1295,7 +1321,7 @@ do_get_names(int argc, char **argv)
 	int c, rv = 1;
 
 	optind = 1;
-	while ((c = getopt_long(argc, argv, "", local_options, NULL)) != EOF) {
+	while ((c = getopt_long(argc, argv, "hxm", local_options, NULL)) != EOF) {
 		switch (c) {
 #ifdef MODEM
 		case OPT_MODEMS:
@@ -1309,10 +1335,10 @@ do_get_names(int argc, char **argv)
 			fprintf(stderr,
 				"wicked [options] getnames ifname ...\n"
 				"\nSupported options:\n"
-				"  --help\n"
+				"  --help, -h\n"
 				"      Show this help text.\n"
 #ifdef MODEM
-				"  --modems\n"
+				"  --modems, -m\n"
 				"      Query for modem device, rather than network device\n"
 #endif
 				);
@@ -1419,9 +1445,18 @@ static void		write_dbus_error(const char *filename, const char *name, const char
 int
 do_check(int argc, char **argv)
 {
-	enum { OPT_HELP, OPT_TIMEOUT, OPT_AF, OPT_WRITE_DBUS_ERROR };
+	enum {
+		OPT_HELP		= 'h',
+		OPT_TIMEOUT		= 't',
+		OPT_AF			= 'f',
+		OPT_WRITE_DBUS_ERROR	= 'w'
+	};
+	static struct option global_options[] = {
+		{ "help",	no_argument,	NULL, OPT_HELP },
+
+		{ NULL }
+	};
 	static struct option options[] = {
-		{ "help", no_argument, NULL, OPT_HELP },
 		{ "timeout", required_argument, NULL, OPT_TIMEOUT },
 		{ "af", required_argument, NULL, OPT_AF },
 		{ "write-dbus-error", required_argument, NULL, OPT_WRITE_DBUS_ERROR },
@@ -1439,8 +1474,15 @@ do_check(int argc, char **argv)
 	}
 	opt_cmd = argv[1];
 
+	optind = 1;
+	while ((c = getopt_long(argc, argv, "h", global_options, NULL)) != EOF) {
+		switch (c) {
+		case OPT_HELP:
+			goto usage;
+		}
+	}
 	optind = 2;
-	while ((c = getopt_long(argc, argv, "", options, NULL)) != EOF) {
+	while ((c = getopt_long(argc, argv, "t:f:w:", options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_TIMEOUT:
 			if (ni_parse_uint(optarg, &opt_timeout, 10) < 0)
@@ -1530,19 +1572,22 @@ do_check(int argc, char **argv)
 		ni_error("unsupported command wicked %s %s", argv[0], opt_cmd);
 usage:
 		fprintf(stderr,
-			"Usage: wicked check <cmd> ...\n"
-			"Where <cmd> is one of the following:\n"
+			"Usage: wicked check [global options] <subcommand> [options] ...\n"
+			"\n"
+			"Supported global options:\n"
+			"  --help, -h\n"
+			"      Show this help text.\n"
+			"\n"
+			"Supported subcommands:\n"
 			"  resolve [options ...] hostname ...\n"
 			"  route [options ...] address ...\n"
 			"\n"
-			"Supported options:\n"
-			"  --help\n"
-			"      Show this help text.\n"
-			"  --timeout n\n"
+			"Supported subcommand options:\n"
+			"  --timeout, -t n\n"
 			"        Fail after n seconds.\n"
-			"  --af <address-family>\n"
+			"  --af, -f <address-family>\n"
 			"        Specify the address family (ipv4, ipv6, ...) to use when resolving hostnames.\n"
-			"  --write-dbus-error <filename>\n"
+			"  --write-dbus-error, -w <filename>\n"
 			"        Write dbus error to <filename>.\n"
 		       );
 		return 1;

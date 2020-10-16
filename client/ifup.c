@@ -452,27 +452,35 @@ ni_nanny_fsm_monitor_free(ni_nanny_fsm_monitor_t *monitor)
 static int
 ni_do_ifup_nanny(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_IFCONFIG, OPT_CONTROL_MODE, OPT_STAGE, OPT_TIMEOUT,
-		OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_PERSISTENT, OPT_TRANSIENT,
+	enum {
+		OPT_IFCONFIG		= 'i',
+		OPT_HELP		= 'h',
+		OPT_SKIP_ACTIVE		= 's',
+		OPT_CONTROL_MODE	= 'm',
+		OPT_SKIP_ORIGIN		= 'S',
+		OPT_PERSISTENT		= 'P',
+		OPT_TRANSIENT		= 'T',
+		OPT_STAGE		= 'p',
+		OPT_TIMEOUT		= 't',
 #ifdef NI_TEST_HACKS
 		OPT_IGNORE_PRIO, OPT_IGNORE_STARTMODE,
 #endif
 	};
 
 	static struct option ifup_options[] = {
-		{ "help",	no_argument,       NULL,	OPT_HELP },
-		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
-		{ "mode",	required_argument, NULL,	OPT_CONTROL_MODE },
-		{ "boot-stage",	required_argument, NULL,	OPT_STAGE },
-		{ "skip-active",required_argument, NULL,	OPT_SKIP_ACTIVE },
-		{ "skip-origin",required_argument, NULL,	OPT_SKIP_ORIGIN },
-		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
-		{ "transient", 	no_argument,		NULL,	OPT_TRANSIENT },
+		{ "help",	no_argument,		NULL,	OPT_HELP	},
+		{ "ifconfig",	required_argument,	NULL,	OPT_IFCONFIG	},
+		{ "mode",	required_argument,	NULL,	OPT_CONTROL_MODE},
+		{ "boot-stage",	required_argument,	NULL,	OPT_STAGE	},
+		{ "skip-active",no_argument,		NULL,	OPT_SKIP_ACTIVE	},
+		{ "skip-origin",required_argument,	NULL,	OPT_SKIP_ORIGIN	},
+		{ "timeout",	required_argument,	NULL,	OPT_TIMEOUT	},
+		{ "transient", 	no_argument,		NULL,	OPT_TRANSIENT	},
+		{ "persistent",	no_argument,		NULL,	OPT_PERSISTENT	},
 #ifdef NI_TEST_HACKS
 		{ "ignore-prio",no_argument, NULL,	OPT_IGNORE_PRIO },
 		{ "ignore-startmode",no_argument, NULL,	OPT_IGNORE_STARTMODE },
 #endif
-		{ "persistent",	no_argument, NULL,	OPT_PERSISTENT },
 		{ NULL }
 	};
 
@@ -500,7 +508,7 @@ ni_do_ifup_nanny(int argc, char **argv)
 	ifmatch.require_config = TRUE;
 
 	optind = 1;
-	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
+	while ((c = getopt_long(argc, argv, "i:hm:PTt:", ifup_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_IFCONFIG:
 			ni_string_array_append(&opt_ifconfig, optarg);
@@ -560,13 +568,13 @@ usage:
 			fprintf(stderr,
 				"wicked [options] ifup [ifup-options] <ifname ...>|all\n"
 				"\nSupported ifup-options:\n"
-				"  --help\n"
+				"  --help, -h\n"
 				"      Show this help text.\n"
-				"  --transient\n"
+				"  --transient, -T\n"
 				"      Enable transient interface return codes\n"
-				"  --ifconfig <pathname>\n"
+				"  --ifconfig, -i <pathname>\n"
 				"      Read interface configuration(s) from file/directory rather than using system config\n"
-				"  --mode <label>\n"
+				"  --mode, -m <label>\n"
 				"      Only touch interfaces with matching control <mode>\n"
 				"  --boot-stage <label>\n"
 				"      Only touch interfaces with matching <boot-stage>\n"
@@ -576,7 +584,7 @@ usage:
 				"      Skip interfaces that have a configuration origin of <name>\n"
 				"      Usually, you would use this with the name \"firmware\" to avoid\n"
 				"      touching interfaces that have been set up via firmware (like iBFT) previously\n"
-				"  --timeout <sec>\n"
+				"  --timeout, -t <sec>\n"
 				"      Timeout after <sec> seconds\n"
 #ifdef NI_TEST_HACKS
 				"  --ignore-prio\n"
@@ -584,7 +592,7 @@ usage:
 				"  --ignore-startmode\n"
 				"      Ignore checking the STARTMODE=off and STARTMODE=manual configs\n"
 #endif
-				"  --persistent\n"
+				"  --persistent, -p\n"
 				"      Set interface into persistent mode (no regular ifdown allowed)\n"
 				);
 			goto cleanup;

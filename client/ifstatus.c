@@ -638,17 +638,24 @@ ni_ifstatus_to_retcode(int status, ni_bool_t mandatory)
 int
 ni_do_ifstatus(int argc, char **argv)
 {
-	enum  { OPT_QUIET, OPT_BRIEF, OPT_NORMAL, OPT_VERBOSE,
-		OPT_HELP, OPT_SHOW, OPT_IFCONFIG, OPT_TRANSIENT };
+	enum {
+		OPT_NORMAL,
+		OPT_QUIET	= 'q',
+		OPT_BRIEF	= 'b',
+		OPT_VERBOSE	= 'v',
+		OPT_HELP	= 'h',
+		OPT_IFCONFIG	= 'i',
+		OPT_TRANSIENT	= 'T',
+	};
 	static struct option ifcheck_options[] = {
-		{ "help",         no_argument,       NULL, OPT_HELP        },
-		{ "quiet",        no_argument,       NULL, OPT_QUIET       },
-		{ "brief",        no_argument,       NULL, OPT_BRIEF       },
-		{ "verbose",      no_argument,       NULL, OPT_VERBOSE     },
-		{ "ifconfig",     required_argument, NULL, OPT_IFCONFIG    },
-		{ "transient",    no_argument,       NULL, OPT_TRANSIENT },
+		{ "help",	no_argument,		NULL, OPT_HELP		},
+		{ "quiet",	no_argument,		NULL, OPT_QUIET		},
+		{ "brief",	no_argument,		NULL, OPT_BRIEF		},
+		{ "verbose",	no_argument,		NULL, OPT_VERBOSE	},
+		{ "ifconfig",	required_argument,	NULL, OPT_IFCONFIG	},
+		{ "transient",	no_argument,		NULL, OPT_TRANSIENT	},
 
-		{ NULL,           no_argument,       NULL, 0               }
+		{ NULL }
 	};
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	unsigned int      opt_verbose  = OPT_NORMAL;
@@ -677,7 +684,7 @@ ni_do_ifstatus(int argc, char **argv)
 	check_config = ni_string_eq(argv[0], "ifstatus") && geteuid() == 0;
 
 	optind = 1;
-	while ((c = getopt_long(argc, argv, "", ifcheck_options, NULL)) != EOF) {
+	while ((c = getopt_long(argc, argv, "hTqbvi:", ifcheck_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_HELP:
 			status = NI_WICKED_ST_OK;
@@ -687,18 +694,18 @@ ni_do_ifstatus(int argc, char **argv)
 			fprintf(stderr,
 				"wicked %s [options] <ifname ...>|all\n"
 				"\nSupported options:\n"
-				"  --help\n"
+				"  --help, -h\n"
 				"      Show this help text.\n"
-				"  --transient\n"
+				"  --transient, -T\n"
 				"      Enable transient interface return codes\n"
-				"  --quiet\n"
+				"  --quiet, -q\n"
 				"      Return exit status only\n"
-				"  --brief\n"
+				"  --brief, -b\n"
 				"      Show only a brief status, no additional info\n"
-				"  --verbose\n"
+				"  --verbose, -v\n"
 				"      Show a more detailed information\n"
 				"\n"
-				"  --ifconfig <filename>\n"
+				"  --ifconfig, -i <filename>\n"
 				"      Read interface configuration(s) from file\n"
 				, argv[0]
 			);

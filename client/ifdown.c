@@ -106,13 +106,19 @@ ni_ifdown_fire_nanny(ni_ifworker_array_t *array)
 int
 ni_do_ifdown(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_FORCE, OPT_DELETE, OPT_NO_DELETE, OPT_TIMEOUT };
+	enum  {
+		OPT_DELETE	= 'd',
+		OPT_FORCE	= 'f',
+		OPT_HELP	= 'h',
+		OPT_NO_DELETE	= 'n',
+		OPT_TIMEOUT	= 't'
+	};
 	static struct option ifdown_options[] = {
-		{ "help",	no_argument, NULL,		OPT_HELP },
-		{ "force",	required_argument, NULL,	OPT_FORCE },
-		{ "delete",	no_argument, NULL,	OPT_DELETE },
-		{ "no-delete",	no_argument, NULL,	OPT_NO_DELETE },
-		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
+		{ "help",	no_argument,		NULL,	OPT_HELP	},
+		{ "force",	required_argument,	NULL,	OPT_FORCE	},
+		{ "delete",	no_argument,		NULL,	OPT_DELETE	},
+		{ "no-delete",	no_argument,		NULL,	OPT_NO_DELETE	},
+		{ "timeout",	required_argument,	NULL,	OPT_TIMEOUT	},
 		{ NULL }
 	};
 	ni_ifmatcher_t ifmatch;
@@ -142,7 +148,7 @@ ni_do_ifdown(int argc, char **argv)
 	ifmarker.target_range.max = __NI_FSM_STATE_MAX - 2;
 
 	optind = 1;
-	while ((c = getopt_long(argc, argv, "", ifdown_options, NULL)) != EOF) {
+	while ((c = getopt_long(argc, argv, "df:hnt:", ifdown_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_FORCE:
 			if (!ni_ifworker_state_from_name(optarg, &max_state) ||
@@ -190,16 +196,16 @@ usage:
 			fprintf(stderr,
 				"wicked [options] ifdown [ifdown-options] <ifname ...>|all\n"
 				"\nSupported ifdown-options:\n"
-				"  --help\n"
+				"  --help, -h\n"
 				"      Show this help text.\n"
-				"  --force <state>\n"
+				"  --force, -f <state>\n"
 				"      Force putting interface into the <state> state. Despite of persistent mode being set. Possible states:\n"
 				"  %s\n"
-				"  --delete\n"
+				"  --delete, -d\n"
 				"      Delete device. Despite of persistent mode being set\n"
-				"  --no-delete\n"
+				"  --no-delete, -n\n"
 				"      Do not attempt to delete a device, neither physical nor virtual\n"
-				"  --timeout <nsec>\n"
+				"  --timeout, -t <nsec>\n"
 				"      Timeout after <nsec> seconds\n",
 				sb.string
 				);
@@ -276,4 +282,3 @@ usage:
 	ni_ifworker_array_destroy(&ifmarked);
 	return status;
 }
-

@@ -90,7 +90,7 @@ ni_do_test_dhcp4(const char *caller, int argc, char **argv)
 				"  %s [options] <ifname>\n"
 				"\n"
 				"Options:\n"
-				"  --help, -h      show this help text and exit.\n"
+				"  --help, -h		show this help text and exit.\n"
 				"\n"
 				"  --timeout, -t   	<timeout in sec> (default: 20+10)\n"
 				"  --request, -r   	<request.xml>\n"
@@ -291,7 +291,8 @@ ni_do_test(const char *caller, int argc, char **argv)
 	enum { OPT_HELP = 'h' };
 	static struct option	options[] = {
 		{ "help",	no_argument,	NULL,	'h'	},
-		{ NULL,		no_argument,	NULL,	0	}
+
+		{ NULL }
 	};
 	int opt = 0, status = NI_WICKED_RC_USAGE;
 	char *program = NULL;
@@ -336,7 +337,7 @@ ni_do_test(const char *caller, int argc, char **argv)
 	} else
 	if (ni_string_eq(cmd, "dhcp4")) {
 		status = ni_do_test_dhcp4(program, argc - optind, argv + optind);
-	} else 
+	} else
 	if (ni_string_eq(cmd, "dhcp6")) {
 		status = ni_do_test_dhcp6(program, argc - optind, argv + optind);
 	} else {
@@ -348,4 +349,3 @@ cleanup:
 	ni_string_free(&program);
 	return status;
 }
-

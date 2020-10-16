@@ -203,15 +203,23 @@ set_status(int *status, unsigned int code)
 int
 ni_do_ifcheck(int argc, char **argv)
 {
-	enum { OPT_HELP, OPT_QUIET, OPT_IFCONFIG, OPT_MISSED, OPT_CHANGED, OPT_STATE, OPT_PERSISTENT };
+	enum {
+		OPT_CHANGED	= 'c',
+		OPT_IFCONFIG	= 'i',
+		OPT_HELP	= 'h',
+		OPT_MISSED	= 'm',
+		OPT_PERSISTENT	= 'P',
+		OPT_QUIET	= 'q',
+		OPT_STATE	= 's',
+	};
 	static struct option ifcheck_options[] = {
-		{ "help",	no_argument, NULL,		OPT_HELP },
-		{ "quiet",	no_argument, NULL,		OPT_QUIET },
-		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
-		{ "missed",	no_argument, NULL,		OPT_MISSED },
-		{ "changed",	no_argument, NULL,		OPT_CHANGED },
-		{ "state",	required_argument, NULL,	OPT_STATE },
-		{ "persistent",	no_argument, NULL,		OPT_PERSISTENT },
+		{ "help",	no_argument,		NULL,	OPT_HELP	},
+		{ "quiet",	no_argument,		NULL,	OPT_QUIET	},
+		{ "ifconfig",	required_argument,	NULL,	OPT_IFCONFIG	},
+		{ "missed",	no_argument,		NULL,	OPT_MISSED	},
+		{ "changed",	no_argument,		NULL,	OPT_CHANGED	},
+		{ "state",	required_argument,	NULL,	OPT_STATE	},
+		{ "persistent",	no_argument,		NULL,	OPT_PERSISTENT	},
 		{ NULL }
 	};
 	static ni_ifmatcher_t ifmatch;
@@ -236,7 +244,7 @@ ni_do_ifcheck(int argc, char **argv)
 	ifmatch.require_config = FALSE;
 
 	optind = 1;
-	while ((c = getopt_long(argc, argv, "", ifcheck_options, NULL)) != EOF) {
+	while ((c = getopt_long(argc, argv, "i:hPq", ifcheck_options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_IFCONFIG:
 			ni_string_array_append(&opt_ifconfig, optarg);
@@ -277,11 +285,11 @@ ni_do_ifcheck(int argc, char **argv)
 			fprintf(stderr,
 				"wicked [options] ifcheck [ifcheck-options] <ifname ...>|all\n"
 				"\nSupported ifcheck-options:\n"
-				"  --help\n"
+				"  --help, -h\n"
 				"      Show this help text.\n"
-				"  --ifconfig <filename>\n"
+				"  --ifconfig, -i <filename>\n"
 				"      Read interface configuration(s) from file\n"
-				"  --quiet\n"
+				"  --quiet, -q\n"
 				"      Do not print out errors, but just signal the result through exit status\n"
 				"  --missed\n"
 				"      Check if the interface is missed\n"
@@ -290,7 +298,7 @@ ni_do_ifcheck(int argc, char **argv)
 				"  --state <state-name>\n"
 				"      Check if the interface is in the given state. Possible states:\n"
 				"  %s\n"
-				"  --persistent\n"
+				"  --persistent, -P\n"
 				"      Check if the interface is in persistent mode\n"
 				, sb.string);
 			ni_stringbuf_destroy(&sb);
@@ -423,4 +431,3 @@ cleanup:
 	ni_uint_array_destroy(&checks);
 	return status;
 }
-

@@ -1198,7 +1198,7 @@ ethtool_args_set(struct ethtool_args *args, char **argn, int argc, char *argv[])
 int
 ni_do_ethtool(const char *caller, int argc, char **argv)
 {
-	enum { OPT_HELP };
+	enum {	OPT_HELP = 'h' };
 	static struct option      options[] = {
 		{ "help",         no_argument,       NULL, OPT_HELP        },
 
@@ -1210,7 +1210,7 @@ ni_do_ethtool(const char *caller, int argc, char **argv)
 	ni_ethtool_t *ethtool = NULL;
 
 	optind = 1;
-	while ((c = getopt_long(argc, argv, "+", options, NULL)) != EOF) {
+	while ((c = getopt_long(argc, argv, "+h", options, NULL)) != EOF) {
 		switch (c) {
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
@@ -1221,7 +1221,7 @@ ni_do_ethtool(const char *caller, int argc, char **argv)
 				"wicked %s [global options ...] <ifname> <action options [arguments] > ...\n"
 				"\n"
 				"Supported global options:\n"
-				"  --help\n"
+				"  --help, -h\n"
 				"      Show this help text.\n"
 				"\n"
 				"Supported action options:\n"
@@ -1279,4 +1279,3 @@ cleanup:
 	ni_netdev_ref_destroy(&ref);
 	return status;
 }
-

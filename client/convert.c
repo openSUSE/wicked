@@ -315,11 +315,11 @@ ni_wicked_convert(const char *caller, int argc, char **argv)
 				"%s [options] [<ifname ...>|all]\n"
 				"\n"
 				"Options:\n"
-				"  --help, -h		show this help text and exit.\n"
+				"  --help, -h			show this help text and exit.\n"
 				"\n"
-				"  --ifconfig <path>	read config from the specified sources\n"
-				"  --output   <path>	write output to specified file or directory\n"
-				"  --raw		do not display <client-state> tags\n"
+				"  --ifconfig, -i <path>	read config from the specified sources\n"
+				"  --output, -o   <path>	write output to specified file or directory\n"
+				"  --raw, -R			do not display <client-state> tags\n"
 				"\n", program);
 			goto cleanup;
 
@@ -444,4 +444,3 @@ cleanup:
 	ni_string_array_destroy(&sources);
 	return status;
 }
-
