@@ -2257,10 +2257,8 @@ ni_ifworker_link_detection_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *
 		ni_warn("%s: link did not came up in time, proceeding anyway", w->name);
 		ni_ifworker_cancel_callbacks(w, &action->callbacks);
 		ni_ifworker_set_state(w, action->next_state);
-	} else if (ni_config_use_nanny()) {
-		ni_warn("%s: link did not came up in time, proceeding anyway", w->name);
 	} else {
-		ni_ifworker_fail(w, "link did not came up in specified time");
+		ni_warn("%s: link did not came up in time, waiting for event", w->name);
 	}
 }
 
@@ -5546,7 +5544,7 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 	ni_ifworker_advance_state(w, event_type);
 
 	if (event_type == NI_EVENT_DEVICE_DELETE) {
-		if (ni_config_use_nanny() && ni_ifworker_is_factory_device(w))
+		if (ni_ifworker_is_factory_device(w))
 			ni_ifworker_device_delete(w);
 		else
 			ni_fsm_destroy_worker(fsm, w);
@@ -5559,72 +5557,14 @@ done: ;
 }
 
 static ni_ifworker_t *
-ni_fsm_process_rename_find_pending_worker(ni_fsm_t *fsm, const ni_ifworker_t *w)
-{
-	ni_ifworker_t *c;
-	unsigned int i;
-
-	for (i = 0; i < fsm->workers.count; ++i) {
-		c = fsm->workers.data[i];
-		if (!c || c == w || c->type != w->type || c->device)
-			continue;
-		if (!c->pending || !ni_string_eq(c->name, w->name))
-			continue;
-		return c;
-	}
-	return NULL;
-}
-
-static ni_ifworker_t *
 ni_fsm_process_rename_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 {
-	ni_ifworker_t *w, *c;
+	ni_ifworker_t *w;
 
 	if ((w = ni_fsm_recv_new_netif_path(fsm, ev->object_path)))
 		ni_debug_events("%s: device renamed to %s", w->old_name, w->name);
 
-	if (ni_config_use_nanny() || !w || !ni_netdev_device_is_ready(w->device))
-		return w;
-
-	if (!(c = ni_fsm_process_rename_find_pending_worker(fsm, w)))
-		return w;
-
-	/* move device to pending config worker */
-	ni_debug_application("%s: moving device to pending worker", c->name);
-	if (c->device)
-		ni_netdev_put(c->device);
-	c->device = ni_netdev_get(w->device);
-	c->object = w->object;
-	c->ifindex = w->ifindex;
-	ni_string_dup(&c->object_path, w->object_path);
-
-	/* reset moved device on renamed worker */
-	ni_netdev_put(w->device);
-	w->device = NULL;
-	w->object = NULL;
-	w->ifindex = 0;
-	ni_string_free(&w->object_path);
-
-	if (ni_ifworker_active(w)) {
-		/* when the worker is in use, fail */
-		ni_ifworker_reset(w);
-		ni_string_dup(&w->name, w->old_name ? w->old_name : "renamed");
-		ni_ifworker_fail(w, "active device has been renamed to %s", c->name);
-	} else {
-		/* otherwise reset it and remove   */
-		ni_ifworker_reset(w);
-		ni_ifworker_array_remove(&fsm->workers, w);
-	}
-
-	ni_fsm_build_hierarchy(fsm, FALSE);
-
-	/* kickstart and return the pending worker */
-	c->pending = FALSE;
-	if (ni_ifworker_start(fsm, c, fsm->worker_timeout) < 0) {
-		ni_ifworker_fail(c, "unable to start worker");
-		return NULL;
-	}
-	return c;
+	return w;
 }
 
 static void

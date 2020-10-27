@@ -200,10 +200,7 @@ ni_ifconfig_kind_guess(ni_ifconfig_kind_t kind)
 
 	case NI_IFCONFIG_KIND_DEFAULT:
 	default:
-		if (ni_config_use_nanny())
-			return NI_IFCONFIG_KIND_POLICY;
-		else
-			return NI_IFCONFIG_KIND_CONFIG;
+		return NI_IFCONFIG_KIND_POLICY;
 	}
 }
 

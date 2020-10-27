@@ -62,8 +62,7 @@ Obsoletes:      libwicked-0-6 < %{version}
 
 %bcond_with     wicked_devel
 
-# Note: nanny use is enabled by default
-%bcond_without  use_nanny
+# Note: teamd is enabled by default
 %bcond_without  use_teamd
 
 # Compat macro for new _fillupdir macro introduced in Nov 2017
@@ -184,9 +183,6 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS"
 	--with-fillup-templatesdir=%{_fillupdir}\
 %if %{without rfc4361_cid}
 	--disable-dhcp4-rfc4361-cid	\
-%endif
-%if %{without use_nanny}
-	--disable-nanny-use		\
 %endif
 %if %{without use_teamd}
 	--disable-teamd			\

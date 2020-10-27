@@ -114,10 +114,9 @@ ni_nanny_start(ni_nanny_t *mgr)
 		}
 	}
 
-	if (ni_config_use_nanny()) {
-		if (!ni_fsm_create_client(mgr->fsm))
-			ni_fatal("Unable to create FSM client");
-	}
+	if (!ni_fsm_create_client(mgr->fsm))
+		ni_fatal("Unable to create FSM client");
+
 	ni_fsm_events_unblock(mgr->fsm);
 }
 

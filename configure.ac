@@ -44,18 +44,6 @@ if test "x$enable_dhcp4_rfc4361_cid" = "xyes" ; then
 	AC_DEFINE([NI_DHCP4_RFC4361_CID], [1], [Enable to use rfc4361 DHCPv4 client-id by default])
 fi
 
-# Whether to enable nanny use
-AC_ARG_ENABLE([nanny-use],
-	      [AS_HELP_STRING([--disable-nanny-use],
-	       [disable use of nanny as policy daemon])],,
-	      [enable_nanny_use=true])
-if test "x$enable_nanny_use" = "xno" ; then
-    use_nanny="false"
-else
-    use_nanny="true"
-fi
-AC_SUBST(use_nanny)
-
 # Whether to disable teamd support
 AC_ARG_ENABLE([teamd],
 	      [AS_HELP_STRING([--disable-teamd],

@@ -87,8 +87,6 @@ ni_config_new()
 	ni_config_fslocation_init(&conf->statedir, WICKED_STATEDIR, 0755);
 	ni_config_fslocation_init(&conf->storedir, WICKED_STOREDIR, 0755);
 
-	conf->use_nanny = FALSE;
-
 	conf->rtnl_event.recv_buff_length = 1024 * 1024;
 	conf->rtnl_event.mesg_buff_length = 0;
 
@@ -307,10 +305,15 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 				goto failed;
 		} else
 		if (strcmp(child->name, "use-nanny") == 0) {
-			if (ni_parse_boolean(child->cdata, &conf->use_nanny)) {
-				ni_error("%s: invalid <%s>%s</%s> element value",
+			ni_bool_t use_nanny = TRUE;
+
+			if (ni_parse_boolean(child->cdata, &use_nanny)) {
+				ni_error("%s: invalid <%s>%s</%s> option value",
 					filename, child->name, child->cdata, child->name);
 				goto failed;
+			} else if (!use_nanny) {
+				ni_warn("%s: ignoring obsolete <%s>%s</%s> option, please remove",
+					filename, child->name, child->cdata, child->name);
 			}
 		} else
 		if (strcmp(child->name, "piddir") == 0) {
@@ -1948,12 +1951,6 @@ ni_config_addrconf_update(const char *ifname, ni_addrconf_mode_t type, unsigned 
 	default: ;
 	}
 	return mask;
-}
-
-ni_bool_t
-ni_config_use_nanny(void)
-{
-	return ni_global.config ? ni_global.config->use_nanny : FALSE;
 }
 
 void

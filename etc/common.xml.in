@@ -20,22 +20,6 @@
     <schema name="@wicked_schemadir@/wicked.xml"/>
   </dbus>
 
-  <!--
-    Use nanny or not:
-
-    'false': causes ifup (and ifreload) to apply the config
-	     directly into wickedd without nanny involved
-	     (one shot setup).
-
-    'true':  causes ifup (and ifreload) to apply a policy
-	     with the effective config to nanny and nanny
-	     configures wickedd then; with hotplug support.
-
-    After a change, restart wickedd.service and execute
-    "wicked ifup all" to (re)apply the config / policies.
-  -->
-  <use-nanny>@use_nanny@</use-nanny>
-
   <!-- local.xml permits to overwrite common options -->
   <include name="local.xml" optional="true" />
 </config>
