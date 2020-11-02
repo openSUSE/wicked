@@ -48,9 +48,9 @@ static void			ni_fsm_require_free(ni_fsm_require_t *);
 static int			ni_ifworker_bind_device_apis(ni_ifworker_t *, const ni_dbus_service_t *);
 static void			ni_ifworker_control_init(ni_ifworker_control_t *);
 static void			ni_ifworker_control_destroy(ni_ifworker_control_t *);
-static ni_bool_t		__ni_ifworker_refresh_netdevs(ni_fsm_t *);
+static ni_bool_t		ni_fsm_refresh_netdevs_state(ni_fsm_t *);
 #ifdef MODEM
-static ni_bool_t		__ni_ifworker_refresh_modems(ni_fsm_t *);
+static ni_bool_t		ni_fsm_refresh_modems_state(ni_fsm_t *);
 #endif
 static int			ni_fsm_user_prompt_default(const ni_fsm_prompt_t *, xml_node_t *, void *);
 static void			ni_ifworker_refresh_client_state(ni_ifworker_t *, ni_client_state_t *);
@@ -3934,10 +3934,10 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 		w->readonly = fsm->readonly;
 	}
 
-	if (!__ni_ifworker_refresh_netdevs(fsm))
+	if (!ni_fsm_refresh_netdevs_state(fsm))
 		return FALSE;
 #ifdef MODEM
-	if (!__ni_ifworker_refresh_modems(fsm))
+	if (!ni_fsm_refresh_modems_state(fsm))
 		return FALSE;
 #endif
 
@@ -3954,7 +3954,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 }
 
 static ni_bool_t
-__ni_ifworker_refresh_netdevs(ni_fsm_t *fsm)
+ni_fsm_refresh_netdevs_state(ni_fsm_t *fsm)
 {
 	ni_dbus_object_t *list_object;
 	ni_dbus_object_t *object;
@@ -3971,7 +3971,7 @@ __ni_ifworker_refresh_netdevs(ni_fsm_t *fsm)
 	}
 
 	for (object = list_object->children; object; object = object->next)
-		ni_fsm_recv_new_netif(fsm, object, FALSE);
+		ni_fsm_recv_new_netif(fsm, object, TRUE);
 	return TRUE;
 }
 
@@ -3984,6 +3984,10 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 
 	/* note: dev is a not yet referece counted object->handle */
 	if (dev == NULL || dev->name == NULL || refresh) {
+		/* keep dev, but wipe out its content (properties) */
+		if (dev)
+			ni_netdev_reset(dev);
+
 		if (!ni_dbus_object_refresh_children(object))
 			return NULL;
 
@@ -4087,7 +4091,7 @@ ni_fsm_recv_new_netif_path(ni_fsm_t *fsm, const char *path)
 
 #ifdef MODEM
 static ni_bool_t
-__ni_ifworker_refresh_modems(ni_fsm_t *fsm)
+ni_fsm_refresh_modems_state(ni_fsm_t *fsm)
 {
 	static ni_dbus_object_t *list_object = NULL;
 	ni_dbus_object_t *object;
@@ -4104,7 +4108,7 @@ __ni_ifworker_refresh_modems(ni_fsm_t *fsm)
 	}
 
 	for (object = list_object->children; object; object = object->next) {
-		ni_fsm_recv_new_modem(fsm, object, FALSE);
+		ni_fsm_recv_new_modem(fsm, object, TRUE);
 	}
 	return TRUE;
 }
