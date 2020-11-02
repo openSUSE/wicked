@@ -277,6 +277,7 @@ ni_system_interface_enslave(ni_netconfig_t *nc, ni_netdev_t *master, ni_netdev_t
 	default:
 		break;
 	}
+
 	return ret;
 }
 
@@ -346,6 +347,9 @@ ni_system_interface_unenslave(ni_netconfig_t *nc, ni_netdev_t *dev)
 				return -1;
 			break;
 	}
+
+	__ni_device_refresh_link_info(nc, &dev->link);
+
 	return 0;
 }
 
