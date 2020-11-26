@@ -94,52 +94,71 @@ ni_netdev_slaveinfo_destroy(ni_slaveinfo_t *slave)
 	memset(slave, 0, sizeof(*slave));
 }
 
-static void
-ni_netdev_free(ni_netdev_t *dev)
+void
+ni_netdev_reset(ni_netdev_t *dev)
 {
-	/* Clear out linkinfo */
-	ni_string_free(&dev->link.qdisc);
-	ni_string_free(&dev->link.kind);
+	if (!dev)
+		return;
+
+	/* Clear and Reset all (kernel) property data,
+	 * except of list, ref counter & marker flags */
+	ni_string_free(&dev->name);
+	dev->link.type = NI_IFTYPE_UNKNOWN;
+	dev->link.ifindex = 0;
+	dev->link.ifflags = 0;
+
+	ni_link_address_init(&dev->link.hwaddr);
+	ni_link_address_init(&dev->link.hwpeer);
 	ni_string_free(&dev->link.alias);
+
+	dev->link.mtu = 0;
+	dev->link.metric = 0;
+	dev->link.txqlen = 0;
+	dev->link.oper_state = 0;
+
 	ni_netdev_ref_destroy(&dev->link.lowerdev);
 	ni_netdev_ref_destroy(&dev->link.masterdev);
 	ni_netdev_slaveinfo_destroy(&dev->link.slave);
-	ni_netdev_set_link_stats(dev, NULL);
 
-	/* Clear out addresses, routes, ... */
+	ni_string_free(&dev->link.qdisc);
+	ni_string_free(&dev->link.kind);
+
+	ni_netdev_set_link_stats(dev, NULL);
+	ni_netdev_set_client_state(dev, NULL);
+
 	ni_netdev_clear_addresses(dev);
 	ni_netdev_clear_routes(dev);
-	ni_netdev_set_ethernet(dev, NULL);
-	ni_netdev_set_infiniband(dev, NULL);
-	ni_netdev_set_bonding(dev, NULL);
-	ni_netdev_set_team(dev, NULL);
-	ni_netdev_set_bridge(dev, NULL);
-	ni_netdev_set_ovs_bridge(dev, NULL);
-	ni_netdev_set_vlan(dev, NULL);
-	ni_netdev_set_vxlan(dev, NULL);
-	ni_netdev_set_macvlan(dev, NULL);
-	ni_netdev_set_ipip(dev, NULL);
-	ni_netdev_set_sit(dev, NULL);
-	ni_netdev_set_gre(dev, NULL);
-	ni_netdev_set_wireless(dev, NULL);
-	ni_netdev_set_openvpn(dev, NULL);
-	ni_netdev_set_ppp(dev, NULL);
-	ni_netdev_set_dcb(dev, NULL);
-	ni_netdev_set_lldp(dev, NULL);
-	ni_netdev_set_client_state(dev, NULL);
 
 	ni_netdev_set_ipv4(dev, NULL);
 	ni_netdev_set_ipv6(dev, NULL);
 	ni_netdev_set_auto6(dev, NULL);
 
-	ni_netdev_set_pci(dev, NULL);
-	ni_netdev_set_ethtool(dev, NULL);
-	ni_netdev_clear_event_filters(dev);
-
 	ni_addrconf_lease_list_destroy(&dev->leases);
 
-	ni_string_free(&dev->name);
-	free(dev);
+	ni_netdev_set_team(dev, NULL);
+	ni_netdev_set_bonding(dev, NULL);
+	ni_netdev_set_bridge(dev, NULL);
+	ni_netdev_set_ovs_bridge(dev, NULL);
+	ni_netdev_set_ethernet(dev, NULL);
+	ni_netdev_set_infiniband(dev, NULL);
+	ni_netdev_set_vlan(dev, NULL);
+	ni_netdev_set_vxlan(dev, NULL);
+	ni_netdev_set_macvlan(dev, NULL);
+	ni_netdev_set_wireless(dev, NULL);
+	ni_netdev_set_openvpn(dev, NULL);
+	ni_netdev_set_tuntap(dev, NULL);
+
+	ni_netdev_set_sit(dev, NULL);
+	ni_netdev_set_ipip(dev, NULL);
+	ni_netdev_set_gre(dev, NULL);
+	ni_netdev_set_ppp(dev, NULL);
+	ni_netdev_set_lldp(dev, NULL);
+	ni_netdev_set_dcb(dev, NULL);
+
+	ni_netdev_set_pci(dev, NULL);
+	ni_netdev_set_ethtool(dev, NULL);
+
+	ni_netdev_clear_event_filters(dev);
 }
 
 /*
@@ -162,10 +181,12 @@ ni_netdev_put(ni_netdev_t *dev)
 		ni_assert(dev->users);
 		dev->users--;
 
-		if (dev->users == 0)
-			ni_netdev_free(dev);
-		else
+		if (dev->users == 0) {
+			ni_netdev_reset(dev);
+			free(dev);
+		} else {
 			return dev->users;
+		}
 	}
 	return 0;
 }
@@ -994,15 +1015,15 @@ __ni_netdev_list_destroy(ni_netdev_t **list)
 }
 
 void
-__ni_netdev_list_append(ni_netdev_t **list, ni_netdev_t *new_ifp)
+__ni_netdev_list_append(ni_netdev_t **list, ni_netdev_t *new_dev)
 {
 	ni_netdev_t *dev;
 
 	while ((dev = *list) != NULL)
 		list = &dev->next;
 
-	new_ifp->next = NULL;
-	*list = new_ifp;
+	new_dev->next = NULL;
+	*list = new_dev;
 }
 
 ni_bool_t
