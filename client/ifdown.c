@@ -253,10 +253,8 @@ usage:
 
 	/* Mark and start selected workers */
 	if (ifmarked.count) {
-		if (ni_config_use_nanny()) {
-			/* Disable devices and delete all related policies from nanny */
-			ni_ifdown_fire_nanny(&ifmarked);
-		}
+		/* Disable devices and delete all related policies from nanny */
+		ni_ifdown_fire_nanny(&ifmarked);
 
 		/* Start workers to perform actual ifdown */
 		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);

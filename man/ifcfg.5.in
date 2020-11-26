@@ -262,10 +262,6 @@ Default is 0, causing to not wait at all if link is not required
 or wait infinitely when link is required, so nanny can continue
 with the setup when the cable gets connected to the network card
 after a while.
-Otherwise wicked will wait until the specified number of seconds
-and continue with further steps if link is not required or fail
-and stop further steps if nanny is not used (see \fBuse-nanny\fR
-in \fBwicked-config(5)\fR).
 Note, that an ifup call has it's own, independent timeout, which
 is limitting the maximal time ifup waits before it has to report
 (see global network/config \fBWAIT_FOR_INTERFACES\fR variable).
