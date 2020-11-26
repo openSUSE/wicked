@@ -801,60 +801,81 @@ ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 }
 
 const char *
-ni_dbus_variant_sprint(const ni_dbus_variant_t *var)
+ni_dbus_variant_print(ni_stringbuf_t *sb, const ni_dbus_variant_t *var)
 {
-	static char buffer[256];
-
 	switch (var->type) {
 	case DBUS_TYPE_STRING:
 	case DBUS_TYPE_OBJECT_PATH:
-		return var->string_value;
+		ni_stringbuf_printf(sb, "%s", var->string_value);
+		break;
 
 	case DBUS_TYPE_BYTE:
-		snprintf(buffer, sizeof(buffer), "0x%02x", var->byte_value);
+		ni_stringbuf_printf(sb, "0x%02x", var->byte_value);
 		break;
 
 	case DBUS_TYPE_BOOLEAN:
-		return var->bool_value? "true" : "false";
+		ni_stringbuf_printf(sb, "%s", var->bool_value? "true" : "false");
 		break;
 
 	case DBUS_TYPE_INT16:
-		snprintf(buffer, sizeof(buffer), "%d", var->int16_value);
+		ni_stringbuf_printf(sb, "%d", var->int16_value);
 		break;
 
 	case DBUS_TYPE_UINT16:
-		snprintf(buffer, sizeof(buffer), "%u", var->uint16_value);
+		ni_stringbuf_printf(sb, "%u", var->uint16_value);
 		break;
 
 	case DBUS_TYPE_INT32:
-		snprintf(buffer, sizeof(buffer), "%d", var->int32_value);
+		ni_stringbuf_printf(sb, "%d", var->int32_value);
 		break;
 
 	case DBUS_TYPE_UINT32:
-		snprintf(buffer, sizeof(buffer), "%u", var->uint32_value);
+		ni_stringbuf_printf(sb, "%u", var->uint32_value);
 		break;
 
 	case DBUS_TYPE_INT64:
-		snprintf(buffer, sizeof(buffer), "%lld", (long long) var->int64_value);
+		ni_stringbuf_printf(sb, "%lld", (long long) var->int64_value);
 		break;
 
 	case DBUS_TYPE_UINT64:
-		snprintf(buffer, sizeof(buffer), "%llu", (unsigned long long) var->uint64_value);
+		ni_stringbuf_printf(sb, "%llu", (unsigned long long) var->uint64_value);
 		break;
 
 	case DBUS_TYPE_DOUBLE:
-		snprintf(buffer, sizeof(buffer), "%f", var->double_value);
+		ni_stringbuf_printf(sb, "%f", var->double_value);
+		break;
+
+	case DBUS_TYPE_VARIANT:
+		ni_stringbuf_printf(sb, "v{");
+		if (var->variant_value)
+			ni_dbus_variant_print(sb, var->variant_value);
+		else
+			ni_stringbuf_printf(sb, "<NULL>");
+		ni_stringbuf_printf(sb, "}");
 		break;
 
 	case DBUS_TYPE_STRUCT:
-		return "<struct>";
+		ni_stringbuf_printf(sb, "<struct>");
+		break;
+
+	case DBUS_TYPE_ARRAY:
+		ni_stringbuf_printf(sb, "<array>");
+		break;
 
 	default:
-		return "<unknown type>";
+		ni_stringbuf_printf(sb, "<unknown type (%d)>", var->type);
 	}
+	return sb->string;
+}
 
+const char *
+ni_dbus_variant_sprint(const ni_dbus_variant_t *var)
+{
+	static char buffer[256];
+	ni_stringbuf_t sbuf = NI_STRINGBUF_INIT_BUFFER(buffer);
 
-	return buffer;
+	ni_stringbuf_truncate(&sbuf, 0);
+	return ni_dbus_variant_print(&sbuf, var);
 }
 
 dbus_bool_t

@@ -224,6 +224,7 @@ extern dbus_bool_t		ni_dbus_variant_init_signature(ni_dbus_variant_t *, const ch
 extern void			ni_dbus_variant_copy(ni_dbus_variant_t *dst,
 					const ni_dbus_variant_t *src);
 extern void			ni_dbus_variant_destroy(ni_dbus_variant_t *);
+extern const char *		ni_dbus_variant_print(ni_stringbuf_t *, const ni_dbus_variant_t *);
 extern const char *		ni_dbus_variant_sprint(const ni_dbus_variant_t *);
 extern const char *		ni_dbus_variant_signature(const ni_dbus_variant_t *);
 extern void			ni_dbus_variant_set_string(ni_dbus_variant_t *, const char *);
