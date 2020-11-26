@@ -178,7 +178,8 @@ __ni_dbus_variant_change_type(ni_dbus_variant_t *var, int new_type)
 		if (var->type == DBUS_TYPE_STRING
 		 || var->type == DBUS_TYPE_OBJECT_PATH
 		 || var->type == DBUS_TYPE_ARRAY
-		 || var->type == DBUS_TYPE_STRUCT)
+		 || var->type == DBUS_TYPE_STRUCT
+		 || var->type == DBUS_TYPE_VARIANT)
 			ni_dbus_variant_destroy(var);
 	}
 	var->type = new_type;
@@ -746,6 +747,12 @@ ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 	if (var->type == DBUS_TYPE_STRING
 	 || var->type == DBUS_TYPE_OBJECT_PATH)
 		ni_string_free(&var->string_value);
+	else if (var->type == DBUS_TYPE_VARIANT) {
+		if (var->variant_value) {
+			ni_dbus_variant_destroy(var->variant_value);
+			free(var->variant_value);
+		}
+	}
 	else if (var->type == DBUS_TYPE_ARRAY) {
 		unsigned int i;
 
@@ -1138,7 +1145,7 @@ ni_dbus_variant_signature(const ni_dbus_variant_t *var)
 			for (i = 0; i < var->array.len; ++i) {
 				ni_dbus_variant_t *member = &var->struct_value[i];
 				const char *msig;
-				
+
 				if ((msig = ni_dbus_variant_signature(member)) == NULL) {
 					ni_stringbuf_destroy(&buf);
 					return NULL;
@@ -1575,6 +1582,12 @@ ni_dbus_variant_init_struct(ni_dbus_variant_t *var)
 	var->array.len = 0;
 }
 
+dbus_bool_t
+ni_dbus_variant_is_struct(const ni_dbus_variant_t *var)
+{
+	return var->type == DBUS_TYPE_STRUCT;
+}
+
 ni_dbus_variant_t *
 ni_dbus_struct_add(ni_dbus_variant_t *var)
 {
@@ -1649,6 +1662,35 @@ ni_dbus_array_array_add(ni_dbus_variant_t *var)
 }
 
 /*
+ * DBus Variant 'v' container
+ */
+ni_dbus_variant_t *
+ni_dbus_variant_init_variant(ni_dbus_variant_t *var)
+{
+	ni_dbus_variant_destroy(var);
+	var->type = DBUS_TYPE_VARIANT;
+	var->variant_value = calloc(1, sizeof(ni_dbus_variant_t));
+	if (var->variant_value)
+		ni_dbus_variant_destroy(var->variant_value);
+	return var->variant_value;
+}
+
+dbus_bool_t
+ni_dbus_variant_is_variant(const ni_dbus_variant_t *var)
+{
+	return var->type == DBUS_TYPE_VARIANT;
+}
+
+dbus_bool_t
+ni_dbus_variant_get_variant(const ni_dbus_variant_t *var, const ni_dbus_variant_t **ret)
+{
+	if (!ni_dbus_variant_is_variant(var))
+		return FALSE;
+	*ret = var->variant_value;
+	return TRUE;
+}
+
+/*
  * Translate basic dbus types to signature strings
  */
 static const char * __ni_dbus_basic_type_as_string[256] = {
@@ -1663,6 +1705,7 @@ static const char * __ni_dbus_basic_type_as_string[256] = {
 [DBUS_TYPE_DOUBLE]	= DBUS_TYPE_DOUBLE_AS_STRING,
 [DBUS_TYPE_STRING]	= DBUS_TYPE_STRING_AS_STRING,
 [DBUS_TYPE_OBJECT_PATH]	= DBUS_TYPE_OBJECT_PATH_AS_STRING,
+[DBUS_TYPE_VARIANT]	= DBUS_TYPE_VARIANT_AS_STRING,
 };
 
 const char *
