@@ -201,14 +201,18 @@ make %{?_smp_mflags}
 
 %install
 make install DESTDIR=${RPM_BUILD_ROOT}
+%if !0%{?usrmerged}
 # install /sbin/{ifup,ifown,ifstatus,ifprobe} links
-%if "%_sbindir" != "/sbin"
 %__mkdir_p -m 0755 ${RPM_BUILD_ROOT}/sbin
 %__ln_s %_sbindir/ifup	${RPM_BUILD_ROOT}/sbin/ifup
 %endif
-%__ln_s %_sbindir/ifup	${RPM_BUILD_ROOT}/sbin/ifdown
-%__ln_s %_sbindir/ifup	${RPM_BUILD_ROOT}/sbin/ifstatus
-%__ln_s %_sbindir/ifup  ${RPM_BUILD_ROOT}/sbin/ifprobe
+for i in ifdown ifstatus ifprobe; do
+%if !0%{?usrmerged}
+%__ln_s ifup ${RPM_BUILD_ROOT}/sbin/$i
+%else
+%__ln_s ifup ${RPM_BUILD_ROOT}%{_sbindir}/$i
+%endif
+done
 # remove libwicked.a and la
 %__rm -f ${RPM_BUILD_ROOT}%_libdir/libwicked*.*a
 # create reboot-persistent (leases) store directory
@@ -379,12 +383,16 @@ fi
 %_unitdir/wickedd-pppd@.service
 %attr(0600,root,root) %config /etc/sysconfig/network/ifcfg-lo
 %_sbindir/ifup
-%if "%_sbindir" != "/sbin"
+%if !0%{?usrmerged}
 /sbin/ifup
-%endif
 /sbin/ifdown
 /sbin/ifstatus
 /sbin/ifprobe
+%else
+%_sbindir/ifdown
+%_sbindir/ifstatus
+%_sbindir/ifprobe
+%endif
 %_sbindir/rcwickedd-nanny
 %_sbindir/rcwickedd-dhcp6
 %_sbindir/rcwickedd-dhcp4
@@ -402,12 +410,16 @@ fi
 %_sbindir/rcnetwork
 %attr(0600,root,root) %config /etc/sysconfig/network/ifcfg-lo
 %_sbindir/ifup
-%if "%_sbindir" != "/sbin"
+%if !0%{?usrmerged}
 /sbin/ifup
-%endif
 /sbin/ifdown
 /sbin/ifstatus
 /sbin/ifprobe
+%else
+%_sbindir/ifdown
+%_sbindir/ifstatus
+%_sbindir/ifprobe
+%endif
 
 %endif
 
