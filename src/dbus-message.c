@@ -279,6 +279,9 @@ ni_dbus_message_iter_append_value(DBusMessageIter *iter, const ni_dbus_variant_t
 	} else
 	if (variant->type == DBUS_TYPE_STRUCT) {
 		rv = ni_dbus_message_iter_append_struct(iter_val, variant->struct_value, variant->array.len);
+	} else
+	if (variant->type == DBUS_TYPE_VARIANT) {
+		rv = ni_dbus_message_iter_append_variant(iter_val, variant->variant_value);
 	} else {
 		ni_warn("%s: variant type %s not supported", __FUNCTION__, signature);
 	}
@@ -539,7 +542,8 @@ ni_dbus_message_serialize_variants(ni_dbus_message_t *msg,
 				ni_dbus_variant_sprint(&argv[i]));
 #endif
 		if (!ni_dbus_message_iter_append_value(&iter, &argv[i], NULL)) {
-			ni_error("error marshalling message, type=%s, value=\"%s\"",
+			ni_error("error marshalling message arg[%u]: type=%s, value=\"%s\"",
+					i,
 					ni_dbus_variant_signature(&argv[i]),
 					ni_dbus_variant_sprint(&argv[i]));
 			dbus_set_error(error,

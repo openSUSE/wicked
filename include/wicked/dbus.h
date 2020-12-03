@@ -56,6 +56,7 @@ struct ni_dbus_variant {
 		ni_dbus_dict_entry_t *dict_array_value;
 		ni_dbus_variant_t *variant_array_value;
 		ni_dbus_variant_t *struct_value;
+		ni_dbus_variant_t *variant_value;
 	};
 
 	ni_dbus_message_t *	__message;
@@ -223,6 +224,7 @@ extern dbus_bool_t		ni_dbus_variant_init_signature(ni_dbus_variant_t *, const ch
 extern void			ni_dbus_variant_copy(ni_dbus_variant_t *dst,
 					const ni_dbus_variant_t *src);
 extern void			ni_dbus_variant_destroy(ni_dbus_variant_t *);
+extern const char *		ni_dbus_variant_print(ni_stringbuf_t *, const ni_dbus_variant_t *);
 extern const char *		ni_dbus_variant_sprint(const ni_dbus_variant_t *);
 extern const char *		ni_dbus_variant_signature(const ni_dbus_variant_t *);
 extern void			ni_dbus_variant_set_string(ni_dbus_variant_t *, const char *);
@@ -285,6 +287,7 @@ extern dbus_bool_t		ni_dbus_variant_is_variant_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_dict_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_dict(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_struct(const ni_dbus_variant_t *);
+extern dbus_bool_t		ni_dbus_variant_is_variant(const ni_dbus_variant_t *);
 
 extern dbus_bool_t		ni_dbus_variant_array_parse_and_append_string(ni_dbus_variant_t *, const char *);
 
@@ -333,6 +336,9 @@ extern ni_dbus_variant_t *	ni_dbus_struct_add(ni_dbus_variant_t *);
 extern ni_bool_t		ni_dbus_struct_add_string(ni_dbus_variant_t *, const char *);
 extern ni_dbus_variant_t *	ni_dbus_struct_get(const ni_dbus_variant_t *, unsigned int);
 extern dbus_bool_t		ni_dbus_struct_get_string(const ni_dbus_variant_t *, unsigned int, const char **);
+
+extern ni_dbus_variant_t *	ni_dbus_variant_init_variant(ni_dbus_variant_t *);
+extern dbus_bool_t		ni_dbus_variant_get_variant(const ni_dbus_variant_t *, const ni_dbus_variant_t **);
 
 /*
  * Client side functions
