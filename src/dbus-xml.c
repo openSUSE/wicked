@@ -1810,7 +1810,7 @@ ni_dbus_xml_expand_element_reference(xml_node_t *doc_node, const char *expr_stri
  *     <config type="...">
  *       <meta>
  *	   <mapping
- *	   	document-node="/some/xpath/expression" 
+ *	   	document-node="/some/xpath/expression"
  *		skip-unless-present="true"
  *		/>
  *       </meta>
