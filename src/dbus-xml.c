@@ -626,7 +626,7 @@ ni_dbus_serialize_xml_enum(const xml_node_t *node, const ni_xs_scalar_info_t *sc
 	unsigned int value;
 
 	if (ni_parse_uint_maybe_mapped(node->cdata, names, &value, 0) < 0) {
-		ni_error("%s: unknown enum value \"%s\"", xml_node_location(node), node->cdata);
+		ni_error("%s: element <%s>: unknown enum value \"%s\"", xml_node_location(node), node->name, node->cdata);
 		return FALSE;
 	}
 
