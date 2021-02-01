@@ -5115,7 +5115,7 @@ __ni_netdev_addr_complete(ni_netdev_t *dev, ni_address_t *ap)
 }
 
 static ni_bool_t
-__ni_netdev_addr_label_update(const char *ifname, const char *olabel, const char *nlabel)
+ni_netdev_addr_needs_label_update(const char *ifname, const char *olabel, const char *nlabel)
 {
 	char buff[IFNAMSIZ] = { '\0' };
 	const char *label;
@@ -5138,12 +5138,12 @@ __ni_netdev_addr_label_update(const char *ifname, const char *olabel, const char
 	}
 
 	if (!ni_string_eq(olabel, label))
-		return -1;
-	return 0;
+		return TRUE;
+	return FALSE;
 }
 
 static int
-__ni_netdev_addr_needs_lft_update(const char *ifname, ni_address_t *o, ni_address_t *n)
+ni_netdev_addr_needs_lft_update(ni_address_t *o, ni_address_t *n)
 {
 	unsigned int valid_lft;
 	struct timeval now;
@@ -5163,9 +5163,42 @@ __ni_netdev_addr_needs_lft_update(const char *ifname, ni_address_t *o, ni_addres
 	return 0;
 }
 
-static int
-__ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t *n)
+static ni_bool_t
+ni_netdev_addr_needs_dad_update(ni_netdev_t *dev, ni_address_t *o, ni_address_t *n)
 {
+	/*
+	 * needed to enforce / retrigger duplicate address detection?
+	 */
+	if (ni_address_is_duplicate(o))
+		return TRUE;	/* delete to re-add if currently dadfailed */
+
+	if (dev->ipv6 && dev->ipv6->conf.accept_dad <= NI_IPV6_ACCEPT_DAD_DISABLED)
+		return FALSE;	/* skip as dad is currently disabled */
+
+	if (ni_address_is_tentative(o) && !ni_address_is_duplicate(o))
+		return FALSE;	/* skip as dad is already (re-)triggered */
+
+	if (ni_address_is_nodad(n))
+		return FALSE;	/* skip, request to skip dad for address */
+
+	if (!ni_netdev_link_is_up(dev))
+		return TRUE;	/* retrigger dad when carrier is currently down */
+
+	if (ni_address_is_tentative(n))
+		return TRUE;	/* retrigger dad if explicitly requested in lease */
+
+	return FALSE;
+}
+
+static int
+ni_netdev_addr_needs_update(ni_netdev_t *dev, ni_address_t *o, ni_address_t *n)
+{
+	/*
+	 * check if update is needed and return:
+	 *   0 if no update needed
+	 *   1 if we can modify current address
+	 *  -1 to delete and re-add the address
+	 */
 	if (n->scope != -1 && o->scope != n->scope)
 		return -1;
 
@@ -5186,21 +5219,15 @@ __ni_netdev_addr_needs_update(const char *ifname, ni_address_t *o, ni_address_t 
 
 	switch (o->family) {
 	case AF_INET:
-		if (__ni_netdev_addr_label_update(ifname, o->label, n->label))
+		if (ni_netdev_addr_needs_label_update(dev->name, o->label, n->label))
 			return -1;
 		break;
 
 	case AF_INET6:
-		/* do not try to update dhcp6 address lifetimes, but
-		 * delete and re-add to enforce duplicate detection.
-		 */
-		switch (n->owner) {
-		case NI_ADDRCONF_DHCP:
+		if (ni_netdev_addr_needs_dad_update(dev, o, n))
 			return -1;
 
-		default:
-			return __ni_netdev_addr_needs_lft_update(ifname, o, n);
-		}
+		return ni_netdev_addr_needs_lft_update(o, n);
 
 	default:
 		break;
@@ -5513,7 +5540,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 
 			/* Check whether we need to update */
 			__ni_netdev_addr_complete(dev, new_addr);
-			if (!(replace = __ni_netdev_addr_needs_update(dev->name, ap, new_addr))) {
+			if (!(replace = ni_netdev_addr_needs_update(dev, ap, new_addr))) {
 				ni_debug_ifconfig("%s: address %s/%u exists; no need to reconfigure",
 					dev->name,
 					ni_sockaddr_print(&ap->local_addr), ap->prefixlen);
