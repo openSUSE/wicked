@@ -320,6 +320,12 @@ ni_address_is_mngtmpaddr(const ni_address_t *laddr)
 }
 
 ni_bool_t
+ni_address_is_nodad(const ni_address_t *laddr)
+{
+	return laddr->flags & IFA_F_NODAD;
+}
+
+ni_bool_t
 ni_address_is_noprefixroute(const ni_address_t *laddr)
 {
 	return laddr->flags & IFA_F_NOPREFIXROUTE;
@@ -369,6 +375,15 @@ ni_address_set_mngtmpaddr(ni_address_t *laddr, ni_bool_t temporary)
 		laddr->flags |= IFA_F_MANAGETEMPADDR;
 	else
 		laddr->flags &= ~IFA_F_MANAGETEMPADDR;
+}
+
+void
+ni_address_set_nodad(ni_address_t *laddr, ni_bool_t nodad)
+{
+	if (nodad)
+		laddr->flags |= IFA_F_NODAD;
+	else
+		laddr->flags &= ~IFA_F_NODAD;
 }
 
 void
