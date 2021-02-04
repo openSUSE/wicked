@@ -319,6 +319,12 @@ __ni_suse_read_default_hostname(const char *root, char **hostname)
 	return *hostname;
 }
 
+static int
+__ni_suse_string_compare(const void *lhs, const void *rhs)
+{
+	return strcmp(*(const char **)lhs, *(const char **)rhs);
+}
+
 static ni_bool_t
 __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 {
@@ -357,6 +363,14 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 			continue;
 
 		if (ni_scandir(dirname, "*"__NI_SUSE_SYSCTL_SUFFIX, &names)) {
+
+			/*
+			 * config files in sysctl.d directories are often prefixed with
+			 * numbers determining an order, so we should preserve that order
+			 */
+			qsort(names.data, names.count, sizeof(char *),
+					__ni_suse_string_compare);
+
 			for (i = 0; i < names.count; ++i) {
 				snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
 						dirname, names.data[i]);
