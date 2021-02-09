@@ -123,6 +123,7 @@ Group:          System/Management
 Requires(pre):  %name = %{version}
 Requires:       sysconfig >= 0.81.0
 Provides:       /sbin/ifup
+Provides:       service(network)
 Provides:       sysvinit(network)
 Conflicts:      otherproviders(/sbin/ifup)
 Obsoletes:      sysconfig-network
