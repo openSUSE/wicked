@@ -626,7 +626,7 @@ ni_dbus_serialize_xml_enum(const xml_node_t *node, const ni_xs_scalar_info_t *sc
 	unsigned int value;
 
 	if (ni_parse_uint_maybe_mapped(node->cdata, names, &value, 0) < 0) {
-		ni_error("%s: unknown enum value \"%s\"", xml_node_location(node), node->cdata);
+		ni_error("%s: element <%s>: unknown enum value \"%s\"", xml_node_location(node), node->name, node->cdata);
 		return FALSE;
 	}
 
@@ -1810,7 +1810,7 @@ ni_dbus_xml_expand_element_reference(xml_node_t *doc_node, const char *expr_stri
  *     <config type="...">
  *       <meta>
  *	   <mapping
- *	   	document-node="/some/xpath/expression" 
+ *	   	document-node="/some/xpath/expression"
  *		skip-unless-present="true"
  *		/>
  *       </meta>
