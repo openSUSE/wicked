@@ -627,10 +627,7 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 		if (dev->lease) {
 			/*
 			 * Commit current lease to continue using it.
-			 *
-			 * TODO: Verify this.
-			 *   Currently we apply with original lifetimes,
-			 *   we may update IA addrs to remaining times.
+			 * A confirm is not extending any lifetimes.
 			 */
 			ni_dhcp6_fsm_reset(dev);
 			ni_dhcp6_fsm_commit_lease(dev, dev->lease);
@@ -2312,7 +2309,17 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 			ni_addrconf_lease_file_write(dev->ifname, lease);
 		}
 
+		/* retrigger dad when link (carrier) may have been down */
+		ni_addrconf_lease_addrs_set_tentative(lease, dev->link.reconnect);
+
 		ni_dhcp6_send_event(NI_DHCP6_EVENT_ACQUIRED, dev, lease);
+
+		/* reset reconnect hint and remove tentative flag again */
+		if (dev->link.reconnect) {
+			ni_addrconf_lease_addrs_set_tentative(lease, FALSE);
+			dev->link.reconnect = FALSE;
+		}
+
 		if (dev->config->dry_run != NI_DHCP6_RUN_NORMAL) {
 			ni_dhcp6_device_drop_lease(dev);
 			ni_dhcp6_device_stop(dev);

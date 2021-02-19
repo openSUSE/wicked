@@ -359,7 +359,6 @@ ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, unsigned int ad
 	const ni_dbus_variant_t *dict;
 	const char *string_value;
 	ni_netdev_t *dev;
-	ni_address_t *ap;
 	int rv;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
@@ -415,8 +414,7 @@ ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, unsigned int ad
 		ni_string_dup(&lease->hostname, string_value);
 
 	/* mark all addresses tentative, causing to verify them */
-	for (ap = lease->addrs; ap; ap = ap->next)
-		ni_address_set_tentative(ap, TRUE);
+	ni_addrconf_lease_addrs_set_tentative(lease, TRUE);
 
 	rv = __ni_system_interface_update_lease(dev, &lease, NI_EVENT_ADDRESS_ACQUIRED);
 	if (lease)

@@ -112,6 +112,17 @@ ni_dhcp6_device_new(const char *ifname, const ni_linkinfo_t *link)
 	ni_string_dup(&dev->ifname, ifname);
 	dev->link.ifindex = link->ifindex;
 
+	/*
+	 * https://tools.ietf.org/html/rfc8415#section-18.2 (rfc3315#section-18.1)
+	 * https://tools.ietf.org/html/rfc8415#section-18.2.12 (rfc3315#section-18.1.2)
+	 * https://tools.ietf.org/html/rfc8415#section-18.2.10.1 (rfc3315#section-18.1.8)
+	 *
+	 * it's either a fresh link and we have to perform dad anyway
+	 * or we just (re-)started and "may have moved to a new link",
+	 * so assume a reconnect to retrigger dad in next lease commit.
+	 */
+	dev->link.reconnect = TRUE;
+
 	dev->fsm.state = NI_DHCP6_STATE_INIT;
 
 	/* append to end of list */
@@ -1276,6 +1287,8 @@ ni_dhcp6_device_event(ni_dhcp6_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 	break;
 
 	case NI_EVENT_LINK_UP:
+		/* retrigger dad on lease commit */
+		dev->link.reconnect = TRUE;
 		ni_debug_dhcp("received link up event");
 		if (dev->config) {
 			ni_dhcp6_device_start(dev);

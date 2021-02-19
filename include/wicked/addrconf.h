@@ -261,6 +261,7 @@ extern const char *	ni_netbios_node_type_to_name(unsigned int);
 extern ni_bool_t	ni_netbios_node_type_to_code(const char *, unsigned int *);
 
 extern unsigned int	ni_addrconf_lease_get_priority(const ni_addrconf_lease_t *);
+extern unsigned int	ni_addrconf_lease_addrs_set_tentative(ni_addrconf_lease_t *, ni_bool_t);
 
 struct ni_auto4_request {
 	ni_bool_t	enabled;
