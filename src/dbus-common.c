@@ -166,6 +166,12 @@ ni_dbus_variant_is_string_array(const ni_dbus_variant_t *var)
 	return __ni_dbus_is_array(var, DBUS_TYPE_STRING_AS_STRING);
 }
 
+dbus_bool_t
+ni_dbus_variant_is_object_path_array(const ni_dbus_variant_t *var)
+{
+	return __ni_dbus_is_array(var, DBUS_TYPE_OBJECT_PATH_AS_STRING);
+}
+
 /*
  * Get/set functions for variant values
  */

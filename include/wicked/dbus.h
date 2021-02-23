@@ -284,6 +284,7 @@ extern dbus_bool_t		ni_dbus_variant_is_array_of(const ni_dbus_variant_t *, const
 extern dbus_bool_t		ni_dbus_variant_is_byte_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_string_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_variant_array(const ni_dbus_variant_t *);
+extern dbus_bool_t		ni_dbus_variant_is_object_path_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_dict_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_dict(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_struct(const ni_dbus_variant_t *);
@@ -498,6 +499,8 @@ ni_dbus_variant_datum_const_ptr(const ni_dbus_variant_t *variant)
 		DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING
 #define NI_DBUS_STRING_ARRAY_SIGNATURE \
 		DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING
+#define NI_DBUS_OBJECT_PATH_ARRAY_SIGNATURE \
+		DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_OBJECT_PATH_AS_STRING
 
 
 #define NI_DBUS_SIGNATURE(type)		NI_DBUS_##type##_SIGNATURE
