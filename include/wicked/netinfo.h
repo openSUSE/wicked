@@ -181,10 +181,10 @@ extern unsigned int	ni_netdev_name_to_index(const char *);
 extern const char *	ni_netdev_make_name(ni_netconfig_t *, const char *, unsigned int);
 
 extern ni_netdev_t *	ni_netdev_new(const char *name, unsigned int ifindex);
-extern ni_netdev_t *	ni_netdev_get(ni_netdev_t *ifp);
-extern unsigned int	ni_netdev_put(ni_netdev_t *ifp);
-extern int		ni_netdev_update(ni_netdev_t *ifp);
-extern int		ni_netdev_guess_type(ni_netdev_t *ifp);
+extern ni_netdev_t *	ni_netdev_get(ni_netdev_t *dev);
+extern unsigned int	ni_netdev_put(ni_netdev_t *dev);
+extern void		ni_netdev_reset(ni_netdev_t *dev);
+extern int		ni_netdev_guess_type(ni_netdev_t *dev);
 
 extern int		ni_netdev_set_lease(ni_netdev_t *, ni_addrconf_lease_t *);
 extern int		ni_netdev_unset_lease(ni_netdev_t *, unsigned int af, ni_addrconf_mode_t type);
@@ -297,21 +297,21 @@ extern ni_bool_t	ni_netdev_link_always_ready(ni_linkinfo_t *);
 extern ni_tristate_t	ni_netdev_guess_link_required(const ni_netdev_t *);
 
 static inline int
-ni_netdev_device_is_up(const ni_netdev_t *ifp)
+ni_netdev_device_is_up(const ni_netdev_t *dev)
 {
-	return ifp ? ifp->link.ifflags & NI_IFF_DEVICE_UP : 0;
+	return dev ? dev->link.ifflags & NI_IFF_DEVICE_UP : 0;
 }
 
 static inline int
-ni_netdev_link_is_up(const ni_netdev_t *ifp)
+ni_netdev_link_is_up(const ni_netdev_t *dev)
 {
-	return ifp ? ifp->link.ifflags & NI_IFF_LINK_UP : 0;
+	return dev ? dev->link.ifflags & NI_IFF_LINK_UP : 0;
 }
 
 static inline int
-ni_netdev_network_is_up(const ni_netdev_t *ifp)
+ni_netdev_network_is_up(const ni_netdev_t *dev)
 {
-	return ifp ? ifp->link.ifflags & NI_IFF_NETWORK_UP : 0;
+	return dev ? dev->link.ifflags & NI_IFF_NETWORK_UP : 0;
 }
 
 #endif /* __WICKED_NETINFO_H__ */
