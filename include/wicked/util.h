@@ -32,6 +32,13 @@ typedef struct ni_uint_arrray {
 
 #define NI_UINT_ARRAY_INIT	{ .count = 0, .data = NULL }
 
+typedef struct ni_byte_array {
+	size_t		len;
+	unsigned char *	data;
+} ni_byte_array_t;
+
+#define NI_BYTE_ARRAY_INIT	{ .len = 0, .data = NULL }
+
 typedef struct ni_variable	ni_var_t;
 struct ni_variable {
 	char *		name;
@@ -135,6 +142,16 @@ extern unsigned int	ni_uint_array_index(ni_uint_array_t *, unsigned int);
 extern ni_bool_t	ni_uint_array_contains(ni_uint_array_t *, unsigned int);
 extern ni_bool_t	ni_uint_array_get(ni_uint_array_t *, unsigned int, unsigned int *);
 extern ni_bool_t	ni_uint_array_set(ni_uint_array_t *, unsigned int, unsigned int);
+
+extern void		ni_byte_array_init(ni_byte_array_t *);
+extern void		ni_byte_array_destroy(ni_byte_array_t *);
+extern ni_byte_array_t *ni_byte_array_new(void);
+extern void		ni_byte_array_free(ni_byte_array_t *);
+extern size_t		ni_byte_array_size(const ni_byte_array_t *);
+extern size_t		ni_byte_array_pad(ni_byte_array_t *, size_t);
+extern size_t		ni_byte_array_put(ni_byte_array_t *, const unsigned char *, size_t);
+extern size_t		ni_byte_array_putb(ni_byte_array_t *, const unsigned char);
+extern size_t		ni_byte_array_puts(ni_byte_array_t *, const char *);
 
 extern ni_bool_t	ni_var_set(ni_var_t *, const char *, const char *);
 extern int		ni_var_name_cmp(const ni_var_t *, const ni_var_t *);

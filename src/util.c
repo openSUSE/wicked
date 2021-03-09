@@ -31,8 +31,10 @@
 #define NI_UINT_ARRAY_CHUNK	16
 #define NI_VAR_ARRAY_CHUNK	16
 
-#define NI_STRINGBUF_CHUNK	64
+#define NI_STRINGBUF_CHUNK	64	/* important: always a (2^n) */
 
+#define NI_BYTE_ARRAY_CHUNK	0xff	/* important: (2^n)-1 with all bits set */
+#define NI_BYTE_ARRAY_SIZE(len)	((len) | NI_BYTE_ARRAY_CHUNK)
 
 static int		__ni_pidfile_write(const char *, unsigned int, pid_t, int);
 static const char *	__ni_build_backup_path(const char *, const char *);
@@ -458,6 +460,103 @@ ni_uint_array_set(ni_uint_array_t *nua, unsigned int index, unsigned int num)
 
 	nua->data[index] = num;
 	return TRUE;
+}
+
+void
+ni_byte_array_init(ni_byte_array_t *array)
+{
+	memset(array, 0, sizeof(*array));
+}
+
+void
+ni_byte_array_destroy(ni_byte_array_t *array)
+{
+	if (array) {
+		free(array->data);
+		array->data = NULL;
+		array->len = 0;
+	}
+}
+
+ni_byte_array_t *
+ni_byte_array_new(void)
+{
+	return calloc(1, sizeof(ni_byte_array_t));
+}
+
+void
+ni_byte_array_free(ni_byte_array_t *array)
+{
+	if (array) {
+		ni_byte_array_destroy(array);
+		free(array);
+	}
+}
+
+size_t
+ni_byte_array_size(const ni_byte_array_t *array)
+{
+	if (!array || !array->data)
+		return 0;
+	return NI_BYTE_ARRAY_SIZE(array->len);
+}
+
+static ni_bool_t
+ni_byte_array_grow(ni_byte_array_t *array, size_t add)
+{
+	unsigned char *data;
+	size_t size;
+
+	if (!array || (SIZE_MAX - array->len) < add)
+		return FALSE;
+
+	size = NI_BYTE_ARRAY_SIZE(array->len);
+	if (array->data && (size - array->len) >= add)
+		return TRUE;
+
+	size = NI_BYTE_ARRAY_SIZE(array->len + add);
+	data = realloc(array->data, size);
+	if (!data)
+		return FALSE;
+
+	array->data = data;
+	memset(array->data + array->len, 0, size - array->len);
+
+	return TRUE;
+}
+
+size_t
+ni_byte_array_pad(ni_byte_array_t *array, size_t len)
+{
+	if (!len || !ni_byte_array_grow(array, len))
+		return 0;
+
+	array->len += len;
+	return len;
+}
+
+size_t
+ni_byte_array_put(ni_byte_array_t *array, const unsigned char *ptr, size_t len)
+{
+	if (!ptr || !len || !ni_byte_array_grow(array, len))
+		return 0;
+
+	memcpy(array->data + array->len, ptr, len);
+	array->len += len;
+	return len;
+}
+
+size_t
+ni_byte_array_putb(ni_byte_array_t *array, const unsigned char one)
+{
+	return ni_byte_array_put(array, &one, 1);
+}
+
+size_t
+ni_byte_array_puts(ni_byte_array_t *array, const char *str)
+{
+	const unsigned char *ptr = (const unsigned char *)str;
+	return ni_byte_array_put(array, ptr, ni_string_len(str));
 }
 
 /*
