@@ -32,20 +32,20 @@ struct ni_dbus_property	{
 	struct {
 		ni_dbus_property_get_handle_fn_t *get_handle;
 		union {
-			ni_bool_t *	bool_offset;
-			int *		int_offset;
-			unsigned int *	uint_offset;
-			int16_t *	int16_offset;
-			uint16_t *	uint16_offset;
-			int64_t *	int64_offset;
-			uint64_t *	uint64_offset;
-			double *	double_offset;
-			char **		string_offset;
-			char **		object_path_offset;
-			ni_string_array_t *string_array_offset;
-			ni_string_array_t *object_path_array_offset;
-			ni_byte_array_t *byte_array_offset;
-			ni_uuid_t *	uuid_offset;
+			ni_bool_t *		bool_offset;
+			int *			int_offset;
+			unsigned int *		uint_offset;
+			int16_t *		int16_offset;
+			uint16_t *		uint16_offset;
+			int64_t *		int64_offset;
+			uint64_t *		uint64_offset;
+			double *		double_offset;
+			char **			string_offset;
+			char **			object_path_offset;
+			ni_string_array_t *	string_array_offset;
+			ni_string_array_t *	object_path_array_offset;
+			ni_byte_array_t *	byte_array_offset;
+			ni_uuid_t *		uuid_offset;
 			const ni_dbus_property_t *dict_children;
 		} u;
 	} generic;
