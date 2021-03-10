@@ -139,6 +139,28 @@ cleanup:
 
 
 /*
+ * permanent-address
+ */
+static int
+get_ethtool_perm_hwaddr(const ni_netdev_ref_t *ref, ni_ethtool_t *ethtool, struct ethtool_args *args)
+{
+	ni_hwaddr_t hwaddr;
+	const char *string;
+
+	(void)args;
+	ni_link_address_init(&hwaddr);
+	if (ni_ethtool_get_permanent_address(ref, ethtool, &hwaddr) < 0)
+		return -1;
+
+	if (!(string = ni_link_address_print(&hwaddr)))
+		return -1;
+
+	printf("permanent-address: %s\n", string);
+	return 0;
+}
+
+
+/*
  * link-detected
  */
 static int
@@ -1105,6 +1127,9 @@ static const struct ethtool_opt	ethtool_opts[] = {
 	{	"--get-driver-info",	.func	= get_ethtool_driver_info,			},
 	{	"--get-private-flags",	.func	= get_ethtool_priv_flags,			},
 	{	"--get-priv-flags",	.func	= get_ethtool_priv_flags,	.alias = TRUE	},
+	{	"--get-permanent-address",
+					.func	= get_ethtool_perm_hwaddr,			},
+	{	"--get-perm-address",	.func	= get_ethtool_perm_hwaddr,	.alias = TRUE	},
 	{	"--get-link-detected",	.func	= get_ethtool_link_detected,			},
 	{	"--get-link-settings",	.func	= get_ethtool_link_settings,			},
 	{	"--get-wake-on-lan",	.func	= get_ethtool_wake_on_lan,			},
@@ -1121,6 +1146,9 @@ static const struct ethtool_opt	ethtool_opts[] = {
 	{	"--show-driver-info",	.func	= get_ethtool_driver_info,	.alias = TRUE	},
 	{	"--show-private-flags",	.func	= get_ethtool_priv_flags,	.alias = TRUE	},
 	{	"--show-priv-flags",	.func	= get_ethtool_priv_flags,	.alias = TRUE	},
+	{	"--show-permanent-address",
+					.func	= get_ethtool_perm_hwaddr,	.alias = TRUE	},
+	{	"--show-perm-address",	.func	= get_ethtool_perm_hwaddr,	.alias = TRUE	},
 	{	"--show-link-settings",	.func	= get_ethtool_link_settings,	.alias = TRUE	},
 	{	"--show-wake-on-lan",	.func	= get_ethtool_wake_on_lan,	.alias = TRUE	},
 	{	"--show-wol",		.func	= get_ethtool_wake_on_lan,	.alias = TRUE	},
