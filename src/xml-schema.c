@@ -365,8 +365,11 @@ ni_xs_name_type_array_find_local(const ni_xs_name_type_array_t *array, const cha
 	ni_xs_name_type_t *def;
 	unsigned int i;
 
+	if (!name || !array)
+		return NULL;
+
 	for (i = 0, def = array->data; i < array->count; ++i, ++def) {
-		if (!strcmp(def->name, name))
+		if (ni_string_eq(def->name, name))
 			return def->type;
 	}
 	return NULL;
