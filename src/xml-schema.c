@@ -1136,7 +1136,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 			type = ni_xs_struct_new(NULL);
 		}
 
-		if (ni_xs_build_typelist(node, &type->u.struct_info->children, scope, TRUE, NULL) < 0) {
+		if (ni_xs_build_typelist(node, &type->u.struct_info->children, scope, FALSE, NULL) < 0) {
 			ni_xs_type_free(type);
 			return NULL;
 		}
@@ -1150,7 +1150,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 			return NULL;
 		}
 		type = ni_xs_union_new(NULL, disc_name);
-		if (ni_xs_build_typelist(node, &type->u.union_info->children, scope, TRUE, NULL) < 0) {
+		if (ni_xs_build_typelist(node, &type->u.union_info->children, scope, FALSE, NULL) < 0) {
 			ni_xs_type_free(type);
 			return NULL;
 		}
