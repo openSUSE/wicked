@@ -356,19 +356,28 @@ ni_dhcp4_fsm_restart(ni_dhcp4_device_t *dev)
 static void
 ni_dhcp4_fsm_set_timeout_msec(ni_dhcp4_device_t *dev, unsigned int msec)
 {
-	if (msec != 0) {
-		ni_debug_dhcp("%s: setting fsm timeout to %u msec", dev->ifname, msec);
-		if (dev->fsm.timer)
-			ni_timer_rearm(dev->fsm.timer, msec);
-		else
-			dev->fsm.timer = ni_timer_register(msec, __ni_dhcp4_fsm_timeout, dev);
-	}
+	ni_debug_dhcp("%s: setting fsm timeout to %u msec", dev->ifname, msec);
+	if (dev->fsm.timer)
+		ni_timer_rearm(dev->fsm.timer, msec);
+	else
+		dev->fsm.timer = ni_timer_register(msec, __ni_dhcp4_fsm_timeout, dev);
 }
 
 static void
 ni_dhcp4_fsm_set_timeout(ni_dhcp4_device_t *dev, unsigned int seconds)
 {
 	ni_dhcp4_fsm_set_timeout_msec(dev, 1000 * seconds);
+}
+
+unsigned int
+ni_dhcp4_fsm_start_delay(unsigned int start_delay)
+{
+	ni_int_range_t range = {
+		.min = min_t(unsigned int, start_delay, NI_DHCP4_START_DELAY_MIN),
+		.max = min_t(unsigned int, start_delay, NI_DHCP4_START_DELAY_MAX),
+	};
+	unsigned int sec = min_t(unsigned int, start_delay, NI_DHCP4_START_DELAY_MIN);
+	return ni_timeout_randomize(sec, &range);
 }
 
 static void
@@ -671,22 +680,22 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 	case NI_DHCP4_STATE_RENEWING:
 		if (ni_dhcp4_fsm_renewal(dev, FALSE) == TRUE)
 			return;
-		ni_error("unable to renew lease within renewal period; trying to rebind");
+		ni_error("%s: unable to renew lease; trying to rebind", dev->ifname);
 		ni_dhcp4_fsm_rebind_init(dev);
 		break;
 
 	case NI_DHCP4_STATE_REBINDING:
 		if (ni_dhcp4_fsm_rebind(dev, FALSE) == TRUE)
 			return;
-		ni_error("unable to rebind lease");
+		ni_error("%s: unable to rebind lease", dev->ifname);
 		ni_dhcp4_fsm_restart(dev);
-		ni_dhcp4_fsm_set_timeout(dev, 10);
+		ni_dhcp4_fsm_set_timeout(dev, ni_dhcp4_fsm_start_delay(conf->start_delay));
 		break;
 
 	case NI_DHCP4_STATE_REBOOT:
-		ni_error("unable to confirm lease");
+		ni_error("%s: unable to confirm lease", dev->ifname);
 		ni_dhcp4_fsm_restart(dev);
-		ni_dhcp4_fsm_set_timeout(dev, 10);
+		ni_dhcp4_fsm_set_timeout(dev, ni_dhcp4_fsm_start_delay(conf->start_delay));
 		break;
 	case __NI_DHCP4_STATE_MAX:
 		break;

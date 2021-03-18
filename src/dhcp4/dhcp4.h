@@ -88,6 +88,8 @@ typedef struct ni_dhcp4_device {
 	} best_offer;
 } ni_dhcp4_device_t;
 
+#define NI_DHCP4_START_DELAY_MIN	1	/* seconds */
+#define NI_DHCP4_START_DELAY_MAX	10	/* seconds */
 #define NI_DHCP4_RESEND_TIMEOUT_INIT	4	/* seconds */
 #define NI_DHCP4_RESEND_TIMEOUT_MAX	64	/* seconds */
 #define NI_DHCP4_REQUEST_TIMEOUT		60	/* seconds */
@@ -222,6 +224,7 @@ extern int		ni_dhcp4_release(ni_dhcp4_device_t *, const ni_uuid_t *);
 extern void		ni_dhcp4_restart_leases(void);
 
 extern const char *	ni_dhcp4_fsm_state_name(enum fsm_state);
+extern unsigned int	ni_dhcp4_fsm_start_delay(unsigned int);
 extern void		ni_dhcp4_fsm_init_device(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_fsm_release_init(ni_dhcp4_device_t *);
 extern int		ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *, ni_buffer_t *, ni_sockaddr_t *);
