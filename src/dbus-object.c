@@ -1462,7 +1462,44 @@ ni_dbus_generic_property_parse_object_path_array(const ni_dbus_property_t *prop,
 {
 	return FALSE;
 }
+dbus_bool_t
+ni_dbus_generic_property_get_byte_array(const ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					ni_dbus_variant_t *var, DBusError *error)
+{
+	ni_byte_array_t *vptr;
+	const void *handle;
 
+	if (!(handle = ni_dbus_generic_property_read_handle(obj, prop, error)))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, byte_array);
+	ni_dbus_variant_set_byte_array(var, vptr->data, vptr->len);
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_generic_property_set_byte_array(ni_dbus_object_t *obj, const ni_dbus_property_t *prop,
+					const ni_dbus_variant_t *var, DBusError *error)
+{
+	ni_byte_array_t *vptr;
+	void *handle;
+
+	if (!(handle = ni_dbus_generic_property_write_handle(obj, prop, error)))
+		return FALSE;
+
+	if (!ni_dbus_variant_is_byte_array(var))
+		return FALSE;
+
+	vptr = __property_data(prop, handle, byte_array);
+	ni_byte_array_destroy(vptr);
+	return ni_byte_array_put(vptr, var->byte_array_value, var->array.len) == var->array.len;
+}
+
+dbus_bool_t
+ni_dbus_generic_property_parse_byte_array(const ni_dbus_property_t *prop, ni_dbus_variant_t *var, const char *string)
+{
+	return FALSE;
+}
 
 /*
  * Build an object path from parent path + name
