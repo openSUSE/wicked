@@ -364,7 +364,7 @@ ni_ethtool_get_permanent_address(const ni_netdev_ref_t *ref, ni_ethtool_t *ethto
 	if (ret < 0)
 		return ret;
 
-	if (ecmd.h.size && ecmd.h.size == ni_link_address_length(perm_addr->type))
+	if (ecmd.h.size && (perm_addr->type == ARPHRD_VOID || ecmd.h.size == ni_link_address_length(perm_addr->type)))
 		return ni_link_address_set(perm_addr, perm_addr->type, ecmd.data, ecmd.h.size);
 
 	perm_addr->len = 0;
