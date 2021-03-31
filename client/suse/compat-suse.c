@@ -5210,6 +5210,7 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 	}
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_UPDATE")) != NULL) {
+		uint = compat->dhcp4.update;
 		if (ni_addrconf_update_flags_parse(&uint, string, " \t,")) {
 			uint &= ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);
 			compat->dhcp4.update = uint;
@@ -5349,6 +5350,7 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 	ni_bool_t bvalue;
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_UPDATE")) != NULL) {
+		uint = compat->dhcp6.update;
 		if (ni_addrconf_update_flags_parse(&uint, string, " \t,")) {
 			uint &= ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET6);
 			compat->dhcp6.update = uint;
@@ -5625,8 +5627,7 @@ __ni_suse_addrconf_auto6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 					&compat->auto6.defer_timeout);
 
 		if ((value = ni_sysconfig_get_value(merged, "AUTO6_UPDATE"))) {
-			unsigned int temp;
-
+			unsigned int temp = compat->auto6.update;
 			if (ni_addrconf_update_flags_parse(&temp, value, " \t,")) {
 				temp &= ni_config_addrconf_update_mask(NI_ADDRCONF_AUTOCONF, AF_INET6);
 				compat->auto6.update = temp;

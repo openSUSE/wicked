@@ -1262,6 +1262,8 @@ ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node
 	} else {
 		ni_string_split(&targets, node->cdata, " \t,|", 0);
 	}
+
+	mask = *update_mask;
 	if (ni_addrconf_update_flags_parse_names(&mask, &targets))
 		*update_mask = mask;
 	ni_string_array_destroy(&targets);
