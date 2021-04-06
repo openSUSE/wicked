@@ -52,6 +52,11 @@ Obsoletes:      libwicked-0-6 < %{version}
 %else
 %bcond_with     rfc4361_cid
 %endif
+%if 0%{?suse_version} >= 1500
+%bcond_without  dhcp6_nis
+%else
+%bcond_with     dhcp6_nis
+%endif
 %if 0%{?suse_version} >= 1230
 %bcond_without  systemd
 %bcond_with     dbusstart
@@ -182,6 +187,9 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS"
 	--with-storedir=%{wicked_storedir}\
 	--with-compat=suse		\
 	--with-fillup-templatesdir=%{_fillupdir}\
+%if %{without dhcp6_nis}
+	--disable-dhcp6-nis		\
+%endif
 %if %{without rfc4361_cid}
 	--disable-dhcp4-rfc4361-cid	\
 %endif

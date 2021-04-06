@@ -8,6 +8,12 @@
      Generic Addrconf facilities
      ================================================= -->
 <service name="addrconf" interface="org.opensuse.Network.Addrconf" object-class="addrconf-device">
+  <define name="nis-domain" class="dict">
+      <domainname type="string" />
+      <binding type="uint32" />
+      <servers class="array" element-type="string" element-name="server" />
+  </define>
+
   <define name="lease-type" class="dict">
     <description>
       This type describes an address configuration obtained by one of
@@ -33,14 +39,12 @@
 
     <resolver class="dict">
       <default-domain type="string" />
-      <servers class="array" element-type="string" />
-      <search class="array" element-type="string" />
+      <search class="array" element-type="string" element-name="domain" />
+      <servers class="array" element-type="string" element-name="server" />
     </resolver>
 
-    <nis class="dict">
-      <domainname type="string" />
-      <binding type="uint32" />
-      <servers class="array" element-type="string" />
+    <nis class="dict" extends="nis-domain">
+      <domains class="array" element-type="nis-domain" element-name="domain" />
     </nis>
 
     <log-servers class="array" element-type="string" />

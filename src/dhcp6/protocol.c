@@ -41,9 +41,8 @@
 #include <wicked/addrconf.h>
 #include <wicked/resolver.h>
 #include <wicked/ipv6.h>
-#if 0
-#include <wicked/route.h>
 #include <wicked/nis.h>
+#if 0
 #include <wicked/xml.h>
 #endif
 
@@ -1381,8 +1380,6 @@ __ni_dhcp6_build_oro_opts(ni_dhcp6_device_t *dev,
 	if (dev->config->update & NI_BIT(NI_ADDRCONF_UPDATE_NIS)) {
 		ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NIS_SERVERS);
 		ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NIS_DOMAIN_NAME);
-		ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NISP_SERVERS);
-		ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NISP_DOMAIN_NAME);
 	}
 	if (dev->config->update & NI_BIT(NI_ADDRCONF_UPDATE_SIP)) {
 		ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_SIP_SERVER_D);
@@ -2720,6 +2717,82 @@ ni_dhcp6_ia_copy_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_
 	return count;
 }
 
+static int
+ni_dhcp6_lease_add_nis_servers(ni_string_array_t *dst, const ni_string_array_t *src)
+{
+	const char *server;
+	unsigned int i;
+
+	if (!dst || !src)
+		return -1;
+
+	for (i = 0; i < src->count; ++i) {
+		server = src->data[i];
+
+		/* unique servers only */
+		if (ni_string_array_find(dst, 0, server, ni_string_eq_nocase, NULL) != -1U)
+			continue;
+
+		ni_string_array_append(dst, server);
+	}
+
+	return 0;
+}
+
+static int
+ni_dhcp6_lease_add_nis_domains(ni_nis_info_t *nis, const ni_string_array_t *domains,
+							const ni_string_array_t *servers)
+{
+	ni_nis_domain_t *dom;
+	const char *domain;
+	unsigned int i;
+
+	if (!nis || !domains || !servers)
+		return -1;
+
+	for (i = 0; i < domains->count; ++i) {
+		domain = domains->data[i];
+
+		/* unique domains only */
+		if (ni_nis_domain_find(nis, domain))
+			continue;
+
+		if ((dom = ni_nis_domain_new(nis, domain)))
+			ni_dhcp6_lease_add_nis_servers(&dom->servers, servers);
+	}
+
+	return 0;
+}
+
+int
+ni_dhcp6_lease_set_nis_info(ni_addrconf_lease_t *lease, const ni_string_array_t *domains,
+							const ni_string_array_t *servers)
+{
+	if (!lease || !domains || !servers)
+		return -1;
+
+	if (lease->nis) {
+		ni_nis_info_free(lease->nis);
+		lease->nis = NULL;
+	}
+
+	if (!domains->count && !servers->count)
+		return 0;
+
+	if (!(lease->nis = ni_nis_info_new()))
+		return -1;
+
+	if (domains->count == 1) {
+		ni_string_dup(&lease->nis->domainname, domains->data[0]);
+		ni_dhcp6_lease_add_nis_servers(&lease->nis->default_servers, servers);
+	} else
+	if (domains->count) {
+		ni_dhcp6_lease_add_nis_domains(lease->nis, domains, servers);
+	}
+
+	return 0;
+}
+
 int
 ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, ni_buffer_t *buffer)
 {
@@ -2937,9 +3010,7 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, n
 				for (i = 0; i < temp.count; ++i) {
 					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option),
 							temp.data[i]);
-					/* TODO
 					ni_string_array_append(&nis_servers, temp.data[i]);
-					*/
 				}
 			}
 			ni_string_array_destroy(&temp);
@@ -2949,9 +3020,7 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, n
 				for (i = 0; i < temp.count; ++i) {
 					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option),
 							temp.data[i]);
-					/* TODO:
 					ni_string_array_append(&nis_domains, temp.data[i]);
-					*/
 				}
 			}
 			ni_string_array_destroy(&temp);
@@ -3081,13 +3150,10 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, n
 		}
 	}
 
-	if (nis_domains.count) {
-		/* TODO */
-	}
-
 	/* FIXME: too early here -- do it after parsing depending on the state? */
 	ni_dhcp6_ia_copy_to_lease_addrs(dev, lease);
 
+	ni_dhcp6_lease_set_nis_info(lease, &nis_domains, &nis_servers);
 	ni_string_array_destroy(&nis_servers);
 	ni_string_array_destroy(&nis_domains);
 	return 0;
