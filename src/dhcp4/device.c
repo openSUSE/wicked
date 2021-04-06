@@ -620,8 +620,7 @@ ni_dhcp4_device_start(ni_dhcp4_device_t *dev)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
-	ni_int_range_t jitter = { .max = 500, /* msec */ };
-	unsigned long msec = dev->config->start_delay * 1000;
+	unsigned long sec;
 
 	ni_dhcp4_device_drop_buffer(dev);
 	dev->failed = 0;
@@ -634,10 +633,13 @@ ni_dhcp4_device_start(ni_dhcp4_device_t *dev)
 	}
 
 	/* Reuse defer pointer for this one-shot timer */
-	msec = ni_timeout_randomize(msec, &jitter);
+	sec = ni_dhcp4_fsm_start_delay(dev->config->start_delay);
+	if (dev->config->defer_timeout > sec)
+		dev->config->defer_timeout -= sec;
+
 	if (dev->defer.timer)
 		ni_timer_cancel(dev->defer.timer);
-	dev->defer.timer = ni_timer_register(msec, ni_dhcp4_device_start_delayed, dev);
+	dev->defer.timer = ni_timer_register(sec * 1000, ni_dhcp4_device_start_delayed, dev);
 
 	return 1;
 }
