@@ -1816,6 +1816,40 @@ __ni_objectmodel_get_addrconf_dhcp6_dict(const struct ni_addrconf_lease_dhcp6 *d
 	__ni_objectmodel_get_addrconf_dhcp_opts_dict(dhcp6->options, dict, 0, 65535);
 }
 
+static dbus_bool_t
+__ni_objectmodel_get_nis_info(const ni_nis_info_t *nis, ni_dbus_variant_t *dict, DBusError *error)
+{
+	ni_dbus_variant_t *domains;
+	const ni_nis_domain_t *dom;
+	unsigned int i;
+
+	ni_dbus_variant_init_dict(dict);
+
+	if (nis->domainname || nis->default_servers.count) {
+		ni_dbus_dict_add_string(dict, "domainname", nis->domainname);
+		ni_dbus_dict_add_uint32(dict, "binding", nis->default_binding);
+		__ni_objectmodel_set_string_array(dict, "servers", &nis->default_servers);
+	}
+
+	if (nis->domains.count && (domains = ni_dbus_dict_add(dict, "domains"))) {
+
+		ni_dbus_dict_array_init(domains);
+		for (i = 0; i < nis->domains.count; ++i) {
+			if (!(dom = nis->domains.data[i]))
+				continue;
+
+			if (!(dict = ni_dbus_dict_array_add(domains)))
+				continue;
+
+			ni_dbus_variant_init_dict(dict);
+			ni_dbus_dict_add_string(dict, "domainname", dom->domainname);
+			ni_dbus_dict_add_uint32(dict, "binding", dom->binding);
+			__ni_objectmodel_set_string_array(dict, "servers", &dom->servers);
+		}
+	}
+	return TRUE;
+}
+
 dbus_bool_t
 __ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 						ni_dbus_variant_t *result,
@@ -1866,17 +1900,8 @@ __ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 		__ni_objectmodel_set_string_array(child, "search", &resolv->dns_search);
 	}
 
-	if (lease->nis) {
-		ni_nis_info_t *nis = lease->nis;
-
-		child = ni_dbus_dict_add(result, "nis");
-		ni_dbus_variant_init_dict(child);
-
-		if (nis->domainname)
-			ni_dbus_dict_add_string(child, "domainname", nis->domainname);
-		ni_dbus_dict_add_uint32(child, "binding", nis->default_binding);
-		__ni_objectmodel_set_string_array(child, "servers", &nis->default_servers);
-	}
+	if (lease->nis && (child = ni_dbus_dict_add(result, "nis")))
+		__ni_objectmodel_get_nis_info(lease->nis, child, error);
 
 	__ni_objectmodel_set_string_array(result, "log-servers", &lease->log_servers);
 	__ni_objectmodel_set_string_array(result, "ntp-servers", &lease->ntp_servers);
@@ -2201,6 +2226,65 @@ __ni_objectmodel_set_addrconf_dhcp6_data(struct ni_addrconf_lease_dhcp6 *dhcp6,
 	return TRUE;
 }
 
+static dbus_bool_t
+__ni_objectmodel_set_nis_info(ni_nis_info_t **result, const ni_dbus_variant_t *dict, DBusError *error)
+{
+	const ni_dbus_variant_t *servers, *domains;
+	const char *string_value;
+	uint32_t value32;
+	ni_nis_info_t *nis;
+
+	if (!result || !dict || !ni_dbus_variant_is_dict(dict))
+		return FALSE;
+
+	*result = NULL;
+	if (!(nis = ni_nis_info_new()))
+		return FALSE;
+
+	if (__ni_objectmodel_get_domain_string(dict, "domainname", &string_value))
+		ni_string_dup(&nis->domainname, string_value);
+
+	if (ni_dbus_dict_get_uint32(dict, "binding", &value32))
+		nis->default_binding = value32;
+
+	servers = ni_dbus_dict_get(dict, "servers");
+	if (servers && !__ni_objectmodel_get_address_array(&nis->default_servers,
+			servers, error, "nis servers")) {
+		ni_nis_info_free(nis);
+		return FALSE;
+	}
+
+	domains = ni_dbus_dict_get(dict, "domains");
+	if (domains && ni_dbus_variant_is_dict_array(domains)) {
+		unsigned int i;
+
+		for (i = 0; i < domains->array.len; ++i) {
+			ni_nis_domain_t *dom;
+
+			dict = &domains->variant_array_value[i];
+			if (!ni_dbus_variant_is_dict(dict) ||
+			    !__ni_objectmodel_get_domain_string(dict, "domainname", &string_value))
+				continue;
+
+			if (ni_nis_domain_find(nis, string_value))
+				continue;
+
+			if ((dom = ni_nis_domain_new(nis, string_value))) {
+				if (ni_dbus_dict_get_uint32(dict, "binding", &value32))
+					dom->binding = value32;
+
+				if ((servers = ni_dbus_dict_get(dict, "servers"))) {
+					__ni_objectmodel_get_address_array(&dom->servers, servers,
+									error, "nis-domain servers");
+				}
+			}
+		}
+	}
+
+	*result = nis;
+	return TRUE;
+}
+
 dbus_bool_t
 __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 						const ni_dbus_variant_t *argument,
@@ -2245,23 +2329,9 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 	if (!__ni_objectmodel_set_resolver_dict(&lease->resolver, argument, error))
 		return FALSE;
 
-	if ((child = ni_dbus_dict_get(argument, "nis")) != NULL) {
-		ni_nis_info_t *nis = ni_nis_info_new();
-		ni_dbus_variant_t *list;
-
-		lease->nis = nis;
-		if (__ni_objectmodel_get_domain_string(child, "domainname",
-								&string_value))
-			ni_string_dup(&nis->domainname, string_value);
-
-		if (ni_dbus_dict_get_uint32(child, "binding", &value32))
-			nis->default_binding = value32;
-
-		if ((list = ni_dbus_dict_get(child, "servers")) != NULL
-		 && !__ni_objectmodel_get_address_array(&nis->default_servers, list,
-							error, "servers"))
-			return FALSE;
-	}
+	if ((child = ni_dbus_dict_get(argument, "nis"))
+	 && !__ni_objectmodel_set_nis_info(&lease->nis, child, error))
+		return FALSE;
 
 	if ((child = ni_dbus_dict_get(argument, "log-servers")) != NULL
 	 && !__ni_objectmodel_get_address_array(&lease->log_servers, child, error,

@@ -35,6 +35,15 @@ if test "x$enable_lldp" = "xyes" ; then
 	AC_DEFINE([NI_ENABLE_LLDP], [], [Enable lldp support])
 fi
 
+# Whether to request NIS option in dhcp6 by default
+AC_ARG_ENABLE([dhcp6-nis],
+	      [AS_HELP_STRING([--disable-dhcp6-nis],
+	       [disable to not request DHCPv6 NIS options by default])],,
+	      [enable_dhcp6_nis=yes])
+if test "x$enable_dhcp6_nis" = "xyes" ; then
+	AC_DEFINE([NI_DHCP6_NIS], [1], [Enable to request DHCPv6 NIS options by default])
+fi
+
 # Whether to use rfc4361 dhcp4 client-id by default
 AC_ARG_ENABLE([dhcp4-rfc4361-cid],
 	      [AS_HELP_STRING([--disable-dhcp4-rfc4361-cid],

@@ -1265,6 +1265,8 @@ ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node
 	} else {
 		ni_string_split(&targets, node->cdata, " \t,|", 0);
 	}
+
+	mask = *update_mask;
 	if (ni_addrconf_update_flags_parse_names(&mask, &targets))
 		*update_mask = mask;
 	ni_string_array_destroy(&targets);
@@ -1778,6 +1780,9 @@ ni_c_binding_get_address(const ni_c_binding_t *binding)
 static unsigned int
 ni_config_addrconf_update_mask_all(void)
 {
+	/*
+	 * Mask of all supported update flags
+	 */
 	static unsigned mask = __NI_ADDRCONF_UPDATE_NONE;
 	if (!mask) {
 		unsigned int i;
@@ -1793,18 +1798,27 @@ ni_config_addrconf_update_mask_all(void)
 static unsigned int
 ni_config_addrconf_update_default(void)
 {
+	/*
+	 * Update flags enabled for static/intrinsic leases by default
+	 */
 	return ni_config_addrconf_update_mask_all();
 }
 
 static unsigned int
 ni_config_addrconf_update_mask_dhcp4(void)
 {
+	/*
+	 * All supported update flags for dhcp4 leases
+	 */
 	return ni_config_addrconf_update_mask_all();
 }
 
 static unsigned int
 ni_config_addrconf_update_dhcp4(void)
 {
+	/*
+	 * Update flags enabled for dhcp4 leases by default
+	 */
 	return	NI_BIT(NI_ADDRCONF_UPDATE_DEFAULT_ROUTE)|
 		NI_BIT(NI_ADDRCONF_UPDATE_DNS)		|
 		NI_BIT(NI_ADDRCONF_UPDATE_NTP)		|
@@ -1818,21 +1832,32 @@ ni_config_addrconf_update_dhcp4(void)
 static unsigned int
 ni_config_addrconf_update_mask_dhcp6(void)
 {
-	return	ni_config_addrconf_update_dhcp6()	|
-		NI_BIT(NI_ADDRCONF_UPDATE_HOSTNAME)	|
+	/*
+	 * All supported update flags for dhcp6 leases
+	 *
+	 * Note:
+	 * - DHCPv6 does not handle routes --> IPv6 RA's job
+	 */
+	return	NI_BIT(NI_ADDRCONF_UPDATE_HOSTNAME)	|
+		NI_BIT(NI_ADDRCONF_UPDATE_DNS)		|
+		NI_BIT(NI_ADDRCONF_UPDATE_NTP)		|
 		NI_BIT(NI_ADDRCONF_UPDATE_NIS)		|
-		NI_BIT(NI_ADDRCONF_UPDATE_SIP);
+		NI_BIT(NI_ADDRCONF_UPDATE_SIP)		|
+		NI_BIT(NI_ADDRCONF_UPDATE_TZ)		|
+		NI_BIT(NI_ADDRCONF_UPDATE_BOOT);
 }
 
 static unsigned int
 ni_config_addrconf_update_dhcp6(void)
 {
-	/* Note:
-	 * - DHCPv6 does not handle routes --> IPv6 RA's job
-	 * - ypbind does not support ipv6 (DHCPv6 can it).
+	/*
+	 * Update flags enabled for dhcp6 leases by default
 	 */
 	return	NI_BIT(NI_ADDRCONF_UPDATE_DNS)		|
 		NI_BIT(NI_ADDRCONF_UPDATE_NTP)		|
+#ifdef NI_DHCP6_NIS
+		NI_BIT(NI_ADDRCONF_UPDATE_NIS)		|
+#endif
 		NI_BIT(NI_ADDRCONF_UPDATE_TZ)		|
 		NI_BIT(NI_ADDRCONF_UPDATE_BOOT);
 }
@@ -1840,24 +1865,38 @@ ni_config_addrconf_update_dhcp6(void)
 static unsigned int
 ni_config_addrconf_update_mask_auto4(void)
 {
-	return __NI_ADDRCONF_UPDATE_NONE;		/* IP address only */
+	/*
+	 * All supported update flags for auto4 leases
+	 *
+	 * Note: empty mask, supports IP address only
+	 */
+	return __NI_ADDRCONF_UPDATE_NONE;
 }
 
 static unsigned int
 ni_config_addrconf_update_auto4(void)
 {
+	/*
+	 * Update flags enabled for auto4 leases by default
+	 */
 	return ni_config_addrconf_update_mask_auto4();
 }
 
 static unsigned int
 ni_config_addrconf_update_mask_auto6(void)
 {
+	/*
+	 * All supported update flags for auto6 leases
+	 */
 	return NI_BIT(NI_ADDRCONF_UPDATE_DNS);
 }
 
 static unsigned int
 ni_config_addrconf_update_auto6(void)
 {
+	/*
+	 * Update flags enabled for auto6 leases by default
+	 */
 	return ni_config_addrconf_update_mask_auto6();
 }
 

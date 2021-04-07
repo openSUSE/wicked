@@ -188,6 +188,23 @@ ni_string_array_index(const ni_string_array_t *nsa, const char *str)
 	return -1;
 }
 
+unsigned int
+ni_string_array_find(const ni_string_array_t *nsa, unsigned int pos, const char *item,
+		ni_bool_t (*match)(const char *a, const char *b), const char **ret)
+{
+	if (!nsa || !match)
+		return -1U;
+
+	for (; pos < nsa->count; ++pos) {
+		if (match(nsa->data[pos], item)) {
+			if (ret)
+				*ret = item;
+			return pos;
+		}
+	}
+	return -1U;
+}
+
 /*
  * Remove string at index @pos
  */
