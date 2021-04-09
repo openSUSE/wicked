@@ -265,6 +265,9 @@ extern size_t		ni_format_hex_data(const unsigned char *data, size_t data_len,
 						const char *sep, ni_bool_t upper);
 extern ssize_t		ni_parse_hex_data(const char *string, unsigned char *data,
 						size_t data_size, const char *sep);
+
+extern unsigned int	ni_parse_bitmap_array(unsigned int *, const ni_intmap_t *, const ni_string_array_t *, ni_string_array_t *);
+extern unsigned int	ni_parse_bitmap_string(unsigned int *, const ni_intmap_t *, const char *, const char *, ni_string_array_t *);
 extern const char *	ni_format_bitmap(ni_stringbuf_t *, const ni_intmap_t *, unsigned int, const char *);
 extern ni_bool_t	ni_intmap_file_get_name(const char *, unsigned int *, char **);
 extern ni_bool_t	ni_intmap_file_get_value(const char *, unsigned int *, char **);
