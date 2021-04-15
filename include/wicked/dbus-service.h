@@ -175,7 +175,7 @@ extern dbus_bool_t		ni_dbus_generic_property_parse_object_path_array(const ni_db
 	} \
 	, ##args \
 }
-#define __NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties, rw) { \
+#define __NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties) { \
 	.name = #dbus_name, \
 	.signature = NI_DBUS_DICT_SIGNATURE, \
 	.generic = { \
@@ -212,8 +212,8 @@ extern dbus_bool_t		ni_dbus_generic_property_parse_object_path_array(const ni_db
 	__NI_DBUS_GENERIC_PROPERTY(struct_name, \
 			NI_DBUS_SIGNATURE(STRING_ARRAY), \
 			dbus_name, string_array, member_name, rw)
-#define NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties, rw) \
-	__NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties, rw)
+#define NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties) \
+	__NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties)
 #define NI_DBUS_GENERIC_OBJECT_PATH_PROPERTY(struct_name, dbus_name, member_name, rw) \
 	__NI_DBUS_GENERIC_PROPERTY(struct_name, NI_DBUS_SIGNATURE(OBJECT_PATH), dbus_name, object_path, member_name, rw)
 #define NI_DBUS_GENERIC_OBJECT_PATH_ARRAY_PROPERTY(struct_name, dbus_name, member_name, rw) \
