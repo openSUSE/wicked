@@ -2156,11 +2156,36 @@ ni_parse_bitmap_string(unsigned int *mask, const ni_intmap_t *map, const char *i
 	return err;
 }
 
-const char *
-ni_format_bitmap(ni_stringbuf_t *buf, const ni_intmap_t *map,
-		unsigned int flags, const char *sep)
+unsigned int
+ni_format_bitmap_array(ni_string_array_t *array, const ni_intmap_t *map,
+		unsigned int mask, unsigned int *done)
 {
-	unsigned int i, flag;
+	unsigned int flag;
+
+	if (!array || !map)
+		return -1U;
+
+	for (; map->name; ++map) {
+		flag = NI_BIT(map->value);
+		if (mask & flag) {
+			if (ni_string_array_append(array, map->name) < 0)
+				continue;
+
+			mask &= ~flag;
+			if (done)
+				*done |= flag;
+		}
+	}
+
+	return mask;
+}
+
+const char *
+ni_format_bitmap_string(ni_stringbuf_t *buf, const ni_intmap_t *map,
+		unsigned int mask, unsigned int *done, const char *sep)
+{
+	ni_string_array_t array = NI_STRING_ARRAY_INIT;
+	const char *ptr;
 
 	if (!buf || !map)
 		return NULL;
@@ -2168,16 +2193,19 @@ ni_format_bitmap(ni_stringbuf_t *buf, const ni_intmap_t *map,
 	if (ni_string_empty(sep))
 		sep = "|";
 
-	for (i = 0; map->name; ++map) {
-		flag = NI_BIT(map->value);
-		if (flags & flag) {
-			flags &= ~flag;
-			if (i++)
-				ni_stringbuf_puts(buf, sep);
-			ni_stringbuf_puts(buf, map->name);
-		}
-	}
-	return buf->string;
+	if (ni_format_bitmap_array(&array, map, mask, done) == -1U)
+		return NULL;
+
+	ptr = ni_stringbuf_join(buf, &array, sep);
+	ni_string_array_destroy(&array);
+	return ptr;
+}
+
+const char *
+ni_format_bitmap(ni_stringbuf_t *buf, const ni_intmap_t *map,
+		unsigned int mask, const char *sep)
+{
+	return ni_format_bitmap_string(buf, map, mask, NULL, sep);
 }
 
 static ni_bool_t
