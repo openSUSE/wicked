@@ -1582,18 +1582,11 @@ ni_string_split(ni_string_array_t *nsa, const char *str, const char *sep,
 const char *
 ni_string_join(char **str, const ni_string_array_t *nsa, const char *sep)
 {
-	ni_stringbuf_t buf;
-	unsigned int i;
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
-	if (nsa == NULL || sep == NULL || str == NULL)
+	if (!sep || !ni_stringbuf_join(&buf, nsa, sep))
 		return NULL;
 
-	ni_stringbuf_init(&buf);
-	for (i=0; i < nsa->count; ++i) {
-		if (i)
-			ni_stringbuf_puts(&buf, sep);
-		ni_stringbuf_puts(&buf, nsa->data[i]);
-	}
 	ni_string_dup(str, buf.string);
 	ni_stringbuf_destroy(&buf);
 
@@ -2253,6 +2246,24 @@ ni_bool_t
 ni_stringbuf_empty(const ni_stringbuf_t *sb)
 {
 	return sb->len == 0; /* bool */
+}
+
+const char *
+ni_stringbuf_join(ni_stringbuf_t *buf, const ni_string_array_t *nsa, const char *sep)
+{
+	unsigned int i;
+	size_t len;
+
+	if (!buf || !nsa)
+		return NULL;
+
+	len = buf->len;
+	for (i = 0; i < nsa->count; ++i) {
+		if (sep && buf->len)
+			ni_stringbuf_puts(buf, sep);
+		ni_stringbuf_puts(buf, nsa->data[i]);
+	}
+	return buf->string ? buf->string + len : NULL;
 }
 
 inline static size_t
