@@ -65,6 +65,17 @@
   <array element-type="byte" notation="external-file"/>
 </define>
 
+<define name="hex-string">
+  <description>
+    On XML the data is in the format of `^([0-9a-f]{2})*$` and each two ascii
+    characters representing one byte.
+
+    It can be used to store opaque data in XML. The DBus end will get a
+    byte-array.
+  </description>
+  <array element-type="byte" notation="hex-string"/>
+</define>
+
 <!--
   This type represents is a boolean like integer type with an
   additional "unset" / default value.
