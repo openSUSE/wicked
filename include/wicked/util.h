@@ -212,6 +212,7 @@ extern void		ni_stringbuf_trim_head(ni_stringbuf_t *, const char *);
 extern void		ni_stringbuf_trim_tail(ni_stringbuf_t *, const char *);
 extern void		ni_stringbuf_trim_empty_lines(ni_stringbuf_t *);
 extern ni_bool_t	ni_stringbuf_empty(const ni_stringbuf_t *);
+extern const char *	ni_stringbuf_join(ni_stringbuf_t *, const ni_string_array_t *, const char *);
 
 extern ni_bool_t	ni_file_exists(const char *);
 extern ni_bool_t	ni_file_executable(const char *);
@@ -266,6 +267,11 @@ extern size_t		ni_format_hex_data(const unsigned char *data, size_t data_len,
 						const char *sep, ni_bool_t upper);
 extern ssize_t		ni_parse_hex_data(const char *string, unsigned char *data,
 						size_t data_size, const char *sep);
+
+extern unsigned int	ni_parse_bitmap_array(unsigned int *, const ni_intmap_t *, const ni_string_array_t *, ni_string_array_t *);
+extern unsigned int	ni_parse_bitmap_string(unsigned int *, const ni_intmap_t *, const char *, const char *, ni_string_array_t *);
+extern unsigned int	ni_format_bitmap_array(ni_string_array_t *, const ni_intmap_t *, unsigned int, unsigned int *);
+extern const char *	ni_format_bitmap_string(ni_stringbuf_t *, const ni_intmap_t *, unsigned int, unsigned int *, const char *);
 extern const char *	ni_format_bitmap(ni_stringbuf_t *, const ni_intmap_t *, unsigned int, const char *);
 extern ni_bool_t	ni_intmap_file_get_name(const char *, unsigned int *, char **);
 extern ni_bool_t	ni_intmap_file_get_value(const char *, unsigned int *, char **);
