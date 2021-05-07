@@ -529,6 +529,9 @@ ni_nanny_identify_node_owner(ni_nanny_t *mgr, xml_node_t *node, ni_stringbuf_t *
 	ni_managed_device_t *mdev;
 	ni_ifworker_t *w = NULL;
 
+	if (!node)
+		return NULL;
+
 	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
 		if (mdev->selected_config == node) {
 			w = ni_managed_device_get_worker(mdev);
@@ -536,8 +539,7 @@ ni_nanny_identify_node_owner(ni_nanny_t *mgr, xml_node_t *node, ni_stringbuf_t *
 		}
 	}
 
-	if (node != NULL)
-		w = ni_nanny_identify_node_owner(mgr, node->parent, path);
+	w = ni_nanny_identify_node_owner(mgr, node->parent, path);
 
 found:
 	if (w == NULL)
