@@ -3847,7 +3847,7 @@ try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev)
 
 	/* Regulatory domain is supported by nl80211 wpa driver */
 	if (check_country) {
-		if ((tmp = ni_sysconfig_get_value(sc, "WIRELESS_REGULATORY_DOMAIN"))) {
+		if ((tmp = ni_sysconfig_get_value(__ni_suse_config_defaults, "WIRELESS_REGULATORY_DOMAIN"))) {
 			if ((2 == ni_string_len(tmp)) &&
 				(isalpha((unsigned char) tmp[0])) &&
 				(isalpha((unsigned char) tmp[1]))) {
