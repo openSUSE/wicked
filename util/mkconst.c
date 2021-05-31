@@ -69,6 +69,7 @@ static struct generic_map	generic_maps[] = {
 	MAP(WIRELESS_EAP_METHOD, ni_wireless_eap_method_to_name),
 	MAP(WIRELESS_OPER_MODE, ni_wireless_mode_to_name),
 	MAP(WIRELESS_SCAN_MODE, ni_wireless_scan_mode_to_name),
+	MAP(WIRELESS_ASSOC_STATE, ni_wireless_assoc_state_to_name),
 	MAP(BONDING_MODE, ni_bonding_mode_type_to_name),
 	MAP(BONDING_ARP_VALIDATE, ni_bonding_arp_validate_type_to_name),
 	MAP(BONDING_MII_CARRIER_DETECT, ni_bonding_mii_carrier_detect_name),

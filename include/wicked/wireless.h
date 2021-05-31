@@ -319,9 +319,12 @@ struct ni_wireless {
 	struct {
 		const ni_timer_t *		timer;
 		unsigned int			fail_delay;
+		struct timeval			established_time;
 		ni_wireless_assoc_state_t	state;
-		ni_wireless_network_t *		network;
-		ni_hwaddr_t			access_point;
+		ni_wireless_ssid_t		ssid;
+		ni_hwaddr_t			bssid;
+		int16_t				signal;
+		char *				auth_mode;
 	} assoc;
 };
 
@@ -406,6 +409,7 @@ extern ni_bool_t			ni_wireless_name_to_key_management(const char *, unsigned int
 extern const char *			ni_wireless_eap_method_to_name(ni_wireless_eap_method_t);
 extern ni_bool_t			ni_wireless_name_to_eap_method(const char *, unsigned int *);
 extern const char *			ni_wireless_scan_mode_to_name(ni_wireless_scan_mode_t);
+const char *				ni_wireless_assoc_state_to_name(ni_wireless_assoc_state_t);
 
 extern ni_bool_t			ni_wpa_driver_from_string(const char *, unsigned int *);
 extern const char *			ni_wpa_driver_as_string(ni_wireless_wpa_driver_t);

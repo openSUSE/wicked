@@ -65,6 +65,9 @@
 <define name="builtin-eap-method" type="uint32" constraint="enum">
   <@@WIRELESS_EAP_METHOD_NAME@@ value="@@WIRELESS_EAP_METHOD_VALUE@@"/>
 </define>
+<define name="builtin-wireless-assoc-state" type="uint32" constraint="enum">
+  <@@WIRELESS_ASSOC_STATE_NAME@@ value="@@WIRELESS_ASSOC_STATE_VALUE@@"/>
+</define>
 
 
 <!-- The same as above, except as a bitmask (to express the list of supported modes) -->

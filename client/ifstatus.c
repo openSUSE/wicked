@@ -46,6 +46,7 @@
 #include <wicked/bridge.h>
 #include <wicked/vlan.h>
 #include <wicked/fsm.h>
+#include <wicked/wireless.h>
 
 #include "wicked-client.h"
 #include "appconfig.h"
@@ -373,6 +374,23 @@ ni_ifstatus_show_iflink(const ni_netdev_t *dev, ni_bool_t verbose)
 }
 
 static inline void
+ni_ifstatus_show_iftype_wireless(const ni_wireless_t *wlan, ni_bool_t verbose)
+{
+	ni_stringbuf_t ssid = NI_STRINGBUF_INIT_DYNAMIC;
+
+	printf(", state %s", ni_wireless_assoc_state_to_name(wlan->assoc.state));
+
+	if (wlan->assoc.bssid.len > 0){
+		printf(", ssid %s", ni_wireless_ssid_print(&wlan->assoc.ssid, &ssid));
+
+		if (wlan->assoc.auth_mode)
+			printf(", %s", wlan->assoc.auth_mode);
+	}
+
+	ni_stringbuf_destroy(&ssid);
+}
+
+static inline void
 ni_ifstatus_show_iftype(const ni_netdev_t *dev, ni_bool_t verbose)
 {
 	(void)verbose;	/* currently unused */
@@ -394,6 +412,11 @@ ni_ifstatus_show_iftype(const ni_netdev_t *dev, ni_bool_t verbose)
 			printf(", mode %s",
 				ni_bonding_mode_type_to_name(dev->bonding->mode));
 		}
+		break;
+
+	case NI_IFTYPE_WIRELESS:
+		if (dev->wireless)
+			ni_ifstatus_show_iftype_wireless(dev->wireless, verbose);
 		break;
 
 	default:
@@ -426,6 +449,30 @@ ni_ifstatus_show_iftype(const ni_netdev_t *dev, ni_bool_t verbose)
 
 	}
 	printf("\n");
+}
+
+
+static inline void
+ni_ifstatus_show_wireless(const ni_netdev_t *dev, ni_bool_t verbose)
+{
+	struct timeval now;
+	int duration;
+	ni_wireless_t *wlan = dev->wireless;
+
+	if (!wlan || !verbose)
+		return;
+
+	if (wlan->assoc.bssid.len > 0){
+		if (ni_timer_get_time(&now) == 0)
+			duration = now.tv_sec - wlan->assoc.established_time.tv_sec;
+		else
+			duration = 0;
+
+		if_printf("", "wireless:", "bssid %s, signal %d, duration %us\n",
+			ni_link_address_print(&wlan->assoc.bssid),
+			wlan->assoc.signal, duration);
+
+	}
 }
 
 static inline void
@@ -801,6 +848,7 @@ ni_do_ifstatus(int argc, char **argv)
 		if (dev) {
 			ni_ifstatus_show_iflink (dev, opt_verbose > OPT_NORMAL);
 			ni_ifstatus_show_iftype (dev, opt_verbose > OPT_NORMAL);
+			ni_ifstatus_show_wireless(dev, opt_verbose > OPT_NORMAL);
 
 			/* TODO: Hmm... this is the running config only;
 			 *              show current config info too?

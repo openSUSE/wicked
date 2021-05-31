@@ -2111,6 +2111,7 @@ static const ni_dbus_property_t			ni_objectmodel_wpa_nif_properties[] = {
 	WPA_NIF_OBJECT_PATH_ARRAY_PROPERTY(	Networks,		network_paths,		RO),
 	WPA_NIF_OBJECT_PATH_ARRAY_PROPERTY(	BSSs,			bss_paths,		RO),
 	WPA_NIF_PROPERTY(BOOL,			Scanning,		scanning,		RO),
+	WPA_NIF_PROPERTY(STRING,		CurrentAuthMode,	current_auth_mode,	RO),
 
 	/* read-only properties, writeable as CreateInterface arguments only */
 	WPA_NIF_STRING_PROPERTY(		Ifname,			ifname,			RO),

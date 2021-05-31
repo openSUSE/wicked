@@ -113,6 +113,14 @@
       <scan-modes type="builtin-wireless-scan-mode-mask"/>
       <max-scan-ssid type="int32"/>
     </capabilities>
+    <current-connection class="dict">
+      <state type="builtin-wireless-assoc-state"/>
+      <ssid type="string"/>
+      <bssid type="ethernet-address"/>
+      <signal type="int16"/>
+      <duration type="uint32"/>
+      <authmode type="string"/>
+    </current-connection>
     <scan-results class="array" element-type="wireless:bss" element-name="bss"/>
   </define>
 

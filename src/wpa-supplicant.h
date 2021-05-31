@@ -305,6 +305,7 @@ struct	ni_wpa_nif_properties {
 	ni_string_array_t			network_paths;
 	ni_string_array_t			bss_paths;
 	ni_bool_t				scanning;
+	char *					current_auth_mode;
 };
 
 struct ni_wpa_nif {

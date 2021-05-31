@@ -9,7 +9,6 @@
 #include "config.h"
 #endif
 
-#include <sys/time.h>
 #include <limits.h>
 #include <time.h>
 #include <ctype.h>
@@ -26,7 +25,6 @@
 #define NI_WIRELESS_WPA_DRIVER_DEFAULT		"nl80211,wext"
 #endif
 
-static void		ni_wireless_set_assoc_network(ni_wireless_t *, ni_wireless_network_t *);
 static void		__ni_wireless_scan_timer_arm(ni_wireless_scan_t *, ni_netdev_t *, unsigned int);
 static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
 static int		ni_wireless_scan_sync_bss(ni_wireless_scan_t *scan, const ni_wpa_bss_t *bss);
@@ -35,6 +33,7 @@ static void		ni_wireless_scan_set_defaults(ni_wireless_scan_t *scan);
 static void		ni_wireless_scan_destroy(ni_wireless_scan_t *scan);
 static void		ni_wireless_bss_set(ni_wireless_bss_t *wireless_bss, const ni_wpa_bss_t *bss);
 static void		ni_wireless_on_state_change(ni_wpa_nif_t *, ni_wpa_nif_state_t, ni_wpa_nif_state_t);
+static void		ni_wireless_on_properties_changed(ni_wpa_nif_t *wif, ni_dbus_variant_t *props);
 
 static ni_bool_t	__ni_wireless_scanning_enabled = TRUE;
 
@@ -858,6 +857,7 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 		.on_network_added = ni_wireless_on_network_added,
 		.on_scan_done = ni_wireless_on_scan_done,
 		.on_state_change = ni_wireless_on_state_change,
+		.on_properties_changed = ni_wireless_on_properties_changed,
 	};
 
 	if (!dev || !conf || !ni_netdev_get_wireless(dev))
@@ -1052,6 +1052,29 @@ ni_wpa_nif_state_to_wireless_state(ni_wpa_nif_state_t state)
 	}
 }
 
+static void
+ni_wireless_sync_assoc_with_current_bss(ni_wireless_t *wlan, ni_wpa_nif_t *wif)
+{
+	ni_wpa_bss_t *bss;
+
+	if (wlan->assoc.state == NI_WIRELESS_ESTABLISHED && (bss = ni_wpa_nif_get_current_bss(wif)) ){
+		ni_link_address_set(&wlan->assoc.bssid, ARPHRD_ETHER, bss->properties.bssid.data, bss->properties.bssid.len);
+
+		wlan->assoc.ssid.len = 0;
+		if (bss->properties.ssid.len <= NI_WIRELESS_ESSID_MAX_LEN){
+			wlan->assoc.ssid.len = bss->properties.ssid.len;
+			memcpy(wlan->assoc.ssid.data, bss->properties.ssid.data, bss->properties.ssid.len);
+		}
+
+		wlan->assoc.signal = bss->properties.signal;
+
+	} else {
+		ni_link_address_init(&wlan->assoc.bssid);
+		wlan->assoc.signal = 0;
+		wlan->assoc.ssid.len = 0;
+	}
+}
+
 /*
  * Callback from wpa_supplicant client whenever the association state changes
  * in a significant way.
@@ -1073,8 +1096,11 @@ ni_wireless_on_state_change(ni_wpa_nif_t *wif, ni_wpa_nif_state_t old_state, ni_
 		return;
 
 	wlan->assoc.state = wireless_state_new;
-	if (wireless_state_new == NI_WIRELESS_ESTABLISHED)
+	if (wireless_state_new == NI_WIRELESS_ESTABLISHED){
+		ni_wireless_sync_assoc_with_current_bss(wlan, wif);
+		ni_timer_get_time(&wlan->assoc.established_time);
 		__ni_netdev_event(NULL, dev, NI_EVENT_LINK_ASSOCIATED);
+	}
 
 	/* We keep track of when we were last changing to or
 	 * from fully authenticated state.
@@ -1083,6 +1109,31 @@ ni_wireless_on_state_change(ni_wpa_nif_t *wif, ni_wpa_nif_state_t old_state, ni_
 	 * code above.
 	 */
 	ni_wireless_update_association_timer(dev);
+}
+
+static void
+ni_wireless_on_properties_changed(ni_wpa_nif_t *wif, ni_dbus_variant_t *props)
+{
+	ni_wireless_t *wlan;
+	ni_netdev_t *dev;
+	const char *tmp;
+
+	if (!(dev = ni_wireless_unwrap_wpa_nif(wif))){
+		ni_error("%s -- Unable to unwrap wpa_nif_t", __func__);
+		return;
+	}
+	wlan = dev->wireless;
+
+	if (ni_dbus_dict_get(props, ni_wpa_nif_property_name(NI_WPA_NIF_PROPERTY_CURRENT_BSS))){
+		ni_wireless_sync_assoc_with_current_bss(wlan, wif);
+	}
+
+	if (ni_dbus_dict_get_string(props, ni_wpa_nif_property_name(NI_WPA_NIF_PROPERTY_CURRENT_AUTH_MODE), &tmp)) {
+		if (ni_string_empty(tmp))
+			ni_string_free(&wlan->assoc.auth_mode);
+		else
+			ni_string_dup(&wlan->assoc.auth_mode, tmp);
+	}
 }
 
 /*
@@ -1332,6 +1383,20 @@ ni_wireless_scan_mode_to_name(ni_wireless_scan_mode_t mode)
 	return ni_format_uint_mapped(mode, ni_wireless_wpa_scan_mode_caps_map);
 }
 
+static ni_intmap_t __ni_wireless_assoc_state_names[] = {
+	{ "not-associated",	NI_WIRELESS_NOT_ASSOCIATED },
+	{ "associating",	NI_WIRELESS_ASSOCIATING },
+	{ "authenticating",	NI_WIRELESS_AUTHENTICATING },
+	{ "established",	NI_WIRELESS_ESTABLISHED },
+	{ NULL }
+};
+
+const char *
+ni_wireless_assoc_state_to_name(ni_wireless_assoc_state_t state)
+{
+	return ni_format_uint_mapped(state, __ni_wireless_assoc_state_names);
+}
+
 /*
  * Wireless interface config
  */
@@ -1382,7 +1447,9 @@ void
 ni_wireless_free(ni_wireless_t *wireless)
 {
 	if (wireless) {
-		ni_wireless_set_assoc_network(wireless, NULL);
+		if (wireless->assoc.timer)
+			ni_timer_cancel(wireless->assoc.timer);
+		ni_string_free(&wireless->assoc.auth_mode);
 		ni_wireless_config_destroy(&wireless->conf);
 		ni_wireless_scan_destroy(&wireless->scan);
 		free(wireless);
@@ -1481,16 +1548,6 @@ ni_wireless_bss_list_find_by_bssid(ni_wireless_bss_t * const *list, const ni_hwa
 			return *list;
 
 	return NULL;
-}
-
-void
-ni_wireless_set_assoc_network(ni_wireless_t *wireless, ni_wireless_network_t *net)
-{
-	if (wireless->assoc.network)
-		ni_wireless_network_put(wireless->assoc.network);
-	wireless->assoc.network = net? ni_wireless_network_get(net) : NULL;
-
-	ni_wireless_set_association_timer(wireless, NULL);
 }
 
 void
