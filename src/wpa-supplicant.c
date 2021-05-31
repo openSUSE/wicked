@@ -68,11 +68,12 @@ static void					ni_wpa_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void 
 
 static ni_wpa_bss_t *				ni_wpa_bss_new(ni_wpa_nif_t *wif, const char *object_path);
 static void					ni_wpa_bss_free(ni_wpa_bss_t *bss);
+static ni_bool_t				ni_wpa_bss_list_append(ni_wpa_bss_t **list, ni_wpa_bss_t *bss);
+static ni_bool_t				ni_wpa_bss_list_remove_by_path(ni_wpa_bss_t **list, const char *path);
+static ni_wpa_bss_t *				ni_wpa_bss_list_find_by_path(ni_wpa_bss_t **list, const char *object_path);
+static void					ni_wpa_bss_list_destroy(ni_wpa_bss_t **list);
 static int					ni_wpa_bss_refresh(ni_wpa_bss_t * bss);
-static void					ni_wpa_nif_add_bss(ni_wpa_nif_t *, ni_wpa_bss_t *);
-static ni_wpa_bss_t *				ni_wpa_nif_find_bss_by_path(ni_wpa_nif_t *, const char *);
 static ni_wpa_bss_t *				ni_wpa_nif_find_or_create_bss(ni_wpa_nif_t *wif, const char *object_path);
-static void					ni_wpa_nif_free_bss_by_path(ni_wpa_nif_t *, const char *);
 
 
 /*
@@ -600,6 +601,7 @@ ni_wpa_nif_free(ni_wpa_nif_t *wif)
 		ni_netdev_ref_destroy(&wif->device);
 		ni_wpa_nif_properties_destroy(&wif->properties);
 		ni_wpa_nif_capabilities_destroy(&wif->capabilities);
+		ni_wpa_bss_list_destroy(&wif->bsss);
 		free(wif);
 	}
 }
@@ -1132,72 +1134,6 @@ ni_wpa_net_property_type(const char *name, ni_wpa_net_property_type_t *type)
 	return TRUE;
 }
 
-static inline ni_wireless_network_t *
-__ni_wpa_nif_next_network(ni_dbus_object_t **pnext, ni_dbus_object_t **pthis)
-{
-	ni_dbus_object_t *child;
-	ni_wireless_network_t *net = NULL;
-
-	while ((child = *pnext) != NULL) {
-		*pnext = child->next;
-
-		if (child->class == &ni_objectmodel_wpa_bss_class) {
-			net = child->handle;
-			break;
-		}
-	}
-
-	if (pthis)
-		*pthis = child;
-	return net;
-}
-
-static ni_wireless_network_t *
-ni_wpa_nif_first_network(ni_wpa_nif_t *dev, ni_dbus_object_t **pnext, ni_dbus_object_t **pthis)
-{
-	ni_dbus_object_t *obj;
-
-	if ((obj = dev->object) == NULL)
-		return NULL;
-
-	if ((obj = ni_dbus_object_lookup(obj, "BSSIDs")) == NULL)
-		return NULL;
-
-	*pnext = obj->children;
-	return __ni_wpa_nif_next_network(pnext, pthis);
-}
-
-static ni_wireless_network_t *
-ni_wpa_nif_next_network(ni_wpa_nif_t *dev, ni_dbus_object_t **pnext, ni_dbus_object_t **pthis)
-{
-	return __ni_wpa_nif_next_network(pnext, pthis);
-}
-
-static unsigned int
-ni_wpa_nif_expire_networks(ni_wpa_nif_t *dev, unsigned int max_age)
-{
-	ni_dbus_object_t *dev_object, *pos, *cur;
-	ni_wireless_network_t *net;
-	unsigned int num_expired = 0;
-	struct timeval expired;
-
-	if ((dev_object = dev->object) == NULL)
-		return 0;
-
-	ni_timer_get_time(&expired);
-	expired.tv_sec -= max_age;
-	for (net = ni_wpa_nif_first_network(dev, &pos, &cur); net;
-	     net = ni_wpa_nif_next_network(dev, &pos, &cur)) {
-		if (timerisset(&net->scan_info.timestamp) &&
-		    timercmp(&net->scan_info.timestamp, &expired, <)) {
-			/* This will also remove child from the list of dev_object->children */
-			ni_dbus_object_free(cur);
-			num_expired++;
-		}
-	}
-	return num_expired;
-}
-
 /*
  * WPA interface states
  */
@@ -1233,23 +1169,48 @@ ni_wpa_nif_state_to_name(ni_wpa_nif_state_t ifs)
 	return ni_format_uint_mapped(ifs, ni_wpa_nif_state_names);
 }
 
-/*
- * Request an interface scan
- */
 int
-ni_wpa_nif_request_scan(ni_wpa_nif_t *wif, ni_wireless_scan_t *scan)
+ni_wpa_nif_trigger_scan(ni_wpa_nif_t *wif, ni_bool_t active_scanning)
 {
-	uint32_t value;
-	int rv = -1;
+	static const char *method = "Scan";
+	const char *interface = NULL;
+	ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
+	DBusError error = DBUS_ERROR_INIT;
+	int rv = -NI_ERROR_INVALID_ARGS;
 
-	rv = ni_dbus_object_call_simple(wif->object,
-			NULL, "scan",
-			DBUS_TYPE_INVALID, NULL,
-			DBUS_TYPE_UINT32, &value);
+	if (!wif || !wif->object)
+		return -NI_ERROR_INVALID_ARGS;
 
-	ni_timer_get_time(&scan->timestamp);
-	wif->scan.timestamp = scan->timestamp;
+	interface = ni_dbus_object_get_default_interface(wif->object);
+	ni_debug_wpa("%s: Calling %s.%s()", wif->device.name, interface, method);
+
+	ni_dbus_variant_init_dict(&dict);
+	if (!ni_dbus_dict_add_string(&dict, "Type", active_scanning ? "active" : "passive")){
+		rv = -NI_ERROR_GENERAL_FAILURE;
+		goto cleanup;
+	}
+
+	if (!ni_dbus_object_call_variant(wif->object, interface, method,
+					1, &dict, 0, NULL, &error)){
+		ni_error("%s: dbus call %s.%s() failed (%s: %s)",
+				wif->device.name,
+				ni_dbus_object_get_path(wif->object), method,
+				error.name, error.message);
+
+		if (dbus_error_is_set(&error))
+			rv = ni_dbus_client_translate_error(ni_wpa_client_dbus(wif->client), &error);
+
+		goto cleanup;
+	}
+
+	ni_timer_get_time(&wif->scan.timestamp);
 	wif->scan.pending = 1;
+
+	rv = NI_SUCCESS;
+
+cleanup:
+	ni_dbus_variant_destroy(&dict);
+
 	return rv;
 }
 
@@ -1259,61 +1220,7 @@ ni_wpa_nif_request_scan(ni_wpa_nif_t *wif, ni_wireless_scan_t *scan)
 ni_bool_t
 ni_wpa_nif_scan_in_progress(ni_wpa_nif_t *wif)
 {
-	ni_wireless_network_t *net;
-	ni_dbus_object_t *pos;
-
-	if (wif->scan.pending)
-		return TRUE;
-
-	for (net = ni_wpa_nif_first_network(wif, &pos, NULL); net; net = ni_wpa_nif_next_network(wif, &pos, NULL)) {
-		if (net->scan_info.updating)
-			return TRUE;
-	}
-	return FALSE;
-}
-
-/*
- * Copy scan results from wpa objects to generic ni_wireless_scan_t object
- * Returns TRUE iff the list of networks in scanning range changed.
- */
-ni_bool_t
-ni_wpa_nif_retrieve_scan(ni_wpa_nif_t *wif, ni_wireless_scan_t *scan)
-{
-	ni_wireless_network_t *net;
-	ni_dbus_object_t *pos;
-	ni_bool_t send_event = FALSE;
-
-	/* Prune old BSSes */
-	if (ni_wpa_nif_expire_networks(wif, scan->interval + 1) == 0) {
-		/* Nothing pruned. If we didn't receive new scan results in the
-		 * mean time, there's nothing we need to do. */
-		if (!timercmp(&scan->timestamp, &wif->scan.timestamp, !=))
-			return FALSE;
-
-		send_event = TRUE;
-	}
-
-	ni_wireless_network_array_destroy(&scan->networks);
-	for (net = ni_wpa_nif_first_network(wif, &pos, NULL); net; net = ni_wpa_nif_next_network(wif, &pos, NULL)) {
-		/* We mix networks learned through scanning with those we configured manually.
-		 * We can tell them apart by their timestamp field. Manually configured networks
-		 * have no scan_info.
-		 *
-		 * Note, we may just be in the process of obtaining the BSS properties of a
-		 * new network from wpa-supplicant. In this case, the access_point has not been
-		 * set yet.
-		 */
-		if (timerisset(&net->scan_info.timestamp) && net->access_point.len != 0) {
-			ni_wireless_network_array_append(&scan->networks, net);
-			if (!net->notified) {
-				net->notified = TRUE;
-				send_event = TRUE;
-			}
-		}
-	}
-	scan->timestamp = wif->scan.timestamp;
-
-	return send_event;
+	return wif->properties.scanning;
 }
 
 ni_bool_t
@@ -1363,58 +1270,43 @@ ni_wpa_nif_refresh_all_bss(ni_wpa_nif_t *wif)
 	}
 }
 
-static void
-ni_wpa_nif_add_bss(ni_wpa_nif_t *wif, ni_wpa_bss_t *bss)
-{
-	ni_wpa_bss_t *i = NULL, **next = &wif->bsss;
-
-	for(i = *next; i; i = i->next)
-		next = &i->next;
-
-	*next = bss;
-}
-
-static ni_wpa_bss_t *
-ni_wpa_nif_find_bss_by_path(ni_wpa_nif_t *wif, const char *object_path)
-{
-	ni_wpa_bss_t *i = NULL;
-
-	for(i = wif->bsss; i; i = i->next){
-		if (ni_string_eq(i->object->path, object_path))
-			return i;
-	}
-	return NULL;
-}
-
-static void
-ni_wpa_nif_free_bss_by_path(ni_wpa_nif_t * wif, const char * object_path)
-{
-	ni_wpa_bss_t *i = NULL, **prev = &wif->bsss;
-
-	for(i = *prev; i; i = i->next){
-		if (ni_string_eq(i->object->path, object_path)){
-			*prev = i->next;
-			ni_wpa_bss_free(i);
-			return;
-		}
-		prev = &i->next;
-	}
-}
-
 static ni_wpa_bss_t *
 ni_wpa_nif_find_or_create_bss(ni_wpa_nif_t *wif, const char *object_path)
 {
 	ni_wpa_bss_t *bss;
 
-	bss = ni_wpa_nif_find_bss_by_path(wif, object_path);
+	bss = ni_wpa_bss_list_find_by_path(&wif->bsss, object_path);
 	if (!bss){
 		if (!(bss = ni_wpa_bss_new(wif, object_path))){
 			ni_error("%s: failed to create BSS (%s)", __func__, object_path);
 			return NULL;
 		}
-		ni_wpa_nif_add_bss(wif, bss);
+		ni_wpa_bss_list_append(&wif->bsss, bss);
 	}
 	return bss;
+}
+
+static void
+ni_wpa_nif_signal_scan_done(ni_wpa_nif_t *wif, const char *member, ni_dbus_message_t *msg)
+{
+	ni_dbus_variant_t arg = NI_DBUS_VARIANT_INIT;
+	const char * path = ni_dbus_object_get_path(wif->object);
+	dbus_bool_t success = FALSE;
+
+	if (ni_dbus_message_get_args_variants(msg, &arg, 1) != 1 ||
+	    !ni_dbus_variant_get_bool(&arg, &success) ){
+		SIGNAL_ERR(path, member, "unable to extract arg: boolean");
+		goto cleanup;
+	}
+
+	if (success)
+		ni_wpa_nif_refresh_all_bss(wif);
+
+	if (wif->ops.on_scan_done)
+		wif->ops.on_scan_done(wif, wif->bsss);
+
+cleanup:
+	ni_dbus_variant_destroy(&arg);
 }
 
 static void
@@ -1438,7 +1330,7 @@ ni_wpa_nif_signal_bss_added(ni_wpa_nif_t *wif, const char *member, ni_dbus_messa
 
 	if (!ni_dbus_object_set_properties_from_dict(bss->object, &ni_objectmodel_wpa_bss_service, &argv[1], NULL)) {
 		SIGNAL_ERR(path, member, "unable to set properties for BSS (%s)", bss_path);
-		ni_wpa_nif_free_bss_by_path(wif, bss_path);
+		ni_wpa_bss_list_remove_by_path(&wif->bsss, bss_path);
 	}
 
 cleanup:
@@ -1459,10 +1351,33 @@ ni_wpa_nif_signal_bss_removed(ni_wpa_nif_t *wif, const char *member, ni_dbus_mes
 		goto cleanup;
 	}
 
-	ni_wpa_nif_free_bss_by_path(wif, bss_path);
+	ni_wpa_bss_list_remove_by_path(&wif->bsss, bss_path);
 
 cleanup:
 	ni_dbus_variant_destroy(&arg);
+}
+
+ni_wpa_bss_t *
+ni_wpa_nif_get_current_bss(ni_wpa_nif_t *wif)
+{
+	const char *path;
+	ni_wpa_bss_t *bss;
+
+	if (ni_wpa_nif_refresh(wif) < 0)
+		return NULL;
+
+	path = wif->properties.current_bss_path;
+	if (!path || !ni_string_startswith(path, ni_dbus_object_get_path(wif->object)))
+		return NULL;
+
+	if (!(bss = ni_wpa_nif_find_or_create_bss(wif, path)))
+		return NULL;
+
+	if(ni_wpa_bss_refresh(bss) != NI_SUCCESS){
+		ni_wpa_bss_list_remove_by_path(&wif->bsss, path);
+		return NULL;
+	}
+	return bss;
 }
 
 static void
@@ -1520,6 +1435,67 @@ ni_wpa_bss_free(ni_wpa_bss_t *bss)
 	ni_wpa_bss_properties_destroy(&bss->properties);
 	free(bss);
 }
+
+static ni_bool_t
+ni_wpa_bss_list_append(ni_wpa_bss_t **list, ni_wpa_bss_t *bss)
+{
+	if (!list || !bss)
+		return FALSE;
+
+	while (*list)
+		list = &(*list)->next;
+	*list = bss;
+	return TRUE;
+}
+
+static ni_bool_t
+ni_wpa_bss_list_remove_by_path(ni_wpa_bss_t **list, const char *path)
+{
+	ni_wpa_bss_t *i;
+
+	if (!list || !path)
+		return FALSE;
+
+	for(i = *list; i; i = i->next){
+		if (ni_string_eq(i->object->path, path)){
+			*list = i->next;
+			ni_wpa_bss_free(i);
+			return TRUE;
+		}
+		list = &i->next;
+	}
+	return FALSE;
+}
+
+static void
+ni_wpa_bss_list_destroy(ni_wpa_bss_t **list)
+{
+	ni_wpa_bss_t *bss;
+
+	if (list) {
+		while ((bss = *list)) {
+			*list = bss->next;
+			ni_wpa_bss_free(bss);
+		}
+		*list = NULL;
+	}
+}
+
+static ni_wpa_bss_t *
+ni_wpa_bss_list_find_by_path(ni_wpa_bss_t **list, const char *object_path)
+{
+	ni_wpa_bss_t *i;
+
+	if (!list || !object_path)
+		return NULL;
+
+	for(i = *list; i; i = i->next)
+		if (ni_string_eq(i->object->path, object_path))
+			return i;
+
+	return NULL;
+}
+
 
 static ni_wpa_bss_t *
 ni_wpa_bss_new(ni_wpa_nif_t *wif, const char *object_path)
@@ -2108,6 +2084,8 @@ ni_objectmodel_wpa_nif_set_bss_expire_count(ni_dbus_object_t *object, const ni_d
 
 #define	WPA_NIF_CUSTOM_PROPERTY(type, dbus_name, fstem, rw) \
 	___NI_DBUS_PROPERTY(NI_DBUS_SIGNATURE(type), dbus_name, fstem, ni_objectmodel_wpa_nif, rw)
+#define WPA_NIF_PROPERTY(type, dbus_name, fstem, rw) \
+	NI_DBUS_GENERIC_##type##_PROPERTY(wpa_nif_properties, dbus_name, fstem, rw)
 
 static const ni_dbus_property_t			ni_objectmodel_wpa_nif_capabilities[] = {
 	WPA_NIF_CAP_STRING_ARRAY_PROPERTY(	Pairwise,		pairwise,		RO),
@@ -2132,6 +2110,7 @@ static const ni_dbus_property_t			ni_objectmodel_wpa_nif_properties[] = {
 	WPA_NIF_OBJECT_PATH_PROPERTY(		CurrentBSS,		current_bss_path,	RO),
 	WPA_NIF_OBJECT_PATH_ARRAY_PROPERTY(	Networks,		network_paths,		RO),
 	WPA_NIF_OBJECT_PATH_ARRAY_PROPERTY(	BSSs,			bss_paths,		RO),
+	WPA_NIF_PROPERTY(BOOL,			Scanning,		scanning,		RO),
 
 	/* read-only properties, writeable as CreateInterface arguments only */
 	WPA_NIF_STRING_PROPERTY(		Ifname,			ifname,			RO),
@@ -2393,6 +2372,7 @@ ni_wpa_nif_signal(ni_dbus_connection_t *connection, ni_dbus_message_t *msg, void
 		{ "NetworkRemoved",	ni_wpa_nif_signal_network_removed },
 		{ "BSSAdded",		ni_wpa_nif_signal_bss_added },
 		{ "BSSRemoved",		ni_wpa_nif_signal_bss_removed },
+		{ "ScanDone",		ni_wpa_nif_signal_scan_done },
 		{ NULL }
 	};
 	const char *member = dbus_message_get_member(msg);

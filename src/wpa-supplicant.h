@@ -267,6 +267,7 @@ struct ni_wpa_nif_ops {
 	void (*on_network_added)(ni_wpa_nif_t*, const char*, const ni_wpa_net_properties_t*);
 	void (*on_network_selected)(ni_wpa_nif_t*, const char*);
 	void (*on_network_removed)(ni_wpa_nif_t*, const char*);
+	void (*on_scan_done)(ni_wpa_nif_t*, const ni_wpa_bss_t *);
 	void (*on_state_change)(ni_wpa_nif_t*, ni_wpa_nif_state_t old_state, ni_wpa_nif_state_t new_state);
 	void (*on_properties_changed)(ni_wpa_nif_t*, ni_dbus_variant_t*);
 };
@@ -303,6 +304,7 @@ struct	ni_wpa_nif_properties {
 	char *					current_bss_path;
 	ni_string_array_t			network_paths;
 	ni_string_array_t			bss_paths;
+	ni_bool_t				scanning;
 };
 
 struct ni_wpa_nif {
@@ -385,9 +387,10 @@ extern int					ni_wpa_nif_set_all_networks_property_enabled(ni_wpa_nif_t *wif, n
 extern void 					ni_wpa_nif_set_ops(ni_wpa_nif_t *, ni_wpa_nif_ops_t *);
 extern ni_wpa_nif_t *				ni_wpa_nif_by_index(ni_wpa_client_t *wpa, unsigned int ifindex);
 extern ni_bool_t				ni_wpa_nif_scan_in_progress(ni_wpa_nif_t *);
-extern int					ni_wpa_nif_request_scan(ni_wpa_nif_t *, ni_wireless_scan_t *);
+extern int					ni_wpa_nif_trigger_scan(ni_wpa_nif_t *, ni_bool_t);
 extern ni_bool_t				ni_wpa_nif_retrieve_scan(ni_wpa_nif_t *, ni_wireless_scan_t *);
 extern int					ni_wpa_nif_flush_bss(ni_wpa_nif_t *wif, uint32_t max_age);
+extern ni_wpa_bss_t *				ni_wpa_nif_get_current_bss(ni_wpa_nif_t *);
 
 extern const char *				ni_wpa_nif_property_name(ni_wpa_nif_property_type_t);
 extern ni_bool_t				ni_wpa_nif_property_type(const char *, ni_wpa_nif_property_type_t *);

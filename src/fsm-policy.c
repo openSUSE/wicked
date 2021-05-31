@@ -1815,27 +1815,32 @@ __ni_fsm_policy_match_wireless_essid_check(const ni_ifcondition_t *cond, const n
 {
 	ni_netdev_t *dev;
 	ni_wireless_t *wireless;
+	ni_wireless_ssid_t ssid;
+	ni_wireless_bss_t *bss;
+	ni_stringbuf_t sbuf = NI_STRINGBUF_INIT_DYNAMIC;
 
 	if (!(dev = ni_ifworker_get_netdev(w)) || !(wireless = dev->wireless))
 		return FALSE;
 
-	if (wireless->scan) {
-		ni_wireless_scan_t *scan = wireless->scan;
-		ni_wireless_ssid_t essid;
-		unsigned int i;
+	if (!(bss = wireless->scan.bsss))
+		return FALSE;
 
-		ni_wireless_ssid_parse(&essid, cond->args.string);
-		for (i = 0; i < scan->networks.count; ++i) {
-			ni_wireless_network_t *net = scan->networks.data[i];
+	if (!ni_wireless_ssid_parse(&ssid, cond->args.string))
+		return FALSE;
 
-			if (memcmp(&net->essid, &essid, sizeof(essid)) == 0) {
-#if 0
-				ni_trace("essid \"%s\" found - ap %s",
-						cond->args.string, ni_wireless_print_ssid(&net->essid));
-#endif
-				return TRUE;
-			}
+
+	for (; bss; bss = bss->next) {
+		if (!ni_wireless_ssid_eq(&ssid, &bss->ssid))
+			continue;
+
+		if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+			ni_trace("%s - ssid `%s` MATCH - bssid:%s age:%u signal:%hd",
+					__func__, ni_wireless_ssid_print(&ssid, &sbuf),
+					ni_link_address_print(&bss->bssid),
+					bss->age, bss->signal );
+			ni_stringbuf_destroy(&sbuf);
 		}
+		return TRUE;
 	}
 
 	return FALSE;

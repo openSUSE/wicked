@@ -28,11 +28,15 @@
 
 static void		ni_wireless_set_assoc_network(ni_wireless_t *, ni_wireless_network_t *);
 static void		__ni_wireless_scan_timer_arm(ni_wireless_scan_t *, ni_netdev_t *, unsigned int);
-static int		__ni_wireless_do_scan(ni_netdev_t *);
 static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
+static int		ni_wireless_scan_sync_bss(ni_wireless_scan_t *scan, const ni_wpa_bss_t *bss);
+static int		ni_wireless_trigger_scan(ni_netdev_t *dev, ni_wpa_nif_t *wif, ni_bool_t active_scan);
+static void		ni_wireless_scan_set_defaults(ni_wireless_scan_t *scan);
+static void		ni_wireless_scan_destroy(ni_wireless_scan_t *scan);
+static void		ni_wireless_bss_set(ni_wireless_bss_t *wireless_bss, const ni_wpa_bss_t *bss);
 static void		ni_wireless_on_state_change(ni_wpa_nif_t *, ni_wpa_nif_state_t, ni_wpa_nif_state_t);
 
-static ni_bool_t	__ni_wireless_scanning_enabled = FALSE;
+static ni_bool_t	__ni_wireless_scanning_enabled = TRUE;
 
 /*
  * WPA supplicant names to wireless constant maps
@@ -146,10 +150,64 @@ static const ni_intmap_t			ni_wireless_wpa_eap_method_map[] = {
 	{ NULL }
 };
 
+static ni_bool_t
+ni_wireless_wpa_pairwise_type(const char *name, ni_wireless_cipher_t *type)
+{
+	if (!type || ni_parse_uint_mapped(name, ni_wireless_wpa_pairwise_map, type) < 0)
+		return FALSE;
+	return TRUE;
+}
+
+static ni_bool_t
+ni_wireless_wpa_pairwise_mask(const ni_string_array_t *array, unsigned int *mask)
+{
+	unsigned int i;
+	ni_wireless_cipher_t cipher;
+	*mask = 0;
+
+	for(i = 0; i < array->count; i++){
+		if (!ni_wireless_wpa_pairwise_type(array->data[i], &cipher)){
+			ni_error("Failed to map %s to ni_wireless_cipher_t", array->data[i]);
+			*mask = 0;
+			return FALSE;
+		}
+		*mask |= NI_BIT(cipher);
+	}
+
+	return TRUE;
+}
+
 static const char *
 ni_wireless_wpa_eap_method(ni_wireless_eap_method_t method)
 {
 	return ni_format_uint_mapped(method, ni_wireless_wpa_eap_method_map);
+}
+
+static ni_bool_t
+ni_wireless_wpa_key_mgmt_type(const char *name, ni_wireless_key_mgmt_t *type)
+{
+	if (!type || ni_parse_uint_mapped(name, ni_wireless_wpa_key_mgmt_map, type) < 0)
+		return FALSE;
+	return TRUE;
+}
+
+static ni_bool_t
+ni_wireless_wpa_key_mgmt_mask(const ni_string_array_t *array, unsigned int *mask)
+{
+	size_t i;
+	ni_wireless_key_mgmt_t key_mgmt;
+	*mask = 0;
+
+	for(i = 0; i < array->count; i++){
+		if (!ni_wireless_wpa_key_mgmt_type(array->data[i], &key_mgmt)){
+			ni_error("Failed to map %s to ni_wireless_key_mgmt_t", array->data[i]);
+			*mask = 0;
+			return FALSE;
+		}
+		*mask |= NI_BIT(key_mgmt);
+	}
+
+	return TRUE;
 }
 
 const ni_intmap_t *
@@ -189,6 +247,34 @@ ni_wireless_on_network_added(ni_wpa_nif_t *wif, const char *path, const ni_wpa_n
 	//TODO evaluate if we need this information somehow or not.
 }
 
+static void
+ni_wireless_on_scan_done(ni_wpa_nif_t *wif, const ni_wpa_bss_t *bss_list)
+{
+	ni_netdev_ref_t *device = &wif->device;
+	ni_netdev_t *dev;
+	ni_wireless_t *wlan;
+	ni_wireless_bss_t *bss;
+	ni_stringbuf_t sbuf = NI_STRINGBUF_INIT_DYNAMIC;
+
+	if (!(dev = ni_wireless_unwrap_wpa_nif(wif))){
+		ni_error("%s -- Unable to unwrap wpa_nif_t", __func__);
+		return;
+	}
+	wlan = dev->wireless;
+
+	ni_wireless_scan_sync_bss(&wlan->scan, bss_list);
+
+	ni_debug_wireless("Scan done on interface `%s`", device->name);
+	for(bss = wlan->scan.bsss; bss; bss = bss->next){
+		ni_debug_wireless("Found ssid:`%s` bssid:%s Signal:%d Age:%d",
+				ni_wireless_ssid_print(&bss->ssid, &sbuf),
+				ni_link_address_print(&bss->bssid),
+				bss->signal, bss->age);
+		ni_stringbuf_destroy(&sbuf);
+	}
+	__ni_netdev_event(NULL, dev, NI_EVENT_LINK_SCAN_UPDATED);
+}
+
 static ni_wpa_nif_t*
 ni_wireless_get_wpa_interface(ni_netdev_t *dev)
 {
@@ -202,6 +288,10 @@ ni_wireless_get_wpa_interface(ni_netdev_t *dev)
 
 /*
  * Refresh what we think we know about this interface.
+ *
+ * Called from __ni_netdev_process_newlink() which was triggered by a
+ * RTM_NEWLINK message.
+ *
  */
 int
 ni_wireless_interface_refresh(ni_netdev_t *dev)
@@ -215,11 +305,8 @@ ni_wireless_interface_refresh(ni_netdev_t *dev)
 		dev->wireless = wlan = ni_wireless_new(dev);
 	}
 
-	if (!wlan->scan && __ni_wireless_scanning_enabled)
-		wlan->scan = ni_wireless_scan_new(dev, NI_WIRELESS_DEFAUT_SCAN_INTERVAL);
-
-	if (wlan->scan)
-		__ni_wireless_do_scan(dev);
+	if (!wlan->scan.timer && wlan->scan.interval > 0)
+		__ni_wireless_scan_timer_arm(&wlan->scan, dev, 1);
 
 	return 0;
 }
@@ -238,15 +325,16 @@ ni_wireless_interface_set_scanning(ni_netdev_t *dev, ni_bool_t enable)
 	}
 
 	if (enable) {
-		if (!wlan->scan)
-			wlan->scan = ni_wireless_scan_new(dev, NI_WIRELESS_DEFAUT_SCAN_INTERVAL);
+		if (wlan->scan.interval == 0)
+			wlan->scan.interval = NI_WIRELESS_DEFAULT_SCAN_INTERVAL;
 
-		/* FIXME: If it's down, we should bring up the device now for scanning */
-		__ni_wireless_do_scan(dev);
+		__ni_wireless_scan_timer_arm(&wlan->scan, dev, 1);
 	} else {
-		if (wlan->scan)
-			ni_wireless_scan_free(wlan->scan);
-		wlan->scan = NULL;
+		wlan->scan.interval = 0;
+		if (wlan->scan.timer){
+			ni_timer_cancel(wlan->scan.timer);
+			wlan->scan.timer = NULL;
+		}
 	}
 
 	return 0;
@@ -264,72 +352,51 @@ ni_wireless_set_scanning(ni_bool_t enable)
 	__ni_wireless_scanning_enabled = enable;
 }
 
-/*
- * Initiate a network scan
- */
-int
-__ni_wireless_do_scan(ni_netdev_t *dev)
+static void
+ni_wireless_scan_add_bss(ni_wireless_scan_t *scan, ni_wireless_bss_t *bss)
 {
-	ni_wpa_nif_t *wif;
-	ni_wireless_t *wlan;
-	ni_wireless_scan_t *scan;
-	struct timeval now;
+	ni_wireless_bss_t **next = &scan->bsss;
 
-	wlan = dev->wireless;
-	if ((scan = wlan->scan) == NULL) {
-		ni_error("%s: no wireless scan handle?!", __func__);
-		return -1;
+	ni_assert(bss->next == NULL);
+
+	while(*next != NULL) next = &(*next)->next;
+	*next = bss;
+}
+
+static uint32_t
+ni_wireless_frequency_to_channel(uint16_t frequency)
+{
+	if (frequency > 5000){
+		return (frequency - 5000) / 5;
+
+	} else if (frequency >= 4915){
+		return (frequency - 4915) / 5 + 183;
+
+	} else if (frequency == 2484){
+		return 14;
+
+	} else {
+		return (frequency - 2407) / 5;
 	}
+}
 
-	/* (Re-)arm the scan timer */
-	__ni_wireless_scan_timer_arm(scan, dev, scan->interval);
+static int
+ni_wireless_scan_sync_bss(ni_wireless_scan_t *scan, const ni_wpa_bss_t *bss)
+{
+	int cnt = 0;
+	ni_wireless_bss_t *wireless_bss;
 
-	/* If the device is down, we cannot scan */
-	if (!ni_netdev_device_is_up(dev))
-		return 0;
+	ni_timer_get_time(&scan->last_update);
+	ni_wireless_bss_list_destroy(&scan->bsss);
 
-	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
-		return -NI_ERROR_RADIO_DISABLED;
-	if (!(wif = ni_wireless_get_wpa_interface(dev)))
-		return -1;
-
-	/*
-	 * TODO: translate
-	 * wlan->capabilities = wif->capabilities;
-	 */
-
-	/* We currently don't have a reasonable way to call back
-	 * to a higher level from the depths of the wpa-supplicant
-	 * code. Thus we have to result to polling here :-(
-	 */
-	if (ni_wpa_nif_scan_in_progress(wif)) {
-		__ni_wireless_scan_timer_arm(scan, dev, 1);
-		return 0;
+	for(; bss; bss = bss->next){
+		if (!(wireless_bss = ni_wireless_bss_new()))
+			break;
+		ni_wireless_bss_set(wireless_bss, bss);
+		ni_wireless_scan_add_bss(scan, wireless_bss);
+		cnt++;
 	}
-
-	/* Retrieve whatever is there. */
-	if (ni_wpa_nif_retrieve_scan(wif, scan)) {
-		ni_netconfig_t *nc = ni_global_state_handle(0);
-
-		ni_debug_wireless("%s: list of networks changed", dev->name);
-		__ni_netdev_event(nc, dev, NI_EVENT_LINK_SCAN_UPDATED);
-	}
-
-	/* If we haven't seen a scan in a long time, request one. */
-	ni_timer_get_time(&now);
-	if (timerisset(&scan->timestamp) && scan->timestamp.tv_sec + scan->interval < now.tv_sec) {
-		/* We can do this only if the device is up */
-		if (dev->link.ifflags & NI_IFF_DEVICE_UP) {
-			if (now.tv_sec > scan->timestamp.tv_sec)
-				ni_debug_wireless("%s: requesting wireless scan (last scan was %u seconds ago)",
-						dev->name, (unsigned int)(now.tv_sec - scan->timestamp.tv_sec));
-			else
-				ni_debug_wireless("%s: requesting wireless scan", dev->name);
-			ni_wpa_nif_request_scan(wif, scan);
-		}
-	}
-
-	return 0;
+	return cnt;
 }
 
 static void
@@ -337,23 +404,33 @@ __ni_wireless_scan_timeout(void *ptr, const ni_timer_t *timer)
 {
 	ni_netdev_t *dev = ptr;
 	ni_wireless_scan_t *scan;
+	ni_wpa_nif_t *wif;
 
-	if (!dev || !dev->wireless || !(scan = dev->wireless->scan))
+	if (!dev || !dev->wireless )
 		return;
 
+	scan = &dev->wireless->scan;
 	if (scan->timer == timer)
 		scan->timer = NULL;
-	__ni_wireless_do_scan(dev);
+
+	if (scan->interval == 0)
+		return;
+
+	/* If the device is down, we cannot scan */
+	if (!ni_netdev_device_is_up(dev))
+		return;
+
+	if (!(wif = ni_wireless_get_wpa_interface(dev)))
+		return;
+
+	ni_wireless_trigger_scan(dev, wif, FALSE);
+	__ni_wireless_scan_timer_arm(scan, dev, scan->interval);
 }
 
 static void
 __ni_wireless_scan_timer_arm(ni_wireless_scan_t *scan, ni_netdev_t *dev, unsigned int timeout)
 {
-	/* Fire twice as often as requested. This is because we rearm the
-	 * timer at the point where we *request* a new scan, but the scan
-	 * timestamp is updated when the last *response* comes in, which is
-	 * usually half a second later or so. */
-	timeout = 1000 * timeout / 2;
+	timeout = 1000 * timeout;
 
 	if (scan->timer == NULL) {
 		scan->timer = ni_timer_register(timeout,
@@ -690,6 +767,19 @@ ni_wireless_setup_networks(ni_netdev_t *dev, ni_wpa_nif_t *wif, const ni_wireles
 	return 0;
 }
 
+static int
+ni_wireless_trigger_scan(ni_netdev_t *dev, ni_wpa_nif_t *wif, ni_bool_t active_scan)
+{
+	ni_wireless_t *wlan = dev->wireless;
+
+	if (!wif->properties.scanning){
+		ni_wpa_nif_flush_bss(wif, wlan->scan.max_age);
+		ni_timer_get_time(&wlan->scan.last_trigger);
+		return ni_wpa_nif_trigger_scan(wif, active_scan);
+	}
+	return -NI_ERROR_RETRY_OPERATION;
+}
+
 int
 ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 {
@@ -697,15 +787,18 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 	ni_wpa_client_t *wpa;
 	const char * name;
 	ni_dbus_variant_t arg = NI_DBUS_VARIANT_INIT, *var, *data;
+	ni_wireless_t *wlan;
 	int ret;
 
 	ni_wpa_nif_ops_t wif_ops = {
 		.on_network_added = ni_wireless_on_network_added,
+		.on_scan_done = ni_wireless_on_scan_done,
 		.on_state_change = ni_wireless_on_state_change,
 	};
 
 	if (!dev || !conf || !ni_netdev_get_wireless(dev))
 		return -NI_ERROR_INVALID_ARGS;
+	wlan = ni_netdev_get_wireless(dev);
 
 	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
 		return -NI_ERROR_RADIO_DISABLED;
@@ -764,7 +857,13 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 	if ((ret = ni_wireless_update_wpa_nif_capabilities(dev, &wif->capabilities)) < 0)
 		return ret;
 
-	return ni_wireless_setup_networks(dev, wif, &conf->networks);
+	if ((ret = ni_wireless_setup_networks(dev, wif, &conf->networks)) != 0){
+		return ret;
+	}
+
+	if (wlan->scan.interval > 0)
+		__ni_wireless_scan_timer_arm(&wlan->scan, dev, 1);
+	return ret;
 }
 
 int
@@ -1204,6 +1303,7 @@ ni_wireless_new(ni_netdev_t *dev)
 	wlan = xcalloc(1, sizeof(ni_wireless_t));
 	if (wlan) {
 		ni_wireless_config_set_defaults(&wlan->conf);
+		ni_wireless_scan_set_defaults(&wlan->scan);
 	}
 	return wlan;
 }
@@ -1213,13 +1313,104 @@ ni_wireless_free(ni_wireless_t *wireless)
 {
 	if (wireless) {
 		ni_wireless_set_assoc_network(wireless, NULL);
-		if (wireless->scan)
-			ni_wireless_scan_free(wireless->scan);
-		wireless->scan = NULL;
-
 		ni_wireless_config_destroy(&wireless->conf);
+		ni_wireless_scan_destroy(&wireless->scan);
 		free(wireless);
 	}
+}
+
+static void
+ni_wireless_bss_set(ni_wireless_bss_t *wireless_bss, const ni_wpa_bss_t *bss)
+{
+	const ni_wpa_bss_properties_t *props = &bss->properties;
+
+	wireless_bss->bssid.len = props->bssid.len;
+	memcpy(wireless_bss->bssid.data, props->bssid.data, props->bssid.len);
+
+	wireless_bss->ssid.len = props->ssid.len;
+	memcpy(wireless_bss->ssid.data, props->ssid.data, props->ssid.len);
+
+	ni_wireless_wpa_key_mgmt_mask(&props->wpa.key_mgmt, &wireless_bss->wpa.key_mgmt);
+	ni_wireless_wpa_pairwise_mask(&props->wpa.pairwise, &wireless_bss->wpa.pairwise_cipher);
+	ni_wireless_wpa_pairwise_type(props->wpa.group, &wireless_bss->wpa.group_cipher);
+
+	ni_wireless_wpa_key_mgmt_mask(&props->rsn.key_mgmt, &wireless_bss->rsn.key_mgmt);
+	ni_wireless_wpa_pairwise_mask(&props->rsn.pairwise, &wireless_bss->rsn.pairwise_cipher);
+	ni_wireless_wpa_pairwise_type(props->rsn.group, &wireless_bss->rsn.group_cipher);
+	ni_wireless_wpa_pairwise_type(props->rsn.mgmt_group, &wireless_bss->rsn.mgmt_group_cipher);
+
+	wireless_bss->privacy = props->privacy;
+
+	ni_wireless_name_to_mode(props->mode, &wireless_bss->wireless_mode);
+	wireless_bss->channel = ni_wireless_frequency_to_channel(props->frequency);
+	wireless_bss->rate_max = props->rate_max;
+	wireless_bss->signal = props->signal;
+	wireless_bss->age = props->age;
+}
+
+ni_wireless_bss_t *
+ni_wireless_bss_new()
+{
+	return calloc(1, sizeof(ni_wireless_bss_t));
+}
+
+void
+ni_wireless_bss_init(ni_wireless_bss_t *bss)
+{
+	memset(bss, 0, sizeof(*bss));
+}
+
+void
+ni_wireless_bss_destroy(ni_wireless_bss_t *bss)
+{
+	ni_string_free(&bss->wps.type);
+	ni_wireless_bss_init(bss);
+}
+
+void
+ni_wireless_bss_free(ni_wireless_bss_t **bss)
+{
+	ni_wireless_bss_destroy(*bss);
+	*bss = NULL;
+}
+
+void
+ni_wireless_bss_list_destroy(ni_wireless_bss_t **list)
+{
+	ni_wireless_bss_t *bss;
+
+	if (list) {
+		while ((bss = *list)) {
+			*list = bss->next;
+			ni_wireless_bss_free(&bss);
+		}
+		*list = NULL;
+	}
+}
+
+ni_bool_t
+ni_wireless_bss_list_append(ni_wireless_bss_t **list, ni_wireless_bss_t *bss)
+{
+	if (!list || !bss)
+		return FALSE;
+
+	while (*list)
+		list = &(*list)->next;
+	*list = bss;
+	return TRUE;
+}
+
+ni_wireless_bss_t *
+ni_wireless_bss_list_find_by_bssid(ni_wireless_bss_t * const *list, const ni_hwaddr_t *bssid)
+{
+	if (!list || !bssid)
+		return NULL;
+
+	for(; *list; list = &(*list)->next)
+		if (ni_link_address_equal(&(*list)->bssid, bssid))
+			return *list;
+
+	return NULL;
 }
 
 void
@@ -1232,34 +1423,21 @@ ni_wireless_set_assoc_network(ni_wireless_t *wireless, ni_wireless_network_t *ne
 	ni_wireless_set_association_timer(wireless, NULL);
 }
 
-/*
- * Wireless scan objects
- */
-ni_wireless_scan_t *
-ni_wireless_scan_new(ni_netdev_t *dev, unsigned int interval)
-{
-	ni_wireless_scan_t *scan;
-
-	scan = xcalloc(1, sizeof(ni_wireless_scan_t));
-	scan->interval = interval;
-	scan->max_age = NI_WIRELESS_SCAN_MAX_AGE;
-	scan->lifetime = 60;
-
-	if (dev && scan->interval)
-		__ni_wireless_scan_timer_arm(scan, dev, scan->interval);
-
-	return scan;
-}
-
 void
-ni_wireless_scan_free(ni_wireless_scan_t *scan)
+ni_wireless_scan_destroy(ni_wireless_scan_t *scan)
 {
 	if (scan->timer)
 		ni_timer_cancel(scan->timer);
-	scan->timer = NULL;
 
-	ni_wireless_network_array_destroy(&scan->networks);
-	free(scan);
+	ni_wireless_bss_list_destroy(&scan->bsss);
+	memset(scan, 0, sizeof(*scan));
+}
+
+void
+ni_wireless_scan_set_defaults(ni_wireless_scan_t *scan)
+{
+	scan->interval = __ni_wireless_scanning_enabled ? NI_WIRELESS_DEFAULT_SCAN_INTERVAL : 0;
+	scan->max_age = NI_WIRELESS_SCAN_MAX_AGE;
 }
 
 ni_wireless_blob_t *
@@ -1327,7 +1505,6 @@ __ni_wireless_network_destroy(ni_wireless_network_t *net)
 {
 	ni_assert(net->refcount == 0);
 
-	ni_wireless_auth_info_array_destroy(&net->scan_info.supported_auth_protos);
 	ni_wireless_passwd_clear(net);
 
 	ni_string_clear(&net->wpa_eap.identity);

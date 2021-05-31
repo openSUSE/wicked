@@ -76,6 +76,31 @@
     </wpa-eap>
   </define>
 
+  <define name="bss" class="dict">
+    <bssid type="ethernet-address" />
+    <ssid type="string" /> <!-- we use printf notation for `none-prinatable-chars` for now -->
+    <wpa class="dict">
+      <key-management type="builtin-wireless-key-mgmt-mask"/>
+      <pairwise-cipher type="builtin-wireless-cipher-mask"/>
+      <group-cipher type="builtin-wireless-cipher"/>
+    </wpa>
+    <rsn class="dict">
+      <key-management type="builtin-wireless-key-mgmt-mask"/>
+      <pairwise-cipher type="builtin-wireless-cipher-mask"/>
+      <group-cipher type="builtin-wireless-cipher"/>
+      <management-group type="builtin-wireless-cipher"/>
+    </rsn>
+    <wps>
+      <type type="string"/>
+    </wps>
+    <privacy type="boolean"/>
+    <mode type="builtin-wireless-mode"/>
+    <channel type="uint32"/>
+    <rate-max type="uint32"/>
+    <signal type="int16"/>
+    <age type="uint32"/>
+  </define>
+
   <define name="properties" class="dict">
     <capabilities class="dict">
       <pairwise-cipher type="builtin-wireless-cipher-mask"/>
@@ -88,10 +113,7 @@
       <scan-modes type="builtin-wireless-scan-mode-mask"/>
       <max-scan-ssid type="int32"/>
     </capabilities>
-    <scan class="dict">
-      <!-- zero or more networks found during last scan -->
-      <network type="network_t"/>
-    </scan>
+    <scan-results class="array" element-type="wireless:bss" element-name="bss"/>
   </define>
 
   <define name="link-request" class="dict">

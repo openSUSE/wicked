@@ -198,22 +198,6 @@ struct ni_wireless_network {
 	unsigned int			channel;
 	unsigned int			fragment_size;		/* used with EAP */
 
-	struct ni_wireless_scan_info {
-		struct timeval 		timestamp;
-		ni_bool_t		updating;		/* retrieving new scan info */
-		int			noise;
-		double			level;			/* in dBm*/
-		double			quality;		/* n/70 */
-		double			frequency;		/* in GHz */
-		unsigned int		max_bitrate;		/* in Mbps */
-
-		/* We need to fix this; this is a 16bit word directly from wpa_supplicant */
-		uint16_t		capabilities;
-
-		/* Information on the auth modes supported by the AP */
-		ni_wireless_auth_info_array_t supported_auth_protos;
-	} scan_info;
-
 	unsigned int			auth_proto;
 	unsigned int			auth_algo;
 	unsigned int			keymgmt_proto;
@@ -254,6 +238,35 @@ struct ni_wireless_network {
 
 };
 
+typedef struct ni_wireless_bss ni_wireless_bss_t;
+
+struct ni_wireless_bss {
+	ni_wireless_bss_t *	next;
+
+	ni_hwaddr_t		bssid;
+	ni_wireless_ssid_t	ssid;
+	struct {
+		unsigned int		key_mgmt;	 /* ni_wireless_key_mgmt_t as bitmask */
+		unsigned int		pairwise_cipher; /* ni_wireless_cipher_t as bitmask */
+		ni_wireless_cipher_t	group_cipher;
+	} wpa;
+	struct {
+		unsigned int		key_mgmt;	 /* ni_wireless_key_mgmt_t as bitmask */
+		unsigned int		pairwise_cipher; /* ni_wireless_cipher_t as bitmask */
+		ni_wireless_cipher_t	group_cipher;
+		ni_wireless_cipher_t	mgmt_group_cipher;
+	} rsn;
+	struct {
+		char *			type;
+	} wps;
+	ni_bool_t		privacy;
+	ni_wireless_mode_t	wireless_mode;
+	uint32_t		channel;
+	uint32_t		rate_max;
+	int16_t			signal;
+	uint32_t		age;
+};
+
 typedef struct ni_wireless_network_array {
 	unsigned int		count;
 	ni_wireless_network_t **data;
@@ -278,11 +291,26 @@ typedef struct ni_wireless_config {
 	ni_wireless_network_array_t		networks;
 } ni_wireless_config_t;
 
+typedef struct ni_wireless_scan {
+	/* Scanning interval, if 0 then scanning is disabled */
+	unsigned int			interval;
+
+	/* Time in seconds after which we forget BSSes */
+	unsigned int			max_age;
+
+	struct timeval			last_trigger;
+	struct timeval			last_update;
+
+	const ni_timer_t *		timer;
+
+	ni_wireless_bss_t *		bsss;
+} ni_wireless_scan_t;
+
 struct ni_wireless {
 	ni_wireless_interface_capabilities_t	capabilities;
 
 	ni_wireless_config_t			conf;
-	ni_wireless_scan_t *			scan;
+	ni_wireless_scan_t			scan;
 
 	/* Association information */
 	struct {
@@ -294,23 +322,10 @@ struct ni_wireless {
 	} assoc;
 };
 
-#define NI_WIRELESS_DEFAUT_SCAN_INTERVAL	60
+#define NI_WIRELESS_DEFAULT_SCAN_INTERVAL	60
 #define NI_WIRELESS_ASSOC_FAIL_DELAY		60
 #define NI_WIRELESS_SCAN_MAX_AGE		600
 
-struct ni_wireless_scan {
-	/* Scanning interval */
-	unsigned int			interval;
-
-	/* Time in seconds after which we forget BSSes */
-	unsigned int			max_age;
-
-	struct timeval			timestamp;
-	unsigned int			lifetime;
-	ni_wireless_network_array_t	networks;
-
-	const ni_timer_t *		timer;
-};
 
 extern ni_wireless_t *			ni_wireless_new(ni_netdev_t *);
 extern void				ni_wireless_free(ni_wireless_t *);
@@ -339,6 +354,15 @@ extern void				ni_wireless_network_free(ni_wireless_network_t *);
 extern void				ni_wireless_network_array_init(ni_wireless_network_array_t *);
 extern void				ni_wireless_network_array_append(ni_wireless_network_array_t *, ni_wireless_network_t *);
 extern void				ni_wireless_network_array_destroy(ni_wireless_network_array_t *);
+
+extern ni_wireless_bss_t *		ni_wireless_bss_new();
+extern void				ni_wireless_bss_init(ni_wireless_bss_t *bss);
+extern void				ni_wireless_bss_free(ni_wireless_bss_t **bss);
+extern void				ni_wireless_bss_destroy(ni_wireless_bss_t *bss);
+extern void				ni_wireless_bss_free_all(ni_wireless_bss_t **bss);
+extern ni_wireless_bss_t *		ni_wireless_bss_list_find_by_bssid(ni_wireless_bss_t * const *, const ni_hwaddr_t *);
+extern ni_bool_t			ni_wireless_bss_list_append(ni_wireless_bss_t **, ni_wireless_bss_t *);
+extern void				ni_wireless_bss_list_destroy(ni_wireless_bss_t **);
 
 extern ni_wireless_auth_info_t *	ni_wireless_auth_info_new(ni_wireless_auth_proto_t, unsigned int version);
 extern void				ni_wireless_auth_info_add_pairwise_cipher(ni_wireless_auth_info_t *, ni_wireless_cipher_t);

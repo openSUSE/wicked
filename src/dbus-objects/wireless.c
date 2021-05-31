@@ -269,8 +269,8 @@ ni_objectmodel_get_wireless_request(const char *ifname, ni_wireless_config_t *co
 	return TRUE;
 }
 
-static ni_wireless_t *
-__ni_objectmodel_wireless_handle(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
+void *
+ni_objectmodel_get_wireless(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	ni_netdev_t *dev;
 	ni_wireless_t *wlan;
@@ -288,203 +288,158 @@ __ni_objectmodel_wireless_handle(const ni_dbus_object_t *object, ni_bool_t write
 	return wlan;
 }
 
-static ni_wireless_t *
-__ni_objectmodel_wireless_write_handle(const ni_dbus_object_t *object, DBusError *error)
-{
-	return __ni_objectmodel_wireless_handle(object, TRUE, error);
-}
-
-static const ni_wireless_t *
-__ni_objectmodel_wireless_read_handle(const ni_dbus_object_t *object, DBusError *error)
-{
-	return __ni_objectmodel_wireless_handle(object, FALSE, error);
-}
-
-static ni_wireless_scan_t *
-__ni_objectmodel_get_scan(const ni_dbus_object_t *object, DBusError *error)
-{
-	const ni_wireless_t *wlan;
-
-	if (!(wlan = __ni_objectmodel_wireless_read_handle(object, error)))
-		return NULL;
-
-	return wlan->scan;
-}
-
-
-/* Same as above, except returns a void pointer */
-void *
-ni_objectmodel_get_wireless(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
-{
-	return __ni_objectmodel_wireless_handle(object, write_access, error);
-}
-
 static dbus_bool_t
-__ni_objectmodel_wireless_get_network(const ni_wireless_network_t *network,
-				ni_dbus_variant_t *dict,
-				DBusError *error)
+ni_objectmodel_bss_wpa_to_dict(ni_wireless_bss_t *bss, ni_dbus_variant_t *dict)
 {
-	unsigned int i;
-	ni_stringbuf_t sbuf = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_dbus_variant_t *v;
 
-	ni_dbus_dict_add_string(dict, "essid", ni_wireless_ssid_print(&network->essid, &sbuf));
-	ni_stringbuf_destroy(&sbuf);
+	if (!bss->wpa.key_mgmt && !bss->wpa.pairwise_cipher && !bss->wpa.group_cipher)
+		return TRUE;
 
-	if (network->access_point.len)
-		ni_dbus_dict_add_byte_array(dict, "access-point",
-				network->access_point.data,
-				network->access_point.len);
-
-	ni_dbus_dict_add_uint32(dict, "mode", network->mode);
-	if (network->channel)
-		ni_dbus_dict_add_uint32(dict, "channel", network->channel);
-	if (network->scan_info.frequency)
-		ni_dbus_dict_add_double(dict, "frequency", network->scan_info.frequency);
-	if (network->scan_info.max_bitrate)
-		ni_dbus_dict_add_uint32(dict, "max-bitrate", network->scan_info.max_bitrate);
-
-	for (i = 0; i < network->scan_info.supported_auth_protos.count; ++i) {
-		ni_wireless_auth_info_t *auth_info = network->scan_info.supported_auth_protos.data[i];
-		ni_dbus_variant_t *child;
-
-		child = ni_dbus_dict_add(dict, "auth-info");
-		ni_dbus_variant_init_dict(child);
-
-		ni_dbus_dict_add_uint32(child, "proto", auth_info->proto);
-		ni_dbus_dict_add_uint32(child, "version", auth_info->version);
-		ni_dbus_dict_add_uint32(child, "group-cipher", auth_info->group_cipher);
-		ni_dbus_dict_add_uint32(child, "pairwise-ciphers", auth_info->pairwise_ciphers);
-		ni_dbus_dict_add_uint32(child, "key-management", auth_info->keymgmt_algos);
-	}
-
-	return TRUE;
-}
-
-static dbus_bool_t
-__ni_objectmodel_wireless_set_network(ni_wireless_network_t *network,
-				const ni_dbus_variant_t *dict,
-				DBusError *error)
-{
-	ni_dbus_variant_t *child;
-	const char *string;
-	uint32_t valu32;
-	double valdbl;
-
-	if (ni_dbus_dict_get_string(dict, "essid", &string)
-	 && !ni_wireless_ssid_parse(&network->essid, string))
+	if (!(v = ni_dbus_dict_add(dict, "wpa")))
 		return FALSE;
+	ni_dbus_variant_init_dict(v);
 
-	if ((child = ni_dbus_dict_get(dict, "access-point")) != NULL) {
-		__ni_objectmodel_set_hwaddr(child, &network->access_point);
-		network->access_point.type = ARPHRD_ETHER;
-	}
-
-	if (ni_dbus_dict_get_uint32(dict, "mode", &valu32))
-		network->mode = valu32;
-	if (ni_dbus_dict_get_uint32(dict, "channel", &valu32))
-		network->channel = valu32;
-	if (ni_dbus_dict_get_double(dict, "frequency", &valdbl))
-		network->scan_info.frequency = valdbl;
-	if (ni_dbus_dict_get_uint32(dict, "max-bitrate", &valu32))
-		network->scan_info.max_bitrate = valu32;
-
-	child = NULL;
-	while ((child = ni_dbus_dict_get_next(dict, "auth-info", child)) != NULL) {
-		ni_wireless_auth_info_t *auth_info;
-		uint32_t proto, version;
-
-		if (!ni_dbus_dict_get_uint32(child, "proto", &proto)
-		 || !ni_dbus_dict_get_uint32(child, "version", &version))
+	if (bss->wpa.key_mgmt)
+		if (!ni_dbus_dict_add_uint32(v, "key-management", bss->wpa.key_mgmt))
 			return FALSE;
 
-		auth_info = ni_wireless_auth_info_new(proto, version);
-		ni_wireless_auth_info_array_append(&network->scan_info.supported_auth_protos, auth_info);
+	if (bss->wpa.pairwise_cipher)
+		if (!ni_dbus_dict_add_uint32(v, "pairwise-cipher", bss->wpa.pairwise_cipher))
+			return FALSE;
 
-		if (ni_dbus_dict_get_uint32(child, "group-cipher", &valu32))
-			auth_info->group_cipher = valu32;
-		if (ni_dbus_dict_get_uint32(child, "pairwise-ciphers", &valu32))
-			auth_info->pairwise_ciphers = valu32;
-		if (ni_dbus_dict_get_uint32(child, "key-management", &valu32))
-			auth_info->keymgmt_algos = valu32;
-	}
+	if (bss->wpa.group_cipher)
+		if (!ni_dbus_dict_add_uint32(v, "group-cipher", bss->wpa.group_cipher))
+			return FALSE;
 
 	return TRUE;
 }
 
 static dbus_bool_t
-__ni_objectmodel_wireless_get_scan(const ni_dbus_object_t *object,
+ni_objectmodel_bss_rsn_to_dict(ni_wireless_bss_t *bss, ni_dbus_variant_t *dict)
+{
+	ni_dbus_variant_t *v;
+
+	if (!bss->rsn.key_mgmt && !bss->rsn.pairwise_cipher &&
+			!bss->rsn.group_cipher && !bss->rsn.mgmt_group_cipher)
+		return TRUE;
+
+	if (!(v = ni_dbus_dict_add(dict, "rsn")))
+		return FALSE;
+	ni_dbus_variant_init_dict(v);
+
+	if (bss->rsn.key_mgmt)
+		if (!ni_dbus_dict_add_uint32(v, "key-management", bss->rsn.key_mgmt))
+			return FALSE;
+
+	if (bss->rsn.pairwise_cipher)
+		if (!ni_dbus_dict_add_uint32(v, "pairwise-cipher", bss->rsn.pairwise_cipher))
+			return FALSE;
+
+	if (bss->rsn.group_cipher)
+		if (!ni_dbus_dict_add_uint32(v, "group-cipher", bss->rsn.group_cipher))
+			return FALSE;
+
+	if (bss->rsn.mgmt_group_cipher)
+		if (!ni_dbus_dict_add_uint32(v, "management-group", bss->rsn.mgmt_group_cipher))
+			return FALSE;
+
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_bss_to_dict(ni_wireless_bss_t *bss, ni_dbus_variant_t *dict, time_t age_offset, DBusError *error)
+{
+	ni_dbus_variant_t *v;
+	ni_stringbuf_t sbuf = NI_STRINGBUF_INIT_DYNAMIC;
+
+	if (!ni_dbus_dict_add_string(dict, "ssid", ni_wireless_ssid_print(&bss->ssid, &sbuf))){
+		ni_stringbuf_destroy(&sbuf);
+		return FALSE;
+	}
+	ni_stringbuf_destroy(&sbuf);
+
+	if (!ni_dbus_dict_add_byte_array(dict, "bssid", bss->bssid.data, bss->bssid.len))
+		return FALSE;
+
+	if (!ni_objectmodel_bss_wpa_to_dict(bss, dict))
+		return FALSE;
+
+	if (!ni_objectmodel_bss_rsn_to_dict(bss, dict))
+		return FALSE;
+
+	if (bss->wps.type){
+		if (!(v = ni_dbus_dict_add(dict, "wps")))
+			return FALSE;
+		ni_dbus_variant_init_dict(v);
+		if (!ni_dbus_dict_add_string(v, "type", bss->wps.type))
+			return FALSE;
+	}
+
+	if (!ni_dbus_dict_add_bool(dict, "privacy", bss->privacy))
+		return FALSE;
+	if (!ni_dbus_dict_add_uint32(dict, "wireless-mode", bss->wireless_mode))
+		return FALSE;
+	if (!ni_dbus_dict_add_uint32(dict, "channel", bss->channel))
+		return FALSE;
+	if (!ni_dbus_dict_add_uint32(dict, "rate-max", bss->rate_max))
+		return FALSE;
+	if (!ni_dbus_dict_add_int16(dict, "signal", bss->signal))
+		return FALSE;
+	if (!ni_dbus_dict_add_uint32(dict, "age", bss->age + age_offset))
+		return FALSE;
+
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_objectmodel_wireless_get_scan_results(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
-	ni_wireless_scan_t *scan;
-	ni_dbus_variant_t *child;
-	unsigned int i;
+	ni_wireless_t *wlan;
+	ni_dbus_variant_t *dict;
+	ni_wireless_bss_t *bss;
+	struct timeval now;
+	time_t age_offset = 0;
 
-	if (!(scan = __ni_objectmodel_get_scan(object, error)))
-		return TRUE;
+	ni_dbus_dict_array_init(result);
 
-	ni_dbus_dict_add_int64(result, "timestamp", scan->timestamp.tv_sec);
-	for (i = 0; i < scan->networks.count; ++i) {
-		child = ni_dbus_dict_add(result, "network");
-		ni_dbus_variant_init_dict(child);
-		if (!__ni_objectmodel_wireless_get_network(scan->networks.data[i], child, error))
+	if (!(wlan = ni_objectmodel_get_wireless(object, FALSE, error)))
+		return FALSE;
+
+	if (ni_timer_get_time(&now) == 0)
+		age_offset = now.tv_sec - wlan->scan.last_update.tv_sec;
+
+	for(bss = wlan->scan.bsss; bss; bss = bss->next){
+		if (!(dict = ni_dbus_dict_array_add(result)))
 			return FALSE;
-	}
 
+		if (!ni_objectmodel_bss_to_dict(bss, dict, age_offset, error)){
+			return FALSE;
+		}
+	}
 	return TRUE;
 }
 
 static dbus_bool_t
-__ni_objectmodel_wireless_set_scan(ni_dbus_object_t *object,
+ni_objectmodel_wireless_set_scan_results(ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
-	ni_wireless_t *wlan;
-	ni_wireless_scan_t *scan;
-	const ni_dbus_variant_t *child;
-	int64_t value64;
-
-	if (!(wlan = __ni_objectmodel_wireless_write_handle(object, error)))
-		return FALSE;
-
-	if ((scan = wlan->scan) != NULL)
-		ni_wireless_scan_free(scan);
-
-	wlan->scan = scan = ni_wireless_scan_new(NULL, 0);
-	if (ni_dbus_dict_get_int64(argument, "timestamp", &value64)) {
-		scan->timestamp.tv_sec = value64;
-		scan->timestamp.tv_usec = 0;
-	}
-
-	child = NULL;
-	while ((child = ni_dbus_dict_get_next(argument, "network", child)) != NULL) {
-		ni_wireless_network_t *net;
-
-		if (!(net = ni_wireless_network_new()))
-			return FALSE;
-
-		if (!__ni_objectmodel_wireless_set_network(net, child, error)) {
-			ni_wireless_network_free(net);
-			return FALSE;
-		}
-
-		ni_wireless_network_array_append(&scan->networks, net);
-	}
-
+	/* ignore this, as we do not want to get scan results from Nanny! */
 	return TRUE;
 }
 
-
-#define WIRELESS_DICT_PROPERTY(dbus_name, fstem, rw) \
-	NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, ni_objectmodel_wireless_##fstem, rw)
 #define WIRELESS_INT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_INT_PROPERTY(wireless, dbus_name, member_name, rw)
 #define WIRELESS_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(wireless, dbus_name, member_name, rw)
-#define WIRELESS_STRING_PROPERTY(dbus_name, member_name, rw) \
-	NI_DBUS_GENERIC_STRING_PROPERTY(wireless, dbus_name, member_name, rw)
+#define WIRELESS_DICT_ARRAY_PROPERTY(dbus_name, member_name, rw) \
+	___NI_DBUS_PROPERTY(DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE, \
+			dbus_name, member_name, ni_objectmodel_wireless, RO)
 
 const ni_dbus_property_t	ni_objectmodel_wireless_capabilities[] = {
 	WIRELESS_UINT_PROPERTY(pairwise-ciphers, capabilities.pairwise_ciphers, RO),
@@ -501,10 +456,8 @@ const ni_dbus_property_t	ni_objectmodel_wireless_capabilities[] = {
 };
 
 const ni_dbus_property_t	ni_objectmodel_wireless_property_table[] = {
-	WIRELESS_DICT_PROPERTY(capabilities,	capabilities,		RO),
-	__NI_DBUS_PROPERTY(
-			NI_DBUS_DICT_SIGNATURE,
-			scan, __ni_objectmodel_wireless, RO),
+	NI_DBUS_GENERIC_DICT_PROPERTY(capabilities, ni_objectmodel_wireless_capabilities, RO),
+	WIRELESS_DICT_ARRAY_PROPERTY(scan-results, scan_results, RO),
 
 	{ NULL }
 };
