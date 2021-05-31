@@ -1,6 +1,6 @@
 <!--
-  -- Wireless Service definition
-  -->
+  Wireless Service definition
+-->
 <service name="wireless" interface="org.opensuse.Network.Wireless" object-class="netif-wireless">
 
   <define name="network_t" class="dict">
@@ -17,8 +17,8 @@
     <wep class="dict">
       <auth-algo type="builtin-wireless-auth-algo"/>
       <default-key type="uint32" constraint="range">
-	<min value="0"/>
-	<max value="3"/>
+        <min value="0"/>
+        <max value="3"/>
       </default-key>
       <key class="dict"/>
     </wep>
@@ -43,19 +43,19 @@
       </identity>
 
       <phase1 class="dict">
-	<peap-version type="uint32" constraint="range">
-	  <min value="0"/>
-	  <max value="1"/>
-	</peap-version>
-	<peap-label type="boolean"/>
+        <peap-version type="uint32" constraint="range">
+          <min value="0"/>
+          <max value="1"/>
+        </peap-version>
+        <peap-label type="boolean"/>
       </phase1>
 
       <phase2 class="dict">
-	<description>
-	  When using eg TTLS with a secondary authentication step, it can be
-	  configured here.
-	</description>
-	<!-- Mark the following elements as required. Which means if the <phase2> element exists, we require these two child elements to be there, too. -->
+        <description>
+          When using eg TTLS with a secondary authentication step, it can be
+          configured here.
+        </description>
+        <!-- Mark the following elements as required. Which means if the <phase2> element exists, we require these two child elements to be there, too. -->
 
         <method type="builtin-eap-method" constraint="required"/>
         <password type="string" constraint="required">
@@ -66,12 +66,12 @@
       <anonid type="string"/>
 
       <tls class="dict">
-	<ca-cert type="external-file" description="For TLS based methods, specify a CA certificate"/>
-	<client-cert type="external-file" description="For TLS based methods, specify a Client certificate"/>
-	<client-key type="external-file" description="For TLS based methods, specify a Client Key certificate"/>
-	<client-key-passwd type="string">
-	  <meta:user-input type="password" prompt="please enter Client Key password"/>
-	</client-key-passwd>
+        <ca-cert type="external-file" description="For TLS based methods, specify a CA certificate"/>
+        <client-cert type="external-file" description="For TLS based methods, specify a Client certificate"/>
+        <client-key type="external-file" description="For TLS based methods, specify a Client Key certificate"/>
+        <client-key-passwd type="string">
+          <meta:user-input type="password" prompt="please enter Client Key password"/>
+        </client-key-passwd>
       </tls>
     </wpa-eap>
   </define>
@@ -92,7 +92,7 @@
 
   <define name="link-request" class="dict">
     <description>
-     This type contains the requested wireless link configuration.
+      This type contains the requested wireless link configuration.
     </description>
 
     <ap-scan type="uint32" constraint="range" description="SSID scan mode to be used">
@@ -109,7 +109,7 @@
   <method name="changeDevice">
     <arguments>
       <config type="link-request">
-       <meta:mapping document-node="/wireless" skip-unless-present="true" />
+        <meta:mapping document-node="/wireless" skip-unless-present="true" />
       </config>
     </arguments>
   </method>
@@ -120,5 +120,3 @@
     </arguments>
   </method>
 </service>
-
-
