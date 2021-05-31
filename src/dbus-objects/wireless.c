@@ -16,9 +16,10 @@
 #include "dbus-common.h"
 #include "model.h"
 
-static dbus_bool_t	ni_objectmodel_get_wireless_request(ni_wireless_config_t *,
-				const ni_dbus_variant_t *, DBusError *);
+static dbus_bool_t	ni_objectmodel_get_wireless_request(const char *, ni_wireless_config_t *,
+							const ni_dbus_variant_t *, DBusError *);
 
+#if 0
 static dbus_bool_t
 __ni_objectmodel_wireless_net_disconnect(ni_netdev_t *dev, ni_dbus_message_t *reply, DBusError *error)
 {
@@ -41,101 +42,48 @@ __ni_objectmodel_wireless_net_disconnect(ni_netdev_t *dev, ni_dbus_message_t *re
 
 	return TRUE;
 }
+#endif
 
 static dbus_bool_t
 ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_method_t *method,
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
+	ni_wireless_config_t conf;
 	ni_netdev_t *dev;
-	ni_wireless_t *wlan;
-	ni_wireless_network_t *net;
-	ni_stringbuf_t ssid = NI_STRINGBUF_INIT_DYNAMIC;
+	int ret;
 
-	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
-		return FALSE;
-
-	if (!(wlan = ni_netdev_get_wireless(dev))) {
-		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"wireless change request on non-wireless interface");
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)) || !ni_netdev_get_wireless(dev)) {
+		if (!dbus_error_is_set(error)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"wireless change request on non-wireless interface");
+		}
 		return FALSE;
 	}
 
-	ni_wireless_config_destroy(&wlan->conf);
-	if (!ni_objectmodel_get_wireless_request(&wlan->conf, &argv[0], error)) {
-		ni_wireless_config_destroy(&wlan->conf);
+	ni_wireless_config_init(&conf);
+	if (!ni_objectmodel_get_wireless_request(dev->name, &conf, &argv[0], error)) {
+		ni_wireless_config_destroy(&conf);
+		if (!dbus_error_is_set(error)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+					"%s: invalid wireless change device request", dev->name);
+		}
 		return FALSE;
 	}
 
-	if (0 == wlan->conf.networks.count) {
-		if (wlan->assoc.state != NI_WIRELESS_NOT_ASSOCIATED) /* We're asked to disconnect */
-			return __ni_objectmodel_wireless_net_disconnect(dev, reply, error);
-		else
-			return TRUE; /* Accept wireless with no network configuration */
+	if ((ret = ni_wireless_setup(dev, &conf)) < 0) {
+		ni_dbus_set_error_from_code(error, ret,
+				"%s: unable to setup wireless interface", dev->name);
+		ni_wireless_config_destroy(&conf);
+		return FALSE;
 	}
 
-	/* FIXME: Only one network supported - association to the first network in the networks array */
-	ni_assert(wlan->conf.networks.data && *wlan->conf.networks.data);
-
-	net = ni_wireless_network_get(wlan->conf.networks.data[0]);
-	if (0 == net->essid.len) {
-		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"no essid specified for a given wireless network");
-		goto error;
-	}
-
-	switch (net->keymgmt_proto) {
-	case NI_WIRELESS_KEY_MGMT_PSK:
-		if (net->wpa_psk.passphrase == NULL) {
-			dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
-					"wpa-psk.passphrase|PASSWORD|%s",
-					ni_wireless_ssid_print(&net->essid, &ssid));
-			ni_stringbuf_destroy(&ssid);
-			goto error;
-		}
-		break;
-
-	case NI_WIRELESS_KEY_MGMT_EAP:
-		if (net->wpa_eap.identity == NULL) {
-			dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
-					"wpa-eap.identity|USERNAME|%s",
-					ni_wireless_ssid_print(&net->essid, &ssid));
-			ni_stringbuf_destroy(&ssid);
-			goto error;
-		}
-		if (net->wpa_eap.phase2.method != NI_WIRELESS_EAP_NONE
-		 && net->wpa_eap.phase2.password == NULL) {
-			dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
-					"wpa-eap.phase2.password|PASSWORD|%s",
-					ni_wireless_ssid_print(&net->essid, &ssid));
-			ni_stringbuf_destroy(&ssid);
-			goto error;
-		}
-		break;
-
-	case NI_WIRELESS_KEY_MGMT_802_1X:
-		/* FIXME: handle 802.1x */
-
-	default: ;
-	}
-
-	/* We're asked to associate with the given network */
-	if (ni_wireless_set_network(dev, net) < 0) {
-		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"could not associate");
-		goto error;
-	}
-
-	ni_wireless_network_put(net);
+	ni_wireless_config_destroy(&conf);
 	return TRUE;
-
-error:
-	ni_wireless_network_put(net);
-	return FALSE;
 }
 
 static dbus_bool_t
-ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
+ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_t *net,
 				const ni_dbus_variant_t *var, DBusError *error)
 {
 	const ni_dbus_variant_t *child;
@@ -230,7 +178,7 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 }
 
 dbus_bool_t
-ni_objectmodel_get_wireless_request(ni_wireless_config_t *conf,
+ni_objectmodel_get_wireless_request(const char *ifname, ni_wireless_config_t *conf,
 				const ni_dbus_variant_t *dict, DBusError *error)
 {
 	ni_wireless_network_t *net;
@@ -281,7 +229,7 @@ ni_objectmodel_get_wireless_request(ni_wireless_config_t *conf,
 		if (!(net = ni_wireless_network_new()))
 			return FALSE;
 
-		if (!ni_objectmodel_get_wireless_request_net(net, var, error)) {
+		if (!ni_objectmodel_get_wireless_request_net(ifname, net, var, error)) {
 			ni_wireless_network_free(net);
 			return FALSE;
 		}
@@ -499,19 +447,31 @@ __ni_objectmodel_wireless_set_scan(ni_dbus_object_t *object,
 }
 
 
-
+#define WIRELESS_DICT_PROPERTY(dbus_name, fstem, rw) \
+	NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, ni_objectmodel_wireless_##fstem, rw)
+#define WIRELESS_INT_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_INT_PROPERTY(wireless, dbus_name, member_name, rw)
 #define WIRELESS_UINT_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_UINT_PROPERTY(wireless, dbus_name, member_name, rw)
 #define WIRELESS_STRING_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_STRING_PROPERTY(wireless, dbus_name, member_name, rw)
 
-const ni_dbus_property_t	ni_objectmodel_wireless_property_table[] = {
-	WIRELESS_UINT_PROPERTY(eap-methods, capabilities.eap_methods, RO),
+const ni_dbus_property_t	ni_objectmodel_wireless_capabilities[] = {
 	WIRELESS_UINT_PROPERTY(pairwise-ciphers, capabilities.pairwise_ciphers, RO),
 	WIRELESS_UINT_PROPERTY(group-ciphers, capabilities.group_ciphers, RO),
+	WIRELESS_UINT_PROPERTY(group-mgmt-ciphers, capabilities.group_mgmt_ciphers, RO),
 	WIRELESS_UINT_PROPERTY(key-management, capabilities.keymgmt_algos, RO),
 	WIRELESS_UINT_PROPERTY(auth-methods, capabilities.auth_algos, RO),
 	WIRELESS_UINT_PROPERTY(wpa-protocols, capabilities.wpa_protocols, RO),
+	WIRELESS_UINT_PROPERTY(operation-modes, capabilities.oper_modes, RO),
+	WIRELESS_UINT_PROPERTY(scan-modes, capabilities.scan_modes, RO),
+	WIRELESS_INT_PROPERTY (max-scan-ssid, capabilities.max_scan_ssid, RO),
+
+	{ NULL }
+};
+
+const ni_dbus_property_t	ni_objectmodel_wireless_property_table[] = {
+	WIRELESS_DICT_PROPERTY(capabilities,	capabilities,		RO),
 	__NI_DBUS_PROPERTY(
 			NI_DBUS_DICT_SIGNATURE,
 			scan, __ni_objectmodel_wireless, RO),

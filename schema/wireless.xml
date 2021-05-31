@@ -77,17 +77,21 @@
   </define>
 
   <define name="properties" class="dict">
+    <capabilities class="dict">
+      <pairwise-cipher type="builtin-wireless-cipher-mask"/>
+      <group-ciphers type="builtin-wireless-cipher-mask"/>
+      <group-mgmt-ciphers type="builtin-wireless-cipher-mask"/>
+      <key-management type="builtin-wireless-key-mgmt-mask"/>
+      <auth-methods type="builtin-wireless-auth-algo-mask"/>
+      <wpa-protocols type="builtin-wireless-auth-proto-mask"/>
+      <operation-modes type="builtin-wireless-oper-mode-mask"/>
+      <scan-modes type="builtin-wireless-scan-mode-mask"/>
+      <max-scan-ssid type="int32"/>
+    </capabilities>
     <scan class="dict">
       <!-- zero or more networks found during last scan -->
       <network type="network_t"/>
     </scan>
-
-    <eap-methods type="builtin-eap-method-mask"/>
-    <pairwise-cipher type="builtin-wireless-cipher-mask"/>
-    <group-ciphers type="builtin-wireless-cipher-mask"/>
-    <key-management type="builtin-wireless-key-mgmt-mask"/>
-    <auth-methods type="builtin-wireless-auth-algo-mask"/>
-    <!-- <wpa-protocols type="builtin-wireless-protocol-mask"/> -->
   </define>
 
   <define name="link-request" class="dict">
