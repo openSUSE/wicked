@@ -3,7 +3,7 @@
 -->
 <service name="wireless" interface="org.opensuse.Network.Wireless" object-class="netif-wireless">
 
-  <define name="network_t" class="dict">
+  <define name="network" class="dict">
     <essid type="string" constraint="required" description="SSID of the network to connect to"/>
     <scan-ssid type="boolean" description="Hidden SSID scan support enabled"/>
     <priority type="uint32" description="Network priority"/>
@@ -106,7 +106,7 @@
     <wpa-driver type="string" description="WPA Driver to be used by wpa_supplicant - 'nl80211,wext'"/>
     <country type="string" description="Regulatory domain"/>
 
-    <network type="network_t"/>
+    <networks class="array" element-type="wireless:network" element-name="network"/>
 
   </define>
 

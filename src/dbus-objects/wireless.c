@@ -221,19 +221,28 @@ ni_objectmodel_get_wireless_request(const char *ifname, ni_wireless_config_t *co
 		string = NULL;
 	}
 
-	var = NULL;
-	while ((var = ni_dbus_dict_get_next(dict, "network", var)) != NULL) {
-		if (!ni_dbus_variant_is_dict(var))
+	if ((var = ni_dbus_dict_get(dict, "networks"))){
+		unsigned int i;
+		ni_dbus_variant_t *network_dict;
+
+		if (!ni_dbus_variant_is_dict_array(var))
 			return FALSE;
 
-		if (!(net = ni_wireless_network_new()))
-			return FALSE;
+		for (i = 0; i < var->array.len; ++i) {
+			network_dict = &var->variant_array_value[i];
 
-		if (!ni_objectmodel_get_wireless_request_net(ifname, net, var, error)) {
-			ni_wireless_network_free(net);
-			return FALSE;
+			if (!ni_dbus_variant_is_dict(network_dict))
+				return FALSE;
+
+			if (!(net = ni_wireless_network_new()))
+				return FALSE;
+
+			if (!ni_objectmodel_get_wireless_request_net(ifname, net, network_dict, error)) {
+				ni_wireless_network_free(net);
+				return FALSE;
+			}
+			ni_wireless_network_array_append(&conf->networks, net);
 		}
-		ni_wireless_network_array_append(&conf->networks, net);
 	}
 
 	return TRUE;
