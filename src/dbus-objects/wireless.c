@@ -20,35 +20,6 @@ static dbus_bool_t	ni_objectmodel_get_wireless_request(ni_wireless_config_t *,
 				const ni_dbus_variant_t *, DBusError *);
 
 static dbus_bool_t
-ni_objectmodel_wireless_set_scanning(ni_dbus_object_t *object, const ni_dbus_method_t *method,
-			unsigned int argc, const ni_dbus_variant_t *argv,
-			ni_dbus_message_t *reply, DBusError *error)
-{
-	ni_netdev_t *dev;
-	dbus_bool_t enable;
-
-	if (argc != 1 || !ni_dbus_variant_get_bool(argv, &enable)) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s.%s: expected one boolean argument",
-				object->path, method->name);
-		return FALSE;
-	}
-
-	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
-		return FALSE;
-
-	if (ni_wireless_interface_set_scanning(dev, enable) < 0) {
-		dbus_set_error(error, DBUS_ERROR_FAILED,
-				"%s: unable to %s scanning mode",
-				dev->name,
-				enable? "enable" : "disable");
-		return FALSE;
-	}
-
-	return TRUE;
-}
-
-static dbus_bool_t
 __ni_objectmodel_wireless_net_disconnect(ni_netdev_t *dev, ni_dbus_message_t *reply, DBusError *error)
 {
 	if (ni_wireless_disconnect(dev) < 0) {
@@ -548,7 +519,6 @@ const ni_dbus_property_t	ni_objectmodel_wireless_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_wireless_methods[] = {
-	{ "setScanning",	DBUS_TYPE_BOOLEAN_AS_STRING,	.handler = ni_objectmodel_wireless_set_scanning	},
 	{ "changeDevice",	"a{sv}",			.handler = ni_objectmodel_wireless_change_device },
 
 	{ NULL }

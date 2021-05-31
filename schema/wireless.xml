@@ -114,9 +114,4 @@
     </arguments>
   </method>
 
-  <method name="setScanning">
-    <arguments>
-      <enable type="boolean"/>
-    </arguments>
-  </method>
 </service>
