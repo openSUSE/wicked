@@ -461,6 +461,67 @@ ni_wireless_wpa_net_format_bitmap(ni_wpa_net_properties_t *properties, unsigned 
 }
 
 static ni_bool_t
+ni_wireless_wpa_net_format_wep(ni_wpa_net_properties_t *properties, const ni_wireless_network_t *net)
+{
+	size_t len, i;
+	char *key;
+	unsigned char key_data[NI_WIRELESS_WEP_KEY_LEN_104];
+	const char *name;
+
+	if (net->auth_algo == NI_WIRELESS_AUTH_ALGO_NONE)
+		return TRUE;
+
+	if (!ni_wireless_wpa_net_format_bitmap(properties, net->auth_algo,
+			ni_wireless_wpa_auth_algo_map, NI_WPA_NET_PROPERTY_AUTH_ALG))
+		return FALSE;
+
+	name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_WEP_TX_KEYIDX);
+	if (!name || !ni_dbus_dict_add_int32(properties, name, net->default_key))
+		return FALSE;
+
+	for(i = 0; i < NI_WIRELESS_WEP_KEY_COUNT; i++){
+		key = net->wep_keys[i];
+		len = ni_string_len(key);
+
+		if (len == 0)
+			continue;
+
+		switch(i){
+		default:
+			name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_WEP_KEY0);
+			break;
+		case 1:
+			name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_WEP_KEY1);
+			break;
+		case 2:
+			name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_WEP_KEY2);
+			break;
+		case 3:
+			name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_WEP_KEY3);
+			break;
+		}
+
+		switch(len){
+		case NI_WIRELESS_WEP_KEY_LEN_40:
+		case NI_WIRELESS_WEP_KEY_LEN_104:
+			if (!ni_dbus_dict_add_string(properties, name, key))
+				return FALSE;
+			break;
+
+		case NI_WIRELESS_WEP_KEY_LEN_40_HEX:
+		case NI_WIRELESS_WEP_KEY_LEN_104_HEX:
+			if ((len = ni_parse_hex_data(key, key_data, sizeof(key_data), NULL)))
+				if (!ni_dbus_dict_add_byte_array(properties, name, key_data, len))
+					return FALSE;
+			break;
+		default:
+			ni_warn("Unknown WEP key format len=%lu", len);
+		}
+	}
+	return TRUE;
+}
+
+static ni_bool_t
 ni_wireless_wpa_net_format_psk(ni_wpa_net_properties_t *properties, const ni_wireless_network_t *net)
 {
 	const char *name;
@@ -619,6 +680,9 @@ ni_wireless_wpa_net_format(ni_wpa_net_properties_t *properties, const ni_wireles
 		if (!name || !ni_dbus_dict_add_int32(properties, name, net->fragment_size))
 			return FALSE;
 	}
+
+	if (!ni_wireless_wpa_net_format_wep(properties, net))
+		return FALSE;
 
 	if (!ni_wireless_wpa_net_format_bitmap(properties, net->auth_proto,
 			ni_wireless_wpa_protocol_map, NI_WPA_NET_PROPERTY_PROTO))
@@ -1117,6 +1181,12 @@ static ni_intmap_t __ni_wireless_auth_algo_names[] = {
 	{ "leap",		NI_WIRELESS_AUTH_LEAP },
 	{ NULL }
 };
+
+const ni_intmap_t *
+ni_wireless_auth_algo_map(void)
+{
+	return __ni_wireless_auth_algo_names;
+}
 
 const char *
 ni_wireless_auth_algo_to_name(ni_wireless_auth_algo_t algo)
@@ -1791,6 +1861,81 @@ ni_wireless_essid_already_exists(ni_wireless_t *wlan, ni_wireless_ssid_t *essid)
 		net = wlan->conf.networks.data[i];
 		if (ni_wireless_ssid_eq(&net->essid, essid))
 			return TRUE;
+	}
+
+	return FALSE;
+}
+
+
+static ni_bool_t
+ni_wireless_wep_key_validate_string(const char *key)
+{
+	size_t len;
+
+	if (!key)
+		return FALSE;
+
+	len = ni_string_len(key);
+	switch(len){
+	case NI_WIRELESS_WEP_KEY_LEN_40:
+	case NI_WIRELESS_WEP_KEY_LEN_104:
+	case NI_WIRELESS_WEP_KEY_LEN_128:
+		return ni_check_printable(key, len);
+	default:
+		return FALSE;
+	}
+}
+
+static ni_bool_t
+ni_wireless_wep_key_validate_hexstring(const char *key)
+{
+	size_t len;
+	unsigned char key_data[NI_WIRELESS_WEP_KEY_LEN_128];
+
+	if (!key)
+		return FALSE;
+
+	len = ni_string_len(key);
+	switch(len){
+	case NI_WIRELESS_WEP_KEY_LEN_40_HEX:
+	case NI_WIRELESS_WEP_KEY_LEN_104_HEX:
+	case NI_WIRELESS_WEP_KEY_LEN_128_HEX:
+		return ni_parse_hex_data(key, key_data, sizeof(key_data), NULL) > 0;
+	default:
+		return FALSE;
+	}
+}
+
+ni_bool_t
+ni_wireless_wep_key_parse(char **out, const char *key)
+{
+	char *_out = NULL;
+	if (!key)
+		return FALSE;
+
+	if (ni_string_startswith(key, "s:") && ni_wireless_wep_key_validate_string(key+2)) {
+		if (out)
+			return ni_string_dup(out, key+2);
+		return TRUE;
+
+	} else if (ni_string_startswith(key, "h:") && ni_wireless_wep_key_validate_hexstring(key+2)) {
+		if (out)
+			return ni_string_dup(out, key+2);
+		return TRUE;
+
+	} else {
+		if (!ni_string_dup(&_out, key))
+			return FALSE;
+		ni_string_remove_char(_out, '-');
+		ni_string_remove_char(_out, ':');
+
+		if (ni_wireless_wep_key_validate_hexstring(_out)) {
+			if(!out)
+				ni_string_free(&_out);
+			else
+				*out = _out;
+			return TRUE;
+		}
 	}
 
 	return FALSE;

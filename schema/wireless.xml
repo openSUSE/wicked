@@ -20,7 +20,7 @@
         <min value="0"/>
         <max value="3"/>
       </default-key>
-      <key class="dict"/>
+      <key type="string"/>
     </wep>
 
     <wpa-psk class="dict" constraint="exclusive:wpa-auth-data">

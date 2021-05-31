@@ -1367,12 +1367,13 @@ __ni_compat_generate_wireless_network(xml_node_t *parent, ni_wireless_network_t 
 	}
 
 	if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_NONE)) {
-		if (!(wep = xml_node_new("wep", network))) {
+		if (!(wep = xml_node_new("wep", NULL))) {
 			goto error;
 		}
 
-		if ((value = ni_wireless_auth_algo_to_name(net->auth_algo))) {
+		if ((value = ni_format_bitmap(&buf, ni_wireless_auth_algo_map(), net->auth_algo, ","))) {
 			xml_node_new_element("auth-algo", wep, value);
+			ni_stringbuf_destroy(&buf);
 		}
 
 		if (net->default_key < NI_WIRELESS_WEP_KEY_COUNT &&
@@ -1387,6 +1388,11 @@ __ni_compat_generate_wireless_network(xml_node_t *parent, ni_wireless_network_t 
 				xml_node_new_element("key", wep, net->wep_keys[key_i]);
 			}
 		}
+
+		if (xml_node_get_child(wep, "key"))
+			xml_node_add_child(network, wep);
+		else
+			xml_node_free(wep);
 	}
 
 	if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_PSK)) {

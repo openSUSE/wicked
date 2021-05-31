@@ -102,6 +102,43 @@ ni_objectmodel_shutdown_wireless(ni_dbus_object_t *object, const ni_dbus_method_
 	return TRUE;
 }
 
+static dbus_bool_t
+ni_objectmodel_get_wireless_request_wep(const char *ifname, ni_wireless_network_t *net,
+				const ni_dbus_variant_t *var, DBusError *error)
+{
+	const ni_dbus_variant_t *dict, *key;
+	const char *string;
+	unsigned int key_idx;
+	uint32_t value;
+
+	if ((dict = ni_dbus_dict_get(var, "wep")) == NULL)
+		return TRUE;
+
+	if (!ni_dbus_variant_is_dict(dict)){
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Invalid wep format - dict expected", ifname);
+		return FALSE;
+	}
+
+	ni_dbus_dict_get_uint32(dict, "auth-algo", &net->auth_algo);
+
+	net->keymgmt_proto |= NI_BIT(NI_WIRELESS_KEY_MGMT_NONE);
+	if (ni_dbus_dict_get_uint32(dict, "default-key", &value))
+		net->default_key = value;
+
+	key = NULL;
+	key_idx = 0;
+	while((key = ni_dbus_dict_get_next(dict, "key", key)) && key_idx < NI_WIRELESS_WEP_KEY_COUNT) {
+		if (!ni_dbus_variant_get_string(key, &string)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Invalid wep key keyidx:%u - string expected", ifname, key_idx-1);
+			return FALSE;
+		}
+		if (!ni_wireless_wep_key_parse(&net->wep_keys[key_idx++], string)){
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Invalid wep key format keyidx:%u", ifname, key_idx-1);
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
 
 static dbus_bool_t
 ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_t *net,
@@ -110,7 +147,7 @@ ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_
 	const ni_dbus_variant_t *child;
 	const char *string;
 	uint32_t value;
-	dbus_bool_t  bool_value;
+	dbus_bool_t boolean;
 
 	if (!ni_dbus_variant_is_dict(var)) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "expected dict argument");
@@ -124,6 +161,12 @@ ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_
 			return FALSE;
 		}
 	}
+
+	if (ni_dbus_dict_get_bool(var, "scan-ssid", &boolean))
+		net->scan_ssid = !!boolean;
+
+	if (ni_dbus_dict_get_uint32(var, "priority", &value))
+		net->priority = value;
 
 	if ((child = ni_dbus_dict_get(var, "access-point")) != NULL) {
 		ni_hwaddr_t hwaddr;
@@ -147,9 +190,21 @@ ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_
 		net->mode = value;
 	}
 
+	if (ni_dbus_dict_get_uint32(var, "channel", &value))
+		net->channel = value;
+
+	if (ni_dbus_dict_get_uint32(var, "fragment-size", &value))
+		net->fragment_size = value;
+
 	net->auth_proto = 0;
+
+	if(!ni_objectmodel_get_wireless_request_wep(ifname, net, var, error)){
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: unexpected error in wep configuration", ifname);
+		return FALSE;
+	}
+
 	if ((child = ni_dbus_dict_get(var, "wpa-psk")) != NULL) {
-		net->keymgmt_proto = NI_BIT(NI_WIRELESS_KEY_MGMT_PSK);
+		net->keymgmt_proto |= NI_BIT(NI_WIRELESS_KEY_MGMT_PSK);
 		if (ni_dbus_dict_get_uint32(child, "auth-proto", &value))
 			net->auth_proto |= value;
 		/* 'key' member has been removed
@@ -176,8 +231,8 @@ ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_
 				net->wpa_eap.phase1.peapver = value;
 			else
 				net->wpa_eap.phase1.peapver = -1U;
-			if (ni_dbus_dict_get_bool(gchild, "peap-label", &bool_value))
-				net->wpa_eap.phase1.peaplabel = bool_value;
+			if (ni_dbus_dict_get_bool(gchild, "peap-label", &boolean))
+				net->wpa_eap.phase1.peaplabel = boolean;
 		}
 
 		gchild = ni_dbus_dict_get(child, "phase2");
@@ -194,6 +249,9 @@ ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_
 			 * If not provided, use system certs */
 		}
 	}
+
+	if (net->keymgmt_proto == 0)
+		net->keymgmt_proto = NI_BIT(NI_WIRELESS_KEY_MGMT_NONE);
 
 	return TRUE;
 }
@@ -259,7 +317,7 @@ ni_objectmodel_get_wireless_request(const char *ifname, ni_wireless_config_t *co
 				return FALSE;
 
 			if (!ni_objectmodel_get_wireless_request_net(ifname, net, network_dict, error)) {
-				ni_wireless_network_free(net);
+				ni_wireless_network_put(net);
 				return FALSE;
 			}
 			ni_wireless_network_array_append(&conf->networks, net);

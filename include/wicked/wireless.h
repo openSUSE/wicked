@@ -179,10 +179,13 @@ typedef struct ni_wireless_blob {
 #define NI_WIRELESS_WEP_KEY_COUNT	4
 
 enum ni_wireless_wep_key_len {
-	NI_WIRELESS_WEP_KEY_LEN_40 = 40,
-	NI_WIRELESS_WEP_KEY_LEN_64 = 64,
-	NI_WIRELESS_WEP_KEY_LEN_104 = 104,
-	NI_WIRELESS_WEP_KEY_LEN_128 = 128,
+	NI_WIRELESS_WEP_KEY_LEN_40 = 40 / 8,				    /* like: "clown" */
+	NI_WIRELESS_WEP_KEY_LEN_104 = 104 / 8,
+	NI_WIRELESS_WEP_KEY_LEN_128 = 128 / 8,
+
+	NI_WIRELESS_WEP_KEY_LEN_40_HEX = NI_WIRELESS_WEP_KEY_LEN_40 * 2,    /* like: "deedbeef01" */
+	NI_WIRELESS_WEP_KEY_LEN_104_HEX = NI_WIRELESS_WEP_KEY_LEN_104 * 2,
+	NI_WIRELESS_WEP_KEY_LEN_128_HEX = NI_WIRELESS_WEP_KEY_LEN_128 * 2
 };
 
 struct ni_wireless_network {
@@ -373,6 +376,7 @@ extern void				ni_wireless_auth_info_array_append(ni_wireless_auth_info_array_t 
 extern void				ni_wireless_auth_info_array_destroy(ni_wireless_auth_info_array_t *);
 
 extern void				ni_wireless_wep_key_array_destroy(char **);
+extern ni_bool_t			ni_wireless_wep_key_parse(char **out, const char *key);
 extern void				ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t new_state);
 
 extern const char *			ni_wireless_ssid_print_data(const unsigned char *data, size_t len, ni_stringbuf_t *out);
@@ -388,6 +392,7 @@ extern ni_bool_t			ni_wireless_name_to_security(const char *, unsigned int *);
 extern const ni_intmap_t *		ni_wireless_auth_proto_map(void);
 extern const char *			ni_wireless_auth_proto_to_name(ni_wireless_auth_proto_t);
 extern ni_bool_t			ni_wireless_name_to_auth_proto(const char *, unsigned int *);
+extern const ni_intmap_t *		ni_wireless_auth_algo_map(void);
 extern const char *			ni_wireless_auth_algo_to_name(ni_wireless_auth_algo_t);
 extern ni_bool_t			ni_wireless_name_to_auth_algo(const char *, unsigned int *);
 extern const char *			ni_wireless_cipher_to_name(ni_wireless_cipher_t);
