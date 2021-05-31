@@ -1093,31 +1093,35 @@ ni_wireless_auth_info_array_destroy(ni_wireless_auth_info_array_t *array)
  * scanning command and wpa-supplicant.
  */
 const char *
-ni_wireless_print_ssid(const ni_wireless_ssid_t *ssid)
+ni_wireless_ssid_print_data(const unsigned char *data, size_t len, ni_stringbuf_t *out)
 {
-	static char result[4 * sizeof(ssid->data) + 1];
 	unsigned int i, j = 0;
 
-	if (!ssid || ssid->len > sizeof(ssid->data))
+	if (!data || len > NI_WIRELESS_ESSID_MAX_LEN)
 		return NULL;
 
-	for (i = j = 0; i < ssid->len; ++i) {
-		unsigned char cc = ssid->data[i];
+	for (i = j = 0; i < len; ++i) {
+		unsigned char cc = data[i];
 
 		if (isalnum(cc) || cc == '-' || cc == '_' || cc == ' ') {
-			result[j++] = cc;
+			ni_stringbuf_putc(out, cc);
 		} else {
-			sprintf(result + j, "\\x%02X", cc);
+			ni_stringbuf_printf(out, "\\x%02X", cc);
 			j += 4;
 		}
 	}
-	result[j] = '\0';
 
-	return result;
+	return out->string;
+}
+
+const char *
+ni_wireless_ssid_print(const ni_wireless_ssid_t *ssid, ni_stringbuf_t *out)
+{
+	return ni_wireless_ssid_print_data(ssid->data, ssid->len, out);
 }
 
 static inline unsigned int
-__ni_wireless_parse_ssid_hex(unsigned char *out, const char *str, size_t len)
+__ni_wireless_ssid_parse_hex(unsigned char *out, const char *str, size_t len)
 {
 	unsigned long val;
 	unsigned int pos;
@@ -1144,7 +1148,7 @@ __ni_wireless_parse_ssid_hex(unsigned char *out, const char *str, size_t len)
 }
 
 static inline unsigned int
-__ni_wireless_parse_ssid_oct(unsigned char *out, const char *str, size_t len)
+__ni_wireless_ssid_parse_oct(unsigned char *out, const char *str, size_t len)
 {
 	unsigned int val = 0;
 	unsigned int pos;
@@ -1163,17 +1167,17 @@ __ni_wireless_parse_ssid_oct(unsigned char *out, const char *str, size_t len)
 	return pos;
 }
 
-static inline int
-__ni_wireless_parse_ssid_put(ni_wireless_ssid_t *ssid, unsigned char cc)
+static ni_bool_t
+ni_wireless_ssid_put(ni_wireless_ssid_t *ssid, unsigned char cc)
 {
 	if (ssid->len >= sizeof(ssid->data))
-		return -1;
+		return FALSE;
 	ssid->data[ssid->len++] = cc;
-	return 1;
+	return TRUE;
 }
 
 static inline int
-__ni_wireless_parse_ssid_esc(unsigned char *cc, const char *s, const char *e)
+__ni_wireless_ssid_parse_esc(unsigned char *cc, const char *s, const char *e)
 {
 	switch (*s) {
 	case '\\':	*cc = '\\';		return 1;
@@ -1183,7 +1187,7 @@ __ni_wireless_parse_ssid_esc(unsigned char *cc, const char *s, const char *e)
 	case 't':	*cc = '\t';		return 1;
 	case 'e':	*cc = '\033';		return 1;
 	case 'x':
-		return __ni_wireless_parse_ssid_hex(cc, s + 1, e - s - 1) + 1;
+		return __ni_wireless_ssid_parse_hex(cc, s + 1, e - s - 1) + 1;
 	case '0':
 	case '1':
 	case '2':
@@ -1192,20 +1196,20 @@ __ni_wireless_parse_ssid_esc(unsigned char *cc, const char *s, const char *e)
 	case '5':
 	case '6':
 	case '7':
-		return __ni_wireless_parse_ssid_oct(cc, s, e - s);
+		return __ni_wireless_ssid_parse_oct(cc, s, e - s);
 	default:
 		return 0;
 	}
 }
 
 ni_bool_t
-ni_wireless_parse_ssid(const char *string, ni_wireless_ssid_t *ssid)
+ni_wireless_ssid_parse(ni_wireless_ssid_t *ssid, const char *in)
 {
-	const char *s = string;
+	const char *s = in;
 	const char *e;
 	int ret;
 
-	if (!string || !ssid)
+	if (!in || !ssid)
 		goto bad_ssid;
 
 	e = s + ni_string_len(s);
@@ -1214,26 +1218,25 @@ ni_wireless_parse_ssid(const char *string, ni_wireless_ssid_t *ssid)
 		unsigned char cc = *s++;
 
 		if (cc == '\\') {
-			ret = __ni_wireless_parse_ssid_esc(&cc, s, e);
+			ret = __ni_wireless_ssid_parse_esc(&cc, s, e);
 			if (ret < 0)
 				goto bad_ssid;
 			s += ret;
 		}
 
-		ret = __ni_wireless_parse_ssid_put(ssid, cc);
-		if (ret < 0)
+		if (!ni_wireless_ssid_put(ssid, cc))
 			goto bad_ssid;
 	}
 
 	return TRUE;
 
 bad_ssid:
-	ni_debug_wireless("unable to parse wireless ssid \"%s\"", string);
+	ni_debug_wireless("unable to parse wireless ssid \"%s\"", in);
 	return FALSE;
 }
 
 ni_bool_t
-ni_wireless_match_ssid(ni_wireless_ssid_t *a, ni_wireless_ssid_t *b)
+ni_wireless_ssid_eq(ni_wireless_ssid_t *a, ni_wireless_ssid_t *b)
 {
 	if (a == NULL || b == NULL)
 		return a == b;
@@ -1255,7 +1258,7 @@ ni_wireless_essid_already_exists(ni_wireless_t *wlan, ni_wireless_ssid_t *essid)
 
 	for (i = 0, count = wlan->conf.networks.count; i < count; i++) {
 		net = wlan->conf.networks.data[i];
-		if (ni_wireless_match_ssid(&net->essid, essid))
+		if (ni_wireless_ssid_eq(&net->essid, essid))
 			return TRUE;
 	}
 

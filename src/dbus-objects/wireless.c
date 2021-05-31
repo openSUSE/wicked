@@ -79,6 +79,7 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 	ni_netdev_t *dev;
 	ni_wireless_t *wlan;
 	ni_wireless_network_t *net;
+	ni_stringbuf_t ssid = NI_STRINGBUF_INIT_DYNAMIC;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
@@ -117,7 +118,8 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 		if (net->wpa_psk.passphrase == NULL) {
 			dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
 					"wpa-psk.passphrase|PASSWORD|%s",
-					ni_wireless_print_ssid(&net->essid));
+					ni_wireless_ssid_print(&net->essid, &ssid));
+			ni_stringbuf_destroy(&ssid);
 			goto error;
 		}
 		break;
@@ -126,14 +128,16 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 		if (net->wpa_eap.identity == NULL) {
 			dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
 					"wpa-eap.identity|USERNAME|%s",
-					ni_wireless_print_ssid(&net->essid));
+					ni_wireless_ssid_print(&net->essid, &ssid));
+			ni_stringbuf_destroy(&ssid);
 			goto error;
 		}
 		if (net->wpa_eap.phase2.method != NI_WIRELESS_EAP_NONE
 		 && net->wpa_eap.phase2.password == NULL) {
 			dbus_set_error(error, NI_DBUS_ERROR_AUTH_INFO_MISSING,
 					"wpa-eap.phase2.password|PASSWORD|%s",
-					ni_wireless_print_ssid(&net->essid));
+					ni_wireless_ssid_print(&net->essid, &ssid));
+			ni_stringbuf_destroy(&ssid);
 			goto error;
 		}
 		break;
@@ -175,7 +179,7 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 
 	if ((child = ni_dbus_dict_get(var, "essid")) != NULL) {
 		if (!ni_dbus_variant_get_string(child, &string) ||
-		    !ni_wireless_parse_ssid(string, &net->essid)) {
+		    !ni_wireless_ssid_parse(&net->essid, string)) {
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "invald wireless ssid %s", string);
 			return FALSE;
 		}
@@ -371,8 +375,10 @@ __ni_objectmodel_wireless_get_network(const ni_wireless_network_t *network,
 				DBusError *error)
 {
 	unsigned int i;
+	ni_stringbuf_t sbuf = NI_STRINGBUF_INIT_DYNAMIC;
 
-	ni_dbus_dict_add_string(dict, "essid", ni_wireless_print_ssid(&network->essid));
+	ni_dbus_dict_add_string(dict, "essid", ni_wireless_ssid_print(&network->essid, &sbuf));
+	ni_stringbuf_destroy(&sbuf);
 
 	if (network->access_point.len)
 		ni_dbus_dict_add_byte_array(dict, "access-point",
@@ -415,7 +421,7 @@ __ni_objectmodel_wireless_set_network(ni_wireless_network_t *network,
 	double valdbl;
 
 	if (ni_dbus_dict_get_string(dict, "essid", &string)
-	 && !ni_wireless_parse_ssid(string, &network->essid))
+	 && !ni_wireless_ssid_parse(&network->essid, string))
 		return FALSE;
 
 	if ((child = ni_dbus_dict_get(dict, "access-point")) != NULL) {

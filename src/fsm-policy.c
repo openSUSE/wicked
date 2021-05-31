@@ -1824,7 +1824,7 @@ __ni_fsm_policy_match_wireless_essid_check(const ni_ifcondition_t *cond, const n
 		ni_wireless_ssid_t essid;
 		unsigned int i;
 
-		ni_wireless_parse_ssid(cond->args.string, &essid);
+		ni_wireless_ssid_parse(&essid, cond->args.string);
 		for (i = 0; i < scan->networks.count; ++i) {
 			ni_wireless_network_t *net = scan->networks.data[i];
 
@@ -1847,7 +1847,7 @@ ni_ifcondition_wireless_element(xml_node_t *node, const char *name)
 	if (ni_string_eq(name, "essid")) {
 		ni_wireless_ssid_t essid;
 
-		if (!ni_wireless_parse_ssid(node->cdata, &essid)) {
+		if (!ni_wireless_ssid_parse(&essid, node->cdata)) {
 			ni_error("%s: cannot parse essid \"%s\"",
 					xml_node_location(node), node->cdata);
 			return NULL;

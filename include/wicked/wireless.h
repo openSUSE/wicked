@@ -308,10 +308,11 @@ extern void		ni_wireless_auth_info_array_append(ni_wireless_auth_info_array_t *,
 extern void		ni_wireless_auth_info_array_destroy(ni_wireless_auth_info_array_t *);
 extern void		ni_wireless_association_changed(unsigned int ifindex, ni_wireless_assoc_state_t new_state);
 
-extern const char *	ni_wireless_print_ssid(const ni_wireless_ssid_t *);
-extern ni_bool_t	ni_wireless_parse_ssid(const char *, ni_wireless_ssid_t *);
-extern ni_bool_t		ni_wireless_match_ssid(ni_wireless_ssid_t *, ni_wireless_ssid_t *);
-extern ni_bool_t		ni_wireless_essid_already_exists(ni_wireless_t *, ni_wireless_ssid_t *);
+extern const char *	ni_wireless_ssid_print_data(const unsigned char *data, size_t len, ni_stringbuf_t *out);
+extern const char *	ni_wireless_ssid_print(const ni_wireless_ssid_t *, ni_stringbuf_t *out);
+extern ni_bool_t	ni_wireless_ssid_parse(ni_wireless_ssid_t *, const char *);
+extern ni_bool_t	ni_wireless_ssid_eq(ni_wireless_ssid_t *, ni_wireless_ssid_t *);
+extern ni_bool_t	ni_wireless_essid_already_exists(ni_wireless_t *, ni_wireless_ssid_t *);
 
 extern const char *	ni_wireless_mode_to_name(ni_wireless_mode_t);
 extern ni_bool_t	ni_wireless_name_to_mode(const char *, unsigned int *);

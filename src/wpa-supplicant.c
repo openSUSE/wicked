@@ -767,9 +767,11 @@ int
 ni_wpa_interface_associate(ni_wpa_interface_t *dev, ni_wireless_network_t *net, ni_wireless_ap_scan_mode_t ap_scan)
 {
 	ni_dbus_object_t *net_object;
+	ni_stringbuf_t ssid = NI_STRINGBUF_INIT_DYNAMIC;
 
 	ni_debug_wpa("%s(dev=%s, essid='%s')", __func__, dev->ifname,
-			ni_wireless_print_ssid(&net->essid));
+			ni_wireless_ssid_print(&net->essid, &ssid));
+	ni_stringbuf_destroy(&ssid);
 
 	/* FIXME: make sure we have all the keys/pass phrases etc to
 	 * associate. */
@@ -1802,6 +1804,7 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 	ni_wireless_network_t *net = proxy->handle;
 	ni_dbus_variant_t dict = NI_DBUS_VARIANT_INIT;
 	ni_wireless_ssid_t old_essid;
+	ni_stringbuf_t ssid = NI_STRINGBUF_INIT_DYNAMIC;
 	DBusMessageIter iter;
 
 	dbus_message_iter_init(msg, &iter);
@@ -1823,7 +1826,8 @@ ni_wpa_bss_properties_result(ni_dbus_object_t *proxy, ni_dbus_message_t *msg)
 			net->scan_info.noise,
 			net->scan_info.level,
 			net->scan_info.max_bitrate / 1000000,
-			ni_wireless_print_ssid(&net->essid));
+			ni_wireless_ssid_print(&net->essid, &ssid));
+	ni_stringbuf_destroy(&ssid);
 
 	if (net->notified && memcmp(&old_essid, &net->essid, sizeof(old_essid)) != 0) {
 		ni_debug_wpa("%s: essid changed", ni_link_address_print(&net->access_point));

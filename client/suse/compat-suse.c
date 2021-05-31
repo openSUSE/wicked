@@ -3638,9 +3638,8 @@ try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
 	}
 
 	/* Check whether ESSID already exists */
-	if (!ni_wireless_parse_ssid(var->value, &essid)) {
-		if ( essid.len > NI_WIRELESS_ESSID_MAX_LEN)
-			ni_error("ifcfg-%s: too long WIRELESS_ESSID%s value",
+	if (!ni_wireless_ssid_parse(&essid, var->value)) {
+		ni_error("ifcfg-%s: invalid WIRELESS_ESSID%s value",
 				dev->name, suffix);
 		goto failure_global;
 	}

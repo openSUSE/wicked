@@ -1323,6 +1323,7 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 	char *tmp = NULL;
 	const char *value;
 	int i, count, key_i;
+	ni_stringbuf_t ssid = NI_STRINGBUF_INIT_DYNAMIC;
 
 	wlan = ni_netdev_get_wireless(compat->dev);
 
@@ -1351,7 +1352,8 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 			return FALSE;
 
 		if (net->essid.len > 0) {
-			xml_node_new_element("essid", network, ni_wireless_print_ssid(&net->essid));
+			xml_node_new_element("essid", network, ni_wireless_ssid_print(&net->essid, &ssid));
+			ni_stringbuf_destroy(&ssid);
 		}
 
 		xml_node_new_element("scan-ssid", network, net->scan_ssid?"true":"false");
