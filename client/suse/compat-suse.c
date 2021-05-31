@@ -3674,22 +3674,17 @@ try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
 	}
 
 	/* Default priority is an order of the networks in ifcfg file */
-	if (!net->scan_ssid) {
-		if ((var = __find_indexed_variable(sc, "WIRELESS_PRIORITY", suffix))) {
-			if (ni_parse_uint(var->value, &net->priority, 10) < 0) {
-				ni_error("ifcfg-%s: cannot parse WIRELESS_PRIORITY%s value",
-					dev->name, suffix);
-				goto failure;
-			}
-			else if (net->priority < 1) {
-				ni_error("ifcfg-%s: wrong WIRELESS_PRIORITY%s value",
-					dev->name, suffix);
-				goto failure;
-			}
+	if ((var = __find_indexed_variable(sc, "WIRELESS_PRIORITY", suffix))) {
+		if (ni_parse_uint(var->value, &net->priority, 10) < 0) {
+			ni_error("ifcfg-%s: cannot parse WIRELESS_PRIORITY%s value",
+				dev->name, suffix);
+			goto failure;
 		}
-	}
-	else {
-		net->priority = wlan->conf.networks.count+1;
+		else if (net->priority < 1) {
+			ni_error("ifcfg-%s: wrong WIRELESS_PRIORITY%s value",
+				dev->name, suffix);
+			goto failure;
+		}
 	}
 
 	/* Default is mode = NI_WIRELESS_MODE_MANAGED */
