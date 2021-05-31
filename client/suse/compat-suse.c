@@ -3638,105 +3638,38 @@ ni_wireless_parse_auth_mode(const ni_sysconfig_t *sc, ni_wireless_network_t *net
 	return 0;
 }
 
-/*
- * Handle Wireless devices
- */
 static ni_bool_t
-try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
+try_add_wireless_net(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
 {
-	ni_wireless_network_t *net;
-	ni_wireless_t *wlan;
-	ni_var_t *var;
-	const char *tmp = NULL;
+	ni_wireless_network_t *net = NULL;
+	ni_wireless_t *wlan = ni_netdev_get_wireless(dev);
+	ni_var_t *var = NULL;
 	ni_wireless_ssid_t essid;
 
 	/* Just skip networks with empty ESSID */
 	if (!(var = __find_indexed_variable(sc, "WIRELESS_ESSID", suffix))) {
 		ni_error("ifcfg-%s: empty WIRELESS_ESSID%s value",
 			dev->name, suffix);
-		return FALSE;
-	}
-
-	switch (dev->link.type) {
-	case NI_IFTYPE_UNKNOWN:
-		dev->link.type = NI_IFTYPE_WIRELESS;
-	case NI_IFTYPE_WIRELESS:
-		break;
-	default:
-		ni_error("ifcfg-%s: %s config contains wireless variables",
-			dev->name, ni_linktype_type_to_name(dev->link.type));
-		return FALSE;
-	}
-
-	if (!(wlan = dev->wireless)) {
-		ni_bool_t check_country = FALSE;
-
-		if ((wlan = ni_netdev_get_wireless(dev)) == NULL) {
-			ni_error("%s: no wireless info for device", dev->name);
-			return FALSE;
-		}
-
-		/* Default is ap_scan = 1 */
-		if ((tmp = ni_sysconfig_get_value(sc, "WIRELESS_AP_SCANMODE"))) {
-			if ((ni_parse_uint(tmp, &wlan->conf.ap_scan, 10) < 0) ||
-				(wlan->conf.ap_scan > NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH)) {
-				ni_error("ifcfg-%s: wrong WIRELESS_AP_SCANMODE value",
-					dev->name);
-				goto failure_global;
-			}
-		}
-
-		/* Default is wpa_drv = "nl80211" */
-		if ((tmp = ni_sysconfig_get_value(sc, "WIRELESS_WPA_DRIVER"))) {
-			if (!ni_wpa_driver_string_validate(tmp)) {
-				ni_error("ifcfg-%s: wrong WIRELESS_WPA_DRIVER value",
-					dev->name);
-				goto failure_global;
-			}
-			else if (ni_string_contains(tmp, "80211")) {
-				check_country = TRUE;
-			}
-
-			ni_string_dup(&wlan->conf.driver, tmp);
-		}
-		else {
-			check_country = TRUE;
-		}
-
-		/* Regulatory domain is supported by nl80211 wpa driver */
-		if (check_country) {
-			if ((tmp = ni_sysconfig_get_value(sc, "WIRELESS_REGULATORY_DOMAIN"))) {
-				if ((2 == ni_string_len(tmp)) &&
-					(isalpha((unsigned char) tmp[0])) &&
-					(isalpha((unsigned char) tmp[1]))) {
-						ni_string_dup(&wlan->conf.country, tmp);
-				}
-				else {
-					ni_error("ifcfg-%s: wrong WIRELESS_REGULATORY_DOMAIN value",
-						dev->name);
-					goto failure_global;
-				}
-			}
-		}
+		goto failure;
 	}
 
 	/* Check whether ESSID already exists */
 	if (!ni_wireless_ssid_parse(&essid, var->value)) {
 		ni_error("ifcfg-%s: invalid WIRELESS_ESSID%s value",
 				dev->name, suffix);
-		goto failure_global;
+		goto failure;
 	}
 
 	if (ni_wireless_essid_already_exists(wlan, &essid)) {
 		ni_error("ifcfg-%s: double configuration of the same ESSID=%s",
 			dev->name, var->value);
-		goto failure_global;
+		goto failure;
 	}
 
 	/* Allocate and mlock new network object */
 	if (!(net = ni_wireless_network_new())) {
 		ni_error("ifcfg-%s: unable to create network object", dev->name);
-		goto failure_global;
+		goto failure;
 	}
 
 	/* Write down the ESSID */
@@ -3853,8 +3786,85 @@ try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
 	return TRUE;
 
 failure:
-	ni_wireless_network_put(net);
-failure_global:
+	if (net)
+		ni_wireless_network_put(net);
+	return FALSE;
+}
+
+/*
+ * Handle Wireless devices
+ */
+static ni_bool_t
+try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev)
+{
+	ni_wireless_t *wlan;
+	const char *tmp = NULL;
+	ni_bool_t check_country = FALSE;
+
+	switch (dev->link.type) {
+	case NI_IFTYPE_UNKNOWN:
+		dev->link.type = NI_IFTYPE_WIRELESS;
+	case NI_IFTYPE_WIRELESS:
+		break;
+	default:
+		ni_error("ifcfg-%s: %s config contains wireless variables",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+		return FALSE;
+	}
+
+	if ((wlan = ni_netdev_get_wireless(dev)) == NULL) {
+		ni_error("%s: no wireless info for device", dev->name);
+		return FALSE;
+	}
+
+
+	/* Default is ap_scan = 1 */
+	if ((tmp = ni_sysconfig_get_value(sc, "WIRELESS_AP_SCANMODE"))) {
+		if ((ni_parse_uint(tmp, &wlan->conf.ap_scan, 10) < 0) ||
+			(wlan->conf.ap_scan > NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH)) {
+			ni_error("ifcfg-%s: wrong WIRELESS_AP_SCANMODE value",
+				dev->name);
+			goto failure;
+		}
+	}
+
+	/* Default is wpa_drv = "nl80211" */
+	if ((tmp = ni_sysconfig_get_value(sc, "WIRELESS_WPA_DRIVER"))) {
+		if (!ni_wpa_driver_string_validate(tmp)) {
+			ni_error("ifcfg-%s: wrong WIRELESS_WPA_DRIVER value",
+				dev->name);
+			goto failure;
+		}
+		else if (ni_string_contains(tmp, "80211")) {
+			check_country = TRUE;
+		}
+
+		ni_string_dup(&wlan->conf.driver, tmp);
+	}
+	else {
+		check_country = TRUE;
+	}
+
+	/* Regulatory domain is supported by nl80211 wpa driver */
+	if (check_country) {
+		if ((tmp = ni_sysconfig_get_value(sc, "WIRELESS_REGULATORY_DOMAIN"))) {
+			if ((2 == ni_string_len(tmp)) &&
+				(isalpha((unsigned char) tmp[0])) &&
+				(isalpha((unsigned char) tmp[1]))) {
+					ni_string_dup(&wlan->conf.country, tmp);
+			}
+			else {
+				ni_error("ifcfg-%s: wrong WIRELESS_REGULATORY_DOMAIN value",
+					dev->name);
+				goto failure;
+			}
+		}
+	}
+
+	if (__process_indexed_variables(sc, dev, "WIRELESS_ESSID", try_add_wireless_net) >= 0)
+		return TRUE;
+
+failure:
 	ni_netdev_set_wireless(dev, NULL);
 	return FALSE;
 }
@@ -4220,26 +4230,44 @@ eap_failure:
 	return FALSE;
 }
 
-
 static int
 try_wireless(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
-	int ret;
+	ni_string_array_t vnames = NI_STRING_ARRAY_INIT;
+	ni_bool_t enabled = FALSE;
+	const char *value;
+	int ret = 1;
 
 	/*
-	 * There is a WIRELESS=yes variable, but it is never set by yast2.
-	 * We check for non-empty ESSID[_X] vars as they're mandatory for
-	 * wpa supplicant wireless network blocks.
+	 * Check for WIRELESS, WIRELESS_WPA_DRIVER, WIRELESS_AP_SCANMODE or one
+	 * WIRELESS_ESSID to make this a wireless configuration.
+	 *
+	 * WIRELESS=false avoid parsing of wireless configuration.
+	 * An invalid WIRELESS value produce a warning but will be ignored.
 	 */
-	if (ni_string_eq(ni_sysconfig_get_value(sc, "WIRELESS"), "no"))
-		return 1;
 
-	if ((ret = __process_indexed_variables(sc, dev, "WIRELESS_ESSID",
-						try_add_wireless)) != 0)
-		return ret;
+	value = ni_sysconfig_get_value(sc, "WIRELESS");
+	if (!ni_string_empty(value)) {
+		if (ni_parse_boolean(value, &enabled) != 0)
+			ni_warn("ifcfg-%s: invalid WIRELESS='%s' option value", dev->name, value);
+		else if (!enabled)
+			return ret;
+	}
 
-	return 0;
+	if (enabled ||
+	    ni_sysconfig_get_value(sc, "WIRELESS_AP_SCANMODE") ||
+	    ni_sysconfig_get_value(sc, "WIRELESS_WPA_DRIVER")  ||
+	    ni_sysconfig_find_matching(sc, "WIRELESS_ESSID", &vnames) > 0 ) {
+
+		if (try_add_wireless(sc, dev))
+			ret = 0;
+		else
+			ret = -1;
+	}
+
+	ni_string_array_destroy(&vnames);
+	return ret;
 }
 
 /*
