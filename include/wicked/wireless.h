@@ -315,6 +315,7 @@ struct ni_wireless_scan {
 extern ni_wireless_t *			ni_wireless_new(ni_netdev_t *);
 extern void				ni_wireless_free(ni_wireless_t *);
 extern int				ni_wireless_setup(ni_netdev_t *, ni_wireless_config_t *);
+extern int				ni_wireless_shutdown(ni_netdev_t *);
 
 extern void				ni_wireless_set_scanning(ni_bool_t enable);
 extern int				ni_wireless_interface_set_scanning(ni_netdev_t *, ni_bool_t);

@@ -82,6 +82,27 @@ ni_objectmodel_wireless_change_device(ni_dbus_object_t *object, const ni_dbus_me
 	return TRUE;
 }
 
+
+static dbus_bool_t
+ni_objectmodel_shutdown_wireless(ni_dbus_object_t *object, const ni_dbus_method_t *method,
+			unsigned int argc, const ni_dbus_variant_t *argv,
+			ni_dbus_message_t *reply, DBusError *error)
+{
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
+		return FALSE;
+
+	if (ni_wireless_shutdown(dev)){
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Error shutting down wireless interface %s", dev->name);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+
 static dbus_bool_t
 ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_t *net,
 				const ni_dbus_variant_t *var, DBusError *error)
@@ -489,7 +510,8 @@ const ni_dbus_property_t	ni_objectmodel_wireless_property_table[] = {
 };
 
 static ni_dbus_method_t		ni_objectmodel_wireless_methods[] = {
-	{ "changeDevice",	"a{sv}",			.handler = ni_objectmodel_wireless_change_device },
+	{ "changeDevice",	"a{sv}",	.handler = ni_objectmodel_wireless_change_device },
+	{ "shutdownDevice",	"",		.handler = ni_objectmodel_shutdown_wireless },
 
 	{ NULL }
 };

@@ -768,6 +768,17 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 }
 
 int
+ni_wireless_shutdown(ni_netdev_t *dev)
+{
+	ni_wpa_nif_t *wif;
+
+	if (!(wif = ni_wireless_get_wpa_interface(dev)))
+		return NI_SUCCESS;
+
+	return ni_wpa_del_interface(wif->client, ni_dbus_object_get_path(wif->object));
+}
+
+int
 ni_wireless_connect(ni_netdev_t *dev)
 {
 	ni_wpa_nif_t *wif;
