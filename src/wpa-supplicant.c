@@ -25,6 +25,7 @@
  *  interface.disconnect()
  *  interface.removeNetwork(objectPath)
  */
+#include "wicked/wireless.h"
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -81,8 +82,8 @@ static int		ni_wpa_interface_get_capabilities(ni_wpa_client_t *, ni_wpa_interfac
 static void		ni_wpa_interface_update_state(ni_wpa_interface_t *, ni_wpa_ifstate_t);
 static void		ni_wpa_network_request_properties(ni_dbus_object_t *);
 static void		ni_wpa_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
-static const char *	ni_wpa_auth_protocol_as_string(ni_wireless_auth_mode_t, DBusError *);
-static dbus_bool_t	ni_wpa_auth_protocol_from_string(const char *, ni_wireless_auth_mode_t *, DBusError *);
+static const char *	ni_wpa_auth_protocol_as_string(ni_wireless_auth_proto_t, DBusError *);
+static dbus_bool_t	ni_wpa_auth_protocol_from_string(const char *, ni_wireless_auth_proto_t *, DBusError *);
 static const char *	ni_wpa_auth_algorithm_as_string(ni_wireless_auth_algo_t, DBusError *);
 static dbus_bool_t	ni_wpa_auth_algorithm_from_string(const char *, ni_wireless_auth_algo_t *, DBusError *);
 static const char *	ni_wpa_keymgmt_protocol_as_string(ni_wireless_key_mgmt_t, DBusError *);
@@ -233,7 +234,7 @@ ni_wpa_network_properties_destroy(ni_wireless_network_t *net)
 {
 	memset(&net->essid, 0, sizeof(net->essid));
 
-	ni_wireless_auth_info_array_destroy(&net->scan_info.supported_auth_modes);
+	ni_wireless_auth_info_array_destroy(&net->scan_info.supported_auth_protos);
 	memset(&net->scan_info, 0, sizeof(net->scan_info));
 }
 
@@ -1344,34 +1345,6 @@ __wpa_dbus_bss_set_key_mgmt(ni_dbus_object_t *object, const ni_dbus_property_t *
 }
 
 static dbus_bool_t
-__wpa_dbus_bss_get_cipher(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
-		ni_dbus_variant_t *argument, DBusError *error)
-{
-	ni_wireless_network_t *net = __wpa_get_network(object);
-	const char *value;
-
-	if (net->cipher == NI_WIRELESS_CIPHER_NONE)
-		return __ni_dbus_property_not_present_error(error, property);
-	if (!(value = ni_wpa_cipher_as_string(net->cipher, error)))
-		return FALSE;
-	ni_dbus_variant_set_string(argument, value);
-	return TRUE;
-}
-
-static dbus_bool_t
-__wpa_dbus_bss_set_cipher(ni_dbus_object_t *object, const ni_dbus_property_t *property,
-		const ni_dbus_variant_t *argument, DBusError *error)
-{
-	ni_wireless_network_t *net = __wpa_get_network(object);
-	const char *value;
-
-	if (!ni_dbus_variant_get_string(argument, &value))
-		return FALSE;
-
-	return ni_wpa_cipher_from_string(value, &net->cipher, error);
-}
-
-static dbus_bool_t
 __wpa_dbus_bss_get_pairwise(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 		ni_dbus_variant_t *argument, DBusError *error)
 {
@@ -1763,7 +1736,6 @@ static ni_dbus_property_t	wpa_network_properties[] = {
 	WPA_BSS_PROPERTY(STRING, psk, RO),
 	WPA_BSS_PROPERTY(STRING, proto, RO),
 	WPA_BSS_PROPERTY(STRING, key_mgmt, RO),
-	WPA_BSS_PROPERTY(STRING, cipher, RO),
 	WPA_BSS_PROPERTY(STRING, pairwise, RO),
 	WPA_BSS_PROPERTY(STRING, group, RO),
 	WPA_BSS_PROPERTY(STRING, auth_alg, RO),
@@ -1944,8 +1916,8 @@ static ni_intmap_t __ni_wpa_auth_names[] = {
 };
 
 static ni_intmap_t __ni_wpa_protocol_names[] = {
-	{ "WPA",		NI_WIRELESS_AUTH_WPA1		},
-	{ "RSN",		NI_WIRELESS_AUTH_WPA2		},
+	{ "WPA",		NI_WIRELESS_AUTH_PROTO_WPA1		},
+	{ "RSN",		NI_WIRELESS_AUTH_PROTO_WPA2		},
 
 	{ NULL }
 };
@@ -2014,24 +1986,20 @@ ni_wpa_driver_string_validate(const char *string)
 }
 
 static const char *
-ni_wpa_auth_protocol_as_string(ni_wireless_auth_mode_t auth_mode, DBusError *error)
+ni_wpa_auth_protocol_as_string(ni_wireless_auth_proto_t auth_proto, DBusError *error)
 {
 	const char *res;
 
-	if (auth_mode == NI_WIRELESS_AUTH_MODE_NONE) {
-		dbus_set_error(error, NI_DBUS_ERROR_PROPERTY_NOT_PRESENT, "auth-mode property not set");
-		return FALSE;
-	}
-	if (!(res = ni_format_uint_mapped(auth_mode, __ni_wpa_protocol_names))) {
+	if (!(res = ni_format_uint_mapped(auth_proto, __ni_wpa_protocol_names))) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"cannot render auth protocol %u(%s)",
-				auth_mode, ni_wireless_auth_mode_to_name(auth_mode));
+				auth_proto, ni_wireless_auth_proto_to_name(auth_proto));
 	}
 	return res;
 }
 
 static dbus_bool_t
-ni_wpa_auth_protocol_from_string(const char *string, ni_wireless_auth_mode_t *auth_mode, DBusError *error)
+ni_wpa_auth_protocol_from_string(const char *string, ni_wireless_auth_proto_t *auth_proto, DBusError *error)
 {
 	unsigned int value;
 
@@ -2040,7 +2008,7 @@ ni_wpa_auth_protocol_from_string(const char *string, ni_wireless_auth_mode_t *au
 				"auth protocol \"%s\" not understood", string);
 		return FALSE;
 	}
-	*auth_mode = value;
+	*auth_proto = value;
 	return TRUE;
 }
 

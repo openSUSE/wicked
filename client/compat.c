@@ -1316,6 +1316,7 @@ __ni_compat_generate_dummy(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 static ni_bool_t
 __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_wireless_t *wlan;
 	ni_wireless_network_t *net;
 	xml_node_t *wireless, *network, *wep, *wpa_psk, *wpa_eap;
@@ -1385,12 +1386,12 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 			ni_string_free(&tmp);
 		}
 
-		if ((value = ni_wireless_key_management_to_name(net->keymgmt_proto))) {
+		if ((value = ni_format_bitmap(&buf, ni_wireless_key_management_map(), net->keymgmt_proto, ","))) {
 			xml_node_new_element("key-management", network, value);
+			ni_stringbuf_destroy(&buf);
 		}
 
-		switch (net->keymgmt_proto) {
-		case NI_WIRELESS_KEY_MGMT_NONE:
+		if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_NONE)) {
 			if (!(wep = xml_node_new("wep", network))) {
 				return FALSE;
 			}
@@ -1411,9 +1412,9 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 					xml_node_new_element("key", wep, net->wep_keys[key_i]);
 				}
 			}
+		}
 
-			break;
-		case NI_WIRELESS_KEY_MGMT_PSK:
+		if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_PSK)) {
 			if (!(wpa_psk = xml_node_new("wpa-psk", network))) {
 				return FALSE;
 			}
@@ -1424,21 +1425,24 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 					net->wpa_psk.passphrase);
 			}
 
-			if ((value = ni_wireless_auth_mode_to_name(net->auth_proto))) {
+			if ((value = ni_format_bitmap(&buf, ni_wireless_auth_proto_map(),
+							net->auth_proto, ","))) {
 				xml_node_new_element("auth-proto", wpa_psk, value);
+				ni_stringbuf_destroy(&buf);
 			}
 
-			if ((value = ni_wireless_cipher_to_name(net->pairwise_cipher))) {
+			if ((value = ni_format_bitmap(&buf, ni_wireless_pairwise_map(), net->pairwise_cipher, ","))) {
 				xml_node_new_element("pairwise-cipher", wpa_psk, value);
+				ni_stringbuf_destroy(&buf);
 			}
 
-			if ((value = ni_wireless_cipher_to_name(net->group_cipher))) {
+			if ((value = ni_format_bitmap(&buf, ni_wireless_group_map(), net->group_cipher, ","))) {
 				xml_node_new_element("group-cipher", wpa_psk, value);
+				ni_stringbuf_destroy(&buf);
 			}
+		}
 
-			break;
-
-		case NI_WIRELESS_KEY_MGMT_EAP:
+		if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_EAP)) {
 			if (!(wpa_eap = xml_node_new("wpa-eap", network))) {
 				return FALSE;
 			}
@@ -1447,16 +1451,20 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 				xml_node_new_element("method", wpa_eap, value);
 			}
 
-			if ((value = ni_wireless_auth_mode_to_name(net->auth_proto))) {
+			if ((value = ni_format_bitmap(&buf, ni_wireless_auth_proto_map(),
+							net->auth_proto, ","))) {
 				xml_node_new_element("auth-proto", wpa_eap, value);
+				ni_stringbuf_destroy(&buf);
 			}
 
-			if ((value = ni_wireless_cipher_to_name(net->pairwise_cipher))) {
+			if ((value = ni_format_bitmap(&buf, ni_wireless_pairwise_map(), net->pairwise_cipher, ","))) {
 				xml_node_new_element("pairwise-cipher", wpa_eap, value);
+				ni_stringbuf_destroy(&buf);
 			}
 
-			if ((value = ni_wireless_cipher_to_name(net->group_cipher))) {
+			if ((value = ni_format_bitmap(&buf, ni_wireless_group_map(), net->group_cipher, ","))) {
 				xml_node_new_element("group-cipher", wpa_eap, value);
+				ni_stringbuf_destroy(&buf);
 			}
 
 			if (!ni_string_empty(net->wpa_eap.identity)) {
@@ -1521,12 +1529,6 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 						net->wpa_eap.tls.client_key_passwd);
 				/* FIXME/ADDME file data and size exporting */
 			}
-
-			break;
-
-		default:
-			return FALSE;
-			break;
 		}
 	}
 

@@ -178,10 +178,11 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 		net->mode = value;
 	}
 
+	net->auth_proto = 0;
 	if ((child = ni_dbus_dict_get(var, "wpa-psk")) != NULL) {
-		net->keymgmt_proto = NI_WIRELESS_KEY_MGMT_PSK;
-		if (!ni_dbus_dict_get_uint32(child, "auth-proto", &net->auth_proto))
-			net->auth_proto = NI_WIRELESS_AUTH_MODE_NONE;
+		net->keymgmt_proto = NI_BIT(NI_WIRELESS_KEY_MGMT_PSK);
+		if (ni_dbus_dict_get_uint32(child, "auth-proto", &value))
+			net->auth_proto |= value;
 		/* 'key' member has been removed
 		 * do parsing a string here: may be a 64 len HEX digit string or a 8..63 ASCII char passphrase
 		*/
@@ -191,9 +192,9 @@ ni_objectmodel_get_wireless_request_net(ni_wireless_network_t *net,
 	if ((child = ni_dbus_dict_get(var, "wpa-eap")) != NULL) {
 		ni_dbus_variant_t *gchild;
 
-		net->keymgmt_proto = NI_WIRELESS_KEY_MGMT_EAP;
-		if (!ni_dbus_dict_get_uint32(child, "auth-proto", &net->auth_proto))
-			net->auth_proto = NI_WIRELESS_AUTH_MODE_NONE;
+		net->keymgmt_proto |= NI_BIT(NI_WIRELESS_KEY_MGMT_EAP);
+		if (ni_dbus_dict_get_uint32(child, "auth-proto", &value))
+			net->auth_proto |= value;
 
 		if (ni_dbus_dict_get_string(child, "identity", &string))
 			ni_string_dup(&net->wpa_eap.identity, string);
@@ -364,14 +365,14 @@ __ni_objectmodel_wireless_get_network(const ni_wireless_network_t *network,
 	if (network->scan_info.max_bitrate)
 		ni_dbus_dict_add_uint32(dict, "max-bitrate", network->scan_info.max_bitrate);
 
-	for (i = 0; i < network->scan_info.supported_auth_modes.count; ++i) {
-		ni_wireless_auth_info_t *auth_info = network->scan_info.supported_auth_modes.data[i];
+	for (i = 0; i < network->scan_info.supported_auth_protos.count; ++i) {
+		ni_wireless_auth_info_t *auth_info = network->scan_info.supported_auth_protos.data[i];
 		ni_dbus_variant_t *child;
 
 		child = ni_dbus_dict_add(dict, "auth-info");
 		ni_dbus_variant_init_dict(child);
 
-		ni_dbus_dict_add_uint32(child, "mode", auth_info->mode);
+		ni_dbus_dict_add_uint32(child, "proto", auth_info->proto);
 		ni_dbus_dict_add_uint32(child, "version", auth_info->version);
 		ni_dbus_dict_add_uint32(child, "group-cipher", auth_info->group_cipher);
 		ni_dbus_dict_add_uint32(child, "pairwise-ciphers", auth_info->pairwise_ciphers);
@@ -412,14 +413,14 @@ __ni_objectmodel_wireless_set_network(ni_wireless_network_t *network,
 	child = NULL;
 	while ((child = ni_dbus_dict_get_next(dict, "auth-info", child)) != NULL) {
 		ni_wireless_auth_info_t *auth_info;
-		uint32_t mode, version;
+		uint32_t proto, version;
 
-		if (!ni_dbus_dict_get_uint32(child, "mode", &mode)
+		if (!ni_dbus_dict_get_uint32(child, "proto", &proto)
 		 || !ni_dbus_dict_get_uint32(child, "version", &version))
 			return FALSE;
 
-		auth_info = ni_wireless_auth_info_new(mode, version);
-		ni_wireless_auth_info_array_append(&network->scan_info.supported_auth_modes, auth_info);
+		auth_info = ni_wireless_auth_info_new(proto, version);
+		ni_wireless_auth_info_array_append(&network->scan_info.supported_auth_protos, auth_info);
 
 		if (ni_dbus_dict_get_uint32(child, "group-cipher", &valu32))
 			auth_info->group_cipher = valu32;
