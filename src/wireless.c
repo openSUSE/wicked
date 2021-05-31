@@ -145,6 +145,7 @@ static const ni_intmap_t			ni_wireless_wpa_eap_method_map[] = {
 	{ "TLS",				NI_WIRELESS_EAP_TLS},
 	{ "PEAP",				NI_WIRELESS_EAP_PEAP},
 	{ "TTLS",				NI_WIRELESS_EAP_TTLS},
+	{ "PAP",				NI_WIRELESS_EAP_PAP},
 
 	{ NULL }
 };
@@ -521,6 +522,35 @@ ni_wireless_wpa_net_format_wep(ni_wpa_net_properties_t *properties, const ni_wir
 }
 
 static ni_bool_t
+ni_wireless_net_format_blob(ni_wpa_net_properties_t *properties, const ni_wireless_network_t *net,
+		const ni_wireless_blob_t *blob, ni_wpa_net_property_type_t type)
+{
+	const char *name;
+	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
+
+	if (!blob)
+		return TRUE;
+
+	if (!(name = ni_wpa_net_property_name(type)))
+		return FALSE;
+
+	if (blob->is_string){
+		if (!ni_dbus_dict_add_string(properties, name, blob->str))
+			return FALSE;
+
+	} else {
+		ni_stringbuf_printf(&sb, "blob://net_%d_%s", net->index, name);
+		if (!ni_dbus_dict_add_string(properties, name, sb.string)) {
+			ni_stringbuf_destroy(&sb);
+			return FALSE;
+		}
+		ni_stringbuf_destroy(&sb);
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
 ni_wireless_wpa_net_format_psk(ni_wpa_net_properties_t *properties, const ni_wireless_network_t *net)
 {
 	const char *name;
@@ -575,29 +605,42 @@ ni_wireless_wpa_net_format_eap(ni_wpa_net_properties_t *properties, const ni_wir
 	}
 
 	if (net->wpa_eap.phase1.peapver < INT_MAX){
+		ni_stringbuf_truncate(&buf, 0);
 		ni_stringbuf_printf(&buf, "peapver=%d", net->wpa_eap.phase1.peapver);
 		if (net->wpa_eap.phase1.peaplabel)
 			ni_stringbuf_printf(&buf, " peaplabel=1");
 		name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_PHASE1);
 		if (!name || !ni_dbus_dict_add_string(properties, name, buf.string))
 			goto error;
-		ni_stringbuf_truncate(&buf, 0);
 	}
 
 	if (net->wpa_eap.phase2.method != NI_WIRELESS_EAP_NONE){
 		value = ni_wireless_wpa_eap_method(net->wpa_eap.phase2.method);
 		if (!value) goto error;
+		ni_stringbuf_truncate(&buf, 0);
 		ni_stringbuf_printf(&buf, "auth=%s", value);
 		name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_PHASE2);
 		if (!name || !ni_dbus_dict_add_string(properties, name, buf.string))
 			goto error;
-		ni_stringbuf_truncate(&buf, 0);
 
 		if (net->wpa_eap.phase2.password){
 			name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_PASSWORD);
 			if (!name || !ni_dbus_dict_add_string(properties, name, net->wpa_eap.phase2.password))
 				goto error;
 		}
+	}
+
+	if (!ni_wireless_net_format_blob(properties, net, net->wpa_eap.tls.ca_cert, NI_WPA_NET_PROPERTY_CA_CERT))
+		goto error;
+	if (!ni_wireless_net_format_blob(properties, net, net->wpa_eap.tls.client_cert, NI_WPA_NET_PROPERTY_CLIENT_CERT))
+		goto error;
+	if (!ni_wireless_net_format_blob(properties, net, net->wpa_eap.tls.client_key, NI_WPA_NET_PROPERTY_PRIVATE_KEY))
+		goto error;
+
+	if (net->wpa_eap.tls.client_key_passwd) {
+		name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_PRIVATE_KEY_PASSWD);
+		if (!name || !ni_dbus_dict_add_string(properties, name, net->wpa_eap.tls.client_key_passwd))
+			goto error;
 	}
 
 	return TRUE;
@@ -702,11 +745,55 @@ ni_wireless_wpa_net_format(ni_wpa_net_properties_t *properties, const ni_wireles
 	if (!ni_wireless_wpa_net_format_psk(properties, net))
 		return FALSE;
 
-
 	if (!ni_wireless_wpa_net_format_eap(properties, net))
 		return FALSE;
 
 	return !ni_dbus_dict_is_empty(properties);
+}
+
+static ni_bool_t
+ni_wireless_wpa_set_blob(ni_wpa_nif_t *wif, const ni_wireless_network_t *net,
+		const ni_wireless_blob_t *blob, ni_wpa_net_property_type_t type)
+{
+	const char *name;
+	int rv;
+	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
+
+	if (!blob || blob->is_string)
+		return TRUE;
+
+	if (!(name = ni_wpa_net_property_name(type)))
+		return FALSE;
+
+	if (ni_stringbuf_printf(&sb, "net_%d_%s", net->index, name) < 0)
+		goto error;
+
+	rv = ni_wpa_nif_add_blob(wif, sb.string, blob->byte_array.data, blob->byte_array.len);
+	if (rv == -NI_ERROR_ENTRY_EXISTS){
+		/* remove it first and try again */
+		if (ni_wpa_nif_remove_blob(wif, sb.string) ||
+		    ni_wpa_nif_add_blob(wif, sb.string, blob->byte_array.data, blob->byte_array.len))
+			goto error;
+	}
+
+	ni_stringbuf_destroy(&sb);
+	return TRUE;
+
+error:
+	ni_stringbuf_destroy(&sb);
+	return FALSE;
+}
+
+static ni_bool_t
+ni_wireless_wpa_set_blobs(ni_wpa_nif_t *wif, const ni_wireless_network_t *net)
+{
+	if (!ni_wireless_wpa_set_blob(wif, net, net->wpa_eap.tls.ca_cert, NI_WPA_NET_PROPERTY_CA_CERT))
+		return FALSE;
+	if (!ni_wireless_wpa_set_blob(wif, net, net->wpa_eap.tls.client_cert, NI_WPA_NET_PROPERTY_CLIENT_CERT))
+		return FALSE;
+	if (!ni_wireless_wpa_set_blob(wif, net, net->wpa_eap.tls.client_key, NI_WPA_NET_PROPERTY_PRIVATE_KEY))
+		return FALSE;
+	return TRUE;
 }
 
 static ni_bool_t
@@ -815,6 +902,8 @@ ni_wireless_setup_networks(ni_netdev_t *dev, ni_wpa_nif_t *wif, const ni_wireles
 	for (i = 0; i < networks->count; ++i) {
 		if (!(network = networks->data[i]))
 			continue;
+
+		ni_wireless_wpa_set_blobs(wif, network);
 
 		ni_dbus_variant_init_dict(&properties);
 		if (!ni_wireless_wpa_net_format(&properties, network)){
@@ -1568,37 +1657,34 @@ ni_wireless_scan_set_defaults(ni_wireless_scan_t *scan)
 }
 
 ni_wireless_blob_t *
-ni_wireless_blob_new(const char *string)
+ni_wireless_blob_new_from_str(const char *str)
 {
 	ni_wireless_blob_t *blob;
 
-	if (!string)
+	if (!(blob = calloc(1, sizeof(ni_wireless_blob_t))))
 		return NULL;
 
-	blob = xcalloc(1, sizeof(ni_wireless_blob_t));
-	ni_string_dup(&blob->name, string);
-	blob->data = NULL; /* FIXME No data for now */
-	blob->size = 0;
-
+	blob->is_string = TRUE;
+	if (!ni_string_dup(&blob->str, str)){
+		free(blob);
+		return NULL;
+	}
 	return blob;
 }
 
 void
-ni_wireless_blob_free(ni_wireless_blob_t *blob)
+ni_wireless_blob_free(ni_wireless_blob_t **blob_p)
 {
-	if (blob) {
-		memset(blob->name, 0, ni_string_len(blob->name));
-		ni_string_free(&blob->name);
-
-		if (blob->data) {
-			memset(blob->data, 0, blob->size);
-			free(blob->data);
-			blob->data = NULL;
-			blob->size = 0;
-		}
+	if (blob_p && *blob_p) {
+		ni_wireless_blob_t *blob = *blob_p;
+		if (blob->is_string) {
+			memset(blob->str, 0, ni_string_len(blob->str));
+			ni_string_free(&blob->str);
+		} else
+			ni_byte_array_destroy(&blob->byte_array);
 
 		free(blob);
-		blob = NULL;
+		*blob_p = NULL;
 	}
 }
 
@@ -1636,9 +1722,9 @@ __ni_wireless_network_destroy(ni_wireless_network_t *net)
 
 	ni_string_clear(&net->wpa_eap.identity);
 	ni_string_clear(&net->wpa_eap.anonid);
-	ni_wireless_blob_free(net->wpa_eap.tls.ca_cert);
-	ni_wireless_blob_free(net->wpa_eap.tls.client_cert);
-	ni_wireless_blob_free(net->wpa_eap.tls.client_key);
+	ni_wireless_blob_free(&net->wpa_eap.tls.ca_cert);
+	ni_wireless_blob_free(&net->wpa_eap.tls.client_cert);
+	ni_wireless_blob_free(&net->wpa_eap.tls.client_key);
 
 	memset(net, 0, sizeof(*net));
 }

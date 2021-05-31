@@ -384,6 +384,9 @@ extern int					ni_wpa_nif_del_network(ni_wpa_nif_t *, const char *);
 extern int					ni_wpa_nif_del_all_networks(ni_wpa_nif_t *);
 extern int					ni_wpa_nif_set_all_networks_property_enabled(ni_wpa_nif_t *wif, ni_bool_t enable);
 
+extern int					ni_wpa_nif_add_blob(ni_wpa_nif_t *wif, const char *name, const unsigned char *data, size_t len);
+extern int					ni_wpa_nif_get_blob(ni_wpa_nif_t *wif, const char *name, unsigned char **data, size_t *len);
+extern int					ni_wpa_nif_remove_blob(ni_wpa_nif_t *wif, const char *name);
 
 extern void 					ni_wpa_nif_set_ops(ni_wpa_nif_t *, ni_wpa_nif_ops_t *);
 extern ni_wpa_nif_t *				ni_wpa_nif_by_index(ni_wpa_client_t *wpa, unsigned int ifindex);

@@ -4049,12 +4049,34 @@ psk_failure:
 	return FALSE;
 }
 
+static const char *
+__ni_wireless_validate_cert_path(const ni_sysconfig_t *sc, const char *path)
+{
+	const char *ret = NULL;
+
+	if (!path || !sc)
+		return NULL;
+
+	if (path[0] == '/')
+		ret = path;
+	else
+		ret = ni_sibling_path_printf(sc->pathname, path);
+
+	if (!ni_file_exists(ret))
+		return NULL;
+
+	return ret;
+}
+
 static ni_bool_t
 __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *net, const char *suffix, const char *dev_name, ni_wireless_ap_scan_mode_t ap_scan)
 {
 	ni_var_t *var;
 	const char *pairwise = "WIRELESS_CIPHER_PAIRWISE";
 	const char *group = "WIRELESS_CIPHER_GROUP";
+	ni_bool_t need_identity = FALSE;
+	ni_bool_t need_password = FALSE;
+	const char *cert;
 
 	ni_assert(sc && net && suffix);
 
@@ -4107,9 +4129,15 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 			net->group_cipher = NI_BIT(NI_WIRELESS_CIPHER_TKIP);
 	}
 
+	need_identity = net->wpa_eap.method == NI_WIRELESS_EAP_PEAP
+			|| net->wpa_eap.method == NI_WIRELESS_EAP_TTLS
+			|| net->wpa_eap.method == NI_WIRELESS_EAP_TLS;
+	need_password = net->wpa_eap.method == NI_WIRELESS_EAP_PEAP
+			|| net->wpa_eap.method == NI_WIRELESS_EAP_TTLS;
+
 	if ((var = __find_indexed_variable(sc,"WIRELESS_WPA_IDENTITY", suffix))) {
 		ni_string_dup(&net->wpa_eap.identity, var->value);
-	} else {
+	} else if (need_identity) {
 		ni_error("ifcfg-%s: no WIRELESS_WPA_IDENTITY%s value specified",
 			dev_name, suffix);
 		goto eap_failure;
@@ -4118,35 +4146,42 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 	if ((var = __find_indexed_variable(sc,"WIRELESS_WPA_PASSWORD", suffix))) {
 		ni_string_dup(&net->wpa_eap.phase2.password, var->value);
 	}
-	else {
+	else if (need_password) {
 		ni_error("ifcfg-%s: no WIRELESS_WPA_PASSWORD%s value specified",
 			dev_name, suffix);
 		goto eap_failure;
 	}
 
 	/* wickedd: Default is 'anonymous' */
-	if ((var = __find_indexed_variable(sc,"WIRELESS_WPA_ANONID", suffix))) {
+	if ((var = __find_indexed_variable(sc,"WIRELESS_WPA_ANONID", suffix)))
 		ni_string_dup(&net->wpa_eap.anonid, var->value);
-	}
 
-	/* FIXME Only path implemented so far */
 	if ((var = __find_indexed_variable(sc,"WIRELESS_CA_CERT", suffix))) {
-		net->wpa_eap.tls.ca_cert = ni_wireless_blob_new(var->value);
+		if (!(cert = __ni_wireless_validate_cert_path(sc, var->value))) {
+			ni_error("ifcfg-%s: WIRELESS_CA_CERT%s file not found.", dev_name, suffix);
+			goto eap_failure;
+		}
+		net->wpa_eap.tls.ca_cert = ni_wireless_blob_new_from_str(cert);
 	}
 
-	/* FIXME Only path implemented so far */
 	if ((var = __find_indexed_variable(sc,"WIRELESS_CLIENT_CERT", suffix))) {
-		net->wpa_eap.tls.client_cert = ni_wireless_blob_new(var->value);
+		if (!(cert = __ni_wireless_validate_cert_path(sc, var->value))) {
+			ni_error("ifcfg-%s: WIRELESS_CLIENT_CERT%s file not found.", dev_name, suffix);
+			goto eap_failure;
+		}
+		net->wpa_eap.tls.client_cert = ni_wireless_blob_new_from_str(cert);
 	}
 
-	/* FIXME Only path implemented so far */
 	if ((var = __find_indexed_variable(sc,"WIRELESS_CLIENT_KEY", suffix))) {
-		net->wpa_eap.tls.client_key = ni_wireless_blob_new(var->value);
+		if (!(cert = __ni_wireless_validate_cert_path(sc, var->value))) {
+			ni_error("ifcfg-%s: WIRELESS_CLIENT_KEY%s file not found.", dev_name, suffix);
+			goto eap_failure;
+		}
+		net->wpa_eap.tls.client_key = ni_wireless_blob_new_from_str(cert);
 	}
 
-	if ((var = __find_indexed_variable(sc,"WIRELESS_CLIENT_KEY_PASSWORD", suffix))) {
+	if ((var = __find_indexed_variable(sc,"WIRELESS_CLIENT_KEY_PASSWORD", suffix)))
 		ni_string_dup(&net->wpa_eap.tls.client_key_passwd, var->value);
-	}
 
 	/* Default are version 0 and 1 */
 	net->wpa_eap.phase1.peapver = -1U;

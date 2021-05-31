@@ -200,11 +200,62 @@ ni_objectmodel_get_wireless_request_psk(const char *ifname, ni_wireless_network_
 	return TRUE;
 }
 
+static ni_wireless_blob_t *
+ni_wireless_blob_from_struct(const ni_dbus_variant_t *var)
+{
+	ni_wireless_blob_t *blob;
+	const char *type = NULL;
+	const char *str = NULL;
+	ni_dbus_variant_t *data;
+
+	if (!var)
+		return NULL;
+
+	if (!ni_dbus_variant_is_struct(var))
+		return NULL;
+
+	if (!ni_dbus_struct_get_string(var, 0, &type))
+		return NULL;
+
+	if (!(blob = calloc(1, sizeof(ni_wireless_blob_t))))
+		return NULL;
+
+	if (ni_string_eq(type, "hex") || ni_string_eq(type, "file")) {
+		blob->is_string = FALSE;
+
+		if(!(data = ni_dbus_struct_get(var, 1)))
+			goto error;
+
+		if (!ni_dbus_variant_is_byte_array(data))
+			goto error;
+
+		ni_byte_array_init(&blob->byte_array);
+		if (ni_byte_array_put(&blob->byte_array, data->byte_array_value, data->array.len) != data->array.len)
+			goto error;
+
+	} else {
+		blob->is_string = TRUE;
+		if (!ni_dbus_struct_get_string(var, 1, &str))
+			goto error;
+
+		if (!ni_string_dup(&blob->str, str))
+			goto error;
+	}
+
+	return blob;
+
+error:
+	if (blob)
+		ni_wireless_blob_free(&blob);
+	return NULL;
+}
+
+
 static dbus_bool_t
 ni_objectmodel_get_wireless_request_eap(const char *ifname, ni_wireless_network_t *net,
 				const ni_dbus_variant_t *var, DBusError *error)
 {
-	const ni_dbus_variant_t *child, *eap;
+	const ni_dbus_variant_t *child, *eap, *cert;
 	const char *string;
 	dbus_bool_t bool_value;
 	uint32_t value;
@@ -244,8 +295,30 @@ ni_objectmodel_get_wireless_request_eap(const char *ifname, ni_wireless_network_
 
 	child = ni_dbus_dict_get(eap, "tls");
 	if (child && ni_dbus_variant_is_dict(child)) {
-		/* FIXME: handle optional CA cert, keys and such.
-		 * If not provided, use system certs */
+
+		if ((cert = ni_dbus_dict_get(child, "ca-cert"))) {
+			if (!(net->wpa_eap.tls.ca_cert = ni_wireless_blob_from_struct(cert))) {
+				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Invalid certificate ca-cert", ifname);
+				return FALSE;
+			}
+		}
+
+		if ((cert = ni_dbus_dict_get(child, "client-cert"))) {
+			if (!(net->wpa_eap.tls.client_cert = ni_wireless_blob_from_struct(cert))) {
+				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Invalid certificate client-cert", ifname);
+				return FALSE;
+			}
+		}
+
+		if ((cert = ni_dbus_dict_get(child, "client-key"))) {
+			if (!(net->wpa_eap.tls.client_key = ni_wireless_blob_from_struct(cert))) {
+				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Invalid client-key", ifname);
+				return FALSE;
+			}
+		}
+
+		if (ni_dbus_dict_get_string(child, "client-key-passwd", &string))
+			ni_string_dup(&net->wpa_eap.tls.client_key_passwd, string);
 	}
 
 	return TRUE;
@@ -396,6 +469,7 @@ ni_objectmodel_get_wireless_request(const char *ifname, ni_wireless_config_t *co
 
 			if (!(net = ni_wireless_network_new()))
 				return FALSE;
+			net->index = i;
 
 			if (!ni_objectmodel_get_wireless_request_net(ifname, net, network_dict, error)) {
 				ni_wireless_network_put(net);

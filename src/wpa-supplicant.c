@@ -85,6 +85,8 @@ static const ni_intmap_t	ni_wpa_error_names[] = {
 	{ "fi.w1.wpa_supplicant1.InvalidArgs",			NI_ERROR_INVALID_ARGS			},
 	{ "fi.w1.wpa_supplicant1.NetworkUnknown",		NI_ERROR_PROPERTY_NOT_PRESENT		},
 	{ "fi.w1.wpa_supplicant1.UnknownError",			NI_ERROR_GENERAL_FAILURE		},
+	{ "fi.w1.wpa_supplicant1.BlobUnknown",			NI_ERROR_ENTRY_NOT_KNOWN		},
+	{ "fi.w1.wpa_supplicant1.BlobExists",			NI_ERROR_ENTRY_EXISTS			},
 
 	{ NULL }
 };
@@ -1117,6 +1119,113 @@ ni_wpa_nif_del_network(ni_wpa_nif_t *wif, const char *object_path)
 	}
 
 	ni_string_free(&path);
+	return err;
+}
+
+int
+ni_wpa_nif_add_blob(ni_wpa_nif_t *wif, const char *name, unsigned const char *data, size_t len)
+{
+	static const char *method = "AddBlob";
+	ni_dbus_variant_t args[2] = { NI_DBUS_VARIANT_INIT, NI_DBUS_VARIANT_INIT };
+	int err = -NI_ERROR_GENERAL_FAILURE;
+	DBusError error = DBUS_ERROR_INIT;
+	const char *interface = NULL;
+
+	if (!wif || !wif->object || !name || !data)
+		return -NI_ERROR_INVALID_ARGS;
+
+	ni_dbus_variant_set_string(&args[0], name);
+	ni_dbus_variant_set_byte_array(&args[1], data, len);
+
+	interface = ni_dbus_object_get_default_interface(wif->object);
+	ni_debug_wpa("%s: Calling %s.%s(%s, len=%lu)", wif->device.name, interface, method, name, len);
+
+	err = -NI_ERROR_DBUS_CALL_FAILED;
+	if (!ni_dbus_object_call_variant(wif->object, interface, method,
+					2, args, 0, NULL, &error)) {
+		ni_error("%s: dbus call %s.%s(%s, len=%lu) failed (%s: %s)", wif->device.name,
+				ni_dbus_object_get_path(wif->object), method, name, len,
+				error.name, error.message);
+
+		if (dbus_error_is_set(&error))
+			err = ni_dbus_client_translate_error(ni_wpa_client_dbus(wif->client), &error);
+
+		goto cleanup;
+	}
+
+	err = NI_SUCCESS;
+cleanup:
+	dbus_error_free(&error);
+	ni_dbus_variant_destroy(&args[0]);
+	ni_dbus_variant_destroy(&args[1]);
+	return err;
+}
+
+int
+ni_wpa_nif_remove_blob(ni_wpa_nif_t *wif, const char *name)
+{
+	static const char *method = "RemoveBlob";
+	const char *interface = NULL;
+
+	if (!wif || !wif->object || !name)
+		return -NI_ERROR_INVALID_ARGS;
+
+	interface = ni_dbus_object_get_default_interface(wif->object);
+	ni_debug_wpa("%s: Calling %s.%s(%s)", wif->device.name, interface, method, name);
+
+	return ni_dbus_object_call_simple(wif->object, interface, method,
+			DBUS_TYPE_STRING, &name, DBUS_TYPE_INVALID, NULL);
+}
+
+int
+ni_wpa_nif_get_blob(ni_wpa_nif_t *wif, const char *name, unsigned char **data, size_t *len)
+{
+	static const char *method = "GetBlob";
+	ni_dbus_variant_t arg = NI_DBUS_VARIANT_INIT;
+	ni_dbus_variant_t resp = NI_DBUS_VARIANT_INIT;
+	int err = -NI_ERROR_GENERAL_FAILURE;
+	DBusError error = DBUS_ERROR_INIT;
+	const char *interface = NULL;
+
+	if (!wif || !wif->object || !name || !data)
+		return -NI_ERROR_INVALID_ARGS;
+
+	ni_dbus_variant_set_string(&arg, name);
+
+	interface = ni_dbus_object_get_default_interface(wif->object);
+	ni_debug_wpa("%s: Calling %s.%s(%s)", wif->device.name, interface, method, name);
+
+	err = -NI_ERROR_DBUS_CALL_FAILED;
+	if (!ni_dbus_object_call_variant(wif->object, interface, method,
+					1, &arg, 1, &resp, &error)) {
+		ni_error("%s: dbus call %s.%s(%s) failed (%s: %s)", wif->device.name,
+				ni_dbus_object_get_path(wif->object), method, name,
+				error.name, error.message);
+
+		if (dbus_error_is_set(&error))
+			err = ni_dbus_client_translate_error(ni_wpa_client_dbus(wif->client), &error);
+
+		goto cleanup;
+	}
+
+	if (!ni_dbus_variant_is_byte_array(&resp)) {
+		err = -NI_ERROR_DBUS_CALL_FAILED;
+		goto cleanup;
+	}
+
+	if (!(*data = malloc(resp.array.len))) {
+		err = -NI_ERROR_GENERAL_FAILURE;
+		goto cleanup;
+	}
+
+	memcpy(*data, resp.byte_array_value, resp.array.len);
+	*len = resp.array.len;
+
+	err = NI_SUCCESS;
+cleanup:
+	dbus_error_free(&error);
+	ni_dbus_variant_destroy(&arg);
+	ni_dbus_variant_destroy(&resp);
 	return err;
 }
 
@@ -2359,6 +2468,29 @@ cleanup:
 	ni_dbus_variant_destroy(&arg);
 }
 
+static void
+ni_wpa_nif_signal_eap(ni_wpa_nif_t *wif, const char *member, ni_dbus_message_t *msg)
+{
+	const char *path = ni_dbus_object_get_path(wif->object);
+	ni_dbus_variant_t args[2] = { NI_DBUS_VARIANT_INIT, NI_DBUS_VARIANT_INIT };
+	const char *status, *parameter;
+
+	if (ni_dbus_message_get_args_variants(msg, args, 2) != 2 ||
+	    !ni_dbus_variant_get_string(&args[0], &status) ||
+	    !ni_dbus_variant_get_string(&args[1], &parameter) ) {
+		SIGNAL_ERR(path, member, "unable to extract args: string, string");
+		goto cleanup;
+	}
+
+	if (ni_string_len(parameter) > 0)
+		ni_debug_wpa("%s: EAP %s: %s", wif->device.name, status, parameter);
+	else
+		ni_debug_wpa("%s: EAP %s", wif->device.name, status);
+
+cleanup:
+	ni_dbus_variant_destroy(&args[0]);
+	ni_dbus_variant_destroy(&args[1]);
+}
 
 static void
 ni_wpa_nif_signal(ni_dbus_connection_t *connection, ni_dbus_message_t *msg, void *user_data)
@@ -2374,6 +2506,7 @@ ni_wpa_nif_signal(ni_dbus_connection_t *connection, ni_dbus_message_t *msg, void
 		{ "BSSAdded",		ni_wpa_nif_signal_bss_added },
 		{ "BSSRemoved",		ni_wpa_nif_signal_bss_removed },
 		{ "ScanDone",		ni_wpa_nif_signal_scan_done },
+		{ "EAP",		ni_wpa_nif_signal_eap },
 		{ NULL }
 	};
 	const char *member = dbus_message_get_member(msg);

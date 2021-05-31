@@ -170,9 +170,11 @@ typedef struct ni_wireless_ssid {
 } ni_wireless_ssid_t;
 
 typedef struct ni_wireless_blob {
-	char *				name;
-	size_t				size;
-	unsigned char *			data;
+	ni_bool_t			is_string;
+	union {
+		char *			str;
+		ni_byte_array_t		byte_array;
+	};
 } ni_wireless_blob_t;
 
 #define NI_WIRELESS_BITRATES_MAX	32
@@ -191,6 +193,7 @@ enum ni_wireless_wep_key_len {
 struct ni_wireless_network {
 	unsigned int			refcount;
 	ni_bool_t			notified;		/* did we send an event for this? */
+	unsigned int			index;			/* Just a index of the network per interface */
 
 	unsigned int			priority;
 	ni_wireless_ssid_t		essid;
@@ -351,8 +354,8 @@ extern void				ni_wireless_config_destroy(ni_wireless_config_t *);
 extern ni_wireless_scan_t *		ni_wireless_scan_new(ni_netdev_t *, unsigned int);
 extern void				ni_wireless_scan_free(ni_wireless_scan_t *);
 
-extern ni_wireless_blob_t *		ni_wireless_blob_new(const char *);
-extern void				ni_wireless_blob_free(ni_wireless_blob_t *);
+extern ni_wireless_blob_t *		ni_wireless_blob_new_from_str(const char *);
+extern void				ni_wireless_blob_free(ni_wireless_blob_t **);
 
 extern ni_wireless_network_t *		ni_wireless_network_new(void);
 extern void				ni_wireless_network_free(ni_wireless_network_t *);
