@@ -73,6 +73,7 @@ enum {
 	NI_TRACE_TIMER		= 0x040000,
 	NI_TRACE_IPV4		= 0x080000,
 	NI_TRACE_ROUTE		= 0x100000,
+	NI_TRACE_WPA		= 0x200000,
 };
 
 extern unsigned int	ni_debug;
@@ -102,6 +103,7 @@ extern unsigned int	ni_log_level;
 #define ni_debug_socket(fmt, args...)		__ni_debug(NI_LOG_DEBUG, NI_TRACE_SOCKET, fmt, ##args)
 #define ni_debug_autoip(fmt, args...)		__ni_debug(NI_LOG_DEBUG, NI_TRACE_AUTOIP, fmt, ##args)
 #define ni_debug_dbus(fmt, args...)		__ni_debug(NI_LOG_DEBUG, NI_TRACE_DBUS, fmt, ##args)
+#define ni_debug_wpa(fmt, args...)		__ni_debug(NI_LOG_DEBUG, NI_TRACE_WPA, fmt, ##args)
 #define ni_debug_wireless(fmt, args...)		__ni_debug(NI_LOG_DEBUG, NI_TRACE_WIRELESS, fmt, ##args)
 #define ni_debug_xml(fmt, args...)		__ni_debug(NI_LOG_DEBUG, NI_TRACE_XML, fmt, ##args)
 #define ni_debug_objectmodel(fmt, args...)	__ni_debug(NI_LOG_DEBUG, NI_TRACE_OBJECTMODEL, fmt, ##args)

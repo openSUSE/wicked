@@ -420,6 +420,9 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *req)
 				return ret;
 		}
 
+		if (dev->link.type == NI_IFTYPE_WIRELESS)
+			ni_wireless_connect(dev);
+
 		if (ni_netdev_device_is_up(dev))
 			return 0;
 
@@ -435,8 +438,6 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *req)
 			return -1;
 		}
 
-		if (dev->link.type == NI_IFTYPE_WIRELESS)
-			ni_wireless_connect(dev);
 	} else {
 		if (dev->link.type == NI_IFTYPE_WIRELESS)
 			ni_wireless_disconnect(dev);

@@ -405,21 +405,77 @@ ni_ifconfig_migrate_ethtool(xml_node_t *ethernet, xml_node_t *ethtool)
 }
 
 static ni_bool_t
-ni_ifconfig_migrate_config_node(xml_node_t *config)
+ni_ifconfig_migrate_ethernet_node(xml_node_t *config, xml_node_t *ethernet)
 {
 	ni_bool_t modified = FALSE;
-	xml_node_t *old, *new;
+	xml_node_t *ethtool;
 
-	if ((old = xml_node_get_child(config, "ethernet"))) {
-		if ((new = xml_node_new("ethtool", NULL))) {
-			modified = ni_ifconfig_migrate_ethtool(old, new);
-			if (!xml_node_get_child(config, "ethtool") && new->children)
-				xml_node_add_child(config, new);
-			else
-				xml_node_free(new);
-		}
-		/* keep the (maybe empty) ethernet node,
-		 * because it is an iftype giving one */
+	/* Do we need to cleanup old "ethernet" even the config
+	 * already contains "ethtool" node? IMO not needed... */
+	if (xml_node_get_child(config, "ethtool"))
+		return modified;
+
+	if (!(ethtool = xml_node_new("ethtool", NULL)))
+		return modified;
+
+	modified = ni_ifconfig_migrate_ethtool(ethernet, ethtool);
+	if (ethtool->children)
+		xml_node_add_child(config, ethtool);
+	else
+		xml_node_free(ethtool);
+
+	/* keep the (maybe empty) ethernet node,
+	 * because it is an iftype giving one */
+	return modified;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_wireless_network(xml_node_t *network)
+{
+	/* migrate content inside the network dict if needed */
+	return FALSE;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_wireless_node(xml_node_t *config, xml_node_t *wireless)
+{
+	ni_bool_t modified = FALSE;
+	xml_node_t *networks;
+	xml_node_t *network;
+
+	if (xml_node_get_child(wireless, "networks"))
+		return modified;
+
+	if (!(networks = xml_node_new("networks", wireless)))
+		return modified;
+
+	while ((network = xml_node_get_child(wireless, "network"))) {
+		xml_node_reparent(networks, network);
+		ni_ifconfig_migrate_wireless_network(network);
+		modified = TRUE;
+	}
+	return modified;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_config_node(xml_node_t *config)
+{
+	struct migrate_node {
+		const char *name;
+		ni_bool_t (*func)(xml_node_t *, xml_node_t *);
+	} *migrate, migrate_map[] = {
+		{ "ethernet",	ni_ifconfig_migrate_ethernet_node	},
+		{ "wireless",	ni_ifconfig_migrate_wireless_node	},
+
+		{ NULL }
+	};
+	ni_bool_t modified = FALSE;
+	xml_node_t *found;
+
+	for (migrate = migrate_map; migrate->name && migrate->func; ++migrate) {
+		found = xml_node_get_child(config, migrate->name);
+		if (found && migrate->func(config, found))
+			modified = TRUE;
 	}
 	return modified;
 }
