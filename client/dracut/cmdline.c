@@ -229,10 +229,10 @@ ni_dracut_cmdline_parse_bootproto(ni_compat_netdev_t *nd, const char *val)
 
 /**
  * Adds a new compat_netdev_t to the array using
- * ifname as name or if it exists, adds the hwaddr/mtu to it
+ * ifname as name or if it exists, adds the lladdr/mtu to it
  */
 static ni_compat_netdev_t *
-ni_dracut_cmdline_add_netdev(ni_compat_netdev_array_t *nda, const char *ifname, const ni_hwaddr_t *hwaddr, const unsigned int *mtu, const int iftype)
+ni_dracut_cmdline_add_netdev(ni_compat_netdev_array_t *nda, const char *ifname, const ni_hwaddr_t *lladdr, const unsigned int *mtu, const int iftype)
 {
 	ni_compat_netdev_t *nd;
 
@@ -250,13 +250,13 @@ ni_dracut_cmdline_add_netdev(ni_compat_netdev_array_t *nda, const char *ifname, 
 			NI_IFTYPE_ETHERNET : iftype;
 	}
 
-	if (ifname && nd && hwaddr) {
-		memcpy(nd->dev->link.hwaddr.data, hwaddr->data, hwaddr->len);
-		nd->dev->link.hwaddr.len = hwaddr->len;
-		nd->dev->link.hwaddr.type = hwaddr->type;
+	if (!ni_link_address_is_invalid(lladdr)) {
+		/* request to modify the link address aka `ip link set address <mac> dev <ifname>` */
+		ni_link_address_set(&nd->dev->link.hwaddr, lladdr->type, lladdr->data, lladdr->len);
 	}
 
 	if (mtu) {
+		/* request to set the mtu */
 		nd->dev->link.mtu = *mtu;
 	}
 
@@ -654,28 +654,48 @@ ni_dracut_cmdline_parse_opt_bridge(ni_compat_netdev_array_t *nda, ni_var_t *para
 	return TRUE;
 }
 
+/*
+ * ifname=<name>:<mac>
+ *
+ * This parameter does not create any interface config, but adds an
+ * identify match to rename an interface (potentially) using wrong
+ * name, e.g. still kernel assigned "random eth0" name, to a name
+ * used by other parameters like `ip=` or bridge, bond, ...  port.
+ *
+ * Thus it is important to parse all the other parameters before.
+ * When the interface is not configured otherwise and there will be
+ * no interface config for, we sill expose them as emenent nodes
+ * in the config source specific meta option value.
+ */
 static ni_bool_t
-ni_dracut_cmdline_parse_opt_ifname(ni_compat_netdev_array_t *nda, ni_var_t *param)
+ni_dracut_cmdline_parse_opt_ifname(ni_compat_netdev_array_t *nda, xml_node_t *ovalue, ni_var_t *param)
 {
 	char *mac, *ifname;
-	ni_hwaddr_t lladdr;
+	ni_hwaddr_t hwaddr;
 	ni_compat_netdev_t *nd;
 
-	if (ni_string_empty(param->value))
-		return FALSE;
-
 	ifname = param->value;
-
-	if (!(mac = token_next(param->value, ':')))
+	mac = token_next(param->value, ':');
+	if (!ni_netdev_name_is_valid(ifname)) {
+		ni_warn("dracut:cmdline %s: suspect interface name '%s'", param->name,
+				ni_print_suspect(ifname, ni_string_len(ifname)));
 		return FALSE;
-
-	if (ni_link_address_parse(&lladdr, ARPHRD_ETHER, mac))
+	}
+	if (!mac || ni_link_address_parse(&hwaddr, ARPHRD_ETHER, mac) ||
+	    ni_link_address_is_invalid(&hwaddr)) {
+		ni_warn("dracut:cmdline %s: suspect mac address '%s'", param->name,
+				ni_print_suspect(mac, ni_string_len(mac)));
 		return FALSE;
+	}
 
-	nd = ni_dracut_cmdline_add_netdev(nda, ifname, NULL, NULL, NI_IFTYPE_UNKNOWN);
-	memcpy(nd->identify.hwaddr.data, lladdr.data, lladdr.len);
-	nd->identify.hwaddr.len = lladdr.len;
-	nd->identify.hwaddr.type = lladdr.type;
+	/* expose pre-parsed meta-data option elements to the caller */
+	xml_node_new_element("name", ovalue, ifname);
+	xml_node_new_element("mac", ovalue, mac);
+
+	if ((nd = ni_compat_netdev_by_name(nda, ifname))) {
+		/* request to match / identify by (persistent) hwaddr to rename it (if needed) */
+		ni_link_address_set(&nd->identify.hwaddr, hwaddr.type, hwaddr.data, hwaddr.len);
+	}
 
 	return TRUE;
 }
@@ -705,11 +725,9 @@ static ni_bool_t
 ni_dracut_cmdline_parse_param(ni_dracut_cmdline_param_t type, ni_var_t *var,
 				xml_node_t *ovalue, ni_compat_netdev_array_t *nd)
 {
-	(void)ovalue;
-
 	switch (type) {
 		case NI_DRACUT_PARAM_IFNAME:
-			return ni_dracut_cmdline_parse_opt_ifname(nd, var);
+			return ni_dracut_cmdline_parse_opt_ifname(nd, ovalue, var);
 		case NI_DRACUT_PARAM_BOND:
 			return ni_dracut_cmdline_parse_opt_bond(nd, var);
 		case NI_DRACUT_PARAM_TEAM:
