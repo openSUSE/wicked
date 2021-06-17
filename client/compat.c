@@ -2934,16 +2934,20 @@ ni_compat_generate_interface(xml_document_t *doc, const ni_compat_netdev_t *comp
 		return NULL;
 
 	if((namenode = xml_node_new("name", ifnode))) {
+		if (!ni_string_empty(compat->dev->name)) {
+			/* we identify it by persistent/perdictable ifname */
+			xml_node_set_cdata(namenode, compat->dev->name);
+		} else
 		if (compat->identify.hwaddr.len &&
 		    compat->identify.hwaddr.type == ARPHRD_ETHER) {
-			/* whatever the name currently is, just use the name of
+			/* Note: compatibility to the obsolete use-nanny=false
+			 *       fsm namespace/identify (never used in ifcfg).
+			 *
+			 * whatever the name currently is, just use the name of
 			 * the ethernet device with given permanent-address */
 			xml_node_add_attr(namenode, "namespace", "ethernet");
 			xml_node_new_element("permanent-address", namenode,
 				ni_link_address_print(&compat->identify.hwaddr));
-		} else {
-			/* we identify it by persistent/perdictable ifname */
-			xml_node_set_cdata(namenode, compat->dev->name);
 		}
 
 		if (ni_compat_generate_ifnode_content(ifnode, compat)) {
