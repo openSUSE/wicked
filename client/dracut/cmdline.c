@@ -51,20 +51,25 @@
 
 typedef enum {
 	NI_DRACUT_PARAM_IFNAME = 0U,
-	NI_DRACUT_PARAM_BRIDGE,
 	NI_DRACUT_PARAM_BOND,
 	NI_DRACUT_PARAM_TEAM,
 	NI_DRACUT_PARAM_VLAN,
+	NI_DRACUT_PARAM_BRIDGE,
 	NI_DRACUT_PARAM_IP,
-} ni_cmdlineconfig_dracut_params_t;
+} ni_dracut_cmdline_param_t;
 
 static const ni_intmap_t	dracut_params[] = {
-	{ "ifname",		NI_DRACUT_PARAM_IFNAME		},
-	{ "bridge",		NI_DRACUT_PARAM_BRIDGE		},
+	/* interface type vars  */
 	{ "bond",		NI_DRACUT_PARAM_BOND		},
 	{ "team",		NI_DRACUT_PARAM_TEAM		},
 	{ "vlan",		NI_DRACUT_PARAM_VLAN		},
+	{ "bridge",		NI_DRACUT_PARAM_BRIDGE		},
+
+	/* ip and route config  */
 	{ "ip",			NI_DRACUT_PARAM_IP		},
+
+	/* interface matches    */
+	{ "ifname",		NI_DRACUT_PARAM_IFNAME		},
 
 	{ NULL,			-1U				}
 };
@@ -78,7 +83,7 @@ typedef enum {
 	NI_DRACUT_BOOTPROTO_DHCP6,
 	NI_DRACUT_BOOTPROTO_AUTO6,
 	NI_DRACUT_BOOTPROTO_IBFT,
-} ni_cmdlineconfig_dracut_bootprotos_t;
+} ni_dracut_cmdline_bootproto_t;
 
 static const ni_intmap_t	bootprotos[] = {
 	{ "off",		NI_DRACUT_BOOTPROTO_OFF		},
@@ -108,12 +113,6 @@ token_next(char *ptr, char sep)
 		*end++ = '\0';
 
 	return end;
-}
-
-const char *
-ni_dracut_param_name(unsigned int *param)
-{
-	return ni_format_uint_mapped(*param, dracut_params);
 }
 
 static ni_bool_t
@@ -550,7 +549,7 @@ parse_ip3(ni_compat_netdev_array_t *nda, char *val, const char *client_ip)
  * Guess what IP param syntax variant we have to parse and call the
  * appropriate function.
  */
-ni_bool_t
+static ni_bool_t
 ni_dracut_cmdline_parse_opt_ip(ni_compat_netdev_array_t *nd, ni_var_t *param)
 {
 	char *end, *beg;
@@ -583,7 +582,7 @@ ni_dracut_cmdline_parse_opt_ip(ni_compat_netdev_array_t *nd, ni_var_t *param)
 /** Parse bonding configuration applying default values when not provided
  * bond=<bondname>[:<bondslaves>:[:<options>[:<mtu>]]]
  */
-ni_bool_t
+static ni_bool_t
 ni_dracut_cmdline_parse_opt_bond(ni_compat_netdev_array_t *nda, ni_var_t *param)
 {
 	char *next;
@@ -619,7 +618,7 @@ add_bond:
 	return !!ni_dracut_cmdline_add_bond(nda, bonddname, slaves, opts, &mtu_u32);
 }
 
-ni_bool_t
+static ni_bool_t
 ni_dracut_cmdline_parse_opt_team(ni_compat_netdev_array_t *nda, ni_var_t *param)
 {
 	char *next, *master, *slaves;
@@ -637,7 +636,7 @@ ni_dracut_cmdline_parse_opt_team(ni_compat_netdev_array_t *nda, ni_var_t *param)
 	return TRUE;
 }
 
-ni_bool_t
+static ni_bool_t
 ni_dracut_cmdline_parse_opt_bridge(ni_compat_netdev_array_t *nda, ni_var_t *param)
 {
 	char *end, *beg;
@@ -655,7 +654,7 @@ ni_dracut_cmdline_parse_opt_bridge(ni_compat_netdev_array_t *nda, ni_var_t *para
 	return TRUE;
 }
 
-ni_bool_t
+static ni_bool_t
 ni_dracut_cmdline_parse_opt_ifname(ni_compat_netdev_array_t *nda, ni_var_t *param)
 {
 	char *mac, *ifname;
@@ -681,7 +680,7 @@ ni_dracut_cmdline_parse_opt_ifname(ni_compat_netdev_array_t *nda, ni_var_t *para
 	return TRUE;
 }
 
-ni_bool_t
+static ni_bool_t
 ni_dracut_cmdline_parse_opt_vlan(ni_compat_netdev_array_t *nda, ni_var_t *param)
 {
 	char *end, *beg;
@@ -702,61 +701,83 @@ ni_dracut_cmdline_parse_opt_vlan(ni_compat_netdev_array_t *nda, ni_var_t *param)
 /**
  * Identify what function needs to be called to handle the supplied param
  **/
-ni_bool_t
-ni_dracut_cmdline_call_param_handler(ni_var_t *var, ni_compat_netdev_array_t *nd)
+static ni_bool_t
+ni_dracut_cmdline_parse_param(ni_dracut_cmdline_param_t type, ni_var_t *var,
+				xml_node_t *ovalue, ni_compat_netdev_array_t *nd)
 {
-	unsigned int param_type;
+	(void)ovalue;
 
-	if (ni_parse_uint_mapped(var->name, dracut_params, &param_type) < 0)
-		return FALSE;
-
-	switch (param_type) {
-		case NI_DRACUT_PARAM_IP:
-			ni_dracut_cmdline_parse_opt_ip(nd, var);
-			break;
-		case NI_DRACUT_PARAM_BOND:
-                        ni_dracut_cmdline_parse_opt_bond(nd, var);
-			break;
-		case NI_DRACUT_PARAM_BRIDGE:
-                        ni_dracut_cmdline_parse_opt_bridge(nd, var);
-			break;
-		case NI_DRACUT_PARAM_TEAM:
-                        ni_dracut_cmdline_parse_opt_team(nd, var);
-			break;
+	switch (type) {
 		case NI_DRACUT_PARAM_IFNAME:
-                        ni_dracut_cmdline_parse_opt_ifname(nd, var);
-			break;
+			return ni_dracut_cmdline_parse_opt_ifname(nd, var);
+		case NI_DRACUT_PARAM_BOND:
+			return ni_dracut_cmdline_parse_opt_bond(nd, var);
+		case NI_DRACUT_PARAM_TEAM:
+			return ni_dracut_cmdline_parse_opt_team(nd, var);
 		case NI_DRACUT_PARAM_VLAN:
-                        ni_dracut_cmdline_parse_opt_vlan(nd, var);
-			break;
-
+			return ni_dracut_cmdline_parse_opt_vlan(nd, var);
+		case NI_DRACUT_PARAM_BRIDGE:
+			return ni_dracut_cmdline_parse_opt_bridge(nd, var);
+		case NI_DRACUT_PARAM_IP:
+			return ni_dracut_cmdline_parse_opt_ip(nd, var);
 		default:
-			ni_error("Dracut param %s not supported yet!\n", var->name);
+			ni_error("Dracut cmdline parameter '%s' is not supported yet!\n", var->name);
 			return FALSE;
 	}
-
-	return TRUE;
 }
 
 /**
  * This function will apply the params found in the params array to the compat_netdev array
  */
 static ni_bool_t
-ni_dracut_cmdline_apply(const ni_var_array_t *params, ni_compat_netdev_array_t *nd)
+ni_dracut_cmdline_parse_params(ni_var_array_t *params, xml_node_t *options, ni_compat_netdev_array_t *nd)
 {
-	unsigned int i, pos;
-	char *pptr;
+	const ni_intmap_t *type;
+	xml_node_t *option;
+	xml_node_t *ovalue;
+	unsigned int pos;
+	ni_var_t *param;
 
-	if (!params)
+	if (!params || !options || !nd)
 		return FALSE;
 
-	for (i = 0; (pptr = (char *) ni_dracut_param_name(&i)); ++i) {
-		const ni_var_t match = { .name = pptr, .value = NULL };
+	/* 1st, parse known params in desired map order (links first, ip, ...) */
+	for (type = dracut_params; type->name; ++type) {
+		const ni_var_t match = { .name = (char *)type->name, .value = NULL };
+
 		pos = 0;
-		while ((pos = ni_var_array_find(params, pos, &match, &ni_var_name_equal, NULL)) != -1U) {
-			ni_dracut_cmdline_call_param_handler(&params->data[pos], nd);
-			++pos;
+		while ((pos = ni_var_array_find(params, pos, &match, ni_var_name_equal, NULL)) != -1U) {
+			param = &params->data[pos];
+
+			/* add config parser specific meta option and mark processed */
+			option = xml_node_new("option", options);
+			xml_node_add_attr(option, "processed", ni_format_boolean(TRUE));
+			xml_node_new_element("key", option, param->name);
+			ovalue = xml_node_new_element("value", option, param->value);
+
+			ni_dracut_cmdline_parse_param(type->value, param, ovalue, nd);
+
+			/*
+			 * not all options are parsed into compat netdev
+			 * but may parse the value cdata into child node
+			 * elements, so detect and reset the cdata then.
+			 */
+			if (ovalue->children)
+				xml_node_set_cdata(ovalue, NULL);
+
+			/* finally, remove param we've processed */
+			ni_var_array_remove_at(params, pos);
 		}
+	}
+
+	/* 2nd, add all unprocessed params into config parser specific meta options */
+	for (pos = 0; pos < params->count; ++pos) {
+		param = &params->data[pos];
+
+		option = xml_node_new("option", options);
+		xml_node_add_attr(option, "processed", ni_format_boolean(FALSE));
+		xml_node_new_element("key", option, param->name);
+		xml_node_new_element("value", option, param->value);
 	}
 
 	return TRUE;
@@ -905,35 +926,37 @@ ni_ifconfig_read_dracut_cmdline(xml_document_array_t *array,
 	ni_compat_ifconfig_init(&conf, type);
 	ni_var_array_t params = NI_VAR_ARRAY_INIT;
 	xml_document_t *doc;
-	xml_node_t *options, *option;
-	unsigned int i;
+	xml_node_t *options;
 
 	doc = xml_document_new();
+
+	/*
+	 * expose config parser specific "meta options"
+	 * to the caller in order to:
+	 * - see options that were in the source config
+	 * - mark processed vs. unprocessed options
+	 * - parse / pre-process option values which
+	 *   do not result in any ifcomfig/ifpolicy
+	 *   but may be needed in e.g. in bootstrap
+	 */
 	options = xml_node_new("options", xml_document_root(doc));
 	xml_node_add_attr(options, "origin", "dracut:cmdline:");
 	xml_document_array_append(array, doc);
 
 	if (ni_dracut_cmdline_file_parse(&params, path)) {
-		for (i = 0; i < params.count; ++i) {
-			option = xml_node_new("option", options);
-			xml_node_new_element("key", option, params.data[i].name);
-			xml_node_new_element("value", option, params.data[i].value);
-		}
-
-		ni_dracut_cmdline_apply(&params, &conf.netdevs);
-
-#if 0
-		/* TODO:
-		 * we currently convert config to policy later
+		/*
+		 * note: parsing "consumes"/modifies params
 		 */
-		kind = ni_ifconfig_kind_guess(kind);
-#endif
+		ni_dracut_cmdline_parse_params(&params, options, &conf.netdevs);
+		ni_var_array_destroy(&params);
+
 		if (kind == NI_IFCONFIG_KIND_POLICY)
 			ni_compat_generate_policies(array, &conf, check_prio, raw);
 		else
 			ni_compat_generate_interfaces(array, &conf, check_prio, raw);
 		return TRUE;
 	}
+	ni_var_array_destroy(&params);
 
 	return FALSE;
 }
