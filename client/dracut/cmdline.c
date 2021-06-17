@@ -27,6 +27,7 @@
 #endif
 
 #include <ctype.h>
+#include <limits.h>
 #include <net/if_arp.h>
 #include <sys/time.h>
 #include <netlink/netlink.h>
@@ -348,49 +349,80 @@ ni_dracut_cmdline_add_bridge(ni_compat_netdev_array_t *nda, const char *brname, 
 	return nd;
 }
 
-static ni_compat_netdev_t *
-ni_dracut_cmdline_add_vlan(ni_compat_netdev_array_t *nda, const char *vlanname, const char *etherdev)
+static ni_bool_t
+ni_dracut_cmdline_vlan_tag_from_name(const char *vlanname, unsigned int *tag)
 {
 	const char *vlantag;
-	ni_vlan_t *vlan;
-	ni_compat_netdev_t *nd;
-	unsigned int tag = 0;
 	size_t len;
 
-	if (!ni_netdev_name_is_valid(vlanname)) {
-		ni_error("Rejecting suspect interface name: %s", vlanname);
-		return FALSE;
-	}
-
-	nd = ni_dracut_cmdline_add_netdev(nda, vlanname, NULL, NULL, NI_IFTYPE_VLAN);
-	vlan = ni_netdev_get_vlan(nd->dev);
-
-	if (ni_string_eq(vlanname, etherdev)) {
-		ni_error("%s: vlan interface name self-reference",
-			vlanname);
-		return FALSE;
-	}
-
-	if ((vlantag = strrchr(vlanname, '.')) != NULL) {
+	if ((vlantag = strrchr(vlanname, '.'))) {
 		/* name.<TAG> */
 		++vlantag;
 	} else {
-		/* name<TAG> */
+		/* name<TAG>  */
 		len = ni_string_len(vlanname);
 		vlantag = &vlanname[len];
-		while(len > 0 && isdigit((unsigned char)vlantag[-1]))
+		while (len-- && isdigit((unsigned char)vlantag[-1]))
 			vlantag--;
 	}
+	return ni_parse_uint(vlantag, tag, 10) == 0;
+}
 
-	if (ni_parse_uint(vlantag, &tag, 10) < 0) {
-		ni_error("%s: Cannot parse vlan-tag from interface name",
-			nd->dev->name);
+static ni_bool_t
+ni_dracut_cmdline_add_vlan(ni_compat_netdev_array_t *nda, const char *vlanname, const char *etherdev)
+{
+	ni_compat_netdev_t *nd;
+	unsigned int tag = 0;
+	const char *err;
+	ni_vlan_t *vlan;
+
+	if (!ni_netdev_name_is_valid(vlanname)) {
+		ni_warn("dracut:cmdline vlan: suspect interface name '%s'",
+				ni_print_suspect(vlanname, ni_string_len(vlanname)));
 		return FALSE;
 	}
+	if (!ni_netdev_name_is_valid(etherdev)) {
+		ni_warn("dracut:cmdline vlan '%s': suspect base interface '%s'",
+				vlanname, ni_print_suspect(etherdev, ni_string_len(etherdev)));
+		return FALSE;
+	}
+	if (ni_string_eq(vlanname, etherdev)) {
+		ni_warn("dracut:cmdline vlan '%s': interface name self-reference '%s'",
+				vlanname, ni_print_suspect(etherdev, ni_string_len(etherdev)));
+		return FALSE;
+	}
+	if (!ni_dracut_cmdline_vlan_tag_from_name(vlanname, &tag) || tag > USHRT_MAX) {
+		ni_warn("dracut:cmdline vlan '%s': cannot parse tag from interface name",
+				vlanname);
+		return FALSE;
+	}
+	if (!ni_dracut_cmdline_add_netdev(nda, etherdev, NULL, NULL, NI_IFTYPE_UNKNOWN)) {
+		ni_warn("dracut:cmdline vlan '%s': unable to create base interface '%s' structure",
+				vlanname, etherdev);
+		return FALSE;
+	}
+
+	vlan = ni_vlan_new();
 	vlan->protocol = NI_VLAN_PROTOCOL_8021Q;
 	vlan->tag = tag;
 
-	return nd;
+	if ((err = ni_vlan_validate(vlan))) {
+		ni_error("dracut:cmdline vlan '%s': %s", vlanname, err);
+		ni_vlan_free(vlan);
+		return FALSE;
+	}
+
+	if (!(nd = ni_dracut_cmdline_add_netdev(nda, vlanname, NULL, NULL, NI_IFTYPE_VLAN))) {
+		ni_warn("dracut:cmdline vlan '%s': unable to create vlan interface structure",
+				vlanname);
+		ni_vlan_free(vlan);
+		return FALSE;
+	}
+
+	ni_string_dup(&nd->dev->link.lowerdev.name, etherdev);
+	ni_netdev_set_vlan(nd->dev, vlan);
+
+	return TRUE;
 }
 
 /**
@@ -703,18 +735,12 @@ ni_dracut_cmdline_parse_opt_ifname(ni_compat_netdev_array_t *nda, xml_node_t *ov
 static ni_bool_t
 ni_dracut_cmdline_parse_opt_vlan(ni_compat_netdev_array_t *nda, ni_var_t *param)
 {
-	char *end, *beg;
+	char *vlanname;
+	char *etherdev;
 
-	if (ni_string_empty(param->value))
-		return FALSE;
-
-	beg = param->value;
-
-	if (!(end = token_next(param->value, ':')))
-		return FALSE;
-
-	ni_dracut_cmdline_add_vlan(nda, end, beg);
-	return TRUE;
+	vlanname = param->value;
+	etherdev = token_next(param->value, ':');
+	return ni_dracut_cmdline_add_vlan(nda, vlanname, etherdev);
 }
 
 
