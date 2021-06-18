@@ -532,7 +532,7 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 			ni_bonding_mii_carrier_detect_name(bond->miimon.carrier_detect));
 	}
 
-	snodes = xml_node_create(child, "slaves");
+	snodes = bond->slaves.count ? xml_node_create(child, "slaves") : NULL;
 	for (i = 0; i < bond->slaves.count; ++i) {
 		ni_bonding_slave_t *slave = bond->slaves.data[i];
 
