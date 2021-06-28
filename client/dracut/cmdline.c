@@ -50,6 +50,15 @@
 #include "client/dracut/cmdline.h"
 #include "buffer.h"
 
+/*
+ * default bond settings specified in dracut.cmdline(7) with
+ * additional explicit miimon=100 -- also a kernel default
+ * same to mode=balance-rr (unlucky as it needs switch setup).
+ */
+#define NI_DRACUT_CMDLINE_DEF_BOND_NAME		"bond0"
+#define NI_DRACUT_CMDLINE_DEF_BOND_SLAVES	"eth0,eth1"
+#define NI_DRACUT_CMDLINE_DEF_BOND_OPTIONS	"mode=balance-rr,miimon=100"
+
 typedef enum {
 	NI_DRACUT_PARAM_IFNAME = 0U,
 	NI_DRACUT_PARAM_BOND,
@@ -114,53 +123,6 @@ token_next(char *ptr, char sep)
 		*end++ = '\0';
 
 	return end;
-}
-
-static ni_bool_t
-ni_dracut_cmdline_set_bonding_options(ni_netdev_t *dev, const char *options)
-{
-	ni_string_array_t temp;
-	ni_bonding_t *bond;
-	unsigned int i;
-	ni_bool_t ret = TRUE;
-
-	if ((bond = ni_netdev_get_bonding(dev)) == NULL)
-		return FALSE;
-
-	ni_string_array_init(&temp);
-	ni_string_split(&temp, options, ",", 0);
-	for (i = 0; i < temp.count; ++i) {
-		char *key = temp.data[i];
-		char *val = strchr(key, '=');
-
-		if (val != NULL)
-			*val++ = '\0';
-
-		/**
-		 * Substitute semicolon into expected colon-separated format
-		 * when we find a arp_ip_target list
-		 */
-		if (ni_string_eq(key, "arp_ip_target")) {
-			char *found;
-			while ((found = strchr(val, (int) ';')))
-				*found = ',';
-		}
-		if (ni_string_empty(key) || ni_string_empty(val)) {
-			ni_error("%s: Unable to parse bonding options '%s'",
-				dev->name, options);
-			ret = FALSE;
-			break;
-		}
-		if (!ni_bonding_set_option(bond, key, val)) {
-			ni_error("%s: Unable to parse bonding option: %s=%s",
-				dev->name, key, val);
-			ret = FALSE;
-			break;
-		}
-	}
-	ni_string_array_destroy(&temp);
-
-	return ret;
 }
 
 static ni_bool_t
@@ -297,29 +259,122 @@ ni_dracut_cmdline_add_team(ni_compat_netdev_array_t *nda, const char *master, ch
 	return nd;
 }
 
-static ni_compat_netdev_t *
-ni_dracut_cmdline_add_bond(ni_compat_netdev_array_t *nda, const char *bondname, char *slaves, const char *options, const unsigned int *mtu)
+static ni_bool_t
+ni_dracut_cmdline_set_bond_options(ni_netdev_t *dev, char *options)
 {
-	ni_bonding_t *bonding;
-	ni_compat_netdev_t *nd;
-	char *names = slaves;
-	char *next;
+	char *option, *key, *val;
+	ni_bonding_t *bond;
 
-	nd = ni_dracut_cmdline_add_netdev(nda, bondname, NULL, mtu, NI_IFTYPE_BOND);
-	bonding = ni_netdev_get_bonding(nd->dev);
+	if (!(bond = ni_netdev_get_bonding(dev)))
+		return FALSE;
 
-	for (next = token_peek(names, ','); next; names = next, next = token_peek(names, ',')) {
-		++next;
-		token_next(names, ',');
-		if (!ni_netdev_name_is_valid(names)) {
-			ni_warn("rejecting suspect port name '%s'", names);
-			continue;
+	for (option = options; option; option = options) {
+		options = token_next(options, ',');
+
+		key = option;
+		val = token_next(option, '=');
+
+		/* substitute semicolon into expected colon-separated format */
+		if (ni_string_eq(key, "arp_ip_target")) {
+			char *found;
+			while ((found = strchr(val, ';')))
+				*found = ',';
 		}
-		ni_bonding_add_slave(bonding, names);
+		if (ni_string_empty(key) || ni_string_empty(val) ||
+		    !ni_bonding_set_option(bond, key, val)) {
+			ni_warn("dracut:cmdline bond '%s': rejecting invalid option '%s'='%s'",
+					dev->name, key ? key : "", val ? val : "");
+		}
 	}
-	ni_bonding_add_slave(bonding, names);
 
-	ni_dracut_cmdline_set_bonding_options(nd->dev, options);
+	return TRUE;
+}
+
+static ni_bool_t
+ni_dracut_cmdline_add_bond_port(ni_compat_netdev_array_t *nda, ni_netdev_t *dev, const char *portname)
+{
+	ni_compat_netdev_t *nd;
+#if 0
+	ni_bonding_t *bond;
+#endif
+	if (!ni_netdev_name_is_valid(portname) || ni_string_eq(dev->name, portname)) {
+		ni_warn("dracut:cmdline bond '%s': rejecting suspect port interface name '%s'",
+				dev->name, ni_print_suspect(portname, ni_string_len(portname)));
+		return FALSE;
+	}
+
+	if (!(nd = ni_dracut_cmdline_add_netdev(nda, portname, NULL, 0, NI_IFTYPE_UNKNOWN))) {
+		ni_warn("dracut:cmdline bridge '%s': unable to create port '%s' interface structure",
+				dev->name, portname);
+		return FALSE;
+	}
+
+	if (!ni_string_empty(nd->dev->link.masterdev.name) &&
+	    !ni_string_eq(dev->name, nd->dev->link.masterdev.name)) {
+		ni_warn("dracut:cmdline bond '%s': rejecting port '%s' already enslaved in '%s'",
+				dev->name, portname, nd->dev->link.masterdev.name);
+		return FALSE;
+	}
+
+	/* each port/slave device refers via master to the bond device */
+	ni_netdev_ref_set_ifname(&nd->dev->link.masterdev, dev->name);
+
+#if 0
+	/* port/slave list in bond is deprecated / unused by wickedd */
+	if ((bond = ni_netdev_get_bonding(dev)))
+		ni_bonding_add_slave(bond, port);
+#endif
+	return TRUE;
+}
+
+static ni_compat_netdev_t *
+ni_dracut_cmdline_add_bond(ni_compat_netdev_array_t *nda, const char *bondname, char *slaves,
+				const char *options, const unsigned int *mtu)
+{
+	ni_compat_netdev_t *nd;
+	char *opts = NULL;
+	unsigned int cnt;
+	const char *err;
+	char *name;
+
+	if (!ni_netdev_name_is_valid(bondname)) {
+		ni_warn("dracut:cmdline bond: rejecting suspect interface name '%s'",
+				ni_print_suspect(bondname, ni_string_len(bondname)));
+		return NULL;
+	}
+
+	if (!(nd = ni_dracut_cmdline_add_netdev(nda, bondname, NULL, mtu, NI_IFTYPE_BOND)) ||
+	    !ni_netdev_get_bonding(nd->dev)) {
+		ni_warn("dracut:cmdline bond '%s': unable to create bond interface structure",
+				bondname);
+		return NULL;
+	}
+
+	/* parse options first, so we can discard and reset if invalid */
+	ni_string_dup(&opts, options);
+	ni_dracut_cmdline_set_bond_options(nd->dev, opts);
+	ni_string_free(&opts);
+
+	if ((err = ni_bonding_validate(nd->dev->bonding))) {
+		ni_warn("dracut:cmdline bond '%s': rejecting invalid options: %s", bondname,
+				ni_print_suspect(options, ni_string_len(options)));
+		ni_netdev_set_bonding(nd->dev, NULL);
+
+		ni_netdev_get_bonding(nd->dev);
+		ni_string_dup(&opts, NI_DRACUT_CMDLINE_DEF_BOND_OPTIONS);
+		ni_dracut_cmdline_set_bond_options(nd->dev, opts);
+		ni_string_free(&opts);
+	}
+
+	for (cnt = 0, name = slaves; name; name = slaves) {
+		slaves = token_next(slaves, ',');
+		if (ni_dracut_cmdline_add_bond_port(nda, nd->dev, name))
+			cnt++;
+	}
+	if (!cnt) {
+		ni_warn("dracut:cmdline bond '%s': no valid port interfaces defined",
+				bondname);
+	}
 
 	return nd;
 }
@@ -618,12 +673,12 @@ static ni_bool_t
 ni_dracut_cmdline_parse_opt_bond(ni_compat_netdev_array_t *nda, ni_var_t *param)
 {
 	char *next;
-	char *bonddname = "bond0";
-	char default_slaves[] = "eth0,eth1";
+	char *bonddname = NI_DRACUT_CMDLINE_DEF_BOND_NAME;
+	char default_slaves[] = NI_DRACUT_CMDLINE_DEF_BOND_SLAVES;
 	char *slaves = default_slaves;
-	char *opts = "mode=balance-rr";
+	char *opts = NI_DRACUT_CMDLINE_DEF_BOND_OPTIONS;
+	unsigned int mtu_u32 = 0;
 	char *mtu = NULL;
-	unsigned int mtu_u32;
 
 	if (ni_string_empty(param->value))
 		goto add_bond;
