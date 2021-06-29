@@ -59,6 +59,15 @@
 #define NI_DRACUT_CMDLINE_DEF_BOND_SLAVES	"eth0,eth1"
 #define NI_DRACUT_CMDLINE_DEF_BOND_OPTIONS	"mode=balance-rr,miimon=100"
 
+ /*
+  * default team settings specified in dracut.cmdline(7) are
+  * defined as: `team=team0:eth0,eth1:activebackup`
+  * (see recent dracut version, older don't specify this).
+  */
+#define NI_DRACUT_CMDLINE_DEF_TEAM_NAME		"team0"
+#define NI_DRACUT_CMDLINE_DEF_TEAM_PORTS	"eth0,eth1"
+#define NI_DRACUT_CMDLINE_DEF_TEAM_RUNNER	"activebackup"
+
 typedef enum {
 	NI_DRACUT_PARAM_IFNAME = 0U,
 	NI_DRACUT_PARAM_BOND,
@@ -228,34 +237,72 @@ ni_dracut_cmdline_add_netdev(ni_compat_netdev_array_t *nda, const char *ifname, 
 	return nd;
 }
 
-static ni_compat_netdev_t *
-ni_dracut_cmdline_add_team(ni_compat_netdev_array_t *nda, const char *master, char *slaves)
+static ni_bool_t
+ni_dracut_cmdline_add_team_port(ni_compat_netdev_array_t *nda, ni_netdev_t *dev, const char *portname)
 {
-	ni_team_t *team;
-	ni_team_port_t *port;
 	ni_compat_netdev_t *nd;
 
-	char *next;
-
-	nd = ni_dracut_cmdline_add_netdev(nda, master, NULL, NULL, NI_IFTYPE_TEAM);
-	team = ni_netdev_get_team(nd->dev);
-	ni_team_runner_init(&team->runner, NI_TEAM_RUNNER_ACTIVE_BACKUP);
-	for (next = token_peek(slaves, ','); next; slaves = next, next = token_peek(slaves, ',')) {
-
-		++next;
-		token_next(slaves, ',');
-		if (!ni_netdev_name_is_valid(slaves)) {
-			ni_warn("rejecting suspect port name '%s'", slaves);
-			continue;
-		}
-		port = ni_team_port_new();
-		ni_netdev_ref_set_ifname(&port->device, slaves);
-		ni_team_port_array_append(&team->ports, port);
+	if (!ni_netdev_name_is_valid(portname) || ni_string_eq(dev->name, portname)) {
+		ni_warn("dracut:cmdline team '%s': rejecting suspect port interface name '%s'",
+				dev->name, ni_print_suspect(portname, ni_string_len(portname)));
+		return FALSE;
 	}
-	port = ni_team_port_new();
-	ni_netdev_ref_set_ifname(&port->device, slaves);
-	ni_team_port_array_append(&team->ports, port);
 
+	if (!(nd = ni_dracut_cmdline_add_netdev(nda, portname, NULL, 0, NI_IFTYPE_UNKNOWN))) {
+		ni_warn("dracut:cmdline team '%s': unable to create port interface structure",
+				dev->name);
+		return FALSE;
+	}
+
+	if (!ni_string_empty(nd->dev->link.masterdev.name) &&
+	    !ni_string_eq(dev->name, nd->dev->link.masterdev.name)) {
+		ni_warn("dracut:cmdline team '%s': rejecting port '%s' already enslaved in '%s'",
+				dev->name, portname, nd->dev->link.masterdev.name);
+		return FALSE;
+	}
+
+	/* each port/slave refers via master to the team interface */
+	ni_netdev_ref_set_ifname(&nd->dev->link.masterdev, dev->name);
+
+	return TRUE;
+}
+
+static ni_compat_netdev_t *
+ni_dracut_cmdline_add_team(ni_compat_netdev_array_t *nda, const char *master, char *slaves, const char *runner)
+{
+	ni_team_runner_type_t rtype;
+	ni_compat_netdev_t *nd;
+	unsigned int cnt;
+	char *name;
+
+	if (!ni_netdev_name_is_valid(master)) {
+		ni_warn("dracut:cmdline team: rejecting suspect interface name '%s'",
+				ni_print_suspect(master, ni_string_len(master)));
+		return NULL;
+	}
+
+	if (!(nd = ni_dracut_cmdline_add_netdev(nda, master, NULL, NULL, NI_IFTYPE_TEAM)) ||
+	    !ni_netdev_get_team(nd->dev)) {
+		ni_warn("dracut:cmdline team '%s': unable to create interface structure",
+				master);
+		return NULL;
+	}
+
+	if (!ni_team_runner_name_to_type(runner, &rtype)) {
+		ni_warn("dracut:cmdline team '%s': rejecting suspect runner type '%s'",
+				master, ni_print_suspect(runner, ni_string_len(runner)));
+	}
+	ni_team_runner_init(&nd->dev->team->runner, rtype);
+
+	for (cnt = 0, name = slaves; name; name = slaves) {
+		slaves = token_next(slaves, ',');
+		if (ni_dracut_cmdline_add_team_port(nda, nd->dev, name))
+			cnt++;
+	}
+	if (!cnt) {
+		ni_warn("dracut:cmdline team '%s': no valid port interfaces defined",
+				master);
+	}
 	return nd;
 }
 
@@ -708,19 +755,29 @@ add_bond:
 static ni_bool_t
 ni_dracut_cmdline_parse_opt_team(ni_compat_netdev_array_t *nda, ni_var_t *param)
 {
-	char *next, *master, *slaves;
+	char *master = NI_DRACUT_CMDLINE_DEF_TEAM_NAME;
+	char *runner = NI_DRACUT_CMDLINE_DEF_TEAM_RUNNER;
+	char default_ports[] =  NI_DRACUT_CMDLINE_DEF_TEAM_PORTS;
+	char *slaves = default_ports;
+	char *next;
 
 	if (ni_string_empty(param->value))
-		return FALSE;
+		goto add_team;
 
 	master = param->value;
 	if (!(next = token_next(master, ':')))
-		return FALSE;
+		goto add_team;
+
 	slaves = next;
+	if (!(next = token_next(slaves, ':')))
+		goto add_team;
 
-	ni_dracut_cmdline_add_team(nda, master, slaves);
+	runner = next;
+	if (!(next = token_next(runner, ':')))
+		goto add_team;
 
-	return TRUE;
+add_team:
+	return !!ni_dracut_cmdline_add_team(nda, master, slaves, runner);
 }
 
 static ni_bool_t
