@@ -26,7 +26,9 @@
 #include "config.h"
 #endif
 
+#include <assert.h>
 #include <ctype.h>
+#include <stdlib.h>
 #include <limits.h>
 #include <net/if_arp.h>
 #include <sys/time.h>
@@ -208,21 +210,30 @@ ni_dracut_cmdline_add_netdev(ni_compat_netdev_array_t *nda, const char *ifname, 
 {
 	ni_compat_netdev_t *nd;
 
-	nd = ni_compat_netdev_by_name(nda, ifname);
+	if (!(nd = ni_compat_netdev_by_name(nda, ifname))) {
+		if (!(nd = ni_compat_netdev_new(ifname)))
+			return NULL;
 
-	/* We only apply the iftype if it hasn't been applied before
-	   (to avoid overwriting netdevs created by bridge=..., vlan=... etc) */
-	if (nd && (nd->dev->link.type == NI_IFTYPE_UNKNOWN))
-		nd->dev->link.type = iftype;
-	if (!nd) {
-		nd = ni_compat_netdev_new(ifname);
-
-		/* Assume default NI_IFTYPE_ETHERNET for newly created netdevs */
-		nd->dev->link.type = iftype == NI_IFTYPE_UNKNOWN ?
-			NI_IFTYPE_ETHERNET : iftype;
+		ni_compat_netdev_array_append(nda, nd);
 	}
 
+
+	/* We only apply the iftype if it hasn't been applied before
+	 * (to avoid overwriting netdevs created by bridge=..., vlan=... etc) */
+	if (nd->dev->link.type == NI_IFTYPE_UNKNOWN)
+		nd->dev->link.type = iftype;
+
 	if (!ni_link_address_is_invalid(lladdr)) {
+		/* The link mac address is not a "generic" interface property,
+		 * but can be applied only on (ether) interfaces supporting it,
+		 * e.g. ethernet, bridge, bond, team, vlan (not on infiniband
+		 * ppp, tunnels, ...).
+		 * Assume it's (physical) ethernet interface if configured to
+		 * apply a link address, but the interface does not have type.
+		 */
+		if (nd->dev->link.type == NI_IFTYPE_UNKNOWN)
+			nd->dev->link.type = NI_IFTYPE_ETHERNET;
+
 		/* request to modify the link address aka `ip link set address <mac> dev <ifname>` */
 		ni_link_address_set(&nd->dev->link.hwaddr, lladdr->type, lladdr->data, lladdr->len);
 	}
@@ -231,8 +242,6 @@ ni_dracut_cmdline_add_netdev(ni_compat_netdev_array_t *nda, const char *ifname, 
 		/* request to set the mtu */
 		nd->dev->link.mtu = *mtu;
 	}
-
-	ni_compat_netdev_array_append(nda, nd);
 
 	return nd;
 }
