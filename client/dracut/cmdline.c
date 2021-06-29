@@ -283,7 +283,7 @@ ni_dracut_cmdline_add_team(ni_compat_netdev_array_t *nda, const char *master, ch
 
 	if (!(nd = ni_dracut_cmdline_add_netdev(nda, master, NULL, NULL, NI_IFTYPE_TEAM)) ||
 	    !ni_netdev_get_team(nd->dev)) {
-		ni_warn("dracut:cmdline team '%s': unable to create interface structure",
+		ni_warn("dracut:cmdline team '%s': unable to create team interface structure",
 				master);
 		return NULL;
 	}
@@ -426,27 +426,61 @@ ni_dracut_cmdline_add_bond(ni_compat_netdev_array_t *nda, const char *bondname, 
 	return nd;
 }
 
+static ni_bool_t
+ni_dracut_cmdline_add_bridge_port(ni_compat_netdev_array_t *nda, ni_netdev_t *dev, const char *portname)
+{
+	ni_compat_netdev_t *nd;
+
+	if (!ni_netdev_name_is_valid(portname) || ni_string_eq(dev->name, portname)) {
+		ni_warn("dracut:cmdline bridge '%s': rejecting suspect port interface name '%s'",
+				dev->name, ni_print_suspect(portname, ni_string_len(portname)));
+		return FALSE;
+	}
+
+	if (!(nd = ni_dracut_cmdline_add_netdev(nda, portname, NULL, 0, NI_IFTYPE_UNKNOWN))) {
+		ni_warn("dracut:cmdline bridge '%s': unable to create port '%s' interface structure",
+				dev->name, portname);
+		return FALSE;
+	}
+
+	if (!ni_string_empty(nd->dev->link.masterdev.name) &&
+	    !ni_string_eq(dev->name, nd->dev->link.masterdev.name)) {
+		ni_warn("dracut:cmdline bridge '%s': rejecting port '%s' already enslaved in '%s'",
+				dev->name, portname, nd->dev->link.masterdev.name);
+		return FALSE;
+	}
+
+	/* each port/slave refers via master to the bridge interface */
+	ni_netdev_ref_set_ifname(&nd->dev->link.masterdev, dev->name);
+
+	return TRUE;
+}
+
 static ni_compat_netdev_t *
 ni_dracut_cmdline_add_bridge(ni_compat_netdev_array_t *nda, const char *brname, char *ports)
 {
-	ni_bridge_t *bridge;
 	ni_compat_netdev_t *nd;
-	char *names = ports;
-	char *next;
+	unsigned int cnt;
+	char *name;
 
-	nd = ni_dracut_cmdline_add_netdev(nda, brname, NULL, NULL, NI_IFTYPE_BRIDGE);
-	bridge = ni_netdev_get_bridge(nd->dev);
-
-	for (next = token_peek(names, ','); next; names = next, next = token_peek(names, ',')) {
-		++next;
-		token_next(names, ',');
-		if (!ni_netdev_name_is_valid(names)) {
-			ni_warn("rejecting suspect port name '%s'", names);
-			continue;
-		}
-		ni_bridge_port_new(bridge, names, 0);
+	if (!ni_netdev_name_is_valid(brname)) {
+		ni_warn("dracut:cmdline bridge: rejecting suspect interface name '%s'",
+				ni_print_suspect(brname, ni_string_len(brname)));
+		return NULL;
 	}
-	ni_bridge_port_new(bridge, names, 0);
+
+	if (!(nd = ni_dracut_cmdline_add_netdev(nda, brname, NULL, NULL, NI_IFTYPE_BRIDGE)) ||
+	    !ni_netdev_get_bridge(nd->dev)) {
+		ni_warn("dracut:cmdline bridge '%s': unable to create bridge interface structure",
+				brname);
+		return NULL;
+	}
+
+	for (cnt = 0, name = ports; name; name = ports) {
+		ports = token_next(ports, ',');
+		if (ni_dracut_cmdline_add_bridge_port(nda, nd->dev, name))
+			cnt++;
+	}
 
 	return nd;
 }
@@ -783,19 +817,25 @@ add_team:
 static ni_bool_t
 ni_dracut_cmdline_parse_opt_bridge(ni_compat_netdev_array_t *nda, ni_var_t *param)
 {
-	char *end, *beg;
+	char *brname, *ports;
 
 	if (ni_string_empty(param->value))
 		return FALSE;
 
-	beg = param->value;
-
-	if (!(end = token_next(param->value, ':')))
+	brname = param->value;
+	if (!(ports = token_next(param->value, ':')))
 		return FALSE;
 
-	ni_dracut_cmdline_add_bridge(nda, beg, end);
+	/*
+	 * currently, dracut does not support any options,
+	 * we just ensure to terminate the slaves/port list
+	 * when it starts to supports some.
+	 * It's safe as ':' is invalid in interface names
+	 * anyway (reserved for labels aka alias fakes).
+	 */
+	token_next(ports, ':');
 
-	return TRUE;
+	return !!ni_dracut_cmdline_add_bridge(nda, brname, ports);
 }
 
 /*
