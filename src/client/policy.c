@@ -166,6 +166,60 @@ ni_ifpolicy_name_is_valid(const char *name)
 	return TRUE;
 }
 
+ni_bool_t
+ni_ifpolicy_get_owner_uid(const xml_node_t *node, uid_t *uid)
+{
+	const char *owner;
+
+	if (!(owner = ni_ifpolicy_get_owner(node)))
+		return FALSE;
+
+	if (ni_parse_uint(owner, uid, 10))
+		return FALSE;
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_ifpolicy_set_owner_uid(xml_node_t *node, uid_t uid)
+{
+	if (!node)
+		return FALSE;
+
+	while (xml_node_del_attr(node, NI_NANNY_IFPOLICY_OWNER))
+		;
+
+	xml_node_add_attr_uint(node, NI_NANNY_IFPOLICY_OWNER, uid);
+	return TRUE;
+}
+
+ni_bool_t
+ni_ifpolicy_set_owner(xml_node_t *node, const char *owner)
+{
+	uid_t uid = -1U;
+
+	if (!node || ni_parse_uint(owner, &uid, 10))
+		return FALSE;
+
+	return ni_ifpolicy_set_owner_uid(node, uid);
+}
+
+ni_bool_t
+ni_ifpolicy_set_uuid(xml_node_t *node, const ni_uuid_t *uuid)
+{
+	const char *ptr;
+
+	if (!node)
+		return FALSE;
+
+	while (xml_node_del_attr(node, NI_NANNY_IFPOLICY_UUID))
+		;
+
+	ptr = ni_uuid_print(uuid);
+	if (!ni_string_empty(ptr))
+		xml_node_add_attr(node, NI_NANNY_IFPOLICY_UUID, ptr);
+	return TRUE;
+}
 
 /*
  * Generate a <match> node for ifpolicy
