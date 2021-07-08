@@ -251,6 +251,7 @@ extern const char *	ni_format_bitmap(ni_stringbuf_t *, const ni_intmap_t *, unsi
 extern ni_bool_t	ni_intmap_file_get_name(const char *, unsigned int *, char **);
 extern ni_bool_t	ni_intmap_file_get_value(const char *, unsigned int *, char **);
 
+extern void		ni_uuid_init(ni_uuid_t *);
 extern const char *	ni_uuid_print(const ni_uuid_t *);
 extern int		ni_uuid_parse(ni_uuid_t *, const char *);
 extern int		ni_uuid_is_null(const ni_uuid_t *);
