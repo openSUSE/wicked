@@ -234,7 +234,7 @@ ni_nanny_policy_load(ni_nanny_t *mgr)
 				continue;
 			}
 
-			if (!ni_nanny_create_policy(NULL, mgr, doc, TRUE)) {
+			if (!ni_nanny_create_policy(NULL, mgr, doc, NULL, TRUE)) {
 				ni_error("Unable to create policy from file '%s'", path);
 			}
 			xml_document_free(doc);

@@ -238,14 +238,21 @@ ni_objectmodel_register_managed_policy(ni_dbus_server_t *server, ni_managed_poli
  * Unregister a policy from our dbus server.
  */
 dbus_bool_t
-ni_objectmodel_unregister_managed_policy(ni_dbus_server_t *server, ni_managed_policy_t *mpolicy, const char *name)
+ni_objectmodel_unregister_managed_policy(ni_dbus_server_t *server, ni_managed_policy_t *mpolicy)
 {
-	if (ni_dbus_server_unregister_object(server, mpolicy)) {
-		ni_debug_dbus("unregistered policy %s", name);
-		return TRUE;
-	}
+	const char *name;
 
-	return FALSE;
+	if (!server || !mpolicy || !mpolicy->fsm_policy)
+		return FALSE;
+
+	name = ni_fsm_policy_name(mpolicy->fsm_policy);
+	if (ni_dbus_server_unregister_object(server, mpolicy)) {
+		ni_debug_dbus("policy \"%s\" unregistered", name);
+		return TRUE;
+	} else {
+		ni_debug_dbus("policy \"%s\" not registered", name);
+		return FALSE;
+	}
 }
 
 /*
@@ -328,6 +335,7 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 		return FALSE;
 	}
 
+	ni_ifpolicy_set_owner_uid(node, caller_uid);
 	if (!ni_fsm_policy_update(mpolicy->fsm_policy, node)) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Incorrect/incomplete policy in call to %s.%s",
