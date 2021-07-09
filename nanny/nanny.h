@@ -68,7 +68,6 @@ struct ni_managed_policy {
 	ni_managed_policy_t **	pprev;
 	ni_managed_policy_t *	next;
 
-	uid_t			owner;
 	unsigned int		seqno;
 	ni_fsm_policy_t *	fsm_policy;
 };
@@ -158,6 +157,7 @@ extern ni_dbus_object_t *	ni_managed_policy_register(ni_nanny_t *, ni_fsm_policy
 extern ni_managed_policy_t *	ni_managed_policy_new(ni_nanny_t *, ni_fsm_policy_t *);
 extern ni_managed_policy_t *	ni_managed_policy_ref(ni_managed_policy_t *);
 extern void			ni_managed_policy_free(ni_managed_policy_t *);
+extern uid_t			ni_managed_policy_owner(const ni_managed_policy_t *);
 
 extern const char *		ni_managed_state_to_string(ni_managed_state_t);
 

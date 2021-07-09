@@ -191,6 +191,12 @@ ni_managed_policy_free(ni_managed_policy_t *mpolicy)
 	}
 }
 
+uid_t
+ni_managed_policy_owner(const ni_managed_policy_t *mpolicy)
+{
+	return mpolicy ? ni_fsm_policy_owner(mpolicy->fsm_policy) : -1U;
+}
+
 ni_dbus_object_t *
 ni_managed_policy_register(ni_nanny_t *mgr, ni_fsm_policy_t *policy)
 {
@@ -298,7 +304,7 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 		return FALSE;
 	}
 
-	if (caller_uid != 0 && caller_uid != mpolicy->owner) {
+	if (caller_uid != 0 && caller_uid != ni_managed_policy_owner(mpolicy)) {
 		dbus_set_error_const(error, NI_DBUS_ERROR_PERMISSION_DENIED, NULL);
 		return FALSE;
 	}
@@ -331,7 +337,6 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 	}
 	xml_document_free(doc);
 
-	mpolicy->owner = caller_uid;
 	mpolicy->seqno++;
 
 	if (!ni_managed_policy_save(mpolicy)) {

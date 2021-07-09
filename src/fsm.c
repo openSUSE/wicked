@@ -396,6 +396,9 @@ ni_ifworker_reset(ni_ifworker_t *w)
 void
 ni_ifworker_free(ni_ifworker_t *w)
 {
+	/* Destroy applied policy references */
+	ni_fsm_policy_array_destroy(&w->policies);
+
 	/* Destroy client state config and control */
 	ni_ifworker_control_destroy(&w->control);
 	ni_security_id_destroy(&w->security_id);

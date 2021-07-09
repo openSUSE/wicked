@@ -586,7 +586,7 @@ ni_nanny_prompt(const ni_fsm_prompt_t *p, xml_node_t *node, void *user_data)
 				w->name, path_buf.string);
 		goto done;
 	}
-	if ((user = ni_nanny_get_user(mgr, mdev->selected_policy->owner)) == NULL) {
+	if (!(user = ni_nanny_get_user(mgr, ni_managed_policy_owner(mdev->selected_policy)))) {
 		ni_error("%s: policy not owned by anyone?!", w->name);
 		goto done;
 	}
@@ -1054,7 +1054,7 @@ ni_nanny_recheck_policy(ni_nanny_t *mgr, ni_fsm_policy_t *policy)
 	w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV,
 							ni_fsm_policy_name(policy));
 	if (w == NULL || !w->config.node) {
-		const char *origin = ni_fsm_policy_get_origin(policy);
+		const char *origin = ni_fsm_policy_origin(policy);
 
 		config = xml_node_new(NI_CLIENT_IFCONFIG, NULL);
 		config = ni_fsm_policy_transform_document(config, &policy, 1);

@@ -47,17 +47,26 @@ typedef enum ni_config_origin_prio {
 #define NI_IFWORKER_DEFAULT_TIMEOUT	30000
 #define NI_IFWORKER_INFINITE_TIMEOUT	((unsigned int) -1)
 
-typedef struct ni_fsm		ni_fsm_t;
-typedef struct ni_ifworker	ni_ifworker_t;
-typedef struct ni_fsm_require	ni_fsm_require_t;
-typedef struct ni_fsm_policy	ni_fsm_policy_t;
-typedef struct ni_fsm_event	ni_fsm_event_t;
+typedef struct ni_fsm			ni_fsm_t;
+typedef struct ni_ifworker		ni_ifworker_t;
+typedef struct ni_fsm_event		ni_fsm_event_t;
+typedef struct ni_fsm_require		ni_fsm_require_t;
+typedef struct ni_fsm_policy		ni_fsm_policy_t;
+typedef int				ni_fsm_policy_compare_fn_t(const ni_fsm_policy_t *, const ni_fsm_policy_t *);
+
+typedef struct ni_fsm_policy_array {
+	unsigned int			count;
+	ni_fsm_policy_t **		data;
+} ni_fsm_policy_array_t;
+
+#define NI_FSM_POLICY_ARRAY_INIT	{ .count = 0, .data = NULL }
 
 typedef struct ni_ifworker_array {
-	unsigned int		count;
-	ni_ifworker_t **	data;
+	unsigned int			count;
+	ni_ifworker_t **		data;
 } ni_ifworker_array_t;
-#define NI_IFWORKER_ARRAY_INIT { .count = 0, .data = NULL }
+
+#define NI_IFWORKER_ARRAY_INIT		{ .count = 0, .data = NULL }
 
 typedef struct ni_fsm_timer_ctx	ni_fsm_timer_ctx_t;
 typedef void			ni_fsm_timer_fn_t(const ni_timer_t *, ni_fsm_timer_ctx_t *);
@@ -141,16 +150,18 @@ struct ni_ifworker {
 				pending		: 1,
 				readonly	: 1;
 
-	ni_ifworker_control_t	control;
+	ni_fsm_policy_array_t	policies;
 
-	struct {
-		xml_node_t *			node;
-	} state;
+	ni_ifworker_control_t	control;
 
 	struct {
 		ni_client_state_config_t	meta;
 		xml_node_t *			node;
-	} config;
+	}			config;
+
+	struct {
+		xml_node_t *			node;
+	}			state;
 
 	/* The security ID can be used as a set of identifiers
 	 * to look up user name/password/pin type info in a
@@ -290,6 +301,7 @@ extern void			ni_fsm_policy_free(ni_fsm_policy_t *);
 extern ni_bool_t		ni_fsm_policy_update(ni_fsm_policy_t *, xml_node_t *);
 extern ni_bool_t		ni_fsm_policy_remove(ni_fsm_t *, ni_fsm_policy_t *);
 extern ni_fsm_policy_t *	ni_fsm_policy_by_name(const ni_fsm_t *, const char *);
+extern int			ni_fsm_policy_compare_weight(const ni_fsm_policy_t *, const ni_fsm_policy_t *);
 extern unsigned int		ni_fsm_policy_get_applicable_policies(const ni_fsm_t *, ni_ifworker_t *,
 						const ni_fsm_policy_t **, unsigned int);
 extern ni_bool_t		ni_fsm_exists_applicable_policy(const ni_fsm_t *, ni_fsm_policy_t *, ni_ifworker_t *);
@@ -297,8 +309,23 @@ extern xml_node_t *		ni_fsm_policy_transform_document(xml_node_t *, ni_fsm_polic
 extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
 extern const xml_node_t *	ni_fsm_policy_node(const ni_fsm_policy_t *);
 extern const xml_location_t *	ni_fsm_policy_location(const ni_fsm_policy_t *);
-extern const char *		ni_fsm_policy_get_origin(const ni_fsm_policy_t *);
+extern const ni_uuid_t *	ni_fsm_policy_uuid(const ni_fsm_policy_t *);
+extern uid_t			ni_fsm_policy_owner(const ni_fsm_policy_t *);
+extern const char *		ni_fsm_policy_origin(const ni_fsm_policy_t *);
+extern unsigned int		ni_fsm_policy_weight(const ni_fsm_policy_t *);
 extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *tstamp);
+
+extern void			ni_fsm_policy_array_init(ni_fsm_policy_array_t *);
+extern void			ni_fsm_policy_array_destroy(ni_fsm_policy_array_t *);
+extern void			ni_fsm_policy_array_sort(ni_fsm_policy_array_t *, ni_fsm_policy_compare_fn_t *);
+extern ni_bool_t		ni_fsm_policy_array_move(ni_fsm_policy_array_t *, ni_fsm_policy_array_t *);
+extern ni_bool_t		ni_fsm_policy_array_append(ni_fsm_policy_array_t *, ni_fsm_policy_t *);
+extern ni_bool_t		ni_fsm_policy_array_insert(ni_fsm_policy_array_t *, unsigned int, ni_fsm_policy_t *);
+extern ni_bool_t		ni_fsm_policy_array_delete(ni_fsm_policy_array_t *, unsigned int);
+extern ni_fsm_policy_t *	ni_fsm_policy_array_remove(ni_fsm_policy_array_t *, unsigned int);
+extern ni_fsm_policy_t *	ni_fsm_policy_array_get(ni_fsm_policy_array_t *, unsigned int);
+extern ni_fsm_policy_t *	ni_fsm_policy_array_ref(ni_fsm_policy_array_t *, unsigned int);
+extern unsigned int		ni_fsm_policy_array_index(const ni_fsm_policy_array_t *, const ni_fsm_policy_t *);
 
 extern ni_dbus_client_t *	ni_fsm_create_client(ni_fsm_t *);
 extern ni_bool_t		ni_fsm_refresh_state(ni_fsm_t *);
