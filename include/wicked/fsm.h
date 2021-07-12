@@ -340,7 +340,9 @@ extern void			ni_fsm_reset_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, c
 extern void			ni_fsm_print_config_hierarchy(const ni_fsm_t *);
 extern void			ni_fsm_print_system_hierarchy(const ni_fsm_t *);
 extern int			ni_fsm_build_hierarchy(ni_fsm_t *, ni_bool_t);
-extern ni_bool_t		ni_fsm_workers_from_xml(ni_fsm_t *, xml_node_t *, const char *);
+extern ni_ifworker_t *		ni_fsm_worker_identify(ni_fsm_t *, const xml_node_t *, const char *,
+							ni_ifworker_type_t *, const char **);
+extern ni_ifworker_t *		ni_fsm_workers_from_xml(ni_fsm_t *, xml_node_t *, const char *);
 extern unsigned int		ni_fsm_fail_count(ni_fsm_t *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_object_path(ni_fsm_t *, const char *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_ifindex(ni_fsm_t *, unsigned int);
@@ -367,7 +369,7 @@ extern ni_bool_t		ni_ifworker_match_netdev_alias(const ni_ifworker_t *, const ch
 extern ni_bool_t		ni_ifworker_match_netdev_ifindex(const ni_ifworker_t *, unsigned int);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *, const char *);
 extern ni_iftype_t		ni_ifworker_iftype_from_xml(xml_node_t *);
-extern void			ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
+extern ni_bool_t		ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
 extern ni_bool_t		ni_ifworker_control_set_usercontrol(ni_ifworker_t *, ni_bool_t);
 extern ni_bool_t		ni_ifworker_control_set_persistent(ni_ifworker_t *, ni_bool_t);
 extern  void			ni_ifworker_rearm(ni_ifworker_t *);
