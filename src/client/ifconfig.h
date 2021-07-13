@@ -79,12 +79,12 @@ extern ni_bool_t		ni_ifpolicy_set_uuid(xml_node_t *, const ni_uuid_t *);
 extern xml_node_t *		ni_convert_cfg_into_policy_node(const xml_node_t *, xml_node_t *, const char *, const char*);
 extern xml_document_t *		ni_convert_cfg_into_policy_doc(xml_document_t *);
 
-extern int			ni_nanny_addpolicy_node(xml_node_t *, const char *);
+extern int			ni_nanny_addpolicy_node(const xml_node_t *, const char *);
 extern int			ni_nanny_addpolicy(xml_document_t *);
 
 extern ni_dbus_client_t *	ni_nanny_create_client(ni_dbus_object_t **);
 
-extern ni_bool_t		ni_nanny_call_add_policy(const char *, xml_node_t *);
+extern ni_bool_t		ni_nanny_call_add_policy(const char *, const xml_node_t *);
 extern ni_bool_t		ni_nanny_call_del_policy(const char *);
 extern ni_bool_t		ni_nanny_call_device_enable(const char *ifname);
 extern ni_bool_t		ni_nanny_call_device_disable(const char *ifname);
