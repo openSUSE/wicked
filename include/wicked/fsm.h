@@ -353,6 +353,7 @@ extern ni_ifworker_t *		ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *o
 extern ni_ifworker_t *		ni_fsm_recv_new_netif_path(ni_fsm_t *fsm, const char *path);
 extern ni_ifworker_t *		ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh);
 extern ni_ifworker_t *		ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path);
+extern ni_ifworker_t *		ni_fsm_ifworker_new(ni_fsm_t *, ni_ifworker_type_t, const char *);
 extern void			ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w);
 extern void			ni_fsm_pull_in_children(ni_ifworker_array_t *, ni_fsm_t *);
 extern void			ni_fsm_wait_tentative_addrs(ni_fsm_t *);

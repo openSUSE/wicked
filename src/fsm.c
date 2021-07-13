@@ -243,6 +243,15 @@ ni_ifworker_new(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char 
 }
 
 ni_ifworker_t *
+ni_fsm_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
+{
+	if (!fsm || ni_string_empty(name) || ni_fsm_ifworker_by_name(fsm, type, name))
+		return NULL;
+
+	return ni_ifworker_new(&fsm->workers, type, name);
+}
+
+ni_ifworker_t *
 ni_ifworker_set_ref(ni_ifworker_t **ref, ni_ifworker_t *n)
 {
 	ni_ifworker_t *o;
