@@ -472,13 +472,13 @@ __describe_dict(FILE *fp, const ni_xs_scope_t *myscope, const ni_xs_type_t *type
 					anchor_prefix, cnt->name, cnt->name);
 
 		fprintf(fp, " (%s). ", describe_type_short(myscope, ctype));
-		if (ctype->origdef.name == NULL) {
+		if (ctype && ctype->origdef.name == NULL) {
 			describe_type(fp, "This is ", myscope, ctype);
 		} else
 		if (cnt->description) {
 			render_description(fp, cnt->description);
 		} else
-		if (ctype->description) {
+		if (ctype && ctype->description) {
 			render_description(fp, ctype->description);
 		}
 		fprintf(fp, "</li>\n");
