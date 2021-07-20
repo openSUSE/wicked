@@ -1,4 +1,4 @@
-<h1>org.opensuse.Network.Addrconf.ipv4.auto</h1>
+<h1>org.opensuse.Network.Addrconf.ipv6.auto</h1>
 
 <h2>Namespace</h2>
 
@@ -6,7 +6,7 @@
 <table border="1">
 <tr>
  <td style="width:200px">Namespace</td>
- <td style="width:500px">ipv4:auto</td>
+ <td style="width:500px">ipv6:auto</td>
 </tr>
 <tr>
  <td>Class compat</td>
@@ -48,12 +48,12 @@
 <dl>
 <dt><em><a name="requestLease"/><a href="addrconf.html#callback-info">addrconf:callback-info</a> requestLease(dict config)</em></dt>
 <dd>
-<p>Argument <em>config</em> is mapped to element &lt;ipv4:auto&gt; of the device document.
+<p>Argument <em>config</em> is mapped to element &lt;ipv6:auto&gt; of the device document.
 It is a dict-based type that provides the following members:
 <ul>
 <li><bold>enabled</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
-<li><bold>uuid</bold> (<a href="dbus.html#uuid-type">uuid-type</a>). </li>
-<li><bold>flags</bold> (<a href="dbus.html#builtin-addrconf-flags">builtin-addrconf-flags</a>). </li>
+<li><bold>defer-timeout</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>update</bold> (<a href="dbus.html#builtin-addrconf-update-mask">builtin-addrconf-update-mask</a>). </li>
 </ul>
 <p>
 <p></dd>
@@ -79,8 +79,8 @@ It is a dict-based type that provides the following members:
 This is a dict-based type that provides the following members:
 <ul>
 <li><bold>enabled</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
-<li><bold>uuid</bold> (<a href="dbus.html#uuid-type">uuid-type</a>). </li>
-<li><bold>flags</bold> (<a href="dbus.html#builtin-addrconf-flags">builtin-addrconf-flags</a>). </li>
+<li><bold>defer-timeout</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>update</bold> (<a href="dbus.html#builtin-addrconf-update-mask">builtin-addrconf-update-mask</a>). </li>
 </ul>
 <p>
 

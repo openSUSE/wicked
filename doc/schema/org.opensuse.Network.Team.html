@@ -1,0 +1,266 @@
+<h1>org.opensuse.Network.Team</h1>
+
+<h2>Synopsis</h2>
+This link-layer service is provided by all team devices. <p>
+Team devices can be created through the org.opensuse.Network.Team.Factory factory interface. 
+<h2>Namespace</h2>
+
+<p>
+<table border="1">
+<tr>
+ <td style="width:200px">Namespace</td>
+ <td style="width:500px">team</td>
+</tr>
+<tr>
+ <td>Class compat</td>
+ <td>netif-team</td>
+</tr>
+<tr>
+ <td>Typedefs</td>
+ <td>15</td>
+</tr>
+<tr>
+ <td rowspan="4" valign="top">Properties</td>
+ <td><a href="#property:runner">runner</a></td>
+</tr>
+<tr>
+ <td><a href="#property:link_watch">link_watch</a></td>
+</tr>
+<tr>
+ <td><a href="#property:ports">ports</a></td>
+</tr>
+<tr>
+ <td><a href="#property:address">address</a></td>
+</tr>
+<tr>
+ <td rowspan="1" valign="top">Methods</td>
+ <td><a href="#changeDevice">changeDevice()</a></td>
+</tr>
+<tr>
+ <td>Signals</td>
+ <td>none</td>
+</tr>
+</table><p>
+<h2>Properties</h2>
+<ul>
+<li><a name="property:runner"/><bold>runner</bold> (unknown). This is an unknown</li>
+<li><a name="property:link_watch"/><bold>link_watch</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>watch</bold> (unknown). This is an unknown</li>
+</ul>
+<p>
+</li>
+<li><a name="property:ports"/><bold>ports</bold> (array). This is an array of <a href="team.html#port-device">port-device</a>.
+</li>
+<li><a name="property:address"/><bold>address</bold> (<a href="dbus.html#ethernet-address">ethernet-address</a>). </li>
+</ul>
+<p>
+<h2>Methods</h2>
+<dl>
+<dt><em><a name="changeDevice"/>void changeDevice(dict config)</em></dt>
+<dd>
+<p>Argument <em>config</em> is mapped to element &lt;team&gt; of the device document.
+It is a dict-based type that provides the following members:
+<ul>
+<li><bold>runner</bold> (unknown). This is an unknown</li>
+<li><bold>link_watch</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>watch</bold> (unknown). This is an unknown</li>
+</ul>
+<p>
+</li>
+<li><bold>ports</bold> (array). This is an array of <a href="team.html#port-device">port-device</a>.
+</li>
+<li><bold>address</bold> (<a href="dbus.html#ethernet-address">ethernet-address</a>). </li>
+</ul>
+<p>
+<p></dd>
+</dl>
+<h2>Types defined in this scope</h2>
+
+<p>
+<table border="1">
+<tr>
+ <th style="width:200px">Type name</th>
+ <th style="width:100px">Kind</th>
+ <th style="width:400px">Definition</th>
+</tr>
+<tr><td>tx-balancer-type</td><td>dict</td><td>below</td></tr>
+<tr><td>roundrobin-runner</td><td>dict</td><td>below</td></tr>
+<tr><td>activebackup-runner</td><td>dict</td><td>below</td></tr>
+<tr><td>loadbalance-runner</td><td>dict</td><td>below</td></tr>
+<tr><td>broadcast-runner</td><td>dict</td><td>below</td></tr>
+<tr><td>random-runner</td><td>dict</td><td>below</td></tr>
+<tr><td>lacp-runner</td><td>dict</td><td>below</td></tr>
+<tr><td>arp-ping-linkwatch-type</td><td>dict</td><td>below</td></tr>
+<tr><td>tipc-linkwatch-type</td><td>dict</td><td>below</td></tr>
+<tr><td>nsna-ping-linkwatch-type</td><td>dict</td><td>below</td></tr>
+<tr><td>ethtool-linkwatch-type</td><td>dict</td><td>below</td></tr>
+<tr><td>port-config</td><td>dict</td><td>below</td></tr>
+<tr><td>port-device</td><td>dict</td><td>below</td></tr>
+<tr><td>device-info</td><td>dict</td><td>below</td></tr>
+</table>
+
+<a name="tx-balancer-type"/>
+<h3>Type tx-balancer-type</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>name</bold> (<a href="dbus.html#builtin-team-tx-balancer-type">builtin-team-tx-balancer-type</a>). </li>
+<li><bold>balancing_interval</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+</ul>
+<p>
+
+<a name="roundrobin-runner"/>
+<h3>Type roundrobin-runner</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+</ul>
+<p>
+
+<a name="activebackup-runner"/>
+<h3>Type activebackup-runner</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>hwaddr_policy</bold> (<a href="dbus.html#builtin-team-ab-hwaddr-policy">builtin-team-ab-hwaddr-policy</a>). </li>
+</ul>
+<p>
+
+<a name="loadbalance-runner"/>
+<h3>Type loadbalance-runner</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>tx_hash</bold> (<a href="dbus.html#builtin-team-tx-hash-mask">builtin-team-tx-hash-mask</a>). </li>
+<li><bold>tx_balancer</bold> (<a href="team.html#tx-balancer-type">tx-balancer-type</a>). </li>
+</ul>
+<p>
+
+<a name="broadcast-runner"/>
+<h3>Type broadcast-runner</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+</ul>
+<p>
+
+<a name="random-runner"/>
+<h3>Type random-runner</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+</ul>
+<p>
+
+<a name="lacp-runner"/>
+<h3>Type lacp-runner</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>active</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>sys_prio</bold> (<a href="dbus.html#uint16">uint16</a>). </li>
+<li><bold>fast_rate</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>min_ports</bold> (<a href="dbus.html#uint16">uint16</a>). </li>
+<li><bold>select_policy</bold> (<a href="dbus.html#builtin-team-lacp-select-policy">builtin-team-lacp-select-policy</a>). </li>
+<li><bold>tx_hash</bold> (<a href="dbus.html#builtin-team-tx-hash-mask">builtin-team-tx-hash-mask</a>). </li>
+<li><bold>tx_balancer</bold> (<a href="team.html#tx-balancer-type">tx-balancer-type</a>). </li>
+</ul>
+<p>
+
+<a name="arp-ping-linkwatch-type"/>
+<h3>Type arp-ping-linkwatch-type</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>source_host</bold> (<a href="dbus.html#string">string</a>). </li>
+<li><bold>target_host</bold> (<a href="dbus.html#string">string</a>). </li>
+<li><bold>interval</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>init_wait</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>validate_active</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>validate_inactive</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>send_always</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>missed_max</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>missed</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+</ul>
+<p>
+
+<a name="tipc-linkwatch-type"/>
+<h3>Type tipc-linkwatch-type</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>bearer</bold> (<a href="dbus.html#string">string</a>). </li>
+</ul>
+<p>
+
+<a name="nsna-ping-linkwatch-type"/>
+<h3>Type nsna-ping-linkwatch-type</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>target_host</bold> (<a href="dbus.html#string">string</a>). </li>
+<li><bold>interval</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>init_wait</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>missed_max</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>missed</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+</ul>
+<p>
+
+<a name="ethtool-linkwatch-type"/>
+<h3>Type ethtool-linkwatch-type</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>delay_up</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>delay_down</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+</ul>
+<p>
+
+<a name="port-config"/>
+<h3>Type port-config</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>queue_id</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>prio</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>sticky</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>lacp_key</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>lacp_prio</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+</ul>
+<p>
+
+<a name="port-device"/>
+<h3>Type port-device</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>queue_id</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>prio</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>sticky</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>lacp_key</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>lacp_prio</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>device</bold> (string). This is a string</li>
+</ul>
+<p>
+
+<a name="device-info"/>
+<h3>Type device-info</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>runner</bold> (unknown). This is an unknown</li>
+<li><bold>link_watch</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>watch</bold> (unknown). This is an unknown</li>
+</ul>
+<p>
+</li>
+<li><bold>ports</bold> (array). This is an array of <a href="team.html#port-device">port-device</a>.
+</li>
+<li><bold>address</bold> (<a href="dbus.html#ethernet-address">ethernet-address</a>). </li>
+</ul>
+<p>
+
+
