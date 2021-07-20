@@ -90,7 +90,7 @@ virtual network interface that sits on top of an ethernet device.
 For these, wicked defines factory interfaces, such as
 org.opensuse.Network.VLAN.Factory. Such a factory interface offers a
 single function that lets you create an interface of the requested type.
-These factory interfaces are attched to the
+These factory interfaces are attached to the
 /org/opensuse/Network/Interfaces list node.
 
 Frequently Asked Questions

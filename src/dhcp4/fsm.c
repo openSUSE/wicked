@@ -169,7 +169,7 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf, n
 						lease->dhcp4.client_id.len));
 	}
 
-	/* set reqest client-id in the response early to have it in test mode */
+	/* set request client-id in the response early to have it in test mode */
 	if (!lease->dhcp4.client_id.len && dev->config->client_id.len) {
 		ni_opaque_set(&lease->dhcp4.client_id,	dev->config->client_id.data,
 							dev->config->client_id.len);

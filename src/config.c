@@ -1102,7 +1102,7 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 				    ni_uint_in_range(&dhcp6->info_refresh.range, value))
 					ni_uint_range_update_min(&dhcp6->info_refresh.range, value);
 				else
-					ni_warn("config: discarding invalid info-refresh-time min attibute");
+					ni_warn("config: discarding invalid info-refresh-time min attribute");
 			}
 
 			if ((attrval = xml_node_get_attr(child, "max"))) {
@@ -1110,7 +1110,7 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 				    ni_uint_in_range(&dhcp6->info_refresh.range, value))
 					ni_uint_range_update_max(&dhcp6->info_refresh.range, value);
 				else
-					ni_warn("config: discarding invalid info-refresh-time max attibute");
+					ni_warn("config: discarding invalid info-refresh-time max attribute");
 			}
 
 			if (!ni_string_empty(child->cdata)) {
@@ -1423,7 +1423,7 @@ ni_config_parse_objectmodel_netif_ns(ni_extension_t **list, xml_node_t *node)
 /*
  * Another class of extensions helps with discovery of interface configuration through
  * firmware, such as iBFT. You can use this to specify one or more shell commands
- * that generate a list of <interface> elemens as output.
+ * that generate a list of <interface> elements as output.
  *
  * <netif-firmware-discovery>
  *  <script name="ibft" command="/some/crazy/path/to/script" />

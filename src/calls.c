@@ -410,7 +410,7 @@ out:
 	/* On the first time around, we may have run into a problem and tried to fix
 	 * it up in the error handler. For instance, a wireless passphrase or a
 	 * UMTS PIN might have missed, and we prompted the user for it.
-	 * In this case, the error handler will retur RETRY_OPERATION.
+	 * In this case, the error handler will return RETRY_OPERATION.
 	 *
 	 * Note, the error context handler should limit the number of retries by
 	 * using ni_call_error_context_get_retries().

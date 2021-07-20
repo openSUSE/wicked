@@ -42,7 +42,7 @@ DHCLIENT_FQDN_ENCODE="yes"
 ## Type:	list(,default,none,all,dns,ntp,nis,tz,boot,smb,nds,slp,sip,log)
 ## Default:	""
 #
-# This variable permits to specify a space separated list of build-in
+# This variable permits to specify a space separated list of built-in
 # facility names supported by the dhcp4 client modifying the default
 # options used in requests and to update system settings (via netconfig).
 #
@@ -120,7 +120,7 @@ DHCLIENT6_CLIENT_ID=""
 ## Type:	list(,default,none,all,dns,ntp,tz,boot,nis,sip)
 ## Default:	""
 #
-# This variable permits to specify a space separated list of build-in
+# This variable permits to specify a space separated list of built-in
 # facility names supported by the dhcp6 client modifying the default
 # options used in requests and to update system settings (via netconfig).
 #

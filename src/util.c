@@ -2686,7 +2686,7 @@ ni_pidfile_write(const char *pidfile, unsigned int permissions, pid_t pid)
  * Check for presence of pidfile
  *  0:	no or stale pidfile
  *  >0:	pid of active process
- *  <0:	error occured
+ *  <0:	error occurred
  */
 pid_t
 ni_pidfile_check(const char *pidfile)
@@ -3227,7 +3227,7 @@ ni_srandom(void)
 }
 
 /*
- * Alloc helpers with NULLL check
+ * Alloc helpers with NULL check
  */
 void *
 xmalloc(size_t size)

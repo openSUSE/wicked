@@ -233,7 +233,7 @@ ni_wireless_unwrap_wpa_nif(ni_wpa_nif_t *wif)
 	}
 
 	if (!dev->wireless){
-		ni_error("Device %s(%d) doesn't have a wireless extention", device->name, device->index);
+		ni_error("Device %s(%d) doesn't have a wireless extension", device->name, device->index);
 		return NULL;
 	}
 
@@ -894,7 +894,7 @@ ni_wireless_setup_networks(ni_netdev_t *dev, ni_wpa_nif_t *wif, const ni_wireles
 	 * TODO: make something more useful here like compare
 	 * and update existing (if needed), add new and delete
 	 * networks that aren't in the config.
-	 * For now: delete everything + add reqested
+	 * For now: delete everything + add requested.
 	 */
 	if (ni_wpa_nif_del_all_networks(wif) != NI_SUCCESS)
 		return NI_ERROR_GENERAL_FAILURE;
@@ -1833,7 +1833,7 @@ ni_wireless_auth_info_array_destroy(ni_wireless_auth_info_array_t *array)
 /*
  * Helper function to print and parse an SSID
  * Non-printable characters and anything fishy is represented
- * as \\xXX hex escape characters as formated by the iwlist
+ * as \\xXX hex escape characters as formatted by the iwlist
  * scanning command and wpa-supplicant.
  */
 const char *

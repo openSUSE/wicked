@@ -513,7 +513,7 @@ ni_dhcp4_start_release(void *user_data, const ni_timer_t *timer)
 		return;
 	dev->defer.timer = NULL;
 
-	/* We just send out a singe RELEASE without waiting for the
+	/* We just send out a single RELEASE without waiting for the
 	 * server's reply. We just keep our fingers crossed that it's
 	 * getting out. If it doesn't, it's rather likely the network
 	 * is hosed anyway, so there's little point in delaying. */
@@ -611,7 +611,7 @@ ni_dhcp4_device_start_delayed(void *user_data, const ni_timer_t *timer)
 	if (ni_netdev_link_is_up(ifp)) {
 		ni_dhcp4_fsm_link_up(dev);
 	} else {
-		ni_debug_dhcp("%s: defered start until link is up", dev->ifname);
+		ni_debug_dhcp("%s: deferred start until link is up", dev->ifname);
 	}
 }
 
@@ -860,18 +860,18 @@ ni_dhcp4_set_config_client_id(ni_opaque_t *raw, const ni_dhcp4_device_t *dev,
 
 	if (create_cid == NI_CONFIG_DHCP4_CID_TYPE_AUTO) {
 		/*
-		 * We should allways use dhcp6 based client-id as
+		 * We should always use dhcp6 based client-id as
 		 * specified in RFC 4361, also on ethernet...
 		 *
 		 * This is also required to update DDNS records for
 		 * DHCPv6 and DHCPv4 IP addresses in same zone (the
 		 * server maintains a dhcid DNS record using it).
 		 *
-		 * Unfortunatelly, it would be a default behavior
+		 * Unfortunately, it would be a default behavior
 		 * change and may cause non-matching lease as well
 		 * as (ipv4 only) ddns update issues:
 		 *
-		 * There are many exising dhcp servers in the wild
+		 * There are many existing dhcp servers in the wild
 		 * relying on or using (static) leases with the
 		 * the "old" dhcp4 link address (mac) client-id,
 		 * incl. updated ddns records using it already...

@@ -120,7 +120,7 @@
  * without having to define a named type for the array element type.
  *
  * Note that the element-name/minlen/maxlen attributes are optional.
- * When the array definition does not specify an element-name attibute, the
+ * When the array definition does not specify an element-name attribute, the
  * name of the element type is used for xml deserialization / displaying
  * purposes with fallback to anonymous "e" element nodes.
  *

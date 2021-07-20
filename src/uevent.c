@@ -102,7 +102,7 @@ struct ni_uevent_monitor {
 
 /*
  * libudev event netlink header
- * The following data is formated in key=value\0,
+ * The following data is formatted in key=value\0,
  * the subsystem and device type is MurmurHash2.
  */
 struct __ni_uevent_nlhdr {

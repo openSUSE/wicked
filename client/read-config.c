@@ -5,7 +5,7 @@
  *		compat:
  *		firmware:
  *		dracut:
- *	along their assosciated sub-types.
+ *	along their associated sub-types.
  *
  *	Copyright (C) 2010-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
  *

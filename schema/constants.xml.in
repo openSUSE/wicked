@@ -231,7 +231,7 @@
   <@@TEAM_LACP_SELECT_POLICY_NAME@@ value="@@TEAM_LACP_SELECT_POLICY_VALUE@@"/>
 </define>
 
-<!-- Build-in gre constants -->
+<!-- Built-in gre constants -->
 <define name="builtin-gre-flag-mask" type="uint32" constraint="bitmap">
   <@@GRE_FLAG_BIT_NAME@@ bit="@@GRE_FLAG_BIT_VALUE@@"/>
 </define>

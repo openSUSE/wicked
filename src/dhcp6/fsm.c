@@ -761,7 +761,7 @@ ni_dhcp6_fsm_select_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg,
 					dev->ifname, msg->lease->dhcp6.server_pref);
 		} else {
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-					"%s: dhcp6 server preference %u overriden by config to %d",
+					"%s: dhcp6 server preference %u overridden by config to %d",
 					dev->ifname, msg->lease->dhcp6.server_pref, pref);
 		}
 
@@ -846,7 +846,7 @@ ni_dhcp6_fsm_select_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg,
 					dev->ifname, msg->lease->dhcp6.server_pref);
 		} else {
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-					"%s: dhcp6 server preference %u overriden by config to %d",
+					"%s: dhcp6 server preference %u overridden by config to %d",
 					dev->ifname, msg->lease->dhcp6.server_pref, pref);
 		}
 
@@ -1417,7 +1417,7 @@ ni_dhcp6_fsm_release_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg
 
 		if (msg->lease->dhcp6.status->code == NI_DHCP6_STATUS_SUCCESS ||
 		    msg->lease->dhcp6.status->code == NI_DHCP6_STATUS_NOTONLINK) {
-			ni_debug_dhcp("%s: Received release reply %s %s -- comitting release",
+			ni_debug_dhcp("%s: Received release reply %s %s -- committing release",
 					dev->ifname,
 					ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
 					msg->lease->dhcp6.status->message);
@@ -1483,7 +1483,7 @@ ni_dhcp6_fsm_inforeq_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg
 					dev->ifname, msg->lease->dhcp6.server_pref);
 		} else {
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-					"%s: dhcp6 server preference %u overriden by config to %d",
+					"%s: dhcp6 server preference %u overridden by config to %d",
 					dev->ifname, msg->lease->dhcp6.server_pref, pref);
 		}
 		if (pref < 0) {
