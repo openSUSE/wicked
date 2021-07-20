@@ -290,6 +290,8 @@ render_description(FILE *fp, const char *string)
 				if (bol) {
 					fprintf(fp, "<p>\n");
 					printed++;
+				} else {
+					fprintf(fp, " ");
 				}
 				bol = TRUE;
 			}
