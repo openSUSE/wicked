@@ -3145,7 +3145,7 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			/* name<TAG> */
 			len = strlen(dev->name);
 			vlantag = &dev->name[len];
-			while(len > 0 && isdigit((unsigned char)vlantag[-1]))
+			while(len-- && isdigit((unsigned char)vlantag[-1]))
 				vlantag--;
 		}
 		if (ni_parse_uint(vlantag, &tag, 10) < 0) {
