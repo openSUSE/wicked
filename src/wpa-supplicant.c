@@ -1742,9 +1742,9 @@ const ni_dbus_property_t	ni_objectmodel_wpa_bss_properties_wps[] = {
 const ni_dbus_property_t	ni_objectmodel_wpa_bss_properties[] =  {
 	NI_DBUS_GENERIC_BYTE_ARRAY_PROPERTY(wpa_bss_properties, BSSID, bssid, RO),
 	NI_DBUS_GENERIC_BYTE_ARRAY_PROPERTY(wpa_bss_properties, SSID, ssid, RO),
-	NI_DBUS_GENERIC_DICT_PROPERTY(WPA, ni_objectmodel_wpa_bss_properties_wpa, RO),
-	NI_DBUS_GENERIC_DICT_PROPERTY(RSN, ni_objectmodel_wpa_bss_properties_rsn, RO),
-	NI_DBUS_GENERIC_DICT_PROPERTY(WPS, ni_objectmodel_wpa_bss_properties_wps, RO),
+	NI_DBUS_GENERIC_DICT_PROPERTY(WPA, ni_objectmodel_wpa_bss_properties_wpa),
+	NI_DBUS_GENERIC_DICT_PROPERTY(RSN, ni_objectmodel_wpa_bss_properties_rsn),
+	NI_DBUS_GENERIC_DICT_PROPERTY(WPS, ni_objectmodel_wpa_bss_properties_wps),
 	NI_DBUS_GENERIC_BYTE_ARRAY_PROPERTY(wpa_bss_properties, IEs, ies, RO),
 	NI_DBUS_GENERIC_BOOL_PROPERTY(wpa_bss_properties, Privacy, privacy, RO),
 	NI_DBUS_GENERIC_STRING_PROPERTY(wpa_bss_properties, Mode, mode, RO),
@@ -2182,8 +2182,8 @@ ni_objectmodel_wpa_nif_set_bss_expire_count(ni_dbus_object_t *object, const ni_d
 #define	WPA_NIF_CAP_INT32_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_INT32_PROPERTY(wpa_nif_capabilities, dbus_name, member_name, rw)
 
-#define	WPA_NIF_DICT_PROPERTY(dbus_name, fstem, rw) \
-	NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, ni_objectmodel_wpa_nif_##fstem, rw)
+#define	WPA_NIF_DICT_PROPERTY(dbus_name, fstem) \
+	NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, ni_objectmodel_wpa_nif_##fstem)
 #define	WPA_NIF_STRING_PROPERTY(dbus_name, member_name, rw) \
 	NI_DBUS_GENERIC_STRING_PROPERTY(wpa_nif_properties, dbus_name, member_name, rw)
 #define WPA_NIF_OBJECT_PATH_PROPERTY(dbus_name, member_name, rw) \
@@ -2212,7 +2212,7 @@ static const ni_dbus_property_t			ni_objectmodel_wpa_nif_capabilities[] = {
 
 static const ni_dbus_property_t			ni_objectmodel_wpa_nif_properties[] = {
 	/* read-only properties & capabilities */
-	WPA_NIF_DICT_PROPERTY(			Capabilities,		capabilities,		RO),
+	WPA_NIF_DICT_PROPERTY(			Capabilities,		capabilities),
 	WPA_NIF_CUSTOM_PROPERTY(STRING,		State,			state,			RO),
 
 	WPA_NIF_OBJECT_PATH_PROPERTY(		CurrentNetwork,		current_network_path,	RO),

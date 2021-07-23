@@ -866,7 +866,7 @@ const ni_dbus_property_t	ni_objectmodel_wireless_capabilities[] = {
 };
 
 const ni_dbus_property_t	ni_objectmodel_wireless_property_table[] = {
-	NI_DBUS_GENERIC_DICT_PROPERTY(capabilities, ni_objectmodel_wireless_capabilities, RO),
+	NI_DBUS_GENERIC_DICT_PROPERTY(capabilities, ni_objectmodel_wireless_capabilities),
 	WIRELESS_DICT_PROPERTY(current-connection, current_connection, RO),
 	WIRELESS_DICT_ARRAY_PROPERTY(scan-results, scan_results, RO),
 
