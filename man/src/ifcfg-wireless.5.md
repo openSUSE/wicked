@@ -173,7 +173,7 @@ global to the interface. The description of the variable points this out.
     specify the **WIRELESS_CLIENT_KEY_PASSWORD**.
 
 `WIRELESS_HIDDEN_SSID <NO|YES>`
-:   Set to "yes" if you try to connect to a hidden network. Thre probe request
+:   Set to "yes" if you try to connect to a hidden network. The probe request
     frames will be specific to the configured ESSID.
 
 `WIRELESS_FRAG <num>`
@@ -284,7 +284,7 @@ Some examples of different configuration types supported at the moment:
 ```
 
 # COPYRIGHT
-Copyright (C) 2014-2021 SUSE LCC
+Copyright (C) 2014-2021 SUSE LLC
 
 # BUGS
 Please report bugs as described at http://bugs.opensuse.org

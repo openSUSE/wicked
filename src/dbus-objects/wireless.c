@@ -341,7 +341,7 @@ ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_
 	if ((child = ni_dbus_dict_get(var, "essid")) != NULL) {
 		if (!ni_dbus_variant_get_string(child, &string) ||
 		    !ni_wireless_ssid_parse(&net->essid, string)) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "invald wireless ssid %s", string);
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "invalid wireless ssid %s", string);
 			return FALSE;
 		}
 	}
@@ -358,7 +358,7 @@ ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_
 
 		if (!ni_dbus_variant_get_byte_array_minmax(child, hwaddr.data, &len, 0,
 		    sizeof(hwaddr.data)) || ni_link_address_length(ARPHRD_ETHER) != len) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "invald wireless access point address");
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "invalid wireless access point address");
 			return FALSE;
 		}
 		hwaddr.type = ARPHRD_ETHER;

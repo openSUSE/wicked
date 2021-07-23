@@ -2208,7 +2208,7 @@ try_add_ethtool_vars(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 	/*
 	 * ETHTOOL_OPTIONS comes in two flavors
 	 *   - starting with a dash: this is "-$option ifname $stuff"
-	 *   - otherwise: this is a paramater to be passed to "-s ifname"
+	 *   - otherwise: this is a parameter to be passed to "-s ifname"
 	 */
 	if (ni_string_split(&opts, var->value, " \t", 0) >= 2) {
 		type = opts.data[0];

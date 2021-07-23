@@ -471,7 +471,7 @@ handle_interface_addr_events(ni_netdev_t *dev, ni_event_t event, const ni_addres
 			continue;
 
 		if (lease->type == NI_ADDRCONF_AUTOCONF)
-			continue; /* separately, bellow */
+			continue; /* separately, below */
 
 		if (lease->state != NI_ADDRCONF_STATE_APPLYING)
 			continue;

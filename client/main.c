@@ -726,7 +726,7 @@ out:
  * one of two elements, since we have to parse and reparse the XML file every
  * time you invoke this program.
  * On the other hand, there's a few rather nifty things you can do. For instance,
- * the following will extract addres/prefixlen pairs for every IPv4 address
+ * the following will extract address/prefixlen pairs for every IPv4 address
  * listed in an XML network config:
  *
  * wicked xpath \

@@ -1,7 +1,7 @@
 <h1>org.opensuse.Network.GRE</h1>
 
 <h2>Synopsis</h2>
-This link-layer service is provided by GRE tunnel devices.
+This link-layer service is provided by GRE tunnel devices. 
 <h2>Namespace</h2>
 
 <p>
@@ -19,7 +19,10 @@ This link-layer service is provided by GRE tunnel devices.
  <td>2</td>
 </tr>
 <tr>
- <td rowspan="5" valign="top">Properties</td>
+ <td rowspan="9" valign="top">Properties</td>
+ <td><a href="#property:device">device</a></td>
+</tr>
+<tr>
  <td><a href="#property:local-address">local-address</a></td>
 </tr>
 <tr>
@@ -35,6 +38,15 @@ This link-layer service is provided by GRE tunnel devices.
  <td><a href="#property:pmtudisc">pmtudisc</a></td>
 </tr>
 <tr>
+ <td><a href="#property:flags">flags</a></td>
+</tr>
+<tr>
+ <td><a href="#property:ikey">ikey</a></td>
+</tr>
+<tr>
+ <td><a href="#property:okey">okey</a></td>
+</tr>
+<tr>
  <td rowspan="2" valign="top">Methods</td>
  <td><a href="#changeDevice">changeDevice()</a></td>
 </tr>
@@ -48,11 +60,15 @@ This link-layer service is provided by GRE tunnel devices.
 </table><p>
 <h2>Properties</h2>
 <ul>
+<li><a name="property:device"/><bold>device</bold> (string). This is a string</li>
 <li><a name="property:local-address"/><bold>local-address</bold> (<a href="dbus.html#ipv4-address">ipv4-address</a>). </li>
 <li><a name="property:remote-address"/><bold>remote-address</bold> (<a href="dbus.html#ipv4-address">ipv4-address</a>). </li>
 <li><a name="property:ttl"/><bold>ttl</bold> (<a href="dbus.html#uint16">uint16</a>). </li>
 <li><a name="property:tos"/><bold>tos</bold> (<a href="dbus.html#uint16">uint16</a>). </li>
 <li><a name="property:pmtudisc"/><bold>pmtudisc</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><a name="property:flags"/><bold>flags</bold> (<a href="dbus.html#builtin-gre-flag-mask">builtin-gre-flag-mask</a>). </li>
+<li><a name="property:ikey"/><bold>ikey</bold> (<a href="dbus.html#ipv4-address">ipv4-address</a>). </li>
+<li><a name="property:okey"/><bold>okey</bold> (<a href="dbus.html#ipv4-address">ipv4-address</a>). </li>
 </ul>
 <p>
 <h2>Methods</h2>
@@ -62,11 +78,15 @@ This link-layer service is provided by GRE tunnel devices.
 <p>Argument <em>config</em> is mapped to element &lt;gre&gt; of the device document.
 It is a dict-based type that provides the following members:
 <ul>
+<li><bold>device</bold> (string). This is a string</li>
 <li><bold>local-address</bold> (<a href="dbus.html#ipv4-address">ipv4-address</a>). </li>
 <li><bold>remote-address</bold> (<a href="dbus.html#ipv4-address">ipv4-address</a>). </li>
 <li><bold>ttl</bold> (<a href="dbus.html#uint16">uint16</a>). </li>
 <li><bold>tos</bold> (<a href="dbus.html#uint16">uint16</a>). </li>
 <li><bold>pmtudisc</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>flags</bold> (<a href="dbus.html#builtin-gre-flag-mask">builtin-gre-flag-mask</a>). </li>
+<li><bold>ikey</bold> (<a href="dbus.html#ipv4-address">ipv4-address</a>). </li>
+<li><bold>okey</bold> (<a href="dbus.html#ipv4-address">ipv4-address</a>). </li>
 </ul>
 <p>
 <p></dd>
@@ -91,11 +111,15 @@ It is a dict-based type that provides the following members:
 <p>
 This is a dict-based type that provides the following members:
 <ul>
+<li><bold>device</bold> (string). This is a string</li>
 <li><bold>local-address</bold> (<a href="dbus.html#ipv4-address">ipv4-address</a>). </li>
 <li><bold>remote-address</bold> (<a href="dbus.html#ipv4-address">ipv4-address</a>). </li>
 <li><bold>ttl</bold> (<a href="dbus.html#uint16">uint16</a>). </li>
 <li><bold>tos</bold> (<a href="dbus.html#uint16">uint16</a>). </li>
 <li><bold>pmtudisc</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>flags</bold> (<a href="dbus.html#builtin-gre-flag-mask">builtin-gre-flag-mask</a>). </li>
+<li><bold>ikey</bold> (<a href="dbus.html#ipv4-address">ipv4-address</a>). </li>
+<li><bold>okey</bold> (<a href="dbus.html#ipv4-address">ipv4-address</a>). </li>
 </ul>
 <p>
 

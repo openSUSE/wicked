@@ -48,7 +48,7 @@ show-commit-state: check-git-tool
 	  cd $(top_srcdir) && \
 	  LC_ALL=C git status 2>&1 | \
 	  grep -qsE 'Untracked|to be committed|not staged for commit' && { \
-	    echo -e "##\n## *** NOTE: There are uncommited changes:\n##" ; \
+	    echo -e "##\n## *** NOTE: There are uncommitted changes:\n##" ; \
 	    git status 2>&1 || : ; \
 	  } || : ; \
 	fi

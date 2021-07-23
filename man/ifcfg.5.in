@@ -86,7 +86,7 @@ Hotplugging is available only when \fBwickedd-nanny\fR is enabled.
 .br
 See \fBwicked-config\fR(5) for instructions how to enable it.
 .br
-Without nanny, an \fIifup\fR call preforms a one-shot setup.
+Without nanny, an \fIifup\fR call performs a one-shot setup (obsolete).
 
 .\"TODO: reintroduce when ifplugd supported
 .\".TP
@@ -309,7 +309,7 @@ skipped when it is not (see \fBLINK_REQUIRED\fR).
 When a new IPv4 has been configured on an interface, send a gratuitous ARP
 to inform the receivers about the address (trigger arp cache update).
 Default is to send gratuitous ARP, when also duplicate IPv4 address check
-is enabled and the check were sucessful.
+is enabled and the check were successful.
 .TP
 .B TUNNEL, TUNNEL_*
 Using this variable you may set up different tunnels. See

@@ -685,7 +685,7 @@ usage:
 
 	/*
 	 * Do not report any errors to systemd -- returning an error
-	 * here, will cause sytemd to stop the network completely.
+	 * here, will cause systemd to stop the network completely.
 	 */
 	if (opt_systemd)
 		status = NI_LSB_RC_SUCCESS;

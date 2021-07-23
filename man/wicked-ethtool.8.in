@@ -29,12 +29,12 @@ PCMCIA card or a USB device. An
 then is the name of the network interface it gets from the kernel, when the
 device has been registered. A queue is typically implemented as a first-in, first-out (FIFO) ring buffer. Network device use transmit or receive queue
 .B (tx/rx queue)
-for storing/buffring network packet data
+for storing/buffering network packet data
 
 .SH DESCRIPTION
 .B wicked ethtool
 can be used to configure a NIC as well as to query
-NIC related parameters like speed, link status, driver info and varius other.
+NIC related parameters like speed, link status, driver info and various other.
 .B wicked ethtool
 doesn't require any file or a dbus server running which is suitable for dracut environment.
 

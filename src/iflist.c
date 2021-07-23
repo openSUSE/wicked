@@ -654,7 +654,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 		}
 	}
 
-	/* issue separate query ingnoring the error to not break
+	/* issue separate query ignoring the error to not break
 	 * the bootstrap, e.g. when a kernel lacks rule support.
 	 */
 	if (!ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_ROUTE_RULES))
@@ -1852,7 +1852,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 
 	/* Note: we explicitly update name on query/event as needed
 	 * before this function is called. While event processing,
-	 * we explicitely query the current name to avoid an update
+	 * we explicitly query the current name to avoid an update
 	 * to an already obsolete name provided in the event data.
 	 * Thus just update device name in case it is missed.
 	 */
@@ -1959,8 +1959,8 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 
 		/*
 		 * is using gennl, rtnl_link provides a kind only,
-		 * so we unfortunatelly have to ask teamd here and
-		 * even worser, by name...
+		 * so we unfortunately have to ask teamd here and
+		 * even worse, by name...
 		 */
 		if (ni_config_teamd_enabled() && ni_netdev_device_is_ready(dev))
 			ni_teamd_discover(dev);
@@ -2665,7 +2665,7 @@ __ni_tunnel_gre_trace(ni_netdev_t *dev, struct nlattr **info_data)
 }
 
 /*
- * Catch-all for (currentl sit, ipip and gre) tunnel discovery.
+ * Catch-all for (currently sit, ipip and gre) tunnel discovery.
  */
 static int
 __ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
@@ -3400,12 +3400,12 @@ ni_rtnl_rule_parse_msg(struct nlmsghdr *h, struct fib_rule_hdr *frh, ni_rule_t *
 	if (tb[FRA_SUPPRESS_PREFIXLEN])
 		rule->suppress_prefixlen = nla_get_u32(tb[FRA_SUPPRESS_PREFIXLEN]);
 	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
-			"%s rule supress prefixlen: %u", prefix, rule->suppress_prefixlen);
+			"%s rule suppress prefixlen: %u", prefix, rule->suppress_prefixlen);
 
 	if (tb[FRA_SUPPRESS_IFGROUP])
 		rule->suppress_ifgroup = nla_get_u32(tb[FRA_SUPPRESS_IFGROUP]);
 	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
-			"%s rule supress ifgroup: %u", prefix, rule->suppress_ifgroup);
+			"%s rule suppress ifgroup: %u", prefix, rule->suppress_ifgroup);
 
 	if (tb[FRA_FLOW])
 		rule->realm = nla_get_u32(tb[FRA_FLOW]);

@@ -1188,7 +1188,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 		unsigned int deadline = 0;
 
 		/*
-		 * immediatelly set timer to fail after timeout,
+		 * immediately set timer to fail after timeout,
 		 * that is to drop config, disarm fsm and stop.
 		 */
 		deadline = config->acquire_timeout * 1000;

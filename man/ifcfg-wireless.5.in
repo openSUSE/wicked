@@ -213,7 +213,7 @@ If the key is encryped, specify the
 .TP
 \f[B]\f[CB]WIRELESS_HIDDEN_SSID <NO|YES>\f[B]\f[R]
 Set to \[lq]yes\[rq] if you try to connect to a hidden network.
-Thre probe request frames will be specific to the configured ESSID.
+The probe request frames will be specific to the configured ESSID.
 .TP
 \f[B]\f[CB]WIRELESS_FRAG <num>\f[B]\f[R]
 Maximum EAP fragment size in bytes (default 1398).
@@ -343,7 +343,7 @@ Some examples of different configuration types supported at the moment:
 .fi
 .SH COPYRIGHT
 .PP
-Copyright (C) 2014-2021 SUSE LCC
+Copyright (C) 2014-2021 SUSE LLC
 .SH BUGS
 .PP
 Please report bugs as described at http://bugs.opensuse.org

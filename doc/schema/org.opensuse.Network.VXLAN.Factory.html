@@ -1,0 +1,76 @@
+<h1>org.opensuse.Network.VXLAN.Factory</h1>
+
+<h2>Namespace</h2>
+
+<p>
+<table border="1">
+<tr>
+ <td style="width:200px">Namespace</td>
+ <td style="width:500px">vxlan-factory</td>
+</tr>
+<tr>
+ <td>Class compat</td>
+ <td>netif-list</td>
+</tr>
+<tr>
+ <td>Typedefs</td>
+ <td>0</td>
+</tr>
+<tr>
+ <td>Properties</td>
+ <td>none</td>
+</tr>
+<tr>
+ <td rowspan="1" valign="top">Methods</td>
+ <td><a href="#newDevice">newDevice()</a></td>
+</tr>
+<tr>
+ <td>Signals</td>
+ <td>none</td>
+</tr>
+</table><p>
+<h2>Methods</h2>
+<dl>
+<dt><em><a name="newDevice"/><a href="dbus.html#string">string</a> newDevice(<a href="dbus.html#string">string</a> name, dict config)</em></dt>
+<dd>
+<p>Argument <em>config</em> is mapped to element &lt;vxlan&gt; of the device document.
+It is a dict-based type that provides the following members:
+<ul>
+<li><bold>address</bold> (<a href="dbus.html#ethernet-address">ethernet-address</a>). </li>
+<li><bold>device</bold> (string). This is a string</li>
+<li><bold>id</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>local-ip</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family. On the wire, it is represented as uint16 containing the address family, followed by the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4. </li>
+<li><bold>remote-ip</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family. On the wire, it is represented as uint16 containing the address family, followed by the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4. </li>
+<li><bold>src-port</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>low</bold> (<a href="dbus.html#uint16">uint16</a>). </li>
+<li><bold>high</bold> (<a href="dbus.html#uint16">uint16</a>). </li>
+</ul>
+<p>
+</li>
+<li><bold>dst-port</bold> (<a href="dbus.html#uint16">uint16</a>). </li>
+<li><bold>ttl</bold> (<a href="dbus.html#uint16">uint16</a>). </li>
+<li><bold>tos</bold> (<a href="dbus.html#uint16">uint16</a>). </li>
+<li><bold>ageing</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>max-address</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>learning</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>proxy</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>rsc</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>l2miss</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>l3miss</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>udp-csum</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>udp6-zero-csum-rx</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>udp6-zero-csum-tx</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>rem-csum-rx</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>rem-csum-tx</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>rem-csum-partial</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>collect-metadata</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>gbp</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+</ul>
+<p>
+<p></dd>
+</dl>
+
+

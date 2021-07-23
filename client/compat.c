@@ -487,7 +487,7 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 	ni_bonding_t *bond;
 	xml_node_t *child, *snodes, *snode;
 	unsigned int i;
-	int verbose = 0; /* do not supress defaults */
+	int verbose = 0; /* do not suppress defaults */
 
 	bond = ni_netdev_get_bonding(compat->dev);
 	child = xml_node_create(ifnode, "bond");

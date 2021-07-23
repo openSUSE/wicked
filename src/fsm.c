@@ -1758,7 +1758,7 @@ ni_ifworker_revert_state(ni_ifworker_t *w, ni_event_t event)
 	if (!w->fsm.action_table || ni_fsm_transition_is_down(w->fsm.action_table))
 		return FALSE;
 
-	/* find transtion which will be completed by event */
+	/* find transition which will be completed by event */
 	action = ni_fsm_transition_find(w->fsm.action_table, state - 1, state);
 	if (!action || !action->bound)
 		return FALSE;
@@ -3980,7 +3980,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	ni_ifworker_t *found = NULL;
 	ni_bool_t renamed = FALSE;
 
-	/* note: dev is a not yet referece counted object->handle */
+	/* note: dev is a not yet reference counted object->handle */
 	if (dev == NULL || dev->name == NULL || refresh) {
 		/* keep dev, but wipe out its content (properties) */
 		if (dev)
@@ -5739,7 +5739,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		break;
 
 	default:
-		ni_warn("%s: signal %s from uknown object-path %s type",
+		ni_warn("%s: signal %s from unknown object-path %s type",
 				__func__, signal_name, object_path);
 		ni_fsm_event_free(ev);
 		return;

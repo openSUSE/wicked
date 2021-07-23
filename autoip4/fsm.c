@@ -202,7 +202,7 @@ static int
 ni_autoip_fsm_commit_lease(ni_autoip_device_t *dev, ni_addrconf_lease_t *lease)
 {
 	if (lease) {
-		ni_debug_autoip("%s: commiting lease", dev->ifname);
+		ni_debug_autoip("%s: committing lease", dev->ifname);
 		ni_autoip_device_set_lease(dev, lease);
 
 		/* Write the lease to lease cache */

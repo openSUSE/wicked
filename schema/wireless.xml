@@ -96,7 +96,7 @@
       <group-cipher type="builtin-wireless-cipher"/>
       <management-group type="builtin-wireless-cipher"/>
     </rsn>
-    <wps>
+    <wps class="dict">
       <type type="string"/>
     </wps>
     <privacy type="boolean"/>

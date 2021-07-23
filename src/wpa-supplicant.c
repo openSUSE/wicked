@@ -699,7 +699,7 @@ ni_wpa_get_interface(ni_wpa_client_t *wpa, const char *ifname, unsigned int ifin
 	}
 
 	if (!wif->object && !ni_objectmodel_wpa_nif_object_new(wpa, wif, object_path)) {
-		ni_debug_wpa("Failed to create wpa inteface object with object-path: %s", object_path);
+		ni_debug_wpa("Failed to create wpa interface object with object-path: %s", object_path);
 		rv = -NI_ERROR_GENERAL_FAILURE;
 		goto failed;
 	}
@@ -781,7 +781,7 @@ ni_wpa_add_interface(ni_wpa_client_t *wpa, unsigned int ifindex,
 		}
 
 		if (!ni_objectmodel_wpa_nif_object_new(wpa, wif, object_path)) {
-			ni_debug_wpa("%s: failed to create wpa inteface object with object-path: %s", ifname, object_path);
+			ni_debug_wpa("%s: failed to create wpa interface object with object-path: %s", ifname, object_path);
 			rv = -NI_ERROR_GENERAL_FAILURE;
 			goto cleanup;
 		}
@@ -2324,7 +2324,7 @@ ni_wpa_signal_interface_added(ni_wpa_client_t *wpa, const char *member, ni_dbus_
 		ni_wpa_nif_capabilities_destroy(&wif->capabilities);
 		ni_error("%s signal: unable to set properties from dict for %s", member, path);
 	} else {
-		ni_debug_wpa("%s signal for %s inteface processed", member, path);
+		ni_debug_wpa("%s signal for %s interface processed", member, path);
 		ni_timer_get_time(&wif->acquired);
 	}
 
