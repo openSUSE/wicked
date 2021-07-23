@@ -53,7 +53,6 @@ struct ni_dbus_property	{
 	ni_dbus_property_get_fn_t *	get;
 	ni_dbus_property_set_fn_t *	set;
 	ni_dbus_property_set_fn_t *	update;
-	ni_dbus_property_parse_fn_t *	parse;
 };
 
 extern dbus_bool_t		ni_dbus_generic_property_get_bool(const ni_dbus_object_t *, const ni_dbus_property_t *,
@@ -146,15 +145,9 @@ extern dbus_bool_t		ni_dbus_generic_property_parse_byte_array(const ni_dbus_prop
 #define __NI_DBUS_PROPERTY_RO(fstem, __name) \
 	__NI_DBUS_PROPERTY_GET_FN(fstem, __name), \
 	__NI_DBUS_PROPERTY_SET_FN(fstem, __name)
-#define __NI_DBUS_PROPERTY_ROP(fstem, __name) \
-	__NI_DBUS_PROPERTY_RO(fstem, __name), \
-	__NI_DBUS_PROPERTY_PARSE_FN(fstem, __name)
 #define __NI_DBUS_PROPERTY_RW(fstem, __name) \
 	__NI_DBUS_PROPERTY_RO(fstem, __name), \
 	__NI_DBUS_PROPERTY_UPDATE_FN(fstem, __name)
-#define __NI_DBUS_PROPERTY_RWP(fstem, __name) \
-	__NI_DBUS_PROPERTY_RW(fstem, __name), \
-	__NI_DBUS_PROPERTY_PARSE_FN(fstem, __name)
 
 #define __NI_DBUS_PROPERTY_GET_FN(fstem, __name) \
 	.get = fstem ## _get_ ## __name
@@ -162,8 +155,6 @@ extern dbus_bool_t		ni_dbus_generic_property_parse_byte_array(const ni_dbus_prop
 	.set = fstem ## _set_ ## __name
 #define __NI_DBUS_PROPERTY_UPDATE_FN(fstem, __name) \
 	.update = fstem ## _update_ ## __name
-#define __NI_DBUS_PROPERTY_PARSE_FN(fstem, __name) \
-	.parse = fstem ## _parse_ ## __name
 
 #define __NI_DBUS_DUMMY_PROPERTY(__signature, __name) { \
 	.name = #__name, \
@@ -184,14 +175,14 @@ extern dbus_bool_t		ni_dbus_generic_property_parse_byte_array(const ni_dbus_prop
 #define __NI_DBUS_GENERIC_PROPERTY(struct_name, dbus_sig, dbus_name, member_type, member_name, rw, args...) { \
 	.name = #dbus_name, \
 	.signature = dbus_sig, \
-	__NI_DBUS_PROPERTY_##rw##P(ni_dbus_generic_property, member_type), \
+	__NI_DBUS_PROPERTY_##rw(ni_dbus_generic_property, member_type), \
 	.generic = { \
 		.get_handle = ni_objectmodel_get_##struct_name, \
 		.u = { .member_type##_offset = &((ni_##struct_name##_t *) 0)->member_name }, \
 	} \
 	, ##args \
 }
-#define __NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties, rw) { \
+#define __NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties) { \
 	.name = #dbus_name, \
 	.signature = NI_DBUS_DICT_SIGNATURE, \
 	.generic = { \
@@ -228,8 +219,8 @@ extern dbus_bool_t		ni_dbus_generic_property_parse_byte_array(const ni_dbus_prop
 	__NI_DBUS_GENERIC_PROPERTY(struct_name, \
 			NI_DBUS_SIGNATURE(STRING_ARRAY), \
 			dbus_name, string_array, member_name, rw)
-#define NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties, rw) \
-	__NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties, rw)
+#define NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties) \
+	__NI_DBUS_GENERIC_DICT_PROPERTY(dbus_name, child_properties)
 #define NI_DBUS_GENERIC_OBJECT_PATH_PROPERTY(struct_name, dbus_name, member_name, rw) \
 	__NI_DBUS_GENERIC_PROPERTY(struct_name, NI_DBUS_SIGNATURE(OBJECT_PATH), dbus_name, object_path, member_name, rw)
 #define NI_DBUS_GENERIC_OBJECT_PATH_ARRAY_PROPERTY(struct_name, dbus_name, member_name, rw) \
