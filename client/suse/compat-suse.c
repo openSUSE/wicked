@@ -133,6 +133,8 @@ static ni_bool_t		__ni_ipv6_disbled;
 #define __NI_SUSE_PROC_IPV6_DIR			"/proc/sys/net/ipv6"
 
 #define __NI_SUSE_SYSCONFIG_NETWORK_DIR		__NI_SUSE_SYSCONF_DIR"/sysconfig/network"
+// use for OS images supporting both SUSE and RedHat style network configuration
+#define __NI_SUSE_SYSCONFIG_NETWORK_ALT_DIR     __NI_SUSE_SYSCONF_DIR"/sysconfig/network_"
 #define __NI_SUSE_CONFIG_IFPREFIX		"ifcfg-"
 #define __NI_SUSE_CONFIG_GLOBAL			"config"
 #define __NI_SUSE_CONFIG_DHCP			"dhcp"
@@ -220,14 +222,18 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 	char pathbuf[PATH_MAX];
 	char *pathname = NULL;
 	const char *_path = __NI_SUSE_SYSCONFIG_NETWORK_DIR;
+	ni_bool_t default_path = TRUE;
 	unsigned int i;
 
-	if (!ni_string_empty(path))
+	if (!ni_string_empty(path)) {
 		_path = path;
+		default_path = FALSE;
+	}
 
 	if (!root)
 		root = "";
 
+ retry:
 	if (ni_string_empty(root))
 		snprintf(pathbuf, sizeof(pathbuf), "%s", _path);
 	else
@@ -269,7 +275,14 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 						"WAIT_FOR_INTERFACES",
 						&ni_wait_for_interfaces);
 		}
-	} else {
+	} else
+	if (default_path == TRUE) {
+		ni_debug_readwrite("Configuration directory %s is file. Retry with fallback.", pathname);
+		_path = __NI_SUSE_SYSCONFIG_NETWORK_ALT_DIR;
+		default_path = FALSE;
+		goto retry;
+	}
+	else {
 		ni_error("Cannot use '%s' to read suse ifcfg files -- not a directory",
 				pathname);
 		goto done;
