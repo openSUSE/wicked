@@ -757,17 +757,17 @@ dbus_bool_t
 __ni_dbus_server_unregister_object(ni_dbus_object_t *parent, void *object_handle)
 {
 	ni_dbus_object_t **pos, *object;
-	dbus_bool_t rv = 0;
+	dbus_bool_t rv = FALSE;
 
 	for (pos = &parent->children; (object = *pos) != NULL; ) {
 		if (object->handle != object_handle) {
 			if (__ni_dbus_server_unregister_object(object, object_handle))
-				rv = 1;
+				rv = TRUE;
 			pos = &object->next;
 		} else {
 			__ni_dbus_server_object_destroy(object);
 			ni_dbus_object_free(object);
-			rv = 1;
+			rv = TRUE;
 		}
 	}
 	return rv;

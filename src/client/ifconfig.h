@@ -25,25 +25,30 @@
 #ifndef   __WICKED_CLIENT_IFCONFIG_H__
 #define   __WICKED_CLIENT_IFCONFIG_H__
 
+#define NI_CONFIG_ORIGIN			"origin"
+#define NI_CONFIG_UUID				"uuid"
+
 #define NI_CLIENT_IFCONFIG			"interface"
+#define NI_CLIENT_IFCONFIG_UUID			NI_CONFIG_UUID
+#define NI_CLIENT_IFCONFIG_ORIGIN		NI_CONFIG_ORIGIN
 #define NI_CLIENT_IFCONFIG_MATCH_NAME		"name"
 #define NI_CLIENT_IFCONFIG_CONTROL		"control"
-#define NI_CLIENT_IFCONFIG_MODE		"mode"
-#define NI_CLIENT_IFCONFIG_LINK		"link"
+#define NI_CLIENT_IFCONFIG_MODE			"mode"
+#define NI_CLIENT_IFCONFIG_LINK			"link"
 #define NI_CLIENT_IFCONFIG_MASTER		"master"
 #define NI_CLIENT_IFCONFIG_LINK_PORT		"port"
-#define NI_CLIENT_IFCONFIG_PORT_TYPE			"type"
-#define NI_CLIENT_IFCONFIG_BRIDGE	"bridge"
-#define NI_CLIENT_IFCONFIG_IPV4		"ipv4"
-#define NI_CLIENT_IFCONFIG_IPV6		"ipv6"
+#define NI_CLIENT_IFCONFIG_PORT_TYPE		"type"
+#define NI_CLIENT_IFCONFIG_BRIDGE		"bridge"
+#define NI_CLIENT_IFCONFIG_IPV4			"ipv4"
+#define NI_CLIENT_IFCONFIG_IPV6			"ipv6"
 #define NI_CLIENT_IFCONFIG_IP_ENABLED		"enabled"
 #define NI_CLIENT_IFCONFIG_ARP_VERIFY		"arp-verify"
 
 #define NI_NANNY_IFPOLICY			"policy"
 #define NI_NANNY_IFTEMPLATE			"template"
 
-#define NI_NANNY_IFPOLICY_MATCH		"match"
-#define NI_NANNY_IFPOLICY_MATCH_COND_OR	"or"
+#define NI_NANNY_IFPOLICY_MATCH			"match"
+#define NI_NANNY_IFPOLICY_MATCH_COND_OR		"or"
 #define NI_NANNY_IFPOLICY_MATCH_COND_AND	"and"
 #define NI_NANNY_IFPOLICY_MATCH_COND_CHILD	"child"
 #define NI_NANNY_IFPOLICY_MATCH_ALWAYS_TRUE	"any"
@@ -51,29 +56,35 @@
 #define NI_NANNY_IFPOLICY_MATCH_REF		"reference"
 #define NI_NANNY_IFPOLICY_MATCH_MIN_STATE	"minimum-device-state"
 #define NI_NANNY_IFPOLICY_MATCH_LINK_TYPE	"link-type"
-#define NI_NANNY_IFPOLICY_MERGE		"merge"
+#define NI_NANNY_IFPOLICY_MERGE			"merge"
 #define NI_NANNY_IFPOLICY_REPLACE		"replace"
 #define NI_NANNY_IFPOLICY_CREATE		"create"
 
+#define NI_NANNY_IFPOLICY_UUID			NI_CONFIG_UUID
+#define NI_NANNY_IFPOLICY_ORIGIN		NI_CONFIG_ORIGIN
 #define NI_NANNY_IFPOLICY_NAME			"name"
-#define NI_NANNY_IFPOLICY_ORIGIN		"origin"
-#define NI_NANNY_IFPOLICY_UUID			"uuid"
+#define NI_NANNY_IFPOLICY_OWNER			"owner"
+#define NI_NANNY_IFPOLICY_WEIGHT		"weight"
 
 extern ni_bool_t		ni_ifpolicy_match_add_min_state(xml_node_t *, unsigned int);
 extern ni_bool_t		ni_ifpolicy_match_add_link_type(xml_node_t *, unsigned int);
 extern xml_node_t *		ni_ifpolicy_generate_match(const ni_string_array_t *, const char *);
 extern ni_bool_t		ni_ifpolicy_name_is_valid(const char *);
 extern char *			ni_ifpolicy_name_from_ifname(const char *);
+extern ni_bool_t		ni_ifpolicy_get_owner_uid(const xml_node_t *, uid_t *);
+extern ni_bool_t		ni_ifpolicy_set_owner_uid(xml_node_t *, uid_t);
+extern ni_bool_t		ni_ifpolicy_set_owner(xml_node_t *, const char *);
+extern ni_bool_t		ni_ifpolicy_set_uuid(xml_node_t *, const ni_uuid_t *);
 
 extern xml_node_t *		ni_convert_cfg_into_policy_node(const xml_node_t *, xml_node_t *, const char *, const char*);
-extern xml_document_t *	ni_convert_cfg_into_policy_doc(xml_document_t *);
+extern xml_document_t *		ni_convert_cfg_into_policy_doc(xml_document_t *);
 
-extern int			ni_nanny_addpolicy_node(xml_node_t *, const char *);
+extern int			ni_nanny_addpolicy_node(const xml_node_t *, const char *);
 extern int			ni_nanny_addpolicy(xml_document_t *);
 
 extern ni_dbus_client_t *	ni_nanny_create_client(ni_dbus_object_t **);
 
-extern ni_bool_t		ni_nanny_call_add_policy(const char *, xml_node_t *);
+extern ni_bool_t		ni_nanny_call_add_policy(const char *, const xml_node_t *);
 extern ni_bool_t		ni_nanny_call_del_policy(const char *);
 extern ni_bool_t		ni_nanny_call_device_enable(const char *ifname);
 extern ni_bool_t		ni_nanny_call_device_disable(const char *ifname);
@@ -90,12 +101,48 @@ ni_ifconfig_is_config(xml_node_t *ifnode)
 	return !xml_node_is_empty(ifnode) && ni_string_eq(ifnode->name, NI_CLIENT_IFCONFIG);
 }
 
+static inline const char *
+ni_ifconfig_get_uuid(const xml_node_t *ifnode)
+{
+	return xml_node_get_attr(ifnode, NI_CLIENT_IFCONFIG_UUID);
+}
+
+static inline const char *
+ni_ifconfig_get_origin(const xml_node_t *ifnode)
+{
+	return xml_node_get_attr(ifnode, NI_CLIENT_IFCONFIG_ORIGIN);
+}
+
 static inline ni_bool_t
 ni_ifconfig_is_policy(const xml_node_t *pnode)
 {
 	return !xml_node_is_empty(pnode) &&
 		(ni_string_eq(pnode->name, NI_NANNY_IFPOLICY) ||
 		 ni_string_eq(pnode->name, NI_NANNY_IFTEMPLATE));
+}
+
+static inline ni_bool_t
+ni_ifconfig_is_template(const xml_node_t *pnode)
+{
+	return !xml_node_is_empty(pnode) && ni_string_eq(pnode->name, NI_NANNY_IFTEMPLATE);
+}
+
+static inline const char *
+ni_ifpolicy_get_name(const xml_node_t *pnode)
+{
+	return xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_NAME);
+}
+
+static inline const char *
+ni_ifpolicy_get_uuid(const xml_node_t *pnode)
+{
+	return xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_UUID);
+}
+
+static inline const char *
+ni_ifpolicy_get_owner(const xml_node_t *pnode)
+{
+	return xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_OWNER);
 }
 
 static inline const char *
@@ -105,9 +152,9 @@ ni_ifpolicy_get_origin(const xml_node_t *pnode)
 }
 
 static inline const char *
-ni_ifpolicy_get_name(const xml_node_t *pnode)
+ni_ifpolicy_get_weight(const xml_node_t *pnode)
 {
-	return xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_NAME);
+	return xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_WEIGHT);
 }
 
 static inline ni_bool_t

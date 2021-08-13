@@ -243,6 +243,15 @@ ni_ifworker_new(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char 
 }
 
 ni_ifworker_t *
+ni_fsm_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
+{
+	if (!fsm || ni_string_empty(name) || ni_fsm_ifworker_by_name(fsm, type, name))
+		return NULL;
+
+	return ni_ifworker_new(&fsm->workers, type, name);
+}
+
+ni_ifworker_t *
 ni_ifworker_set_ref(ni_ifworker_t **ref, ni_ifworker_t *n)
 {
 	ni_ifworker_t *o;
@@ -396,6 +405,9 @@ ni_ifworker_reset(ni_ifworker_t *w)
 void
 ni_ifworker_free(ni_ifworker_t *w)
 {
+	/* Destroy applied policy references */
+	ni_fsm_policy_array_destroy(&w->policies);
+
 	/* Destroy client state config and control */
 	ni_ifworker_control_destroy(&w->control);
 	ni_security_id_destroy(&w->security_id);
@@ -2076,15 +2088,18 @@ ni_ifworker_iftype_from_xml(xml_node_t *config)
 	return NI_IFTYPE_UNKNOWN;
 }
 
-void
+ni_bool_t
 ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_origin)
 {
 	xml_node_t *child;
 
+	if (!w || xml_node_is_empty(ifnode))
+		return FALSE;
+
 	xml_node_free(w->config.node);
 	ni_client_state_config_reset(&w->config.meta);
 	if (!(w->config.node = xml_node_clone_ref(ifnode)))
-		return;
+		return FALSE;
 
 	if ((child = xml_node_get_child(ifnode, NI_CLIENT_STATE_XML_NODE))) {
 		/* cleanup obsolete stuff in case of attic configs */
@@ -2092,7 +2107,6 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 		xml_node_free(child);
 	}
 
-	ni_ifworker_generate_uuid(w);
 	ni_ifworker_set_config_origin(w, config_origin);
 
 	if ((child = xml_node_get_child(ifnode, "control")))
@@ -2107,56 +2121,74 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 			w->iftype = NI_IFTYPE_OVS_SYSTEM;
 	}
 	ni_ifworker_extra_waittime_from_xml(w);
+	ni_ifworker_generate_uuid(w);
+	return TRUE;
+}
+
+ni_ifworker_t *
+ni_fsm_worker_identify(ni_fsm_t *fsm, const xml_node_t *node, const char *origin,
+			ni_ifworker_type_t *type, const char **ifname)
+{
+	const char *namespace;
+	xml_node_t *name;
+
+	if (!fsm || !type || xml_node_is_empty(node))
+		return NULL;
+
+	*type = ni_ifworker_type_from_string(node->name);
+	if (*type == NI_IFWORKER_TYPE_NONE)
+		return NULL;
+
+	if (!(name = xml_node_get_child(node, "name")))
+		return NULL;
+
+	if ((namespace = xml_node_get_attr(name, "namespace"))) {
+		if (ifname)
+			*ifname = NULL;
+		return __ni_ifworker_identify_device(fsm, namespace, name, *type, origin);
+	} else
+	if (!ni_string_empty(name->cdata)) {
+		if (ifname)
+			*ifname = name->cdata;
+		return ni_fsm_ifworker_by_name(fsm, *type, name->cdata);
+	}
+
+	return NULL;
 }
 
 /*
  * Given an XML document, build interface and modem objects, and policies from it.
  */
-ni_bool_t
-ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_node_t *ifnode, const char *origin)
+ni_ifworker_t *
+ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_node_t *node, const char *origin)
 {
-	ni_ifworker_type_t type;
+	ni_ifworker_type_t type = NI_IFWORKER_TYPE_NONE;
 	const char *ifname = NULL;
-	xml_node_t *node;
 	ni_ifworker_t *w = NULL;
 
-	if (!fsm || xml_node_is_empty(ifnode))
-		return FALSE;
+	if (!fsm || xml_node_is_empty(node))
+		return NULL;
 
-	type = ni_ifworker_type_from_string(ifnode->name);
-	if (type == NI_IFWORKER_TYPE_NONE) {
-		ni_warn("%s: ignoring non-interface element <%s>",
-				xml_node_location(ifnode),
-				ifnode->name);
-		return FALSE;
-	}
-
-	if ((node = xml_node_get_child(ifnode, "identify")) != NULL) {
-		ni_warn("%s: using obsolete <identify> element - please use <name namespace=\"...\"> instead", xml_node_location(ifnode));
-		w = ni_ifworker_identify_device(fsm, node, type, origin);
-	} else
-	if ((node = xml_node_get_child(ifnode, "name")) != NULL) {
-		const char *namespace;
-
-		namespace = xml_node_get_attr(node, "namespace");
-		if (namespace != NULL) {
-			w = __ni_ifworker_identify_device(fsm, namespace, node, type, origin);
-		} else {
-			ifname = node->cdata;
-			if (ifname && (w = ni_fsm_ifworker_by_name(fsm, type, ifname)) == NULL)
-				w = ni_ifworker_new(&fsm->workers, type, ifname);
+	if (!(w = ni_fsm_worker_identify(fsm, node, origin, &type, &ifname))) {
+		if (!ifname) {
+			ni_error("%s: ignoring unknown %s configuration",
+				xml_node_location(node), node->name);
+			return NULL;
+		}
+		if (!(w = ni_ifworker_new(&fsm->workers, type, ifname))) {
+			ni_error("%s: cannot allocate worker for '%s' configuration",
+				xml_node_location(node), node->name);
+			return NULL;
 		}
 	}
 
-	if (w == NULL) {
-		ni_error("%s: ignoring unknown interface configuration",
-			xml_node_location(ifnode));
-		return FALSE;
+	if (!ni_ifworker_set_config(w, node, origin)) {
+		ni_error("%s: cannot apply configuration to %s '%s'",
+				xml_node_location(node), node->name, w->name);
+		return NULL;
 	}
 
-	ni_ifworker_set_config(w, ifnode, origin);
-
-	return TRUE;
+	return w;
 }
 
 /*

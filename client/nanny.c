@@ -262,7 +262,7 @@ usage:
  *   1 - success
  */
 int
-ni_nanny_addpolicy_node(xml_node_t *pnode, const char *origin)
+ni_nanny_addpolicy_node(const xml_node_t *pnode, const char *origin)
 {
 	const char *name;
 	int count = 0;
@@ -420,7 +420,7 @@ ni_nanny_call_update_policy(ni_dbus_object_t *root, const char *name, const char
 }
 
 ni_bool_t
-ni_nanny_call_add_policy(const char *name, xml_node_t *node)
+ni_nanny_call_add_policy(const char *name, const xml_node_t *node)
 {
 	ni_dbus_object_t *root_object = NULL;
 	char *policy_xml = NULL;

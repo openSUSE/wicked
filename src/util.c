@@ -3070,6 +3070,12 @@ ni_sibling_path_printf(const char *path, const char *fmt, ...)
 /*
  * Utility functions for handling uuids
  */
+void
+ni_uuid_init(ni_uuid_t *uuid)
+{
+	memset(uuid, 0, sizeof(*uuid));
+}
+
 const char *
 ni_uuid_print(const ni_uuid_t *uuid)
 {
@@ -3078,6 +3084,7 @@ ni_uuid_print(const ni_uuid_t *uuid)
 
 	if (!uuid)
 		return NULL;
+
 	if (ni_uuid_is_null(uuid))
 		return "";
 

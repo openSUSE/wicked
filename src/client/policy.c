@@ -166,6 +166,60 @@ ni_ifpolicy_name_is_valid(const char *name)
 	return TRUE;
 }
 
+ni_bool_t
+ni_ifpolicy_get_owner_uid(const xml_node_t *node, uid_t *uid)
+{
+	const char *owner;
+
+	if (!(owner = ni_ifpolicy_get_owner(node)))
+		return FALSE;
+
+	if (ni_parse_uint(owner, uid, 10))
+		return FALSE;
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_ifpolicy_set_owner_uid(xml_node_t *node, uid_t uid)
+{
+	if (!node)
+		return FALSE;
+
+	while (xml_node_del_attr(node, NI_NANNY_IFPOLICY_OWNER))
+		;
+
+	xml_node_add_attr_uint(node, NI_NANNY_IFPOLICY_OWNER, uid);
+	return TRUE;
+}
+
+ni_bool_t
+ni_ifpolicy_set_owner(xml_node_t *node, const char *owner)
+{
+	uid_t uid = -1U;
+
+	if (!node || ni_parse_uint(owner, &uid, 10))
+		return FALSE;
+
+	return ni_ifpolicy_set_owner_uid(node, uid);
+}
+
+ni_bool_t
+ni_ifpolicy_set_uuid(xml_node_t *node, const ni_uuid_t *uuid)
+{
+	const char *ptr;
+
+	if (!node)
+		return FALSE;
+
+	while (xml_node_del_attr(node, NI_NANNY_IFPOLICY_UUID))
+		;
+
+	ptr = ni_uuid_print(uuid);
+	if (!ni_string_empty(ptr))
+		xml_node_add_attr(node, NI_NANNY_IFPOLICY_UUID, ptr);
+	return TRUE;
+}
 
 /*
  * Generate a <match> node for ifpolicy
@@ -220,21 +274,28 @@ ni_convert_cfg_into_policy_node(const xml_node_t *ifcfg, xml_node_t *match, cons
 	ni_uuid_t uuid;
 	xml_node_t *node;
 
-	if (!ifcfg || !match || ni_string_empty(name) || ni_string_empty(origin))
+	if (xml_node_is_empty(ifcfg) || xml_node_is_empty(match) ||
+		ni_string_empty(name) || ni_string_empty(origin))
 		return NULL;
 
 	ifpolicy = xml_node_new(NI_NANNY_IFPOLICY, NULL);
+
+	/* add match node as counted reference to the policy */
 	xml_node_reparent(ifpolicy, xml_node_clone_ref(match));
 
-	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_NAME, name);
-
-	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_ORIGIN, origin);
-	ni_uuid_generate(&uuid);
-	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_UUID, ni_uuid_print(&uuid));
-
-	/* clone <interface> into policy and rename to <merge> */
+	/* clone <interface> into policy and rename to <merge>
+	 * TODO: ahm... add action parameter to this function.
+	 */
 	node = xml_node_clone(ifcfg, ifpolicy);
 	ni_string_dup(&node->name, NI_NANNY_IFPOLICY_MERGE);
+
+	ni_var_array_destroy(&ifpolicy->attrs);
+	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_NAME, name);
+	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_ORIGIN, origin);
+
+	/* calculate an UUIDv5 (sha1 checksum) of the policy content */
+	ni_ifconfig_generate_uuid(ifpolicy, &uuid);
+	ni_ifpolicy_set_uuid(ifpolicy, &uuid);
 
 	return ifpolicy;
 }
