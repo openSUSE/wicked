@@ -176,15 +176,7 @@ libwicked_client_la_SOURCES		= \
 	client/policy.c
 
 noinst_HEADERS			= \
-	$(wicked_headers)	\
-	$(system_headers)
-
-system_headers			= \
-	linux/dcbnl.h		\
-	linux/ethtool.h		\
-	linux/if_addr.h		\
-	linux/if_link.h		\
-	linux/if_tunnel.h
+	$(wicked_headers)
 
 wicked_headers			= \
 	appconfig.h		\

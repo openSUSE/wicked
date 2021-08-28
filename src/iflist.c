@@ -11,7 +11,6 @@
 #include <netinet/in.h>
 #include <net/if.h>
 #include <net/if_arp.h>
-#include <netinet/ip.h>
 #include <netlink/attr.h>
 #include <netlink/msg.h>
 #include <errno.h>
@@ -2525,28 +2524,28 @@ __ni_discover_gre(ni_netdev_t *dev, struct nlattr **link_info, struct nlattr **i
 	if (info_data[IFLA_GRE_IFLAGS]) {
 		iflags = nla_get_u16(info_data[IFLA_GRE_IFLAGS]);
 	}
-	if ((iflags & GRE_KEY) && info_data[IFLA_GRE_IKEY]) {
+	if (GRE_IS_KEY(iflags) && info_data[IFLA_GRE_IKEY]) {
 		gre->flags |= NI_BIT(NI_GRE_FLAG_IKEY);
 		gre->ikey.s_addr = nla_get_u32(info_data[IFLA_GRE_IKEY]);
 	}
-	if (iflags & GRE_SEQ) {
+	if (GRE_IS_SEQ(iflags)) {
 		gre->flags |= NI_BIT(NI_GRE_FLAG_ISEQ);
 	}
-	if (iflags & GRE_CSUM) {
+	if (GRE_IS_CSUM(iflags)) {
 		gre->flags |= NI_BIT(NI_GRE_FLAG_ICSUM);
 	}
 
 	if (info_data[IFLA_GRE_OFLAGS]) {
 		oflags = nla_get_u16(info_data[IFLA_GRE_OFLAGS]);
 	}
-	if ((oflags & GRE_KEY) && info_data[IFLA_GRE_OKEY]) {
+	if (GRE_IS_KEY(oflags) && info_data[IFLA_GRE_OKEY]) {
 		gre->flags |= NI_BIT(NI_GRE_FLAG_OKEY);
 		gre->okey.s_addr = nla_get_u32(info_data[IFLA_GRE_OKEY]);
 	}
-	if (oflags & GRE_SEQ) {
+	if (GRE_IS_SEQ(oflags)) {
 		gre->flags |= NI_BIT(NI_GRE_FLAG_OSEQ);
 	}
-	if (oflags & GRE_CSUM) {
+	if (GRE_IS_CSUM(oflags)) {
 		gre->flags |= NI_BIT(NI_GRE_FLAG_OCSUM);
 	}
 

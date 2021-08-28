@@ -266,7 +266,9 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h netinet/in.h])
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h sys/ioctl.h sys/param.h])
 AC_CHECK_HEADERS([sys/socket.h sys/time.h syslog.h unistd.h])
 AC_CHECK_HEADERS([linux/filter.h linux/if_packet.h netpacket/packet.h])
-AC_CHECK_HEADERS([linux/dcbnl.h linux/if_link.h linux/rtnetlink.h])
+AC_CHECK_HEADERS([linux/rtnetlink.h])
+AC_CHECK_HEADERS([linux/dcbnl.h linux/ethtool.h linux/if_addr.h linux/if_link.h linux/if_tunnel.h],
+    [],AC_MSG_ERROR([[Cannot find required header file]]))
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_UID_T
@@ -310,11 +312,6 @@ AC_CHECK_DECL([DCB_ATTR_IEEE_MAXRATE], [
 
 AC_CHECK_DECL([IFLA_VLAN_PROTOCOL], [
 	       AC_DEFINE([HAVE_IFLA_VLAN_PROTOCOL], [],
-			 [Have MACVLAN_FLAG_NOPROMISC in linux/if_link.h])
-	      ], [], [[#include <linux/if_link.h>]])
-
-AC_CHECK_DECL([MACVLAN_FLAG_NOPROMISC], [
-	       AC_DEFINE([HAVE_MACVLAN_FLAG_NOPROMISC], [],
 			 [Have MACVLAN_FLAG_NOPROMISC in linux/if_link.h])
 	      ], [], [[#include <linux/if_link.h>]])
 

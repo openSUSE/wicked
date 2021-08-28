@@ -7,6 +7,7 @@
 #include "config.h"
 #endif
 
+#include <net/if.h>
 #include <net/if_arp.h>
 
 #include <wicked/netinfo.h>

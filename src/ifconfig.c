@@ -21,7 +21,6 @@
 #include <sys/socket.h>
 #include <net/if.h>
 #include <net/if_arp.h>
-#include <netinet/ip.h>
 #include <netlink/msg.h>
 #include <netlink/errno.h>
 #include <sys/time.h>
@@ -63,13 +62,7 @@
 #  endif
 #endif
 
-#if !defined(MACVLAN_FLAG_NOPROMISC)
-#  if defined(HAVE_MACVLAN_FLAG_NOPROMISC)
-#    include <linux/if_link.h>
-#  else
-#    include "linux/if_link.h"
-#  endif
-#endif
+#include <linux/if_link.h>
 #include <linux/if_tunnel.h>
 #include <linux/fib_rules.h>
 

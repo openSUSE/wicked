@@ -11,6 +11,7 @@
 #include <netlink/netlink.h>
 #include <netlink/netlink.h>
 #include <linux/ethtool.h>
+#include <linux/if.h>
 #include <linux/fib_rules.h>
 
 #define __user /* unclean header file */
@@ -149,21 +150,6 @@ extern int	__ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *
 #ifndef IF_PREFIX_AUTOCONF
 # define IF_PREFIX_AUTOCONF	0x02
 #endif
-
-/*
- * RFC 2863 operational status.
- * Declared in linux/if.h, but that's one of those contaminated
- * files that you can't really use :(
- */
-enum {
-	IF_OPER_UNKNOWN,
-	IF_OPER_NOTPRESENT,
-	IF_OPER_DOWN,
-	IF_OPER_LOWERLAYERDOWN,
-	IF_OPER_TESTING,
-	IF_OPER_DORMANT,
-	IF_OPER_UP,
-};
 
 /*
  * Copied from linux/ipv6.h (which doesn't include cleanly in user space code)

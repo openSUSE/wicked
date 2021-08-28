@@ -28,7 +28,6 @@
 
 #include <stdlib.h>
 #include <net/if.h>
-#include <netinet/ip.h>
 #include <linux/if_tunnel.h>
 
 #include <wicked/netinfo.h>

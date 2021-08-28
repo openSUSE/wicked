@@ -728,7 +728,7 @@ static const ni_intmap_t		ni_ethtool_link_adv_fec_names[] = {
 unsigned int
 ni_ethtool_link_mode_nwords(void)
 {
-	return (__ETHTOOL_LINK_MODE_LAST + 32) / 32;
+	return (__ETHTOOL_LINK_MODE_MASK_NBITS + 32) / 32;
 }
 
 unsigned int
