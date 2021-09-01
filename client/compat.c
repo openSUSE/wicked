@@ -1696,6 +1696,8 @@ __ni_compat_generate_gre(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 		ni_string_array_append(&flags, ni_gre_flag_bit_to_name(NI_GRE_FLAG_OSEQ));
 	if (gre->flags & NI_BIT(NI_GRE_FLAG_OCSUM))
 		ni_string_array_append(&flags, ni_gre_flag_bit_to_name(NI_GRE_FLAG_OCSUM));
+	if (gre->flags & NI_BIT(NI_GRE_FLAG_IGNORE_DF))
+		ni_string_array_append(&flags, ni_gre_flag_bit_to_name(NI_GRE_FLAG_IGNORE_DF));
 
 	if (!ni_string_empty(ni_string_join(&str, &flags, ", ")))
 		xml_node_new_element("flags", child, str);

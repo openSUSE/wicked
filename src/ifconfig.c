@@ -3867,6 +3867,7 @@ __ni_rtnl_link_put_gre(struct nl_msg *msg, const ni_netdev_t *cfg)
 	struct nlattr *infodata;
 	uint32_t *ipaddr;
 	uint16_t flags;
+	uint8_t ignore_df;
 
 	if (!cfg->gre || !(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
 		goto nla_put_failure;
@@ -3912,6 +3913,9 @@ __ni_rtnl_link_put_gre(struct nl_msg *msg, const ni_netdev_t *cfg)
 
 	NLA_PUT_U16(msg, IFLA_GRE_OFLAGS, flags);
 	NLA_PUT_U32(msg, IFLA_GRE_OKEY, cfg->gre->okey.s_addr);
+
+	ignore_df = (cfg->gre->flags & NI_GRE_FLAG_IGNORE_DF) ? 1 : 0;
+	NLA_PUT_U8(msg, IFLA_GRE_IGNORE_DF, ignore_df);
 
 #if 0	/* does not work up to leap kernel */
 	switch (cfg->gre->encap.type) {

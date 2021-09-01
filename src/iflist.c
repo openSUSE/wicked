@@ -2509,6 +2509,7 @@ __ni_discover_gre(ni_netdev_t *dev, struct nlattr **link_info, struct nlattr **i
 	ni_gre_t *gre;
 	unsigned int iflags = 0;
 	unsigned int oflags = 0;
+	uint8_t ignore_df;
 
 	if (!(gre = ni_netdev_get_gre(dev)) ||
 		__ni_discover_tunnel(&gre->tunnel, NI_IFTYPE_GRE, info_data) < 0 ||
@@ -2548,6 +2549,12 @@ __ni_discover_gre(ni_netdev_t *dev, struct nlattr **link_info, struct nlattr **i
 	}
 	if (oflags & GRE_CSUM) {
 		gre->flags |= NI_BIT(NI_GRE_FLAG_OCSUM);
+	}
+
+	if (info_data[IFLA_GRE_IGNORE_DF]) {
+		ignore_df = nla_get_u8(info_data[IFLA_GRE_IGNORE_DF]);
+		if (ignore_df)
+		    gre->flags |= NI_BIT(NI_GRE_FLAG_IGNORE_DF);
 	}
 
 	if (info_data[IFLA_GRE_ENCAP_TYPE]) {
@@ -2629,6 +2636,7 @@ __ni_tunnel_gre_trace(ni_netdev_t *dev, struct nlattr **info_data)
 	uint32_t link;
 	uint16_t flags;
 	uint8_t pmtudisc;
+	uint8_t ignore_df;
 	uint8_t tos;
 	uint8_t ttl;
 
@@ -2656,6 +2664,10 @@ __ni_tunnel_gre_trace(ni_netdev_t *dev, struct nlattr **info_data)
 		if (info_data[IFLA_GRE_PMTUDISC]) {
 			pmtudisc = nla_get_u8(info_data[IFLA_GRE_PMTUDISC]);
 			ni_trace("%s:IFLA_GRE_PMTUDISC: %u", dev->name, pmtudisc);
+		}
+		if (info_data[IFLA_GRE_IGNORE_DF]) {
+			ignore_df = nla_get_u8(info_data[IFLA_GRE_IGNORE_DF]);
+			ni_trace("%s:IFLA_GRE_IGNORE_DF: %u", dev->name, ignore_df);
 		}
 		if (info_data[IFLA_GRE_FLAGS]) {
 			flags = nla_get_u16(info_data[IFLA_GRE_FLAGS]);

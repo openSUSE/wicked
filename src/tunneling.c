@@ -128,6 +128,7 @@ static const ni_intmap_t	ni_gre_flag_bit_names[] = {
 	{ "oseq",		NI_GRE_FLAG_OSEQ		},
 	{ "icsum",		NI_GRE_FLAG_ICSUM		},
 	{ "ocsum",		NI_GRE_FLAG_OCSUM		},
+	{ "ignore-df", 		NI_GRE_FLAG_IGNORE_DF		},
 	{ NULL,			0				},
 };
 
