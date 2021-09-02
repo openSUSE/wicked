@@ -67,6 +67,9 @@ firewalld_up()
 
 	local ZONE=`wicked_config_get_zone "$WICKED_ARGFILE"`
 
+	# Assign the firewalld zone permanently.
+	"$firewalld_cmd" --permanent --zone="$ZONE" --change-interface="$WICKED_INTERFACE_NAME" &>/dev/null
+	# And also temporarily, to not have to reload.
 	"$firewalld_cmd" --zone="$ZONE" --change-interface="$WICKED_INTERFACE_NAME" &>/dev/null
 }
 
@@ -74,6 +77,9 @@ firewalld_down()
 {
 	test "X$WICKED_INTERFACE_NAME" = "X" && return 1
 
+	# Remove the firewalld zone assignment permanently.
+	"$firewalld_cmd" --permanent --remove-interface="$WICKED_INTERFACE_NAME" &>/dev/null
+	# And also temporarily, to not have to reload.
 	"$firewalld_cmd" --remove-interface="$WICKED_INTERFACE_NAME" &>/dev/null
 }
 
