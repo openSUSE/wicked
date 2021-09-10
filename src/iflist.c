@@ -1049,7 +1049,6 @@ __ni_netdev_translate_ifflags(unsigned int ifflags, unsigned int prev)
 		retval = NI_IFF_DEVICE_READY | NI_IFF_DEVICE_UP;
 		break;
 
-	case IFF_UP | IFF_LOWER_UP:
 	case IFF_UP | IFF_LOWER_UP | IFF_RUNNING:
 		retval = NI_IFF_DEVICE_READY | NI_IFF_DEVICE_UP |
 			 NI_IFF_LINK_UP | NI_IFF_NETWORK_UP;
