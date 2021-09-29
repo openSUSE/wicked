@@ -571,17 +571,34 @@ ni_process_reap(ni_process_t *pi)
 	int rv;
 
 	if (pi->status != -1) {
-		ni_error("%s: child already reaped", __func__);
+		ni_error("%s: child process %d (%s) already reaped", __func__, pi->pid, pi->process->command);
 		return NI_PROCESS_SUCCESS;
 	}
 
+	ni_debug_extension("%s: reaping child process %d (%s)", __func__, pi->pid, pi->process->command);
 	rv = waitpid(pi->pid, &pi->status, WNOHANG);
 	if (rv == 0) {
+		struct timeval beg, end, dif;
+
 		/* This is an ugly workaround. Sometimes, we seem to get a hangup on the socket even
 		 * though the script (provably) still has its end of the socket pair open for writing. */
-		ni_error("%s: process %u has not exited yet; now doing a blocking waitpid()",
-				__func__, pi->pid);
+		ni_debug_extension("%s: process %d (%s) has not exited yet; now doing a blocking waitpid()",
+				__func__, pi->pid, pi->process->command);
+
+		ni_timer_get_time(&beg);
 		rv = waitpid(pi->pid, &pi->status, 0);
+		ni_timer_get_time(&end);
+
+		timersub(&end, &beg, &dif);
+		if (dif.tv_sec) {
+			ni_warn("%s: process %d (%s) reaped in blocking waitpid after %ldm%ld.%06lds",
+				__func__, pi->pid, pi->process->command,
+				dif.tv_sec / 60, dif.tv_sec % 60, dif.tv_usec);
+		} else {
+			ni_debug_extension("%s: process %d (%s) reaped in blocking waitpid after %ldm%ld.%06lds",
+				__func__, pi->pid, pi->process->command,
+				dif.tv_sec / 60, dif.tv_sec % 60, dif.tv_usec);
+		}
 	}
 
 	if (rv < 0) {
