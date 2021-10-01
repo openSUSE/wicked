@@ -114,6 +114,11 @@ PreReq:         %fillup_prereq %insserv_prereq
 %define         wicked_statedir %_localstatedir/run/%{name}
 %endif
 %define         wicked_storedir %_localstatedir/lib/%{name}
+%if 0%{?suse_version} >= 1550
+%define		dbus_config_base %_datadir/dbus-1
+%else
+%define		dbus_config_base %_sysconfdir/dbus-1
+%endif
 
 %description
 Wicked is a network configuration infrastructure incorporating a number
@@ -205,6 +210,7 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS"
 %if ! %{with dbusstart}
 	--without-dbus-servicedir	\
 %endif
+	--with-dbus-configdir=%{dbus_config_base}/system.d \
 	--disable-static
 make %{?_smp_mflags}
 
@@ -333,16 +339,18 @@ fi
 %dir %_sysconfdir/wicked/extensions
 %config(noreplace) %_sysconfdir/wicked/extensions/*
 %dir %_sysconfdir/wicked/ifconfig
-%dir %_sysconfdir/dbus-1
-%dir %_sysconfdir/dbus-1/system.d
+%dir %{dbus_config_base}
+%dir %{dbus_config_base}/system.d
 # mark the policies as config to keep backup, but replace on upgrade
-%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.conf
-%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.AUTO4.conf
-%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.DHCP4.conf
-%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.DHCP6.conf
-%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.Nanny.conf
+%config %{dbus_config_base}/system.d/org.opensuse.Network.conf
+%config %{dbus_config_base}/system.d/org.opensuse.Network.AUTO4.conf
+%config %{dbus_config_base}/system.d/org.opensuse.Network.DHCP4.conf
+%config %{dbus_config_base}/system.d/org.opensuse.Network.DHCP6.conf
+%config %{dbus_config_base}/system.d/org.opensuse.Network.Nanny.conf
 %if %{with dbusstart}
+%if "%dbus_config_base" != "%_datadir/dbus-1"
 %dir %_datadir/dbus-1
+%endif
 %dir %_datadir/dbus-1/system-services
 %_datadir/dbus-1/system-services/org.opensuse.Network.*.service
 %endif
