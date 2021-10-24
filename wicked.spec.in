@@ -116,8 +116,10 @@ PreReq:         %fillup_prereq %insserv_prereq
 %define         wicked_storedir %_localstatedir/lib/%{name}
 %if 0%{?suse_version} >= 1550
 %define		dbus_config_base %_datadir/dbus-1
+%define		dbus_config_tag	 %nil
 %else
 %define		dbus_config_base %_sysconfdir/dbus-1
+%define		dbus_config_tag	 %config
 %endif
 
 %description
@@ -342,11 +344,11 @@ fi
 %dir %{dbus_config_base}
 %dir %{dbus_config_base}/system.d
 # mark the policies as config to keep backup, but replace on upgrade
-%config %{dbus_config_base}/system.d/org.opensuse.Network.conf
-%config %{dbus_config_base}/system.d/org.opensuse.Network.AUTO4.conf
-%config %{dbus_config_base}/system.d/org.opensuse.Network.DHCP4.conf
-%config %{dbus_config_base}/system.d/org.opensuse.Network.DHCP6.conf
-%config %{dbus_config_base}/system.d/org.opensuse.Network.Nanny.conf
+%{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.conf
+%{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.AUTO4.conf
+%{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.DHCP4.conf
+%{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.DHCP6.conf
+%{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.Nanny.conf
 %if %{with dbusstart}
 %if "%dbus_config_base" != "%_datadir/dbus-1"
 %dir %_datadir/dbus-1
