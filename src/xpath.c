@@ -258,12 +258,12 @@ handle_name_or_axis:
 					goto failed;
 				}
 
-				ident = NULL;
 				if (colons[2] != '\0') {
 					/* This one has form "axis::Name" */
 					ident = colons + 2;
 				} else if (*pos == '*') {
 					/* This one has form "axis::*" */
+					ident = NULL;
 					++pos;
 				} else {
 					ni_error("operator %s:: must be followed by Name or *", ident);
