@@ -1138,12 +1138,12 @@ ni_wpa_nif_add_blob(ni_wpa_nif_t *wif, const char *name, unsigned const char *da
 	ni_dbus_variant_set_byte_array(&args[1], data, len);
 
 	interface = ni_dbus_object_get_default_interface(wif->object);
-	ni_debug_wpa("%s: Calling %s.%s(%s, len=%lu)", wif->device.name, interface, method, name, len);
+	ni_debug_wpa("%s: Calling %s.%s(%s, len=%zu)", wif->device.name, interface, method, name, len);
 
 	err = -NI_ERROR_DBUS_CALL_FAILED;
 	if (!ni_dbus_object_call_variant(wif->object, interface, method,
 					2, args, 0, NULL, &error)) {
-		ni_error("%s: dbus call %s.%s(%s, len=%lu) failed (%s: %s)", wif->device.name,
+		ni_error("%s: dbus call %s.%s(%s, len=%zu) failed (%s: %s)", wif->device.name,
 				ni_dbus_object_get_path(wif->object), method, name, len,
 				error.name, error.message);
 
