@@ -376,9 +376,11 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 					__ni_suse_string_compare);
 
 			for (i = 0; i < names.count; ++i) {
-				snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
-						dirname, names.data[i]);
-				name = ni_realpath(pathbuf, &real);
+				char *path = NULL;
+				if (!ni_string_printf(&path, "%s/%s", dirname, names.data[i]))
+					continue;
+				name = ni_realpath(path, &real);
+				ni_string_free(&path);
 				if (name && ni_isreg(name))
 					ni_string_array_append(&files, name);
 				ni_string_free(&real);

@@ -47,7 +47,7 @@ ni_managed_policy_filename(const char *name, char *path, size_t size)
 static ni_bool_t
 ni_managed_policy_save_node(const xml_node_t *pnode)
 {
-	char path[PATH_MAX] = {'\0'};
+	char path[PATH_MAX - sizeof(".XXXXXX")] = {'\0'};
 	char temp[PATH_MAX] = {'\0'};
 	const char *pname;
 	FILE *fp;

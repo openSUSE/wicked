@@ -430,7 +430,7 @@ ni_client_state_scripts_copy(ni_client_state_scripts_t *dst,
 ni_bool_t
 ni_client_state_save(const ni_client_state_t *client_state, unsigned int ifindex)
 {
-	char path[PATH_MAX] = {'\0'};
+	char path[PATH_MAX - sizeof(".XXXXXX")] = {'\0'};
 	char temp[PATH_MAX] = {'\0'};
 	xml_node_t *node;
 	FILE *fp = NULL;
