@@ -1445,8 +1445,8 @@ ni_bool_t
 ni_file_exists_fmt(const char *fmt, ...)
 {
 	char *path = NULL;
-	ni_bool_t ret;
 	va_list ap;
+	int ret;
 
 	if (!fmt)
 		return FALSE;
@@ -1454,7 +1454,7 @@ ni_file_exists_fmt(const char *fmt, ...)
 	va_start(ap, fmt);
 	ret = vasprintf(&path, fmt, ap) > 0;
 	va_end(ap);
-	if (!ret)
+	if (ret < 0 || !path)
 		return FALSE;
 
 	ret = ni_file_exists(path);
