@@ -1052,7 +1052,7 @@ __xpath_enode_predicate_evaluate(const xpath_enode_t *enode, xpath_result_t *lef
 			case XPATH_INTEGER:
 				/* Predicate indices are 1 based */
 				index = rn->value.integer;
-				if (0 < index && index - 1 < left->count)
+				if (0 < index && (unsigned long)index - 1 < (unsigned long)left->count)
 					xpath_result_append_element(result,
 							left->node[index-1].value.node);
 				break;

@@ -1038,11 +1038,9 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 		} else
 		if (!strcmp(child->name, "vendor-class") &&
 		    (attrval = xml_node_get_attr(child, "enterprise-number")) != NULL) {
-			char *      err;
-			long        num;
-			
-			num = strtol(attrval, &err, 0);
-			if (*err != '\0' || num < 0 || num >= 0xffffffff) {
+			unsigned int num;
+
+			if (ni_parse_uint(attrval, &num, 0)) {
 				ni_error("config: unable to parse <vendor-class enterprise-number=\"%s\">",
 						attrval);
 				return FALSE;
@@ -1062,11 +1060,9 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 		} else
 		if (!strcmp(child->name, "vendor-opts") &&
 		    (attrval = xml_node_get_attr(child, "enterprise-number")) != NULL) {
-			char *      err;
-			long        num;
-			
-			num = strtol(attrval, &err, 0);
-			if (*err != '\0' || num < 0 || num >= 0xffffffff) {
+			unsigned int num;
+
+			if (ni_parse_uint(attrval, &num, 0)) {
 				ni_error("config: unable to parse <vendor-class enterprise-number=\"%s\">",
 						attrval);
 				return FALSE;
