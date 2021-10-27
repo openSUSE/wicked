@@ -323,7 +323,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	if (config->fqdn.enabled == NI_TRISTATE_DEFAULT)
 		ni_tristate_set(&config->fqdn.enabled, FALSE);
 	if (config->fqdn.enabled == NI_TRISTATE_ENABLE && ni_string_empty(config->hostname))
-		config->fqdn.update = NI_DHCP4_FQDN_UPDATE_NONE;
+		config->fqdn.update = NI_DHCP_FQDN_UPDATE_NONE;
 
 	if (!ni_dhcp4_parse_client_id(&config->client_id, dev->system.hwaddr.type, info->clientid))
 		ni_dhcp4_set_config_client_id(&config->client_id, dev, info->create_cid);
