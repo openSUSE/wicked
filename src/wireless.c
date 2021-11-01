@@ -933,6 +933,32 @@ ni_wireless_trigger_scan(ni_netdev_t *dev, ni_wpa_nif_t *wif, ni_bool_t active_s
 	return -NI_ERROR_RETRY_OPERATION;
 }
 
+static void
+ni_wireless_on_wpa_supplicant_start(ni_netdev_t *dev)
+{
+	ni_wireless_t *wlan = ni_netdev_get_wireless(dev);
+	int ret;
+
+	if (!wlan || !wlan->conf)
+		return;
+
+	ni_debug_wireless("%s: On wpa_supplicant start - try to reconfigure!", dev->name);
+	if ((ret = ni_wireless_setup(dev, wlan->conf)) == 0) {
+		ni_debug_wireless("%s: Setup of wireless successful after wpa_supplicant start", dev->name);
+		if (wlan->reconnect)
+			if ((ret = ni_wireless_connect(dev)))
+				ni_error("%s: wireless connect failed with %d", dev->name, ret);
+	} else
+		ni_error("%s: Setup of wireless failed with %d after wpa_supplicant restart!", dev->name, ret);
+}
+
+static void
+ni_wireless_on_wpa_supplicant_stop(ni_netdev_t *dev)
+{
+	ni_debug_wireless("%s: wpa_supplicant stopped!", dev->name);
+	ni_wireless_set_state(dev, NI_WIRELESS_NOT_ASSOCIATED);
+}
+
 int
 ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 {
@@ -943,6 +969,10 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 	ni_wireless_t *wlan;
 	int ret;
 
+	ni_wpa_client_ops_t ops = {
+		.on_wpa_supplicant_start = ni_wireless_on_wpa_supplicant_start,
+		.on_wpa_supplicant_stop = ni_wireless_on_wpa_supplicant_stop
+	};
 	ni_wpa_nif_ops_t wif_ops = {
 		.on_network_added = ni_wireless_on_network_added,
 		.on_scan_done = ni_wireless_on_scan_done,
@@ -950,15 +980,17 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 		.on_properties_changed = ni_wireless_on_properties_changed,
 	};
 
-	if (!dev || !conf || !ni_netdev_get_wireless(dev))
+	if (!dev || !conf || !(wlan = ni_netdev_get_wireless(dev)))
 		return -NI_ERROR_INVALID_ARGS;
-	wlan = ni_netdev_get_wireless(dev);
 
 	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
 		return -NI_ERROR_RADIO_DISABLED;
 
 	if (!(wpa = ni_wpa_client()))
 		return -1;
+
+	if (!ni_wpa_client_set_ops(dev->link.ifindex, &ops))
+		ni_warn("%s: Failed to add wpa_client opthandler", dev->name);
 
 	ret = ni_wpa_get_interface(wpa, dev->name, dev->link.ifindex, &wif);
 	if (ret == 0 && wif && ni_wireless_wpa_nif_config_differs(wif, conf)) {
@@ -1033,6 +1065,7 @@ ni_wireless_shutdown(ni_netdev_t *dev)
 	if (!(wif = ni_wireless_get_wpa_interface(dev)))
 		return NI_SUCCESS;
 
+	ni_wpa_client_del_ops(dev->link.ifindex);
 	return ni_wpa_del_interface(wif->client, ni_dbus_object_get_path(wif->object));
 }
 
