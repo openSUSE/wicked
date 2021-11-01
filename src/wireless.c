@@ -34,6 +34,7 @@ static void		ni_wireless_scan_destroy(ni_wireless_scan_t *scan);
 static void		ni_wireless_bss_set(ni_wireless_bss_t *wireless_bss, const ni_wpa_bss_t *bss);
 static void		ni_wireless_on_state_change(ni_wpa_nif_t *, ni_wpa_nif_state_t, ni_wpa_nif_state_t);
 static void		ni_wireless_on_properties_changed(ni_wpa_nif_t *wif, ni_dbus_variant_t *props);
+static void             ni_wireless_set_state(ni_netdev_t *dev, ni_wireless_assoc_state_t new_state);
 
 static ni_bool_t	__ni_wireless_scanning_enabled = TRUE;
 
@@ -1164,7 +1165,40 @@ ni_wireless_sync_assoc_with_current_bss(ni_wireless_t *wlan, ni_wpa_nif_t *wif)
 		ni_link_address_init(&wlan->assoc.bssid);
 		wlan->assoc.signal = 0;
 		wlan->assoc.ssid.len = 0;
+		ni_string_free(&wlan->assoc.auth_mode);
 	}
+}
+
+static void
+ni_wireless_set_state(ni_netdev_t *dev, ni_wireless_assoc_state_t new_state)
+{
+	ni_wireless_t *wlan;
+	ni_wpa_nif_t *wif = NULL;
+
+	if (!(wlan = dev->wireless)) {
+		ni_warn("On state change received on %s but is't not wireless", dev->name);
+		return;
+	}
+
+	if (new_state == wlan->assoc.state)
+		return;
+
+	wlan->assoc.state = new_state;
+
+	if (new_state == NI_WIRELESS_ESTABLISHED){
+		wif = ni_wireless_get_wpa_interface(dev);
+		ni_timer_get_time(&wlan->assoc.established_time);
+		__ni_netdev_event(NULL, dev, NI_EVENT_LINK_ASSOCIATED);
+	}
+	ni_wireless_sync_assoc_with_current_bss(wlan, wif);
+
+	/* We keep track of when we were last changing to or
+	 * from fully authenticated state.
+	 * We use this to decide when to give up and announce
+	 * that we've lost the network - see the timer handling
+	 * code above.
+	 */
+	ni_wireless_update_association_timer(dev);
 }
 
 /*
@@ -1174,33 +1208,13 @@ ni_wireless_sync_assoc_with_current_bss(ni_wireless_t *wlan, ni_wpa_nif_t *wif)
 static void
 ni_wireless_on_state_change(ni_wpa_nif_t *wif, ni_wpa_nif_state_t old_state, ni_wpa_nif_state_t new_state)
 {
-	ni_wireless_assoc_state_t wireless_state_new = ni_wpa_nif_state_to_wireless_state(new_state);
 	ni_netdev_t *dev;
-	ni_wireless_t *wlan;
 
 	if (!(dev = ni_wireless_unwrap_wpa_nif(wif))){
 		ni_error("%s -- Unable to unwrap wpa_nif_t", __func__);
 		return;
 	}
-	wlan = dev->wireless;
-
-	if (wireless_state_new == wlan->assoc.state)
-		return;
-
-	wlan->assoc.state = wireless_state_new;
-	if (wireless_state_new == NI_WIRELESS_ESTABLISHED){
-		ni_wireless_sync_assoc_with_current_bss(wlan, wif);
-		ni_timer_get_time(&wlan->assoc.established_time);
-		__ni_netdev_event(NULL, dev, NI_EVENT_LINK_ASSOCIATED);
-	}
-
-	/* We keep track of when we were last changing to or
-	 * from fully authenticated state.
-	 * We use this to decide when to give up and announce
-	 * that we've lost the network - see the timer handling
-	 * code above.
-	 */
-	ni_wireless_update_association_timer(dev);
+	ni_wireless_set_state(dev, ni_wpa_nif_state_to_wireless_state(new_state));
 }
 
 static void
@@ -1214,7 +1228,9 @@ ni_wireless_on_properties_changed(ni_wpa_nif_t *wif, ni_dbus_variant_t *props)
 		ni_error("%s -- Unable to unwrap wpa_nif_t", __func__);
 		return;
 	}
-	wlan = dev->wireless;
+
+	if (!(wlan = dev->wireless))
+		return;
 
 	if (ni_dbus_dict_get(props, ni_wpa_nif_property_name(NI_WPA_NIF_PROPERTY_CURRENT_BSS))){
 		ni_wireless_sync_assoc_with_current_bss(wlan, wif);
