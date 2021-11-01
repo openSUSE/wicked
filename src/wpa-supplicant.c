@@ -1123,6 +1123,10 @@ ni_wpa_nif_add_network(ni_wpa_nif_t *wif, const ni_wpa_net_properties_t *conf, n
 
 	ni_debug_wpa("Call to %s.%s(%s) returned object-path: %s",
 			interface, method, wif->device.name, object_path);
+
+	if (ni_string_array_index(&wif->properties.network_paths, object_path) < 0)
+		ni_string_array_append(&wif->properties.network_paths, object_path);
+
 	if (path)
 		ni_stringbuf_puts(path, object_path);
 
