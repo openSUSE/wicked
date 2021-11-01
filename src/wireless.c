@@ -1014,6 +1014,9 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 		return ret;
 	}
 
+	/* setup successfull, store configuration for expected wpa_supplicant restarts */
+	ni_wireless_config_copy(&wlan->conf, conf);
+
 	if (wlan->scan.interval > 0)
 		__ni_wireless_scan_timer_arm(&wlan->scan, dev, 1);
 	return ret;
@@ -1518,6 +1521,20 @@ ni_wireless_config_destroy(ni_wireless_config_t *conf)
 	}
 }
 
+void
+ni_wireless_config_copy(ni_wireless_config_t *dst, ni_wireless_config_t *src)
+{
+	if (!src || !dst || dst == src)
+		return;
+
+	ni_string_dup(&dst->country, src->country);
+	dst->ap_scan = src->ap_scan;
+	ni_string_dup(&dst->driver, src->driver);
+
+	ni_wireless_network_array_destroy(&dst->networks);
+	ni_wireless_network_array_copy(&dst->networks, &src->networks);
+}
+
 ni_wireless_t *
 ni_wireless_new(ni_netdev_t *dev)
 {
@@ -1770,6 +1787,15 @@ ni_wireless_network_array_destroy(ni_wireless_network_array_t *array)
 		ni_wireless_network_put(array->data[i]);
 	free(array->data);
 	memset(array, 0, sizeof(*array));
+}
+
+void
+ni_wireless_network_array_copy(ni_wireless_network_array_t *dst, ni_wireless_network_array_t *src)
+{
+	unsigned int i;
+
+	for (i = 0; i < src->count; ++i)
+		ni_wireless_network_array_append(dst, src->data[i]);
 }
 
 /*
