@@ -313,6 +313,7 @@ typedef struct ni_wireless_scan {
 } ni_wireless_scan_t;
 
 struct ni_wireless {
+	ni_bool_t				reconnect;
 	ni_wireless_interface_capabilities_t	capabilities;
 
 	ni_wireless_config_t *			conf;

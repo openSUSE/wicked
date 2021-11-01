@@ -1040,6 +1040,12 @@ int
 ni_wireless_connect(ni_netdev_t *dev)
 {
 	ni_wpa_nif_t *wif;
+	ni_wireless_t *wlan;
+	int ret;
+
+	ni_debug_wireless("%s(%s)", __func__, dev->name);
+	if (!(wlan = dev->wireless))
+		return -NI_ERROR_INVALID_ARGS;
 
 	if (!(wif = ni_wireless_get_wpa_interface(dev))) {
 		ni_warn("Wireless connect failed - unknown interface %s(%d)",
@@ -1050,7 +1056,9 @@ ni_wireless_connect(ni_netdev_t *dev)
 	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
 		return -NI_ERROR_RADIO_DISABLED;
 
-	return ni_wpa_nif_set_all_networks_property_enabled(wif, TRUE);
+	if (!(ret = ni_wpa_nif_set_all_networks_property_enabled(wif, TRUE)))
+		wlan->reconnect = TRUE;
+	return ret;
 }
 
 /*
@@ -1060,6 +1068,12 @@ int
 ni_wireless_disconnect(ni_netdev_t *dev)
 {
 	ni_wpa_nif_t *wif;
+	ni_wireless_t *wlan;
+
+	ni_debug_wireless("%s(%s)", __func__, dev->name);
+	if (!(wlan = dev->wireless))
+		return -NI_ERROR_INVALID_ARGS;
+	wlan->reconnect = FALSE;
 
 	if (!(wif = ni_wireless_get_wpa_interface(dev))) {
 		ni_warn("Wireless disconnect failed - unknown interface %s(%d)",
