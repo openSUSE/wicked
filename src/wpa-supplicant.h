@@ -12,6 +12,7 @@
 
 
 typedef struct ni_wpa_client			ni_wpa_client_t;
+typedef struct ni_wpa_client_ops		ni_wpa_client_ops_t;
 typedef struct ni_wpa_nif			ni_wpa_nif_t;
 typedef struct ni_wpa_nif_ops			ni_wpa_nif_ops_t;
 typedef struct ni_wpa_nif_properties		ni_wpa_nif_properties_t;
@@ -263,6 +264,11 @@ typedef enum {
 
 } ni_wpa_net_property_type_t;
 
+struct ni_wpa_client_ops {
+	void (*on_wpa_supplicant_start)(ni_netdev_t*);
+	void (*on_wpa_supplicant_stop)(ni_netdev_t*);
+};
+
 struct ni_wpa_nif_ops {
 	void (*on_network_added)(ni_wpa_nif_t*, const char*, const ni_wpa_net_properties_t*);
 	void (*on_network_selected)(ni_wpa_nif_t*, const char*);
@@ -369,6 +375,8 @@ struct ni_wpa_bss {
 };
 
 extern ni_wpa_client_t *			ni_wpa_client();
+extern ni_bool_t				ni_wpa_client_set_ops(unsigned int, ni_wpa_client_ops_t*);
+extern ni_bool_t				ni_wpa_client_del_ops(unsigned int);
 
 extern int					ni_wpa_get_interface(ni_wpa_client_t *, const char *, unsigned int,
 								ni_wpa_nif_t **);
