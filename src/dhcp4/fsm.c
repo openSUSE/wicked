@@ -897,6 +897,10 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 						continue;
 					rp->protocol = RTPROT_DHCP;
 					rp->priority = dev->config->route_priority;
+					if (dev->config->route_set_src) {
+						ni_sockaddr_set_ipv4(&rp->pref_src,
+							lease->dhcp4.address, 0);
+					}
 				}
 			}
 		}

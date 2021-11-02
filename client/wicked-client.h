@@ -82,6 +82,7 @@ typedef struct ni_compat_netdev {
 		ni_tristate_t	broadcast;
 
 		unsigned int	route_priority;
+		ni_bool_t	route_set_src;
 		unsigned int	update;
 
 		ni_string_array_t request_options;

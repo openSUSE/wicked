@@ -292,6 +292,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	config->doflags = ni_dhcp4_do_bits(ni_config_dhcp4_find_device(dev->ifname), config->update);
 
 	config->route_priority = info->route_priority;
+	config->route_set_src = info->route_set_src;
 	config->recover_lease = info->recover_lease;
 	config->release_lease = info->release_lease;
 	config->broadcast = info->broadcast;

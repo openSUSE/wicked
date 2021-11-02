@@ -71,6 +71,10 @@ one of them does it.
 .BR DHCLIENT_ROUTE_PRIORITY
 This option allows to set a metric/priority for DHCPv4 routes. Default is 0.
 .TP
+.BR DHCLIENT_ROUTE_SET_SRC\ { \fIno\fR* | yes }
+When set to yes, the DHCPv4 IP address is set as the preferred source
+in DHCPv4 provided routes.
+.TP
 .BR DHCLIENT_CLIENT_ID
 Specifies a client identifier string. By default an id derived from the
 hardware address of the network interface is sent as client identifier.
