@@ -315,7 +315,7 @@ typedef struct ni_wireless_scan {
 struct ni_wireless {
 	ni_wireless_interface_capabilities_t	capabilities;
 
-	ni_wireless_config_t			conf;
+	ni_wireless_config_t *			conf;
 	ni_wireless_scan_t			scan;
 
 	/* Association information */
@@ -348,6 +348,8 @@ extern int				ni_wireless_set_network(ni_netdev_t *, ni_wireless_network_t *);
 extern int				ni_wireless_connect(ni_netdev_t *);
 extern int				ni_wireless_disconnect(ni_netdev_t *);
 
+extern ni_wireless_config_t *		ni_wireless_config_new();
+extern void				ni_wireless_config_free(ni_wireless_config_t **);
 extern ni_bool_t			ni_wireless_config_init(ni_wireless_config_t *);
 extern void				ni_wireless_config_destroy(ni_wireless_config_t *);
 extern void				ni_wireless_config_copy(ni_wireless_config_t *, ni_wireless_config_t *);

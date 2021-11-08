@@ -3765,13 +3765,13 @@ try_add_wireless_net(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 		}
 	}
 
-	if (ni_wireless_parse_auth_mode(sc, net, suffix, dev->name, wlan->conf.ap_scan) < 0)
+	if (ni_wireless_parse_auth_mode(sc, net, suffix, dev->name, wlan->conf->ap_scan) < 0)
 		goto failure;
 
-	if (!__ni_wireless_parse_psk_auth(sc, net, suffix, dev->name, wlan->conf.ap_scan))
+	if (!__ni_wireless_parse_psk_auth(sc, net, suffix, dev->name, wlan->conf->ap_scan))
 		goto failure;
 
-	if (!__ni_wireless_parse_eap_auth(sc, net, suffix, dev->name, wlan->conf.ap_scan))
+	if (!__ni_wireless_parse_eap_auth(sc, net, suffix, dev->name, wlan->conf->ap_scan))
 		goto failure;
 
 	if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_NONE)) {
@@ -3781,7 +3781,7 @@ try_add_wireless_net(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 			net->auth_algo = NI_BIT(NI_WIRELESS_AUTH_OPEN);
 	}
 
-	ni_wireless_network_array_append(&wlan->conf.networks, net);
+	ni_wireless_network_array_append(&wlan->conf->networks, net);
 
 	return TRUE;
 
@@ -3817,11 +3817,13 @@ try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev)
 		return FALSE;
 	}
 
+	if (!wlan->conf && !(wlan->conf = ni_wireless_config_new()))
+		return FALSE;
 
 	/* Default is ap_scan = 1 */
 	if ((tmp = ni_sysconfig_get_value(sc, "WIRELESS_AP_SCANMODE"))) {
-		if ((ni_parse_uint(tmp, &wlan->conf.ap_scan, 10) < 0) ||
-			(wlan->conf.ap_scan > NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH)) {
+		if ((ni_parse_uint(tmp, &wlan->conf->ap_scan, 10) < 0) ||
+			(wlan->conf->ap_scan > NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH)) {
 			ni_error("ifcfg-%s: wrong WIRELESS_AP_SCANMODE value",
 				dev->name);
 			goto failure;
@@ -3839,7 +3841,7 @@ try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev)
 			check_country = TRUE;
 		}
 
-		ni_string_dup(&wlan->conf.driver, tmp);
+		ni_string_dup(&wlan->conf->driver, tmp);
 	}
 	else {
 		check_country = TRUE;
@@ -3851,7 +3853,7 @@ try_add_wireless(const ni_sysconfig_t *sc, ni_netdev_t *dev)
 			if ((2 == ni_string_len(tmp)) &&
 				(isalpha((unsigned char) tmp[0])) &&
 				(isalpha((unsigned char) tmp[1]))) {
-					ni_string_dup(&wlan->conf.country, tmp);
+					ni_string_dup(&wlan->conf->country, tmp);
 			}
 			else {
 				ni_error("ifcfg-%s: wrong WIRELESS_REGULATORY_DOMAIN value",

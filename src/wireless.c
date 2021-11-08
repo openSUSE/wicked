@@ -1016,7 +1016,9 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 	}
 
 	/* setup successfull, store configuration for expected wpa_supplicant restarts */
-	ni_wireless_config_copy(&wlan->conf, conf);
+	if (!wlan->conf)
+		wlan->conf = ni_wireless_config_new();
+	ni_wireless_config_copy(wlan->conf, conf);
 
 	if (wlan->scan.interval > 0)
 		__ni_wireless_scan_timer_arm(&wlan->scan, dev, 1);
@@ -1514,6 +1516,32 @@ ni_wireless_config_set_defaults(ni_wireless_config_t *conf)
 	conf->ap_scan = NI_WIRELESS_AP_SCAN_SUPPLICANT_AUTO;
 }
 
+
+ni_wireless_config_t *
+ni_wireless_config_new()
+{
+	ni_wireless_config_t *conf;
+
+	conf = calloc(1, sizeof(ni_wireless_config_t));
+	if (!conf) {
+		ni_error("Unable to create wireless config -- out of memory");
+		return NULL;
+	}
+	ni_wireless_config_set_defaults(conf);
+	return conf;
+}
+
+void
+ni_wireless_config_free(ni_wireless_config_t **conf)
+{
+	if (!conf || !*conf)
+		return;
+
+	ni_wireless_config_destroy(*conf);
+	free(*conf);
+	*conf = NULL;
+}
+
 ni_bool_t
 ni_wireless_config_init(ni_wireless_config_t *conf)
 {
@@ -1559,7 +1587,6 @@ ni_wireless_new(ni_netdev_t *dev)
 	ni_assert(dev && !dev->wireless);
 	wlan = xcalloc(1, sizeof(ni_wireless_t));
 	if (wlan) {
-		ni_wireless_config_set_defaults(&wlan->conf);
 		ni_wireless_scan_set_defaults(&wlan->scan);
 	}
 	return wlan;
@@ -1572,7 +1599,7 @@ ni_wireless_free(ni_wireless_t *wireless)
 		if (wireless->assoc.timer)
 			ni_timer_cancel(wireless->assoc.timer);
 		ni_string_free(&wireless->assoc.auth_mode);
-		ni_wireless_config_destroy(&wireless->conf);
+		ni_wireless_config_free(&wireless->conf);
 		ni_wireless_scan_destroy(&wireless->scan);
 		free(wireless);
 	}
@@ -2040,10 +2067,10 @@ ni_wireless_essid_already_exists(ni_wireless_t *wlan, ni_wireless_ssid_t *essid)
 	unsigned int i, count;
 	ni_wireless_network_t *net;
 
-	ni_assert(wlan != NULL && essid != NULL);
+	ni_assert(wlan != NULL && essid != NULL && wlan->conf != NULL);
 
-	for (i = 0, count = wlan->conf.networks.count; i < count; i++) {
-		net = wlan->conf.networks.data[i];
+	for (i = 0, count = wlan->conf->networks.count; i < count; i++) {
+		net = wlan->conf->networks.data[i];
 		if (ni_wireless_ssid_eq(&net->essid, essid))
 			return TRUE;
 	}
