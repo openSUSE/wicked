@@ -1626,6 +1626,23 @@ ni_wireless_config_copy(ni_wireless_config_t *dst, ni_wireless_config_t *src)
 	ni_wireless_network_array_copy(&dst->networks, &src->networks);
 }
 
+ni_bool_t
+ni_wireless_config_has_essid(ni_wireless_config_t *conf, ni_wireless_ssid_t *essid)
+{
+	unsigned int i, count;
+	ni_wireless_network_t *net;
+
+	ni_assert(conf != NULL && essid != NULL);
+
+	for (i = 0, count = conf->networks.count; i < count; i++) {
+		net = conf->networks.data[i];
+		if (ni_wireless_ssid_eq(&net->essid, essid))
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
 ni_wireless_t *
 ni_wireless_new(ni_netdev_t *dev)
 {
@@ -2107,24 +2124,6 @@ ni_wireless_ssid_eq(ni_wireless_ssid_t *a, ni_wireless_ssid_t *b)
 
 	return FALSE;
 }
-
-ni_bool_t
-ni_wireless_essid_already_exists(ni_wireless_t *wlan, ni_wireless_ssid_t *essid)
-{
-	unsigned int i, count;
-	ni_wireless_network_t *net;
-
-	ni_assert(wlan != NULL && essid != NULL && wlan->conf != NULL);
-
-	for (i = 0, count = wlan->conf->networks.count; i < count; i++) {
-		net = wlan->conf->networks.data[i];
-		if (ni_wireless_ssid_eq(&net->essid, essid))
-			return TRUE;
-	}
-
-	return FALSE;
-}
-
 
 static ni_bool_t
 ni_wireless_wep_key_validate_string(const char *key)

@@ -354,6 +354,7 @@ extern void				ni_wireless_config_free(ni_wireless_config_t **);
 extern ni_bool_t			ni_wireless_config_init(ni_wireless_config_t *);
 extern void				ni_wireless_config_destroy(ni_wireless_config_t *);
 extern void				ni_wireless_config_copy(ni_wireless_config_t *, ni_wireless_config_t *);
+extern ni_bool_t			ni_wireless_config_has_essid(ni_wireless_config_t *, ni_wireless_ssid_t *);
 
 extern ni_wireless_scan_t *		ni_wireless_scan_new(ni_netdev_t *, unsigned int);
 extern void				ni_wireless_scan_free(ni_wireless_scan_t *);
@@ -394,7 +395,6 @@ extern const char *			ni_wireless_ssid_print_data(const unsigned char *data, siz
 extern const char *			ni_wireless_ssid_print(const ni_wireless_ssid_t *, ni_stringbuf_t *out);
 extern ni_bool_t			ni_wireless_ssid_parse(ni_wireless_ssid_t *, const char *);
 extern ni_bool_t			ni_wireless_ssid_eq(ni_wireless_ssid_t *, ni_wireless_ssid_t *);
-extern ni_bool_t			ni_wireless_essid_already_exists(ni_wireless_t *, ni_wireless_ssid_t *);
 
 extern const char *			ni_wireless_mode_to_name(ni_wireless_mode_t);
 extern ni_bool_t			ni_wireless_name_to_mode(const char *, unsigned int *);

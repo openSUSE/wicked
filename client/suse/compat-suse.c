@@ -3660,7 +3660,7 @@ try_add_wireless_net(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 		goto failure;
 	}
 
-	if (ni_wireless_essid_already_exists(wlan, &essid)) {
+	if (ni_wireless_config_has_essid(wlan->conf, &essid)) {
 		ni_error("ifcfg-%s: double configuration of the same ESSID=%s",
 			dev->name, var->value);
 		goto failure;
