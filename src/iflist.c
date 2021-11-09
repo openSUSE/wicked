@@ -1046,6 +1046,7 @@ __ni_netdev_translate_ifflags(unsigned int ifflags, unsigned int prev)
 	switch (ifflags & (IFF_RUNNING | IFF_LOWER_UP | IFF_UP)) {
 	case IFF_UP:
 	case IFF_UP | IFF_RUNNING:
+	case IFF_UP | IFF_LOWER_UP:
 		retval = NI_IFF_DEVICE_READY | NI_IFF_DEVICE_UP;
 		break;
 
@@ -1058,7 +1059,8 @@ __ni_netdev_translate_ifflags(unsigned int ifflags, unsigned int prev)
 		break;
 
 	default:
-		ni_warn("unexpected combination of interface flags 0x%x", ifflags);
+		ni_warn("unexpected combination of interface flags 0x%x",
+			ifflags & (IFF_RUNNING | IFF_LOWER_UP | IFF_UP));
 	}
 
 #ifdef IFF_DORMANT
