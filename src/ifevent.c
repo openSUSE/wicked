@@ -394,7 +394,7 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	} else {
 		unsigned int old_flags = dev->link.ifflags;
 
-		dev->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags, old_flags);
+		dev->link.ifflags = __ni_netdev_translate_ifflags(dev->name, ifi->ifi_flags, old_flags);
 		dev->deleted = 1;
 		__ni_netdev_process_events(nc, dev, old_flags);
 		ni_client_state_drop(dev->link.ifindex);
