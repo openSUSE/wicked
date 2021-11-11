@@ -1039,13 +1039,14 @@ done:
  * Translate interface flags
  */
 unsigned int
-__ni_netdev_translate_ifflags(unsigned int ifflags, unsigned int prev)
+__ni_netdev_translate_ifflags(const char * ifname, unsigned int ifflags, unsigned int prev)
 {
 	unsigned int retval = (prev & NI_IFF_DEVICE_READY);
 
 	switch (ifflags & (IFF_RUNNING | IFF_LOWER_UP | IFF_UP)) {
 	case IFF_UP:
 	case IFF_UP | IFF_RUNNING:
+	case IFF_UP | IFF_LOWER_UP:
 		retval = NI_IFF_DEVICE_READY | NI_IFF_DEVICE_UP;
 		break;
 
@@ -1058,7 +1059,8 @@ __ni_netdev_translate_ifflags(unsigned int ifflags, unsigned int prev)
 		break;
 
 	default:
-		ni_warn("unexpected combination of interface flags 0x%x", ifflags);
+		ni_warn("%s: unexpected combination of interface flags 0x%x",
+			ifname, ifflags & (IFF_RUNNING | IFF_LOWER_UP | IFF_UP));
 	}
 
 #ifdef IFF_DORMANT
@@ -1452,7 +1454,7 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 	ni_netdev_t *master;
 
 	link->hwaddr.type = link->hwpeer.type = ifi->ifi_type;
-	link->ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags, link->ifflags);
+	link->ifflags = __ni_netdev_translate_ifflags(ifname, ifi->ifi_flags, link->ifflags);
 
 	if (ni_netdev_link_always_ready(link))
 		link->ifflags |= NI_IFF_DEVICE_READY;
@@ -1941,7 +1943,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		if (rv == -NI_ERROR_RADIO_DISABLED) {
 			ni_debug_ifconfig("%s: radio disabled, not refreshing wireless info", dev->name);
 			ni_netdev_set_wireless(dev, NULL);
-		} else 
+		} else
 		if (rv < 0)
 			ni_error("%s: failed to refresh wireless info", dev->name);
 		break;
