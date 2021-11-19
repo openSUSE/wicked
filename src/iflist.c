@@ -2372,15 +2372,16 @@ __ni_discover_tuntap(ni_netdev_t *dev)
 	}
 
 	if (dev->link.type != NI_IFTYPE_TUN && dev->link.type != NI_IFTYPE_TAP) {
-		ni_error("%s: Attempt to discover %s interface details for TUN/TAP",
-			ni_linktype_type_to_name(dev->link.type), dev->name);
+		ni_error("%s: Attempt to discover TUN/TAP interface details from %s",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
 		return rv;
 	}
 
 	cfg = ni_netdev_get_tuntap(dev);
-	if ((rv = ni_tuntap_parse_sysfs_attrs(dev->name, cfg) < 0))
-		ni_error("error retrieving %s attribute from sysfs",
-			ni_linktype_type_to_name(dev->link.type));
+	if ((rv = ni_tuntap_parse_sysfs_attrs(dev->name, cfg) < 0)) {
+		ni_warn("%s: Error retrieving %s attribute from sysfs",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+	}
 
 	return rv;
 }
