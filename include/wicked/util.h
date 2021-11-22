@@ -444,6 +444,8 @@ extern void		ni_string_toupper(char *);
 extern char *		ni_sprint_hex(const unsigned char *, size_t);
 extern const char *	ni_sprint_uint(unsigned int);
 extern const char *	ni_sprint_timeout(unsigned int);
+extern const char *	ni_format_seconds_timeout(char **, unsigned int);
+extern int		ni_parse_seconds_timeout(const char *, unsigned int *);
 
 /*
  * When we allocate temporary resources (such as tempfiles)

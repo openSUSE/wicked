@@ -1689,11 +1689,40 @@ ni_sprint_uint(unsigned int value)
 const char *
 ni_sprint_timeout(unsigned int timeout)
 {
-	if (timeout == NI_IFWORKER_INFINITE_TIMEOUT)
+	if (timeout == NI_SECONDS_INFINITE)
 		return "infinite";
 	return ni_sprint_uint(timeout);
 }
 
+const char *
+ni_format_seconds_timeout(char **str, unsigned int timeout)
+{
+	if (!str) {
+		errno = EINVAL;
+		return NULL;
+	}
+
+	if (timeout == NI_SECONDS_INFINITE)
+		return ni_string_printf(str, "infinite");
+	else
+		return ni_string_printf(str, "%u", timeout);
+}
+
+int
+ni_parse_seconds_timeout(const char *str, unsigned int *timeout)
+{
+	if (!timeout) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (ni_string_eq(str, "infinite")) {
+		*timeout = NI_SECONDS_INFINITE;
+		return 0;
+	} else {
+		return ni_parse_uint(str, timeout, 10);
+	}
+}
 
 int
 ni_parse_long(const char *input, long *result, int base)

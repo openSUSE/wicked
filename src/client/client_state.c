@@ -19,7 +19,6 @@
 #include <wicked/fsm.h>
 #include <wicked/xml.h>
 #include <wicked/util.h>
-#include <wicked/socket.h>	/* for ni_timer_get_time()  */
 #include <wicked/netinfo.h>	/* for ni_config_statedir() */
 #include <wicked/logging.h>
 
