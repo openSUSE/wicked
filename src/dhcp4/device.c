@@ -18,6 +18,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <wicked/time.h>
 #include <wicked/xml.h>
 #include "netinfo_priv.h"
 #include "appconfig.h"
@@ -300,9 +301,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	config->release_lease = info->release_lease;
 	config->broadcast = info->broadcast;
 
-	config->max_lease_time = ni_dhcp4_config_max_lease_time();
-	if (config->max_lease_time == 0)
-		config->max_lease_time = ~0U;
+	config->max_lease_time = ni_dhcp4_config_max_lease_time(dev->ifname);
 	if (info->lease_time && info->lease_time < config->max_lease_time)
 		config->max_lease_time = info->lease_time;
 
@@ -345,7 +344,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	if (ni_log_facility(NI_TRACE_DHCP)) {
 		ni_trace("Received request:");
 		ni_trace("  acquire-timeout %u", config->acquire_timeout);
-		ni_trace("  lease-time      %u", config->max_lease_time);
+		ni_trace("  max lease-time  %u", config->max_lease_time);
 		ni_trace("  start-delay     %u", config->start_delay);
 		ni_trace("  hostname        %s", config->hostname[0]? config->hostname : "<none>");
 		if (config->fqdn.enabled == NI_TRISTATE_ENABLE) {
@@ -624,7 +623,7 @@ ni_dhcp4_device_start(ni_dhcp4_device_t *dev)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
-	unsigned long sec;
+	unsigned int sec;
 
 	ni_dhcp4_device_drop_buffer(dev);
 	dev->failed = 0;
@@ -643,8 +642,9 @@ ni_dhcp4_device_start(ni_dhcp4_device_t *dev)
 
 	if (dev->defer.timer)
 		ni_timer_cancel(dev->defer.timer);
-	dev->defer.timer = ni_timer_register(sec * 1000, ni_dhcp4_device_start_delayed, dev);
 
+	dev->defer.timer = ni_timer_register(NI_TIMEOUT_FROM_SEC(sec),
+			ni_dhcp4_device_start_delayed, dev);
 	return 1;
 }
 
@@ -1016,9 +1016,11 @@ ni_dhcp4_config_server_preference_hwaddr(const ni_hwaddr_t *hwaddr)
 }
 
 unsigned int
-ni_dhcp4_config_max_lease_time(void)
+ni_dhcp4_config_max_lease_time(const char *ifname)
 {
-	return ni_global.config->addrconf.dhcp4.lease_time;
+	const ni_config_dhcp4_t *dhconf = ni_config_dhcp4_find_device(ifname);
+
+	return dhconf && dhconf->lease_time ? dhconf->lease_time : NI_SECONDS_INFINITE;
 }
 
 static void

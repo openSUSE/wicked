@@ -5394,7 +5394,7 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 		compat->dhcp4.acquire_timeout = uint;
 
 	if (ni_sysconfig_get_integer(sc, "DHCLIENT_LEASE_TIME", &uint))
-		compat->dhcp4.lease_time = ((int) uint >= 0) ? uint : 0;
+		compat->dhcp4.lease_time = uint;
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_USE_LAST_LEASE")))
 		compat->dhcp4.recover_lease = !ni_string_eq(string, "no");
@@ -5578,7 +5578,7 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 		compat->dhcp6.acquire_timeout = uint;
 
 	if (ni_sysconfig_get_integer(sc, "DHCLIENT6_LEASE_TIME", &uint))
-		compat->dhcp6.lease_time = ((int) uint >= 0) ? uint : 0;
+		compat->dhcp6.lease_time = uint;
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_USE_LAST_LEASE")))
 		compat->dhcp6.recover_lease = !ni_string_eq(string, "no");
