@@ -191,7 +191,11 @@ ni_dhcp4_device_uptime(const ni_dhcp4_device_t *dev, unsigned int clamp)
 		timersub(&now, &dev->start_time, &uptime);
 	else
 		timerclear(&uptime);
-	return (uptime.tv_sec < clamp) ? uptime.tv_sec : clamp;
+
+	if ((unsigned long)uptime.tv_sec < (unsigned long)clamp)
+		return (unsigned int)uptime.tv_sec;
+	else
+		return clamp;
 }
 
 void

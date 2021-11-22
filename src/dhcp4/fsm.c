@@ -500,7 +500,7 @@ ni_dhcp4_fsm_rebind(ni_dhcp4_device_t *dev, ni_bool_t oneshot)
 
 		dev->config->capture_timeout = dev->config->capture_max_timeout;
 		timersub(&expire_time, &now, &deadline);
-		if (deadline.tv_sec < dev->config->capture_timeout)
+		if ((unsigned long)deadline.tv_sec < (unsigned long)dev->config->capture_timeout)
 			dev->config->capture_timeout = deadline.tv_sec;
 
 		ni_dhcp4_fsm_set_timeout(dev, dev->config->capture_timeout);
