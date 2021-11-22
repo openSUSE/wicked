@@ -24,7 +24,9 @@ typedef enum {
 	NI_TRISTATE_ENABLE	= 1
 } ni_tristate_t;
 
-typedef union ni_sockaddr	ni_sockaddr_t;
+typedef unsigned long long	ni_timeout_t;
+
+typedef union  ni_sockaddr	ni_sockaddr_t;
 typedef struct ni_netconfig	ni_netconfig_t;
 typedef struct ni_netdev	ni_netdev_t;
 typedef struct ni_route		ni_route_t;
