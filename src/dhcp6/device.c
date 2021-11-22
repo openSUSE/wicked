@@ -340,7 +340,7 @@ ni_dhcp6_device_uptime(const ni_dhcp6_device_t *dev, unsigned int clamp)
 {
 	struct timeval now;
 	struct timeval delta;
-	long           uptime = 0;
+	unsigned long uptime = 0;
 
 	ni_timer_get_time(&now);
 	if (timerisset(&dev->retrans.start) && timercmp(&now, &dev->retrans.start, >)) {

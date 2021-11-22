@@ -2106,6 +2106,7 @@ ni_dhcp6_ia_get_rebind_time(ni_dhcp6_ia_t *ia)
 ni_bool_t
 ni_dhcp6_ia_is_active(ni_dhcp6_ia_t *ia, struct timeval *now)
 {
+	struct timeval delta;
 	unsigned int lft;
 
 	if (!now || !ia || !timerisset(&ia->acquired))
@@ -2115,7 +2116,11 @@ ni_dhcp6_ia_is_active(ni_dhcp6_ia_t *ia, struct timeval *now)
 	if (lft == NI_DHCP6_INFINITE_LIFETIME)
 		return TRUE;
 
-	return ia->acquired.tv_sec + lft > now->tv_sec + 1;
+	if (!timercmp(now, &ia->acquired, >))
+		return FALSE;
+
+	timersub(now, &ia->acquired, &delta);
+	return ((unsigned long)lft > (unsigned long)delta.tv_sec + 1);
 }
 
 unsigned int

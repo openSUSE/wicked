@@ -1675,8 +1675,15 @@ ni_dhcp6_remaining_time(struct timeval *start, unsigned int timeout)
 	struct timeval dif;
 
 	ni_timer_get_time(&now);
-	timersub(&now, start, &dif);
-	return timeout > dif.tv_sec ? timeout - dif.tv_sec : 0;
+	if (timercmp(&now, start, >))
+		timersub(&now, start, &dif);
+	else
+		timerclear(&dif);
+
+	if ((unsigned long)timeout > (unsigned long)dif.tv_sec)
+		return (unsigned int)(timeout - dif.tv_sec);
+	else
+		return 0;
 }
 
 ni_bool_t
@@ -2446,7 +2453,7 @@ __ni_dhcp6_fsm_mark_ia_by_time(ni_dhcp6_device_t *dev,  unsigned int (*get_ia_ti
 			struct timeval dif;
 
 			timersub(&now, &ia->acquired, &dif);
-			if (dif.tv_sec + 1 >= rt) {
+			if ((unsigned long)dif.tv_sec + 1 >= (unsigned long)rt) {
 				ia->flags |= flag;
 				++ count;
 			}
@@ -2511,7 +2518,7 @@ __ni_dhcp6_fsm_get_timeout(ni_dhcp6_device_t *dev, unsigned int (*get_ia_time)(n
 			struct timeval dif;
 
 			timersub(&now, &ia->acquired, &dif);
-			if (lt > dif.tv_sec)
+			if ((unsigned long)lt > (unsigned long)dif.tv_sec)
 				lt -= dif.tv_sec;
 		}
 	}
@@ -2566,7 +2573,7 @@ ni_dhcp6_fsm_get_expire_timeout(ni_dhcp6_device_t *dev)
 			struct timeval dif;
 
 			timersub(&now, &ia->acquired, &dif);
-			if (lt > dif.tv_sec)
+			if ((unsigned long)lt > (unsigned long)dif.tv_sec)
 				lt -= dif.tv_sec;
 		}
 	}
