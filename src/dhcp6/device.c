@@ -445,9 +445,9 @@ static inline void
 ni_dhcp6_device_start_timer_init(ni_timeout_param_t *tmo)
 {
 	memset(tmo, 0, sizeof(*tmo));
-	tmo->jitter.max  = 100;
-	tmo->timeout     = 1000;
-	tmo->max_timeout = 3600000;
+	tmo->jitter.max  = NI_DHCP6_MAX_JITTER;
+	tmo->timeout     = NI_DHCP6_SOL_TIMEOUT;
+	tmo->max_timeout = NI_DHCP6_SOL_MAX_RT;
 	tmo->nretries    = NI_DHCP6_UNLIMITED;
 	tmo->increment   = NI_DHCP6_EXP_BACKOFF;
 }
@@ -455,7 +455,7 @@ ni_dhcp6_device_start_timer_init(ni_timeout_param_t *tmo)
 static int
 ni_dhcp6_device_start_timer_arm(ni_dhcp6_device_t *dev)
 {
-	unsigned long timeout;
+	ni_timeout_t timeout;
 
 	timeout = ni_timeout_randomize(dev->start_params.timeout, &dev->start_params.jitter);
 	if (dev->start_timer) {
@@ -773,7 +773,7 @@ static int
 ni_dhcp6_device_transmit_arm_delay(ni_dhcp6_device_t *dev)
 {
 	ni_int_range_t jitter;
-	unsigned long  delay;
+	ni_timeout_t   delay;
 
 	/*
 	 * rfc3315#section-5.5 (17.1.2, 18.1.2, 18.1.5):
@@ -783,8 +783,10 @@ ni_dhcp6_device_transmit_arm_delay(ni_dhcp6_device_t *dev)
 	if (dev->retrans.delay == 0)
 		return FALSE;
 
-	ni_debug_dhcp("%s: setting initial transmit delay of %u [%d .. %d] msec",
-			dev->ifname, dev->retrans.delay,
+	ni_debug_dhcp("%s: setting initial transmit delay of %u.%03us [%d .. %dms]",
+			dev->ifname,
+			NI_TIMEOUT_SEC(dev->retrans.delay),
+			NI_TIMEOUT_MSEC(dev->retrans.delay),
 			0 - dev->retrans.jitter,
 			0 + dev->retrans.jitter);
 
@@ -897,6 +899,8 @@ ni_dhcp6_device_retransmit_disarm(ni_dhcp6_device_t *dev)
 static ni_bool_t
 ni_dhcp6_device_retransmit_advance(ni_dhcp6_device_t *dev)
 {
+	ni_timeout_t previous = dev->retrans.params.timeout;
+
 	/*
 	 * rfc3315#section-14
 	 *
@@ -912,7 +916,6 @@ ni_dhcp6_device_retransmit_advance(ni_dhcp6_device_t *dev)
 	 *
 	 */
 	if( ni_timeout_recompute(&dev->retrans.params)) {
-		unsigned int old_timeout = dev->retrans.params.timeout;
 
 		/*
 		 * Hmm... should we set this as backoff callback?
@@ -926,9 +929,12 @@ ni_dhcp6_device_retransmit_advance(ni_dhcp6_device_t *dev)
 				&dev->retrans.deadline,
 				&dev->retrans.params);
 
-		ni_debug_dhcp("%s: advanced xid 0x%06x retransmission timeout from %u to %u [%d .. %d]",
-				dev->ifname, dev->dhcp6.xid, old_timeout,
-				dev->retrans.params.timeout,
+		ni_debug_dhcp("%s: advanced xid 0x%06x retransmission timeout from %u.%03u to %u.%03u [%d .. %dmsec]",
+				dev->ifname, dev->dhcp6.xid,
+				NI_TIMEOUT_SEC(previous),
+				NI_TIMEOUT_MSEC(previous),
+				NI_TIMEOUT_SEC(dev->retrans.params.timeout),
+				NI_TIMEOUT_MSEC(dev->retrans.params.timeout),
 				dev->retrans.params.jitter.min,
 				dev->retrans.params.jitter.max);
 
@@ -952,8 +958,10 @@ ni_dhcp6_device_retransmit(ni_dhcp6_device_t *dev)
 	if ((rv = ni_dhcp6_fsm_retransmit(dev)) < 0)
 		return rv;
 
-	ni_debug_dhcp("%s: xid 0x%06x retransmitted, next deadline in %s", dev->ifname,
-			dev->dhcp6.xid, ni_dhcp6_print_timeval(&dev->retrans.deadline));
+	ni_debug_dhcp("%s: xid 0x%06x retransmitted, next deadline in %ld.%03ld",
+			dev->ifname, dev->dhcp6.xid,
+			dev->retrans.deadline.tv_sec,
+			dev->retrans.deadline.tv_usec/1000);
 	return 0;
 }
 
@@ -1173,26 +1181,20 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	ni_dhcp6_device_set_config(dev, config);
 
 	if (config->defer_timeout) {
-		unsigned int deadline = 0;
-
 		/*
 		 * set timer to emit lease-deferred signal to wicked
 		 * when there is no IPv6 RA on the network or DHCPv6
 		 * is not used (managed and other-config unset).
 		 */
-		deadline = config->defer_timeout * 1000;
-		ni_dhcp6_fsm_set_timeout_msec(dev, deadline);
+		ni_dhcp6_fsm_set_timeout_sec(dev, config->defer_timeout);
 		dev->fsm.fail_on_timeout = 0;
 	} else
 	if (config->acquire_timeout) {
-		unsigned int deadline = 0;
-
 		/*
 		 * immediately set timer to fail after timeout,
 		 * that is to drop config, disarm fsm and stop.
 		 */
-		deadline = config->acquire_timeout * 1000;
-		ni_dhcp6_fsm_set_timeout_msec(dev, deadline);
+		ni_dhcp6_fsm_set_timeout_sec(dev, config->acquire_timeout);
 		dev->fsm.fail_on_timeout = 1;
 	}
 

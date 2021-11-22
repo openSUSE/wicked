@@ -406,15 +406,6 @@ ni_dhcp6_process_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, const struc
 }
 
 const char *
-ni_dhcp6_print_timeval(const struct timeval *tv)
-{
-	static char buf[64] = {'\0'};
-
-	snprintf(buf, sizeof(buf), "%ldm%ld.%03lds", tv->tv_sec / 60, tv->tv_sec % 60, tv->tv_usec / 1000);
-	return buf;
-}
-
-const char *
 ni_dhcp6_address_print(const struct in6_addr *ipv6)
 {
 	ni_sockaddr_t addr;
@@ -438,8 +429,8 @@ ni_dhcp6_socket_get_timeout(const ni_socket_t *sock, struct timeval *tv)
 	if (timerisset(&dev->retrans.deadline)) {
 		*tv = dev->retrans.deadline;
 #if 0
-		ni_trace("%s: get socket timeout for socket [fd=%d]: deadline %s",
-				dev->ifname, sock->__fd, ni_dhcp6_print_timeval(tv));
+		ni_trace("%s: get socket timeout for socket [fd=%d]: deadline %ld.%03ld",
+				dev->ifname, sock->__fd, tv->tv_sec, tv.tv_usec/1000);
 	} else {
 		ni_trace("%s: get socket timeout for socket [fd=%d]: no deadline",
 				dev->ifname, sock->__fd);
@@ -461,9 +452,8 @@ ni_dhcp6_socket_check_timeout(ni_socket_t *sock, const struct timeval *now)
 
 	if (timerisset(&dev->retrans.deadline) && timercmp(&dev->retrans.deadline, now, <)) {
 #if 0
-		ni_trace("%s: check socket timeout for socket [fd=%d]: deadline %s",
-				dev->ifname, sock->__fd,
-				ni_dhcp6_print_timeval(&dev->retrans.deadline));
+		ni_trace("%s: check socket timeout for socket [fd=%d]: deadline %ld.%03ld",
+				dev->ifname, sock->__fd, tv->tv_sec, tv.tv_usec/1000);
 #endif
 		ni_dhcp6_device_retransmit(dev);
 #if 0
@@ -655,8 +645,12 @@ ni_dhcp6_option_put_ia(ni_buffer_t *bp, ni_dhcp6_ia_t *ia)
 		goto failure;
 
 	if (ia->type == NI_DHCP6_OPTION_IA_NA || ia->type == NI_DHCP6_OPTION_IA_PD) {
-		if ( ia->rebind_time <= ia->renewal_time)
-			ia->rebind_time = ia->renewal_time + (ia->renewal_time / 2);
+		if (ia->renewal_time && ia->renewal_time > ia->rebind_time) {
+			ni_debug_dhcp("%s: iaid=%u, T1=%u > T2=%u, adjusting T2 to %u",
+				ni_dhcp6_option_name(ia->type), ia->iaid,
+				ia->renewal_time, ia->rebind_time, ia->renewal_time);
+			ia->rebind_time = ia->renewal_time;
+		}
 #if 0
 		ni_trace("ia->renewal_time: %u", ia->renewal_time);
 #endif
@@ -2099,7 +2093,7 @@ ni_dhcp6_ia_get_rebind_time(ni_dhcp6_ia_t *ia)
 
 	lft = ni_dhcp6_ia_min_preferred_lft(ia);
 	if (lft > 0 && lft != NI_DHCP6_INFINITE_LIFETIME)
-		lft = (lft * 4) / 5;
+		lft = ((unsigned long long)lft * 4) / 5;
 	return lft;
 }
 
@@ -2137,7 +2131,7 @@ ni_dhcp6_ia_list_count_active(ni_dhcp6_ia_t *list, struct timeval *now)
 }
 
 static void
-__ni_dhcp6_ia_set_default_lifetimes(ni_dhcp6_ia_t *ia, unsigned int pref_time)
+ni_dhcp6_ia_set_user_default_lifetimes(ni_dhcp6_ia_t *ia, unsigned int pref_time)
 {
 	if (ni_dhcp6_ia_type_ta(ia) || !pref_time) {
 		/* ia-ta's do not have explicit renew,rebind */
@@ -2150,7 +2144,7 @@ __ni_dhcp6_ia_set_default_lifetimes(ni_dhcp6_ia_t *ia, unsigned int pref_time)
 	} else
 	if (pref_time >= NI_DHCP6_MIN_PREF_LIFETIME) {
 		ia->renewal_time = pref_time / 2;
-		ia->rebind_time = (pref_time * 4) / 5;
+		ia->rebind_time = ((unsigned long long)pref_time * 4) / 5;
 	} else {
 		ia->renewal_time = NI_DHCP6_PREFERRED_LIFETIME / 2;
 		ia->rebind_time = (NI_DHCP6_PREFERRED_LIFETIME * 4) / 5;
@@ -2169,9 +2163,9 @@ ni_dhcp6_ia_set_default_lifetimes(ni_dhcp6_ia_t *ia, unsigned int pref_time)
 		if (rebind > renew)
 			ia->rebind_time = rebind;
 		else
-			ia->rebind_time = (renew * 8) / 5;
+			ia->rebind_time = ((unsigned long long)renew * 8) / 5;
 	}
-	__ni_dhcp6_ia_set_default_lifetimes(ia, pref_time);
+	ni_dhcp6_ia_set_user_default_lifetimes(ia, pref_time);
 }
 
 unsigned int
@@ -3408,11 +3402,11 @@ ni_dhcp6_set_message_timing(ni_dhcp6_device_t *dev, unsigned int msg_type)
 		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_DHCP,
 			"%s TIMING: IDT(%us), IRT(%us), MRT(%us), MRC(%u), MRD(%us), RND(%.3fs)\n",
 			ni_dhcp6_message_name(msg_type),
-			dev->retrans.delay/1000,
-			dev->retrans.params.timeout/1000,
-			dev->retrans.params.max_timeout/1000,
+			NI_TIMEOUT_SEC(dev->retrans.delay),
+			NI_TIMEOUT_SEC(dev->retrans.params.timeout),
+			NI_TIMEOUT_SEC(dev->retrans.params.max_timeout),
 			(dev->retrans.params.nretries < 0 ? 0 : dev->retrans.params.nretries),
-			dev->retrans.duration/1000,
+			NI_TIMEOUT_SEC(dev->retrans.duration),
 			(double)dev->retrans.jitter/1000);
 #endif
 		return TRUE;
