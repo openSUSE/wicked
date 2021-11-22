@@ -409,14 +409,14 @@ ni_nanny_fsm_monitor_run(ni_nanny_fsm_monitor_t *monitor, ni_ifworker_array_t *m
 
 	monitor->marked = ni_ifworker_array_clone(marked);
 	while (!ni_caught_terminal_signal()) {
-		long timeout;
+		ni_timeout_t timeout;
 
 		if (!monitor->marked || !monitor->marked->count)
 			break;
 
 		timeout = ni_timer_next_timeout();
 		if (monitor->timeout == 0 ||
-		    (monitor->timeout > 0 && timeout < 0))
+		    (monitor->timeout > 0 && timeout == NI_TIMEOUT_INFINITE))
 			break;
 
 		if (ni_socket_wait(timeout) != 0)

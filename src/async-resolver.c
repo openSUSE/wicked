@@ -11,11 +11,12 @@
 #include <wicked/resolver.h>
 #include <wicked/logging.h>
 #include <wicked/time.h>
-#include <stdlib.h>
 
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/time.h>
+#include <stdlib.h>
+#include <limits.h>
 #include <unistd.h>
 #include <signal.h>
 #include <netdb.h>
@@ -76,7 +77,7 @@ gaicb_list_free(struct gaicb **list, unsigned int nitems)
  * Use getaddrinfo_a to resolve one or more hostnames
  */
 int
-gaicb_list_resolve(struct gaicb **greqs, unsigned int nreqs, unsigned int timeout)
+gaicb_list_resolve(struct gaicb **greqs, unsigned int nreqs, ni_timeout_t timeout)
 {
 	unsigned int i;
 	int rv;
@@ -97,7 +98,7 @@ gaicb_list_resolve(struct gaicb **greqs, unsigned int nreqs, unsigned int timeou
 		}
 
 		ni_timer_get_time(&deadline);
-		deadline.tv_sec += timeout;
+		ni_timeval_add_timeout(&deadline, timeout);
 
 		while (1) {
 			struct timeval delta;
@@ -156,7 +157,7 @@ ni_resolve_hostname_timed(const char *hostname, int af, ni_sockaddr_t *addr, uns
 	int gerr;
 
 	cb = gaicb_new(hostname, af);
-	if (gaicb_list_resolve(&cb, 1, timeout) < 0)
+	if (gaicb_list_resolve(&cb, 1, NI_TIMEOUT_FROM_SEC(timeout)) < 0)
 		return -1;
 
 	gerr = gaicb_get_address(cb, addr);
@@ -180,7 +181,7 @@ ni_resolve_hostnames_timed(int af, unsigned int count, const char *hostnames[], 
 	for (i = 0; i < count; ++i)
 		cblist[i] = gaicb_new(hostnames[i], af);
 
-	if (gaicb_list_resolve(cblist, count, timeout) < 0)
+	if (gaicb_list_resolve(cblist, count, NI_TIMEOUT_FROM_SEC(timeout)) < 0)
 		return -1;
 
 	for (i = 0; i < count; ++i) {
@@ -198,7 +199,7 @@ ni_resolve_hostnames_timed(int af, unsigned int count, const char *hostnames[], 
 }
 
 static int
-__ni_resolve_reverse(const ni_sockaddr_t *addr, char **hostname)
+ni_resolve_reverse(const ni_sockaddr_t *addr, char **hostname)
 {
 	char hbuf[NI_MAXHOST+1] = {'\0'};
 	socklen_t len;
@@ -235,17 +236,17 @@ __ni_resolve_reverse(const ni_sockaddr_t *addr, char **hostname)
 }
 
 static void
-__ni_resolve_reverse_sigchild(int sig)
+ni_resolve_reverse_sigchild(int sig)
 {
 	(void)sig;
 }
 
 static int
-__ni_resolve_reverse_exec(const ni_sockaddr_t *addr)
+ni_resolve_reverse_exec(const ni_sockaddr_t *addr)
 {
 	char *hostname = NULL;
 
-	if (__ni_resolve_reverse(addr, &hostname) == 0) {
+	if (ni_resolve_reverse(addr, &hostname) == 0) {
 		fputs(hostname, stdout);
 		fflush(stdout);
 		ni_string_free(&hostname);
@@ -255,31 +256,26 @@ __ni_resolve_reverse_exec(const ni_sockaddr_t *addr)
 }
 
 static int
-__ni_resolve_reverse_read(int fd, char **hostname, unsigned int timeout)
+ni_resolve_reverse_read(int fd, char **hostname, ni_timeout_t timeout)
 {
 	char hbuf[NI_MAXHOST+1] = {'\0'};
 	struct pollfd pfd[1] = { { fd, POLLIN, 0 } };
-	struct timeval now, tv;
+	struct timeval deadline;
+	int ptimeout = -1;
 	ssize_t len;
 	int rc;
 
-	ni_timer_get_time(&tv);
-	tv.tv_sec += timeout;
-	timeout *= 1000;
+	ni_timer_get_time(&deadline);
+	ni_timeval_add_timeout(&deadline, timeout);
 
-	while ((rc = poll(pfd, 1, timeout)) == -1 && errno == EINTR) {
-		ni_timer_get_time(&now);
-		if (timercmp(&tv, &now, <)) {
-			timeout = 0;
-		} else {
-			struct timeval delta;
-			long delta_ms;
-
-			timersub(&tv, &now, &delta);
-			delta_ms = 1000 * delta.tv_sec + delta.tv_usec / 1000;
-			if (delta_ms < timeout)
-				timeout = delta_ms;
-		}
+	if (timeout < NI_TIMEOUT_INFINITE)
+		ptimeout = timeout < INT_MAX ? (int)timeout : INT_MAX;
+	while ((rc = poll(pfd, 1, ptimeout)) == -1 && errno == EINTR) {
+		timeout = ni_timeout_left(&deadline, NULL, NULL);
+		if (timeout)
+			ptimeout = timeout < INT_MAX ? (int)timeout : INT_MAX;
+		else
+			ptimeout = 0;
 	}
 	if (rc == 1 && pfd[0].revents & POLLIN) {
 		len = read(pfd[0].fd, hbuf, sizeof(hbuf) - 1);
@@ -292,7 +288,7 @@ __ni_resolve_reverse_read(int fd, char **hostname, unsigned int timeout)
 }
 
 int
-__ni_resolve_reverse_reap(pid_t pid)
+ni_resolve_reverse_reap(pid_t pid)
 {
 	int status = -1;
 	int count = 4;
@@ -329,14 +325,14 @@ ni_resolve_reverse_timed(const ni_sockaddr_t *addr, char **hostname, unsigned in
 	pid_t pid;
 
 	if (!timeout)
-		return __ni_resolve_reverse(addr, hostname);
+		return ni_resolve_reverse(addr, hostname);
 
 	rc = socketpair(AF_UNIX, SOCK_STREAM, PF_LOCAL, fd);
 	if (rc < 0)
 		return -1;
 
 	new.sa_flags   = 0;
-	new.sa_handler = __ni_resolve_reverse_sigchild;
+	new.sa_handler = ni_resolve_reverse_sigchild;
 	sigemptyset (&new.sa_mask);
 	sigaction (SIGCHLD, &new, &old);
 
@@ -368,17 +364,17 @@ ni_resolve_reverse_timed(const ni_sockaddr_t *addr, char **hostname, unsigned in
 		for (fd[0] = 3; fd[0] < fds; ++fd[0])
 			close(fd[0]);
 
-		rc = __ni_resolve_reverse_exec(addr);
+		rc = ni_resolve_reverse_exec(addr);
 		exit(rc);
 
 	default:
 		close(fd[1]);
-		rc = __ni_resolve_reverse_read(fd[0], hostname, timeout);
+		rc = ni_resolve_reverse_read(fd[0], hostname, NI_TIMEOUT_FROM_SEC(timeout));
 		close(fd[0]);
 		if (rc < 0)
 			kill(pid, SIGTERM);
 
-		__ni_resolve_reverse_reap(pid);
+		ni_resolve_reverse_reap(pid);
 	}
 
 	sigaction (SIGCHLD, &old, &new);

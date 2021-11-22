@@ -330,7 +330,7 @@ extern unsigned int		ni_fsm_policy_array_index(const ni_fsm_policy_array_t *, co
 extern ni_dbus_client_t *	ni_fsm_create_client(ni_fsm_t *);
 extern ni_bool_t		ni_fsm_refresh_state(ni_fsm_t *);
 extern unsigned int		ni_fsm_schedule(ni_fsm_t *);
-extern ni_bool_t		ni_fsm_do(ni_fsm_t *fsm, long *timeout_p);
+extern ni_bool_t		ni_fsm_do(ni_fsm_t *, ni_timeout_t *);
 extern void			ni_fsm_mainloop(ni_fsm_t *);
 extern void			ni_fsm_set_process_event_callback(ni_fsm_t *, void (*)(ni_fsm_t *, ni_ifworker_t *, ni_fsm_event_t *), void *);
 extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, ni_ifworker_array_t *);

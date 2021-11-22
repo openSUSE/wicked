@@ -181,7 +181,7 @@ do_arp_run(struct arp_handle *handle)
 
 	ret = NI_WICKED_RC_ERROR;
 	while (!ni_caught_terminal_signal()) {
-		long timeout;
+		ni_timeout_t timeout;
 
 		ret = NI_WICKED_RC_SUCCESS;
 		timeout = ni_timer_next_timeout();

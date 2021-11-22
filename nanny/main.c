@@ -289,7 +289,7 @@ babysit(void)
 #endif
 
 	while (!ni_caught_terminal_signal()) {
-		long timeout = NI_IFWORKER_INFINITE_TIMEOUT;
+		ni_timeout_t timeout = NI_TIMEOUT_INFINITE;
 
 		do {
 			ni_fsm_do(mgr->fsm, &timeout);

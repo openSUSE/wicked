@@ -5830,7 +5830,7 @@ ni_fsm_create_client(ni_fsm_t *fsm)
 }
 
 ni_bool_t
-ni_fsm_do(ni_fsm_t *fsm, long *timeout_p)
+ni_fsm_do(ni_fsm_t *fsm, ni_timeout_t *timeout)
 {
 	ni_bool_t pending_workers;
 
@@ -5847,7 +5847,7 @@ ni_fsm_do(ni_fsm_t *fsm, long *timeout_p)
 		pending_workers = !!ni_fsm_schedule(fsm);
 
 		fsm->timeout_count = 0;
-		*timeout_p = ni_timer_next_timeout();
+		*timeout = ni_timer_next_timeout();
 		ni_dbus_objects_garbage_collect();
 	} while (fsm->timeout_count);
 
@@ -5857,7 +5857,7 @@ ni_fsm_do(ni_fsm_t *fsm, long *timeout_p)
 void
 ni_fsm_mainloop(ni_fsm_t *fsm)
 {
-	long timeout;
+	ni_timeout_t timeout;
 
 	while (!ni_caught_terminal_signal()) {
 		if (!ni_fsm_do(fsm, &timeout))
