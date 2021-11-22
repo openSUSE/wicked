@@ -24,7 +24,7 @@
 
 #include <wicked/logging.h>
 #include <wicked/netinfo.h>
-#include <wicked/socket.h>
+#include <wicked/time.h>
 #include <wicked/route.h>
 #include "util_priv.h"
 

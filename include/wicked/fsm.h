@@ -8,7 +8,7 @@
 #ifndef __CLIENT_FSM_H__
 #define __CLIENT_FSM_H__
 
-#include <wicked/socket.h>	/* needed for ni_timer_t */
+#include <wicked/time.h>
 #include <wicked/secret.h>
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>

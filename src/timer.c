@@ -9,7 +9,9 @@
 
 #include <time.h>
 #include <sys/time.h>
-#include <wicked/socket.h>
+
+#include <wicked/time.h>
+
 #include "netinfo_priv.h"
 #include "util_priv.h"
 

@@ -11,6 +11,8 @@
 #include <stdio.h>
 
 #include <wicked/types.h>
+#include <wicked/time.h>
+#include <wicked/socket.h>
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/logging.h>
@@ -128,8 +130,6 @@ static inline ni_bool_t	__ni_addrconf_should_update(unsigned int mask, unsigned 
 /*
  * Packet capture and raw sockets
  */
-#include <wicked/socket.h>
-
 typedef struct ni_capture_devinfo {
 	char *			ifname;
 	unsigned int		ifindex;

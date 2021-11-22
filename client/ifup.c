@@ -37,6 +37,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <wicked/socket.h>
 #include <wicked/fsm.h>
 
 #include "client/ifconfig.h"

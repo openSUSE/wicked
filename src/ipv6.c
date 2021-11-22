@@ -11,7 +11,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
-#include <wicked/socket.h>
+#include <wicked/time.h>
 #include <wicked/ipv6.h>
 #include <errno.h>
 

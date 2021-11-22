@@ -10,7 +10,7 @@
 #include <wicked/address.h>
 #include <wicked/resolver.h>
 #include <wicked/logging.h>
-#include <wicked/socket.h>
+#include <wicked/time.h>
 #include <stdlib.h>
 
 #include <sys/types.h>

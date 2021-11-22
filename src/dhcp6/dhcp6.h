@@ -25,7 +25,7 @@
 
 #include <wicked/netinfo.h>	/* FIXME: required by addrconf.h ... */
 #include <wicked/addrconf.h>
-#include <wicked/socket.h>
+#include <wicked/time.h>
 #include "dhcp6/options.h"
 #include "dhcp6/request.h"
 #include "buffer.h"
