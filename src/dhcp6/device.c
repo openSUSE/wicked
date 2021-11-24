@@ -779,21 +779,22 @@ ni_dhcp6_device_transmit_arm_delay(ni_dhcp6_device_t *dev)
 	 * rfc3315#section-5.5 (17.1.2, 18.1.2, 18.1.5):
 	 *
 	 * Initial delay is a MUST for Solicit, Confirm and InfoRequest.
+	 * "[..]
+	 *  MUST be delayed by a random amount of time between 0 and [..]_MAX_DELAY
+	 * [..]"
+	 *
+	 * We could track the RA receive time that "causes the client to invoke the
+	 * stateful address autoconfiguration" and subtract the delta from delay...
 	 */
 	if (dev->retrans.delay == 0)
 		return FALSE;
 
-	ni_debug_dhcp("%s: setting initial transmit delay of %u.%03us [%d .. %dms]",
-			dev->ifname,
-			NI_TIMEOUT_SEC(dev->retrans.delay),
-			NI_TIMEOUT_MSEC(dev->retrans.delay),
-			0 - dev->retrans.jitter,
-			0 + dev->retrans.jitter);
+	jitter.min = 0;
+	jitter.max = dev->retrans.delay;
+	delay = ni_timeout_randomize(0, &jitter);
 
-	/* we can use base jitter as is, it's 0.1 msec already */
-	jitter.min = 0 - dev->retrans.jitter;
-	jitter.max = 0 + dev->retrans.jitter;
-	delay = ni_timeout_randomize(dev->retrans.delay, &jitter);
+	ni_debug_dhcp("%s: setting initial transmit delay of 0 .. %u.%03us",
+			dev->ifname, NI_TIMEOUT_SEC(delay), NI_TIMEOUT_MSEC(delay));
 
 	ni_dhcp6_fsm_set_timeout_msec(dev, delay);
 
@@ -822,23 +823,8 @@ ni_dhcp6_device_retransmit_arm(ni_dhcp6_device_t *dev)
 		 * by choosing RAND to be strictly greater than 0.
 		 * [...]"
 		 */
-		dev->retrans.params.jitter = ni_dhcp6_jitter_rebase(
-				dev->retrans.params.timeout,
-				0, /* exception, no negative jitter */
-				0 + dev->retrans.jitter);
-
-		/*
-		 * rfc3315#section-14
-		 *
-		 * "[...]
-		 *  RT for the first message transmission is based on IRT:
-		 * 	RT = IRT + RAND*IRT
-		 *  [...]"
-		 *
-		 * IRT is already initialized in retrans.params.timeout.
-		 */
-		dev->retrans.params.timeout = ni_timeout_arm_msec(&dev->retrans.deadline,
-								  &dev->retrans.params);
+		dev->retrans.params.jitter.min = 0; /* exception, no negative jitter */
+		dev->retrans.params.jitter.max = 0 + dev->retrans.jitter;
 	} else {
 		/*
 		 * rfc3315#section-14
@@ -848,23 +834,31 @@ ni_dhcp6_device_retransmit_arm(ni_dhcp6_device_t *dev)
 		 * between -0.1 and +0.1.
 		 * [...]"
 		 */
-		dev->retrans.params.jitter = ni_dhcp6_jitter_rebase(
-				dev->retrans.params.timeout,
-				0 - dev->retrans.jitter,
-				0 + dev->retrans.jitter);
-
-		/*
-		 * rfc3315#section-14
-		 *
-		 * "[...]RT for the first message transmission is based on IRT:
-		 * 		RT = IRT + RAND*IRT
-		 *  [...]"
-		 *
-		 *  IRT is already initialized in retrans.params.timeout.
-		 */
-		dev->retrans.params.timeout = ni_timeout_arm_msec(&dev->retrans.deadline,
-								  &dev->retrans.params);
+		dev->retrans.params.jitter.min = 0 - dev->retrans.jitter,
+		dev->retrans.params.jitter.max = 0 + dev->retrans.jitter;
 	}
+
+	/*
+	 * rfc3315#section-14
+	 *
+	 * "[...]RT for the first message transmission is based on IRT:
+	 * 		RT = IRT + RAND*IRT
+	 *  [...]"
+	 *
+	 *  IRT is already initialized in retrans.params.timeout.
+	 */
+	dev->retrans.params.timeout += ni_timeout_randomize(dev->retrans.params.timeout,
+							&dev->retrans.params.jitter);
+	ni_timer_get_time(&dev->retrans.deadline);
+	ni_timeval_add_timeout(&dev->retrans.deadline, dev->retrans.params.timeout);
+	ni_debug_dhcp("%s: initialized xid 0x%06x retransmission timeout of %u.%03u [%.3f .. %.3f] sec",
+			dev->ifname, dev->dhcp6.xid,
+			NI_TIMEOUT_SEC(dev->retrans.params.timeout),
+			NI_TIMEOUT_MSEC(dev->retrans.params.timeout),
+			(double)dev->retrans.params.jitter.min/1000,
+			(double)dev->retrans.params.jitter.max/1000);
+
+
 	if (dev->retrans.duration) {
 		/*
 		 * rfc3315#section-14
@@ -877,6 +871,10 @@ ni_dhcp6_device_retransmit_arm(ni_dhcp6_device_t *dev)
 		 * [...]"
 		 */
 		ni_dhcp6_fsm_set_timeout_msec(dev, dev->retrans.duration);
+		ni_debug_dhcp("%s: initialized xid 0x%06x duration %u.%03u sec",
+			dev->ifname, dev->dhcp6.xid,
+			NI_TIMEOUT_SEC(dev->retrans.duration),
+			NI_TIMEOUT_MSEC(dev->retrans.duration));
 	}
 }
 
@@ -916,27 +914,22 @@ ni_dhcp6_device_retransmit_advance(ni_dhcp6_device_t *dev)
 	 *
 	 */
 	if( ni_timeout_recompute(&dev->retrans.params)) {
+		dev->retrans.params.jitter = ni_dhcp6_jitter_rebase(previous,
+						0 - dev->retrans.jitter,
+						0 + dev->retrans.jitter);
+		dev->retrans.params.timeout += ni_timeout_randomize(previous,
+						&dev->retrans.params.jitter);
+		ni_timer_get_time(&dev->retrans.deadline);
+		ni_timeval_add_timeout(&dev->retrans.deadline, dev->retrans.params.timeout);
 
-		/*
-		 * Hmm... should we set this as backoff callback?
-		 */
-		dev->retrans.params.jitter = ni_dhcp6_jitter_rebase(
-				dev->retrans.params.timeout,
-				0 - dev->retrans.jitter,
-				0 + dev->retrans.jitter);
-
-		dev->retrans.params.timeout = ni_timeout_arm_msec(
-				&dev->retrans.deadline,
-				&dev->retrans.params);
-
-		ni_debug_dhcp("%s: advanced xid 0x%06x retransmission timeout from %u.%03u to %u.%03u [%d .. %dmsec]",
+		ni_debug_dhcp("%s: advanced xid 0x%06x retransmission timeout from %u.%03u to %u.%03u [%.3f .. %.3f] sec",
 				dev->ifname, dev->dhcp6.xid,
 				NI_TIMEOUT_SEC(previous),
 				NI_TIMEOUT_MSEC(previous),
 				NI_TIMEOUT_SEC(dev->retrans.params.timeout),
 				NI_TIMEOUT_MSEC(dev->retrans.params.timeout),
-				dev->retrans.params.jitter.min,
-				dev->retrans.params.jitter.max);
+				(double)dev->retrans.params.jitter.min/1000,
+				(double)dev->retrans.params.jitter.max/1000);
 
 		return TRUE;
 	}
