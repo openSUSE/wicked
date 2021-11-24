@@ -2450,7 +2450,7 @@ __ni_compat_generate_auto6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 
 	aconf = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv6:auto", 0, compat->auto6.update);
 
-	if (aconf && compat->auto6.defer_timeout != -1U) {
+	if (aconf && compat->auto6.defer_timeout) {
 		xml_node_dict_set(aconf, "defer-timeout",
 				ni_sprint_timeout(compat->auto6.defer_timeout));
 	}

@@ -1684,10 +1684,9 @@ __ni_suse_startmode(const ni_sysconfig_t *sc)
 		}
 
 		if ((value = ni_sysconfig_get_value(sc, "LINK_READY_WAIT"))) {
-			if (ni_string_eq(value, "infinite"))
-				control->link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			else
-				ni_parse_uint(value, &control->link_timeout, 10);
+			if (ni_parse_seconds_timeout(value, &control->link_timeout)
+			||  control->link_timeout == NI_IFWORKER_INFINITE_SECONDS)
+				control->link_timeout = 0; /* ifcfg(5): default is 0 */
 		}
 	}
 	return control;
@@ -5724,7 +5723,7 @@ __ni_suse_addrconf_auto6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	compat->auto6.enabled = TRUE;
-	compat->auto6.defer_timeout = -1U; /* use a built-in timeout by default */
+	compat->auto6.defer_timeout = 0; /* use a built-in timeout by default */
 	if ((merged = ni_sysconfig_merge_defaults(sc, __ni_suse_config_defaults))) {
 		const char *value;
 

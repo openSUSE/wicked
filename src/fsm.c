@@ -675,9 +675,9 @@ ni_fsm_timer_call(void *user_data, const ni_timer_t *timer)
 }
 
 static inline const ni_timer_t *
-ni_fsm_timer_register(unsigned long timeout_ms, ni_fsm_timer_ctx_t *tcx)
+ni_fsm_timer_register(ni_timeout_t timeout, ni_fsm_timer_ctx_t *tcx)
 {
-	return ni_timer_register(timeout_ms, ni_fsm_timer_call, tcx);
+	return ni_timer_register(timeout, ni_fsm_timer_call, tcx);
 }
 
 static ni_bool_t
@@ -725,36 +725,36 @@ ni_ifworker_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *tcx)
 }
 
 static inline void
-ni_ifworker_set_timeout(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout_ms)
+ni_ifworker_set_timeout(ni_fsm_t *fsm, ni_ifworker_t *w, ni_timeout_t timeout)
 {
 	ni_fsm_timer_ctx_t *tcx;
 
 	ni_ifworker_cancel_timeout(w);
 
-	if (!timeout_ms || timeout_ms == NI_IFWORKER_INFINITE_TIMEOUT)
+	if (!timeout || timeout == NI_IFWORKER_INFINITE_TIMEOUT)
 		return;
 
 	if (!(tcx = ni_fsm_timer_ctx_new(fsm, w, ni_ifworker_timeout)))
 		return;
 
-	w->fsm.timer = ni_fsm_timer_register(timeout_ms, tcx);
+	w->fsm.timer = ni_fsm_timer_register(timeout, tcx);
 }
 
 static inline void
-ni_ifworker_set_secondary_timeout(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout_ms,
+ni_ifworker_set_secondary_timeout(ni_fsm_t *fsm, ni_ifworker_t *w, ni_timeout_t timeout,
 					ni_fsm_timer_fn_t *handler)
 {
 	ni_fsm_timer_ctx_t *tcx;
 
 	ni_ifworker_cancel_secondary_timeout(w);
 
-	if (!handler || !timeout_ms || timeout_ms == NI_IFWORKER_INFINITE_TIMEOUT)
+	if (!handler || !timeout || timeout == NI_IFWORKER_INFINITE_TIMEOUT)
 		return;
 
 	if (!(tcx = ni_fsm_timer_ctx_new(fsm, w, handler)))
 		return;
 
-	w->fsm.secondary_timer = ni_fsm_timer_register(timeout_ms, tcx);
+	w->fsm.secondary_timer = ni_fsm_timer_register(timeout, tcx);
 }
 
 static ni_intmap_t __state_names[] = {
@@ -1859,7 +1859,7 @@ ni_ifworker_control_init(ni_ifworker_control_t *control)
 	control->usercontrol   = FALSE;
 	control->link_required = NI_TRISTATE_DEFAULT;
 	control->link_priority = 0;
-	control->link_timeout  = NI_IFWORKER_INFINITE_TIMEOUT;
+	control->link_timeout  = NI_IFWORKER_INFINITE_SECONDS;
 }
 
 static void
@@ -2015,17 +2015,12 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 
 	control->link_priority = 0;
 	control->link_required = NI_TRISTATE_DEFAULT;
-	control->link_timeout  = NI_IFWORKER_INFINITE_TIMEOUT;
+	control->link_timeout  = NI_IFWORKER_INFINITE_SECONDS;
 	if ((linknode = xml_node_get_child(ctrlnode, "link-detection")) != NULL) {
 		if ((np = xml_node_get_child(linknode, "timeout")) != NULL) {
-			if (ni_string_eq(np->cdata, "infinite"))
-				control->link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			else
-				ni_parse_uint(np->cdata, &control->link_timeout, 10);
-			if (control->link_timeout == 0)
-				control->link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			else
-				control->link_timeout *= 1000;
+			if (ni_parse_seconds_timeout(np->cdata, &control->link_timeout)
+			||  control->link_timeout == 0)
+				control->link_timeout = NI_IFWORKER_INFINITE_SECONDS;
 		}
 		if ((np = xml_node_get_child(linknode, "priority"))) {
 			ni_parse_uint(np->cdata, &control->link_priority, 10);
@@ -4808,8 +4803,9 @@ ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 		w->control.link_required = ni_netdev_guess_link_required(w->device);
 
 	if (ret >= 0 && w->fsm.wait_for) {
-		if (w->control.link_timeout != NI_IFWORKER_INFINITE_TIMEOUT) {
-			ni_ifworker_set_secondary_timeout(fsm, w, w->control.link_timeout,
+		if (w->control.link_timeout != NI_IFWORKER_INFINITE_SECONDS) {
+			ni_ifworker_set_secondary_timeout(fsm, w,
+					NI_TIMEOUT_FROM_SEC(w->control.link_timeout),
 					ni_ifworker_link_detection_timeout);
 		} else if (ni_tristate_is_disabled(w->control.link_required)) {
 			ni_debug_application("%s: link-up state is not required, proceeding", w->name);
@@ -5939,23 +5935,29 @@ done:
 	return rv;
 }
 
-unsigned int
-ni_fsm_find_max_timeout(ni_fsm_t *fsm, unsigned int timeout)
+ni_timeout_t
+ni_fsm_find_max_timeout(ni_fsm_t *fsm, ni_timeout_t timeout)
 {
-	unsigned int i, max;
+	unsigned int i;
 
-	if (!fsm)
+	if (!fsm || timeout >= NI_IFWORKER_INFINITE_TIMEOUT)
 		return NI_IFWORKER_INFINITE_TIMEOUT;
 
-	max = timeout;
 	for (i = 0; i < fsm->workers.count; i++) {
 		ni_ifworker_t *w = fsm->workers.data[i];
+		ni_timeout_t max, add;
 
-		max = max_t(unsigned int, max,
-			fsm->worker_timeout + w->extra_waittime);
+		add = min_t(ni_timeout_t,
+				NI_TIMEOUT_FROM_SEC(w->extra_waittime),
+				NI_IFWORKER_INFINITE_TIMEOUT);
+		max = max_t(ni_timeout_t, timeout,
+				fsm->worker_timeout + add);
+
+		timeout = min_t(ni_timeout_t, max,
+				NI_IFWORKER_INFINITE_TIMEOUT);
 	}
 
-	return max;
+	return timeout;
 }
 
 void
