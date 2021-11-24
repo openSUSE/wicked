@@ -17,8 +17,8 @@
    <label type="string"/>
 
    <cache-info class="dict">
-     <valid-lifetime type="uint32" />
-     <preferred-lifetime type="uint32" />
+     <valid-lifetime type="valid-lifetime-type" />
+     <preferred-lifetime type="pref-lifetime-type" />
    </cache-info>
 
    <!-- This is the addrconf method that owns this address -->
