@@ -1721,6 +1721,7 @@ void
 ni_wireless_bss_free(ni_wireless_bss_t **bss)
 {
 	ni_wireless_bss_destroy(*bss);
+	free(*bss);
 	*bss = NULL;
 }
 
