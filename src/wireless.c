@@ -34,6 +34,7 @@ static void		ni_wireless_scan_destroy(ni_wireless_scan_t *scan);
 static void		ni_wireless_bss_set(ni_wireless_bss_t *wireless_bss, const ni_wpa_bss_t *bss);
 static void		ni_wireless_on_state_change(ni_wpa_nif_t *, ni_wpa_nif_state_t, ni_wpa_nif_state_t);
 static void		ni_wireless_on_properties_changed(ni_wpa_nif_t *wif, ni_dbus_variant_t *props);
+static void             ni_wireless_set_state(ni_netdev_t *dev, ni_wireless_assoc_state_t new_state);
 
 static ni_bool_t	__ni_wireless_scanning_enabled = TRUE;
 
@@ -932,6 +933,32 @@ ni_wireless_trigger_scan(ni_netdev_t *dev, ni_wpa_nif_t *wif, ni_bool_t active_s
 	return -NI_ERROR_RETRY_OPERATION;
 }
 
+static void
+ni_wireless_on_wpa_supplicant_start(ni_netdev_t *dev)
+{
+	ni_wireless_t *wlan = ni_netdev_get_wireless(dev);
+	int ret;
+
+	if (!wlan || !wlan->conf)
+		return;
+
+	ni_debug_wireless("%s: On wpa_supplicant start - try to reconfigure!", dev->name);
+	if ((ret = ni_wireless_setup(dev, wlan->conf)) == 0) {
+		ni_debug_wireless("%s: Setup of wireless successful after wpa_supplicant start", dev->name);
+		if (wlan->reconnect)
+			if ((ret = ni_wireless_connect(dev)))
+				ni_error("%s: wireless connect failed with %d", dev->name, ret);
+	} else
+		ni_error("%s: Setup of wireless failed with %d after wpa_supplicant restart!", dev->name, ret);
+}
+
+static void
+ni_wireless_on_wpa_supplicant_stop(ni_netdev_t *dev)
+{
+	ni_debug_wireless("%s: wpa_supplicant stopped!", dev->name);
+	ni_wireless_set_state(dev, NI_WIRELESS_NOT_ASSOCIATED);
+}
+
 int
 ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 {
@@ -942,6 +969,10 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 	ni_wireless_t *wlan;
 	int ret;
 
+	ni_wpa_client_ops_t ops = {
+		.on_wpa_supplicant_start = ni_wireless_on_wpa_supplicant_start,
+		.on_wpa_supplicant_stop = ni_wireless_on_wpa_supplicant_stop
+	};
 	ni_wpa_nif_ops_t wif_ops = {
 		.on_network_added = ni_wireless_on_network_added,
 		.on_scan_done = ni_wireless_on_scan_done,
@@ -949,15 +980,17 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 		.on_properties_changed = ni_wireless_on_properties_changed,
 	};
 
-	if (!dev || !conf || !ni_netdev_get_wireless(dev))
+	if (!dev || !conf || !(wlan = ni_netdev_get_wireless(dev)))
 		return -NI_ERROR_INVALID_ARGS;
-	wlan = ni_netdev_get_wireless(dev);
 
 	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
 		return -NI_ERROR_RADIO_DISABLED;
 
 	if (!(wpa = ni_wpa_client()))
 		return -1;
+
+	if (!ni_wpa_client_set_ops(dev->link.ifindex, &ops))
+		ni_warn("%s: Failed to add wpa_client opthandler", dev->name);
 
 	ret = ni_wpa_get_interface(wpa, dev->name, dev->link.ifindex, &wif);
 	if (ret == 0 && wif && ni_wireless_wpa_nif_config_differs(wif, conf)) {
@@ -1014,6 +1047,11 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 		return ret;
 	}
 
+	/* setup successfull, store configuration for expected wpa_supplicant restarts */
+	if (!wlan->conf)
+		wlan->conf = ni_wireless_config_new();
+	ni_wireless_config_copy(wlan->conf, conf);
+
 	if (wlan->scan.interval > 0)
 		__ni_wireless_scan_timer_arm(&wlan->scan, dev, 1);
 	return ret;
@@ -1027,6 +1065,7 @@ ni_wireless_shutdown(ni_netdev_t *dev)
 	if (!(wif = ni_wireless_get_wpa_interface(dev)))
 		return NI_SUCCESS;
 
+	ni_wpa_client_del_ops(dev->link.ifindex);
 	return ni_wpa_del_interface(wif->client, ni_dbus_object_get_path(wif->object));
 }
 
@@ -1034,6 +1073,12 @@ int
 ni_wireless_connect(ni_netdev_t *dev)
 {
 	ni_wpa_nif_t *wif;
+	ni_wireless_t *wlan;
+	int ret;
+
+	ni_debug_wireless("%s(%s)", __func__, dev->name);
+	if (!(wlan = dev->wireless))
+		return -NI_ERROR_INVALID_ARGS;
 
 	if (!(wif = ni_wireless_get_wpa_interface(dev))) {
 		ni_warn("Wireless connect failed - unknown interface %s(%d)",
@@ -1044,7 +1089,9 @@ ni_wireless_connect(ni_netdev_t *dev)
 	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
 		return -NI_ERROR_RADIO_DISABLED;
 
-	return ni_wpa_nif_set_all_networks_property_enabled(wif, TRUE);
+	if (!(ret = ni_wpa_nif_set_all_networks_property_enabled(wif, TRUE)))
+		wlan->reconnect = TRUE;
+	return ret;
 }
 
 /*
@@ -1054,6 +1101,12 @@ int
 ni_wireless_disconnect(ni_netdev_t *dev)
 {
 	ni_wpa_nif_t *wif;
+	ni_wireless_t *wlan;
+
+	ni_debug_wireless("%s(%s)", __func__, dev->name);
+	if (!(wlan = dev->wireless))
+		return -NI_ERROR_INVALID_ARGS;
+	wlan->reconnect = FALSE;
 
 	if (!(wif = ni_wireless_get_wpa_interface(dev))) {
 		ni_warn("Wireless disconnect failed - unknown interface %s(%d)",
@@ -1161,7 +1214,40 @@ ni_wireless_sync_assoc_with_current_bss(ni_wireless_t *wlan, ni_wpa_nif_t *wif)
 		ni_link_address_init(&wlan->assoc.bssid);
 		wlan->assoc.signal = 0;
 		wlan->assoc.ssid.len = 0;
+		ni_string_free(&wlan->assoc.auth_mode);
 	}
+}
+
+static void
+ni_wireless_set_state(ni_netdev_t *dev, ni_wireless_assoc_state_t new_state)
+{
+	ni_wireless_t *wlan;
+	ni_wpa_nif_t *wif = NULL;
+
+	if (!(wlan = dev->wireless)) {
+		ni_warn("On state change received on %s but is't not wireless", dev->name);
+		return;
+	}
+
+	if (new_state == wlan->assoc.state)
+		return;
+
+	wlan->assoc.state = new_state;
+
+	if (new_state == NI_WIRELESS_ESTABLISHED){
+		wif = ni_wireless_get_wpa_interface(dev);
+		ni_timer_get_time(&wlan->assoc.established_time);
+		__ni_netdev_event(NULL, dev, NI_EVENT_LINK_ASSOCIATED);
+	}
+	ni_wireless_sync_assoc_with_current_bss(wlan, wif);
+
+	/* We keep track of when we were last changing to or
+	 * from fully authenticated state.
+	 * We use this to decide when to give up and announce
+	 * that we've lost the network - see the timer handling
+	 * code above.
+	 */
+	ni_wireless_update_association_timer(dev);
 }
 
 /*
@@ -1171,33 +1257,13 @@ ni_wireless_sync_assoc_with_current_bss(ni_wireless_t *wlan, ni_wpa_nif_t *wif)
 static void
 ni_wireless_on_state_change(ni_wpa_nif_t *wif, ni_wpa_nif_state_t old_state, ni_wpa_nif_state_t new_state)
 {
-	ni_wireless_assoc_state_t wireless_state_new = ni_wpa_nif_state_to_wireless_state(new_state);
 	ni_netdev_t *dev;
-	ni_wireless_t *wlan;
 
 	if (!(dev = ni_wireless_unwrap_wpa_nif(wif))){
 		ni_error("%s -- Unable to unwrap wpa_nif_t", __func__);
 		return;
 	}
-	wlan = dev->wireless;
-
-	if (wireless_state_new == wlan->assoc.state)
-		return;
-
-	wlan->assoc.state = wireless_state_new;
-	if (wireless_state_new == NI_WIRELESS_ESTABLISHED){
-		ni_wireless_sync_assoc_with_current_bss(wlan, wif);
-		ni_timer_get_time(&wlan->assoc.established_time);
-		__ni_netdev_event(NULL, dev, NI_EVENT_LINK_ASSOCIATED);
-	}
-
-	/* We keep track of when we were last changing to or
-	 * from fully authenticated state.
-	 * We use this to decide when to give up and announce
-	 * that we've lost the network - see the timer handling
-	 * code above.
-	 */
-	ni_wireless_update_association_timer(dev);
+	ni_wireless_set_state(dev, ni_wpa_nif_state_to_wireless_state(new_state));
 }
 
 static void
@@ -1211,7 +1277,9 @@ ni_wireless_on_properties_changed(ni_wpa_nif_t *wif, ni_dbus_variant_t *props)
 		ni_error("%s -- Unable to unwrap wpa_nif_t", __func__);
 		return;
 	}
-	wlan = dev->wireless;
+
+	if (!(wlan = dev->wireless))
+		return;
 
 	if (ni_dbus_dict_get(props, ni_wpa_nif_property_name(NI_WPA_NIF_PROPERTY_CURRENT_BSS))){
 		ni_wireless_sync_assoc_with_current_bss(wlan, wif);
@@ -1495,6 +1563,32 @@ ni_wireless_config_set_defaults(ni_wireless_config_t *conf)
 	conf->ap_scan = NI_WIRELESS_AP_SCAN_SUPPLICANT_AUTO;
 }
 
+
+ni_wireless_config_t *
+ni_wireless_config_new()
+{
+	ni_wireless_config_t *conf;
+
+	conf = calloc(1, sizeof(ni_wireless_config_t));
+	if (!conf) {
+		ni_error("Unable to create wireless config -- out of memory");
+		return NULL;
+	}
+	ni_wireless_config_set_defaults(conf);
+	return conf;
+}
+
+void
+ni_wireless_config_free(ni_wireless_config_t **conf)
+{
+	if (!conf || !*conf)
+		return;
+
+	ni_wireless_config_destroy(*conf);
+	free(*conf);
+	*conf = NULL;
+}
+
 ni_bool_t
 ni_wireless_config_init(ni_wireless_config_t *conf)
 {
@@ -1518,6 +1612,37 @@ ni_wireless_config_destroy(ni_wireless_config_t *conf)
 	}
 }
 
+void
+ni_wireless_config_copy(ni_wireless_config_t *dst, ni_wireless_config_t *src)
+{
+	if (!src || !dst || dst == src)
+		return;
+
+	ni_string_dup(&dst->country, src->country);
+	dst->ap_scan = src->ap_scan;
+	ni_string_dup(&dst->driver, src->driver);
+
+	ni_wireless_network_array_destroy(&dst->networks);
+	ni_wireless_network_array_copy(&dst->networks, &src->networks);
+}
+
+ni_bool_t
+ni_wireless_config_has_essid(ni_wireless_config_t *conf, ni_wireless_ssid_t *essid)
+{
+	unsigned int i, count;
+	ni_wireless_network_t *net;
+
+	ni_assert(conf != NULL && essid != NULL);
+
+	for (i = 0, count = conf->networks.count; i < count; i++) {
+		net = conf->networks.data[i];
+		if (ni_wireless_ssid_eq(&net->essid, essid))
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
 ni_wireless_t *
 ni_wireless_new(ni_netdev_t *dev)
 {
@@ -1526,7 +1651,6 @@ ni_wireless_new(ni_netdev_t *dev)
 	ni_assert(dev && !dev->wireless);
 	wlan = xcalloc(1, sizeof(ni_wireless_t));
 	if (wlan) {
-		ni_wireless_config_set_defaults(&wlan->conf);
 		ni_wireless_scan_set_defaults(&wlan->scan);
 	}
 	return wlan;
@@ -1539,7 +1663,7 @@ ni_wireless_free(ni_wireless_t *wireless)
 		if (wireless->assoc.timer)
 			ni_timer_cancel(wireless->assoc.timer);
 		ni_string_free(&wireless->assoc.auth_mode);
-		ni_wireless_config_destroy(&wireless->conf);
+		ni_wireless_config_free(&wireless->conf);
 		ni_wireless_scan_destroy(&wireless->scan);
 		free(wireless);
 	}
@@ -1597,6 +1721,7 @@ void
 ni_wireless_bss_free(ni_wireless_bss_t **bss)
 {
 	ni_wireless_bss_destroy(*bss);
+	free(*bss);
 	*bss = NULL;
 }
 
@@ -1770,6 +1895,15 @@ ni_wireless_network_array_destroy(ni_wireless_network_array_t *array)
 		ni_wireless_network_put(array->data[i]);
 	free(array->data);
 	memset(array, 0, sizeof(*array));
+}
+
+void
+ni_wireless_network_array_copy(ni_wireless_network_array_t *dst, ni_wireless_network_array_t *src)
+{
+	unsigned int i;
+
+	for (i = 0; i < src->count; ++i)
+		ni_wireless_network_array_append(dst, src->data[i]);
 }
 
 /*
@@ -1991,24 +2125,6 @@ ni_wireless_ssid_eq(ni_wireless_ssid_t *a, ni_wireless_ssid_t *b)
 
 	return FALSE;
 }
-
-ni_bool_t
-ni_wireless_essid_already_exists(ni_wireless_t *wlan, ni_wireless_ssid_t *essid)
-{
-	unsigned int i, count;
-	ni_wireless_network_t *net;
-
-	ni_assert(wlan != NULL && essid != NULL);
-
-	for (i = 0, count = wlan->conf.networks.count; i < count; i++) {
-		net = wlan->conf.networks.data[i];
-		if (ni_wireless_ssid_eq(&net->essid, essid))
-			return TRUE;
-	}
-
-	return FALSE;
-}
-
 
 static ni_bool_t
 ni_wireless_wep_key_validate_string(const char *key)

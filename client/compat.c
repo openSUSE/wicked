@@ -1546,37 +1546,40 @@ static ni_bool_t
 __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	ni_wireless_t *wlan;
+	ni_wireless_config_t *conf;
 	ni_wireless_network_t *net;
 	xml_node_t *wireless, *networks;
 	char *tmp = NULL;
 	unsigned int i;
 
 	wlan = ni_netdev_get_wireless(compat->dev);
+	if (!wlan || !(conf = wlan->conf))
+		return FALSE;
 
 	if (!(wireless = xml_node_create(ifnode, "wireless"))) {
 		return FALSE;
 	}
 
-	if (ni_string_len(wlan->conf.country) == 2) {
-		xml_node_new_element("country", wireless, wlan->conf.country);
+	if (ni_string_len(conf->country) == 2) {
+		xml_node_new_element("country", wireless, conf->country);
 	}
 
-	if (wlan->conf.ap_scan <= NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH &&
-		ni_string_printf(&tmp, "%u", wlan->conf.ap_scan)) {
+	if (conf->ap_scan <= NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH &&
+		ni_string_printf(&tmp, "%u", conf->ap_scan)) {
 		xml_node_new_element("ap-scan", wireless, tmp);
 		ni_string_free(&tmp);
 	}
 
-	if (!ni_string_empty(wlan->conf.driver))
-		xml_node_new_element("wpa-driver", wireless, wlan->conf.driver);
+	if (!ni_string_empty(conf->driver))
+		xml_node_new_element("wpa-driver", wireless, conf->driver);
 
-	if (wlan->conf.networks.count) {
+	if (conf->networks.count) {
 		if (!(networks = xml_node_create(NULL, "networks"))) {
 			return FALSE;
 		}
 
-		for (i = 0; i < wlan->conf.networks.count; i++) {
-			if (!(net = wlan->conf.networks.data[i])) {
+		for (i = 0; i < conf->networks.count; i++) {
+			if (!(net = conf->networks.data[i])) {
 				continue;
 			}
 

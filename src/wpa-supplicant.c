@@ -30,11 +30,19 @@
 #define SIGNAL_ERR(path, member, msg, ...) \
 	ni_error("%s: %s signal processing error: " msg, path, member, ##__VA_ARGS__);
 
+typedef struct ni_wpa_ops_handler		ni_wpa_ops_handler_t;
+struct ni_wpa_ops_handler {
+	ni_wpa_ops_handler_t			*next;
+	ni_wpa_client_ops_t			ops;
+	unsigned int				ifindex;
+};
+
 struct ni_wpa_client {
 	ni_dbus_client_t *			dbus;
 	ni_dbus_object_t *			object;
 
 	ni_wpa_nif_t *				nifs;
+	ni_wpa_ops_handler_t			*ops_handler_list;
 };
 static ni_wpa_client_t *			wpa_client; /* singelton */
 
@@ -63,6 +71,7 @@ static ni_dbus_object_t *			ni_objectmodel_wpa_nif_object_new(ni_wpa_client_t *,
 
 static ni_wpa_nif_t *				ni_objectmodel_wpa_nif_unwrap(const ni_dbus_object_t *, DBusError *);
 
+static void					ni_wpa_dbus_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 static void					ni_wpa_nif_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 static void					ni_wpa_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 
@@ -363,7 +372,101 @@ ni_wpa_client_open()
 				ni_wpa_nif_signal,
 				wpa);
 
+	ni_dbus_client_add_signal_handler(dbc,
+				NI_DBUS_BUS_NAME,	/* sender */
+				NULL,			/* object path */
+				NI_DBUS_INTERFACE,	/* object interface */
+				ni_wpa_dbus_signal,
+				wpa);
+
 	return wpa;
+}
+
+ni_wpa_ops_handler_t*
+ni_wpa_ops_handler_new(unsigned int ifindex)
+{
+	ni_wpa_ops_handler_t *handler;
+
+	handler = calloc(1, sizeof(*handler));
+	if (!handler) {
+		ni_error("Unable to alloc wpa client ops_handler -- out of memory");
+		return NULL;
+	}
+	handler->ifindex = ifindex;
+	return handler;
+}
+
+void
+ni_wpa_ops_handler_free(ni_wpa_ops_handler_t *handler)
+{
+	if (handler)
+		free(handler);
+}
+
+void
+ni_wpa_ops_handler_list_append(ni_wpa_ops_handler_t **list, ni_wpa_ops_handler_t *handler)
+{
+	while (*list)
+		list = &(*list)->next;
+	*list = handler;
+}
+
+ni_wpa_ops_handler_t *
+ni_wpa_ops_handler_find(ni_wpa_ops_handler_t **list, unsigned int ifindex)
+{
+	ni_wpa_ops_handler_t *handler;
+
+	for (handler = *list; handler; handler = handler->next) {
+		if (handler->ifindex == ifindex)
+			return handler;
+	}
+	return NULL;
+}
+
+ni_bool_t
+ni_wpa_ops_handler_list_delete(ni_wpa_ops_handler_t **list, ni_wpa_ops_handler_t *handler)
+{
+	ni_wpa_ops_handler_t **pos, *cur;
+
+	for (pos = list; (cur = *pos); pos = &cur->next) {
+		if (cur == handler) {
+			*pos = cur->next;
+			cur->next = NULL;
+			ni_wpa_ops_handler_free(cur);
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+ni_bool_t
+ni_wpa_client_set_ops(unsigned int ifindex, ni_wpa_client_ops_t* ops)
+{
+	ni_wpa_client_t *wpa = ni_wpa_client();
+	ni_wpa_ops_handler_t *new;
+
+	if (ni_wpa_ops_handler_find(&wpa->ops_handler_list, ifindex))
+		return TRUE;
+
+	new = ni_wpa_ops_handler_new(ifindex);
+	if (!new)
+		return FALSE;
+	new->ops = *ops;
+
+	ni_wpa_ops_handler_list_append(&wpa->ops_handler_list, new);
+	return TRUE;
+}
+
+ni_bool_t
+ni_wpa_client_del_ops(unsigned int ifindex)
+{
+	ni_wpa_client_t *wpa = ni_wpa_client();
+	ni_wpa_ops_handler_t *handler;
+
+	if ((handler = ni_wpa_ops_handler_find(&wpa->ops_handler_list, ifindex)))
+		return ni_wpa_ops_handler_list_delete(&wpa->ops_handler_list, handler);
+
+	return FALSE;
 }
 
 #if 0
@@ -371,6 +474,7 @@ static void
 ni_wpa_client_free(ni_wpa_client_t *wpa)
 {
 	ni_wpa_nif_t *wif;
+	ni_wpa_ops_handler_t *handler;
 
 	if (wpa->dbus) {
 		ni_dbus_client_free(wpa->dbus);
@@ -383,6 +487,9 @@ ni_wpa_client_free(ni_wpa_client_t *wpa)
 		wif->client = NULL;
 		ni_wpa_nif_free(wif);
 	}
+
+	while ((handler = wpa->ops_handler_list) != NULL)
+		ni_wpa_ops_handler_list_delete(&wpa->ops_handler_list, handler);
 
 	if (wpa->object) {
 		ni_dbus_object_free(wpa->object);
@@ -1016,6 +1123,10 @@ ni_wpa_nif_add_network(ni_wpa_nif_t *wif, const ni_wpa_net_properties_t *conf, n
 
 	ni_debug_wpa("Call to %s.%s(%s) returned object-path: %s",
 			interface, method, wif->device.name, object_path);
+
+	if (ni_string_array_index(&wif->properties.network_paths, object_path) < 0)
+		ni_string_array_append(&wif->properties.network_paths, object_path);
+
 	if (path)
 		ni_stringbuf_puts(path, object_path);
 
@@ -2490,6 +2601,89 @@ ni_wpa_nif_signal_eap(ni_wpa_nif_t *wif, const char *member, ni_dbus_message_t *
 cleanup:
 	ni_dbus_variant_destroy(&args[0]);
 	ni_dbus_variant_destroy(&args[1]);
+}
+
+static void
+ni_wpa_handle_wpa_supplicant_start(ni_wpa_client_t *wpa)
+{
+	ni_wpa_ops_handler_t *handler;
+	ni_netconfig_t *nc;
+	ni_netdev_t *dev;
+
+	if (!(nc = ni_global_state_handle(0))) {
+		ni_error("%s: Failed to get global net state", __func__);
+		return;
+	}
+
+	for (handler = wpa->ops_handler_list; handler; handler = handler->next) {
+		if ((dev = ni_netdev_by_index(nc, handler->ifindex)) &&
+		    handler->ops.on_wpa_supplicant_start)
+			handler->ops.on_wpa_supplicant_start(dev);
+	}
+}
+
+static void
+ni_wpa_handle_wpa_supplicant_stop(ni_wpa_client_t *wpa)
+{
+	ni_wpa_ops_handler_t *handler;
+	ni_netdev_t *dev;
+	ni_wpa_nif_t *wif;
+	ni_netconfig_t *nc;
+
+	while ((wif = wpa->nifs) != NULL)
+		ni_wpa_nif_free(wif);
+
+	if (!(nc = ni_global_state_handle(0))) {
+		ni_error("%s: Failed to get global net state", __func__);
+		return;
+	}
+
+	for (handler = wpa->ops_handler_list; handler; handler = handler->next) {
+		if ((dev = ni_netdev_by_index(nc, handler->ifindex)) &&
+		    handler->ops.on_wpa_supplicant_stop)
+			handler->ops.on_wpa_supplicant_stop(dev);
+	}
+}
+
+static void
+ni_wpa_dbus_signal(ni_dbus_connection_t *connection, ni_dbus_message_t *msg, void *user_data)
+{
+	ni_wpa_client_t *wpa = (ni_wpa_client_t*) user_data;
+	ni_dbus_variant_t args[3] = { NI_DBUS_VARIANT_INIT, NI_DBUS_VARIANT_INIT, NI_DBUS_VARIANT_INIT};
+	const char *member = dbus_message_get_member(msg);
+	const char *path = dbus_message_get_path(msg);
+	const char *name = NULL;
+	const char *old_owner = NULL;
+	const char *new_owner = NULL;
+
+	if (!ni_string_eq(member, "NameOwnerChanged"))
+		return;
+
+	if (ni_dbus_message_get_args_variants(msg, args, 3) != 3
+		|| !ni_dbus_variant_get_string(&args[0], &name)
+		|| !ni_dbus_variant_get_string(&args[1], &old_owner)
+		|| !ni_dbus_variant_get_string(&args[2], &new_owner)
+		){
+		SIGNAL_ERR(path, member, "unable to extract property-dict");
+		goto cleanup;
+	}
+
+	if (ni_string_eq(name, NI_WPA_INTERFACE)) {
+		if (ni_string_empty(old_owner) && !ni_string_empty(new_owner)) {
+			ni_debug_wpa("Start of wpa_supplicant (new owner '%s')", new_owner);
+			ni_wpa_handle_wpa_supplicant_start(wpa);
+		}
+		else if (!ni_string_empty(old_owner) && ni_string_empty(new_owner)) {
+			ni_debug_wpa("Stop of wpa_supplicant (old owner '%s')", old_owner);
+			ni_wpa_handle_wpa_supplicant_stop(wpa);
+		}
+	}
+
+
+cleanup:
+	ni_dbus_variant_destroy(&args[0]);
+	ni_dbus_variant_destroy(&args[1]);
+	ni_dbus_variant_destroy(&args[2]);
 }
 
 static void
