@@ -5424,6 +5424,8 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 	}
 	if (ni_sysconfig_get_integer(sc, "DHCLIENT_ROUTE_PRIORITY", &uint))
 		compat->dhcp4.route_priority = uint;
+	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_ROUTE_SET_SRC")))
+		ni_parse_boolean(string, &compat->dhcp4.route_set_src);
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_MODIFY_SMB_CONF"))) {
 		if (ni_string_eq(string, "yes")) {

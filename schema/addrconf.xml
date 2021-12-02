@@ -222,6 +222,7 @@
       <qualify type="boolean"/>
     </fqdn>
     <route-priority type="uint32" />
+    <route-set-src type="boolean" />
 
     <request-options class="array" element-type="string" element-name="option" />
   </define>

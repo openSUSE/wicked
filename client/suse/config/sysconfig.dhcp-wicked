@@ -76,6 +76,14 @@ DHCLIENT_BROADCAST=""
 #
 DHCLIENT_CREATE_CID=""
 
+## Type:        list(,yes,no)
+## Default:     ""
+#
+# When set to yes, the DHCPv4 IP address is set as the preferred source
+# in DHCPv4 provided routes.
+#
+DHCLIENT_ROUTE_SET_SRC=""
+
 ## Type:        list(enabled,disabled,default,)
 ## Default:     ""
 #

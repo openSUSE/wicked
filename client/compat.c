@@ -2272,6 +2272,9 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 		xml_node_dict_set(dhcp, "route-priority",
 				ni_sprint_uint(compat->dhcp4.route_priority));
 
+	if (compat->dhcp4.route_set_src)
+		xml_node_dict_set(dhcp, "route-set-src",
+				ni_format_boolean(compat->dhcp4.route_set_src));
 
 	if (compat->dhcp4.start_delay)
 		xml_node_dict_set(dhcp, "start-delay",

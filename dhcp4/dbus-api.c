@@ -480,6 +480,7 @@ static ni_dbus_property_t	dhcp4_request_properties[] = {
 	DHCP4REQ_STRING_PROPERTY(hostname, hostname, RO),
 	DHCP4REQ_DICT_PROPERTY(fqdn, fqdn, RO),
 	DHCP4REQ_UINT_PROPERTY(route-priority, route_priority, RO),
+	DHCP4REQ_BOOL_PROPERTY(route-set-src, route_set_src, RO),
 
 	DHCP4REQ_STRING_ARRAY_PROPERTY(request-options, request_options, RO),
 

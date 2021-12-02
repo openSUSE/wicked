@@ -155,6 +155,7 @@ struct ni_dhcp4_request {
 	ni_dhcp_fqdn_t		fqdn;
 	char *			hostname;
 	unsigned int		route_priority;
+	ni_bool_t		route_set_src;
 
 	ni_string_array_t	request_options;
 
@@ -198,6 +199,7 @@ struct ni_dhcp4_config {
 	ni_tristate_t		broadcast;
 
 	unsigned int		route_priority;
+	ni_bool_t		route_set_src;
 
 	unsigned int		max_lease_time;
 	ni_bool_t		recover_lease;
