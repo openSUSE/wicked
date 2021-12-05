@@ -2140,6 +2140,7 @@ ni_dhcp6_fsm_decline(ni_dhcp6_device_t *dev)
 
 
 	if (dev->retrans.count == 0) {
+		ni_dhcp6_fsm_timer_cancel(dev);
 
 		if (!ni_dhcp6_fsm_decline_info(dev, dev->lease->dhcp6.ia_list,
 				"Initiating DHCPv6 lease addresses decline",
@@ -2345,6 +2346,7 @@ ni_dhcp6_fsm_bound_info(ni_dhcp6_device_t *dev)
 	unsigned int refresh;
 	struct timeval now;
 
+	ni_dhcp6_fsm_timer_cancel(dev);
 	dev->fsm.state = NI_DHCP6_STATE_BOUND;
 
 	refresh = ni_dhcp6_config_info_refresh_time(dev->ifname, &range);
@@ -2386,6 +2388,7 @@ ni_dhcp6_fsm_bound(ni_dhcp6_device_t *dev)
 	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_INFO))
 		return ni_dhcp6_fsm_bound_info(dev);
 
+	ni_dhcp6_fsm_timer_cancel(dev);
 	timeout = ni_dhcp6_fsm_get_renewal_timeout(dev);
 	if (timeout > 0) {
 		dev->fsm.state = NI_DHCP6_STATE_BOUND;
