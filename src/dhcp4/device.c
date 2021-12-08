@@ -343,9 +343,9 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 
 	if (ni_log_facility(NI_TRACE_DHCP)) {
 		ni_trace("Received request:");
-		ni_trace("  acquire-timeout %u", config->acquire_timeout);
-		ni_trace("  max lease-time  %u", config->max_lease_time);
-		ni_trace("  start-delay     %u", config->start_delay);
+		ni_trace("  acquire-timeout %s", ni_sprint_timeout(config->acquire_timeout));
+		ni_trace("  max lease-time  %s", ni_sprint_timeout(config->max_lease_time));
+		ni_trace("  start-delay     %s", ni_sprint_timeout(config->start_delay));
 		ni_trace("  hostname        %s", config->hostname[0]? config->hostname : "<none>");
 		if (config->fqdn.enabled == NI_TRISTATE_ENABLE) {
 			ni_trace("  fqdn            update %s, encode %s, qualify %s",
