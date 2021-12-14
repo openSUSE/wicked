@@ -6112,7 +6112,9 @@ ni_suse_ifcfg_get_firewall(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 static const ni_var_t *
 __ifsysctl_get_var(ni_var_array_t *vars, const char *path, const char *ifname, const char *attr)
 {
-	const char *names[] = { "all", "default", ifname, NULL };
+	const char *def_names[] = { "all", "default", ifname, NULL };
+	const char *lo_names[] = { ifname, NULL };
+	const char **names = ni_string_eq(ifname, "lo") ? lo_names : def_names;
 	const char **name;
 	const ni_var_t *ret = NULL;
 	const ni_var_t *var;
