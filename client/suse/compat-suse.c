@@ -123,11 +123,11 @@ static ni_bool_t		__ni_ipv6_disbled;
 						  NULL }
 #define __NI_SUSE_SYSCTL_SUFFIX			".conf"
 #define __NI_SUSE_SYSCTL_BOOT			"/boot/sysctl.conf-"
-#define __NI_SUSE_SYSCTL_DIRS			{ "/lib/sysctl.d",                  \
+#define __NI_SUSE_SYSCTL_DIRS			{ "/run/sysctl.d",                  \
+						  "/etc/sysctl.d",                  \
+						  "/usr/local/lib/sysctl.d",        \
 						  "/usr/lib/sysctl.d",              \
-	                                          "/usr/local/lib/sysctl.d",        \
-	                                          "/etc/sysctl.d",                  \
-	                                          "/run/sysctl.d",                  \
+						  "/lib/sysctl.d",                  \
 						  NULL }
 #define __NI_SUSE_SYSCTL_FILE			"/etc/sysctl.conf"
 #define __NI_SUSE_PROC_IPV6_DIR			"/proc/sys/net/ipv6"
@@ -323,21 +323,16 @@ __ni_suse_read_default_hostname(const char *root, char **hostname)
 	return *hostname;
 }
 
-static int
-__ni_suse_string_compare(const void *lhs, const void *rhs)
-{
-	return strcmp(*(const char **)lhs, *(const char **)rhs);
-}
 
 static ni_bool_t
 __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 {
 	const char *sysctldirs[] = __NI_SUSE_SYSCTL_DIRS, **sysctld;
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
+	ni_var_array_t sysctl_d_files = NI_VAR_ARRAY_INIT;
 	char dirname[PATH_MAX];
 	char pathbuf[PATH_MAX];
 	const char *name;
-	char *real = NULL;
 	unsigned int i;
 	struct utsname u;
 
@@ -350,10 +345,8 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 	if (uname(&u) == 0) {
 		snprintf(pathbuf, sizeof(pathbuf), "%s%s%s", root,
 				__NI_SUSE_SYSCTL_BOOT, u.release);
-		name = ni_realpath(pathbuf, &real);
-		if (name && ni_isreg(name))
-			ni_string_array_append(&files, name);
-		ni_string_free(&real);
+		if (ni_file_exists(pathbuf))
+			ni_string_array_append(&files, pathbuf);
 	}
 
 	/*
@@ -367,38 +360,30 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 			continue;
 
 		if (ni_scandir(dirname, "*"__NI_SUSE_SYSCTL_SUFFIX, &names)) {
-
-			/*
-			 * config files in sysctl.d directories are often prefixed with
-			 * numbers determining an order, so we should preserve that order
-			 */
-			qsort(names.data, names.count, sizeof(char *),
-					__ni_suse_string_compare);
-
 			for (i = 0; i < names.count; ++i) {
 				char *path = NULL;
 				if (!ni_string_printf(&path, "%s/%s", dirname, names.data[i]))
 					continue;
-				name = ni_realpath(path, &real);
+				if (!ni_var_array_get(&sysctl_d_files, names.data[i]))
+					ni_var_array_append(&sysctl_d_files, names.data[i], path);
 				ni_string_free(&path);
-				if (name && ni_isreg(name))
-					ni_string_array_append(&files, name);
-				ni_string_free(&real);
 			}
 		}
 		ni_string_array_destroy(&names);
 	}
+	ni_var_array_sort_by_name(&sysctl_d_files);
+	for(i = 0; i < sysctl_d_files.count; i++)
+		ni_string_array_append(&files, sysctl_d_files.data[i].value);
+	ni_var_array_destroy(&sysctl_d_files);
 
 	/*
 	 * then the old /etc/sysctl.conf
 	 */
 	snprintf(pathbuf, sizeof(pathbuf), "%s%s", root, __NI_SUSE_SYSCTL_FILE);
-	name = ni_realpath(pathbuf, &real);
-	if (name && ni_isreg(name)) {
-		if (ni_string_array_index(&files, name) == -1)
-			ni_string_array_append(&files, name);
+	if (ni_file_exists(pathbuf)) {
+		if (ni_string_array_index(&files, pathbuf) == -1)
+			ni_string_array_append(&files, pathbuf);
 	}
-	ni_string_free(&real);
 
 	/*
 	 * finally ifsysctl if they exist
@@ -410,12 +395,10 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 		snprintf(pathbuf, sizeof(pathbuf), "%s/%s/%s",
 				root, path, __NI_SUSE_IFSYSCTL_FILE);
 
-	name = ni_realpath(pathbuf, &real);
-	if (name && ni_isreg(name)) {
-		if (ni_string_array_index(&files, name) == -1)
-			ni_string_array_append(&files, name);
+	if (ni_file_exists(pathbuf)) {
+		if (ni_string_array_index(&files, pathbuf) == -1)
+			ni_string_array_append(&files, pathbuf);
 	}
-	ni_string_free(&real);
 
 	for (i = 0; i < files.count; ++i) {
 		name = files.data[i];

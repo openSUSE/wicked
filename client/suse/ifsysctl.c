@@ -148,9 +148,10 @@ __ni_sysctl_file_load(ni_var_array_t *vars, const char *filename,
 
 	fp = fopen(filename, "re");
 	if(fp == NULL) {
-		if (errno != ENOENT) {
+		if (errno != ENOENT)
 			ni_error("Unable to open %s: %m", filename);
-		}
+		else
+			ni_debug_readwrite("Cannot open '%s': %m", filename);
 		return FALSE;
 	}
 
