@@ -14,6 +14,7 @@
 #include <dirent.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
@@ -1033,6 +1034,19 @@ ni_bool_t
 ni_var_array_set_boolean(ni_var_array_t *nva, const char *name, int value)
 {
 	return ni_var_array_set(nva, name, value? "yes" : "no");
+}
+
+void
+ni_var_array_sort(ni_var_array_t *nva, ni_var_compare_fn_t fn)
+{
+	qsort(nva->data, nva->count, sizeof(ni_var_t),
+			(int (*)(const void *, const void *)) fn);
+}
+
+void
+ni_var_array_sort_by_name(ni_var_array_t *nva)
+{
+	ni_var_array_sort(nva, ni_var_name_cmp);
 }
 
 void
