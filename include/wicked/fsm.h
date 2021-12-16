@@ -8,7 +8,7 @@
 #ifndef __CLIENT_FSM_H__
 #define __CLIENT_FSM_H__
 
-#include <wicked/socket.h>	/* needed for ni_timer_t */
+#include <wicked/time.h>
 #include <wicked/secret.h>
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
@@ -44,8 +44,9 @@ typedef enum ni_config_origin_prio {
 	NI_CONFIG_ORIGIN_PRIO_UNKNOWN = 100,
 } ni_config_origin_prio_t;
 
-#define NI_IFWORKER_DEFAULT_TIMEOUT	30000
-#define NI_IFWORKER_INFINITE_TIMEOUT	((unsigned int) -1)
+#define NI_IFWORKER_DEFAULT_TIMEOUT	NI_TIMEOUT_FROM_SEC(30)
+#define NI_IFWORKER_INFINITE_TIMEOUT	NI_TIMEOUT_INFINITE
+#define NI_IFWORKER_INFINITE_SECONDS	NI_SECONDS_INFINITE
 
 typedef struct ni_fsm			ni_fsm_t;
 typedef struct ni_ifworker		ni_ifworker_t;
@@ -252,7 +253,7 @@ struct ni_fsm_event {
 struct ni_fsm {
 	ni_ifworker_array_t	pending;
 	ni_ifworker_array_t	workers;
-	unsigned int		worker_timeout;
+	ni_timeout_t		worker_timeout;
 	ni_bool_t		readonly;
 
 	unsigned int		timeout_count;
@@ -330,7 +331,7 @@ extern unsigned int		ni_fsm_policy_array_index(const ni_fsm_policy_array_t *, co
 extern ni_dbus_client_t *	ni_fsm_create_client(ni_fsm_t *);
 extern ni_bool_t		ni_fsm_refresh_state(ni_fsm_t *);
 extern unsigned int		ni_fsm_schedule(ni_fsm_t *);
-extern ni_bool_t		ni_fsm_do(ni_fsm_t *fsm, long *timeout_p);
+extern ni_bool_t		ni_fsm_do(ni_fsm_t *, ni_timeout_t *);
 extern void			ni_fsm_mainloop(ni_fsm_t *);
 extern void			ni_fsm_set_process_event_callback(ni_fsm_t *, void (*)(ni_fsm_t *, ni_ifworker_t *, ni_fsm_event_t *), void *);
 extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, ni_ifworker_array_t *);
@@ -399,7 +400,7 @@ extern void			ni_ifworker_array_remove_with_children(ni_ifworker_array_t *, ni_i
 extern int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
 extern void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 
-extern unsigned int		ni_fsm_find_max_timeout(ni_fsm_t *, unsigned int);
+extern ni_timeout_t		ni_fsm_find_max_timeout(ni_fsm_t *, ni_timeout_t);
 extern void			ni_fsm_require_register_type(const char *, ni_fsm_require_ctor_t *);
 extern ni_fsm_require_t *	ni_fsm_require_new(ni_fsm_require_fn_t *, ni_fsm_require_dtor_t *);
 

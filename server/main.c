@@ -289,7 +289,7 @@ run_interface_server(void)
 #endif
 
 	while (!ni_caught_terminal_signal()) {
-		long timeout;
+		ni_timeout_t timeout;
 
 		do {
 			timeout = ni_timer_next_timeout();

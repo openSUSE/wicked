@@ -516,7 +516,7 @@ ni_wireless_wpa_net_format_wep(ni_wpa_net_properties_t *properties, const ni_wir
 					return FALSE;
 			break;
 		default:
-			ni_warn("Unknown WEP key format len=%lu", len);
+			ni_warn("Unknown WEP key format len=%zu", len);
 		}
 	}
 	return TRUE;

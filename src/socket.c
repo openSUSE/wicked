@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
@@ -114,11 +115,12 @@ __ni_default_hangup_handler(ni_socket_t *sock)
  * Wait for incoming data on any of the sockets.
  */
 int
-ni_socket_array_wait(ni_socket_array_t *array, long timeout)
+ni_socket_array_wait(ni_socket_array_t *array, ni_timeout_t timeout)
 {
 	struct pollfd pfd[array->count];
 	struct timeval now, expires;
 	unsigned int i, socket_count;
+	int ptimeout = -1;
 
 	/* First step - cleanup empty socket slots from the array. */
 	ni_socket_array_cleanup(array);
@@ -145,26 +147,26 @@ ni_socket_array_wait(ni_socket_array_t *array, long timeout)
 	}
 
 	ni_timer_get_time(&now);
+	if (timeout < NI_TIMEOUT_INFINITE)
+		ptimeout = timeout < INT_MAX ? (int)timeout : INT_MAX;
 	if (timerisset(&expires)) {
-		struct timeval delta;
-		long delta_ms;
+		ni_timeout_t delta = ni_timeout_left(&expires, &now, NULL);
 
-		if (timercmp(&expires, &now, <)) {
-			timeout = 0;
+		if (ptimeout < 0) {
+			if (delta < (ni_timeout_t)INT_MAX)
+				ptimeout = (int)delta;
 		} else {
-			timersub(&expires, &now, &delta);
-			delta_ms = 1000 * delta.tv_sec + delta.tv_usec / 1000;
-			if (timeout < 0 || delta_ms < timeout)
-				timeout = delta_ms;
+			if (delta < (ni_timeout_t)ptimeout)
+				ptimeout = (int)delta;
 		}
 	}
 
-	if (socket_count == 0 && timeout < 0) {
+	if (socket_count == 0 && ptimeout < 0) {
 		ni_debug_socket("no sockets left to watch");
 		return 1;
 	}
 
-	if (poll(pfd, socket_count, timeout) < 0) {
+	if (poll(pfd, socket_count, ptimeout) < 0) {
 		if (errno == EINTR)
 			return 0;
 		ni_error("poll returns error: %m");
@@ -238,7 +240,7 @@ done_with_this_socket:
 }
 
 int
-ni_socket_wait(long timeout)
+ni_socket_wait(ni_timeout_t timeout)
 {
 	return ni_socket_array_wait(&__ni_sockets, timeout);
 }

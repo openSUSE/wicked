@@ -28,6 +28,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <wicked/time.h>
 #include <wicked/util.h>
 #include "dhcp6/options.h"
 #include "util_priv.h"

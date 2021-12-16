@@ -359,7 +359,7 @@ ni_dhcp4_tester_run(ni_dhcp4_tester_t *opts)
 
 	dhcp4_tester_status = NI_WICKED_RC_IN_PROGRESS;
 	while (!ni_caught_terminal_signal()) {
-		long timeout;
+		ni_timeout_t timeout;
 
 		timeout = ni_timer_next_timeout();
 

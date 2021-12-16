@@ -17,6 +17,7 @@
 
 #include <wicked/logging.h>
 #include <wicked/socket.h>
+#include <wicked/time.h>
 #include "socket_priv.h"
 #include "process.h"
 

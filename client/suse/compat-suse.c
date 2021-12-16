@@ -376,9 +376,11 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 					__ni_suse_string_compare);
 
 			for (i = 0; i < names.count; ++i) {
-				snprintf(pathbuf, sizeof(pathbuf), "%s/%s",
-						dirname, names.data[i]);
-				name = ni_realpath(pathbuf, &real);
+				char *path = NULL;
+				if (!ni_string_printf(&path, "%s/%s", dirname, names.data[i]))
+					continue;
+				name = ni_realpath(path, &real);
+				ni_string_free(&path);
 				if (name && ni_isreg(name))
 					ni_string_array_append(&files, name);
 				ni_string_free(&real);
@@ -1682,10 +1684,9 @@ __ni_suse_startmode(const ni_sysconfig_t *sc)
 		}
 
 		if ((value = ni_sysconfig_get_value(sc, "LINK_READY_WAIT"))) {
-			if (ni_string_eq(value, "infinite"))
-				control->link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			else
-				ni_parse_uint(value, &control->link_timeout, 10);
+			if (ni_parse_seconds_timeout(value, &control->link_timeout)
+			||  control->link_timeout == NI_IFWORKER_INFINITE_SECONDS)
+				control->link_timeout = 0; /* ifcfg(5): default is 0 */
 		}
 	}
 	return control;
@@ -5394,7 +5395,7 @@ __ni_suse_addrconf_dhcp4_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 		compat->dhcp4.acquire_timeout = uint;
 
 	if (ni_sysconfig_get_integer(sc, "DHCLIENT_LEASE_TIME", &uint))
-		compat->dhcp4.lease_time = ((int) uint >= 0) ? uint : 0;
+		compat->dhcp4.lease_time = uint;
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT_USE_LAST_LEASE")))
 		compat->dhcp4.recover_lease = !ni_string_eq(string, "no");
@@ -5580,7 +5581,7 @@ __ni_suse_addrconf_dhcp6_options(const ni_sysconfig_t *sc, ni_compat_netdev_t *c
 		compat->dhcp6.acquire_timeout = uint;
 
 	if (ni_sysconfig_get_integer(sc, "DHCLIENT6_LEASE_TIME", &uint))
-		compat->dhcp6.lease_time = ((int) uint >= 0) ? uint : 0;
+		compat->dhcp6.lease_time = uint;
 
 	if ((string = ni_sysconfig_get_value(sc, "DHCLIENT6_USE_LAST_LEASE")))
 		compat->dhcp6.recover_lease = !ni_string_eq(string, "no");
@@ -5726,7 +5727,7 @@ __ni_suse_addrconf_auto6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	compat->auto6.enabled = TRUE;
-	compat->auto6.defer_timeout = -1U; /* use a built-in timeout by default */
+	compat->auto6.defer_timeout = 0; /* use a built-in timeout by default */
 	if ((merged = ni_sysconfig_merge_defaults(sc, __ni_suse_config_defaults))) {
 		const char *value;
 

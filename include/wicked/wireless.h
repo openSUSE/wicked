@@ -10,9 +10,9 @@
 #include <sys/mman.h>
 
 #include <wicked/types.h>
+#include <wicked/time.h>
 #include <wicked/util.h>
 #include <wicked/logging.h>
-#include <wicked/socket.h>	/* for the timer stuff */
 
 typedef enum ni_wireless_mode {
 	NI_WIRELESS_MODE_UNKNOWN,

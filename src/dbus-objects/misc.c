@@ -2102,6 +2102,7 @@ ni_objectmodel_set_addrconf_dhcp6_ia_dict(ni_dhcp6_ia_t *ia, const ni_dbus_varia
 {
 	const ni_dbus_variant_t *array;
 	const char *type = NULL;
+	int64_t i64;
 
 	if (!ia || !dict || !ni_dbus_variant_is_dict(dict))
 		return FALSE;
@@ -2122,8 +2123,12 @@ ni_objectmodel_set_addrconf_dhcp6_ia_dict(ni_dhcp6_ia_t *ia, const ni_dbus_varia
 
 	if (!ni_dbus_dict_get_uint32(dict, "iaid", &ia->iaid))
 		return FALSE;
-	if (!ni_dbus_dict_get_int64(dict, "acquired", &ia->acquired.tv_sec))
+	if (ni_dbus_dict_get_int64(dict, "acquired", &i64)) {
+		ia->acquired.tv_sec = i64;
+		ia->acquired.tv_usec = 0;
+	} else {
 		return FALSE;
+	}
 
 	switch (ia->type) {
 	case NI_DHCP6_OPTION_IA_PD:

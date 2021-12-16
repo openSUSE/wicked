@@ -14,9 +14,6 @@
 #include <wicked/types.h>
 #include <wicked/util.h>
 
-#define NI_LIFETIME_EXPIRED	0
-#define NI_LIFETIME_INFINITE	0xffffffffU
-
 union ni_sockaddr {
 	sa_family_t		ss_family;
 	struct sockaddr_storage	ss;

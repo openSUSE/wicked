@@ -85,4 +85,15 @@
   <false value="0"/>
   <true value="1"/>
 </define>
+<define name="valid-lifetime-type" type="uint32" constraint="enum">
+  <infinite   value="4294967295"/>
+  <expired    value="0"/>
+</define>
+<define name="pref-lifetime-type" type="uint32" constraint="enum">
+  <infinite   value="4294967295"/>
+  <deprecated value="0"/>
+</define>
+<define name="seconds-type" type="uint32" constraint="enum">
+  <infinite   value="4294967295"/>
+</define>
 

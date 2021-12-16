@@ -200,11 +200,11 @@
       <identifier type="string"/>
     </user-class>
 
-    <start-delay type="uint32" />
-    <defer-timeout type="uint32" />
-    <acquire-timeout type="uint32" />
+    <start-delay type="seconds-type" />
+    <defer-timeout type="seconds-type" />
+    <acquire-timeout type="seconds-type" />
 
-    <lease-time type="uint32" />
+    <lease-time type="seconds-type" />
     <recover-lease type="boolean" />
     <release-lease type="boolean" />
     <broadcast type="tristate" />
@@ -262,11 +262,11 @@
     <client-id type="string" />
     <!-- vendor-class type="string" / -->
 
-    <start-delay type="uint32" />
-    <defer-timeout type="uint32" />
-    <acquire-timeout type="uint32" />
+    <start-delay type="seconds-type" />
+    <defer-timeout type="seconds-type" />
+    <acquire-timeout type="seconds-type" />
 
-    <lease-time type="uint32" />
+    <lease-time type="seconds-type" />
     <recover-lease type="boolean" />
     <release-lease type="boolean" />
 
@@ -343,7 +343,7 @@
 <service name="ipv6:auto" interface="org.opensuse.Network.Addrconf.ipv6.auto" object-class="netif">
   <define name="request" class="dict">
     <enabled type="boolean"/>
-    <defer-timeout type="uint32" />
+    <defer-timeout type="seconds-type" />
     <update type="builtin-addrconf-update-mask" />
   </define>
   <define name="properties" type="interface:addrconf-lease"/>

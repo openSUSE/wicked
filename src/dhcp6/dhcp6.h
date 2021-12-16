@@ -25,7 +25,7 @@
 
 #include <wicked/netinfo.h>	/* FIXME: required by addrconf.h ... */
 #include <wicked/addrconf.h>
-#include <wicked/socket.h>
+#include <wicked/time.h>
 #include "dhcp6/options.h"
 #include "dhcp6/request.h"
 #include "buffer.h"
@@ -201,9 +201,9 @@ struct ni_dhcp6_device {
 	struct {
 	    struct timeval	start;		/* when we've sent first msg        */
 	    unsigned int	count;		/* transfer count                   */
-	    unsigned int	delay;		/* initial delay                    */
+	    ni_timeout_t	delay;		/* initial delay in msec            */
 	    unsigned int	jitter;		/* jitter base for 1000 msec        */
-	    unsigned int	duration;	/* max duration in msec             */
+	    ni_timeout_t	duration;	/* max duration in msec             */
 	    struct timeval	deadline;	/* next delay/timeout deadline      */
 	    ni_timeout_param_t	params;		/* timeout parameters               */
 	} retrans;

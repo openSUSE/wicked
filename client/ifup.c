@@ -37,6 +37,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <wicked/socket.h>
 #include <wicked/fsm.h>
 
 #include "client/ifconfig.h"
@@ -48,7 +49,7 @@
 
 struct ni_nanny_fsm_monitor {
 	const ni_timer_t *      timer;
-	unsigned long		timeout;
+	ni_timeout_t		timeout;
 	ni_ifworker_array_t *	marked;
 };
 
@@ -386,7 +387,7 @@ ni_nanny_fsm_monitor_new(ni_fsm_t *fsm)
 }
 
 ni_bool_t
-ni_nanny_fsm_monitor_arm(ni_nanny_fsm_monitor_t *monitor, unsigned long timeout)
+ni_nanny_fsm_monitor_arm(ni_nanny_fsm_monitor_t *monitor, ni_timeout_t timeout)
 {
 	if (monitor) {
 		monitor->timeout = timeout;
@@ -408,14 +409,14 @@ ni_nanny_fsm_monitor_run(ni_nanny_fsm_monitor_t *monitor, ni_ifworker_array_t *m
 
 	monitor->marked = ni_ifworker_array_clone(marked);
 	while (!ni_caught_terminal_signal()) {
-		long timeout;
+		ni_timeout_t timeout;
 
 		if (!monitor->marked || !monitor->marked->count)
 			break;
 
 		timeout = ni_timer_next_timeout();
 		if (monitor->timeout == 0 ||
-		    (monitor->timeout > 0 && timeout < 0))
+		    (monitor->timeout > 0 && timeout == NI_TIMEOUT_INFINITE))
 			break;
 
 		if (ni_socket_wait(timeout) != 0)
@@ -484,7 +485,7 @@ ni_do_ifup(int argc, char **argv)
 	ni_bool_t check_prio = TRUE, set_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
 	int c, status = NI_WICKED_RC_USAGE;
-	unsigned int timeout = 0;
+	unsigned int seconds = 0;
 	ni_fsm_t *fsm;
 
 	fsm = ni_fsm_new();
@@ -515,16 +516,9 @@ ni_do_ifup(int argc, char **argv)
 			break;
 
 		case OPT_TIMEOUT:
-			if (!strcmp(optarg, "infinite")) {
-				timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			} else {
-				unsigned int sec;
-
-				if (ni_parse_uint(optarg, &sec, 10) < 0) {
-					ni_error("ifup: cannot parse timeout option \"%s\"", optarg);
-					goto usage;
-				}
-				timeout = sec * 1000; /* sec -> msec */
+			if (ni_parse_seconds_timeout(optarg, &seconds)) {
+				ni_error("ifup: cannot parse timeout option \"%s\"", optarg);
+				goto usage;
 			}
 			break;
 
@@ -621,12 +615,12 @@ usage:
 	}
 
 	/* Set timeout how long the action is allowed to wait */
-	if (timeout) {
-		fsm->worker_timeout = timeout; /* One set by user */
+	if (seconds) {
+		fsm->worker_timeout = NI_TIMEOUT_FROM_SEC(seconds);
 	} else
 	if (ni_wait_for_interfaces) {
 		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
-				ni_wait_for_interfaces*1000);
+				NI_TIMEOUT_FROM_SEC(ni_wait_for_interfaces));
 	} else {
 		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
 				NI_IFWORKER_DEFAULT_TIMEOUT);
@@ -636,7 +630,7 @@ usage:
 		ni_debug_application("wait for interfaces infinitely");
 	else
 		ni_debug_application("wait %u seconds for interfaces",
-					fsm->worker_timeout/1000);
+					NI_TIMEOUT_SEC(fsm->worker_timeout));
 
 	ni_nanny_fsm_monitor_arm(monitor, fsm->worker_timeout);
 
