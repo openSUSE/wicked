@@ -148,9 +148,10 @@ __ni_sysctl_file_load(ni_var_array_t *vars, const char *filename,
 
 	fp = fopen(filename, "re");
 	if(fp == NULL) {
-		if (errno != ENOENT) {
+		if (errno != ENOENT)
 			ni_error("Unable to open %s: %m", filename);
-		}
+		else
+			ni_debug_readwrite("Cannot open '%s': %m", filename);
 		return FALSE;
 	}
 
@@ -261,6 +262,7 @@ __ni_ifsysctl_vars_map(ni_var_array_t *vars, const char *key, const char *val)
 	/*
 	 * And finally add it to the array
 	 */
+	ni_debug_readwrite("Add sysctl variable '%s=%s'", key, val);
 	ni_var_array_set(vars, key, val);
 	ni_stringbuf_destroy(&buf);
 }
