@@ -352,7 +352,7 @@ __change_int(const char *ifname, const char *attr, int value)
 static ni_bool_t
 __tristate_changed(ni_tristate_t cfg, ni_tristate_t sys)
 {
-	return ni_tristate_is_set(cfg) && cfg != sys;
+	return ni_tristate_is_set(sys) && ni_tristate_is_set(cfg) && cfg != sys;
 }
 
 int
@@ -831,7 +831,7 @@ __ni_ipv6_devconf_process_flag(ni_netdev_t *dev, unsigned int flag, int value)
 		ipv6->conf.accept_ra = value < 0 ? 0 : value > 2 ? 2 : value;
 		break;
 	case NI_IPV6_DEVCONF_ACCEPT_DAD:
-		ipv6->conf.accept_dad = value < 0 ? 0 : value > 2 ? 2 : value;
+		ipv6->conf.accept_dad = value < -1 ? -1 : value > 2 ? 2 : value;
 		break;
 	case NI_IPV6_DEVCONF_AUTOCONF:
 		ipv6->conf.autoconf = !!value;
