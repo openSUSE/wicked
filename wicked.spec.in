@@ -32,6 +32,7 @@ Source1:        wicked-rpmlintrc
 # Never add any patches to this package without the upstream commit id in
 # the patch. Any patches added here without a very good reason to make an
 # exception will be silently removed with the next version update.
+# Note, that wicked.spec file is generated from wicked.spec.in which is in git.
 # Please use pull requests at https://github.com/openSUSE/wicked/ instead.
 #
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
