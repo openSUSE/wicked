@@ -487,7 +487,7 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 	ni_bonding_t *bond;
 	xml_node_t *child, *snodes, *snode;
 	unsigned int i;
-	int verbose = 0; /* do not supress defaults */
+	int verbose = 0; /* do not suppress defaults */
 
 	bond = ni_netdev_get_bonding(compat->dev);
 	child = xml_node_create(ifnode, "bond");
@@ -532,7 +532,7 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 			ni_bonding_mii_carrier_detect_name(bond->miimon.carrier_detect));
 	}
 
-	snodes = xml_node_create(child, "slaves");
+	snodes = bond->slaves.count ? xml_node_create(child, "slaves") : NULL;
 	for (i = 0; i < bond->slaves.count; ++i) {
 		ni_bonding_slave_t *slave = bond->slaves.data[i];
 
@@ -1313,168 +1313,194 @@ __ni_compat_generate_dummy(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	return TRUE;
 }
 
-static ni_bool_t
-__ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+static xml_node_t *
+ni_wireless_blob_to_xml(ni_wireless_blob_t *blob, const char *name, xml_node_t *parent)
 {
-	ni_wireless_t *wlan;
-	ni_wireless_network_t *net;
-	xml_node_t *wireless, *network, *wep, *wpa_psk, *wpa_eap;
-	ni_wireless_blob_t *cert;
+	xml_node_t *xml = NULL;
+
+	xml = xml_node_new(name, NULL);
+	if (!xml)
+		goto error;
+
+	if (blob->is_string){
+		xml_node_add_attr(xml, "type", "path");
+		xml_node_set_cdata(xml, blob->str);
+	} else {
+		size_t hex_len = blob->byte_array.len * 2 + 1;
+		ni_string_free(&xml->cdata);
+		if (!(xml->cdata = malloc(hex_len)))
+			goto error;
+
+		if (ni_format_hex_data(blob->byte_array.data, blob->byte_array.len, xml->cdata, hex_len, NULL, FALSE) != 0)
+			goto error;
+
+		xml_node_add_attr(xml, "type", "hex");
+	}
+
+	xml_node_add_child(parent, xml);
+	return xml;
+
+error:
+	if (xml)
+		xml_node_free(xml);
+
+	return NULL;
+}
+
+static ni_bool_t
+__ni_compat_generate_wireless_network(xml_node_t *parent, ni_wireless_network_t *net)
+{
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	char *tmp = NULL;
 	const char *value;
-	int i, count, key_i;
+	xml_node_t *network, *wep, *wpa_psk, *wpa_eap;
+	ni_wireless_blob_t *cert;
+	int key_i;
 
-	wlan = ni_netdev_get_wireless(compat->dev);
 
-	if (!(wireless = xml_node_create(ifnode, "wireless"))) {
-		return FALSE;
+	if (!(network = xml_node_new("network", NULL)))
+		goto error;
+
+	if (net->essid.len > 0) {
+		xml_node_new_element("essid", network, ni_wireless_ssid_print(&net->essid, &buf));
+		ni_stringbuf_destroy(&buf);
 	}
 
-	if (ni_string_len(wlan->conf.country) == 2) {
-		xml_node_new_element("country", wireless, wlan->conf.country);
-	}
+	xml_node_new_element("scan-ssid", network, net->scan_ssid?"true":"false");
 
-	if (wlan->conf.ap_scan <= NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH &&
-		ni_string_printf(&tmp, "%u", wlan->conf.ap_scan)) {
-		xml_node_new_element("ap-scan", wireless, tmp);
+	if (net->priority > 0 &&
+			ni_string_printf(&tmp, "%u", net->priority)) {
+		xml_node_new_element("priority", network, tmp);
 		ni_string_free(&tmp);
 	}
 
-	if (!ni_string_empty(wlan->conf.driver))
-		xml_node_new_element("wpa-driver", wireless, wlan->conf.driver);
+	if ((value = ni_wireless_mode_to_name(net->mode))) {
+		xml_node_new_element("mode", network, value);
+	}
 
-	count = wlan->conf.networks.count;
-
-	for (i = 0; i < count; i++) {
-		net = wlan->conf.networks.data[i];
-		if (!(network = xml_node_new("network", wireless)))
-			return FALSE;
-
-		if (net->essid.len > 0) {
-			xml_node_new_element("essid", network, ni_wireless_print_ssid(&net->essid));
-		}
-
-		xml_node_new_element("scan-ssid", network, net->scan_ssid?"true":"false");
-
-		if (net->priority > 0 &&
-			ni_string_printf(&tmp, "%u", net->priority)) {
-			xml_node_new_element("priority", network, tmp);
-			ni_string_free(&tmp);
-		}
-
-		if ((value = ni_wireless_mode_to_name(net->mode))) {
-			xml_node_new_element("mode", network, value);
-		}
-
-		if (net->access_point.len > 0) {
-			xml_node_new_element("access-point", network,
+	if (net->access_point.len > 0) {
+		xml_node_new_element("access-point", network,
 				ni_link_address_print(&net->access_point));
-		}
+	}
 
-		if (net->channel > 0 &&
+	if (net->channel > 0 &&
 			ni_string_printf(&tmp, "%u", net->channel)) {
-			xml_node_new_element("channel", network, tmp);
-			ni_string_free(&tmp);
-		}
+		xml_node_new_element("channel", network, tmp);
+		ni_string_free(&tmp);
+	}
 
-		if (net->fragment_size > 0 &&
+	if (net->fragment_size > 0 &&
 			ni_string_printf(&tmp, "%u", net->fragment_size)) {
-			xml_node_new_element("fragment-size", network, tmp);
+		xml_node_new_element("fragment-size", network, tmp);
+		ni_string_free(&tmp);
+	}
+
+	if ((value = ni_format_bitmap(&buf, ni_wireless_key_management_map(), net->keymgmt_proto, ","))) {
+		xml_node_new_element("key-management", network, value);
+		ni_stringbuf_destroy(&buf);
+	}
+
+	if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_NONE)) {
+		if (!(wep = xml_node_new("wep", NULL))) {
+			goto error;
+		}
+
+		if ((value = ni_format_bitmap(&buf, ni_wireless_auth_algo_map(), net->auth_algo, ","))) {
+			xml_node_new_element("auth-algo", wep, value);
+			ni_stringbuf_destroy(&buf);
+		}
+
+		if (net->default_key < NI_WIRELESS_WEP_KEY_COUNT &&
+				ni_string_printf(&tmp, "%u", net->default_key)) {
+			xml_node_new_element("default-key", wep, tmp);
 			ni_string_free(&tmp);
 		}
 
-		if ((value = ni_wireless_key_management_to_name(net->keymgmt_proto))) {
-			xml_node_new_element("key-management", network, value);
+		for (key_i = 0; key_i < NI_WIRELESS_WEP_KEY_COUNT; key_i++) {
+			if (!ni_string_empty(net->wep_keys[key_i])) {
+				/* To be secured */
+				xml_node_new_element("key", wep, net->wep_keys[key_i]);
+			}
 		}
 
-		switch (net->keymgmt_proto) {
-		case NI_WIRELESS_KEY_MGMT_NONE:
-			if (!(wep = xml_node_new("wep", network))) {
-				return FALSE;
-			}
+		if (xml_node_get_child(wep, "key"))
+			xml_node_add_child(network, wep);
+		else
+			xml_node_free(wep);
+	}
 
-			if ((value = ni_wireless_auth_algo_to_name(net->auth_algo))) {
-				xml_node_new_element("auth-algo", wep, value);
-			}
+	if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_PSK)) {
+		if (!(wpa_psk = xml_node_new("wpa-psk", network))) {
+			goto error;
+		}
 
-			if (net->default_key < NI_WIRELESS_WEP_KEY_COUNT &&
-				ni_string_printf(&tmp, "%u", net->default_key)) {
-				xml_node_new_element("default-key", wep, tmp);
+		if (!ni_string_empty(net->wpa_psk.passphrase)) {
+			/* To be secured */
+			xml_node_new_element("passphrase", wpa_psk,
+					net->wpa_psk.passphrase);
+		}
+
+		if ((value = ni_format_bitmap(&buf, ni_wireless_auth_proto_map(),
+						net->auth_proto, ","))) {
+			xml_node_new_element("auth-proto", wpa_psk, value);
+			ni_stringbuf_destroy(&buf);
+		}
+
+		if ((value = ni_format_bitmap(&buf, ni_wireless_pairwise_map(), net->pairwise_cipher, ","))) {
+			xml_node_new_element("pairwise-cipher", wpa_psk, value);
+			ni_stringbuf_destroy(&buf);
+		}
+
+		if ((value = ni_format_bitmap(&buf, ni_wireless_group_map(), net->group_cipher, ","))) {
+			xml_node_new_element("group-cipher", wpa_psk, value);
+			ni_stringbuf_destroy(&buf);
+		}
+	}
+
+	if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_EAP)) {
+		if (!(wpa_eap = xml_node_new("wpa-eap", network))) {
+			goto error;
+		}
+
+		if ((value = ni_wireless_eap_method_to_name(net->wpa_eap.method))) {
+			xml_node_new_element("method", wpa_eap, value);
+		}
+
+		if ((value = ni_format_bitmap(&buf, ni_wireless_auth_proto_map(),
+						net->auth_proto, ","))) {
+			xml_node_new_element("auth-proto", wpa_eap, value);
+			ni_stringbuf_destroy(&buf);
+		}
+
+		if ((value = ni_format_bitmap(&buf, ni_wireless_pairwise_map(), net->pairwise_cipher, ","))) {
+			xml_node_new_element("pairwise-cipher", wpa_eap, value);
+			ni_stringbuf_destroy(&buf);
+		}
+
+		if ((value = ni_format_bitmap(&buf, ni_wireless_group_map(), net->group_cipher, ","))) {
+			xml_node_new_element("group-cipher", wpa_eap, value);
+			ni_stringbuf_destroy(&buf);
+		}
+
+		if (!ni_string_empty(net->wpa_eap.identity)) {
+			xml_node_new_element("identity", wpa_eap, net->wpa_eap.identity);
+		}
+
+		if (NI_WIRELESS_EAP_PEAP == net->wpa_eap.method ||
+				NI_WIRELESS_EAP_NONE == net->wpa_eap.method) {
+			xml_node_t *phase1 = xml_node_new("phase1", wpa_eap);
+
+			if (net->wpa_eap.phase1.peapver != -1U) {
+				ni_string_printf(&tmp, "%u", net->wpa_eap.phase1.peapver);
+				xml_node_new_element("peap-version", phase1, tmp);
 				ni_string_free(&tmp);
 			}
 
-			for (key_i = 0; key_i < NI_WIRELESS_WEP_KEY_COUNT; key_i++) {
-				if (!ni_string_empty(net->wep_keys[key_i])) {
-					/* To be secured */
-					xml_node_new_element("key", wep, net->wep_keys[key_i]);
-				}
-			}
-
-			break;
-		case NI_WIRELESS_KEY_MGMT_PSK:
-			if (!(wpa_psk = xml_node_new("wpa-psk", network))) {
-				return FALSE;
-			}
-
-			if (!ni_string_empty(net->wpa_psk.passphrase)) {
-				/* To be secured */
-				xml_node_new_element("passphrase", wpa_psk,
-					net->wpa_psk.passphrase);
-			}
-
-			if ((value = ni_wireless_auth_mode_to_name(net->auth_proto))) {
-				xml_node_new_element("auth-proto", wpa_psk, value);
-			}
-
-			if ((value = ni_wireless_cipher_to_name(net->pairwise_cipher))) {
-				xml_node_new_element("pairwise-cipher", wpa_psk, value);
-			}
-
-			if ((value = ni_wireless_cipher_to_name(net->group_cipher))) {
-				xml_node_new_element("group-cipher", wpa_psk, value);
-			}
-
-			break;
-
-		case NI_WIRELESS_KEY_MGMT_EAP:
-			if (!(wpa_eap = xml_node_new("wpa-eap", network))) {
-				return FALSE;
-			}
-
-			if ((value = ni_wireless_eap_method_to_name(net->wpa_eap.method))) {
-				xml_node_new_element("method", wpa_eap, value);
-			}
-
-			if ((value = ni_wireless_auth_mode_to_name(net->auth_proto))) {
-				xml_node_new_element("auth-proto", wpa_eap, value);
-			}
-
-			if ((value = ni_wireless_cipher_to_name(net->pairwise_cipher))) {
-				xml_node_new_element("pairwise-cipher", wpa_eap, value);
-			}
-
-			if ((value = ni_wireless_cipher_to_name(net->group_cipher))) {
-				xml_node_new_element("group-cipher", wpa_eap, value);
-			}
-
-			if (!ni_string_empty(net->wpa_eap.identity)) {
-				xml_node_new_element("identity", wpa_eap, net->wpa_eap.identity);
-			}
-
-			xml_node_t *phase1 = xml_node_new("phase1", wpa_eap);
-
-			if (NI_WIRELESS_EAP_PEAP == net->wpa_eap.method ||
-			    NI_WIRELESS_EAP_NONE == net->wpa_eap.method) {
-				if (net->wpa_eap.phase1.peapver != -1U) {
-					ni_string_printf(&tmp, "%u", net->wpa_eap.phase1.peapver);
-					xml_node_new_element("peap-version", phase1, tmp);
-					ni_string_free(&tmp);
-				}
-
-				xml_node_new_element("peap-label", phase1,
+			xml_node_new_element("peap-label", phase1,
 					ni_format_boolean(net->wpa_eap.phase1.peaplabel));
-			}
+		}
 
+		if (net->wpa_eap.phase2.method != NI_WIRELESS_EAP_NONE) {
 			xml_node_t *phase2 = xml_node_new("phase2", wpa_eap);
 
 			if ((value = ni_wireless_eap_method_to_name(net->wpa_eap.phase2.method))) {
@@ -1486,46 +1512,84 @@ __ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *comp
 				xml_node_new_element("password", phase2,
 						net->wpa_eap.phase2.password);
 			}
-
-			if (!ni_string_empty(net->wpa_eap.anonid)) {
-				xml_node_new_element("anonid", wpa_eap, net->wpa_eap.anonid);
-			}
-
-			xml_node_t *tls = xml_node_new("tls", wpa_eap);
-
-			if ((cert = net->wpa_eap.tls.ca_cert)) {
-				if (!ni_string_empty(cert->name)) {
-					xml_node_new_element("ca-cert", tls, cert->name);
-					/* FIXME/ADDME file data and size exporting */
-				}
-			}
-
-			if ((cert = net->wpa_eap.tls.client_cert)) {
-				if (!ni_string_empty(cert->name)) {
-					xml_node_new_element("client-cert", tls, cert->name);
-					/* FIXME/ADDME file data and size exporting */
-				}
-			}
-
-			if ((cert = net->wpa_eap.tls.client_key)) {
-				if (!ni_string_empty(cert->name)) {
-					xml_node_new_element("client-key", tls, cert->name);
-					/* FIXME/ADDME file data and size exporting */
-				}
-			}
-
-			if (!ni_string_empty(net->wpa_eap.tls.client_key_passwd)) {
-				xml_node_new_element("client-key-passwd", tls,
-						net->wpa_eap.tls.client_key_passwd);
-				/* FIXME/ADDME file data and size exporting */
-			}
-
-			break;
-
-		default:
-			return FALSE;
-			break;
 		}
+
+		if (!ni_string_empty(net->wpa_eap.anonid)) {
+			xml_node_new_element("anonid", wpa_eap, net->wpa_eap.anonid);
+		}
+
+		xml_node_t *tls = xml_node_new("tls", wpa_eap);
+
+		if ((cert = net->wpa_eap.tls.ca_cert))
+			ni_wireless_blob_to_xml(cert, "ca-cert", tls);
+
+		if ((cert = net->wpa_eap.tls.client_cert))
+			ni_wireless_blob_to_xml(cert, "client-cert", tls);
+
+		if ((cert = net->wpa_eap.tls.client_key))
+			ni_wireless_blob_to_xml(cert, "client-key", tls);
+
+		if (!ni_string_empty(net->wpa_eap.tls.client_key_passwd))
+			xml_node_new_element("client-key-passwd", tls,
+					net->wpa_eap.tls.client_key_passwd);
+	}
+
+	xml_node_add_child(parent, network);
+	return TRUE;
+
+error:
+	xml_node_free(network);
+	return FALSE;
+}
+
+static ni_bool_t
+__ni_compat_generate_wireless(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	ni_wireless_t *wlan;
+	ni_wireless_config_t *conf;
+	ni_wireless_network_t *net;
+	xml_node_t *wireless, *networks;
+	char *tmp = NULL;
+	unsigned int i;
+
+	wlan = ni_netdev_get_wireless(compat->dev);
+	if (!wlan || !(conf = wlan->conf))
+		return FALSE;
+
+	if (!(wireless = xml_node_create(ifnode, "wireless"))) {
+		return FALSE;
+	}
+
+	if (ni_string_len(conf->country) == 2) {
+		xml_node_new_element("country", wireless, conf->country);
+	}
+
+	if (conf->ap_scan <= NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH &&
+		ni_string_printf(&tmp, "%u", conf->ap_scan)) {
+		xml_node_new_element("ap-scan", wireless, tmp);
+		ni_string_free(&tmp);
+	}
+
+	if (!ni_string_empty(conf->driver))
+		xml_node_new_element("wpa-driver", wireless, conf->driver);
+
+	if (conf->networks.count) {
+		if (!(networks = xml_node_create(NULL, "networks"))) {
+			return FALSE;
+		}
+
+		for (i = 0; i < conf->networks.count; i++) {
+			if (!(net = conf->networks.data[i])) {
+				continue;
+			}
+
+			__ni_compat_generate_wireless_network(networks, net);
+		}
+
+		if (networks->children)
+			xml_node_add_child(wireless, networks);
+		else
+			xml_node_free(networks);
 	}
 
 	return TRUE;
@@ -2208,6 +2272,9 @@ __ni_compat_generate_dhcp4_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 		xml_node_dict_set(dhcp, "route-priority",
 				ni_sprint_uint(compat->dhcp4.route_priority));
 
+	if (compat->dhcp4.route_set_src)
+		xml_node_dict_set(dhcp, "route-set-src",
+				ni_format_boolean(compat->dhcp4.route_set_src));
 
 	if (compat->dhcp4.start_delay)
 		xml_node_dict_set(dhcp, "start-delay",
@@ -2389,7 +2456,7 @@ __ni_compat_generate_auto6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 
 	aconf = __ni_compat_generate_dynamic_addrconf(ifnode, "ipv6:auto", 0, compat->auto6.update);
 
-	if (aconf && compat->auto6.defer_timeout != -1U) {
+	if (aconf && compat->auto6.defer_timeout) {
 		xml_node_dict_set(aconf, "defer-timeout",
 				ni_sprint_timeout(compat->auto6.defer_timeout));
 	}
@@ -2873,16 +2940,20 @@ ni_compat_generate_interface(xml_document_t *doc, const ni_compat_netdev_t *comp
 		return NULL;
 
 	if((namenode = xml_node_new("name", ifnode))) {
+		if (!ni_string_empty(compat->dev->name)) {
+			/* we identify it by persistent/perdictable ifname */
+			xml_node_set_cdata(namenode, compat->dev->name);
+		} else
 		if (compat->identify.hwaddr.len &&
 		    compat->identify.hwaddr.type == ARPHRD_ETHER) {
-			/* whatever the name currently is, just use the name of
+			/* Note: compatibility to the obsolete use-nanny=false
+			 *       fsm namespace/identify (never used in ifcfg).
+			 *
+			 * whatever the name currently is, just use the name of
 			 * the ethernet device with given permanent-address */
 			xml_node_add_attr(namenode, "namespace", "ethernet");
 			xml_node_new_element("permanent-address", namenode,
 				ni_link_address_print(&compat->identify.hwaddr));
-		} else {
-			/* we identify it by persistent/perdictable ifname */
-			xml_node_set_cdata(namenode, compat->dev->name);
 		}
 
 		if (ni_compat_generate_ifnode_content(ifnode, compat)) {

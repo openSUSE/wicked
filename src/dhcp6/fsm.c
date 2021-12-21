@@ -42,7 +42,6 @@ static void			ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *);
 static void			ni_dhcp6_fsm_fail_timeout(ni_dhcp6_device_t *);
 static void             	__ni_dhcp6_fsm_timeout(void *, const ni_timer_t *);
 static void			ni_dhcp6_fsm_timer_cancel(ni_dhcp6_device_t *);
-static unsigned int		ni_dhcp6_remaining_time(struct timeval *, unsigned int);
 
 static int			ni_dhcp6_fsm_solicit      (ni_dhcp6_device_t *);
 static int			__ni_dhcp6_fsm_release    (ni_dhcp6_device_t *, unsigned int);
@@ -429,10 +428,11 @@ ni_dhcp6_fsm_retransmit_end(ni_dhcp6_device_t *dev)
 }
 
 void
-ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *dev, unsigned long msec)
+ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *dev, ni_timeout_t msec)
 {
 	if (msec != 0) {
-		ni_debug_dhcp("%s: setting fsm timeout to %lu msec", dev->ifname, msec);
+		ni_debug_dhcp("%s: setting fsm timeout to %u.%03u sec", dev->ifname,
+				NI_TIMEOUT_SEC(msec), NI_TIMEOUT_MSEC(msec));
 		if (dev->fsm.timer) {
 			ni_timer_rearm(dev->fsm.timer, msec);
 		} else {
@@ -442,6 +442,12 @@ ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *dev, unsigned long msec)
 		ni_timer_cancel(dev->fsm.timer);
 		dev->fsm.timer = NULL;
 	}
+}
+
+void
+ni_dhcp6_fsm_set_timeout_sec(ni_dhcp6_device_t *dev, unsigned int seconds)
+{
+	ni_dhcp6_fsm_set_timeout_msec(dev, NI_TIMEOUT_FROM_SEC(seconds));
 }
 
 static void
@@ -473,20 +479,20 @@ __show_remaining_timeouts(ni_dhcp6_device_t *dev, const char *info)
 {
 	if (dev->config->defer_timeout) {
 		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-			"%s: %s in state %s, remaining defer   timeout: %u of %u",
+			"%s: %s in state %s, remaining defer   timeout: %u of %u sec",
 				dev->ifname, info,
 				ni_dhcp6_fsm_state_name(dev->fsm.state),
-				ni_dhcp6_remaining_time(&dev->start_time,
-					dev->config->defer_timeout),
+				ni_lifetime_left(dev->config->defer_timeout,
+						&dev->start_time, NULL),
 				dev->config->defer_timeout);
 	}
 	if (dev->config->acquire_timeout) {
 		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-			"%s: %s in state %s, remaining acquire timeout: %u of %u",
+			"%s: %s in state %s, remaining acquire timeout: %u of %u sec",
 				dev->ifname, info,
 				ni_dhcp6_fsm_state_name(dev->fsm.state),
-				ni_dhcp6_remaining_time(&dev->start_time,
-					dev->config->acquire_timeout),
+				ni_lifetime_left(dev->config->acquire_timeout,
+						&dev->start_time, NULL),
 				dev->config->acquire_timeout);
 	}
 }
@@ -561,11 +567,10 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 			unsigned int deadline;
 
 			/* Do we still need this safeguard? */
-			deadline = ni_dhcp6_remaining_time(&dev->start_time,
-						dev->config->defer_timeout);
+			deadline = ni_lifetime_left(dev->config->defer_timeout,
+					&dev->start_time, NULL);
 			if (deadline) {
-				deadline *= 1000;
-				ni_dhcp6_fsm_set_timeout_msec(dev, deadline);
+				ni_dhcp6_fsm_set_timeout_sec(dev, deadline);
 				dev->fsm.fail_on_timeout = 0;
 				return;
 			}
@@ -575,11 +580,10 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 		if (dev->config->acquire_timeout) {
 			unsigned int deadline;
 
-			deadline = ni_dhcp6_remaining_time(&dev->start_time,
-					dev->config->acquire_timeout);
+			deadline = ni_lifetime_left(dev->config->acquire_timeout,
+					&dev->start_time, NULL);
 			if (deadline) {
-				deadline *= 1000;
-				ni_dhcp6_fsm_set_timeout_msec(dev, deadline);
+				ni_dhcp6_fsm_set_timeout_sec(dev, deadline);
 				dev->fsm.fail_on_timeout = 1;
 				return;
 			}
@@ -603,10 +607,9 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 		if (dev->config->acquire_timeout) {
 			unsigned int deadline;
 
-			deadline = ni_dhcp6_remaining_time(&dev->start_time,
-					dev->config->acquire_timeout);
+			deadline = ni_lifetime_left(dev->config->acquire_timeout,
+					&dev->start_time, NULL);
 			if (deadline) {
-				deadline *= 1000;
 				ni_dhcp6_fsm_set_timeout_msec(dev, deadline);
 				dev->fsm.fail_on_timeout = 1;
 				return;
@@ -627,10 +630,7 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 		if (dev->lease) {
 			/*
 			 * Commit current lease to continue using it.
-			 *
-			 * TODO: Verify this.
-			 *   Currently we apply with original lifetimes,
-			 *   we may update IA addrs to remaining times.
+			 * A confirm is not extending any lifetimes.
 			 */
 			ni_dhcp6_fsm_reset(dev);
 			ni_dhcp6_fsm_commit_lease(dev, dev->lease);
@@ -764,7 +764,7 @@ ni_dhcp6_fsm_select_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg,
 					dev->ifname, msg->lease->dhcp6.server_pref);
 		} else {
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-					"%s: dhcp6 server preference %u overriden by config to %d",
+					"%s: dhcp6 server preference %u overridden by config to %d",
 					dev->ifname, msg->lease->dhcp6.server_pref, pref);
 		}
 
@@ -849,7 +849,7 @@ ni_dhcp6_fsm_select_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg,
 					dev->ifname, msg->lease->dhcp6.server_pref);
 		} else {
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-					"%s: dhcp6 server preference %u overriden by config to %d",
+					"%s: dhcp6 server preference %u overridden by config to %d",
 					dev->ifname, msg->lease->dhcp6.server_pref, pref);
 		}
 
@@ -1420,7 +1420,7 @@ ni_dhcp6_fsm_release_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg
 
 		if (msg->lease->dhcp6.status->code == NI_DHCP6_STATUS_SUCCESS ||
 		    msg->lease->dhcp6.status->code == NI_DHCP6_STATUS_NOTONLINK) {
-			ni_debug_dhcp("%s: Received release reply %s %s -- comitting release",
+			ni_debug_dhcp("%s: Received release reply %s %s -- committing release",
 					dev->ifname,
 					ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
 					msg->lease->dhcp6.status->message);
@@ -1486,7 +1486,7 @@ ni_dhcp6_fsm_inforeq_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg
 					dev->ifname, msg->lease->dhcp6.server_pref);
 		} else {
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-					"%s: dhcp6 server preference %u overriden by config to %d",
+					"%s: dhcp6 server preference %u overridden by config to %d",
 					dev->ifname, msg->lease->dhcp6.server_pref, pref);
 		}
 		if (pref < 0) {
@@ -1671,17 +1671,6 @@ ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *
 	return rv;
 }
 
-static unsigned int
-ni_dhcp6_remaining_time(struct timeval *start, unsigned int timeout)
-{
-	struct timeval now;
-	struct timeval dif;
-
-	ni_timer_get_time(&now);
-	timersub(&now, start, &dif);
-	return timeout > dif.tv_sec ? timeout - dif.tv_sec : 0;
-}
-
 ni_bool_t
 ni_dhcp6_config_update_ia_list(ni_dhcp6_device_t *dev)
 {
@@ -1783,21 +1772,21 @@ ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 			goto cleanup;
 
 		if (dev->config->start_delay) {
-			dev->retrans.delay = dev->config->start_delay * 1000;
+			dev->retrans.delay = NI_TIMEOUT_FROM_SEC(dev->config->start_delay);
 		}
 
 		if (dev->config->defer_timeout) {
-			deadline = ni_dhcp6_remaining_time(&dev->start_time,
-					dev->config->defer_timeout);
+			deadline = ni_lifetime_left(dev->config->defer_timeout,
+					&dev->start_time, NULL);
 			dev->fsm.fail_on_timeout = 0;
 		}
 		if (!deadline && dev->config->acquire_timeout) {
-			deadline = ni_dhcp6_remaining_time(&dev->start_time,
-					dev->config->acquire_timeout);
+			deadline = ni_lifetime_left(dev->config->acquire_timeout,
+					&dev->start_time, NULL);
 			dev->fsm.fail_on_timeout = 1;
 		}
 		if (deadline) {
-			dev->retrans.duration = deadline * 1000;
+			dev->retrans.duration = NI_TIMEOUT_FROM_SEC(deadline);
 		}
 
 		dev->fsm.state = NI_DHCP6_STATE_SELECTING;
@@ -1825,7 +1814,7 @@ ni_dhcp6_fsm_solicit(ni_dhcp6_device_t *dev)
 		lease->fqdn.qualify = dev->config->fqdn.qualify;
 
 		if (dev->config->max_rt && dev->config->max_rt != -1U)
-			dev->retrans.params.max_timeout = dev->config->max_rt;
+			dev->retrans.params.max_timeout = NI_TIMEOUT_FROM_SEC(dev->config->max_rt);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_SOLICIT, &dev->message, lease) != 0)
 			goto cleanup;
@@ -1895,7 +1884,7 @@ ni_dhcp6_fsm_request_info(ni_dhcp6_device_t *dev)
 				dev->ifname);
 
 		if (dev->config->max_rt && dev->config->max_rt != -1U)
-			dev->retrans.params.max_timeout = dev->config->max_rt;
+			dev->retrans.params.max_timeout = NI_TIMEOUT_FROM_SEC(dev->config->max_rt);
 
 		if (ni_dhcp6_build_message(dev, NI_DHCP6_INFO_REQUEST, &dev->message, NULL) != 0)
 			return -1;
@@ -1941,8 +1930,8 @@ ni_dhcp6_fsm_confirm_prefix(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *l
 
 		/* reselect new when last prefix expires earlier */
 		if (deadline != NI_LIFETIME_EXPIRED &&
-		    (deadline * 1000) < dev->retrans.duration)
-			dev->retrans.duration = deadline * 1000;
+		    deadline < NI_TIMEOUT_SEC(dev->retrans.duration))
+			dev->retrans.duration = NI_TIMEOUT_FROM_SEC(deadline);
 
 		dev->fsm.state = NI_DHCP6_STATE_REBINDING;
 		rv = ni_dhcp6_device_transmit_init(dev);
@@ -2005,8 +1994,7 @@ ni_dhcp6_fsm_confirm_lease(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *le
 static int
 ni_dhcp6_fsm_renew(ni_dhcp6_device_t *dev)
 {
-	unsigned int deadline;
-	struct timeval duration;
+	unsigned int duration;
 	int rv = -1;
 
 	if (!dev->lease)
@@ -2021,18 +2009,15 @@ ni_dhcp6_fsm_renew(ni_dhcp6_device_t *dev)
 			return 1;
 		}
 
-		deadline = ni_dhcp6_fsm_get_rebind_timeout(dev);
-		ni_timer_get_time(&duration);
-		duration.tv_sec += deadline;
-
-		ni_info("%s: Initiating renewal of DHCPv6 lease, duration %s",
-				dev->ifname, ni_dhcp6_print_timeval(&duration));
+		duration = ni_dhcp6_fsm_get_rebind_timeout(dev);
+		ni_info("%s: Initiating renewal of DHCPv6 lease, duration %usec",
+				dev->ifname, duration);
 
 		dev->dhcp6.xid = 0;
 		if (ni_dhcp6_init_message(dev, NI_DHCP6_RENEW, dev->lease) != 0)
 			return -1;
 
-		dev->retrans.duration = deadline * 1000;
+		dev->retrans.duration = NI_TIMEOUT_FROM_SEC(duration);
 		dev->fsm.state = NI_DHCP6_STATE_RENEWING;
 
 		rv = ni_dhcp6_device_transmit_init(dev);
@@ -2053,8 +2038,7 @@ ni_dhcp6_fsm_renew(ni_dhcp6_device_t *dev)
 static int
 ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *dev)
 {
-	unsigned int deadline;
-	struct timeval duration;
+	unsigned int duration;
 	int rv = -1;
 
 	if (!dev->lease)
@@ -2076,19 +2060,17 @@ ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *dev)
 			return 1;
 		}
 
-		deadline = ni_dhcp6_fsm_get_expire_timeout(dev);
-		ni_timer_get_time(&duration);
-		duration.tv_sec += deadline;
+		duration = ni_dhcp6_fsm_get_expire_timeout(dev);
 
-		ni_info("%s: Initiating rebind of DHCPv6 lease, duration %s",
-			dev->ifname, ni_dhcp6_print_timeval(&duration));
+		ni_info("%s: Initiating rebind of DHCPv6 lease, duration %usec",
+			dev->ifname, duration);
 
 		dev->dhcp6.xid = 0;
 		if (ni_dhcp6_init_message(dev, NI_DHCP6_REBIND, dev->lease) != 0)
 			return -1;
 
 		dev->fsm.state = NI_DHCP6_STATE_REBINDING;
-		dev->retrans.duration = deadline * 1000;
+		dev->retrans.duration = NI_TIMEOUT_FROM_SEC(duration);
 		rv = ni_dhcp6_device_transmit_init(dev);
 	} else {
 		/* Pickup more IA's that reached rebind time
@@ -2158,6 +2140,7 @@ ni_dhcp6_fsm_decline(ni_dhcp6_device_t *dev)
 
 
 	if (dev->retrans.count == 0) {
+		ni_dhcp6_fsm_timer_cancel(dev);
 
 		if (!ni_dhcp6_fsm_decline_info(dev, dev->lease->dhcp6.ia_list,
 				"Initiating DHCPv6 lease addresses decline",
@@ -2312,7 +2295,17 @@ ni_dhcp6_fsm_commit_lease(ni_dhcp6_device_t *dev, ni_addrconf_lease_t *lease)
 			ni_addrconf_lease_file_write(dev->ifname, lease);
 		}
 
+		/* retrigger dad when link (carrier) may have been down */
+		ni_addrconf_lease_addrs_set_tentative(lease, dev->link.reconnect);
+
 		ni_dhcp6_send_event(NI_DHCP6_EVENT_ACQUIRED, dev, lease);
+
+		/* reset reconnect hint and remove tentative flag again */
+		if (dev->link.reconnect) {
+			ni_addrconf_lease_addrs_set_tentative(lease, FALSE);
+			dev->link.reconnect = FALSE;
+		}
+
 		if (dev->config->dry_run != NI_DHCP6_RUN_NORMAL) {
 			ni_dhcp6_device_drop_lease(dev);
 			ni_dhcp6_device_stop(dev);
@@ -2353,6 +2346,7 @@ ni_dhcp6_fsm_bound_info(ni_dhcp6_device_t *dev)
 	unsigned int refresh;
 	struct timeval now;
 
+	ni_dhcp6_fsm_timer_cancel(dev);
 	dev->fsm.state = NI_DHCP6_STATE_BOUND;
 
 	refresh = ni_dhcp6_config_info_refresh_time(dev->ifname, &range);
@@ -2377,7 +2371,7 @@ ni_dhcp6_fsm_bound_info(ni_dhcp6_device_t *dev)
 		return ni_dhcp6_fsm_request_info(dev);
 
 	default:
-		ni_dhcp6_fsm_set_timeout_msec(dev, (unsigned long)refresh * 1000);
+		ni_dhcp6_fsm_set_timeout_sec(dev, refresh);
 		break;
 	}
 	return 0;
@@ -2387,7 +2381,6 @@ static int
 ni_dhcp6_fsm_bound(ni_dhcp6_device_t *dev)
 {
 	unsigned int timeout;
-	struct timeval start;
 
 	if (!dev->lease)
 		return -1;
@@ -2395,6 +2388,7 @@ ni_dhcp6_fsm_bound(ni_dhcp6_device_t *dev)
 	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_INFO))
 		return ni_dhcp6_fsm_bound_info(dev);
 
+	ni_dhcp6_fsm_timer_cancel(dev);
 	timeout = ni_dhcp6_fsm_get_renewal_timeout(dev);
 	if (timeout > 0) {
 		dev->fsm.state = NI_DHCP6_STATE_BOUND;
@@ -2405,14 +2399,11 @@ ni_dhcp6_fsm_bound(ni_dhcp6_device_t *dev)
 					dev->ifname,
 					ni_dhcp6_fsm_state_name(dev->fsm.state));
 		} else {
-			ni_timer_get_time(&start);
-			start.tv_sec += timeout;
-
-			ni_debug_dhcp("%s: Reached %s state, scheduled RENEW to start in %s",
+			ni_debug_dhcp("%s: Reached %s state, scheduled RENEW to start in %usec",
 					dev->ifname, ni_dhcp6_fsm_state_name(dev->fsm.state),
-					ni_dhcp6_print_timeval(&start));
+					timeout);
 
-			ni_dhcp6_fsm_set_timeout_msec(dev, timeout * 1000);
+			ni_dhcp6_fsm_set_timeout_sec(dev, timeout);
 		}
 		return 0;
 	}
@@ -2439,7 +2430,7 @@ __ni_dhcp6_fsm_mark_ia_by_time(ni_dhcp6_device_t *dev,  unsigned int (*get_ia_ti
 			struct timeval dif;
 
 			timersub(&now, &ia->acquired, &dif);
-			if (dif.tv_sec + 1 >= rt) {
+			if ((unsigned long)dif.tv_sec + 1 >= (unsigned long)rt) {
 				ia->flags |= flag;
 				++ count;
 			}
@@ -2504,7 +2495,7 @@ __ni_dhcp6_fsm_get_timeout(ni_dhcp6_device_t *dev, unsigned int (*get_ia_time)(n
 			struct timeval dif;
 
 			timersub(&now, &ia->acquired, &dif);
-			if (lt > dif.tv_sec)
+			if ((unsigned long)lt > (unsigned long)dif.tv_sec)
 				lt -= dif.tv_sec;
 		}
 	}
@@ -2559,7 +2550,7 @@ ni_dhcp6_fsm_get_expire_timeout(ni_dhcp6_device_t *dev)
 			struct timeval dif;
 
 			timersub(&now, &ia->acquired, &dif);
-			if (lt > dif.tv_sec)
+			if ((unsigned long)lt > (unsigned long)dif.tv_sec)
 				lt -= dif.tv_sec;
 		}
 	}

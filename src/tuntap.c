@@ -29,6 +29,7 @@
 
 #include <arpa/inet.h>
 #include <limits.h>
+#include <errno.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/tuntap.h>
@@ -106,13 +107,19 @@ ni_tuntap_parse_sysfs_attrs(const char *ifname, ni_tuntap_t *cfg)
 
 	__ni_tuntap_init(cfg);
 
+	/*
+	 * don't complain on ENOENT: when we process a NEWLINK event
+	 * (e.g. up flag removal) and the kernel already deleted the
+	 * interface (DELLINK event is next), the sysfs entry may not
+	 * exist any more...
+	 */
 	if (ni_sysfs_netif_get_uint(ifname, attrs[0].name, &cfg->owner) < 0) {
-		if (!attrs[0].nofail)
+		if (errno != ENOENT && !attrs[0].nofail)
 			return -1;
 	}
 
 	if (ni_sysfs_netif_get_uint(ifname, attrs[1].name, &cfg->group) < 0) {
-		if (!attrs[1].nofail)
+		if (errno != ENOENT && !attrs[0].nofail)
 			return -1;
 	}
 

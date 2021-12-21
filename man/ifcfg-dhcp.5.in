@@ -13,7 +13,7 @@ ifcfg-dhcp \- common DHCPv4 and DHCPv6 elements of network interface configurati
 .SH VARIABLES
 The following is a list of DHCPv4 and DHCPv6 related variables that are globally
 configured in \fB/etc/sysconfig/network/dhcp\fR. When appropriate, examples are
-given in parentheses, and default values will either be explicity mentioned, or
+given in parentheses, and default values will either be explicitly mentioned, or
 will be marked by a "*". Please note, that to override any of the variables for
 a specific interface, simply redefine the variable in the appropriate ifcfg-
 file.
@@ -70,6 +70,10 @@ one of them does it.
 .TP
 .BR DHCLIENT_ROUTE_PRIORITY
 This option allows to set a metric/priority for DHCPv4 routes. Default is 0.
+.TP
+.BR DHCLIENT_ROUTE_SET_SRC\ { \fIno\fR* | yes }
+When set to yes, the DHCPv4 IP address is set as the preferred source
+in DHCPv4 provided routes.
 .TP
 .BR DHCLIENT_CLIENT_ID
 Specifies a client identifier string. By default an id derived from the
@@ -143,7 +147,7 @@ look at DHCLIENT_WAIT_AT_BOOT allowing to continue in background instead.
 Default value is 0.
 .TP
 .BR DHCLIENT_UPDATE\ {default,none,all,dns,ntp,nis,tz,boot,smb,nds,slp,sip,log}
-This variable permits to specify a space separated list of build-in
+This variable permits to specify a space separated list of built-in
 facility names supported by the dhcp4 client modifying the default
 options used in requests and to update system settings (via netconfig).
 
@@ -293,7 +297,7 @@ not get a reply from the DHCPv6 server. Before you set this variable, take a
 look at DHCLIENT6_WAIT_AT_BOOT allowing to continue in background instead.
 .TP
 .BR DHCLIENT6_UPDATE\ {default,none,all,dns,ntp,tz,boot,nis,sip}
-This variable permits to specify a space separated list of build-in
+This variable permits to specify a space separated list of built-in
 facility names supported by the dhcp6 client modifying the default
 options used in requests and to update system settings (via netconfig).
 

@@ -29,6 +29,7 @@
 <tr><td>network-address-prefix</td><td>array</td><td>below</td></tr>
 <tr><td>uuid-type</td><td>array</td><td>below</td></tr>
 <tr><td>external-file</td><td>array</td><td>below</td></tr>
+<tr><td>hex-string</td><td>array</td><td>below</td></tr>
 <tr><td>tristate</td><td>int32</td><td>below</td></tr>
 <tr><td>builtin-iftype</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-hwtype</td><td>uint16</td><td>below</td></tr>
@@ -41,17 +42,20 @@
 <tr><td>builtin-ifflags</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-wireless-mode</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-wireless-security</td><td>uint32</td><td>below</td></tr>
-<tr><td>builtin-wireless-auth</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-wireless-auth-proto</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-wireless-auth-algo</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-wireless-cipher</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-key-mgmt</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-eap-method</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-wireless-assoc-state</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-wireless-security-mask</td><td>uint32</td><td>below</td></tr>
-<tr><td>builtin-wireless-auth-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-wireless-auth-proto-mask</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-wireless-auth-algo-mask</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-wireless-cipher-mask</td><td>uint32</td><td>below</td></tr>
-<tr><td>builtin-key-mgmt-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-wireless-key-mgmt-mask</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-eap-method-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-wireless-oper-mode-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-wireless-scan-mode-mask</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-bonding-mode</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-bonding-arp-validate</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-bonding-mii-carrier-detect</td><td>uint32</td><td>below</td></tr>
@@ -60,13 +64,15 @@
 <tr><td>builtin-bonding-ad-select</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-bonding-fail-over-mac</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-bonding-primary-reselect</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-bonding-slave-state</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-bonding-slave-mii-status</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-route-type</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-route-scope</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-route-protocol</td><td>uint32</td><td>below</td></tr>
-<tr><td>builtin-route-table</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-route-flag-mask</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-route-nh-flag-mask</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-route-metrics-lock-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-rule-action-type</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-infiniband-mode</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-infiniband-umcast</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-vlan-protocol</td><td>uint16</td><td>below</td></tr>
@@ -74,6 +80,20 @@
 <tr><td>builtin-lldp-system-capabilities</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-macvlan-mode</td><td>uint32</td><td>below</td></tr>
 <tr><td>builtin-macvlan-flag-bits</td><td>uint16</td><td>below</td></tr>
+<tr><td>builtin-team-tx-hash-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-team-tx-balancer-type</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-team-ab-hwaddr-policy</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-team-lacp-select-policy</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-gre-flag-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-gre-encap-type</td><td>uint16</td><td>below</td></tr>
+<tr><td>builtin-gre-encap-flag-mask</td><td>uint16</td><td>below</td></tr>
+<tr><td>builtin-ethtool-driver-supports-mask</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-ethtool-link-duplex-type</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-ethtool-link-port-type</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-ethtool-link-mdix-type</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-ethtool-link-mdio-type</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-ethtool-link-xcvr-type</td><td>uint32</td><td>below</td></tr>
+<tr><td>builtin-ethtool-wol-flag-mask</td><td>uint32</td><td>below</td></tr>
 <tr><td>network-interface</td><td>dict</td><td>below</td></tr>
 </table>
 
@@ -163,15 +183,15 @@ This is an array of <a href="dbus.html#byte">byte</a>[6] (notation hwaddr).
 <a name="network-address"/>
 <h3>Type network-address</h3>
 <p>
-This is a network address of any support address family.On the wire, it is represented as uint16 containing the address family,followed by the raw address bytes in network byte order.<p>
-In the XML representation, an unambiguous "natural" representation is used,e.g.  dotted quad for IPv4.<p>
+This is a network address of any support address family. On the wire, it is represented as uint16 containing the address family, followed by the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4. <p>
 This is an array of <a href="dbus.html#byte">byte</a> (notation net-address).
 
 <a name="network-address-prefix"/>
 <h3>Type network-address-prefix</h3>
 <p>
-This is a network address in addr/prefix notation.On the wire, it is represented as uint16 containing the prefix length,followed by a uint16 containing the address family, and eventuallythe raw address bytes in network byte order.<p>
-In the XML representation, an unambiguous "natural" representation is used,e.g.  dotted quad for IPv4, followed by a slash and the prefixlen.<p>
+This is a network address in addr/prefix notation. On the wire, it is represented as uint16 containing the prefix length, followed by a uint16 containing the address family, and eventually the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4, followed by a slash and the prefixlen. <p>
 This is an array of <a href="dbus.html#byte">byte</a> (notation net-address-prefix).
 
 <a name="uuid-type"/>
@@ -182,9 +202,16 @@ This is an array of <a href="dbus.html#byte">byte</a>[16] (notation uuid).
 <a name="external-file"/>
 <h3>Type external-file</h3>
 <p>
-This type can be used in a schema definition. It is used to "splice"the contents of a file as raw binary data into the configuration thatis passed to the server.<p>
-The purpose of this is to be able to keep things like cryptographickeys in a separate file.<p>
+This type can be used in a schema definition. It is used to "splice" the contents of a file as raw binary data into the configuration that is passed to the server. <p>
+The purpose of this is to be able to keep things like cryptographic keys in a separate file. <p>
 This is an array of <a href="dbus.html#byte">byte</a> (notation external-file).
+
+<a name="hex-string"/>
+<h3>Type hex-string</h3>
+<p>
+On XML the data is in the format of `^([0-9a-f]{2})*$` and each two ascii characters representing one byte. <p>
+It can be used to store opaque data in XML. The DBus end will get a byte-array. <p>
+This is an array of <a href="dbus.html#byte">byte</a> (notation hex-string).
 
 <a name="tristate"/>
 <h3>Type tristate</h3>
@@ -222,6 +249,11 @@ This is a uint32 enumerated type, which can take the following values:
  <li>dummy (22)</li>
  <li>ctcm (23)</li>
  <li>iucv (24)</li>
+ <li>team (25)</li>
+ <li>ovs-system (26)</li>
+ <li>ovs-bridge (27)</li>
+ <li>ovs (28)</li>
+ <li>vxlan (29)</li>
 </ul><p>
 
 <a name="builtin-hwtype"/>
@@ -304,10 +336,10 @@ This is a uint32 enumerated type, which can take the following values:
 <h3>Type builtin-addrconf</h3>
 <p>
 This is a uint32 enumerated type, which can take the following values:
-<p><ul> <li>dhcp (0)</li>
- <li>static (1)</li>
- <li>auto (2)</li>
- <li>intrinsic (3)</li>
+<p><ul> <li>dhcp (1)</li>
+ <li>static (2)</li>
+ <li>auto (3)</li>
+ <li>intrinsic (4)</li>
 </ul><p>
 
 <a name="builtin-addrconf-state"/>
@@ -346,15 +378,22 @@ This is a uint32 bitmap type, which is a combination of zero or more of the foll
  <li>nds (6)</li>
  <li>slp (7)</li>
  <li>log (8)</li>
+ <li>mtu (9)</li>
+ <li>sip (10)</li>
+ <li>tz (12)</li>
+ <li>boot (13)</li>
 </ul><p>
 
 <a name="builtin-dhcp6-mode"/>
 <h3>Type builtin-dhcp6-mode</h3>
 <p>
-This is a uint32 enumerated type, which can take the following values:
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
 <p><ul> <li>auto (0)</li>
  <li>info (1)</li>
+ <li>config (1)</li>
  <li>managed (2)</li>
+ <li>address (2)</li>
+ <li>prefix (3)</li>
 </ul><p>
 
 <a name="builtin-ifflags"/>
@@ -378,12 +417,14 @@ This is a uint32 bitmap type, which is a combination of zero or more of the foll
 This is a uint32 enumerated type, which can take the following values:
 <p><ul> <li>unknown (0)</li>
  <li>auto (1)</li>
- <li>adhoc (2)</li>
- <li>managed (3)</li>
- <li>master (4)</li>
+ <li>ad-hoc (2)</li>
+ <li>infrastructure (3)</li>
+ <li>ap (4)</li>
  <li>repeater (5)</li>
  <li>secondary (6)</li>
  <li>monitor (7)</li>
+ <li>mesh (8)</li>
+ <li>p2p (9)</li>
 </ul><p>
 
 <a name="builtin-wireless-security"/>
@@ -395,13 +436,12 @@ This is a uint32 enumerated type, which can take the following values:
  <li>open (2)</li>
 </ul><p>
 
-<a name="builtin-wireless-auth"/>
-<h3>Type builtin-wireless-auth</h3>
+<a name="builtin-wireless-auth-proto"/>
+<h3>Type builtin-wireless-auth-proto</h3>
 <p>
 This is a uint32 enumerated type, which can take the following values:
-<p><ul> <li>default (0)</li>
- <li>wpa1 (1)</li>
- <li>wpa2 (2)</li>
+<p><ul> <li>wpa (0)</li>
+ <li>wpa2 (1)</li>
 </ul><p>
 
 <a name="builtin-wireless-auth-algo"/>
@@ -424,6 +464,13 @@ This is a uint32 enumerated type, which can take the following values:
  <li>wrap (4)</li>
  <li>ccmp (5)</li>
  <li>wep104 (6)</li>
+ <li>ccmp-256 (7)</li>
+ <li>gcmp-256 (8)</li>
+ <li>gcmp (9)</li>
+ <li>aes-128-cmac (10)</li>
+ <li>bip-gmac-128 (11)</li>
+ <li>bip-gmac-256 (12)</li>
+ <li>bip-cmac-256 (13)</li>
 </ul><p>
 
 <a name="builtin-key-mgmt"/>
@@ -435,6 +482,23 @@ This is a uint32 enumerated type, which can take the following values:
  <li>wpa-psk (2)</li>
  <li>ieee802-1x (3)</li>
  <li>proprietary (4)</li>
+ <li>ft-psk (5)</li>
+ <li>ft-eap (6)</li>
+ <li>ft-eap-sha384 (7)</li>
+ <li>wpa-psk-sha256 (8)</li>
+ <li>wpa-eap-sha256 (9)</li>
+ <li>sae (10)</li>
+ <li>ft-sae (11)</li>
+ <li>wps (12)</li>
+ <li>wpa-eap-suite-b (13)</li>
+ <li>wpa-eap-suite-b-192 (14)</li>
+ <li>osem (15)</li>
+ <li>fils-sha256 (16)</li>
+ <li>fils-sha384 (17)</li>
+ <li>ft-fils-sha256 (18)</li>
+ <li>ft-fils-sha384 (19)</li>
+ <li>owe (20)</li>
+ <li>dpp (21)</li>
 </ul><p>
 
 <a name="builtin-eap-method"/>
@@ -444,19 +508,36 @@ This is a uint32 enumerated type, which can take the following values:
 <p><ul> <li>none (0)</li>
  <li>md5 (1)</li>
  <li>tls (2)</li>
- <li>mschapv2 (3)</li>
- <li>peap (4)</li>
- <li>ttls (5)</li>
- <li>gtc (6)</li>
- <li>otp (7)</li>
- <li>leap (8)</li>
- <li>psk (9)</li>
- <li>pax (10)</li>
- <li>sake (11)</li>
- <li>gpsk (12)</li>
- <li>wsc (13)</li>
- <li>ikev2 (14)</li>
- <li>tnc (15)</li>
+ <li>pap (3)</li>
+ <li>chap (4)</li>
+ <li>mschap (5)</li>
+ <li>mschapv2 (6)</li>
+ <li>peap (7)</li>
+ <li>ttls (8)</li>
+ <li>gtc (9)</li>
+ <li>otp (10)</li>
+ <li>leap (11)</li>
+ <li>psk (12)</li>
+ <li>pax (13)</li>
+ <li>sake (14)</li>
+ <li>gpsk (15)</li>
+ <li>wsc (16)</li>
+ <li>ikev2 (17)</li>
+ <li>tnc (18)</li>
+ <li>fast (19)</li>
+ <li>aka (20)</li>
+ <li>aka_prime (21)</li>
+ <li>sim (22)</li>
+</ul><p>
+
+<a name="builtin-wireless-assoc-state"/>
+<h3>Type builtin-wireless-assoc-state</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>not-associated (0)</li>
+ <li>associating (1)</li>
+ <li>authenticating (2)</li>
+ <li>established (3)</li>
 </ul><p>
 
 <a name="builtin-wireless-security-mask"/>
@@ -468,13 +549,12 @@ This is a uint32 bitmap type, which is a combination of zero or more of the foll
  <li>open (2)</li>
 </ul><p>
 
-<a name="builtin-wireless-auth-mask"/>
-<h3>Type builtin-wireless-auth-mask</h3>
+<a name="builtin-wireless-auth-proto-mask"/>
+<h3>Type builtin-wireless-auth-proto-mask</h3>
 <p>
 This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
-<p><ul> <li>default (0)</li>
- <li>wpa1 (1)</li>
- <li>wpa2 (2)</li>
+<p><ul> <li>wpa (0)</li>
+ <li>wpa2 (1)</li>
 </ul><p>
 
 <a name="builtin-wireless-auth-algo-mask"/>
@@ -497,10 +577,17 @@ This is a uint32 bitmap type, which is a combination of zero or more of the foll
  <li>wrap (4)</li>
  <li>ccmp (5)</li>
  <li>wep104 (6)</li>
+ <li>ccmp-256 (7)</li>
+ <li>gcmp-256 (8)</li>
+ <li>gcmp (9)</li>
+ <li>aes-128-cmac (10)</li>
+ <li>bip-gmac-128 (11)</li>
+ <li>bip-gmac-256 (12)</li>
+ <li>bip-cmac-256 (13)</li>
 </ul><p>
 
-<a name="builtin-key-mgmt-mask"/>
-<h3>Type builtin-key-mgmt-mask</h3>
+<a name="builtin-wireless-key-mgmt-mask"/>
+<h3>Type builtin-wireless-key-mgmt-mask</h3>
 <p>
 This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
 <p><ul> <li>none (0)</li>
@@ -508,6 +595,23 @@ This is a uint32 bitmap type, which is a combination of zero or more of the foll
  <li>wpa-psk (2)</li>
  <li>ieee802-1x (3)</li>
  <li>proprietary (4)</li>
+ <li>ft-psk (5)</li>
+ <li>ft-eap (6)</li>
+ <li>ft-eap-sha384 (7)</li>
+ <li>wpa-psk-sha256 (8)</li>
+ <li>wpa-eap-sha256 (9)</li>
+ <li>sae (10)</li>
+ <li>ft-sae (11)</li>
+ <li>wps (12)</li>
+ <li>wpa-eap-suite-b (13)</li>
+ <li>wpa-eap-suite-b-192 (14)</li>
+ <li>osem (15)</li>
+ <li>fils-sha256 (16)</li>
+ <li>fils-sha384 (17)</li>
+ <li>ft-fils-sha256 (18)</li>
+ <li>ft-fils-sha384 (19)</li>
+ <li>owe (20)</li>
+ <li>dpp (21)</li>
 </ul><p>
 
 <a name="builtin-eap-method-mask"/>
@@ -517,19 +621,51 @@ This is a uint32 bitmap type, which is a combination of zero or more of the foll
 <p><ul> <li>none (0)</li>
  <li>md5 (1)</li>
  <li>tls (2)</li>
- <li>mschapv2 (3)</li>
- <li>peap (4)</li>
- <li>ttls (5)</li>
- <li>gtc (6)</li>
- <li>otp (7)</li>
- <li>leap (8)</li>
- <li>psk (9)</li>
- <li>pax (10)</li>
- <li>sake (11)</li>
- <li>gpsk (12)</li>
- <li>wsc (13)</li>
- <li>ikev2 (14)</li>
- <li>tnc (15)</li>
+ <li>pap (3)</li>
+ <li>chap (4)</li>
+ <li>mschap (5)</li>
+ <li>mschapv2 (6)</li>
+ <li>peap (7)</li>
+ <li>ttls (8)</li>
+ <li>gtc (9)</li>
+ <li>otp (10)</li>
+ <li>leap (11)</li>
+ <li>psk (12)</li>
+ <li>pax (13)</li>
+ <li>sake (14)</li>
+ <li>gpsk (15)</li>
+ <li>wsc (16)</li>
+ <li>ikev2 (17)</li>
+ <li>tnc (18)</li>
+ <li>fast (19)</li>
+ <li>aka (20)</li>
+ <li>aka_prime (21)</li>
+ <li>sim (22)</li>
+</ul><p>
+
+<a name="builtin-wireless-oper-mode-mask"/>
+<h3>Type builtin-wireless-oper-mode-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>unknown (0)</li>
+ <li>auto (1)</li>
+ <li>ad-hoc (2)</li>
+ <li>infrastructure (3)</li>
+ <li>ap (4)</li>
+ <li>repeater (5)</li>
+ <li>secondary (6)</li>
+ <li>monitor (7)</li>
+ <li>mesh (8)</li>
+ <li>p2p (9)</li>
+</ul><p>
+
+<a name="builtin-wireless-scan-mode-mask"/>
+<h3>Type builtin-wireless-scan-mode-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>active (0)</li>
+ <li>passive (1)</li>
+ <li>ssid (2)</li>
 </ul><p>
 
 <a name="builtin-bonding-mode"/>
@@ -548,53 +684,53 @@ This is a uint32 enumerated type, which can take the following values:
 <a name="builtin-bonding-arp-validate"/>
 <h3>Type builtin-bonding-arp-validate</h3>
 <p>
-Specifies whether or not ARP probes and replies should be validated in theactive-backup mode.<p>
+Specifies whether or not ARP probes and replies should be validated in the active-backup mode. <p>
 This is a uint32 enumerated type, which can take the following values:
-<p><ul> <li>description (1)</li>
- <li>none (0)</li>
+<p><ul> <li>none (0)</li>
  <li>active (1)</li>
  <li>backup (2)</li>
  <li>all (3)</li>
+ <li>filter (4)</li>
+ <li>filter_active (5)</li>
+ <li>filter_backup (6)</li>
 </ul><p>
 
 <a name="builtin-bonding-mii-carrier-detect"/>
 <h3>Type builtin-bonding-mii-carrier-detect</h3>
 <p>
-Specifies whether the MII monitor will use the netif network interface carrieror the deprecated MII / ETHTOOL ioctls to determine the status of the slaves.Default is to query netif carrier, but when the MII monitor fails to detectcarrier loss (e.g. disconnected cable) of a slave or it appears that the MIImonitor is very slow in detecting link failures, try specifying ioctl.<p>
+Specifies whether the MII monitor will use the netif network interface carrier or the deprecated MII / ETHTOOL ioctls to determine the status of the slaves. Default is to query netif carrier, but when the MII monitor fails to detect carrier loss (e.g. disconnected cable) of a slave or it appears that the MII monitor is very slow in detecting link failures, try specifying ioctl. <p>
 This is a uint32 enumerated type, which can take the following values:
-<p><ul> <li>description (1)</li>
- <li>ioctl (0)</li>
+<p><ul> <li>ioctl (0)</li>
  <li>netif (1)</li>
 </ul><p>
 
 <a name="builtin-bonding-xmit-hash-policy"/>
 <h3>Type builtin-bonding-xmit-hash-policy</h3>
 <p>
-Selects the transmit hash policy to use for slave selection in balance-xorand 802.3ad modes. The policies layer2 and layer23 are ieee802-3ad compliant.<p>
+Selects the transmit hash policy to use for slave selection in balance-xor and 802.3ad modes. The policies layer2 and layer23 are ieee802-3ad compliant. <p>
 This is a uint32 enumerated type, which can take the following values:
-<p><ul> <li>description (1)</li>
- <li>layer2 (0)</li>
- <li>layer23 (1)</li>
- <li>layer34 (2)</li>
+<p><ul> <li>layer2 (0)</li>
+ <li>layer34 (1)</li>
+ <li>layer23 (2)</li>
+ <li>encap23 (3)</li>
+ <li>encap34 (4)</li>
 </ul><p>
 
 <a name="builtin-bonding-lacp-rate"/>
 <h3>Type builtin-bonding-lacp-rate</h3>
 <p>
-Option specifying the rate in which the bond interface will ask the linkpartner to transmit LACPDU packets in 802.3ad mode.<p>
+Option specifying the rate in which the bond interface will ask the link partner to transmit LACPDU packets in 802.3ad mode. <p>
 This is a uint32 enumerated type, which can take the following values:
-<p><ul> <li>description (1)</li>
- <li>slow (0)</li>
+<p><ul> <li>slow (0)</li>
  <li>fast (1)</li>
 </ul><p>
 
 <a name="builtin-bonding-ad-select"/>
 <h3>Type builtin-bonding-ad-select</h3>
 <p>
-Specifies the 802.3ad aggregation selection logic to use.<p>
+Specifies the 802.3ad aggregation selection logic to use. <p>
 This is a uint32 enumerated type, which can take the following values:
-<p><ul> <li>description (1)</li>
- <li>stable (0)</li>
+<p><ul> <li>stable (0)</li>
  <li>bandwidth (1)</li>
  <li>count (2)</li>
 </ul><p>
@@ -602,10 +738,9 @@ This is a uint32 enumerated type, which can take the following values:
 <a name="builtin-bonding-fail-over-mac"/>
 <h3>Type builtin-bonding-fail-over-mac</h3>
 <p>
-Specifies whether active-backup mode should set all slaves to the sameMAC address at enslavement, or perform special handling of the bond'sMAC address in accordance with the selected policy.<p>
+Specifies whether active-backup mode should set all slaves to the same MAC address at enslavement, or perform special handling of the bond's MAC address in accordance with the selected policy. <p>
 This is a uint32 enumerated type, which can take the following values:
-<p><ul> <li>description (1)</li>
- <li>none (0)</li>
+<p><ul> <li>none (0)</li>
  <li>active (1)</li>
  <li>follow (2)</li>
 </ul><p>
@@ -613,12 +748,29 @@ This is a uint32 enumerated type, which can take the following values:
 <a name="builtin-bonding-primary-reselect"/>
 <h3>Type builtin-bonding-primary-reselect</h3>
 <p>
-Specifies the reselection policy for the primary slave. This affects howthe primary slave is chosen to become the active slave when failure ofthe active slave or recovery of the primary slave occurs. This optionis designed to prevent flip-flopping between the primary slave and otherslaves.<p>
+Specifies the reselection policy for the primary slave. This affects how the primary slave is chosen to become the active slave when failure of the active slave or recovery of the primary slave occurs. This option is designed to prevent flip-flopping between the primary slave and other slaves. <p>
 This is a uint32 enumerated type, which can take the following values:
-<p><ul> <li>description (1)</li>
- <li>always (0)</li>
+<p><ul> <li>always (0)</li>
  <li>better (1)</li>
  <li>failure (2)</li>
+</ul><p>
+
+<a name="builtin-bonding-slave-state"/>
+<h3>Type builtin-bonding-slave-state</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>active (0)</li>
+ <li>backup (1)</li>
+</ul><p>
+
+<a name="builtin-bonding-slave-mii-status"/>
+<h3>Type builtin-bonding-slave-mii-status</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>up (0)</li>
+ <li>fail (1)</li>
+ <li>down (2)</li>
+ <li>back (3)</li>
 </ul><p>
 
 <a name="builtin-route-type"/>
@@ -668,16 +820,6 @@ This is a uint32 enumerated type, which can take the following values:
  <li>dhcp (16)</li>
 </ul><p>
 
-<a name="builtin-route-table"/>
-<h3>Type builtin-route-table</h3>
-<p>
-This is a uint32 enumerated type, which can take the following values:
-<p><ul> <li>compat (252)</li>
- <li>default (253)</li>
- <li>main (254)</li>
- <li>local (255)</li>
-</ul><p>
-
 <a name="builtin-route-flag-mask"/>
 <h3>Type builtin-route-flag-mask</h3>
 <p>
@@ -714,6 +856,18 @@ This is a uint32 bitmap type, which is a combination of zero or more of the foll
  <li>features (12)</li>
  <li>rto_min (13)</li>
  <li>initrwnd (14)</li>
+</ul><p>
+
+<a name="builtin-rule-action-type"/>
+<h3>Type builtin-rule-action-type</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>lookup (1)</li>
+ <li>goto (2)</li>
+ <li>nop (3)</li>
+ <li>blackhole (6)</li>
+ <li>unreachable (7)</li>
+ <li>prohibit (8)</li>
 </ul><p>
 
 <a name="builtin-infiniband-mode"/>
@@ -773,8 +927,9 @@ This is a uint32 bitmap type, which is a combination of zero or more of the foll
 This is a uint32 enumerated type, which can take the following values:
 <p><ul> <li>private (1)</li>
  <li>vepa (2)</li>
- <li>pass-through (4)</li>
- <li>bridge (8)</li>
+ <li>bridge (4)</li>
+ <li>pass-through (8)</li>
+ <li>source (16)</li>
 </ul><p>
 
 <a name="builtin-macvlan-flag-bits"/>
@@ -784,10 +939,148 @@ This is a uint16 bitmap type, which is a combination of zero or more of the foll
 <p><ul> <li>nopromisc (0)</li>
 </ul><p>
 
+<a name="builtin-team-tx-hash-mask"/>
+<h3>Type builtin-team-tx-hash-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>eth (1)</li>
+ <li>vlan (2)</li>
+ <li>ipv4 (3)</li>
+ <li>ipv6 (4)</li>
+ <li>ip (5)</li>
+ <li>l3 (6)</li>
+ <li>tcp (7)</li>
+ <li>udp (8)</li>
+ <li>sctp (9)</li>
+ <li>l4 (10)</li>
+</ul><p>
+
+<a name="builtin-team-tx-balancer-type"/>
+<h3>Type builtin-team-tx-balancer-type</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>basic (0)</li>
+</ul><p>
+
+<a name="builtin-team-ab-hwaddr-policy"/>
+<h3>Type builtin-team-ab-hwaddr-policy</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>same_all (0)</li>
+ <li>by_active (1)</li>
+ <li>only_active (2)</li>
+</ul><p>
+
+<a name="builtin-team-lacp-select-policy"/>
+<h3>Type builtin-team-lacp-select-policy</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>lacp_prio (0)</li>
+ <li>lacp_prio_stable (1)</li>
+ <li>bandwidth (2)</li>
+ <li>count (3)</li>
+ <li>port_options (4)</li>
+</ul><p>
+
+<a name="builtin-gre-flag-mask"/>
+<h3>Type builtin-gre-flag-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>iseq (2)</li>
+ <li>oseq (3)</li>
+ <li>icsum (4)</li>
+ <li>ocsum (5)</li>
+</ul><p>
+
+<a name="builtin-gre-encap-type"/>
+<h3>Type builtin-gre-encap-type</h3>
+<p>
+This is a uint16 enumerated type, which can take the following values:
+<p><ul> <li>fou (1)</li>
+ <li>gue (2)</li>
+</ul><p>
+
+<a name="builtin-gre-encap-flag-mask"/>
+<h3>Type builtin-gre-encap-flag-mask</h3>
+<p>
+This is a uint16 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>csum (0)</li>
+ <li>csum6 (1)</li>
+ <li>remcsum (2)</li>
+</ul><p>
+
+<a name="builtin-ethtool-driver-supports-mask"/>
+<h3>Type builtin-ethtool-driver-supports-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>priv-flags (0)</li>
+ <li>statistics (1)</li>
+ <li>selftest (2)</li>
+ <li>eeprom-access (3)</li>
+ <li>register-dump (4)</li>
+</ul><p>
+
+<a name="builtin-ethtool-link-duplex-type"/>
+<h3>Type builtin-ethtool-link-duplex-type</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>half (0)</li>
+ <li>full (1)</li>
+</ul><p>
+
+<a name="builtin-ethtool-link-port-type"/>
+<h3>Type builtin-ethtool-link-port-type</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>TP (0)</li>
+ <li>AUI (1)</li>
+ <li>BNC (2)</li>
+ <li>MII (3)</li>
+ <li>Fibre (4)</li>
+ <li>DA (5)</li>
+ <li>None (254)</li>
+ <li>Other (255)</li>
+</ul><p>
+
+<a name="builtin-ethtool-link-mdix-type"/>
+<h3>Type builtin-ethtool-link-mdix-type</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>mdi (1)</li>
+ <li>mdi-x (2)</li>
+ <li>auto-mdi (3)</li>
+ <li>auto-mdi-x (4)</li>
+</ul><p>
+
+<a name="builtin-ethtool-link-mdio-type"/>
+<h3>Type builtin-ethtool-link-mdio-type</h3>
+<p>
+This is a uint32
+<a name="builtin-ethtool-link-xcvr-type"/>
+<h3>Type builtin-ethtool-link-xcvr-type</h3>
+<p>
+This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>internal (0)</li>
+ <li>external (1)</li>
+</ul><p>
+
+<a name="builtin-ethtool-wol-flag-mask"/>
+<h3>Type builtin-ethtool-wol-flag-mask</h3>
+<p>
+This is a uint32 bitmap type, which is a combination of zero or more of the following flags:
+<p><ul> <li>phy (0)</li>
+ <li>unicast (1)</li>
+ <li>multicast (2)</li>
+ <li>broadcast (3)</li>
+ <li>arp (4)</li>
+ <li>magic (5)</li>
+ <li>secure-on (6)</li>
+</ul><p>
+
 <a name="network-interface"/>
 <h3>Type network-interface</h3>
 <p>
-This defines the state of a network interface from the kernel's perspective.<p>
+This defines the state of a network interface from the kernel's perspective. <p>
 This is a dict-based type that provides the following members:
 <ul>
 <li><bold>name</bold> (<a href="dbus.html#string">string</a>). The kernel name of the interface</li>
@@ -811,6 +1104,7 @@ This is a dict-based type that provides the following members:
 </ul>
 <p>
 </li>
+<li><bold>scripts</bold> (<a href="scripts.html#configuration">scripts:configuration</a>). Complete script configuration</li>
 </ul>
 <p>
 </li>

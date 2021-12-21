@@ -396,7 +396,7 @@ ni_dhcp6_tester_run(ni_dhcp6_tester_t *opts)
 
 	dhcp6_tester_status = NI_WICKED_RC_IN_PROGRESS;
 	while (!ni_caught_terminal_signal()) {
-		long timeout;
+		ni_timeout_t timeout;
 
 		timeout = ni_timer_next_timeout();
 		if (dev->config && (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO))) {

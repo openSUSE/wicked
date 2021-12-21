@@ -42,7 +42,12 @@ It is a dict-based type that provides the following members:
 <li><bold>arpmon</bold> (dict). This is a dict-based type that provides the following members:
 <ul>
 <li><bold>interval</bold> (uint32). This is a uint32</li>
-<li><bold>validate</bold> (<a href="dbus.html#builtin-bonding-arp-validate">builtin-bonding-arp-validate</a>). Specifies whether or not ARP probes and replies should be validated in theactive-backup mode.</li>
+<li><bold>validate</bold> (<a href="dbus.html#builtin-bonding-arp-validate">builtin-bonding-arp-validate</a>). Specifies whether or not ARP probes and replies should be validated in the active-backup mode. </li>
+<li><bold>validate-targets</bold> (uint32). This is a uint32 enumerated type, which can take the following values:
+<p><ul> <li>any (0)</li>
+ <li>all (1)</li>
+</ul><p>
+</li>
 <li><bold>targets</bold> (array). This is an array of <a href="dbus.html#string">string</a>[1 .. infinity].
 </li>
 </ul>
@@ -51,22 +56,30 @@ It is a dict-based type that provides the following members:
 <li><bold>miimon</bold> (dict). This is a dict-based type that provides the following members:
 <ul>
 <li><bold>frequency</bold> (uint32). This is a uint32</li>
-<li><bold>updelay</bold> (<a href="dbus.html#uint32">uint32</a>). Specifies the time, in milliseconds, to wait before enabling aslave after a link recovery has been detected.</li>
-<li><bold>downdelay</bold> (<a href="dbus.html#uint32">uint32</a>). Specifies the time, in milliseconds, to wait before disablinga slave after a link failure has been detected.</li>
-<li><bold>carrier</bold> (<a href="dbus.html#builtin-bonding-mii-carrier-detect">builtin-bonding-mii-carrier-detect</a>). Specifies whether the MII monitor will use the netif network interface carrieror the deprecated MII / ETHTOOL ioctls to determine the status of the slaves.Default is to query netif carrier, but when the MII monitor fails to detectcarrier loss (e.g. disconnected cable) of a slave or it appears that the MIImonitor is very slow in detecting link failures, try specifying ioctl.</li>
+<li><bold>updelay</bold> (<a href="dbus.html#uint32">uint32</a>). Specifies the time, in milliseconds, to wait before enabling a slave after a link recovery has been detected.</li>
+<li><bold>downdelay</bold> (<a href="dbus.html#uint32">uint32</a>). Specifies the time, in milliseconds, to wait before disabling a slave after a link failure has been detected.</li>
+<li><bold>carrier-detect</bold> (<a href="dbus.html#builtin-bonding-mii-carrier-detect">builtin-bonding-mii-carrier-detect</a>). Specifies whether the MII monitor will use the netif network interface carrier or the deprecated MII / ETHTOOL ioctls to determine the status of the slaves. Default is to query netif carrier, but when the MII monitor fails to detect carrier loss (e.g. disconnected cable) of a slave or it appears that the MII monitor is very slow in detecting link failures, try specifying ioctl. </li>
 </ul>
 <p>
 </li>
-<li><bold>xmit-hash-policy</bold> (<a href="dbus.html#builtin-bonding-xmit-hash-policy">builtin-bonding-xmit-hash-policy</a>). Selects the transmit hash policy to use for slave selection in balance-xorand 802.3ad modes. The policies layer2 and layer23 are ieee802-3ad compliant.</li>
-<li><bold>lacp-rate</bold> (<a href="dbus.html#builtin-bonding-lacp-rate">builtin-bonding-lacp-rate</a>). Option specifying the rate in which the bond interface will ask the linkpartner to transmit LACPDU packets in 802.3ad mode.</li>
-<li><bold>ad-select</bold> (<a href="dbus.html#builtin-bonding-ad-select">builtin-bonding-ad-select</a>). Specifies the 802.3ad aggregation selection logic to use.</li>
-<li><bold>fail-over-mac</bold> (<a href="dbus.html#builtin-bonding-fail-over-mac">builtin-bonding-fail-over-mac</a>). Specifies whether active-backup mode should set all slaves to the sameMAC address at enslavement, or perform special handling of the bond'sMAC address in accordance with the selected policy.</li>
-<li><bold>primary-reselect</bold> (<a href="dbus.html#builtin-bonding-primary-reselect">builtin-bonding-primary-reselect</a>). Specifies the reselection policy for the primary slave. This affects howthe primary slave is chosen to become the active slave when failure ofthe active slave or recovery of the primary slave occurs. This optionis designed to prevent flip-flopping between the primary slave and otherslaves.</li>
+<li><bold>xmit-hash-policy</bold> (<a href="dbus.html#builtin-bonding-xmit-hash-policy">builtin-bonding-xmit-hash-policy</a>). Selects the transmit hash policy to use for slave selection in balance-xor and 802.3ad modes. The policies layer2 and layer23 are ieee802-3ad compliant. </li>
+<li><bold>lacp-rate</bold> (<a href="dbus.html#builtin-bonding-lacp-rate">builtin-bonding-lacp-rate</a>). Option specifying the rate in which the bond interface will ask the link partner to transmit LACPDU packets in 802.3ad mode. </li>
+<li><bold>ad-select</bold> (<a href="dbus.html#builtin-bonding-ad-select">builtin-bonding-ad-select</a>). Specifies the 802.3ad aggregation selection logic to use. </li>
+<li><bold>ad-user-port-key</bold> (<a href="dbus.html#uint16">uint16</a>). </li>
+<li><bold>ad-actor-sys-prio</bold> (<a href="dbus.html#uint16">uint16</a>). </li>
+<li><bold>ad-actor-system</bold> (<a href="dbus.html#ethernet-address">ethernet-address</a>). </li>
+<li><bold>fail-over-mac</bold> (<a href="dbus.html#builtin-bonding-fail-over-mac">builtin-bonding-fail-over-mac</a>). Specifies whether active-backup mode should set all slaves to the same MAC address at enslavement, or perform special handling of the bond's MAC address in accordance with the selected policy. </li>
+<li><bold>primary-reselect</bold> (<a href="dbus.html#builtin-bonding-primary-reselect">builtin-bonding-primary-reselect</a>). Specifies the reselection policy for the primary slave. This affects how the primary slave is chosen to become the active slave when failure of the active slave or recovery of the primary slave occurs. This option is designed to prevent flip-flopping between the primary slave and other slaves. </li>
 <li><bold>all-slaves-active</bold> (<a href="dbus.html#boolean">boolean</a>). Enable to deliver duplicate frames received on inactive slaves when enabled instead of dropping them.</li>
 <li><bold>min-links</bold> (<a href="dbus.html#uint32">uint32</a>). Specifies the minimum number of links that must be active before asserting carrier.</li>
 <li><bold>num-grat-arp</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
 <li><bold>num-unsol-na</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
 <li><bold>resend-igmp</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
+<li><bold>packets-per-slave</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
+<li><bold>tlb-dynamic-lb</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>lp-interval</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
+<li><bold>address</bold> (array). This is an array of <a href="dbus.html#byte">byte</a>[6 .. 20] (notation hwaddr).
+</li>
 </ul>
 <p>
 <p></dd>

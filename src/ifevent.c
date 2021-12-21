@@ -394,7 +394,7 @@ __ni_rtevent_dellink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	} else {
 		unsigned int old_flags = dev->link.ifflags;
 
-		dev->link.ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags, old_flags);
+		dev->link.ifflags = __ni_netdev_translate_ifflags(dev->name, ifi->ifi_flags, old_flags);
 		dev->deleted = 1;
 		__ni_netdev_process_events(nc, dev, old_flags);
 		ni_client_state_drop(dev->link.ifindex);
@@ -813,17 +813,17 @@ __ni_rtevent_process_nd_radv_opts(ni_netdev_t *dev, const struct nd_opt_hdr *opt
 		size_t opt_len;
 
 		if (len < 2) {
-			ni_error("%s: nd user option length too short", dev->name);
+			ni_error("%s: ND user option length too short", dev->name);
 			return -1;
 		}
 
 		opt_len = (opt->nd_opt_len << 3);
 		if (opt_len == 0) {
-			ni_error("%s: zero length nd user option", dev->name);
+			ni_error("%s: zero length ND user option", dev->name);
 			return -1;
 		}
 		else if (opt_len > len) {
-			ni_error("%s: nd user option length exceeds total length",
+			ni_error("%s: ND user option length exceeds total length",
 				dev->name);
 			return -1;
 		}
@@ -848,7 +848,7 @@ __ni_rtevent_process_nd_radv_opts(ni_netdev_t *dev, const struct nd_opt_hdr *opt
 		default:
 			/* kernels up to at least 3.4 do not provide other */
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IPV6|NI_TRACE_EVENTS,
-					"%s: unhandled nd user option %d",
+					"%s: unhandled ND user option %d",
 					dev->name, opt->nd_opt_type);
 		break;
 		}
@@ -871,7 +871,7 @@ __ni_rtevent_nduseropt(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 
 	dev = ni_netdev_by_index(nc, msg->nduseropt_ifindex);
 	if (!dev) {
-		ni_debug_events("ipv6 nd user option event for unknown device index: %u",
+		ni_debug_events("ipv6 ND user option event for unknown device index: %u",
 				msg->nduseropt_ifindex);
 		return 0;
 	}
@@ -879,7 +879,7 @@ __ni_rtevent_nduseropt(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 	if (msg->nduseropt_icmp_type != ND_ROUTER_ADVERT ||
 	    msg->nduseropt_icmp_code != 0 ||
 	    msg->nduseropt_family    != AF_INET6) {
-		ni_debug_events("%s: unknown rtnetlink nd user option message"
+		ni_debug_events("%s: unknown rtnetlink ND user option message"
 				" type %d, code %d, family %d", dev->name,
 				msg->nduseropt_icmp_type,
 				msg->nduseropt_icmp_code,
@@ -888,7 +888,7 @@ __ni_rtevent_nduseropt(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, str
 	}
 
 	if (!nlmsg_valid_hdr(h, sizeof(struct nduseroptmsg) + msg->nduseropt_opts_len)) {
-		ni_debug_events("%s: invalid rtnetlink nd user radv option length %d",
+		ni_debug_events("%s: invalid rtnetlink ND user radv option length %d",
 				dev->name, msg->nduseropt_opts_len);
 		return -1;
 	}
@@ -1321,13 +1321,13 @@ ni_server_enable_interface_nduseropt_events(void (*ifnduseropt_handler)(ni_netde
 	ni_rtevent_handle_t *handle;
 
 	if (!__ni_rtevent_sock || ni_global.interface_nduseropt_event) {
-		ni_error("Interface ND user opt event handler already set");
+		ni_error("Interface ND user option event handler already set");
 		return -1;
 	}
 
 	handle = __ni_rtevent_sock->user_data;
 	if (!__ni_rtevent_join_group(handle, RTNLGRP_ND_USEROPT)) {
-		ni_error("Cannot add rtnetlink nd user opt event membership: %m");
+		ni_error("Cannot add rtnetlink ND user option event membership: %m");
 		return -1;
 	}
 	ni_global.interface_nduseropt_event = ifnduseropt_handler;

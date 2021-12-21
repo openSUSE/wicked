@@ -26,7 +26,10 @@
 #include "config.h"
 #endif
 
+#include <assert.h>
 #include <ctype.h>
+#include <stdlib.h>
+#include <limits.h>
 #include <net/if_arp.h>
 #include <sys/time.h>
 #include <netlink/netlink.h>
@@ -49,22 +52,45 @@
 #include "client/dracut/cmdline.h"
 #include "buffer.h"
 
+/*
+ * default bond settings specified in dracut.cmdline(7) with
+ * additional explicit miimon=100 -- also a kernel default
+ * same to mode=balance-rr (unlucky as it needs switch setup).
+ */
+#define NI_DRACUT_CMDLINE_DEF_BOND_NAME		"bond0"
+#define NI_DRACUT_CMDLINE_DEF_BOND_SLAVES	"eth0,eth1"
+#define NI_DRACUT_CMDLINE_DEF_BOND_OPTIONS	"mode=balance-rr,miimon=100"
+
+ /*
+  * default team settings specified in dracut.cmdline(7) are
+  * defined as: `team=team0:eth0,eth1:activebackup`
+  * (see recent dracut version, older don't specify this).
+  */
+#define NI_DRACUT_CMDLINE_DEF_TEAM_NAME		"team0"
+#define NI_DRACUT_CMDLINE_DEF_TEAM_PORTS	"eth0,eth1"
+#define NI_DRACUT_CMDLINE_DEF_TEAM_RUNNER	"activebackup"
+
 typedef enum {
 	NI_DRACUT_PARAM_IFNAME = 0U,
-	NI_DRACUT_PARAM_BRIDGE,
 	NI_DRACUT_PARAM_BOND,
 	NI_DRACUT_PARAM_TEAM,
 	NI_DRACUT_PARAM_VLAN,
+	NI_DRACUT_PARAM_BRIDGE,
 	NI_DRACUT_PARAM_IP,
-} ni_cmdlineconfig_dracut_params_t;
+} ni_dracut_cmdline_param_t;
 
 static const ni_intmap_t	dracut_params[] = {
-	{ "ifname",		NI_DRACUT_PARAM_IFNAME		},
-	{ "bridge",		NI_DRACUT_PARAM_BRIDGE		},
+	/* interface type vars  */
 	{ "bond",		NI_DRACUT_PARAM_BOND		},
 	{ "team",		NI_DRACUT_PARAM_TEAM		},
 	{ "vlan",		NI_DRACUT_PARAM_VLAN		},
+	{ "bridge",		NI_DRACUT_PARAM_BRIDGE		},
+
+	/* ip and route config  */
 	{ "ip",			NI_DRACUT_PARAM_IP		},
+
+	/* interface matches    */
+	{ "ifname",		NI_DRACUT_PARAM_IFNAME		},
 
 	{ NULL,			-1U				}
 };
@@ -78,7 +104,7 @@ typedef enum {
 	NI_DRACUT_BOOTPROTO_DHCP6,
 	NI_DRACUT_BOOTPROTO_AUTO6,
 	NI_DRACUT_BOOTPROTO_IBFT,
-} ni_cmdlineconfig_dracut_bootprotos_t;
+} ni_dracut_cmdline_bootproto_t;
 
 static const ni_intmap_t	bootprotos[] = {
 	{ "off",		NI_DRACUT_BOOTPROTO_OFF		},
@@ -108,59 +134,6 @@ token_next(char *ptr, char sep)
 		*end++ = '\0';
 
 	return end;
-}
-
-const char *
-ni_dracut_param_name(unsigned int *param)
-{
-	return ni_format_uint_mapped(*param, dracut_params);
-}
-
-static ni_bool_t
-ni_dracut_cmdline_set_bonding_options(ni_netdev_t *dev, const char *options)
-{
-	ni_string_array_t temp;
-	ni_bonding_t *bond;
-	unsigned int i;
-	ni_bool_t ret = TRUE;
-
-	if ((bond = ni_netdev_get_bonding(dev)) == NULL)
-		return FALSE;
-
-	ni_string_array_init(&temp);
-	ni_string_split(&temp, options, ",", 0);
-	for (i = 0; i < temp.count; ++i) {
-		char *key = temp.data[i];
-		char *val = strchr(key, '=');
-
-		if (val != NULL)
-			*val++ = '\0';
-
-		/**
-		 * Substitute semicolon into expected colon-separated format
-		 * when we find a arp_ip_target list
-		 */
-		if (ni_string_eq(key, "arp_ip_target")) {
-			char *found;
-			while ((found = strchr(val, (int) ';')))
-				*found = ',';
-		}
-		if (ni_string_empty(key) || ni_string_empty(val)) {
-			ni_error("%s: Unable to parse bonding options '%s'",
-				dev->name, options);
-			ret = FALSE;
-			break;
-		}
-		if (!ni_bonding_set_option(bond, key, val)) {
-			ni_error("%s: Unable to parse bonding option: %s=%s",
-				dev->name, key, val);
-			ret = FALSE;
-			break;
-		}
-	}
-	ni_string_array_destroy(&temp);
-
-	return ret;
 }
 
 static ni_bool_t
@@ -230,168 +203,371 @@ ni_dracut_cmdline_parse_bootproto(ni_compat_netdev_t *nd, const char *val)
 
 /**
  * Adds a new compat_netdev_t to the array using
- * ifname as name or if it exists, adds the hwaddr/mtu to it
+ * ifname as name or if it exists, adds the lladdr/mtu to it
  */
 static ni_compat_netdev_t *
-ni_dracut_cmdline_add_netdev(ni_compat_netdev_array_t *nda, const char *ifname, const ni_hwaddr_t *hwaddr, const unsigned int *mtu, const int iftype)
+ni_dracut_cmdline_add_netdev(ni_compat_netdev_array_t *nda, const char *ifname, const ni_hwaddr_t *lladdr, const unsigned int *mtu, const int iftype)
 {
 	ni_compat_netdev_t *nd;
 
-	nd = ni_compat_netdev_by_name(nda, ifname);
+	if (!(nd = ni_compat_netdev_by_name(nda, ifname))) {
+		if (!(nd = ni_compat_netdev_new(ifname)))
+			return NULL;
 
-	/* We only apply the iftype if it hasn't been applied before
-	   (to avoid overwriting netdevs created by bridge=..., vlan=... etc) */
-	if (nd && (nd->dev->link.type == NI_IFTYPE_UNKNOWN))
-		nd->dev->link.type = iftype;
-	if (!nd) {
-		nd = ni_compat_netdev_new(ifname);
-
-		/* Assume default NI_IFTYPE_ETHERNET for newly created netdevs */
-		nd->dev->link.type = iftype == NI_IFTYPE_UNKNOWN ?
-			NI_IFTYPE_ETHERNET : iftype;
+		ni_compat_netdev_array_append(nda, nd);
 	}
 
-	if (ifname && nd && hwaddr) {
-		memcpy(nd->dev->link.hwaddr.data, hwaddr->data, hwaddr->len);
-		nd->dev->link.hwaddr.len = hwaddr->len;
-		nd->dev->link.hwaddr.type = hwaddr->type;
+
+	/* We only apply the iftype if it hasn't been applied before
+	 * (to avoid overwriting netdevs created by bridge=..., vlan=... etc) */
+	if (nd->dev->link.type == NI_IFTYPE_UNKNOWN)
+		nd->dev->link.type = iftype;
+
+	if (!ni_link_address_is_invalid(lladdr)) {
+		/* The link mac address is not a "generic" interface property,
+		 * but can be applied only on (ether) interfaces supporting it,
+		 * e.g. ethernet, bridge, bond, team, vlan (not on infiniband
+		 * ppp, tunnels, ...).
+		 * Assume it's (physical) ethernet interface if configured to
+		 * apply a link address, but the interface does not have type.
+		 */
+		if (nd->dev->link.type == NI_IFTYPE_UNKNOWN)
+			nd->dev->link.type = NI_IFTYPE_ETHERNET;
+
+		/* request to modify the link address aka `ip link set address <mac> dev <ifname>` */
+		ni_link_address_set(&nd->dev->link.hwaddr, lladdr->type, lladdr->data, lladdr->len);
 	}
 
 	if (mtu) {
+		/* request to set the mtu */
 		nd->dev->link.mtu = *mtu;
 	}
 
-	ni_compat_netdev_array_append(nda, nd);
+	return nd;
+}
+
+static ni_bool_t
+ni_dracut_cmdline_add_team_port(ni_compat_netdev_array_t *nda, ni_netdev_t *dev, const char *portname)
+{
+	ni_compat_netdev_t *nd;
+
+	if (!ni_netdev_name_is_valid(portname) || ni_string_eq(dev->name, portname)) {
+		ni_warn("dracut:cmdline team '%s': rejecting suspect port interface name '%s'",
+				dev->name, ni_print_suspect(portname, ni_string_len(portname)));
+		return FALSE;
+	}
+
+	if (!(nd = ni_dracut_cmdline_add_netdev(nda, portname, NULL, 0, NI_IFTYPE_UNKNOWN))) {
+		ni_warn("dracut:cmdline team '%s': unable to create port interface structure",
+				dev->name);
+		return FALSE;
+	}
+
+	if (!ni_string_empty(nd->dev->link.masterdev.name) &&
+	    !ni_string_eq(dev->name, nd->dev->link.masterdev.name)) {
+		ni_warn("dracut:cmdline team '%s': rejecting port '%s' already enslaved in '%s'",
+				dev->name, portname, nd->dev->link.masterdev.name);
+		return FALSE;
+	}
+
+	/* each port/slave refers via master to the team interface */
+	ni_netdev_ref_set_ifname(&nd->dev->link.masterdev, dev->name);
+
+	return TRUE;
+}
+
+static ni_compat_netdev_t *
+ni_dracut_cmdline_add_team(ni_compat_netdev_array_t *nda, const char *master, char *slaves, const char *runner)
+{
+	ni_team_runner_type_t rtype;
+	ni_compat_netdev_t *nd;
+	unsigned int cnt;
+	char *name;
+
+	if (!ni_netdev_name_is_valid(master)) {
+		ni_warn("dracut:cmdline team: rejecting suspect interface name '%s'",
+				ni_print_suspect(master, ni_string_len(master)));
+		return NULL;
+	}
+
+	if (!(nd = ni_dracut_cmdline_add_netdev(nda, master, NULL, NULL, NI_IFTYPE_TEAM)) ||
+	    !ni_netdev_get_team(nd->dev)) {
+		ni_warn("dracut:cmdline team '%s': unable to create team interface structure",
+				master);
+		return NULL;
+	}
+
+	if (!ni_team_runner_name_to_type(runner, &rtype)) {
+		ni_warn("dracut:cmdline team '%s': rejecting suspect runner type '%s'",
+				master, ni_print_suspect(runner, ni_string_len(runner)));
+	}
+	ni_team_runner_init(&nd->dev->team->runner, rtype);
+
+	for (cnt = 0, name = slaves; name; name = slaves) {
+		slaves = token_next(slaves, ',');
+		if (ni_dracut_cmdline_add_team_port(nda, nd->dev, name))
+			cnt++;
+	}
+	if (!cnt) {
+		ni_warn("dracut:cmdline team '%s': no valid port interfaces defined",
+				master);
+	}
+	return nd;
+}
+
+static ni_bool_t
+ni_dracut_cmdline_set_bond_options(ni_netdev_t *dev, char *options)
+{
+	char *option, *key, *val;
+	ni_bonding_t *bond;
+
+	if (!(bond = ni_netdev_get_bonding(dev)))
+		return FALSE;
+
+	for (option = options; option; option = options) {
+		options = token_next(options, ',');
+
+		key = option;
+		val = token_next(option, '=');
+
+		/* substitute semicolon into expected colon-separated format */
+		if (ni_string_eq(key, "arp_ip_target")) {
+			char *found;
+			while ((found = strchr(val, ';')))
+				*found = ',';
+		}
+		if (ni_string_empty(key) || ni_string_empty(val) ||
+		    !ni_bonding_set_option(bond, key, val)) {
+			ni_warn("dracut:cmdline bond '%s': rejecting invalid option '%s'='%s'",
+					dev->name, key ? key : "", val ? val : "");
+		}
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_dracut_cmdline_add_bond_port(ni_compat_netdev_array_t *nda, ni_netdev_t *dev, const char *portname)
+{
+	ni_compat_netdev_t *nd;
+#if 0
+	ni_bonding_t *bond;
+#endif
+	if (!ni_netdev_name_is_valid(portname) || ni_string_eq(dev->name, portname)) {
+		ni_warn("dracut:cmdline bond '%s': rejecting suspect port interface name '%s'",
+				dev->name, ni_print_suspect(portname, ni_string_len(portname)));
+		return FALSE;
+	}
+
+	if (!(nd = ni_dracut_cmdline_add_netdev(nda, portname, NULL, 0, NI_IFTYPE_UNKNOWN))) {
+		ni_warn("dracut:cmdline bridge '%s': unable to create port '%s' interface structure",
+				dev->name, portname);
+		return FALSE;
+	}
+
+	if (!ni_string_empty(nd->dev->link.masterdev.name) &&
+	    !ni_string_eq(dev->name, nd->dev->link.masterdev.name)) {
+		ni_warn("dracut:cmdline bond '%s': rejecting port '%s' already enslaved in '%s'",
+				dev->name, portname, nd->dev->link.masterdev.name);
+		return FALSE;
+	}
+
+	/* each port/slave device refers via master to the bond device */
+	ni_netdev_ref_set_ifname(&nd->dev->link.masterdev, dev->name);
+
+#if 0
+	/* port/slave list in bond is deprecated / unused by wickedd */
+	if ((bond = ni_netdev_get_bonding(dev)))
+		ni_bonding_add_slave(bond, port);
+#endif
+	return TRUE;
+}
+
+static ni_compat_netdev_t *
+ni_dracut_cmdline_add_bond(ni_compat_netdev_array_t *nda, const char *bondname, char *slaves,
+				const char *options, const unsigned int *mtu)
+{
+	ni_compat_netdev_t *nd;
+	char *opts = NULL;
+	unsigned int cnt;
+	const char *err;
+	char *name;
+
+	if (!ni_netdev_name_is_valid(bondname)) {
+		ni_warn("dracut:cmdline bond: rejecting suspect interface name '%s'",
+				ni_print_suspect(bondname, ni_string_len(bondname)));
+		return NULL;
+	}
+
+	if (!(nd = ni_dracut_cmdline_add_netdev(nda, bondname, NULL, mtu, NI_IFTYPE_BOND)) ||
+	    !ni_netdev_get_bonding(nd->dev)) {
+		ni_warn("dracut:cmdline bond '%s': unable to create bond interface structure",
+				bondname);
+		return NULL;
+	}
+
+	/* parse options first, so we can discard and reset if invalid */
+	ni_string_dup(&opts, options);
+	ni_dracut_cmdline_set_bond_options(nd->dev, opts);
+	ni_string_free(&opts);
+
+	if ((err = ni_bonding_validate(nd->dev->bonding))) {
+		ni_warn("dracut:cmdline bond '%s': rejecting invalid options: %s", bondname,
+				ni_print_suspect(options, ni_string_len(options)));
+		ni_netdev_set_bonding(nd->dev, NULL);
+
+		ni_netdev_get_bonding(nd->dev);
+		ni_string_dup(&opts, NI_DRACUT_CMDLINE_DEF_BOND_OPTIONS);
+		ni_dracut_cmdline_set_bond_options(nd->dev, opts);
+		ni_string_free(&opts);
+	}
+
+	for (cnt = 0, name = slaves; name; name = slaves) {
+		slaves = token_next(slaves, ',');
+		if (ni_dracut_cmdline_add_bond_port(nda, nd->dev, name))
+			cnt++;
+	}
+	if (!cnt) {
+		ni_warn("dracut:cmdline bond '%s': no valid port interfaces defined",
+				bondname);
+	}
 
 	return nd;
 }
 
-static ni_compat_netdev_t *
-ni_dracut_cmdline_add_team(ni_compat_netdev_array_t *nda, const char *master, char *slaves)
+static ni_bool_t
+ni_dracut_cmdline_add_bridge_port(ni_compat_netdev_array_t *nda, ni_netdev_t *dev, const char *portname)
 {
-	ni_team_t *team;
-	ni_team_port_t *port;
 	ni_compat_netdev_t *nd;
 
-	char *next;
-
-	nd = ni_dracut_cmdline_add_netdev(nda, master, NULL, NULL, NI_IFTYPE_TEAM);
-	team = ni_netdev_get_team(nd->dev);
-	ni_team_runner_init(&team->runner, NI_TEAM_RUNNER_ACTIVE_BACKUP);
-	for (next = token_peek(slaves, ','); next; slaves = next, next = token_peek(slaves, ',')) {
-
-		++next;
-		token_next(slaves, ',');
-		if (!ni_netdev_name_is_valid(slaves)) {
-			ni_warn("rejecting suspect port name '%s'", slaves);
-			continue;
-		}
-		port = ni_team_port_new();
-		ni_netdev_ref_set_ifname(&port->device, slaves);
-		ni_team_port_array_append(&team->ports, port);
+	if (!ni_netdev_name_is_valid(portname) || ni_string_eq(dev->name, portname)) {
+		ni_warn("dracut:cmdline bridge '%s': rejecting suspect port interface name '%s'",
+				dev->name, ni_print_suspect(portname, ni_string_len(portname)));
+		return FALSE;
 	}
-	port = ni_team_port_new();
-	ni_netdev_ref_set_ifname(&port->device, slaves);
-	ni_team_port_array_append(&team->ports, port);
 
-	return nd;
-}
-
-static ni_compat_netdev_t *
-ni_dracut_cmdline_add_bond(ni_compat_netdev_array_t *nda, const char *bondname, char *slaves, const char *options, const unsigned int *mtu)
-{
-	ni_bonding_t *bonding;
-	ni_compat_netdev_t *nd;
-	char *names = slaves;
-	char *next;
-
-	nd = ni_dracut_cmdline_add_netdev(nda, bondname, NULL, mtu, NI_IFTYPE_BOND);
-	bonding = ni_netdev_get_bonding(nd->dev);
-
-	for (next = token_peek(names, ','); next; names = next, next = token_peek(names, ',')) {
-		++next;
-		token_next(names, ',');
-		if (!ni_netdev_name_is_valid(names)) {
-			ni_warn("rejecting suspect port name '%s'", names);
-			continue;
-		}
-		ni_bonding_add_slave(bonding, names);
+	if (!(nd = ni_dracut_cmdline_add_netdev(nda, portname, NULL, 0, NI_IFTYPE_UNKNOWN))) {
+		ni_warn("dracut:cmdline bridge '%s': unable to create port '%s' interface structure",
+				dev->name, portname);
+		return FALSE;
 	}
-	ni_bonding_add_slave(bonding, names);
 
-	ni_dracut_cmdline_set_bonding_options(nd->dev, options);
+	if (!ni_string_empty(nd->dev->link.masterdev.name) &&
+	    !ni_string_eq(dev->name, nd->dev->link.masterdev.name)) {
+		ni_warn("dracut:cmdline bridge '%s': rejecting port '%s' already enslaved in '%s'",
+				dev->name, portname, nd->dev->link.masterdev.name);
+		return FALSE;
+	}
 
-	return nd;
+	/* each port/slave refers via master to the bridge interface */
+	ni_netdev_ref_set_ifname(&nd->dev->link.masterdev, dev->name);
+
+	return TRUE;
 }
 
 static ni_compat_netdev_t *
 ni_dracut_cmdline_add_bridge(ni_compat_netdev_array_t *nda, const char *brname, char *ports)
 {
-	ni_bridge_t *bridge;
 	ni_compat_netdev_t *nd;
-	char *names = ports;
-	char *next;
+	unsigned int cnt;
+	char *name;
 
-	nd = ni_dracut_cmdline_add_netdev(nda, brname, NULL, NULL, NI_IFTYPE_BRIDGE);
-	bridge = ni_netdev_get_bridge(nd->dev);
-
-	for (next = token_peek(names, ','); next; names = next, next = token_peek(names, ',')) {
-		++next;
-		token_next(names, ',');
-		if (!ni_netdev_name_is_valid(names)) {
-			ni_warn("rejecting suspect port name '%s'", names);
-			continue;
-		}
-		ni_bridge_port_new(bridge, names, 0);
+	if (!ni_netdev_name_is_valid(brname)) {
+		ni_warn("dracut:cmdline bridge: rejecting suspect interface name '%s'",
+				ni_print_suspect(brname, ni_string_len(brname)));
+		return NULL;
 	}
-	ni_bridge_port_new(bridge, names, 0);
+
+	if (!(nd = ni_dracut_cmdline_add_netdev(nda, brname, NULL, NULL, NI_IFTYPE_BRIDGE)) ||
+	    !ni_netdev_get_bridge(nd->dev)) {
+		ni_warn("dracut:cmdline bridge '%s': unable to create bridge interface structure",
+				brname);
+		return NULL;
+	}
+
+	for (cnt = 0, name = ports; name; name = ports) {
+		ports = token_next(ports, ',');
+		if (ni_dracut_cmdline_add_bridge_port(nda, nd->dev, name))
+			cnt++;
+	}
 
 	return nd;
 }
 
-static ni_compat_netdev_t *
-ni_dracut_cmdline_add_vlan(ni_compat_netdev_array_t *nda, const char *vlanname, const char *etherdev)
+static ni_bool_t
+ni_dracut_cmdline_vlan_tag_from_name(const char *vlanname, unsigned int *tag)
 {
 	const char *vlantag;
-	ni_vlan_t *vlan;
-	ni_compat_netdev_t *nd;
-	unsigned int tag = 0;
 	size_t len;
 
-	if (!ni_netdev_name_is_valid(vlanname)) {
-		ni_error("Rejecting suspect interface name: %s", vlanname);
-		return FALSE;
-	}
-
-	nd = ni_dracut_cmdline_add_netdev(nda, vlanname, NULL, NULL, NI_IFTYPE_VLAN);
-	vlan = ni_netdev_get_vlan(nd->dev);
-
-	if (ni_string_eq(vlanname, etherdev)) {
-		ni_error("%s: vlan interface name self-reference",
-			vlanname);
-		return FALSE;
-	}
-
-	if ((vlantag = strrchr(vlanname, '.')) != NULL) {
+	if ((vlantag = strrchr(vlanname, '.'))) {
 		/* name.<TAG> */
 		++vlantag;
 	} else {
-		/* name<TAG> */
+		/* name<TAG>  */
 		len = ni_string_len(vlanname);
 		vlantag = &vlanname[len];
-		while(len > 0 && isdigit((unsigned char)vlantag[-1]))
+		while (len-- && isdigit((unsigned char)vlantag[-1]))
 			vlantag--;
 	}
+	return ni_parse_uint(vlantag, tag, 10) == 0;
+}
 
-	if (ni_parse_uint(vlantag, &tag, 10) < 0) {
-		ni_error("%s: Cannot parse vlan-tag from interface name",
-			nd->dev->name);
+static ni_bool_t
+ni_dracut_cmdline_add_vlan(ni_compat_netdev_array_t *nda, const char *vlanname, const char *etherdev)
+{
+	ni_compat_netdev_t *nd;
+	unsigned int tag = 0;
+	const char *err;
+	ni_vlan_t *vlan;
+
+	if (!ni_netdev_name_is_valid(vlanname)) {
+		ni_warn("dracut:cmdline vlan: suspect interface name '%s'",
+				ni_print_suspect(vlanname, ni_string_len(vlanname)));
 		return FALSE;
 	}
+	if (!ni_netdev_name_is_valid(etherdev)) {
+		ni_warn("dracut:cmdline vlan '%s': suspect base interface '%s'",
+				vlanname, ni_print_suspect(etherdev, ni_string_len(etherdev)));
+		return FALSE;
+	}
+	if (ni_string_eq(vlanname, etherdev)) {
+		ni_warn("dracut:cmdline vlan '%s': interface name self-reference '%s'",
+				vlanname, ni_print_suspect(etherdev, ni_string_len(etherdev)));
+		return FALSE;
+	}
+	if (!ni_dracut_cmdline_vlan_tag_from_name(vlanname, &tag) || tag > USHRT_MAX) {
+		ni_warn("dracut:cmdline vlan '%s': cannot parse tag from interface name",
+				vlanname);
+		return FALSE;
+	}
+	if (!ni_dracut_cmdline_add_netdev(nda, etherdev, NULL, NULL, NI_IFTYPE_UNKNOWN)) {
+		ni_warn("dracut:cmdline vlan '%s': unable to create base interface '%s' structure",
+				vlanname, etherdev);
+		return FALSE;
+	}
+
+	vlan = ni_vlan_new();
 	vlan->protocol = NI_VLAN_PROTOCOL_8021Q;
 	vlan->tag = tag;
 
-	return nd;
+	if ((err = ni_vlan_validate(vlan))) {
+		ni_error("dracut:cmdline vlan '%s': %s", vlanname, err);
+		ni_vlan_free(vlan);
+		return FALSE;
+	}
+
+	if (!(nd = ni_dracut_cmdline_add_netdev(nda, vlanname, NULL, NULL, NI_IFTYPE_VLAN))) {
+		ni_warn("dracut:cmdline vlan '%s': unable to create vlan interface structure",
+				vlanname);
+		ni_vlan_free(vlan);
+		return FALSE;
+	}
+
+	ni_string_dup(&nd->dev->link.lowerdev.name, etherdev);
+	ni_netdev_set_vlan(nd->dev, vlan);
+
+	return TRUE;
 }
 
 /**
@@ -550,7 +726,7 @@ parse_ip3(ni_compat_netdev_array_t *nda, char *val, const char *client_ip)
  * Guess what IP param syntax variant we have to parse and call the
  * appropriate function.
  */
-ni_bool_t
+static ni_bool_t
 ni_dracut_cmdline_parse_opt_ip(ni_compat_netdev_array_t *nd, ni_var_t *param)
 {
 	char *end, *beg;
@@ -583,16 +759,16 @@ ni_dracut_cmdline_parse_opt_ip(ni_compat_netdev_array_t *nd, ni_var_t *param)
 /** Parse bonding configuration applying default values when not provided
  * bond=<bondname>[:<bondslaves>:[:<options>[:<mtu>]]]
  */
-ni_bool_t
+static ni_bool_t
 ni_dracut_cmdline_parse_opt_bond(ni_compat_netdev_array_t *nda, ni_var_t *param)
 {
 	char *next;
-	char *bonddname = "bond0";
-	char default_slaves[] = "eth0,eth1";
+	char *bonddname = NI_DRACUT_CMDLINE_DEF_BOND_NAME;
+	char default_slaves[] = NI_DRACUT_CMDLINE_DEF_BOND_SLAVES;
 	char *slaves = default_slaves;
-	char *opts = "mode=balance-rr";
+	char *opts = NI_DRACUT_CMDLINE_DEF_BOND_OPTIONS;
+	unsigned int mtu_u32 = 0;
 	char *mtu = NULL;
-	unsigned int mtu_u32;
 
 	if (ni_string_empty(param->value))
 		goto add_bond;
@@ -619,144 +795,194 @@ add_bond:
 	return !!ni_dracut_cmdline_add_bond(nda, bonddname, slaves, opts, &mtu_u32);
 }
 
-ni_bool_t
+static ni_bool_t
 ni_dracut_cmdline_parse_opt_team(ni_compat_netdev_array_t *nda, ni_var_t *param)
 {
-	char *next, *master, *slaves;
+	char *master = NI_DRACUT_CMDLINE_DEF_TEAM_NAME;
+	char *runner = NI_DRACUT_CMDLINE_DEF_TEAM_RUNNER;
+	char default_ports[] =  NI_DRACUT_CMDLINE_DEF_TEAM_PORTS;
+	char *slaves = default_ports;
+	char *next;
 
 	if (ni_string_empty(param->value))
-		return FALSE;
+		goto add_team;
 
 	master = param->value;
 	if (!(next = token_next(master, ':')))
-		return FALSE;
+		goto add_team;
+
 	slaves = next;
+	if (!(next = token_next(slaves, ':')))
+		goto add_team;
 
-	ni_dracut_cmdline_add_team(nda, master, slaves);
+	runner = next;
+	if (!(next = token_next(runner, ':')))
+		goto add_team;
 
-	return TRUE;
+add_team:
+	return !!ni_dracut_cmdline_add_team(nda, master, slaves, runner);
 }
 
-ni_bool_t
+static ni_bool_t
 ni_dracut_cmdline_parse_opt_bridge(ni_compat_netdev_array_t *nda, ni_var_t *param)
 {
-	char *end, *beg;
+	char *brname, *ports;
 
 	if (ni_string_empty(param->value))
 		return FALSE;
 
-	beg = param->value;
-
-	if (!(end = token_next(param->value, ':')))
+	brname = param->value;
+	if (!(ports = token_next(param->value, ':')))
 		return FALSE;
 
-	ni_dracut_cmdline_add_bridge(nda, beg, end);
+	/*
+	 * currently, dracut does not support any options,
+	 * we just ensure to terminate the slaves/port list
+	 * when it starts to supports some.
+	 * It's safe as ':' is invalid in interface names
+	 * anyway (reserved for labels aka alias fakes).
+	 */
+	token_next(ports, ':');
 
-	return TRUE;
+	return !!ni_dracut_cmdline_add_bridge(nda, brname, ports);
 }
 
-ni_bool_t
-ni_dracut_cmdline_parse_opt_ifname(ni_compat_netdev_array_t *nda, ni_var_t *param)
+/*
+ * ifname=<name>:<mac>
+ *
+ * This parameter does not create any interface config, but adds an
+ * identify match to rename an interface (potentially) using wrong
+ * name, e.g. still kernel assigned "random eth0" name, to a name
+ * used by other parameters like `ip=` or bridge, bond, ...  port.
+ *
+ * Thus it is important to parse all the other parameters before.
+ * When the interface is not configured otherwise and there will be
+ * no interface config for, we sill expose them as emenent nodes
+ * in the config source specific meta option value.
+ */
+static ni_bool_t
+ni_dracut_cmdline_parse_opt_ifname(ni_compat_netdev_array_t *nda, xml_node_t *ovalue, ni_var_t *param)
 {
 	char *mac, *ifname;
-	ni_hwaddr_t lladdr;
+	ni_hwaddr_t hwaddr;
 	ni_compat_netdev_t *nd;
 
-	if (ni_string_empty(param->value))
-		return FALSE;
-
 	ifname = param->value;
-
-	if (!(mac = token_next(param->value, ':')))
+	mac = token_next(param->value, ':');
+	if (!ni_netdev_name_is_valid(ifname)) {
+		ni_warn("dracut:cmdline %s: suspect interface name '%s'", param->name,
+				ni_print_suspect(ifname, ni_string_len(ifname)));
 		return FALSE;
-
-	if (ni_link_address_parse(&lladdr, ARPHRD_ETHER, mac))
+	}
+	if (!mac || ni_link_address_parse(&hwaddr, ARPHRD_ETHER, mac) ||
+	    ni_link_address_is_invalid(&hwaddr)) {
+		ni_warn("dracut:cmdline %s: suspect mac address '%s'", param->name,
+				ni_print_suspect(mac, ni_string_len(mac)));
 		return FALSE;
+	}
 
-	nd = ni_dracut_cmdline_add_netdev(nda, ifname, NULL, NULL, NI_IFTYPE_UNKNOWN);
-	memcpy(nd->identify.hwaddr.data, lladdr.data, lladdr.len);
-	nd->identify.hwaddr.len = lladdr.len;
-	nd->identify.hwaddr.type = lladdr.type;
+	/* expose pre-parsed meta-data option elements to the caller */
+	xml_node_new_element("name", ovalue, ifname);
+	xml_node_new_element("mac", ovalue, mac);
+
+	if ((nd = ni_compat_netdev_by_name(nda, ifname))) {
+		/* request to match / identify by (persistent) hwaddr to rename it (if needed) */
+		ni_link_address_set(&nd->identify.hwaddr, hwaddr.type, hwaddr.data, hwaddr.len);
+	}
 
 	return TRUE;
 }
 
-ni_bool_t
+static ni_bool_t
 ni_dracut_cmdline_parse_opt_vlan(ni_compat_netdev_array_t *nda, ni_var_t *param)
 {
-	char *end, *beg;
+	char *vlanname;
+	char *etherdev;
 
-	if (ni_string_empty(param->value))
-		return FALSE;
-
-	beg = param->value;
-
-	if (!(end = token_next(param->value, ':')))
-		return FALSE;
-
-	ni_dracut_cmdline_add_vlan(nda, end, beg);
-	return TRUE;
+	vlanname = param->value;
+	etherdev = token_next(param->value, ':');
+	return ni_dracut_cmdline_add_vlan(nda, vlanname, etherdev);
 }
 
 
 /**
  * Identify what function needs to be called to handle the supplied param
  **/
-ni_bool_t
-ni_dracut_cmdline_call_param_handler(ni_var_t *var, ni_compat_netdev_array_t *nd)
+static ni_bool_t
+ni_dracut_cmdline_parse_param(ni_dracut_cmdline_param_t type, ni_var_t *var,
+				xml_node_t *ovalue, ni_compat_netdev_array_t *nd)
 {
-	unsigned int param_type;
-
-	if (ni_parse_uint_mapped(var->name, dracut_params, &param_type) < 0)
-		return FALSE;
-
-	switch (param_type) {
-		case NI_DRACUT_PARAM_IP:
-			ni_dracut_cmdline_parse_opt_ip(nd, var);
-			break;
-		case NI_DRACUT_PARAM_BOND:
-                        ni_dracut_cmdline_parse_opt_bond(nd, var);
-			break;
-		case NI_DRACUT_PARAM_BRIDGE:
-                        ni_dracut_cmdline_parse_opt_bridge(nd, var);
-			break;
-		case NI_DRACUT_PARAM_TEAM:
-                        ni_dracut_cmdline_parse_opt_team(nd, var);
-			break;
+	switch (type) {
 		case NI_DRACUT_PARAM_IFNAME:
-                        ni_dracut_cmdline_parse_opt_ifname(nd, var);
-			break;
+			return ni_dracut_cmdline_parse_opt_ifname(nd, ovalue, var);
+		case NI_DRACUT_PARAM_BOND:
+			return ni_dracut_cmdline_parse_opt_bond(nd, var);
+		case NI_DRACUT_PARAM_TEAM:
+			return ni_dracut_cmdline_parse_opt_team(nd, var);
 		case NI_DRACUT_PARAM_VLAN:
-                        ni_dracut_cmdline_parse_opt_vlan(nd, var);
-			break;
-
+			return ni_dracut_cmdline_parse_opt_vlan(nd, var);
+		case NI_DRACUT_PARAM_BRIDGE:
+			return ni_dracut_cmdline_parse_opt_bridge(nd, var);
+		case NI_DRACUT_PARAM_IP:
+			return ni_dracut_cmdline_parse_opt_ip(nd, var);
 		default:
-			ni_error("Dracut param %s not supported yet!\n", var->name);
+			ni_error("Dracut cmdline parameter '%s' is not supported yet!\n", var->name);
 			return FALSE;
 	}
-
-	return TRUE;
 }
 
 /**
  * This function will apply the params found in the params array to the compat_netdev array
  */
 static ni_bool_t
-ni_dracut_cmdline_apply(const ni_var_array_t *params, ni_compat_netdev_array_t *nd)
+ni_dracut_cmdline_parse_params(ni_var_array_t *params, xml_node_t *options, ni_compat_netdev_array_t *nd)
 {
-	unsigned int i, pos;
-	char *pptr;
+	const ni_intmap_t *type;
+	xml_node_t *option;
+	xml_node_t *ovalue;
+	unsigned int pos;
+	ni_var_t *param;
 
-	if (!params)
+	if (!params || !options || !nd)
 		return FALSE;
 
-	for (i = 0; (pptr = (char *) ni_dracut_param_name(&i)); ++i) {
-		const ni_var_t match = { .name = pptr, .value = NULL };
+	/* 1st, parse known params in desired map order (links first, ip, ...) */
+	for (type = dracut_params; type->name; ++type) {
+		const ni_var_t match = { .name = (char *)type->name, .value = NULL };
+
 		pos = 0;
-		while ((pos = ni_var_array_find(params, pos, &match, &ni_var_name_equal, NULL)) != -1U) {
-			ni_dracut_cmdline_call_param_handler(&params->data[pos], nd);
-			++pos;
+		while ((pos = ni_var_array_find(params, pos, &match, ni_var_name_equal, NULL)) != -1U) {
+			param = &params->data[pos];
+
+			/* add config parser specific meta option and mark processed */
+			option = xml_node_new("option", options);
+			xml_node_add_attr(option, "processed", ni_format_boolean(TRUE));
+			xml_node_new_element("key", option, param->name);
+			ovalue = xml_node_new_element("value", option, param->value);
+
+			ni_dracut_cmdline_parse_param(type->value, param, ovalue, nd);
+
+			/*
+			 * not all options are parsed into compat netdev
+			 * but may parse the value cdata into child node
+			 * elements, so detect and reset the cdata then.
+			 */
+			if (ovalue->children)
+				xml_node_set_cdata(ovalue, NULL);
+
+			/* finally, remove param we've processed */
+			ni_var_array_remove_at(params, pos);
 		}
+	}
+
+	/* 2nd, add all unprocessed params into config parser specific meta options */
+	for (pos = 0; pos < params->count; ++pos) {
+		param = &params->data[pos];
+
+		option = xml_node_new("option", options);
+		xml_node_add_attr(option, "processed", ni_format_boolean(FALSE));
+		xml_node_new_element("key", option, param->name);
+		xml_node_new_element("value", option, param->value);
 	}
 
 	return TRUE;
@@ -905,35 +1131,37 @@ ni_ifconfig_read_dracut_cmdline(xml_document_array_t *array,
 	ni_compat_ifconfig_init(&conf, type);
 	ni_var_array_t params = NI_VAR_ARRAY_INIT;
 	xml_document_t *doc;
-	xml_node_t *options, *option;
-	unsigned int i;
+	xml_node_t *options;
 
 	doc = xml_document_new();
+
+	/*
+	 * expose config parser specific "meta options"
+	 * to the caller in order to:
+	 * - see options that were in the source config
+	 * - mark processed vs. unprocessed options
+	 * - parse / pre-process option values which
+	 *   do not result in any ifcomfig/ifpolicy
+	 *   but may be needed in e.g. in bootstrap
+	 */
 	options = xml_node_new("options", xml_document_root(doc));
 	xml_node_add_attr(options, "origin", "dracut:cmdline:");
 	xml_document_array_append(array, doc);
 
 	if (ni_dracut_cmdline_file_parse(&params, path)) {
-		for (i = 0; i < params.count; ++i) {
-			option = xml_node_new("option", options);
-			xml_node_new_element("key", option, params.data[i].name);
-			xml_node_new_element("value", option, params.data[i].value);
-		}
-
-		ni_dracut_cmdline_apply(&params, &conf.netdevs);
-
-#if 0
-		/* TODO:
-		 * we currently convert config to policy later
+		/*
+		 * note: parsing "consumes"/modifies params
 		 */
-		kind = ni_ifconfig_kind_guess(kind);
-#endif
+		ni_dracut_cmdline_parse_params(&params, options, &conf.netdevs);
+		ni_var_array_destroy(&params);
+
 		if (kind == NI_IFCONFIG_KIND_POLICY)
 			ni_compat_generate_policies(array, &conf, check_prio, raw);
 		else
 			ni_compat_generate_interfaces(array, &conf, check_prio, raw);
 		return TRUE;
 	}
+	ni_var_array_destroy(&params);
 
 	return FALSE;
 }

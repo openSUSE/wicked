@@ -60,11 +60,14 @@
  <td><a href="#property:routes">routes</a></td>
 </tr>
 <tr>
- <td rowspan="9" valign="top">Methods</td>
+ <td rowspan="11" valign="top">Methods</td>
  <td><a href="#waitDeviceReady">waitDeviceReady()</a></td>
 </tr>
 <tr>
  <td><a href="#linkUp">linkUp()</a></td>
+</tr>
+<tr>
+ <td><a href="#waitLinkUp">waitLinkUp()</a></td>
 </tr>
 <tr>
  <td><a href="#linkDown">linkDown()</a></td>
@@ -85,10 +88,13 @@
  <td><a href="#setClientConfig">setClientConfig()</a></td>
 </tr>
 <tr>
+ <td><a href="#setClientScripts">setClientScripts()</a></td>
+</tr>
+<tr>
  <td><a href="#linkMonitor">linkMonitor()</a></td>
 </tr>
 <tr>
- <td rowspan="17" valign="top">Signals</td>
+ <td rowspan="18" valign="top">Signals</td>
  <td><a href="#deviceCreate">deviceCreate()</a></td>
 </tr>
 <tr>
@@ -96,6 +102,9 @@
 </tr>
 <tr>
  <td><a href="#deviceReady">deviceReady()</a></td>
+</tr>
+<tr>
+ <td><a href="#deviceRename">deviceRename()</a></td>
 </tr>
 <tr>
  <td><a href="#deviceChange">deviceChange()</a></td>
@@ -163,6 +172,7 @@
 </ul>
 <p>
 </li>
+<li><bold>scripts</bold> (<a href="scripts.html#configuration">scripts:configuration</a>). Complete script configuration</li>
 </ul>
 <p>
 </li>
@@ -192,13 +202,13 @@
 <p></dd>
 <dt><em><a name="linkUp"/><a href="interface.html#callback-info">callback-info</a> linkUp(dict request)</em></dt>
 <dd>
-     This method initiaties link negotiation. This may include link-specific activities;
-     for instance, when bringing up a wireless device, this will start wireless
-     authentication.
+     This method configures link specific properties, and either enslaves to
+     a given master device which takes over further steps or sets the link
+     of the device administratively UP and initiaties the link negotiation.
 
-     When the link negotiation is complete by the time this method is done,
-     we will return an empty callback-info dict. If the link negotiation is still
-     in process, a callback-info dict is returned.
+     When the link on the device was already administratively UP (device-up),
+     it returns an empty callback-info dict. When the link was was not yet UP,
+     a callback-info dict is returned to wait for event providing the UP flag.
 
 <p>Argument <em>request</em> is mapped to element &lt;link&gt; of the device document.
 It is a dict-based type that provides the following members:
@@ -209,10 +219,21 @@ It is a dict-based type that provides the following members:
 <li><bold>txqlen</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
 <li><bold>alias</bold> (<a href="dbus.html#string">string</a>). </li>
 <li><bold>master</bold> (string). This is a string</li>
+<li><bold>port</bold> (unknown). This is an unknown</li>
 <li><bold>ipv4</bold> (<a href="network-interface.html#af-info">network-interface:af-info</a>). </li>
 <li><bold>ipv6</bold> (<a href="network-interface.html#af-info">network-interface:af-info</a>). </li>
 </ul>
 <p>
+<p></dd>
+<dt><em><a name="waitLinkUp"/><a href="interface.html#callback-info">callback-info</a> waitLinkUp()</em></dt>
+<dd>
+     This method allows to wait until the link negotiation finished and it
+     starts to be usable for further steps like authenticaction or IP setup.
+
+     When the link negotiation finished and e.g. carrier has been detected,
+     it returns an empty callback-info dict. Otherwise a callback-info dict
+     is returned to wait for a link-up event.
+
 <p></dd>
 <dt><em><a name="linkDown"/><a href="interface.html#callback-info">callback-info</a> linkDown()</em></dt>
 <dd>
@@ -243,7 +264,12 @@ It is a dict-based type that provides the following members:
 <dt><em><a name="setClientConfig"/>void setClientConfig(<a href="network-interface.html#client-state-config-type">network-interface:client-state-config-type</a> arg)</em></dt>
 <dd>
       This method can be used by clients to record the state of device's
-      configuration. Both UUID and configuration origin are transfered.
+      configuration. Both UUID and configuration origin are transferred.
+
+<p></dd>
+<dt><em><a name="setClientScripts"/>void setClientScripts(<a href="scripts.html#configuration">scripts:configuration</a> scripts)</em></dt>
+<dd>
+      Apply per interface scripts from configuration.
 
 <p></dd>
 <dt><em><a name="linkMonitor"/>void linkMonitor()</em></dt>
@@ -274,6 +300,12 @@ It is a dict-based type that provides the following members:
 <dd>
       This signal is emitted whenever a new device is ready to use / configure,
       e.g. udev finished its rename work and the name is final.
+
+<p></dd>
+<dt><em><a name="deviceRename"/>void deviceRename()</em></dt>
+<dd>
+      This signal is emitted whenever the kernel emits newlink event and wickedd
+      detects a rename of a device.
 
 <p></dd>
 <dt><em><a name="deviceChange"/>void deviceChange()</em></dt>
@@ -393,7 +425,7 @@ It is a dict-based type that provides the following members:
 <a name="callback-info"/>
 <h3>Type callback-info</h3>
 <p>
-Methods for network or modem devices that are unable to complete the requestimmediately (for instance, a DHCP supplicant needs to broadcast for a lease, etc),the server will return callback information. This is a list of one or morecallbacks to wait for.<p>
+Methods for network or modem devices that are unable to complete the request immediately (for instance, a DHCP supplicant needs to broadcast for a lease, etc), the server will return callback information. This is a list of one or more callbacks to wait for. <p>
 This is a dict-based type that provides the following members:
 <ul>
 <li><bold>callback</bold> (dict). This is a dict-based type that provides the following members:
@@ -409,8 +441,8 @@ This is a dict-based type that provides the following members:
 <a name="link-request"/>
 <h3>Type link-request</h3>
 <p>
-This describes the requested change(s) to the link layer. It is passed to thelinkUp() method.<p>
-For keys that are omitted, the existing setting of the network interfaceremains unchanged.<p>
+This describes the requested change(s) to the link layer. It is passed to the linkUp() method. <p>
+For keys that are omitted, the existing setting of the network interface remains unchanged. <p>
 This is a dict-based type that provides the following members:
 <ul>
 <li><bold>status</bold> (<a href="dbus.html#builtin-ifflags">builtin-ifflags</a>). </li>
@@ -419,6 +451,7 @@ This is a dict-based type that provides the following members:
 <li><bold>txqlen</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
 <li><bold>alias</bold> (<a href="dbus.html#string">string</a>). </li>
 <li><bold>master</bold> (string). This is a string</li>
+<li><bold>port</bold> (unknown). This is an unknown</li>
 <li><bold>ipv4</bold> (<a href="network-interface.html#af-info">network-interface:af-info</a>). </li>
 <li><bold>ipv6</bold> (<a href="network-interface.html#af-info">network-interface:af-info</a>). </li>
 </ul>

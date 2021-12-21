@@ -68,7 +68,6 @@ struct ni_managed_policy {
 	ni_managed_policy_t **	pprev;
 	ni_managed_policy_t *	next;
 
-	uid_t			owner;
 	unsigned int		seqno;
 	ni_fsm_policy_t *	fsm_policy;
 };
@@ -134,7 +133,7 @@ extern void			ni_nanny_clear_secrets(ni_nanny_t *mgr,
 						const ni_security_id_t *security_id, const char *path);
 extern ni_secret_t *		ni_nanny_get_secret(ni_nanny_t *, uid_t, const ni_security_id_t *, const char *);
 extern void			ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked);
-extern int			ni_nanny_create_policy(ni_dbus_object_t **, ni_nanny_t *, xml_document_t *, ni_bool_t);
+extern int			ni_nanny_create_policy(ni_dbus_object_t **, ni_nanny_t *, xml_document_t *, const uid_t *, ni_bool_t);
 extern ni_bool_t		ni_nanny_policy_drop(const char *);
 
 extern ni_bool_t		ni_managed_netdev_enable(ni_managed_device_t *);
@@ -158,6 +157,7 @@ extern ni_dbus_object_t *	ni_managed_policy_register(ni_nanny_t *, ni_fsm_policy
 extern ni_managed_policy_t *	ni_managed_policy_new(ni_nanny_t *, ni_fsm_policy_t *);
 extern ni_managed_policy_t *	ni_managed_policy_ref(ni_managed_policy_t *);
 extern void			ni_managed_policy_free(ni_managed_policy_t *);
+extern uid_t			ni_managed_policy_owner(const ni_managed_policy_t *);
 
 extern const char *		ni_managed_state_to_string(ni_managed_state_t);
 
@@ -165,7 +165,7 @@ extern ni_dbus_object_t *	ni_objectmodel_register_managed_netdev(ni_dbus_server_
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_modem(ni_dbus_server_t *, ni_managed_device_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_policy(ni_dbus_server_t *, ni_managed_policy_t *);
 extern ni_bool_t		ni_objectmodel_managed_policy_save(ni_dbus_object_t *);
-extern dbus_bool_t		ni_objectmodel_unregister_managed_policy(ni_dbus_server_t *, ni_managed_policy_t *, const char*);
+extern dbus_bool_t		ni_objectmodel_unregister_managed_policy(ni_dbus_server_t *, ni_managed_policy_t *);
 extern void			ni_objectmodel_unregister_managed_device(ni_managed_device_t *);
 
 extern void			interface_manager_register_all(ni_dbus_server_t *);

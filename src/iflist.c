@@ -654,7 +654,7 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 		}
 	}
 
-	/* issue separate query ingnoring the error to not break
+	/* issue separate query ignoring the error to not break
 	 * the bootstrap, e.g. when a kernel lacks rule support.
 	 */
 	if (!ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_ROUTE_RULES))
@@ -1039,17 +1039,17 @@ done:
  * Translate interface flags
  */
 unsigned int
-__ni_netdev_translate_ifflags(unsigned int ifflags, unsigned int prev)
+__ni_netdev_translate_ifflags(const char * ifname, unsigned int ifflags, unsigned int prev)
 {
 	unsigned int retval = (prev & NI_IFF_DEVICE_READY);
 
 	switch (ifflags & (IFF_RUNNING | IFF_LOWER_UP | IFF_UP)) {
 	case IFF_UP:
 	case IFF_UP | IFF_RUNNING:
+	case IFF_UP | IFF_LOWER_UP:
 		retval = NI_IFF_DEVICE_READY | NI_IFF_DEVICE_UP;
 		break;
 
-	case IFF_UP | IFF_LOWER_UP:
 	case IFF_UP | IFF_LOWER_UP | IFF_RUNNING:
 		retval = NI_IFF_DEVICE_READY | NI_IFF_DEVICE_UP |
 			 NI_IFF_LINK_UP | NI_IFF_NETWORK_UP;
@@ -1059,7 +1059,8 @@ __ni_netdev_translate_ifflags(unsigned int ifflags, unsigned int prev)
 		break;
 
 	default:
-		ni_warn("unexpected combination of interface flags 0x%x", ifflags);
+		ni_warn("%s: unexpected combination of interface flags 0x%x",
+			ifname, ifflags & (IFF_RUNNING | IFF_LOWER_UP | IFF_UP));
 	}
 
 #ifdef IFF_DORMANT
@@ -1453,7 +1454,7 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 	ni_netdev_t *master;
 
 	link->hwaddr.type = link->hwpeer.type = ifi->ifi_type;
-	link->ifflags = __ni_netdev_translate_ifflags(ifi->ifi_flags, link->ifflags);
+	link->ifflags = __ni_netdev_translate_ifflags(ifname, ifi->ifi_flags, link->ifflags);
 
 	if (ni_netdev_link_always_ready(link))
 		link->ifflags |= NI_IFF_DEVICE_READY;
@@ -1852,7 +1853,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 
 	/* Note: we explicitly update name on query/event as needed
 	 * before this function is called. While event processing,
-	 * we explicitely query the current name to avoid an update
+	 * we explicitly query the current name to avoid an update
 	 * to an already obsolete name provided in the event data.
 	 * Thus just update device name in case it is missed.
 	 */
@@ -1942,7 +1943,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		if (rv == -NI_ERROR_RADIO_DISABLED) {
 			ni_debug_ifconfig("%s: radio disabled, not refreshing wireless info", dev->name);
 			ni_netdev_set_wireless(dev, NULL);
-		} else 
+		} else
 		if (rv < 0)
 			ni_error("%s: failed to refresh wireless info", dev->name);
 		break;
@@ -1959,8 +1960,8 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 
 		/*
 		 * is using gennl, rtnl_link provides a kind only,
-		 * so we unfortunatelly have to ask teamd here and
-		 * even worser, by name...
+		 * so we unfortunately have to ask teamd here and
+		 * even worse, by name...
 		 */
 		if (ni_config_teamd_enabled() && ni_netdev_device_is_ready(dev))
 			ni_teamd_discover(dev);
@@ -2371,15 +2372,16 @@ __ni_discover_tuntap(ni_netdev_t *dev)
 	}
 
 	if (dev->link.type != NI_IFTYPE_TUN && dev->link.type != NI_IFTYPE_TAP) {
-		ni_error("%s: Attempt to discover %s interface details for TUN/TAP",
-			ni_linktype_type_to_name(dev->link.type), dev->name);
+		ni_error("%s: Attempt to discover TUN/TAP interface details from %s",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
 		return rv;
 	}
 
 	cfg = ni_netdev_get_tuntap(dev);
-	if ((rv = ni_tuntap_parse_sysfs_attrs(dev->name, cfg) < 0))
-		ni_error("error retrieving %s attribute from sysfs",
-			ni_linktype_type_to_name(dev->link.type));
+	if ((rv = ni_tuntap_parse_sysfs_attrs(dev->name, cfg) < 0)) {
+		ni_warn("%s: Error retrieving %s attribute from sysfs",
+			dev->name, ni_linktype_type_to_name(dev->link.type));
+	}
 
 	return rv;
 }
@@ -2665,7 +2667,7 @@ __ni_tunnel_gre_trace(ni_netdev_t *dev, struct nlattr **info_data)
 }
 
 /*
- * Catch-all for (currentl sit, ipip and gre) tunnel discovery.
+ * Catch-all for (currently sit, ipip and gre) tunnel discovery.
  */
 static int
 __ni_discover_tunneling(ni_netdev_t *dev, struct nlattr **tb)
@@ -3400,12 +3402,12 @@ ni_rtnl_rule_parse_msg(struct nlmsghdr *h, struct fib_rule_hdr *frh, ni_rule_t *
 	if (tb[FRA_SUPPRESS_PREFIXLEN])
 		rule->suppress_prefixlen = nla_get_u32(tb[FRA_SUPPRESS_PREFIXLEN]);
 	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
-			"%s rule supress prefixlen: %u", prefix, rule->suppress_prefixlen);
+			"%s rule suppress prefixlen: %u", prefix, rule->suppress_prefixlen);
 
 	if (tb[FRA_SUPPRESS_IFGROUP])
 		rule->suppress_ifgroup = nla_get_u32(tb[FRA_SUPPRESS_IFGROUP]);
 	ni_debug_verbose(RULE_LOG_LEVEL, NI_TRACE_EVENTS|NI_TRACE_ROUTE,
-			"%s rule supress ifgroup: %u", prefix, rule->suppress_ifgroup);
+			"%s rule suppress ifgroup: %u", prefix, rule->suppress_ifgroup);
 
 	if (tb[FRA_FLOW])
 		rule->realm = nla_get_u32(tb[FRA_FLOW]);

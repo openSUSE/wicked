@@ -364,7 +364,7 @@ ni_ethtool_get_permanent_address(const ni_netdev_ref_t *ref, ni_ethtool_t *ethto
 	if (ret < 0)
 		return ret;
 
-	if (ecmd.h.size && ecmd.h.size == ni_link_address_length(perm_addr->type))
+	if (ecmd.h.size && (perm_addr->type == ARPHRD_VOID || ecmd.h.size == ni_link_address_length(perm_addr->type)))
 		return ni_link_address_set(perm_addr, perm_addr->type, ecmd.data, ecmd.h.size);
 
 	perm_addr->len = 0;
@@ -702,8 +702,8 @@ static const ni_intmap_t		ni_ethtool_link_adv_autoneg_names[] = {
 	{ NULL,			-1U							}
 };
 static const ni_intmap_t		ni_ethtool_link_adv_pause_names[] = {
-	{ "Symetric",			ETHTOOL_LINK_MODE_Pause_BIT			},
-	{ "Asymetric",			ETHTOOL_LINK_MODE_Asym_Pause_BIT		},
+	{ "Symmetric",			ETHTOOL_LINK_MODE_Pause_BIT			},
+	{ "Asymmetric",			ETHTOOL_LINK_MODE_Asym_Pause_BIT		},
 
 	{ NULL,			-1U							}
 };
@@ -1203,7 +1203,7 @@ ni_ethtool_set_advertise(ni_bitfield_t *adv, const ni_bitfield_t *sup,
 					"%s: ethtool request to %s advertise link mode '%s' by speed",
 					ref->name, modify, name);
 			} else {
-				/* discard unsupported modes _we've_ choosen by speed */
+				/* discard unsupported modes _we've_ chosen by speed */
 				ni_bitfield_clearbit(adv, bit);
 				ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG,
 					"%s: ethtool request to %s advertise link mode '%s' by speed"

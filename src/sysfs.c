@@ -971,7 +971,7 @@ __ni_sysfs_ibft_nic_parse(const char *base, const char *node)
 	if (__ni_sysfs_ibft_nic_get_string(base, node,
 				"subnet-mask", &temp) == 0 && temp) {
 		/* The ibft module in 3.0.x kernels prints the ibft prefix
-		   lenght as ipv4 netmask; I guess nobody ever used IPv6 */
+		   length as ipv4 netmask; I guess nobody ever used IPv6 */
 		ni_sockaddr_t mask;
 		if (ni_sockaddr_parse(&mask, temp, AF_UNSPEC) != 0)
 			goto error;

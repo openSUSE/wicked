@@ -41,9 +41,8 @@
 #include <wicked/addrconf.h>
 #include <wicked/resolver.h>
 #include <wicked/ipv6.h>
-#if 0
-#include <wicked/route.h>
 #include <wicked/nis.h>
+#if 0
 #include <wicked/xml.h>
 #endif
 
@@ -407,15 +406,6 @@ ni_dhcp6_process_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, const struc
 }
 
 const char *
-ni_dhcp6_print_timeval(const struct timeval *tv)
-{
-	static char buf[64] = {'\0'};
-
-	snprintf(buf, sizeof(buf), "%ldm%ld.%03lds", tv->tv_sec / 60, tv->tv_sec % 60, tv->tv_usec / 1000);
-	return buf;
-}
-
-const char *
 ni_dhcp6_address_print(const struct in6_addr *ipv6)
 {
 	ni_sockaddr_t addr;
@@ -439,8 +429,8 @@ ni_dhcp6_socket_get_timeout(const ni_socket_t *sock, struct timeval *tv)
 	if (timerisset(&dev->retrans.deadline)) {
 		*tv = dev->retrans.deadline;
 #if 0
-		ni_trace("%s: get socket timeout for socket [fd=%d]: deadline %s",
-				dev->ifname, sock->__fd, ni_dhcp6_print_timeval(tv));
+		ni_trace("%s: get socket timeout for socket [fd=%d]: deadline %ld.%03ld",
+				dev->ifname, sock->__fd, tv->tv_sec, tv.tv_usec/1000);
 	} else {
 		ni_trace("%s: get socket timeout for socket [fd=%d]: no deadline",
 				dev->ifname, sock->__fd);
@@ -462,9 +452,8 @@ ni_dhcp6_socket_check_timeout(ni_socket_t *sock, const struct timeval *now)
 
 	if (timerisset(&dev->retrans.deadline) && timercmp(&dev->retrans.deadline, now, <)) {
 #if 0
-		ni_trace("%s: check socket timeout for socket [fd=%d]: deadline %s",
-				dev->ifname, sock->__fd,
-				ni_dhcp6_print_timeval(&dev->retrans.deadline));
+		ni_trace("%s: check socket timeout for socket [fd=%d]: deadline %ld.%03ld",
+				dev->ifname, sock->__fd, tv->tv_sec, tv.tv_usec/1000);
 #endif
 		ni_dhcp6_device_retransmit(dev);
 #if 0
@@ -656,8 +645,12 @@ ni_dhcp6_option_put_ia(ni_buffer_t *bp, ni_dhcp6_ia_t *ia)
 		goto failure;
 
 	if (ia->type == NI_DHCP6_OPTION_IA_NA || ia->type == NI_DHCP6_OPTION_IA_PD) {
-		if ( ia->rebind_time <= ia->renewal_time)
-			ia->rebind_time = ia->renewal_time + (ia->renewal_time / 2);
+		if (ia->renewal_time && ia->renewal_time > ia->rebind_time) {
+			ni_debug_dhcp("%s: iaid=%u, T1=%u > T2=%u, adjusting T2 to %u",
+				ni_dhcp6_option_name(ia->type), ia->iaid,
+				ia->renewal_time, ia->rebind_time, ia->renewal_time);
+			ia->rebind_time = ia->renewal_time;
+		}
 #if 0
 		ni_trace("ia->renewal_time: %u", ia->renewal_time);
 #endif
@@ -1381,8 +1374,6 @@ __ni_dhcp6_build_oro_opts(ni_dhcp6_device_t *dev,
 	if (dev->config->update & NI_BIT(NI_ADDRCONF_UPDATE_NIS)) {
 		ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NIS_SERVERS);
 		ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NIS_DOMAIN_NAME);
-		ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NISP_SERVERS);
-		ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_NISP_DOMAIN_NAME);
 	}
 	if (dev->config->update & NI_BIT(NI_ADDRCONF_UPDATE_SIP)) {
 		ni_dhcp6_option_request_append(oro, NI_DHCP6_OPTION_SIP_SERVER_D);
@@ -2102,13 +2093,14 @@ ni_dhcp6_ia_get_rebind_time(ni_dhcp6_ia_t *ia)
 
 	lft = ni_dhcp6_ia_min_preferred_lft(ia);
 	if (lft > 0 && lft != NI_DHCP6_INFINITE_LIFETIME)
-		lft = (lft * 4) / 5;
+		lft = ((unsigned long long)lft * 4) / 5;
 	return lft;
 }
 
 ni_bool_t
 ni_dhcp6_ia_is_active(ni_dhcp6_ia_t *ia, struct timeval *now)
 {
+	struct timeval delta;
 	unsigned int lft;
 
 	if (!now || !ia || !timerisset(&ia->acquired))
@@ -2118,7 +2110,11 @@ ni_dhcp6_ia_is_active(ni_dhcp6_ia_t *ia, struct timeval *now)
 	if (lft == NI_DHCP6_INFINITE_LIFETIME)
 		return TRUE;
 
-	return ia->acquired.tv_sec + lft > now->tv_sec + 1;
+	if (!timercmp(now, &ia->acquired, >))
+		return FALSE;
+
+	timersub(now, &ia->acquired, &delta);
+	return ((unsigned long)lft > (unsigned long)delta.tv_sec + 1);
 }
 
 unsigned int
@@ -2135,7 +2131,7 @@ ni_dhcp6_ia_list_count_active(ni_dhcp6_ia_t *list, struct timeval *now)
 }
 
 static void
-__ni_dhcp6_ia_set_default_lifetimes(ni_dhcp6_ia_t *ia, unsigned int pref_time)
+ni_dhcp6_ia_set_user_default_lifetimes(ni_dhcp6_ia_t *ia, unsigned int pref_time)
 {
 	if (ni_dhcp6_ia_type_ta(ia) || !pref_time) {
 		/* ia-ta's do not have explicit renew,rebind */
@@ -2148,7 +2144,7 @@ __ni_dhcp6_ia_set_default_lifetimes(ni_dhcp6_ia_t *ia, unsigned int pref_time)
 	} else
 	if (pref_time >= NI_DHCP6_MIN_PREF_LIFETIME) {
 		ia->renewal_time = pref_time / 2;
-		ia->rebind_time = (pref_time * 4) / 5;
+		ia->rebind_time = ((unsigned long long)pref_time * 4) / 5;
 	} else {
 		ia->renewal_time = NI_DHCP6_PREFERRED_LIFETIME / 2;
 		ia->rebind_time = (NI_DHCP6_PREFERRED_LIFETIME * 4) / 5;
@@ -2167,9 +2163,9 @@ ni_dhcp6_ia_set_default_lifetimes(ni_dhcp6_ia_t *ia, unsigned int pref_time)
 		if (rebind > renew)
 			ia->rebind_time = rebind;
 		else
-			ia->rebind_time = (renew * 8) / 5;
+			ia->rebind_time = ((unsigned long long)renew * 8) / 5;
 	}
-	__ni_dhcp6_ia_set_default_lifetimes(ia, pref_time);
+	ni_dhcp6_ia_set_user_default_lifetimes(ia, pref_time);
 }
 
 unsigned int
@@ -2720,6 +2716,82 @@ ni_dhcp6_ia_copy_to_lease_addrs(const ni_dhcp6_device_t *dev, ni_addrconf_lease_
 	return count;
 }
 
+static int
+ni_dhcp6_lease_add_nis_servers(ni_string_array_t *dst, const ni_string_array_t *src)
+{
+	const char *server;
+	unsigned int i;
+
+	if (!dst || !src)
+		return -1;
+
+	for (i = 0; i < src->count; ++i) {
+		server = src->data[i];
+
+		/* unique servers only */
+		if (ni_string_array_find(dst, 0, server, ni_string_eq_nocase, NULL) != -1U)
+			continue;
+
+		ni_string_array_append(dst, server);
+	}
+
+	return 0;
+}
+
+static int
+ni_dhcp6_lease_add_nis_domains(ni_nis_info_t *nis, const ni_string_array_t *domains,
+							const ni_string_array_t *servers)
+{
+	ni_nis_domain_t *dom;
+	const char *domain;
+	unsigned int i;
+
+	if (!nis || !domains || !servers)
+		return -1;
+
+	for (i = 0; i < domains->count; ++i) {
+		domain = domains->data[i];
+
+		/* unique domains only */
+		if (ni_nis_domain_find(nis, domain))
+			continue;
+
+		if ((dom = ni_nis_domain_new(nis, domain)))
+			ni_dhcp6_lease_add_nis_servers(&dom->servers, servers);
+	}
+
+	return 0;
+}
+
+int
+ni_dhcp6_lease_set_nis_info(ni_addrconf_lease_t *lease, const ni_string_array_t *domains,
+							const ni_string_array_t *servers)
+{
+	if (!lease || !domains || !servers)
+		return -1;
+
+	if (lease->nis) {
+		ni_nis_info_free(lease->nis);
+		lease->nis = NULL;
+	}
+
+	if (!domains->count && !servers->count)
+		return 0;
+
+	if (!(lease->nis = ni_nis_info_new()))
+		return -1;
+
+	if (domains->count == 1) {
+		ni_string_dup(&lease->nis->domainname, domains->data[0]);
+		ni_dhcp6_lease_add_nis_servers(&lease->nis->default_servers, servers);
+	} else
+	if (domains->count) {
+		ni_dhcp6_lease_add_nis_domains(lease->nis, domains, servers);
+	}
+
+	return 0;
+}
+
 int
 ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, ni_buffer_t *buffer)
 {
@@ -2937,9 +3009,7 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, n
 				for (i = 0; i < temp.count; ++i) {
 					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option),
 							temp.data[i]);
-					/* TODO
 					ni_string_array_append(&nis_servers, temp.data[i]);
-					*/
 				}
 			}
 			ni_string_array_destroy(&temp);
@@ -2949,9 +3019,7 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, n
 				for (i = 0; i < temp.count; ++i) {
 					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option),
 							temp.data[i]);
-					/* TODO:
 					ni_string_array_append(&nis_domains, temp.data[i]);
-					*/
 				}
 			}
 			ni_string_array_destroy(&temp);
@@ -3081,13 +3149,10 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, n
 		}
 	}
 
-	if (nis_domains.count) {
-		/* TODO */
-	}
-
 	/* FIXME: too early here -- do it after parsing depending on the state? */
 	ni_dhcp6_ia_copy_to_lease_addrs(dev, lease);
 
+	ni_dhcp6_lease_set_nis_info(lease, &nis_domains, &nis_servers);
 	ni_string_array_destroy(&nis_servers);
 	ni_string_array_destroy(&nis_domains);
 	return 0;
@@ -3337,11 +3402,11 @@ ni_dhcp6_set_message_timing(ni_dhcp6_device_t *dev, unsigned int msg_type)
 		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_DHCP,
 			"%s TIMING: IDT(%us), IRT(%us), MRT(%us), MRC(%u), MRD(%us), RND(%.3fs)\n",
 			ni_dhcp6_message_name(msg_type),
-			dev->retrans.delay/1000,
-			dev->retrans.params.timeout/1000,
-			dev->retrans.params.max_timeout/1000,
+			NI_TIMEOUT_SEC(dev->retrans.delay),
+			NI_TIMEOUT_SEC(dev->retrans.params.timeout),
+			NI_TIMEOUT_SEC(dev->retrans.params.max_timeout),
 			(dev->retrans.params.nretries < 0 ? 0 : dev->retrans.params.nretries),
-			dev->retrans.duration/1000,
+			NI_TIMEOUT_SEC(dev->retrans.duration),
 			(double)dev->retrans.jitter/1000);
 #endif
 		return TRUE;

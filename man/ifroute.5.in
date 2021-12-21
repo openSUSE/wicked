@@ -84,7 +84,7 @@ notation) in the 1st destination column, you can omit it using a dash '-'.
 
 The
 .B 4th, Interface
-colums contains the name of the interface (lo, eth0, eth1, ib0, ...).
+column contains the name of the interface (lo, eth0, eth1, ib0, ...).
 
 If you leave this field empty (using a dash '-'), the result depends on the
 file you are using.

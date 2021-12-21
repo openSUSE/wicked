@@ -17,8 +17,8 @@
    <label type="string"/>
 
    <cache-info class="dict">
-     <valid-lifetime type="uint32" />
-     <preferred-lifetime type="uint32" />
+     <valid-lifetime type="valid-lifetime-type" />
+     <preferred-lifetime type="pref-lifetime-type" />
    </cache-info>
 
    <!-- This is the addrconf method that owns this address -->
@@ -367,7 +367,7 @@
   <method name="setClientConfig">
     <description>
       This method can be used by clients to record the state of device's
-      configuration. Both UUID and configuration origin are transfered.
+      configuration. Both UUID and configuration origin are transferred.
     </description>
     <arguments>
       <arg type="network-interface:client-state-config-type" />

@@ -37,6 +37,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <wicked/socket.h>
 #include <wicked/fsm.h>
 
 #include "client/ifconfig.h"
@@ -48,7 +49,7 @@
 
 struct ni_nanny_fsm_monitor {
 	const ni_timer_t *      timer;
-	unsigned long		timeout;
+	ni_timeout_t		timeout;
 	ni_ifworker_array_t *	marked;
 };
 
@@ -386,7 +387,7 @@ ni_nanny_fsm_monitor_new(ni_fsm_t *fsm)
 }
 
 ni_bool_t
-ni_nanny_fsm_monitor_arm(ni_nanny_fsm_monitor_t *monitor, unsigned long timeout)
+ni_nanny_fsm_monitor_arm(ni_nanny_fsm_monitor_t *monitor, ni_timeout_t timeout)
 {
 	if (monitor) {
 		monitor->timeout = timeout;
@@ -408,14 +409,14 @@ ni_nanny_fsm_monitor_run(ni_nanny_fsm_monitor_t *monitor, ni_ifworker_array_t *m
 
 	monitor->marked = ni_ifworker_array_clone(marked);
 	while (!ni_caught_terminal_signal()) {
-		long timeout;
+		ni_timeout_t timeout;
 
 		if (!monitor->marked || !monitor->marked->count)
 			break;
 
 		timeout = ni_timer_next_timeout();
 		if (monitor->timeout == 0 ||
-		    (monitor->timeout > 0 && timeout < 0))
+		    (monitor->timeout > 0 && timeout == NI_TIMEOUT_INFINITE))
 			break;
 
 		if (ni_socket_wait(timeout) != 0)
@@ -449,8 +450,8 @@ ni_nanny_fsm_monitor_free(ni_nanny_fsm_monitor_t *monitor)
 	free(monitor);
 }
 
-static int
-ni_do_ifup_nanny(int argc, char **argv)
+int
+ni_do_ifup(int argc, char **argv)
 {
 	enum  { OPT_HELP, OPT_IFCONFIG, OPT_CONTROL_MODE, OPT_STAGE, OPT_TIMEOUT,
 		OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_PERSISTENT, OPT_TRANSIENT,
@@ -484,7 +485,7 @@ ni_do_ifup_nanny(int argc, char **argv)
 	ni_bool_t check_prio = TRUE, set_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
 	int c, status = NI_WICKED_RC_USAGE;
-	unsigned int timeout = 0;
+	unsigned int seconds = 0;
 	ni_fsm_t *fsm;
 
 	fsm = ni_fsm_new();
@@ -515,16 +516,9 @@ ni_do_ifup_nanny(int argc, char **argv)
 			break;
 
 		case OPT_TIMEOUT:
-			if (!strcmp(optarg, "infinite")) {
-				timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			} else {
-				unsigned int sec;
-
-				if (ni_parse_uint(optarg, &sec, 10) < 0) {
-					ni_error("ifup: cannot parse timeout option \"%s\"", optarg);
-					goto usage;
-				}
-				timeout = sec * 1000; /* sec -> msec */
+			if (ni_parse_seconds_timeout(optarg, &seconds)) {
+				ni_error("ifup: cannot parse timeout option \"%s\"", optarg);
+				goto usage;
 			}
 			break;
 
@@ -621,12 +615,12 @@ usage:
 	}
 
 	/* Set timeout how long the action is allowed to wait */
-	if (timeout) {
-		fsm->worker_timeout = timeout; /* One set by user */
+	if (seconds) {
+		fsm->worker_timeout = NI_TIMEOUT_FROM_SEC(seconds);
 	} else
 	if (ni_wait_for_interfaces) {
 		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
-				ni_wait_for_interfaces*1000);
+				NI_TIMEOUT_FROM_SEC(ni_wait_for_interfaces));
 	} else {
 		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
 				NI_IFWORKER_DEFAULT_TIMEOUT);
@@ -636,7 +630,7 @@ usage:
 		ni_debug_application("wait for interfaces infinitely");
 	else
 		ni_debug_application("wait %u seconds for interfaces",
-					fsm->worker_timeout/1000);
+					NI_TIMEOUT_SEC(fsm->worker_timeout));
 
 	ni_nanny_fsm_monitor_arm(monitor, fsm->worker_timeout);
 
@@ -685,7 +679,7 @@ usage:
 
 	/*
 	 * Do not report any errors to systemd -- returning an error
-	 * here, will cause sytemd to stop the network completely.
+	 * here, will cause systemd to stop the network completely.
 	 */
 	if (opt_systemd)
 		status = NI_LSB_RC_SUCCESS;
@@ -698,287 +692,3 @@ cleanup:
 	return status;
 }
 
-static int
-ni_do_ifup_direct(int argc, char **argv)
-{
-	enum  { OPT_HELP, OPT_IFCONFIG, OPT_CONTROL_MODE, OPT_STAGE, OPT_TIMEOUT,
-		OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_PERSISTENT, OPT_TRANSIENT,
-#ifdef NI_TEST_HACKS
-		OPT_IGNORE_PRIO, OPT_IGNORE_STARTMODE,
-#endif
-	};
-
-	static struct option ifup_options[] = {
-		{ "help",	no_argument,       NULL,	OPT_HELP },
-		{ "ifconfig",	required_argument, NULL,	OPT_IFCONFIG },
-		{ "mode",	required_argument, NULL,	OPT_CONTROL_MODE },
-		{ "boot-stage",	required_argument, NULL,	OPT_STAGE },
-		{ "skip-active",required_argument, NULL,	OPT_SKIP_ACTIVE },
-		{ "skip-origin",required_argument, NULL,	OPT_SKIP_ORIGIN },
-		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
-		{ "transient", 	no_argument,		NULL,	OPT_TRANSIENT },
-#ifdef NI_TEST_HACKS
-		{ "ignore-prio",no_argument, NULL,	OPT_IGNORE_PRIO },
-		{ "ignore-startmode",no_argument, NULL,	OPT_IGNORE_STARTMODE },
-#endif
-		{ "persistent",	no_argument, NULL,	OPT_PERSISTENT },
-		{ NULL }
-	};
-
-	ni_ifmatcher_t ifmatch;
-	ni_ifmarker_t ifmarker;
-	ni_ifworker_array_t ifmarked;
-	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
-	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
-	ni_bool_t check_prio = TRUE;
-	ni_bool_t opt_transient = FALSE;
-	unsigned int nmarked;
-	ni_fsm_t *fsm;
-	int c, status = NI_WICKED_RC_USAGE;
-	unsigned int timeout = 0;
-	const char *ptr;
-
-	fsm = ni_fsm_new();
-	ni_assert(fsm);
-	ni_fsm_require_register_type("reachable", ni_ifworker_reachability_check_new);
-
-	memset(&ifmatch, 0, sizeof(ifmatch));
-	memset(&ifmarker, 0, sizeof(ifmarker));
-	memset(&ifmarked, 0, sizeof(ifmarked));
-
-	/* Allow ifup on all interfaces we have config for */
-	ifmatch.require_configured = FALSE;
-	ifmatch.allow_persistent = TRUE;
-	ifmatch.require_config = TRUE;
-
-	ifmarker.target_range.min = __NI_FSM_STATE_MAX - 1;
-	ifmarker.target_range.max = __NI_FSM_STATE_MAX;
-
-	/*
-	 * Workaround to consider WAIT_FOR_INTERFACES variable
-	 * in network/config (bnc#863371, bnc#862530 timeouts).
-	 * Correct would be to get it from compat layer, but
-	 * the network/config is sourced in systemd service...
-	 */
-	if ((ptr = getenv("WAIT_FOR_INTERFACES"))) {
-		unsigned int sec;
-
-		if (ni_parse_uint(ptr, &sec, 10) == 0 &&
-		    (sec * 1000 > fsm->worker_timeout)) {
-			ni_debug_application("wait %u sec for interfaces", sec);
-			timeout = sec * 1000;
-		}
-	}
-
-	optind = 1;
-	while ((c = getopt_long(argc, argv, "", ifup_options, NULL)) != EOF) {
-		switch (c) {
-		case OPT_IFCONFIG:
-			ni_string_array_append(&opt_ifconfig, optarg);
-			break;
-
-		case OPT_CONTROL_MODE:
-			ifmatch.mode = optarg;
-			break;
-
-		case OPT_STAGE:
-			ifmatch.boot_stage= optarg;
-			break;
-
-		case OPT_TIMEOUT:
-			if (!strcmp(optarg, "infinite")) {
-				timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			} else if (ni_parse_uint(optarg, &timeout, 10) >= 0) {
-				timeout *= 1000; /* sec -> msec */
-			} else {
-				ni_error("ifup: cannot parse timeout option \"%s\"", optarg);
-				goto usage;
-			}
-			break;
-
-		case OPT_SKIP_ORIGIN:
-			ifmatch.skip_origin = optarg;
-			break;
-
-		case OPT_SKIP_ACTIVE:
-			ifmatch.skip_active = TRUE;
-			break;
-
-#ifdef NI_TEST_HACKS
-		case OPT_IGNORE_PRIO:
-			check_prio = FALSE;
-			break;
-
-		case OPT_IGNORE_STARTMODE:
-			ifmatch.ignore_startmode = TRUE;
-			break;
-#endif
-
-		case OPT_PERSISTENT:
-			ifmarker.persistent = TRUE;
-			break;
-
-		case OPT_TRANSIENT:
-			opt_transient = TRUE;
-			break;
-
-		default:
-		case OPT_HELP:
-usage:
-			fprintf(stderr,
-				"wicked [options] ifup [ifup-options] <ifname ...>|all\n"
-				"\nSupported ifup-options:\n"
-				"  --help\n"
-				"      Show this help text.\n"
-				"  --transient\n"
-				"      Enable transient interface return codes\n"
-				"  --ifconfig <pathname>\n"
-				"      Read interface configuration(s) from file/directory rather than using system config\n"
-				"  --mode <label>\n"
-				"      Only touch interfaces with matching control <mode>\n"
-				"  --boot-stage <label>\n"
-				"      Only touch interfaces with matching <boot-stage>\n"
-				"  --skip-active\n"
-				"      Do not touch running interfaces\n"
-				"  --skip-origin <name>\n"
-				"      Skip interfaces that have a configuration origin of <name>\n"
-				"      Usually, you would use this with the name \"firmware\" to avoid\n"
-				"      touching interfaces that have been set up via firmware (like iBFT) previously\n"
-				"  --timeout <sec>\n"
-				"      Timeout after <sec> seconds\n"
-#ifdef NI_TEST_HACKS
-				"  --ignore-prio\n"
-				"      Ignore checking the config origin priorities\n"
-				"  --ignore-startmode\n"
-				"      Ignore checking the STARTMODE=off and STARTMODE=manual configs\n"
-#endif
-				"  --persistent\n"
-				"      Set interface into persistent mode (no regular ifdown allowed)\n"
-				);
-			goto cleanup;
-		}
-	}
-
-	if (optind >= argc) {
-		fprintf(stderr, "Missing interface argument\n");
-		goto usage;
-	}
-
-	if (!ni_fsm_create_client(fsm)) {
-		/* Severe error we always explicitly return */
-		status = NI_WICKED_RC_ERROR;
-		goto cleanup;
-	}
-
-	if (!ni_fsm_refresh_state(fsm)) {
-		/* Severe error we always explicitly return */
-		status = NI_WICKED_RC_ERROR;
-		goto cleanup;
-	}
-
-	if (opt_ifconfig.count == 0) {
-		const ni_string_array_t *sources = ni_config_sources("ifconfig");
-
-		if (sources && sources->count)
-			ni_string_array_copy(&opt_ifconfig, sources);
-
-		if (opt_ifconfig.count == 0) {
-			ni_error("ifup: unable to load interface config source list");
-			status = NI_WICKED_RC_NOT_CONFIGURED;
-			goto cleanup;
-		}
-	}
-
-	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, check_prio, TRUE)) {
-		status = NI_WICKED_RC_NOT_CONFIGURED;
-		goto cleanup;
-	}
-
-	/* Set timeout how long the action is allowed to wait */
-	if (timeout) {
-		fsm->worker_timeout = timeout; /* One set by user */
-	} else
-	if (ni_wait_for_interfaces) {
-		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
-				ni_wait_for_interfaces*1000);
-	} else {
-		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
-				NI_IFWORKER_DEFAULT_TIMEOUT);
-	}
-
-	if (fsm->worker_timeout == NI_IFWORKER_INFINITE_TIMEOUT)
-		ni_debug_application("wait for interfaces infinitely");
-	else
-		ni_debug_application("wait %u seconds for interfaces",
-					fsm->worker_timeout/1000);
-
-	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
-		ni_error("ifup: unable to build device hierarchy");
-		/* Severe error we always explicitly return */
-		status = NI_WICKED_RC_ERROR;
-		goto cleanup;
-	}
-
-	/* Get workers that match given criteria */
-	nmarked = 0;
-	while (optind < argc) {
-		ifmatch.name = argv[optind++];
-
-		if (!strcmp(ifmatch.name, "boot")) {
-			ifmatch.name = "all";
-			ifmatch.mode = "boot";
-		}
-
-		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
-
-		if (ni_string_eq(ifmatch.name, "all") ||
-		    ni_string_empty(ifmatch.name)) {
-			ni_string_array_destroy(&ifnames);
-			break;
-		}
-
-		if (ni_string_array_index(&ifnames, ifmatch.name) < 0)
-			ni_string_array_append(&ifnames, ifmatch.name);
-	}
-
-	ni_fsm_pull_in_children(&ifmarked, fsm);
-
-	/* Mark and start selected workers */
-	if (ifmarked.count)
-		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
-
-	if (nmarked == 0) {
-		ni_note("ifup: no matching interfaces");
-		status = NI_WICKED_RC_SUCCESS;
-	} else {
-		if (ni_fsm_schedule(fsm) != 0)
-			ni_fsm_mainloop(fsm);
-
-		ni_fsm_wait_tentative_addrs(fsm);
-
-		status = ni_ifstatus_display_result(fsm, &ifnames, &ifmarked,
-			opt_transient);
-
-		/*
-		 * Do not report any errors to systemd -- returning an error
-		 * here, will cause sytemd to stop the network completely.
-		 */
-		if (opt_systemd)
-			status = NI_LSB_RC_SUCCESS;
-	}
-
-cleanup:
-	ni_ifworker_array_destroy(&ifmarked);
-	ni_string_array_destroy(&ifnames);
-	ni_string_array_destroy(&opt_ifconfig);
-	return status;
-}
-
-int
-ni_do_ifup(int argc, char **argv)
-{
-	if (ni_config_use_nanny())
-		return ni_do_ifup_nanny(argc, argv);
-	else
-		return ni_do_ifup_direct(argc, argv);
-}

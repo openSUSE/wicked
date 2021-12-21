@@ -1,5 +1,8 @@
 <h1>org.opensuse.Network.PPP</h1>
 
+<h2>Synopsis</h2>
+This link-layer service is provided by all PPP devices. <p>
+PPP devices can be created through the org.opensuse.Network.PPP.Factory factory interface. 
 <h2>Namespace</h2>
 
 <p>
@@ -14,50 +17,101 @@
 </tr>
 <tr>
  <td>Typedefs</td>
- <td>1</td>
+ <td>7</td>
 </tr>
 <tr>
- <td>Properties</td>
- <td>none</td>
+ <td rowspan="14" valign="top">Properties</td>
+ <td><a href="#property:mode">mode</a></td>
 </tr>
 <tr>
- <td rowspan="3" valign="top">Methods</td>
- <td><a href="#linkUp">linkUp()</a></td>
+ <td><a href="#property:debug">debug</a></td>
 </tr>
 <tr>
- <td><a href="#linkDown">linkDown()</a></td>
+ <td><a href="#property:demand">demand</a></td>
 </tr>
 <tr>
- <td><a href="#deleteDevice">deleteDevice()</a></td>
+ <td><a href="#property:persist">persist</a></td>
+</tr>
+<tr>
+ <td><a href="#property:idle">idle</a></td>
+</tr>
+<tr>
+ <td><a href="#property:maxfail">maxfail</a></td>
+</tr>
+<tr>
+ <td><a href="#property:holdoff">holdoff</a></td>
+</tr>
+<tr>
+ <td><a href="#property:multilink">multilink</a></td>
+</tr>
+<tr>
+ <td><a href="#property:endpoint">endpoint</a></td>
+</tr>
+<tr>
+ <td><a href="#property:dns">dns</a></td>
+</tr>
+<tr>
+ <td><a href="#property:defaultroute">defaultroute</a></td>
+</tr>
+<tr>
+ <td><a href="#property:auth">auth</a></td>
+</tr>
+<tr>
+ <td><a href="#property:ipv4">ipv4</a></td>
+</tr>
+<tr>
+ <td><a href="#property:ipv6">ipv6</a></td>
+</tr>
+<tr>
+ <td rowspan="1" valign="top">Methods</td>
+ <td><a href="#changeDevice">changeDevice()</a></td>
 </tr>
 <tr>
  <td>Signals</td>
  <td>none</td>
 </tr>
 </table><p>
-<h2>Methods</h2>
-<dl>
-<dt><em><a name="linkUp"/><a href="interface.html#callback-info">interface:callback-info</a> linkUp(dict request)</em></dt>
-<dd>
-<p>Argument <em>request</em> is mapped to element &lt;link&gt; of the device document.
-It is a dict-based type that provides the following members:
+<h2>Properties</h2>
 <ul>
-<li><bold>status</bold> (<a href="dbus.html#builtin-ifflags">builtin-ifflags</a>). </li>
-<li><bold>metric</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
-<li><bold>mtu</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
-<li><bold>txqlen</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
-<li><bold>alias</bold> (<a href="dbus.html#string">string</a>). </li>
-<li><bold>master</bold> (string). This is a string</li>
-<li><bold>ipv4</bold> (<a href="network-interface.html#af-info">network-interface:af-info</a>). </li>
-<li><bold>ipv6</bold> (<a href="network-interface.html#af-info">network-interface:af-info</a>). </li>
+<li><a name="property:mode"/><bold>mode</bold> (unknown). This is an unknown</li>
+<li><a name="property:debug"/><bold>debug</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><a name="property:demand"/><bold>demand</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><a name="property:persist"/><bold>persist</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><a name="property:idle"/><bold>idle</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><a name="property:maxfail"/><bold>maxfail</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><a name="property:holdoff"/><bold>holdoff</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><a name="property:multilink"/><bold>multilink</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><a name="property:endpoint"/><bold>endpoint</bold> (<a href="dbus.html#string">string</a>). </li>
+<li><a name="property:dns"/><bold>dns</bold> (<a href="ppp.html#dns-config">dns-config</a>). </li>
+<li><a name="property:defaultroute"/><bold>defaultroute</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><a name="property:auth"/><bold>auth</bold> (<a href="ppp.html#auth-config">auth-config</a>). </li>
+<li><a name="property:ipv4"/><bold>ipv4</bold> (<a href="ppp.html#ipv4-config">ipv4-config</a>). </li>
+<li><a name="property:ipv6"/><bold>ipv6</bold> (<a href="ppp.html#ipv6-config">ipv6-config</a>). </li>
 </ul>
 <p>
-<p></dd>
-<dt><em><a name="linkDown"/><a href="interface.html#callback-info">interface:callback-info</a> linkDown()</em></dt>
+<h2>Methods</h2>
+<dl>
+<dt><em><a name="changeDevice"/>void changeDevice(dict config)</em></dt>
 <dd>
-<p></dd>
-<dt><em><a name="deleteDevice"/>void deleteDevice()</em></dt>
-<dd>
+<p>Argument <em>config</em> is mapped to element &lt;ppp&gt; of the device document.
+It is a dict-based type that provides the following members:
+<ul>
+<li><bold>mode</bold> (unknown). This is an unknown</li>
+<li><bold>debug</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>demand</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>persist</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>idle</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>maxfail</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>holdoff</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>multilink</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>endpoint</bold> (<a href="dbus.html#string">string</a>). </li>
+<li><bold>dns</bold> (<a href="ppp.html#dns-config">dns-config</a>). </li>
+<li><bold>defaultroute</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>auth</bold> (<a href="ppp.html#auth-config">auth-config</a>). </li>
+<li><bold>ipv4</bold> (<a href="ppp.html#ipv4-config">ipv4-config</a>). </li>
+<li><bold>ipv6</bold> (<a href="ppp.html#ipv6-config">ipv6-config</a>). </li>
+</ul>
+<p>
 <p></dd>
 </dl>
 <h2>Types defined in this scope</h2>
@@ -69,33 +123,104 @@ It is a dict-based type that provides the following members:
  <th style="width:100px">Kind</th>
  <th style="width:400px">Definition</th>
 </tr>
-<tr><td>linkinfo</td><td>dict</td><td>below</td></tr>
+<tr><td>pppoe-config</td><td>dict</td><td>below</td></tr>
+<tr><td>auth-config</td><td>dict</td><td>below</td></tr>
+<tr><td>dns-config</td><td>dict</td><td>below</td></tr>
+<tr><td>ipv4-config</td><td>dict</td><td>below</td></tr>
+<tr><td>ipv6-config</td><td>dict</td><td>below</td></tr>
+<tr><td>configuration</td><td>dict</td><td>below</td></tr>
 </table>
 
-<a name="linkinfo"/>
-<h3>Type linkinfo</h3>
+<a name="pppoe-config"/>
+<h3>Type pppoe-config</h3>
 <p>
 This is a dict-based type that provides the following members:
 <ul>
-<li><bold>mru</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
-<li><bold>auth</bold> (dict). This is a dict-based type that provides the following members:
+<li><bold>device</bold> (string). This is a string</li>
+</ul>
+<p>
+
+<a name="auth-config"/>
+<h3>Type auth-config</h3>
+<p>
+This is a dict-based type that provides the following members:
 <ul>
-<li><bold>protocol</bold> (uint32). This is a uint32 enumerated type, which can take the following values:
-<p><ul> <li>pap (0)</li>
- <li>chap (1)</li>
- <li>ms-chap (2)</li>
- <li>ms-chapv2 (3)</li>
- <li>eap (4)</li>
-</ul><p>
-</li>
 <li><bold>hostname</bold> (<a href="dbus.html#string">string</a>). </li>
-<li><bold>user</bold> (string). This is a string</li>
-<li><bold>password</bold> (string). This is a string</li>
+<li><bold>username</bold> (<a href="dbus.html#string">string</a>). </li>
+<li><bold>password</bold> (<a href="dbus.html#string">string</a>). </li>
+</ul>
+<p>
+
+<a name="dns-config"/>
+<h3>Type dns-config</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>usepeerdns</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>dns1</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family. On the wire, it is represented as uint16 containing the address family, followed by the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4. </li>
+<li><bold>dns2</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family. On the wire, it is represented as uint16 containing the address family, followed by the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4. </li>
+</ul>
+<p>
+
+<a name="ipv4-config"/>
+<h3>Type ipv4-config</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>local-ip</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family. On the wire, it is represented as uint16 containing the address family, followed by the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4. </li>
+<li><bold>remote-ip</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family. On the wire, it is represented as uint16 containing the address family, followed by the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4. </li>
+<li><bold>ipcp</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>accept-local</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>accept-remote</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
 </ul>
 <p>
 </li>
-<li><bold>number</bold> (<a href="dbus.html#string">string</a>). </li>
-<li><bold>idle-timeout</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+</ul>
+<p>
+
+<a name="ipv6-config"/>
+<h3>Type ipv6-config</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>enabled</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>local-ip</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family. On the wire, it is represented as uint16 containing the address family, followed by the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4. </li>
+<li><bold>remote-ip</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family. On the wire, it is represented as uint16 containing the address family, followed by the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4. </li>
+<li><bold>ipcp</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>accept-local</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+</ul>
+<p>
+</li>
+</ul>
+<p>
+
+<a name="configuration"/>
+<h3>Type configuration</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>mode</bold> (unknown). This is an unknown</li>
+<li><bold>debug</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>demand</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>persist</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>idle</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>maxfail</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>holdoff</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>multilink</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>endpoint</bold> (<a href="dbus.html#string">string</a>). </li>
+<li><bold>dns</bold> (<a href="ppp.html#dns-config">dns-config</a>). </li>
+<li><bold>defaultroute</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>auth</bold> (<a href="ppp.html#auth-config">auth-config</a>). </li>
+<li><bold>ipv4</bold> (<a href="ppp.html#ipv4-config">ipv4-config</a>). </li>
+<li><bold>ipv6</bold> (<a href="ppp.html#ipv6-config">ipv6-config</a>). </li>
 </ul>
 <p>
 

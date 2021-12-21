@@ -8,7 +8,7 @@
 #ifndef __CLIENT_FSM_H__
 #define __CLIENT_FSM_H__
 
-#include <wicked/socket.h>	/* needed for ni_timer_t */
+#include <wicked/time.h>
 #include <wicked/secret.h>
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
@@ -44,20 +44,30 @@ typedef enum ni_config_origin_prio {
 	NI_CONFIG_ORIGIN_PRIO_UNKNOWN = 100,
 } ni_config_origin_prio_t;
 
-#define NI_IFWORKER_DEFAULT_TIMEOUT	30000
-#define NI_IFWORKER_INFINITE_TIMEOUT	((unsigned int) -1)
+#define NI_IFWORKER_DEFAULT_TIMEOUT	NI_TIMEOUT_FROM_SEC(30)
+#define NI_IFWORKER_INFINITE_TIMEOUT	NI_TIMEOUT_INFINITE
+#define NI_IFWORKER_INFINITE_SECONDS	NI_SECONDS_INFINITE
 
-typedef struct ni_fsm		ni_fsm_t;
-typedef struct ni_ifworker	ni_ifworker_t;
-typedef struct ni_fsm_require	ni_fsm_require_t;
-typedef struct ni_fsm_policy	ni_fsm_policy_t;
-typedef struct ni_fsm_event	ni_fsm_event_t;
+typedef struct ni_fsm			ni_fsm_t;
+typedef struct ni_ifworker		ni_ifworker_t;
+typedef struct ni_fsm_event		ni_fsm_event_t;
+typedef struct ni_fsm_require		ni_fsm_require_t;
+typedef struct ni_fsm_policy		ni_fsm_policy_t;
+typedef int				ni_fsm_policy_compare_fn_t(const ni_fsm_policy_t *, const ni_fsm_policy_t *);
+
+typedef struct ni_fsm_policy_array {
+	unsigned int			count;
+	ni_fsm_policy_t **		data;
+} ni_fsm_policy_array_t;
+
+#define NI_FSM_POLICY_ARRAY_INIT	{ .count = 0, .data = NULL }
 
 typedef struct ni_ifworker_array {
-	unsigned int		count;
-	ni_ifworker_t **	data;
+	unsigned int			count;
+	ni_ifworker_t **		data;
 } ni_ifworker_array_t;
-#define NI_IFWORKER_ARRAY_INIT { .count = 0, .data = NULL }
+
+#define NI_IFWORKER_ARRAY_INIT		{ .count = 0, .data = NULL }
 
 typedef struct ni_fsm_timer_ctx	ni_fsm_timer_ctx_t;
 typedef void			ni_fsm_timer_fn_t(const ni_timer_t *, ni_fsm_timer_ctx_t *);
@@ -141,16 +151,18 @@ struct ni_ifworker {
 				pending		: 1,
 				readonly	: 1;
 
-	ni_ifworker_control_t	control;
+	ni_fsm_policy_array_t	policies;
 
-	struct {
-		xml_node_t *			node;
-	} state;
+	ni_ifworker_control_t	control;
 
 	struct {
 		ni_client_state_config_t	meta;
 		xml_node_t *			node;
-	} config;
+	}			config;
+
+	struct {
+		xml_node_t *			node;
+	}			state;
 
 	/* The security ID can be used as a set of identifiers
 	 * to look up user name/password/pin type info in a
@@ -241,7 +253,7 @@ struct ni_fsm_event {
 struct ni_fsm {
 	ni_ifworker_array_t	pending;
 	ni_ifworker_array_t	workers;
-	unsigned int		worker_timeout;
+	ni_timeout_t		worker_timeout;
 	ni_bool_t		readonly;
 
 	unsigned int		timeout_count;
@@ -290,6 +302,7 @@ extern void			ni_fsm_policy_free(ni_fsm_policy_t *);
 extern ni_bool_t		ni_fsm_policy_update(ni_fsm_policy_t *, xml_node_t *);
 extern ni_bool_t		ni_fsm_policy_remove(ni_fsm_t *, ni_fsm_policy_t *);
 extern ni_fsm_policy_t *	ni_fsm_policy_by_name(const ni_fsm_t *, const char *);
+extern int			ni_fsm_policy_compare_weight(const ni_fsm_policy_t *, const ni_fsm_policy_t *);
 extern unsigned int		ni_fsm_policy_get_applicable_policies(const ni_fsm_t *, ni_ifworker_t *,
 						const ni_fsm_policy_t **, unsigned int);
 extern ni_bool_t		ni_fsm_exists_applicable_policy(const ni_fsm_t *, ni_fsm_policy_t *, ni_ifworker_t *);
@@ -297,13 +310,28 @@ extern xml_node_t *		ni_fsm_policy_transform_document(xml_node_t *, ni_fsm_polic
 extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
 extern const xml_node_t *	ni_fsm_policy_node(const ni_fsm_policy_t *);
 extern const xml_location_t *	ni_fsm_policy_location(const ni_fsm_policy_t *);
-extern const char *		ni_fsm_policy_get_origin(const ni_fsm_policy_t *);
+extern const ni_uuid_t *	ni_fsm_policy_uuid(const ni_fsm_policy_t *);
+extern uid_t			ni_fsm_policy_owner(const ni_fsm_policy_t *);
+extern const char *		ni_fsm_policy_origin(const ni_fsm_policy_t *);
+extern unsigned int		ni_fsm_policy_weight(const ni_fsm_policy_t *);
 extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *tstamp);
+
+extern void			ni_fsm_policy_array_init(ni_fsm_policy_array_t *);
+extern void			ni_fsm_policy_array_destroy(ni_fsm_policy_array_t *);
+extern void			ni_fsm_policy_array_sort(ni_fsm_policy_array_t *, ni_fsm_policy_compare_fn_t *);
+extern ni_bool_t		ni_fsm_policy_array_move(ni_fsm_policy_array_t *, ni_fsm_policy_array_t *);
+extern ni_bool_t		ni_fsm_policy_array_append(ni_fsm_policy_array_t *, ni_fsm_policy_t *);
+extern ni_bool_t		ni_fsm_policy_array_insert(ni_fsm_policy_array_t *, unsigned int, ni_fsm_policy_t *);
+extern ni_bool_t		ni_fsm_policy_array_delete(ni_fsm_policy_array_t *, unsigned int);
+extern ni_fsm_policy_t *	ni_fsm_policy_array_remove(ni_fsm_policy_array_t *, unsigned int);
+extern ni_fsm_policy_t *	ni_fsm_policy_array_get(ni_fsm_policy_array_t *, unsigned int);
+extern ni_fsm_policy_t *	ni_fsm_policy_array_ref(ni_fsm_policy_array_t *, unsigned int);
+extern unsigned int		ni_fsm_policy_array_index(const ni_fsm_policy_array_t *, const ni_fsm_policy_t *);
 
 extern ni_dbus_client_t *	ni_fsm_create_client(ni_fsm_t *);
 extern ni_bool_t		ni_fsm_refresh_state(ni_fsm_t *);
 extern unsigned int		ni_fsm_schedule(ni_fsm_t *);
-extern ni_bool_t		ni_fsm_do(ni_fsm_t *fsm, long *timeout_p);
+extern ni_bool_t		ni_fsm_do(ni_fsm_t *, ni_timeout_t *);
 extern void			ni_fsm_mainloop(ni_fsm_t *);
 extern void			ni_fsm_set_process_event_callback(ni_fsm_t *, void (*)(ni_fsm_t *, ni_ifworker_t *, ni_fsm_event_t *), void *);
 extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, ni_ifworker_array_t *);
@@ -313,7 +341,9 @@ extern void			ni_fsm_reset_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, c
 extern void			ni_fsm_print_config_hierarchy(const ni_fsm_t *);
 extern void			ni_fsm_print_system_hierarchy(const ni_fsm_t *);
 extern int			ni_fsm_build_hierarchy(ni_fsm_t *, ni_bool_t);
-extern ni_bool_t		ni_fsm_workers_from_xml(ni_fsm_t *, xml_node_t *, const char *);
+extern ni_ifworker_t *		ni_fsm_worker_identify(ni_fsm_t *, const xml_node_t *, const char *,
+							ni_ifworker_type_t *, const char **);
+extern ni_ifworker_t *		ni_fsm_workers_from_xml(ni_fsm_t *, xml_node_t *, const char *);
 extern unsigned int		ni_fsm_fail_count(ni_fsm_t *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_object_path(ni_fsm_t *, const char *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_ifindex(ni_fsm_t *, unsigned int);
@@ -324,6 +354,7 @@ extern ni_ifworker_t *		ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *o
 extern ni_ifworker_t *		ni_fsm_recv_new_netif_path(ni_fsm_t *fsm, const char *path);
 extern ni_ifworker_t *		ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh);
 extern ni_ifworker_t *		ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path);
+extern ni_ifworker_t *		ni_fsm_ifworker_new(ni_fsm_t *, ni_ifworker_type_t, const char *);
 extern void			ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w);
 extern void			ni_fsm_pull_in_children(ni_ifworker_array_t *, ni_fsm_t *);
 extern void			ni_fsm_wait_tentative_addrs(ni_fsm_t *);
@@ -340,7 +371,7 @@ extern ni_bool_t		ni_ifworker_match_netdev_alias(const ni_ifworker_t *, const ch
 extern ni_bool_t		ni_ifworker_match_netdev_ifindex(const ni_ifworker_t *, unsigned int);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *, const char *);
 extern ni_iftype_t		ni_ifworker_iftype_from_xml(xml_node_t *);
-extern void			ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
+extern ni_bool_t		ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
 extern ni_bool_t		ni_ifworker_control_set_usercontrol(ni_ifworker_t *, ni_bool_t);
 extern ni_bool_t		ni_ifworker_control_set_persistent(ni_ifworker_t *, ni_bool_t);
 extern  void			ni_ifworker_rearm(ni_ifworker_t *);
@@ -369,7 +400,7 @@ extern void			ni_ifworker_array_remove_with_children(ni_ifworker_array_t *, ni_i
 extern int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
 extern void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 
-extern unsigned int		ni_fsm_find_max_timeout(ni_fsm_t *, unsigned int);
+extern ni_timeout_t		ni_fsm_find_max_timeout(ni_fsm_t *, ni_timeout_t);
 extern void			ni_fsm_require_register_type(const char *, ni_fsm_require_ctor_t *);
 extern ni_fsm_require_t *	ni_fsm_require_new(ni_fsm_require_fn_t *, ni_fsm_require_dtor_t *);
 

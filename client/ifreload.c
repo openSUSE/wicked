@@ -47,328 +47,6 @@
 #include "ifreload.h"
 #include "ifstatus.h"
 
-static int
-ni_do_ifreload_direct(const char *caller, int argc, char **argv)
-{
-	enum  {
-		OPT_HELP	= 'h',
-		OPT_IFCONFIG	= 'i',
-		OPT_TIMEOUT	= 't',
-		OPT_PERSISTENT	= 'P',
-		OPT_TRANSIENT	= 'T',
-	};
-	static struct option ifreload_options[] = {
-		{ "help",		no_argument,		NULL,	OPT_HELP },
-		{ "ifconfig",		required_argument,	NULL,	OPT_IFCONFIG },
-		{ "timeout",		required_argument,	NULL,	OPT_TIMEOUT },
-		{ "transient",		no_argument,		NULL,	OPT_TRANSIENT },
-		{ "persistent",		no_argument,		NULL,	OPT_PERSISTENT },
-
-		{ NULL,			no_argument,		NULL,	0 }
-	};
-	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
-	ni_ifworker_array_t up_marked = NI_IFWORKER_ARRAY_INIT;
-	ni_ifworker_array_t down_marked = NI_IFWORKER_ARRAY_INIT;
-	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
-	ni_ifmatcher_t ifmatch;
-	ni_bool_t opt_persistent = FALSE;
-	ni_bool_t opt_transient = FALSE;
-	unsigned int opt_timeout = 0;
-	int c, status = NI_WICKED_RC_USAGE;
-	char *saved_argv0, *program = NULL;
-	unsigned int nmarked, i;
-	const ni_uint_range_t up_range = {
-		.min = __NI_FSM_STATE_MAX - 1,
-		.max = __NI_FSM_STATE_MAX
-	};
-	ni_fsm_t *fsm;
-
-	/* Allow ifreload on all interfaces with a changed config */
-	memset(&ifmatch, 0, sizeof(ifmatch));
-	ifmatch.require_configured = FALSE;
-	ifmatch.allow_persistent = TRUE;
-	ifmatch.require_config = FALSE;
-
-	fsm = ni_fsm_new();
-	ni_assert(fsm);
-	ni_fsm_require_register_type("reachable", ni_ifworker_reachability_check_new);
-
-	ni_string_printf(&program, "%s %s",	caller  ? caller  : "wicked",
-						argv[0] ? argv[0] : "ifreload");
-	saved_argv0 = argv[0];
-	argv[0] = program;
-	optind = 1;
-	while ((c = getopt_long(argc, argv, "+hi:t:PT", ifreload_options, NULL)) != EOF) {
-		switch (c) {
-		case OPT_IFCONFIG:
-			ni_string_array_append(&opt_ifconfig, optarg);
-			break;
-
-		case OPT_PERSISTENT:
-			opt_persistent = TRUE;
-			break;
-
-		case OPT_TRANSIENT:
-			opt_transient = TRUE;
-			break;
-
-		case OPT_TIMEOUT:
-			if (!strcmp(optarg, "infinite")) {
-				opt_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			} else if (ni_parse_uint(optarg, &opt_timeout, 10) >= 0) {
-				opt_timeout *= 1000; /* sec -> msec */
-			} else {
-				ni_error("%s: cannot parse timeout option \"%s\"",
-						program, optarg);
-				goto usage;
-			}
-			break;
-
-		default:
-		case OPT_HELP:
-usage:
-			fprintf(stderr,
-				"%s [ifreload-options] <ifname ...>|all\n"
-				"\nSupported ifreload-options:\n"
-				"  --help\n"
-				"      Show this help text.\n"
-				"  --transient\n"
-				"      Enable transient interface return codes\n"
-				"  --ifconfig <filename>\n"
-				"      Read interface configuration(s) from file\n"
-				"  --timeout <sec>\n"
-				"      Timeout after <sec> seconds\n"
-				"  --persistent\n"
-				"      Set interface into persistent mode (no regular ifdown allowed)\n"
-				, program);
-			goto cleanup;
-		}
-	}
-
-	/* at least one argument is required */
-	if (optind >= argc) {
-		fprintf(stderr, "%s: missing interface argument\n", program);
-		goto usage;
-	}
-	for (c = optind; c < argc; ++c) {
-		if (ni_string_empty(argv[c]))
-			goto usage;
-	}
-
-	if (!ni_fsm_create_client(fsm)) {
-		/* Severe error we always explicitly return */
-		status = NI_WICKED_RC_ERROR;
-		goto cleanup;
-	}
-
-	if (!ni_fsm_refresh_state(fsm)) {
-		/* Severe error we always explicitly return */
-		status = NI_WICKED_RC_ERROR;
-		goto cleanup;
-	}
-
-	if (opt_ifconfig.count == 0) {
-		const ni_string_array_t *sources = ni_config_sources("ifconfig");
-
-		if (sources && sources->count)
-			ni_string_array_copy(&opt_ifconfig, sources);
-
-		if (opt_ifconfig.count == 0) {
-			ni_error("ifreload: unable to load interface config source list");
-			status = NI_WICKED_RC_NOT_CONFIGURED;
-			goto cleanup;
-		}
-	}
-
-	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE, TRUE)) {
-		status = NI_WICKED_RC_NOT_CONFIGURED;
-		goto cleanup;
-	}
-
-	/* Set timeout how long the action is allowed to wait */
-	if (opt_timeout) {
-		fsm->worker_timeout = opt_timeout; /* One set by user */
-	} else
-	if (ni_wait_for_interfaces) {
-		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
-					ni_wait_for_interfaces*1000);
-	} else {
-		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
-					NI_IFWORKER_DEFAULT_TIMEOUT);
-	}
-
-	if (fsm->worker_timeout == NI_IFWORKER_INFINITE_TIMEOUT)
-		ni_debug_application("wait for interfaces infinitely");
-	else
-		ni_debug_application("wait %u seconds for interfaces",
-					fsm->worker_timeout/1000);
-
-	/* Build the up tree */
-	if (ni_fsm_build_hierarchy(fsm, FALSE) < 0) {
-		ni_error("ifreload: unable to build device hierarchy");
-		/* Severe error we always explicitly return */
-		status = NI_WICKED_RC_ERROR;
-		goto cleanup;
-	}
-
-	status = NI_WICKED_RC_SUCCESS;
-	nmarked = 0;
-	for (c = optind; c < argc; ++c) {
-		ifmatch.name = argv[c];
-		ifmatch.ignore_startmode = TRUE;
-
-		/* Getting an array of ifworkers matching arguments */
-		ni_fsm_get_matching_workers(fsm, &ifmatch, &down_marked);
-
-		if (ni_string_eq(ifmatch.name, "all") ||
-		    ni_string_empty(ifmatch.name)) {
-			ni_string_array_destroy(&ifnames);
-			break;
-		}
-
-		if (ni_string_array_index(&ifnames, ifmatch.name) < 0)
-			ni_string_array_append(&ifnames, ifmatch.name);
-	}
-
-	for (i = 0; i < down_marked.count; ++i) {
-		ni_ifworker_t *w = down_marked.data[i];
-		ni_netdev_t *dev = w->device;
-
-		/* skip unused devices without config */
-		if (!ni_ifcheck_worker_config_exists(w) &&
-		    !ni_ifcheck_device_configured(dev)) {
-			ni_info("skipping %s interface: no configuration exists and "
-				"device is not configured by wicked", w->name);
-			continue;
-		}
-
-		/* skip if config has not been changed */
-		if (ni_ifcheck_worker_config_matches(w)) {
-			ni_info("skipping %s interface: "
-				"configuration unchanged", w->name);
-			continue;
-		}
-
-		/* Mark persistend when requested */
-		if (opt_persistent)
-			ni_ifworker_control_set_persistent(w, TRUE);
-
-		/* Remember all changed devices */
-		if (ni_ifcheck_worker_config_exists(w) &&
-		    !ni_string_eq_nocase(w->control.mode, "off")) {
-			ni_ifworker_array_append(&up_marked, w);
-		}
-
-		/* Do not ifdown non-existing device */
-		if (!dev) {
-			ni_info("skipping ifdown operation for %s interface: "
-				"non-existing device", w->name);
-			continue;
-		}
-
-		/* Persistent do not go down but up only */
-		if (ni_ifcheck_device_is_persistent(dev)) {
-			ni_info("skipping ifdown operation for %s interface: "
-				"persistent device", w->name);
-			continue;
-		}
-
-		/* Decide how much down we go */
-		if (ni_ifcheck_worker_config_exists(w)) {
-			if (!ni_ifcheck_device_configured(dev)) {
-				ni_info("skipping ifdown operation for %s interface: "
-					"device is not configured by wicked", w->name);
-				continue;
-			}
-			w->target_range.min = NI_FSM_STATE_NONE;
-			switch (w->iftype) {
-			case NI_IFTYPE_TEAM:
-				w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
-				break;
-			default:
-				w->target_range.max = NI_FSM_STATE_DEVICE_READY;
-				break;
-			}
-			nmarked++;
-		} else
-		if (ni_ifcheck_device_configured(dev)) {
-			w->target_range.min = NI_FSM_STATE_NONE;
-			w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
-			nmarked++;
-		}
-	}
-
-	if (0 == nmarked && 0 == up_marked.count) {
-		ni_note("ifreload: no configuration changes to reload");
-		status = NI_WICKED_RC_SUCCESS;
-		goto cleanup;
-	}
-
-	/* anything to ifdown? e.g. persistent devices are skipped here */
-	if (nmarked) {
-		/* Run ifdown part of the reload */
-		ni_debug_application("Shutting down unneeded devices");
-		if (ni_fsm_start_matching_workers(fsm, &down_marked)) {
-			/* Execute the down run */
-			if (ni_fsm_schedule(fsm) != 0)
-				ni_fsm_mainloop(fsm);
-
-			status = ni_ifstatus_shutdown_result(fsm, &ifnames, &down_marked);
-		}
-	}
-	else {
-		ni_debug_application("No interfaces to be brought down\n");
-	}
-
-	/* Build the up tree */
-	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
-		ni_error("ifreload: unable to build device hierarchy");
-		/* Severe error we always explicitly return */
-		status = NI_WICKED_RC_ERROR;
-		goto cleanup;
-	}
-
-	ni_fsm_pull_in_children(&up_marked, fsm);
-
-	/* Drop deleted or apply the up range */
-	ni_fsm_reset_matching_workers(fsm, &up_marked, &up_range, FALSE);
-
-	/* anything to ifup? */
-	if (up_marked.count) {
-		/* And trigger up */
-		ni_debug_application("Reloading all changed devices");
-		if (ni_fsm_start_matching_workers(fsm, &up_marked)) {
-			/* Execute the up run */
-			if (ni_fsm_schedule(fsm) != 0)
-				ni_fsm_mainloop(fsm);
-
-			ni_fsm_wait_tentative_addrs(fsm);
-
-			status = ni_ifstatus_display_result(fsm, &ifnames, &up_marked,
-				opt_transient);
-
-			/*
-			 * Do not report any errors to systemd -- returning an error
-			 * here, will cause sytemd to stop the network completely.
-			 */
-			if (opt_systemd)
-				status = NI_LSB_RC_SUCCESS;
-		}
-	}
-	else {
-		ni_debug_application("No interfaces to be brought up\n");
-	}
-
-cleanup:
-	ni_string_array_destroy(&ifnames);
-	ni_string_array_destroy(&opt_ifconfig);
-	ni_ifworker_array_destroy(&down_marked);
-	ni_ifworker_array_destroy(&up_marked);
-	ni_string_free(&program);
-	argv[0] = saved_argv0;
-	return status;
-}
-
 static ni_bool_t
 ifreload_mark_add(ni_ifworker_array_t *marked, ni_ifworker_t *w)
 {
@@ -652,8 +330,8 @@ ifreload_mark_workers(const ni_fsm_t *fsm, ni_ifworker_array_t *down_marked, ni_
 	}
 }
 
-static int
-ni_do_ifreload_nanny(const char *caller, int argc, char **argv)
+int
+ni_do_ifreload(const char *caller, int argc, char **argv)
 {
 	enum  {
 		OPT_HELP	= 'h',
@@ -678,7 +356,7 @@ ni_do_ifreload_nanny(const char *caller, int argc, char **argv)
 	ni_nanny_fsm_monitor_t *monitor = NULL;
 	ni_bool_t opt_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
-	unsigned int opt_timeout = 0;
+	unsigned int seconds = 0;
 	int c, status = NI_WICKED_RC_USAGE;
 	char *saved_argv0, *program = NULL;
 	unsigned int i;
@@ -708,11 +386,7 @@ ni_do_ifreload_nanny(const char *caller, int argc, char **argv)
 			break;
 
 		case OPT_TIMEOUT:
-			if (!strcmp(optarg, "infinite")) {
-				opt_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			} else if (ni_parse_uint(optarg, &opt_timeout, 10) >= 0) {
-				opt_timeout *= 1000; /* sec -> msec */
-			} else {
+			if (ni_parse_seconds_timeout(optarg, &seconds)) {
 				ni_error("%s: cannot parse timeout option \"%s\"",
 						program, optarg);
 				goto usage;
@@ -781,12 +455,12 @@ usage:
 	}
 
 	/* Set timeout how long the action is allowed to wait */
-	if (opt_timeout) {
-		fsm->worker_timeout = opt_timeout; /* One set by user */
+	if (seconds) {
+		fsm->worker_timeout = NI_TIMEOUT_FROM_SEC(seconds);
 	} else
 	if (ni_wait_for_interfaces) {
 		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
-					ni_wait_for_interfaces*1000);
+					NI_TIMEOUT_FROM_SEC(ni_wait_for_interfaces));
 	} else {
 		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
 					NI_IFWORKER_DEFAULT_TIMEOUT);
@@ -796,7 +470,7 @@ usage:
 		ni_debug_application("wait for interfaces infinitely");
 	else
 		ni_debug_application("wait %u seconds for interfaces",
-					fsm->worker_timeout/1000);
+					NI_TIMEOUT_SEC(fsm->worker_timeout));
 
 	/* Build the up a config relations/hierarchy tree */
 	if (ni_fsm_build_hierarchy(fsm, FALSE) < 0) {
@@ -899,7 +573,7 @@ usage:
 
 		/*
 		 * Do not report any errors to systemd -- returning an error
-		 * here, will cause sytemd to stop the network completely.
+		 * here, will cause systemd to stop the network completely.
 		 */
 		if (opt_systemd)
 			status = NI_LSB_RC_SUCCESS;
@@ -919,11 +593,3 @@ cleanup:
 	return status;
 }
 
-int
-ni_do_ifreload(const char *caller, int argc, char **argv)
-{
-	if (ni_config_use_nanny())
-		return ni_do_ifreload_nanny(caller, argc, argv);
-	else
-		return ni_do_ifreload_direct(caller, argc, argv);
-}

@@ -17,11 +17,17 @@
  <td>1</td>
 </tr>
 <tr>
- <td rowspan="5" valign="top">Properties</td>
+ <td rowspan="9" valign="top">Properties</td>
  <td><a href="#property:enabled">enabled</a></td>
 </tr>
 <tr>
  <td><a href="#property:forwarding">forwarding</a></td>
+</tr>
+<tr>
+ <td><a href="#property:accept-ra">accept-ra</a></td>
+</tr>
+<tr>
+ <td><a href="#property:accept-dad">accept-dad</a></td>
 </tr>
 <tr>
  <td><a href="#property:autoconf">autoconf</a></td>
@@ -31,6 +37,12 @@
 </tr>
 <tr>
  <td><a href="#property:accept-redirects">accept-redirects</a></td>
+</tr>
+<tr>
+ <td><a href="#property:addr-gen-mode">addr-gen-mode</a></td>
+</tr>
+<tr>
+ <td><a href="#property:stable-secret">stable-secret</a></td>
 </tr>
 <tr>
  <td rowspan="1" valign="top">Methods</td>
@@ -45,6 +57,20 @@
 <ul>
 <li><a name="property:enabled"/><bold>enabled</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
 <li><a name="property:forwarding"/><bold>forwarding</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
+<li><a name="property:accept-ra"/><bold>accept-ra</bold> (int32). This is a int32 enumerated type, which can take the following values:
+<p><ul> <li>default (4294967295)</li>
+ <li>disable (0)</li>
+ <li>host (1)</li>
+ <li>router (2)</li>
+</ul><p>
+</li>
+<li><a name="property:accept-dad"/><bold>accept-dad</bold> (int32). This is a int32 enumerated type, which can take the following values:
+<p><ul> <li>default (4294967295)</li>
+ <li>disable (0)</li>
+ <li>fail-address (1)</li>
+ <li>fail-protocol (2)</li>
+</ul><p>
+</li>
 <li><a name="property:autoconf"/><bold>autoconf</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
 <li><a name="property:privacy"/><bold>privacy</bold> (int32). This is a int32 enumerated type, which can take the following values:
 <p><ul> <li>default (4294967295)</li>
@@ -54,6 +80,14 @@
 </ul><p>
 </li>
 <li><a name="property:accept-redirects"/><bold>accept-redirects</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
+<li><a name="property:addr-gen-mode"/><bold>addr-gen-mode</bold> (int32). This is a int32 enumerated type, which can take the following values:
+<p><ul> <li>eui64 (0)</li>
+ <li>none (1)</li>
+ <li>stable-privacy (2)</li>
+ <li>random (3)</li>
+</ul><p>
+</li>
+<li><a name="property:stable-secret"/><bold>stable-secret</bold> (<a href="dbus.html#ipv6-address">ipv6-address</a>). </li>
 </ul>
 <p>
 <h2>Methods</h2>
@@ -65,6 +99,20 @@ It is a dict-based type that provides the following members:
 <ul>
 <li><bold>enabled</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
 <li><bold>forwarding</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
+<li><bold>accept-ra</bold> (int32). This is a int32 enumerated type, which can take the following values:
+<p><ul> <li>default (4294967295)</li>
+ <li>disable (0)</li>
+ <li>host (1)</li>
+ <li>router (2)</li>
+</ul><p>
+</li>
+<li><bold>accept-dad</bold> (int32). This is a int32 enumerated type, which can take the following values:
+<p><ul> <li>default (4294967295)</li>
+ <li>disable (0)</li>
+ <li>fail-address (1)</li>
+ <li>fail-protocol (2)</li>
+</ul><p>
+</li>
 <li><bold>autoconf</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
 <li><bold>privacy</bold> (int32). This is a int32 enumerated type, which can take the following values:
 <p><ul> <li>default (4294967295)</li>
@@ -74,6 +122,14 @@ It is a dict-based type that provides the following members:
 </ul><p>
 </li>
 <li><bold>accept-redirects</bold> (<a href="dbus.html#tristate">tristate</a>). </li>
+<li><bold>addr-gen-mode</bold> (int32). This is a int32 enumerated type, which can take the following values:
+<p><ul> <li>eui64 (0)</li>
+ <li>none (1)</li>
+ <li>stable-privacy (2)</li>
+ <li>random (3)</li>
+</ul><p>
+</li>
+<li><bold>stable-secret</bold> (<a href="dbus.html#ipv6-address">ipv6-address</a>). </li>
 </ul>
 <p>
 <p></dd>

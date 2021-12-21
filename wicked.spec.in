@@ -1,7 +1,7 @@
 #
 # spec file for package wicked
 #
-# Copyright (c) 2020 SUSE LLC
+# Copyright (c) 2021 SUSE LLC
 #
 # All modifications and additions to the file contributed by third parties
 # remain the property of their copyright owners, unless otherwise agreed
@@ -32,6 +32,7 @@ Source1:        wicked-rpmlintrc
 # Never add any patches to this package without the upstream commit id in
 # the patch. Any patches added here without a very good reason to make an
 # exception will be silently removed with the next version update.
+# Note, that wicked.spec file is generated from wicked.spec.in which is in git.
 # Please use pull requests at https://github.com/openSUSE/wicked/ instead.
 #
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
@@ -52,6 +53,11 @@ Obsoletes:      libwicked-0-6 < %{version}
 %else
 %bcond_with     rfc4361_cid
 %endif
+%if 0%{?suse_version} >= 1500
+%bcond_without  dhcp6_nis
+%else
+%bcond_with     dhcp6_nis
+%endif
 %if 0%{?suse_version} >= 1230
 %bcond_without  systemd
 %bcond_with     dbusstart
@@ -62,8 +68,7 @@ Obsoletes:      libwicked-0-6 < %{version}
 
 %bcond_with     wicked_devel
 
-# Note: nanny use is enabled by default
-%bcond_without  use_nanny
+# Note: teamd is enabled by default
 %bcond_without  use_teamd
 
 # Compat macro for new _fillupdir macro introduced in Nov 2017
@@ -89,8 +94,8 @@ Requires(pre):       util-linux
 %endif
 
 %if %{with systemd}
-BuildRequires:  pkgconfig(libsystemd)
 BuildRequires:  systemd-rpm-macros
+BuildRequires:  pkgconfig(libsystemd)
 %{?systemd_requires}
 %if 0%{?suse_version:1}
 Requires(pre):  %fillup_prereq
@@ -110,6 +115,13 @@ PreReq:         %fillup_prereq %insserv_prereq
 %define         wicked_statedir %_localstatedir/run/%{name}
 %endif
 %define         wicked_storedir %_localstatedir/lib/%{name}
+%if 0%{?suse_version} >= 1550
+%define		dbus_config_base %_datadir/dbus-1
+%define		dbus_config_tag	 %nil
+%else
+%define		dbus_config_base %_sysconfdir/dbus-1
+%define		dbus_config_tag	 %config
+%endif
 
 %description
 Wicked is a network configuration infrastructure incorporating a number
@@ -124,6 +136,7 @@ Group:          System/Management
 Requires(pre):  %name = %{version}
 Requires:       sysconfig >= 0.81.0
 Provides:       /sbin/ifup
+Provides:       service(network)
 Provides:       sysvinit(network)
 Conflicts:      otherproviders(/sbin/ifup)
 Obsoletes:      sysconfig-network
@@ -182,11 +195,11 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS"
 	--with-storedir=%{wicked_storedir}\
 	--with-compat=suse		\
 	--with-fillup-templatesdir=%{_fillupdir}\
+%if %{without dhcp6_nis}
+	--disable-dhcp6-nis		\
+%endif
 %if %{without rfc4361_cid}
 	--disable-dhcp4-rfc4361-cid	\
-%endif
-%if %{without use_nanny}
-	--disable-nanny-use		\
 %endif
 %if %{without use_teamd}
 	--disable-teamd			\
@@ -200,19 +213,24 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS"
 %if ! %{with dbusstart}
 	--without-dbus-servicedir	\
 %endif
+	--with-dbus-configdir=%{dbus_config_base}/system.d \
 	--disable-static
 make %{?_smp_mflags}
 
 %install
 make install DESTDIR=${RPM_BUILD_ROOT}
+%if !0%{?usrmerged}
 # install /sbin/{ifup,ifown,ifstatus,ifprobe} links
-%if "%_sbindir" != "/sbin"
 %__mkdir_p -m 0755 ${RPM_BUILD_ROOT}/sbin
 %__ln_s %_sbindir/ifup	${RPM_BUILD_ROOT}/sbin/ifup
 %endif
-%__ln_s %_sbindir/ifup	${RPM_BUILD_ROOT}/sbin/ifdown
-%__ln_s %_sbindir/ifup	${RPM_BUILD_ROOT}/sbin/ifstatus
-%__ln_s %_sbindir/ifup  ${RPM_BUILD_ROOT}/sbin/ifprobe
+for i in ifdown ifstatus ifprobe; do
+%if !0%{?usrmerged}
+%__ln_s ifup ${RPM_BUILD_ROOT}/sbin/$i
+%else
+%__ln_s ifup ${RPM_BUILD_ROOT}%{_sbindir}/$i
+%endif
+done
 # remove libwicked.a and la
 %__rm -f ${RPM_BUILD_ROOT}%_libdir/libwicked*.*a
 # create reboot-persistent (leases) store directory
@@ -324,16 +342,18 @@ fi
 %dir %_sysconfdir/wicked/extensions
 %config(noreplace) %_sysconfdir/wicked/extensions/*
 %dir %_sysconfdir/wicked/ifconfig
-%dir %_sysconfdir/dbus-1
-%dir %_sysconfdir/dbus-1/system.d
+%dir %{dbus_config_base}
+%dir %{dbus_config_base}/system.d
 # mark the policies as config to keep backup, but replace on upgrade
-%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.conf
-%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.AUTO4.conf
-%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.DHCP4.conf
-%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.DHCP6.conf
-%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.Nanny.conf
+%{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.conf
+%{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.AUTO4.conf
+%{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.DHCP4.conf
+%{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.DHCP6.conf
+%{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.Nanny.conf
 %if %{with dbusstart}
+%if "%dbus_config_base" != "%_datadir/dbus-1"
 %dir %_datadir/dbus-1
+%endif
 %dir %_datadir/dbus-1/system-services
 %_datadir/dbus-1/system-services/org.opensuse.Network.*.service
 %endif
@@ -383,12 +403,16 @@ fi
 %_unitdir/wickedd-pppd@.service
 %attr(0600,root,root) %config /etc/sysconfig/network/ifcfg-lo
 %_sbindir/ifup
-%if "%_sbindir" != "/sbin"
+%if !0%{?usrmerged}
 /sbin/ifup
-%endif
 /sbin/ifdown
 /sbin/ifstatus
 /sbin/ifprobe
+%else
+%_sbindir/ifdown
+%_sbindir/ifstatus
+%_sbindir/ifprobe
+%endif
 %_sbindir/rcwickedd-nanny
 %_sbindir/rcwickedd-dhcp6
 %_sbindir/rcwickedd-dhcp4
@@ -406,12 +430,16 @@ fi
 %_sbindir/rcnetwork
 %attr(0600,root,root) %config /etc/sysconfig/network/ifcfg-lo
 %_sbindir/ifup
-%if "%_sbindir" != "/sbin"
+%if !0%{?usrmerged}
 /sbin/ifup
-%endif
 /sbin/ifdown
 /sbin/ifstatus
 /sbin/ifprobe
+%else
+%_sbindir/ifdown
+%_sbindir/ifstatus
+%_sbindir/ifprobe
+%endif
 
 %endif
 
