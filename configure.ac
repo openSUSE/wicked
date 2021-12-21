@@ -35,6 +35,15 @@ if test "x$enable_lldp" = "xyes" ; then
 	AC_DEFINE([NI_ENABLE_LLDP], [], [Enable lldp support])
 fi
 
+# Whether to request NIS option in dhcp6 by default
+AC_ARG_ENABLE([dhcp6-nis],
+	      [AS_HELP_STRING([--disable-dhcp6-nis],
+	       [disable to not request DHCPv6 NIS options by default])],,
+	      [enable_dhcp6_nis=yes])
+if test "x$enable_dhcp6_nis" = "xyes" ; then
+	AC_DEFINE([NI_DHCP6_NIS], [1], [Enable to request DHCPv6 NIS options by default])
+fi
+
 # Whether to use rfc4361 dhcp4 client-id by default
 AC_ARG_ENABLE([dhcp4-rfc4361-cid],
 	      [AS_HELP_STRING([--disable-dhcp4-rfc4361-cid],
@@ -43,18 +52,6 @@ AC_ARG_ENABLE([dhcp4-rfc4361-cid],
 if test "x$enable_dhcp4_rfc4361_cid" = "xyes" ; then
 	AC_DEFINE([NI_DHCP4_RFC4361_CID], [1], [Enable to use rfc4361 DHCPv4 client-id by default])
 fi
-
-# Whether to enable nanny use
-AC_ARG_ENABLE([nanny-use],
-	      [AS_HELP_STRING([--disable-nanny-use],
-	       [disable use of nanny as policy daemon])],,
-	      [enable_nanny_use=true])
-if test "x$enable_nanny_use" = "xno" ; then
-    use_nanny="false"
-else
-    use_nanny="true"
-fi
-AC_SUBST(use_nanny)
 
 # Whether to disable teamd support
 AC_ARG_ENABLE([teamd],

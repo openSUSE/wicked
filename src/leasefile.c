@@ -256,6 +256,7 @@ ni_addrconf_lease_nis_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 	unsigned int i, j;
 	ni_nis_info_t *nis;
 	xml_node_t *data;
+	const char *name;
 
 	(void)ifname;
 
@@ -266,46 +267,53 @@ ni_addrconf_lease_nis_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *
 	/* Default domain */
 	data = xml_node_new("default", NULL);
 	if (!ni_string_empty(nis->domainname)) {
-		count++;
-		xml_node_new_element("domain", data, nis->domainname);
-	}
-	if (nis->default_binding == NI_NISCONF_BROADCAST ||
-	    nis->default_binding == NI_NISCONF_STATIC) {
-		/* no SLP here */
-		count++;
-		xml_node_new_element("binding", data,
-			ni_nis_binding_type_to_name(nis->default_binding));
-	}
-	/* Only in when static binding? */
-	for (i = 0; i < nis->default_servers.count; ++i) {
-		const char *server = nis->default_servers.data[i];
-		if (ni_string_empty(server))
-			continue;
-		count++;
-		xml_node_new_element("server", data, server);
+		if (xml_node_new_element("domain", data, nis->domainname))
+			count++;
+
+		if (nis->default_binding == NI_NISCONF_BROADCAST ||
+		    nis->default_binding == NI_NISCONF_STATIC) {
+			/* no SLP here */
+			name = ni_nis_binding_type_to_name(nis->default_binding);
+			if (name && xml_node_new_element("binding", data, name))
+				count++;
+		}
+		/* Only in when static binding? */
+		for (i = 0; i < nis->default_servers.count; ++i) {
+			const char *server = nis->default_servers.data[i];
+			if (ni_string_empty(server))
+				continue;
+			if (xml_node_new_element("server", data, server))
+				count++;
+		}
 	}
 	if (count) {
 		xml_node_add_child(node, data);
+	} else {
+		xml_node_free(data);
 	}
 
-	/* Further domains */
+	/* Further domains with servers */
 	for (i = 0; i < nis->domains.count; ++i) {
 		ni_nis_domain_t *dom = nis->domains.data[i];
 		if (!dom || ni_string_empty(dom->domainname))
 			continue;
 
-		count++;
-		data = xml_node_new("domain", node);
-		xml_node_new_element("domain", data, dom->domainname);
-		if (ni_nis_binding_type_to_name(nis->default_binding)) {
-			xml_node_new_element("binding", data,
-				ni_nis_binding_type_to_name(nis->default_binding));
-		}
+		if (!(data = xml_node_new("domain", node)))
+			continue;
+
+		if (xml_node_new_element("domain", data, dom->domainname))
+			count++;
+
+		name = ni_nis_binding_type_to_name(dom->binding);
+		if (name && xml_node_new_element("binding", data, name))
+			count++;
+
 		for (j = 0; j < dom->servers.count; ++j) {
 			const char *server = dom->servers.data[j];
 			if (ni_string_empty(server))
 				continue;
-			xml_node_new_element("server", data, server);
+			if (xml_node_new_element("server", data, server))
+				count++;
 		}
 	}
 

@@ -88,6 +88,8 @@ typedef struct ni_dhcp4_device {
 	} best_offer;
 } ni_dhcp4_device_t;
 
+#define NI_DHCP4_START_DELAY_MIN	1	/* seconds */
+#define NI_DHCP4_START_DELAY_MAX	10	/* seconds */
 #define NI_DHCP4_RESEND_TIMEOUT_INIT	4	/* seconds */
 #define NI_DHCP4_RESEND_TIMEOUT_MAX	64	/* seconds */
 #define NI_DHCP4_REQUEST_TIMEOUT		60	/* seconds */
@@ -153,6 +155,7 @@ struct ni_dhcp4_request {
 	ni_dhcp_fqdn_t		fqdn;
 	char *			hostname;
 	unsigned int		route_priority;
+	ni_bool_t		route_set_src;
 
 	ni_string_array_t	request_options;
 
@@ -196,6 +199,7 @@ struct ni_dhcp4_config {
 	ni_tristate_t		broadcast;
 
 	unsigned int		route_priority;
+	ni_bool_t		route_set_src;
 
 	unsigned int		max_lease_time;
 	ni_bool_t		recover_lease;
@@ -222,6 +226,7 @@ extern int		ni_dhcp4_release(ni_dhcp4_device_t *, const ni_uuid_t *);
 extern void		ni_dhcp4_restart_leases(void);
 
 extern const char *	ni_dhcp4_fsm_state_name(enum fsm_state);
+extern unsigned int	ni_dhcp4_fsm_start_delay(unsigned int);
 extern void		ni_dhcp4_fsm_init_device(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_fsm_release_init(ni_dhcp4_device_t *);
 extern int		ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *, ni_buffer_t *, ni_sockaddr_t *);
@@ -275,7 +280,7 @@ extern int		ni_dhcp4_config_ignore_server(const char *);
 extern int		ni_dhcp4_config_have_server_preference(void);
 extern int		ni_dhcp4_config_server_preference_ipaddr(struct in_addr);
 extern int		ni_dhcp4_config_server_preference_hwaddr(const ni_hwaddr_t *);
-extern unsigned int	ni_dhcp4_config_max_lease_time(void);
+extern unsigned int	ni_dhcp4_config_max_lease_time(const char *);
 extern void		ni_dhcp4_config_free(ni_dhcp4_config_t *);
 
 extern ni_dhcp4_request_t *ni_dhcp4_request_new(void);

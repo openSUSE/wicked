@@ -39,7 +39,7 @@ Point-to-Point for connections using 3G/UMTS modems. NOT SUPPORTED.
 
 .BR PROVIDER\ [filename]
 .RS 7
-Variable specifing the filename of a provider configuration file in the /etc/sysconfig/network/providers/
+Variable specifying the filename of a provider configuration file in the /etc/sysconfig/network/providers/
 directory. The provider file contains provider specific configuration options.
 .PP
 .RE
@@ -54,7 +54,7 @@ Enables pppd instance debug mode.
 .TP
 .BR DEVICE\ [ifname]
 .RS 7
-Variable specifing the real, subordinate ethernet device interface name to be used to establish PPP connection.
+Variable specifying the real, subordinate ethernet device interface name to be used to establish PPP connection.
 .PP
 .RE
 
@@ -151,7 +151,7 @@ Must be specified when MULTILINK variable is set to true.
 .BR AUTO_RECONNECT\ { true | false }
 .RS 7
 Instructs the pppd instance to automatically try to reopen the terminated connection when set to true.
-Otherwise the pppd instance exits immidiately after a connection has been made and terminated.
+Otherwise the pppd instance exits immediately after a connection has been made and terminated.
 The number of attempts can be specified using MAXFAIL variable.
 The delay between the attempts can be specified using AUTO_RECONNECT_DELAY variable.
 

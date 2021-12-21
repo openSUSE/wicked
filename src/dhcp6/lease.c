@@ -31,7 +31,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
-#include <wicked/socket.h>	/* ni_time functions */
+#include <wicked/time.h>
 #include <wicked/xml.h>
 
 #include "duid.h"
@@ -240,6 +240,7 @@ ni_dhcp6_lease_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_t *node, c
 	} *g, group_map[] = {
 		{ NI_ADDRCONF_LEASE_XML_DNS_DATA_NODE, ni_addrconf_lease_dns_data_to_xml },
 		{ NI_ADDRCONF_LEASE_XML_NTP_DATA_NODE, ni_addrconf_lease_ntp_data_to_xml },
+		{ NI_ADDRCONF_LEASE_XML_NIS_DATA_NODE, ni_addrconf_lease_nis_data_to_xml },
 		{ NI_ADDRCONF_LEASE_XML_SIP_DATA_NODE, ni_addrconf_lease_sip_data_to_xml },
 		{ NI_ADDRCONF_LEASE_XML_PTZ_DATA_NODE, ni_addrconf_lease_ptz_data_to_xml },
 		{ NI_ADDRCONF_LEASE_XML_OPTS_DATA_NODE, ni_addrconf_lease_opts_data_to_xml },
@@ -544,6 +545,10 @@ ni_dhcp6_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node,
 		} else
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_NTP_DATA_NODE)) {
 			if (ni_addrconf_lease_ntp_data_from_xml(lease, child, ifname) < 0)
+				return -1;
+		} else
+		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_NIS_DATA_NODE)) {
+			if (ni_addrconf_lease_nis_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		} else
 		if (ni_string_eq(child->name, NI_ADDRCONF_LEASE_XML_SIP_DATA_NODE)) {

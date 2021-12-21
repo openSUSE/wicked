@@ -12,6 +12,7 @@
 <tr><td>assigned-address-list</td><td>array</td><td>below</td></tr>
 <tr><td>assigned-route</td><td>dict</td><td>below</td></tr>
 <tr><td>assigned-route-list</td><td>array</td><td>below</td></tr>
+<tr><td>assigned-rule</td><td>dict</td><td>below</td></tr>
 <tr><td>af-info</td><td>dict</td><td>below</td></tr>
 <tr><td>client-state-control-type</td><td>dict</td><td>below</td></tr>
 <tr><td>client-state-config-type</td><td>dict</td><td>below</td></tr>
@@ -23,14 +24,15 @@
 <p>
 This is a dict-based type that provides the following members:
 <ul>
-<li><bold>local</bold> (<a href="dbus.html#network-address-prefix">network-address-prefix</a>). This is a network address in addr/prefix notation.On the wire, it is represented as uint16 containing the prefix length,followed by a uint16 containing the address family, and eventuallythe raw address bytes in network byte order.<p>
-In the XML representation, an unambiguous "natural" representation is used,e.g.  dotted quad for IPv4, followed by a slash and the prefixlen.</li>
-<li><bold>peer</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family.On the wire, it is represented as uint16 containing the address family,followed by the raw address bytes in network byte order.<p>
-In the XML representation, an unambiguous "natural" representation is used,e.g.  dotted quad for IPv4.</li>
-<li><bold>anycast</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family.On the wire, it is represented as uint16 containing the address family,followed by the raw address bytes in network byte order.<p>
-In the XML representation, an unambiguous "natural" representation is used,e.g.  dotted quad for IPv4.</li>
-<li><bold>broadcast</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family.On the wire, it is represented as uint16 containing the address family,followed by the raw address bytes in network byte order.<p>
-In the XML representation, an unambiguous "natural" representation is used,e.g.  dotted quad for IPv4.</li>
+<li><bold>local</bold> (<a href="dbus.html#network-address-prefix">network-address-prefix</a>). This is a network address in addr/prefix notation. On the wire, it is represented as uint16 containing the prefix length, followed by a uint16 containing the address family, and eventually the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4, followed by a slash and the prefixlen. </li>
+<li><bold>peer</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family. On the wire, it is represented as uint16 containing the address family, followed by the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4. </li>
+<li><bold>anycast</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family. On the wire, it is represented as uint16 containing the address family, followed by the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4. </li>
+<li><bold>broadcast</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family. On the wire, it is represented as uint16 containing the address family, followed by the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4. </li>
+<li><bold>scope</bold> (<a href="dbus.html#builtin-route-scope">builtin-route-scope</a>). </li>
 <li><bold>flags</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
 <li><bold>label</bold> (<a href="dbus.html#string">string</a>). </li>
 <li><bold>cache-info</bold> (dict). This is a dict-based type that provides the following members:
@@ -54,10 +56,10 @@ This is an array of <a href="network-interface.html#assigned-address">assigned-a
 <p>
 This is a dict-based type that provides the following members:
 <ul>
-<li><bold>destination</bold> (<a href="dbus.html#network-address-prefix">network-address-prefix</a>). This is a network address in addr/prefix notation.On the wire, it is represented as uint16 containing the prefix length,followed by a uint16 containing the address family, and eventuallythe raw address bytes in network byte order.<p>
-In the XML representation, an unambiguous "natural" representation is used,e.g.  dotted quad for IPv4, followed by a slash and the prefixlen.</li>
-<li><bold>pref-source</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family.On the wire, it is represented as uint16 containing the address family,followed by the raw address bytes in network byte order.<p>
-In the XML representation, an unambiguous "natural" representation is used,e.g.  dotted quad for IPv4.</li>
+<li><bold>destination</bold> (<a href="dbus.html#network-address-prefix">network-address-prefix</a>). This is a network address in addr/prefix notation. On the wire, it is represented as uint16 containing the prefix length, followed by a uint16 containing the address family, and eventually the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4, followed by a slash and the prefixlen. </li>
+<li><bold>pref-source</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family. On the wire, it is represented as uint16 containing the address family, followed by the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4. </li>
 <li><bold>priority</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
 <li><bold>flags</bold> (<a href="dbus.html#builtin-route-flag-mask">builtin-route-flag-mask</a>). </li>
 <li><bold>realm</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
@@ -65,8 +67,8 @@ In the XML representation, an unambiguous "natural" representation is used,e.g. 
 <li><bold>tos</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
 <li><bold>nexthop</bold> (dict). This is a dict-based type that provides the following members:
 <ul>
-<li><bold>gateway</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family.On the wire, it is represented as uint16 containing the address family,followed by the raw address bytes in network byte order.<p>
-In the XML representation, an unambiguous "natural" representation is used,e.g.  dotted quad for IPv4.</li>
+<li><bold>gateway</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family. On the wire, it is represented as uint16 containing the address family, followed by the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4. </li>
 <li><bold>device</bold> (<a href="dbus.html#string">string</a>). </li>
 <li><bold>weight</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
 <li><bold>realm</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
@@ -76,7 +78,7 @@ In the XML representation, an unambiguous "natural" representation is used,e.g. 
 </li>
 <li><bold>kern</bold> (dict). This is a dict-based type that provides the following members:
 <ul>
-<li><bold>table</bold> (<a href="dbus.html#builtin-route-table">builtin-route-table</a>). </li>
+<li><bold>table</bold> (<a href="dbus.html#string">string</a>). </li>
 <li><bold>type</bold> (<a href="dbus.html#builtin-route-type">builtin-route-type</a>). </li>
 <li><bold>scope</bold> (<a href="dbus.html#builtin-route-scope">builtin-route-scope</a>). </li>
 <li><bold>protocol</bold> (<a href="dbus.html#builtin-route-protocol">builtin-route-protocol</a>). </li>
@@ -97,7 +99,7 @@ In the XML representation, an unambiguous "natural" representation is used,e.g. 
 <li><bold>hoplimit</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
 <li><bold>initcwnd</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
 <li><bold>features</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
-<li><bold>rto-min</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>rto_min</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
 <li><bold>initrwnd</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
 </ul>
 <p>
@@ -110,6 +112,46 @@ In the XML representation, an unambiguous "natural" representation is used,e.g. 
 <h3>Type assigned-route-list</h3>
 <p>
 This is an array of <a href="network-interface.html#assigned-route">assigned-route</a>.
+
+<a name="assigned-rule"/>
+<h3>Type assigned-rule</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>match</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>priority</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>invert</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>from</bold> (<a href="dbus.html#network-address-prefix">network-address-prefix</a>). This is a network address in addr/prefix notation. On the wire, it is represented as uint16 containing the prefix length, followed by a uint16 containing the address family, and eventually the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4, followed by a slash and the prefixlen. </li>
+<li><bold>to</bold> (<a href="dbus.html#network-address">network-address</a>). This is a network address of any support address family. On the wire, it is represented as uint16 containing the address family, followed by the raw address bytes in network byte order. <p>
+In the XML representation, an unambiguous "natural" representation is used, e.g.  dotted quad for IPv4. </li>
+<li><bold>iif</bold> (<a href="dbus.html#string">string</a>). </li>
+<li><bold>oif</bold> (<a href="dbus.html#string">string</a>). </li>
+<li><bold>tos</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>fwmark</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>fwmask</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+</ul>
+<p>
+</li>
+<li><bold>action</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>type</bold> (<a href="dbus.html#builtin-rule-action-type">builtin-rule-action-type</a>). </li>
+<li><bold>table</bold> (<a href="dbus.html#string">string</a>). </li>
+<li><bold>target</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>realm</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+</ul>
+<p>
+</li>
+<li><bold>suppress</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>prefix-length</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>if-group</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+</ul>
+<p>
+</li>
+</ul>
+<p>
 
 <a name="af-info"/>
 <h3>Type af-info</h3>
@@ -164,6 +206,7 @@ This is a dict-based type that provides the following members:
 </ul>
 <p>
 </li>
+<li><bold>scripts</bold> (<a href="scripts.html#configuration">scripts:configuration</a>). Complete script configuration</li>
 </ul>
 <p>
 

@@ -11,6 +11,8 @@
 #include <stdio.h>
 
 #include <wicked/types.h>
+#include <wicked/time.h>
+#include <wicked/socket.h>
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/logging.h>
@@ -68,7 +70,7 @@ extern ni_addrconf_lease_t *__ni_netdev_find_lease(ni_netdev_t *, unsigned int, 
 extern ni_addrconf_lease_t *__ni_netdev_address_to_lease(ni_netdev_t *, const ni_address_t *, unsigned int);
 extern ni_addrconf_lease_t *__ni_netdev_route_to_lease(ni_netdev_t *, const ni_route_t *, unsigned int);
 extern void		__ni_netdev_track_ipv6_autoconf(ni_netdev_t *, int);
-extern unsigned int	__ni_netdev_translate_ifflags(unsigned int, unsigned int);
+extern unsigned int	__ni_netdev_translate_ifflags(const char *, unsigned int, unsigned int);
 extern void		__ni_netdev_process_events(ni_netconfig_t *, ni_netdev_t *, unsigned int);
 extern void		__ni_netdev_event(ni_netconfig_t *, ni_netdev_t *, ni_event_t);
 
@@ -128,8 +130,6 @@ static inline ni_bool_t	__ni_addrconf_should_update(unsigned int mask, unsigned 
 /*
  * Packet capture and raw sockets
  */
-#include <wicked/socket.h>
-
 typedef struct ni_capture_devinfo {
 	char *			ifname;
 	unsigned int		ifindex;

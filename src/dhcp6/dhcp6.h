@@ -25,7 +25,7 @@
 
 #include <wicked/netinfo.h>	/* FIXME: required by addrconf.h ... */
 #include <wicked/addrconf.h>
-#include <wicked/socket.h>
+#include <wicked/time.h>
 #include "dhcp6/options.h"
 #include "dhcp6/request.h"
 #include "buffer.h"
@@ -65,12 +65,12 @@ struct ni_dhcp6_request {
 	unsigned int		flags;
 
 	/* Options controlling which and how to make the requests */
-	ni_dhcp6_run_t		dry_run;         /* normal run or get offer/lease only	*/
-	unsigned int		mode;		 /* follow ra, request info/addr/prefix */
-	ni_bool_t		rapid_commit;	 /* try to use rapid commit flow	*/
-	unsigned int		address_len;	/* address prefix length to use         */
+	ni_dhcp6_run_t		dry_run;	/* normal run or get offer/lease only	*/
+	unsigned int		mode;		/* follow ra, request info/addr/prefix	*/
+	ni_bool_t		rapid_commit;	/* try to use rapid commit flow		*/
+	unsigned int		address_len;	/* address prefix length to use		*/
 
-	unsigned int		start_delay;	/* how long to delay start */
+	unsigned int		start_delay;	/* how long to delay start		*/
 	unsigned int		defer_timeout;	/* how long we try before we defer	*/
 	unsigned int		acquire_timeout;/* how long we try before we give up	*/
 
@@ -175,7 +175,7 @@ struct ni_dhcp6_device {
 	struct ni_dhcp6_link {
 	    unsigned int	ifindex;	/* interface index		*/
 	    ni_sockaddr_t	addr;		/* cached link-local address	*/
-	    //ni_bool_t		ready;		/* device,link,network are up	*/
+	    ni_bool_t		reconnect;	/* may have moved to a new link */
 	}			link;
 
 	uint32_t		iaid;		/* default IA interface-id	*/
@@ -201,9 +201,9 @@ struct ni_dhcp6_device {
 	struct {
 	    struct timeval	start;		/* when we've sent first msg        */
 	    unsigned int	count;		/* transfer count                   */
-	    unsigned int	delay;		/* initial delay                    */
+	    ni_timeout_t	delay;		/* initial delay in msec            */
 	    unsigned int	jitter;		/* jitter base for 1000 msec        */
-	    unsigned int	duration;	/* max duration in msec             */
+	    ni_timeout_t	duration;	/* max duration in msec             */
 	    struct timeval	deadline;	/* next delay/timeout deadline      */
 	    ni_timeout_param_t	params;		/* timeout parameters               */
 	} retrans;

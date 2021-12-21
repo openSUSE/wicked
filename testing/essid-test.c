@@ -31,12 +31,13 @@ ssid_parse(const char *string, ni_wireless_ssid_t *ssid)
 	const char *hex_str;
 	size_t len;
 	char *hex;
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
 	len = ni_string_len(string);
 	hex = ni_sprint_hex((const unsigned char *)string, len);
 
-	if (ni_wireless_parse_ssid(string, ssid)) {
-		escaped = ni_wireless_print_ssid(ssid);
+	if (ni_wireless_ssid_parse(ssid, string)) {
+		escaped = ni_wireless_ssid_print(ssid, &buf);
 		hex_str = ni_print_hex(ssid->data, ssid->len);
 
 		printf("ESSID(hex):\t'%s'", hex);
@@ -48,6 +49,7 @@ ssid_parse(const char *string, ni_wireless_ssid_t *ssid)
 	}
 	printf("\n\n");
 	ni_string_free(&hex);
+	ni_stringbuf_destroy(&buf);
 }
 
 int

@@ -168,7 +168,6 @@ typedef struct ni_config {
 	ni_config_fslocation_t	storedir;
 	ni_config_fslocation_t	statedir;
 	ni_config_fslocation_t	backupdir;
-	ni_bool_t		use_nanny;
 
 	struct {
 	    unsigned int		default_allow_update;
@@ -207,7 +206,6 @@ extern ni_extension_t *	ni_config_find_extension(ni_config_t *, const char *);
 extern ni_extension_t *	ni_config_find_system_updater(ni_config_t *, const char *);
 extern unsigned int	ni_config_addrconf_update_mask(ni_addrconf_mode_t, unsigned int);
 extern unsigned int	ni_config_addrconf_update(const char *, ni_addrconf_mode_t, unsigned int);
-extern ni_bool_t	ni_config_use_nanny(void);
 
 extern const ni_config_dhcp4_t *	ni_config_dhcp4_find_device(const char *);
 extern const char *			ni_config_dhcp4_cid_type_format(ni_config_dhcp4_cid_type_t);

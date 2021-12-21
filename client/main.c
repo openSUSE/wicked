@@ -94,7 +94,7 @@ int			opt_global_dryrun;
 char *			opt_global_rootdir;
 ni_bool_t		opt_systemd;
 
-unsigned int ni_wait_for_interfaces;
+unsigned int 		ni_wait_for_interfaces;
 
 static int		do_show_xml(int, char **);
 extern int		do_nanny(int, char **);
@@ -726,7 +726,7 @@ out:
  * one of two elements, since we have to parse and reparse the XML file every
  * time you invoke this program.
  * On the other hand, there's a few rather nifty things you can do. For instance,
- * the following will extract addres/prefixlen pairs for every IPv4 address
+ * the following will extract address/prefixlen pairs for every IPv4 address
  * listed in an XML network config:
  *
  * wicked xpath \

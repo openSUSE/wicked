@@ -45,7 +45,7 @@ It can also be used to start interfaces manually on the command line.
 It activates the link, adds addresses and other parameters and sets up the
 routes for an interface.
 .br
-Former iprenew operation is performed upon each successfull ifup call.
+Former iprenew operation is performed upon each successful ifup call.
 .P
 .B ifdown
 is used to set down the interface and flush all its addresses. It is possible

@@ -43,6 +43,26 @@ ni_dbus_message_iter_append_byte_array(DBusMessageIter *iter,
 	return TRUE;
 }
 
+dbus_bool_t
+ni_dbus_message_iter_append_uint32_array(DBusMessageIter *iter, const uint32_t *value, unsigned int len)
+{
+	DBusMessageIter iter_array;
+	unsigned int i;
+
+	if (!dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, DBUS_TYPE_UINT32_AS_STRING, &iter_array))
+		return FALSE;
+
+	for (i = 0; i < len; i++) {
+		if (!dbus_message_iter_append_basic(&iter_array, DBUS_TYPE_UINT32, &(value[i])))
+			return FALSE;
+	}
+
+	if (!dbus_message_iter_close_container(iter, &iter_array))
+		return FALSE;
+
+	return TRUE;
+}
+
 static dbus_bool_t
 __ni_dbus_message_iter_append_string_array(DBusMessageIter *iter, const char *element_signature,
 				char **string_array, unsigned int len)
@@ -246,6 +266,11 @@ ni_dbus_message_iter_append_value(DBusMessageIter *iter, const ni_dbus_variant_t
 					variant->byte_array_value, variant->array.len);
 			break;
 
+		case DBUS_TYPE_UINT32:
+			rv = ni_dbus_message_iter_append_uint32_array(iter_val,
+					variant->uint32_array_value, variant->array.len);
+			break;
+
 		case DBUS_TYPE_STRING:
 			rv = ni_dbus_message_iter_append_string_array(iter_val,
 					variant->string_array_value, variant->array.len);
@@ -279,6 +304,9 @@ ni_dbus_message_iter_append_value(DBusMessageIter *iter, const ni_dbus_variant_t
 	} else
 	if (variant->type == DBUS_TYPE_STRUCT) {
 		rv = ni_dbus_message_iter_append_struct(iter_val, variant->struct_value, variant->array.len);
+	} else
+	if (variant->type == DBUS_TYPE_VARIANT) {
+		rv = ni_dbus_message_iter_append_variant(iter_val, variant->variant_value);
 	} else {
 		ni_warn("%s: variant type %s not supported", __FUNCTION__, signature);
 	}
@@ -305,6 +333,21 @@ ni_dbus_message_iter_get_byte_array(DBusMessageIter *iter, ni_dbus_variant_t *va
 
 		dbus_message_iter_get_basic(iter, &byte);
 		ni_dbus_variant_append_byte_array(variant, byte);
+		dbus_message_iter_next(iter);
+	}
+
+	return TRUE;
+}
+
+dbus_bool_t
+ni_dbus_message_iter_get_uint32_array(DBusMessageIter *iter, ni_dbus_variant_t *variant)
+{
+	uint32_t u;
+
+	ni_dbus_variant_init_uint32_array(variant);
+	while (dbus_message_iter_get_arg_type(iter) == DBUS_TYPE_UINT32) {
+		dbus_message_iter_get_basic(iter, &u);
+		ni_dbus_variant_append_uint32_array(variant, u);
 		dbus_message_iter_next(iter);
 	}
 
@@ -438,6 +481,9 @@ ni_dbus_message_iter_get_array(DBusMessageIter *iter, ni_dbus_variant_t *variant
 	case DBUS_TYPE_VARIANT:
 		success = ni_dbus_message_iter_get_variant_array(&iter_array, variant);
 		break;
+	case DBUS_TYPE_UINT32:
+		success = ni_dbus_message_iter_get_uint32_array(&iter_array, variant);
+		break;
 	default:
 		ni_debug_dbus("%s: cannot decode array of type %c", __FUNCTION__, array_type);
 		break;
@@ -539,7 +585,8 @@ ni_dbus_message_serialize_variants(ni_dbus_message_t *msg,
 				ni_dbus_variant_sprint(&argv[i]));
 #endif
 		if (!ni_dbus_message_iter_append_value(&iter, &argv[i], NULL)) {
-			ni_error("error marshalling message, type=%s, value=\"%s\"",
+			ni_error("error marshalling message arg[%u]: type=%s, value=\"%s\"",
+					i,
 					ni_dbus_variant_signature(&argv[i]),
 					ni_dbus_variant_sprint(&argv[i]));
 			dbus_set_error(error,

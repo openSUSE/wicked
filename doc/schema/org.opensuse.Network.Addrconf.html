@@ -14,7 +14,7 @@
 </tr>
 <tr>
  <td>Typedefs</td>
- <td>2</td>
+ <td>3</td>
 </tr>
 <tr>
  <td>Properties</td>
@@ -62,21 +62,34 @@
  <th style="width:100px">Kind</th>
  <th style="width:400px">Definition</th>
 </tr>
+<tr><td>nis-domain</td><td>dict</td><td>below</td></tr>
 <tr><td>lease-type</td><td>dict</td><td>below</td></tr>
 <tr><td>callback-info</td><td>dict</td><td>below</td></tr>
 </table>
 
+<a name="nis-domain"/>
+<h3>Type nis-domain</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>domainname</bold> (<a href="dbus.html#string">string</a>). </li>
+<li><bold>binding</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>servers</bold> (array). This is an array of <a href="dbus.html#string">string</a>.
+</li>
+</ul>
+<p>
+
 <a name="lease-type"/>
 <h3>Type lease-type</h3>
 <p>
-This type describes an address configuration obtained by one ofthe addrconf services (such as DHCP), which is also what the name ofthis type is derived from.<p>
-When an addrconf service acquires a lease, it emits a "LeaseAcquired"signal and passes along this lease data.<p>
+This type describes an address configuration obtained by one of the addrconf services (such as DHCP), which is also what the name of this type is derived from. <p>
+When an addrconf service acquires a lease, it emits a "LeaseAcquired" signal and passes along this lease data. <p>
 This is a dict-based type that provides the following members:
 <ul>
 <li><bold>uuid</bold> (<a href="dbus.html#uuid-type">uuid-type</a>). </li>
 <li><bold>flags</bold> (<a href="dbus.html#builtin-addrconf-flags">builtin-addrconf-flags</a>). </li>
 <li><bold>state</bold> (<a href="dbus.html#builtin-addrconf-state">builtin-addrconf-state</a>). State of the lease - usually GRANTED or RELEASED</li>
-<li><bold>acquired</bold> (<a href="dbus.html#uint32">uint32</a>). Timestamp when the lease was acquired</li>
+<li><bold>acquired</bold> (<a href="dbus.html#int64">int64</a>). Timestamp when the lease was acquired</li>
 <li><bold>update</bold> (<a href="dbus.html#builtin-addrconf-update-mask">builtin-addrconf-update-mask</a>). This is a bitmap describing which system services should be configured through this lease</li>
 <li><bold>hostname</bold> (<a href="dbus.html#string">string</a>). </li>
 <li><bold>addresses</bold> (<a href="network-interface.html#assigned-address-list">network-interface:assigned-address-list</a>). </li>
@@ -84,9 +97,9 @@ This is a dict-based type that provides the following members:
 <li><bold>resolver</bold> (dict). This is a dict-based type that provides the following members:
 <ul>
 <li><bold>default-domain</bold> (<a href="dbus.html#string">string</a>). </li>
-<li><bold>servers</bold> (array). This is an array of <a href="dbus.html#string">string</a>.
-</li>
 <li><bold>search</bold> (array). This is an array of <a href="dbus.html#string">string</a>.
+</li>
+<li><bold>servers</bold> (array). This is an array of <a href="dbus.html#string">string</a>.
 </li>
 </ul>
 <p>
@@ -96,6 +109,8 @@ This is a dict-based type that provides the following members:
 <li><bold>domainname</bold> (<a href="dbus.html#string">string</a>). </li>
 <li><bold>binding</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
 <li><bold>servers</bold> (array). This is an array of <a href="dbus.html#string">string</a>.
+</li>
+<li><bold>domains</bold> (array). This is an array of <a href="addrconf.html#nis-domain">nis-domain</a>.
 </li>
 </ul>
 <p>

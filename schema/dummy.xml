@@ -8,7 +8,7 @@
    Dummy network interfaces can be used to provide an IP address to any
    application/kernel TCP/IP code that needs an IP to function properly.
 
-   Also a typical use-case is to create a dummy with assinged hadware/mac
+   Also a typical use-case is to create a dummy with assigned hadware/mac
    address and use it as first port in a (initially host-only) bridge to
    use static / avoid random mac address on the bridge as well as mac
    address changes of the bridge while other ports are added and removed.

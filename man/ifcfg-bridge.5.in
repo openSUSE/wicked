@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii foo.1
 .\"
-.TH IFCFG-BRIDGE 5 "Januar 2014" "wicked" "Network configuration"
+.TH IFCFG-BRIDGE 5 "January 2014" "wicked" "Network configuration"
 .\" ...
 
 .SH NAME

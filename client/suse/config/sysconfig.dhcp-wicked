@@ -42,7 +42,7 @@ DHCLIENT_FQDN_ENCODE="yes"
 ## Type:	list(,default,none,all,dns,ntp,nis,tz,boot,smb,nds,slp,sip,log)
 ## Default:	""
 #
-# This variable permits to specify a space separated list of build-in
+# This variable permits to specify a space separated list of built-in
 # facility names supported by the dhcp4 client modifying the default
 # options used in requests and to update system settings (via netconfig).
 #
@@ -75,6 +75,14 @@ DHCLIENT_BROADCAST=""
 # Note: e.g. DHCP over Infiniband (IPoIB) mandates an rfc4361 client-id.
 #
 DHCLIENT_CREATE_CID=""
+
+## Type:        list(,yes,no)
+## Default:     ""
+#
+# When set to yes, the DHCPv4 IP address is set as the preferred source
+# in DHCPv4 provided routes.
+#
+DHCLIENT_ROUTE_SET_SRC=""
 
 ## Type:        list(enabled,disabled,default,)
 ## Default:     ""
@@ -120,7 +128,7 @@ DHCLIENT6_CLIENT_ID=""
 ## Type:	list(,default,none,all,dns,ntp,tz,boot,nis,sip)
 ## Default:	""
 #
-# This variable permits to specify a space separated list of build-in
+# This variable permits to specify a space separated list of built-in
 # facility names supported by the dhcp6 client modifying the default
 # options used in requests and to update system settings (via netconfig).
 #

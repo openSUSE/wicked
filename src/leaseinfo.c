@@ -44,7 +44,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/nis.h>
 #include <wicked/route.h>
-#include <wicked/socket.h>	/* ni_time functions */
+#include <wicked/time.h>
 
 #include "appconfig.h"
 #include "util_priv.h"
@@ -58,7 +58,7 @@ static void		__ni_leaseinfo_print_string(FILE *, const char *,
 					const char *, unsigned int);
 static void		__ni_leaseinfo_print_string_array(FILE *, const char *,
 					const char *, const ni_string_array_t *,
-					const char *);
+					const char *, unsigned int);
 static void		__ni_leaseinfo_dhcp4_dump(FILE *,
 				const ni_addrconf_lease_t *,
 				const char *, const char *);
@@ -118,11 +118,11 @@ __ni_leaseinfo_print_string(FILE *out, const char *prefix, const char *name,
 
 static void
 __ni_leaseinfo_print_string_array(FILE *out, const char *prefix, const char *name,
-				const ni_string_array_t *str_arr, const char *sep)
+				const ni_string_array_t *str_arr, const char *sep,
+				unsigned int index)
 {
 	char *key = NULL;
 	unsigned int i;
-	ni_bool_t doneone;
 
 	if (!str_arr || str_arr->count == 0)
 		return;
@@ -130,15 +130,11 @@ __ni_leaseinfo_print_string_array(FILE *out, const char *prefix, const char *nam
 	if (!sep)
 		sep = " ";
 
-	doneone = FALSE;
 	fprintf(out, "%s='", __ni_keyword_format
-		(&key, prefix, name, 0));
+		(&key, prefix, name, index));
 
 	for (i = 0; i < str_arr->count; ++i) {
-		if (doneone)
-			fprintf(out, " ");
-		fprintf(out, "%s", str_arr->data[i]);
-		doneone = TRUE;
+		fprintf(out, "%s%s", i ? sep : "", str_arr->data[i]);
 	}
 	fprintf(out, "'\n");
 
@@ -286,9 +282,9 @@ __ni_leaseinfo_print_routes(FILE *out, const char *prefix,
 	}
 
 	__ni_leaseinfo_print_string_array(out, prefix, "ROUTES",
-					&routes_entry_arr, " ");
+					&routes_entry_arr, " ", 0);
 	__ni_leaseinfo_print_string_array(out, prefix, "GATEWAYS",
-					&gw_entry_arr, " ");
+					&gw_entry_arr, " ", 0);
 
 	ni_string_array_destroy(&routes_entry_arr);
 	ni_string_array_destroy(&gw_entry_arr);
@@ -343,25 +339,29 @@ __ni_leaseinfo_print_prefixes(FILE *out, const char *prefix, ni_dhcp6_ia_t *ia_l
 static void
 __ni_leaseinfo_print_nis(FILE *out, const char *prefix, ni_nis_info_t *nis)
 {
-	unsigned int i;
+	unsigned int i, index = 0;
 
 	if (!nis)
 		return;
 
-	__ni_leaseinfo_print_string(out, prefix, "NISDOMAIN", nis->domainname,
-				NULL, 0);
+	if (!ni_string_empty(nis->domainname) || nis->default_servers.count) {
+		__ni_leaseinfo_print_string(out, prefix, "NISDOMAIN", nis->domainname,
+				NULL, index);
 
-	__ni_leaseinfo_print_string_array(out, prefix, "NISSERVERS",
-					&nis->default_servers, " ");
+		__ni_leaseinfo_print_string_array(out, prefix, "NISSERVERS",
+						&nis->default_servers, " ", index);
+		index++;
+	}
 
 	for (i = 0; i < nis->domains.count; ++i) {
 		__ni_leaseinfo_print_string(out, prefix, "NISDOMAIN",
 					nis->domains.data[i]->domainname,
-					NULL, i);
+					NULL, index);
 
 		__ni_leaseinfo_print_string_array(out, prefix, "NISSERVERS",
 						&nis->domains.data[i]->servers,
-						" ");
+						" ", index);
+		index++;
 	}
 }
 
@@ -409,11 +409,11 @@ __ni_leaseinfo_print_resolver(FILE *out, const char *prefix,
 
 	__ni_leaseinfo_qualify_addrs(&dns_servers, &resolver->dns_servers, ifname);
 	__ni_leaseinfo_print_string_array(out, prefix, "DNSSERVERS",
-					&dns_servers, " ");
+					&dns_servers, " ", 0);
 	ni_string_array_destroy(&dns_servers);
 
 	__ni_leaseinfo_print_string_array(out, prefix, "DNSSEARCH",
-					&resolver->dns_search, " ");
+					&resolver->dns_search, " ", 0);
 }
 
 static void
@@ -422,11 +422,11 @@ __ni_leaseinfo_print_netbios(FILE *out, const char *prefix,
 {
 	/* Netbios Name Servers */
 	__ni_leaseinfo_print_string_array(out, prefix, "NETBIOSNAMESERVER",
-					&lease->netbios_name_servers, " ");
+					&lease->netbios_name_servers, " ", 0);
 
 	/* Netbios Datagram Distribution Servers */
 	__ni_leaseinfo_print_string_array(out, prefix, "NETBIOSDDSERVER",
-					&lease->netbios_dd_servers, " ");
+					&lease->netbios_dd_servers, " ", 0);
 
 	/* Netbios Scope */
 	__ni_leaseinfo_print_string(out, prefix, "NETBIOSSCOPE",
@@ -717,24 +717,23 @@ __ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 	if (lease->family == AF_INET6)
 		__ni_leaseinfo_print_prefixes(out, prefix, lease->dhcp6.ia_list);
 
-	/* Only applicable for ipv4. */
-	if (lease->family == AF_INET)
-		__ni_leaseinfo_print_nis(out, prefix, lease->nis);
+	/* NIS domains and servers */
+	__ni_leaseinfo_print_nis(out, prefix, lease->nis);
 
 	/* DNS Servers and Domains */
 	__ni_leaseinfo_print_resolver(out, prefix, lease->resolver, ifname);
 
 	/* NTP Servers */
 	__ni_leaseinfo_print_string_array(out, prefix, "NTPSERVERS",
-					&lease->ntp_servers, " ");
+					&lease->ntp_servers, " ", 0);
 
 	/* NDS Servers */
 	__ni_leaseinfo_print_string_array(out, prefix, "NDSSERVERS",
-					&lease->nds_servers, " ");
+					&lease->nds_servers, " ", 0);
 
 	/* NDS Context */
 	__ni_leaseinfo_print_string_array(out, prefix, "NDSCONTEXT",
-					&lease->nds_context, " ");
+					&lease->nds_context, " ", 0);
 
 	/* NDS Tree */
 	__ni_leaseinfo_print_string(out, prefix, "NDSTREE", lease->nds_tree,

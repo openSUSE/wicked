@@ -17,7 +17,7 @@ do
 	-f) shift ; family=$1 ;;
 	-i) shift ; ifname=$1 ;;
 	--) shift ; break ;;
-	-*) echo "unkown option '$1'" >&2 ; exit 1 ;;
+	-*) echo "unknown option '$1'" >&2 ; exit 1 ;;
 	 *) break ;;
 	esac
 	shift

@@ -102,12 +102,12 @@ discovery.
 .TP
 .B TUNNEL_GRE_FLAGS <iseq | oseq | icsum | ocsum>
 Permits to specify a space separated list of flags to enable sequencing and
-checksums for incomming and outgoing tunneled packets.
+checksums for incoming and outgoing tunneled packets.
 .TP
 .B TUNNEL_GRE_IKEY <key>
 .TP
 .B TUNNEL_GRE_OKEY <key>
-Permits to use of keyed GRE using the specified key for incomming and outgoing
+Permits to use of keyed GRE using the specified key for incoming and outgoing
 tunneled packets in IPv4 dotted quad IP address notation or as a number.
 .\".TP
 .\".B TUNNEL_GRE_ENCAP_TYPE <fou | gue>

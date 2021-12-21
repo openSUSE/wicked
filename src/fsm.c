@@ -48,9 +48,9 @@ static void			ni_fsm_require_free(ni_fsm_require_t *);
 static int			ni_ifworker_bind_device_apis(ni_ifworker_t *, const ni_dbus_service_t *);
 static void			ni_ifworker_control_init(ni_ifworker_control_t *);
 static void			ni_ifworker_control_destroy(ni_ifworker_control_t *);
-static ni_bool_t		__ni_ifworker_refresh_netdevs(ni_fsm_t *);
+static ni_bool_t		ni_fsm_refresh_netdevs_state(ni_fsm_t *);
 #ifdef MODEM
-static ni_bool_t		__ni_ifworker_refresh_modems(ni_fsm_t *);
+static ni_bool_t		ni_fsm_refresh_modems_state(ni_fsm_t *);
 #endif
 static int			ni_fsm_user_prompt_default(const ni_fsm_prompt_t *, xml_node_t *, void *);
 static void			ni_ifworker_refresh_client_state(ni_ifworker_t *, ni_client_state_t *);
@@ -243,6 +243,15 @@ ni_ifworker_new(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char 
 }
 
 ni_ifworker_t *
+ni_fsm_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
+{
+	if (!fsm || ni_string_empty(name) || ni_fsm_ifworker_by_name(fsm, type, name))
+		return NULL;
+
+	return ni_ifworker_new(&fsm->workers, type, name);
+}
+
+ni_ifworker_t *
 ni_ifworker_set_ref(ni_ifworker_t **ref, ni_ifworker_t *n)
 {
 	ni_ifworker_t *o;
@@ -396,6 +405,9 @@ ni_ifworker_reset(ni_ifworker_t *w)
 void
 ni_ifworker_free(ni_ifworker_t *w)
 {
+	/* Destroy applied policy references */
+	ni_fsm_policy_array_destroy(&w->policies);
+
 	/* Destroy client state config and control */
 	ni_ifworker_control_destroy(&w->control);
 	ni_security_id_destroy(&w->security_id);
@@ -663,9 +675,9 @@ ni_fsm_timer_call(void *user_data, const ni_timer_t *timer)
 }
 
 static inline const ni_timer_t *
-ni_fsm_timer_register(unsigned long timeout_ms, ni_fsm_timer_ctx_t *tcx)
+ni_fsm_timer_register(ni_timeout_t timeout, ni_fsm_timer_ctx_t *tcx)
 {
-	return ni_timer_register(timeout_ms, ni_fsm_timer_call, tcx);
+	return ni_timer_register(timeout, ni_fsm_timer_call, tcx);
 }
 
 static ni_bool_t
@@ -713,36 +725,36 @@ ni_ifworker_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *tcx)
 }
 
 static inline void
-ni_ifworker_set_timeout(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout_ms)
+ni_ifworker_set_timeout(ni_fsm_t *fsm, ni_ifworker_t *w, ni_timeout_t timeout)
 {
 	ni_fsm_timer_ctx_t *tcx;
 
 	ni_ifworker_cancel_timeout(w);
 
-	if (!timeout_ms || timeout_ms == NI_IFWORKER_INFINITE_TIMEOUT)
+	if (!timeout || timeout == NI_IFWORKER_INFINITE_TIMEOUT)
 		return;
 
 	if (!(tcx = ni_fsm_timer_ctx_new(fsm, w, ni_ifworker_timeout)))
 		return;
 
-	w->fsm.timer = ni_fsm_timer_register(timeout_ms, tcx);
+	w->fsm.timer = ni_fsm_timer_register(timeout, tcx);
 }
 
 static inline void
-ni_ifworker_set_secondary_timeout(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout_ms,
+ni_ifworker_set_secondary_timeout(ni_fsm_t *fsm, ni_ifworker_t *w, ni_timeout_t timeout,
 					ni_fsm_timer_fn_t *handler)
 {
 	ni_fsm_timer_ctx_t *tcx;
 
 	ni_ifworker_cancel_secondary_timeout(w);
 
-	if (!handler || !timeout_ms || timeout_ms == NI_IFWORKER_INFINITE_TIMEOUT)
+	if (!handler || !timeout || timeout == NI_IFWORKER_INFINITE_TIMEOUT)
 		return;
 
 	if (!(tcx = ni_fsm_timer_ctx_new(fsm, w, handler)))
 		return;
 
-	w->fsm.secondary_timer = ni_fsm_timer_register(timeout_ms, tcx);
+	w->fsm.secondary_timer = ni_fsm_timer_register(timeout, tcx);
 }
 
 static ni_intmap_t __state_names[] = {
@@ -1758,7 +1770,7 @@ ni_ifworker_revert_state(ni_ifworker_t *w, ni_event_t event)
 	if (!w->fsm.action_table || ni_fsm_transition_is_down(w->fsm.action_table))
 		return FALSE;
 
-	/* find transtion which will be completed by event */
+	/* find transition which will be completed by event */
 	action = ni_fsm_transition_find(w->fsm.action_table, state - 1, state);
 	if (!action || !action->bound)
 		return FALSE;
@@ -1847,7 +1859,7 @@ ni_ifworker_control_init(ni_ifworker_control_t *control)
 	control->usercontrol   = FALSE;
 	control->link_required = NI_TRISTATE_DEFAULT;
 	control->link_priority = 0;
-	control->link_timeout  = NI_IFWORKER_INFINITE_TIMEOUT;
+	control->link_timeout  = NI_IFWORKER_INFINITE_SECONDS;
 }
 
 static void
@@ -2003,17 +2015,12 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 
 	control->link_priority = 0;
 	control->link_required = NI_TRISTATE_DEFAULT;
-	control->link_timeout  = NI_IFWORKER_INFINITE_TIMEOUT;
+	control->link_timeout  = NI_IFWORKER_INFINITE_SECONDS;
 	if ((linknode = xml_node_get_child(ctrlnode, "link-detection")) != NULL) {
 		if ((np = xml_node_get_child(linknode, "timeout")) != NULL) {
-			if (ni_string_eq(np->cdata, "infinite"))
-				control->link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			else
-				ni_parse_uint(np->cdata, &control->link_timeout, 10);
-			if (control->link_timeout == 0)
-				control->link_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			else
-				control->link_timeout *= 1000;
+			if (ni_parse_seconds_timeout(np->cdata, &control->link_timeout)
+			||  control->link_timeout == 0)
+				control->link_timeout = NI_IFWORKER_INFINITE_SECONDS;
 		}
 		if ((np = xml_node_get_child(linknode, "priority"))) {
 			ni_parse_uint(np->cdata, &control->link_priority, 10);
@@ -2076,15 +2083,18 @@ ni_ifworker_iftype_from_xml(xml_node_t *config)
 	return NI_IFTYPE_UNKNOWN;
 }
 
-void
+ni_bool_t
 ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_origin)
 {
 	xml_node_t *child;
 
+	if (!w || xml_node_is_empty(ifnode))
+		return FALSE;
+
 	xml_node_free(w->config.node);
 	ni_client_state_config_reset(&w->config.meta);
 	if (!(w->config.node = xml_node_clone_ref(ifnode)))
-		return;
+		return FALSE;
 
 	if ((child = xml_node_get_child(ifnode, NI_CLIENT_STATE_XML_NODE))) {
 		/* cleanup obsolete stuff in case of attic configs */
@@ -2092,7 +2102,6 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 		xml_node_free(child);
 	}
 
-	ni_ifworker_generate_uuid(w);
 	ni_ifworker_set_config_origin(w, config_origin);
 
 	if ((child = xml_node_get_child(ifnode, "control")))
@@ -2107,56 +2116,74 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 			w->iftype = NI_IFTYPE_OVS_SYSTEM;
 	}
 	ni_ifworker_extra_waittime_from_xml(w);
+	ni_ifworker_generate_uuid(w);
+	return TRUE;
+}
+
+ni_ifworker_t *
+ni_fsm_worker_identify(ni_fsm_t *fsm, const xml_node_t *node, const char *origin,
+			ni_ifworker_type_t *type, const char **ifname)
+{
+	const char *namespace;
+	xml_node_t *name;
+
+	if (!fsm || !type || xml_node_is_empty(node))
+		return NULL;
+
+	*type = ni_ifworker_type_from_string(node->name);
+	if (*type == NI_IFWORKER_TYPE_NONE)
+		return NULL;
+
+	if (!(name = xml_node_get_child(node, "name")))
+		return NULL;
+
+	if ((namespace = xml_node_get_attr(name, "namespace"))) {
+		if (ifname)
+			*ifname = NULL;
+		return __ni_ifworker_identify_device(fsm, namespace, name, *type, origin);
+	} else
+	if (!ni_string_empty(name->cdata)) {
+		if (ifname)
+			*ifname = name->cdata;
+		return ni_fsm_ifworker_by_name(fsm, *type, name->cdata);
+	}
+
+	return NULL;
 }
 
 /*
  * Given an XML document, build interface and modem objects, and policies from it.
  */
-ni_bool_t
-ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_node_t *ifnode, const char *origin)
+ni_ifworker_t *
+ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_node_t *node, const char *origin)
 {
-	ni_ifworker_type_t type;
+	ni_ifworker_type_t type = NI_IFWORKER_TYPE_NONE;
 	const char *ifname = NULL;
-	xml_node_t *node;
 	ni_ifworker_t *w = NULL;
 
-	if (!fsm || xml_node_is_empty(ifnode))
-		return FALSE;
+	if (!fsm || xml_node_is_empty(node))
+		return NULL;
 
-	type = ni_ifworker_type_from_string(ifnode->name);
-	if (type == NI_IFWORKER_TYPE_NONE) {
-		ni_warn("%s: ignoring non-interface element <%s>",
-				xml_node_location(ifnode),
-				ifnode->name);
-		return FALSE;
-	}
-
-	if ((node = xml_node_get_child(ifnode, "identify")) != NULL) {
-		ni_warn("%s: using obsolete <identify> element - please use <name namespace=\"...\"> instead", xml_node_location(ifnode));
-		w = ni_ifworker_identify_device(fsm, node, type, origin);
-	} else
-	if ((node = xml_node_get_child(ifnode, "name")) != NULL) {
-		const char *namespace;
-
-		namespace = xml_node_get_attr(node, "namespace");
-		if (namespace != NULL) {
-			w = __ni_ifworker_identify_device(fsm, namespace, node, type, origin);
-		} else {
-			ifname = node->cdata;
-			if (ifname && (w = ni_fsm_ifworker_by_name(fsm, type, ifname)) == NULL)
-				w = ni_ifworker_new(&fsm->workers, type, ifname);
+	if (!(w = ni_fsm_worker_identify(fsm, node, origin, &type, &ifname))) {
+		if (!ifname) {
+			ni_error("%s: ignoring unknown %s configuration",
+				xml_node_location(node), node->name);
+			return NULL;
+		}
+		if (!(w = ni_ifworker_new(&fsm->workers, type, ifname))) {
+			ni_error("%s: cannot allocate worker for '%s' configuration",
+				xml_node_location(node), node->name);
+			return NULL;
 		}
 	}
 
-	if (w == NULL) {
-		ni_error("%s: ignoring unknown interface configuration",
-			xml_node_location(ifnode));
-		return FALSE;
+	if (!ni_ifworker_set_config(w, node, origin)) {
+		ni_error("%s: cannot apply configuration to %s '%s'",
+				xml_node_location(node), node->name, w->name);
+		return NULL;
 	}
 
-	ni_ifworker_set_config(w, ifnode, origin);
-
-	return TRUE;
+	return w;
 }
 
 /*
@@ -2257,10 +2284,8 @@ ni_ifworker_link_detection_timeout(const ni_timer_t *timer, ni_fsm_timer_ctx_t *
 		ni_warn("%s: link did not came up in time, proceeding anyway", w->name);
 		ni_ifworker_cancel_callbacks(w, &action->callbacks);
 		ni_ifworker_set_state(w, action->next_state);
-	} else if (ni_config_use_nanny()) {
-		ni_warn("%s: link did not came up in time, proceeding anyway", w->name);
 	} else {
-		ni_ifworker_fail(w, "link did not came up in specified time");
+		ni_warn("%s: link did not came up in time, waiting for event", w->name);
 	}
 }
 
@@ -3934,10 +3959,10 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 		w->readonly = fsm->readonly;
 	}
 
-	if (!__ni_ifworker_refresh_netdevs(fsm))
+	if (!ni_fsm_refresh_netdevs_state(fsm))
 		return FALSE;
 #ifdef MODEM
-	if (!__ni_ifworker_refresh_modems(fsm))
+	if (!ni_fsm_refresh_modems_state(fsm))
 		return FALSE;
 #endif
 
@@ -3954,7 +3979,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 }
 
 static ni_bool_t
-__ni_ifworker_refresh_netdevs(ni_fsm_t *fsm)
+ni_fsm_refresh_netdevs_state(ni_fsm_t *fsm)
 {
 	ni_dbus_object_t *list_object;
 	ni_dbus_object_t *object;
@@ -3971,7 +3996,7 @@ __ni_ifworker_refresh_netdevs(ni_fsm_t *fsm)
 	}
 
 	for (object = list_object->children; object; object = object->next)
-		ni_fsm_recv_new_netif(fsm, object, FALSE);
+		ni_fsm_recv_new_netif(fsm, object, TRUE);
 	return TRUE;
 }
 
@@ -3982,8 +4007,12 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	ni_ifworker_t *found = NULL;
 	ni_bool_t renamed = FALSE;
 
-	/* note: dev is a not yet referece counted object->handle */
+	/* note: dev is a not yet reference counted object->handle */
 	if (dev == NULL || dev->name == NULL || refresh) {
+		/* keep dev, but wipe out its content (properties) */
+		if (dev)
+			ni_netdev_reset(dev);
+
 		if (!ni_dbus_object_refresh_children(object))
 			return NULL;
 
@@ -4087,7 +4116,7 @@ ni_fsm_recv_new_netif_path(ni_fsm_t *fsm, const char *path)
 
 #ifdef MODEM
 static ni_bool_t
-__ni_ifworker_refresh_modems(ni_fsm_t *fsm)
+ni_fsm_refresh_modems_state(ni_fsm_t *fsm)
 {
 	static ni_dbus_object_t *list_object = NULL;
 	ni_dbus_object_t *object;
@@ -4104,7 +4133,7 @@ __ni_ifworker_refresh_modems(ni_fsm_t *fsm)
 	}
 
 	for (object = list_object->children; object; object = object->next) {
-		ni_fsm_recv_new_modem(fsm, object, FALSE);
+		ni_fsm_recv_new_modem(fsm, object, TRUE);
 	}
 	return TRUE;
 }
@@ -4774,8 +4803,9 @@ ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 		w->control.link_required = ni_netdev_guess_link_required(w->device);
 
 	if (ret >= 0 && w->fsm.wait_for) {
-		if (w->control.link_timeout != NI_IFWORKER_INFINITE_TIMEOUT) {
-			ni_ifworker_set_secondary_timeout(fsm, w, w->control.link_timeout,
+		if (w->control.link_timeout != NI_IFWORKER_INFINITE_SECONDS) {
+			ni_ifworker_set_secondary_timeout(fsm, w,
+					NI_TIMEOUT_FROM_SEC(w->control.link_timeout),
 					ni_ifworker_link_detection_timeout);
 		} else if (ni_tristate_is_disabled(w->control.link_required)) {
 			ni_debug_application("%s: link-up state is not required, proceeding", w->name);
@@ -5546,7 +5576,7 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 	ni_ifworker_advance_state(w, event_type);
 
 	if (event_type == NI_EVENT_DEVICE_DELETE) {
-		if (ni_config_use_nanny() && ni_ifworker_is_factory_device(w))
+		if (ni_ifworker_is_factory_device(w))
 			ni_ifworker_device_delete(w);
 		else
 			ni_fsm_destroy_worker(fsm, w);
@@ -5559,72 +5589,14 @@ done: ;
 }
 
 static ni_ifworker_t *
-ni_fsm_process_rename_find_pending_worker(ni_fsm_t *fsm, const ni_ifworker_t *w)
-{
-	ni_ifworker_t *c;
-	unsigned int i;
-
-	for (i = 0; i < fsm->workers.count; ++i) {
-		c = fsm->workers.data[i];
-		if (!c || c == w || c->type != w->type || c->device)
-			continue;
-		if (!c->pending || !ni_string_eq(c->name, w->name))
-			continue;
-		return c;
-	}
-	return NULL;
-}
-
-static ni_ifworker_t *
 ni_fsm_process_rename_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 {
-	ni_ifworker_t *w, *c;
+	ni_ifworker_t *w;
 
 	if ((w = ni_fsm_recv_new_netif_path(fsm, ev->object_path)))
 		ni_debug_events("%s: device renamed to %s", w->old_name, w->name);
 
-	if (ni_config_use_nanny() || !w || !ni_netdev_device_is_ready(w->device))
-		return w;
-
-	if (!(c = ni_fsm_process_rename_find_pending_worker(fsm, w)))
-		return w;
-
-	/* move device to pending config worker */
-	ni_debug_application("%s: moving device to pending worker", c->name);
-	if (c->device)
-		ni_netdev_put(c->device);
-	c->device = ni_netdev_get(w->device);
-	c->object = w->object;
-	c->ifindex = w->ifindex;
-	ni_string_dup(&c->object_path, w->object_path);
-
-	/* reset moved device on renamed worker */
-	ni_netdev_put(w->device);
-	w->device = NULL;
-	w->object = NULL;
-	w->ifindex = 0;
-	ni_string_free(&w->object_path);
-
-	if (ni_ifworker_active(w)) {
-		/* when the worker is in use, fail */
-		ni_ifworker_reset(w);
-		ni_string_dup(&w->name, w->old_name ? w->old_name : "renamed");
-		ni_ifworker_fail(w, "active device has been renamed to %s", c->name);
-	} else {
-		/* otherwise reset it and remove   */
-		ni_ifworker_reset(w);
-		ni_ifworker_array_remove(&fsm->workers, w);
-	}
-
-	ni_fsm_build_hierarchy(fsm, FALSE);
-
-	/* kickstart and return the pending worker */
-	c->pending = FALSE;
-	if (ni_ifworker_start(fsm, c, fsm->worker_timeout) < 0) {
-		ni_ifworker_fail(c, "unable to start worker");
-		return NULL;
-	}
-	return c;
+	return w;
 }
 
 static void
@@ -5795,7 +5767,7 @@ interface_state_change_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg
 		break;
 
 	default:
-		ni_warn("%s: signal %s from uknown object-path %s type",
+		ni_warn("%s: signal %s from unknown object-path %s type",
 				__func__, signal_name, object_path);
 		ni_fsm_event_free(ev);
 		return;
@@ -5854,7 +5826,7 @@ ni_fsm_create_client(ni_fsm_t *fsm)
 }
 
 ni_bool_t
-ni_fsm_do(ni_fsm_t *fsm, long *timeout_p)
+ni_fsm_do(ni_fsm_t *fsm, ni_timeout_t *timeout)
 {
 	ni_bool_t pending_workers;
 
@@ -5871,7 +5843,7 @@ ni_fsm_do(ni_fsm_t *fsm, long *timeout_p)
 		pending_workers = !!ni_fsm_schedule(fsm);
 
 		fsm->timeout_count = 0;
-		*timeout_p = ni_timer_next_timeout();
+		*timeout = ni_timer_next_timeout();
 		ni_dbus_objects_garbage_collect();
 	} while (fsm->timeout_count);
 
@@ -5881,7 +5853,7 @@ ni_fsm_do(ni_fsm_t *fsm, long *timeout_p)
 void
 ni_fsm_mainloop(ni_fsm_t *fsm)
 {
-	long timeout;
+	ni_timeout_t timeout;
 
 	while (!ni_caught_terminal_signal()) {
 		if (!ni_fsm_do(fsm, &timeout))
@@ -5963,23 +5935,29 @@ done:
 	return rv;
 }
 
-unsigned int
-ni_fsm_find_max_timeout(ni_fsm_t *fsm, unsigned int timeout)
+ni_timeout_t
+ni_fsm_find_max_timeout(ni_fsm_t *fsm, ni_timeout_t timeout)
 {
-	unsigned int i, max;
+	unsigned int i;
 
-	if (!fsm)
+	if (!fsm || timeout >= NI_IFWORKER_INFINITE_TIMEOUT)
 		return NI_IFWORKER_INFINITE_TIMEOUT;
 
-	max = timeout;
 	for (i = 0; i < fsm->workers.count; i++) {
 		ni_ifworker_t *w = fsm->workers.data[i];
+		ni_timeout_t max, add;
 
-		max = max_t(unsigned int, max,
-			fsm->worker_timeout + w->extra_waittime);
+		add = min_t(ni_timeout_t,
+				NI_TIMEOUT_FROM_SEC(w->extra_waittime),
+				NI_IFWORKER_INFINITE_TIMEOUT);
+		max = max_t(ni_timeout_t, timeout,
+				fsm->worker_timeout + add);
+
+		timeout = min_t(ni_timeout_t, max,
+				NI_IFWORKER_INFINITE_TIMEOUT);
 	}
 
-	return max;
+	return timeout;
 }
 
 void

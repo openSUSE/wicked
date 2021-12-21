@@ -14,9 +14,6 @@
 #include <wicked/types.h>
 #include <wicked/util.h>
 
-#define NI_LIFETIME_EXPIRED	0
-#define NI_LIFETIME_INFINITE	0xffffffffU
-
 union ni_sockaddr {
 	sa_family_t		ss_family;
 	struct sockaddr_storage	ss;
@@ -129,12 +126,14 @@ extern ni_bool_t	ni_address_is_temporary(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_permanent(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_deprecated(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_mngtmpaddr(const ni_address_t *laddr);
+extern ni_bool_t	ni_address_is_nodad(const ni_address_t *laddr);
 extern ni_bool_t	ni_address_is_noprefixroute(const ni_address_t *laddr);
 
 extern void		ni_address_set_temporary(ni_address_t *, ni_bool_t);
 extern void		ni_address_set_mngtmpaddr(ni_address_t *, ni_bool_t);
 extern void		ni_address_set_tentative(ni_address_t *, ni_bool_t);
 extern void		ni_address_set_duplicate(ni_address_t *, ni_bool_t);
+extern void		ni_address_set_nodad(ni_address_t *, ni_bool_t);
 extern void		ni_address_set_noprefixroute(ni_address_t *, ni_bool_t);
 
 extern unsigned int	ni_address_valid_lft(const ni_address_t *, const struct timeval *);

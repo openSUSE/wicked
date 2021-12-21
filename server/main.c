@@ -289,7 +289,7 @@ run_interface_server(void)
 #endif
 
 	while (!ni_caught_terminal_signal()) {
-		long timeout;
+		ni_timeout_t timeout;
 
 		do {
 			timeout = ni_timer_next_timeout();
@@ -471,7 +471,7 @@ handle_interface_addr_events(ni_netdev_t *dev, ni_event_t event, const ni_addres
 			continue;
 
 		if (lease->type == NI_ADDRCONF_AUTOCONF)
-			continue; /* separately, bellow */
+			continue; /* separately, below */
 
 		if (lease->state != NI_ADDRCONF_STATE_APPLYING)
 			continue;

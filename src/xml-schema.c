@@ -365,8 +365,11 @@ ni_xs_name_type_array_find_local(const ni_xs_name_type_array_t *array, const cha
 	ni_xs_name_type_t *def;
 	unsigned int i;
 
+	if (!name || !array)
+		return NULL;
+
 	for (i = 0, def = array->data; i < array->count; ++i, ++def) {
-		if (!strcmp(def->name, name))
+		if (ni_string_eq(def->name, name))
 			return def->type;
 	}
 	return NULL;
@@ -1136,7 +1139,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 			type = ni_xs_struct_new(NULL);
 		}
 
-		if (ni_xs_build_typelist(node, &type->u.struct_info->children, scope, TRUE, NULL) < 0) {
+		if (ni_xs_build_typelist(node, &type->u.struct_info->children, scope, FALSE, NULL) < 0) {
 			ni_xs_type_free(type);
 			return NULL;
 		}
@@ -1150,7 +1153,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 			return NULL;
 		}
 		type = ni_xs_union_new(NULL, disc_name);
-		if (ni_xs_build_typelist(node, &type->u.union_info->children, scope, TRUE, NULL) < 0) {
+		if (ni_xs_build_typelist(node, &type->u.union_info->children, scope, FALSE, NULL) < 0) {
 			ni_xs_type_free(type);
 			return NULL;
 		}

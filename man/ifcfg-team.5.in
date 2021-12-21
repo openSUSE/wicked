@@ -220,7 +220,7 @@ Similar to the previous, except that it uses IPv6 Neighbor Solicitation / Neighb
 .SH ETHTOOL LINK WATCH SPECIFIC OPTIONS
 .TP
 .BR TEAM_LW_ETHTOOL_DELAY_UP[SUFFIX]
-Delay between the link coming up and the runner being notified about it (in miliseconds).
+Delay between the link coming up and the runner being notified about it (in milliseconds).
 .RS 7
 .PP
 Default:
@@ -228,7 +228,7 @@ Default:
 .RE
 .TP
 .BR TEAM_LW_ETHTOOL_DELAY_DOWN[SUFFIX]
-Delay between the link going down and the runner being notified about it (in miliseconds).
+Delay between the link going down and the runner being notified about it (in milliseconds).
 .RS 7
 .PP
 Default:
@@ -249,10 +249,10 @@ Default:
 Hostname or IP address used in ARP request as destination address.
 .TP
 .BR TEAM_LW_ARP_PING_INTERVAL[SUFFIX]
-Interval between ARP requests being sent (in miliseconds).
+Interval between ARP requests being sent (in milliseconds).
 .TP
 .BR TEAM_LW_ARP_PING_INIT_WAIT[SUFFIX]
-Delay between link watch initialization and the first ARP request being sent (in miliseconds).
+Delay between link watch initialization and the first ARP request being sent (in milliseconds).
 .RS 7
 .PP
 Default:
@@ -298,10 +298,10 @@ Default:
 Hostname or IPv6 address used in NS packet as target address.
 .TP
 .BR TEAM_LW_NSNA_PING_INTERVAL[SUFFIX]
-Interval between sending NS packets (in miliseconds).
+Interval between sending NS packets (in milliseconds).
 .TP
 .BR TEAM_LW_NSNA_PING_INIT_WAIT[SUFFIX]
-Delay between link watch initialization and the first NS packet being sent (in miliseconds).
+Delay between link watch initialization and the first NS packet being sent (in milliseconds).
 .TP
 .BR TEAM_LW_NSNA_PING_MISSED_MAX[SUFFIX]
 Maximum number of missed NA reply packets. If this number is exceeded, link is reported as down.
@@ -328,7 +328,7 @@ Default:
 
 .TP
 .BR TEAM_PORT_STICKY[SUFFIX]
-Marks an activebackup runner port as sticky, to not unselect it, if another
+Marks an activebackup runner port as sticky, to not deselect it, if another
 port with a higher priority or better parameters becomes available.
 .RS 7
 .PP

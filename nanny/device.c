@@ -208,7 +208,7 @@ ni_factory_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_polic
 	ni_debug_nanny("%s: using device config", w->name);
 	xml_node_print_debug(config, 0);
 
-	ni_ifworker_set_config(w, config, ni_fsm_policy_get_origin(policy));
+	ni_ifworker_set_config(w, config, ni_fsm_policy_origin(policy));
 	xml_node_free(config);
 
 	/* Now do the fandango */
@@ -276,7 +276,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	xml_node_free(config);
 
 	/* Now do the fandango */
-	return ni_managed_device_up(mdev, ni_fsm_policy_get_origin(policy));
+	return ni_managed_device_up(mdev, ni_fsm_policy_origin(policy));
 }
 
 /*

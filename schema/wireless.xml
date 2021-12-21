@@ -1,9 +1,15 @@
 <!--
-  -- Wireless Service definition
-  -->
+  Wireless Service definition
+-->
 <service name="wireless" interface="org.opensuse.Network.Wireless" object-class="netif-wireless">
 
-  <define name="network_t" class="dict">
+  <define name="certificate" class="union" switch="type">
+    <path type="string"/>
+    <file type="external-file"/>
+    <hex  type="hex-string"/>
+  </define>
+
+  <define name="network" class="dict">
     <essid type="string" constraint="required" description="SSID of the network to connect to"/>
     <scan-ssid type="boolean" description="Hidden SSID scan support enabled"/>
     <priority type="uint32" description="Network priority"/>
@@ -12,50 +18,50 @@
     <channel type="uint32"/>
     <fragment-size type="uint32"/>
     <frequency type="double"/>
-    <key-management type="builtin-key-mgmt"/>
+    <key-management type="builtin-wireless-key-mgmt-mask"/>
 
     <wep class="dict">
-      <auth-algo type="builtin-wireless-auth-algo"/>
+      <auth-algo type="builtin-wireless-auth-algo-mask"/>
       <default-key type="uint32" constraint="range">
-	<min value="0"/>
-	<max value="3"/>
+        <min value="0"/>
+        <max value="3"/>
       </default-key>
-      <key class="dict"/>
+      <key type="string"/>
     </wep>
 
     <wpa-psk class="dict" constraint="exclusive:wpa-auth-data">
       <passphrase type="string" constraint="required">
         <meta:user-input type="password" prompt="please enter WPA PSK passphrase"/>
       </passphrase>
-      <auth-proto type="builtin-wireless-auth"/>
-      <group-cipher type="builtin-wireless-cipher"/>
-      <pairwise-cipher type="builtin-wireless-cipher"/>
+      <auth-proto type="builtin-wireless-auth-proto-mask"/>
+      <group-cipher type="builtin-wireless-cipher-mask"/>
+      <pairwise-cipher type="builtin-wireless-cipher-mask"/>
     </wpa-psk>
 
     <wpa-eap class="dict" constraint="exclusive:wpa-auth-data">
       <method type="builtin-eap-method"/>
-      <auth-proto type="builtin-wireless-auth"/>
-      <group-cipher type="builtin-wireless-cipher"/>
-      <pairwise-cipher type="builtin-wireless-cipher"/>
+      <auth-proto type="builtin-wireless-auth-proto-mask"/>
+      <group-cipher type="builtin-wireless-cipher-mask"/>
+      <pairwise-cipher type="builtin-wireless-cipher-mask"/>
 
-      <identity type="string" constraint="required">
+      <identity type="string">
         <meta:user-input type="username" prompt="please enter WPA EAP identity"/>
       </identity>
 
       <phase1 class="dict">
-	<peap-version type="uint32" constraint="range">
-	  <min value="0"/>
-	  <max value="1"/>
-	</peap-version>
-	<peap-label type="boolean"/>
+        <peap-version type="uint32" constraint="range">
+          <min value="0"/>
+          <max value="1"/>
+        </peap-version>
+        <peap-label type="boolean"/>
       </phase1>
 
       <phase2 class="dict">
-	<description>
-	  When using eg TTLS with a secondary authentication step, it can be
-	  configured here.
-	</description>
-	<!-- Mark the following elements as required. Which means if the <phase2> element exists, we require these two child elements to be there, too. -->
+        <description>
+          When using eg TTLS with a secondary authentication step, it can be
+          configured here.
+        </description>
+        <!-- Mark the following elements as required. Which means if the <phase2> element exists, we require these two child elements to be there, too. -->
 
         <method type="builtin-eap-method" constraint="required"/>
         <password type="string" constraint="required">
@@ -66,33 +72,67 @@
       <anonid type="string"/>
 
       <tls class="dict">
-	<ca-cert type="external-file" description="For TLS based methods, specify a CA certificate"/>
-	<client-cert type="external-file" description="For TLS based methods, specify a Client certificate"/>
-	<client-key type="external-file" description="For TLS based methods, specify a Client Key certificate"/>
-	<client-key-passwd type="string">
-	  <meta:user-input type="password" prompt="please enter Client Key password"/>
-	</client-key-passwd>
+        <ca-cert type="certificate" description="For TLS based methods, specify a CA certificate"/>
+        <client-cert type="certificate" description="For TLS based methods, specify a Client certificate"/>
+        <client-key type="certificate" description="For TLS based methods, specify a Client Key certificate"/>
+        <client-key-passwd type="string">
+          <meta:user-input type="password" prompt="please enter Client Key password"/>
+        </client-key-passwd>
       </tls>
     </wpa-eap>
   </define>
 
-  <define name="properties" class="dict">
-    <scan class="dict">
-      <!-- zero or more networks found during last scan -->
-      <network type="network_t"/>
-    </scan>
+  <define name="bss" class="dict">
+    <bssid type="ethernet-address" />
+    <ssid type="string" /> <!-- we use printf notation for `none-prinatable-chars` for now -->
+    <wpa class="dict">
+      <key-management type="builtin-wireless-key-mgmt-mask"/>
+      <pairwise-cipher type="builtin-wireless-cipher-mask"/>
+      <group-cipher type="builtin-wireless-cipher"/>
+    </wpa>
+    <rsn class="dict">
+      <key-management type="builtin-wireless-key-mgmt-mask"/>
+      <pairwise-cipher type="builtin-wireless-cipher-mask"/>
+      <group-cipher type="builtin-wireless-cipher"/>
+      <management-group type="builtin-wireless-cipher"/>
+    </rsn>
+    <wps class="dict">
+      <type type="string"/>
+    </wps>
+    <privacy type="boolean"/>
+    <mode type="builtin-wireless-mode"/>
+    <channel type="uint32"/>
+    <rate-max type="uint32"/>
+    <signal type="int16"/>
+    <age type="uint32"/>
+  </define>
 
-    <eap-methods type="builtin-eap-method-mask"/>
-    <pairwise-cipher type="builtin-wireless-cipher-mask"/>
-    <group-ciphers type="builtin-wireless-cipher-mask"/>
-    <key-management type="builtin-key-mgmt-mask"/>
-    <auth-methods type="builtin-wireless-auth-algo-mask"/>
-    <!-- <wpa-protocols type="builtin-wireless-protocol-mask"/> -->
+  <define name="properties" class="dict">
+    <capabilities class="dict">
+      <pairwise-cipher type="builtin-wireless-cipher-mask"/>
+      <group-ciphers type="builtin-wireless-cipher-mask"/>
+      <group-mgmt-ciphers type="builtin-wireless-cipher-mask"/>
+      <key-management type="builtin-wireless-key-mgmt-mask"/>
+      <auth-methods type="builtin-wireless-auth-algo-mask"/>
+      <wpa-protocols type="builtin-wireless-auth-proto-mask"/>
+      <operation-modes type="builtin-wireless-oper-mode-mask"/>
+      <scan-modes type="builtin-wireless-scan-mode-mask"/>
+      <max-scan-ssid type="int32"/>
+    </capabilities>
+    <current-connection class="dict">
+      <state type="builtin-wireless-assoc-state"/>
+      <ssid type="string"/>
+      <bssid type="ethernet-address"/>
+      <signal type="int16"/>
+      <duration type="uint32"/>
+      <authmode type="string"/>
+    </current-connection>
+    <scan-results class="array" element-type="wireless:bss" element-name="bss"/>
   </define>
 
   <define name="link-request" class="dict">
     <description>
-     This type contains the requested wireless link configuration.
+      This type contains the requested wireless link configuration.
     </description>
 
     <ap-scan type="uint32" constraint="range" description="SSID scan mode to be used">
@@ -102,23 +142,16 @@
     <wpa-driver type="string" description="WPA Driver to be used by wpa_supplicant - 'nl80211,wext'"/>
     <country type="string" description="Regulatory domain"/>
 
-    <network type="network_t"/>
+    <networks class="array" element-type="wireless:network" element-name="network"/>
 
   </define>
 
   <method name="changeDevice">
     <arguments>
       <config type="link-request">
-       <meta:mapping document-node="/wireless" skip-unless-present="true" />
+        <meta:mapping document-node="/wireless" skip-unless-present="true" />
       </config>
     </arguments>
   </method>
 
-  <method name="setScanning">
-    <arguments>
-      <enable type="boolean"/>
-    </arguments>
-  </method>
 </service>
-
-

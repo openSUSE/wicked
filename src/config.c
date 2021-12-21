@@ -87,8 +87,6 @@ ni_config_new()
 	ni_config_fslocation_init(&conf->statedir, WICKED_STATEDIR, 0755);
 	ni_config_fslocation_init(&conf->storedir, WICKED_STOREDIR, 0755);
 
-	conf->use_nanny = FALSE;
-
 	conf->rtnl_event.recv_buff_length = 1024 * 1024;
 	conf->rtnl_event.mesg_buff_length = 0;
 
@@ -307,10 +305,15 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 				goto failed;
 		} else
 		if (strcmp(child->name, "use-nanny") == 0) {
-			if (ni_parse_boolean(child->cdata, &conf->use_nanny)) {
-				ni_error("%s: invalid <%s>%s</%s> element value",
+			ni_bool_t use_nanny = TRUE;
+
+			if (ni_parse_boolean(child->cdata, &use_nanny)) {
+				ni_error("%s: invalid <%s>%s</%s> option value",
 					filename, child->name, child->cdata, child->name);
 				goto failed;
+			} else if (!use_nanny) {
+				ni_warn("%s: ignoring obsolete <%s>%s</%s> option, please remove",
+					filename, child->name, child->cdata, child->name);
 			}
 		} else
 		if (strcmp(child->name, "piddir") == 0) {
@@ -538,7 +541,7 @@ ni_config_parse_addrconf_dhcp4_nodes(ni_config_dhcp4_t *dhcp4, xml_node_t *node)
 			ni_string_dup(&dhcp4->vendor_class, child->cdata);
 		else
 		if (!strcmp(child->name, "lease-time") && child->cdata)
-			dhcp4->lease_time = strtoul(child->cdata, NULL, 0);
+			ni_parse_uint(child->cdata, &dhcp4->lease_time, 0);
 		else
 		if (!strcmp(child->name, "ignore-server")) {
 			if ((attrval = xml_node_get_attr(child, "ip")) != NULL)
@@ -1035,11 +1038,9 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 		} else
 		if (!strcmp(child->name, "vendor-class") &&
 		    (attrval = xml_node_get_attr(child, "enterprise-number")) != NULL) {
-			char *      err;
-			long        num;
-			
-			num = strtol(attrval, &err, 0);
-			if (*err != '\0' || num < 0 || num >= 0xffffffff) {
+			unsigned int num;
+
+			if (ni_parse_uint(attrval, &num, 0)) {
 				ni_error("config: unable to parse <vendor-class enterprise-number=\"%s\">",
 						attrval);
 				return FALSE;
@@ -1059,11 +1060,9 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 		} else
 		if (!strcmp(child->name, "vendor-opts") &&
 		    (attrval = xml_node_get_attr(child, "enterprise-number")) != NULL) {
-			char *      err;
-			long        num;
-			
-			num = strtol(attrval, &err, 0);
-			if (*err != '\0' || num < 0 || num >= 0xffffffff) {
+			unsigned int num;
+
+			if (ni_parse_uint(attrval, &num, 0)) {
 				ni_error("config: unable to parse <vendor-class enterprise-number=\"%s\">",
 						attrval);
 				return FALSE;
@@ -1081,10 +1080,10 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 			}
 		} else
 		if (!strcmp(child->name, "lease-time") && child->cdata) {
-			dhcp6->lease_time = strtoul(child->cdata, NULL, 0);
+			ni_parse_uint(child->cdata, &dhcp6->lease_time, 0);
 		} else
 		if (!strcmp(child->name, "release-retransmits") && child->cdata) {
-			dhcp6->release_nretries = strtoul(child->cdata, NULL, 0);
+			ni_parse_uint(child->cdata, &dhcp6->release_nretries, 0);
 		} else
 		if (!strcmp(child->name, "info-refresh-time")) {
 			const char *attrval;
@@ -1099,7 +1098,7 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 				    ni_uint_in_range(&dhcp6->info_refresh.range, value))
 					ni_uint_range_update_min(&dhcp6->info_refresh.range, value);
 				else
-					ni_warn("config: discarding invalid info-refresh-time min attibute");
+					ni_warn("config: discarding invalid info-refresh-time min attribute");
 			}
 
 			if ((attrval = xml_node_get_attr(child, "max"))) {
@@ -1107,7 +1106,7 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 				    ni_uint_in_range(&dhcp6->info_refresh.range, value))
 					ni_uint_range_update_max(&dhcp6->info_refresh.range, value);
 				else
-					ni_warn("config: discarding invalid info-refresh-time max attibute");
+					ni_warn("config: discarding invalid info-refresh-time max attribute");
 			}
 
 			if (!ni_string_empty(child->cdata)) {
@@ -1262,6 +1261,8 @@ ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node
 	} else {
 		ni_string_split(&targets, node->cdata, " \t,|", 0);
 	}
+
+	mask = *update_mask;
 	if (ni_addrconf_update_flags_parse_names(&mask, &targets))
 		*update_mask = mask;
 	ni_string_array_destroy(&targets);
@@ -1418,7 +1419,7 @@ ni_config_parse_objectmodel_netif_ns(ni_extension_t **list, xml_node_t *node)
 /*
  * Another class of extensions helps with discovery of interface configuration through
  * firmware, such as iBFT. You can use this to specify one or more shell commands
- * that generate a list of <interface> elemens as output.
+ * that generate a list of <interface> elements as output.
  *
  * <netif-firmware-discovery>
  *  <script name="ibft" command="/some/crazy/path/to/script" />
@@ -1775,6 +1776,9 @@ ni_c_binding_get_address(const ni_c_binding_t *binding)
 static unsigned int
 ni_config_addrconf_update_mask_all(void)
 {
+	/*
+	 * Mask of all supported update flags
+	 */
 	static unsigned mask = __NI_ADDRCONF_UPDATE_NONE;
 	if (!mask) {
 		unsigned int i;
@@ -1790,18 +1794,27 @@ ni_config_addrconf_update_mask_all(void)
 static unsigned int
 ni_config_addrconf_update_default(void)
 {
+	/*
+	 * Update flags enabled for static/intrinsic leases by default
+	 */
 	return ni_config_addrconf_update_mask_all();
 }
 
 static unsigned int
 ni_config_addrconf_update_mask_dhcp4(void)
 {
+	/*
+	 * All supported update flags for dhcp4 leases
+	 */
 	return ni_config_addrconf_update_mask_all();
 }
 
 static unsigned int
 ni_config_addrconf_update_dhcp4(void)
 {
+	/*
+	 * Update flags enabled for dhcp4 leases by default
+	 */
 	return	NI_BIT(NI_ADDRCONF_UPDATE_DEFAULT_ROUTE)|
 		NI_BIT(NI_ADDRCONF_UPDATE_DNS)		|
 		NI_BIT(NI_ADDRCONF_UPDATE_NTP)		|
@@ -1815,21 +1828,32 @@ ni_config_addrconf_update_dhcp4(void)
 static unsigned int
 ni_config_addrconf_update_mask_dhcp6(void)
 {
-	return	ni_config_addrconf_update_dhcp6()	|
-		NI_BIT(NI_ADDRCONF_UPDATE_HOSTNAME)	|
+	/*
+	 * All supported update flags for dhcp6 leases
+	 *
+	 * Note:
+	 * - DHCPv6 does not handle routes --> IPv6 RA's job
+	 */
+	return	NI_BIT(NI_ADDRCONF_UPDATE_HOSTNAME)	|
+		NI_BIT(NI_ADDRCONF_UPDATE_DNS)		|
+		NI_BIT(NI_ADDRCONF_UPDATE_NTP)		|
 		NI_BIT(NI_ADDRCONF_UPDATE_NIS)		|
-		NI_BIT(NI_ADDRCONF_UPDATE_SIP);
+		NI_BIT(NI_ADDRCONF_UPDATE_SIP)		|
+		NI_BIT(NI_ADDRCONF_UPDATE_TZ)		|
+		NI_BIT(NI_ADDRCONF_UPDATE_BOOT);
 }
 
 static unsigned int
 ni_config_addrconf_update_dhcp6(void)
 {
-	/* Note:
-	 * - DHCPv6 does not handle routes --> IPv6 RA's job
-	 * - ypbind does not support ipv6 (DHCPv6 can it).
+	/*
+	 * Update flags enabled for dhcp6 leases by default
 	 */
 	return	NI_BIT(NI_ADDRCONF_UPDATE_DNS)		|
 		NI_BIT(NI_ADDRCONF_UPDATE_NTP)		|
+#ifdef NI_DHCP6_NIS
+		NI_BIT(NI_ADDRCONF_UPDATE_NIS)		|
+#endif
 		NI_BIT(NI_ADDRCONF_UPDATE_TZ)		|
 		NI_BIT(NI_ADDRCONF_UPDATE_BOOT);
 }
@@ -1837,24 +1861,38 @@ ni_config_addrconf_update_dhcp6(void)
 static unsigned int
 ni_config_addrconf_update_mask_auto4(void)
 {
-	return __NI_ADDRCONF_UPDATE_NONE;		/* IP address only */
+	/*
+	 * All supported update flags for auto4 leases
+	 *
+	 * Note: empty mask, supports IP address only
+	 */
+	return __NI_ADDRCONF_UPDATE_NONE;
 }
 
 static unsigned int
 ni_config_addrconf_update_auto4(void)
 {
+	/*
+	 * Update flags enabled for auto4 leases by default
+	 */
 	return ni_config_addrconf_update_mask_auto4();
 }
 
 static unsigned int
 ni_config_addrconf_update_mask_auto6(void)
 {
+	/*
+	 * All supported update flags for auto6 leases
+	 */
 	return NI_BIT(NI_ADDRCONF_UPDATE_DNS);
 }
 
 static unsigned int
 ni_config_addrconf_update_auto6(void)
 {
+	/*
+	 * Update flags enabled for auto6 leases by default
+	 */
 	return ni_config_addrconf_update_mask_auto6();
 }
 
@@ -1948,12 +1986,6 @@ ni_config_addrconf_update(const char *ifname, ni_addrconf_mode_t type, unsigned 
 	default: ;
 	}
 	return mask;
-}
-
-ni_bool_t
-ni_config_use_nanny(void)
-{
-	return ni_global.config ? ni_global.config->use_nanny : FALSE;
 }
 
 void
