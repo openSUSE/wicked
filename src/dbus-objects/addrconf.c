@@ -506,10 +506,10 @@ ni_objectmodel_addrconf_static_drop(ni_dbus_object_t *object, unsigned int addrf
 				ni_addrconf_type_to_name(NI_ADDRCONF_STATIC));
 		return FALSE;
 	}
-	ni_debug_objectmodel("%s: lease %s:%s dropped immediatelly", dev->name,
+	ni_debug_objectmodel("%s: lease %s:%s dropped immediately", dev->name,
 				ni_addrfamily_type_to_name(addrfamily),
 				ni_addrconf_type_to_name(NI_ADDRCONF_STATIC));
-	return TRUE; /* done immediatelly */
+	return TRUE; /* done immediately */
 }
 
 /*
@@ -694,7 +694,7 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 			break;
 		}
 
-		/* create a releasing dummy lease and preform the removal */
+		/* create a releasing dummy lease and perform the removal */
 		if ((lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily))) {
 			lease->state = NI_ADDRCONF_STATE_RELEASING;
 			lease->uuid  = uuid;
@@ -723,10 +723,10 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 				ni_addrconf_type_to_name(forwarder->addrconf));
 		return FALSE;
 	}
-	ni_debug_objectmodel("%s: lease %s:%s dropped immediatelly", dev->name,
+	ni_debug_objectmodel("%s: lease %s:%s dropped immediately", dev->name,
 				ni_addrfamily_type_to_name(forwarder->addrfamily),
 				ni_addrconf_type_to_name(forwarder->addrconf));
-	return TRUE; /* Done immediatelly */
+	return TRUE; /* Done immediately */
 }
 
 /*
@@ -1261,7 +1261,7 @@ ni_objectmodel_addrconf_ipv6_auto_request(ni_dbus_object_t *object, const ni_dbu
 	}
 
 	if (!req.enabled) {
-		/* force to create a releasing lease and run in backround,
+		/* force to create a releasing lease and run in background,
 		 * which we're using for lease info callback data...  */
 		ni_auto6_request_destroy(&req);
 		return ni_objectmodel_addrconf_ipv6_auto_release(dev, TRUE, object,

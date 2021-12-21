@@ -1,5 +1,5 @@
 /*
- *	wicked client configuration reading along their assosciated sub-types.
+ *	wicked client configuration reading along their associated sub-types.
  *
  *	Copyright (C) 2019 SUSE Software Solutions Germany GmbH, Nuernberg, Germany.
  *

@@ -24,7 +24,7 @@
 
 #include <wicked/logging.h>
 #include <wicked/netinfo.h>
-#include <wicked/socket.h>
+#include <wicked/time.h>
 #include <wicked/route.h>
 #include "util_priv.h"
 
@@ -1684,7 +1684,7 @@ ni_lifetime_left(unsigned int lifetime, const struct timeval *acquired, const st
 
 	if (timercmp(current, acquired, >)) {
 		timersub(current, acquired, &dif);
-		if (lifetime >= dif.tv_sec) {
+		if ((unsigned long)lifetime >= (unsigned long)dif.tv_sec) {
 			lifetime -= dif.tv_sec;
 			return lifetime;
 		}

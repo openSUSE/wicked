@@ -234,7 +234,6 @@ wicked_headers			= \
 	uevent.h		\
 	udev-utils.h		\
 	util_priv.h		\
-	wireless_priv.h		\
 	wpa-supplicant.h	\
 	xml-schema.h
 

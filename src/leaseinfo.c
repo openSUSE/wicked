@@ -44,7 +44,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/nis.h>
 #include <wicked/route.h>
-#include <wicked/socket.h>	/* ni_time functions */
+#include <wicked/time.h>
 
 #include "appconfig.h"
 #include "util_priv.h"

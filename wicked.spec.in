@@ -1,7 +1,7 @@
 #
 # spec file for package wicked
 #
-# Copyright (c) 2020 SUSE LLC
+# Copyright (c) 2021 SUSE LLC
 #
 # All modifications and additions to the file contributed by third parties
 # remain the property of their copyright owners, unless otherwise agreed
@@ -32,6 +32,7 @@ Source1:        wicked-rpmlintrc
 # Never add any patches to this package without the upstream commit id in
 # the patch. Any patches added here without a very good reason to make an
 # exception will be silently removed with the next version update.
+# Note, that wicked.spec file is generated from wicked.spec.in which is in git.
 # Please use pull requests at https://github.com/openSUSE/wicked/ instead.
 #
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
@@ -93,8 +94,8 @@ Requires(pre):       util-linux
 %endif
 
 %if %{with systemd}
-BuildRequires:  pkgconfig(libsystemd)
 BuildRequires:  systemd-rpm-macros
+BuildRequires:  pkgconfig(libsystemd)
 %{?systemd_requires}
 %if 0%{?suse_version:1}
 Requires(pre):  %fillup_prereq
@@ -114,6 +115,13 @@ PreReq:         %fillup_prereq %insserv_prereq
 %define         wicked_statedir %_localstatedir/run/%{name}
 %endif
 %define         wicked_storedir %_localstatedir/lib/%{name}
+%if 0%{?suse_version} >= 1550
+%define		dbus_config_base %_datadir/dbus-1
+%define		dbus_config_tag	 %nil
+%else
+%define		dbus_config_base %_sysconfdir/dbus-1
+%define		dbus_config_tag	 %config
+%endif
 
 %description
 Wicked is a network configuration infrastructure incorporating a number
@@ -205,6 +213,7 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS"
 %if ! %{with dbusstart}
 	--without-dbus-servicedir	\
 %endif
+	--with-dbus-configdir=%{dbus_config_base}/system.d \
 	--disable-static
 make %{?_smp_mflags}
 
@@ -333,16 +342,18 @@ fi
 %dir %_sysconfdir/wicked/extensions
 %config(noreplace) %_sysconfdir/wicked/extensions/*
 %dir %_sysconfdir/wicked/ifconfig
-%dir %_sysconfdir/dbus-1
-%dir %_sysconfdir/dbus-1/system.d
+%dir %{dbus_config_base}
+%dir %{dbus_config_base}/system.d
 # mark the policies as config to keep backup, but replace on upgrade
-%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.conf
-%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.AUTO4.conf
-%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.DHCP4.conf
-%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.DHCP6.conf
-%config %_sysconfdir/dbus-1/system.d/org.opensuse.Network.Nanny.conf
+%{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.conf
+%{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.AUTO4.conf
+%{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.DHCP4.conf
+%{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.DHCP6.conf
+%{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.Nanny.conf
 %if %{with dbusstart}
+%if "%dbus_config_base" != "%_datadir/dbus-1"
 %dir %_datadir/dbus-1
+%endif
 %dir %_datadir/dbus-1/system-services
 %_datadir/dbus-1/system-services/org.opensuse.Network.*.service
 %endif

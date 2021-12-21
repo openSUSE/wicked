@@ -61,7 +61,7 @@ const char *
 ni_sit_validate(const ni_sit_t *sit)
 {
 	if (!sit)
-		return "Unintialized sit configuration";
+		return "Uninitialized sit configuration";
 
 	return NULL;
 }
@@ -89,7 +89,7 @@ const char *
 ni_ipip_validate(const ni_ipip_t *ipip)
 {
 	if (!ipip)
-		return "Unintialized ipip configuration";
+		return "Uninitialized ipip configuration";
 
 	return NULL;
 }
@@ -117,7 +117,7 @@ const char *
 ni_gre_validate(const ni_gre_t *gre)
 {
 	if (!gre)
-		return "Unintialized gre configuration";
+		return "Uninitialized gre configuration";
 
 	return NULL;
 }

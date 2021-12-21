@@ -18,6 +18,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
+#include <wicked/time.h>
 #include <wicked/xml.h>
 #include "netinfo_priv.h"
 #include "appconfig.h"
@@ -191,7 +192,11 @@ ni_dhcp4_device_uptime(const ni_dhcp4_device_t *dev, unsigned int clamp)
 		timersub(&now, &dev->start_time, &uptime);
 	else
 		timerclear(&uptime);
-	return (uptime.tv_sec < clamp) ? uptime.tv_sec : clamp;
+
+	if ((unsigned long)uptime.tv_sec < (unsigned long)clamp)
+		return (unsigned int)uptime.tv_sec;
+	else
+		return clamp;
 }
 
 void
@@ -292,13 +297,12 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	config->doflags = ni_dhcp4_do_bits(ni_config_dhcp4_find_device(dev->ifname), config->update);
 
 	config->route_priority = info->route_priority;
+	config->route_set_src = info->route_set_src;
 	config->recover_lease = info->recover_lease;
 	config->release_lease = info->release_lease;
 	config->broadcast = info->broadcast;
 
-	config->max_lease_time = ni_dhcp4_config_max_lease_time();
-	if (config->max_lease_time == 0)
-		config->max_lease_time = ~0U;
+	config->max_lease_time = ni_dhcp4_config_max_lease_time(dev->ifname);
 	if (info->lease_time && info->lease_time < config->max_lease_time)
 		config->max_lease_time = info->lease_time;
 
@@ -323,7 +327,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	if (config->fqdn.enabled == NI_TRISTATE_DEFAULT)
 		ni_tristate_set(&config->fqdn.enabled, FALSE);
 	if (config->fqdn.enabled == NI_TRISTATE_ENABLE && ni_string_empty(config->hostname))
-		config->fqdn.update = NI_DHCP4_FQDN_UPDATE_NONE;
+		config->fqdn.update = NI_DHCP_FQDN_UPDATE_NONE;
 
 	if (!ni_dhcp4_parse_client_id(&config->client_id, dev->system.hwaddr.type, info->clientid))
 		ni_dhcp4_set_config_client_id(&config->client_id, dev, info->create_cid);
@@ -340,9 +344,9 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 
 	if (ni_log_facility(NI_TRACE_DHCP)) {
 		ni_trace("Received request:");
-		ni_trace("  acquire-timeout %u", config->acquire_timeout);
-		ni_trace("  lease-time      %u", config->max_lease_time);
-		ni_trace("  start-delay     %u", config->start_delay);
+		ni_trace("  acquire-timeout %s", ni_sprint_timeout(config->acquire_timeout));
+		ni_trace("  max lease-time  %s", ni_sprint_timeout(config->max_lease_time));
+		ni_trace("  start-delay     %s", ni_sprint_timeout(config->start_delay));
 		ni_trace("  hostname        %s", config->hostname[0]? config->hostname : "<none>");
 		if (config->fqdn.enabled == NI_TRISTATE_ENABLE) {
 			ni_trace("  fqdn            update %s, encode %s, qualify %s",
@@ -513,7 +517,7 @@ ni_dhcp4_start_release(void *user_data, const ni_timer_t *timer)
 		return;
 	dev->defer.timer = NULL;
 
-	/* We just send out a singe RELEASE without waiting for the
+	/* We just send out a single RELEASE without waiting for the
 	 * server's reply. We just keep our fingers crossed that it's
 	 * getting out. If it doesn't, it's rather likely the network
 	 * is hosed anyway, so there's little point in delaying. */
@@ -611,7 +615,7 @@ ni_dhcp4_device_start_delayed(void *user_data, const ni_timer_t *timer)
 	if (ni_netdev_link_is_up(ifp)) {
 		ni_dhcp4_fsm_link_up(dev);
 	} else {
-		ni_debug_dhcp("%s: defered start until link is up", dev->ifname);
+		ni_debug_dhcp("%s: deferred start until link is up", dev->ifname);
 	}
 }
 
@@ -620,7 +624,7 @@ ni_dhcp4_device_start(ni_dhcp4_device_t *dev)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
-	unsigned long sec;
+	unsigned int sec;
 
 	ni_dhcp4_device_drop_buffer(dev);
 	dev->failed = 0;
@@ -639,8 +643,9 @@ ni_dhcp4_device_start(ni_dhcp4_device_t *dev)
 
 	if (dev->defer.timer)
 		ni_timer_cancel(dev->defer.timer);
-	dev->defer.timer = ni_timer_register(sec * 1000, ni_dhcp4_device_start_delayed, dev);
 
+	dev->defer.timer = ni_timer_register(NI_TIMEOUT_FROM_SEC(sec),
+			ni_dhcp4_device_start_delayed, dev);
 	return 1;
 }
 
@@ -860,18 +865,18 @@ ni_dhcp4_set_config_client_id(ni_opaque_t *raw, const ni_dhcp4_device_t *dev,
 
 	if (create_cid == NI_CONFIG_DHCP4_CID_TYPE_AUTO) {
 		/*
-		 * We should allways use dhcp6 based client-id as
+		 * We should always use dhcp6 based client-id as
 		 * specified in RFC 4361, also on ethernet...
 		 *
 		 * This is also required to update DDNS records for
 		 * DHCPv6 and DHCPv4 IP addresses in same zone (the
 		 * server maintains a dhcid DNS record using it).
 		 *
-		 * Unfortunatelly, it would be a default behavior
+		 * Unfortunately, it would be a default behavior
 		 * change and may cause non-matching lease as well
 		 * as (ipv4 only) ddns update issues:
 		 *
-		 * There are many exising dhcp servers in the wild
+		 * There are many existing dhcp servers in the wild
 		 * relying on or using (static) leases with the
 		 * the "old" dhcp4 link address (mac) client-id,
 		 * incl. updated ddns records using it already...
@@ -1012,9 +1017,11 @@ ni_dhcp4_config_server_preference_hwaddr(const ni_hwaddr_t *hwaddr)
 }
 
 unsigned int
-ni_dhcp4_config_max_lease_time(void)
+ni_dhcp4_config_max_lease_time(const char *ifname)
 {
-	return ni_global.config->addrconf.dhcp4.lease_time;
+	const ni_config_dhcp4_t *dhconf = ni_config_dhcp4_find_device(ifname);
+
+	return dhconf && dhconf->lease_time ? dhconf->lease_time : NI_SECONDS_INFINITE;
 }
 
 static void

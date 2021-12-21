@@ -150,7 +150,7 @@ enum NI_DHCP6_MSG_TYPE {
  * https://tools.ietf.org/html/rfc4242#section-3.1
  */
 #define NI_DHCP6_IRT_DEFAULT	  86400	/* default refresh time in sec  */
-#define NI_DHCP6_IRT_MINIMUM	    600 /* minimum refresh time         */
+#define NI_DHCP6_IRT_MINIMUM	    600 /* minimum refresh time in sec  */
 
 /*
  * Timeout and backoff handling initializers
@@ -280,8 +280,6 @@ extern unsigned int	ni_dhcp6_ia_get_renewal_time(ni_dhcp6_ia_t *);
 extern ni_bool_t	ni_dhcp6_ia_is_active(ni_dhcp6_ia_t *, struct timeval *);
 extern unsigned int	ni_dhcp6_ia_list_count_active(ni_dhcp6_ia_t *, struct timeval *now);
 extern unsigned int	ni_dhcp6_ia_copy_to_lease_addrs(const ni_dhcp6_device_t *, ni_addrconf_lease_t *);
-
-extern const char *	ni_dhcp6_print_timeval(const struct timeval *);
 
 extern const char *	ni_dhcp6_address_print(const struct in6_addr *);
 

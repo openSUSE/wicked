@@ -42,7 +42,7 @@
 /*
  * Extract ethtool properties from a dbug dict argument.
  * We're re-using device properties from ni_objectmodel_ethtool_service,
- * which are derived from changeDevice method configuration propeties.
+ * which are derived from changeDevice method configuration properties.
  */
 static ni_netdev_t *
 ni_objectmodel_ethtool_request_arg(const ni_dbus_variant_t *argument)

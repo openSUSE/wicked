@@ -327,7 +327,7 @@ ni_capture_inspect_udp_header(void *data, size_t bytes, size_t *payload_len,
 void
 ni_capture_arm_retransmit(ni_capture_t *capture)
 {
-	ni_timeout_arm(&capture->retrans.deadline, &capture->retrans.timeout);
+	ni_timeout_arm_sec(&capture->retrans.deadline, &capture->retrans.timeout);
 }
 
 void

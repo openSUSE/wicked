@@ -224,19 +224,23 @@ ni_nanny_policy_load(ni_nanny_t *mgr)
 		unsigned int i;
 
 		for (i = 0; i < files.count; ++i) {
-			char path[PATH_MAX];
+			char *path = NULL;
 			xml_document_t *doc;
 
-			snprintf(path, sizeof(path), "%s/%s", nanny_dir, files.data[i]);
-			doc = xml_document_read(path);
-			if (doc == NULL) {
+			if (!ni_string_printf(&path, "%s/%s", nanny_dir, files.data[i]))
+				continue;
+
+			if (!(doc = xml_document_read(path))) {
 				ni_error("Unable to read policy file %s: %m", path);
+				ni_string_free(&path);
 				continue;
 			}
 
-			if (!ni_nanny_create_policy(NULL, mgr, doc, TRUE)) {
+			if (!ni_nanny_create_policy(NULL, mgr, doc, NULL, TRUE)) {
 				ni_error("Unable to create policy from file '%s'", path);
 			}
+
+			ni_string_free(&path);
 			xml_document_free(doc);
 		}
 	}
@@ -285,7 +289,7 @@ babysit(void)
 #endif
 
 	while (!ni_caught_terminal_signal()) {
-		long timeout = NI_IFWORKER_INFINITE_TIMEOUT;
+		ni_timeout_t timeout = NI_TIMEOUT_INFINITE;
 
 		do {
 			ni_fsm_do(mgr->fsm, &timeout);

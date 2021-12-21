@@ -31,7 +31,7 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
-#include <wicked/socket.h>	/* ni_time functions */
+#include <wicked/time.h>
 #include <wicked/xml.h>
 
 #include "duid.h"

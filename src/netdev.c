@@ -623,8 +623,8 @@ ni_netdev_set_pci(ni_netdev_t *dev, ni_pci_dev_t *pci_dev)
 
 /*
  * Set the interface's client_state structure.
- * This information is not intepreted by the server at all, but
- * we retain it for the client.
+ * This information is not interpreted by the server at all,#
+ * but we retain it for the client.
  */
 void
 ni_netdev_set_client_state(ni_netdev_t *dev, ni_client_state_t *client_state)

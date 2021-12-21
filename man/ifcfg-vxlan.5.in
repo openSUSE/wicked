@@ -108,7 +108,7 @@ Disables partial gro checksum handling.
 
 .TP
 .B VXLAN_COLLECT_METADATA \ { \fRyes\fB | no }
-Whether to collect metadata on external control plane of interal FDB.
+Whether to collect metadata on external control plane of internal FDB.
 
 .TP
 .B VXLAN_GBP \ { \fRyes\fB | no }

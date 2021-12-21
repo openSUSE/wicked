@@ -33,7 +33,7 @@ wicked \- network management utility
 .PP
 .\" ----------------------------------------
 .SH DESCRIPTION
-\fBwicked\fP offers access to the wicked network managment service from the
+\fBwicked\fP offers access to the wicked network management service from the
 command line. It can be used to display the current state of network devices,
 to bring interfaces up or down, or to check their operational status.
 .PP
@@ -181,7 +181,7 @@ always make sure that all subordinate devices are in the required state
 before bringing up the virtual device itself.
 .PP
 .\" TODO: When we support XML as config standard, re-introduce below.
-.\"\fBwicked\fP offers a compatability mode as shown above in order to
+.\"\fBwicked\fP offers a compatibility mode as shown above in order to
 .\"ease migration from ifcfg file format to XML. ifcfg syntax is described
 .\"in \fBifcfg\fP(5):
 .\".PP
@@ -377,7 +377,7 @@ so can be used for scripting.
 Displays device status for specified interfaces.
 .TP
 .BI "\-\-ifconfig " filename
-Note that this is ifstatus specfic (ie. root only).
+Note that this is ifstatus specific (ie. root only).
 Used to alter the source of the specified interface configurations.
 .PP
 .\" ----------------------------------------

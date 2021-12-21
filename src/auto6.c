@@ -945,8 +945,8 @@ ni_auto6_acquire_run(void *user_data, const ni_timer_t *timer)
 		/*
 		 * the link address was already ready to use
 		 * (e.g. wickedd restarted or ifup ; ifup);
-		 * send router solicit ourselfs to get an RA
-		 * update and (re)apply the lease.
+		 * send router solicit ourselves to get an
+		 * RA update and (re)apply the lease.
 		 */
 		auto6->acquire.send_rs--;
 		if (ni_icmpv6_ra_solicit(&auto6->device, NULL)) {

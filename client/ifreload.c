@@ -356,7 +356,7 @@ ni_do_ifreload(const char *caller, int argc, char **argv)
 	ni_nanny_fsm_monitor_t *monitor = NULL;
 	ni_bool_t opt_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
-	unsigned int opt_timeout = 0;
+	unsigned int seconds = 0;
 	int c, status = NI_WICKED_RC_USAGE;
 	char *saved_argv0, *program = NULL;
 	unsigned int i;
@@ -386,11 +386,7 @@ ni_do_ifreload(const char *caller, int argc, char **argv)
 			break;
 
 		case OPT_TIMEOUT:
-			if (!strcmp(optarg, "infinite")) {
-				opt_timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			} else if (ni_parse_uint(optarg, &opt_timeout, 10) >= 0) {
-				opt_timeout *= 1000; /* sec -> msec */
-			} else {
+			if (ni_parse_seconds_timeout(optarg, &seconds)) {
 				ni_error("%s: cannot parse timeout option \"%s\"",
 						program, optarg);
 				goto usage;
@@ -459,12 +455,12 @@ usage:
 	}
 
 	/* Set timeout how long the action is allowed to wait */
-	if (opt_timeout) {
-		fsm->worker_timeout = opt_timeout; /* One set by user */
+	if (seconds) {
+		fsm->worker_timeout = NI_TIMEOUT_FROM_SEC(seconds);
 	} else
 	if (ni_wait_for_interfaces) {
 		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
-					ni_wait_for_interfaces*1000);
+					NI_TIMEOUT_FROM_SEC(ni_wait_for_interfaces));
 	} else {
 		fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
 					NI_IFWORKER_DEFAULT_TIMEOUT);
@@ -474,7 +470,7 @@ usage:
 		ni_debug_application("wait for interfaces infinitely");
 	else
 		ni_debug_application("wait %u seconds for interfaces",
-					fsm->worker_timeout/1000);
+					NI_TIMEOUT_SEC(fsm->worker_timeout));
 
 	/* Build the up a config relations/hierarchy tree */
 	if (ni_fsm_build_hierarchy(fsm, FALSE) < 0) {
@@ -577,7 +573,7 @@ usage:
 
 		/*
 		 * Do not report any errors to systemd -- returning an error
-		 * here, will cause sytemd to stop the network completely.
+		 * here, will cause systemd to stop the network completely.
 		 */
 		if (opt_systemd)
 			status = NI_LSB_RC_SUCCESS;

@@ -155,6 +155,7 @@ struct ni_dhcp4_request {
 	ni_dhcp_fqdn_t		fqdn;
 	char *			hostname;
 	unsigned int		route_priority;
+	ni_bool_t		route_set_src;
 
 	ni_string_array_t	request_options;
 
@@ -198,6 +199,7 @@ struct ni_dhcp4_config {
 	ni_tristate_t		broadcast;
 
 	unsigned int		route_priority;
+	ni_bool_t		route_set_src;
 
 	unsigned int		max_lease_time;
 	ni_bool_t		recover_lease;
@@ -278,7 +280,7 @@ extern int		ni_dhcp4_config_ignore_server(const char *);
 extern int		ni_dhcp4_config_have_server_preference(void);
 extern int		ni_dhcp4_config_server_preference_ipaddr(struct in_addr);
 extern int		ni_dhcp4_config_server_preference_hwaddr(const ni_hwaddr_t *);
-extern unsigned int	ni_dhcp4_config_max_lease_time(void);
+extern unsigned int	ni_dhcp4_config_max_lease_time(const char *);
 extern void		ni_dhcp4_config_free(ni_dhcp4_config_t *);
 
 extern ni_dhcp4_request_t *ni_dhcp4_request_new(void);

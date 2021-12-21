@@ -385,7 +385,7 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *req)
 		if (req && !ni_string_empty(req->master.name)) {
 			master = ni_netdev_by_name(nc, req->master.name);
 			if (!master) {
-				ni_error("%s: unable to find requested master inteface %s",
+				ni_error("%s: unable to find requested master interface '%s'",
 						dev->name, req->master.name);
 				return -1;
 			}
@@ -420,6 +420,9 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *req)
 				return ret;
 		}
 
+		if (dev->link.type == NI_IFTYPE_WIRELESS)
+			ni_wireless_connect(dev);
+
 		if (ni_netdev_device_is_up(dev))
 			return 0;
 
@@ -435,8 +438,6 @@ ni_system_interface_link_change(ni_netdev_t *dev, const ni_netdev_req_t *req)
 			return -1;
 		}
 
-		if (dev->link.type == NI_IFTYPE_WIRELESS)
-			ni_wireless_connect(dev);
 	} else {
 		if (dev->link.type == NI_IFTYPE_WIRELESS)
 			ni_wireless_disconnect(dev);
@@ -900,7 +901,7 @@ static const ni_addrconf_action_t	updater_removing_common[] = {
 
 static const ni_addrconf_action_t	updater_applying_auto6[] = {
 	{ __ni_addrconf_action_addrs_verify,	"verifying adressses"	},
-	{ __ni_addrconf_action_write_lease,	"writting lease file"   },
+	{ __ni_addrconf_action_write_lease,	"writing lease file"   },
 	{ __ni_addrconf_action_system_update,	"applying system config"},
 	{ NULL, NULL }
 };
@@ -6232,7 +6233,7 @@ __ni_netdev_update_mtu(ni_netconfig_t *nc, ni_netdev_t *dev,
 
 
 /*
- * Initialialize a netdev of a just created inteface.
+ * Initialize a netdev of a just created interface.
  *
  * The purpose of this function is to initialize the interface
  * just after it's creation with a _known_ interface name.
@@ -6278,7 +6279,7 @@ __ni_system_netdev_create(ni_netconfig_t *nc,
 
 
 	/* Hmm... init just the base link properties (e.g. type) or
-	 * do we required to discover furher things (vlan,bridge)?
+	 * do we required to discover further things (vlan,bridge)?
 	 */
 	__ni_device_refresh_link_info(nc, &dev->link);
 

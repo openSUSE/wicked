@@ -1681,6 +1681,39 @@ __ni_notation_external_file_print(const unsigned char *data_ptr, unsigned int da
 	return buffer;
 }
 
+static ni_bool_t
+__ni_notation_hex_string_parse(const char *string_value, unsigned char **retbuf, unsigned int *retlen)
+{
+	ssize_t len;
+	unsigned char *out;
+
+	len = ni_string_len(string_value);
+	if ((len % 2) != 0)
+		return FALSE;
+
+	len /= 2;
+	if (!(out = malloc(len)))
+		return FALSE;
+
+	if (ni_parse_hex_data(string_value, out, len, NULL) != len){
+		free(out);
+		return FALSE;
+	}
+
+	*retlen = len;
+	*retbuf = out;
+	return TRUE;
+}
+
+static const char *
+__ni_notation_hex_string_print(const unsigned char *data_ptr, unsigned int data_len, char *buffer, size_t size)
+{
+	if (ni_format_hex_data(data_ptr, data_len, buffer, size, NULL, FALSE) != 0)
+		return NULL;
+
+	return buffer;
+}
+
 static ni_xs_notation_t	__ni_dbus_notations[] = {
 	{
 		.name = "ipv4addr",
@@ -1717,6 +1750,11 @@ static ni_xs_notation_t	__ni_dbus_notations[] = {
 		.array_element_type = DBUS_TYPE_BYTE,
 		.parse = __ni_notation_external_file_parse,
 		.print = __ni_notation_external_file_print,
+	},{
+		.name = "hex-string",
+		.array_element_type = DBUS_TYPE_BYTE,
+		.parse = __ni_notation_hex_string_parse,
+		.print = __ni_notation_hex_string_print,
 	},
 
 	{ NULL }

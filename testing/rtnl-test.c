@@ -55,7 +55,7 @@ int main(int argc, char **argv)
 	ni_server_enable_interface_nduseropt_events(rtnl_test_interface_ndopt_event);
 
 	while (!term_sig) {
-		long timeout;
+		ni_timeout_t timeout;
 
 		if (hup_sig) {
 			hup_sig = 0;

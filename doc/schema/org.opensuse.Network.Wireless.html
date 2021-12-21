@@ -14,33 +14,21 @@
 </tr>
 <tr>
  <td>Typedefs</td>
- <td>3</td>
+ <td>5</td>
 </tr>
 <tr>
- <td rowspan="6" valign="top">Properties</td>
- <td><a href="#property:scan">scan</a></td>
+ <td rowspan="3" valign="top">Properties</td>
+ <td><a href="#property:capabilities">capabilities</a></td>
 </tr>
 <tr>
- <td><a href="#property:eap-methods">eap-methods</a></td>
+ <td><a href="#property:current-connection">current-connection</a></td>
 </tr>
 <tr>
- <td><a href="#property:pairwise-cipher">pairwise-cipher</a></td>
+ <td><a href="#property:scan-results">scan-results</a></td>
 </tr>
 <tr>
- <td><a href="#property:group-ciphers">group-ciphers</a></td>
-</tr>
-<tr>
- <td><a href="#property:key-management">key-management</a></td>
-</tr>
-<tr>
- <td><a href="#property:auth-methods">auth-methods</a></td>
-</tr>
-<tr>
- <td rowspan="2" valign="top">Methods</td>
+ <td rowspan="1" valign="top">Methods</td>
  <td><a href="#changeDevice">changeDevice()</a></td>
-</tr>
-<tr>
- <td><a href="#setScanning">setScanning()</a></td>
 </tr>
 <tr>
  <td>Signals</td>
@@ -49,17 +37,33 @@
 </table><p>
 <h2>Properties</h2>
 <ul>
-<li><a name="property:scan"/><bold>scan</bold> (dict). This is a dict-based type that provides the following members:
+<li><a name="property:capabilities"/><bold>capabilities</bold> (dict). This is a dict-based type that provides the following members:
 <ul>
-<li><bold>network</bold> (<a href="wireless.html#network_t">network_t</a>). </li>
+<li><bold>pairwise-cipher</bold> (<a href="dbus.html#builtin-wireless-cipher-mask">builtin-wireless-cipher-mask</a>). </li>
+<li><bold>group-ciphers</bold> (<a href="dbus.html#builtin-wireless-cipher-mask">builtin-wireless-cipher-mask</a>). </li>
+<li><bold>group-mgmt-ciphers</bold> (<a href="dbus.html#builtin-wireless-cipher-mask">builtin-wireless-cipher-mask</a>). </li>
+<li><bold>key-management</bold> (<a href="dbus.html#builtin-wireless-key-mgmt-mask">builtin-wireless-key-mgmt-mask</a>). </li>
+<li><bold>auth-methods</bold> (<a href="dbus.html#builtin-wireless-auth-algo-mask">builtin-wireless-auth-algo-mask</a>). </li>
+<li><bold>wpa-protocols</bold> (<a href="dbus.html#builtin-wireless-auth-proto-mask">builtin-wireless-auth-proto-mask</a>). </li>
+<li><bold>operation-modes</bold> (<a href="dbus.html#builtin-wireless-oper-mode-mask">builtin-wireless-oper-mode-mask</a>). </li>
+<li><bold>scan-modes</bold> (<a href="dbus.html#builtin-wireless-scan-mode-mask">builtin-wireless-scan-mode-mask</a>). </li>
+<li><bold>max-scan-ssid</bold> (<a href="dbus.html#int32">int32</a>). </li>
 </ul>
 <p>
 </li>
-<li><a name="property:eap-methods"/><bold>eap-methods</bold> (<a href="dbus.html#builtin-eap-method-mask">builtin-eap-method-mask</a>). </li>
-<li><a name="property:pairwise-cipher"/><bold>pairwise-cipher</bold> (<a href="dbus.html#builtin-wireless-cipher-mask">builtin-wireless-cipher-mask</a>). </li>
-<li><a name="property:group-ciphers"/><bold>group-ciphers</bold> (<a href="dbus.html#builtin-wireless-cipher-mask">builtin-wireless-cipher-mask</a>). </li>
-<li><a name="property:key-management"/><bold>key-management</bold> (<a href="dbus.html#builtin-key-mgmt-mask">builtin-key-mgmt-mask</a>). </li>
-<li><a name="property:auth-methods"/><bold>auth-methods</bold> (<a href="dbus.html#builtin-wireless-auth-algo-mask">builtin-wireless-auth-algo-mask</a>). </li>
+<li><a name="property:current-connection"/><bold>current-connection</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>state</bold> (<a href="dbus.html#builtin-wireless-assoc-state">builtin-wireless-assoc-state</a>). </li>
+<li><bold>ssid</bold> (<a href="dbus.html#string">string</a>). </li>
+<li><bold>bssid</bold> (<a href="dbus.html#ethernet-address">ethernet-address</a>). </li>
+<li><bold>signal</bold> (<a href="dbus.html#int16">int16</a>). </li>
+<li><bold>duration</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>authmode</bold> (<a href="dbus.html#string">string</a>). </li>
+</ul>
+<p>
+</li>
+<li><a name="property:scan-results"/><bold>scan-results</bold> (array). This is an array of <a href="wireless.html#bss">bss</a>.
+</li>
 </ul>
 <p>
 <h2>Methods</h2>
@@ -72,12 +76,10 @@ It is a dict-based type that provides the following members:
 <li><bold>ap-scan</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
 <li><bold>wpa-driver</bold> (<a href="dbus.html#string">string</a>). WPA Driver to be used by wpa_supplicant - 'nl80211,wext'</li>
 <li><bold>country</bold> (<a href="dbus.html#string">string</a>). Regulatory domain</li>
-<li><bold>network</bold> (<a href="wireless.html#network_t">network_t</a>). </li>
+<li><bold>networks</bold> (array). This is an array of <a href="wireless.html#network">network</a>.
+</li>
 </ul>
 <p>
-<p></dd>
-<dt><em><a name="setScanning"/>void setScanning(<a href="dbus.html#boolean">boolean</a> enable)</em></dt>
-<dd>
 <p></dd>
 </dl>
 <h2>Types defined in this scope</h2>
@@ -89,12 +91,18 @@ It is a dict-based type that provides the following members:
  <th style="width:100px">Kind</th>
  <th style="width:400px">Definition</th>
 </tr>
-<tr><td>network_t</td><td>dict</td><td>below</td></tr>
+<tr><td>certificate</td><td>unknown</td><td>below</td></tr>
+<tr><td>network</td><td>dict</td><td>below</td></tr>
+<tr><td>bss</td><td>dict</td><td>below</td></tr>
 <tr><td>link-request</td><td>dict</td><td>below</td></tr>
 </table>
 
-<a name="network_t"/>
-<h3>Type network_t</h3>
+<a name="certificate"/>
+<h3>Type certificate</h3>
+<p>
+This is an unknown
+<a name="network"/>
+<h3>Type network</h3>
 <p>
 This is a dict-based type that provides the following members:
 <ul>
@@ -106,61 +114,65 @@ This is a dict-based type that provides the following members:
 <li><bold>channel</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
 <li><bold>fragment-size</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
 <li><bold>frequency</bold> (<a href="dbus.html#double">double</a>). </li>
-<li><bold>key-management</bold> (<a href="dbus.html#builtin-key-mgmt">builtin-key-mgmt</a>). </li>
+<li><bold>key-management</bold> (<a href="dbus.html#builtin-wireless-key-mgmt-mask">builtin-wireless-key-mgmt-mask</a>). </li>
 <li><bold>wep</bold> (dict). This is a dict-based type that provides the following members:
 <ul>
-<li><bold>auth-algo</bold> (<a href="dbus.html#builtin-wireless-auth-algo">builtin-wireless-auth-algo</a>). </li>
+<li><bold>auth-algo</bold> (<a href="dbus.html#builtin-wireless-auth-algo-mask">builtin-wireless-auth-algo-mask</a>). </li>
 <li><bold>default-key</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
-<li><bold>key</bold> (dict). This is a dict-based type that provides the following members:
-<ul>
-</ul>
-<p>
-</li>
+<li><bold>key</bold> (<a href="dbus.html#string">string</a>). </li>
 </ul>
 <p>
 </li>
 <li><bold>wpa-psk</bold> (dict). This is a dict-based type that provides the following members:
 <ul>
 <li><bold>passphrase</bold> (string). This is a string</li>
-<li><bold>auth-proto</bold> (<a href="dbus.html#builtin-wireless-auth">builtin-wireless-auth</a>). </li>
-<li><bold>group-cipher</bold> (<a href="dbus.html#builtin-wireless-cipher">builtin-wireless-cipher</a>). </li>
-<li><bold>pairwise-cipher</bold> (<a href="dbus.html#builtin-wireless-cipher">builtin-wireless-cipher</a>). </li>
+<li><bold>auth-proto</bold> (<a href="dbus.html#builtin-wireless-auth-proto-mask">builtin-wireless-auth-proto-mask</a>). </li>
+<li><bold>group-cipher</bold> (<a href="dbus.html#builtin-wireless-cipher-mask">builtin-wireless-cipher-mask</a>). </li>
+<li><bold>pairwise-cipher</bold> (<a href="dbus.html#builtin-wireless-cipher-mask">builtin-wireless-cipher-mask</a>). </li>
 </ul>
 <p>
 </li>
 <li><bold>wpa-eap</bold> (dict). This is a dict-based type that provides the following members:
 <ul>
 <li><bold>method</bold> (<a href="dbus.html#builtin-eap-method">builtin-eap-method</a>). </li>
-<li><bold>auth-proto</bold> (<a href="dbus.html#builtin-wireless-auth">builtin-wireless-auth</a>). </li>
-<li><bold>group-cipher</bold> (<a href="dbus.html#builtin-wireless-cipher">builtin-wireless-cipher</a>). </li>
-<li><bold>pairwise-cipher</bold> (<a href="dbus.html#builtin-wireless-cipher">builtin-wireless-cipher</a>). </li>
+<li><bold>auth-proto</bold> (<a href="dbus.html#builtin-wireless-auth-proto-mask">builtin-wireless-auth-proto-mask</a>). </li>
+<li><bold>group-cipher</bold> (<a href="dbus.html#builtin-wireless-cipher-mask">builtin-wireless-cipher-mask</a>). </li>
+<li><bold>pairwise-cipher</bold> (<a href="dbus.html#builtin-wireless-cipher-mask">builtin-wireless-cipher-mask</a>). </li>
 <li><bold>identity</bold> (string). This is a string</li>
 <li><bold>phase1</bold> (dict). This is a dict-based type that provides the following members:
 <ul>
 <li><bold>peap-version</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
+<li><bold>peap-label</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
 </ul>
 <p>
 </li>
-<li><bold>phase2</bold> (dict). When using eg TTLS with a secondary authentication step, it can beconfigured here.<p>
+<li><bold>phase2</bold> (dict). When using eg TTLS with a secondary authentication step, it can be configured here. <p>
 This is a dict-based type that provides the following members:
 <ul>
 <li><bold>method</bold> (uint32). This is a uint32 enumerated type, which can take the following values:
 <p><ul> <li>none (0)</li>
  <li>md5 (1)</li>
  <li>tls (2)</li>
- <li>mschapv2 (3)</li>
- <li>peap (4)</li>
- <li>ttls (5)</li>
- <li>gtc (6)</li>
- <li>otp (7)</li>
- <li>leap (8)</li>
- <li>psk (9)</li>
- <li>pax (10)</li>
- <li>sake (11)</li>
- <li>gpsk (12)</li>
- <li>wsc (13)</li>
- <li>ikev2 (14)</li>
- <li>tnc (15)</li>
+ <li>pap (3)</li>
+ <li>chap (4)</li>
+ <li>mschap (5)</li>
+ <li>mschapv2 (6)</li>
+ <li>peap (7)</li>
+ <li>ttls (8)</li>
+ <li>gtc (9)</li>
+ <li>otp (10)</li>
+ <li>leap (11)</li>
+ <li>psk (12)</li>
+ <li>pax (13)</li>
+ <li>sake (14)</li>
+ <li>gpsk (15)</li>
+ <li>wsc (16)</li>
+ <li>ikev2 (17)</li>
+ <li>tnc (18)</li>
+ <li>fast (19)</li>
+ <li>aka (20)</li>
+ <li>aka_prime (21)</li>
+ <li>sim (22)</li>
 </ul><p>
 </li>
 <li><bold>password</bold> (string). This is a string</li>
@@ -170,9 +182,9 @@ This is a dict-based type that provides the following members:
 <li><bold>anonid</bold> (<a href="dbus.html#string">string</a>). </li>
 <li><bold>tls</bold> (dict). This is a dict-based type that provides the following members:
 <ul>
-<li><bold>ca-cert</bold> (<a href="dbus.html#external-file">external-file</a>). For TLS based methods, specify a CA certificate</li>
-<li><bold>client-cert</bold> (<a href="dbus.html#external-file">external-file</a>). For TLS based methods, specify a Client certificate</li>
-<li><bold>client-key</bold> (<a href="dbus.html#external-file">external-file</a>). For TLS based methods, specify a Client Key certificate</li>
+<li><bold>ca-cert</bold> (<a href="wireless.html#certificate">certificate</a>). For TLS based methods, specify a CA certificate</li>
+<li><bold>client-cert</bold> (<a href="wireless.html#certificate">certificate</a>). For TLS based methods, specify a Client certificate</li>
+<li><bold>client-key</bold> (<a href="wireless.html#certificate">certificate</a>). For TLS based methods, specify a Client Key certificate</li>
 <li><bold>client-key-passwd</bold> (string). This is a string</li>
 </ul>
 <p>
@@ -183,16 +195,56 @@ This is a dict-based type that provides the following members:
 </ul>
 <p>
 
+<a name="bss"/>
+<h3>Type bss</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>bssid</bold> (<a href="dbus.html#ethernet-address">ethernet-address</a>). </li>
+<li><bold>ssid</bold> (<a href="dbus.html#string">string</a>). </li>
+<li><bold>wpa</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>key-management</bold> (<a href="dbus.html#builtin-wireless-key-mgmt-mask">builtin-wireless-key-mgmt-mask</a>). </li>
+<li><bold>pairwise-cipher</bold> (<a href="dbus.html#builtin-wireless-cipher-mask">builtin-wireless-cipher-mask</a>). </li>
+<li><bold>group-cipher</bold> (<a href="dbus.html#builtin-wireless-cipher">builtin-wireless-cipher</a>). </li>
+</ul>
+<p>
+</li>
+<li><bold>rsn</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>key-management</bold> (<a href="dbus.html#builtin-wireless-key-mgmt-mask">builtin-wireless-key-mgmt-mask</a>). </li>
+<li><bold>pairwise-cipher</bold> (<a href="dbus.html#builtin-wireless-cipher-mask">builtin-wireless-cipher-mask</a>). </li>
+<li><bold>group-cipher</bold> (<a href="dbus.html#builtin-wireless-cipher">builtin-wireless-cipher</a>). </li>
+<li><bold>management-group</bold> (<a href="dbus.html#builtin-wireless-cipher">builtin-wireless-cipher</a>). </li>
+</ul>
+<p>
+</li>
+<li><bold>wps</bold> (dict). This is a dict-based type that provides the following members:
+<ul>
+<li><bold>type</bold> (<a href="dbus.html#string">string</a>). </li>
+</ul>
+<p>
+</li>
+<li><bold>privacy</bold> (<a href="dbus.html#boolean">boolean</a>). </li>
+<li><bold>mode</bold> (<a href="dbus.html#builtin-wireless-mode">builtin-wireless-mode</a>). </li>
+<li><bold>channel</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>rate-max</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+<li><bold>signal</bold> (<a href="dbus.html#int16">int16</a>). </li>
+<li><bold>age</bold> (<a href="dbus.html#uint32">uint32</a>). </li>
+</ul>
+<p>
+
 <a name="link-request"/>
 <h3>Type link-request</h3>
 <p>
-This type contains the requested wireless link configuration.<p>
+This type contains the requested wireless link configuration. <p>
 This is a dict-based type that provides the following members:
 <ul>
 <li><bold>ap-scan</bold> (uint32). This is a uint32 range type with values from 0 to infinity</li>
 <li><bold>wpa-driver</bold> (<a href="dbus.html#string">string</a>). WPA Driver to be used by wpa_supplicant - 'nl80211,wext'</li>
 <li><bold>country</bold> (<a href="dbus.html#string">string</a>). Regulatory domain</li>
-<li><bold>network</bold> (<a href="wireless.html#network_t">network_t</a>). </li>
+<li><bold>networks</bold> (array). This is an array of <a href="wireless.html#network">network</a>.
+</li>
 </ul>
 <p>
 
