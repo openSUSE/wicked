@@ -1,0 +1,127 @@
+<h1>org.opensuse.Network.Scripts</h1>
+
+<h2>Namespace</h2>
+
+<p>
+<table border="1">
+<tr>
+ <td style="width:200px">Namespace</td>
+ <td style="width:500px">scripts</td>
+</tr>
+<tr>
+ <td>Class compat</td>
+ <td>netif</td>
+</tr>
+<tr>
+ <td>Typedefs</td>
+ <td>2</td>
+</tr>
+<tr>
+ <td>Properties</td>
+ <td>none</td>
+</tr>
+<tr>
+ <td rowspan="4" valign="top">Methods</td>
+ <td><a href="#firewallUp">firewallUp()</a></td>
+</tr>
+<tr>
+ <td><a href="#networkUp">networkUp()</a></td>
+</tr>
+<tr>
+ <td><a href="#networkDown">networkDown()</a></td>
+</tr>
+<tr>
+ <td><a href="#firewallDown">firewallDown()</a></td>
+</tr>
+<tr>
+ <td>Signals</td>
+ <td>none</td>
+</tr>
+</table><p>
+<h2>Methods</h2>
+<dl>
+<dt><em><a name="firewallUp"/>void firewallUp(dict config)</em></dt>
+<dd>
+      These scripts are executed before the device is set UP at fsm transition
+      from protocol-up to firewall-up, followed by the device/link UP request.
+
+<p>Argument <em>config</em> is mapped to an element of the device document referenced via xpath "scripts/pre-up".
+It is a dict-based type that provides the following members:
+<ul>
+<li><bold>script</bold> (<a href="dbus.html#string">string</a>). </li>
+</ul>
+<p>
+<p></dd>
+<dt><em><a name="networkUp"/>void networkUp(dict config)</em></dt>
+<dd>
+      These scripts are executed as final action in the ifup processing at fsm
+      transition action from addrconf-up (IP setup) before ifup reports status.
+
+<p>Argument <em>config</em> is mapped to an element of the device document referenced via xpath "scripts/post-up".
+It is a dict-based type that provides the following members:
+<ul>
+<li><bold>script</bold> (<a href="dbus.html#string">string</a>). </li>
+</ul>
+<p>
+<p></dd>
+<dt><em><a name="networkDown"/>void networkDown(dict config)</em></dt>
+<dd>
+      These scripts are executed at start of the ifdown processing at fsm transition
+      from network-up to addrconf-up, followed by dropping/releasing leases.
+
+<p>Argument <em>config</em> is mapped to an element of the device document referenced via xpath "scripts/pre-down".
+It is a dict-based type that provides the following members:
+<ul>
+<li><bold>script</bold> (<a href="dbus.html#string">string</a>). </li>
+</ul>
+<p>
+<p></dd>
+<dt><em><a name="firewallDown"/>void firewallDown(dict config)</em></dt>
+<dd>
+      These scripts are executed after device is already down at the fsm transition
+      from firewall-up to protocols-up, followed by device shutdown/deconfiguration.
+
+<p>Argument <em>config</em> is mapped to an element of the device document referenced via xpath "scripts/post-down".
+It is a dict-based type that provides the following members:
+<ul>
+<li><bold>script</bold> (<a href="dbus.html#string">string</a>). </li>
+</ul>
+<p>
+<p></dd>
+</dl>
+<h2>Types defined in this scope</h2>
+
+<p>
+<table border="1">
+<tr>
+ <th style="width:200px">Type name</th>
+ <th style="width:100px">Kind</th>
+ <th style="width:400px">Definition</th>
+</tr>
+<tr><td>script-config</td><td>dict</td><td>below</td></tr>
+<tr><td>configuration</td><td>dict</td><td>below</td></tr>
+</table>
+
+<a name="script-config"/>
+<h3>Type script-config</h3>
+<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>script</bold> (<a href="dbus.html#string">string</a>). </li>
+</ul>
+<p>
+
+<a name="configuration"/>
+<h3>Type configuration</h3>
+<p>
+Complete script configuration<p>
+This is a dict-based type that provides the following members:
+<ul>
+<li><bold>pre-up</bold> (<a href="scripts.html#script-config">script-config</a>). </li>
+<li><bold>post-up</bold> (<a href="scripts.html#script-config">script-config</a>). </li>
+<li><bold>pre-down</bold> (<a href="scripts.html#script-config">script-config</a>). </li>
+<li><bold>post-down</bold> (<a href="scripts.html#script-config">script-config</a>). </li>
+</ul>
+<p>
+
+

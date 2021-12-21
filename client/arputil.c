@@ -181,7 +181,7 @@ do_arp_run(struct arp_handle *handle)
 
 	ret = NI_WICKED_RC_ERROR;
 	while (!ni_caught_terminal_signal()) {
-		long timeout;
+		ni_timeout_t timeout;
 
 		ret = NI_WICKED_RC_SUCCESS;
 		timeout = ni_timer_next_timeout();
@@ -445,7 +445,7 @@ do_arp_verify_recv(struct arp_handle *handle, const ni_arp_packet_t *pkt)
 	 * MAC address. Some helpful switches seem to generate
 	 * these. */
 	if (ni_link_address_equal(&sock->dev_info.hwaddr, &pkt->sha)) {
-		ni_debug_application("%s: adress in use by ourself",
+		ni_debug_application("%s: address in use by ourself",
 				handle->ifname);
 		return;
 	}
@@ -868,7 +868,7 @@ do_arp_ping_init(struct arp_handle *handle, ni_netdev_t *dev, ni_netconfig_t *nc
 					handle->ifname, ni_sockaddr_print(&handle->fromip));
 		} else
 		if (!ni_address_list_find(dev->addrs, &handle->fromip)) {
-			ni_note("%s: Using source IP address %s not assiged to interface",
+			ni_note("%s: Using source IP address %s not assigned to interface",
 					handle->ifname, ni_sockaddr_print(&handle->fromip));
 		}
 		return NI_WICKED_RC_SUCCESS;
@@ -1115,7 +1115,7 @@ ni_do_arp(const char *caller, int argc, char **argv)
 				"        Notify/Announce IP address use to neighbours\n"
 				"\n"
 				"  ping   [options] <ifname> <IP address>\n"
-				"        ARP ping the specified neigbour\n"
+				"        ARP ping the specified neighbour\n"
 				"\n"
 				, argv[0]
 			);

@@ -166,6 +166,60 @@ ni_ifpolicy_name_is_valid(const char *name)
 	return TRUE;
 }
 
+ni_bool_t
+ni_ifpolicy_get_owner_uid(const xml_node_t *node, uid_t *uid)
+{
+	const char *owner;
+
+	if (!(owner = ni_ifpolicy_get_owner(node)))
+		return FALSE;
+
+	if (ni_parse_uint(owner, uid, 10))
+		return FALSE;
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_ifpolicy_set_owner_uid(xml_node_t *node, uid_t uid)
+{
+	if (!node)
+		return FALSE;
+
+	while (xml_node_del_attr(node, NI_NANNY_IFPOLICY_OWNER))
+		;
+
+	xml_node_add_attr_uint(node, NI_NANNY_IFPOLICY_OWNER, uid);
+	return TRUE;
+}
+
+ni_bool_t
+ni_ifpolicy_set_owner(xml_node_t *node, const char *owner)
+{
+	uid_t uid = -1U;
+
+	if (!node || ni_parse_uint(owner, &uid, 10))
+		return FALSE;
+
+	return ni_ifpolicy_set_owner_uid(node, uid);
+}
+
+ni_bool_t
+ni_ifpolicy_set_uuid(xml_node_t *node, const ni_uuid_t *uuid)
+{
+	const char *ptr;
+
+	if (!node)
+		return FALSE;
+
+	while (xml_node_del_attr(node, NI_NANNY_IFPOLICY_UUID))
+		;
+
+	ptr = ni_uuid_print(uuid);
+	if (!ni_string_empty(ptr))
+		xml_node_add_attr(node, NI_NANNY_IFPOLICY_UUID, ptr);
+	return TRUE;
+}
 
 /*
  * Generate a <match> node for ifpolicy
@@ -220,21 +274,28 @@ ni_convert_cfg_into_policy_node(const xml_node_t *ifcfg, xml_node_t *match, cons
 	ni_uuid_t uuid;
 	xml_node_t *node;
 
-	if (!ifcfg || !match || ni_string_empty(name) || ni_string_empty(origin))
+	if (xml_node_is_empty(ifcfg) || xml_node_is_empty(match) ||
+		ni_string_empty(name) || ni_string_empty(origin))
 		return NULL;
 
 	ifpolicy = xml_node_new(NI_NANNY_IFPOLICY, NULL);
+
+	/* add match node as counted reference to the policy */
 	xml_node_reparent(ifpolicy, xml_node_clone_ref(match));
 
-	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_NAME, name);
-
-	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_ORIGIN, origin);
-	ni_uuid_generate(&uuid);
-	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_UUID, ni_uuid_print(&uuid));
-
-	/* clone <interface> into policy and rename to <merge> */
+	/* clone <interface> into policy and rename to <merge>
+	 * TODO: ahm... add action parameter to this function.
+	 */
 	node = xml_node_clone(ifcfg, ifpolicy);
 	ni_string_dup(&node->name, NI_NANNY_IFPOLICY_MERGE);
+
+	ni_var_array_destroy(&ifpolicy->attrs);
+	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_NAME, name);
+	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_ORIGIN, origin);
+
+	/* calculate an UUIDv5 (sha1 checksum) of the policy content */
+	ni_ifconfig_generate_uuid(ifpolicy, &uuid);
+	ni_ifpolicy_set_uuid(ifpolicy, &uuid);
 
 	return ifpolicy;
 }
@@ -405,21 +466,77 @@ ni_ifconfig_migrate_ethtool(xml_node_t *ethernet, xml_node_t *ethtool)
 }
 
 static ni_bool_t
-ni_ifconfig_migrate_config_node(xml_node_t *config)
+ni_ifconfig_migrate_ethernet_node(xml_node_t *config, xml_node_t *ethernet)
 {
 	ni_bool_t modified = FALSE;
-	xml_node_t *old, *new;
+	xml_node_t *ethtool;
 
-	if ((old = xml_node_get_child(config, "ethernet"))) {
-		if ((new = xml_node_new("ethtool", NULL))) {
-			modified = ni_ifconfig_migrate_ethtool(old, new);
-			if (!xml_node_get_child(config, "ethtool") && new->children)
-				xml_node_add_child(config, new);
-			else
-				xml_node_free(new);
-		}
-		/* keep the (maybe empty) ethernet node,
-		 * because it is an iftype giving one */
+	/* Do we need to cleanup old "ethernet" even the config
+	 * already contains "ethtool" node? IMO not needed... */
+	if (xml_node_get_child(config, "ethtool"))
+		return modified;
+
+	if (!(ethtool = xml_node_new("ethtool", NULL)))
+		return modified;
+
+	modified = ni_ifconfig_migrate_ethtool(ethernet, ethtool);
+	if (ethtool->children)
+		xml_node_add_child(config, ethtool);
+	else
+		xml_node_free(ethtool);
+
+	/* keep the (maybe empty) ethernet node,
+	 * because it is an iftype giving one */
+	return modified;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_wireless_network(xml_node_t *network)
+{
+	/* migrate content inside the network dict if needed */
+	return FALSE;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_wireless_node(xml_node_t *config, xml_node_t *wireless)
+{
+	ni_bool_t modified = FALSE;
+	xml_node_t *networks;
+	xml_node_t *network;
+
+	if (xml_node_get_child(wireless, "networks"))
+		return modified;
+
+	if (!(networks = xml_node_new("networks", wireless)))
+		return modified;
+
+	while ((network = xml_node_get_child(wireless, "network"))) {
+		xml_node_reparent(networks, network);
+		ni_ifconfig_migrate_wireless_network(network);
+		modified = TRUE;
+	}
+	return modified;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_config_node(xml_node_t *config)
+{
+	struct migrate_node {
+		const char *name;
+		ni_bool_t (*func)(xml_node_t *, xml_node_t *);
+	} *migrate, migrate_map[] = {
+		{ "ethernet",	ni_ifconfig_migrate_ethernet_node	},
+		{ "wireless",	ni_ifconfig_migrate_wireless_node	},
+
+		{ NULL }
+	};
+	ni_bool_t modified = FALSE;
+	xml_node_t *found;
+
+	for (migrate = migrate_map; migrate->name && migrate->func; ++migrate) {
+		found = xml_node_get_child(config, migrate->name);
+		if (found && migrate->func(config, found))
+			modified = TRUE;
 	}
 	return modified;
 }

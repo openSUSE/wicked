@@ -11,7 +11,8 @@ noinst_PROGRAMS			= rtnl-test	\
 				  teamd-test	\
 				  xpath-test	\
 				  essid-test	\
-				  cstate-test
+				  cstate-test   \
+				  bitmap-test
 
 AM_CPPFLAGS			= -I$(top_srcdir)/src	\
 				  -I$(top_srcdir)/include
@@ -33,6 +34,7 @@ teamd_test_SOURCES		= teamd-test.c
 xpath_test_SOURCES		= xpath-test.c
 essid_test_SOURCES		= essid-test.c
 cstate_test_SOURCES		= cstate-test.c
+bitmap_test_SOURCES		= bitmap-test.c
 
 EXTRA_DIST			= ibft xpath \
 				  scripts/ifbind.sh

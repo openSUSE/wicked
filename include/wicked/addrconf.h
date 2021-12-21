@@ -70,7 +70,7 @@ enum {
  */
 enum {
 	NI_ADDRCONF_FLAGS_GROUP,	/* lease type group acting as one    */
-	NI_ADDRCONF_FLAGS_PRIMARY,	/* primary lease trigerring fallback */
+	NI_ADDRCONF_FLAGS_PRIMARY,	/* primary lease triggering fallback */
 	NI_ADDRCONF_FLAGS_FALLBACK,	/* fallback of a primary lease       */
 	NI_ADDRCONF_FLAGS_OPTIONAL,	/* optional lease allowed to fail    */
 };
@@ -261,6 +261,7 @@ extern const char *	ni_netbios_node_type_to_name(unsigned int);
 extern ni_bool_t	ni_netbios_node_type_to_code(const char *, unsigned int *);
 
 extern unsigned int	ni_addrconf_lease_get_priority(const ni_addrconf_lease_t *);
+extern unsigned int	ni_addrconf_lease_addrs_set_tentative(ni_addrconf_lease_t *, ni_bool_t);
 
 struct ni_auto4_request {
 	ni_bool_t	enabled;

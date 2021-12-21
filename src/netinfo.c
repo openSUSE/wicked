@@ -1241,3 +1241,16 @@ ni_addrconf_lease_get_priority(const ni_addrconf_lease_t *lease)
 		return 0;
 	}
 }
+
+unsigned int
+ni_addrconf_lease_addrs_set_tentative(ni_addrconf_lease_t *lease, ni_bool_t tentative)
+{
+	unsigned int count = 0;
+	ni_address_t * ap;
+
+	for (ap = lease ? lease->addrs : NULL; ap; ap = ap->next) {
+		ni_address_set_tentative(ap, tentative);
+		count++;
+	}
+	return count;
+}

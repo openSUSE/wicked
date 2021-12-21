@@ -106,33 +106,6 @@ The default is to use \fB@wicked_storedir@\fP, mode \fB0755\fP.
 .fi
 .PP
 .\" --------------------------------------------------------
-.SS Nanny enablement
-.TP
-.B use-nanny
-This element controls whether the client will try to apply configuration
-changes immediately (one shot ifup), or whether it will forward the
-configuration to \fBnanny\fP.
-.IP
-When applying an interface configuration immediately to \fBwickedd\fR, it may
-fail or not complete in the specified time for a variety of transient reasons,
-such as an Ethernet cable not being plugged in.
-.IP
-When managing an interface through \fBnanny\fP, the configuration will be
-applied to \fBnanny\fP, which will apply it to \fBwickedd\fR when certain
-conditions are met such as when the device appears (interface hotplugging)
-or continue with IP setup, when the link detection was successful for a
-device.
-Nanny will also reapply the configurations to \fBwickedd\fR after restart
-(e.g. update) and trigger lease confirmations.
-.IP
-The \fB<use-nanny>\fP element controls the default behavior. When set to
-\fBtrue\fP, \fBwicked\fP will manage all interfaces through \fBnanny\fP.
-If set to \fBfalse\fP, all interface changes will be applied directly.
-The default value is \fBfalse\fP.
-.IP
-To enable \fBnanny\fP at installation time, use the \fBnanny=1\fP installer
-(linuxrc) boot parameter.
-.\" --------------------------------------------------------
 .SS Miscellaneous
 .TP
 .B debug

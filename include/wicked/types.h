@@ -24,7 +24,9 @@ typedef enum {
 	NI_TRISTATE_ENABLE	= 1
 } ni_tristate_t;
 
-typedef union ni_sockaddr	ni_sockaddr_t;
+typedef unsigned long long	ni_timeout_t;
+
+typedef union  ni_sockaddr	ni_sockaddr_t;
 typedef struct ni_netconfig	ni_netconfig_t;
 typedef struct ni_netdev	ni_netdev_t;
 typedef struct ni_route		ni_route_t;
@@ -43,7 +45,6 @@ typedef struct ni_bonding_slave_info	ni_bonding_slave_info_t;
 typedef struct ni_team		ni_team_t;
 typedef struct ni_team_port_config ni_team_port_config_t;
 typedef struct ni_wireless	ni_wireless_t;
-typedef struct ni_wireless_scan	ni_wireless_scan_t;
 typedef struct ni_ethtool	ni_ethtool_t;
 typedef struct ni_ethernet	ni_ethernet_t;
 typedef struct ni_infiniband	ni_infiniband_t;

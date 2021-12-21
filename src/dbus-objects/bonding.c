@@ -402,7 +402,7 @@ __ni_objectmodel_bonding_set_arpmon(ni_dbus_object_t *object,
 		if (!valid) {
 			ni_string_array_destroy(&bond->arpmon.targets);
 			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s.%s property - invalid arp ip target adddress",
+				"%s.%s property - invalid arp ip target address",
 				object->path, property->name);
 			return FALSE;
 		}

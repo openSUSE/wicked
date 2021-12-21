@@ -12,7 +12,7 @@ ifcfg-dummy \- Dummy interface configuration
 .SH Dummy Interfaces
 To setup a dummy interface you either need a configuration file
 with basename \fBifcfg-dummy\fR (ie. \fBifcfg-dummy0\fR) or one
-that explicity sets the
+that explicitly sets the
 .TP
 .B INTERFACETYPE
 variable to "dummy".

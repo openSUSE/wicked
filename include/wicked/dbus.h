@@ -52,10 +52,12 @@ struct ni_dbus_variant {
 		dbus_uint64_t	uint64_value;
 		double		double_value;
 		unsigned char *	byte_array_value;
+		uint32_t *	uint32_array_value;
 		char **		string_array_value;
 		ni_dbus_dict_entry_t *dict_array_value;
 		ni_dbus_variant_t *variant_array_value;
 		ni_dbus_variant_t *struct_value;
+		ni_dbus_variant_t *variant_value;
 	};
 
 	ni_dbus_message_t *	__message;
@@ -223,6 +225,7 @@ extern dbus_bool_t		ni_dbus_variant_init_signature(ni_dbus_variant_t *, const ch
 extern void			ni_dbus_variant_copy(ni_dbus_variant_t *dst,
 					const ni_dbus_variant_t *src);
 extern void			ni_dbus_variant_destroy(ni_dbus_variant_t *);
+extern const char *		ni_dbus_variant_print(ni_stringbuf_t *, const ni_dbus_variant_t *);
 extern const char *		ni_dbus_variant_sprint(const ni_dbus_variant_t *);
 extern const char *		ni_dbus_variant_signature(const ni_dbus_variant_t *);
 extern void			ni_dbus_variant_set_string(ni_dbus_variant_t *, const char *);
@@ -268,6 +271,8 @@ extern void			ni_dbus_variant_init_byte_array(ni_dbus_variant_t *);
 extern void			ni_dbus_variant_set_byte_array(ni_dbus_variant_t *,
 					const unsigned char *, unsigned int len);
 extern dbus_bool_t		ni_dbus_variant_append_byte_array(ni_dbus_variant_t *, unsigned char);
+extern void			ni_dbus_variant_init_uint32_array(ni_dbus_variant_t *);
+extern dbus_bool_t		ni_dbus_variant_append_uint32_array(ni_dbus_variant_t *, uint32_t);
 extern void			ni_dbus_variant_init_string_array(ni_dbus_variant_t *);
 extern void			ni_dbus_variant_set_string_array(ni_dbus_variant_t *,
 					const char **, unsigned int len);
@@ -280,11 +285,14 @@ extern const char *		ni_dbus_variant_array_print_element(const ni_dbus_variant_t
 
 extern dbus_bool_t		ni_dbus_variant_is_array_of(const ni_dbus_variant_t *, const char *signature);
 extern dbus_bool_t		ni_dbus_variant_is_byte_array(const ni_dbus_variant_t *);
+extern dbus_bool_t		ni_dbus_variant_is_uint32_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_string_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_variant_array(const ni_dbus_variant_t *);
+extern dbus_bool_t		ni_dbus_variant_is_object_path_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_dict_array(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_dict(const ni_dbus_variant_t *);
 extern dbus_bool_t		ni_dbus_variant_is_struct(const ni_dbus_variant_t *);
+extern dbus_bool_t		ni_dbus_variant_is_variant(const ni_dbus_variant_t *);
 
 extern dbus_bool_t		ni_dbus_variant_array_parse_and_append_string(ni_dbus_variant_t *, const char *);
 
@@ -333,6 +341,9 @@ extern ni_dbus_variant_t *	ni_dbus_struct_add(ni_dbus_variant_t *);
 extern ni_bool_t		ni_dbus_struct_add_string(ni_dbus_variant_t *, const char *);
 extern ni_dbus_variant_t *	ni_dbus_struct_get(const ni_dbus_variant_t *, unsigned int);
 extern dbus_bool_t		ni_dbus_struct_get_string(const ni_dbus_variant_t *, unsigned int, const char **);
+
+extern ni_dbus_variant_t *	ni_dbus_variant_init_variant(ni_dbus_variant_t *);
+extern dbus_bool_t		ni_dbus_variant_get_variant(const ni_dbus_variant_t *, const ni_dbus_variant_t **);
 
 /*
  * Client side functions
@@ -465,6 +476,19 @@ ni_dbus_variant_datum_const_ptr(const ni_dbus_variant_t *variant)
 	return (const void *) (((const caddr_t) variant) + offset);
 }
 
+#define NI_DBUS_BOOLEAN_SIGNATURE	DBUS_TYPE_BOOLEAN_AS_STRING
+#define NI_DBUS_BYTE_SIGNATURE		DBUS_TYPE_BYTE_AS_STRING
+#define NI_DBUS_INT16_SIGNATURE		DBUS_TYPE_INT16_AS_STRING
+#define NI_DBUS_UINT16_SIGNATURE	DBUS_TYPE_UINT16_AS_STRING
+#define NI_DBUS_INT32_SIGNATURE		DBUS_TYPE_INT32_AS_STRING
+#define NI_DBUS_UINT32_SIGNATURE	DBUS_TYPE_UINT32_AS_STRING
+#define NI_DBUS_INT64_SIGNATURE		DBUS_TYPE_INT64_AS_STRING
+#define NI_DBUS_UINT64_SIGNATURE	DBUS_TYPE_UINT64_AS_STRING
+#define NI_DBUS_DOUBLE_SIGNATURE	DBUS_TYPE_DOUBLE_AS_STRING
+#define NI_DBUS_STRING_SIGNATURE	DBUS_TYPE_STRING_AS_STRING
+#define NI_DBUS_OBJECT_PATH_SIGNATURE	DBUS_TYPE_OBJECT_PATH_AS_STRING
+#define NI_DBUS_VARANT_SIGNATURE	DBUS_TYPE_VARIANT_AS_STRING
+
 #define NI_DBUS_DICT_ENTRY_SIGNATURE \
 		DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING \
 		DBUS_TYPE_STRING_AS_STRING \
@@ -479,8 +503,13 @@ ni_dbus_variant_datum_const_ptr(const ni_dbus_variant_t *variant)
 		DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING
 #define NI_DBUS_STRING_ARRAY_SIGNATURE \
 		DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_STRING_AS_STRING
+#define NI_DBUS_OBJECT_PATH_ARRAY_SIGNATURE \
+		DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_OBJECT_PATH_AS_STRING
+#define NI_DBUS_UINT32_ARRAY_SIGNATURE \
+		DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_UINT32_AS_STRING
 
 
+#define NI_DBUS_SIGNATURE(type)		NI_DBUS_##type##_SIGNATURE
 
 #endif /* __WICKED_DBUS_H__ */
 

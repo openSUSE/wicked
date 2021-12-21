@@ -120,7 +120,7 @@ ni_do_ifdown(int argc, char **argv)
 	ni_ifworker_array_t ifmarked;
 	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	unsigned int nmarked, max_state = NI_FSM_STATE_DEVICE_DOWN;
-	unsigned int timeout = NI_IFWORKER_DEFAULT_TIMEOUT;
+	unsigned int seconds = NI_IFWORKER_DEFAULT_TIMEOUT;
 	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
@@ -173,11 +173,7 @@ ni_do_ifdown(int argc, char **argv)
 			break;
 
 		case OPT_TIMEOUT:
-			if (!strcmp(optarg, "infinite")) {
-				timeout = NI_IFWORKER_INFINITE_TIMEOUT;
-			} else if (ni_parse_uint(optarg, &timeout, 10) >= 0) {
-				timeout *= 1000; /* sec -> msec */
-			} else {
+			if (ni_parse_seconds_timeout(optarg, &seconds)) {
 				ni_error("ifdown: cannot parse timeout option \"%s\"", optarg);
 				goto usage;
 			}
@@ -199,8 +195,8 @@ usage:
 				"      Delete device. Despite of persistent mode being set\n"
 				"  --no-delete\n"
 				"      Do not attempt to delete a device, neither physical nor virtual\n"
-				"  --timeout <nsec>\n"
-				"      Timeout after <nsec> seconds\n",
+				"  --timeout <sec>\n"
+				"      Timeout after <sec> seconds\n",
 				sb.string
 				);
 			ni_stringbuf_destroy(&sb);
@@ -216,13 +212,14 @@ usage:
 	ifmarker.target_range.min = NI_FSM_STATE_NONE;
 	ifmarker.target_range.max = max_state;
 
-	fsm->worker_timeout = ni_fsm_find_max_timeout(fsm, timeout);
+	fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
+					NI_TIMEOUT_FROM_SEC(seconds));
 
 	if (fsm->worker_timeout == NI_IFWORKER_INFINITE_TIMEOUT)
 		ni_debug_application("wait for interfaces infinitely");
 	else
 		ni_debug_application("wait %u seconds for interfaces",
-					fsm->worker_timeout/1000);
+					NI_TIMEOUT_SEC(fsm->worker_timeout));
 
 	if (!ni_fsm_create_client(fsm)) {
 		/* Severe error we always explicitly return */
@@ -253,10 +250,8 @@ usage:
 
 	/* Mark and start selected workers */
 	if (ifmarked.count) {
-		if (ni_config_use_nanny()) {
-			/* Disable devices and delete all related policies from nanny */
-			ni_ifdown_fire_nanny(&ifmarked);
-		}
+		/* Disable devices and delete all related policies from nanny */
+		ni_ifdown_fire_nanny(&ifmarked);
 
 		/* Start workers to perform actual ifdown */
 		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);

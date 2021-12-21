@@ -82,6 +82,7 @@ typedef struct ni_compat_netdev {
 		ni_tristate_t	broadcast;
 
 		unsigned int	route_priority;
+		ni_bool_t	route_set_src;
 		unsigned int	update;
 
 		ni_string_array_t request_options;
@@ -165,7 +166,7 @@ typedef struct ni_nanny_fsm_monitor	ni_nanny_fsm_monitor_t;
 
 extern ni_nanny_fsm_monitor_t *	ni_nanny_fsm_monitor_new(ni_fsm_t *);
 extern ni_bool_t		ni_nanny_fsm_monitor_arm(ni_nanny_fsm_monitor_t *,
-							unsigned long);
+							ni_timeout_t);
 extern void			ni_nanny_fsm_monitor_run(ni_nanny_fsm_monitor_t *,
 							ni_ifworker_array_t *, int);
 extern void			ni_nanny_fsm_monitor_reset(ni_nanny_fsm_monitor_t *);

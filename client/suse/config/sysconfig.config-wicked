@@ -25,7 +25,7 @@ AUTO6_UPDATE=""
 # before they can start, e.g. L2 link protocols, link authentication,
 # ipv4 duplicate address detection, ipv6 duplicate detection will
 # happen "post-mortem" and maybe even cause to disable ipv6 at all.
-# See also "man ifcfg" for further informations.
+# See also "man ifcfg" for further information.
 #
 LINK_REQUIRED="auto"
 

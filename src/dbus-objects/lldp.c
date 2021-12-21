@@ -648,7 +648,7 @@ const ni_dbus_property_t	ni_objectmodel_lldp_property_table[] = {
 	LLDP_UINT_PROPERTY(ttl, ttl, RO),
 
 	LLDP_STRING_PROPERTY(port-description, port_description, RO),
-	NI_DBUS_GENERIC_DICT_PROPERTY(system, ni_objectmodel_lldp_system_property_table, RW),
+	NI_DBUS_GENERIC_DICT_PROPERTY(system, ni_objectmodel_lldp_system_property_table),
 	{ NULL }
 };
 

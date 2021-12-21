@@ -14,6 +14,7 @@
 #include <dirent.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
@@ -31,8 +32,10 @@
 #define NI_UINT_ARRAY_CHUNK	16
 #define NI_VAR_ARRAY_CHUNK	16
 
-#define NI_STRINGBUF_CHUNK	64
+#define NI_STRINGBUF_CHUNK	64	/* important: always a (2^n) */
 
+#define NI_BYTE_ARRAY_CHUNK	0xff	/* important: (2^n)-1 with all bits set */
+#define NI_BYTE_ARRAY_SIZE(len)	((len) | NI_BYTE_ARRAY_CHUNK)
 
 static int		__ni_pidfile_write(const char *, unsigned int, pid_t, int);
 static const char *	__ni_build_backup_path(const char *, const char *);
@@ -186,6 +189,23 @@ ni_string_array_index(const ni_string_array_t *nsa, const char *str)
 			return i;
 	}
 	return -1;
+}
+
+unsigned int
+ni_string_array_find(const ni_string_array_t *nsa, unsigned int pos, const char *item,
+		ni_bool_t (*match)(const char *a, const char *b), const char **ret)
+{
+	if (!nsa || !match)
+		return -1U;
+
+	for (; pos < nsa->count; ++pos) {
+		if (match(nsa->data[pos], item)) {
+			if (ret)
+				*ret = item;
+			return pos;
+		}
+	}
+	return -1U;
 }
 
 /*
@@ -458,6 +478,103 @@ ni_uint_array_set(ni_uint_array_t *nua, unsigned int index, unsigned int num)
 
 	nua->data[index] = num;
 	return TRUE;
+}
+
+void
+ni_byte_array_init(ni_byte_array_t *array)
+{
+	memset(array, 0, sizeof(*array));
+}
+
+void
+ni_byte_array_destroy(ni_byte_array_t *array)
+{
+	if (array) {
+		free(array->data);
+		array->data = NULL;
+		array->len = 0;
+	}
+}
+
+ni_byte_array_t *
+ni_byte_array_new(void)
+{
+	return calloc(1, sizeof(ni_byte_array_t));
+}
+
+void
+ni_byte_array_free(ni_byte_array_t *array)
+{
+	if (array) {
+		ni_byte_array_destroy(array);
+		free(array);
+	}
+}
+
+size_t
+ni_byte_array_size(const ni_byte_array_t *array)
+{
+	if (!array || !array->data)
+		return 0;
+	return NI_BYTE_ARRAY_SIZE(array->len);
+}
+
+static ni_bool_t
+ni_byte_array_grow(ni_byte_array_t *array, size_t add)
+{
+	unsigned char *data;
+	size_t size;
+
+	if (!array || (SIZE_MAX - array->len) < add)
+		return FALSE;
+
+	size = NI_BYTE_ARRAY_SIZE(array->len);
+	if (array->data && (size - array->len) >= add)
+		return TRUE;
+
+	size = NI_BYTE_ARRAY_SIZE(array->len + add);
+	data = realloc(array->data, size);
+	if (!data)
+		return FALSE;
+
+	array->data = data;
+	memset(array->data + array->len, 0, size - array->len);
+
+	return TRUE;
+}
+
+size_t
+ni_byte_array_pad(ni_byte_array_t *array, size_t len)
+{
+	if (!len || !ni_byte_array_grow(array, len))
+		return 0;
+
+	array->len += len;
+	return len;
+}
+
+size_t
+ni_byte_array_put(ni_byte_array_t *array, const unsigned char *ptr, size_t len)
+{
+	if (!ptr || !len || !ni_byte_array_grow(array, len))
+		return 0;
+
+	memcpy(array->data + array->len, ptr, len);
+	array->len += len;
+	return len;
+}
+
+size_t
+ni_byte_array_putb(ni_byte_array_t *array, const unsigned char one)
+{
+	return ni_byte_array_put(array, &one, 1);
+}
+
+size_t
+ni_byte_array_puts(ni_byte_array_t *array, const char *str)
+{
+	const unsigned char *ptr = (const unsigned char *)str;
+	return ni_byte_array_put(array, ptr, ni_string_len(str));
 }
 
 /*
@@ -920,6 +1037,19 @@ ni_var_array_set_boolean(ni_var_array_t *nva, const char *name, int value)
 }
 
 void
+ni_var_array_sort(ni_var_array_t *nva, ni_var_compare_fn_t fn)
+{
+	qsort(nva->data, nva->count, sizeof(ni_var_t),
+			(int (*)(const void *, const void *)) fn);
+}
+
+void
+ni_var_array_sort_by_name(ni_var_array_t *nva)
+{
+	ni_var_array_sort(nva, ni_var_name_cmp);
+}
+
+void
 ni_var_array_list_append(ni_var_array_t **list, ni_var_array_t *nva)
 {
 	if (list && nva) {
@@ -1329,8 +1459,8 @@ ni_bool_t
 ni_file_exists_fmt(const char *fmt, ...)
 {
 	char *path = NULL;
-	ni_bool_t ret;
 	va_list ap;
+	int ret;
 
 	if (!fmt)
 		return FALSE;
@@ -1338,7 +1468,7 @@ ni_file_exists_fmt(const char *fmt, ...)
 	va_start(ap, fmt);
 	ret = vasprintf(&path, fmt, ap) > 0;
 	va_end(ap);
-	if (!ret)
+	if (ret < 0 || !path)
 		return FALSE;
 
 	ret = ni_file_exists(path);
@@ -1483,18 +1613,11 @@ ni_string_split(ni_string_array_t *nsa, const char *str, const char *sep,
 const char *
 ni_string_join(char **str, const ni_string_array_t *nsa, const char *sep)
 {
-	ni_stringbuf_t buf;
-	unsigned int i;
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
-	if (nsa == NULL || sep == NULL || str == NULL)
+	if (!sep || !ni_stringbuf_join(&buf, nsa, sep))
 		return NULL;
 
-	ni_stringbuf_init(&buf);
-	for (i=0; i < nsa->count; ++i) {
-		if (i)
-			ni_stringbuf_puts(&buf, sep);
-		ni_stringbuf_puts(&buf, nsa->data[i]);
-	}
 	ni_string_dup(str, buf.string);
 	ni_stringbuf_destroy(&buf);
 
@@ -1580,11 +1703,40 @@ ni_sprint_uint(unsigned int value)
 const char *
 ni_sprint_timeout(unsigned int timeout)
 {
-	if (timeout == NI_IFWORKER_INFINITE_TIMEOUT)
+	if (timeout == NI_SECONDS_INFINITE)
 		return "infinite";
 	return ni_sprint_uint(timeout);
 }
 
+const char *
+ni_format_seconds_timeout(char **str, unsigned int timeout)
+{
+	if (!str) {
+		errno = EINVAL;
+		return NULL;
+	}
+
+	if (timeout == NI_SECONDS_INFINITE)
+		return ni_string_printf(str, "infinite");
+	else
+		return ni_string_printf(str, "%u", timeout);
+}
+
+int
+ni_parse_seconds_timeout(const char *str, unsigned int *timeout)
+{
+	if (!timeout) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (ni_string_eq(str, "infinite")) {
+		*timeout = NI_SECONDS_INFINITE;
+		return 0;
+	} else {
+		return ni_parse_uint(str, timeout, 10);
+	}
+}
 
 int
 ni_parse_long(const char *input, long *result, int base)
@@ -2020,11 +2172,80 @@ ni_parse_hex(const char *string, unsigned char *data, unsigned int datasize)
 	return len;
 }
 
-const char *
-ni_format_bitmap(ni_stringbuf_t *buf, const ni_intmap_t *map,
-		unsigned int flags, const char *sep)
+unsigned int
+ni_parse_bitmap_array(unsigned int *mask, const ni_intmap_t *map, const ni_string_array_t *array,
+			ni_string_array_t *invalid)
 {
 	unsigned int i, flag;
+	const char *name;
+	unsigned int err = 0;
+
+	if (!mask || !map || !array)
+		return -1U;
+
+	for (i = 0; i < array->count; ++i) {
+		name = array->data[i];
+
+		if (!ni_parse_uint_mapped(name, map, &flag) &&
+				flag < 8 * sizeof(*mask)) {
+			*mask |= NI_BIT(flag);
+		} else {
+			if (invalid)
+				ni_string_array_append(invalid, name);
+			err++;
+		}
+	}
+
+	return err;
+}
+
+unsigned int
+ni_parse_bitmap_string(unsigned int *mask, const ni_intmap_t *map, const char *input,
+		const char *sep, ni_string_array_t *invalid)
+{
+	ni_string_array_t array = NI_STRING_ARRAY_INIT;
+	unsigned int err;
+
+	if (!mask || !map || !input)
+		return -1U;
+
+	ni_string_split(&array, input, sep, 0);
+	err = ni_parse_bitmap_array(mask, map, &array, invalid);
+	ni_string_array_destroy(&array);
+
+	return err;
+}
+
+unsigned int
+ni_format_bitmap_array(ni_string_array_t *array, const ni_intmap_t *map,
+		unsigned int mask, unsigned int *done)
+{
+	unsigned int flag;
+
+	if (!array || !map)
+		return -1U;
+
+	for (; map->name; ++map) {
+		flag = NI_BIT(map->value);
+		if (mask & flag) {
+			if (ni_string_array_append(array, map->name) < 0)
+				continue;
+
+			mask &= ~flag;
+			if (done)
+				*done |= flag;
+		}
+	}
+
+	return mask;
+}
+
+const char *
+ni_format_bitmap_string(ni_stringbuf_t *buf, const ni_intmap_t *map,
+		unsigned int mask, unsigned int *done, const char *sep)
+{
+	ni_string_array_t array = NI_STRING_ARRAY_INIT;
+	const char *ptr;
 
 	if (!buf || !map)
 		return NULL;
@@ -2032,16 +2253,19 @@ ni_format_bitmap(ni_stringbuf_t *buf, const ni_intmap_t *map,
 	if (ni_string_empty(sep))
 		sep = "|";
 
-	for (i = 0; map->name; ++map) {
-		flag = NI_BIT(map->value);
-		if (flags & flag) {
-			flags &= ~flag;
-			if (i++)
-				ni_stringbuf_puts(buf, sep);
-			ni_stringbuf_puts(buf, map->name);
-		}
-	}
-	return buf->string;
+	if (ni_format_bitmap_array(&array, map, mask, done) == -1U)
+		return NULL;
+
+	ptr = ni_stringbuf_join(buf, &array, sep);
+	ni_string_array_destroy(&array);
+	return ptr;
+}
+
+const char *
+ni_format_bitmap(ni_stringbuf_t *buf, const ni_intmap_t *map,
+		unsigned int mask, const char *sep)
+{
+	return ni_format_bitmap_string(buf, map, mask, NULL, sep);
 }
 
 static ni_bool_t
@@ -2154,6 +2378,24 @@ ni_bool_t
 ni_stringbuf_empty(const ni_stringbuf_t *sb)
 {
 	return sb->len == 0; /* bool */
+}
+
+const char *
+ni_stringbuf_join(ni_stringbuf_t *buf, const ni_string_array_t *nsa, const char *sep)
+{
+	unsigned int i;
+	size_t len;
+
+	if (!buf || !nsa)
+		return NULL;
+
+	len = buf->len;
+	for (i = 0; i < nsa->count; ++i) {
+		if (sep && buf->len)
+			ni_stringbuf_puts(buf, sep);
+		ni_stringbuf_puts(buf, nsa->data[i]);
+	}
+	return buf->string ? buf->string + len : NULL;
 }
 
 inline static size_t
@@ -2487,7 +2729,7 @@ ni_pidfile_write(const char *pidfile, unsigned int permissions, pid_t pid)
  * Check for presence of pidfile
  *  0:	no or stale pidfile
  *  >0:	pid of active process
- *  <0:	error occured
+ *  <0:	error occurred
  */
 pid_t
 ni_pidfile_check(const char *pidfile)
@@ -2871,6 +3113,12 @@ ni_sibling_path_printf(const char *path, const char *fmt, ...)
 /*
  * Utility functions for handling uuids
  */
+void
+ni_uuid_init(ni_uuid_t *uuid)
+{
+	memset(uuid, 0, sizeof(*uuid));
+}
+
 const char *
 ni_uuid_print(const ni_uuid_t *uuid)
 {
@@ -2879,6 +3127,7 @@ ni_uuid_print(const ni_uuid_t *uuid)
 
 	if (!uuid)
 		return NULL;
+
 	if (ni_uuid_is_null(uuid))
 		return "";
 
@@ -3028,7 +3277,7 @@ ni_srandom(void)
 }
 
 /*
- * Alloc helpers with NULLL check
+ * Alloc helpers with NULL check
  */
 void *
 xmalloc(size_t size)

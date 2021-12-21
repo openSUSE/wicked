@@ -29,7 +29,7 @@ if test -f /etc/sysconfig/network/config ; then
 fi
 
 #
-# Exit codes (from sysconfig's functions.commmon):
+# Exit codes (from sysconfig's functions.common):
 #
 R_SUCCESS=0		# interface has been set up
 R_ERROR=1		# any unspecified error

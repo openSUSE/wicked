@@ -86,7 +86,7 @@ Hotplugging is available only when \fBwickedd-nanny\fR is enabled.
 .br
 See \fBwicked-config\fR(5) for instructions how to enable it.
 .br
-Without nanny, an \fIifup\fR call preforms a one-shot setup.
+Without nanny, an \fIifup\fR call performs a one-shot setup (obsolete).
 
 .\"TODO: reintroduce when ifplugd supported
 .\".TP
@@ -262,10 +262,6 @@ Default is 0, causing to not wait at all if link is not required
 or wait infinitely when link is required, so nanny can continue
 with the setup when the cable gets connected to the network card
 after a while.
-Otherwise wicked will wait until the specified number of seconds
-and continue with further steps if link is not required or fail
-and stop further steps if nanny is not used (see \fBuse-nanny\fR
-in \fBwicked-config(5)\fR).
 Note, that an ifup call has it's own, independent timeout, which
 is limitting the maximal time ifup waits before it has to report
 (see global network/config \fBWAIT_FOR_INTERFACES\fR variable).
@@ -313,7 +309,7 @@ skipped when it is not (see \fBLINK_REQUIRED\fR).
 When a new IPv4 has been configured on an interface, send a gratuitous ARP
 to inform the receivers about the address (trigger arp cache update).
 Default is to send gratuitous ARP, when also duplicate IPv4 address check
-is enabled and the check were sucessful.
+is enabled and the check were successful.
 .TP
 .B TUNNEL, TUNNEL_*
 Using this variable you may set up different tunnels. See

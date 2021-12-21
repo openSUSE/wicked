@@ -32,11 +32,19 @@ typedef struct ni_uint_arrray {
 
 #define NI_UINT_ARRAY_INIT	{ .count = 0, .data = NULL }
 
+typedef struct ni_byte_array {
+	size_t		len;
+	unsigned char *	data;
+} ni_byte_array_t;
+
+#define NI_BYTE_ARRAY_INIT	{ .len = 0, .data = NULL }
+
 typedef struct ni_variable	ni_var_t;
 struct ni_variable {
 	char *		name;
 	char *		value;
 };
+typedef int (*ni_var_compare_fn_t)(const ni_var_t*, const ni_var_t*);
 
 #define NI_VAR_INIT		{ .name = NULL, .value = NULL }
 
@@ -116,6 +124,8 @@ extern int		ni_string_array_set(ni_string_array_t *, unsigned int, const char *)
 extern int		ni_string_array_get(ni_string_array_t *, unsigned int, char **);
 extern const char *	ni_string_array_at(ni_string_array_t *, unsigned int);
 extern int		ni_string_array_index(const ni_string_array_t *, const char *);
+extern unsigned int	ni_string_array_find(const ni_string_array_t *, unsigned int, const char *,
+					ni_bool_t (*)(const char *, const char *), const char **);
 extern int		ni_string_array_remove_index(ni_string_array_t *, unsigned int);
 extern int		ni_string_array_remove_match(ni_string_array_t *, const char *, unsigned int);
 extern void		ni_string_array_comm(const ni_string_array_t *a, const ni_string_array_t *b,
@@ -135,6 +145,16 @@ extern unsigned int	ni_uint_array_index(ni_uint_array_t *, unsigned int);
 extern ni_bool_t	ni_uint_array_contains(ni_uint_array_t *, unsigned int);
 extern ni_bool_t	ni_uint_array_get(ni_uint_array_t *, unsigned int, unsigned int *);
 extern ni_bool_t	ni_uint_array_set(ni_uint_array_t *, unsigned int, unsigned int);
+
+extern void		ni_byte_array_init(ni_byte_array_t *);
+extern void		ni_byte_array_destroy(ni_byte_array_t *);
+extern ni_byte_array_t *ni_byte_array_new(void);
+extern void		ni_byte_array_free(ni_byte_array_t *);
+extern size_t		ni_byte_array_size(const ni_byte_array_t *);
+extern size_t		ni_byte_array_pad(ni_byte_array_t *, size_t);
+extern size_t		ni_byte_array_put(ni_byte_array_t *, const unsigned char *, size_t);
+extern size_t		ni_byte_array_putb(ni_byte_array_t *, const unsigned char);
+extern size_t		ni_byte_array_puts(ni_byte_array_t *, const char *);
 
 extern ni_bool_t	ni_var_set(ni_var_t *, const char *, const char *);
 extern int		ni_var_name_cmp(const ni_var_t *, const ni_var_t *);
@@ -174,6 +194,9 @@ extern ni_bool_t	ni_var_array_set_ulong(ni_var_array_t *, const char *, unsigned
 extern ni_bool_t	ni_var_array_set_double(ni_var_array_t *, const char *, double);
 extern ni_bool_t	ni_var_array_set_boolean(ni_var_array_t *, const char *, int);
 
+extern void		ni_var_array_sort(ni_var_array_t *, ni_var_compare_fn_t);
+extern void		ni_var_array_sort_by_name(ni_var_array_t *);
+
 extern void		ni_var_array_list_append(ni_var_array_t **, ni_var_array_t *);
 extern void		ni_var_array_list_destroy(ni_var_array_t **);
 
@@ -193,6 +216,7 @@ extern void		ni_stringbuf_trim_head(ni_stringbuf_t *, const char *);
 extern void		ni_stringbuf_trim_tail(ni_stringbuf_t *, const char *);
 extern void		ni_stringbuf_trim_empty_lines(ni_stringbuf_t *);
 extern ni_bool_t	ni_stringbuf_empty(const ni_stringbuf_t *);
+extern const char *	ni_stringbuf_join(ni_stringbuf_t *, const ni_string_array_t *, const char *);
 
 extern ni_bool_t	ni_file_exists(const char *);
 extern ni_bool_t	ni_file_executable(const char *);
@@ -247,10 +271,16 @@ extern size_t		ni_format_hex_data(const unsigned char *data, size_t data_len,
 						const char *sep, ni_bool_t upper);
 extern ssize_t		ni_parse_hex_data(const char *string, unsigned char *data,
 						size_t data_size, const char *sep);
+
+extern unsigned int	ni_parse_bitmap_array(unsigned int *, const ni_intmap_t *, const ni_string_array_t *, ni_string_array_t *);
+extern unsigned int	ni_parse_bitmap_string(unsigned int *, const ni_intmap_t *, const char *, const char *, ni_string_array_t *);
+extern unsigned int	ni_format_bitmap_array(ni_string_array_t *, const ni_intmap_t *, unsigned int, unsigned int *);
+extern const char *	ni_format_bitmap_string(ni_stringbuf_t *, const ni_intmap_t *, unsigned int, unsigned int *, const char *);
 extern const char *	ni_format_bitmap(ni_stringbuf_t *, const ni_intmap_t *, unsigned int, const char *);
 extern ni_bool_t	ni_intmap_file_get_name(const char *, unsigned int *, char **);
 extern ni_bool_t	ni_intmap_file_get_value(const char *, unsigned int *, char **);
 
+extern void		ni_uuid_init(ni_uuid_t *);
 extern const char *	ni_uuid_print(const ni_uuid_t *);
 extern int		ni_uuid_parse(ni_uuid_t *, const char *);
 extern int		ni_uuid_is_null(const ni_uuid_t *);
@@ -418,6 +448,8 @@ extern void		ni_string_toupper(char *);
 extern char *		ni_sprint_hex(const unsigned char *, size_t);
 extern const char *	ni_sprint_uint(unsigned int);
 extern const char *	ni_sprint_timeout(unsigned int);
+extern const char *	ni_format_seconds_timeout(char **, unsigned int);
+extern int		ni_parse_seconds_timeout(const char *, unsigned int *);
 
 /*
  * When we allocate temporary resources (such as tempfiles)

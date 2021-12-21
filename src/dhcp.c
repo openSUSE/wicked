@@ -164,7 +164,7 @@ ni_dhcp_option_list_pull(ni_dhcp_option_t **list)
 static ni_bool_t
 ni_dhcp_option_get_range_len(const ni_uint_range_t *range, size_t len, unsigned int *ret)
 {
-	/* require at least min, but dont fetch more than max len */
+	/* require at least min, but don't fetch more than max len */
 	if (range && ret && len >= (size_t)range->min) {
 		if (len >= (size_t)range->max)
 			*ret = range->max;

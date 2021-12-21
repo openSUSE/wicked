@@ -51,8 +51,9 @@ const char *			ni_dhcp6_fsm_state_name(int state);
 extern int			ni_dhcp6_fsm_process_client_message(ni_dhcp6_device_t *,
 							ni_dhcp6_message_t *, ni_buffer_t *);
 
-extern void			ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *, unsigned long);
-
+extern void			ni_dhcp6_fsm_set_timeout_msec(ni_dhcp6_device_t *, ni_timeout_t);
+extern void			ni_dhcp6_fsm_set_timeout_sec(ni_dhcp6_device_t *, unsigned int);
+ 
 extern int			ni_dhcp6_fsm_start(ni_dhcp6_device_t *dev);
 extern void			ni_dhcp6_fsm_reset(ni_dhcp6_device_t *dev);
 extern int			ni_dhcp6_fsm_release(ni_dhcp6_device_t *dev);
