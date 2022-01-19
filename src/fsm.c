@@ -2088,11 +2088,15 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 {
 	xml_node_t *child;
 
-	if (!w || xml_node_is_empty(ifnode))
+	if (!w)
 		return FALSE;
 
 	xml_node_free(w->config.node);
+	w->config.node = NULL;
 	ni_client_state_config_reset(&w->config.meta);
+	if (xml_node_is_empty(ifnode))
+		return TRUE;
+
 	if (!(w->config.node = xml_node_clone_ref(ifnode)))
 		return FALSE;
 
