@@ -6244,7 +6244,7 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 				"accept_redirects", &ipv6->conf.accept_redirects);
 
 	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
-				"addr_gen_mode", &ipv6->conf.privacy, 10);
+				"addr_gen_mode", &ipv6->conf.addr_gen_mode, 10);
 
 	__ifsysctl_get_ipv6(&ifsysctl, "net/ipv6/conf", dev->name,
 				"stable_secret", &ipv6->conf.stable_secret);
