@@ -123,8 +123,8 @@ static ni_bool_t		__ni_ipv6_disbled;
 						  NULL }
 #define __NI_SUSE_SYSCTL_SUFFIX			".conf"
 #define __NI_SUSE_SYSCTL_BOOT			"/boot/sysctl.conf-"
-#define __NI_SUSE_SYSCTL_DIRS			{ "/run/sysctl.d",                  \
-						  "/etc/sysctl.d",                  \
+#define __NI_SUSE_SYSCTL_DIRS			{ "/etc/sysctl.d",                  \
+						  "/run/sysctl.d",                  \
 						  "/usr/local/lib/sysctl.d",        \
 						  "/usr/lib/sysctl.d",              \
 						  "/lib/sysctl.d",                  \
