@@ -91,7 +91,7 @@ ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *dev, ni_buffer_t *msgbuf, n
 
 	if (!(message = ni_buffer_pull_head(msgbuf, sizeof(*message)))) {
 		sender = ni_capture_from_hwaddr_print(from);
-		ni_debug_dhcp("%s: short dhcp4 packet (%u bytes)%s%s", dev->ifname,
+		ni_debug_dhcp("%s: short dhcp4 packet (%zu bytes)%s%s", dev->ifname,
 				ni_buffer_count(msgbuf),
 				sender ? " sender " : "", sender ? sender : "");
 		return -1;

@@ -536,7 +536,7 @@ ni_lldp_agent_send(ni_lldp_agent_t *agent)
 	if (agent->txCredit > 0) {
 		ni_buffer_t *bp = &agent->sendbuf;
 
-		ni_debug_lldp("%s: sending LLDP packet (PDU len=%u)", agent->dev->name, ni_buffer_count(bp));
+		ni_debug_lldp("%s: sending LLDP packet (PDU len=%zu)", agent->dev->name, ni_buffer_count(bp));
 		/* ni_debug_lldp(PDU=%s", ni_print_hex(ni_buffer_head(bp), ni_buffer_count(bp))); */
 		ni_capture_send(agent->capture, &agent->sendbuf, NULL);
 		agent->txCredit--;
@@ -935,7 +935,7 @@ ni_lldp_tlv_get(ni_buffer_t *bp, ni_buffer_t *vbuf)
 
 	type = head >> 9;
 	len = head & 0x1FF;
-	if (len > ni_buffer_count(bp))
+	if ((size_t)len > ni_buffer_count(bp))
 		return -1;
 
 	data = ni_buffer_pull_head(bp, len);
@@ -986,10 +986,10 @@ ni_lldp_tlv_get_uint32(ni_buffer_t *bp, uint32_t *var)
 static int
 ni_lldp_tlv_get_string(ni_buffer_t *bp, char **var)
 {
-	unsigned int len = ni_buffer_count(bp);
+	size_t len = ni_buffer_count(bp);
 	char *string;
 
-	if (!(string = malloc(len + 1)))
+	if (!len || !(string = malloc(len + 1)))
 		return -1;
 	memcpy(string, ni_buffer_head(bp), len);
 	string[len] = '\0';
@@ -1042,7 +1042,7 @@ ni_lldp_tlv_get_mac(ni_buffer_t *bp, ni_hwaddr_t *mac)
 	void *data;
 
 	if (!(data = ni_buffer_pull_head(bp, ETH_ALEN))) {
-		ni_debug_lldp("%s: bad MAC address length %u", __func__, ni_buffer_count(bp));
+		ni_debug_lldp("%s: bad MAC address length %zu", __func__, ni_buffer_count(bp));
 		return -1;
 	}
 
@@ -1087,7 +1087,7 @@ ni_lldp_tlv_get_netaddr(ni_buffer_t *bp, ni_sockaddr_t *ap)
 		return -1;
 	}
 
-	if (ni_buffer_count(bp) < len) {
+	if (ni_buffer_count(bp) < (size_t)len) {
 		ni_debug_lldp("%s: truncated network address (af %d, len %u)", __func__, af, len);
 		return -1;
 	}
