@@ -10,25 +10,35 @@
 
 #include "buffer.h"
 
-void
-ni_buffer_ensure_tailroom(ni_buffer_t *bp, unsigned int min_room)
+ni_bool_t
+ni_buffer_ensure_tailroom(ni_buffer_t *bp, size_t min_room)
 {
-	size_t	new_size;
+	unsigned char *	new_base;
+	size_t		new_size;
+
+	if (!bp || (SIZE_MAX - bp->size) < min_room)
+		return FALSE;
 
 	if (ni_buffer_tailroom(bp) >= min_room)
-		return;
+		return TRUE;
 
 	new_size = bp->size + min_room;
 	if (bp->allocated) {
-		bp->base = xrealloc(bp->base, new_size);
-	} else {
-		unsigned char *new_base;
+		new_base = xrealloc(bp->base, new_size);
+		if (!new_base)
+			return FALSE;
 
+		bp->base = new_base;
+	} else {
 		new_base = xmalloc(new_size);
+		if (!new_base)
+			return FALSE;
+
 		if (bp->size)
 			memcpy(new_base, bp->base, bp->size);
 		bp->base = new_base;
 		bp->allocated = 1;
 	}
 	bp->size = new_size;
+	return TRUE;
 }
