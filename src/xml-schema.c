@@ -1171,6 +1171,7 @@ ni_xs_build_complex_type(xml_node_t *node, const char *className, ni_xs_scope_t 
 				ni_error("%s: array definition references unknown element type <%s>", __func__, typeAttr);
 				return NULL;
 			}
+			ni_xs_type_hold(elementType);
 		} else {
 			elementType = ni_xs_build_one_type(node, scope);
 			if (elementType == NULL)
