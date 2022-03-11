@@ -987,6 +987,7 @@ ni_auto6_acquire(ni_netdev_t *dev, const ni_auto6_request_t *req)
 	if (!dev || !(auto6 = ni_netdev_get_auto6(dev)) || !req || !req->enabled)
 		return -1;
 
+	auto6->enabled = TRUE;
 	ni_uuid_generate(&auto6->uuid);
 	if (!(lease = ni_auto6_get_lease(dev))) {
 		if ((lease = ni_auto6_new_lease(NI_ADDRCONF_STATE_REQUESTING, &auto6->uuid))) {
