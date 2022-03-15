@@ -128,7 +128,7 @@ ni_string_array_set(ni_string_array_t *nsa, unsigned int pos, const char *str)
 }
 
 const char *
-ni_string_array_at(ni_string_array_t *nsa, unsigned int pos)
+ni_string_array_at(const ni_string_array_t *nsa, unsigned int pos)
 {
 	if (!nsa || pos >= nsa->count)
 		return NULL;
