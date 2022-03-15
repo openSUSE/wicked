@@ -122,7 +122,7 @@ extern int		ni_string_array_append(ni_string_array_t *, const char *);
 extern int		ni_string_array_insert(ni_string_array_t *, unsigned int, const char *);
 extern int		ni_string_array_set(ni_string_array_t *, unsigned int, const char *);
 extern int		ni_string_array_get(ni_string_array_t *, unsigned int, char **);
-extern const char *	ni_string_array_at(ni_string_array_t *, unsigned int);
+extern const char *	ni_string_array_at(const ni_string_array_t *, unsigned int);
 extern int		ni_string_array_index(const ni_string_array_t *, const char *);
 extern unsigned int	ni_string_array_find(const ni_string_array_t *, unsigned int, const char *,
 					ni_bool_t (*)(const char *, const char *), const char **);
