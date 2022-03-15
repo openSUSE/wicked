@@ -27,29 +27,46 @@ struct ni_buffer {
 };
 
 /* this should really be named init_writer */
-static inline void
+static inline ni_bool_t
 ni_buffer_init(ni_buffer_t *bp, void *base, size_t size)
 {
+	if (!bp)
+		return FALSE;
+
 	memset(bp, 0, sizeof(*bp));
 	bp->base = (unsigned char *) base;
 	bp->size = size;
+	return TRUE;
 }
 
-static inline void
+static inline ni_bool_t
 ni_buffer_init_dynamic(ni_buffer_t *bp, size_t size)
 {
+	if (!bp)
+		return FALSE;
+
 	memset(bp, 0, sizeof(*bp));
-	bp->base = (unsigned char *) xcalloc(1, size);
+	if (!size)
+		return TRUE;
+
+	if (!(bp->base = (unsigned char *) xcalloc(1, size)))
+		return FALSE;
+
 	bp->size = size;
 	bp->allocated = 1;
+	return TRUE;
 }
 
-static inline void
+static inline ni_bool_t
 ni_buffer_destroy(ni_buffer_t *bp)
 {
+	if (!bp)
+		return FALSE;
+
 	if (bp->allocated)
 		free(bp->base);
 	memset(bp, 0, sizeof(*bp));
+	return TRUE;
 }
 
 static inline ni_buffer_t *
@@ -57,8 +74,8 @@ ni_buffer_new_dynamic(size_t size)
 {
 	ni_buffer_t *bp;
 
-	bp = xcalloc(1, sizeof(*bp));
-	ni_buffer_init_dynamic(bp, size);
+	if ((bp = xcalloc(1, sizeof(ni_buffer_t))))
+		ni_buffer_init_dynamic(bp, size);
 	return bp;
 }
 
@@ -67,8 +84,8 @@ ni_buffer_new(size_t size)
 {
 	ni_buffer_t *bp;
 
-	bp = xcalloc(1, sizeof(*bp) + size);
-	ni_buffer_init(bp, (char *) (bp + 1), size);
+	if ((bp = xcalloc(1, sizeof(*bp) + size)))
+		ni_buffer_init(bp, (bp + 1), size);
 	return bp;
 }
 
@@ -79,12 +96,16 @@ ni_buffer_free(ni_buffer_t *bp)
 	free(bp);
 }
 
-static inline void
+static inline ni_bool_t
 ni_buffer_init_reader(ni_buffer_t *bp, void *base, size_t size)
 {
+	if (!bp)
+		return FALSE;
+
 	memset(bp, 0, sizeof(*bp));
 	bp->base = (unsigned char *) base;
 	bp->size = bp->tail = size;
+	return TRUE;
 }
 
 static inline void
@@ -140,7 +161,7 @@ ni_buffer_tail(const ni_buffer_t *bp)
 	return bp->base + bp->tail;
 }
 
-static inline unsigned int
+static inline size_t
 ni_buffer_count(const ni_buffer_t *bp)
 {
 	if (bp->tail > bp->head)
@@ -149,7 +170,7 @@ ni_buffer_count(const ni_buffer_t *bp)
 		return 0;
 }
 
-static inline unsigned int
+static inline size_t
 ni_buffer_tailroom(const ni_buffer_t *bp)
 {
 	if (bp->size > bp->tail)
@@ -278,6 +299,6 @@ ni_buffer_get_uint32(ni_buffer_t *bp, uint32_t *var)
 	return 0;
 }
 
-extern void		ni_buffer_ensure_tailroom(ni_buffer_t *, unsigned int);
+extern ni_bool_t	ni_buffer_ensure_tailroom(ni_buffer_t *, size_t);
 
 #endif /* __WICKED_DHCP_BUFFER_H__ */

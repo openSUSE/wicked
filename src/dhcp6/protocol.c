@@ -381,7 +381,7 @@ ni_dhcp6_process_packet(ni_dhcp6_device_t *dev, ni_buffer_t *msgbuf, const struc
 		case NI_DHCP6_REPLY:
 		case NI_DHCP6_RECONFIGURE:
 			if (ni_dhcp6_parse_client_header(&msg, msgbuf) < 0) {
-				ni_error("%s: short DHCP6 client packet (%u bytes) from %s",
+				ni_error("%s: short DHCP6 client packet (%zu bytes) from %s",
 						dev->ifname, ni_buffer_count(msgbuf),
 						ni_dhcp6_address_print(&msg.sender));
 				return rv;
@@ -2334,14 +2334,14 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_t *ia, uint16_t ad
 		}
 
 		if (optbuf.underflow) {
-			ni_debug_dhcp("%s.%s.%s: %u byte of data is too short",
+			ni_debug_dhcp("%s.%s.%s: %zu byte of data is too short",
 				ni_dhcp6_option_name(ia->type),
 				ni_dhcp6_option_name(addr_type),
 				ni_dhcp6_option_name(option),
 				ni_buffer_count(&optbuf));
 			/* goto failure; */
 		} else if (ni_buffer_count(&optbuf)) {
-			ni_debug_dhcp("%s.%s.%s: data is too long - %u bytes left",
+			ni_debug_dhcp("%s.%s.%s: data is too long - %zu bytes left",
 				ni_dhcp6_option_name(ia->type),
 				ni_dhcp6_option_name(addr_type),
 				ni_dhcp6_option_name(option),
@@ -2432,13 +2432,13 @@ __ni_dhcp6_option_parse_ia_options(ni_buffer_t *bp,  ni_dhcp6_ia_t *ia)
 		}
 
 		if (optbuf.underflow) {
-			ni_debug_dhcp("%s.%s: %u byte of data is too short",
+			ni_debug_dhcp("%s.%s: %zu byte of data is too short",
 				ni_dhcp6_option_name(ia->type),
 				ni_dhcp6_option_name(option),
 				ni_buffer_count(&optbuf));
 			/* goto failure; */
 		} else if (ni_buffer_count(&optbuf)) {
-			ni_debug_dhcp("%s.%s: data is too long - %u bytes left",
+			ni_debug_dhcp("%s.%s: data is too long - %zu bytes left",
 				ni_dhcp6_option_name(ia->type),
 				ni_dhcp6_option_name(option),
 				ni_buffer_count(&optbuf));
@@ -3121,10 +3121,10 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, n
 #endif
 			opt = ni_dhcp_option_new(option, ni_buffer_count(&optbuf), ni_buffer_head(&optbuf));
 			if (ni_dhcp_option_list_append(&lease->dhcp6.options, opt)) {
-				ni_debug_dhcp("unparsed option %s: length %u",
+				ni_debug_dhcp("unparsed option %s: length %zu",
 						ni_dhcp6_option_name(option), ni_buffer_count(&optbuf));
 			} else {
-				ni_debug_dhcp("failed to add unparsed option %s length %u to lease",
+				ni_debug_dhcp("failed to add unparsed option %s length %zu to lease",
 						ni_dhcp6_option_name(option), ni_buffer_count(&optbuf));
 				ni_dhcp_option_free(opt);
 			}
@@ -3133,14 +3133,14 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, n
 		}
 
 		if (optbuf.underflow) {
-			ni_trace("%s: dhcp6 option %s: %u byte data is too short: %s",
+			ni_trace("%s: dhcp6 option %s: %zu byte data is too short: %s",
 				dev->ifname, ni_dhcp6_option_name(option),
 				ni_buffer_count(&optbuf),
 				__ni_dhcp6_hexdump(&hexbuf, &optbuf));
 			ni_stringbuf_destroy(&hexbuf);
 			/* goto failure; */
 		} else if(ni_buffer_count(&optbuf)) {
-			ni_trace("%s: dhcp6 option %s: data is too long - %u bytes left: %s",
+			ni_trace("%s: dhcp6 option %s: data is too long - %zu bytes left: %s",
 				dev->ifname, ni_dhcp6_option_name(option),
 				ni_buffer_count(&optbuf),
 				__ni_dhcp6_hexdump(&hexbuf, &optbuf));
