@@ -271,12 +271,13 @@ ni_socket_wrap(int fd, int sotype)
 static void
 __ni_socket_close(ni_socket_t *sock)
 {
-	if (sock->close) {
-		sock->close(sock);
-	} else if (sock->__fd >= 0) {
-		close(sock->__fd);
+	if (sock->__fd >= 0) {
+		if (sock->close)
+			sock->close(sock);
+		else
+			close(sock->__fd);
+		sock->__fd = -1;
 	}
-	sock->__fd = -1;
 
 	ni_buffer_destroy(&sock->wbuf);
 	ni_buffer_destroy(&sock->rbuf);
