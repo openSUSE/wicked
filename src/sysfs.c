@@ -40,6 +40,12 @@
 #define NI_SYSFS_PATH			"/sys"
 #endif
 
+#define NI_SYSFS_BUS_PATH              NI_SYSFS_PATH"/bus"
+#define NI_SYSFS_BUS_USB_PATH          NI_SYSFS_BUS_PATH"/usb"
+#define NI_SYSFS_BUS_USB_DEVICES_PATH  NI_SYSFS_BUS_USB_PATH"/devices"
+#define NI_SYSFS_BUS_PCI_PATH          NI_SYSFS_BUS_PATH"/pci"
+#define NI_SYSFS_BUS_PCI_DEVICES_PATH  NI_SYSFS_BUS_PCI_PATH"/devices"
+
 #define NI_SYSFS_CLASS_PATH		NI_SYSFS_PATH"/class"
 #define NI_SYSFS_CLASS_NET_PATH		NI_SYSFS_CLASS_PATH"/net"
 
@@ -1117,4 +1123,306 @@ failed:
 	if (pci)
 		ni_pci_dev_free(pci);
 	return NULL;
+}
+
+/*
+ * USB/PCI bus device scan
+ */
+static ni_bool_t
+ni_sysfs_bus_device_attrs_match(const char *path, const ni_var_array_t *vars)
+{
+	const ni_var_t *var;
+	char *value = NULL;
+	char *attr = NULL;
+	unsigned int i;
+
+	if (!vars || !vars->count)
+		return TRUE;
+
+	for (i = 0; i < vars->count; ++i) {
+		var = &vars->data[i];
+
+		if (ni_string_empty(var->name) ||
+		    !ni_string_printf(&attr, "%s/%s", path, var->name))
+			continue;
+
+		if (__ni_sysfs_read_string(attr, &value) != 0 ||
+		    !ni_string_eq(var->value, value)) {
+			ni_string_free(&value);
+			ni_string_free(&attr);
+			return FALSE;
+		}
+
+		ni_string_free(&value);
+		ni_string_free(&attr);
+	}
+	return TRUE;
+}
+
+static int
+ni_sysfs_bus_device_path_scan(ni_string_array_t *paths,
+				const ni_var_array_t *vars,
+				const char *pattern,
+				const char *base)
+{
+	ni_string_array_t names = NI_STRING_ARRAY_INIT;
+	char *path = NULL;
+	const char *name;
+	unsigned int cnt;
+	unsigned int i;
+	int ret = -1;
+
+	if (!paths || ni_string_empty(base) ||
+	    (ret = ni_scandir(base, pattern, &names)) <= 0)
+		return ret;
+
+	cnt = paths->count;
+	for (i = 0; i < names.count; ++i) {
+		name = names.data[i];
+
+		if (!ni_string_printf(&path, "%s/%s", base, name))
+			continue;
+
+		if (ni_sysfs_bus_device_attrs_match(path, vars))
+			ni_string_array_append(paths, path);
+
+		ni_string_free(&path);
+	}
+
+	ni_string_array_destroy(&names);
+	return paths->count - cnt;
+}
+
+static ni_bool_t
+ni_sysfs_get_net_ifname_ifindex(int *ifindex, const char *netpath, const char *ifname)
+{
+	char *path = NULL;
+	char *temp = NULL;
+
+	if (!ifindex || ni_string_empty(netpath) || ni_string_empty(ifname))
+		return FALSE;
+
+	if (!ni_string_printf(&path, "%s/%s/ifindex", netpath, ifname))
+		return FALSE;
+
+	/* retrieve "$path/$ifname/<ifindex>" attribute */
+	if (__ni_sysfs_read_string(path, &temp) ||
+	    ni_parse_int(temp, ifindex, 10)     || *ifindex <= 0) {
+		ni_string_free(&temp);
+		ni_string_free(&path);
+		return FALSE;
+	} else {
+		ni_string_free(&temp);
+		ni_string_free(&path);
+		return TRUE;
+	}
+}
+
+int
+ni_sysfs_bus_usb_device_path_scan(ni_string_array_t *paths,
+				const ni_var_array_t *vars,
+				const char *pattern,
+				const char *root)
+{
+	char *base = NULL;
+	int ret = -1;
+
+	if (ni_string_empty(root))
+		ni_string_printf(&base, "%s", NI_SYSFS_BUS_USB_DEVICES_PATH);
+	else
+		ni_string_printf(&base, "%s/%s", root, NI_SYSFS_BUS_USB_DEVICES_PATH);
+
+	ret = ni_sysfs_bus_device_path_scan(paths, vars, pattern, base);
+	ni_string_free(&base);
+	return ret;
+}
+
+static int
+ni_sysfs_bus_usb_device_sub_net_scan(ni_string_array_t *npaths,
+				const ni_var_array_t *vars,
+				const char *pattern,
+				const char *root)
+{
+	ni_string_array_t paths = NI_STRING_ARRAY_INIT;
+	ni_string_array_t sdirs = NI_STRING_ARRAY_INIT;
+	char *spattern = NULL;
+	char *npath = NULL;
+	const char *path;
+	const char *sdir;
+	unsigned int i, j;
+	unsigned int cnt;
+	int ret = -1;
+
+	if (!npaths ||
+	    (ret = ni_sysfs_bus_usb_device_path_scan(&paths, vars, pattern, root)) <= 0)
+		return ret;
+
+	cnt = npaths->count;
+	for (i = 0; i < paths.count; ++i) {
+		path = paths.data[i];
+
+		if (!ni_string_printf(&spattern, "%s:*", ni_basename(path)))
+			continue;
+
+		if ((ret = ni_scandir(path, spattern, &sdirs)) <= 0) {
+			ni_string_free(&spattern);
+			continue;
+		}
+		ni_string_free(&spattern);
+
+		for (j = 0; j < sdirs.count; ++j) {
+			sdir = sdirs.data[j];
+
+			if (!ni_string_printf(&npath, "%s/%s/net", path, sdir))
+				continue;
+
+			if (ni_isdir(npath))
+				ni_string_array_append(npaths, npath);
+
+			ni_string_free(&npath);
+		}
+		ni_string_array_destroy(&sdirs);
+	}
+	ni_string_array_destroy(&paths);
+	return npaths->count - cnt;
+}
+
+int
+ni_sysfs_bus_usb_device_netdev_scan(ni_netdev_ref_array_t *devs,
+				const ni_var_array_t *vars,
+				const char *pattern,
+				const char *root)
+{
+	ni_string_array_t paths = NI_STRING_ARRAY_INIT;
+	ni_string_array_t names = NI_STRING_ARRAY_INIT;
+	unsigned int i, j;
+	unsigned int cnt;
+	const char *path;
+	const char *name;
+	int ret = -1;
+	int index;
+
+	if (!devs ||
+	    (ret = ni_sysfs_bus_usb_device_sub_net_scan(&paths, vars, pattern, root)) <= 0)
+		return ret;
+
+	cnt = devs->count;
+	for (i = 0; i < paths.count; ++i) {
+		path = paths.data[i];
+
+		/* get $path/net/<name> sub-dir */
+		if (ni_scandir(path, NULL, &names) <= 0)
+			continue;
+
+		for (j = 0; j < names.count; ++j) {
+			name = names.data[j];
+
+			if (!ni_sysfs_get_net_ifname_ifindex(&index, path, name))
+				continue;
+
+			if (ni_netdev_ref_array_find_index(devs, index))
+				continue;
+
+			ni_netdev_ref_array_append(devs, name, index);
+		}
+		ni_string_array_destroy(&names);
+	}
+	ni_string_array_destroy(&paths);
+	return devs->count - cnt;
+}
+
+int
+ni_sysfs_bus_pci_device_path_scan(ni_string_array_t *paths,
+				const ni_var_array_t *vars,
+				const char *pattern,
+				const char *root)
+{
+	char *base = NULL;
+	int ret = -1;
+
+	if (ni_string_empty(root))
+		ni_string_printf(&base, "%s", NI_SYSFS_BUS_PCI_DEVICES_PATH);
+	else
+		ni_string_printf(&base, "%s/%s", root, NI_SYSFS_BUS_PCI_DEVICES_PATH);
+
+	ret = ni_sysfs_bus_device_path_scan(paths, vars, pattern, base);
+	ni_string_free(&base);
+	return ret;
+}
+
+static int
+ni_sysfs_bus_pci_device_net_scan(ni_string_array_t *npaths,
+				const ni_var_array_t *vars,
+				const char *pattern,
+				const char *root)
+{
+	ni_string_array_t paths = NI_STRING_ARRAY_INIT;
+	char *npath = NULL;
+	const char *path;
+	unsigned int cnt;
+	unsigned int i;
+	int ret = -1;
+
+	if (!npaths ||
+	    (ret = ni_sysfs_bus_pci_device_path_scan(&paths, vars, pattern, root)) <= 0)
+		return ret;
+
+	cnt = npaths->count;
+	for (i = 0; i < paths.count; ++i) {
+		path = paths.data[i];
+
+		if (!ni_string_printf(&npath, "%s/net", path))
+			continue;
+
+		if (ni_isdir(npath))
+			ni_string_array_append(npaths, npath);
+
+		ni_string_free(&npath);
+	}
+	ni_string_array_destroy(&paths);
+	return npaths->count - cnt;
+}
+
+int
+ni_sysfs_bus_pci_device_netdev_scan(ni_netdev_ref_array_t *devs,
+				const ni_var_array_t *vars,
+				const char *pattern,
+				const char *root)
+{
+	ni_string_array_t paths = NI_STRING_ARRAY_INIT;
+	ni_string_array_t names = NI_STRING_ARRAY_INIT;
+	unsigned int i, j;
+	unsigned int cnt;
+	const char *path;
+	const char *name;
+	int ret = -1;
+	int index;
+
+	if (!devs ||
+	    (ret = ni_sysfs_bus_pci_device_net_scan(&paths, vars, pattern, root)) <= 0)
+		return ret;
+
+	cnt = devs->count;
+	for (i = 0; i < paths.count; ++i) {
+		path = paths.data[i];
+
+		/* get $path/net/<name> sub-dir */
+		if (ni_scandir(path, NULL, &names) <= 0)
+			continue;
+
+		for (j = 0; j < names.count; ++j) {
+			name = names.data[j];
+
+			if (!ni_sysfs_get_net_ifname_ifindex(&index, path, name))
+				continue;
+
+			if (ni_netdev_ref_array_find_index(devs, index))
+				continue;
+
+			ni_netdev_ref_array_append(devs, name, index);
+		}
+		ni_string_array_destroy(&names);
+	}
+	ni_string_array_destroy(&paths);
+	return devs->count - cnt;
 }
