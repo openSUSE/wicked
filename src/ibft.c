@@ -1,7 +1,7 @@
 /*
  *	Routines for iBFT (iSCSI Boot Firmware Table) NIC
  *
- *	Copyright (C) 2010-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2010-2022 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,13 +13,11 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- *	Boston, MA 02110-1301 USA.
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *	Authors:
- *		Marius Tomaschewski <mt@suse.de>
+ *		Marius Tomaschewski
  *
  */
 #ifdef HAVE_CONFIG_H
@@ -34,12 +32,6 @@
 
 #include "ibft.h"
 #include "util_priv.h"
-
-/* iBFT related constants */
-#define NI_SYSFS_FIRMWARE_IBFT_PATH     "/sys/firmware/ibft"
-#define NI_SYSFS_IBFT_INI_PREFIX        "initiator"
-#define NI_SYSFS_IBFT_NIC_PREFIX        "ethernet"
-#define NI_SYSFS_IBFT_TGT_PREFIX        "target"
 
 /* ibft nic array chunk size */
 #define NI_IBFT_NIC_ARRAY_CHUNK		2
@@ -79,8 +71,6 @@ ni_ibft_nic_free(ni_ibft_nic_t *nic)
 		}
 	}
 }
-
-/* ------------------------------------------------------------------------- */
 
 void
 ni_ibft_nic_array_init(ni_ibft_nic_array_t *nics)

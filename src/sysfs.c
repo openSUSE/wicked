@@ -1,7 +1,25 @@
 /*
- * Routines for reading from sysfs files
+ *	Routines for reading from sysfs files
  *
- * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2012-2022 SUSE LLC
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *	Authors:
+ *		Olaf Kirch
+ *		Marius Tomaschewski
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -18,11 +36,12 @@
 #include "sysfs.h"
 #include "ibft.h"
 
-#ifndef NI_PATH_SYSFS
-#define NI_PATH_SYSFS			"/sys"
+#ifndef NI_SYSFS_PATH
+#define NI_SYSFS_PATH			"/sys"
 #endif
 
-#define _PATH_SYS_CLASS_NET		"/sys/class/net"
+#define NI_SYSFS_CLASS_PATH		NI_SYSFS_PATH"/class"
+#define NI_SYSFS_CLASS_NET_PATH		NI_SYSFS_CLASS_PATH"/net"
 
 /* #include <linux/if_bridge.h> */
 #ifndef SYSFS_BRIDGE_ATTR
@@ -38,12 +57,13 @@
 #define SYSFS_BRIDGE_PORT_LINK		"bridge"
 #endif
 
-/* iBFT related constants */
-#define NI_SYSFS_FIRMWARE_IBFT_PATH     "/sys/firmware/ibft"
-#define NI_SYSFS_IBFT_INI_PREFIX        "initiator"
-#define NI_SYSFS_IBFT_NIC_PREFIX        "ethernet"
-#define NI_SYSFS_IBFT_TGT_PREFIX        "target"
+#define NI_SYSFS_FIRMWARE_PATH		NI_SYSFS_PATH"/firmware"
 
+/* iBFT related constants */
+#define NI_SYSFS_FIRMWARE_IBFT_PATH	NI_SYSFS_FIRMWARE_PATH"/ibft"
+#define NI_SYSFS_IBFT_INI_PREFIX	"initiator"
+#define NI_SYSFS_IBFT_NIC_PREFIX	"ethernet"
+#define NI_SYSFS_IBFT_TGT_PREFIX	"target"
 
 static const char *	__ni_sysfs_netif_attrpath(const char *ifname, const char *attr);
 static const char *	__ni_sysfs_netif_get_attr(const char *ifname, const char *attr);
@@ -173,7 +193,7 @@ ni_sysfs_netif_printf(const char *ifname, const char *attr_name, const char *fmt
 ni_bool_t
 ni_sysfs_is_read_only(void)
 {
-	return ni_fs_is_read_only(NI_PATH_SYSFS);
+	return ni_fs_is_read_only(NI_SYSFS_PATH);
 }
 
 ni_bool_t
@@ -246,7 +266,7 @@ __ni_sysfs_netif_attrpath(const char *ifname, const char *attr_name)
 	static char pathbuf[PATH_MAX];
 
 	snprintf(pathbuf, sizeof(pathbuf), "%s/%s/%s",
-			_PATH_SYS_CLASS_NET, ifname, attr_name);
+			NI_SYSFS_CLASS_NET_PATH, ifname, attr_name);
 	return pathbuf;
 }
 
@@ -324,7 +344,7 @@ ni_sysfs_bonding_get_attr(const char *ifname, const char *attr_name, char **resu
 {
 	static char pathbuf[PATH_MAX];
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s/bonding/%s", _PATH_SYS_CLASS_NET, ifname, attr_name);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s/bonding/%s", NI_SYSFS_CLASS_NET_PATH, ifname, attr_name);
 	return __ni_sysfs_read_string(pathbuf, result);
 }
 
@@ -333,7 +353,7 @@ ni_sysfs_bonding_set_attr(const char *ifname, const char *attr_name, const char 
 {
 	static char pathbuf[PATH_MAX];
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s/bonding/%s", _PATH_SYS_CLASS_NET, ifname, attr_name);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s/bonding/%s", NI_SYSFS_CLASS_NET_PATH, ifname, attr_name);
 	return __ni_sysfs_printf(pathbuf, "%s", attr_value);
 }
 
@@ -346,7 +366,7 @@ ni_sysfs_bonding_set_list_attr(const char *ifname, const char *attr_name, const 
 	int rv = -1;
 
 	snprintf(pathbuf, sizeof(pathbuf), "%s/%s/bonding/%s",
-			_PATH_SYS_CLASS_NET, ifname, attr_name);
+			NI_SYSFS_CLASS_NET_PATH, ifname, attr_name);
 
 	ni_string_array_init(&current);
 	if (__ni_sysfs_read_list(pathbuf, &current) < 0)
@@ -1071,7 +1091,7 @@ ni_sysfs_netdev_get_pci(const char *ifname)
 	ni_pci_dev_t *pci = NULL;
 	const char *attr;
 
-	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", _PATH_SYS_CLASS_NET, ifname);
+	snprintf(pathbuf, sizeof(pathbuf), "%s/%s", NI_SYSFS_CLASS_NET_PATH, ifname);
 	if (readlink(pathbuf, device_link, sizeof(device_link)) < 0)
 		return NULL;
 
