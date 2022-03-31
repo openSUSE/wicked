@@ -68,6 +68,7 @@ wicked_SOURCES			= \
 	main.c			\
 	nanny.c			\
 	reachable.c		\
+	redfish.c		\
 	tester.c
 
 noinst_HEADERS			= \
