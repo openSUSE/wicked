@@ -1,0 +1,37 @@
+#!/bin/bash
+
+err_base="extensions/redfish"
+
+# sysfs mountpoint
+opt_rootdir=""
+# relative fw path (unused)
+opt_fw_path=""
+# enable list only action
+opt_action="show-config"
+# load a kernel module
+opt_modprobe=""
+#set -- `getopt r:p: "$@"`
+while [ $# -gt 0 -a "$1" != "--" ]; do
+	opt="$1"; shift;
+	case $opt in
+	-r)	opt_rootdir="$1";		shift;;
+	-p)	opt_fw_path="$1";		shift;;
+	-m)	opt_modprobe="$1";		shift;;
+	-l)	opt_listonly="list-ifnames"	;;
+	*)	echo "$err_base: Bad command line option \"$opt\"" >&2; exit 1;;
+	esac
+done
+
+if test "X$opt_modprobe" != "X" ; then
+	modprobe -qs -- "${opt_modprobe}" &>/dev/null || :
+fi
+
+/usr/sbin/wicked \
+	${opt_rootdir:+--root-directory "$opt_rootdir"} \
+	redfish "$opt_action" 2>/dev/null
+#
+# don't report errors (e.g. permission denied, not configured)
+# but simply provide the firmware config when there is some.
+#
+exit 0
+

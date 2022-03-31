@@ -32,6 +32,7 @@ if wicked_compat_redhat
 wicked_CPPFLAGS			+= -DCOMPAT_REDHAT
 endif
 endif
+wicked_CPPFLAGS			+= -DWICKED_EXTENSIONSDIR=\"$(wicked_extensionsdir)\"
 
 wicked_CFLAGS			= $(LIBNL_CFLAGS)	\
 				  $(LIBDBUS_CFLAGS)	\
