@@ -37,7 +37,7 @@
  *
  *	TODO:
  *	- PCI/PCIe Interface v2 decoding and processing.
- *	- Credential Bootstrapping (jsc#SLE-17624).
+ *	- Credential Bootstrapping (see jsc#SLE-17624).
  *	- "Prefered IP" address in autoconf
  */
 #ifdef HAVE_CONFIG_H
@@ -67,6 +67,8 @@
 #include "sysfs.h"
 
 #define NI_REDFISH_CONFIG_ORIGIN	"firmware:redfish"
+#define NI_REDFISH_HOSTNAME		"redfish-localhost"
+#define NI_REDFISH_HOSTS_FILE		"/etc/hosts"
 
 #define NI_SYS_FIRMWARE_DIR		"/sys/firmware"
 #define NI_SMBIOS_ENTRY_FILE		NI_SYS_FIRMWARE_DIR"/dmi/tables/smbios_entry_point"
@@ -307,10 +309,29 @@ static const ni_smbios_handler_t	smbios_entry_decoder[] = {
 	{ -1U,				NULL			}
 };
 
+typedef struct ni_hosts_entry		ni_hosts_entry_t;
+typedef struct ni_hosts_entry_array	ni_hosts_entry_array_t;
+
+struct ni_hosts_entry {
+	ni_sockaddr_t		addr;
+	ni_string_array_t	names;
+};
+
+#define NI_HOSTS_ENTRY_ARRAY_INIT	{ .count = 0, .data = NULL }
+#define NI_HOSTS_ENTRY_ARRAY_CHUNK	2
+
+struct ni_hosts_entry_array {
+	unsigned int		count;
+	ni_hosts_entry_t **	data;
+};
+
+
 static int				list_interface_names(const ni_smbios_entry_t *);
 static int				show_wicked_xml_config(const ni_smbios_entry_t *);
+static int				service_hosts_update(const ni_smbios_entry_t *);
+static int				service_hosts_remove(void);
 
-extern char * opt_global_rootdir;
+extern char *				opt_global_rootdir;
 
 int
 ni_wicked_redfish(const char *caller, int argc, char **argv)
@@ -321,6 +342,8 @@ ni_wicked_redfish(const char *caller, int argc, char **argv)
 	enum {
 		ACTION_SHOW_CONFIG,
 		ACTION_LIST_IFNAMES,
+		ACTION_HOSTS_UPDATE,
+		ACTION_HOSTS_REMOVE,
 	};
 	static const struct option	options[] = {
 		{ "help",		no_argument,		NULL,	OPTION_HELP	},
@@ -329,6 +352,8 @@ ni_wicked_redfish(const char *caller, int argc, char **argv)
 	static const ni_intmap_t	actions[] = {
 		{ "show-config",	ACTION_SHOW_CONFIG	},
 		{ "list-ifnames",	ACTION_LIST_IFNAMES	},
+		{ "hosts-update",	ACTION_HOSTS_UPDATE	},
+		{ "hosts-remove",	ACTION_HOSTS_REMOVE	},
 		{ NULL,			-1U			}
 	};
 	int opt, status = NI_WICKED_RC_USAGE;
@@ -353,11 +378,15 @@ ni_wicked_redfish(const char *caller, int argc, char **argv)
 				"%s [options] <action>\n"
 				"\n"
 				"Options:\n"
-				"  --help, -h	show this help text and exit.\n"
+				"  --help, -h		show this help text and exit.\n"
 				"\n"
 				"Actions:\n"
-				"  show-config	show host interface configuration\n"
-				"  list-ifnames	list host interface names\n"
+				"  show-config		show host interface configuration\n"
+				"  list-ifnames		list host interface names\n"
+				"  hosts-update		update "NI_REDFISH_HOSTNAME
+							" entries in "NI_REDFISH_HOSTS_FILE"\n"
+				"  hosts-remove		remove "NI_REDFISH_HOSTNAME
+							" entries from "NI_REDFISH_HOSTS_FILE"\n"
 				"\n", program);
 			goto cleanup;
 		}
@@ -370,6 +399,16 @@ ni_wicked_redfish(const char *caller, int argc, char **argv)
 	}
 	argv[0] = argv0;
 
+	/* execute actions that do not need decoding */
+	switch (action) {
+		case ACTION_HOSTS_REMOVE:
+			status = service_hosts_remove();
+			goto cleanup;
+		default:
+			break;
+	}
+
+	/* decode and execute actions that need it */
 	ni_smbios_decoder_init(&decoder, smbios_entry_decoder, opt_global_rootdir);
 	if (!ni_smbios_decode(&decoder)) {
 		switch (errno) {
@@ -391,6 +430,10 @@ ni_wicked_redfish(const char *caller, int argc, char **argv)
 		goto cleanup;
 	}
 	switch (action) {
+		case ACTION_HOSTS_UPDATE:
+			status = service_hosts_update(decoder.entries);
+			break;
+
 		case ACTION_LIST_IFNAMES:
 			status = list_interface_names(decoder.entries);
 			break;
@@ -398,11 +441,375 @@ ni_wicked_redfish(const char *caller, int argc, char **argv)
 		case ACTION_SHOW_CONFIG:
 			status = show_wicked_xml_config(decoder.entries);
 			break;
+
+		default:
+			break;
 	}
 	ni_smbios_decoder_destroy(&decoder);
 
 cleanup:
 	ni_string_free(&program);
+	return status;
+}
+
+static ni_hosts_entry_t *
+ni_hosts_entry_new(const ni_sockaddr_t *addr, const char *name)
+{
+	ni_hosts_entry_t *entry;
+
+	if (!addr || !ni_sockaddr_is_specified(addr) ||
+	    !ni_check_domain_name(name, ni_string_len(name), 0))
+		return NULL;
+
+	if (!(entry = calloc(1, sizeof(*entry))))
+		return NULL;
+
+	entry->addr = *addr;
+	if (ni_string_array_append(&entry->names, name) == 0)
+		return entry;
+
+	free(entry);
+	return NULL;
+}
+
+static ni_bool_t
+ni_hosts_entry_add_name(ni_hosts_entry_t *entry, const char *name)
+{
+	if (!entry || !ni_check_domain_name(name, ni_string_len(name), 0))
+		return FALSE;
+
+	if (ni_string_array_find(&entry->names, 0, name,
+			ni_string_eq_nocase, NULL) != -1U)
+		return FALSE;
+
+	return ni_string_array_append(&entry->names, name) == 0;
+}
+
+static void
+ni_hosts_entry_free(ni_hosts_entry_t *entry)
+{
+	if (entry) {
+		memset(&entry->addr, 0, sizeof(entry->addr));
+		ni_string_array_destroy(&entry->names);
+	}
+}
+
+static ni_hosts_entry_t *
+ni_hosts_entry_array_find_addr(ni_hosts_entry_array_t *array, const ni_sockaddr_t *addr)
+{
+	ni_hosts_entry_t *item;
+	unsigned int i;
+
+	if (!array || !addr)
+		return NULL;
+
+	for (i = 0; i < array->count; ++i) {
+		item = array->data[i];
+		if (ni_sockaddr_equal(&item->addr, addr))
+			return item;
+	}
+	return NULL;
+}
+
+static ni_bool_t
+ni_hosts_entry_array_realloc(ni_hosts_entry_array_t *array, unsigned int count)
+{
+	ni_hosts_entry_t **newdata;
+	size_t             newsize;
+	unsigned int       i;
+
+	if ((UINT_MAX - array->count) <= count)
+		return FALSE;
+
+	newsize = array->count + count;
+	if ((SIZE_MAX / sizeof(*newdata)) < newsize)
+		return FALSE;
+
+	newdata = realloc(array->data, newsize * sizeof(*newdata));
+	if (!newdata)
+		return FALSE;
+
+	array->data = newdata;
+	for (i = array->count; i < newsize; ++i)
+		array->data[i] = NULL;
+	return TRUE;
+}
+
+static ni_bool_t
+ni_hosts_entry_array_append(ni_hosts_entry_array_t *array, ni_hosts_entry_t *entry)
+{
+	if (!array || !entry)
+		return FALSE;
+
+	if ((array->count % NI_HOSTS_ENTRY_ARRAY_CHUNK) == 0 &&
+	    !ni_hosts_entry_array_realloc(array, NI_HOSTS_ENTRY_ARRAY_CHUNK))
+		return FALSE;
+
+	array->data[array->count++] = entry;
+	return TRUE;
+}
+
+static void
+ni_hosts_entry_array_destroy(ni_hosts_entry_array_t *array)
+{
+	ni_hosts_entry_t *item;
+
+	if (array) {
+		while (array->count) {
+			array->count--;
+			item = array->data[array->count];
+			array->data[array->count] = NULL;
+			ni_hosts_entry_free(item);
+		}
+		free(array->data);
+		array->data = NULL;
+	}
+}
+
+static FILE *
+hosts_tempfile_open(const char *filename, char **tempname)
+{
+#if !defined(ALLPERMS)
+	const mode_t allperms = (S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO);
+#else
+	const mode_t allperms = ALLPERMS;
+#endif
+	const char *dirname, *basename;
+	struct stat st;
+	FILE *fp;
+	int fd;
+
+	if (ni_string_empty(filename) || !tempname ||
+		!(dirname = ni_dirname(filename)) ||
+		!(basename = ni_basename(filename)))
+		return NULL;
+
+	if (!ni_string_printf(tempname, "%s/.%s.XXXXXX",
+			dirname, basename))
+		return NULL;
+
+	if ((fd = mkstemp(*tempname)) < 0) {
+		ni_string_free(tempname);
+		return NULL;
+	}
+
+	/* inherit the access permissions from filename */
+	if (stat(filename, &st) < 0 || !S_ISREG(st.st_mode) ||
+	    fchmod(fd, st.st_mode & allperms) < 0) {
+		close(fd);
+		unlink(*tempname);
+		ni_string_free(tempname);
+		return NULL;
+	}
+
+	if (!(fp = fdopen(fd, "we"))) {
+		close(fd);
+		unlink(*tempname);
+		ni_string_free(tempname);
+		return NULL;
+	}
+	return fp;
+}
+
+static ni_bool_t
+hosts_entries_dump(FILE *out, const ni_hosts_entry_array_t *entries)
+{
+	const ni_hosts_entry_t *entry;
+	unsigned int i, n;
+	const char *name;
+
+	if (!out || !entries)
+		return FALSE;
+
+	for (i = 0; i < entries->count; ++i) {
+		entry = entries->data[i];
+
+		/* should never happen, but ... */
+		if (!entry || !entry->names.count)
+			continue;
+		if (ni_string_empty(entry->names.data[0]))
+			continue;
+
+		fputs(ni_sockaddr_print(&entry->addr), out);
+		for (n = 0; n < entry->names.count; ++n) {
+			name = entry->names.data[n];
+			fputs(n == 0 ? "\t" : " ", out);
+			fputs(name, out);
+		}
+		fputs("\n", out);
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+hosts_file_omit_match(const char *line, const char *omit)
+{
+	ni_string_array_t row = NI_STRING_ARRAY_INIT;
+	char *temp = NULL;
+	const char *name;
+	unsigned int i;
+
+	if (!omit || !ni_string_dup(&temp, line))
+		return FALSE;
+
+	temp[strcspn(temp, "#\n")] = '\0';
+	if (ni_string_split(&row, temp, " \t", 0) < 2) {
+		ni_string_array_destroy(&row);
+		ni_string_free(&temp);
+		return FALSE;
+	}
+
+	for (i = 1; i < row.count; ++i) {
+		name = row.data[i];
+		if (ni_string_eq_nocase(name, omit)) {
+			ni_string_array_destroy(&row);
+			ni_string_free(&temp);
+			return TRUE;
+		}
+	}
+
+	ni_string_array_destroy(&row);
+	ni_string_free(&temp);
+	return FALSE;
+}
+
+static ni_bool_t
+hosts_file_update_data(FILE *file, FILE *temp, const char *omit,
+			const ni_hosts_entry_array_t *entries)
+{
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t cnt;
+
+	while ((cnt = getline(&line, &len, file)) > 0) {
+		if (!isxdigit((unsigned char)line[0]) ||
+		    !hosts_file_omit_match(line, omit))
+			fputs(line, temp);
+	}
+	if (line)
+		free(line);
+
+	if (entries)
+		return hosts_entries_dump(temp, entries);
+	else
+		return TRUE;
+}
+
+static ni_bool_t
+hosts_file_update(const char *filename, const char *omit,
+			const ni_hosts_entry_array_t *entries)
+{
+	char *realname = NULL;
+	char *tempname = NULL;
+	FILE *file, *temp;
+
+	if (!omit || !ni_realpath(filename, &realname))
+		return FALSE;
+
+	if (!(file = fopen(realname, "re"))) {
+		ni_string_free(&realname);
+		return FALSE;
+	}
+
+	if (!(temp = hosts_tempfile_open(realname, &tempname))) {
+		fclose(file);
+		ni_string_free(&realname);
+		return FALSE;
+	}
+
+	if (!hosts_file_update_data(file, temp, omit, entries)) {
+		fclose(file);
+		fclose(temp);
+		unlink(tempname);
+		ni_string_free(&realname);
+		ni_string_free(&tempname);
+		return FALSE;
+	}
+
+	fclose(temp);
+	if (rename(tempname, realname) < 0) {
+		fclose(file);
+		unlink(tempname);
+		ni_string_free(&realname);
+		ni_string_free(&tempname);
+		return FALSE;
+	} else {
+		fclose(file);
+		ni_string_free(&realname);
+		ni_string_free(&tempname);
+		return TRUE;
+	}
+}
+
+
+static int
+service_hosts_remove(void)
+{
+	int status = NI_WICKED_RC_SUCCESS;
+
+	if (!hosts_file_update(NI_REDFISH_HOSTS_FILE, NI_REDFISH_HOSTNAME, NULL)) {
+		switch (errno) {
+			case EROFS:
+			case EACCES:
+				status = NI_WICKED_RC_NOT_ALLOWED;
+				break;
+			default:
+				status = NI_WICKED_RC_ERROR;
+				break;
+		}
+	}
+	return status;
+}
+
+static int
+service_hosts_update(const ni_smbios_entry_t *entries)
+{
+	ni_hosts_entry_array_t hentries = NI_HOSTS_ENTRY_ARRAY_INIT;
+	ni_hosts_entry_t *     hentry;
+	const ni_smbios_entry_t *entry;
+	const ni_mchi_entry_t *mchi;
+	const ni_mchi_net_pconf_t *pconf;
+	int status = NI_WICKED_RC_SUCCESS;
+
+	for (entry = entries; entry; entry = entry->next) {
+		if (entry->type != NI_SMBIOS_TYPE_MCHI)
+			continue;
+
+		mchi = (ni_mchi_entry_t *)entry;
+		if (mchi->type != NI_MCHI_TYPE_NET)
+			continue;
+
+		if (!mchi->net.plist || !mchi->net.dev ||
+		    ni_string_empty(mchi->net.dev->device.name))
+			continue;
+
+		for (pconf = mchi->net.plist; pconf; pconf = pconf->next) {
+			if (pconf->type != NI_MCHI_NET_PCONF_REDFISH)
+				continue;
+
+			if ((hentry = ni_hosts_entry_array_find_addr(&hentries, &pconf->redfish.service.addr))) {
+				ni_hosts_entry_add_name(hentry, pconf->redfish.service.host);
+			} else
+			if ((hentry = ni_hosts_entry_new(&pconf->redfish.service.addr, NI_REDFISH_HOSTNAME))) {
+				ni_hosts_entry_add_name(hentry, pconf->redfish.service.host);
+				if (!ni_hosts_entry_array_append(&hentries, hentry))
+					ni_hosts_entry_free(hentry);
+			}
+		}
+	}
+
+	if (!hosts_file_update(NI_REDFISH_HOSTS_FILE, NI_REDFISH_HOSTNAME, &hentries)) {
+		switch (errno) {
+			case EROFS:
+			case EACCES:
+				status = NI_WICKED_RC_NOT_ALLOWED;
+				break;
+			default:
+				status = NI_WICKED_RC_ERROR;
+				break;
+		}
+	}
+	ni_hosts_entry_array_destroy(&hentries);
 	return status;
 }
 
