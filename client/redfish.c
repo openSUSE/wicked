@@ -1037,6 +1037,23 @@ xml_config_find_ifname(xml_node_t *root, const char *ifname)
 }
 
 static xml_node_t *
+xml_config_init_scripts(xml_node_t *conf)
+{
+	xml_node_t *scripts, *script;
+
+	if (!(scripts = xml_node_create(conf, "scripts")))
+		return NULL;
+
+	if ((script = xml_node_create(scripts, "post-up")))
+		xml_node_new_element_unique("script", script, "wicked:redfish-update");
+
+	if ((script = xml_node_create(scripts, "pre-down")))
+		xml_node_new_element_unique("script", script, "wicked:redfish-update");
+
+	return scripts;
+}
+
+static xml_node_t *
 xml_config_init_ifname(xml_node_t *root, const char *ifname)
 {
 	xml_node_t *conf, *node;
@@ -1048,11 +1065,16 @@ xml_config_init_ifname(xml_node_t *root, const char *ifname)
 		return NULL;
 
 	xml_node_add_attr(conf, "origin", NI_REDFISH_CONFIG_ORIGIN);
-	if ((node = xml_node_new("name", conf))) {
-		xml_node_set_cdata(node, ifname);
-		return conf;
-	}
-	return NULL;
+
+	if (!(node = xml_node_create(conf, "name")))
+		return NULL;
+
+	xml_node_set_cdata(node, ifname);
+
+	if (!(node = xml_config_init_scripts(conf)))
+		return NULL;
+
+	return conf;
 }
 
 static xml_node_t *

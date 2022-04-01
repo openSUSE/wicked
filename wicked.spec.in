@@ -339,6 +339,8 @@ fi
 %config(noreplace) %_sysconfdir/wicked/client.xml
 %config(noreplace) %_sysconfdir/wicked/server.xml
 %config(noreplace) %_sysconfdir/wicked/nanny.xml
+%dir %_sysconfdir/wicked/scripts
+%config(noreplace) %_sysconfdir/wicked/scripts/*
 %dir %_sysconfdir/wicked/extensions
 %config(noreplace) %_sysconfdir/wicked/extensions/*
 %dir %_sysconfdir/wicked/ifconfig
