@@ -564,7 +564,7 @@ ni_wireless_wpa_net_format_psk(ni_wpa_net_properties_t *properties, const ni_wir
 		return FALSE;
 
 	if (ni_string_len(net->wpa_psk.passphrase) == 64){
-		if(ni_parse_hex(net->wpa_psk.passphrase, data, sizeof(data)) != sizeof(data)){
+		if(ni_parse_hex_data(net->wpa_psk.passphrase, data, sizeof(data), NULL) != sizeof(data)){
 			ni_error("Failed to parse wpa_psk");
 			return FALSE;
 		}
