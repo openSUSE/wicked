@@ -4,17 +4,23 @@ MAINTAINERCLEANFILES		= Makefile.in
 DISTCLEANFILES			= $(BUILT_SOURCES)
 EXTRA_DIST			= $(dbus_config_DATA) $(templates)
 
+wicked_scriptsdir		= $(wicked_configdir)/scripts
+
 BUILT_SOURCES			= \
 	$(wicked_config_DATA)	\
 	$(dbus_service_DATA)	\
 	$(systemd_unit_DATA)	\
-	$(systemv_init_SCRIPTS)
+	$(systemv_init_SCRIPTS)	\
+	$(wicked_scripts_SCRIPTS)
 
 wicked_config_DATA		= \
 	common.xml		\
 	client.xml		\
 	server.xml		\
 	nanny.xml
+
+wicked_scripts_SCRIPTS		= \
+	scripts/redfish-update
 
 dbus_config_DATA		= \
 	org.opensuse.Network.conf		\
@@ -69,7 +75,8 @@ templates			= \
 	$(systemd_dbus_files:=.in)	\
 	$(systemd_unit_files:=.in)	\
 	$(systemv_dbus_files:=.in)	\
-	$(systemv_init_files:=.in)
+	$(systemv_init_files:=.in)	\
+	$(wicked_scripts_SCRIPTS:=.in)
 
 substitute_vars			= \
 	$(AM_V_GEN)sed						\
@@ -112,8 +119,14 @@ systemv/network: systemv/network.in $(top_builddir)/config.status
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
 
+scripts/%: scripts/%.in $(top_builddir)/config.status
+	@echo "substituting variables in $< > $@"
+	@test -d $(@D) || $(MKDIR_P) $(@D)
+	@rm -f $@ $@.tmp
+	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+
 check-local:
-	@for i in $(systemv_init_SCRIPTS) ; \
+	@for i in $(systemv_init_SCRIPTS) $(wicked_scripts_SCRIPTS) ; \
 	do \
 		bash -n "$(builddir)/$$i" \
 			&& printf 'etc/%-30s %s\n' "$$i" "Syntax OK" \

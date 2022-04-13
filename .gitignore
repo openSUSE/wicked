@@ -43,6 +43,7 @@ Makefile.in
 /etc/client.xml
 /etc/server.xml
 /etc/nanny.xml
+/etc/scripts/redfish-update
 /etc/systemv/wickedd
 /etc/systemv/network
 /etc/systemv/*.service

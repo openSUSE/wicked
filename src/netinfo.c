@@ -35,6 +35,9 @@
 #include "dhcp.h"
 #include <gcrypt.h>
 
+
+#define NI_NETDEV_REF_ARRAY_CHUNK	16
+
 extern void		ni_addrconf_updater_free(ni_addrconf_updater_t **);
 
 typedef struct ni_netconfig_filter {
@@ -1005,6 +1008,114 @@ ni_netdev_ref_destroy(ni_netdev_ref_t *ref)
 	if (ref) {
 		ref->index = 0;
 		ni_string_free(&ref->name);
+	}
+}
+
+ni_bool_t
+ni_netdev_ref_array_init(ni_netdev_ref_array_t *array)
+{
+	if (array) {
+		memset(array, 0, sizeof(*array));
+		return TRUE;
+	}
+	return FALSE;
+}
+
+const ni_netdev_ref_t *
+ni_netdev_ref_array_at(const ni_netdev_ref_array_t *array, unsigned int i)
+{
+	if (!array || i >= array->count)
+		return NULL;
+	return &array->data[i];
+}
+
+const ni_netdev_ref_t *
+ni_netdev_ref_array_find_index(const ni_netdev_ref_array_t *array, unsigned int index)
+{
+	const ni_netdev_ref_t *ref;
+	unsigned int i;
+
+	if (!array)
+		return NULL;
+
+	for (i = 0; i < array->count; ++i) {
+		ref = &array->data[i];
+		if (ref->index == index)
+			return ref;
+	}
+	return NULL;
+}
+
+const ni_netdev_ref_t *
+ni_netdev_ref_array_find_name(const ni_netdev_ref_array_t *array, const char *name)
+{
+	const ni_netdev_ref_t *ref;
+	unsigned int i;
+
+	if (!array)
+		return NULL;
+
+	for (i = 0; i < array->count; ++i) {
+		ref = &array->data[i];
+		if (ni_string_eq(ref->name, name))
+			return ref;
+	}
+	return NULL;
+}
+
+static ni_bool_t
+ni_netdev_ref_array_realloc(ni_netdev_ref_array_t *array, unsigned int count)
+{
+	ni_netdev_ref_t *newdata;
+	size_t           newsize;
+	unsigned int     i;
+
+	if ((UINT_MAX - array->count) <= count)
+		return FALSE;
+
+	newsize = array->count + count;
+	if ((SIZE_MAX / sizeof(*newdata)) < newsize)
+		return FALSE;
+
+	newdata = realloc(array->data, newsize * sizeof(*newdata));
+	if (!newdata)
+		return FALSE;
+
+	array->data = newdata;
+	for (i = array->count; i < newsize; ++i) {
+		array->data[i].index = 0;
+		array->data[i].name = NULL;
+	}
+	return TRUE;
+}
+
+const ni_netdev_ref_t *
+ni_netdev_ref_array_append(ni_netdev_ref_array_t *array, const char *name, unsigned int index)
+{
+	ni_netdev_ref_t *item;
+
+	if (!array || ((array->count % NI_NETDEV_REF_ARRAY_CHUNK) == 0 &&
+	    !ni_netdev_ref_array_realloc(array, NI_NETDEV_REF_ARRAY_CHUNK)))
+		return NULL;
+
+	item = &array->data[array->count++];
+	ni_netdev_ref_set(item, name, index);
+	return item;
+}
+
+void
+ni_netdev_ref_array_destroy(ni_netdev_ref_array_t *array)
+{
+	ni_netdev_ref_t *item;
+
+	if (array) {
+		while (array->count) {
+			array->count--;
+			item = &array->data[array->count];
+			ni_netdev_ref_destroy(item);
+		}
+		free(array->data);
+		array->data = NULL;
 	}
 }
 
