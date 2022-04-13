@@ -385,6 +385,7 @@ fi
 %_mandir/man8/wicked.8*
 %_mandir/man8/wickedd.8*
 %_mandir/man8/wicked-ethtool.8*
+%_mandir/man8/wicked-redfish.8*
 %_mandir/man8/ifdown.8*
 %_mandir/man8/ifstatus.8*
 %_mandir/man8/ifup.8*
