@@ -77,11 +77,6 @@ Obsoletes:      libwicked-0-6 < %{version}
 %endif
 
 BuildRequires:  libnl3-devel
-%if 0%{?suse_version} > 1110
-BuildRequires:  libiw-devel
-%else
-BuildRequires:  wireless-tools
-%endif
 BuildRequires:  dbus-1-devel
 BuildRequires:  libgcrypt-devel
 BuildRequires:  pkg-config

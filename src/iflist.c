@@ -1138,12 +1138,9 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname, ni_netc
 			/* We're at the very least an ethernet. */
 			tmp_link_type = NI_IFTYPE_ETHERNET;
 
-			/*
-			 * Try to detect if this is a  WLAN device.
-			 * The official way of doing this is to check whether
-			 * ioctl(SIOCGIWNAME) succeeds.
-			 */
-			if (__ni_wireless_get_name(ifname, NULL, 0) == 0)
+			/* rtnetlink does not tell us if the device has a
+			 * wireless extensions or not, but sysfs does. */
+			if ( ni_sysfs_netif_exists(ifname, "wireless"))
 				tmp_link_type = NI_IFTYPE_WIRELESS;
 
 			memset(&drv_info, 0, sizeof(drv_info));

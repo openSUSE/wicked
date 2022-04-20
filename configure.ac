@@ -261,7 +261,6 @@ if test "X$enable_systemd" = Xyes; then
 fi
 
 # Checks for header files.
-AC_CHECK_HEADER([iwlib.h],[],[AC_MSG_ERROR([Please install libiw-devel to get wireless.h])])
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h netinet/in.h])
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h sys/ioctl.h sys/param.h])
 AC_CHECK_HEADERS([sys/socket.h sys/time.h syslog.h unistd.h])
