@@ -222,6 +222,11 @@ fragmentation (e.g., EAP-TLS and EAP-PEAP).
 This value should be set small enough to make the EAP messages fit in
 MTU of the network interface used for EAPOL.
 The default value is suitable for most cases.
+.TP
+\f[B]\f[CB]WIRELESS_PMF <disabled|optional|required>\f[B]\f[R]
+Whether \f[B]P\f[R]rotected \f[B]M\f[R]anagement \f[B]F\f[R]rames are
+enabled or not.
+Default is \f[B]disabled\f[R].
 .SH EXAMPLE
 .PP
 Some examples of different configuration types supported at the moment:
@@ -343,7 +348,7 @@ Some examples of different configuration types supported at the moment:
 .fi
 .SH COPYRIGHT
 .PP
-Copyright (C) 2014-2021 SUSE LLC
+Copyright (C) 2014-2022 SUSE LLC
 .SH BUGS
 .PP
 Please report bugs as described at http://bugs.opensuse.org

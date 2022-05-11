@@ -145,6 +145,13 @@ typedef enum ni_wireless_scan_mode {
 	NI_WIRELESS_SCAN_MODE_SSID,
 } ni_wireless_scan_mode_t;
 
+typedef enum ni_wireless_pmf {
+    NI_WIRELESS_PMF_NOT_SPECIFIED = 0,
+    NI_WIRELESS_PMF_DISABLED,
+    NI_WIRELESS_PMF_OPTIONAL,
+    NI_WIRELESS_PMF_REQUIRED,
+} ni_wireless_pmf_t;
+
 #define NI_WIRELESS_PAIRWISE_CIPHERS_MAX	4
 
 typedef struct ni_wireless_auth_info {
@@ -209,6 +216,7 @@ struct ni_wireless_network {
 	unsigned int			keymgmt_proto;
 	unsigned int			pairwise_cipher;
 	unsigned int			group_cipher;
+	ni_wireless_pmf_t		pmf;
 
 	char *wep_keys[NI_WIRELESS_WEP_KEY_COUNT];
 	unsigned int default_key;
@@ -416,6 +424,8 @@ extern const char *			ni_wireless_eap_method_to_name(ni_wireless_eap_method_t);
 extern ni_bool_t			ni_wireless_name_to_eap_method(const char *, unsigned int *);
 extern const char *			ni_wireless_scan_mode_to_name(ni_wireless_scan_mode_t);
 const char *				ni_wireless_assoc_state_to_name(ni_wireless_assoc_state_t);
+extern const char *			ni_wireless_pmf_to_name(ni_wireless_pmf_t);
+extern ni_bool_t			ni_wireless_name_to_pmf(const char *, ni_wireless_pmf_t *);
 
 extern ni_bool_t			ni_wpa_driver_from_string(const char *, unsigned int *);
 extern const char *			ni_wpa_driver_as_string(ni_wireless_wpa_driver_t);

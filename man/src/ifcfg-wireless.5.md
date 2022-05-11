@@ -184,6 +184,10 @@ global to the interface. The description of the variable points this out.
     interface used for EAPOL. The default value is suitable for most
     cases.
 
+`WIRELESS_PMF <disabled|optional|required>`
+:   Whether **P**rotected **M**anagement **F**rames are enabled or not.
+    Default is **disabled**.
+
 # EXAMPLE
 
 Some examples of different configuration types supported at the moment:
@@ -284,7 +288,7 @@ Some examples of different configuration types supported at the moment:
 ```
 
 # COPYRIGHT
-Copyright (C) 2014-2021 SUSE LLC
+Copyright (C) 2014-2022 SUSE LLC
 
 # BUGS
 Please report bugs as described at http://bugs.opensuse.org

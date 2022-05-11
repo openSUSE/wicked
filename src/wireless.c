@@ -686,6 +686,25 @@ ni_wireless_wpa_map_wireless_mode(ni_wireless_mode_t m, int *ret)
 }
 
 static ni_bool_t
+ni_wireless_wpa_map_pmf(ni_wireless_pmf_t p, int *ret)
+{
+	switch(p) {
+	case NI_WIRELESS_PMF_DISABLED:
+		*ret = 0;
+		break;
+	case NI_WIRELESS_PMF_OPTIONAL:
+		*ret = 1;
+		break;
+	case NI_WIRELESS_PMF_REQUIRED:
+		*ret = 2;
+		break;
+	default:
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static ni_bool_t
 ni_wireless_wpa_net_format(ni_wpa_net_properties_t *properties, const ni_wireless_network_t *net)
 {
 	const char *name;
@@ -755,6 +774,16 @@ ni_wireless_wpa_net_format(ni_wpa_net_properties_t *properties, const ni_wireles
 	if (!ni_wireless_wpa_net_format_bitmap(properties, net->group_cipher,
 			ni_wireless_wpa_pairwise_map, NI_WPA_NET_PROPERTY_GROUP))
 		return FALSE;
+
+	if (net->pmf != NI_WIRELESS_PMF_NOT_SPECIFIED) {
+		if (ni_wireless_wpa_map_pmf(net->pmf, &ival)) {
+			name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_IEEE80211W);
+			if (!name || !ni_dbus_dict_add_int32(properties, name, ival))
+				return FALSE;
+		} else {
+			return FALSE;
+		}
+	}
 
 	if (!ni_wireless_wpa_net_format_psk(properties, net))
 		return FALSE;
@@ -1544,6 +1573,25 @@ const char *
 ni_wireless_assoc_state_to_name(ni_wireless_assoc_state_t state)
 {
 	return ni_format_uint_mapped(state, __ni_wireless_assoc_state_names);
+}
+
+static ni_intmap_t __ni_wireless_pmf_names[] = {
+	{ "disabled",	NI_WIRELESS_PMF_DISABLED },
+	{ "optional",	NI_WIRELESS_PMF_OPTIONAL },
+	{ "required",	NI_WIRELESS_PMF_REQUIRED },
+	{ NULL,			0}
+};
+
+extern const char *
+ni_wireless_pmf_to_name(ni_wireless_pmf_t pmf)
+{
+	return ni_format_uint_mapped(pmf, __ni_wireless_pmf_names);
+}
+
+extern ni_bool_t
+ni_wireless_name_to_pmf(const char *val, ni_wireless_pmf_t *out)
+{
+	return ni_parse_uint_mapped(val, __ni_wireless_pmf_names, out) == 0;
 }
 
 /*

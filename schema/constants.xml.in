@@ -74,7 +74,9 @@
 <define name="builtin-wireless-scan-mode-mask" type="uint32" constraint="bitmap">
   <@@WIRELESS_SCAN_MODE_NAME@@ bit="@@WIRELESS_SCAN_MODE_VALUE@@"/>
 </define>
-
+<define name="builtin-wireless-pmf" type="uint32" constraint="enum">
+  <@@WIRELESS_PMF_NAME@@ value="@@WIRELESS_PMF_VALUE@@"/>
+</define>
 
 <!-- Built-in bonding modes -->
 <define name="builtin-bonding-mode" type="uint32" constraint="enum">

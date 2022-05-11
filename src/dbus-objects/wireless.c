@@ -164,6 +164,33 @@ ni_objectmodel_get_wireless_request_wep(const char *ifname, ni_wireless_network_
 }
 
 static dbus_bool_t
+ni_objectmodel_get_wireless_request_wpa_common(const char *ifname, ni_wireless_network_t *net,
+				const ni_dbus_variant_t *dict, DBusError *error)
+{
+	if (!ni_dbus_variant_is_dict(dict))
+		return FALSE;
+
+	if (!ni_objectmode_mask_from_dbus(&net->auth_proto, ni_wireless_protocol_map(), dict,
+				"auth-proto", error, ifname))
+	       return FALSE;
+
+	if (!ni_objectmode_mask_from_dbus(&net->group_cipher, ni_wireless_group_map(), dict,
+				"group-cipher", error, ifname))
+	       return FALSE;
+
+	if (!ni_objectmode_mask_from_dbus(&net->pairwise_cipher, ni_wireless_group_map(), dict,
+				"pairwise-cipher", error, ifname))
+	       return FALSE;
+
+	if (ni_dbus_dict_get_uint32(dict, "pmf", &net->pmf)) {
+		if (ni_wireless_pmf_to_name(net->pmf)== NULL)
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
 ni_objectmodel_get_wireless_request_psk(const char *ifname, ni_wireless_network_t *net,
 				const ni_dbus_variant_t *var, DBusError *error)
 {
@@ -185,17 +212,8 @@ ni_objectmodel_get_wireless_request_psk(const char *ifname, ni_wireless_network_
 	}
 	ni_string_dup(&net->wpa_psk.passphrase, string);
 
-	if (!ni_objectmode_mask_from_dbus(&net->auth_proto, ni_wireless_protocol_map(), child,
-				"auth-proto", error, ifname))
-	       return FALSE;
-
-	if (!ni_objectmode_mask_from_dbus(&net->group_cipher, ni_wireless_group_map(), child,
-				"group-cipher", error, ifname))
-	       return FALSE;
-
-	if (!ni_objectmode_mask_from_dbus(&net->pairwise_cipher, ni_wireless_group_map(), child,
-				"pairwise-cipher", error, ifname))
-	       return FALSE;
+	if (!ni_objectmodel_get_wireless_request_wpa_common(ifname, net, child, error))
+		return FALSE;
 
 	return TRUE;
 }
@@ -263,11 +281,11 @@ ni_objectmodel_get_wireless_request_eap(const char *ifname, ni_wireless_network_
 	if (!(eap = ni_dbus_dict_get(var, "wpa-eap")))
 		return TRUE;
 
-	net->keymgmt_proto |= NI_BIT(NI_WIRELESS_KEY_MGMT_EAP);
+	if (net->keymgmt_proto == 0)
+		net->keymgmt_proto = NI_BIT(NI_WIRELESS_KEY_MGMT_EAP);
 
-	if (!ni_objectmode_mask_from_dbus(&net->auth_proto, ni_wireless_protocol_map(), eap,
-				"auth-proto", error, ifname))
-	       return FALSE;
+	if (!ni_objectmodel_get_wireless_request_wpa_common(ifname, net, eap, error))
+		return FALSE;
 
 	if (ni_dbus_dict_get_string(eap, "identity", &string))
 		ni_string_dup(&net->wpa_eap.identity, string);

@@ -1455,6 +1455,10 @@ __ni_compat_generate_wireless_network(xml_node_t *parent, ni_wireless_network_t 
 			xml_node_new_element("group-cipher", wpa_psk, value);
 			ni_stringbuf_destroy(&buf);
 		}
+
+		if (net->pmf != NI_WIRELESS_PMF_NOT_SPECIFIED &&
+		    (value = ni_wireless_pmf_to_name(net->pmf)))
+			xml_node_new_element("pmf", wpa_psk, value);
 	}
 
 	if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_EAP)) {
@@ -1481,6 +1485,10 @@ __ni_compat_generate_wireless_network(xml_node_t *parent, ni_wireless_network_t 
 			xml_node_new_element("group-cipher", wpa_eap, value);
 			ni_stringbuf_destroy(&buf);
 		}
+
+		if (net->pmf != NI_WIRELESS_PMF_NOT_SPECIFIED &&
+		    (value = ni_wireless_pmf_to_name(net->pmf)))
+			xml_node_new_element("pmf", wpa_eap, value);
 
 		if (!ni_string_empty(net->wpa_eap.identity)) {
 			xml_node_new_element("identity", wpa_eap, net->wpa_eap.identity);

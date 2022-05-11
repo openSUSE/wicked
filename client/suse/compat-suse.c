@@ -104,6 +104,8 @@ static int			ni_wireless_parse_group_cipher(const ni_sysconfig_t *, unsigned int
 							const char *, const char *, const char *);
 static ni_bool_t		__ni_wireless_parse_psk_auth(const ni_sysconfig_t *, ni_wireless_network_t *,
 							const char *, const char *, ni_wireless_ap_scan_mode_t);
+static ni_bool_t		__ni_wireless_parse_pmf(const ni_sysconfig_t *, ni_wireless_network_t *,
+							const char *, const char *, ni_wireless_ap_scan_mode_t);
 static ni_bool_t		__ni_wireless_parse_eap_auth(const ni_sysconfig_t *, ni_wireless_network_t *,
 							const char *, const char *, ni_wireless_ap_scan_mode_t);
 static ni_bool_t		__ni_suse_parse_dhcp4_user_class(const ni_sysconfig_t *, ni_compat_netdev_t *, const char *);
@@ -3755,6 +3757,9 @@ try_add_wireless_net(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 	if (!__ni_wireless_parse_psk_auth(sc, net, suffix, dev->name, wlan->conf->ap_scan))
 		goto failure;
 
+	if (!__ni_wireless_parse_pmf(sc, net, suffix, dev->name, wlan->conf->ap_scan))
+		goto failure;
+
 	if (!__ni_wireless_parse_eap_auth(sc, net, suffix, dev->name, wlan->conf->ap_scan))
 		goto failure;
 
@@ -4043,6 +4048,20 @@ __ni_wireless_parse_psk_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 
 psk_failure:
 	return FALSE;
+}
+
+static ni_bool_t
+__ni_wireless_parse_pmf(const ni_sysconfig_t *sc, ni_wireless_network_t *net, const char *suffix, const char *dev_name, ni_wireless_ap_scan_mode_t ap_scan)
+{
+	ni_var_t *var;
+	if((var = __find_indexed_variable(sc,"WIRELESS_PMF", suffix))) {
+		if (!ni_wireless_name_to_pmf(var->value, &net->pmf)){
+			ni_error("ifcfg-%s: invalid WIRELESS_PMF%s value specified",
+				dev_name, suffix);
+			return FALSE;
+		}
+	}
+	return TRUE;
 }
 
 static const char *
