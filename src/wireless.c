@@ -58,6 +58,7 @@ static const ni_intmap_t			ni_wireless_wpa_group_map[] = {
 	{ "CCMP-256",				NI_WIRELESS_CIPHER_CCMP256				},
 	{ "GCMP-256",				NI_WIRELESS_CIPHER_GCMP256				},
 	{ "CCMP",				NI_WIRELESS_CIPHER_CCMP					},
+	{ "GCMP",				NI_WIRELESS_CIPHER_GCMP					},
 	{ "TKIP",				NI_WIRELESS_CIPHER_TKIP					},
 	{ "WEP104",				NI_WIRELESS_CIPHER_WEP104				},
 	{ "WEP40",				NI_WIRELESS_CIPHER_WEP40				},
