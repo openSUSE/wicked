@@ -69,9 +69,13 @@ static const ni_intmap_t			ni_wireless_wpa_group_map[] = {
 static const ni_intmap_t			ni_wireless_wpa_group_mgmt_map[] = {
 	/* as required for networks and also used in capabilities					*/
 	{ "AES-128-CMAC",			NI_WIRELESS_CIPHER_AES128_CMAC				},
+	{ "AES128CMAC",				NI_WIRELESS_CIPHER_AES128_CMAC				},
 	{ "BIP-GMAC-128",			NI_WIRELESS_CIPHER_BIP_GMAC128				},
+	{ "BIPGMAC128",				NI_WIRELESS_CIPHER_BIP_GMAC128				},
 	{ "BIP-GMAC-256",			NI_WIRELESS_CIPHER_BIP_GMAC256				},
+	{ "BIPGMAC256",				NI_WIRELESS_CIPHER_BIP_GMAC256				},
 	{ "BIP-CMAC-256",			NI_WIRELESS_CIPHER_BIP_CMAC256				},
+	{ "BIPCMAC256",				NI_WIRELESS_CIPHER_BIP_CMAC256				},
 
 	{ NULL }
 };
@@ -151,6 +155,14 @@ static const ni_intmap_t			ni_wireless_wpa_eap_method_map[] = {
 
 	{ NULL }
 };
+
+static ni_bool_t
+ni_wireless_wpa_group_mgmt_type(const char *name, ni_wireless_cipher_t *type)
+{
+	if (!type || ni_parse_uint_mapped(name, ni_wireless_wpa_group_mgmt_map, type) < 0)
+		return FALSE;
+	return TRUE;
+}
 
 static ni_bool_t
 ni_wireless_wpa_pairwise_type(const char *name, ni_wireless_cipher_t *type)
@@ -1688,7 +1700,7 @@ ni_wireless_bss_set(ni_wireless_bss_t *wireless_bss, const ni_wpa_bss_t *bss)
 	ni_wireless_wpa_key_mgmt_mask(&props->rsn.key_mgmt, &wireless_bss->rsn.key_mgmt);
 	ni_wireless_wpa_pairwise_mask(&props->rsn.pairwise, &wireless_bss->rsn.pairwise_cipher);
 	ni_wireless_wpa_pairwise_type(props->rsn.group, &wireless_bss->rsn.group_cipher);
-	ni_wireless_wpa_pairwise_type(props->rsn.mgmt_group, &wireless_bss->rsn.mgmt_group_cipher);
+	ni_wireless_wpa_group_mgmt_type(props->rsn.mgmt_group, &wireless_bss->rsn.mgmt_group_cipher);
 
 	wireless_bss->privacy = props->privacy;
 
