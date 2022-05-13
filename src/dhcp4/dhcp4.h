@@ -29,9 +29,10 @@ enum fsm_state {
 	__NI_DHCP4_STATE_MAX,
 };
 
-typedef struct ni_dhcp4_message ni_dhcp4_message_t;
-typedef struct ni_dhcp4_config ni_dhcp4_config_t;
-typedef struct ni_dhcp4_request	ni_dhcp4_request_t;
+typedef struct ni_dhcp4_message		ni_dhcp4_message_t;
+typedef struct ni_dhcp4_config		ni_dhcp4_config_t;
+typedef struct ni_dhcp4_request		ni_dhcp4_request_t;
+typedef struct ni_dhcp4_drop_request	ni_dhcp4_drop_request_t;
 
 typedef struct ni_dhcp4_device {
 	struct ni_dhcp4_device *	next;
@@ -130,7 +131,8 @@ typedef enum
 
 
 /*
- * This is the on-the wire request we receive from clients.
+ * This is the on-the wire request we receive from clients
+ * to (re-)acquire a lease.
  */
 struct ni_dhcp4_request {
 	ni_bool_t		enabled;
@@ -165,6 +167,16 @@ struct ni_dhcp4_request {
 	 * NI_ADDRCONF_UPDATE_* (this is an index enum, not a bitmask) */
 	unsigned int		update;
 	ni_tristate_t		broadcast;
+};
+
+/*
+ * This is the on-the wire request we receive from clients
+ * to drop a lease from interface.
+ */
+struct ni_dhcp4_drop_request {
+	ni_uuid_t		uuid;
+	ni_tristate_t		release;	/* override (acquire request/config) *
+						 * defaults to release lease or not. */
 };
 
 /*
@@ -222,7 +234,7 @@ extern ni_dhcp4_device_t *ni_dhcp4_active;
 extern void		ni_dhcp4_set_event_handler(ni_dhcp4_event_handler_t);
 
 extern int		ni_dhcp4_acquire(ni_dhcp4_device_t *, const ni_dhcp4_request_t *);
-extern int		ni_dhcp4_release(ni_dhcp4_device_t *, const ni_uuid_t *);
+extern int		ni_dhcp4_drop(ni_dhcp4_device_t *, const ni_dhcp4_drop_request_t *);
 extern void		ni_dhcp4_restart_leases(void);
 
 extern const char *	ni_dhcp4_fsm_state_name(enum fsm_state);
@@ -285,6 +297,7 @@ extern void		ni_dhcp4_config_free(ni_dhcp4_config_t *);
 
 extern ni_dhcp4_request_t *ni_dhcp4_request_new(void);
 extern void		ni_dhcp4_request_free(ni_dhcp4_request_t *);
+extern void		ni_dhcp4_drop_request_init(ni_dhcp4_drop_request_t *);
 
 extern void		ni_objectmodel_dhcp4_init(void);
 

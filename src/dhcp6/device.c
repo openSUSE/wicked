@@ -1225,13 +1225,23 @@ ni_dhcp6_start_release(void *user_data, const ni_timer_t *timer)
 }
 
 int
-ni_dhcp6_release(ni_dhcp6_device_t *dev, const ni_uuid_t *req_uuid)
+ni_dhcp6_drop(ni_dhcp6_device_t *dev, const ni_dhcp6_drop_request_t *req)
 {
 	char *rel_uuid = NULL;
+	const char *action = "drop";
 
-	ni_string_dup(&rel_uuid, ni_uuid_print(req_uuid));
+	if (ni_tristate_is_set(req->release)) {
+		if (ni_tristate_is_enabled(req->release))
+			action = "release";
+	} else {
+		if (dev->config && dev->config->release_lease)
+			action = "release";
+	}
+
+	ni_string_dup(&rel_uuid, ni_uuid_print(&req->uuid));
 	if (dev->lease == NULL || dev->config == NULL) {
-		ni_info("%s: Request to release DHCPv6 lease%s%s: no lease", dev->ifname,
+		ni_info("%s: Request to %s DHCPv6 lease%s%s: no lease",
+			dev->ifname, action,
 			rel_uuid ? " using UUID " : "", rel_uuid ? rel_uuid : "");
 		ni_string_free(&rel_uuid);
 
@@ -1241,12 +1251,18 @@ ni_dhcp6_release(ni_dhcp6_device_t *dev, const ni_uuid_t *req_uuid)
 		return -NI_ERROR_ADDRCONF_NO_LEASE;
 	}
 
-	ni_note("%s: Request to release DHCPv6 lease%s%s: releasing...", dev->ifname,
+	ni_note("%s: Request to %s DHCPv6 lease%s%s: starting...",
+			dev->ifname, action,
 			rel_uuid ? " using UUID " : "", rel_uuid ? rel_uuid : "");
 	ni_string_free(&rel_uuid);
 
-	dev->lease->uuid = *req_uuid;
-	dev->config->uuid = *req_uuid;
+	dev->lease->uuid = req->uuid;
+	dev->config->uuid = req->uuid;
+	if (ni_tristate_is_enabled(req->release))
+		dev->config->release_lease = TRUE;
+	else
+	if (ni_tristate_is_disabled(req->release))
+		dev->config->release_lease = FALSE;
 
 	ni_dhcp6_device_start_timer_cancel(dev);
 	ni_dhcp6_fsm_reset(dev);
@@ -1612,6 +1628,13 @@ ni_dhcp6_request_free(ni_dhcp6_request_t *req)
 		 */
 		free(req);
 	}
+}
+
+void
+ni_dhcp6_drop_request_init(ni_dhcp6_drop_request_t *req)
+{
+	ni_uuid_init(&req->uuid);
+	req->release = NI_TRISTATE_DEFAULT;
 }
 
 ni_dhcp6_prefix_req_t *

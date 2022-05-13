@@ -23,6 +23,8 @@
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/objectmodel.h>
+#include <wicked/dbus.h>
+#include "dbus-common.h"
 #include "appconfig.h"
 #include "dhcp4/dhcp4.h"
 #include "dhcp.h"
@@ -194,6 +196,20 @@ failed:
 	return ret;
 }
 
+static dbus_bool_t
+ni_objectmodel_dhcp4_drop_request_from_dict(ni_dhcp4_drop_request_t *req, const ni_dbus_variant_t *dict)
+{
+	dbus_bool_t b;
+
+	if (!req || !dict || !ni_dbus_variant_is_dict(dict))
+		return FALSE;
+
+	if (ni_dbus_dict_get_bool(dict, "release", &b))
+		ni_tristate_set(&req->release, b);
+
+	return TRUE;
+}
+
 /*
  * Interface.drop(void)
  * Drop a DHCP4 lease
@@ -203,30 +219,37 @@ __ni_objectmodel_dhcp4_drop_svc(ni_dbus_object_t *object, const ni_dbus_method_t
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
+	ni_dhcp4_drop_request_t req;
 	ni_dhcp4_device_t *dev;
 	dbus_bool_t ret = FALSE;
-	ni_uuid_t uuid;
 	int rv;
 
 	if ((dev = ni_objectmodel_unwrap_dhcp4_device(object, error)) == NULL)
 		goto failed;
 
-	ni_debug_dhcp("%s(dev=%s)", __func__, dev->ifname);
+	ni_debug_dhcp("%s(dev=%s, argc=%u)", __func__, dev->ifname, argc);
 
-	memset(&uuid, 0, sizeof(uuid));
-	if (argc == 1) {
-		/* Extract the lease uuid and pass that along to ni_dhcp4_release.
+	ni_dhcp4_drop_request_init(&req);
+	if (argc >= 1) {
+		/* Extract the lease uuid and pass that along to ni_dhcp4_drop.
 		 * This makes sure we don't cancel the wrong lease.
 		 */
-		if (!ni_dbus_variant_get_uuid(&argv[0], &uuid)) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "bad uuid argument");
+		if (!ni_dbus_variant_get_uuid(&argv[0], &req.uuid)) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "bad drop request uuid argument");
+			goto failed;
+		}
+		/* Extract the drop request arguments */
+		if (argc == 2 &&
+		    !ni_objectmodel_dhcp4_drop_request_from_dict(&req, &argv[1])) {
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "bad drop request options argument");
 			goto failed;
 		}
 	}
 
-	if ((rv = ni_dhcp4_release(dev, &uuid)) < 0) {
+	if ((rv = ni_dhcp4_drop(dev, &req)) < 0) {
 		ni_dbus_set_error_from_code(error, rv,
-				"Unable to drop DHCP4 lease for interface %s", dev->ifname);
+				"%s: Unable to drop DHCP4 lease with UUID %s",
+				dev->ifname, ni_uuid_print(&req.uuid));
 		goto failed;
 	}
 
@@ -238,7 +261,7 @@ failed:
 
 static ni_dbus_method_t		ni_objectmodel_dhcp4_methods[] = {
 	{ "acquire",		"aya{sv}",	.handler = __ni_objectmodel_dhcp4_acquire_svc },
-	{ "drop",		"ay",		.handler = __ni_objectmodel_dhcp4_drop_svc },
+	{ "drop",		"aya{sv}",	.handler = __ni_objectmodel_dhcp4_drop_svc },
 	{ NULL }
 };
 
