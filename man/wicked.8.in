@@ -282,6 +282,12 @@ Brings the specified interface to device-exists state. In other
 words, the interface is down, but not deleted. Persistent
 interfaces are ignored.
 .TP
+.BI "\-\-release
+Overrides active configuration to force a lease release.
+.TP
+.BI "\-\-no-release
+Overrides active configuration to skip a lease release.
+.TP
 .BI "\-\-timeout " seconds
 The default timeout for bringing down a network device is 5 seconds. If
 the interface fails to shut down within this time, \fBwicked\fP will fail
@@ -310,7 +316,7 @@ There are 4 potential ifreload use cases:
     performs ifdown followed by ifup with the new configuration on the 
     specified interfaces.
 .BI "3. Configuration deleted
-    performs ifdown --delete in order to remove the specified interfaces.
+    performs ifdown in order to shut down the specified interfaces.
 .BI "4. New configuration added
     performs regular ifup on specified interfaces.
 .fi
@@ -340,7 +346,15 @@ The special name \fBfirmware:\fP can be used to obtain the interface
 definition(s) from firmware services like iBFT.
 .TP
 .BI "\-\-persistent
-Set interface into persistent mode (no regular ifdown allowed).
+Set interface into persistent mode (no regular ifdown allowed) in ifup run.
+.TP
+.BI "\-\-release
+Overrides active configuration to force a lease release for interfaces being
+shut down.
+.TP
+.BI "\-\-no-release
+Overrides active configuration to skip a lease release for interfaces being
+shut down.
 .PP
 .\" ----------------------------------------
 .SH ifstatus/show - displays detailed interface information.
