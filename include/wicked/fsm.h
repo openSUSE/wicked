@@ -164,6 +164,10 @@ struct ni_ifworker {
 		xml_node_t *			node;
 	}			state;
 
+	struct {
+		ni_tristate_t			release;
+	}			args;
+
 	/* The security ID can be used as a set of identifiers
 	 * to look up user name/password/pin type info in a
 	 * database.
