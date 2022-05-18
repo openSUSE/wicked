@@ -1356,6 +1356,8 @@ ni_dbus_generic_property_set_string_array(ni_dbus_object_t *obj, const ni_dbus_p
 		return FALSE;
 
 	vptr = __property_data(prop, handle, string_array);
+
+	ni_string_array_destroy(vptr);
 	for (i = 0; i < var->array.len; ++i)
 		ni_string_array_append(vptr, var->string_array_value[i]);
 	return TRUE;
