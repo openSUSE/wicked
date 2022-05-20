@@ -2,7 +2,7 @@
  *	Handling of ip routing.
  *
  *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
- *	Copyright (C) 2012-2016 SUSE LINUX GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2012-2022 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -18,8 +18,8 @@
  *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *	Authors:
- *		Olaf Kirch <okir@suse.de>
- *		Marius Tomaschewski <mt@suse.de>
+ *		Olaf Kirch
+ *		Marius Tomaschewski
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -154,16 +154,30 @@ static const ni_intmap_t	ni_route_mxlock_bits[] = {
 /*
  * ni_route functions
  */
-ni_route_t *
-ni_route_new(void)
+static inline ni_bool_t
+ni_route_init(ni_route_t *route)
 {
-	ni_route_t *rp;
-
-	rp = xcalloc(1, sizeof(ni_route_t));
-	if (rp)
-		rp->users = 1;
-	return rp;
+	if (route) {
+		memset(route, 0, sizeof(*route));
+		return TRUE;
+	}
+	return FALSE;
 }
+
+static inline void
+ni_route_destroy(ni_route_t *rp)
+{
+	ni_route_nexthop_list_destroy(&rp->nh.next);
+	ni_route_nexthop_destroy(&rp->nh);
+	memset(rp, 0, sizeof(*rp));
+}
+
+extern ni_refcounted_define_new(ni_route);
+extern ni_refcounted_define_ref(ni_route);
+extern ni_refcounted_define_hold(ni_route);
+extern ni_refcounted_define_free(ni_route);
+extern ni_refcounted_define_drop(ni_route);
+extern ni_refcounted_define_move(ni_route);
 
 ni_route_t *
 ni_route_create(unsigned int prefixlen, const ni_sockaddr_t *dest,
@@ -222,12 +236,9 @@ ni_route_create(unsigned int prefixlen, const ni_sockaddr_t *dest,
 	else
 		rp->table = ni_route_guess_table(rp);
 
-	if (list) {
-		if (!ni_route_tables_add_route(list, rp)) {
-			ni_route_free(rp);
-			rp = NULL;
-		}
-	}
+	if (list && !ni_route_tables_add_route(list, rp))
+		ni_route_drop(&rp);
+
 	return rp;
 }
 
@@ -293,39 +304,6 @@ ni_route_copy(ni_route_t *rp, const ni_route_t *src)
 		return FALSE;
 
 	return ni_route_replace_hops(rp, &src->nh);
-}
-
-ni_route_t *
-ni_route_ref(ni_route_t *rp)
-{
-	if (!rp)
-		return NULL;
-
-	ni_assert(rp->users);
-	rp->users++;
-	return rp;
-}
-
-static inline void
-do_route_free(ni_route_t *rp)
-{
-	ni_route_nexthop_list_destroy(&rp->nh.next);
-	ni_route_nexthop_destroy(&rp->nh);
-
-	free(rp);
-}
-
-void
-ni_route_free(ni_route_t *rp)
-{
-	if (!rp)
-		return;
-
-	ni_assert(rp->users);
-	rp->users--;
-	if (rp->users == 0) {
-		do_route_free(rp);
-	}
 }
 
 ni_bool_t
@@ -1737,6 +1715,30 @@ ni_route_table_clear(ni_route_table_t *tab)
 /*
  * ni_route_tables list functions
  */
+void
+ni_route_tables_copy(ni_route_table_t **dst,  const ni_route_table_t *src)
+{
+	const ni_route_table_t *srt;
+	const ni_route_t *srp;
+	ni_route_table_t *rt;
+	unsigned int i;
+
+	if (!dst)
+		return;
+
+	for (srt = src; srt; srt = srt->next) {
+		if (!(rt = ni_route_table_new(srt->tid)))
+			continue;
+
+		for (i = 0; i < srt->routes.count; ++i) {
+			if (!(srp = srt->routes.data[i]))
+				continue;
+
+			ni_route_array_append(&rt->routes, ni_route_clone(srp));
+		}
+	}
+}
+
 ni_bool_t
 ni_route_tables_add_route(ni_route_table_t **list, ni_route_t *rp)
 {
@@ -1862,30 +1864,32 @@ ni_route_tables_destroy(ni_route_table_t **list)
 /*
  * routing policy rules
  */
-ni_rule_t *
-ni_rule_new(void)
+static inline ni_bool_t
+ni_rule_init(ni_rule_t *rule)
 {
-	ni_rule_t *rule;
-
-	rule = xcalloc(1, sizeof(*rule));
 	if (rule) {
-		rule->refcount = 1;
-
+		memset(rule, 0, sizeof(*rule));
 		rule->suppress_prefixlen = -1U;
 		rule->suppress_ifgroup = -1U;
+		return TRUE;
 	}
-	return rule;
+	return FALSE;
 }
 
-ni_rule_t *
-ni_rule_ref(ni_rule_t *rule)
+inline static void
+ni_rule_destroy(ni_rule_t *rule)
 {
-	if (rule) {
-		ni_assert(rule->refcount);
-		rule->refcount++;
-	}
-	return rule;
+	ni_netdev_ref_destroy(&rule->iif);
+	ni_netdev_ref_destroy(&rule->oif);
+	memset(rule, 0, sizeof(*rule));
 }
+
+extern ni_refcounted_define_new(ni_rule);
+extern ni_refcounted_define_ref(ni_rule);
+extern ni_refcounted_define_hold(ni_rule);
+extern ni_refcounted_define_free(ni_rule);
+extern ni_refcounted_define_drop(ni_rule);
+extern ni_refcounted_define_move(ni_rule);
 
 ni_bool_t
 ni_rule_copy(ni_rule_t *dst, const ni_rule_t *src)
@@ -1935,25 +1939,6 @@ ni_rule_clone(const ni_rule_t *src)
 		ni_rule_free(dst);
 	}
 	return NULL;
-}
-
-static void
-do_rule_free(ni_rule_t *rule)
-{
-	ni_netdev_ref_destroy(&rule->iif);
-	ni_netdev_ref_destroy(&rule->oif);
-	free(rule);
-}
-
-void
-ni_rule_free(ni_rule_t *rule)
-{
-	if (rule) {
-		ni_assert(rule->refcount);
-		rule->refcount--;
-		if (rule->refcount == 0)
-			do_rule_free(rule);
-	}
 }
 
 static int
@@ -2301,7 +2286,7 @@ ni_rule_array_destroy(ni_rule_array_t *rules)
 	if (rules) {
 		while (rules->count) {
 			rules->count--;
-			ni_rule_free(rules->data[rules->count]);
+			ni_rule_drop(&rules->data[rules->count]);
 		}
 		free(rules->data);
 		rules->data = NULL;
@@ -2314,11 +2299,35 @@ ni_rule_array_new(void)
 	return xcalloc(1, sizeof(ni_rule_array_t));
 }
 
+ni_rule_array_t *
+ni_rule_array_clone(const ni_rule_array_t *orig)
+{
+	ni_rule_array_t *clone;
+
+	if (!orig || !(clone = ni_rule_array_new()))
+		return NULL;
+
+	ni_rule_array_copy(clone, orig);
+	return clone;
+}
+
 void
 ni_rule_array_free(ni_rule_array_t *rules)
 {
 	ni_rule_array_destroy(rules);
 	free(rules);
+}
+
+void
+ni_rule_array_copy(ni_rule_array_t *dst, const ni_rule_array_t *src)
+{
+	unsigned int i;
+
+	if (!src || !dst)
+		return;
+
+	for (i = 0; i < src->count; ++i)
+		ni_rule_array_append(dst, ni_rule_clone(src->data[i]));
 }
 
 unsigned int

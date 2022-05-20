@@ -475,7 +475,7 @@ __ni_suse_show_unapplied_routes(void)
 		for (i = 0; i < tab->routes.count; ++i) {
 			ni_route_t *rp = tab->routes.data[i];
 
-			if (!rp || rp->users >= 2)
+			if (!rp || rp->refcount >= 2)
 				continue;
 
 			ni_note("discarding route not matching any interface: %s",
