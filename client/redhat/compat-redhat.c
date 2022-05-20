@@ -445,7 +445,7 @@ __ni_redhat_addrconf_static(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, cons
 		prefix_len = ni_sockaddr_netmask_bits(&netmask);
 	}
 
-	if (!(ap = ni_address_new(address.ss_family, prefix_len, &address, &dev->addrs)))
+	if (!(ap = ni_address_create(address.ss_family, prefix_len, &address, &dev->addrs)))
 		return FALSE;
 
 	if (label)
