@@ -673,7 +673,7 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 		return TRUE;
 	}
 
-	if (!ni_objectmodel_addrconf_forwarder_call(forwarder, dev, "drop", &uuid, NULL, error)) {
+	if (!ni_objectmodel_addrconf_forwarder_call(forwarder, dev, "drop", &uuid, dict, error)) {
 		switch (ni_dbus_get_error(error, NULL)) {
 		case -NI_ERROR_ADDRCONF_NO_LEASE:
 			ni_debug_objectmodel("%s: no %s:%s lease to release by supplicant",
@@ -835,12 +835,13 @@ ni_objectmodel_addrconf_ipv4_dhcp_drop(ni_dbus_object_t *object, const ni_dbus_m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
+	const ni_dbus_variant_t *req = argc ? &argv[0] : NULL;
 	ni_netdev_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	return ni_objectmodel_addrconf_forward_release(&dhcp4_forwarder, dev, NULL, reply, error);
+	return ni_objectmodel_addrconf_forward_release(&dhcp4_forwarder, dev, req, reply, error);
 }
 
 /*
@@ -893,12 +894,13 @@ ni_objectmodel_addrconf_ipv6_dhcp_drop(ni_dbus_object_t *object, const ni_dbus_m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
+	const ni_dbus_variant_t *req = argc ? &argv[0] : NULL;
 	ni_netdev_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	return ni_objectmodel_addrconf_forward_release(&dhcp6_forwarder, dev, NULL, reply, error);
+	return ni_objectmodel_addrconf_forward_release(&dhcp6_forwarder, dev, req, reply, error);
 }
 
 /*
@@ -1532,13 +1534,13 @@ static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_static_methods[] = {
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4_dhcp_methods[] = {
 	{ "requestLease",	"a{sv}",	.handler = ni_objectmodel_addrconf_ipv4_dhcp_request },
-	{ "dropLease",		"",		.handler = ni_objectmodel_addrconf_ipv4_dhcp_drop },
+	{ "dropLease",		"a{sv}",	.handler = ni_objectmodel_addrconf_ipv4_dhcp_drop },
 	{ NULL }
 };
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_dhcp_methods[] = {
 	{ "requestLease",	"a{sv}",	.handler = ni_objectmodel_addrconf_ipv6_dhcp_request },
-	{ "dropLease",		"",		.handler = ni_objectmodel_addrconf_ipv6_dhcp_drop },
+	{ "dropLease",		"a{sv}",	.handler = ni_objectmodel_addrconf_ipv6_dhcp_drop },
 	{ NULL }
 };
 

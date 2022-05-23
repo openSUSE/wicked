@@ -222,6 +222,7 @@ __ni_ifworker_new(ni_ifworker_type_t type, const char *name)
 	w->target_range.min = NI_FSM_STATE_NONE;
 	w->target_range.max = __NI_FSM_STATE_MAX;
 	w->readonly = FALSE;
+	w->args.release = NI_TRISTATE_DEFAULT;
 
 	ni_ifworker_control_init(&w->control);
 	ni_client_state_config_init(&w->config.meta);
@@ -359,6 +360,7 @@ __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 	__ni_ifworker_reset_action_table(w);
 
 	w->fsm.state = NI_FSM_STATE_NONE;
+	w->args.release = NI_TRISTATE_DEFAULT;
 }
 
 static void
@@ -4405,6 +4407,142 @@ ni_ifworker_map_method_requires(ni_ifworker_t *w, ni_fsm_transition_t *action,
 }
 
 /*
+ * Set method specific argument options (if any)
+ */
+static xml_node_t *
+ni_ifworker_add_method_argument_node(xml_node_t *parent, const ni_dbus_method_t *method, unsigned int arg)
+{
+	ni_string_array_t names = NI_STRING_ARRAY_INIT;
+	const xml_node_t *meta, *mapping;
+	const char *attr = NULL;
+	xml_node_t *node = NULL;
+	ni_bool_t   generate;
+
+	if (!(meta = ni_dbus_xml_get_argument_metadata(method, arg)))
+		return FALSE;
+
+	if (!(mapping = xml_node_get_child(meta, "mapping")))
+		return FALSE;
+
+	if (!(attr = xml_node_get_attr(mapping, "generate")) ||
+	      ni_parse_boolean(attr, &generate) || !generate)
+		return FALSE;
+
+	if (!(attr = xml_node_get_attr(mapping, "document-node")))
+		return FALSE;
+
+	/* Convert the expected "foo/bar" node path into "<foo><bar/></foo>"
+	 * node and return "bar" node, where we insert the requested options.*/
+	if (ni_string_split(&names, attr, "/", 0)) {
+		const char *ident;
+		unsigned int i;
+
+		for (i = 0; i < names.count; ++i) {
+			ident = names.data[i];
+
+			if (ni_string_empty(ident))
+				continue;
+
+			if ((node = xml_node_create(parent, ident)))
+				parent = node;
+		}
+	}
+	ni_string_array_destroy(&names);
+	return node;
+}
+
+static xml_node_t *
+ni_ifworker_add_method_argument_release(ni_ifworker_t *w, const char *name, xml_node_t *parent)
+{
+	if (ni_tristate_is_set(w->args.release)) {
+		return xml_node_new_element_unique(name, parent,
+			       ni_tristate_to_name(w->args.release));
+	}
+	return NULL;
+}
+
+static ni_bool_t
+ni_ifworker_add_method_argument_scalar(xml_node_t *parent, ni_ifworker_t *w,
+				const char *name, const ni_xs_scalar_info_t *info)
+{
+	if (ni_string_eq(name, "release") && ni_string_eq(info->basic_name, "boolean"))
+		return ni_ifworker_add_method_argument_release(w, name, parent) != NULL;
+
+	return FALSE;
+}
+
+static ni_bool_t
+ni_ifworker_add_method_argument_type(xml_node_t *node, ni_ifworker_t *w,
+				const char *name, const ni_xs_type_t *type);
+
+static ni_bool_t
+ni_ifworker_add_method_argument_dict(xml_node_t *parent, ni_ifworker_t *w,
+				const char *name, const ni_xs_dict_info_t *info)
+{
+	const ni_xs_name_type_array_t *array;
+	const ni_xs_name_type_t *entry;
+	unsigned int i;
+
+	parent = name ? xml_node_create(parent, name) : parent;
+	array = info ? &info->children : NULL;
+	for (i = 0; i < (array ? array->count : 0); ++i) {
+		entry = &array->data[i];
+		ni_ifworker_add_method_argument_type(parent, w, entry->name, entry->type);
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifworker_add_method_argument_type(xml_node_t *node, ni_ifworker_t *w,
+				const char *name, const ni_xs_type_t *type)
+{
+	switch (type->class) {
+		case NI_XS_TYPE_DICT:
+			return ni_ifworker_add_method_argument_dict(node,
+					w, name, ni_xs_dict_info(type));
+		case NI_XS_TYPE_SCALAR:
+			return ni_ifworker_add_method_argument_scalar(node,
+					w, name, ni_xs_scalar_info(type));
+		default:
+			return FALSE;
+	}
+}
+
+static ni_bool_t
+ni_ifworker_add_method_argument(ni_ifworker_t *w, ni_fsm_transition_t *action,
+		const ni_dbus_service_t *service, const ni_dbus_method_t *method,
+		xml_node_t *config, unsigned int arg)
+{
+	const ni_xs_type_t *type;
+	const char *name;
+	xml_node_t *node;
+
+	if (!(type = ni_dbus_xml_get_argument_type(method, arg)))
+		return FALSE;
+
+	if (!(name = ni_dbus_xml_get_argument_name(method, arg)))
+		return FALSE;
+
+	if (!(node = ni_ifworker_add_method_argument_node(config, method, arg)))
+		return FALSE;
+
+	return ni_ifworker_add_method_argument_type(node, w, NULL, type);
+}
+
+static int
+ni_ifworker_add_method_arguments(ni_ifworker_t *w, ni_fsm_transition_t *action,
+		const ni_dbus_service_t *service, const ni_dbus_method_t *method,
+		xml_node_t *config)
+{
+	unsigned int arg, nargs;
+
+	nargs = ni_dbus_xml_method_num_args(method);
+	for (arg = 0; arg < nargs; ++arg)
+		ni_ifworker_add_method_argument(w, action, service, method, config, arg);
+	return 0;
+}
+
+/*
  * Debugging: print the binding info
  */
 static void
@@ -4542,7 +4680,7 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 	/* Now bind method and config. */
 	for (i = 0; i < action->num_bindings; ++i) {
 		ni_fsm_transition_bind_t *bind = &action->binding[i];
-		xml_node_t *config;
+		xml_node_t *config = NULL;
 
 		/* Ensure we do not overwrite any reference we've set before */
 		xml_node_free(bind->config);
@@ -4577,14 +4715,44 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 		 * <interface> element. If the document does not contain the
 		 * referenced node, and skip-unless-present is true, then we
 		 * do not perform this call.
+		 *
+		 * Note: We clone the state/config to be able to add parameters
+		 * as method specific arguments, e.g. `wicked ifdown --release`
+		 * causes to generate a method specific "ipvX:dhcp/options"
+		 * state node, actually:
+		 *   <ipvX:dhcp>
+		 *     <options>
+		 *       <release>true</release>
+		 *     </options>
+		 *   </ipvX:dhcp>
+		 * mapped to the ipvX.dhcp.dropLease(options) method argument.
 		 */
 		if (ni_fsm_transition_is_down(action))
-			config = w->state.node;		/* down transition */
+			config = xml_node_clone(w->state.node, NULL);	/* down transition */
 		else
-			config = w->config.node;	/* up transition */
+			config = xml_node_clone(w->config.node, NULL);	/* up transition */
 
-		if (ni_dbus_xml_map_method_argument(bind->method, 0, config, &bind->config, &bind->skip_call) < 0)
+		/*
+		 * Apply transition specific method options to the cloned config/state node
+		 */
+		ni_ifworker_add_method_arguments(w, action, bind->service, bind->method, config);
+
+		/*
+		 * Map nodes in the config / state to method arguments acc. to the schema
+		 */
+		if (ni_dbus_xml_map_method_argument(bind->method, 0, config, &bind->config, &bind->skip_call) < 0) {
+			bind->config = NULL;
+			xml_node_free(config);
+			config = NULL;
 			goto document_error;
+		}
+
+		/*
+		 * Get reference to the mapped argument (child-)node and free the (outer) config clone
+		 */
+		bind->config = xml_node_clone_ref(bind->config);
+		xml_node_free(config);
+		config = NULL;
 
 		/* Validate the document. This will record possible requirements, and will
 		 * try to prompt for missing information.
@@ -4596,7 +4764,6 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 			};
 			ni_dbus_xml_validate_context_t context;
 
-			bind->config = xml_node_clone(bind->config, NULL);
 			context.metadata_callback = ni_ifworker_xml_metadata_callback;
 			context.prompt_callback = ni_ifworker_prompt_cb;
 			context.user_data = action;

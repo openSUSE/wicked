@@ -266,6 +266,17 @@ ni_dbus_xml_validate_argument(const ni_dbus_method_t *method, unsigned int narg,
 	return ni_dbus_validate_xml(node, xs_method->arguments.data[narg].type, ctx);
 }
 
+const char *
+ni_dbus_xml_get_argument_name(const ni_dbus_method_t *method, unsigned int narg)
+{
+	const ni_xs_method_t *xs_method = method->schema;
+
+	if (!xs_method || narg >= xs_method->arguments.count)
+		return NULL;
+
+	return xs_method->arguments.data[narg].name;
+}
+
 ni_xs_type_t *
 ni_dbus_xml_get_argument_type(const ni_dbus_method_t *method, unsigned int narg)
 {

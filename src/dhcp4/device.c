@@ -527,14 +527,23 @@ ni_dhcp4_start_release(void *user_data, const ni_timer_t *timer)
 }
 
 int
-ni_dhcp4_release(ni_dhcp4_device_t *dev, const ni_uuid_t *req_uuid)
+ni_dhcp4_drop(ni_dhcp4_device_t *dev, const ni_dhcp4_drop_request_t *req)
 {
 	char *rel_uuid = NULL;
+	const char *action = "drop";
 
-	ni_string_dup(&rel_uuid, ni_uuid_print(req_uuid));
+	if (ni_tristate_is_set(req->release)) {
+		if (ni_tristate_is_enabled(req->release))
+			action = "release";
+	} else {
+		if (dev->config && dev->config->release_lease)
+			action = "release";
+	}
+
+	ni_string_dup(&rel_uuid, ni_uuid_print(&req->uuid));
 	if (dev->lease == NULL || dev->config == NULL) {
-		ni_info("%s: Request to release DHCPv4 lease%s%s: no lease",
-			dev->ifname,
+		ni_info("%s: Request to %s DHCPv4 lease%s%s: no lease",
+			dev->ifname, action,
 			rel_uuid ? " with UUID " : "", rel_uuid ? rel_uuid : "");
 
 		ni_string_free(&rel_uuid);
@@ -543,13 +552,19 @@ ni_dhcp4_release(ni_dhcp4_device_t *dev, const ni_uuid_t *req_uuid)
 		return -NI_ERROR_ADDRCONF_NO_LEASE;
 	}
 
-	ni_note("%s: Request to release DHCPv4 lease%s%s: releasing...",
-		dev->ifname,
+	ni_note("%s: Request to %s DHCPv4 lease%s%s: starting...",
+		dev->ifname, action,
 		rel_uuid ? " with UUID " : "", rel_uuid ? rel_uuid : "");
 	ni_string_free(&rel_uuid);
 
-	dev->lease->uuid = *req_uuid;
-	dev->config->uuid = *req_uuid;
+	dev->lease->uuid = req->uuid;
+	dev->config->uuid = req->uuid;
+	if (ni_tristate_is_enabled(req->release))
+		dev->config->release_lease = TRUE;
+	else
+	if (ni_tristate_is_disabled(req->release))
+		dev->config->release_lease = FALSE;
+
 	dev->fsm.state = NI_DHCP4_STATE_INIT;
 	ni_dhcp4_device_disarm_retransmit(dev);
 	if (dev->fsm.timer) {
@@ -1083,6 +1098,13 @@ ni_dhcp4_request_free(ni_dhcp4_request_t *req)
 	ni_string_array_destroy(&req->user_class.class_id);
 	ni_string_array_destroy(&req->request_options);
 	free(req);
+}
+
+void
+ni_dhcp4_drop_request_init(ni_dhcp4_drop_request_t *req)
+{
+	ni_uuid_init(&req->uuid);
+	req->release = NI_TRISTATE_DEFAULT;
 }
 
 ni_bool_t
