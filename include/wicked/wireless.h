@@ -398,8 +398,6 @@ extern ni_bool_t			ni_wireless_ssid_eq(ni_wireless_ssid_t *, ni_wireless_ssid_t 
 
 extern const char *			ni_wireless_mode_to_name(ni_wireless_mode_t);
 extern ni_bool_t			ni_wireless_name_to_mode(const char *, unsigned int *);
-extern const char *			ni_wireless_security_to_name(ni_wireless_security_t);
-extern ni_bool_t			ni_wireless_name_to_security(const char *, unsigned int *);
 extern const ni_intmap_t *		ni_wireless_auth_proto_map(void);
 extern const char *			ni_wireless_auth_proto_to_name(ni_wireless_auth_proto_t);
 extern ni_bool_t			ni_wireless_name_to_auth_proto(const char *, unsigned int *);

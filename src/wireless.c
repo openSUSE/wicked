@@ -1347,27 +1347,6 @@ ni_wireless_name_to_mode(const char *string, unsigned int *value)
 	return TRUE;
 }
 
-static ni_intmap_t __ni_wireless_security_names[] = {
-	{ "default",		NI_WIRELESS_SECURITY_DEFAULT },
-	{ "open",		NI_WIRELESS_SECURITY_OPEN },
-	{ "restricted",		NI_WIRELESS_SECURITY_RESTRICTED },
-	{ NULL }
-};
-
-const char *
-ni_wireless_security_to_name(ni_wireless_security_t mode)
-{
-	return ni_format_uint_mapped(mode, __ni_wireless_security_names);
-}
-
-ni_bool_t
-ni_wireless_name_to_security(const char *string, unsigned int *value)
-{
-	if (ni_parse_uint_mapped(string, __ni_wireless_security_names, value) < 0)
-		return FALSE;
-	return TRUE;
-}
-
 static const ni_intmap_t			ni_wireless_auth_proto_names[] = {
 	{ "wpa",		NI_WIRELESS_AUTH_PROTO_WPA1 },
 	{ "wpa1",		NI_WIRELESS_AUTH_PROTO_WPA1 },
