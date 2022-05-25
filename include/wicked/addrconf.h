@@ -1,13 +1,32 @@
 /*
- * Address configuration modes for netinfo
+ *	Address configuration for wicked
  *
- * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2012-2022 SUSE LLC
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *	Authors:
+ *		Olaf Kirch
+ *		Marius Tomaschewski
  */
 
-#ifndef __WICKED_ADDRCONF_H__
-#define __WICKED_ADDRCONF_H__
+#ifndef NI_WICKED_ADDRCONF_H
+#define NI_WICKED_ADDRCONF_H
 
 #include <wicked/types.h>
+#include <wicked/refcount.h>
 #include <wicked/constants.h>
 
 /*
@@ -120,6 +139,7 @@ typedef struct ni_dhcp_option		ni_dhcp_option_t;
 typedef struct ni_addrconf_updater	ni_addrconf_updater_t;
 
 struct ni_addrconf_lease {
+	ni_refcount_t		refcount;
 	ni_addrconf_lease_t *	next;
 
 	ni_addrconf_updater_t *	updater;	/* update actions	*/
@@ -212,56 +232,62 @@ enum ni_lease_event {
 	NI_EVENT_LEASE_LOST
 };
 
-extern ni_addrconf_lease_t *ni_addrconf_lease_new(int type, int family);
-extern void		ni_addrconf_lease_destroy(ni_addrconf_lease_t *);
-extern void		ni_addrconf_lease_free(ni_addrconf_lease_t *);
-extern void		ni_addrconf_lease_list_destroy(ni_addrconf_lease_t **list);
+extern				ni_refcounted_declare_new(ni_addrconf_lease,
+							int type, int family);
+extern				ni_refcounted_declare_ref(ni_addrconf_lease);
+extern				ni_refcounted_declare_free(ni_addrconf_lease);
+extern				ni_refcounted_declare_hold(ni_addrconf_lease);
+extern				ni_refcounted_declare_drop(ni_addrconf_lease);
+extern				ni_refcounted_declare_move(ni_addrconf_lease);
 
-static inline int
-ni_addrconf_lease_is_valid(const ni_addrconf_lease_t *lease)
+extern ni_addrconf_lease_t *	ni_addrconf_lease_clone(const ni_addrconf_lease_t *);
+extern void			ni_addrconf_lease_destroy(ni_addrconf_lease_t *);
+extern void			ni_addrconf_lease_list_destroy(ni_addrconf_lease_t **);
+
+static inline int		ni_addrconf_lease_is_valid(const ni_addrconf_lease_t *lease)
 {
 	return lease && lease->state == NI_ADDRCONF_STATE_GRANTED;
 }
 
-extern int		ni_addrconf_lease_file_write(const char *, ni_addrconf_lease_t *);
-extern ni_addrconf_lease_t *ni_addrconf_lease_file_read(const char *, int, int);
-extern ni_bool_t	ni_addrconf_lease_file_exists(const char *, int, int);
-extern void		ni_addrconf_lease_file_remove(const char *, int, int);
+extern int			ni_addrconf_lease_file_write(const char *, ni_addrconf_lease_t *);
+extern ni_addrconf_lease_t *	ni_addrconf_lease_file_read(const char *, int, int);
+extern ni_bool_t		ni_addrconf_lease_file_exists(const char *, int, int);
+extern void			ni_addrconf_lease_file_remove(const char *, int, int);
 
-extern int		ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *, xml_node_t **, const char *);
-extern int		ni_addrconf_lease_from_xml(ni_addrconf_lease_t **, const xml_node_t *, const char *);
+extern int			ni_addrconf_lease_to_xml(const ni_addrconf_lease_t *, xml_node_t **, const char *);
+extern int			ni_addrconf_lease_from_xml(ni_addrconf_lease_t **, const xml_node_t *, const char *);
 
-extern int		ni_addrconf_name_to_type(const char *);
-extern const char *	ni_addrconf_type_to_name(unsigned int);
+extern int			ni_addrconf_name_to_type(const char *);
+extern const char *		ni_addrconf_type_to_name(unsigned int);
 
-extern int		ni_addrconf_name_to_state(const char *);
-extern const char *	ni_addrconf_state_to_name(unsigned int);
+extern int			ni_addrconf_name_to_state(const char *);
+extern const char *		ni_addrconf_state_to_name(unsigned int);
 
-extern const char *	ni_addrconf_flag_bit_to_name(unsigned int);
-extern ni_bool_t	ni_addrconf_name_to_flag_bit(const char *, unsigned int *);
-extern void		ni_addrconf_flag_bit_set(unsigned int *, unsigned int, ni_bool_t);
-extern ni_bool_t	ni_addrconf_flag_bit_is_set(unsigned int, unsigned int);
-extern const char *	ni_addrconf_flags_format(ni_stringbuf_t *, unsigned int, const char *);
+extern const char *		ni_addrconf_flag_bit_to_name(unsigned int);
+extern ni_bool_t		ni_addrconf_name_to_flag_bit(const char *, unsigned int *);
+extern void			ni_addrconf_flag_bit_set(unsigned int *, unsigned int, ni_bool_t);
+extern ni_bool_t		ni_addrconf_flag_bit_is_set(unsigned int, unsigned int);
+extern const char *		ni_addrconf_flags_format(ni_stringbuf_t *, unsigned int, const char *);
 
-extern const char *	ni_addrconf_update_flag_to_name(unsigned int);
-extern ni_bool_t	ni_addrconf_update_name_to_flag(const char *, unsigned int *);
-extern void		ni_addrconf_update_set(unsigned int *, unsigned int, ni_bool_t);
-extern ni_bool_t	ni_addrconf_update_flags_parse_names(unsigned int *, const ni_string_array_t *);
-extern ni_bool_t	ni_addrconf_update_flags_parse(unsigned int *, const char *, const char *);
-extern const char *	ni_addrconf_update_flags_format(ni_stringbuf_t *, unsigned int, const char *);
+extern const char *		ni_addrconf_update_flag_to_name(unsigned int);
+extern ni_bool_t		ni_addrconf_update_name_to_flag(const char *, unsigned int *);
+extern void			ni_addrconf_update_set(unsigned int *, unsigned int, ni_bool_t);
+extern ni_bool_t		ni_addrconf_update_flags_parse_names(unsigned int *, const ni_string_array_t *);
+extern ni_bool_t		ni_addrconf_update_flags_parse(unsigned int *, const char *, const char *);
+extern const char *		ni_addrconf_update_flags_format(ni_stringbuf_t *, unsigned int, const char *);
 
-extern const char *	ni_dhcp4_user_class_format_type_to_name(unsigned int);
-extern int		ni_dhcp4_user_class_format_name_to_type(const char *, unsigned int *);
+extern const char *		ni_dhcp4_user_class_format_type_to_name(unsigned int);
+extern int			ni_dhcp4_user_class_format_name_to_type(const char *, unsigned int *);
 
-extern void		ni_dhcp_fqdn_init(ni_dhcp_fqdn_t *);
-extern const char *	ni_dhcp_fqdn_update_mode_to_name(unsigned int);
-extern ni_bool_t	ni_dhcp_fqdn_update_name_to_mode(const char *, unsigned int *);
+extern void			ni_dhcp_fqdn_init(ni_dhcp_fqdn_t *);
+extern const char *		ni_dhcp_fqdn_update_mode_to_name(unsigned int);
+extern ni_bool_t		ni_dhcp_fqdn_update_name_to_mode(const char *, unsigned int *);
 
-extern const char *	ni_netbios_node_type_to_name(unsigned int);
-extern ni_bool_t	ni_netbios_node_type_to_code(const char *, unsigned int *);
+extern const char *		ni_netbios_node_type_to_name(unsigned int);
+extern ni_bool_t		ni_netbios_node_type_to_code(const char *, unsigned int *);
 
-extern unsigned int	ni_addrconf_lease_get_priority(const ni_addrconf_lease_t *);
-extern unsigned int	ni_addrconf_lease_addrs_set_tentative(ni_addrconf_lease_t *, ni_bool_t);
+extern unsigned int		ni_addrconf_lease_get_priority(const ni_addrconf_lease_t *);
+extern unsigned int		ni_addrconf_lease_addrs_set_tentative(ni_addrconf_lease_t *, ni_bool_t);
 
 struct ni_auto4_request {
 	ni_bool_t	enabled;
@@ -282,4 +308,4 @@ extern unsigned int		ni_dhcp6_mode_adjust(unsigned int);
 extern ni_bool_t		ni_dhcp6_mode_parse(unsigned int *, const char *);
 extern const char *		ni_dhcp6_mode_format(ni_stringbuf_t *, unsigned int, const char *);
 
-#endif /* __WICKED_ADDRCONF_H__ */
+#endif /* NI_WICKED_ADDRCONF_H */
