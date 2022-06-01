@@ -12,7 +12,10 @@ noinst_PROGRAMS			= rtnl-test	\
 				  xpath-test	\
 				  essid-test	\
 				  cstate-test   \
-				  bitmap-test
+				  bitmap-test	\
+				  socket-mock-test
+
+noinst_HEADERS			= wunit.h
 
 AM_CPPFLAGS			= -I$(top_srcdir)/src	\
 				  -I$(top_srcdir)/include
@@ -35,8 +38,11 @@ xpath_test_SOURCES		= xpath-test.c
 essid_test_SOURCES		= essid-test.c
 cstate_test_SOURCES		= cstate-test.c
 bitmap_test_SOURCES		= bitmap-test.c
+socket_mock_test_SOURCES	= socket-mock-test.c
 
 EXTRA_DIST			= ibft xpath \
 				  scripts/ifbind.sh
+
+TESTS				= socket-mock-test
 
 # vim: ai

@@ -59,4 +59,7 @@ Makefile.in
 /util/mkconst
 /util/schema2html
 /testing/*-test
+testing/*.log
+testing/*.trs
 /html
+test-driver
