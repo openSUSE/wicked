@@ -1,7 +1,24 @@
 /*
- * Resolver functions for wicked
+ *	Resolver functions for wicked
  *
- * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2012-2022 SUSE LLC
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *	Authors:
+ *		Olaf Kirch
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -99,6 +116,26 @@ ni_resolver_info_t *
 ni_resolver_info_new(void)
 {
 	return calloc(1, sizeof(ni_resolver_info_t));
+}
+
+static inline void
+ni_resolver_info_copy(ni_resolver_info_t *dst, const ni_resolver_info_t *src)
+{
+	ni_string_dup(&dst->default_domain,      src->default_domain);
+	ni_string_array_copy(&dst->dns_servers, &src->dns_servers);
+	ni_string_array_copy(&dst->dns_search,  &src->dns_search);
+}
+
+ni_resolver_info_t *
+ni_resolver_info_clone(const ni_resolver_info_t *orig)
+{
+	ni_resolver_info_t *clone;
+
+	if (!orig || !(clone = ni_resolver_info_new()))
+		return NULL;
+
+	ni_resolver_info_copy(clone, orig);
+	return clone;
 }
 
 void

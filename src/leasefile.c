@@ -742,7 +742,7 @@ __ni_addrconf_lease_addr_from_xml(ni_address_t **ap_list, unsigned int family, c
 	    (family == AF_INET6 && plen > 128))
 		return -1;
 
-	if (!(ap = ni_address_new(family, plen, &addr, NULL)))
+	if (!(ap = ni_address_create(family, plen, &addr, NULL)))
 		return -1;
 
 	if ((child = xml_node_get_child(node, "peer"))) {

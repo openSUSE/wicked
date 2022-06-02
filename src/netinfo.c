@@ -1206,27 +1206,138 @@ ni_netdev_req_free(ni_netdev_req_t *req)
 /*
  * Address configuration state (aka leases)
  */
-ni_addrconf_lease_t *
-ni_addrconf_lease_new(int type, int family)
+static inline ni_bool_t
+ni_addrconf_lease_init(ni_addrconf_lease_t *lease, int type, int family)
 {
-	ni_addrconf_lease_t *lease;
-
-	lease = calloc(1, sizeof(*lease));
 	if (lease) {
+		memset(lease, 0, sizeof(*lease));
 		lease->seqno = __ni_global_seqno++;
 		lease->type = type;
 		lease->family = family;
 		ni_config_addrconf_update_mask(lease->type, lease->family);
+		return TRUE;
 	}
-	return lease;
+	return FALSE;
 }
 
-void
-ni_addrconf_lease_free(ni_addrconf_lease_t *lease)
+extern ni_refcounted_define_new(ni_addrconf_lease, int, int);
+extern ni_refcounted_define_ref(ni_addrconf_lease);
+extern ni_refcounted_define_hold(ni_addrconf_lease);
+extern ni_refcounted_define_free(ni_addrconf_lease);
+extern ni_refcounted_define_drop(ni_addrconf_lease);
+extern ni_refcounted_define_move(ni_addrconf_lease);
+
+static inline void
+ni_addrconf_lease_copy_dhcp4(struct ni_addrconf_lease_dhcp4 *dst, const struct ni_addrconf_lease_dhcp4 *src)
 {
-	if (lease)
-		ni_addrconf_lease_destroy(lease);
-	free(lease);
+	ni_opaque_set(&dst->client_id, src->client_id.data, src->client_id.len);
+	dst->server_id    = src->server_id;
+	dst->relay_addr   = src->relay_addr;
+	ni_string_dup(&dst->sender_hwa, src->sender_hwa);
+
+	dst->address      = src->address;
+	dst->netmask      = src->netmask;
+	dst->broadcast    = src->broadcast;
+	dst->mtu          = src->mtu;
+
+	dst->lease_time   = src->lease_time;
+	dst->renewal_time = src->renewal_time;
+	dst->rebind_time  = src->rebind_time;
+
+	dst->boot_saddr   = src->boot_saddr;
+	ni_string_dup(&dst->boot_sname, src->boot_sname);
+	ni_string_dup(&dst->boot_file,  src->boot_file);
+	ni_string_dup(&dst->root_path,  src->root_path);
+	ni_string_dup(&dst->message,    src->message);
+
+	ni_dhcp_option_list_copy(&dst->options, src->options);
+}
+
+static inline void
+ni_addrconf_lease_copy_dhcp6(struct ni_addrconf_lease_dhcp6 *dst, const struct ni_addrconf_lease_dhcp6 *src)
+{
+	ni_opaque_set(&dst->client_id, src->client_id.data, src->client_id.len);
+	ni_opaque_set(&dst->server_id, src->server_id.data, src->server_id.len);
+	dst->server_pref = src->server_pref;
+	dst->server_addr = src->server_addr;
+
+	dst->rapid_commit = src->rapid_commit;
+	dst->info_refresh = src->info_refresh;
+
+	if (src->status && (dst->status = ni_dhcp6_status_new())) {
+		dst->status->code = src->status->code;
+		ni_string_dup(&dst->status->message, src->status->message);
+	}
+
+	ni_dhcp6_ia_list_copy(&dst->ia_list, src->ia_list, FALSE);
+
+	ni_string_dup(&dst->boot_url, src->boot_url);
+	ni_string_array_copy(&dst->boot_params, &src->boot_params);
+
+	ni_dhcp_option_list_copy(&dst->options, src->options);
+}
+
+static inline void
+ni_addrconf_lease_copy(ni_addrconf_lease_t *dst, const ni_addrconf_lease_t *src)
+{
+	dst->flags    = src->flags;
+	ni_string_dup(&dst->owner, src->owner);
+
+	dst->uuid     = src->uuid;
+	dst->state    = src->state;
+	dst->acquired = src->acquired;
+
+	dst->update   = src->update;
+
+	dst->fqdn     = src->fqdn;
+	ni_string_dup(&dst->hostname, src->hostname);
+
+	ni_address_list_copy(&dst->addrs, src->addrs);
+	ni_route_tables_copy(&dst->routes, src->routes);
+	dst->rules    = ni_rule_array_clone(src->rules);
+
+	dst->nis      = ni_nis_info_clone(src->nis);
+	dst->resolver = ni_resolver_info_clone(src->resolver);
+
+	ni_string_array_copy(&dst->ntp_servers, &src->ntp_servers);
+	ni_string_array_copy(&dst->nds_servers, &src->nds_servers);
+	ni_string_array_copy(&dst->nds_context, &src->nds_context);
+	ni_string_dup(&dst->nds_tree, src->nds_tree);
+
+	ni_string_array_copy(&dst->netbios_name_servers, &src->netbios_name_servers);
+	ni_string_array_copy(&dst->netbios_dd_servers, &src->netbios_dd_servers);
+	ni_string_dup(&dst->netbios_scope, src->netbios_scope);
+	dst->netbios_type = src->netbios_type;
+
+	ni_string_array_copy(&dst->slp_servers, &src->slp_servers);
+	ni_string_array_copy(&dst->slp_scopes,  &src->slp_scopes);
+
+	ni_string_array_copy(&dst->sip_servers, &src->sip_servers);
+	ni_string_array_copy(&dst->lpr_servers, &src->lpr_servers);
+	ni_string_array_copy(&dst->log_servers, &src->log_servers);
+
+	ni_string_dup(&dst->posix_tz_string, src->posix_tz_string);
+	ni_string_dup(&dst->posix_tz_dbname, src->posix_tz_dbname);
+
+	if (src->type == NI_ADDRCONF_DHCP) {
+		if (src->family == AF_INET)
+			ni_addrconf_lease_copy_dhcp4(&dst->dhcp4, &src->dhcp4);
+		else
+		if (src->family == AF_INET6)
+			ni_addrconf_lease_copy_dhcp6(&dst->dhcp6, &src->dhcp6);
+	}
+}
+
+extern ni_addrconf_lease_t *
+ni_addrconf_lease_clone(const ni_addrconf_lease_t *orig)
+{
+	ni_addrconf_lease_t *clone;
+
+	if (!orig || !(clone = ni_addrconf_lease_new(orig->type, orig->family)))
+		return NULL;
+
+	ni_addrconf_lease_copy(clone, orig);
+	return clone;
 }
 
 static void

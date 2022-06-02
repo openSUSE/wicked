@@ -2,7 +2,7 @@
  *	NIS definitions for wicked
  *
  *	Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
- *	Copyright (C) 2010-2021 SUSE LLC
+ *	Copyright (C) 2010-2022 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -143,6 +143,41 @@ ni_nis_info_t *
 ni_nis_info_new(void)
 {
 	return calloc(1, sizeof(ni_nis_info_t));
+}
+
+static inline void
+ni_nis_info_copy(ni_nis_info_t *dst, const ni_nis_info_t *src)
+{
+	const ni_nis_domain_t *odom;
+	ni_nis_domain_t *ndom;
+	unsigned int i;
+
+	ni_string_dup(&dst->domainname, src->domainname);
+	dst->default_binding = src->default_binding;
+	ni_string_array_copy(&dst->default_servers, &src->default_servers);
+
+	for (i = 0; i < src->domains.count; ++i) {
+		if (!(odom = src->domains.data[i]))
+			continue;
+
+		if (!(ndom = ni_nis_domain_new(dst, odom->domainname)))
+			continue;
+
+		ndom->binding = odom->binding;
+		ni_string_array_copy(&ndom->servers, &odom->servers);
+	}
+}
+
+ni_nis_info_t *
+ni_nis_info_clone(const ni_nis_info_t *orig)
+{
+	ni_nis_info_t *clone;
+
+	if (!orig || !(clone = ni_nis_info_new()))
+		return NULL;
+
+	ni_nis_info_copy(clone, orig);
+	return clone;
 }
 
 void

@@ -2899,7 +2899,7 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 
 	ap = ni_address_list_find(dev->addrs, &tmp.local_addr);
 	if (!ap) {
-		ap = ni_address_new(tmp.family, tmp.prefixlen, &tmp.local_addr, &dev->addrs);
+		ap = ni_address_create(tmp.family, tmp.prefixlen, &tmp.local_addr, &dev->addrs);
 		if (!ap) {
 			ni_string_free(&tmp.label);
 			return -1;

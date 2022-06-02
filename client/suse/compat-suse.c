@@ -475,7 +475,7 @@ __ni_suse_show_unapplied_routes(void)
 		for (i = 0; i < tab->routes.count; ++i) {
 			ni_route_t *rp = tab->routes.data[i];
 
-			if (!rp || rp->users >= 2)
+			if (!rp || rp->refcount >= 2)
 				continue;
 
 			ni_note("discarding route not matching any interface: %s",
@@ -4920,7 +4920,7 @@ __get_ipaddr(const ni_sysconfig_t *sc, const char *ifname, const char *suffix, n
 	if (!prefixlen || prefixlen > ni_af_address_prefixlen(local_addr.ss_family))
 		prefixlen = ni_af_address_prefixlen(local_addr.ss_family);
 
-	ap = ni_address_new(local_addr.ss_family, prefixlen, &local_addr, list);
+	ap = ni_address_create(local_addr.ss_family, prefixlen, &local_addr, list);
 	if (ap && ap->family == AF_INET) {
 		var = __find_indexed_variable(sc, "BROADCAST", suffix);
 		if (var && ni_sockaddr_parse(&ap->bcast_addr, var->value, AF_INET) < 0) {
@@ -5064,12 +5064,12 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		if (ipv4_enabled) {
 			ni_sockaddr_parse(&local_addr, "127.0.0.1", AF_INET);
 			if (ni_address_list_find(dev->addrs, &local_addr) == NULL)
-				ni_address_new(AF_INET, 8, &local_addr, &dev->addrs);
+				ni_address_create(AF_INET, 8, &local_addr, &dev->addrs);
 		}
 		if (ipv6_enabled) {
 			ni_sockaddr_parse(&local_addr, "::1", AF_INET6);
 			if (ni_address_list_find(dev->addrs, &local_addr) == NULL)
-				ni_address_new(AF_INET6, 128, &local_addr, &dev->addrs);
+				ni_address_create(AF_INET6, 128, &local_addr, &dev->addrs);
 		}
 	}
 

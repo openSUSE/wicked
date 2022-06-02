@@ -93,6 +93,7 @@ libwicked_la_SOURCES		= \
 	ppp.c			\
 	pppd.c			\
 	process.c		\
+	refcount.c		\
 	resolver.c		\
 	rfkill.c		\
 	route.c			\

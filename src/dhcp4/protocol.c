@@ -2160,7 +2160,7 @@ parse_more:
 		memset(&local_addr, 0, sizeof(local_addr));
 		local_addr.sin.sin_family = AF_INET;
 		local_addr.sin.sin_addr = lease->dhcp4.address;
-		ap = ni_address_new(AF_INET, pfxlen, &local_addr, &lease->addrs);
+		ap = ni_address_create(AF_INET, pfxlen, &local_addr, &lease->addrs);
 		if (ap && lease->dhcp4.broadcast.s_addr)
 			ni_sockaddr_set_ipv4(&ap->bcast_addr, lease->dhcp4.broadcast, 0);
 	}
