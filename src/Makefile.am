@@ -35,6 +35,7 @@ libwicked_la_LIBADD		= libwicked-dbus-objects.la	\
 				  libwicked-client.la
 
 libwicked_la_SOURCES		= \
+	addrconf.c		\
 	address.c		\
 	arp.c			\
 	async-resolver.c	\
