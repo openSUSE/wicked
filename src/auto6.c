@@ -37,6 +37,7 @@
 #include "util_priv.h"
 #include "leasefile.h"
 #include "appconfig.h"
+#include "addrconf.h"
 #include "auto6.h"
 
 #define NI_AUTO6_UPDATER_DELAY		500	/* initial delay timeout in ms         */

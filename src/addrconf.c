@@ -26,6 +26,8 @@
 #endif
 
 #include <stdlib.h>
+#include <sys/time.h>
+#include <time.h>
 
 #include <wicked/util.h>
 #include <wicked/address.h>
@@ -33,8 +35,10 @@
 #include <wicked/nis.h>
 #include <wicked/route.h>
 #include <wicked/resolver.h>
+#include <wicked/objectmodel.h>
 
 #include "appconfig.h"
+#include "addrconf.h"
 #include "netinfo_priv.h"
 #include "dhcp6/options.h"
 #include "dhcp.h"
@@ -306,3 +310,376 @@ ni_addrconf_lease_addrs_set_tentative(ni_addrconf_lease_t *lease, ni_bool_t tent
 	}
 	return count;
 }
+
+
+/*
+ * addrconf updater and it's actions
+ */
+static const ni_addrconf_action_t	updater_applying_common[] = {
+	{ ni_addrconf_action_mtu_apply,		"adjusting mtu"		},
+	{ ni_addrconf_action_addrs_apply,	"applying addresses"	},
+	{ ni_addrconf_action_addrs_verify,	"verifying adressses"	},
+	{ ni_addrconf_action_routes_apply,	"applying routes"	},
+	{ ni_addrconf_action_system_update,	"applying system config"},
+	{ ni_addrconf_action_verify_apply,	"verifying apply state" },
+	{ NULL,	NULL }
+};
+
+static const ni_addrconf_action_t	updater_removing_common[] = {
+	{ ni_addrconf_action_addrs_remove,	"removing addresses"	},
+	{ ni_addrconf_action_routes_remove,	"removing routes"	},
+	{ ni_addrconf_action_system_update,	"removing system config"},
+	{ ni_addrconf_action_mtu_restore,	"reverting mtu change"	},
+	{ NULL,	NULL }
+};
+
+static const ni_addrconf_action_t	updater_applying_auto6[] = {
+	{ ni_addrconf_action_addrs_verify,	"verifying adressses"	},
+	{ ni_addrconf_action_write_lease,	"writing lease file"   },
+	{ ni_addrconf_action_system_update,	"applying system config"},
+	{ NULL, NULL }
+};
+
+static const ni_addrconf_action_t	updater_removing_auto6[] = {
+	{ ni_addrconf_action_system_update,	"applying system config"},
+	{ ni_addrconf_action_remove_lease,	"removing lease file"   },
+	{ NULL, NULL }
+};
+
+
+static ni_addrconf_updater_t *
+ni_addrconf_updater_new(const ni_addrconf_action_t *action, const ni_netdev_t *dev, ni_event_t event)
+{
+	ni_addrconf_updater_t *updater;
+
+	updater = calloc(1, sizeof(*updater));
+	if (updater) {
+		updater->event  = event;
+		updater->action = action;
+		ni_timer_get_time(&updater->started);
+		if (dev)
+			ni_netdev_ref_set(&updater->device, dev->name, dev->link.ifindex);
+	}
+	return updater;
+}
+
+ni_addrconf_updater_t *
+ni_addrconf_updater_new_applying(ni_addrconf_lease_t *lease, const ni_netdev_t *dev, ni_event_t event)
+{
+	if (!lease)
+		return NULL;
+
+	ni_addrconf_updater_free(&lease->updater);
+	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_AUTOCONF) {
+		lease->updater = ni_addrconf_updater_new(updater_applying_auto6, dev, event);
+	} else {
+		lease->updater = ni_addrconf_updater_new(updater_applying_common, dev, event);
+	}
+	return lease->updater;
+}
+
+ni_addrconf_updater_t *
+ni_addrconf_updater_new_removing(ni_addrconf_lease_t *lease, const ni_netdev_t *dev, ni_event_t event)
+{
+	if (!lease)
+		return NULL;
+
+	ni_addrconf_updater_free(&lease->updater);
+	if (lease->family == AF_INET6 && lease->type == NI_ADDRCONF_AUTOCONF) {
+		lease->updater = ni_addrconf_updater_new(updater_removing_auto6, dev, event);
+	} else {
+		lease->updater = ni_addrconf_updater_new(updater_removing_common, dev, event);
+	}
+	return lease->updater;
+}
+
+static int
+ni_addrconf_updater_action_call(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	ni_addrconf_updater_t *updater;
+	struct timeval now, delta;
+	int res = 0;
+
+	if (!dev || !lease)
+		return 0;
+
+	while ((updater = lease->updater) != NULL) {
+		if (!updater->action || !updater->action->func) {
+			ni_addrconf_updater_free(&lease->updater);
+			break;
+		}
+
+		if (!timerisset(&updater->astart))
+			ni_timer_get_time(&updater->astart);
+
+		res = updater->action->func(dev, lease);
+
+		ni_timer_get_time(&now);
+		if (timercmp(&now, &updater->astart, >))
+			timersub(&now, &updater->astart, &delta);
+		else
+			timerclear(&delta);
+
+		if (updater->action->info) {
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IFCONFIG,
+					"%s: %s for %s:%s lease in state %s: %s [%s %ldm%ld.%03lds]",
+					dev->name, updater->action->info,
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_addrconf_state_to_name(lease->state),
+					(res < 0  ? "failure"  :
+					 res > 0  ? "deferred" : "success"),
+					(res == 1 ? "since"    : "after"),
+					delta.tv_sec / 60, delta.tv_sec % 60,
+					delta.tv_usec / 1000);
+		}
+		if (res != 1)
+			timerclear(&updater->astart);
+		if (res != 0)
+			break;
+		updater->action++;
+	}
+	return res;
+}
+
+int
+ni_addrconf_updater_execute(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	ni_addrconf_updater_t *updater;
+	struct timeval pre, now, delta;
+	ni_event_t event;
+	int ret = 0;
+
+	if (!dev || !lease || !(updater = lease->updater))
+		return -1;
+
+	if (updater->timer)
+		ni_timer_cancel(updater->timer);
+	updater->timer = NULL;
+
+	event = updater->event;
+	pre = updater->started;
+	ret = ni_addrconf_updater_action_call(dev, lease);
+
+	if (ret > 0) {
+		struct timeval now;
+
+		ni_timer_get_time(&now);
+		if (updater->deadline &&
+		    !ni_lifetime_left(updater->deadline, &updater->started, &now)) {
+			lease->state = NI_ADDRCONF_STATE_FAILED;
+			ni_debug_ifconfig("%s: %s:%s lease update deadline reached (state %s)",
+					dev->name,
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_addrconf_state_to_name(lease->state));
+			ret = -1;
+		} else
+		if (!ni_addrconf_updater_background(updater, updater->timeout)) {
+			ni_debug_ifconfig("%s: unable to background %s:%s lease update (state %s)",
+					dev->name,
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_addrconf_state_to_name(lease->state));
+			ret = -1;
+		} else {
+			return ret;
+		}
+	} else {
+		ni_timer_get_time(&now);
+		if (timercmp(&now, &pre, >)) {
+			timersub(&now, &pre, &delta);
+		} else {
+			timerclear(&delta);
+		}
+		ni_debug_ifconfig("%s: updater for lease %s:%s in state %s finished: %s [%ldm%ld.%03lds]",
+				dev->name,
+				ni_addrfamily_type_to_name(lease->family),
+				ni_addrconf_type_to_name(lease->type),
+				ni_addrconf_state_to_name(lease->state),
+				ret < 0 ? "failure" : "success",
+				delta.tv_sec / 60, delta.tv_sec % 60,
+				delta.tv_usec / 1000);
+	}
+
+	if (ret == 0) {
+		if (lease->old) {
+			ni_addrconf_lease_free(lease->old);
+			lease->old = NULL;
+		}
+		ni_addrconf_updater_free(&lease->updater);
+
+		switch (lease->state) {
+		case NI_ADDRCONF_STATE_GRANTED:
+		case NI_ADDRCONF_STATE_APPLYING:
+			lease->state = NI_ADDRCONF_STATE_GRANTED;
+			if (event != NI_EVENT_ADDRESS_ACQUIRED)
+				ret = -1;
+			else
+			if (ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_PRIMARY))
+				ni_objectmodel_addrconf_fallback_action(dev, event, lease->family, NULL);
+			break;
+
+		case NI_ADDRCONF_STATE_RELEASED:
+		case NI_ADDRCONF_STATE_RELEASING:
+			lease->state = NI_ADDRCONF_STATE_RELEASED;
+			if (event != NI_EVENT_ADDRESS_RELEASED)
+				ret = -1;
+			break;
+
+		case NI_ADDRCONF_STATE_FAILED:
+			if (event != NI_EVENT_ADDRESS_RELEASED &&
+			    event != NI_EVENT_ADDRESS_LOST)
+				ret = -1;
+			break;
+
+		case NI_ADDRCONF_STATE_REQUESTING:
+			/* reenter requesting on partial success */
+			if (event == NI_EVENT_ADDRESS_ACQUIRED)
+				event = NI_EVENT_ADDRESS_DEFERRED;
+			else
+				ret = -1;
+			break;
+
+		default:
+			lease->state = NI_ADDRCONF_STATE_FAILED;
+			event = __NI_EVENT_MAX;
+			break;
+		}
+
+		if (ret == 0 && event < __NI_EVENT_MAX) {
+			ni_debug_ifconfig("%s: %s:%s lease updated (state %s), sending %s event",
+					dev->name,
+					ni_addrfamily_type_to_name(lease->family),
+					ni_addrconf_type_to_name(lease->type),
+					ni_addrconf_state_to_name(lease->state),
+					ni_objectmodel_event_to_signal(event));
+
+			ni_objectmodel_addrconf_send_event(dev, event, &lease->uuid);
+			if (event == NI_EVENT_ADDRESS_RELEASED) {
+				if (ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_FALLBACK))
+					ni_objectmodel_addrconf_fallback_action(dev, event, lease->family, lease);
+				else
+					ni_netdev_unset_lease(dev, lease->family, lease->type);
+			}
+		}
+		if (ret == 0)
+			return ret;
+	}
+
+	if (ret < 0) {
+		if (lease->old) {
+			ni_addrconf_lease_free(lease->old);
+			lease->old = NULL;
+		}
+		ni_addrconf_updater_free(&lease->updater);
+
+		/* aborted by dad, dhcp6 supplicant will decline */
+		if (lease->family == AF_INET6 && lease->state == NI_ADDRCONF_STATE_REQUESTING)
+			return 0;
+
+		lease->state = NI_ADDRCONF_STATE_FAILED;
+		ni_objectmodel_addrconf_send_event(dev, NI_EVENT_ADDRESS_LOST, &lease->uuid);
+	}
+	return ret;
+}
+
+static void
+ni_addrconf_updater_timer_call(void *user_data, const ni_timer_t *timer)
+{
+	ni_addrconf_updater_t *updater = user_data;
+	ni_addrconf_lease_t *lease;
+	ni_netconfig_t *nc;
+	ni_netdev_t *dev;
+
+	if (!updater || updater->timer != timer)
+		return;
+
+	updater->timer = NULL;
+
+	if (!(nc = ni_global_state_handle(0)))
+		return;
+
+	if (!(dev = ni_netdev_by_index(nc, updater->device.index)))
+		return;
+
+	for (lease = dev->leases; lease; lease = lease->next) {
+		if (lease->updater == updater) {
+			ni_addrconf_updater_execute(dev, lease);
+			return;
+		}
+	}
+}
+
+ni_bool_t
+ni_addrconf_updater_background(ni_addrconf_updater_t *updater, unsigned int delay)
+{
+	unsigned long timeout = 0;
+
+	if (!updater)
+		return FALSE;
+
+	if (!updater->timeout)
+		updater->timeout = 1000;
+
+	updater->jitter.max = 100;
+	if (delay > 1000)
+		updater->jitter.min = 0 - updater->jitter.max;
+	else
+		updater->jitter.min = 0;
+	timeout = ni_timeout_randomize(delay, &updater->jitter);
+
+	if (updater->timer != NULL)
+		updater->timer = ni_timer_rearm(updater->timer, timeout);
+
+	if (updater->timer == NULL)
+		updater->timer = ni_timer_register(timeout,
+				ni_addrconf_updater_timer_call, updater);
+
+	return updater->timer != NULL;
+}
+
+void
+ni_addrconf_updater_set_data(ni_addrconf_updater_t *updater, void *user_data,
+				ni_addrconf_updater_cleanup_t *cleanup)
+{
+	if (updater) {
+		if (updater->user_data && updater->cleanup) {
+			void *data = updater->user_data;
+			updater->user_data = NULL;
+			updater->cleanup(data);
+		}
+		updater->user_data = user_data;
+		updater->cleanup = cleanup;
+	}
+}
+
+void *
+ni_addrconf_updater_get_data(ni_addrconf_updater_t *updater,
+				ni_addrconf_updater_cleanup_t *cleanup)
+{
+	if (updater && updater->cleanup == cleanup)
+		return updater->user_data;
+	return NULL;
+}
+
+static inline void
+ni_addrconf_updater_destroy(ni_addrconf_updater_t *updater)
+{
+	if (updater->timer)
+		ni_timer_cancel(updater->timer);
+	updater->timer = NULL;
+	ni_addrconf_updater_set_data(updater, NULL, NULL);
+	ni_netdev_ref_destroy(&updater->device);
+}
+
+void
+ni_addrconf_updater_free(ni_addrconf_updater_t **updater)
+{
+	if (updater && *updater) {
+		ni_addrconf_updater_destroy(*updater);
+		free(*updater);
+		*updater = NULL;
+	}
+}
+

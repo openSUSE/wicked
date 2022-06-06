@@ -189,6 +189,7 @@ system_headers			= \
 	linux/if_tunnel.h
 
 wicked_headers			= \
+	addrconf.h		\
 	appconfig.h		\
 	auto6.h			\
 	buffer.h		\

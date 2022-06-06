@@ -33,6 +33,7 @@
 #include <wicked/modem.h>
 #include "netinfo_priv.h"
 #include "udev-utils.h"
+#include "addrconf.h"
 #include "auto6.h"
 
 enum {

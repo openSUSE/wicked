@@ -32,6 +32,7 @@
 #include "debug.h"
 #include "util_priv.h"
 #include "appconfig.h"
+#include "addrconf.h"
 #include "auto6.h"
 
 
