@@ -81,13 +81,13 @@ __attribute__((unused)) static wunit_t wunit_ctx = {
 #define OK(name, ...)							\
 	do {								\
 		wunit_ctx.current->ok++;				\
-		MSG(name, ##__VA_ARGS__); printf("OK\n");		\
+		MSG(name, ##__VA_ARGS__); printf(" OK\n");		\
 	} while (0)
 
 #define FAIL(name, ...)							\
 	do {								\
 		wunit_ctx.current->fail++;				\
-		MSG(name, ##__VA_ARGS__); printf("FAILED\n");		\
+		MSG(name, ##__VA_ARGS__); printf(" FAILED\n");		\
 	} while (0)
 
 #define CHECK2(stm, name, ...)						\
@@ -103,18 +103,18 @@ __attribute__((unused)) static wunit_t wunit_ctx = {
 #define CHECK(stm)		CHECK2(stm, #stm)
 
 #define TESTCASE(ts_name)								\
-	static void ts_name(void);							\
+	static void testcase_##ts_name(void);						\
 	static void wunit_register_##ts_name(void)     __attribute__((constructor));	\
 	static void wunit_register_##ts_name(void)					\
 	{										\
 		unsigned int i = wunit_ctx.testcases_idx;				\
-		ni_assert((i + 1) < MAX_TESTCASES);						\
+		ni_assert((i + 1) < MAX_TESTCASES);					\
 		memset(&wunit_ctx.testcases[i], 0, sizeof(wunit_ctx.testcases[0]));	\
-		wunit_ctx.testcases[i].func = ts_name;					\
+		wunit_ctx.testcases[i].func = testcase_##ts_name;			\
 		wunit_ctx.testcases[i].name = #ts_name;					\
 		wunit_ctx.testcases_idx++;						\
 	}										\
-	static void ts_name(void)
+	static void testcase_##ts_name(void)
 
 #define TESTMAIN()									\
 	int main(int argc, char *argv[])						\
