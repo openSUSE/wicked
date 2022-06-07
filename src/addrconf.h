@@ -27,16 +27,23 @@
 #include <wicked/types.h>
 #include <wicked/time.h>
 
+
 typedef struct ni_addrconf_action	ni_addrconf_action_t;
+typedef int				ni_addrconf_action_exec_t(ni_netdev_t *, ni_addrconf_lease_t *);
+typedef void				ni_addrconf_action_free_t(ni_addrconf_action_t *);
+
 typedef void				ni_addrconf_updater_cleanup_t(void *);
 
 struct ni_addrconf_action {
-	int		(*func)(ni_netdev_t *dev, ni_addrconf_lease_t *lease);
-	const char *	info;
+	ni_addrconf_action_t *		next;
+
+	const char *			info;
+	ni_addrconf_action_exec_t *	exec;
+	ni_addrconf_action_free_t *	free;
 };
 
 struct ni_addrconf_updater {
-	const ni_addrconf_action_t *	action;
+	ni_addrconf_action_t *		action;
 	struct timeval			astart;		/* action  */
 
 	ni_netdev_ref_t			device;
@@ -48,7 +55,7 @@ struct ni_addrconf_updater {
 	struct timeval			started;	/* updater */
 	unsigned int			deadline;
 
-	ni_addrconf_updater_cleanup_t *	cleanup;
+	ni_addrconf_updater_cleanup_t *	cleanup;	/* state   */
 	void *				user_data;
 };
 
@@ -59,7 +66,6 @@ extern int			ni_addrconf_updater_execute(ni_netdev_t *, ni_addrconf_lease_t *);
 extern void			ni_addrconf_updater_set_data(ni_addrconf_updater_t *, void *, ni_addrconf_updater_cleanup_t *);
 extern void *			ni_addrconf_updater_get_data(ni_addrconf_updater_t *, ni_addrconf_updater_cleanup_t *);
 extern void			ni_addrconf_updater_free(ni_addrconf_updater_t **);
-
 
 extern int			ni_addrconf_action_mtu_apply(ni_netdev_t *, ni_addrconf_lease_t *);
 extern int			ni_addrconf_action_addrs_apply(ni_netdev_t *, ni_addrconf_lease_t *);
@@ -73,5 +79,13 @@ extern int			ni_addrconf_action_addrs_remove(ni_netdev_t *, ni_addrconf_lease_t 
 extern int			ni_addrconf_action_routes_remove(ni_netdev_t *, ni_addrconf_lease_t *);
 extern int			ni_addrconf_action_mtu_restore(ni_netdev_t *, ni_addrconf_lease_t *);
 extern int			ni_addrconf_action_remove_lease(ni_netdev_t *, ni_addrconf_lease_t *);
+
+extern ni_addrconf_action_t *	ni_addrconf_action_new(const char *, ni_addrconf_action_exec_t *);
+extern void			ni_addrconf_action_free(ni_addrconf_action_t *);
+
+extern ni_addrconf_action_t *	ni_addrconf_action_list_find_exec(ni_addrconf_action_t *, ni_addrconf_action_exec_t *);
+extern ni_bool_t		ni_addrconf_action_list_insert(ni_addrconf_action_t **, ni_addrconf_action_t *);
+extern ni_bool_t		ni_addrconf_action_list_append(ni_addrconf_action_t **, ni_addrconf_action_t *);
+extern void			ni_addrconf_action_list_destroy(ni_addrconf_action_t **);
 
 #endif /* WICKED_ADDRCONF_H */

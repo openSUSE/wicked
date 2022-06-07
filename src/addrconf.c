@@ -315,47 +315,165 @@ ni_addrconf_lease_addrs_set_tentative(ni_addrconf_lease_t *lease, ni_bool_t tent
 /*
  * addrconf updater and it's actions
  */
-static const ni_addrconf_action_t	updater_applying_common[] = {
-	{ ni_addrconf_action_mtu_apply,		"adjusting mtu"		},
+typedef struct ni_addrconf_action_static {
+	ni_addrconf_action_exec_t *	exec;
+	const char *			info;
+} ni_addrconf_action_static_t;
+
+static const ni_addrconf_action_static_t	updater_applying_common[] = {
+	{ ni_addrconf_action_mtu_apply,		"adjusting mtu",	},
 	{ ni_addrconf_action_addrs_apply,	"applying addresses"	},
 	{ ni_addrconf_action_addrs_verify,	"verifying adressses"	},
 	{ ni_addrconf_action_routes_apply,	"applying routes"	},
 	{ ni_addrconf_action_system_update,	"applying system config"},
 	{ ni_addrconf_action_verify_apply,	"verifying apply state" },
-	{ NULL,	NULL }
+	{ NULL }
 };
 
-static const ni_addrconf_action_t	updater_removing_common[] = {
+static const ni_addrconf_action_static_t	updater_removing_common[] = {
 	{ ni_addrconf_action_addrs_remove,	"removing addresses"	},
 	{ ni_addrconf_action_routes_remove,	"removing routes"	},
 	{ ni_addrconf_action_system_update,	"removing system config"},
 	{ ni_addrconf_action_mtu_restore,	"reverting mtu change"	},
-	{ NULL,	NULL }
+	{ NULL }
 };
 
-static const ni_addrconf_action_t	updater_applying_auto6[] = {
+static const ni_addrconf_action_static_t	updater_applying_auto6[] = {
 	{ ni_addrconf_action_addrs_verify,	"verifying adressses"	},
 	{ ni_addrconf_action_write_lease,	"writing lease file"   },
 	{ ni_addrconf_action_system_update,	"applying system config"},
-	{ NULL, NULL }
+	{ NULL }
 };
 
-static const ni_addrconf_action_t	updater_removing_auto6[] = {
+static const ni_addrconf_action_static_t	updater_removing_auto6[] = {
 	{ ni_addrconf_action_system_update,	"applying system config"},
 	{ ni_addrconf_action_remove_lease,	"removing lease file"   },
-	{ NULL, NULL }
+	{ NULL }
 };
 
+ni_addrconf_action_t *
+ni_addrconf_action_new(const char *info, ni_addrconf_action_exec_t *exec)
+{
+	ni_addrconf_action_t *action;
+
+	if (!info || !exec)
+		return NULL;
+
+	if (!(action = calloc(1, sizeof(*action))))
+		return NULL;
+
+	action->info = info;
+	action->exec = exec;
+	return action;
+}
+
+void
+ni_addrconf_action_free(ni_addrconf_action_t *action)
+{
+	if (action) {
+		if (action->free) {
+			action->free(action);
+		} else {
+			free(action);
+		}
+	}
+}
+
+ni_addrconf_action_t *
+ni_addrconf_action_list_find_exec(ni_addrconf_action_t *list, ni_addrconf_action_exec_t *exec)
+{
+	ni_addrconf_action_t *item;
+
+	for (item = list; item; item = item->next) {
+		if (exec == item->exec)
+			return item;
+	}
+	return NULL;
+}
+
+ni_bool_t
+ni_addrconf_action_list_insert(ni_addrconf_action_t **pos, ni_addrconf_action_t *item)
+{
+	if (!pos || !item)
+		return FALSE;
+
+	item->next = *pos;
+	*pos = item;
+	return TRUE;
+}
+
+ni_bool_t
+ni_addrconf_action_list_append(ni_addrconf_action_t **list, ni_addrconf_action_t *item)
+{
+	if (list && item) {
+		while (*list)
+			list = &(*list)->next;
+		*list = item;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+void
+ni_addrconf_action_list_destroy(ni_addrconf_action_t **list)
+{
+	ni_addrconf_action_t *item;
+
+	if (list) {
+		while ((item = *list)) {
+			*list = item->next;
+			item->next = NULL;
+			ni_addrconf_action_free(item);
+		}
+	}
+}
+
+static inline ni_bool_t
+ni_addrconf_action_list_create(ni_addrconf_action_t **list, const ni_addrconf_action_static_t *table)
+{
+	const ni_addrconf_action_static_t *entry;
+	ni_addrconf_action_t *action;
+
+	if (!list || !table)
+		return FALSE;
+
+	for (entry = table; entry->exec; ++entry) {
+		if (!(action = ni_addrconf_action_new(entry->info, entry->exec)))
+			return FALSE;
+
+		ni_addrconf_action_list_append(list, action);
+	}
+	return TRUE;
+}
+
+static inline ni_addrconf_action_t *
+ni_addrconf_updater_action_advance(ni_addrconf_action_t **list)
+{
+	ni_addrconf_action_t *item;
+
+	if (list) {
+		if ((item = *list)) {
+			*list = item->next;
+			item->next = NULL;
+			ni_addrconf_action_free(item);
+		}
+		return *list;
+	}
+	return NULL;
+}
 
 static ni_addrconf_updater_t *
-ni_addrconf_updater_new(const ni_addrconf_action_t *action, const ni_netdev_t *dev, ni_event_t event)
+ni_addrconf_updater_new(const ni_addrconf_action_static_t *table, const ni_netdev_t *dev, ni_event_t event)
 {
 	ni_addrconf_updater_t *updater;
 
 	updater = calloc(1, sizeof(*updater));
 	if (updater) {
+		if (!ni_addrconf_action_list_create(&updater->action, table)) {
+			ni_addrconf_updater_free(&updater);
+			return NULL;
+		}
 		updater->event  = event;
-		updater->action = action;
 		ni_timer_get_time(&updater->started);
 		if (dev)
 			ni_netdev_ref_set(&updater->device, dev->name, dev->link.ifindex);
@@ -404,7 +522,7 @@ ni_addrconf_updater_action_call(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 		return 0;
 
 	while ((updater = lease->updater) != NULL) {
-		if (!updater->action || !updater->action->func) {
+		if (!updater->action || !updater->action->exec) {
 			ni_addrconf_updater_free(&lease->updater);
 			break;
 		}
@@ -412,7 +530,7 @@ ni_addrconf_updater_action_call(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 		if (!timerisset(&updater->astart))
 			ni_timer_get_time(&updater->astart);
 
-		res = updater->action->func(dev, lease);
+		res = updater->action->exec(dev, lease);
 
 		ni_timer_get_time(&now);
 		if (timercmp(&now, &updater->astart, >))
@@ -437,7 +555,7 @@ ni_addrconf_updater_action_call(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
 			timerclear(&updater->astart);
 		if (res != 0)
 			break;
-		updater->action++;
+		ni_addrconf_updater_action_advance(&updater->action);
 	}
 	return res;
 }
