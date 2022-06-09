@@ -13,6 +13,7 @@ noinst_PROGRAMS			= rtnl-test	\
 				  essid-test	\
 				  cstate-test   \
 				  bitmap-test	\
+				  bitmask-test	\
 				  socket-mock-test
 
 noinst_HEADERS			= wunit.h
@@ -38,11 +39,13 @@ xpath_test_SOURCES		= xpath-test.c
 essid_test_SOURCES		= essid-test.c
 cstate_test_SOURCES		= cstate-test.c
 bitmap_test_SOURCES		= bitmap-test.c
+bitmask_test_SOURCES		= bitmask-test.c
 socket_mock_test_SOURCES	= socket-mock-test.c
 
 EXTRA_DIST			= ibft xpath \
 				  scripts/ifbind.sh
 
-TESTS				= socket-mock-test
+TESTS				= socket-mock-test \
+				  bitmask-test
 
 # vim: ai
