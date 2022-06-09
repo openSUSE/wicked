@@ -45,7 +45,8 @@ socket_mock_test_SOURCES	= socket-mock-test.c
 EXTRA_DIST			= ibft xpath \
 				  scripts/ifbind.sh
 
-TESTS				= socket-mock-test \
-				  bitmask-test
+TESTS				= socket-mock-test	\
+				  bitmask-test		\
+				  bitmap-test
 
 # vim: ai
