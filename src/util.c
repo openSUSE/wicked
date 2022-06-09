@@ -37,6 +37,11 @@
 #define NI_BYTE_ARRAY_CHUNK	0xff	/* important: (2^n)-1 with all bits set */
 #define NI_BYTE_ARRAY_SIZE(len)	((len) | NI_BYTE_ARRAY_CHUNK)
 
+#define NI_BITMAP_SEPARATOR_FORMAT	", "
+#define NI_BITMAP_SEPARATOR_PARSE	" ,|\t\n"
+#define NI_BITMASK_SEPARATOR_FORMAT	" | "
+#define NI_BITMASK_SEPARATOR_PARSE	NI_BITMAP_SEPARATOR_PARSE
+
 static int		__ni_pidfile_write(const char *, unsigned int, pid_t, int);
 static const char *	__ni_build_backup_path(const char *, const char *);
 
@@ -2209,6 +2214,9 @@ ni_parse_bitmap_string(unsigned int *mask, const ni_intmap_t *map, const char *i
 	if (!mask || !map || !input)
 		return -1U;
 
+	if (!sep)
+		sep = NI_BITMAP_SEPARATOR_PARSE;
+
 	ni_string_split(&array, input, sep, 0);
 	err = ni_parse_bitmap_array(mask, map, &array, invalid);
 	ni_string_array_destroy(&array);
@@ -2251,7 +2259,7 @@ ni_format_bitmap_string(ni_stringbuf_t *buf, const ni_intmap_t *map,
 		return NULL;
 
 	if (ni_string_empty(sep))
-		sep = "|";
+		sep = NI_BITMAP_SEPARATOR_FORMAT;
 
 	if (ni_format_bitmap_array(&array, map, mask, done) == -1U)
 		return NULL;
@@ -2266,6 +2274,139 @@ ni_format_bitmap(ni_stringbuf_t *buf, const ni_intmap_t *map,
 		unsigned int mask, const char *sep)
 {
 	return ni_format_bitmap_string(buf, map, mask, NULL, sep);
+}
+
+extern unsigned int
+ni_parse_bitmask_array(unsigned int *out, const ni_intmap_t *map, const ni_string_array_t *in, ni_string_array_t *invalid)
+{
+	unsigned int i, flag, err = 0;
+	const char *name;
+
+	if (!out || !map || !in)
+		return -1U;
+
+	for (i = 0; i < in->count; ++i){
+		name = in->data[i];
+
+		if (!ni_parse_uint_mapped(name, map, &flag))
+			*out |= flag;
+		else {
+			err++;
+			if (invalid)
+				ni_string_array_append(invalid, name);
+		}
+	}
+
+	return err;
+}
+
+extern unsigned int
+ni_parse_bitmask_string(unsigned int *out, const ni_intmap_t *map, const char *in, const char *sep, ni_string_array_t *invalid)
+{
+	ni_string_array_t array = NI_STRING_ARRAY_INIT;
+	unsigned int err;
+
+	if (!out || !map || !in)
+		return -1U;
+
+	if (ni_string_empty(sep))
+		sep = NI_BITMASK_SEPARATOR_PARSE;
+
+	ni_string_split(&array, in, sep, 0);
+	err = ni_parse_bitmask_array(out, map, &array, invalid);
+	ni_string_array_destroy(&array);
+
+	return err;
+}
+
+extern unsigned int
+ni_parse_bitmask(unsigned int *out, const ni_intmap_t *map, const char *in, const char *sep, ni_string_array_t *invalid)
+{
+	ni_string_array_t temp_inval = NI_STRING_ARRAY_INIT;
+	const char *val;
+	unsigned int i, flag, err = 0;
+
+	if (ni_parse_bitmask_string(out, map, in, sep, &temp_inval)) {
+		for (i = 0; i < temp_inval.count; i++) {
+			val = temp_inval.data[i];
+
+			if (!ni_parse_uint(val, &flag, 16))
+				*out |= flag;
+			else {
+				err++;
+				if (invalid)
+					ni_string_array_append(invalid, val);
+			}
+		}
+	}
+	ni_string_array_destroy(&temp_inval);
+	return err;
+}
+
+extern unsigned int
+ni_format_bitmask_array(ni_string_array_t *out, const ni_intmap_t *map, unsigned int in, unsigned int *done)
+{
+	unsigned int value;
+
+	if (!out || !map)
+		return -1U;
+
+	for (; map->name; ++map) {
+		value = map->value;
+		if ((in & value) == value) {
+			if (ni_string_array_append(out, map->name) < 0)
+				continue;
+
+			in &= ~value;
+			if (done)
+				*done |= value;
+		}
+	}
+
+	return in;
+}
+
+extern const char *
+ni_format_bitmask_string(ni_stringbuf_t *out, const ni_intmap_t *map, unsigned int in, unsigned int *done, const char *sep)
+{
+	ni_string_array_t array = NI_STRING_ARRAY_INIT;
+	const char *ptr;
+
+	if (!out || !map)
+		return NULL;
+
+	if (ni_string_empty(sep))
+		sep = NI_BITMASK_SEPARATOR_FORMAT;
+
+	if (ni_format_bitmask_array(&array, map, in, done) == -1U)
+		return NULL;
+
+	ptr = ni_stringbuf_join(out, &array, sep);
+	ni_string_array_destroy(&array);
+	return ptr;
+}
+
+extern const char *
+ni_format_bitmask(ni_stringbuf_t *out, const ni_intmap_t *map, unsigned int in, const char *sep)
+{
+	unsigned int done = 0;
+	size_t offset = 0;
+
+	if (!out || !map)
+		return NULL;
+
+	if (ni_string_empty(sep))
+		sep = NI_BITMASK_SEPARATOR_FORMAT;
+
+	offset = out->len;
+	ni_format_bitmask_string(out, map, in, &done, sep);
+	if (done != in) {
+		in &= ~done;
+		if (!ni_stringbuf_empty(out))
+			ni_stringbuf_puts(out, sep);
+		ni_stringbuf_printf(out, "0x%x", in);
+	}
+	return out->string ? out->string + offset : NULL;
 }
 
 static ni_bool_t
