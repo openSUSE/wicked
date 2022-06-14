@@ -3625,6 +3625,31 @@ ni_wireless_parse_auth_mode(const ni_sysconfig_t *sc, ni_wireless_network_t *net
 }
 
 static ni_bool_t
+ni_wireless_parse_key_mgmt(const ni_sysconfig_t *sc, ni_wireless_network_t *net, const char *suffix, const char *dev_name, ni_wireless_ap_scan_mode_t ap_scan)
+{
+	ni_string_array_t invalid = NI_STRING_ARRAY_INIT;
+	ni_var_t *var;
+	char *unknown = NULL;
+	int err;
+
+	if((var = __find_indexed_variable(sc,"WIRELESS_KEY_MGMT", suffix))) {
+
+		err = ni_parse_bitmap_string(&net->keymgmt_proto,
+					ni_wireless_key_management_map(), var->value, NULL, &invalid);
+		if (err){
+			ni_string_join(&unknown, &invalid, ", ");
+			ni_error("ifcfg-%s: Invalid value in WIRELESS_KEY_MGMT%s='%s' variable",
+					dev_name, suffix, unknown ? unknown : "");
+			ni_string_free(&unknown);
+			ni_string_array_destroy(&invalid);
+			return FALSE;
+		}
+		ni_string_array_destroy(&invalid);
+	}
+	return TRUE;
+}
+
+static ni_bool_t
 try_add_wireless_net(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
 {
 	ni_wireless_network_t *net = NULL;
@@ -3752,6 +3777,9 @@ try_add_wireless_net(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 	}
 
 	if (ni_wireless_parse_auth_mode(sc, net, suffix, dev->name, wlan->conf->ap_scan) < 0)
+		goto failure;
+
+	if (!ni_wireless_parse_key_mgmt(sc, net, suffix, dev->name, wlan->conf->ap_scan))
 		goto failure;
 
 	if (!__ni_wireless_parse_psk_auth(sc, net, suffix, dev->name, wlan->conf->ap_scan))
