@@ -81,14 +81,18 @@ static const ni_intmap_t			ni_wireless_wpa_group_mgmt_map[] = {
 };
 
 static const ni_intmap_t			ni_wireless_wpa_key_mgmt_map[] = {
-	/* as required for networks and also used in capabilities					*/
+	/*  Used to map NI_WIRELESS_KEY_MGMT to wpa_supplicant dbus names and wise versa */
 	{ "NONE",				NI_WIRELESS_KEY_MGMT_NONE				},
 	{ "IEEE8021X",				NI_WIRELESS_KEY_MGMT_802_1X				},
 	{ "WPA-PSK",				NI_WIRELESS_KEY_MGMT_PSK				},
+	{ "FT-PSK",				NI_WIRELESS_KEY_MGMT_FT_PSK				},
+	/* wpa_supplicant uses WPA-FT-PSK in BSS->key-management but FT-PSK in configuration */
 	{ "WPA-FT-PSK",				NI_WIRELESS_KEY_MGMT_FT_PSK				},
 	{ "WPA-PSK-SHA256",			NI_WIRELESS_KEY_MGMT_PSK_SHA256				},
 	{ "WPA-EAP",				NI_WIRELESS_KEY_MGMT_EAP				},
 	{ "WPA-EAP-SHA256",			NI_WIRELESS_KEY_MGMT_EAP_SHA256				},
+	{ "FT-EAP",				NI_WIRELESS_KEY_MGMT_FT_EAP				},
+	/* same reason as WPA-FT-PSK */
 	{ "WPA-FT-EAP",				NI_WIRELESS_KEY_MGMT_FT_EAP				},
 	{ "FT-EAP-SHA384",			NI_WIRELESS_KEY_MGMT_FT_EAP_SHA384			},
 	{ "SAE",				NI_WIRELESS_KEY_MGMT_SAE				},
@@ -155,6 +159,9 @@ static const ni_intmap_t			ni_wireless_wpa_eap_method_map[] = {
 
 	{ NULL }
 };
+/*
+ * END wpa-supplicant names to constant maps
+ */
 
 static ni_bool_t
 ni_wireless_wpa_group_mgmt_type(const char *name, ni_wireless_cipher_t *type)
@@ -1475,7 +1482,9 @@ ni_wireless_group_map(void)
 	return ni_wireless_wpa_group_map;
 }
 
-static ni_intmap_t __ni_wireless_key_mgmt_names[] = {
+static const ni_intmap_t ni_wireless_key_mgmt_map[] = {
+	/* As required for networks and also used in capabilities.
+	 * Used to parse from XML/ifcfg files into c-structures.                                       */
 	{ "none",			NI_WIRELESS_KEY_MGMT_NONE },
 	{ "proprietary",		NI_WIRELESS_KEY_MGMT_PROPRIETARY },
 	{ "wpa-eap",			NI_WIRELESS_KEY_MGMT_EAP },
@@ -1504,13 +1513,13 @@ static ni_intmap_t __ni_wireless_key_mgmt_names[] = {
 const char *
 ni_wireless_key_management_to_name(ni_wireless_key_mgmt_t mode)
 {
-	return ni_format_uint_mapped(mode, __ni_wireless_key_mgmt_names);
+	return ni_format_uint_mapped(mode, ni_wireless_key_management_map());
 }
 
 const ni_intmap_t *
 ni_wireless_key_management_map(void)
 {
-	return ni_wireless_wpa_key_mgmt_map;
+	return ni_wireless_key_mgmt_map;
 }
 
 static ni_intmap_t __ni_wireless_eap_method_names[] = {
