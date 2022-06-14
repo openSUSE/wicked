@@ -103,21 +103,20 @@ ni_objectmodel_shutdown_wireless(ni_dbus_object_t *object, const ni_dbus_method_
 }
 
 static dbus_bool_t
-ni_objectmode_mask_from_dbus(uint32_t *out, const ni_intmap_t *map, const ni_dbus_variant_t *dict,
+ni_objectmode_bitmap_from_dbus(uint32_t *out, const ni_intmap_t *map, const ni_dbus_variant_t *dict,
 		const char *name, DBusError *error, const char *ifname)
 {
-	uint32_t value, mask;
+	uint32_t value, mask = 0;
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
 	if (!ni_dbus_variant_is_dict(dict))
 		return FALSE;
 
 	if (ni_dbus_dict_get_uint32(dict, name, &value)) {
-		mask = 0;
 		ni_format_bitmap_string(&buf, map, value, &mask, " ");
 		ni_stringbuf_destroy(&buf);
 		if (mask != value) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Invalid %s %u", ifname, name, value);
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Invalid bitmap %s %02x", ifname, name, value & ~mask);
 			return FALSE;
 		}
 		*out = value;
@@ -170,15 +169,15 @@ ni_objectmodel_get_wireless_request_wpa_common(const char *ifname, ni_wireless_n
 	if (!ni_dbus_variant_is_dict(dict))
 		return FALSE;
 
-	if (!ni_objectmode_mask_from_dbus(&net->auth_proto, ni_wireless_protocol_map(), dict,
+	if (!ni_objectmode_bitmap_from_dbus(&net->auth_proto, ni_wireless_protocol_map(), dict,
 				"auth-proto", error, ifname))
 	       return FALSE;
 
-	if (!ni_objectmode_mask_from_dbus(&net->group_cipher, ni_wireless_group_map(), dict,
+	if (!ni_objectmode_bitmap_from_dbus(&net->group_cipher, ni_wireless_group_map(), dict,
 				"group-cipher", error, ifname))
 	       return FALSE;
 
-	if (!ni_objectmode_mask_from_dbus(&net->pairwise_cipher, ni_wireless_group_map(), dict,
+	if (!ni_objectmode_bitmap_from_dbus(&net->pairwise_cipher, ni_wireless_group_map(), dict,
 				"pairwise-cipher", error, ifname))
 	       return FALSE;
 
@@ -400,7 +399,7 @@ ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_
 
 	net->auth_proto = 0;
 
-	if (!ni_objectmode_mask_from_dbus(&net->keymgmt_proto, ni_wireless_key_management_map(), var,
+	if (!ni_objectmode_bitmap_from_dbus(&net->keymgmt_proto, ni_wireless_key_management_map(), var,
 				"key-management", error, ifname))
 	       return FALSE;
 
