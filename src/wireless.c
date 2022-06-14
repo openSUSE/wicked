@@ -577,7 +577,7 @@ ni_wireless_wpa_net_format_psk(ni_wpa_net_properties_t *properties, const ni_wir
 	const char *name;
 	unsigned char data[32];
 
-	if (!(net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_PSK)))
+	if (ni_string_empty(net->wpa_psk.passphrase))
 		return TRUE;
 
 	if (!(name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_PSK)))
@@ -605,7 +605,7 @@ ni_wireless_wpa_net_format_eap(ni_wpa_net_properties_t *properties, const ni_wir
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	const char *name, *value;
 
-	if (!(net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_EAP)))
+	if (!net->wpa_eap.method)
 		return TRUE;
 
 	name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_EAP);
@@ -933,6 +933,69 @@ ni_wireless_update_wpa_nif_capabilities(ni_netdev_t *dev, const ni_wpa_nif_capab
 	return TRUE;
 }
 
+static ni_bool_t
+ni_wireless_wpa_complete_network(ni_netdev_t *dev, ni_wireless_network_t *net)
+{
+	ni_wireless_t *wlan;
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC,
+		       buf2 = NI_STRINGBUF_INIT_DYNAMIC;
+	unsigned int wpa3_like_key_mgmt =
+		(NI_WIRELESS_KEY_MGMT_DEFAULT_PSK | NI_WIRELESS_KEY_MGMT_DEFAULT_EAP | NI_WIRELESS_KEY_MGMT_DEFAULT_OPEN)
+		& ~(NI_BIT(NI_WIRELESS_KEY_MGMT_PSK) | NI_BIT(NI_WIRELESS_KEY_MGMT_EAP) | NI_BIT(NI_WIRELESS_KEY_MGMT_NONE));
+	unsigned int require_pmf_key_mgmt =
+		NI_BIT(NI_WIRELESS_KEY_MGMT_SAE) | NI_BIT(NI_WIRELESS_KEY_MGMT_EAP_SUITE_B) |
+		NI_BIT(NI_WIRELESS_KEY_MGMT_EAP_SUITE_B_192) |
+		NI_BIT(NI_WIRELESS_KEY_MGMT_OWE);
+
+	if (!(wlan = ni_netdev_get_wireless(dev)))
+		return FALSE;
+
+	if (net->keymgmt_proto == 0) {
+		if (!ni_string_empty(net->wpa_psk.passphrase))
+			net->keymgmt_proto = wlan->capabilities.keymgmt_algos & NI_WIRELESS_KEY_MGMT_DEFAULT_PSK;
+
+		if (net->wpa_eap.method)
+			net->keymgmt_proto = wlan->capabilities.keymgmt_algos & NI_WIRELESS_KEY_MGMT_DEFAULT_EAP;
+
+		/* if the interface do not support PMF, skip key-mgmt which requires it. */
+		if (wlan->capabilities.group_mgmt_ciphers == 0)
+			net->keymgmt_proto &= ~(require_pmf_key_mgmt);
+
+		if (net->keymgmt_proto == 0)
+			net->keymgmt_proto = wlan->capabilities.keymgmt_algos & NI_WIRELESS_KEY_MGMT_DEFAULT_OPEN;
+
+		ni_debug_wireless("%s: set key-management for '%s' to %s", dev->name,
+				ni_wireless_ssid_print(&net->essid, &buf2),
+				ni_format_bitmap(&buf, ni_wireless_key_management_map(),
+					net->keymgmt_proto, ", "));
+		ni_stringbuf_destroy(&buf);
+		ni_stringbuf_destroy(&buf2);
+	}
+
+	if (net->pmf == NI_WIRELESS_PMF_NOT_SPECIFIED &&
+	    (net->keymgmt_proto & wpa3_like_key_mgmt) &&
+	    wlan->capabilities.group_mgmt_ciphers != 0 ) {
+		net->pmf = NI_WIRELESS_PMF_OPTIONAL;
+		ni_debug_wireless("%s: set pmf for '%s' to %s", dev->name,
+				ni_wireless_ssid_print(&net->essid, &buf),
+				ni_wireless_pmf_to_name(net->pmf));
+		ni_stringbuf_destroy(&buf);
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_wireless_wpa_complete_networks(ni_netdev_t *dev, ni_wireless_network_array_t *networks)
+{
+	unsigned int i;
+
+	for (i = 0; i < networks->count; ++i)
+		if (!ni_wireless_wpa_complete_network(dev, networks->data[i]))
+			return FALSE;
+	return TRUE;
+}
+
 static int
 ni_wireless_setup_networks(ni_netdev_t *dev, ni_wpa_nif_t *wif, const ni_wireless_network_array_t *networks)
 {
@@ -1091,6 +1154,9 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 
 	if ((ret = ni_wireless_update_wpa_nif_capabilities(dev, &wif->capabilities)) < 0)
 		return ret;
+
+	if(!ni_wireless_wpa_complete_networks(dev, &conf->networks))
+		return -1;
 
 	if ((ret = ni_wireless_setup_networks(dev, wif, &conf->networks)) != 0){
 		return ret;

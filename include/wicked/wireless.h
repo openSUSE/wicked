@@ -343,7 +343,25 @@ struct ni_wireless {
 #define NI_WIRELESS_DEFAULT_SCAN_INTERVAL	60
 #define NI_WIRELESS_ASSOC_FAIL_DELAY		60
 #define NI_WIRELESS_SCAN_MAX_AGE		600
-
+#define NI_WIRELESS_KEY_MGMT_DEFAULT_PSK	(						\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_PSK) |		\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_SAE) |		\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_FT_SAE) |		\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_PSK_SHA256) |	\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_FT_PSK)		\
+						)
+#define NI_WIRELESS_KEY_MGMT_DEFAULT_EAP	(						\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_EAP) |		\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_EAP_SHA256) |	\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_FT_EAP) |		\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_FT_EAP_SHA384) |	\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_EAP_SUITE_B) |	\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_EAP_SUITE_B_192)	\
+						)
+#define NI_WIRELESS_KEY_MGMT_DEFAULT_OPEN	(						\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_NONE) |		\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_OWE)		\
+						)
 
 extern ni_wireless_t *			ni_wireless_new(ni_netdev_t *);
 extern void				ni_wireless_free(ni_wireless_t *);

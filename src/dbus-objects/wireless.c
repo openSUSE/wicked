@@ -199,9 +199,6 @@ ni_objectmodel_get_wireless_request_psk(const char *ifname, ni_wireless_network_
 	if ((child = ni_dbus_dict_get(var, "wpa-psk")) == NULL)
 		return TRUE;
 
-	net->keymgmt_proto |= NI_BIT(NI_WIRELESS_KEY_MGMT_PSK);
-
-
 	/* 'key' member has been removed
 	 * do parsing a string here: may be a 64 len HEX digit string or a 8..63 ASCII char passphrase
 	*/
@@ -280,17 +277,17 @@ ni_objectmodel_get_wireless_request_eap(const char *ifname, ni_wireless_network_
 	if (!(eap = ni_dbus_dict_get(var, "wpa-eap")))
 		return TRUE;
 
-	if (net->keymgmt_proto == 0)
-		net->keymgmt_proto = NI_BIT(NI_WIRELESS_KEY_MGMT_EAP);
-
 	if (!ni_objectmodel_get_wireless_request_wpa_common(ifname, net, eap, error))
 		return FALSE;
 
 	if (ni_dbus_dict_get_string(eap, "identity", &string))
 		ni_string_dup(&net->wpa_eap.identity, string);
 
-	if (ni_dbus_dict_get_uint32(eap, "method", &value))
-		net->wpa_eap.method = value;
+	if (!ni_dbus_dict_get_uint32(eap, "method", &value)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Missing mandatory eap method in wpa-eap settings", ifname);
+		return FALSE;
+	}
+	net->wpa_eap.method = value;
 
 	child = ni_dbus_dict_get(eap, "phase1");
 	if (child && ni_dbus_variant_is_dict(child)) {
@@ -421,8 +418,16 @@ ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_
 		return FALSE;
 	}
 
-	if (net->keymgmt_proto == 0)
-		net->keymgmt_proto = NI_BIT(NI_WIRELESS_KEY_MGMT_NONE);
+	if ((net->keymgmt_proto & NI_WIRELESS_KEY_MGMT_DEFAULT_EAP) && !net->wpa_eap.method) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Invalid config, missing <eap><method>", ifname);
+		return FALSE;
+	}
+
+	if ((net->keymgmt_proto & NI_WIRELESS_KEY_MGMT_DEFAULT_PSK) &&
+	    ni_string_empty(net->wpa_psk.passphrase)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Invalid config, missing <wpa-psk><passphrase>", ifname);
+		return FALSE;
+	}
 
 	return TRUE;
 }
