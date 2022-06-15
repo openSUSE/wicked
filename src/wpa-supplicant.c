@@ -672,10 +672,12 @@ ni_wpa_nif_properties_destroy(ni_wpa_nif_properties_t *properties)
 		ni_string_free(&properties->ifname);
 		ni_string_free(&properties->bridge);
 		ni_string_free(&properties->driver);
+		ni_string_free(&properties->country);
 		ni_string_free(&properties->current_network_path);
 		ni_string_free(&properties->current_bss_path);
 		ni_string_array_destroy(&properties->network_paths);
 		ni_string_array_destroy(&properties->bss_paths);
+		ni_string_free(&properties->current_auth_mode);
 
 		ni_wpa_nif_properties_init(properties);
 	}
