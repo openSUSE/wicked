@@ -1938,12 +1938,6 @@ ni_wireless_network_new(void)
 
 	net = xcalloc(1, sizeof(ni_wireless_network_t));
 
-	/* Locking network to protect secrets */
-	if (ni_try_mlock(net, sizeof(*net)) == FALSE) {
-		free(net);
-		return NULL;
-	}
-
 	net->refcount = 1;
 
 	net->scan_ssid = TRUE;
