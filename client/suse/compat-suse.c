@@ -3828,12 +3828,13 @@ try_add_wireless_net(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 	}
 
 	ni_wireless_network_array_append(&wlan->conf->networks, net);
+	ni_wireless_network_drop(&net);
 
 	return TRUE;
 
 failure:
 	if (net)
-		ni_wireless_network_put(net);
+		ni_wireless_network_drop(&net);
 	return FALSE;
 }
 

@@ -13,6 +13,7 @@
 #include <wicked/time.h>
 #include <wicked/util.h>
 #include <wicked/logging.h>
+#include <wicked/refcount.h>
 
 typedef enum ni_wireless_mode {
 	NI_WIRELESS_MODE_UNKNOWN,
@@ -388,9 +389,6 @@ extern void				ni_wireless_scan_free(ni_wireless_scan_t *);
 extern ni_wireless_blob_t *		ni_wireless_blob_new_from_str(const char *);
 extern void				ni_wireless_blob_free(ni_wireless_blob_t **);
 
-extern ni_wireless_network_t *		ni_wireless_network_new(void);
-extern void				ni_wireless_network_free(ni_wireless_network_t *);
-
 extern void				ni_wireless_network_array_init(ni_wireless_network_array_t *);
 extern void				ni_wireless_network_array_append(ni_wireless_network_array_t *, ni_wireless_network_t *);
 extern void				ni_wireless_network_array_destroy(ni_wireless_network_array_t *);
@@ -456,32 +454,7 @@ extern int				ni_rfkill_open(ni_rfkill_event_handler_t *, void *user_data);
 extern ni_bool_t			ni_rfkill_disabled(ni_rfkill_type_t);
 extern const char *			ni_rfkill_type_string(ni_rfkill_type_t type);
 
-static inline ni_wireless_network_t *
-ni_wireless_network_get(ni_wireless_network_t *net)
-{
-	ni_assert(net->refcount);
-	net->refcount++;
-
-	return net;
-}
-
-static inline void
-ni_wireless_network_put(ni_wireless_network_t *net)
-{
-	ni_assert(net->refcount);
-	if (--(net->refcount) == 0)
-		ni_wireless_network_free(net);
-}
-
-static inline void
-ni_wireless_passwd_clear(ni_wireless_network_t *net)
-{
-	if (net) {
-		ni_wireless_wep_key_array_destroy(net->wep_keys);
-		ni_string_clear(&net->wpa_psk.passphrase);
-		ni_string_clear(&net->wpa_eap.phase2.password);
-		ni_string_clear(&net->wpa_eap.tls.client_key_passwd);
-	}
-}
+extern					ni_refcounted_declare_new(ni_wireless_network);
+extern					ni_refcounted_declare_drop(ni_wireless_network);
 
 #endif /* NI_WICKED_WIRELESS_H */

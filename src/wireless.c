@@ -26,7 +26,6 @@
 #endif
 
 static void		__ni_wireless_scan_timer_arm(ni_wireless_scan_t *, ni_netdev_t *, unsigned int);
-static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
 static int		ni_wireless_scan_sync_bss(ni_wireless_scan_t *scan, const ni_wpa_bss_t *bss);
 static int		ni_wireless_trigger_scan(ni_netdev_t *dev, ni_wpa_nif_t *wif, ni_bool_t active_scan);
 static void		ni_wireless_scan_set_defaults(ni_wireless_scan_t *scan);
@@ -1931,28 +1930,25 @@ ni_wireless_blob_free(ni_wireless_blob_t **blob_p)
 /*
  * Wireless network objects
  */
-ni_wireless_network_t *
-ni_wireless_network_new(void)
+static ni_bool_t
+ni_wireless_network_init(ni_wireless_network_t *net)
 {
-	ni_wireless_network_t *net;
-
-	net = xcalloc(1, sizeof(ni_wireless_network_t));
-
-	net->refcount = 1;
+	memset(net, 0, sizeof(*net));
 
 	net->scan_ssid = TRUE;
 	net->mode = NI_WIRELESS_MODE_MANAGED;
 	net->wpa_eap.phase1.peapver = INT_MAX;
 
-	return net;
+	return TRUE;
 }
 
 void
-__ni_wireless_network_destroy(ni_wireless_network_t *net)
+ni_wireless_network_destroy(ni_wireless_network_t *net)
 {
-	ni_assert(net->refcount == 0);
-
-	ni_wireless_passwd_clear(net);
+	ni_wireless_wep_key_array_destroy(net->wep_keys);
+	ni_string_clear(&net->wpa_psk.passphrase);
+	ni_string_clear(&net->wpa_eap.phase2.password);
+	ni_string_clear(&net->wpa_eap.tls.client_key_passwd);
 
 	ni_string_clear(&net->wpa_eap.identity);
 	ni_string_clear(&net->wpa_eap.anonid);
@@ -1963,12 +1959,10 @@ __ni_wireless_network_destroy(ni_wireless_network_t *net)
 	memset(net, 0, sizeof(*net));
 }
 
-void
-ni_wireless_network_free(ni_wireless_network_t *net)
-{
-	__ni_wireless_network_destroy(net);
-	free(net);
-}
+static ni_refcounted_define_ref(ni_wireless_network);
+static ni_refcounted_define_free(ni_wireless_network);
+extern ni_refcounted_define_new(ni_wireless_network);
+extern ni_refcounted_define_drop(ni_wireless_network);
 
 void
 ni_wireless_wep_key_array_destroy(char **array)
@@ -1992,7 +1986,7 @@ void
 ni_wireless_network_array_append(ni_wireless_network_array_t *array, ni_wireless_network_t *net)
 {
 	array->data = realloc(array->data, (array->count + 1) * sizeof(ni_wireless_network_t *));
-	array->data[array->count++] = ni_wireless_network_get(net);
+	array->data[array->count++] = ni_wireless_network_ref(net);
 }
 
 void
@@ -2001,7 +1995,7 @@ ni_wireless_network_array_destroy(ni_wireless_network_array_t *array)
 	unsigned int i;
 
 	for (i = 0; i < array->count; ++i)
-		ni_wireless_network_put(array->data[i]);
+		ni_wireless_network_drop(&array->data[i]);
 	free(array->data);
 	memset(array, 0, sizeof(*array));
 }
