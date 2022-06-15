@@ -1,5 +1,5 @@
 /**
- *	Copyright (C) 2021 SUSE LLC
+ *	Copyright (C) 2022 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
  *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *	Authors:
- *		Clemens Famulla-Conrad <cfamullaconrad@suse.com>
+ *		Clemens Famulla-Conrad
  *
  *	Description:
  *		Test for bitmap util functions
@@ -26,10 +26,21 @@
  *		* ni_format_bitmap()
  */
 
-#include <stdarg.h>
+#include "wunit.h"
 #include <wicked/util.h>
-#include <wicked/logging.h>
 
+enum {
+	MY_GET = 0,
+	MY_SET
+};
+
+ni_intmap_t map[] =  {
+	{ "GET",	MY_GET},
+	{ "SET",	MY_SET},
+	/* aliases */
+	{ "READ",	MY_GET},
+	{ "WRITE",	MY_SET},
+};
 
 void string_array_set(ni_string_array_t *arr, ...)
 {
@@ -39,7 +50,7 @@ void string_array_set(ni_string_array_t *arr, ...)
 	ni_string_array_destroy(arr);
 
 	va_start(ap, arr);
-	while((s = va_arg(ap, const char *))){
+	while ((s = va_arg(ap, const char *))) {
 		ni_string_array_append(arr, s);
 	}
 	va_end(ap);
@@ -52,7 +63,7 @@ ni_bool_t string_array_eq(ni_string_array_t *arr, ...)
 	size_t cnt = 0;
 
 	va_start(ap, arr);
-	while((s = va_arg(ap, const char *))){
+	while ((s = va_arg(ap, const char *))) {
 		cnt++;
 		if (ni_string_array_index(arr, s) < 0){
 			va_end(ap);
@@ -63,171 +74,183 @@ ni_bool_t string_array_eq(ni_string_array_t *arr, ...)
 	return arr->count == cnt;
 }
 
-int main(int argc, char *argv[])
+TESTCASE(ni_parse_bitmap_array)
 {
-	enum {
-		MY_GET = 0,
-		MY_SET
-	};
-
-	ni_intmap_t map[] =  {
-		{ "GET",	MY_GET},
-		{ "SET",	MY_SET},
-		/* aliases */
-		{ "READ",	MY_GET},
-		{ "WRITE",	MY_SET},
-	};
-
 	unsigned int mask_out = 0;
-	unsigned int done_out = 0;
-	unsigned int mask_in = 0;
 	ni_string_array_t array_in = NI_STRING_ARRAY_INIT;
-	ni_string_array_t array_out = NI_STRING_ARRAY_INIT;
 	ni_string_array_t invalid = NI_STRING_ARRAY_INIT;
-	ni_stringbuf_t string_out = NI_STRINGBUF_INIT_DYNAMIC;
-
-#define CLEANUP() \
-	ni_string_array_destroy(&array_in);	\
-	ni_string_array_destroy(&array_out);	\
-	ni_string_array_destroy(&invalid);	\
-	ni_stringbuf_destroy(&string_out);	\
-	mask_out = done_out = mask_in = 0;
 
 	/* ni_parse_bitmap_array() */
-	CLEANUP();
 	mask_out = NI_BIT(MY_SET);
 	ni_string_array_append(&invalid, "invalid");
 	string_array_set(&array_in, "GET", NULL);
-	ni_assert(ni_parse_bitmap_array(&mask_out, map, &array_in, NULL) == 0);
-	ni_assert(string_array_eq(&invalid, "invalid", NULL));
-	ni_assert(mask_out == (NI_BIT(MY_GET) | NI_BIT(MY_SET)));
+	CHECK(ni_parse_bitmap_array(&mask_out, map, &array_in, NULL) == 0);
+	CHECK(string_array_eq(&invalid, "invalid", NULL));
+	CHECK(mask_out == (NI_BIT(MY_GET) | NI_BIT(MY_SET)));
 
-	CLEANUP();
+	mask_out = 0;
+	ni_string_array_destroy(&invalid);
 	string_array_set(&array_in, "GET", "SET", NULL);
-	ni_assert(ni_parse_bitmap_array(&mask_out, map, &array_in, &invalid) == 0);
-	ni_assert(invalid.count == 0);
-	ni_assert(mask_out == (NI_BIT(MY_GET) | NI_BIT(MY_SET)));
+	CHECK(ni_parse_bitmap_array(&mask_out, map, &array_in, &invalid) == 0);
+	CHECK(invalid.count == 0);
+	CHECK(mask_out == (NI_BIT(MY_GET) | NI_BIT(MY_SET)));
 
-	CLEANUP();
+	ni_string_array_destroy(&invalid);
+	mask_out = 0;
 	string_array_set(&array_in, "GET", "SET", "WRITE", NULL);
-	ni_assert(ni_parse_bitmap_array(&mask_out, map, &array_in, &invalid) == 0);
-	ni_assert(invalid.count == 0);
-	ni_assert(mask_out == (NI_BIT(MY_GET) | NI_BIT(MY_SET)));
+	CHECK(ni_parse_bitmap_array(&mask_out, map, &array_in, &invalid) == 0);
+	CHECK(invalid.count == 0);
+	CHECK(mask_out == (NI_BIT(MY_GET) | NI_BIT(MY_SET)));
 
-	CLEANUP();
+	ni_string_array_destroy(&invalid);
+	mask_out = 0;
 	string_array_set(&array_in, "GET", "SET", "WRITE", "DUMP", NULL);
-	ni_assert(ni_parse_bitmap_array(&mask_out, map, &array_in, &invalid) == 1);
-	ni_assert(string_array_eq(&invalid, "DUMP", NULL));
-	ni_assert(mask_out == (NI_BIT(MY_GET) | NI_BIT(MY_SET)));
+	CHECK(ni_parse_bitmap_array(&mask_out, map, &array_in, &invalid) == 1);
+	CHECK(string_array_eq(&invalid, "DUMP", NULL));
+	CHECK(mask_out == (NI_BIT(MY_GET) | NI_BIT(MY_SET)));
 	ni_string_array_destroy(&invalid);
 
-	CLEANUP();
+	ni_string_array_destroy(&invalid);
+	mask_out = 0;
 	string_array_set(&array_in, "GET", "SET", "WRITE", "DUMP", "BLUMP", NULL);
-	ni_assert(ni_parse_bitmap_array(&mask_out, map, &array_in, &invalid) == 2);
-	ni_assert(string_array_eq(&invalid, "DUMP", "BLUMP", NULL));
-	ni_assert(mask_out == (NI_BIT(MY_GET) | NI_BIT(MY_SET)));
-	ni_string_array_destroy(&invalid);
+	CHECK(ni_parse_bitmap_array(&mask_out, map, &array_in, &invalid) == 2);
+	CHECK(string_array_eq(&invalid, "DUMP", "BLUMP", NULL));
+	CHECK(mask_out == (NI_BIT(MY_GET) | NI_BIT(MY_SET)));
 
-	/* ni_parse_bitmap_string() */
-	CLEANUP();
+	ni_string_array_destroy(&invalid);
+	ni_string_array_destroy(&array_in);
+}
+
+TESTCASE(ni_parse_bitmap_string)
+{
+	unsigned int mask_out = 0;
+	ni_string_array_t invalid = NI_STRING_ARRAY_INIT;
+
 	mask_out = NI_BIT(MY_SET);
 	ni_string_array_append(&invalid, "Some garbage!!");
-	ni_assert(ni_parse_bitmap_string(&mask_out, map, "GET", "|", &invalid) == 0);
-	ni_assert(string_array_eq(&invalid, "Some garbage!!", NULL));
-	ni_assert(mask_out == (NI_BIT(MY_GET) | NI_BIT(MY_SET)));
+	CHECK(ni_parse_bitmap_string(&mask_out, map, "GET", "|", &invalid) == 0);
+	CHECK(string_array_eq(&invalid, "Some garbage!!", NULL));
+	CHECK(mask_out == (NI_BIT(MY_GET) | NI_BIT(MY_SET)));
 
-	CLEANUP();
-	ni_assert(ni_parse_bitmap_string(&mask_out, map, "WRITE|GET", "|", &invalid) == 0);
-	ni_assert(invalid.count == 0);
-	ni_assert(mask_out == (NI_BIT(MY_GET) | NI_BIT(MY_SET)));
+	ni_string_array_destroy(&invalid);
+	mask_out = 0;
+	CHECK(ni_parse_bitmap_string(&mask_out, map, "WRITE|GET", "|", &invalid) == 0);
+	CHECK(invalid.count == 0);
+	CHECK(mask_out == (NI_BIT(MY_GET) | NI_BIT(MY_SET)));
 
+	ni_string_array_destroy(&invalid);
+}
 
-	/* ni_format_bitmap_array() */
-	CLEANUP();
+TESTCASE(ni_format_bitmap_array)
+{
+	unsigned int done_out = 0;
+	unsigned int mask_in = 0;
+	ni_string_array_t array_out = NI_STRING_ARRAY_INIT;
+
 	mask_in = 0;
 	done_out = 0;
+	ni_string_array_destroy(&array_out);
 	ni_string_array_append(&array_out, "Some garbage!!");
-	ni_assert(ni_format_bitmap_array(&array_out, map, mask_in, &done_out) == 0);
-	ni_assert(string_array_eq(&array_out, "Some garbage!!", NULL));
-	ni_assert(done_out == mask_in);
+	CHECK(ni_format_bitmap_array(&array_out, map, mask_in, &done_out) == 0);
+	CHECK(string_array_eq(&array_out, "Some garbage!!", NULL));
+	CHECK(done_out == mask_in);
 
-	CLEANUP();
+	done_out = 0;
+	ni_string_array_destroy(&array_out);
 	mask_in = NI_BIT(MY_GET);
-	ni_assert(ni_format_bitmap_array(&array_out, map, mask_in, &done_out) == 0);
-	ni_assert(string_array_eq(&array_out, "GET", NULL));
-	ni_assert(done_out == mask_in);
+	CHECK(ni_format_bitmap_array(&array_out, map, mask_in, &done_out) == 0);
+	CHECK(string_array_eq(&array_out, "GET", NULL));
+	CHECK(done_out == mask_in);
 
-	CLEANUP();
+	done_out = 0;
+	ni_string_array_destroy(&array_out);
 	mask_in = NI_BIT(MY_GET) | NI_BIT(MY_SET);
-	ni_assert(ni_format_bitmap_array(&array_out, map, mask_in, &done_out) == 0);
-	ni_assert(string_array_eq(&array_out, "GET", "SET", NULL));
-	ni_assert(done_out == mask_in);
+	CHECK(ni_format_bitmap_array(&array_out, map, mask_in, &done_out) == 0);
+	CHECK(string_array_eq(&array_out, "GET", "SET", NULL));
+	CHECK(done_out == mask_in);
 
-	CLEANUP();
+	done_out = 0;
+	ni_string_array_destroy(&array_out);
 	mask_in = NI_BIT(MY_GET) | NI_BIT(MY_SET) | NI_BIT(5);
-	ni_assert(ni_format_bitmap_array(&array_out, map, mask_in, &done_out) == NI_BIT(5));
-	ni_assert(string_array_eq(&array_out, "GET", "SET", NULL));
-	ni_assert((done_out ^ mask_in) == NI_BIT(5));
+	CHECK(ni_format_bitmap_array(&array_out, map, mask_in, &done_out) == NI_BIT(5));
+	CHECK(string_array_eq(&array_out, "GET", "SET", NULL));
+	CHECK((done_out ^ mask_in) == NI_BIT(5));
 
+	ni_string_array_destroy(&array_out);
+}
 
-	/* ni_format_bitmap_string() */
-	CLEANUP();
+TESTCASE(ni_format_bitmap_string)
+{
+	unsigned int done_out = 0;
+	unsigned int mask_in = 0;
+	ni_stringbuf_t string_out = NI_STRINGBUF_INIT_DYNAMIC;
+
 	mask_in = 0;
-	ni_assert(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, NULL, "|"), NULL));
+	CHECK(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, NULL, "|"), NULL));
 
-	CLEANUP();
 	mask_in = 0;
 	done_out = 0xf0;
+	ni_stringbuf_destroy(&string_out);
 	ni_stringbuf_puts(&string_out, "Some garbage!!");
-	ni_assert(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, NULL, "|"), ""));
-	ni_assert(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, &done_out, "|"), ""));
-	ni_assert(done_out == 0xf0);
-	ni_assert(ni_string_eq(string_out.string, "Some garbage!!"));
+	CHECK(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, NULL, "|"), ""));
+	CHECK(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, &done_out, "|"), ""));
+	CHECK(done_out == 0xf0);
+	CHECK(ni_string_eq(string_out.string, "Some garbage!!"));
 
-	CLEANUP();
+	done_out = 0;
+	ni_stringbuf_destroy(&string_out);
 	mask_in = NI_BIT(MY_GET);
-	ni_assert(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, &done_out, "|"), "GET"));
-	ni_assert(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, &done_out, "#"), "#GET"));
-	ni_assert(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, &done_out, NULL), "|GET"));
-	ni_assert(done_out == mask_in);
-	ni_assert(ni_string_eq(string_out.string, "GET#GET|GET"));
+	CHECK(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, &done_out, "|"), "GET"));
+	CHECK(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, &done_out, "#"), "#GET"));
+	CHECK(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, &done_out, NULL), ", GET"));
+	CHECK(done_out == mask_in);
+	CHECK(ni_string_eq(string_out.string, "GET#GET, GET"));
 
-	CLEANUP();
+	done_out = 0;
+	ni_stringbuf_destroy(&string_out);
 	mask_in = NI_BIT(MY_GET) | NI_BIT(MY_SET);
-	ni_assert(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, &done_out, "|"), "GET|SET"));
-	ni_assert(done_out == mask_in);
+	CHECK(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, &done_out, "|"), "GET|SET"));
+	CHECK(done_out == mask_in);
 
-	CLEANUP();
+	done_out = 0;
+	ni_stringbuf_destroy(&string_out);
 	mask_in = NI_BIT(MY_GET) | NI_BIT(MY_SET) | NI_BIT(5);
-	ni_assert(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, &done_out, "|"), "GET|SET"));
-	ni_assert((done_out ^ mask_in) == NI_BIT(5));
+	CHECK(ni_string_eq(ni_format_bitmap_string(&string_out, map, mask_in, &done_out, "|"), "GET|SET"));
+	CHECK((done_out ^ mask_in) == NI_BIT(5));
 
-	/* ni_format_bitmap() */
-	CLEANUP();
-	mask_in = 0;
-	ni_assert(ni_string_eq(ni_format_bitmap(&string_out, map, mask_in, "|"), NULL));
-
-	CLEANUP();
-	mask_in = 0;
-	ni_stringbuf_puts(&string_out, "Some garbage!!");
-	ni_assert(ni_string_eq(ni_format_bitmap(&string_out, map, mask_in, "|"), ""));
-	ni_assert(ni_string_eq(string_out.string, "Some garbage!!"));
-
-	CLEANUP();
-	mask_in = NI_BIT(MY_GET);
-	ni_assert(ni_string_eq(ni_format_bitmap(&string_out, map, mask_in, "|"), "GET"));
-	ni_assert(ni_string_eq(ni_format_bitmap(&string_out, map, mask_in, NULL), "|GET"));
-	ni_assert(ni_string_eq(ni_format_bitmap(&string_out, map, mask_in, "#"), "#GET"));
-	ni_assert(ni_string_eq(string_out.string, "GET|GET#GET"));
-
-	CLEANUP();
-	mask_in = NI_BIT(MY_GET) | NI_BIT(MY_SET);
-	ni_assert(ni_string_eq(ni_format_bitmap(&string_out, map, mask_in, "|"), "GET|SET"));
-
-	CLEANUP();
-	mask_in = NI_BIT(MY_GET) | NI_BIT(MY_SET) | NI_BIT(5);
-	ni_assert(ni_string_eq(ni_format_bitmap(&string_out, map, mask_in, "|"), "GET|SET"));
-
-	printf("ALL TEST SUCCESSFUL!\n");
-	return 0;
+	ni_stringbuf_destroy(&string_out);
 }
+
+TESTCASE(ni_format_bitmap)
+{
+	unsigned int mask_in = 0;
+	ni_stringbuf_t string_out = NI_STRINGBUF_INIT_DYNAMIC;
+
+	mask_in = 0;
+	CHECK(ni_string_eq(ni_format_bitmap(&string_out, map, mask_in, "|"), NULL));
+
+	ni_stringbuf_destroy(&string_out);
+	mask_in = 0;
+	ni_stringbuf_puts(&string_out, "Some garbage!!");
+	CHECK(ni_string_eq(ni_format_bitmap(&string_out, map, mask_in, "|"), ""));
+	CHECK(ni_string_eq(string_out.string, "Some garbage!!"));
+
+	ni_stringbuf_destroy(&string_out);
+	mask_in = NI_BIT(MY_GET);
+	CHECK(ni_string_eq(ni_format_bitmap(&string_out, map, mask_in, "|"), "GET"));
+	CHECK(ni_string_eq(ni_format_bitmap(&string_out, map, mask_in, NULL), ", GET"));
+	CHECK(ni_string_eq(ni_format_bitmap(&string_out, map, mask_in, "#"), "#GET"));
+	CHECK(ni_string_eq(string_out.string, "GET, GET#GET"));
+
+	ni_stringbuf_destroy(&string_out);
+	mask_in = NI_BIT(MY_GET) | NI_BIT(MY_SET);
+	CHECK(ni_string_eq(ni_format_bitmap(&string_out, map, mask_in, "|"), "GET|SET"));
+
+	ni_stringbuf_destroy(&string_out);
+	mask_in = NI_BIT(MY_GET) | NI_BIT(MY_SET) | NI_BIT(5);
+	CHECK(ni_string_eq(ni_format_bitmap(&string_out, map, mask_in, "|"), "GET|SET"));
+
+	ni_stringbuf_destroy(&string_out);
+}
+
+TESTMAIN();
