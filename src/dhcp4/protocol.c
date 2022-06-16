@@ -759,7 +759,7 @@ __ni_dhcp4_build_msg_discover(const ni_dhcp4_device_t *dev,
 			return -1;
 	}
 
-	if (options->classid && options->classid[0]) {
+	if (options->classid[0]) {
 		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 
@@ -883,7 +883,7 @@ __ni_dhcp4_build_msg_inform(const ni_dhcp4_device_t *dev,
 			return -1;
 	}
 
-	if (options->classid && options->classid[0]) {
+	if (options->classid[0]) {
 		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 
@@ -949,7 +949,7 @@ __ni_dhcp4_build_msg_request_offer(const ni_dhcp4_device_t *dev,
 			return -1;
 	}
 
-	if (options->classid && options->classid[0]) {
+	if (options->classid[0]) {
 		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 
@@ -1014,7 +1014,7 @@ __ni_dhcp4_build_msg_request_renew(const ni_dhcp4_device_t *dev,
 			return -1;
 	}
 
-	if (options->classid && options->classid[0]) {
+	if (options->classid[0]) {
 		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 
@@ -1079,7 +1079,7 @@ __ni_dhcp4_build_msg_request_rebind(const ni_dhcp4_device_t *dev,
 			return -1;
 	}
 
-	if (options->classid && options->classid[0]) {
+	if (options->classid[0]) {
 		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 
@@ -1139,7 +1139,7 @@ __ni_dhcp4_build_msg_request_reboot(const ni_dhcp4_device_t *dev,
 			return -1;
 	}
 
-	if (options->classid && options->classid[0]) {
+	if (options->classid[0]) {
 		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 

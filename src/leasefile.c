@@ -1326,6 +1326,7 @@ ni_addrconf_lease_file_write(const char *ifname, ni_addrconf_lease_t *lease)
 	ni_debug_dhcp("Writing lease to temporary file for '%s'", filename);
 	xml_node_print(xml, fp);
 	fclose(fp);
+	fp = NULL;
 	xml_node_free(xml);
 
 	if ((ret = rename(tempname, filename)) != 0) {
