@@ -27,19 +27,40 @@ The format allow the following escape sequences:
 .IP \[bu] 2
 \f[C]\[rs]x[0-9A-Fa-F]{2}\f[R]: define one byte as hex
 (\f[C]\[rs]x0A\f[R] for new line)
+.PD 0
+.P
+.PD
 .IP \[bu] 2
 \f[C]\[rs][0-9]{1,3}\f[R]: define one byte in oktal (\f[C]\[rs]012\f[R]
 for new line)
+.PD 0
+.P
+.PD
 .IP \[bu] 2
 \f[C]\[rs]t\f[R]: translated to tab (\f[C]\[rs]x09\f[R])
+.PD 0
+.P
+.PD
 .IP \[bu] 2
 \f[C]\[rs]n\f[R]: translated to new line (\f[C]\[rs]x0A\f[R])
+.PD 0
+.P
+.PD
 .IP \[bu] 2
 \f[C]\[rs]r\f[R]: translated to carriage return (\f[C]\[rs]x0D\f[R])
+.PD 0
+.P
+.PD
 .IP \[bu] 2
 \f[C]\[rs]e\f[R]: translated to ESC (\f[C]\[rs]x1B\f[R])
+.PD 0
+.P
+.PD
 .IP \[bu] 2
 \f[C]\[rs]\[rs]\f[R]: become single \f[C]\[rs]\f[R]
+.PD 0
+.P
+.PD
 .IP \[bu] 2
 \f[C]\[rs]\[dq]\f[R]: become single \f[C]\[dq]\f[R]
 .RE

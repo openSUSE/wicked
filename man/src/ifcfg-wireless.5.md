@@ -23,13 +23,13 @@ global to the interface. The description of the variable points this out.
     are part of the same virtual network.
     The format allow the following escape sequences:
 
-      * `\x[0-9A-Fa-F]{2}`: define one byte as hex (`\x0A` for new line)
-      * `\[0-9]{1,3}`: define one byte in oktal (`\012` for new line)
-      * `\t`: translated to tab (`\x09`)
-      * `\n`: translated to new line (`\x0A`)
-      * `\r`: translated to carriage return (`\x0D`)
-      * `\e`: translated to ESC (`\x1B`)
-      * `\\`: become single `\`
+      * `\x[0-9A-Fa-F]{2}`: define one byte as hex (`\x0A` for new line)\
+      * `\[0-9]{1,3}`: define one byte in oktal (`\012` for new line)\
+      * `\t`: translated to tab (`\x09`)\
+      * `\n`: translated to new line (`\x0A`)\
+      * `\r`: translated to carriage return (`\x0D`)\
+      * `\e`: translated to ESC (`\x1B`)\
+      * `\\`: become single `\`\
       * `\"`: become single `"`
 
 ## Global wireless options:
