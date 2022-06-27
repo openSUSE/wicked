@@ -945,6 +945,10 @@ ni_wireless_wpa_complete_network(ni_netdev_t *dev, ni_wireless_network_t *net)
 		NI_BIT(NI_WIRELESS_KEY_MGMT_SAE) | NI_BIT(NI_WIRELESS_KEY_MGMT_EAP_SUITE_B) |
 		NI_BIT(NI_WIRELESS_KEY_MGMT_EAP_SUITE_B_192) |
 		NI_BIT(NI_WIRELESS_KEY_MGMT_OWE);
+	unsigned int ft_key_mgmt =
+		NI_BIT(NI_WIRELESS_KEY_MGMT_FT_EAP) | NI_BIT(NI_WIRELESS_KEY_MGMT_FT_EAP_SHA384) |
+		NI_BIT(NI_WIRELESS_KEY_MGMT_FT_FILS_SHA256) | NI_BIT(NI_WIRELESS_KEY_MGMT_FT_FILS_SHA384) |
+		NI_BIT(NI_WIRELESS_KEY_MGMT_FT_PSK) | NI_BIT(NI_WIRELESS_KEY_MGMT_FT_SAE);
 
 	if (!(wlan = ni_netdev_get_wireless(dev)))
 		return FALSE;
@@ -959,6 +963,9 @@ ni_wireless_wpa_complete_network(ni_netdev_t *dev, ni_wireless_network_t *net)
 		/* if the interface do not support PMF, skip key-mgmt which requires it. */
 		if (wlan->capabilities.group_mgmt_ciphers == 0)
 			net->keymgmt_proto &= ~(require_pmf_key_mgmt);
+
+		if (!ni_wpa_client_has_capability(NULL, "ft"))
+			net->keymgmt_proto &= ~(ft_key_mgmt);
 
 		if (net->keymgmt_proto == 0)
 			net->keymgmt_proto = wlan->capabilities.keymgmt_algos & NI_WIRELESS_KEY_MGMT_DEFAULT_OPEN;
