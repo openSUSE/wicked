@@ -43,6 +43,8 @@ struct ni_wpa_client {
 
 	ni_wpa_nif_t *				nifs;
 	ni_wpa_ops_handler_t			*ops_handler_list;
+
+	ni_wpa_client_properties_t		properties;
 };
 static ni_wpa_client_t *			wpa_client; /* singelton */
 
@@ -58,6 +60,9 @@ static const ni_dbus_service_t			ni_objectmodel_wpa_bss_service;
 
 
 static ni_dbus_client_t *			ni_wpa_client_dbus(ni_wpa_client_t *);
+static void					ni_wpa_client_properties_destroy(ni_wpa_client_properties_t *);
+static void					ni_wpa_client_properties_init(ni_wpa_client_properties_t *);
+static int					ni_wpa_client_refresh(ni_wpa_client_t *);
 
 static ni_wpa_nif_t *				ni_wpa_nif_by_path(ni_wpa_client_t *wpa, const char *object_path);
 
@@ -353,6 +358,7 @@ ni_wpa_client_open()
 		ni_error("Unable to create wpa client - out of memory");
 		return NULL;
 	}
+	ni_wpa_client_properties_init(&wpa->properties);
 
 	wpa->object = ni_dbus_client_object_new(dbc, &ni_objectmodel_wpa_class,
 			NI_WPA_OBJECT_PATH, NI_WPA_INTERFACE, wpa);
@@ -378,6 +384,8 @@ ni_wpa_client_open()
 				NI_DBUS_INTERFACE,	/* object interface */
 				ni_wpa_dbus_signal,
 				wpa);
+
+	ni_wpa_client_refresh(wpa);
 
 	return wpa;
 }
@@ -488,6 +496,8 @@ ni_wpa_client_free(ni_wpa_client_t *wpa)
 		ni_wpa_nif_free(wif);
 	}
 
+	ni_wpa_client_properties_destroy(&wpa->properties);
+
 	while ((handler = wpa->ops_handler_list) != NULL)
 		ni_wpa_ops_handler_list_delete(&wpa->ops_handler_list, handler);
 
@@ -513,6 +523,131 @@ ni_dbus_client_t *
 ni_wpa_client_dbus(ni_wpa_client_t *wpa)
 {
 	return wpa->dbus;
+}
+
+static ni_wpa_client_t *
+ni_objectmodel_wpa_client_unwrap(const ni_dbus_object_t *object, DBusError *error)
+{
+	ni_wpa_client_t *wpa;
+
+	if (!object) {
+		if (error)
+			dbus_set_error(error, DBUS_ERROR_FAILED,
+					"Cannot unwrap wpa client interface from a NULL dbus object");
+		return NULL;
+	}
+
+	wpa = object->handle;
+	if (ni_dbus_object_isa(object, &ni_objectmodel_wpa_class))
+		return wpa;
+
+	if (error)
+		dbus_set_error(error, DBUS_ERROR_FAILED,
+				"Cannot unwrap wpa client interface from incompatible object %s of class %s",
+				object->path, object->class->name);
+	return NULL;
+}
+
+static void *
+ni_objectmodel_get_wpa_client_properties(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
+{
+	ni_wpa_client_t *wpa = NULL;
+	ni_wpa_client_properties_t *props = NULL;
+
+	if ((wpa = ni_objectmodel_wpa_client_unwrap(object, error)))
+		props = &wpa->properties;
+
+	return props;
+
+}
+
+const ni_dbus_property_t	ni_objectmodel_wpa_client_properties[] =  {
+	NI_DBUS_GENERIC_STRING_PROPERTY(wpa_client_properties, DebugLevel, debug_level, RO),
+	NI_DBUS_GENERIC_BOOL_PROPERTY(wpa_client_properties, DebugTimestamp, debug_timestamp, RO),
+	NI_DBUS_GENERIC_BOOL_PROPERTY(wpa_client_properties, DebugShowKeys, debug_show_keys, RO),
+	NI_DBUS_GENERIC_OBJECT_PATH_ARRAY_PROPERTY(wpa_client_properties, Interfaces, interfaces, RO),
+	NI_DBUS_GENERIC_STRING_ARRAY_PROPERTY(wpa_client_properties, EapMethods, eap_methods, RO),
+	NI_DBUS_GENERIC_STRING_ARRAY_PROPERTY(wpa_client_properties, Capabilities, capabilities, RO),
+	NI_DBUS_GENERIC_BYTE_ARRAY_PROPERTY(wpa_client_properties, WFDIEs, wfdies, RO),
+	{ NULL }
+};
+
+static const ni_dbus_service_t	ni_objectmodel_wpa_client_service = {
+	.name		= NI_WPA_BUS_NAME,
+	.properties	= ni_objectmodel_wpa_client_properties
+};
+
+static void
+ni_wpa_client_properties_destroy(ni_wpa_client_properties_t *props)
+{
+	ni_string_free(&props->debug_level);
+	ni_string_array_destroy(&props->interfaces);
+	ni_string_array_destroy(&props->eap_methods);
+	ni_string_array_destroy(&props->capabilities);
+	ni_byte_array_destroy(&props->wfdies);
+}
+
+static void
+ni_wpa_client_properties_init(ni_wpa_client_properties_t *props)
+{
+	memset(props, 0, sizeof(*props));
+	ni_string_array_init(&props->interfaces);
+	ni_string_array_init(&props->eap_methods);
+	ni_string_array_init(&props->capabilities);
+	ni_byte_array_init(&props->wfdies);
+}
+
+static int
+ni_wpa_client_refresh(ni_wpa_client_t *wpa)
+{
+	DBusError error = DBUS_ERROR_INIT;
+	int rv = -NI_ERROR_DBUS_CALL_FAILED;
+
+	if (!wpa || !wpa->object)
+		return -NI_ERROR_INVALID_ARGS;
+
+	if (!ni_dbus_object_refresh_properties(wpa->object, &ni_objectmodel_wpa_client_service, &error)) {
+		if (dbus_error_is_set(&error))
+			rv = ni_dbus_client_translate_error(ni_wpa_client_dbus(wpa), &error);
+		return rv;
+	}
+
+	if (ni_debug_guard(NI_LOG_DEBUG, NI_TRACE_WPA)) {
+		unsigned int i;
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+		ni_wpa_client_properties_t *props = &wpa->properties;
+		const char *interface = ni_dbus_object_get_default_interface(wpa->object);
+
+		ni_debug_wpa("%s: Property DebugLevel=%s", interface,
+				props->debug_level ?: "");
+		ni_debug_wpa("%s: Property DebugTimestamp=%s", interface,
+				props->debug_timestamp ? "true" : "false");
+		ni_debug_wpa("%s: Property DebugShowKeys=%s", interface,
+				props->debug_show_keys ? "true" : "false");
+		ni_debug_wpa("%s: Property Interfaces=%s", interface,
+				ni_stringbuf_join(&buf, &props->interfaces, ", "));
+		ni_stringbuf_truncate(&buf, 0);
+		ni_debug_wpa("%s: Property EapMethods=%s", interface,
+				ni_stringbuf_join(&buf, &props->eap_methods, ", "));
+		ni_stringbuf_truncate(&buf, 0);
+		ni_debug_wpa("%s: Property Capabilities=%s", interface,
+				ni_stringbuf_join(&buf, &props->capabilities, ", "));
+		ni_stringbuf_truncate(&buf, 0);
+		for (i = 0; i < props->wfdies.len; i++)
+			ni_stringbuf_printf(&buf, "%02hhx ", props->wfdies.data[i]);
+		ni_debug_wpa("%s: Property WFDIEs=%s", interface, buf.string ?: "");
+		ni_stringbuf_destroy(&buf);
+	}
+	return NI_SUCCESS;
+}
+
+ni_bool_t
+ni_wpa_client_has_capability(ni_wpa_client_t *wpa, const char *capability)
+{
+	if (!wpa && !(wpa = ni_wpa_client()))
+		return FALSE;
+
+	return ni_string_array_index(&wpa->properties.capabilities, capability) != -1;
 }
 
 static ni_bool_t
@@ -2617,6 +2752,8 @@ ni_wpa_handle_wpa_supplicant_start(ni_wpa_client_t *wpa)
 		return;
 	}
 
+	ni_wpa_client_refresh(wpa);
+
 	for (handler = wpa->ops_handler_list; handler; handler = handler->next) {
 		if ((dev = ni_netdev_by_index(nc, handler->ifindex)) &&
 		    handler->ops.on_wpa_supplicant_start)
@@ -2634,6 +2771,8 @@ ni_wpa_handle_wpa_supplicant_stop(ni_wpa_client_t *wpa)
 
 	while ((wif = wpa->nifs) != NULL)
 		ni_wpa_nif_free(wif);
+
+	ni_wpa_client_properties_destroy(&wpa->properties);
 
 	if (!(nc = ni_global_state_handle(0))) {
 		ni_error("%s: Failed to get global net state", __func__);

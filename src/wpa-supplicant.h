@@ -13,6 +13,7 @@
 
 typedef struct ni_wpa_client			ni_wpa_client_t;
 typedef struct ni_wpa_client_ops		ni_wpa_client_ops_t;
+typedef struct ni_wpa_client_properties		ni_wpa_client_properties_t;
 typedef struct ni_wpa_nif			ni_wpa_nif_t;
 typedef struct ni_wpa_nif_ops			ni_wpa_nif_ops_t;
 typedef struct ni_wpa_nif_properties		ni_wpa_nif_properties_t;
@@ -374,9 +375,20 @@ struct ni_wpa_bss {
 	ni_wpa_bss_properties_t			properties;
 };
 
+struct ni_wpa_client_properties {
+	char *				debug_level;
+	ni_bool_t			debug_timestamp;
+	ni_bool_t			debug_show_keys;
+	ni_string_array_t		interfaces;		/*  Object path array to inferfaces */
+	ni_string_array_t		eap_methods;
+	ni_string_array_t		capabilities;
+	ni_byte_array_t			wfdies;			/*  Wi-Fi Display subelements */
+};
+
 extern ni_wpa_client_t *			ni_wpa_client();
 extern ni_bool_t				ni_wpa_client_set_ops(unsigned int, ni_wpa_client_ops_t*);
 extern ni_bool_t				ni_wpa_client_del_ops(unsigned int);
+extern ni_bool_t				ni_wpa_client_has_capability(ni_wpa_client_t *, const char *);
 
 extern int					ni_wpa_get_interface(ni_wpa_client_t *, const char *, unsigned int,
 								ni_wpa_nif_t **);
