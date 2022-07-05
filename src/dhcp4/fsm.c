@@ -582,8 +582,8 @@ ni_dhcp4_fsm_release(ni_dhcp4_device_t *dev)
 		ni_dhcp4_device_send_message(dev, DHCP4_RELEASE, dev->lease);
 		ni_dhcp4_fsm_commit_lease(dev, NULL);
 	} else {
-		ni_dhcp4_device_drop_lease(dev);
 		ni_dhcp4_send_event(NI_DHCP4_EVENT_RELEASED, dev, dev->lease);
+		ni_dhcp4_device_drop_lease(dev);
 		ni_dhcp4_fsm_restart(dev);
 	}
 }
