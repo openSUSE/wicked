@@ -111,8 +111,8 @@ static const ni_intmap_t			ni_wireless_wpa_key_mgmt_map[] = {
 
 static const ni_intmap_t			ni_wireless_wpa_protocol_map[] = {
 	/* as required for networks and also used in capabilities					*/
-	{ "RSN",				NI_WIRELESS_AUTH_PROTO_WPA2				},
-	{ "WPA",				NI_WIRELESS_AUTH_PROTO_WPA1				},
+	{ "RSN",				NI_WIRELESS_AUTH_PROTO_RSN				},
+	{ "WPA",				NI_WIRELESS_AUTH_PROTO_WPA				},
 
 	{ NULL }
 };
@@ -1456,10 +1456,10 @@ ni_wireless_name_to_mode(const char *string, unsigned int *value)
 }
 
 static const ni_intmap_t			ni_wireless_auth_proto_names[] = {
-	{ "wpa",		NI_WIRELESS_AUTH_PROTO_WPA1 },
-	{ "wpa1",		NI_WIRELESS_AUTH_PROTO_WPA1 },
-	{ "wpa2",		NI_WIRELESS_AUTH_PROTO_WPA2 },
-	{ "rsn",		NI_WIRELESS_AUTH_PROTO_WPA2 },
+	{ "wpa",		NI_WIRELESS_AUTH_PROTO_WPA },
+	{ "rsn",		NI_WIRELESS_AUTH_PROTO_RSN },
+	{ "wpa1",		NI_WIRELESS_AUTH_PROTO_WPA },
+	{ "wpa2",		NI_WIRELESS_AUTH_PROTO_RSN },
 	{ NULL }
 };
 
