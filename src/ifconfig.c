@@ -889,12 +889,12 @@ __ni_system_interface_update_lease(ni_netdev_t *dev, ni_addrconf_lease_t **lease
 	if (!dev || !lease_p || !(lease = *lease_p) || lease->old)
 		return res;
 
-	lease = *lease_p;
-	ni_debug_ifconfig("%s: received %s:%s lease update in state %s",
+	ni_debug_ifconfig("%s: processing %s:%s lease update in state %s uuid %s",
 			dev->name,
 			ni_addrfamily_type_to_name(lease->family),
 			ni_addrconf_type_to_name(lease->type),
-			ni_addrconf_state_to_name(lease->state));
+			ni_addrconf_state_to_name(lease->state),
+			ni_uuid_is_null(&lease->uuid) ? "null" : ni_uuid_print(&lease->uuid));
 
 	switch (lease->state) {
 	case NI_ADDRCONF_STATE_GRANTED:
