@@ -36,6 +36,7 @@
       <auth-proto type="builtin-wireless-auth-proto-mask"/>
       <group-cipher type="builtin-wireless-cipher-mask"/>
       <pairwise-cipher type="builtin-wireless-cipher-mask"/>
+      <pmf type="builtin-wireless-pmf"/>
     </wpa-psk>
 
     <wpa-eap class="dict" constraint="exclusive:wpa-auth-data">
@@ -43,6 +44,7 @@
       <auth-proto type="builtin-wireless-auth-proto-mask"/>
       <group-cipher type="builtin-wireless-cipher-mask"/>
       <pairwise-cipher type="builtin-wireless-cipher-mask"/>
+      <pmf type="builtin-wireless-pmf"/>
 
       <identity type="string">
         <meta:user-input type="username" prompt="please enter WPA EAP identity"/>

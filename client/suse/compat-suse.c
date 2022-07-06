@@ -104,6 +104,8 @@ static int			ni_wireless_parse_group_cipher(const ni_sysconfig_t *, unsigned int
 							const char *, const char *, const char *);
 static ni_bool_t		__ni_wireless_parse_psk_auth(const ni_sysconfig_t *, ni_wireless_network_t *,
 							const char *, const char *, ni_wireless_ap_scan_mode_t);
+static ni_bool_t		__ni_wireless_parse_pmf(const ni_sysconfig_t *, ni_wireless_network_t *,
+							const char *, const char *, ni_wireless_ap_scan_mode_t);
 static ni_bool_t		__ni_wireless_parse_eap_auth(const ni_sysconfig_t *, ni_wireless_network_t *,
 							const char *, const char *, ni_wireless_ap_scan_mode_t);
 static ni_bool_t		__ni_suse_parse_dhcp4_user_class(const ni_sysconfig_t *, ni_compat_netdev_t *, const char *);
@@ -3543,6 +3545,39 @@ try_dummy(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	return 0;
 }
 
+static ni_bool_t
+ni_wireless_is_psk_config(const ni_sysconfig_t *sc, ni_wireless_network_t *net,
+					const char *suffix)
+{
+	const ni_var_t *var;
+	const char **p, *psk_auth_modes[] = { "psk", "wpa-psk", NULL};
+
+	if ((var = __find_indexed_variable(sc, "WIRELESS_AUTH_MODE", suffix))) {
+		for (p = psk_auth_modes; *p; p++) {
+			if ( ni_string_eq(var->value, *p))
+				return TRUE;
+		}
+	}
+
+	return !!(net->keymgmt_proto & NI_WIRELESS_KEY_MGMT_DEFAULT_PSK);
+}
+
+static ni_bool_t
+ni_wireless_is_eap_config(const ni_sysconfig_t *sc, ni_wireless_network_t *net,
+					const char *suffix)
+{
+	const ni_var_t *var;
+	const char **p, *psk_auth_modes[] = { "eap", "wpa-eap", NULL};
+
+	if ((var = __find_indexed_variable(sc, "WIRELESS_AUTH_MODE", suffix))) {
+		for (p = psk_auth_modes; *p; p++)
+			if ( ni_string_eq(var->value, *p))
+				return TRUE;
+	}
+
+	return !!(net->keymgmt_proto & NI_WIRELESS_KEY_MGMT_DEFAULT_EAP);
+}
+
 static int
 ni_wireless_parse_auth_mode(const ni_sysconfig_t *sc, ni_wireless_network_t *net,
 				const char *suffix, const char *ifname,
@@ -3578,10 +3613,6 @@ ni_wireless_parse_auth_mode(const ni_sysconfig_t *sc, ni_wireless_network_t *net
 		{ NULL }
 	};
 	static const ni_intmap_t	keymgmt_map[] = {
-		{ "psk",		NI_WIRELESS_KEY_MGMT_PSK	},
-		{ "wpa-psk",		NI_WIRELESS_KEY_MGMT_PSK	},
-		{ "eap",		NI_WIRELESS_KEY_MGMT_EAP	},
-		{ "wpa-eap",		NI_WIRELESS_KEY_MGMT_EAP	},
 		{ "open",		NI_WIRELESS_KEY_MGMT_NONE	},
 		{ "opensystem",		NI_WIRELESS_KEY_MGMT_NONE	},
 		{ "no-encryption",	NI_WIRELESS_KEY_MGMT_NONE	},
@@ -3595,7 +3626,7 @@ ni_wireless_parse_auth_mode(const ni_sysconfig_t *sc, ni_wireless_network_t *net
 	if (!(var = __find_indexed_variable(sc, "WIRELESS_AUTH_MODE", suffix)))
 		return 1;
 
-	err = ni_parse_bitmap_string(&net->auth_algo, auth_algo_map, var->value, " \t", &invalid);
+	err = ni_parse_bitmap_string(&net->auth_algo, auth_algo_map, var->value, NULL, &invalid);
 	if (err) {
 		char *unknown = NULL;
 
@@ -3617,9 +3648,34 @@ ni_wireless_parse_auth_mode(const ni_sysconfig_t *sc, ni_wireless_network_t *net
 	ni_string_array_destroy(&invalid);
 
 	/* both maps contain all settings, thus above error handling is enough */
-	ni_parse_bitmap_string(&net->keymgmt_proto, keymgmt_map, var->value, " \t", NULL);
+	ni_parse_bitmap_string(&net->keymgmt_proto, keymgmt_map, var->value, NULL, NULL);
 
 	return 0;
+}
+
+static ni_bool_t
+ni_wireless_parse_key_mgmt(const ni_sysconfig_t *sc, ni_wireless_network_t *net, const char *suffix, const char *dev_name, ni_wireless_ap_scan_mode_t ap_scan)
+{
+	ni_string_array_t invalid = NI_STRING_ARRAY_INIT;
+	ni_var_t *var;
+	char *unknown = NULL;
+	int err;
+
+	if((var = __find_indexed_variable(sc,"WIRELESS_KEY_MGMT", suffix))) {
+
+		err = ni_parse_bitmap_string(&net->keymgmt_proto,
+					ni_wireless_key_management_map(), var->value, NULL, &invalid);
+		if (err){
+			ni_string_join(&unknown, &invalid, ", ");
+			ni_error("ifcfg-%s: Invalid value in WIRELESS_KEY_MGMT%s='%s' variable",
+					dev_name, suffix, unknown ? unknown : "");
+			ni_string_free(&unknown);
+			ni_string_array_destroy(&invalid);
+			return FALSE;
+		}
+		ni_string_array_destroy(&invalid);
+	}
+	return TRUE;
 }
 
 static ni_bool_t
@@ -3752,7 +3808,13 @@ try_add_wireless_net(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 	if (ni_wireless_parse_auth_mode(sc, net, suffix, dev->name, wlan->conf->ap_scan) < 0)
 		goto failure;
 
+	if (!ni_wireless_parse_key_mgmt(sc, net, suffix, dev->name, wlan->conf->ap_scan))
+		goto failure;
+
 	if (!__ni_wireless_parse_psk_auth(sc, net, suffix, dev->name, wlan->conf->ap_scan))
+		goto failure;
+
+	if (!__ni_wireless_parse_pmf(sc, net, suffix, dev->name, wlan->conf->ap_scan))
 		goto failure;
 
 	if (!__ni_wireless_parse_eap_auth(sc, net, suffix, dev->name, wlan->conf->ap_scan))
@@ -3766,12 +3828,13 @@ try_add_wireless_net(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 	}
 
 	ni_wireless_network_array_append(&wlan->conf->networks, net);
+	ni_wireless_network_drop(&net);
 
 	return TRUE;
 
 failure:
 	if (net)
-		ni_wireless_network_put(net);
+		ni_wireless_network_drop(&net);
 	return FALSE;
 }
 
@@ -4004,11 +4067,10 @@ __ni_wireless_parse_psk_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 			goto psk_failure;
 		}
 
-		net->keymgmt_proto |= NI_BIT(NI_WIRELESS_KEY_MGMT_PSK);
 		ni_string_dup(&net->wpa_psk.passphrase, var->value);
 	}
 	else {
-		if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_PSK)) {
+		if (ni_wireless_is_psk_config(sc, net, suffix)) {
 			ni_error("ifcfg-%s: no WIRELESS_WPA_PSK%s value specified",
 				dev_name, suffix);
 			goto psk_failure;
@@ -4043,6 +4105,20 @@ __ni_wireless_parse_psk_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 
 psk_failure:
 	return FALSE;
+}
+
+static ni_bool_t
+__ni_wireless_parse_pmf(const ni_sysconfig_t *sc, ni_wireless_network_t *net, const char *suffix, const char *dev_name, ni_wireless_ap_scan_mode_t ap_scan)
+{
+	ni_var_t *var;
+	if((var = __find_indexed_variable(sc,"WIRELESS_PMF", suffix))) {
+		if (!ni_wireless_name_to_pmf(var->value, &net->pmf)){
+			ni_error("ifcfg-%s: invalid WIRELESS_PMF%s value specified",
+				dev_name, suffix);
+			return FALSE;
+		}
+	}
+	return TRUE;
 }
 
 static const char *
@@ -4084,9 +4160,8 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 				dev_name, suffix);
 			goto eap_failure;
 		}
-		net->keymgmt_proto |= NI_BIT(NI_WIRELESS_KEY_MGMT_EAP);
 	} else {
-		if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_EAP)) {
+		if (ni_wireless_is_eap_config(sc, net, suffix)) {
 			ni_error("ifcfg-%s: no WIRELESS_EAP_MODE%s value specified", dev_name, suffix);
 			goto eap_failure;
 		} else {

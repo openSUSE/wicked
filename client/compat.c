@@ -1429,16 +1429,13 @@ __ni_compat_generate_wireless_network(xml_node_t *parent, ni_wireless_network_t 
 			xml_node_free(wep);
 	}
 
-	if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_PSK)) {
+	if (!ni_string_empty(net->wpa_psk.passphrase)) {
 		if (!(wpa_psk = xml_node_new("wpa-psk", network))) {
 			goto error;
 		}
 
-		if (!ni_string_empty(net->wpa_psk.passphrase)) {
-			/* To be secured */
-			xml_node_new_element("passphrase", wpa_psk,
-					net->wpa_psk.passphrase);
-		}
+		xml_node_new_element("passphrase", wpa_psk,
+				net->wpa_psk.passphrase);
 
 		if ((value = ni_format_bitmap(&buf, ni_wireless_auth_proto_map(),
 						net->auth_proto, ","))) {
@@ -1455,9 +1452,13 @@ __ni_compat_generate_wireless_network(xml_node_t *parent, ni_wireless_network_t 
 			xml_node_new_element("group-cipher", wpa_psk, value);
 			ni_stringbuf_destroy(&buf);
 		}
+
+		if (net->pmf != NI_WIRELESS_PMF_NOT_SPECIFIED &&
+		    (value = ni_wireless_pmf_to_name(net->pmf)))
+			xml_node_new_element("pmf", wpa_psk, value);
 	}
 
-	if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_EAP)) {
+	if (net->wpa_eap.method) {
 		if (!(wpa_eap = xml_node_new("wpa-eap", network))) {
 			goto error;
 		}
@@ -1481,6 +1482,10 @@ __ni_compat_generate_wireless_network(xml_node_t *parent, ni_wireless_network_t 
 			xml_node_new_element("group-cipher", wpa_eap, value);
 			ni_stringbuf_destroy(&buf);
 		}
+
+		if (net->pmf != NI_WIRELESS_PMF_NOT_SPECIFIED &&
+		    (value = ni_wireless_pmf_to_name(net->pmf)))
+			xml_node_new_element("pmf", wpa_eap, value);
 
 		if (!ni_string_empty(net->wpa_eap.identity)) {
 			xml_node_new_element("identity", wpa_eap, net->wpa_eap.identity);

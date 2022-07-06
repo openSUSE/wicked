@@ -47,32 +47,14 @@
 <define name="builtin-wireless-mode" type="uint32" constraint="enum">
   <@@WIRELESS_MODE_NAME@@ value="@@WIRELESS_MODE_VALUE@@"/>
 </define>
-<define name="builtin-wireless-security" type="uint32" constraint="enum">
-  <@@WIRELESS_SECURITY_NAME@@ value="@@WIRELESS_SECURITY_VALUE@@"/>
-</define>
-<define name="builtin-wireless-auth-proto" type="uint32" constraint="enum">
-  <@@WIRELESS_AUTH_PROTO_NAME@@ value="@@WIRELESS_AUTH_PROTO_VALUE@@"/>
-</define>
-<define name="builtin-wireless-auth-algo" type="uint32" constraint="enum">
-  <@@WIRELESS_AUTH_ALGO_NAME@@ value="@@WIRELESS_AUTH_ALGO_VALUE@@"/>
-</define>
 <define name="builtin-wireless-cipher" type="uint32" constraint="enum">
   <@@WIRELESS_CIPHER_NAME@@ value="@@WIRELESS_CIPHER_VALUE@@"/>
-</define>
-<define name="builtin-key-mgmt" type="uint32" constraint="enum">
-  <@@WIRELESS_KEY_MGMT_NAME@@ value="@@WIRELESS_KEY_MGMT_VALUE@@"/>
 </define>
 <define name="builtin-eap-method" type="uint32" constraint="enum">
   <@@WIRELESS_EAP_METHOD_NAME@@ value="@@WIRELESS_EAP_METHOD_VALUE@@"/>
 </define>
 <define name="builtin-wireless-assoc-state" type="uint32" constraint="enum">
   <@@WIRELESS_ASSOC_STATE_NAME@@ value="@@WIRELESS_ASSOC_STATE_VALUE@@"/>
-</define>
-
-
-<!-- The same as above, except as a bitmask (to express the list of supported modes) -->
-<define name="builtin-wireless-security-mask" type="uint32" constraint="bitmap">
-  <@@WIRELESS_SECURITY_NAME@@ bit="@@WIRELESS_SECURITY_VALUE@@"/>
 </define>
 <define name="builtin-wireless-auth-proto-mask" type="uint32" constraint="bitmap">
   <@@WIRELESS_AUTH_PROTO_NAME@@ bit="@@WIRELESS_AUTH_PROTO_VALUE@@"/>
@@ -86,16 +68,15 @@
 <define name="builtin-wireless-key-mgmt-mask" type="uint32" constraint="bitmap">
   <@@WIRELESS_KEY_MGMT_NAME@@ bit="@@WIRELESS_KEY_MGMT_VALUE@@"/>
 </define>
-<define name="builtin-eap-method-mask" type="uint32" constraint="bitmap">
-  <@@WIRELESS_EAP_METHOD_NAME@@ bit="@@WIRELESS_EAP_METHOD_VALUE@@"/>
-</define>
 <define name="builtin-wireless-oper-mode-mask" type="uint32" constraint="bitmap">
   <@@WIRELESS_OPER_MODE_NAME@@ bit="@@WIRELESS_OPER_MODE_VALUE@@"/>
 </define>
 <define name="builtin-wireless-scan-mode-mask" type="uint32" constraint="bitmap">
   <@@WIRELESS_SCAN_MODE_NAME@@ bit="@@WIRELESS_SCAN_MODE_VALUE@@"/>
 </define>
-
+<define name="builtin-wireless-pmf" type="uint32" constraint="enum">
+  <@@WIRELESS_PMF_NAME@@ value="@@WIRELESS_PMF_VALUE@@"/>
+</define>
 
 <!-- Built-in bonding modes -->
 <define name="builtin-bonding-mode" type="uint32" constraint="enum">
