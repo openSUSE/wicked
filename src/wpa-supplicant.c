@@ -2497,40 +2497,6 @@ static const ni_dbus_service_t			ni_objectmodel_wpa_nif_service = {
 	.compatible	= &ni_objectmodel_wpa_nif_class,
 };
 
-const char *
-__ni_print_string_array(const ni_string_array_t *array)
-{
-	static char buffer[256];
-	unsigned int i, pos, bufsize;
-
-	if (array->count == 0)
-		return "<>";
-
-	bufsize = sizeof(buffer);
-	for (i = pos = 0; i < array->count; ++i) {
-		const char *s = array->data[i];
-		unsigned int len;
-
-		if (i != 0) {
-			if (pos + 3 >= bufsize)
-				break;
-			strcpy(buffer + pos, ", ");
-			pos += 2;
-		}
-
-		if (s == NULL)
-			s = "\"\"";
-		len = strlen(s);
-		if (pos + len + 1 >= bufsize)
-			break;
-
-		strcpy(buffer + pos, s);
-		pos += len;
-	}
-
-	return buffer;
-}
-
 static void
 ni_wpa_signal_interface_added(ni_wpa_client_t *wpa, const char *member, ni_dbus_message_t *msg)
 {
