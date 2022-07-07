@@ -8,6 +8,7 @@
 #define WICKED_WPA_SUPPLICANT_CLIENT_H
 
 #include <wicked/wireless.h>
+#include <wicked/refcount.h>
 #include "dbus-connection.h"
 
 
@@ -317,6 +318,7 @@ struct	ni_wpa_nif_properties {
 
 struct ni_wpa_nif {
 	ni_wpa_nif_t *				next;
+	ni_refcount_t				refcount;
 
 	ni_wpa_client_t *			client;
 	ni_dbus_object_t *			object;
@@ -395,6 +397,7 @@ extern int					ni_wpa_get_interface(ni_wpa_client_t *, const char *, unsigned in
 extern int					ni_wpa_add_interface(ni_wpa_client_t *, unsigned int,
 								ni_dbus_variant_t *, ni_wpa_nif_t **);
 extern int					ni_wpa_del_interface(ni_wpa_client_t *, const char *);
+extern						ni_refcounted_declare_drop(ni_wpa_nif);
 
 extern int					ni_wpa_nif_set_properties(ni_wpa_nif_t *, const ni_dbus_variant_t *);
 

@@ -445,6 +445,7 @@ __ni_wireless_scan_timeout(void *ptr, const ni_timer_t *timer)
 
 	ni_wireless_trigger_scan(dev, wif, FALSE);
 	__ni_wireless_scan_timer_arm(scan, dev, scan->interval);
+	ni_wpa_nif_drop(&wif);
 }
 
 static void
@@ -1113,14 +1114,14 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 	ret = ni_wpa_get_interface(wpa, dev->name, dev->link.ifindex, &wif);
 	if (ret == 0 && wif && ni_wireless_wpa_nif_config_differs(wif, conf)) {
 		ret = ni_wpa_del_interface(wif->client, ni_dbus_object_get_path(wif->object));
-		wif =  NULL;
+		ni_wpa_nif_drop(&wif);
 		if (ret == 0)
 			ret = -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
 	if (ret < 0) {
 		if (ret != -NI_ERROR_DEVICE_NOT_KNOWN)
-			return ret;
+			goto out;
 		ni_dbus_variant_init_dict(&arg);
 
 		name = ni_wpa_nif_property_name(NI_WPA_NIF_PROPERTY_IFNAME);
@@ -1132,7 +1133,7 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 		ret = ni_wpa_add_interface(wpa, dev->link.ifindex, &arg, &wif);
 		ni_dbus_variant_destroy(&arg);
 		if (ret < 0)
-			return ret;
+			goto out;
 	}
 
 	ni_wpa_nif_set_ops(wif, &wif_ops);
@@ -1156,17 +1157,18 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 	ret = ni_wpa_nif_set_properties(wif, &arg);
 	ni_dbus_variant_destroy(&arg);
 	if (ret < 0)
-		return ret;
+		goto out;
 
 	if ((ret = ni_wireless_update_wpa_nif_capabilities(dev, &wif->capabilities)) < 0)
-		return ret;
+		goto out;
 
-	if(!ni_wireless_wpa_complete_networks(dev, &conf->networks))
-		return -1;
-
-	if ((ret = ni_wireless_setup_networks(dev, wif, &conf->networks)) != 0){
-		return ret;
+	if (!ni_wireless_wpa_complete_networks(dev, &conf->networks)) {
+		ret = -1;
+		goto out;
 	}
+
+	if ((ret = ni_wireless_setup_networks(dev, wif, &conf->networks)) != 0)
+		goto out;
 
 	/* setup successfull, store configuration for expected wpa_supplicant restarts */
 	if (!wlan->conf)
@@ -1175,6 +1177,8 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 
 	if (wlan->scan.interval > 0)
 		__ni_wireless_scan_timer_arm(&wlan->scan, dev, 1);
+out:
+	ni_wpa_nif_drop(&wif);
 	return ret;
 }
 
@@ -1182,18 +1186,21 @@ int
 ni_wireless_shutdown(ni_netdev_t *dev)
 {
 	ni_wpa_nif_t *wif;
+	int ret;
 
 	if (!(wif = ni_wireless_get_wpa_interface(dev)))
 		return NI_SUCCESS;
 
 	ni_wpa_client_del_ops(dev->link.ifindex);
-	return ni_wpa_del_interface(wif->client, ni_dbus_object_get_path(wif->object));
+	ret = ni_wpa_del_interface(wif->client, ni_dbus_object_get_path(wif->object));
+	ni_wpa_nif_drop(&wif);
+	return ret;
 }
 
 int
 ni_wireless_connect(ni_netdev_t *dev)
 {
-	ni_wpa_nif_t *wif;
+	ni_wpa_nif_t *wif = NULL;
 	ni_wireless_t *wlan;
 	int ret;
 
@@ -1207,11 +1214,15 @@ ni_wireless_connect(ni_netdev_t *dev)
 		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
-	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
+	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS)) {
+		ni_wpa_nif_drop(&wif);
 		return -NI_ERROR_RADIO_DISABLED;
+	}
 
 	if (!(ret = ni_wpa_nif_set_all_networks_property_enabled(wif, TRUE)))
 		wlan->reconnect = TRUE;
+
+	ni_wpa_nif_drop(&wif);
 	return ret;
 }
 
@@ -1223,6 +1234,7 @@ ni_wireless_disconnect(ni_netdev_t *dev)
 {
 	ni_wpa_nif_t *wif;
 	ni_wireless_t *wlan;
+	int ret;
 
 	ni_debug_wireless("%s(%s)", __func__, dev->name);
 	if (!(wlan = dev->wireless))
@@ -1235,10 +1247,16 @@ ni_wireless_disconnect(ni_netdev_t *dev)
 		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
-	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
+	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS)) {
+		ni_wpa_nif_drop(&wif);
 		return -NI_ERROR_RADIO_DISABLED;
+	}
 
-	return ni_wpa_nif_set_all_networks_property_enabled(wif, FALSE);
+
+	ret = ni_wpa_nif_set_all_networks_property_enabled(wif, FALSE);
+
+	ni_wpa_nif_drop(&wif);
+	return ret;
 }
 
 /*
@@ -1361,6 +1379,7 @@ ni_wireless_set_state(ni_netdev_t *dev, ni_wireless_assoc_state_t new_state)
 		__ni_netdev_event(NULL, dev, NI_EVENT_LINK_ASSOCIATED);
 	}
 	ni_wireless_sync_assoc_with_current_bss(wlan, wif);
+	ni_wpa_nif_drop(&wif);
 
 	/* We keep track of when we were last changing to or
 	 * from fully authenticated state.
