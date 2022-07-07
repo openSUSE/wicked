@@ -373,6 +373,7 @@ struct ni_wpa_bss {
 	ni_wpa_nif_t *				wif;
 	ni_dbus_object_t *			object;
 	ni_wpa_bss_t *				next;
+	ni_refcount_t				refcount;
 
 	ni_wpa_bss_properties_t			properties;
 };
@@ -418,6 +419,7 @@ extern int					ni_wpa_nif_trigger_scan(ni_wpa_nif_t *, ni_bool_t);
 extern ni_bool_t				ni_wpa_nif_retrieve_scan(ni_wpa_nif_t *, ni_wireless_scan_t *);
 extern int					ni_wpa_nif_flush_bss(ni_wpa_nif_t *wif, uint32_t max_age);
 extern ni_wpa_bss_t *				ni_wpa_nif_get_current_bss(ni_wpa_nif_t *);
+extern						ni_refcounted_declare_drop(ni_wpa_bss);
 
 extern const char *				ni_wpa_nif_property_name(ni_wpa_nif_property_type_t);
 extern ni_bool_t				ni_wpa_nif_property_type(const char *, ni_wpa_nif_property_type_t *);

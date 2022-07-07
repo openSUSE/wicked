@@ -1348,6 +1348,7 @@ ni_wireless_sync_assoc_with_current_bss(ni_wireless_t *wlan, ni_wpa_nif_t *wif)
 		}
 
 		wlan->assoc.signal = bss->properties.signal;
+		ni_wpa_bss_drop(&bss);
 
 	} else {
 		ni_link_address_init(&wlan->assoc.bssid);
