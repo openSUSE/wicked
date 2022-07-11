@@ -1691,6 +1691,8 @@ ni_dhcp6_supported(const ni_netdev_t *ifp)
 	 * we've simply did not tested it on other links ...
 	 */
 	switch (ifp->link.hwaddr.type) {
+	case ARPHRD_PPP:
+		break;
 	case ARPHRD_ETHER:
 	case ARPHRD_INFINIBAND:
 		if (ifp->link.masterdev.index) {
