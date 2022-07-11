@@ -1413,32 +1413,24 @@ ni_dhcp6_fsm_release_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg
 			goto cleanup;
 		}
 
-		if (msg->lease->dhcp6.status == NULL) {
-			ni_string_printf(hint, "release reply without status");
-			goto cleanup;
-		}
-
-		if (msg->lease->dhcp6.status->code == NI_DHCP6_STATUS_SUCCESS ||
-		    msg->lease->dhcp6.status->code == NI_DHCP6_STATUS_NOTONLINK) {
+		if (msg->lease->dhcp6.status) {
 			ni_debug_dhcp("%s: Received release reply %s %s -- committing release",
 					dev->ifname,
 					ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
 					msg->lease->dhcp6.status->message);
-
-			ni_dhcp6_fsm_reset(dev);
-			if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_INFO)) {
-				ni_dhcp6_device_drop_lease(dev);
-				ni_dhcp6_fsm_restart(dev);
-			} else {
-				ni_dhcp6_fsm_commit_lease(dev, NULL);
-			}
-			rv = 0;
 		} else {
-			ni_string_printf(hint, "status %s - %s",
-				ni_dhcp6_status_name(msg->lease->dhcp6.status->code),
-				msg->lease->dhcp6.status->message);
-			goto cleanup;
+			ni_debug_dhcp("%s: Received release reply -- committing release",
+					dev->ifname);
 		}
+
+		ni_dhcp6_fsm_reset(dev);
+		if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_INFO)) {
+			ni_dhcp6_device_drop_lease(dev);
+			ni_dhcp6_fsm_restart(dev);
+		} else {
+			ni_dhcp6_fsm_commit_lease(dev, NULL);
+		}
+		rv = 0;
 
 	break;
 
