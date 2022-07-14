@@ -240,32 +240,4 @@ struct ni_netdev_port_req {
 extern ni_netdev_port_req_t *	ni_netdev_port_req_new(ni_iftype_t);
 extern void			ni_netdev_port_req_free(ni_netdev_port_req_t *);
 
-typedef struct ni_addrconf_action	ni_addrconf_action_t;
-typedef void				ni_addrconf_updater_cleanup_t(void *);
-
-struct ni_addrconf_updater {
-	const ni_addrconf_action_t *	action;
-	struct timeval			astart;		/* action  */
-
-	ni_netdev_ref_t			device;
-	ni_event_t			event;
-
-	const ni_timer_t *		timer;
-	ni_int_range_t			jitter;
-	unsigned int			timeout;
-	struct timeval			started;	/* updater */
-	unsigned int			deadline;
-
-	ni_addrconf_updater_cleanup_t *	cleanup;
-	void *				user_data;
-};
-
-extern ni_addrconf_updater_t *	ni_addrconf_updater_new_applying(ni_addrconf_lease_t *, const ni_netdev_t *, ni_event_t);
-extern ni_addrconf_updater_t *	ni_addrconf_updater_new_removing(ni_addrconf_lease_t *, const ni_netdev_t *, ni_event_t);
-extern ni_bool_t		ni_addrconf_updater_background(ni_addrconf_updater_t *, unsigned int);
-extern int			ni_addrconf_updater_execute(ni_netdev_t *, ni_addrconf_lease_t *);
-extern void			ni_addrconf_updater_set_data(ni_addrconf_updater_t *, void *, ni_addrconf_updater_cleanup_t *);
-extern void *			ni_addrconf_updater_get_data(ni_addrconf_updater_t *, ni_addrconf_updater_cleanup_t *);
-extern void			ni_addrconf_updater_free(ni_addrconf_updater_t **);
-
 #endif /* __NETINFO_PRIV_H__ */
