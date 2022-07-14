@@ -4091,8 +4091,8 @@ __ni_wireless_parse_psk_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 		goto psk_failure;
 
 	if (NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH == ap_scan) {
-		if (!(net->auth_proto & NI_BIT(NI_WIRELESS_AUTH_PROTO_WPA2)))
-			net->auth_proto = NI_BIT(NI_WIRELESS_AUTH_PROTO_WPA1);
+		if (!(net->auth_proto & NI_BIT(NI_WIRELESS_AUTH_PROTO_RSN)))
+			net->auth_proto = NI_BIT(NI_WIRELESS_AUTH_PROTO_WPA);
 
 		if (!(net->pairwise_cipher & NI_BIT(NI_WIRELESS_CIPHER_CCMP)))
 			net->pairwise_cipher = NI_BIT(NI_WIRELESS_CIPHER_TKIP);
@@ -4190,8 +4190,8 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 		goto eap_failure;
 
 	if (NI_WIRELESS_AP_SCAN_SUPPLICANT_EXPLICIT_MATCH == ap_scan) {
-		if (!(net->auth_proto & NI_BIT(NI_WIRELESS_AUTH_PROTO_WPA2)))
-			net->auth_proto = NI_BIT(NI_WIRELESS_AUTH_PROTO_WPA1);
+		if (!(net->auth_proto & NI_BIT(NI_WIRELESS_AUTH_PROTO_RSN)))
+			net->auth_proto = NI_BIT(NI_WIRELESS_AUTH_PROTO_WPA);
 
 		if (!(net->pairwise_cipher & NI_BIT(NI_WIRELESS_CIPHER_CCMP)))
 			net->pairwise_cipher = NI_BIT(NI_WIRELESS_CIPHER_TKIP);
