@@ -88,6 +88,7 @@ substitute_vars			= \
 	-e "s|[@]wicked_configdir[@]|$(wicked_configdir)|g"	\
 	-e "s|[@]wicked_supplicantdir[@]|$(wicked_supplicantdir)|g"\
 	-e "s|[@]wicked_extensionsdir[@]|$(wicked_extensionsdir)|g"\
+	-e "s|[@]wicked_extension_statedir[@]|$(wicked_statedir)/extension|g"\
 	-e "s|[@]use_teamd[@]|$(use_teamd)|g"
 
 %.xml: %.xml.in $(top_builddir)/config.status

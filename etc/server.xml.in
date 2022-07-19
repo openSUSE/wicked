@@ -55,6 +55,8 @@
    <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
    <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
    <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
+   <putenv name="WICKED_EXTENSION_STATEDIR" value="@wicked_extension_statedir@/firewall"/>
+   <putenv name="WICKED_SBINDIR" value="@wicked_sbindir@"/>
   </dbus-service>
 
   <dbus-service interface="org.opensuse.Network.Scripts">
