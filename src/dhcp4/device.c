@@ -202,45 +202,32 @@ ni_dhcp4_device_uptime(const ni_dhcp4_device_t *dev, unsigned int clamp)
 void
 ni_dhcp4_device_set_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 {
-	if (dev->lease != lease) {
-		if (dev->lease)
-			ni_addrconf_lease_free(dev->lease);
-		dev->lease = lease;
-		if (dev->config && lease)
-			lease->uuid = dev->config->uuid;
-	}
+	ni_addrconf_lease_hold(&dev->lease, lease);
+	if (dev->config && lease)
+		lease->uuid = dev->config->uuid;
 }
 
 void
 ni_dhcp4_device_drop_lease(ni_dhcp4_device_t *dev)
 {
-	ni_addrconf_lease_t *lease;
-
-	if ((lease = dev->lease) != NULL) {
-		dev->lease = NULL;
-		ni_addrconf_lease_free(lease);
-	}
+	ni_addrconf_lease_drop(&dev->lease);
 }
 
 void
-ni_dhcp4_device_set_best_offer(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease,
+ni_dhcp4_device_set_best_offer(ni_dhcp4_device_t *dev, ni_addrconf_lease_t **lease,
 							int weight)
 {
-	if (dev->best_offer.lease && dev->best_offer.lease != lease)
-		ni_addrconf_lease_free(dev->best_offer.lease);
-	dev->best_offer.lease = lease;
+	ni_addrconf_lease_move(&dev->best_offer.lease, lease);
 	dev->best_offer.weight = weight;
-	if (dev->config && lease)
-		lease->uuid = dev->config->uuid;
+	if (dev->config && dev->best_offer.lease)
+		dev->best_offer.lease->uuid = dev->config->uuid;
 }
 
 void
 ni_dhcp4_device_drop_best_offer(ni_dhcp4_device_t *dev)
 {
 	dev->best_offer.weight = -1;
-	if (dev->best_offer.lease)
-		ni_addrconf_lease_free(dev->best_offer.lease);
-	dev->best_offer.lease = NULL;
+	ni_addrconf_lease_drop(&dev->best_offer.lease);
 }
 
 /*
@@ -705,13 +692,13 @@ ni_dhcp4_device_prepare_message(void *data)
 }
 
 int
-ni_dhcp4_device_send_message(ni_dhcp4_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
+ni_dhcp4_device_send_message_broadcast(ni_dhcp4_device_t *dev, unsigned int msg_code, ni_addrconf_lease_t *lease)
 {
 	ni_timeout_param_t timeout;
 	int rv;
 
 	dev->transmit.msg_code = msg_code;
-	dev->transmit.lease = lease;
+	ni_addrconf_lease_hold(&dev->transmit.lease, lease);
 
 	if (ni_dhcp4_socket_open(dev) < 0) {
 		ni_error("%s: unable to open capture socket", dev->ifname);
@@ -764,13 +751,13 @@ transient_failure:
 }
 
 int
-ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
+ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_code, ni_addrconf_lease_t *lease)
 {
 	ni_sockaddr_t addr;
 
 	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.server_id, DHCP4_SERVER_PORT);
 	dev->transmit.msg_code = msg_code;
-	dev->transmit.lease = lease;
+	ni_addrconf_lease_hold(&dev->transmit.lease, lease);
 
 	if (ni_dhcp4_socket_open(dev) < 0) {
 		ni_error("%s: unable to open capture socket", dev->ifname);
@@ -781,6 +768,7 @@ ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_co
 
 	if (ni_dhcp4_device_prepare_message(dev) < 0)
 		return -1;
+
 	if (sendto(dev->listen_fd, ni_buffer_head(&dev->message), ni_buffer_count(&dev->message), 0,
 				&addr.sa, sizeof(addr.sin)) < 0)
 		ni_error("%s: sendto failed: %m", dev->ifname);
@@ -790,6 +778,9 @@ ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_co
 void
 ni_dhcp4_device_disarm_retransmit(ni_dhcp4_device_t *dev)
 {
+	dev->transmit.msg_code = 0;
+	ni_addrconf_lease_drop(&dev->transmit.lease);
+
 	/* Clear retransmit timer */
 	if (dev->capture)
 		ni_capture_disarm_retransmit(dev->capture);

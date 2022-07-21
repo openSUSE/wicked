@@ -65,8 +65,8 @@ typedef struct ni_dhcp4_device {
 				notify : 1;
 
 	struct {
-	    unsigned int	msg_code;
-	    const ni_addrconf_lease_t *lease;
+	    unsigned int		msg_code;
+	    ni_addrconf_lease_t *	lease;
 	} transmit;
 
 	struct {
@@ -270,9 +270,10 @@ extern void		ni_dhcp4_device_set_lease(ni_dhcp4_device_t *, ni_addrconf_lease_t 
 extern void		ni_dhcp4_device_drop_lease(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_device_alloc_buffer(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_device_drop_buffer(ni_dhcp4_device_t *);
-extern int		ni_dhcp4_device_send_message(ni_dhcp4_device_t *, unsigned int, const ni_addrconf_lease_t *);
+extern int		ni_dhcp4_device_send_message_broadcast(ni_dhcp4_device_t *,
+				unsigned int, ni_addrconf_lease_t *);
 extern int		ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *,
-				unsigned int, const ni_addrconf_lease_t *);
+				unsigned int, ni_addrconf_lease_t *);
 extern void		ni_dhcp4_device_arm_retransmit(ni_dhcp4_device_t *dev);
 extern void		ni_dhcp4_device_disarm_retransmit(ni_dhcp4_device_t *dev);
 extern void		ni_dhcp4_device_retransmit(ni_dhcp4_device_t *);
@@ -281,7 +282,7 @@ extern void		ni_dhcp4_device_arp_close(ni_dhcp4_device_t *);
 extern ni_bool_t	ni_dhcp4_parse_client_id(ni_opaque_t *, unsigned short, const char *);
 extern ni_bool_t	ni_dhcp4_set_config_client_id(ni_opaque_t *, const ni_dhcp4_device_t *, unsigned int);
 extern void		ni_dhcp4_new_xid(ni_dhcp4_device_t *);
-extern void		ni_dhcp4_device_set_best_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t *, int);
+extern void		ni_dhcp4_device_set_best_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t **, int);
 extern void		ni_dhcp4_device_drop_best_offer(ni_dhcp4_device_t *);
 
 extern int		ni_dhcp4_xml_from_lease(const ni_addrconf_lease_t *, xml_node_t *);
