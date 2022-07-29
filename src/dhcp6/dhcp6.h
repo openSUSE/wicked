@@ -78,6 +78,7 @@ struct ni_dhcp6_request {
 
 	unsigned int		lease_time;	/* to request specific IA T1 and T2	*/
 	ni_bool_t		recover_lease;	/* recover and reuse existing lease	*/
+	ni_bool_t		refresh_lease;  /* force lease rebind instead confirm	*/
 	ni_bool_t		release_lease;	/* release lease on drop request	*/
 
 	/* Options controlling what to put into the lease request */
@@ -152,6 +153,7 @@ struct ni_dhcp6_config {
 
 	unsigned int		lease_time;
 	ni_bool_t		recover_lease;
+	ni_bool_t		refresh_lease;
 	ni_bool_t		release_lease;
 
 	ni_opaque_t		client_duid;	/* raw client id to use		*/

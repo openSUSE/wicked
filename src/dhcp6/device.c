@@ -1080,6 +1080,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	config->lease_time	= __nondefault(req->lease_time,
 						NI_DHCP6_LEASE_TIME);
 	config->recover_lease	= req->recover_lease;
+	config->refresh_lease  	= req->refresh_lease;
 	config->release_lease	= req->release_lease;
 
 	if (!dev->lease && config->dry_run != NI_DHCP6_RUN_OFFER && config->recover_lease)

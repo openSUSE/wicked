@@ -142,6 +142,26 @@ DHCLIENT6_CLIENT_ID=""
 #
 DHCLIENT6_UPDATE=""
 
+## Type:	yesno
+## Default:     no
+#
+# When ifup is called, the system or wickedd has been restarted or the
+# client may have moved to a new link (temporary carrier-lost) and there
+# is a valid lease available, DHCPv6 protocol is using (depending on
+# IPv6 router RA and DHCLIENT6_MODE variable):
+# - information-request in info mode ("other-config" without IP address)
+# - rebind message if the lease contains (also) a prefix for delegations
+# - confirm message if the lease contains an ("managed") IP address
+# While information-request and rebind provide "other-config" (dns,ntp
+# and other options) and extend the lifetimes, a confirm reply provides
+# only a status (code) whether the lease IP address(es) are still
+# appropriate to the link.
+#
+# Enabling this option causes to use rebind instead of a confirm and
+# thus to refresh lease options and extend the lifetimes.
+#
+DHCLIENT6_REFRESH_LEASE="no"
+
 #
 # Type:		integer
 # Default:	""
