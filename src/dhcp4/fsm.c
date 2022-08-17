@@ -28,19 +28,18 @@
 #include "dhcp4/protocol.h"
 
 
-#define NAK_BACKOFF_MAX		60	/* seconds */
+static int			ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *);
 
-static int		ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *);
+static int			ni_dhcp4_process_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
+static int			ni_dhcp4_process_ack(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
+static int			ni_dhcp4_process_nak(ni_dhcp4_device_t *);
+static void			ni_dhcp4_fsm_process_arp_packet(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
+static void			ni_dhcp4_fsm_fail_lease(ni_dhcp4_device_t *);
+static int			ni_dhcp4_fsm_validate_lease(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
 
-static int		ni_dhcp4_process_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
-static int		ni_dhcp4_process_ack(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
-static int		ni_dhcp4_process_nak(ni_dhcp4_device_t *);
-static void		ni_dhcp4_fsm_process_arp_packet(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
-static void		ni_dhcp4_fsm_fail_lease(ni_dhcp4_device_t *);
-static int		ni_dhcp4_fsm_validate_lease(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
+static void			ni_dhcp4_send_event(enum ni_dhcp4_event, ni_dhcp4_device_t *, ni_addrconf_lease_t *);
+static void			__ni_dhcp4_fsm_timeout(void *, const ni_timer_t *);
 
-static void		ni_dhcp4_send_event(enum ni_dhcp4_event, ni_dhcp4_device_t *, ni_addrconf_lease_t *);
-static void		__ni_dhcp4_fsm_timeout(void *, const ni_timer_t *);
 
 static ni_dhcp4_event_handler_t *ni_dhcp4_fsm_event_handler;
 
@@ -1211,8 +1210,8 @@ ni_dhcp4_process_nak(ni_dhcp4_device_t *dev)
 	ni_dhcp4_fsm_set_timeout_sec(dev, dev->dhcp4.nak_backoff);
 
 	dev->dhcp4.nak_backoff *= 2;
-	if (dev->dhcp4.nak_backoff > NAK_BACKOFF_MAX)
-		dev->dhcp4.nak_backoff = NAK_BACKOFF_MAX;
+	if (dev->dhcp4.nak_backoff > NI_DHCP4_NAK_BACKOFF_MAX)
+		dev->dhcp4.nak_backoff = NI_DHCP4_NAK_BACKOFF_MAX;
 	return 0;
 }
 

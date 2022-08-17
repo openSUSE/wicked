@@ -93,7 +93,8 @@ typedef struct ni_dhcp4_device {
 #define NI_DHCP4_START_DELAY_MAX	10	/* seconds */
 #define NI_DHCP4_RESEND_TIMEOUT_INIT	4	/* seconds */
 #define NI_DHCP4_RESEND_TIMEOUT_MAX	64	/* seconds */
-#define NI_DHCP4_REQUEST_TIMEOUT		60	/* seconds */
+#define NI_DHCP4_REQUEST_TIMEOUT	60	/* seconds */
+#define NI_DHCP4_NAK_BACKOFF_MAX	60	/* seconds */
 #define NI_DHCP4_ARP_TIMEOUT		200	/* msec */
 
 /*
