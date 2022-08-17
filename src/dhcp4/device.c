@@ -84,12 +84,8 @@ ni_dhcp4_device_by_index(unsigned int ifindex)
 static void
 ni_dhcp4_device_close(ni_dhcp4_device_t *dev)
 {
-	ni_capture_free(dev->capture);
-	dev->capture = NULL;
-
-	if (dev->listen_fd >= 0)
-		close(dev->listen_fd);
-	dev->listen_fd = -1;
+	ni_dhcp4_device_arp_close(dev);
+	ni_dhcp4_socket_close(dev);
 
 	if (dev->defer.timer) {
 		ni_timer_cancel(dev->defer.timer);
@@ -100,8 +96,6 @@ ni_dhcp4_device_close(ni_dhcp4_device_t *dev)
 		ni_timer_cancel(dev->fsm.timer);
 		dev->fsm.timer = NULL;
 	}
-
-	ni_dhcp4_device_arp_close(dev);
 }
 
 void

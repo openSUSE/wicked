@@ -121,6 +121,22 @@ ni_dhcp4_socket_open(ni_dhcp4_device_t *dev)
 }
 
 /*
+ * Close DHCP4 listen/unicast and capture sockets
+ */
+void
+ni_dhcp4_socket_close(ni_dhcp4_device_t *dev)
+{
+	if (dev->capture) {
+		ni_capture_free(dev->capture);
+		dev->capture = NULL;
+	}
+	if (dev->listen_fd >= 0) {
+		close(dev->listen_fd);
+		dev->listen_fd = -1;
+	}
+}
+
+/*
  * This callback is invoked from the socket code when we
  * detect an incoming DHCP4 packet on the raw socket.
  */

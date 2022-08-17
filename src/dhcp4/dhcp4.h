@@ -253,6 +253,7 @@ extern int		ni_dhcp4_parse_response(const ni_dhcp4_config_t *, const ni_dhcp4_me
 						ni_buffer_t *, ni_addrconf_lease_t **);
 
 extern int		ni_dhcp4_socket_open(ni_dhcp4_device_t *);
+extern void		ni_dhcp4_socket_close(ni_dhcp4_device_t *);
 
 extern ni_bool_t	ni_dhcp4_supported(const ni_netdev_t *);
 extern int		ni_dhcp4_device_start(ni_dhcp4_device_t *);
