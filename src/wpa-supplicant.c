@@ -532,6 +532,17 @@ ni_wpa_client_dbus(ni_wpa_client_t *wpa)
 	return wpa->dbus;
 }
 
+static int
+ni_wpa_client_translate_dbus_error(ni_wpa_client_t *wpa, DBusError *error)
+{
+	ni_dbus_client_t *dbus = NULL;
+
+	if (wpa && (dbus = ni_wpa_client_dbus(wpa)) && dbus_error_is_set(error))
+		return ni_dbus_client_translate_error(dbus, error);
+
+	return -NI_ERROR_DBUS_CALL_FAILED;
+}
+
 static ni_wpa_client_t *
 ni_objectmodel_wpa_client_unwrap(const ni_dbus_object_t *object, DBusError *error)
 {
@@ -614,8 +625,8 @@ ni_wpa_client_refresh(ni_wpa_client_t *wpa)
 		return -NI_ERROR_INVALID_ARGS;
 
 	if (!ni_dbus_object_refresh_properties(wpa->object, &ni_objectmodel_wpa_client_service, &error)) {
-		if (dbus_error_is_set(&error))
-			rv = ni_dbus_client_translate_error(ni_wpa_client_dbus(wpa), &error);
+		rv = ni_wpa_client_translate_dbus_error(wpa, &error);
+		dbus_error_free(&error);
 		return rv;
 	}
 
@@ -884,8 +895,8 @@ ni_wpa_nif_refresh(ni_wpa_nif_t *wif)
 		return -NI_ERROR_INVALID_ARGS;
 
 	if (!ni_dbus_object_refresh_properties(wif->object, &ni_objectmodel_wpa_nif_service, &error)) {
-		if (dbus_error_is_set(&error))
-			rv = ni_dbus_client_translate_error(ni_wpa_client_dbus(wif->client), &error);
+		rv = ni_wpa_client_translate_dbus_error(wif->client, &error);
+		dbus_error_free(&error);
 		return rv;
 	} else {
 		ni_timer_get_time(&wif->acquired);
@@ -1260,9 +1271,7 @@ ni_wpa_nif_add_network(ni_wpa_nif_t *wif, const ni_wpa_net_properties_t *conf, n
 				ni_dbus_object_get_path(wif->object), method,
 				error.name, error.message);
 
-		if (dbus_error_is_set(&error))
-			err = ni_dbus_client_translate_error(ni_wpa_client_dbus(wif->client), &error);
-
+		err = ni_wpa_client_translate_dbus_error(wif->client, &error);
 		goto cleanup;
 	}
 
@@ -1409,9 +1418,7 @@ ni_wpa_nif_add_blob(ni_wpa_nif_t *wif, const char *name, unsigned const char *da
 				ni_dbus_object_get_path(wif->object), method, name, len,
 				error.name, error.message);
 
-		if (dbus_error_is_set(&error))
-			err = ni_dbus_client_translate_error(ni_wpa_client_dbus(wif->client), &error);
-
+		err = ni_wpa_client_translate_dbus_error(wif->client, &error);
 		goto cleanup;
 	}
 
@@ -1464,9 +1471,7 @@ ni_wpa_nif_get_blob(ni_wpa_nif_t *wif, const char *name, unsigned char **data, s
 				ni_dbus_object_get_path(wif->object), method, name,
 				error.name, error.message);
 
-		if (dbus_error_is_set(&error))
-			err = ni_dbus_client_translate_error(ni_wpa_client_dbus(wif->client), &error);
-
+		err = ni_wpa_client_translate_dbus_error(wif->client, &error);
 		goto cleanup;
 	}
 
@@ -1568,9 +1573,7 @@ ni_wpa_nif_trigger_scan(ni_wpa_nif_t *wif, ni_bool_t active_scanning)
 				ni_dbus_object_get_path(wif->object), method,
 				error.name, error.message);
 
-		if (dbus_error_is_set(&error))
-			rv = ni_dbus_client_translate_error(ni_wpa_client_dbus(wif->client), &error);
-
+		rv = ni_wpa_client_translate_dbus_error(wif->client, &error);
 		goto cleanup;
 	}
 
