@@ -1826,7 +1826,6 @@ ni_wpa_bss_destroy(ni_wpa_bss_t *bss)
 		object->handle = NULL;
 		ni_dbus_object_free(object);
 	}
-	bss->wif = NULL;
 
 	ni_wpa_bss_properties_destroy(&bss->properties);
 }
@@ -1921,8 +1920,9 @@ ni_wpa_bss_refresh(ni_wpa_bss_t * bss)
 		return -NI_ERROR_INVALID_ARGS;
 
 	if (!ni_dbus_object_refresh_properties(bss->object, &ni_objectmodel_wpa_bss_service, &error)) {
-		if (dbus_error_is_set(&error))
-			rv = ni_dbus_client_translate_error(bss->wif->client->dbus, &error);
+		if (dbus_error_is_set(&error) && bss->object)
+			rv = ni_dbus_object_translate_error(bss->object, &error);
+		dbus_error_free(&error);
 		return rv;
 	}
 	return 0;

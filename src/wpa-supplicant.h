@@ -370,7 +370,6 @@ struct ni_wpa_bss_properties {
 };
 
 struct ni_wpa_bss {
-	ni_wpa_nif_t *				wif;
 	ni_dbus_object_t *			object;
 	ni_wpa_bss_t *				next;
 	ni_refcount_t				refcount;
