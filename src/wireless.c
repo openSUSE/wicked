@@ -1074,7 +1074,7 @@ ni_wireless_on_wpa_supplicant_start(ni_netdev_t *dev)
 static void
 ni_wireless_on_wpa_supplicant_stop(ni_netdev_t *dev)
 {
-	ni_debug_wireless("%s: wpa_supplicant stopped!", dev->name);
+	ni_note("%s: wpa_supplicant stopped!", dev->name);
 	ni_wireless_set_state(dev, NI_WIRELESS_NOT_ASSOCIATED);
 }
 
