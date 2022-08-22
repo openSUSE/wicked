@@ -40,6 +40,21 @@ static int			ni_dhcp4_fsm_validate_lease(ni_dhcp4_device_t *, ni_addrconf_lease_
 static void			ni_dhcp4_send_event(enum ni_dhcp4_event, ni_dhcp4_device_t *, ni_addrconf_lease_t *);
 static void			__ni_dhcp4_fsm_timeout(void *, const ni_timer_t *);
 
+static ni_timeout_param_t *	ni_dhcp4_timeout_param_init_increment(ni_timeout_param_t *,
+									unsigned int);
+static ni_timeout_param_t *	ni_dhcp4_timeout_param_init_decrement(ni_timeout_param_t *,
+									unsigned int);
+static void			ni_dhcp4_timeout_param_trace(const char *, const char *,
+							const ni_timeout_param_t *,
+							unsigned int, ni_timeout_t);
+
+static unsigned int		ni_dhcp4_lease_lifetime(const ni_addrconf_lease_t *,
+							const struct timeval *);
+static unsigned int		ni_dhcp4_lease_rebind_time(const ni_addrconf_lease_t *,
+							const struct timeval *);
+static unsigned int		ni_dhcp4_lease_renewal_time(const ni_addrconf_lease_t *,
+							const struct timeval *);
+
 
 static ni_dhcp4_event_handler_t *ni_dhcp4_fsm_event_handler;
 
@@ -952,6 +967,85 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 	}
 
 	return 0;
+}
+
+static ni_timeout_param_t *
+ni_dhcp4_timeout_param_init_increment(ni_timeout_param_t *params, unsigned int lft)
+{
+	memset(params, 0, sizeof(*params));
+	if (lft != NI_LIFETIME_EXPIRED) {
+		params->nretries	= -1; /* unlimitted retries  */
+		params->increment	= -1; /* exponential backoff */
+		params->jitter.min	= lft > 1 ? -1 : 0;
+		params->jitter.max	= lft > NI_DHCP4_RESEND_TIMEOUT_INIT ? 1 : 0;
+		params->max_timeout	= NI_DHCP4_RESEND_TIMEOUT_MAX;
+		params->timeout		= NI_DHCP4_RESEND_TIMEOUT_INIT;
+	}
+	return params;
+}
+
+static ni_timeout_param_t *
+ni_dhcp4_timeout_param_init_decrement(ni_timeout_param_t *params, unsigned int lft)
+{
+	memset(params, 0, sizeof(*params));
+	if (lft != NI_LIFETIME_EXPIRED) {
+		params->nretries	= -1; /* unlimitted retries  */
+		params->decrement	= -1; /* exponential backoff */
+		params->jitter.min	= -1;
+		params->jitter.max	=  1;
+		params->min_timeout	= NI_DHCP4_RESEND_TIMEOUT_INIT;
+		params->timeout		= params->min_timeout > lft
+					? params->min_timeout : lft;
+	}
+	return params;
+}
+
+static void
+ni_dhcp4_timeout_param_trace(const char *dev, const char *info,
+				const ni_timeout_param_t *params,
+				unsigned int lft, ni_timeout_t rt)
+{
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_DHCP)) {
+		ni_trace("%s: %-8s time left : %u",     dev, info, lft);
+		ni_trace("%s: param.nretries    : %d",   dev, params->nretries);
+		ni_trace("%s: params.timeout    : %llu", dev, params->timeout);
+		ni_trace("%s: params.jitter.min : %d",   dev, params->jitter.min);
+		ni_trace("%s: params.jitter.max : %d",   dev, params->jitter.max);
+		ni_trace("%s: param.increment   : %d",   dev, params->increment);
+		ni_trace("%s: params.max_timeout: %llu", dev, params->max_timeout);
+		ni_trace("%s: param.decrement   : %d",   dev, params->decrement);
+		ni_trace("%s: params.min_timeout: %llu", dev, params->min_timeout);
+		if (rt) {
+			ni_trace("%s: randomized timeout: %llu", dev, rt);
+		}
+	}
+}
+
+static unsigned int
+ni_dhcp4_lease_lifetime(const ni_addrconf_lease_t *lease, const struct timeval *now)
+{
+	if (lease)
+		return ni_lifetime_left(lease->dhcp4.lease_time, &lease->acquired, now);
+	else
+		return NI_LIFETIME_EXPIRED;
+}
+
+static unsigned int
+ni_dhcp4_lease_rebind_time(const ni_addrconf_lease_t *lease, const struct timeval *now)
+{
+	if (lease)
+		return ni_lifetime_left(lease->dhcp4.rebind_time, &lease->acquired, now);
+	else
+		return NI_LIFETIME_EXPIRED;
+}
+
+static unsigned int
+ni_dhcp4_lease_renewal_time(const ni_addrconf_lease_t *lease, const struct timeval *now)
+{
+	if (lease)
+		return ni_lifetime_left(lease->dhcp4.renewal_time, &lease->acquired, now);
+	else
+		return NI_LIFETIME_EXPIRED;
 }
 
 /*
