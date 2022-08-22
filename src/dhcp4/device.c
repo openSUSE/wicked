@@ -81,21 +81,47 @@ ni_dhcp4_device_by_index(unsigned int ifindex)
 	return NULL;
 }
 
+ni_bool_t
+ni_dhcp4_timer_arm(const ni_timer_t **timer, ni_timeout_t timeout,
+		ni_timeout_callback_t *callback, ni_dhcp4_device_t *dev)
+{
+	ni_assert(timer && callback && dev);
+
+	ni_dhcp4_timer_disarm(timer);
+	if ((*timer = ni_timer_register(timeout, callback, dev)))
+		return TRUE;
+
+	return FALSE;
+}
+
+void
+ni_dhcp4_timer_disarm(const ni_timer_t **timer)
+{
+	ni_assert(timer);
+
+	if (*timer) {
+		ni_timer_cancel(*timer);
+		*timer = NULL;
+	}
+}
+
+void
+ni_dhcp4_device_timer_disarm(ni_dhcp4_device_t *dev)
+{
+	ni_dhcp4_timer_disarm(&dev->fsm.timer);
+	ni_dhcp4_timer_disarm(&dev->timer.delay);
+	ni_dhcp4_timer_disarm(&dev->timer.defer);
+	ni_dhcp4_timer_disarm(&dev->timer.acquire);
+}
+
 static void
 ni_dhcp4_device_close(ni_dhcp4_device_t *dev)
 {
+	ni_dhcp4_device_disarm_retransmit(dev);
+	ni_dhcp4_device_timer_disarm(dev);
+
 	ni_dhcp4_device_arp_close(dev);
 	ni_dhcp4_socket_close(dev);
-
-	if (dev->defer.timer) {
-		ni_timer_cancel(dev->defer.timer);
-		dev->defer.timer = NULL;
-	}
-	if (dev->fsm.timer) {
-		ni_warn("%s: timer active for %s", __func__, dev->ifname);
-		ni_timer_cancel(dev->fsm.timer);
-		dev->fsm.timer = NULL;
-	}
 }
 
 void
@@ -139,13 +165,9 @@ ni_dhcp4_device_free(ni_dhcp4_device_t *dev)
 	ni_dhcp4_device_drop_buffer(dev);
 	ni_dhcp4_device_drop_lease(dev);
 	ni_dhcp4_device_drop_best_offer(dev);
-	ni_dhcp4_device_close(dev);
+	ni_dhcp4_device_stop(dev);
 	ni_string_free(&dev->system.ifname);
 	ni_string_free(&dev->ifname);
-
-	/* Drop existing config and request */
-	ni_dhcp4_device_set_config(dev, NULL);
-	ni_dhcp4_device_set_request(dev, NULL);
 
 	for (pos = &ni_dhcp4_active; *pos; pos = &(*pos)->next) {
 		if (*pos == dev) {
@@ -494,9 +516,11 @@ ni_dhcp4_start_release(void *user_data, const ni_timer_t *timer)
 {
 	ni_dhcp4_device_t *dev = user_data;
 
-	if (dev->defer.timer != timer)
+	if (dev->timer.delay != timer) {
+		ni_warn("%s: bad timer handle", __func__);
 		return;
-	dev->defer.timer = NULL;
+	}
+	dev->timer.delay = NULL;
 
 	/* We just send out a single RELEASE without waiting for the
 	 * server's reply. We just keep our fingers crossed that it's
@@ -548,16 +572,12 @@ ni_dhcp4_drop(ni_dhcp4_device_t *dev, const ni_dhcp4_drop_request_t *req)
 
 	dev->fsm.state = NI_DHCP4_STATE_INIT;
 	ni_dhcp4_device_disarm_retransmit(dev);
-	if (dev->fsm.timer) {
-		ni_timer_cancel(dev->fsm.timer);
-		dev->fsm.timer = NULL;
-	}
+	ni_dhcp4_timer_disarm(&dev->fsm.timer);
+
 	ni_dhcp4_device_drop_best_offer(dev);
 	ni_dhcp4_device_arp_close(dev);
 
-	if (dev->defer.timer)
-		ni_timer_cancel(dev->defer.timer);
-	dev->defer.timer = ni_timer_register(0, ni_dhcp4_start_release, dev);
+	ni_dhcp4_timer_arm(&dev->timer.delay, 0, ni_dhcp4_start_release, dev);
 	return 1;
 }
 
@@ -599,15 +619,14 @@ ni_dhcp4_device_start_delayed(void *user_data, const ni_timer_t *timer)
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
 
-	if (dev->defer.timer != timer) {
+	if (dev->timer.delay != timer) {
 		ni_warn("%s: bad timer handle", __func__);
 		return;
 	}
-	dev->defer.timer = NULL;
+	dev->timer.delay = NULL;
 
 	nc = ni_global_state_handle(0);
 	ifp = ni_netdev_by_index(nc, dev->link.ifindex);
-	ni_dhcp4_fsm_init_device(dev);
 	if (ni_netdev_link_is_up(ifp)) {
 		ni_dhcp4_fsm_link_up(dev);
 	} else {
@@ -632,16 +651,12 @@ ni_dhcp4_device_start(ni_dhcp4_device_t *dev)
 		return -1;
 	}
 
-	/* Reuse defer pointer for this one-shot timer */
 	sec = ni_dhcp4_fsm_start_delay(dev->config->start_delay);
-	if (dev->config->defer_timeout > sec)
-		dev->config->defer_timeout -= sec;
-
-	if (dev->defer.timer)
-		ni_timer_cancel(dev->defer.timer);
-
-	dev->defer.timer = ni_timer_register(NI_TIMEOUT_FROM_SEC(sec),
+	ni_dhcp4_timer_arm(&dev->timer.delay, NI_TIMEOUT_FROM_SEC(sec),
 			ni_dhcp4_device_start_delayed, dev);
+
+	ni_dhcp4_defer_timer_arm(dev);
+	ni_dhcp4_acquire_timer_arm(dev);
 	return 1;
 }
 

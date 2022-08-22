@@ -63,27 +63,84 @@ ni_dhcp4_defer_timeout(void *user_data, const ni_timer_t *timer)
 {
 	ni_dhcp4_device_t *dev = user_data;
 
-	if (dev->defer.timer != timer) {
-		ni_warn("%s: bad timer handle", __func__);
+	if (dev->timer.defer != timer) {
+		ni_warn("%s: bad defer timer handle", __func__);
 		return;
 	}
-	ni_note("%s: defer timeout %u reached (state %s)",
+	dev->timer.defer = NULL;
+
+	ni_note("%s: defer timeout %u reached in state %s",
 		dev->ifname, dev->config->defer_timeout,
 		ni_dhcp4_fsm_state_name(dev->fsm.state));
-	dev->defer.timer = NULL;
-	ni_dhcp4_send_event(NI_DHCP4_EVENT_DEFERRED, dev, NULL);
+
+	if (dev->fsm.state == NI_DHCP4_STATE_REBOOT &&
+	    ni_dhcp4_lease_lifetime(dev->lease, NULL)) {
+
+		if (ni_dhcp4_fsm_validate_lease(dev, dev->lease))
+			ni_dhcp4_fsm_commit_lease(dev, dev->lease);
+	} else {
+		ni_dhcp4_send_event(NI_DHCP4_EVENT_DEFERRED, dev, NULL);
+	}
 }
 
-void
-ni_dhcp4_fsm_init_device(ni_dhcp4_device_t *dev)
+static void
+ni_dhcp4_acquire_timeout(void *user_data, const ni_timer_t *timer)
 {
-	if (dev->config->defer_timeout) {
-		ni_timeout_t msec = NI_TIMEOUT_FROM_SEC(dev->config->defer_timeout);
-		if (dev->defer.timer)
-			ni_timer_rearm(dev->defer.timer, msec);
-		else
-			dev->defer.timer = ni_timer_register(msec, ni_dhcp4_defer_timeout, dev);
+	ni_dhcp4_device_t *dev = user_data;
+
+	if (dev->timer.acquire != timer) {
+		ni_warn("%s: bad acquire timer handle", __func__);
+		return;
 	}
+	dev->timer.acquire = NULL;
+
+	ni_note("%s: acquire timeout %u reached in state %s",
+		dev->ifname, dev->config->acquire_timeout,
+		ni_dhcp4_fsm_state_name(dev->fsm.state));
+
+	dev->fsm.state = NI_DHCP4_STATE_INIT;
+	dev->dhcp4.xid = 0;
+
+	ni_dhcp4_device_drop_best_offer(dev);
+	ni_dhcp4_device_drop_lease(dev);
+	ni_dhcp4_device_stop(dev);
+
+	ni_dhcp4_send_event(NI_DHCP4_EVENT_LOST, dev, NULL);
+}
+
+ni_bool_t
+ni_dhcp4_defer_timer_arm(ni_dhcp4_device_t *dev)
+{
+	ni_timeout_t timeout;
+
+	if (!dev || !dev->config || !dev->config->defer_timeout)
+		return FALSE;
+
+	timeout = NI_TIMEOUT_FROM_SEC(dev->config->defer_timeout);
+	if (!dev->timer.defer || !ni_timer_rearm(dev->timer.defer, timeout)) {
+		dev->timer.defer = NULL;
+		return !!ni_dhcp4_timer_arm(&dev->timer.defer, timeout,
+				ni_dhcp4_defer_timeout, dev);
+	}
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_dhcp4_acquire_timer_arm(ni_dhcp4_device_t *dev)
+{
+	ni_timeout_t timeout;
+
+	if (!dev || !dev->config || !dev->config->acquire_timeout)
+		return FALSE;
+
+	timeout = NI_TIMEOUT_FROM_SEC(dev->config->acquire_timeout);
+	if (!dev->timer.acquire || !ni_timer_rearm(dev->timer.acquire, timeout)) {
+		dev->timer.acquire = NULL;
+		return !!ni_dhcp4_timer_arm(&dev->timer.acquire, timeout,
+				ni_dhcp4_acquire_timeout, dev);
+	}
+	return TRUE;
 }
 
 int
@@ -354,10 +411,8 @@ ni_dhcp4_fsm_restart(ni_dhcp4_device_t *dev)
 	dev->fsm.state = NI_DHCP4_STATE_INIT;
 
 	ni_dhcp4_device_disarm_retransmit(dev);
-	if (dev->fsm.timer) {
-		ni_timer_cancel(dev->fsm.timer);
-		dev->fsm.timer = NULL;
-	}
+	ni_dhcp4_timer_disarm(&dev->fsm.timer);
+
 	dev->dhcp4.xid = 0;
 	dev->config->elapsed_timeout = 0;
 
@@ -372,7 +427,7 @@ ni_dhcp4_fsm_set_timeout_msec(ni_dhcp4_device_t *dev, ni_timeout_t msec)
 	if (dev->fsm.timer)
 		ni_timer_rearm(dev->fsm.timer, msec);
 	else
-		dev->fsm.timer = ni_timer_register(msec, __ni_dhcp4_fsm_timeout, dev);
+		ni_dhcp4_timer_arm(&dev->fsm.timer, msec, __ni_dhcp4_fsm_timeout, dev);
 }
 
 static void
@@ -723,6 +778,7 @@ __ni_dhcp4_fsm_timeout(void *user_data, const ni_timer_t *timer)
 		return;
 	}
 	dev->fsm.timer = NULL;
+
 	ni_dhcp4_fsm_timeout(dev);
 }
 
@@ -886,10 +942,9 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 
 	if (lease) {
 		ni_debug_dhcp("%s: committing lease", dev->ifname);
-		if (dev->defer.timer) {
-			ni_timer_cancel(dev->defer.timer);
-			dev->defer.timer = NULL;
-		}
+		ni_dhcp4_device_disarm_retransmit(dev);
+		ni_dhcp4_device_timer_disarm(dev);
+
 		if (dev->config->dry_run == NI_DHCP4_RUN_NORMAL &&
 		    lease->dhcp4.lease_time != NI_LIFETIME_EXPIRED &&
 		    lease->dhcp4.lease_time != NI_LIFETIME_INFINITE) {

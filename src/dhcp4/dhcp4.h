@@ -46,18 +46,19 @@ typedef struct ni_dhcp4_device {
 	    const ni_timer_t *	timer;
 	} fsm;
 
-	struct {
-	    const ni_timer_t *	timer;
-	} defer;
-
-	ni_capture_devinfo_t	system;
-
 	struct timeval		start_time;	/* when we starting managing */
+
+	struct {
+	    const ni_timer_t *	delay;
+	    const ni_timer_t *	defer;
+	    const ni_timer_t *	acquire;
+	} timer;
 
 	ni_dhcp4_request_t *	request;
 	ni_dhcp4_config_t *	config;
 	ni_addrconf_lease_t *	lease;
 
+	ni_capture_devinfo_t	system;
 	ni_capture_t *		capture;
 	int			listen_fd;	/* for DHCP4 only */
 
@@ -240,7 +241,6 @@ extern void		ni_dhcp4_restart_leases(void);
 
 extern const char *	ni_dhcp4_fsm_state_name(enum fsm_state);
 extern unsigned int	ni_dhcp4_fsm_start_delay(unsigned int);
-extern void		ni_dhcp4_fsm_init_device(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_fsm_release_init(ni_dhcp4_device_t *);
 extern int		ni_dhcp4_fsm_process_dhcp4_packet(ni_dhcp4_device_t *, ni_buffer_t *, ni_sockaddr_t *);
 extern int		ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
@@ -252,6 +252,14 @@ extern void		ni_dhcp4_fsm_link_down(ni_dhcp4_device_t *);
 
 extern int		ni_dhcp4_parse_response(const ni_dhcp4_config_t *, const ni_dhcp4_message_t *,
 						ni_buffer_t *, ni_addrconf_lease_t **);
+
+extern ni_bool_t	ni_dhcp4_timer_arm(const ni_timer_t **, ni_timeout_t,
+					ni_timeout_callback_t *, ni_dhcp4_device_t *);
+extern void		ni_dhcp4_timer_disarm(const ni_timer_t **);
+
+extern ni_bool_t	ni_dhcp4_defer_timer_arm(ni_dhcp4_device_t *);
+extern ni_bool_t	ni_dhcp4_acquire_timer_arm(ni_dhcp4_device_t *);
+extern void		ni_dhcp4_device_timer_disarm(ni_dhcp4_device_t *);
 
 extern int		ni_dhcp4_socket_open(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_socket_close(ni_dhcp4_device_t *);
