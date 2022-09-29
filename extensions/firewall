@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Copyright (C) 2012, Olaf Kirch <okir@suse.de>
-# Copyright (C) 2012-2022 SUSE LLC
+# Copyright (C) 2012-2017, SUSE LINUX GmbH, Nuernberg, Germany.
 #
 #       This program is free software; you can redistribute it and/or modify
 #       it under the terms of the GNU General Public License as published by
@@ -40,8 +40,7 @@
 #exec 2>/tmp/wicked-firewall.$$.trace
 #set -vx
 
-wicked="${WICKED_SBINDIR:-/usr/sbin}/wicked"
-wicked_extension_statedir=${WICKED_EXTENSION_STATEDIR:-/run/wicked/extension/firewall}
+wicked="/usr/sbin/wicked"
 systemctl="/usr/bin/systemctl"
 firewalld_cmd="/usr/bin/firewall-cmd"
 firewalld_service="firewalld.service"
@@ -65,7 +64,6 @@ firewalld_is_active()
 firewalld_up()
 {
 	test "X$WICKED_INTERFACE_NAME" = "X" && return 1
-	mkdir -p -- "$wicked_extension_statedir/$WICKED_INTERFACE_NAME"
 
 	local ZONE=`wicked_config_get_zone "$WICKED_ARGFILE"`
 
@@ -78,8 +76,6 @@ firewalld_up()
 firewalld_down()
 {
 	test "X$WICKED_INTERFACE_NAME" = "X" && return 1
-	test -d "$wicked_extension_statedir/$WICKED_INTERFACE_NAME" || return 0
-	rmdir -- "$wicked_extension_statedir/$WICKED_INTERFACE_NAME"
 
 	# Remove the firewalld zone assignment permanently.
 	"$firewalld_cmd" --permanent --remove-interface="$WICKED_INTERFACE_NAME" &>/dev/null
