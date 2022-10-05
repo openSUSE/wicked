@@ -199,6 +199,16 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 		ni_string_free(&compat->dhcp6.client_id);
 		ni_dhcp6_prefix_req_list_destroy(&compat->dhcp6.prefix_reqs);
 		ni_string_array_destroy(&compat->dhcp6.request_options);
+		switch(compat->port.type) {
+		case NI_IFTYPE_TEAM:
+			ni_team_port_config_destroy(&compat->port.conf.team);
+			break;
+		case NI_IFTYPE_OVS_BRIDGE:
+			ni_ovs_bridge_port_config_destroy(&compat->port.conf.ovsbr);
+			break;
+		default:
+			break;
+		}
 
 		free(compat);
 	}
@@ -842,6 +852,28 @@ __ni_compat_generate_team_link_watch(xml_node_t *tnode, const ni_team_link_watch
 }
 
 static ni_bool_t
+__ni_compat_generate_team_port_config(xml_node_t *port, const ni_team_port_config_t *config)
+{
+
+	if (config->queue_id != -1U)
+	     xml_node_new_element("queue_id", port, ni_sprint_uint(config->queue_id));
+
+	if (config->ab.prio)
+	     xml_node_new_element("prio", port, ni_sprint_uint(config->ab.prio));
+
+	if (config->ab.sticky)
+	     xml_node_new_element("sticky", port, ni_format_boolean(config->ab.sticky));
+
+	if (config->lacp.prio)
+	     xml_node_new_element("lacp_prio", port, ni_sprint_uint(config->lacp.prio));
+
+	if (config->lacp.key)
+		xml_node_new_element("lacp_key", port, ni_sprint_uint(config->lacp.key));
+
+	return TRUE;
+}
+
+static ni_bool_t
 __ni_compat_generate_team_ports(xml_node_t *tnode, const ni_team_port_array_t *array)
 {
 	xml_node_t *ports;
@@ -863,20 +895,7 @@ __ni_compat_generate_team_ports(xml_node_t *tnode, const ni_team_port_array_t *a
 
 		port = xml_node_new("port", ports);
 		xml_node_new_element("device", port, p->device.name);
-
-		if (p->config.queue_id != -1U)
-			xml_node_new_element("queue_id", port, ni_sprint_uint(p->config.queue_id));
-
-		if (p->config.ab.prio)
-			xml_node_new_element("prio", port, ni_sprint_uint(p->config.ab.prio));
-		if (p->config.ab.sticky)
-			xml_node_new_element("sticky", port, ni_format_boolean(p->config.ab.sticky));
-
-		if (p->config.lacp.prio)
-			xml_node_new_element("lacp_prio", port, ni_sprint_uint(p->config.lacp.prio));
-		if (p->config.lacp.key)
-			xml_node_new_element("lacp_key", port, ni_sprint_uint(p->config.lacp.key));
-
+		__ni_compat_generate_team_port_config(port, &p->config);
 	}
 
 	return TRUE;
@@ -2904,10 +2923,20 @@ ni_compat_generate_ifnode_content(xml_node_t *ifnode, const ni_compat_netdev_t *
 		xml_node_t *port;
 
 		xml_node_new_element("master", linknode, dev->link.masterdev.name);
-		if (compat->link_port.ovsbr.bridge.name) {
+		if (compat->port.type != NI_IFTYPE_UNKNOWN) {
 			port = xml_node_new("port", linknode);
-			xml_node_add_attr(port, "type", ni_linktype_type_to_name(NI_IFTYPE_OVS_BRIDGE));
-			xml_node_new_element("bridge", port, compat->link_port.ovsbr.bridge.name);
+			xml_node_add_attr(port, "type", ni_linktype_type_to_name(compat->port.type));
+
+			switch(compat->port.type) {
+			case NI_IFTYPE_OVS_BRIDGE:
+				xml_node_new_element("bridge", port, compat->port.conf.ovsbr.bridge.name);
+				break;
+			case NI_IFTYPE_TEAM:
+				__ni_compat_generate_team_port_config(port, &compat->port.conf.team);
+				break;
+			default:
+				break;
+			}
 		}
 	}
 	if (dev->link.mtu)

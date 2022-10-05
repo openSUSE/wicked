@@ -33,6 +33,7 @@
 #include <wicked/route.h>
 #include <wicked/fsm.h>
 #include <wicked/ovs.h>
+#include <wicked/team.h>
 
 extern int			opt_global_dryrun;
 extern char *			opt_global_rootdir;
@@ -56,8 +57,12 @@ typedef struct ni_compat_netdev {
 	} identify;
 
 	struct {
-		ni_ovs_bridge_port_config_t ovsbr;
-	} link_port;
+		ni_iftype_t				type;
+		union {
+			ni_ovs_bridge_port_config_t	ovsbr;
+			ni_team_port_config_t		team;
+		} conf;
+	} port;
 
 	ni_rule_array_t		rules;
 
