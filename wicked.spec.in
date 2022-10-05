@@ -183,7 +183,7 @@ This package provides the wicked development files.
 
 %build
 test -x ./configure || autoreconf --force --install
-export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS"
+export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS -fPIC" LDFLAGS="-pie"
 %configure \
 	--with-piddir=%{wicked_piddir}	\
 	--with-statedir=%{wicked_statedir}\
