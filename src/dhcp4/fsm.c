@@ -1291,43 +1291,90 @@ ni_dhcp4_lease_renewal_time(const ni_addrconf_lease_t *lease, const struct timev
 }
 
 /*
- * Reload an old lease from file, and see whether we can reuse it.
- * This is used during restart of wickedd.
+ * Verify if (recovered) lease is usable.
+ */
+static ni_bool_t
+ni_dhcp4_verify_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
+{
+	ni_sockaddr_t addr;
+	unsigned int lft;
+
+	lft = ni_dhcp4_lease_lifetime(lease, NULL);
+	if (lft == NI_LIFETIME_EXPIRED) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: discarding lease with UUID %s: expired",
+				dev->ifname, ni_uuid_print(&lease->uuid));
+		return FALSE;
+	}
+
+	if (dev->config->client_id.len &&
+	    !ni_opaque_eq(&dev->config->client_id, &lease->dhcp4.client_id)) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: discarding lease with UUID %s: client id changed",
+				dev->ifname, ni_uuid_print(&lease->uuid));
+		return FALSE;
+	}
+
+	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.server_id, 0);
+	if (!ni_sockaddr_is_ipv4_specified(&addr)) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: discarding lease with UUID %s: missed server-id",
+				dev->ifname, ni_uuid_print(&lease->uuid));
+		return FALSE;
+	}
+
+	if (lft == NI_LIFETIME_INFINITE) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: reusing lease with UUID %s with infinite lifetime",
+				dev->ifname, ni_uuid_print(&lease->uuid));
+	} else {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
+				"%s: reusing lease with UUID %s valid for %usec",
+				dev->ifname, ni_uuid_print(&lease->uuid), lft);
+	}
+	return TRUE;
+}
+
+/*
+ * Recover currently active lease or try to load last lease from lease file.
  */
 int
 ni_dhcp4_recover_lease(ni_dhcp4_device_t *dev)
 {
 	ni_addrconf_lease_t *lease;
-	ni_sockaddr_t addr;
 
-	if (dev->lease)
-		return 1;
+	if (dev->lease) {
+		lease = dev->lease;
 
-	lease = ni_addrconf_lease_file_read(dev->ifname, NI_ADDRCONF_DHCP, AF_INET);
-	if (!lease)
-		return -1;
-
-	lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
-	lease->fqdn.qualify = dev->config->fqdn.qualify;
-	ni_string_free(&lease->hostname);
-
-	/* We cannot renew/rebind/reboot without it */
-	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.server_id, 0);
-	if (!ni_sockaddr_is_ipv4_specified(&addr)) {
-		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-				"%s: discarding existing lease, no server-id",
+		lease->uuid = dev->config->uuid;
+		ni_debug_dhcp("%s: verify if currently active lease is still valid",
 				dev->ifname);
-		goto discard;
+
+		if (!ni_dhcp4_verify_lease(dev, lease)) {
+			ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
+
+			ni_dhcp4_fsm_fail_lease(dev);
+			return -1;
+		}
+	} else {
+		if (!(lease = ni_addrconf_lease_file_read(dev->ifname, NI_ADDRCONF_DHCP, AF_INET)))
+			return -1;
+
+		lease->uuid = dev->config->uuid;
+		ni_debug_dhcp("%s: verify if lease loaded from file is still valid",
+				dev->ifname);
+
+		if (!ni_dhcp4_verify_lease(dev, lease)) {
+			ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
+
+			ni_addrconf_lease_free(lease);
+			return -1;
+		}
+
+		ni_dhcp4_device_set_lease(dev, lease);
 	}
-	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
-			"%s: recovered lease with UUID %s", dev->ifname, ni_uuid_print(&lease->uuid));
 
-	ni_dhcp4_device_set_lease(dev, lease);
 	return 0;
-
-discard:
-	ni_addrconf_lease_free(lease);
-	return -1;
 }
 
 void

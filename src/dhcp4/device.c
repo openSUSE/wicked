@@ -376,21 +376,14 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 
 	ni_dhcp4_device_set_config(dev, config);
 
-	if (!dev->lease && config->dry_run != NI_DHCP4_RUN_OFFER && config->recover_lease)
-		ni_dhcp4_recover_lease(dev);
-
-	if (dev->lease) {
-		if (config->client_id.len && !ni_opaque_eq(&config->client_id, &dev->lease->dhcp4.client_id)) {
-			ni_debug_dhcp("%s: lease doesn't match request", dev->ifname);
-			ni_dhcp4_device_drop_lease(dev);
-		} else {
-			/* Lease may be good */
-			dev->fsm.state = NI_DHCP4_STATE_REBOOT;
-		}
-	}
-
 	ni_note("%s: Request to acquire DHCPv4 lease with UUID %s",
 		dev->ifname, ni_uuid_print(&config->uuid));
+
+	if (config->dry_run != NI_DHCP4_RUN_OFFER &&
+	    config->recover_lease && ni_dhcp4_recover_lease(dev) == 0)
+		dev->fsm.state = NI_DHCP4_STATE_REBOOT;
+	else
+		dev->fsm.state = NI_DHCP4_STATE_INIT;
 
 	if (ni_dhcp4_device_start(dev) < 0)
 		return -1;
