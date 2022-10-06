@@ -52,6 +52,12 @@ ni_dhcp4_device_new(const char *ifname, const ni_linkinfo_t *link)
 	dev->users = 1;
 	dev->listen_fd = -1;
 	dev->link.ifindex = link->ifindex;
+	/*
+	 * it's either a fresh link and we have to perform dad anyway
+	 * or we just (re-)started and "may have moved to a new link",
+	 * so assume a reconnect to retrigger dad in next lease commit.
+	 */
+	dev->link.reconnect = TRUE;
 
 	if (ni_capture_devinfo_init(&dev->system, dev->ifname, link) < 0) {
 		ni_error("%s: cannot set up %s for DHCP4", __func__, ifname);
@@ -607,6 +613,8 @@ void
 ni_dhcp4_device_event(ni_dhcp4_device_t *dev, ni_netdev_t *ifp, ni_event_t event)
 {
 	switch (event) {
+	case NI_EVENT_DEVICE_CHANGE:
+	case NI_EVENT_DEVICE_RENAME:
 	case NI_EVENT_DEVICE_UP:
 		if (!ni_string_eq(dev->ifname, ifp->name)) {
 			ni_debug_dhcp("%s: Updating interface name to %s",
@@ -618,12 +626,16 @@ ni_dhcp4_device_event(ni_dhcp4_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 		break;
 
 	case NI_EVENT_LINK_DOWN:
-		ni_debug_dhcp("%s: link went down", dev->ifname);
+		ni_debug_dhcp("%s: link went down in state %s", dev->ifname,
+				ni_dhcp4_fsm_state_name(dev->fsm.state));
 		ni_dhcp4_fsm_link_down(dev);
 		break;
 
 	case NI_EVENT_LINK_UP:
-		ni_debug_dhcp("%s: link came up", dev->ifname);
+		/* retrigger dad on lease commit */
+		dev->link.reconnect = TRUE;
+		ni_debug_dhcp("%s: link came up in state %s", dev->ifname,
+				ni_dhcp4_fsm_state_name(dev->fsm.state));
 		ni_dhcp4_fsm_link_up(dev);
 		break;
 

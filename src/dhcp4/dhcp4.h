@@ -17,6 +17,7 @@
 #include "buffer.h"
 
 enum fsm_state {
+	NI_DHCP4_STATE_DOWN,
 	NI_DHCP4_STATE_INIT,
 	NI_DHCP4_STATE_SELECTING,
 	NI_DHCP4_STATE_REQUESTING,
@@ -42,6 +43,7 @@ struct ni_dhcp4_device {
 	char *			ifname;		/* cached interface name        */
 	struct ni_dhcp4_link {
 	    unsigned int	ifindex;	/* kernel interface index       */
+	    ni_bool_t		reconnect;	/* may have moved to a new link */
 	}			link;
 
 	struct {
