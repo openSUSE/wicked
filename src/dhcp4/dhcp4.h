@@ -30,12 +30,13 @@ enum fsm_state {
 };
 
 typedef struct ni_dhcp4_message		ni_dhcp4_message_t;
+typedef struct ni_dhcp4_device		ni_dhcp4_device_t;
 typedef struct ni_dhcp4_config		ni_dhcp4_config_t;
 typedef struct ni_dhcp4_request		ni_dhcp4_request_t;
 typedef struct ni_dhcp4_drop_request	ni_dhcp4_drop_request_t;
 
-typedef struct ni_dhcp4_device {
-	struct ni_dhcp4_device *	next;
+struct ni_dhcp4_device {
+	ni_dhcp4_device_t *	next;
 	unsigned int		users;
 
 	char *			ifname;
@@ -81,13 +82,16 @@ typedef struct ni_dhcp4_device {
 	   ni_arp_socket_t *	handle;
 	   unsigned int		nprobes;
 	   unsigned int		nclaims;
+
+	   void (*dad_success)(ni_dhcp4_device_t *);
+	   void (*dad_failure)(ni_dhcp4_device_t *);
 	} arp;
 
 	struct {
 	   ni_addrconf_lease_t *lease;
 	   int			weight;
 	} best_offer;
-} ni_dhcp4_device_t;
+};
 
 #define NI_DHCP4_LEASE_TIME_MIN		10	/* seconds */
 #define NI_DHCP4_START_DELAY_MIN	1	/* seconds */

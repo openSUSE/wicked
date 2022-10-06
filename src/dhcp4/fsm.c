@@ -28,6 +28,7 @@
 #include "dhcp4/protocol.h"
 
 
+static ni_bool_t		ni_dhcp4_address_on_link(ni_dhcp4_device_t *, struct in_addr);
 static int			ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *);
 
 static int			ni_dhcp4_process_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
@@ -661,7 +662,7 @@ ni_dhcp4_fsm_rebind(ni_dhcp4_device_t *dev)
 }
 
 static ni_bool_t
-ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *dev)
+ni_dhcp4_fsm_reboot_request(ni_dhcp4_device_t *dev)
 {
 	ni_addrconf_lease_t *lease;
 	unsigned int lft;
@@ -705,6 +706,84 @@ ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *dev)
 	ni_dhcp4_device_send_message_broadcast(dev, DHCP4_REQUEST, lease);
 	ni_addrconf_lease_free(lease);
 	return TRUE;
+}
+
+static void
+ni_dhcp4_fsm_reboot_dad_success(ni_dhcp4_device_t *dev)
+{
+	if (!ni_dhcp4_fsm_reboot_request(dev)) {
+		ni_dhcp4_device_drop_lease(dev);
+		ni_dhcp4_fsm_discover(dev);
+	}
+}
+
+static void
+ni_dhcp4_fsm_reboot_dad_failure(ni_dhcp4_device_t *dev)
+{
+	if (dev->lease) {
+		ni_addrconf_lease_file_remove(dev->ifname,
+				dev->lease->type, dev->lease->family);
+		ni_dhcp4_fsm_fail_lease(dev);
+	}
+	ni_dhcp4_fsm_discover(dev);
+}
+
+static ni_bool_t
+ni_dhcp4_fsm_reboot_dad_validate(ni_dhcp4_device_t *dev)
+{
+	if (!(dev->config->doflags & DHCP4_DO_ARP)) {
+		ni_debug_dhcp("%s: arp validation disabled", dev->ifname);
+		return FALSE;
+	}
+
+	if (!ni_dhcp4_address_on_link(dev, dev->lease->dhcp4.address)) {
+		ni_debug_dhcp("%s: address %s is not on link, omit validation",
+				dev->ifname, inet_ntoa(dev->lease->dhcp4.address));
+		return FALSE;
+	}
+
+	ni_info("%s: Validating DHCPv4 address %s",
+			dev->ifname, inet_ntoa(dev->lease->dhcp4.address));
+
+	dev->arp.nprobes = 3;
+	dev->arp.nclaims = 0;
+	dev->arp.dad_success = ni_dhcp4_fsm_reboot_dad_success;
+	dev->arp.dad_failure = ni_dhcp4_fsm_reboot_dad_failure;
+
+	dev->fsm.state = NI_DHCP4_STATE_VALIDATING;
+
+	if (ni_dhcp4_fsm_arp_validate(dev) < 0) {
+		ni_debug_dhcp("%s: unable to validate lease", dev->ifname);
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+ni_dhcp4_fsm_reboot(ni_dhcp4_device_t *dev)
+{
+	unsigned int lft;
+
+	if (!dev->lease)
+		return FALSE;
+
+	/*
+	 * Retransmit until reboot timeout or lease expires.
+	 *
+	 * On (user) ifup aka acquire call and not responding dhcp server,
+	 * we'll enter bound state earlier via defer timeout (15 sec).
+	 */
+	ni_timer_get_time(&dev->start_time);
+	lft = min_t(unsigned int, NI_DHCP4_REBOOT_TIMEOUT,
+			ni_dhcp4_lease_lifetime(dev->lease, &dev->start_time)
+	);
+	if (lft == NI_LIFETIME_EXPIRED)
+		return FALSE;
+
+	if (ni_dhcp4_fsm_reboot_dad_validate(dev))
+		return TRUE;
+
+	return ni_dhcp4_fsm_reboot_request(dev);
 }
 
 static ni_bool_t
@@ -926,27 +1005,23 @@ ni_dhcp4_fsm_link_up(ni_dhcp4_device_t *dev)
 
 	switch (dev->fsm.state) {
 	case NI_DHCP4_STATE_INIT:
-		/* We get here if we aborted a discovery operation. */
+		/* We get here if we start without a valid lease. */
 		ni_dhcp4_fsm_discover(dev);
 		break;
-
-	case NI_DHCP4_STATE_BOUND:
 	case NI_DHCP4_STATE_REBOOT:
 		/* The link went down and came back up. We may now be on a
 		 * completely different network, and our lease may no longer
 		 * be valid.
-		 * Do a quick renewal, which means we'll try to renew the lease
-		 * for 10 seconds. If that fails, we drop the lease and revert
-		 * to state INIT.
+		 * Enter reboot, which means we'll try to confirm the lease.
+		 * If that fails, we drop the lease and revert to state INIT.
 		 */
-		if (dev->lease)
-			ni_dhcp4_fsm_reboot(dev);
-		else
+		if (!ni_dhcp4_fsm_reboot(dev))
 			ni_dhcp4_fsm_discover(dev);
 		break;
 	case NI_DHCP4_STATE_SELECTING:
 	case NI_DHCP4_STATE_REQUESTING:
 	case NI_DHCP4_STATE_VALIDATING:
+	case NI_DHCP4_STATE_BOUND:
 	case NI_DHCP4_STATE_RENEWING:
 	case NI_DHCP4_STATE_REBINDING:
 		break;
@@ -1088,15 +1163,11 @@ ni_dhcp4_process_ack(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 	/* set lease to validate and commit or decline */
 	ni_dhcp4_device_set_lease(dev, lease);
 
-	if (dev->config->doflags & DHCP4_DO_ARP) {
-		/*
-		 * When we cannot init validate [arp], commit it.
-		 */
-		if (ni_dhcp4_fsm_validate_lease(dev, lease) < 0)
-			ni_dhcp4_fsm_commit_lease(dev, lease);
-	}  else {
+	/*
+	 * When we cannot init validate [arp], commit it.
+	 */
+	if (ni_dhcp4_fsm_validate_lease(dev, lease))
 		ni_dhcp4_fsm_commit_lease(dev, lease);
-	}
 
 	return 0;
 }
@@ -1391,7 +1462,7 @@ ni_dhcp4_fsm_fail_lease(ni_dhcp4_device_t *dev)
 }
 
 static ni_bool_t
-__ni_dhcp4_address_on_device(const ni_netdev_t *ifp, struct in_addr ipv4)
+ni_dhcp4_address_on_device(const ni_netdev_t *ifp, struct in_addr ipv4)
 {
 	const ni_address_t *ap;
 	ni_sockaddr_t addr;
@@ -1408,7 +1479,7 @@ __ni_dhcp4_address_on_device(const ni_netdev_t *ifp, struct in_addr ipv4)
 }
 
 static ni_bool_t
-__ni_dhcp4_address_on_link(ni_dhcp4_device_t *dev, struct in_addr ipv4)
+ni_dhcp4_address_on_link(ni_dhcp4_device_t *dev, struct in_addr ipv4)
 {
 	ni_netconfig_t *nc;
 	ni_netdev_t *ifp;
@@ -1417,21 +1488,31 @@ __ni_dhcp4_address_on_link(ni_dhcp4_device_t *dev, struct in_addr ipv4)
 	if (!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex)))
 		return FALSE;
 
-	return __ni_dhcp4_address_on_device(ifp, ipv4);
+	return ni_dhcp4_address_on_device(ifp, ipv4);
 }
 
 int
 ni_dhcp4_fsm_validate_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 {
+	/* Check whether arp validation has been disabled */
+	if (!dev || !lease || !dev->config)
+		return -1;
+
+	if (!(dev->config->doflags & DHCP4_DO_ARP)) {
+		ni_debug_dhcp("%s: arp validation disabled", dev->ifname);
+		return 1;
+	}
+
 	/*
-	 * When the address is already set on the link, we
-	 * don't need to validate it and just commit it.
+	 * This function is called by process ACK to verify new lease.
+	 * Renew + Rebind just extend lease time and do not need DAD;
+	 * Reboot validates before dhcp request if address is on link.
 	 */
-	if (__ni_dhcp4_address_on_link(dev, lease->dhcp4.address)) {
-		ni_debug_dhcp("%s: address %s is on link, omit validation",
-				dev->ifname, inet_ntoa(lease->dhcp4.address));
-		ni_dhcp4_fsm_commit_lease(dev, lease);
-		return 0;
+	if (ni_dhcp4_address_on_link(dev, lease->dhcp4.address)) {
+		ni_debug_dhcp("%s: address %s is on link, omit validation in state %s",
+				dev->ifname, inet_ntoa(lease->dhcp4.address),
+				ni_dhcp4_fsm_state_name(dev->fsm.state));
+		return 1;
 	}
 
 	ni_info("%s: Validating DHCPv4 address %s",
@@ -1444,18 +1525,13 @@ ni_dhcp4_fsm_validate_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 	dev->arp.nprobes = 3;
 	dev->arp.nclaims = 0;
 
-	/* dhcp4cd source code says:
-	 * IEEE1394 cannot set ARP target address according to RFC2734
-	 */
-	if (dev->system.hwaddr.type == ARPHRD_IEEE1394)
-		dev->arp.nclaims = 0;
+	dev->fsm.state = NI_DHCP4_STATE_VALIDATING;
 
 	if (ni_dhcp4_fsm_arp_validate(dev) < 0) {
 		ni_debug_dhcp("%s: unable to validate lease", dev->ifname);
 		return -1;
 	}
 
-	dev->fsm.state = NI_DHCP4_STATE_VALIDATING;
 	return 0;
 }
 
@@ -1492,8 +1568,14 @@ ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *dev)
 		/* Wow, we're done! */
 		ni_info("%s: Successfully validated DHCPv4 address %s",
 			dev->ifname, inet_ntoa(claim));
-		ni_dhcp4_fsm_commit_lease(dev, dev->lease);
 		ni_dhcp4_device_arp_close(dev);
+		if (dev->arp.dad_success) {
+			dev->arp.dad_success(dev);
+			dev->arp.dad_success = NULL;
+			dev->arp.dad_failure = NULL;
+		} else {
+			ni_dhcp4_fsm_commit_lease(dev, dev->lease);
+		}
 		return 0;
 	}
 
@@ -1543,7 +1625,7 @@ ni_dhcp4_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *pk
 		 * alarm, except it really has the IP assigned.
 		 */
 		false_alarm = TRUE;
-		if (__ni_dhcp4_address_on_device(ifp, pkt->sip))
+		if (ni_dhcp4_address_on_device(ifp, pkt->sip))
 			found_addr = TRUE;
 	}
 	if (false_alarm && !found_addr)
@@ -1553,7 +1635,12 @@ ni_dhcp4_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *pk
 			dev->ifname, inet_ntoa(pkt->sip),
 			ni_link_address_print(&pkt->sha));
 	ni_dhcp4_device_arp_close(dev);
-	ni_dhcp4_fsm_decline(dev);
+	if (dev->arp.dad_failure) {
+		dev->arp.dad_failure(dev);
+		dev->arp.dad_failure = NULL;
+	} else {
+		ni_dhcp4_fsm_decline(dev);
+	}
 }
 
 /*
