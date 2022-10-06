@@ -686,9 +686,15 @@ ni_dhcp4_device_prepare_message(void *data)
 	/* Build the DHCP4 message */
 	if (ni_dhcp4_build_message(dev, dev->transmit.msg_code, dev->transmit.lease, &dev->message) < 0) {
 		/* This is really terminal */
-		ni_error("unable to build DHCP4 message");
+		ni_error("%s: unable to build %s message with xid 0x%x in state %s",
+			dev->ifname, ni_dhcp4_message_name(dev->transmit.msg_code),
+			dev->dhcp4.xid, ni_dhcp4_fsm_state_name(dev->fsm.state));
 		return -1;
 	}
+
+	ni_debug_dhcp("%s: sending %s with xid 0x%x in state %s",
+			dev->ifname, ni_dhcp4_message_name(dev->transmit.msg_code),
+			dev->dhcp4.xid, ni_dhcp4_fsm_state_name(dev->fsm.state));
 	return 0;
 }
 
@@ -704,10 +710,6 @@ ni_dhcp4_device_send_message_broadcast(ni_dhcp4_device_t *dev, unsigned int msg_
 		ni_error("%s: unable to open capture socket", dev->ifname);
 		goto transient_failure;
 	}
-
-	ni_debug_dhcp("%s: sending %s with xid 0x%x in state %s", dev->ifname,
-			ni_dhcp4_message_name(msg_code), dev->dhcp4.xid,
-			ni_dhcp4_fsm_state_name(dev->fsm.state));
 
 	if ((rv = ni_dhcp4_device_prepare_message(dev)) < 0)
 		return -1;
@@ -757,12 +759,11 @@ ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_co
 		return -1;
 	}
 
-	ni_debug_dhcp("sending %s with xid 0x%x", ni_dhcp4_message_name(msg_code), dev->dhcp4.xid);
-
 	if (ni_dhcp4_device_prepare_message(dev) < 0)
 		return -1;
 
-	if (sendto(dev->listen_fd, ni_buffer_head(&dev->message), ni_buffer_count(&dev->message), 0,
+	if (sendto(dev->listen_fd, ni_buffer_head(&dev->message),
+				ni_buffer_count(&dev->message), 0,
 				&addr.sa, sizeof(addr.sin)) < 0)
 		ni_error("%s: sendto failed: %m", dev->ifname);
 	return 0;
