@@ -1720,21 +1720,20 @@ ni_route_tables_copy(ni_route_table_t **dst,  const ni_route_table_t *src)
 {
 	const ni_route_table_t *srt;
 	const ni_route_t *srp;
-	ni_route_table_t *rt;
+	ni_route_t *rp;
 	unsigned int i;
 
 	if (!dst)
 		return;
 
 	for (srt = src; srt; srt = srt->next) {
-		if (!(rt = ni_route_table_new(srt->tid)))
-			continue;
-
 		for (i = 0; i < srt->routes.count; ++i) {
 			if (!(srp = srt->routes.data[i]))
 				continue;
 
-			ni_route_array_append(&rt->routes, ni_route_clone(srp));
+			rp = ni_route_clone(srp);
+			if (!ni_route_tables_add_route(dst, rp))
+				ni_route_free(rp);
 		}
 	}
 }
