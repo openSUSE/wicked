@@ -39,8 +39,10 @@ struct ni_dhcp4_device {
 	ni_dhcp4_device_t *	next;
 	unsigned int		users;
 
-	char *			ifname;
-	ni_linkinfo_t		link;
+	char *			ifname;		/* cached interface name        */
+	struct ni_dhcp4_link {
+	    unsigned int	ifindex;	/* kernel interface index       */
+	}			link;
 
 	struct {
 	    enum fsm_state	state;

@@ -68,6 +68,53 @@ ni_dhcp4_device_new(const char *ifname, const ni_linkinfo_t *link)
 	return dev;
 }
 
+static void
+ni_dhcp4_device_free(ni_dhcp4_device_t *dev)
+{
+	ni_dhcp4_device_t **pos;
+
+	ni_assert(dev->users == 0);
+	ni_debug_dhcp("%s: Deleting dhcp4 device with index %u",
+			dev->ifname, dev->link.ifindex);
+
+	ni_dhcp4_device_drop_buffer(dev);
+	ni_dhcp4_device_drop_lease(dev);
+	ni_dhcp4_device_drop_best_offer(dev);
+	ni_dhcp4_device_stop(dev);
+	ni_string_free(&dev->system.ifname);
+	ni_string_free(&dev->ifname);
+
+	for (pos = &ni_dhcp4_active; *pos; pos = &(*pos)->next) {
+		if (*pos == dev) {
+			*pos = dev->next;
+			break;
+		}
+	}
+	free(dev);
+}
+
+/*
+ * Refcount handling
+ */
+ni_dhcp4_device_t *
+ni_dhcp4_device_get(ni_dhcp4_device_t *dev)
+{
+	ni_assert(dev->users);
+	dev->users++;
+	return dev;
+}
+
+void
+ni_dhcp4_device_put(ni_dhcp4_device_t *dev)
+{
+	ni_assert(dev->users);
+	if (--(dev->users) == 0)
+		ni_dhcp4_device_free(dev);
+}
+
+/*
+ * Lookup dhcp4 client device, netdev, linkinfo
+ */
 ni_dhcp4_device_t *
 ni_dhcp4_device_by_index(unsigned int ifindex)
 {
@@ -79,6 +126,29 @@ ni_dhcp4_device_by_index(unsigned int ifindex)
 	}
 
 	return NULL;
+}
+
+static ni_netdev_t *
+ni_dhcp4_device_netdev(const ni_dhcp4_device_t *dev)
+{
+	ni_netconfig_t *nc;
+	ni_netdev_t *ifp;
+
+	if (!dev || !(nc = ni_global_state_handle(0)))
+		return NULL;
+	if (!(ifp = ni_netdev_by_index(nc, dev->link.ifindex)))
+		return NULL;
+	return ifp;
+}
+
+static ni_bool_t
+ni_dhcp4_device_link_is_up(const ni_dhcp4_device_t *dev)
+{
+	const ni_netdev_t *ifp;
+
+	if (!(ifp = ni_dhcp4_device_netdev(dev)))
+		return FALSE;
+	return ni_netdev_link_is_up(ifp);
 }
 
 ni_bool_t
@@ -153,51 +223,6 @@ ni_dhcp4_device_set_request(ni_dhcp4_device_t *dev, ni_dhcp4_request_t *request)
 	dev->request = request;
 }
 
-void
-ni_dhcp4_device_free(ni_dhcp4_device_t *dev)
-{
-	ni_dhcp4_device_t **pos;
-
-	ni_assert(dev->users == 0);
-	ni_debug_dhcp("%s: Deleting dhcp4 device with index %u",
-			dev->ifname, dev->link.ifindex);
-
-	ni_dhcp4_device_drop_buffer(dev);
-	ni_dhcp4_device_drop_lease(dev);
-	ni_dhcp4_device_drop_best_offer(dev);
-	ni_dhcp4_device_stop(dev);
-	ni_string_free(&dev->system.ifname);
-	ni_string_free(&dev->ifname);
-
-	for (pos = &ni_dhcp4_active; *pos; pos = &(*pos)->next) {
-		if (*pos == dev) {
-			*pos = dev->next;
-			break;
-		}
-	}
-	free(dev);
-}
-
-/*
- * Refcount handling
- */
-ni_dhcp4_device_t *
-ni_dhcp4_device_get(ni_dhcp4_device_t *dev)
-{
-	ni_assert(dev->users);
-	dev->users++;
-	return dev;
-}
-
-void
-ni_dhcp4_device_put(ni_dhcp4_device_t *dev)
-{
-	ni_assert(dev->users);
-	if (--(dev->users) == 0)
-		ni_dhcp4_device_free(dev);
-}
-
-
 unsigned int
 ni_dhcp4_device_uptime(const ni_dhcp4_device_t *dev, unsigned int clamp)
 {
@@ -252,16 +277,17 @@ ni_dhcp4_device_drop_best_offer(ni_dhcp4_device_t *dev)
 int
 ni_dhcp4_device_refresh(ni_dhcp4_device_t *dev)
 {
-	ni_netconfig_t *nih = ni_global_state_handle(0);
-	int rv;
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_netdev_t *ifp;
+	int rv = -1;
 
-	if ((rv = __ni_device_refresh_link_info(nih, &dev->link)) < 0) {
-		ni_error("%s: cannot refresh interface: %s",
-				__func__, ni_strerror(rv));
+	ifp = nc ? ni_netdev_by_index(nc, dev->link.ifindex) : NULL;
+	if (!ifp || (rv = __ni_device_refresh_link_info(nc, &ifp->link)) < 0) {
+		ni_error("%s: cannot refresh interface link info", dev->ifname);
 		return rv;
 	}
 
-	return ni_capture_devinfo_refresh(&dev->system, dev->ifname, &dev->link);
+	return ni_capture_devinfo_refresh(&dev->system, dev->ifname, &ifp->link);
 }
 
 /*
@@ -609,8 +635,6 @@ static void
 ni_dhcp4_device_start_delayed(void *user_data, const ni_timer_t *timer)
 {
 	ni_dhcp4_device_t *dev = user_data;
-	ni_netconfig_t *nc;
-	ni_netdev_t *ifp;
 
 	if (dev->timer.delay != timer) {
 		ni_warn("%s: bad timer handle", __func__);
@@ -618,9 +642,7 @@ ni_dhcp4_device_start_delayed(void *user_data, const ni_timer_t *timer)
 	}
 	dev->timer.delay = NULL;
 
-	nc = ni_global_state_handle(0);
-	ifp = ni_netdev_by_index(nc, dev->link.ifindex);
-	if (ni_netdev_link_is_up(ifp)) {
+	if (ni_dhcp4_device_link_is_up(dev)) {
 		ni_dhcp4_fsm_link_up(dev);
 	} else {
 		ni_debug_dhcp("%s: deferred start until link is up", dev->ifname);
