@@ -1016,31 +1016,73 @@ ni_dhcp4_process_offer(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 static int
 ni_dhcp4_process_ack(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 {
-	if (lease->dhcp4.lease_time == 0) {
-		lease->dhcp4.lease_time = DHCP4_DEFAULT_LEASETIME;
-		ni_debug_dhcp("server supplied no lease time, assuming %u seconds",
-				lease->dhcp4.lease_time);
+	struct timeval now;
+	unsigned int lft;
+
+	if (lease->dhcp4.lease_time > dev->config->max_lease_time) {
+		ni_debug_dhcp("%s: clamping lease time from %u to %u sec",
+				dev->ifname, lease->dhcp4.lease_time,
+				dev->config->max_lease_time);
+
+		lease->dhcp4.lease_time = dev->config->max_lease_time;
 	}
 
-	if (lease->dhcp4.rebind_time >= lease->dhcp4.lease_time) {
-		ni_debug_dhcp("%s: dhcp4.rebind_time greater than dhcp4.lease_time, using default", dev->ifname);
-		lease->dhcp4.rebind_time = (unsigned long long)lease->dhcp4.lease_time * 7 / 8;
-	} else if (lease->dhcp4.rebind_time == 0) {
-		ni_debug_dhcp("%s: no dhcp4.rebind_time supplied, using default", dev->ifname);
-		lease->dhcp4.rebind_time = (unsigned long long)lease->dhcp4.lease_time * 7 / 8;
+	if (lease->dhcp4.lease_time == NI_LIFETIME_INFINITE) {
+		if (!lease->dhcp4.rebind_time) {
+			ni_debug_dhcp("%s: adjusting rebind time (T2) from %u to %s",
+					dev->ifname, lease->dhcp4.rebind_time,
+					ni_sprint_timeout(NI_LIFETIME_INFINITE));
+			lease->dhcp4.rebind_time = NI_LIFETIME_INFINITE;
+		}
+		if (!lease->dhcp4.renewal_time) {
+			ni_debug_dhcp("%s: adjusting renewal time (T1) from %u to %s",
+					dev->ifname, lease->dhcp4.renewal_time,
+					ni_sprint_timeout(NI_LIFETIME_INFINITE));
+			lease->dhcp4.renewal_time = NI_LIFETIME_INFINITE;
+		}
+		if (lease->dhcp4.renewal_time > lease->dhcp4.rebind_time) {
+			lft = (unsigned long long)lease->dhcp4.rebind_time * 8 / 14;
+			ni_debug_dhcp("%s: adjusting renewal time (T1) %u greater"
+					" than rebind time (T2) %u to %u",
+					dev->ifname, lease->dhcp4.renewal_time,
+					lease->dhcp4.rebind_time, lft);
+			lease->dhcp4.renewal_time = lft;
+		}
+	} else {
+		if (!lease->dhcp4.rebind_time ||
+		     lease->dhcp4.rebind_time > lease->dhcp4.lease_time) {
+			lft = (unsigned long long)lease->dhcp4.lease_time * 7 / 8;
+			ni_debug_dhcp("%s: adjusting rebind time (T2) %u greater"
+					" than lease time %u to %u",
+					dev->ifname, lease->dhcp4.renewal_time,
+					lease->dhcp4.rebind_time, lft);
+			lease->dhcp4.rebind_time = lft;
+		}
+
+		if (!lease->dhcp4.renewal_time ||
+		     lease->dhcp4.renewal_time > lease->dhcp4.rebind_time) {
+			lft = (unsigned long long)lease->dhcp4.rebind_time * 8 / 14;
+			ni_debug_dhcp("%s: adjusting renewal time (T1) %u greater"
+					" than rebind time (T2) %u to %u",
+					dev->ifname, lease->dhcp4.renewal_time,
+					lease->dhcp4.rebind_time, lft);
+			lease->dhcp4.renewal_time = lft;
+		}
 	}
 
-	if (lease->dhcp4.renewal_time >= lease->dhcp4.rebind_time) {
-		ni_debug_dhcp("%s: dhcp4.renewal_time greater than dhcp4.rebind_time, using default", dev->ifname);
-		lease->dhcp4.renewal_time = lease->dhcp4.lease_time / 2;
-	} else if (lease->dhcp4.renewal_time == 0) {
-		ni_debug_dhcp("%s: no dhcp4.renewal_time supplied, using default", dev->ifname);
-		lease->dhcp4.renewal_time = lease->dhcp4.lease_time / 2;
-	}
-
-	if (lease->dhcp4.renewal_time > dev->config->max_lease_time) {
-		ni_debug_dhcp("clamping lease time to %u sec", dev->config->max_lease_time);
-		lease->dhcp4.renewal_time = dev->config->max_lease_time / 2;
+	ni_timer_get_time(&now);
+	lft = ni_dhcp4_lease_lifetime(lease, &now);
+	if (lft < NI_DHCP4_LEASE_TIME_MIN) {
+		if (lft == NI_LIFETIME_EXPIRED)
+			ni_debug_dhcp("%s: server provided lease already expired", dev->ifname);
+		else
+			ni_debug_dhcp("%s: server provided lease almost expired (%u sec left)",
+					dev->ifname, lft);
+		return -1;
+	} else if (lft == NI_LIFETIME_INFINITE) {
+		ni_debug_dhcp("%s: server provided lease is valid infinitely", dev->ifname);
+	} else {
+		ni_debug_dhcp("%s: server provided lease is valid for %u sec", dev->ifname, lft);
 	}
 
 	/* set lease to validate and commit or decline */
@@ -1052,7 +1094,7 @@ ni_dhcp4_process_ack(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 		 */
 		if (ni_dhcp4_fsm_validate_lease(dev, lease) < 0)
 			ni_dhcp4_fsm_commit_lease(dev, lease);
-	} else {
+	}  else {
 		ni_dhcp4_fsm_commit_lease(dev, lease);
 	}
 
@@ -1066,19 +1108,40 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 	dev->capture = NULL;
 
 	if (lease) {
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+		struct timeval now;
+		unsigned int lease_time;
+		unsigned int rebind_time;
+		unsigned int renewal_time;
+
 		ni_debug_dhcp("%s: committing lease", dev->ifname);
 		ni_dhcp4_device_disarm_retransmit(dev);
 		ni_dhcp4_device_timer_disarm(dev);
 
-		if (dev->config->dry_run == NI_DHCP4_RUN_NORMAL &&
-		    lease->dhcp4.lease_time != NI_LIFETIME_EXPIRED &&
-		    lease->dhcp4.lease_time != NI_LIFETIME_INFINITE) {
-			unsigned int renewal_time;
-
-			renewal_time = ni_dhcp4_lease_renewal_time(lease, NULL);
-			ni_debug_dhcp("%s: schedule renewal of lease in %u seconds",
-					dev->ifname, renewal_time);
-			ni_dhcp4_fsm_set_timeout_sec(dev, renewal_time);
+		ni_timer_get_time(&now);
+		lease_time = ni_dhcp4_lease_lifetime(lease, &now);
+		rebind_time = ni_dhcp4_lease_rebind_time(lease, &now);
+		renewal_time = ni_dhcp4_lease_renewal_time(lease, &now);
+		if (dev->config->dry_run == NI_DHCP4_RUN_NORMAL) {
+			if (renewal_time != NI_LIFETIME_EXPIRED &&
+			    renewal_time != NI_LIFETIME_INFINITE) {
+				ni_debug_dhcp("%s: schedule lease renewal in %u seconds",
+						dev->ifname, renewal_time);
+				ni_dhcp4_fsm_set_timeout_sec(dev, renewal_time);
+			} else
+			if (rebind_time != NI_LIFETIME_EXPIRED &&
+			    rebind_time != NI_LIFETIME_INFINITE) {
+				renewal_time = 1; /* renew time already reached */
+				ni_debug_dhcp("%s: schedule lease renewal in %u second",
+						dev->ifname, renewal_time);
+				ni_dhcp4_fsm_set_timeout_sec(dev, renewal_time);
+			} else
+			if (lease_time != NI_LIFETIME_INFINITE) {
+				rebind_time = 1; /* rebind time already reached */
+				ni_debug_dhcp("%s: schedule lease rebind in %u second",
+						dev->ifname, rebind_time);
+				ni_dhcp4_fsm_set_timeout_sec(dev, rebind_time);
+			}
 		}
 
 		/* If the user requested a specific route metric, apply it now */
@@ -1104,19 +1167,15 @@ ni_dhcp4_fsm_commit_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 		ni_dhcp4_device_set_lease(dev, lease);
 		dev->fsm.state = NI_DHCP4_STATE_BOUND;
 
-		if (lease->dhcp4.lease_time != NI_LIFETIME_EXPIRED &&
-		    lease->dhcp4.lease_time != NI_LIFETIME_INFINITE) {
-			ni_note("%s: Committed DHCPv4 lease with address %s "
-				"(lease time %u sec, renew in %u sec, rebind in %u sec)",
-				dev->ifname, inet_ntoa(lease->dhcp4.address),
-				lease->dhcp4.lease_time, lease->dhcp4.renewal_time,
-				lease->dhcp4.rebind_time);
-		} else {
-			ni_note("%s: Committed DHCPv4 lease with address %s "
-				"(lease time %s)",
-				dev->ifname, inet_ntoa(lease->dhcp4.address),
-				ni_sprint_timeout(lease->dhcp4.lease_time));
-		}
+		ni_stringbuf_printf(&buf, "%s", ni_sprint_timeout(lease_time));
+		if (renewal_time != NI_LIFETIME_INFINITE)
+			ni_stringbuf_printf(&buf, ", renew in %u sec", renewal_time);
+		if (rebind_time != NI_LIFETIME_INFINITE)
+			ni_stringbuf_printf(&buf, ", rebind in %u sec", rebind_time);
+
+		ni_note("%s: Committed DHCPv4 lease with address %s (lease time %s)",
+				dev->ifname, inet_ntoa(lease->dhcp4.address), buf.string);
+		ni_stringbuf_destroy(&buf);
 
 		/* Write the lease to lease cache */
 		if (dev->config->dry_run != NI_DHCP4_RUN_OFFER) {

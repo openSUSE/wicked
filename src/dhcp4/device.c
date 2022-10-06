@@ -301,9 +301,13 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	config->release_lease = info->release_lease;
 	config->broadcast = info->broadcast;
 
-	config->max_lease_time = ni_dhcp4_config_max_lease_time(dev->ifname);
-	if (info->lease_time && info->lease_time < config->max_lease_time)
-		config->max_lease_time = info->lease_time;
+	config->max_lease_time = max_t(unsigned int,
+				ni_dhcp4_config_max_lease_time(dev->ifname),
+				NI_DHCP4_LEASE_TIME_MIN);
+	if (info->lease_time && info->lease_time < config->max_lease_time) {
+		config->max_lease_time = max_t(unsigned int,
+				info->lease_time, NI_DHCP4_LEASE_TIME_MIN);
+	}
 
 	/*
 	 * RFC 4702 section 3.1 defines, that a client sending the fqdn

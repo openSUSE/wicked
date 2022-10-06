@@ -89,6 +89,7 @@ typedef struct ni_dhcp4_device {
 	} best_offer;
 } ni_dhcp4_device_t;
 
+#define NI_DHCP4_LEASE_TIME_MIN		10	/* seconds */
 #define NI_DHCP4_START_DELAY_MIN	1	/* seconds */
 #define NI_DHCP4_START_DELAY_MAX	10	/* seconds */
 #define NI_DHCP4_RESEND_TIMEOUT_INIT	4	/* seconds */
