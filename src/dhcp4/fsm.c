@@ -1687,6 +1687,20 @@ ni_dhcp4_process_nak(ni_dhcp4_device_t *dev)
 /*
  * Set the protocol event callback
  */
+static const ni_intmap_t	dhcp4_event_names[] = {
+	{ "ACQUIRED",	NI_DHCP4_EVENT_ACQUIRED },
+	{ "RELEASED",	NI_DHCP4_EVENT_RELEASED },
+	{ "DEFERRED",	NI_DHCP4_EVENT_DEFERRED },
+	{ "LOST",	NI_DHCP4_EVENT_LOST     },
+	{ NULL }
+};
+
+const char *
+ni_dhcp4_event_name(enum ni_dhcp4_event ev)
+{
+	return ni_format_uint_mapped(ev, dhcp4_event_names);
+}
+
 void
 ni_dhcp4_set_event_handler(ni_dhcp4_event_handler_t func)
 {

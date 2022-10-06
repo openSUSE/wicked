@@ -236,6 +236,7 @@ typedef void		ni_dhcp4_event_handler_t(enum ni_dhcp4_event event,
 
 extern ni_dhcp4_device_t *ni_dhcp4_active;
 
+extern const char *	ni_dhcp4_event_name(enum ni_dhcp4_event);
 extern void		ni_dhcp4_set_event_handler(ni_dhcp4_event_handler_t);
 
 extern int		ni_dhcp4_acquire(ni_dhcp4_device_t *, const ni_dhcp4_request_t *);
