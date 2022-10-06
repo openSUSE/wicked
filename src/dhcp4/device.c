@@ -281,10 +281,6 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 
 	config = xcalloc(1, sizeof(*config));
 
-	/* RFC 2131 4.1 suggests these values */
-	config->capture_retry_timeout = NI_DHCP4_RESEND_TIMEOUT_INIT;
-	config->capture_max_timeout = NI_DHCP4_RESEND_TIMEOUT_MAX;
-
 	config->dry_run = info->dry_run;
 	config->start_delay = info->start_delay;
 	config->defer_timeout = info->defer_timeout;
@@ -347,9 +343,10 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 
 	if (ni_log_facility(NI_TRACE_DHCP)) {
 		ni_trace("Received request:");
+		ni_trace("  start-delay     %s", ni_sprint_timeout(config->start_delay));
+		ni_trace("  defer-timeout   %s", ni_sprint_timeout(config->defer_timeout));
 		ni_trace("  acquire-timeout %s", ni_sprint_timeout(config->acquire_timeout));
 		ni_trace("  max lease-time  %s", ni_sprint_timeout(config->max_lease_time));
-		ni_trace("  start-delay     %s", ni_sprint_timeout(config->start_delay));
 		ni_trace("  hostname        %s", config->hostname[0]? config->hostname : "<none>");
 		if (config->fqdn.enabled == NI_TRISTATE_ENABLE) {
 			ni_trace("  fqdn            update %s, encode %s, qualify %s",
@@ -382,7 +379,6 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		if (config->client_id.len && !ni_opaque_eq(&config->client_id, &dev->lease->dhcp4.client_id)) {
 			ni_debug_dhcp("%s: lease doesn't match request", dev->ifname);
 			ni_dhcp4_device_drop_lease(dev);
-			dev->notify = 1;
 		} else {
 			/* Lease may be good */
 			dev->fsm.state = NI_DHCP4_STATE_REBOOT;
@@ -642,7 +638,6 @@ ni_dhcp4_device_start(ni_dhcp4_device_t *dev)
 	unsigned int sec;
 
 	ni_dhcp4_device_drop_buffer(dev);
-	dev->failed = 0;
 
 	nc = ni_global_state_handle(0);
 	if(!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex))) {
@@ -703,7 +698,6 @@ ni_dhcp4_device_prepare_message(void *data)
 int
 ni_dhcp4_device_send_message_broadcast(ni_dhcp4_device_t *dev, unsigned int msg_code, ni_addrconf_lease_t *lease)
 {
-	ni_timeout_param_t timeout;
 	int rv;
 
 	dev->transmit.msg_code = msg_code;
@@ -730,16 +724,9 @@ ni_dhcp4_device_send_message_broadcast(ni_dhcp4_device_t *dev, unsigned int msg_
 	case DHCP4_DISCOVER:
 	case DHCP4_REQUEST:
 	case DHCP4_INFORM:
-		memset(&timeout, 0, sizeof(timeout));
-		timeout.timeout = dev->config->capture_retry_timeout;
-		timeout.increment = -1;
-		timeout.max_timeout = dev->config->capture_timeout;
-		timeout.nretries = -1;
-		timeout.jitter.min = -1;/* add a random jitter of +/-1 sec */
-		timeout.jitter.max = 1;
-		timeout.timeout_callback = ni_dhcp4_device_prepare_message;
-		timeout.timeout_data = dev;
-		rv = ni_capture_send(dev->capture, &dev->message, &timeout);
+		dev->transmit.params.timeout_callback = ni_dhcp4_device_prepare_message;
+		dev->transmit.params.timeout_data = dev;
+		rv = ni_capture_send(dev->capture, &dev->message, &dev->transmit.params);
 		break;
 
 	default:
@@ -787,14 +774,16 @@ ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_co
 void
 ni_dhcp4_device_disarm_retransmit(ni_dhcp4_device_t *dev)
 {
+	/* Clear transmit struct except of transmit.start */
 	dev->transmit.msg_code = 0;
+	memset(&dev->transmit.params, 0, sizeof(dev->transmit.params));
 	ni_addrconf_lease_drop(&dev->transmit.lease);
 
-	/* Clear retransmit timer */
+	/* Clear capture retransmit timer params */
 	if (dev->capture)
 		ni_capture_disarm_retransmit(dev->capture);
 
-	/* Drop the message buffer */
+	/* Drop the (raw) message buffer content */
 	ni_dhcp4_device_drop_buffer(dev);
 }
 

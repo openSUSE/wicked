@@ -62,10 +62,9 @@ typedef struct ni_dhcp4_device {
 	ni_capture_t *		capture;
 	int			listen_fd;	/* for DHCP4 only */
 
-	unsigned int		failed : 1,
-				notify : 1;
-
 	struct {
+	    struct timeval		start;
+	    ni_timeout_param_t		params;
 	    unsigned int		msg_code;
 	    ni_addrconf_lease_t *	lease;
 	} transmit;
@@ -94,7 +93,10 @@ typedef struct ni_dhcp4_device {
 #define NI_DHCP4_START_DELAY_MAX	10	/* seconds */
 #define NI_DHCP4_RESEND_TIMEOUT_INIT	4	/* seconds */
 #define NI_DHCP4_RESEND_TIMEOUT_MAX	64	/* seconds */
+#define NI_DHCP4_DISCOVER_RESTART	(NI_DHCP4_RESEND_TIMEOUT_MAX<<1)
 #define NI_DHCP4_REQUEST_TIMEOUT	60	/* seconds */
+#define NI_DHCP4_REBOOT_TIMEOUT		NI_DHCP4_REQUEST_TIMEOUT
+#define NI_DHCP4_DECLINE_BACKOFF	10	/* seconds */
 #define NI_DHCP4_NAK_BACKOFF_MAX	60	/* seconds */
 #define NI_DHCP4_ARP_TIMEOUT		200	/* msec */
 
@@ -199,10 +201,6 @@ struct ni_dhcp4_config {
 
 	unsigned int		start_delay;
 	unsigned int		defer_timeout;
-	unsigned int		capture_retry_timeout;	/* timeout for first request */
-	unsigned int		capture_max_timeout;	/* timeout for the capture */
-	unsigned int		capture_timeout;	/* timeout for actual capture, then fsm restarts */
-	unsigned int		elapsed_timeout;	/* elapsed time within fsm */
 	unsigned int		acquire_timeout;	/* 0 means retry forever */
 
 	/* A combination of DHCP4_DO_* flags above */
