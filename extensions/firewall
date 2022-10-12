@@ -40,8 +40,7 @@
 #exec 2>/tmp/wicked-firewall.$$.trace
 #set -vx
 
-wicked="${WICKED_SBINDIR:-/usr/sbin}/wicked"
-wicked_extension_statedir=${WICKED_EXTENSION_STATEDIR:-/run/wicked/extension/firewall}
+wicked="/usr/sbin/wicked"
 systemctl="/usr/bin/systemctl"
 firewalld_cmd="/usr/bin/firewall-cmd"
 firewalld_service="firewalld.service"
@@ -65,26 +64,25 @@ firewalld_is_active()
 firewalld_up()
 {
 	test "X$WICKED_INTERFACE_NAME" = "X" && return 1
-	mkdir -p -- "$wicked_extension_statedir/$WICKED_INTERFACE_NAME"
 
 	local ZONE=`wicked_config_get_zone "$WICKED_ARGFILE"`
 
-	# Assign the firewalld zone permanently.
+	# Assign the firewalld zone permanently, this sync wicked with firewalld config files.
 	"$firewalld_cmd" --permanent --zone="$ZONE" --change-interface="$WICKED_INTERFACE_NAME" &>/dev/null
-	# And also temporarily, to not have to reload.
+	# Apply same rule to runtime config.
 	"$firewalld_cmd" --zone="$ZONE" --change-interface="$WICKED_INTERFACE_NAME" &>/dev/null
 }
 
 firewalld_down()
 {
 	test "X$WICKED_INTERFACE_NAME" = "X" && return 1
-	test -d "$wicked_extension_statedir/$WICKED_INTERFACE_NAME" || return 0
-	rmdir -- "$wicked_extension_statedir/$WICKED_INTERFACE_NAME"
 
-	# Remove the firewalld zone assignment permanently.
-	"$firewalld_cmd" --permanent --remove-interface="$WICKED_INTERFACE_NAME" &>/dev/null
-	# And also temporarily, to not have to reload.
-	"$firewalld_cmd" --remove-interface="$WICKED_INTERFACE_NAME" &>/dev/null
+	# Do not change firewalld settings on ifdown, neither for FIREWALL=yes
+	# nor for FIREWALL=no (bsc#1201053 and bsc#1189560).
+	# The problem is, that `firewall-cmd --permanent` also change ifcfg
+	# files, thus it would remove the ZONE= setting from ifcfg on ifdown.
+	# Changing only runtime firewall settings, trigger a unexpected
+	# inconsistency between runtime+persistent config.
 }
 
 case $action in
