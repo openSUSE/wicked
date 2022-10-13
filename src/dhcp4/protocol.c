@@ -121,6 +121,22 @@ ni_dhcp4_socket_open(ni_dhcp4_device_t *dev)
 }
 
 /*
+ * Close DHCP4 listen/unicast and capture sockets
+ */
+void
+ni_dhcp4_socket_close(ni_dhcp4_device_t *dev)
+{
+	if (dev->capture) {
+		ni_capture_free(dev->capture);
+		dev->capture = NULL;
+	}
+	if (dev->listen_fd >= 0) {
+		close(dev->listen_fd);
+		dev->listen_fd = -1;
+	}
+}
+
+/*
  * This callback is invoked from the socket code when we
  * detect an incoming DHCP4 packet on the raw socket.
  */
@@ -1831,7 +1847,6 @@ ni_dhcp4_parse_response(const ni_dhcp4_config_t *config, const ni_dhcp4_message_
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
 	lease->type = NI_ADDRCONF_DHCP;
 	lease->family = AF_INET;
-	ni_timer_get_time(&lease->acquired);
 	lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
 	lease->fqdn.qualify = config->fqdn.qualify;
 

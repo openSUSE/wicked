@@ -34,6 +34,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <netlink/netlink.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
@@ -188,15 +189,27 @@ ni_addrconf_lease_routes_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_
 	ni_route_t *rp;
 	unsigned int count = 0;
 	unsigned int i;
-
 	(void)ifname;
-	/* A very limitted view */
+
+	/*
+	 * A very limitted view as needed by dhcp4 (+auto6) leases.
+	 * We don't write or read static lease (config) at all and
+	 * don't support all the routing details, but only unicast
+	 * routes in table main with required details.
+	 */
 	for (tab = lease->routes; tab; tab = tab->next) {
-		if (tab->tid != 254) /* RT_TABLE_MAIN for now */
+		if (tab->tid == RT_TABLE_UNSPEC)
 			continue;
 
 		for (i = 0; i < tab->routes.count; ++i) {
 			if (!(rp = tab->routes.data[i]))
+				continue;
+
+			if (rp->family != lease->family)
+				continue;
+			if (rp->type != RTN_UNICAST)
+				continue;
+			if (rp->table != RT_TABLE_MAIN)
 				continue;
 
 			route = xml_node_new("route", NULL);
@@ -212,6 +225,14 @@ ni_addrconf_lease_routes_data_to_xml(const ni_addrconf_lease_t *lease, xml_node_
 				hop = xml_node_new("nexthop", route);
 				xml_node_new_element("gateway", hop,
 					ni_sockaddr_print(&nh->gateway));
+			}
+			if (rp->priority > 0) {
+				xml_node_new_element_uint("priority", route,
+					rp->priority);
+			}
+			if (ni_sockaddr_is_specified(&rp->pref_src)) {
+				xml_node_new_element("pref-source", route,
+					ni_sockaddr_print(&rp->pref_src));
 			}
 			if (route->children) {
 				xml_node_add_child(node, route);
@@ -806,14 +827,12 @@ static int
 __ni_addrconf_lease_route_nh_from_xml(ni_route_t *rp, const xml_node_t *node)
 {
 	const xml_node_t *child;
-	ni_route_nexthop_t *nh = NULL;
+	ni_route_nexthop_t *nh = &rp->nh;
 	ni_sockaddr_t addr;
 
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, "gateway") && child->cdata) {
-			if (ni_sockaddr_parse(&addr, child->cdata, AF_UNSPEC) != 0)
-				return -1;
-			if (rp->family != addr.ss_family)
+			if (ni_sockaddr_parse(&addr, child->cdata, rp->family))
 				return -1;
 			if (nh == NULL) {
 				nh = ni_route_nexthop_new();
@@ -832,23 +851,27 @@ static int
 __ni_addrconf_lease_route_from_xml(ni_route_t *rp, const xml_node_t *node)
 {
 	const xml_node_t *child;
-	ni_sockaddr_t addr;
-	unsigned int plen;
 
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, "destination") && child->cdata) {
-			if (!ni_sockaddr_prefix_parse(child->cdata, &addr, &plen))
+			if (!ni_sockaddr_prefix_parse(child->cdata,
+					&rp->destination, &rp->prefixlen))
 				return -1;
-			if (rp->family != addr.ss_family)
+			if (rp->family != rp->destination.ss_family)
 				return -1;
-			if ((rp->family == AF_INET  && plen > 32) ||
-			    (rp->family == AF_INET6 && plen > 128))
+			if (rp->prefixlen > ni_af_address_prefixlen(rp->family))
 				return -1;
-			rp->destination = addr;
-			rp->prefixlen = plen;
 		} else
 		if (ni_string_eq(child->name, "nexthop")) {
 			if (__ni_addrconf_lease_route_nh_from_xml(rp, child) != 0)
+				return -1;
+		} else
+		if (ni_string_eq(child->name, "priority")) {
+			if (ni_parse_uint(child->cdata, &rp->priority, 10))
+				return -1;
+		} else
+		if (ni_string_eq(child->name, "pref-source")) {
+			if (ni_sockaddr_parse(&rp->pref_src, child->cdata, rp->family))
 				return -1;
 		}
 	}
@@ -860,15 +883,25 @@ ni_addrconf_lease_routes_data_from_xml(ni_addrconf_lease_t *lease, const xml_nod
 {
 	const xml_node_t *child;
 	ni_route_t *rp;
-
 	(void)ifname;
+
+	/*
+	 * A very limitted view as needed by dhcp4 (+auto6) leases.
+	 * We don't write or read static lease (config) at all and
+	 * don't support all the routing details, but only unicast
+	 * routes in table main with required details.
+	 */
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, "route")) {
 			rp = ni_route_new();
 			if (!rp)
 				return -1;
+
+			rp->type   = RTN_UNICAST;
+			rp->table  = RT_TABLE_MAIN;
 			rp->family = lease->family;
-			rp->table = ni_route_guess_table(rp);
+			/* route without destination node is a default route */
+			rp->destination.ss_family = lease->family;
 			if (__ni_addrconf_lease_route_from_xml(rp, child) != 0) {
 				ni_route_free(rp);
 			} else

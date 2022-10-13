@@ -54,7 +54,7 @@ ni_addrconf_lease_init(ni_addrconf_lease_t *lease, int type, int family)
 		lease->seqno = __ni_global_seqno++;
 		lease->type = type;
 		lease->family = family;
-		ni_config_addrconf_update_mask(lease->type, lease->family);
+		lease->update = ni_config_addrconf_update_mask(lease->type, lease->family);
 		return TRUE;
 	}
 	return FALSE;
@@ -178,6 +178,7 @@ static void
 ni_addrconf_lease_dhcp4_destroy(struct ni_addrconf_lease_dhcp4 *dhcp4)
 {
 	if (dhcp4) {
+		ni_string_free(&dhcp4->sender_hwa);
 		ni_string_free(&dhcp4->boot_sname);
 		ni_string_free(&dhcp4->boot_file);
 		ni_string_free(&dhcp4->root_path);

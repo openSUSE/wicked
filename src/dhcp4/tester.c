@@ -76,8 +76,8 @@ static void
 ni_dhcp4_tester_protocol_event(enum ni_dhcp4_event ev, const ni_dhcp4_device_t *dev,
 		ni_addrconf_lease_t *lease)
 {
-	ni_debug_dhcp("%s(ev=%u, dev=%s[%u], config-uuid=%s)", __func__, ev,
-			dev->ifname, dev->link.ifindex,
+	ni_debug_dhcp("%s(ev=%s, dev=%s[%u], config-uuid=%s)", __func__,
+			ni_dhcp4_event_name(ev), dev->ifname, dev->link.ifindex,
 			dev->config ? ni_uuid_print(&dev->config->uuid) : "<none>");
 
 	switch (ev) {

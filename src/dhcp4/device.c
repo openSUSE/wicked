@@ -52,6 +52,12 @@ ni_dhcp4_device_new(const char *ifname, const ni_linkinfo_t *link)
 	dev->users = 1;
 	dev->listen_fd = -1;
 	dev->link.ifindex = link->ifindex;
+	/*
+	 * it's either a fresh link and we have to perform dad anyway
+	 * or we just (re-)started and "may have moved to a new link",
+	 * so assume a reconnect to retrigger dad in next lease commit.
+	 */
+	dev->link.reconnect = TRUE;
 
 	if (ni_capture_devinfo_init(&dev->system, dev->ifname, link) < 0) {
 		ni_error("%s: cannot set up %s for DHCP4", __func__, ifname);
@@ -68,6 +74,53 @@ ni_dhcp4_device_new(const char *ifname, const ni_linkinfo_t *link)
 	return dev;
 }
 
+static void
+ni_dhcp4_device_free(ni_dhcp4_device_t *dev)
+{
+	ni_dhcp4_device_t **pos;
+
+	ni_assert(dev->users == 0);
+	ni_debug_dhcp("%s: Deleting dhcp4 device with index %u",
+			dev->ifname, dev->link.ifindex);
+
+	ni_dhcp4_device_drop_buffer(dev);
+	ni_dhcp4_device_drop_lease(dev);
+	ni_dhcp4_device_drop_best_offer(dev);
+	ni_dhcp4_device_stop(dev);
+	ni_string_free(&dev->system.ifname);
+	ni_string_free(&dev->ifname);
+
+	for (pos = &ni_dhcp4_active; *pos; pos = &(*pos)->next) {
+		if (*pos == dev) {
+			*pos = dev->next;
+			break;
+		}
+	}
+	free(dev);
+}
+
+/*
+ * Refcount handling
+ */
+ni_dhcp4_device_t *
+ni_dhcp4_device_get(ni_dhcp4_device_t *dev)
+{
+	ni_assert(dev->users);
+	dev->users++;
+	return dev;
+}
+
+void
+ni_dhcp4_device_put(ni_dhcp4_device_t *dev)
+{
+	ni_assert(dev->users);
+	if (--(dev->users) == 0)
+		ni_dhcp4_device_free(dev);
+}
+
+/*
+ * Lookup dhcp4 client device, netdev, linkinfo
+ */
 ni_dhcp4_device_t *
 ni_dhcp4_device_by_index(unsigned int ifindex)
 {
@@ -81,27 +134,70 @@ ni_dhcp4_device_by_index(unsigned int ifindex)
 	return NULL;
 }
 
+static ni_netdev_t *
+ni_dhcp4_device_netdev(const ni_dhcp4_device_t *dev)
+{
+	ni_netconfig_t *nc;
+	ni_netdev_t *ifp;
+
+	if (!dev || !(nc = ni_global_state_handle(0)))
+		return NULL;
+	if (!(ifp = ni_netdev_by_index(nc, dev->link.ifindex)))
+		return NULL;
+	return ifp;
+}
+
+static ni_bool_t
+ni_dhcp4_device_link_is_up(const ni_dhcp4_device_t *dev)
+{
+	const ni_netdev_t *ifp;
+
+	if (!(ifp = ni_dhcp4_device_netdev(dev)))
+		return FALSE;
+	return ni_netdev_link_is_up(ifp);
+}
+
+ni_bool_t
+ni_dhcp4_timer_arm(const ni_timer_t **timer, ni_timeout_t timeout,
+		ni_timeout_callback_t *callback, ni_dhcp4_device_t *dev)
+{
+	ni_assert(timer && callback && dev);
+
+	ni_dhcp4_timer_disarm(timer);
+	if ((*timer = ni_timer_register(timeout, callback, dev)))
+		return TRUE;
+
+	return FALSE;
+}
+
+void
+ni_dhcp4_timer_disarm(const ni_timer_t **timer)
+{
+	ni_assert(timer);
+
+	if (*timer) {
+		ni_timer_cancel(*timer);
+		*timer = NULL;
+	}
+}
+
+void
+ni_dhcp4_device_timer_disarm(ni_dhcp4_device_t *dev)
+{
+	ni_dhcp4_timer_disarm(&dev->fsm.timer);
+	ni_dhcp4_timer_disarm(&dev->timer.delay);
+	ni_dhcp4_timer_disarm(&dev->timer.defer);
+	ni_dhcp4_timer_disarm(&dev->timer.acquire);
+}
+
 static void
 ni_dhcp4_device_close(ni_dhcp4_device_t *dev)
 {
-	ni_capture_free(dev->capture);
-	dev->capture = NULL;
-
-	if (dev->listen_fd >= 0)
-		close(dev->listen_fd);
-	dev->listen_fd = -1;
-
-	if (dev->defer.timer) {
-		ni_timer_cancel(dev->defer.timer);
-		dev->defer.timer = NULL;
-	}
-	if (dev->fsm.timer) {
-		ni_warn("%s: timer active for %s", __func__, dev->ifname);
-		ni_timer_cancel(dev->fsm.timer);
-		dev->fsm.timer = NULL;
-	}
+	ni_dhcp4_device_disarm_retransmit(dev);
+	ni_dhcp4_device_timer_disarm(dev);
 
 	ni_dhcp4_device_arp_close(dev);
+	ni_dhcp4_socket_close(dev);
 }
 
 void
@@ -133,55 +229,6 @@ ni_dhcp4_device_set_request(ni_dhcp4_device_t *dev, ni_dhcp4_request_t *request)
 	dev->request = request;
 }
 
-void
-ni_dhcp4_device_free(ni_dhcp4_device_t *dev)
-{
-	ni_dhcp4_device_t **pos;
-
-	ni_assert(dev->users == 0);
-	ni_debug_dhcp("%s: Deleting dhcp4 device with index %u",
-			dev->ifname, dev->link.ifindex);
-
-	ni_dhcp4_device_drop_buffer(dev);
-	ni_dhcp4_device_drop_lease(dev);
-	ni_dhcp4_device_drop_best_offer(dev);
-	ni_dhcp4_device_close(dev);
-	ni_string_free(&dev->system.ifname);
-	ni_string_free(&dev->ifname);
-
-	/* Drop existing config and request */
-	ni_dhcp4_device_set_config(dev, NULL);
-	ni_dhcp4_device_set_request(dev, NULL);
-
-	for (pos = &ni_dhcp4_active; *pos; pos = &(*pos)->next) {
-		if (*pos == dev) {
-			*pos = dev->next;
-			break;
-		}
-	}
-	free(dev);
-}
-
-/*
- * Refcount handling
- */
-ni_dhcp4_device_t *
-ni_dhcp4_device_get(ni_dhcp4_device_t *dev)
-{
-	ni_assert(dev->users);
-	dev->users++;
-	return dev;
-}
-
-void
-ni_dhcp4_device_put(ni_dhcp4_device_t *dev)
-{
-	ni_assert(dev->users);
-	if (--(dev->users) == 0)
-		ni_dhcp4_device_free(dev);
-}
-
-
 unsigned int
 ni_dhcp4_device_uptime(const ni_dhcp4_device_t *dev, unsigned int clamp)
 {
@@ -202,45 +249,32 @@ ni_dhcp4_device_uptime(const ni_dhcp4_device_t *dev, unsigned int clamp)
 void
 ni_dhcp4_device_set_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 {
-	if (dev->lease != lease) {
-		if (dev->lease)
-			ni_addrconf_lease_free(dev->lease);
-		dev->lease = lease;
-		if (dev->config && lease)
-			lease->uuid = dev->config->uuid;
-	}
+	ni_addrconf_lease_hold(&dev->lease, lease);
+	if (dev->config && lease)
+		lease->uuid = dev->config->uuid;
 }
 
 void
 ni_dhcp4_device_drop_lease(ni_dhcp4_device_t *dev)
 {
-	ni_addrconf_lease_t *lease;
-
-	if ((lease = dev->lease) != NULL) {
-		dev->lease = NULL;
-		ni_addrconf_lease_free(lease);
-	}
+	ni_addrconf_lease_drop(&dev->lease);
 }
 
 void
-ni_dhcp4_device_set_best_offer(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease,
+ni_dhcp4_device_set_best_offer(ni_dhcp4_device_t *dev, ni_addrconf_lease_t **lease,
 							int weight)
 {
-	if (dev->best_offer.lease && dev->best_offer.lease != lease)
-		ni_addrconf_lease_free(dev->best_offer.lease);
-	dev->best_offer.lease = lease;
+	ni_addrconf_lease_move(&dev->best_offer.lease, lease);
 	dev->best_offer.weight = weight;
-	if (dev->config && lease)
-		lease->uuid = dev->config->uuid;
+	if (dev->config && dev->best_offer.lease)
+		dev->best_offer.lease->uuid = dev->config->uuid;
 }
 
 void
 ni_dhcp4_device_drop_best_offer(ni_dhcp4_device_t *dev)
 {
 	dev->best_offer.weight = -1;
-	if (dev->best_offer.lease)
-		ni_addrconf_lease_free(dev->best_offer.lease);
-	dev->best_offer.lease = NULL;
+	ni_addrconf_lease_drop(&dev->best_offer.lease);
 }
 
 /*
@@ -249,16 +283,17 @@ ni_dhcp4_device_drop_best_offer(ni_dhcp4_device_t *dev)
 int
 ni_dhcp4_device_refresh(ni_dhcp4_device_t *dev)
 {
-	ni_netconfig_t *nih = ni_global_state_handle(0);
-	int rv;
+	ni_netconfig_t *nc = ni_global_state_handle(0);
+	ni_netdev_t *ifp;
+	int rv = -1;
 
-	if ((rv = __ni_device_refresh_link_info(nih, &dev->link)) < 0) {
-		ni_error("%s: cannot refresh interface: %s",
-				__func__, ni_strerror(rv));
+	ifp = nc ? ni_netdev_by_index(nc, dev->link.ifindex) : NULL;
+	if (!ifp || (rv = __ni_device_refresh_link_info(nc, &ifp->link)) < 0) {
+		ni_error("%s: cannot refresh interface link info", dev->ifname);
 		return rv;
 	}
 
-	return ni_capture_devinfo_refresh(&dev->system, dev->ifname, &dev->link);
+	return ni_capture_devinfo_refresh(&dev->system, dev->ifname, &ifp->link);
 }
 
 /*
@@ -277,10 +312,6 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		return rv;
 
 	config = xcalloc(1, sizeof(*config));
-
-	/* RFC 2131 4.1 suggests these values */
-	config->capture_retry_timeout = NI_DHCP4_RESEND_TIMEOUT_INIT;
-	config->capture_max_timeout = NI_DHCP4_RESEND_TIMEOUT_MAX;
 
 	config->dry_run = info->dry_run;
 	config->start_delay = info->start_delay;
@@ -302,9 +333,13 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 	config->release_lease = info->release_lease;
 	config->broadcast = info->broadcast;
 
-	config->max_lease_time = ni_dhcp4_config_max_lease_time(dev->ifname);
-	if (info->lease_time && info->lease_time < config->max_lease_time)
-		config->max_lease_time = info->lease_time;
+	config->max_lease_time = max_t(unsigned int,
+				ni_dhcp4_config_max_lease_time(dev->ifname),
+				NI_DHCP4_LEASE_TIME_MIN);
+	if (info->lease_time && info->lease_time < config->max_lease_time) {
+		config->max_lease_time = max_t(unsigned int,
+				info->lease_time, NI_DHCP4_LEASE_TIME_MIN);
+	}
 
 	/*
 	 * RFC 4702 section 3.1 defines, that a client sending the fqdn
@@ -344,9 +379,10 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 
 	if (ni_log_facility(NI_TRACE_DHCP)) {
 		ni_trace("Received request:");
+		ni_trace("  start-delay     %s", ni_sprint_timeout(config->start_delay));
+		ni_trace("  defer-timeout   %s", ni_sprint_timeout(config->defer_timeout));
 		ni_trace("  acquire-timeout %s", ni_sprint_timeout(config->acquire_timeout));
 		ni_trace("  max lease-time  %s", ni_sprint_timeout(config->max_lease_time));
-		ni_trace("  start-delay     %s", ni_sprint_timeout(config->start_delay));
 		ni_trace("  hostname        %s", config->hostname[0]? config->hostname : "<none>");
 		if (config->fqdn.enabled == NI_TRISTATE_ENABLE) {
 			ni_trace("  fqdn            update %s, encode %s, qualify %s",
@@ -372,22 +408,14 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 
 	ni_dhcp4_device_set_config(dev, config);
 
-	if (!dev->lease && config->dry_run != NI_DHCP4_RUN_OFFER && config->recover_lease)
-		ni_dhcp4_recover_lease(dev);
-
-	if (dev->lease) {
-		if (config->client_id.len && !ni_opaque_eq(&config->client_id, &dev->lease->dhcp4.client_id)) {
-			ni_debug_dhcp("%s: lease doesn't match request", dev->ifname);
-			ni_dhcp4_device_drop_lease(dev);
-			dev->notify = 1;
-		} else {
-			/* Lease may be good */
-			dev->fsm.state = NI_DHCP4_STATE_REBOOT;
-		}
-	}
-
 	ni_note("%s: Request to acquire DHCPv4 lease with UUID %s",
 		dev->ifname, ni_uuid_print(&config->uuid));
+
+	if (config->dry_run != NI_DHCP4_RUN_OFFER &&
+	    config->recover_lease && ni_dhcp4_recover_lease(dev) == 0)
+		dev->fsm.state = NI_DHCP4_STATE_REBOOT;
+	else
+		dev->fsm.state = NI_DHCP4_STATE_INIT;
 
 	if (ni_dhcp4_device_start(dev) < 0)
 		return -1;
@@ -513,9 +541,11 @@ ni_dhcp4_start_release(void *user_data, const ni_timer_t *timer)
 {
 	ni_dhcp4_device_t *dev = user_data;
 
-	if (dev->defer.timer != timer)
+	if (dev->timer.delay != timer) {
+		ni_warn("%s: bad timer handle", __func__);
 		return;
-	dev->defer.timer = NULL;
+	}
+	dev->timer.delay = NULL;
 
 	/* We just send out a single RELEASE without waiting for the
 	 * server's reply. We just keep our fingers crossed that it's
@@ -567,16 +597,12 @@ ni_dhcp4_drop(ni_dhcp4_device_t *dev, const ni_dhcp4_drop_request_t *req)
 
 	dev->fsm.state = NI_DHCP4_STATE_INIT;
 	ni_dhcp4_device_disarm_retransmit(dev);
-	if (dev->fsm.timer) {
-		ni_timer_cancel(dev->fsm.timer);
-		dev->fsm.timer = NULL;
-	}
+	ni_dhcp4_timer_disarm(&dev->fsm.timer);
+
 	ni_dhcp4_device_drop_best_offer(dev);
 	ni_dhcp4_device_arp_close(dev);
 
-	if (dev->defer.timer)
-		ni_timer_cancel(dev->defer.timer);
-	dev->defer.timer = ni_timer_register(0, ni_dhcp4_start_release, dev);
+	ni_dhcp4_timer_arm(&dev->timer.delay, 0, ni_dhcp4_start_release, dev);
 	return 1;
 }
 
@@ -587,6 +613,8 @@ void
 ni_dhcp4_device_event(ni_dhcp4_device_t *dev, ni_netdev_t *ifp, ni_event_t event)
 {
 	switch (event) {
+	case NI_EVENT_DEVICE_CHANGE:
+	case NI_EVENT_DEVICE_RENAME:
 	case NI_EVENT_DEVICE_UP:
 		if (!ni_string_eq(dev->ifname, ifp->name)) {
 			ni_debug_dhcp("%s: Updating interface name to %s",
@@ -598,12 +626,16 @@ ni_dhcp4_device_event(ni_dhcp4_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 		break;
 
 	case NI_EVENT_LINK_DOWN:
-		ni_debug_dhcp("%s: link went down", dev->ifname);
+		ni_debug_dhcp("%s: link went down in state %s", dev->ifname,
+				ni_dhcp4_fsm_state_name(dev->fsm.state));
 		ni_dhcp4_fsm_link_down(dev);
 		break;
 
 	case NI_EVENT_LINK_UP:
-		ni_debug_dhcp("%s: link came up", dev->ifname);
+		/* retrigger dad on lease commit */
+		dev->link.reconnect = TRUE;
+		ni_debug_dhcp("%s: link came up in state %s", dev->ifname,
+				ni_dhcp4_fsm_state_name(dev->fsm.state));
 		ni_dhcp4_fsm_link_up(dev);
 		break;
 
@@ -615,19 +647,14 @@ static void
 ni_dhcp4_device_start_delayed(void *user_data, const ni_timer_t *timer)
 {
 	ni_dhcp4_device_t *dev = user_data;
-	ni_netconfig_t *nc;
-	ni_netdev_t *ifp;
 
-	if (dev->defer.timer != timer) {
+	if (dev->timer.delay != timer) {
 		ni_warn("%s: bad timer handle", __func__);
 		return;
 	}
-	dev->defer.timer = NULL;
+	dev->timer.delay = NULL;
 
-	nc = ni_global_state_handle(0);
-	ifp = ni_netdev_by_index(nc, dev->link.ifindex);
-	ni_dhcp4_fsm_init_device(dev);
-	if (ni_netdev_link_is_up(ifp)) {
+	if (ni_dhcp4_device_link_is_up(dev)) {
 		ni_dhcp4_fsm_link_up(dev);
 	} else {
 		ni_debug_dhcp("%s: deferred start until link is up", dev->ifname);
@@ -642,7 +669,6 @@ ni_dhcp4_device_start(ni_dhcp4_device_t *dev)
 	unsigned int sec;
 
 	ni_dhcp4_device_drop_buffer(dev);
-	dev->failed = 0;
 
 	nc = ni_global_state_handle(0);
 	if(!nc || !(ifp = ni_netdev_by_index(nc, dev->link.ifindex))) {
@@ -651,16 +677,12 @@ ni_dhcp4_device_start(ni_dhcp4_device_t *dev)
 		return -1;
 	}
 
-	/* Reuse defer pointer for this one-shot timer */
 	sec = ni_dhcp4_fsm_start_delay(dev->config->start_delay);
-	if (dev->config->defer_timeout > sec)
-		dev->config->defer_timeout -= sec;
-
-	if (dev->defer.timer)
-		ni_timer_cancel(dev->defer.timer);
-
-	dev->defer.timer = ni_timer_register(NI_TIMEOUT_FROM_SEC(sec),
+	ni_dhcp4_timer_arm(&dev->timer.delay, NI_TIMEOUT_FROM_SEC(sec),
 			ni_dhcp4_device_start_delayed, dev);
+
+	ni_dhcp4_defer_timer_arm(dev);
+	ni_dhcp4_acquire_timer_arm(dev);
 	return 1;
 }
 
@@ -698,29 +720,30 @@ ni_dhcp4_device_prepare_message(void *data)
 	/* Build the DHCP4 message */
 	if (ni_dhcp4_build_message(dev, dev->transmit.msg_code, dev->transmit.lease, &dev->message) < 0) {
 		/* This is really terminal */
-		ni_error("unable to build DHCP4 message");
+		ni_error("%s: unable to build %s message with xid 0x%x in state %s",
+			dev->ifname, ni_dhcp4_message_name(dev->transmit.msg_code),
+			dev->dhcp4.xid, ni_dhcp4_fsm_state_name(dev->fsm.state));
 		return -1;
 	}
+
+	ni_debug_dhcp("%s: sending %s with xid 0x%x in state %s",
+			dev->ifname, ni_dhcp4_message_name(dev->transmit.msg_code),
+			dev->dhcp4.xid, ni_dhcp4_fsm_state_name(dev->fsm.state));
 	return 0;
 }
 
 int
-ni_dhcp4_device_send_message(ni_dhcp4_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
+ni_dhcp4_device_send_message_broadcast(ni_dhcp4_device_t *dev, unsigned int msg_code, ni_addrconf_lease_t *lease)
 {
-	ni_timeout_param_t timeout;
 	int rv;
 
 	dev->transmit.msg_code = msg_code;
-	dev->transmit.lease = lease;
+	ni_addrconf_lease_hold(&dev->transmit.lease, lease);
 
 	if (ni_dhcp4_socket_open(dev) < 0) {
 		ni_error("%s: unable to open capture socket", dev->ifname);
 		goto transient_failure;
 	}
-
-	ni_debug_dhcp("%s: sending %s with xid 0x%x in state %s", dev->ifname,
-			ni_dhcp4_message_name(msg_code), dev->dhcp4.xid,
-			ni_dhcp4_fsm_state_name(dev->fsm.state));
 
 	if ((rv = ni_dhcp4_device_prepare_message(dev)) < 0)
 		return -1;
@@ -734,16 +757,9 @@ ni_dhcp4_device_send_message(ni_dhcp4_device_t *dev, unsigned int msg_code, cons
 	case DHCP4_DISCOVER:
 	case DHCP4_REQUEST:
 	case DHCP4_INFORM:
-		memset(&timeout, 0, sizeof(timeout));
-		timeout.timeout = dev->config->capture_retry_timeout;
-		timeout.increment = -1;
-		timeout.max_timeout = dev->config->capture_timeout;
-		timeout.nretries = -1;
-		timeout.jitter.min = -1;/* add a random jitter of +/-1 sec */
-		timeout.jitter.max = 1;
-		timeout.timeout_callback = ni_dhcp4_device_prepare_message;
-		timeout.timeout_data = dev;
-		rv = ni_capture_send(dev->capture, &dev->message, &timeout);
+		dev->transmit.params.timeout_callback = ni_dhcp4_device_prepare_message;
+		dev->transmit.params.timeout_data = dev;
+		rv = ni_capture_send(dev->capture, &dev->message, &dev->transmit.params);
 		break;
 
 	default:
@@ -764,24 +780,24 @@ transient_failure:
 }
 
 int
-ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_code, const ni_addrconf_lease_t *lease)
+ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_code, ni_addrconf_lease_t *lease)
 {
 	ni_sockaddr_t addr;
 
 	ni_sockaddr_set_ipv4(&addr, lease->dhcp4.server_id, DHCP4_SERVER_PORT);
 	dev->transmit.msg_code = msg_code;
-	dev->transmit.lease = lease;
+	ni_addrconf_lease_hold(&dev->transmit.lease, lease);
 
 	if (ni_dhcp4_socket_open(dev) < 0) {
 		ni_error("%s: unable to open capture socket", dev->ifname);
 		return -1;
 	}
 
-	ni_debug_dhcp("sending %s with xid 0x%x", ni_dhcp4_message_name(msg_code), dev->dhcp4.xid);
-
 	if (ni_dhcp4_device_prepare_message(dev) < 0)
 		return -1;
-	if (sendto(dev->listen_fd, ni_buffer_head(&dev->message), ni_buffer_count(&dev->message), 0,
+
+	if (sendto(dev->listen_fd, ni_buffer_head(&dev->message),
+				ni_buffer_count(&dev->message), 0,
 				&addr.sa, sizeof(addr.sin)) < 0)
 		ni_error("%s: sendto failed: %m", dev->ifname);
 	return 0;
@@ -790,11 +806,16 @@ ni_dhcp4_device_send_message_unicast(ni_dhcp4_device_t *dev, unsigned int msg_co
 void
 ni_dhcp4_device_disarm_retransmit(ni_dhcp4_device_t *dev)
 {
-	/* Clear retransmit timer */
+	/* Clear transmit struct except of transmit.start */
+	dev->transmit.msg_code = 0;
+	memset(&dev->transmit.params, 0, sizeof(dev->transmit.params));
+	ni_addrconf_lease_drop(&dev->transmit.lease);
+
+	/* Clear capture retransmit timer params */
 	if (dev->capture)
 		ni_capture_disarm_retransmit(dev->capture);
 
-	/* Drop the message buffer */
+	/* Drop the (raw) message buffer content */
 	ni_dhcp4_device_drop_buffer(dev);
 }
 
