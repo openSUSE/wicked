@@ -40,6 +40,7 @@ ni_intmap_t map[] =  {
 	/* aliases */
 	{ "READ",	MY_GET},
 	{ "WRITE",	MY_SET},
+	{ NULL }
 };
 
 void string_array_set(ni_string_array_t *arr, ...)
