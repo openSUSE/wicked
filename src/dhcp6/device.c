@@ -487,8 +487,7 @@ ni_dhcp6_device_start_auto_prefix(ni_dhcp6_device_t *dev)
 
 	/* refresh in case kernel forgot to send it
 	 * (we increment timeout between attempts) */
-	if (dev->config->dry_run != NI_DHCP6_RUN_NORMAL)
-		ni_dhcp6_device_refresh_mode(dev, ifp);
+	ni_dhcp6_device_refresh_mode(dev, ifp);
 
 	/* request prefix after 1/3 defer timeout */
 	ni_timer_get_time(&now);
@@ -524,8 +523,7 @@ ni_dhcp6_device_start_auto(ni_dhcp6_device_t *dev)
 
 	/* refresh in case kernel forgot to send it
 	 * (we increment timeout between attempts) */
-	if (dev->config->dry_run != NI_DHCP6_RUN_NORMAL)
-		ni_dhcp6_device_refresh_mode(dev, ifp);
+	ni_dhcp6_device_refresh_mode(dev, ifp);
 
 	if (dev->config->mode & NI_BIT(NI_DHCP6_MODE_AUTO))
 		return ni_dhcp6_device_start_timer_arm(dev);
@@ -1080,6 +1078,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 	config->lease_time	= __nondefault(req->lease_time,
 						NI_DHCP6_LEASE_TIME);
 	config->recover_lease	= req->recover_lease;
+	config->refresh_lease  	= req->refresh_lease;
 	config->release_lease	= req->release_lease;
 
 	if (!dev->lease && config->dry_run != NI_DHCP6_RUN_OFFER && config->recover_lease)

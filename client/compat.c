@@ -137,6 +137,7 @@ ni_compat_netdev_new(const char *ifname)
 	compat->dhcp6.mode = NI_BIT(NI_DHCP6_MODE_AUTO);
 	compat->dhcp6.rapid_commit = TRUE;
 	compat->dhcp6.recover_lease = TRUE;
+	compat->dhcp6.refresh_lease = FALSE;
 	compat->dhcp6.release_lease = FALSE;
 	ni_dhcp_fqdn_init(&compat->dhcp6.fqdn);
 
@@ -2440,6 +2441,8 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 
 	xml_node_dict_set(dhcp, "recover-lease",
 				ni_format_boolean(compat->dhcp6.recover_lease));
+	xml_node_dict_set(dhcp, "refresh-lease",
+				ni_format_boolean(compat->dhcp6.refresh_lease));
 	xml_node_dict_set(dhcp, "release-lease",
 				ni_format_boolean(compat->dhcp6.release_lease));
 

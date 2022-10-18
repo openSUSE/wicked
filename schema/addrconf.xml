@@ -276,6 +276,7 @@
 
     <lease-time type="seconds-type" />
     <recover-lease type="boolean" />
+    <refresh-lease type="boolean" />
     <release-lease type="boolean" />
 
     <update type="builtin-addrconf-update-mask" />

@@ -1911,7 +1911,7 @@ ni_dhcp6_fsm_confirm_prefix(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *l
 		if (deadline == NI_LIFETIME_EXPIRED)
 			return -1;
 
-		ni_debug_dhcp("%s: Initiating DHCPv6 Prefix Rebind Confirmation",
+		ni_debug_dhcp("%s: Initiating DHCPv6 Rebind Confirmation",
 				dev->ifname);
 
 		dev->dhcp6.xid = 0;
@@ -1940,6 +1940,9 @@ ni_dhcp6_fsm_confirm_address(ni_dhcp6_device_t *dev, const ni_addrconf_lease_t *
 		return -1;
 
 	if (dev->retrans.count == 0) {
+		if (dev->config->refresh_lease)
+			return ni_dhcp6_fsm_confirm_prefix(dev, lease);
+
 		ni_debug_dhcp("%s: Initiating DHCPv6 Address Confirmation",
 				dev->ifname);
 

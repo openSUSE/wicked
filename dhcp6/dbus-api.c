@@ -495,6 +495,7 @@ static ni_dbus_property_t	dhcp6_request_properties[] = {
 	DHCP6REQ_UINT_PROPERTY(acquire-timeout, acquire_timeout, RO),
 	DHCP6REQ_UINT_PROPERTY(lease-time, lease_time, RO),
 	DHCP6REQ_BOOL_PROPERTY(recover-lease, recover_lease, RO),
+	DHCP6REQ_BOOL_PROPERTY(refresh-lease, refresh_lease, RO),
 	DHCP6REQ_BOOL_PROPERTY(release-lease, release_lease, RO),
 	DHCP6REQ_UINT_PROPERTY(update, update, RO),
 	DHCP6REQ_STRING_PROPERTY(hostname, hostname, RO),
