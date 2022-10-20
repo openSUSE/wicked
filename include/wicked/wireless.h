@@ -13,6 +13,7 @@
 #include <wicked/time.h>
 #include <wicked/util.h>
 #include <wicked/logging.h>
+#include <wicked/refcount.h>
 
 typedef enum ni_wireless_mode {
 	NI_WIRELESS_MODE_UNKNOWN,
@@ -106,8 +107,8 @@ typedef enum ni_wireless_eap_method {
  * file so we can reuse stuff for 802.1x
  */
 typedef enum ni_wireless_auth_proto {
-	NI_WIRELESS_AUTH_PROTO_WPA1,
-	NI_WIRELESS_AUTH_PROTO_WPA2,
+	NI_WIRELESS_AUTH_PROTO_WPA,
+	NI_WIRELESS_AUTH_PROTO_RSN,
 } ni_wireless_auth_proto_t;
 
 typedef enum ni_wireless_auth_algo {
@@ -144,6 +145,13 @@ typedef enum ni_wireless_scan_mode {
 	NI_WIRELESS_SCAN_MODE_PASSIVE,
 	NI_WIRELESS_SCAN_MODE_SSID,
 } ni_wireless_scan_mode_t;
+
+typedef enum ni_wireless_pmf {
+    NI_WIRELESS_PMF_NOT_SPECIFIED = 0,
+    NI_WIRELESS_PMF_DISABLED,
+    NI_WIRELESS_PMF_OPTIONAL,
+    NI_WIRELESS_PMF_REQUIRED,
+} ni_wireless_pmf_t;
 
 #define NI_WIRELESS_PAIRWISE_CIPHERS_MAX	4
 
@@ -209,6 +217,7 @@ struct ni_wireless_network {
 	unsigned int			keymgmt_proto;
 	unsigned int			pairwise_cipher;
 	unsigned int			group_cipher;
+	ni_wireless_pmf_t		pmf;
 
 	char *wep_keys[NI_WIRELESS_WEP_KEY_COUNT];
 	unsigned int default_key;
@@ -335,7 +344,25 @@ struct ni_wireless {
 #define NI_WIRELESS_DEFAULT_SCAN_INTERVAL	60
 #define NI_WIRELESS_ASSOC_FAIL_DELAY		60
 #define NI_WIRELESS_SCAN_MAX_AGE		600
-
+#define NI_WIRELESS_KEY_MGMT_DEFAULT_PSK	(						\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_PSK) |		\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_SAE) |		\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_FT_SAE) |		\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_PSK_SHA256) |	\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_FT_PSK)		\
+						)
+#define NI_WIRELESS_KEY_MGMT_DEFAULT_EAP	(						\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_EAP) |		\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_EAP_SHA256) |	\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_FT_EAP) |		\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_FT_EAP_SHA384) |	\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_EAP_SUITE_B) |	\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_EAP_SUITE_B_192)	\
+						)
+#define NI_WIRELESS_KEY_MGMT_DEFAULT_OPEN	(						\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_NONE) |		\
+						NI_BIT(NI_WIRELESS_KEY_MGMT_OWE)		\
+						)
 
 extern ni_wireless_t *			ni_wireless_new(ni_netdev_t *);
 extern void				ni_wireless_free(ni_wireless_t *);
@@ -361,9 +388,6 @@ extern void				ni_wireless_scan_free(ni_wireless_scan_t *);
 
 extern ni_wireless_blob_t *		ni_wireless_blob_new_from_str(const char *);
 extern void				ni_wireless_blob_free(ni_wireless_blob_t **);
-
-extern ni_wireless_network_t *		ni_wireless_network_new(void);
-extern void				ni_wireless_network_free(ni_wireless_network_t *);
 
 extern void				ni_wireless_network_array_init(ni_wireless_network_array_t *);
 extern void				ni_wireless_network_array_append(ni_wireless_network_array_t *, ni_wireless_network_t *);
@@ -398,8 +422,6 @@ extern ni_bool_t			ni_wireless_ssid_eq(ni_wireless_ssid_t *, ni_wireless_ssid_t 
 
 extern const char *			ni_wireless_mode_to_name(ni_wireless_mode_t);
 extern ni_bool_t			ni_wireless_name_to_mode(const char *, unsigned int *);
-extern const char *			ni_wireless_security_to_name(ni_wireless_security_t);
-extern ni_bool_t			ni_wireless_name_to_security(const char *, unsigned int *);
 extern const ni_intmap_t *		ni_wireless_auth_proto_map(void);
 extern const char *			ni_wireless_auth_proto_to_name(ni_wireless_auth_proto_t);
 extern ni_bool_t			ni_wireless_name_to_auth_proto(const char *, unsigned int *);
@@ -418,6 +440,8 @@ extern const char *			ni_wireless_eap_method_to_name(ni_wireless_eap_method_t);
 extern ni_bool_t			ni_wireless_name_to_eap_method(const char *, unsigned int *);
 extern const char *			ni_wireless_scan_mode_to_name(ni_wireless_scan_mode_t);
 const char *				ni_wireless_assoc_state_to_name(ni_wireless_assoc_state_t);
+extern const char *			ni_wireless_pmf_to_name(ni_wireless_pmf_t);
+extern ni_bool_t			ni_wireless_name_to_pmf(const char *, ni_wireless_pmf_t *);
 
 extern ni_bool_t			ni_wpa_driver_from_string(const char *, unsigned int *);
 extern const char *			ni_wpa_driver_as_string(ni_wireless_wpa_driver_t);
@@ -430,35 +454,7 @@ extern int				ni_rfkill_open(ni_rfkill_event_handler_t *, void *user_data);
 extern ni_bool_t			ni_rfkill_disabled(ni_rfkill_type_t);
 extern const char *			ni_rfkill_type_string(ni_rfkill_type_t type);
 
-static inline ni_wireless_network_t *
-ni_wireless_network_get(ni_wireless_network_t *net)
-{
-	ni_assert(net->refcount);
-	net->refcount++;
-
-	return net;
-}
-
-static inline void
-ni_wireless_network_put(ni_wireless_network_t *net)
-{
-	ni_assert(net->refcount);
-	if (--(net->refcount) == 0)
-		ni_wireless_network_free(net);
-}
-
-static inline void
-ni_wireless_passwd_clear(ni_wireless_network_t *net)
-{
-	if (net) {
-		ni_wireless_wep_key_array_destroy(net->wep_keys);
-		ni_string_clear(&net->wpa_psk.passphrase);
-		ni_string_clear(&net->wpa_eap.phase2.password);
-		ni_string_clear(&net->wpa_eap.tls.client_key_passwd);
-
-		/* No need to   lock  that page in memory anymore */
-		munlock(net, sizeof(*net));
-	}
-}
+extern					ni_refcounted_declare_new(ni_wireless_network);
+extern					ni_refcounted_declare_drop(ni_wireless_network);
 
 #endif /* NI_WICKED_WIRELESS_H */

@@ -13,7 +13,6 @@
 
 #include <wicked/netinfo.h>
 #include <wicked/route.h>
-#include <wicked/addrconf.h>
 #include <wicked/team.h>
 #include <wicked/bridge.h>
 #include <wicked/bonding.h>
@@ -22,8 +21,6 @@
 #include <wicked/vlan.h>
 #include <wicked/openvpn.h>
 #include <wicked/socket.h>
-#include <wicked/resolver.h>
-#include <wicked/nis.h>
 #include "netinfo_priv.h"
 #include "util_priv.h"
 #include "dbus-server.h"
@@ -31,11 +28,9 @@
 #include "xml-schema.h"
 #include "sysfs.h"
 #include "modem-manager.h"
-#include "dhcp6/options.h"
-#include "dhcp.h"
 #include <gcrypt.h>
 
-extern void		ni_addrconf_updater_free(ni_addrconf_updater_t **);
+#define NI_NETDEV_REF_ARRAY_CHUNK	16
 
 typedef struct ni_netconfig_filter {
 	unsigned int		family;
@@ -1008,6 +1003,114 @@ ni_netdev_ref_destroy(ni_netdev_ref_t *ref)
 	}
 }
 
+ni_bool_t
+ni_netdev_ref_array_init(ni_netdev_ref_array_t *array)
+{
+	if (array) {
+		memset(array, 0, sizeof(*array));
+		return TRUE;
+	}
+	return FALSE;
+}
+
+const ni_netdev_ref_t *
+ni_netdev_ref_array_at(const ni_netdev_ref_array_t *array, unsigned int i)
+{
+	if (!array || i >= array->count)
+		return NULL;
+	return &array->data[i];
+}
+
+const ni_netdev_ref_t *
+ni_netdev_ref_array_find_index(const ni_netdev_ref_array_t *array, unsigned int index)
+{
+	const ni_netdev_ref_t *ref;
+	unsigned int i;
+
+	if (!array)
+		return NULL;
+
+	for (i = 0; i < array->count; ++i) {
+		ref = &array->data[i];
+		if (ref->index == index)
+			return ref;
+	}
+	return NULL;
+}
+
+const ni_netdev_ref_t *
+ni_netdev_ref_array_find_name(const ni_netdev_ref_array_t *array, const char *name)
+{
+	const ni_netdev_ref_t *ref;
+	unsigned int i;
+
+	if (!array)
+		return NULL;
+
+	for (i = 0; i < array->count; ++i) {
+		ref = &array->data[i];
+		if (ni_string_eq(ref->name, name))
+			return ref;
+	}
+	return NULL;
+}
+
+static ni_bool_t
+ni_netdev_ref_array_realloc(ni_netdev_ref_array_t *array, unsigned int count)
+{
+	ni_netdev_ref_t *newdata;
+	size_t           newsize;
+	unsigned int     i;
+
+	if ((UINT_MAX - array->count) <= count)
+		return FALSE;
+
+	newsize = array->count + count;
+	if ((SIZE_MAX / sizeof(*newdata)) < newsize)
+		return FALSE;
+
+	newdata = realloc(array->data, newsize * sizeof(*newdata));
+	if (!newdata)
+		return FALSE;
+
+	array->data = newdata;
+	for (i = array->count; i < newsize; ++i) {
+		array->data[i].index = 0;
+		array->data[i].name = NULL;
+	}
+	return TRUE;
+}
+
+const ni_netdev_ref_t *
+ni_netdev_ref_array_append(ni_netdev_ref_array_t *array, const char *name, unsigned int index)
+{
+	ni_netdev_ref_t *item;
+
+	if (!array || ((array->count % NI_NETDEV_REF_ARRAY_CHUNK) == 0 &&
+	    !ni_netdev_ref_array_realloc(array, NI_NETDEV_REF_ARRAY_CHUNK)))
+		return NULL;
+
+	item = &array->data[array->count++];
+	ni_netdev_ref_set(item, name, index);
+	return item;
+}
+
+void
+ni_netdev_ref_array_destroy(ni_netdev_ref_array_t *array)
+{
+	ni_netdev_ref_t *item;
+
+	if (array) {
+		while (array->count) {
+			array->count--;
+			item = &array->data[array->count];
+			ni_netdev_ref_destroy(item);
+		}
+		free(array->data);
+		array->data = NULL;
+	}
+}
+
 /*
  * Handle netdev request port config
  */
@@ -1092,165 +1195,3 @@ ni_netdev_req_free(ni_netdev_req_t *req)
 	free(req);
 }
 
-/*
- * Address configuration state (aka leases)
- */
-ni_addrconf_lease_t *
-ni_addrconf_lease_new(int type, int family)
-{
-	ni_addrconf_lease_t *lease;
-
-	lease = calloc(1, sizeof(*lease));
-	if (lease) {
-		lease->seqno = __ni_global_seqno++;
-		lease->type = type;
-		lease->family = family;
-		ni_config_addrconf_update_mask(lease->type, lease->family);
-	}
-	return lease;
-}
-
-void
-ni_addrconf_lease_free(ni_addrconf_lease_t *lease)
-{
-	if (lease)
-		ni_addrconf_lease_destroy(lease);
-	free(lease);
-}
-
-static void
-ni_addrconf_lease_dhcp4_destroy(struct ni_addrconf_lease_dhcp4 *dhcp4)
-{
-	if (dhcp4) {
-		ni_string_free(&dhcp4->boot_sname);
-		ni_string_free(&dhcp4->boot_file);
-		ni_string_free(&dhcp4->root_path);
-		ni_string_free(&dhcp4->message);
-
-		ni_dhcp_option_list_destroy(&dhcp4->options);
-	}
-}
-
-static void
-ni_addrconf_lease_dhcp6_destroy(struct ni_addrconf_lease_dhcp6 *dhcp6)
-{
-	if (dhcp6) {
-		ni_dhcp6_status_destroy(&dhcp6->status);
-		ni_dhcp6_ia_list_destroy(&dhcp6->ia_list);
-
-		ni_string_free(&dhcp6->boot_url);
-		ni_string_array_destroy(&dhcp6->boot_params);
-
-		ni_dhcp_option_list_destroy(&dhcp6->options);
-	}
-}
-
-void
-ni_addrconf_lease_destroy(ni_addrconf_lease_t *lease)
-{
-	ni_addrconf_updater_free(&lease->updater);
-	if (lease->old) {
-		ni_addrconf_lease_free(lease->old);
-		lease->old = NULL;
-	}
-
-	ni_string_free(&lease->owner);
-	ni_string_free(&lease->hostname);
-
-	ni_address_list_destroy(&lease->addrs);
-	ni_route_tables_destroy(&lease->routes);
-
-	if (lease->rules) {
-		ni_rule_array_free(lease->rules);
-		lease->rules = NULL;
-	}
-
-	if (lease->nis) {
-		ni_nis_info_free(lease->nis);
-		lease->nis = NULL;
-	}
-	if (lease->resolver) {
-		ni_resolver_info_free(lease->resolver);
-		lease->resolver = NULL;
-	}
-
-	ni_string_array_destroy(&lease->ntp_servers);
-	ni_string_array_destroy(&lease->nds_servers);
-	ni_string_array_destroy(&lease->nds_context);
-	ni_string_free(&lease->nds_tree);
-	ni_string_array_destroy(&lease->netbios_name_servers);
-	ni_string_array_destroy(&lease->netbios_dd_servers);
-	ni_string_free(&lease->netbios_scope);
-	ni_string_array_destroy(&lease->slp_servers);
-	ni_string_array_destroy(&lease->slp_scopes);
-	ni_string_array_destroy(&lease->sip_servers);
-	ni_string_array_destroy(&lease->lpr_servers);
-	ni_string_array_destroy(&lease->log_servers);
-
-	ni_string_free(&lease->posix_tz_string);
-	ni_string_free(&lease->posix_tz_dbname);
-
-	switch (lease->type) {
-	case NI_ADDRCONF_DHCP:
-
-		switch (lease->family) {
-		case AF_INET:
-			ni_addrconf_lease_dhcp4_destroy(&lease->dhcp4);
-			break;
-
-		case AF_INET6:
-			ni_addrconf_lease_dhcp6_destroy(&lease->dhcp6);
-			break;
-
-		default: ;
-		}
-
-		break;
-
-	default: ;
-	}
-}
-
-void
-ni_addrconf_lease_list_destroy(ni_addrconf_lease_t **list)
-{
-	ni_addrconf_lease_t *lease;
-
-	while ((lease = *list) != NULL) {
-		*list = lease->next;
-		ni_addrconf_lease_free(lease);
-	}
-}
-
-unsigned int
-ni_addrconf_lease_get_priority(const ni_addrconf_lease_t *lease)
-{
-	if (!lease)
-		return 0;
-
-	switch (lease->type) {
-	case NI_ADDRCONF_STATIC:
-		return 2;
-
-	case NI_ADDRCONF_DHCP:
-	case NI_ADDRCONF_INTRINSIC:
-		return 1;
-
-	case NI_ADDRCONF_AUTOCONF:
-	default:
-		return 0;
-	}
-}
-
-unsigned int
-ni_addrconf_lease_addrs_set_tentative(ni_addrconf_lease_t *lease, ni_bool_t tentative)
-{
-	unsigned int count = 0;
-	ni_address_t * ap;
-
-	for (ap = lease ? lease->addrs : NULL; ap; ap = ap->next) {
-		ni_address_set_tentative(ap, tentative);
-		count++;
-	}
-	return count;
-}

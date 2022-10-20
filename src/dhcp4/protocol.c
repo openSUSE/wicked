@@ -121,6 +121,22 @@ ni_dhcp4_socket_open(ni_dhcp4_device_t *dev)
 }
 
 /*
+ * Close DHCP4 listen/unicast and capture sockets
+ */
+void
+ni_dhcp4_socket_close(ni_dhcp4_device_t *dev)
+{
+	if (dev->capture) {
+		ni_capture_free(dev->capture);
+		dev->capture = NULL;
+	}
+	if (dev->listen_fd >= 0) {
+		close(dev->listen_fd);
+		dev->listen_fd = -1;
+	}
+}
+
+/*
  * This callback is invoked from the socket code when we
  * detect an incoming DHCP4 packet on the raw socket.
  */
@@ -237,7 +253,7 @@ underflow:
 static int
 ni_dhcp4_option_get_opaque(ni_buffer_t *bp, ni_opaque_t *opaque)
 {
-	unsigned int len = ni_buffer_count(bp);
+	size_t len = ni_buffer_count(bp);
 
 	if (!len || len > sizeof(opaque->data))
 		return -1;
@@ -286,9 +302,9 @@ ni_dhcp4_option_get32(ni_buffer_t *bp, uint32_t *var)
 static int
 ni_dhcp4_option_get_string(ni_buffer_t *bp, char **var, unsigned int *lenp)
 {
-	unsigned int len = ni_buffer_count(bp);
+	size_t len = ni_buffer_count(bp);
 
-	if (len == 0)
+	if (len == 0 || len >= UINT_MAX)
 		return -1;
 
 	if (lenp)
@@ -383,7 +399,7 @@ ni_dhcp4_build_msg_put_fqdn_option(const ni_dhcp4_device_t *dev, ni_buffer_t *ms
 	ni_buffer_init(&databuf, optdata, sizeof(optdata));
 	if (ni_buffer_putc(&databuf, flags) < 0 || /* 0000NEOS   flags  */
 	    ni_buffer_putc(&databuf, 0)     < 0 || /* deprecated rdata1 */
-	    ni_buffer_putc(&databuf, 0)      < 0)   /* deprecared rdata2 */
+	    ni_buffer_putc(&databuf, 0)     < 0)   /* deprecared rdata2 */
 		return 1;
 
 	if (!ni_string_empty(hostname) &&
@@ -759,7 +775,7 @@ __ni_dhcp4_build_msg_discover(const ni_dhcp4_device_t *dev,
 			return -1;
 	}
 
-	if (options->classid && options->classid[0]) {
+	if (options->classid[0]) {
 		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 
@@ -883,7 +899,7 @@ __ni_dhcp4_build_msg_inform(const ni_dhcp4_device_t *dev,
 			return -1;
 	}
 
-	if (options->classid && options->classid[0]) {
+	if (options->classid[0]) {
 		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 
@@ -949,7 +965,7 @@ __ni_dhcp4_build_msg_request_offer(const ni_dhcp4_device_t *dev,
 			return -1;
 	}
 
-	if (options->classid && options->classid[0]) {
+	if (options->classid[0]) {
 		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 
@@ -1014,7 +1030,7 @@ __ni_dhcp4_build_msg_request_renew(const ni_dhcp4_device_t *dev,
 			return -1;
 	}
 
-	if (options->classid && options->classid[0]) {
+	if (options->classid[0]) {
 		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 
@@ -1079,7 +1095,7 @@ __ni_dhcp4_build_msg_request_rebind(const ni_dhcp4_device_t *dev,
 			return -1;
 	}
 
-	if (options->classid && options->classid[0]) {
+	if (options->classid[0]) {
 		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 
@@ -1139,7 +1155,7 @@ __ni_dhcp4_build_msg_request_reboot(const ni_dhcp4_device_t *dev,
 			return -1;
 	}
 
-	if (options->classid && options->classid[0]) {
+	if (options->classid[0]) {
 		ni_dhcp4_option_puts(msgbuf, DHCP4_CLASSID, options->classid);
 	}
 
@@ -1831,7 +1847,6 @@ ni_dhcp4_parse_response(const ni_dhcp4_config_t *config, const ni_dhcp4_message_
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
 	lease->type = NI_ADDRCONF_DHCP;
 	lease->family = AF_INET;
-	ni_timer_get_time(&lease->acquired);
 	lease->fqdn.enabled = NI_TRISTATE_DEFAULT;
 	lease->fqdn.qualify = config->fqdn.qualify;
 
@@ -1903,7 +1918,7 @@ parse_more:
 			ni_debug_dhcp("unable to parse DHCP4 option %s: too short",
 					ni_dhcp4_option_name(option));
 		} else if (ni_buffer_count(&buf)) {
-			ni_debug_dhcp("excess data in DHCP4 option %s - %u bytes left",
+			ni_debug_dhcp("excess data in DHCP4 option %s - %zu bytes left",
 					ni_dhcp4_option_name(option),
 					ni_buffer_count(&buf));
 		}
@@ -2077,7 +2092,7 @@ parse_more:
 			ni_debug_dhcp("unable to parse DHCP4 option %s (%u): too short",
 					ni_dhcp4_option_name(option), option);
 		} else if (ni_buffer_count(&buf)) {
-			ni_debug_dhcp("excess data in DHCP4 option %s (%u): %u data bytes left",
+			ni_debug_dhcp("excess data in DHCP4 option %s (%u): %zu data bytes left",
 					ni_dhcp4_option_name(option), option,
 					ni_buffer_count(&buf));
 		}
@@ -2160,7 +2175,7 @@ parse_more:
 		memset(&local_addr, 0, sizeof(local_addr));
 		local_addr.sin.sin_family = AF_INET;
 		local_addr.sin.sin_addr = lease->dhcp4.address;
-		ap = ni_address_new(AF_INET, pfxlen, &local_addr, &lease->addrs);
+		ap = ni_address_create(AF_INET, pfxlen, &local_addr, &lease->addrs);
 		if (ap && lease->dhcp4.broadcast.s_addr)
 			ni_sockaddr_set_ipv4(&ap->bcast_addr, lease->dhcp4.broadcast, 0);
 	}

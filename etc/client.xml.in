@@ -13,11 +13,18 @@
   <include name="common.xml"/>
 
   <!-- This specifies the location of the script that the client
-       uses when discovering devices managed by ibft
+       uses when discovering devices managed by ibft, generating
+       an `firmware:ibft` configuration.
     -->
   <netif-firmware-discovery>
     <script name="ibft" command="@wicked_extensionsdir@/ibft" />
   </netif-firmware-discovery>
+
+  <!-- The client-redfish.xml is added by `wicked redfish enable`
+       to enable the `firmware:redfish` config extension script
+       in the netif-firmware-discovery set.
+    -->
+  <include name="client-redfish.xml" optional="true" />
 
   <!-- This specifies sources of network interface configurations.
 

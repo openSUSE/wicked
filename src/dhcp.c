@@ -1,7 +1,7 @@
 /*
  *	Common DHCP related utilities
  *
- *	Copyright (C) 2016 Marius Tomaschewski <mt@suse.de>
+ *	Copyright (C) 2016-2022 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
  *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *	Authors:
- *		Marius Tomaschewski <mt@suse.de>
+ *		Marius Tomaschewski
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -128,6 +128,23 @@ ni_dhcp_option_list_append(ni_dhcp_option_t **list, ni_dhcp_option_t *opt)
 	while (*list)
 		list = &(*list)->next;
 	*list = opt;
+	return TRUE;
+}
+
+ni_bool_t
+ni_dhcp_option_list_copy(ni_dhcp_option_t **dst, const ni_dhcp_option_t *src)
+{
+	const ni_dhcp_option_t *sopt;
+	ni_dhcp_option_t *nopt;
+
+	if (!dst)
+		return FALSE;
+
+	for (sopt = src; sopt; sopt = sopt->next) {
+		nopt = ni_dhcp_option_new(sopt->code, sopt->len, sopt->data);
+		if (!ni_dhcp_option_list_append(dst, nopt))
+			ni_dhcp_option_free(nopt);
+	}
 	return TRUE;
 }
 

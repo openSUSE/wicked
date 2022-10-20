@@ -32,6 +32,7 @@ wicked_include_HEADERS		= \
 	wicked/ovs.h		\
 	wicked/pci.h		\
 	wicked/ppp.h		\
+	wicked/refcount.h	\
 	wicked/resolver.h	\
 	wicked/route.h		\
 	wicked/secret.h		\

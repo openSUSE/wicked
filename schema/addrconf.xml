@@ -226,6 +226,9 @@
 
     <request-options class="array" element-type="string" element-name="option" />
   </define>
+  <define name="drop-options" class="dict">
+      <release type="boolean"/>
+  </define>
   <define name="properties" type="interface:addrconf-lease"/>
 
   <method name="requestLease">
@@ -240,6 +243,11 @@
   </method>
 
   <method name="dropLease">
+    <arguments>
+      <options type="drop-options">
+        <meta:mapping document-node="ipv4:dhcp/options" generate="true"/>
+      </options>
+    </arguments>
     <return>
       <addrconf:callback-info/>
     </return>
@@ -268,6 +276,7 @@
 
     <lease-time type="seconds-type" />
     <recover-lease type="boolean" />
+    <refresh-lease type="boolean" />
     <release-lease type="boolean" />
 
     <update type="builtin-addrconf-update-mask" />
@@ -288,6 +297,9 @@
 
     <request-options class="array" element-type="string" element-name="option" />
   </define>
+  <define name="drop-options" class="dict">
+    <release type="boolean"/>
+  </define>
   <define name="properties" type="interface:addrconf-lease"/>
 
   <method name="requestLease">
@@ -302,6 +314,11 @@
   </method>
 
   <method name="dropLease">
+    <arguments>
+      <options type="drop-options">
+        <meta:mapping document-node="ipv6:dhcp/options" generate="true"/>
+      </options>
+    </arguments>
     <return>
       <addrconf:callback-info/>
     </return>

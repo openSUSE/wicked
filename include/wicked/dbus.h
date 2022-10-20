@@ -427,6 +427,8 @@ typedef struct ni_dbus_xml_validate_context {
 extern ni_xs_scope_t *		ni_dbus_xml_init(void);
 extern int			ni_dbus_xml_register_services(ni_xs_scope_t *);
 extern unsigned int		ni_dbus_xml_method_num_args(const ni_dbus_method_t *);
+extern const char *		ni_dbus_xml_get_argument_name(const ni_dbus_method_t *, unsigned int);
+extern ni_xs_type_t *		ni_dbus_xml_get_argument_type(const ni_dbus_method_t *method, unsigned int narg);
 extern const xml_node_t *	ni_dbus_xml_get_argument_metadata(const ni_dbus_method_t *, unsigned int);
 extern int			ni_dbus_xml_map_method_argument(const ni_dbus_method_t *method, unsigned int index,
 						xml_node_t *doc_node, xml_node_t **ret_node, ni_bool_t *skip_call);

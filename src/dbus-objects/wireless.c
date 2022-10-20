@@ -103,21 +103,20 @@ ni_objectmodel_shutdown_wireless(ni_dbus_object_t *object, const ni_dbus_method_
 }
 
 static dbus_bool_t
-ni_objectmode_mask_from_dbus(uint32_t *out, const ni_intmap_t *map, const ni_dbus_variant_t *dict,
+ni_objectmode_bitmap_from_dbus(uint32_t *out, const ni_intmap_t *map, const ni_dbus_variant_t *dict,
 		const char *name, DBusError *error, const char *ifname)
 {
-	uint32_t value, mask;
+	uint32_t value, mask = 0;
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
 	if (!ni_dbus_variant_is_dict(dict))
 		return FALSE;
 
 	if (ni_dbus_dict_get_uint32(dict, name, &value)) {
-		mask = 0;
 		ni_format_bitmap_string(&buf, map, value, &mask, " ");
 		ni_stringbuf_destroy(&buf);
 		if (mask != value) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Invalid %s %u", ifname, name, value);
+			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Invalid bitmap %s %02x", ifname, name, value & ~mask);
 			return FALSE;
 		}
 		*out = value;
@@ -164,6 +163,33 @@ ni_objectmodel_get_wireless_request_wep(const char *ifname, ni_wireless_network_
 }
 
 static dbus_bool_t
+ni_objectmodel_get_wireless_request_wpa_common(const char *ifname, ni_wireless_network_t *net,
+				const ni_dbus_variant_t *dict, DBusError *error)
+{
+	if (!ni_dbus_variant_is_dict(dict))
+		return FALSE;
+
+	if (!ni_objectmode_bitmap_from_dbus(&net->auth_proto, ni_wireless_protocol_map(), dict,
+				"auth-proto", error, ifname))
+	       return FALSE;
+
+	if (!ni_objectmode_bitmap_from_dbus(&net->group_cipher, ni_wireless_group_map(), dict,
+				"group-cipher", error, ifname))
+	       return FALSE;
+
+	if (!ni_objectmode_bitmap_from_dbus(&net->pairwise_cipher, ni_wireless_group_map(), dict,
+				"pairwise-cipher", error, ifname))
+	       return FALSE;
+
+	if (ni_dbus_dict_get_uint32(dict, "pmf", &net->pmf)) {
+		if (ni_wireless_pmf_to_name(net->pmf)== NULL)
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
 ni_objectmodel_get_wireless_request_psk(const char *ifname, ni_wireless_network_t *net,
 				const ni_dbus_variant_t *var, DBusError *error)
 {
@@ -172,9 +198,6 @@ ni_objectmodel_get_wireless_request_psk(const char *ifname, ni_wireless_network_
 
 	if ((child = ni_dbus_dict_get(var, "wpa-psk")) == NULL)
 		return TRUE;
-
-	net->keymgmt_proto |= NI_BIT(NI_WIRELESS_KEY_MGMT_PSK);
-
 
 	/* 'key' member has been removed
 	 * do parsing a string here: may be a 64 len HEX digit string or a 8..63 ASCII char passphrase
@@ -185,17 +208,8 @@ ni_objectmodel_get_wireless_request_psk(const char *ifname, ni_wireless_network_
 	}
 	ni_string_dup(&net->wpa_psk.passphrase, string);
 
-	if (!ni_objectmode_mask_from_dbus(&net->auth_proto, ni_wireless_protocol_map(), child,
-				"auth-proto", error, ifname))
-	       return FALSE;
-
-	if (!ni_objectmode_mask_from_dbus(&net->group_cipher, ni_wireless_group_map(), child,
-				"group-cipher", error, ifname))
-	       return FALSE;
-
-	if (!ni_objectmode_mask_from_dbus(&net->pairwise_cipher, ni_wireless_group_map(), child,
-				"pairwise-cipher", error, ifname))
-	       return FALSE;
+	if (!ni_objectmodel_get_wireless_request_wpa_common(ifname, net, child, error))
+		return FALSE;
 
 	return TRUE;
 }
@@ -263,17 +277,17 @@ ni_objectmodel_get_wireless_request_eap(const char *ifname, ni_wireless_network_
 	if (!(eap = ni_dbus_dict_get(var, "wpa-eap")))
 		return TRUE;
 
-	net->keymgmt_proto |= NI_BIT(NI_WIRELESS_KEY_MGMT_EAP);
-
-	if (!ni_objectmode_mask_from_dbus(&net->auth_proto, ni_wireless_protocol_map(), eap,
-				"auth-proto", error, ifname))
-	       return FALSE;
+	if (!ni_objectmodel_get_wireless_request_wpa_common(ifname, net, eap, error))
+		return FALSE;
 
 	if (ni_dbus_dict_get_string(eap, "identity", &string))
 		ni_string_dup(&net->wpa_eap.identity, string);
 
-	if (ni_dbus_dict_get_uint32(eap, "method", &value))
-		net->wpa_eap.method = value;
+	if (!ni_dbus_dict_get_uint32(eap, "method", &value)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Missing mandatory eap method in wpa-eap settings", ifname);
+		return FALSE;
+	}
+	net->wpa_eap.method = value;
 
 	child = ni_dbus_dict_get(eap, "phase1");
 	if (child && ni_dbus_variant_is_dict(child)) {
@@ -382,7 +396,7 @@ ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_
 
 	net->auth_proto = 0;
 
-	if (!ni_objectmode_mask_from_dbus(&net->keymgmt_proto, ni_wireless_key_management_map(), var,
+	if (!ni_objectmode_bitmap_from_dbus(&net->keymgmt_proto, ni_wireless_key_management_map(), var,
 				"key-management", error, ifname))
 	       return FALSE;
 
@@ -404,8 +418,16 @@ ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_
 		return FALSE;
 	}
 
-	if (net->keymgmt_proto == 0)
-		net->keymgmt_proto = NI_BIT(NI_WIRELESS_KEY_MGMT_NONE);
+	if ((net->keymgmt_proto & NI_WIRELESS_KEY_MGMT_DEFAULT_EAP) && !net->wpa_eap.method) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Invalid config, missing <eap><method>", ifname);
+		return FALSE;
+	}
+
+	if ((net->keymgmt_proto & NI_WIRELESS_KEY_MGMT_DEFAULT_PSK) &&
+	    ni_string_empty(net->wpa_psk.passphrase)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "%s: Invalid config, missing <wpa-psk><passphrase>", ifname);
+		return FALSE;
+	}
 
 	return TRUE;
 }
@@ -472,10 +494,11 @@ ni_objectmodel_get_wireless_request(const char *ifname, ni_wireless_config_t *co
 			net->index = i;
 
 			if (!ni_objectmodel_get_wireless_request_net(ifname, net, network_dict, error)) {
-				ni_wireless_network_put(net);
+				ni_wireless_network_drop(&net);
 				return FALSE;
 			}
 			ni_wireless_network_array_append(&conf->networks, net);
+			ni_wireless_network_drop(&net);
 		}
 	}
 

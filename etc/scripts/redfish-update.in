@@ -1,0 +1,14 @@
+#!/bin/bash
+
+action="$1"
+interface="$2"
+
+case $action in
+post-up)
+	@wicked_sbindir@/wicked redfish hosts-update || :
+;;
+pre-down)
+	@wicked_sbindir@/wicked redfish hosts-remove || :
+;;
+esac
+

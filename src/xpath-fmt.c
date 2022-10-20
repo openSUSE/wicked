@@ -209,7 +209,7 @@ xpath_format_eval(xpath_format_t *pieces, xml_node_t *xn, ni_string_array_t *res
 		}
 
 		/* FIXME: avoid extraneous strdup here? */
-		ni_string_array_append(result, formatted.string);
+		ni_string_array_append(result, formatted.string ?: "");
 		ni_stringbuf_destroy(&formatted);
 	}
 

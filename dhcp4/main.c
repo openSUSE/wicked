@@ -575,7 +575,8 @@ dhcp4_protocol_event(enum ni_dhcp4_event ev, const ni_dhcp4_device_t *dev, ni_ad
 	ni_dbus_variant_t *var;
 	int argc = 0;
 
-	ni_debug_dhcp("%s(ev=%u, dev=%d, uuid=%s)", __func__, ev, dev->link.ifindex,
+	ni_debug_dhcp("%s(ev=%s, dev=%s[%u], uuid=%s)", __func__,
+			ni_dhcp4_event_name(ev), dev->ifname, dev->link.ifindex,
 			dev->config? ni_uuid_print(&dev->config->uuid) : "<none>");
 
 	dev_object = ni_dbus_server_find_object_by_handle(dhcp4_dbus_server, dev);

@@ -106,22 +106,26 @@ ni_ifdown_fire_nanny(ni_ifworker_array_t *array)
 int
 ni_do_ifdown(int argc, char **argv)
 {
-	enum  { OPT_HELP, OPT_FORCE, OPT_DELETE, OPT_NO_DELETE, OPT_TIMEOUT };
+	enum  { OPT_HELP, OPT_FORCE, OPT_DELETE, OPT_NO_DELETE, OPT_TIMEOUT,
+		OPT_RELEASE, OPT_NO_RELEASE	};
 	static struct option ifdown_options[] = {
 		{ "help",	no_argument, NULL,		OPT_HELP },
 		{ "force",	required_argument, NULL,	OPT_FORCE },
-		{ "delete",	no_argument, NULL,	OPT_DELETE },
-		{ "no-delete",	no_argument, NULL,	OPT_NO_DELETE },
+		{ "delete",	no_argument, NULL,		OPT_DELETE },
+		{ "no-delete",	no_argument, NULL,		OPT_NO_DELETE },
+		{ "release",	no_argument, NULL,		OPT_RELEASE },
+		{ "no-release",	no_argument, NULL,		OPT_NO_RELEASE },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
 		{ NULL }
 	};
 	ni_ifmatcher_t ifmatch;
 	ni_ifmarker_t ifmarker;
-	ni_ifworker_array_t ifmarked;
+	ni_ifworker_array_t ifmarked = NI_IFWORKER_ARRAY_INIT;
 	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	unsigned int nmarked, max_state = NI_FSM_STATE_DEVICE_DOWN;
 	unsigned int seconds = NI_IFWORKER_DEFAULT_TIMEOUT;
 	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_tristate_t opt_release = NI_TRISTATE_DEFAULT;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
 
@@ -131,13 +135,11 @@ ni_do_ifdown(int argc, char **argv)
 
 	/* Allow ifdown only on non-persistent interfaces previously configured by ifup */
 	memset(&ifmatch, 0, sizeof(ifmatch));
-	memset(&ifmarker, 0, sizeof(ifmarker));
-	memset(&ifmarked, 0, sizeof(ifmarked));
-
 	ifmatch.require_configured = TRUE;
 	ifmatch.allow_persistent = FALSE;
 	ifmatch.require_config = FALSE;
 
+	memset(&ifmarker, 0, sizeof(ifmarker));
 	ifmarker.target_range.min = NI_FSM_STATE_DEVICE_DOWN;
 	ifmarker.target_range.max = __NI_FSM_STATE_MAX - 2;
 
@@ -172,6 +174,13 @@ ni_do_ifdown(int argc, char **argv)
 			ifmatch.require_config = FALSE;
 			break;
 
+		case OPT_RELEASE:
+			opt_release = NI_TRISTATE_ENABLE;
+			break;
+		case OPT_NO_RELEASE:
+			opt_release = NI_TRISTATE_DISABLE;
+			break;
+
 		case OPT_TIMEOUT:
 			if (ni_parse_seconds_timeout(optarg, &seconds)) {
 				ni_error("ifdown: cannot parse timeout option \"%s\"", optarg);
@@ -195,6 +204,8 @@ usage:
 				"      Delete device. Despite of persistent mode being set\n"
 				"  --no-delete\n"
 				"      Do not attempt to delete a device, neither physical nor virtual\n"
+				"  --[no-]release\n"
+				"      Override active config to (not) release leases\n"
 				"  --timeout <sec>\n"
 				"      Timeout after <sec> seconds\n",
 				sb.string
@@ -252,6 +263,17 @@ usage:
 	if (ifmarked.count) {
 		/* Disable devices and delete all related policies from nanny */
 		ni_ifdown_fire_nanny(&ifmarked);
+
+		/* Advise marked workers to (not) release leases */
+		if (ni_tristate_is_set(opt_release)) {
+			unsigned int i;
+
+			for (i = 0; i < ifmarked.count; ++i) {
+				ni_ifworker_t *w = ifmarked.data[i];
+				if (!w->control.persistent)
+					w->args.release = opt_release;
+			}
+		}
 
 		/* Start workers to perform actual ifdown */
 		nmarked = ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);

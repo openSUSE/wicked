@@ -616,7 +616,7 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
 		const ni_dbus_variant_t *var;
 		const char *label;
 
-		ap = ni_address_new(local_addr.ss_family, prefixlen, &local_addr, NULL);
+		ap = ni_address_create(local_addr.ss_family, prefixlen, &local_addr, NULL);
 		if (!ap)
 			return NULL;
 

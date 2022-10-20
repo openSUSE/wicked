@@ -137,6 +137,7 @@ ni_compat_netdev_new(const char *ifname)
 	compat->dhcp6.mode = NI_BIT(NI_DHCP6_MODE_AUTO);
 	compat->dhcp6.rapid_commit = TRUE;
 	compat->dhcp6.recover_lease = TRUE;
+	compat->dhcp6.refresh_lease = FALSE;
 	compat->dhcp6.release_lease = FALSE;
 	ni_dhcp_fqdn_init(&compat->dhcp6.fqdn);
 
@@ -199,6 +200,16 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 		ni_string_free(&compat->dhcp6.client_id);
 		ni_dhcp6_prefix_req_list_destroy(&compat->dhcp6.prefix_reqs);
 		ni_string_array_destroy(&compat->dhcp6.request_options);
+		switch(compat->port.type) {
+		case NI_IFTYPE_TEAM:
+			ni_team_port_config_destroy(&compat->port.conf.team);
+			break;
+		case NI_IFTYPE_OVS_BRIDGE:
+			ni_ovs_bridge_port_config_destroy(&compat->port.conf.ovsbr);
+			break;
+		default:
+			break;
+		}
 
 		free(compat);
 	}
@@ -842,6 +853,28 @@ __ni_compat_generate_team_link_watch(xml_node_t *tnode, const ni_team_link_watch
 }
 
 static ni_bool_t
+__ni_compat_generate_team_port_config(xml_node_t *port, const ni_team_port_config_t *config)
+{
+
+	if (config->queue_id != -1U)
+	     xml_node_new_element("queue_id", port, ni_sprint_uint(config->queue_id));
+
+	if (config->ab.prio)
+	     xml_node_new_element("prio", port, ni_sprint_uint(config->ab.prio));
+
+	if (config->ab.sticky)
+	     xml_node_new_element("sticky", port, ni_format_boolean(config->ab.sticky));
+
+	if (config->lacp.prio)
+	     xml_node_new_element("lacp_prio", port, ni_sprint_uint(config->lacp.prio));
+
+	if (config->lacp.key)
+		xml_node_new_element("lacp_key", port, ni_sprint_uint(config->lacp.key));
+
+	return TRUE;
+}
+
+static ni_bool_t
 __ni_compat_generate_team_ports(xml_node_t *tnode, const ni_team_port_array_t *array)
 {
 	xml_node_t *ports;
@@ -863,20 +896,7 @@ __ni_compat_generate_team_ports(xml_node_t *tnode, const ni_team_port_array_t *a
 
 		port = xml_node_new("port", ports);
 		xml_node_new_element("device", port, p->device.name);
-
-		if (p->config.queue_id != -1U)
-			xml_node_new_element("queue_id", port, ni_sprint_uint(p->config.queue_id));
-
-		if (p->config.ab.prio)
-			xml_node_new_element("prio", port, ni_sprint_uint(p->config.ab.prio));
-		if (p->config.ab.sticky)
-			xml_node_new_element("sticky", port, ni_format_boolean(p->config.ab.sticky));
-
-		if (p->config.lacp.prio)
-			xml_node_new_element("lacp_prio", port, ni_sprint_uint(p->config.lacp.prio));
-		if (p->config.lacp.key)
-			xml_node_new_element("lacp_key", port, ni_sprint_uint(p->config.lacp.key));
-
+		__ni_compat_generate_team_port_config(port, &p->config);
 	}
 
 	return TRUE;
@@ -1429,16 +1449,13 @@ __ni_compat_generate_wireless_network(xml_node_t *parent, ni_wireless_network_t 
 			xml_node_free(wep);
 	}
 
-	if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_PSK)) {
+	if (!ni_string_empty(net->wpa_psk.passphrase)) {
 		if (!(wpa_psk = xml_node_new("wpa-psk", network))) {
 			goto error;
 		}
 
-		if (!ni_string_empty(net->wpa_psk.passphrase)) {
-			/* To be secured */
-			xml_node_new_element("passphrase", wpa_psk,
-					net->wpa_psk.passphrase);
-		}
+		xml_node_new_element("passphrase", wpa_psk,
+				net->wpa_psk.passphrase);
 
 		if ((value = ni_format_bitmap(&buf, ni_wireless_auth_proto_map(),
 						net->auth_proto, ","))) {
@@ -1455,9 +1472,13 @@ __ni_compat_generate_wireless_network(xml_node_t *parent, ni_wireless_network_t 
 			xml_node_new_element("group-cipher", wpa_psk, value);
 			ni_stringbuf_destroy(&buf);
 		}
+
+		if (net->pmf != NI_WIRELESS_PMF_NOT_SPECIFIED &&
+		    (value = ni_wireless_pmf_to_name(net->pmf)))
+			xml_node_new_element("pmf", wpa_psk, value);
 	}
 
-	if (net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_EAP)) {
+	if (net->wpa_eap.method) {
 		if (!(wpa_eap = xml_node_new("wpa-eap", network))) {
 			goto error;
 		}
@@ -1481,6 +1502,10 @@ __ni_compat_generate_wireless_network(xml_node_t *parent, ni_wireless_network_t 
 			xml_node_new_element("group-cipher", wpa_eap, value);
 			ni_stringbuf_destroy(&buf);
 		}
+
+		if (net->pmf != NI_WIRELESS_PMF_NOT_SPECIFIED &&
+		    (value = ni_wireless_pmf_to_name(net->pmf)))
+			xml_node_new_element("pmf", wpa_eap, value);
 
 		if (!ni_string_empty(net->wpa_eap.identity)) {
 			xml_node_new_element("identity", wpa_eap, net->wpa_eap.identity);
@@ -2416,6 +2441,8 @@ __ni_compat_generate_dhcp6_addrconf(xml_node_t *ifnode, const ni_compat_netdev_t
 
 	xml_node_dict_set(dhcp, "recover-lease",
 				ni_format_boolean(compat->dhcp6.recover_lease));
+	xml_node_dict_set(dhcp, "refresh-lease",
+				ni_format_boolean(compat->dhcp6.refresh_lease));
 	xml_node_dict_set(dhcp, "release-lease",
 				ni_format_boolean(compat->dhcp6.release_lease));
 
@@ -2899,10 +2926,20 @@ ni_compat_generate_ifnode_content(xml_node_t *ifnode, const ni_compat_netdev_t *
 		xml_node_t *port;
 
 		xml_node_new_element("master", linknode, dev->link.masterdev.name);
-		if (compat->link_port.ovsbr.bridge.name) {
+		if (compat->port.type != NI_IFTYPE_UNKNOWN) {
 			port = xml_node_new("port", linknode);
-			xml_node_add_attr(port, "type", ni_linktype_type_to_name(NI_IFTYPE_OVS_BRIDGE));
-			xml_node_new_element("bridge", port, compat->link_port.ovsbr.bridge.name);
+			xml_node_add_attr(port, "type", ni_linktype_type_to_name(compat->port.type));
+
+			switch(compat->port.type) {
+			case NI_IFTYPE_OVS_BRIDGE:
+				xml_node_new_element("bridge", port, compat->port.conf.ovsbr.bridge.name);
+				break;
+			case NI_IFTYPE_TEAM:
+				__ni_compat_generate_team_port_config(port, &compat->port.conf.team);
+				break;
+			default:
+				break;
+			}
 		}
 	}
 	if (dev->link.mtu)
