@@ -26,7 +26,6 @@
 #endif
 
 static void		__ni_wireless_scan_timer_arm(ni_wireless_scan_t *, ni_netdev_t *, unsigned int);
-static void		__ni_wireless_network_destroy(ni_wireless_network_t *net);
 static int		ni_wireless_scan_sync_bss(ni_wireless_scan_t *scan, const ni_wpa_bss_t *bss);
 static int		ni_wireless_trigger_scan(ni_netdev_t *dev, ni_wpa_nif_t *wif, ni_bool_t active_scan);
 static void		ni_wireless_scan_set_defaults(ni_wireless_scan_t *scan);
@@ -58,6 +57,7 @@ static const ni_intmap_t			ni_wireless_wpa_group_map[] = {
 	{ "CCMP-256",				NI_WIRELESS_CIPHER_CCMP256				},
 	{ "GCMP-256",				NI_WIRELESS_CIPHER_GCMP256				},
 	{ "CCMP",				NI_WIRELESS_CIPHER_CCMP					},
+	{ "GCMP",				NI_WIRELESS_CIPHER_GCMP					},
 	{ "TKIP",				NI_WIRELESS_CIPHER_TKIP					},
 	{ "WEP104",				NI_WIRELESS_CIPHER_WEP104				},
 	{ "WEP40",				NI_WIRELESS_CIPHER_WEP40				},
@@ -68,22 +68,30 @@ static const ni_intmap_t			ni_wireless_wpa_group_map[] = {
 static const ni_intmap_t			ni_wireless_wpa_group_mgmt_map[] = {
 	/* as required for networks and also used in capabilities					*/
 	{ "AES-128-CMAC",			NI_WIRELESS_CIPHER_AES128_CMAC				},
+	{ "AES128CMAC",				NI_WIRELESS_CIPHER_AES128_CMAC				},
 	{ "BIP-GMAC-128",			NI_WIRELESS_CIPHER_BIP_GMAC128				},
+	{ "BIPGMAC128",				NI_WIRELESS_CIPHER_BIP_GMAC128				},
 	{ "BIP-GMAC-256",			NI_WIRELESS_CIPHER_BIP_GMAC256				},
+	{ "BIPGMAC256",				NI_WIRELESS_CIPHER_BIP_GMAC256				},
 	{ "BIP-CMAC-256",			NI_WIRELESS_CIPHER_BIP_CMAC256				},
+	{ "BIPCMAC256",				NI_WIRELESS_CIPHER_BIP_CMAC256				},
 
 	{ NULL }
 };
 
 static const ni_intmap_t			ni_wireless_wpa_key_mgmt_map[] = {
-	/* as required for networks and also used in capabilities					*/
+	/*  Used to map NI_WIRELESS_KEY_MGMT to wpa_supplicant dbus names and wise versa */
 	{ "NONE",				NI_WIRELESS_KEY_MGMT_NONE				},
 	{ "IEEE8021X",				NI_WIRELESS_KEY_MGMT_802_1X				},
 	{ "WPA-PSK",				NI_WIRELESS_KEY_MGMT_PSK				},
+	{ "FT-PSK",				NI_WIRELESS_KEY_MGMT_FT_PSK				},
+	/* wpa_supplicant uses WPA-FT-PSK in BSS->key-management but FT-PSK in configuration */
 	{ "WPA-FT-PSK",				NI_WIRELESS_KEY_MGMT_FT_PSK				},
 	{ "WPA-PSK-SHA256",			NI_WIRELESS_KEY_MGMT_PSK_SHA256				},
 	{ "WPA-EAP",				NI_WIRELESS_KEY_MGMT_EAP				},
 	{ "WPA-EAP-SHA256",			NI_WIRELESS_KEY_MGMT_EAP_SHA256				},
+	{ "FT-EAP",				NI_WIRELESS_KEY_MGMT_FT_EAP				},
+	/* same reason as WPA-FT-PSK */
 	{ "WPA-FT-EAP",				NI_WIRELESS_KEY_MGMT_FT_EAP				},
 	{ "FT-EAP-SHA384",			NI_WIRELESS_KEY_MGMT_FT_EAP_SHA384			},
 	{ "SAE",				NI_WIRELESS_KEY_MGMT_SAE				},
@@ -103,8 +111,8 @@ static const ni_intmap_t			ni_wireless_wpa_key_mgmt_map[] = {
 
 static const ni_intmap_t			ni_wireless_wpa_protocol_map[] = {
 	/* as required for networks and also used in capabilities					*/
-	{ "RSN",				NI_WIRELESS_AUTH_PROTO_WPA2				},
-	{ "WPA",				NI_WIRELESS_AUTH_PROTO_WPA1				},
+	{ "RSN",				NI_WIRELESS_AUTH_PROTO_RSN				},
+	{ "WPA",				NI_WIRELESS_AUTH_PROTO_WPA				},
 
 	{ NULL }
 };
@@ -150,6 +158,17 @@ static const ni_intmap_t			ni_wireless_wpa_eap_method_map[] = {
 
 	{ NULL }
 };
+/*
+ * END wpa-supplicant names to constant maps
+ */
+
+static ni_bool_t
+ni_wireless_wpa_group_mgmt_type(const char *name, ni_wireless_cipher_t *type)
+{
+	if (!type || ni_parse_uint_mapped(name, ni_wireless_wpa_group_mgmt_map, type) < 0)
+		return FALSE;
+	return TRUE;
+}
 
 static ni_bool_t
 ni_wireless_wpa_pairwise_type(const char *name, ni_wireless_cipher_t *type)
@@ -426,6 +445,7 @@ __ni_wireless_scan_timeout(void *ptr, const ni_timer_t *timer)
 
 	ni_wireless_trigger_scan(dev, wif, FALSE);
 	__ni_wireless_scan_timer_arm(scan, dev, scan->interval);
+	ni_wpa_nif_drop(&wif);
 }
 
 static void
@@ -557,14 +577,14 @@ ni_wireless_wpa_net_format_psk(ni_wpa_net_properties_t *properties, const ni_wir
 	const char *name;
 	unsigned char data[32];
 
-	if (!(net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_PSK)))
+	if (ni_string_empty(net->wpa_psk.passphrase))
 		return TRUE;
 
 	if (!(name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_PSK)))
 		return FALSE;
 
 	if (ni_string_len(net->wpa_psk.passphrase) == 64){
-		if(ni_parse_hex(net->wpa_psk.passphrase, data, sizeof(data)) != sizeof(data)){
+		if(ni_parse_hex_data(net->wpa_psk.passphrase, data, sizeof(data), NULL) != sizeof(data)){
 			ni_error("Failed to parse wpa_psk");
 			return FALSE;
 		}
@@ -585,7 +605,7 @@ ni_wireless_wpa_net_format_eap(ni_wpa_net_properties_t *properties, const ni_wir
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	const char *name, *value;
 
-	if (!(net->keymgmt_proto & NI_BIT(NI_WIRELESS_KEY_MGMT_EAP)))
+	if (!net->wpa_eap.method)
 		return TRUE;
 
 	name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_EAP);
@@ -673,6 +693,25 @@ ni_wireless_wpa_map_wireless_mode(ni_wireless_mode_t m, int *ret)
 }
 
 static ni_bool_t
+ni_wireless_wpa_map_pmf(ni_wireless_pmf_t p, int *ret)
+{
+	switch(p) {
+	case NI_WIRELESS_PMF_DISABLED:
+		*ret = 0;
+		break;
+	case NI_WIRELESS_PMF_OPTIONAL:
+		*ret = 1;
+		break;
+	case NI_WIRELESS_PMF_REQUIRED:
+		*ret = 2;
+		break;
+	default:
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static ni_bool_t
 ni_wireless_wpa_net_format(ni_wpa_net_properties_t *properties, const ni_wireless_network_t *net)
 {
 	const char *name;
@@ -742,6 +781,16 @@ ni_wireless_wpa_net_format(ni_wpa_net_properties_t *properties, const ni_wireles
 	if (!ni_wireless_wpa_net_format_bitmap(properties, net->group_cipher,
 			ni_wireless_wpa_pairwise_map, NI_WPA_NET_PROPERTY_GROUP))
 		return FALSE;
+
+	if (net->pmf != NI_WIRELESS_PMF_NOT_SPECIFIED) {
+		if (ni_wireless_wpa_map_pmf(net->pmf, &ival)) {
+			name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_IEEE80211W);
+			if (!name || !ni_dbus_dict_add_int32(properties, name, ival))
+				return FALSE;
+		} else {
+			return FALSE;
+		}
+	}
 
 	if (!ni_wireless_wpa_net_format_psk(properties, net))
 		return FALSE;
@@ -884,6 +933,76 @@ ni_wireless_update_wpa_nif_capabilities(ni_netdev_t *dev, const ni_wpa_nif_capab
 	return TRUE;
 }
 
+static ni_bool_t
+ni_wireless_wpa_complete_network(ni_netdev_t *dev, ni_wireless_network_t *net)
+{
+	ni_wireless_t *wlan;
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC,
+		       buf2 = NI_STRINGBUF_INIT_DYNAMIC;
+	unsigned int wpa3_like_key_mgmt =
+		(NI_WIRELESS_KEY_MGMT_DEFAULT_PSK | NI_WIRELESS_KEY_MGMT_DEFAULT_EAP | NI_WIRELESS_KEY_MGMT_DEFAULT_OPEN)
+		& ~(NI_BIT(NI_WIRELESS_KEY_MGMT_PSK) | NI_BIT(NI_WIRELESS_KEY_MGMT_EAP) | NI_BIT(NI_WIRELESS_KEY_MGMT_NONE));
+	unsigned int require_pmf_key_mgmt =
+		NI_BIT(NI_WIRELESS_KEY_MGMT_SAE) | NI_BIT(NI_WIRELESS_KEY_MGMT_EAP_SUITE_B) |
+		NI_BIT(NI_WIRELESS_KEY_MGMT_EAP_SUITE_B_192) |
+		NI_BIT(NI_WIRELESS_KEY_MGMT_OWE);
+	unsigned int ft_key_mgmt =
+		NI_BIT(NI_WIRELESS_KEY_MGMT_FT_EAP) | NI_BIT(NI_WIRELESS_KEY_MGMT_FT_EAP_SHA384) |
+		NI_BIT(NI_WIRELESS_KEY_MGMT_FT_FILS_SHA256) | NI_BIT(NI_WIRELESS_KEY_MGMT_FT_FILS_SHA384) |
+		NI_BIT(NI_WIRELESS_KEY_MGMT_FT_PSK) | NI_BIT(NI_WIRELESS_KEY_MGMT_FT_SAE);
+
+	if (!(wlan = ni_netdev_get_wireless(dev)))
+		return FALSE;
+
+	if (net->keymgmt_proto == 0) {
+		if (!ni_string_empty(net->wpa_psk.passphrase))
+			net->keymgmt_proto = wlan->capabilities.keymgmt_algos & NI_WIRELESS_KEY_MGMT_DEFAULT_PSK;
+
+		if (net->wpa_eap.method)
+			net->keymgmt_proto = wlan->capabilities.keymgmt_algos & NI_WIRELESS_KEY_MGMT_DEFAULT_EAP;
+
+		/* if the interface do not support PMF, skip key-mgmt which requires it. */
+		if (wlan->capabilities.group_mgmt_ciphers == 0)
+			net->keymgmt_proto &= ~(require_pmf_key_mgmt);
+
+		if (!ni_wpa_client_has_capability(NULL, "ft"))
+			net->keymgmt_proto &= ~(ft_key_mgmt);
+
+		if (net->keymgmt_proto == 0)
+			net->keymgmt_proto = wlan->capabilities.keymgmt_algos & NI_WIRELESS_KEY_MGMT_DEFAULT_OPEN;
+
+		ni_debug_wireless("%s: set key-management for '%s' to %s", dev->name,
+				ni_wireless_ssid_print(&net->essid, &buf2),
+				ni_format_bitmap(&buf, ni_wireless_key_management_map(),
+					net->keymgmt_proto, ", "));
+		ni_stringbuf_destroy(&buf);
+		ni_stringbuf_destroy(&buf2);
+	}
+
+	if (net->pmf == NI_WIRELESS_PMF_NOT_SPECIFIED &&
+	    (net->keymgmt_proto & wpa3_like_key_mgmt) &&
+	    wlan->capabilities.group_mgmt_ciphers != 0 ) {
+		net->pmf = NI_WIRELESS_PMF_OPTIONAL;
+		ni_debug_wireless("%s: set pmf for '%s' to %s", dev->name,
+				ni_wireless_ssid_print(&net->essid, &buf),
+				ni_wireless_pmf_to_name(net->pmf));
+		ni_stringbuf_destroy(&buf);
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_wireless_wpa_complete_networks(ni_netdev_t *dev, ni_wireless_network_array_t *networks)
+{
+	unsigned int i;
+
+	for (i = 0; i < networks->count; ++i)
+		if (!ni_wireless_wpa_complete_network(dev, networks->data[i]))
+			return FALSE;
+	return TRUE;
+}
+
 static int
 ni_wireless_setup_networks(ni_netdev_t *dev, ni_wpa_nif_t *wif, const ni_wireless_network_array_t *networks)
 {
@@ -955,7 +1074,7 @@ ni_wireless_on_wpa_supplicant_start(ni_netdev_t *dev)
 static void
 ni_wireless_on_wpa_supplicant_stop(ni_netdev_t *dev)
 {
-	ni_debug_wireless("%s: wpa_supplicant stopped!", dev->name);
+	ni_note("%s: wpa_supplicant stopped!", dev->name);
 	ni_wireless_set_state(dev, NI_WIRELESS_NOT_ASSOCIATED);
 }
 
@@ -995,14 +1114,14 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 	ret = ni_wpa_get_interface(wpa, dev->name, dev->link.ifindex, &wif);
 	if (ret == 0 && wif && ni_wireless_wpa_nif_config_differs(wif, conf)) {
 		ret = ni_wpa_del_interface(wif->client, ni_dbus_object_get_path(wif->object));
-		wif =  NULL;
+		ni_wpa_nif_drop(&wif);
 		if (ret == 0)
 			ret = -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
 	if (ret < 0) {
 		if (ret != -NI_ERROR_DEVICE_NOT_KNOWN)
-			return ret;
+			goto out;
 		ni_dbus_variant_init_dict(&arg);
 
 		name = ni_wpa_nif_property_name(NI_WPA_NIF_PROPERTY_IFNAME);
@@ -1014,7 +1133,7 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 		ret = ni_wpa_add_interface(wpa, dev->link.ifindex, &arg, &wif);
 		ni_dbus_variant_destroy(&arg);
 		if (ret < 0)
-			return ret;
+			goto out;
 	}
 
 	ni_wpa_nif_set_ops(wif, &wif_ops);
@@ -1038,14 +1157,18 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 	ret = ni_wpa_nif_set_properties(wif, &arg);
 	ni_dbus_variant_destroy(&arg);
 	if (ret < 0)
-		return ret;
+		goto out;
 
 	if ((ret = ni_wireless_update_wpa_nif_capabilities(dev, &wif->capabilities)) < 0)
-		return ret;
+		goto out;
 
-	if ((ret = ni_wireless_setup_networks(dev, wif, &conf->networks)) != 0){
-		return ret;
+	if (!ni_wireless_wpa_complete_networks(dev, &conf->networks)) {
+		ret = -1;
+		goto out;
 	}
+
+	if ((ret = ni_wireless_setup_networks(dev, wif, &conf->networks)) != 0)
+		goto out;
 
 	/* setup successfull, store configuration for expected wpa_supplicant restarts */
 	if (!wlan->conf)
@@ -1054,6 +1177,8 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 
 	if (wlan->scan.interval > 0)
 		__ni_wireless_scan_timer_arm(&wlan->scan, dev, 1);
+out:
+	ni_wpa_nif_drop(&wif);
 	return ret;
 }
 
@@ -1061,18 +1186,21 @@ int
 ni_wireless_shutdown(ni_netdev_t *dev)
 {
 	ni_wpa_nif_t *wif;
+	int ret;
 
 	if (!(wif = ni_wireless_get_wpa_interface(dev)))
 		return NI_SUCCESS;
 
 	ni_wpa_client_del_ops(dev->link.ifindex);
-	return ni_wpa_del_interface(wif->client, ni_dbus_object_get_path(wif->object));
+	ret = ni_wpa_del_interface(wif->client, ni_dbus_object_get_path(wif->object));
+	ni_wpa_nif_drop(&wif);
+	return ret;
 }
 
 int
 ni_wireless_connect(ni_netdev_t *dev)
 {
-	ni_wpa_nif_t *wif;
+	ni_wpa_nif_t *wif = NULL;
 	ni_wireless_t *wlan;
 	int ret;
 
@@ -1086,11 +1214,15 @@ ni_wireless_connect(ni_netdev_t *dev)
 		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
-	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
+	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS)) {
+		ni_wpa_nif_drop(&wif);
 		return -NI_ERROR_RADIO_DISABLED;
+	}
 
 	if (!(ret = ni_wpa_nif_set_all_networks_property_enabled(wif, TRUE)))
 		wlan->reconnect = TRUE;
+
+	ni_wpa_nif_drop(&wif);
 	return ret;
 }
 
@@ -1102,6 +1234,7 @@ ni_wireless_disconnect(ni_netdev_t *dev)
 {
 	ni_wpa_nif_t *wif;
 	ni_wireless_t *wlan;
+	int ret;
 
 	ni_debug_wireless("%s(%s)", __func__, dev->name);
 	if (!(wlan = dev->wireless))
@@ -1114,10 +1247,16 @@ ni_wireless_disconnect(ni_netdev_t *dev)
 		return -NI_ERROR_DEVICE_NOT_KNOWN;
 	}
 
-	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
+	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS)) {
+		ni_wpa_nif_drop(&wif);
 		return -NI_ERROR_RADIO_DISABLED;
+	}
 
-	return ni_wpa_nif_set_all_networks_property_enabled(wif, FALSE);
+
+	ret = ni_wpa_nif_set_all_networks_property_enabled(wif, FALSE);
+
+	ni_wpa_nif_drop(&wif);
+	return ret;
 }
 
 /*
@@ -1209,6 +1348,7 @@ ni_wireless_sync_assoc_with_current_bss(ni_wireless_t *wlan, ni_wpa_nif_t *wif)
 		}
 
 		wlan->assoc.signal = bss->properties.signal;
+		ni_wpa_bss_drop(&bss);
 
 	} else {
 		ni_link_address_init(&wlan->assoc.bssid);
@@ -1240,6 +1380,7 @@ ni_wireless_set_state(ni_netdev_t *dev, ni_wireless_assoc_state_t new_state)
 		__ni_netdev_event(NULL, dev, NI_EVENT_LINK_ASSOCIATED);
 	}
 	ni_wireless_sync_assoc_with_current_bss(wlan, wif);
+	ni_wpa_nif_drop(&wif);
 
 	/* We keep track of when we were last changing to or
 	 * from fully authenticated state.
@@ -1334,32 +1475,11 @@ ni_wireless_name_to_mode(const char *string, unsigned int *value)
 	return TRUE;
 }
 
-static ni_intmap_t __ni_wireless_security_names[] = {
-	{ "default",		NI_WIRELESS_SECURITY_DEFAULT },
-	{ "open",		NI_WIRELESS_SECURITY_OPEN },
-	{ "restricted",		NI_WIRELESS_SECURITY_RESTRICTED },
-	{ NULL }
-};
-
-const char *
-ni_wireless_security_to_name(ni_wireless_security_t mode)
-{
-	return ni_format_uint_mapped(mode, __ni_wireless_security_names);
-}
-
-ni_bool_t
-ni_wireless_name_to_security(const char *string, unsigned int *value)
-{
-	if (ni_parse_uint_mapped(string, __ni_wireless_security_names, value) < 0)
-		return FALSE;
-	return TRUE;
-}
-
 static const ni_intmap_t			ni_wireless_auth_proto_names[] = {
-	{ "wpa",		NI_WIRELESS_AUTH_PROTO_WPA1 },
-	{ "wpa1",		NI_WIRELESS_AUTH_PROTO_WPA1 },
-	{ "wpa2",		NI_WIRELESS_AUTH_PROTO_WPA2 },
-	{ "rsn",		NI_WIRELESS_AUTH_PROTO_WPA2 },
+	{ "wpa",		NI_WIRELESS_AUTH_PROTO_WPA },
+	{ "rsn",		NI_WIRELESS_AUTH_PROTO_RSN },
+	{ "wpa1",		NI_WIRELESS_AUTH_PROTO_WPA },
+	{ "wpa2",		NI_WIRELESS_AUTH_PROTO_RSN },
 	{ NULL }
 };
 
@@ -1454,7 +1574,9 @@ ni_wireless_group_map(void)
 	return ni_wireless_wpa_group_map;
 }
 
-static ni_intmap_t __ni_wireless_key_mgmt_names[] = {
+static const ni_intmap_t ni_wireless_key_mgmt_map[] = {
+	/* As required for networks and also used in capabilities.
+	 * Used to parse from XML/ifcfg files into c-structures.                                       */
 	{ "none",			NI_WIRELESS_KEY_MGMT_NONE },
 	{ "proprietary",		NI_WIRELESS_KEY_MGMT_PROPRIETARY },
 	{ "wpa-eap",			NI_WIRELESS_KEY_MGMT_EAP },
@@ -1483,13 +1605,13 @@ static ni_intmap_t __ni_wireless_key_mgmt_names[] = {
 const char *
 ni_wireless_key_management_to_name(ni_wireless_key_mgmt_t mode)
 {
-	return ni_format_uint_mapped(mode, __ni_wireless_key_mgmt_names);
+	return ni_format_uint_mapped(mode, ni_wireless_key_management_map());
 }
 
 const ni_intmap_t *
 ni_wireless_key_management_map(void)
 {
-	return ni_wireless_wpa_key_mgmt_map;
+	return ni_wireless_key_mgmt_map;
 }
 
 static ni_intmap_t __ni_wireless_eap_method_names[] = {
@@ -1552,6 +1674,25 @@ const char *
 ni_wireless_assoc_state_to_name(ni_wireless_assoc_state_t state)
 {
 	return ni_format_uint_mapped(state, __ni_wireless_assoc_state_names);
+}
+
+static ni_intmap_t __ni_wireless_pmf_names[] = {
+	{ "disabled",	NI_WIRELESS_PMF_DISABLED },
+	{ "optional",	NI_WIRELESS_PMF_OPTIONAL },
+	{ "required",	NI_WIRELESS_PMF_REQUIRED },
+	{ NULL,			0}
+};
+
+extern const char *
+ni_wireless_pmf_to_name(ni_wireless_pmf_t pmf)
+{
+	return ni_format_uint_mapped(pmf, __ni_wireless_pmf_names);
+}
+
+extern ni_bool_t
+ni_wireless_name_to_pmf(const char *val, ni_wireless_pmf_t *out)
+{
+	return ni_parse_uint_mapped(val, __ni_wireless_pmf_names, out) == 0;
 }
 
 /*
@@ -1687,7 +1828,7 @@ ni_wireless_bss_set(ni_wireless_bss_t *wireless_bss, const ni_wpa_bss_t *bss)
 	ni_wireless_wpa_key_mgmt_mask(&props->rsn.key_mgmt, &wireless_bss->rsn.key_mgmt);
 	ni_wireless_wpa_pairwise_mask(&props->rsn.pairwise, &wireless_bss->rsn.pairwise_cipher);
 	ni_wireless_wpa_pairwise_type(props->rsn.group, &wireless_bss->rsn.group_cipher);
-	ni_wireless_wpa_pairwise_type(props->rsn.mgmt_group, &wireless_bss->rsn.mgmt_group_cipher);
+	ni_wireless_wpa_group_mgmt_type(props->rsn.mgmt_group, &wireless_bss->rsn.mgmt_group_cipher);
 
 	wireless_bss->privacy = props->privacy;
 
@@ -1816,34 +1957,25 @@ ni_wireless_blob_free(ni_wireless_blob_t **blob_p)
 /*
  * Wireless network objects
  */
-ni_wireless_network_t *
-ni_wireless_network_new(void)
+static ni_bool_t
+ni_wireless_network_init(ni_wireless_network_t *net)
 {
-	ni_wireless_network_t *net;
-
-	net = xcalloc(1, sizeof(ni_wireless_network_t));
-
-	/* Locking network to protect secrets */
-	if (ni_try_mlock(net, sizeof(*net)) == FALSE) {
-		free(net);
-		return NULL;
-	}
-
-	net->refcount = 1;
+	memset(net, 0, sizeof(*net));
 
 	net->scan_ssid = TRUE;
 	net->mode = NI_WIRELESS_MODE_MANAGED;
 	net->wpa_eap.phase1.peapver = INT_MAX;
 
-	return net;
+	return TRUE;
 }
 
 void
-__ni_wireless_network_destroy(ni_wireless_network_t *net)
+ni_wireless_network_destroy(ni_wireless_network_t *net)
 {
-	ni_assert(net->refcount == 0);
-
-	ni_wireless_passwd_clear(net);
+	ni_wireless_wep_key_array_destroy(net->wep_keys);
+	ni_string_clear(&net->wpa_psk.passphrase);
+	ni_string_clear(&net->wpa_eap.phase2.password);
+	ni_string_clear(&net->wpa_eap.tls.client_key_passwd);
 
 	ni_string_clear(&net->wpa_eap.identity);
 	ni_string_clear(&net->wpa_eap.anonid);
@@ -1854,12 +1986,10 @@ __ni_wireless_network_destroy(ni_wireless_network_t *net)
 	memset(net, 0, sizeof(*net));
 }
 
-void
-ni_wireless_network_free(ni_wireless_network_t *net)
-{
-	__ni_wireless_network_destroy(net);
-	free(net);
-}
+static ni_refcounted_define_ref(ni_wireless_network);
+static ni_refcounted_define_free(ni_wireless_network);
+extern ni_refcounted_define_new(ni_wireless_network);
+extern ni_refcounted_define_drop(ni_wireless_network);
 
 void
 ni_wireless_wep_key_array_destroy(char **array)
@@ -1883,7 +2013,7 @@ void
 ni_wireless_network_array_append(ni_wireless_network_array_t *array, ni_wireless_network_t *net)
 {
 	array->data = realloc(array->data, (array->count + 1) * sizeof(ni_wireless_network_t *));
-	array->data[array->count++] = ni_wireless_network_get(net);
+	array->data[array->count++] = ni_wireless_network_ref(net);
 }
 
 void
@@ -1892,7 +2022,7 @@ ni_wireless_network_array_destroy(ni_wireless_network_array_t *array)
 	unsigned int i;
 
 	for (i = 0; i < array->count; ++i)
-		ni_wireless_network_put(array->data[i]);
+		ni_wireless_network_drop(&array->data[i]);
 	free(array->data);
 	memset(array, 0, sizeof(*array));
 }

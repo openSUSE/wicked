@@ -8,11 +8,13 @@
 #define WICKED_WPA_SUPPLICANT_CLIENT_H
 
 #include <wicked/wireless.h>
+#include <wicked/refcount.h>
 #include "dbus-connection.h"
 
 
 typedef struct ni_wpa_client			ni_wpa_client_t;
 typedef struct ni_wpa_client_ops		ni_wpa_client_ops_t;
+typedef struct ni_wpa_client_properties		ni_wpa_client_properties_t;
 typedef struct ni_wpa_nif			ni_wpa_nif_t;
 typedef struct ni_wpa_nif_ops			ni_wpa_nif_ops_t;
 typedef struct ni_wpa_nif_properties		ni_wpa_nif_properties_t;
@@ -316,6 +318,7 @@ struct	ni_wpa_nif_properties {
 
 struct ni_wpa_nif {
 	ni_wpa_nif_t *				next;
+	ni_refcount_t				refcount;
 
 	ni_wpa_client_t *			client;
 	ni_dbus_object_t *			object;
@@ -367,22 +370,34 @@ struct ni_wpa_bss_properties {
 };
 
 struct ni_wpa_bss {
-	ni_wpa_nif_t *				wif;
 	ni_dbus_object_t *			object;
 	ni_wpa_bss_t *				next;
+	ni_refcount_t				refcount;
 
 	ni_wpa_bss_properties_t			properties;
+};
+
+struct ni_wpa_client_properties {
+	char *				debug_level;
+	ni_bool_t			debug_timestamp;
+	ni_bool_t			debug_show_keys;
+	ni_string_array_t		interfaces;		/*  Object path array to inferfaces */
+	ni_string_array_t		eap_methods;
+	ni_string_array_t		capabilities;
+	ni_byte_array_t			wfdies;			/*  Wi-Fi Display subelements */
 };
 
 extern ni_wpa_client_t *			ni_wpa_client();
 extern ni_bool_t				ni_wpa_client_set_ops(unsigned int, ni_wpa_client_ops_t*);
 extern ni_bool_t				ni_wpa_client_del_ops(unsigned int);
+extern ni_bool_t				ni_wpa_client_has_capability(ni_wpa_client_t *, const char *);
 
 extern int					ni_wpa_get_interface(ni_wpa_client_t *, const char *, unsigned int,
 								ni_wpa_nif_t **);
 extern int					ni_wpa_add_interface(ni_wpa_client_t *, unsigned int,
 								ni_dbus_variant_t *, ni_wpa_nif_t **);
 extern int					ni_wpa_del_interface(ni_wpa_client_t *, const char *);
+extern						ni_refcounted_declare_drop(ni_wpa_nif);
 
 extern int					ni_wpa_nif_set_properties(ni_wpa_nif_t *, const ni_dbus_variant_t *);
 
@@ -403,6 +418,7 @@ extern int					ni_wpa_nif_trigger_scan(ni_wpa_nif_t *, ni_bool_t);
 extern ni_bool_t				ni_wpa_nif_retrieve_scan(ni_wpa_nif_t *, ni_wireless_scan_t *);
 extern int					ni_wpa_nif_flush_bss(ni_wpa_nif_t *wif, uint32_t max_age);
 extern ni_wpa_bss_t *				ni_wpa_nif_get_current_bss(ni_wpa_nif_t *);
+extern						ni_refcounted_declare_drop(ni_wpa_bss);
 
 extern const char *				ni_wpa_nif_property_name(ni_wpa_nif_property_type_t);
 extern ni_bool_t				ni_wpa_nif_property_type(const char *, ni_wpa_nif_property_type_t *);

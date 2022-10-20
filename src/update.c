@@ -21,6 +21,7 @@
 #include "util_priv.h"
 #include "process.h"
 #include "appconfig.h"
+#include "addrconf.h"
 #include "buffer.h"
 #include "debug.h"
 

@@ -58,15 +58,21 @@ struct ni_timeout_param {
 	int			nretries;	/* limit the number of retries; < 0 means unlimited */
 
 	ni_timeout_t		timeout;	/* current timeout value, without jitter */
-	int			increment;	/* how to change the timeout every time ni_timeout_increase()
-						 * is called.
+	int			increment;	/* if and how to increment the timeout every time
+						 * ni_timeout_recompute is called.
 						 * If == 0, timeout stays constant.
 						 * If > 0, timeout is incremented by this value every time (linear backoff).
 						 * If < 0, timeout is doubled every time (exponential backoff)
 						 */
+	int			decrement;	/* if and how to decrement the timeout every time
+						 * ni_timeout_recompute is called.
+						 * If == 0, timeout stays constant.
+						 * If > 0, timeout is decremented by this value every time (linear backoff).
+						 * If < 0, timeout is halved every time (exponential backoff)
+						 */
 	ni_int_range_t		jitter;		/* randomize timeout in [jitter.min, jitter.max] interval */
-	ni_timeout_t		max_timeout;	/* timeout is capped by max_timeout */
-
+	ni_timeout_t		max_timeout;	/* timeout increment is capped by max_timeout */
+	ni_timeout_t		min_timeout;	/* timeout decrement is capped by min_timeout */
 	ni_bool_t		(*backoff_callback)(struct ni_timeout_param *);
 	int			(*timeout_callback)(void *);
 	void			*timeout_data;

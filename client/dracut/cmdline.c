@@ -713,7 +713,7 @@ parse_ip3(ni_compat_netdev_array_t *nda, char *val, const char *client_ip)
 		ipv6 = ni_netdev_get_ipv6(nd->dev);
 		ni_tristate_set(&ipv6->conf.enabled, TRUE);
 	}
-	ni_address_new(client_addr.ss_family, client_prefixlen, &client_addr, &nd->dev->addrs);
+	ni_address_create(client_addr.ss_family, client_prefixlen, &client_addr, &nd->dev->addrs);
 
 	// Add the default gw
 	if (!ni_route_create(0, NULL, &gateway_addr, RT_TABLE_MAIN, &nd->dev->routes))

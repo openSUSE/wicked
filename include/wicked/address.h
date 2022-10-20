@@ -1,17 +1,35 @@
 /*
- * Global header file for netinfo library
+ *	Network and link layer addresses handling.
  *
- * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2012-2022 SUSE LLC
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *	Authors:
+ *		Olaf Kirch
+ *		Marius Tomaschewski
  */
-
-#ifndef __WICKED_ADDRESS_H__
-#define __WICKED_ADDRESS_H__
+#ifndef NI_WICKED_ADDRESS_H
+#define NI_WICKED_ADDRESS_H
 
 #include <sys/socket.h>
 #include <net/if.h>
 #include <netinet/in.h>
 
 #include <wicked/types.h>
+#include <wicked/refcount.h>
 #include <wicked/util.h>
 
 union ni_sockaddr {
@@ -34,7 +52,7 @@ typedef struct ni_address_cache_info {
 } ni_address_cache_info_t;
 
 typedef struct ni_address {
-	unsigned int		refcount;
+	ni_refcount_t		refcount;
 	struct ni_address *	next;
 
 	ni_addrconf_mode_t	owner;		/* configured through lease */
@@ -106,13 +124,19 @@ extern ni_bool_t	ni_af_sockaddr_info(int, unsigned int *, unsigned int *);
 extern unsigned int	ni_af_address_length(int af);
 extern unsigned int	ni_af_address_prefixlen(int af);
 
-extern ni_address_t *	ni_address_new(int af, unsigned int prefix_len,
+extern			ni_refcounted_declare_new(ni_address);
+extern			ni_refcounted_declare_ref(ni_address);
+extern			ni_refcounted_declare_hold(ni_address);
+extern			ni_refcounted_declare_free(ni_address);
+extern			ni_refcounted_declare_drop(ni_address);
+extern			ni_refcounted_declare_move(ni_address);
+
+extern ni_address_t *	ni_address_create(int af, unsigned int prefix_len,
 					const ni_sockaddr_t *local_addr,
 					ni_address_t **list);
-extern ni_address_t *	ni_address_ref(ni_address_t *);
+
 extern ni_bool_t	ni_address_copy(ni_address_t *, const ni_address_t *);
 extern ni_address_t *	ni_address_clone(const ni_address_t *);
-extern void		ni_address_free(ni_address_t *);
 extern ni_bool_t	ni_address_equal_ref(const ni_address_t *, const ni_address_t *);
 extern ni_bool_t	ni_address_equal_local_addr(const ni_address_t *, const ni_address_t *);
 extern const char *	ni_address_format_flags(ni_stringbuf_t *, unsigned int, unsigned int, const char *);
@@ -144,6 +168,7 @@ extern ni_bool_t	ni_address_lft_is_preferred(const ni_address_t *, const struct 
 extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
 extern void		ni_address_list_destroy(ni_address_t **);
 extern void		ni_address_list_dedup(ni_address_t **);
+extern void		ni_address_list_copy(ni_address_t **, const ni_address_t *);
 extern ni_address_t *	ni_address_list_find(ni_address_t *, const ni_sockaddr_t *);
 extern unsigned int	ni_address_list_count(ni_address_t *list);
 
@@ -167,4 +192,4 @@ extern unsigned int	ni_lifetime_left(unsigned int, const struct timeval *, const
 extern void		ni_address_cache_info_rebase(ni_address_cache_info_t *, const ni_address_cache_info_t *,
 					const struct timeval *);
 
-#endif /* __WICKED_ADDRESS_H__ */
+#endif /* NI_WICKED_ADDRESS_H */

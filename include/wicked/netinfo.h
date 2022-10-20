@@ -257,6 +257,17 @@ extern ni_netdev_t *	ni_netdev_ref_bind_ifindex(ni_netdev_ref_t *, ni_netconfig_
 extern ni_netdev_t *	ni_netdev_ref_bind_ifname (ni_netdev_ref_t *, ni_netconfig_t *);
 extern void		ni_netdev_ref_destroy(ni_netdev_ref_t *);
 
+extern ni_bool_t	ni_netdev_ref_array_init(ni_netdev_ref_array_t *);
+extern const ni_netdev_ref_t *
+			ni_netdev_ref_array_at(const ni_netdev_ref_array_t *, unsigned int);
+extern const ni_netdev_ref_t *
+			ni_netdev_ref_array_find_name(const ni_netdev_ref_array_t *, const char *);
+extern const ni_netdev_ref_t *
+			ni_netdev_ref_array_find_index(const ni_netdev_ref_array_t *, unsigned int);
+extern const ni_netdev_ref_t *
+			ni_netdev_ref_array_append(ni_netdev_ref_array_t *, const char *, unsigned int);
+extern void		ni_netdev_ref_array_destroy(ni_netdev_ref_array_t *);
+
 extern ni_netdev_req_t *ni_netdev_req_new(void);
 extern void		ni_netdev_req_free(ni_netdev_req_t *req);
 

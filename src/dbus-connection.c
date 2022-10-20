@@ -812,6 +812,7 @@ __ni_dbus_watch_close(ni_socket_t *sock)
 			/* Note, we're not explicitly closing the socket.
 			 * We may want to shut down the connection owning
 			 * us, however. */
+			ni_socket_release(wd->socket);
 			wd->socket = NULL;
 #ifdef DEBUG_WATCH_VERBOSE
 			ni_debug_dbus("%s wd %p state changed from %s to %s",__func__,
@@ -881,8 +882,10 @@ __ni_dbus_remove_watch(DBusWatch *watch, void *dummy)
 		if (wd->watch == watch) {
 			__ni_get_dbus_watch_data(wd);
 			*pos = wd->next;
-			if (wd->socket)
+			if (wd->socket) {
 				ni_socket_close(wd->socket);
+				wd->socket = NULL;
+			}
 #ifdef DEBUG_WATCH_VERBOSE
 			ni_debug_dbus("%s wd %p state changed from %s to %s",__func__,
 					wd, __ni_dbus_wd_state_name(wd->state),

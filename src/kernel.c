@@ -109,27 +109,6 @@ __ni_ethtool(const char *ifname, int cmd, void *data)
 }
 
 /*
- * Call a wireless extension
- */
-int
-__ni_wireless_ext(const ni_netdev_t *dev, int cmd,
-			void *data, size_t data_len, unsigned int flags)
-{
-	struct iwreq iwr;
-
-	memset(&iwr, 0, sizeof(iwr));
-	strncpy(iwr.ifr_name, dev->name, IFNAMSIZ);
-	iwr.u.data.pointer = data;
-	iwr.u.data.length = data_len;
-	iwr.u.data.flags = flags;
-
-	if (__ni_ioctl(cmd, &iwr) < 0)
-		return -1;
-	/* Not optimal yet */
-	return iwr.u.data.length;
-}
-
-/*
  * Bridge helper functions
  */
 int
@@ -162,46 +141,6 @@ __ni_brioctl_del_port(const char *ifname, unsigned int port_index)
 	strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
 	ifr.ifr_ifindex = port_index;
 	return __ni_ioctl(SIOCBRDELIF, &ifr);
-}
-
-/*
- * Wireless extension ioctls
- */
-int
-__ni_wireless_get_name(const char *name, char *result, size_t size)
-{
-	struct iwreq iwreq;
-
-	memset(&iwreq, 0, sizeof(iwreq));
-	strncpy(iwreq.ifr_name, name, IFNAMSIZ);
-	if (__ni_ioctl(SIOCGIWNAME, &iwreq) < 0)
-		return -1;
-
-	if (size) {
-		strncpy(result, iwreq.ifr_name, size-1);
-		result[size-1] = '\0';
-	}
-	return 0;
-}
-
-int
-__ni_wireless_get_essid(const char *name, char *result, size_t size)
-{
-	char buffer[IW_ESSID_MAX_SIZE];
-	struct iwreq iwreq;
-
-	memset(&iwreq, 0, sizeof(iwreq));
-	strncpy(iwreq.ifr_name, name, IFNAMSIZ);
-	iwreq.u.essid.pointer = buffer;
-	iwreq.u.essid.length = sizeof(buffer);
-	if (__ni_ioctl(SIOCGIWESSID, &iwreq) < 0)
-		return -1;
-
-	if (size) {
-		strncpy(result, buffer, size-1);
-		result[size-1] = '\0';
-	}
-	return 0;
 }
 
 /*

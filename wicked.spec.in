@@ -77,11 +77,6 @@ Obsoletes:      libwicked-0-6 < %{version}
 %endif
 
 BuildRequires:  libnl3-devel
-%if 0%{?suse_version} > 1110
-BuildRequires:  libiw-devel
-%else
-BuildRequires:  wireless-tools
-%endif
 BuildRequires:  dbus-1-devel
 BuildRequires:  libgcrypt-devel
 BuildRequires:  pkg-config
@@ -188,7 +183,7 @@ This package provides the wicked development files.
 
 %build
 test -x ./configure || autoreconf --force --install
-export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS"
+export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS -fPIC" LDFLAGS="-pie"
 %configure \
 	--with-piddir=%{wicked_piddir}	\
 	--with-statedir=%{wicked_statedir}\
@@ -339,6 +334,8 @@ fi
 %config(noreplace) %_sysconfdir/wicked/client.xml
 %config(noreplace) %_sysconfdir/wicked/server.xml
 %config(noreplace) %_sysconfdir/wicked/nanny.xml
+%dir %_sysconfdir/wicked/scripts
+%config(noreplace) %_sysconfdir/wicked/scripts/*
 %dir %_sysconfdir/wicked/extensions
 %config(noreplace) %_sysconfdir/wicked/extensions/*
 %dir %_sysconfdir/wicked/ifconfig
@@ -383,6 +380,7 @@ fi
 %_mandir/man8/wicked.8*
 %_mandir/man8/wickedd.8*
 %_mandir/man8/wicked-ethtool.8*
+%_mandir/man8/wicked-redfish.8*
 %_mandir/man8/ifdown.8*
 %_mandir/man8/ifstatus.8*
 %_mandir/man8/ifup.8*

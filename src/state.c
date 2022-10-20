@@ -1,7 +1,24 @@
 /*
- * Routines for discovering the current state of network interfaces
+ *	Routines for discovering the current state of network interfaces
  *
- * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2022 SUSE LLC
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *	Authors:
+ *		Olaf Kirch
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -102,20 +119,20 @@ __ni_system_nis_restore(void)
 ni_resolver_info_t *
 __ni_system_resolver_get(void)
 {
-	return ni_resolver_parse_resolv_conf(_PATH_RESOLV_CONF);
+	return ni_resolver_parse_resolv_conf(NI_PATH_RESOLV_CONF);
 }
 
 int
 __ni_system_resolver_put(const ni_resolver_info_t *resolver)
 {
-	const char *tempfile = _PATH_RESOLV_CONF ".new";
+	const char *tempfile = NI_PATH_RESOLV_CONF ".new";
 
 	if (ni_resolver_write_resolv_conf(tempfile, resolver, NULL) < 0) {
 		unlink(tempfile);
 		return -1;
 	}
-	if (rename(tempfile, _PATH_RESOLV_CONF) < 0) {
-		ni_error("cannot move temp file to %s: %m", _PATH_RESOLV_CONF);
+	if (rename(tempfile, NI_PATH_RESOLV_CONF) < 0) {
+		ni_error("cannot move temp file to %s: %m", NI_PATH_RESOLV_CONF);
 		unlink(tempfile);
 		return -1;
 	}
@@ -126,11 +143,11 @@ __ni_system_resolver_put(const ni_resolver_info_t *resolver)
 int
 __ni_system_resolver_backup(void)
 {
-	return ni_backup_file_to(_PATH_RESOLV_CONF, ni_config_backupdir());
+	return ni_backup_file_to(NI_PATH_RESOLV_CONF, ni_config_backupdir());
 }
 
 int
 __ni_system_resolver_restore(void)
 {
-	return ni_restore_file_from(_PATH_RESOLV_CONF, ni_config_backupdir());
+	return ni_restore_file_from(NI_PATH_RESOLV_CONF, ni_config_backupdir());
 }
