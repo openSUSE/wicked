@@ -1,9 +1,25 @@
 /*
- * Handling of network and link layer addresses.
- * Currently, just about formatting addresses for display.
+ *	Network and link layer addresses handling.
  *
- * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
- * Copyright (C) 2012-2013 Marius Tomaschewski <mt@suse.de>
+ *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2012-2022 SUSE LLC
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *	Authors:
+ *		Olaf Kirch
+ *		Marius Tomaschewski
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -40,29 +56,40 @@ static const unsigned char *__ni_sockaddr_data(const ni_sockaddr_t *, unsigned i
 /*
  * ni_address functions
  */
-static ni_address_t *
-do_address_new(void)
+static inline ni_bool_t
+ni_address_init(ni_address_t *ap)
 {
-	ni_address_t *ap;
-
-	ap = xcalloc(1, sizeof(*ap));
 	if (ap) {
-		ap->refcount = 1;
+		memset(ap, 0, sizeof(*ap));
 		ap->cache_info.valid_lft = NI_LIFETIME_INFINITE;
 		ap->cache_info.preferred_lft = NI_LIFETIME_INFINITE;
+		return TRUE;
 	}
-	return ap;
+	return FALSE;
 }
 
+static inline void
+ni_address_destroy(ni_address_t *ap)
+{
+	ni_string_free(&ap->label);
+}
+
+extern ni_refcounted_define_new(ni_address);
+extern ni_refcounted_define_ref(ni_address);
+extern ni_refcounted_define_hold(ni_address);
+extern ni_refcounted_define_free(ni_address);
+extern ni_refcounted_define_drop(ni_address);
+extern ni_refcounted_define_move(ni_address);
+
 ni_address_t *
-ni_address_new(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr, ni_address_t **list_head)
+ni_address_create(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr, ni_address_t **list_head)
 {
 	ni_address_t *ap;
 
 	if (local_addr && local_addr->ss_family != af)
 		return NULL;
 
-	ap = do_address_new();
+	ap = ni_address_new();
 	if (!ap)
 		return NULL;
 
@@ -72,21 +99,10 @@ ni_address_new(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr,
 	if (local_addr)
 		ap->local_addr = *local_addr;
 
-	if (list_head) {
+	if (list_head)
 		ni_address_list_append(list_head, ap);
-	}
-	return ap;
-}
 
-ni_address_t *
-ni_address_ref(ni_address_t *ap)
-{
-	if (ap) {
-		ni_assert(ap->refcount);
-		ap->refcount++;
-		return ap;
-	}
-	return NULL;
+	return ap;
 }
 
 ni_bool_t
@@ -114,26 +130,12 @@ ni_address_clone(const ni_address_t *src)
 {
 	ni_address_t *dst;
 
-	dst = do_address_new();
+	dst = ni_address_new();
 	if (ni_address_copy(dst, src))
 		return dst;
 
 	ni_address_free(dst);
 	return NULL;
-}
-
-void
-ni_address_free(ni_address_t *ap)
-{
-	if (ap) {
-		ni_assert(ap->refcount);
-		ap->refcount--;
-		if (ap->refcount != 0)
-			return;
-
-		ni_string_free(&ap->label);
-		free(ap);
-	}
 }
 
 ni_bool_t
@@ -456,11 +458,23 @@ ni_address_list_dedup(ni_address_t **list)
 	}
 }
 
+void
+ni_address_list_copy(ni_address_t **dst, const ni_address_t *src)
+{
+	const ni_address_t *ap;
+
+	if (!dst)
+		return;
+
+	for (ap = src; ap != NULL; ap = ap->next)
+		ni_address_list_append(dst, ni_address_clone(ap));
+}
+
 unsigned int
 ni_address_list_count(ni_address_t *list)
 {
 	unsigned int count = 0;
-	ni_address_t *ap;
+	const ni_address_t *ap;
 
 	for (ap = list; ap != NULL; ap = ap->next)
 		count++;

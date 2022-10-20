@@ -301,7 +301,7 @@ ni_timeout_recompute(ni_timeout_param_t *tmo)
 {
 	ni_timeout_t timeout;
 
-	if (tmo->nretries == 0)
+	if (!tmo || tmo->nretries == 0)
 		return FALSE;
 
 	if (tmo->nretries > 0) {
@@ -315,30 +315,33 @@ ni_timeout_recompute(ni_timeout_param_t *tmo)
 	if (tmo->increment > 0) {
 		tmo->timeout += tmo->increment;
 
-		if (tmo->timeout > tmo->max_timeout) {
+		if (tmo->timeout < timeout || tmo->timeout >= tmo->max_timeout) {
 			tmo->timeout = tmo->max_timeout;
 			tmo->increment = 0;
+			tmo->decrement = 0;
 
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_TIMER,
-					"%s: timeout %u.%03u incremented to max timeout %u.%03u",
+					"%s: timeout %u.%03u increment reached max timeout %u.%03u",
 					__func__, NI_TIMEOUT_SEC(timeout), NI_TIMEOUT_MSEC(timeout),
 					NI_TIMEOUT_SEC(tmo->timeout), NI_TIMEOUT_MSEC(tmo->timeout));
 		} else {
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_TIMER,
-					"%s: timeout %u.%03u incremented by %d to %u.03u",
+					"%s: timeout %u.%03u incremented by %d to %u.%03u",
 					__func__, NI_TIMEOUT_SEC(timeout), NI_TIMEOUT_MSEC(timeout),
+					tmo->increment,
 					NI_TIMEOUT_SEC(tmo->timeout), NI_TIMEOUT_MSEC(tmo->timeout));
 		}
 	} else
 	if (tmo->increment < 0) {
 		tmo->timeout <<= 1;
 
-		if (tmo->timeout > tmo->max_timeout) {
+		if (tmo->timeout < timeout || tmo->timeout >= tmo->max_timeout) {
 			tmo->timeout = tmo->max_timeout;
 			tmo->increment = 0;
+			tmo->decrement = 0;
 
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_TIMER,
-					"%s: timeout %u.%03u doubled to max timeout %u.%03u",
+					"%s: timeout %u.%03u doubling reached max timeout %u.%03u",
 					__func__, NI_TIMEOUT_SEC(timeout), NI_TIMEOUT_MSEC(timeout),
 					NI_TIMEOUT_SEC(tmo->timeout), NI_TIMEOUT_MSEC(tmo->timeout));
 		} else {
@@ -347,8 +350,46 @@ ni_timeout_recompute(ni_timeout_param_t *tmo)
 					__func__, NI_TIMEOUT_SEC(timeout), NI_TIMEOUT_MSEC(timeout),
 					NI_TIMEOUT_SEC(tmo->timeout), NI_TIMEOUT_MSEC(tmo->timeout));
 		}
-	}
+	} else
+	if (tmo->decrement > 0) {
+		tmo->timeout -= tmo->decrement;
 
+		if (tmo->timeout > timeout || tmo->timeout <= tmo->min_timeout) {
+			tmo->timeout = tmo->min_timeout;
+			tmo->increment = 0;
+			tmo->decrement = 0;
+
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_TIMER,
+					"%s: timeout %u.%03u decrement reached min timeout %u.%03u",
+					__func__, NI_TIMEOUT_SEC(timeout), NI_TIMEOUT_MSEC(timeout),
+					NI_TIMEOUT_SEC(tmo->timeout), NI_TIMEOUT_MSEC(tmo->timeout));
+		} else {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_TIMER,
+					"%s: timeout %u.%03u decremented by %d to %u.%03u",
+					__func__, NI_TIMEOUT_SEC(timeout), NI_TIMEOUT_MSEC(timeout),
+					tmo->decrement,
+					NI_TIMEOUT_SEC(tmo->timeout), NI_TIMEOUT_MSEC(tmo->timeout));
+		}
+	} else
+	if (tmo->decrement < 0) {
+		tmo->timeout >>= 1;
+
+		if (tmo->timeout > timeout || tmo->timeout <= tmo->min_timeout) {
+			tmo->timeout = tmo->min_timeout;
+			tmo->increment = 0;
+			tmo->decrement = 0;
+
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_TIMER,
+					"%s: timeout %u.%03u halving reached max timeout %u.%03u",
+					__func__, NI_TIMEOUT_SEC(timeout), NI_TIMEOUT_MSEC(timeout),
+					NI_TIMEOUT_SEC(tmo->timeout), NI_TIMEOUT_MSEC(tmo->timeout));
+		} else {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_TIMER,
+					"%s: timeout %u.%03u halved to %u.%03u",
+					__func__, NI_TIMEOUT_SEC(timeout), NI_TIMEOUT_MSEC(timeout),
+					NI_TIMEOUT_SEC(tmo->timeout), NI_TIMEOUT_MSEC(tmo->timeout));
+		}
+	}
 	if (tmo->backoff_callback) {
 		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_TIMER,
 				"%s: calling backoff callback %p/%p",

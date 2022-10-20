@@ -35,7 +35,7 @@ static void			__ni_socket_close(ni_socket_t *);
 static void			__ni_default_error_handler(ni_socket_t *);
 static void			__ni_default_hangup_handler(ni_socket_t *);
 
-static ni_socket_array_t	__ni_sockets;
+static ni_socket_array_t	__ni_sockets = NI_SOCKET_ARRAY_INIT;
 
 
 /*
@@ -45,16 +45,6 @@ ni_bool_t
 ni_socket_activate(ni_socket_t *sock)
 {
 	return ni_socket_array_activate(&__ni_sockets, sock);
-}
-
-static inline void
-__ni_socket_deactivate(ni_socket_t **slot)
-{
-	ni_socket_t *sock = *slot;
-
-	*slot = NULL;
-	sock->active = NULL;
-	ni_socket_release(sock);
 }
 
 ni_bool_t
@@ -89,8 +79,8 @@ ni_socket_release(ni_socket_t *sock)
 
 	sock->refcount--;
 	if (sock->refcount == 0) {
-		__ni_socket_close(sock);
 		ni_assert(!sock->active);
+		__ni_socket_close(sock);
 		if (sock->release_user_data)
 			sock->release_user_data(sock->user_data);
 		free(sock);
@@ -118,16 +108,14 @@ int
 ni_socket_array_wait(ni_socket_array_t *array, ni_timeout_t timeout)
 {
 	struct pollfd pfd[array->count];
+	ni_socket_t *sock_array[array->count];
 	struct timeval now, expires;
-	unsigned int i, socket_count;
+	unsigned int i, socket_count = 0;
 	int ptimeout = -1;
+	int retval = 0;
 
-	/* First step - cleanup empty socket slots from the array. */
-	ni_socket_array_cleanup(array);
-
-	/* Second step - build pollfd array and get timeouts */
+	/* First step - build pollfd and working socket array and get timeouts */
 	timerclear(&expires);
-	socket_count = 0;
 	for (i = 0; i < array->count; ++i) {
 		ni_socket_t *sock = array->data[i];
 		struct timeval socket_expires;
@@ -135,15 +123,16 @@ ni_socket_array_wait(ni_socket_array_t *array, ni_timeout_t timeout)
 		if (sock->active != array)
 			continue;
 
+		pfd[socket_count].fd = sock->__fd;
+		pfd[socket_count].events = sock->poll_flags;
+		sock_array[socket_count] = ni_socket_hold(sock);
+		socket_count++;
+
 		timerclear(&socket_expires);
 		if (sock->get_timeout && sock->get_timeout(sock, &socket_expires) == 0) {
 			if (!timerisset(&expires) || timercmp(&socket_expires, &expires, <))
 				expires = socket_expires;
 		}
-
-		pfd[socket_count].fd = sock->__fd;
-		pfd[socket_count].events = sock->poll_flags;
-		socket_count++;
 	}
 
 	ni_timer_get_time(&now);
@@ -163,80 +152,78 @@ ni_socket_array_wait(ni_socket_array_t *array, ni_timeout_t timeout)
 
 	if (socket_count == 0 && ptimeout < 0) {
 		ni_debug_socket("no sockets left to watch");
-		return 1;
+		retval = 1;
+		goto out;
 	}
 
 	if (poll(pfd, socket_count, ptimeout) < 0) {
 		if (errno == EINTR)
-			return 0;
+			goto out;
 		ni_error("poll returns error: %m");
-		return -1;
+		retval = -1;
+		goto out;
 	}
 
 	for (i = 0; i < socket_count; ++i) {
-		ni_socket_t *sock = array->data[i];
+		ni_socket_t *sock = sock_array[i];
 
-		if (!sock || sock->active != array)
+		if (sock->active != array)
 			continue;
 
 		if (pfd[i].fd != sock->__fd)
 			continue;
 
-		ni_socket_hold(sock);
-
 		if (pfd[i].revents & POLLERR) {
 			/* Deactivate socket */
-			__ni_socket_deactivate(&array->data[i]);
+			ni_socket_deactivate(sock);
 			sock->handle_error(sock);
-			goto done_with_this_socket;
+			continue;
 		}
 
 		if (pfd[i].revents & POLLIN) {
 			if (sock->receive == NULL) {
 				ni_error("socket %d has no receive callback", sock->__fd);
-				__ni_socket_deactivate(&array->data[i]);
+				ni_socket_deactivate(sock);
 			} else {
 				sock->receive(sock);
 			}
 			if (sock->__fd < 0)
-				goto done_with_this_socket;
+				continue;
 		}
 
 		if (pfd[i].revents & POLLHUP) {
 			if (sock->handle_hangup)
 				sock->handle_hangup(sock);
 			if (sock->__fd < 0)
-				goto done_with_this_socket;
+				continue;
 		} else
 
 		if (pfd[i].revents & POLLOUT) {
 			if (sock->transmit == NULL) {
 				ni_error("socket %d has no transmit callback", sock->__fd);
-				__ni_socket_deactivate(&array->data[i]);
+				ni_socket_deactivate(sock);
 			} else {
 				sock->transmit(sock);
 			}
 		}
-
-done_with_this_socket:
-		ni_socket_release(sock);
 	}
 
 	ni_timer_get_time(&now);
-	for (i = 0; i < array->count && i < socket_count; ++i) {
-		ni_socket_t *sock = array->data[i];
+	for (i = 0; i < socket_count; ++i) {
+		ni_socket_t *sock = sock_array[i];
 
-		if (!sock || sock->active != array)
+		if (sock->active != array)
 			continue;
 
 		if (sock->check_timeout)
 			sock->check_timeout(sock, &now);
 	}
 
-	/* Finally cleanup deactivated/released sockets */
-	ni_socket_array_cleanup(array);
+out:
+	for (i = 0; i < socket_count; ++i)
+		ni_socket_release(sock_array[i]);
 
-	return 0;
+	return retval;
 }
 
 int
@@ -284,12 +271,13 @@ ni_socket_wrap(int fd, int sotype)
 static void
 __ni_socket_close(ni_socket_t *sock)
 {
-	if (sock->close) {
-		sock->close(sock);
-	} else if (sock->__fd >= 0) {
-		close(sock->__fd);
+	if (sock->__fd >= 0) {
+		if (sock->close)
+			sock->close(sock);
+		else
+			close(sock->__fd);
+		sock->__fd = -1;
 	}
-	sock->__fd = -1;
 
 	ni_buffer_destroy(&sock->wbuf);
 	ni_buffer_destroy(&sock->rbuf);
@@ -332,18 +320,6 @@ ni_socket_array_destroy(ni_socket_array_t *array)
 		free(array->data);
 		memset(array, 0, sizeof(*array));
 	}
-}
-
-void
-ni_socket_array_cleanup(ni_socket_array_t *array)
-{
-	unsigned int i, j;
-
-	for (i = j = 0; i < array->count; ++i) {
-		if (array->data[i])
-			array->data[j++] = array->data[i];
-	}
-	array->count = j;
 }
 
 static inline void

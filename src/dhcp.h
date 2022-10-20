@@ -1,7 +1,7 @@
 /*
  *	Common DHCP related utilities
  *
- *	Copyright (C) 2016 Marius Tomaschewski <mt@suse.de>
+ *	Copyright (C) 2016-2022 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
  *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *	Authors:
- *		Marius Tomaschewski <mt@suse.de>
+ *		Marius Tomaschewski
  */
 #ifndef   WICKED_DHCP_H
 #define   WICKED_DHCP_H
@@ -46,6 +46,7 @@ extern void				ni_dhcp_option_free(ni_dhcp_option_t *);
  */
 extern void				ni_dhcp_option_list_destroy(ni_dhcp_option_t **);
 extern ni_bool_t			ni_dhcp_option_list_append(ni_dhcp_option_t **, ni_dhcp_option_t *);
+extern ni_bool_t			ni_dhcp_option_list_copy(ni_dhcp_option_t **, const ni_dhcp_option_t *);
 extern ni_dhcp_option_t *		ni_dhcp_option_list_find(ni_dhcp_option_t *, unsigned int);
 extern ni_dhcp_option_t *		ni_dhcp_option_list_pull(ni_dhcp_option_t **);
 

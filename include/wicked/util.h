@@ -122,7 +122,7 @@ extern int		ni_string_array_append(ni_string_array_t *, const char *);
 extern int		ni_string_array_insert(ni_string_array_t *, unsigned int, const char *);
 extern int		ni_string_array_set(ni_string_array_t *, unsigned int, const char *);
 extern int		ni_string_array_get(ni_string_array_t *, unsigned int, char **);
-extern const char *	ni_string_array_at(ni_string_array_t *, unsigned int);
+extern const char *	ni_string_array_at(const ni_string_array_t *, unsigned int);
 extern int		ni_string_array_index(const ni_string_array_t *, const char *);
 extern unsigned int	ni_string_array_find(const ni_string_array_t *, unsigned int, const char *,
 					ni_bool_t (*)(const char *, const char *), const char **);
@@ -277,6 +277,14 @@ extern unsigned int	ni_parse_bitmap_string(unsigned int *, const ni_intmap_t *, 
 extern unsigned int	ni_format_bitmap_array(ni_string_array_t *, const ni_intmap_t *, unsigned int, unsigned int *);
 extern const char *	ni_format_bitmap_string(ni_stringbuf_t *, const ni_intmap_t *, unsigned int, unsigned int *, const char *);
 extern const char *	ni_format_bitmap(ni_stringbuf_t *, const ni_intmap_t *, unsigned int, const char *);
+
+extern unsigned int	ni_parse_bitmask_array(unsigned int *, const ni_intmap_t *, const ni_string_array_t *, ni_string_array_t *);
+extern unsigned int	ni_parse_bitmask_string(unsigned int *, const ni_intmap_t *, const char *, const char *, ni_string_array_t *);
+extern unsigned int	ni_parse_bitmask(unsigned int *, const ni_intmap_t *, const char *, const char *, ni_string_array_t *);
+extern unsigned int	ni_format_bitmask_array(ni_string_array_t *, const ni_intmap_t *, unsigned int, unsigned int *);
+extern const char *	ni_format_bitmask_string(ni_stringbuf_t *, const ni_intmap_t *, unsigned int, unsigned int *, const char *);
+extern const char *	ni_format_bitmask(ni_stringbuf_t *, const ni_intmap_t *, unsigned int, const char *);
+
 extern ni_bool_t	ni_intmap_file_get_name(const char *, unsigned int *, char **);
 extern ni_bool_t	ni_intmap_file_get_value(const char *, unsigned int *, char **);
 

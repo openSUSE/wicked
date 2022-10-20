@@ -33,15 +33,16 @@
 /*
  * -- type definitions
  */
-typedef struct ni_dhcp6_request	ni_dhcp6_request_t;
-typedef struct ni_dhcp6_config	ni_dhcp6_config_t;
-typedef struct ni_dhcp6_device	ni_dhcp6_device_t;
+typedef struct ni_dhcp6_request		ni_dhcp6_request_t;
+typedef struct ni_dhcp6_config		ni_dhcp6_config_t;
+typedef struct ni_dhcp6_device		ni_dhcp6_device_t;
+typedef struct ni_dhcp6_drop_request	ni_dhcp6_drop_request_t;
 
 /*
  * -- supplicant actions
  */
 extern int			ni_dhcp6_acquire(ni_dhcp6_device_t *, const ni_dhcp6_request_t *, char **);
-extern int			ni_dhcp6_release(ni_dhcp6_device_t *, const ni_uuid_t *);
+extern int			ni_dhcp6_drop(ni_dhcp6_device_t *, const ni_dhcp6_drop_request_t *);
 extern void			ni_dhcp6_restart(void);
 extern ni_bool_t		ni_dhcp6_supported(const ni_netdev_t *);
 
@@ -55,9 +56,10 @@ typedef enum {
 } ni_dhcp6_run_t;
 
 /*
- * -- supplicant request
+ * -- supplicant acquire request
  *
- * This is the on-the wire request we receive from supplicant.
+ * This is the on-the wire request we receive from clients
+ * to (re-)acquire a lease.
  */
 struct ni_dhcp6_request {
 	ni_bool_t		enabled;
@@ -76,6 +78,7 @@ struct ni_dhcp6_request {
 
 	unsigned int		lease_time;	/* to request specific IA T1 and T2	*/
 	ni_bool_t		recover_lease;	/* recover and reuse existing lease	*/
+	ni_bool_t		refresh_lease;  /* force lease rebind instead confirm	*/
 	ni_bool_t		release_lease;	/* release lease on drop request	*/
 
 	/* Options controlling what to put into the lease request */
@@ -98,8 +101,21 @@ struct ni_dhcp6_request {
 	ni_string_array_t	request_options;
 };
 
+/*
+ * -- supplicant drop request
+ *
+ * This is the on-the wire request we receive from clients
+ * to drop a lease from interface.
+ */
+struct ni_dhcp6_drop_request {
+	ni_uuid_t		uuid;
+	ni_tristate_t		release;	/* override (acquire request/config) *
+						 * defaults to release lease or not. */
+};
+
 extern ni_dhcp6_request_t *	ni_dhcp6_request_new(void);
 extern void			ni_dhcp6_request_free(ni_dhcp6_request_t *);
+extern void			ni_dhcp6_drop_request_init(ni_dhcp6_drop_request_t *);
 
 /*
  * -- device config timing defaults
@@ -137,6 +153,7 @@ struct ni_dhcp6_config {
 
 	unsigned int		lease_time;
 	ni_bool_t		recover_lease;
+	ni_bool_t		refresh_lease;
 	ni_bool_t		release_lease;
 
 	ni_opaque_t		client_duid;	/* raw client id to use		*/

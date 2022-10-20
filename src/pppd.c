@@ -644,7 +644,6 @@ ni_pppd_config_file_write(const char *instance, const ni_ppp_t *config)
 
 	if (rename(tempname, filename) != 0) {
 		ni_error("%s: unable to commit pppd config file to '%s'", instance, filename);
-		fclose(fp);
 		unlink(tempname);
 		goto done;
 	}

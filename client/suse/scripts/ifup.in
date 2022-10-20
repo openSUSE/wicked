@@ -52,13 +52,15 @@ usage ()
 	echo "Usage: if{up,down,status,probe} [<config>] <interface> [-o <options>]"
 	echo ""
 	echo "Common options are:"
-	echo "    debug    : be verbose"
+	echo "    debug      : be verbose"
 	echo ""
 	echo "Options for if{status,probe} are:"
-	echo "    quiet    : Do not print out errors, but just signal the result through exit status"
+	echo "    quiet      : Do not print out errors, but just signal the result through exit status"
 	echo ""
 	echo "Options for ifdown are:"
-	echo "    force    : Forces persistent (nfsroot type) interface down"
+	echo "    force      : Forces persistent (nfsroot type) interface down"
+	echo "    release    : Override active config to force a lease release"
+	echo "    no-release : Override active config to skip a lease release"
 	echo ""
 	echo "Unknown options are simply ignored, so be careful."
 	echo ""
@@ -115,7 +117,7 @@ esac
 #
 SCRIPTNAME="${0##*/}"
 case $SCRIPTNAME in
-	ifup|ifstatus|ifdown|ifprobe)				;;
+	ifup|ifdown|ifstatus|ifprobe)				;;
 	*)		usage					;;
 esac
 
@@ -138,12 +140,15 @@ OPTIONS=$@
 opt_debug=""
 opt_quiet=""
 opt_force=""
+opt_release=""
 while [ $# -gt 0 ]; do
 	case $1 in
 	debug)		DEBUG="yes"				;;
 	debug=*)	DEBUG="${1#debug=}"			;;
 	quiet)		opt_quiet="--quiet"			;;
 	force)          opt_force="--force device-exists"	;;
+	release)	opt_release="--release"			;;
+	no-release)	opt_release="--no-release"		;;
 	*)		debug "unknown option \"$1\""		;;
 	esac
 	shift
@@ -241,6 +246,7 @@ case $SCRIPTNAME in
 			${opt_debug} \
 			ifdown \
 			  ${opt_force} \
+			  ${opt_release} \
 			  "$INTERFACE"
 		rc=$(rc_map_return "$?")
 	;;

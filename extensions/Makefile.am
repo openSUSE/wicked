@@ -7,7 +7,8 @@ wicked_extensions_SCRIPTS	= \
 	firewall	\
 	hostname	\
 	ibft		\
-	netconfig
+	netconfig	\
+	redfish-config
 
 EXTRA_DIST			= $(wicked_extensions_SCRIPTS)
 

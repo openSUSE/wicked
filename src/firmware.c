@@ -110,7 +110,7 @@ ni_netconfig_firmware_discovery(const char *root, const char *from)
 		return NULL;
 	}
 
-	ni_debug_ifconfig("%s: %s%sbuffer has %u bytes", __func__,
+	ni_debug_ifconfig("%s: %s%sbuffer has %zu bytes", __func__,
 			(from ? from : ""), (from ? " ": ""),
 			ni_buffer_count(buffer));
 	doc = xml_document_from_buffer(buffer, from);

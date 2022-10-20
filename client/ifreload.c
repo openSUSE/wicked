@@ -339,6 +339,8 @@ ni_do_ifreload(const char *caller, int argc, char **argv)
 		OPT_TIMEOUT	= 't',
 		OPT_PERSISTENT	= 'P',
 		OPT_TRANSIENT	= 'T',
+		OPT_RELEASE,
+		OPT_NO_RELEASE,
 	};
 	static struct option ifreload_options[] = {
 		{ "help",		no_argument,		NULL,	OPT_HELP },
@@ -346,6 +348,8 @@ ni_do_ifreload(const char *caller, int argc, char **argv)
 		{ "timeout",		required_argument,	NULL,	OPT_TIMEOUT },
 		{ "transient",		no_argument,		NULL,	OPT_TRANSIENT },
 		{ "persistent",		no_argument,		NULL,	OPT_PERSISTENT },
+		{ "release",		no_argument,		NULL,	OPT_RELEASE },
+		{ "no-release",		no_argument,		NULL,	OPT_NO_RELEASE },
 
 		{ NULL,			no_argument,		NULL,	0 }
 	};
@@ -356,6 +360,7 @@ ni_do_ifreload(const char *caller, int argc, char **argv)
 	ni_nanny_fsm_monitor_t *monitor = NULL;
 	ni_bool_t opt_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
+	ni_tristate_t opt_release = NI_TRISTATE_DEFAULT;
 	unsigned int seconds = 0;
 	int c, status = NI_WICKED_RC_USAGE;
 	char *saved_argv0, *program = NULL;
@@ -393,6 +398,14 @@ ni_do_ifreload(const char *caller, int argc, char **argv)
 			}
 			break;
 
+		case OPT_RELEASE:
+			opt_release = NI_TRISTATE_ENABLE;
+			break;
+
+		case OPT_NO_RELEASE:
+			opt_release = NI_TRISTATE_DISABLE;
+			break;
+
 		default:
 		case OPT_HELP:
 usage:
@@ -409,6 +422,8 @@ usage:
 				"      Timeout after <sec> seconds\n"
 				"  --persistent\n"
 				"      Set interface into persistent mode (no regular ifdown allowed)\n"
+				"  --[no-]release\n"
+				"      Override active config to (not) release leases in ifdown\n"
 				, program);
 			goto cleanup;
 		}
@@ -496,6 +511,13 @@ usage:
 		for (i = 0; i < up_marked.count; ++i) {
 			ni_ifworker_t *w = up_marked.data[i];
 			ni_ifworker_control_set_persistent(w, TRUE);
+		}
+	}
+	if (ni_tristate_is_set(opt_release)) {
+		for (i = 0; i < down_marked.count; ++i) {
+			ni_ifworker_t *w = down_marked.data[i];
+			if (!w->control.persistent)
+				w->args.release = opt_release;
 		}
 	}
 

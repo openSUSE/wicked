@@ -76,6 +76,13 @@ typedef struct ni_netdev_ref {
 	char *			name;	/* by ifname  */
 } ni_netdev_ref_t;
 
+#define NI_NETDEV_REF_ARRAY_INIT	{ .count = 0, .data = NULL }
+
+typedef struct ni_netdev_ref_array {
+	unsigned int		count;
+	ni_netdev_ref_t *	data;
+} ni_netdev_ref_array_t;
+
 typedef struct ni_dbus_server	ni_dbus_server_t;
 typedef struct ni_dbus_client	ni_dbus_client_t;
 
