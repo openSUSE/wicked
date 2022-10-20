@@ -81,7 +81,8 @@ Be verbose.
 Silent mode. Feedback only via return code.
 .IP force
 Applicable to ifdown only. Forces persistent (nfsroot type) interface down.
-
+.IP release\ no-release
+Overrides active configuration to force or skip a lease release on ifdown.
 .SH FILES
 .I /sbin/ifup
 .RS

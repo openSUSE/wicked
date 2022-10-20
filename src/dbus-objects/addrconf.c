@@ -32,6 +32,7 @@
 #include "debug.h"
 #include "util_priv.h"
 #include "appconfig.h"
+#include "addrconf.h"
 #include "auto6.h"
 
 
@@ -70,9 +71,10 @@ static dbus_bool_t	ni_objectmodel_addrconf_forwarder_call(ni_dbus_addrconf_forwa
 					ni_netdev_t *dev, const char *method_name,
 					const ni_uuid_t *uuid, const ni_dbus_variant_t *dict,
 					DBusError *error);
-static dbus_bool_t	ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
+static dbus_bool_t	ni_objectmodel_addrconf_forward_drop(ni_dbus_addrconf_forwarder_t *forwarder,
 					ni_netdev_t *dev, const ni_dbus_variant_t *dict,
 					ni_dbus_message_t *reply, DBusError *error);
+static int		ni_objectmodel_addrconf_complete_drop(ni_netdev_t *dev, ni_addrconf_lease_t *lease);
 
 static dbus_bool_t	ni_objectmodel_addrconf_fallback_request(ni_netdev_t *dev, unsigned int family);
 static dbus_bool_t	ni_objectmodel_addrconf_fallback_release(ni_netdev_t *dev, unsigned int family);
@@ -302,8 +304,17 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 		ni_objectmodel_addrconf_send_event(ifp, ifevent, &uuid);
 		goto done;
 	} else if (!strcmp(signal_name, NI_OBJECTMODEL_LEASE_RELEASED_SIGNAL)) {
-		lease->state = NI_ADDRCONF_STATE_RELEASED;
+		/*
+		 * We should have an lease updater already running and expect
+		 * the supplicant sends us a signal once it finished it's part.
+		 */
+		lease->state = NI_ADDRCONF_STATE_RELEASING;
 		ifevent = NI_EVENT_ADDRESS_RELEASED;
+
+		/* inform the running updater, that supplicant finished */
+		if (ni_objectmodel_addrconf_complete_drop(ifp, lease))
+			goto done;
+
 	} else if (!strcmp(signal_name, NI_OBJECTMODEL_LEASE_LOST_SIGNAL)) {
 		lease->state = NI_ADDRCONF_STATE_FAILED;
 		ifevent = NI_EVENT_ADDRESS_LOST;
@@ -343,8 +354,43 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 done:
 	while (argc--)
 		ni_dbus_variant_destroy(&argv[argc]);
-	if (lease)
-		ni_addrconf_lease_free(lease);
+	ni_addrconf_lease_drop(&lease);
+}
+
+/*
+ * Utility to verbosely get device lease in requests
+ */
+static inline ni_addrconf_lease_t *
+ni_objectmodel_addrconf_get_lease(ni_netdev_t *dev, unsigned int family, unsigned int type)
+{
+	ni_addrconf_lease_t *lease;
+
+	lease = ni_netdev_get_lease(dev, family, type);
+	if (lease) {
+		/* found previous lease to replace or drop*/
+		ni_debug_objectmodel("%s: found previous %s:%s lease in state %s uuid %s%s",
+				dev->name,
+				ni_addrfamily_type_to_name(lease->family),
+				ni_addrconf_type_to_name(lease->type),
+				ni_addrconf_state_to_name(lease->state),
+				ni_uuid_is_null(&lease->uuid) ? "null" : ni_uuid_print(&lease->uuid),
+				lease->updater ? " -- canceling active updater" : "");
+		if (lease->old && lease->old->updater) {
+			/* should not happen -- bug */
+			ni_error("%s: previous lease %s:%s in state %s replaces lease with active updater!",
+				dev->name,
+				ni_addrfamily_type_to_name(lease->old->family),
+				ni_addrconf_type_to_name(lease->old->type),
+				ni_addrconf_state_to_name(lease->old->state));
+			ni_addrconf_updater_free(&lease->old->updater);
+		}
+		ni_addrconf_updater_free(&lease->updater);
+	} else {
+		ni_debug_objectmodel("%s: no previous %s:%s lease found", dev->name,
+				ni_addrfamily_type_to_name(family),
+				ni_addrconf_type_to_name(type));
+	}
+	return lease;
 }
 
 /*
@@ -370,31 +416,8 @@ ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, unsigned int ad
 		return FALSE;
 	}
 	dict = &argv[0];
-	lease = ni_netdev_get_lease(dev, addrfamily, NI_ADDRCONF_STATIC);
-	if (lease) {
-		/* about to replace a previous lease */
-		ni_debug_objectmodel("%s: found previous %s:%s lease in state %s%s",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->family),
-				ni_addrconf_type_to_name(lease->type),
-				ni_addrconf_state_to_name(lease->state),
-				lease->updater ? " canceling active updater" : "");
-		if (lease->old && lease->old->updater) {
-			/* should not happen -- bug */
-			ni_error("%s: previous lease %s:%s in state %s replaces lease with active updater!",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->old->family),
-				ni_addrconf_type_to_name(lease->old->type),
-				ni_addrconf_state_to_name(lease->old->state));
-			ni_addrconf_updater_free(&lease->old->updater);
-		}
-		ni_addrconf_updater_free(&lease->updater);
-	} else {
-		ni_debug_objectmodel("%s: no previous %s:%s lease found", dev->name,
-				ni_addrfamily_type_to_name(addrfamily),
-				ni_addrconf_type_to_name(NI_ADDRCONF_STATIC));
-		/* apply a new lease */
-	}
+
+	ni_objectmodel_addrconf_get_lease(dev, addrfamily, NI_ADDRCONF_STATIC);
 
 	lease = ni_addrconf_lease_new(NI_ADDRCONF_STATIC, addrfamily);
 	lease->state = NI_ADDRCONF_STATE_GRANTED;
@@ -404,7 +427,7 @@ ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, unsigned int ad
 	 || !__ni_objectmodel_set_route_dict(&lease->routes, dict, error)
 	 || !__ni_objectmodel_set_rule_dict(&lease->rules, addrfamily, dict, error)
 	 || !__ni_objectmodel_set_resolver_dict(&lease->resolver, dict, error)) {
-		ni_addrconf_lease_free(lease);
+		ni_addrconf_lease_drop(&lease);
 		return FALSE;
 	}
 
@@ -417,8 +440,7 @@ ni_objectmodel_addrconf_static_request(ni_dbus_object_t *object, unsigned int ad
 	ni_addrconf_lease_addrs_set_tentative(lease, TRUE);
 
 	rv = __ni_system_interface_update_lease(dev, &lease, NI_EVENT_ADDRESS_ACQUIRED);
-	if (lease)
-		ni_addrconf_lease_free(lease);
+	ni_addrconf_lease_drop(&lease);
 
 	if (rv < 0) {
 		dbus_set_error(error,
@@ -453,41 +475,17 @@ ni_objectmodel_addrconf_static_drop(ni_dbus_object_t *object, unsigned int addrf
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	lease = ni_netdev_get_lease(dev, addrfamily, NI_ADDRCONF_STATIC);
-	if (lease) {
-		/* about to drop previous lease */
-		ni_debug_objectmodel("%s: found previous %s:%s lease in state %s%s",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->family),
-				ni_addrconf_type_to_name(lease->type),
-				ni_addrconf_state_to_name(lease->state),
-				lease->updater ? " canceling active updater" : "");
-		if (lease->old && lease->old->updater) {
-			/* should not happen -- bug */
-			ni_error("%s: previous lease %s:%s in state %s replaces lease with active updater!",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->old->family),
-				ni_addrconf_type_to_name(lease->old->type),
-				ni_addrconf_state_to_name(lease->old->state));
-			ni_addrconf_updater_free(&lease->old->updater);
-		}
-		ni_addrconf_updater_free(&lease->updater);
-		uuid = lease->uuid;
-	} else {
-		ni_debug_objectmodel("%s: no previous %s:%s lease to drop found", dev->name,
-				ni_addrfamily_type_to_name(addrfamily),
-				ni_addrconf_type_to_name(NI_ADDRCONF_STATIC));
-		/* nothing to do */
-		return TRUE;
-	}
+	lease = ni_objectmodel_addrconf_get_lease(dev, addrfamily, NI_ADDRCONF_STATIC);
+	if (!lease)
+		return TRUE; /* nothing to do */
 
+	uuid = lease->uuid;
 	if ((lease = ni_addrconf_lease_new(NI_ADDRCONF_STATIC, addrfamily))) {
 		lease->state = NI_ADDRCONF_STATE_RELEASING;
 		lease->uuid  = uuid;
 	}
 	rv = __ni_system_interface_update_lease(dev, &lease, NI_EVENT_ADDRESS_RELEASED);
-	if (lease)
-		ni_addrconf_lease_free(lease);
+	ni_addrconf_lease_drop(&lease);
 
 	/* Check again whether we still have a lease and let the client wait for it's release. */
 	if (rv > 0 && (lease = ni_netdev_get_lease(dev, addrfamily, NI_ADDRCONF_STATIC))) {
@@ -577,7 +575,7 @@ ni_objectmodel_addrconf_forward_request(ni_dbus_addrconf_forwarder_t *forwarder,
 	/* If the caller tells us to disable this addrconf family, we may need
 	 * to do a release() call. */
 	if (!ni_dbus_dict_get_bool(dict, "enabled", &enabled) || !enabled)
-		return ni_objectmodel_addrconf_forward_release(forwarder, dev, NULL, reply, error);
+		return ni_objectmodel_addrconf_forward_drop(forwarder, dev, NULL, reply, error);
 
 	if (ni_dbus_dict_get_uint32(dict, "flags", &flags))
 		flags &= forwarder->request.mask;
@@ -585,33 +583,13 @@ ni_objectmodel_addrconf_forward_request(ni_dbus_addrconf_forwarder_t *forwarder,
 		flags = 0;
 
 	/* Check whether we already have a lease on this interface. */
-	lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf);
-	if (lease) {
-		/* about to replace previous lease */
-		ni_debug_objectmodel("%s: found previous %s:%s lease in state %s%s",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->family),
-				ni_addrconf_type_to_name(lease->type),
-				ni_addrconf_state_to_name(lease->state),
-				lease->updater ? " canceling active updater" : "");
-		if (lease->old && lease->old->updater) {
-			/* should not happen -- bug */
-			ni_error("%s: previous lease %s:%s in state %s replaces lease with active updater!",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->old->family),
-				ni_addrconf_type_to_name(lease->old->type),
-				ni_addrconf_state_to_name(lease->old->state));
-			ni_addrconf_updater_free(&lease->old->updater);
-		}
-		ni_addrconf_updater_free(&lease->updater);
-	} else {
-		ni_debug_objectmodel("%s: no previous %s:%s lease found", dev->name,
-				ni_addrfamily_type_to_name(forwarder->addrfamily),
-				ni_addrconf_type_to_name(forwarder->addrconf));
-
+	lease = ni_objectmodel_addrconf_get_lease(dev, forwarder->addrfamily, forwarder->addrconf);
+	if (!lease) {
 		/* We didn't have a lease for this address family and addrconf protocol yet.
 		 * Create one and track it. */
-		lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily);
+		if (!(lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily)))
+			return FALSE;
+
 		lease->state = NI_ADDRCONF_STATE_REQUESTING;
 		ni_uuid_generate(&lease->uuid);
 		ni_netdev_set_lease(dev, lease);
@@ -636,79 +614,350 @@ ni_objectmodel_addrconf_forward_request(ni_dbus_addrconf_forwarder_t *forwarder,
 /*
  * Forward an addrconf drop call to a supplicant service, such as DHCP or zeroconf
  */
+typedef struct ni_addrconf_drop_args {
+	struct {
+		ni_tristate_t	release;
+	} dhcp;
+} ni_addrconf_drop_args_t;
+
+typedef struct ni_addrconf_drop_forward {
+	ni_addrconf_action_t		action;
+	ni_dbus_addrconf_forwarder_t *	fwdr;
+	ni_addrconf_drop_args_t		args;
+} ni_addrconf_drop_forward_t;
+
+typedef struct ni_addrconf_drop_collect {
+	ni_addrconf_action_t		action;
+	unsigned int			deadline;
+	ni_bool_t			complete;
+} ni_addrconf_drop_collect_t;
+
+static int				ni_addrconf_drop_forward_exec(ni_netdev_t *, ni_addrconf_lease_t *);
+static int				ni_addrconf_drop_collect_exec(ni_netdev_t *, ni_addrconf_lease_t *);
+static ni_addrconf_action_t *		ni_addrconf_drop_collect_complete(ni_addrconf_lease_t *);
+
+static inline void
+ni_addrconf_drop_args_init(ni_addrconf_drop_args_t *args)
+{
+	args->dhcp.release = NI_TRISTATE_DEFAULT;
+}
+
+static inline ni_bool_t
+ni_addrconf_drop_args_from_variant(const ni_dbus_addrconf_forwarder_t *fwdr,
+		ni_addrconf_drop_args_t *args, const ni_dbus_variant_t *var)
+{
+	dbus_bool_t bv;
+
+	switch (fwdr->addrconf) {
+	case NI_ADDRCONF_DHCP:
+		if (var && ni_dbus_dict_get_bool(var, "release", &bv))
+			ni_tristate_set(&args->dhcp.release, bv);
+		return TRUE;
+	default:
+		return FALSE;
+	}
+}
+
+static inline ni_bool_t
+ni_addrconf_drop_args_into_variant(const ni_dbus_addrconf_forwarder_t *fwdr,
+		ni_dbus_variant_t *var, const ni_addrconf_drop_args_t *args)
+{
+	switch (fwdr->addrconf) {
+	case NI_ADDRCONF_DHCP:
+		ni_dbus_variant_init_dict(var);
+		if (ni_tristate_is_set(args->dhcp.release))
+			ni_dbus_dict_add_bool(var, "release",
+					ni_tristate_is_enabled(args->dhcp.release));
+		return TRUE;
+	default:
+		return FALSE;
+	}
+}
+
+static ni_addrconf_drop_forward_t *
+ni_addrconf_drop_forward_cast(ni_addrconf_action_t *action)
+{
+	if (!action || action->exec != ni_addrconf_drop_forward_exec)
+		return NULL;
+	return (ni_addrconf_drop_forward_t *)action;
+}
+
+static int
+ni_addrconf_drop_forward_exec(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	const ni_addrconf_drop_forward_t *action;
+	ni_dbus_variant_t var = NI_DBUS_VARIANT_INIT;
+	ni_dbus_variant_t *args = NULL;
+	DBusError error = DBUS_ERROR_INIT;
+
+	if (!dev || !lease || !lease->updater)
+		return -1;
+
+	if (!(action = ni_addrconf_drop_forward_cast(lease->updater->action)))
+		return -1;
+
+	ni_debug_objectmodel("%s: forwarding drop for lease=%s:%s in state=%s uuid=%s",
+			dev->name,
+			ni_addrfamily_type_to_name(lease->family),
+			ni_addrconf_type_to_name(lease->type),
+			ni_addrconf_state_to_name(lease->state),
+			ni_uuid_is_null(&lease->uuid) ? "null" : ni_uuid_print(&lease->uuid));
+
+	if (ni_addrconf_drop_args_into_variant(action->fwdr, &var, &action->args))
+		args = &var;
+
+	if (!ni_objectmodel_addrconf_forwarder_call(action->fwdr, dev, "drop",
+						&lease->uuid, args, &error)) {
+		ni_dbus_variant_destroy(&var);
+		switch (ni_dbus_get_error(&error, NULL)) {
+		case -NI_ERROR_ADDRCONF_NO_LEASE:
+			ni_debug_objectmodel("%s: no %s:%s lease to release by supplicant",
+					dev->name,
+					ni_addrfamily_type_to_name(action->fwdr->addrfamily),
+					ni_addrconf_type_to_name(action->fwdr->addrconf));
+			break;
+		case -NI_ERROR_METHOD_NOT_SUPPORTED:
+			ni_debug_objectmodel("%s: lease %s:%s is not supported on device",
+					dev->name,
+					ni_addrfamily_type_to_name(action->fwdr->addrfamily),
+					ni_addrconf_type_to_name(action->fwdr->addrconf));
+			break;
+		default:
+			ni_debug_objectmodel("%s: service returned %s (%s)",
+				action->fwdr->supplicant.interface,
+				error.name, error.message);
+			break;
+		}
+		dbus_error_free(&error);
+
+		/* suplicant finished release (returned error) */
+		ni_addrconf_drop_collect_complete(lease);
+	}
+	ni_dbus_variant_destroy(&var);
+
+	/* supplicant will signal us when it finished it's part */
+	return 0;
+}
+
+static inline void
+ni_addrconf_drop_forward_free(ni_addrconf_drop_forward_t *act)
+{
+	/* nothing to free inside */
+	free(act);
+}
+
+static ni_addrconf_drop_forward_t *
+ni_addrconf_drop_forward_new(ni_dbus_addrconf_forwarder_t *forwarder)
+{
+	static const char *info = "forwarding drop lease";
+	ni_addrconf_drop_forward_t *act;
+
+	if (!forwarder || !(act = calloc(1, sizeof(*act))))
+		return NULL;
+
+	act->fwdr = forwarder;
+	act->action.info = info;
+	act->action.exec = ni_addrconf_drop_forward_exec;
+	ni_addrconf_drop_args_init(&act->args);
+	return act;
+}
+
+static ni_addrconf_drop_collect_t *
+ni_addrconf_drop_collect_cast(ni_addrconf_action_t *action)
+{
+	if (!action || action->exec != ni_addrconf_drop_collect_exec)
+		return NULL;
+	return (ni_addrconf_drop_collect_t *)action;
+}
+
+static inline ni_bool_t
+ni_addrconf_drop_collect_test(ni_addrconf_updater_t *updater, ni_addrconf_drop_collect_t *collect)
+{
+	if (collect->complete)
+		return TRUE;
+
+	if (collect->deadline && !ni_lifetime_left(collect->deadline, &updater->astart, NULL))
+		return TRUE;
+
+	return FALSE;
+}
+
+static int
+ni_addrconf_drop_collect_exec(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	ni_addrconf_drop_collect_t *collect;
+
+	if (!dev || !lease || !lease->updater)
+		return -1;
+
+	if (!(collect = ni_addrconf_drop_collect_cast(lease->updater->action)))
+		return -1;
+
+	if (ni_addrconf_drop_collect_test(lease->updater, collect)) {
+		lease->state = NI_ADDRCONF_STATE_RELEASED;
+		return 0;
+	}
+	return 1;
+}
+
+static inline void
+ni_addrconf_drop_collect_free(ni_addrconf_drop_collect_t *act)
+{
+	/* nothing to free inside */
+	free(act);
+}
+
+static ni_addrconf_drop_collect_t *
+ni_addrconf_drop_collect_new(void)
+{
+	static const char *info = "collecting drop event";
+	ni_addrconf_drop_collect_t *act;
+
+	if (!(act = calloc(1, sizeof(*act))))
+		return NULL;
+
+	act->deadline = 10; /* worst case 10 sec no-reply deadline
+			       (buggy/stopped/crashed supplicant) */
+	act->action.info = info;
+	act->action.exec = ni_addrconf_drop_collect_exec;
+	return act;
+}
+
+static ni_bool_t
+ni_addrconf_drop_actions_arm(ni_dbus_addrconf_forwarder_t *forwarder,
+				ni_addrconf_updater_t *updater,
+				const ni_dbus_variant_t *dict)
+{
+	ni_addrconf_drop_forward_t *forward = NULL;
+	ni_addrconf_drop_collect_t *collect = NULL;
+	ni_addrconf_action_t *pos;
+
+	if (!updater)
+		return FALSE;
+
+	if (!(forward = ni_addrconf_drop_forward_new(forwarder)))
+		goto failure;
+
+	ni_addrconf_drop_args_from_variant(forwarder, &forward->args, dict);
+
+	if (!(collect = ni_addrconf_drop_collect_new()))
+		goto failure;
+
+	/*
+	 * Insert the forward action behind address removal
+	 * and append the collect action as the last action.
+	 */
+	pos = ni_addrconf_action_list_find_exec(updater->action,
+				ni_addrconf_action_addrs_remove);
+
+	if (pos) {
+		/* insert or append cannot fail -- checked conditions above */
+		ni_addrconf_action_list_insert(&pos->next, &forward->action);
+		ni_addrconf_action_list_append(&pos->next, &collect->action);
+		return TRUE;
+	}
+
+failure:
+	ni_addrconf_drop_collect_free(collect);
+	ni_addrconf_drop_forward_free(forward);
+	return FALSE;
+}
+
+static ni_addrconf_action_t *
+ni_addrconf_drop_collect_complete(ni_addrconf_lease_t *lease)
+{
+	ni_addrconf_drop_collect_t *collect;
+	ni_addrconf_action_t *action;
+
+	if (!lease || !lease->updater)
+		return NULL;
+
+	action = ni_addrconf_action_list_find_exec(lease->updater->action,
+					ni_addrconf_drop_collect_exec);
+	if (!(collect = (ni_addrconf_drop_collect_t *)action))
+		return NULL;
+
+	collect->complete = TRUE;
+
+	return action;
+}
+
+static int
+ni_objectmodel_addrconf_complete_drop(ni_netdev_t *dev, ni_addrconf_lease_t *lease)
+{
+	ni_addrconf_lease_t *current;
+	ni_addrconf_action_t *action;
+
+	if (!dev || !lease)
+		return -1; /* discard invalid signals */
+
+	/*
+	 * supplicant signaled it finished it's part of the drop/release,
+	 * find a releasing lease with running removal updater
+	 */
+	current = ni_netdev_get_lease(dev, lease->family, lease->type);
+	if (!current || !current->updater || current->state != NI_ADDRCONF_STATE_RELEASING)
+		return 0; /* execute default lease removal */
+
+	if (!ni_uuid_equal(&current->uuid, &lease->uuid))
+		return -1; /* discard invalid signals */
+
+	/* find action collecting the signal and mark it complete */
+	if ((action = ni_addrconf_drop_collect_complete(current))) {
+		ni_debug_objectmodel("%s: completed drop for %s:%s lease in state %s uuid %s%s%s",
+				dev->name,
+				ni_addrfamily_type_to_name(current->family),
+				ni_addrconf_type_to_name(current->type),
+				ni_addrconf_state_to_name(current->state),
+				ni_uuid_is_null(&current->uuid) ? "null" : ni_uuid_print(&current->uuid),
+				current->updater ? "updater is active: " : "no active updater",
+				current->updater && current->updater->action ?  current->updater->action->info : "");
+
+		/* when it's already collecting, let the updater
+		 * finish without to waste time until next run.
+		 */
+		if (action == current->updater->action)
+			ni_addrconf_updater_execute(dev, current);
+
+		return 1; /* skip default lease removal */
+	}
+
+	return 0; /* execute default lease removal */
+}
+
 static dbus_bool_t
-ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
-			ni_netdev_t *dev, const ni_dbus_variant_t *dict,
-			ni_dbus_message_t *reply, DBusError *error)
+ni_objectmodel_addrconf_forward_drop(ni_dbus_addrconf_forwarder_t *forwarder,
+				ni_netdev_t *dev, const ni_dbus_variant_t *dict,
+				ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_uuid_t uuid = NI_UUID_INIT;
 	ni_addrconf_lease_t *lease;
 	int rv = -1;
 
-	lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf);
-	if (lease) {
-		/* about to drop previous lease */
-		ni_debug_objectmodel("%s: found previous %s:%s lease in state %s%s",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->family),
-				ni_addrconf_type_to_name(lease->type),
-				ni_addrconf_state_to_name(lease->state),
-				lease->updater ? " canceling active updater" : "");
-		if (lease->old && lease->old->updater) {
-			/* should not happen -- bug */
-			ni_error("%s: previous lease %s:%s in state %s replaces lease with active updater!",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->old->family),
-				ni_addrconf_type_to_name(lease->old->type),
-				ni_addrconf_state_to_name(lease->old->state));
-			ni_addrconf_updater_free(&lease->old->updater);
-		}
-		ni_addrconf_updater_free(&lease->updater);
-		uuid = lease->uuid;
-	} else {
-		ni_debug_objectmodel("%s: no previous %s:%s lease to drop found", dev->name,
+	lease = ni_objectmodel_addrconf_get_lease(dev, forwarder->addrfamily, forwarder->addrconf);
+	if (!lease)
+		return TRUE; /* nothing to do */
+
+	/* Create an empty removal lease in releasing state */
+	uuid = lease->uuid;
+	if (!(lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily))) {
+		dbus_set_error(error, "%s: failed to allocate removal %s:%s lease", dev->name,
 				ni_addrfamily_type_to_name(forwarder->addrfamily),
 				ni_addrconf_type_to_name(forwarder->addrconf));
-		/* nothing to do */
-		return TRUE;
+		return FALSE;
 	}
+	lease->state = NI_ADDRCONF_STATE_RELEASING;
+	lease->uuid = uuid;
 
-	if (!ni_objectmodel_addrconf_forwarder_call(forwarder, dev, "drop", &uuid, NULL, error)) {
-		switch (ni_dbus_get_error(error, NULL)) {
-		case -NI_ERROR_ADDRCONF_NO_LEASE:
-			ni_debug_objectmodel("%s: no %s:%s lease to release by supplicant",
-					dev->name,
-					ni_addrfamily_type_to_name(forwarder->addrfamily),
-					ni_addrconf_type_to_name(forwarder->addrconf));
-			break;
-		case -NI_ERROR_METHOD_NOT_SUPPORTED:
-			ni_debug_objectmodel("%s: lease %s:%s is not supported on device",
-					dev->name,
-					ni_addrfamily_type_to_name(forwarder->addrfamily),
-					ni_addrconf_type_to_name(forwarder->addrconf));
-			break;
-		default:
-			ni_debug_objectmodel("%s: service returned %s (%s)",
-				forwarder->supplicant.interface,
-				error->name, error->message);
-			break;
-		}
-
-		/* create a releasing dummy lease and perform the removal */
-		if ((lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily))) {
-			lease->state = NI_ADDRCONF_STATE_RELEASING;
-			lease->uuid  = uuid;
-		}
-		rv = __ni_system_interface_update_lease(dev, &lease, NI_EVENT_ADDRESS_RELEASED);
-		if (lease)
-			ni_addrconf_lease_free(lease);
-	} else {
-		rv = 1; /* wait for release by supplicant */
-	}
+	/* Initiate system interface background lease removal */
+	rv = __ni_system_interface_update_lease(dev, &lease, NI_EVENT_ADDRESS_RELEASED);
 
 	/* Check again whether we still have a lease and let the client wait for it's release. */
 	if (rv > 0 && (lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf))) {
 		ni_objectmodel_callback_data_t data = { .lease = lease };
+
+		/* arm actions to drop/release supplicant lease and collect result */
+		ni_addrconf_drop_actions_arm(forwarder, lease->updater, dict);
 
 		/* Tell the client to wait for an addressReleased event with the given uuid */
 		return __ni_objectmodel_return_callback_info(reply, NI_EVENT_ADDRESS_RELEASED,
@@ -723,6 +972,7 @@ ni_objectmodel_addrconf_forward_release(ni_dbus_addrconf_forwarder_t *forwarder,
 				ni_addrconf_type_to_name(forwarder->addrconf));
 		return FALSE;
 	}
+
 	ni_debug_objectmodel("%s: lease %s:%s dropped immediately", dev->name,
 				ni_addrfamily_type_to_name(forwarder->addrfamily),
 				ni_addrconf_type_to_name(forwarder->addrconf));
@@ -835,12 +1085,13 @@ ni_objectmodel_addrconf_ipv4_dhcp_drop(ni_dbus_object_t *object, const ni_dbus_m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
+	const ni_dbus_variant_t *req = argc ? &argv[0] : NULL;
 	ni_netdev_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	return ni_objectmodel_addrconf_forward_release(&dhcp4_forwarder, dev, NULL, reply, error);
+	return ni_objectmodel_addrconf_forward_drop(&dhcp4_forwarder, dev, req, reply, error);
 }
 
 /*
@@ -893,12 +1144,13 @@ ni_objectmodel_addrconf_ipv6_dhcp_drop(ni_dbus_object_t *object, const ni_dbus_m
 			unsigned int argc, const ni_dbus_variant_t *argv,
 			ni_dbus_message_t *reply, DBusError *error)
 {
+	const ni_dbus_variant_t *req = argc ? &argv[0] : NULL;
 	ni_netdev_t *dev;
 
 	if (!(dev = ni_objectmodel_unwrap_netif(object, error)))
 		return FALSE;
 
-	return ni_objectmodel_addrconf_forward_release(&dhcp6_forwarder, dev, NULL, reply, error);
+	return ni_objectmodel_addrconf_forward_drop(&dhcp6_forwarder, dev, req, reply, error);
 }
 
 /*
@@ -949,7 +1201,7 @@ ni_objectmodel_addrconf_ipv4_auto_request(ni_dbus_object_t *object, const ni_dbu
 
 	dict = &argv[0];
 	if (!ni_dbus_dict_get_bool(dict, "enabled", &enabled) || !enabled)
-		return ni_objectmodel_addrconf_forward_release(forwarder, dev, NULL, reply, error);
+		return ni_objectmodel_addrconf_forward_drop(forwarder, dev, NULL, reply, error);
 
 	if (ni_dbus_dict_get_uint32(dict, "flags", &flags))
 		flags &= forwarder->request.mask;
@@ -959,33 +1211,11 @@ ni_objectmodel_addrconf_ipv4_auto_request(ni_dbus_object_t *object, const ni_dbu
 	if (!ni_addrconf_flag_bit_is_set(flags, NI_ADDRCONF_FLAGS_FALLBACK))
 		return ni_objectmodel_addrconf_forward_request(forwarder, dev, dict, reply, error);
 
-	lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf);
-	if (lease) {
-		/* about to replace previous lease */
-		ni_debug_objectmodel("%s: found previous %s:%s lease in state %s%s",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->family),
-				ni_addrconf_type_to_name(lease->type),
-				ni_addrconf_state_to_name(lease->state),
-				lease->updater ? " canceling active updater" : "");
-		if (lease->old && lease->old->updater) {
-			/* should not happen -- bug */
-			ni_error("%s: previous lease %s:%s in state %s replaces lease with active updater!",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->old->family),
-				ni_addrconf_type_to_name(lease->old->type),
-				ni_addrconf_state_to_name(lease->old->state));
-			ni_addrconf_updater_free(&lease->old->updater);
-		}
-		ni_addrconf_updater_free(&lease->updater);
-	} else {
-		ni_debug_objectmodel("%s: no previous %s:%s lease found", dev->name,
-				ni_addrfamily_type_to_name(forwarder->addrfamily),
-				ni_addrconf_type_to_name(forwarder->addrconf));
-	}
+	lease = ni_objectmodel_addrconf_get_lease(dev, forwarder->addrfamily, forwarder->addrconf);
+	if (!lease) {
+		if (!(lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily)))
+			return FALSE;
 
-	if (!(lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf))) {
-		lease = ni_addrconf_lease_new(forwarder->addrconf, forwarder->addrfamily);
 		ni_netdev_set_lease(dev, lease);
 	}
 	ni_uuid_generate(&lease->uuid);
@@ -1008,33 +1238,11 @@ ni_objectmodel_addrconf_ipv4_auto_drop(ni_dbus_object_t *object, const ni_dbus_m
 		return FALSE;
 
 	/* When we get a drop request, remove fallback flag to not trigger reinstall ... */
-	lease = ni_netdev_get_lease(dev, forwarder->addrfamily, forwarder->addrconf);
-	if (lease) {
-		/* about to drop previous lease */
-		ni_debug_objectmodel("%s: found previous %s:%s lease in state %s%s",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->family),
-				ni_addrconf_type_to_name(lease->type),
-				ni_addrconf_state_to_name(lease->state),
-				lease->updater ? " canceling active updater" : "");
-		if (lease->old && lease->old->updater) {
-			/* should not happen -- bug */
-			ni_error("%s: previous lease %s:%s in state %s replaces lease with active updater!",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->old->family),
-				ni_addrconf_type_to_name(lease->old->type),
-				ni_addrconf_state_to_name(lease->old->state));
-			ni_addrconf_updater_free(&lease->old->updater);
-		}
-		ni_addrconf_updater_free(&lease->updater);
+	lease = ni_objectmodel_addrconf_get_lease(dev, forwarder->addrfamily, forwarder->addrconf);
+	if (lease)
 		lease->flags = 0;
-	} else {
-		ni_debug_objectmodel("%s: no previous %s:%s lease to drop found", dev->name,
-				ni_addrfamily_type_to_name(forwarder->addrfamily),
-				ni_addrconf_type_to_name(forwarder->addrconf));
-	}
 
-	return ni_objectmodel_addrconf_forward_release(forwarder, dev, NULL, reply, error);
+	return ni_objectmodel_addrconf_forward_drop(forwarder, dev, NULL, reply, error);
 }
 
 /*
@@ -1198,30 +1406,7 @@ ni_objectmodel_addrconf_ipv6_auto_release(ni_netdev_t *dev, ni_bool_t background
 	ni_addrconf_lease_t *lease;
 	int ret;
 
-	lease = ni_netdev_get_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
-	if (lease) {
-		/* about to drop previous lease */
-		ni_debug_objectmodel("%s: found previous %s:%s lease in state %s%s",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->family),
-				ni_addrconf_type_to_name(lease->type),
-				ni_addrconf_state_to_name(lease->state),
-				lease->updater ? " canceling active updater" : "");
-		if (lease->old && lease->old->updater) {
-			/* should not happen -- bug */
-			ni_error("%s: previous lease %s:%s in state %s replaces lease with active updater!",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->old->family),
-				ni_addrconf_type_to_name(lease->old->type),
-				ni_addrconf_state_to_name(lease->old->state));
-			ni_addrconf_updater_free(&lease->old->updater);
-		}
-		ni_addrconf_updater_free(&lease->updater);
-	} else {
-		ni_debug_objectmodel("%s: no previous %s:%s lease to drop found", dev->name,
-				ni_addrfamily_type_to_name(AF_INET6),
-				ni_addrconf_type_to_name(NI_ADDRCONF_AUTOCONF));
-	}
+	ni_objectmodel_addrconf_get_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
 
 	if ((ret = ni_auto6_release(dev, background)) == 0)
 		return TRUE;
@@ -1268,30 +1453,7 @@ ni_objectmodel_addrconf_ipv6_auto_request(ni_dbus_object_t *object, const ni_dbu
 								method, reply, error);
 	}
 
-	lease = ni_netdev_get_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
-	if (lease) {
-		/* about to replace previous lease */
-		ni_debug_objectmodel("%s: found previous %s:%s lease in state %s%s",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->family),
-				ni_addrconf_type_to_name(lease->type),
-				ni_addrconf_state_to_name(lease->state),
-				lease->updater ? " canceling active updater" : "");
-		if (lease->old && lease->old->updater) {
-			/* should not happen -- bug */
-			ni_error("%s: previous lease %s:%s in state %s replaces lease with active updater!",
-				dev->name,
-				ni_addrfamily_type_to_name(lease->old->family),
-				ni_addrconf_type_to_name(lease->old->type),
-				ni_addrconf_state_to_name(lease->old->state));
-			ni_addrconf_updater_free(&lease->old->updater);
-		}
-		ni_addrconf_updater_free(&lease->updater);
-	} else {
-		ni_debug_objectmodel("%s: no previous %s:%s lease found", dev->name,
-				ni_addrfamily_type_to_name(AF_INET6),
-				ni_addrconf_type_to_name(NI_ADDRCONF_AUTOCONF));
-	}
+	ni_objectmodel_addrconf_get_lease(dev, AF_INET6, NI_ADDRCONF_AUTOCONF);
 
 	ret = ni_auto6_acquire(dev, &req);
 	ni_auto6_request_destroy(&req);
@@ -1532,13 +1694,13 @@ static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_static_methods[] = {
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv4_dhcp_methods[] = {
 	{ "requestLease",	"a{sv}",	.handler = ni_objectmodel_addrconf_ipv4_dhcp_request },
-	{ "dropLease",		"",		.handler = ni_objectmodel_addrconf_ipv4_dhcp_drop },
+	{ "dropLease",		"a{sv}",	.handler = ni_objectmodel_addrconf_ipv4_dhcp_drop },
 	{ NULL }
 };
 
 static const ni_dbus_method_t		ni_objectmodel_addrconf_ipv6_dhcp_methods[] = {
 	{ "requestLease",	"a{sv}",	.handler = ni_objectmodel_addrconf_ipv6_dhcp_request },
-	{ "dropLease",		"",		.handler = ni_objectmodel_addrconf_ipv6_dhcp_drop },
+	{ "dropLease",		"a{sv}",	.handler = ni_objectmodel_addrconf_ipv6_dhcp_drop },
 	{ NULL }
 };
 

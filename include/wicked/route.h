@@ -2,7 +2,7 @@
  *	Handling of IP routing information
  *
  *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
- *	Copyright (C) 2012-2016 SUSE LINUX GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2012-2022 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -18,8 +18,8 @@
  *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *	Authors:
- *		Olaf Kirch <okir@suse.de>
- *		Marius Tomaschewski <mt@suse.de>
+ *		Olaf Kirch
+ *		Marius Tomaschewski
  */
 #ifndef WICKED_ROUTE_H
 #define WICKED_ROUTE_H
@@ -30,6 +30,7 @@
 #include <netinet/in.h>
 
 #include <wicked/types.h>
+#include <wicked/refcount.h>
 #include <wicked/constants.h>
 #include <wicked/util.h>
 
@@ -48,7 +49,7 @@ typedef struct ni_route_nexthop {
 } ni_route_nexthop_t;
 
 struct ni_route {
-	unsigned int		users;
+	ni_refcount_t		refcount;
 
 	ni_addrconf_mode_t	owner;		/* configured through lease */
 	unsigned int		seq;
@@ -131,7 +132,7 @@ typedef struct ni_rule_prefix {
 } ni_rule_prefix_t;
 
 struct ni_rule {
-	unsigned int		refcount;
+	ni_refcount_t		refcount;
 
 	ni_uuid_t		owner;		/* configured through lease */
 	unsigned int		seq;
@@ -165,15 +166,19 @@ typedef struct ni_rule_array  {
 
 typedef int			ni_route_cmp_fn(const ni_route_t *, const ni_route_t *);
 
-extern ni_route_t *		ni_route_new(void);
+extern 				ni_refcounted_declare_new(ni_route);
+extern 				ni_refcounted_declare_ref(ni_route);
+extern				ni_refcounted_declare_hold(ni_route);
+extern 				ni_refcounted_declare_free(ni_route);
+extern				ni_refcounted_declare_drop(ni_route);
+extern				ni_refcounted_declare_move(ni_route);
+
 extern ni_route_t *		ni_route_create(unsigned int prefix_len,
 						const ni_sockaddr_t *dest,
 						const ni_sockaddr_t *gw,
 						unsigned int table,
 						ni_route_table_t **list);
 extern ni_route_t *		ni_route_clone(const ni_route_t *);
-extern ni_route_t *		ni_route_ref(ni_route_t *);
-extern void			ni_route_free(ni_route_t *);
 extern ni_bool_t		ni_route_copy(ni_route_t *, const ni_route_t *);
 extern ni_bool_t		ni_route_equal(const ni_route_t *, const ni_route_t *);
 extern ni_bool_t		ni_route_equal_ref(const ni_route_t *, const ni_route_t *);
@@ -267,6 +272,7 @@ extern ni_route_table_t *	ni_route_table_new(unsigned int);
 extern void			ni_route_table_free(ni_route_table_t *);
 extern void			ni_route_table_clear(ni_route_table_t *);
 
+extern void			ni_route_tables_copy(ni_route_table_t **, const ni_route_table_t *);
 extern ni_bool_t		ni_route_tables_add_route(ni_route_table_t **, ni_route_t *);
 extern ni_bool_t		ni_route_tables_add_routes(ni_route_table_t **, ni_route_array_t *);
 
@@ -283,11 +289,15 @@ extern ni_bool_t		ni_route_tables_empty(const ni_route_table_t *);
 extern ni_route_table_t *	ni_route_tables_get(ni_route_table_t **, unsigned int);
 extern void			ni_route_tables_destroy(ni_route_table_t **);
 
-extern ni_rule_t *		ni_rule_new(void);
-extern ni_rule_t *		ni_rule_ref(ni_rule_t *);
+extern 				ni_refcounted_declare_new(ni_rule);
+extern 				ni_refcounted_declare_ref(ni_rule);
+extern 				ni_refcounted_declare_hold(ni_rule);
+extern 				ni_refcounted_declare_free(ni_rule);
+extern 				ni_refcounted_declare_drop(ni_rule);
+extern 				ni_refcounted_declare_move(ni_rule);
+
 extern ni_bool_t		ni_rule_copy(ni_rule_t *, const ni_rule_t *);
 extern ni_rule_t *		ni_rule_clone(const ni_rule_t *);
-extern void			ni_rule_free(ni_rule_t *);
 extern ni_bool_t		ni_rule_equal(const ni_rule_t *, const ni_rule_t *);
 extern ni_bool_t		ni_rule_equal_ref(const ni_rule_t *, const ni_rule_t *);
 extern ni_bool_t		ni_rule_equal_match(const ni_rule_t *, const ni_rule_t *);
@@ -297,9 +307,11 @@ extern const char *		ni_rule_action_type_to_name(unsigned int);
 extern ni_bool_t		ni_rule_action_name_to_type(const char *, unsigned int *);
 
 extern ni_rule_array_t *	ni_rule_array_new(void);
+extern ni_rule_array_t *	ni_rule_array_clone(const ni_rule_array_t *);
 extern void			ni_rule_array_free(ni_rule_array_t *);
 extern void			ni_rule_array_init(ni_rule_array_t *);
 extern void			ni_rule_array_destroy(ni_rule_array_t *);
+extern void			ni_rule_array_copy(ni_rule_array_t *, const ni_rule_array_t *);
 extern unsigned int		ni_rule_array_index(const ni_rule_array_t *, const ni_rule_t *);
 extern ni_bool_t		ni_rule_array_append(ni_rule_array_t *, ni_rule_t *);
 extern ni_bool_t		ni_rule_array_insert(ni_rule_array_t *, unsigned int, ni_rule_t *);

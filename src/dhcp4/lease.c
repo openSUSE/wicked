@@ -243,6 +243,9 @@ ni_dhcp4_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node,
 				return -1;
 			lease->dhcp4.relay_addr = addr.sin.sin_addr;
 		} else
+		if (ni_string_eq(child->name, "sender-hw-address") && child->cdata) {
+			ni_string_dup(&lease->dhcp4.sender_hwa, child->cdata);
+		} else
 		if (ni_string_eq(child->name, "lease-time") && child->cdata) {
 			if (ni_parse_uint(child->cdata, &value, 10) != 0)
 				return -1;
@@ -346,6 +349,38 @@ ni_dhcp4_lease_data_from_xml(ni_addrconf_lease_t *lease, const xml_node_t *node,
 			if (ni_addrconf_lease_opts_data_from_xml(lease, child, ifname) < 0)
 				return -1;
 		}
+	}
+
+	/*
+	 * Note: we write only dhcp4 specific address data to lease and omit the
+	 * address list (containing it as well) used by non-dhcp4 code (wickedd).
+	 * When reading the lease from file, put the dhcp4 adddress to the list
+	 * in order to restore the complete lease data.
+	 */
+	if (lease->dhcp4.address.s_addr) {
+		unsigned int plen = 32;
+		ni_address_t *ap;
+
+		if (lease->dhcp4.netmask.s_addr) {
+			ni_sockaddr_t mask;
+
+			ni_sockaddr_set_ipv4(&mask, lease->dhcp4.netmask, 0);
+			if (!(plen = ni_sockaddr_netmask_bits(&mask)))
+				plen = 32;
+		} else
+		if (IN_CLASSA(ntohl(lease->dhcp4.address.s_addr)))
+			plen = 8;
+		else
+		if (IN_CLASSB(ntohl(lease->dhcp4.address.s_addr)))
+			plen = 16;
+		else
+		if (IN_CLASSC(ntohl(lease->dhcp4.address.s_addr)))
+			plen = 24;
+
+		ni_sockaddr_set_ipv4(&addr, lease->dhcp4.address, 0);
+		ap = ni_address_create(AF_INET, plen, &addr, &lease->addrs);
+		if (ap && lease->dhcp4.broadcast.s_addr)
+			ni_sockaddr_set_ipv4(&ap->bcast_addr, lease->dhcp4.broadcast, 0);
 	}
 	return 0;
 }

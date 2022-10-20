@@ -35,6 +35,7 @@ libwicked_la_LIBADD		= libwicked-dbus-objects.la	\
 				  libwicked-client.la
 
 libwicked_la_SOURCES		= \
+	addrconf.c		\
 	address.c		\
 	arp.c			\
 	async-resolver.c	\
@@ -93,6 +94,7 @@ libwicked_la_SOURCES		= \
 	ppp.c			\
 	pppd.c			\
 	process.c		\
+	refcount.c		\
 	resolver.c		\
 	rfkill.c		\
 	route.c			\
@@ -187,6 +189,7 @@ system_headers			= \
 	linux/if_tunnel.h
 
 wicked_headers			= \
+	addrconf.h		\
 	appconfig.h		\
 	auto6.h			\
 	buffer.h		\

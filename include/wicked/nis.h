@@ -2,7 +2,7 @@
  *	NIS definitions for wicked
  *
  *	Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
- *	Copyright (C) 2010-2021 SUSE LLC
+ *	Copyright (C) 2010-2022 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -55,6 +55,7 @@ struct ni_nis_info {
 };
 
 extern ni_nis_info_t *		ni_nis_info_new(void);
+extern ni_nis_info_t *		ni_nis_info_clone(const ni_nis_info_t *);
 extern void			ni_nis_info_free(ni_nis_info_t *);
 extern ni_nis_domain_t *	ni_nis_domain_find(const ni_nis_info_t *, const char *);
 extern ni_nis_domain_t *	ni_nis_domain_new(ni_nis_info_t *, const char *);

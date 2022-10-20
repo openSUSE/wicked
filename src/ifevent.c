@@ -1129,22 +1129,26 @@ __ni_rtevent_sock_open(void)
 static ni_bool_t
 __ni_rtevent_restart(ni_socket_t *sock)
 {
-	ni_rtevent_handle_t *handle = sock->user_data;
-	if (handle) {
-		if ((__ni_rtevent_sock = __ni_rtevent_sock_open())) {
-			const ni_uint_array_t *groups = &handle->groups;
-			unsigned int i;
+	ni_rtevent_handle_t *handle;
+	ni_bool_t ret = FALSE;
 
-			handle = __ni_rtevent_sock->user_data;
-			for (i = 0; i < groups->count; ++i) {
-				__ni_rtevent_join_group(handle, groups->data[i]);
-			}
-			ni_socket_activate(__ni_rtevent_sock);
-			return TRUE;
+	ni_assert(sock == __ni_rtevent_sock);
+
+	handle = sock->user_data;
+	if ((__ni_rtevent_sock = __ni_rtevent_sock_open())) {
+		const ni_uint_array_t *groups = &handle->groups;
+		unsigned int i;
+
+		handle = __ni_rtevent_sock->user_data;
+		for (i = 0; i < groups->count; ++i) {
+			__ni_rtevent_join_group(handle, groups->data[i]);
 		}
-		ni_socket_release(sock);
+		ni_socket_activate(__ni_rtevent_sock);
+		ret = TRUE;
 	}
-	return FALSE;
+
+	ni_socket_close(sock);
+	return ret;
 }
 
 /*

@@ -172,6 +172,7 @@ main(int argc, char **argv)
 				"  show-policy [options] [<ifname ...>|all]\n"
 				"  convert     [options] [<ifname ...>|all]\n"
 				"  ethtool     [options] <ifname> <...>\n"
+				"  redfish     [options] <action>\n"
 				"  getnames    [options]\n"
 				"  xpath       [options] expr ...\n"
 				"  nanny       <action> ...\n"
@@ -335,6 +336,9 @@ main(int argc, char **argv)
 	} else
 	if (!strcmp(cmd, "bootstrap")) {
 		 status = ni_do_ifup(argc - optind, argv + optind);
+	} else
+	if (!strcmp(cmd, "redfish")) {
+		 status = ni_wicked_redfish(program, argc - optind, argv + optind);
 	} else {
 		fprintf(stderr, "Unsupported command %s\n", cmd);
 		goto usage;

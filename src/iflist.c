@@ -1101,6 +1101,25 @@ __ni_process_ifinfomsg_ovs_type(ni_iftype_t *type, const char *ifname, ni_netcon
 		*type = NI_IFTYPE_OVS_BRIDGE;
 }
 
+static ni_bool_t
+ni_is_wireless(const char *ifname, unsigned int ifindex)
+{
+	char ifname_tmp[IF_NAMESIZE];
+
+	/* rtnetlink does not tell us if the device has a
+	 * wireless extensions or not, but sysfs does. */
+	if ( ni_sysfs_netif_exists(ifname, "wireless"))
+		return TRUE;
+
+	/* There might be a race condition, where the iterface was renamed and the
+	 * directory in sysfs doesn't exists anymore */
+	if (if_indextoname(ifindex, ifname_tmp))
+		if (ni_sysfs_netif_exists(ifname_tmp, "wireless"))
+			return TRUE;
+
+	return FALSE;
+}
+
 static void
 __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname, ni_netconfig_t *nc)
 {
@@ -1138,12 +1157,7 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname, ni_netc
 			/* We're at the very least an ethernet. */
 			tmp_link_type = NI_IFTYPE_ETHERNET;
 
-			/*
-			 * Try to detect if this is a  WLAN device.
-			 * The official way of doing this is to check whether
-			 * ioctl(SIOCGIWNAME) succeeds.
-			 */
-			if (__ni_wireless_get_name(ifname, NULL, 0) == 0)
+			if (ni_is_wireless(ifname, link->ifindex))
 				tmp_link_type = NI_IFTYPE_WIRELESS;
 
 			memset(&drv_info, 0, sizeof(drv_info));
@@ -2902,7 +2916,7 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 
 	ap = ni_address_list_find(dev->addrs, &tmp.local_addr);
 	if (!ap) {
-		ap = ni_address_new(tmp.family, tmp.prefixlen, &tmp.local_addr, &dev->addrs);
+		ap = ni_address_create(tmp.family, tmp.prefixlen, &tmp.local_addr, &dev->addrs);
 		if (!ap) {
 			ni_string_free(&tmp.label);
 			return -1;

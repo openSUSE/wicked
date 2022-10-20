@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii ifsysctl.5
 .\"
-.TH IFSYSCTL 5 "April 2014" "wicked" "Network configuration"
+.TH IFSYSCTL 5 "March 2022" "wicked" "Network configuration"
 .SH NAME
 ifsysctl[-<interface name>] \- per network interface sysctl settings
 .SH SYNOPSIS
@@ -59,15 +59,10 @@ Settings for "eth0" and "eth0.1" interfaces
 	net/ipv6/conf/eth0.0/use_tempaddr = 2
 .fi
 
-To test your ifsysctl-eth0 or ifsysctl file, use:
-.nf
-	/etc/sysconfig/network/scripts/ifup-sysctl eth0 -o debug
-.fi
-
 .SH COPYRIGHT
-Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+Copyright (C) 2022 SUSE Software Solutions Germany GmbH
 .SH BUGS
-Please report bugs at <https://bugzilla.novell.com/>
+Please report bugs at <https://bugzilla.suse.com/>
 .SH AUTHORS
 .nf
 Marius Tomaschewski

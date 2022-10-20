@@ -478,7 +478,7 @@ ni_do_ifup(int argc, char **argv)
 	};
 
 	ni_ifmatcher_t ifmatch;
-	ni_ifworker_array_t ifmarked;
+	ni_ifworker_array_t ifmarked = NI_IFWORKER_ARRAY_INIT;
 	ni_nanny_fsm_monitor_t *monitor = NULL;
 	ni_string_array_t opt_ifconfig = NI_STRING_ARRAY_INIT;
 	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
@@ -492,10 +492,8 @@ ni_do_ifup(int argc, char **argv)
 	ni_assert(fsm);
 	ni_fsm_require_register_type("reachable", ni_ifworker_reachability_check_new);
 
-	memset(&ifmatch, 0, sizeof(ifmatch));
-	memset(&ifmarked, 0, sizeof(ifmarked));
-
 	/* Allow ifup on all interfaces we have config for */
+	memset(&ifmatch, 0, sizeof(ifmatch));
 	ifmatch.require_configured = FALSE;
 	ifmatch.allow_persistent = TRUE;
 	ifmatch.require_config = TRUE;

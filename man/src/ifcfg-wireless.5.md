@@ -1,6 +1,6 @@
 % IFCFG-WIRELESS(5) Wicked User Manual
 % Joachim Gleissner -- original wireless man page, Pawel Wieczorkiewicz, Clemens Famulla-Conrad
-% May 19, 2021
+% Jun 15, 2022
 
 # NAME
 ifcfg-wireless - wireless LAN network interface configuration
@@ -23,13 +23,13 @@ global to the interface. The description of the variable points this out.
     are part of the same virtual network.
     The format allow the following escape sequences:
 
-      * `\x[0-9A-Fa-F]{2}`: define one byte as hex (`\x0A` for new line)
-      * `\[0-9]{1,3}`: define one byte in oktal (`\012` for new line)
-      * `\t`: translated to tab (`\x09`)
-      * `\n`: translated to new line (`\x0A`)
-      * `\r`: translated to carriage return (`\x0D`)
-      * `\e`: translated to ESC (`\x1B`)
-      * `\\`: become single `\`
+      * `\x[0-9A-Fa-F]{2}`: define one byte as hex (`\x0A` for new line)\
+      * `\[0-9]{1,3}`: define one byte in oktal (`\012` for new line)\
+      * `\t`: translated to tab (`\x09`)\
+      * `\n`: translated to new line (`\x0A`)\
+      * `\r`: translated to carriage return (`\x0D`)\
+      * `\e`: translated to ESC (`\x1B`)\
+      * `\\`: become single `\`\
       * `\"`: become single `"`
 
 ## Global wireless options:
@@ -59,11 +59,33 @@ global to the interface. The description of the variable points this out.
     attacker to break into your network. Unless you have specific needs for
     shared key authentication, use the **open** mode. As WEP has been proved
     insecure, WPA (Wi-Fi Protected Access) was defined to close its security
-    wholes. In case you want to use  WPA-PSK (WPA preshared key authentication,
-    aka WPA "Home"), set this to **psk**. In case you want to use WPA-EAP
-    (WPA with Exensible Authentication Protocol, aka WPA "Enterprise"),
-    set this to **eap**. WPA authentication modes are only possible
-    when WIRELESS_MODE is set to managed.
+    wholes. The values **PSK** and **EAP** are *deprecated*, use **WIRELESS_WPA_PSK**
+    or **WIRELESS_EAP_MODE** instead. For specific key management protocol, consider
+    the variable **WIRELESS_KEY_MGMT**.
+
+`WIRELESS_KEY_MGMT <WPA-EAP|WPA-PSK|SAE|WPA-EAP-SUITE-B-192|...>`
+:   Set the list of accepted authenticated key management protocols. When unset,
+    wicked is using all protocols reported as device capabilities and filtered
+    by PSK or EAP depending on further configuration variables.
+
+    - PSK key management protocols (require **WIRELESS_WPA_PSK**): \
+      * **WPA-PSK**: WPA pre-shared key\
+      * **FT-PSK**: Fast BSS Transition (IEEE 802.11r) with pre-shared key\
+      * **WPA-PSK-SHA256**: Like WPA-PSK but using stronger SHA256-based algorithms\
+      * **SAE**: Simultaneous authentication of equals\
+      * **FT-SAE**: SAE with FT
+
+    - EAP key management protocols (require **WIRELESS_EAP_MODE**):\
+      * **WPA-EAP**: WPA using EAP authentication\
+      * **WPA-EAP-SHA256**: Like WPA-EAP but using stronger SHA256-based algorithms\
+      * **WPA-EAP-SUITE-B**: Suite B 128-bit level\
+      * **WPA-EAP-SUITE-B-192**: Suite B 192-bit level\
+      * **FT-EAP**: Fast BSS Transition (IEEE 802.11r) with EAP authentication\
+      * **FT-EAP-SHA384**: Fast BSS Transition (IEEE 802.11r) with EAP authentication and using SHA384
+
+    - OPEN network key management protocols:\
+      * **NONE**: WPA is not used; plaintext or static WEP could be used\
+      * **OWE**: Opportunistic Wireless Encryption (a.k.a. Enhanced Open)
 
 `WIRELESS_MODE <MANAGED|AD-HOC|MASTER>`
 :   Set the operating mode of the device, which depends on the network topology.
@@ -184,6 +206,10 @@ global to the interface. The description of the variable points this out.
     interface used for EAPOL. The default value is suitable for most
     cases.
 
+`WIRELESS_PMF <disabled|optional|required>`
+:   Whether **P**rotected **M**anagement **F**rames are enabled or not.
+    Default is **disabled**.
+
 # EXAMPLE
 
 Some examples of different configuration types supported at the moment:
@@ -206,24 +232,67 @@ Some examples of different configuration types supported at the moment:
     STARTMODE='manual'
     BOOTPROTO='none'
     WIRELESS='yes'
+    # scan only, don't expect established connection:
+    LINK_REQUIRED=no
+```
+    The scan results are listed in <wireless/scan-results/bss> node of
+    the `wicked show-xml [ifname]` output.
+    To show all visible SSIDs and KEY-MGMTs, you can use e.g.:
+```
+    wicked show-xml wlan0 | wicked xpath --reference 'object/wireless/scan-results/bss' 'ssid="%{ssid}" key-mgmt="%{?rsn/key-management} %{?wpa/key-management}"'
 ```
 
 ## Open network configuration
 ```
-    WIRELESS_MODE='Managed'
     WIRELESS_ESSID='example_ssid'
 ```
 
-## WPA-PSK network configuration
+## WPA-PSK
 ```
-    WIRELESS_MODE='Managed'
     WIRELESS_ESSID='example_ssid'
     WIRELESS_WPA_PSK='example_passwd'
 ```
 
+## WPA-PSK (WPA1 only)
+```
+    WIRELESS_ESSID='example_ssid'
+    WIRELESS_WPA_PSK='example_passwd'
+    WIRELESS_KEY_MGMT='WPA-PSK'
+    WIRELESS_CIPHER_PAIRWISE='TKIP'
+    WIRELESS_CIPHER_GROUP='TKIP'
+```
+
+## WPA-PSK (WPA2 only)
+```
+    WIRELESS_ESSID='example_ssid'
+    WIRELESS_WPA_PSK='example_passwd'
+    WIRELESS_KEY_MGMT='WPA-PSK'
+    WIRELESS_CIPHER_PAIRWISE='CCMP'
+    WIRELESS_CIPHER_GROUP='CCMP'
+```
+
+## WPA-PSK (WPA3 only)
+```
+    WIRELESS_ESSID='example_ssid'
+    WIRELESS_WPA_PSK='example_passwd'
+    WIRELESS_KEY_MGMT='SAE'
+    WIRELESS_PMF='required'
+    WIRELESS_CIPHER_PAIRWISE='CCMP'
+    WIRELESS_CIPHER_GROUP='CCMP'
+```
+
+## WPA-PSK (WPA2 and WPA3 transition)
+```
+    WIRELESS_ESSID='example_ssid'
+    WIRELESS_WPA_PSK='example_passwd'
+    WIRELESS_KEY_MGMT='WPA-PSK WPA-PSK-SHA256 SAE'
+    WIRELESS_PMF='optional'
+    WIRELESS_CIPHER_PAIRWISE='CCMP'
+    WIRELESS_CIPHER_GROUP='CCMP'
+```
+
 ## WPA-EAP/PEAP/MSCHAPv2 network configuration
 ```
-    WIRELESS_MODE='Managed'
     WIRELESS_ESSID='example_ssid'
     WIRELESS_EAP_MODE='PEAP'
     WIRELESS_EAP_AUTH='MSCHAPv2'
@@ -233,7 +302,6 @@ Some examples of different configuration types supported at the moment:
 ```
 ## WPA-EAP/TTLS/PAP network configuration**
 ```
-    WIRELESS_MODE='Managed'
     WIRELESS_ESSID='example_ssid'
     WIRELESS_EAP_MODE='TTLS'
     WIRELESS_EAP_AUTH='PAP'
@@ -244,7 +312,6 @@ Some examples of different configuration types supported at the moment:
 
 ## WPA-EAP/TLS network configuration
 ```
-    WIRELESS_MODE='Managed'
     WIRELESS_ESSID='example_ssid'
     WIRELESS_EAP_MODE='TLS'
     WIRELESS_WPA_IDENTITY='bob'
@@ -252,9 +319,8 @@ Some examples of different configuration types supported at the moment:
     WIRELESS_CA_CERT='/path/to/my/ca_cert.pem'
 ```
 
-## WEP network configuration
+## WEP network configuration -- insecure!
 ```
-    WIRELESS_MODE='Managed'
     WIRELESS_AUTH_MODE='shared'
     WIRELESS_KEY_0="s:hallo"
     WIRELESS_KEY_1="01020304050607080900010203"
@@ -284,7 +350,7 @@ Some examples of different configuration types supported at the moment:
 ```
 
 # COPYRIGHT
-Copyright (C) 2014-2021 SUSE LLC
+Copyright (C) 2014-2022 SUSE LLC
 
 # BUGS
 Please report bugs as described at http://bugs.opensuse.org

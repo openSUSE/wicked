@@ -1,11 +1,28 @@
 /*
- * Routines for loading and storing sysconfig files
+ *	Routines for reading from sysfs files
  *
- * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2012-2022 SUSE LLC
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *	Authors:
+ *		Olaf Kirch
+ *		Marius Tomaschewski
  */
-
-#ifndef __NETINFO_SYSFS_H__
-#define __NETINFO_SYSFS_H__
+#ifndef WICKED_SYSFS_H
+#define WICKED_SYSFS_H
 
 #include <wicked/bridge.h>
 #include <wicked/pci.h>
@@ -65,4 +82,13 @@ extern int	ni_sysctl_ipv4_ifconfig_get_uint(const char *, const char *, unsigned
 extern int	ni_sysctl_ipv4_ifconfig_set_int(const char *, const char *, int);
 extern int	ni_sysctl_ipv4_ifconfig_set_uint(const char *, const char *, unsigned int);
 
-#endif /* __NETINFO_SYSFS_H__ */
+extern int	ni_sysfs_bus_usb_device_path_scan(ni_string_array_t *, const ni_var_array_t *,
+							const char *, const char *);
+extern int	ni_sysfs_bus_pci_device_path_scan(ni_string_array_t *, const ni_var_array_t *,
+							const char *, const char *);
+extern int	ni_sysfs_bus_usb_device_netdev_scan(ni_netdev_ref_array_t *, const ni_var_array_t *,
+							const char *, const char *);
+extern int	ni_sysfs_bus_pci_device_netdev_scan(ni_netdev_ref_array_t *, const ni_var_array_t *,
+							const char *, const char *);
+
+#endif /* WICKED_SYSFS_H */

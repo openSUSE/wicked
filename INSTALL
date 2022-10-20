@@ -10,7 +10,6 @@ These devel packages should be installed to compile wicked from source:
   autoconf
   libtool
   libnl-devel
-  libiw-devel
   dbus-1-devel
   pkg-config
   libgcrypt-devel

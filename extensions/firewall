@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Copyright (C) 2012, Olaf Kirch <okir@suse.de>
-# Copyright (C) 2012-2017, SUSE LINUX GmbH, Nuernberg, Germany.
+# Copyright (C) 2012-2022 SUSE LLC
 #
 #       This program is free software; you can redistribute it and/or modify
 #       it under the terms of the GNU General Public License as published by
@@ -67,9 +67,9 @@ firewalld_up()
 
 	local ZONE=`wicked_config_get_zone "$WICKED_ARGFILE"`
 
-	# Assign the firewalld zone permanently.
+	# Assign the firewalld zone permanently, this sync wicked with firewalld config files.
 	"$firewalld_cmd" --permanent --zone="$ZONE" --change-interface="$WICKED_INTERFACE_NAME" &>/dev/null
-	# And also temporarily, to not have to reload.
+	# Apply same rule to runtime config.
 	"$firewalld_cmd" --zone="$ZONE" --change-interface="$WICKED_INTERFACE_NAME" &>/dev/null
 }
 
@@ -77,10 +77,12 @@ firewalld_down()
 {
 	test "X$WICKED_INTERFACE_NAME" = "X" && return 1
 
-	# Remove the firewalld zone assignment permanently.
-	"$firewalld_cmd" --permanent --remove-interface="$WICKED_INTERFACE_NAME" &>/dev/null
-	# And also temporarily, to not have to reload.
-	"$firewalld_cmd" --remove-interface="$WICKED_INTERFACE_NAME" &>/dev/null
+	# Do not change firewalld settings on ifdown, neither for FIREWALL=yes
+	# nor for FIREWALL=no (bsc#1201053 and bsc#1189560).
+	# The problem is, that `firewall-cmd --permanent` also change ifcfg
+	# files, thus it would remove the ZONE= setting from ifcfg on ifdown.
+	# Changing only runtime firewall settings, trigger a unexpected
+	# inconsistency between runtime+persistent config.
 }
 
 case $action in

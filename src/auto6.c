@@ -37,6 +37,7 @@
 #include "util_priv.h"
 #include "leasefile.h"
 #include "appconfig.h"
+#include "addrconf.h"
 #include "auto6.h"
 
 #define NI_AUTO6_UPDATER_DELAY		500	/* initial delay timeout in ms         */
@@ -422,7 +423,7 @@ ni_auto6_lease_address_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease, cons
 					ni_addrconf_type_to_name(ap->owner));
 		}
 	} else
-	if ((la = ni_address_new(ap->family, ap->prefixlen, &ap->local_addr, &lease->addrs))) {
+	if ((la = ni_address_create(ap->family, ap->prefixlen, &ap->local_addr, &lease->addrs))) {
 		changed = TRUE;
 		ni_address_copy(la, ap);
 		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
@@ -987,6 +988,7 @@ ni_auto6_acquire(ni_netdev_t *dev, const ni_auto6_request_t *req)
 	if (!dev || !(auto6 = ni_netdev_get_auto6(dev)) || !req || !req->enabled)
 		return -1;
 
+	auto6->enabled = TRUE;
 	ni_uuid_generate(&auto6->uuid);
 	if (!(lease = ni_auto6_get_lease(dev))) {
 		if ((lease = ni_auto6_new_lease(NI_ADDRCONF_STATE_REQUESTING, &auto6->uuid))) {

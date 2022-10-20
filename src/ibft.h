@@ -1,7 +1,7 @@
 /*
  *	Routines for iBFT (iSCSI Boot Firmware Table) NIC
  *
- *	Copyright (C) 2010-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2010-2022 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,17 +13,15 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- *	Boston, MA 02110-1301 USA.
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *	Authors:
- *		Marius Tomaschewski <mt@suse.de>
+ *		Marius Tomaschewski
  *
  */
-#ifndef __WICKED_IBFT_H__
-#define __WICKED_IBFT_H__
+#ifndef WICKED_IBFT_H
+#define WICKED_IBFT_H
 
 typedef struct ni_ibft_nic {
 	unsigned int	users;		/* refcount */
@@ -50,7 +48,7 @@ typedef struct ni_ibft_nic {
 } ni_ibft_nic_t;
 
 
-#define NI_IBFT_NIC_ARRAY_INIT		{ 0, NULL }
+#define NI_IBFT_NIC_ARRAY_INIT		{ .count = 0, .data = NULL }
 
 typedef struct ni_ibft_nic_array {
 	unsigned int	count;
@@ -70,4 +68,4 @@ extern void		ni_ibft_nic_array_append(ni_ibft_nic_array_t *nics,
 extern int		ni_sysfs_ibft_scan_nics(ni_ibft_nic_array_t *nics,
 						const char *root);
 
-#endif /* __WICKED_IBFT_H__ */
+#endif /* WICKED_IBFT_H */
