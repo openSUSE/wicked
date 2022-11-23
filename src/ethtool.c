@@ -725,18 +725,6 @@ static const ni_intmap_t		ni_ethtool_link_adv_fec_names[] = {
 	{ NULL,			-1U							}
 };
 
-unsigned int
-ni_ethtool_link_mode_nwords(void)
-{
-	return (__ETHTOOL_LINK_MODE_LAST + 32) / 32;
-}
-
-unsigned int
-ni_ethtool_link_mode_nbits(void)
-{
-	return ni_ethtool_link_mode_nwords() * 32;
-}
-
 const char *
 ni_ethtool_link_adv_name(unsigned int type)
 {
@@ -1447,8 +1435,6 @@ ni_ethtool_get_link_settings_current(const ni_netdev_ref_t *ref, ni_ethtool_t *e
 	memset(&ecmd, 0, sizeof(ecmd));
 	if (ethtool->link_settings && ethtool->link_settings->nwords > 0)
 		ecmd.settings.link_mode_masks_nwords = ethtool->link_settings->nwords;
-	else
-		ecmd.settings.link_mode_masks_nwords = ni_ethtool_link_mode_nwords();
 
 	ret = ni_ethtool_call(ref, &NI_ETHTOOL_CMD_GLINKSETINGS, &ecmd, NULL);
 	ni_ethtool_set_supported(ethtool, NI_ETHTOOL_SUPP_GET_LINK_SETTINGS,
@@ -1547,8 +1533,6 @@ ni_ethtool_set_link_settings_current(const ni_netdev_ref_t *ref, ni_ethtool_t *e
 	memset(&ecmd, 0, sizeof(ecmd));
 	if (ethtool->link_settings && ethtool->link_settings->nwords > 0)
 		ecmd.settings.link_mode_masks_nwords = ethtool->link_settings->nwords;
-	else
-		ecmd.settings.link_mode_masks_nwords = ni_ethtool_link_mode_nwords();
 
 	ret = ni_ethtool_call(ref, &NI_ETHTOOL_CMD_GLINKSETINGS, &ecmd, NULL);
 	ni_ethtool_set_supported(ethtool, NI_ETHTOOL_SUPP_GET_LINK_SETTINGS,
