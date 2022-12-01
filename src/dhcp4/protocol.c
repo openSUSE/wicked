@@ -621,13 +621,6 @@ __ni_dhcp4_build_msg_put_client_id(const ni_dhcp4_device_t *dev, unsigned int ms
 				"%s: using client-id: %s", dev->ifname,
 				ni_print_hex(options->client_id.data,
 						options->client_id.len));
-	} else
-	if (!message->hwlen) {
-		ni_error("%s: cannot construct %s without usable hw-addr and client-id",
-				dev->ifname, ni_dhcp4_message_name(msg_code));
-		return -1;
-	} else {
-		return 1; /* skipped client-id */
 	}
 	return 0;
 }
