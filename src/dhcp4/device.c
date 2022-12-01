@@ -30,7 +30,7 @@
 #include "duid.h"
 
 
-static unsigned int	ni_dhcp4_do_bits(const ni_config_dhcp4_t *, unsigned int);
+static unsigned int	ni_dhcp4_do_bits(const ni_dhcp4_device_t *, unsigned int);
 static const char *	ni_dhcp4_print_doflags(unsigned int);
 static void		ni_dhcp4_config_set_request_options(const char *, ni_uint_array_t *, const ni_string_array_t *);
 
@@ -325,7 +325,7 @@ ni_dhcp4_acquire(ni_dhcp4_device_t *dev, const ni_dhcp4_request_t *info)
 		config->update = info->update;
 		config->update &= ni_config_addrconf_update_mask(NI_ADDRCONF_DHCP, AF_INET);
 	}
-	config->doflags = ni_dhcp4_do_bits(ni_config_dhcp4_find_device(dev->ifname), config->update);
+	config->doflags = ni_dhcp4_do_bits(dev, config->update);
 
 	config->route_priority = info->route_priority;
 	config->route_set_src = info->route_set_src;
@@ -446,7 +446,7 @@ ni_dhcp4_restart_leases(void)
  * DHCP4_DO_* masks
  */
 static unsigned int
-ni_dhcp4_do_bits(const ni_config_dhcp4_t *conf, unsigned int update_flags)
+ni_dhcp4_do_bits(const ni_dhcp4_device_t *dev, unsigned int update_flags)
 {
 	static unsigned int	do_mask[32] = {
 	[NI_ADDRCONF_UPDATE_DEFAULT_ROUTE]	= DHCP4_DO_GATEWAY,
@@ -463,8 +463,15 @@ ni_dhcp4_do_bits(const ni_config_dhcp4_t *conf, unsigned int update_flags)
 	[NI_ADDRCONF_UPDATE_BOOT]		= DHCP4_DO_ROOT,
 	[NI_ADDRCONF_UPDATE_TZ]			= DHCP4_DO_POSIX_TZ,
 	};
-	unsigned int bit, result = DHCP4_DO_ARP | DHCP4_DO_CSR
-				 | DHCP4_DO_STATIC_ROUTES;
+	unsigned int bit, result = DHCP4_DO_CSR | DHCP4_DO_STATIC_ROUTES;
+	const ni_config_dhcp4_t *conf = NULL;
+	const ni_netdev_t *ifp;
+
+	conf = ni_config_dhcp4_find_device(dev ? dev->ifname : NULL);
+	if ((ifp = ni_dhcp4_device_netdev(dev))) {
+		if (ifp->link.ifflags & NI_IFF_ARP_ENABLED)
+			result |= DHCP4_DO_ARP;
+	}
 
 	for (bit = 0; bit < 32; ++bit) {
 		if (update_flags & NI_BIT(bit))
