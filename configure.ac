@@ -302,11 +302,6 @@ AC_CHECK_DECL([RTA_MARK], [
 				], [], [[#include <linux/rtnetlink.h>]])
 	      ], [[#include <netlink/netlink.h>]])
 
-AC_CHECK_DECL([DCB_ATTR_IEEE_MAXRATE], [
-	       AC_DEFINE([HAVE_DCB_ATTR_IEEE_MAXRATE], [],
-			 [Have DCB_ATTR_IEEE_MAXRATE in linux/dcbnl.h])
-	      ], [], [[#include <linux/dcbnl.h>]])
-
 AC_CHECK_DECL([IFLA_VLAN_PROTOCOL], [
 	       AC_DEFINE([HAVE_IFLA_VLAN_PROTOCOL], [],
 			 [Have MACVLAN_FLAG_NOPROMISC in linux/if_link.h])
