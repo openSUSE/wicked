@@ -178,6 +178,7 @@ extern ni_netdev_t *	ni_netdev_by_hwaddr(ni_netconfig_t *nic, const ni_hwaddr_t 
 extern ni_netdev_t *	ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc,
 				const char *physdev, uint16_t tag);
 extern unsigned int	ni_netdev_name_to_index(const char *);
+extern const char *	ni_netdev_index_to_name(char **, unsigned int);
 extern const char *	ni_netdev_make_name(ni_netconfig_t *, const char *, unsigned int);
 
 extern ni_netdev_t *	ni_netdev_new(const char *name, unsigned int ifindex);

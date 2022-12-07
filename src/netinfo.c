@@ -885,6 +885,23 @@ ni_netdev_name_to_index(const char *name)
 	return if_nametoindex(name);
 }
 
+const char *
+ni_netdev_index_to_name(char **ifname, unsigned int ifindex)
+{
+	char ifnamebuf[IFNAMSIZ] = {'\0'};
+
+	if (!ifname || !ifindex)
+		return NULL;
+
+	if (!if_indextoname(ifindex, ifnamebuf))
+		return NULL;
+
+	if (!ni_string_dup(ifname, ifnamebuf))
+		return NULL;
+
+	return *ifname;
+}
+
 /*
  * Create a unique interface name
  */

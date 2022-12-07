@@ -5884,7 +5884,7 @@ __ni_system_netdev_create(ni_netconfig_t *nc,
 		return -1;
 	}
 
-	if (!ifindex && !(ifindex = if_nametoindex(ifname))) {
+	if (!ifindex && !(ifindex = ni_netdev_name_to_index(ifname))) {
 		ni_error("%s: created %s interface, but can't find it's index",
 				ifname, type);
 		return -1;

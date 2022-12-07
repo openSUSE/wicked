@@ -295,7 +295,7 @@ ni_ifconfig_read(xml_document_array_t *array, const char *root, const char *path
 }
 
 static ni_config_origin_prio_t
-__ni_ifconfig_origin_get_prio(const char *origin)
+ni_ifconfig_origin_get_prio(const char *origin)
 {
 	ni_config_origin_prio_t prio;
 
@@ -316,66 +316,61 @@ __ni_ifconfig_origin_get_prio(const char *origin)
 
 /*
  * Parse name node and its namespace from xml config.
- * Set ifname if available - it should be at least IF_NAMESIZE bytes long.
  *
- * Return ifindex value or 0 if not available.
+ * Return true when inteface name is available/can be resolved.
  */
-static char *
-__ifconfig_read_get_ifname(xml_node_t *ifnode, unsigned int *ifindex)
+static ni_bool_t
+ni_ifconfig_read_get_ifname(xml_node_t *ifnode, char **ifname)
 {
 	xml_node_t *nnode = NULL;
 	const char *namespace;
-	char *ifname = NULL;
+
+	if (!ifnode || !ifname)
+		return FALSE;
 
 	/* Check for   <name> node */
 	nnode = xml_node_get_child(ifnode, "name");
 	if (!nnode || ni_string_empty(nnode->cdata)) {
-		ni_debug_ifconfig("cannot get interface name - "
+		ni_error("cannot get interface name - "
 			"config has no valid <name> node");
-		goto error;
+		return FALSE;
 	}
-
-	ifname = nnode->cdata;
 
 	/* Resolve a namespace if specified */
 	namespace = xml_node_get_attr(nnode, "namespace");
 	if (ni_string_empty(namespace)) {
-		if (ifindex)
-			*ifindex = if_nametoindex(ifname);
+		if (!ni_netdev_name_is_valid(nnode->cdata)) {
+			ni_error("invalid interface name node data: '%s'",
+					nnode->cdata);
+			return FALSE;
+		}
+		if (!ni_string_dup(ifname, nnode->cdata)) {
+			ni_error("unable to allocate interface name: %m");
+			return FALSE;
+		}
 	}
 	else if (ni_string_eq(namespace, "ifindex")) {
 		unsigned int value;
-		char name_buf[IF_NAMESIZE+1];
 
-		if (ni_parse_uint(ifname, &value, 10) < 0) {
-			ni_debug_ifconfig("unable to parse ifindex value "
+		if (ni_parse_uint(nnode->cdata, &value, 10) < 0) {
+			ni_error("unable to parse ifindex value"
 				" specified via <name namespace=\"ifindex\">");
-			goto error;
+			return FALSE;
 		}
-
-		/* Get ifname based on ifindex */
-		if (ni_string_empty(if_indextoname(value, name_buf))) {
-			ni_debug_ifconfig("unable to obtain interface name "
-				"using ifindex value");
-			goto error;
+		if (!ni_netdev_index_to_name(ifname, value)) {
+			ni_error("unable to obtain interface name"
+				" using ifindex value %u", value);
+			return FALSE;
 		}
-
-		ifname = NULL;
-		ni_string_dup(&ifname, name_buf);
-
-		if (ifindex)
-			*ifindex = value;
 	}
 	else {
 		/* TODO: Implement other namespaces */;
+		ni_error("unable to resolve interace name from namespace '%s'",
+			namespace);
+		return FALSE;
 	}
 
-	return ifname;
-
-error:
-	if (ifindex)
-		*ifindex = 0;
-	return NULL;
+	return TRUE;
 }
 
 ni_bool_t
@@ -384,7 +379,7 @@ ni_ifconfig_validate_adding_doc(xml_document_t *config_doc, ni_bool_t check_prio
 	static ni_var_array_t validated_cfgs; /* Array of already processed configs */
 	ni_config_origin_prio_t src_prio, dst_prio;
 	xml_node_t *src_root, *src_child;
-	char *ifname;
+	char *ifname = NULL;
 
 	if (!config_doc)
 		return FALSE;
@@ -393,7 +388,7 @@ ni_ifconfig_validate_adding_doc(xml_document_t *config_doc, ni_bool_t check_prio
 		return TRUE;
 
 	src_root = xml_document_root(config_doc);
-	src_prio = __ni_ifconfig_origin_get_prio(xml_node_location_filename(src_root));
+	src_prio = ni_ifconfig_origin_get_prio(xml_node_location_filename(src_root));
 
 	/* Go through all config_doc's <interfaces> */
 	for (src_child = src_root->children; src_child; src_child = src_child->next) {
@@ -404,24 +399,27 @@ ni_ifconfig_validate_adding_doc(xml_document_t *config_doc, ni_bool_t check_prio
 			continue;
 		}
 
-		ifname = __ifconfig_read_get_ifname(src_child, NULL);
-		if (ni_string_empty(ifname))
-			return FALSE;
+		if (!ni_ifconfig_read_get_ifname(src_child, &ifname))
+			goto cleanup;
 
 		rv = ni_var_array_get_uint(&validated_cfgs, ifname, &dst_prio);
 		if (rv < 0)
-			return FALSE;
+			goto cleanup;
 
 		if (rv && dst_prio < src_prio) {
 			ni_warn("Ignoring %s config %s because of higher prio config",
 				ifname, xml_node_location_filename(src_root));
-			return FALSE;
+			goto cleanup;
 		}
 
 		ni_var_array_set_uint(&validated_cfgs, ifname, src_prio);
 	}
 
+	ni_string_free(&ifname);
 	return TRUE;
+cleanup:
+	ni_string_free(&ifname);
+	return FALSE;
 }
 
 /*

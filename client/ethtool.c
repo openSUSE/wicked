@@ -1271,7 +1271,7 @@ ni_do_ethtool(const char *caller, int argc, char **argv)
 	}
 
 	status = NI_WICKED_RC_ERROR;
-	ni_netdev_ref_init(&ref, argv[optind], if_nametoindex(argv[optind]));
+	ni_netdev_ref_init(&ref, argv[optind], ni_netdev_name_to_index(argv[optind]));
 	if (!ref.index) {
 		fprintf(stderr, "%s: cannot find interface with name '%s'\n", argv[0], argv[optind]);
 		goto cleanup;
