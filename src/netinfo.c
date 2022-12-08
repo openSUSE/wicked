@@ -7,10 +7,6 @@
 #include "config.h"
 #endif
 
-#include <signal.h>
-#include <limits.h>
-#include <errno.h>
-
 #include <wicked/netinfo.h>
 #include <wicked/route.h>
 #include <wicked/team.h>
@@ -28,6 +24,13 @@
 #include "xml-schema.h"
 #include "sysfs.h"
 #include "modem-manager.h"
+
+#include <signal.h>
+#include <limits.h>
+#include <errno.h>
+
+#include <net/if.h>
+
 #include <gcrypt.h>
 
 #define NI_NETDEV_REF_ARRAY_CHUNK	16

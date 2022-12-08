@@ -4,16 +4,12 @@
  * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
  */
 
-#ifndef __NETINFO_KERNEL_H__
-#define __NETINFO_KERNEL_H__
+#ifndef NI_WICKED_KERNEL_H
+#define NI_WICKED_KERNEL_H
 
-#include <net/if.h>
-#include <netlink/netlink.h>
 #include <netlink/netlink.h>
 #include <linux/ethtool.h>
 #include <linux/fib_rules.h>
-
-#define __user /* unclean header file */
 
 #include <wicked/types.h>
 
@@ -132,70 +128,7 @@ extern int	__ni_netdev_process_newlink_ipv6(ni_netdev_t *, struct nlmsghdr *, st
 extern int	__ni_netdev_process_newprefix(ni_netdev_t *, struct nlmsghdr *, struct prefixmsg *);
 extern int	__ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct ifaddrmsg *ifa, const ni_address_t **);
 
-#ifndef IFF_LOWER_UP
-# define IFF_LOWER_UP	0x10000
-#endif
-
-/* prefixmsg flags */
-#ifndef IF_PREFIX_ONLINK
-# define IF_PREFIX_ONLINK	0x01
-#endif
-#ifndef IF_PREFIX_AUTOCONF
-# define IF_PREFIX_AUTOCONF	0x02
-#endif
-
-/*
- * RFC 2863 operational status.
- * Declared in linux/if.h, but that's one of those contaminated
- * files that you can't really use :(
- */
-enum {
-	IF_OPER_UNKNOWN,
-	IF_OPER_NOTPRESENT,
-	IF_OPER_DOWN,
-	IF_OPER_LOWERLAYERDOWN,
-	IF_OPER_TESTING,
-	IF_OPER_DORMANT,
-	IF_OPER_UP,
-};
-
-/*
- * Copied from linux/ipv6.h (which doesn't include cleanly in user space code)
- *
- * Index values for the variables in ipv6_devconf:
- */
-enum {
-	DEVCONF_FORWARDING = 0,
-	DEVCONF_HOPLIMIT,
-	DEVCONF_MTU6,
-	DEVCONF_ACCEPT_RA,
-	DEVCONF_ACCEPT_REDIRECTS,
-	DEVCONF_AUTOCONF,
-	DEVCONF_DAD_TRANSMITS,
-	DEVCONF_RTR_SOLICITS,
-	DEVCONF_RTR_SOLICIT_INTERVAL,
-	DEVCONF_RTR_SOLICIT_DELAY,
-	DEVCONF_USE_TEMPADDR,
-	DEVCONF_TEMP_VALID_LFT,
-	DEVCONF_TEMP_PREFERED_LFT,
-	DEVCONF_REGEN_MAX_RETRY,
-	DEVCONF_MAX_DESYNC_FACTOR,
-	DEVCONF_MAX_ADDRESSES,
-	DEVCONF_FORCE_MLD_VERSION,
-	DEVCONF_ACCEPT_RA_DEFRTR,
-	DEVCONF_ACCEPT_RA_PINFO,
-	DEVCONF_ACCEPT_RA_RTR_PREF,
-	DEVCONF_RTR_PROBE_INTERVAL,
-	DEVCONF_ACCEPT_RA_RT_INFO_MAX_PLEN,
-	DEVCONF_PROXY_NDP,
-	DEVCONF_OPTIMISTIC_DAD,
-	DEVCONF_ACCEPT_SOURCE_ROUTE,
-	DEVCONF_MC_FORWARDING,
-	DEVCONF_DISABLE_IPV6,
-	DEVCONF_ACCEPT_DAD,
-	DEVCONF_MAX
-};
-
+/* IPv6 Ready & RA flags in RTM_NEWLINK events (kernel net/if_inet6.h) */
 #ifndef IF_RA_OTHERCONF
 #define IF_RA_OTHERCONF 0x80
 #endif
@@ -212,4 +145,12 @@ enum {
 #define IF_READY	0x80000000
 #endif
 
-#endif /* __NETINFO_KERNEL_H__ */
+/* IPv6 RA prefix in RTM_NEWPREFIX events (kernel net/if_inet6.h)      */
+#ifndef IF_PREFIX_ONLINK
+# define IF_PREFIX_ONLINK	0x01
+#endif
+#ifndef IF_PREFIX_AUTOCONF
+# define IF_PREFIX_AUTOCONF	0x02
+#endif
+
+#endif /* NI_WICKED_KERNEL_H */

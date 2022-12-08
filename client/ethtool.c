@@ -17,25 +17,21 @@
  *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *	Authors:
- *		Marius Tomaschewski <mt@suse.de>
- *		Nirmoy Das <ndas@suse.de>
+ *		Marius Tomaschewski
+ *		Nirmoy Das
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <getopt.h>
-#include <net/if.h>
-#include <net/if_arp.h>
-
-#include <wicked/types.h>
 #include <wicked/netinfo.h>
 #include <wicked/ethtool.h>
 #include <wicked/util.h>
+
+#include <unistd.h>
+#include <getopt.h>
+
+#include <net/if_arp.h>
 
 struct ethtool_args {
 	int	argc;

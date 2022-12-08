@@ -19,17 +19,12 @@
  *	Boston, MA 02110-1301 USA.
  *
  *	Authors:
- *		Karol Mroz <kmroz@suse.com>
+ *		Karol Mroz
  */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-
-#include <stdlib.h>
-#include <net/if.h>
-#include <netinet/ip.h>
-#include <linux/if_tunnel.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/util.h>
@@ -37,6 +32,10 @@
 #include <wicked/logging.h>
 
 #include "util_priv.h"
+
+#include <linux/ip.h>
+#include <linux/if.h>
+#include <linux/if_tunnel.h>
 
 ni_sit_t *
 ni_sit_new(void)

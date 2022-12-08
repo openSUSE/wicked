@@ -4,11 +4,8 @@
  * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
  */
 
-#ifndef __WICKED_NETINFO_H__
-#define __WICKED_NETINFO_H__
-
-#include <sys/socket.h>
-#include <stdio.h>
+#ifndef NI_WICKED_NETINFO_H
+#define NI_WICKED_NETINFO_H
 
 #include <wicked/types.h>
 #include <wicked/constants.h>
@@ -326,4 +323,4 @@ ni_netdev_network_is_up(const ni_netdev_t *dev)
 	return dev ? dev->link.ifflags & NI_IFF_NETWORK_UP : 0;
 }
 
-#endif /* __WICKED_NETINFO_H__ */
+#endif /* NI_WICKED_NETINFO_H */

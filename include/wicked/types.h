@@ -3,8 +3,9 @@
  *
  * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
-#ifndef __WICKED_TYPES_H__
-#define __WICKED_TYPES_H__
+
+#ifndef NI_WICKED_TYPES_H
+#define NI_WICKED_TYPES_H
 
 #include <wicked/constants.h>
 #include <sys/types.h>
@@ -76,12 +77,14 @@ typedef struct ni_netdev_ref {
 	char *			name;	/* by ifname  */
 } ni_netdev_ref_t;
 
-#define NI_NETDEV_REF_ARRAY_INIT	{ .count = 0, .data = NULL }
+#define NI_NETDEV_REF_INIT		{ .index = 0, .name = NULL }
 
 typedef struct ni_netdev_ref_array {
 	unsigned int		count;
 	ni_netdev_ref_t *	data;
 } ni_netdev_ref_array_t;
+
+#define NI_NETDEV_REF_ARRAY_INIT	{ .count = 0, .data = NULL }
 
 typedef struct ni_dbus_server	ni_dbus_server_t;
 typedef struct ni_dbus_client	ni_dbus_client_t;
@@ -179,4 +182,4 @@ typedef struct ni_dhcp6_ia		ni_dhcp6_ia_t;
 typedef struct ni_dhcp6_ia_addr		ni_dhcp6_ia_addr_t;
 typedef struct ni_dhcp6_prefix_req	ni_dhcp6_prefix_req_t;
 
-#endif /* __WICKED_TYPES_H__ */
+#endif /* NI_WICKED_TYPES_H */

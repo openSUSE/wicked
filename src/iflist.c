@@ -7,15 +7,6 @@
 #include "config.h"
 #endif
 
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <net/if.h>
-#include <net/if_arp.h>
-#include <netinet/ip.h>
-#include <netlink/attr.h>
-#include <netlink/msg.h>
-#include <errno.h>
-
 #include <wicked/netinfo.h>
 #include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
@@ -34,24 +25,6 @@
 #include <wicked/tunneling.h>
 #include <wicked/linkstats.h>
 
-#if defined(HAVE_RTA_MARK)
-#  include <netlink/netlink.h>
-#elif defined(HAVE_LINUX_RTNETLINK_H) && defined(HAVE_LINUX_RTA_MARK)
-#  include <linux/rtnetlink.h>
-#  define  HAVE_RTA_MARK HAVE_LINUX_RTA_MARK
-#endif
-
-#if defined(HAVE_IFLA_VLAN_PROTOCOL)
-#  ifndef	ETH_P_8021Q
-#  define	ETH_P_8021Q	0x8100
-#  endif
-#  ifndef	ETH_P_8021AD
-#  define	ETH_P_8021AD	0x88A8
-#  endif
-#endif
-#include <linux/if_tunnel.h>
-#include <linux/fib_rules.h>
-
 #include "netinfo_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
@@ -60,6 +33,25 @@
 #include "teamd.h"
 #include "ovs.h"
 
+#include <errno.h>
+#include <netinet/in.h>
+
+#if defined(HAVE_RTA_MARK)
+#  include <netlink/netlink.h>
+#elif defined(HAVE_LINUX_RTNETLINK_H) && defined(HAVE_LINUX_RTA_MARK)
+#  include <linux/rtnetlink.h>
+#  define  HAVE_RTA_MARK HAVE_LINUX_RTA_MARK
+#endif
+#include <netlink/attr.h>
+#include <netlink/msg.h>
+
+#include <linux/ip.h>
+#include <linux/if.h>
+#include <linux/if_arp.h>
+#include <linux/if_link.h>
+#include <linux/if_ether.h>
+#include <linux/if_tunnel.h>
+#include <linux/fib_rules.h>
 
 static int		__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 					struct ifinfomsg *ifi, ni_netconfig_t *);
