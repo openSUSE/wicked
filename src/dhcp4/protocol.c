@@ -646,31 +646,125 @@ __ni_dhcp4_build_msg_put_server_id(const ni_dhcp4_device_t *dev,
 	return 0;
 }
 
-
 static int
 __ni_dhcp4_build_msg_put_hwspec(const ni_dhcp4_device_t *dev, ni_dhcp4_message_t *message)
 {
 	switch (dev->system.hwaddr.type) {
 	case ARPHRD_ETHER:
 	case ARPHRD_IEEE802:
-		if (dev->system.hwaddr.len && dev->system.hwaddr.len <= sizeof(message->chaddr)) {
+		/*
+		 * See https://www.rfc-editor.org/rfc/rfc2131#section-2
+		 *
+		 *  FIELD  OCTETS DESCRIPTION
+		 *  -----  ------ -----------
+		 *  htype       1   Hardware address type, see ARP section in
+		 *                  "Assigned Numbers" RFC; e.g., '1' = 10mb ethernet.
+		 *  hlen        1   Hardware address length (e.g. '6' for 10mb ethernet).
+		 *  chaddr     16   Client hardware address.
+		 *  [...]
+		 *  flags       2   Flags (see figure 2).
+		 *  ciaddr      4   Client IP address; only filled in if client is in
+		 *                  BOUND, RENEW or REBINDING state and can respond
+		 *                  to ARP requests.
+		 *
+		 *  To work around some clients that cannot accept IP unicast datagrams
+		 *  before the TCP/IP software is configured [...] DHCP uses the 'flags'
+		 *  field. The leftmost bit is defined as the BROADCAST (B) flag.
+		 *
+		 * https://www.rfc-editor.org/rfc/rfc2131#section-3.5
+		 *   The client fills in the 'ciaddr' field only when correctly configured
+		 *   with an IP address in BOUND, RENEWING or REBINDING state.
+		 *
+		 * https://www.rfc-editor.org/rfc/rfc2131#section-4.1
+		 *   A client that cannot receive unicast IP datagrams until its protocol
+		 *   software has been configured with an IP address SHOULD set the
+		 *   BROADCAST bit in the 'flags' field to 1 in any DHCPDISCOVER or
+		 *   DHCPREQUEST messages that client sends.
+		 *   A client that can receive unicast IP datagrams before its protocol
+		 *   software has been configured SHOULD clear the BROADCAST bit to 0.
+		 */
+		message->hwtype = (uint8_t)dev->system.hwaddr.type;
+		if (dev->system.hwaddr.len &&
+		    dev->system.hwaddr.len <= sizeof(message->chaddr)) {
 			message->hwlen = dev->system.hwaddr.len;
-			memcpy(&message->chaddr, dev->system.hwaddr.data, dev->system.hwaddr.len);
+			memcpy(&message->chaddr, dev->system.hwaddr.data,
+						 dev->system.hwaddr.len);
 		}
-		if (ni_tristate_is_enabled(dev->config->broadcast))
+
+		if (ni_tristate_is_enabled(dev->config->broadcast) &&
+		    message->ciaddr == 0)
 			message->flags = htons(BROADCAST_FLAG);
 		break;
 
 	case ARPHRD_IEEE1394:
-	case ARPHRD_INFINIBAND:
-		if (ni_tristate_is_disabled(dev->config->broadcast))
-			ni_warn_once("%s: broadcast is mandatory on infiniband", dev->ifname);
-		/* See http://tools.ietf.org/html/rfc4390
+		/*
+		 * See http://tools.ietf.org/html/rfc2855
 		 *
-		 * Note: set the ciaddr before if needed.
+		 *  'htype' (hardware address type) MUST be 24 [ARPPARAM].
+		 *
+		 *  'hlen' (hardware address length) MUST be 0.
+		 *
+		 *  The 'chaddr' (client hardware address) field is reserved.
+		 *  The sender MUST set this field to zero, and the recipient
+		 *  and the relay agent MUST ignore its value on receipt.
+		 *
+		 *  A DHCP client on 1394 SHOULD set a BROADCAST flag in
+		 *  DHCPDISCOVER and DHCPREQUEST messages (and set 'ciaddr'
+		 *  to zero) to ensure that the server (or the relay agent)
+		 *  broadcasts its reply to the client.
+		 *
+		 *  'client identifier' option MUST be used in DHCP messages
+		 *  from the client [...] due to the lack of the 'chaddr'.
 		 */
-		message->hwlen = 0;
+	case ARPHRD_INFINIBAND:
+		/*
+		 * See http://tools.ietf.org/html/rfc4390
+		 *
+		 * "htype" (hardware address type) MUST be 32 [ARPPARAM].
+		 *
+		 * "hlen" (hardware address length) MUST be 0.
+		 *
+		 * "chaddr" (client hardware address) field MUST be zeroed.
+		 *
+		 * "client-identifier" option MUST be used in DHCP messages.
+		 *
+		 * A DHCP client on IPoIB MUST set the BROADCAST flag in
+		 * DHCPDISCOVER and DHCPREQUEST messages (and set "ciaddr"
+		 * to zero) to ensure that the server (or the relay agent)
+		 * broadcasts its reply to the client.
+		 */
+		message->hwtype = dev->system.hwaddr.type;
+
+		if (ni_tristate_is_disabled(dev->config->broadcast)) {
+			ni_warn_once("%s: broadcast is mandatory on infiniband",
+					dev->ifname);
+		}
+
+		/*
+		 * Note: set the ciaddr before if/as needed.
+		 */
 		if (message->ciaddr == 0)
+			message->flags = htons(BROADCAST_FLAG);
+		break;
+
+	case ARPHRD_NONE:
+		/*
+		 * No specific RFC known.
+		 * A non-arp,non-broadcast point-to-point interface type
+		 * transporting IP packets between two peers and not having
+		 * any hardware packet layer or address.
+		 *
+		 * Used on wwan-qmi interfaces in `raw-ip` mode which seem
+		 * to expect fake htype,hlen ethernet settings with zeroed
+		 * client hardware address in chaddr.
+		 *
+		 * BROADCAST response flag shouldn't be needed (POINTOPOINT);
+		 * set it on config request only.
+		 */
+		message->hwtype = (uint8_t)ARPHRD_ETHER;
+		message->hwlen = ni_link_address_length(ARPHRD_ETHER);
+		if (ni_tristate_is_enabled(dev->config->broadcast) &&
+		    message->ciaddr == 0)
 			message->flags = htons(BROADCAST_FLAG);
 		break;
 
@@ -709,7 +803,6 @@ __ni_dhcp4_build_msg_init_head(const ni_dhcp4_device_t *dev,
 	message->xid = htonl(dev->dhcp4.xid);
 	message->secs = htons(ni_dhcp4_device_uptime(dev, 0xFFFF));
 	message->cookie = htonl(MAGIC_COOKIE);
-	message->hwtype = dev->system.hwaddr.type;
 
 	ni_dhcp4_option_put8(msgbuf, DHCP4_MESSAGETYPE, msg_code);
 	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_DHCP,
