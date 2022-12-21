@@ -587,22 +587,6 @@ ni_capture_devinfo_init(ni_capture_devinfo_t *devinfo, const char *ifname, const
 	devinfo->mtu = link->mtu ? link->mtu : MTU_MAX;
 	devinfo->hwaddr = link->hwaddr;
 
-	if (devinfo->hwaddr.len == 0) {
-		ni_error("%s: empty MAC address, cannot do packet level networking yet",
-			ifname);
-		return -1;
-	}
-	if (devinfo->hwaddr.type == ARPHRD_VOID) {
-		ni_error("%s: void arp type, cannot do packet level networking yet",
-			ifname);
-		return -1;
-	}
-
-	if (devinfo->hwaddr.type == ARPHRD_NONE) {
-		ni_warn("%s: no arp type, trying to use ether for capturing", ifname);
-		devinfo->hwaddr.type = ARPHRD_ETHER;
-	}
-
 	return 0;
 }
 
@@ -625,17 +609,6 @@ ni_capture_devinfo_refresh(ni_capture_devinfo_t *devinfo, const char *ifname, co
 	if (devinfo->ifindex != link->ifindex) {
 		ni_error("%s: reconfig changes device index from %u to %u",
 				devinfo->ifname, devinfo->ifindex, link->ifindex);
-		return -1;
-	}
-
-	if (devinfo->hwaddr.len == 0) {
-		ni_error("%s: empty MAC address, cannot do packet level networking yet",
-			ifname);
-		return -1;
-	}
-	if (devinfo->hwaddr.type == ARPHRD_VOID) {
-		ni_error("%s: void arp type, cannot do packet level networking yet",
-			ifname);
 		return -1;
 	}
 
@@ -696,7 +669,7 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t
 	/* Destination address defaults to broadcast */
 	destaddr = protinfo->eth_destaddr;
 
-	if (destaddr.len == 0
+	if (destaddr.len == 0 && ni_link_address_length(devinfo->hwaddr.type) > 0
 	 && ni_link_address_get_broadcast(devinfo->hwaddr.type, &destaddr) < 0) {
 		ni_error("cannot get broadcast address for %s (bad iftype)", devinfo->ifname);
 		return NULL;
