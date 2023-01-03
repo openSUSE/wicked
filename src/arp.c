@@ -38,7 +38,7 @@ ni_arp_socket_open(const ni_capture_devinfo_t *dev_info, ni_arp_callback_t *call
 	memset(&prot_info, 0, sizeof(prot_info));
 	prot_info.eth_protocol = ETHERTYPE_ARP;
 
-	arph->capture = ni_capture_open(dev_info, &prot_info, ni_arp_socket_recv);
+	arph->capture = ni_capture_open(dev_info, &prot_info, ni_arp_socket_recv, "arp");
 	if (!arph->capture) {
 		ni_arp_socket_close(arph);
 		return NULL;
@@ -65,7 +65,7 @@ ni_arp_socket_recv(ni_socket_t *sock)
 	ni_capture_t *capture = sock->user_data;
 	ni_buffer_t buf;
 
-	if (ni_capture_recv(capture, &buf, NULL, "arp") >= 0) {
+	if (ni_capture_recv(capture, &buf, NULL) >= 0) {
 		ni_arp_socket_t *arph = ni_capture_get_user_data(capture);
 		ni_arp_packet_t packet;
 

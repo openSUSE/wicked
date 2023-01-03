@@ -130,6 +130,7 @@ struct ni_capture {
 	} retrans;
 
 	void *			user_data;
+	char *			desc;
 };
 
 static int		ni_capture_set_filter(ni_capture_t *, const ni_capture_protinfo_t *);
@@ -354,12 +355,12 @@ ni_capture_force_retransmit(ni_capture_t *capture, unsigned int delay)
 static void
 ni_capture_retransmit(ni_capture_t *capture)
 {
-	int rv;
-
-	ni_debug_socket("%s: retransmit request", capture->ifname);
+	ni_debug_socket("%s: %s%sretransmit request", capture->ifname,
+			capture->desc ?: "", capture->desc ? " " : "");
 
 	if (capture->retrans.buffer == NULL) {
-		ni_error("ni_capture_retransmit: no message!?");
+		ni_error("%s: %s%sni_capture_retransmit: no message!?",
+			capture->ifname, capture->desc ?: "", capture->desc ? " " : "");
 		ni_capture_disarm_retransmit(capture);
 		return;
 	}
@@ -370,12 +371,10 @@ ni_capture_retransmit(ni_capture_t *capture)
 	if (capture->retrans.timeout.timeout_callback)
 		capture->retrans.timeout.timeout_callback(capture->retrans.timeout.timeout_data);
 
-	rv = __ni_capture_send(capture, capture->retrans.buffer);
+	__ni_capture_send(capture, capture->retrans.buffer);
 
 	/* We don't care whether sending failed or not. Quite possibly
 	 * it's a temporary condition, so continue */
-	if (rv < 0)
-		ni_warn("%s: sending message failed", capture->ifname);
 	ni_capture_arm_retransmit(capture);
 }
 
@@ -495,13 +494,14 @@ ni_capture_from_hwaddr_print(const ni_sockaddr_t *from)
 }
 
 int
-ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp, ni_sockaddr_t *from, const char *hint)
+ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp, ni_sockaddr_t *from)
 {
 	void *payload;
 	size_t payload_len;
 	ssize_t bytes;
 	ni_bool_t partial_checksum = FALSE;
 	const char *lladdr;
+	const char *hint = capture->desc;
 
 	bytes = __ni_capture_recv(capture->sock->__fd, capture->buffer,
 				  capture->mtu, &partial_checksum, from);
@@ -650,7 +650,8 @@ __ni_capture_init_once(void)
 }
 
 ni_capture_t *
-ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t *protinfo, void (*receive)(ni_socket_t *))
+ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t *protinfo,
+		void (*receive)(ni_socket_t *), const char* desc)
 {
 	ni_packetaddr_t	addr;
 	ni_capture_t *capture = NULL;
@@ -721,6 +722,7 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t
 	capture->sock->get_timeout = __ni_capture_socket_get_timeout;
 	capture->sock->check_timeout = __ni_capture_socket_check_timeout;
 	capture->sock->user_data = capture;
+	ni_string_dup(&capture->desc, desc);
 	ni_socket_activate(capture->sock);
 	return capture;
 
@@ -749,7 +751,8 @@ ni_capture_set_filter(ni_capture_t *cap, const ni_capture_protinfo_t *protinfo)
 
 	case ETHERTYPE_IP:
 		if (protinfo->ip_protocol != IPPROTO_UDP && protinfo->ip_protocol != IPPROTO_TCP) {
-			ni_error("cannot build capture filter for IP proto %d, port %d: not supported",
+			ni_error("%s: %s%scannot build capture filter for IP proto %d, port %d: not supported",
+					cap->ifname, cap->desc ?: "", cap->desc ? " " : "",
 					protinfo->ip_protocol, protinfo->ip_port);
 			return -1;
 		}
@@ -762,12 +765,14 @@ ni_capture_set_filter(ni_capture_t *cap, const ni_capture_protinfo_t *protinfo)
 		break;
 
 	default:
-		ni_error("cannot build capture filter for ether type 0x%04x: not supported", protinfo->eth_protocol);
+		ni_error("%s: %s%scannot build capture filter for ether type 0x%04x: not supported",
+				cap->ifname, cap->desc ?: "", cap->desc ? " " : "",
+				protinfo->eth_protocol);
 		return -1;
 	}
 
 	if (setsockopt(cap->sock->__fd, SOL_SOCKET, SO_ATTACH_FILTER, &pf, sizeof(pf)) < 0) {
-		ni_error("SO_ATTACH_FILTER: %m");
+		ni_error("%s: %s%sSO_ATTACH_FILTER: %m", cap->ifname, cap->desc ?: "", cap->desc ? " " : "");
 		return -1;
 	}
 
@@ -787,7 +792,8 @@ __ni_capture_send(const ni_capture_t *capture, const ni_buffer_t *buf)
 	rv = sendto(capture->sock->__fd, ni_buffer_head(buf), ni_buffer_count(buf), 0,
 			&capture->addr.sa, sizeof(capture->addr));
 	if (rv < 0)
-		ni_error("unable to send dhcp packet: %m");
+		ni_error("%s: unable to send %s%spacket: %m", capture->ifname,
+				capture->desc ?: "", capture->desc ? " " : "");
 
 	return rv;
 }
@@ -818,6 +824,7 @@ ni_capture_free(ni_capture_t *capture)
 	if (capture->buffer)
 		free(capture->buffer);
 	ni_string_free(&capture->ifname);
+	ni_string_free(&capture->desc);
 	free(capture);
 }
 
