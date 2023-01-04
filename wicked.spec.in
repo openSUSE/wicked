@@ -214,13 +214,13 @@ make %{?_smp_mflags}
 
 %install
 make install DESTDIR=${RPM_BUILD_ROOT}
-%if !0%{?usrmerged}
+%if 0%{?suse_version} < 1550
 # install /sbin/{ifup,ifown,ifstatus,ifprobe} links
 %__mkdir_p -m 0755 ${RPM_BUILD_ROOT}/sbin
 %__ln_s %_sbindir/ifup	${RPM_BUILD_ROOT}/sbin/ifup
 %endif
 for i in ifdown ifstatus ifprobe; do
-%if !0%{?usrmerged}
+%if 0%{?suse_version} < 1550
 %__ln_s ifup ${RPM_BUILD_ROOT}/sbin/$i
 %else
 %__ln_s ifup ${RPM_BUILD_ROOT}%{_sbindir}/$i
@@ -402,7 +402,7 @@ fi
 %dir /etc/sysconfig/network
 %attr(0600,root,root) %config /etc/sysconfig/network/ifcfg-lo
 %_sbindir/ifup
-%if !0%{?usrmerged}
+%if 0%{?suse_version} < 1550
 /sbin/ifup
 /sbin/ifdown
 /sbin/ifstatus
@@ -429,7 +429,7 @@ fi
 %_sbindir/rcnetwork
 %attr(0600,root,root) %config /etc/sysconfig/network/ifcfg-lo
 %_sbindir/ifup
-%if !0%{?usrmerged}
+%if 0%{?suse_version} < 1550
 /sbin/ifup
 /sbin/ifdown
 /sbin/ifstatus
