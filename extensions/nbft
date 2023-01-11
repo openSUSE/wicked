@@ -1,0 +1,343 @@
+#!/bin/bash
+
+# wicked commands are using LSB error codes (wicked/constants.h)
+RC_SUCCESS=0
+RC_ERROR=1
+RC_USAGE=2
+RC_NOT_INSTALLED=5
+LOG_TAG="wicked/extensions/nbft"
+
+trap 'trap - ERR; echo "ERROR in \"$BASH_COMMAND\"" >&2; exit $RC_ERROR' ERR
+set -E
+
+warn() {
+	echo "WARNING: $*" >&2
+	case $LOGGER in
+	logger) logger -p user.warning -t "$err_base" -- "$*" ;;
+	stderr) echo "WARNING: $*" >&2 ;;
+	esac
+}
+
+CONTROL="\
+  <control>
+    <persistent>true</persistent>
+    <usercontrol>false</usercontrol>
+  </control>"
+
+get_vlan_ifname() {
+	local vid=$1 dev=$2 line=""
+	local conf="$OPT_ROOTDIR/proc/net/vlan/config"
+	local name=
+
+	[ ! -f "$conf" ] ||
+		while read -r line; do
+			case $line in
+			"VLAN Dev name"* | "Name-Type:"*) continue ;;
+			esac
+			# line splitting is intentional here
+			# shellcheck disable=SC2086
+			set -- ${line//|/ }
+			# This is not if-then-else but "if not (A and B) continue"
+			# shellcheck disable=SC2015
+			[ "$dev" = "$3" ] && [ "$vid" = "$2" ] || continue
+			name="$1"
+			break
+		done <"$conf" 2>/dev/null
+	[ "$name" ] || name=$dev.$vid
+	echo "$name"
+}
+
+find_iface_of_mac() {
+	local mac="$1" addr dir
+
+	for dir in "$OPT_ROOTDIR"/sys/class/net/*; do
+		[ -d "$dir" ] || continue
+		read -r addr <"$dir/address"
+		if [ "$addr" = "$mac" ]; then
+			echo "${dir##*/}"
+			return 0
+		fi
+	done
+	return 1
+}
+
+nbft_run_jq() {
+	local st
+	local opts="-e"
+
+	while [ $# -gt 0 ]; do
+		case $1 in
+		-*)
+			opts="$opts $1"
+			;;
+		*)
+			break
+			;;
+		esac
+		shift
+	done
+	# Not quoting is intentional here. We won't get glob expressions passed.
+	# shellcheck disable=SC2086
+	jq $opts "$1" <<-EOF
+	$2
+	EOF
+	st=$?
+	if [ $st -ne 0 ]; then
+		warn "NBFT: jq error while processing \"$1\""
+		return $st
+	else
+		return 0
+	fi
+}
+
+nbft_check_empty_address() {
+	# suppress meaningless or empty IP addresses
+	# "null" is returned by jq if no match found for expression
+	case $1 in
+	null | "::" | "0.0.0.0") ;;
+	*)
+		echo "$1"
+		;;
+	esac
+}
+
+nbft_parse_hfi() {
+	# false positive of shellcheck - no expansion in variable assignments
+	# shellcheck disable=2086
+	local i_nbft=$(("$1" + 1)) hfi_json=$2
+	local mac iface ipaddr prefix vlan gateway dns1 dns2 hostname adrfam dhcp
+	local ifindex vlan_ifname default_route index js_index dns_servers=
+
+	js_index=$(nbft_run_jq -r .index "$hfi_json") || return 1
+	index=$(printf "%02d-%02d" "$i_nbft" "$js_index")
+	[ ! "$OPT_FW_INDEX" ] || [ "$index" = "$OPT_FW_INDEX" ] || return 0
+
+	mac=$(nbft_run_jq -r .mac_addr "$hfi_json") || return 1
+	iface=$(find_iface_of_mac "$mac") || {
+		warn "interface for $mac not found"
+		return 1
+	}
+	read -r ifindex <"$OPT_ROOTDIR"/sys/class/net/"$iface"/ifindex
+
+	vlan=$(nbft_run_jq .vlan "$hfi_json") || vlan=0
+
+	if [ "$OPT_LISTONLY" = yes ]; then
+		if [ "$vlan" -ne 0 ]; then
+			vlan_ifname=$(get_vlan_ifname "$vlan" "$iface")
+			echo "$vlan_ifname $iface"
+		else
+			echo "$iface"
+		fi
+		return 0
+	fi
+
+	dhcp=$(nbft_run_jq -r .dhcp_server_ipaddr "$hfi_json")
+	# We need to check $? here as the above is an assignment
+	# shellcheck disable=2181
+	if [ $? -ne 0 ] || [ "$dhcp" = null ]; then
+		dhcp=
+	fi
+	ipaddr=$(nbft_run_jq -r .ipaddr "$hfi_json") || return 1
+	case $ipaddr in
+	*.*.*.*)
+		adrfam=ipv4
+		;;
+	*:*)
+		adrfam=ipv6
+		;;
+	*)
+		warn "invalid address on $iface: $ipaddr"
+		return 1
+		;;
+	esac
+
+	prefix=$(nbft_run_jq -r .subnet_mask_prefix "$hfi_json")
+	if [ ! "$prefix" ] || [ "$prefix" = null ]; then
+		case $adrfam in
+		# Don't use prefixlen 64 by default
+		# See https://www.rfc-editor.org/rfc/rfc5942#section-5
+		# https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=684009
+		ipv6) prefix=128 ;;
+		ipv4) prefix=32 ;;
+		*)
+			warn "invalid $adrfam address prefix on $iface: $prefix"
+			return 1
+			;;
+		esac
+	fi
+	gateway=$(nbft_check_empty_address \
+		"$(nbft_run_jq -r .gateway_ipaddr "$hfi_json")")
+
+	dns1=$(nbft_check_empty_address \
+		"$(nbft_run_jq -r .primary_dns_ipaddr "$hfi_json")")
+	dns2=$(nbft_check_empty_address \
+		"$(nbft_run_jq -r .secondary_dns_ipaddr "$hfi_json")")
+
+	hostname=$(nbft_run_jq -r .host_name "$hfi_json" 2>/dev/null) || hostname=
+	if [ "$hostname" ]; then
+		hostname="<hostname>$hostname</hostname>"
+	else
+		hostname="<!-- no host name -->"
+	fi
+
+	cat <<-EOF
+	<interface origin="firmware:nbft:$index">
+	  <name namespace="ifindex">$ifindex</name>
+	$CONTROL
+	EOF
+
+	if [ "$vlan" -ne 0 ]; then
+		vlan_ifname=$(get_vlan_ifname "$vlan" "$iface")
+		cat <<-EOF
+		</interface>
+		<interface origin="firmware:nbft:$index">
+		  <name>$vlan_ifname</name>
+		  <alias>$iface.$vlan</alias>
+		$CONTROL
+		  <vlan>
+		    <device namespace="ifindex">$ifindex</device>
+		    <tag>$vlan</tag>
+		  </vlan>
+		EOF
+	fi
+	if [ "$dhcp" ]; then
+		cat <<-EOF
+		  <$adrfam:dhcp>
+		    <enabled>true</enabled>
+		    $hostname
+		  </$adrfam:dhcp>
+		EOF
+	else
+		case "$gateway" in
+		"")
+			default_route="<!-- no default route -->"
+			;;
+		:: | 0.0.0.0 | 255.255.255.255)
+			warn "invalid gateway on $iface: $gateway"
+			default_route="<!-- wrong default route: $gateway ignored -->"
+			;;
+		*)
+			default_route="<route><nexthop><gateway>$gateway</gateway></nexthop></route>"
+			;;
+		esac
+
+		dns_servers="${dns1:+<server>$dns1</server>}${dns2:+<server>$dns2</server>}"
+		if [ "$dns_servers" ]; then
+			dns_servers="<resolver><servers>$dns_servers</servers></resolver>"
+		else
+			dns_servers="<!-- no dns servers -->"
+		fi
+
+		cat <<-EOF
+		  <$adrfam:static>
+		    <address><local>$ipaddr/$prefix</local></address>
+		    $default_route
+		    $dns_servers
+		    $hostname
+		    <enabled>true</enabled>
+		  </$adrfam:static>
+		EOF
+	fi
+	cat <<-EOF
+	</interface>
+	EOF
+}
+
+nvme_show_nbft() {
+	if test "X$OPT_ROOTDIR" != "X" -a -f "$OPT_ROOTDIR/nbft.json" ; then
+		cat "$OPT_ROOTDIR/nbft.json"
+	else
+		nvme show-nbft -H -o json
+	fi
+}
+
+nbft_parse() {
+	local nbft_json n_nbft all_hfi_json n_hfi
+	local j=0 i
+
+	nbft_json=$(nvme_show_nbft 2>/dev/null) || {
+		warn "failed to read NBFT table, is \"nvme show-nbft\" supported?"
+		return $RC_ERROR
+	}
+	n_nbft=$(nbft_run_jq ". | length" "$nbft_json") || return 0
+	[ "$n_nbft" ] || return 0
+
+	while [ "$j" -lt "$n_nbft" ]; do
+		all_hfi_json=$(nbft_run_jq ".[$j].hfi" "$nbft_json") || continue
+		n_hfi=$(nbft_run_jq ". | length" "$all_hfi_json") || continue
+		i=0
+
+		while [ "$i" -lt "$n_hfi" ]; do
+			nbft_parse_hfi "$j" "$(nbft_run_jq ".[$i]" "$all_hfi_json")" || true
+			i=$((i + 1))
+		done
+		j=$((j + 1))
+	done
+}
+
+LOGGER="stderr"
+case "$(tty 2> /dev/null)" in
+	/dev/*) ;;
+	*) command -v logger &>/dev/null && LOGGER=logger || :
+esac
+
+OPT_ROOTDIR=
+OPT_FW_INDEX=
+OPT_LISTONLY=
+OPT_MODPROBE=nvme_fabrics
+
+while [ $# -gt 0 ]; do
+	opt=$1
+	shift
+	case $opt in
+	-r)
+		OPT_ROOTDIR=$1
+		shift
+		;;
+	-p)
+		OPT_FW_INDEX=$1
+		shift
+		;;
+	-m)
+		OPT_MODPROBE=$1
+		shift
+		;;
+	-l)
+		OPT_LISTONLY=yes
+		;;
+	--)
+		break
+		;;
+	*)
+		warn "Usage: Unknown command line option \"$opt\""
+		exit $RC_USAGE
+		;;
+	esac
+done
+
+# check availability of the NBFT table file in ACPI
+# not an error if system simply does not support it
+[ -r "$OPT_ROOTDIR/sys/firmware/acpi/tables/NBFT" ] || exit $RC_SUCCESS
+
+# check availability of the kernel module
+[ -d "$OPT_ROOTDIR/sys/class/nvme-fabrics" ] || [ ! "$OPT_MODPROBE" ] ||
+	modprobe -qs -- "$OPT_MODPROBE" &>/dev/null || :
+
+# once loaded, the /sys/class/nvme-fabrics is available
+[ -d "$OPT_ROOTDIR/sys/class/nvme-fabrics" ] || {
+	warn "$OPT_ROOTDIR/sys/class/nvme-fabrics not available, cannot parse NBFT"
+	exit $RC_ERROR
+}
+
+command -v jq >/dev/null || {
+	warn "jq command not found - cannot parse NBFT"
+	exit $RC_NOT_INSTALLED
+}
+[ "$OPT_ROOTDIR" ] || command -v nvme >/dev/null || {
+	warn "nvme command not found - cannot parse NBFT"
+	exit $RC_NOT_INSTALLED
+}
+
+nbft_parse || exit $RC_ERROR
+
+exit $RC_SUCCESS
