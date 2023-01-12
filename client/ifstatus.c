@@ -93,6 +93,7 @@ ni_ifstatus_code_name(unsigned int status)
 		{ "no-device",			NI_WICKED_ST_NO_DEVICE		},
 		{ "device-not-running",		NI_WICKED_ST_NOT_RUNNING	},
 		{ "no-config",			NI_WICKED_ST_NO_CONFIG		},
+		{ "no-carrier",			NI_WICKED_ST_NO_CARRIER		},
 		{ "setup-in-progress",		NI_WICKED_ST_IN_PROGRESS	},
 		{ "config-changed",		NI_WICKED_ST_CHANGED_CONFIG	},
 		{ "enslaved",			NI_WICKED_ST_ENSLAVED		},
@@ -292,7 +293,7 @@ __ifstatus_of_device(ni_netdev_t *dev)
 
 	if (!ni_ifcheck_device_link_is_up(dev) &&
 	    ni_ifcheck_device_link_required(dev))
-		return NI_WICKED_ST_IN_PROGRESS;
+		return NI_WICKED_ST_NO_CARRIER;
 
 	__ifstatus_of_device_leases(dev, &st);
 #if 0
