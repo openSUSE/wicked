@@ -24,11 +24,8 @@
 #include <net/ethernet.h>
 #include <stdarg.h>
 
-#if defined(HAVE_DCB_ATTR_IEEE_MAXRATE) && defined(HAVE_LINUX_DCBNL_H)
-#  include <linux/dcbnl.h>
-#else
-#  include "linux/dcbnl.h"
-#endif
+#include <linux/dcbnl.h>
+
 #include "buffer.h"
 #include "util_priv.h"
 #include "debug.h"

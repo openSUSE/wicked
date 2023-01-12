@@ -266,7 +266,6 @@ __ni_netdev_process_events(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int ol
 int
 __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struct nlmsghdr *h)
 {
-	char namebuf[IF_NAMESIZE+1] = {'\0'};
 	ni_netdev_t *dev, *old;
 	struct ifinfomsg *ifi;
 	struct nlattr *nla;
@@ -280,7 +279,7 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		return 0;
 
 	old = ni_netdev_by_index(nc, ifi->ifi_index);
-	ifname = if_indextoname(ifi->ifi_index, namebuf);
+	ni_netdev_index_to_name(&ifname, ifi->ifi_index);
 	if (!ifname) {
 		/*
 		 * device (index) does not exists any more;
@@ -307,25 +306,28 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 		}
 		dev = old;
 		old_flags = old->link.ifflags;
+		ni_string_free(&ifname);
 	} else {
 		if (!(dev = ni_netdev_new(ifname, ifi->ifi_index))) {
 			ni_warn("%s[%u]: unable to allocate memory for device",
 					ifname, ifi->ifi_index);
+			ni_string_free(&ifname);
 			return -1;
 		}
 		dev->created = 1;
 		ni_netconfig_device_append(nc, dev);
+		ni_string_free(&ifname);
 	}
 
 	if (__ni_netdev_process_newlink(dev, h, ifi, nc) < 0) {
-		ni_error("Problem parsing RTM_NEWLINK message for %s", ifname);
+		ni_error("Problem parsing RTM_NEWLINK message for %s", dev->name);
 		return -1;
 	}
 
-	if ((ifname = dev->name)) {
+	if (dev->name) {
 		ni_netdev_t *conflict;
 
-		conflict = ni_netdev_by_name(nc, ifname);
+		conflict = ni_netdev_by_name(nc, dev->name);
 		if (conflict && conflict->link.ifindex != (unsigned int)ifi->ifi_index) {
 			/*
 			 * As the events often provide an already obsolete name [2 events,
@@ -340,9 +342,7 @@ __ni_rtevent_newlink(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 			 * Just update the name of the conflicting device in advance too
 			 * and when the interface does not exist any more, emit events.
 			 */
-			char *current = if_indextoname(conflict->link.ifindex, namebuf);
-			if (current) {
-				ni_string_dup(&conflict->name, current);
+			if (ni_netdev_index_to_name(&conflict->name, conflict->link.ifindex)) {
 				__ni_netdev_event(nc, conflict, NI_EVENT_DEVICE_RENAME);
 			} else {
 				unsigned int ifflags = conflict->link.ifflags;

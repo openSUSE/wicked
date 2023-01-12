@@ -24,13 +24,12 @@
 #ifndef NI_WICKED_ADDRESS_H
 #define NI_WICKED_ADDRESS_H
 
-#include <sys/socket.h>
-#include <net/if.h>
-#include <netinet/in.h>
-
 #include <wicked/types.h>
 #include <wicked/refcount.h>
 #include <wicked/util.h>
+
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 union ni_sockaddr {
 	sa_family_t		ss_family;

@@ -693,6 +693,86 @@ static const ni_intmap_t		ni_ethtool_link_adv_speed_names[] = {
 	{ "100000baseCR4/Full",		ETHTOOL_LINK_MODE_100000baseCR4_Full_BIT	},
 	{ "100000baseLR4-ER4-Full",	ETHTOOL_LINK_MODE_100000baseLR4_ER4_Full_BIT	},
 	{ "100000baseLR4-ER4/Full",	ETHTOOL_LINK_MODE_100000baseLR4_ER4_Full_BIT	},
+	{ "50000baseKR-Full",		ETHTOOL_LINK_MODE_50000baseKR_Full_BIT		},
+	{ "50000baseKR/Full",		ETHTOOL_LINK_MODE_50000baseKR_Full_BIT		},
+	{ "50000baseSR-Full",		ETHTOOL_LINK_MODE_50000baseSR_Full_BIT		},
+	{ "50000baseSR/Full",		ETHTOOL_LINK_MODE_50000baseSR_Full_BIT		},
+	{ "50000baseCR-Full",		ETHTOOL_LINK_MODE_50000baseCR_Full_BIT		},
+	{ "50000baseCR/Full",		ETHTOOL_LINK_MODE_50000baseCR_Full_BIT		},
+	{ "50000baseLR_ER_FR-Full",	ETHTOOL_LINK_MODE_50000baseLR_ER_FR_Full_BIT	},
+	{ "50000baseLR_ER_FR/Full",	ETHTOOL_LINK_MODE_50000baseLR_ER_FR_Full_BIT	},
+	{ "50000baseDR-Full",		ETHTOOL_LINK_MODE_50000baseDR_Full_BIT		},
+	{ "50000baseDR/Full",		ETHTOOL_LINK_MODE_50000baseDR_Full_BIT		},
+	{ "100000baseKR2-Full",		ETHTOOL_LINK_MODE_100000baseKR2_Full_BIT	},
+	{ "100000baseKR2/Full",		ETHTOOL_LINK_MODE_100000baseKR2_Full_BIT	},
+	{ "100000baseSR2-Full",		ETHTOOL_LINK_MODE_100000baseSR2_Full_BIT	},
+	{ "100000baseSR2/Full",		ETHTOOL_LINK_MODE_100000baseSR2_Full_BIT	},
+	{ "100000baseCR2-Full",		ETHTOOL_LINK_MODE_100000baseCR2_Full_BIT	},
+	{ "100000baseCR2/Full",		ETHTOOL_LINK_MODE_100000baseCR2_Full_BIT	},
+	{ "100000baseLR2_ER2_FR2-Full",	ETHTOOL_LINK_MODE_100000baseLR2_ER2_FR2_Full_BIT},
+	{ "100000baseLR2_ER2_FR2/Full",	ETHTOOL_LINK_MODE_100000baseLR2_ER2_FR2_Full_BIT},
+	{ "100000baseDR2-Full",		ETHTOOL_LINK_MODE_100000baseDR2_Full_BIT	},
+	{ "100000baseDR2/Full",		ETHTOOL_LINK_MODE_100000baseDR2_Full_BIT	},
+	{ "200000baseKR4-Full",		ETHTOOL_LINK_MODE_200000baseKR4_Full_BIT	},
+	{ "200000baseKR4/Full",		ETHTOOL_LINK_MODE_200000baseKR4_Full_BIT	},
+	{ "200000baseSR4-Full",		ETHTOOL_LINK_MODE_200000baseSR4_Full_BIT	},
+	{ "200000baseSR4/Full",		ETHTOOL_LINK_MODE_200000baseSR4_Full_BIT	},
+	{ "200000baseLR4_ER4_FR4-Full",	ETHTOOL_LINK_MODE_200000baseLR4_ER4_FR4_Full_BIT},
+	{ "200000baseLR4_ER4_FR4/Full",	ETHTOOL_LINK_MODE_200000baseLR4_ER4_FR4_Full_BIT},
+	{ "200000baseDR4-Full",		ETHTOOL_LINK_MODE_200000baseDR4_Full_BIT	},
+	{ "200000baseDR4/Full",		ETHTOOL_LINK_MODE_200000baseDR4_Full_BIT	},
+	{ "200000baseCR4-Full",		ETHTOOL_LINK_MODE_200000baseCR4_Full_BIT	},
+	{ "200000baseCR4/Full",		ETHTOOL_LINK_MODE_200000baseCR4_Full_BIT	},
+	{ "100baseT1-Full",		ETHTOOL_LINK_MODE_100baseT1_Full_BIT		},
+	{ "100baseT1/Full",		ETHTOOL_LINK_MODE_100baseT1_Full_BIT		},
+	{ "1000baseT1-Full",		ETHTOOL_LINK_MODE_1000baseT1_Full_BIT		},
+	{ "1000baseT1/Full",		ETHTOOL_LINK_MODE_1000baseT1_Full_BIT		},
+	{ "400000baseKR8-Full",		ETHTOOL_LINK_MODE_400000baseKR8_Full_BIT	},
+	{ "400000baseKR8/Full",		ETHTOOL_LINK_MODE_400000baseKR8_Full_BIT	},
+	{ "400000baseSR8-Full",		ETHTOOL_LINK_MODE_400000baseSR8_Full_BIT	},
+	{ "400000baseSR8/Full",		ETHTOOL_LINK_MODE_400000baseSR8_Full_BIT	},
+	{ "400000baseLR8_ER8_FR8-Full",	ETHTOOL_LINK_MODE_400000baseLR8_ER8_FR8_Full_BIT},
+	{ "400000baseLR8_ER8_FR8/Full",	ETHTOOL_LINK_MODE_400000baseLR8_ER8_FR8_Full_BIT},
+	{ "400000baseDR8-Full",		ETHTOOL_LINK_MODE_400000baseDR8_Full_BIT	},
+	{ "400000baseDR8/Full",		ETHTOOL_LINK_MODE_400000baseDR8_Full_BIT	},
+	{ "400000baseCR8-Full",		ETHTOOL_LINK_MODE_400000baseCR8_Full_BIT	},
+	{ "400000baseCR8/Full",		ETHTOOL_LINK_MODE_400000baseCR8_Full_BIT	},
+	{ "100000baseKR-Full",		ETHTOOL_LINK_MODE_100000baseKR_Full_BIT		},
+	{ "100000baseKR/Full",		ETHTOOL_LINK_MODE_100000baseKR_Full_BIT		},
+	{ "100000baseSR-Full",		ETHTOOL_LINK_MODE_100000baseSR_Full_BIT		},
+	{ "100000baseSR/Full",		ETHTOOL_LINK_MODE_100000baseSR_Full_BIT		},
+	{ "100000baseLR_ER_FR-Full",	ETHTOOL_LINK_MODE_100000baseLR_ER_FR_Full_BIT	},
+	{ "100000baseLR_ER_FR/Full",	ETHTOOL_LINK_MODE_100000baseLR_ER_FR_Full_BIT	},
+	{ "100000baseCR-Full",		ETHTOOL_LINK_MODE_100000baseCR_Full_BIT		},
+	{ "100000baseCR/Full",		ETHTOOL_LINK_MODE_100000baseCR_Full_BIT		},
+	{ "100000baseDR-Full",		ETHTOOL_LINK_MODE_100000baseDR_Full_BIT		},
+	{ "100000baseDR/Full",		ETHTOOL_LINK_MODE_100000baseDR_Full_BIT		},
+	{ "200000baseKR2-Full",		ETHTOOL_LINK_MODE_200000baseKR2_Full_BIT	},
+	{ "200000baseKR2/Full",		ETHTOOL_LINK_MODE_200000baseKR2_Full_BIT	},
+	{ "200000baseSR2-Full",		ETHTOOL_LINK_MODE_200000baseSR2_Full_BIT	},
+	{ "200000baseSR2/Full",		ETHTOOL_LINK_MODE_200000baseSR2_Full_BIT	},
+	{ "200000baseLR2_ER2_FR2-Full",	ETHTOOL_LINK_MODE_200000baseLR2_ER2_FR2_Full_BIT},
+	{ "200000baseLR2_ER2_FR2/Full",	ETHTOOL_LINK_MODE_200000baseLR2_ER2_FR2_Full_BIT},
+	{ "200000baseDR2-Full",		ETHTOOL_LINK_MODE_200000baseDR2_Full_BIT	},
+	{ "200000baseDR2/Full",		ETHTOOL_LINK_MODE_200000baseDR2_Full_BIT	},
+	{ "200000baseCR2-Full",		ETHTOOL_LINK_MODE_200000baseCR2_Full_BIT	},
+	{ "200000baseCR2/Full",		ETHTOOL_LINK_MODE_200000baseCR2_Full_BIT	},
+	{ "400000baseKR4-Full",		ETHTOOL_LINK_MODE_400000baseKR4_Full_BIT	},
+	{ "400000baseKR4/Full",		ETHTOOL_LINK_MODE_400000baseKR4_Full_BIT	},
+	{ "400000baseSR4-Full",		ETHTOOL_LINK_MODE_400000baseSR4_Full_BIT	},
+	{ "400000baseSR4/Full",		ETHTOOL_LINK_MODE_400000baseSR4_Full_BIT	},
+	{ "400000baseLR4_ER4_FR4-Full",	ETHTOOL_LINK_MODE_400000baseLR4_ER4_FR4_Full_BIT},
+	{ "400000baseLR4_ER4_FR4/Full",	ETHTOOL_LINK_MODE_400000baseLR4_ER4_FR4_Full_BIT},
+	{ "400000baseDR4-Full",		ETHTOOL_LINK_MODE_400000baseDR4_Full_BIT	},
+	{ "400000baseDR4/Full",		ETHTOOL_LINK_MODE_400000baseDR4_Full_BIT	},
+	{ "400000baseCR4-Full",		ETHTOOL_LINK_MODE_400000baseCR4_Full_BIT	},
+	{ "400000baseCR4/Full",		ETHTOOL_LINK_MODE_400000baseCR4_Full_BIT	},
+	{ "100baseFX-Half",		ETHTOOL_LINK_MODE_100baseFX_Half_BIT		},
+	{ "100baseFX/Half",		ETHTOOL_LINK_MODE_100baseFX_Half_BIT		},
+	{ "100baseFX-Full",		ETHTOOL_LINK_MODE_100baseFX_Full_BIT		},
+	{ "100baseFX/Full",		ETHTOOL_LINK_MODE_100baseFX_Full_BIT		},
+	{ "10baseT1L-Full",		ETHTOOL_LINK_MODE_10baseT1L_Full_BIT		},
+	{ "10baseT1L/Full",		ETHTOOL_LINK_MODE_10baseT1L_Full_BIT		},
 
 	{ NULL,			-1U							}
 };
@@ -703,7 +783,10 @@ static const ni_intmap_t		ni_ethtool_link_adv_autoneg_names[] = {
 };
 static const ni_intmap_t		ni_ethtool_link_adv_pause_names[] = {
 	{ "Symmetric",			ETHTOOL_LINK_MODE_Pause_BIT			},
+	{ "Pause",			ETHTOOL_LINK_MODE_Pause_BIT			},
 	{ "Asymmetric",			ETHTOOL_LINK_MODE_Asym_Pause_BIT		},
+	{ "Asym_Pause",			ETHTOOL_LINK_MODE_Asym_Pause_BIT		},
+	{ "Receive-only",		ETHTOOL_LINK_MODE_Asym_Pause_BIT		},
 
 	{ NULL,			-1U							}
 };
@@ -721,21 +804,10 @@ static const ni_intmap_t		ni_ethtool_link_adv_fec_names[] = {
 	{ "None",			ETHTOOL_LINK_MODE_FEC_NONE_BIT			},
 	{ "BaseR",			ETHTOOL_LINK_MODE_FEC_BASER_BIT 		},
 	{ "RS",				ETHTOOL_LINK_MODE_FEC_RS_BIT			},
+	{ "LLRS",			ETHTOOL_LINK_MODE_FEC_LLRS_BIT			},
 
 	{ NULL,			-1U							}
 };
-
-unsigned int
-ni_ethtool_link_mode_nwords(void)
-{
-	return (__ETHTOOL_LINK_MODE_LAST + 32) / 32;
-}
-
-unsigned int
-ni_ethtool_link_mode_nbits(void)
-{
-	return ni_ethtool_link_mode_nwords() * 32;
-}
 
 const char *
 ni_ethtool_link_adv_name(unsigned int type)
@@ -995,6 +1067,7 @@ ni_ethtool_set_adv_by_speed(ni_bitfield_t *adv, unsigned int speed, uint8_t dupl
 	case SPEED_10:
 		if (duplex == NI_ETHTOOL_DUPLEX_HALF || duplex == NI_ETHTOOL_DUPLEX_UNKNOWN) {
 			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_10baseT_Half_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_10baseT1L_Full_BIT);
 		}
 		if (duplex == NI_ETHTOOL_DUPLEX_FULL || duplex == NI_ETHTOOL_DUPLEX_UNKNOWN) {
 			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_10baseT_Full_BIT);
@@ -1003,9 +1076,12 @@ ni_ethtool_set_adv_by_speed(ni_bitfield_t *adv, unsigned int speed, uint8_t dupl
 	case SPEED_100:
 		if (duplex == NI_ETHTOOL_DUPLEX_HALF || duplex == NI_ETHTOOL_DUPLEX_UNKNOWN) {
 			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100baseT_Half_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100baseFX_Half_BIT);
 		}
 		if (duplex == NI_ETHTOOL_DUPLEX_FULL || duplex == NI_ETHTOOL_DUPLEX_UNKNOWN) {
 			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100baseT_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100baseT1_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100baseFX_Full_BIT);
 		}
 		break;
 	case SPEED_1000:
@@ -1014,6 +1090,7 @@ ni_ethtool_set_adv_by_speed(ni_bitfield_t *adv, unsigned int speed, uint8_t dupl
 		}
 		if (duplex == NI_ETHTOOL_DUPLEX_FULL || duplex == NI_ETHTOOL_DUPLEX_UNKNOWN) {
 			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_1000baseT_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_1000baseT1_Full_BIT);
 			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_1000baseX_Full_BIT);
 			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_1000baseKX_Full_BIT);
 		}
@@ -1042,6 +1119,8 @@ ni_ethtool_set_adv_by_speed(ni_bitfield_t *adv, unsigned int speed, uint8_t dupl
 			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_10000baseR_FEC_BIT);
 		}
 		break;
+	case SPEED_14000:
+		break;
 	case SPEED_20000:
 		if (duplex == NI_ETHTOOL_DUPLEX_FULL || duplex == NI_ETHTOOL_DUPLEX_UNKNOWN) {
 			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_20000baseKR2_Full_BIT);
@@ -1068,6 +1147,11 @@ ni_ethtool_set_adv_by_speed(ni_bitfield_t *adv, unsigned int speed, uint8_t dupl
 			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_50000baseCR2_Full_BIT);
 			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_50000baseKR2_Full_BIT);
 			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_50000baseSR2_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_50000baseKR_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_50000baseSR_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_50000baseCR_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_50000baseLR_ER_FR_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_50000baseDR_Full_BIT);
 		}
 		break;
 	case SPEED_56000:
@@ -1084,6 +1168,44 @@ ni_ethtool_set_adv_by_speed(ni_bitfield_t *adv, unsigned int speed, uint8_t dupl
 			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100000baseKR4_Full_BIT);
 			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100000baseSR4_Full_BIT);
 			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100000baseLR4_ER4_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100000baseKR2_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100000baseSR2_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100000baseCR2_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100000baseLR2_ER2_FR2_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100000baseDR2_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100000baseKR_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100000baseSR_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100000baseLR_ER_FR_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100000baseCR_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_100000baseDR_Full_BIT);
+		}
+		break;
+	case SPEED_200000:
+		if (duplex == NI_ETHTOOL_DUPLEX_FULL || duplex == NI_ETHTOOL_DUPLEX_UNKNOWN) {
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_200000baseKR4_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_200000baseSR4_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_200000baseLR4_ER4_FR4_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_200000baseDR4_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_200000baseCR4_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_200000baseKR2_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_200000baseSR2_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_200000baseLR2_ER2_FR2_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_200000baseDR2_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_200000baseCR2_Full_BIT);
+		}
+		break;
+	case SPEED_400000:
+		if (duplex == NI_ETHTOOL_DUPLEX_FULL || duplex == NI_ETHTOOL_DUPLEX_UNKNOWN) {
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_400000baseKR8_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_400000baseSR8_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_400000baseLR8_ER8_FR8_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_400000baseDR8_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_400000baseCR8_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_400000baseKR4_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_400000baseSR4_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_400000baseLR4_ER4_FR4_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_400000baseDR4_Full_BIT);
+			ni_bitfield_setbit(adv, ETHTOOL_LINK_MODE_400000baseCR4_Full_BIT);
 		}
 		break;
 	default:
@@ -1447,8 +1569,6 @@ ni_ethtool_get_link_settings_current(const ni_netdev_ref_t *ref, ni_ethtool_t *e
 	memset(&ecmd, 0, sizeof(ecmd));
 	if (ethtool->link_settings && ethtool->link_settings->nwords > 0)
 		ecmd.settings.link_mode_masks_nwords = ethtool->link_settings->nwords;
-	else
-		ecmd.settings.link_mode_masks_nwords = ni_ethtool_link_mode_nwords();
 
 	ret = ni_ethtool_call(ref, &NI_ETHTOOL_CMD_GLINKSETINGS, &ecmd, NULL);
 	ni_ethtool_set_supported(ethtool, NI_ETHTOOL_SUPP_GET_LINK_SETTINGS,
@@ -1547,8 +1667,6 @@ ni_ethtool_set_link_settings_current(const ni_netdev_ref_t *ref, ni_ethtool_t *e
 	memset(&ecmd, 0, sizeof(ecmd));
 	if (ethtool->link_settings && ethtool->link_settings->nwords > 0)
 		ecmd.settings.link_mode_masks_nwords = ethtool->link_settings->nwords;
-	else
-		ecmd.settings.link_mode_masks_nwords = ni_ethtool_link_mode_nwords();
 
 	ret = ni_ethtool_call(ref, &NI_ETHTOOL_CMD_GLINKSETINGS, &ecmd, NULL);
 	ni_ethtool_set_supported(ethtool, NI_ETHTOOL_SUPP_GET_LINK_SETTINGS,

@@ -21,13 +21,8 @@
  *		Olaf Kirch
  *		Marius Tomaschewski
  */
-#ifndef WICKED_ROUTE_H
-#define WICKED_ROUTE_H
-
-#include <sys/socket.h>
-#include <stdio.h>
-#include <net/if.h>
-#include <netinet/in.h>
+#ifndef NI_WICKED_ROUTE_H
+#define NI_WICKED_ROUTE_H
 
 #include <wicked/types.h>
 #include <wicked/refcount.h>
@@ -324,4 +319,4 @@ extern unsigned int		ni_rule_array_find_matches(const ni_rule_array_t *, const n
 					ni_bool_t (*match)(const ni_rule_t *, const ni_rule_t *),
 					ni_rule_array_t *);
 
-#endif /* WICKED_ROUTE_H */
+#endif /* NI_WICKED_ROUTE_H */

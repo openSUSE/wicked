@@ -7,15 +7,6 @@
 #include "config.h"
 #endif
 
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <net/if.h>
-#include <net/if_arp.h>
-#include <netinet/ip.h>
-#include <netlink/attr.h>
-#include <netlink/msg.h>
-#include <errno.h>
-
 #include <wicked/netinfo.h>
 #include <wicked/ipv4.h>
 #include <wicked/ipv6.h>
@@ -34,24 +25,6 @@
 #include <wicked/tunneling.h>
 #include <wicked/linkstats.h>
 
-#if defined(HAVE_RTA_MARK)
-#  include <netlink/netlink.h>
-#elif defined(HAVE_LINUX_RTNETLINK_H) && defined(HAVE_LINUX_RTA_MARK)
-#  include <linux/rtnetlink.h>
-#  define  HAVE_RTA_MARK HAVE_LINUX_RTA_MARK
-#endif
-
-#if defined(HAVE_IFLA_VLAN_PROTOCOL)
-#  ifndef	ETH_P_8021Q
-#  define	ETH_P_8021Q	0x8100
-#  endif
-#  ifndef	ETH_P_8021AD
-#  define	ETH_P_8021AD	0x88A8
-#  endif
-#endif
-#include <linux/if_tunnel.h>
-#include <linux/fib_rules.h>
-
 #include "netinfo_priv.h"
 #include "sysfs.h"
 #include "kernel.h"
@@ -60,6 +33,25 @@
 #include "teamd.h"
 #include "ovs.h"
 
+#include <errno.h>
+#include <netinet/in.h>
+
+#if defined(HAVE_RTA_MARK)
+#  include <netlink/netlink.h>
+#elif defined(HAVE_LINUX_RTNETLINK_H) && defined(HAVE_LINUX_RTA_MARK)
+#  include <linux/rtnetlink.h>
+#  define  HAVE_RTA_MARK HAVE_LINUX_RTA_MARK
+#endif
+#include <netlink/attr.h>
+#include <netlink/msg.h>
+
+#include <linux/ip.h>
+#include <linux/if.h>
+#include <linux/if_arp.h>
+#include <linux/if_link.h>
+#include <linux/if_ether.h>
+#include <linux/if_tunnel.h>
+#include <linux/fib_rules.h>
 
 static int		__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 					struct ifinfomsg *ifi, ni_netconfig_t *);
@@ -1102,22 +1094,26 @@ __ni_process_ifinfomsg_ovs_type(ni_iftype_t *type, const char *ifname, ni_netcon
 }
 
 static ni_bool_t
-ni_is_wireless(const char *ifname, unsigned int ifindex)
+ni_netdev_is_wireless(const char *ifname, unsigned int ifindex)
 {
-	char ifname_tmp[IF_NAMESIZE];
+	char *name = NULL;
+	ni_bool_t ret;
 
 	/* rtnetlink does not tell us if the device has a
 	 * wireless extensions or not, but sysfs does. */
-	if ( ni_sysfs_netif_exists(ifname, "wireless"))
+	if (ni_sysfs_netif_exists(ifname, "wireless"))
 		return TRUE;
 
-	/* There might be a race condition, where the iterface was renamed and the
-	 * directory in sysfs doesn't exists anymore */
-	if (if_indextoname(ifindex, ifname_tmp))
-		if (ni_sysfs_netif_exists(ifname_tmp, "wireless"))
-			return TRUE;
+	/* There might be a race condition, where the iterface was renamed
+	 * and the directory in sysfs doesn't exists anymore... we have to
+	 * either keep type at NI_IFTYPE_UNKNOWN until next (rename) event
+	 * arrives or try again with the new name here and now */
+	if (!ni_netdev_index_to_name(&name, ifindex))
+		return FALSE;
 
-	return FALSE;
+	ret = ni_sysfs_netif_exists(name, "wireless");
+	ni_string_free(&name);
+	return ret;
 }
 
 static void
@@ -1157,7 +1153,7 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname, ni_netc
 			/* We're at the very least an ethernet. */
 			tmp_link_type = NI_IFTYPE_ETHERNET;
 
-			if (ni_is_wireless(ifname, link->ifindex))
+			if (ni_netdev_is_wireless(ifname, link->ifindex))
 				tmp_link_type = NI_IFTYPE_WIRELESS;
 
 			memset(&drv_info, 0, sizeof(drv_info));
@@ -3511,7 +3507,7 @@ __ni_discover_bridge(ni_netdev_t *dev)
 		unsigned int index;
 		ni_bridge_port_t *port;
 
-		if ((index = if_nametoindex(ifname)) == 0) {
+		if ((index = ni_netdev_name_to_index(ifname)) == 0) {
 			/* Looks like someone is renaming interfaces while we're
 			 * trying to discover them :-( */
 			ni_error("%s: port interface %s has index 0?!", __func__, ifname);

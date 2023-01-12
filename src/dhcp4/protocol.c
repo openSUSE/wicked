@@ -9,29 +9,6 @@
 #include "config.h"
 #endif
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-#include <time.h>
-#include <assert.h>
-
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <netinet/udp.h>
-#include <net/if_arp.h>
-#include <net/ethernet.h>
-
-#include <arpa/inet.h>
-
-#include <errno.h>
-#include <limits.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include <wicked/netinfo.h>
 #include <wicked/route.h>
 #include <wicked/logging.h>
@@ -39,11 +16,27 @@
 #include <wicked/resolver.h>
 #include <wicked/nis.h>
 #include <wicked/xml.h>
+
 #include "dhcp4/dhcp4.h"
 #include "dhcp4/protocol.h"
 #include "dhcp.h"
 #include "buffer.h"
 #include "socket_priv.h"
+
+#include <limits.h>
+#include <errno.h>
+
+#include <unistd.h>
+#include <fcntl.h>
+
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netinet/udp.h>
+
+#include <net/if.h>
+#include <net/if_arp.h>
+#include <net/ethernet.h>
+
 
 static void	ni_dhcp4_socket_recv(ni_socket_t *);
 
