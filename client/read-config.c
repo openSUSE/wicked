@@ -204,6 +204,30 @@ ni_ifconfig_kind_guess(ni_ifconfig_kind_t kind)
 	}
 }
 
+static const ni_intmap_t	ni_ifconfig_kind_map[] = {
+	{ "policy",		NI_IFCONFIG_KIND_POLICY		},
+	{ "config",		NI_IFCONFIG_KIND_CONFIG		},
+	{ NULL,			NI_IFCONFIG_KIND_DEFAULT	}
+};
+
+const char *
+ni_ifconfig_kind_to_name(ni_ifconfig_kind_t kind)
+{
+	return ni_format_uint_mapped(kind, ni_ifconfig_kind_map);
+}
+
+ni_bool_t
+ni_ifconfig_kind_by_name(const char *name, ni_ifconfig_kind_t *kind)
+{
+	unsigned int type;
+
+	if (!kind || ni_parse_uint_mapped(name, ni_ifconfig_kind_map, &type) < 0)
+		return FALSE;
+
+	*kind = type;
+	return TRUE;
+}
+
 const ni_ifconfig_type_t *
 ni_ifconfig_guess_wicked_type(const ni_ifconfig_type_t *map,
 			const char *root, const char *path)
