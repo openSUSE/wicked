@@ -198,14 +198,37 @@ extern int		ni_arp_send_grat_reply(ni_arp_socket_t *, struct in_addr);
 extern int		ni_arp_send_grat_request(ni_arp_socket_t *, struct in_addr);
 extern int		ni_arp_send(ni_arp_socket_t *, const ni_arp_packet_t *);
 
+#define NI_ARP_VERIFY_ADDRESS_INIT		{ .nprobes = 0, .nerrors = 0, .address = NULL }
+typedef struct ni_arp_verify_address {
+	unsigned int		nprobes;
+	unsigned int		nerrors;
+	ni_address_t		*address;
+} ni_arp_verify_address_t;
+
+#define NI_ARP_VERIFY_ADDRESS_ARRAY_CHUNK	32
+#define NI_ARP_VERIFY_ADDRESS_ARRAY_INIT	{ .count = 0, .data = NULL }
+typedef struct ni_arp_verify_address_array {
+	unsigned int		count;
+	ni_arp_verify_address_t *data;
+} ni_arp_verify_address_array_t;
+
 typedef struct ni_arp_verify {
 	unsigned int		nprobes;
+	unsigned int		nretry;
 
 	unsigned int		wait_ms;
 	struct timeval		started;
 
-	ni_address_array_t	ipaddrs;
+	ni_arp_verify_address_array_t	ipaddrs;
 } ni_arp_verify_t;
+
+extern void		ni_arp_verify_address_array_init(ni_arp_verify_address_array_t *);
+extern void		ni_arp_verify_address_array_destroy(ni_arp_verify_address_array_t *);
+extern ni_bool_t	ni_arp_verify_address_array_append(ni_arp_verify_address_array_t *, ni_address_t *);
+extern ni_arp_verify_address_t*	ni_arp_verify_address_array_find_match(ni_arp_verify_address_array_t *,
+									ni_address_t *,	unsigned int *,
+									ni_bool_t (*)(const ni_address_t *,
+										const ni_address_t *));
 
 extern void		ni_arp_verify_init(ni_arp_verify_t *, unsigned int, unsigned int);
 extern void		ni_arp_verify_reset(ni_arp_verify_t *, unsigned int, unsigned int);

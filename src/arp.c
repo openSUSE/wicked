@@ -10,7 +10,9 @@
 #include <net/if_arp.h>
 #include <netinet/if_ether.h>
 #include <stdlib.h>
+#include <limits.h>
 #include <sys/time.h>
+#include <errno.h>
 
 #include <wicked/netinfo.h>
 #include <wicked/socket.h>
@@ -223,6 +225,7 @@ ni_arp_verify_init(ni_arp_verify_t *vfy,  unsigned int nprobes, unsigned int wai
 {
 	memset(vfy, 0, sizeof(*vfy));
 	vfy->nprobes = nprobes;
+	vfy->nretry = nprobes * 2;
 	vfy->wait_ms = wait_ms;
 }
 
@@ -230,15 +233,16 @@ void
 ni_arp_verify_reset(ni_arp_verify_t *vfy,  unsigned int nprobes, unsigned int wait_ms)
 {
 	vfy->nprobes = nprobes;
+	vfy->nretry = nprobes * 2;
 	vfy->wait_ms = wait_ms;
 	timerclear(&vfy->started);
-	ni_address_array_destroy(&vfy->ipaddrs);
+	ni_arp_verify_address_array_destroy(&vfy->ipaddrs);
 }
 
 void
 ni_arp_verify_destroy(ni_arp_verify_t *vfy)
 {
-	ni_address_array_destroy(&vfy->ipaddrs);
+	ni_arp_verify_address_array_destroy(&vfy->ipaddrs);
 	memset(vfy, 0, sizeof(*vfy));
 }
 
@@ -253,11 +257,11 @@ ni_arp_verify_add_address(ni_arp_verify_t *vfy,  ni_address_t *ap)
 	if (ap->family != AF_INET || !ni_sockaddr_is_ipv4_specified(&ap->local_addr))
 		return 0;
 
-	if (ni_address_array_find_match(&vfy->ipaddrs, ap, NULL, ni_address_equal_local_addr))
+	if (ni_arp_verify_address_array_find_match(&vfy->ipaddrs, ap, NULL, ni_address_equal_local_addr))
 		return 0;	/* already have it */
 
 	ref = ni_address_ref(ap);
-	if (!ref || !ni_address_array_append(&vfy->ipaddrs, ref)) {
+	if (!ref || !ni_arp_verify_address_array_append(&vfy->ipaddrs, ref)) {
 		ni_address_free(ref);
 		return 0;
 	}
@@ -274,6 +278,7 @@ ni_arp_verify_process(ni_arp_socket_t *sock, const ni_arp_packet_t *pkt, void *u
 	ni_bool_t false_alarm = FALSE;
 	ni_bool_t found_addr = FALSE;
 	ni_address_t sip, *dup;
+	ni_arp_verify_address_t *vap;
 	const char *hwaddr;
 
 	if (!sock || !pkt || pkt->op != ARPOP_REPLY || !vfy)
@@ -282,19 +287,19 @@ ni_arp_verify_process(ni_arp_socket_t *sock, const ni_arp_packet_t *pkt, void *u
 	/* Is it about the address we're validating? */
 	memset(&sip, 0, sizeof(sip));
 	ni_sockaddr_set_ipv4(&sip.local_addr, pkt->sip, 0);
-	dup = ni_address_array_find_match(&vfy->ipaddrs, &sip, NULL, ni_address_equal_local_addr);
-	if (!dup) {
+	vap = ni_arp_verify_address_array_find_match(&vfy->ipaddrs, &sip, NULL, ni_address_equal_local_addr);
+	if (!vap) {
 		ni_debug_application("%s: ignore report about unrelated address %s from  %s",
 				sock->dev_info.ifname, ni_sockaddr_print(&sip.local_addr),
 				ni_link_address_print(&pkt->sha));
 		return;
-	} else
-	if (ni_address_is_duplicate(dup)) {
+	} else if (ni_address_is_duplicate(vap->address)) {
 		ni_debug_application("%s: ignore further reply about duplicate address %s from %s",
 				sock->dev_info.ifname, ni_sockaddr_print(&sip.local_addr),
 				ni_link_address_print(&pkt->sha));
 		return;
 	}
+	dup = vap->address;
 
 	/* Ignore any ARP replies that seem to come from our own MAC
 	 * address. Some helpful switches seem to generate them.
@@ -347,9 +352,11 @@ ni_arp_verify_send(ni_arp_socket_t *sock, ni_arp_verify_t *vfy, unsigned int *ti
 {
 	static struct in_addr null = { 0 };
 	const struct in_addr *ip;
-	unsigned int i, count;
+	unsigned int i;
 	struct timeval now;
 	ni_address_t *ap;
+	ni_arp_verify_address_t *vap;
+	ni_bool_t need_wait;
 
 	if (!sock || !vfy || !timeout)
 		return FALSE;
@@ -358,38 +365,67 @@ ni_arp_verify_send(ni_arp_socket_t *sock, ni_arp_verify_t *vfy, unsigned int *ti
 	if ((*timeout = ni_arp_timeout_left(&vfy->started, &now, vfy->wait_ms)))
 		return TRUE;
 
-	if (vfy->nprobes && vfy->ipaddrs.count) {
-		vfy->started = now;
-		vfy->nprobes--;
+	for (i = 0; i < vfy->ipaddrs.count; ++i) {
+		vap = &vfy->ipaddrs.data[i];
+		ap  = vap->address;
 
-		for (count = 0, i = 0; i < vfy->ipaddrs.count; ++i) {
-			ap = vfy->ipaddrs.data[i];
+		if (ni_address_is_duplicate(ap))
+			continue;
+		if (!ni_address_is_tentative(ap))
+			continue;
 
-			if (ni_address_is_duplicate(ap))
-				continue;
-
-			if (!ni_address_is_tentative(ap))
-				continue;
-
-			ni_debug_application("%s: sending arp verify for IP %s",
-					sock->dev_info.ifname,
-					ni_sockaddr_print(&ap->local_addr));
-
-			ip = &ap->local_addr.sin.sin_addr;
-			if (ni_arp_send_request(sock, null, *ip) > 0)
-				count++;
-		}
-		if (count) {
-			*timeout = vfy->wait_ms;
-			return TRUE;
-		}
+		if (vap->nprobes >= vfy->nprobes)
+			ni_address_set_tentative(ap, FALSE);
 	}
 
-	for (count = 0, i = 0; i < vfy->ipaddrs.count; ++i) {
-		ap = vfy->ipaddrs.data[i];
+	need_wait = FALSE;
+	for (i = 0; i < vfy->ipaddrs.count; ++i) {
+		vap = &vfy->ipaddrs.data[i];
+		ap  = vap->address;
 
-		if (ni_address_is_tentative(ap))
-			ni_address_set_tentative(ap, FALSE);
+		if (ni_address_is_duplicate(ap))
+			continue;
+		if (!ni_address_is_tentative(ap))
+			continue;
+
+		ni_debug_application("%s: sending arp verify for IP %s, probe: %u",
+				sock->dev_info.ifname,
+				ni_sockaddr_print(&ap->local_addr),
+				vap->nprobes + 1);
+
+		ip = &ap->local_addr.sin.sin_addr;
+		if (ni_arp_send_request(sock, null, *ip) > 0) {
+			vap->nprobes++;
+			need_wait = TRUE;
+		} else {
+			if (errno == ENOBUFS) {
+				vap->nerrors++;
+				if (vap->nerrors >= vfy->nretry) {
+					ni_error("%s: ARP verify failed for %s - max (%u) retry!",
+							sock->dev_info.ifname,
+							ni_sockaddr_print(&ap->local_addr),
+							vfy->nretry);
+					ni_address_set_duplicate(ap, TRUE);
+				} else {
+					need_wait = TRUE;
+					ni_debug_application("%s: ARP verify failed for %s -"
+							" ENOBUFS, probes:%u/%u errors:%u/%u",
+							sock->dev_info.ifname,
+							ni_sockaddr_print(&ap->local_addr),
+							vap->nprobes, vfy->nprobes,
+							vap->nerrors, vfy->nretry);
+				}
+			} else {
+				ni_error("%s: ARP verify send failed for %s - unexpected error!",
+						sock->dev_info.ifname,
+						ni_sockaddr_print(&ap->local_addr));
+				ni_address_set_duplicate(ap, TRUE);
+			}
+		}
+	}
+	if (need_wait) {
+		*timeout = vfy->wait_ms;
+		return TRUE;
 	}
 
 	return FALSE;
@@ -485,5 +521,87 @@ ni_arp_notify_send(ni_arp_socket_t *sock, ni_arp_notify_t *nfy, unsigned int *ti
 	}
 
 	return FALSE;
+}
+
+void
+ni_arp_verify_address_array_init(ni_arp_verify_address_array_t *array)
+{
+	memset(array, 0, sizeof(*array));
+}
+
+void
+ni_arp_verify_address_array_destroy(ni_arp_verify_address_array_t *array)
+{
+	if (array) {
+		while (array->count) {
+			array->count--;
+			ni_address_free(array->data[array->count].address);
+		}
+		free(array->data);
+		array->data = NULL;
+	}
+}
+
+static ni_bool_t
+ni_arp_verify_address_array_realloc(ni_arp_verify_address_array_t *array, unsigned int newlen)
+{
+	static const ni_arp_verify_address_t def_value = NI_ARP_VERIFY_ADDRESS_INIT;
+	ni_arp_verify_address_t *newdata;
+	size_t newsize;
+	unsigned int i;
+
+	if (!array || (UINT_MAX - NI_ARP_VERIFY_ADDRESS_ARRAY_CHUNK) <= newlen)
+		return FALSE;
+
+	newlen += NI_ARP_VERIFY_ADDRESS_ARRAY_CHUNK;
+	newsize = newlen * sizeof(ni_arp_verify_address_t);
+	newdata = xrealloc(array->data, newsize);
+	if (!newdata)
+		return FALSE;
+
+	array->data = newdata;
+	for (i = array->count; i < newlen; ++i)
+		array->data[i] = def_value;
+	return TRUE;
+}
+
+
+ni_bool_t
+ni_arp_verify_address_array_append(ni_arp_verify_address_array_t *array, ni_address_t *ap)
+{
+	if (!array)
+		return FALSE;
+
+	if ((array->count % NI_ARP_VERIFY_ADDRESS_ARRAY_CHUNK) == 0 &&
+	    !ni_arp_verify_address_array_realloc(array, array->count))
+		return FALSE;
+
+	array->data[array->count++].address = ap;
+	return TRUE;
+}
+
+
+extern ni_arp_verify_address_t *
+ni_arp_verify_address_array_find_match(ni_arp_verify_address_array_t *array, ni_address_t *ap,
+			unsigned int *index, ni_bool_t (*match)(const ni_address_t *, const ni_address_t *))
+{
+	ni_arp_verify_address_t *a;
+	unsigned int i;
+
+	if (array) {
+		match = match ?: ni_address_equal_ref;
+
+		for (i = index ? *index : 0; i < array->count; ++i) {
+			a = &array->data[i];
+			if (match(a->address, ap)) {
+				if (index)
+					*index = i;
+				return a;
+			}
+		}
+	}
+	if (index)
+		*index = -1U;
+	return NULL;
 }
 
