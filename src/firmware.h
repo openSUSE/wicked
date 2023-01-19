@@ -1,0 +1,31 @@
+/*
+ *	Discover network interfaces config provided by firmware (eg iBFT)
+ *
+ *	Copyright (C) 2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2023 SUSE LLC
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *	Authors:
+ *		Olaf Kirch
+ *		Marius Tomaschewski
+ *
+ */
+#ifndef   WICKED_FIRMWARE_UTILS_H
+#define   WICKED_FIRMWARE_UTILS_H
+
+extern ni_bool_t			ni_netif_firmware_discover_ifconfig(xml_document_array_t *,
+							const char *, const char *, const char *);
+
+#endif /* WICKED_FIRMWARE_UTILS_H */
