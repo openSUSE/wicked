@@ -25,6 +25,23 @@
 #ifndef   WICKED_FIRMWARE_UTILS_H
 #define   WICKED_FIRMWARE_UTILS_H
 
+typedef struct ni_netif_firmware_ifnames	ni_netif_firmware_ifnames_t;
+
+struct ni_netif_firmware_ifnames {
+	ni_netif_firmware_ifnames_t *	next;
+	char *				fwname;
+	ni_string_array_t 		ifnames;
+};
+
+extern void				ni_netif_firmware_ifnames_free(ni_netif_firmware_ifnames_t *);
+extern ni_netif_firmware_ifnames_t *	ni_netif_firmware_ifnames_new(const char *);
+extern ni_bool_t			ni_netif_firmware_ifnames_list_append(ni_netif_firmware_ifnames_t **,
+									ni_netif_firmware_ifnames_t *);
+extern void				ni_netif_firmware_ifnames_list_destroy(ni_netif_firmware_ifnames_t **);
+
+extern ni_bool_t			ni_netif_firmware_discover_ifnames(ni_netif_firmware_ifnames_t **,
+							const char *, const char *, const char *);
+
 extern ni_bool_t			ni_netif_firmware_discover_ifconfig(xml_document_array_t *,
 							const char *, const char *, const char *);
 
