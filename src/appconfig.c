@@ -12,7 +12,6 @@
 #include <assert.h>
 #include <ctype.h>
 #include <limits.h>
-#include <dlfcn.h>
 #include <netinet/if_ether.h>
 
 #include <wicked/util.h>
@@ -25,6 +24,7 @@
 #include "netinfo_priv.h"
 #include "util_priv.h"
 #include "appconfig.h"
+#include "extension.h"
 #include "xml-schema.h"
 #include "dhcp.h"
 #include "duid.h"
@@ -46,12 +46,10 @@ static ni_bool_t	ni_config_parse_objectmodel_extension(ni_extension_t **, xml_no
 static ni_bool_t	ni_config_parse_objectmodel_netif_ns(ni_extension_t **, xml_node_t *);
 static ni_bool_t	ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **, xml_node_t *);
 static ni_bool_t	ni_config_parse_system_updater(ni_extension_t **, xml_node_t *);
-static ni_bool_t	ni_config_parse_extension(ni_extension_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_sources(ni_config_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_rtnl_event(ni_config_rtnl_event_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_bonding(ni_config_bonding_t *, const xml_node_t *);
 static ni_bool_t	ni_config_parse_teamd(ni_config_teamd_t *, const xml_node_t *);
-static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
 static const char *	ni_config_build_include(char *, size_t, const char *, const char *);
 static unsigned int	ni_config_addrconf_update_mask_all(void);
 static unsigned int	ni_config_addrconf_update_mask_dhcp4(void);
@@ -1313,37 +1311,6 @@ ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, xml_node_t *node)
 		ni_parse_uint(attrval, &fsloc->mode, 8);
 }
 
-/*
- * Object model extensions let you implement parts of a dbus interface separately
- * from the main wicked body of code; either through a shared library or an
- * external command/shell script
- *
- * <extension interface="org.opensuse.Network.foobar">
- *  <action name="dbusMethodName" command="/some/shell/scripts some-args"/>
- *  <builtin name="dbusOtherMethodName" library="/usr/lib/libfoo.so" symbol="c_method_impl_name"/>
- *
- *  <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
- *  <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
- *  <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
- * </extension>
- */
-ni_bool_t
-ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
-{
-	ni_extension_t *ex;
-	const char *name;
-
-	if (!(name = xml_node_get_attr(node, "interface"))) {
-		ni_error("%s: <%s> element lacks interface attribute",
-				node->name, xml_node_location(node));
-		return FALSE;
-	}
-
-	ex = ni_extension_new(list, name);
-
-	return ni_config_parse_extension(ex, node);
-}
-
 static ni_bool_t
 ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 {
@@ -1394,6 +1361,37 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 	}
 
 	return TRUE;
+}
+
+/*
+ * Object model extensions let you implement parts of a dbus interface separately
+ * from the main wicked body of code; either through a shared library or an
+ * external command/shell script
+ *
+ * <extension interface="org.opensuse.Network.foobar">
+ *  <action name="dbusMethodName" command="/some/shell/scripts some-args"/>
+ *  <builtin name="dbusOtherMethodName" library="/usr/lib/libfoo.so" symbol="c_method_impl_name"/>
+ *
+ *  <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
+ *  <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
+ *  <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
+ * </extension>
+ */
+ni_bool_t
+ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
+{
+	ni_extension_t *ex;
+	const char *name;
+
+	if (!(name = xml_node_get_attr(node, "interface"))) {
+		ni_error("%s: <%s> element lacks interface attribute",
+				node->name, xml_node_location(node));
+		return FALSE;
+	}
+
+	ex = ni_extension_new(list, name);
+
+	return ni_config_parse_extension(ex, node);
 }
 
 /*
@@ -1714,60 +1712,6 @@ ni_extension_t *
 ni_config_find_system_updater(ni_config_t *conf, const char *name)
 {
 	return ni_extension_list_find(conf->updater_extensions, name);
-}
-
-/*
- * Handle methods implemented via C bindings
- */
-static ni_c_binding_t *
-ni_c_binding_new(ni_c_binding_t **list, const char *name, const char *library, const char *symbol)
-{
-	ni_c_binding_t *binding, **pos;
-
-	for (pos = list; (binding = *pos) != NULL; pos = &binding->next)
-		;
-
-	binding = xcalloc(1, sizeof(*binding));
-	ni_string_dup(&binding->name, name);
-	ni_string_dup(&binding->library, library);
-	ni_string_dup(&binding->symbol, symbol);
-
-	*pos = binding;
-	return binding;
-}
-
-void
-ni_c_binding_free(ni_c_binding_t *binding)
-{
-	ni_string_free(&binding->name);
-	ni_string_free(&binding->library);
-	ni_string_free(&binding->symbol);
-	free(binding);
-}
-
-void *
-ni_c_binding_get_address(const ni_c_binding_t *binding)
-{
-	void *handle;
-	void *addr;
-
-	handle = dlopen(binding->library, RTLD_LAZY);
-	if (handle == NULL) {
-		ni_error("invalid binding for %s - cannot dlopen(%s): %s",
-				binding->name, binding->library?: "<main>", dlerror());
-		return NULL;
-	}
-
-	addr = dlsym(handle, binding->symbol);
-	dlclose(handle);
-
-	if (addr == NULL) {
-		ni_error("invalid binding for %s - no such symbol in %s: %s",
-				binding->name, binding->library?: "<main>", binding->symbol);
-		return NULL;
-	}
-
-	return addr;
 }
 
 /*

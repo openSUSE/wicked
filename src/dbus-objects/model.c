@@ -26,6 +26,7 @@
 #include "xml-schema.h"
 #include "model.h"
 #include "appconfig.h"
+#include "extension.h"
 #include "debug.h"
 #include "dbus-connection.h"
 #include "process.h"

@@ -20,6 +20,7 @@
 #include "dbus-common.h"
 #include "model.h"
 #include "appconfig.h"
+#include "extension.h"
 #include "debug.h"
 
 static unsigned int		ni_objectmodel_ns_count;
