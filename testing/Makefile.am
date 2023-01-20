@@ -42,11 +42,13 @@ bitmap_test_SOURCES		= bitmap-test.c
 bitmask_test_SOURCES		= bitmask-test.c
 socket_mock_test_SOURCES	= socket-mock-test.c
 
-EXTRA_DIST			= ibft xpath \
-				  scripts/ifbind.sh
+EXTRA_DIST			= ibft xpath		\
+				  scripts/ifbind.sh	\
+				  nbft nbft-test.sh
 
 TESTS				= socket-mock-test	\
 				  bitmask-test		\
-				  bitmap-test
+				  bitmap-test		\
+				  nbft-test.sh
 
 # vim: ai

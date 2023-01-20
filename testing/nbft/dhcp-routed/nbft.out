@@ -1,0 +1,11 @@
+<interface origin="firmware:nbft:01-01">
+  <name namespace="ifindex">2</name>
+  <control>
+    <persistent>true</persistent>
+    <usercontrol>false</usercontrol>
+  </control>
+  <ipv4:dhcp>
+    <enabled>true</enabled>
+    <!-- no host name -->
+  </ipv4:dhcp>
+</interface>
