@@ -18,6 +18,7 @@
     -->
   <netif-firmware-discovery>
     <script name="ibft" command="@wicked_extensionsdir@/ibft" />
+    <script name="nbft" command="@wicked_extensionsdir@/nbft" />
   </netif-firmware-discovery>
 
   <!-- The client-redfish.xml is added by `wicked redfish enable`
