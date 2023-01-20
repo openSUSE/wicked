@@ -591,12 +591,12 @@ ni_system_updaters_init(void)
 
 		updater->enabled = TRUE;
 		updater->format = ni_updater_format_type(ex->format);
-		updater->proc_backup = ni_extension_script_find(ex, "backup");
-		updater->proc_restore = ni_extension_script_find(ex, "restore");
-		updater->proc_install = ni_extension_script_find(ex, "install");
-		updater->proc_remove = ni_extension_script_find(ex, "remove");
+		updater->proc_backup = ni_extension_find_script(ex, "backup");
+		updater->proc_restore = ni_extension_find_script(ex, "restore");
+		updater->proc_install = ni_extension_find_script(ex, "install");
+		updater->proc_remove = ni_extension_find_script(ex, "remove");
 		if (kind == NI_ADDRCONF_UPDATER_GENERIC) {
-			if ((updater->proc_batch = ni_extension_script_find(ex, "batch"))) {
+			if ((updater->proc_batch = ni_extension_find_script(ex, "batch"))) {
 				if (!ni_system_updater_generic_batch_test(updater))
 					updater->proc_batch = NULL;
 			}

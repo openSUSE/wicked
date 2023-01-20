@@ -1314,10 +1314,13 @@ ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, xml_node_t *node)
 static ni_bool_t
 ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 {
+	ni_script_action_t *script;
+	ni_c_binding_t *binding;
 	xml_node_t *child;
 
 	for (child = node->children; child; child = child->next) {
-		if (!strcmp(child->name, "action") || !strcmp(child->name, "script")) {
+		if (ni_string_eq(child->name, "action") ||
+		    ni_string_eq(child->name, "script")) {
 			const char *name, *command;
 
 			if (!(name = xml_node_get_attr(child, "name"))) {
@@ -1329,10 +1332,13 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 				return FALSE;
 			}
 
-			if (!ni_extension_script_new(ex, name, command))
+			script = ni_script_action_new(name, command);
+			if (!ni_script_action_list_append(&ex->actions, script)) {
+				ni_script_action_free(script);
 				return FALSE;
+			}
 		} else
-		if (!strcmp(child->name, "builtin")) {
+		if (ni_string_eq(child->name, "builtin")) {
 			const char *name, *library, *symbol;
 
 			if (!(name = xml_node_get_attr(child, "name"))) {
@@ -1343,11 +1349,16 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 				ni_error("action element without command attribute");
 				return FALSE;
 			}
+			/* NULL causes to use a symbol in the main program */
 			library = xml_node_get_attr(child, "library");
 
-			ni_c_binding_new(&ex->c_bindings, name, library, symbol);
+			binding = ni_c_binding_new(name, library, symbol);
+			if (!ni_c_binding_list_append(&ex->c_bindings, binding)) {
+				ni_c_binding_free(binding);
+				return FALSE;
+			}
 		} else
-		if (!strcmp(child->name, "putenv")) {
+		if (ni_string_eq(child->name, "putenv")) {
 			const char *name, *value;
 
 			if (!(name = xml_node_get_attr(child, "name"))) {
@@ -1389,9 +1400,13 @@ ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
 		return FALSE;
 	}
 
-	ex = ni_extension_new(list, name);
+	ex = ni_extension_new(name);
+	if (ex && ni_config_parse_extension(ex, node) &&
+	    ni_extension_list_append(list, ex))
+		return TRUE;
 
-	return ni_config_parse_extension(ex, node);
+	ni_extension_free(ex);
+	return FALSE;
 }
 
 /*
@@ -1410,8 +1425,13 @@ ni_config_parse_objectmodel_netif_ns(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex;
 
-	ex = ni_extension_new(list, NULL);
-	return ni_config_parse_extension(ex, node);
+	ex = ni_extension_new(NULL);
+	if (ex && ni_config_parse_extension(ex, node) &&
+	    ni_extension_list_append(list, ex))
+		return TRUE;
+
+	ni_extension_free(ex);
+	return FALSE;
 }
 
 /*
@@ -1429,8 +1449,13 @@ ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **list, xml_node_t
 {
 	ni_extension_t *ex;
 
-	ex = ni_extension_new(list, NULL);
-	return ni_config_parse_extension(ex, node);
+	ex = ni_extension_new(NULL);
+	if (ex && ni_config_parse_extension(ex, node) &&
+	    ni_extension_list_append(list, ex))
+		return TRUE;
+
+	ni_extension_free(ex);
+	return FALSE;
 }
 
 /*
@@ -1456,12 +1481,15 @@ ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
 		return FALSE;
 	}
 
-	ex = ni_extension_new(list, name);
+	ex = ni_extension_new(name);
+	if (ex && ni_config_parse_extension(ex, node) &&
+	    ni_extension_list_append(list, ex))
 
 	/* If the updater has a format type, extract. */
 	ni_string_dup(&ex->format, xml_node_get_attr(node, "format"));
 
-	return ni_config_parse_extension(ex, node);
+	ni_extension_free(ex);
+	return FALSE;
 }
 
 /*
