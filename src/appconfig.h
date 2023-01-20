@@ -16,6 +16,7 @@ struct ni_script_action {
 	ni_script_action_t *	next;
 	char *			name;
 	ni_shellcmd_t *		process;
+	ni_bool_t		enabled;
 };
 
 typedef struct ni_c_binding ni_c_binding_t;
@@ -24,6 +25,7 @@ struct ni_c_binding {
 	char *			name;
 	char *			library;
 	char *			symbol;
+	ni_bool_t		enabled;
 };
 
 typedef struct ni_config_fslocation {

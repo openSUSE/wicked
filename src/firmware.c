@@ -45,7 +45,7 @@
 ni_bool_t
 ni_netif_firmware_extension_script_usable(const ni_script_action_t *script)
 {
-	if (!script || ni_string_empty(script->name))
+	if (!script || !script->enabled || ni_string_empty(script->name))
 		return FALSE;
 
 	if (!script->process || ni_string_empty(script->process->command))

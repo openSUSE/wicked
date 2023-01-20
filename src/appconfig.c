@@ -1321,7 +1321,8 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, "action") ||
 		    ni_string_eq(child->name, "script")) {
-			const char *name, *command;
+			const char *name, *command, *attr;
+			ni_bool_t enabled = TRUE;
 
 			if (!(name = xml_node_get_attr(child, "name"))) {
 				ni_error("action element without name attribute");
@@ -1331,28 +1332,43 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 				ni_error("action element without command attribute");
 				return FALSE;
 			}
+			attr = xml_node_get_attr(child, "enabled");
+			if (attr && ni_parse_boolean(attr, &enabled)) {
+				ni_error("script action with invalid enabled attribute");
+				return FALSE;
+			}
 
-			script = ni_script_action_new(name, command);
+			if ((script = ni_script_action_new(name, command)))
+				script->enabled = enabled;
+
 			if (!ni_script_action_list_append(&ex->actions, script)) {
 				ni_script_action_free(script);
 				return FALSE;
 			}
 		} else
 		if (ni_string_eq(child->name, "builtin")) {
-			const char *name, *library, *symbol;
+			const char *name, *library, *symbol, *attr;
+			ni_bool_t enabled = TRUE;
 
 			if (!(name = xml_node_get_attr(child, "name"))) {
 				ni_error("builtin element without name attribute");
 				return FALSE;
 			}
 			if (!(symbol = xml_node_get_attr(child, "symbol"))) {
-				ni_error("action element without command attribute");
+				ni_error("builtin element without symbol attribute");
 				return FALSE;
 			}
 			/* NULL causes to use a symbol in the main program */
 			library = xml_node_get_attr(child, "library");
 
-			binding = ni_c_binding_new(name, library, symbol);
+			attr = xml_node_get_attr(child, "enabled");
+			if (attr && ni_parse_boolean(attr, &enabled)) {
+				ni_error("builtin action with invalid enabled attribute");
+			}
+
+			if ((binding = ni_c_binding_new(name, library, symbol)))
+				binding->enabled = enabled;
+
 			if (!ni_c_binding_list_append(&ex->c_bindings, binding)) {
 				ni_c_binding_free(binding);
 				return FALSE;

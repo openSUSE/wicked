@@ -92,25 +92,14 @@ ni_wicked_firmware_extensions(const char *caller, int argc, char **argv)
 		/* builtins are not supported in netif-firmware-discovery */
 
 		for (script = ex->actions; script; script = script->next) {
-			const char *enabled;
-
 			if (ni_string_empty(script->name) || !script->process)
 				continue;
 
 			if (ni_string_empty(script->process->command))
 				continue;
 
-			/*
-			 * all enabled until we've added an enabled/disabled
-			 * flag to extension script actions in appconfig...
-			 * for now, use missing x-bit to emulate disabled...
-			 */
-			if (ni_file_executable(script->process->command))
-				enabled = "enabled";
-			else
-				enabled = "disabled";
-
-			printf("%-15s %s\n", script->name, enabled);
+			printf("%-15s %s\n", script->name, script->enabled ?
+					"enabled" : "disabled");
 		}
 	}
 

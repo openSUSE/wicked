@@ -80,6 +80,7 @@ ni_c_binding_new(const char *name, const char *library, const char *symbol)
 	if (!(binding = calloc(1, sizeof(*binding))))
 		return NULL;
 
+	binding->enabled = TRUE;
 	if (!ni_string_dup(&binding->name, name) ||
 	    !ni_string_dup(&binding->library, library) ||
 	    !ni_string_dup(&binding->symbol, symbol))
@@ -184,6 +185,7 @@ ni_script_action_new(const char *name, const char *command)
 	if (!(script = calloc(1, sizeof(*script))))
 		return NULL;
 
+	script->enabled = TRUE;
 	if (!ni_string_dup(&script->name, name) ||
 	    !(script->process = ni_shellcmd_parse(command)))
 		ni_script_action_free(script);
@@ -335,7 +337,7 @@ ni_extension_find_script(ni_extension_t *ex, const char *name)
 	ni_script_action_t *script;
 
 	if (ex && (script = ni_script_action_list_find(ex->actions, name)))
-		return script->process;
+		return script->enabled ? script->process : NULL;
 	return NULL;
 }
 
@@ -345,6 +347,6 @@ ni_extension_find_c_binding(const ni_extension_t *ex, const char *name)
 	const ni_c_binding_t *binding;
 
 	if (ex && (binding = ni_c_binding_list_find(ex->c_bindings, name)))
-		return binding;
+		return binding->enabled ? binding : NULL;
 	return NULL;
 }
