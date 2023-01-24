@@ -162,7 +162,6 @@ extern void		ni_netconfig_free(ni_netconfig_t *);
 extern void		ni_netconfig_init(ni_netconfig_t *);
 extern void		ni_netconfig_destroy(ni_netconfig_t *);
 extern ni_netdev_t *	ni_netconfig_devlist(ni_netconfig_t *nic);
-extern xml_document_t *	ni_netconfig_firmware_discovery(const char *, const char *);
 
 extern ni_modem_t *	ni_netconfig_modem_list(ni_netconfig_t *);
 

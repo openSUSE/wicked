@@ -47,6 +47,7 @@
 #include "client/ifconfig.h"
 #include "client/read-config.h"
 #include "dracut/dracut.h"
+#include "firmware.h"
 
 #if defined(COMPAT_AUTO) || defined(COMPAT_SUSE)
 extern ni_bool_t	__ni_suse_get_ifconfig(const char *, const char *,
@@ -204,6 +205,30 @@ ni_ifconfig_kind_guess(ni_ifconfig_kind_t kind)
 	}
 }
 
+static const ni_intmap_t	ni_ifconfig_kind_map[] = {
+	{ "policy",		NI_IFCONFIG_KIND_POLICY		},
+	{ "config",		NI_IFCONFIG_KIND_CONFIG		},
+	{ NULL,			NI_IFCONFIG_KIND_DEFAULT	}
+};
+
+const char *
+ni_ifconfig_kind_to_name(ni_ifconfig_kind_t kind)
+{
+	return ni_format_uint_mapped(kind, ni_ifconfig_kind_map);
+}
+
+ni_bool_t
+ni_ifconfig_kind_by_name(const char *name, ni_ifconfig_kind_t *kind)
+{
+	unsigned int type;
+
+	if (!kind || ni_parse_uint_mapped(name, ni_ifconfig_kind_map, &type) < 0)
+		return FALSE;
+
+	*kind = type;
+	return TRUE;
+}
+
 const ni_ifconfig_type_t *
 ni_ifconfig_guess_wicked_type(const ni_ifconfig_type_t *map,
 			const char *root, const char *path)
@@ -317,7 +342,7 @@ ni_ifconfig_origin_get_prio(const char *origin)
 /*
  * Parse name node and its namespace from xml config.
  *
- * Return true when inteface name is available/can be resolved.
+ * Return true when interface name is available/can be resolved.
  */
 static ni_bool_t
 ni_ifconfig_read_get_ifname(xml_node_t *ifnode, char **ifname)
@@ -365,7 +390,7 @@ ni_ifconfig_read_get_ifname(xml_node_t *ifnode, char **ifname)
 	}
 	else {
 		/* TODO: Implement other namespaces */;
-		ni_error("unable to resolve interace name from namespace '%s'",
+		ni_error("unable to resolve interface name from namespace '%s'",
 			namespace);
 		return FALSE;
 	}
@@ -631,14 +656,14 @@ ni_ifconfig_read_firmware(xml_document_array_t *array,
 			const char *type, const char *root, const char *path,
 			ni_ifconfig_kind_t kind, ni_bool_t check_prio, ni_bool_t raw)
 {
-	xml_document_t *config_doc;
 	ni_client_state_config_t conf = NI_CLIENT_STATE_CONFIG_INIT;
+	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
 	xml_node_t *rnode, *cnode, *next;
+	unsigned int i;
 
-	config_doc = ni_netconfig_firmware_discovery(root, path);
-	if (!config_doc) {
+	if (!ni_netif_firmware_discover_ifconfig(&docs, type, root, path)) {
 		ni_error("unable to get firmware interface definitions from %s:%s",
-			type, path);
+				type, path);
 		return FALSE;
 	}
 
@@ -646,35 +671,43 @@ ni_ifconfig_read_firmware(xml_document_array_t *array,
 	 * Firmware is expected to provide a more exact origin
 	 * than we can set here, just read it from the nodes.
 	 */
-	rnode = xml_document_root(config_doc);
-	for (cnode = rnode->children; cnode; cnode = next) {
-		xml_document_t *doc;
-		xml_node_t *node;
+	for (i = 0; i < docs.count; ++i) {
+		xml_document_t *doc = docs.data[i];
 
-		next = cnode->next;
-		doc = xml_document_new();
-		node = xml_document_root(doc);
+		if (xml_document_is_empty(doc))
+			continue;
 
-		if (!ni_ifconfig_metadata_get_from_node(&conf, rnode))
-			ni_ifconfig_format_origin(&conf.origin, type, path);
+		rnode = xml_document_root(doc);
+		for (cnode = rnode->children; cnode; cnode = next) {
+			xml_document_t *config;
+			xml_node_t *node;
 
-		xml_node_reparent(node, cnode);
-		xml_node_location_relocate(node, conf.origin);
+			next = cnode->next;
+			if (!(config = xml_document_new()))
+				continue;
+			node = xml_document_root(config);
 
-		ni_ifconfig_metadata_clear(node);
-		if (!raw)
-			ni_ifconfig_metadata_add_to_node(node, &conf);
+			if (!ni_ifconfig_metadata_get_from_node(&conf, rnode))
+				ni_ifconfig_format_origin(&conf.origin, type, path);
 
-		if (ni_ifconfig_validate_adding_doc(doc, check_prio)) {
-			ni_debug_ifconfig("%s: %s", __func__, xml_node_location(node));
-			xml_document_array_append(array, doc);
-		} else {
-			xml_document_free(doc);
+			xml_node_reparent(node, cnode);
+			xml_node_location_relocate(node, conf.origin);
+
+			ni_ifconfig_metadata_clear(node);
+			if (!raw)
+				ni_ifconfig_metadata_add_to_node(node, &conf);
+
+			if (ni_ifconfig_validate_adding_doc(config, check_prio)) {
+				ni_debug_ifconfig("%s: %s", __func__, xml_node_location(node));
+				xml_document_array_append(array, config);
+			} else {
+				xml_document_free(config);
+			}
 		}
 	}
 
 	ni_client_state_config_reset(&conf);
-	xml_document_free(config_doc);
+	xml_document_array_destroy(&docs);
 
 	return TRUE;
 }

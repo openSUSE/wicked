@@ -216,6 +216,7 @@ wicked_headers			= \
 	dhcp6/tester.h		\
 	dhcp.h			\
 	duid.h			\
+	firmware.h		\
 	iaid.h			\
 	ibft.h			\
 	ipv6_priv.h		\

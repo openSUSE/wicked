@@ -63,4 +63,7 @@ extern ni_bool_t			ni_ifconfig_read_subtype(xml_document_array_t *,
 extern ni_bool_t			ni_ifconfig_read(xml_document_array_t *, const char *,
 					const char *, ni_ifconfig_kind_t, ni_bool_t, ni_bool_t);
 
+extern const char *			ni_ifconfig_kind_to_name(ni_ifconfig_kind_t);
+extern ni_bool_t			ni_ifconfig_kind_by_name(const char *, ni_ifconfig_kind_t *);
+
 #endif /* WICKED_CLIENT_READ_CONFIG_H */
