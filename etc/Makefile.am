@@ -16,6 +16,7 @@ BUILT_SOURCES			= \
 wicked_config_DATA		= \
 	common.xml		\
 	client.xml		\
+	client-nbft.xml		\
 	server.xml		\
 	nanny.xml
 

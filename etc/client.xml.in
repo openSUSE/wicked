@@ -19,8 +19,10 @@
     -->
   <netif-firmware-discovery>
     <script name="ibft" command="@wicked_extensionsdir@/ibft" />
-    <script name="nbft" command="@wicked_extensionsdir@/nbft" />
   </netif-firmware-discovery>
+
+  <!-- include nbft extension provided by wicked-nbft package -->
+  <include name="client-nbft.xml" optional="true" />
 
   <!-- This specifies sources of network interface configurations.
 
