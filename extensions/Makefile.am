@@ -7,6 +7,7 @@ wicked_extensions_SCRIPTS	= \
 	firewall	\
 	hostname	\
 	ibft		\
+	nbft		\
 	netconfig	\
 	redfish-config
 
