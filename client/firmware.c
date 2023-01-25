@@ -321,7 +321,7 @@ ni_netif_firmware_discovery_config_modify(xml_node_t *config,
 				return FALSE;
 
 			xml_node_add_attr(node, "name", script->name);
-			xml_node_add_attr(node, "command", script->name);
+			xml_node_add_attr(node, "command", script->process->command);
 
 			if (names->count &&
 			    ni_string_array_index(names, script->name) == -1) {

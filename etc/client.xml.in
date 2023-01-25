@@ -19,6 +19,7 @@
     -->
   <netif-firmware-discovery>
     <script name="ibft" command="@wicked_extensionsdir@/ibft" />
+    <script name="redfish" command="/etc/wicked/extensions/redfish-config" enabled="false" />
   </netif-firmware-discovery>
 
   <!-- include nbft extension provided by wicked-nbft package -->
