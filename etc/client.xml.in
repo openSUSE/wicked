@@ -21,12 +21,6 @@
     <script name="ibft" command="@wicked_extensionsdir@/ibft" />
   </netif-firmware-discovery>
 
-  <!-- The client-redfish.xml is added by `wicked redfish enable`
-       to enable the `firmware:redfish` config extension script
-       in the netif-firmware-discovery set.
-    -->
-  <include name="client-redfish.xml" optional="true" />
-
   <!-- This specifies sources of network interface configurations.
 
        The ifconfig source specifies the type, location and the

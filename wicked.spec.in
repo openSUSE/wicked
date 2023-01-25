@@ -309,6 +309,13 @@ fi
 %{fillup_only -dns dhcp wicked network}
 # reload dbus after install or upgrade to apply new policies
 /usr/bin/systemctl reload dbus.service 2>/dev/null || :
+# migrate `wicked redfish enable` to `wicked firmware enable`
+if test -f %_sysconfdir/wicked/client-redfish.xml -a \
+      ! -f %_sysconfdir/wicked/client-firmware.xml ; then
+	mv -f -- %_sysconfdir/wicked/client-redfish.xml \
+		 %_sysconfdir/wicked/client-firmware.xml || :
+fi
+rm -f -- %_sysconfdir/wicked/client-redfish.xml || :
 
 %postun
 /sbin/ldconfig
