@@ -1357,10 +1357,8 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 				script->enabled = enabled;
 
 			old = ni_script_action_list_find(ex->actions, name);
-			if (old && ni_script_action_list_insert(&old, script)) {
-				old->enabled = FALSE;
-				if (ni_script_action_list_remove(&ex->actions, old))
-					ni_script_action_free(old);
+			if (ni_script_action_list_replace(&ex->actions, old, script)) {
+				ni_script_action_free(old);
 			} else
 			if (!ni_script_action_list_append(&ex->actions, script)) {
 				ni_script_action_free(script);
@@ -1408,10 +1406,8 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 				binding->enabled = enabled;
 
 			old = ni_c_binding_list_find(ex->c_bindings, name);
-			if (old && ni_c_binding_list_insert(&old, binding)) {
-				old->enabled = FALSE;
-				if (ni_c_binding_list_remove(&ex->c_bindings, old))
-					ni_c_binding_free(old);
+			if (ni_c_binding_list_replace(&ex->c_bindings, old, binding)) {
+				ni_c_binding_free(old);
 			} else
 			if (!ni_c_binding_list_append(&ex->c_bindings, binding)) {
 				ni_c_binding_free(binding);
@@ -1490,9 +1486,8 @@ ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
 	}
 
 	old = ni_extension_list_find(*list, interface);
-	if (old && ni_extension_list_insert(&old, ex)) {
-		if (ni_extension_list_remove(list, old))
-			ni_extension_free(old);
+	if (ni_extension_list_replace(list, old, ex)) {
+		ni_extension_free(old);
 	} else
 	if (!ni_extension_list_append(list, ex)) {
 		ni_warn("[%s] unable to add %s extension to list",
@@ -1674,9 +1669,8 @@ ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
 	}
 
 	old = ni_extension_list_find(*list, name);
-	if (old && ni_extension_list_insert(&old, ex)) {
-		if (ni_extension_list_remove(list, old))
-			ni_extension_free(old);
+	if (ni_extension_list_replace(list, old, ex)) {
+		ni_extension_free(old);
 	} else
 	if (!ni_extension_list_append(list, ex)) {
 		ni_warn("[%s] unable to add %s extension to list",

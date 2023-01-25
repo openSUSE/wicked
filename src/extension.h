@@ -33,6 +33,8 @@ extern void *			ni_c_binding_get_address(const ni_c_binding_t *);
 extern ni_bool_t		ni_c_binding_list_insert(ni_c_binding_t **, ni_c_binding_t *);
 extern ni_bool_t		ni_c_binding_list_append(ni_c_binding_t **, ni_c_binding_t *);
 extern ni_bool_t		ni_c_binding_list_remove(ni_c_binding_t **, ni_c_binding_t *);
+extern ni_bool_t		ni_c_binding_list_replace(ni_c_binding_t **, ni_c_binding_t *,
+						ni_c_binding_t *);
 extern void			ni_c_binding_list_destroy(ni_c_binding_t **);
 extern ni_c_binding_t *		ni_c_binding_list_find(ni_c_binding_t *, const char *);
 
@@ -45,6 +47,8 @@ extern ni_bool_t		ni_script_action_list_append(ni_script_action_t **,
 						ni_script_action_t *);
 extern ni_bool_t		ni_script_action_list_remove(ni_script_action_t **,
 						ni_script_action_t *);
+extern ni_bool_t		ni_script_action_list_replace(ni_script_action_t **,
+						ni_script_action_t *, ni_script_action_t *);
 extern void			ni_script_action_list_destroy(ni_script_action_t **);
 extern ni_script_action_t *	ni_script_action_list_find(ni_script_action_t *, const char *);
 
@@ -54,6 +58,8 @@ extern void			ni_extension_free(ni_extension_t *);
 extern ni_bool_t		ni_extension_list_insert(ni_extension_t **, ni_extension_t *);
 extern ni_bool_t		ni_extension_list_append(ni_extension_t **, ni_extension_t *);
 extern ni_bool_t		ni_extension_list_remove(ni_extension_t **, ni_extension_t *);
+extern ni_bool_t		ni_extension_list_replace(ni_extension_t **, ni_extension_t *,
+						ni_extension_t *);
 extern void			ni_extension_list_destroy(ni_extension_t **);
 extern ni_extension_t *		ni_extension_list_find(ni_extension_t *, const char *);
 

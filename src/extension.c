@@ -156,6 +156,29 @@ ni_c_binding_list_remove(ni_c_binding_t **list, ni_c_binding_t *item)
 	return FALSE;
 }
 
+ni_bool_t
+ni_c_binding_list_replace(ni_c_binding_t **list, ni_c_binding_t *oitem,
+		ni_c_binding_t *nitem)
+{
+	ni_c_binding_t **pos, *cur, *tail = nitem;
+
+	if (!list || !oitem || !nitem)
+		return FALSE;
+
+	while (tail && tail->next)
+		tail = tail->next;
+
+	for (pos = list; (cur = *pos); pos = &cur->next) {
+		if (oitem == cur) {
+			tail->next = cur->next;
+			cur->next = NULL;
+			*pos = nitem;
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
 void
 ni_c_binding_list_destroy(ni_c_binding_t **list)
 {
@@ -229,6 +252,29 @@ ni_script_action_list_remove(ni_script_action_t **list, ni_script_action_t *item
 	ni_script_action_t **pos, *cur;
 
 	ni_slist_remove(list, item, pos, cur);
+	return FALSE;
+}
+
+ni_bool_t
+ni_script_action_list_replace(ni_script_action_t **list, ni_script_action_t *oitem,
+		ni_script_action_t *nitem)
+{
+	ni_script_action_t **pos, *cur, *tail = nitem;
+
+	if (!list || !oitem || !nitem)
+		return FALSE;
+
+	while (tail && tail->next)
+		tail = tail->next;
+
+	for (pos = list; (cur = *pos); pos = &cur->next) {
+		if (oitem == cur) {
+			tail->next = cur->next;
+			cur->next = NULL;
+			*pos = nitem;
+			return TRUE;
+		}
+	}
 	return FALSE;
 }
 
@@ -308,6 +354,29 @@ ni_extension_list_remove(ni_extension_t **list, ni_extension_t *item)
 	ni_extension_t **pos, *cur;
 
 	ni_slist_remove(list, item, pos, cur);
+	return FALSE;
+}
+
+ni_bool_t
+ni_extension_list_replace(ni_extension_t **list, ni_extension_t *oitem,
+		ni_extension_t *nitem)
+{
+	ni_extension_t **pos, *cur, *tail = nitem;
+
+	if (!list || !oitem || !nitem)
+		return FALSE;
+
+	while (tail && tail->next)
+		tail = tail->next;
+
+	for (pos = list; (cur = *pos); pos = &cur->next) {
+		if (oitem == cur) {
+			tail->next = cur->next;
+			cur->next = NULL;
+			*pos = nitem;
+			return TRUE;
+		}
+	}
 	return FALSE;
 }
 
