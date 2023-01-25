@@ -123,6 +123,18 @@ Wicked is a network configuration infrastructure incorporating a number
 of existing frameworks into a unified architecture, providing a DBUS
 interface to network configuration.
 
+%package nbft
+Summary:        Network configuration infrastructure - nbft support
+Group:          System/Management
+Requires:       %name = %{version}
+Requires:       nvme-cli >= 2.2.1
+Requires:       jq >= 1.6
+
+%description nbft
+This package provides an extension to retrieve the NBFT firmware
+network interface configuration according to the NVM Express Boot
+Specification 1.0 and convert it to wicked configuration.
+
 %if %{with systemd}
 
 %package service
@@ -344,7 +356,12 @@ fi
 %dir %_sysconfdir/wicked/scripts
 %config(noreplace) %_sysconfdir/wicked/scripts/*
 %dir %_sysconfdir/wicked/extensions
-%config(noreplace) %_sysconfdir/wicked/extensions/*
+%config(noreplace) %_sysconfdir/wicked/extensions/dispatch
+%config(noreplace) %_sysconfdir/wicked/extensions/firewall
+%config(noreplace) %_sysconfdir/wicked/extensions/hostname
+%config(noreplace) %_sysconfdir/wicked/extensions/ibft
+%config(noreplace) %_sysconfdir/wicked/extensions/netconfig
+%config(noreplace) %_sysconfdir/wicked/extensions/redfish-config
 %dir %_sysconfdir/wicked/ifconfig
 %dir %{dbus_config_base}
 %dir %{dbus_config_base}/system.d
@@ -394,6 +411,10 @@ fi
 %_fillupdir/sysconfig.config-wicked
 %_fillupdir/sysconfig.dhcp-wicked
 %attr(0750,root,root) %dir        %wicked_storedir
+
+%files nbft
+%config(noreplace) %_sysconfdir/wicked/client-nbft.xml
+%config(noreplace) %_sysconfdir/wicked/extensions/nbft
 
 %if %{with systemd}
 
