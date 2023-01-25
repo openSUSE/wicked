@@ -41,6 +41,7 @@ Makefile.in
 /doc/schema.xml
 /etc/common.xml
 /etc/client.xml
+/etc/client-nbft.xml
 /etc/server.xml
 /etc/nanny.xml
 /etc/scripts/redfish-update
