@@ -37,6 +37,7 @@ libwicked_la_LIBADD		= libwicked-dbus-objects.la	\
 libwicked_la_SOURCES		= \
 	addrconf.c		\
 	address.c		\
+	appconfig.c		\
 	arp.c			\
 	async-resolver.c	\
 	auto6.c			\
@@ -45,7 +46,6 @@ libwicked_la_SOURCES		= \
 	buffer.c		\
 	calls.c			\
 	capture.c		\
-	config.c		\
 	dcb.c			\
 	dbus-client.c		\
 	dbus-common.c		\
@@ -216,6 +216,7 @@ wicked_headers			= \
 	dhcp6/tester.h		\
 	dhcp.h			\
 	duid.h			\
+	extension.h		\
 	firmware.h		\
 	iaid.h			\
 	ibft.h			\

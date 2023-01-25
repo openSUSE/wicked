@@ -26,6 +26,7 @@
 #include "xml-schema.h"
 #include "model.h"
 #include "appconfig.h"
+#include "extension.h"
 #include "debug.h"
 #include "dbus-connection.h"
 #include "process.h"
@@ -536,7 +537,7 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 		return FALSE;
 	}
 
-	if ((command = ni_extension_script_find(extension, method->name)) == NULL) {
+	if ((command = ni_extension_find_script(extension, method->name)) == NULL) {
 		dbus_set_error(&error, DBUS_ERROR_FAILED, "%s: no/unknown extension method %s",
 				__func__, method->name);
 		ni_dbus_connection_send_error(connection, call, &error);
@@ -685,7 +686,7 @@ ni_objectmodel_bind_extensions(void)
 
 			if (method->handler != NULL)
 				continue;
-			if (ni_extension_script_find(extension, method->name) != NULL) {
+			if (ni_extension_find_script(extension, method->name) != NULL) {
 				ni_debug_dbus("binding method %s.%s to external command",
 						service->name, method->name);
 				mod_method->async_handler = ni_objectmodel_extension_call;

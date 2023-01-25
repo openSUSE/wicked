@@ -21,7 +21,7 @@ AC_SUBST(LIBWICKED_PACKAGE_SUFFIX, "-${MAJ}_${MIN}_${REV}")
 AC_SUBST(LIBWICKED_LTLINK_VERSION, "-release ${MAJ}.${MIN}.${REV}")
 
 #AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_SRCDIR([src/config.c])
+AC_CONFIG_SRCDIR([src/appconfig.c])
 AC_CONFIG_HEADERS([config.h])
 
 AC_PREFIX_DEFAULT([/usr])
@@ -148,7 +148,7 @@ AC_SUBST(wicked_includedir,	"${includedir}/wicked")
 
 # Is there any need to change this?
 AC_ARG_WITH([configdir], [AS_HELP_STRING([--with-configdir@<:@=DIR@:>@],
-	    [wicked config file directrory [${sysconfdir}/wicked]])],,
+	    [wicked config file directory [${sysconfdir}/wicked]])],,
 	    [with_configdir="${sysconfdir}/wicked"])
 AC_SUBST(wicked_configdir,	"$with_configdir")
 

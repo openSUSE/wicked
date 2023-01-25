@@ -8,179 +8,345 @@
 #include "config.h"
 #endif
 
+#include <wicked/util.h>
+
+#include "appconfig.h"
+#include "extension.h"
+#include "process.h"
+#include "util_priv.h"
+
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/wait.h>
 #include <limits.h>
-
-#include <wicked/netinfo.h>
-#include <wicked/addrconf.h>
-#include <wicked/xpath.h>
-#include "netinfo_priv.h"
-#include "appconfig.h"
-#include "process.h"
-
-static void		__ni_script_action_free(ni_script_action_t *);
+#include <errno.h>
+#include <dlfcn.h>
 
 /*
- * Constructor and destructor for extension config
+ * basic list operation macro helper function bodies
+ */
+#define ni_slist_tail(tail)						\
+	while (tail && tail->next) {					\
+		tail = tail->next;					\
+	}
+
+#define ni_slist_insert(list, head, tail)				\
+	if (list && head) {						\
+		tail->next = *list;					\
+		*list = head;						\
+		return TRUE;						\
+	}
+
+#define ni_slist_append(list, item) 					\
+	if (list && item) {						\
+		while (*list)						\
+			list = &(*list)->next;				\
+		*list = item;						\
+		return TRUE;						\
+	}
+
+#define ni_slist_remove(list, item, pos, cur)				\
+	if (list && item) {						\
+		for (pos = list; (cur = *pos); pos = &cur->next) {	\
+			if (item == cur) {				\
+				*pos = cur->next;			\
+				cur->next = NULL;			\
+				return TRUE;				\
+			}						\
+		}							\
+	}
+
+#define ni_slist_destroy(list, item, free_fn)				\
+	if (list) {							\
+		while ((item = *list)) {				\
+			*list = item->next;				\
+			free_fn(item);					\
+		}							\
+	}
+
+#define ni_slist_find_member(head, item, member, cmp_fn)		\
+	for (item = head; item; item = item->next) {			\
+		if (cmp_fn(item->member, member))			\
+			return item;					\
+	}
+
+/*
+ * C Binding / builtin action
+ */
+ni_c_binding_t *
+ni_c_binding_new(const char *name, const char *library, const char *symbol)
+{
+	ni_c_binding_t *binding;
+
+	if (!(binding = calloc(1, sizeof(*binding))))
+		return NULL;
+
+	binding->enabled = TRUE;
+	if (!ni_string_dup(&binding->name, name) ||
+	    !ni_string_dup(&binding->library, library) ||
+	    !ni_string_dup(&binding->symbol, symbol))
+		ni_c_binding_free(binding);
+	else
+		return binding;
+
+	return FALSE;
+}
+
+void
+ni_c_binding_free(ni_c_binding_t *binding)
+{
+	if (binding) {
+		ni_string_free(&binding->name);
+		ni_string_free(&binding->library);
+		ni_string_free(&binding->symbol);
+		free(binding);
+	}
+}
+
+void *
+ni_c_binding_get_address(const ni_c_binding_t *binding)
+{
+	void *handle;
+	void *addr;
+
+	if (!binding)
+		return NULL;
+
+	handle = dlopen(binding->library, RTLD_LAZY);
+	if (handle == NULL) {
+		ni_error("invalid binding for %s - cannot dlopen(%s): %s",
+				binding->name, binding->library?: "<main>", dlerror());
+		return NULL;
+	}
+
+	addr = dlsym(handle, binding->symbol);
+	dlclose(handle);
+
+	if (addr == NULL) {
+		ni_error("invalid binding for %s - no such symbol in %s: %s",
+				binding->name, binding->library?: "<main>", binding->symbol);
+		return NULL;
+	}
+
+	return addr;
+}
+
+ni_bool_t
+ni_c_binding_list_insert(ni_c_binding_t **list, ni_c_binding_t *item)
+{
+	ni_c_binding_t *tail = item;
+
+	ni_slist_tail(tail);
+	ni_slist_insert(list, item, tail);
+	return FALSE;
+}
+
+ni_bool_t
+ni_c_binding_list_append(ni_c_binding_t **list, ni_c_binding_t *item)
+{
+	ni_slist_append(list, item);
+	return FALSE;
+}
+
+ni_bool_t
+ni_c_binding_list_remove(ni_c_binding_t **list, ni_c_binding_t *item)
+{
+	ni_c_binding_t **pos, *cur;
+
+	ni_slist_remove(list, item, pos, cur);
+	return FALSE;
+}
+
+void
+ni_c_binding_list_destroy(ni_c_binding_t **list)
+{
+	ni_c_binding_t *item;
+
+	ni_slist_destroy(list, item, ni_c_binding_free);
+}
+
+ni_c_binding_t *
+ni_c_binding_list_find(ni_c_binding_t *head, const char *name)
+{
+	ni_c_binding_t *item;
+
+	ni_slist_find_member(head, item, name, ni_string_eq);
+	return NULL;
+}
+
+
+/*
+ * Script action
+ */
+ni_script_action_t *
+ni_script_action_new(const char *name, const char *command)
+{
+	ni_script_action_t *script;
+
+	if (!(script = calloc(1, sizeof(*script))))
+		return NULL;
+
+	script->enabled = TRUE;
+	if (!ni_string_dup(&script->name, name) ||
+	    !(script->process = ni_shellcmd_parse(command)))
+		ni_script_action_free(script);
+	else
+		return script;
+
+	return NULL;
+}
+
+void
+ni_script_action_free(ni_script_action_t *script)
+{
+	if (script) {
+		ni_string_free(&script->name);
+		if (script->process)
+			ni_shellcmd_release(script->process);
+		free(script);
+	}
+}
+
+ni_bool_t
+ni_script_action_list_insert(ni_script_action_t **list, ni_script_action_t *item)
+{
+	ni_script_action_t *tail = item;
+
+	ni_slist_tail(tail);
+	ni_slist_insert(list, item, tail);
+	return FALSE;
+}
+
+ni_bool_t
+ni_script_action_list_append(ni_script_action_t **list, ni_script_action_t *item)
+{
+	ni_slist_append(list, item);
+	return FALSE;
+}
+
+ni_bool_t
+ni_script_action_list_remove(ni_script_action_t **list, ni_script_action_t *item)
+{
+	ni_script_action_t **pos, *cur;
+
+	ni_slist_remove(list, item, pos, cur);
+	return FALSE;
+}
+
+void
+ni_script_action_list_destroy(ni_script_action_t **list)
+{
+	ni_script_action_t *item;
+
+	ni_slist_destroy(list, item, ni_script_action_free);
+}
+
+ni_script_action_t *
+ni_script_action_list_find(ni_script_action_t *head, const char *name)
+{
+	ni_script_action_t *item;
+
+	ni_slist_find_member(head, item, name, ni_string_eq);
+	return NULL;
+}
+
+
+/*
+ * Extension
  */
 ni_extension_t *
-ni_extension_new(ni_extension_t **list, const char *interface)
+ni_extension_new(const char *interface)
 {
 	ni_extension_t *ex;
 
-	ex = calloc(1, sizeof(*ex));
-	ni_string_dup(&ex->name, interface);
-	ni_string_dup(&ex->interface, interface);
+	if (!(ex = calloc(1, sizeof(*ex))))
+		return NULL;
 
-	while (*list)
-		list = &(*list)->next;
-	*list = ex;
+	if (!ni_string_dup(&ex->name, interface) ||
+	    !ni_string_dup(&ex->interface, interface))
+		ni_extension_free(ex);
+	else
+		return ex;
 
-	return ex;
+	return NULL;
 }
 
 void
 ni_extension_free(ni_extension_t *ex)
 {
-	ni_script_action_t *act;
-	ni_c_binding_t *binding;
+	if (ex) {
+		ni_string_free(&ex->name);
+		ni_string_free(&ex->interface);
 
-	ni_string_free(&ex->name);
-	ni_string_free(&ex->interface);
+		ni_script_action_list_destroy(&ex->actions);
+		ni_c_binding_list_destroy(&ex->c_bindings);
 
-	ni_config_fslocation_destroy(&ex->statedir);
-
-	while ((act = ex->actions) != NULL) {
-		ex->actions = act->next;
-		__ni_script_action_free(act);
+		ni_var_array_destroy(&ex->environment);
+		ni_config_fslocation_destroy(&ex->statedir);
 	}
-
-	while ((binding = ex->c_bindings) != NULL) {
-		ex->c_bindings = binding->next;
-		ni_c_binding_free(binding);
-	}
-
-	ni_var_array_destroy(&ex->environment);
 }
 
-/*
- * Destroy extension list
- */
+ni_bool_t
+ni_extension_list_insert(ni_extension_t **list, ni_extension_t *item)
+{
+	ni_extension_t *tail = item;
+
+	ni_slist_tail(tail);
+	ni_slist_insert(list, item, tail);
+	return FALSE;
+}
+
+ni_bool_t
+ni_extension_list_append(ni_extension_t **list, ni_extension_t *item)
+{
+	ni_slist_append(list, item);
+	return FALSE;
+}
+
+ni_bool_t
+ni_extension_list_remove(ni_extension_t **list, ni_extension_t *item)
+{
+	ni_extension_t **pos, *cur;
+
+	ni_slist_remove(list, item, pos, cur);
+	return FALSE;
+}
+
 void
 ni_extension_list_destroy(ni_extension_t **list)
 {
-	ni_extension_t *ex;
+	ni_extension_t *item;
 
-	while ((ex = *list) != NULL) {
-		*list = ex->next;
-		ni_extension_free(ex);
-	}
-}
-
-/*
- * Find extension given a type (dhcp, ..) and address family.
- */
-ni_extension_t *
-ni_extension_list_find(ni_extension_t *head, const char *name)
-{
-	ni_extension_t *ex;
-
-	for (ex = head; ex; ex = ex->next) {
-		if (!strcmp(ex->interface, name))
-			return ex;
-	}
-
-	return NULL;
+	ni_slist_destroy(list, item, ni_extension_free);
 }
 
 ni_extension_t *
-ni_extension_by_name(ni_extension_t *head, const char *name)
+ni_extension_list_find(ni_extension_t *head, const char *interface)
 {
-	ni_extension_t *ex;
+	ni_extension_t *item;
 
-	for (ex = head; ex; ex = ex->next) {
-		if (!strcmp(ex->name, name))
-			return ex;
-	}
-
-	return NULL;
-}
-
-ni_script_action_t *
-ni_extension_get_action(const ni_extension_t *ex, const char *name)
-{
-	ni_script_action_t *script;
-
-	for (script = ex->actions; script; script = script->next) {
-		if (!strcmp(script->name, name))
-			return script;
-	}
+	ni_slist_find_member(head, item, interface, ni_string_eq);
 	return NULL;
 }
 
 /*
- * Create/destroy script actions
+ * Helper utils
  */
-static ni_script_action_t *
-__ni_script_action_new(const char *name, ni_script_action_t **list)
-{
-	ni_script_action_t *script;
-
-	while ((script = *list) != NULL)
-		list = &script->next;
-
-	script = calloc(1, sizeof(*script));
-	ni_string_dup(&script->name, name);
-	*list = script;
-
-	return script;
-}
-
-void
-__ni_script_action_free(ni_script_action_t *script)
-{
-	ni_string_free(&script->name);
-	if (script->process)
-		ni_shellcmd_release(script->process);
-	free(script);
-}
-
 ni_shellcmd_t *
-ni_extension_script_new(ni_extension_t *extension, const char *name, const char *command)
+ni_extension_find_script(ni_extension_t *ex, const char *name)
 {
 	ni_script_action_t *script;
 
-	script = __ni_script_action_new(name, &extension->actions);
-	script->process = ni_shellcmd_parse(command);
-
-	return script->process;
-}
-
-ni_shellcmd_t *
-ni_extension_script_find(ni_extension_t *extension, const char *name)
-{
-	ni_script_action_t *script;
-
-	for (script = extension->actions; script; script = script->next) {
-		if (!strcmp(script->name, name))
-			return script->process;
-	}
+	if (ex && (script = ni_script_action_list_find(ex->actions, name)))
+		return script->enabled ? script->process : NULL;
 	return NULL;
 }
 
-/*
- * Find C binding info
- */
 const ni_c_binding_t *
-ni_extension_find_c_binding(const ni_extension_t *extension, const char *name)
+ni_extension_find_c_binding(const ni_extension_t *ex, const char *name)
 {
-	ni_c_binding_t *binding;
+	const ni_c_binding_t *binding;
 
-	for (binding = extension->c_bindings; binding; binding = binding->next) {
-		if (!strcmp(binding->name, name))
-			return binding;
-	}
+	if (ex && (binding = ni_c_binding_list_find(ex->c_bindings, name)))
+		return binding->enabled ? binding : NULL;
 	return NULL;
 }

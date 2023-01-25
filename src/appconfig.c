@@ -12,7 +12,6 @@
 #include <assert.h>
 #include <ctype.h>
 #include <limits.h>
-#include <dlfcn.h>
 #include <netinet/if_ether.h>
 
 #include <wicked/util.h>
@@ -25,6 +24,7 @@
 #include "netinfo_priv.h"
 #include "util_priv.h"
 #include "appconfig.h"
+#include "extension.h"
 #include "xml-schema.h"
 #include "dhcp.h"
 #include "duid.h"
@@ -46,12 +46,10 @@ static ni_bool_t	ni_config_parse_objectmodel_extension(ni_extension_t **, xml_no
 static ni_bool_t	ni_config_parse_objectmodel_netif_ns(ni_extension_t **, xml_node_t *);
 static ni_bool_t	ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **, xml_node_t *);
 static ni_bool_t	ni_config_parse_system_updater(ni_extension_t **, xml_node_t *);
-static ni_bool_t	ni_config_parse_extension(ni_extension_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_sources(ni_config_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_rtnl_event(ni_config_rtnl_event_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_bonding(ni_config_bonding_t *, const xml_node_t *);
 static ni_bool_t	ni_config_parse_teamd(ni_config_teamd_t *, const xml_node_t *);
-static ni_c_binding_t *	ni_c_binding_new(ni_c_binding_t **, const char *name, const char *lib, const char *symbol);
 static const char *	ni_config_build_include(char *, size_t, const char *, const char *);
 static unsigned int	ni_config_addrconf_update_mask_all(void);
 static unsigned int	ni_config_addrconf_update_mask_dhcp4(void);
@@ -388,8 +386,7 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 			if (!ni_config_parse_sources(conf, child))
 				goto failed;
 		} else
-		if (strcmp(child->name, "extension") == 0
-		 || strcmp(child->name, "dbus-service") == 0) {
+		if (strcmp(child->name, "dbus-service") == 0) {
 			if (!ni_config_parse_objectmodel_extension(&conf->dbus_extensions, child))
 				goto failed;
 		} else
@@ -1313,78 +1310,125 @@ ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, xml_node_t *node)
 		ni_parse_uint(attrval, &fsloc->mode, 8);
 }
 
-/*
- * Object model extensions let you implement parts of a dbus interface separately
- * from the main wicked body of code; either through a shared library or an
- * external command/shell script
- *
- * <extension interface="org.opensuse.Network.foobar">
- *  <action name="dbusMethodName" command="/some/shell/scripts some-args"/>
- *  <builtin name="dbusOtherMethodName" library="/usr/lib/libfoo.so" symbol="c_method_impl_name"/>
- *
- *  <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
- *  <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
- *  <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
- * </extension>
- */
-ni_bool_t
-ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
-{
-	ni_extension_t *ex;
-	const char *name;
-
-	if (!(name = xml_node_get_attr(node, "interface"))) {
-		ni_error("%s: <%s> element lacks interface attribute",
-				node->name, xml_node_location(node));
-		return FALSE;
-	}
-
-	ex = ni_extension_new(list, name);
-
-	return ni_config_parse_extension(ex, node);
-}
-
 static ni_bool_t
 ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 {
+	ni_script_action_t *script;
+	ni_c_binding_t *binding;
 	xml_node_t *child;
 
+	/*
+	 * Each extension has a list of builtin bindings and/or
+	 * script actions "indexed" by unique name, that is:
+	 *   <script  name="foo" ... />
+	 *   <builtin name="foo" ... />
+	 * implement two variants of the same action and thus
+	 * the 2nd config definition overrides the 1st one.
+	 * Further, the optional enabled="false" attribute
+	 * permits to enable/disable an action script/builtin
+	 * (e.g. users client-local.xml overrides client.xml).
+	 */
 	for (child = node->children; child; child = child->next) {
-		if (!strcmp(child->name, "action") || !strcmp(child->name, "script")) {
-			const char *name, *command;
+		if (ni_string_eq(child->name, "action") ||
+		    ni_string_eq(child->name, "script")) {
+			const char *name, *command, *attr;
+			ni_bool_t enabled = TRUE;
+			ni_script_action_t *old;
 
-			if (!(name = xml_node_get_attr(child, "name"))) {
-				ni_error("action element without name attribute");
+			name = xml_node_get_attr(child, "name");
+			if (!ni_check_domain_name(name, ni_string_len(name), -1)) {
+				ni_error("[%s] script action without valid name attribute",
+						xml_node_location(child));
 				return FALSE;
 			}
-			if (!(command = xml_node_get_attr(child, "command"))) {
-				ni_error("action element without command attribute");
+			command = xml_node_get_attr(child, "command");
+			if (ni_string_empty(command)) {
+				ni_error("[%s] script action without valid command attribute",
+						xml_node_location(child));
+				return FALSE;
+			}
+			attr = xml_node_get_attr(child, "enabled");
+			if (attr && ni_parse_boolean(attr, &enabled)) {
+				ni_error("[%s] script action with invalid enabled attribute",
+						xml_node_location(child));
+			}
+
+			if ((script = ni_script_action_new(name, command)))
+				script->enabled = enabled;
+
+			old = ni_script_action_list_find(ex->actions, name);
+			if (old && ni_script_action_list_insert(&old, script)) {
+				old->enabled = FALSE;
+				if (ni_script_action_list_remove(&ex->actions, old))
+					ni_script_action_free(old);
+			} else
+			if (!ni_script_action_list_append(&ex->actions, script)) {
+				ni_script_action_free(script);
 				return FALSE;
 			}
 
-			if (!ni_extension_script_new(ex, name, command))
-				return FALSE;
+			/* override: remove previous binding with same name if any */
+			if ((binding = ni_c_binding_list_find(ex->c_bindings, name))) {
+				ni_c_binding_list_remove(&ex->c_bindings, binding);
+				ni_c_binding_free(binding);
+			}
 		} else
-		if (!strcmp(child->name, "builtin")) {
-			const char *name, *library, *symbol;
+		if (ni_string_eq(child->name, "builtin")) {
+			const char *name, *library, *symbol, *attr;
+			ni_bool_t enabled = TRUE;
+			ni_c_binding_t *old;
 
-			if (!(name = xml_node_get_attr(child, "name"))) {
-				ni_error("builtin element without name attribute");
+			name = xml_node_get_attr(child, "name");
+			if (!ni_check_domain_name(name, ni_string_len(name), -1)) {
+				ni_error("[%s] builtin action without valid name attribute",
+						xml_node_location(child));
 				return FALSE;
 			}
-			if (!(symbol = xml_node_get_attr(child, "symbol"))) {
-				ni_error("action element without command attribute");
+			symbol = xml_node_get_attr(child, "symbol");
+			if (!ni_check_domain_name(symbol, ni_string_len(symbol), -1)) {
+				ni_error("[%s] builtin action without valid symbol attribute",
+						xml_node_location(child));
 				return FALSE;
 			}
 			library = xml_node_get_attr(child, "library");
+			/* NULL (missing attr) causes to use a symbol in the main program */
+			if (library && !ni_check_pathname(library, ni_string_len(library))) {
+				ni_error("[%s] builtin action with invalid library attribute",
+						xml_node_location(child));
+				return FALSE;
+			}
 
-			ni_c_binding_new(&ex->c_bindings, name, library, symbol);
+			attr = xml_node_get_attr(child, "enabled");
+			if (attr && ni_parse_boolean(attr, &enabled)) {
+				ni_error("[%s] builtin action with invalid enabled attribute",
+						xml_node_location(child));
+			}
+
+			if ((binding = ni_c_binding_new(name, library, symbol)))
+				binding->enabled = enabled;
+
+			old = ni_c_binding_list_find(ex->c_bindings, name);
+			if (old && ni_c_binding_list_insert(&old, binding)) {
+				old->enabled = FALSE;
+				if (ni_c_binding_list_remove(&ex->c_bindings, old))
+					ni_c_binding_free(old);
+			} else
+			if (!ni_c_binding_list_append(&ex->c_bindings, binding)) {
+				ni_c_binding_free(binding);
+				return FALSE;
+			}
+
+			/* override: remove previous script with same name if any */
+			if ((script = ni_script_action_list_find(ex->actions, name))) {
+				ni_script_action_list_remove(&ex->actions, script);
+				ni_script_action_free(script);
+			}
 		} else
-		if (!strcmp(child->name, "putenv")) {
+		if (ni_string_eq(child->name, "putenv")) {
 			const char *name, *value;
 
 			if (!(name = xml_node_get_attr(child, "name"))) {
-				ni_error("%s: <putenv> element without name attribute",
+				ni_error("[%s] putenv element without name attribute",
 						xml_node_location(child));
 				return FALSE;
 			}
@@ -1393,6 +1437,69 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 		}
 	}
 
+	return TRUE;
+}
+
+/*
+ * Object model extensions let you implement parts of a dbus interface separately
+ * from the main wicked body of code; either through a shared library or an
+ * external command/shell script
+ *
+ * <dbus-service interface="org.opensuse.Network.foobar">
+ *  <action name="dbusMethodName" command="/some/shell/scripts some-args"/>
+ *  <builtin name="dbusOtherMethodName" library="/usr/lib/libfoo.so" symbol="c_method_impl_name"/>
+ *
+ *  <putenv name="WICKED_OBJECT_PATH" value="$object-path"/>
+ *  <putenv name="WICKED_INTERFACE_NAME" value="$property:name"/>
+ *  <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
+ * </dbus-service>
+ */
+ni_bool_t
+ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
+{
+	ni_extension_t *ex, *old;
+	const char *interface;
+
+	ni_assert(list && node);
+
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+			"parsing %s extension config node", node->name);
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_APPLICATION)) {
+		xml_node_print_debug(node, NI_TRACE_APPLICATION);
+	}
+
+	interface = xml_node_get_attr(node, "interface");
+	if (!ni_check_domain_name(interface, ni_string_len(interface), 0)) {
+		ni_error("[%s] %s element with invalid interface attribute",
+				xml_node_location(node), node->name);
+		return FALSE;
+	}
+
+	ex = ni_extension_new(interface);
+	if (!ex || !ni_config_parse_extension(ex, node)) {
+		ni_extension_free(ex);
+		return FALSE;
+	}
+
+	if (!ex->actions && !ex->c_bindings) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+				"[%s] disarding %s '%s' extension without actions",
+				xml_node_location(node), node->name, interface);
+		ni_extension_free(ex);
+		return TRUE;
+	}
+
+	old = ni_extension_list_find(*list, interface);
+	if (old && ni_extension_list_insert(&old, ex)) {
+		if (ni_extension_list_remove(list, old))
+			ni_extension_free(old);
+	} else
+	if (!ni_extension_list_append(list, ex)) {
+		ni_warn("[%s] unable to add %s extension to list",
+				xml_node_location(node), node->name);
+		ni_extension_free(ex);
+		return FALSE;
+	}
 	return TRUE;
 }
 
@@ -1412,8 +1519,48 @@ ni_config_parse_objectmodel_netif_ns(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex;
 
-	ex = ni_extension_new(list, NULL);
-	return ni_config_parse_extension(ex, node);
+	ni_assert(list && node);
+
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+			"parsing %s extension config node", node->name);
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_APPLICATION)) {
+		xml_node_print_debug(node, NI_TRACE_APPLICATION);
+	}
+
+	/*
+	 * we need only 1 netif-naming-services extension
+	 * with multiple unique builtin / script actions.
+	 */
+	if (!(ex = *list))
+		ex = ni_extension_new(NULL);
+
+	if (!ex || !ni_config_parse_extension(ex, node)) {
+		if (ex != *list)
+			ni_extension_free(ex);
+		return FALSE;
+	}
+
+	if (ex->actions) {
+		ni_warn("[%s] script actions not supported in %s extensions",
+				xml_node_location(node), node->name);
+		ni_script_action_list_destroy(&ex->actions);
+	}
+	if (!ex->c_bindings) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+				"[%s] disarding %s extension without builtin actions",
+				xml_node_location(node), node->name);
+		if (ex != *list)
+			ni_extension_free(ex);
+		return TRUE;
+	}
+
+	if (ex != *list && !ni_extension_list_append(list, ex)) {
+		ni_warn("[%s] unable to add %s extension to list",
+				xml_node_location(node), node->name);
+		ni_extension_free(ex);
+		return FALSE;
+	}
+	return TRUE;
 }
 
 /*
@@ -1431,8 +1578,48 @@ ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **list, xml_node_t
 {
 	ni_extension_t *ex;
 
-	ex = ni_extension_new(list, NULL);
-	return ni_config_parse_extension(ex, node);
+	ni_assert(list && node);
+
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+			"parsing %s extension config node", node->name);
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_APPLICATION)) {
+		xml_node_print_debug(node, NI_TRACE_APPLICATION);
+	}
+
+	/*
+	 * we need only 1 netif-firmware-discovery extension
+	 * with multiple unique builtin / script actions.
+	 */
+	if (!(ex = *list))
+		ex = ni_extension_new(NULL);
+
+	if (!ex || !ni_config_parse_extension(ex, node)) {
+		if (ex != *list)
+			ni_extension_free(ex);
+		return FALSE;
+	}
+
+	if (ex->c_bindings) {
+		ni_warn("[%s] builtin actions not supported in %s extensions",
+				xml_node_location(node), node->name);
+		ni_c_binding_list_destroy(&ex->c_bindings);
+	}
+	if (!ex->actions) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+				"[%s] disarding %s extension without script actions",
+				xml_node_location(node), node->name);
+		if (ex != *list)
+			ni_extension_free(ex);
+		return TRUE;
+	}
+
+	if (ex != *list && !ni_extension_list_append(list, ex)) {
+		ni_warn("[%s] unable to add %s extension to list",
+				xml_node_location(node), node->name);
+		ni_extension_free(ex);
+		return FALSE;
+	}
+	return TRUE;
 }
 
 /*
@@ -1449,21 +1636,55 @@ ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **list, xml_node_t
 ni_bool_t
 ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
 {
-	ni_extension_t *ex;
+	ni_extension_t *ex, *old;
 	const char *name;
 
-	if (!(name = xml_node_get_attr(node, "name"))) {
-		ni_error("%s: <%s> element lacks name attribute",
-				node->name, xml_node_location(node));
+	ni_assert(list && node);
+
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+			"parsing %s extension config node", node->name);
+	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_APPLICATION)) {
+		xml_node_print_debug(node, NI_TRACE_APPLICATION);
+	}
+
+	name = xml_node_get_attr(node, "name");
+	if (!ni_check_domain_name(name, ni_string_len(name), -1)) {
+		ni_error("[%s] <%s> element lacks name attribute",
+				xml_node_location(node), node->name);
 		return FALSE;
 	}
 
-	ex = ni_extension_new(list, name);
+	ex = ni_extension_new(name);
+	if (!ex || !ni_config_parse_extension(ex, node)) {
+		ni_extension_free(ex);
+		return FALSE;
+	}
 
-	/* If the updater has a format type, extract. */
-	ni_string_dup(&ex->format, xml_node_get_attr(node, "format"));
+	if (ex->c_bindings) {
+		ni_warn("[%s] builtin actions not supported in %s extensions",
+				xml_node_location(node), node->name);
+		ni_c_binding_list_destroy(&ex->c_bindings);
+	}
+	if (!ex->actions) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+				"[%s] disarding %s extension without script actions",
+				xml_node_location(node), node->name);
+		ni_extension_free(ex);
+		return TRUE;
+	}
 
-	return ni_config_parse_extension(ex, node);
+	old = ni_extension_list_find(*list, name);
+	if (old && ni_extension_list_insert(&old, ex)) {
+		if (ni_extension_list_remove(list, old))
+			ni_extension_free(old);
+	} else
+	if (!ni_extension_list_append(list, ex)) {
+		ni_warn("[%s] unable to add %s extension to list",
+				xml_node_location(node), node->name);
+		ni_extension_free(ex);
+		return FALSE;
+	}
+	return TRUE;
 }
 
 /*
@@ -1714,60 +1935,6 @@ ni_extension_t *
 ni_config_find_system_updater(ni_config_t *conf, const char *name)
 {
 	return ni_extension_list_find(conf->updater_extensions, name);
-}
-
-/*
- * Handle methods implemented via C bindings
- */
-static ni_c_binding_t *
-ni_c_binding_new(ni_c_binding_t **list, const char *name, const char *library, const char *symbol)
-{
-	ni_c_binding_t *binding, **pos;
-
-	for (pos = list; (binding = *pos) != NULL; pos = &binding->next)
-		;
-
-	binding = xcalloc(1, sizeof(*binding));
-	ni_string_dup(&binding->name, name);
-	ni_string_dup(&binding->library, library);
-	ni_string_dup(&binding->symbol, symbol);
-
-	*pos = binding;
-	return binding;
-}
-
-void
-ni_c_binding_free(ni_c_binding_t *binding)
-{
-	ni_string_free(&binding->name);
-	ni_string_free(&binding->library);
-	ni_string_free(&binding->symbol);
-	free(binding);
-}
-
-void *
-ni_c_binding_get_address(const ni_c_binding_t *binding)
-{
-	void *handle;
-	void *addr;
-
-	handle = dlopen(binding->library, RTLD_LAZY);
-	if (handle == NULL) {
-		ni_error("invalid binding for %s - cannot dlopen(%s): %s",
-				binding->name, binding->library?: "<main>", dlerror());
-		return NULL;
-	}
-
-	addr = dlsym(handle, binding->symbol);
-	dlclose(handle);
-
-	if (addr == NULL) {
-		ni_error("invalid binding for %s - no such symbol in %s: %s",
-				binding->name, binding->library?: "<main>", binding->symbol);
-		return NULL;
-	}
-
-	return addr;
 }
 
 /*
