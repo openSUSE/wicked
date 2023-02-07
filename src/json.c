@@ -1067,6 +1067,7 @@ ni_json_reader_stack_pop(ni_json_reader_t *jr)
 		stack->parent = NULL;
 		ni_string_free(&stack->name);
 		ni_json_free(stack->value);
+		free(stack);
 	}
 	return jr->stack;
 }
