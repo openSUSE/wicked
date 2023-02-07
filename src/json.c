@@ -1566,7 +1566,7 @@ ni_json_reader_parse_array(ni_json_reader_t *jr)
 		ni_json_reader_set_error(jr, "unexpected array token");
 		break;
 	}
-	ni_stringbuf_clear(&tokenValue);
+	ni_stringbuf_destroy(&tokenValue);
 }
 
 static void
@@ -1611,7 +1611,7 @@ ni_json_reader_parse_object(ni_json_reader_t *jr)
 		ni_json_reader_set_error(jr, "unexpected object token");
 		break;
 	}
-	ni_stringbuf_clear(&tokenValue);
+	ni_stringbuf_destroy(&tokenValue);
 }
 
 static void
@@ -1669,6 +1669,7 @@ ni_json_reader_parse_pair(ni_json_reader_t *jr)
 		ni_json_reader_set_error(jr, "unexpected object pair token");
 		break;
 	}
+	ni_stringbuf_destroy(&tokenValue);
 }
 
 static void
@@ -1718,6 +1719,7 @@ ni_json_reader_parse_initial(ni_json_reader_t *jr)
 		ni_json_reader_set_error(jr, "unexpected token");
 		break;
 	}
+	ni_stringbuf_destroy(&tokenValue);
 }
 
 static ni_json_t *
