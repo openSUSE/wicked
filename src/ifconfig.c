@@ -127,7 +127,7 @@ static int	__ni_rtnl_link_unenslave(const ni_netdev_t *);
 static int	__ni_rtnl_link_delete(const ni_netdev_t *);
 
 static int	__ni_rtnl_link_add_port_up(const ni_netdev_t *, const char *, unsigned int);
-static int	__ni_rtnl_link_add_slave_down(const ni_netdev_t *, const char *, unsigned int);
+static int	__ni_rtnl_link_bond_enslave(const ni_netdev_t *, const char *, unsigned int);
 
 static int	__ni_rtnl_send_deladdr(ni_netdev_t *, const ni_address_t *);
 static int	__ni_rtnl_send_newaddr(ni_netdev_t *, const ni_address_t *, int);
@@ -207,7 +207,7 @@ ni_system_interface_enslave(ni_netconfig_t *nc, ni_netdev_t *master, ni_netdev_t
 		if (dev->link.masterdev.index)
 			return 0;
 
-		ret = __ni_rtnl_link_add_slave_down(dev, master->name,
+		ret = __ni_rtnl_link_bond_enslave(dev, master->name,
 						master->link.ifindex);
 		if (ret == 0) {
 			ni_netdev_ref_set(&dev->link.masterdev,
@@ -4021,10 +4021,10 @@ failed:
 }
 
 /*
- * Bring down an interface and enslave (bond slave) to master
+ * Enslave into a bond master
  */
 int
-__ni_rtnl_link_add_slave_down(const ni_netdev_t *slave, const char *mname, unsigned int mindex)
+__ni_rtnl_link_bond_enslave(const ni_netdev_t *slave, const char *mname, unsigned int mindex)
 {
 	struct ifinfomsg ifi;
 	struct nl_msg *msg;
@@ -4035,7 +4035,6 @@ __ni_rtnl_link_add_slave_down(const ni_netdev_t *slave, const char *mname, unsig
 	memset(&ifi, 0, sizeof(ifi));
 	ifi.ifi_family = AF_UNSPEC;
 	ifi.ifi_index = slave->link.ifindex;
-	ifi.ifi_change = IFF_UP;
 
 	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST);
 	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
