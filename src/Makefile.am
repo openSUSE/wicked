@@ -191,6 +191,7 @@ wicked_headers			= \
 	addrconf.h		\
 	appconfig.h		\
 	auto6.h			\
+	array_priv.h		\
 	buffer.h		\
 	client/client_state.h	\
 	client/ifconfig.h	\
