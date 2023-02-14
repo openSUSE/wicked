@@ -81,6 +81,8 @@ extern  ni_bool_t			ni_json_array_set(ni_json_t *, unsigned int, ni_json_t *);
 extern  ni_bool_t			ni_json_array_insert(ni_json_t *, unsigned int, ni_json_t *);
 extern  ni_bool_t			ni_json_array_append(ni_json_t *, ni_json_t *);
 extern	unsigned int			ni_json_array_entries(ni_json_t *);
+extern	ni_json_t *			ni_json_array_remove_at(ni_json_t *, unsigned int);
+extern	ni_bool_t			ni_json_array_delete_at(ni_json_t *, unsigned int);
 
 extern	ni_json_pair_t *		ni_json_pair_new(const char *name, ni_json_t *value);
 extern	ni_json_pair_t *		ni_json_pair_ref(ni_json_pair_t *);
