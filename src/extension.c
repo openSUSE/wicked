@@ -88,7 +88,7 @@ ni_c_binding_new(const char *name, const char *library, const char *symbol)
 	else
 		return binding;
 
-	return FALSE;
+	return NULL;
 }
 
 void
