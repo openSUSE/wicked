@@ -134,7 +134,7 @@ struct ni_capture {
 };
 
 static int		ni_capture_set_filter(ni_capture_t *, const ni_capture_protinfo_t *);
-static ssize_t		__ni_capture_send(const ni_capture_t *, const ni_buffer_t *);
+static ssize_t		ni_capture_send_buf(const ni_capture_t *, const ni_buffer_t *);
 
 static uint32_t
 checksum_partial(uint32_t sum, const void *data, uint16_t len)
@@ -371,7 +371,7 @@ ni_capture_retransmit(ni_capture_t *capture)
 	if (capture->retrans.timeout.timeout_callback)
 		capture->retrans.timeout.timeout_callback(capture->retrans.timeout.timeout_data);
 
-	__ni_capture_send(capture, capture->retrans.buffer);
+	ni_capture_send_buf(capture, capture->retrans.buffer);
 
 	/* We don't care whether sending failed or not. Quite possibly
 	 * it's a temporary condition, so continue */
@@ -385,7 +385,7 @@ ni_capture_retransmit(ni_capture_t *capture)
  * callbacks nested in callbacks...
  */
 static int
-__ni_capture_socket_get_timeout(const ni_socket_t *sock, struct timeval *tv)
+ni_capture_socket_get_timeout(const ni_socket_t *sock, struct timeval *tv)
 {
 	ni_capture_t *capture;
 
@@ -401,7 +401,7 @@ __ni_capture_socket_get_timeout(const ni_socket_t *sock, struct timeval *tv)
 }
 
 static void
-__ni_capture_socket_check_timeout(ni_socket_t *sock, const struct timeval *now)
+ni_capture_socket_check_timeout(ni_socket_t *sock, const struct timeval *now)
 {
 	ni_capture_t *capture;
 
@@ -417,8 +417,8 @@ __ni_capture_socket_check_timeout(ni_socket_t *sock, const struct timeval *now)
 /*
  * Capture receive handling
  */
-int
-__ni_capture_recv(int fd, void *buf, size_t len, ni_bool_t *partial_csum, ni_sockaddr_t *from)
+static int
+ni_capture_recv_raw(int fd, void *buf, size_t len, ni_bool_t *partial_csum, ni_sockaddr_t *from)
 {
 #if defined(PACKET_AUXDATA)
 	/* use 2 times bigger buffer to catch possible additions... */
@@ -503,12 +503,12 @@ ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp, ni_sockaddr_t *from)
 	const char *lladdr;
 	const char *hint = capture->desc;
 
-	bytes = __ni_capture_recv(capture->sock->__fd, capture->buffer,
+	bytes = ni_capture_recv_raw(capture->sock->__fd, capture->buffer,
 				  capture->mtu, &partial_checksum, from);
 
 	if (bytes < 0) {
 		ni_error("%s: %s cannot read %s%spacket from socket: %m",
-				capture->ifname, __FUNCTION__,
+				capture->ifname, __func__,
 				hint ? hint : "", hint ? " " : "");
 		return -1;
 	}
@@ -540,7 +540,7 @@ ni_capture_recv(ni_capture_t *capture, ni_buffer_t *bp, ni_sockaddr_t *from)
 
 	default:
 		ni_error("%s: %s cannot handle ethertype %u", capture->ifname,
-				__FUNCTION__, capture->protocol);
+				__func__, capture->protocol);
 		return -1;
 	}
 
@@ -623,7 +623,7 @@ ni_capture_devinfo_refresh(ni_capture_devinfo_t *devinfo, const char *ifname, co
  * some point.
  */
 static void
-__ni_capture_enable_packet_auxdata(int fd)
+ni_capture_enable_packet_auxdata(int fd)
 {
 #if defined(PACKET_AUXDATA)
 	int on = 1;
@@ -637,7 +637,7 @@ __ni_capture_enable_packet_auxdata(int fd)
 }
 
 static void
-__ni_capture_init_once(void)
+ni_capture_init_once(void)
 {
 	static ni_bool_t done = FALSE;
 
@@ -676,7 +676,7 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t
 		return NULL;
 	}
 
-	__ni_capture_init_once();
+	ni_capture_init_once();
 
 	if ((fd = socket (PF_PACKET, SOCK_DGRAM, htons(protinfo->eth_protocol))) < 0) {
 		ni_error("socket: %m");
@@ -711,7 +711,7 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t
 		goto failed;
 	}
 
-	__ni_capture_enable_packet_auxdata(fd);
+	ni_capture_enable_packet_auxdata(fd);
 
 	capture->mtu = devinfo->mtu;
 	if (capture->mtu == 0)
@@ -719,8 +719,8 @@ ni_capture_open(const ni_capture_devinfo_t *devinfo, const ni_capture_protinfo_t
 	capture->buffer = xmalloc(capture->mtu);
 
 	capture->sock->receive = receive;
-	capture->sock->get_timeout = __ni_capture_socket_get_timeout;
-	capture->sock->check_timeout = __ni_capture_socket_check_timeout;
+	capture->sock->get_timeout = ni_capture_socket_get_timeout;
+	capture->sock->check_timeout = ni_capture_socket_check_timeout;
 	capture->sock->user_data = capture;
 	ni_string_dup(&capture->desc, desc);
 	ni_socket_activate(capture->sock);
@@ -779,13 +779,13 @@ ni_capture_set_filter(ni_capture_t *cap, const ni_capture_protinfo_t *protinfo)
 	return 0;
 }
 
-ssize_t
-__ni_capture_send(const ni_capture_t *capture, const ni_buffer_t *buf)
+static ssize_t
+ni_capture_send_buf(const ni_capture_t *capture, const ni_buffer_t *buf)
 {
 	ssize_t rv;
 
 	if (capture == NULL) {
-		ni_error("%s: no capture handle", __FUNCTION__);
+		ni_error("%s: no capture handle", __func__);
 		return -1;
 	}
 
@@ -803,7 +803,7 @@ ni_capture_send(ni_capture_t *capture, const ni_buffer_t *buf, const ni_timeout_
 {
 	ssize_t rv;
 
-	rv = __ni_capture_send(capture, buf);
+	rv = ni_capture_send_buf(capture, buf);
 	if (tmo) {
 		capture->retrans.buffer = buf;
 		capture->retrans.timeout = *tmo;
