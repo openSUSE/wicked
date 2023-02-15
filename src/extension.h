@@ -1,5 +1,5 @@
 /*
- *	Extensions aka external commands and bindings.
+ *	Extensions aka external commands and bindings defined in appconfig.
  *
  *	Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  *	Copyright (C) 2023 SUSE LLC
@@ -21,8 +21,8 @@
  *		Olaf Kirch
  *		Marius Tomaschewski
  */
-#ifndef   NI_WICKED_EXTENSIONS_H
-#define   NI_WICKED_EXTENSIONS_H
+#ifndef NI_WICKED_EXTENSIONS_H
+#define NI_WICKED_EXTENSIONS_H
 
 #include <wicked/types.h>
 

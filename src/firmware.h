@@ -22,8 +22,8 @@
  *		Marius Tomaschewski
  *
  */
-#ifndef   WICKED_FIRMWARE_UTILS_H
-#define   WICKED_FIRMWARE_UTILS_H
+#ifndef NI_WICKED_FIRMWARE_UTILS_H
+#define NI_WICKED_FIRMWARE_UTILS_H
 
 typedef struct ni_netif_firmware_ifnames	ni_netif_firmware_ifnames_t;
 
@@ -45,4 +45,4 @@ extern ni_bool_t			ni_netif_firmware_discover_ifnames(ni_netif_firmware_ifnames_
 extern ni_bool_t			ni_netif_firmware_discover_ifconfig(xml_document_array_t *,
 							const char *, const char *, const char *);
 
-#endif /* WICKED_FIRMWARE_UTILS_H */
+#endif /* NI_WICKED_FIRMWARE_UTILS_H */
