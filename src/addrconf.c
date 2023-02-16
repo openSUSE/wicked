@@ -2,7 +2,7 @@
  *	Address configuration aka lease for wicked
  *
  *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
- *	Copyright (C) 2012-2022 SUSE LLC
+ *	Copyright (C) 2012-2023 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -25,10 +25,6 @@
 #include "config.h"
 #endif
 
-#include <stdlib.h>
-#include <sys/time.h>
-#include <time.h>
-
 #include <wicked/util.h>
 #include <wicked/address.h>
 #include <wicked/addrconf.h>
@@ -39,9 +35,14 @@
 
 #include "appconfig.h"
 #include "addrconf.h"
+#include "refcount_priv.h"
 #include "netinfo_priv.h"
 #include "dhcp6/options.h"
 #include "dhcp.h"
+
+#include <stdlib.h>
+#include <sys/time.h>
+#include <time.h>
 
 
 extern void		ni_addrconf_updater_free(ni_addrconf_updater_t **);
