@@ -105,7 +105,7 @@ ni_dhcp4_socket_open(ni_dhcp4_device_t *dev)
 		dev->capture = NULL;
 	}
 
-	dev->capture = ni_capture_open(&dev->system, &prot_info, ni_dhcp4_socket_recv);
+	dev->capture = ni_capture_open(&dev->system, &prot_info, ni_dhcp4_socket_recv, "dhcp4");
 	if (!dev->capture)
 		return -1;
 
@@ -140,7 +140,7 @@ ni_dhcp4_socket_recv(ni_socket_t *sock)
 	ni_sockaddr_t from;
 	ni_buffer_t buf;
 
-	if (ni_capture_recv(capture, &buf, &from, "dhcp4") >= 0) {
+	if (ni_capture_recv(capture, &buf, &from) >= 0) {
 		ni_dhcp4_device_t *dev = ni_capture_get_user_data(capture);
 
 		ni_dhcp4_fsm_process_dhcp4_packet(dev, &buf, &from);
