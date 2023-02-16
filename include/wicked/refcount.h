@@ -32,26 +32,26 @@ extern ni_bool_t	ni_refcount_increment(ni_refcount_t *refcount);
 extern ni_bool_t	ni_refcount_decrement(ni_refcount_t *refcount);
 
 
-#define 		ni_refcounted_declare_new(prefix,args...)	\
+#define			ni_declare_refcounted_new(prefix, args...)	\
 	prefix##_t *		prefix##_new(args)
 
-#define			ni_refcounted_declare_ref(prefix)		\
+#define			ni_declare_refcounted_ref(prefix)		\
 	prefix##_t *		prefix##_ref(prefix##_t *)
 
-#define			ni_refcounted_declare_free(prefix)		\
+#define			ni_declare_refcounted_free(prefix)		\
 	void			prefix##_free(prefix##_t *)
 
-#define			ni_refcounted_declare_hold(prefix)		\
+#define			ni_declare_refcounted_hold(prefix)		\
 	ni_bool_t		prefix##_hold(prefix##_t **, prefix##_t *)
 
-#define			ni_refcounted_declare_drop(prefix)		\
+#define			ni_declare_refcounted_drop(prefix)		\
 	ni_bool_t		prefix##_drop(prefix##_t **)
 
-#define			ni_refcounted_declare_move(prefix)		\
+#define			ni_declare_refcounted_move(prefix)		\
 	ni_bool_t		prefix##_move(prefix##_t **, prefix##_t **)
 
 
-#define			ni_refcounted_define_new_xargs(prefix,		\
+#define			ni_define_refcounted_new_xargs(prefix,		\
 					func_args, init_args)		\
 	prefix##_t *							\
 	prefix##_new func_args						\
@@ -70,28 +70,30 @@ extern ni_bool_t	ni_refcount_decrement(ni_refcount_t *refcount);
 		}							\
 		return obj;						\
 	}
-#define			ni_refcounted_define_new0(prefix)		\
-			ni_refcounted_define_new_xargs(prefix,		\
+#define			ni_define_refcounted_new0(prefix)		\
+			ni_define_refcounted_new_xargs(prefix,		\
 					(void), (obj))
-#define			ni_refcounted_define_new1(prefix, _1)		\
-			ni_refcounted_define_new_xargs(prefix,		\
+#define			ni_define_refcounted_new1(prefix, _1)		\
+			ni_define_refcounted_new_xargs(prefix,		\
 					(_1 a), (obj, a))
-#define			ni_refcounted_define_new2(prefix, _1, _2)	\
-			ni_refcounted_define_new_xargs(prefix,		\
+#define			ni_define_refcounted_new2(prefix, _1, _2)	\
+			ni_define_refcounted_new_xargs(prefix,		\
 					(_1 a, _2 b), (obj, a, b))
-#define			ni_refcounted_define_new3(prefix, _1, _2, _3)	\
-			ni_refcounted_define_new_xargs(prefix,		\
-					(_1 a, _2 b, _3 c), (obj, a, b, c))
-#define			ni_refcounted_macro(_1, _2, _3, _4, NAME, ...) NAME
+#define			ni_define_refcounted_new3(prefix, _1, _2, _3)	\
+			ni_define_refcounted_new_xargs(prefix,		\
+					(_1 a, _2 b, _3 c),		\
+					(obj, a, b, c))
+#define			ni_define_refcounted_new_macro(_1, _2, _3, _4,	\
+					NAME, ...) NAME
 
-#define			ni_refcounted_define_new(args...)		\
-			ni_refcounted_macro(args,			\
-				ni_refcounted_define_new3,		\
-				ni_refcounted_define_new2,		\
-				ni_refcounted_define_new1,		\
-				ni_refcounted_define_new0)(args)
+#define			ni_define_refcounted_new(args...)		\
+			ni_define_refcounted_new_macro(args,		\
+				ni_define_refcounted_new3,		\
+				ni_define_refcounted_new2,		\
+				ni_define_refcounted_new1,		\
+				ni_define_refcounted_new0)(args)
 
-#define			ni_refcounted_define_ref(prefix)		\
+#define			ni_define_refcounted_ref(prefix)		\
 	prefix##_t *							\
 	prefix##_ref(prefix##_t *ref)					\
 	{								\
@@ -100,7 +102,7 @@ extern ni_bool_t	ni_refcount_decrement(ni_refcount_t *refcount);
 		return NULL;						\
 	}
 
-#define 		ni_refcounted_define_free(prefix)		\
+#define			ni_define_refcounted_free(prefix)		\
 	void								\
 	prefix##_free(prefix##_t *ref)					\
 	{								\
@@ -110,7 +112,7 @@ extern ni_bool_t	ni_refcount_decrement(ni_refcount_t *refcount);
 		}							\
 	}
 
-#define 		ni_refcounted_define_hold(prefix)		\
+#define			ni_define_refcounted_hold(prefix)		\
 	ni_bool_t							\
 	prefix##_hold(prefix##_t **tie, prefix##_t *ref)		\
 	{								\
@@ -124,7 +126,7 @@ extern ni_bool_t	ni_refcount_decrement(ni_refcount_t *refcount);
 		return FALSE;						\
 	}
 
-#define 		ni_refcounted_define_drop(prefix)		\
+#define			ni_define_refcounted_drop(prefix)		\
 	ni_bool_t							\
 	prefix##_drop(prefix##_t **tie)					\
 	{								\
@@ -138,7 +140,7 @@ extern ni_bool_t	ni_refcount_decrement(ni_refcount_t *refcount);
 		return FALSE;						\
 	}
 
-#define 		ni_refcounted_define_move(prefix)		\
+#define			ni_define_refcounted_move(prefix)		\
 	ni_bool_t							\
 	prefix##_move(prefix##_t **dst, prefix##_t **src)		\
 	{								\

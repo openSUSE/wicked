@@ -60,12 +60,12 @@ ni_addrconf_lease_init(ni_addrconf_lease_t *lease, int type, int family)
 	return FALSE;
 }
 
-extern ni_refcounted_define_new(ni_addrconf_lease, int, int);
-extern ni_refcounted_define_ref(ni_addrconf_lease);
-extern ni_refcounted_define_hold(ni_addrconf_lease);
-extern ni_refcounted_define_free(ni_addrconf_lease);
-extern ni_refcounted_define_drop(ni_addrconf_lease);
-extern ni_refcounted_define_move(ni_addrconf_lease);
+extern ni_define_refcounted_new(ni_addrconf_lease, int, int);
+extern ni_define_refcounted_ref(ni_addrconf_lease);
+extern ni_define_refcounted_hold(ni_addrconf_lease);
+extern ni_define_refcounted_free(ni_addrconf_lease);
+extern ni_define_refcounted_drop(ni_addrconf_lease);
+extern ni_define_refcounted_move(ni_addrconf_lease);
 
 static inline void
 ni_addrconf_lease_clone_dhcp4(struct ni_addrconf_lease_dhcp4 *clone, const struct ni_addrconf_lease_dhcp4 *orig)

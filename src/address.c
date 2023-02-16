@@ -74,12 +74,12 @@ ni_address_destroy(ni_address_t *ap)
 	ni_string_free(&ap->label);
 }
 
-extern ni_refcounted_define_new(ni_address);
-extern ni_refcounted_define_ref(ni_address);
-extern ni_refcounted_define_hold(ni_address);
-extern ni_refcounted_define_free(ni_address);
-extern ni_refcounted_define_drop(ni_address);
-extern ni_refcounted_define_move(ni_address);
+extern ni_define_refcounted_new(ni_address);
+extern ni_define_refcounted_ref(ni_address);
+extern ni_define_refcounted_hold(ni_address);
+extern ni_define_refcounted_free(ni_address);
+extern ni_define_refcounted_drop(ni_address);
+extern ni_define_refcounted_move(ni_address);
 
 ni_address_t *
 ni_address_create(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr, ni_address_t **list_head)

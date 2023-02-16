@@ -67,9 +67,9 @@ static int					ni_wpa_client_refresh(ni_wpa_client_t *);
 static ni_wpa_nif_t *				ni_wpa_nif_by_path(ni_wpa_client_t *wpa, const char *object_path);
 
 
-static						ni_refcounted_declare_new(ni_wpa_nif, const char *, unsigned int);
-static						ni_refcounted_declare_free(ni_wpa_nif);
-static						ni_refcounted_declare_ref(ni_wpa_nif);
+static						ni_declare_refcounted_new(ni_wpa_nif, const char *, unsigned int);
+static						ni_declare_refcounted_free(ni_wpa_nif);
+static						ni_declare_refcounted_ref(ni_wpa_nif);
 static ni_bool_t				ni_wpa_nif_init(ni_wpa_nif_t *, const char *, unsigned int);
 static void					ni_wpa_nif_destroy(ni_wpa_nif_t *);
 static int					ni_wpa_nif_refresh(ni_wpa_nif_t *);
@@ -83,9 +83,9 @@ static void					ni_wpa_dbus_signal(ni_dbus_connection_t *, ni_dbus_message_t *, 
 static void					ni_wpa_nif_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 static void					ni_wpa_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 
-static						ni_refcounted_declare_new(ni_wpa_bss, ni_wpa_nif_t *, const char *);
-static						ni_refcounted_declare_free(ni_wpa_bss);
-static						ni_refcounted_declare_ref(ni_wpa_bss);
+static						ni_declare_refcounted_new(ni_wpa_bss, ni_wpa_nif_t *, const char *);
+static						ni_declare_refcounted_free(ni_wpa_bss);
+static						ni_declare_refcounted_ref(ni_wpa_bss);
 static ni_bool_t				ni_wpa_bss_init(ni_wpa_bss_t *bss, ni_wpa_nif_t *wif,
 								const char *object_path);
 static void					ni_wpa_bss_destroy(ni_wpa_bss_t *bss);
@@ -733,11 +733,11 @@ ni_wpa_nif_by_path(ni_wpa_client_t *wpa, const char *object_path)
 	return NULL;
 }
 
-static ni_refcounted_define_new(ni_wpa_nif, const char *, unsigned int);
-static ni_refcounted_define_ref(ni_wpa_nif);
-static ni_refcounted_define_hold(ni_wpa_nif);
-static ni_refcounted_define_free(ni_wpa_nif);
-extern ni_refcounted_define_drop(ni_wpa_nif);
+static ni_define_refcounted_new(ni_wpa_nif, const char *, unsigned int);
+static ni_define_refcounted_ref(ni_wpa_nif);
+static ni_define_refcounted_hold(ni_wpa_nif);
+static ni_define_refcounted_free(ni_wpa_nif);
+extern ni_define_refcounted_drop(ni_wpa_nif);
 
 static ni_bool_t
 ni_wpa_nif_init(ni_wpa_nif_t *wif, const char *ifname, unsigned int ifindex)
@@ -1810,10 +1810,10 @@ ni_wpa_bss_properties_init(ni_wpa_bss_properties_t *props)
 	ni_byte_array_init(&props->ies);
 }
 
-static ni_refcounted_define_free(ni_wpa_bss);
-static ni_refcounted_define_new(ni_wpa_bss, ni_wpa_nif_t *, const char *);
-static ni_refcounted_define_ref(ni_wpa_bss);
-extern ni_refcounted_define_drop(ni_wpa_bss);
+static ni_define_refcounted_free(ni_wpa_bss);
+static ni_define_refcounted_new(ni_wpa_bss, ni_wpa_nif_t *, const char *);
+static ni_define_refcounted_ref(ni_wpa_bss);
+extern ni_define_refcounted_drop(ni_wpa_bss);
 
 static void
 ni_wpa_bss_destroy(ni_wpa_bss_t *bss)

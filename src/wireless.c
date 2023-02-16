@@ -1986,10 +1986,10 @@ ni_wireless_network_destroy(ni_wireless_network_t *net)
 	memset(net, 0, sizeof(*net));
 }
 
-static ni_refcounted_define_ref(ni_wireless_network);
-static ni_refcounted_define_free(ni_wireless_network);
-extern ni_refcounted_define_new(ni_wireless_network);
-extern ni_refcounted_define_drop(ni_wireless_network);
+static ni_define_refcounted_ref(ni_wireless_network);
+static ni_define_refcounted_free(ni_wireless_network);
+extern ni_define_refcounted_new(ni_wireless_network);
+extern ni_define_refcounted_drop(ni_wireless_network);
 
 void
 ni_wireless_wep_key_array_destroy(char **array)

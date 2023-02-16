@@ -454,7 +454,7 @@ extern int				ni_rfkill_open(ni_rfkill_event_handler_t *, void *user_data);
 extern ni_bool_t			ni_rfkill_disabled(ni_rfkill_type_t);
 extern const char *			ni_rfkill_type_string(ni_rfkill_type_t type);
 
-extern					ni_refcounted_declare_new(ni_wireless_network);
-extern					ni_refcounted_declare_drop(ni_wireless_network);
+extern					ni_declare_refcounted_new(ni_wireless_network);
+extern					ni_declare_refcounted_drop(ni_wireless_network);
 
 #endif /* NI_WICKED_WIRELESS_H */

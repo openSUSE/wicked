@@ -123,12 +123,12 @@ extern ni_bool_t	ni_af_sockaddr_info(int, unsigned int *, unsigned int *);
 extern unsigned int	ni_af_address_length(int af);
 extern unsigned int	ni_af_address_prefixlen(int af);
 
-extern			ni_refcounted_declare_new(ni_address);
-extern			ni_refcounted_declare_ref(ni_address);
-extern			ni_refcounted_declare_hold(ni_address);
-extern			ni_refcounted_declare_free(ni_address);
-extern			ni_refcounted_declare_drop(ni_address);
-extern			ni_refcounted_declare_move(ni_address);
+extern			ni_declare_refcounted_new(ni_address);
+extern			ni_declare_refcounted_ref(ni_address);
+extern			ni_declare_refcounted_hold(ni_address);
+extern			ni_declare_refcounted_free(ni_address);
+extern			ni_declare_refcounted_drop(ni_address);
+extern			ni_declare_refcounted_move(ni_address);
 
 extern ni_address_t *	ni_address_create(int af, unsigned int prefix_len,
 					const ni_sockaddr_t *local_addr,

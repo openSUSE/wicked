@@ -161,12 +161,12 @@ typedef struct ni_rule_array  {
 
 typedef int			ni_route_cmp_fn(const ni_route_t *, const ni_route_t *);
 
-extern 				ni_refcounted_declare_new(ni_route);
-extern 				ni_refcounted_declare_ref(ni_route);
-extern				ni_refcounted_declare_hold(ni_route);
-extern 				ni_refcounted_declare_free(ni_route);
-extern				ni_refcounted_declare_drop(ni_route);
-extern				ni_refcounted_declare_move(ni_route);
+extern				ni_declare_refcounted_new(ni_route);
+extern				ni_declare_refcounted_ref(ni_route);
+extern				ni_declare_refcounted_hold(ni_route);
+extern				ni_declare_refcounted_free(ni_route);
+extern				ni_declare_refcounted_drop(ni_route);
+extern				ni_declare_refcounted_move(ni_route);
 
 extern ni_route_t *		ni_route_create(unsigned int prefix_len,
 						const ni_sockaddr_t *dest,
@@ -284,12 +284,12 @@ extern ni_bool_t		ni_route_tables_empty(const ni_route_table_t *);
 extern ni_route_table_t *	ni_route_tables_get(ni_route_table_t **, unsigned int);
 extern void			ni_route_tables_destroy(ni_route_table_t **);
 
-extern 				ni_refcounted_declare_new(ni_rule);
-extern 				ni_refcounted_declare_ref(ni_rule);
-extern 				ni_refcounted_declare_hold(ni_rule);
-extern 				ni_refcounted_declare_free(ni_rule);
-extern 				ni_refcounted_declare_drop(ni_rule);
-extern 				ni_refcounted_declare_move(ni_rule);
+extern				ni_declare_refcounted_new(ni_rule);
+extern				ni_declare_refcounted_ref(ni_rule);
+extern				ni_declare_refcounted_hold(ni_rule);
+extern				ni_declare_refcounted_free(ni_rule);
+extern				ni_declare_refcounted_drop(ni_rule);
+extern				ni_declare_refcounted_move(ni_rule);
 
 extern ni_bool_t		ni_rule_copy(ni_rule_t *, const ni_rule_t *);
 extern ni_rule_t *		ni_rule_clone(const ni_rule_t *);
