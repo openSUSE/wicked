@@ -193,6 +193,8 @@ extern ni_bool_t	ni_var_array_set_long(ni_var_array_t *, const char *, long);
 extern ni_bool_t	ni_var_array_set_ulong(ni_var_array_t *, const char *, unsigned long);
 extern ni_bool_t	ni_var_array_set_double(ni_var_array_t *, const char *, double);
 extern ni_bool_t	ni_var_array_set_boolean(ni_var_array_t *, const char *, int);
+extern ni_bool_t	ni_var_array_set_var(ni_var_array_t *, const ni_var_t *);
+extern ni_bool_t	ni_var_array_set_vars(ni_var_array_t *, const ni_var_array_t *, ni_bool_t);
 
 extern void		ni_var_array_sort(ni_var_array_t *, ni_var_compare_fn_t);
 extern void		ni_var_array_sort_by_name(ni_var_array_t *);
