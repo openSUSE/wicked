@@ -74,7 +74,8 @@ ni_netif_firmware_discovery_script_exec(int argc, char *const argv[], char *cons
 
 static int
 ni_netif_firmware_discovery_script_call(ni_buffer_t *buf, ni_script_action_t *script,
-		const char *type, const char *root, const char *path, ni_bool_t list)
+		const ni_var_array_t *vars, const char *type, const char *root,
+		const char *path, ni_bool_t list)
 {
 	ni_process_t *pi;
 	int status;
@@ -106,6 +107,9 @@ ni_netif_firmware_discovery_script_call(ni_buffer_t *buf, ni_script_action_t *sc
 		ni_string_array_append(&pi->argv, "-l");
 	}
 
+	/* Apply default extension environment */
+	ni_process_setenv_vars(pi, vars, FALSE);
+
 	pi->exec = ni_netif_firmware_discovery_script_exec;
 	status = ni_process_run_and_capture_output(pi, buf);
 	ni_process_free(pi);
@@ -129,8 +133,8 @@ ni_netif_firmware_discovery_script_call(ni_buffer_t *buf, ni_script_action_t *sc
 
 static int
 ni_netif_firmware_discovery_script_ifconfig(xml_document_t **doc,
-		ni_script_action_t *script, const char *type,
-		const char *root, const char *path)
+		ni_script_action_t *script, const ni_var_array_t *env,
+		const char *type, const char *root, const char *path)
 {
 	char buffer[BUFSIZ];
 	ni_buffer_t buf;
@@ -144,7 +148,7 @@ ni_netif_firmware_discovery_script_ifconfig(xml_document_t **doc,
 	ni_buffer_init(&buf, &buffer, sizeof(buffer));
 
 	status = ni_netif_firmware_discovery_script_call(&buf, script,
-					type, root, path, FALSE);
+					env, type, root, path, FALSE);
 
 	if (status == NI_PROCESS_SUCCESS && ni_buffer_count(&buf)) {
 
@@ -245,7 +249,8 @@ ni_netif_firmware_discover_ifconfig(xml_document_array_t *docs,
 				continue;
 
 			if (ni_netif_firmware_discovery_script_ifconfig(&doc,
-						script, full, root, path) == 0) {
+					script, &ex->environment,
+					full, root, path) == 0) {
 				xml_document_array_append(docs, doc);
 				success++;
 			} else {
@@ -363,8 +368,8 @@ ni_netif_firmware_ifnames_parse(ni_netif_firmware_ifnames_t **list,
 
 int
 ni_netif_firmware_discover_script_ifnames(ni_netif_firmware_ifnames_t **list,
-		ni_script_action_t *script, const char *type,
-		const char *root, const char *path)
+		ni_script_action_t *script, const ni_var_array_t *env,
+		const char *type, const char *root, const char *path)
 {
 	char buffer[BUFSIZ];
 	ni_buffer_t buf;
@@ -378,7 +383,7 @@ ni_netif_firmware_discover_script_ifnames(ni_netif_firmware_ifnames_t **list,
 	ni_buffer_init(&buf, &buffer, sizeof(buffer));
 
 	status = ni_netif_firmware_discovery_script_call(&buf, script,
-					type, root, path, TRUE);
+					env, type, root, path, TRUE);
 
 	if (status == NI_PROCESS_SUCCESS && ni_buffer_count(&buf)) {
 
@@ -436,7 +441,8 @@ ni_netif_firmware_discover_ifnames(ni_netif_firmware_ifnames_t **list,
 				continue;
 
 			if (ni_netif_firmware_discover_script_ifnames(&curr,
-					script, full, root, path) == 0) {
+					script, &ex->environment,
+					full, root, path) == 0) {
 				ni_netif_firmware_ifnames_list_append(list, curr);
 				success++;
 			} else {
