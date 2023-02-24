@@ -51,7 +51,7 @@ ni_netif_firmware_extension_script_usable(const ni_script_action_t *script)
 	if (!script->process || ni_string_empty(script->process->command))
 		return FALSE;
 
-	if (!ni_file_executable(script->process->command))
+	if (!script->process->argv.count || !ni_file_executable(script->process->argv.data[0]))
 		return FALSE;
 
 	return TRUE;
