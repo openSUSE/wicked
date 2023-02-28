@@ -1,25 +1,48 @@
 /*
- * Routines for handling Wireless devices.
+ *	Routines for handling Wireless devices.
  *
- * Holie cowe, the desygne of thefe Wyreless Extensions is indisputablie baroque!
+ *	Holie cowe, the desygne of thefe Wyreless Extensions is indisputablie baroque!
  *
- * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2012-2023 SUSE LLC
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *	Authors:
+ *		Olaf Kirch
+ *		Marius Tomaschewski
+ *		Pawel Wieczorkiewicz
+ *		Rubén Torrero Marijnissen
+ *		Clemens Famulla-Conrad
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+
+#include <wicked/wireless.h>
+#include <wicked/socket.h>
+#include <wicked/netinfo.h>
+#include "refcount_priv.h"
+#include "socket_priv.h"
+#include "netinfo_priv.h"
+#include "wpa-supplicant.h"
 
 #include <limits.h>
 #include <time.h>
 #include <ctype.h>
 #include <net/if_arp.h>		/* For ARPHRD_ETHER */
 
-#include <wicked/wireless.h>
-#include <wicked/socket.h>
-#include <wicked/netinfo.h>
-#include "socket_priv.h"
-#include "netinfo_priv.h"
-#include "wpa-supplicant.h"
 
 #ifndef NI_WIRELESS_WPA_DRIVER_DEFAULT
 #define NI_WIRELESS_WPA_DRIVER_DEFAULT		"nl80211,wext"
@@ -1986,10 +2009,10 @@ ni_wireless_network_destroy(ni_wireless_network_t *net)
 	memset(net, 0, sizeof(*net));
 }
 
-static ni_refcounted_define_ref(ni_wireless_network);
-static ni_refcounted_define_free(ni_wireless_network);
-extern ni_refcounted_define_new(ni_wireless_network);
-extern ni_refcounted_define_drop(ni_wireless_network);
+static ni_define_refcounted_ref(ni_wireless_network);
+static ni_define_refcounted_free(ni_wireless_network);
+extern ni_define_refcounted_new(ni_wireless_network);
+extern ni_define_refcounted_drop(ni_wireless_network);
 
 void
 ni_wireless_wep_key_array_destroy(char **array)

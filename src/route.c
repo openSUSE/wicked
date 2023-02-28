@@ -2,7 +2,7 @@
  *	Handling of ip routing.
  *
  *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
- *	Copyright (C) 2012-2022 SUSE LLC
+ *	Copyright (C) 2012-2023 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -19,11 +19,20 @@
  *
  *	Authors:
  *		Olaf Kirch
+ *		Karol Mroz
  *		Marius Tomaschewski
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+
+#include <wicked/logging.h>
+#include <wicked/netinfo.h>
+#include <wicked/route.h>
+
+#include "refcount_priv.h"
+#include "util_priv.h"
+#include "debug.h"
 
 #include <stdlib.h>
 #include <limits.h>
@@ -32,11 +41,6 @@
 #include <linux/ipv6_route.h>
 #endif
 
-#include <wicked/logging.h>
-#include <wicked/netinfo.h>
-#include <wicked/route.h>
-#include "util_priv.h"
-#include "debug.h"
 
 #define NI_ROUTE_ARRAY_CHUNK		16
 #define NI_RULE_ARRAY_CHUNK		4
@@ -172,12 +176,12 @@ ni_route_destroy(ni_route_t *rp)
 	memset(rp, 0, sizeof(*rp));
 }
 
-extern ni_refcounted_define_new(ni_route);
-extern ni_refcounted_define_ref(ni_route);
-extern ni_refcounted_define_hold(ni_route);
-extern ni_refcounted_define_free(ni_route);
-extern ni_refcounted_define_drop(ni_route);
-extern ni_refcounted_define_move(ni_route);
+extern ni_define_refcounted_new(ni_route);
+extern ni_define_refcounted_ref(ni_route);
+extern ni_define_refcounted_hold(ni_route);
+extern ni_define_refcounted_free(ni_route);
+extern ni_define_refcounted_drop(ni_route);
+extern ni_define_refcounted_move(ni_route);
 
 ni_route_t *
 ni_route_create(unsigned int prefixlen, const ni_sockaddr_t *dest,
@@ -1883,12 +1887,12 @@ ni_rule_destroy(ni_rule_t *rule)
 	memset(rule, 0, sizeof(*rule));
 }
 
-extern ni_refcounted_define_new(ni_rule);
-extern ni_refcounted_define_ref(ni_rule);
-extern ni_refcounted_define_hold(ni_rule);
-extern ni_refcounted_define_free(ni_rule);
-extern ni_refcounted_define_drop(ni_rule);
-extern ni_refcounted_define_move(ni_rule);
+extern ni_define_refcounted_new(ni_rule);
+extern ni_define_refcounted_ref(ni_rule);
+extern ni_define_refcounted_hold(ni_rule);
+extern ni_define_refcounted_free(ni_rule);
+extern ni_define_refcounted_drop(ni_rule);
+extern ni_define_refcounted_move(ni_rule);
 
 ni_bool_t
 ni_rule_copy(ni_rule_t *dst, const ni_rule_t *src)

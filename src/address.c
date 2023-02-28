@@ -2,7 +2,7 @@
  *	Network and link layer addresses handling.
  *
  *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
- *	Copyright (C) 2012-2022 SUSE LLC
+ *	Copyright (C) 2012-2023 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -25,6 +25,14 @@
 #include "config.h"
 #endif
 
+#include <wicked/logging.h>
+#include <wicked/netinfo.h>
+#include <wicked/time.h>
+#include <wicked/route.h>
+
+#include "refcount_priv.h"
+#include "util_priv.h"
+
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -38,11 +46,6 @@
 #include <linux/if_infiniband.h>
 #include <netlink/netlink.h>
 
-#include <wicked/logging.h>
-#include <wicked/netinfo.h>
-#include <wicked/time.h>
-#include <wicked/route.h>
-#include "util_priv.h"
 
 #define	NI_ADDRESS_ARRAY_CHUNK		16
 
@@ -74,12 +77,12 @@ ni_address_destroy(ni_address_t *ap)
 	ni_string_free(&ap->label);
 }
 
-extern ni_refcounted_define_new(ni_address);
-extern ni_refcounted_define_ref(ni_address);
-extern ni_refcounted_define_hold(ni_address);
-extern ni_refcounted_define_free(ni_address);
-extern ni_refcounted_define_drop(ni_address);
-extern ni_refcounted_define_move(ni_address);
+extern ni_define_refcounted_new(ni_address);
+extern ni_define_refcounted_ref(ni_address);
+extern ni_define_refcounted_hold(ni_address);
+extern ni_define_refcounted_free(ni_address);
+extern ni_define_refcounted_drop(ni_address);
+extern ni_define_refcounted_move(ni_address);
 
 ni_address_t *
 ni_address_create(int af, unsigned int prefix_len, const ni_sockaddr_t *local_addr, ni_address_t **list_head)

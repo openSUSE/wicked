@@ -231,6 +231,7 @@ wicked_headers			= \
 	ovs.h			\
 	pppd.h			\
 	process.h		\
+	refcount_priv.h		\
 	socket_priv.h		\
 	sysfs.h			\
 	systemctl.h		\
