@@ -35,6 +35,7 @@ typedef struct ni_config_fslocation {
 
 struct ni_extension {
 	ni_extension_t *	next;
+	ni_bool_t		enabled;
 
 	/* Name of the extension */
 	char *			name;

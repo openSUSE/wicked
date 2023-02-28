@@ -324,6 +324,7 @@ ni_extension_new(const char *interface)
 	if (!(ex = calloc(1, sizeof(*ex))))
 		return NULL;
 
+	ex->enabled = TRUE;
 	if (!ni_string_dup(&ex->name, interface) ||
 	    !ni_string_dup(&ex->interface, interface))
 		ni_extension_free(ex);

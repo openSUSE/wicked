@@ -67,6 +67,9 @@ ni_objectmodel_register_ns_dynamic(void)
 		ni_c_binding_t *binding;
 		void *addr;
 
+		if (!ex->enabled)
+			continue;
+
 		for (binding = ex->c_bindings; binding; binding = binding->next) {
 			if (!binding->enabled)
 				continue;

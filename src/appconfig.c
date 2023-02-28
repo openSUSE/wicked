@@ -26,6 +26,7 @@
 #include "appconfig.h"
 #include "extension.h"
 #include "xml-schema.h"
+#include "process.h"
 #include "dhcp.h"
 #include "duid.h"
 
@@ -354,7 +355,7 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 						ni_string_dup(&conf->dbus_xml_schema_file, attrval);
 				}
 			}
-		} else 
+		} else
 		if (strcmp(child->name, "schema") == 0) {
 			const char *attrval;
 
@@ -1128,7 +1129,7 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 			ni_server_preference_t *pref;
 			const char *id, *ip;
 
-			ip = xml_node_get_attr(child, "ip"); 
+			ip = xml_node_get_attr(child, "ip");
 			id = xml_node_get_attr(child, "id");
 
 			if (ip == NULL && id == NULL)
@@ -1311,6 +1312,38 @@ ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, xml_node_t *node)
 }
 
 static ni_bool_t
+ni_config_parse_extension_script_env(ni_script_action_t *script, xml_node_t *node,
+		const ni_script_action_t *old)
+{
+	xml_node_t *child;
+
+	if (!node || !script || !script->process)
+		return FALSE;
+
+	/* inherit previous environment variables  */
+	if (old && old->process && old->process->environ.count) {
+		ni_string_array_copy(&script->process->environ,
+					&old->process->environ);
+	}
+
+	/* add+override with new script environment */
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "putenv")) {
+			const char *name, *value;
+
+			if (!(name = xml_node_get_attr(child, "name"))) {
+				ni_error("[%s] putenv element without name attribute",
+						xml_node_location(child));
+				return FALSE;
+			}
+			value = xml_node_get_attr(child, "value");
+			ni_shellcmd_setenv(script->process, name, value);
+		}
+	}
+	return TRUE;
+}
+
+static ni_bool_t
 ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 {
 	ni_script_action_t *script;
@@ -1353,10 +1386,12 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 						xml_node_location(child));
 			}
 
-			if ((script = ni_script_action_new(name, command)))
-				script->enabled = enabled;
-
 			old = ni_script_action_list_find(ex->actions, name);
+			if ((script = ni_script_action_new(name, command))) {
+				script->enabled = enabled;
+				ni_config_parse_extension_script_env(script, child, old);
+			}
+
 			if (ni_script_action_list_replace(&ex->actions, old, script)) {
 				ni_script_action_free(old);
 			} else
@@ -1436,6 +1471,59 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 	return TRUE;
 }
 
+static ni_bool_t
+ni_config_extension_merge_actions(ni_script_action_t **nactions, ni_script_action_t **oactions)
+{
+	ni_var_array_t vars = NI_VAR_ARRAY_INIT;
+	ni_script_action_t *oscript;
+	ni_script_action_t *nscript;
+	ni_script_action_t *next;
+
+	if (!nactions || !oactions)
+		return FALSE;
+
+	for (oscript = *oactions; oscript; oscript = next) {
+		next = oscript->next;
+
+		if (!oscript->name || !oscript->process)
+			continue;
+
+		if ((nscript = ni_script_action_list_find(*nactions, oscript->name))) {
+			if (ni_environ_getenv_vars(&oscript->process->environ, &vars))
+				ni_environ_setenv_vars(&nscript->process->environ,
+						&vars, FALSE);
+			ni_var_array_destroy(&vars);
+		} else {
+			if (ni_script_action_list_remove(oactions, oscript))
+				ni_script_action_list_append(nactions, oscript);
+		}
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+ni_config_extension_list_add(ni_extension_t **list, ni_extension_t *oex, ni_extension_t *nex)
+{
+
+	if (!list || !nex)
+		return FALSE;
+
+	if (oex) {
+		ni_config_extension_merge_actions(&nex->actions, &oex->actions);
+		ni_var_array_set_vars(&nex->environment, &oex->environment, FALSE);
+	}
+
+	if (ni_extension_list_replace(list, oex, nex)) {
+		ni_extension_free(oex);
+		return TRUE;
+	}
+	if (!ni_extension_list_append(list, nex)) {
+		ni_extension_free(nex);
+		return FALSE;
+	}
+	return TRUE;
+}
+
 /*
  * Object model extensions let you implement parts of a dbus interface separately
  * from the main wicked body of code; either through a shared library or an
@@ -1450,7 +1538,7 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
  *  <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
  * </dbus-service>
  */
-ni_bool_t
+static ni_bool_t
 ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex, *old;
@@ -1486,10 +1574,7 @@ ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
 	}
 
 	old = ni_extension_list_find(*list, interface);
-	if (ni_extension_list_replace(list, old, ex)) {
-		ni_extension_free(old);
-	} else
-	if (!ni_extension_list_append(list, ex)) {
+	if (!ni_config_extension_list_add(list, old, ex)) {
 		ni_warn("[%s] unable to add %s extension to list",
 				xml_node_location(node), node->name);
 		ni_extension_free(ex);
@@ -1509,7 +1594,7 @@ ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
  *  ...
  * </netif-naming-services>
  */
-ni_bool_t
+static ni_bool_t
 ni_config_parse_objectmodel_netif_ns(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex;
@@ -1563,15 +1648,72 @@ ni_config_parse_objectmodel_netif_ns(ni_extension_t **list, xml_node_t *node)
  * firmware, such as iBFT. You can use this to specify one or more shell commands
  * that generate a list of <interface> elements as output.
  *
- * <netif-firmware-discovery>
- *  <script name="ibft" command="/some/crazy/path/to/script" />
- *  ...
- * </netif-firmware-discovery>
+ * The current netif-firmware-discovery extension definition is:
+ *   <netif-firmware-discovery name="ibft">
+ *     <script name="show-config"  command="/some/crazy/path/to/script" />
+ *     <script name="list-ifnames" command="/some/crazy/path/to/script -l" />
+ *     ...
+ *   </netif-firmware-discovery>
+ *
+ * The legacy extension definition is automatically migrated and were:
+ *   <netif-firmware-discovery>
+ *     <script name="ibft" command="/some/crazy/path/to/script" />
+ *     ...
+ *   </netif-firmware-discovery>
+ * The `-l` command parameter were passed to implement `list-ifnames` action.
  */
-ni_bool_t
+static ni_bool_t
+ni_config_objectmodel_firmware_discovery_migrate(ni_extension_t **list, ni_extension_t *lex)
+{
+	ni_script_action_t *nscript, *lscript;
+	ni_extension_t *nex;
+
+	if (!list || !lex)
+		return FALSE;
+
+	for (lscript = lex->actions; lscript; lscript = lscript->next) {
+		if (ni_string_empty(lscript->name) || !lscript->process ||
+			ni_string_empty(lscript->process->command))
+			continue;
+
+		if (!(nex = ni_extension_new(lscript->name)))
+			return FALSE;
+
+		nex->enabled = lscript->enabled;
+		ni_var_array_copy(&nex->environment, &lex->environment);
+
+		nscript = ni_script_action_new("show-config", lscript->process->command);
+		if (!ni_script_action_list_append(&nex->actions, nscript)) {
+			ni_script_action_free(nscript);
+			ni_extension_free(nex);
+			return FALSE;
+		}
+		ni_string_array_copy(&nscript->process->environ,
+				&lscript->process->environ);
+
+		nscript = ni_script_action_new("list-ifnames", lscript->process->command);
+		if (!nscript || !ni_shellcmd_add_arg(nscript->process, "-l") ||
+		    !ni_script_action_list_append(&nex->actions, nscript)) {
+			ni_script_action_free(nscript);
+			ni_extension_free(nex);
+			return FALSE;
+		}
+		ni_string_array_copy(&nscript->process->environ,
+				&lscript->process->environ);
+
+		if (!ni_extension_list_append(list, nex)) {
+			ni_extension_free(nex);
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+static ni_bool_t
 ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **list, xml_node_t *node)
 {
-	ni_extension_t *ex;
+	ni_extension_t *ex, *old, *next, *migrated = NULL;
+	const char *name, *attr;
 
 	ni_assert(list && node);
 
@@ -1581,38 +1723,79 @@ ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **list, xml_node_t
 		xml_node_print_debug(node, NI_TRACE_APPLICATION);
 	}
 
-	/*
-	 * we need only 1 netif-firmware-discovery extension
-	 * with multiple unique builtin / script actions.
-	 */
-	if (!(ex = *list))
-		ex = ni_extension_new(NULL);
-
-	if (!ex || !ni_config_parse_extension(ex, node)) {
-		if (ex != *list)
-			ni_extension_free(ex);
+	name = xml_node_get_attr(node, "name");
+	if (name && !ni_check_domain_name(name, ni_string_len(name), -1)) {
+		ni_error("[%s] <%s> element contains invalid name attribute",
+				xml_node_location(node), node->name);
 		return FALSE;
 	}
 
-	if (ex->c_bindings) {
-		ni_warn("[%s] builtin actions not supported in %s extensions",
-				xml_node_location(node), node->name);
-		ni_c_binding_list_destroy(&ex->c_bindings);
-	}
-	if (!ex->actions) {
-		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
-				"[%s] disarding %s extension without script actions",
-				xml_node_location(node), node->name);
-		if (ex != *list)
-			ni_extension_free(ex);
-		return TRUE;
-	}
-
-	if (ex != *list && !ni_extension_list_append(list, ex)) {
-		ni_warn("[%s] unable to add %s extension to list",
-				xml_node_location(node), node->name);
+	ex = ni_extension_new(name);
+	if (!ex || !ni_config_parse_extension(ex, node)) {
 		ni_extension_free(ex);
 		return FALSE;
+	}
+
+	if (name) {
+		attr = xml_node_get_attr(node, "enabled");
+
+		if (attr && ni_parse_boolean(attr, &ex->enabled)) {
+			ni_error("[%s] disarding %s extension with invalid enabled attribute",
+					xml_node_location(node), node->name);
+			ni_extension_free(ex);
+			return FALSE;
+		}
+
+		/*
+		 * The client-firmware.xml does not contain any actions default:
+		 *   <netif-firmware-discovery name="ibft" enabled=... />
+		 * supposed to override the enabled flag only.
+		 * We simply change the enable flag in the old extension and
+		 * when it defines some env vars, we override then too:
+		 */
+		if (!ex->actions && (old = ni_extension_list_find(*list, name))) {
+			old->enabled = ex->enabled;
+			ni_var_array_set_vars(&old->environment, &ex->environment, TRUE);
+
+			ni_extension_free(ex);
+			return TRUE;
+		}
+		migrated = ex;
+	} else {
+		if (!ni_config_objectmodel_firmware_discovery_migrate(&migrated, ex)) {
+			ni_error("[%s] failed to migrate legacy %s extension",
+					xml_node_location(node), node->name);
+			ni_extension_free(ex);
+			return FALSE;
+		}
+		ni_extension_free(ex);
+	}
+
+	for (ex = migrated; ex; ex = next) {
+		next = ex->next;
+		ex->next = NULL;
+
+		name = ex->name;
+		if (ex->c_bindings) {
+			ni_warn("[%s] builtin actions not supported in %s extensions",
+					xml_node_location(node), node->name);
+			ni_c_binding_list_destroy(&ex->c_bindings);
+		}
+		if (!ex->actions) {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+					"[%s] disarding %s extension without script actions",
+					xml_node_location(node), node->name);
+			ni_extension_free(ex);
+			return TRUE;
+		}
+
+		old = ni_extension_list_find(*list, name);
+		if (!ni_config_extension_list_add(list, old, ex)) {
+			ni_warn("[%s] unable to add %s extension to list",
+					xml_node_location(node), node->name);
+			ni_extension_free(ex);
+			return FALSE;
+		}
 	}
 	return TRUE;
 }
@@ -1628,7 +1811,7 @@ ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **list, xml_node_t
  *  ...
  * </system-updater>
  */
-ni_bool_t
+static ni_bool_t
 ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex, *old;
@@ -1669,10 +1852,7 @@ ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
 	}
 
 	old = ni_extension_list_find(*list, name);
-	if (ni_extension_list_replace(list, old, ex)) {
-		ni_extension_free(old);
-	} else
-	if (!ni_extension_list_append(list, ex)) {
+	if (!ni_config_extension_list_add(list, old, ex)) {
 		ni_warn("[%s] unable to add %s extension to list",
 				xml_node_location(node), node->name);
 		ni_extension_free(ex);
@@ -1922,13 +2102,19 @@ ni_config_parse_teamd(ni_config_teamd_t *conf, const xml_node_t *node)
 ni_extension_t *
 ni_config_find_extension(ni_config_t *conf, const char *interface)
 {
-	return ni_extension_list_find(conf->dbus_extensions, interface);
+	ni_extension_t *ex;
+
+	ex = ni_extension_list_find(conf->dbus_extensions, interface);
+	return ex && ex->enabled ? ex : NULL;
 }
 
 ni_extension_t *
 ni_config_find_system_updater(ni_config_t *conf, const char *name)
 {
-	return ni_extension_list_find(conf->updater_extensions, name);
+	ni_extension_t *ex;
+
+	ex = ni_extension_list_find(conf->updater_extensions, name);
+	return ex && ex->enabled ? ex : NULL;
 }
 
 /*
