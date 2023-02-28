@@ -31,6 +31,7 @@
 #include <wicked/xml.h>
 
 #include "appconfig.h"
+#include "extension.h"
 #include "firmware.h"
 #include "process.h"
 #include "buffer.h"
@@ -75,7 +76,7 @@ ni_netif_firmware_discovery_script_exec(int argc, char *const argv[], char *cons
 static int
 ni_netif_firmware_discovery_script_call(ni_buffer_t *buf, ni_script_action_t *script,
 		const ni_var_array_t *vars, const char *type, const char *root,
-		const char *path, ni_bool_t list)
+		const char *path)
 {
 	ni_process_t *pi;
 	int status;
@@ -100,11 +101,6 @@ ni_netif_firmware_discovery_script_call(ni_buffer_t *buf, ni_script_action_t *sc
 	if (!ni_string_empty(path)) {
 		ni_string_array_append(&pi->argv, "-p");
 		ni_string_array_append(&pi->argv, path);
-	}
-
-	/* Enable list-interfaces only mode */
-	if (list) {
-		ni_string_array_append(&pi->argv, "-l");
 	}
 
 	/* Apply default extension environment */
@@ -148,7 +144,7 @@ ni_netif_firmware_discovery_script_ifconfig(xml_document_t **doc,
 	ni_buffer_init(&buf, &buffer, sizeof(buffer));
 
 	status = ni_netif_firmware_discovery_script_call(&buf, script,
-					env, type, root, path, FALSE);
+					env, type, root, path);
 
 	if (status == NI_PROCESS_SUCCESS && ni_buffer_count(&buf)) {
 
@@ -230,9 +226,16 @@ ni_netif_firmware_discover_ifconfig(xml_document_array_t *docs,
 	for (ex = ni_global.config->fw_extensions; ex; ex = ex->next) {
 		ni_script_action_t *script;
 
+		if (ni_string_empty(ex->name) || !ex->enabled)
+			continue;
+
+		/* Check if to use specific type/name only (e.g. "ibft") */
+		if (name && !ni_string_eq_nocase(name, ex->name))
+			continue;
+
 		/* builtins are not supported in netif-firmware-discovery */
 
-		for (script = ex->actions; script; script = script->next) {
+		if ((script = ni_script_action_list_find(ex->actions, "show-config"))) {
 			xml_document_t *doc = NULL;
 			char *full = NULL;
 
@@ -240,12 +243,8 @@ ni_netif_firmware_discover_ifconfig(xml_document_array_t *docs,
 			if (!ni_netif_firmware_extension_script_usable(script))
 				continue;
 
-			/* Check if to use specific type/name only (e.g. "ibft") */
-			if (name && !ni_string_eq_nocase(name, script->name))
-				continue;
-
 			/* Construct full firmware type name, e.g. firmware:ibft */
-			if (!ni_string_printf(&full, "%s:%s", type, script->name))
+			if (!ni_string_printf(&full, "%s:%s", type, ex->name))
 				continue;
 
 			if (ni_netif_firmware_discovery_script_ifconfig(&doc,
@@ -369,7 +368,7 @@ ni_netif_firmware_ifnames_parse(ni_netif_firmware_ifnames_t **list,
 int
 ni_netif_firmware_discover_script_ifnames(ni_netif_firmware_ifnames_t **list,
 		ni_script_action_t *script, const ni_var_array_t *env,
-		const char *type, const char *root, const char *path)
+		const char *name, const char *type, const char *root, const char *path)
 {
 	char buffer[BUFSIZ];
 	ni_buffer_t buf;
@@ -383,11 +382,11 @@ ni_netif_firmware_discover_script_ifnames(ni_netif_firmware_ifnames_t **list,
 	ni_buffer_init(&buf, &buffer, sizeof(buffer));
 
 	status = ni_netif_firmware_discovery_script_call(&buf, script,
-					env, type, root, path, TRUE);
+					env, type, root, path);
 
 	if (status == NI_PROCESS_SUCCESS && ni_buffer_count(&buf)) {
 
-		if (!ni_netif_firmware_ifnames_parse(list, script->name, &buf)) {
+		if (!ni_netif_firmware_ifnames_parse(list, name, &buf)) {
 			ni_debug_ifconfig("%s discovery script failure: invalid list output", type);
 			ni_netif_firmware_ifnames_list_destroy(list);
 			/* hmm... NI_ERROR_DOCUMENT_ERROR? */
@@ -422,9 +421,16 @@ ni_netif_firmware_discover_ifnames(ni_netif_firmware_ifnames_t **list,
 	for (ex = ni_global.config->fw_extensions; ex; ex = ex->next) {
 		ni_script_action_t *script;
 
+		if (ni_string_empty(ex->name) || !ex->enabled)
+			continue;
+
+		/* Check if to use specific type/name only (e.g. "ibft") */
+		if (name && !ni_string_eq_nocase(name, ex->name))
+			continue;
+
 		/* builtins are not supported in netif-firmware-discovery */
 
-		for (script = ex->actions; script; script = script->next) {
+		if ((script = ni_script_action_list_find(ex->actions, "list-ifnames"))) {
 			ni_netif_firmware_ifnames_t *curr = NULL;
 			char *full = NULL;
 
@@ -432,16 +438,12 @@ ni_netif_firmware_discover_ifnames(ni_netif_firmware_ifnames_t **list,
 			if (!ni_netif_firmware_extension_script_usable(script))
 				continue;
 
-			/* Check if to use specific type/name only (e.g. "ibft") */
-			if (name && !ni_string_eq_nocase(name, script->name))
-				continue;
-
 			/* Construct full firmware type name, e.g. firmware:ibft */
-			if (!ni_string_printf(&full, "%s:%s", type, script->name))
+			if (!ni_string_printf(&full, "%s:%s", type, ex->name))
 				continue;
 
 			if (ni_netif_firmware_discover_script_ifnames(&curr,
-					script, &ex->environment,
+					script, &ex->environment, ex->name,
 					full, root, path) == 0) {
 				ni_netif_firmware_ifnames_list_append(list, curr);
 				success++;
