@@ -1123,7 +1123,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 				if (!ph->plen)
 					continue;
 
-				padr = ni_dhcp6_ia_addr_clone(ph, FALSE);
+				padr = ni_dhcp6_ia_addr_clone(ph);
 				ni_dhcp6_ia_addr_list_append(&ia->addrs, padr);
 				break; /* one pd hint per ia only */
 			}

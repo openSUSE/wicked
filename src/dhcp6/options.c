@@ -158,25 +158,24 @@ ni_dhcp6_ia_pd_excl_free(ni_dhcp6_ia_pd_excl_t **excl)
 }
 
 ni_dhcp6_ia_addr_t *
-ni_dhcp6_ia_addr_clone(const ni_dhcp6_ia_addr_t *iadr, ni_bool_t clean)
+ni_dhcp6_ia_addr_clone(const ni_dhcp6_ia_addr_t *iadr)
 {
 	ni_dhcp6_ia_addr_t *nadr;
 
 	if (!iadr || !(nadr = ni_dhcp6_ia_addr_new(iadr->type, iadr->addr, iadr->plen)))
 		return NULL;
 
-	if (iadr->excl && !(nadr->excl = ni_dhcp6_ia_pd_excl_new(iadr->excl->addr, iadr->excl->plen)))
+	if (iadr->excl &&
+	    !(nadr->excl = ni_dhcp6_ia_pd_excl_new(iadr->excl->addr, iadr->excl->plen)))
 		goto failure;
 
-	if (!clean) {
-		nadr->flags = iadr->flags;
-		nadr->valid_lft = iadr->valid_lft;
-		nadr->preferred_lft = iadr->preferred_lft;
-		nadr->status.code = iadr->status.code;
-		nadr->status.message = xstrdup(iadr->status.message);
-		if (iadr->status.message && !nadr->status.message)
-			goto failure;
-	}
+	nadr->flags = iadr->flags;
+	nadr->valid_lft = iadr->valid_lft;
+	nadr->preferred_lft = iadr->preferred_lft;
+	nadr->status.code = iadr->status.code;
+	if (!ni_string_dup(&nadr->status.message, iadr->status.message))
+		goto failure;
+
 	return nadr;
 
 failure:
@@ -284,23 +283,23 @@ ni_dhcp6_ia_addr_list_delete(ni_dhcp6_ia_addr_t **list, ni_dhcp6_ia_addr_t *iadr
 }
 
 ni_bool_t
-ni_dhcp6_ia_addr_list_copy(ni_dhcp6_ia_addr_t **dst, const ni_dhcp6_ia_addr_t *src, ni_bool_t clean)
+ni_dhcp6_ia_addr_list_copy(ni_dhcp6_ia_addr_t **dst, const ni_dhcp6_ia_addr_t *src)
 {
 	const ni_dhcp6_ia_addr_t *iadr;
 	ni_dhcp6_ia_addr_t *nadr;
 
 	ni_dhcp6_ia_addr_list_destroy(dst);
 	for (iadr = src; iadr; iadr = iadr->next) {
-		nadr = ni_dhcp6_ia_addr_clone(iadr, clean);
+		nadr = ni_dhcp6_ia_addr_clone(iadr);
 
-		if (!ni_dhcp6_ia_addr_list_append(dst, nadr))
-			goto failure;
+		if (ni_dhcp6_ia_addr_list_append(dst, nadr))
+			continue;
+
+		ni_dhcp6_ia_addr_free(nadr);
+		ni_dhcp6_ia_addr_list_destroy(dst);
+		return FALSE;
 	}
 	return TRUE;
-
-failure:
-	ni_dhcp6_ia_addr_list_destroy(dst);
-	return FALSE;
 }
 
 size_t
@@ -378,25 +377,22 @@ ni_dhcp6_ia_pd_new(unsigned int iaid)
 }
 
 ni_dhcp6_ia_t *
-ni_dhcp6_ia_clone(const ni_dhcp6_ia_t *ia, ni_bool_t clean)
+ni_dhcp6_ia_clone(const ni_dhcp6_ia_t *ia)
 {
 	ni_dhcp6_ia_t *nia;
 
 	if (!ia || !(nia = ni_dhcp6_ia_new(ia->type, ia->iaid)))
 		return NULL;
 
-	if (!clean) {
-		nia->flags = ia->flags;
-		nia->rebind_time = ia->rebind_time;
-		nia->renewal_time = ia->renewal_time;
-		nia->acquired = ia->acquired;
-		nia->status.code = ia->status.code;
-		nia->status.message = xstrdup(ia->status.message);
-		if (ia->status.message && !nia->status.message)
-			goto failure;
-	}
+	nia->flags = ia->flags;
+	nia->rebind_time = ia->rebind_time;
+	nia->renewal_time = ia->renewal_time;
+	nia->acquired = ia->acquired;
+	nia->status.code = ia->status.code;
+	if (!ni_string_dup(&nia->status.message, ia->status.message))
+		goto failure;
 
-	if (!ni_dhcp6_ia_addr_list_copy(&nia->addrs, ia->addrs, clean))
+	if (!ni_dhcp6_ia_addr_list_copy(&nia->addrs, ia->addrs))
 		goto failure;
 
 	return nia;
@@ -475,24 +471,23 @@ ni_dhcp6_ia_list_delete(ni_dhcp6_ia_t **list, ni_dhcp6_ia_t *ia)
 }
 
 ni_bool_t
-ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **dst, const ni_dhcp6_ia_t *src, ni_bool_t clean)
+ni_dhcp6_ia_list_copy(ni_dhcp6_ia_t **dst, const ni_dhcp6_ia_t *src)
 {
 	const ni_dhcp6_ia_t *ia;
 	ni_dhcp6_ia_t *nia;
 
 	ni_dhcp6_ia_list_destroy(dst);
 	for (ia = src; ia; ia = ia->next) {
-		if (!(nia = ni_dhcp6_ia_clone(ia, clean)))
-			goto failure;
+		nia = ni_dhcp6_ia_clone(ia);
 
-		if (!ni_dhcp6_ia_list_append(dst, nia))
-			goto failure;
+		if (ni_dhcp6_ia_list_append(dst, nia))
+			continue;
+
+		ni_dhcp6_ia_free(nia);
+		ni_dhcp6_ia_list_destroy(dst);
+		return FALSE;
 	}
 	return TRUE;
-
-failure:
-	ni_dhcp6_ia_list_destroy(dst);
-	return FALSE;
 }
 
 size_t

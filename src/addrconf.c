@@ -110,7 +110,7 @@ ni_addrconf_lease_clone_dhcp6(struct ni_addrconf_lease_dhcp6 *clone, const struc
 		ni_string_dup(&clone->status->message, orig->status->message);
 	}
 
-	ni_dhcp6_ia_list_copy(&clone->ia_list, orig->ia_list, FALSE);
+	ni_dhcp6_ia_list_copy(&clone->ia_list, orig->ia_list);
 
 	ni_string_dup(&clone->boot_url, orig->boot_url);
 	ni_string_array_copy(&clone->boot_params, &orig->boot_params);
