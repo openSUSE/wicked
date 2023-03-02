@@ -36,6 +36,7 @@ wicked_include_HEADERS		= \
 	wicked/resolver.h	\
 	wicked/route.h		\
 	wicked/secret.h		\
+	wicked/slist.h		\
 	wicked/socket.h		\
 	wicked/sysconfig.h	\
 	wicked/system.h		\

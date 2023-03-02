@@ -232,6 +232,7 @@ wicked_headers			= \
 	pppd.h			\
 	process.h		\
 	refcount_priv.h		\
+	slist_priv.h		\
 	socket_priv.h		\
 	sysfs.h			\
 	systemctl.h		\
