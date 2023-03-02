@@ -520,7 +520,7 @@ __ni_rtevent_deladdr(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 
 	/* Remove the address when we track it */
 	if ((ap = ni_address_list_find(dev->addrs, &tmp.local_addr)) != NULL)
-		__ni_address_list_remove(&dev->addrs, ap);
+		ni_address_list_delete(&dev->addrs, ap);
 
 	/* Tentative IPv6 addresses are not exposed via NEWADDR events,
 	 * but in manuall address lookup / dump only.

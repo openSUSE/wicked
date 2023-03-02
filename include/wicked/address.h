@@ -26,6 +26,7 @@
 
 #include <wicked/types.h>
 #include <wicked/refcount.h>
+#include <wicked/slist.h>
 #include <wicked/util.h>
 
 #include <sys/socket.h>
@@ -164,12 +165,14 @@ extern unsigned int	ni_address_preferred_lft(const ni_address_t *, const struct 
 extern ni_bool_t	ni_address_lft_is_valid(const ni_address_t *, const struct timeval *);
 extern ni_bool_t	ni_address_lft_is_preferred(const ni_address_t *, const struct timeval *);
 
-extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
-extern void		ni_address_list_destroy(ni_address_t **);
+extern 			ni_declare_slist_append(ni_address);
+extern 			ni_declare_slist_remove(ni_address);
+extern 			ni_declare_slist_delete(ni_address);
+extern 			ni_declare_slist_destroy(ni_address);
+extern 			ni_declare_slist_copy(ni_address);
+extern 			ni_declare_slist_count(ni_address);
 extern void		ni_address_list_dedup(ni_address_t **);
-extern void		ni_address_list_copy(ni_address_t **, const ni_address_t *);
 extern ni_address_t *	ni_address_list_find(ni_address_t *, const ni_sockaddr_t *);
-extern unsigned int	ni_address_list_count(ni_address_t *list);
 
 extern void		ni_address_array_init(ni_address_array_t *);
 extern void		ni_address_array_destroy(ni_address_array_t *);

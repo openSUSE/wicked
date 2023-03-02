@@ -25,42 +25,37 @@
 #define   NI_WICKED_EXTENSIONS_H
 
 #include <wicked/types.h>
+#include <wicked/slist.h>
 
 extern ni_c_binding_t *		ni_c_binding_new(const char *, const char *, const char *);
 extern void			ni_c_binding_free(ni_c_binding_t *);
 extern void *			ni_c_binding_get_address(const ni_c_binding_t *);
 
-extern ni_bool_t		ni_c_binding_list_insert(ni_c_binding_t **, ni_c_binding_t *);
-extern ni_bool_t		ni_c_binding_list_append(ni_c_binding_t **, ni_c_binding_t *);
-extern ni_bool_t		ni_c_binding_list_remove(ni_c_binding_t **, ni_c_binding_t *);
-extern ni_bool_t		ni_c_binding_list_replace(ni_c_binding_t **, ni_c_binding_t *,
-						ni_c_binding_t *);
-extern void			ni_c_binding_list_destroy(ni_c_binding_t **);
+extern				ni_declare_slist_insert(ni_c_binding);
+extern				ni_declare_slist_append(ni_c_binding);
+extern				ni_declare_slist_remove(ni_c_binding);
+extern				ni_declare_slist_replace(ni_c_binding);
+extern				ni_declare_slist_destroy(ni_c_binding);
 extern ni_c_binding_t *		ni_c_binding_list_find(ni_c_binding_t *, const char *);
 
 extern ni_script_action_t *	ni_script_action_new(const char *, const char *);
 extern void			ni_script_action_free(ni_script_action_t *);
 
-extern ni_bool_t		ni_script_action_list_insert(ni_script_action_t **,
-						ni_script_action_t *);
-extern ni_bool_t		ni_script_action_list_append(ni_script_action_t **,
-						ni_script_action_t *);
-extern ni_bool_t		ni_script_action_list_remove(ni_script_action_t **,
-						ni_script_action_t *);
-extern ni_bool_t		ni_script_action_list_replace(ni_script_action_t **,
-						ni_script_action_t *, ni_script_action_t *);
-extern void			ni_script_action_list_destroy(ni_script_action_t **);
+extern				ni_declare_slist_insert(ni_script_action);
+extern				ni_declare_slist_append(ni_script_action);
+extern				ni_declare_slist_remove(ni_script_action);
+extern				ni_declare_slist_replace(ni_script_action);
+extern				ni_declare_slist_destroy(ni_script_action);
 extern ni_script_action_t *	ni_script_action_list_find(ni_script_action_t *, const char *);
 
 extern ni_extension_t *		ni_extension_new(const char *);
 extern void			ni_extension_free(ni_extension_t *);
 
-extern ni_bool_t		ni_extension_list_insert(ni_extension_t **, ni_extension_t *);
-extern ni_bool_t		ni_extension_list_append(ni_extension_t **, ni_extension_t *);
-extern ni_bool_t		ni_extension_list_remove(ni_extension_t **, ni_extension_t *);
-extern ni_bool_t		ni_extension_list_replace(ni_extension_t **, ni_extension_t *,
-						ni_extension_t *);
-extern void			ni_extension_list_destroy(ni_extension_t **);
+extern				ni_declare_slist_insert(ni_extension);
+extern				ni_declare_slist_append(ni_extension);
+extern				ni_declare_slist_remove(ni_extension);
+extern				ni_declare_slist_replace(ni_extension);
+extern				ni_declare_slist_destroy(ni_extension);
 extern ni_extension_t *		ni_extension_list_find(ni_extension_t *, const char *);
 
 extern ni_shellcmd_t *		ni_extension_find_script(ni_extension_t *, const char *);

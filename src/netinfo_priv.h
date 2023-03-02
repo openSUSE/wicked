@@ -79,8 +79,6 @@ extern int		__ni_ipv6_devconf_process_flags(ni_netdev_t *, int32_t *, unsigned i
 
 extern void		__ni_routes_clear(ni_netconfig_t *);
 
-extern ni_bool_t	__ni_address_list_remove(ni_address_t **, ni_address_t *);
-
 extern int		__ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list);
 extern int		__ni_system_refresh_interfaces(ni_netconfig_t *nc);
 extern int		__ni_system_refresh_interface(ni_netconfig_t *, ni_netdev_t *);
