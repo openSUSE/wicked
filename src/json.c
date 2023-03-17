@@ -890,8 +890,20 @@ ni_json_string_escape(ni_stringbuf_t *buf, const char *str,
 		ni_stringbuf_put(buf, str + off, pos - off);
 }
 
+static const char *	ni_json_sbuf_format(ni_stringbuf_t *, const ni_json_t *,
+						const ni_json_format_options_t *,
+						unsigned int);
+
 static void
-ni_json_string_format(ni_stringbuf_t *buf, const char *value,
+ni_json_sbuf_indent(ni_stringbuf_t *buf, const ni_json_format_options_t *options,
+		unsigned int indent)
+{
+	if (!!options->indent && indent)
+		ni_stringbuf_printf(buf, "%*s", indent, " ");
+}
+
+static void
+ni_json_sbuf_string_format(ni_stringbuf_t *buf, const char *value,
 			const ni_json_format_options_t *options)
 {
 	ni_stringbuf_putc(buf, '\"');
@@ -900,9 +912,11 @@ ni_json_string_format(ni_stringbuf_t *buf, const char *value,
 }
 
 static void
-ni_json_array_format(ni_stringbuf_t *buf, const ni_json_array_t *nja,
-			const ni_json_format_options_t *options)
+ni_json_sbuf_array_format(ni_stringbuf_t *buf, const ni_json_array_t *nja,
+			const ni_json_format_options_t *options,
+			unsigned int indent)
 {
+	const char *sep = options->indent ? "\n" : " ";
 	unsigned int i;
 
 	if (!nja || !nja->count) {
@@ -910,59 +924,71 @@ ni_json_array_format(ni_stringbuf_t *buf, const ni_json_array_t *nja,
 		return;
 	}
 
-	ni_stringbuf_puts(buf, "[ ");
+	ni_stringbuf_puts(buf, "[");
+	ni_stringbuf_puts(buf, sep);
 	for (i = 0; i < nja->count; ++i) {
-		if (i)
-			ni_stringbuf_puts(buf, ", ");
-		ni_json_format_string(buf, nja->data[i], options);
+		if (i) {
+			ni_stringbuf_puts(buf, ",");
+			ni_stringbuf_puts(buf, sep);
+		}
+
+		ni_json_sbuf_indent(buf, options, indent + options->indent);
+		ni_json_sbuf_format(buf, nja->data[i], options,
+				indent + options->indent);
 	}
-	ni_stringbuf_puts(buf, " ]");
+	ni_stringbuf_puts(buf, sep);
+	ni_json_sbuf_indent(buf, options, indent);
+	ni_stringbuf_puts(buf, "]");
 }
 
 static void
-ni_json_pair_format(ni_stringbuf_t *buf, const ni_json_pair_t *pair,
-			const ni_json_format_options_t *options)
+ni_json_sbuf_pair_format(ni_stringbuf_t *buf, const ni_json_pair_t *pair,
+			const ni_json_format_options_t *options,
+			unsigned int indent)
 {
+	const char *sep = " ";
+
 	ni_stringbuf_putc(buf, '\"');
 	ni_json_string_escape(buf, pair->name, options);
-	ni_stringbuf_puts(buf, "\": ");
-	ni_json_format_string(buf, pair->value, options);
+	ni_stringbuf_puts(buf, "\":");
+	ni_stringbuf_puts(buf, sep);
+	ni_json_sbuf_format(buf, pair->value, options, indent);
 }
 
 static void
-ni_json_object_format(ni_stringbuf_t *buf, const ni_json_object_t *njo,
-			const ni_json_format_options_t *options)
+ni_json_sbuf_object_format(ni_stringbuf_t *buf, const ni_json_object_t *njo,
+			const ni_json_format_options_t *options,
+			unsigned int indent)
 {
+	const char *sep = !!options->indent ? "\n" : " ";
 	unsigned int i;
 
 	if (!njo || !njo->count) {
 		ni_stringbuf_puts(buf, "{}");
 		return;
 	}
-
-	ni_stringbuf_puts(buf, "{ ");
+	ni_stringbuf_puts(buf, "{");
+	ni_stringbuf_puts(buf, sep);
 	for (i = 0; i < njo->count; ++i) {
-		if (i)
-			ni_stringbuf_puts(buf, ", ");
-		ni_json_pair_format(buf, njo->data[i], options);
+		if (i) {
+			ni_stringbuf_puts(buf, ",");
+			ni_stringbuf_puts(buf, sep);
+		}
+
+		ni_json_sbuf_indent(buf, options, indent + options->indent);
+		ni_json_sbuf_pair_format(buf, njo->data[i], options,
+					indent + options->indent);
 	}
-	ni_stringbuf_puts(buf, " }");
+	ni_stringbuf_puts(buf, sep);
+	ni_json_sbuf_indent(buf, options, indent);
+	ni_stringbuf_puts(buf, "}");
 }
 
-const char *
-ni_json_format_string(ni_stringbuf_t *buf, const ni_json_t *json,
-			const ni_json_format_options_t *options)
+static const char *
+ni_json_sbuf_format(ni_stringbuf_t *buf, const ni_json_t *json,
+			const ni_json_format_options_t *options,
+			unsigned int indent)
 {
-	static const ni_json_format_options_t defaults = {
-		.flags = 0,
-	};
-
-	if (!json || !buf)
-		return NULL;
-
-	if (!options)
-		options = &defaults;
-
 	switch (json->type) {
 	case NI_JSON_TYPE_NULL:
 		ni_stringbuf_puts(buf, "null");
@@ -981,22 +1007,36 @@ ni_json_format_string(ni_stringbuf_t *buf, const ni_json_t *json,
 		break;
 
 	case NI_JSON_TYPE_STRING:
-		ni_json_string_format(buf, json->string_value, options);
+		ni_json_sbuf_string_format(buf, json->string_value, options);
 		break;
 
 	case NI_JSON_TYPE_ARRAY:
-		ni_json_array_format(buf, json->array_value, options);
+		ni_json_sbuf_array_format(buf, json->array_value, options, indent);
 		break;
 
 	case NI_JSON_TYPE_OBJECT:
-		ni_json_object_format(buf, json->object_value, options);
+		ni_json_sbuf_object_format(buf, json->object_value, options, indent);
 		break;
 
 	default:
 		return NULL;
 	}
-
 	return buf->string;
+}
+
+const char *
+ni_json_format_string(ni_stringbuf_t *buf, const ni_json_t *json,
+			const ni_json_format_options_t *options)
+{
+	static const ni_json_format_options_t defaults = NI_JSON_OPTIONS_INIT;
+
+	if (!json || !buf)
+		return NULL;
+
+	if (!options)
+		options = &defaults;
+
+	return ni_json_sbuf_format(buf, json, options, 0);
 }
 
 /*

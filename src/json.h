@@ -107,14 +107,18 @@ extern	unsigned int			ni_json_object_entries(ni_json_t *);
 
 
 typedef enum {
-	NI_JSON_ESCAPE_SLASH = 1U << 0,
+	NI_JSON_ESCAPE_SLASH	= NI_BIT(0),
 } ni_json_format_flags_t;
 
 typedef struct {
 	ni_json_format_flags_t	flags;
+	unsigned int		indent;
 } ni_json_format_options_t;
 
-extern	const char *			ni_json_format_string(ni_stringbuf_t *buf,
+#define NI_JSON_INDENT_DEPTH		2	/* default indent depth */
+#define NI_JSON_OPTIONS_INIT		{ .flags = 0, .indent = NI_JSON_INDENT_DEPTH }
+
+extern	const char *			ni_json_format_string(ni_stringbuf_t *,
 							const ni_json_t *,
 							const ni_json_format_options_t *);
 
