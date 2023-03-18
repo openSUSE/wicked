@@ -1,7 +1,7 @@
 /*
  *	An elementary JSON implementation
  *
- *	Copyright (C) 2015 SUSE Linux GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2015-2023 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,14 +13,12 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- *	Boston, MA 02110-1301 USA.
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *	Authors:
- *		Marius Tomaschewski <mt@suse.de>
- *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
+ *		Marius Tomaschewski
+ *		Jorik Cronenberg
  */
 #ifndef NI_JSON_H
 #define NI_JSON_H

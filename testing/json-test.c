@@ -13,12 +13,11 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/>
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program; if not, see <http://www.gnu.org/licenses/>
  *
  *	Authors:
  *		Marius Tomaschewski
- *		Pawel Wieczorkiewicz
  *		Jorik Cronenberg
  */
 #ifdef HAVE_CONFIG_H
