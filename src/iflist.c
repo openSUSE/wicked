@@ -411,7 +411,7 @@ ni_netconfig_rules_drop_by_seq(ni_netconfig_t *nc, unsigned int seq)
 	for (i = 0; i < rules->count; ) {
 		ru = rules->data[i];
 		if (ru->seq != seq) {
-			ni_rule_array_delete(rules, i);
+			ni_rule_array_delete_at(rules, i);
 		} else {
 			i++;
 		}

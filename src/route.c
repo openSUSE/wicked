@@ -31,6 +31,7 @@
 #include <wicked/route.h>
 
 #include "refcount_priv.h"
+#include "array_priv.h"
 #include "util_priv.h"
 #include "debug.h"
 
@@ -2277,29 +2278,17 @@ ni_rule_print(ni_stringbuf_t *out, const ni_rule_t *rule)
 	return out ? out->string : NULL;
 }
 
-void
-ni_rule_array_init(ni_rule_array_t *rules)
-{
-	memset(rules, 0, sizeof(*rules));
-}
-
-void
-ni_rule_array_destroy(ni_rule_array_t *rules)
-{
-	if (rules) {
-		while (rules->count) {
-			rules->count--;
-			ni_rule_drop(&rules->data[rules->count]);
-		}
-		free(rules->data);
-		rules->data = NULL;
-	}
-}
-
 ni_rule_array_t *
 ni_rule_array_new(void)
 {
 	return xcalloc(1, sizeof(ni_rule_array_t));
+}
+
+void
+ni_rule_array_free(ni_rule_array_t *rules)
+{
+	ni_rule_array_destroy(rules);
+	free(rules);
 }
 
 ni_rule_array_t *
@@ -2314,12 +2303,6 @@ ni_rule_array_clone(const ni_rule_array_t *orig)
 	return clone;
 }
 
-void
-ni_rule_array_free(ni_rule_array_t *rules)
-{
-	ni_rule_array_destroy(rules);
-	free(rules);
-}
 
 void
 ni_rule_array_copy(ni_rule_array_t *dst, const ni_rule_array_t *src)
@@ -2333,116 +2316,15 @@ ni_rule_array_copy(ni_rule_array_t *dst, const ni_rule_array_t *src)
 		ni_rule_array_append(dst, ni_rule_clone(src->data[i]));
 }
 
-unsigned int
-ni_rule_array_index(const ni_rule_array_t *rules, const ni_rule_t *rule)
-{
-	unsigned int i;
-	ni_rule_t *r;
-
-	if (rules) {
-		for (i = 0; i < rules->count; ++i) {
-			r = rules->data[i];
-			if (r == rule)
-				return i;
-		}
-	}
-	return -1U;
-}
-
-static ni_bool_t
-ni_rule_array_realloc(ni_rule_array_t *rules, unsigned int newsize)
-{
-	ni_rule_t **newdata;
-	unsigned int i;
-
-	if ((UINT_MAX - NI_RULE_ARRAY_CHUNK) <= newsize)
-		return FALSE;
-
-	newsize = (newsize + NI_RULE_ARRAY_CHUNK);
-	newdata = xrealloc(rules->data, newsize * sizeof(ni_rule_t *));
-	if (!newdata)
-		return FALSE;
-
-	rules->data = newdata;
-	for (i = rules->count; i < newsize; ++i)
-		rules->data[i] = NULL;
-
-	return TRUE;
-}
-
-ni_bool_t
-ni_rule_array_append(ni_rule_array_t *rules, ni_rule_t *rule)
-{
-	if (!rules || !rule)
-		return FALSE;
-
-	if ((rules->count % NI_RULE_ARRAY_CHUNK) == 0 &&
-	    !ni_rule_array_realloc(rules, rules->count))
-		return FALSE;
-
-	rules->data[rules->count++] = rule;
-	return TRUE;
-}
-
-ni_bool_t
-ni_rule_array_insert(ni_rule_array_t *rules, unsigned int index, ni_rule_t *rule)
-{
-	if (!rules || !rule)
-		return FALSE;
-
-	if (index >= rules->count)
-		return ni_rule_array_append(rules, rule);
-
-	if ((rules->count % NI_RULE_ARRAY_CHUNK) == 0 &&
-	    !ni_rule_array_realloc(rules, rules->count))
-		return FALSE;
-
-	memmove(&rules->data[index + 1], &rules->data[index],
-		(rules->count - index) * sizeof(ni_rule_t *));
-	rules->data[index] = rule;
-	rules->count++;
-	return TRUE;
-}
-
-ni_bool_t
-ni_rule_array_delete(ni_rule_array_t *rules, unsigned int index)
-{
-	ni_rule_t *rule;
-
-	if ((rule = ni_rule_array_remove(rules, index))) {
-		ni_rule_free(rule);
-		return TRUE;
-	}
-	return FALSE;
-}
-
-ni_rule_t *
-ni_rule_array_remove(ni_rule_array_t *rules, unsigned int index)
-{
-	ni_rule_t *rule;
-
-	if (!rules || index >= rules->count)
-		return NULL;
-
-	rule = rules->data[index];
-	rules->count--;
-	if (index < rules->count) {
-		memmove(&rules->data[index], &rules->data[index + 1],
-			(rules->count - index) * sizeof(ni_rule_t *));
-	}
-	rules->data[rules->count] = NULL;
-
-	/* Don't bother with shrinking the array. It's not worth the trouble */
-	return rule;
-}
-
-ni_rule_t *
-ni_rule_array_get(ni_rule_array_t *rules, unsigned int index)
-{
-	if (!rules || index >= rules->count)
-		return NULL;
-	return rules->data[index];
-}
+extern ni_define_ptr_array_init(ni_rule);
+extern ni_define_ptr_array_destroy(ni_rule);
+extern ni_define_ptr_array_index(ni_rule);
+static ni_define_ptr_array_realloc(ni_rule, NI_RULE_ARRAY_CHUNK);
+extern ni_define_ptr_array_append(ni_rule);
+extern ni_define_ptr_array_insert(ni_rule);
+extern ni_define_ptr_array_delete_at(ni_rule);
+extern ni_define_ptr_array_remove_at(ni_rule);
+extern ni_define_ptr_array_at(ni_rule);
 
 ni_rule_t *
 ni_rule_array_find_match(const ni_rule_array_t *rules, const ni_rule_t *rule,

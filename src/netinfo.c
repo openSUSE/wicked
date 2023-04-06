@@ -770,13 +770,13 @@ ni_netconfig_rule_del(ni_netconfig_t *nc, const ni_rule_t *rule, ni_rule_t **pde
 			continue;
 
 		if (pdel) {
-			*pdel = ni_rule_array_remove(rules, i);
+			*pdel = ni_rule_array_remove_at(rules, i);
 			if (!*pdel) {
 				ni_error("%s: unable to remove policy rule", __func__);
 				return -1;
 			}
 		} else {
-			if (!ni_rule_array_delete(rules, i)) {
+			if (!ni_rule_array_delete_at(rules, i)) {
 				ni_error("%s: unable to remove policy rule", __func__);
 				return -1;
 			}
