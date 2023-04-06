@@ -365,7 +365,7 @@ ni_route_array_drop_by_seq(ni_netconfig_t *nc, ni_route_array_t *routes, unsigne
 	for (i = 0; i < routes->count; ) {
 		rp = routes->data[i];
 		if (rp->seq != seq) {
-			if (ni_route_array_remove(routes, i) == rp) {
+			if (ni_route_array_remove_at(routes, i) == rp) {
 				ni_netconfig_route_del(nc, rp, NULL);
 				ni_route_free(rp);
 				continue;

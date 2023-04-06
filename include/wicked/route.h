@@ -83,12 +83,8 @@ struct ni_route {
 	unsigned int		reordering;
 };
 
-typedef struct ni_route_array	ni_route_array_t;
-
-struct ni_route_array {
-	unsigned int		count;
-	ni_route_t **		data;
-};
+ni_declare_ptr_array_type(ni_route);
+ni_declare_ptr_array_cmp_fn(ni_route);
 
 struct ni_route_table {
 	ni_route_table_t *	next;
@@ -156,8 +152,6 @@ struct ni_rule {
 
 ni_declare_ptr_array_struct(ni_rule);
 
-
-typedef int			ni_route_cmp_fn(const ni_route_t *, const ni_route_t *);
 
 extern				ni_declare_refcounted_new(ni_route);
 extern				ni_declare_refcounted_ref(ni_route);
@@ -243,21 +237,21 @@ extern const ni_route_nexthop_t *	ni_route_nexthop_find_by_gateway(const ni_rout
 
 extern ni_route_array_t *	ni_route_array_new(void);
 extern void			ni_route_array_free(ni_route_array_t *);
-extern void			ni_route_array_init(ni_route_array_t *);
-extern void			ni_route_array_destroy(ni_route_array_t *);
-extern ni_bool_t		ni_route_array_append(ni_route_array_t *, ni_route_t *);
+extern				ni_declare_ptr_array_init(ni_route);
+extern				ni_declare_ptr_array_destroy(ni_route);
+extern				ni_declare_ptr_array_append(ni_route);
+extern				ni_declare_ptr_array_delete_at(ni_route);
+extern				ni_declare_ptr_array_remove_at(ni_route);
+extern				ni_declare_ptr_array_at(ni_route);
+extern				ni_declare_ptr_array_qsort(ni_route);
 extern ni_bool_t		ni_route_array_delete_ref(ni_route_array_t *, const ni_route_t *);
-extern ni_bool_t		ni_route_array_delete(ni_route_array_t *, unsigned int);
 extern ni_route_t *		ni_route_array_remove_ref(ni_route_array_t *, const ni_route_t *);
-extern ni_route_t *		ni_route_array_remove(ni_route_array_t *, unsigned int);
-extern ni_route_t *		ni_route_array_get(ni_route_array_t *, unsigned int);
 extern ni_route_t *		ni_route_array_ref(ni_route_array_t *, unsigned int);
 extern ni_route_t *		ni_route_array_find_match(ni_route_array_t *, const ni_route_t *,
 					ni_bool_t (*match)(const ni_route_t *, const ni_route_t *));
 extern unsigned int		ni_route_array_find_matches(ni_route_array_t *, const ni_route_t *,
 					ni_bool_t (*match)(const ni_route_t *, const ni_route_t *),
 					ni_route_array_t *);
-extern void			ni_route_array_qsort(ni_route_array_t *, ni_route_cmp_fn *);
 extern void			ni_route_array_sort(ni_route_array_t *);
 extern void			ni_route_array_sort_rev(ni_route_array_t *);
 

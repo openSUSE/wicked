@@ -453,7 +453,7 @@ ni_route_expand_hops(ni_route_array_t *routes, const ni_route_t *rp)
 
 		ni_route_free(r);
 		while (routes->count > count) {
-			if (!ni_route_array_delete(routes, routes->count - 1))
+			if (!ni_route_array_delete_at(routes, routes->count - 1))
 				break;
 		}
 		return 0;
@@ -1465,80 +1465,14 @@ ni_route_array_free(ni_route_array_t *nra)
 		free(nra);
 	}
 }
-
-void
-ni_route_array_init(ni_route_array_t *nra)
-{
-	memset(nra, 0, sizeof(*nra));
-}
-
-void
-ni_route_array_destroy(ni_route_array_t *nra)
-{
-	if (nra) {
-		while (nra->count) {
-			nra->count--;
-			ni_route_free(nra->data[nra->count]);
-		}
-		free(nra->data);
-		nra->data = NULL;
-	}
-}
-
-static ni_bool_t
-ni_route_array_realloc(ni_route_array_t *nra, unsigned int newsize)
-{
-	ni_route_t **newdata;
-	unsigned int i;
-
-	if ((UINT_MAX - NI_ROUTE_ARRAY_CHUNK) <= newsize)
-		return FALSE;
-
-	newsize = (newsize + NI_ROUTE_ARRAY_CHUNK);
-	newdata = xrealloc(nra->data, newsize * sizeof(ni_route_t *));
-	if (!newdata)
-		return FALSE;
-
-	nra->data = newdata;
-	for (i = nra->count; i < newsize; ++i) {
-		nra->data[i] = NULL;
-	}
-	return TRUE;
-}
-
-ni_bool_t
-ni_route_array_append(ni_route_array_t *nra, ni_route_t *rp)
-{
-	if (!nra || !rp)
-		return FALSE;
-
-	if ((nra->count % NI_ROUTE_ARRAY_CHUNK) == 0 &&
-	    !ni_route_array_realloc(nra, nra->count))
-		return FALSE;
-
-	nra->data[nra->count++] = rp;
-	return TRUE;
-}
-
-ni_route_t *
-ni_route_array_remove(ni_route_array_t *nra, unsigned int index)
-{
-	ni_route_t *rp;
-
-	if(!nra || index >= nra->count)
-		return NULL;
-
-	rp = nra->data[index];
-	nra->count--;
-	if (index < nra->count) {
-		memmove(&nra->data[index], &nra->data[index + 1],
-			(nra->count - index) * sizeof(ni_route_t *));
-	}
-	nra->data[nra->count] = NULL;
-
-	/* Don't bother with shrinking the array. It's not worth the trouble */
-	return rp;
-}
+extern				ni_define_ptr_array_init(ni_route);
+extern				ni_define_ptr_array_destroy(ni_route);
+extern				ni_define_ptr_array_realloc(ni_route, NI_ROUTE_ARRAY_CHUNK);
+extern				ni_define_ptr_array_append(ni_route);
+extern				ni_define_ptr_array_delete_at(ni_route);
+extern				ni_define_ptr_array_remove_at(ni_route);
+extern				ni_define_ptr_array_at(ni_route);
+extern				ni_define_ptr_array_qsort(ni_route);
 
 ni_route_t *
 ni_route_array_remove_ref(ni_route_array_t *nra, const ni_route_t *rp)
@@ -1550,21 +1484,9 @@ ni_route_array_remove_ref(ni_route_array_t *nra, const ni_route_t *rp)
 
 	for (i = 0; i < nra->count; i++) {
 		if (rp == nra->data[i])
-			return ni_route_array_remove(nra, i);
+			return ni_route_array_remove_at(nra, i);
 	}
 	return NULL;
-}
-
-ni_bool_t
-ni_route_array_delete(ni_route_array_t *nra, unsigned int index)
-{
-	ni_route_t *rp;
-
-	if ((rp = ni_route_array_remove(nra, index))) {
-		ni_route_free(rp);
-		return TRUE;
-	}
-	return FALSE;
 }
 
 ni_bool_t
@@ -1580,17 +1502,9 @@ ni_route_array_delete_ref(ni_route_array_t *nra, const ni_route_t *rp)
 }
 
 ni_route_t *
-ni_route_array_get(ni_route_array_t *nra, unsigned int index)
-{
-	if (!nra || index >= nra->count)
-		return NULL;
-	return nra->data[index];
-}
-
-ni_route_t *
 ni_route_array_ref(ni_route_array_t *nra, unsigned int index)
 {
-	return ni_route_ref(ni_route_array_get(nra, index));
+	return ni_route_ref(ni_route_array_at(nra, index));
 }
 
 ni_route_t *
@@ -1644,25 +1558,6 @@ static int
 ni_route_sort_cmp_rev(const ni_route_t *r1, const ni_route_t *r2)
 {
 	return 0 - ni_route_sort_cmp(r1, r2);
-}
-
-static int
-ni_route_qsort_r_cmp(const void *_r1, const void *_r2, void *_cmp)
-{
-	const ni_route_t *r1 = *(const ni_route_t **)_r1;
-	const ni_route_t *r2 = *(const ni_route_t **)_r2;
-	ni_route_cmp_fn *rt_cmp = (ni_route_cmp_fn *)_cmp;
-	return rt_cmp(r1, r2);
-}
-
-void
-ni_route_array_qsort(ni_route_array_t *nra, ni_route_cmp_fn *cmp_fn)
-{
-	if (!nra || !nra->count || !cmp_fn)
-		return;
-
-	qsort_r(&nra->data[0], nra->count, sizeof(nra->data[0]),
-			ni_route_qsort_r_cmp, cmp_fn);
 }
 
 void
