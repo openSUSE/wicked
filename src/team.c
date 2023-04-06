@@ -319,64 +319,13 @@ ni_team_port_free(ni_team_port_t *port)
 	free(port);
 }
 
-static inline void
-ni_team_port_array_init(ni_team_port_array_t *array)
-{
-	memset(array, 0, sizeof(*array));
-}
+static ni_define_ptr_array_init(ni_team_port);
+extern ni_define_ptr_array_destroy(ni_team_port);
+static ni_define_ptr_array_realloc(ni_team_port, NI_TEAM_PORT_ARRAY_CHUNK);
+extern ni_define_ptr_array_append(ni_team_port);
+extern ni_define_ptr_array_delete_at(ni_team_port);
 
-void
-ni_team_port_array_destroy(ni_team_port_array_t *array)
-{
-	while (array->count > 0)
-		ni_team_port_free(array->data[--array->count]);
-	free(array->data);
-	ni_team_port_array_init(array);
-}
-
-static void
-__ni_team_port_array_realloc(ni_team_port_array_t *array, unsigned int newsize)
-{
-	ni_team_port_t **newdata;
-	unsigned int i;
-
-	newsize = (newsize + NI_TEAM_PORT_ARRAY_CHUNK);
-	newdata = xrealloc(array->data, newsize * sizeof(ni_team_port_t *));
-	array->data = newdata;
-	for (i = array->count; i < newsize; ++i)
-		array->data[i] = NULL;
-}
-
-ni_bool_t
-ni_team_port_array_append(ni_team_port_array_t *array, ni_team_port_t *port)
-{
-	if (array && port) {
-		if ((array->count % NI_TEAM_PORT_ARRAY_CHUNK) == 0)
-			__ni_team_port_array_realloc(array, array->count);
-
-		array->data[array->count++] = port;
-		return TRUE;
-	}
-	return FALSE;
-}
-
-ni_bool_t
-ni_team_port_array_delete_at(ni_team_port_array_t *array, unsigned int pos)
-{
-	if (!array || pos >= array->count)
-		return FALSE;
-
-	ni_team_port_free(array->data[pos]);
-	array->count--;
-	if (pos < array->count) {
-		memmove(&array->data[pos], &array->data[pos + 1],
-			(array->count - pos) * sizeof(ni_team_port_t *));
-	}
-	array->data[array->count] = NULL;
-	return TRUE;
-}
-
-ni_team_port_t *
+extern ni_team_port_t *
 ni_team_port_array_find_by_name(ni_team_port_array_t *array, const char *name)
 {
 	unsigned int i;

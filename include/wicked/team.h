@@ -268,9 +268,9 @@ extern						ni_declare_ptr_array_delete_at(ni_team_link_watch);
 
 extern ni_team_port_t *				ni_team_port_new(void);
 extern void					ni_team_port_free(ni_team_port_t *);
-extern void					ni_team_port_array_destroy(ni_team_port_array_t *);
-extern ni_bool_t				ni_team_port_array_append(ni_team_port_array_t *, ni_team_port_t *);
-extern ni_bool_t				ni_team_port_array_delete_at(ni_team_port_array_t *, unsigned int);
+extern						ni_declare_ptr_array_destroy(ni_team_port);
+extern						ni_declare_ptr_array_append(ni_team_port);
+extern						ni_declare_ptr_array_delete_at(ni_team_port);
 extern ni_team_port_t *				ni_team_port_array_find_by_name(ni_team_port_array_t *, const char *);
 
 extern void					ni_team_port_config_init(ni_team_port_config_t *);
