@@ -3827,8 +3827,8 @@ try_add_wireless_net(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 			net->auth_algo = NI_BIT(NI_WIRELESS_AUTH_OPEN);
 	}
 
-	ni_wireless_network_array_append(&wlan->conf->networks, net);
-	ni_wireless_network_drop(&net);
+	if (!ni_wireless_network_array_append(&wlan->conf->networks, net))
+		goto failure;
 
 	return TRUE;
 
