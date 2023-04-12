@@ -263,7 +263,7 @@ fi
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h netinet/in.h])
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h sys/ioctl.h sys/param.h])
-AC_CHECK_HEADERS([sys/socket.h sys/time.h syslog.h unistd.h])
+AC_CHECK_HEADERS([sys/socket.h sys/time.h syslog.h unistd.h iconv.h])
 AC_CHECK_HEADERS([linux/filter.h linux/if_packet.h netpacket/packet.h])
 AC_CHECK_HEADERS([linux/dcbnl.h linux/if_link.h linux/rtnetlink.h])
 

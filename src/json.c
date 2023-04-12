@@ -35,7 +35,8 @@
 #include <limits.h>
 #include <ctype.h>
 #include <inttypes.h>
-#if 0
+
+#ifdef HAVE_ICONV_H
 #include <iconv.h>
 #endif
 
@@ -862,6 +863,23 @@ static void
 ni_json_string_escape(ni_stringbuf_t *buf, const char *str,
 			const ni_json_format_options_t *options)
 {
+	/* See https://www.rfc-editor.org/rfc/rfc8259#section-7
+	 * "[…]
+	 * A string begins and ends with quotation marks.  All Unicode
+	 * characters may be placed within the quotation marks, except
+	 * for the characters that MUST be escaped:
+	 * quotation mark, reverse solidus, and the control characters
+	 * (U+0000 through U+001F).
+	 *  […]
+	 * Alternatively, there are two-character sequence escape
+	 * representations of some popular characters.
+	 *  […]"
+	 *
+	 * While slash aka solidus character '/' is in the "popular
+	 * characters" (ni_json_string_escape_map) of two-character
+	 * sequence escapes, there is usually no need for and we
+	 * escape it only if requested via NI_JSON_ESCAPE_SLASH.
+	 */
 	static const char *hex = "0123456789abcdefABCDEF";
 	size_t len = ni_string_len(str);
 	size_t pos = 0, off = 0;
@@ -1081,7 +1099,7 @@ struct ni_json_reader_stack {
 struct ni_json_reader {
 	FILE *				file;
 	ni_buffer_t *			inbuf;
-#if 0
+#ifdef HAVE_ICONV_H
 	iconv_t				iconv;
 #endif
 	ni_bool_t			close;
@@ -1143,7 +1161,7 @@ ni_json_reader_init_buffer(ni_json_reader_t *jr, ni_buffer_t *buf)
 {
 	jr->file  = NULL;
 	jr->inbuf = buf;
-#if 0
+#ifdef HAVE_ICONV_H
 	jr->iconv = (iconv_t)-1;
 #endif
 	jr->stack = NULL;
@@ -1180,7 +1198,7 @@ ni_json_reader_init_file(ni_json_reader_t *jr, FILE *file)
 {
 	jr->file  = file;
 	jr->inbuf = NULL;
-#if 0
+#ifdef HAVE_ICONV_H
 	jr->iconv = (iconv_t)-1;
 #endif
 	jr->stack = NULL;
@@ -1207,7 +1225,7 @@ ni_json_reader_open_file(ni_json_reader_t *jr, const char *name)
 	return TRUE;
 }
 
-#if 0
+#ifdef HAVE_ICONV_H
 static ni_bool_t
 ni_json_reader_open_iconv(ni_json_reader_t *jr)
 {
@@ -1231,7 +1249,7 @@ ni_json_reader_destroy(ni_json_reader_t *jr)
 		jr->file = NULL;
 	}
 	jr->inbuf = NULL;
-#if 0
+#ifdef HAVE_ICONV_H
 	if (jr->iconv)
 		iconv_close(jr->iconv);
 	jr->iconv = (iconv_t)-1;
@@ -1353,65 +1371,19 @@ ni_json_reader_get_number(ni_json_reader_t *jr, ni_stringbuf_t *res)
 	}
 }
 
-static ni_bool_t
-ni_json_reader_get_eunicode(ni_json_reader_t *jr, ni_stringbuf_t *res)
-{
-	char hbuf[5], sbuf[2] /*, obuf[8], *sptr, *optr */;
-	/* size_t slen, olen, n; */
-	unsigned int octet;
-	char *end = NULL;
-
-	/*
-	 * TODO: We decode mandatory control chars only...
-	 * Also.. do we need to handle multiple sequences:
-	 * "\uD834\uDD1E", a G clef character (U+1D11E)??
-	 */
-	memset(hbuf, 0, sizeof(hbuf));
-	if (jr->get(jr, &hbuf[0], 2))
-		return FALSE;
-
-	octet = strtoul(&hbuf[0], &end, 16);
-	if (octet > 255 || *end != '\0')
-		return FALSE;
-
-	sbuf[0] = octet & 0xff;
-	if (jr->get(jr, &hbuf[2], 2))
-		return FALSE;
-
-	octet = strtoul(&hbuf[2], &end, 16);
-        if (octet > 255 || *end != '\0')
-		return FALSE;
-
-	sbuf[1] = octet & 0xff;
-	if (sbuf[0] != 0)
-		return FALSE;
-
-	if (sbuf[1] != 0)
-		ni_stringbuf_putc(res, sbuf[1]);
-#if 0
-	sptr = sbuf;
-	slen = sizeof(sbuf);
-	while (slen > 0) {
-		optr = obuf;
-		olen = sizeof(obuf);
-
-		n = iconv(jr->iconv, &sptr, &slen, &optr, &olen);
-		if (n == (size_t)-1)
-			return FALSE;
-
-		ni_stringbuf_put(res, obuf, n);
-	}
-#endif
-	return TRUE;
-}
-
 static inline const char *
 ni_json_string_unescape_map(unsigned char ec)
 {
+	/*
+	 * See https://www.rfc-editor.org/rfc/rfc8259#section-7
+	 *
+	 * […] two-character sequence escape representations
+	 * of some popular characters […]
+	 */
 	switch (ec) {
-		case '/':	return "/";
-		case '\\':	return "\\";
 		case '"':	return "\"";
+		case '\\':	return "\\";
+		case '/':	return "/";
 		case 'b':	return "\b";
 		case 'f':	return "\f";
 		case 'n':	return "\n";
@@ -1420,6 +1392,183 @@ ni_json_string_unescape_map(unsigned char ec)
 		default:	return NULL;
 	}
 }
+
+static ni_bool_t
+ni_json_reader_get_eunicode_hex(ni_json_reader_t *jr, uint8_t *hex)
+{
+	char hbuf[3] = { 0x0, 0x0, 0x0 };
+	unsigned int octet;
+	char *end = NULL;
+
+	if (jr->get(jr, &hbuf[0], 2))
+		return FALSE;
+
+	octet = strtoul(&hbuf[0], &end, 16);
+	if (octet > 255 || *end != '\0')
+		return FALSE;
+
+	*hex = octet & 0xff;
+	return TRUE;
+}
+
+#ifdef HAVE_ICONV_H
+static ni_bool_t
+ni_json_reader_get_eunicode_raw(ni_json_reader_t *jr, ni_buffer_t *raw)
+{
+	uint8_t hex[2];
+
+	if (!ni_json_reader_get_eunicode_hex(jr, &hex[0]))
+		return FALSE;
+
+	if (!ni_json_reader_get_eunicode_hex(jr, &hex[1]))
+		return FALSE;
+
+	/*
+	 * See https://www.rfc-editor.org/rfc/rfc8259#section-8.1
+	 * "[…]
+	 * Implementations MUST NOT add a byte order mark (U+FEFF)
+	 * to the beginning of a networked-transmitted JSON text.
+	 * In the interests of interoperability, implementations
+	 * that parse JSON texts MAY ignore the presence of a byte
+	 * order mark rather than treating it as an error.
+	 *  […]"
+	 */
+	if (hex[0] == 0xfe && hex[1] == 0xff)
+		return TRUE;
+
+	return ni_buffer_put(raw, hex, 2) == 0;
+}
+
+static ni_bool_t
+ni_json_reader_get_eunicode_str(ni_json_reader_t *jr,
+		ni_stringbuf_t *res, char *sptr, size_t slen)
+{
+	/*
+	 * Unicode characters like e.g. umbrella '☂'
+	 * are represented as 3 bytes in UTF-8:
+	 *   UTF-32 Encoding:	0x00002602
+	 *   UTF-16 Encoding:	0x2602
+	 *   UTF-8  Encoding:	0xE2 0x98 0x82
+	 * that is, we need 50% longer output space.
+	 */
+	size_t olen, olft, n;
+	char *optr;
+
+	olen = (slen * 3 + 1) / 2;
+	ni_stringbuf_grow(res, olen);
+	if (!res->string || olen > (res->size - res->len))
+		return FALSE;
+
+	olft = olen;
+	optr = res->string + res->len;
+	while (slen > 0) {
+		n = iconv(jr->iconv, &sptr, &slen, &optr, &olft);
+		if (n == (size_t)-1)
+			return FALSE;
+
+		if (olen > olft)
+			res->len += olen - olft;
+		olen = olft;
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+ni_json_reader_get_eunicode(ni_json_reader_t *jr, ni_stringbuf_t *res)
+{
+	/*
+	 * See https://www.rfc-editor.org/rfc/rfc8259#section-7
+	 * and https://www.rfc-editor.org/rfc/rfc8259#section-8
+	 *
+	 * "[…]
+	 * JSON text exchanged between systems that are not part of
+	 * a closed ecosystem MUST be encoded using UTF-8 [RFC3629].
+	 *  […]
+	 * Implementations MUST NOT add a byte order mark (U+FEFF)
+	 * to the beginning of a networked-transmitted JSON text.
+	 * In the interests of interoperability, implementations
+	 * that parse JSON texts MAY ignore the presence of a byte
+	 * order mark rather than treating it as an error.
+	 *  […]"
+	 *
+	 * Unicode characters are "represented as a six-character
+	 * sequence" (\uXXXX) or "12-character sequence, encoding
+	 * the UTF-16 surrogate pair. […] the G clef character
+	 * (U+1D11E) may be represented as "\uD834\uDD1E"."
+	 *   UTF-32 Encoding:	0x0001D11E
+	 *   UTF-16 Encoding:	0xD834 0xDD1E
+	 *   UTF-8  Encoding:	0xF0 0x9D 0x84 0x9E
+	 *
+	 * Means, we have to read multiple \uXXXX[…\uXXXX] escaped
+	 * sequences to be able to translate the raw bytes to UTF-8
+	 * as "\uD834" alone is not a valid unicode character (but
+	 * a high or lead surrogate).
+	 */
+	ni_bool_t ret = TRUE;
+	ni_buffer_t raw;
+	int cc = EOF;
+
+	if (!ni_buffer_init_dynamic(&raw, 0))
+		return FALSE;
+
+	do {
+		if (!(ret = ni_buffer_ensure_tailroom(&raw, 2)))
+			break;
+
+		if (!(ret = ni_json_reader_get_eunicode_raw(jr, &raw)))
+			break;
+
+		if ((cc = jr->getc(jr)) != '\\') {
+			if (cc != EOF)
+				jr->ungetc(jr, cc);
+			cc = EOF;
+			break;
+		}
+
+	} while ((cc = jr->getc(jr)) == 'u');
+
+	ret = ni_json_reader_get_eunicode_str(jr, res,
+			ni_buffer_head(&raw),
+			ni_buffer_count(&raw));
+	ni_buffer_destroy(&raw);
+
+	if (cc != EOF) {
+		const char *us;
+
+		/* \uXXXX\uXXXX… sequence followed by \cc */
+		if (!(us = ni_json_string_unescape_map(cc)))
+			return FALSE;   /* unknown escape */
+
+		ni_stringbuf_puts(res, us);
+	}
+	return ret;
+}
+
+#else /* !HAVE_ICONV_H */
+
+static ni_bool_t
+ni_json_reader_get_eunicode(ni_json_reader_t *jr, ni_stringbuf_t *res)
+{
+	char sbuf[2];
+
+	/*
+	 * We decode single-byte \u00XX "ascii" characters including
+	 * mandatory control characters and need iconv for all other.
+	 */
+	if (!ni_json_reader_get_eunicode_hex(jr, &sbuf[0]))
+		return FALSE;
+
+	if (!ni_json_reader_get_eunicode_hex(jr, &sbuf[1]))
+		return FALSE;
+
+	/* Multibyte characters need iconv… */
+	if (sbuf[0] != 0)
+		return FALSE;
+
+	ni_stringbuf_putc(res, sbuf[1]);
+	return TRUE;
+}
+#endif
 
 static ni_bool_t
 ni_json_reader_get_qstring(ni_json_reader_t *jr, ni_stringbuf_t *res)
@@ -1431,7 +1580,7 @@ ni_json_reader_get_qstring(ni_json_reader_t *jr, ni_stringbuf_t *res)
 	while ((cc = jr->getc(jr)) != EOF) {
 		if (escaped) {
 			if (cc == 'u') {
-#if 0
+#ifdef HAVE_ICONV_H
 				if (!ni_json_reader_open_iconv(jr))
 					return FALSE;	/* decoder failed */
 #endif
