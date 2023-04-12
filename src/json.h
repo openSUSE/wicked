@@ -120,6 +120,7 @@ extern	const char *			ni_json_format_string(ni_stringbuf_t *,
 							const ni_json_t *,
 							const ni_json_format_options_t *);
 
-extern	ni_json_t *			ni_json_parse_string(const char *str);
+extern	ni_json_t *			ni_json_parse_string(const char *);
+extern	ni_json_t *			ni_json_parse_file(const char *);
 
 #endif /* NI_JSON_H */

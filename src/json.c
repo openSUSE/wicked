@@ -24,18 +24,20 @@
 #include "config.h"
 #endif
 
-#include <stdlib.h>
-#include <limits.h>
-#include <ctype.h>
-#if 0
-#include <iconv.h>
-#endif
-#include <inttypes.h>
 #include <wicked/logging.h>
 
 #include "json.h"
 #include "buffer.h"
 #include "util_priv.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <limits.h>
+#include <ctype.h>
+#include <inttypes.h>
+#if 0
+#include <iconv.h>
+#endif
 
 /*
  * object and array prealloc chunk sizes
@@ -1065,6 +1067,9 @@ typedef enum {
 
 typedef struct ni_json_reader_stack	ni_json_reader_stack_t;
 typedef struct ni_json_reader		ni_json_reader_t;
+typedef int    ni_json_reader_get_fn_t(ni_json_reader_t *, void *, size_t);
+typedef int    ni_json_reader_getc_fn_t(ni_json_reader_t *);
+typedef int    ni_json_reader_ungetc_fn_t(ni_json_reader_t *, int);
 
 struct ni_json_reader_stack {
 	ni_json_reader_stack_t *	parent;
@@ -1074,13 +1079,18 @@ struct ni_json_reader_stack {
 };
 
 struct ni_json_reader {
+	FILE *				file;
 	ni_buffer_t *			inbuf;
 #if 0
 	iconv_t				iconv;
 #endif
+	ni_bool_t			close;
 	ni_bool_t			quiet;
 	ni_string_array_t		error;
 	ni_json_reader_stack_t *	stack;
+	ni_json_reader_get_fn_t *	get;
+	ni_json_reader_getc_fn_t *	getc;
+	ni_json_reader_ungetc_fn_t *	ungetc;
 };
 
 static ni_json_reader_stack_t *
@@ -1110,17 +1120,91 @@ ni_json_reader_stack_pop(ni_json_reader_t *jr)
 	return jr->stack;
 }
 
+static int
+ni_json_reader_buffer_get(ni_json_reader_t *jr, void *data, size_t len)
+{
+	return ni_buffer_get(jr->inbuf, data, len);
+}
+
+static int
+ni_json_reader_buffer_getc(ni_json_reader_t *jr)
+{
+	return ni_buffer_getc(jr->inbuf);
+}
+
+static int
+ni_json_reader_buffer_ungetc(ni_json_reader_t *jr, int cc)
+{
+	return ni_buffer_ungetc(jr->inbuf, cc);
+}
+
 static ni_bool_t
 ni_json_reader_init_buffer(ni_json_reader_t *jr, ni_buffer_t *buf)
 {
+	jr->file  = NULL;
 	jr->inbuf = buf;
 #if 0
 	jr->iconv = (iconv_t)-1;
 #endif
 	jr->stack = NULL;
+	jr->close = FALSE;
 	jr->quiet = FALSE;
 	ni_string_array_init(&jr->error);
+
+	jr->get    = ni_json_reader_buffer_get;
+	jr->getc   = ni_json_reader_buffer_getc;
+	jr->ungetc = ni_json_reader_buffer_ungetc;
 	return buf != NULL;
+}
+
+static int
+ni_json_reader_file_get(ni_json_reader_t *jr, void *data, size_t len)
+{
+	return fread(data, 1, len, jr->file) == len ? 0 : EOF;
+}
+
+static int
+ni_json_reader_file_getc(ni_json_reader_t *jr)
+{
+	return getc(jr->file);
+}
+
+static int
+ni_json_reader_file_ungetc(ni_json_reader_t *jr, int cc)
+{
+	return ungetc(cc, jr->file) == cc ? 0 : EOF;
+}
+
+static ni_bool_t
+ni_json_reader_init_file(ni_json_reader_t *jr, FILE *file)
+{
+	jr->file  = file;
+	jr->inbuf = NULL;
+#if 0
+	jr->iconv = (iconv_t)-1;
+#endif
+	jr->stack = NULL;
+	jr->close = FALSE;
+	jr->quiet = FALSE;
+	ni_string_array_init(&jr->error);
+
+	jr->get    = ni_json_reader_file_get;
+	jr->getc   = ni_json_reader_file_getc;
+	jr->ungetc = ni_json_reader_file_ungetc;
+	return file != NULL;
+}
+
+static ni_bool_t
+ni_json_reader_open_file(ni_json_reader_t *jr, const char *name)
+{
+	if (ni_string_empty(name))
+		return FALSE;
+
+	if (!ni_json_reader_init_file(jr, fopen(name, "r")))
+		return FALSE;
+
+	jr->close = TRUE;
+	return TRUE;
 }
 
 #if 0
@@ -1139,6 +1223,13 @@ ni_json_reader_destroy(ni_json_reader_t *jr)
 	ni_string_array_destroy(&jr->error);
 	while (ni_json_reader_stack_pop(jr))
 		;
+
+	if (jr->file) {
+		if (jr->close)
+			fclose(jr->file);
+		jr->close = FALSE;
+		jr->file = NULL;
+	}
 	jr->inbuf = NULL;
 #if 0
 	if (jr->iconv)
@@ -1217,9 +1308,9 @@ ni_json_reader_skip_spaces(ni_json_reader_t *jr)
 {
 	int cc;
 
-	while ((cc = ni_buffer_getc(jr->inbuf)) != EOF) {
+	while ((cc = jr->getc(jr)) != EOF) {
 		if (!isspace(cc)) {
-			ni_buffer_ungetc(jr->inbuf, cc);
+			jr->ungetc(jr, cc);
 			break;
 		}
 	}
@@ -1230,9 +1321,9 @@ ni_json_reader_get_literal(ni_json_reader_t *jr, ni_stringbuf_t *res)
 {
 	int cc;
 
-	while ((cc = ni_buffer_getc(jr->inbuf)) != EOF) {
+	while ((cc = jr->getc(jr)) != EOF) {
 		if (!isalpha(cc)) {
-			ni_buffer_ungetc(jr->inbuf, cc);
+			jr->ungetc(jr, cc);
 			break;
 		}
 		ni_stringbuf_putc(res, cc);
@@ -1244,7 +1335,7 @@ ni_json_reader_get_number(ni_json_reader_t *jr, ni_stringbuf_t *res)
 {
 	int cc;
 
-	while ((cc = ni_buffer_getc(jr->inbuf)) != EOF) {
+	while ((cc = jr->getc(jr)) != EOF) {
 		switch (cc) {
 		case '+': case '-':
 		case 'e': case 'E':
@@ -1256,7 +1347,7 @@ ni_json_reader_get_number(ni_json_reader_t *jr, ni_stringbuf_t *res)
 				ni_stringbuf_putc(res, cc);
 				break;
 			}
-			ni_buffer_ungetc(jr->inbuf, cc);
+			jr->ungetc(jr, cc);
 			return;
 		}
 	}
@@ -1270,32 +1361,31 @@ ni_json_reader_get_eunicode(ni_json_reader_t *jr, ni_stringbuf_t *res)
 	unsigned int octet;
 	char *end = NULL;
 
-	if (ni_buffer_count(jr->inbuf) < 4)
-		return FALSE;
-
 	/*
 	 * TODO: We decode mandatory control chars only...
 	 * Also.. do we need to handle multiple sequences:
 	 * "\uD834\uDD1E", a G clef character (U+1D11E)??
 	 */
 	memset(hbuf, 0, sizeof(hbuf));
-	if (ni_buffer_get(jr->inbuf, &hbuf[0], 2) < 0)
+	if (jr->get(jr, &hbuf[0], 2))
 		return FALSE;
 
 	octet = strtoul(&hbuf[0], &end, 16);
 	if (octet > 255 || *end != '\0')
 		return FALSE;
-	sbuf[0] = octet & 0xff;
 
-	if (ni_buffer_get(jr->inbuf, &hbuf[2], 2) < 0)
+	sbuf[0] = octet & 0xff;
+	if (jr->get(jr, &hbuf[2], 2))
 		return FALSE;
+
 	octet = strtoul(&hbuf[2], &end, 16);
         if (octet > 255 || *end != '\0')
 		return FALSE;
-	sbuf[1] = octet & 0xff;
 
+	sbuf[1] = octet & 0xff;
 	if (sbuf[0] != 0)
 		return FALSE;
+
 	if (sbuf[1] != 0)
 		ni_stringbuf_putc(res, sbuf[1]);
 #if 0
@@ -1338,7 +1428,7 @@ ni_json_reader_get_qstring(ni_json_reader_t *jr, ni_stringbuf_t *res)
 	const char *us;
 	int cc;
 
-	while ((cc = ni_buffer_getc(jr->inbuf)) != EOF) {
+	while ((cc = jr->getc(jr)) != EOF) {
 		if (escaped) {
 			if (cc == 'u') {
 #if 0
@@ -1375,7 +1465,7 @@ ni_json_get_token(ni_json_reader_t *jr, ni_stringbuf_t *res)
 {
 	int cc;
 
-	if ((cc = ni_buffer_getc(jr->inbuf)) == EOF)
+	if ((cc = jr->getc(jr)) == EOF)
 		return EndOfFile;
 
 	switch (cc) {
@@ -1828,3 +1918,24 @@ ni_json_parse_string(const char *str)
 	return ni_json_parse_buffer(&buf);
 }
 
+ni_json_t *
+ni_json_parse_file(const char *filename)
+{
+	ni_json_reader_t reader;
+	ni_json_t *json;
+
+	if (ni_string_eq(filename, "-")) {
+		if (!ni_json_reader_init_file(&reader, stdin))
+			return NULL;
+	} else {
+		if (!ni_json_reader_open_file(&reader, filename))
+			return NULL;
+	}
+
+	json = ni_json_reader_parse(&reader);
+	if (!ni_json_reader_destroy(&reader)) {
+		ni_json_free(json);
+		return NULL;
+	}
+	return json;
+}
