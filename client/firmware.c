@@ -281,6 +281,52 @@ ni_netif_firmware_discovery_config_read(xml_node_t **config)
 }
 
 static inline ni_bool_t
+ni_netif_firmware_discovery_config_revert_xml(xml_node_t *config, xml_node_t **removed,
+		const char *fwname)
+{
+	const char *fdname = NI_NETIF_FIRMWARE_DISCOVERY_NODE;
+	xml_node_t *fdnode = NULL;
+	ni_bool_t modified = FALSE;
+	const char *attr;
+
+	while ((fdnode = xml_node_get_next_child(config, fdname, fdnode))) {
+		attr = xml_node_get_attr(fdnode, "name");
+		if (!ni_string_eq(attr, fwname))
+			continue;
+
+		xml_node_reparent(*removed, fdnode);
+		modified = TRUE;
+		fdnode = NULL;
+	}
+
+	return modified;
+}
+
+static int
+ni_netif_firmware_discovery_config_revert(xml_node_t *config, xml_node_t **removed,
+		const ni_string_array_t *names)
+{
+	int status = NI_WICKED_RC_NOT_CONFIGURED;
+	const char *name;
+	unsigned int i;
+
+	if (!config || !removed || !names)
+		return NI_WICKED_RC_ERROR;
+
+	if (!*removed && !(*removed = xml_node_new(config->name, NULL)))
+		return NI_WICKED_RC_ERROR;
+
+	for (i = 0; i < names->count; ++i) {
+		name = names->data[i];
+
+		if (ni_netif_firmware_discovery_config_revert_xml(config, removed, name))
+			status = NI_WICKED_RC_SUCCESS;
+	}
+
+	return status;
+}
+
+static inline ni_bool_t
 ni_netif_firmware_discovery_config_modify_xml(xml_node_t *config, xml_node_t *modified,
 		const char *fwname, ni_bool_t enable)
 {
@@ -603,6 +649,118 @@ static const ni_intmap_t	option_fmt_map[] = {
  * wicked firmware <actions>
  */
 static int
+ni_wicked_firmware_config_revert(const char *caller, int argc, char **argv)
+{
+	enum {
+		OPTION_HELP	= 'h',
+		OPTION_FORMAT	= 'F',
+		OPTION_SHOW	= 'S',
+	};
+	static const struct option	options[] = {
+		{ "help",		no_argument,		NULL,	OPTION_HELP	},
+		{ "format",		required_argument,	NULL,	OPTION_FORMAT	},
+		{ "show",		no_argument,		NULL,	OPTION_SHOW	},
+		{ NULL }
+	};
+	int opt, status = NI_WICKED_RC_USAGE;
+	char *argv0, *command = NULL;
+	ni_string_array_t names = NI_STRING_ARRAY_INIT;
+	unsigned int format = OPTION_FORMAT_NONE;
+	ni_bool_t show_only = FALSE;
+	xml_node_t *config = NULL;
+	xml_node_t *removed = NULL;
+
+	ni_string_printf(&command, "%s %s", caller, argv[0]);
+	argv0 = argv[0];
+	argv[0] = command;
+	optind = 1;
+	while ((opt = getopt_long(argc, argv, "+hF:S", options, NULL))  != -1) {
+		switch (opt) {
+		case OPTION_FORMAT:
+			if (ni_parse_uint_mapped(optarg, option_fmt_map, &format))
+				goto usage;
+			break;
+
+		case OPTION_SHOW:
+			/* consistently use txt by default */
+			format = format ?: OPTION_FORMAT_TXT;
+			show_only = TRUE;
+			break;
+
+		case OPTION_HELP:
+			status = NI_WICKED_RC_SUCCESS;
+			/* fall through */
+		default:
+		usage:
+			fprintf(stderr,
+				"\nUsage:\n"
+				"  %s [options] <firmware name…|all>\n"
+				"\n"
+				"Options:\n"
+				"  --help, -h			show this help text and exit.\n"
+				"  --show, -S			show modified config on stdout and exit\n"
+				"  --format, -F <txt|xml>	show modified config using specified format\n"
+				"\n", command);
+			goto cleanup;
+		}
+	}
+
+	if (optind >= argc) {
+		fprintf(stderr, "%s: Missing firmware name argument\n", command);
+		goto usage;
+	}
+
+	while (optind < argc) {
+		const char *name = argv[optind++];
+
+		if (ni_string_eq(name, "all")) {
+			ni_string_array_destroy(&names);
+			break;
+		}
+
+		if (ni_string_array_index(&names, name) == -1)
+			ni_string_array_append(&names, name);
+	}
+
+	status = ni_netif_firmware_discovery_config_read(&config);
+	if (status == NI_WICKED_RC_SUCCESS)
+		status = ni_netif_firmware_discovery_config_revert(config, &removed, &names);
+
+	if (status == NI_WICKED_RC_NOT_CONFIGURED) {
+		ni_note("No configuration change needed");
+		status = NI_WICKED_RC_SUCCESS;
+		goto cleanup;
+	} else if (status != NI_WICKED_RC_SUCCESS) {
+		ni_error("Unable to modify %s config", NI_NETIF_FIRMWARE_DISCOVERY_NODE);
+		goto cleanup;
+	}
+
+	switch (format) {
+	case OPTION_FORMAT_TXT:
+		ni_netif_firmware_discovery_show_txt_modified(removed);
+		break;
+
+	case OPTION_FORMAT_XML:
+		xml_node_print(removed, stdout);
+		break;
+
+	default:
+		break;
+	}
+
+	if (!show_only && status == NI_WICKED_RC_SUCCESS)
+		status = ni_netif_firmware_discovery_config_write(config);
+
+cleanup:
+	argv[0] = argv0;
+	xml_node_free(config);
+	xml_node_free(removed);
+	ni_string_free(&command);
+	ni_string_array_destroy(&names);
+	return status;
+}
+
+static int
 ni_wicked_firmware_config_modify(const char *caller, int argc, char **argv)
 {
 	enum {
@@ -920,6 +1078,7 @@ ni_wicked_firmware(const char *caller, int argc, char **argv)
 		ACTION_INTERFACES,
 		ACTION_DISABLE,
 		ACTION_ENABLE,
+		ACTION_REVERT,
 	};
 	static const struct option	options[] = {
 		{ "help",		no_argument,		NULL,	OPTION_HELP	},
@@ -930,6 +1089,7 @@ ni_wicked_firmware(const char *caller, int argc, char **argv)
 		{ "extensions",		ACTION_EXTENSIONS	},
 		{ "disable",		ACTION_DISABLE		},
 		{ "enable",		ACTION_ENABLE		},
+		{ "revert",		ACTION_REVERT		},
 		{ NULL,			-1U			}
 	};
 	int opt, status = NI_WICKED_RC_USAGE;
@@ -960,6 +1120,7 @@ ni_wicked_firmware(const char *caller, int argc, char **argv)
 				"\n"
 				"  disable <name…>		disable specified client-firmware extension\n"
 				"  enable  <name…>		enable specified client-firmware extension\n"
+				"  revert  <name…>		revert client-firmware extension overrides\n"
 				"\n", command);
 			goto cleanup;
 		}
@@ -986,6 +1147,11 @@ ni_wicked_firmware(const char *caller, int argc, char **argv)
 		case ACTION_DISABLE:
 		case ACTION_ENABLE:
 			status = ni_wicked_firmware_config_modify(command,
+					argc - optind, argv + optind);
+			goto cleanup;
+
+		case ACTION_REVERT:
+			status = ni_wicked_firmware_config_revert(command,
 					argc - optind, argv + optind);
 			goto cleanup;
 
