@@ -31,6 +31,7 @@
 #include <wicked/route.h>
 
 #include "refcount_priv.h"
+#include "slist_priv.h"
 #include "util_priv.h"
 
 #include <string.h>
@@ -430,13 +431,12 @@ ni_address_lft_is_preferred(const ni_address_t *ap, const struct timeval *curren
 /*
  * ni_address list functions
  */
-void
-ni_address_list_append(ni_address_t **list, ni_address_t *ap)
-{
-	while (*list)
-		list = &(*list)->next;
-	*list = ap;
-}
+extern ni_define_slist_append(ni_address);
+extern ni_define_slist_remove(ni_address);
+extern ni_define_slist_delete(ni_address);
+extern ni_define_slist_destroy(ni_address);
+extern ni_define_slist_copy(ni_address);
+extern ni_define_slist_count(ni_address);
 
 void
 ni_address_list_dedup(ni_address_t **list)
@@ -461,65 +461,16 @@ ni_address_list_dedup(ni_address_t **list)
 	}
 }
 
-void
-ni_address_list_copy(ni_address_t **dst, const ni_address_t *src)
-{
-	const ni_address_t *ap;
-
-	if (!dst)
-		return;
-
-	for (ap = src; ap != NULL; ap = ap->next)
-		ni_address_list_append(dst, ni_address_clone(ap));
-}
-
-unsigned int
-ni_address_list_count(ni_address_t *list)
-{
-	unsigned int count = 0;
-	const ni_address_t *ap;
-
-	for (ap = list; ap != NULL; ap = ap->next)
-		count++;
-	return count;
-}
-
 ni_address_t *
 ni_address_list_find(ni_address_t *list, const ni_sockaddr_t *addr)
 {
 	ni_address_t *ap;
 
-	for (ap = list; ap != NULL; ap = ap->next) {
+	ni_slist_foreach(list, ap) {
 		if (ni_sockaddr_equal(&ap->local_addr, addr))
 			return ap;
 	}
 	return NULL;
-}
-
-ni_bool_t
-__ni_address_list_remove(ni_address_t **list, ni_address_t *ap)
-{
-	ni_address_t **pos, *cur;
-
-	for (pos = list; (cur = *pos) != NULL; pos = &cur->next) {
-		if (cur == ap) {
-			*pos = cur->next;
-			ni_address_free(cur);
-			return TRUE;
-		}
-	}
-	return FALSE;
-}
-
-void
-ni_address_list_destroy(ni_address_t **list)
-{
-	ni_address_t *ap;
-
-	while ((ap = *list) != NULL) {
-		*list = ap->next;
-		ni_address_free(ap);
-	}
 }
 
 void
