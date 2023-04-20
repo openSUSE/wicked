@@ -5,6 +5,7 @@ MAINTAINERCLEANFILES		= Makefile.in
 wicked_include_HEADERS		= \
 	wicked/addrconf.h	\
 	wicked/address.h	\
+	wicked/array.h		\
 	wicked/bonding.h	\
 	wicked/bridge.h		\
 	wicked/client.h		\

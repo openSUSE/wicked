@@ -2,19 +2,20 @@
 CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
 
-noinst_PROGRAMS			= rtnl-test	\
-				  hex-test	\
-				  uuid-test	\
-				  xml-test	\
-				  ibft-test	\
-				  json-test	\
-				  teamd-test	\
-				  xpath-test	\
-				  essid-test	\
-				  cstate-test   \
-				  bitmap-test	\
-				  bitmask-test	\
-				  socket-mock-test
+noinst_PROGRAMS			= rtnl-test		\
+				  hex-test		\
+				  uuid-test		\
+				  xml-test		\
+				  ibft-test		\
+				  json-test		\
+				  teamd-test		\
+				  xpath-test		\
+				  essid-test		\
+				  cstate-test   	\
+				  bitmap-test		\
+				  bitmask-test		\
+				  socket-mock-test 	\
+				  ptr_array-test
 
 noinst_HEADERS			= wunit.h
 
@@ -41,6 +42,7 @@ cstate_test_SOURCES		= cstate-test.c
 bitmap_test_SOURCES		= bitmap-test.c
 bitmask_test_SOURCES		= bitmask-test.c
 socket_mock_test_SOURCES	= socket-mock-test.c
+ptr_array_test_SOURCES		= ptr_array-test.c
 
 EXTRA_DIST			= ibft xpath		\
 				  scripts/ifbind.sh	\
@@ -50,6 +52,7 @@ TESTS				= socket-mock-test	\
 				  bitmask-test		\
 				  bitmap-test		\
 				  nbft-test.sh		\
-				  json-test
+				  json-test		\
+				  ptr_array-test
 
 # vim: ai
