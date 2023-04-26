@@ -1042,6 +1042,34 @@ ni_var_array_set_boolean(ni_var_array_t *nva, const char *name, int value)
 	return ni_var_array_set(nva, name, value? "yes" : "no");
 }
 
+ni_bool_t
+ni_var_array_set_var(ni_var_array_t *nva, const ni_var_t *var)
+{
+	if (!nva || !var)
+		return FALSE;
+	return ni_var_array_set(nva, var->name, var->value);
+}
+
+ni_bool_t
+ni_var_array_set_vars(ni_var_array_t *nva, const ni_var_array_t *vars, ni_bool_t overwrite)
+{
+	const ni_var_t *var;
+	unsigned int i;
+
+	if (!nva || !vars)
+		return FALSE;
+
+	for (i = 0; i < vars->count; ++i) {
+		var = &vars->data[i];
+
+		if (!overwrite && ni_var_array_get(nva, var->name))
+			continue;
+
+		if (!ni_var_array_set_var(nva, var))
+			return FALSE;
+	}
+	return TRUE;
+}
 void
 ni_var_array_sort(ni_var_array_t *nva, ni_var_compare_fn_t fn)
 {

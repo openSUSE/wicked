@@ -336,6 +336,12 @@ if [ ${FIRST_ARG:-$1} -eq 0 ]; then
 	/usr/bin/systemctl reload dbus.service 2>/dev/null || :
 fi
 
+%postun nbft
+# revert nbft override in client-firmware.xml config
+if [ ${FIRST_ARG:-$1} -eq 0 ]; then
+	%_sbindir/wicked firmware revert nbft 2>/dev/null || :
+fi
+
 %files
 %defattr (-,root,root)
 %doc ChangeLog ANNOUNCE COPYING README TODO samples
@@ -404,6 +410,7 @@ fi
 %_mandir/man8/wicked.8*
 %_mandir/man8/wickedd.8*
 %_mandir/man8/wicked-ethtool.8*
+%_mandir/man8/wicked-firmware.8*
 %_mandir/man8/wicked-redfish.8*
 %_mandir/man8/ifdown.8*
 %_mandir/man8/ifstatus.8*

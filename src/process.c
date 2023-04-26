@@ -1,7 +1,25 @@
 /*
- * Execute the requested process (almost) as if it were a setuid process.
+ *	Execute the requested process (almost) as if it were a setuid process.
  *
- * Copyright (C) 2002-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2002-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2023 SUSE LLC
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *	Authors:
+ *		Olaf Kirch
+ *		Marius Tomaschewski
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -24,7 +42,8 @@
 static int				__ni_process_run(ni_process_t *, int *);
 static int				__ni_process_run_info(ni_process_t *);
 static ni_socket_t *			__ni_process_get_output(ni_process_t *, int);
-static const ni_string_array_t *	__ni_default_environment(void);
+
+static const ni_string_array_t *	ni_default_environment(void);
 
 static inline ni_bool_t
 __ni_shellcmd_parse(ni_string_array_t *argv, const char *command)
@@ -82,11 +101,6 @@ ni_shellcmd_new(const ni_string_array_t *argv)
 		__ni_shellcmd_free(cmd);
 		return NULL;
 	}
-
-	if (ni_string_array_copy(&cmd->environ, __ni_default_environment()) < 0) {
-		__ni_shellcmd_free(cmd);
-		return NULL;
-	}
 	return cmd;
 }
 
@@ -106,11 +120,6 @@ ni_shellcmd_parse(const char *command)
 		__ni_shellcmd_free(cmd);
 		return NULL;
 	}
-	if (ni_string_array_copy(&cmd->environ, __ni_default_environment()) < 0) {
-		__ni_shellcmd_free(cmd);
-		return NULL;
-	}
-
 	return cmd;
 }
 
@@ -181,16 +190,27 @@ ni_process_new(ni_shellcmd_t *proc)
 {
 	ni_process_t *pi;
 
-	pi = xcalloc(1, sizeof(*pi));
+	if (!(pi = xcalloc(1, sizeof(*pi))))
+		return NULL;
 
 	pi->status  = -1;
-	pi->process = ni_shellcmd_hold(proc);
+	if (!(pi->process = ni_shellcmd_hold(proc))) {
+		ni_process_free(pi);
+		return NULL;
+	}
 
 	/* Copy the command array */
-	ni_string_array_copy(&pi->argv, &proc->argv);
+	if (ni_string_array_copy(&pi->argv, &proc->argv) < 0) {
+		ni_process_free(pi);
+		return NULL;
+	}
 
 	/* Copy the environment */
-	ni_string_array_copy(&pi->environ, &proc->environ);
+	if (ni_string_array_copy(&pi->environ, ni_default_environment()) < 0 ||
+			!ni_environ_setenv_entries(&pi->environ, &proc->environ)) {
+		ni_process_free(pi);
+		return NULL;
+	}
 
 	return pi;
 }
@@ -230,75 +250,200 @@ ni_process_free(ni_process_t *pi)
 /*
  * Setting environment variables
  */
-static void
-__ni_process_setenv(ni_string_array_t *env, const char *name, const char *value)
+ni_bool_t
+ni_environ_setenv_vars(ni_string_array_t *env, const ni_var_array_t *vars,
+		ni_bool_t overwrite)
 {
-	unsigned int namelen = strlen(name), totlen;
+	const ni_var_t *var;
 	unsigned int i;
-	char *newvar;
 
-	totlen = namelen + strlen(value) + 2;
-	newvar = malloc(totlen);
-	snprintf(newvar, totlen, "%s=%s", name, value);
+	if (!env || !vars)
+		return FALSE;
+
+	for (i = 0; i < vars->count; ++i) {
+		var = &vars->data[i];
+
+		if (ni_string_empty(var->name))
+			continue;
+
+		if (!overwrite && ni_environ_getenv(env, var->name))
+			continue;
+
+		if (!ni_environ_setenv(env, var->name, var->value))
+			return FALSE;
+	}
+	return TRUE;
+}
+
+ni_bool_t
+ni_environ_setenv_entry(ni_string_array_t *env, const char *newvar)
+{
+	size_t namelen;
+	unsigned int i;
+
+	if (!env || ni_string_empty(newvar))
+		return FALSE;
+
+	if (!(namelen = strcspn(newvar,  "=")))
+		return FALSE;
 
 	for (i = 0; i < env->count; ++i) {
 		char *oldvar = env->data[i];
 
-		if (!strncmp(oldvar, name, namelen) && oldvar[namelen] == '=') {
-			env->data[i] = newvar;
-			free(oldvar);
-			return;
-		}
+		if (!strncmp(oldvar, newvar, namelen) && oldvar[namelen] == '=')
+			return ni_string_dup(&env->data[i], newvar);
 	}
-
-	ni_string_array_append(env, newvar);
-	free(newvar);
+	return ni_string_array_append(env, newvar) == 0;
 }
 
-void
-ni_shellcmd_setenv(ni_shellcmd_t *proc, const char *name, const char *value)
+ni_bool_t
+ni_environ_setenv_entries(ni_string_array_t *dst, const ni_string_array_t *src)
 {
-	__ni_process_setenv(&proc->environ, name, value);
+	const char *var;
+	unsigned int n;
+
+	if (!dst || !src)
+		return FALSE;
+
+	for (n = 0; n < src->count; ++n) {
+		var = src->data[n];
+
+		if (!ni_environ_setenv_entry(dst, var))
+			return FALSE;
+	}
+	return TRUE;
 }
 
-void
+ni_bool_t
+ni_environ_setenv(ni_string_array_t *env, const char *name, const char *value)
+{
+	size_t namelen;
+	char *newvar = NULL;
+
+	if (!env || !(namelen = ni_string_len(name)))
+		return FALSE;
+
+	if (namelen != strcspn(name,  "="))
+		return FALSE;
+
+	if (!ni_string_printf(&newvar, "%s=%s", name, value ?: ""))
+		return FALSE;
+
+	if (ni_environ_setenv_entry(env, newvar)) {
+		free(newvar);
+		return TRUE;
+	} else {
+		free(newvar);
+		return FALSE;
+	}
+}
+
+ni_bool_t
+ni_shellcmd_setenv(ni_shellcmd_t *cmd, const char *name, const char *value)
+{
+	return cmd ? ni_environ_setenv(&cmd->environ, name, value) : FALSE;
+}
+
+ni_bool_t
 ni_process_setenv(ni_process_t *pi, const char *name, const char *value)
 {
-	__ni_process_setenv(&pi->environ, name, value);
+	return pi ? ni_environ_setenv(&pi->environ, name, value) : FALSE;
+}
+
+ni_bool_t
+ni_shellcmd_setenv_vars(ni_shellcmd_t *cmd, const ni_var_array_t *vars,
+		ni_bool_t overwrite)
+{
+	return cmd ? ni_environ_setenv_vars(&cmd->environ, vars, overwrite) : FALSE;
+}
+
+ni_bool_t
+ni_process_setenv_vars(ni_process_t *pi, const ni_var_array_t *vars,
+		ni_bool_t overwrite)
+{
+	return pi ? ni_environ_setenv_vars(&pi->environ, vars, overwrite) : FALSE;
 }
 
 /*
  * Getting environment variables
  */
-static const char *
-__ni_process_getenv(const ni_string_array_t *env, const char *name)
+const char *
+ni_environ_getenv(const ni_string_array_t *env, const char *name)
 {
-	unsigned int namelen = strlen(name);
+	unsigned int namelen;
 	unsigned int i;
+
+	if (!env || !(namelen = ni_string_len(name)))
+		return NULL;
 
 	for (i = 0; i < env->count; ++i) {
 		char *oldvar = env->data[i];
 
 		if (!strncmp(oldvar, name, namelen) && oldvar[namelen] == '=') {
 			oldvar += namelen + 1;
-			return oldvar[0]? oldvar : NULL;
+			return oldvar[0] ? oldvar : NULL;
 		}
 	}
 
 	return NULL;
 }
 
+ni_bool_t
+ni_environ_getenv_vars(const ni_string_array_t *env, ni_var_array_t *vars)
+{
+	char *name = NULL;
+	const char *var;
+	unsigned int i;
+	ni_bool_t ret;
+	size_t len;
+
+	if (!vars || !env)
+		return FALSE;
+
+	for (i = 0; i < env->count; ++i) {
+		var = env->data[i];
+
+		len = strcspn(var, "=");
+		if (!len || !ni_string_set(&name, var, len))
+			return FALSE;
+
+		ret = ni_var_array_set(vars, name, var + len + 1);
+		ni_string_free(&name);
+		if (!ret)
+			return ret;
+	}
+	return TRUE;
+}
+
+const char *
+ni_shellcmd_getenv(const ni_shellcmd_t *cmd, const char *name)
+{
+	return cmd ? ni_environ_getenv(&cmd->environ, name) : FALSE;
+}
+
 const char *
 ni_process_getenv(const ni_process_t *pi, const char *name)
 {
-	return __ni_process_getenv(&pi->environ, name);
+	return pi ? ni_environ_getenv(&pi->environ, name) : FALSE;
+}
+
+ni_bool_t
+ni_shellcmd_getenv_vars(const ni_shellcmd_t *cmd, ni_var_array_t *vars)
+{
+	return cmd ? ni_environ_getenv_vars(&cmd->environ, vars) : FALSE;
+}
+
+ni_bool_t
+ni_process_getenv_vars(const ni_process_t *pi, ni_var_array_t *vars)
+{
+	return pi ? ni_environ_getenv_vars(&pi->environ, vars) : FALSE;
 }
 
 /*
  * Populate default environment
  */
 static const ni_string_array_t *
-__ni_default_environment(void)
+ni_default_environment(void)
 {
 	static ni_string_array_t defenv;
 	static int initialized = 0;
@@ -317,7 +462,7 @@ __ni_default_environment(void)
 			const char *value;
 
 			if ((value = getenv(name)) != NULL)
-				__ni_process_setenv(&defenv, name, value);
+				ni_environ_setenv(&defenv, name, value);
 		}
 		initialized = 1;
 	}
