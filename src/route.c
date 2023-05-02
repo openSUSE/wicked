@@ -31,6 +31,7 @@
 #include <wicked/route.h>
 
 #include "refcount_priv.h"
+#include "array_priv.h"
 #include "util_priv.h"
 #include "debug.h"
 
@@ -452,7 +453,7 @@ ni_route_expand_hops(ni_route_array_t *routes, const ni_route_t *rp)
 
 		ni_route_free(r);
 		while (routes->count > count) {
-			if (!ni_route_array_delete(routes, routes->count - 1))
+			if (!ni_route_array_delete_at(routes, routes->count - 1))
 				break;
 		}
 		return 0;
@@ -1464,80 +1465,14 @@ ni_route_array_free(ni_route_array_t *nra)
 		free(nra);
 	}
 }
-
-void
-ni_route_array_init(ni_route_array_t *nra)
-{
-	memset(nra, 0, sizeof(*nra));
-}
-
-void
-ni_route_array_destroy(ni_route_array_t *nra)
-{
-	if (nra) {
-		while (nra->count) {
-			nra->count--;
-			ni_route_free(nra->data[nra->count]);
-		}
-		free(nra->data);
-		nra->data = NULL;
-	}
-}
-
-static ni_bool_t
-ni_route_array_realloc(ni_route_array_t *nra, unsigned int newsize)
-{
-	ni_route_t **newdata;
-	unsigned int i;
-
-	if ((UINT_MAX - NI_ROUTE_ARRAY_CHUNK) <= newsize)
-		return FALSE;
-
-	newsize = (newsize + NI_ROUTE_ARRAY_CHUNK);
-	newdata = xrealloc(nra->data, newsize * sizeof(ni_route_t *));
-	if (!newdata)
-		return FALSE;
-
-	nra->data = newdata;
-	for (i = nra->count; i < newsize; ++i) {
-		nra->data[i] = NULL;
-	}
-	return TRUE;
-}
-
-ni_bool_t
-ni_route_array_append(ni_route_array_t *nra, ni_route_t *rp)
-{
-	if (!nra || !rp)
-		return FALSE;
-
-	if ((nra->count % NI_ROUTE_ARRAY_CHUNK) == 0 &&
-	    !ni_route_array_realloc(nra, nra->count))
-		return FALSE;
-
-	nra->data[nra->count++] = rp;
-	return TRUE;
-}
-
-ni_route_t *
-ni_route_array_remove(ni_route_array_t *nra, unsigned int index)
-{
-	ni_route_t *rp;
-
-	if(!nra || index >= nra->count)
-		return NULL;
-
-	rp = nra->data[index];
-	nra->count--;
-	if (index < nra->count) {
-		memmove(&nra->data[index], &nra->data[index + 1],
-			(nra->count - index) * sizeof(ni_route_t *));
-	}
-	nra->data[nra->count] = NULL;
-
-	/* Don't bother with shrinking the array. It's not worth the trouble */
-	return rp;
-}
+extern				ni_define_ptr_array_init(ni_route);
+extern				ni_define_ptr_array_destroy(ni_route);
+extern				ni_define_ptr_array_realloc(ni_route, NI_ROUTE_ARRAY_CHUNK);
+extern				ni_define_ptr_array_append(ni_route);
+extern				ni_define_ptr_array_delete_at(ni_route);
+extern				ni_define_ptr_array_remove_at(ni_route);
+extern				ni_define_ptr_array_at(ni_route);
+extern				ni_define_ptr_array_qsort(ni_route);
 
 ni_route_t *
 ni_route_array_remove_ref(ni_route_array_t *nra, const ni_route_t *rp)
@@ -1549,21 +1484,9 @@ ni_route_array_remove_ref(ni_route_array_t *nra, const ni_route_t *rp)
 
 	for (i = 0; i < nra->count; i++) {
 		if (rp == nra->data[i])
-			return ni_route_array_remove(nra, i);
+			return ni_route_array_remove_at(nra, i);
 	}
 	return NULL;
-}
-
-ni_bool_t
-ni_route_array_delete(ni_route_array_t *nra, unsigned int index)
-{
-	ni_route_t *rp;
-
-	if ((rp = ni_route_array_remove(nra, index))) {
-		ni_route_free(rp);
-		return TRUE;
-	}
-	return FALSE;
 }
 
 ni_bool_t
@@ -1579,17 +1502,9 @@ ni_route_array_delete_ref(ni_route_array_t *nra, const ni_route_t *rp)
 }
 
 ni_route_t *
-ni_route_array_get(ni_route_array_t *nra, unsigned int index)
-{
-	if (!nra || index >= nra->count)
-		return NULL;
-	return nra->data[index];
-}
-
-ni_route_t *
 ni_route_array_ref(ni_route_array_t *nra, unsigned int index)
 {
-	return ni_route_ref(ni_route_array_get(nra, index));
+	return ni_route_ref(ni_route_array_at(nra, index));
 }
 
 ni_route_t *
@@ -1643,25 +1558,6 @@ static int
 ni_route_sort_cmp_rev(const ni_route_t *r1, const ni_route_t *r2)
 {
 	return 0 - ni_route_sort_cmp(r1, r2);
-}
-
-static int
-ni_route_qsort_r_cmp(const void *_r1, const void *_r2, void *_cmp)
-{
-	const ni_route_t *r1 = *(const ni_route_t **)_r1;
-	const ni_route_t *r2 = *(const ni_route_t **)_r2;
-	ni_route_cmp_fn *rt_cmp = (ni_route_cmp_fn *)_cmp;
-	return rt_cmp(r1, r2);
-}
-
-void
-ni_route_array_qsort(ni_route_array_t *nra, ni_route_cmp_fn *cmp_fn)
-{
-	if (!nra || !nra->count || !cmp_fn)
-		return;
-
-	qsort_r(&nra->data[0], nra->count, sizeof(nra->data[0]),
-			ni_route_qsort_r_cmp, cmp_fn);
 }
 
 void
@@ -2277,29 +2173,17 @@ ni_rule_print(ni_stringbuf_t *out, const ni_rule_t *rule)
 	return out ? out->string : NULL;
 }
 
-void
-ni_rule_array_init(ni_rule_array_t *rules)
-{
-	memset(rules, 0, sizeof(*rules));
-}
-
-void
-ni_rule_array_destroy(ni_rule_array_t *rules)
-{
-	if (rules) {
-		while (rules->count) {
-			rules->count--;
-			ni_rule_drop(&rules->data[rules->count]);
-		}
-		free(rules->data);
-		rules->data = NULL;
-	}
-}
-
 ni_rule_array_t *
 ni_rule_array_new(void)
 {
 	return xcalloc(1, sizeof(ni_rule_array_t));
+}
+
+void
+ni_rule_array_free(ni_rule_array_t *rules)
+{
+	ni_rule_array_destroy(rules);
+	free(rules);
 }
 
 ni_rule_array_t *
@@ -2314,12 +2198,6 @@ ni_rule_array_clone(const ni_rule_array_t *orig)
 	return clone;
 }
 
-void
-ni_rule_array_free(ni_rule_array_t *rules)
-{
-	ni_rule_array_destroy(rules);
-	free(rules);
-}
 
 void
 ni_rule_array_copy(ni_rule_array_t *dst, const ni_rule_array_t *src)
@@ -2333,116 +2211,15 @@ ni_rule_array_copy(ni_rule_array_t *dst, const ni_rule_array_t *src)
 		ni_rule_array_append(dst, ni_rule_clone(src->data[i]));
 }
 
-unsigned int
-ni_rule_array_index(const ni_rule_array_t *rules, const ni_rule_t *rule)
-{
-	unsigned int i;
-	ni_rule_t *r;
-
-	if (rules) {
-		for (i = 0; i < rules->count; ++i) {
-			r = rules->data[i];
-			if (r == rule)
-				return i;
-		}
-	}
-	return -1U;
-}
-
-static ni_bool_t
-ni_rule_array_realloc(ni_rule_array_t *rules, unsigned int newsize)
-{
-	ni_rule_t **newdata;
-	unsigned int i;
-
-	if ((UINT_MAX - NI_RULE_ARRAY_CHUNK) <= newsize)
-		return FALSE;
-
-	newsize = (newsize + NI_RULE_ARRAY_CHUNK);
-	newdata = xrealloc(rules->data, newsize * sizeof(ni_rule_t *));
-	if (!newdata)
-		return FALSE;
-
-	rules->data = newdata;
-	for (i = rules->count; i < newsize; ++i)
-		rules->data[i] = NULL;
-
-	return TRUE;
-}
-
-ni_bool_t
-ni_rule_array_append(ni_rule_array_t *rules, ni_rule_t *rule)
-{
-	if (!rules || !rule)
-		return FALSE;
-
-	if ((rules->count % NI_RULE_ARRAY_CHUNK) == 0 &&
-	    !ni_rule_array_realloc(rules, rules->count))
-		return FALSE;
-
-	rules->data[rules->count++] = rule;
-	return TRUE;
-}
-
-ni_bool_t
-ni_rule_array_insert(ni_rule_array_t *rules, unsigned int index, ni_rule_t *rule)
-{
-	if (!rules || !rule)
-		return FALSE;
-
-	if (index >= rules->count)
-		return ni_rule_array_append(rules, rule);
-
-	if ((rules->count % NI_RULE_ARRAY_CHUNK) == 0 &&
-	    !ni_rule_array_realloc(rules, rules->count))
-		return FALSE;
-
-	memmove(&rules->data[index + 1], &rules->data[index],
-		(rules->count - index) * sizeof(ni_rule_t *));
-	rules->data[index] = rule;
-	rules->count++;
-	return TRUE;
-}
-
-ni_bool_t
-ni_rule_array_delete(ni_rule_array_t *rules, unsigned int index)
-{
-	ni_rule_t *rule;
-
-	if ((rule = ni_rule_array_remove(rules, index))) {
-		ni_rule_free(rule);
-		return TRUE;
-	}
-	return FALSE;
-}
-
-ni_rule_t *
-ni_rule_array_remove(ni_rule_array_t *rules, unsigned int index)
-{
-	ni_rule_t *rule;
-
-	if (!rules || index >= rules->count)
-		return NULL;
-
-	rule = rules->data[index];
-	rules->count--;
-	if (index < rules->count) {
-		memmove(&rules->data[index], &rules->data[index + 1],
-			(rules->count - index) * sizeof(ni_rule_t *));
-	}
-	rules->data[rules->count] = NULL;
-
-	/* Don't bother with shrinking the array. It's not worth the trouble */
-	return rule;
-}
-
-ni_rule_t *
-ni_rule_array_get(ni_rule_array_t *rules, unsigned int index)
-{
-	if (!rules || index >= rules->count)
-		return NULL;
-	return rules->data[index];
-}
+extern ni_define_ptr_array_init(ni_rule);
+extern ni_define_ptr_array_destroy(ni_rule);
+extern ni_define_ptr_array_index(ni_rule);
+static ni_define_ptr_array_realloc(ni_rule, NI_RULE_ARRAY_CHUNK);
+extern ni_define_ptr_array_append(ni_rule);
+extern ni_define_ptr_array_insert(ni_rule);
+extern ni_define_ptr_array_delete_at(ni_rule);
+extern ni_define_ptr_array_remove_at(ni_rule);
+extern ni_define_ptr_array_at(ni_rule);
 
 ni_rule_t *
 ni_rule_array_find_match(const ni_rule_array_t *rules, const ni_rule_t *rule,

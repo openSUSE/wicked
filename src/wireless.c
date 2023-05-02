@@ -34,6 +34,7 @@
 #include <wicked/socket.h>
 #include <wicked/netinfo.h>
 #include "refcount_priv.h"
+#include "array_priv.h"
 #include "socket_priv.h"
 #include "netinfo_priv.h"
 #include "wpa-supplicant.h"
@@ -2009,10 +2010,10 @@ ni_wireless_network_destroy(ni_wireless_network_t *net)
 	memset(net, 0, sizeof(*net));
 }
 
-static ni_define_refcounted_ref(ni_wireless_network);
 static ni_define_refcounted_free(ni_wireless_network);
 extern ni_define_refcounted_new(ni_wireless_network);
 extern ni_define_refcounted_drop(ni_wireless_network);
+extern ni_define_refcounted_ref(ni_wireless_network);
 
 void
 ni_wireless_wep_key_array_destroy(char **array)
@@ -2026,37 +2027,28 @@ ni_wireless_wep_key_array_destroy(char **array)
 /*
  * Wireless network arrays
  */
-void
-ni_wireless_network_array_init(ni_wireless_network_array_t *array)
-{
-	memset(array, 0, sizeof(*array));
-}
-
-void
-ni_wireless_network_array_append(ni_wireless_network_array_t *array, ni_wireless_network_t *net)
-{
-	array->data = realloc(array->data, (array->count + 1) * sizeof(ni_wireless_network_t *));
-	array->data[array->count++] = ni_wireless_network_ref(net);
-}
-
-void
-ni_wireless_network_array_destroy(ni_wireless_network_array_t *array)
-{
-	unsigned int i;
-
-	for (i = 0; i < array->count; ++i)
-		ni_wireless_network_drop(&array->data[i]);
-	free(array->data);
-	memset(array, 0, sizeof(*array));
-}
+extern					ni_define_ptr_array_init(ni_wireless_network);
+extern					ni_define_ptr_array_realloc(ni_wireless_network, 1);
+extern					ni_define_ptr_array_append(ni_wireless_network);
+extern					ni_define_ptr_array_destroy(ni_wireless_network);
 
 void
 ni_wireless_network_array_copy(ni_wireless_network_array_t *dst, ni_wireless_network_array_t *src)
 {
 	unsigned int i;
 
-	for (i = 0; i < src->count; ++i)
-		ni_wireless_network_array_append(dst, src->data[i]);
+	if (!dst || !src)
+		return FALSE;
+
+	for (i = 0; i < src->count; ++i) {
+		ni_wireless_network_t *ref = ni_wireless_network_ref(src->data[i]);
+
+		if (ref && !ni_wireless_network_array_append(dst, ref)) {
+			ni_wireless_network_free(ref);
+			return FALSE;
+		}
+	}
+	return TRUE;
 }
 
 /*
