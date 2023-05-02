@@ -1197,7 +1197,10 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 	/* setup successfull, store configuration for expected wpa_supplicant restarts */
 	if (!wlan->conf)
 		wlan->conf = ni_wireless_config_new();
-	ni_wireless_config_copy(wlan->conf, conf);
+	if (!ni_wireless_config_copy(wlan->conf, conf)) {
+		ni_error("%s: copy current config failed", dev->name);
+		ni_wireless_config_free(&wlan->conf);
+	}
 
 	if (wlan->scan.interval > 0)
 		__ni_wireless_scan_timer_arm(&wlan->scan, dev, 1);
@@ -1777,18 +1780,28 @@ ni_wireless_config_destroy(ni_wireless_config_t *conf)
 	}
 }
 
-void
+ni_bool_t
 ni_wireless_config_copy(ni_wireless_config_t *dst, ni_wireless_config_t *src)
 {
-	if (!src || !dst || dst == src)
-		return;
+	if (!src || !dst)
+		return FALSE;
 
-	ni_string_dup(&dst->country, src->country);
+	if (dst == src)
+		return TRUE;
+
+	if (!ni_string_dup(&dst->country, src->country))
+		return FALSE;
+
 	dst->ap_scan = src->ap_scan;
-	ni_string_dup(&dst->driver, src->driver);
+
+	if (!ni_string_dup(&dst->driver, src->driver))
+		return FALSE;
 
 	ni_wireless_network_array_destroy(&dst->networks);
-	ni_wireless_network_array_copy(&dst->networks, &src->networks);
+	if (!ni_wireless_network_array_copy(&dst->networks, &src->networks))
+		return FALSE;
+
+	return TRUE;
 }
 
 ni_bool_t
@@ -2027,12 +2040,12 @@ ni_wireless_wep_key_array_destroy(char **array)
 /*
  * Wireless network arrays
  */
-extern					ni_define_ptr_array_init(ni_wireless_network);
-extern					ni_define_ptr_array_realloc(ni_wireless_network, 1);
-extern					ni_define_ptr_array_append(ni_wireless_network);
-extern					ni_define_ptr_array_destroy(ni_wireless_network);
+extern ni_define_ptr_array_init(ni_wireless_network);
+extern ni_define_ptr_array_realloc(ni_wireless_network, 1);
+extern ni_define_ptr_array_append(ni_wireless_network);
+extern ni_define_ptr_array_destroy(ni_wireless_network);
 
-void
+ni_bool_t
 ni_wireless_network_array_copy(ni_wireless_network_array_t *dst, ni_wireless_network_array_t *src)
 {
 	unsigned int i;

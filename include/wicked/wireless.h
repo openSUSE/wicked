@@ -378,7 +378,7 @@ extern ni_wireless_config_t *		ni_wireless_config_new();
 extern void				ni_wireless_config_free(ni_wireless_config_t **);
 extern ni_bool_t			ni_wireless_config_init(ni_wireless_config_t *);
 extern void				ni_wireless_config_destroy(ni_wireless_config_t *);
-extern void				ni_wireless_config_copy(ni_wireless_config_t *, ni_wireless_config_t *);
+extern ni_bool_t			ni_wireless_config_copy(ni_wireless_config_t *, ni_wireless_config_t *);
 extern ni_bool_t			ni_wireless_config_has_essid(ni_wireless_config_t *, ni_wireless_ssid_t *);
 
 extern ni_wireless_scan_t *		ni_wireless_scan_new(ni_netdev_t *, unsigned int);
@@ -390,7 +390,7 @@ extern void				ni_wireless_blob_free(ni_wireless_blob_t **);
 extern					ni_declare_ptr_array_init(ni_wireless_network);
 extern					ni_declare_ptr_array_append(ni_wireless_network);
 extern					ni_declare_ptr_array_destroy(ni_wireless_network);
-extern void				ni_wireless_network_array_copy(ni_wireless_network_array_t *, ni_wireless_network_array_t *);
+extern ni_bool_t			ni_wireless_network_array_copy(ni_wireless_network_array_t *, ni_wireless_network_array_t *);
 
 extern ni_wireless_bss_t *		ni_wireless_bss_new();
 extern void				ni_wireless_bss_init(ni_wireless_bss_t *bss);
