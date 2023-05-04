@@ -8,7 +8,8 @@ pushd "${srcdir}" >/dev/null
 autoreconf --force --install     || exit 1
 popd >/dev/null
 
-_lib=`rpm -E '%_lib' 2>/dev/null`
+statedir=$(rpm -E '%{!_rundir:/var}' 2>/dev/null)
+_lib=$(rpm -E '%_lib' 2>/dev/null)
 test -n "$_lib" || case "$(uname -m)" in
 	x86_64|s390x|ppc64|powerpc64) _lib=lib64 ;;
 	*) _lib=lib ;;
@@ -23,7 +24,7 @@ defaults=(
 	--libdir="${prefix}/${_lib}"
 	--libexecdir="${prefix}/lib"
 	--datadir="${prefix}/share"
-	--localstatedir=/var
+	--localstatedir="${statedir}"
 )
 
 "${srcdir}/configure" "${defaults[@]}" "${@}"
