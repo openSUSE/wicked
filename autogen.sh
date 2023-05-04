@@ -16,7 +16,15 @@ esac
 
 export CFLAGS="${CFLAGS:- -std=gnu89 -O1 -g -D_FORTIFY_SOURCE=2 -fstack-protector -Wall -Wextra -Wno-unused-parameter}"
 prefix=/usr
-defaults=(--enable-silent-rules --sysconfdir=/etc --prefix=${prefix} --libdir=${prefix}/${_lib} --libexecdir=${prefix}/lib --datadir=${prefix}/share --localstatedir=/var)
+defaults=(
+	--enable-silent-rules
+	--sysconfdir=/etc
+	--prefix="${prefix}"
+	--libdir="${prefix}/${_lib}"
+	--libexecdir="${prefix}/lib"
+	--datadir="${prefix}/share"
+	--localstatedir=/var
+)
 
-"${srcdir}/configure" "${@:-${defaults[@]}}"
+"${srcdir}/configure" "${defaults[@]}" "${@}"
 
