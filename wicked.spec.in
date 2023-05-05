@@ -48,6 +48,11 @@ Provides:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}-%{release}
 Provides:       libwicked-0-6 = %{version}
 Obsoletes:      libwicked-0-6 < %{version}
 
+%if 0%{?suse_version} > 1500 || 0%{?sle_version} >= 150500
+%bcond_without  nbft
+%else
+%bcond_with     nbft
+%endif
 %if 0%{?suse_version} >= 1500
 %bcond_without  rfc4361_cid
 %else
@@ -123,6 +128,8 @@ Wicked is a network configuration infrastructure incorporating a number
 of existing frameworks into a unified architecture, providing a DBUS
 interface to network configuration.
 
+%if %{with nbft}
+
 %package nbft
 Summary:        Network configuration infrastructure - nbft support
 Group:          System/Management
@@ -134,6 +141,8 @@ Requires:       jq >= 1.6
 This package provides an extension to retrieve the NBFT firmware
 network interface configuration according to the NVM Express Boot
 Specification 1.0 and convert it to wicked configuration.
+
+%endif
 
 %if %{with systemd}
 
@@ -210,6 +219,9 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS -fPIC" LDFLAGS="-pie"
 %endif
 %if %{without use_teamd}
 	--disable-teamd			\
+%endif
+%if %{without nbft}
+	--disable-nbft			\
 %endif
 %if %{with systemd}
 	--enable-systemd		\
@@ -336,11 +348,15 @@ if [ ${FIRST_ARG:-$1} -eq 0 ]; then
 	/usr/bin/systemctl reload dbus.service 2>/dev/null || :
 fi
 
+%if %{with nbft}
+
 %postun nbft
 # revert nbft override in client-firmware.xml config
 if [ ${FIRST_ARG:-$1} -eq 0 ]; then
 	%_sbindir/wicked firmware revert nbft 2>/dev/null || :
 fi
+
+%endif
 
 %files
 %defattr (-,root,root)
@@ -419,9 +435,13 @@ fi
 %_fillupdir/sysconfig.dhcp-wicked
 %attr(0750,root,root) %dir        %wicked_storedir
 
+%if %{with nbft}
+
 %files nbft
 %config(noreplace) %_sysconfdir/wicked/client-nbft.xml
 %config(noreplace) %_sysconfdir/wicked/extensions/nbft
+
+%endif
 
 %if %{with systemd}
 

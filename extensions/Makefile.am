@@ -1,17 +1,22 @@
 
 CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
+EXTRA_DIST			= $(wicked_extensions_SCRIPTS)
 
 wicked_extensions_SCRIPTS	= \
 	dispatch	\
 	firewall	\
 	hostname	\
 	ibft		\
-	nbft		\
 	netconfig	\
 	redfish-config
 
-EXTRA_DIST			= $(wicked_extensions_SCRIPTS)
+if nbft
+wicked_extensions_SCRIPTS	+= nbft
+else
+EXTRA_DIST			+= nbft
+endif
+
 
 check-local:
 	@for i in $(wicked_extensions_SCRIPTS) ; \
