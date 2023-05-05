@@ -49,6 +49,8 @@ Makefile.in
 /etc/systemv/network
 /etc/systemv/*.service
 /etc/systemd/*.service
+/extensions/firewall
+/extensions/hostname
 /schema/constants.xml
 /autoip4/wickedd-auto4
 /dhcp4/wickedd-dhcp4
