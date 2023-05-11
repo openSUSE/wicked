@@ -4170,7 +4170,10 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 	}
 
 	if ((var = __find_indexed_variable(sc,"WIRELESS_EAP_AUTH", suffix))) {
-		if (!ni_wireless_name_to_eap_method(var->value, &net->wpa_eap.phase2.method)) {
+		if (net->wpa_eap.method == NI_WIRELESS_EAP_TLS) {
+			ni_warn("ifcfg-%s: Ignore WIRELESS_EAP_AUTH%s for eap mode TLS", dev_name, suffix);
+
+		} else if (!ni_wireless_name_to_eap_method(var->value, &net->wpa_eap.phase2.method)) {
 			ni_error("ifcfg-%s: wrong WIRELESS_EAP_AUTH%s value",
 				dev_name, suffix);
 			goto eap_failure;
