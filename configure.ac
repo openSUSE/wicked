@@ -35,6 +35,13 @@ if test "x$enable_lldp" = "xyes" ; then
 	AC_DEFINE([NI_ENABLE_LLDP], [], [Enable lldp support])
 fi
 
+# Whether to enable nbft support (>= SLE-15-SP5)
+AC_ARG_ENABLE([nbft],
+	[AS_HELP_STRING([--disable-nbft],
+		[disable to not install nbft firmware extension])],,
+	[enable_nbft=yes])
+AM_CONDITIONAL([nbft], [test "x$enable_nbft" = "xyes"])
+
 # Whether to request NIS option in dhcp6 by default
 AC_ARG_ENABLE([dhcp6-nis],
 	      [AS_HELP_STRING([--disable-dhcp6-nis],
