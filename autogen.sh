@@ -50,7 +50,7 @@ defaults=(
 	--datadir="${prefix}/share"
 	--localstatedir="$localstatedir"
 	--with-statedir="${rundir}/wicked"
-        --with-fillup-templatesdir="$fillupdir"
+	--with-fillup-templatesdir="$fillupdir"
 )
 
 "${srcdir}/configure" "${defaults[@]}" "${args[@]}"
