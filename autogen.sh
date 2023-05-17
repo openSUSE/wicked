@@ -20,7 +20,18 @@ pushd "${srcdir}" >/dev/null
 autoreconf --force --install     || exit 1
 popd >/dev/null
 
-statedir=$(rpm -E '%{!_rundir:/var}' 2>/dev/null)
+localstatedir=$(rpm -E '%_localstatedir')
+if [ "$(rpm -E '%{defined _rundir}')" -eq 1 ]; then
+	rundir="$(rpm -E '%{_rundir}')";
+else
+	rundir="$localstatedir/run"
+fi
+if [ "$(rpm -E '%{defined _fillupdir}')" -eq 1 ]; then
+	fillupdir="$(rpm -E '%{_fillupdir}')";
+else
+	fillupdir="$localstatedir/adm/fillup-templates"
+fi
+
 _lib=$(rpm -E '%_lib' 2>/dev/null)
 test -n "$_lib" || case "$(uname -m)" in
 	x86_64|s390x|ppc64|powerpc64) _lib=lib64 ;;
@@ -37,7 +48,9 @@ defaults=(
 	--libdir="${prefix}/${_lib}"
 	--libexecdir="${prefix}/lib"
 	--datadir="${prefix}/share"
-	--localstatedir="${statedir}"
+	--localstatedir="$localstatedir"
+	--with-statedir="${rundir}/wicked"
+	--with-fillup-templatesdir="$fillupdir"
 )
 
 "${srcdir}/configure" "${defaults[@]}" "${args[@]}"
