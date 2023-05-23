@@ -1,7 +1,7 @@
 /*
  *	An elementary JSON implementation
  *
- *	Copyright (C) 2015 SUSE Linux GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2015-2023 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,14 +13,12 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- *	Boston, MA 02110-1301 USA.
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *	Authors:
- *		Marius Tomaschewski <mt@suse.de>
- *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
+ *		Marius Tomaschewski
+ *		Jorik Cronenberg
  */
 #ifndef NI_JSON_H
 #define NI_JSON_H
@@ -107,17 +105,22 @@ extern	unsigned int			ni_json_object_entries(ni_json_t *);
 
 
 typedef enum {
-	NI_JSON_ESCAPE_SLASH = 1U << 0,
+	NI_JSON_ESCAPE_SLASH	= NI_BIT(0),
 } ni_json_format_flags_t;
 
 typedef struct {
 	ni_json_format_flags_t	flags;
+	unsigned int		indent;
 } ni_json_format_options_t;
 
-extern	const char *			ni_json_format_string(ni_stringbuf_t *buf,
+#define NI_JSON_INDENT_DEPTH		2	/* default indent depth */
+#define NI_JSON_OPTIONS_INIT		{ .flags = 0, .indent = NI_JSON_INDENT_DEPTH }
+
+extern	const char *			ni_json_format_string(ni_stringbuf_t *,
 							const ni_json_t *,
 							const ni_json_format_options_t *);
 
-extern	ni_json_t *			ni_json_parse_string(const char *str);
+extern	ni_json_t *			ni_json_parse_string(const char *);
+extern	ni_json_t *			ni_json_parse_file(const char *);
 
 #endif /* NI_JSON_H */
