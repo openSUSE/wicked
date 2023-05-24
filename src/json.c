@@ -1085,9 +1085,9 @@ typedef enum {
 
 typedef struct ni_json_reader_stack	ni_json_reader_stack_t;
 typedef struct ni_json_reader		ni_json_reader_t;
-typedef int    ni_json_reader_get_fn_t(ni_json_reader_t *, void *, size_t);
-typedef int    ni_json_reader_getc_fn_t(ni_json_reader_t *);
-typedef int    ni_json_reader_ungetc_fn_t(ni_json_reader_t *, int);
+typedef int    ni_json_reader_get_data_fn_t(ni_json_reader_t *, void *, size_t);
+typedef int    ni_json_reader_get_char_fn_t(ni_json_reader_t *);
+typedef int    ni_json_reader_unget_char_fn_t(ni_json_reader_t *, int);
 
 struct ni_json_reader_stack {
 	ni_json_reader_stack_t *	parent;
@@ -1106,9 +1106,9 @@ struct ni_json_reader {
 	ni_bool_t			quiet;
 	ni_string_array_t		error;
 	ni_json_reader_stack_t *	stack;
-	ni_json_reader_get_fn_t *	get;
-	ni_json_reader_getc_fn_t *	getc;
-	ni_json_reader_ungetc_fn_t *	ungetc;
+	ni_json_reader_get_data_fn_t *	get_data;
+	ni_json_reader_get_char_fn_t *	get_char;
+	ni_json_reader_unget_char_fn_t *unget_char;
 };
 
 static ni_json_reader_stack_t *
@@ -1169,9 +1169,9 @@ ni_json_reader_init_buffer(ni_json_reader_t *jr, ni_buffer_t *buf)
 	jr->quiet = FALSE;
 	ni_string_array_init(&jr->error);
 
-	jr->get    = ni_json_reader_buffer_get;
-	jr->getc   = ni_json_reader_buffer_getc;
-	jr->ungetc = ni_json_reader_buffer_ungetc;
+	jr->get_data   = ni_json_reader_buffer_get;
+	jr->get_char   = ni_json_reader_buffer_getc;
+	jr->unget_char = ni_json_reader_buffer_ungetc;
 	return buf != NULL;
 }
 
@@ -1206,9 +1206,9 @@ ni_json_reader_init_file(ni_json_reader_t *jr, FILE *file)
 	jr->quiet = FALSE;
 	ni_string_array_init(&jr->error);
 
-	jr->get    = ni_json_reader_file_get;
-	jr->getc   = ni_json_reader_file_getc;
-	jr->ungetc = ni_json_reader_file_ungetc;
+	jr->get_data   = ni_json_reader_file_get;
+	jr->get_char   = ni_json_reader_file_getc;
+	jr->unget_char = ni_json_reader_file_ungetc;
 	return file != NULL;
 }
 
@@ -1326,9 +1326,9 @@ ni_json_reader_skip_spaces(ni_json_reader_t *jr)
 {
 	int cc;
 
-	while ((cc = jr->getc(jr)) != EOF) {
+	while ((cc = jr->get_char(jr)) != EOF) {
 		if (!isspace(cc)) {
-			jr->ungetc(jr, cc);
+			jr->unget_char(jr, cc);
 			break;
 		}
 	}
@@ -1339,9 +1339,9 @@ ni_json_reader_get_literal(ni_json_reader_t *jr, ni_stringbuf_t *res)
 {
 	int cc;
 
-	while ((cc = jr->getc(jr)) != EOF) {
+	while ((cc = jr->get_char(jr)) != EOF) {
 		if (!isalpha(cc)) {
-			jr->ungetc(jr, cc);
+			jr->unget_char(jr, cc);
 			break;
 		}
 		ni_stringbuf_putc(res, cc);
@@ -1353,7 +1353,7 @@ ni_json_reader_get_number(ni_json_reader_t *jr, ni_stringbuf_t *res)
 {
 	int cc;
 
-	while ((cc = jr->getc(jr)) != EOF) {
+	while ((cc = jr->get_char(jr)) != EOF) {
 		switch (cc) {
 		case '+': case '-':
 		case 'e': case 'E':
@@ -1365,7 +1365,7 @@ ni_json_reader_get_number(ni_json_reader_t *jr, ni_stringbuf_t *res)
 				ni_stringbuf_putc(res, cc);
 				break;
 			}
-			jr->ungetc(jr, cc);
+			jr->unget_char(jr, cc);
 			return;
 		}
 	}
@@ -1400,7 +1400,7 @@ ni_json_reader_get_eunicode_hex(ni_json_reader_t *jr, uint8_t *hex)
 	unsigned int octet;
 	char *end = NULL;
 
-	if (jr->get(jr, &hbuf[0], 2))
+	if (jr->get_data(jr, &hbuf[0], 2))
 		return FALSE;
 
 	octet = strtoul(&hbuf[0], &end, 16);
@@ -1518,14 +1518,14 @@ ni_json_reader_get_eunicode(ni_json_reader_t *jr, ni_stringbuf_t *res)
 		if (!(ret = ni_json_reader_get_eunicode_raw(jr, &raw)))
 			break;
 
-		if ((cc = jr->getc(jr)) != '\\') {
+		if ((cc = jr->get_char(jr)) != '\\') {
 			if (cc != EOF)
-				jr->ungetc(jr, cc);
+				jr->unget_char(jr, cc);
 			cc = EOF;
 			break;
 		}
 
-	} while ((cc = jr->getc(jr)) == 'u');
+	} while ((cc = jr->get_char(jr)) == 'u');
 
 	ret = ni_json_reader_get_eunicode_str(jr, res,
 			ni_buffer_head(&raw),
@@ -1577,7 +1577,7 @@ ni_json_reader_get_qstring(ni_json_reader_t *jr, ni_stringbuf_t *res)
 	const char *us;
 	int cc;
 
-	while ((cc = jr->getc(jr)) != EOF) {
+	while ((cc = jr->get_char(jr)) != EOF) {
 		if (escaped) {
 			if (cc == 'u') {
 #ifdef HAVE_ICONV_H
@@ -1614,7 +1614,7 @@ ni_json_get_token(ni_json_reader_t *jr, ni_stringbuf_t *res)
 {
 	int cc;
 
-	if ((cc = jr->getc(jr)) == EOF)
+	if ((cc = jr->get_char(jr)) == EOF)
 		return EndOfFile;
 
 	switch (cc) {
