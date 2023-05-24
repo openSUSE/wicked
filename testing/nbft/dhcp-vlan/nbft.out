@@ -20,4 +20,9 @@
     <enabled>true</enabled>
     <hostname>nvmepoc-wicked</hostname>
   </ipv4:dhcp>
+  <scripts>
+    <post-up>
+      <script>systemd:nvmf-connect-nbft.service</script>
+    </post-up>
+  </scripts>
 </interface>
