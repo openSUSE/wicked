@@ -213,6 +213,41 @@ TESTCASE(ni_json_object_format_string)
 	ni_json_free(json_object2);
 }
 
+TESTCASE(ni_json_format_string_indent)
+{
+	char *expected_str = "[\n"
+			     "  null,\n"
+			     "  42,\n"
+			     "  0.42,\n"
+			     "  false,\n"
+			     "  \"string1_5\",\n"
+			     "  {\n"
+			     "    \"foo\": [\n"
+			     "      \"string1_6_foo\",\n"
+			     "      true\n"
+			     "    ],\n"
+			     "    \"bar\": {\n"
+			     "      \"a\": \"string1_6_bar_a\",\n"
+			     "      \"b\": \"string1_6_bar_b\",\n"
+			     "      \"c\": \"\\\"\\\\/\\t\\n\\r\\u0007\\b\\f\"\n"
+			     "    }\n"
+			     "  },\n"
+			     "  []\n"
+			     "]";
+
+	ni_json_format_options_t options = { .indent = 2 };
+	ni_stringbuf_t buf1 = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_json_t *json;
+
+	CHECK((json = init1()));
+	CHECK(ni_json_format_string(&buf1, json, &options));
+
+	CHECK(ni_string_eq(expected_str, buf1.string));
+
+	ni_stringbuf_destroy(&buf1);
+	ni_json_free(json);
+}
+
 TESTCASE(ni_json_parse_string)
 {
 	char *valid_json_str = "{\"obj1\": \"string2\",\"obj2\": null,\"obj3\": 64,\"obj4\": 0.4,\"obj5\": true}";
@@ -662,6 +697,33 @@ TESTCASE(ni_json_type_name)
 	CHECK(ni_string_eq(ni_json_type_name(NI_JSON_TYPE_STRING), "string"));
 	CHECK(ni_string_eq(ni_json_type_name(NI_JSON_TYPE_OBJECT), "object"));
 	CHECK(ni_string_eq(ni_json_type_name(NI_JSON_TYPE_ARRAY), "array"));
+}
+
+TESTCASE(ni_json_parse_file)
+{
+	ni_json_t *json, *array_value, *escaped, *control;
+	char *escaped_str = NULL, *control_str = NULL;
+	unsigned int i;
+	char path[4096] = "json-test.json";
+
+	if (getenv("srcdir"))
+		snprintf(path, sizeof(path), "%s/json-test.json", getenv("srcdir"));
+
+	CHECK((json = ni_json_parse_file(path)));
+	CHECK(ni_string_eq(ni_json_type_name(ni_json_type(json)), "array"));
+
+	for (i = 0; (array_value = ni_json_array_get(json, i)); i++) {
+		CHECK(ni_string_eq(ni_json_type_name(ni_json_type(array_value)), "object"));
+		CHECK((escaped = ni_json_object_get_value(array_value, "escaped")));
+		CHECK((control = ni_json_object_get_value(array_value, "control")));
+		CHECK(ni_json_string_get(escaped, &escaped_str));
+		CHECK(ni_json_string_get(control, &control_str));
+		CHECK(ni_string_eq(escaped_str, control_str));
+	}
+
+	free(escaped_str);
+	free(control_str);
+	ni_json_free(json);
 }
 
 TESTMAIN();
