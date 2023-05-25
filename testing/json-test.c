@@ -664,4 +664,31 @@ TESTCASE(ni_json_type_name)
 	CHECK(ni_string_eq(ni_json_type_name(NI_JSON_TYPE_ARRAY), "array"));
 }
 
+TESTCASE(ni_json_parse_file)
+{
+	ni_json_t *json, *array_value, *escaped, *control;
+	char *escaped_str = NULL, *control_str = NULL;
+	unsigned int i;
+	char path[4096] = "json-test.json";
+
+	if (getenv("srcdir"))
+		snprintf(path, sizeof(path), "%s/json-test.json", getenv("srcdir"));
+
+	CHECK((json = ni_json_parse_file(path)));
+	CHECK(ni_string_eq(ni_json_type_name(ni_json_type(json)), "array"));
+
+	for (i = 0; (array_value = ni_json_array_get(json, i)); i++) {
+		CHECK(ni_string_eq(ni_json_type_name(ni_json_type(array_value)), "object"));
+		CHECK((escaped = ni_json_object_get_value(array_value, "escaped")));
+		CHECK((control = ni_json_object_get_value(array_value, "control")));
+		CHECK(ni_json_string_get(escaped, &escaped_str));
+		CHECK(ni_json_string_get(control, &control_str));
+		CHECK(ni_string_eq(escaped_str, control_str));
+	}
+
+	free(escaped_str);
+	free(control_str);
+	ni_json_free(json);
+}
+
 TESTMAIN();

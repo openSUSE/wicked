@@ -46,7 +46,8 @@ ptr_array_test_SOURCES		= ptr_array-test.c
 
 EXTRA_DIST			= ibft xpath		\
 				  scripts/ifbind.sh	\
-				  nbft nbft-test.sh
+				  nbft nbft-test.sh	\
+				  json-test.json
 
 TESTS				= socket-mock-test	\
 				  bitmask-test		\
