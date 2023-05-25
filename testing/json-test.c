@@ -213,6 +213,41 @@ TESTCASE(ni_json_object_format_string)
 	ni_json_free(json_object2);
 }
 
+TESTCASE(ni_json_format_string_indent)
+{
+	char *expected_str = "[\n"
+			     "  null,\n"
+			     "  42,\n"
+			     "  0.42,\n"
+			     "  false,\n"
+			     "  \"string1_5\",\n"
+			     "  {\n"
+			     "    \"foo\": [\n"
+			     "      \"string1_6_foo\",\n"
+			     "      true\n"
+			     "    ],\n"
+			     "    \"bar\": {\n"
+			     "      \"a\": \"string1_6_bar_a\",\n"
+			     "      \"b\": \"string1_6_bar_b\",\n"
+			     "      \"c\": \"\\\"\\\\/\\t\\n\\r\\u0007\\b\\f\"\n"
+			     "    }\n"
+			     "  },\n"
+			     "  []\n"
+			     "]";
+
+	ni_json_format_options_t options = { .indent = 2 };
+	ni_stringbuf_t buf1 = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_json_t *json;
+
+	CHECK((json = init1()));
+	CHECK(ni_json_format_string(&buf1, json, &options));
+
+	CHECK(ni_string_eq(expected_str, buf1.string));
+
+	ni_stringbuf_destroy(&buf1);
+	ni_json_free(json);
+}
+
 TESTCASE(ni_json_parse_string)
 {
 	char *valid_json_str = "{\"obj1\": \"string2\",\"obj2\": null,\"obj3\": 64,\"obj4\": 0.4,\"obj5\": true}";
