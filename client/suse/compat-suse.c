@@ -406,6 +406,8 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 		name = files.data[i];
 		ni_ifsysctl_file_load(&__ni_suse_global_ifsysctl, name);
 	}
+
+	ni_string_array_destroy(&files);
 	return TRUE;
 }
 
