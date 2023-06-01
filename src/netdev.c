@@ -756,7 +756,7 @@ ni_netdev_get_event_uuid(ni_netdev_t *dev, ni_event_t ev)
 	for (pos = &dev->event_filter; (efp = *pos) != NULL; pos = &efp->next) {
 		if (efp->event_mask & (1 << ev)) {
 			static ni_uuid_t ret_uuid;
-			
+
 			ret_uuid = efp->uuid;
 			*pos = efp->next;
 			__ni_event_filter_free(efp);
