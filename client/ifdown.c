@@ -291,6 +291,7 @@ usage:
 
 	ni_string_array_destroy(&ifnames);
 	ni_ifworker_array_destroy(&ifmarked);
+	ni_fsm_free(fsm);
 	return status;
 }
 
