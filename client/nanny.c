@@ -501,8 +501,9 @@ ni_dbus_object_t *
 ni_nanny_call_get_device(const char *ifname)
 {
 	ni_dbus_object_t *root_object;
+	ni_dbus_object_t *device_object;
 	const char *relative_path;
-	char *object_path;
+	char *object_path = NULL;
 	int rv;
 
 	ni_nanny_create_client(&root_object);
@@ -522,7 +523,9 @@ ni_nanny_call_get_device(const char *ifname)
 	relative_path = ni_dbus_object_get_relative_path(root_object, object_path);
 	ni_assert(relative_path);
 
-	return ni_dbus_object_create(root_object, relative_path, NULL, NULL);
+	device_object = ni_dbus_object_create(root_object, relative_path, NULL, NULL);
+	ni_string_free(&object_path);
+	return device_object;
 }
 
 ni_bool_t
