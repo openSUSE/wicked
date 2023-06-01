@@ -205,6 +205,7 @@ ni_extension_free(ni_extension_t *ex)
 
 		ni_var_array_destroy(&ex->environment);
 		ni_config_fslocation_destroy(&ex->statedir);
+		free(ex);
 	}
 }
 
