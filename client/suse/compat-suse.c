@@ -6332,6 +6332,7 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	__ifsysctl_get_ipv6(&ifsysctl, "net/ipv6/conf", dev->name,
 				"stable_secret", &ipv6->conf.stable_secret);
 
+	ni_var_array_destroy(&ifsysctl);
 	return TRUE;
 }
 
