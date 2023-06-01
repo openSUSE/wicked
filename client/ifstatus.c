@@ -1014,5 +1014,7 @@ ni_ifstatus_display_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_ifworker_
 			status = rc;
 	}
 
+	ni_uint_array_destroy(&stcodes);
+	ni_uint_array_destroy(&stflags);
 	return status;
 }
