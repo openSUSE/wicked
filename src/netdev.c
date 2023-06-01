@@ -657,6 +657,7 @@ ni_netdev_load_client_state(ni_netdev_t *dev)
 	ni_client_state_init(&cs);
 	if (dev && ni_client_state_load(&cs, dev->link.ifindex)) {
 		ni_netdev_set_client_state(dev, ni_client_state_clone(&cs));
+		ni_client_state_reset(&cs);
 		ni_debug_ifconfig("loading %s structure from a file for %s",
 			NI_CLIENT_STATE_XML_NODE, dev->name);
 		return TRUE;
