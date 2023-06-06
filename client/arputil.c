@@ -167,6 +167,8 @@ do_arp_run(struct arp_handle *handle)
 		return ret;
 
 	handle->sock = ni_arp_socket_open(&dev_info, do_arp_recv, handle);
+	ni_capture_devinfo_destroy(&dev_info);
+
 	if (!handle->sock || !handle->sock->user_data) {
 		ni_error("%s: Cannot initialize arp socket", handle->ifname);
 		do_arp_handle_close(handle);

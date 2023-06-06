@@ -474,6 +474,7 @@ ni_lldp_agent_start(ni_netdev_t *dev, ni_lldp_t *lldp, ni_dcbx_state_t *dcbx)
 			return -1;
 
 		capture = ni_capture_open(&devinfo, &protinfo, ni_lldp_receive, "lldp");
+		ni_capture_devinfo_destroy(&devinfo);
 	}
 	agent->capture = capture;
 

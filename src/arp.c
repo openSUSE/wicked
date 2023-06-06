@@ -33,7 +33,7 @@ ni_arp_socket_open(const ni_capture_devinfo_t *dev_info, ni_arp_callback_t *call
 	ni_arp_socket_t *arph;
 
 	arph = calloc(1, sizeof(*arph));
-	arph->dev_info = *dev_info;
+	ni_capture_devinfo_copy(&arph->dev_info, dev_info);
 	arph->callback = callback;
 	arph->user_data = calldata;
 
@@ -54,6 +54,7 @@ void
 ni_arp_socket_close(ni_arp_socket_t *arph)
 {
 	ni_capture_free(arph->capture);
+	ni_capture_devinfo_destroy(&arph->dev_info);
 	free(arph);
 }
 

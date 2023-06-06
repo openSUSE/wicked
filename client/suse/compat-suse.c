@@ -406,6 +406,8 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 		name = files.data[i];
 		ni_ifsysctl_file_load(&__ni_suse_global_ifsysctl, name);
 	}
+
+	ni_string_array_destroy(&files);
 	return TRUE;
 }
 
@@ -6330,6 +6332,7 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	__ifsysctl_get_ipv6(&ifsysctl, "net/ipv6/conf", dev->name,
 				"stable_secret", &ipv6->conf.stable_secret);
 
+	ni_var_array_destroy(&ifsysctl);
 	return TRUE;
 }
 

@@ -2281,7 +2281,7 @@ ni_system_ipv6_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_ipv6_devconf
 
 	/* You can confuse the kernel IPv6 code to a degree that it will
 	 * remove /proc/sys/ipv6/conf/<ifname> completely. dhcpcd in particular
-	 * seems rather good at that. 
+	 * seems rather good at that.
 	 * The only way to recover from that is by upping the interface briefly.
 	 */
 	if (ni_ipv6_supported() && !ni_sysctl_ipv6_ifconfig_is_present(dev->name)) {
@@ -4987,6 +4987,7 @@ ni_address_updater_arp_open(ni_address_updater_t *au, ni_netdev_t *dev)
 		return FALSE;
 
 	au->sock = ni_arp_socket_open(&dev_info, ni_arp_verify_process, au);
+	ni_capture_devinfo_destroy(&dev_info);
 	return au->sock != NULL;
 }
 

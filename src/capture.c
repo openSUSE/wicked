@@ -590,6 +590,32 @@ ni_capture_devinfo_init(ni_capture_devinfo_t *devinfo, const char *ifname, const
 	return 0;
 }
 
+ni_bool_t
+ni_capture_devinfo_copy(ni_capture_devinfo_t *dst, const ni_capture_devinfo_t *src)
+{
+	if (!dst || !src)
+		return FALSE;
+
+	if (!ni_string_dup(&dst->ifname, src->ifname))
+		return FALSE;
+
+	dst->iftype = src->iftype;
+	dst->ifindex = src->ifindex;
+	dst->mtu = src->mtu;
+	dst->hwaddr = src->hwaddr;
+
+	return TRUE;
+}
+
+void
+ni_capture_devinfo_destroy(ni_capture_devinfo_t *devinfo)
+{
+	if (devinfo) {
+		ni_string_free(&devinfo->ifname);
+		memset(devinfo, 0, sizeof(*devinfo));
+	}
+}
+
 int
 ni_capture_devinfo_refresh(ni_capture_devinfo_t *devinfo, const char *ifname, const ni_linkinfo_t *link)
 {

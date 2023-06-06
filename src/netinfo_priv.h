@@ -147,8 +147,10 @@ typedef struct ni_capture_protinfo {
 	uint16_t		ip_port;
 } ni_capture_protinfo_t;
 
+extern void		ni_capture_devinfo_destroy(ni_capture_devinfo_t *);
 extern int		ni_capture_devinfo_init(ni_capture_devinfo_t *, const char *, const ni_linkinfo_t *);
 extern int		ni_capture_devinfo_refresh(ni_capture_devinfo_t *, const char *, const ni_linkinfo_t *);
+extern ni_bool_t	ni_capture_devinfo_copy(ni_capture_devinfo_t *, const ni_capture_devinfo_t *);
 extern ni_capture_t *	ni_capture_open(const ni_capture_devinfo_t *, const ni_capture_protinfo_t *,
 					void (*)(ni_socket_t *), const char *);
 extern int		ni_capture_recv(ni_capture_t *, ni_buffer_t *, ni_sockaddr_t *);
