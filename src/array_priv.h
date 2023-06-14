@@ -173,22 +173,23 @@
 		return -1U;								\
 	}
 
+#define			ni_define_ptr_array_qsort_cmp_fn(prefix)			\
+	int										\
+	prefix##_array_qsort_cmp_fn(const void *pa, const void *pb, void *arg)		\
+	{										\
+		const prefix##_t **a = (const prefix##_t **)pa;				\
+		const prefix##_t **b = (const prefix##_t **)pb;				\
+											\
+		prefix##_array_cmp_fn cmpfn = (prefix##_array_cmp_fn)arg;		\
+		return cmpfn(*a, *b);							\
+	}
+
 #define			ni_define_ptr_array_qsort(prefix)				\
 	void										\
 	prefix##_array_qsort(prefix##_array_t *arr, prefix##_array_cmp_fn cmpfn)	\
 	{										\
-		int prefix##_array_cmpfn_wrapper(const void *pa, const void *pb,	\
-				void *arg)						\
-		{									\
-			const prefix##_t **a = (const prefix##_t **)pa;			\
-			const prefix##_t **b = (const prefix##_t **)pb;			\
-											\
-			prefix##_array_cmp_fn cmpfn = (prefix##_array_cmp_fn)arg;	\
-			return cmpfn(*a, *b);						\
-		}									\
-											\
 		qsort_r(arr->data, arr->count, sizeof(arr->data[0]),			\
-				prefix##_array_cmpfn_wrapper, cmpfn);			\
+				prefix##_array_qsort_cmp_fn, cmpfn);			\
 	}
 
 #endif /* NI_WICKED_ARRAY_PRIV_H */

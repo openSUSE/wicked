@@ -66,6 +66,7 @@ static ni_define_ptr_array_remove_at(ni_data);
 static ni_define_ptr_array_delete_at(ni_data);
 static ni_define_ptr_array_at(ni_data);
 static ni_define_ptr_array_index(ni_data);
+static ni_define_ptr_array_qsort_cmp_fn(ni_data);
 static ni_define_ptr_array_qsort(ni_data);
 
 
