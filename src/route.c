@@ -1467,11 +1467,12 @@ ni_route_array_free(ni_route_array_t *nra)
 }
 extern				ni_define_ptr_array_init(ni_route);
 extern				ni_define_ptr_array_destroy(ni_route);
-extern				ni_define_ptr_array_realloc(ni_route, NI_ROUTE_ARRAY_CHUNK);
+static				ni_define_ptr_array_realloc(ni_route, NI_ROUTE_ARRAY_CHUNK);
 extern				ni_define_ptr_array_append(ni_route);
 extern				ni_define_ptr_array_delete_at(ni_route);
 extern				ni_define_ptr_array_remove_at(ni_route);
 extern				ni_define_ptr_array_at(ni_route);
+static				ni_define_ptr_array_qsort_cmp_fn(ni_route);
 extern				ni_define_ptr_array_qsort(ni_route);
 
 ni_route_t *

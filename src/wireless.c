@@ -2041,7 +2041,7 @@ ni_wireless_wep_key_array_destroy(char **array)
  * Wireless network arrays
  */
 extern ni_define_ptr_array_init(ni_wireless_network);
-extern ni_define_ptr_array_realloc(ni_wireless_network, 1);
+static ni_define_ptr_array_realloc(ni_wireless_network, 1);
 extern ni_define_ptr_array_append(ni_wireless_network);
 extern ni_define_ptr_array_destroy(ni_wireless_network);
 
