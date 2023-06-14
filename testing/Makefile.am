@@ -52,8 +52,11 @@ EXTRA_DIST			= ibft xpath		\
 TESTS				= socket-mock-test	\
 				  bitmask-test		\
 				  bitmap-test		\
-				  nbft-test.sh		\
 				  json-test		\
 				  ptr_array-test
+
+if nbft_test
+TESTS				+= nbft-test.sh
+endif
 
 # vim: ai
