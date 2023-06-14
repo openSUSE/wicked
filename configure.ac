@@ -238,6 +238,8 @@ AC_PROG_LN_S
 AC_PROG_MAKE_SET
 AC_PROG_MKDIR_P
 AC_PROG_LIBTOOL
+AC_PATH_PROG(JQ, jq)
+AM_CONDITIONAL([nbft_test], [test "x$enable_nbft" = "xyes" -a "x$JQ" != "x"])
 
 # Checks for libraries.
 AC_CHECK_LIB([dl], [dlopen], [LIBDL_LIBS="-ldl"],[
