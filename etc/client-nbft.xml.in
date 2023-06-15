@@ -1,6 +1,7 @@
 <!-- this extension is provided by the wicked-nbft package -->
 <config>
-  <netif-firmware-discovery>
-    <script name="nbft" command="@wicked_extensionsdir@/nbft" />
+  <netif-firmware-discovery name="nbft">
+    <script name="show-config" command="@wicked_extensionsdir@/nbft" />
+    <script name="list-ifnames" command="@wicked_extensionsdir@/nbft -l" />
   </netif-firmware-discovery>
 </config>

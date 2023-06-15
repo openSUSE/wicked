@@ -18,6 +18,8 @@
 #include <wicked/logging.h>
 #include <wicked/team.h>
 #include <wicked/ovs.h>
+#include <wicked/array.h>
+#include "appconfig.h"
 
 typedef struct ni_capture	ni_capture_t;
 typedef struct __ni_netlink	ni_netlink_t;
@@ -78,8 +80,6 @@ extern int		__ni_ipv4_devconf_process_flags(ni_netdev_t *, int32_t *, unsigned i
 extern int		__ni_ipv6_devconf_process_flags(ni_netdev_t *, int32_t *, unsigned int);
 
 extern void		__ni_routes_clear(ni_netconfig_t *);
-
-extern ni_bool_t	__ni_address_list_remove(ni_address_t **, ni_address_t *);
 
 extern int		__ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list);
 extern int		__ni_system_refresh_interfaces(ni_netconfig_t *nc);
@@ -149,10 +149,13 @@ typedef struct ni_capture_protinfo {
 	uint16_t		ip_port;
 } ni_capture_protinfo_t;
 
+extern void		ni_capture_devinfo_destroy(ni_capture_devinfo_t *);
 extern int		ni_capture_devinfo_init(ni_capture_devinfo_t *, const char *, const ni_linkinfo_t *);
 extern int		ni_capture_devinfo_refresh(ni_capture_devinfo_t *, const char *, const ni_linkinfo_t *);
-extern ni_capture_t *	ni_capture_open(const ni_capture_devinfo_t *, const ni_capture_protinfo_t *, void (*)(ni_socket_t *));
-extern int		ni_capture_recv(ni_capture_t *, ni_buffer_t *, ni_sockaddr_t *, const char *);
+extern ni_bool_t	ni_capture_devinfo_copy(ni_capture_devinfo_t *, const ni_capture_devinfo_t *);
+extern ni_capture_t *	ni_capture_open(const ni_capture_devinfo_t *, const ni_capture_protinfo_t *,
+					void (*)(ni_socket_t *), const char *);
+extern int		ni_capture_recv(ni_capture_t *, ni_buffer_t *, ni_sockaddr_t *);
 extern ni_bool_t	ni_capture_from_hwaddr_set(ni_hwaddr_t *, const ni_sockaddr_t *);
 extern const char *	ni_capture_from_hwaddr_print(const ni_sockaddr_t *);
 extern ssize_t		ni_capture_send(ni_capture_t *, const ni_buffer_t *, const ni_timeout_param_t *);
@@ -167,66 +170,90 @@ extern void		ni_capture_set_user_data(ni_capture_t *, void *);
 extern void *		ni_capture_get_user_data(const ni_capture_t *);
 extern int		ni_capture_is_valid(const ni_capture_t *, int protocol);
 
-typedef struct ni_arp_socket ni_arp_socket_t;
+typedef struct ni_arp_socket		ni_arp_socket_t;
 
 typedef struct ni_arp_packet {
-	unsigned int		op;
-	ni_hwaddr_t		sha;
-	struct in_addr		sip;
-	ni_hwaddr_t		tha;
-	struct in_addr		tip;
+	unsigned int			op;
+	ni_hwaddr_t			sha;
+	struct in_addr			sip;
+	ni_hwaddr_t			tha;
+	struct in_addr			tip;
 } ni_arp_packet_t;
 
-typedef void		ni_arp_callback_t(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
+typedef void				ni_arp_callback_t(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
 
 struct ni_arp_socket {
-	ni_capture_t *		capture;
-	ni_capture_devinfo_t	dev_info;
+	ni_capture_t *			capture;
+	ni_capture_devinfo_t		dev_info;
 
-	ni_arp_callback_t *	callback;
-	void *			user_data;
+	ni_arp_callback_t *		callback;
+	void *				user_data;
 };
 
-extern ni_arp_socket_t *ni_arp_socket_open(const ni_capture_devinfo_t *,
-					ni_arp_callback_t *, void *);
-extern void		ni_arp_socket_close(ni_arp_socket_t *);
-extern int		ni_arp_send_request(ni_arp_socket_t *, struct in_addr, struct in_addr);
-extern int		ni_arp_send_reply(ni_arp_socket_t *, struct in_addr,
-				const ni_hwaddr_t *, struct in_addr);
-extern int		ni_arp_send_grat_reply(ni_arp_socket_t *, struct in_addr);
-extern int		ni_arp_send_grat_request(ni_arp_socket_t *, struct in_addr);
-extern int		ni_arp_send(ni_arp_socket_t *, const ni_arp_packet_t *);
+extern ni_arp_socket_t *		ni_arp_socket_open(const ni_capture_devinfo_t *,
+							ni_arp_callback_t *, void *);
+extern void				ni_arp_socket_close(ni_arp_socket_t *);
+extern int				ni_arp_send_request(ni_arp_socket_t *, struct in_addr, struct in_addr);
+extern int				ni_arp_send_reply(ni_arp_socket_t *, struct in_addr,
+							const ni_hwaddr_t *, struct in_addr);
+extern int				ni_arp_send_grat_reply(ni_arp_socket_t *, struct in_addr);
+extern int				ni_arp_send_grat_request(ni_arp_socket_t *, struct in_addr);
+extern int				ni_arp_send(ni_arp_socket_t *, const ni_arp_packet_t *);
 
-typedef struct ni_arp_verify {
-	unsigned int		nprobes;
+typedef struct ni_arp_address ni_arp_address_t;
+struct ni_arp_address {
+	unsigned int			nattempts;
+	unsigned int			nerrors;
+	ni_address_t *			address;
+};
 
-	unsigned int		wait_ms;
-	struct timeval		started;
+#define NI_ARP_ADDRESS_ARRAY_CHUNK	32
+ni_declare_ptr_array_type(ni_arp_address);
 
-	ni_address_array_t	ipaddrs;
-} ni_arp_verify_t;
+typedef struct ni_arp_verify ni_arp_verify_t;
+typedef void (*ni_arp_duplicated_addr_fn)(ni_arp_verify_t *, const ni_arp_packet_t *, void *);
+struct ni_arp_verify {
+	unsigned int			nprobes;
+	unsigned int			nretry;
 
-extern void		ni_arp_verify_init(ni_arp_verify_t *, unsigned int, unsigned int);
-extern void		ni_arp_verify_reset(ni_arp_verify_t *, unsigned int, unsigned int);
-extern void		ni_arp_verify_destroy(ni_arp_verify_t *);
-extern unsigned int	ni_arp_verify_add_address(ni_arp_verify_t *,  ni_address_t *);
-extern void		ni_arp_verify_process(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
-extern ni_bool_t	ni_arp_verify_send(ni_arp_socket_t *, ni_arp_verify_t *, unsigned int *);
+	ni_timeout_t			probe_min_ms;
+	ni_timeout_t			probe_max_ms;
+	ni_timeout_t			last_timeout;
+	struct timeval			started;
+
+	ni_arp_address_array_t		ipaddrs;
+};
+
+typedef enum {
+	NI_ARP_SEND_FAILURE  = -1,
+	NI_ARP_SEND_COMPLETE =  0,
+	NI_ARP_SEND_PROGRESS =  1
+} ni_arp_send_status_t;
+
+extern void				ni_arp_verify_init(ni_arp_verify_t *, const ni_config_arp_verify_t *);
+extern void				ni_arp_verify_reset(ni_arp_verify_t *, const ni_config_arp_verify_t *);
+extern void				ni_arp_verify_destroy(ni_arp_verify_t *);
+extern unsigned int			ni_arp_verify_add_address(ni_arp_verify_t *,  ni_address_t *);
+extern unsigned int			ni_arp_verify_add_in_addr(ni_arp_verify_t *, struct in_addr);
+extern ni_arp_send_status_t			ni_arp_verify_send(ni_arp_socket_t *, ni_arp_verify_t *, ni_timeout_t *);
+extern ni_arp_address_t *		ni_arp_reply_match_address(ni_arp_socket_t *, ni_arp_address_array_t *,
+						const ni_arp_packet_t *);
 
 typedef struct ni_arp_notify {
-	unsigned int		nclaims;
+	unsigned int			nclaims;
+	unsigned int			nretry;
 
-	unsigned int		wait_ms;
-	struct timeval		started;
+	unsigned int			wait_ms;
+	struct timeval			started;
 
-	ni_address_array_t	ipaddrs;
+	ni_arp_address_array_t		ipaddrs;
 } ni_arp_notify_t;
 
-extern void		ni_arp_notify_init(ni_arp_notify_t *, unsigned int, unsigned int);
-extern void		ni_arp_notify_reset(ni_arp_notify_t *, unsigned int, unsigned int);
-extern void		ni_arp_notify_destroy(ni_arp_notify_t *);
-extern unsigned int	ni_arp_notify_add_address(ni_arp_notify_t *,  ni_address_t *);
-extern ni_bool_t	ni_arp_notify_send(ni_arp_socket_t *, ni_arp_notify_t *, unsigned int *);
+extern void				ni_arp_notify_init(ni_arp_notify_t *, const ni_config_arp_notify_t *);
+extern void				ni_arp_notify_reset(ni_arp_notify_t *, const ni_config_arp_notify_t *);
+extern void				ni_arp_notify_destroy(ni_arp_notify_t *);
+extern unsigned int			ni_arp_notify_add_address(ni_arp_notify_t *,  ni_address_t *);
+extern ni_bool_t			ni_arp_notify_send(ni_arp_socket_t *, ni_arp_notify_t *, ni_timeout_t *);
 
 /* netdev reques port config */
 struct ni_netdev_port_req {

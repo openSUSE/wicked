@@ -3229,7 +3229,7 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 
 		/* Clean client-info origin and UUID on ifdown */
 		if (marker->target_range.max < NI_FSM_STATE_DEVICE_SETUP)
-			ni_client_state_config_init(&w->config.meta);
+			ni_client_state_config_reset(&w->config.meta);
 
 		if (marker->persistent)
 			ni_ifworker_control_set_persistent(w, TRUE);

@@ -25,6 +25,8 @@
 #ifndef NI_WICKED_TEAM_H
 #define NI_WICKED_TEAM_H
 
+#include <wicked/array.h>
+
 /*
  * runner
  */
@@ -190,10 +192,7 @@ typedef struct ni_team_link_watch {
 	};
 } ni_team_link_watch_t;
 
-typedef struct ni_team_link_watch_array {
-	unsigned int				count;
-	ni_team_link_watch_t **			data;
-} ni_team_link_watch_array_t;
+ni_declare_ptr_array_type(ni_team_link_watch);
 
 /*
  * team port config
@@ -264,14 +263,14 @@ extern ni_bool_t				ni_team_link_watch_name_to_type(const char *, ni_team_link_w
 
 extern ni_team_link_watch_t *			ni_team_link_watch_new(ni_team_link_watch_type_t);
 extern void					ni_team_link_watch_free(ni_team_link_watch_t *);
-extern ni_bool_t				ni_team_link_watch_array_append(ni_team_link_watch_array_t *, ni_team_link_watch_t *);
-extern ni_bool_t				ni_team_link_watch_array_delete_at(ni_team_link_watch_array_t *, unsigned int);
+extern						ni_declare_ptr_array_append(ni_team_link_watch);
+extern						ni_declare_ptr_array_delete_at(ni_team_link_watch);
 
 extern ni_team_port_t *				ni_team_port_new(void);
 extern void					ni_team_port_free(ni_team_port_t *);
-extern void					ni_team_port_array_destroy(ni_team_port_array_t *);
-extern ni_bool_t				ni_team_port_array_append(ni_team_port_array_t *, ni_team_port_t *);
-extern ni_bool_t				ni_team_port_array_delete_at(ni_team_port_array_t *, unsigned int);
+extern						ni_declare_ptr_array_destroy(ni_team_port);
+extern						ni_declare_ptr_array_append(ni_team_port);
+extern						ni_declare_ptr_array_delete_at(ni_team_port);
 extern ni_team_port_t *				ni_team_port_array_find_by_name(ni_team_port_array_t *, const char *);
 
 extern void					ni_team_port_config_init(ni_team_port_config_t *);

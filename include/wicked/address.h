@@ -26,6 +26,7 @@
 
 #include <wicked/types.h>
 #include <wicked/refcount.h>
+#include <wicked/slist.h>
 #include <wicked/util.h>
 
 #include <sys/socket.h>
@@ -123,12 +124,12 @@ extern ni_bool_t	ni_af_sockaddr_info(int, unsigned int *, unsigned int *);
 extern unsigned int	ni_af_address_length(int af);
 extern unsigned int	ni_af_address_prefixlen(int af);
 
-extern			ni_refcounted_declare_new(ni_address);
-extern			ni_refcounted_declare_ref(ni_address);
-extern			ni_refcounted_declare_hold(ni_address);
-extern			ni_refcounted_declare_free(ni_address);
-extern			ni_refcounted_declare_drop(ni_address);
-extern			ni_refcounted_declare_move(ni_address);
+extern			ni_declare_refcounted_new(ni_address);
+extern			ni_declare_refcounted_ref(ni_address);
+extern			ni_declare_refcounted_hold(ni_address);
+extern			ni_declare_refcounted_free(ni_address);
+extern			ni_declare_refcounted_drop(ni_address);
+extern			ni_declare_refcounted_move(ni_address);
 
 extern ni_address_t *	ni_address_create(int af, unsigned int prefix_len,
 					const ni_sockaddr_t *local_addr,
@@ -164,12 +165,14 @@ extern unsigned int	ni_address_preferred_lft(const ni_address_t *, const struct 
 extern ni_bool_t	ni_address_lft_is_valid(const ni_address_t *, const struct timeval *);
 extern ni_bool_t	ni_address_lft_is_preferred(const ni_address_t *, const struct timeval *);
 
-extern void		ni_address_list_append(ni_address_t **, ni_address_t *);
-extern void		ni_address_list_destroy(ni_address_t **);
+extern 			ni_declare_slist_append(ni_address);
+extern 			ni_declare_slist_remove(ni_address);
+extern 			ni_declare_slist_delete(ni_address);
+extern 			ni_declare_slist_destroy(ni_address);
+extern 			ni_declare_slist_copy(ni_address);
+extern 			ni_declare_slist_count(ni_address);
 extern void		ni_address_list_dedup(ni_address_t **);
-extern void		ni_address_list_copy(ni_address_t **, const ni_address_t *);
 extern ni_address_t *	ni_address_list_find(ni_address_t *, const ni_sockaddr_t *);
-extern unsigned int	ni_address_list_count(ni_address_t *list);
 
 extern void		ni_address_array_init(ni_address_array_t *);
 extern void		ni_address_array_destroy(ni_address_array_t *);

@@ -35,6 +35,13 @@ if test "x$enable_lldp" = "xyes" ; then
 	AC_DEFINE([NI_ENABLE_LLDP], [], [Enable lldp support])
 fi
 
+# Whether to enable nbft support (>= SLE-15-SP5)
+AC_ARG_ENABLE([nbft],
+	[AS_HELP_STRING([--disable-nbft],
+		[disable to not install nbft firmware extension])],,
+	[enable_nbft=yes])
+AM_CONDITIONAL([nbft], [test "x$enable_nbft" = "xyes"])
+
 # Whether to request NIS option in dhcp6 by default
 AC_ARG_ENABLE([dhcp6-nis],
 	      [AS_HELP_STRING([--disable-dhcp6-nis],
@@ -231,6 +238,8 @@ AC_PROG_LN_S
 AC_PROG_MAKE_SET
 AC_PROG_MKDIR_P
 AC_PROG_LIBTOOL
+AC_PATH_PROG(JQ, jq)
+AM_CONDITIONAL([nbft_test], [test "x$enable_nbft" = "xyes" -a "x$JQ" != "x"])
 
 # Checks for libraries.
 AC_CHECK_LIB([dl], [dlopen], [LIBDL_LIBS="-ldl"],[
@@ -263,7 +272,7 @@ fi
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h netinet/in.h])
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h sys/ioctl.h sys/param.h])
-AC_CHECK_HEADERS([sys/socket.h sys/time.h syslog.h unistd.h])
+AC_CHECK_HEADERS([sys/socket.h sys/time.h syslog.h unistd.h iconv.h])
 AC_CHECK_HEADERS([linux/filter.h linux/if_packet.h netpacket/packet.h])
 AC_CHECK_HEADERS([linux/dcbnl.h linux/if_link.h linux/rtnetlink.h])
 

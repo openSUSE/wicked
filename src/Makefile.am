@@ -191,6 +191,7 @@ wicked_headers			= \
 	addrconf.h		\
 	appconfig.h		\
 	auto6.h			\
+	array_priv.h		\
 	buffer.h		\
 	client/client_state.h	\
 	client/ifconfig.h	\
@@ -231,6 +232,8 @@ wicked_headers			= \
 	ovs.h			\
 	pppd.h			\
 	process.h		\
+	refcount_priv.h		\
+	slist_priv.h		\
 	socket_priv.h		\
 	sysfs.h			\
 	systemctl.h		\

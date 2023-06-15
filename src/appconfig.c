@@ -26,6 +26,7 @@
 #include "appconfig.h"
 #include "extension.h"
 #include "xml-schema.h"
+#include "process.h"
 #include "dhcp.h"
 #include "duid.h"
 
@@ -38,7 +39,9 @@ static const char *__ni_ifconfig_source_types[] = {
 
 static ni_bool_t	ni_config_parse_addrconf_dhcp4(ni_config_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_addrconf_dhcp6(ni_config_t *, xml_node_t *);
+static ni_bool_t	ni_config_parse_addrconf_auto4(ni_config_auto4_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_addrconf_auto6(ni_config_auto6_t *, xml_node_t *);
+static ni_bool_t	ni_config_parse_addrconf_arp(ni_config_arp_t *, const xml_node_t *);
 static void		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static void		ni_config_parse_update_dhcp4_routes(unsigned int *, const xml_node_t *);
 static void		ni_config_parse_fslocation(ni_config_fslocation_t *, xml_node_t *);
@@ -61,6 +64,17 @@ static unsigned int	ni_config_addrconf_update_dhcp4(void);
 static unsigned int	ni_config_addrconf_update_dhcp6(void);
 static unsigned int	ni_config_addrconf_update_auto4(void);
 static unsigned int	ni_config_addrconf_update_auto6(void);
+static void		ni_config_addrconf_arp_default(ni_config_arp_t *);
+
+#define NI_ADDRCONF_ARP_VERIFY_COUNT		3					/* PROBE_NUM */
+#define NI_ADDRCONF_ARP_VERIFY_RETRIES		3
+#define NI_ADDRCONF_ARP_VERIFY_MIN		(2000 / NI_ADDRCONF_ARP_VERIFY_COUNT)	/* PROBE_MIN */
+#define NI_ADDRCONF_ARP_VERIFY_MAX		(3000 / NI_ADDRCONF_ARP_VERIFY_COUNT)	/* PROBE_MAX */
+#define NI_ADDRCONF_ARP_NOTIFY_COUNT		1					/* ANNOUNCE_NUM */
+#define NI_ADDRCONF_ARP_NOTIFY_RETRIES		0
+#define NI_ADDRCONF_ARP_NOTIFY_INTERVAL		300					/* ANNOUNCE_INTERVAL */
+#define NI_ADDRCONF_ARP_INTERVAL_MIN		100
+#define NI_ADDRCONF_ARP_MAX_DURATION		15000
 
 /*
  * Create an empty config object
@@ -73,6 +87,9 @@ ni_config_new()
 	conf = xcalloc(1, sizeof(*conf));
 
 	conf->addrconf.default_allow_update = ni_config_addrconf_update_default();
+	ni_config_addrconf_arp_default(&conf->addrconf.arp);
+	ni_config_addrconf_arp_default(&conf->addrconf.dhcp4.arp);
+	ni_config_addrconf_arp_default(&conf->addrconf.auto4.arp);
 	conf->addrconf.dhcp4.allow_update   = ni_config_addrconf_update_dhcp4();
 	conf->addrconf.dhcp6.allow_update   = ni_config_addrconf_update_dhcp6();
 	conf->addrconf.auto4.allow_update   = ni_config_addrconf_update_auto4();
@@ -112,6 +129,7 @@ ni_config_dhcp4_clone(const ni_config_dhcp4_t *src, const char *device)
 	dst->create_cid = src->create_cid;
 	dst->allow_update = src->allow_update;
 	dst->routes_opts = src->routes_opts;
+	dst->arp = src->arp;
 	ni_string_dup(&dst->vendor_class, src->vendor_class);
 	dst->lease_time = src->lease_time;
 	ni_string_array_copy(&dst->ignore_servers, &src->ignore_servers);
@@ -354,7 +372,7 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 						ni_string_dup(&conf->dbus_xml_schema_file, attrval);
 				}
 			}
-		} else 
+		} else
 		if (strcmp(child->name, "schema") == 0) {
 			const char *attrval;
 
@@ -377,8 +395,16 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 				 && !ni_config_parse_addrconf_dhcp6(conf, gchild))
 					goto failed;
 
+				if (!strcmp(gchild->name, "auto4")
+				 && !ni_config_parse_addrconf_auto4(&conf->addrconf.auto4, gchild))
+					goto failed;
+
 				if (!strcmp(gchild->name, "auto6")
 				 && !ni_config_parse_addrconf_auto6(&conf->addrconf.auto6, gchild))
+					goto failed;
+
+				if (ni_string_eq(gchild->name, "arp")
+				 && !ni_config_parse_addrconf_arp(&conf->addrconf.arp, gchild))
 					goto failed;
 			}
 		} else
@@ -613,6 +639,9 @@ ni_config_parse_addrconf_dhcp4_nodes(ni_config_dhcp4_t *dhcp4, xml_node_t *node)
 		} else
 		if (ni_string_eq(child->name, "define")) {
 			ni_config_parse_dhcp4_definitions(dhcp4, child);
+		} else
+		if (ni_string_eq(child->name, "arp")) {
+			ni_config_parse_addrconf_arp(&dhcp4->arp, child);
 		}
 	}
 	return TRUE;
@@ -1128,7 +1157,7 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 			ni_server_preference_t *pref;
 			const char *id, *ip;
 
-			ip = xml_node_get_attr(child, "ip"); 
+			ip = xml_node_get_attr(child, "ip");
 			id = xml_node_get_attr(child, "id");
 
 			if (ip == NULL && id == NULL)
@@ -1229,6 +1258,20 @@ ni_config_parse_addrconf_dhcp6(ni_config_t *conf, xml_node_t *node)
 }
 
 ni_bool_t
+ni_config_parse_addrconf_auto4(ni_config_auto4_t *auto4, xml_node_t *node)
+{
+	xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "arp")) {
+			if (!ni_config_parse_addrconf_arp(&auto4->arp, child))
+				return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+ni_bool_t
 ni_config_parse_addrconf_auto6(ni_config_auto6_t *auto6, xml_node_t *node)
 {
 	xml_node_t *child;
@@ -1239,6 +1282,173 @@ ni_config_parse_addrconf_auto6(ni_config_auto6_t *auto6, xml_node_t *node)
 			auto6->allow_update &= ni_config_addrconf_update_mask_auto6();
 		}
 	}
+	return TRUE;
+}
+
+static ni_bool_t
+ni_config_parse_uint_range(ni_uint_range_t *range, const xml_node_t *node)
+{
+	xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "min")) {
+			if (ni_parse_uint(child->cdata, &range->min, 0) < 0) {
+				ni_warn("[%s] unable to parse <min>%s</min>",
+					xml_node_location(child), child->cdata);
+				return FALSE;
+			}
+		} else if (ni_string_eq(child->name, "max")) {
+			if (ni_parse_uint(child->cdata, &range->max, 0) < 0) {
+				ni_warn("[%s] unable to parse <max>%s</max>",
+					xml_node_location(child), child->cdata);
+				return FALSE;
+			}
+		} else {
+			ni_warn("[%s] ignore invalid range node <%s>",
+					xml_node_location(child), child->name);
+		}
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_config_parse_addrconf_arp_verify(ni_config_arp_verify_t *verify, const xml_node_t *node)
+{
+	xml_node_t *child;
+	ni_config_arp_verify_t vfy_tmp = *verify;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "count")) {
+			if (ni_parse_uint(child->cdata, &vfy_tmp.count, 0) < 0) {
+				ni_warn("[%s] unable to parse <count>%s</count>",
+						xml_node_location(child), child->cdata);
+				continue;
+			}
+		}
+
+		if (ni_string_eq(child->name, "interval")) {
+			ni_uint_range_t range = vfy_tmp.interval;
+
+			if (child->children) {
+				if (!ni_config_parse_uint_range(&range, child)) {
+					ni_warn("[%s] ignore invalid arp-verify <interval>",
+							xml_node_location(child));
+					continue;
+				}
+			} else {
+				if (ni_parse_uint(child->cdata, &range.max, 0) < 0) {
+					ni_warn("[%s] ignore invalid arp-verify <interval>%s</interval>",
+						xml_node_location(child), child->cdata);
+					continue;
+				}
+				range.min = range.max;
+			}
+
+			if (range.min < NI_ADDRCONF_ARP_INTERVAL_MIN) {
+				ni_warn("[%s]: ignore invalid arp-verify <interval> - min is %u",
+						xml_node_location(child), NI_ADDRCONF_ARP_INTERVAL_MIN);
+				continue;
+			}
+
+			if (range.max < range.min) {
+				ni_warn("[%s] ignore invalid arp-verify <interval> - max:%u < min:%u",
+						xml_node_location(child), range.max, range.min);
+				continue;
+			}
+
+			vfy_tmp.interval = range;
+		}
+		if (ni_string_eq(child->name, "retries")) {
+			if (ni_parse_uint(child->cdata, &vfy_tmp.retries, 0) < 0) {
+				ni_warn("[%s] unable to parse arp-verify <retries>%s</retries>",
+						xml_node_location(child), child->cdata);
+				continue;
+			}
+		}
+	}
+
+	if (vfy_tmp.interval.max * vfy_tmp.count > NI_ADDRCONF_ARP_MAX_DURATION) {
+		ni_warn("[%s] arp verify duration out of range: %u * %u > %u",
+				xml_node_location(node),
+				vfy_tmp.interval.max, vfy_tmp.count, NI_ADDRCONF_ARP_MAX_DURATION);
+	} else {
+		*verify = vfy_tmp;
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_config_parse_addrconf_arp_notify(ni_config_arp_notify_t *notify, const xml_node_t *node)
+{
+	xml_node_t *child;
+	unsigned int tmp;
+	ni_config_arp_notify_t nfy_tmp = *notify;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "count")) {
+			if (ni_parse_uint(child->cdata, &tmp, 0) < 0) {
+				ni_warn("[%s] ignore invalid arp-notify <count>%s</count>",
+						xml_node_location(child), child->cdata);
+				continue;
+			}
+			nfy_tmp.count = tmp;
+		}
+
+		if (ni_string_eq(child->name, "interval")) {
+			if (ni_parse_uint(child->cdata, &tmp, 0) < 0) {
+				ni_warn("[%s] ignore invalid arp-notify <interval>%s</interval>",
+						xml_node_location(child), child->cdata);
+				continue;
+			}
+
+			if  (tmp < NI_ADDRCONF_ARP_INTERVAL_MIN)
+				ni_warn("[%s] ignore invalid arp-notify <interval>%u</interval> - "
+						"min value %u", xml_node_location(child),
+						tmp, NI_ADDRCONF_ARP_INTERVAL_MIN);
+			else
+				nfy_tmp.interval = tmp;
+		}
+		if (ni_string_eq(child->name, "retries")) {
+			if (ni_parse_uint(child->cdata, &tmp, 0) < 0) {
+				ni_warn("[%s] ignore invalid arp-notify <retries>%s</retries>",
+						xml_node_location(child), child->cdata);
+				continue;
+			}
+
+			nfy_tmp.retries = tmp;
+		}
+	}
+
+	if (nfy_tmp.interval * nfy_tmp.count > NI_ADDRCONF_ARP_MAX_DURATION) {
+		ni_warn("[%s] arp notify duration out of range: %u * %u > %u",
+				xml_node_location(node),
+				nfy_tmp.interval, nfy_tmp.count, NI_ADDRCONF_ARP_MAX_DURATION);
+	} else {
+		*notify = nfy_tmp;
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_config_parse_addrconf_arp(ni_config_arp_t *arpcfg, const xml_node_t *node)
+{
+	xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "verify")) {
+			if (!ni_config_parse_addrconf_arp_verify(&arpcfg->verify, child))
+				return FALSE;
+		}
+
+		if (ni_string_eq(child->name, "notify")) {
+			if (!ni_config_parse_addrconf_arp_notify(&arpcfg->notify, child))
+				return FALSE;
+		}
+	}
+
 	return TRUE;
 }
 
@@ -1311,6 +1521,38 @@ ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, xml_node_t *node)
 }
 
 static ni_bool_t
+ni_config_parse_extension_script_env(ni_script_action_t *script, xml_node_t *node,
+		const ni_script_action_t *old)
+{
+	xml_node_t *child;
+
+	if (!node || !script || !script->process)
+		return FALSE;
+
+	/* inherit previous environment variables  */
+	if (old && old->process && old->process->environ.count) {
+		ni_string_array_copy(&script->process->environ,
+					&old->process->environ);
+	}
+
+	/* add+override with new script environment */
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "putenv")) {
+			const char *name, *value;
+
+			if (!(name = xml_node_get_attr(child, "name"))) {
+				ni_error("[%s] putenv element without name attribute",
+						xml_node_location(child));
+				return FALSE;
+			}
+			value = xml_node_get_attr(child, "value");
+			ni_shellcmd_setenv(script->process, name, value);
+		}
+	}
+	return TRUE;
+}
+
+static ni_bool_t
 ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 {
 	ni_script_action_t *script;
@@ -1353,10 +1595,12 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 						xml_node_location(child));
 			}
 
-			if ((script = ni_script_action_new(name, command)))
-				script->enabled = enabled;
-
 			old = ni_script_action_list_find(ex->actions, name);
+			if ((script = ni_script_action_new(name, command))) {
+				script->enabled = enabled;
+				ni_config_parse_extension_script_env(script, child, old);
+			}
+
 			if (ni_script_action_list_replace(&ex->actions, old, script)) {
 				ni_script_action_free(old);
 			} else
@@ -1436,6 +1680,59 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 	return TRUE;
 }
 
+static ni_bool_t
+ni_config_extension_merge_actions(ni_script_action_t **nactions, ni_script_action_t **oactions)
+{
+	ni_var_array_t vars = NI_VAR_ARRAY_INIT;
+	ni_script_action_t *oscript;
+	ni_script_action_t *nscript;
+	ni_script_action_t *next;
+
+	if (!nactions || !oactions)
+		return FALSE;
+
+	for (oscript = *oactions; oscript; oscript = next) {
+		next = oscript->next;
+
+		if (!oscript->name || !oscript->process)
+			continue;
+
+		if ((nscript = ni_script_action_list_find(*nactions, oscript->name))) {
+			if (ni_environ_getenv_vars(&oscript->process->environ, &vars))
+				ni_environ_setenv_vars(&nscript->process->environ,
+						&vars, FALSE);
+			ni_var_array_destroy(&vars);
+		} else {
+			if (ni_script_action_list_remove(oactions, oscript))
+				ni_script_action_list_append(nactions, oscript);
+		}
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+ni_config_extension_list_add(ni_extension_t **list, ni_extension_t *oex, ni_extension_t *nex)
+{
+
+	if (!list || !nex)
+		return FALSE;
+
+	if (oex) {
+		ni_config_extension_merge_actions(&nex->actions, &oex->actions);
+		ni_var_array_set_vars(&nex->environment, &oex->environment, FALSE);
+	}
+
+	if (ni_extension_list_replace(list, oex, nex)) {
+		ni_extension_free(oex);
+		return TRUE;
+	}
+	if (!ni_extension_list_append(list, nex)) {
+		ni_extension_free(nex);
+		return FALSE;
+	}
+	return TRUE;
+}
+
 /*
  * Object model extensions let you implement parts of a dbus interface separately
  * from the main wicked body of code; either through a shared library or an
@@ -1450,7 +1747,7 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
  *  <putenv name="WICKED_INTERFACE_INDEX" value="$property:index"/>
  * </dbus-service>
  */
-ni_bool_t
+static ni_bool_t
 ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex, *old;
@@ -1486,10 +1783,7 @@ ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
 	}
 
 	old = ni_extension_list_find(*list, interface);
-	if (ni_extension_list_replace(list, old, ex)) {
-		ni_extension_free(old);
-	} else
-	if (!ni_extension_list_append(list, ex)) {
+	if (!ni_config_extension_list_add(list, old, ex)) {
 		ni_warn("[%s] unable to add %s extension to list",
 				xml_node_location(node), node->name);
 		ni_extension_free(ex);
@@ -1509,7 +1803,7 @@ ni_config_parse_objectmodel_extension(ni_extension_t **list, xml_node_t *node)
  *  ...
  * </netif-naming-services>
  */
-ni_bool_t
+static ni_bool_t
 ni_config_parse_objectmodel_netif_ns(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex;
@@ -1563,15 +1857,72 @@ ni_config_parse_objectmodel_netif_ns(ni_extension_t **list, xml_node_t *node)
  * firmware, such as iBFT. You can use this to specify one or more shell commands
  * that generate a list of <interface> elements as output.
  *
- * <netif-firmware-discovery>
- *  <script name="ibft" command="/some/crazy/path/to/script" />
- *  ...
- * </netif-firmware-discovery>
+ * The current netif-firmware-discovery extension definition is:
+ *   <netif-firmware-discovery name="ibft">
+ *     <script name="show-config"  command="/some/crazy/path/to/script" />
+ *     <script name="list-ifnames" command="/some/crazy/path/to/script -l" />
+ *     ...
+ *   </netif-firmware-discovery>
+ *
+ * The legacy extension definition is automatically migrated and were:
+ *   <netif-firmware-discovery>
+ *     <script name="ibft" command="/some/crazy/path/to/script" />
+ *     ...
+ *   </netif-firmware-discovery>
+ * The `-l` command parameter were passed to implement `list-ifnames` action.
  */
-ni_bool_t
+static ni_bool_t
+ni_config_objectmodel_firmware_discovery_migrate(ni_extension_t **list, ni_extension_t *lex)
+{
+	ni_script_action_t *nscript, *lscript;
+	ni_extension_t *nex;
+
+	if (!list || !lex)
+		return FALSE;
+
+	for (lscript = lex->actions; lscript; lscript = lscript->next) {
+		if (ni_string_empty(lscript->name) || !lscript->process ||
+			ni_string_empty(lscript->process->command))
+			continue;
+
+		if (!(nex = ni_extension_new(lscript->name)))
+			return FALSE;
+
+		nex->enabled = lscript->enabled;
+		ni_var_array_copy(&nex->environment, &lex->environment);
+
+		nscript = ni_script_action_new("show-config", lscript->process->command);
+		if (!ni_script_action_list_append(&nex->actions, nscript)) {
+			ni_script_action_free(nscript);
+			ni_extension_free(nex);
+			return FALSE;
+		}
+		ni_string_array_copy(&nscript->process->environ,
+				&lscript->process->environ);
+
+		nscript = ni_script_action_new("list-ifnames", lscript->process->command);
+		if (!nscript || !ni_shellcmd_add_arg(nscript->process, "-l") ||
+		    !ni_script_action_list_append(&nex->actions, nscript)) {
+			ni_script_action_free(nscript);
+			ni_extension_free(nex);
+			return FALSE;
+		}
+		ni_string_array_copy(&nscript->process->environ,
+				&lscript->process->environ);
+
+		if (!ni_extension_list_append(list, nex)) {
+			ni_extension_free(nex);
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+static ni_bool_t
 ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **list, xml_node_t *node)
 {
-	ni_extension_t *ex;
+	ni_extension_t *ex, *old, *next, *migrated = NULL;
+	const char *name, *attr;
 
 	ni_assert(list && node);
 
@@ -1581,38 +1932,79 @@ ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **list, xml_node_t
 		xml_node_print_debug(node, NI_TRACE_APPLICATION);
 	}
 
-	/*
-	 * we need only 1 netif-firmware-discovery extension
-	 * with multiple unique builtin / script actions.
-	 */
-	if (!(ex = *list))
-		ex = ni_extension_new(NULL);
-
-	if (!ex || !ni_config_parse_extension(ex, node)) {
-		if (ex != *list)
-			ni_extension_free(ex);
+	name = xml_node_get_attr(node, "name");
+	if (name && !ni_check_domain_name(name, ni_string_len(name), -1)) {
+		ni_error("[%s] <%s> element contains invalid name attribute",
+				xml_node_location(node), node->name);
 		return FALSE;
 	}
 
-	if (ex->c_bindings) {
-		ni_warn("[%s] builtin actions not supported in %s extensions",
-				xml_node_location(node), node->name);
-		ni_c_binding_list_destroy(&ex->c_bindings);
-	}
-	if (!ex->actions) {
-		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
-				"[%s] disarding %s extension without script actions",
-				xml_node_location(node), node->name);
-		if (ex != *list)
-			ni_extension_free(ex);
-		return TRUE;
-	}
-
-	if (ex != *list && !ni_extension_list_append(list, ex)) {
-		ni_warn("[%s] unable to add %s extension to list",
-				xml_node_location(node), node->name);
+	ex = ni_extension_new(name);
+	if (!ex || !ni_config_parse_extension(ex, node)) {
 		ni_extension_free(ex);
 		return FALSE;
+	}
+
+	if (name) {
+		attr = xml_node_get_attr(node, "enabled");
+
+		if (attr && ni_parse_boolean(attr, &ex->enabled)) {
+			ni_error("[%s] disarding %s extension with invalid enabled attribute",
+					xml_node_location(node), node->name);
+			ni_extension_free(ex);
+			return FALSE;
+		}
+
+		/*
+		 * The client-firmware.xml does not contain any actions default:
+		 *   <netif-firmware-discovery name="ibft" enabled=... />
+		 * supposed to override the enabled flag only.
+		 * We simply change the enable flag in the old extension and
+		 * when it defines some env vars, we override then too:
+		 */
+		if (!ex->actions && (old = ni_extension_list_find(*list, name))) {
+			old->enabled = ex->enabled;
+			ni_var_array_set_vars(&old->environment, &ex->environment, TRUE);
+
+			ni_extension_free(ex);
+			return TRUE;
+		}
+		migrated = ex;
+	} else {
+		if (!ni_config_objectmodel_firmware_discovery_migrate(&migrated, ex)) {
+			ni_error("[%s] failed to migrate legacy %s extension",
+					xml_node_location(node), node->name);
+			ni_extension_free(ex);
+			return FALSE;
+		}
+		ni_extension_free(ex);
+	}
+
+	for (ex = migrated; ex; ex = next) {
+		next = ex->next;
+		ex->next = NULL;
+
+		name = ex->name;
+		if (ex->c_bindings) {
+			ni_warn("[%s] builtin actions not supported in %s extensions",
+					xml_node_location(node), node->name);
+			ni_c_binding_list_destroy(&ex->c_bindings);
+		}
+		if (!ex->actions) {
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+					"[%s] disarding %s extension without script actions",
+					xml_node_location(node), node->name);
+			ni_extension_free(ex);
+			return TRUE;
+		}
+
+		old = ni_extension_list_find(*list, name);
+		if (!ni_config_extension_list_add(list, old, ex)) {
+			ni_warn("[%s] unable to add %s extension to list",
+					xml_node_location(node), node->name);
+			ni_extension_free(ex);
+			return FALSE;
+		}
 	}
 	return TRUE;
 }
@@ -1628,7 +2020,7 @@ ni_config_parse_objectmodel_firmware_discovery(ni_extension_t **list, xml_node_t
  *  ...
  * </system-updater>
  */
-ni_bool_t
+static ni_bool_t
 ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex, *old;
@@ -1669,10 +2061,7 @@ ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
 	}
 
 	old = ni_extension_list_find(*list, name);
-	if (ni_extension_list_replace(list, old, ex)) {
-		ni_extension_free(old);
-	} else
-	if (!ni_extension_list_append(list, ex)) {
+	if (!ni_config_extension_list_add(list, old, ex)) {
 		ni_warn("[%s] unable to add %s extension to list",
 				xml_node_location(node), node->name);
 		ni_extension_free(ex);
@@ -1922,13 +2311,19 @@ ni_config_parse_teamd(ni_config_teamd_t *conf, const xml_node_t *node)
 ni_extension_t *
 ni_config_find_extension(ni_config_t *conf, const char *interface)
 {
-	return ni_extension_list_find(conf->dbus_extensions, interface);
+	ni_extension_t *ex;
+
+	ex = ni_extension_list_find(conf->dbus_extensions, interface);
+	return ex && ex->enabled ? ex : NULL;
 }
 
 ni_extension_t *
 ni_config_find_system_updater(ni_config_t *conf, const char *name)
 {
-	return ni_extension_list_find(conf->updater_extensions, name);
+	ni_extension_t *ex;
+
+	ex = ni_extension_list_find(conf->updater_extensions, name);
+	return ex && ex->enabled ? ex : NULL;
 }
 
 /*
@@ -2162,4 +2557,45 @@ ni_config_fslocation_destroy(ni_config_fslocation_t *loc)
 {
 	ni_string_free(&loc->path);
 	memset(loc, 0, sizeof(*loc));
+}
+
+static void
+ni_config_addrconf_arp_default(ni_config_arp_t *cfg)
+{
+	cfg->verify.count = NI_ADDRCONF_ARP_VERIFY_COUNT;
+	cfg->verify.retries = NI_ADDRCONF_ARP_VERIFY_RETRIES;
+	cfg->verify.interval.min = NI_ADDRCONF_ARP_VERIFY_MIN;
+	cfg->verify.interval.max = NI_ADDRCONF_ARP_VERIFY_MAX;
+
+	cfg->notify.count = NI_ADDRCONF_ARP_NOTIFY_COUNT;
+	cfg->notify.interval = NI_ADDRCONF_ARP_NOTIFY_INTERVAL;
+	cfg->notify.retries = NI_ADDRCONF_ARP_NOTIFY_RETRIES;
+}
+
+extern const ni_config_arp_t *
+ni_config_addrconf_arp(ni_addrconf_mode_t owner, const char *ifname)
+{
+	static ni_config_arp_t default_arp_cfg;
+	static ni_bool_t default_is_set = FALSE;
+	const ni_config_dhcp4_t *dhcp4;
+	ni_config_t *conf;
+
+	if (!default_is_set) {
+		default_is_set = TRUE;
+		ni_config_addrconf_arp_default(&default_arp_cfg);
+	}
+
+	if (!(conf = ni_global.config))
+		return &default_arp_cfg;
+
+	switch (owner) {
+	case NI_ADDRCONF_DHCP:
+		if (!(dhcp4 = ni_config_dhcp4_find_device(ifname)))
+			return &default_arp_cfg;
+		return &dhcp4->arp;
+	case NI_ADDRCONF_AUTOCONF:
+		return &conf->addrconf.auto4.arp;
+	default:
+		return &conf->addrconf.arp;
+	}
 }

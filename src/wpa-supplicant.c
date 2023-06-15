@@ -1,20 +1,42 @@
 /*
- * Interfacing with wpa_supplicant through dbus interface
- * https://w1.fi/wpa_supplicant/devel/dbus.html
+ *	Interfacing with wpa_supplicant through dbus interface
+ *	https://w1.fi/wpa_supplicant/devel/dbus.html
  *
- * Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2011-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2012-2023 SUSE LLC
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *	Authors:
+ *		Olaf Kirch
+ *		Marius Tomaschewski
+ *		Pawel Wieczorkiewicz
+ *		Clemens Famulla-Conrad
  *
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
-#include <sys/time.h>
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/netinfo.h>
 
+#include "refcount_priv.h"
 #include "wpa-supplicant.h"
+
+#include <sys/time.h>
 
 
 #define NI_WPA_BUS_NAME				"fi.w1.wpa_supplicant1"
@@ -67,9 +89,9 @@ static int					ni_wpa_client_refresh(ni_wpa_client_t *);
 static ni_wpa_nif_t *				ni_wpa_nif_by_path(ni_wpa_client_t *wpa, const char *object_path);
 
 
-static						ni_refcounted_declare_new(ni_wpa_nif, const char *, unsigned int);
-static						ni_refcounted_declare_free(ni_wpa_nif);
-static						ni_refcounted_declare_ref(ni_wpa_nif);
+static						ni_declare_refcounted_new(ni_wpa_nif, const char *, unsigned int);
+static						ni_declare_refcounted_free(ni_wpa_nif);
+static						ni_declare_refcounted_ref(ni_wpa_nif);
 static ni_bool_t				ni_wpa_nif_init(ni_wpa_nif_t *, const char *, unsigned int);
 static void					ni_wpa_nif_destroy(ni_wpa_nif_t *);
 static int					ni_wpa_nif_refresh(ni_wpa_nif_t *);
@@ -83,9 +105,9 @@ static void					ni_wpa_dbus_signal(ni_dbus_connection_t *, ni_dbus_message_t *, 
 static void					ni_wpa_nif_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 static void					ni_wpa_signal(ni_dbus_connection_t *, ni_dbus_message_t *, void *);
 
-static						ni_refcounted_declare_new(ni_wpa_bss, ni_wpa_nif_t *, const char *);
-static						ni_refcounted_declare_free(ni_wpa_bss);
-static						ni_refcounted_declare_ref(ni_wpa_bss);
+static						ni_declare_refcounted_new(ni_wpa_bss, ni_wpa_nif_t *, const char *);
+static						ni_declare_refcounted_free(ni_wpa_bss);
+static						ni_declare_refcounted_ref(ni_wpa_bss);
 static ni_bool_t				ni_wpa_bss_init(ni_wpa_bss_t *bss, ni_wpa_nif_t *wif,
 								const char *object_path);
 static void					ni_wpa_bss_destroy(ni_wpa_bss_t *bss);
@@ -733,11 +755,11 @@ ni_wpa_nif_by_path(ni_wpa_client_t *wpa, const char *object_path)
 	return NULL;
 }
 
-static ni_refcounted_define_new(ni_wpa_nif, const char *, unsigned int);
-static ni_refcounted_define_ref(ni_wpa_nif);
-static ni_refcounted_define_hold(ni_wpa_nif);
-static ni_refcounted_define_free(ni_wpa_nif);
-extern ni_refcounted_define_drop(ni_wpa_nif);
+static ni_define_refcounted_new(ni_wpa_nif, const char *, unsigned int);
+static ni_define_refcounted_ref(ni_wpa_nif);
+static ni_define_refcounted_hold(ni_wpa_nif);
+static ni_define_refcounted_free(ni_wpa_nif);
+extern ni_define_refcounted_drop(ni_wpa_nif);
 
 static ni_bool_t
 ni_wpa_nif_init(ni_wpa_nif_t *wif, const char *ifname, unsigned int ifindex)
@@ -1810,10 +1832,10 @@ ni_wpa_bss_properties_init(ni_wpa_bss_properties_t *props)
 	ni_byte_array_init(&props->ies);
 }
 
-static ni_refcounted_define_free(ni_wpa_bss);
-static ni_refcounted_define_new(ni_wpa_bss, ni_wpa_nif_t *, const char *);
-static ni_refcounted_define_ref(ni_wpa_bss);
-extern ni_refcounted_define_drop(ni_wpa_bss);
+static ni_define_refcounted_free(ni_wpa_bss);
+static ni_define_refcounted_new(ni_wpa_bss, ni_wpa_nif_t *, const char *);
+static ni_define_refcounted_ref(ni_wpa_bss);
+extern ni_define_refcounted_drop(ni_wpa_bss);
 
 static void
 ni_wpa_bss_destroy(ni_wpa_bss_t *bss)

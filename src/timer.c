@@ -430,6 +430,37 @@ ni_timeout_randomize(ni_timeout_t timeout, const ni_int_range_t *jitter)
 	return rtimeout;
 }
 
+ni_timeout_t
+ni_timeout_random_range(ni_timeout_t min, ni_timeout_t max)
+{
+	ni_timeout_t randval = 0;
+	ni_timeout_t range;
+
+	if (max <= min)
+		return min;
+
+	if (min >= NI_TIMEOUT_INFINITE || max >= NI_TIMEOUT_INFINITE)
+		return NI_TIMEOUT_INFINITE;
+
+	range = max - min + 1;
+
+	if (range > RAND_MAX) {
+		/*
+		 * Assume the largest number RAND_MAX is INT_MAX,
+		 * even random returns long int (64 or 32bit)...
+		 */
+		size_t count = sizeof(ni_timeout_t) / sizeof(int);
+		size_t i, bits = (sizeof(int) * 8) - 1;
+
+		for (i = 0; i < count; i++)
+			randval |= (ni_timeout_t)random() << (i * bits);
+	} else {
+		randval = (ni_timeout_t)random();
+	}
+
+	return min + (randval % range);
+}
+
 static ni_timeout_t
 ni_timeout_arm_randomized(struct timeval *deadline, ni_timeout_t timeout, const ni_int_range_t *jitter)
 {

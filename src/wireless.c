@@ -1,25 +1,49 @@
 /*
- * Routines for handling Wireless devices.
+ *	Routines for handling Wireless devices.
  *
- * Holie cowe, the desygne of thefe Wyreless Extensions is indisputablie baroque!
+ *	Holie cowe, the desygne of thefe Wyreless Extensions is indisputablie baroque!
  *
- * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2012-2023 SUSE LLC
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *	Authors:
+ *		Olaf Kirch
+ *		Marius Tomaschewski
+ *		Pawel Wieczorkiewicz
+ *		Rubén Torrero Marijnissen
+ *		Clemens Famulla-Conrad
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+
+#include <wicked/wireless.h>
+#include <wicked/socket.h>
+#include <wicked/netinfo.h>
+#include "refcount_priv.h"
+#include "array_priv.h"
+#include "socket_priv.h"
+#include "netinfo_priv.h"
+#include "wpa-supplicant.h"
 
 #include <limits.h>
 #include <time.h>
 #include <ctype.h>
 #include <net/if_arp.h>		/* For ARPHRD_ETHER */
 
-#include <wicked/wireless.h>
-#include <wicked/socket.h>
-#include <wicked/netinfo.h>
-#include "socket_priv.h"
-#include "netinfo_priv.h"
-#include "wpa-supplicant.h"
 
 #ifndef NI_WIRELESS_WPA_DRIVER_DEFAULT
 #define NI_WIRELESS_WPA_DRIVER_DEFAULT		"nl80211,wext"
@@ -1173,7 +1197,10 @@ ni_wireless_setup(ni_netdev_t *dev, ni_wireless_config_t *conf)
 	/* setup successfull, store configuration for expected wpa_supplicant restarts */
 	if (!wlan->conf)
 		wlan->conf = ni_wireless_config_new();
-	ni_wireless_config_copy(wlan->conf, conf);
+	if (!ni_wireless_config_copy(wlan->conf, conf)) {
+		ni_error("%s: copy current config failed", dev->name);
+		ni_wireless_config_free(&wlan->conf);
+	}
 
 	if (wlan->scan.interval > 0)
 		__ni_wireless_scan_timer_arm(&wlan->scan, dev, 1);
@@ -1753,18 +1780,28 @@ ni_wireless_config_destroy(ni_wireless_config_t *conf)
 	}
 }
 
-void
+ni_bool_t
 ni_wireless_config_copy(ni_wireless_config_t *dst, ni_wireless_config_t *src)
 {
-	if (!src || !dst || dst == src)
-		return;
+	if (!src || !dst)
+		return FALSE;
 
-	ni_string_dup(&dst->country, src->country);
+	if (dst == src)
+		return TRUE;
+
+	if (!ni_string_dup(&dst->country, src->country))
+		return FALSE;
+
 	dst->ap_scan = src->ap_scan;
-	ni_string_dup(&dst->driver, src->driver);
+
+	if (!ni_string_dup(&dst->driver, src->driver))
+		return FALSE;
 
 	ni_wireless_network_array_destroy(&dst->networks);
-	ni_wireless_network_array_copy(&dst->networks, &src->networks);
+	if (!ni_wireless_network_array_copy(&dst->networks, &src->networks))
+		return FALSE;
+
+	return TRUE;
 }
 
 ni_bool_t
@@ -1986,10 +2023,10 @@ ni_wireless_network_destroy(ni_wireless_network_t *net)
 	memset(net, 0, sizeof(*net));
 }
 
-static ni_refcounted_define_ref(ni_wireless_network);
-static ni_refcounted_define_free(ni_wireless_network);
-extern ni_refcounted_define_new(ni_wireless_network);
-extern ni_refcounted_define_drop(ni_wireless_network);
+static ni_define_refcounted_free(ni_wireless_network);
+extern ni_define_refcounted_new(ni_wireless_network);
+extern ni_define_refcounted_drop(ni_wireless_network);
+extern ni_define_refcounted_ref(ni_wireless_network);
 
 void
 ni_wireless_wep_key_array_destroy(char **array)
@@ -2003,37 +2040,28 @@ ni_wireless_wep_key_array_destroy(char **array)
 /*
  * Wireless network arrays
  */
-void
-ni_wireless_network_array_init(ni_wireless_network_array_t *array)
-{
-	memset(array, 0, sizeof(*array));
-}
+extern ni_define_ptr_array_init(ni_wireless_network);
+static ni_define_ptr_array_realloc(ni_wireless_network, 1);
+extern ni_define_ptr_array_append(ni_wireless_network);
+extern ni_define_ptr_array_destroy(ni_wireless_network);
 
-void
-ni_wireless_network_array_append(ni_wireless_network_array_t *array, ni_wireless_network_t *net)
-{
-	array->data = realloc(array->data, (array->count + 1) * sizeof(ni_wireless_network_t *));
-	array->data[array->count++] = ni_wireless_network_ref(net);
-}
-
-void
-ni_wireless_network_array_destroy(ni_wireless_network_array_t *array)
-{
-	unsigned int i;
-
-	for (i = 0; i < array->count; ++i)
-		ni_wireless_network_drop(&array->data[i]);
-	free(array->data);
-	memset(array, 0, sizeof(*array));
-}
-
-void
+ni_bool_t
 ni_wireless_network_array_copy(ni_wireless_network_array_t *dst, ni_wireless_network_array_t *src)
 {
 	unsigned int i;
 
-	for (i = 0; i < src->count; ++i)
-		ni_wireless_network_array_append(dst, src->data[i]);
+	if (!dst || !src)
+		return FALSE;
+
+	for (i = 0; i < src->count; ++i) {
+		ni_wireless_network_t *ref = ni_wireless_network_ref(src->data[i]);
+
+		if (ref && !ni_wireless_network_array_append(dst, ref)) {
+			ni_wireless_network_free(ref);
+			return FALSE;
+		}
+	}
+	return TRUE;
 }
 
 /*

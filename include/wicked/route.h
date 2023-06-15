@@ -28,6 +28,7 @@
 #include <wicked/refcount.h>
 #include <wicked/constants.h>
 #include <wicked/util.h>
+#include <wicked/array.h>
 
 
 #define NI_ROUTE_ARRAY_INIT	{ .count = 0, .data = NULL }
@@ -82,12 +83,8 @@ struct ni_route {
 	unsigned int		reordering;
 };
 
-typedef struct ni_route_array	ni_route_array_t;
-
-struct ni_route_array {
-	unsigned int		count;
-	ni_route_t **		data;
-};
+ni_declare_ptr_array_type(ni_route);
+ni_declare_ptr_array_cmp_fn(ni_route);
 
 struct ni_route_table {
 	ni_route_table_t *	next;
@@ -153,20 +150,15 @@ struct ni_rule {
 	unsigned int		suppress_ifgroup;
 };
 
-typedef struct ni_rule_array  {
-	unsigned int		count;
-	ni_rule_t **		data;
-} ni_rule_array_t;
+ni_declare_ptr_array_struct(ni_rule);
 
 
-typedef int			ni_route_cmp_fn(const ni_route_t *, const ni_route_t *);
-
-extern 				ni_refcounted_declare_new(ni_route);
-extern 				ni_refcounted_declare_ref(ni_route);
-extern				ni_refcounted_declare_hold(ni_route);
-extern 				ni_refcounted_declare_free(ni_route);
-extern				ni_refcounted_declare_drop(ni_route);
-extern				ni_refcounted_declare_move(ni_route);
+extern				ni_declare_refcounted_new(ni_route);
+extern				ni_declare_refcounted_ref(ni_route);
+extern				ni_declare_refcounted_hold(ni_route);
+extern				ni_declare_refcounted_free(ni_route);
+extern				ni_declare_refcounted_drop(ni_route);
+extern				ni_declare_refcounted_move(ni_route);
 
 extern ni_route_t *		ni_route_create(unsigned int prefix_len,
 						const ni_sockaddr_t *dest,
@@ -245,21 +237,21 @@ extern const ni_route_nexthop_t *	ni_route_nexthop_find_by_gateway(const ni_rout
 
 extern ni_route_array_t *	ni_route_array_new(void);
 extern void			ni_route_array_free(ni_route_array_t *);
-extern void			ni_route_array_init(ni_route_array_t *);
-extern void			ni_route_array_destroy(ni_route_array_t *);
-extern ni_bool_t		ni_route_array_append(ni_route_array_t *, ni_route_t *);
+extern				ni_declare_ptr_array_init(ni_route);
+extern				ni_declare_ptr_array_destroy(ni_route);
+extern				ni_declare_ptr_array_append(ni_route);
+extern				ni_declare_ptr_array_delete_at(ni_route);
+extern				ni_declare_ptr_array_remove_at(ni_route);
+extern				ni_declare_ptr_array_at(ni_route);
+extern				ni_declare_ptr_array_qsort(ni_route);
 extern ni_bool_t		ni_route_array_delete_ref(ni_route_array_t *, const ni_route_t *);
-extern ni_bool_t		ni_route_array_delete(ni_route_array_t *, unsigned int);
 extern ni_route_t *		ni_route_array_remove_ref(ni_route_array_t *, const ni_route_t *);
-extern ni_route_t *		ni_route_array_remove(ni_route_array_t *, unsigned int);
-extern ni_route_t *		ni_route_array_get(ni_route_array_t *, unsigned int);
 extern ni_route_t *		ni_route_array_ref(ni_route_array_t *, unsigned int);
 extern ni_route_t *		ni_route_array_find_match(ni_route_array_t *, const ni_route_t *,
 					ni_bool_t (*match)(const ni_route_t *, const ni_route_t *));
 extern unsigned int		ni_route_array_find_matches(ni_route_array_t *, const ni_route_t *,
 					ni_bool_t (*match)(const ni_route_t *, const ni_route_t *),
 					ni_route_array_t *);
-extern void			ni_route_array_qsort(ni_route_array_t *, ni_route_cmp_fn *);
 extern void			ni_route_array_sort(ni_route_array_t *);
 extern void			ni_route_array_sort_rev(ni_route_array_t *);
 
@@ -284,12 +276,12 @@ extern ni_bool_t		ni_route_tables_empty(const ni_route_table_t *);
 extern ni_route_table_t *	ni_route_tables_get(ni_route_table_t **, unsigned int);
 extern void			ni_route_tables_destroy(ni_route_table_t **);
 
-extern 				ni_refcounted_declare_new(ni_rule);
-extern 				ni_refcounted_declare_ref(ni_rule);
-extern 				ni_refcounted_declare_hold(ni_rule);
-extern 				ni_refcounted_declare_free(ni_rule);
-extern 				ni_refcounted_declare_drop(ni_rule);
-extern 				ni_refcounted_declare_move(ni_rule);
+extern				ni_declare_refcounted_new(ni_rule);
+extern				ni_declare_refcounted_ref(ni_rule);
+extern				ni_declare_refcounted_hold(ni_rule);
+extern				ni_declare_refcounted_free(ni_rule);
+extern				ni_declare_refcounted_drop(ni_rule);
+extern				ni_declare_refcounted_move(ni_rule);
 
 extern ni_bool_t		ni_rule_copy(ni_rule_t *, const ni_rule_t *);
 extern ni_rule_t *		ni_rule_clone(const ni_rule_t *);
@@ -302,17 +294,17 @@ extern const char *		ni_rule_action_type_to_name(unsigned int);
 extern ni_bool_t		ni_rule_action_name_to_type(const char *, unsigned int *);
 
 extern ni_rule_array_t *	ni_rule_array_new(void);
-extern ni_rule_array_t *	ni_rule_array_clone(const ni_rule_array_t *);
 extern void			ni_rule_array_free(ni_rule_array_t *);
-extern void			ni_rule_array_init(ni_rule_array_t *);
-extern void			ni_rule_array_destroy(ni_rule_array_t *);
+extern ni_rule_array_t *	ni_rule_array_clone(const ni_rule_array_t *);
 extern void			ni_rule_array_copy(ni_rule_array_t *, const ni_rule_array_t *);
-extern unsigned int		ni_rule_array_index(const ni_rule_array_t *, const ni_rule_t *);
-extern ni_bool_t		ni_rule_array_append(ni_rule_array_t *, ni_rule_t *);
-extern ni_bool_t		ni_rule_array_insert(ni_rule_array_t *, unsigned int, ni_rule_t *);
-extern ni_bool_t		ni_rule_array_delete(ni_rule_array_t *, unsigned int);
-extern ni_rule_t *		ni_rule_array_remove(ni_rule_array_t *, unsigned int);
-extern ni_rule_t *		ni_rule_array_get(ni_rule_array_t *, unsigned int);
+extern				ni_declare_ptr_array_init(ni_rule);
+extern				ni_declare_ptr_array_destroy(ni_rule);
+extern				ni_declare_ptr_array_index(ni_rule);
+extern				ni_declare_ptr_array_append(ni_rule);
+extern				ni_declare_ptr_array_insert(ni_rule);
+extern				ni_declare_ptr_array_delete_at(ni_rule);
+extern				ni_declare_ptr_array_remove_at(ni_rule);
+extern				ni_declare_ptr_array_at(ni_rule);
 extern ni_rule_t *		ni_rule_array_find_match(const ni_rule_array_t *, const ni_rule_t *,
 					ni_bool_t (*match)(const ni_rule_t *, const ni_rule_t *));
 extern unsigned int		ni_rule_array_find_matches(const ni_rule_array_t *, const ni_rule_t *,

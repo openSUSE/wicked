@@ -1,5 +1,5 @@
 /*
- *	refcount -- reference couting utils
+ *	refcount -- reference counting utils
  *
  *	Copyright (C) 2022 SUSE LLC
  *

@@ -1,7 +1,7 @@
 #
 # spec file for package wicked
 #
-# Copyright (c) 2021 SUSE LLC
+# Copyright (c) 2023 SUSE LLC
 #
 # All modifications and additions to the file contributed by third parties
 # remain the property of their copyright owners, unless otherwise agreed
@@ -41,13 +41,18 @@ BuildRequires:  automake
 BuildRequires:  libtool
 BuildRequires:  make
 %if %{with wicked_devel}
-# libwicked-%{version}.so shlib package compatible match for wicked-devel
+# libwicked-%%{version}.so shlib package compatible match for wicked-devel
 Provides:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}-%{release}
 %endif
 # uninstall obsolete libwicked-0-6 (libwicked-0.so.6, wicked < 0.6.60)
 Provides:       libwicked-0-6 = %{version}
 Obsoletes:      libwicked-0-6 < %{version}
 
+%if 0%{?suse_version} > 1500 || 0%{?sle_version} >= 150500
+%bcond_without  nbft
+%else
+%bcond_with     nbft
+%endif
 %if 0%{?suse_version} >= 1500
 %bcond_without  rfc4361_cid
 %else
@@ -57,13 +62,6 @@ Obsoletes:      libwicked-0-6 < %{version}
 %bcond_without  dhcp6_nis
 %else
 %bcond_with     dhcp6_nis
-%endif
-%if 0%{?suse_version} >= 1230
-%bcond_without  systemd
-%bcond_with     dbusstart
-%else
-%bcond_with     systemd
-%bcond_with     dbusstart
 %endif
 
 %bcond_with     wicked_devel
@@ -88,7 +86,6 @@ Requires(pre):       util-linux-systemd
 Requires(pre):       util-linux
 %endif
 
-%if %{with systemd}
 BuildRequires:  systemd-rpm-macros
 BuildRequires:  pkgconfig(libsystemd)
 %{?systemd_requires}
@@ -97,11 +94,6 @@ Requires(pre):  %fillup_prereq
 Requires:       sysconfig-netconfig
 %endif
 Requires:       %{name}-service = %{version}
-%else
-%if 0%{?suse_version:1}
-PreReq:         %fillup_prereq %insserv_prereq
-%endif
-%endif
 %if %{defined _rundir}
 %define         wicked_piddir   %_rundir/%{name}
 %define         wicked_statedir %_rundir/%{name}
@@ -123,6 +115,8 @@ Wicked is a network configuration infrastructure incorporating a number
 of existing frameworks into a unified architecture, providing a DBUS
 interface to network configuration.
 
+%if %{with nbft}
+
 %package nbft
 Summary:        Network configuration infrastructure - nbft support
 Group:          System/Management
@@ -135,7 +129,7 @@ This package provides an extension to retrieve the NBFT firmware
 network interface configuration according to the NVM Express Boot
 Specification 1.0 and convert it to wicked configuration.
 
-%if %{with systemd}
+%endif
 
 %package service
 Summary:        Network configuration infrastructure - systemd service
@@ -146,7 +140,6 @@ Provides:       /sbin/ifup
 Provides:       service(network)
 Provides:       sysvinit(network)
 Conflicts:      otherproviders(/sbin/ifup)
-Obsoletes:      sysconfig-network
 
 %description service
 Wicked is a network configuration infrastructure incorporating a number
@@ -155,24 +148,6 @@ interface to network configuration.
 
 This package provides the wicked systemd service files.
 
-%else
-
-%package service
-Summary:        Network configuration infrastructure - SysVinit service
-Group:          System/Management
-Requires(pre):  %name = %{version}
-Provides:       /sbin/ifup
-Provides:       sysvinit(network)
-# sysvinit test package only, unsupported -> no more deps
-
-%description service
-Wicked is a network configuration infrastructure incorporating a number
-of existing frameworks into a unified architecture, providing a DBUS
-interface to network configuration.
-
-This package provides the wicked system V init scripts.
-
-%endif
 
 %if %{with wicked_devel}
 %package devel
@@ -211,15 +186,12 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS -fPIC" LDFLAGS="-pie"
 %if %{without use_teamd}
 	--disable-teamd			\
 %endif
-%if %{with systemd}
+%if %{without nbft}
+	--disable-nbft			\
+%endif
 	--enable-systemd		\
 	--with-systemd-unitdir=%{_unitdir} \
-%else
-	--enable-systemv		\
-%endif
-%if ! %{with dbusstart}
 	--without-dbus-servicedir	\
-%endif
 	--with-dbus-configdir=%{dbus_config_base}/system.d \
 	--disable-static
 make %{?_smp_mflags}
@@ -242,17 +214,12 @@ done
 %__rm -f ${RPM_BUILD_ROOT}%_libdir/libwicked*.*a
 # create reboot-persistent (leases) store directory
 %__mkdir_p -m 0750 ${RPM_BUILD_ROOT}%{wicked_storedir}
-%if %{with systemd}
-ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwicked
-ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd
-ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-nanny
-ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-dhcp6
-ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-dhcp4
-ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-auto4
-%else
-ln -sf %_sysconfdir/init.d/wickedd ${RPM_BUILD_ROOT}%_sbindir/rcwickedd
-ln -sf %_sysconfdir/init.d/network ${RPM_BUILD_ROOT}%_sbindir/rcnetwork
-%endif
+ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwicked
+ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd
+ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-nanny
+ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-dhcp6
+ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-dhcp4
+ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-auto4
 
 %if %{without wicked_devel}
 pushd $RPM_BUILD_ROOT
@@ -264,14 +231,7 @@ rm -rfv \
 popd
 %endif
 
-%if %{with systemd}
-
 %pre service
-# upgrade from sysconfig[-network] scripts
-_id=`readlink /etc/systemd/system/network.service 2>/dev/null` || :
-if test "x${_id##*/}" = "xnetwork.service" -a -x /etc/init.d/network ; then
-	/etc/init.d/network stop-all-dhcp-clients || :
-fi
 %{service_add_pre wicked.service}
 
 %post service
@@ -297,24 +257,6 @@ esac
 # restart wickedd after upgrade
 %{service_del_postun wickedd.service}
 
-%else
-
-%post service
-%{fillup_and_insserv wickedd}
-
-%preun service
-if test -x /etc/init.d/wicked ; then
-	%stop_on_removal wickedd
-fi
-
-%postun service
-if test -x /etc/init.d/wicked ; then
-	%restart_on_update wickedd
-fi
-%insserv_cleanup
-
-%endif
-
 %post
 /sbin/ldconfig
 %{fillup_only -dns config wicked network}
@@ -336,9 +278,20 @@ if [ ${FIRST_ARG:-$1} -eq 0 ]; then
 	/usr/bin/systemctl reload dbus.service 2>/dev/null || :
 fi
 
+%if %{with nbft}
+
+%postun nbft
+# revert nbft override in client-firmware.xml config
+if [ ${FIRST_ARG:-$1} -eq 0 ]; then
+	%_sbindir/wicked firmware revert nbft 2>/dev/null || :
+fi
+
+%endif
+
 %files
 %defattr (-,root,root)
-%doc ChangeLog ANNOUNCE COPYING README TODO samples
+%doc ChangeLog ANNOUNCE README TODO samples
+%license COPYING
 %_sbindir/wicked
 %_sbindir/wickedd
 %_sbindir/wickedd-nanny
@@ -371,13 +324,6 @@ fi
 %{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.DHCP4.conf
 %{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.DHCP6.conf
 %{dbus_config_tag} %{dbus_config_base}/system.d/org.opensuse.Network.Nanny.conf
-%if %{with dbusstart}
-%if "%dbus_config_base" != "%_datadir/dbus-1"
-%dir %_datadir/dbus-1
-%endif
-%dir %_datadir/dbus-1/system-services
-%_datadir/dbus-1/system-services/org.opensuse.Network.*.service
-%endif
 %dir %_datadir/wicked
 %dir %_datadir/wicked/schema
 %_datadir/wicked/schema/*.xml
@@ -404,6 +350,7 @@ fi
 %_mandir/man8/wicked.8*
 %_mandir/man8/wickedd.8*
 %_mandir/man8/wicked-ethtool.8*
+%_mandir/man8/wicked-firmware.8*
 %_mandir/man8/wicked-redfish.8*
 %_mandir/man8/ifdown.8*
 %_mandir/man8/ifstatus.8*
@@ -412,11 +359,13 @@ fi
 %_fillupdir/sysconfig.dhcp-wicked
 %attr(0750,root,root) %dir        %wicked_storedir
 
+%if %{with nbft}
+
 %files nbft
 %config(noreplace) %_sysconfdir/wicked/client-nbft.xml
 %config(noreplace) %_sysconfdir/wicked/extensions/nbft
 
-%if %{with systemd}
+%endif
 
 %files service
 %defattr (-,root,root)
@@ -446,29 +395,6 @@ fi
 %_sbindir/rcwickedd-auto4
 %_sbindir/rcwickedd
 %_sbindir/rcwicked
-
-%else
-
-%files service
-%defattr (-,root,root)
-%_sysconfdir/init.d/wickedd
-%_sysconfdir/init.d/network
-%_sbindir/rcwickedd
-%_sbindir/rcnetwork
-%attr(0600,root,root) %config /etc/sysconfig/network/ifcfg-lo
-%_sbindir/ifup
-%if 0%{?suse_version} < 1550
-/sbin/ifup
-/sbin/ifdown
-/sbin/ifstatus
-/sbin/ifprobe
-%else
-%_sbindir/ifdown
-%_sbindir/ifstatus
-%_sbindir/ifprobe
-%endif
-
-%endif
 
 %if %{with wicked_devel}
 %files devel
