@@ -41,7 +41,7 @@ BuildRequires:  automake
 BuildRequires:  libtool
 BuildRequires:  make
 %if %{with wicked_devel}
-# libwicked-%{version}.so shlib package compatible match for wicked-devel
+# libwicked-%%{version}.so shlib package compatible match for wicked-devel
 Provides:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}-%{release}
 %endif
 # uninstall obsolete libwicked-0-6 (libwicked-0.so.6, wicked < 0.6.60)
