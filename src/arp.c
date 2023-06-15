@@ -498,6 +498,7 @@ ni_arp_verify_send(ni_arp_socket_t *sock, ni_arp_verify_t *vfy, ni_timeout_t *ti
 	return NI_ARP_SEND_FAILURE;
 }
 
+
 void
 ni_arp_notify_init(ni_arp_notify_t *nfy, const ni_config_arp_notify_t *cfg)
 {
