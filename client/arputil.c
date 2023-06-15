@@ -924,9 +924,9 @@ do_arp_ping_init(struct arp_handle *handle, ni_netdev_t *dev, ni_netconfig_t *nc
 				&ap->local_addr, &handle->ipaddr))
 			continue;
 
+		ni_sockaddr_set_ipv4(&handle->fromip, ap->local_addr.sin.sin_addr, 0);
 		ni_info("%s: Using source IP address %s from matching network",
 				handle->ifname, ni_sockaddr_print(&handle->fromip));
-		ni_sockaddr_set_ipv4(&handle->fromip, ap->local_addr.sin.sin_addr, 0);
 		return NI_WICKED_RC_SUCCESS;
 	}
 
