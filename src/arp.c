@@ -383,6 +383,7 @@ ni_arp_verify_send(ni_arp_socket_t *sock, ni_arp_verify_t *vfy, unsigned int *ti
 	}
 
 	need_wait = FALSE;
+	vfy->started = now;
 	for (i = 0; i < vfy->ipaddrs.count; ++i) {
 		vap = &vfy->ipaddrs.data[i];
 		ap  = vap->address;
