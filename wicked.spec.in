@@ -214,12 +214,12 @@ done
 %__rm -f ${RPM_BUILD_ROOT}%_libdir/libwicked*.*a
 # create reboot-persistent (leases) store directory
 %__mkdir_p -m 0750 ${RPM_BUILD_ROOT}%{wicked_storedir}
-ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwicked
-ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd
-ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-nanny
-ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-dhcp6
-ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-dhcp4
-ln -sf %_sbindir/service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-auto4
+ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwicked
+ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd
+ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-nanny
+ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-dhcp6
+ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-dhcp4
+ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-auto4
 
 %if %{without wicked_devel}
 pushd $RPM_BUILD_ROOT
