@@ -222,21 +222,24 @@ ni_arp_timeout_left(struct timeval *started, const struct timeval *current, unsi
 
 
 void
-ni_arp_verify_init(ni_arp_verify_t *vfy,  unsigned int nprobes, unsigned int wait_ms)
+ni_arp_verify_init(ni_arp_verify_t *vfy, const ni_config_arp_verify_t *cfg)
 {
 	memset(vfy, 0, sizeof(*vfy));
-	vfy->nprobes = nprobes;
-	vfy->nretry = nprobes * 2;
-	vfy->wait_ms = wait_ms;
+	vfy->nprobes = cfg->count;
+	vfy->nretry = cfg->retries;
+	vfy->probe_min_ms = cfg->interval.min;
+	vfy->probe_max_ms = cfg->interval.max;
 }
 
 void
-ni_arp_verify_reset(ni_arp_verify_t *vfy,  unsigned int nprobes, unsigned int wait_ms)
+ni_arp_verify_reset(ni_arp_verify_t *vfy, const ni_config_arp_verify_t *cfg)
 {
-	vfy->nprobes = nprobes;
-	vfy->nretry = nprobes * 2;
-	vfy->wait_ms = wait_ms;
+	vfy->nprobes = cfg->count;
+	vfy->nretry = cfg->retries;
+	vfy->probe_min_ms = cfg->interval.min;
+	vfy->probe_max_ms = cfg->interval.max;
 	timerclear(&vfy->started);
+	vfy->last_timeout = 0;
 	ni_arp_verify_address_array_destroy(&vfy->ipaddrs);
 }
 
@@ -363,7 +366,7 @@ ni_arp_verify_send(ni_arp_socket_t *sock, ni_arp_verify_t *vfy, unsigned int *ti
 		return FALSE;
 
 	ni_timer_get_time(&now);
-	if ((*timeout = ni_arp_timeout_left(&vfy->started, &now, vfy->wait_ms)))
+	if ((*timeout = ni_arp_timeout_left(&vfy->started, &now, vfy->last_timeout)))
 		return TRUE;
 
 	for (i = 0; i < vfy->ipaddrs.count; ++i) {
@@ -425,7 +428,8 @@ ni_arp_verify_send(ni_arp_socket_t *sock, ni_arp_verify_t *vfy, unsigned int *ti
 		}
 	}
 	if (need_wait) {
-		*timeout = vfy->wait_ms;
+		vfy->last_timeout = ni_timeout_random_range(vfy->probe_min_ms, vfy->probe_max_ms);
+		*timeout = vfy->last_timeout;
 		return TRUE;
 	}
 
@@ -433,18 +437,20 @@ ni_arp_verify_send(ni_arp_socket_t *sock, ni_arp_verify_t *vfy, unsigned int *ti
 }
 
 void
-ni_arp_notify_init(ni_arp_notify_t *nfy,  unsigned int nclaims, unsigned int wait_ms)
+ni_arp_notify_init(ni_arp_notify_t *nfy, const ni_config_arp_notify_t *cfg)
 {
 	memset(nfy, 0, sizeof(*nfy));
-	nfy->nclaims = nclaims;
-	nfy->wait_ms = wait_ms;
+	nfy->nclaims = cfg->count;
+	nfy->nretry = cfg->retries;
+	nfy->wait_ms = cfg->interval;
 }
 
 void
-ni_arp_notify_reset(ni_arp_notify_t *nfy,  unsigned int nclaims, unsigned int wait_ms)
+ni_arp_notify_reset(ni_arp_notify_t *nfy, const ni_config_arp_notify_t *cfg)
 {
-	nfy->nclaims = nclaims;
-	nfy->wait_ms = wait_ms;
+	nfy->nclaims = cfg->count;
+	nfy->nretry = cfg->retries;
+	nfy->wait_ms = cfg->interval;
 	timerclear(&nfy->started);
 	ni_address_array_destroy(&nfy->ipaddrs);
 }

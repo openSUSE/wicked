@@ -18,6 +18,7 @@
 #include <wicked/logging.h>
 #include <wicked/team.h>
 #include <wicked/ovs.h>
+#include "appconfig.h"
 
 typedef struct ni_capture	ni_capture_t;
 typedef struct __ni_netlink	ni_netlink_t;
@@ -218,7 +219,9 @@ typedef struct ni_arp_verify {
 	unsigned int			nprobes;
 	unsigned int			nretry;
 
-	unsigned int			wait_ms;
+	ni_timeout_t			probe_min_ms;
+	ni_timeout_t			probe_max_ms;
+	ni_timeout_t			last_timeout;
 	struct timeval			started;
 
 	ni_arp_verify_address_array_t	ipaddrs;
@@ -232,8 +235,8 @@ extern ni_arp_verify_address_t *	ni_arp_verify_address_array_find_match(ni_arp_v
 							ni_address_t *, unsigned int *,
 							ni_bool_t (*)(const ni_address_t *, const ni_address_t *));
 
-extern void				ni_arp_verify_init(ni_arp_verify_t *, unsigned int, unsigned int);
-extern void				ni_arp_verify_reset(ni_arp_verify_t *, unsigned int, unsigned int);
+extern void				ni_arp_verify_init(ni_arp_verify_t *, const ni_config_arp_verify_t *);
+extern void				ni_arp_verify_reset(ni_arp_verify_t *, const ni_config_arp_verify_t *);
 extern void				ni_arp_verify_destroy(ni_arp_verify_t *);
 extern unsigned int			ni_arp_verify_add_address(ni_arp_verify_t *,  ni_address_t *);
 extern void				ni_arp_verify_process(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
@@ -241,6 +244,7 @@ extern ni_bool_t			ni_arp_verify_send(ni_arp_socket_t *, ni_arp_verify_t *, unsi
 
 typedef struct ni_arp_notify {
 	unsigned int			nclaims;
+	unsigned int			nretry;
 
 	unsigned int			wait_ms;
 	struct timeval			started;
@@ -248,8 +252,8 @@ typedef struct ni_arp_notify {
 	ni_address_array_t		ipaddrs;
 } ni_arp_notify_t;
 
-extern void				ni_arp_notify_init(ni_arp_notify_t *, unsigned int, unsigned int);
-extern void				ni_arp_notify_reset(ni_arp_notify_t *, unsigned int, unsigned int);
+extern void				ni_arp_notify_init(ni_arp_notify_t *, const ni_config_arp_notify_t *);
+extern void				ni_arp_notify_reset(ni_arp_notify_t *, const ni_config_arp_notify_t *);
 extern void				ni_arp_notify_destroy(ni_arp_notify_t *);
 extern unsigned int			ni_arp_notify_add_address(ni_arp_notify_t *,  ni_address_t *);
 extern ni_bool_t			ni_arp_notify_send(ni_arp_socket_t *, ni_arp_notify_t *, unsigned int *);
