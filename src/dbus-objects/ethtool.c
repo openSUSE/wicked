@@ -544,15 +544,12 @@ ni_objectmodel_ethtool_link_adv_bitfield_from_array(const ni_dbus_variant_t *arr
 {
 	const char *value;
 	unsigned int bit;
-	size_t len, pos;
+	size_t pos;
 
 	if (!ni_dbus_variant_is_string_array(array))
 		return FALSE;
 
-	if ((len = array->array.len) > ni_ethtool_link_mode_nbits())
-		len = ni_ethtool_link_mode_nbits();
-
-	for (pos = 0; pos < len; ++pos) {
+	for (pos = 0; pos < array->array.len; ++pos) {
 		value = array->string_array_value[pos];
 		if (name_to_bit(value, &bit))
 			ni_bitfield_setbit(bitfield, bit);

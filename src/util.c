@@ -26,6 +26,7 @@
 #include <wicked/logging.h>
 #include <wicked/netinfo.h> /* only for CONFIG_WICKED_STATEDIR */
 #include <wicked/fsm.h> /* for NI_IFWORKER_INFINITE_TIMEOUT */
+#include "slist_priv.h"
 #include "util_priv.h"
 
 #define NI_STRING_ARRAY_CHUNK	16
@@ -1041,6 +1042,34 @@ ni_var_array_set_boolean(ni_var_array_t *nva, const char *name, int value)
 	return ni_var_array_set(nva, name, value? "yes" : "no");
 }
 
+ni_bool_t
+ni_var_array_set_var(ni_var_array_t *nva, const ni_var_t *var)
+{
+	if (!nva || !var)
+		return FALSE;
+	return ni_var_array_set(nva, var->name, var->value);
+}
+
+ni_bool_t
+ni_var_array_set_vars(ni_var_array_t *nva, const ni_var_array_t *vars, ni_bool_t overwrite)
+{
+	const ni_var_t *var;
+	unsigned int i;
+
+	if (!nva || !vars)
+		return FALSE;
+
+	for (i = 0; i < vars->count; ++i) {
+		var = &vars->data[i];
+
+		if (!overwrite && ni_var_array_get(nva, var->name))
+			continue;
+
+		if (!ni_var_array_set_var(nva, var))
+			return FALSE;
+	}
+	return TRUE;
+}
 void
 ni_var_array_sort(ni_var_array_t *nva, ni_var_compare_fn_t fn)
 {
@@ -1054,28 +1083,11 @@ ni_var_array_sort_by_name(ni_var_array_t *nva)
 	ni_var_array_sort(nva, ni_var_name_cmp);
 }
 
-void
-ni_var_array_list_append(ni_var_array_t **list, ni_var_array_t *nva)
-{
-	if (list && nva) {
-		while (*list)
-			list = &(*list)->next;
-		*list = nva;
-	}
-}
-
-void
-ni_var_array_list_destroy(ni_var_array_t **list)
-{
-	ni_var_array_t *nva;
-
-	if (list) {
-		while ((nva = *list)) {
-			*list = nva->next;
-			ni_var_array_free(nva);
-		}
-	}
-}
+/*
+ * var_array list
+ */
+extern ni_define_slist_append(ni_var_array);
+extern ni_define_slist_destroy(ni_var_array);
 
 
 /*

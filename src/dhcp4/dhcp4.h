@@ -83,9 +83,8 @@ struct ni_dhcp4_device {
 	ni_buffer_t		message;
 
 	struct {
+	   ni_arp_verify_t	verify;
 	   ni_arp_socket_t *	handle;
-	   unsigned int		nprobes;
-	   unsigned int		nclaims;
 
 	   void (*dad_success)(ni_dhcp4_device_t *);
 	   void (*dad_failure)(ni_dhcp4_device_t *);
@@ -107,7 +106,6 @@ struct ni_dhcp4_device {
 #define NI_DHCP4_REBOOT_TIMEOUT		NI_DHCP4_REQUEST_TIMEOUT
 #define NI_DHCP4_DECLINE_BACKOFF	10	/* seconds */
 #define NI_DHCP4_NAK_BACKOFF_MAX	60	/* seconds */
-#define NI_DHCP4_ARP_TIMEOUT		200	/* msec */
 
 /*
  * common NI_ADDRCONF_UPDATE_* + dhcp4 specific options

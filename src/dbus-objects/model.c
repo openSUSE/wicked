@@ -26,6 +26,7 @@
 #include "xml-schema.h"
 #include "model.h"
 #include "appconfig.h"
+#include "extension.h"
 #include "debug.h"
 #include "dbus-connection.h"
 #include "process.h"
@@ -264,7 +265,7 @@ ni_objectmodel_factory_service(const ni_dbus_service_t *service)
 		if (attr)
 			factory_name = attr->value;
 	}
-	
+
 	/* If not, the default is to append ".Factory" to the service name */
 	if (factory_name == NULL) {
 		snprintf(namebuf, sizeof(namebuf), "%s.Factory", service->name);
@@ -289,7 +290,7 @@ ni_objectmodel_auth_service(const ni_dbus_service_t *service)
 		if (attr)
 			auth_name = attr->value;
 	}
-	
+
 	/* If not, the default is to append ".Auth" to the service name */
 	if (auth_name == NULL) {
 		snprintf(namebuf, sizeof(namebuf), "%s.Auth", service->name);
@@ -536,7 +537,7 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 		return FALSE;
 	}
 
-	if ((command = ni_extension_script_find(extension, method->name)) == NULL) {
+	if ((command = ni_extension_find_script(extension, method->name)) == NULL) {
 		dbus_set_error(&error, DBUS_ERROR_FAILED, "%s: no/unknown extension method %s",
 				__func__, method->name);
 		ni_dbus_connection_send_error(connection, call, &error);
@@ -657,6 +658,9 @@ send_error:
 	if (ni_dbus_connection_send_message(connection, reply) < 0)
 		ni_error("unable to send reply (out of memory)");
 
+	if (doc)
+		xml_document_free(doc);
+
 	dbus_message_unref(reply);
 	return TRUE;
 }
@@ -685,7 +689,7 @@ ni_objectmodel_bind_extensions(void)
 
 			if (method->handler != NULL)
 				continue;
-			if (ni_extension_script_find(extension, method->name) != NULL) {
+			if (ni_extension_find_script(extension, method->name) != NULL) {
 				ni_debug_dbus("binding method %s.%s to external command",
 						service->name, method->name);
 				mod_method->async_handler = ni_objectmodel_extension_call;

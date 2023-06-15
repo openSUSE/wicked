@@ -24,9 +24,10 @@
 #ifndef NI_WICKED_OVS_H
 #define NI_WICKED_OVS_H
 
+#include <wicked/array.h>
+
 typedef struct ni_ovs_bridge_config	ni_ovs_bridge_config_t;
 typedef struct ni_ovs_bridge_port	ni_ovs_bridge_port_t;
-typedef struct ni_ovs_bridge_port_array	ni_ovs_bridge_port_array_t;
 
 /*
  * ovs bridge port config
@@ -42,10 +43,8 @@ struct ni_ovs_bridge_port {
 	ni_netdev_ref_t			device;
 };
 
-struct ni_ovs_bridge_port_array {
-	unsigned int			count;
-	ni_ovs_bridge_port_t **		data;
-};
+ni_declare_ptr_array_type(ni_ovs_bridge_port);
+
 
 /*
  * ovs bridge config
@@ -74,10 +73,10 @@ extern void			ni_ovs_bridge_config_destroy(ni_ovs_bridge_config_t *);
 extern ni_ovs_bridge_port_t *	ni_ovs_bridge_port_new(void);
 extern void			ni_ovs_bridge_port_free(ni_ovs_bridge_port_t *);
 
-extern void			ni_ovs_bridge_port_array_init(ni_ovs_bridge_port_array_t *);
-extern void			ni_ovs_bridge_port_array_destroy(ni_ovs_bridge_port_array_t *);
-extern ni_bool_t		ni_ovs_bridge_port_array_append(ni_ovs_bridge_port_array_t *, ni_ovs_bridge_port_t *);
-extern ni_bool_t		ni_ovs_bridge_port_array_delete_at(ni_ovs_bridge_port_array_t *, unsigned int);
+extern				ni_declare_ptr_array_init(ni_ovs_bridge_port);
+extern				ni_declare_ptr_array_destroy(ni_ovs_bridge_port);
+extern				ni_declare_ptr_array_append(ni_ovs_bridge_port);
+extern				ni_declare_ptr_array_delete_at(ni_ovs_bridge_port);
 extern ni_ovs_bridge_port_t *	ni_ovs_bridge_port_array_add_new(ni_ovs_bridge_port_array_t *, const char *);
 extern ni_ovs_bridge_port_t *	ni_ovs_bridge_port_array_find_by_name(ni_ovs_bridge_port_array_t *, const char *);
 

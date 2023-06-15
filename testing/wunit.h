@@ -42,6 +42,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <wicked/logging.h>
+#include <wicked/util.h>
 
 typedef struct wunit_s wunit_t;
 typedef void (*wunit_test_fn)();
@@ -66,41 +67,46 @@ __attribute__((unused)) static wunit_t wunit_ctx = {
 	.current = NULL
 };
 
-#define MSG(name, ...)							\
+#define WUNIT_LINE_LEN	80
+#define WUNIT_FAIL	"FAIL"
+#define WUNIT_OK	"OK"
+
+#define MSG(desc, result)						\
 	do {								\
-		int __printed__;					\
-		printf("[%03d/line:%-4d] ",				\
-				wunit_ctx.current->checks, __LINE__);	\
-		__printed__ = printf(name, ##__VA_ARGS__);		\
-		if (__printed__ >= 0 && __printed__ < 50) {		\
-			for (; __printed__ < 50; __printed__++)		\
-				printf(" ");				\
+		int len = ni_string_len(desc);				\
+		int max_len = WUNIT_LINE_LEN - 21;			\
+		const char * spacer = " ";				\
+		if (len > max_len) {					\
+			max_len -= 2;					\
+			spacer = ".. ";					\
 		}							\
+		printf("[%03d/line:%-4d] %-*.*s%s%s\n",			\
+				wunit_ctx.current->checks, __LINE__,	\
+				max_len, max_len, desc, spacer,		\
+				result);				\
 	} while (0)
 
-#define OK(name, ...)							\
+#define CHECK_DESC(stm, desc)						\
 	do {								\
-		wunit_ctx.current->ok++;				\
-		MSG(name, ##__VA_ARGS__); printf(" OK\n");		\
-	} while (0)
-
-#define FAIL(name, ...)							\
-	do {								\
-		wunit_ctx.current->fail++;				\
-		MSG(name, ##__VA_ARGS__); printf(" FAILED\n");		\
+		wunit_ctx.current->checks++;				\
+		if (stm) {						\
+			wunit_ctx.current->ok++;			\
+			MSG(desc, WUNIT_OK);				\
+		} else {						\
+			wunit_ctx.current->fail++;			\
+			MSG(desc, WUNIT_FAIL);				\
+		}							\
 	} while (0)
 
 #define CHECK2(stm, name, ...)						\
 	do {								\
-		wunit_ctx.current->checks++;				\
-		if (stm) {						\
-			OK(name, ##__VA_ARGS__);			\
-		} else {						\
-			FAIL(name, ##__VA_ARGS__);			\
-		}							\
+		ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;		\
+		ni_stringbuf_printf(&sb, name, ##__VA_ARGS__);		\
+		CHECK_DESC(stm, sb.string);				\
+		ni_stringbuf_destroy(&sb);				\
 	} while (0)
 
-#define CHECK(stm)		CHECK2(stm, #stm)
+#define CHECK(stm)		CHECK_DESC(stm, #stm)
 
 #define TESTCASE(ts_name)								\
 	static void testcase_##ts_name(void);						\
@@ -132,12 +138,15 @@ __attribute__((unused)) static wunit_t wunit_ctx = {
 		printf("\n\nResults of %d testcases: ", wunit_ctx.testcases_idx);	\
 		printf("(failed: %d) ", wunit_ctx.fail);				\
 		printf("(ok: %d)\n", wunit_ctx.ok);					\
-		printf("==============================================================="\
-				"=========\n");						\
+		for (i = 0; i < WUNIT_LINE_LEN; i++)					\
+			printf("=");							\
+		printf("\n");								\
 		for (i = 0; i < wunit_ctx.testcases_idx; i++)				\
-			printf(" %3d: %-59.*s %s\n", i + 1,				\
-				60, wunit_ctx.testcases[i].name,			\
-				wunit_ctx.testcases[i].fail > 0 ? "FAILED" : "OK");	\
+			printf(" %3d: %-*.*s %s\n", i + 1,				\
+				WUNIT_LINE_LEN - 11, WUNIT_LINE_LEN - 11,		\
+				wunit_ctx.testcases[i].name,				\
+				wunit_ctx.testcases[i].fail > 0 ?			\
+					WUNIT_FAIL : WUNIT_OK);				\
 											\
 		return wunit_ctx.fail > 0 ? 1 : 0;					\
 	}

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-hostnamedir=/var/run/wicked/extension/hostname
+hostnamedir=@wicked_statedir@/extension/hostname
 defaulthostname=/etc/hostname
 
 type=""

@@ -41,6 +41,7 @@ Makefile.in
 /doc/schema.xml
 /etc/common.xml
 /etc/client.xml
+/etc/client-nbft.xml
 /etc/server.xml
 /etc/nanny.xml
 /etc/scripts/redfish-update
@@ -48,6 +49,8 @@ Makefile.in
 /etc/systemv/network
 /etc/systemv/*.service
 /etc/systemd/*.service
+/extensions/firewall
+/extensions/hostname
 /schema/constants.xml
 /autoip4/wickedd-auto4
 /dhcp4/wickedd-dhcp4

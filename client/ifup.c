@@ -687,6 +687,7 @@ cleanup:
 	ni_nanny_fsm_monitor_free(monitor);
 	ni_ifworker_array_destroy(&ifmarked);
 	ni_string_array_destroy(&opt_ifconfig);
+	ni_fsm_free(fsm);
 	return status;
 }
 

@@ -7,10 +7,6 @@
 #include "config.h"
 #endif
 
-#include <signal.h>
-#include <limits.h>
-#include <errno.h>
-
 #include <wicked/netinfo.h>
 #include <wicked/route.h>
 #include <wicked/team.h>
@@ -28,6 +24,13 @@
 #include "xml-schema.h"
 #include "sysfs.h"
 #include "modem-manager.h"
+
+#include <signal.h>
+#include <limits.h>
+#include <errno.h>
+
+#include <net/if.h>
+
 #include <gcrypt.h>
 
 #define NI_NETDEV_REF_ARRAY_CHUNK	16
@@ -767,13 +770,13 @@ ni_netconfig_rule_del(ni_netconfig_t *nc, const ni_rule_t *rule, ni_rule_t **pde
 			continue;
 
 		if (pdel) {
-			*pdel = ni_rule_array_remove(rules, i);
+			*pdel = ni_rule_array_remove_at(rules, i);
 			if (!*pdel) {
 				ni_error("%s: unable to remove policy rule", __func__);
 				return -1;
 			}
 		} else {
-			if (!ni_rule_array_delete(rules, i)) {
+			if (!ni_rule_array_delete_at(rules, i)) {
 				ni_error("%s: unable to remove policy rule", __func__);
 				return -1;
 			}
@@ -883,6 +886,23 @@ ni_netdev_name_to_index(const char *name)
 		return 0;
 
 	return if_nametoindex(name);
+}
+
+const char *
+ni_netdev_index_to_name(char **ifname, unsigned int ifindex)
+{
+	char ifnamebuf[IFNAMSIZ] = {'\0'};
+
+	if (!ifname || !ifindex)
+		return NULL;
+
+	if (!if_indextoname(ifindex, ifnamebuf))
+		return NULL;
+
+	if (!ni_string_dup(ifname, ifnamebuf))
+		return NULL;
+
+	return *ifname;
 }
 
 /*

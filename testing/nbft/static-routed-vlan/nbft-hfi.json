@@ -1,0 +1,32 @@
+[
+  {
+    "filename":"/sys/firmware/acpi/tables/NBFT",
+    "host":{
+      "nqn":"nqn.2014-08.org.nvmexpress:uuid:9188bb14-a274-4ced-bfe5-fbff75a2a7b2",
+      "id":"14bb8891-74a2-ed4c-bfe5-fbff75a2a7b2",
+      "host_id_configured":0,
+      "host_nqn_configured":0,
+      "primary_admin_host_flag":"not indicated"
+    },
+    "hfi":[
+      {
+        "index":1,
+        "transport":"tcp",
+        "pcidev":"0:2:0.0",
+        "mac_addr":"52:54:00:a2:a7:b2",
+        "vlan":5,
+        "ip_origin":1,
+        "ipaddr":"192.168.5.90",
+        "subnet_mask_prefix":24,
+        "gateway_ipaddr":"192.168.5.1",
+        "route_metric":0,
+        "primary_dns_ipaddr":"0.0.0.0",
+        "secondary_dns_ipaddr":"0.0.0.0",
+        "dhcp_server_ipaddr":"",
+        "host_name":"nvmepoc-wicked",
+        "this_hfi_is_default_route":1,
+        "dhcp_override":0
+      }
+    ]
+  }
+]

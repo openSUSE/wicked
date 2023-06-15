@@ -13,11 +13,19 @@ BUILT_SOURCES			= \
 	$(systemv_init_SCRIPTS)	\
 	$(wicked_scripts_SCRIPTS)
 
+noinst_DATA			=
+
 wicked_config_DATA		= \
 	common.xml		\
 	client.xml		\
 	server.xml		\
 	nanny.xml
+
+if nbft
+wicked_config_DATA		+= client-nbft.xml
+else
+noinst_DATA			+= client-nbft.xml
+endif
 
 wicked_scripts_SCRIPTS		= \
 	scripts/redfish-update
@@ -71,6 +79,7 @@ endif
 endif
 
 templates			= \
+	$(noinst_DATA:=.in)		\
 	$(wicked_config_DATA:=.in)	\
 	$(systemd_dbus_files:=.in)	\
 	$(systemd_unit_files:=.in)	\

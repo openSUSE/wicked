@@ -4,13 +4,8 @@
  * Copyright (C) 2012 Olaf Kirch <okir@suse.de>
  */
 
-#ifndef __WICKED_IPv4_H__
-#define __WICKED_IPv4_H__
-
-#include <sys/socket.h>
-#include <stdio.h>
-#include <net/if.h>
-#include <netinet/in.h>
+#ifndef NI_WICKED_IPv4_H
+#define NI_WICKED_IPv4_H
 
 #include <wicked/types.h>
 
@@ -34,5 +29,5 @@ extern void			ni_ipv4_devinfo_free(ni_ipv4_devinfo_t *);
 extern int			ni_system_ipv4_devinfo_get(ni_netdev_t *, ni_ipv4_devinfo_t *);
 extern int			ni_system_ipv4_devinfo_set(ni_netdev_t *, const ni_ipv4_devconf_t *);
 
-#endif /* __WICKED_IPv4_H__ */
+#endif /* NI_WICKED_IPv4_H */
 

@@ -10,11 +10,6 @@
 #include <wicked/types.h>
 #include <wicked/constants.h>
 
-/*
- * The SLE11 kernel does not know these yet (defined in linux/dcbnl.h)
- */
-#define DCB_CAP_DCBX_HOST			0x01
-
 #define NI_DCBX_MAX_PRIO			8
 #define NI_DCBX_MAX_TCLASS			8
 

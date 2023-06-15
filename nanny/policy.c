@@ -240,17 +240,20 @@ ni_objectmodel_register_managed_policy(ni_dbus_server_t *server, ni_managed_poli
 dbus_bool_t
 ni_objectmodel_unregister_managed_policy(ni_dbus_server_t *server, ni_managed_policy_t *mpolicy)
 {
+	ni_fsm_policy_t *policy;
 	const char *name;
 
-	if (!server || !mpolicy || !mpolicy->fsm_policy)
+	if (!server || !mpolicy || !(policy = ni_fsm_policy_ref(mpolicy->fsm_policy)))
 		return FALSE;
 
-	name = ni_fsm_policy_name(mpolicy->fsm_policy);
+	name = ni_fsm_policy_name(policy);
 	if (ni_dbus_server_unregister_object(server, mpolicy)) {
 		ni_debug_dbus("policy \"%s\" unregistered", name);
+		ni_fsm_policy_free(policy);
 		return TRUE;
 	} else {
 		ni_debug_dbus("policy \"%s\" not registered", name);
+		ni_fsm_policy_free(policy);
 		return FALSE;
 	}
 }

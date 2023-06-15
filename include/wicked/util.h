@@ -9,6 +9,7 @@
 
 #include <sys/types.h>
 #include <wicked/types.h>
+#include <wicked/slist.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -193,12 +194,14 @@ extern ni_bool_t	ni_var_array_set_long(ni_var_array_t *, const char *, long);
 extern ni_bool_t	ni_var_array_set_ulong(ni_var_array_t *, const char *, unsigned long);
 extern ni_bool_t	ni_var_array_set_double(ni_var_array_t *, const char *, double);
 extern ni_bool_t	ni_var_array_set_boolean(ni_var_array_t *, const char *, int);
+extern ni_bool_t	ni_var_array_set_var(ni_var_array_t *, const ni_var_t *);
+extern ni_bool_t	ni_var_array_set_vars(ni_var_array_t *, const ni_var_array_t *, ni_bool_t);
 
 extern void		ni_var_array_sort(ni_var_array_t *, ni_var_compare_fn_t);
 extern void		ni_var_array_sort_by_name(ni_var_array_t *);
 
-extern void		ni_var_array_list_append(ni_var_array_t **, ni_var_array_t *);
-extern void		ni_var_array_list_destroy(ni_var_array_t **);
+extern			ni_declare_slist_append(ni_var_array);
+extern			ni_declare_slist_destroy(ni_var_array);
 
 extern void		ni_stringbuf_set(ni_stringbuf_t *, const char *);
 extern void		ni_stringbuf_init(ni_stringbuf_t *);
