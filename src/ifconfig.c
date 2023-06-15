@@ -4864,9 +4864,6 @@ ni_netdev_addr_needs_update(ni_netdev_t *dev, ni_address_t *o, ni_address_t *n)
 #define NI_ADDRCONF_UPDATER_MAX_ADDR_CHANGES	256
 #define NI_ADDRCONF_UPDATER_MAX_ADDR_TIMEOUT	100
 #define NI_ADDRCONF_UPDATER_MAX_ARP_MESSAGES	NI_ADDRCONF_UPDATER_MAX_ADDR_CHANGES
-#define NI_ADDRCONF_UPDATER_ARP_NPROBES		3
-#define NI_ADDRCONF_UPDATER_ARP_NCLAIMS		1
-#define NI_ADDRCONF_UPDATER_ARP_TIMEOUT		300
 
 typedef struct ni_address_updater {
 	ni_arp_verify_t		verify;
@@ -4978,6 +4975,34 @@ ni_address_updater_arp_notify_enabled(ni_netdev_t *dev)
 	return !ni_tristate_is_disabled(ipv4->conf.arp_verify);
 }
 
+
+void
+ni_address_updater_process_arp(ni_arp_socket_t *sock, const ni_arp_packet_t *pkt, void *user_data)
+{
+	ni_address_updater_t *au = (ni_address_updater_t *) user_data;
+	ni_arp_address_t *vap;
+	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
+	const char *hwaddr;
+
+	if (!(vap = ni_arp_reply_match_address(sock, &au->verify.ipaddrs, pkt)))
+		return;
+
+	if (ni_address_is_duplicate(vap->address)) {
+		ni_debug_application("%s: ignore further reply about duplicate address %s from %s",
+				sock->dev_info.ifname, ni_address_print(&sb, vap->address),
+				ni_link_address_print(&pkt->sha));
+		ni_stringbuf_destroy(&sb);
+		return;
+	}
+
+	ni_address_set_duplicate(vap->address, TRUE);
+
+	hwaddr = ni_link_address_print(&pkt->sha);
+	ni_error("%s: IPv4 duplicate address %s detected%s%s%s!",
+			sock->dev_info.ifname, ni_address_print(&sb, vap->address),
+			hwaddr ? " (in use by " : "", hwaddr ? hwaddr : "", hwaddr ? ")" : "");
+}
+
 static ni_bool_t
 ni_address_updater_arp_open(ni_address_updater_t *au, ni_netdev_t *dev)
 {
@@ -4986,26 +5011,24 @@ ni_address_updater_arp_open(ni_address_updater_t *au, ni_netdev_t *dev)
 	if (ni_capture_devinfo_init(&dev_info, dev->name, &dev->link) < 0)
 		return FALSE;
 
-	au->sock = ni_arp_socket_open(&dev_info, ni_arp_verify_process, au);
+	au->sock = ni_arp_socket_open(&dev_info, ni_address_updater_process_arp, au);
 	ni_capture_devinfo_destroy(&dev_info);
 	return au->sock != NULL;
 }
 
 static void
-ni_address_updater_arp_init(ni_address_updater_t *au, ni_netdev_t *dev)
+ni_address_updater_arp_init(ni_address_updater_t *au, ni_netdev_t *dev, ni_addrconf_mode_t owner)
 {
+	const ni_config_arp_t *arpcfg = ni_config_addrconf_arp(owner, dev->name);
+
 	if (!ni_address_updater_arp_enabled(dev))
 		return;
 
-	if (ni_address_updater_arp_verify_enabled(dev)) {
-		ni_arp_verify_init(&au->verify, NI_ADDRCONF_UPDATER_ARP_NPROBES,
-						NI_ADDRCONF_UPDATER_ARP_TIMEOUT);
-	}
+	if (ni_address_updater_arp_verify_enabled(dev))
+		ni_arp_verify_init(&au->verify, &arpcfg->verify);
 
-	if (ni_address_updater_arp_notify_enabled(dev)) {
-		ni_arp_notify_init(&au->notify, NI_ADDRCONF_UPDATER_ARP_NCLAIMS,
-						NI_ADDRCONF_UPDATER_ARP_TIMEOUT);
-	}
+	if (ni_address_updater_arp_notify_enabled(dev))
+		ni_arp_notify_init(&au->notify, &arpcfg->notify);
 
 	if (au->verify.nprobes || au->notify.nclaims) {
 		if (!ni_address_updater_arp_open(au, dev)) {
@@ -5016,7 +5039,8 @@ ni_address_updater_arp_init(ni_address_updater_t *au, ni_netdev_t *dev)
 }
 
 static ni_address_updater_t *
-ni_address_updater_init(ni_addrconf_updater_t *updater, ni_netdev_t *dev, unsigned int family)
+ni_address_updater_init(ni_addrconf_updater_t *updater, ni_netdev_t *dev, unsigned int family,
+			ni_addrconf_mode_t owner)
 {
 	ni_address_updater_t *au;
 
@@ -5032,16 +5056,17 @@ ni_address_updater_init(ni_addrconf_updater_t *updater, ni_netdev_t *dev, unsign
 	}
 
 	if (family == AF_INET)
-		ni_address_updater_arp_init(au, dev);
+		ni_address_updater_arp_init(au, dev, owner);
 
 	return au;
 }
 
 static ni_bool_t
-ni_address_updater_arp_send(ni_addrconf_updater_t *updater, ni_netdev_t *dev)
+ni_address_updater_arp_send(ni_addrconf_updater_t *updater, ni_netdev_t *dev, ni_addrconf_mode_t owner)
 {
-	unsigned int wait_verify = 0, wait_notify = 0;
+	ni_timeout_t wait_verify = 0, wait_notify = 0;
 	ni_address_updater_t *au;
+	const ni_config_arp_t *arpcfg = ni_config_addrconf_arp(owner, dev->name);
 
 	if (!dev || !(au = ni_addrconf_address_updater_get(updater)))
 		return FALSE;
@@ -5051,17 +5076,15 @@ ni_address_updater_arp_send(ni_addrconf_updater_t *updater, ni_netdev_t *dev)
 			updater->timeout = wait_notify;
 			return TRUE;
 		}
-		ni_arp_notify_reset(&au->notify, NI_ADDRCONF_UPDATER_ARP_NCLAIMS,
-						 NI_ADDRCONF_UPDATER_ARP_TIMEOUT);
+		ni_arp_notify_reset(&au->notify, &arpcfg->notify);
 	}
 
 	if (au->verify.nprobes) {
-		if (ni_arp_verify_send(au->sock, &au->verify, &wait_verify)) {
+		if (ni_arp_verify_send(au->sock, &au->verify, &wait_verify) == NI_ARP_SEND_PROGRESS) {
 			updater->timeout = wait_verify;
 			return TRUE;
 		}
-		ni_arp_verify_reset(&au->verify, NI_ADDRCONF_UPDATER_ARP_NPROBES,
-						 NI_ADDRCONF_UPDATER_ARP_TIMEOUT);
+		ni_arp_verify_reset(&au->verify, &arpcfg->verify);
 	}
 
 	return FALSE;
@@ -5097,7 +5120,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 	}
 
 	updater->timeout = NI_ADDRCONF_UPDATER_MAX_ADDR_TIMEOUT;
-	if (!(au = ni_address_updater_init(updater, dev, family))) {
+	if (!(au = ni_address_updater_init(updater, dev, family, owner))) {
 		ni_error("%s: unable to initialize address updater", dev->name);
 		return -1;
 	}
@@ -5205,7 +5228,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 	/* Loop over all addresses in the configuration and create
 	 * those that don't exist yet.
 	 */
-	if (family == AF_INET && ni_address_updater_arp_send(updater, dev))
+	if (family == AF_INET && ni_address_updater_arp_send(updater, dev, owner))
 		return 1;
 
 	for (ap = new_lease ? new_lease->addrs : NULL ; ap; ap = ap->next) {
@@ -5246,7 +5269,7 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		ni_arp_notify_add_address(&au->notify, ap);
 	}
 
-	if (family == AF_INET && ni_address_updater_arp_send(updater, dev))
+	if (family == AF_INET && ni_address_updater_arp_send(updater, dev, owner))
 		return 1;
 
 	if (max_changes == 0)

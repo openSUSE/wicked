@@ -34,6 +34,7 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <net/if_arp.h>
+#include <errno.h>
 
 #include <wicked/types.h>
 #include <wicked/netinfo.h>
@@ -45,16 +46,29 @@
 
 struct arp_ops;
 
+#define NI_ARPUTIL_MAX_SEND_ERR  3
+
+#define ARP_VERIFY_COUNT	3
+#define	ARP_VERIFY_INTERVAL_MIN	1000
+#define	ARP_VERIFY_INTERVAL_MAX	2000
+#define ARP_NOTIFY_COUNT	2
+#define ARP_NOTIFY_INTERVAL_MIN	2000
+#define ARP_NOTIFY_INTERVAL_MAX	2000
+#define ARP_PING_COUNT		-1U
+#define ARP_PING_INTERVAL_MIN	1000
+#define ARP_PING_INTERVAL_MAX	1000
+
 struct arp_handle {
 	ni_bool_t		verbose;
 	unsigned int		count;
-	unsigned int		interval;
+	ni_uint_range_t		interval;
 	unsigned int		deadline;
 	unsigned int		replies;
 
 	struct timeval		sent_time;
 	unsigned int		sent_cnt;
 	unsigned int		recv_cnt;
+	unsigned int		send_err;
 
 	const char *		ifname;
 	ni_sockaddr_t		ipaddr;
@@ -78,6 +92,31 @@ struct arp_ops {
 
 static void		do_arp_handle_close(struct arp_handle *);
 
+static ni_bool_t
+do_parse_interval(ni_uint_range_t *range, const char *arg)
+{
+	const char *needle = "..";
+	ni_bool_t ret = FALSE;
+	char *smin = NULL;
+	char *smax = NULL;
+
+	if (!range || ni_string_empty(arg) || !ni_string_dup(&smin, arg))
+		return ret;
+
+	range->min = range->max = 0;
+	if ((smax = strstr(smin, needle))) {
+		*smax = '\0';
+		smax += ni_string_len(needle);
+		ret = !ni_parse_uint(smin, &range->min, 10) &&
+			!ni_parse_uint(smax, &range->max, 10) &&
+			range->min >= 100 && range->max >= range->min;
+	} else {
+		ret = !ni_parse_uint(smin, &range->min, 10) &&
+			(range->max = range->min) >= 100;
+	}
+	ni_string_free(&smin);
+	return ret;
+}
 
 static int
 do_arp_init(struct arp_handle *handle, ni_capture_devinfo_t *dev_info)
@@ -257,11 +296,14 @@ do_arp_arm_deadline_timer(struct arp_handle *handle)
 static void
 do_arp_arm_interval_timer(struct arp_handle *handle)
 {
+	ni_timeout_t rt;
+
+	rt = ni_timeout_random_range(handle->interval.min, handle->interval.max);
 	if (handle->timer.interval) {
-		ni_timer_rearm(handle->timer.interval, handle->interval);
+		ni_timer_rearm(handle->timer.interval, rt);
 	} else {
 		handle->timer.interval = ni_timer_register(
-			handle->interval, do_arp_interval_timeout, handle
+			rt, do_arp_interval_timeout, handle
 		);
 	}
 }
@@ -321,11 +363,13 @@ do_arp_verify_run(struct arp_handle *handle, const char *caller, int argc, char 
 				"\n"
 				"  --count <count>\n"
 				"      Send <count> duplicate address detection probes\n"
-				"      (default: 3). Returns 4 when address is in use.\n"
-				"  --interval <msec>\n"
+				"      (default: %u). Returns 4 when address is in use.\n"
+				"  --interval <msec[..msec]>\n"
 				"      DAD probing packet sending interval in msec\n"
-				"      (default: 1000..2000).\n"
+				"      (default: %u..%u).\n"
 				, argv[0]
+				, ARP_VERIFY_COUNT
+				, ARP_VERIFY_INTERVAL_MIN, ARP_VERIFY_INTERVAL_MAX
 			);
 			goto cleanup;
 
@@ -347,8 +391,7 @@ do_arp_verify_run(struct arp_handle *handle, const char *caller, int argc, char 
 			break;
 
 		case OPT_INTERVAL:
-			if (ni_parse_uint(optarg, &handle->interval, 10) ||
-					!handle->interval) {
+			if (!do_parse_interval(&handle->interval, optarg)) {
 				ni_error("%s: Cannot parse verify interval '%s'",
 						argv[0], optarg);
 				goto cleanup;
@@ -382,19 +425,19 @@ cleanup:
 static int
 do_arp_verify_init(struct arp_handle *handle, ni_netdev_t *dev, ni_netconfig_t *nc)
 {
-	/* a uniform random jitter of (PROBE_MAX - PROBE_MIN) */
-	const ni_int_range_t jitter = { .min = 0, .max = 1000 };
+	static const ni_uint_range_t range = {
+		.min = ARP_VERIFY_INTERVAL_MIN,
+		.max = ARP_VERIFY_INTERVAL_MAX,
+	};
 
 	(void)nc;
 	(void)dev;
 
-	/* rfc5227 PROBE_NUM                      */
 	if (!handle->count)
-		handle->count	 = 3;
+		handle->count	 = ARP_VERIFY_COUNT;
 
-	/* rfc5227 random(PROBE_MIN .. PROBE_MAX) */
-	if (!handle->interval)
-		handle->interval = ni_timeout_randomize(1000, &jitter);
+	if (!handle->interval.min)
+		handle->interval = range;
 
 	return 0;
 }
@@ -419,6 +462,23 @@ do_arp_verify_send(struct arp_handle *handle)
 			ni_timer_get_time(&handle->sent_time);
 
 			do_arp_arm_interval_timer(handle);
+		} else {
+			if (errno == ENOBUFS && handle->send_err < NI_ARPUTIL_MAX_SEND_ERR) {
+				handle->send_err++;
+				ni_timer_get_time(&handle->sent_time);
+				do_arp_arm_interval_timer(handle);
+				ret = TRUE;
+
+				ni_debug_application("%s: ARP verify failed for %s -"
+							" %m, count:%u/%u errors:%u/%u",
+							handle->ifname,
+							ni_sockaddr_print(&handle->ipaddr),
+							handle->sent_cnt, handle->count,
+							handle->send_err, NI_ARPUTIL_MAX_SEND_ERR);
+			} else {
+				ni_error("%s: ARP verify send failed for %s - %m!",
+					handle->ifname, ni_sockaddr_print(&handle->ipaddr));
+			}
 		}
 	}
 
@@ -503,15 +563,20 @@ do_arp_verify_status(struct arp_handle *handle, int status)
 				handle->ifname, ni_sockaddr_print(&handle->ipaddr),
 				ni_link_address_print(&handle->hwaddr));
 		} else {
-			fprintf(stdout, "%s: No duplicates for IP address %s detected\n",
-				handle->ifname, ni_sockaddr_print(&handle->ipaddr));
+			if (handle->sent_cnt > 0)
+				fprintf(stdout, "%s: No duplicates for IP address %s detected\n",
+					handle->ifname, ni_sockaddr_print(&handle->ipaddr));
 		}
 		fflush(stdout);
 	}
 	if (handle->hwaddr.len)
 		status = NI_WICKED_RC_NOT_ALLOWED;
-	else
-		status = NI_WICKED_RC_SUCCESS;
+	else {
+		if (handle->sent_cnt > 0)
+			status = NI_WICKED_RC_SUCCESS;
+		else
+			status = NI_WICKED_RC_NOT_RUNNING;
+	}
 	return status;
 }
 
@@ -570,11 +635,13 @@ do_arp_notify_run(struct arp_handle *handle, const char *caller, int argc, char 
 				"\n"
 				"  --count <count>\n"
 				"      Announce IP address use (gratuitous ARP) <count> times\n"
-				"      (default: 2).\n"
-				"  --interval <msec>\n"
+				"      (default: %u).\n"
+				"  --interval <msec[..msec]>\n"
 				"      Announcement packet sending interval in msec\n"
-				"      (default: 2000).\n"
+				"      (default: %u).\n"
 				, argv[0]
+				, ARP_NOTIFY_COUNT
+				, ARP_NOTIFY_INTERVAL_MIN
 			);
 			goto cleanup;
 
@@ -596,8 +663,7 @@ do_arp_notify_run(struct arp_handle *handle, const char *caller, int argc, char 
 			break;
 
 		case OPT_INTERVAL:
-			if (ni_parse_uint(optarg, &handle->interval, 10) ||
-					!handle->interval) {
+			if (!do_parse_interval(&handle->interval, optarg)) {
 				ni_error("%s: Cannot parse notify interval '%s'",
 						argv[0], optarg);
 				goto cleanup;
@@ -631,16 +697,19 @@ cleanup:
 static int
 do_arp_notify_init(struct arp_handle *handle, ni_netdev_t *dev, ni_netconfig_t *nc)
 {
+	static const ni_uint_range_t range = {
+		.min = ARP_NOTIFY_INTERVAL_MIN,
+		.max = ARP_NOTIFY_INTERVAL_MAX,
+	};
+
 	(void)nc;
 	(void)dev;
 
-	/* rfc5227 ANNOUNCE_NUM      */
 	if (!handle->count)
-		handle->count	 = 2;
+		handle->count	 = ARP_NOTIFY_COUNT;
 
-	/* rfc5227 ANNOUNCE_INTERVAL */
-	if (!handle->interval)
-		handle->interval = 2000;
+	if (!handle->interval.min)
+		handle->interval = range;
 
 	return 0;
 }
@@ -667,6 +736,23 @@ do_arp_notify_send(struct arp_handle *handle)
 				do_arp_arm_interval_timer(handle);
 			} else if (handle->sock) {
 				do_arp_handle_close(handle);
+			}
+		} else {
+			if (errno == ENOBUFS && handle->send_err < NI_ARPUTIL_MAX_SEND_ERR) {
+				handle->send_err++;
+				ni_timer_get_time(&handle->sent_time);
+				do_arp_arm_interval_timer(handle);
+				ret = TRUE;
+
+				ni_debug_application("%s: ARP notify failed for %s -"
+							" %m, count:%u/%u errors:%u/%u",
+							handle->ifname,
+							ni_sockaddr_print(&handle->ipaddr),
+							handle->sent_cnt, handle->count,
+							handle->send_err, NI_ARPUTIL_MAX_SEND_ERR);
+			} else {
+				ni_error("%s: ARP notify send failed for %s - %m!",
+					handle->ifname, ni_sockaddr_print(&handle->ipaddr));
 			}
 		}
 	}
@@ -751,9 +837,9 @@ do_arp_ping_run(struct arp_handle *handle, const char *caller, int argc, char **
 				"  --count <count> | inf\n"
 				"      Ping specified IP address <count> times\n"
 				"      (default: infinite).\n"
-				"  --interval <msec>\n"
+				"  --interval <msec[..msec]>\n"
 				"      Packet sending interval in msec\n"
-				"      (default: 1000).\n"
+				"      (default: %u).\n"
 				"  --replies <count>\n"
 				"      Wait unitil specified number of ping replies\n"
 				"  --timeout <msec>\n"
@@ -761,6 +847,7 @@ do_arp_ping_run(struct arp_handle *handle, const char *caller, int argc, char **
 				"  --from-ip <source ip>\n"
 				"      Use specified IP address as the ping source\n"
 				, argv[0]
+				, ARP_PING_INTERVAL_MIN
 			);
 			goto cleanup;
 
@@ -785,8 +872,7 @@ do_arp_ping_run(struct arp_handle *handle, const char *caller, int argc, char **
 			break;
 
 		case OPT_INTERVAL:
-			if (ni_parse_uint(optarg, &handle->interval, 10) ||
-					!handle->interval) {
+			if (!do_parse_interval(&handle->interval, optarg)) {
 				ni_error("%s: Cannot parse ping interval '%s'",
 						argv[0], optarg);
 				goto cleanup;
@@ -844,15 +930,19 @@ cleanup:
 static int
 do_arp_ping_init(struct arp_handle *handle, ni_netdev_t *dev, ni_netconfig_t *nc)
 {
+	static const ni_uint_range_t range = {
+		.min = ARP_PING_INTERVAL_MIN,
+		.max = ARP_PING_INTERVAL_MAX,
+	};
 	ni_address_t *ap;
 
 	ni_assert(handle && nc && dev);
 
 	if (!handle->count)
-		handle->count	 = -1U;
+		handle->count	 = ARP_PING_COUNT;
 
-	if (!handle->interval)
-		handle->interval = 1000;
+	if (!handle->interval.min)
+		handle->interval = range;
 
 	if (handle->deadline) {
 		if (!handle->replies)
@@ -881,9 +971,9 @@ do_arp_ping_init(struct arp_handle *handle, ni_netdev_t *dev, ni_netconfig_t *nc
 				&ap->local_addr, &handle->ipaddr))
 			continue;
 
+		ni_sockaddr_set_ipv4(&handle->fromip, ap->local_addr.sin.sin_addr, 0);
 		ni_info("%s: Using source IP address %s from matching network",
 				handle->ifname, ni_sockaddr_print(&handle->fromip));
-		ni_sockaddr_set_ipv4(&handle->fromip, ap->local_addr.sin.sin_addr, 0);
 		return NI_WICKED_RC_SUCCESS;
 	}
 
@@ -945,6 +1035,22 @@ do_arp_ping_send(struct arp_handle *handle)
 			handle->sent_time = now;
 
 			do_arp_arm_interval_timer(handle);
+		} else {
+			if (errno == ENOBUFS && handle->send_err < NI_ARPUTIL_MAX_SEND_ERR) {
+				handle->send_err++;
+				handle->sent_time = now;
+				do_arp_arm_interval_timer(handle);
+				ret = TRUE;
+
+				ni_debug_application("%s: ARP ping failed for %s -"
+							" %m, errors:%u/%u",
+							handle->ifname,
+							ni_sockaddr_print(&handle->ipaddr),
+							handle->send_err, NI_ARPUTIL_MAX_SEND_ERR);
+			} else {
+				ni_error("%s: ARP ping send failed for %s - %m!",
+					handle->ifname, ni_sockaddr_print(&handle->ipaddr));
+			}
 		}
 	}
 
@@ -1106,7 +1212,7 @@ ni_do_arp(const char *caller, int argc, char **argv)
 				"      Returns 4, when duplicate IP address exists.\n"
 				"  --notify <count>\n"
 				"      Notify about IP address use (gratuitous ARP)\n"
-				"  --interval <msec>\n"
+				"  --interval <msec[..msec]>\n"
 				"      Packet sending interval in msec\n"
 				"\n"
 				"Actions:\n"
@@ -1148,7 +1254,7 @@ ni_do_arp(const char *caller, int argc, char **argv)
 			break;
 
 		case OPT_INTERVAL:
-			if (ni_parse_uint(optarg, &handle.interval, 10) || !handle.interval) {
+			if (!do_parse_interval(&handle.interval, optarg)) {
 				ni_error("%s: Cannot parse valid interval timeout: '%s'",
 						argv[0], optarg);
 				goto cleanup;

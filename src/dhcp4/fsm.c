@@ -34,7 +34,6 @@ static int			ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *);
 static int			ni_dhcp4_process_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
 static int			ni_dhcp4_process_ack(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
 static int			ni_dhcp4_process_nak(ni_dhcp4_device_t *);
-static void			ni_dhcp4_fsm_process_arp_packet(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
 static void			ni_dhcp4_fsm_fail_lease(ni_dhcp4_device_t *);
 static int			ni_dhcp4_fsm_validate_lease(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
 
@@ -735,6 +734,8 @@ ni_dhcp4_fsm_reboot_dad_failure(ni_dhcp4_device_t *dev)
 static ni_bool_t
 ni_dhcp4_fsm_reboot_dad_validate(ni_dhcp4_device_t *dev)
 {
+	const ni_config_arp_t *arpcfg = ni_config_addrconf_arp(NI_ADDRCONF_DHCP, dev->ifname);
+
 	if (!(dev->config->doflags & DHCP4_DO_ARP)) {
 		ni_debug_dhcp("%s: arp validation disabled", dev->ifname);
 		return FALSE;
@@ -749,15 +750,21 @@ ni_dhcp4_fsm_reboot_dad_validate(ni_dhcp4_device_t *dev)
 	ni_info("%s: Validating DHCPv4 address %s",
 			dev->ifname, inet_ntoa(dev->lease->dhcp4.address));
 
-	dev->arp.nprobes = 3;
-	dev->arp.nclaims = 0;
-	dev->arp.dad_success = ni_dhcp4_fsm_reboot_dad_success;
-	dev->arp.dad_failure = ni_dhcp4_fsm_reboot_dad_failure;
+	ni_arp_verify_reset(&dev->arp.verify, &arpcfg->verify);
+	if (!ni_arp_verify_add_in_addr(&dev->arp.verify, dev->lease->dhcp4.address)) {
+		ni_error("%s: unable to add IP address %s to arp verify", dev->ifname,
+				inet_ntoa(dev->lease->dhcp4.address));
+		return FALSE;
+	}
+
+	dev->arp.dad_success  = ni_dhcp4_fsm_reboot_dad_success;
+	dev->arp.dad_failure  = ni_dhcp4_fsm_reboot_dad_failure;
 
 	dev->fsm.state = NI_DHCP4_STATE_VALIDATING;
 
 	if (ni_dhcp4_fsm_arp_validate(dev) < 0) {
 		ni_debug_dhcp("%s: unable to validate lease", dev->ifname);
+		ni_arp_verify_destroy(&dev->arp.verify);
 		return FALSE;
 	}
 	return TRUE;
@@ -1530,6 +1537,8 @@ ni_dhcp4_address_on_link(ni_dhcp4_device_t *dev, struct in_addr ipv4)
 int
 ni_dhcp4_fsm_validate_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 {
+	const ni_config_arp_t *arpcfg;
+
 	/* Check whether arp validation has been disabled */
 	if (!dev || !lease || !dev->config)
 		return -1;
@@ -1551,60 +1560,95 @@ ni_dhcp4_fsm_validate_lease(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 		return 1;
 	}
 
+
 	ni_info("%s: Validating DHCPv4 address %s",
 		dev->ifname, inet_ntoa(lease->dhcp4.address));
 
-	/* For ARP validations, we will send 3 ARP queries with a timeout
-	 * of 200ms each.
-	 * The "claims" part is really for IPv4LL
-	 */
-	dev->arp.nprobes = 3;
-	dev->arp.nclaims = 0;
+	arpcfg = ni_config_addrconf_arp(NI_ADDRCONF_DHCP, dev->ifname);
+	ni_arp_verify_reset(&dev->arp.verify, &arpcfg->verify);
+	if (!ni_arp_verify_add_in_addr(&dev->arp.verify, lease->dhcp4.address)) {
+		ni_error("%s: add in_addr failed!", dev->ifname);
+		return FALSE;
+	}
 
 	dev->fsm.state = NI_DHCP4_STATE_VALIDATING;
 
 	if (ni_dhcp4_fsm_arp_validate(dev) < 0) {
 		ni_debug_dhcp("%s: unable to validate lease", dev->ifname);
+		ni_arp_verify_destroy(&dev->arp.verify);
 		return -1;
 	}
 
 	return 0;
 }
 
+static void
+ni_dhcp4_fsm_process_arp(ni_arp_socket_t *sock, const ni_arp_packet_t *pkt, void *user_data)
+{
+	ni_dhcp4_device_t *dev = (ni_dhcp4_device_t *) user_data;
+	ni_arp_address_t *vap;
+	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
+	const char *hwaddr;
+
+	if (!(vap = ni_arp_reply_match_address(sock, &dev->arp.verify.ipaddrs, pkt)))
+		return;
+
+	if (ni_address_is_duplicate(vap->address)) {
+		ni_debug_application("%s: DHCPv4 ignore further reply about duplicate address %s from %s",
+				sock->dev_info.ifname, ni_address_print(&sb, vap->address),
+				ni_link_address_print(&pkt->sha));
+		ni_stringbuf_destroy(&sb);
+		return;
+	}
+
+	ni_address_set_duplicate(vap->address, TRUE);
+
+	hwaddr = ni_link_address_print(&pkt->sha);
+	ni_error("%s: DHCPv4 duplicate address %s detected%s%s%s!",
+			sock->dev_info.ifname, ni_address_print(&sb, vap->address),
+			hwaddr ? " (in use by " : "", hwaddr ? hwaddr : "", hwaddr ? ")" : "");
+
+	ni_arp_verify_destroy(&dev->arp.verify);
+	ni_dhcp4_device_arp_close(dev);
+	if (dev->arp.dad_failure) {
+		dev->arp.dad_failure(dev);
+		dev->arp.dad_failure = NULL;
+		dev->arp.dad_success = NULL;
+	} else {
+		ni_dhcp4_fsm_decline(dev);
+	}
+}
+
+
 int
 ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *dev)
 {
-	struct in_addr null = { 0 };
-	struct in_addr claim;
+	ni_timeout_t timeout;
 
 	if (!dev->lease)
 		return -1;
 
-	claim = dev->lease->dhcp4.address;
 	if (dev->arp.handle == NULL) {
 		dev->arp.handle = ni_arp_socket_open(&dev->system,
-				ni_dhcp4_fsm_process_arp_packet, dev);
+				ni_dhcp4_fsm_process_arp, dev);
 		if (!dev->arp.handle || !dev->arp.handle->user_data) {
 			ni_error("%s: unable to create ARP handle", dev->ifname);
 			return -1;
 		}
 	}
 
-	if (dev->arp.nprobes) {
-		ni_debug_dhcp("%s: arp validate: probing for %s",
-				dev->ifname, inet_ntoa(claim));
-		ni_arp_send_request(dev->arp.handle, null, claim);
-		dev->arp.nprobes--;
-	} else if (dev->arp.nclaims) {
-		ni_debug_dhcp("%s: arp validate: claiming %s",
-				dev->ifname, inet_ntoa(claim));
-		ni_arp_send_grat_request(dev->arp.handle, claim);
-		dev->arp.nclaims--;
-	} else {
-		/* Wow, we're done! */
-		ni_info("%s: Successfully validated DHCPv4 address %s",
-			dev->ifname, inet_ntoa(claim));
+	switch (ni_arp_verify_send(dev->arp.handle, &dev->arp.verify, &timeout)) {
+	case NI_ARP_SEND_PROGRESS:
+		ni_dhcp4_fsm_set_timeout_msec(dev, timeout);
+		return 0;
+	case NI_ARP_SEND_COMPLETE:
+		ni_info("%s: Successfully verified DHCPv4 address %s",
+			dev->ifname, inet_ntoa(dev->lease->dhcp4.address));
+		/* fallthrough */
+	case NI_ARP_SEND_FAILURE:
+	default:
 		ni_dhcp4_device_arp_close(dev);
+		ni_arp_verify_destroy(&dev->arp.verify);
 		if (dev->arp.dad_success) {
 			dev->arp.dad_success(dev);
 			dev->arp.dad_success = NULL;
@@ -1613,69 +1657,6 @@ ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *dev)
 			ni_dhcp4_fsm_commit_lease(dev, dev->lease);
 		}
 		return 0;
-	}
-
-	ni_dhcp4_fsm_set_timeout_msec(dev, NI_DHCP4_ARP_TIMEOUT);
-	return 0;
-}
-
-void
-ni_dhcp4_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *pkt, void *user_data)
-{
-	ni_dhcp4_device_t *dev = user_data;
-	ni_netconfig_t *nc = ni_global_state_handle(0);
-	const ni_netdev_t *ifp;
-	ni_bool_t false_alarm = FALSE;
-	ni_bool_t found_addr = FALSE;
-
-	if (!pkt || pkt->op != ARPOP_REPLY || !dev->lease)
-		return;
-
-	/* Is it about the address we're validating at all? */
-	if (pkt->sip.s_addr != dev->lease->dhcp4.address.s_addr)
-		return;
-
-	/* Ignore any ARP replies that seem to come from our own
-	 * MAC address. Some helpful switches seem to generate
-	 * these. */
-	if (ni_link_address_equal(&dev->system.hwaddr, &pkt->sha))
-		return;
-
-	/* As well as ARP replies that seem to come from our own
-	 * host: dup if same address, not a dup if there are two
-	 * interfaces connected to the same broadcast domain.
-	 */
-	for (ifp = ni_netconfig_devlist(nc); ifp; ifp = ifp->next) {
-		if (ifp->link.ifindex == dev->link.ifindex)
-			continue;
-
-		if (!ni_netdev_link_is_up(ifp))
-			continue;
-
-		if (!ni_link_address_equal(&ifp->link.hwaddr, &pkt->sha))
-			continue;
-
-		/* OK, we have an interface matching the hwaddr,
-		 * which will answer arp requests when it is on
-		 * the same broadcast domain and causes a false
-		 * alarm, except it really has the IP assigned.
-		 */
-		false_alarm = TRUE;
-		if (ni_dhcp4_address_on_device(ifp, pkt->sip))
-			found_addr = TRUE;
-	}
-	if (false_alarm && !found_addr)
-		return;
-
-	ni_debug_dhcp("%s: address %s already in use by %s",
-			dev->ifname, inet_ntoa(pkt->sip),
-			ni_link_address_print(&pkt->sha));
-	ni_dhcp4_device_arp_close(dev);
-	if (dev->arp.dad_failure) {
-		dev->arp.dad_failure(dev);
-		dev->arp.dad_failure = NULL;
-	} else {
-		ni_dhcp4_fsm_decline(dev);
 	}
 }
 

@@ -260,6 +260,48 @@ supplicant. See below for a list of options.
 .TP
 .B auto6
 This element can be used to control the behavior of AUTO6 processing.
+.TP
+.B arp
+This element can be used to control ARP verify and ARP notify settings.
+See \fBARP CONFIGURATION OPTIONS\fR for more info.
+
+.PP
+.\" --------------------------------------------------------
+.SH ARP CONFIGURATION OPTIONS
+The ARP configuration specify the verify and notify settings used by wicked
+for duplicate address detection. If specified in \fB<addrconf>\fR the
+settings apply to static only. To change the ARP settings for AUTO4 or
+DHCP4, add the \fB<arp>\fR node as child of the corresponding \fB<auto4>\fR
+or \fB<dhcp4>\fR node.
+.PP
+.nf
+.B "  <arp>
+.B "    <verify>
+.B "      <count></count>
+.B "      <retries></retries>
+.B "      <interval>
+.B "        <min></min>
+.B "        <max></max>
+.B "      </interval>
+.B "    </verify>
+.B "    <notify>
+.B "      <count></count>
+.B "      <interval></interval>
+.B "      <retries></retries>
+.B "    </notify>
+.B "  </arp>
+.fi
+.PP
+.TP
+.B count
+This element can specify the number of ARP packets send.
+.TP
+.B retries
+This element specify the number of retries while sending ARP packages.
+.TP
+.B interval
+This element specify the delay between each ARP package. For \fB<verify>\fR it
+can be a range specified via \fB<min>\fR and \fB<max>\fR.
 
 .PP
 .\" --------------------------------------------------------

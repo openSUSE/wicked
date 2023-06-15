@@ -39,7 +39,9 @@ static const char *__ni_ifconfig_source_types[] = {
 
 static ni_bool_t	ni_config_parse_addrconf_dhcp4(ni_config_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_addrconf_dhcp6(ni_config_t *, xml_node_t *);
+static ni_bool_t	ni_config_parse_addrconf_auto4(ni_config_auto4_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_addrconf_auto6(ni_config_auto6_t *, xml_node_t *);
+static ni_bool_t	ni_config_parse_addrconf_arp(ni_config_arp_t *, const xml_node_t *);
 static void		ni_config_parse_update_targets(unsigned int *, const xml_node_t *);
 static void		ni_config_parse_update_dhcp4_routes(unsigned int *, const xml_node_t *);
 static void		ni_config_parse_fslocation(ni_config_fslocation_t *, xml_node_t *);
@@ -62,6 +64,17 @@ static unsigned int	ni_config_addrconf_update_dhcp4(void);
 static unsigned int	ni_config_addrconf_update_dhcp6(void);
 static unsigned int	ni_config_addrconf_update_auto4(void);
 static unsigned int	ni_config_addrconf_update_auto6(void);
+static void		ni_config_addrconf_arp_default(ni_config_arp_t *);
+
+#define NI_ADDRCONF_ARP_VERIFY_COUNT		3					/* PROBE_NUM */
+#define NI_ADDRCONF_ARP_VERIFY_RETRIES		3
+#define NI_ADDRCONF_ARP_VERIFY_MIN		(2000 / NI_ADDRCONF_ARP_VERIFY_COUNT)	/* PROBE_MIN */
+#define NI_ADDRCONF_ARP_VERIFY_MAX		(3000 / NI_ADDRCONF_ARP_VERIFY_COUNT)	/* PROBE_MAX */
+#define NI_ADDRCONF_ARP_NOTIFY_COUNT		1					/* ANNOUNCE_NUM */
+#define NI_ADDRCONF_ARP_NOTIFY_RETRIES		0
+#define NI_ADDRCONF_ARP_NOTIFY_INTERVAL		300					/* ANNOUNCE_INTERVAL */
+#define NI_ADDRCONF_ARP_INTERVAL_MIN		100
+#define NI_ADDRCONF_ARP_MAX_DURATION		15000
 
 /*
  * Create an empty config object
@@ -74,6 +87,9 @@ ni_config_new()
 	conf = xcalloc(1, sizeof(*conf));
 
 	conf->addrconf.default_allow_update = ni_config_addrconf_update_default();
+	ni_config_addrconf_arp_default(&conf->addrconf.arp);
+	ni_config_addrconf_arp_default(&conf->addrconf.dhcp4.arp);
+	ni_config_addrconf_arp_default(&conf->addrconf.auto4.arp);
 	conf->addrconf.dhcp4.allow_update   = ni_config_addrconf_update_dhcp4();
 	conf->addrconf.dhcp6.allow_update   = ni_config_addrconf_update_dhcp6();
 	conf->addrconf.auto4.allow_update   = ni_config_addrconf_update_auto4();
@@ -113,6 +129,7 @@ ni_config_dhcp4_clone(const ni_config_dhcp4_t *src, const char *device)
 	dst->create_cid = src->create_cid;
 	dst->allow_update = src->allow_update;
 	dst->routes_opts = src->routes_opts;
+	dst->arp = src->arp;
 	ni_string_dup(&dst->vendor_class, src->vendor_class);
 	dst->lease_time = src->lease_time;
 	ni_string_array_copy(&dst->ignore_servers, &src->ignore_servers);
@@ -378,8 +395,16 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 				 && !ni_config_parse_addrconf_dhcp6(conf, gchild))
 					goto failed;
 
+				if (!strcmp(gchild->name, "auto4")
+				 && !ni_config_parse_addrconf_auto4(&conf->addrconf.auto4, gchild))
+					goto failed;
+
 				if (!strcmp(gchild->name, "auto6")
 				 && !ni_config_parse_addrconf_auto6(&conf->addrconf.auto6, gchild))
+					goto failed;
+
+				if (ni_string_eq(gchild->name, "arp")
+				 && !ni_config_parse_addrconf_arp(&conf->addrconf.arp, gchild))
 					goto failed;
 			}
 		} else
@@ -614,6 +639,9 @@ ni_config_parse_addrconf_dhcp4_nodes(ni_config_dhcp4_t *dhcp4, xml_node_t *node)
 		} else
 		if (ni_string_eq(child->name, "define")) {
 			ni_config_parse_dhcp4_definitions(dhcp4, child);
+		} else
+		if (ni_string_eq(child->name, "arp")) {
+			ni_config_parse_addrconf_arp(&dhcp4->arp, child);
 		}
 	}
 	return TRUE;
@@ -1230,6 +1258,20 @@ ni_config_parse_addrconf_dhcp6(ni_config_t *conf, xml_node_t *node)
 }
 
 ni_bool_t
+ni_config_parse_addrconf_auto4(ni_config_auto4_t *auto4, xml_node_t *node)
+{
+	xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "arp")) {
+			if (!ni_config_parse_addrconf_arp(&auto4->arp, child))
+				return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+ni_bool_t
 ni_config_parse_addrconf_auto6(ni_config_auto6_t *auto6, xml_node_t *node)
 {
 	xml_node_t *child;
@@ -1240,6 +1282,173 @@ ni_config_parse_addrconf_auto6(ni_config_auto6_t *auto6, xml_node_t *node)
 			auto6->allow_update &= ni_config_addrconf_update_mask_auto6();
 		}
 	}
+	return TRUE;
+}
+
+static ni_bool_t
+ni_config_parse_uint_range(ni_uint_range_t *range, const xml_node_t *node)
+{
+	xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "min")) {
+			if (ni_parse_uint(child->cdata, &range->min, 0) < 0) {
+				ni_warn("[%s] unable to parse <min>%s</min>",
+					xml_node_location(child), child->cdata);
+				return FALSE;
+			}
+		} else if (ni_string_eq(child->name, "max")) {
+			if (ni_parse_uint(child->cdata, &range->max, 0) < 0) {
+				ni_warn("[%s] unable to parse <max>%s</max>",
+					xml_node_location(child), child->cdata);
+				return FALSE;
+			}
+		} else {
+			ni_warn("[%s] ignore invalid range node <%s>",
+					xml_node_location(child), child->name);
+		}
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_config_parse_addrconf_arp_verify(ni_config_arp_verify_t *verify, const xml_node_t *node)
+{
+	xml_node_t *child;
+	ni_config_arp_verify_t vfy_tmp = *verify;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "count")) {
+			if (ni_parse_uint(child->cdata, &vfy_tmp.count, 0) < 0) {
+				ni_warn("[%s] unable to parse <count>%s</count>",
+						xml_node_location(child), child->cdata);
+				continue;
+			}
+		}
+
+		if (ni_string_eq(child->name, "interval")) {
+			ni_uint_range_t range = vfy_tmp.interval;
+
+			if (child->children) {
+				if (!ni_config_parse_uint_range(&range, child)) {
+					ni_warn("[%s] ignore invalid arp-verify <interval>",
+							xml_node_location(child));
+					continue;
+				}
+			} else {
+				if (ni_parse_uint(child->cdata, &range.max, 0) < 0) {
+					ni_warn("[%s] ignore invalid arp-verify <interval>%s</interval>",
+						xml_node_location(child), child->cdata);
+					continue;
+				}
+				range.min = range.max;
+			}
+
+			if (range.min < NI_ADDRCONF_ARP_INTERVAL_MIN) {
+				ni_warn("[%s]: ignore invalid arp-verify <interval> - min is %u",
+						xml_node_location(child), NI_ADDRCONF_ARP_INTERVAL_MIN);
+				continue;
+			}
+
+			if (range.max < range.min) {
+				ni_warn("[%s] ignore invalid arp-verify <interval> - max:%u < min:%u",
+						xml_node_location(child), range.max, range.min);
+				continue;
+			}
+
+			vfy_tmp.interval = range;
+		}
+		if (ni_string_eq(child->name, "retries")) {
+			if (ni_parse_uint(child->cdata, &vfy_tmp.retries, 0) < 0) {
+				ni_warn("[%s] unable to parse arp-verify <retries>%s</retries>",
+						xml_node_location(child), child->cdata);
+				continue;
+			}
+		}
+	}
+
+	if (vfy_tmp.interval.max * vfy_tmp.count > NI_ADDRCONF_ARP_MAX_DURATION) {
+		ni_warn("[%s] arp verify duration out of range: %u * %u > %u",
+				xml_node_location(node),
+				vfy_tmp.interval.max, vfy_tmp.count, NI_ADDRCONF_ARP_MAX_DURATION);
+	} else {
+		*verify = vfy_tmp;
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_config_parse_addrconf_arp_notify(ni_config_arp_notify_t *notify, const xml_node_t *node)
+{
+	xml_node_t *child;
+	unsigned int tmp;
+	ni_config_arp_notify_t nfy_tmp = *notify;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "count")) {
+			if (ni_parse_uint(child->cdata, &tmp, 0) < 0) {
+				ni_warn("[%s] ignore invalid arp-notify <count>%s</count>",
+						xml_node_location(child), child->cdata);
+				continue;
+			}
+			nfy_tmp.count = tmp;
+		}
+
+		if (ni_string_eq(child->name, "interval")) {
+			if (ni_parse_uint(child->cdata, &tmp, 0) < 0) {
+				ni_warn("[%s] ignore invalid arp-notify <interval>%s</interval>",
+						xml_node_location(child), child->cdata);
+				continue;
+			}
+
+			if  (tmp < NI_ADDRCONF_ARP_INTERVAL_MIN)
+				ni_warn("[%s] ignore invalid arp-notify <interval>%u</interval> - "
+						"min value %u", xml_node_location(child),
+						tmp, NI_ADDRCONF_ARP_INTERVAL_MIN);
+			else
+				nfy_tmp.interval = tmp;
+		}
+		if (ni_string_eq(child->name, "retries")) {
+			if (ni_parse_uint(child->cdata, &tmp, 0) < 0) {
+				ni_warn("[%s] ignore invalid arp-notify <retries>%s</retries>",
+						xml_node_location(child), child->cdata);
+				continue;
+			}
+
+			nfy_tmp.retries = tmp;
+		}
+	}
+
+	if (nfy_tmp.interval * nfy_tmp.count > NI_ADDRCONF_ARP_MAX_DURATION) {
+		ni_warn("[%s] arp notify duration out of range: %u * %u > %u",
+				xml_node_location(node),
+				nfy_tmp.interval, nfy_tmp.count, NI_ADDRCONF_ARP_MAX_DURATION);
+	} else {
+		*notify = nfy_tmp;
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_config_parse_addrconf_arp(ni_config_arp_t *arpcfg, const xml_node_t *node)
+{
+	xml_node_t *child;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "verify")) {
+			if (!ni_config_parse_addrconf_arp_verify(&arpcfg->verify, child))
+				return FALSE;
+		}
+
+		if (ni_string_eq(child->name, "notify")) {
+			if (!ni_config_parse_addrconf_arp_notify(&arpcfg->notify, child))
+				return FALSE;
+		}
+	}
+
 	return TRUE;
 }
 
@@ -2348,4 +2557,45 @@ ni_config_fslocation_destroy(ni_config_fslocation_t *loc)
 {
 	ni_string_free(&loc->path);
 	memset(loc, 0, sizeof(*loc));
+}
+
+static void
+ni_config_addrconf_arp_default(ni_config_arp_t *cfg)
+{
+	cfg->verify.count = NI_ADDRCONF_ARP_VERIFY_COUNT;
+	cfg->verify.retries = NI_ADDRCONF_ARP_VERIFY_RETRIES;
+	cfg->verify.interval.min = NI_ADDRCONF_ARP_VERIFY_MIN;
+	cfg->verify.interval.max = NI_ADDRCONF_ARP_VERIFY_MAX;
+
+	cfg->notify.count = NI_ADDRCONF_ARP_NOTIFY_COUNT;
+	cfg->notify.interval = NI_ADDRCONF_ARP_NOTIFY_INTERVAL;
+	cfg->notify.retries = NI_ADDRCONF_ARP_NOTIFY_RETRIES;
+}
+
+extern const ni_config_arp_t *
+ni_config_addrconf_arp(ni_addrconf_mode_t owner, const char *ifname)
+{
+	static ni_config_arp_t default_arp_cfg;
+	static ni_bool_t default_is_set = FALSE;
+	const ni_config_dhcp4_t *dhcp4;
+	ni_config_t *conf;
+
+	if (!default_is_set) {
+		default_is_set = TRUE;
+		ni_config_addrconf_arp_default(&default_arp_cfg);
+	}
+
+	if (!(conf = ni_global.config))
+		return &default_arp_cfg;
+
+	switch (owner) {
+	case NI_ADDRCONF_DHCP:
+		if (!(dhcp4 = ni_config_dhcp4_find_device(ifname)))
+			return &default_arp_cfg;
+		return &dhcp4->arp;
+	case NI_ADDRCONF_AUTOCONF:
+		return &conf->addrconf.auto4.arp;
+	default:
+		return &conf->addrconf.arp;
+	}
 }
