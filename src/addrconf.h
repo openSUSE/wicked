@@ -51,7 +51,7 @@ struct ni_addrconf_updater {
 
 	const ni_timer_t *		timer;
 	ni_int_range_t			jitter;
-	unsigned int			timeout;
+	ni_timeout_t			timeout;
 	struct timeval			started;	/* updater */
 	unsigned int			deadline;
 
