@@ -34,6 +34,7 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <net/if_arp.h>
+#include <errno.h>
 
 #include <wicked/types.h>
 #include <wicked/netinfo.h>
@@ -45,6 +46,8 @@
 
 struct arp_ops;
 
+#define NI_ARPUTIL_MAX_SEND_ERR  3
+
 struct arp_handle {
 	ni_bool_t		verbose;
 	unsigned int		count;
@@ -55,6 +58,7 @@ struct arp_handle {
 	struct timeval		sent_time;
 	unsigned int		sent_cnt;
 	unsigned int		recv_cnt;
+	unsigned int		send_err;
 
 	const char *		ifname;
 	ni_sockaddr_t		ipaddr;
@@ -419,6 +423,23 @@ do_arp_verify_send(struct arp_handle *handle)
 			ni_timer_get_time(&handle->sent_time);
 
 			do_arp_arm_interval_timer(handle);
+		} else {
+			if (errno == ENOBUFS && handle->send_err < NI_ARPUTIL_MAX_SEND_ERR) {
+				handle->send_err++;
+				ni_timer_get_time(&handle->sent_time);
+				do_arp_arm_interval_timer(handle);
+				ret = TRUE;
+
+				ni_debug_application("%s: ARP verify failed for %s -"
+							" %m, count:%u/%u errors:%u/%u",
+							handle->ifname,
+							ni_sockaddr_print(&handle->ipaddr),
+							handle->sent_cnt, handle->count,
+							handle->send_err, NI_ARPUTIL_MAX_SEND_ERR);
+			} else {
+				ni_error("%s: ARP verify send failed for %s - %m!",
+					handle->ifname, ni_sockaddr_print(&handle->ipaddr));
+			}
 		}
 	}
 
@@ -503,15 +524,20 @@ do_arp_verify_status(struct arp_handle *handle, int status)
 				handle->ifname, ni_sockaddr_print(&handle->ipaddr),
 				ni_link_address_print(&handle->hwaddr));
 		} else {
-			fprintf(stdout, "%s: No duplicates for IP address %s detected\n",
-				handle->ifname, ni_sockaddr_print(&handle->ipaddr));
+			if (handle->sent_cnt > 0)
+				fprintf(stdout, "%s: No duplicates for IP address %s detected\n",
+					handle->ifname, ni_sockaddr_print(&handle->ipaddr));
 		}
 		fflush(stdout);
 	}
 	if (handle->hwaddr.len)
 		status = NI_WICKED_RC_NOT_ALLOWED;
-	else
-		status = NI_WICKED_RC_SUCCESS;
+	else {
+		if (handle->sent_cnt > 0)
+			status = NI_WICKED_RC_SUCCESS;
+		else
+			status = NI_WICKED_RC_NOT_RUNNING;
+	}
 	return status;
 }
 
@@ -667,6 +693,23 @@ do_arp_notify_send(struct arp_handle *handle)
 				do_arp_arm_interval_timer(handle);
 			} else if (handle->sock) {
 				do_arp_handle_close(handle);
+			}
+		} else {
+			if (errno == ENOBUFS && handle->send_err < NI_ARPUTIL_MAX_SEND_ERR) {
+				handle->send_err++;
+				ni_timer_get_time(&handle->sent_time);
+				do_arp_arm_interval_timer(handle);
+				ret = TRUE;
+
+				ni_debug_application("%s: ARP notify failed for %s -"
+							" %m, count:%u/%u errors:%u/%u",
+							handle->ifname,
+							ni_sockaddr_print(&handle->ipaddr),
+							handle->sent_cnt, handle->count,
+							handle->send_err, NI_ARPUTIL_MAX_SEND_ERR);
+			} else {
+				ni_error("%s: ARP notify send failed for %s - %m!",
+					handle->ifname, ni_sockaddr_print(&handle->ipaddr));
 			}
 		}
 	}
@@ -945,6 +988,22 @@ do_arp_ping_send(struct arp_handle *handle)
 			handle->sent_time = now;
 
 			do_arp_arm_interval_timer(handle);
+		} else {
+			if (errno == ENOBUFS && handle->send_err < NI_ARPUTIL_MAX_SEND_ERR) {
+				handle->send_err++;
+				handle->sent_time = now;
+				do_arp_arm_interval_timer(handle);
+				ret = TRUE;
+
+				ni_debug_application("%s: ARP ping failed for %s -"
+							" %m, errors:%u/%u",
+							handle->ifname,
+							ni_sockaddr_print(&handle->ipaddr),
+							handle->send_err, NI_ARPUTIL_MAX_SEND_ERR);
+			} else {
+				ni_error("%s: ARP ping send failed for %s - %m!",
+					handle->ifname, ni_sockaddr_print(&handle->ipaddr));
+			}
 		}
 	}
 
