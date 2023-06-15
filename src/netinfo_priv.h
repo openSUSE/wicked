@@ -18,6 +18,7 @@
 #include <wicked/logging.h>
 #include <wicked/team.h>
 #include <wicked/ovs.h>
+#include <wicked/array.h>
 #include "appconfig.h"
 
 typedef struct ni_capture	ni_capture_t;
@@ -199,23 +200,19 @@ extern int				ni_arp_send_grat_reply(ni_arp_socket_t *, struct in_addr);
 extern int				ni_arp_send_grat_request(ni_arp_socket_t *, struct in_addr);
 extern int				ni_arp_send(ni_arp_socket_t *, const ni_arp_packet_t *);
 
-#define NI_ARP_VERIFY_ADDRESS_INIT		{ .nprobes = 0, .nerrors = 0, .address = NULL }
-
-typedef struct ni_arp_verify_address {
-	unsigned int			nprobes;
+typedef struct ni_arp_address ni_arp_address_t;
+struct ni_arp_address {
+	unsigned int			nattempts;
 	unsigned int			nerrors;
 	ni_address_t *			address;
-} ni_arp_verify_address_t;
+};
 
-#define NI_ARP_VERIFY_ADDRESS_ARRAY_CHUNK	32
-#define NI_ARP_VERIFY_ADDRESS_ARRAY_INIT	{ .count = 0, .data = NULL }
+#define NI_ARP_ADDRESS_ARRAY_CHUNK	32
+ni_declare_ptr_array_type(ni_arp_address);
 
-typedef struct ni_arp_verify_address_array {
-	unsigned int			count;
-	ni_arp_verify_address_t *	data;
-} ni_arp_verify_address_array_t;
-
-typedef struct ni_arp_verify {
+typedef struct ni_arp_verify ni_arp_verify_t;
+typedef void (*ni_arp_duplicated_addr_fn)(ni_arp_verify_t *, const ni_arp_packet_t *, void *);
+struct ni_arp_verify {
 	unsigned int			nprobes;
 	unsigned int			nretry;
 
@@ -224,23 +221,23 @@ typedef struct ni_arp_verify {
 	ni_timeout_t			last_timeout;
 	struct timeval			started;
 
-	ni_arp_verify_address_array_t	ipaddrs;
-} ni_arp_verify_t;
+	ni_arp_address_array_t		ipaddrs;
+};
 
-extern void				ni_arp_verify_address_array_init(ni_arp_verify_address_array_t *);
-extern void				ni_arp_verify_address_array_destroy(ni_arp_verify_address_array_t *);
-extern ni_bool_t			ni_arp_verify_address_array_append(ni_arp_verify_address_array_t *,
-							ni_address_t *);
-extern ni_arp_verify_address_t *	ni_arp_verify_address_array_find_match(ni_arp_verify_address_array_t *,
-							ni_address_t *, unsigned int *,
-							ni_bool_t (*)(const ni_address_t *, const ni_address_t *));
+typedef enum {
+	NI_ARP_SEND_FAILURE  = -1,
+	NI_ARP_SEND_COMPLETE =  0,
+	NI_ARP_SEND_PROGRESS =  1
+} ni_arp_send_status_t;
 
 extern void				ni_arp_verify_init(ni_arp_verify_t *, const ni_config_arp_verify_t *);
 extern void				ni_arp_verify_reset(ni_arp_verify_t *, const ni_config_arp_verify_t *);
 extern void				ni_arp_verify_destroy(ni_arp_verify_t *);
 extern unsigned int			ni_arp_verify_add_address(ni_arp_verify_t *,  ni_address_t *);
-extern void				ni_arp_verify_process(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
-extern ni_bool_t			ni_arp_verify_send(ni_arp_socket_t *, ni_arp_verify_t *, ni_timeout_t *);
+extern unsigned int			ni_arp_verify_add_in_addr(ni_arp_verify_t *, struct in_addr);
+extern ni_arp_send_status_t			ni_arp_verify_send(ni_arp_socket_t *, ni_arp_verify_t *, ni_timeout_t *);
+extern ni_arp_address_t *		ni_arp_reply_match_address(ni_arp_socket_t *, ni_arp_address_array_t *,
+						const ni_arp_packet_t *);
 
 typedef struct ni_arp_notify {
 	unsigned int			nclaims;
@@ -249,7 +246,7 @@ typedef struct ni_arp_notify {
 	unsigned int			wait_ms;
 	struct timeval			started;
 
-	ni_address_array_t		ipaddrs;
+	ni_arp_address_array_t		ipaddrs;
 } ni_arp_notify_t;
 
 extern void				ni_arp_notify_init(ni_arp_notify_t *, const ni_config_arp_notify_t *);

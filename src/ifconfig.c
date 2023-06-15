@@ -4975,6 +4975,34 @@ ni_address_updater_arp_notify_enabled(ni_netdev_t *dev)
 	return !ni_tristate_is_disabled(ipv4->conf.arp_verify);
 }
 
+
+void
+ni_address_updater_process_arp(ni_arp_socket_t *sock, const ni_arp_packet_t *pkt, void *user_data)
+{
+	ni_address_updater_t *au = (ni_address_updater_t *) user_data;
+	ni_arp_address_t *vap;
+	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
+	const char *hwaddr;
+
+	if (!(vap = ni_arp_reply_match_address(sock, &au->verify.ipaddrs, pkt)))
+		return;
+
+	if (ni_address_is_duplicate(vap->address)) {
+		ni_debug_application("%s: ignore further reply about duplicate address %s from %s",
+				sock->dev_info.ifname, ni_address_print(&sb, vap->address),
+				ni_link_address_print(&pkt->sha));
+		ni_stringbuf_destroy(&sb);
+		return;
+	}
+
+	ni_address_set_duplicate(vap->address, TRUE);
+
+	hwaddr = ni_link_address_print(&pkt->sha);
+	ni_error("%s: IPv4 duplicate address %s detected%s%s%s!",
+			sock->dev_info.ifname, ni_address_print(&sb, vap->address),
+			hwaddr ? " (in use by " : "", hwaddr ? hwaddr : "", hwaddr ? ")" : "");
+}
+
 static ni_bool_t
 ni_address_updater_arp_open(ni_address_updater_t *au, ni_netdev_t *dev)
 {
@@ -4983,7 +5011,7 @@ ni_address_updater_arp_open(ni_address_updater_t *au, ni_netdev_t *dev)
 	if (ni_capture_devinfo_init(&dev_info, dev->name, &dev->link) < 0)
 		return FALSE;
 
-	au->sock = ni_arp_socket_open(&dev_info, ni_arp_verify_process, au);
+	au->sock = ni_arp_socket_open(&dev_info, ni_address_updater_process_arp, au);
 	ni_capture_devinfo_destroy(&dev_info);
 	return au->sock != NULL;
 }
@@ -5052,7 +5080,7 @@ ni_address_updater_arp_send(ni_addrconf_updater_t *updater, ni_netdev_t *dev, ni
 	}
 
 	if (au->verify.nprobes) {
-		if (ni_arp_verify_send(au->sock, &au->verify, &wait_verify)) {
+		if (ni_arp_verify_send(au->sock, &au->verify, &wait_verify) == NI_ARP_SEND_PROGRESS) {
 			updater->timeout = wait_verify;
 			return TRUE;
 		}
