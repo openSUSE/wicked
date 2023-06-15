@@ -39,8 +39,7 @@ struct ni_autoip_device {
 
 	struct {
 	    struct in_addr	candidate;
-	    unsigned int	nprobes;
-	    unsigned int	nclaims;
+	    ni_arp_verify_t	verify;
 	    unsigned int	nconflicts;
 	    struct timeval	last_defense;
 	} autoip;

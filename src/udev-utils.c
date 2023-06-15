@@ -302,25 +302,6 @@ netdev_uinfo_ready(const ni_var_array_t *vars, const char *ifname, unsigned int 
 	return -1;
 }
 
-static int
-ni_udev_netdev_update_name(ni_netdev_t *dev)
-{
-	char ifnamebuf[IF_NAMESIZE+1] = {'\0'};
-	const char *ifname;
-
-	if (!dev || !dev->link.ifindex)
-		return -1;
-
-	ifname = if_indextoname(dev->link.ifindex, ifnamebuf);
-	if (ni_string_empty(ifname))
-		return -1; /* device seems to be gone */
-
-	if (!ni_string_eq(dev->name, ifname))
-		ni_string_dup(&dev->name, ifname);
-
-	return 0;
-}
-
 ni_bool_t
 ni_udev_netdev_is_ready(ni_netdev_t *dev)
 {
@@ -334,7 +315,7 @@ ni_udev_netdev_is_ready(ni_netdev_t *dev)
 		 * start to receive, that is the device ifname may
 		 * be obsolete in the meantime due to udev renames.
 		 */
-		if (ni_udev_netdev_update_name(dev) < 0)
+		if (!ni_netdev_index_to_name(&dev->name, dev->link.ifindex))
 			return FALSE;
 
 		snprintf(pathbuf, sizeof(pathbuf), "%s/%s",

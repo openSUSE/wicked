@@ -33,6 +33,7 @@
 #include "buffer.h"
 #include "process.h"
 #include "util_priv.h"
+#include "array_priv.h"
 
 #define NI_OVS_BRIDGE_PORT_ARRAY_CHUNK		4
 
@@ -88,46 +89,11 @@ ni_ovs_bridge_port_free(ni_ovs_bridge_port_t *port)
 	}
 }
 
-void
-ni_ovs_bridge_port_array_init(ni_ovs_bridge_port_array_t *array)
-{
-	memset(array, 0, sizeof(*array));
-}
-
-void
-ni_ovs_bridge_port_array_destroy(ni_ovs_bridge_port_array_t *array)
-{
-	while (array->count > 0)
-		ni_ovs_bridge_port_free(array->data[--array->count]);
-	free(array->data);
-	ni_ovs_bridge_port_array_init(array);
-}
-
-static void
-__ni_ovs_bridge_port_array_realloc(ni_ovs_bridge_port_array_t *array, unsigned int newsize)
-{
-	ni_ovs_bridge_port_t **newdata;
-	unsigned int i;
-
-	newsize = (newsize + NI_OVS_BRIDGE_PORT_ARRAY_CHUNK);
-	newdata = xrealloc(array->data, newsize * sizeof(ni_ovs_bridge_port_t *));
-	array->data = newdata;
-	for (i = array->count; i < newsize; ++i)
-		 array->data[i] = NULL;
-}
-
-ni_bool_t
-ni_ovs_bridge_port_array_append(ni_ovs_bridge_port_array_t *array, ni_ovs_bridge_port_t *port)
-{
-	if (array && port) {
-		if ((array->count % NI_OVS_BRIDGE_PORT_ARRAY_CHUNK) == 0)
-			__ni_ovs_bridge_port_array_realloc(array, array->count);
-
-		array->data[array->count++] = port;
-		return TRUE;
-	}
-	return FALSE;
-}
+extern ni_define_ptr_array_init(ni_ovs_bridge_port);
+extern ni_define_ptr_array_destroy(ni_ovs_bridge_port);
+static ni_define_ptr_array_realloc(ni_ovs_bridge_port, NI_OVS_BRIDGE_PORT_ARRAY_CHUNK);
+extern ni_define_ptr_array_append(ni_ovs_bridge_port);
+extern ni_define_ptr_array_delete_at(ni_ovs_bridge_port);
 
 ni_ovs_bridge_port_t *
 ni_ovs_bridge_port_array_add_new(ni_ovs_bridge_port_array_t *ports, const char *pname)
@@ -140,7 +106,9 @@ ni_ovs_bridge_port_array_add_new(ni_ovs_bridge_port_array_t *ports, const char *
 	if (ni_ovs_bridge_port_array_find_by_name(ports, pname))
 		return NULL;
 
-	port = ni_ovs_bridge_port_new();
+	if (!(port = ni_ovs_bridge_port_new()))
+		return NULL;
+
 	ni_netdev_ref_set_ifname(&port->device, pname);
 
 	if (ni_ovs_bridge_port_array_append(ports, port))
@@ -148,22 +116,6 @@ ni_ovs_bridge_port_array_add_new(ni_ovs_bridge_port_array_t *ports, const char *
 
 	ni_ovs_bridge_port_free(port);
 	return NULL;
-}
-
-ni_bool_t
-ni_ovs_bridge_port_array_delete_at(ni_ovs_bridge_port_array_t *array, unsigned int pos)
-{
-	if (!array || pos >= array->count)
-		return FALSE;
-
-	ni_ovs_bridge_port_free(array->data[pos]);
-	array->count--;
-	if (pos < array->count) {
-		memmove(&array->data[pos], &array->data[pos + 1],
-			(array->count - pos) * sizeof(ni_ovs_bridge_port_t *));
-	}
-	array->data[array->count] = NULL;
-	return TRUE;
 }
 
 ni_ovs_bridge_port_t *

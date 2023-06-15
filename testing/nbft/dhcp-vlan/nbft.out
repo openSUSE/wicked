@@ -1,0 +1,28 @@
+<interface origin="firmware:nbft:01-01">
+  <name namespace="ifindex">2</name>
+  <control>
+    <persistent>true</persistent>
+    <usercontrol>false</usercontrol>
+  </control>
+</interface>
+<interface origin="firmware:nbft:01-01">
+  <name>nbft0.5</name>
+  <alias>nbft0.5</alias>
+  <control>
+    <persistent>true</persistent>
+    <usercontrol>false</usercontrol>
+  </control>
+  <vlan>
+    <device namespace="ifindex">2</device>
+    <tag>5</tag>
+  </vlan>
+  <ipv4:dhcp>
+    <enabled>true</enabled>
+    <hostname>nvmepoc-wicked</hostname>
+  </ipv4:dhcp>
+  <scripts>
+    <post-up>
+      <script>systemd:nvmf-connect-nbft.service</script>
+    </post-up>
+  </scripts>
+</interface>

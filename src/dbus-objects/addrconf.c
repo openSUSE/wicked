@@ -278,7 +278,7 @@ ni_objectmodel_addrconf_signal_handler(ni_dbus_connection_t *conn, ni_dbus_messa
 					if (ni_sockaddr_is_specified(&rp->destination))
 						continue;
 
-					if (ni_route_array_delete(&tab->routes, i))
+					if (ni_route_array_delete_at(&tab->routes, i))
 						i--;
 				}
 			}

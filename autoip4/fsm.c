@@ -27,16 +27,9 @@
 #define IPV4LL_PROBE_DELAY_MIN		0
 #define IPV4LL_PROBE_DELAY_MAX		1000
 
-/* How long we wait between probes */
-#define IPV4LL_PROBE_WAIT_MIN		1000
-#define IPV4LL_PROBE_WAIT_MAX		2000
-
-/* How long we wait after the last probe */
-#define IPV4LL_ANNOUNCE_DELAY		2000
-#define IPV4LL_ANNOUNCE_WAIT		2000
-
-#define IPV4LL_PROBE_COUNT		3
-#define IPV4LL_ANNOUNCE_COUNT		0	/* do not announce -- deliver lease */
+#define IPV4LL_ANNOUNCE_COUNT		0	/* do not announce -- we deliver the lease
+						   to wickedd and the announce will take place
+						   there. */
 #define IPV4LL_MAX_CONFLICTS		10
 #define IPV4LL_RATE_LIMIT_INTERVAL	60000
 #define IPV4LL_DEFEND_INTERVAL		10000
@@ -45,8 +38,7 @@ static ni_autoip_event_handler_t *	ni_autoip_fsm_event_handler;
 
 extern int	ni_autoip_device_get_address(ni_autoip_device_t *, struct in_addr *);
 static int	ni_autoip_send_arp(ni_autoip_device_t *);
-static void	ni_autoip_fsm_process_arp_packet(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
-static void	ni_autoip_fsm_set_timeout(ni_autoip_device_t *, unsigned int, unsigned int);
+static void	ni_autoip_fsm_set_timeout(ni_autoip_device_t *, ni_timeout_t, ni_timeout_t);
 static void	__ni_autoip_fsm_timeout(void *, const ni_timer_t *);
 
 
@@ -68,6 +60,7 @@ int
 ni_autoip_fsm_select(ni_autoip_device_t *dev)
 {
 	ni_address_t *ap;
+	const ni_config_arp_t *arpcfg;
 
 	/*
 	 * RFC 3927, Section 2.1:
@@ -97,11 +90,17 @@ ni_autoip_fsm_select(ni_autoip_device_t *dev)
 				dev->ifname, inet_ntoa(dev->autoip.candidate));
 	}
 
-	dev->fsm.state = NI_AUTOIP_STATE_CLAIMING;
-	dev->autoip.nprobes = IPV4LL_PROBE_COUNT;
-	/* do not claim here -- deliver the lease */
-	dev->autoip.nclaims = IPV4LL_ANNOUNCE_COUNT;
+	arpcfg = ni_config_addrconf_arp(NI_ADDRCONF_AUTOCONF, dev->ifname);
+	ni_arp_verify_reset(&dev->autoip.verify, &arpcfg->verify);
 
+	if (!ni_arp_verify_add_in_addr(&dev->autoip.verify, dev->autoip.candidate)) {
+		ni_warn("%s: unable to add IP address %s to arp verify",
+				dev->ifname, inet_ntoa(dev->autoip.candidate));
+		ni_autoip_fsm_set_timeout(dev, IPV4LL_PROBE_DELAY_MIN, IPV4LL_PROBE_DELAY_MAX);
+		return 0;
+	}
+
+	dev->fsm.state = NI_AUTOIP_STATE_CLAIMING;
 	/*
 	 * RFC 3927, Section 2.2.1:
 	 * When ready to begin probing, the host should then wait for a random
@@ -228,78 +227,27 @@ ni_autoip_fsm_release(ni_autoip_device_t *dev)
 	ni_autoip_fsm_commit_lease(dev, NULL);
 }
 
-int
-ni_autoip_send_arp(ni_autoip_device_t *dev)
+static void
+ni_autoip_fsm_process_arp(ni_arp_socket_t *sock, const ni_arp_packet_t *pkt, void *user_data)
 {
-	struct in_addr claim = dev->autoip.candidate;
-	struct in_addr null = { 0 };
+	ni_autoip_device_t *dev = (ni_autoip_device_t *) user_data;
+	ni_arp_address_t *vap;
+	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
 
-	if (dev->arp_socket == NULL) {
-		dev->arp_socket = ni_arp_socket_open(&dev->devinfo,
-				ni_autoip_fsm_process_arp_packet,
-				dev);
-		if (dev->arp_socket == NULL)
-			return -1;
-	}
-
-	if (dev->autoip.nprobes) {
-		ni_debug_autoip("arp_validate: probing for %s", inet_ntoa(claim));
-		ni_arp_send_request(dev->arp_socket, null, claim);
-
-		dev->autoip.nprobes -= 1;
-		if (dev->autoip.nprobes != 0)
-			ni_autoip_fsm_set_timeout(dev, IPV4LL_PROBE_WAIT_MIN, IPV4LL_PROBE_WAIT_MAX);
-		else
-			ni_autoip_fsm_set_timeout(dev, IPV4LL_ANNOUNCE_DELAY, IPV4LL_ANNOUNCE_DELAY);
-	} else if (dev->autoip.nclaims) {
-		ni_debug_autoip("arp_validate: claiming %s", inet_ntoa(claim));
-		ni_arp_send_grat_request(dev->arp_socket, claim);
-
-		dev->autoip.nclaims -= 1;
-		if (dev->autoip.nclaims != 0) {
-			ni_autoip_fsm_set_timeout(dev, IPV4LL_ANNOUNCE_WAIT, IPV4LL_ANNOUNCE_WAIT);
-		} else {
-			/* Wow, we're done! */
-			ni_debug_autoip("%s: successfully claimed %s", dev->ifname, inet_ntoa(claim));
-
-			/* Build the lease */
-			dev->fsm.state = NI_AUTOIP_STATE_CLAIMED;
-			ni_autoip_fsm_commit_lease(dev, ni_autoip_fsm_build_lease(dev));
-			dev->autoip.nconflicts = 0;
-			timerclear(&dev->autoip.last_defense);
-		}
-	} else {
-		dev->fsm.state = NI_AUTOIP_STATE_CLAIMED;
-		ni_autoip_fsm_commit_lease(dev, ni_autoip_fsm_build_lease(dev));
-		dev->autoip.nconflicts = 0;
-		timerclear(&dev->autoip.last_defense);
-	}
-	return 0;
-}
-
-void
-ni_autoip_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *pkt, void *user_data)
-{
-	ni_autoip_device_t *dev = user_data;
-
-	/* Ignore any ARP replies that seem to come from our own
-	 * MAC address. Some helpful switches seem to generate
-	 * these. */
-	if (ni_link_address_equal(&dev->devinfo.hwaddr, &pkt->sha))
-		return;
-
-	if (pkt->sip.s_addr != dev->autoip.candidate.s_addr)
+	if (!(vap = ni_arp_reply_match_address(sock, &dev->autoip.verify.ipaddrs, pkt)))
 		return;
 
 	switch (dev->fsm.state) {
 	case NI_AUTOIP_STATE_CLAIMING:
-		ni_debug_autoip("address %s already in use by %s",
-				inet_ntoa(pkt->sip),
-				ni_link_address_print(&pkt->sha));
+		ni_debug_autoip("%s: autoip4 address conflict %s", dev->ifname,
+				ni_address_print(&sb, vap->address));
 		ni_autoip_fsm_conflict(dev);
 		break;
 
 	case NI_AUTOIP_STATE_CLAIMED:
+		ni_debug_autoip("%s: autoip4 defend address %s (claimed by %s)",
+				dev->ifname, ni_address_print(&sb, vap->address),
+				ni_link_address_print(&pkt->sha));
 		ni_autoip_fsm_defend(dev, &pkt->sha);
 		break;
 
@@ -308,16 +256,42 @@ ni_autoip_fsm_process_arp_packet(ni_arp_socket_t *arph, const ni_arp_packet_t *p
 	}
 }
 
+int
+ni_autoip_send_arp(ni_autoip_device_t *dev)
+{
+	ni_timeout_t timeout;
+
+	if (dev->arp_socket == NULL) {
+		dev->arp_socket = ni_arp_socket_open(&dev->devinfo,
+				ni_autoip_fsm_process_arp, dev);
+		if (dev->arp_socket == NULL)
+			return -1;
+	}
+
+	switch (ni_arp_verify_send(dev->arp_socket, &dev->autoip.verify, &timeout)) {
+	case NI_ARP_SEND_PROGRESS:
+		ni_autoip_fsm_set_timeout(dev, timeout, timeout);
+		return 0;
+	case NI_ARP_SEND_FAILURE:
+		ni_autoip_fsm_conflict(dev);
+		return -1;
+	case NI_ARP_SEND_COMPLETE:
+	default:
+		dev->fsm.state = NI_AUTOIP_STATE_CLAIMED;
+		ni_autoip_fsm_commit_lease(dev, ni_autoip_fsm_build_lease(dev));
+		dev->autoip.nconflicts = 0;
+		timerclear(&dev->autoip.last_defense);
+		return 0;
+	}
+}
+
 void
-ni_autoip_fsm_set_timeout(ni_autoip_device_t *dev, unsigned int wait_min, unsigned int wait_max)
+ni_autoip_fsm_set_timeout(ni_autoip_device_t *dev, ni_timeout_t wait_min, ni_timeout_t wait_max)
 {
 	if (wait_max != 0) {
-		unsigned int wait = wait_min;
+		ni_timeout_t wait = ni_timeout_random_range(wait_min, wait_max);
 
-		if (wait_min < wait_max)
-			wait += (unsigned int) random() % (wait_max - wait_min);
-
-		ni_debug_autoip("%s: setting timeout to %u ms", dev->ifname, wait);
+		ni_debug_autoip("%s: setting timeout to %llu ms", dev->ifname, wait);
 		if (dev->fsm.timer)
 			ni_timer_rearm(dev->fsm.timer, wait);
 		else

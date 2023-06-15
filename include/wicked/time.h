@@ -100,4 +100,6 @@ extern ni_timeout_t		ni_timeout_left(const struct timeval *, const struct timeva
 
 extern ni_bool_t		ni_timeval_add_timeout(struct timeval *, ni_timeout_t);
 
+extern ni_timeout_t		ni_timeout_random_range(ni_timeout_t min, ni_timeout_t max);
+
 #endif /* WICKED_TIME_H */

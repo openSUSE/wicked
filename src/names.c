@@ -7,12 +7,13 @@
 #include "config.h"
 #endif
 
-#include <net/if_arp.h>
-
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/lldp.h>
 #include "kernel.h"
+
+#include <linux/if_arp.h>
+
 
 /*
  * Tristate is basically a bool + "unset, use defaults"
@@ -586,7 +587,7 @@ static const ni_intmap_t	__arphrd_names[] = {
  __ARPMAP(IEEE80211_PRISM,	ieee80211-prism),
  __ARPMAP(IEEE80211_RADIOTAP,	ieee80211-radiotap),
  __ARPMAP(IEEE802154,		ieee802154),
- __ARPMAP(IEEE802154_PHY,	ieee802154-monitor),
+ __ARPMAP(IEEE802154_MONITOR,	ieee802154-monitor),
  __ARPMAP(PHONET,		phonet),
  __ARPMAP(PHONET_PIPE,		phonet-pipe),
  __ARPMAP(CAIF,			caif),

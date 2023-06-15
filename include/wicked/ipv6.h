@@ -4,13 +4,8 @@
  * Copyright (C) 2012 Olaf Kirch <okir@suse.de>
  */
 
-#ifndef __WICKED_IPv6_H__
-#define __WICKED_IPv6_H__
-
-#include <sys/socket.h>
-#include <stdio.h>
-#include <net/if.h>
-#include <netinet/in.h>
+#ifndef NI_WICKED_IPv6_H
+#define NI_WICKED_IPv6_H
 
 #include <wicked/types.h>
 
@@ -135,4 +130,4 @@ extern const char *		ni_ipv6_devconf_accept_ra_to_name(int accept_ra);
 extern const char *		ni_ipv6_devconf_accept_dad_to_name(int accept_dad);
 extern const char *		ni_ipv6_devconf_addr_gen_mode_to_name(int addr_gen_mode);
 
-#endif /* __WICKED_IPv6_H__ */
+#endif /* NI_WICKED_IPv6_H */

@@ -20,6 +20,7 @@
 #include "dbus-common.h"
 #include "model.h"
 #include "appconfig.h"
+#include "extension.h"
 #include "debug.h"
 
 static unsigned int		ni_objectmodel_ns_count;
@@ -66,7 +67,13 @@ ni_objectmodel_register_ns_dynamic(void)
 		ni_c_binding_t *binding;
 		void *addr;
 
+		if (!ex->enabled)
+			continue;
+
 		for (binding = ex->c_bindings; binding; binding = binding->next) {
+			if (!binding->enabled)
+				continue;
+
 			if ((addr = ni_c_binding_get_address(binding)) == NULL) {
 				ni_error("cannot bind %s name service - invalid C binding",
 						binding->name);

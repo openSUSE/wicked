@@ -80,7 +80,7 @@
      <priority     type="uint32" />
      <invert       type="boolean"/>
      <from         type="network-address-prefix"/>
-     <to           type="network-address"/>
+     <to           type="network-address-prefix"/>
      <iif          type="string" />
      <oif          type="string" />
      <tos          type="uint32" />

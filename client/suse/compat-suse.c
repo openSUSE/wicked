@@ -406,6 +406,8 @@ __ni_suse_read_global_ifsysctl(const char *root, const char *path)
 		name = files.data[i];
 		ni_ifsysctl_file_load(&__ni_suse_global_ifsysctl, name);
 	}
+
+	ni_string_array_destroy(&files);
 	return TRUE;
 }
 
@@ -3827,8 +3829,8 @@ try_add_wireless_net(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 			net->auth_algo = NI_BIT(NI_WIRELESS_AUTH_OPEN);
 	}
 
-	ni_wireless_network_array_append(&wlan->conf->networks, net);
-	ni_wireless_network_drop(&net);
+	if (!ni_wireless_network_array_append(&wlan->conf->networks, net))
+		goto failure;
 
 	return TRUE;
 
@@ -4170,7 +4172,10 @@ __ni_wireless_parse_eap_auth(const ni_sysconfig_t *sc, ni_wireless_network_t *ne
 	}
 
 	if ((var = __find_indexed_variable(sc,"WIRELESS_EAP_AUTH", suffix))) {
-		if (!ni_wireless_name_to_eap_method(var->value, &net->wpa_eap.phase2.method)) {
+		if (net->wpa_eap.method == NI_WIRELESS_EAP_TLS) {
+			ni_warn("ifcfg-%s: Ignore WIRELESS_EAP_AUTH%s for eap mode TLS", dev_name, suffix);
+
+		} else if (!ni_wireless_name_to_eap_method(var->value, &net->wpa_eap.phase2.method)) {
 			ni_error("ifcfg-%s: wrong WIRELESS_EAP_AUTH%s value",
 				dev_name, suffix);
 			goto eap_failure;
@@ -6327,6 +6332,7 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	__ifsysctl_get_ipv6(&ifsysctl, "net/ipv6/conf", dev->name,
 				"stable_secret", &ipv6->conf.stable_secret);
 
+	ni_var_array_destroy(&ifsysctl);
 	return TRUE;
 }
 
