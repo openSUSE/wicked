@@ -260,6 +260,48 @@ supplicant. See below for a list of options.
 .TP
 .B auto6
 This element can be used to control the behavior of AUTO6 processing.
+.TP
+.B arp
+This element can be used to control ARP verify and ARP notify settings.
+See \fBARP CONFIGURATION OPTIONS\fR for more info.
+
+.PP
+.\" --------------------------------------------------------
+.SH ARP CONFIGURATION OPTIONS
+The ARP configuration specify the verify and notify settings used by wicked
+for duplicate address detection. If specified in \fB<addrconf>\fR the
+settings apply to static only. To change the ARP settings for AUTO4 or
+DHCP4, add the \fB<arp>\fR node as child of the corresponding \fB<auto4>\fR
+or \fB<dhcp4>\fR node.
+.PP
+.nf
+.B "  <arp>
+.B "    <verify>
+.B "      <count></count>
+.B "      <retries></retries>
+.B "      <interval>
+.B "        <min></min>
+.B "        <max></max>
+.B "      </interval>
+.B "    </verify>
+.B "    <notify>
+.B "      <count></count>
+.B "      <interval></interval>
+.B "      <retries></retries>
+.B "    </notify>
+.B "  </arp>
+.fi
+.PP
+.TP
+.B count
+This element can specify the number of ARP packets send.
+.TP
+.B retries
+This element specify the number of retries while sending ARP packages.
+.TP
+.B interval
+This element specify the delay between each ARP package. For \fB<verify>\fR it
+can be a range specified via \fB<min>\fR and \fB<max>\fR.
 
 .PP
 .\" --------------------------------------------------------
@@ -854,28 +896,44 @@ This extension class supports shell scripts only.
 Some platforms support iBFT or similar mechanisms to provide the configuration for
 a network device through the firmware (so that it's possible to boot off that device).
 In order to support these mechanisms, \fBwicked\fP supports extensions to discover such
-configuration through firmware discovery extensions.
+configuration from a firmware.
 .PP
 .nf
-.B "  <netif-firmware-discovery>
-.B "    <script name="ibft" command="@wicked_extensionsdir@/ibft" />
+.B "  <netif-firmware-discovery name="ibft">
+.B "    <script name="show-config"  command="@wicked_extensionsdir@/ibft" />
+.B "    <script name="list-ifnames" command="@wicked_extensionsdir@/ibft -l" />
 .B "  </netif-firmware-discovery>
 .fi
 .PP
-When looking for firmware interface configuration, \fBwicked\fP will invoke all these scripts
-in turn and parse their output. Scripts are expected to return XML documents that contain
-zero or more \fB<interface>\fP elements describing the configuration.
+When looking for firmware interface configuration, \fBwicked\fP will invokes these scripts
+for all defined/selected firmware extension types in turn and parses their output.
+.TP
+.B show-config
+The script command is expected to return XML output that contain zero or more
+.B <interface>
+nodes with the network interface configuration.
+.TP
+.B list-ifnames
+The script command is expected to return lines with space separated list of
+interface names the firmware configures (incl. virtual interfaces like vlans).
 .PP
-This extension class supports shell scripts only.
+This extension class supports shell scripts only. The \fBwicked-firmware\fP(8) command allows
+to list available extensions, the interfaces they configure and maintenance actions such as
+to enable/disable the execution of the firmware-discovery scripts.
 .PP
 .\" --------------------------------------------------------
 .SH "SEE ALSO"
 .BR wickedd (8),
+.BR wicked-firmware (8),
 .BR netconfig (8),
 .BR RFC3942
 .SH COPYRIGHT
-Copyright (C) 2014-2016 SUSE LINUX GmbH, Nuernberg, Germany.
+Copyright (C) 2014-2023 SUSE LLC
 .SH BUGS
 Please report bugs at <https://bugzilla.suse.com/>
 .SH AUTHORS
 Olaf Kirch
+Karol Mroz
+Nirmoy Das
+Rubén Torrero Marijnissen
+Marius Tomaschewski

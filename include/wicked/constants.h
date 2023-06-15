@@ -292,6 +292,7 @@ typedef enum {
 	NI_WICKED_ST_NOT_IN_STATE	= 165,	/*!< ifcheck state lower than expected	*/
 	NI_WICKED_ST_PERSISTENT_ON	= 166,	/*!< interface is in persistent mode	*/
 	NI_WICKED_ST_USERCONTROL_ON	= 167,	/*!< user is allowed to configure the interface	*/
+	NI_WICKED_ST_NO_CARRIER		= 168,	/*!< dev is up, but there is no carrier */
 } ni_status_code_t;
 
 #endif /* __WICKED_CONSTANTS_H__ */

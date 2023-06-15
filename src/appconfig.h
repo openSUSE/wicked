@@ -16,6 +16,7 @@ struct ni_script_action {
 	ni_script_action_t *	next;
 	char *			name;
 	ni_shellcmd_t *		process;
+	ni_bool_t		enabled;
 };
 
 typedef struct ni_c_binding ni_c_binding_t;
@@ -24,6 +25,7 @@ struct ni_c_binding {
 	char *			name;
 	char *			library;
 	char *			symbol;
+	ni_bool_t		enabled;
 };
 
 typedef struct ni_config_fslocation {
@@ -33,14 +35,15 @@ typedef struct ni_config_fslocation {
 
 struct ni_extension {
 	ni_extension_t *	next;
+	ni_bool_t		enabled;
 
-	/* Name of the extension, such as "dhcp4". */
+	/* Name of the extension */
 	char *			name;
 
 	/* Supported dbus interface */
 	char *			interface;
 
-	/* Format type. Only in use by system-updater. */
+	/* Format type used by system-updater */
 	char *			format;
 
 	/* Shell commands */
@@ -108,6 +111,23 @@ typedef enum {
 	NI_CONFIG_DHCP4_CID_TYPE_DISABLE,
 } ni_config_dhcp4_cid_type_t;
 
+typedef struct ni_config_arp_verify {
+	unsigned int	count;
+	unsigned int	retries;
+	ni_uint_range_t	interval;
+} ni_config_arp_verify_t;
+
+typedef struct ni_config_arp_notify {
+	unsigned int	count;
+	unsigned int	retries;
+	unsigned int	interval;
+} ni_config_arp_notify_t;
+
+typedef struct ni_config_arp {
+	ni_config_arp_verify_t	verify;
+	ni_config_arp_notify_t	notify;
+} ni_config_arp_t;
+
 typedef struct ni_config_dhcp4 {
 	struct ni_config_dhcp4 *next;
 	char *			device;
@@ -119,6 +139,7 @@ typedef struct ni_config_dhcp4 {
 	char *			vendor_class;
 	unsigned int		lease_time;
 	ni_string_array_t	ignore_servers;
+	ni_config_arp_t		arp;
 
 	unsigned int		num_preferred_servers;
 	ni_server_preference_t	preferred_server[NI_DHCP_SERVER_PREFERENCES_MAX];
@@ -156,7 +177,8 @@ typedef struct ni_config_dhcp6 {
 } ni_config_dhcp6_t;
 
 typedef struct ni_config_auto4 {
-	unsigned int	allow_update;
+	unsigned int		allow_update;
+	ni_config_arp_t		arp;
 } ni_config_auto4_t;
 
 typedef struct ni_config_auto6 {
@@ -170,13 +192,14 @@ typedef struct ni_config {
 	ni_config_fslocation_t	backupdir;
 
 	struct {
-	    unsigned int		default_allow_update;
+	    unsigned int	default_allow_update;
+	    ni_config_arp_t	arp;
 
-	    ni_config_dhcp4_t		dhcp4;
-	    ni_config_dhcp6_t		dhcp6;
+	    ni_config_dhcp4_t	dhcp4;
+	    ni_config_dhcp6_t	dhcp6;
 
-	    ni_config_auto4_t		auto4;
-	    ni_config_auto6_t		auto6;
+	    ni_config_auto4_t	auto4;
+	    ni_config_auto6_t	auto6;
 
 	} addrconf;
 
@@ -199,40 +222,31 @@ typedef struct ni_config {
 	ni_config_teamd_t	teamd;
 } ni_config_t;
 
-extern ni_config_t *	ni_config_new();
-extern void		ni_config_free(ni_config_t *);
-extern ni_config_t *	ni_config_parse(const char *, ni_init_appdata_callback_t *, void *);
-extern ni_extension_t *	ni_config_find_extension(ni_config_t *, const char *);
-extern ni_extension_t *	ni_config_find_system_updater(ni_config_t *, const char *);
-extern unsigned int	ni_config_addrconf_update_mask(ni_addrconf_mode_t, unsigned int);
-extern unsigned int	ni_config_addrconf_update(const char *, ni_addrconf_mode_t, unsigned int);
+extern ni_config_t *		ni_config_new();
+extern void			ni_config_free(ni_config_t *);
+extern ni_config_t *		ni_config_parse(const char *, ni_init_appdata_callback_t *, void *);
+extern ni_extension_t *		ni_config_find_extension(ni_config_t *, const char *);
+extern ni_extension_t *		ni_config_find_system_updater(ni_config_t *, const char *);
+extern unsigned int		ni_config_addrconf_update_mask(ni_addrconf_mode_t, unsigned int);
+extern unsigned int		ni_config_addrconf_update(const char *, ni_addrconf_mode_t, unsigned int);
+extern const ni_config_arp_t *	ni_config_addrconf_arp(ni_addrconf_mode_t, const char *);
 
-extern const ni_config_dhcp4_t *	ni_config_dhcp4_find_device(const char *);
-extern const char *			ni_config_dhcp4_cid_type_format(ni_config_dhcp4_cid_type_t);
-extern ni_bool_t			ni_config_dhcp4_cid_type_parse(ni_config_dhcp4_cid_type_t *, const char *);
-extern const ni_config_dhcp6_t *	ni_config_dhcp6_find_device(const char *);
+extern const ni_config_dhcp4_t *ni_config_dhcp4_find_device(const char *);
+extern const char *		ni_config_dhcp4_cid_type_format(ni_config_dhcp4_cid_type_t);
+extern ni_bool_t		ni_config_dhcp4_cid_type_parse(ni_config_dhcp4_cid_type_t *, const char *);
+extern const ni_config_dhcp6_t *ni_config_dhcp6_find_device(const char *);
 
 extern ni_config_bonding_ctl_t	ni_config_bonding_ctl(void);
 
-extern ni_bool_t	ni_config_teamd_enable(ni_config_teamd_ctl_t);
-extern ni_bool_t	ni_config_teamd_disable(void);
-extern ni_bool_t	ni_config_teamd_enabled(void);
+extern ni_bool_t		ni_config_teamd_enable(ni_config_teamd_ctl_t);
+extern ni_bool_t		ni_config_teamd_disable(void);
+extern ni_bool_t		ni_config_teamd_enabled(void);
 extern ni_config_teamd_ctl_t	ni_config_teamd_ctl(void);
-extern const char *	ni_config_teamd_ctl_type_to_name(ni_config_teamd_ctl_t);
+extern const char *		ni_config_teamd_ctl_type_to_name(ni_config_teamd_ctl_t);
 
-extern ni_extension_t *	ni_extension_list_find(ni_extension_t *, const char *);
-extern void		ni_extension_list_destroy(ni_extension_t **);
-extern ni_extension_t *	ni_extension_new(ni_extension_t **, const char *);
-extern void		ni_extension_free(ni_extension_t *);
+extern void			ni_config_fslocation_init(ni_config_fslocation_t *, const char *, unsigned int);
+extern void			ni_config_fslocation_destroy(ni_config_fslocation_t *);
 
-extern void		ni_c_binding_free(ni_c_binding_t *);
-extern void *		ni_c_binding_get_address(const ni_c_binding_t *);
-
-extern ni_shellcmd_t *	ni_extension_script_new(ni_extension_t *, const char *name, const char *command);
-extern ni_shellcmd_t *	ni_extension_script_find(ni_extension_t *, const char *);
-extern const ni_c_binding_t *ni_extension_find_c_binding(const ni_extension_t *, const char *name);
-extern void		ni_config_fslocation_init(ni_config_fslocation_t *, const char *, unsigned int);
-extern void		ni_config_fslocation_destroy(ni_config_fslocation_t *);
 typedef struct ni_global {
 	int			initialized;
 	char *			config_path;

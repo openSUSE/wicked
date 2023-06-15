@@ -144,4 +144,5 @@ ni_resolver_info_free(ni_resolver_info_t *resolv)
 	ni_string_free(&resolv->default_domain);
 	ni_string_array_destroy(&resolv->dns_search);
 	ni_string_array_destroy(&resolv->dns_servers);
+	free(resolv);
 }

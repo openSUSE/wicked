@@ -1,7 +1,7 @@
 /*
  *	An elementary JSON implementation
  *
- *	Copyright (C) 2015 SUSE Linux GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2015-2023 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,31 +13,32 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- *	Boston, MA 02110-1301 USA.
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *	Authors:
- *		Marius Tomaschewski <mt@suse.de>
- *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
+ *		Marius Tomaschewski
+ *		Clemens Famulla-Conrad
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
-#include <stdlib.h>
-#include <limits.h>
-#include <ctype.h>
-#if 0
-#include <iconv.h>
-#endif
-#include <inttypes.h>
 #include <wicked/logging.h>
 
 #include "json.h"
 #include "buffer.h"
 #include "util_priv.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <limits.h>
+#include <ctype.h>
+#include <inttypes.h>
+
+#ifdef HAVE_ICONV_H
+#include <iconv.h>
+#endif
 
 /*
  * object and array prealloc chunk sizes
@@ -862,6 +863,23 @@ static void
 ni_json_string_escape(ni_stringbuf_t *buf, const char *str,
 			const ni_json_format_options_t *options)
 {
+	/* See https://www.rfc-editor.org/rfc/rfc8259#section-7
+	 * "[…]
+	 * A string begins and ends with quotation marks.  All Unicode
+	 * characters may be placed within the quotation marks, except
+	 * for the characters that MUST be escaped:
+	 * quotation mark, reverse solidus, and the control characters
+	 * (U+0000 through U+001F).
+	 *  […]
+	 * Alternatively, there are two-character sequence escape
+	 * representations of some popular characters.
+	 *  […]"
+	 *
+	 * While slash aka solidus character '/' is in the "popular
+	 * characters" (ni_json_string_escape_map) of two-character
+	 * sequence escapes, there is usually no need for and we
+	 * escape it only if requested via NI_JSON_ESCAPE_SLASH.
+	 */
 	static const char *hex = "0123456789abcdefABCDEF";
 	size_t len = ni_string_len(str);
 	size_t pos = 0, off = 0;
@@ -890,8 +908,20 @@ ni_json_string_escape(ni_stringbuf_t *buf, const char *str,
 		ni_stringbuf_put(buf, str + off, pos - off);
 }
 
+static const char *	ni_json_sbuf_format(ni_stringbuf_t *, const ni_json_t *,
+						const ni_json_format_options_t *,
+						unsigned int);
+
 static void
-ni_json_string_format(ni_stringbuf_t *buf, const char *value,
+ni_json_sbuf_indent(ni_stringbuf_t *buf, const ni_json_format_options_t *options,
+		unsigned int indent)
+{
+	if (!!options->indent && indent)
+		ni_stringbuf_printf(buf, "%*s", indent, " ");
+}
+
+static void
+ni_json_sbuf_string_format(ni_stringbuf_t *buf, const char *value,
 			const ni_json_format_options_t *options)
 {
 	ni_stringbuf_putc(buf, '\"');
@@ -900,9 +930,11 @@ ni_json_string_format(ni_stringbuf_t *buf, const char *value,
 }
 
 static void
-ni_json_array_format(ni_stringbuf_t *buf, const ni_json_array_t *nja,
-			const ni_json_format_options_t *options)
+ni_json_sbuf_array_format(ni_stringbuf_t *buf, const ni_json_array_t *nja,
+			const ni_json_format_options_t *options,
+			unsigned int indent)
 {
+	const char *sep = options->indent ? "\n" : " ";
 	unsigned int i;
 
 	if (!nja || !nja->count) {
@@ -910,59 +942,71 @@ ni_json_array_format(ni_stringbuf_t *buf, const ni_json_array_t *nja,
 		return;
 	}
 
-	ni_stringbuf_puts(buf, "[ ");
+	ni_stringbuf_puts(buf, "[");
+	ni_stringbuf_puts(buf, sep);
 	for (i = 0; i < nja->count; ++i) {
-		if (i)
-			ni_stringbuf_puts(buf, ", ");
-		ni_json_format_string(buf, nja->data[i], options);
+		if (i) {
+			ni_stringbuf_puts(buf, ",");
+			ni_stringbuf_puts(buf, sep);
+		}
+
+		ni_json_sbuf_indent(buf, options, indent + options->indent);
+		ni_json_sbuf_format(buf, nja->data[i], options,
+				indent + options->indent);
 	}
-	ni_stringbuf_puts(buf, " ]");
+	ni_stringbuf_puts(buf, sep);
+	ni_json_sbuf_indent(buf, options, indent);
+	ni_stringbuf_puts(buf, "]");
 }
 
 static void
-ni_json_pair_format(ni_stringbuf_t *buf, const ni_json_pair_t *pair,
-			const ni_json_format_options_t *options)
+ni_json_sbuf_pair_format(ni_stringbuf_t *buf, const ni_json_pair_t *pair,
+			const ni_json_format_options_t *options,
+			unsigned int indent)
 {
+	const char *sep = " ";
+
 	ni_stringbuf_putc(buf, '\"');
 	ni_json_string_escape(buf, pair->name, options);
-	ni_stringbuf_puts(buf, "\": ");
-	ni_json_format_string(buf, pair->value, options);
+	ni_stringbuf_puts(buf, "\":");
+	ni_stringbuf_puts(buf, sep);
+	ni_json_sbuf_format(buf, pair->value, options, indent);
 }
 
 static void
-ni_json_object_format(ni_stringbuf_t *buf, const ni_json_object_t *njo,
-			const ni_json_format_options_t *options)
+ni_json_sbuf_object_format(ni_stringbuf_t *buf, const ni_json_object_t *njo,
+			const ni_json_format_options_t *options,
+			unsigned int indent)
 {
+	const char *sep = !!options->indent ? "\n" : " ";
 	unsigned int i;
 
 	if (!njo || !njo->count) {
 		ni_stringbuf_puts(buf, "{}");
 		return;
 	}
-
-	ni_stringbuf_puts(buf, "{ ");
+	ni_stringbuf_puts(buf, "{");
+	ni_stringbuf_puts(buf, sep);
 	for (i = 0; i < njo->count; ++i) {
-		if (i)
-			ni_stringbuf_puts(buf, ", ");
-		ni_json_pair_format(buf, njo->data[i], options);
+		if (i) {
+			ni_stringbuf_puts(buf, ",");
+			ni_stringbuf_puts(buf, sep);
+		}
+
+		ni_json_sbuf_indent(buf, options, indent + options->indent);
+		ni_json_sbuf_pair_format(buf, njo->data[i], options,
+					indent + options->indent);
 	}
-	ni_stringbuf_puts(buf, " }");
+	ni_stringbuf_puts(buf, sep);
+	ni_json_sbuf_indent(buf, options, indent);
+	ni_stringbuf_puts(buf, "}");
 }
 
-const char *
-ni_json_format_string(ni_stringbuf_t *buf, const ni_json_t *json,
-			const ni_json_format_options_t *options)
+static const char *
+ni_json_sbuf_format(ni_stringbuf_t *buf, const ni_json_t *json,
+			const ni_json_format_options_t *options,
+			unsigned int indent)
 {
-	static const ni_json_format_options_t defaults = {
-		.flags = 0,
-	};
-
-	if (!json || !buf)
-		return NULL;
-
-	if (!options)
-		options = &defaults;
-
 	switch (json->type) {
 	case NI_JSON_TYPE_NULL:
 		ni_stringbuf_puts(buf, "null");
@@ -981,22 +1025,36 @@ ni_json_format_string(ni_stringbuf_t *buf, const ni_json_t *json,
 		break;
 
 	case NI_JSON_TYPE_STRING:
-		ni_json_string_format(buf, json->string_value, options);
+		ni_json_sbuf_string_format(buf, json->string_value, options);
 		break;
 
 	case NI_JSON_TYPE_ARRAY:
-		ni_json_array_format(buf, json->array_value, options);
+		ni_json_sbuf_array_format(buf, json->array_value, options, indent);
 		break;
 
 	case NI_JSON_TYPE_OBJECT:
-		ni_json_object_format(buf, json->object_value, options);
+		ni_json_sbuf_object_format(buf, json->object_value, options, indent);
 		break;
 
 	default:
 		return NULL;
 	}
-
 	return buf->string;
+}
+
+const char *
+ni_json_format_string(ni_stringbuf_t *buf, const ni_json_t *json,
+			const ni_json_format_options_t *options)
+{
+	static const ni_json_format_options_t defaults = NI_JSON_OPTIONS_INIT;
+
+	if (!json || !buf)
+		return NULL;
+
+	if (!options)
+		options = &defaults;
+
+	return ni_json_sbuf_format(buf, json, options, 0);
 }
 
 /*
@@ -1027,6 +1085,9 @@ typedef enum {
 
 typedef struct ni_json_reader_stack	ni_json_reader_stack_t;
 typedef struct ni_json_reader		ni_json_reader_t;
+typedef int    ni_json_reader_get_data_fn_t(ni_json_reader_t *, void *, size_t);
+typedef int    ni_json_reader_get_char_fn_t(ni_json_reader_t *);
+typedef int    ni_json_reader_unget_char_fn_t(ni_json_reader_t *, int);
 
 struct ni_json_reader_stack {
 	ni_json_reader_stack_t *	parent;
@@ -1036,13 +1097,18 @@ struct ni_json_reader_stack {
 };
 
 struct ni_json_reader {
+	FILE *				file;
 	ni_buffer_t *			inbuf;
-#if 0
+#ifdef HAVE_ICONV_H
 	iconv_t				iconv;
 #endif
+	ni_bool_t			close;
 	ni_bool_t			quiet;
 	ni_string_array_t		error;
 	ni_json_reader_stack_t *	stack;
+	ni_json_reader_get_data_fn_t *	get_data;
+	ni_json_reader_get_char_fn_t *	get_char;
+	ni_json_reader_unget_char_fn_t *unget_char;
 };
 
 static ni_json_reader_stack_t *
@@ -1067,24 +1133,99 @@ ni_json_reader_stack_pop(ni_json_reader_t *jr)
 		stack->parent = NULL;
 		ni_string_free(&stack->name);
 		ni_json_free(stack->value);
+		free(stack);
 	}
 	return jr->stack;
+}
+
+static int
+ni_json_reader_buffer_get(ni_json_reader_t *jr, void *data, size_t len)
+{
+	return ni_buffer_get(jr->inbuf, data, len);
+}
+
+static int
+ni_json_reader_buffer_getc(ni_json_reader_t *jr)
+{
+	return ni_buffer_getc(jr->inbuf);
+}
+
+static int
+ni_json_reader_buffer_ungetc(ni_json_reader_t *jr, int cc)
+{
+	return ni_buffer_ungetc(jr->inbuf, cc);
 }
 
 static ni_bool_t
 ni_json_reader_init_buffer(ni_json_reader_t *jr, ni_buffer_t *buf)
 {
+	jr->file  = NULL;
 	jr->inbuf = buf;
-#if 0
+#ifdef HAVE_ICONV_H
 	jr->iconv = (iconv_t)-1;
 #endif
 	jr->stack = NULL;
+	jr->close = FALSE;
 	jr->quiet = FALSE;
 	ni_string_array_init(&jr->error);
+
+	jr->get_data   = ni_json_reader_buffer_get;
+	jr->get_char   = ni_json_reader_buffer_getc;
+	jr->unget_char = ni_json_reader_buffer_ungetc;
 	return buf != NULL;
 }
 
-#if 0
+static int
+ni_json_reader_file_get(ni_json_reader_t *jr, void *data, size_t len)
+{
+	return fread(data, 1, len, jr->file) == len ? 0 : EOF;
+}
+
+static int
+ni_json_reader_file_getc(ni_json_reader_t *jr)
+{
+	return getc(jr->file);
+}
+
+static int
+ni_json_reader_file_ungetc(ni_json_reader_t *jr, int cc)
+{
+	return ungetc(cc, jr->file) == cc ? 0 : EOF;
+}
+
+static ni_bool_t
+ni_json_reader_init_file(ni_json_reader_t *jr, FILE *file)
+{
+	jr->file  = file;
+	jr->inbuf = NULL;
+#ifdef HAVE_ICONV_H
+	jr->iconv = (iconv_t)-1;
+#endif
+	jr->stack = NULL;
+	jr->close = FALSE;
+	jr->quiet = FALSE;
+	ni_string_array_init(&jr->error);
+
+	jr->get_data   = ni_json_reader_file_get;
+	jr->get_char   = ni_json_reader_file_getc;
+	jr->unget_char = ni_json_reader_file_ungetc;
+	return file != NULL;
+}
+
+static ni_bool_t
+ni_json_reader_open_file(ni_json_reader_t *jr, const char *name)
+{
+	if (ni_string_empty(name))
+		return FALSE;
+
+	if (!ni_json_reader_init_file(jr, fopen(name, "r")))
+		return FALSE;
+
+	jr->close = TRUE;
+	return TRUE;
+}
+
+#ifdef HAVE_ICONV_H
 static ni_bool_t
 ni_json_reader_open_iconv(ni_json_reader_t *jr)
 {
@@ -1100,8 +1241,15 @@ ni_json_reader_destroy(ni_json_reader_t *jr)
 	ni_string_array_destroy(&jr->error);
 	while (ni_json_reader_stack_pop(jr))
 		;
+
+	if (jr->file) {
+		if (jr->close)
+			fclose(jr->file);
+		jr->close = FALSE;
+		jr->file = NULL;
+	}
 	jr->inbuf = NULL;
-#if 0
+#ifdef HAVE_ICONV_H
 	if (jr->iconv)
 		iconv_close(jr->iconv);
 	jr->iconv = (iconv_t)-1;
@@ -1178,9 +1326,9 @@ ni_json_reader_skip_spaces(ni_json_reader_t *jr)
 {
 	int cc;
 
-	while ((cc = ni_buffer_getc(jr->inbuf)) != EOF) {
+	while ((cc = jr->get_char(jr)) != EOF) {
 		if (!isspace(cc)) {
-			ni_buffer_ungetc(jr->inbuf, cc);
+			jr->unget_char(jr, cc);
 			break;
 		}
 	}
@@ -1191,9 +1339,9 @@ ni_json_reader_get_literal(ni_json_reader_t *jr, ni_stringbuf_t *res)
 {
 	int cc;
 
-	while ((cc = ni_buffer_getc(jr->inbuf)) != EOF) {
+	while ((cc = jr->get_char(jr)) != EOF) {
 		if (!isalpha(cc)) {
-			ni_buffer_ungetc(jr->inbuf, cc);
+			jr->unget_char(jr, cc);
 			break;
 		}
 		ni_stringbuf_putc(res, cc);
@@ -1205,7 +1353,7 @@ ni_json_reader_get_number(ni_json_reader_t *jr, ni_stringbuf_t *res)
 {
 	int cc;
 
-	while ((cc = ni_buffer_getc(jr->inbuf)) != EOF) {
+	while ((cc = jr->get_char(jr)) != EOF) {
 		switch (cc) {
 		case '+': case '-':
 		case 'e': case 'E':
@@ -1217,72 +1365,25 @@ ni_json_reader_get_number(ni_json_reader_t *jr, ni_stringbuf_t *res)
 				ni_stringbuf_putc(res, cc);
 				break;
 			}
-			ni_buffer_ungetc(jr->inbuf, cc);
+			jr->unget_char(jr, cc);
 			return;
 		}
 	}
 }
 
-static ni_bool_t
-ni_json_reader_get_eunicode(ni_json_reader_t *jr, ni_stringbuf_t *res)
-{
-	char hbuf[5], sbuf[2] /*, obuf[8], *sptr, *optr */;
-	/* size_t slen, olen, n; */
-	unsigned int octet;
-	char *end = NULL;
-
-	if (ni_buffer_count(jr->inbuf) < 4)
-		return FALSE;
-
-	/*
-	 * TODO: We decode mandatory control chars only...
-	 * Also.. do we need to handle multiple sequences:
-	 * "\uD834\uDD1E", a G clef character (U+1D11E)??
-	 */
-	memset(hbuf, 0, sizeof(hbuf));
-	if (ni_buffer_get(jr->inbuf, &hbuf[0], 2) < 0)
-		return FALSE;
-
-	octet = strtoul(&hbuf[0], &end, 16);
-	if (octet > 255 || *end != '\0')
-		return FALSE;
-	sbuf[0] = octet & 0xff;
-
-	if (ni_buffer_get(jr->inbuf, &hbuf[2], 2) < 0)
-		return FALSE;
-	octet = strtoul(&hbuf[2], &end, 16);
-        if (octet > 255 || *end != '\0')
-		return FALSE;
-	sbuf[1] = octet & 0xff;
-
-	if (sbuf[0] != 0)
-		return FALSE;
-	if (sbuf[1] != 0)
-		ni_stringbuf_putc(res, sbuf[1]);
-#if 0
-	sptr = sbuf;
-	slen = sizeof(sbuf);
-	while (slen > 0) {
-		optr = obuf;
-		olen = sizeof(obuf);
-
-		n = iconv(jr->iconv, &sptr, &slen, &optr, &olen);
-		if (n == (size_t)-1)
-			return FALSE;
-
-		ni_stringbuf_put(res, obuf, n);
-	}
-#endif
-	return TRUE;
-}
-
 static inline const char *
 ni_json_string_unescape_map(unsigned char ec)
 {
+	/*
+	 * See https://www.rfc-editor.org/rfc/rfc8259#section-7
+	 *
+	 * […] two-character sequence escape representations
+	 * of some popular characters […]
+	 */
 	switch (ec) {
-		case '/':	return "/";
-		case '\\':	return "\\";
 		case '"':	return "\"";
+		case '\\':	return "\\";
+		case '/':	return "/";
 		case 'b':	return "\b";
 		case 'f':	return "\f";
 		case 'n':	return "\n";
@@ -1293,16 +1394,193 @@ ni_json_string_unescape_map(unsigned char ec)
 }
 
 static ni_bool_t
+ni_json_reader_get_eunicode_hex(ni_json_reader_t *jr, uint8_t *hex)
+{
+	char hbuf[3] = { 0x0, 0x0, 0x0 };
+	unsigned int octet;
+	char *end = NULL;
+
+	if (jr->get_data(jr, &hbuf[0], 2))
+		return FALSE;
+
+	octet = strtoul(&hbuf[0], &end, 16);
+	if (octet > 255 || *end != '\0')
+		return FALSE;
+
+	*hex = octet & 0xff;
+	return TRUE;
+}
+
+#ifdef HAVE_ICONV_H
+static ni_bool_t
+ni_json_reader_get_eunicode_raw(ni_json_reader_t *jr, ni_buffer_t *raw)
+{
+	uint8_t hex[2];
+
+	if (!ni_json_reader_get_eunicode_hex(jr, &hex[0]))
+		return FALSE;
+
+	if (!ni_json_reader_get_eunicode_hex(jr, &hex[1]))
+		return FALSE;
+
+	/*
+	 * See https://www.rfc-editor.org/rfc/rfc8259#section-8.1
+	 * "[…]
+	 * Implementations MUST NOT add a byte order mark (U+FEFF)
+	 * to the beginning of a networked-transmitted JSON text.
+	 * In the interests of interoperability, implementations
+	 * that parse JSON texts MAY ignore the presence of a byte
+	 * order mark rather than treating it as an error.
+	 *  […]"
+	 */
+	if (hex[0] == 0xfe && hex[1] == 0xff)
+		return TRUE;
+
+	return ni_buffer_put(raw, hex, 2) == 0;
+}
+
+static ni_bool_t
+ni_json_reader_get_eunicode_str(ni_json_reader_t *jr,
+		ni_stringbuf_t *res, char *sptr, size_t slen)
+{
+	/*
+	 * Unicode characters like e.g. umbrella '☂'
+	 * are represented as 3 bytes in UTF-8:
+	 *   UTF-32 Encoding:	0x00002602
+	 *   UTF-16 Encoding:	0x2602
+	 *   UTF-8  Encoding:	0xE2 0x98 0x82
+	 * that is, we need 50% longer output space.
+	 */
+	size_t olen, olft, n;
+	char *optr;
+
+	olen = (slen * 3 + 1) / 2;
+	ni_stringbuf_grow(res, olen);
+	if (!res->string || olen > (res->size - res->len))
+		return FALSE;
+
+	olft = olen;
+	optr = res->string + res->len;
+	while (slen > 0) {
+		n = iconv(jr->iconv, &sptr, &slen, &optr, &olft);
+		if (n == (size_t)-1)
+			return FALSE;
+
+		if (olen > olft)
+			res->len += olen - olft;
+		olen = olft;
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+ni_json_reader_get_eunicode(ni_json_reader_t *jr, ni_stringbuf_t *res)
+{
+	/*
+	 * See https://www.rfc-editor.org/rfc/rfc8259#section-7
+	 * and https://www.rfc-editor.org/rfc/rfc8259#section-8
+	 *
+	 * "[…]
+	 * JSON text exchanged between systems that are not part of
+	 * a closed ecosystem MUST be encoded using UTF-8 [RFC3629].
+	 *  […]
+	 * Implementations MUST NOT add a byte order mark (U+FEFF)
+	 * to the beginning of a networked-transmitted JSON text.
+	 * In the interests of interoperability, implementations
+	 * that parse JSON texts MAY ignore the presence of a byte
+	 * order mark rather than treating it as an error.
+	 *  […]"
+	 *
+	 * Unicode characters are "represented as a six-character
+	 * sequence" (\uXXXX) or "12-character sequence, encoding
+	 * the UTF-16 surrogate pair. […] the G clef character
+	 * (U+1D11E) may be represented as "\uD834\uDD1E"."
+	 *   UTF-32 Encoding:	0x0001D11E
+	 *   UTF-16 Encoding:	0xD834 0xDD1E
+	 *   UTF-8  Encoding:	0xF0 0x9D 0x84 0x9E
+	 *
+	 * Means, we have to read multiple \uXXXX[…\uXXXX] escaped
+	 * sequences to be able to translate the raw bytes to UTF-8
+	 * as "\uD834" alone is not a valid unicode character (but
+	 * a high or lead surrogate).
+	 */
+	ni_bool_t ret = TRUE;
+	ni_buffer_t raw;
+	int cc = EOF;
+
+	if (!ni_buffer_init_dynamic(&raw, 0))
+		return FALSE;
+
+	do {
+		if (!(ret = ni_buffer_ensure_tailroom(&raw, 2)))
+			break;
+
+		if (!(ret = ni_json_reader_get_eunicode_raw(jr, &raw)))
+			break;
+
+		if ((cc = jr->get_char(jr)) != '\\') {
+			if (cc != EOF)
+				jr->unget_char(jr, cc);
+			cc = EOF;
+			break;
+		}
+
+	} while ((cc = jr->get_char(jr)) == 'u');
+
+	ret = ni_json_reader_get_eunicode_str(jr, res,
+			ni_buffer_head(&raw),
+			ni_buffer_count(&raw));
+	ni_buffer_destroy(&raw);
+
+	if (cc != EOF) {
+		const char *us;
+
+		/* \uXXXX\uXXXX… sequence followed by \cc */
+		if (!(us = ni_json_string_unescape_map(cc)))
+			return FALSE;   /* unknown escape */
+
+		ni_stringbuf_puts(res, us);
+	}
+	return ret;
+}
+
+#else /* !HAVE_ICONV_H */
+
+static ni_bool_t
+ni_json_reader_get_eunicode(ni_json_reader_t *jr, ni_stringbuf_t *res)
+{
+	char sbuf[2];
+
+	/*
+	 * We decode single-byte \u00XX "ascii" characters including
+	 * mandatory control characters and need iconv for all other.
+	 */
+	if (!ni_json_reader_get_eunicode_hex(jr, &sbuf[0]))
+		return FALSE;
+
+	if (!ni_json_reader_get_eunicode_hex(jr, &sbuf[1]))
+		return FALSE;
+
+	/* Multibyte characters need iconv… */
+	if (sbuf[0] != 0)
+		return FALSE;
+
+	ni_stringbuf_putc(res, sbuf[1]);
+	return TRUE;
+}
+#endif
+
+static ni_bool_t
 ni_json_reader_get_qstring(ni_json_reader_t *jr, ni_stringbuf_t *res)
 {
 	ni_bool_t escaped = FALSE;
 	const char *us;
 	int cc;
 
-	while ((cc = ni_buffer_getc(jr->inbuf)) != EOF) {
+	while ((cc = jr->get_char(jr)) != EOF) {
 		if (escaped) {
 			if (cc == 'u') {
-#if 0
+#ifdef HAVE_ICONV_H
 				if (!ni_json_reader_open_iconv(jr))
 					return FALSE;	/* decoder failed */
 #endif
@@ -1336,7 +1614,7 @@ ni_json_get_token(ni_json_reader_t *jr, ni_stringbuf_t *res)
 {
 	int cc;
 
-	if ((cc = ni_buffer_getc(jr->inbuf)) == EOF)
+	if ((cc = jr->get_char(jr)) == EOF)
 		return EndOfFile;
 
 	switch (cc) {
@@ -1566,7 +1844,7 @@ ni_json_reader_parse_array(ni_json_reader_t *jr)
 		ni_json_reader_set_error(jr, "unexpected array token");
 		break;
 	}
-	ni_stringbuf_clear(&tokenValue);
+	ni_stringbuf_destroy(&tokenValue);
 }
 
 static void
@@ -1611,7 +1889,7 @@ ni_json_reader_parse_object(ni_json_reader_t *jr)
 		ni_json_reader_set_error(jr, "unexpected object token");
 		break;
 	}
-	ni_stringbuf_clear(&tokenValue);
+	ni_stringbuf_destroy(&tokenValue);
 }
 
 static void
@@ -1669,6 +1947,7 @@ ni_json_reader_parse_pair(ni_json_reader_t *jr)
 		ni_json_reader_set_error(jr, "unexpected object pair token");
 		break;
 	}
+	ni_stringbuf_destroy(&tokenValue);
 }
 
 static void
@@ -1718,6 +1997,7 @@ ni_json_reader_parse_initial(ni_json_reader_t *jr)
 		ni_json_reader_set_error(jr, "unexpected token");
 		break;
 	}
+	ni_stringbuf_destroy(&tokenValue);
 }
 
 static ni_json_t *
@@ -1787,3 +2067,24 @@ ni_json_parse_string(const char *str)
 	return ni_json_parse_buffer(&buf);
 }
 
+ni_json_t *
+ni_json_parse_file(const char *filename)
+{
+	ni_json_reader_t reader;
+	ni_json_t *json;
+
+	if (ni_string_eq(filename, "-")) {
+		if (!ni_json_reader_init_file(&reader, stdin))
+			return NULL;
+	} else {
+		if (!ni_json_reader_open_file(&reader, filename))
+			return NULL;
+	}
+
+	json = ni_json_reader_parse(&reader);
+	if (!ni_json_reader_destroy(&reader)) {
+		ni_json_free(json);
+		return NULL;
+	}
+	return json;
+}

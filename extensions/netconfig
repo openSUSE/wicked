@@ -1,8 +1,5 @@
 #!/bin/bash
 
-backupdir=/var/run/wicked/backup
-updaterdir=/var/run/wicked/extension/generic
-
 type=""
 family=""
 ifname=""

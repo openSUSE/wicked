@@ -6,11 +6,9 @@
  * Heavily inspired by dhcpcd, which was written by Roy Marples <roy@marples.name>
  */
 
-#ifndef __WICKED_DHCP4_PROTOCOL_H__
-#define __WICKED_DHCP4_PROTOCOL_H__
+#ifndef NI_WICKED_DHCP4_PROTOCOL_H
+#define NI_WICKED_DHCP4_PROTOCOL_H
 
-#include <netinet/in.h>
-#include <stdint.h>
 #include <wicked/netinfo.h>
 
 /* Max MTU - defines dhcp4 option length */
@@ -186,4 +184,4 @@ struct ni_dhcp4_message {
 extern const char *	ni_dhcp4_message_name(unsigned int);
 extern const char *	ni_dhcp4_option_name(unsigned int);
 
-#endif /* __WICKED_DHCP4_PROTOCOL_H__ */
+#endif /* NI_WICKED_DHCP4_PROTOCOL_H */

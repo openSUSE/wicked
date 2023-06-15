@@ -37,6 +37,7 @@ libwicked_la_LIBADD		= libwicked-dbus-objects.la	\
 libwicked_la_SOURCES		= \
 	addrconf.c		\
 	address.c		\
+	appconfig.c		\
 	arp.c			\
 	async-resolver.c	\
 	auto6.c			\
@@ -45,7 +46,6 @@ libwicked_la_SOURCES		= \
 	buffer.c		\
 	calls.c			\
 	capture.c		\
-	config.c		\
 	dcb.c			\
 	dbus-client.c		\
 	dbus-common.c		\
@@ -182,7 +182,6 @@ noinst_HEADERS			= \
 	$(system_headers)
 
 system_headers			= \
-	linux/dcbnl.h		\
 	linux/ethtool.h		\
 	linux/if_addr.h		\
 	linux/if_link.h		\
@@ -192,6 +191,7 @@ wicked_headers			= \
 	addrconf.h		\
 	appconfig.h		\
 	auto6.h			\
+	array_priv.h		\
 	buffer.h		\
 	client/client_state.h	\
 	client/ifconfig.h	\
@@ -217,6 +217,8 @@ wicked_headers			= \
 	dhcp6/tester.h		\
 	dhcp.h			\
 	duid.h			\
+	extension.h		\
+	firmware.h		\
 	iaid.h			\
 	ibft.h			\
 	ipv6_priv.h		\
@@ -230,6 +232,8 @@ wicked_headers			= \
 	ovs.h			\
 	pppd.h			\
 	process.h		\
+	refcount_priv.h		\
+	slist_priv.h		\
 	socket_priv.h		\
 	sysfs.h			\
 	systemctl.h		\

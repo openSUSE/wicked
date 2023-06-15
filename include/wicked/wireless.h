@@ -14,6 +14,7 @@
 #include <wicked/util.h>
 #include <wicked/logging.h>
 #include <wicked/refcount.h>
+#include <wicked/array.h>
 
 typedef enum ni_wireless_mode {
 	NI_WIRELESS_MODE_UNKNOWN,
@@ -282,10 +283,7 @@ struct ni_wireless_bss {
 	uint32_t		age;
 };
 
-typedef struct ni_wireless_network_array {
-	unsigned int		count;
-	ni_wireless_network_t **data;
-} ni_wireless_network_array_t;
+ni_declare_ptr_array_type(ni_wireless_network);
 
 typedef struct ni_wireless_interface_capabilities {
 	unsigned int		pairwise_ciphers;
@@ -380,7 +378,7 @@ extern ni_wireless_config_t *		ni_wireless_config_new();
 extern void				ni_wireless_config_free(ni_wireless_config_t **);
 extern ni_bool_t			ni_wireless_config_init(ni_wireless_config_t *);
 extern void				ni_wireless_config_destroy(ni_wireless_config_t *);
-extern void				ni_wireless_config_copy(ni_wireless_config_t *, ni_wireless_config_t *);
+extern ni_bool_t			ni_wireless_config_copy(ni_wireless_config_t *, ni_wireless_config_t *);
 extern ni_bool_t			ni_wireless_config_has_essid(ni_wireless_config_t *, ni_wireless_ssid_t *);
 
 extern ni_wireless_scan_t *		ni_wireless_scan_new(ni_netdev_t *, unsigned int);
@@ -389,10 +387,10 @@ extern void				ni_wireless_scan_free(ni_wireless_scan_t *);
 extern ni_wireless_blob_t *		ni_wireless_blob_new_from_str(const char *);
 extern void				ni_wireless_blob_free(ni_wireless_blob_t **);
 
-extern void				ni_wireless_network_array_init(ni_wireless_network_array_t *);
-extern void				ni_wireless_network_array_append(ni_wireless_network_array_t *, ni_wireless_network_t *);
-extern void				ni_wireless_network_array_destroy(ni_wireless_network_array_t *);
-extern void				ni_wireless_network_array_copy(ni_wireless_network_array_t *, ni_wireless_network_array_t *);
+extern					ni_declare_ptr_array_init(ni_wireless_network);
+extern					ni_declare_ptr_array_append(ni_wireless_network);
+extern					ni_declare_ptr_array_destroy(ni_wireless_network);
+extern ni_bool_t			ni_wireless_network_array_copy(ni_wireless_network_array_t *, ni_wireless_network_array_t *);
 
 extern ni_wireless_bss_t *		ni_wireless_bss_new();
 extern void				ni_wireless_bss_init(ni_wireless_bss_t *bss);
@@ -454,7 +452,8 @@ extern int				ni_rfkill_open(ni_rfkill_event_handler_t *, void *user_data);
 extern ni_bool_t			ni_rfkill_disabled(ni_rfkill_type_t);
 extern const char *			ni_rfkill_type_string(ni_rfkill_type_t type);
 
-extern					ni_refcounted_declare_new(ni_wireless_network);
-extern					ni_refcounted_declare_drop(ni_wireless_network);
+extern					ni_declare_refcounted_new(ni_wireless_network);
+extern					ni_declare_refcounted_drop(ni_wireless_network);
+extern					ni_declare_refcounted_ref(ni_wireless_network);
 
 #endif /* NI_WICKED_WIRELESS_H */

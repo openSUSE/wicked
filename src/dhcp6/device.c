@@ -1123,7 +1123,7 @@ ni_dhcp6_acquire(ni_dhcp6_device_t *dev, const ni_dhcp6_request_t *req, char **e
 				if (!ph->plen)
 					continue;
 
-				padr = ni_dhcp6_ia_addr_clone(ph, FALSE);
+				padr = ni_dhcp6_ia_addr_clone(ph);
 				ni_dhcp6_ia_addr_list_append(&ia->addrs, padr);
 				break; /* one pd hint per ia only */
 			}
@@ -1691,6 +1691,8 @@ ni_dhcp6_supported(const ni_netdev_t *ifp)
 	 */
 	switch (ifp->link.hwaddr.type) {
 	case ARPHRD_PPP:
+		break;
+	case ARPHRD_NONE:
 		break;
 	case ARPHRD_ETHER:
 	case ARPHRD_INFINIBAND:

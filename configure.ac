@@ -21,7 +21,7 @@ AC_SUBST(LIBWICKED_PACKAGE_SUFFIX, "-${MAJ}_${MIN}_${REV}")
 AC_SUBST(LIBWICKED_LTLINK_VERSION, "-release ${MAJ}.${MIN}.${REV}")
 
 #AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_SRCDIR([src/config.c])
+AC_CONFIG_SRCDIR([src/appconfig.c])
 AC_CONFIG_HEADERS([config.h])
 
 AC_PREFIX_DEFAULT([/usr])
@@ -34,6 +34,13 @@ AC_ARG_ENABLE([lldp],
 if test "x$enable_lldp" = "xyes" ; then
 	AC_DEFINE([NI_ENABLE_LLDP], [], [Enable lldp support])
 fi
+
+# Whether to enable nbft support (>= SLE-15-SP5)
+AC_ARG_ENABLE([nbft],
+	[AS_HELP_STRING([--disable-nbft],
+		[disable to not install nbft firmware extension])],,
+	[enable_nbft=yes])
+AM_CONDITIONAL([nbft], [test "x$enable_nbft" = "xyes"])
 
 # Whether to request NIS option in dhcp6 by default
 AC_ARG_ENABLE([dhcp6-nis],
@@ -148,7 +155,7 @@ AC_SUBST(wicked_includedir,	"${includedir}/wicked")
 
 # Is there any need to change this?
 AC_ARG_WITH([configdir], [AS_HELP_STRING([--with-configdir@<:@=DIR@:>@],
-	    [wicked config file directrory [${sysconfdir}/wicked]])],,
+	    [wicked config file directory [${sysconfdir}/wicked]])],,
 	    [with_configdir="${sysconfdir}/wicked"])
 AC_SUBST(wicked_configdir,	"$with_configdir")
 
@@ -231,6 +238,8 @@ AC_PROG_LN_S
 AC_PROG_MAKE_SET
 AC_PROG_MKDIR_P
 AC_PROG_LIBTOOL
+AC_PATH_PROG(JQ, jq)
+AM_CONDITIONAL([nbft_test], [test "x$enable_nbft" = "xyes" -a "x$JQ" != "x"])
 
 # Checks for libraries.
 AC_CHECK_LIB([dl], [dlopen], [LIBDL_LIBS="-ldl"],[
@@ -263,7 +272,7 @@ fi
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h netinet/in.h])
 AC_CHECK_HEADERS([stdint.h stdlib.h string.h sys/ioctl.h sys/param.h])
-AC_CHECK_HEADERS([sys/socket.h sys/time.h syslog.h unistd.h])
+AC_CHECK_HEADERS([sys/socket.h sys/time.h syslog.h unistd.h iconv.h])
 AC_CHECK_HEADERS([linux/filter.h linux/if_packet.h netpacket/packet.h])
 AC_CHECK_HEADERS([linux/dcbnl.h linux/if_link.h linux/rtnetlink.h])
 
@@ -301,11 +310,6 @@ AC_CHECK_DECL([RTA_MARK], [
 					   [Have RTA_MARK in linux/rtnetlink.h])
 				], [], [[#include <linux/rtnetlink.h>]])
 	      ], [[#include <netlink/netlink.h>]])
-
-AC_CHECK_DECL([DCB_ATTR_IEEE_MAXRATE], [
-	       AC_DEFINE([HAVE_DCB_ATTR_IEEE_MAXRATE], [],
-			 [Have DCB_ATTR_IEEE_MAXRATE in linux/dcbnl.h])
-	      ], [], [[#include <linux/dcbnl.h>]])
 
 AC_CHECK_DECL([IFLA_VLAN_PROTOCOL], [
 	       AC_DEFINE([HAVE_IFLA_VLAN_PROTOCOL], [],
