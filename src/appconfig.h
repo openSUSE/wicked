@@ -111,6 +111,23 @@ typedef enum {
 	NI_CONFIG_DHCP4_CID_TYPE_DISABLE,
 } ni_config_dhcp4_cid_type_t;
 
+typedef struct ni_config_arp_verify {
+	unsigned int	count;
+	unsigned int	retries;
+	ni_uint_range_t	interval;
+} ni_config_arp_verify_t;
+
+typedef struct ni_config_arp_notify {
+	unsigned int	count;
+	unsigned int	retries;
+	unsigned int	interval;
+} ni_config_arp_notify_t;
+
+typedef struct ni_config_arp {
+	ni_config_arp_verify_t	verify;
+	ni_config_arp_notify_t	notify;
+} ni_config_arp_t;
+
 typedef struct ni_config_dhcp4 {
 	struct ni_config_dhcp4 *next;
 	char *			device;
@@ -122,6 +139,7 @@ typedef struct ni_config_dhcp4 {
 	char *			vendor_class;
 	unsigned int		lease_time;
 	ni_string_array_t	ignore_servers;
+	ni_config_arp_t		arp;
 
 	unsigned int		num_preferred_servers;
 	ni_server_preference_t	preferred_server[NI_DHCP_SERVER_PREFERENCES_MAX];
@@ -159,7 +177,8 @@ typedef struct ni_config_dhcp6 {
 } ni_config_dhcp6_t;
 
 typedef struct ni_config_auto4 {
-	unsigned int	allow_update;
+	unsigned int		allow_update;
+	ni_config_arp_t		arp;
 } ni_config_auto4_t;
 
 typedef struct ni_config_auto6 {
@@ -174,6 +193,7 @@ typedef struct ni_config {
 
 	struct {
 	    unsigned int	default_allow_update;
+	    ni_config_arp_t	arp;
 
 	    ni_config_dhcp4_t	dhcp4;
 	    ni_config_dhcp6_t	dhcp6;
@@ -209,6 +229,7 @@ extern ni_extension_t *		ni_config_find_extension(ni_config_t *, const char *);
 extern ni_extension_t *		ni_config_find_system_updater(ni_config_t *, const char *);
 extern unsigned int		ni_config_addrconf_update_mask(ni_addrconf_mode_t, unsigned int);
 extern unsigned int		ni_config_addrconf_update(const char *, ni_addrconf_mode_t, unsigned int);
+extern const ni_config_arp_t *	ni_config_addrconf_arp(ni_addrconf_mode_t, const char *);
 
 extern const ni_config_dhcp4_t *ni_config_dhcp4_find_device(const char *);
 extern const char *		ni_config_dhcp4_cid_type_format(ni_config_dhcp4_cid_type_t);
