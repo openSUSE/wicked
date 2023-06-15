@@ -290,7 +290,8 @@ fi
 
 %files
 %defattr (-,root,root)
-%doc ChangeLog ANNOUNCE COPYING README TODO samples
+%doc ChangeLog ANNOUNCE README TODO samples
+%license COPYING
 %_sbindir/wicked
 %_sbindir/wickedd
 %_sbindir/wickedd-nanny
