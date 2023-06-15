@@ -402,12 +402,14 @@ ni_auto6_lease_address_update(ni_netdev_t *dev, ni_addrconf_lease_t *lease, cons
 
 	if ((la = ni_address_list_find(lease->addrs, &ap->local_addr))) {
 		if (ap->owner != NI_ADDRCONF_NONE && ap->owner != NI_ADDRCONF_AUTOCONF) {
+			unsigned int plen = la->prefixlen;
+
 			changed = TRUE;
-			__ni_address_list_remove(&lease->addrs, la);
+			ni_address_list_delete(&lease->addrs, la);
 			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
 					"%s: removed address %s/%u in %s:%s lease (owner %s)",
 					dev->name,
-					ni_sockaddr_print(&la->local_addr), la->prefixlen,
+					ni_sockaddr_print(&ap->local_addr), plen,
 					ni_addrfamily_type_to_name(lease->family),
 					ni_addrconf_type_to_name(lease->type),
 					ni_addrconf_type_to_name(ap->owner));
@@ -573,12 +575,14 @@ ni_auto6_on_address_event(ni_netdev_t *dev, ni_event_t event, const ni_address_t
 
 	case NI_EVENT_ADDRESS_DELETE:
 		if ((la = ni_address_list_find(lease->addrs, &ap->local_addr))) {
+			unsigned int plen = la->prefixlen;
+
 			changed = TRUE;
-			__ni_address_list_remove(&lease->addrs, la);
+			ni_address_list_delete(&lease->addrs, la);
 			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_IPV6|NI_TRACE_AUTOIP,
 					"%s: deleted address %s/%u in %s:%s lease (owner %s)",
 					dev->name,
-					ni_sockaddr_print(&la->local_addr), la->prefixlen,
+					ni_sockaddr_print(&ap->local_addr), plen,
 					ni_addrfamily_type_to_name(lease->family),
 					ni_addrconf_type_to_name(lease->type),
 					ni_addrconf_type_to_name(ap->owner));

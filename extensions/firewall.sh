@@ -40,7 +40,7 @@
 #exec 2>/tmp/wicked-firewall.$$.trace
 #set -vx
 
-wicked="/usr/sbin/wicked"
+wicked="@wicked_sbindir@/wicked"
 systemctl="/usr/bin/systemctl"
 firewalld_cmd="/usr/bin/firewall-cmd"
 firewalld_service="firewalld.service"

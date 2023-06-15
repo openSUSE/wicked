@@ -306,8 +306,6 @@ extern int				ni_ethtool_set_priv_flags(const ni_netdev_ref_t *, ni_ethtool_t *,
 extern ni_ethtool_link_settings_t *	ni_netdev_get_ethtool_link_settings(ni_netdev_t *);
 extern ni_ethtool_link_settings_t *	ni_ethtool_link_settings_new(void);
 extern void				ni_ethtool_link_settings_free(ni_ethtool_link_settings_t *);
-extern unsigned int			ni_ethtool_link_mode_nwords(void);
-extern unsigned int			ni_ethtool_link_mode_nbits(void);
 extern const char *			ni_ethtool_link_adv_name(unsigned int);
 extern ni_bool_t			ni_ethtool_link_adv_type(const char *, unsigned int *);
 extern ni_bool_t			ni_ethtool_link_adv_autoneg(const ni_bitfield_t *);

@@ -232,13 +232,13 @@ enum ni_lease_event {
 	NI_EVENT_LEASE_LOST
 };
 
-extern				ni_refcounted_declare_new(ni_addrconf_lease,
+extern				ni_declare_refcounted_new(ni_addrconf_lease,
 							int type, int family);
-extern				ni_refcounted_declare_ref(ni_addrconf_lease);
-extern				ni_refcounted_declare_free(ni_addrconf_lease);
-extern				ni_refcounted_declare_hold(ni_addrconf_lease);
-extern				ni_refcounted_declare_drop(ni_addrconf_lease);
-extern				ni_refcounted_declare_move(ni_addrconf_lease);
+extern				ni_declare_refcounted_ref(ni_addrconf_lease);
+extern				ni_declare_refcounted_free(ni_addrconf_lease);
+extern				ni_declare_refcounted_hold(ni_addrconf_lease);
+extern				ni_declare_refcounted_drop(ni_addrconf_lease);
+extern				ni_declare_refcounted_move(ni_addrconf_lease);
 
 extern ni_addrconf_lease_t *	ni_addrconf_lease_clone(const ni_addrconf_lease_t *);
 extern void			ni_addrconf_lease_destroy(ni_addrconf_lease_t *);

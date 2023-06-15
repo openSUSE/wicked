@@ -18,6 +18,7 @@ generated			= \
 	wicked.8		\
 	wickedd.8		\
 	wicked-ethtool.8	\
+	wicked-firmware.8	\
 	wicked-redfish.8	\
 	ifcfg-bonding.5		\
 	ifcfg-bridge.5		\

@@ -248,7 +248,7 @@ usage:
 		return do_nanny_disable(argc, argv);
 	if (ni_string_eq(command, "addsecret"))
 		return do_nanny_addsecret(argc, argv);
-	
+
 	ni_error("Unsupported nanny subcommand \"%s\"", command);
 	goto usage;
 }
@@ -450,7 +450,7 @@ ni_bool_t
 ni_nanny_call_del_policy(const char *name)
 {
 	ni_dbus_object_t *root_object;
-	char *policy_path;
+	char *policy_path = NULL;
 	int rv;
 
 	ni_nanny_create_client(&root_object);
@@ -459,7 +459,7 @@ ni_nanny_call_del_policy(const char *name)
 				NI_OBJECTMODEL_NANNY_INTERFACE, "deletePolicy",
 				DBUS_TYPE_STRING, &name,
 				DBUS_TYPE_OBJECT_PATH, &policy_path);
-
+	ni_string_free(&policy_path);
 	if (rv < 0) {
 		ni_debug_application("Call to %s.deletePolicy(%s) failed: %s",
 			ni_dbus_object_get_path(root_object), name, ni_strerror(rv));
@@ -501,8 +501,9 @@ ni_dbus_object_t *
 ni_nanny_call_get_device(const char *ifname)
 {
 	ni_dbus_object_t *root_object;
+	ni_dbus_object_t *device_object;
 	const char *relative_path;
-	char *object_path;
+	char *object_path = NULL;
 	int rv;
 
 	ni_nanny_create_client(&root_object);
@@ -522,7 +523,9 @@ ni_nanny_call_get_device(const char *ifname)
 	relative_path = ni_dbus_object_get_relative_path(root_object, object_path);
 	ni_assert(relative_path);
 
-	return ni_dbus_object_create(root_object, relative_path, NULL, NULL);
+	device_object = ni_dbus_object_create(root_object, relative_path, NULL, NULL);
+	ni_string_free(&object_path);
+	return device_object;
 }
 
 ni_bool_t

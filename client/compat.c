@@ -714,6 +714,7 @@ __ni_compat_generate_team_runner(xml_node_t *tnode, const ni_team_runner_t *runn
 		if (!ni_string_empty(tx_hash))
 			xml_node_new_element("tx_hash", rnode, tx_hash);
 		ni_string_array_destroy(&flags);
+		ni_string_free(&tx_hash);
 
 		if (lb->config.tx_balancer.type || lb->config.tx_balancer.interval) {
 			tx_balancer = xml_node_new("tx_balancer", rnode);
@@ -753,6 +754,7 @@ __ni_compat_generate_team_runner(xml_node_t *tnode, const ni_team_runner_t *runn
 		if (!ni_string_empty(tx_hash))
 			xml_node_new_element("tx_hash", rnode, tx_hash);
 		ni_string_array_destroy(&flags);
+		ni_string_free(&tx_hash);
 
 		if (lacp->config.tx_balancer.type || lacp->config.tx_balancer.interval) {
 			tx_balancer = xml_node_new("tx_balancer", rnode);

@@ -1,0 +1,19 @@
+<interface origin="firmware:nbft:01-01">
+  <name namespace="ifindex">2</name>
+  <control>
+    <persistent>true</persistent>
+    <usercontrol>false</usercontrol>
+  </control>
+  <ipv4:static>
+    <address><local>192.168.99.90/32</local></address>
+    <route><nexthop><gateway>192.168.99.1</gateway></nexthop></route>
+    <!-- no dns servers -->
+    <hostname>nvmepoc-wicked</hostname>
+    <enabled>true</enabled>
+  </ipv4:static>
+  <scripts>
+    <post-up>
+      <script>systemd:nvmf-connect-nbft.service</script>
+    </post-up>
+  </scripts>
+</interface>

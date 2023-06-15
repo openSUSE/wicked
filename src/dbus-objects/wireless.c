@@ -497,8 +497,10 @@ ni_objectmodel_get_wireless_request(const char *ifname, ni_wireless_config_t *co
 				ni_wireless_network_drop(&net);
 				return FALSE;
 			}
-			ni_wireless_network_array_append(&conf->networks, net);
-			ni_wireless_network_drop(&net);
+			if (!ni_wireless_network_array_append(&conf->networks, net)) {
+				ni_wireless_network_drop(&net);
+				return FALSE;
+			}
 		}
 	}
 

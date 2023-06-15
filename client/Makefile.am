@@ -59,6 +59,7 @@ wicked_SOURCES			= \
 	convert.c		\
 	duid.c			\
 	ethtool.c		\
+	firmware.c		\
 	iaid.c			\
 	ifup.c			\
 	ifdown.c		\
