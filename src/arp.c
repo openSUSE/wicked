@@ -352,7 +352,7 @@ ni_arp_verify_process(ni_arp_socket_t *sock, const ni_arp_packet_t *pkt, void *u
 }
 
 ni_bool_t
-ni_arp_verify_send(ni_arp_socket_t *sock, ni_arp_verify_t *vfy, unsigned int *timeout)
+ni_arp_verify_send(ni_arp_socket_t *sock, ni_arp_verify_t *vfy, ni_timeout_t *timeout)
 {
 	static struct in_addr null = { 0 };
 	const struct in_addr *ip;
@@ -487,7 +487,7 @@ ni_arp_notify_add_address(ni_arp_notify_t *nfy,  ni_address_t *ap)
 }
 
 ni_bool_t
-ni_arp_notify_send(ni_arp_socket_t *sock, ni_arp_notify_t *nfy, unsigned int *timeout)
+ni_arp_notify_send(ni_arp_socket_t *sock, ni_arp_notify_t *nfy, ni_timeout_t *timeout)
 {
 	const struct in_addr *ip;
 	unsigned int i, count;

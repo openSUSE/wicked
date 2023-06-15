@@ -240,7 +240,7 @@ extern void				ni_arp_verify_reset(ni_arp_verify_t *, const ni_config_arp_verify
 extern void				ni_arp_verify_destroy(ni_arp_verify_t *);
 extern unsigned int			ni_arp_verify_add_address(ni_arp_verify_t *,  ni_address_t *);
 extern void				ni_arp_verify_process(ni_arp_socket_t *, const ni_arp_packet_t *, void *);
-extern ni_bool_t			ni_arp_verify_send(ni_arp_socket_t *, ni_arp_verify_t *, unsigned int *);
+extern ni_bool_t			ni_arp_verify_send(ni_arp_socket_t *, ni_arp_verify_t *, ni_timeout_t *);
 
 typedef struct ni_arp_notify {
 	unsigned int			nclaims;
@@ -256,7 +256,7 @@ extern void				ni_arp_notify_init(ni_arp_notify_t *, const ni_config_arp_notify_
 extern void				ni_arp_notify_reset(ni_arp_notify_t *, const ni_config_arp_notify_t *);
 extern void				ni_arp_notify_destroy(ni_arp_notify_t *);
 extern unsigned int			ni_arp_notify_add_address(ni_arp_notify_t *,  ni_address_t *);
-extern ni_bool_t			ni_arp_notify_send(ni_arp_socket_t *, ni_arp_notify_t *, unsigned int *);
+extern ni_bool_t			ni_arp_notify_send(ni_arp_socket_t *, ni_arp_notify_t *, ni_timeout_t *);
 
 /* netdev reques port config */
 struct ni_netdev_port_req {

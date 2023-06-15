@@ -5036,7 +5036,7 @@ ni_address_updater_init(ni_addrconf_updater_t *updater, ni_netdev_t *dev, unsign
 static ni_bool_t
 ni_address_updater_arp_send(ni_addrconf_updater_t *updater, ni_netdev_t *dev, ni_addrconf_mode_t owner)
 {
-	unsigned int wait_verify = 0, wait_notify = 0;
+	ni_timeout_t wait_verify = 0, wait_notify = 0;
 	ni_address_updater_t *au;
 	const ni_config_arp_t *arpcfg = ni_config_addrconf_arp(owner, dev->name);
 
