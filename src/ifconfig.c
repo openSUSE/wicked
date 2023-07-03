@@ -4861,9 +4861,9 @@ ni_netdev_addr_needs_update(ni_netdev_t *dev, ni_address_t *o, ni_address_t *n)
  * Update the addresses and routes assigned to an interface
  * for a given addrconf method
  */
-#define NI_ADDRCONF_UPDATER_MAX_ADDR_CHANGES	256
+#define NI_ADDRCONF_UPDATER_MAX_ARP_MESSAGES	256
+#define NI_ADDRCONF_UPDATER_MAX_ADDR_CHANGES	(NI_ADDRCONF_UPDATER_MAX_ARP_MESSAGES / 2)
 #define NI_ADDRCONF_UPDATER_MAX_ADDR_TIMEOUT	100
-#define NI_ADDRCONF_UPDATER_MAX_ARP_MESSAGES	NI_ADDRCONF_UPDATER_MAX_ADDR_CHANGES
 
 typedef struct ni_address_updater {
 	ni_arp_verify_t		verify;
