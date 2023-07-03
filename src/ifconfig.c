@@ -5066,25 +5066,18 @@ ni_address_updater_arp_send(ni_addrconf_updater_t *updater, ni_netdev_t *dev, ni
 {
 	ni_timeout_t wait_verify = 0, wait_notify = 0;
 	ni_address_updater_t *au;
-	const ni_config_arp_t *arpcfg = ni_config_addrconf_arp(owner, dev->name);
 
 	if (!dev || !(au = ni_addrconf_address_updater_get(updater)))
 		return FALSE;
 
-	if (au->notify.nclaims) {
-		if (ni_arp_notify_send(au->sock, &au->notify, &wait_notify)) {
-			updater->timeout = wait_notify;
-			return TRUE;
-		}
-		ni_arp_notify_reset(&au->notify, &arpcfg->notify);
+	if (ni_arp_notify_send(au->sock, &au->notify, &wait_notify)) {
+		updater->timeout = wait_notify;
+		return TRUE;
 	}
 
-	if (au->verify.nprobes) {
-		if (ni_arp_verify_send(au->sock, &au->verify, &wait_verify) == NI_ARP_SEND_PROGRESS) {
-			updater->timeout = wait_verify;
-			return TRUE;
-		}
-		ni_arp_verify_reset(&au->verify, &arpcfg->verify);
+	if (ni_arp_verify_send(au->sock, &au->verify, &wait_verify) == NI_ARP_SEND_PROGRESS) {
+		updater->timeout = wait_verify;
+		return TRUE;
 	}
 
 	return FALSE;
