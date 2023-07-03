@@ -5236,7 +5236,14 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		if (ni_address_is_duplicate(ap))
 			continue;
 
-		if (ni_address_is_tentative(ap)) {
+		if (!ni_address_is_tentative(ap)) {
+			/*
+			 *  Remove address from verify array, as it isn't
+			 *  tentative anymore and we need space for the
+			 *  next burst (NI_ADDRCONF_UPDATE_MAX_ADDR_CHANGES)
+			 */
+			ni_arp_verify_remove_address(&au->verify, ap);
+		} else {
 			count = ni_arp_verify_add_address(&au->verify, ap);
 			if (count >= NI_ADDRCONF_UPDATER_MAX_ADDR_CHANGES)
 				break;

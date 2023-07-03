@@ -232,6 +232,7 @@ static ni_define_ptr_array_init(ni_arp_address);
 static ni_define_ptr_array_destroy(ni_arp_address);
 static ni_define_ptr_array_realloc(ni_arp_address, NI_ARP_ADDRESS_ARRAY_CHUNK);
 static ni_define_ptr_array_append(ni_arp_address);
+static ni_define_ptr_array_delete_at(ni_arp_address);
 
 static ni_bool_t
 ni_arp_address_array_append_addr(ni_arp_address_array_t *arr, ni_address_t *addr)
@@ -318,6 +319,24 @@ ni_arp_verify_add_address(ni_arp_verify_t *vfy,  ni_address_t *ap)
 		return 0;
 
 	return vfy->ipaddrs.count;
+}
+
+ni_bool_t
+ni_arp_verify_remove_address(ni_arp_verify_t *vfy,  ni_address_t *ap)
+{
+	unsigned int index = 0;
+
+	if (!vfy || !ap)
+		return FALSE;
+
+	if (ap->family != AF_INET || !ni_sockaddr_is_ipv4_specified(&ap->local_addr))
+		return FALSE;
+
+	if (!ni_arp_address_array_find_match_addr(&vfy->ipaddrs, ap, &index,
+				ni_address_equal_local_addr))
+		return FALSE;
+
+	return ni_arp_address_array_delete_at(&vfy->ipaddrs, index);
 }
 
 unsigned int
