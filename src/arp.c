@@ -440,7 +440,6 @@ ni_arp_verify_send(ni_arp_socket_t *sock, ni_arp_verify_t *vfy, ni_timeout_t *ti
 	}
 
 	need_wait = FALSE;
-	vfy->started = now;
 	for (i = 0; i < vfy->ipaddrs.count; ++i) {
 		vap = vfy->ipaddrs.data[i];
 		ap  = vap->address;
@@ -485,6 +484,7 @@ ni_arp_verify_send(ni_arp_socket_t *sock, ni_arp_verify_t *vfy, ni_timeout_t *ti
 		}
 	}
 	if (need_wait) {
+		ni_timer_get_time(&vfy->started);
 		vfy->last_timeout = ni_timeout_random_range(vfy->probe_min_ms, vfy->probe_max_ms);
 		*timeout = vfy->last_timeout;
 		return NI_ARP_SEND_PROGRESS;
@@ -561,7 +561,6 @@ ni_arp_notify_send(ni_arp_socket_t *sock, ni_arp_notify_t *nfy, ni_timeout_t *ti
 		return TRUE;
 
 	if (nfy->nclaims && nfy->ipaddrs.count) {
-		nfy->started = now;
 		need_wait = FALSE;
 
 		for (i = 0; i < nfy->ipaddrs.count; ++i) {
@@ -606,6 +605,7 @@ ni_arp_notify_send(ni_arp_socket_t *sock, ni_arp_notify_t *nfy, ni_timeout_t *ti
 			}
 		}
 		if (need_wait) {
+			ni_timer_get_time(&nfy->started);
 			*timeout = nfy->wait_ms;
 			return TRUE;
 		}
