@@ -603,7 +603,8 @@ ni_arp_notify_send(ni_arp_socket_t *sock, ni_arp_notify_t *nfy, ni_timeout_t *ti
 			ip = &ap->local_addr.sin.sin_addr;
 			if (ni_arp_send_grat_request(sock, *ip) > 0) {
 				aa->nattempts++;
-				need_wait = TRUE;
+				if (nfy->nclaims > aa->nattempts)
+					need_wait = TRUE;
 			} else {
 				if (errno == ENOBUFS) {
 					aa->nerrors++;
