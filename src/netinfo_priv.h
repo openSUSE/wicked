@@ -234,6 +234,7 @@ extern void				ni_arp_verify_init(ni_arp_verify_t *, const ni_config_arp_verify_
 extern void				ni_arp_verify_reset(ni_arp_verify_t *, const ni_config_arp_verify_t *);
 extern void				ni_arp_verify_destroy(ni_arp_verify_t *);
 extern unsigned int			ni_arp_verify_add_address(ni_arp_verify_t *,  ni_address_t *);
+extern ni_bool_t			ni_arp_verify_remove_address(ni_arp_verify_t *,  ni_address_t *);
 extern unsigned int			ni_arp_verify_add_in_addr(ni_arp_verify_t *, struct in_addr);
 extern ni_arp_send_status_t			ni_arp_verify_send(ni_arp_socket_t *, ni_arp_verify_t *, ni_timeout_t *);
 extern ni_arp_address_t *		ni_arp_reply_match_address(ni_arp_socket_t *, ni_arp_address_array_t *,

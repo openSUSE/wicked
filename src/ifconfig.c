@@ -4861,9 +4861,9 @@ ni_netdev_addr_needs_update(ni_netdev_t *dev, ni_address_t *o, ni_address_t *n)
  * Update the addresses and routes assigned to an interface
  * for a given addrconf method
  */
-#define NI_ADDRCONF_UPDATER_MAX_ADDR_CHANGES	256
+#define NI_ADDRCONF_UPDATER_MAX_ARP_MESSAGES	256
+#define NI_ADDRCONF_UPDATER_MAX_ADDR_CHANGES	(NI_ADDRCONF_UPDATER_MAX_ARP_MESSAGES / 2)
 #define NI_ADDRCONF_UPDATER_MAX_ADDR_TIMEOUT	100
-#define NI_ADDRCONF_UPDATER_MAX_ARP_MESSAGES	NI_ADDRCONF_UPDATER_MAX_ADDR_CHANGES
 
 typedef struct ni_address_updater {
 	ni_arp_verify_t		verify;
@@ -5066,25 +5066,18 @@ ni_address_updater_arp_send(ni_addrconf_updater_t *updater, ni_netdev_t *dev, ni
 {
 	ni_timeout_t wait_verify = 0, wait_notify = 0;
 	ni_address_updater_t *au;
-	const ni_config_arp_t *arpcfg = ni_config_addrconf_arp(owner, dev->name);
 
 	if (!dev || !(au = ni_addrconf_address_updater_get(updater)))
 		return FALSE;
 
-	if (au->notify.nclaims) {
-		if (ni_arp_notify_send(au->sock, &au->notify, &wait_notify)) {
-			updater->timeout = wait_notify;
-			return TRUE;
-		}
-		ni_arp_notify_reset(&au->notify, &arpcfg->notify);
+	if (ni_arp_notify_send(au->sock, &au->notify, &wait_notify)) {
+		updater->timeout = wait_notify;
+		return TRUE;
 	}
 
-	if (au->verify.nprobes) {
-		if (ni_arp_verify_send(au->sock, &au->verify, &wait_verify) == NI_ARP_SEND_PROGRESS) {
-			updater->timeout = wait_verify;
-			return TRUE;
-		}
-		ni_arp_verify_reset(&au->verify, &arpcfg->verify);
+	if (ni_arp_verify_send(au->sock, &au->verify, &wait_verify) == NI_ARP_SEND_PROGRESS) {
+		updater->timeout = wait_verify;
+		return TRUE;
 	}
 
 	return FALSE;
@@ -5243,7 +5236,14 @@ __ni_netdev_update_addrs(ni_netdev_t *dev,
 		if (ni_address_is_duplicate(ap))
 			continue;
 
-		if (ni_address_is_tentative(ap)) {
+		if (!ni_address_is_tentative(ap)) {
+			/*
+			 *  Remove address from verify array, as it isn't
+			 *  tentative anymore and we need space for the
+			 *  next burst (NI_ADDRCONF_UPDATE_MAX_ADDR_CHANGES)
+			 */
+			ni_arp_verify_remove_address(&au->verify, ap);
+		} else {
 			count = ni_arp_verify_add_address(&au->verify, ap);
 			if (count >= NI_ADDRCONF_UPDATER_MAX_ADDR_CHANGES)
 				break;
