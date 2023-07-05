@@ -75,6 +75,7 @@ static void		ni_config_addrconf_arp_default(ni_config_arp_t *);
 #define NI_ADDRCONF_ARP_NOTIFY_INTERVAL		300					/* ANNOUNCE_INTERVAL */
 #define NI_ADDRCONF_ARP_INTERVAL_MIN		100
 #define NI_ADDRCONF_ARP_MAX_DURATION		15000
+#define NI_ADDRCONF_ARP_COUNT_MIN		1
 
 /*
  * Create an empty config object
@@ -1316,15 +1317,23 @@ static ni_bool_t
 ni_config_parse_addrconf_arp_verify(ni_config_arp_verify_t *verify, const xml_node_t *node)
 {
 	xml_node_t *child;
+	unsigned int tmp;
 	ni_config_arp_verify_t vfy_tmp = *verify;
 
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, "count")) {
-			if (ni_parse_uint(child->cdata, &vfy_tmp.count, 0) < 0) {
+			if (ni_parse_uint(child->cdata, &tmp, 0) < 0) {
 				ni_warn("[%s] unable to parse <count>%s</count>",
 						xml_node_location(child), child->cdata);
 				continue;
 			}
+			if (tmp < NI_ADDRCONF_ARP_COUNT_MIN) {
+				ni_warn("[%s] ignore invalid count value %u, min: %d",
+						xml_node_location(child), tmp,
+						NI_ADDRCONF_ARP_COUNT_MIN);
+				continue;
+			}
+			vfy_tmp.count = tmp;
 		}
 
 		if (ni_string_eq(child->name, "interval")) {
@@ -1391,6 +1400,12 @@ ni_config_parse_addrconf_arp_notify(ni_config_arp_notify_t *notify, const xml_no
 			if (ni_parse_uint(child->cdata, &tmp, 0) < 0) {
 				ni_warn("[%s] ignore invalid arp-notify <count>%s</count>",
 						xml_node_location(child), child->cdata);
+				continue;
+			}
+			if (tmp < NI_ADDRCONF_ARP_COUNT_MIN) {
+				ni_warn("[%s] ignore invalid count value %u, min: %d",
+						xml_node_location(child), tmp,
+						NI_ADDRCONF_ARP_COUNT_MIN);
 				continue;
 			}
 			nfy_tmp.count = tmp;
