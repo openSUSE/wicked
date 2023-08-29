@@ -64,7 +64,8 @@ extern ni_bool_t	ni_netconfig_discover_filtered(ni_netconfig_t *, unsigned int);
 extern ni_bool_t	ni_netconfig_set_family_filter(ni_netconfig_t *, unsigned int);
 extern unsigned int	ni_netconfig_get_family_filter(ni_netconfig_t *);
 
-extern ni_bool_t	__ni_linkinfo_kind_to_type(const char *, ni_iftype_t *);
+extern ni_bool_t	ni_linkinfo_kind_to_type(const char *, ni_iftype_t *);
+extern const char *	ni_linkinfo_type_to_kind(ni_iftype_t);
 
 extern void		__ni_netdev_list_append(ni_netdev_t **, ni_netdev_t *);
 extern void		__ni_netdev_list_destroy(ni_netdev_t **);
