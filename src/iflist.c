@@ -1340,6 +1340,93 @@ ni_rtnl_link_get_bond_port_info(const char *ifname, ni_linkinfo_t *link,
 }
 
 static inline void
+ni_rtnl_link_get_bridge_port_info(const char *ifname, ni_linkinfo_t *link,
+		struct nlattr *data)
+{
+	/* static const */ struct nla_policy	policy[IFLA_BRPORT_MAX+1] = {
+		/*
+		 * the constants are in the linux/if_link.h enum order, for
+		 * types see kernel br_port_info_size() + br_port_fill_attrs()
+		 */
+		[IFLA_BRPORT_STATE]			= { .type = NLA_U8	},
+		[IFLA_BRPORT_PRIORITY]			= { .type = NLA_U16	},
+		[IFLA_BRPORT_COST]			= { .type = NLA_U32	},
+		[IFLA_BRPORT_ID]			= { .type = NLA_U16	},
+		[IFLA_BRPORT_NO]			= { .type = NLA_U16	},
+	};
+#define map_attr(attr)[attr] = #attr
+	static const char *			attrs[IFLA_BRPORT_MAX+1] = {
+		map_attr(IFLA_BRPORT_STATE),
+		map_attr(IFLA_BRPORT_PRIORITY),
+		map_attr(IFLA_BRPORT_COST),
+		map_attr(IFLA_BRPORT_ID),
+		map_attr(IFLA_BRPORT_NO),
+	};
+#undef  map_attr
+	struct nlattr *tb[IFLA_BRPORT_MAX+1], *aptr;
+	ni_bridge_port_info_t *info;
+	unsigned int attr;
+	const char *name;
+
+	if (!ifname || !link || !link->port.bridge || !data)
+		return;
+
+	memset(tb, 0, sizeof(tb));
+	if (nla_parse_nested(tb, IFLA_BRPORT_MAX, data, policy) < 0) {
+		ni_warn("%s: unable to parse netlink bridge port info data",
+				ifname);
+		return;
+	}
+
+	info = link->port.bridge;
+	for (attr = IFLA_BRPORT_STATE; attr <= IFLA_BRPORT_MAX; ++attr) {
+		if (!(aptr = tb[attr]))
+			continue;
+
+		name = attrs[attr];
+		switch (attr) {
+		case IFLA_BRPORT_STATE:
+			info->state = nla_get_u8(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", ifname, name,
+					info->state);
+			break;
+
+		case IFLA_BRPORT_PRIORITY:
+			info->priority = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", ifname, name,
+					info->priority);
+			break;
+
+		case IFLA_BRPORT_COST:
+			info->path_cost = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", ifname, name,
+					info->path_cost);
+			break;
+
+		case IFLA_BRPORT_ID:
+			info->port_id = nla_get_u16(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", ifname, name,
+					info->port_id);
+			break;
+
+		case IFLA_BRPORT_NO:
+			info->port_no = nla_get_u16(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", ifname, name,
+					info->port_no);
+			break;
+
+		default:
+			break;
+		}
+	}
+}
+
+static inline void
 ni_rtnl_link_get_port_info(const char *ifname, ni_linkinfo_t *link,
 		const char *kind, struct nlattr *data,
 		ni_netdev_t *master, ni_netconfig_t *nc)
@@ -1377,6 +1464,30 @@ ni_rtnl_link_get_port_info(const char *ifname, ni_linkinfo_t *link,
 			return;
 		}
 		ni_rtnl_link_get_bond_port_info(ifname, link, data);
+		break;
+
+	case NI_IFTYPE_BRIDGE:
+		if (master && master->link.type != type) {
+			ni_warn("%s: %s port info type does not match %s link type %s",
+					ifname, ni_linktype_type_to_name(type),
+					master->name,
+					ni_linktype_type_to_name(master->link.type));
+			return;
+		}
+		if (!data) {
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EVENTS,
+					"%s: %s port info type without any data",
+					ifname, ni_linktype_type_to_name(type));
+			return;
+		}
+
+		ni_netdev_port_info_data_destroy(&link->port);
+		if (!ni_netdev_port_info_data_init(&link->port, type)) {
+			ni_warn("%s: unable to initialize/allocate %s port info",
+					ifname, ni_linktype_type_to_name(type));
+			return;
+		}
+		ni_rtnl_link_get_bridge_port_info(ifname, link, data);
 		break;
 
 	default:
