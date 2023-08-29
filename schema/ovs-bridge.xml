@@ -11,6 +11,13 @@
     </bridge>
   </define>
 
+  <define name="port-info" class="dict"
+          description="OVS Bridge port specific interface info properties">
+
+    <bridge type="string" />
+
+  </define>
+
   <define name="port-device" class="dict">
     <device type="string">
       <meta:netif-reference supplemental="true" shared="false"/>
