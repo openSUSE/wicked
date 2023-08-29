@@ -418,16 +418,6 @@ ni_netconfig_rules_drop_by_seq(ni_netconfig_t *nc, unsigned int seq)
 	}
 }
 
-static inline void
-__ni_refresh_bonding_master_bind(ni_netdev_t *master, ni_linkinfo_t *link, const char *ifname)
-{
-	const ni_netdev_ref_t ref = { .name = (char *)ifname, .index = link->ifindex };
-	ni_bonding_slave_t *slave;
-
-	slave = ni_bonding_bind_slave(master->bonding, &ref, master->name);
-	ni_bonding_slave_set_info(slave, link->port.bond);
-}
-
 static void
 __ni_refresh_bind_master(ni_netconfig_t *nc, ni_netdev_t *dev)
 {
@@ -439,19 +429,6 @@ __ni_refresh_bind_master(ni_netconfig_t *nc, ni_netdev_t *dev)
 	if (!(master = ni_netdev_ref_bind_ifname(&dev->link.masterdev, nc))) {
 		ni_info("Interface %s references unknown master device (ifindex %u)",
 				dev->name, dev->link.masterdev.index);
-		return;
-	}
-
-	if (master->link.type != dev->link.port.type)
-		return;
-
-	switch (dev->link.port.type) {
-	case NI_IFTYPE_BOND:
-		__ni_refresh_bonding_master_bind(master, &dev->link, dev->name);
-		break;
-
-	default:
-		break;
 	}
 }
 
@@ -466,39 +443,6 @@ __ni_refresh_bind_lower(ni_netconfig_t *nc, ni_netdev_t *dev)
 			dev->name, dev->link.lowerdev.index);
 	}
 }
-
-static inline void
-__ni_refresh_bonding_master_unbind(ni_netdev_t *master, ni_linkinfo_t *link, const char *ifname)
-{
-	const ni_netdev_ref_t ref = { .name = (char *)ifname, .index = link->ifindex };
-
-	ni_bonding_unbind_slave(master->bonding, &ref, master->name);
-}
-
-static void
-__ni_refresh_unbind_master(ni_netconfig_t *nc, ni_netdev_t *dev)
-{
-	ni_netdev_t *master;
-
-	if (!dev->link.masterdev.index)
-		return;
-
-	if (!(master = ni_netdev_by_index(nc, dev->link.masterdev.index)))
-		return;
-
-	if (master->link.type != dev->link.port.type)
-		return;
-
-	switch (dev->link.port.type) {
-	case NI_IFTYPE_BOND:
-		__ni_refresh_bonding_master_unbind(master, &dev->link, dev->name);
-		break;
-
-	default:
-		break;
-	}
-}
-
 
 /*
  * Refresh all interfaces
@@ -633,7 +577,6 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 		if (dev->seq != seqno) {
 			*tail = dev->next;
 			if (del_list == NULL) {
-				__ni_refresh_unbind_master(nc, dev);
 				ni_client_state_drop(dev->link.ifindex);
 				ni_netdev_put(dev);
 			} else {
@@ -1255,36 +1198,17 @@ static inline void
 __ni_process_ifinfomsg_masterdev_unbind(ni_linkinfo_t *link, const char *ifname,
 					unsigned int oindex, ni_netconfig_t *nc)
 {
-	const ni_netdev_ref_t ref = { .name = (char *)ifname, .index = link->ifindex };
-	ni_netdev_t *master;
-
-	if ((master = ni_netdev_by_index(nc, oindex))) {
-		switch (master->link.type) {
-		case NI_IFTYPE_BOND:
-			ni_bonding_unbind_slave(master->bonding, &ref, master->name);
-			break;
-		default:
-			break;
-		}
-	}
 	ni_netdev_ref_destroy(&link->masterdev);
+	ni_netdev_port_info_destroy(&link->port);
 }
 
 static inline ni_netdev_t *
 __ni_process_ifinfomsg_masterdev_bind(ni_linkinfo_t *link, const char *ifname,
 				unsigned int mindex, ni_netconfig_t *nc)
 {
-	const ni_netdev_ref_t ref = { .name = (char *)ifname, .index = link->ifindex };
 	ni_netdev_t *master;
 
 	if ((master = ni_netdev_by_index(nc, mindex))) {
-		switch (master->link.type) {
-		case NI_IFTYPE_BOND:
-			ni_bonding_bind_slave(master->bonding, &ref, master->name);
-			break;
-		default:
-			break;
-		}
 		ni_netdev_ref_set(&link->masterdev, master->name, mindex);
 	} else {
 		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EVENTS,
@@ -1320,7 +1244,8 @@ __ni_process_ifinfomsg_masterdev(ni_linkinfo_t *link, const char *ifname,
 }
 
 static inline void
-__ni_process_ifinfomsg_bond_slave_data(ni_linkinfo_t *link, const char *ifname, struct nlattr *data)
+ni_rtnl_link_get_bond_port_info(const char *ifname, ni_linkinfo_t *link,
+		struct nlattr *data)
 {
 	/* static const */ struct nla_policy	policy[IFLA_BOND_SLAVE_MAX+1] = {
 		[IFLA_BOND_SLAVE_STATE]			= { .type = NLA_U8      },
@@ -1345,6 +1270,9 @@ __ni_process_ifinfomsg_bond_slave_data(ni_linkinfo_t *link, const char *ifname, 
 	unsigned int attr, alen;
 	const char *mapped;
 	const char *name;
+
+	if (!ifname || !link || !link->port.bond || !data)
+		return;
 
 	memset(tb, 0, sizeof(tb));
 	if (nla_parse_nested(tb, IFLA_BOND_SLAVE_MAX, data, policy) < 0) {
@@ -1412,43 +1340,54 @@ __ni_process_ifinfomsg_bond_slave_data(ni_linkinfo_t *link, const char *ifname, 
 }
 
 static inline void
-__ni_process_ifinfomsg_slave_data(ni_linkinfo_t *link, const char *ifname,
-		ni_netdev_t *master, const char *kind, struct nlattr *data)
+ni_rtnl_link_get_port_info(const char *ifname, ni_linkinfo_t *link,
+		const char *kind, struct nlattr *data,
+		ni_netdev_t *master, ni_netconfig_t *nc)
 {
-	ni_netdev_port_info_destroy(&link->port);
+	ni_iftype_t type;
 
-	ni_string_dup(&link->port.kind, kind);
-	if (!ni_linkinfo_kind_to_type(kind, &link->port.type))
-		link->port.type = NI_IFTYPE_UNKNOWN;
+	if (!ni_string_eq(link->port.kind, kind)) {
+		ni_netdev_port_info_destroy(&link->port);
+		ni_netdev_port_info_init(&link->port, kind);
+	}
 
-	switch (link->port.type) {
+	if (!ni_linkinfo_kind_to_type(kind, &type))
+		type = NI_IFTYPE_UNKNOWN;
+
+	switch (type) {
 	case NI_IFTYPE_BOND:
-		if (master && master->link.type != link->port.type) {
-			ni_warn("%s: master %s link type does not match slaveinfo kind type",
-					master->name, ifname);
+		if (master && master->link.type != type) {
+			ni_warn("%s: %s port info type does not match %s link type %s",
+					ifname, ni_linktype_type_to_name(type),
+					master->name,
+					ni_linktype_type_to_name(master->link.type));
 			return;
 		}
-
 		if (!data) {
-			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
-					"%s: slave info does not provide any data", ifname);
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EVENTS,
+					"%s: %s port info type without any data",
+					ifname, ni_linktype_type_to_name(type));
 			return;
 		}
 
-		if (master) {
-			ni_bonding_slave_t *slave;
-
-			slave = ni_bonding_slave_array_get_by_ifindex(&master->bonding->slaves,	link->ifindex);
-			link->port.bond = ni_bonding_port_info_ref(ni_bonding_slave_get_info(slave));
-		} else {
-			link->port.bond = ni_bonding_port_info_new();
+		ni_netdev_port_info_data_destroy(&link->port);
+		if (!ni_netdev_port_info_data_init(&link->port, type)) {
+			ni_warn("%s: unable to initialize/allocate %s port info",
+					ifname, ni_linktype_type_to_name(type));
+			return;
 		}
-
-		if (link->port.bond)
-			__ni_process_ifinfomsg_bond_slave_data(link, ifname, data);
+		ni_rtnl_link_get_bond_port_info(ifname, link, data);
 		break;
 
 	default:
+		/*
+		 * actually unused / unhandled port info kind:
+		 * destroy old data if any and track kind only.
+		 */
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+				"%s: received %s port info kind %s data",
+				ifname, kind, data ? "with" : "without");
+		ni_netdev_port_info_data_destroy(&link->port);
 		break;
 	}
 }
@@ -1570,9 +1509,9 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		}
 
 		if (nl_linkinfo[IFLA_INFO_SLAVE_KIND]) {
-			__ni_process_ifinfomsg_slave_data(link, ifname, master,
+			ni_rtnl_link_get_port_info(ifname, link,
 					nla_get_string(nl_linkinfo[IFLA_INFO_SLAVE_KIND]),
-					nl_linkinfo[IFLA_INFO_SLAVE_DATA]);
+					nl_linkinfo[IFLA_INFO_SLAVE_DATA], master, nc);
 		}
 	}
 
