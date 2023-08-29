@@ -137,17 +137,17 @@ static const ni_intmap_t	__map_user_carrier_detect[] = {
 /*
  * Bonding slave state and mii_status maps
  */
-static const ni_intmap_t	ni_bonding_slave_state_map[] = {
-	{ "active",		NI_BOND_SLAVE_STATE_ACTIVE	},
-	{ "backup",		NI_BOND_SLAVE_STATE_BACKUP	},
+static const ni_intmap_t	ni_bonding_port_state_map[] = {
+	{ "active",		NI_BOND_PORT_STATE_ACTIVE	},
+	{ "backup",		NI_BOND_PORT_STATE_BACKUP	},
 
 	{ NULL,			-1U				}
 };
-static const ni_intmap_t	ni_bonding_slave_mii_status_map[] = {
-	{ "up",			NI_BOND_SLAVE_LINK_UP		},
-	{ "fail",		NI_BOND_SLAVE_LINK_FAIL		},
-	{ "down",		NI_BOND_SLAVE_LINK_DOWN		},
-	{ "back",		NI_BOND_SLAVE_LINK_BACK		},
+static const ni_intmap_t	ni_bonding_port_mii_status_map[] = {
+	{ "up",			NI_BOND_PORT_LINK_UP		},
+	{ "fail",		NI_BOND_PORT_LINK_FAIL		},
+	{ "down",		NI_BOND_PORT_LINK_DOWN		},
+	{ "back",		NI_BOND_PORT_LINK_BACK		},
 
 	{ NULL,			-1U				}
 };
@@ -273,7 +273,7 @@ ni_bonding_clone(const ni_bonding_t *orig)
 		const ni_bonding_slave_t *o = orig->slaves.data[i];
 		ni_bonding_slave_t *s = ni_bonding_slave_new();
 		ni_netdev_ref_set(&s->device, o->device.name, o->device.index);
-		s->info = ni_bonding_slave_info_ref(o->info);
+		s->info = ni_bonding_port_info_ref(o->info);
 		ni_bonding_slave_array_append(&bond->slaves, s);
 	}
 #undef C
@@ -951,15 +951,15 @@ ni_bonding_arp_validate_targets_to_type(const char *name)
 }
 
 const char *
-ni_bonding_slave_state_name(unsigned int mode)
+ni_bonding_port_state_name(unsigned int mode)
 {
-	return ni_format_uint_mapped(mode, ni_bonding_slave_state_map);
+	return ni_format_uint_mapped(mode, ni_bonding_port_state_map);
 }
 
 const char *
-ni_bonding_slave_mii_status_name(unsigned int mode)
+ni_bonding_port_mii_status_name(unsigned int mode)
 {
-	return ni_format_uint_mapped(mode, ni_bonding_slave_mii_status_map);
+	return ni_format_uint_mapped(mode, ni_bonding_port_mii_status_map);
 }
 
 /*
@@ -1628,7 +1628,7 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 }
 
 void
-ni_bonding_slave_info_reset(ni_bonding_slave_info_t *info)
+ni_bonding_port_info_reset(ni_bonding_port_info_t *info)
 {
 	info->state = -1U;
 	info->mii_status = -1U;
@@ -1637,19 +1637,20 @@ ni_bonding_slave_info_reset(ni_bonding_slave_info_t *info)
 	ni_link_address_init(&info->perm_hwaddr);
 }
 
-ni_bonding_slave_info_t *
-ni_bonding_slave_info_new(void)
+ni_bonding_port_info_t *
+ni_bonding_port_info_new(void)
 {
-	ni_bonding_slave_info_t *info;
+	ni_bonding_port_info_t *info;
 
-	info = xcalloc(1, sizeof(*info));
-	info->refcount = 1;
-	ni_bonding_slave_info_reset(info);
+	if ((info = malloc(sizeof(*info)))) {
+		info->refcount = 1;
+		ni_bonding_port_info_reset(info);
+	}
 	return info;
 }
 
-ni_bonding_slave_info_t *
-ni_bonding_slave_info_ref(ni_bonding_slave_info_t *info)
+ni_bonding_port_info_t *
+ni_bonding_port_info_ref(ni_bonding_port_info_t *info)
 {
 	if (info) {
 		ni_assert(info->refcount);
@@ -1659,7 +1660,7 @@ ni_bonding_slave_info_ref(ni_bonding_slave_info_t *info)
 }
 
 void
-ni_bonding_slave_info_free(ni_bonding_slave_info_t *info)
+ni_bonding_port_info_free(ni_bonding_port_info_t *info)
 {
 	if (info) {
 		ni_assert(info->refcount);
@@ -1684,30 +1685,30 @@ ni_bonding_slave_free(ni_bonding_slave_t *slave)
 {
 	if (slave) {
 		ni_netdev_ref_destroy(&slave->device);
-		ni_bonding_slave_info_free(slave->info);
+		ni_bonding_port_info_free(slave->info);
 		free(slave);
 	}
 }
 
-ni_bonding_slave_info_t *
+ni_bonding_port_info_t *
 ni_bonding_slave_get_info(ni_bonding_slave_t *slave)
 {
 	if (slave) {
 		if (!slave->info)
-			slave->info = ni_bonding_slave_info_new();
+			slave->info = ni_bonding_port_info_new();
 		return slave->info;
 	}
 	return NULL;
 }
 
 void
-ni_bonding_slave_set_info(ni_bonding_slave_t *slave, ni_bonding_slave_info_t *info)
+ni_bonding_slave_set_info(ni_bonding_slave_t *slave, ni_bonding_port_info_t *info)
 {
 	if (slave) {
-		ni_bonding_slave_info_t *temp;
+		ni_bonding_port_info_t *temp;
 
-		temp = ni_bonding_slave_info_ref(info);
-		ni_bonding_slave_info_free(slave->info);
+		temp = ni_bonding_port_info_ref(info);
+		ni_bonding_port_info_free(slave->info);
 		slave->info = temp;
 	}
 }

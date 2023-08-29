@@ -86,7 +86,7 @@ ni_netdev_port_info_data_init(ni_netdev_port_info_t *info, ni_iftype_t type)
 	if (info) {
 		switch (type) {
 		case NI_IFTYPE_BOND:
-			if (!(info->bond = ni_bonding_slave_info_new()))
+			if (!(info->bond = ni_bonding_port_info_new()))
 				return FALSE;
 			break;
 
@@ -107,7 +107,7 @@ ni_netdev_port_info_data_destroy(ni_netdev_port_info_t *info)
 	if (info) {
 		switch (info->type) {
 		case NI_IFTYPE_BOND:
-			ni_bonding_slave_info_free(info->bond);
+			ni_bonding_port_info_free(info->bond);
 			break;
 
 		default:

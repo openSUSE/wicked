@@ -17,11 +17,11 @@
 typedef struct ni_netdev_port_info	ni_netdev_port_info_t;
 
 struct ni_netdev_port_info {
-	ni_iftype_t		type;
-	char *			kind;
+	ni_iftype_t			type;
+	char *				kind;
 
 	union {
-	    ni_bonding_slave_info_t *	bond;
+		ni_bonding_port_info_t *	bond;
 	};
 };
 

@@ -454,8 +454,8 @@ __ni_objectmodel_bonding_slave_info_from_dict(ni_bonding_slave_t *slave, const n
 		return TRUE;
 
 	if (slave->info)
-		ni_bonding_slave_info_reset(slave->info);
-	else if (!(slave->info = ni_bonding_slave_info_new()))
+		ni_bonding_port_info_reset(slave->info);
+	else if (!(slave->info = ni_bonding_port_info_new()))
 		return FALSE;
 
 	if (ni_dbus_dict_get_uint32(dict, "state", &u32))
