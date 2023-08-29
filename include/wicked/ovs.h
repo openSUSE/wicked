@@ -37,6 +37,13 @@ struct ni_ovs_bridge_port_config {
 };
 
 /*
+ * OVS Bridge port interface info properties
+ */
+struct ni_ovs_bridge_port_info {
+	ni_netdev_ref_t			bridge;
+};
+
+/*
  * ovs bridge port
  */
 struct ni_ovs_bridge_port {
@@ -82,5 +89,8 @@ extern ni_ovs_bridge_port_t *	ni_ovs_bridge_port_array_find_by_name(ni_ovs_bridg
 
 extern void			ni_ovs_bridge_port_config_init(ni_ovs_bridge_port_config_t *);
 extern void			ni_ovs_bridge_port_config_destroy(ni_ovs_bridge_port_config_t *);
+
+extern ni_ovs_bridge_port_info_t *	ni_ovs_bridge_port_info_new(void);
+extern void				ni_ovs_bridge_port_info_free(ni_ovs_bridge_port_info_t *);
 
 #endif /* NI_WICKED_OVS_H */

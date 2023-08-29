@@ -646,3 +646,21 @@ ni_ovs_bridge_discover(ni_netdev_t *dev, ni_netconfig_t *nc)
 	return 0;
 }
 
+ni_ovs_bridge_port_info_t *
+ni_ovs_bridge_port_info_new(void)
+{
+	ni_ovs_bridge_port_info_t *info;
+
+	info = calloc(1, sizeof(*info));
+	return info;
+}
+
+void
+ni_ovs_bridge_port_info_free(ni_ovs_bridge_port_info_t *info)
+{
+	if (info) {
+		ni_netdev_ref_destroy(&info->bridge);
+		free(info);
+	}
+}
+
