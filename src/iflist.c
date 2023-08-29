@@ -1504,6 +1504,14 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 	if (tb[IFLA_QDISC])
 		ni_string_dup(&link->qdisc, nla_get_string(tb[IFLA_QDISC]));
 
+	if (tb[IFLA_OPERSTATE]) {
+		/* get the RFC 2863 operational status - IF_OPER_* */
+		link->oper_state = nla_get_u8(tb[IFLA_OPERSTATE]);
+	}
+
+	if (tb[IFLA_IFALIAS])
+		ni_string_dup(&link->alias, nla_get_string(tb[IFLA_IFALIAS]));
+
 	if (tb[IFLA_LINK]) {
 		link->lowerdev.index = nla_get_u32(tb[IFLA_LINK]);
 		if (!ni_netdev_ref_bind_ifname(&link->lowerdev, nc)) {
@@ -1521,47 +1529,6 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		master = __ni_process_ifinfomsg_masterdev(link, ifname, 0, nc);
 	} else {
 		master = NULL;
-	}
-
-	if (tb[IFLA_IFALIAS])
-		ni_string_dup(&link->alias, nla_get_string(tb[IFLA_IFALIAS]));
-	if (tb[IFLA_OPERSTATE]) {
-		/* get the RFC 2863 operational status - IF_OPER_* */
-		link->oper_state = nla_get_u8(tb[IFLA_OPERSTATE]);
-	}
-
-	if (tb[IFLA_STATS]) {
-		struct rtnl_link_stats *s = nla_data(tb[IFLA_STATS]);
-		ni_link_stats_t *n;
-
-		if (!link->stats)
-			link->stats = calloc(1, sizeof(*n));
-
-		if ((n = link->stats)) {
-			n->rx_packets = s->rx_packets;
-			n->tx_packets = s->tx_packets;
-			n->rx_bytes = s->rx_bytes;
-			n->tx_bytes = s->tx_bytes;
-			n->rx_errors = s->rx_errors;
-			n->tx_errors = s->tx_errors;
-			n->rx_dropped = s->rx_dropped;
-			n->tx_dropped = s->tx_dropped;
-			n->multicast = s->multicast;
-			n->collisions = s->collisions;
-			n->rx_length_errors = s->rx_length_errors;
-			n->rx_over_errors = s->rx_over_errors;
-			n->rx_crc_errors = s->rx_crc_errors;
-			n->rx_frame_errors = s->rx_frame_errors;
-			n->rx_fifo_errors = s->rx_fifo_errors;
-			n->rx_missed_errors = s->rx_missed_errors;
-			n->tx_aborted_errors = s->tx_aborted_errors;
-			n->tx_carrier_errors = s->tx_carrier_errors;
-			n->tx_fifo_errors = s->tx_fifo_errors;
-			n->tx_heartbeat_errors = s->tx_heartbeat_errors;
-			n->tx_window_errors = s->tx_window_errors;
-			n->rx_compressed = s->rx_compressed;
-			n->tx_compressed = s->tx_compressed;
-		}
 	}
 
 	/* Extended link info. Let's use it to try to determine link->type.

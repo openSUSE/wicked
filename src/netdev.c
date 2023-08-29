@@ -123,7 +123,6 @@ ni_netdev_reset(ni_netdev_t *dev)
 	ni_string_free(&dev->link.qdisc);
 	ni_string_free(&dev->link.kind);
 
-	ni_netdev_set_link_stats(dev, NULL);
 	ni_netdev_set_client_state(dev, NULL);
 
 	ni_netdev_clear_addresses(dev);
@@ -597,17 +596,6 @@ ni_netdev_set_dcb(ni_netdev_t *dev, ni_dcb_t *dcb)
 	if (dev->dcb)
 		ni_dcb_free(dev->dcb);
 	dev->dcb = dcb;
-}
-
-/*
- * Set the interface's link stats
- */
-void
-ni_netdev_set_link_stats(ni_netdev_t *dev, ni_link_stats_t *stats)
-{
-	if (dev->link.stats)
-		free(dev->link.stats);
-	dev->link.stats = stats;
 }
 
 /*
