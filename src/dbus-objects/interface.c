@@ -1718,6 +1718,11 @@ ni_objectmodel_netif_get_port(const ni_dbus_object_t *object,
 			return FALSE;
 		return ni_objectmodel_get_bonding_port_info(dev->link.port.bond, dict, error);
 
+	case NI_IFTYPE_TEAM:
+		if (!(dict = ni_objectmodel_netif_port_union_init(result, dev->link.port.type)))
+			return FALSE;
+		return ni_objectmodel_get_team_port_info(dev->link.port.team, dict, error);
+
 	case NI_IFTYPE_BRIDGE:
 		if (!(dict = ni_objectmodel_netif_port_union_init(result, dev->link.port.type)))
 			return FALSE;
@@ -1762,6 +1767,9 @@ ni_objectmodel_netif_set_port(ni_dbus_object_t *object,
 	switch (dev->link.port.type) {
 	case NI_IFTYPE_BOND:
 		return ni_objectmodel_set_bonding_port_info(dev->link.port.bond, dict, error);
+
+	case NI_IFTYPE_TEAM:
+		return ni_objectmodel_set_team_port_info(dev->link.port.team, dict, error);
 
 	case NI_IFTYPE_BRIDGE:
 		return ni_objectmodel_set_bridge_port_info(dev->link.port.bridge, dict, error);
