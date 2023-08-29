@@ -22,6 +22,7 @@
 #include <wicked/logging.h>
 #include <wicked/wireless.h>
 #include <wicked/bonding.h>
+#include <wicked/bridge.h>
 #include <wicked/team.h>
 #include <wicked/route.h>
 #include <wicked/infiniband.h>
@@ -80,6 +81,7 @@ static struct generic_map	generic_maps[] = {
 	MAP(BONDING_PRIMARY_RESELECT, ni_bonding_primary_reselect_name),
 	MAP(BONDING_PORT_STATE, ni_bonding_port_state_name),
 	MAP(BONDING_PORT_MII_STATUS, ni_bonding_port_mii_status_name),
+	MAP(BRIDGE_PORT_STATE, ni_bridge_port_state_name),
 	MAP(ROUTE_TYPE, ni_route_type_type_to_name),
 	MAP(ROUTE_PROTOCOL, ni_route_protocol_type_to_name),
 	MAPN(ROUTE_SCOPE, ni_route_scope_type_to_name, 256),

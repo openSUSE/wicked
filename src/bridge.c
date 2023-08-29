@@ -14,6 +14,9 @@
 #include "util_priv.h"
 #include "limits.h"
 
+#include <linux/if_bridge.h>
+
+
 #define NI_BRIDGE_PORT_ARRAY_CHUNK	16
 
 static void			ni_bridge_port_array_init(ni_bridge_port_array_t *);
@@ -529,4 +532,24 @@ ni_bridge_waittime_from_xml(const xml_node_t *brnode)
 
 	waittime = ni_bridge_waittime(&bridge);
 	return waittime;
+}
+
+static const ni_intmap_t	ni_bridge_port_state_map[] = {
+	/*
+	 * just use BR_STATE constants from linux/if_bridge.h;
+	 * br_port_state_names from linux/net/bridge/br_stp.c.
+	 */
+	{ "disabled",		BR_STATE_DISABLED		},
+	{ "listening",		BR_STATE_LISTENING		},
+	{ "learning",		BR_STATE_LEARNING		},
+	{ "forwarding",		BR_STATE_FORWARDING		},
+	{ "blocking",		BR_STATE_BLOCKING		},
+
+	{ NULL,			-1U				}
+};
+
+const char *
+ni_bridge_port_state_name(unsigned int state)
+{
+	return ni_format_uint_mapped(state, ni_bridge_port_state_map);
 }
