@@ -70,6 +70,8 @@ static void			ni_ifworker_update_client_state_scripts(ni_ifworker_t *w);
 static void			ni_fsm_events_destroy(ni_fsm_event_t **);
 static void			ni_fsm_process_event(ni_fsm_t *, ni_fsm_event_t *);
 
+static const ni_fsm_transition_t *	ni_fsm_transition_first(void);
+static const ni_fsm_transition_t *	ni_fsm_transition_next(const ni_fsm_transition_t *);
 
 ni_fsm_t *
 ni_fsm_new(void)
@@ -1373,32 +1375,6 @@ ni_ifworker_generate_default_config(ni_ifworker_t *parent, ni_ifworker_t *child)
 		ni_ifworker_set_config(child, config, parent->config.meta.origin);
 		xml_node_free(config);
 	}
-}
-
-static ni_bool_t
-ni_ifworker_add_child_master(xml_node_t *config, const char *name)
-{
-	xml_node_t *link, *master;
-
-	if (xml_node_is_empty(config) || ni_string_empty(name))
-		return FALSE;
-
-	if (!(link = xml_node_get_child(config, NI_CLIENT_IFCONFIG_LINK))) {
-		if (!(link = xml_node_new(NI_CLIENT_IFCONFIG_LINK, config)))
-			return FALSE;
-	}
-
-	if (!(master = xml_node_get_child(link, NI_CLIENT_IFCONFIG_MASTER))) {
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_MASTER, link, name))
-			return FALSE;
-	}
-	else if (!ni_string_eq(master->cdata, name)) {
-		ni_error("Failed adding <master>%s</master> to <link> -"
-			"there is already one <master>%s</master>", name, master->cdata);
-		return FALSE;
-	}
-
-	return TRUE;
 }
 
 static ni_bool_t
@@ -3482,8 +3458,9 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 static int
 ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 {
+	const unsigned int services_max = ni_objectmodel_service_registry_count();
+	const ni_dbus_service_t *list_services[services_max];
 	const ni_dbus_method_t *method;
-	const ni_dbus_service_t *list_services[128];
 	const char *link_type;
 	unsigned int i, count;
 	int rv;
@@ -3527,7 +3504,7 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 		/* We try to locate the factory service by looping over all services compatible
 		 * with netif-list */
 		netif_list_class = ni_objectmodel_get_class(NI_OBJECTMODEL_NETIF_LIST_CLASS);
-		count = ni_objectmodel_compatible_services_for_class(netif_list_class, list_services, 128);
+		count = ni_objectmodel_compatible_services_for_class(netif_list_class, list_services, services_max);
 	}
 
 	for (i = 0; i < count; ++i) {
@@ -3610,6 +3587,82 @@ static dbus_bool_t	ni_ifworker_netif_resolve_cb(xml_node_t *, const ni_xs_type_t
 static int		ni_ifworker_prompt_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
 static int		ni_ifworker_prompt_later_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
 
+static inline int
+ni_ifworker_bind_service_references_early(ni_ifworker_t *w, ni_fsm_t *fsm,
+		ni_dbus_xml_validate_context_t *context,
+		const ni_dbus_service_t *service)
+{
+	const ni_fsm_transition_t *action;
+	const ni_dbus_method_t *method;
+
+	action = ni_fsm_transition_first();
+	for ( ; action; action = ni_fsm_transition_next(action)) {
+		xml_node_t *config = NULL;
+		int rv;
+
+		if (ni_fsm_transition_is_down(action))
+			continue;
+		if (ni_string_empty(action->common.method_name))
+			continue;
+		if (!(method = ni_dbus_service_get_method(service,
+				action->common.method_name)))
+			continue;
+
+		if ((rv = ni_dbus_xml_map_method_argument(method, 0, w->config.node,
+				&config, NULL)) < 0) {
+			ni_ifworker_fail(w, "document error: can't map %s.%s() arguments",
+					service->name, method->name);
+			return -NI_ERROR_DOCUMENT_ERROR;
+		}
+		if (config) {
+			ni_debug_wicked_xml(config, NI_LOG_DEBUG2,
+				"%s(%s) mapped %s.%s() arguments",
+				__func__, w->name, service->name, method->name);
+
+			if (!ni_dbus_xml_validate_argument(method, 0, config, context)) {
+				ni_ifworker_fail(w, "failed to validate %s.%s() arguments",
+						service->name, method->name);
+					return -NI_ERROR_DOCUMENT_ERROR;
+			}
+		}
+	}
+
+	return NI_SUCCESS;
+}
+
+int
+ni_ifworker_bind_services_early(ni_ifworker_t *w, ni_fsm_t *fsm,
+		ni_dbus_xml_validate_context_t *context)
+{
+	const unsigned int max = ni_objectmodel_service_registry_count();
+	const ni_dbus_service_t *services[max], *service;
+	const ni_dbus_class_t *class;
+	unsigned int count, i;
+	int rv;
+
+	/* Hmm.. modem should not differ, but...*/
+	if (w->type != NI_IFWORKER_TYPE_NETDEV)
+		return NI_SUCCESS;
+
+	if (xml_node_is_empty(w->config.node))
+		return NI_SUCCESS;
+
+	ni_debug_wicked_xml(w->config.node, NI_LOG_DEBUG2,
+			"%s(%s) config", __func__, w->name);
+
+	if (!(class = ni_objectmodel_get_class(NI_OBJECTMODEL_NETIF_CLASS)))
+		return NI_SUCCESS;
+
+	count = ni_objectmodel_compatible_services_for_class(class, services, max);
+	for (i = 0; i < count; ++i) {
+		service = services[i];
+		if ((rv = ni_ifworker_bind_service_references_early(w,
+				fsm, context, service)) != NI_SUCCESS)
+			return rv;
+	}
+	return NI_SUCCESS;
+}
+
 int
 ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
 {
@@ -3632,7 +3685,7 @@ ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
 
 	if (w->device_api.factory_method && w->device_api.config) {
 		/* The XML validation code will do a pass over the part of our XML
-		 * document that's used for the deviceNew() call, and call us for
+		 * document that's used for the newDevice() call, and call us for
 		 * every bit of metadata it finds.
 		 * This includes elements marked by <meta:netif-reference/>
 		 * in the schema.
@@ -3641,6 +3694,11 @@ ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
 			return -NI_ERROR_DOCUMENT_ERROR;
 	}
 
+	/*
+	 * Also other methods as linkUp contain <meta:netif-reference/>
+	 * we have to resolve in order to rebuild the config hierarchy.
+	 */
+	ni_ifworker_bind_services_early(w, fsm, &context);
 	ni_ifworker_get_check_state_req_for_methods(w);
 done:
 	return rv;
@@ -3782,35 +3840,30 @@ ni_fsm_print_system_hierarchy(const ni_fsm_t *fsm)
 int
 ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 {
+	ni_ifworker_t *w;
 	unsigned int i;
+	int rv;
+
+	if (!fsm)
+		return NI_ERROR_INVALID_ARGS;
 
 	ni_fsm_events_block(fsm);
 	for (i = 0; i < fsm->workers.count; ++i) {
-		ni_ifworker_t *w = fsm->workers.data[i];
-		int rv;
+		w = fsm->workers.data[i];
 
-		/* A worker without an ifnode is one that we discovered in the
-		 * system, but which we've not been asked to configure. */
+		/*
+		 * A worker without an ifnode is one that we've discovered in
+		 * the system, but which we've not been asked to configure.
+		 */
 		if (!w->config.node)
 			continue;
 
 		if ((rv = ni_ifworker_bind_early(w, fsm, FALSE)) < 0) {
 			if (destructive) {
-				if (-NI_ERROR_DOCUMENT_ERROR == rv)
-					ni_debug_application("%s: configuration failed", w->name);
 				ni_fsm_destroy_worker(fsm, w);
 				i--;
 			}
-		}
-	}
-
-	for (i = 0; i < fsm->workers.count; ++i) {
-		ni_ifworker_t *w = fsm->workers.data[i];
-
-		if (w->masterdev) {
-			if (!ni_ifworker_add_child_master(w->config.node, w->masterdev->name))
-				continue;
-			ni_ifworker_generate_uuid(w);
+			continue;
 		}
 	}
 
@@ -3820,7 +3873,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 	if (ni_log_facility(NI_TRACE_APPLICATION))
 		ni_fsm_print_config_hierarchy(fsm);
 
-	return 0;
+	return NI_SUCCESS;
 }
 
 dbus_bool_t
@@ -4704,9 +4757,9 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 		 *   <arguments>
 		 *     <foobar type="...">
 		 *       <meta:mapping
-		 *	   	document-node="/some/xpath/expression" 
-		 *		skip-unless-present="true"
-		 *		/>
+		 *         document-node="/some/xpath/expression"
+		 *         skip-unless-present="true"
+		 *       />
 		 *     </foobar>
 		 *   </arguments>
 		 * </method>
@@ -5212,6 +5265,26 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 
 	{ .from_state = NI_FSM_STATE_NONE, .next_state = NI_FSM_STATE_NONE, .call_func = NULL }
 };
+
+static const ni_fsm_transition_t *
+ni_fsm_transition_first(void)
+{
+	const ni_fsm_transition_t *action = ni_iftransitions;
+
+	if (action && action->call_func)
+		return action;
+	return NULL;
+}
+
+static const ni_fsm_transition_t *
+ni_fsm_transition_next(const ni_fsm_transition_t *action)
+{
+	if (!action || !action->call_func)
+		return NULL;
+	if (++action && action->call_func)
+		return action;
+	return NULL;
+}
 
 static int
 ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, unsigned int target_state)
