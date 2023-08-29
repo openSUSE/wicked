@@ -24,6 +24,49 @@ static int			__ni_bridge_port_array_append(ni_bridge_port_array_t *,
 					ni_bridge_port_t *);
 
 
+static ni_bool_t
+ni_bridge_port_info_init(ni_bridge_port_info_t *info)
+{
+	if (info) {
+		memset(info, 0, sizeof(*info));
+		/* apply "not set" defaults */
+		info->priority = NI_BRIDGE_VALUE_NOT_SET;
+		info->path_cost = NI_BRIDGE_VALUE_NOT_SET;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+void
+ni_bridge_port_info_destroy(ni_bridge_port_info_t *info)
+{
+	if (info) {
+		ni_string_free(&info->designated_root);
+		ni_string_free(&info->designated_bridge);
+		ni_bridge_port_info_init(info);
+	}
+}
+
+ni_bridge_port_info_t *
+ni_bridge_port_info_new(void)
+{
+	ni_bridge_port_info_t *info;
+
+	info = malloc(sizeof(*info));
+	if (ni_bridge_port_info_init(info))
+		return info;
+
+	free(info);
+	return NULL;
+}
+
+void
+ni_bridge_port_info_free(ni_bridge_port_info_t *info)
+{
+	ni_bridge_port_info_destroy(info);
+	free(info);
+}
+
 ni_bridge_port_t *
 ni_bridge_port_new(ni_bridge_t *bridge, const char *ifname, unsigned int ifindex)
 {
@@ -59,7 +102,7 @@ void
 ni_bridge_port_free(ni_bridge_port_t *port)
 {
 	ni_string_free(&port->ifname);
-	ni_bridge_port_status_destroy(&port->status);
+	ni_bridge_port_info_destroy(&port->info);
 	free(port);
 }
 
@@ -275,13 +318,6 @@ ni_bridge_status_destroy(ni_bridge_status_t *bs)
 	ni_string_free(&bs->bridge_id);
 	ni_string_free(&bs->group_addr);
 	memset(bs, 0, sizeof(*bs));
-}
-
-void
-ni_bridge_port_status_destroy(ni_bridge_port_status_t *ps)
-{
-	ni_string_free(&ps->designated_root);
-	ni_string_free(&ps->designated_bridge);
 }
 
 void

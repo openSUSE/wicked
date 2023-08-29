@@ -256,6 +256,58 @@ ni_objectmodel_get_bridge(const ni_dbus_object_t *object, ni_bool_t write_access
 }
 
 /*
+ * Bridge port interface info properties
+ */
+extern dbus_bool_t
+ni_objectmodel_get_bridge_port_info(const ni_bridge_port_info_t *info,
+		ni_dbus_variant_t *dict, DBusError *error)
+{
+	(void)error;
+
+	if (!info || !dict)
+		return FALSE;
+
+	if (info->state)
+		ni_dbus_dict_add_uint32(dict, "state", info->state);
+	if (info->port_no)
+		ni_dbus_dict_add_uint32(dict, "port-no", info->port_no);
+	if (info->port_id)
+		ni_dbus_dict_add_uint32(dict, "port-id", info->port_id);
+
+	if (info->priority != NI_BRIDGE_VALUE_NOT_SET)
+		ni_dbus_dict_add_uint32(dict, "priority", info->priority);
+	if (info->path_cost != NI_BRIDGE_VALUE_NOT_SET)
+		ni_dbus_dict_add_uint32(dict, "path-cost", info->path_cost);
+
+	return TRUE;
+}
+extern dbus_bool_t
+ni_objectmodel_set_bridge_port_info(ni_bridge_port_info_t *info,
+		const ni_dbus_variant_t *dict, DBusError *error)
+{
+	uint32_t value;
+
+	(void)error;
+
+	if (!info || !dict)
+		return FALSE;
+
+	if (ni_dbus_dict_get_uint32(dict, "state", &value))
+		info->state = value;
+	if (ni_dbus_dict_get_uint32(dict, "port-no", &value))
+		info->port_no = value;
+	if (ni_dbus_dict_get_uint32(dict, "port-id", &value))
+		info->port_id = value;
+
+	if (ni_dbus_dict_get_uint32(dict, "priority", &value))
+		info->priority = value;
+	if (ni_dbus_dict_get_uint32(dict, "path-cost", &value))
+		info->path_cost = value;
+
+	return TRUE;
+}
+
+/*
  * Property ports
  */
 static dbus_bool_t
@@ -341,11 +393,7 @@ __ni_objectmodel_bridge_port_to_dict(const ni_bridge_port_t *port, ni_dbus_varia
 	if (config_only)
 		return TRUE;
 
-	ni_dbus_dict_add_uint32(dict, "state", port->status.state);
-	ni_dbus_dict_add_uint32(dict, "port-id", port->status.port_id);
-	ni_dbus_dict_add_uint32(dict, "port-no", port->status.port_no);
-
-	return TRUE;
+	return ni_objectmodel_get_bridge_port_info(&port->info, dict, NULL);
 }
 
 static dbus_bool_t
@@ -370,15 +418,7 @@ __ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_var
 	if (ni_dbus_dict_get_uint32(dict, "path-cost", &value))
 		port->path_cost = value;
 
-	/* FIXME: Really? I don't think so... */
-	if (ni_dbus_dict_get_uint32(dict, "state", &value))
-		port->status.state = value;
-	if (ni_dbus_dict_get_uint32(dict, "port-id", &value))
-		port->status.port_id = value;
-	if (ni_dbus_dict_get_uint32(dict, "port-no", &value))
-		port->status.port_no = value;
-
-	return TRUE;
+	return ni_objectmodel_set_bridge_port_info(&port->info, dict, NULL);
 }
 
 static dbus_bool_t

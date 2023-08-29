@@ -540,12 +540,12 @@ ni_sysfs_bridge_port_update_config(const char *ifname, const ni_bridge_port_t *p
 }
 
 void
-ni_sysfs_bridge_port_get_status(const char *ifname, ni_bridge_port_status_t *ps)
+ni_sysfs_bridge_port_get_info(const char *ifname, ni_bridge_port_info_t *ps)
 {
 	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/priority", &ps->priority);
 	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/path_cost", &ps->path_cost);
 
-	ni_sysfs_netif_get_int(ifname, SYSFS_BRIDGE_PORT_ATTR "/state", &ps->state);
+	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/state", &ps->state);
 	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/port_no", &ps->port_no);
 	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/port_id", &ps->port_no);
 	ni_sysfs_netif_get_string(ifname, SYSFS_BRIDGE_PORT_ATTR "/designated_root", &ps->designated_root);
