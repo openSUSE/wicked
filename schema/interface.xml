@@ -233,6 +233,7 @@
      <meta:require check="netif-check-state" op="linkUp" min-state="firewall-up" />
    </master>
    <port class="union" switch="type">
+     <bond       type="bond:port-config" />
      <team       type="team:port-config" />
      <ovs-bridge type="ovs-bridge:port-config" />
    </port>
