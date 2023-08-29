@@ -40,16 +40,6 @@ ni_bridge_port_info_init(ni_bridge_port_info_t *info)
 	return FALSE;
 }
 
-void
-ni_bridge_port_info_destroy(ni_bridge_port_info_t *info)
-{
-	if (info) {
-		ni_string_free(&info->designated_root);
-		ni_string_free(&info->designated_bridge);
-		ni_bridge_port_info_init(info);
-	}
-}
-
 ni_bridge_port_info_t *
 ni_bridge_port_info_new(void)
 {
@@ -66,8 +56,12 @@ ni_bridge_port_info_new(void)
 void
 ni_bridge_port_info_free(ni_bridge_port_info_t *info)
 {
-	ni_bridge_port_info_destroy(info);
-	free(info);
+	if (info) {
+		ni_string_free(&info->designated_root);
+		ni_string_free(&info->designated_bridge);
+		ni_bridge_port_info_init(info);
+		free(info);
+	}
 }
 
 ni_bridge_port_t *
@@ -105,7 +99,6 @@ void
 ni_bridge_port_free(ni_bridge_port_t *port)
 {
 	ni_string_free(&port->ifname);
-	ni_bridge_port_info_destroy(&port->info);
 	free(port);
 }
 

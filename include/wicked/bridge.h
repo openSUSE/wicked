@@ -41,8 +41,6 @@ struct ni_bridge_port {
 
 	unsigned int		priority;
 	unsigned int		path_cost;
-
-	ni_bridge_port_info_t	info;
 };
 
 typedef struct ni_bridge_port_array {
@@ -107,7 +105,6 @@ extern const char *	ni_bridge_validate(const ni_bridge_t *);
 extern unsigned int	ni_bridge_waittime_from_xml(const xml_node_t *brnode);
 
 extern ni_bridge_port_info_t *		ni_bridge_port_info_new(void);
-extern void				ni_bridge_port_info_destroy(ni_bridge_port_info_t *);
 extern void				ni_bridge_port_info_free(ni_bridge_port_info_t *);
 
 extern const char *			ni_bridge_port_state_name(unsigned int);

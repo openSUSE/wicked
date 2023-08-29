@@ -198,6 +198,11 @@ extern dbus_bool_t		__ni_objectmodel_get_team_port_config(const ni_team_port_con
 extern dbus_bool_t		__ni_objectmodel_set_team_port_config(ni_team_port_config_t *,
 						const ni_dbus_variant_t *, DBusError *);
 
+extern dbus_bool_t		ni_objectmodel_get_bridge_port_info(const ni_bridge_port_info_t *,
+						ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_objectmodel_set_bridge_port_info(ni_bridge_port_info_t *,
+						const ni_dbus_variant_t *, DBusError *);
+
 extern dbus_bool_t		__ni_objectmodel_get_ovs_bridge_port_config(const ni_ovs_bridge_port_config_t *,
 						ni_dbus_variant_t *, DBusError *);
 extern dbus_bool_t		__ni_objectmodel_set_ovs_bridge_port_config(ni_ovs_bridge_port_config_t *,
