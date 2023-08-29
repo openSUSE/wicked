@@ -80,18 +80,61 @@ ni_netdev_clear_routes(ni_netdev_t *dev)
 	ni_route_tables_destroy(&dev->routes);
 }
 
-void
-ni_netdev_slaveinfo_destroy(ni_slaveinfo_t *slave)
+ni_bool_t
+ni_netdev_port_info_data_init(ni_netdev_port_info_t *info, ni_iftype_t type)
 {
-	switch (slave->type) {
-	case NI_IFTYPE_BOND:
-		ni_bonding_slave_info_free(slave->bond);
-		break;
-	default:
-		break;
+	if (info) {
+		switch (type) {
+		case NI_IFTYPE_BOND:
+			if (!(info->bond = ni_bonding_slave_info_new()))
+				return FALSE;
+			break;
+
+		default:
+			info->bond = NULL; /* union ptr */
+			break;
+		}
+
+		info->type = type;
+		return TRUE;
 	}
-	free(slave->kind);
-	memset(slave, 0, sizeof(*slave));
+	return FALSE;
+}
+
+void
+ni_netdev_port_info_data_destroy(ni_netdev_port_info_t *info)
+{
+	if (info) {
+		switch (info->type) {
+		case NI_IFTYPE_BOND:
+			ni_bonding_slave_info_free(info->bond);
+			break;
+
+		default:
+			break;
+		}
+		info->bond = NULL; /* union ptr */
+		info->type = NI_IFTYPE_UNKNOWN;
+	}
+}
+
+ni_bool_t
+ni_netdev_port_info_init(ni_netdev_port_info_t *info, const char *kind)
+{
+	if (info) {
+		ni_netdev_port_info_data_init(info, NI_IFTYPE_UNKNOWN);
+		return ni_string_dup(&info->kind, kind);
+	}
+	return FALSE;
+}
+
+void
+ni_netdev_port_info_destroy(ni_netdev_port_info_t *info)
+{
+	if (info) {
+		ni_netdev_port_info_data_destroy(info);
+		ni_string_free(&info->kind);
+	}
 }
 
 void
@@ -118,7 +161,7 @@ ni_netdev_reset(ni_netdev_t *dev)
 
 	ni_netdev_ref_destroy(&dev->link.lowerdev);
 	ni_netdev_ref_destroy(&dev->link.masterdev);
-	ni_netdev_slaveinfo_destroy(&dev->link.slave);
+	ni_netdev_port_info_destroy(&dev->link.port);
 
 	ni_string_free(&dev->link.qdisc);
 	ni_string_free(&dev->link.kind);

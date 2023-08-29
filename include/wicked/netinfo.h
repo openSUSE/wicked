@@ -14,8 +14,9 @@
 
 #include "client/client_state.h"
 
-typedef struct ni_slaveinfo	ni_slaveinfo_t;
-struct ni_slaveinfo {
+typedef struct ni_netdev_port_info	ni_netdev_port_info_t;
+
+struct ni_netdev_port_info {
 	ni_iftype_t		type;
 	char *			kind;
 
@@ -25,6 +26,7 @@ struct ni_slaveinfo {
 };
 
 typedef struct ni_linkinfo ni_linkinfo_t;
+
 struct ni_linkinfo {
 	ni_iftype_t		type;
 	unsigned int		ifindex;
@@ -38,7 +40,7 @@ struct ni_linkinfo {
 	unsigned int		txqlen;
 	ni_netdev_ref_t		lowerdev;
 	ni_netdev_ref_t		masterdev;
-	ni_slaveinfo_t		slave;
+	ni_netdev_port_info_t	port;
 	unsigned int		oper_state;
 	char *			qdisc;
 	char *			kind;
@@ -235,7 +237,6 @@ extern ni_bool_t	ni_netdev_supports_arp(ni_netdev_t *);
 extern void             ni_netdev_clear_addresses(ni_netdev_t *);
 extern void             ni_netdev_clear_routes(ni_netdev_t *);
 extern void		ni_netdev_clear_event_filters(ni_netdev_t *);
-extern void		ni_netdev_slaveinfo_destroy(ni_slaveinfo_t *);
 
 extern const ni_uuid_t *ni_netdev_add_event_filter(ni_netdev_t *, unsigned int mask);
 extern const ni_uuid_t *ni_netdev_get_event_uuid(ni_netdev_t *, ni_event_t);
@@ -316,5 +317,10 @@ ni_netdev_network_is_up(const ni_netdev_t *dev)
 {
 	return dev ? dev->link.ifflags & NI_IFF_NETWORK_UP : 0;
 }
+
+extern ni_bool_t		ni_netdev_port_info_data_init(ni_netdev_port_info_t *, ni_iftype_t);
+extern void			ni_netdev_port_info_data_destroy(ni_netdev_port_info_t *);
+extern ni_bool_t		ni_netdev_port_info_init(ni_netdev_port_info_t *, const char *);
+extern void			ni_netdev_port_info_destroy(ni_netdev_port_info_t *);
 
 #endif /* NI_WICKED_NETINFO_H */

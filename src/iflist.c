@@ -425,7 +425,7 @@ __ni_refresh_bonding_master_bind(ni_netdev_t *master, ni_linkinfo_t *link, const
 	ni_bonding_slave_t *slave;
 
 	slave = ni_bonding_bind_slave(master->bonding, &ref, master->name);
-	ni_bonding_slave_set_info(slave, link->slave.bond);
+	ni_bonding_slave_set_info(slave, link->port.bond);
 }
 
 static void
@@ -442,10 +442,10 @@ __ni_refresh_bind_master(ni_netconfig_t *nc, ni_netdev_t *dev)
 		return;
 	}
 
-	if (master->link.type != dev->link.slave.type)
+	if (master->link.type != dev->link.port.type)
 		return;
 
-	switch (dev->link.slave.type) {
+	switch (dev->link.port.type) {
 	case NI_IFTYPE_BOND:
 		__ni_refresh_bonding_master_bind(master, &dev->link, dev->name);
 		break;
@@ -486,10 +486,10 @@ __ni_refresh_unbind_master(ni_netconfig_t *nc, ni_netdev_t *dev)
 	if (!(master = ni_netdev_by_index(nc, dev->link.masterdev.index)))
 		return;
 
-	if (master->link.type != dev->link.slave.type)
+	if (master->link.type != dev->link.port.type)
 		return;
 
-	switch (dev->link.slave.type) {
+	switch (dev->link.port.type) {
 	case NI_IFTYPE_BOND:
 		__ni_refresh_bonding_master_unbind(master, &dev->link, dev->name);
 		break;
@@ -1352,7 +1352,7 @@ __ni_process_ifinfomsg_bond_slave_data(ni_linkinfo_t *link, const char *ifname, 
 		return;
 	}
 
-	info = link->slave.bond;
+	info = link->port.bond;
 	for (attr = IFLA_BOND_SLAVE_STATE; attr <= IFLA_BOND_SLAVE_MAX; ++attr) {
 		if (!(aptr = tb[attr]))
 			continue;
@@ -1415,15 +1415,15 @@ static inline void
 __ni_process_ifinfomsg_slave_data(ni_linkinfo_t *link, const char *ifname,
 		ni_netdev_t *master, const char *kind, struct nlattr *data)
 {
-	ni_netdev_slaveinfo_destroy(&link->slave);
+	ni_netdev_port_info_destroy(&link->port);
 
-	ni_string_dup(&link->slave.kind, kind);
-	if (!__ni_linkinfo_kind_to_type(kind, &link->slave.type))
-		link->slave.type = NI_IFTYPE_UNKNOWN;
+	ni_string_dup(&link->port.kind, kind);
+	if (!__ni_linkinfo_kind_to_type(kind, &link->port.type))
+		link->port.type = NI_IFTYPE_UNKNOWN;
 
-	switch (link->slave.type) {
+	switch (link->port.type) {
 	case NI_IFTYPE_BOND:
-		if (master && master->link.type != link->slave.type) {
+		if (master && master->link.type != link->port.type) {
 			ni_warn("%s: master %s link type does not match slaveinfo kind type",
 					master->name, ifname);
 			return;
@@ -1439,12 +1439,12 @@ __ni_process_ifinfomsg_slave_data(ni_linkinfo_t *link, const char *ifname,
 			ni_bonding_slave_t *slave;
 
 			slave = ni_bonding_slave_array_get_by_ifindex(&master->bonding->slaves,	link->ifindex);
-			link->slave.bond = ni_bonding_slave_info_ref(ni_bonding_slave_get_info(slave));
+			link->port.bond = ni_bonding_slave_info_ref(ni_bonding_slave_get_info(slave));
 		} else {
-			link->slave.bond = ni_bonding_slave_info_new();
+			link->port.bond = ni_bonding_slave_info_new();
 		}
 
-		if (link->slave.bond)
+		if (link->port.bond)
 			__ni_process_ifinfomsg_bond_slave_data(link, ifname, data);
 		break;
 
