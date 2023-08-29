@@ -1,4 +1,4 @@
-<service name="bonding" interface="org.opensuse.Network.Bond" object-class="netif-bond">
+<service name="bond" interface="org.opensuse.Network.Bond" object-class="netif-bond">
   <description>
     This link-layer service is provided by all bond network interfaces.
 
@@ -29,7 +29,7 @@
         active-backup, balance-tlb or balance-alb modes. This forces
         the use as primary or active and overwries kernels choice.
      -->
-   <define name="slave" class="dict" extends="bonding:port-info">
+   <define name="slave" class="dict" extends="bond:port-info">
      <device type="string">
        <meta:netif-reference shared="false" />
        <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
@@ -107,7 +107,7 @@
 
  <method name="changeDevice">
   <arguments>
-    <config type="bonding:device-info">
+    <config type="bond:device-info">
       <meta:mapping document-node="/bond"/>
     </config>
   </arguments>
@@ -147,11 +147,11 @@
 
 </service>
 
-<service name="bonding-factory" interface="org.opensuse.Network.Bond.Factory" object-class="netif-list">
+<service name="bond-factory" interface="org.opensuse.Network.Bond.Factory" object-class="netif-list">
   <method name="newDevice">
     <arguments>
      <name type="string"/>
-     <config type="bonding:device-info">
+     <config type="bond:device-info">
       <meta:mapping document-node="/bond"/>
      </config>
     </arguments>
