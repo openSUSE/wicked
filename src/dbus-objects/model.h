@@ -192,6 +192,10 @@ extern dbus_bool_t		ni_objectmodel_get_bonding_port_info(const ni_bonding_port_i
 						ni_dbus_variant_t *, DBusError *);
 extern dbus_bool_t		ni_objectmodel_set_bonding_port_info(ni_bonding_port_info_t *,
 						const ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_objectmodel_get_bonding_port_config(const ni_bonding_port_config_t *,
+						ni_dbus_variant_t *, DBusError *);
+extern dbus_bool_t		ni_objectmodel_set_bonding_port_config(ni_bonding_port_config_t *,
+						const ni_dbus_variant_t *, DBusError *);
 
 extern dbus_bool_t		ni_objectmodel_get_team_port_info(const ni_team_port_info_t *,
 						ni_dbus_variant_t *, DBusError *);

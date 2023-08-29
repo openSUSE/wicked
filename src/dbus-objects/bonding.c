@@ -412,6 +412,40 @@ __ni_objectmodel_bonding_set_arpmon(ni_dbus_object_t *object,
 }
 
 /*
+ * Bonding port (link-request) configuration
+ */
+extern dbus_bool_t
+ni_objectmodel_get_bonding_port_config(const ni_bonding_port_config_t *conf,
+		ni_dbus_variant_t *dict, DBusError *error)
+{
+	(void)error;
+
+	if (!conf || !dict)
+		return FALSE;
+
+	if (conf->queue_id != -1U)
+		ni_dbus_dict_add_uint16(dict, "queue-id", conf->queue_id);
+
+	return TRUE;
+}
+extern dbus_bool_t
+ni_objectmodel_set_bonding_port_config(ni_bonding_port_config_t *conf,
+		const ni_dbus_variant_t *dict, DBusError *error)
+{
+	uint16_t u16;
+
+	(void)error;
+
+	if (!conf || !dict)
+		return FALSE;
+
+	if (ni_dbus_dict_get_uint16(dict, "queue-id", &u16))
+		conf->queue_id = u16;
+
+	return TRUE;
+}
+
+/*
  * Bonding port interface info properties
  */
 extern dbus_bool_t

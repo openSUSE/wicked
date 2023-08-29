@@ -1141,6 +1141,11 @@ ni_netdev_port_config_init(ni_netdev_port_config_t *conf, ni_iftype_t type)
 		memset(conf, 0, sizeof(*conf));
 
 		switch (type) {
+		case NI_IFTYPE_BOND:
+			if (!(conf->bond = ni_bonding_port_config_new()))
+				return FALSE;
+			break;
+
 		case NI_IFTYPE_TEAM:
 			if (!(conf->team = ni_team_port_config_new()))
 				return FALSE;
@@ -1165,6 +1170,10 @@ ni_netdev_port_config_destroy(ni_netdev_port_config_t *conf)
 {
 	if (conf) {
 		switch (conf->type) {
+		case NI_IFTYPE_BOND:
+			ni_bonding_port_config_free(conf->bond);
+			break;
+
 		case NI_IFTYPE_TEAM:
 			ni_team_port_config_free(conf->team);
 			break;
