@@ -24,6 +24,7 @@ struct ni_netdev_port_info {
 		ni_bonding_port_info_t *	bond;
 		ni_team_port_info_t *		team;
 		ni_bridge_port_info_t *		bridge;
+		ni_ovs_bridge_port_info_t *	ovsbr;
 	};
 };
 

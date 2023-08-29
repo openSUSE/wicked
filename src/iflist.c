@@ -1507,6 +1507,17 @@ ni_rtnl_link_get_port_info(const char *ifname, ni_linkinfo_t *link,
 		ni_rtnl_link_get_bridge_port_info(ifname, link, data);
 		break;
 
+	case NI_IFTYPE_OVS_UNSPEC:
+		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN)) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: omitting external %s port info discovery",
+					ifname, ni_linktype_type_to_name(type));
+			return;
+		}
+
+		ni_ovs_port_info_discover(&link->port, ifname, nc);
+		break;
+
 	default:
 		/*
 		 * actually unused / unhandled port info kind:
