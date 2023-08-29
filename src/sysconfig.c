@@ -399,13 +399,18 @@ ni_sysconfig_get(const ni_sysconfig_t *sc, const char *name)
 	return sc ? ni_var_array_get(&sc->vars, name) : NULL;
 }
 
-int
+unsigned int
 ni_sysconfig_find_matching(const ni_sysconfig_t *sc, const char *prefix,
 		ni_string_array_t *res)
 {
-	unsigned int i, pfxlen;
+	unsigned int i, count;
+	size_t pfxlen;
 	ni_var_t *var;
 
+	if (!sc || !prefix || !res)
+		return 0;
+
+	count = res->count;
 	pfxlen = strlen(prefix);
 	for (i = 0, var = sc->vars.data; i < sc->vars.count; ++i, ++var) {
 		const char *value = var->value;
@@ -413,7 +418,7 @@ ni_sysconfig_find_matching(const ni_sysconfig_t *sc, const char *prefix,
 		if (value && *value && !strncmp(var->name, prefix, pfxlen))
 			ni_string_array_append(res, var->name);
 	}
-	return res->count;
+	return res->count - count;
 }
 
 const char *
