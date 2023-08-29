@@ -195,12 +195,11 @@ __ni_redhat_read_interface(const char *filename, const char *ifname, ni_compat_n
 		goto error;
 
 done:
-	ni_sysconfig_destroy(sc);
+	ni_sysconfig_free(sc);
 	return compat;
 
 error:
-	if (sc)
-		ni_sysconfig_destroy(sc);
+	ni_sysconfig_free(sc);
 	return NULL;
 }
 
@@ -420,7 +419,7 @@ try_vlan(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 /*
  * Given a suffix like "" or "_1", try to get the IP address and prefix length.
  * If successful, create a new ni_address, attach it to the interface object
- * and return it. 
+ * and return it.
  */
 static ni_bool_t
 __ni_redhat_addrconf_static(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, const char *label)
