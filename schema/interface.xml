@@ -150,6 +150,7 @@
  <master type="string"/>
  <port class="union" switch="type">
    <bond       type="bond:port-info" />
+   <team       type="team:port-info" />
    <bridge     type="bridge:port-info" />
  </port>
 
