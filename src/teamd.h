@@ -46,6 +46,9 @@ extern int				ni_teamd_ctl_port_config_dump(ni_teamd_client_t *, const char *, c
 extern int				ni_teamd_port_enslave(const ni_netdev_t *, const ni_netdev_t *, const ni_team_port_config_t *);
 extern int				ni_teamd_port_unenslave(const ni_netdev_t *, const ni_netdev_t *);
 
+extern int				ni_teamd_port_config_discover(ni_team_port_config_t *,
+								const char *, const char *);
+
 extern int				ni_teamd_discover(ni_netdev_t *);
 extern int				ni_teamd_port_info_discover(ni_netdev_port_info_t *,
 								const char *, const char *);
