@@ -134,19 +134,44 @@ ni_ovs_bridge_port_array_find_by_name(ni_ovs_bridge_port_array_t *array, const c
 	return NULL;
 }
 
-void
+ni_bool_t
 ni_ovs_bridge_port_config_init(ni_ovs_bridge_port_config_t *conf)
 {
-	memset(conf, 0, sizeof(*conf));
+	if (conf) {
+		memset(conf, 0, sizeof(*conf));
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_ovs_bridge_port_config_t *
+ni_ovs_bridge_port_config_new(void)
+{
+	ni_ovs_bridge_port_config_t *conf;
+
+	conf = malloc(sizeof(*conf));
+	if (ni_ovs_bridge_port_config_init(conf))
+		return conf;
+
+	free(conf);
+	return NULL;
 }
 
 void
 ni_ovs_bridge_port_config_destroy(ni_ovs_bridge_port_config_t *conf)
 {
-	ni_netdev_ref_destroy(&conf->bridge);
-	ni_ovs_bridge_port_config_init(conf);
+	if (conf) {
+		ni_netdev_ref_destroy(&conf->bridge);
+		ni_ovs_bridge_port_config_init(conf);
+	}
 }
 
+void
+ni_ovs_bridge_port_config_free(ni_ovs_bridge_port_config_t *conf)
+{
+	ni_ovs_bridge_port_config_destroy(conf);
+	free(conf);
+}
 
 static const char *
 ni_ovs_vsctl_tool_path(void)
