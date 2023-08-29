@@ -26,6 +26,37 @@ static void			__ni_bridge_port_array_realloc(ni_bridge_port_array_t *,
 static int			__ni_bridge_port_array_append(ni_bridge_port_array_t *,
 					ni_bridge_port_t *);
 
+static ni_bool_t
+ni_bridge_port_config_init(ni_bridge_port_config_t *conf)
+{
+	if (conf) {
+		/* apply "not set" defaults */
+		conf->priority = NI_BRIDGE_VALUE_NOT_SET;
+		conf->path_cost = NI_BRIDGE_VALUE_NOT_SET;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_bridge_port_config_t *
+ni_bridge_port_config_new(void)
+{
+	ni_bridge_port_config_t *conf;
+
+	conf = malloc(sizeof(*conf));
+	if (ni_bridge_port_config_init(conf))
+		return conf;
+
+	free(conf);
+	return NULL;
+}
+
+void
+ni_bridge_port_config_free(ni_bridge_port_config_t *conf)
+{
+	ni_bridge_port_config_init(conf);
+	free(conf);
+}
 
 static ni_bool_t
 ni_bridge_port_info_init(ni_bridge_port_info_t *info)
@@ -388,19 +419,39 @@ ni_bridge_ports_destroy(ni_bridge_t *bridge)
 #define NI_BRIDGE_PORT_MAX_COUNT	1024
 
 const char *
+ni_bridge_port_priority_validate(unsigned int priority)
+{
+	if (priority != NI_BRIDGE_VALUE_NOT_SET &&
+	    priority > NI_BRIDGE_PORT_PRIORITY_MAX)
+		return "bridge port priority is out of supported range (0-63)";
+
+	return NULL;
+}
+
+const char *
+ni_bridge_port_path_cost_validate(unsigned int path_cost)
+{
+	if (path_cost != NI_BRIDGE_VALUE_NOT_SET &&
+	    (path_cost < NI_BRIDGE_PORT_PATH_COST_MIN ||
+	     path_cost > NI_BRIDGE_PORT_PATH_COST_MAX))
+		return "bridge port path-cost is out of supported range (0-65535)";
+
+	return NULL;
+}
+
+const char *
 ni_bridge_port_validate(const ni_bridge_port_t *port)
 {
+	const char *err;
+
 	if (!port || !port->ifname)
 		return "uninitialized port configuration";
 
-	if (port->priority != NI_BRIDGE_VALUE_NOT_SET &&
-	    port->priority > NI_BRIDGE_PORT_PRIORITY_MAX)
-		return "bridge port priority is out of supported range (0-63)";
+	if ((err = ni_bridge_port_priority_validate(port->priority)))
+		return err;
 
-	if (port->path_cost != NI_BRIDGE_VALUE_NOT_SET &&
-	   (port->path_cost < NI_BRIDGE_PORT_PATH_COST_MIN ||
-	    port->path_cost > NI_BRIDGE_PORT_PATH_COST_MAX))
-		return "bridge port priority is out of supported range (0-65535)";
+	if ((err = ni_bridge_port_path_cost_validate(port->path_cost)))
+		return err;
 
 	return NULL;
 }

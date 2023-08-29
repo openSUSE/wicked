@@ -1151,6 +1151,11 @@ ni_netdev_port_config_init(ni_netdev_port_config_t *conf, ni_iftype_t type)
 				return FALSE;
 			break;
 
+		case NI_IFTYPE_BRIDGE:
+			if (!(conf->bridge = ni_bridge_port_config_new()))
+				return FALSE;
+			break;
+
 		case NI_IFTYPE_OVS_BRIDGE:
 			if (!(conf->ovsbr = ni_ovs_bridge_port_config_new()))
 				return FALSE;
@@ -1176,6 +1181,10 @@ ni_netdev_port_config_destroy(ni_netdev_port_config_t *conf)
 
 		case NI_IFTYPE_TEAM:
 			ni_team_port_config_free(conf->team);
+			break;
+
+		case NI_IFTYPE_BRIDGE:
+			ni_bridge_port_config_free(conf->bridge);
 			break;
 
 		case NI_IFTYPE_OVS_BRIDGE:
