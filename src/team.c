@@ -355,6 +355,40 @@ ni_team_port_config_destroy(ni_team_port_config_t *pc)
 }
 
 /*
+ * team port interface info properties
+ */
+static ni_bool_t
+ni_team_port_info_init(ni_team_port_info_t *info)
+{
+	if (info) {
+		memset(info, 0, sizeof(*info));
+		/* apply "not set" defaults */
+		info->runner.type = -1U;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_team_port_info_t *
+ni_team_port_info_new(void)
+{
+	ni_team_port_info_t *info;
+
+	info = malloc(sizeof(*info));
+	if (ni_team_port_info_init(info))
+		return info;
+
+	free(info);
+	return NULL;
+}
+
+void
+ni_team_port_info_free(ni_team_port_info_t *info)
+{
+	free(info);
+}
+
+/*
  * team device
  */
 ni_team_t *
