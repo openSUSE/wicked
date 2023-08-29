@@ -69,6 +69,7 @@
 #define NI_TEAMD_CALL_PORT_ADD			"PortAdd"
 #define NI_TEAMD_CALL_PORT_REMOVE		"PortRemove"
 #define NI_TEAMD_CALL_PORT_CONFIG_UPDATE	"PortConfigUpdate"
+#define NI_TEAMD_CALL_PORT_CONFIG_DUMP		"PortConfigDump"
 
 
 typedef struct ni_teamd_client_ops {
@@ -80,6 +81,7 @@ typedef struct ni_teamd_client_ops {
 	int	(*ctl_port_add)(ni_teamd_client_t *, const char *);
 	int	(*ctl_port_remove)(ni_teamd_client_t *, const char *);
 	int	(*ctl_port_config_update)(ni_teamd_client_t *, const char *, const char *);
+	int	(*ctl_port_config_dump)(ni_teamd_client_t *, const char *, char **);
 } ni_teamd_client_ops_t;
 
 struct ni_teamd_client {
@@ -329,7 +331,7 @@ ni_teamd_dbus_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_na
 	int rv = 0;
 
 	if (ni_string_empty(port_name))
-		return FALSE;
+		return -NI_ERROR_INVALID_ARGS;
 
 	dbus_error_init(&error);
 	call = ni_dbus_object_call_new(tdc->proxy, NI_TEAMD_CALL_PORT_CONFIG_UPDATE, 0);
@@ -347,6 +349,27 @@ ni_teamd_dbus_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_na
 				ni_dbus_object_get_path(tdc->proxy), port_name, ni_strerror(rv));
 	}
 
+	return rv;
+}
+
+static int
+ni_teamd_dbus_ctl_port_config_dump(ni_teamd_client_t *tdc, const char *port_name, char **result)
+{
+	int rv = 0;
+
+	if (ni_string_empty(port_name))
+		return -NI_ERROR_INVALID_ARGS;
+
+	ni_string_free(result);
+	rv = ni_dbus_object_call_simple(tdc->proxy,
+		NI_TEAMD_INTERFACE, NI_TEAMD_CALL_PORT_CONFIG_DUMP,
+		DBUS_TYPE_STRING, &port_name,
+		DBUS_TYPE_STRING, result);
+
+	if (rv < 0) {
+		ni_debug_application("Call to %s."NI_TEAMD_CALL_PORT_CONFIG_DUMP"(%s) failed: %s",
+				ni_dbus_object_get_path(tdc->proxy), port_name, ni_strerror(rv));
+	}
 	return rv;
 }
 
@@ -408,7 +431,7 @@ ni_teamd_unix_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t actual, char **r
 	int rv;
 
 	if (!result)
-		return -1;
+		return -NI_ERROR_INVALID_ARGS;
 
 	ni_buffer_init_dynamic(&buf, 1024);
 	if (!(pi = ni_process_new(tdc->cmd)))
@@ -421,7 +444,7 @@ ni_teamd_unix_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t actual, char **r
 
 	rv = ni_process_run_and_capture_output(pi, &buf);
 	ni_process_free(pi);
-	if (rv) {
+	if (rv != NI_PROCESS_SUCCESS) {
 		ni_error("%s: unable to dump team config", tdc->instance);
 		goto failure;
 	}
@@ -456,7 +479,7 @@ ni_teamd_unix_ctl_port_add(ni_teamd_client_t *tdc, const char *port_name)
 
 	rv = ni_process_run_and_wait(pi);
 	ni_process_free(pi);
-	if (rv) {
+	if (rv != NI_PROCESS_SUCCESS) {
 		ni_error("%s: unable to add team port %s", tdc->instance, port_name);
 		return -1;
 	}
@@ -481,7 +504,7 @@ ni_teamd_unix_ctl_port_remove(ni_teamd_client_t *tdc, const char *port_name)
 
 	rv = ni_process_run_and_wait(pi);
 	ni_process_free(pi);
-	if (rv) {
+	if (rv != NI_PROCESS_SUCCESS) {
 		ni_error("%s: unable to remove team port %s", tdc->instance, port_name);
 		return -1;
 	}
@@ -508,11 +531,49 @@ ni_teamd_unix_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_na
 
 	rv = ni_process_run_and_wait(pi);
 	ni_process_free(pi);
-	if (rv) {
+	if (rv != NI_PROCESS_SUCCESS) {
 		ni_error("%s: unable to update team port %s config", tdc->instance, port_name);
 		return -1;
 	}
 	return 0;
+}
+
+int
+ni_teamd_unix_ctl_port_config_dump(ni_teamd_client_t *tdc, const char *port_name, char **result)
+{
+	ni_process_t *pi;
+	ni_buffer_t buf;
+	int rv;
+
+	if (!tdc || ni_string_empty(port_name) || !result)
+		return -1;
+
+	ni_buffer_init_dynamic(&buf, 1024);
+	if (!(pi = ni_process_new(tdc->cmd)))
+		goto failure;
+
+	ni_string_array_append(&pi->argv, "port");
+	ni_string_array_append(&pi->argv, "config");
+	ni_string_array_append(&pi->argv, "dump");
+	ni_string_array_append(&pi->argv, port_name);
+
+	rv = ni_process_run_and_capture_output(pi, &buf);
+	ni_process_free(pi);
+	if (rv != NI_PROCESS_SUCCESS) {
+		ni_error("%s: unable to update team port %s config", tdc->instance, port_name);
+		goto failure;
+	}
+
+	ni_buffer_put(&buf, "\0", 1);
+	ni_string_free(result);
+	*result = (char *)buf.base;
+	buf.base = NULL;
+	ni_buffer_destroy(&buf);
+	return 0;
+
+failure:
+	ni_buffer_destroy(&buf);
+	return -1;
 }
 
 /*
@@ -527,6 +588,7 @@ static const ni_teamd_client_ops_t	teamd_dbus_ops = {
 	.ctl_port_add		= ni_teamd_dbus_ctl_port_add,
 	.ctl_port_remove	= ni_teamd_dbus_ctl_port_remove,
 	.ctl_port_config_update	= ni_teamd_dbus_ctl_port_config_update,
+	.ctl_port_config_dump	= ni_teamd_dbus_ctl_port_config_dump,
 };
 
 static const ni_teamd_client_ops_t	teamd_unix_ops = {
@@ -535,6 +597,7 @@ static const ni_teamd_client_ops_t	teamd_unix_ops = {
 	.ctl_port_add		= ni_teamd_unix_ctl_port_add,
 	.ctl_port_remove	= ni_teamd_unix_ctl_port_remove,
 	.ctl_port_config_update	= ni_teamd_unix_ctl_port_config_update,
+	.ctl_port_config_dump	= ni_teamd_unix_ctl_port_config_dump,
 };
 
 ni_bool_t
@@ -712,6 +775,14 @@ ni_teamd_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, c
 	if (!tdc || !tdc->ops.ctl_port_config_update)
 		return -1;
 	return tdc->ops.ctl_port_config_update(tdc, port_name, port_conf);
+}
+
+int
+ni_teamd_ctl_port_config_dump(ni_teamd_client_t *tdc, const char *port_name, char **result)
+{
+	if (!tdc || !tdc->ops.ctl_port_config_dump)
+		return -1;
+	return tdc->ops.ctl_port_config_dump(tdc, port_name, result);
 }
 
 static ni_json_t *

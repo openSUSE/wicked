@@ -41,6 +41,7 @@ extern int				ni_teamd_ctl_state_set_item(ni_teamd_client_t *, const char *,
 extern int				ni_teamd_ctl_port_add(ni_teamd_client_t *, const char *);
 extern int				ni_teamd_ctl_port_remove(ni_teamd_client_t *, const char *);
 extern int				ni_teamd_ctl_port_config_update(ni_teamd_client_t *, const char *, const char *);
+extern int				ni_teamd_ctl_port_config_dump(ni_teamd_client_t *, const char *, char **);
 
 extern int				ni_teamd_port_enslave(const ni_netdev_t *, const ni_netdev_t *, const ni_team_port_config_t *);
 extern int				ni_teamd_port_unenslave(const ni_netdev_t *, const ni_netdev_t *);
