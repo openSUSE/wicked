@@ -1552,6 +1552,20 @@ ni_string_set(char **pp, const char *value, size_t len)
 	return TRUE;
 }
 
+ni_bool_t
+ni_string_move(char **dst, char **src)
+{
+	if (!src || !dst)
+		return FALSE;
+
+	if (*dst)
+		free(*dst);
+	*dst = *src;
+	*src = NULL;
+
+	return TRUE;
+}
+
 const char *
 ni_string_printf(char **str, const char *fmt, ...)
 {
