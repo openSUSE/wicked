@@ -1728,6 +1728,11 @@ ni_objectmodel_netif_get_port(const ni_dbus_object_t *object,
 			return FALSE;
 		return ni_objectmodel_get_bridge_port_info(dev->link.port.bridge, dict, error);
 
+	case NI_IFTYPE_OVS_BRIDGE:
+		if (!(dict = ni_objectmodel_netif_port_union_init(result, dev->link.port.type)))
+			return FALSE;
+		return ni_objectmodel_get_ovs_bridge_port_info(dev->link.port.ovsbr, dict, error);
+
 	default:
 		return ni_dbus_error_property_not_present(error, object->path, property->name);
 	}
@@ -1773,6 +1778,9 @@ ni_objectmodel_netif_set_port(ni_dbus_object_t *object,
 
 	case NI_IFTYPE_BRIDGE:
 		return ni_objectmodel_set_bridge_port_info(dev->link.port.bridge, dict, error);
+
+	case NI_IFTYPE_OVS_BRIDGE:
+		return ni_objectmodel_set_ovs_bridge_port_info(dev->link.port.ovsbr, dict, error);
 
 	default:
 		return FALSE;
