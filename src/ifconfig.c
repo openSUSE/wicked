@@ -219,12 +219,12 @@ ni_system_interface_enslave(ni_netconfig_t *nc, ni_netdev_t *master, ni_netdev_t
 		if (!ni_config_teamd_enabled())
 			return -1;
 
-		if (req->port && master->link.type != req->port->type) {
+		if (master->link.type != req->port.type) {
 			ni_error("%s: port configuration type mismatch", dev->name);
 			return -1;
 		}
-		ret = ni_teamd_port_enslave(master, dev, req->port ? &req->port->team : NULL);
 
+		ret = ni_teamd_port_enslave(master, dev, req->port.team);
 		if (ret == 0) {
 			ni_netdev_ref_set(&dev->link.masterdev,
 					master->name, master->link.ifindex);
@@ -246,16 +246,16 @@ ni_system_interface_enslave(ni_netconfig_t *nc, ni_netdev_t *master, ni_netdev_t
 		}
 		break;
 	case NI_IFTYPE_OVS_SYSTEM:
-		if (!req->port || req->port->type != NI_IFTYPE_OVS_BRIDGE) {
+		if (req->port.type != NI_IFTYPE_OVS_BRIDGE) {
 			ni_error("%s: port configuration type mismatch", dev->name);
 			return -1;
 		}
-		if (ni_string_empty(req->port->ovsbr.bridge.name)) {
+		if (!req->port.ovsbr || ni_string_empty(req->port.ovsbr->bridge.name)) {
 			ni_error("%s: missing ovs-bridge name in port config", dev->name);
 			return -1;
 		}
 
-		ret = ni_ovs_vsctl_bridge_port_add(dev->name, &req->port->ovsbr, TRUE);
+		ret = ni_ovs_vsctl_bridge_port_add(dev->name, req->port.ovsbr, TRUE);
 		if (ret == 0)  {
 			ni_netdev_ref_set(&dev->link.masterdev,
 					master->name, master->link.ifindex);
