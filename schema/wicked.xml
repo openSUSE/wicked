@@ -15,7 +15,7 @@
 <include name="macvlan.xml"/>
 <include name="dummy.xml"/>
 <include name="team.xml"/>
-<include name="bonding.xml"/>
+<include name="bond.xml"/>
 <include name="bridge.xml"/>
 <include name="infiniband.xml"/>
 <include name="ovs-bridge.xml"/>

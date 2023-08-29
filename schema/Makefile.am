@@ -8,7 +8,7 @@ wicked_schema_DATA		= \
 
 wicked_schema_files		= \
 	addrconf.xml		\
-	bonding.xml		\
+	bond.xml		\
 	bridge.xml		\
 	ethtool.xml		\
 	ethernet.xml		\
