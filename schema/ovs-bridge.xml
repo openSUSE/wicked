@@ -18,13 +18,6 @@
 
   </define>
 
-  <define name="port-device" class="dict">
-    <device type="string">
-      <meta:netif-reference supplemental="true" shared="false"/>
-      <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
-    </device>
-  </define>
-
   <define name="bridge-config" class="dict">
     <vlan class="dict">
       <parent type="string">
@@ -34,7 +27,6 @@
       </parent>
       <tag type="uint16" />
     </vlan>
-    <ports class="array" element-type="ovs-bridge:port-device" element-name="port" />
   </define>
 
   <define name="configuration" class="dict" extends="ovs-bridge:bridge-config"/>

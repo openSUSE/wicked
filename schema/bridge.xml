@@ -44,18 +44,9 @@
     <gc-interval type="double"   description="Garbage collection interval for the bridge" />
   </define>
 
-  <!-- This are bridge configuration properties inclusive ports -->
+  <!-- This are bridge configuration properties -->
   <define name="configuration" class="dict" extends="bridge:bridge-config"
           description="Bridge interface (changeDevice) configuration">
-
-    <!-- interim port definition until cleanup is complete -->
-    <define name="port" class="dict" extends="port-config">
-      <device type="string">
-        <meta:netif-reference shared="false"/>
-        <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
-      </device>
-    </define>
-    <ports class="array" element-type="port" element-name="port" />
 
     <!-- additional configurables supported by a bridge -->
 

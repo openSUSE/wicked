@@ -28,26 +28,6 @@
  <!-- This is the device-info returned in interface reports -->
  <define name="device-info" class="dict">
    <mode type="builtin-bonding-mode"/>
-   <!-- At least one slave element has to occur.
-        Bonding requires at least one available slave at start time,
-        other slaves can be added later (hotplugged).
-
-        At most one of them may be marked as primary or active in
-        active-backup, balance-tlb or balance-alb modes. This forces
-        the use as primary or active and overwries kernels choice.
-     -->
-   <define name="slave" class="dict">
-     <device type="string">
-       <meta:netif-reference shared="false" />
-       <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
-     </device>
-
-     <active type="boolean"/>
-     <primary type="boolean"/>
-
-   </define>
-   <slaves class="array" element-type="slave" constraint="required" minlen="1" />
-
    <!-- Link monitoring options.
         There must be exactly one of either arpmon or miimon present,
         which selects either mii or arp monitoring. Lack of both is an
