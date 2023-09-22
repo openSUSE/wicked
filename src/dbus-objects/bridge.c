@@ -29,10 +29,6 @@
 #include "debug.h"
 
 static ni_netdev_t *	__ni_objectmodel_bridge_newlink(ni_netdev_t *, const char *, DBusError *);
-static dbus_bool_t	__ni_objectmodel_bridge_port_to_dict(const ni_bridge_port_t *port,
-				ni_dbus_variant_t *dict, const ni_dbus_object_t *object);
-static dbus_bool_t	__ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port,
-				const ni_dbus_variant_t *dict, DBusError *error);
 
 /*
  * Return an interface handle containing all bridge-specific information provided
@@ -233,18 +229,6 @@ __ni_objectmodel_bridge_handle(const ni_dbus_object_t *object, ni_bool_t write_a
 	return bridge;
 }
 
-static ni_bridge_t *
-__ni_objectmodel_bridge_write_handle(const ni_dbus_object_t *object, DBusError *error)
-{
-	return __ni_objectmodel_bridge_handle(object, TRUE, error);
-}
-
-static const ni_bridge_t *
-__ni_objectmodel_bridge_read_handle(const ni_dbus_object_t *object, DBusError *error)
-{
-	return __ni_objectmodel_bridge_handle(object, FALSE, error);
-}
-
 void *
 ni_objectmodel_get_bridge(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
@@ -343,117 +327,8 @@ ni_objectmodel_set_bridge_port_info(ni_bridge_port_info_t *info,
 }
 
 /*
- * Property ports
+ * Additional, not bridge-specific MAC/HW-Address property
  */
-static dbus_bool_t
-__ni_objectmodel_bridge_get_ports(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result, DBusError *error)
-{
-	const ni_bridge_t *bridge;
-	unsigned int i;
-
-	if (!(bridge = __ni_objectmodel_bridge_read_handle(object, error)))
-		return FALSE;
-
-	if (!bridge->ports.count)
-		return FALSE;
-
-	ni_dbus_dict_array_init(result);
-	for (i = 0; i < bridge->ports.count; ++i) {
-		const ni_bridge_port_t *port = bridge->ports.data[i];
-		ni_dbus_variant_t *dict;
-
-		/* Append a new element to the array */
-		if (!(dict = ni_dbus_dict_array_add(result)))
-			return FALSE;
-		ni_dbus_variant_init_dict(dict);
-
-		if (!__ni_objectmodel_bridge_port_to_dict(port, dict, object))
-			return FALSE;
-	}
-	return TRUE;
-}
-
-static dbus_bool_t
-__ni_objectmodel_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument, DBusError *error)
-{
-	ni_dbus_variant_t *port_dict;
-	ni_bridge_t *bridge;
-	unsigned int i;
-
-	if (!(bridge = __ni_objectmodel_bridge_write_handle(object, error)))
-		return FALSE;
-
-	if (!ni_dbus_variant_is_dict_array(argument))
-		return FALSE;
-
-	port_dict = argument->variant_array_value;
-	for (i = 0; i < argument->array.len; ++i, ++port_dict) {
-		ni_bridge_port_t *port;
-
-		port = ni_bridge_port_new(NULL, NULL, 0);
-		if (!__ni_objectmodel_bridge_port_from_dict(port, port_dict, error)) {
-			ni_bridge_port_free(port);
-			return FALSE;
-		}
-
-		if (ni_bridge_add_port(bridge, port) < 0) {
-			ni_bridge_port_free(port); /* duplicate port */
-		}
-	}
-
-	return TRUE;
-}
-
-/*
- * Helper functions to represent ports as a dbus dict
- */
-static dbus_bool_t
-__ni_objectmodel_bridge_port_to_dict(const ni_bridge_port_t *port, ni_dbus_variant_t *dict,
-				const ni_dbus_object_t *object)
-{
-	/*
-	 * Hmm... Resolving the complete tree and ports to devices
-	 * while serializing at client side does not work properly,
-	 * e.g. when the port does not exists yet...
-	 *
-	 * FIXME: should we resolve the object path here?
-	 */
-	if (ni_string_empty(port->ifname))
-		return FALSE;
-
-	ni_dbus_dict_add_string(dict, "device", port->ifname);
-	ni_dbus_dict_add_uint32(dict, "priority", port->priority);
-	ni_dbus_dict_add_uint32(dict, "path-cost", port->path_cost);
-
-	return TRUE;
-}
-
-static dbus_bool_t
-__ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_variant_t *dict,
-				DBusError *error)
-{
-	const char *string;
-	uint32_t value;
-
-	if (dict->array.len == 0)
-		return TRUE;
-
-	/* FIXME: should expect object path here and map that to an ifindex */
-	if (ni_dbus_dict_get_string(dict, "device", &string) && !ni_string_empty(string))
-		ni_string_dup(&port->ifname, string);
-	else
-		return FALSE;
-
-	if (ni_dbus_dict_get_uint32(dict, "priority", &value))
-		port->priority = value;
-	if (ni_dbus_dict_get_uint32(dict, "path-cost", &value))
-		port->path_cost = value;
-
-	return TRUE;
-}
-
 static dbus_bool_t
 ni_objectmodel_bridge_get_address(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
@@ -504,10 +379,6 @@ static const ni_dbus_property_t	ni_objectmodel_bridge_property_table[] = {
 	BRIDGE_TIME_PROPERTY(aging-time, ageing_time, RO),
 	BRIDGE_TIME_PROPERTY(hello-time, hello_time, RO),
 	BRIDGE_TIME_PROPERTY(max-age, max_age, RO),
-
-	/* ports is an array of dicts */
-	WICKED_BRIDGE_PROPERTY_SIGNATURE(DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,
-			ports, RO),
 
 	BRIDGE_HWADDR_PROPERTY(address, RO),
 
