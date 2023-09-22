@@ -81,6 +81,7 @@
    <ad-actor-sys-prio type="uint16"/>
    <ad-actor-system   type="ethernet-address"/>
    <fail-over-mac type="builtin-bonding-fail-over-mac"/>
+   <primary type="string"/>
    <primary-reselect type="builtin-bonding-primary-reselect"/>
 
    <all-slaves-active type="boolean" description="Enable to deliver duplicate frames received on inactive slaves when enabled instead of dropping them." />
