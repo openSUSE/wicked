@@ -1,7 +1,7 @@
 /*
- *	Team device support
+ *	Team network interface support
  *
- *	Copyright (C) 2015 SUSE Linux GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2015-2023 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,14 +13,8 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- *	Boston, MA 02110-1301 USA.
- *
- *	Authors:
- *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
- *		Marius Tomaschewski <mt@suse.de>
+ *	You should have received a copy of the GNU General Public License
+ *      along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #ifndef NI_WICKED_TEAM_H
 #define NI_WICKED_TEAM_H
@@ -247,27 +241,12 @@ struct ni_team_port_info {
 };
 
 /*
- * team port and array
- */
-typedef struct ni_team_port {
-	ni_netdev_ref_t				device;
-	ni_team_port_config_t			config;
-} ni_team_port_t;
-
-typedef struct ni_team_port_array {
-	unsigned int				count;
-	ni_team_port_t **			data;
-} ni_team_port_array_t;
-
-/*
  * team device
  */
 struct ni_team {
 	ni_team_runner_t			runner;
 	ni_team_link_watch_array_t		link_watch;
-	ni_team_port_array_t			ports;
 };
-
 
 extern ni_team_t *				ni_team_new();
 extern void					ni_team_free(ni_team_t *);
@@ -297,13 +276,6 @@ extern ni_team_link_watch_t *			ni_team_link_watch_new(ni_team_link_watch_type_t
 extern void					ni_team_link_watch_free(ni_team_link_watch_t *);
 extern						ni_declare_ptr_array_append(ni_team_link_watch);
 extern						ni_declare_ptr_array_delete_at(ni_team_link_watch);
-
-extern ni_team_port_t *				ni_team_port_new(void);
-extern void					ni_team_port_free(ni_team_port_t *);
-extern						ni_declare_ptr_array_destroy(ni_team_port);
-extern						ni_declare_ptr_array_append(ni_team_port);
-extern						ni_declare_ptr_array_delete_at(ni_team_port);
-extern ni_team_port_t *				ni_team_port_array_find_by_name(ni_team_port_array_t *, const char *);
 
 extern ni_team_port_config_t *			ni_team_port_config_new(void);
 extern ni_bool_t				ni_team_port_config_init(ni_team_port_config_t *);
