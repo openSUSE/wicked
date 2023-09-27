@@ -72,7 +72,7 @@ static int
 __ni_init_gcrypt(void)
 {
 /*
- * gcry_check_version checks for minmum version
+ * gcry_check_version checks for minimum version
  * we want consider sufficient and returns NULL
  * on failures.
  *
@@ -580,13 +580,15 @@ ni_netconfig_device_append(ni_netconfig_t *nc, ni_netdev_t *dev)
 }
 
 static inline void
-ni_netconfig_device_unbind_slave_index(ni_netconfig_t *nc, unsigned int master)
+ni_netconfig_device_unbind_ports(ni_netconfig_t *nc, unsigned int master)
 {
 	ni_netdev_t *dev;
 
 	for (dev = nc->interfaces; dev; dev = dev->next) {
-		if (dev->link.masterdev.index == master)
+		if (dev->link.masterdev.index == master) {
 			ni_netdev_ref_destroy(&dev->link.masterdev);
+			ni_netdev_port_info_destroy(&dev->link.port);
+		}
 	}
 }
 
@@ -598,7 +600,7 @@ ni_netconfig_device_remove(ni_netconfig_t *nc, ni_netdev_t *dev)
 	for (pos = &nc->interfaces; (cur = *pos) != NULL; pos = &cur->next) {
 		if (cur == dev) {
 			*pos = cur->next;
-			ni_netconfig_device_unbind_slave_index(nc, cur->link.ifindex);
+			ni_netconfig_device_unbind_ports(nc, cur->link.ifindex);
 			ni_netdev_put(cur);
 			return;
 		}
@@ -921,6 +923,41 @@ ni_netdev_make_name(ni_netconfig_t *nc, const char *stem, unsigned int first)
 	}
 
 	return NULL;
+}
+
+/*
+ * Get port count and optionally an array of port netdev
+ * references for the given netdev (index).
+ */
+static unsigned int
+ni_netdev_get_ports_by_index(unsigned int index, ni_netdev_ref_array_t *ports,
+		ni_netconfig_t *nc)
+{
+	unsigned int count = ports ? ports->count : 0;
+	ni_netdev_t *dev;
+
+	if (!index || (!nc && !(nc = ni_global_state_handle(0))))
+		return count;
+
+	for (dev = nc->interfaces; dev; dev = dev->next) {
+		if (dev->link.masterdev.index != index)
+			continue;
+
+		if (ports)
+			ni_netdev_ref_array_append(ports, dev->name,
+					dev->link.ifindex);
+		else
+			count++;
+	}
+
+	return ports ? ports->count - count : count;
+}
+
+extern unsigned int
+ni_netdev_get_ports(const ni_netdev_t *dev, ni_netdev_ref_array_t *ports,
+		ni_netconfig_t *nc)
+{
+	return dev ? ni_netdev_get_ports_by_index(dev->link.ifindex, ports, nc) : 0;
 }
 
 /*

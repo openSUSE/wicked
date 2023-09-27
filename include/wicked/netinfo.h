@@ -345,4 +345,7 @@ extern void			ni_netdev_port_info_destroy(ni_netdev_port_info_t *);
 extern ni_bool_t		ni_netdev_port_config_init(ni_netdev_port_config_t *, ni_iftype_t);
 extern void			ni_netdev_port_config_destroy(ni_netdev_port_config_t *);
 
+extern unsigned int		ni_netdev_get_ports(const ni_netdev_t *, ni_netdev_ref_array_t *,
+						ni_netconfig_t *);
+
 #endif /* NI_WICKED_NETINFO_H */
