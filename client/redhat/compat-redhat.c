@@ -318,7 +318,6 @@ try_bonding_slave(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_compat_netd
 	ni_netdev_t *dev = compat->dev;
 	ni_compat_netdev_t *master;
 	ni_bool_t is_slave = 0;
-	ni_bonding_t *bonding;
 	const char *master_name;
 
 	if (!ni_sysconfig_get_boolean(sc, "SLAVE", &is_slave) || !is_slave)
@@ -330,18 +329,24 @@ try_bonding_slave(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_compat_netd
 	}
 
 	master = ni_compat_netdev_by_name(known_devices, master_name);
-	if (master == NULL) {
+	if (master == NULL)
 		master = ni_compat_netdev_new(master_name);
+	if (master->dev->link.type == NI_IFTYPE_UNKNOWN) {
 		master->dev->link.type = NI_IFTYPE_BOND;
+		ni_netdev_get_bonding(master->dev);
 	} else if (master->dev->link.type != NI_IFTYPE_BOND) {
 		ni_error("%s: specifies MASTER=%s which is not a bonding device", dev->name, master_name);
 		return FALSE;
 	}
 
-	bonding = ni_netdev_get_bonding(master->dev);
-	if (ni_bonding_has_slave(bonding, dev->name))
+	if (ni_string_empty(dev->link.masterdev.name))
+		return ni_netdev_ref_set_ifname(&dev->link.masterdev, master_name);
+	if (ni_string_eq(dev->link.masterdev.name, master_name))
 		return TRUE;
-	return ni_bonding_add_slave(bonding, dev->name) != NULL;
+
+	ni_error("%s: specifies MASTER=%s which is already member of %s",
+			dev->name, master_name, dev->link.masterdev.name);
+	return FALSE;
 }
 
 
