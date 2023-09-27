@@ -1,11 +1,25 @@
 /*
- * bridge definitions for netinfo
+ *	bridge definitions for netinfo
  *
- * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2012-2023 SUSE LLC
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef NI_WICKED_BRIDGE_H
+#define NI_WICKED_BRIDGE_H
 
-#ifndef __WICKED_BRIDGE_H__
-#define __WICKED_BRIDGE_H__
 
 #define NI_BRIDGE_VALUE_NOT_SET			-1U
 
@@ -43,19 +57,6 @@ struct ni_bridge_port_info {
 	unsigned long		forward_delay_timer;
 };
 
-struct ni_bridge_port {
-	char *			ifname;
-	unsigned int		ifindex;
-
-	unsigned int		priority;
-	unsigned int		path_cost;
-};
-
-typedef struct ni_bridge_port_array {
-	unsigned int		count;
-	ni_bridge_port_t **	data;
-} ni_bridge_port_array_t;
-
 typedef enum ni_bridge_stp {
 	NI_BRIDGE_NO_STP = 0,			/* no spanning tree    */
 	NI_BRIDGE_KERN_STP,			/* STP in the kernel   */
@@ -88,31 +89,17 @@ struct ni_bridge {
 	double			max_age;
 
 	ni_bridge_status_t	status;
-	ni_bridge_port_array_t	ports;
 };
 
-extern ni_bridge_t *	ni_bridge_new(void);
-extern void		ni_bridge_free(ni_bridge_t *);
-extern void		ni_bridge_ports_destroy(ni_bridge_t *);
-extern void		ni_bridge_status_destroy(ni_bridge_status_t *);
-extern int		ni_bridge_add_port(ni_bridge_t *, ni_bridge_port_t *);
-extern int		ni_bridge_del_port(ni_bridge_t *, unsigned int);
-extern int		ni_bridge_del_port_ifname(ni_bridge_t *, const char *);
-extern int		ni_bridge_del_port_ifindex(ni_bridge_t *, unsigned int);
-extern void		ni_bridge_get_port_names(const ni_bridge_t *, ni_string_array_t *);
+extern ni_bridge_t *			ni_bridge_new(void);
+extern void				ni_bridge_free(ni_bridge_t *);
+extern void				ni_bridge_status_destroy(ni_bridge_status_t *);
 
-extern ni_bridge_port_t *ni_bridge_port_new(ni_bridge_t *br, const char *ifname, unsigned int ifindex);
-extern ni_bridge_port_t *ni_bridge_port_by_index(const ni_bridge_t *br, unsigned int ifindex);
-extern ni_bridge_port_t *ni_bridge_port_by_name(const ni_bridge_t *br, const char *ifname);
-extern ni_bridge_port_t *ni_bridge_port_clone(const ni_bridge_port_t *port);
-extern void		ni_bridge_port_free(ni_bridge_port_t *port);
+extern unsigned int			ni_bridge_waittime_from_xml(const xml_node_t *brnode);
 
 extern const char *			ni_bridge_port_priority_validate(unsigned int);
 extern const char *			ni_bridge_port_path_cost_validate(unsigned int);
-extern const char *			ni_bridge_port_validate(const ni_bridge_port_t *);
 extern const char *			ni_bridge_validate(const ni_bridge_t *);
-
-extern unsigned int			ni_bridge_waittime_from_xml(const xml_node_t *brnode);
 
 extern ni_bridge_port_config_t *	ni_bridge_port_config_new(void);
 extern void				ni_bridge_port_config_free(ni_bridge_port_config_t *);
@@ -122,4 +109,4 @@ extern void				ni_bridge_port_info_free(ni_bridge_port_info_t *);
 
 extern const char *			ni_bridge_port_state_name(unsigned int);
 
-#endif /* __WICKED_BRIDGE_H__ */
+#endif /* NI_WICKED_BRIDGE_H */

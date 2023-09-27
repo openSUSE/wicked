@@ -517,14 +517,14 @@ ni_sysfs_bridge_get_port_names(const char *ifname, ni_string_array_t *names)
 }
 
 void
-ni_sysfs_bridge_port_get_config(const char *ifname, ni_bridge_port_t *port)
+ni_sysfs_bridge_port_get_config(const char *ifname, ni_bridge_port_config_t *port)
 {
 	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/priority", &port->priority);
 	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/path_cost", &port->path_cost);
 }
 
 int
-ni_sysfs_bridge_port_update_config(const char *ifname, const ni_bridge_port_t *port)
+ni_sysfs_bridge_port_update_config(const char *ifname, const ni_bridge_port_config_t *port)
 {
 	int rv = 0;
 

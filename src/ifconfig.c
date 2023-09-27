@@ -334,10 +334,6 @@ ni_system_interface_unenslave(ni_netconfig_t *nc, ni_netdev_t *dev)
 		case NI_IFTYPE_BRIDGE:
 			if (__ni_rtnl_link_unenslave(dev) != NLE_SUCCESS)
 				return -1;
-
-			if (dev->bridge) {
-				ni_bridge_del_port_ifindex(dev->bridge, dev->link.ifindex);
-			}
 			break;
 
 		default:
@@ -1446,13 +1442,8 @@ ni_system_bridge_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_bridge_t *
 int
 ni_system_bridge_shutdown(ni_netdev_t *dev)
 {
-	ni_bridge_t *bridge;
-
-	if (!dev || !(bridge = dev->bridge))
+	if (!dev || !dev->bridge)
 		return -1;
-
-	/* port unenslave themself on linkDown() */
-	ni_bridge_ports_destroy(bridge);
 
 	return 0;
 }
@@ -1467,122 +1458,6 @@ ni_system_bridge_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
 		ni_error("could not destroy bridge interface %s", dev->name);
 		return -1;
 	}
-	return 0;
-}
-
-/*
- * Add a port to a bridge interface
- */
-int
-ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, const ni_bridge_port_t *port)
-{
-	ni_bridge_t *bridge = ni_netdev_get_bridge(brdev);
-	ni_netdev_t *pif = NULL;
-	ni_bridge_port_t *new_port;
-	int rv;
-
-	if (port->ifindex)
-		pif = ni_netdev_by_index(nc, port->ifindex);
-	else if (port->ifname)
-		pif = ni_netdev_by_name(nc, port->ifname);
-
-	if (pif == NULL) {
-		ni_error("%s: cannot add port - interface not known",
-			brdev->name);
-		return -NI_ERROR_DEVICE_NOT_KNOWN;
-	}
-	if (!ni_netdev_device_is_ready(pif)) {
-		ni_error("%s: cannot add port %s - interface is not ready",
-			brdev->name, pif->name);
-		return -NI_ERROR_DEVICE_NOT_KNOWN;
-	}
-	if (pif->link.ifindex == 0) {
-		ni_error("%s: cannot add port - %s has no ifindex?!",
-			brdev->name, pif->name);
-		return -NI_ERROR_DEVICE_NOT_KNOWN;
-	}
-
-	/* This should be a more elaborate check - neither device can be an ancestor of
-	 * the other, or we create a loop.
-	 */
-	if (pif == brdev) {
-		ni_error("%s: cannot add interface as its own bridge port",
-			brdev->name);
-		return -NI_ERROR_DEVICE_BAD_HIERARCHY;
-	}
-
-	if (pif->link.masterdev.index &&
-			pif->link.masterdev.index != brdev->link.ifindex) {
-		ni_error("%s: interface %s already has a master",
-			brdev->name, pif->name);
-		return -NI_ERROR_DEVICE_BAD_HIERARCHY;
-	}
-
-	if (pif->link.masterdev.index &&
-			pif->link.masterdev.index == brdev->link.ifindex) {
-		/* already a port of this bridge -- make sure the device is up */
-		if (!ni_netdev_device_is_up(pif) && __ni_rtnl_link_up(pif, NULL) < 0) {
-			ni_warn("%s: Cannot set up link on bridge port %s",
-				brdev->name, pif->name);
-		}
-		return 0; /* part of the bridge and hopefully up now */
-	}
-
-	if (ni_rtnl_link_port_to_bridge(pif, brdev->name, brdev->link.ifindex) == 0) {
-		ni_netdev_ref_set(&pif->link.masterdev, brdev->name, brdev->link.ifindex);
-		return 0;
-	}
-
-	if (!ni_netdev_device_is_up(pif) && __ni_rtnl_link_up(pif, NULL) < 0) {
-		ni_warn("%s: Cannot set up link on bridge port %s",
-			brdev->name, pif->name);
-	}
-
-	if ((rv = __ni_brioctl_add_port(brdev->name, pif->link.ifindex)) < 0) {
-		ni_error("%s: cannot add port %s: %s", brdev->name, pif->name,
-				ni_strerror(rv));
-		return rv;
-	}
-
-	/* Now configure the newly added port */
-	if ((rv = ni_sysfs_bridge_port_update_config(pif->name, port)) < 0) {
-		ni_error("%s: failed to configure port %s: %s",
-			brdev->name, pif->name, ni_strerror(rv));
-		return rv;
-	}
-
-	/* when this fails, next event will update/add it... */
-	new_port = ni_bridge_port_clone(port);
-	new_port->ifindex = pif->link.ifindex;
-	if (!ni_string_eq(new_port->ifname, pif->name))
-		ni_string_dup(&new_port->ifname, pif->name);
-
-	if (!ni_bridge_add_port(bridge, new_port))
-		ni_bridge_port_free(new_port);
-	return 0;
-}
-
-/*
- * Remove a port from a bridge interface
- * ni_system_bridge_remove_port
- */
-int
-ni_system_bridge_remove_port(ni_netdev_t *dev, unsigned int port_ifindex)
-{
-	ni_bridge_t *bridge = ni_netdev_get_bridge(dev);
-	int rv;
-
-	if (port_ifindex == 0) {
-		ni_error("%s: cannot remove port: bad ifindex", dev->name);
-		return -NI_ERROR_DEVICE_NOT_KNOWN;
-	}
-
-	if ((rv = __ni_brioctl_del_port(dev->name, port_ifindex)) < 0) {
-		ni_error("%s: cannot remove port: %s", dev->name, ni_strerror(rv));
-		return rv;
-	}
-
-	ni_bridge_del_port_ifindex(bridge, port_ifindex);
 	return 0;
 }
 
