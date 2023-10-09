@@ -199,6 +199,7 @@ ni_extension_free(ni_extension_t *ex)
 	if (ex) {
 		ni_string_free(&ex->name);
 		ni_string_free(&ex->interface);
+		ni_string_free(&ex->format);
 
 		ni_script_action_list_destroy(&ex->actions);
 		ni_c_binding_list_destroy(&ex->c_bindings);
