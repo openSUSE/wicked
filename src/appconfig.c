@@ -2025,6 +2025,7 @@ ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
 {
 	ni_extension_t *ex, *old;
 	const char *name;
+	const char *format;
 
 	ni_assert(list && node);
 
@@ -2045,6 +2046,17 @@ ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
 	if (!ex || !ni_config_parse_extension(ex, node)) {
 		ni_extension_free(ex);
 		return FALSE;
+	}
+
+	format = xml_node_get_attr(node, "format");
+	if (format) {
+		ex->format = strdup(format);
+
+		if (!ex->format) {
+			ni_warn("[%s] failed to allocate memory for format-string", node->name);
+			ni_extension_free(ex);
+			return FALSE;
+		}
 	}
 
 	if (ex->c_bindings) {
