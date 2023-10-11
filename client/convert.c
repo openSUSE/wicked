@@ -428,6 +428,8 @@ ni_wicked_convert(const char *caller, int argc, char **argv)
 			goto cleanup;
 		}
 	}
+	if (ni_ifxml_migrate_docs(&docs))
+		ni_debug_readwrite("Migrated configuration to current schema");
 
 	if (opt_output == NULL || ni_string_eq(opt_output, "-")) {
 		ni_wicked_convert_dump(&docs, &filter, stdout);

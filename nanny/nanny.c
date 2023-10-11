@@ -321,7 +321,7 @@ ni_nanny_create_managed_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr
 /*
  * Creates nanny policy and register managed policy interface.
  * Return:
- *     -1 - policy node does not exist or is errornous
+ *     -1 - policy node does not exist or is erroneous
  *      0 - policy already exists
  *      1 - policy created and registered
  */
@@ -374,9 +374,6 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, xml_do
 		rv = 0;
 		goto error;
 	}
-
-	if (ni_ifconfig_migrate(pnode))
-		ni_debug_nanny("Migrated policy \"%s\" to current schema", pname);
 
 	if (caller_uid)
 		ni_ifpolicy_set_owner_uid(pnode, *caller_uid);
