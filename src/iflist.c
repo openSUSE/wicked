@@ -2863,27 +2863,25 @@ __ni_rtnl_parse_newaddr(const char *ifname, unsigned int ifflags, struct nlmsghd
 	 * It makes no difference for normally configured broadcast interfaces,
 	 * but for point-to-point IFA_ADDRESS is DESTINATION address,
 	 * local address is supplied in IFA_LOCAL attribute.
+	 *
+	 * In a peer setup (regardless if ptp interface or brd):
+	 * - local is IFA_LOCAL, peer is IFA_ADDRESS (IFA_BROADCAST is NULL).
+	 * Otherwise (without peer):
+	 * - in IPv6: IFA_LOCAL is NULL and address in IFA_ADDRESS
+	 * - in IPv4: address in IFA_LOCAL and in IFA_ADDRESS (equal),
+	 *   IFA_BROADCAST is NULL unless it was explicitly specified
+	 *   ("ip addr add 192.168.0.1/24 dev eth0" doesn't set it).
 	 */
-	if (ifflags & NI_IFF_POINT_TO_POINT) {
-		if (tb[IFA_LOCAL]) {
-			/* local peer remote */
-			__ni_nla_get_addr(ifa->ifa_family, &ap->local_addr, tb[IFA_LOCAL]);
-			__ni_nla_get_addr(ifa->ifa_family, &ap->peer_addr, tb[IFA_ADDRESS]);
-		} else
-		if (tb[IFA_ADDRESS]) {
-			/* local only, e.g. tunnel ipv6 link layer address */
-			__ni_nla_get_addr(ifa->ifa_family, &ap->local_addr, tb[IFA_ADDRESS]);
-		}
-		/* Note iproute2 code obtains peer_addr from IFA_BROADCAST */
-		/* When I read and remember it correctly, iproute2 is using:
-		 *   !tb[IFA_BROADCAST] && tb[IFA_LOCAL] && tb[IFA_ADDRESS]
-		 * instead of the p-t-p flag ...
-		 */
+	if (tb[IFA_LOCAL]) {
+		__ni_nla_get_addr(ifa->ifa_family, &ap->local_addr, tb[IFA_LOCAL]);
+		__ni_nla_get_addr(ifa->ifa_family, &ap->peer_addr, tb[IFA_ADDRESS]);
+		if (ni_sockaddr_equal(&ap->local_addr, &ap->peer_addr))
+			memset(&ap->peer_addr, 0, sizeof(ap->peer_addr));
 	} else {
 		__ni_nla_get_addr(ifa->ifa_family, &ap->local_addr, tb[IFA_ADDRESS]);
-		if (tb[IFA_BROADCAST])
-			__ni_nla_get_addr(ifa->ifa_family, &ap->bcast_addr, tb[IFA_BROADCAST]);
 	}
+
+	__ni_nla_get_addr(ifa->ifa_family, &ap->bcast_addr, tb[IFA_BROADCAST]);
 	__ni_nla_get_addr(ifa->ifa_family, &ap->anycast_addr, tb[IFA_ANYCAST]);
 
 	if (tb[IFA_CACHEINFO]) {
