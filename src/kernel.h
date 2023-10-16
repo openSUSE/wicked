@@ -120,7 +120,8 @@ extern ni_bool_t	ni_rtnl_route_filter_msg(struct rtmsg *);
 extern int	ni_rtnl_route_parse_msg(struct nlmsghdr *, struct rtmsg *, ni_route_t *);
 extern int	ni_rtnl_rule_parse_msg(struct nlmsghdr *, struct fib_rule_hdr *, ni_rule_t *);
 
-extern int	__ni_rtnl_parse_newaddr(unsigned, struct nlmsghdr *, struct ifaddrmsg *, ni_address_t *);
+extern int	__ni_rtnl_parse_newaddr(const char *, unsigned int, struct nlmsghdr *,
+				struct ifaddrmsg *, ni_address_t *);
 extern int	__ni_rtnl_parse_newprefix(const char *, struct nlmsghdr *, struct prefixmsg *, ni_ipv6_ra_pinfo_t *);
 
 extern int	__ni_netdev_process_newlink(ni_netdev_t *, struct nlmsghdr *, struct ifinfomsg *, ni_netconfig_t *);

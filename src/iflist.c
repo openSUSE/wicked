@@ -2810,16 +2810,16 @@ __ni_rtnl_parse_newprefix(const char *ifname, struct nlmsghdr *h, struct prefixm
 }
 
 static inline void
-__newaddr_trace(unsigned int family, const char *name, struct nlattr *attr)
+__newaddr_trace(const char *ifname, unsigned int family, const char *name, struct nlattr *attr)
 {
 	ni_sockaddr_t temp;
 	if (attr && name) {
 		if (__ni_nla_get_addr(family, &temp, attr))
-			ni_trace("newaddr[%s]: ---", name);
+			ni_trace("%s: newaddr[%s]: ---", ifname, name);
 		else
-			ni_trace("newaddr[%s]: %s", name, ni_sockaddr_print(&temp));
+			ni_trace("%s: newaddr[%s]: %s", ifname, name, ni_sockaddr_print(&temp));
 	} else if(name) {
-		ni_trace("newaddr[%s]: NULL", name);
+		ni_trace("%s: newaddr[%s]: NULL", ifname, name);
 	}
 }
 
@@ -2827,13 +2827,14 @@ __newaddr_trace(unsigned int family, const char *name, struct nlattr *attr)
  * Update interface address list given a RTM_NEWADDR message
  */
 int
-__ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *ifa, ni_address_t *ap)
+__ni_rtnl_parse_newaddr(const char *ifname, unsigned int ifflags, struct nlmsghdr *h,
+		struct ifaddrmsg *ifa, ni_address_t *ap)
 {
 	struct nlattr *tb[IFA_MAX+1];
 
 	memset(tb, 0, sizeof(tb));
 	if (nlmsg_parse(h, sizeof(*ifa), tb, IFA_MAX, NULL) < 0) {
-		ni_error("unable to parse rtnl ADDR message");
+		ni_error("%s: unable to parse rtnl ADDR message", ifname);
 		return -1;
 	}
 
@@ -2847,13 +2848,13 @@ __ni_rtnl_parse_newaddr(unsigned ifflags, struct nlmsghdr *h, struct ifaddrmsg *
 		ap->flags = ifa->ifa_flags;
 
 	if (ni_log_level_at(NI_LOG_DEBUG3) && (ni_log_facility(NI_TRACE_EVENTS))) {
-		ni_trace("newaddr(%s): family %d, prefixlen %u, scope %u, flags %u",
-			(ifflags & NI_IFF_POINT_TO_POINT) ? "ptp" : "brd",
+		ni_trace("%s: newaddr(%s): family %d, prefixlen %u, scope %u, flags %u",
+			ifname, (ifflags & NI_IFF_POINT_TO_POINT) ? "ptp" : "brd",
 			ap->family, ap->prefixlen, ap->scope, ap->flags);
-		__newaddr_trace(ifa->ifa_family, __ni_string(IFA_LOCAL), tb[IFA_LOCAL]);
-		__newaddr_trace(ifa->ifa_family, __ni_string(IFA_ADDRESS), tb[IFA_ADDRESS]);
-		__newaddr_trace(ifa->ifa_family, __ni_string(IFA_BROADCAST), tb[IFA_BROADCAST]);
-		__newaddr_trace(ifa->ifa_family, __ni_string(IFA_ANYCAST), tb[IFA_ANYCAST]);
+		__newaddr_trace(ifname, ifa->ifa_family, __ni_string(IFA_LOCAL), tb[IFA_LOCAL]);
+		__newaddr_trace(ifname, ifa->ifa_family, __ni_string(IFA_ADDRESS), tb[IFA_ADDRESS]);
+		__newaddr_trace(ifname, ifa->ifa_family, __ni_string(IFA_BROADCAST), tb[IFA_BROADCAST]);
+		__newaddr_trace(ifname, ifa->ifa_family, __ni_string(IFA_ANYCAST), tb[IFA_ANYCAST]);
 	}
 
 	/*
@@ -2907,7 +2908,7 @@ __ni_netdev_process_newaddr_event(ni_netdev_t *dev, struct nlmsghdr *h, struct i
 {
 	ni_address_t tmp, *ap;
 
-	if (__ni_rtnl_parse_newaddr(dev->link.ifflags, h, ifa, &tmp) < 0)
+	if (__ni_rtnl_parse_newaddr(dev->name, dev->link.ifflags, h, ifa, &tmp) < 0)
 		return -1;
 
 	ap = ni_address_list_find(dev->addrs, &tmp.local_addr);
