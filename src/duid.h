@@ -75,7 +75,7 @@
 typedef struct ni_duid_llt {
 	uint16_t		type;		/* type 1                     */
 	uint16_t		hwtype;         /* link layer address type    */
-	uint32_t		v6time;		/* second since 2001 % 2^32   */
+	uint32_t		v6time;		/* second since 2000 % 2^32   */
 	unsigned char		hwaddr[];	/* link layer address         */
 } NI_PACKED ni_duid_llt_t;
 
