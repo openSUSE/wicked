@@ -512,7 +512,7 @@ __ni_rtevent_deladdr(ni_netconfig_t *nc, const struct sockaddr_nl *nladdr, struc
 	if (dev == NULL)
 		return 0;
 
-	if (__ni_rtnl_parse_newaddr(dev->link.ifflags, h, ifa, &tmp) < 0) {
+	if (__ni_rtnl_parse_newaddr(dev->name, dev->link.ifflags, h, ifa, &tmp) < 0) {
 		ni_error("Problem parsing %s message for %s", dev->name,
 				ni_rtnl_msg_type_to_name(h->nlmsg_type, NULL));
 		return -1;

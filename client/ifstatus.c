@@ -884,6 +884,7 @@ ni_do_ifstatus(int argc, char **argv)
 			case NI_WICKED_ST_UNCONFIGURED:
 			case NI_WICKED_ST_NOT_RUNNING:
 			case NI_WICKED_ST_IN_PROGRESS:
+			case NI_WICKED_ST_NO_CARRIER:
 				break;
 			default:
 				status = NI_WICKED_ST_OK;
@@ -1000,6 +1001,7 @@ ni_ifstatus_display_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_ifworker_
 			case NI_WICKED_ST_UNCONFIGURED:
 			case NI_WICKED_ST_NOT_RUNNING:
 			case NI_WICKED_ST_IN_PROGRESS:
+			case NI_WICKED_ST_NO_CARRIER:
 				break;
 			default:
 				status = NI_WICKED_ST_OK;
