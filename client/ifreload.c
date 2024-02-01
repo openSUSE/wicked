@@ -109,8 +109,10 @@ ifreload_mark_down(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker
 		w->target_range.max = NI_FSM_STATE_DEVICE_READY;
 
 		/* the config has been modified, but some changes require deletion */
-		if (w->iftype == NI_IFTYPE_TEAM) {
-			/* e.g. the team runner (mode) changes require teamd restart */
+		if (w->iftype == NI_IFTYPE_TEAM || w->iftype == NI_IFTYPE_VLAN) {
+			/* examples:
+			 *   - the team runner (mode) changes require teamd restart
+			 *   - VlanID changed, the interface need to be recreated */
 			w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
 		} else
 		if (w->iftype != NI_IFTYPE_UNKNOWN) {
