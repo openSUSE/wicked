@@ -305,6 +305,18 @@ ni_do_ifcheck(int argc, char **argv)
 		goto usage;
 	}
 
+	if (!ni_fsm_create_client(fsm)) {
+		/* Severe error we always explicitly return */
+		status = NI_WICKED_RC_ERROR;
+		goto cleanup;
+	}
+
+	if (!ni_fsm_refresh_state(fsm)) {
+		/* Severe error we always explicitly return */
+		status = NI_WICKED_RC_ERROR;
+		goto cleanup;
+	}
+
 	if (opt_ifconfig.count == 0) {
 		const ni_string_array_t *sources = ni_config_sources("ifconfig");
 
@@ -323,17 +335,6 @@ ni_do_ifcheck(int argc, char **argv)
 		goto cleanup;
 	}
 
-	if (!ni_fsm_create_client(fsm)) {
-		/* Severe error we always explicitly return */
-		status = NI_WICKED_RC_ERROR;
-		goto cleanup;
-	}
-
-	if (!ni_fsm_refresh_state(fsm)) {
-		/* Severe error we always explicitly return */
-		status = NI_WICKED_RC_ERROR;
-		goto cleanup;
-	}
 
 	status = NI_WICKED_ST_OK;
 

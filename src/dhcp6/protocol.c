@@ -89,7 +89,7 @@ static int	ni_dhcp6_option_get_duid(ni_buffer_t *bp, ni_opaque_t *duid);
  *
  */
 static int
-__ni_dhcp6_mcast_socket_open(const struct ni_dhcp6_link *link, const char *ifname)
+ni_dhcp6_link_mcast_socket_open(const struct ni_dhcp6_link *link, const char *ifname)
 {
 	ni_sockaddr_t saddr;
 	int fd, on;
@@ -119,10 +119,7 @@ __ni_dhcp6_mcast_socket_open(const struct ni_dhcp6_link *link, const char *ifnam
 	on = 1;
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == -1)
 		ni_error("%s: Cannot set setsockopt(SO_REUSEADDR): %m", ifname);
-#if defined(SO_REUSEPORT)
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &on, sizeof(on)) == -1)
-		ni_error("%s: Cannot set setsockopt(SO_REUSEPORT): %m", ifname);
-#endif
+
 	if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &on, sizeof(on)) == -1)
 		ni_error("%s: Cannot set setsockopt(SO_RCVBUF): %m", ifname);
 
@@ -199,7 +196,7 @@ ni_dhcp6_mcast_socket_open(ni_dhcp6_device_t *dev)
 	dev->mcast.dest.six.sin6_scope_id = dev->link.ifindex;
 
 	/* open the socket an bind to the link-local address */
-	if ((fd = __ni_dhcp6_mcast_socket_open(&dev->link, dev->ifname)) == -1)
+	if ((fd = ni_dhcp6_link_mcast_socket_open(&dev->link, dev->ifname)) == -1)
 		return -1;
 
 	/* finally wrap it and allocate receive buffer */
