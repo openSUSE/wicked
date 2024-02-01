@@ -226,6 +226,9 @@ rc_map_status()
 	166)	# NI_WICKED_ST_PERSISTENT_ON
 		return $R_NOTALLOWED
 	;;
+	168)	# NI_WICKED_ST_NO_CARRIER
+		return $R_DHCP_BG
+	;;
 	*)	# any other
 		return ${1:-1}
 	;;
