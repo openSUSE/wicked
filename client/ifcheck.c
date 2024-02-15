@@ -135,18 +135,32 @@ ni_ifcheck_worker_config_exists(ni_ifworker_t *w)
 	return w && w->config.node;
 }
 
-ni_bool_t
-ni_ifcheck_worker_config_matches(ni_ifworker_t *w)
+static ni_bool_t
+ni_ifcheck_worker_config_changed(ni_ifworker_t *w)
 {
-	ni_netdev_t *dev;
+	const ni_client_state_t *cs;
+	ni_bool_t worker_configured;
+	ni_bool_t device_configured;
+	ni_bool_t changed = FALSE;
 
-	if (ni_ifcheck_worker_config_exists(w) && (dev = w->device)) {
-		ni_client_state_t *cs = dev->client_state;
+	cs = w->device ? w->device->client_state : NULL;
+	device_configured = cs && !ni_string_empty(cs->config.origin);
+	worker_configured = !!w->config.node;
 
-		return cs &&
-			ni_uuid_equal(&cs->config.uuid, &w->config.meta.uuid);
+	if (device_configured && worker_configured) {
+		if (!ni_uuid_equal(&cs->config.uuid, &w->config.meta.uuid))
+			changed = TRUE;
+	} else {
+		if (device_configured != worker_configured)
+			changed = TRUE;
 	}
-	return FALSE;
+
+	ni_debug_wicked("%s: current interface config uuid is '%s'",
+			w->name, ni_uuid_print(&w->config.meta.uuid));
+	ni_debug_wicked("%s: applied interface config uuid is '%s'",
+			w->name, cs ? ni_uuid_print(&cs->config.uuid) : NULL);
+
+	return changed;
 }
 
 ni_bool_t
@@ -353,7 +367,6 @@ ni_do_ifcheck(int argc, char **argv)
 		for (i = 0; i < marked.count; ++i) {
 			ni_ifworker_t *w = marked.data[i];
 			ni_netdev_t *dev = w->device;
-			ni_client_state_t *cs = dev ? dev->client_state : NULL;
 			unsigned int j;
 
 			if (ni_string_array_index(&ifnames, w->name) != -1)
@@ -374,21 +387,12 @@ ni_do_ifcheck(int argc, char **argv)
 						break;
 
 					case OPT_CHANGED:
-						changed = FALSE;
-						if (ni_ifcheck_device_configured(dev) ||
-						     (ni_ifcheck_worker_config_exists(w) &&
-						      ni_ifcheck_worker_device_exists(w)))
-							changed = !ni_ifcheck_worker_config_matches(w);
-
+						changed = ni_ifcheck_worker_config_changed(w);
 						if_printf(w->name, "configuration changed",
 								(changed ? "yes" : "no"));
-						if (changed) {
-							ni_debug_wicked("%s: config file uuid is %s", w->name,
-								ni_uuid_print(&w->config.meta.uuid));
-							ni_debug_wicked("%s: system dev. uuid is %s", w->name,
-								cs ? ni_uuid_print(&cs->config.uuid) : "NOT SET");
+
+						if (changed)
 							set_status(&status, NI_WICKED_ST_CHANGED_CONFIG);
-						}
 						break;
 
 					case OPT_STATE:
