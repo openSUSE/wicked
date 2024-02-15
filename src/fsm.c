@@ -4339,14 +4339,14 @@ ni_ifworker_xml_metadata_callback(xml_node_t *node, const ni_xs_type_t *type, co
  *
  * In order to prompt for e.g. a password, your schema should look like this:
  *
- *	  <auth class="dict">
- *	    <user type="string" constraint="required">
- *	      <meta:user-input type="user" prompt="Please enter openvpn user name"/>
- *	    </user>
- *	    <password type="string" constraint="required">
- *	      <meta:user-input type="password" prompt="Please enter openvpn password"/>
- *	    </password>
- *	  </auth>
+ * <auth class="dict">
+ *   <user type="string" constraint="required">
+ *     <meta:user-input type="user" prompt="Please enter openvpn user name"/>
+ *   </user>
+ *   <password type="string" constraint="required">
+ *     <meta:user-input type="password" prompt="Please enter openvpn password"/>
+ *   </password>
+ * </auth>
  *
  * If your interface document contains an empty <auth> element, wicked will prompt for
  * user and password. If the <auth> element exists and contains a <user> element, you
@@ -4704,9 +4704,9 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 		 *   <arguments>
 		 *     <foobar type="...">
 		 *       <meta:mapping
-		 *	   	document-node="/some/xpath/expression" 
-		 *		skip-unless-present="true"
-		 *		/>
+		 *           document-node="/some/xpath/expression"
+		 *           skip-unless-present="true"
+		 *           />
 		 *     </foobar>
 		 *   </arguments>
 		 * </method>
