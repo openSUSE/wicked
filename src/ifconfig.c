@@ -3299,7 +3299,7 @@ ni_rtnl_link_put_vxlan(ni_netconfig_t *nc, struct nl_msg *msg, ni_netdev_t *dev,
 
 	for (attr = IFLA_VXLAN_ID; attr <= IFLA_VXLAN_MAX; ++attr) {
 		name = vxlan_attr_names[attr];
-		if (ni_rtnl_link_put_vxlan_opt(nc, msg, ifname,
+		if (name && ni_rtnl_link_put_vxlan_opt(nc, msg, ifname,
 					dev ? dev->link.ifindex : 0,
 					attr, name, conf, vxlan) < 0)
 			goto nla_put_failure;
