@@ -92,16 +92,16 @@
 <define name="builtin-bonding-mii-carrier-detect" type="uint32" constraint="enum">
   <description>
     Specifies whether the MII monitor will use the netif network interface carrier
-    or the deprecated MII / ETHTOOL ioctls to determine the status of the slaves.
+    or the deprecated MII / ETHTOOL ioctls to determine the status of the ports.
     Default is to query netif carrier, but when the MII monitor fails to detect
-    carrier loss (e.g. disconnected cable) of a slave or it appears that the MII
+    carrier loss (e.g. disconnected cable) of a port or it appears that the MII
     monitor is very slow in detecting link failures, try specifying ioctl.
   </description>
   <@@BONDING_MII_CARRIER_DETECT_NAME@@ value="@@BONDING_MII_CARRIER_DETECT_VALUE@@"/>
 </define>
 <define name="builtin-bonding-xmit-hash-policy" type="uint32" constraint="enum">
   <description>
-    Selects the transmit hash policy to use for slave selection in balance-xor
+    Selects the transmit hash policy to use for port selection in balance-xor
     and 802.3ad modes. The policies layer2 and layer23 are ieee802-3ad compliant.
   </description>
   <@@BONDING_XMIT_HASH_NAME@@ value="@@BONDING_XMIT_HASH_VALUE@@"/>
@@ -121,27 +121,32 @@
 </define>
 <define name="builtin-bonding-fail-over-mac" type="uint32" constraint="enum">
   <description>
-    Specifies whether active-backup mode should set all slaves to the same
-    MAC address at enslavement, or perform special handling of the bond's
+    Specifies whether active-backup mode should set all ports to the same
+    MAC address at linking time, or perform special handling of the bond's
     MAC address in accordance with the selected policy.
   </description>
   <@@BONDING_FAIL_OVER_MAC_NAME@@ value="@@BONDING_FAIL_OVER_MAC_VALUE@@"/>
 </define>
 <define name="builtin-bonding-primary-reselect" type="uint32" constraint="enum">
   <description>
-    Specifies the reselection policy for the primary slave. This affects how
-    the primary slave is chosen to become the active slave when failure of
-    the active slave or recovery of the primary slave occurs. This option
-    is designed to prevent flip-flopping between the primary slave and other
-    slaves.
+    Specifies the reselection policy for the primary port. This affects how
+    the primary port is chosen to become the active port when failure of
+    the active port or recovery of the primary port occurs. This option
+    is designed to prevent flip-flopping between the primary port and other
+    ports.
   </description>
   <@@BONDING_PRIMARY_RESELECT_NAME@@ value="@@BONDING_PRIMARY_RESELECT_VALUE@@"/>
 </define>
-<define name="builtin-bonding-slave-state" type="uint32" constraint="enum">
-  <@@BONDING_SLAVE_STATE_NAME@@ value="@@BONDING_SLAVE_STATE_VALUE@@"/>
+<define name="builtin-bonding-port-state" type="uint32" constraint="enum">
+  <@@BONDING_PORT_STATE_NAME@@ value="@@BONDING_PORT_STATE_VALUE@@"/>
 </define>
-<define name="builtin-bonding-slave-mii-status" type="uint32" constraint="enum">
-  <@@BONDING_SLAVE_MII_STATUS_NAME@@ value="@@BONDING_SLAVE_MII_STATUS_VALUE@@"/>
+<define name="builtin-bonding-port-mii-status" type="uint32" constraint="enum">
+  <@@BONDING_PORT_MII_STATUS_NAME@@ value="@@BONDING_PORT_MII_STATUS_VALUE@@"/>
+</define>
+
+<!-- Built-in bridge & port constants -->
+<define name="builtin-bridge-port-state" type="uint32" constraint="enum">
+  <@@BRIDGE_PORT_STATE_NAME@@ value="@@BRIDGE_PORT_STATE_VALUE@@" />
 </define>
 
 <!-- Built-in route type/scope/table/protocol -->

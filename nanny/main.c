@@ -213,8 +213,10 @@ ni_nanny_statedir(void)
 static ni_bool_t
 ni_nanny_policy_load(ni_nanny_t *mgr)
 {
+	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	char nanny_dir[PATH_MAX] = { '\0' };
+	xml_document_t *doc;
 
 	ni_assert(mgr);
 	ni_debug_application("Loading previously saved policies:");
@@ -225,7 +227,6 @@ ni_nanny_policy_load(ni_nanny_t *mgr)
 
 		for (i = 0; i < files.count; ++i) {
 			char *path = NULL;
-			xml_document_t *doc;
 
 			if (!ni_string_printf(&path, "%s/%s", nanny_dir, files.data[i]))
 				continue;
@@ -235,20 +236,36 @@ ni_nanny_policy_load(ni_nanny_t *mgr)
 				ni_string_free(&path);
 				continue;
 			}
-
-			if (!ni_nanny_create_policy(NULL, mgr, doc, NULL, TRUE)) {
-				ni_error("Unable to create policy from file '%s'", path);
-			}
-
 			ni_string_free(&path);
-			xml_document_free(doc);
+
+			if (!xml_document_array_append(&docs, doc)) {
+				ni_error("Unable to allocate policy doc array memory: %m");
+				xml_document_free(doc);
+				continue;
+			}
+		}
+
+		if (ni_ifxml_migrate_docs(&docs))
+			ni_debug_readwrite("Migrated nanny policies to current schema");
+
+		for (i = 0; i < docs.count; ++i) {
+			xml_document_t *doc = docs.data[i];
+			const char *path;
+
+			path = xml_node_location_filename(doc->root);
+			if (!ni_nanny_create_policy(NULL, mgr, doc, NULL, TRUE)) {
+				ni_error("Unable to create policy from file '%s'",
+						path ? path : "<migrated>");
+			}
 		}
 	}
+	ni_string_array_destroy(&files);
 
-	if (files.count)
+	if (docs.count)
 		ni_nanny_recheck_policies(mgr, NULL);
 
-	ni_string_array_destroy(&files);
+	xml_document_array_destroy(&docs);
+
 	return TRUE;
 }
 

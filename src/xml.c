@@ -1,7 +1,8 @@
 /*
  *	XML objects - document and node
  *
- *	Copyright (C) 2009-2012  Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2023 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,11 +14,8 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write 
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, 
- *	Boston, MA 02110-1301 USA.
- *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -25,11 +23,12 @@
 
 #include <wicked/xml.h>
 #include <wicked/logging.h>
+#include "array_priv.h"
 #include "util_priv.h"
 #include <inttypes.h>
 
-#define XML_DOCUMENTARRAY_CHUNK		1
-#define XML_NODEARRAY_CHUNK		8
+#define XML_DOCUMENT_ARRAY_CHUNK	8
+#define XML_NODE_ARRAY_CHUNK		8
 
 xml_document_t *
 xml_document_new()
@@ -308,79 +307,65 @@ xml_node_free(xml_node_t *node)
 	free(node);
 }
 
-void
+ni_bool_t
 xml_node_set_cdata(xml_node_t *node, const char *cdata)
 {
-	ni_string_dup(&node->cdata, cdata);
+	return ni_string_dup(&node->cdata, cdata);
 }
 
-void
+ni_bool_t
 xml_node_set_int(xml_node_t *node, int value)
 {
-	char buffer[32];
 
-	snprintf(buffer, sizeof(buffer), "%d", value);
-	ni_string_dup(&node->cdata, buffer);
+	return node && ni_string_printf(&node->cdata, "%d", value);
 }
 
-void
+ni_bool_t
 xml_node_set_int64(xml_node_t *node, int64_t value)
 {
-	char buffer[32];
-
-	snprintf(buffer, sizeof(buffer), "%"PRId64, value);
-	ni_string_dup(&node->cdata, buffer);
+	return node && ni_string_printf(&node->cdata, "%"PRId64, value);
 }
 
-void
+ni_bool_t
 xml_node_set_uint(xml_node_t *node, unsigned int value)
 {
-	char buffer[32];
-
-	snprintf(buffer, sizeof(buffer), "%u", value);
-	ni_string_dup(&node->cdata, buffer);
+	return node && ni_string_printf(&node->cdata, "%u", value);
 }
 
-void
+ni_bool_t
 xml_node_set_uint64(xml_node_t *node, uint64_t value)
 {
-	char buffer[32];
-
-	snprintf(buffer, sizeof(buffer), "%"PRIu64, value);
-	ni_string_dup(&node->cdata, buffer);
+	return node && ni_string_printf(&node->cdata, "%"PRIu64, value);
 }
 
-void
+ni_bool_t
 xml_node_set_uint_hex(xml_node_t *node, unsigned int value)
 {
-	char buffer[32];
-
-	snprintf(buffer, sizeof(buffer), "0x%x", value);
-	ni_string_dup(&node->cdata, buffer);
+	return node && ni_string_printf(&node->cdata, "0x%x", value);
 }
 
-void
+ni_bool_t
 xml_node_add_attr(xml_node_t *node, const char *name, const char *value)
 {
-	ni_var_array_set(&node->attrs, name, value);
+	return ni_var_array_set(&node->attrs, name, value);
 }
 
-void
+ni_bool_t
 xml_node_add_attr_uint(xml_node_t *node, const char *name, unsigned int value)
 {
-	ni_var_array_set_uint(&node->attrs, name, value);
+	return ni_var_array_set_uint(&node->attrs, name, value);
 }
 
-void
+ni_bool_t
 xml_node_add_attr_ulong(xml_node_t *node, const char *name, unsigned long value)
 {
-	ni_var_array_set_ulong(&node->attrs, name, value);
+	return ni_var_array_set_ulong(&node->attrs, name, value);
 }
 
-void
+ni_bool_t
 xml_node_add_attr_double(xml_node_t *node, const char *name, double value)
 {
-	ni_var_array_set_double(&node->attrs, name, value);
+	return ni_var_array_set_double(&node->attrs, name, value);
 }
 
 const ni_var_t *
@@ -471,10 +456,20 @@ xml_node_get_next_child(const xml_node_t *top, const char *name, const xml_node_
 	return NULL;
 }
 
-inline xml_node_t *
+xml_node_t *
 xml_node_get_child(const xml_node_t *node, const char *name)
 {
 	return xml_node_get_next_child(node, name, NULL);
+}
+
+const char *
+xml_node_get_child_cdata(const xml_node_t *node, const char *name)
+{
+	const xml_node_t *child;
+
+	if ((child = xml_node_get_child(node, name)))
+		return child->cdata;
+	return NULL;
 }
 
 /*
@@ -720,85 +715,20 @@ xml_node_match_attrs(const xml_node_t *node, const ni_var_array_t *attrlist)
 /*
  * XML document arrays
  */
-void
-xml_document_array_init(xml_document_array_t *array)
-{
-	memset(array, 0, sizeof(*array));
-}
-
-void
-xml_document_array_destroy(xml_document_array_t *array)
-{
-	unsigned int i;
-
-	for (i = 0; i < array->count; ++i)
-		xml_document_free(array->data[i]);
-
-	if (array->data)
-		free(array->data);
-	memset(array, 0, sizeof(*array));
-}
-
-xml_document_array_t *
-xml_document_array_new(void)
-{
-	xml_document_array_t *array;
-
-	array = xcalloc(1, sizeof(*array));
-	return array;
-}
-
-void
-xml_document_array_free(xml_document_array_t *array)
-{
-	xml_document_array_destroy(array);
-	free(array);
-}
-
-static void
-__xml_document_array_realloc(xml_document_array_t *array, unsigned int newsize)
-{
-	xml_document_t **newdata;
-	unsigned int i;
-
-	newsize = (newsize + XML_DOCUMENTARRAY_CHUNK) + 1;
-	newdata = xrealloc(array->data, newsize * sizeof(xml_document_t *));
-
-	array->data = newdata;
-	for (i = array->count; i < newsize; ++i)
-		array->data[i] = NULL;
-}
-
-void
-xml_document_array_append(xml_document_array_t *array, xml_document_t *doc)
-{
-	if ((array->count % XML_DOCUMENTARRAY_CHUNK) == 0)
-		__xml_document_array_realloc(array, array->count);
-
-	array->data[array->count++] = doc;
-}
+extern ni_define_ptr_array_init(xml_document);
+extern ni_define_ptr_array_destroy(xml_document);
+static ni_define_ptr_array_realloc(xml_document, XML_DOCUMENT_ARRAY_CHUNK);
+extern ni_define_ptr_array_append(xml_document);
+extern ni_define_ptr_array_insert(xml_document);
+extern ni_define_ptr_array_index(xml_document);
 
 /*
  * XML node arrays
  */
-void
-xml_node_array_init(xml_node_array_t *array)
-{
-	memset(array, 0, sizeof(*array));
-}
-
-void
-xml_node_array_destroy(xml_node_array_t *array)
-{
-	unsigned int i;
-
-	for (i = 0; i < array->count; ++i)
-		xml_node_free(array->data[i]);
-
-	if (array->data)
-		free(array->data);
-	memset(array, 0, sizeof(*array));
-}
+extern ni_define_ptr_array_init(xml_node);
+extern ni_define_ptr_array_destroy(xml_node);
+static ni_define_ptr_array_realloc(xml_node, XML_NODE_ARRAY_CHUNK)
+extern ni_define_ptr_array_append(xml_node);
 
 xml_node_array_t *
 xml_node_array_new(void)
@@ -814,32 +744,6 @@ xml_node_array_free(xml_node_array_t *array)
 {
 	xml_node_array_destroy(array);
 	free(array);
-}
-
-static void
-__xml_node_array_realloc(xml_node_array_t *array, unsigned int newsize)
-{
-	xml_node_t **newdata;
-	unsigned int i;
-
-	newsize = (newsize + XML_NODEARRAY_CHUNK) + 1;
-	newdata = xrealloc(array->data, newsize * sizeof(array->data[0]));
-
-	array->data = newdata;
-	for (i = array->count; i < newsize; ++i)
-		array->data[i] = NULL;
-}
-
-void
-xml_node_array_append(xml_node_array_t *array, xml_node_t *node)
-{
-	if (!array || !node)
-		return;
-
-	if ((array->count % XML_NODEARRAY_CHUNK) == 0)
-		__xml_node_array_realloc(array, array->count);
-
-	array->data[array->count++] = xml_node_clone_ref(node);
 }
 
 xml_node_t *

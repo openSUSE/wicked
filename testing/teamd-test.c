@@ -45,6 +45,8 @@ int main(int argc, char **argv)
 		rv = ni_teamd_ctl_config_dump(tdc, FALSE, &val);
 	else if (ni_string_eq(command, "config-dump-actual"))
 		rv = ni_teamd_ctl_config_dump(tdc, TRUE, &val);
+	else if (ni_string_eq(command, "port-config-dump"))
+		rv = ni_teamd_ctl_port_config_dump(tdc, param1, &val);
 
 	printf("%s\n", val ? val : ni_format_boolean(!!rv));
 

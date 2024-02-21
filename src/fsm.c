@@ -65,11 +65,16 @@ static ni_bool_t		ni_ifworker_del_child_master(xml_node_t *);
 static void			ni_fsm_clear_hierarchy(ni_ifworker_t *);
 
 static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
-static inline void		ni_ifworker_update_client_state_config(ni_ifworker_t *w);
+static void			ni_ifworker_update_client_state_config(ni_ifworker_t *w);
 static void			ni_ifworker_update_client_state_scripts(ni_ifworker_t *w);
+static void			ni_ifworker_update_client_state(ni_ifworker_t *w);
+static void			ni_ifworker_reset_client_state(ni_ifworker_t *w);
+
 static void			ni_fsm_events_destroy(ni_fsm_event_t **);
 static void			ni_fsm_process_event(ni_fsm_t *, ni_fsm_event_t *);
 
+static const ni_fsm_transition_t *	ni_fsm_transition_first(void);
+static const ni_fsm_transition_t *	ni_fsm_transition_next(const ni_fsm_transition_t *);
 
 ni_fsm_t *
 ni_fsm_new(void)
@@ -1240,167 +1245,6 @@ ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_ty
 	return child;
 }
 
-static xml_node_t *
-__ni_generate_default_config(ni_ifworker_t *parent, const char *ifname)
-{
-	xml_node_t *link, *ipv4, *ipv6, *config = NULL;
-	xml_node_t *pconfig, *control, *port;
-
-	pconfig = parent->config.node;
-	control = xml_node_get_child(pconfig, NI_CLIENT_IFCONFIG_CONTROL);
-
-	/* Create <interface> */
-	if (!(config = xml_node_new(NI_CLIENT_IFCONFIG, NULL)))
-		goto error;
-	/* Add <name>$ifname</name> */
-	if (!xml_node_new_element(NI_CLIENT_IFCONFIG_MATCH_NAME, config, ifname))
-		goto error;
-	/* Add <link></link> */
-	if (!(link = xml_node_new(NI_CLIENT_IFCONFIG_LINK, config)))
-		goto error;
-	/* Add <ipv4></ipv4> and <ipv6></ipv6> */
-	if (!(ipv4 = xml_node_new(NI_CLIENT_IFCONFIG_IPV4, config)))
-		goto error;
-	 if (!(ipv6 = xml_node_new(NI_CLIENT_IFCONFIG_IPV6, config)))
-		 goto error;
-
-	switch (parent->iftype) {
-	/* for slaves */
-	case NI_IFTYPE_TEAM:
-	case NI_IFTYPE_BOND:
-		/*
-		 * STARTMODE="hotplug"
-		 * BOOTPROTO="none"
-		 */
-
-		/* Add <control></control> */
-		if (!(control = xml_node_new(NI_CLIENT_IFCONFIG_CONTROL, config)))
-			goto error;
-		/* Add <mode>hotplug</mode> */
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_MODE, control, "hotplug"))
-			goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv4, "false"))
-			 goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv6, "false"))
-			 goto error;
-	break;
-
-	case NI_IFTYPE_OVS_BRIDGE:
-		/*
-		 * STARTMODE="$pstartmode"
-		 * BOOTPROTO="none"
-		 */
-
-		/* Clone <control> */
-		if (!xml_node_is_empty(control) && !xml_node_clone(control, config))
-			goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv4, "false"))
-			 goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv6, "false"))
-			 goto error;
-
-		xml_node_new_element("master", link, ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM));
-		port = xml_node_new("port", link);
-		xml_node_add_attr(port, "type", ni_linktype_type_to_name(parent->iftype));
-		xml_node_new_element("bridge", port, parent->name);
-	break;
-
-	case NI_IFTYPE_BRIDGE:
-		/*
-		 * STARTMODE="$pstartmode"
-		 * BOOTPROTO="none"
-		 */
-
-		/* Clone <control> */
-		if (!xml_node_is_empty(control) && !xml_node_clone(control, config))
-			goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv4, "false"))
-			 goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv6, "false"))
-			 goto error;
-	break;
-
-	/* lowerdevs */
-	case NI_IFTYPE_VLAN:
-	case NI_IFTYPE_MACVLAN:
-	case NI_IFTYPE_MACVTAP:
-		/*
-		 * STARTMODE="$pstartmode"
-		 * BOOTPROTO="static"
-		 */
-
-		/* Clone <control> */
-		if (!xml_node_is_empty(control) && !xml_node_clone(control, config))
-			goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv4, "true"))
-			 goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_ARP_VERIFY, ipv4, "true"))
-			 goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv6, "true"))
-			 goto error;
-	break;
-
-	default:
-		goto error;
-	}
-
-	return config;
-
-error:
-	ni_error("%s: Unable to generate default XML config (parent type %s)",
-		ifname, ni_linktype_type_to_name(parent->iftype));
-	xml_node_free(config);
-	return NULL;
-}
-
-static void
-ni_ifworker_generate_default_config(ni_ifworker_t *parent, ni_ifworker_t *child)
-{
-	xml_node_t *config;
-
-	if (!parent || !parent->iftype || !parent->config.node ||
-			!child || ni_string_empty(child->name))
-		return;
-
-	if (parent->iftype == NI_IFTYPE_OVS_SYSTEM)
-		return;
-
-	ni_debug_application("%s: generating default config for %s child",
-			parent->name, child->name);
-
-	config = __ni_generate_default_config(parent, child->name);
-	if (config) {
-		ni_ifworker_set_config(child, config, parent->config.meta.origin);
-		xml_node_free(config);
-	}
-}
-
-static ni_bool_t
-ni_ifworker_add_child_master(xml_node_t *config, const char *name)
-{
-	xml_node_t *link, *master;
-
-	if (xml_node_is_empty(config) || ni_string_empty(name))
-		return FALSE;
-
-	if (!(link = xml_node_get_child(config, NI_CLIENT_IFCONFIG_LINK))) {
-		if (!(link = xml_node_new(NI_CLIENT_IFCONFIG_LINK, config)))
-			return FALSE;
-	}
-
-	if (!(master = xml_node_get_child(link, NI_CLIENT_IFCONFIG_MASTER))) {
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_MASTER, link, name))
-			return FALSE;
-	}
-	else if (!ni_string_eq(master->cdata, name)) {
-		ni_error("Failed adding <master>%s</master> to <link> -"
-			"there is already one <master>%s</master>", name, master->cdata);
-		return FALSE;
-	}
-
-	return TRUE;
-}
-
 static ni_bool_t
 ni_ifworker_del_child_master(xml_node_t *config)
 {
@@ -1482,10 +1326,6 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 				return FALSE;
 		}
 	}
-
-	/* Generate missed slave config if needed */
-	if (xml_node_is_empty(child->config.node))
-		ni_ifworker_generate_default_config(parent, child);
 
 	/* Check if this child is already owned by the given parent. */
 	for (i = 0; i < parent->children.count; ++i) {
@@ -1608,7 +1448,7 @@ ni_ifworker_update_client_state_control(ni_ifworker_t *w)
 	}
 }
 
-static inline void
+static void
 ni_ifworker_update_client_state_config(ni_ifworker_t *w)
 {
 	if (w && w->object && !w->readonly) {
@@ -1627,6 +1467,59 @@ ni_ifworker_update_client_state_scripts(ni_ifworker_t *w)
 			ni_call_set_client_state_scripts(w->object, &scripts);
 		}
 	}
+}
+
+static void
+ni_ifworker_update_client_state(ni_ifworker_t *w)
+{
+	ni_ifworker_update_client_state_control(w);
+	ni_ifworker_update_client_state_config(w);
+	ni_ifworker_update_client_state_scripts(w);
+}
+
+static inline void
+ni_ifworker_reset_client_state_control(ni_ifworker_t *w)
+{
+	ni_client_state_control_t ctrl;
+
+	if (w && w->object && !w->readonly) {
+		ni_client_state_control_init(&ctrl);
+		ni_call_set_client_state_control(w->object, &ctrl);
+		ni_client_state_control_debug(w->name, &ctrl, "remove");
+	}
+}
+
+static inline void
+ni_ifworker_reset_client_state_config(ni_ifworker_t *w)
+{
+	ni_client_state_config_t config;
+
+	if (w && w->object && !w->readonly) {
+		ni_client_state_config_init(&config);
+		ni_call_set_client_state_config(w->object, &config);
+		ni_client_state_config_debug(w->name, &config, "remove");
+	}
+}
+
+static inline void
+ni_ifworker_reset_client_state_scripts(ni_ifworker_t *w)
+{
+	ni_client_state_scripts_t scripts = { .node = NULL };
+
+	if (w && w->object && !w->readonly) {
+		ni_call_set_client_state_scripts(w->object, &scripts);
+		ni_debug_application("%s: %s <%s> %s", w->name,
+				"remove", NI_CLIENT_STATE_XML_NODE,
+				NI_CLIENT_STATE_XML_SCRIPTS_NODE);
+	}
+}
+
+static inline void
+ni_ifworker_reset_client_state(ni_ifworker_t *w)
+{
+	ni_ifworker_reset_client_state_control(w);
+	ni_ifworker_reset_client_state_config(w);
+	ni_ifworker_reset_client_state_scripts(w);
 }
 
 static inline ni_bool_t
@@ -1659,9 +1552,10 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 
 		if ((new_state == NI_FSM_STATE_DEVICE_READY) && w->object && !w->readonly) {
 			ni_call_clear_event_filters(w->object);
-			ni_ifworker_update_client_state_control(w);
-			ni_ifworker_update_client_state_scripts(w);
-			ni_ifworker_update_client_state_config(w);
+			if (prev_state > new_state)
+				ni_ifworker_reset_client_state(w);
+			else
+				ni_ifworker_update_client_state(w);
 		}
 
 		if (w->target_state == new_state)
@@ -3152,9 +3046,6 @@ __ni_fsm_pull_in_children(ni_ifworker_t *w, ni_ifworker_array_t *array)
 			continue;
 		}
 
-		if (xml_node_is_empty(child->config.node))
-			ni_ifworker_generate_default_config(w, child);
-
 		if (xml_node_is_empty(child->config.node)) {
 			ni_debug_application("%s: ignoring dependent child %s - no config",
 				w->name, child->name);
@@ -3226,10 +3117,6 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 		ni_ifworker_t *w = marked->data[i];
 
 		w->target_range = marker->target_range;
-
-		/* Clean client-info origin and UUID on ifdown */
-		if (marker->target_range.max < NI_FSM_STATE_DEVICE_SETUP)
-			ni_client_state_config_reset(&w->config.meta);
 
 		if (marker->persistent)
 			ni_ifworker_control_set_persistent(w, TRUE);
@@ -3482,8 +3369,9 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 static int
 ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 {
+	const unsigned int services_max = ni_objectmodel_service_registry_count();
+	const ni_dbus_service_t *list_services[services_max];
 	const ni_dbus_method_t *method;
-	const ni_dbus_service_t *list_services[128];
 	const char *link_type;
 	unsigned int i, count;
 	int rv;
@@ -3527,7 +3415,7 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 		/* We try to locate the factory service by looping over all services compatible
 		 * with netif-list */
 		netif_list_class = ni_objectmodel_get_class(NI_OBJECTMODEL_NETIF_LIST_CLASS);
-		count = ni_objectmodel_compatible_services_for_class(netif_list_class, list_services, 128);
+		count = ni_objectmodel_compatible_services_for_class(netif_list_class, list_services, services_max);
 	}
 
 	for (i = 0; i < count; ++i) {
@@ -3610,6 +3498,82 @@ static dbus_bool_t	ni_ifworker_netif_resolve_cb(xml_node_t *, const ni_xs_type_t
 static int		ni_ifworker_prompt_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
 static int		ni_ifworker_prompt_later_cb(xml_node_t *, const ni_xs_type_t *, const xml_node_t *, void *);
 
+static inline int
+ni_ifworker_bind_service_references_early(ni_ifworker_t *w, ni_fsm_t *fsm,
+		ni_dbus_xml_validate_context_t *context,
+		const ni_dbus_service_t *service)
+{
+	const ni_fsm_transition_t *action;
+	const ni_dbus_method_t *method;
+
+	action = ni_fsm_transition_first();
+	for ( ; action; action = ni_fsm_transition_next(action)) {
+		xml_node_t *config = NULL;
+		int rv;
+
+		if (ni_fsm_transition_is_down(action))
+			continue;
+		if (ni_string_empty(action->common.method_name))
+			continue;
+		if (!(method = ni_dbus_service_get_method(service,
+				action->common.method_name)))
+			continue;
+
+		if ((rv = ni_dbus_xml_map_method_argument(method, 0, w->config.node,
+				&config, NULL)) < 0) {
+			ni_ifworker_fail(w, "document error: can't map %s.%s() arguments",
+					service->name, method->name);
+			return -NI_ERROR_DOCUMENT_ERROR;
+		}
+		if (config) {
+			ni_debug_wicked_xml(config, NI_LOG_DEBUG2,
+				"%s(%s) mapped %s.%s() arguments",
+				__func__, w->name, service->name, method->name);
+
+			if (!ni_dbus_xml_validate_argument(method, 0, config, context)) {
+				ni_ifworker_fail(w, "failed to validate %s.%s() arguments",
+						service->name, method->name);
+					return -NI_ERROR_DOCUMENT_ERROR;
+			}
+		}
+	}
+
+	return NI_SUCCESS;
+}
+
+int
+ni_ifworker_bind_services_early(ni_ifworker_t *w, ni_fsm_t *fsm,
+		ni_dbus_xml_validate_context_t *context)
+{
+	const unsigned int max = ni_objectmodel_service_registry_count();
+	const ni_dbus_service_t *services[max], *service;
+	const ni_dbus_class_t *class;
+	unsigned int count, i;
+	int rv;
+
+	/* Hmm.. modem should not differ, but...*/
+	if (w->type != NI_IFWORKER_TYPE_NETDEV)
+		return NI_SUCCESS;
+
+	if (xml_node_is_empty(w->config.node))
+		return NI_SUCCESS;
+
+	ni_debug_wicked_xml(w->config.node, NI_LOG_DEBUG2,
+			"%s(%s) config", __func__, w->name);
+
+	if (!(class = ni_objectmodel_get_class(NI_OBJECTMODEL_NETIF_CLASS)))
+		return NI_SUCCESS;
+
+	count = ni_objectmodel_compatible_services_for_class(class, services, max);
+	for (i = 0; i < count; ++i) {
+		service = services[i];
+		if ((rv = ni_ifworker_bind_service_references_early(w,
+				fsm, context, service)) != NI_SUCCESS)
+			return rv;
+	}
+	return NI_SUCCESS;
+}
+
 int
 ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
 {
@@ -3632,7 +3596,7 @@ ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
 
 	if (w->device_api.factory_method && w->device_api.config) {
 		/* The XML validation code will do a pass over the part of our XML
-		 * document that's used for the deviceNew() call, and call us for
+		 * document that's used for the newDevice() call, and call us for
 		 * every bit of metadata it finds.
 		 * This includes elements marked by <meta:netif-reference/>
 		 * in the schema.
@@ -3641,6 +3605,11 @@ ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
 			return -NI_ERROR_DOCUMENT_ERROR;
 	}
 
+	/*
+	 * Also other methods as linkUp contain <meta:netif-reference/>
+	 * we have to resolve in order to rebuild the config hierarchy.
+	 */
+	ni_ifworker_bind_services_early(w, fsm, &context);
 	ni_ifworker_get_check_state_req_for_methods(w);
 done:
 	return rv;
@@ -3782,35 +3751,30 @@ ni_fsm_print_system_hierarchy(const ni_fsm_t *fsm)
 int
 ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 {
+	ni_ifworker_t *w;
 	unsigned int i;
+	int rv;
+
+	if (!fsm)
+		return NI_ERROR_INVALID_ARGS;
 
 	ni_fsm_events_block(fsm);
 	for (i = 0; i < fsm->workers.count; ++i) {
-		ni_ifworker_t *w = fsm->workers.data[i];
-		int rv;
+		w = fsm->workers.data[i];
 
-		/* A worker without an ifnode is one that we discovered in the
-		 * system, but which we've not been asked to configure. */
+		/*
+		 * A worker without an ifnode is one that we've discovered in
+		 * the system, but which we've not been asked to configure.
+		 */
 		if (!w->config.node)
 			continue;
 
 		if ((rv = ni_ifworker_bind_early(w, fsm, FALSE)) < 0) {
 			if (destructive) {
-				if (-NI_ERROR_DOCUMENT_ERROR == rv)
-					ni_debug_application("%s: configuration failed", w->name);
 				ni_fsm_destroy_worker(fsm, w);
 				i--;
 			}
-		}
-	}
-
-	for (i = 0; i < fsm->workers.count; ++i) {
-		ni_ifworker_t *w = fsm->workers.data[i];
-
-		if (w->masterdev) {
-			if (!ni_ifworker_add_child_master(w->config.node, w->masterdev->name))
-				continue;
-			ni_ifworker_generate_uuid(w);
+			continue;
 		}
 	}
 
@@ -3820,7 +3784,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 	if (ni_log_facility(NI_TRACE_APPLICATION))
 		ni_fsm_print_config_hierarchy(fsm);
 
-	return 0;
+	return NI_SUCCESS;
 }
 
 dbus_bool_t
@@ -4704,9 +4668,9 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 		 *   <arguments>
 		 *     <foobar type="...">
 		 *       <meta:mapping
-		 *	   	document-node="/some/xpath/expression" 
-		 *		skip-unless-present="true"
-		 *		/>
+		 *         document-node="/some/xpath/expression"
+		 *         skip-unless-present="true"
+		 *       />
 		 *     </foobar>
 		 *   </arguments>
 		 * </method>
@@ -4963,6 +4927,111 @@ ni_ifworker_do_wait_device_ready_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_tr
 	return ni_ifworker_do_common_call(fsm, w, action);
 }
 
+static unsigned int
+ni_ifworker_get_ports_by_name(ni_fsm_t *fsm, const char *name, ni_ifworker_array_t *ports)
+{
+	unsigned int i, count;
+
+	if (!fsm || ni_string_empty(name))
+		return 0;
+
+	count = ports ? ports->count : 0;
+	for (i = 0;  i < fsm->workers.count; ++i) {
+		ni_ifworker_t *w = fsm->workers.data[i];
+
+		if (!w->masterdev)
+			continue;
+		if (!ni_string_eq(w->masterdev->name, name))
+			continue;
+
+		if (ports)
+			ni_ifworker_array_append(ports, w);
+		else
+			count++;
+	}
+	return ports ? ports->count - count : count;
+}
+
+static ni_tristate_t
+ni_ifworker_link_detection_guess(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	ni_netdev_t *dev;
+
+	/*
+	 * At the time of this call, the interface is configured
+	 * by changeDevice (if needed), we're setting it UP (linkUp)
+	 * and when it's not defined via config, we need to decide
+	 * whether to wait for 'link-up' event signaling carrier
+	 * and running state (incl. wpa on wlan) or not, before we
+	 * continue with the L3 setup aka assign IP addresses, ...
+	 *
+	 * For some interfaces, we don't wait for link-up by default.
+	 */
+	if (!fsm || !w)
+		return NI_TRISTATE_DEFAULT;
+
+	switch (w->masterdev ? w->masterdev->iftype : NI_IFTYPE_UNKNOWN) {
+	case NI_IFTYPE_BOND:
+	case NI_IFTYPE_TEAM:
+	case NI_IFTYPE_BRIDGE:
+	case NI_IFTYPE_OVS_BRIDGE:
+	case NI_IFTYPE_OVS_SYSTEM:
+		/*
+		 * Don't wait for L2 ports controlled by master,
+		 * which inherit it's carrier from it's ports
+		 * according to own logic (incl. monitoring)
+		 * and we don't wait for link-up of the ports
+		 * and also don't setup L3 on ports.
+		 */
+		return NI_TRISTATE_DISABLE;
+	default:
+		break;
+	}
+
+	switch (w->iftype) {
+	case NI_IFTYPE_OVS_SYSTEM:
+		/*
+		 * The link state is unused on ovs datapaths.
+		 */
+		return NI_TRISTATE_DISABLE;
+
+	case NI_IFTYPE_TUN:
+	case NI_IFTYPE_TAP:
+		/*
+		 * Tun/Tap interfaces need a daemon started by
+		 * an external service, PRE_UP hook, ...
+		 * It may need to open a connection somewhere
+		 * in the internet, ... don't require link-up.
+		 */
+		return NI_TRISTATE_DISABLE;
+
+	case NI_IFTYPE_BRIDGE:
+		/*
+		 * A bridge inherits the carrier from a port;
+		 * - When the config defines ports, wait until
+		 *   they're added and the bridge gets link-up.
+		 * - When the config does not define any ports:
+		 *   - with STP=off: the bridge will get link-up
+		 *   - with STP=on: will not reach link-up until
+		 *     a port has been added externally, e.g. by
+		 *     adding a VM interface to it at VM start.
+		 *     Don't require the link-up, but continue to
+		 *     set up L3 (e.g. static IPs), so services
+		 *     (e.g. dhcp-server) are started on the
+		 *     bridge to serve the VMs (while it's added).
+		 */
+		dev = w->device; /* changeDevice is applied */
+		if (dev && dev->bridge && dev->bridge->stp &&
+		    ni_ifworker_get_ports_by_name(fsm, w->name, NULL))
+			return NI_TRISTATE_DISABLE;
+		return NI_TRISTATE_DEFAULT;
+
+	default:
+		return NI_TRISTATE_DEFAULT;
+	}
+
+}
+
 static int
 ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
@@ -4970,8 +5039,11 @@ ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 
 	ret = ni_ifworker_do_common_call(fsm, w, action);
 
-	if (!ni_tristate_is_set(w->control.link_required) && w->device)
-		w->control.link_required = ni_netdev_guess_link_required(w->device);
+	if (!ni_tristate_is_set(w->control.link_required)) {
+		w->control.link_required = ni_ifworker_link_detection_guess(fsm, w);
+		if (ni_tristate_is_set(w->control.link_required))
+			ni_ifworker_update_client_state_control(w);
+	}
 
 	if (ret >= 0 && w->fsm.wait_for) {
 		if (w->control.link_timeout != NI_IFWORKER_INFINITE_SECONDS) {
@@ -5212,6 +5284,26 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 
 	{ .from_state = NI_FSM_STATE_NONE, .next_state = NI_FSM_STATE_NONE, .call_func = NULL }
 };
+
+static const ni_fsm_transition_t *
+ni_fsm_transition_first(void)
+{
+	const ni_fsm_transition_t *action = ni_iftransitions;
+
+	if (action && action->call_func)
+		return action;
+	return NULL;
+}
+
+static const ni_fsm_transition_t *
+ni_fsm_transition_next(const ni_fsm_transition_t *action)
+{
+	if (!action || !action->call_func)
+		return NULL;
+	if (++action && action->call_func)
+		return action;
+	return NULL;
+}
 
 static int
 ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, unsigned int target_state)

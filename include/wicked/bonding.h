@@ -1,11 +1,24 @@
 /*
- * Bonding support for netinfo
+ *	Bonding support for netinfo
  *
- * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2023 SUSE LLC
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef __WICKED_BONDING_H__
-#define __WICKED_BONDING_H__
+#ifndef NI_WICKED_BONDING_H
+#define NI_WICKED_BONDING_H
 
 enum {
 	NI_BOND_MONITOR_MII = 1,
@@ -66,38 +79,33 @@ enum {
 };
 
 enum {
-	NI_BOND_SLAVE_STATE_ACTIVE = 0,
-	NI_BOND_SLAVE_STATE_BACKUP = 1,
+	NI_BOND_PORT_STATE_ACTIVE = 0,
+	NI_BOND_PORT_STATE_BACKUP = 1,
 };
 enum {
-	NI_BOND_SLAVE_LINK_UP = 0,
-	NI_BOND_SLAVE_LINK_FAIL = 1,
-	NI_BOND_SLAVE_LINK_DOWN = 2,
-	NI_BOND_SLAVE_LINK_BACK = 3,
+	NI_BOND_PORT_LINK_UP = 0,
+	NI_BOND_PORT_LINK_FAIL = 1,
+	NI_BOND_PORT_LINK_DOWN = 2,
+	NI_BOND_PORT_LINK_BACK = 3,
 };
 
-typedef struct ni_bonding_slave_array	ni_bonding_slave_array_t;
-typedef struct ni_bonding_slave		ni_bonding_slave_t;
+/*
+ * Bonding port (link-request) configuration
+ */
+struct ni_bonding_port_config {
+	unsigned int			queue_id;
+};
 
-struct ni_bonding_slave_info {
-	unsigned int			refcount;
-
+/*
+ * Bonding port interface info properties
+ */
+struct ni_bonding_port_info {
 	unsigned int			state;
 	unsigned int			mii_status;
 	ni_hwaddr_t			perm_hwaddr;
 	unsigned int			queue_id;
 	unsigned int			ad_aggregator_id;
 	unsigned int			link_failure_count;
-};
-
-struct ni_bonding_slave {
-	ni_netdev_ref_t			device;
-	ni_bonding_slave_info_t *	info;
-};
-
-struct ni_bonding_slave_array {
-	unsigned int			count;
-	ni_bonding_slave_t **		data;
 };
 
 struct ni_bonding {
@@ -143,82 +151,53 @@ struct ni_bonding {
 
 	ni_netdev_ref_t		primary_slave;
 	ni_netdev_ref_t		active_slave;
-
-	ni_bonding_slave_array_t slaves;
 };
 
-extern int		ni_bonding_load(const char *options);
+extern int				ni_bonding_load(const char *options);
 
-extern ni_bonding_t *	ni_bonding_new(void);
-extern ni_bonding_t *	ni_bonding_clone(const ni_bonding_t *);
-extern void		ni_bonding_free(ni_bonding_t *);
+extern ni_bonding_t *			ni_bonding_new(void);
+extern ni_bonding_t *			ni_bonding_clone(const ni_bonding_t *);
+extern void				ni_bonding_free(ni_bonding_t *);
 
-extern void		ni_bonding_get_slave_names(const ni_bonding_t *, ni_string_array_t *);
-extern ni_bool_t	ni_bonding_has_slave(ni_bonding_t *, const char *);
-extern ni_bonding_slave_t * ni_bonding_add_slave(ni_bonding_t *, const char *);
+extern const char *			ni_bonding_validate(const ni_bonding_t *bonding);
+extern ni_bool_t			ni_bonding_is_valid_arp_ip_target(const char *);
 
-extern ni_bool_t	ni_bonding_set_option(ni_bonding_t *, const char *, const char *);
-extern int		ni_bonding_parse_sysfs_attrs(const char *, ni_bonding_t *);
-extern int		ni_bonding_write_sysfs_attrs(const char *ifname,
-						const ni_bonding_t *cfg_bond,
-						ni_bonding_t       *cur_bond,
-						ni_bool_t is_up, ni_bool_t has_slaves);
+extern ni_bool_t			ni_bonding_set_option(ni_bonding_t *,
+							const char *, const char *);
+extern int				ni_bonding_parse_sysfs_attrs(const char *,
+							ni_bonding_t *);
+extern int				ni_bonding_write_sysfs_attrs(const char *,
+							const ni_bonding_t *cfg_bond,
+							ni_bonding_t       *cur_bond,
+							ni_bool_t up, ni_bool_t ports);
 
-extern ni_bool_t	ni_bonding_is_valid_arp_ip_target(const char *);
+extern const char *			ni_bonding_mode_type_to_name(unsigned int);
+extern int				ni_bonding_mode_name_to_type(const char *);
+extern const char *			ni_bonding_arp_validate_type_to_name(unsigned int);
+extern int				ni_bonding_arp_validate_name_to_type(const char *);
+extern const char *			ni_bonding_arp_validate_targets_to_name(unsigned int);
+extern int				ni_bonding_arp_validate_targets_to_type(const char *);
+extern const char *			ni_bonding_mii_carrier_detect_name(unsigned int);
+extern int				ni_bonding_mii_carrier_detect_type(const char *);
+extern const char *			ni_bonding_xmit_hash_policy_to_name(unsigned int);
+extern int				ni_bonding_xmit_hash_name_to_policy(const char *);
+extern const char *			ni_bonding_lacp_rate_name(unsigned int);
+extern int				ni_bonding_lacp_rate_mode(const char *);
+extern const char *			ni_bonding_ad_select_name(unsigned int);
+extern int				ni_bonding_ad_select_mode(const char *);
+extern const char *			ni_bonding_primary_reselect_name(unsigned int);
+extern int				ni_bonding_primary_reselect_mode(const char *);
+extern const char *			ni_bonding_fail_over_mac_name(unsigned int);
+extern int				ni_bonding_fail_over_mac_mode(const char *);
 
-extern const char *	ni_bonding_validate(const ni_bonding_t *bonding);
+extern ni_bonding_port_config_t *	ni_bonding_port_config_new(void);
+extern void				ni_bonding_port_config_free(ni_bonding_port_config_t *);
 
-extern const char *	ni_bonding_mode_type_to_name(unsigned int);
-extern int		ni_bonding_mode_name_to_type(const char *);
+extern ni_bonding_port_info_t *		ni_bonding_port_info_new(void);
+extern void				ni_bonding_port_info_free(ni_bonding_port_info_t *);
+extern void				ni_bonding_port_info_reset(ni_bonding_port_info_t *);
 
-extern const char *	ni_bonding_arp_validate_type_to_name(unsigned int);
-extern int		ni_bonding_arp_validate_name_to_type(const char *);
+extern const char *			ni_bonding_port_state_name(unsigned int);
+extern const char *			ni_bonding_port_mii_status_name(unsigned int);
 
-extern const char *	ni_bonding_arp_validate_targets_to_name(unsigned int);
-extern int		ni_bonding_arp_validate_targets_to_type(const char *);
-
-extern const char *	ni_bonding_mii_carrier_detect_name(unsigned int);
-extern int		ni_bonding_mii_carrier_detect_type(const char *);
-
-extern const char *	ni_bonding_xmit_hash_policy_to_name(unsigned int);
-extern int		ni_bonding_xmit_hash_name_to_policy(const char *);
-
-extern const char *	ni_bonding_lacp_rate_name(unsigned int);
-extern int		ni_bonding_lacp_rate_mode(const char *);
-
-extern const char *	ni_bonding_ad_select_name(unsigned int);
-extern int		ni_bonding_ad_select_mode(const char *);
-
-extern const char *	ni_bonding_primary_reselect_name(unsigned int);
-extern int		ni_bonding_primary_reselect_mode(const char *);
-
-extern const char *	ni_bonding_fail_over_mac_name(unsigned int);
-extern int		ni_bonding_fail_over_mac_mode(const char *);
-
-extern const char *	ni_bonding_slave_state_name(unsigned int);
-extern const char *	ni_bonding_slave_mii_status_name(unsigned int);
-
-extern ni_bonding_slave_t *	ni_bonding_bind_slave(ni_bonding_t *, const ni_netdev_ref_t *, const char *);
-extern ni_bool_t		ni_bonding_unbind_slave(ni_bonding_t *, const ni_netdev_ref_t *, const char *);
-
-extern ni_bonding_slave_info_t *ni_bonding_slave_info_new(void);
-extern ni_bonding_slave_info_t *ni_bonding_slave_info_ref(ni_bonding_slave_info_t *);
-extern void			ni_bonding_slave_info_free(ni_bonding_slave_info_t *);
-extern void			ni_bonding_slave_info_reset(ni_bonding_slave_info_t *);
-
-extern ni_bonding_slave_t *	ni_bonding_slave_new(void);
-extern void			ni_bonding_slave_free(ni_bonding_slave_t *);
-extern void			ni_bonding_slave_set_info(ni_bonding_slave_t *, ni_bonding_slave_info_t *);
-extern ni_bonding_slave_info_t *ni_bonding_slave_get_info(ni_bonding_slave_t *);
-
-extern void			ni_bonding_slave_array_destroy(ni_bonding_slave_array_t *);
-extern ni_bool_t		ni_bonding_slave_array_append(ni_bonding_slave_array_t *, ni_bonding_slave_t *);
-extern ni_bool_t		ni_bonding_slave_array_delete(ni_bonding_slave_array_t *, unsigned int);
-extern ni_bonding_slave_t *	ni_bonding_slave_array_remove(ni_bonding_slave_array_t *, unsigned int);
-extern unsigned int		ni_bonding_slave_array_index_by_ifname(ni_bonding_slave_array_t *, const char *);
-extern unsigned int		ni_bonding_slave_array_index_by_ifindex(ni_bonding_slave_array_t *, unsigned int);
-extern ni_bonding_slave_t *	ni_bonding_slave_array_get(ni_bonding_slave_array_t *, unsigned int);
-extern ni_bonding_slave_t *	ni_bonding_slave_array_get_by_ifname(ni_bonding_slave_array_t *, const char *);
-extern ni_bonding_slave_t *	ni_bonding_slave_array_get_by_ifindex(ni_bonding_slave_array_t *, unsigned int);
-
-#endif /* __WICKED_BONDING_H__ */
+#endif /* NI_WICKED_BONDING_H */
