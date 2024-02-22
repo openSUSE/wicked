@@ -291,6 +291,11 @@ If this number is exceeded, link is reported as down.
 .PP
 Default: \f[B]3\f[R]
 .RE
+.TP
+\f[V]TEAM_LW_ARP_PING_VLANID[SUFFIX]\f[R]
+By default, ARP requests are sent without VLAN tags.
+This option causes outgoing ARP requests to be sent with the specified
+VLAN ID number.
 .SH NS/NA PING LINK WATCH SPECIFIC OPTIONS
 .TP
 \f[V]TEAM_LW_NSNA_PING_TARGET_HOST[SUFFIX]\f[R]

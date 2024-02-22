@@ -233,6 +233,10 @@ the usual network settings. But you must add additional variables
 
     Default: **3**
 
+`TEAM_LW_ARP_PING_VLANID[SUFFIX]`
+:   By default, ARP requests are sent without VLAN tags. This option causes
+    outgoing ARP requests to be sent with the specified VLAN ID number.
+
 
 # NS/NA PING LINK WATCH SPECIFIC OPTIONS
 
