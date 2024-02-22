@@ -86,6 +86,11 @@ ni_fsm_new(void)
 void
 ni_fsm_free(ni_fsm_t *fsm)
 {
+	unsigned int i;
+
+	for (i = 0; i < fsm->workers.count; ++i)
+		ni_ifworker_reset(fsm->workers.data[i]);
+
 	ni_fsm_events_destroy(&fsm->events);
 	ni_ifworker_array_destroy(&fsm->pending);
 	ni_ifworker_array_destroy(&fsm->workers);
@@ -3312,11 +3317,15 @@ ni_fsm_clear_hierarchy(ni_ifworker_t *w)
 {
 	unsigned int i;
 
-	if (w->masterdev)
+	if (w->masterdev) {
 		ni_ifworker_array_remove(&w->masterdev->children, w);
+		w->masterdev = NULL;
+	}
 
-	if (w->lowerdev)
+	if (w->lowerdev) {
 		ni_ifworker_array_remove(&w->lowerdev->lowerdev_for, w);
+		w->lowerdev = NULL;
+	}
 
 	for (i = 0; i < w->lowerdev_for.count; i++) {
 		ni_ifworker_t *ldev_usr = w->lowerdev_for.data[i];
