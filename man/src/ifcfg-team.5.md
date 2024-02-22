@@ -152,6 +152,16 @@ the usual network settings. But you must add additional variables
 
 # LINK WATCH OPTIONS
 
+`TEAM_LINK_WATCH_POLICY`
+:   Declare name of link-watchers evaluation policy. The following options are
+    available:
+
+    **any** -- Link is up if any of the link-watchers reports the link up.
+
+    **all** -- Link is up if all of the link-watchers reports the link up.
+
+    Default: **any**
+
 `TEAM_LW_NAME[SUFFIX]`
 :   Declares the type name of link watch (with the specified unique watch
     suffix). To declare several link watches, append the same suffix to all

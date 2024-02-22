@@ -190,6 +190,20 @@ Same as for loadbalancer runner.
 Please refer to the section above.
 .SH LINK WATCH OPTIONS
 .TP
+\f[V]TEAM_LINK_WATCH_POLICY\f[R]
+Declare name of link-watchers evaluation policy.
+The following options are available:
+.RS
+.PP
+\f[B]any\f[R] \[en] Link is up if any of the link-watchers reports the
+link up.
+.PP
+\f[B]all\f[R] \[en] Link is up if all of the link-watchers reports the
+link up.
+.PP
+Default: \f[B]any\f[R]
+.RE
+.TP
 \f[V]TEAM_LW_NAME[SUFFIX]\f[R]
 Declares the type name of link watch (with the specified unique watch
 suffix).
