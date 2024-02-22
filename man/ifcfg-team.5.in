@@ -28,6 +28,14 @@ To setup a team interface you need a configuration file ifcfg-team<X>
 with the usual network settings.
 But you must add additional variables
 .TP
+\f[V]TEAM_DEBUG_LEVEL\f[R]
+Level of debug messages.
+The higher it is the more debug messages will be printed.
+.RS
+.PP
+Default: \f[B]0\f[R] (disabled)
+.RE
+.TP
 \f[V]TEAM_NOTIFY_PEERS_COUNT\f[R]
 Number of bursts of unsolicited NAs and gratuitous ARP packets sent
 after port is enabled or disabled.
