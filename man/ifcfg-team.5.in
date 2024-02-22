@@ -28,6 +28,26 @@ To setup a team interface you need a configuration file ifcfg-team<X>
 with the usual network settings.
 But you must add additional variables
 .TP
+\f[V]TEAM_NOTIFY_PEERS_COUNT\f[R]
+Number of bursts of unsolicited NAs and gratuitous ARP packets sent
+after port is enabled or disabled.
+If not set, use teamd default.
+.TP
+\f[V]TEAM_NOTIFY_PEERS_INTERVAL\f[R]
+Value is positive number in milliseconds.
+Specifies an interval between bursts of notify-peer packets.
+If not set, use teamd default.
+.TP
+\f[V]TEAM_MCAST_REJOIN_COUNT\f[R]
+Number of bursts of multicast group rejoin requests sent after port is
+enabled or disabled.
+If not set, use teamd default.
+.TP
+\f[V]TEAM_MCAST_REJOIN_INTERVAL\f[R]
+Value is positive number in milliseconds.
+Specifies an interval between bursts of multicast group rejoin requests.
+If not set, use teamd default.
+.TP
 \f[V]TEAM_RUNNER\f[R]
 must be set to one of the following types to identify this interface as
 a team interface:
