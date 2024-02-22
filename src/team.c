@@ -401,6 +401,15 @@ ni_team_port_config_destroy(ni_team_port_config_t *pc)
 {
 }
 
+static void
+ni_team_init(ni_team_t *team)
+{
+	team->notify_peers.count = -1U;
+	team->notify_peers.interval = -1U;
+	team->mcast_rejoin.count = -1U;
+	team->mcast_rejoin.interval = -1U;
+}
+
 /*
  * team device
  */
@@ -410,6 +419,8 @@ ni_team_new(void)
 	ni_team_t *team;
 
 	team = xcalloc(1, sizeof(*team));
+	ni_team_init(team);
+
 	return team;
 }
 

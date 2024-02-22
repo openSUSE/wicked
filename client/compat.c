@@ -920,6 +920,50 @@ __ni_compat_generate_team_ports(xml_node_t *tnode, const ni_team_port_array_t *a
 }
 
 static ni_bool_t
+ni_compat_generate_team_notify_peers(xml_node_t *parent, const ni_team_t *team)
+{
+	xml_node_t *node;
+
+	if (!parent || !team)
+		return FALSE;
+
+	if (team->notify_peers.count == -1U && team->notify_peers.interval == -1U)
+		return TRUE;
+
+	node = xml_node_create(parent, "notify_peers");
+
+	if (team->notify_peers.count != -1U)
+		xml_node_new_element("count", node, ni_sprint_uint(team->notify_peers.count));
+
+	if (team->notify_peers.interval != -1U)
+		xml_node_new_element("interval", node, ni_sprint_uint(team->notify_peers.interval));
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_compat_generate_team_mcast_rejoin(xml_node_t *parent, const ni_team_t *team)
+{
+	xml_node_t *node;
+
+	if (!parent || !team)
+		return FALSE;
+
+	if (team->mcast_rejoin.count == -1U && team->mcast_rejoin.interval == -1U)
+		return TRUE;
+
+	node = xml_node_create(parent, "mcast_rejoin");
+
+	if (team->mcast_rejoin.count != -1U)
+		xml_node_new_element("count", node, ni_sprint_uint(team->mcast_rejoin.count));
+
+	if (team->mcast_rejoin.interval != -1U)
+		xml_node_new_element("interval", node, ni_sprint_uint(team->mcast_rejoin.interval));
+
+	return TRUE;
+}
+
+static ni_bool_t
 __ni_compat_generate_team(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	const ni_team_t *team;
@@ -932,6 +976,11 @@ __ni_compat_generate_team(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 		xml_node_new_element("address", tnode,
 			ni_link_address_print(&compat->dev->link.hwaddr));
 	}
+
+	if (!ni_compat_generate_team_notify_peers(tnode, team))
+		return FALSE;
+	if (!ni_compat_generate_team_mcast_rejoin(tnode, team))
+		return FALSE;
 
 	if (!__ni_compat_generate_team_runner(tnode, &team->runner))
 		return FALSE;

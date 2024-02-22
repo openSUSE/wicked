@@ -233,10 +233,21 @@ typedef enum {
 	NI_TEAM_LINK_WATCH_POLICY_ALL = 1,
 } ni_team_link_watch_policy_t;
 
+typedef struct ni_team_notify_peers {
+	unsigned int				count;
+	unsigned int				interval;
+} ni_team_notify_peers_t;
+
+typedef struct ni_team_mcast_rejoin {
+	unsigned int				count;
+	unsigned int				interval;
+} ni_team_mcast_rejoin_t;
 /*
  * team device
  */
 struct ni_team {
+	ni_team_notify_peers_t			notify_peers;
+	ni_team_mcast_rejoin_t			mcast_rejoin;
 	ni_team_runner_t			runner;
 	ni_team_link_watch_policy_t		link_watch_policy;
 	ni_team_link_watch_array_t		link_watch;

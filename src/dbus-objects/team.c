@@ -310,6 +310,102 @@ __ni_objectmodel_team_set_address(ni_dbus_object_t *object, const ni_dbus_proper
 }
 
 static dbus_bool_t
+__ni_objectmodel_team_get_mcast_rejoin(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result, DBusError *error)
+{
+	const ni_team_t *team;
+	const ni_team_mcast_rejoin_t *m;
+
+	if (!(team = __ni_objectmodel_team_read_handle(object, error)))
+		return FALSE;
+	m = &team->mcast_rejoin;
+
+	if (m->count == -1U && m->interval == -1U)
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
+
+	ni_dbus_variant_init_dict(result);
+	if (m->count != -1U)
+		ni_dbus_dict_add_uint32(result, "count", m->count);
+
+	if (m->interval != -1U)
+		ni_dbus_dict_add_uint32(result, "interval", m->interval);
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_team_set_mcast_rejoin(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_team_t *team;
+	uint32_t u32;
+
+	if (!(team = __ni_objectmodel_team_write_handle(object, error)))
+		return FALSE;
+
+	if (!ni_dbus_variant_is_dict(argument)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "team mcast_rejoin member is not a dict");
+		return FALSE;
+	}
+
+	if (ni_dbus_dict_get_uint32(argument, "count", &u32))
+		team->mcast_rejoin.count = u32;
+
+	if (ni_dbus_dict_get_uint32(argument, "interval", &u32))
+		team->mcast_rejoin.interval = u32;
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_team_get_notify_peers(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
+				ni_dbus_variant_t *result, DBusError *error)
+{
+	const ni_team_t *team;
+	const ni_team_notify_peers_t *m;
+
+	if (!(team = __ni_objectmodel_team_read_handle(object, error)))
+		return FALSE;
+	m = &team->notify_peers;
+
+	if (m->count == -1U && m->interval == -1U)
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
+
+	ni_dbus_variant_init_dict(result);
+	if (m->count != -1U)
+		ni_dbus_dict_add_uint32(result, "count", m->count);
+
+	if (m->interval != -1U)
+		ni_dbus_dict_add_uint32(result, "interval", m->interval);
+
+	return TRUE;
+}
+
+static dbus_bool_t
+__ni_objectmodel_team_set_notify_peers(ni_dbus_object_t *object, const ni_dbus_property_t *property,
+				const ni_dbus_variant_t *argument, DBusError *error)
+{
+	ni_team_t *team;
+	uint32_t u32;
+
+	if (!(team = __ni_objectmodel_team_write_handle(object, error)))
+		return FALSE;
+
+	if (!ni_dbus_variant_is_dict(argument)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "team notify_peers member is not a dict");
+		return FALSE;
+	}
+
+	if (ni_dbus_dict_get_uint32(argument, "count", &u32))
+		team->notify_peers.count = u32;
+
+	if (ni_dbus_dict_get_uint32(argument, "interval", &u32))
+		team->notify_peers.interval = u32;
+
+	return TRUE;
+}
+
+static dbus_bool_t
 __ni_objectmodel_team_get_runner(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result, DBusError *error)
 {
@@ -896,6 +992,8 @@ __ni_objectmodel_team_set_ports(ni_dbus_object_t *object, const ni_dbus_property
 			dbus_name, member_name, __ni_objectmodel_team, RO)
 
 static ni_dbus_property_t	ni_objectmodel_team_properties[] = {
+	TEAM_DICT_PROPERTY(notify_peers, notify_peers, RO),
+	TEAM_DICT_PROPERTY(mcast_rejoin, mcast_rejoin, RO),
 	TEAM_DICT_PROPERTY(runner, runner, RO),
 	TEAM_UINT_PROPERTY(link_watch_policy, link_watch_policy, RO),
 	TEAM_DICT_PROPERTY(link_watch, link_watch, RO),

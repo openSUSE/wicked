@@ -85,6 +85,14 @@
   </define>
 
   <define name="device-info" class="dict">
+    <notify_peers class="dict">
+      <count        type="uint32"/>
+      <interval     type="uint32"/>
+    </notify_peers>
+    <mcast_rejoin class="dict">
+      <count        type="uint32"/>
+      <interval     type="uint32"/>
+    </mcast_rejoin>
     <runner class="union" switch="name">
       <roundrobin   type="roundrobin-runner"/>
       <activebackup type="activebackup-runner"/>

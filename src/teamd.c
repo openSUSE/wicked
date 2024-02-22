@@ -1118,6 +1118,38 @@ ni_teamd_discover_ports(ni_team_t *team, ni_json_t *conf)
 	return 0;
 }
 
+static void
+ni_teamd_discover_notify_peers(ni_team_t *team, ni_json_t *conf)
+{
+	int64_t i64;
+	ni_json_t *json;
+
+	if (!team || !conf || !(json = ni_json_object_get_value(conf, "notify_peers")))
+		return;
+
+	if (ni_json_int64_get(ni_json_object_get_value(json, "count"), &i64))
+		team->notify_peers.count = i64;
+
+	if (ni_json_int64_get(ni_json_object_get_value(json, "interval"), &i64))
+		team->notify_peers.interval = i64;
+}
+
+static void
+ni_teamd_discover_mcast_rejoin(ni_team_t *team, ni_json_t *conf)
+{
+	int64_t i64;
+	ni_json_t *json;
+
+	if (!team || !conf || !(json = ni_json_object_get_value(conf, "mcast_rejoin")))
+		return;
+
+	if (ni_json_int64_get(ni_json_object_get_value(json, "count"), &i64))
+		team->mcast_rejoin.count = i64;
+
+	if (ni_json_int64_get(ni_json_object_get_value(json, "interval"), &i64))
+		team->mcast_rejoin.interval = i64;
+}
+
 int
 ni_teamd_discover(ni_netdev_t *dev)
 {
@@ -1142,6 +1174,9 @@ ni_teamd_discover(ni_netdev_t *dev)
 
 	if (!(conf = ni_json_parse_string(val)))
 		goto failure;
+
+	ni_teamd_discover_notify_peers(team, conf);
+	ni_teamd_discover_mcast_rejoin(team, conf);
 
 	if (ni_teamd_discover_runner(team, conf) < 0)
 		goto failure;
@@ -1406,6 +1441,44 @@ ni_teamd_config_json_link_watch(const ni_team_link_watch_array_t *link_watch)
 	}
 }
 
+static void
+ni_teamd_config_json_notify_peers(ni_json_t *root, const ni_team_notify_peers_t *np)
+{
+	ni_json_t *object;
+
+	if (np->count == -1U && np->interval == -1U)
+		return;
+
+	object = ni_json_new_object();
+
+	if (np->count != -1U)
+		ni_json_object_set(object, "count", ni_json_new_int64(np->count));
+
+	if (np->interval != -1U)
+		ni_json_object_set(object, "interval", ni_json_new_int64(np->interval));
+
+	ni_json_object_set(root, "notify_peers", object);
+}
+
+static void
+ni_teamd_config_json_mcast_rejoin(ni_json_t *root, const ni_team_mcast_rejoin_t *mc)
+{
+	ni_json_t *object;
+
+	if (mc->count == -1U && mc->interval == -1U)
+		return;
+
+	object = ni_json_new_object();
+
+	if (mc->count != -1U)
+		ni_json_object_set(object, "count", ni_json_new_int64(mc->count));
+
+	if (mc->interval != -1U)
+		ni_json_object_set(object, "interval", ni_json_new_int64(mc->interval));
+
+	ni_json_object_set(root, "mcast_rejoin", object);
+}
+
 static int
 ni_teamd_config_file_dump(FILE *fp, const char *instance, const ni_team_t *config, const ni_hwaddr_t *hwaddr)
 {
@@ -1422,6 +1495,9 @@ ni_teamd_config_file_dump(FILE *fp, const char *instance, const ni_team_t *confi
 	if (!ni_link_address_is_invalid(hwaddr)) {
 		ni_json_object_set(object, "hwaddr", ni_json_new_string(ni_link_address_print(hwaddr)));
 	}
+
+	ni_teamd_config_json_notify_peers(object, &config->notify_peers);
+	ni_teamd_config_json_mcast_rejoin(object, &config->mcast_rejoin);
 
 	if (!(child = ni_teamd_config_json_runner(&config->runner)))
 		goto failure;

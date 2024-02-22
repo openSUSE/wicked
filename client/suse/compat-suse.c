@@ -2814,6 +2814,38 @@ try_team(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		}
 	}
 
+	if ((value = ni_sysconfig_get_value(sc, "TEAM_NOTIFY_PEERS_COUNT")) != NULL) {
+		if (ni_parse_uint(value, &team->notify_peers.count, 0) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_NOTIFY_PEERS_COUNT='%s'",
+				dev->name, value);
+			return -1;
+		}
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TEAM_NOTIFY_PEERS_INTERVAL")) != NULL) {
+		if (ni_parse_uint(value, &team->notify_peers.interval, 0) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_NOTIFY_PEERS_INTERVAL='%s'",
+				dev->name, value);
+			return -1;
+		}
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TEAM_MCAST_REJOIN_COUNT")) != NULL) {
+		if (ni_parse_uint(value, &team->mcast_rejoin.count, 0) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_MCAST_REJOIN_COUNT='%s'",
+				dev->name, value);
+			return -1;
+		}
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TEAM_MCAST_REJOIN_INTERVAL")) != NULL) {
+		if (ni_parse_uint(value, &team->mcast_rejoin.interval, 0) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_MCAST_REJOIN_INTERVAL='%s'",
+				dev->name, value);
+			return -1;
+		}
+	}
+
 	if ((value = ni_sysconfig_get_value(sc, "TEAM_LINK_WATCH_POLICY"))) {
 		if (!ni_team_link_watch_policy_name_to_type(value, &team->link_watch_policy)) {
 			ni_error("ifcfg-%s: Cannot parse TEAM_LINK_WATCH_POLICY='%s'",
