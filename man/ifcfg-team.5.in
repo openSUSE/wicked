@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii foo.1
 .\"
-.TH IFCFG-TEAM 5 "August 2015" "wicked" "Network configuration"
+.TH IFCFG-TEAM 5 "January 2024" "wicked" "Network configuration"
 .\" ...
 
 .SH NAME
@@ -140,30 +140,6 @@ Default:
 .TP
 .BR TEAM_LACP_SELECT_POLICY
 The policy of how the aggregators will be selected. The following are available:
-.RS 7
-.PP
-.BR "lacp_prio "\(em
-Aggregator with highest priority according to LACP standard will be selected. Aggregator priority is affected by per-port option
-.BR "lacp_prio".
-.PP
-.BR "lacp_prio_stable "\(em
-Same as previous one, except do not replace selected aggregator if it is still usable.
-.PP
-.BR "bandwidth "\(em
-Select aggregator with highest total bandwidth.
-.PP
-.BR "count "\(em
-Select aggregator with highest number of ports.
-.PP
-.BR "port_options "\(em
-Aggregator with highest priority according to per-port options
-.BR "prio " and
-.BR "sticky "
-will be selected. This means that the aggregator containing the port with the highest priority will be selected unless at least one of the ports in the currently selected aggregator is sticky.
-.PP
-Default:
-.BR "lacp_prio"
-.RE
 .RS 7
 .PP
 .BR "lacp_prio "\(em
@@ -366,7 +342,7 @@ Default:
 
 
 .SH Example
-Example for a bonding interface on eth0 and eth1 using the backup mode
+Example for a teaming interface on eth0 and eth1 using the backup mode
 
 .I ifcfg-team0
 .nf
@@ -389,7 +365,7 @@ Example for a bonding interface on eth0 and eth1 using the backup mode
    TEAM_LW_NAME_1="nsna_ping"
    TEAM_LW_NSNA_PING_INTERVAL_1="100"
    TEAM_LW_NSNA_PING_MISSED_MAX_1="30"
-   TEAM_LW_NSNA_PING_TARGET_HOST="fe80::1"
+   TEAM_LW_NSNA_PING_TARGET_HOST_1="fe80::1"
 .fi
 
 .SH Additional Information
