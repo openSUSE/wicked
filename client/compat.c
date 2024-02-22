@@ -835,6 +835,9 @@ __ni_compat_generate_team_link_watch(xml_node_t *tnode, const ni_team_link_watch
 			xml_node_new_element("send_always", watch, ni_format_boolean(arp->send_always));
 
 			xml_node_new_element("missed_max", watch, ni_sprint_uint(arp->missed_max));
+
+			if (arp->vlanid != UINT16_MAX)
+				xml_node_new_element("vlanid", watch, ni_sprint_uint(arp->vlanid));
 		}
 		break;
 

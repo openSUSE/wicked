@@ -256,6 +256,24 @@ ni_team_link_watch_name_to_type(const char *name, ni_team_link_watch_type_t *typ
 	return TRUE;
 }
 
+void
+ni_team_link_watch_init(ni_team_link_watch_t *lw)
+{
+	if (lw) switch (lw->type) {
+	case NI_TEAM_LINK_WATCH_ETHTOOL:
+		break;
+	case NI_TEAM_LINK_WATCH_ARP_PING:
+		lw->arp.vlanid = UINT16_MAX;
+		break;
+	case NI_TEAM_LINK_WATCH_NSNA_PING:
+		break;
+	case NI_TEAM_LINK_WATCH_TIPC:
+		break;
+	default:
+		return;
+	}
+}
+
 /*
  * team master link watch
  */
@@ -267,6 +285,7 @@ ni_team_link_watch_new(ni_team_link_watch_type_t type)
 	lw = xcalloc(1, sizeof(*lw));
 	lw->type = type;
 
+	ni_team_link_watch_init(lw);
 	return lw;
 }
 

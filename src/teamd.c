@@ -936,6 +936,8 @@ ni_teamd_discover_link_watch_item_details(ni_team_link_watch_t *lw, ni_json_t *l
 			lw->arp.send_always= b;
 		if (ni_json_int64_get(ni_json_object_get_value(link_watch, "missed_max"), &i64))
 			lw->arp.missed_max= i64;
+		if (ni_json_int64_get(ni_json_object_get_value(link_watch, "vlanid"), &i64))
+			lw->arp.vlanid = (uint16_t)i64;
 		break;
 
 	case NI_TEAM_LINK_WATCH_NSNA_PING:
@@ -1344,6 +1346,9 @@ ni_teamd_config_json_link_watch_item(const ni_team_link_watch_t *lw)
 			}
 			if (a->missed_max) {
 				ni_json_object_set(object, "missed_max", ni_json_new_int64(a->missed_max));
+			}
+			if (a->vlanid != UINT16_MAX) {
+				ni_json_object_set(object, "vlanid", ni_json_new_int64(a->vlanid));
 			}
 		}
 		break;

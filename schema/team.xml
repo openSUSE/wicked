@@ -49,6 +49,7 @@
     <send_always       type="boolean" />
     <missed_max        type="uint32" />
     <missed            type="uint32" />
+    <vlanid            type="uint16" />
   </define>
 
   <define name="tipc-linkwatch-type" class="dict">

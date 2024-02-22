@@ -545,6 +545,8 @@ __ni_objectmodel_team_link_watch_to_dict(const ni_team_link_watch_t *lw, ni_dbus
 			ni_dbus_dict_add_bool(dict, "send_always", lw->arp.send_always);
 		if (lw->arp.missed_max > 0)
 			ni_dbus_dict_add_uint32(dict, "missed_max", lw->arp.missed_max);
+		if (lw->arp.vlanid != UINT16_MAX)
+			ni_dbus_dict_add_uint16(dict, "vlanid", lw->arp.vlanid);
 		break;
 	case NI_TEAM_LINK_WATCH_NSNA_PING:
 		if (lw->nsna.target_host)
@@ -574,6 +576,7 @@ __ni_objectmodel_team_link_watch_from_dict(ni_team_link_watch_t *lw, const ni_db
 	const char *string;
 	dbus_bool_t bvalue;
 	uint32_t value;
+	uint16_t u16;
 
 	if (!lw || !dict || !error)
 		return FALSE;
@@ -602,6 +605,8 @@ __ni_objectmodel_team_link_watch_from_dict(ni_team_link_watch_t *lw, const ni_db
 			lw->arp.send_always = bvalue;
 		if (ni_dbus_dict_get_uint32(dict, "missed_max", &value))
 			lw->arp.missed_max = value;
+		if (ni_dbus_dict_get_uint16(dict, "vlanid", &u16))
+			lw->arp.vlanid = u16;
 		break;
 	case NI_TEAM_LINK_WATCH_NSNA_PING:
 		if (ni_dbus_dict_get_string(dict, "target_host", &string))

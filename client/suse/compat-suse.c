@@ -2473,6 +2473,22 @@ try_add_team_link_watch(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *
 					goto failure;
 				}
 			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_VLANID", suffix))) {
+				uint32_t u32;
+
+				if (ni_parse_uint(var->value, &u32, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ARP_PING_VLANID%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+				if (u32 > 4096) {
+					ni_error("ifcfg-%s: Invalid value in TEAM_LW_ARP_PING_VLANID%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+				arp->vlanid = (uint16_t)u32;
+			}
 		}
 		break;
 

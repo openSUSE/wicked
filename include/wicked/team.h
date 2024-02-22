@@ -158,6 +158,7 @@ typedef struct ni_team_link_watch_arp {
 	ni_bool_t				validate_inactive;
 	ni_bool_t				send_always;
 	unsigned int				missed_max;
+	uint16_t				vlanid;
 } ni_team_link_watch_arp_t;
 
 typedef struct ni_team_link_watch_tipc {
