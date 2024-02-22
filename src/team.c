@@ -292,6 +292,34 @@ ni_team_link_watch_free(ni_team_link_watch_t *lw)
 	free(lw);
 }
 
+/*
+ * Map teamd link watch policy to constants
+ */
+static const ni_intmap_t	ni_team_link_watch_policy[] = {
+	{ "any",		NI_TEAM_LINK_WATCH_POLICY_ANY		},
+	{ "all",		NI_TEAM_LINK_WATCH_POLICY_ALL		},
+
+	{ NULL,			-1U					}
+};
+
+const char *
+ni_team_link_watch_policy_type_to_name(ni_team_link_watch_policy_t type)
+{
+	return ni_format_uint_mapped(type, ni_team_link_watch_policy);
+}
+
+ni_bool_t
+ni_team_link_watch_policy_name_to_type(const char *name, ni_team_link_watch_policy_t *type)
+{
+	if (!name || !type)
+		return FALSE;
+
+	if (ni_parse_uint_mapped(name, ni_team_link_watch_policy, type) != 0)
+		return FALSE;
+
+	return TRUE;
+}
+
 static ni_define_ptr_array_init(ni_team_link_watch);
 static ni_define_ptr_array_destroy(ni_team_link_watch);
 static ni_define_ptr_array_realloc(ni_team_link_watch, NI_TEAM_LINK_WATCH_ARRAY_CHUNK);

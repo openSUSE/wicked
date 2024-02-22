@@ -774,6 +774,18 @@ __ni_compat_generate_team_runner(xml_node_t *tnode, const ni_team_runner_t *runn
 }
 
 static ni_bool_t
+ni_compat_generate_team_link_watch_policy(xml_node_t *tnode, const ni_team_link_watch_policy_t policy)
+{
+	const char *name;
+
+	if (policy != NI_TEAM_LINK_WATCH_POLICY_ANY &&
+	    (name = ni_team_link_watch_policy_type_to_name(policy)))
+		xml_node_new_element("link_watch_policy", tnode, name);
+
+	return TRUE;
+}
+
+static ni_bool_t
 __ni_compat_generate_team_link_watch(xml_node_t *tnode, const ni_team_link_watch_array_t *array)
 {
 	xml_node_t *link_watch;
@@ -919,6 +931,9 @@ __ni_compat_generate_team(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 	}
 
 	if (!__ni_compat_generate_team_runner(tnode, &team->runner))
+		return FALSE;
+
+	if (!ni_compat_generate_team_link_watch_policy(tnode, team->link_watch_policy))
 		return FALSE;
 
 	if (!__ni_compat_generate_team_link_watch(tnode, &team->link_watch))

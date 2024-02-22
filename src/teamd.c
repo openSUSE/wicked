@@ -960,6 +960,19 @@ ni_teamd_discover_link_watch_item_details(ni_team_link_watch_t *lw, ni_json_t *l
 	return 0;
 }
 
+
+static void
+ni_teamd_discover_link_watch_policy(ni_netdev_t *dev, ni_team_t *team, ni_json_t *conf)
+{
+	char * name = NULL;
+
+	if (!ni_json_string_get(ni_json_object_get_value(conf, "link_watch_policy"), &name))
+		return;
+
+	if (!ni_team_link_watch_policy_name_to_type(name, &team->link_watch_policy))
+		ni_warn("%s: Unknown link_watch_policy value %s", dev->name, name);
+}
+
 static int
 ni_teamd_discover_link_watch_item(ni_team_link_watch_array_t *array, ni_json_t *link_watch)
 {
@@ -1130,6 +1143,8 @@ ni_teamd_discover(ni_netdev_t *dev)
 
 	if (ni_teamd_discover_runner(team, conf) < 0)
 		goto failure;
+
+	ni_teamd_discover_link_watch_policy(dev, team, conf);
 
 	if (ni_teamd_discover_link_watch(team, conf) < 0)
 		goto failure;
@@ -1391,6 +1406,7 @@ ni_teamd_config_file_dump(FILE *fp, const char *instance, const ni_team_t *confi
 {
 	ni_stringbuf_t dump = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_json_t *object, *child;
+	const char *name;
 
 	if (!fp || ni_string_empty(instance) || !config)
 		return -1;
@@ -1405,6 +1421,9 @@ ni_teamd_config_file_dump(FILE *fp, const char *instance, const ni_team_t *confi
 	if (!(child = ni_teamd_config_json_runner(&config->runner)))
 		goto failure;
 	ni_json_object_set(object, "runner", child);
+
+	if ((name = ni_team_link_watch_policy_type_to_name(config->link_watch_policy)))
+		ni_json_object_set(object, "link_watch_policy", ni_json_new_string(name));
 
 	if (config->link_watch.count) {
 		if (!(child = ni_teamd_config_json_link_watch(&config->link_watch)))

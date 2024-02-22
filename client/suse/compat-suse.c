@@ -2798,6 +2798,14 @@ try_team(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		}
 	}
 
+	if ((value = ni_sysconfig_get_value(sc, "TEAM_LINK_WATCH_POLICY"))) {
+		if (!ni_team_link_watch_policy_name_to_type(value, &team->link_watch_policy)) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_LINK_WATCH_POLICY='%s'",
+					dev->name, value);
+			return -1;
+		}
+	}
+
 	if (__process_indexed_variables(sc, dev, "TEAM_LW_NAME",
 					try_add_team_link_watch) < 0)
 		return -1;

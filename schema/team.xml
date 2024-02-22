@@ -92,7 +92,7 @@
       <random       type="random-runner"/>
       <lacp         type="lacp-runner"/>
     </runner>
-
+    <link_watch_policy    type="builtin-team-link-watch-policy" />
     <link_watch class="dict">
       <watch class="union" switch="name">
         <ethtool   type="ethtool-linkwatch-type" />

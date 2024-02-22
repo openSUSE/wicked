@@ -248,8 +248,8 @@ __ni_objectmodel_delete_team(ni_dbus_object_t *object, const ni_dbus_method_t *m
 /*
  * Helper function to obtain team config from dbus object
  */
-static ni_team_t *
-__ni_objectmodel_team_handle(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
+static void *
+ni_objectmodel_get_team(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
 {
 	ni_netdev_t *dev;
 	ni_team_t *team;
@@ -270,13 +270,13 @@ __ni_objectmodel_team_handle(const ni_dbus_object_t *object, ni_bool_t write_acc
 static ni_team_t *
 __ni_objectmodel_team_write_handle(const ni_dbus_object_t *object, DBusError *error)
 {
-	return __ni_objectmodel_team_handle(object, TRUE, error);
+	return ni_objectmodel_get_team(object, TRUE, error);
 }
 
 static const ni_team_t *
 __ni_objectmodel_team_read_handle(const ni_dbus_object_t *object, DBusError *error)
 {
-	return __ni_objectmodel_team_handle(object, FALSE, error);
+	return ni_objectmodel_get_team(object, FALSE, error);
 }
 
 #if 0
@@ -883,12 +883,16 @@ __ni_objectmodel_team_set_ports(ni_dbus_object_t *object, const ni_dbus_property
 #define TEAM_DICT_PROPERTY(dbus_name, member_name,rw) \
 	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, dbus_name, \
 			member_name, __ni_objectmodel_team, RO)
+#define TEAM_UINT_PROPERTY(dbus_name, member_name, rw) \
+	NI_DBUS_GENERIC_UINT_PROPERTY(team, dbus_name, member_name, rw)
+
 #define TEAM_DICT_ARRAY_PROPERTY(dbus_name, member_name,rw) \
 	___NI_DBUS_PROPERTY(DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE, \
 			dbus_name, member_name, __ni_objectmodel_team, RO)
 
 static ni_dbus_property_t	ni_objectmodel_team_properties[] = {
 	TEAM_DICT_PROPERTY(runner, runner, RO),
+	TEAM_UINT_PROPERTY(link_watch_policy, link_watch_policy, RO),
 	TEAM_DICT_PROPERTY(link_watch, link_watch, RO),
 	TEAM_DICT_ARRAY_PROPERTY(ports, ports, RO),
 	TEAM_HWADDR_PROPERTY(address, RO),
