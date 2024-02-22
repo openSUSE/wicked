@@ -246,6 +246,7 @@ typedef struct ni_team_mcast_rejoin {
  * team device
  */
 struct ni_team {
+	unsigned int				debug_level;
 	ni_team_notify_peers_t			notify_peers;
 	ni_team_mcast_rejoin_t			mcast_rejoin;
 	ni_team_runner_t			runner;

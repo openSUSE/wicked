@@ -977,6 +977,9 @@ __ni_compat_generate_team(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 			ni_link_address_print(&compat->dev->link.hwaddr));
 	}
 
+	if (team->debug_level > 0)
+		xml_node_new_element("debug_level", tnode, ni_sprint_uint(team->debug_level));
+
 	if (!ni_compat_generate_team_notify_peers(tnode, team))
 		return FALSE;
 	if (!ni_compat_generate_team_mcast_rejoin(tnode, team))

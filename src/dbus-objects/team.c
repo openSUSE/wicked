@@ -992,6 +992,7 @@ __ni_objectmodel_team_set_ports(ni_dbus_object_t *object, const ni_dbus_property
 			dbus_name, member_name, __ni_objectmodel_team, RO)
 
 static ni_dbus_property_t	ni_objectmodel_team_properties[] = {
+	TEAM_UINT_PROPERTY(debug_level, debug_level, RO),
 	TEAM_DICT_PROPERTY(notify_peers, notify_peers, RO),
 	TEAM_DICT_PROPERTY(mcast_rejoin, mcast_rejoin, RO),
 	TEAM_DICT_PROPERTY(runner, runner, RO),

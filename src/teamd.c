@@ -1157,6 +1157,7 @@ ni_teamd_discover(ni_netdev_t *dev)
 	ni_json_t *conf = NULL;
 	ni_team_t *team = NULL;
 	char *val = NULL;
+	int64_t i64;
 
 	if (!dev || dev->link.type != NI_IFTYPE_TEAM)
 		return -1;
@@ -1174,6 +1175,9 @@ ni_teamd_discover(ni_netdev_t *dev)
 
 	if (!(conf = ni_json_parse_string(val)))
 		goto failure;
+
+	if (ni_json_int64_get(ni_json_object_get_value(conf, "debug_level"), &i64) && i64 < UINT_MAX)
+		team->debug_level = i64;
 
 	ni_teamd_discover_notify_peers(team, conf);
 	ni_teamd_discover_mcast_rejoin(team, conf);
@@ -1495,6 +1499,9 @@ ni_teamd_config_file_dump(FILE *fp, const char *instance, const ni_team_t *confi
 	if (!ni_link_address_is_invalid(hwaddr)) {
 		ni_json_object_set(object, "hwaddr", ni_json_new_string(ni_link_address_print(hwaddr)));
 	}
+
+	if (config->debug_level > 0)
+		ni_json_object_set(object, "debug_level", ni_json_new_int64(config->debug_level));
 
 	ni_teamd_config_json_notify_peers(object, &config->notify_peers);
 	ni_teamd_config_json_mcast_rejoin(object, &config->mcast_rejoin);

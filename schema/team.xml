@@ -85,6 +85,7 @@
   </define>
 
   <define name="device-info" class="dict">
+    <debug_level  type="uint32"/>
     <notify_peers class="dict">
       <count        type="uint32"/>
       <interval     type="uint32"/>

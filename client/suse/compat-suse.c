@@ -2814,6 +2814,14 @@ try_team(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		}
 	}
 
+	if ((value = ni_sysconfig_get_value(sc, "TEAM_DEBUG_LEVEL")) != NULL) {
+		if (ni_parse_uint(value, &team->debug_level, 0) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_DEBUG_LEVEL='%s'",
+				dev->name, value);
+			return -1;
+		}
+	}
+
 	if ((value = ni_sysconfig_get_value(sc, "TEAM_NOTIFY_PEERS_COUNT")) != NULL) {
 		if (ni_parse_uint(value, &team->notify_peers.count, 0) < 0) {
 			ni_error("ifcfg-%s: Cannot parse TEAM_NOTIFY_PEERS_COUNT='%s'",
