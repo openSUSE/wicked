@@ -158,6 +158,7 @@ typedef struct ni_team_link_watch_arp {
 	ni_bool_t				validate_inactive;
 	ni_bool_t				send_always;
 	unsigned int				missed_max;
+	uint16_t				vlanid;
 } ni_team_link_watch_arp_t;
 
 typedef struct ni_team_link_watch_tipc {
@@ -227,11 +228,29 @@ typedef struct ni_team_port_array {
 	ni_team_port_t **			data;
 } ni_team_port_array_t;
 
+typedef enum {
+	NI_TEAM_LINK_WATCH_POLICY_ANY = 0U,
+	NI_TEAM_LINK_WATCH_POLICY_ALL = 1,
+} ni_team_link_watch_policy_t;
+
+typedef struct ni_team_notify_peers {
+	unsigned int				count;
+	unsigned int				interval;
+} ni_team_notify_peers_t;
+
+typedef struct ni_team_mcast_rejoin {
+	unsigned int				count;
+	unsigned int				interval;
+} ni_team_mcast_rejoin_t;
 /*
  * team device
  */
 struct ni_team {
+	unsigned int				debug_level;
+	ni_team_notify_peers_t			notify_peers;
+	ni_team_mcast_rejoin_t			mcast_rejoin;
 	ni_team_runner_t			runner;
+	ni_team_link_watch_policy_t		link_watch_policy;
 	ni_team_link_watch_array_t		link_watch;
 	ni_team_port_array_t			ports;
 };
@@ -260,6 +279,10 @@ extern ni_bool_t				ni_team_ab_hwaddr_policy_name_to_type(const char *, ni_team_
 
 extern const char *				ni_team_link_watch_type_to_name(ni_team_link_watch_type_t);
 extern ni_bool_t				ni_team_link_watch_name_to_type(const char *, ni_team_link_watch_type_t *);
+
+extern const char *				ni_team_link_watch_policy_type_to_name(ni_team_link_watch_policy_t);
+extern ni_bool_t				ni_team_link_watch_policy_name_to_type(const char *,
+											ni_team_link_watch_policy_t *);
 
 extern ni_team_link_watch_t *			ni_team_link_watch_new(ni_team_link_watch_type_t);
 extern void					ni_team_link_watch_free(ni_team_link_watch_t *);
