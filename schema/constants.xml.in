@@ -211,6 +211,9 @@
 <define name="builtin-team-lacp-select-policy" type="uint32" constraint="enum">
   <@@TEAM_LACP_SELECT_POLICY_NAME@@ value="@@TEAM_LACP_SELECT_POLICY_VALUE@@"/>
 </define>
+<define name="builtin-team-link-watch-policy" type="uint32" constraint="enum">
+  <@@TEAM_LINK_WATCH_POLICY_NAME@@ value="@@TEAM_LINK_WATCH_POLICY_VALUE@@"/>
+</define>
 
 <!-- Built-in gre constants -->
 <define name="builtin-gre-flag-mask" type="uint32" constraint="bitmap">
