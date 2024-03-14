@@ -617,10 +617,14 @@ __show_leases_by_family(const ni_netdev_t *dev, ni_bool_t verbose, sa_family_t f
 			ni_addrconf_type_to_name(lease->type),
 			ni_addrconf_state_to_name(lease->state));
 
-		if (verbose && lease->flags) {
+		if ((verbose && lease->flags) ||
+		    ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_FALLBACK)) {
+			ni_stringbuf_t tmp = NI_STRINGBUF_INIT_DYNAMIC;
 			ni_stringbuf_puts(&buf, " [");
-			ni_addrconf_flags_format(&buf, lease->flags, ",");
+			ni_addrconf_flags_format(&tmp, lease->flags, ",");
+			ni_stringbuf_puts(&buf, tmp.string);
 			ni_stringbuf_puts(&buf, "]");
+			ni_stringbuf_destroy(&tmp);
 		}
 	}
 	if (buf.string)
