@@ -4,6 +4,7 @@
  *	XPATH is just way too weird :-)
  *
  *	Copyright (C) 2010-2012  Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2012-2024 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -15,11 +16,8 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write 
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, 
- *	Boston, MA 02110-1301 USA.
- *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -475,7 +473,7 @@ __xpath_next_identifier(const char **pp)
 	if (!isalpha(*pos))
 		return NULL;
 
-	while (isalnum(pos[n]) || pos[n] == '-' || pos[n] == ':')
+	while (isalnum(pos[n]) || pos[n] == '-' || pos[n] == ':' || pos[n] == '_')
 		++n;
 	if (n >= sizeof(identbuf)) {
 		ni_error("xpath: identifier too long");
@@ -757,7 +755,7 @@ __xpath_expression_eval(const xpath_enode_t *enode, xpath_result_t *in)
 				xpath_node_type_name(result->type));
 		xpath_result_free(result);
 		result = NULL;
-	} 
+	}
 
 	__xpath_expression_eval_print_output(enode, result);
 	return result;

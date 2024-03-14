@@ -256,6 +256,24 @@ ni_team_link_watch_name_to_type(const char *name, ni_team_link_watch_type_t *typ
 	return TRUE;
 }
 
+void
+ni_team_link_watch_init(ni_team_link_watch_t *lw)
+{
+	if (lw) switch (lw->type) {
+	case NI_TEAM_LINK_WATCH_ETHTOOL:
+		break;
+	case NI_TEAM_LINK_WATCH_ARP_PING:
+		lw->arp.vlanid = UINT16_MAX;
+		break;
+	case NI_TEAM_LINK_WATCH_NSNA_PING:
+		break;
+	case NI_TEAM_LINK_WATCH_TIPC:
+		break;
+	default:
+		return;
+	}
+}
+
 /*
  * team master link watch
  */
@@ -267,6 +285,7 @@ ni_team_link_watch_new(ni_team_link_watch_type_t type)
 	lw = xcalloc(1, sizeof(*lw));
 	lw->type = type;
 
+	ni_team_link_watch_init(lw);
 	return lw;
 }
 
@@ -290,6 +309,34 @@ ni_team_link_watch_free(ni_team_link_watch_t *lw)
 		return;
 	}
 	free(lw);
+}
+
+/*
+ * Map teamd link watch policy to constants
+ */
+static const ni_intmap_t	ni_team_link_watch_policy[] = {
+	{ "any",		NI_TEAM_LINK_WATCH_POLICY_ANY		},
+	{ "all",		NI_TEAM_LINK_WATCH_POLICY_ALL		},
+
+	{ NULL,			-1U					}
+};
+
+const char *
+ni_team_link_watch_policy_type_to_name(ni_team_link_watch_policy_t type)
+{
+	return ni_format_uint_mapped(type, ni_team_link_watch_policy);
+}
+
+ni_bool_t
+ni_team_link_watch_policy_name_to_type(const char *name, ni_team_link_watch_policy_t *type)
+{
+	if (!name || !type)
+		return FALSE;
+
+	if (ni_parse_uint_mapped(name, ni_team_link_watch_policy, type) != 0)
+		return FALSE;
+
+	return TRUE;
 }
 
 static ni_define_ptr_array_init(ni_team_link_watch);
@@ -354,6 +401,15 @@ ni_team_port_config_destroy(ni_team_port_config_t *pc)
 {
 }
 
+static void
+ni_team_init(ni_team_t *team)
+{
+	team->notify_peers.count = -1U;
+	team->notify_peers.interval = -1U;
+	team->mcast_rejoin.count = -1U;
+	team->mcast_rejoin.interval = -1U;
+}
+
 /*
  * team device
  */
@@ -363,6 +419,8 @@ ni_team_new(void)
 	ni_team_t *team;
 
 	team = xcalloc(1, sizeof(*team));
+	ni_team_init(team);
+
 	return team;
 }
 

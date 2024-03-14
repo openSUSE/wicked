@@ -52,7 +52,7 @@
 
  <method name="changeDevice">
   <arguments>
-   <config type="vxlan:base-config">
+   <config type="vxlan:configuration">
     <meta:mapping document-node="/vxlan" skip-unless-present="true"/>
    </config>
   </arguments>

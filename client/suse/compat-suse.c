@@ -2473,6 +2473,22 @@ try_add_team_link_watch(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *
 					goto failure;
 				}
 			}
+
+			if ((var = __find_indexed_variable(sc, "TEAM_LW_ARP_PING_VLANID", suffix))) {
+				uint32_t u32;
+
+				if (ni_parse_uint(var->value, &u32, 0) < 0) {
+					ni_error("ifcfg-%s: Cannot parse TEAM_LW_ARP_PING_VLANID%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+				if (u32 > 4096) {
+					ni_error("ifcfg-%s: Invalid value in TEAM_LW_ARP_PING_VLANID%s='%s'",
+						dev->name, suffix, var->value);
+					goto failure;
+				}
+				arp->vlanid = (uint16_t)u32;
+			}
 		}
 		break;
 
@@ -2794,6 +2810,54 @@ try_team(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		if (ni_link_address_parse(&dev->link.hwaddr, ARPHRD_ETHER, value) < 0) {
 			ni_error("ifcfg-%s: Cannot parse LLADDR=\"%s\"",
 				dev->name, value);
+			return -1;
+		}
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TEAM_DEBUG_LEVEL")) != NULL) {
+		if (ni_parse_uint(value, &team->debug_level, 0) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_DEBUG_LEVEL='%s'",
+				dev->name, value);
+			return -1;
+		}
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TEAM_NOTIFY_PEERS_COUNT")) != NULL) {
+		if (ni_parse_uint(value, &team->notify_peers.count, 0) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_NOTIFY_PEERS_COUNT='%s'",
+				dev->name, value);
+			return -1;
+		}
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TEAM_NOTIFY_PEERS_INTERVAL")) != NULL) {
+		if (ni_parse_uint(value, &team->notify_peers.interval, 0) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_NOTIFY_PEERS_INTERVAL='%s'",
+				dev->name, value);
+			return -1;
+		}
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TEAM_MCAST_REJOIN_COUNT")) != NULL) {
+		if (ni_parse_uint(value, &team->mcast_rejoin.count, 0) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_MCAST_REJOIN_COUNT='%s'",
+				dev->name, value);
+			return -1;
+		}
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TEAM_MCAST_REJOIN_INTERVAL")) != NULL) {
+		if (ni_parse_uint(value, &team->mcast_rejoin.interval, 0) < 0) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_MCAST_REJOIN_INTERVAL='%s'",
+				dev->name, value);
+			return -1;
+		}
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, "TEAM_LINK_WATCH_POLICY"))) {
+		if (!ni_team_link_watch_policy_name_to_type(value, &team->link_watch_policy)) {
+			ni_error("ifcfg-%s: Cannot parse TEAM_LINK_WATCH_POLICY='%s'",
+					dev->name, value);
 			return -1;
 		}
 	}
