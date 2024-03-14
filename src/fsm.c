@@ -86,6 +86,11 @@ ni_fsm_new(void)
 void
 ni_fsm_free(ni_fsm_t *fsm)
 {
+	unsigned int i;
+
+	for (i = 0; i < fsm->workers.count; ++i)
+		ni_ifworker_reset(fsm->workers.data[i]);
+
 	ni_fsm_events_destroy(&fsm->events);
 	ni_ifworker_array_destroy(&fsm->pending);
 	ni_ifworker_array_destroy(&fsm->workers);
@@ -3312,11 +3317,15 @@ ni_fsm_clear_hierarchy(ni_ifworker_t *w)
 {
 	unsigned int i;
 
-	if (w->masterdev)
+	if (w->masterdev) {
 		ni_ifworker_array_remove(&w->masterdev->children, w);
+		w->masterdev = NULL;
+	}
 
-	if (w->lowerdev)
+	if (w->lowerdev) {
 		ni_ifworker_array_remove(&w->lowerdev->lowerdev_for, w);
+		w->lowerdev = NULL;
+	}
 
 	for (i = 0; i < w->lowerdev_for.count; i++) {
 		ni_ifworker_t *ldev_usr = w->lowerdev_for.data[i];
@@ -4339,14 +4348,14 @@ ni_ifworker_xml_metadata_callback(xml_node_t *node, const ni_xs_type_t *type, co
  *
  * In order to prompt for e.g. a password, your schema should look like this:
  *
- *	  <auth class="dict">
- *	    <user type="string" constraint="required">
- *	      <meta:user-input type="user" prompt="Please enter openvpn user name"/>
- *	    </user>
- *	    <password type="string" constraint="required">
- *	      <meta:user-input type="password" prompt="Please enter openvpn password"/>
- *	    </password>
- *	  </auth>
+ * <auth class="dict">
+ *   <user type="string" constraint="required">
+ *     <meta:user-input type="user" prompt="Please enter openvpn user name"/>
+ *   </user>
+ *   <password type="string" constraint="required">
+ *     <meta:user-input type="password" prompt="Please enter openvpn password"/>
+ *   </password>
+ * </auth>
  *
  * If your interface document contains an empty <auth> element, wicked will prompt for
  * user and password. If the <auth> element exists and contains a <user> element, you
@@ -4704,9 +4713,9 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 		 *   <arguments>
 		 *     <foobar type="...">
 		 *       <meta:mapping
-		 *	   	document-node="/some/xpath/expression" 
-		 *		skip-unless-present="true"
-		 *		/>
+		 *           document-node="/some/xpath/expression"
+		 *           skip-unless-present="true"
+		 *           />
 		 *     </foobar>
 		 *   </arguments>
 		 * </method>

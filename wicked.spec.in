@@ -121,7 +121,8 @@ interface to network configuration.
 Summary:        Network configuration infrastructure - nbft support
 Group:          System/Management
 Requires:       %name = %{version}
-Requires:       nvme-cli >= 2.2.1
+# Support for the "nvme nbft show" command
+Requires:       nvme-cli >= 2.4+17.gf4cfca93998a
 Requires:       jq >= 1.6
 
 %description nbft

@@ -252,7 +252,7 @@ nvme_show_nbft() {
 	if test "X$OPT_ROOTDIR" != "X" -a -f "$OPT_ROOTDIR/nbft.json" ; then
 		cat "$OPT_ROOTDIR/nbft.json"
 	else
-		nvme show-nbft -H -o json
+		nvme nbft show -H -o json
 	fi
 }
 
@@ -261,7 +261,7 @@ nbft_parse() {
 	local j=0 i
 
 	nbft_json=$(nvme_show_nbft 2>/dev/null) || {
-		warn "failed to read NBFT table, is \"nvme show-nbft\" supported?"
+		warn "failed to read NBFT table, is \"nvme nbft show\" supported?"
 		return $RC_ERROR
 	}
 	n_nbft=$(nbft_run_jq ". | length" "$nbft_json") || return 0
