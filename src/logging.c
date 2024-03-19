@@ -18,6 +18,7 @@
 
 #include <wicked/logging.h>
 #include <wicked/util.h>
+#include <wicked/xml.h>
 #include "util_priv.h"
 
 #define NI_LOG_PID	(1 << 0)
@@ -624,3 +625,39 @@ ni_fatal(const char *fmt, ...)
 	exit(1);
 }
 
+void
+ni_debug_verbose_config_xml(const xml_node_t *node,
+		unsigned int level, unsigned int facility,
+		const char *fmt, ...)
+{
+	static const char *hidden = "***";
+	static const char * const npaths[] = {
+		"client-key-passwd",
+		"passphrase",
+		"password",
+		"modem-pin",
+		"wep/key",
+		NULL
+	};
+	xml_node_t *clone;
+	va_list ap;
+
+	if (!node || !ni_debug_guard(level, facility))
+		return;
+
+	if (!(clone = xml_node_clone(node, NULL)))
+		return;
+
+	xml_node_hide_cdata(clone, npaths, hidden);
+
+	va_start(ap, fmt);
+	if (!ni_log_syslog)
+		__ni_log_stderr("::: ", fmt, ap, "");
+	else
+		vsyslog(level, fmt, ap);
+
+	va_end(ap);
+
+	xml_node_print_debug(clone, facility);
+	xml_node_free(clone);
+}
