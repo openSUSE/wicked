@@ -72,11 +72,6 @@ struct ni_duid_map {
 };
 
 /*
- * compiler (gcc) specific ...
- */
-#define NI_PACKED __attribute__((__packed__))
-
-/*
  * DUID typed packed data union
  */
 typedef union ni_duid_data {
@@ -84,9 +79,7 @@ typedef union ni_duid_data {
 	ni_duid_llt_t		llt;
 	ni_duid_ll_t		ll;
 	ni_duid_en_t		en;
-} NI_PACKED ni_duid_data_t;
-
-#undef NI_PACKED
+} ni__packed ni_duid_data_t;
 
 
 /*

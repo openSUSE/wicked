@@ -27,6 +27,7 @@
 
 #include <wicked/types.h>
 #include <wicked/util.h>
+#include <wicked/compiler.h>
 
 
 /*
@@ -61,11 +62,6 @@
 #define NI_DUID_TYPE_LL		3
 #define NI_DUID_TYPE_UUID	4
 
-/*
- * We use gcc compiler specific attributes for
- * these direct access structs to duid members.
- */
-#define NI_PACKED __attribute__((__packed__))
 
 /*
  * DUID type 1, Link-layer address plus time
@@ -77,7 +73,7 @@ typedef struct ni_duid_llt {
 	uint16_t		hwtype;         /* link layer address type    */
 	uint32_t		v6time;		/* second since 2000 % 2^32   */
 	unsigned char		hwaddr[];	/* link layer address         */
-} NI_PACKED ni_duid_llt_t;
+} ni__packed ni_duid_llt_t;
 
 /*
  * DUID type 2, Vendor-assigned unique ID based on Enterprise Number
@@ -89,7 +85,7 @@ typedef struct ni_duid_en {
 	uint16_t		type;		/* type 2                     */
 	uint32_t		enterprise;	/* assigned enterprise-number */
 	unsigned char		identifier[];	/* machine unique identifier  */
-} NI_PACKED ni_duid_en_t;
+} ni__packed ni_duid_en_t;
 
 /*
  * DUID type 3, Link-layer address
@@ -100,7 +96,7 @@ typedef struct ni_duid_ll {
 	uint16_t		type;		/* type 3                     */
 	uint16_t		hwtype;		/* RFC 826 hardware type code */
 	unsigned char		hwaddr[];	/* link layer address         */
-} NI_PACKED ni_duid_ll_t;
+} ni__packed ni_duid_ll_t;
 
 /*
  * DUID type 4, UUID-Based DHCPv6 Unique Identifier
@@ -111,9 +107,8 @@ typedef struct ni_duid_ll {
 typedef struct ni_duid_uuid {
 	uint16_t		type;		/* type 4                     */
 	ni_uuid_t		uuid;		/* RFC4122 UUID as bytes      */
-} NI_PACKED ni_duid_uuid_t;
+} ni__packed ni_duid_uuid_t;
 
-#undef NI_PACKED
 
 typedef struct ni_duid_map	ni_duid_map_t;
 

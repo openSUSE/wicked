@@ -8,22 +8,16 @@
 #define __WICKED_LOGGING_H__
 
 #include <wicked/types.h>
+#include <wicked/compiler.h>
 
-#ifdef __GNUC__
-# define __fmtattr	__attribute__ ((format (printf, 1, 2)))
-# define __noreturn	__attribute__ ((noreturn))
-#else
-# define __fmtattr	/* */
-# define __noreturn	/* */
-#endif
 
-extern void		ni_info(const char *, ...) __fmtattr;
-extern void		ni_note(const char *, ...) __fmtattr;
-extern void		ni_warn(const char *, ...) __fmtattr;
-extern void		ni_error(const char *, ...) __fmtattr;
-extern void		ni_error_extra(const char *, ...) __fmtattr;
-extern void		ni_trace(const char *, ...) __fmtattr;
-extern void		ni_fatal(const char *, ...) __fmtattr __noreturn;
+extern void		ni_info(const char *, ...) ni__printf(1, 2);
+extern void		ni_note(const char *, ...) ni__printf(1, 2);
+extern void		ni_warn(const char *, ...) ni__printf(1, 2);
+extern void		ni_error(const char *, ...) ni__printf(1, 2);
+extern void		ni_error_extra(const char *, ...) ni__printf(1, 2);
+extern void		ni_trace(const char *, ...) ni__printf(1, 2);
+extern void		ni_fatal(const char *, ...) ni__printf(1, 2) ni__noreturn;
 
 extern int		ni_enable_debug(const char *);
 extern int		ni_debug_set_default(const char *);
