@@ -38,6 +38,9 @@
  *		make check
  */
 
+#ifndef NI_TESTING_WUNIT_H
+#define NI_TESTING_WUNIT_H
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -151,3 +154,5 @@ ni__unused static wunit_t wunit_ctx = {
 											\
 		return wunit_ctx.fail > 0 ? 1 : 0;					\
 	}
+
+#endif /* NI_TESTING_WUNIT_H */
