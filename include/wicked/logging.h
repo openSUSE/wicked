@@ -18,6 +18,9 @@ extern void		ni_error(const char *, ...) ni__printf(1, 2);
 extern void		ni_error_extra(const char *, ...) ni__printf(1, 2);
 extern void		ni_trace(const char *, ...) ni__printf(1, 2);
 extern void		ni_fatal(const char *, ...) ni__printf(1, 2) ni__noreturn;
+extern void		ni_debug_verbose_config_xml(const xml_node_t *,
+					unsigned int, unsigned int,
+					const char *, ...) ni__printf(4, 5);
 
 extern int		ni_enable_debug(const char *);
 extern int		ni_debug_set_default(const char *);
@@ -116,6 +119,9 @@ extern unsigned int	ni_log_level;
 			xml_node_print_debug(xml_node, NI_TRACE_WICKED_XML); \
 		} \
 	} while (0)
+
+#define ni_debug_config_xml(xml_node, level, fmt, args...) \
+	ni_debug_verbose_config_xml(xml_node, level, NI_TRACE_WICKED_XML, fmt, ##args)
 
 #define ni_debug_none(fmt, args...)		do { } while (0)
 

@@ -3,7 +3,8 @@
  *	This basically parses tags, attributes and CDATA, and that's
  *	just about it.
  *
- *	Copyright (C) 2009-2012  Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2024 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -15,15 +16,11 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write 
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, 
- *	Boston, MA 02110-1301 USA.
- *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef __WICKED_XML_H__
-#define __WICKED_XML_H__
+#ifndef NI_WICKED_XML_H
+#define NI_WICKED_XML_H
 
 #include <stdio.h>
 #include <wicked/util.h>
@@ -109,6 +106,7 @@ extern int		xml_node_uuid(const xml_node_t *, unsigned int, const ni_uuid_t *, n
 extern int		xml_node_content_uuid(const xml_node_t *, unsigned int, const ni_uuid_t *, ni_uuid_t *);
 extern int		xml_node_print_fn(const xml_node_t *, void (*)(const char *, void *), void *);
 extern int		xml_node_print_debug(const xml_node_t *, unsigned int facility);
+extern void		xml_node_hide_cdata(xml_node_t *, const char * const [], const char *);
 extern xml_node_t *	xml_node_scan(FILE *fp, const char *location);
 extern void		xml_node_set_cdata(xml_node_t *, const char *);
 extern void		xml_node_set_int(xml_node_t *, int);
@@ -185,4 +183,4 @@ xml_document_is_empty(const xml_document_t *doc)
 	return (!doc || xml_node_is_empty(doc->root));
 }
 
-#endif /* __WICKED_XML_H__ */
+#endif /* NI_WICKED_XML_H */

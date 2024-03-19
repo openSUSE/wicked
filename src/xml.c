@@ -1,7 +1,8 @@
 /*
  *	XML objects - document and node
  *
- *	Copyright (C) 2009-2012  Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2024 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,11 +14,8 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write 
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, 
- *	Boston, MA 02110-1301 USA.
- *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -26,6 +24,7 @@
 #include <wicked/xml.h>
 #include <wicked/logging.h>
 #include "util_priv.h"
+#include "slist_priv.h"
 #include <inttypes.h>
 
 #define XML_DOCUMENTARRAY_CHUNK		1
@@ -862,4 +861,106 @@ xml_node_dict_set(xml_node_t *parent, const char *name, const char *value)
 
 	child = xml_node_create(parent, name);
 	xml_node_set_cdata(child, value);
+}
+
+typedef struct xml_node_name_path	xml_node_name_path_t;
+
+struct xml_node_name_path {
+	xml_node_name_path_t *	next;
+	ni_string_array_t	path;
+};
+
+static xml_node_name_path_t *
+xml_node_name_path_new(void)
+{
+	return calloc(1, sizeof(xml_node_name_path_t));
+}
+
+static void
+xml_node_name_path_free(xml_node_name_path_t *item)
+{
+	if (item) {
+		ni_string_array_destroy(&item->path);
+		free(item);
+	}
+}
+
+static inline ni_bool_t
+xml_node_name_path_match(xml_node_t *node, const ni_string_array_t *path)
+{
+	ni_bool_t ret = FALSE;
+	const char *name;
+	unsigned int i;
+
+	if (!node || !path)
+		return FALSE;
+
+	for (i = 0; i < path->count; ++i) {
+		name = path->data[i];
+
+		if (!node || !ni_string_eq(node->name, name))
+			return FALSE;
+
+		node = node->parent;
+		ret = TRUE;
+	}
+	return ret;
+}
+
+static ni_define_slist_destroy(xml_node_name_path);
+static ni_define_slist_append(xml_node_name_path);
+
+static ni_bool_t
+xml_node_name_path_list_create(xml_node_name_path_t **list, const char * const npaths[])
+{
+	xml_node_name_path_t *item;
+	const char * const *nptr;
+
+	if (!list || !npaths)
+		return FALSE;
+
+	for (nptr = npaths; *nptr; ++nptr) {
+		if (!(item = xml_node_name_path_new())) {
+			xml_node_name_path_list_destroy(list);
+			return FALSE;
+		}
+		if (!ni_string_split(&item->path, *nptr, "/", 0))
+			xml_node_name_path_free(item);
+		else
+			xml_node_name_path_list_append(list, item);
+	}
+	return TRUE;
+}
+
+static void
+xml_node_name_path_list_hide_cdata(xml_node_t *node,
+		const xml_node_name_path_t *list, const char *hidden)
+{
+	const xml_node_name_path_t *item;
+	xml_node_t *child;
+
+	ni_slist_foreach(list, item) {
+		if (!xml_node_name_path_match(node, &item->path))
+			continue;
+
+		xml_node_set_cdata(node, hidden);
+	}
+
+	for (child = node->children; child; child = child->next)
+		xml_node_name_path_list_hide_cdata(child, list, hidden);
+}
+
+extern void
+xml_node_hide_cdata(xml_node_t *node, const char * const npaths[], const char *hidden)
+{
+	xml_node_name_path_t *list = NULL;
+
+	if (!node || !npaths)
+		return;
+
+	if (!xml_node_name_path_list_create(&list, npaths) || !list)
+		return;
+
+	xml_node_name_path_list_hide_cdata(node, list, hidden);
+	xml_node_name_path_list_destroy(&list);
 }
