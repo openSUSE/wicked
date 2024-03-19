@@ -4,8 +4,8 @@
  * Copyright (C) 2010-2012 Olaf Kirch <okir@suse.de>
  */
 
-#ifndef __WICKED_LOGGING_H__
-#define __WICKED_LOGGING_H__
+#ifndef NI_WICKED_LOGGING_H
+#define NI_WICKED_LOGGING_H
 
 #include <wicked/types.h>
 #include <wicked/compiler.h>
@@ -143,4 +143,4 @@ extern unsigned int	ni_log_level;
 		__warned = 1; \
 	} while (0)
 
-#endif /* __WICKED_LOGGING_H__ */
+#endif /* NI_WICKED_LOGGING_H */
