@@ -6119,6 +6119,7 @@ done:
 ni_timeout_t
 ni_fsm_find_max_timeout(ni_fsm_t *fsm, ni_timeout_t timeout)
 {
+	ni_timeout_t max = timeout;
 	unsigned int i;
 
 	if (!fsm || timeout >= NI_IFWORKER_INFINITE_TIMEOUT)
@@ -6126,19 +6127,13 @@ ni_fsm_find_max_timeout(ni_fsm_t *fsm, ni_timeout_t timeout)
 
 	for (i = 0; i < fsm->workers.count; i++) {
 		ni_ifworker_t *w = fsm->workers.data[i];
-		ni_timeout_t max, add;
+		ni_timeout_t add;
 
-		add = min_t(ni_timeout_t,
-				NI_TIMEOUT_FROM_SEC(w->extra_waittime),
-				NI_IFWORKER_INFINITE_TIMEOUT);
-		max = max_t(ni_timeout_t, timeout,
-				fsm->worker_timeout + add);
-
-		timeout = min_t(ni_timeout_t, max,
-				NI_IFWORKER_INFINITE_TIMEOUT);
+		add = NI_TIMEOUT_FROM_SEC(w->extra_waittime);
+		max = max_t(ni_timeout_t, max, timeout + add);
 	}
 
-	return timeout;
+	return min_t(ni_timeout_t, max, NI_IFWORKER_INFINITE_TIMEOUT);
 }
 
 void
