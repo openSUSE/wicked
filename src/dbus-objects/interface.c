@@ -1683,6 +1683,44 @@ ni_objectmodel_netif_client_state_scripts_from_dict(ni_client_state_scripts_t *s
 	return TRUE;
 }
 
+static dbus_bool_t
+ni_objectmodel_netif_get_master(const ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		ni_dbus_variant_t *result,
+		DBusError *error)
+{
+	const ni_netdev_ref_t *ref;
+	const ni_netdev_t *dev;
+
+	if (!(dev = ni_dbus_object_get_handle(object)))
+		return FALSE;
+
+	ref = ni_netdev_get_master_ref(dev);
+	if (!ref || ni_string_empty(ref->name))
+		return FALSE;
+
+	ni_dbus_variant_set_string(result, ref->name);
+	return TRUE;
+}
+static dbus_bool_t
+ni_objectmodel_netif_set_master(ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument,
+		DBusError *error)
+{
+	const char *str = NULL;
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_dbus_object_get_handle(object)))
+		return FALSE;
+
+	if (ni_dbus_variant_get_string(argument, &str))
+		return ni_netdev_ref_set(&dev->link.masterdev, str, 0);
+
+	ni_netdev_ref_destroy(&dev->link.masterdev);
+	return TRUE;
+}
+
 static inline ni_dbus_variant_t *
 ni_objectmodel_netif_port_union_init(ni_dbus_variant_t *result, ni_iftype_t type)
 {
@@ -1792,6 +1830,9 @@ ni_objectmodel_netif_set_port(ni_dbus_object_t *object,
  */
 #define NETIF_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_netif, rw)
+#define NETIF_MASTER_DEVICE_PROPERTY(dbus_name, type_name, rw) \
+	___NI_DBUS_PROPERTY(NI_DBUS_SIGNATURE(STRING), dbus_name, type_name, \
+				ni_objectmodel_netif, rw)
 #define NETIF_PORT_INFO_UNION_PROPERTY(dbus_name, type_name, rw) \
 	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, dbus_name, type_name, \
 				ni_objectmodel_netif, rw)
@@ -1804,7 +1845,7 @@ static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, mtu, link.mtu, RO),
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, txqlen, link.txqlen, RO),
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, alias, link.alias, RO),
-	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, master, link.masterdev.name, RO),
+	NETIF_MASTER_DEVICE_PROPERTY(master, master, RO),
 	NETIF_PORT_INFO_UNION_PROPERTY(port, port, RO),
 
 	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE,
