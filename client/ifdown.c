@@ -123,7 +123,7 @@ ni_do_ifdown(int argc, char **argv)
 	ni_ifworker_array_t ifmarked = NI_IFWORKER_ARRAY_INIT;
 	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	unsigned int nmarked, max_state = NI_FSM_STATE_DEVICE_DOWN;
-	unsigned int seconds = NI_IFWORKER_DEFAULT_TIMEOUT;
+	unsigned int seconds = 0;
 	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_tristate_t opt_release = NI_TRISTATE_DEFAULT;
 	ni_fsm_t *fsm;
@@ -223,9 +223,10 @@ usage:
 	ifmarker.target_range.min = NI_FSM_STATE_NONE;
 	ifmarker.target_range.max = max_state;
 
-	fsm->worker_timeout = ni_fsm_find_max_timeout(fsm,
-					NI_TIMEOUT_FROM_SEC(seconds));
-
+	if (seconds)
+		fsm->worker_timeout = NI_TIMEOUT_FROM_SEC(seconds);
+	else
+		fsm->worker_timeout = NI_IFWORKER_DEFAULT_TIMEOUT;
 	if (fsm->worker_timeout == NI_IFWORKER_INFINITE_TIMEOUT)
 		ni_debug_application("wait for interfaces infinitely");
 	else
