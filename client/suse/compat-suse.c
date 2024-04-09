@@ -495,12 +495,12 @@ __ni_suse_free_globals(void)
 	ni_string_free(&__ni_suse_default_hostname);
 
 	if (__ni_suse_config_defaults) {
-		ni_sysconfig_destroy(__ni_suse_config_defaults);
+		ni_sysconfig_free(__ni_suse_config_defaults);
 		__ni_suse_config_defaults = NULL;
 	}
 
 	if (__ni_suse_dhcp_defaults) {
-		ni_sysconfig_destroy(__ni_suse_dhcp_defaults);
+		ni_sysconfig_free(__ni_suse_dhcp_defaults);
 		__ni_suse_dhcp_defaults = NULL;
 	}
 
@@ -1597,14 +1597,12 @@ __ni_suse_read_interface(const char *filename, const char *ifname)
 	if (!compat || !__ni_suse_sysconfig_read(sc, compat))
 		goto error;
 
-	ni_sysconfig_destroy(sc);
+	ni_sysconfig_free(sc);
 	return compat;
 
 error:
-	if (sc)
-		ni_sysconfig_destroy(sc);
-	if (compat)
-		ni_compat_netdev_free(compat);
+	ni_sysconfig_free(sc);
+	ni_compat_netdev_free(compat);
 	return NULL;
 }
 
@@ -4607,8 +4605,7 @@ try_ppp(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 done:
-	if (psc)
-		ni_sysconfig_destroy(psc);
+	ni_sysconfig_free(psc);
 	return ret;
 }
 
@@ -5760,7 +5757,7 @@ __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 	config = ni_config_dhcp4_find_device(dev->name);
 	if ((merged = ni_sysconfig_merge_defaults(sc, __ni_suse_dhcp_defaults))) {
 		__ni_suse_addrconf_dhcp4_options(merged, compat, config);
-		ni_sysconfig_destroy(merged);
+		ni_sysconfig_free(merged);
 	}
 
 	compat->dhcp4.enabled = TRUE;
@@ -5789,7 +5786,7 @@ __ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 	config = ni_config_dhcp6_find_device(dev->name);
 	if ((merged = ni_sysconfig_merge_defaults(sc, __ni_suse_dhcp_defaults))) {
 		__ni_suse_addrconf_dhcp6_options(merged, compat, config);
-		ni_sysconfig_destroy(merged);
+		ni_sysconfig_free(merged);
 	}
 
 	compat->dhcp6.enabled = TRUE;
@@ -5874,7 +5871,7 @@ __ni_suse_addrconf_auto6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 					dev->name, ni_print_suspect(value, ni_string_len(value)));
 			}
 		}
-		ni_sysconfig_destroy(merged);
+		ni_sysconfig_free(merged);
 	}
 	return TRUE;
 
@@ -6232,7 +6229,7 @@ ni_suse_ifcfg_get_firewall(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			if (!ni_string_empty(value))
 				ni_string_dup(&compat->firewall.zone, value);
 		}
-		ni_sysconfig_destroy(merged);
+		ni_sysconfig_free(merged);
 	}
 }
 
