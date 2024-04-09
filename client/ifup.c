@@ -623,15 +623,14 @@ usage:
 	ni_nanny_fsm_monitor_arm(monitor, fsm->worker_timeout);
 
 	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
-		ni_error("ifup: unable to build device hierarchy");
+		ni_error("ifup: unable to build interface hierarchy");
 		/* Severe error we always explicitly return */
 		status = NI_WICKED_RC_ERROR;
 		goto cleanup;
 	}
 
-	status = NI_WICKED_RC_SUCCESS;
-
 	/* Get workers that match given criteria */
+	status = NI_WICKED_RC_SUCCESS;
 	while (optind < argc) {
 		ifmatch.name = argv[optind++];
 
@@ -653,6 +652,9 @@ usage:
 	}
 
 	ni_fsm_pull_in_children(&ifmarked, fsm);
+
+	ni_fsm_print_system_hierarchy(fsm, NULL, NULL);
+	ni_fsm_print_config_hierarchy(fsm, &ifmarked, ni_info);
 
 	if (!ni_ifup_hire_nanny(&ifmarked, set_persistent))
 		status = NI_WICKED_RC_NOT_CONFIGURED;

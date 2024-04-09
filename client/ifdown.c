@@ -260,6 +260,8 @@ usage:
 			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
+	ni_fsm_print_system_hierarchy(fsm, &ifmarked, ni_info);
+
 	/* Mark and start selected workers */
 	if (ifmarked.count) {
 		/* Disable devices and delete all related policies from nanny */
