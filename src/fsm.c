@@ -2190,7 +2190,7 @@ struct ni_ifworker_require_resolver {
 struct ni_ifworker_check_state_req_check {
 	ni_ifworker_check_state_req_check_t *	next;
 	ni_ifworker_t *				worker;
-	ni_ifworker_require_resolver_t		resolver;
+	ni_ifworker_require_resolver_t *	resolver;
 	ni_uint_range_t				state;
 };
 struct ni_ifworker_check_state_req {
@@ -2198,13 +2198,10 @@ struct ni_ifworker_check_state_req {
 	ni_ifworker_check_state_req_check_t *	check;
 };
 
-static void					ni_ifworker_require_resolver_free(ni_fsm_require_t *);
-static inline ni_ifworker_require_resolver_t *	ni_ifworker_require_resolver_cast(ni_fsm_require_t *req)
-{
-	if (!req || req->destroy_fn != ni_ifworker_require_resolver_free)
-		return NULL;
-	return (ni_ifworker_require_resolver_t *)req->user_data;
-}
+static ni_ifworker_require_resolver_t *		ni_ifworker_require_resolver_new(ni_ifworker_type_t type,
+								xml_node_t *node, xml_node_t *meta);
+static void					ni_ifworker_require_resolver_free(ni_ifworker_require_resolver_t *);
+
 static void					ni_ifworker_check_state_req_free(ni_fsm_require_t *);
 static inline ni_ifworker_check_state_req_t *	ni_ifworker_check_state_req_cast(ni_fsm_require_t *req)
 {
@@ -2222,9 +2219,7 @@ ni_ifworker_check_state_req_check_new(ni_ifworker_t *cw, ni_ifworker_type_t cwty
 
 	check = xcalloc(1, sizeof(*check));
 	check->worker = cw ?  ni_ifworker_get(cw) : NULL;
-	check->resolver.cwtype = cwtype;
-	check->resolver.cwnode = cwnode ? xml_node_clone_ref(cwnode) : NULL;
-	check->resolver.cwmeta = cwmeta ? xml_node_clone_ref(cwmeta) : NULL;
+	check->resolver = ni_ifworker_require_resolver_new(cwtype, cwnode, cwmeta);
 	check->state.min = min_state;
 	check->state.max = max_state;
 	return check;
@@ -2234,13 +2229,9 @@ static inline void
 ni_ifworker_check_state_req_check_free(ni_ifworker_check_state_req_check_t *check)
 {
 	if (check) {
-		if (check->resolver.cwmeta) {
-			xml_node_free(check->resolver.cwmeta);
-			check->resolver.cwmeta = NULL;
-		}
-		if (check->resolver.cwnode) {
-			xml_node_free(check->resolver.cwnode);
-			check->resolver.cwnode = NULL;
+		if (check->resolver) {
+			ni_ifworker_require_resolver_free(check->resolver);
+			check->resolver = NULL;
 		}
 		if (check->worker) {
 			ni_ifworker_release(check->worker);
@@ -2336,7 +2327,7 @@ ni_ifworker_require_netif_resolve(ni_fsm_t *fsm, ni_ifworker_t *w, ni_ifworker_t
 
 static ni_ifworker_t *
 ni_ifworker_require_resolve(ni_fsm_t *fsm, ni_ifworker_t *w, ni_ifworker_type_t type,
-				xml_node_t *node, xml_node_t *meta)
+		xml_node_t *node, xml_node_t *meta)
 {
 	switch (type) {
 	case NI_IFWORKER_TYPE_NETDEV:
@@ -2350,11 +2341,9 @@ ni_ifworker_require_resolve(ni_fsm_t *fsm, ni_ifworker_t *w, ni_ifworker_type_t 
 }
 
 static void
-ni_ifworker_require_resolver_free(ni_fsm_require_t *req)
+ni_ifworker_require_resolver_free(ni_ifworker_require_resolver_t *resolver)
 {
-	ni_ifworker_require_resolver_t *resolver;
-
-	if ((resolver = ni_ifworker_require_resolver_cast(req))) {
+	if (resolver) {
 		if (resolver->cwmeta) {
 			xml_node_free(resolver->cwmeta);
 			resolver->cwmeta = NULL;
@@ -2365,45 +2354,20 @@ ni_ifworker_require_resolver_free(ni_fsm_require_t *req)
 		}
 		free(resolver);
 	}
-	if (req)
-		req->user_data = NULL;
 }
 
-static ni_bool_t
-ni_ifworker_require_resolver_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
+static ni_ifworker_require_resolver_t *
+ni_ifworker_require_resolver_new(ni_ifworker_type_t type, xml_node_t *node, xml_node_t *meta)
 {
 	ni_ifworker_require_resolver_t *resolver;
 
-	if (!(resolver = ni_ifworker_require_resolver_cast(req)))
-		return TRUE;
-
-	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION, "%s: %s trying to resolve %s-reference",
-			w->name, __func__, resolver->cwtype == NI_IFWORKER_TYPE_NETDEV ? "netif" : "modem");
-
-	if (!ni_ifworker_require_resolve(fsm, w, resolver->cwtype, resolver->cwnode, resolver->cwmeta))
-		return FALSE;
-
-	ni_ifworker_require_resolver_free(req);
-	return TRUE;
-}
-
-static inline void
-ni_ifworker_require_resolver_new(ni_fsm_t *fsm, ni_ifworker_t *w, ni_ifworker_type_t type,
-					xml_node_t *node, xml_node_t *meta)
-{
-	ni_ifworker_require_resolver_t *resolver;
-	ni_fsm_require_t *req;
-
-	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION, "%s: %s to resolve a %s-reference",
-			w->name, __func__, type == NI_IFWORKER_TYPE_NETDEV ? "netif" : "modem");
-
-	req = ni_fsm_require_new(ni_ifworker_require_resolver_test, ni_ifworker_require_resolver_free);
 	resolver = xcalloc(1, sizeof(*resolver));
-	resolver->cwtype = type;
-	resolver->cwnode = xml_node_clone_ref(node);
-	resolver->cwmeta = xml_node_clone_ref(meta);
-	req->user_data = resolver;
-	ni_fsm_require_list_insert(&w->fsm.check_state_req_list, req);
+	if (resolver) {
+		resolver->cwtype = type;
+		resolver->cwnode = xml_node_clone_ref(node);
+		resolver->cwmeta = xml_node_clone_ref(meta);
+	}
+	return resolver;
 }
 
 static ni_bool_t
@@ -2419,18 +2383,16 @@ ni_ifworker_check_state_req_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require
 		return FALSE;
 
 	for (check = csr->check; check; check = check->next) {
-		if (check->worker)
+		if (check->worker || !check->resolver)
 			continue;
 
-		cw = ni_ifworker_require_resolve(fsm, w, check->resolver.cwtype,
-				check->resolver.cwnode, check->resolver.cwmeta);
+		cw = ni_ifworker_require_resolve(fsm, w, check->resolver->cwtype,
+				check->resolver->cwnode,  check->resolver->cwmeta);
 		if (cw) {
 			/* switch over to the worker */
 			check->worker = ni_ifworker_get(cw);
-			xml_node_free(check->resolver.cwmeta);
-			check->resolver.cwmeta = NULL;
-			xml_node_free(check->resolver.cwnode);
-			check->resolver.cwnode = NULL;
+			ni_ifworker_require_resolver_free(check->resolver);
+			check->resolver = NULL;
 		}
 	}
 
