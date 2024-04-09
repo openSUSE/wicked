@@ -6,6 +6,13 @@
     factory service interface.
   </description>
 
+  <define name="port-config" class="dict"
+          description="Bond port (link-request) configuration">
+
+    <queue-id type="uint16"/>
+
+  </define>
+
   <define name="port-info" class="dict"
           description="Bond port specific interface info properties">
 
