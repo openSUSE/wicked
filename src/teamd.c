@@ -1,7 +1,7 @@
 /*
  *	Interfacing with teamd through dbus interface
  *
- *	Copyright (C) 2015 SUSE Linux GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2015-2023 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,14 +13,8 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- *	Boston, MA 02110-1301 USA.
- *
- *	Authors:
- *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
- *		Marius Tomaschewski <mt@suse.de>
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -925,8 +919,8 @@ cleanup:
 }
 
 /*
- * teamd discovery
- * note: it's actually config discovery, not state
+ * team interface config discovery
+ * note: it's config, not state
  */
 static int
 ni_teamd_discover_runner(ni_team_t *team, ni_json_t *conf)
@@ -1180,51 +1174,6 @@ failure:
 	return -1;
 }
 
-static int
-ni_teamd_discover_ports(ni_team_t *team, ni_json_t *conf)
-{
-	ni_team_port_t *port;
-	ni_json_t *ports;
-	unsigned int i, count;
-
-	if (!team || !conf)
-		return -1;
-
-	if (!(ports = ni_json_object_get_value(conf, "ports")))
-		return 0;
-
-	if (!ni_json_is_object(ports))
-		return 1;
-
-	count = ni_json_object_entries(ports);
-	for (i = 0; i < count; ++i) {
-		ni_json_pair_t *pair;
-		ni_json_t *details;
-		const char *name;
-
-		if (!(pair = ni_json_object_get_pair_at(ports, i)))
-			continue;
-
-		name = ni_json_pair_get_name(pair);
-		if (ni_string_empty(name))
-			continue;
-		port = ni_team_port_new();
-		ni_netdev_ref_set_ifname(&port->device, name);
-
-		details = ni_json_pair_get_value(pair);
-		if (ni_teamd_port_config_parse_json(&port->config, details) < 0) {
-			ni_team_port_free(port);
-			continue;
-		}
-
-		if (!ni_team_port_array_append(&team->ports, port)) {
-			ni_team_port_free(port);
-			continue;
-		}
-	}
-	return 0;
-}
-
 static void
 ni_teamd_discover_notify_peers(ni_team_t *team, ni_json_t *conf)
 {
@@ -1295,9 +1244,6 @@ ni_teamd_discover(ni_netdev_t *dev)
 	ni_teamd_discover_link_watch_policy(dev, team, conf);
 
 	if (ni_teamd_discover_link_watch(team, conf) < 0)
-		goto failure;
-
-	if (ni_teamd_discover_ports(team, conf) < 0)
 		goto failure;
 
 	ni_netdev_set_team(dev, team);

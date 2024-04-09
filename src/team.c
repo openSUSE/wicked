@@ -1,7 +1,7 @@
 /*
- *	Team device support
+ *	Team network interface support
  *
- *	Copyright (C) 2015 SUSE Linux GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2015-2023 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,14 +13,8 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- *	Boston, MA 02110-1301 USA.
- *
- *	Authors:
- *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
- *		Marius Tomaschewski <mt@suse.de>
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -35,8 +29,6 @@
 #include "array_priv.h"
 
 #define NI_TEAM_LINK_WATCH_ARRAY_CHUNK		4
-#define NI_TEAM_PORT_ARRAY_CHUNK		4
-
 
 /*
  * Map teamd mode names to constants
@@ -398,52 +390,8 @@ ni_team_free(ni_team_t *team)
 	if (team) {
 		ni_team_runner_destroy(&team->runner);
 		ni_team_link_watch_array_destroy(&team->link_watch);
-		ni_team_port_array_destroy(&team->ports);
 		free(team);
 	}
-}
-
-/*
- * team port
- */
-ni_team_port_t *
-ni_team_port_new(void)
-{
-	ni_team_port_t *port;
-
-	port = xcalloc(1, sizeof(*port));
-	ni_team_port_config_init(&port->config);
-	return port;
-}
-
-void
-ni_team_port_free(ni_team_port_t *port)
-{
-	ni_netdev_ref_destroy(&port->device);
-	ni_team_port_config_destroy(&port->config);
-	free(port);
-}
-
-static ni_define_ptr_array_init(ni_team_port);
-extern ni_define_ptr_array_destroy(ni_team_port);
-static ni_define_ptr_array_realloc(ni_team_port, NI_TEAM_PORT_ARRAY_CHUNK);
-extern ni_define_ptr_array_append(ni_team_port);
-extern ni_define_ptr_array_delete_at(ni_team_port);
-
-extern ni_team_port_t *
-ni_team_port_array_find_by_name(ni_team_port_array_t *array, const char *name)
-{
-	unsigned int i;
-
-	if (!array || !name)
-		return NULL;
-
-	for (i = 0; i < array->count; ++i) {
-		ni_team_port_t *port = array->data[i];
-		if (ni_string_eq(name, port->device.name))
-			return port;
-	}
-	return NULL;
 }
 
 /*
