@@ -503,7 +503,7 @@ static ni_bool_t
 __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 {
 	ni_bonding_t *bond;
-	xml_node_t *child, *snodes, *snode;
+	xml_node_t *child;
 	unsigned int i;
 	int verbose = 0; /* do not suppress defaults */
 
@@ -550,29 +550,14 @@ __ni_compat_generate_bonding(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 			ni_bonding_mii_carrier_detect_name(bond->miimon.carrier_detect));
 	}
 
-	snodes = bond->slaves.count ? xml_node_create(child, "slaves") : NULL;
-	for (i = 0; i < bond->slaves.count; ++i) {
-		ni_bonding_slave_t *slave = bond->slaves.data[i];
-
-		if (!slave || ni_string_empty(slave->device.name))
-			continue;
-
-		snode = xml_node_new("slave", snodes);
-		xml_node_new_element("device", snode, slave->device.name);
-
-		switch (bond->mode) {
-		case NI_BOND_MODE_ACTIVE_BACKUP:
-		case NI_BOND_MODE_BALANCE_TLB:
-		case NI_BOND_MODE_BALANCE_ALB:
-			if (ni_string_eq(bond->primary_slave.name, slave->device.name)) {
-				xml_node_new_element("primary", snode, "true");
-			}
-			if (ni_string_eq(bond->active_slave.name, slave->device.name)) {
-				xml_node_new_element("active", snode, "true");
-			}
-		default:
-			break;
-		}
+	switch (bond->mode) {
+	case NI_BOND_MODE_ACTIVE_BACKUP:
+	case NI_BOND_MODE_BALANCE_TLB:
+	case NI_BOND_MODE_BALANCE_ALB:
+		if (!ni_string_empty(bond->primary_slave.name))
+			xml_node_new_element("primary", child, bond->primary_slave.name);
+	default:
+		break;
 	}
 
 	switch (bond->mode) {
@@ -901,34 +886,6 @@ ni_compat_generate_team_port_config(xml_node_t *port, const ni_team_port_config_
 }
 
 static ni_bool_t
-__ni_compat_generate_team_ports(xml_node_t *tnode, const ni_team_port_array_t *array)
-{
-	xml_node_t *ports;
-	unsigned int i;
-
-	if (!array || !tnode)
-		return FALSE;
-
-	if (!array->count)
-		return TRUE;
-
-	ports = xml_node_new("ports", tnode);
-	for (i = 0; i < array->count; i++) {
-		ni_team_port_t *p = array->data[i];
-		xml_node_t *port;
-
-		if (ni_string_empty(p->device.name))
-			continue;
-
-		port = xml_node_new("port", ports);
-		xml_node_new_element("device", port, p->device.name);
-		ni_compat_generate_team_port_config(port, &p->config);
-	}
-
-	return TRUE;
-}
-
-static ni_bool_t
 ni_compat_generate_team_notify_peers(xml_node_t *parent, const ni_team_t *team)
 {
 	xml_node_t *node;
@@ -1001,9 +958,6 @@ __ni_compat_generate_team(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 		return FALSE;
 
 	if (!__ni_compat_generate_team_link_watch(tnode, &team->link_watch))
-		return FALSE;
-
-	if (!__ni_compat_generate_team_ports(tnode, &team->ports))
 		return FALSE;
 
 	return TRUE;
@@ -1157,33 +1111,6 @@ ni_compat_generate_ovs_bridge_port_config(xml_node_t *port, const ni_ovs_bridge_
 	if (!port || !config)
 		return FALSE;
 
-	xml_node_new_element("bridge", port, config->bridge.name);
-	return TRUE;
-}
-
-static ni_bool_t
-__ni_compat_generate_ovs_bridge_ports(xml_node_t *bnode, const ni_ovs_bridge_port_array_t *array)
-{
-	xml_node_t *ports;
-	unsigned int i;
-
-	if (!array || !bnode)
-		return FALSE;
-
-	if (!array->count)
-		return TRUE;
-
-	ports = xml_node_new("ports", bnode);
-	for (i = 0; i < array->count; i++) {
-		ni_ovs_bridge_port_t *p = array->data[i];
-		xml_node_t *port;
-
-		if (ni_string_empty(p->device.name))
-			continue;
-
-		port = xml_node_new("port", ports);
-		xml_node_new_element("device", port, p->device.name);
-	}
 	return TRUE;
 }
 
@@ -1200,9 +1127,7 @@ __ni_compat_generate_ovs_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *co
 		xml_node_t *vnode = xml_node_new("vlan", bnode);
 		xml_node_new_element("parent", vnode, ovsbr->config.vlan.parent.name);
 		xml_node_new_element_uint("tag", vnode, ovsbr->config.vlan.tag);
-	} /* else? */
-	if (!__ni_compat_generate_ovs_bridge_ports(bnode, &ovsbr->ports))
-		return FALSE;
+	}
 
 	return TRUE;
 }
@@ -1228,8 +1153,6 @@ __ni_compat_generate_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *compat
 	const ni_netdev_t *dev = compat->dev;
 	ni_bridge_t *bridge;
 	xml_node_t *child;
-	xml_node_t *ports;
-	unsigned int i;
 	char *tmp = NULL;
 
 	bridge = ni_netdev_get_bridge(compat->dev);
@@ -1262,24 +1185,6 @@ __ni_compat_generate_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *compat
 	    ni_string_printf(&tmp, "%.2f", bridge->max_age)) {
 		xml_node_new_element("max-age", child, tmp);
 		ni_string_free(&tmp);
-	}
-
-	ports = xml_node_new("ports", child);
-	for (i = 0; i < bridge->ports.count; ++i) {
-		const ni_bridge_port_t *port = bridge->ports.data[i];
-		xml_node_t *portnode = xml_node_new("port", ports);
-
-		xml_node_new_element("device", portnode, port->ifname);
-		if (port->priority != NI_BRIDGE_VALUE_NOT_SET &&
-		    ni_string_printf(&tmp, "%u", port->priority)) {
-			xml_node_new_element("priority", portnode, tmp);
-			ni_string_free(&tmp);
-		}
-		if (port->path_cost != NI_BRIDGE_VALUE_NOT_SET &&
-		    ni_string_printf(&tmp, "%u", port->path_cost)) {
-			xml_node_new_element("path-cost", portnode, tmp);
-			ni_string_free(&tmp);
-		}
 	}
 
 	if (dev->link.hwaddr.len) {
