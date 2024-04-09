@@ -28,14 +28,14 @@ typedef struct ni_ovs_bridge_port	ni_ovs_bridge_port_t;
  * ovs bridge port config
  */
 struct ni_ovs_bridge_port_config {
-	ni_netdev_ref_t			bridge;
+	ni_var_array_t			args; /* currently unused   */
 };
 
 /*
  * OVS Bridge port interface info properties
  */
 struct ni_ovs_bridge_port_info {
-	ni_netdev_ref_t			bridge;
+	ni_netdev_ref_t			bridge; /* wickedd internal */
 };
 
 /*

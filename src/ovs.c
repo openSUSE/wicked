@@ -93,7 +93,7 @@ void
 ni_ovs_bridge_port_config_destroy(ni_ovs_bridge_port_config_t *conf)
 {
 	if (conf) {
-		ni_netdev_ref_destroy(&conf->bridge);
+		ni_var_array_destroy(&conf->args);
 		ni_ovs_bridge_port_config_init(conf);
 	}
 }
