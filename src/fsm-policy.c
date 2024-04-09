@@ -1629,12 +1629,27 @@ ni_ifcondition_linktype(xml_node_t *node)
  * <sharable>...</sharable>
  */
 static ni_bool_t
-ni_fsm_policy_match_sharable_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, ni_ifworker_t *w)
+ni_fsm_policy_match_sharable_check(const ni_ifcondition_t *cond,
+		const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	if (ni_string_eq(cond->args.string, "shared"))
 		return w->masterdev == NULL;
-	if (ni_string_eq(cond->args.string, "exclusive"))
-		return w->masterdev == NULL && w->lowerdev_for.count == 0;
+
+	if (ni_string_eq(cond->args.string, "exclusive")) {
+		ni_ifworker_t *linked;
+		unsigned int i;
+
+		if (w->masterdev)
+			return FALSE;
+
+		for (i = 0; i < fsm->workers.count; ++i) {
+			linked = fsm->workers.data[i];
+
+			if (linked->lowerdev == w)
+				return FALSE;
+		}
+		return TRUE;
+	}
 	return FALSE;
 }
 

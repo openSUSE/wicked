@@ -220,7 +220,6 @@ struct ni_ifworker {
 	ni_ifworker_t * 	lowerdev;
 
 	ni_ifworker_array_t	children;
-	ni_ifworker_array_t	lowerdev_for;
 };
 
 /*

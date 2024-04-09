@@ -1287,8 +1287,6 @@ ni_ifworker_set_lower_device(ni_ifworker_t *child, ni_ifworker_t *lower, xml_nod
 				child->name, xml_node_location(devnode), lower->name);
 
 		child->lowerdev = lower;
-		if (ni_ifworker_array_index(&lower->lowerdev_for, child) < 0)
-			ni_ifworker_array_append(&lower->lowerdev_for, child);
 		return TRUE;
 	}
 
@@ -3553,7 +3551,6 @@ ni_ifworker_references_ok(const ni_ifworker_array_t *guard, ni_ifworker_t *w)
 	    ni_string_eq(w->masterdev->name, w->lowerdev->name))) {
 		ni_ifworker_fail(w, "references %s as master and as lower device",
 				w->masterdev->name);
-		ni_ifworker_array_remove(&w->lowerdev->lowerdev_for, w);
 		ni_ifworker_array_remove(&w->masterdev->children, w);
 		ni_ifworker_set_ref(&w->lowerdev, NULL);
 		ni_ifworker_set_ref(&w->masterdev, NULL);
@@ -3562,7 +3559,6 @@ ni_ifworker_references_ok(const ni_ifworker_array_t *guard, ni_ifworker_t *w)
 
 	if (w == w->lowerdev || (w->lowerdev && ni_string_eq(w->name, w->lowerdev->name))) {
 		ni_ifworker_fail(w, "references itself as lower device");
-		ni_ifworker_array_remove(&w->lowerdev->lowerdev_for, w);
 		ni_ifworker_set_ref(&w->lowerdev, NULL);
 		return FALSE;
 	}
@@ -3737,15 +3733,7 @@ ni_fsm_clear_hierarchy(ni_ifworker_t *w)
 	}
 
 	if (w->lowerdev) {
-		ni_ifworker_array_remove(&w->lowerdev->lowerdev_for, w);
 		w->lowerdev = NULL;
-	}
-
-	for (i = 0; i < w->lowerdev_for.count; i++) {
-		ni_ifworker_t *ldev_usr = w->lowerdev_for.data[i];
-
-		ni_ifworker_array_remove(&ldev_usr->children, w);
-		ldev_usr->lowerdev = NULL;
 	}
 
 	for (i = 0; i < w->children.count; i++) {
@@ -3756,13 +3744,11 @@ ni_fsm_clear_hierarchy(ni_ifworker_t *w)
 		}
 
 		if (child == w->lowerdev) {
-			ni_ifworker_array_remove(&child->lowerdev_for, w);
 			w->lowerdev = NULL;
 		}
 	}
 
 	ni_ifworker_array_destroy(&w->children);
-	ni_ifworker_array_destroy(&w->lowerdev_for);
 }
 
 static void
