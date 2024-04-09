@@ -1322,7 +1322,7 @@ __ni_process_ifinfomsg_masterdev(ni_linkinfo_t *link, const char *ifname,
 static inline void
 __ni_process_ifinfomsg_bond_slave_data(ni_linkinfo_t *link, const char *ifname, struct nlattr *data)
 {
-	/* static const */ struct nla_policy	__slave_policy[IFLA_BOND_SLAVE_MAX+1] = {
+	/* static const */ struct nla_policy	policy[IFLA_BOND_SLAVE_MAX+1] = {
 		[IFLA_BOND_SLAVE_STATE]			= { .type = NLA_U8      },
 		[IFLA_BOND_SLAVE_MII_STATUS]		= { .type = NLA_U8      },
 		[IFLA_BOND_SLAVE_LINK_FAILURE_COUNT]	= { .type = NLA_U32     },
@@ -1331,7 +1331,7 @@ __ni_process_ifinfomsg_bond_slave_data(ni_linkinfo_t *link, const char *ifname, 
 		[IFLA_BOND_SLAVE_AD_AGGREGATOR_ID]	= { .type = NLA_U16     },
 	};
 #define map_attr(attr)  [attr] = #attr
-	static const char *			__slave_attrs[IFLA_BOND_SLAVE_MAX+1] = {
+	static const char *			attrs[IFLA_BOND_SLAVE_MAX+1] = {
 		map_attr(IFLA_BOND_SLAVE_STATE),
 		map_attr(IFLA_BOND_SLAVE_MII_STATUS),
 		map_attr(IFLA_BOND_SLAVE_LINK_FAILURE_COUNT),
@@ -1341,13 +1341,13 @@ __ni_process_ifinfomsg_bond_slave_data(ni_linkinfo_t *link, const char *ifname, 
 	};
 #undef  map_attr
 	struct nlattr *tb[IFLA_BOND_SLAVE_MAX+1], *aptr;
-	ni_bonding_slave_info_t *info;
+	ni_bonding_port_info_t *info;
 	unsigned int attr, alen;
 	const char *mapped;
 	const char *name;
 
 	memset(tb, 0, sizeof(tb));
-	if (nla_parse_nested(tb, IFLA_BOND_SLAVE_MAX, data, __slave_policy) < 0) {
+	if (nla_parse_nested(tb, IFLA_BOND_SLAVE_MAX, data, policy) < 0) {
 		ni_warn("%s: unable to parse bond slave data", ifname);
 		return;
 	}
@@ -1357,18 +1357,18 @@ __ni_process_ifinfomsg_bond_slave_data(ni_linkinfo_t *link, const char *ifname, 
 		if (!(aptr = tb[attr]))
 			continue;
 
-		name = __slave_attrs[attr];
+		name = attrs[attr];
 		switch (attr) {
 		case IFLA_BOND_SLAVE_STATE:
 			info->state = nla_get_u8(aptr);
-			mapped = ni_bonding_slave_state_name(info->state);
+			mapped = ni_bonding_port_state_name(info->state);
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
 						"%s: get attr %s=%u (%s)", ifname, name,
 						info->state, mapped);
 			break;
 		case IFLA_BOND_SLAVE_MII_STATUS:
 			info->mii_status = nla_get_u8(aptr);
-			mapped = ni_bonding_slave_mii_status_name(info->mii_status);
+			mapped = ni_bonding_port_mii_status_name(info->mii_status);
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
 						"%s: get attr %s=%u (%s)", ifname, name,
 						info->mii_status, mapped);
@@ -1439,9 +1439,9 @@ __ni_process_ifinfomsg_slave_data(ni_linkinfo_t *link, const char *ifname,
 			ni_bonding_slave_t *slave;
 
 			slave = ni_bonding_slave_array_get_by_ifindex(&master->bonding->slaves,	link->ifindex);
-			link->port.bond = ni_bonding_slave_info_ref(ni_bonding_slave_get_info(slave));
+			link->port.bond = ni_bonding_port_info_ref(ni_bonding_slave_get_info(slave));
 		} else {
-			link->port.bond = ni_bonding_slave_info_new();
+			link->port.bond = ni_bonding_port_info_new();
 		}
 
 		if (link->port.bond)

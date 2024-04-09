@@ -1,10 +1,22 @@
 <service name="bonding" interface="org.opensuse.Network.Bond" object-class="netif-bond">
- <description>
-   This link-layer service is provided by all bonding devices.
+  <description>
+    This link-layer service is provided by all bond network interfaces.
 
-   Bond devices can be created through the org.opensuse.Network.Bond.Factory
-   factory interface.
- </description>
+    A bond can be created through the org.opensuse.Network.Bond.Factory
+    factory service interface.
+  </description>
+
+  <define name="port-info" class="dict"
+          description="Bond port specific interface info properties">
+
+    <state type="builtin-bonding-port-state"/>
+    <mii-status type="builtin-bonding-port-mii-status"/>
+    <link-failures type="uint32"/>
+    <perm-hwaddr type="ethernet-address"/>
+    <queue-id type="uint16"/>
+    <ad-aggregator-id type="uint16"/>
+
+  </define>
 
  <!-- This is the device-info returned in interface reports -->
  <define name="device-info" class="dict">
@@ -17,7 +29,7 @@
         active-backup, balance-tlb or balance-alb modes. This forces
         the use as primary or active and overwries kernels choice.
      -->
-   <define name="slave" class="dict">
+   <define name="slave" class="dict" extends="bonding:port-info">
      <device type="string">
        <meta:netif-reference shared="false" />
        <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
@@ -26,12 +38,6 @@
      <active type="boolean"/>
      <primary type="boolean"/>
 
-     <state type="builtin-bonding-slave-state"/>
-     <mii-status type="builtin-bonding-slave-mii-status"/>
-     <perm-hwaddr type="ethernet-address"/>
-     <link-failures type="uint32"/>
-     <queue-id type="uint16"/>
-     <ad-aggregator-id type="uint16"/>
    </define>
    <slaves class="array" element-type="slave" constraint="required" minlen="1" />
 
