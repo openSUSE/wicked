@@ -700,6 +700,7 @@ static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 	BONDING_UINT_PROPERTY(num-grat-arp, num_grat_arp, RO),
 	BONDING_UINT_PROPERTY(num-unsol-na, num_unsol_na, RO),
 	BONDING_UINT_PROPERTY(fail-over-mac, fail_over_mac, RO),
+	BONDING_STRING_PROPERTY(primary, primary_slave.name, RO),
 	BONDING_UINT_PROPERTY(primary-reselect, primary_reselect, RO),
 	BONDING_BOOL_PROPERTY(all-slaves-active, all_slaves_active, RO),
 	BONDING_UINT_PROPERTY(packets-per-slave, packets_per_slave, RO),
