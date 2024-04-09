@@ -22,18 +22,15 @@
     <path-cost type="uint32" />
   </define>
 
-  <!-- This is the port-status returned in bridge interface reports -->
-  <define name="port-status" class="dict" extends="bridge:port-config"
-          description="Bridge port configuration and status properties">
-     <!-- The following fields contain status information only,
-          and should not appear in configuration files.
-          These values are ignored when creating a bridge port.
-     -->
+  <define name="port-info" class="dict"
+          description="Bridge port specific interface info properties">
 
-    <!-- FIXME: state is really asking for an enum -->
-    <state type="uint32" />
-    <port-no type="uint32" />
-    <port-id type="uint32" />
+    <state      type="builtin-bridge-port-state" />
+    <port-no    type="uint32" />
+    <port-id    type="uint32" />
+    <priority   type="uint32" />
+    <path-cost  type="uint32" />
+
   </define>
 
   <!-- This is the bridge config without ports used to configure the bridge -->
@@ -77,7 +74,6 @@
 
     <!-- we may implement more status information properties here -->
 
-    <ports class="array" element-type="bridge:port-status" element-name="port" />
     <address  type="ethernet-address"/>
   </define>
 
