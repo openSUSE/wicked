@@ -445,6 +445,7 @@ ni_do_ifup(int argc, char **argv)
 {
 	enum  { OPT_HELP, OPT_IFCONFIG, OPT_CONTROL_MODE, OPT_STAGE, OPT_TIMEOUT,
 		OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_PERSISTENT, OPT_TRANSIENT,
+		OPT_DRY_RUN,
 #ifdef NI_TEST_HACKS
 		OPT_IGNORE_PRIO, OPT_IGNORE_STARTMODE,
 #endif
@@ -464,6 +465,7 @@ ni_do_ifup(int argc, char **argv)
 		{ "ignore-startmode",no_argument, NULL,	OPT_IGNORE_STARTMODE },
 #endif
 		{ "persistent",	no_argument, NULL,	OPT_PERSISTENT },
+		{ "dry-run",	no_argument, NULL,	OPT_DRY_RUN },
 		{ NULL }
 	};
 
@@ -474,6 +476,7 @@ ni_do_ifup(int argc, char **argv)
 	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	ni_bool_t check_prio = TRUE, set_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
+	ni_log_fn_t *dry_run = NULL;
 	int c, status = NI_WICKED_RC_USAGE;
 	unsigned int seconds = 0;
 	ni_fsm_t *fsm;
@@ -528,12 +531,16 @@ ni_do_ifup(int argc, char **argv)
 			break;
 #endif
 
+		case OPT_TRANSIENT:
+			opt_transient = TRUE;
+			break;
+
 		case OPT_PERSISTENT:
 			set_persistent = TRUE;
 			break;
 
-		case OPT_TRANSIENT:
-			opt_transient = TRUE;
+		case OPT_DRY_RUN:
+			dry_run = ni_note;
 			break;
 
 		default:
@@ -568,6 +575,8 @@ usage:
 #endif
 				"  --persistent\n"
 				"      Set interface into persistent mode (no regular ifdown allowed)\n"
+				"  --dry-run\n"
+				"      Show interface hierarchies as notice with (+) markers and exit.\n"
 				);
 			goto cleanup;
 		}
@@ -651,8 +660,10 @@ usage:
 			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
-	ni_fsm_print_system_hierarchy(fsm, NULL, NULL);
-	ni_fsm_print_config_hierarchy(fsm, &ifmarked, ni_info);
+	ni_fsm_print_system_hierarchy(fsm, NULL, dry_run);
+	ni_fsm_print_config_hierarchy(fsm, &ifmarked, dry_run);
+	if (dry_run)
+		goto cleanup;
 
 	if (!ni_ifup_hire_nanny(&ifmarked, set_persistent))
 		status = NI_WICKED_RC_NOT_CONFIGURED;

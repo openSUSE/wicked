@@ -176,6 +176,7 @@ ni_do_ifreload(const char *caller, int argc, char **argv)
 		OPT_TRANSIENT	= 'T',
 		OPT_RELEASE,
 		OPT_NO_RELEASE,
+		OPT_DRY_RUN,
 	};
 	static struct option ifreload_options[] = {
 		{ "help",		no_argument,		NULL,	OPT_HELP },
@@ -185,6 +186,7 @@ ni_do_ifreload(const char *caller, int argc, char **argv)
 		{ "persistent",		no_argument,		NULL,	OPT_PERSISTENT },
 		{ "release",		no_argument,		NULL,	OPT_RELEASE },
 		{ "no-release",		no_argument,		NULL,	OPT_NO_RELEASE },
+		{ "dry-run",		no_argument,		NULL,	OPT_DRY_RUN },
 
 		{ NULL,			no_argument,		NULL,	0 }
 	};
@@ -196,6 +198,7 @@ ni_do_ifreload(const char *caller, int argc, char **argv)
 	ni_bool_t opt_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
 	ni_tristate_t opt_release = NI_TRISTATE_DEFAULT;
+	ni_log_fn_t *dry_run = NULL;
 	unsigned int seconds = 0;
 	int c, status = NI_WICKED_RC_USAGE;
 	char *saved_argv0, *program = NULL;
@@ -241,6 +244,10 @@ ni_do_ifreload(const char *caller, int argc, char **argv)
 			opt_release = NI_TRISTATE_DISABLE;
 			break;
 
+		case OPT_DRY_RUN:
+			dry_run = ni_note;
+			break;
+
 		default:
 		case OPT_HELP:
 usage:
@@ -259,6 +266,8 @@ usage:
 				"      Set interface into persistent mode (no regular ifdown allowed)\n"
 				"  --[no-]release\n"
 				"      Override active config to (not) release leases in ifdown\n"
+				"  --dry-run\n"
+				"      Show interface hierarchies as notice with (+/-) markers and exit.\n"
 				, program);
 			goto cleanup;
 		}
@@ -330,6 +339,7 @@ usage:
 		goto cleanup;
 	}
 
+	/* Get workers that match given criteria */
 	status = NI_WICKED_RC_SUCCESS;
 	for (c = optind; c < argc; ++c) {
 		const char *ifname = argv[c];
@@ -341,8 +351,10 @@ usage:
 			ifreload_match_workers(fsm, &down_marked, &up_marked, ifname);
 		}
 	}
-	ni_fsm_print_system_hierarchy(fsm, &down_marked, ni_note /* -> ni_info */);
-	ni_fsm_print_config_hierarchy(fsm, &up_marked, ni_note  /* -> ni_info */);
+	ni_fsm_print_system_hierarchy(fsm, &down_marked, dry_run);
+	ni_fsm_print_config_hierarchy(fsm, &up_marked, dry_run);
+	if (dry_run)
+		goto cleanup;
 
 	if (opt_persistent) {
 		for (i = 0; i < up_marked.count; ++i) {
