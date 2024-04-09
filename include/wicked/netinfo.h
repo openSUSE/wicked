@@ -190,6 +190,7 @@ extern ni_netconfig_t *	ni_global_state_handle(int);
 extern ni_netdev_t *	ni_netdev_by_name(ni_netconfig_t *nic, const char *name);
 extern ni_netdev_t *	ni_netdev_by_index(ni_netconfig_t *nic, unsigned int index);
 extern ni_netdev_t *	ni_netdev_by_hwaddr(ni_netconfig_t *nic, const ni_hwaddr_t *lla);
+extern ni_netdev_t *	ni_netdev_by_iftype(ni_netconfig_t *nic, ni_iftype_t);
 extern ni_netdev_t *	ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc,
 				const char *physdev, uint16_t tag);
 extern unsigned int	ni_netdev_name_to_index(const char *);
@@ -344,5 +345,11 @@ extern void			ni_netdev_port_info_destroy(ni_netdev_port_info_t *);
 
 extern ni_bool_t		ni_netdev_port_config_init(ni_netdev_port_config_t *, ni_iftype_t);
 extern void			ni_netdev_port_config_destroy(ni_netdev_port_config_t *);
+
+extern unsigned int		ni_netdev_get_ports(const ni_netdev_t *, ni_netdev_ref_array_t *,
+						ni_netconfig_t *);
+
+extern const ni_netdev_ref_t *	ni_netdev_get_master_ref(const ni_netdev_t *);
+extern ni_netdev_t *		ni_netdev_resolve_master(const ni_netdev_t *, ni_netconfig_t *);
 
 #endif /* NI_WICKED_NETINFO_H */
