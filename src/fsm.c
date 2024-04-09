@@ -328,7 +328,7 @@ ni_ifworker_cancel_action_table_callbacks(ni_ifworker_t *w)
 }
 
 static void
-__ni_ifworker_reset_action_table(ni_ifworker_t *w)
+ni_ifworker_reset_action_table(ni_ifworker_t *w)
 {
 	ni_fsm_transition_t *action;
 
@@ -342,9 +342,9 @@ __ni_ifworker_reset_action_table(ni_ifworker_t *w)
 }
 
 static void
-__ni_ifworker_destroy_action_table(ni_ifworker_t *w)
+ni_ifworker_destroy_action_table(ni_ifworker_t *w)
 {
-	__ni_ifworker_reset_action_table(w);
+	ni_ifworker_reset_action_table(w);
 
 	free(w->fsm.action_table);
 	w->fsm.next_action = NULL;
@@ -352,14 +352,14 @@ __ni_ifworker_destroy_action_table(ni_ifworker_t *w)
 }
 
 static void
-__ni_ifworker_reset_device_api(ni_ifworker_t *w)
+ni_ifworker_destroy_device_api(ni_ifworker_t *w)
 {
 	xml_node_free(w->device_api.config);
 	memset(&w->device_api, 0, sizeof(w->device_api));
 }
 
 static void
-__ni_ifworker_reset_fsm(ni_ifworker_t *w)
+ni_ifworker_reset_fsm(ni_ifworker_t *w)
 {
 	if (!w)
 		return;
@@ -367,18 +367,18 @@ __ni_ifworker_reset_fsm(ni_ifworker_t *w)
 	ni_ifworker_cancel_secondary_timeout(w);
 	ni_ifworker_cancel_timeout(w);
 
-	__ni_ifworker_reset_action_table(w);
+	ni_ifworker_reset_action_table(w);
 
 	w->fsm.state = NI_FSM_STATE_NONE;
 	w->args.release = NI_TRISTATE_DEFAULT;
 }
 
 static void
-__ni_ifworker_destroy_fsm(ni_ifworker_t *w)
+ni_ifworker_destroy_fsm(ni_ifworker_t *w)
 {
-	__ni_ifworker_reset_fsm(w);
+	ni_ifworker_reset_fsm(w);
 
-	__ni_ifworker_destroy_action_table(w);
+	ni_ifworker_destroy_action_table(w);
 	ni_fsm_require_list_destroy(&w->fsm.check_state_req_list);
 }
 
@@ -389,7 +389,7 @@ ni_ifworker_rearm(ni_ifworker_t *w)
 	w->done = FALSE;
 	w->failed = FALSE;
 	w->kickstarted = FALSE;
-	__ni_ifworker_reset_fsm(w);
+	ni_ifworker_reset_fsm(w);
 }
 
 void
@@ -404,7 +404,8 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	ni_fsm_clear_hierarchy(w);
 
 	ni_ifworker_rearm(w);
-	__ni_ifworker_reset_device_api(w);
+	ni_ifworker_destroy_fsm(w);
+	ni_ifworker_destroy_device_api(w);
 
 	w->readonly = FALSE;
 	w->dead = FALSE;
@@ -433,8 +434,8 @@ ni_ifworker_free(ni_ifworker_t *w)
 	ni_fsm_clear_hierarchy(w);
 
 	ni_ifworker_rearm(w);
-	__ni_ifworker_destroy_fsm(w);
-	__ni_ifworker_reset_device_api(w);
+	ni_ifworker_destroy_fsm(w);
+	ni_ifworker_destroy_device_api(w);
 
 	w->readonly = FALSE;
 	w->dead = FALSE;
@@ -3247,8 +3248,8 @@ ni_ifworker_device_delete(ni_ifworker_t *w)
 	w->target_range.min = NI_FSM_STATE_NONE;
 	w->target_range.max = __NI_FSM_STATE_MAX;
 
-	__ni_ifworker_destroy_action_table(w);
-	__ni_ifworker_reset_device_api(w);
+	ni_ifworker_destroy_action_table(w);
+	ni_ifworker_destroy_device_api(w);
 	ni_ifworker_rearm(w);
 	ni_fsm_clear_hierarchy(w);
 
@@ -5243,7 +5244,7 @@ ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned int from_state, u
 
 	num_actions = 0;
 
-	__ni_ifworker_destroy_action_table(w);
+	ni_ifworker_destroy_action_table(w);
 do_it_again:
 	index = 0;
 	for (cur_state = from_state; cur_state != target_state; ) {
