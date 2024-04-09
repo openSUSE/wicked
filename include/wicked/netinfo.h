@@ -113,6 +113,7 @@ struct ni_netdev_port_config {
 	union {
 		ni_bonding_port_config_t *	bond;
 		ni_team_port_config_t *		team;
+		ni_bridge_port_config_t *	bridge;
 		ni_ovs_bridge_port_config_t *	ovsbr;
 	};
 };

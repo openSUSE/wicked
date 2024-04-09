@@ -252,6 +252,44 @@ ni_objectmodel_get_bridge(const ni_dbus_object_t *object, ni_bool_t write_access
 }
 
 /*
+ * Bridge port (link-request) configuration
+ */
+extern dbus_bool_t
+ni_objectmodel_get_bridge_port_config(const ni_bridge_port_config_t *conf,
+		ni_dbus_variant_t *dict, DBusError *error)
+{
+	(void)error;
+
+	if (!conf || !dict)
+		return FALSE;
+
+	if (conf->priority != NI_BRIDGE_VALUE_NOT_SET)
+		ni_dbus_dict_add_uint32(dict, "priority", conf->priority);
+	if (conf->path_cost != NI_BRIDGE_VALUE_NOT_SET)
+		ni_dbus_dict_add_uint32(dict, "path-cost", conf->path_cost);
+
+	return TRUE;
+}
+extern dbus_bool_t
+ni_objectmodel_set_bridge_port_config(ni_bridge_port_config_t *conf,
+		const ni_dbus_variant_t *dict, DBusError *error)
+{
+	uint32_t value;
+
+	(void)error;
+
+	if (!conf || !dict)
+		return FALSE;
+
+	if (ni_dbus_dict_get_uint32(dict, "priority", &value))
+		conf->priority = value;
+	if (ni_dbus_dict_get_uint32(dict, "path-cost", &value))
+		conf->path_cost = value;
+
+	return TRUE;
+}
+
+/*
  * Bridge port interface info properties
  */
 extern dbus_bool_t
@@ -277,6 +315,7 @@ ni_objectmodel_get_bridge_port_info(const ni_bridge_port_info_t *info,
 
 	return TRUE;
 }
+
 extern dbus_bool_t
 ni_objectmodel_set_bridge_port_info(ni_bridge_port_info_t *info,
 		const ni_dbus_variant_t *dict, DBusError *error)

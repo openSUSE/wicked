@@ -10,6 +10,14 @@
 #define NI_BRIDGE_VALUE_NOT_SET			-1U
 
 /*
+ * Bridge port (link-request) configuration
+ */
+struct ni_bridge_port_config {
+	unsigned int		priority;
+	unsigned int		path_cost;
+};
+
+/*
  * Bridge port interface info properties
  */
 struct ni_bridge_port_info {
@@ -99,10 +107,15 @@ extern ni_bridge_port_t *ni_bridge_port_by_name(const ni_bridge_t *br, const cha
 extern ni_bridge_port_t *ni_bridge_port_clone(const ni_bridge_port_t *port);
 extern void		ni_bridge_port_free(ni_bridge_port_t *port);
 
+extern const char *			ni_bridge_port_priority_validate(unsigned int);
+extern const char *			ni_bridge_port_path_cost_validate(unsigned int);
+extern const char *			ni_bridge_port_validate(const ni_bridge_port_t *);
+extern const char *			ni_bridge_validate(const ni_bridge_t *);
 
-extern const char *	ni_bridge_port_validate(const ni_bridge_port_t *);
-extern const char *	ni_bridge_validate(const ni_bridge_t *);
-extern unsigned int	ni_bridge_waittime_from_xml(const xml_node_t *brnode);
+extern unsigned int			ni_bridge_waittime_from_xml(const xml_node_t *brnode);
+
+extern ni_bridge_port_config_t *	ni_bridge_port_config_new(void);
+extern void				ni_bridge_port_config_free(ni_bridge_port_config_t *);
 
 extern ni_bridge_port_info_t *		ni_bridge_port_info_new(void);
 extern void				ni_bridge_port_info_free(ni_bridge_port_info_t *);
