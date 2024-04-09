@@ -243,11 +243,19 @@ usage:
 		return NI_WICKED_RC_ERROR;
 	}
 
+	if (ni_fsm_build_hierarchy(fsm, FALSE) < 0) {
+		ni_error("ifdown: unable to build interface hierarchy");
+		status = NI_WICKED_RC_ERROR;
+		goto cleanup;
+	}
+
 	/* Get workers that match given criteria */
+	status = NI_WICKED_RC_SUCCESS;
 	nmarked = 0;
 	while (optind < argc) {
 		ifmatch.name = argv[optind++];
 		ifmatch.ifdown = TRUE;
+
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
 
 		if (ni_string_eq(ifmatch.name, "all") ||
@@ -292,6 +300,7 @@ usage:
 		status = ni_ifstatus_shutdown_result(fsm, &ifnames, &ifmarked);
 	}
 
+cleanup:
 	ni_string_array_destroy(&ifnames);
 	ni_ifworker_array_destroy(&ifmarked);
 	ni_fsm_free(fsm);
