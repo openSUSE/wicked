@@ -876,6 +876,153 @@ __ni_objectmodel_set_team_port_config(ni_team_port_config_t *pconf, const ni_dbu
 }
 
 /*
+ * team port interface info properties <-> dict
+ */
+static inline dbus_bool_t
+ni_objectmodel_get_team_port_runner_lacp_info(const ni_team_port_runner_lacp_info_t *lacp,
+		ni_dbus_variant_t *dict)
+{
+	ni_dbus_dict_add_uint16(dict, "aggregator-id", lacp->aggregator.id);
+	ni_dbus_dict_add_bool(dict,   "selected",  lacp->selected);
+	ni_dbus_dict_add_string(dict, "state",  lacp->state);
+
+	return TRUE;
+}
+
+static inline dbus_bool_t
+ni_objectmodel_get_team_port_runner_info(const ni_team_port_runner_info_t *runner,
+		ni_dbus_variant_t *dict)
+{
+	ni_dbus_variant_t *rdict;
+	ni_dbus_variant_t *ldict;
+	const char *name;
+
+	if (!(name = ni_team_runner_type_to_name(runner->type)))
+		return FALSE;
+
+	if (!(rdict = ni_dbus_dict_add(dict, "runner")))
+		return FALSE;
+
+	ni_dbus_variant_init_struct(rdict);
+	ni_dbus_struct_add_string(rdict, name);
+	if (!(ldict = ni_dbus_struct_add(rdict)))
+		return FALSE;
+
+	ni_dbus_variant_init_dict(ldict);
+	switch (runner->type) {
+	case NI_TEAM_RUNNER_LACP:
+		ni_objectmodel_get_team_port_runner_lacp_info(&runner->lacp, ldict);
+		break;
+	default:
+		/* other runner types don't have any port specific info */
+		break;
+	}
+	return TRUE;
+}
+static inline dbus_bool_t
+ni_objectmodel_get_team_port_link_watches_info(const ni_team_port_link_watches_info_t *watches,
+		ni_dbus_variant_t *dict)
+{
+	ni_dbus_variant_t *wdict;
+
+	if (!(wdict = ni_dbus_dict_add(dict, "link_watches")))
+		return FALSE;
+
+	ni_dbus_variant_init_dict(wdict);
+	ni_dbus_dict_add_bool(wdict, "up", watches->up);
+	return TRUE;
+}
+extern dbus_bool_t
+ni_objectmodel_get_team_port_info(const ni_team_port_info_t *info,
+		ni_dbus_variant_t *dict, DBusError *error)
+{
+	(void)error;
+
+	if (!info || !dict)
+		return FALSE;
+
+	ni_objectmodel_get_team_port_runner_info(&info->runner, dict);
+	ni_objectmodel_get_team_port_link_watches_info(&info->watches, dict);
+	return TRUE;
+}
+
+static inline dbus_bool_t
+ni_objectmodel_set_team_port_runner_lacp_info(ni_team_port_runner_lacp_info_t *lacp,
+		const ni_dbus_variant_t *dict)
+{
+	const char *str;
+	dbus_bool_t bv;
+	uint16_t u16;
+
+	if (ni_dbus_dict_get_uint16(dict, "aggregator-id", &u16))
+		lacp->aggregator.id = u16;
+
+	if (ni_dbus_dict_get_bool(dict,   "selected", &bv))
+		lacp->selected = bv;
+
+	if (ni_dbus_dict_get_string(dict, "state", &str))
+		ni_string_dup(&lacp->state, str);
+
+	return TRUE;
+}
+static inline dbus_bool_t
+ni_objectmodel_set_team_port_runner_info(ni_team_port_runner_info_t *runner,
+		const ni_dbus_variant_t *dict)
+{
+	const ni_dbus_variant_t *rdict;
+	const ni_dbus_variant_t *ldict;
+	const char *name;
+
+	if (!(rdict = ni_dbus_dict_get(dict, "runner")))
+		return FALSE;
+
+	if (!ni_dbus_struct_get_string(rdict, 0, &name))
+		return FALSE;
+
+	if (!ni_team_runner_name_to_type(name, &runner->type))
+		return FALSE;
+
+	switch (runner->type) {
+	case NI_TEAM_RUNNER_LACP:
+		if ((ldict = ni_dbus_struct_get(rdict, 1)))
+			ni_objectmodel_set_team_port_runner_lacp_info(&runner->lacp, ldict);
+		break;
+	default:
+		/* other runner types don't have any port specific info */
+		break;
+	}
+	return TRUE;
+}
+static inline dbus_bool_t
+ni_objectmodel_set_team_port_link_watches_info(ni_team_port_link_watches_info_t *watches,
+		const ni_dbus_variant_t *dict)
+{
+	const ni_dbus_variant_t *wdict;
+	dbus_bool_t bval;
+
+	if (!(wdict = ni_dbus_dict_get(dict, "link_watches")))
+		return FALSE;
+
+	if (ni_dbus_dict_get_bool(wdict, "up", &bval))
+		watches->up = bval;
+
+	return TRUE;
+}
+extern dbus_bool_t
+ni_objectmodel_set_team_port_info(ni_team_port_info_t *info,
+		const ni_dbus_variant_t *dict, DBusError *error)
+{
+	(void)error;
+
+	if (!info || !dict)
+		return FALSE;
+
+	ni_objectmodel_set_team_port_runner_info(&info->runner, dict);
+	ni_objectmodel_set_team_port_link_watches_info(&info->watches, dict);
+	return TRUE;
+}
+
+/*
  * Helper function for team port device as dict
  */
 static dbus_bool_t
