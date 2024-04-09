@@ -29,7 +29,7 @@
         active-backup, balance-tlb or balance-alb modes. This forces
         the use as primary or active and overwries kernels choice.
      -->
-   <define name="slave" class="dict" extends="bond:port-info">
+   <define name="slave" class="dict">
      <device type="string">
        <meta:netif-reference shared="false" />
        <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />

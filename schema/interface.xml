@@ -148,6 +148,9 @@
  <mtu type="uint32"/>
  <alias type="string"/>
  <master type="string"/>
+ <port class="union" switch="type">
+   <bond       type="bond:port-info" />
+ </port>
 
  <!-- General ipv4 and ipv6 specific settings -->
  <ipv4 type="af-info"/>
