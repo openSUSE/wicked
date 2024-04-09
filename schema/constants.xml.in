@@ -144,6 +144,11 @@
   <@@BONDING_PORT_MII_STATUS_NAME@@ value="@@BONDING_PORT_MII_STATUS_VALUE@@"/>
 </define>
 
+<!-- Built-in bridge & port constants -->
+<define name="builtin-bridge-port-state" type="uint32" constraint="enum">
+  <@@BRIDGE_PORT_STATE_NAME@@ value="@@BRIDGE_PORT_STATE_VALUE@@" />
+</define>
+
 <!-- Built-in route type/scope/table/protocol -->
 <define name="builtin-route-type" type="uint32" constraint="enum">
   <@@ROUTE_TYPE_NAME@@ value="@@ROUTE_TYPE_VALUE@@"/>
