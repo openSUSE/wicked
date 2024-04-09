@@ -26,6 +26,7 @@
 #include <wicked/client.h>
 #include <wicked/bridge.h>
 #include <wicked/ovs.h>
+#include <wicked/compiler.h>
 #include <xml-schema.h>
 
 #include "dbus-objects/model.h"
@@ -2910,7 +2911,7 @@ ni_ifworker_type_from_object_path(const char *path, const char **suffix)
 unsigned int
 ni_fsm_get_matching_workers(ni_fsm_t *fsm, ni_ifmatcher_t *match, ni_ifworker_array_t *result)
 {
-	void (*logit)(const char *, ...) __fmtattr;
+	void (*logit)(const char *, ...) ni__printf(1, 2);
 	unsigned int i;
 
 	if (ni_string_eq(match->name, "all")) {
