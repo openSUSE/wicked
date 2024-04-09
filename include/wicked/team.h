@@ -208,6 +208,9 @@ typedef struct ni_team_port_lacp {
 	unsigned int				key;
 } ni_team_port_lacp_t;
 
+/*
+ * team port (link-request) configuration
+ */
 struct ni_team_port_config {
 	unsigned int				queue_id;
 
@@ -325,8 +328,10 @@ extern						ni_declare_ptr_array_append(ni_team_port);
 extern						ni_declare_ptr_array_delete_at(ni_team_port);
 extern ni_team_port_t *				ni_team_port_array_find_by_name(ni_team_port_array_t *, const char *);
 
-extern void					ni_team_port_config_init(ni_team_port_config_t *);
+extern ni_team_port_config_t *			ni_team_port_config_new(void);
+extern ni_bool_t				ni_team_port_config_init(ni_team_port_config_t *);
 extern void					ni_team_port_config_destroy(ni_team_port_config_t *);
+extern void					ni_team_port_config_free(ni_team_port_config_t *);
 
 extern ni_team_port_info_t *			ni_team_port_info_new(void);
 extern void					ni_team_port_info_free(ni_team_port_info_t *);

@@ -446,17 +446,44 @@ ni_team_port_array_find_by_name(ni_team_port_array_t *array, const char *name)
 	return NULL;
 }
 
-void
-ni_team_port_config_init(ni_team_port_config_t *pc)
+/*
+ * team port link-request configuration
+ */
+ni_bool_t
+ni_team_port_config_init(ni_team_port_config_t *conf)
 {
-	if (pc) {
-		pc->queue_id = -1U;
+	if (conf) {
+		memset(conf, 0, sizeof(*conf));
+		conf->queue_id = -1U;
+		return TRUE;
 	}
+	return FALSE;
 }
 
 void
-ni_team_port_config_destroy(ni_team_port_config_t *pc)
+ni_team_port_config_destroy(ni_team_port_config_t *conf)
 {
+	ni_team_port_config_init(conf);
+}
+
+ni_team_port_config_t *
+ni_team_port_config_new(void)
+{
+	ni_team_port_config_t *conf;
+
+	conf = malloc(sizeof(*conf));
+	if (ni_team_port_config_init(conf))
+		return conf;
+
+	free(conf);
+	return NULL;
+}
+
+void
+ni_team_port_config_free(ni_team_port_config_t *conf)
+{
+	ni_team_port_config_destroy(conf);
+	free(conf);
 }
 
 /*
