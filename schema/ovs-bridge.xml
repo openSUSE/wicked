@@ -4,18 +4,12 @@
 
 <service name="ovs-bridge" interface="org.opensuse.Network.OVSBridge" object-class="netif-ovs-bridge">
 
-  <define name="port-config" class="dict">
-    <bridge type="string" >
-      <meta:netif-reference supplemental="true" subordinate="true" />
-      <meta:require check="netif-check-state" op="linkUp" min-state="firewall-up" />
-    </bridge>
+  <define name="port-config" class="dict"
+          description="OVS Bridge port specific configuration properties">
   </define>
 
   <define name="port-info" class="dict"
           description="OVS Bridge port specific interface info properties">
-
-    <bridge type="string" />
-
   </define>
 
   <define name="bridge-config" class="dict"
