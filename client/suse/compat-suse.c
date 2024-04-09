@@ -80,6 +80,7 @@
 typedef struct ni_suse_ifcfg {
 	ni_sysconfig_t *		config;
 	ni_compat_netdev_t *		compat;
+	ni_bool_t			broken;
 } ni_suse_ifcfg_t;
 
 #define NI_SUSE_IFCFG_ARRAY_INIT	NI_ARRAY_INIT
@@ -88,6 +89,7 @@ ni_declare_ptr_array_type(ni_suse_ifcfg);
 
 static ni_suse_ifcfg_t *		ni_suse_ifcfg_new(void);
 static void				ni_suse_ifcfg_free(ni_suse_ifcfg_t *);
+static ni_bool_t			ni_suse_ifcfg_parse(ni_suse_ifcfg_array_t *);
 
 static					ni_declare_ptr_array_init(ni_suse_ifcfg);
 static					ni_declare_ptr_array_destroy(ni_suse_ifcfg);
@@ -96,13 +98,11 @@ static					ni_declare_ptr_array_append(ni_suse_ifcfg);
 
 typedef ni_bool_t (*try_function_t)(const ni_sysconfig_t *, ni_netdev_t *, const char *);
 
-static ni_compat_netdev_t *	__ni_suse_read_interface(const char *, const char *);
 static ni_bool_t		__ni_suse_read_globals(const char *, const char *, const char *);
 static void			__ni_suse_free_globals(void);
 static void			__ni_suse_show_unapplied_routes(void);
 static void			__ni_suse_adjust_slaves(ni_compat_netdev_array_t *);
 static void			__ni_suse_adjust_ovs_system(ni_compat_netdev_t *);
-static ni_bool_t		__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
 static int			__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *,
 							const char *, try_function_t);
 static ni_var_t *		__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
@@ -162,7 +162,7 @@ static ni_bool_t		__ni_ipv6_disbled;
 #define __NI_WIRELESS_WPA_PSK_MIN_LEN	8
 
 static ni_bool_t
-__ni_suse_ifcfg_valid_suffix(const char *name, size_t pfxlen)
+ni_suse_ifcfg_valid_suffix(const char *name, size_t pfxlen)
 {
 	const char *blacklist[] = {
 		"~", ".old", ".bak", ".orig", ".scpmbackup",
@@ -188,51 +188,118 @@ __ni_suse_ifcfg_valid_suffix(const char *name, size_t pfxlen)
 }
 
 static ni_bool_t
-__ni_suse_ifcfg_valid_prefix(const char *basename, const char *prefix)
+ni_suse_ifcfg_valid_prefix(const char *basename, const char *prefix)
 {
-	size_t pfxlen;
-
 	if (!basename || !prefix)
 		return FALSE;
 
-	pfxlen = strlen(prefix);
-	if (strncmp(basename, prefix, pfxlen))
-		return FALSE;
-
-	return TRUE;
+	return ni_string_startswith(basename, prefix);
 }
 
+/*
+ * Read a single ifcfg file and init compat netdev
+ */
+static ni_suse_ifcfg_t *
+ni_suse_ifcfg_read_file(const char *filename)
+{
+	const char *basename = ni_basename(filename);
+	size_t pfxlen = sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1;
+	ni_suse_ifcfg_t *ifcfg = NULL;
+	const char *ifname;
+
+	/* Check in case ni_suse_ifcfg_read_file is used directly */
+	if (!ni_suse_ifcfg_valid_prefix(basename, __NI_SUSE_CONFIG_IFPREFIX)) {
+		ni_error("Rejecting file without '%s' prefix: %s",
+				__NI_SUSE_CONFIG_IFPREFIX, filename);
+		return NULL;
+	}
+	if (!ni_suse_ifcfg_valid_suffix(basename, pfxlen)) {
+		ni_error("Rejecting blacklisted %sfile suffix: %s",
+				__NI_SUSE_CONFIG_IFPREFIX, filename);
+		return NULL;
+	}
+
+	ifname = basename + pfxlen;
+	if (!ni_netdev_name_is_valid(ifname)) {
+		ni_error("Rejecting suspect interface name: %s", ifname);
+		return NULL;
+	}
+
+	if (!(ifcfg = ni_suse_ifcfg_new())) {
+		ni_error("Unable to allocate ifcfg structure for %sfile: %s",
+				__NI_SUSE_CONFIG_IFPREFIX, filename);
+		return NULL;
+	}
+
+	if (!(ifcfg->compat = ni_compat_netdev_new(ifname))) {
+		ni_error("Unable to allocate netdev structure for %sfile: %s",
+				__NI_SUSE_CONFIG_IFPREFIX, filename);
+		ni_suse_ifcfg_free(ifcfg);
+		return NULL;
+	}
+
+	if (!(ifcfg->config = ni_sysconfig_read(filename))) {
+		/* errors reported */
+		ni_suse_ifcfg_free(ifcfg);
+		return NULL;
+	}
+
+	return ifcfg;
+}
+
+/*
+ * Read ifcfg files in directory and init compat netdevs
+ */
 static int
-__ni_suse_ifcfg_scan_files(const char *dirname, ni_string_array_t *res)
+ni_suse_ifcfg_read_files(ni_suse_ifcfg_array_t *ifcfgs, const char *dirname)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	const char *pattern = __NI_SUSE_CONFIG_IFPREFIX"*";
 	size_t pfxlen = sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1;
-	unsigned int i, count = res->count;
+	unsigned int i, count = ifcfgs->count;
+	ni_suse_ifcfg_t *ifcfg;
+	char *filename = NULL;
+	const char *file;
 
-	if( !ni_scandir(dirname, pattern, &files))
+	if (!ni_scandir(dirname, pattern, &files))
 		return 0;
 
-	for(i = 0; i < files.count; ++i) {
-		const char *file = files.data[i];
+	for (i = 0; i < files.count; ++i) {
+		if (!(file = files.data[i]))
+			continue;
 
-		if (!__ni_suse_ifcfg_valid_suffix(file, pfxlen)) {
-			ni_debug_readwrite("Ignoring blacklisted %sfile: %s",
+		if (!ni_suse_ifcfg_valid_suffix(file, pfxlen)) {
+			/* e.g. .bak suffix created by firewalld */
+			ni_debug_readwrite("Ignoring blacklisted %sfile suffix: %s",
 					__NI_SUSE_CONFIG_IFPREFIX, file);
 			continue;
 		}
 
-		ni_string_array_append(res, file);
+		if (!ni_string_printf(&filename, "%s/%s", dirname, file)) {
+			ni_error("Failed to construct full path for %sfile %s: %m",
+					__NI_SUSE_CONFIG_IFPREFIX, file);
+			continue;
+		}
+
+		if (!(ifcfg = ni_suse_ifcfg_read_file(filename)))
+			continue;	/* errors reported */
+
+		if (!ni_suse_ifcfg_array_append(ifcfgs, ifcfg)) {
+			ni_error("Failed to add '%s' structure to array: %m", file);
+			ni_suse_ifcfg_free(ifcfg);
+		}
 	}
+
+	ni_string_free(&filename);
 	ni_string_array_destroy(&files);
 
-	return res->count - count;
+	return ifcfgs->count - count;
 }
 
 ni_bool_t
 __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t *result)
 {
-	ni_string_array_t files = NI_STRING_ARRAY_INIT;
+	ni_suse_ifcfg_array_t ifcfgs = NI_SUSE_IFCFG_ARRAY_INIT;
 	ni_bool_t success = FALSE;
 	char pathbuf[PATH_MAX];
 	char *pathname = NULL;
@@ -257,26 +324,14 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 		}
 	} else
 	if (ni_isdir(pathname)) {
+
 		if (!__ni_suse_read_globals(root, _path, pathname))
 			goto done;
 
-		if (!__ni_suse_ifcfg_scan_files(pathname, &files)) {
+		if (!ni_suse_ifcfg_read_files(&ifcfgs, pathname)) {
 			ni_debug_readwrite("No ifcfg files found in %s", pathname);
 			success = TRUE;
 			goto done;
-		}
-
-		for (i = 0; i < files.count; ++i) {
-			const char *filename = files.data[i];
-			const char *ifname = filename + (sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1);
-			ni_compat_netdev_t *compat;
-
-			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", pathname, filename);
-			if (!(compat = __ni_suse_read_interface(pathbuf, ifname)))
-				continue;
-
-			ni_compat_netdev_set_origin(compat, result->schema, pathbuf);
-			ni_compat_netdev_array_append(&result->netdevs, compat);
 		}
 
 		if (__ni_suse_config_defaults) {
@@ -286,10 +341,26 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 						"WAIT_FOR_INTERFACES",
 						&ni_wait_for_interfaces);
 		}
+
+		ni_suse_ifcfg_parse(&ifcfgs);
 	} else {
 		ni_error("Cannot use '%s' to read suse ifcfg files -- not a directory",
 				pathname);
 		goto done;
+	}
+
+	for (i = 0; i < ifcfgs.count; ++i) {
+		ni_suse_ifcfg_t *ifcfg = ifcfgs.data[i];
+
+		if (ifcfg->broken)
+			continue;
+
+		ni_compat_netdev_set_origin(ifcfg->compat, result->schema,
+						ifcfg->config->pathname);
+		ni_compat_netdev_array_append(&result->netdevs, ifcfg->compat);
+		ifcfg->compat = NULL;
+		ni_sysconfig_free(ifcfg->config);
+		ifcfg->config = NULL;
 	}
 
 	__ni_suse_adjust_slaves(&result->netdevs);
@@ -300,7 +371,7 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 done:
 	ni_string_free(&pathname);
 	__ni_suse_free_globals();
-	ni_string_array_destroy(&files);
+	ni_suse_ifcfg_array_destroy(&ifcfgs);
 	return success;
 }
 
@@ -1572,53 +1643,6 @@ error:
 	ni_stringbuf_destroy(&buff);
 	ni_rule_array_destroy(rules);
 	return FALSE;
-}
-
-
-/*
- * Read the configuration of a single interface from a sysconfig file
- */
-static ni_compat_netdev_t *
-__ni_suse_read_interface(const char *filename, const char *ifname)
-{
-	const char *basename = ni_basename(filename);
-	size_t pfxlen = sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1;
-	ni_compat_netdev_t *compat = NULL;
-	ni_sysconfig_t *sc;
-
-	if (ni_string_len(ifname) == 0) {
-		if (!__ni_suse_ifcfg_valid_prefix(basename, __NI_SUSE_CONFIG_IFPREFIX)) {
-			ni_error("Rejecting file without '%s' prefix: %s",
-				__NI_SUSE_CONFIG_IFPREFIX, filename);
-			return NULL;
-		}
-		if (!__ni_suse_ifcfg_valid_suffix(basename, pfxlen)) {
-			ni_error("Rejecting blacklisted %sfile: %s",
-				__NI_SUSE_CONFIG_IFPREFIX, filename);
-			return NULL;
-		}
-		ifname = basename + pfxlen;
-	}
-
-	if (!ni_netdev_name_is_valid(ifname)) {
-		ni_error("Rejecting suspect interface name: %s", ifname);
-		return NULL;
-	}
-
-	if (!(sc = ni_sysconfig_read(filename)))
-		goto error;
-
-	compat = ni_compat_netdev_new(ifname);
-	if (!compat || !__ni_suse_sysconfig_read(sc, compat))
-		goto error;
-
-	ni_sysconfig_free(sc);
-	return compat;
-
-error:
-	ni_sysconfig_free(sc);
-	ni_compat_netdev_free(compat);
-	return NULL;
 }
 
 /*
@@ -6696,12 +6720,13 @@ __ni_suse_read_linkinfo(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 }
 
 /*
- * Read an ifcfg file
+ * Parse ifcfg file content
  */
 static ni_bool_t
 __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 {
-	compat->control = __ni_suse_startmode(sc);
+	if (!(compat->control = __ni_suse_startmode(sc)))
+		return FALSE;
 
 	if (try_loopback(sc, compat)   < 0 ||
 	    try_ovs_system(sc, compat) < 0 ||
@@ -6721,19 +6746,37 @@ __ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	    try_ethernet(sc, compat)   < 0)
 		return FALSE;
 
-	if (compat->dev->link.type == NI_IFTYPE_OVS_SYSTEM)
-		return TRUE;
+	return TRUE;
+}
 
-	__ni_suse_read_linkinfo(sc, compat);
-	__ni_suse_read_ifsysctl(sc, compat);
-	__ni_suse_bootproto(sc, compat);
-	__ni_suse_get_scripts(sc, compat);
-	ni_suse_ifcfg_get_firewall(sc, compat);
-	ni_suse_ifcfg_get_ethtool(sc, compat);
+static ni_bool_t
+ni_suse_ifcfg_parse(ni_suse_ifcfg_array_t *ifcfgs)
+{
+	ni_suse_ifcfg_t *ifcfg;
+	unsigned int i;
 
-	/* FIXME: What to do with these:
-		NAME
-	 */
+	if (!ifcfgs)
+		return FALSE;
+
+	for (i = 0; i < ifcfgs->count; ++i) {
+		ifcfg = ifcfgs->data[i];
+
+		if (!__ni_suse_sysconfig_read(ifcfg->config, ifcfg->compat))
+			ifcfg->broken = TRUE;
+
+		if (ifcfg->broken)
+			continue;
+
+		if (ifcfg->compat->dev->link.type == NI_IFTYPE_OVS_SYSTEM)
+			continue;
+
+		__ni_suse_read_linkinfo(ifcfg->config, ifcfg->compat);
+		__ni_suse_read_ifsysctl(ifcfg->config, ifcfg->compat);
+		__ni_suse_bootproto(ifcfg->config, ifcfg->compat);
+		__ni_suse_get_scripts(ifcfg->config, ifcfg->compat);
+		ni_suse_ifcfg_get_firewall(ifcfg->config, ifcfg->compat);
+		ni_suse_ifcfg_get_ethtool(ifcfg->config, ifcfg->compat);
+	}
 
 	return TRUE;
 }
