@@ -308,79 +308,65 @@ xml_node_free(xml_node_t *node)
 	free(node);
 }
 
-void
+ni_bool_t
 xml_node_set_cdata(xml_node_t *node, const char *cdata)
 {
-	ni_string_dup(&node->cdata, cdata);
+	return ni_string_dup(&node->cdata, cdata);
 }
 
-void
+ni_bool_t
 xml_node_set_int(xml_node_t *node, int value)
 {
-	char buffer[32];
 
-	snprintf(buffer, sizeof(buffer), "%d", value);
-	ni_string_dup(&node->cdata, buffer);
+	return node && ni_string_printf(&node->cdata, "%d", value);
 }
 
-void
+ni_bool_t
 xml_node_set_int64(xml_node_t *node, int64_t value)
 {
-	char buffer[32];
-
-	snprintf(buffer, sizeof(buffer), "%"PRId64, value);
-	ni_string_dup(&node->cdata, buffer);
+	return node && ni_string_printf(&node->cdata, "%"PRId64, value);
 }
 
-void
+ni_bool_t
 xml_node_set_uint(xml_node_t *node, unsigned int value)
 {
-	char buffer[32];
-
-	snprintf(buffer, sizeof(buffer), "%u", value);
-	ni_string_dup(&node->cdata, buffer);
+	return node && ni_string_printf(&node->cdata, "%u", value);
 }
 
-void
+ni_bool_t
 xml_node_set_uint64(xml_node_t *node, uint64_t value)
 {
-	char buffer[32];
-
-	snprintf(buffer, sizeof(buffer), "%"PRIu64, value);
-	ni_string_dup(&node->cdata, buffer);
+	return node && ni_string_printf(&node->cdata, "%"PRIu64, value);
 }
 
-void
+ni_bool_t
 xml_node_set_uint_hex(xml_node_t *node, unsigned int value)
 {
-	char buffer[32];
-
-	snprintf(buffer, sizeof(buffer), "0x%x", value);
-	ni_string_dup(&node->cdata, buffer);
+	return node && ni_string_printf(&node->cdata, "0x%x", value);
 }
 
-void
+ni_bool_t
 xml_node_add_attr(xml_node_t *node, const char *name, const char *value)
 {
-	ni_var_array_set(&node->attrs, name, value);
+	return ni_var_array_set(&node->attrs, name, value);
 }
 
-void
+ni_bool_t
 xml_node_add_attr_uint(xml_node_t *node, const char *name, unsigned int value)
 {
-	ni_var_array_set_uint(&node->attrs, name, value);
+	return ni_var_array_set_uint(&node->attrs, name, value);
 }
 
-void
+ni_bool_t
 xml_node_add_attr_ulong(xml_node_t *node, const char *name, unsigned long value)
 {
-	ni_var_array_set_ulong(&node->attrs, name, value);
+	return ni_var_array_set_ulong(&node->attrs, name, value);
 }
 
-void
+ni_bool_t
 xml_node_add_attr_double(xml_node_t *node, const char *name, double value)
 {
-	ni_var_array_set_double(&node->attrs, name, value);
+	return ni_var_array_set_double(&node->attrs, name, value);
 }
 
 const ni_var_t *
