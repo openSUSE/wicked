@@ -863,9 +863,70 @@ failure:
 	return ret;
 }
 
+/*
+ * teamd port config discovery
+ */
+static inline int
+ni_teamd_port_config_parse_json(ni_team_port_config_t *conf, ni_json_t *object)
+{
+	int64_t i64;
+	ni_bool_t b;
+
+	if (!conf)
+		return -NI_ERROR_INVALID_ARGS;
+
+	if (!ni_json_is_object(object))
+		return 1; /* no/empty/null config from teamd */
+
+	if (ni_json_int64_get(ni_json_object_get_value(object, "queue_id"), &i64))
+		conf->queue_id = i64;
+
+	if (ni_json_int64_get(ni_json_object_get_value(object, "prio"), &i64))
+		conf->ab.prio = i64;
+	if (ni_json_bool_get(ni_json_object_get_value(object, "sticky"), &b))
+		conf->ab.sticky = b;
+
+	if (ni_json_int64_get(ni_json_object_get_value(object, "lacp_prio"), &i64))
+		conf->lacp.prio = i64;
+	if (ni_json_int64_get(ni_json_object_get_value(object, "lacp_key"), &i64))
+		conf->lacp.key = i64;
+
+	return 0;
+}
+
+extern int
+ni_teamd_port_config_discover(ni_team_port_config_t *conf,
+		const char *team, const char *name)
+{
+	ni_teamd_client_t *tdc = NULL;
+	ni_json_t *json = NULL;
+	char *jstr = NULL;
+	int rv = -1;
+
+	if (!conf || ni_string_empty(team) || ni_string_empty(name))
+		return -NI_ERROR_INVALID_ARGS;
+
+	if (!(tdc = ni_teamd_client_open(team)))
+		goto cleanup;
+
+	if (ni_teamd_ctl_port_config_dump(tdc, name, &jstr) < 0)
+		goto cleanup;
+
+	if (!(json = ni_json_parse_string(jstr)))
+		goto cleanup;
+
+	rv = ni_teamd_port_config_parse_json(conf, json);
+
+cleanup:
+	ni_teamd_client_free(tdc);
+	ni_string_free(&jstr);
+	ni_json_free(json);
+	return rv;
+}
 
 /*
  * teamd discovery
+ * note: it's actually config discovery, not state
  */
 static int
 ni_teamd_discover_runner(ni_team_t *team, ni_json_t *conf)
@@ -1120,31 +1181,6 @@ failure:
 }
 
 static int
-ni_teamd_discover_port_details(ni_team_port_t *port, ni_json_t *details)
-{
-	int64_t i64;
-	ni_bool_t b;
-
-	if (!ni_json_is_object(details))
-		return 1;
-
-	if (ni_json_int64_get(ni_json_object_get_value(details, "queue_id"), &i64))
-		port->config.queue_id = i64;
-
-	if (ni_json_int64_get(ni_json_object_get_value(details, "prio"), &i64))
-		port->config.ab.prio = i64;
-	if (ni_json_bool_get(ni_json_object_get_value(details, "sticky"), &b))
-		port->config.ab.sticky = b;
-
-	if (ni_json_int64_get(ni_json_object_get_value(details, "lacp_prio"), &i64))
-		port->config.lacp.prio = i64;
-	if (ni_json_int64_get(ni_json_object_get_value(details, "lacp_key"), &i64))
-		port->config.lacp.key = i64;
-
-	return 0;
-}
-
-static int
 ni_teamd_discover_ports(ni_team_t *team, ni_json_t *conf)
 {
 	ni_team_port_t *port;
@@ -1176,7 +1212,7 @@ ni_teamd_discover_ports(ni_team_t *team, ni_json_t *conf)
 		ni_netdev_ref_set_ifname(&port->device, name);
 
 		details = ni_json_pair_get_value(pair);
-		if (ni_teamd_discover_port_details(port, details) < 0) {
+		if (ni_teamd_port_config_parse_json(&port->config, details) < 0) {
 			ni_team_port_free(port);
 			continue;
 		}
