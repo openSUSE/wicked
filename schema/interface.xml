@@ -235,6 +235,7 @@
    <port class="union" switch="type">
      <bond       type="bond:port-config" />
      <team       type="team:port-config" />
+     <bridge     type="bridge:port-config" />
      <ovs-bridge type="ovs-bridge:port-config" />
    </port>
 

@@ -1,25 +1,14 @@
-
 <service name="bridge" interface="org.opensuse.Network.Bridge" object-class="netif-bridge">
 
-  <!-- This is the port-config containing the port configuration -->
   <define name="port-config" class="dict"
-	  description="Bridge port configuration properties">
-    <!-- The port interface.
-         It's marked as a netif-reference, meaning that the device name is
-         optionally resolved by wicked at run time. You can use "classic"
-         device names such as eth0, but you can also use and <identify>
-         element to use any of the supported netif naming services
-      -->
-    <device type="string">
-      <meta:netif-reference shared="false"/>
-      <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
-    </device>
+	        description="Bridge port (link-request) configuration">
 
     <priority type="uint32" constraint="range">
       <min value="0"/>
       <max value="63"/>
     </priority>
     <path-cost type="uint32" />
+
   </define>
 
   <define name="port-info" class="dict"
@@ -57,15 +46,27 @@
 
   <!-- This are bridge configuration properties inclusive ports -->
   <define name="configuration" class="dict" extends="bridge:bridge-config"
-          description="Bridge and port configuration properties">
-    <ports class="array" element-type="bridge:port-config" element-name="port" />
+          description="Bridge interface (changeDevice) configuration">
+
+    <!-- interim port definition until cleanup is complete -->
+    <define name="port" class="dict" extends="port-config">
+      <device type="string">
+        <meta:netif-reference shared="false"/>
+        <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
+      </device>
+    </define>
+    <ports class="array" element-type="port" element-name="port" />
+
+    <!-- additional configurables supported by a bridge -->
+
     <address  type="ethernet-address"/>
   </define>
 
   <!-- This are all bridge properties returned in service interface reports -->
   <define name="properties" class="dict" extends="bridge:bridge-config"
-          description="Bridge configuration and status properties">
+          description="Bridge interface state (service) properties">
 
+    <!-- actual stp state reported by the kernel driver -->
     <stp-state type="uint32" constraint="enum">
       <none          value="0" description="STP is disabled"/>
       <kernel-stp    value="1" description="Kernel built-in STP implementation"/>
