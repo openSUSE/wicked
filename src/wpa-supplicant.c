@@ -1224,7 +1224,9 @@ ni_debug_escape_net_property(const char *prop_name)
 		NI_WPA_NET_PROPERTY_WEP_KEY1,
 		NI_WPA_NET_PROPERTY_WEP_KEY2,
 		NI_WPA_NET_PROPERTY_WEP_KEY3,
-		NI_WPA_NET_PROPERTY_PASSWORD
+		NI_WPA_NET_PROPERTY_PASSWORD,
+		NI_WPA_NET_PROPERTY_PRIVATE_KEY,
+		NI_WPA_NET_PROPERTY_PRIVATE_KEY_PASSWD
 	};
 
 	if (!ni_wpa_net_property_type(prop_name, &type))
