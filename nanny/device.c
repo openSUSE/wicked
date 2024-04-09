@@ -205,8 +205,8 @@ ni_factory_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_polic
 			w->name, type_name);
 		return -1;
 	}
-	ni_debug_nanny("%s: using device config", w->name);
-	xml_node_print_debug(config, 0);
+
+	ni_debug_config_xml(config, NI_LOG_DEBUG, "%s: using device config", w->name);
 
 	ni_ifworker_set_config(w, config, ni_fsm_policy_origin(policy));
 	xml_node_free(config);
@@ -269,8 +269,7 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 		ni_error("%s: error when applying policy to %s document", w->name, type_name);
 		return -1;
 	}
-	ni_debug_nanny("%s: using device config", w->name);
-	xml_node_print_debug(config, 0);
+	ni_debug_config_xml(config, NI_LOG_DEBUG, "%s: using device config", w->name);
 
 	ni_managed_device_set_policy(mdev, mpolicy, config);
 	xml_node_free(config);
