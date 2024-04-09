@@ -286,7 +286,6 @@ try_bridge_port(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_compat_netdev
 {
 	ni_netdev_t *dev = compat->dev;
 	ni_compat_netdev_t *master;
-	ni_bridge_t *bridge;
 	const char *bridge_name;
 
 	if (!(bridge_name = ni_sysconfig_get_value(sc, "BRIDGE")))
@@ -297,16 +296,21 @@ try_bridge_port(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_compat_netdev
 		master = ni_compat_netdev_new(bridge_name);
 	if (master->dev->link.type == NI_IFTYPE_UNKNOWN) {
 		master->dev->link.type = NI_IFTYPE_BRIDGE;
+		ni_netdev_get_bridge(master->dev);
 	} else if (master->dev->link.type != NI_IFTYPE_BRIDGE) {
-		ni_error("%s: specifies BRIDGE=%s which is not a bonding device",
+		ni_error("%s: specifies BRIDGE=%s which is not a bridge device",
 				dev->name, bridge_name);
 		return FALSE;
 	}
 
-	bridge = ni_netdev_get_bridge(master->dev);
-	ni_bridge_port_new(bridge, dev->name, 0);
+	if (ni_string_empty(dev->link.masterdev.name))
+		return ni_netdev_ref_set_ifname(&dev->link.masterdev, bridge_name);
+	if (ni_string_eq(dev->link.masterdev.name, bridge_name))
+		return TRUE;
 
-	return TRUE;
+	ni_error("%s: specifies BRIDGE=%s which is already member of %s",
+			dev->name, bridge_name, dev->link.masterdev.name);
+	return FALSE;
 }
 
 /*
