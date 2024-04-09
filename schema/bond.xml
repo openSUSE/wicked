@@ -25,126 +25,106 @@
 
   </define>
 
- <!-- This is the device-info returned in interface reports -->
- <define name="device-info" class="dict">
-   <mode type="builtin-bonding-mode"/>
-   <!-- Link monitoring options.
-        There must be exactly one of either arpmon or miimon present,
-        which selects either mii or arp monitoring. Lack of both is an
-        error. If both are present, the behavior is undefined.
+  <define name="bond-config" class="dict"
+          description="Bond specific interface configuration">
+
+    <mode type="builtin-bonding-mode"/>
+
+    <!-- Link monitoring options.
+         There must be exactly one of either arpmon or miimon present,
+         which selects either mii or arp monitoring. Lack of both is an
+         error. If both are present, the behavior is undefined.
      -->
-   <arpmon class="dict">
-     <interval type="uint32" constraint="required" description="ARP link monitoring frequency in milliseconds." />
-     <validate type="builtin-bonding-arp-validate"/>
-     <validate-targets type="uint32" constraint="enum">
-       <any value="0"/>
-       <all value="1"/>
-     </validate-targets>
-     <!-- targets class="array" element-type="ipv4-address" minlen="1"/ -->
-     <targets class="array" constraint="required" minlen="1" element-type="string" element-name="address" />
-   </arpmon>
+    <arpmon class="dict">
+      <interval type="uint32" constraint="required" description="ARP link monitoring frequency in milliseconds." />
+      <validate type="builtin-bonding-arp-validate"/>
+      <validate-targets type="uint32" constraint="enum">
+        <any value="0"/>
+        <all value="1"/>
+      </validate-targets>
+      <!-- targets class="array" element-type="ipv4-address" minlen="1"/ -->
+      <targets class="array" constraint="required" minlen="1" element-type="string" element-name="address" />
+    </arpmon>
 
-   <miimon class="dict">
-     <frequency type="uint32" constraint="required" description="Specifies the MII link monitoring frequency in milliseconds.
-             This determines how often the link state of each slave is inspected for link failures."/>
-     <updelay type="uint32" description="Specifies the time, in milliseconds, to wait before enabling a
-             slave after a link recovery has been detected."/>
-     <downdelay type="uint32" description="Specifies the time, in milliseconds, to wait before disabling
-	     a slave after a link failure has been detected."/>
-     <carrier-detect type="builtin-bonding-mii-carrier-detect"/>
-   </miimon>
+    <miimon class="dict">
+      <frequency type="uint32" constraint="required" description="Specifies the MII link monitoring frequency in milliseconds.
+             This determines how often the link state of each port is inspected for link failures."/>
+      <updelay type="uint32" description="Specifies the time, in milliseconds, to wait before enabling a
+             port after a link recovery has been detected."/>
+      <downdelay type="uint32" description="Specifies the time, in milliseconds, to wait before disabling
+	     a port after a link failure has been detected."/>
+      <carrier-detect type="builtin-bonding-mii-carrier-detect"/>
+    </miimon>
 
-   <xmit-hash-policy type="builtin-bonding-xmit-hash-policy"/>
-   <lacp-rate type="builtin-bonding-lacp-rate"/>
-   <ad-select type="builtin-bonding-ad-select"/>
-   <ad-user-port-key  type="uint16"/>
-   <ad-actor-sys-prio type="uint16"/>
-   <ad-actor-system   type="ethernet-address"/>
-   <fail-over-mac type="builtin-bonding-fail-over-mac"/>
-   <primary type="string"/>
-   <primary-reselect type="builtin-bonding-primary-reselect"/>
+    <xmit-hash-policy type="builtin-bonding-xmit-hash-policy"/>
+    <lacp-rate type="builtin-bonding-lacp-rate"/>
+    <ad-select type="builtin-bonding-ad-select"/>
+    <ad-user-port-key  type="uint16"/>
+    <ad-actor-sys-prio type="uint16"/>
+    <ad-actor-system   type="ethernet-address"/>
+    <fail-over-mac type="builtin-bonding-fail-over-mac"/>
+    <primary type="string"/>
+    <primary-reselect type="builtin-bonding-primary-reselect"/>
 
-   <all-slaves-active type="boolean" description="Enable to deliver duplicate frames received on inactive slaves when enabled instead of dropping them." />
-   <min-links type="uint32" description="Specifies the minimum number of links that must be active before asserting carrier."/>
-   <num-grat-arp type="uint32" constraint="range" description="Specify the number of peer notifications using gratuitous ARPs to be issued after a failover event. Default is 1">
-    <min value="0"/>
-    <max value="255"/>
-   </num-grat-arp>
-   <num-unsol-na type="uint32" constraint="range" description="Specify the number of peer notifications usingunsolicited IPv6 Neighbor Advertisements to be issued after a failover event. Default is 1">
-     <min value="0"/>
-     <max value="255"/>
-   </num-unsol-na>
-   <resend-igmp type="uint32" constraint="range" description="Specify the number of IGMP membership reports to be issued after a failover event.">
-     <min value="0"/>
-     <max value="255"/>
-   </resend-igmp>
-   <packets-per-slave type="uint32" constraint="range">
-     <min value="0"/>
-     <max value="65535"/>
-   </packets-per-slave>
-   <tlb-dynamic-lb type="boolean"/>
-   <lp-interval type="uint32" constraint="range">
-     <min value="1"/>
-     <max value="2147483647"/>
-   </lp-interval>
+    <all-slaves-active type="boolean" description="Enable to deliver duplicate frames received on inactive ports when enabled instead of dropping them." />
+    <min-links type="uint32" description="Specifies the minimum number of links that must be active before asserting carrier."/>
+    <num-grat-arp type="uint32" constraint="range" description="Specify the number of peer notifications using gratuitous ARPs to be issued after a failover event. Default is 1">
+      <min value="0"/>
+      <max value="255"/>
+    </num-grat-arp>
+    <num-unsol-na type="uint32" constraint="range" description="Specify the number of peer notifications usingunsolicited IPv6 Neighbor Advertisements to be issued after a failover event. Default is 1">
+      <min value="0"/>
+      <max value="255"/>
+    </num-unsol-na>
+    <resend-igmp type="uint32" constraint="range" description="Specify the number of IGMP membership reports to be issued after a failover event.">
+      <min value="0"/>
+      <max value="255"/>
+    </resend-igmp>
+    <packets-per-slave type="uint32" constraint="range">
+      <min value="0"/>
+      <max value="65535"/>
+    </packets-per-slave>
+    <tlb-dynamic-lb type="boolean"/>
+    <lp-interval type="uint32" constraint="range">
+      <min value="1"/>
+      <max value="2147483647"/>
+    </lp-interval>
 
-   <address class="array" element-type="byte" minlen="6" maxlen="20" notation="hwaddr"/>
- </define>
+  </define>
 
- <define name="properties" type="device-info"/>
+  <define name="configuration" class="dict" extends="bond:bond-config"
+          description="Bond interface (changeDevice) configuration">
 
- <method name="changeDevice">
-  <arguments>
-    <config type="bond:device-info">
-      <meta:mapping document-node="/bond"/>
-    </config>
-  </arguments>
- </method>
+    <address class="array" element-type="byte" minlen="6" maxlen="20" notation="hwaddr"/>
+  </define>
 
-<!-- Later, not implemented yet
- <method name="addSlave">
-  <arguments>
-   <name type="string" />
-  </arguments>
- </method>
--->
+  <!-- the bond properties are currently same as configuration -->
+  <define name="properties" class="dict" extends="bond:bond-config"
+          description="Bond interface (service) state info properties">
 
-<!-- Later, not implemented yet
- <method name="removeSlave">
-  <arguments>
-   <name type="string" />
-  </arguments>
- </method>
--->
+    <address class="array" element-type="byte" minlen="6" maxlen="20" notation="hwaddr"/>
+  </define>
 
-<!-- Later, not implemented yet
- <method name="setActive">
-  <arguments>
-   <name type="string" />
-  </arguments>
- </method>
--->
-
-<!-- Later, not implemented yet:
- <method name="setPrimary">
-  <arguments>
-   <name type="string" />
-  </arguments>
- </method>
--->
+  <method name="changeDevice">
+    <arguments>
+      <config type="bond:configuration">
+        <meta:mapping document-node="/bond"/>
+      </config>
+    </arguments>
+  </method>
 
 </service>
 
 <service name="bond-factory" interface="org.opensuse.Network.Bond.Factory" object-class="netif-list">
   <method name="newDevice">
     <arguments>
-     <name type="string"/>
-     <config type="bond:device-info">
-      <meta:mapping document-node="/bond"/>
-     </config>
+      <name type="string"/>
+      <config type="bond:configuration">
+        <meta:mapping document-node="/bond"/>
+      </config>
     </arguments>
     <return>
-     <string/>
+      <string/>
     </return>
   </method>
 </service>

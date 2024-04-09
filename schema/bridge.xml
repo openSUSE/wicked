@@ -22,16 +22,15 @@
 
   </define>
 
-  <!-- This is the bridge config without ports used to configure the bridge -->
   <define name="bridge-config" class="dict"
-          description="Bridge interface configuration properties">
+          description="Bridge specific interface configuration properties">
 
     <!-- STP protocol related settings -->
     <stp type="boolean"
-     description="Enables Spanning Tree Protocol to handle multiple hops and avoid cyclic routes"/>
+         description="Enables Spanning Tree Protocol to handle multiple hops and avoid cyclic routes"/>
 
     <priority type="uint32" constraint="range"
-      description="The bridge with the lowest priority will be elected as the 'central' root bridge in the spanning tree.">
+              description="The bridge with the lowest priority will be elected as the 'central' root bridge in the spanning tree.">
       <min value="0"/>
       <max value="65535"/>
     </priority>
@@ -44,18 +43,16 @@
     <gc-interval type="double"   description="Garbage collection interval for the bridge" />
   </define>
 
-  <!-- This are bridge configuration properties -->
   <define name="configuration" class="dict" extends="bridge:bridge-config"
           description="Bridge interface (changeDevice) configuration">
 
-    <!-- additional configurables supported by a bridge -->
+    <!-- additional configurables supported by a bridge changeDevice() -->
 
     <address  type="ethernet-address"/>
   </define>
 
-  <!-- This are all bridge properties returned in service interface reports -->
   <define name="properties" class="dict" extends="bridge:bridge-config"
-          description="Bridge interface state (service) properties">
+          description="Bridge interface (service) state info properties">
 
     <!-- actual stp state reported by the kernel driver -->
     <stp-state type="uint32" constraint="enum">
@@ -78,7 +75,7 @@
            call to changeDevice() if that element isn't there.
         -->
       <config type="bridge:configuration">
-       <meta:mapping document-node="/bridge" skip-unless-present="true" />
+        <meta:mapping document-node="/bridge" skip-unless-present="true" />
       </config>
     </arguments>
   </method>
@@ -87,29 +84,18 @@
     <!-- no arguments, no return code -->
   </method>
 
-  <method name="addPort">
-    <arguments>
-      <port type="bridge:port-config"/>
-    </arguments>
-  </method>
-
-  <method name="removePort">
-    <arguments>
-      <port type="string"/>
-    </arguments>
-  </method>
 </service>
 
 <service name="bridge-factory" interface="org.opensuse.Network.Bridge.Factory" object-class="netif-list">
   <method name="newDevice">
     <arguments>
-     <name type="string"/>
-     <config type="bridge:configuration">
-      <meta:mapping document-node="/bridge"/>
-     </config>
+      <name type="string"/>
+      <config type="bridge:configuration">
+        <meta:mapping document-node="/bridge"/>
+      </config>
     </arguments>
     <return>
-     <string/>
+      <string/>
     </return>
   </method>
 </service>

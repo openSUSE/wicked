@@ -18,24 +18,32 @@
 
   </define>
 
-  <define name="bridge-config" class="dict">
+  <define name="bridge-config" class="dict"
+          description="OVS Bridge specific interface configuration properties">
+
     <vlan class="dict">
       <parent type="string">
-        <meta:netif-reference supplemental="true" shared="true" />
+        <meta:netif-reference shared="true" />
         <meta:require check="netif-check-state" op="newDevice" min-state="device-up" />
         <meta:require check="netif-check-state" op="linkUp" min-state="link-up" />
       </parent>
       <tag type="uint16" />
     </vlan>
+
   </define>
 
-  <define name="configuration" class="dict" extends="ovs-bridge:bridge-config"/>
-  <define name="properties" class="dict" extends="ovs-bridge:bridge-config"/>
+  <define name="configuration" class="dict" extends="ovs-bridge:bridge-config"
+          description="OVS Bridge interface (changeDevice) configuration">
+  </define>
+
+  <define name="properties" class="dict" extends="ovs-bridge:bridge-config"
+          description="OVS Bridge interface (service) state info properties">
+  </define>
 
   <method name="changeDevice">
     <arguments>
       <config type="ovs-bridge:configuration">
-       <meta:mapping document-node="/ovs-bridge" skip-unless-present="true" />
+        <meta:mapping document-node="/ovs-bridge" skip-unless-present="true" />
       </config>
     </arguments>
   </method>
