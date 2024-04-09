@@ -81,6 +81,7 @@ typedef struct ni_suse_ifcfg {
 	ni_sysconfig_t *		config;
 	ni_compat_netdev_t *		compat;
 	ni_bool_t			broken;
+	ni_bool_t			l2only;
 } ni_suse_ifcfg_t;
 
 #define NI_SUSE_IFCFG_ARRAY_INIT	NI_ARRAY_INIT
@@ -89,6 +90,25 @@ ni_declare_ptr_array_type(ni_suse_ifcfg);
 
 static ni_suse_ifcfg_t *		ni_suse_ifcfg_new(void);
 static void				ni_suse_ifcfg_free(ni_suse_ifcfg_t *);
+static ni_suse_ifcfg_t *		ni_suse_ifcfg_new_missing(ni_suse_ifcfg_t *,
+							const char *);
+static void				ni_suse_ifcfg_set_hotplug(ni_suse_ifcfg_t *);
+static void				ni_suse_ifcfg_set_l2_only(ni_suse_ifcfg_t *, ni_bool_t);
+static ni_suse_ifcfg_t *		ni_suse_ifcfg_add_l2_port(ni_suse_ifcfg_array_t *,
+							ni_suse_ifcfg_t *, const char *,
+							const char *, const char *,
+							ni_bool_t);
+
+static ni_suse_ifcfg_t *		ni_suse_ifcfg_find_by_ifname(ni_suse_ifcfg_array_t *,
+							const char *);
+
+typedef ni_bool_t (*ifcfg_process_fn_t)(ni_suse_ifcfg_array_t *, ni_suse_ifcfg_t *,
+					const char *, const char *, const char *);
+
+static unsigned int			ni_suse_ifcfg_process_indexed(ni_suse_ifcfg_array_t *,
+							ni_suse_ifcfg_t *, const char *,
+							ifcfg_process_fn_t);
+
 static ni_bool_t			ni_suse_ifcfg_parse(ni_suse_ifcfg_array_t *);
 
 static					ni_declare_ptr_array_init(ni_suse_ifcfg);
@@ -2301,26 +2321,27 @@ try_ethernet(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
  * Global bonding configuration is contained in BONDING_MODULE_OPTS
  */
 static ni_bool_t
-try_add_bonding_slave(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
+try_add_bonding_port(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg,
+		const char *port, const char *variable, const char *suffix)
 {
-	ni_bonding_t *bond;
-	ni_var_t *var;
+	ni_suse_ifcfg_t *pcfg;
+	ni_netdev_t *mdev;
+	const char *type;
 
-	var = __find_indexed_variable(sc, "BONDING_SLAVE", suffix);
-	if (!var || ni_string_empty(var->value))
+	mdev = ifcfg->compat->dev;
+	type = ni_linktype_type_to_name(mdev->link.type);
+	if (!(pcfg = ni_suse_ifcfg_add_l2_port(ifcfgs,
+			ifcfg, mdev->name, type, port, FALSE))) {
+		ni_error("ifcfg-%s: failed to add %s port %s='%s'",
+				mdev->name, type, variable, port);
 		return FALSE;
-
-	dev->link.type = NI_IFTYPE_BOND;
-
-	if ((bond = ni_netdev_get_bonding(dev)) == NULL)
-		return FALSE;
-
-	if (ni_bonding_has_slave(bond, var->value)) {
-		ni_warn("ifcfg-%s: Duplicate slave in BONDING_SLAVE%s=''%s'",
-				dev->name, suffix, var->value);
-		return TRUE; /* warn without to fail */
 	}
-	return ni_bonding_add_slave(bond, var->value) != NULL;
+
+	ni_netdev_port_config_destroy(&pcfg->compat->port);
+	ni_netdev_port_config_init(&pcfg->compat->port, mdev->link.type);
+	/* no bond port specific config variables implemented yet */
+
+	return TRUE;
 }
 
 static ni_bool_t
@@ -2382,10 +2403,6 @@ try_bonding(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 	dev->link.type = NI_IFTYPE_BOND;
 	(void)ni_netdev_get_bonding(dev);
 
-	if (__process_indexed_variables(sc, dev, "BONDING_SLAVE",
-					try_add_bonding_slave) != 0)
-		return -1;
-
 	if ((module_opts = ni_sysconfig_get_value(sc, "BONDING_MODULE_OPTS")) != NULL) {
 		if (!try_set_bonding_options(dev, module_opts))
 			return -1;
@@ -2404,6 +2421,13 @@ try_bonding(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 				dev->name, lladdr);
 			return -1;
 		}
+	}
+
+	if (!ni_suse_ifcfg_process_indexed(ifcfgs, ifcfg, "BONDING_SLAVE",
+			try_add_bonding_port)) {
+		ni_error("ifcfg-%s: invalid bonding without BONDING_SLAVEs",
+				dev->name);
+		return -1;
 	}
 
 	return 0;
@@ -2603,70 +2627,91 @@ failure:
 }
 
 static ni_bool_t
-try_add_team_port(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
+try_add_team_port_config(ni_team_port_config_t *pconf, const ni_sysconfig_t *sc,
+		const char *suffix, const char *file)
 {
-	ni_team_port_t *port;
-	ni_team_t *team;
+	ni_bool_t ret = TRUE;
 	ni_var_t *var;
 
-	if (!(team = ni_netdev_get_team(dev)))
-		return FALSE;
-
-	var = __find_indexed_variable(sc, "TEAM_PORT_DEVICE", suffix);
-	if (!var || ni_string_empty(var->value)) {
-		ni_error("ifcfg-%s: TEAM_PORT_DEVICE%s cannot be empty",
-			dev->name, suffix);
-		return FALSE;
-	}
-
-	port = ni_team_port_new();
-	ni_netdev_ref_set_ifname(&port->device, var->value);
-
 	if ((var = __find_indexed_variable(sc, "TEAM_PORT_QUEUE_ID", suffix))) {
-		if (ni_parse_uint(var->value, &port->config.queue_id, 10) < 0) {
-			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_QUEUE_ID%s='%s'",
-				dev->name, suffix, var->value);
-			ni_team_port_free(port);
-			return FALSE;
+		if (ni_parse_uint(var->value, &pconf->queue_id, 10) < 0) {
+			ni_warn("ifcfg-%s: Cannot parse TEAM_PORT_QUEUE_ID%s='%s'",
+				file, suffix, var->value);
+			ret = FALSE;
 		}
 	}
 
 	if ((var = __find_indexed_variable(sc, "TEAM_PORT_PRIO", suffix))) {
-		if (ni_parse_uint(var->value, &port->config.ab.prio, 10) < 0) {
-			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_PRIO%s='%s'",
-				dev->name, suffix, var->value);
-			ni_team_port_free(port);
-			return FALSE;
+		if (ni_parse_uint(var->value, &pconf->ab.prio, 10) < 0) {
+			ni_warn("ifcfg-%s: Cannot parse TEAM_PORT_PRIO%s='%s'",
+				file, suffix, var->value);
+			ret = FALSE;
 		}
 	}
+
 	if ((var = __find_indexed_variable(sc, "TEAM_PORT_STICKY", suffix))) {
-		if (ni_parse_boolean(var->value, &port->config.ab.sticky) < 0) {
-			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_STICKY%s='%s'",
-				dev->name, suffix, var->value);
-			ni_team_port_free(port);
-			return FALSE;
+		if (ni_parse_boolean(var->value, &pconf->ab.sticky) < 0) {
+			ni_warn("ifcfg-%s: Cannot parse TEAM_PORT_STICKY%s='%s'",
+				file, suffix, var->value);
+			ret = FALSE;
 		}
 	}
 
 	if ((var = __find_indexed_variable(sc, "TEAM_PORT_LACP_PRIO", suffix))) {
-		if (ni_parse_uint(var->value, &port->config.lacp.prio, 10) < 0) {
-			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_LACP_PRIO%s='%s'",
-				dev->name, suffix, var->value);
-			ni_team_port_free(port);
-			return FALSE;
+		if (ni_parse_uint(var->value, &pconf->lacp.prio, 10) < 0) {
+			ni_warn("ifcfg-%s: Cannot parse TEAM_PORT_LACP_PRIO%s='%s'",
+				file, suffix, var->value);
+			ret = FALSE;
 		}
 	}
 
 	if ((var = __find_indexed_variable(sc, "TEAM_PORT_LACP_KEY", suffix))) {
-		if (ni_parse_uint(var->value, &port->config.lacp.key, 10) < 0) {
-			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_LACP_KEY%s='%s'",
-				dev->name, suffix, var->value);
-			ni_team_port_free(port);
-			return FALSE;
+		if (ni_parse_uint(var->value, &pconf->lacp.key, 10) < 0) {
+			ni_warn("ifcfg-%s: Cannot parse TEAM_PORT_LACP_KEY%s='%s'",
+				file, suffix, var->value);
+			ret = FALSE;
 		}
 	}
 
-	return ni_team_port_array_append(&team->ports, port);
+	return ret;
+}
+
+static ni_bool_t
+try_add_team_port(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg,
+		const char *port, const char *variable, const char *suffix)
+{
+	ni_suse_ifcfg_t *pcfg;
+	ni_netdev_t *mdev;
+	ni_team_t *team;
+	ni_bool_t l2v6 = FALSE;
+	const char *type;
+
+	mdev = ifcfg->compat->dev;
+	if ((team = ni_netdev_get_team(mdev))) {
+		ni_team_link_watch_t *lw;
+		unsigned int i;
+
+		for (i = 0; i < team->link_watch.count; i++) {
+			lw = team->link_watch.data[i];
+			if (lw->type == NI_TEAM_LINK_WATCH_NSNA_PING)
+				l2v6 = TRUE;
+		}
+	}
+	type = ni_linktype_type_to_name(mdev->link.type);
+	if (!(pcfg = ni_suse_ifcfg_add_l2_port(ifcfgs,
+			ifcfg, mdev->name, type, port, l2v6))) {
+		ni_error("ifcfg-%s: failed to add %s port %s='%s'",
+				mdev->name, type, variable, port);
+		return FALSE;
+	}
+
+	ni_netdev_port_config_destroy(&pcfg->compat->port);
+	if (ni_netdev_port_config_init(&pcfg->compat->port, NI_IFTYPE_TEAM)) {
+		try_add_team_port_config(pcfg->compat->port.team,
+				ifcfg->config, suffix, mdev->name);
+	}
+
+	return TRUE;
 }
 
 static int
@@ -2912,10 +2957,6 @@ try_team(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 					try_add_team_link_watch) < 0)
 		return -1;
 
-	if (__process_indexed_variables(sc, dev, "TEAM_PORT_DEVICE",
-					try_add_team_port) < 0)
-		return -1;
-
 #if 0
 	if ((err = ni_team_validate(ni_netdev_get_team(dev))) != NULL) {
 		ni_error("ifcfg-%s: team validation: %s",
@@ -2924,34 +2965,47 @@ try_team(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 	}
 #endif
 
+	if (!ni_suse_ifcfg_process_indexed(ifcfgs, ifcfg, "TEAM_PORT_DEVICE",
+			try_add_team_port)) {
+		ni_error("ifcfg-%s: invalid bonding without TEAM_PORT_DEVICEs",
+				dev->name);
+		return -1;
+	}
+
 	return 0;
 }
 
 static ni_bool_t
-try_add_ovs_bridge_port(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
+try_add_ovs_bridge_port(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg,
+		const char *port, const char *variable, const char *suffix)
 {
-	const ni_var_t *var;
+	static const char *ovs_system = NULL;
+	ni_suse_ifcfg_t *pcfg;
+	ni_netdev_t *bdev;
+	const char *type;
 
-	if (!dev->ovsbr)
-		return FALSE;
+	if (!ovs_system)
+		ovs_system = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
 
-	var = __find_indexed_variable(sc, "OVS_BRIDGE_PORT_DEVICE", suffix);
-	if (!var || !ni_netdev_name_is_valid(var->value)) {
-		size_t len;
-		if (var && (len = ni_string_len(var->value))) {
-			ni_error("ifcfg-%s: Suspect device in OVS_BRIDGE_PORT_DEVICE%s='%s'",
-					dev->name, suffix, ni_print_suspect(var->value, len));
-		} else {
-			ni_error("ifcfg-%s: OVS_BRIDGE_PORT_DEVICE%s cannot be empty",
-					dev->name, suffix);
-		}
+	bdev = ifcfg->compat->dev;
+	if (ni_string_eq(ovs_system, port)) {
+		ni_error("ifcfg-%s: reserved ovs datapath in %s='%s'",
+				bdev->name, variable, port);
 		return FALSE;
 	}
 
-	if (!ni_ovs_bridge_port_array_add_new(&dev->ovsbr->ports, var->value)) {
-		ni_warn("ifcfg-%s: Cannot add OVS_BRIDGE_PORT_DEVICE%s='%s' or not unique, skipped",
-				dev->name, suffix, var->value);
+	type = ni_linktype_type_to_name(bdev->link.type);
+	if (!(pcfg = ni_suse_ifcfg_add_l2_port(ifcfgs,
+			ifcfg, bdev->name, type, port, FALSE))) {
+		ni_error("ifcfg-%s: failed to add %s port %s='%s'",
+				bdev->name, type, variable, port);
+		return FALSE;
 	}
+
+	ni_netdev_port_config_destroy(&pcfg->compat->port);
+	ni_netdev_port_config_init(&pcfg->compat->port, bdev->link.type);
+	/* no ovs bridge port specific config variables (any more) */
+
 	return TRUE;
 }
 
@@ -2976,7 +3030,11 @@ try_ovs_bridge(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 	}
 
 	dev->link.type = NI_IFTYPE_OVS_BRIDGE;
-	ovsbr = ni_netdev_get_ovs_bridge(dev);
+	if (!(ovsbr = ni_netdev_get_ovs_bridge(dev))) {
+		ni_error("ifcfg-%s: unable to allocate ovs bridge structure",
+				dev->name);
+		return -1;
+	}
 
 	if ((parent = ni_sysconfig_get_value(sc, "OVS_BRIDGE_VLAN_PARENT"))) {
 		if (!ni_netdev_name_is_valid(parent)) {
@@ -3002,9 +3060,8 @@ try_ovs_bridge(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 		ovsbr->config.vlan.tag = tag;
 	}
 
-	if (__process_indexed_variables(sc, dev, "OVS_BRIDGE_PORT_DEVICE",
-					try_add_ovs_bridge_port) < 0)
-		return -1;
+	ni_suse_ifcfg_process_indexed(ifcfgs, ifcfg, "OVS_BRIDGE_PORT_DEVICE",
+			try_add_ovs_bridge_port);
 
 	return 0;
 }
@@ -3015,22 +3072,30 @@ try_ovs_system(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 	ni_netdev_t *dev = ifcfg->compat->dev;
 	static const char *ovs_system = NULL;
 
-	/* Consider ovs-system as a fixed/reserved master device for openvswitch */
+	/* Consider ovs-system as a fixed/reserved datapath name for openvswitch */
 	if (ovs_system == NULL)
 		ovs_system = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
 
-	if (strcmp(dev->name, ovs_system))
+	if (!ni_string_eq(dev->name, ovs_system))
 		return 1;
 
-	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+	switch (dev->link.type) {
+	case NI_IFTYPE_UNKNOWN:
+		dev->link.type = NI_IFTYPE_OVS_SYSTEM;
+		/*
+		 * This datapath device does not need any setup (not even link up),
+		 * but as it is actively used as master device for all ovs ports,
+		 * we have to consider it in order to resolve dependencies...
+		 */
+		ni_suse_ifcfg_set_l2_only(ifcfg, FALSE);
+		return 0;
+	case NI_IFTYPE_OVS_SYSTEM:
+		return 0;
+	default:
 		ni_error("ifcfg-%s: %s config is using reserved %s device name",
 			dev->name, ni_linktype_type_to_name(dev->link.type), ovs_system);
 		return -1;
 	}
-
-	dev->link.type = NI_IFTYPE_OVS_SYSTEM;
-	__ni_suse_adjust_ovs_system(ifcfg->compat);
-
 	return 0;
 }
 
@@ -3038,6 +3103,96 @@ try_ovs_system(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 /*
  * Bridge devices are recognized by BRIDGE=yes
  */
+static ni_bool_t
+try_add_bridge_port_config(ni_bridge_port_config_t *pconf, const char *file,
+		const char *port, const char *prio, const char *cost)
+{
+	unsigned int tmp;
+	const char *err;
+
+	if (ni_string_empty(prio) || ni_string_eq(prio, "-")) {
+		pconf->priority = NI_BRIDGE_VALUE_NOT_SET;
+	} else if (ni_parse_uint(prio, &tmp, 0) < 0) {
+		ni_warn("ifcfg-%s: unable to parse priority '%s' for port '%s'",
+				file, prio, port);
+	} else if ((err = ni_bridge_port_priority_validate(tmp))) {
+		ni_warn("ifcfg-%s: %s '%s' for port '%s'",
+				file, err, prio, port);
+	} else {
+		pconf->priority = tmp;
+	}
+
+	if (ni_string_empty(cost) || ni_string_eq(cost, "-")) {
+		pconf->path_cost = NI_BRIDGE_VALUE_NOT_SET;
+	} else if (ni_parse_uint(cost, &tmp, 0) < 0) {
+		ni_warn("ifcfg-%s: unable to parse path-cost '%s' for port '%s'",
+				file, cost, port);
+	} else if ((err = ni_bridge_port_path_cost_validate(tmp))) {
+		ni_warn("ifcfg-%s: %s '%s' for port '%s'",
+				file, err, cost, port);
+	} else {
+		pconf->path_cost = tmp;
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+try_add_bridge_port(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg,
+		const char *port, const char *prio, const char *cost)
+{
+	ni_suse_ifcfg_t *pcfg;
+	ni_netdev_t *mdev;
+	const char *type;
+
+	mdev = ifcfg->compat->dev;
+	type = ni_linktype_type_to_name(mdev->link.type);
+	if (!(pcfg = ni_suse_ifcfg_add_l2_port(ifcfgs,
+			ifcfg, mdev->name, type, port, FALSE))) {
+		ni_error("ifcfg-%s: failed to add %s port %s",
+				mdev->name, type, port);
+		return FALSE;
+	}
+
+	ni_netdev_port_config_destroy(&pcfg->compat->port);
+	if (ni_netdev_port_config_init(&pcfg->compat->port, mdev->link.type)) {
+		try_add_bridge_port_config(pcfg->compat->port.bridge,
+				mdev->name, port, prio, cost);
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+try_add_bridge_ports(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
+{
+	ni_string_array_t ports = NI_STRING_ARRAY_INIT;
+	ni_string_array_t prios = NI_STRING_ARRAY_INIT;
+	ni_string_array_t costs = NI_STRING_ARRAY_INIT;
+	ni_bool_t ret = TRUE;
+	unsigned int i;
+
+	ni_string_split(&ports, ni_sysconfig_get_value(ifcfg->config,
+				"BRIDGE_PORTS"), " \t", 0);
+	ni_string_split(&prios, ni_sysconfig_get_value(ifcfg->config,
+				"BRIDGE_PORTPRIORITIES"), " \t", 0);
+	ni_string_split(&costs, ni_sysconfig_get_value(ifcfg->config,
+				"BRIDGE_PATHCOSTS"), " \t", 0);
+
+	for (i = 0; i < ports.count; ++i) {
+		if (!try_add_bridge_port(ifcfgs, ifcfg,
+				ni_string_array_at(&ports, i),
+				ni_string_array_at(&prios, i),
+				ni_string_array_at(&costs, i)))
+			ret = FALSE;
+	}
+
+	ni_string_array_destroy(&ports);
+	ni_string_array_destroy(&prios);
+	ni_string_array_destroy(&costs);
+	return ret;
+}
+
 static int
 try_bridge(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
@@ -3111,77 +3266,6 @@ try_bridge(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 		}
 	}
 
-	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PORTS")) != NULL) {
-		char *portnames = NULL, *name_pos = NULL, *name = NULL;
-
-		ni_string_dup(&portnames, value);
-		for (name = strtok_r(portnames, " \t", &name_pos);
-		     name != NULL;
-		     name = strtok_r(NULL, " \t", &name_pos)) {
-
-			if (!ni_netdev_name_is_valid(name)) {
-				ni_error("ifcfg-%s: BRIDGE_PORTS='%s' "
-					 "rejecting suspect port name '%s'",
-					 dev->name, value, name);
-				free(portnames);
-				return -1;
-			}
-
-			ni_bridge_port_new(bridge, name, 0);
-		}
-		ni_string_free(&portnames);
-	}
-
-	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PORTPRIORITIES")) != NULL) {
-		char *portprios = NULL, *prio_pos = NULL, *prio = NULL;
-		unsigned int tmp, i = 0;
-
-		ni_string_dup(&portprios, value);
-		for (prio = strtok_r(portprios, " \t", &prio_pos);
-		     prio != NULL && i < bridge->ports.count;
-		     prio = strtok_r(NULL, " \t", &prio_pos), ++i) {
-			ni_bridge_port_t *port = bridge->ports.data[i];
-
-			if (!strcmp("-", prio))
-				continue;
-
-			if (ni_parse_uint(prio, &tmp, 0) < 0) {
-				ni_error("ifcfg-%s: BRIDGE_PORTPRIORITIES='%s' "
-					 "unable to parse port '%s' priority '%s'",
-					 dev->name, value, port->ifname, prio);
-				free(portprios);
-				return -1;
-			}
-			port->priority = tmp;
-		}
-		ni_string_free(&portprios);
-	}
-
-	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PATHCOSTS")) != NULL) {
-		char *portcosts = NULL, *cost_pos = NULL, *cost = NULL;
-		unsigned int tmp, i = 0;
-
-		ni_string_dup(&portcosts, value);
-		for (cost = strtok_r(portcosts, " \t", &cost_pos);
-		     cost != NULL && i < bridge->ports.count;
-		     cost = strtok_r(NULL, " \t", &cost_pos), ++i) {
-			ni_bridge_port_t *port = bridge->ports.data[i++];
-
-			if (!strcmp("-", cost))
-				continue;
-
-			if (ni_parse_uint(cost, &tmp, 0) < 0) {
-				ni_error("ifcfg-%s: BRIDGE_PATHCOSTS='%s' "
-					 "unable to parse port '%s' costs '%s'",
-					 dev->name, value, port->ifname, cost);
-				free(portcosts);
-				return -1;
-			}
-			port->path_cost = tmp;
-		}
-		ni_string_free(&portcosts);
-	}
-
 	if ((value = ni_bridge_validate(bridge)) != NULL) {
 		ni_error("ifcfg-%s: bridge validation: %s", dev->name, value);
 		return -1;
@@ -3194,6 +3278,8 @@ try_bridge(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 			return -1;
 		}
 	}
+
+	try_add_bridge_ports(ifcfgs, ifcfg);
 
 	return 0;
 }
@@ -5956,7 +6042,21 @@ ni_suse_ifcfg_parse_bootproto(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *if
 	ni_ipv4_devinfo_t *ipv4;
 	ni_ipv6_devinfo_t *ipv6;
 
+	/*
+	 * The L3 setup & boot protocols are disabled on L2 ports already.
+	 */
+	if (ifcfg->l2only)
+		return TRUE;
+
+	/*
+	 * The BOOTPROTO=none disables the L3 (IP) setup & boot protocols.
+	 */
 	bootproto = ni_sysconfig_get_value(sc, "BOOTPROTO");
+	if (ni_string_eq_nocase(bootproto, "none")) {
+		ni_suse_ifcfg_set_l2_only(ifcfg, FALSE);
+		return TRUE;
+	}
+
 	if (ni_string_empty(bootproto) || ni_string_eq(dev->name, "lo")) {
 		if (dev->link.type == NI_IFTYPE_PPP)
 			bootproto = "ppp";
@@ -5965,16 +6065,6 @@ ni_suse_ifcfg_parse_bootproto(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *if
 	}
 
 	ipv4 = ni_netdev_get_ipv4(dev);
-	ipv6 = ni_netdev_get_ipv6(dev);
-
-	if (dev->link.masterdev.name || ni_string_eq_nocase(bootproto, "none")) {
-		if (ipv4)
-			ni_tristate_set(&ipv4->conf.enabled, FALSE);
-		if (ipv6)
-			ni_tristate_set(&ipv6->conf.enabled, FALSE);
-		return TRUE;
-	}
-
 	if (ipv4 && !ni_tristate_is_disabled(ipv4->conf.enabled)) {
 		if (__ni_suse_config_defaults) {
 			if ((value = ni_sysconfig_get_value(__ni_suse_config_defaults,
@@ -5996,16 +6086,12 @@ ni_suse_ifcfg_parse_bootproto(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *if
 		}
 	}
 
-	if (dev->link.type == NI_IFTYPE_PPP && dev->ppp && !ipv6->conf.enabled)
+	ipv6 = ni_netdev_get_ipv6(dev);
+	if (ipv6 && dev->link.type == NI_IFTYPE_PPP && dev->ppp && !ipv6->conf.enabled)
 		dev->ppp->config.ipv6.enabled = FALSE;
 
 	if (ni_string_eq_nocase(bootproto, "ppp"))
 		return TRUE;
-
-	/* Hmm... ignore this config completely -> ibft firmware */
-	if (ni_string_eq_nocase(bootproto, "ibft")) {
-		return TRUE;
-	}
 
 	if (ni_string_eq_nocase(bootproto, "6to4")) {
 		__ni_suse_addrconf_static(sc, compat);
@@ -6383,6 +6469,109 @@ __ifsysctl_get_tristate(ni_var_array_t *vars, const char *path, const char *ifna
 }
 
 static ni_bool_t
+ni_suse_ifcfg_parse_ifsysctl_ipv4(ni_suse_ifcfg_t *ifcfg, ni_var_array_t *ifsysctl)
+{
+	ni_netdev_t *dev = ifcfg->compat->dev;
+	ni_ipv4_devinfo_t *ipv4;
+
+	/*
+	 * On L2 ports, we've disabled L3 / IPv4 already.
+	 */
+	if (ifcfg->l2only)
+		return TRUE;
+
+	if (!(ipv4 = ni_netdev_get_ipv4(dev)))
+		return FALSE;
+
+	/* Note: no conf.enable and conf.arp-verify in sysctl */
+
+	__ifsysctl_get_tristate(ifsysctl, "net/ipv4/conf", dev->name,
+			"forwarding", &ipv4->conf.forwarding);
+	__ifsysctl_get_tristate(ifsysctl, "net/ipv4/conf", dev->name,
+			"arp_notify", &ipv4->conf.arp_notify);
+	__ifsysctl_get_tristate(ifsysctl, "net/ipv4/conf", dev->name,
+			"accept_redirects", &ipv4->conf.accept_redirects);
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_suse_ifcfg_parse_ifsysctl_ipv6(ni_suse_ifcfg_t *ifcfg, ni_var_array_t *ifsysctl)
+{
+	ni_tristate_t disable_ipv6 = NI_TRISTATE_DEFAULT;
+	ni_netdev_t *dev = ifcfg->compat->dev;
+	ni_ipv6_devinfo_t *ipv6;
+
+	if (!(ipv6 = ni_netdev_get_ipv6(dev)))
+		return FALSE;
+
+	/*
+	 * First, get sysctl's affecting also "IPv6 L2" aka
+	 * stable secret for the fe80 link-address assignment.
+	 */
+	__ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev->name,
+			"addr_gen_mode", &ipv6->conf.addr_gen_mode, 10);
+
+	__ifsysctl_get_ipv6(ifsysctl, "net/ipv6/conf", dev->name,
+			"stable_secret", &ipv6->conf.stable_secret);
+
+	/*
+	 * On L2 ports, we may need the ipv6 link e.g. for nsna
+	 * ping monitoring, but already disabled e.g accept_ra
+	 * to avoid RA processing affecting the IPv6 L3 autoconf
+	 * aka auto6 (SLAAC) & dhcp6 and don't parse static IPs.
+	 */
+	if (ifcfg->l2only)
+		return TRUE;
+
+	/*
+	 * When IPv6 is disabled via sysctl, we're done
+	 */
+	if (__ni_ipv6_disbled)
+		ni_tristate_set(&ipv6->conf.enabled, FALSE);
+	__ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev->name,
+			"disable_ipv6", &disable_ipv6);
+	if (ni_tristate_is_set(disable_ipv6))
+		ni_tristate_set(&ipv6->conf.enabled, !disable_ipv6);
+	if (ni_tristate_is_disabled(ipv6->conf.enabled))
+		return TRUE;
+
+	__ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev->name,
+			"forwarding", &ipv6->conf.forwarding);
+
+	__ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev->name,
+			"accept_ra", &ipv6->conf.accept_ra, 10);
+	if (ipv6->conf.accept_ra > NI_IPV6_ACCEPT_RA_ROUTER)
+		ipv6->conf.accept_ra = NI_IPV6_ACCEPT_RA_ROUTER;
+	else
+	if (ipv6->conf.accept_ra < NI_IPV6_ACCEPT_RA_DEFAULT)
+		ipv6->conf.accept_ra = NI_IPV6_ACCEPT_RA_DEFAULT;
+
+	__ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev->name,
+			"accept_dad", &ipv6->conf.accept_dad, 10);
+	if (ipv6->conf.accept_dad > NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL)
+		ipv6->conf.accept_dad = NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL;
+	else
+	if (ipv6->conf.accept_dad < NI_IPV6_ACCEPT_DAD_DEFAULT)
+		ipv6->conf.accept_dad = NI_IPV6_ACCEPT_DAD_DEFAULT;
+
+	__ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev->name,
+				"autoconf", &ipv6->conf.autoconf);
+
+	__ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev->name,
+				"use_tempaddr", &ipv6->conf.privacy, 10);
+	if (ipv6->conf.privacy > NI_IPV6_PRIVACY_PREFER_TEMPORARY)
+		ipv6->conf.privacy = NI_IPV6_PRIVACY_PREFER_TEMPORARY;
+	else if (ipv6->conf.privacy < NI_IPV6_PRIVACY_DEFAULT)
+		ipv6->conf.privacy = NI_IPV6_PRIVACY_DISABLED;
+
+	__ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev->name,
+			"accept_redirects", &ipv6->conf.accept_redirects);
+
+	return TRUE;
+}
+
+static ni_bool_t
 ni_suse_ifcfg_parse_ifsysctl(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
 	ni_var_array_t ifsysctl = NI_VAR_ARRAY_INIT;
@@ -6390,9 +6579,6 @@ ni_suse_ifcfg_parse_ifsysctl(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifc
 	ni_netdev_t *dev = ifcfg->compat->dev;
 	char pathbuf[PATH_MAX];
 	const char *dirname;
-	ni_ipv4_devinfo_t *ipv4;
-	ni_ipv6_devinfo_t *ipv6;
-	ni_tristate_t disable_ipv6 = NI_TRISTATE_DEFAULT;
 
 	dirname = ni_dirname(sc->pathname);
 	if (ni_string_empty(dirname))
@@ -6405,65 +6591,8 @@ ni_suse_ifcfg_parse_ifsysctl(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifc
 		ni_ifsysctl_file_load(&ifsysctl, pathbuf);
 	}
 
-	ipv4 = ni_netdev_get_ipv4(dev);
-	ni_tristate_set(&ipv4->conf.enabled, TRUE);
-	/* no conf.enable and conf.arp-verify in sysctl */
-	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
-				"forwarding", &ipv4->conf.forwarding);
-	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
-				"arp_notify", &ipv4->conf.arp_notify);
-	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
-				"accept_redirects", &ipv4->conf.accept_redirects);
-
-	ipv6 = ni_netdev_get_ipv6(dev);
-	ni_tristate_set(&ipv6->conf.enabled, !__ni_ipv6_disbled);
-	if (__ni_ipv6_disbled) {
-		ni_var_array_destroy(&ifsysctl);
-		return TRUE;
-	}
-	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
-				"disable_ipv6", &disable_ipv6);
-	if (ni_tristate_is_set(disable_ipv6))
-		ni_tristate_set(&ipv6->conf.enabled, !disable_ipv6);
-
-	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
-				"forwarding", &ipv6->conf.forwarding);
-
-	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
-				"accept_ra", &ipv6->conf.accept_ra, 10);
-	if (ipv6->conf.accept_ra > NI_IPV6_ACCEPT_RA_ROUTER)
-		ipv6->conf.accept_ra = NI_IPV6_ACCEPT_RA_ROUTER;
-	else
-	if (ipv6->conf.accept_ra < NI_IPV6_ACCEPT_RA_DEFAULT)
-		ipv6->conf.accept_ra = NI_IPV6_ACCEPT_RA_DEFAULT;
-
-	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
-				"accept_dad", &ipv6->conf.accept_dad, 10);
-	if (ipv6->conf.accept_dad > NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL)
-		ipv6->conf.accept_dad = NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL;
-	else
-	if (ipv6->conf.accept_dad < NI_IPV6_ACCEPT_DAD_DEFAULT)
-		ipv6->conf.accept_dad = NI_IPV6_ACCEPT_DAD_DEFAULT;
-
-	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
-				"autoconf", &ipv6->conf.autoconf);
-
-	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
-				"use_tempaddr", &ipv6->conf.privacy, 10);
-	if (ipv6->conf.privacy > NI_IPV6_PRIVACY_PREFER_TEMPORARY)
-		ipv6->conf.privacy = NI_IPV6_PRIVACY_PREFER_TEMPORARY;
-	else if (ipv6->conf.privacy < NI_IPV6_PRIVACY_DEFAULT)
-		ipv6->conf.privacy = NI_IPV6_PRIVACY_DISABLED;
-
-	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
-				"accept_redirects", &ipv6->conf.accept_redirects);
-
-	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
-				"addr_gen_mode", &ipv6->conf.addr_gen_mode, 10);
-
-	__ifsysctl_get_ipv6(&ifsysctl, "net/ipv6/conf", dev->name,
-				"stable_secret", &ipv6->conf.stable_secret);
-
+	ni_suse_ifcfg_parse_ifsysctl_ipv4(ifcfg, &ifsysctl);
+	ni_suse_ifcfg_parse_ifsysctl_ipv6(ifcfg, &ifsysctl);
 	ni_var_array_destroy(&ifsysctl);
 	return TRUE;
 }
@@ -6894,6 +7023,166 @@ ni_suse_ifcfg_free(ni_suse_ifcfg_t *ifcfg)
 		}
 		free(ifcfg);
 	}
+}
+
+static ni_suse_ifcfg_t *
+ni_suse_ifcfg_new_missing(ni_suse_ifcfg_t *from, const char *ifname)
+{
+	ni_suse_ifcfg_t *ifcfg;
+
+	if (!from || !from->config || !ifname)
+		return NULL;
+
+	if (!(ifcfg = ni_suse_ifcfg_new()))
+		goto error;
+
+	if (!(ifcfg->config = ni_sysconfig_new(from->config->pathname)))
+		goto error;
+
+	if (!(ifcfg->compat = ni_compat_netdev_new(ifname)))
+		goto error;
+
+	return ifcfg;
+
+error:
+	ni_suse_ifcfg_free(ifcfg);
+	return NULL;
+}
+
+static void
+ni_suse_ifcfg_set_hotplug(ni_suse_ifcfg_t *ifcfg)
+{
+	static const ni_ifworker_control_t control = {
+		"hotplug", NULL, FALSE, FALSE, NI_TRISTATE_DEFAULT, 0, 0
+	};
+
+	if (ifcfg->compat->control)
+		ni_ifworker_control_free(ifcfg->compat->control);
+
+	/* apply STARTMODE=hotplug (missing Ok) control defaults */
+	ifcfg->compat->control = ni_ifworker_control_clone(&control);
+}
+
+static void
+ni_suse_ifcfg_set_l2_only(ni_suse_ifcfg_t *ifcfg, ni_bool_t l2v6)
+{
+	ni_ipv4_devinfo_t *ipv4;
+	ni_ipv6_devinfo_t *ipv6;
+
+	/* apply BOOTPROTO=none (no L3) defaults in L2 enslave;
+	 * link monitoring may need ipv6 (link layer address) */
+	if ((ipv4 = ni_netdev_get_ipv4(ifcfg->compat->dev)))
+		ni_tristate_set(&ipv4->conf.enabled, FALSE);
+	if ((ipv6 = ni_netdev_get_ipv6(ifcfg->compat->dev))) {
+		/* ipv6 link only without RA for L3 setup */
+		ni_tristate_set(&ipv6->conf.enabled, l2v6);
+		ni_tristate_set(&ipv6->conf.accept_ra, 0);
+	}
+	ifcfg->l2only = TRUE;
+}
+
+static ni_bool_t
+ni_suse_ifcfg_netdev_set_master(ni_netdev_t *pdev, ni_netdev_t *mdev,
+		const char *type, const char *file)
+{
+	if (ni_string_empty(pdev->link.masterdev.name))
+		return ni_netdev_ref_set_ifname(&pdev->link.masterdev, mdev->name);
+
+	if (ni_string_eq(pdev->link.masterdev.name, mdev->name)) {
+		ni_warn("ifcfg-%s: ignoring duplicate '%s' %s port '%s'",
+				file, mdev->name, type, pdev->name);
+		return TRUE;
+	}
+
+	/*
+	 * The ifcfg device hierarchy _is_ broken.
+	 *
+	 * As we cannot judge which config is correct and which not,
+	 * we keep the already assigned interface intact and let
+	 * further layers decide how to handle this condition.
+	 */
+	ni_error("ifcfg-%s: cannot add %s port '%s' to '%s', already in '%s'",
+			file, type, pdev->name, mdev->name,
+			pdev->link.masterdev.name);
+	return FALSE;
+}
+
+static ni_suse_ifcfg_t *
+ni_suse_ifcfg_add_l2_port(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *mcfg,
+		const char *file, const char *type, const char *port, ni_bool_t l2v6)
+{
+	ni_suse_ifcfg_t *pcfg;
+	ni_netdev_t *mdev;
+
+	mdev = mcfg->compat->dev;
+	if (!ni_netdev_name_is_valid(port) || ni_string_eq(mdev->name, port)) {
+		ni_error("ifcfg-%s: rejecting invalid '%s' %s port name '%s'",
+				mdev->name, file, type, port);
+		return NULL;
+	}
+
+	if (!(pcfg = ni_suse_ifcfg_find_by_ifname(ifcfgs, port))) {
+		pcfg = ni_suse_ifcfg_new_missing(mcfg, port);
+		if (!ni_suse_ifcfg_array_append(ifcfgs, pcfg)) {
+			ni_suse_ifcfg_free(pcfg);
+			ni_error("ifcfg-%s: failed to add %s port '%s' to '%s'",
+					file, type, port, mdev->name);
+			return NULL;
+		}
+		ni_suse_ifcfg_set_hotplug(pcfg);
+	}
+	ni_suse_ifcfg_set_l2_only(pcfg, l2v6);
+
+	if (ni_suse_ifcfg_netdev_set_master(pcfg->compat->dev, mdev, type, file))
+		return pcfg;
+
+	pcfg->broken = TRUE;
+	return NULL;
+}
+
+static ni_suse_ifcfg_t *
+ni_suse_ifcfg_find_by_ifname(ni_suse_ifcfg_array_t *ifcfgs, const char *ifname)
+{
+	ni_suse_ifcfg_t *ifcfg;
+	ni_netdev_t *dev;
+	unsigned int i;
+
+	if (!ifcfgs || !ifname)
+		return NULL;
+
+	for (i = 0; i < ifcfgs->count; ++i) {
+		ifcfg = ifcfgs->data[i];
+		dev = ifcfg->compat->dev;
+
+		if (ni_string_eq(dev->name, ifname))
+			return ifcfg;
+	}
+	return NULL;
+}
+
+static unsigned int
+ni_suse_ifcfg_process_indexed(ni_suse_ifcfg_array_t *ifcfgs,
+		ni_suse_ifcfg_t *ifcfg, const char *prefix,
+		ifcfg_process_fn_t process)
+{
+	const ni_var_t *var;
+	unsigned int cnt, i;
+	size_t pfxlen;
+
+	if (!ifcfgs || !ifcfg || !ifcfg->config || !process)
+		return 0;
+
+	pfxlen = ni_string_len(prefix);
+	for (cnt = 0, i = 0; i < ifcfg->config->vars.count; ++i) {
+		var = &ifcfg->config->vars.data[i];
+
+		if (!var->value || strncmp(var->name, prefix, pfxlen))
+			continue;
+
+		if (process(ifcfgs, ifcfg, var->value, var->name, var->name + pfxlen))
+			cnt++;
+	}
+	return cnt;
 }
 
 static ni_define_ptr_array_init(ni_suse_ifcfg);
