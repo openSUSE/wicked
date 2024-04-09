@@ -126,8 +126,9 @@ static int	__ni_rtnl_link_down(const ni_netdev_t *);
 static int	__ni_rtnl_link_unenslave(const ni_netdev_t *);
 static int	__ni_rtnl_link_delete(const ni_netdev_t *);
 
-static int	__ni_rtnl_link_add_port_up(const ni_netdev_t *, const char *, unsigned int);
-static int	__ni_rtnl_link_bond_enslave(const ni_netdev_t *, const char *, unsigned int);
+static int	ni_rtnl_link_port_to_bridge(const ni_netdev_t *, const char *, unsigned int);
+static int	ni_rtnl_link_port_to_bond(const ni_netdev_t *, const char *, unsigned int);
+static int	ni_rtnl_link_port_config_change(const ni_netdev_t *, const ni_netdev_port_config_t *);
 
 static int	__ni_rtnl_send_deladdr(ni_netdev_t *, const ni_address_t *);
 static int	__ni_rtnl_send_newaddr(ni_netdev_t *, const ni_address_t *, int);
@@ -207,11 +208,19 @@ ni_system_interface_enslave(ni_netconfig_t *nc, ni_netdev_t *master, ni_netdev_t
 		if (dev->link.masterdev.index)
 			return 0;
 
-		ret = __ni_rtnl_link_bond_enslave(dev, master->name,
-						master->link.ifindex);
+		ret = ni_rtnl_link_port_to_bond(dev, master->name, master->link.ifindex);
 		if (ret == 0) {
 			ni_netdev_ref_set(&dev->link.masterdev,
 					master->name, master->link.ifindex);
+			if (master->link.type == req->port.type) {
+				ni_rtnl_link_port_config_change(dev, &req->port);
+			} else if (req->port.type != NI_IFTYPE_UNKNOWN) {
+				const char *ptype = ni_linktype_type_to_name(req->port.type);
+				const char *mtype = ni_linktype_type_to_name(master->link.type);
+
+				ni_warn("%s: omitting %s port config not matching %s %s",
+					dev->name, ptype, mtype, master->name);
+			}
 			ni_system_bond_enslave_update(nc, dev, master);
 		}
 		break;
@@ -235,12 +244,19 @@ ni_system_interface_enslave(ni_netconfig_t *nc, ni_netdev_t *master, ni_netdev_t
 		ni_teamd_discover(master);
 		break;
 	case NI_IFTYPE_BRIDGE:
-		ret = __ni_rtnl_link_add_port_up(dev, master->name,
-						master->link.ifindex);
+		ret = ni_rtnl_link_port_to_bridge(dev, master->name, master->link.ifindex);
 		if (ret == 0) {
 			ni_netdev_ref_set(&dev->link.masterdev,
 					master->name, master->link.ifindex);
+			if (master->link.type == req->port.type) {
+				ni_rtnl_link_port_config_change(dev, &req->port);
+			} else if (req->port.type != NI_IFTYPE_UNKNOWN) {
+				const char *ptype = ni_linktype_type_to_name(req->port.type);
+				const char *mtype = ni_linktype_type_to_name(master->link.type);
 
+				ni_warn("%s: omitting %s port config not matching %s %s",
+					dev->name, ptype, mtype, master->name);
+			}
 			if (dev->link.type == NI_IFTYPE_WIRELESS)
 				ni_wireless_connect(dev);
 		}
@@ -1520,9 +1536,8 @@ ni_system_bridge_add_port(ni_netconfig_t *nc, ni_netdev_t *brdev, const ni_bridg
 		return 0; /* part of the bridge and hopefully up now */
 	}
 
-	if (__ni_rtnl_link_add_port_up(pif, brdev->name, brdev->link.ifindex) == 0) {
-		ni_netdev_ref_set(&pif->link.masterdev, brdev->name,
-				brdev->link.ifindex);
+	if (ni_rtnl_link_port_to_bridge(pif, brdev->name, brdev->link.ifindex) == 0) {
+		ni_netdev_ref_set(&pif->link.masterdev, brdev->name, brdev->link.ifindex);
 		return 0;
 	}
 
@@ -2900,7 +2915,6 @@ nla_put_failure:
 	return -1;
 }
 
-
 static int
 __ni_rtnl_link_put_vlan(struct nl_msg *msg,	const ni_netdev_t *cfg)
 {
@@ -3980,17 +3994,181 @@ nl_talk_failed:
 	goto cleanup;
 }
 
+static void
+ni_rtnl_link_put_uattr_debug(const char *ifname, const char *attr,
+		unsigned int skip, unsigned int val)
+{
+	unsigned int level = NI_LOG_DEBUG1 + (skip == val);
+
+	if (skip == val) {
+		ni_debug_verbose(level, NI_TRACE_IFCONFIG,
+				"%s: skip attr %s", ifname, attr);
+	} else {
+		ni_debug_verbose(level, NI_TRACE_IFCONFIG,
+				"%s: set  attr %s=%u", ifname, attr, val);
+	}
+}
+
+static inline int
+ni_rtnl_link_put_bond_port(const ni_netdev_t *port,
+		struct nl_msg *msg, const ni_bonding_port_config_t *conf)
+{
+	const char *attr;
+	int skipped = 1;
+
+	if (!msg || !conf)
+		return -1;
+
+	attr = "IFLA_BOND_SLAVE_QUEUE_ID";
+	if (conf->queue_id != -1U) {
+		NLA_PUT_U16(msg, IFLA_BOND_SLAVE_QUEUE_ID, conf->queue_id);
+		skipped = 0;
+	}
+	ni_rtnl_link_put_uattr_debug(port->name, attr, -1U, conf->queue_id);
+
+	return skipped;
+
+nla_put_failure:
+	ni_error("%s: unable format bonding port attr %s", port->name, attr);
+	return -1;
+}
+
+static inline int
+ni_rtnl_link_put_bridge_port(const ni_netdev_t *port,
+		struct nl_msg *msg, const ni_bridge_port_config_t *conf)
+{
+	const char *attr;
+	int skipped = 1;
+
+	if (!msg || !conf)
+		return -1;
+
+	attr = "IFLA_BRPORT_PRIORITY";
+	if (conf->priority != NI_BRIDGE_VALUE_NOT_SET) {
+		NLA_PUT_U16(msg, IFLA_BRPORT_PRIORITY, conf->priority);
+		skipped = 0;
+	}
+	ni_rtnl_link_put_uattr_debug(port->name, attr,
+			NI_BRIDGE_VALUE_NOT_SET, conf->priority);
+
+	attr = "IFLA_BRPORT_COST";
+	if (conf->path_cost != NI_BRIDGE_VALUE_NOT_SET) {
+		NLA_PUT_U32(msg, IFLA_BRPORT_COST, conf->path_cost);
+		skipped = 0;
+	}
+	ni_rtnl_link_put_uattr_debug(port->name, attr,
+			NI_BRIDGE_VALUE_NOT_SET, conf->path_cost);
+
+	return skipped;
+
+nla_put_failure:
+	ni_error("%s: unable format bridge port attr %s", port->name, attr);
+	return -1;
+}
+
+static int
+ni_rtnl_link_port_config_change(const ni_netdev_t *port,
+		const ni_netdev_port_config_t *conf)
+{
+	struct ifinfomsg ifi;
+	struct nl_msg *msg;
+	struct nlattr *info;
+	struct nlattr *data;
+	const char *kind;
+	int ret = -1;
+
+	if (!port || !conf || !(kind = ni_linkinfo_type_to_kind(conf->type)))
+		return -1;
+
+	switch (conf->type) {
+	case NI_IFTYPE_BOND:
+	case NI_IFTYPE_BRIDGE:
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+				"%s(%s[#%u], kind: %s)", __func__,
+				port->name, port->link.ifindex, kind);
+		break;
+	default:
+		ni_warn("%s(%s[#%u], kind: %s): unsupported port config",
+				__func__, port->name, port->link.ifindex, kind);
+		return 1;
+	}
+
+	memset(&ifi, 0, sizeof(ifi));
+	ifi.ifi_family = AF_UNSPEC;
+	ifi.ifi_index = port->link.ifindex;
+
+	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST);
+	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
+		goto nla_put_failure;
+
+	if (!(info = nla_nest_start(msg, IFLA_LINKINFO)))
+		goto nla_put_failure;
+
+	if (nla_put_string(msg, IFLA_INFO_SLAVE_KIND, kind))
+		goto nla_put_failure;
+
+	if (!(data = nla_nest_start(msg, IFLA_INFO_SLAVE_DATA)))
+		goto nla_put_failure;
+
+	switch (conf->type) {
+	case NI_IFTYPE_BOND:
+		ret = ni_rtnl_link_put_bond_port(port, msg, conf->bond);
+		if (ret < 0)
+			goto nla_put_failure;
+		if (ret > 0)
+			goto cleanup;
+		break;
+
+	case NI_IFTYPE_BRIDGE:
+		ret = ni_rtnl_link_put_bridge_port(port, msg, conf->bridge);
+		if (ret < 0)
+			goto nla_put_failure;
+		if (ret > 0)
+			goto cleanup;
+		break;
+
+	default:
+		ret = 1;
+		goto cleanup;
+	}
+
+	nla_nest_end(msg, data);
+	nla_nest_end(msg, info);
+
+	if ((ret = ni_nl_talk(msg, NULL)) == NLE_SUCCESS) {
+		ni_debug_ifconfig("%s: successfully changed %s port config",
+				port->name, kind);
+		ret =  0;
+	} else {
+		ni_error("%s: failed to change %s port config: %s",
+				port->name, kind, nl_geterror(ret));
+		ret = -1;
+	}
+	goto cleanup;
+
+nla_put_failure:
+	ni_error("%s: failed to encode netlink message to change %s port config",
+			port->name, kind);
+cleanup:
+	nlmsg_free(msg);
+	return ret;
+}
+
 /*
  * Bring up an interface and enslave (bridge port) to master
  */
 int
-__ni_rtnl_link_add_port_up(const ni_netdev_t *port, const char *mname, unsigned int mindex)
+ni_rtnl_link_port_to_bridge(const ni_netdev_t *port, const char *mname, unsigned int mindex)
 {
 	struct ifinfomsg ifi;
 	struct nl_msg *msg;
 
 	if (!port || !mname || !mindex)
 		return -1;
+
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+			"%s(%s[#%u], bridge: %s[#%u])", __func__,
+			port->name, port->link.ifindex, mname, mindex);
 
 	memset(&ifi, 0, sizeof(ifi));
 	ifi.ifi_family = AF_UNSPEC;
@@ -4004,16 +4182,16 @@ __ni_rtnl_link_add_port_up(const ni_netdev_t *port, const char *mname, unsigned 
 
 	NLA_PUT_U32(msg, IFLA_MASTER, mindex);
 
-	if (ni_nl_talk(msg, NULL))
+	if (ni_nl_talk(msg, NULL) != NLE_SUCCESS)
 		goto failed;
 
-	ni_debug_ifconfig("successfully added port %s into master %s",
+	ni_debug_ifconfig("%s: successfully linked port to bridge %s",
 			port->name, mname);
 	nlmsg_free(msg);
 	return 0;
 
 nla_put_failure:
-	ni_error("failed to encode netlink message to add port %s into %s",
+	ni_error("%s: failed to encode netlink message to link port to bridge %s",
 			port->name, mname);
 failed:
 	nlmsg_free(msg);
@@ -4024,17 +4202,21 @@ failed:
  * Enslave into a bond master
  */
 int
-__ni_rtnl_link_bond_enslave(const ni_netdev_t *slave, const char *mname, unsigned int mindex)
+ni_rtnl_link_port_to_bond(const ni_netdev_t *port, const char *mname, unsigned int mindex)
 {
 	struct ifinfomsg ifi;
 	struct nl_msg *msg;
 
-	if (!slave || !mname || !mindex)
+	if (!port || !mname || !mindex)
 		return -1;
+
+	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
+			"%s(%s[#%u], bond: %s[#%u])", __func__,
+			port->name, port->link.ifindex, mname, mindex);
 
 	memset(&ifi, 0, sizeof(ifi));
 	ifi.ifi_family = AF_UNSPEC;
-	ifi.ifi_index = slave->link.ifindex;
+	ifi.ifi_index = port->link.ifindex;
 
 	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST);
 	if (nlmsg_append(msg, &ifi, sizeof(ifi), NLMSG_ALIGNTO) < 0)
@@ -4042,15 +4224,17 @@ __ni_rtnl_link_bond_enslave(const ni_netdev_t *slave, const char *mname, unsigne
 
 	NLA_PUT_U32(msg, IFLA_MASTER, mindex);
 
-	if (ni_nl_talk(msg, NULL) < 0)
+	if (ni_nl_talk(msg, NULL) != NLE_SUCCESS)
 		goto failed;
 
-	ni_debug_ifconfig("successfully enslaved %s into master %s", slave->name, mname);
+	ni_debug_ifconfig("%s: successfully linked port to bond %s",
+			port->name, mname);
 	nlmsg_free(msg);
 	return 0;
 
 nla_put_failure:
-	ni_error("failed to encode netlink message to enslave %s into %s", slave->name, mname);
+	ni_error("%s: failed to encode netlink message to link port to bond %s",
+			port->name, mname);
 failed:
 	nlmsg_free(msg);
 	return -1;
