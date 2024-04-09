@@ -87,8 +87,10 @@ extern				ni_declare_ptr_array_delete_at(ni_ovs_bridge_port);
 extern ni_ovs_bridge_port_t *	ni_ovs_bridge_port_array_add_new(ni_ovs_bridge_port_array_t *, const char *);
 extern ni_ovs_bridge_port_t *	ni_ovs_bridge_port_array_find_by_name(ni_ovs_bridge_port_array_t *, const char *);
 
-extern void			ni_ovs_bridge_port_config_init(ni_ovs_bridge_port_config_t *);
-extern void			ni_ovs_bridge_port_config_destroy(ni_ovs_bridge_port_config_t *);
+extern ni_ovs_bridge_port_config_t *	ni_ovs_bridge_port_config_new(void);
+extern ni_bool_t			ni_ovs_bridge_port_config_init(ni_ovs_bridge_port_config_t *);
+extern void				ni_ovs_bridge_port_config_destroy(ni_ovs_bridge_port_config_t *);
+extern void				ni_ovs_bridge_port_config_free(ni_ovs_bridge_port_config_t *);
 
 extern ni_ovs_bridge_port_info_t *	ni_ovs_bridge_port_info_new(void);
 extern void				ni_ovs_bridge_port_info_free(ni_ovs_bridge_port_info_t *);
