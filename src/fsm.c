@@ -4943,6 +4943,111 @@ ni_ifworker_do_wait_device_ready_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_tr
 	return ni_ifworker_do_common_call(fsm, w, action);
 }
 
+static unsigned int
+ni_ifworker_get_ports_by_name(ni_fsm_t *fsm, const char *name, ni_ifworker_array_t *ports)
+{
+	unsigned int i, count;
+
+	if (!fsm || ni_string_empty(name))
+		return 0;
+
+	count = ports ? ports->count : 0;
+	for (i = 0;  i < fsm->workers.count; ++i) {
+		ni_ifworker_t *w = fsm->workers.data[i];
+
+		if (!w->masterdev)
+			continue;
+		if (!ni_string_eq(w->masterdev->name, name))
+			continue;
+
+		if (ports)
+			ni_ifworker_array_append(ports, w);
+		else
+			count++;
+	}
+	return ports ? ports->count - count : count;
+}
+
+static ni_tristate_t
+ni_ifworker_link_detection_guess(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	ni_netdev_t *dev;
+
+	/*
+	 * At the time of this call, the interface is configured
+	 * by changeDevice (if needed), we're setting it UP (linkUp)
+	 * and when it's not defined via config, we need to decide
+	 * whether to wait for 'link-up' event signaling carrier
+	 * and running state (incl. wpa on wlan) or not, before we
+	 * continue with the L3 setup aka assign IP addresses, ...
+	 *
+	 * For some interfaces, we don't wait for link-up by default.
+	 */
+	if (!fsm || !w)
+		return NI_TRISTATE_DEFAULT;
+
+	switch (w->masterdev ? w->masterdev->iftype : NI_IFTYPE_UNKNOWN) {
+	case NI_IFTYPE_BOND:
+	case NI_IFTYPE_TEAM:
+	case NI_IFTYPE_BRIDGE:
+	case NI_IFTYPE_OVS_BRIDGE:
+	case NI_IFTYPE_OVS_SYSTEM:
+		/*
+		 * Don't wait for L2 ports controlled by master,
+		 * which inherit it's carrier from it's ports
+		 * according to own logic (incl. monitoring)
+		 * and we don't wait for link-up of the ports
+		 * and also don't setup L3 on ports.
+		 */
+		return NI_TRISTATE_DISABLE;
+	default:
+		break;
+	}
+
+	switch (w->iftype) {
+	case NI_IFTYPE_OVS_SYSTEM:
+		/*
+		 * The link state is unused on ovs datapaths.
+		 */
+		return NI_TRISTATE_DISABLE;
+
+	case NI_IFTYPE_TUN:
+	case NI_IFTYPE_TAP:
+		/*
+		 * Tun/Tap interfaces need a daemon started by
+		 * an external service, PRE_UP hook, ...
+		 * It may need to open a connection somewhere
+		 * in the internet, ... don't require link-up.
+		 */
+		return NI_TRISTATE_DISABLE;
+
+	case NI_IFTYPE_BRIDGE:
+		/*
+		 * A bridge inherits the carrier from a port;
+		 * - When the config defines ports, wait until
+		 *   they're added and the bridge gets link-up.
+		 * - When the config does not define any ports:
+		 *   - with STP=off: the bridge will get link-up
+		 *   - with STP=on: will not reach link-up until
+		 *     a port has been added externally, e.g. by
+		 *     adding a VM interface to it at VM start.
+		 *     Don't require the link-up, but continue to
+		 *     set up L3 (e.g. static IPs), so services
+		 *     (e.g. dhcp-server) are started on the
+		 *     bridge to serve the VMs (while it's added).
+		 */
+		dev = w->device; /* changeDevice is applied */
+		if (dev && dev->bridge && dev->bridge->stp &&
+		    ni_ifworker_get_ports_by_name(fsm, w->name, NULL))
+			return NI_TRISTATE_DISABLE;
+		return NI_TRISTATE_DEFAULT;
+
+	default:
+		return NI_TRISTATE_DEFAULT;
+	}
+
+}
+
 static int
 ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
@@ -4950,8 +5055,11 @@ ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 
 	ret = ni_ifworker_do_common_call(fsm, w, action);
 
-	if (!ni_tristate_is_set(w->control.link_required) && w->device)
-		w->control.link_required = ni_netdev_guess_link_required(w->device);
+	if (!ni_tristate_is_set(w->control.link_required)) {
+		w->control.link_required = ni_ifworker_link_detection_guess(fsm, w);
+		if (ni_tristate_is_set(w->control.link_required))
+			ni_ifworker_update_client_state_control(w);
+	}
 
 	if (ret >= 0 && w->fsm.wait_for) {
 		if (w->control.link_timeout != NI_IFWORKER_INFINITE_SECONDS) {

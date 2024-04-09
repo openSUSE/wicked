@@ -1498,7 +1498,7 @@ ni_objectmodel_netif_client_state_control_to_dict(const ni_client_state_control_
 
 	if (ni_tristate_is_set(ctrl->require_link)) {
 		if (!ni_dbus_dict_add_bool(var, NI_CLIENT_STATE_XML_REQUIRE_LINK_NODE,
-			(dbus_bool_t) ni_tristate_is_disabled(ctrl->require_link))) {
+			(dbus_bool_t) ni_tristate_is_enabled(ctrl->require_link))) {
 			return FALSE;
 		}
 	}
