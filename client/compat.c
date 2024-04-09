@@ -3021,24 +3021,92 @@ ni_compat_generate_interface(xml_document_t *doc, const ni_compat_netdev_t *comp
 }
 
 static ni_bool_t
+ni_compat_generate_policy_match_device(xml_node_t *match,
+		const ni_compat_netdev_t *compat)
+{
+	const char *name = compat->dev->name;
+
+	/*
+	 * Generate <device>${name}</device> match (self reference) node.
+	 */
+	if (!match || ni_string_empty(name))
+		return FALSE;
+
+	if (xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, match, name))
+		return TRUE;
+
+	return FALSE;
+}
+
+static ni_bool_t
+ni_compat_generate_policy_match_device_ref(xml_node_t *match,
+		const char *name)
+{
+	xml_node_t *ref;
+
+	/*
+	 * Generate <reference><device>${name}</device></reference>
+	 * match node to a related (lower, master, …) interface.
+	 */
+	if (!match || ni_string_empty(name))
+		return FALSE;
+
+	if (!(ref = xml_node_new(NI_NANNY_IFPOLICY_MATCH_REF, match)))
+		return FALSE;
+
+	if (xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, ref, name))
+		return TRUE;
+
+	xml_node_detach(ref);
+	xml_node_free(ref);
+	return FALSE;
+}
+
+static ni_bool_t
+ni_compat_generate_policy_match_lower_ref(xml_node_t *match,
+		const ni_compat_netdev_t *compat)
+{
+	const char *name = compat->dev->link.lowerdev.name;
+
+	/* only some interfaces use lower */
+	if (ni_string_empty(name))
+		return TRUE;
+
+	return ni_compat_generate_policy_match_device_ref(match, name);
+}
+
+static ni_bool_t
+ni_compat_generate_policy_match_master_ref(xml_node_t *match,
+		const ni_compat_netdev_t *compat)
+{
+	const char *name = compat->dev->link.masterdev.name;
+
+	/* not being a port is not an error */
+	if (ni_string_empty(name))
+		return TRUE;
+
+	return ni_compat_generate_policy_match_device_ref(match, name);
+}
+
+static ni_bool_t
 ni_compat_generate_policy_match(xml_node_t *match, const ni_compat_netdev_t *compat)
 {
 	ni_netdev_t *dev = compat->dev;
 
-	ni_trace(" - generate policy match for %s: type=%s, master=%s, lower=%s",
+	ni_debug_application("  - generate policy match for %s: type=%s, master=%s, lower=%s",
 			dev->name, ni_linktype_type_to_name(dev->link.type),
 			dev->link.masterdev.name, dev->link.lowerdev.name);
 
-	/* properties we want to match */
+	if (!ni_compat_generate_policy_match_device(match, compat))
+		return FALSE;
 
-#if 0	/* TODO: */
-	if (compat->identify.hwaddr.len &&
-	    compat->identify.hwaddr.type == ARPHRD_ETHER) {
-		/* TODO */
-	} /* else */
-#endif
-	if (!ni_string_empty(compat->dev->name))
-		xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, match, compat->dev->name);
+	/* link's reference to lower device */
+	if (!ni_compat_generate_policy_match_lower_ref(match, compat))
+		return FALSE;
+
+	/* port's reference to a master device */
+	if (!ni_compat_generate_policy_match_master_ref(match, compat))
+		return FALSE;
 
 	return TRUE;
 }
@@ -3048,7 +3116,7 @@ ni_compat_generate_policy_action(xml_node_t *action, const ni_compat_netdev_t *c
 {
 	ni_netdev_t *dev = compat->dev;
 
-	ni_trace(" - generate policy action %s for %s: type=%s, master=%s, lower=%s",
+	ni_debug_application("  - generate policy action %s for %s: type=%s, master=%s, lower=%s",
 			action->name,
 			dev->name, ni_linktype_type_to_name(dev->link.type),
 			dev->link.masterdev.name, dev->link.lowerdev.name);
@@ -3080,7 +3148,8 @@ ni_compat_generate_policy(xml_document_t *doc, const ni_compat_netdev_t *compat,
 	else
 		pname = ni_ifpolicy_name_from_ifname(compat->dev->name);
 
-	ni_trace("* generate policy[%u] for %s: name=%s", nr, compat->dev->name, pname);
+	ni_debug_application("* generate policy[%u] for %s: name=%s",
+			nr, compat->dev->name, pname);
 	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_NAME, pname);
 	ni_string_free(&pname);
 
