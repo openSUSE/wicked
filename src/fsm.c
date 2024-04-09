@@ -1696,14 +1696,10 @@ ni_ifworker_refresh_client_state(ni_ifworker_t *w, ni_client_state_t *cs)
 	if (!w || !cs)
 		return;
 
+	ni_client_state_debug(w->name, cs, "refresh");
+
 	w->control.persistent = cs->control.persistent;
 	w->control.usercontrol = cs->control.usercontrol;
-
-	w->config.meta.uuid = cs->config.uuid;
-	w->config.meta.owner = cs->config.owner;
-	ni_ifworker_set_config_origin(w, cs->config.origin);
-
-	ni_client_state_debug(w->name, cs, "refresh");
 
 	if (!w->state.node)
 		w->state.node = xml_node_new(ni_ifworker_type_to_string(w->type), NULL);
