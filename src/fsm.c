@@ -75,6 +75,7 @@ static void			ni_fsm_process_event(ni_fsm_t *, ni_fsm_event_t *);
 
 static const ni_fsm_transition_t *	ni_fsm_transition_first(void);
 static const ni_fsm_transition_t *	ni_fsm_transition_next(const ni_fsm_transition_t *);
+static const ni_fsm_transition_t *	ni_fsm_transition_find_method(const char *);
 
 ni_fsm_t *
 ni_fsm_new(void)
@@ -2225,6 +2226,20 @@ ni_ifworker_config_check_state_req_check_new(ni_ifworker_t *cw, ni_ifworker_type
 	return check;
 }
 
+static inline ni_ifworker_check_state_req_check_t *
+ni_ifworker_system_check_state_req_check_new(ni_ifworker_t *cw,
+					unsigned int min_state, unsigned int max_state)
+{
+	ni_ifworker_check_state_req_check_t *check;
+
+	check = xcalloc(1, sizeof(*check));
+	check->worker = cw ?  ni_ifworker_get(cw) : NULL;
+	check->resolver = NULL;
+	check->state.min = min_state;
+	check->state.max = max_state;
+	return check;
+}
+
 static inline void
 ni_ifworker_check_state_req_check_free(ni_ifworker_check_state_req_check_t *check)
 {
@@ -2469,6 +2484,59 @@ ni_ifworker_config_check_state_req_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_
 	return all_required_ok && state_reached > 0;
 }
 
+static ni_bool_t
+ni_ifworker_system_check_state_req_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
+{
+	ni_ifworker_check_state_req_check_t *check;
+	ni_ifworker_check_state_req_t *csr;
+	ni_bool_t all_required_ok = TRUE;
+	ni_ifworker_t *cw;
+
+	if (!(csr = ni_ifworker_check_state_req_cast(req)))
+		return FALSE;
+
+	for (check = csr->check; check; check = check->next) {
+		ni_fsm_state_t wait_for_state;
+
+		if (!(cw = check->worker))
+			continue;
+
+		if (!ni_fsm_ifworker_by_ifindex(fsm, cw->ifindex)) {
+			ni_debug_application("%s: worker %s has been deleted",
+					w->name, cw->name);
+			continue;
+		}
+		if (!cw->device) {
+			ni_debug_application("%s: worker %s device has been deleted",
+					w->name, cw->name);
+			continue;
+		}
+		if (cw->failed) {
+			ni_debug_application("%s: worker %s failed", w->name, cw->name);
+			continue;
+		}
+
+		if (cw->fsm.state < check->state.min) {
+			wait_for_state = check->state.min;
+		} else if (cw->fsm.state > check->state.max) {
+			wait_for_state = check->state.max;
+		} else {
+			ni_debug_application("%s: worker %s reached %s state %s..%s",
+					w->name, cw->name, csr->method,
+					ni_ifworker_state_name(check->state.min),
+					ni_ifworker_state_name(check->state.max));
+			continue;
+		}
+
+		ni_debug_application("%s: waiting for worker %s to reach %s state %s",
+				w->name, cw->name, csr->method,
+				ni_ifworker_state_name(wait_for_state));
+		all_required_ok = FALSE;
+	}
+
+	return all_required_ok;
+}
+
 static void
 ni_ifworker_check_state_req_free(ni_fsm_require_t *req)
 {
@@ -2533,6 +2601,38 @@ ni_ifworker_add_config_check_state_req(ni_ifworker_t *w, const char *method, ni_
 			cwtype, cwnode, cwmeta, min_state, max_state);
 	req = ni_ifworker_check_state_req_new(check, method,
 			ni_ifworker_config_check_state_req_test);
+	ni_fsm_require_list_insert(&w->fsm.check_state_req_list, req);
+}
+
+static void
+ni_ifworker_add_system_check_state_req(ni_ifworker_t *w, const char *method,
+		ni_ifworker_t *cw, unsigned int min_state, unsigned int max_state)
+{
+	ni_ifworker_check_state_req_check_t *check;
+	ni_fsm_require_t *req;
+
+	for (req = w->fsm.check_state_req_list; req; req = req->next) {
+		ni_ifworker_check_state_req_t *csr;
+
+		if (!(csr = ni_ifworker_check_state_req_cast(req)))
+			continue;
+
+		if (!ni_string_eq(csr->method, method))
+			continue;
+
+		if (cw && ni_ifworker_check_state_req_check_find_worker(csr, cw))
+			continue; /* try to not add worker check twice */
+
+		check = ni_ifworker_system_check_state_req_check_new(cw,
+				min_state, max_state);
+		ni_ifworker_check_state_req_check_list_append(csr, check);
+		return;
+	}
+
+	check = ni_ifworker_system_check_state_req_check_new(cw,
+			min_state, max_state);
+	req = ni_ifworker_check_state_req_new(check, method,
+			ni_ifworker_system_check_state_req_test);
 	ni_fsm_require_list_insert(&w->fsm.check_state_req_list, req);
 }
 
@@ -4110,7 +4210,236 @@ ni_ifworker_bind_config_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_
 	 * we have to resolve in order to rebuild the config hierarchy.
 	 */
 	ni_ifworker_bind_config_services_early(w, fsm, &context);
+
 done:
+	return rv;
+}
+
+struct process_system_requires_context {
+	ni_dbus_xml_traverse_context_t  base;
+	ni_fsm_t *			fsm;
+	ni_ifworker_t *			worker;
+	ni_ifworker_t *			linked;
+};
+
+static ni_bool_t
+ni_ifworker_meta_add_system_netif_check_state_require(ni_ifworker_t *w,
+		ni_ifworker_t *cw, xml_node_t *meta)
+{
+	ni_uint_range_t range = { NI_FSM_STATE_NONE, __NI_FSM_STATE_MAX };
+	const ni_fsm_transition_t *action;
+	const char *attr;
+
+	if (!(attr = xml_node_get_attr(meta, "op"))) {
+		ni_error("%s: invalid netif-system-state method=\"%s\"",
+				xml_node_location(meta), attr ?: "");
+		return FALSE;
+	}
+
+	action = ni_fsm_transition_find_method(attr);
+	if (!action || !ni_fsm_transition_is_down(action))
+		return FALSE;
+
+	attr = xml_node_get_attr(meta, "min-state");
+	if (attr && !ni_ifworker_state_from_name(attr, &range.min)) {
+		ni_error("%s: invalid state name min-state=\"%s\"",
+				xml_node_location(meta), attr);
+		return FALSE;
+	}
+
+	attr = xml_node_get_attr(meta, "max-state");
+	if (attr && !ni_ifworker_state_from_name(attr, &range.max)) {
+		ni_error("%s: invalid state name max-state=\"%s\"",
+				xml_node_location(meta), attr);
+		return FALSE;
+	}
+
+	ni_ifworker_add_system_check_state_req(w,
+		action->common.method_name, cw,
+		range.min, range.max);
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifworker_meta_add_system_netif_require(ni_ifworker_t *w,
+		ni_ifworker_t *cw, xml_node_t *meta)
+{
+	const char *check;
+
+	check = xml_node_get_attr(meta, "check");
+	if (ni_string_eq(check, "netif-system-state")) {
+		ni_ifworker_meta_add_system_netif_check_state_require(
+			w, cw, meta
+		);
+	}
+	return TRUE;
+}
+
+static dbus_bool_t
+process_system_requires(const ni_xs_type_t *type, const char *name,
+		const ni_dbus_xml_traverse_path_t *prev,
+		ni_dbus_xml_traverse_context_t *context)
+{
+	const ni_dbus_xml_traverse_path_t path = { .prev = prev, .name = name };
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	struct process_system_requires_context *ctx;
+	ni_bool_t subordinate = FALSE;	/* port -> master */
+	ni_bool_t shared = FALSE;	/* link -> lower  */
+	ni_netdev_ref_t *ref = NULL;
+	xml_node_t *meta;
+	const char *attr;
+
+	/* cast and verify it's the effective context */
+	ctx = (struct process_system_requires_context *)context;
+	if (context->process != process_system_requires)
+		return FALSE; /* something wrong; abort */
+
+	/* make sure we have some metadata node */
+	if (!type->meta || !type->meta->children)
+		return TRUE; /* don't abort processing */
+
+	ni_debug_wicked_xml(type->meta, NI_LOG_DEBUG3, "%s(%s) property meta",
+			__func__, ni_dbus_xml_traverse_path_print(&buf, &path));
+	ni_stringbuf_destroy(&buf);
+
+	/* little paranoia guard before accessing them */
+	if (!ctx->worker->device || !ctx->linked->device)
+		return TRUE; /* don't abort processing */
+
+	if (!(meta = xml_node_get_child(type->meta, "netif-reference")))
+		return TRUE; /* don't abort processing */
+
+	if ((attr = xml_node_get_attr(meta, "subordinate")))
+		subordinate = ni_string_eq(attr, "true");
+	if (!subordinate && (attr = xml_node_get_attr(meta, "shared")))
+		shared = ni_string_eq(attr, "true");
+
+	if (subordinate) {
+		ref = &ctx->linked->device->link.masterdev;
+		if (!ni_string_eq(ctx->worker->device->name, ref->name))
+			return TRUE; /* don't abort processing */
+
+		for (meta = type->meta->children; meta; meta = meta->next) {
+			if (ni_string_eq(meta->name, "require")) {
+				ni_ifworker_meta_add_system_netif_require(
+					ctx->linked, ctx->worker, meta
+				);
+			}
+		}
+	} else if (shared) {
+		ref = &ctx->linked->device->link.lowerdev;
+		if (!ni_string_eq(ctx->worker->device->name, ref->name))
+			return TRUE; /* don't abort processing */
+
+		for (meta = type->meta->children; meta; meta = meta->next) {
+			if (ni_string_eq(meta->name, "require")) {
+				ni_ifworker_meta_add_system_netif_require(
+					ctx->worker, ctx->linked, meta
+				);
+			}
+		}
+	}
+
+	return TRUE;
+}
+
+int
+ni_ifworker_bind_system_netif_ref_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_ifworker_t *ref)
+{
+	struct process_system_requires_context context = {
+		.base = {
+			.process = process_system_requires,
+		},
+		.fsm = fsm,
+		.worker = w,
+		.linked = ref,
+	};
+	const ni_dbus_service_t *service;
+	const ni_dbus_class_t *class;
+	int rv = NI_SUCCESS;
+
+	/*
+	 * the object is bound to the netif-<iftype> class/service
+	 * which extends the generic netif service (superclass).
+	 */
+	class = ref->object->class;
+	if (class && (service = ni_objectmodel_service_by_class(class))) {
+		rv = ni_dbus_xml_traverse_service_properties(service,
+				&context.base);
+		if (rv < NI_SUCCESS)
+			return rv;
+	}
+
+	if (ref->device->link.type != NI_IFTYPE_UNKNOWN && class->superclass &&
+	    (service = ni_objectmodel_service_by_class(class->superclass))) {
+		rv = ni_dbus_xml_traverse_service_properties(service,
+				&context.base);
+		if (rv < NI_SUCCESS)
+			return rv;
+	}
+
+	return rv;
+}
+
+int
+ni_ifworker_bind_system_links_early(ni_ifworker_t *w, ni_fsm_t *fsm)
+{
+	const ni_netdev_ref_t *lower;
+	ni_ifworker_t *link;
+	int rv = NI_SUCCESS;
+	unsigned int i;
+
+	for (i = 0; i < fsm->workers.count; ++i) {
+		link = fsm->workers.data[i];
+
+		if (!link || !link->device || !link->object)
+			continue;
+
+		lower = &link->device->link.lowerdev;
+		if (!ni_string_eq(lower->name, w->name))
+			continue;
+
+		rv = ni_ifworker_bind_system_netif_ref_early(w, fsm, link);
+		if (rv < NI_SUCCESS)
+			return rv;
+	}
+	return rv;
+}
+
+int
+ni_ifworker_bind_system_ports_early(ni_ifworker_t *w, ni_fsm_t *fsm)
+{
+	const ni_netdev_ref_t *master;
+	ni_ifworker_t *port;
+	int rv = NI_SUCCESS;
+	unsigned int i;
+
+	for (i = 0; i < fsm->workers.count; ++i) {
+		port = fsm->workers.data[i];
+
+		if (!port || !port->device || !port->object)
+			continue;
+
+		master = &port->device->link.masterdev;
+		if (!ni_string_eq(master->name, w->name))
+			continue;
+
+		rv = ni_ifworker_bind_system_netif_ref_early(w, fsm, port);
+		if (rv < NI_SUCCESS)
+			return rv;
+	}
+	return rv;
+}
+
+int
+ni_ifworker_bind_system_early(ni_ifworker_t *w, ni_fsm_t *fsm)
+{
+	int rv = NI_SUCCESS;
+
+	ni_ifworker_bind_system_links_early(w, fsm);
+	ni_ifworker_bind_system_ports_early(w, fsm);
+
 	return rv;
 }
 
@@ -4118,6 +4447,8 @@ int
 ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
 {
 	int rv;
+
+	ni_ifworker_bind_system_early(w, fsm);
 
 	rv = ni_ifworker_bind_config_early(w, fsm, prompt_now);
 	if (rv < NI_SUCCESS)
@@ -5881,6 +6212,18 @@ ni_fsm_transition_next(const ni_fsm_transition_t *action)
 		return NULL;
 	if (++action && action->call_func)
 		return action;
+	return NULL;
+}
+
+static const ni_fsm_transition_t *
+ni_fsm_transition_find_method(const char *method)
+{
+	const ni_fsm_transition_t *action = ni_fsm_transition_first();
+
+	for ( ; action; action = ni_fsm_transition_next(action)) {
+		if (ni_string_eq(method, action->common.method_name))
+			return action;
+	}
 	return NULL;
 }
 
