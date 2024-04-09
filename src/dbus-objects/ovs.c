@@ -287,22 +287,14 @@ ni_objectmodel_get_ovs_bridge_port_config(const ni_ovs_bridge_port_config_t *con
 	if (!conf || !dict)
 		return FALSE;
 
-	if (!ni_string_empty(conf->bridge.name))
-		ni_dbus_dict_add_string(dict, "bridge", conf->bridge.name);
-
 	return TRUE;
 }
 extern dbus_bool_t
 ni_objectmodel_set_ovs_bridge_port_config(ni_ovs_bridge_port_config_t *conf,
 		const ni_dbus_variant_t *dict, DBusError *error)
 {
-	const char *string;
-
 	if (!conf || !dict)
 		return FALSE;
-
-	if (ni_dbus_dict_get_string(dict, "bridge", &string) && !ni_string_empty(string))
-		ni_netdev_ref_set_ifname(&conf->bridge, string);
 
 	return TRUE;
 }
