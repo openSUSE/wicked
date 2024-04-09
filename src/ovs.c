@@ -598,7 +598,7 @@ ni_ovs_vsctl_bridge_port_to_bridge(const char *pname, char **brname)
 
 	rv = ni_process_run_and_capture_output(pi, &buf);
 	ni_process_free(pi);
-	if (rv) {
+	if (rv != NI_PROCESS_SUCCESS) {
 		ni_error("%s: unable to query port bridge", pname);
 		goto failure;
 	}
@@ -644,6 +644,36 @@ ni_ovs_bridge_discover(ni_netdev_t *dev, ni_netconfig_t *nc)
 	}
 	ni_netdev_set_ovs_bridge(dev, ovsbr);
 	return 0;
+}
+
+int
+ni_ovs_port_info_discover(ni_netdev_port_info_t *port, const char *name,
+		ni_netconfig_t *nc)
+{
+	char *bridge = NULL;
+	int rv;
+
+	if (!port || ni_string_empty(name))
+		return -1;
+
+	rv = ni_ovs_vsctl_bridge_port_to_bridge(name, &bridge);
+	if (rv == NI_PROCESS_SUCCESS && !ni_string_empty(bridge)) {
+
+		ni_netdev_port_info_data_destroy(port);
+		if (!ni_netdev_port_info_data_init(port, NI_IFTYPE_OVS_BRIDGE))
+			goto failure;
+
+		ni_string_move(&port->ovsbr->bridge.name, &bridge);
+
+		/* we may not be able to find bridge index while
+		 * initial interface fetch at start/bootstrap. */
+		ni_netdev_ref_bind_ifindex(&port->ovsbr->bridge, nc);
+		return 0;
+	}
+
+failure:
+	ni_string_free(&bridge);
+	return -1;
 }
 
 ni_ovs_bridge_port_info_t *

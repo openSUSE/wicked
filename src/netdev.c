@@ -100,6 +100,11 @@ ni_netdev_port_info_data_init(ni_netdev_port_info_t *info, ni_iftype_t type)
 				return FALSE;
 			break;
 
+		case NI_IFTYPE_OVS_BRIDGE:
+			if (!(info->ovsbr = ni_ovs_bridge_port_info_new()))
+				return FALSE;
+			break;
+
 		default:
 			info->bond = NULL; /* union ptr */
 			break;
@@ -126,6 +131,10 @@ ni_netdev_port_info_data_destroy(ni_netdev_port_info_t *info)
 
 		case NI_IFTYPE_BRIDGE:
 			ni_bridge_port_info_free(info->bridge);
+			break;
+
+		case NI_IFTYPE_OVS_BRIDGE:
+			ni_ovs_bridge_port_info_free(info->ovsbr);
 			break;
 
 		default:

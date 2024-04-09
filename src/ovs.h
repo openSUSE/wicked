@@ -40,5 +40,7 @@ extern int	ni_ovs_vsctl_bridge_port_del(const char *, const char *);
 extern int	ni_ovs_vsctl_bridge_port_to_bridge(const char *, char **);
 
 extern int	ni_ovs_bridge_discover(ni_netdev_t *, ni_netconfig_t *);
+extern int	ni_ovs_port_info_discover(ni_netdev_port_info_t *,
+				const char *, ni_netconfig_t *);
 
 #endif /* NI_WICKED_OVS_CTL_H */
