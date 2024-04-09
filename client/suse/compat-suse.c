@@ -28,20 +28,6 @@
 #include "config.h"
 #endif
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <limits.h>
-#include <ctype.h>
-#include <errno.h>
-#include <net/if_arp.h>
-#include <net/ethernet.h>
-#include <netlink/netlink.h>
-#include <sys/types.h>
-#include <sys/utsname.h>
-#include <pwd.h>
-#include <grp.h>
-
 #include <wicked/address.h>
 #include <wicked/util.h>
 #include <wicked/logging.h>
@@ -67,17 +53,46 @@
 #include <wicked/tuntap.h>
 #include <wicked/tunneling.h>
 #include <wicked/ethtool.h>
-
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
+#include <wicked/array.h>
+
 #include "appconfig.h"
 #include "util_priv.h"
+#include "array_priv.h"
 #include "duid.h"
 #include "dhcp.h"
 #include "dhcp6/options.h"
 #include "dhcp6/request.h"
 #include "client/suse/ifsysctl.h"
 #include "client/wicked-client.h"
+
+#include <ctype.h>
+#include <errno.h>
+#include <linux/if_arp.h>
+#include <linux/if_addr.h>
+#include <netlink/netlink.h>
+#include <sys/utsname.h>
+#include <pwd.h>
+#include <grp.h>
+
+
+typedef struct ni_suse_ifcfg {
+	ni_sysconfig_t *		config;
+	ni_compat_netdev_t *		compat;
+} ni_suse_ifcfg_t;
+
+#define NI_SUSE_IFCFG_ARRAY_INIT	NI_ARRAY_INIT
+#define NI_SUSE_IFCFG_ARRAY_CHUNK	8
+ni_declare_ptr_array_type(ni_suse_ifcfg);
+
+static ni_suse_ifcfg_t *		ni_suse_ifcfg_new(void);
+static void				ni_suse_ifcfg_free(ni_suse_ifcfg_t *);
+
+static					ni_declare_ptr_array_init(ni_suse_ifcfg);
+static					ni_declare_ptr_array_destroy(ni_suse_ifcfg);
+static					ni_declare_ptr_array_append(ni_suse_ifcfg);
+
 
 typedef ni_bool_t (*try_function_t)(const ni_sysconfig_t *, ni_netdev_t *, const char *);
 
@@ -6767,3 +6782,34 @@ __find_indexed_variable(const ni_sysconfig_t *sc, const char *basename, const ch
 		res = NULL;
 	return res;
 }
+
+
+static ni_suse_ifcfg_t *
+ni_suse_ifcfg_new(void)
+{
+	ni_suse_ifcfg_t *ifcfg;
+
+	ifcfg = calloc(1, sizeof(*ifcfg));
+	return ifcfg;
+}
+
+static void
+ni_suse_ifcfg_free(ni_suse_ifcfg_t *ifcfg)
+{
+	if (ifcfg) {
+		if (ifcfg->config) {
+			ni_sysconfig_free(ifcfg->config);
+			ifcfg->config = NULL;
+		}
+		if (ifcfg->compat) {
+			ni_compat_netdev_free(ifcfg->compat);
+			ifcfg->compat = NULL;
+		}
+		free(ifcfg);
+	}
+}
+
+static ni_define_ptr_array_init(ni_suse_ifcfg);
+static ni_define_ptr_array_destroy(ni_suse_ifcfg);
+static ni_define_ptr_array_realloc(ni_suse_ifcfg, NI_SUSE_IFCFG_ARRAY_CHUNK);
+static ni_define_ptr_array_append(ni_suse_ifcfg);
