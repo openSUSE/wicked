@@ -152,6 +152,7 @@
    <bond       type="bond:port-info" />
    <team       type="team:port-info" />
    <bridge     type="bridge:port-info" />
+   <ovs-bridge type="ovs-bridge:port-info" />
  </port>
 
  <!-- General ipv4 and ipv6 specific settings -->
