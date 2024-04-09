@@ -807,8 +807,10 @@ ni_nanny_process_rename_event(ni_nanny_t *mgr, ni_ifworker_t *w)
 		rebuild = TRUE;
 	}
 
-	if (rebuild)
+	if (rebuild) {
 		ni_fsm_build_hierarchy(mgr->fsm, FALSE);
+		ni_fsm_print_config_hierarchy(mgr->fsm, NULL, NULL);
+	}
 }
 
 static void
@@ -1139,8 +1141,10 @@ ni_nanny_recheck_policies(ni_nanny_t *mgr, const ni_string_array_t *ifnames)
 		}
 	}
 
-	if (count)
+	if (count) {
 		ni_fsm_build_hierarchy(mgr->fsm, FALSE);
+		ni_fsm_print_config_hierarchy(mgr->fsm, NULL, NULL);
+	}
 }
 
 static dbus_bool_t

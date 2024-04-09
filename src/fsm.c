@@ -3645,6 +3645,14 @@ ni_ifworker_bind_early(ni_ifworker_t *w, ni_fsm_t *fsm, ni_bool_t prompt_now)
  * eth interface needs to come up before any of the VLANs that reference
  * it.
  */
+#define ni_fsm_print_hierarchy(logfn, fmt, args...)		\
+	do {							\
+		if (logfn)					\
+			logfn(fmt, ##args);			\
+		else						\
+			ni_debug_application(fmt, ##args);	\
+	} while (0)
+
 static const char *
 ni_fsm_print_worker_name_info(ni_stringbuf_t *info, const ni_ifworker_t *w)
 {
@@ -3661,9 +3669,20 @@ ni_fsm_print_worker_name_info(ni_stringbuf_t *info, const ni_ifworker_t *w)
 	return info->string;
 }
 
+static const char *
+ni_fsm_config_hierarchy_mark(const ni_ifworker_array_t *marked,
+	const ni_ifworker_t *w)
+{
+	if (w && marked && ni_ifworker_array_index(marked, w) != -1)
+		return "+ ";
+	else
+		return "  ";
+}
+
 static void
 ni_fsm_print_config_device_worker_hierarchy(const ni_fsm_t *fsm,
-		const ni_ifworker_t *w, unsigned int depth)
+		const ni_ifworker_t *w, unsigned int depth,
+		const ni_ifworker_array_t *marked, ni_log_fn_t *logfn)
 {
 	ni_stringbuf_t info = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned int i;
@@ -3672,7 +3691,9 @@ ni_fsm_print_config_device_worker_hierarchy(const ni_fsm_t *fsm,
 		return;
 
 	if (!depth) {
-		ni_debug_application("%s", ni_fsm_print_worker_name_info(&info, w));
+		ni_fsm_print_hierarchy(logfn, "%s%s",
+			ni_fsm_config_hierarchy_mark(marked, w),
+			ni_fsm_print_worker_name_info(&info, w));
 		ni_stringbuf_destroy(&info);
 	}
 
@@ -3684,37 +3705,48 @@ ni_fsm_print_config_device_worker_hierarchy(const ni_fsm_t *fsm,
 			continue;
 
 		if (w->lowerdev == c) {
-			ni_debug_application("%*s %s", depth, "+--",
+
+			ni_fsm_print_hierarchy(logfn, "%s%*s %s",
+					ni_fsm_config_hierarchy_mark(marked, c),
+					depth, "+--",
 					ni_fsm_print_worker_name_info(&info, c));
 			ni_stringbuf_destroy(&info);
 
-			ni_fsm_print_config_device_worker_hierarchy(fsm, c, depth + 1);
+			ni_fsm_print_config_device_worker_hierarchy(fsm, c,
+					depth + 1, marked, logfn);
 			continue;
 		}
 		if (c->masterdev == w) {
-			ni_debug_application("%*s %s", depth, "*--",
+
+			ni_fsm_print_hierarchy(logfn, "%s%*s %s",
+					ni_fsm_config_hierarchy_mark(marked, c),
+					depth, "*--",
 					ni_fsm_print_worker_name_info(&info, c));
 			ni_stringbuf_destroy(&info);
 
-			ni_fsm_print_config_device_worker_hierarchy(fsm, c, depth + 1);
+			ni_fsm_print_config_device_worker_hierarchy(fsm, c,
+					depth + 1, marked, logfn);
 		}
 	}
 }
 
 void
-ni_fsm_print_config_hierarchy(const ni_fsm_t *fsm)
+ni_fsm_print_config_hierarchy(const ni_fsm_t *fsm,
+		const ni_ifworker_array_t *marked, ni_log_fn_t *logfn)
 {
 	unsigned int i;
 
-	ni_debug_application("Config device hierarchy structure:");
 	if (!fsm)
 		return;
+
+	ni_fsm_print_hierarchy(logfn, "Config interface hierarchy structure:");
 
 	for (i = 0; i < fsm->workers.count; ++i) {
 		ni_ifworker_t *w = fsm->workers.data[i];
 
 		if (w && w->type == NI_IFWORKER_TYPE_NETDEV && !w->masterdev)
-			ni_fsm_print_config_device_worker_hierarchy(fsm, w, 0);
+			ni_fsm_print_config_device_worker_hierarchy(fsm, w,
+					0, marked, logfn);
 	}
 }
 
@@ -3729,9 +3761,20 @@ ni_fsm_print_device_name_info(ni_stringbuf_t *info, const ni_ifworker_t *w)
 	return info->string;
 }
 
+static const char *
+ni_fsm_system_hierarchy_mark(const ni_ifworker_array_t *marked,
+		const ni_ifworker_t *w)
+{
+	if (w && marked && ni_ifworker_array_index(marked, w) != -1)
+		return "- ";
+	else
+		return "  ";
+}
+
 static void
 ni_fsm_print_system_device_worker_hierarchy(const ni_fsm_t *fsm,
-		const ni_ifworker_t *w, unsigned int depth)
+		const ni_ifworker_t *w, unsigned int depth,
+		const ni_ifworker_array_t *marked, ni_log_fn_t *logfn)
 {
 	ni_stringbuf_t info = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned int i;
@@ -3740,7 +3783,9 @@ ni_fsm_print_system_device_worker_hierarchy(const ni_fsm_t *fsm,
 		return;
 
 	if (!depth) {
-		ni_debug_application("%s", ni_fsm_print_device_name_info(&info, w));
+		ni_fsm_print_hierarchy(logfn, "%s%s",
+				ni_fsm_system_hierarchy_mark(marked, w),
+				ni_fsm_print_device_name_info(&info, w));
 		ni_stringbuf_destroy(&info);
 	}
 
@@ -3752,36 +3797,54 @@ ni_fsm_print_system_device_worker_hierarchy(const ni_fsm_t *fsm,
 			continue;
 
 		if (ni_string_eq(w->device->link.lowerdev.name, c->name)) {
-			ni_debug_application("%*s %s", depth, "+--",
+
+			ni_fsm_print_hierarchy(logfn, "%s%*s %s",
+					ni_fsm_system_hierarchy_mark(marked, c),
+					depth, "+--",
 					ni_fsm_print_device_name_info(&info, c));
 			ni_stringbuf_destroy(&info);
 
-			ni_fsm_print_system_device_worker_hierarchy(fsm, c, depth + 1);
+			ni_fsm_print_system_device_worker_hierarchy(fsm, c,
+					depth + 1, marked, logfn);
 			continue;
 		}
 		if (ni_string_eq(c->device->link.masterdev.name, w->name)) {
-			ni_debug_application("%*s %s", depth, "*--",
+
+			ni_fsm_print_hierarchy(logfn, "%s%*s %s",
+					ni_fsm_system_hierarchy_mark(marked, c),
+					depth, "*--",
 					ni_fsm_print_device_name_info(&info, c));
 			ni_stringbuf_destroy(&info);
 
-			ni_fsm_print_system_device_worker_hierarchy(fsm, c, depth + 1);
+			ni_fsm_print_system_device_worker_hierarchy(fsm, c,
+					depth + 1, marked,  logfn);
 		}
 	}
 }
 
 void
-ni_fsm_print_system_hierarchy(const ni_fsm_t *fsm)
+ni_fsm_print_system_hierarchy(const ni_fsm_t *fsm,
+		const ni_ifworker_array_t *marked, ni_log_fn_t *logfn)
 {
 	ni_ifworker_t *w;
 	unsigned int i;
 
-	ni_debug_application("System device hierarchy structure:");
+	if (!fsm)
+		return;
+
+	ni_fsm_print_hierarchy(logfn, "System interface hierarchy structure:");
+
 	for (i = 0; i < fsm->workers.count; ++i) {
 		w = fsm->workers.data[i];
 
-		if (w && w->type == NI_IFWORKER_TYPE_NETDEV && w->device &&
-		    ni_string_empty(w->device->link.masterdev.name))
-			ni_fsm_print_system_device_worker_hierarchy(fsm, w, 0);
+		if (!w || w->type != NI_IFWORKER_TYPE_NETDEV || !w->device)
+			continue;
+
+		if (!ni_string_empty(w->device->link.masterdev.name))
+			continue;
+
+		ni_fsm_print_system_device_worker_hierarchy(fsm, w, 0,
+				marked, logfn);
 	}
 }
 
@@ -3810,9 +3873,6 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 
 	ni_ifworkers_break_loops(fsm);
 	ni_fsm_events_unblock(fsm);
-
-	if (ni_log_facility(NI_TRACE_APPLICATION))
-		ni_fsm_print_config_hierarchy(fsm);
 
 	return NI_SUCCESS;
 }
