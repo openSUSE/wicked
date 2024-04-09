@@ -1126,7 +1126,7 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname, ni_netc
 	const char *base;
 
 	/* Try to get linktype from kind string. */
-	if (!__ni_linkinfo_kind_to_type(link->kind, &tmp_link_type))
+	if (!ni_linkinfo_kind_to_type(link->kind, &tmp_link_type))
 		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
 				"%s: unknown link-info kind: %s", ifname, link->kind);
 
@@ -1418,7 +1418,7 @@ __ni_process_ifinfomsg_slave_data(ni_linkinfo_t *link, const char *ifname,
 	ni_netdev_port_info_destroy(&link->port);
 
 	ni_string_dup(&link->port.kind, kind);
-	if (!__ni_linkinfo_kind_to_type(kind, &link->port.type))
+	if (!ni_linkinfo_kind_to_type(kind, &link->port.type))
 		link->port.type = NI_IFTYPE_UNKNOWN;
 
 	switch (link->port.type) {
