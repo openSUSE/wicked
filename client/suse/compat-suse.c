@@ -98,6 +98,9 @@ static ni_suse_ifcfg_t *		ni_suse_ifcfg_add_l2_port(ni_suse_ifcfg_array_t *,
 							ni_suse_ifcfg_t *, const char *,
 							const char *, const char *,
 							ni_bool_t);
+static ni_suse_ifcfg_t *		ni_suse_ifcfg_add_lower(ni_suse_ifcfg_array_t *,
+							ni_suse_ifcfg_t *, const char *,
+							const char *);
 
 static ni_suse_ifcfg_t *		ni_suse_ifcfg_find_by_ifname(ni_suse_ifcfg_array_t *,
 							const char *);
@@ -3039,9 +3042,16 @@ try_ovs_bridge(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 	if ((parent = ni_sysconfig_get_value(sc, "OVS_BRIDGE_VLAN_PARENT"))) {
 		if (!ni_netdev_name_is_valid(parent)) {
 			ni_error("ifcfg-%s: Suspect device in OVS_BRIDGE_VLAN_PARENT='%s'",
-					dev->name, ni_print_suspect(parent, ni_string_len(parent)));
+					dev->name,
+					ni_print_suspect(parent, ni_string_len(parent)));
 			return -1;
 		}
+		if (!ni_suse_ifcfg_find_by_ifname(ifcfgs, parent)) {
+			ni_error("ifcfg-%s: Unable to find OVS vlan bridge parent config '%s'",
+					dev->name, parent);
+			return -1;
+		}
+
 		if (!(vlan = ni_sysconfig_get_value(sc, "OVS_BRIDGE_VLAN_TAG"))) {
 			ni_error("ifcfg-%s: OVS_BRIDGE_VLAN_TAG=... missed", dev->name);
 			return -1;
@@ -3056,6 +3066,7 @@ try_ovs_bridge(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 					dev->name, ovsbr->config.vlan.tag, __NI_VLAN_TAG_MAX);
 			return -1;
 		}
+
 		ni_netdev_ref_set_ifname(&ovsbr->config.vlan.parent, parent);
 		ovsbr->config.vlan.tag = tag;
 	}
@@ -3300,7 +3311,8 @@ try_vlan(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 	unsigned int tag = 0;
 	size_t len;
 
-	if ((etherdev = ni_sysconfig_get_value(sc, "ETHERDEVICE")) == NULL)
+	etherdev = ni_sysconfig_get_value(sc, "ETHERDEVICE");
+	if (ni_string_empty(etherdev))
 		return 1;
 
 	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
@@ -3310,11 +3322,9 @@ try_vlan(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 	}
 
 	dev->link.type = NI_IFTYPE_VLAN;
-	vlan = ni_netdev_get_vlan(dev);
-
-	if (!strcmp(dev->name, etherdev)) {
-		ni_error("ifcfg-%s: ETHERDEVICE=\"%s\" self-reference",
-			dev->name, etherdev);
+	if (!(vlan = ni_netdev_get_vlan(dev))) {
+		ni_error("ifcfg-%s: unable to allocate ethernet vlan structure",
+				dev->name);
 		return -1;
 	}
 
@@ -3362,6 +3372,9 @@ try_vlan(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 		vlan->protocol = protocol;
 	}
 
+	if (!ni_suse_ifcfg_add_lower(ifcfgs, ifcfg, etherdev, "vlan ETHERDEVICE"))
+		return -1;
+
 	ni_string_dup(&dev->link.lowerdev.name, etherdev);
 	vlan->tag = tag;
 
@@ -3407,11 +3420,9 @@ try_vxlan(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 		}
 	}
 	if ((str = ni_sysconfig_get_value(sc, "VXLAN_DEVICE"))) {
-		if (!ni_netdev_name_is_valid(str) || ni_string_eq(str, dev->name)) {
-			ni_error("ifcfg-%s: Invalid name in VXLAN_DEVICE=\"%s\"",
-					dev->name, ni_print_suspect(str, 15));
+		if (!ni_suse_ifcfg_add_lower(ifcfgs, ifcfg, str, "VXLAN_DEVICE"))
 			return -1;
-		}
+
 		ni_string_dup(&dev->link.lowerdev.name, str);
 	}
 
@@ -3649,11 +3660,8 @@ try_macvlan(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 		return -1;
 	}
 
-	if (!strcmp(dev->name, macvlan_dev)) {
-		ni_error("ifcfg-%s: %s=\"%s\" self-reference",
-			dev->name, syscfg_dev_key, macvlan_dev);
+	if (!ni_suse_ifcfg_add_lower(ifcfgs, ifcfg, macvlan_dev, syscfg_dev_key))
 		return -1;
-	}
 
 	macvlan->mode = NI_MACVLAN_MODE_VEPA;
         if ((macvlan_mode = ni_sysconfig_get_value(sc, syscfg_mode_key)) != NULL) {
@@ -4558,17 +4566,13 @@ try_pppoe(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg,
 		ni_ppp_mode_pppoe_t *pppoe)
 {
 	const ni_sysconfig_t *sc = ifcfg->config;
-	ni_netdev_t *dev = ifcfg->compat->dev;
 	const char *value;
 
 	value = ni_sysconfig_get_value(sc, "DEVICE");
-	if (ni_string_empty(value) || !ni_netdev_name_is_valid(value) ||
-	    !ni_netdev_ref_set_ifname(&pppoe->device, value)) {
-		ni_error("ifcfg-%s: PPPoE config without valid ethernet device name: '%s'",
-				dev->name, value ? value : "");
+	if (!ni_suse_ifcfg_add_lower(ifcfgs, ifcfg, value, "PPPoE ethernet device"))
 		return -1;
-	}
 
+	ni_netdev_ref_set_ifname(&pppoe->device, value);
 	return 0;
 }
 
@@ -4812,16 +4816,9 @@ try_tunnel_generic(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg,
 	unsigned int ui_value;
 
 	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_DEVICE"))) {
-		if (!ni_netdev_name_is_valid(value)) {
-			ni_error("ifcfg-%s: TUNNEL_DEVICE=\"%s\" suspect interface name",
-					ifname, value);
+		if (!ni_suse_ifcfg_add_lower(ifcfgs, ifcfg, value, "TUNNEL_DEVICE"))
 			return -1;
-		}
-		if (ni_string_eq(value, ifname)) {
-			ni_error("ifcfg-%s: TUNNEL_DEVICE=\"%s\" invalid self-reference",
-					ifname, value);
-			return -1;
-		}
+
 		ni_string_dup(&link->lowerdev.name, value);
 	}
 
@@ -7138,6 +7135,39 @@ ni_suse_ifcfg_add_l2_port(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *mcfg,
 
 	pcfg->broken = TRUE;
 	return NULL;
+}
+
+static ni_suse_ifcfg_t *
+ni_suse_ifcfg_add_lower(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg,
+		const char *lower, const char *info)
+{
+	ni_netdev_t *dev = ifcfg->compat->dev;
+	ni_suse_ifcfg_t *cfg;
+
+	if (!ni_netdev_name_is_valid(lower) || ni_string_eq(dev->name, lower)) {
+		ni_error("ifcfg-%s: rejecting invalid %s '%s' of '%s'",
+				dev->name, info ?: "lower interface",
+				lower, dev->name);
+		return NULL;
+	}
+
+	if (!(cfg = ni_suse_ifcfg_find_by_ifname(ifcfgs, lower))) {
+		cfg = ni_suse_ifcfg_new_missing(ifcfg, lower);
+		if (!ni_suse_ifcfg_array_append(ifcfgs, cfg)) {
+			ni_suse_ifcfg_free(cfg);
+			ni_error("ifcfg-%s: failed to add missing %s '%s' for '%s",
+					dev->name, info ?: "lower interface",
+					lower, dev->name);
+			return NULL;
+		}
+		ni_warn("ifcfg-%s: generated missing %s '%s' config for '%s'",
+			dev->name, info ?: "lower interface",
+			lower, dev->name);
+
+		/* Inherit from depending somehow? */
+		ni_suse_ifcfg_set_hotplug(cfg);
+	}
+	return cfg;
 }
 
 static ni_suse_ifcfg_t *
