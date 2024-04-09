@@ -62,7 +62,6 @@ static void			ni_ifworker_cancel_callbacks(ni_ifworker_t *, ni_objectmodel_callb
 static dbus_bool_t		ni_ifworker_waiting_for_events(ni_ifworker_t *);
 static void			ni_ifworker_advance_state(ni_ifworker_t *, ni_event_t);
 static ni_bool_t		ni_ifworker_revert_state(ni_ifworker_t *, ni_event_t);
-static ni_bool_t		ni_ifworker_del_child_master(xml_node_t *);
 static void			ni_fsm_clear_hierarchy(ni_ifworker_t *);
 
 static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
@@ -1248,155 +1247,6 @@ ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_ty
 	return child;
 }
 
-static xml_node_t *
-__ni_generate_default_config(ni_ifworker_t *parent, const char *ifname)
-{
-	xml_node_t *link, *ipv4, *ipv6, *config = NULL;
-	xml_node_t *pconfig, *control, *port;
-
-	pconfig = parent->config.node;
-	control = xml_node_get_child(pconfig, NI_CLIENT_IFCONFIG_CONTROL);
-
-	/* Create <interface> */
-	if (!(config = xml_node_new(NI_CLIENT_IFCONFIG, NULL)))
-		goto error;
-	/* Add <name>$ifname</name> */
-	if (!xml_node_new_element(NI_CLIENT_IFCONFIG_MATCH_NAME, config, ifname))
-		goto error;
-	/* Add <link></link> */
-	if (!(link = xml_node_new(NI_CLIENT_IFCONFIG_LINK, config)))
-		goto error;
-	/* Add <ipv4></ipv4> and <ipv6></ipv6> */
-	if (!(ipv4 = xml_node_new(NI_CLIENT_IFCONFIG_IPV4, config)))
-		goto error;
-	 if (!(ipv6 = xml_node_new(NI_CLIENT_IFCONFIG_IPV6, config)))
-		 goto error;
-
-	switch (parent->iftype) {
-	/* for slaves */
-	case NI_IFTYPE_TEAM:
-	case NI_IFTYPE_BOND:
-		/*
-		 * STARTMODE="hotplug"
-		 * BOOTPROTO="none"
-		 */
-
-		/* Add <control></control> */
-		if (!(control = xml_node_new(NI_CLIENT_IFCONFIG_CONTROL, config)))
-			goto error;
-		/* Add <mode>hotplug</mode> */
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_MODE, control, "hotplug"))
-			goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv4, "false"))
-			 goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv6, "false"))
-			 goto error;
-	break;
-
-	case NI_IFTYPE_OVS_BRIDGE:
-		/*
-		 * STARTMODE="$pstartmode"
-		 * BOOTPROTO="none"
-		 */
-
-		/* Clone <control> */
-		if (!xml_node_is_empty(control) && !xml_node_clone(control, config))
-			goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv4, "false"))
-			 goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv6, "false"))
-			 goto error;
-
-		xml_node_new_element("master", link, ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM));
-		port = xml_node_new("port", link);
-		xml_node_add_attr(port, "type", ni_linktype_type_to_name(parent->iftype));
-		xml_node_new_element("bridge", port, parent->name);
-	break;
-
-	case NI_IFTYPE_BRIDGE:
-		/*
-		 * STARTMODE="$pstartmode"
-		 * BOOTPROTO="none"
-		 */
-
-		/* Clone <control> */
-		if (!xml_node_is_empty(control) && !xml_node_clone(control, config))
-			goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv4, "false"))
-			 goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv6, "false"))
-			 goto error;
-	break;
-
-	/* lowerdevs */
-	case NI_IFTYPE_VLAN:
-	case NI_IFTYPE_MACVLAN:
-	case NI_IFTYPE_MACVTAP:
-		/*
-		 * STARTMODE="$pstartmode"
-		 * BOOTPROTO="static"
-		 */
-
-		/* Clone <control> */
-		if (!xml_node_is_empty(control) && !xml_node_clone(control, config))
-			goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv4, "true"))
-			 goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_ARP_VERIFY, ipv4, "true"))
-			 goto error;
-		if (!xml_node_new_element(NI_CLIENT_IFCONFIG_IP_ENABLED, ipv6, "true"))
-			 goto error;
-	break;
-
-	default:
-		goto error;
-	}
-
-	return config;
-
-error:
-	ni_error("%s: Unable to generate default XML config (parent type %s)",
-		ifname, ni_linktype_type_to_name(parent->iftype));
-	xml_node_free(config);
-	return NULL;
-}
-
-static void
-ni_ifworker_generate_default_config(ni_ifworker_t *parent, ni_ifworker_t *child)
-{
-	xml_node_t *config;
-
-	if (!parent || !parent->iftype || !parent->config.node ||
-			!child || ni_string_empty(child->name))
-		return;
-
-	if (parent->iftype == NI_IFTYPE_OVS_SYSTEM)
-		return;
-
-	ni_debug_application("%s: generating default config for %s child",
-			parent->name, child->name);
-
-	config = __ni_generate_default_config(parent, child->name);
-	if (config) {
-		ni_ifworker_set_config(child, config, parent->config.meta.origin);
-		xml_node_free(config);
-	}
-}
-
-static ni_bool_t
-ni_ifworker_del_child_master(xml_node_t *config)
-{
-	xml_node_t *link;
-
-	if (xml_node_is_empty(config))
-		return FALSE;
-
-	if (!(link = xml_node_get_child(config, NI_CLIENT_IFCONFIG_LINK)))
-		return FALSE;
-
-	return xml_node_delete_child(link, NI_CLIENT_IFCONFIG_MASTER);
-}
-
 static ni_bool_t
 ni_ifworker_set_master_device(ni_ifworker_t *slave, ni_ifworker_t *master, xml_node_t *devnode)
 {
@@ -1464,10 +1314,6 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 				return FALSE;
 		}
 	}
-
-	/* Generate missed slave config if needed */
-	if (xml_node_is_empty(child->config.node))
-		ni_ifworker_generate_default_config(parent, child);
 
 	/* Check if this child is already owned by the given parent. */
 	for (i = 0; i < parent->children.count; ++i) {
@@ -3134,9 +2980,6 @@ __ni_fsm_pull_in_children(ni_ifworker_t *w, ni_ifworker_array_t *array)
 			continue;
 		}
 
-		if (xml_node_is_empty(child->config.node))
-			ni_ifworker_generate_default_config(w, child);
-
 		if (xml_node_is_empty(child->config.node)) {
 			ni_debug_application("%s: ignoring dependent child %s - no config",
 				w->name, child->name);
@@ -3316,7 +3159,6 @@ ni_fsm_clear_hierarchy(ni_ifworker_t *w)
 
 		if (child->masterdev == w) {
 			child->masterdev = NULL;
-			ni_ifworker_del_child_master(child->config.node);
 		}
 
 		if (child == w->lowerdev) {
