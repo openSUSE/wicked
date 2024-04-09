@@ -1208,6 +1208,155 @@ failure:
 }
 
 /*
+ * Discover port info from teamd state
+ *
+ * The teamdctl (dbus, unix) API does not provide separate
+ * PortStateDump (port state dump), but only a "StateDump"
+ * (state dump) containing both, teamd interface state and
+ * state for all ports.
+ *
+ * Currently, we discover only the runner and the overall
+ * link watches up/down summary state.
+ */
+static ni_bool_t
+ni_teamd_state_get_runner_type(ni_json_t *state, ni_team_runner_type_t *type)
+{
+	ni_json_t *setup = ni_json_object_get_value(state, "setup");
+	ni_json_t *runner = ni_json_object_get_value(setup, "runner_name");
+	char *name = NULL;
+	ni_bool_t ret;
+
+	ni_json_string_get(runner, &name);
+	ret = ni_team_runner_name_to_type(name, type);
+	ni_string_free(&name);
+	return ret;
+}
+
+static ni_json_t *
+ni_teamd_state_get_port_info(ni_json_t *state, const char *name)
+{
+	ni_json_t *ports = ni_json_object_get_value(state, "ports");
+
+	return ni_json_object_get_value(ports, name);
+}
+
+static int
+ni_teamd_state_port_runner_lacp_discover(ni_team_port_info_t *info, ni_json_t *runner)
+{
+	ni_team_port_runner_lacp_info_t *lacp = &info->runner.lacp;
+	ni_json_t *aggregator;
+	int64_t i64;
+
+	/*
+	 * See "3.7 Configuring LACP for 802.3ad mode in a more secure way"
+	 * described in linux-<version>/Documentation/networking/bonding.rst.
+	 * Take care to not expose lacp system mac,key,prio "secrets", which
+	 * may be chosen randomly or administratively.
+	 * While a teamdctl "state dump" command contains all (json) details,
+	 * the "state view" command shows aggregator id,selected and state
+	 * info only, and omits the key and actor/partner lacpdu info too.
+	 */
+
+	/*
+	 * The aggregator id is an uint16_t (in bond rtnetlink), just json
+	 * has only one number type (parsed by _our_ json API to either an
+	 * int64_t or double C type).
+	 */
+	aggregator = ni_json_object_get_value(runner, "aggregator");
+	if (ni_json_int64_get(ni_json_object_get_value(aggregator, "id"), &i64))
+		lacp->aggregator.id = i64 >= 0 ? i64 : 0;
+
+	ni_json_bool_get(ni_json_object_get_value(runner, "selected"), &lacp->selected);
+	ni_json_string_get(ni_json_object_get_value(runner, "state"), &lacp->state);
+
+	return 0;
+}
+
+static int
+ni_teamd_state_port_runner_discover(ni_team_port_info_t *info, ni_json_t *port)
+{
+	ni_json_t *runner;
+
+	switch (info->runner.type) {
+	case NI_TEAM_RUNNER_LACP:
+		runner = ni_json_object_get_value(port, "runner");
+		ni_teamd_state_port_runner_lacp_discover(info, runner);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+ni_teamd_state_port_watches_discover(ni_team_port_info_t *info, ni_json_t *port)
+{
+	ni_json_t *watches;
+
+	watches = ni_json_object_get_value(port, "link_watches");
+
+	/*
+	 * Currently, we don't show link_watch instance info details,
+	 * but just their summary / resulting "up" state only.
+	 */
+	ni_json_bool_get(ni_json_object_get_value(watches, "up"), &info->watches.up);
+
+	return 0;
+}
+
+static int
+ni_teamd_state_port_info_discover(ni_team_port_info_t *info, const char *name, ni_json_t *state)
+{
+	ni_json_t *port;
+
+	if ((port = ni_teamd_state_get_port_info(state, name))) {
+		if (ni_teamd_state_get_runner_type(state, &info->runner.type))
+			ni_teamd_state_port_runner_discover(info, port);
+		ni_teamd_state_port_watches_discover(info, port);
+	}
+	return 0;
+}
+
+extern int
+ni_teamd_port_info_discover(ni_netdev_port_info_t *info, const char *team, const char *name)
+{
+	ni_teamd_client_t *tdc = NULL;
+	ni_json_t *state = NULL;
+	char *jstr = NULL;
+
+	if (!info || ni_string_empty(team) || ni_string_empty(name))
+		return -1;
+
+	if (info->type != NI_IFTYPE_TEAM || !info->team)
+		return -1;
+
+	if (!(tdc = ni_teamd_client_open(team)))
+		goto failure;
+
+	if (ni_teamd_ctl_state_dump(tdc, &jstr) < 0)
+		goto failure;
+
+	if (!(state = ni_json_parse_string(jstr)))
+		goto failure;
+
+	ni_string_free(&jstr);
+
+	if (ni_teamd_state_port_info_discover(info->team, name, state) < 0)
+		goto failure;
+
+	ni_json_free(state);
+	ni_teamd_client_free(tdc);
+	return 0;
+
+failure:
+	ni_json_free(state);
+	ni_string_free(&jstr);
+	ni_teamd_client_free(tdc);
+	return -1;
+}
+
+/*
  * teamd startup config file
  */
 const char *

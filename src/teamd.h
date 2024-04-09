@@ -46,6 +46,8 @@ extern int				ni_teamd_port_enslave(const ni_netdev_t *, const ni_netdev_t *, co
 extern int				ni_teamd_port_unenslave(const ni_netdev_t *, const ni_netdev_t *);
 
 extern int				ni_teamd_discover(ni_netdev_t *);
+extern int				ni_teamd_port_info_discover(ni_netdev_port_info_t *,
+								const char *, const char *);
 
 extern int				ni_teamd_service_start(const ni_netdev_t *);
 extern int				ni_teamd_service_stop (const char *);
