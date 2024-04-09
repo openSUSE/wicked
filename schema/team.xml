@@ -77,6 +77,27 @@
     <lacp_prio   type="uint32" />
   </define>
 
+  <define name="port-info" class="dict"
+          description="Team port specific interface info properties">
+
+    <runner       class="union" switch="name">
+      <roundrobin    class="dict"/>
+      <activebackup  class="dict"/>
+      <loadbalance   class="dict"/>
+      <broadcast     class="dict"/>
+      <random        class="dict"/>
+      <lacp          class="dict">
+        <aggregator-id type="uint16"/>
+        <selected      type="boolean"/>
+        <state         type="string"/>
+      </lacp>
+    </runner>
+    <link_watches    class="dict">
+      <up              type="boolean" />
+    </link_watches>
+
+  </define>
+
   <define name="port-device" class="dict" extends="team:port-config">
     <device type="string">
       <meta:netif-reference shared="false" />
