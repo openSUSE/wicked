@@ -7,17 +7,6 @@
 #include "config.h"
 #endif
 
-#include <sys/poll.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <signal.h>
-#include <getopt.h>
-#include <limits.h>
-#include <errno.h>
-
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/logging.h>
@@ -29,83 +18,145 @@
 #include <wicked/dbus-errors.h>
 #include <wicked/fsm.h>
 
-#include "util_priv.h"
 #include "nanny.h"
+#include "util_priv.h"
 #include "client/ifconfig.h"
 
-ni_bool_t
-ni_managed_policy_filename(const char *name, char *path, size_t size)
-{
-	if (path && !ni_string_empty(name)) {
-		snprintf(path, size, "%s/%s.xml", ni_nanny_statedir(), name);
-		return TRUE;
-	}
+#include <stdio.h>
+#include <errno.h>
+#include <unistd.h>
 
-	return FALSE;
+const char *
+ni_nanny_policy_location(char **location, const char *name)
+{
+	if (!location || ni_string_empty(name))
+		return NULL;
+
+	return ni_string_printf(location, "<%s>", name);
 }
 
-static ni_bool_t
-ni_managed_policy_save_node(const xml_node_t *pnode)
+const char *
+ni_nanny_policy_file_name(char **file, const char *name)
 {
-	char path[PATH_MAX - sizeof(".XXXXXX")] = {'\0'};
-	char temp[PATH_MAX] = {'\0'};
-	const char *pname;
-	FILE *fp;
-	int fd;
+	if (!file || ni_string_empty(name))
+		return NULL;
 
-	if (xml_node_is_empty(pnode))
+	return ni_string_printf(file, "%s" NI_NANNY_POLICY_XML, name);
+}
+
+const char *
+ni_nanny_policy_file_path(char **path, const char *name)
+{
+	const char *dir = ni_nanny_statedir();
+
+	if (!path || ni_string_empty(name) || ni_string_empty(dir))
+		return NULL;
+
+	return ni_string_printf(path, "%s/%s" NI_NANNY_POLICY_XML, dir, name);
+}
+
+ni_bool_t
+ni_nanny_policy_drop(const char *name)
+{
+	char *path = NULL;
+
+	if (!ni_nanny_policy_file_path(&path, name)) {
+		ni_error("Cannot construct path to remove policy '%s'", name);
+		return FALSE;
+	}
+
+	if (unlink(path) < 0 && errno != ENOENT) {
+		ni_error("Cannot remove policy file '%s': %m", path);
+		ni_string_free(&path);
+		return FALSE;
+	} else {
+		ni_string_free(&path);
+		return TRUE;
+	}
+}
+
+ni_bool_t
+ni_nanny_policy_save(const xml_node_t *policy, const char *path, const char *bak)
+{
+	char *tmp = NULL;
+	char *old = NULL;
+	FILE *fp = NULL;
+	int fd = -1;
+
+	if (xml_node_is_empty(policy) || ni_string_empty(path))
 		return FALSE;
 
-	pname = ni_ifpolicy_get_name(pnode);
-	if (ni_string_empty(pname))
-		return FALSE;
+	if (!ni_string_empty(bak)) {
+		if (!ni_string_printf(&old, "%s%s", path, bak)) {
+			ni_error("Cannot construct policy backup file name '%s%s'",
+					path, bak);
+			goto failure;
+		}
+	}
 
-	ni_managed_policy_filename(pname, path, sizeof(path));
-	snprintf(temp, sizeof(temp), "%s.XXXXXX", path);
+	if (!ni_string_printf(&tmp, "%s.XXXXXX", path))
+		goto failure;
 
-	if ((fd = mkstemp(temp)) < 0) {
-		ni_error("Cannot create %s policy temp file", path);
-		return FALSE;
+	if ((fd = mkstemp(tmp)) < 0) {
+		ni_error("Cannot create temporary policy file '%s': %m", path);
+		goto failure;
 	}
 
 	if (!(fp = fdopen(fd, "we"))) {
 		close(fd);
-		ni_error("Cannot create %s policy temp file", path);
+		ni_error("Cannot open temporary policy file '%s': %m", path);
 		goto failure;
 	}
 
-	if (xml_node_print(pnode, fp) < 0) {
-		ni_error("Cannot write into %s policy temp file", path);
+	if (xml_node_print(policy, fp) < 0) {
+		ni_error("Cannot write into temporary policy file '%s'", path);
 		goto failure;
+	} else {
+		fclose(fp);
+		fp = NULL;
 	}
 
-	if (rename(temp, path) < 0) {
-		ni_error("Cannot move temp file to policy file %s", path);
+	if (old && rename(path, old) < 0 && errno != ENOENT)
+		ni_warn("Cannot create policy backup file '%s': %m", old);
+
+	if (rename(tmp, path) < 0) {
+		ni_error("Cannot move temporary file to policy file '%s'", path);
 		goto failure;
 	}
-
-	fclose(fp);
 
 	return TRUE;
 
 failure:
-	if (fp) {
+	if (fp)
 		fclose(fp);
-	}
-	unlink(temp);
+	if (tmp)
+		unlink(tmp);
+	ni_string_free(&tmp);
+	ni_string_free(&old);
 	return FALSE;
 }
 
 static ni_bool_t
 ni_managed_policy_save(const ni_managed_policy_t *mpolicy)
 {
-	const xml_node_t *node;
+	const xml_node_t *policy;
+	const char *name;
+	char *path = NULL;
+	ni_bool_t ret;
 
 	if (!mpolicy)
 		return FALSE;
 
-	node = ni_fsm_policy_node(mpolicy->fsm_policy);
-	return ni_managed_policy_save_node(node);
+	if (!(policy = ni_fsm_policy_node(mpolicy->fsm_policy)))
+		return FALSE;
+
+	name = ni_ifpolicy_get_name(policy);
+	if (!(ni_nanny_policy_file_path(&path, name)))
+		return FALSE;
+
+	ret = ni_nanny_policy_save(policy, path, NULL);
+	ni_string_free(&path);
+	return ret;
 }
 
 void

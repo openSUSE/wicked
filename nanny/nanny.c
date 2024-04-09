@@ -321,7 +321,7 @@ ni_nanny_create_managed_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr
 /*
  * Creates nanny policy and register managed policy interface.
  * Return:
- *     -1 - policy node does not exist or is errornous
+ *     -1 - policy node does not exist or is erroneous
  *      0 - policy already exists
  *      1 - policy created and registered
  */
@@ -948,23 +948,6 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 	}
 
 	return ni_dbus_message_append_object_path(reply, ni_dbus_object_get_path(policy_object));
-}
-
-ni_bool_t
-ni_nanny_policy_drop(const char *pname)
-{
-	char path[PATH_MAX] = {'\0'};
-
-	ni_managed_policy_filename(pname, path, sizeof(path));
-
-	if (unlink(path) < 0) {
-		if (errno == ENOENT)
-			return TRUE;
-
-		ni_error("Cannot remove policy file '%s': %m", path);
-		return FALSE;
-	}
-	return TRUE;
 }
 
 /*
