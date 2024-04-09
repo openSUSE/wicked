@@ -258,10 +258,8 @@ ni_objectmodel_get_ovs_bridge_port_info(const ni_ovs_bridge_port_info_t *info,
 {
 	(void)error;
 
-	if (!info || !dict || ni_string_empty(info->bridge.name))
+	if (!info || !dict)
 		return FALSE;
-
-	ni_dbus_dict_add_string(dict, "bridge", info->bridge.name);
 
 	return TRUE;
 }
@@ -269,15 +267,10 @@ extern dbus_bool_t
 ni_objectmodel_set_ovs_bridge_port_info(ni_ovs_bridge_port_info_t *info,
 		const ni_dbus_variant_t *dict, DBusError *error)
 {
-	const char *str;
-
 	(void)error;
 
 	if (!info || !dict)
 		return FALSE;
-
-	if (ni_dbus_dict_get_string(dict, "bridge", &str))
-		ni_netdev_ref_set_ifname(&info->bridge, str);
 
 	return TRUE;
 }
