@@ -158,8 +158,8 @@ ni_netif_firmware_discovery_script_ifconfig(xml_document_t **doc,
 			xml_document_free(*doc);
 			*doc = NULL;
 		} else if (ni_log_level_at(NI_LOG_DEBUG2)) {
-			ni_debug_ifconfig("%s discovery script xml output:", type);
-			xml_node_print_debug(xml_document_root(*doc), NI_TRACE_IFCONFIG);
+			ni_debug_verbose_config_xml(xml_document_root(*doc), NI_LOG_DEBUG2,
+					NI_TRACE_IFCONFIG, "%s discovery script xml output:", type);
 		}
 	}
 	ni_buffer_destroy(&buf);
