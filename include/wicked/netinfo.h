@@ -14,8 +14,6 @@
 
 #include "client/client_state.h"
 
-typedef struct ni_link_stats	ni_link_stats_t;
-
 typedef struct ni_slaveinfo	ni_slaveinfo_t;
 struct ni_slaveinfo {
 	ni_iftype_t		type;
@@ -46,8 +44,6 @@ struct ni_linkinfo {
 	char *			kind;
 
 	unsigned int		saved_mtu;
-
-	ni_link_stats_t *	stats;
 };
 
 struct ni_netdev {
@@ -219,7 +215,6 @@ extern void		ni_netdev_set_ovs_bridge(ni_netdev_t *, ni_ovs_bridge_t *);
 extern void		ni_netdev_set_ethtool(ni_netdev_t *, ni_ethtool_t *);
 extern void		ni_netdev_set_ethernet(ni_netdev_t *, ni_ethernet_t *);
 extern void		ni_netdev_set_infiniband(ni_netdev_t *, ni_infiniband_t *);
-extern void		ni_netdev_set_link_stats(ni_netdev_t *, ni_link_stats_t *);
 extern void		ni_netdev_set_wireless(ni_netdev_t *, ni_wireless_t *);
 extern void		ni_netdev_set_openvpn(ni_netdev_t *, ni_openvpn_t *);
 extern void		ni_netdev_set_tuntap(ni_netdev_t *, ni_tuntap_t *);
