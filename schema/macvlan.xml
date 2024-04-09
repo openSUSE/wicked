@@ -16,9 +16,9 @@
  <define name="configuration" class="dict">
   <device type="string">
     <meta:netif-reference shared="true"/>
-    <meta:require check="netif-check-state" op="newDevice" min-state="device-up" />
-    <meta:require check="netif-check-state" op="linkUp"    min-state="link-up" />
-    <meta:require check="netif-check-state" op="login"     min-state="link-authenticated" />
+    <meta:require check="netif-config-state" op="newDevice" min-state="device-up" />
+    <meta:require check="netif-config-state" op="linkUp"    min-state="link-up" />
+    <meta:require check="netif-config-state" op="login"     min-state="link-authenticated" />
     <meta:require check="netif-system-state" op="linkDown" max-state="firewall-up" />
     <meta:require check="netif-system-state" op="deleteDevice" max-state="device-down" />
   </device>
