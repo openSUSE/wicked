@@ -90,8 +90,6 @@ ni_ifcheck_device_link_required(ni_netdev_t *dev)
 
 	if (cs && ni_tristate_is_set(cs->control.require_link))
 		link_required = cs->control.require_link;
-	else if (dev)
-		link_required = ni_netdev_guess_link_required(dev);
 
 	return !ni_tristate_is_disabled(link_required);
 }
@@ -121,8 +119,6 @@ ni_ifcheck_worker_device_link_required(ni_ifworker_t *w)
 
 	if (w && ni_tristate_is_set(w->control.link_required))
 		link_required = w->control.link_required;
-	else if (w && w->device)
-		link_required = ni_netdev_guess_link_required(w->device);
 
 	return !ni_tristate_is_disabled(link_required);
 }
