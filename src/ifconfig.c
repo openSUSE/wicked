@@ -271,7 +271,8 @@ ni_system_interface_enslave(ni_netconfig_t *nc, ni_netdev_t *master, ni_netdev_t
 			return -1;
 		}
 
-		ret = ni_ovs_vsctl_bridge_port_add(dev->name, req->port.ovsbr, TRUE);
+		ret = ni_ovs_vsctl_bridge_port_add(req->port.ovsbr->bridge.name,
+						dev->name, req->port.ovsbr, TRUE);
 		if (ret == 0)  {
 			ni_netdev_ref_set(&dev->link.masterdev,
 					master->name, master->link.ifindex);

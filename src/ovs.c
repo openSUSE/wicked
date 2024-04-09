@@ -436,14 +436,16 @@ failure:
 }
 
 int /* process run codes (for now) */
-ni_ovs_vsctl_bridge_port_add(const char *pname, const ni_ovs_bridge_port_config_t *pconf, ni_bool_t may_exist)
+ni_ovs_vsctl_bridge_port_add(const char *brname, const char *pname,
+		const ni_ovs_bridge_port_config_t *pconf,
+		ni_bool_t may_exist)
 {
 	const char *ovs_vsctl;
 	ni_shellcmd_t *cmd;
 	ni_process_t *pi;
 	int rv = NI_PROCESS_FAILURE;
 
-	if (ni_string_empty(pname) || !pconf || ni_string_empty(pconf->bridge.name))
+	if (ni_string_empty(brname) || ni_string_empty(pname) || !pconf)
 		return rv;
 
 	if (!(ovs_vsctl = ni_ovs_vsctl_tool_path()))
@@ -461,7 +463,7 @@ ni_ovs_vsctl_bridge_port_add(const char *pname, const ni_ovs_bridge_port_config_
 	if (!ni_shellcmd_add_arg(cmd, "add-port"))
 		goto failure;
 
-	if (!ni_shellcmd_add_arg(cmd, pconf->bridge.name))
+	if (!ni_shellcmd_add_arg(cmd, brname))
 		goto failure;
 
 	if (!ni_shellcmd_add_arg(cmd, pname))

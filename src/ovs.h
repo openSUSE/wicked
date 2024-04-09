@@ -29,7 +29,7 @@ extern int	ni_ovs_vsctl_bridge_to_vlan(const char *, uint16_t *);
 extern int	ni_ovs_vsctl_bridge_to_parent(const char *, char **);
 extern int	ni_ovs_vsctl_bridge_ports(const char *, ni_netdev_ref_array_t *);
 
-extern int	ni_ovs_vsctl_bridge_port_add(const char *,
+extern int	ni_ovs_vsctl_bridge_port_add(const char *, const char *,
 				const ni_ovs_bridge_port_config_t *, ni_bool_t);
 extern int	ni_ovs_vsctl_bridge_port_del(const char *, const char *);
 extern int	ni_ovs_vsctl_bridge_port_to_bridge(const char *, char **);
