@@ -98,13 +98,6 @@
 
   </define>
 
-  <define name="port-device" class="dict" extends="team:port-config">
-    <device type="string">
-      <meta:netif-reference shared="false" />
-      <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
-    </device>
-  </define>
-
   <define name="device-info" class="dict">
     <debug_level  type="uint32"/>
     <notify_peers class="dict">
@@ -132,8 +125,6 @@
         <tipc      type="tipc-linkwatch-type" />
       </watch>
     </link_watch>
-
-    <ports class="array" element-type="team:port-device" element-name="port" />
 
     <address type="ethernet-address"/>
   </define>
