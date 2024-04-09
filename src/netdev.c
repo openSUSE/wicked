@@ -90,6 +90,11 @@ ni_netdev_port_info_data_init(ni_netdev_port_info_t *info, ni_iftype_t type)
 				return FALSE;
 			break;
 
+		case NI_IFTYPE_TEAM:
+			if (!(info->team = ni_team_port_info_new()))
+				return FALSE;
+			break;
+
 		case NI_IFTYPE_BRIDGE:
 			if (!(info->bridge = ni_bridge_port_info_new()))
 				return FALSE;
@@ -113,6 +118,10 @@ ni_netdev_port_info_data_destroy(ni_netdev_port_info_t *info)
 		switch (info->type) {
 		case NI_IFTYPE_BOND:
 			ni_bonding_port_info_free(info->bond);
+			break;
+
+		case NI_IFTYPE_TEAM:
+			ni_team_port_info_free(info->team);
 			break;
 
 		case NI_IFTYPE_BRIDGE:

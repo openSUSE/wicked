@@ -216,6 +216,35 @@ struct ni_team_port_config {
 };
 
 /*
+ * team port interface info properties
+ */
+typedef struct ni_team_port_runner_lacp_info	ni_team_port_runner_lacp_info_t;
+typedef struct ni_team_port_runner_info		ni_team_port_runner_info_t;
+typedef struct ni_team_port_link_watches_info	ni_team_port_link_watches_info_t;
+
+struct ni_team_port_runner_lacp_info {
+	struct {
+		unsigned int			id;
+	} aggregator;
+	ni_bool_t				selected;
+	char *					state;
+};
+struct ni_team_port_runner_info {
+	ni_team_runner_type_t			type;
+	union {
+		ni_team_port_runner_lacp_info_t	lacp;
+	};
+};
+struct ni_team_port_link_watches_info {
+	ni_bool_t				up;
+};
+
+struct ni_team_port_info {
+	ni_team_port_runner_info_t		runner;
+	ni_team_port_link_watches_info_t	watches;
+};
+
+/*
  * team port and array
  */
 typedef struct ni_team_port {
@@ -298,5 +327,8 @@ extern ni_team_port_t *				ni_team_port_array_find_by_name(ni_team_port_array_t 
 
 extern void					ni_team_port_config_init(ni_team_port_config_t *);
 extern void					ni_team_port_config_destroy(ni_team_port_config_t *);
+
+extern ni_team_port_info_t *			ni_team_port_info_new(void);
+extern void					ni_team_port_info_free(ni_team_port_info_t *);
 
 #endif /* NI_WICKED_TEAM_H */

@@ -223,6 +223,30 @@ ni_team_ab_hwaddr_policy_name_to_type(const char *name, ni_team_ab_hwaddr_policy
 	return TRUE;
 }
 
+void
+ni_team_runner_init(ni_team_runner_t *runner, ni_team_runner_type_t type)
+{
+	memset(runner, 0, sizeof(*runner));
+	runner->type = type;
+
+	/* apply non-zero type depending defaults here */
+	switch (runner->type) {
+	case NI_TEAM_RUNNER_ROUND_ROBIN:
+	case NI_TEAM_RUNNER_ACTIVE_BACKUP:
+	case NI_TEAM_RUNNER_LOAD_BALANCE:
+	case NI_TEAM_RUNNER_BROADCAST:
+	case NI_TEAM_RUNNER_RANDOM:
+	case NI_TEAM_RUNNER_LACP:
+	default:
+		break;
+	}
+}
+
+void
+ni_team_runner_destroy(ni_team_runner_t *runner)
+{
+}
+
 /*
  * Map teamd link watch names to constants
  */
@@ -346,6 +370,40 @@ extern ni_define_ptr_array_append(ni_team_link_watch);
 extern ni_define_ptr_array_delete_at(ni_team_link_watch);
 
 /*
+ * team interface
+ */
+static void
+ni_team_init(ni_team_t *team)
+{
+	team->notify_peers.count = -1U;
+	team->notify_peers.interval = -1U;
+	team->mcast_rejoin.count = -1U;
+	team->mcast_rejoin.interval = -1U;
+}
+
+ni_team_t *
+ni_team_new(void)
+{
+	ni_team_t *team;
+
+	team = xcalloc(1, sizeof(*team));
+	ni_team_init(team);
+
+	return team;
+}
+
+void
+ni_team_free(ni_team_t *team)
+{
+	if (team) {
+		ni_team_runner_destroy(&team->runner);
+		ni_team_link_watch_array_destroy(&team->link_watch);
+		ni_team_port_array_destroy(&team->ports);
+		free(team);
+	}
+}
+
+/*
  * team port
  */
 ni_team_port_t *
@@ -401,61 +459,57 @@ ni_team_port_config_destroy(ni_team_port_config_t *pc)
 {
 }
 
-static void
-ni_team_init(ni_team_t *team)
-{
-	team->notify_peers.count = -1U;
-	team->notify_peers.interval = -1U;
-	team->mcast_rejoin.count = -1U;
-	team->mcast_rejoin.interval = -1U;
-}
-
 /*
- * team device
+ * team port interface info properties
  */
-ni_team_t *
-ni_team_new(void)
+static ni_bool_t
+ni_team_port_info_init(ni_team_port_info_t *info)
 {
-	ni_team_t *team;
-
-	team = xcalloc(1, sizeof(*team));
-	ni_team_init(team);
-
-	return team;
-}
-
-void
-ni_team_free(ni_team_t *team)
-{
-	if (team) {
-		ni_team_runner_destroy(&team->runner);
-		ni_team_link_watch_array_destroy(&team->link_watch);
-		ni_team_port_array_destroy(&team->ports);
-		free(team);
+	if (info) {
+		memset(info, 0, sizeof(*info));
+		/* apply "not set" defaults */
+		info->runner.type = -1U;
+		return TRUE;
 	}
+	return FALSE;
 }
 
-void
-ni_team_runner_init(ni_team_runner_t *runner, ni_team_runner_type_t type)
+ni_team_port_info_t *
+ni_team_port_info_new(void)
 {
-	memset(runner, 0, sizeof(*runner));
-	runner->type = type;
+	ni_team_port_info_t *info;
 
-	/* apply non-zero type depending defaults here */
+	info = malloc(sizeof(*info));
+	if (ni_team_port_info_init(info))
+		return info;
+
+	free(info);
+	return NULL;
+}
+
+static inline void
+ni_team_port_runner_lacp_info_free(ni_team_port_runner_lacp_info_t *lacp)
+{
+	ni_string_free(&lacp->state);
+}
+
+static inline void
+ni_team_port_runner_info_free(ni_team_port_runner_info_t *runner)
+{
 	switch (runner->type) {
-	case NI_TEAM_RUNNER_ROUND_ROBIN:
-	case NI_TEAM_RUNNER_ACTIVE_BACKUP:
-	case NI_TEAM_RUNNER_LOAD_BALANCE:
-	case NI_TEAM_RUNNER_BROADCAST:
-	case NI_TEAM_RUNNER_RANDOM:
 	case NI_TEAM_RUNNER_LACP:
+		ni_team_port_runner_lacp_info_free(&runner->lacp);
+		break;
 	default:
 		break;
 	}
 }
 
 void
-ni_team_runner_destroy(ni_team_runner_t *runner)
+ni_team_port_info_free(ni_team_port_info_t *info)
 {
+	if (info) {
+		ni_team_port_runner_info_free(&info->runner);
+		free(info);
+	}
 }
-
