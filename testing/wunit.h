@@ -38,11 +38,15 @@
  *		make check
  */
 
+#ifndef NI_TESTING_WUNIT_H
+#define NI_TESTING_WUNIT_H
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <wicked/logging.h>
 #include <wicked/util.h>
+#include <wicked/compiler.h>
 
 typedef struct wunit_s wunit_t;
 typedef void (*wunit_test_fn)();
@@ -60,7 +64,7 @@ struct wunit_s {
 	*current;
 };
 
-__attribute__((unused)) static wunit_t wunit_ctx = {
+ni__unused static wunit_t wunit_ctx = {
 	.testcases_idx = 0,
 	.fail = 0,
 	.ok = 0,
@@ -110,7 +114,7 @@ __attribute__((unused)) static wunit_t wunit_ctx = {
 
 #define TESTCASE(ts_name)								\
 	static void testcase_##ts_name(void);						\
-	static void wunit_register_##ts_name(void)     __attribute__((constructor));	\
+	static void wunit_register_##ts_name(void)	ni__constructor;		\
 	static void wunit_register_##ts_name(void)					\
 	{										\
 		unsigned int i = wunit_ctx.testcases_idx;				\
@@ -150,3 +154,5 @@ __attribute__((unused)) static wunit_t wunit_ctx = {
 											\
 		return wunit_ctx.fail > 0 ? 1 : 0;					\
 	}
+
+#endif /* NI_TESTING_WUNIT_H */
