@@ -281,15 +281,13 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *opt_ifconfi
 	}
 
 	for (i = 0; i < docs.count; i++) {
-		xml_node_t *root, *ifnode;
+		xml_node_t *root;
 		const char *origin;
 
 		root = xml_document_root(docs.data[i]);
 		origin = xml_node_location_filename(root);
-		for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
-			/* We do not fail when unable to generate ifworker */
-			ni_fsm_workers_from_xml(fsm, ifnode, origin);
-		}
+		/* We do not fail when unable to generate ifworker */
+		ni_fsm_workers_from_xml(fsm, root, origin);
 	}
 
 	xml_document_array_destroy(&docs);
@@ -415,8 +413,11 @@ ni_ifconfig_validate_adding_doc(xml_document_t *config_doc, ni_bool_t check_prio
 	src_root = xml_document_root(config_doc);
 	src_prio = ni_ifconfig_origin_get_prio(xml_node_location_filename(src_root));
 
-	/* Go through all config_doc's <interfaces> */
-	for (src_child = src_root->children; src_child; src_child = src_child->next) {
+	if (ni_string_empty(src_root->name))
+		src_child = src_root->children;
+	else
+		src_child = src_root;
+	for ( ; src_child; src_child = src_child->next) {
 		int rv;
 
 		if (ni_ifconfig_is_policy(src_child)) {
@@ -498,10 +499,11 @@ ni_ifconfig_read_wicked_xml_file(xml_document_array_t *docs,
 
 		if (ni_ifconfig_validate_adding_doc(doc, check_prio)) {
 			ni_debug_ifconfig("%s: %s", __func__, xml_node_location(node));
-			xml_document_array_append(docs, doc);
-		} else {
-			xml_document_free(doc);
+
+			if (xml_document_expand(docs, doc))
+				continue;
 		}
+		xml_document_free(doc);
 	}
 
 	ni_client_state_config_reset(&conf);
@@ -699,10 +701,10 @@ ni_ifconfig_read_firmware(xml_document_array_t *array,
 
 			if (ni_ifconfig_validate_adding_doc(config, check_prio)) {
 				ni_debug_ifconfig("%s: %s", __func__, xml_node_location(node));
-				xml_document_array_append(array, config);
-			} else {
-				xml_document_free(config);
+				if (xml_document_expand(array, config))
+					continue;
 			}
+			xml_document_free(config);
 		}
 	}
 
@@ -732,7 +734,11 @@ ni_ifconfig_metadata_add_to_node(xml_node_t *root, ni_client_state_config_t *con
 	if (!root || !root->children || !conf || ni_string_empty(conf->origin))
 		return;
 
-	while ((ifnode = xml_node_get_next_child(root, root->children->name, ifnode))) {
+	if (ni_string_empty(root->name))
+		ifnode = root->children;
+	else
+		ifnode = root;
+	for ( ; ifnode; ifnode = ifnode->next) {
 		xml_node_add_attr(ifnode,
 				NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE,
 					conf->origin);
@@ -759,7 +765,11 @@ ni_ifconfig_metadata_get_from_node(ni_client_state_config_t *conf, xml_node_t *r
 		return FALSE;
 
 	ni_client_state_config_reset(conf);
-	while ((ifnode = xml_node_get_next_child(root, root->children->name, ifnode))) {
+	if (ni_string_empty(root->name))
+		ifnode = root->children;
+	else
+		ifnode = root;
+	for ( ; ifnode; ifnode = ifnode->next) {
 		/* only first   node with proper meta data attributes is processed */
 		const char *origin;
 		const char *str;
@@ -790,7 +800,11 @@ ni_ifconfig_metadata_clear(xml_node_t *root)
 	if (!root || !root->children)
 		return;
 
-	while ((ifnode = xml_node_get_next_child(root, root->children->name, ifnode))) {
+	if (ni_string_empty(root->name))
+		ifnode = root->children;
+	else
+		ifnode = root;
+	for ( ; ifnode; ifnode = ifnode->next) {
 		xml_node_del_attr(ifnode, NI_CLIENT_STATE_XML_CONFIG_ORIGIN_NODE);
 		xml_node_del_attr(ifnode, NI_CLIENT_STATE_XML_CONFIG_UUID_NODE);
 		xml_node_del_attr(ifnode, NI_CLIENT_STATE_XML_CONFIG_OWNER_NODE);

@@ -337,23 +337,26 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, xml_do
 	if (!mgr || !mgr->fsm)
 		return -1;
 
-	if (!doc || xml_document_is_empty(doc)) {
+	if (!doc || !(root = xml_document_root(doc))) {
 		ni_error("Invalid policy document");
 		goto error;
 	}
 
-	root = xml_document_root(doc);
 	if (xml_node_is_empty(root->children)) {
 		ni_error("Policy document is empty");
 		goto error;
 	}
 
-	if (!xml_node_is_empty(root->children->next)) {
-		ni_error("Policy document contains more then one node");
-		goto error;
+	if (ni_string_empty(root->name)) {
+		if (!xml_node_is_empty(root->children->next)) {
+			ni_error("Policy document contains more then one node");
+			goto error;
+		}
+		pnode = root->children;
+	} else {
+		pnode = root;
 	}
 
-	pnode = root->children;
 	if (!ni_ifconfig_is_policy(pnode)) {
 		pname = pnode->name;
 		ni_error("Not a valid policy document node \"%s\"",

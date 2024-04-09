@@ -1133,8 +1133,6 @@ ni_ifconfig_read_dracut_cmdline(xml_document_array_t *array,
 	xml_document_t *doc;
 	xml_node_t *options;
 
-	doc = xml_document_new();
-
 	/*
 	 * expose config parser specific "meta options"
 	 * to the caller in order to:
@@ -1144,9 +1142,19 @@ ni_ifconfig_read_dracut_cmdline(xml_document_array_t *array,
 	 *   do not result in any ifcomfig/ifpolicy
 	 *   but may be needed in e.g. in bootstrap
 	 */
-	options = xml_node_new("options", xml_document_root(doc));
+	if (!(options = xml_node_new("options", NULL)))
+		return FALSE;
+
 	xml_node_add_attr(options, "origin", "dracut:cmdline:");
-	xml_document_array_append(array, doc);
+	if (!(doc = xml_document_create(NULL, options))) {
+		xml_node_free(options);
+		return FALSE;
+	}
+	xml_node_location_relocate(doc->root, "<dracut:cmdline>");
+	if (!xml_document_array_append(array, doc)) {
+		xml_document_free(doc);
+		return FALSE;
+	}
 
 	if (ni_dracut_cmdline_file_parse(&params, path)) {
 		/*

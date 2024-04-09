@@ -213,19 +213,20 @@ ni_nanny_statedir(void)
 static ni_bool_t
 ni_nanny_policy_load(ni_nanny_t *mgr)
 {
+	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	char nanny_dir[PATH_MAX] = { '\0' };
+	xml_document_t *doc;
+	char *path = NULL;
 
 	ni_assert(mgr);
-	ni_debug_application("Loading previously saved policies:");
+	ni_debug_application("Loading previously saved policies");
 
 	snprintf(nanny_dir, sizeof(nanny_dir), "%s", ni_nanny_statedir());
 	if (ni_scandir(nanny_dir, "policy*.xml", &files) != 0) {
 		unsigned int i;
 
 		for (i = 0; i < files.count; ++i) {
-			char *path = NULL;
-			xml_document_t *doc;
 
 			if (!ni_string_printf(&path, "%s/%s", nanny_dir, files.data[i]))
 				continue;
@@ -235,20 +236,33 @@ ni_nanny_policy_load(ni_nanny_t *mgr)
 				ni_string_free(&path);
 				continue;
 			}
+			ni_string_free(&path);
+
+			if (!xml_document_expand(&docs, doc)) {
+				ni_error("Unable to allocate policy doc array memory: %m");
+				xml_document_free(doc);
+				continue;
+			}
+		}
+
+		for (i = 0; i < docs.count; ++i) {
+			doc = docs.data[i];
+			const char *from;
 
 			if (!ni_nanny_create_policy(NULL, mgr, doc, NULL, TRUE)) {
-				ni_error("Unable to create policy from file '%s'", path);
+				from = xml_node_location_filename(doc->root);
+				ni_error("Unable to create policy from file '%s'",
+						from ?: "<migrated>");
 			}
-
-			ni_string_free(&path);
-			xml_document_free(doc);
 		}
 	}
+	ni_string_array_destroy(&files);
 
-	if (files.count)
+	if (docs.count)
 		ni_nanny_recheck_policies(mgr, NULL);
 
-	ni_string_array_destroy(&files);
+	xml_document_array_destroy(&docs);
+
 	return TRUE;
 }
 

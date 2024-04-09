@@ -3138,23 +3138,25 @@ ni_compat_generate_interfaces(xml_document_array_t *array, ni_compat_ifconfig_t 
 		if (ni_string_empty(conf->origin))
 			ni_string_dup(&conf->origin, ifcfg->schema);
 
-		xml_node_location_relocate(root, conf->origin);
-		if (!xml_node_location_filename(root))
+		if (ni_string_empty(conf->origin))
 			goto cleanup;
 
 		if (!ni_compat_generate_interface(doc, compat))
 			goto cleanup;
 
+		xml_node_location_relocate(root, conf->origin);
 		if (!raw)
 			ni_ifconfig_metadata_add_to_node(root, conf);
 
 		if (ni_ifconfig_validate_adding_doc(doc, check_prio)) {
 			ni_debug_ifconfig("%s: %s", __func__, xml_node_location(root));
-			xml_document_array_append(array, doc);
-		} else {
-	cleanup:
-			xml_document_free(doc);
+
+			if (xml_document_expand(array, doc))
+				continue;
 		}
+
+	cleanup:
+		xml_document_free(doc);
 	}
 
 	return count - array->count;
@@ -3188,23 +3190,25 @@ ni_compat_generate_policies(xml_document_array_t *array, ni_compat_ifconfig_t *i
 		if (ni_string_empty(conf->origin))
 			ni_string_dup(&conf->origin, ifcfg->schema);
 
-		xml_node_location_relocate(root, conf->origin);
-		if (!xml_node_location_filename(root))
+		if (ni_string_empty(conf->origin))
 			goto cleanup;
 
 		if (!ni_compat_generate_policy(doc, compat, array->count + 1))
 			goto cleanup;
 
+		xml_node_location_relocate(root, conf->origin);
 		if (!raw)
 			ni_ifconfig_metadata_add_to_node(root, conf);
 
 		if (ni_ifconfig_validate_adding_doc(doc, check_prio)) {
 			ni_debug_ifconfig("%s: %s", __func__, xml_node_location(root));
-			xml_document_array_append(array, doc);
-		} else {
-	cleanup:
-			xml_document_free(doc);
+
+			if (xml_document_expand(array, doc))
+				continue;
 		}
+
+	cleanup:
+		xml_document_free(doc);
 	}
 
 	return count - array->count;

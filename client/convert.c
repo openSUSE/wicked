@@ -156,18 +156,18 @@ ni_wicked_convert_dump(xml_document_array_t *docs, ni_string_array_t *filter, FI
 	for (i = 0; i < docs->count; i++) {
 		xml_document_t *doc = docs->data[i];
 		xml_node_t *root = xml_document_root(doc);
-		xml_node_t *node;
 
 		if (xml_node_is_empty(root))
 			continue;
 
-		for (node = root->children; node; node = node->next) {
-			if (!ni_wicked_convert_match(node, filter))
-				continue;
+		if (ni_string_empty(root->name))
+			continue;
 
-			xml_node_print(node, output);
-			empty = FALSE;
-		}
+		if (!ni_wicked_convert_match(root, filter))
+			continue;
+
+		xml_node_print(root, output);
+		empty = FALSE;
 	}
 
 	return !empty;
@@ -199,28 +199,28 @@ ni_wicked_convert_to_dir(xml_document_array_t *docs, ni_string_array_t *filter, 
 	for (i = 0; i < docs->count; i++) {
 		xml_document_t *doc = docs->data[i];
 		xml_node_t *root = xml_document_root(doc);
-		xml_node_t *node;
 
 		if (xml_node_is_empty(root))
 			continue;
 
-		for (node = root->children; node; node = node->next) {
-			if (!ni_wicked_convert_match(node, filter))
-				continue;
+		if (ni_string_empty(root->name))
+			continue;
 
-			if (!ni_wicked_convert_node_filename(&filename, node, dirname))
-				return NI_WICKED_RC_ERROR;
+		if (!ni_wicked_convert_match(root, filter))
+			continue;
 
-			if (!(output = fopen(filename, "w"))) {
-				ni_error("unable to open '%s' for writing: %m", filename);
-				ni_string_free(&filename);
-				return NI_WICKED_RC_ERROR;
-			}
+		if (!ni_wicked_convert_node_filename(&filename, root, dirname))
+			return NI_WICKED_RC_ERROR;
+
+		if (!(output = fopen(filename, "w"))) {
+			ni_error("unable to open '%s' for writing: %m", filename);
 			ni_string_free(&filename);
-
-			xml_node_print(node, output);
-			fclose(output);
+			return NI_WICKED_RC_ERROR;
 		}
+		ni_string_free(&filename);
+
+		xml_node_print(root, output);
+		fclose(output);
 	}
 	return NI_WICKED_RC_SUCCESS;
 }

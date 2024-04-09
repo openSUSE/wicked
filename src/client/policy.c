@@ -2,6 +2,7 @@
  *	wicked client related policy functions
  *
  *	Copyright (C) 2010-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2014-2023 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,16 +14,9 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- *	Boston, MA 02110-1301 USA.
- *
- *	Authors:
- *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
- *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 #include <unistd.h>
 #include <sys/types.h>
 #include <ctype.h>
@@ -301,48 +295,62 @@ ni_convert_cfg_into_policy_node(const xml_node_t *ifcfg, xml_node_t *match, cons
 }
 
 xml_document_t *
-ni_convert_cfg_into_policy_doc(xml_document_t *ifconfig)
+ni_convert_cfg_into_policy_doc(xml_document_t *doc)
 {
-	xml_node_t *root, *ifnode, *ifname, *match;
+	xml_node_t *root, *match, *policy;
 	const char *origin;
+	const char *ifname;
 
-	if (xml_document_is_empty(ifconfig))
+	if (xml_document_is_empty(doc))
 		return NULL;
 
-	root = xml_document_root(ifconfig);
+	root = xml_document_root(doc);
+	if (ni_string_empty(root->name))
+		return NULL;
+
 	origin = xml_node_location_filename(root);
+	if (ni_string_empty(origin))
+		return NULL;
 
-	for (ifnode = root->children; ifnode; ifnode = ifnode->next) {
-		if (ni_ifpolicy_is_valid(ifnode)) {
-			const char *name = ni_ifpolicy_get_name(ifnode);
-			ni_debug_ifconfig("Ignoring already existing %s named %s from %s",
+	if (ni_ifpolicy_is_valid(root)) {
+		const char *name = ni_ifpolicy_get_name(root);
+
+		ni_debug_ifconfig("Ignoring already existing %s named %s from %s",
 				NI_NANNY_IFPOLICY, name, origin);
-			continue;
-		}
-		else if (ni_ifconfig_is_policy(ifnode)) {
-			ni_debug_ifconfig("Ignoring already existing, noname %s from %s",
+		return doc;
+	} else if (ni_ifconfig_is_policy(root)) {
+		ni_debug_ifconfig("Ignoring already existing, noname %s from %s",
 				NI_NANNY_IFPOLICY, origin);
-			continue;
-		}
-
-		if (!ni_ifconfig_is_config(ifnode)) {
-			ni_error("Invalid object found in file %s: neither an %s nor %s",
-				origin, NI_CLIENT_IFCONFIG, NI_NANNY_IFPOLICY);
-			return NULL;
-		}
-
-		ifname = xml_node_get_child(ifnode, NI_CLIENT_IFCONFIG_MATCH_NAME);
-		if (!ifname || ni_string_empty(ifname->cdata))
-			return NULL;
-
-		if (!(match = ni_ifpolicy_generate_match(NULL, NULL)))
-			return NULL;
-
-		xml_node_add_child(root,
-			ni_convert_cfg_into_policy_node(ifnode, match, ifname->cdata, origin));
+		return doc;
 	}
 
-	return ifconfig;
+	if (!ni_ifconfig_is_config(root)) {
+		ni_error("Invalid object found in file %s: neither an %s nor %s",
+			origin, NI_CLIENT_IFCONFIG, NI_NANNY_IFPOLICY);
+		return NULL;
+	}
+
+	ifname = xml_node_get_child_cdata(root, NI_CLIENT_IFCONFIG_MATCH_NAME);
+	if (ni_string_empty(ifname))
+		return NULL;
+
+	if (!(match = xml_node_new(NI_NANNY_IFPOLICY_MATCH, NULL)))
+		return NULL;
+
+	if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, match, ifname)) {
+		xml_node_free(match);
+		return NULL;
+	}
+
+	policy = ni_convert_cfg_into_policy_node(root, match, ifname, origin);
+	if (policy) {
+		xml_node_location_relocate(policy, origin);
+		xml_document_set_root(doc, policy);
+		xml_node_free(match);
+		return doc;
+	}
+	xml_node_free(match);
+	return NULL;
 }
 
 static ni_bool_t
