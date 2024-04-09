@@ -83,6 +83,8 @@ extern xml_node_t *	xml_document_root(xml_document_t *);
 extern void		xml_document_set_root(xml_document_t *, xml_node_t *);
 extern xml_node_t *	xml_document_take_root(xml_document_t *);
 extern void		xml_document_free(xml_document_t *);
+extern xml_document_t *	xml_document_create(const char *, xml_node_t *);
+extern ni_bool_t	xml_document_expand(xml_document_array_t *, xml_document_t *);
 
 extern xml_node_t *	xml_node_new(const char *ident, xml_node_t *);
 extern xml_node_t *	xml_node_new_element(const char *ident, xml_node_t *, const char *cdata);

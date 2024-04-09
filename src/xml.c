@@ -48,7 +48,7 @@ xml_document_root(xml_document_t *doc)
 }
 
 const char *
-xml_document_type(const xml_document_t *doc)
+xml_document_dtd(const xml_document_t *doc)
 {
 	return doc ? doc->dtd : NULL;
 }
@@ -82,6 +82,63 @@ xml_document_free(xml_document_t *doc)
 		ni_string_free(&doc->dtd);
 		free(doc);
 	}
+}
+
+xml_document_t *
+xml_document_create(const char *dtd, xml_node_t *root)
+{
+	xml_document_t *doc;
+
+	if ((doc = calloc(1, sizeof(*doc)))) {
+		if (ni_string_dup(&doc->dtd, dtd)) {
+			doc->root = root;
+			return doc;
+		}
+		xml_document_free(doc);
+	}
+	return NULL;
+}
+
+ni_bool_t
+xml_document_expand(xml_document_array_t *docs, xml_document_t *raw)
+{
+	ni_bool_t ret = TRUE;
+	xml_document_t *doc;
+	xml_node_t *node;
+	xml_node_t *next;
+
+	if (!docs || !raw || !raw->root)
+		return FALSE;
+
+	/*
+	 * Append if "raw" contains single named document root.
+	 */
+	if (!ni_string_empty(raw->root->name))
+		return xml_document_array_append(docs, raw);
+
+	/*
+	 * Otherwise, expand the just parsed data into multiple
+	 * "normalized" documents with one named root node each.
+	 */
+	for (node = raw->root->children; node; node = next) {
+		next = node->next;
+
+		if (ni_string_empty(node->name))
+			continue;
+
+		xml_node_detach(node);
+
+		if (!(doc = xml_document_create(raw->dtd, node)))
+			xml_node_free(node);
+		else if (!xml_document_array_append(docs, doc))
+			xml_document_free(doc);
+		else continue;
+
+		ret = FALSE;
+	}
+	if (ret)
+		xml_document_free(raw);
+	return ret;
 }
 
 /*
