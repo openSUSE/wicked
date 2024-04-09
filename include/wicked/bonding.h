@@ -80,8 +80,6 @@ typedef struct ni_bonding_slave_array	ni_bonding_slave_array_t;
 typedef struct ni_bonding_slave		ni_bonding_slave_t;
 
 struct ni_bonding_port_info {
-	unsigned int			refcount;
-
 	unsigned int			state;
 	unsigned int			mii_status;
 	ni_hwaddr_t			perm_hwaddr;
@@ -92,7 +90,6 @@ struct ni_bonding_port_info {
 
 struct ni_bonding_slave {
 	ni_netdev_ref_t			device;
-	ni_bonding_port_info_t *	info;
 };
 
 struct ni_bonding_slave_array {
@@ -195,14 +192,8 @@ extern int		ni_bonding_primary_reselect_mode(const char *);
 extern const char *	ni_bonding_fail_over_mac_name(unsigned int);
 extern int		ni_bonding_fail_over_mac_mode(const char *);
 
-extern ni_bonding_slave_t *	ni_bonding_bind_slave(ni_bonding_t *, const ni_netdev_ref_t *, const char *);
-extern ni_bool_t		ni_bonding_unbind_slave(ni_bonding_t *, const ni_netdev_ref_t *, const char *);
-
 extern ni_bonding_slave_t *	ni_bonding_slave_new(void);
 extern void			ni_bonding_slave_free(ni_bonding_slave_t *);
-extern void			ni_bonding_slave_set_info(ni_bonding_slave_t *, ni_bonding_port_info_t *);
-extern ni_bonding_port_info_t *	ni_bonding_slave_get_info(ni_bonding_slave_t *);
-
 extern void			ni_bonding_slave_array_destroy(ni_bonding_slave_array_t *);
 extern ni_bool_t		ni_bonding_slave_array_append(ni_bonding_slave_array_t *, ni_bonding_slave_t *);
 extern ni_bool_t		ni_bonding_slave_array_delete(ni_bonding_slave_array_t *, unsigned int);
@@ -214,7 +205,6 @@ extern ni_bonding_slave_t *	ni_bonding_slave_array_get_by_ifname(ni_bonding_slav
 extern ni_bonding_slave_t *	ni_bonding_slave_array_get_by_ifindex(ni_bonding_slave_array_t *, unsigned int);
 
 extern ni_bonding_port_info_t *		ni_bonding_port_info_new(void);
-extern ni_bonding_port_info_t *		ni_bonding_port_info_ref(ni_bonding_port_info_t *);
 extern void				ni_bonding_port_info_free(ni_bonding_port_info_t *);
 extern void				ni_bonding_port_info_reset(ni_bonding_port_info_t *);
 

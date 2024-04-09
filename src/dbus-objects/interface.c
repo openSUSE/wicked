@@ -1683,12 +1683,94 @@ ni_objectmodel_netif_client_state_scripts_from_dict(ni_client_state_scripts_t *s
 	return TRUE;
 }
 
+static inline ni_dbus_variant_t *
+ni_objectmodel_netif_port_union_init(ni_dbus_variant_t *result, ni_iftype_t type)
+{
+	ni_dbus_variant_t *dict;
+	const char *name;
+
+	name = ni_linktype_type_to_name(type);
+	if (!result || !name)
+		return NULL;
+
+	ni_dbus_variant_init_struct(result);
+	ni_dbus_struct_add_string(result, name);
+	if ((dict = ni_dbus_struct_add(result)))
+		ni_dbus_variant_init_dict(dict);
+	return dict;
+}
+
+static dbus_bool_t
+ni_objectmodel_netif_get_port(const ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		ni_dbus_variant_t *result,
+		DBusError *error)
+{
+	ni_dbus_variant_t *dict;
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_dbus_object_get_handle(object)))
+		return FALSE;
+
+	switch (dev->link.port.type) {
+	case NI_IFTYPE_BOND:
+		if (!(dict = ni_objectmodel_netif_port_union_init(result, dev->link.port.type)))
+			return FALSE;
+		return ni_objectmodel_get_bonding_port_info(dev->link.port.bond, dict, error);
+
+	default:
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
+	}
+}
+static dbus_bool_t
+ni_objectmodel_netif_set_port(ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument,
+		DBusError *error)
+{
+	const ni_dbus_variant_t *dict;
+	ni_netdev_t *dev;
+	const char *name;
+
+	if (!(dev = ni_dbus_object_get_handle(object)))
+		return FALSE;
+
+	/* make sure we clear previously applied port info */
+	ni_netdev_port_info_destroy(&dev->link.port);
+
+	if (!ni_dbus_struct_get_string(argument, 0, &name) || ni_string_empty(name)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"missing union switch type in property %s.%s",
+				object->path, property->name);
+		return FALSE;
+	}
+	if (!(dict = ni_dbus_struct_get(argument, 1)) || !ni_dbus_variant_is_dict(dict)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"missing %s union data dict in property %s.%s",
+				name, object->path, property->name);
+		return FALSE;
+	}
+
+	if (!ni_netdev_port_info_data_init(&dev->link.port, ni_linktype_name_to_type(name)))
+		return FALSE;
+
+	switch (dev->link.port.type) {
+	case NI_IFTYPE_BOND:
+		return ni_objectmodel_set_bonding_port_info(dev->link.port.bond, dict, error);
+
+	default:
+		return FALSE;
+	}
+}
 
 /*
  * Properties of an interface
  */
 #define NETIF_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_netif, rw)
+#define NETIF_PORT_INFO_UNION_PROPERTY(dbus_name, type_name, rw) \
+	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, dbus_name, type_name, \
+				ni_objectmodel_netif, rw)
 
 static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, name, name, RO),
@@ -1699,6 +1781,7 @@ static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, txqlen, link.txqlen, RO),
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, alias, link.alias, RO),
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, master, link.masterdev.name, RO),
+	NETIF_PORT_INFO_UNION_PROPERTY(port, port, RO),
 
 	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE,
 				client-state, client_state,
