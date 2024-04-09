@@ -539,28 +539,6 @@ ni_sysfs_bridge_port_update_config(const char *ifname, const ni_bridge_port_t *p
 	return rv;
 }
 
-void
-ni_sysfs_bridge_port_get_info(const char *ifname, ni_bridge_port_info_t *ps)
-{
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/priority", &ps->priority);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/path_cost", &ps->path_cost);
-
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/state", &ps->state);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/port_no", &ps->port_no);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/port_id", &ps->port_no);
-	ni_sysfs_netif_get_string(ifname, SYSFS_BRIDGE_PORT_ATTR "/designated_root", &ps->designated_root);
-	ni_sysfs_netif_get_string(ifname, SYSFS_BRIDGE_PORT_ATTR "/designated_bridge", &ps->designated_bridge);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/designated_port", &ps->designated_port);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/designated_cost", &ps->designated_cost);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/change_ack", &ps->change_ack);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/hairpin_mode", &ps->hairpin_mode);
-	ni_sysfs_netif_get_uint(ifname, SYSFS_BRIDGE_PORT_ATTR "/config_pending", &ps->config_pending);
-
-	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_PORT_ATTR "/hold_timer", &ps->hold_timer);
-	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_PORT_ATTR "/message_age_timer", &ps->message_age_timer);
-	ni_sysfs_netif_get_ulong(ifname, SYSFS_BRIDGE_PORT_ATTR "/forward_delay_timer", &ps->forward_delay_timer);
-}
-
 /*
  * Get/set IPv4 sysctls
  */

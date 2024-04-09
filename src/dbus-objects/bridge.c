@@ -30,13 +30,9 @@
 
 static ni_netdev_t *	__ni_objectmodel_bridge_newlink(ni_netdev_t *, const char *, DBusError *);
 static dbus_bool_t	__ni_objectmodel_bridge_port_to_dict(const ni_bridge_port_t *port,
-				ni_dbus_variant_t *dict,
-				const ni_dbus_object_t *object,
-				int config_only);
+				ni_dbus_variant_t *dict, const ni_dbus_object_t *object);
 static dbus_bool_t	__ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port,
-				const ni_dbus_variant_t *dict,
-				DBusError *error,
-				int config_only);
+				const ni_dbus_variant_t *dict, DBusError *error);
 
 /*
  * Return an interface handle containing all bridge-specific information provided
@@ -320,6 +316,9 @@ __ni_objectmodel_bridge_get_ports(const ni_dbus_object_t *object, const ni_dbus_
 	if (!(bridge = __ni_objectmodel_bridge_read_handle(object, error)))
 		return FALSE;
 
+	if (!bridge->ports.count)
+		return FALSE;
+
 	ni_dbus_dict_array_init(result);
 	for (i = 0; i < bridge->ports.count; ++i) {
 		const ni_bridge_port_t *port = bridge->ports.data[i];
@@ -330,7 +329,7 @@ __ni_objectmodel_bridge_get_ports(const ni_dbus_object_t *object, const ni_dbus_
 			return FALSE;
 		ni_dbus_variant_init_dict(dict);
 
-		if (!__ni_objectmodel_bridge_port_to_dict(port, dict, object, 0))
+		if (!__ni_objectmodel_bridge_port_to_dict(port, dict, object))
 			return FALSE;
 	}
 	return TRUE;
@@ -355,7 +354,7 @@ __ni_objectmodel_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_proper
 		ni_bridge_port_t *port;
 
 		port = ni_bridge_port_new(NULL, NULL, 0);
-		if (!__ni_objectmodel_bridge_port_from_dict(port, port_dict, error, TRUE)) {
+		if (!__ni_objectmodel_bridge_port_from_dict(port, port_dict, error)) {
 			ni_bridge_port_free(port);
 			return FALSE;
 		}
@@ -373,8 +372,7 @@ __ni_objectmodel_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_proper
  */
 static dbus_bool_t
 __ni_objectmodel_bridge_port_to_dict(const ni_bridge_port_t *port, ni_dbus_variant_t *dict,
-				const ni_dbus_object_t *object,
-				int config_only)
+				const ni_dbus_object_t *object)
 {
 	/*
 	 * Hmm... Resolving the complete tree and ports to devices
@@ -390,16 +388,12 @@ __ni_objectmodel_bridge_port_to_dict(const ni_bridge_port_t *port, ni_dbus_varia
 	ni_dbus_dict_add_uint32(dict, "priority", port->priority);
 	ni_dbus_dict_add_uint32(dict, "path-cost", port->path_cost);
 
-	if (config_only)
-		return TRUE;
-
-	return ni_objectmodel_get_bridge_port_info(&port->info, dict, NULL);
+	return TRUE;
 }
 
 static dbus_bool_t
 __ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_variant_t *dict,
-				DBusError *error,
-				int config_only)
+				DBusError *error)
 {
 	const char *string;
 	uint32_t value;
@@ -418,7 +412,7 @@ __ni_objectmodel_bridge_port_from_dict(ni_bridge_port_t *port, const ni_dbus_var
 	if (ni_dbus_dict_get_uint32(dict, "path-cost", &value))
 		port->path_cost = value;
 
-	return ni_objectmodel_set_bridge_port_info(&port->info, dict, NULL);
+	return TRUE;
 }
 
 static dbus_bool_t

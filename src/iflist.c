@@ -3503,8 +3503,6 @@ static int
 __ni_discover_bridge(ni_netdev_t *dev)
 {
 	ni_bridge_t *bridge;
-	ni_string_array_t ports;
-	unsigned int i;
 
 	if (dev->link.type != NI_IFTYPE_BRIDGE)
 		return 0;
@@ -3513,28 +3511,6 @@ __ni_discover_bridge(ni_netdev_t *dev)
 
 	ni_sysfs_bridge_get_config(dev->name, bridge);
 	ni_sysfs_bridge_get_status(dev->name, &bridge->status);
-
-	ni_string_array_init(&ports);
-	ni_sysfs_bridge_get_port_names(dev->name, &ports);
-	ni_bridge_ports_destroy(bridge);
-
-	for (i = 0; i < ports.count; ++i) {
-		const char *ifname = ports.data[i];
-		unsigned int index;
-		ni_bridge_port_t *port;
-
-		if ((index = ni_netdev_name_to_index(ifname)) == 0) {
-			/* Looks like someone is renaming interfaces while we're
-			 * trying to discover them :-( */
-			ni_error("%s: port interface %s has index 0?!", __func__, ifname);
-			continue;
-		}
-		port = ni_bridge_port_new(bridge, ifname, index);
-
-		ni_sysfs_bridge_port_get_config(port->ifname, port);
-		ni_sysfs_bridge_port_get_info(port->ifname, &port->info);
-	}
-	ni_string_array_destroy(&ports);
 
 	return 0;
 }
