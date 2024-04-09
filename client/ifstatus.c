@@ -213,10 +213,44 @@ __ifstatus_of_device_lease(ni_netdev_t *dev, ni_addrconf_lease_t *lease, unsigne
 	}
 }
 
+static ni_addrconf_lease_t*
+ifstatus_primary_lease(ni_netdev_t *dev,
+		ni_addrconf_lease_t *lease)
+{
+	ni_addrconf_lease_t *l;
+
+	if (!ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_FALLBACK))
+		return NULL;
+
+	for (l = dev->leases; l; l = l->next) {
+		if (l->family != lease->family)
+			continue;
+
+		if (!ni_addrconf_flag_bit_is_set(l->flags, NI_ADDRCONF_FLAGS_PRIMARY))
+			continue;
+
+		if (ni_log_level_at(NI_LOG_DEBUG1)) {
+			ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+			ni_addrconf_flags_format(&buf, l->flags, "|");
+			ni_debug_application("%s: primary lease %s:%s, state=%s, flags=%s",
+					dev->name,
+					ni_addrfamily_type_to_name(l->family),
+					ni_addrconf_type_to_name(l->type),
+					ni_addrconf_state_to_name(l->state),
+					buf.string);
+			ni_stringbuf_destroy(&buf);
+		}
+
+		return l;
+	}
+	return NULL;
+}
+
 static void
 __ifstatus_of_device_leases(ni_netdev_t *dev, unsigned int *st)
 {
-	ni_addrconf_lease_t *lease;
+	ni_addrconf_lease_t *lease, *primary;
 
 	if (!dev || !st)
 		return;
@@ -240,6 +274,16 @@ __ifstatus_of_device_leases(ni_netdev_t *dev, unsigned int *st)
 		if (ni_addrconf_flag_bit_is_set(lease->flags,
 					NI_ADDRCONF_FLAGS_OPTIONAL))
 			continue;
+
+		/* Do not consider fallback lease status, if there is a
+		 * corresponding primary+granted lease */
+		if ((primary = ifstatus_primary_lease(dev, lease))) {
+			unsigned int tmp = NI_WICKED_ST_OK;
+
+			__ifstatus_of_device_lease(dev, primary, &tmp);
+			if (tmp == NI_WICKED_ST_OK)
+				continue;
+		}
 
 		__ifstatus_of_device_lease(dev, lease, st);
 	}
@@ -617,10 +661,14 @@ __show_leases_by_family(const ni_netdev_t *dev, ni_bool_t verbose, sa_family_t f
 			ni_addrconf_type_to_name(lease->type),
 			ni_addrconf_state_to_name(lease->state));
 
-		if (verbose && lease->flags) {
+		if ((verbose && lease->flags) ||
+		    ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_FALLBACK)) {
+			ni_stringbuf_t tmp = NI_STRINGBUF_INIT_DYNAMIC;
 			ni_stringbuf_puts(&buf, " [");
-			ni_addrconf_flags_format(&buf, lease->flags, ",");
+			ni_addrconf_flags_format(&tmp, lease->flags, ",");
+			ni_stringbuf_puts(&buf, tmp.string);
 			ni_stringbuf_puts(&buf, "]");
+			ni_stringbuf_destroy(&tmp);
 		}
 	}
 	if (buf.string)

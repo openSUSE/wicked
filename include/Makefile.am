@@ -10,6 +10,7 @@ wicked_include_HEADERS		= \
 	wicked/bridge.h		\
 	wicked/client.h		\
 	wicked/constants.h	\
+	wicked/compiler.h	\
 	wicked/dbus.h		\
 	wicked/dbus-errors.h	\
 	wicked/dbus-service.h	\

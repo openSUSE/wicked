@@ -1357,6 +1357,14 @@ ni_objectmodel_addrconf_fallback_release(ni_netdev_t *dev, unsigned int family)
 				ni_debug_objectmodel("%s: no %s/%s lease", dev->name,
 						ni_addrconf_type_to_name(forwarder->addrconf),
 						ni_addrfamily_type_to_name(forwarder->addrfamily));
+
+				if (ni_addrconf_flag_bit_is_set(lease->flags, NI_ADDRCONF_FLAGS_FALLBACK)) {
+					/* bsc#1220996 - on fallback lease, it just wasn't triggered,
+					 * so we need to change state and inform nanny that it's done. */
+					lease->state = NI_ADDRCONF_STATE_REQUESTING;
+					ni_objectmodel_addrconf_send_event(dev,
+							NI_EVENT_ADDRESS_DEFERRED, &lease->uuid);
+				}
 				rv = TRUE;
 				break;
 			default:

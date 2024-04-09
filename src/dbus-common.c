@@ -769,6 +769,8 @@ ni_dbus_variant_copy(ni_dbus_variant_t *dst, const ni_dbus_variant_t *src)
 void
 ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 {
+	unsigned int i;
+
 	if (var->__magic != 0 && var->__magic != NI_DBUS_VARIANT_MAGIC) {
 		ni_fatal("%s: variant with bad magic cookie 0x%x",
 				__func__, var->__magic);
@@ -821,6 +823,12 @@ ni_dbus_variant_destroy(ni_dbus_variant_t *var)
 			break;
 		}
 		ni_string_free(&var->array.element_signature);
+	}
+	else if (var->type == DBUS_TYPE_STRUCT) {
+		for (i = 0; i < var->array.len; ++i) {
+			ni_dbus_variant_destroy(&var->struct_value[i]);
+		}
+		free(var->struct_value);
 	}
 
 	if (var->__message)

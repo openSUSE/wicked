@@ -49,6 +49,7 @@
     <send_always       type="boolean" />
     <missed_max        type="uint32" />
     <missed            type="uint32" />
+    <vlanid            type="uint16" />
   </define>
 
   <define name="tipc-linkwatch-type" class="dict">
@@ -84,6 +85,15 @@
   </define>
 
   <define name="device-info" class="dict">
+    <debug_level  type="uint32"/>
+    <notify_peers class="dict">
+      <count        type="uint32"/>
+      <interval     type="uint32"/>
+    </notify_peers>
+    <mcast_rejoin class="dict">
+      <count        type="uint32"/>
+      <interval     type="uint32"/>
+    </mcast_rejoin>
     <runner class="union" switch="name">
       <roundrobin   type="roundrobin-runner"/>
       <activebackup type="activebackup-runner"/>
@@ -92,7 +102,7 @@
       <random       type="random-runner"/>
       <lacp         type="lacp-runner"/>
     </runner>
-
+    <link_watch_policy    type="builtin-team-link-watch-policy" />
     <link_watch class="dict">
       <watch class="union" switch="name">
         <ethtool   type="ethtool-linkwatch-type" />
