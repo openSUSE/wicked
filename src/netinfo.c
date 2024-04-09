@@ -1134,63 +1134,50 @@ ni_netdev_ref_array_destroy(ni_netdev_ref_array_t *array)
 /*
  * Handle netdev request port config
  */
-static void
-ni_netdev_port_req_init(ni_netdev_port_req_t *port)
+ni_bool_t
+ni_netdev_port_config_init(ni_netdev_port_config_t *conf, ni_iftype_t type)
 {
-	switch (port->type) {
-        case NI_IFTYPE_TEAM:
-		ni_team_port_config_init(&port->team);
-		break;
+	if (conf) {
+		memset(conf, 0, sizeof(*conf));
 
-	case NI_IFTYPE_OVS_BRIDGE:
-		ni_ovs_bridge_port_config_init(&port->ovsbr);
-		break;
-
-	case NI_IFTYPE_BOND:
-	case NI_IFTYPE_BRIDGE:
-	default:
-		break;
-	}
-}
-
-ni_netdev_port_req_t *
-ni_netdev_port_req_new(ni_iftype_t master)
-{
-	ni_netdev_port_req_t *port;
-
-	switch (master) {
-	case NI_IFTYPE_TEAM:
-	case NI_IFTYPE_BOND:
-	case NI_IFTYPE_BRIDGE:
-	case NI_IFTYPE_OVS_BRIDGE:
-		port = xcalloc(1, sizeof(*port));
-		port->type = master;
-		ni_netdev_port_req_init(port);
-		return port;
-	default:
-		return NULL;
-	}
-}
-
-void
-ni_netdev_port_req_free(ni_netdev_port_req_t *port)
-{
-	if (port) {
-		switch (port->type) {
+		switch (type) {
 		case NI_IFTYPE_TEAM:
-			ni_team_port_config_destroy(&port->team);
+			if (!(conf->team = ni_team_port_config_new()))
+				return FALSE;
 			break;
 
 		case NI_IFTYPE_OVS_BRIDGE:
-			ni_ovs_bridge_port_config_destroy(&port->ovsbr);
+			if (!(conf->ovsbr = ni_ovs_bridge_port_config_new()))
+				return FALSE;
 			break;
 
-		case NI_IFTYPE_BOND:
-		case NI_IFTYPE_BRIDGE:
 		default:
 			break;
 		}
-		free(port);
+		conf->type = type;
+
+		return TRUE;
+	}
+	return FALSE;
+}
+void
+ni_netdev_port_config_destroy(ni_netdev_port_config_t *conf)
+{
+	if (conf) {
+		switch (conf->type) {
+		case NI_IFTYPE_TEAM:
+			ni_team_port_config_free(conf->team);
+			break;
+
+		case NI_IFTYPE_OVS_BRIDGE:
+			ni_ovs_bridge_port_config_free(conf->ovsbr);
+			break;
+
+		default:
+			break;
+		}
+
+		memset(conf, 0, sizeof(*conf));
 	}
 }
 
@@ -1211,7 +1198,7 @@ ni_netdev_req_free(ni_netdev_req_t *req)
 {
 	ni_string_free(&req->alias);
 	ni_netdev_ref_destroy(&req->master);
-	ni_netdev_port_req_free(req->port);
+	ni_netdev_port_config_destroy(&req->port);
 	free(req);
 }
 

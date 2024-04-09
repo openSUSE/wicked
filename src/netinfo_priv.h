@@ -257,16 +257,4 @@ extern void				ni_arp_notify_destroy(ni_arp_notify_t *);
 extern unsigned int			ni_arp_notify_add_address(ni_arp_notify_t *,  ni_address_t *);
 extern ni_bool_t			ni_arp_notify_send(ni_arp_socket_t *, ni_arp_notify_t *, ni_timeout_t *);
 
-/* netdev reques port config */
-struct ni_netdev_port_req {
-	ni_iftype_t				type;
-	union {
-		ni_team_port_config_t		team;
-		ni_ovs_bridge_port_config_t	ovsbr;
-	};
-};
-
-extern ni_netdev_port_req_t *	ni_netdev_port_req_new(ni_iftype_t);
-extern void			ni_netdev_port_req_free(ni_netdev_port_req_t *);
-
 #endif /* __NETINFO_PRIV_H__ */

@@ -197,9 +197,9 @@ extern dbus_bool_t		ni_objectmodel_get_team_port_info(const ni_team_port_info_t 
 						ni_dbus_variant_t *, DBusError *);
 extern dbus_bool_t		ni_objectmodel_set_team_port_info(ni_team_port_info_t *,
 						const ni_dbus_variant_t *, DBusError *);
-extern dbus_bool_t		__ni_objectmodel_get_team_port_config(const ni_team_port_config_t *,
+extern dbus_bool_t		ni_objectmodel_get_team_port_config(const ni_team_port_config_t *,
 						ni_dbus_variant_t *, DBusError *);
-extern dbus_bool_t		__ni_objectmodel_set_team_port_config(ni_team_port_config_t *,
+extern dbus_bool_t		ni_objectmodel_set_team_port_config(ni_team_port_config_t *,
 						const ni_dbus_variant_t *, DBusError *);
 
 extern dbus_bool_t		ni_objectmodel_get_bridge_port_info(const ni_bridge_port_info_t *,
@@ -211,10 +211,9 @@ extern dbus_bool_t		ni_objectmodel_get_ovs_bridge_port_info(const ni_ovs_bridge_
 						ni_dbus_variant_t *, DBusError *);
 extern dbus_bool_t		ni_objectmodel_set_ovs_bridge_port_info(ni_ovs_bridge_port_info_t *,
 						const ni_dbus_variant_t *, DBusError *);
-
-extern dbus_bool_t		__ni_objectmodel_get_ovs_bridge_port_config(const ni_ovs_bridge_port_config_t *,
+extern dbus_bool_t		ni_objectmodel_get_ovs_bridge_port_config(const ni_ovs_bridge_port_config_t *,
 						ni_dbus_variant_t *, DBusError *);
-extern dbus_bool_t		__ni_objectmodel_set_ovs_bridge_port_config(ni_ovs_bridge_port_config_t *,
+extern dbus_bool_t		ni_objectmodel_set_ovs_bridge_port_config(ni_ovs_bridge_port_config_t *,
 						const ni_dbus_variant_t *, DBusError *);
 
 extern dbus_bool_t		ni_objectmodel_bind_netdev_ref_index(const char *, const char *,

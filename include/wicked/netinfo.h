@@ -102,7 +102,23 @@ struct ni_netdev {
 	ni_event_filter_t *	event_filter;
 };
 
-typedef struct ni_netdev_port_req	ni_netdev_port_req_t;
+/*
+ * netdev link-request port config
+ */
+typedef struct ni_netdev_port_config	ni_netdev_port_config_t;
+
+struct ni_netdev_port_config {
+	ni_iftype_t			type;
+
+	union {
+		ni_team_port_config_t *		team;
+		ni_ovs_bridge_port_config_t *	ovsbr;
+	};
+};
+
+/*
+ * netdev link-request configuration
+ */
 struct ni_netdev_req {
 	unsigned int		ifflags;
 
@@ -113,7 +129,7 @@ struct ni_netdev_req {
 	char *			alias;
 
 	ni_netdev_ref_t		master;
-	ni_netdev_port_req_t *	port;
+	ni_netdev_port_config_t port;
 };
 
 extern ni_bool_t	ni_set_global_config_path(const char *);
@@ -325,5 +341,8 @@ extern ni_bool_t		ni_netdev_port_info_data_init(ni_netdev_port_info_t *, ni_ifty
 extern void			ni_netdev_port_info_data_destroy(ni_netdev_port_info_t *);
 extern ni_bool_t		ni_netdev_port_info_init(ni_netdev_port_info_t *, const char *);
 extern void			ni_netdev_port_info_destroy(ni_netdev_port_info_t *);
+
+extern ni_bool_t		ni_netdev_port_config_init(ni_netdev_port_config_t *, ni_iftype_t);
+extern void			ni_netdev_port_config_destroy(ni_netdev_port_config_t *);
 
 #endif /* NI_WICKED_NETINFO_H */
