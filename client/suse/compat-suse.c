@@ -6605,8 +6605,9 @@ __ni_suse_adjust_team_ports(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_
 			if (nsna_enabled && (ipv6 = ni_netdev_get_ipv6(dev)))
 				ni_tristate_set(&ipv6->conf.enabled, TRUE);
 
-			compat->port.type = NI_IFTYPE_TEAM;
-			compat->port.conf.team = team->ports.data[i]->config;
+			ni_netdev_port_config_destroy(&compat->port);
+			if (ni_netdev_port_config_init(&compat->port, NI_IFTYPE_TEAM))
+				*compat->port.team = team->ports.data[i]->config;
 		}
 	}
 }
@@ -6695,13 +6696,15 @@ __ni_suse_adjust_ovs_bridge_ports(ni_compat_netdev_array_t *netdevs, ni_compat_n
 		compat = __ni_suse_find_compat(netdevs, port);
 		if (compat) {
 			if (__ni_suse_set_link_master(compat->dev, ovs_system, master->dev->name)) {
-				compat->port.type = NI_IFTYPE_OVS_BRIDGE;
-				ni_netdev_ref_set_ifname(&compat->port.conf.ovsbr.bridge, master->dev->name);
+				ni_netdev_port_config_destroy(&compat->port);
+				if (ni_netdev_port_config_init(&compat->port, NI_IFTYPE_OVS_BRIDGE))
+					ni_netdev_ref_set_ifname(&compat->port.ovsbr->bridge, master->dev->name);
 			}
 		} else
 		if ((compat = __ni_suse_create_compat_slave(netdevs, master, ovs_system, port))) {
-			compat->port.type = NI_IFTYPE_OVS_BRIDGE;
-			ni_netdev_ref_set_ifname(&compat->port.conf.ovsbr.bridge, master->dev->name);
+			ni_netdev_port_config_destroy(&compat->port);
+			if (ni_netdev_port_config_init(&compat->port, NI_IFTYPE_OVS_BRIDGE))
+				ni_netdev_ref_set_ifname(&compat->port.ovsbr->bridge, master->dev->name);
 		}
 	}
 }

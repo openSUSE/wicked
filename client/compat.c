@@ -125,6 +125,8 @@ ni_compat_netdev_new(const char *ifname)
 	compat = xcalloc(1, sizeof(*compat));
 	compat->dev = ni_netdev_new(ifname, 0);
 
+	ni_netdev_port_config_init(&compat->port, NI_IFTYPE_UNKNOWN);
+
 	/* Apply defaults */
 	compat->dhcp4.update = ni_config_addrconf_update(ifname, NI_ADDRCONF_DHCP, AF_INET);
 	compat->dhcp4.recover_lease = TRUE;
@@ -184,6 +186,9 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 	if (compat) {
 		if (compat->dev)
 			ni_netdev_put(compat->dev);
+
+		ni_netdev_port_config_destroy(&compat->port);
+
 		ni_ifworker_control_free(compat->control);
 		ni_var_array_destroy(&compat->scripts);
 		ni_string_free(&compat->firewall.zone);
@@ -200,16 +205,6 @@ ni_compat_netdev_free(ni_compat_netdev_t *compat)
 		ni_string_free(&compat->dhcp6.client_id);
 		ni_dhcp6_prefix_req_list_destroy(&compat->dhcp6.prefix_reqs);
 		ni_string_array_destroy(&compat->dhcp6.request_options);
-		switch(compat->port.type) {
-		case NI_IFTYPE_TEAM:
-			ni_team_port_config_destroy(&compat->port.conf.team);
-			break;
-		case NI_IFTYPE_OVS_BRIDGE:
-			ni_ovs_bridge_port_config_destroy(&compat->port.conf.ovsbr);
-			break;
-		default:
-			break;
-		}
 
 		free(compat);
 	}
@@ -488,6 +483,18 @@ __ni_compat_generate_infiniband(xml_node_t *ifnode, const ni_compat_netdev_t *co
 		xml_node_new_element("pkey",   child, pkey);
 		ni_string_free(&pkey);
 	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_compat_generate_bonding_port_config(xml_node_t *port, const ni_bonding_port_config_t *config)
+{
+	if (!port || !config)
+		return FALSE;
+
+	if (config->queue_id != -1U)
+		xml_node_new_element("queue-id", port, ni_sprint_uint(config->queue_id));
 
 	return TRUE;
 }
@@ -870,8 +877,10 @@ __ni_compat_generate_team_link_watch(xml_node_t *tnode, const ni_team_link_watch
 }
 
 static ni_bool_t
-__ni_compat_generate_team_port_config(xml_node_t *port, const ni_team_port_config_t *config)
+ni_compat_generate_team_port_config(xml_node_t *port, const ni_team_port_config_t *config)
 {
+	if (!port || !config)
+		return FALSE;
 
 	if (config->queue_id != -1U)
 	     xml_node_new_element("queue_id", port, ni_sprint_uint(config->queue_id));
@@ -913,7 +922,7 @@ __ni_compat_generate_team_ports(xml_node_t *tnode, const ni_team_port_array_t *a
 
 		port = xml_node_new("port", ports);
 		xml_node_new_element("device", port, p->device.name);
-		__ni_compat_generate_team_port_config(port, &p->config);
+		ni_compat_generate_team_port_config(port, &p->config);
 	}
 
 	return TRUE;
@@ -1143,6 +1152,16 @@ __ni_compat_generate_ppp(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
 }
 
 static ni_bool_t
+ni_compat_generate_ovs_bridge_port_config(xml_node_t *port, const ni_ovs_bridge_port_config_t *config)
+{
+	if (!port || !config)
+		return FALSE;
+
+	xml_node_new_element("bridge", port, config->bridge.name);
+	return TRUE;
+}
+
+static ni_bool_t
 __ni_compat_generate_ovs_bridge_ports(xml_node_t *bnode, const ni_ovs_bridge_port_array_t *array)
 {
 	xml_node_t *ports;
@@ -1184,6 +1203,21 @@ __ni_compat_generate_ovs_bridge(xml_node_t *ifnode, const ni_compat_netdev_t *co
 	} /* else? */
 	if (!__ni_compat_generate_ovs_bridge_ports(bnode, &ovsbr->ports))
 		return FALSE;
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_compat_generate_bridge_port_config(xml_node_t *port, const ni_bridge_port_config_t *config)
+{
+	if (!port || !config)
+		return FALSE;
+
+	if (config->priority != NI_BRIDGE_VALUE_NOT_SET)
+		xml_node_new_element_uint("priority", port, config->priority);
+
+	if (config->path_cost != NI_BRIDGE_VALUE_NOT_SET)
+		xml_node_new_element_uint("path-cost", port, config->path_cost);
 
 	return TRUE;
 }
@@ -3003,11 +3037,17 @@ ni_compat_generate_ifnode_content(xml_node_t *ifnode, const ni_compat_netdev_t *
 			xml_node_add_attr(port, "type", ni_linktype_type_to_name(compat->port.type));
 
 			switch(compat->port.type) {
-			case NI_IFTYPE_OVS_BRIDGE:
-				xml_node_new_element("bridge", port, compat->port.conf.ovsbr.bridge.name);
+			case NI_IFTYPE_BOND:
+				ni_compat_generate_bonding_port_config(port, compat->port.bond);
 				break;
 			case NI_IFTYPE_TEAM:
-				__ni_compat_generate_team_port_config(port, &compat->port.conf.team);
+				ni_compat_generate_team_port_config(port, compat->port.team);
+				break;
+			case NI_IFTYPE_BRIDGE:
+				ni_compat_generate_bridge_port_config(port, compat->port.bridge);
+				break;
+			case NI_IFTYPE_OVS_BRIDGE:
+				ni_compat_generate_ovs_bridge_port_config(port, compat->port.ovsbr);
 				break;
 			default:
 				break;
