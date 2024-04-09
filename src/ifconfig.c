@@ -329,14 +329,6 @@ ni_system_interface_unenslave(ni_netconfig_t *nc, ni_netdev_t *dev)
 		case NI_IFTYPE_BOND:
 			if (__ni_rtnl_link_unenslave(dev) != NLE_SUCCESS)
 				return -1;
-
-			if (dev->bonding) {
-				ni_bonding_slave_array_t *slaves = &dev->bonding->slaves;
-				unsigned int i;
-
-				i = ni_bonding_slave_array_index_by_ifindex(slaves, dev->link.ifindex);
-				ni_bonding_slave_array_delete(slaves, i);
-			}
 			break;
 
 		case NI_IFTYPE_BRIDGE:
@@ -1755,6 +1747,7 @@ ni_system_bond_create(ni_netconfig_t *nc, const ni_netdev_t *cfg, ni_netdev_t **
 static int
 ni_system_bond_setup_sysfs(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
 {
+	unsigned int ports;
 	ni_bonding_t *bond;
 	ni_bool_t is_up;
 
@@ -1765,13 +1758,14 @@ ni_system_bond_setup_sysfs(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev
 
 	is_up = ni_netdev_device_is_up(dev);
 	ni_bonding_parse_sysfs_attrs(dev->name, bond);
+	ports = ni_netdev_get_ports(dev, NULL, nc);
 
 	ni_debug_ifconfig("%s: configuring bonding device (stage 0.%u.%u)",
-			dev->name, is_up, bond->slaves.count);
+			dev->name, is_up, ports);
 	if (ni_bonding_write_sysfs_attrs(dev->name, cfg->bonding, bond,
-					is_up, bond->slaves.count > 0) < 0) {
+					is_up, ports > 0) < 0) {
 		ni_error("%s: cannot configure bonding device (stage 0.%u.%u)",
-			dev->name, is_up, bond->slaves.count);
+			dev->name, is_up, ports);
 		return -1;
 	}
 	ni_bonding_parse_sysfs_attrs(dev->name, bond);
@@ -1861,97 +1855,6 @@ ni_system_bond_delete(ni_netconfig_t *nc, ni_netdev_t *dev)
 		ni_error("could not destroy bonding interface %s", dev->name);
 		return -1;
 	}
-	return 0;
-}
-
-/*
- * Add slave to a bond
- */
-int
-ni_system_bond_add_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int slave_idx)
-{
-	ni_string_array_t slave_names = NI_STRING_ARRAY_INIT;
-	ni_bonding_t *bond = dev->bonding;
-	ni_netdev_t *slave_dev;
-
-	if (bond == NULL) {
-		ni_error("%s: %s is not a bonding device", __func__, dev->name);
-		return -NI_ERROR_DEVICE_NOT_COMPATIBLE;
-	}
-
-	slave_dev = ni_netdev_by_index(nc, slave_idx);
-	if (slave_dev == NULL) {
-		ni_error("%s: trying to add unknown interface to bond %s",
-			__func__, dev->name);
-		return -NI_ERROR_DEVICE_NOT_KNOWN;
-	}
-
-	if (!ni_netdev_device_is_ready(slave_dev)) {
-		ni_error("%s: trying to enslave %s, which is not ready",
-			dev->name, slave_dev->name);
-		return -NI_ERROR_DEVICE_NOT_KNOWN;
-	}
-
-	if (ni_netdev_network_is_up(slave_dev)) {
-		ni_error("%s: trying to enslave %s, which is in use",
-			dev->name, slave_dev->name);
-		return -NI_ERROR_DEVICE_NOT_DOWN;
-	}
-
-	/* Silently ignore duplicate slave attach */
-	if (ni_bonding_has_slave(bond, slave_dev->name))
-		return 0;
-
-	ni_bonding_get_slave_names(bond, &slave_names);
-	ni_string_array_append(&slave_names, slave_dev->name);
-	if (ni_sysfs_bonding_set_list_attr(dev->name, "slaves", &slave_names) < 0) {
-		ni_string_array_destroy(&slave_names);
-		ni_error("%s: could not update list of slaves", dev->name);
-		return -NI_ERROR_PERMISSION_DENIED;
-	}
-	ni_string_array_destroy(&slave_names);
-	ni_bonding_add_slave(bond, slave_dev->name);
-
-	return 0;
-}
-
-/*
- * Remove a slave from a bond
- */
-int
-ni_system_bond_remove_slave(ni_netconfig_t *nc, ni_netdev_t *dev, unsigned int slave_idx)
-{
-	ni_string_array_t slave_names = NI_STRING_ARRAY_INIT;
-	ni_bonding_t *bond = dev->bonding;
-	ni_netdev_t *slave_dev;
-	unsigned int idx;
-
-	if (bond == NULL) {
-		ni_error("%s: %s is not a bonding device", __func__, dev->name);
-		return -NI_ERROR_DEVICE_NOT_COMPATIBLE;
-	}
-
-	slave_dev = ni_netdev_by_index(nc, slave_idx);
-	if (slave_dev == NULL) {
-		ni_error("%s: trying to add unknown interface to bond %s", __func__, dev->name);
-		return -NI_ERROR_DEVICE_NOT_KNOWN;
-	}
-
-	/* Silently ignore duplicate slave removal */
-	if ((idx = ni_bonding_slave_array_index_by_ifindex(&bond->slaves, slave_idx)) == -1U) {
-		if ((idx = ni_bonding_slave_array_index_by_ifname( &bond->slaves, slave_dev->name)) == -1U)
-			return 0;
-	}
-
-	ni_bonding_slave_array_delete(&bond->slaves, idx);
-	ni_bonding_get_slave_names(bond, &slave_names);
-	if (ni_sysfs_bonding_set_list_attr(dev->name, "slaves", &slave_names) < 0) {
-		ni_string_array_destroy(&slave_names);
-		ni_error("%s: could not update list of slaves", dev->name);
-		return -NI_ERROR_PERMISSION_DENIED;
-	}
-	ni_string_array_destroy(&slave_names);
-
 	return 0;
 }
 
@@ -2788,10 +2691,10 @@ __ni_rtnl_link_put_bond(ni_netconfig_t *nc,	struct nl_msg *msg, ni_netdev_t *dev
 		unsigned int	attr;		/* netlink attribute constant      */
 		unsigned int	modes;		/* bonding mode constraint mask    */
 		int		bstate;		/* <0: bond down, >0: bond up      */
-		int		slaves;		/* <0: no slaves, >0: wants slaves */
+		int		ports;		/* <0: no ports, >0: wants ports   */
 	} ni_bonding_opt_table[] = {
 #define map_opt(opt,args...)	{ .name = #opt, .attr = opt, ##args }
-		map_opt(IFLA_BOND_MODE,			.bstate = -1, .slaves = -1),
+		map_opt(IFLA_BOND_MODE,			.bstate = -1, .ports = -1),
 		map_opt(IFLA_BOND_MIIMON),
 		map_opt(IFLA_BOND_UPDELAY),
 		map_opt(IFLA_BOND_DOWNDELAY),
@@ -2824,11 +2727,11 @@ __ni_rtnl_link_put_bond(ni_netconfig_t *nc,	struct nl_msg *msg, ni_netdev_t *dev
 		map_opt(IFLA_BOND_ACTIVE_SLAVE,		.modes  = NI_BIT(NI_BOND_MODE_ACTIVE_BACKUP)
 								| NI_BIT(NI_BOND_MODE_BALANCE_ALB)
 								| NI_BIT(NI_BOND_MODE_BALANCE_TLB),
-							.bstate = 1, .slaves = 1),
+							.bstate = 1, .ports = 1),
 		map_opt(IFLA_BOND_TLB_DYNAMIC_LB,	.modes  = NI_BIT(NI_BOND_MODE_BALANCE_TLB),
 							.bstate = -1),
 		map_opt(IFLA_BOND_MIN_LINKS),
-		map_opt(IFLA_BOND_FAIL_OVER_MAC,	.slaves = -1),
+		map_opt(IFLA_BOND_FAIL_OVER_MAC,	.ports = -1),
 		map_opt(IFLA_BOND_ALL_SLAVES_ACTIVE),
 		map_opt(IFLA_BOND_PACKETS_PER_SLAVE,	.modes  = NI_BIT(NI_BOND_MODE_BALANCE_RR)),
 		map_opt(IFLA_BOND_RESEND_IGMP),
@@ -2844,6 +2747,7 @@ __ni_rtnl_link_put_bond(ni_netconfig_t *nc,	struct nl_msg *msg, ni_netdev_t *dev
 	ni_bonding_t *		bond;
 	ni_bool_t		is_up;
 	unsigned int		count;
+	unsigned int		ports;
 	int			ret;
 
 	if (!cfg || !cfg->bonding || ni_string_empty(ifname))
@@ -2862,6 +2766,7 @@ __ni_rtnl_link_put_bond(ni_netconfig_t *nc,	struct nl_msg *msg, ni_netdev_t *dev
 		goto nla_put_failure;
 
 	is_up = ni_netdev_device_is_up(dev);
+	ports = ni_netdev_get_ports(dev, NULL, nc);
 	for (count = 0, opt = ni_bonding_opt_table; opt->name; opt++) {
 		if (opt->modes && !(opt->modes & NI_BIT(bond->mode))) {
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
@@ -2879,15 +2784,15 @@ __ni_rtnl_link_put_bond(ni_netconfig_t *nc,	struct nl_msg *msg, ni_netdev_t *dev
 					"%s: skip attr %s -- bond is down", ifname, opt->name);
 			continue;
 		}
-		if (opt->slaves < 0 && bond->slaves.count) {
+		if (opt->ports < 0 && ports) {
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
-					"%s: skip attr %s -- bond has %u slave%s", ifname, opt->name,
-					bond->slaves.count, bond->slaves.count > 1 ? "s" : "");
+					"%s: skip attr %s -- bond has %u port%s", ifname, opt->name,
+					ports, ports > 1 ? "s" : "");
 			continue;
 		}
-		if (opt->slaves > 0 && !bond->slaves.count) {
+		if (opt->ports > 0 && !ports) {
 			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG,
-					"%s: skip attr %s -- bond has no slaves yet", ifname, opt->name);
+					"%s: skip attr %s -- bond has no ports yet", ifname, opt->name);
 			continue;
 		}
 
