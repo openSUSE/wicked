@@ -211,7 +211,7 @@ ni_nanny_statedir(void)
 }
 
 static ni_bool_t
-ni_nanny_policy_load(ni_nanny_t *mgr)
+ni_nanny_load_policies(ni_nanny_t *mgr)
 {
 	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
@@ -242,6 +242,29 @@ ni_nanny_policy_load(ni_nanny_t *mgr)
 				ni_error("Unable to allocate policy doc array memory: %m");
 				xml_document_free(doc);
 				continue;
+			}
+		}
+
+		if (ni_ifxml_migrate_docs(&docs))
+			ni_debug_readwrite("Migrated nanny policies to current schema");
+
+		for (i = 0; i < docs.count; ++i) {
+			doc = docs.data[i];
+			ni_bool_t migrated;
+			const char *name;
+
+			migrated = ni_ifxml_node_is_migrated(doc->root);
+			if (migrated) {
+				name = ni_ifpolicy_get_name(doc->root);
+
+				ni_ifxml_node_set_migrated(doc->root, FALSE);
+				if (ni_nanny_policy_file_path(&path, name) &&
+				    ni_nanny_policy_save(doc->root, path, NI_NANNY_POLICY_BAK)) {
+					ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_READWRITE,
+							"- saved migrated policy to file '%s'",
+							path);
+				}
+				ni_string_free(&path);
 			}
 		}
 
@@ -294,7 +317,7 @@ babysit(void)
 
 	ni_rfkill_open(handle_rfkill_event, mgr);
 	ni_nanny_discover_state(mgr);
-	ni_nanny_policy_load(mgr);
+	ni_nanny_load_policies(mgr);
 
 #ifdef HAVE_SYSTEMD_SD_DAEMON_H
 	if (opt_systemd) {

@@ -331,6 +331,7 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, xml_do
 {
 	xml_node_t *root, *pnode = NULL;
 	ni_fsm_policy_t *policy = NULL;
+	char *location = NULL;
 	const char *pname;
 	int rv = -1;
 
@@ -378,11 +379,13 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, xml_do
 		goto error;
 	}
 
-	if (ni_ifconfig_migrate(pnode))
-		ni_debug_nanny("Migrated policy \"%s\" to current schema", pname);
-
 	if (caller_uid)
 		ni_ifpolicy_set_owner_uid(pnode, *caller_uid);
+
+	if (ni_nanny_policy_location(&location, pname)) {
+		xml_node_location_relocate(pnode, location);
+		ni_string_free(&location);
+	}
 
 	if (!(policy = ni_fsm_policy_new(mgr->fsm, pname, pnode))) {
 		ni_error("Unable to create policy object for %s", pname);

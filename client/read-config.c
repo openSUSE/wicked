@@ -279,6 +279,8 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *opt_ifconfi
 			return FALSE;
 		}
 	}
+	if (ni_ifxml_migrate_docs(&docs))
+		ni_debug_readwrite("Migrated configuration to current schema");
 
 	for (i = 0; i < docs.count; i++) {
 		xml_node_t *root;
@@ -490,8 +492,6 @@ ni_ifconfig_read_wicked_xml_file(xml_document_array_t *docs,
 
 		xml_node_location_set(node, xml_location_clone(cnode->location));
 		xml_node_reparent(node, cnode);
-		if (ni_ifconfig_migrate(node))
-			ni_debug_readwrite("Migrated \"%s\" config to current schema", conf.origin);
 
 		ni_ifconfig_metadata_clear(node);
 		if (!raw)

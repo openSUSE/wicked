@@ -353,6 +353,38 @@ ni_convert_cfg_into_policy_doc(xml_document_t *doc)
 	return NULL;
 }
 
+ni_bool_t
+ni_ifxml_node_is_migrated(const xml_node_t *node)
+{
+	ni_bool_t migrated = FALSE;
+	const char *value;
+
+	while (node && node->parent && !ni_string_empty(node->parent->name))
+		node = node->parent;
+
+	value = xml_node_get_attr(node, "migrated");
+	if (ni_parse_boolean(value, &migrated) != 0)
+		return FALSE;
+
+	return migrated;
+}
+
+ni_bool_t
+ni_ifxml_node_set_migrated(xml_node_t *node, ni_bool_t migrated)
+{
+	const char *value;
+
+	while (node && node->parent && !ni_string_empty(node->parent->name))
+		node = node->parent;
+
+	xml_node_del_attr(node, "migrated");
+	if (!migrated)
+		return TRUE;
+
+	value = ni_format_boolean(TRUE);
+	return xml_node_add_attr(node, "migrated", value);
+}
+
 static ni_bool_t
 ni_ifconfig_migrate_ethtool_link_settings_add(xml_node_t *ethtool, const char *name, const char *value)
 {
@@ -474,7 +506,8 @@ ni_ifconfig_migrate_ethtool(xml_node_t *ethernet, xml_node_t *ethtool)
 }
 
 static ni_bool_t
-ni_ifconfig_migrate_ethernet_node(xml_node_t *config, xml_node_t *ethernet)
+ni_ifconfig_migrate_ethernet_node(xml_document_array_t *docs,
+		xml_node_t *config, xml_node_t *ethernet)
 {
 	ni_bool_t modified = FALSE;
 	xml_node_t *ethtool;
@@ -506,7 +539,8 @@ ni_ifconfig_migrate_wireless_network(xml_node_t *network)
 }
 
 static ni_bool_t
-ni_ifconfig_migrate_wireless_node(xml_node_t *config, xml_node_t *wireless)
+ni_ifconfig_migrate_wireless_node(xml_document_array_t *docs,
+		xml_node_t *config, xml_node_t *wireless)
 {
 	ni_bool_t modified = FALSE;
 	xml_node_t *networks;
@@ -527,80 +561,1136 @@ ni_ifconfig_migrate_wireless_node(xml_node_t *config, xml_node_t *wireless)
 }
 
 static ni_bool_t
-ni_ifconfig_migrate_config_node(xml_node_t *config)
+ni_ifconfig_migrate_link_ovsbr_port(xml_node_t *link, xml_node_t *port)
 {
-	struct migrate_node {
-		const char *name;
-		ni_bool_t (*func)(xml_node_t *, xml_node_t *);
-	} *migrate, migrate_map[] = {
-		{ "ethernet",	ni_ifconfig_migrate_ethernet_node	},
-		{ "wireless",	ni_ifconfig_migrate_wireless_node	},
+	xml_node_t *bnode;
+	xml_node_t *mnode;
+	const char *mtype;
 
-		{ NULL }
-	};
+	/*
+	 * Rewrite link node containing port with type=ovs-bridge from:
+	 *   <link>
+	 *     <master>ovs-system</master>
+	 *     <port type="ovs-bridge">
+	 *       <bridge>ovsbrX</bridge>
+	 *     </port>
+	 *   </link>
+	 * into resolved link node with ovs-bridge in master reference:
+	 *   <link>
+	 *     <master>ovsbrX</master>
+	 *     <port type="ovs-bridge"/>
+	 *   </link>
+	 * by moving the bridge name from port into master node cdata.
+	 */
+	bnode = xml_node_get_child(port, NI_CLIENT_IFCONFIG_BRIDGE);
+	if (!bnode || ni_string_empty(bnode->cdata))
+		return FALSE;
+
+	if ((mnode = xml_node_get_child(link, NI_CLIENT_IFCONFIG_MASTER))) {
+		mtype = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
+
+		/* if master is empty, ovs-system or same bridge */
+		if (!ni_string_empty(mnode->cdata) &&
+		    !ni_string_eq(mnode->cdata, mtype) &&
+		    !ni_string_eq(mnode->cdata, bnode->cdata))
+			return FALSE;
+
+	} else if (!(mnode = xml_node_new(NI_CLIENT_IFCONFIG_MASTER, link)))
+		return FALSE;
+
+	xml_node_set_cdata(mnode, bnode->cdata);
+	/* we've set the bridge in master and can remove the
+	 * obsolete bridge node from bridge-port config now. */
+	xml_node_detach(bnode);
+	xml_node_free(bnode);
+
+	/* mark the port migrated, may be triggered by master */
+	ni_ifxml_node_set_migrated(link, TRUE);
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_link_config(xml_node_t *link)
+{
+	xml_node_t *port;
+	const char *type;
+
+	if (!(port = xml_node_get_child(link, NI_CLIENT_IFCONFIG_LINK_PORT)))
+		return FALSE;
+
+	type = xml_node_get_attr(port, NI_CLIENT_IFCONFIG_PORT_TYPE);
+	switch ((ni_iftype_t)ni_linktype_name_to_type(type)) {
+	case NI_IFTYPE_OVS_BRIDGE:
+		return ni_ifconfig_migrate_link_ovsbr_port(link, port);
+	default:
+		return FALSE;
+	}
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_link_node(xml_document_array_t *docs,
+		xml_node_t *config, xml_node_t *migrate)
+{
+	return ni_ifconfig_migrate_link_config(migrate);
+}
+
+static ni_bool_t
+ni_ifconfig_control_set_mode(xml_node_t *config, const char *mode)
+{
+	xml_node_t *ctrl, *node;
+
+	if (!(ctrl = xml_node_create(config, NI_CLIENT_IFCONFIG_CONTROL)))
+		return FALSE;
+
+	if (!(node = xml_node_create(ctrl, NI_CLIENT_IFCONFIG_MODE)))
+		return FALSE;
+
+	return xml_node_set_cdata(node, mode);
+}
+
+static const char *
+ni_ifconfig_link_get_master(xml_node_t *config, const xml_node_t **node)
+{
+	xml_node_t *link, *master;
+
+	if (!(link = xml_node_get_child(config, NI_CLIENT_IFCONFIG_LINK)))
+		return NULL;
+
+	if (!(master = xml_node_get_child(link, NI_CLIENT_IFCONFIG_MASTER)))
+		return NULL;
+
+	if (ni_string_empty(master->cdata))
+		return NULL;
+
+	if (node)
+		*node = master;
+	return master->cdata;
+}
+
+static ni_bool_t
+ni_ifconfig_link_set_master(xml_node_t *config, const char *master)
+{
+	xml_node_t *link, *node;
+
+	if (!(link = xml_node_create(config, NI_CLIENT_IFCONFIG_LINK)))
+		return FALSE;
+
+	if (!(node = xml_node_create(link, NI_CLIENT_IFCONFIG_MASTER)))
+		return FALSE;
+
+	return xml_node_set_cdata(node, master);
+}
+
+static const char *
+ni_ifconfig_link_get_port_config(xml_node_t *config, const xml_node_t **node)
+{
+	xml_node_t *link, *pconf;
+	const char *ptype;
+
+	if (!(link = xml_node_get_child(config, NI_CLIENT_IFCONFIG_LINK)))
+		return NULL;
+
+	if (!(pconf = xml_node_get_child(link, NI_CLIENT_IFCONFIG_LINK_PORT)))
+		return NULL;
+
+	ptype = xml_node_get_attr(pconf, NI_CLIENT_IFCONFIG_PORT_TYPE);
+	if (ni_string_empty(ptype))
+		return NULL;	/* invalid union node without a type */
+
+	if (node)
+		*node = pconf;
+	return ptype;
+}
+
+static ni_bool_t
+ni_ifconfig_link_set_port_config(xml_node_t *config, xml_node_t *pconf)
+{
+	xml_node_t *link, *oconf;
+
+	if (!pconf || !(link = xml_node_create(config, NI_CLIENT_IFCONFIG_LINK)))
+		return FALSE;
+
+	if ((oconf = xml_node_get_child(link, NI_CLIENT_IFCONFIG_LINK_PORT))) {
+		xml_node_detach(oconf);
+		xml_node_free(oconf);
+	}
+
+	xml_node_reparent(link, pconf);
+	return TRUE;
+}
+
+static xml_node_t *
+ni_ifconfig_create_port_config_node(const char *ptype)
+{
+	xml_node_t *pconf;
+
+	if (!(pconf = xml_node_new(NI_CLIENT_IFCONFIG_LINK_PORT, NULL)))
+		return NULL;
+
+	if (xml_node_add_attr(pconf, NI_CLIENT_IFCONFIG_PORT_TYPE, ptype))
+		return pconf;
+
+	xml_node_free(pconf);
+	return NULL;
+}
+
+static xml_node_t *
+ni_ifconfig_create(const char *ifname, const char *origin, const char *owner)
+{
+	xml_node_t *config;
+
+	if (ni_string_empty(ifname))
+		return NULL;
+
+	if (!(config = xml_node_new(NI_CLIENT_IFCONFIG, NULL)))
+		return NULL;
+
+	if (origin && !xml_node_add_attr(config, NI_CLIENT_IFCONFIG_ORIGIN, origin))
+		goto failure;
+
+	if (owner && !xml_node_add_attr(config, NI_CLIENT_IFCONFIG_OWNER, owner))
+		goto failure;
+
+	if (!xml_node_new_element(NI_CLIENT_IFCONFIG_MATCH_NAME, config, ifname))
+		goto failure;
+
+	return config;
+
+failure:
+	xml_node_free(config);
+	return NULL;
+}
+
+static xml_node_t *
+ni_ifconfig_get_name(xml_node_t *config)
+{
+	return xml_node_get_child(config, NI_CLIENT_IFCONFIG_MATCH_NAME);
+}
+
+static const char *
+ni_ifconfig_get_ifname(xml_node_t *config)
+{
+	xml_node_t *name;
+
+	if (!(name = ni_ifconfig_get_name(config)))
+		return NULL;
+
+	if (xml_node_get_attr(name, "namespace"))
+		return NULL;
+
+	return name->cdata;
+}
+
+static xml_node_t *
+ni_ifpolicy_create(const char *ifname, const char *origin, const char *owner,
+		xml_node_t **config)
+{
+	xml_node_t *policy, *match, *action;
+	char *name = NULL;
+
+	if (ni_string_empty(ifname) || (config && *config))
+		return NULL;
+
+	if (!(policy = xml_node_new(NI_NANNY_IFPOLICY, NULL)))
+		return NULL;
+
+	if (!(name = ni_ifpolicy_name_from_ifname(ifname)))
+		goto failure;
+
+	if (!xml_node_add_attr(policy, NI_NANNY_IFPOLICY_NAME, name))
+		goto failure;
+
+	ni_string_free(&name);
+
+	if (origin && !xml_node_add_attr(policy, NI_NANNY_IFPOLICY_ORIGIN, origin))
+		goto failure;
+
+	if (owner && !xml_node_add_attr(policy, NI_NANNY_IFPOLICY_OWNER, owner))
+		goto failure;
+
+	if (!(match = xml_node_new(NI_NANNY_IFPOLICY_MATCH, policy)))
+		goto failure;
+
+	if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, match, ifname))
+		goto failure;
+
+	if (!(action = xml_node_new(NI_NANNY_IFPOLICY_MERGE, policy)))
+		goto failure;
+
+	if (!xml_node_new_element(NI_CLIENT_IFCONFIG_MATCH_NAME, action, ifname))
+		goto failure;
+
+	/* action contains the actual config */
+	if (config)
+		*config = action;
+
+	return policy;
+
+failure:
+	ni_string_free(&name);
+	xml_node_detach(policy);
+	xml_node_free(policy);
+	return NULL;
+}
+
+static xml_node_t *
+ni_ifxml_get_ifconfig_node(xml_document_t *doc)
+{
+	xml_node_t *root, *node;
+
+	if (!(root = xml_document_root(doc)))
+		return NULL;
+
+	if (ni_ifconfig_is_config(root))
+		return root;
+
+	if (ni_ifconfig_is_policy(root)) {
+		if ((node = xml_node_get_child(root, NI_NANNY_IFPOLICY_MERGE)))
+			return node;
+		if ((node = xml_node_get_child(root, NI_NANNY_IFPOLICY_REPLACE)))
+			return node;
+		if ((node = xml_node_get_child(root, NI_NANNY_IFPOLICY_CREATE)))
+			return node;
+	}
+
+	return NULL;
+}
+
+static xml_node_t *
+ni_ifxml_find_config_by_ifname(xml_document_array_t *docs, const char *ifname)
+{
+	xml_document_t *doc;
+	xml_node_t *config;
+	const char *name;
+	unsigned int i;
+
+	for (i = 0; i < docs->count; ++i) {
+		doc = docs->data[i];
+		if (!(config = ni_ifxml_get_ifconfig_node(doc)))
+			continue;
+
+		if (!(name = ni_ifconfig_get_ifname(config)))
+			continue;
+
+		if (ni_string_eq(ifname, name))
+			return config;
+	}
+	return NULL;
+}
+
+static int
+ni_ifconfig_migrate_port_master(xml_node_t *migrate,
+		const char *port, const char *ptype,
+		const char *master)
+{
+	const xml_node_t *node = NULL;
+	const char *current;
+
+	if (!(current = ni_ifconfig_link_get_master(migrate, &node))) {
+		if (!ni_ifconfig_link_set_master(migrate, master)) {
+			ni_error("%s: failed to add %s port '%s' to '%s'",
+					xml_node_location(migrate), ptype,
+					port, master);
+			return -1;
+		}
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_READWRITE,
+				"%s: added %s port '%s' to '%s'",
+				xml_node_location(migrate), ptype,
+				port, master);
+		return 0;
+	}
+
+	if (!ni_string_eq(current, master)) {
+		ni_error("%s: cannot add %s port '%s' to '%s', already in '%s'",
+			xml_node_location(node), ptype, port, master, current);
+		return -1;
+	}
+	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_READWRITE,
+			"%s: %s port '%s' is already set to '%s'",
+			xml_node_location(node), ptype, port, current);
+	return 1;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_l2_port_ipv4(xml_node_t *migrate)
+{
+	xml_node_t *ip, *en;
+
+	if (!(ip = xml_node_create(migrate, NI_CLIENT_IFCONFIG_IPV4)))
+		return FALSE;
+
+	if (!(en = xml_node_create(ip, NI_CLIENT_IFCONFIG_IP_ENABLED)))
+		return FALSE;
+
+	if (ni_string_eq(en->cdata, "false"))
+		return FALSE; /* nothing to migrate */
+
+	return xml_node_set_cdata(en, "false");
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_l2_port_ipv6(xml_node_t *migrate, ni_bool_t l2v6)
+{
 	ni_bool_t modified = FALSE;
-	xml_node_t *found;
+	xml_node_t *ip, *en, *ra;
 
-	for (migrate = migrate_map; migrate->name && migrate->func; ++migrate) {
-		found = xml_node_get_child(config, migrate->name);
-		if (found && migrate->func(config, found))
+	if (!(ip = xml_node_create(migrate, NI_CLIENT_IFCONFIG_IPV6)))
+		return FALSE;
+
+	if (!(en = xml_node_create(ip, NI_CLIENT_IFCONFIG_IP_ENABLED)))
+		return FALSE;
+
+	if (l2v6) {
+		if (!(ra = xml_node_create(ip, "accept-ra")))
+			return FALSE;
+
+		if (!ni_string_eq(ra->cdata, "disable")) {
+			if (xml_node_set_cdata(ra, "disable"))
+				modified = TRUE;
+		}
+	}
+	if (!ni_string_eq(en->cdata, ni_format_boolean(l2v6))) {
+		if (xml_node_set_cdata(en, ni_format_boolean(l2v6)))
 			modified = TRUE;
 	}
 	return modified;
 }
 
 static ni_bool_t
-ni_ifconfig_migrate_node(xml_node_t *node, ni_bool_t *modified)
+ni_ifconfig_migrate_bond_port(xml_node_t *migrate,
+		const char *upper, const char *port,
+		ni_iftype_t type, const xml_node_t *data,
+		ni_bool_t l2v6)
 {
-	if (!modified || xml_node_is_empty(node))
+	const char *ptype = ni_linktype_type_to_name(type);
+	const xml_node_t *oconf = NULL;
+	const char *otype = NULL;
+	xml_node_t *nconf;
+	int ret;
+
+	if ((ret = ni_ifconfig_migrate_port_master(migrate, port, ptype, upper)) < 0)
 		return FALSE;
 
-	if (ni_ifconfig_is_config(node)) {
-		/* ifconfig with the effective config data */
-		if (ni_ifconfig_migrate_config_node(node))
-			*modified = TRUE;
-		return TRUE;
-	} else
-	if (ni_ifconfig_is_policy(node)) {
-		xml_node_t *action = NULL;
+	if ((otype = ni_ifconfig_link_get_port_config(migrate, &oconf))) {
+		if (ni_string_eq(otype, ptype))
+			return ret == 0; /* no bond config to _migrate_ */
 
-		/* policy action contains the config data  */
-		if ((action = xml_node_get_child(node, NI_NANNY_IFPOLICY_MERGE))) {
-			if (ni_ifconfig_migrate_config_node(action))
-				*modified = TRUE;
-			return TRUE;
-		}
-		if ((action = xml_node_get_child(node, NI_NANNY_IFPOLICY_CREATE))) {
-			if (ni_ifconfig_migrate_config_node(action))
-				*modified = TRUE;
-			return TRUE;
-		}
-		if ((action = xml_node_get_child(node, NI_NANNY_IFPOLICY_REPLACE))) {
-			if (ni_ifconfig_migrate_config_node(action))
-				*modified = TRUE;
-			return TRUE;
-		}
+		ni_warn("%s: removing mismatching %s port config from %s port '%s'",
+				xml_node_location(oconf), otype, ptype, port);
 	}
-	/* not a ifconfig or ifpolicy node */
+	if ((nconf = ni_ifconfig_create_port_config_node(ptype))) {
+		/*
+		 * no port specific properties to migrate
+		 * from bonding:slave array, queue-id is new
+		 */
+		(void)data;
+
+		if (!ni_ifconfig_link_set_port_config(migrate, nconf))
+			xml_node_free(nconf);
+		else
+			ret = 0;
+	}
+
+	if (ni_ifconfig_migrate_l2_port_ipv4(migrate))
+		ret = 0;
+
+	if (ni_ifconfig_migrate_l2_port_ipv6(migrate, l2v6))
+		ret = 0;
+
+	return ret == 0;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_team_port(xml_node_t *migrate,
+		const char *upper, const char *port,
+		ni_iftype_t type, const xml_node_t *data,
+		ni_bool_t l2v6)
+{
+	const char *ptype = ni_linktype_type_to_name(type);
+	const xml_node_t *oconf = NULL;
+	const char *otype = NULL;
+	xml_node_t *nconf;
+	int ret;
+
+	if ((ret = ni_ifconfig_migrate_port_master(migrate, port, ptype, upper)) < 0)
+		return FALSE;
+
+	if ((otype = ni_ifconfig_link_get_port_config(migrate, &oconf))) {
+		if (ni_string_eq(otype, ptype))
+			return ret == 0; /* no port config to _migrate_ */
+
+		ni_warn("%s: removing mismatching %s port config from %s port '%s'",
+				xml_node_location(oconf), otype, ptype, port);
+	}
+	if ((nconf = ni_ifconfig_create_port_config_node(ptype))) {
+		xml_node_t *node;
+
+		if ((node = xml_node_get_child(data, "queue_id")))
+			xml_node_reparent(nconf, node);
+		if ((node = xml_node_get_child(data, "prio")))
+			xml_node_reparent(nconf, node);
+		if ((node = xml_node_get_child(data, "sticky")))
+			xml_node_reparent(nconf, node);
+		if ((node = xml_node_get_child(data, "lacp_key")))
+			xml_node_reparent(nconf, node);
+		if ((node = xml_node_get_child(data, "lacp_prio")))
+			xml_node_reparent(nconf, node);
+
+		if (!ni_ifconfig_link_set_port_config(migrate, nconf))
+			xml_node_free(nconf);
+		else
+			ret = 0;
+	}
+
+	if (ni_ifconfig_migrate_l2_port_ipv4(migrate))
+		ret = 0;
+
+	if (ni_ifconfig_migrate_l2_port_ipv6(migrate, l2v6))
+		ret = 0;
+
+	return ret == 0;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_bridge_port(xml_node_t *migrate,
+		const char *upper, const char *port,
+		ni_iftype_t type, const xml_node_t *data,
+		ni_bool_t l2v6)
+{
+	const char *ptype = ni_linktype_type_to_name(type);
+	const xml_node_t *oconf = NULL;
+	const char *otype = NULL;
+	xml_node_t *nconf;
+	int ret;
+
+	if ((ret = ni_ifconfig_migrate_port_master(migrate, port, ptype, upper)) < 0)
+		return FALSE;
+
+	if ((otype = ni_ifconfig_link_get_port_config(migrate, &oconf))) {
+		if (ni_string_eq(otype, ptype))
+			return ret == 0; /* no port config to _migrate_ */
+
+		ni_warn("%s: removing mismatching %s port config from %s port '%s'",
+				xml_node_location(oconf), otype, ptype, port);
+	}
+	if ((nconf = ni_ifconfig_create_port_config_node(ptype))) {
+		xml_node_t *node;
+
+		if ((node = xml_node_get_child(data, "priority")))
+			xml_node_reparent(nconf, node);
+		if ((node = xml_node_get_child(data, "path-cost")))
+			xml_node_reparent(nconf, node);
+
+		if (!ni_ifconfig_link_set_port_config(migrate, nconf))
+			xml_node_free(nconf);
+		else
+			ret = 0;
+	}
+
+	if (ni_ifconfig_migrate_l2_port_ipv4(migrate))
+		ret = 0;
+
+	if (ni_ifconfig_migrate_l2_port_ipv6(migrate, l2v6))
+		ret = 0;
+
+	return ret == 0;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_ovsbr_port(xml_node_t *migrate,
+		const char *ovsbr, const char *port,
+		ni_iftype_t type, const xml_node_t *data,
+		ni_bool_t l2v6)
+{
+	const char *ptype = ni_linktype_type_to_name(type);
+	const xml_node_t *oconf = NULL;
+	const char *otype = NULL;
+	xml_node_t *nconf, *link;
+	int ret = 1;
+
+	/*
+	 * Hmm... just migrate the port's <link/> node as such -- for ovs,
+	 * we replace the ovs-system master with bridge from port config.
+	 */
+	link = xml_node_get_child(migrate, NI_CLIENT_IFCONFIG_LINK);
+	if (ni_ifconfig_migrate_link_config(link))
+		ret = 0;
+
+	/*
+	 * Now, we set the current ovsbr as master of the port and check
+	 * for conflict .. same as with any other (bond,team,...) master.
+	 */
+	if ((ret = ni_ifconfig_migrate_port_master(migrate, port, ptype, ovsbr)) < 0)
+		return FALSE;
+
+	if ((otype = ni_ifconfig_link_get_port_config(migrate, &oconf))) {
+		if (ni_string_eq(otype, ptype))
+			return ret == 0;
+
+		ni_warn("%s: removing mismatching %s port config from %s port '%s'",
+				xml_node_location(oconf), otype, ptype, port);
+	}
+	if ((nconf = ni_ifconfig_create_port_config_node(ptype))) {
+		/*
+		 * no port specific properties to migrate
+		 * from (old) ovs-bridge:port-device node
+		 */
+		(void)data;
+
+		/*
+		 * The ovs-bridge:port-config was always
+		 * in the port node of the port interface
+		 * and referring to the ovs bridge.
+		 */
+		if (!ni_ifconfig_link_set_port_config(migrate, nconf))
+			xml_node_free(nconf);
+		else
+			ret = 0;
+	}
+
+	if (ni_ifconfig_migrate_l2_port_ipv4(migrate))
+		ret = 0;
+
+	if (ni_ifconfig_migrate_l2_port_ipv6(migrate, l2v6))
+		ret = 0;
+
+	return ret == 0;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_l2_port(xml_node_t *migrate,
+		const char *upper, const char *port,
+		ni_iftype_t type, const xml_node_t *data,
+		ni_bool_t l2v6)
+{
+	ni_bool_t modified;
+
+	switch (type) {
+	case NI_IFTYPE_BOND:
+		modified = ni_ifconfig_migrate_bond_port(migrate,
+				upper, port, type, data, l2v6);
+		break;
+	case NI_IFTYPE_TEAM:
+		modified = ni_ifconfig_migrate_team_port(migrate,
+				upper, port, type, data, l2v6);
+		break;
+	case NI_IFTYPE_BRIDGE:
+		modified = ni_ifconfig_migrate_bridge_port(migrate,
+				upper, port, type, data, l2v6);
+		break;
+	case NI_IFTYPE_OVS_BRIDGE:
+		modified = ni_ifconfig_migrate_ovsbr_port(migrate,
+				upper, port, type, data, l2v6);
+		break;
+	default:
+		modified = FALSE;
+		break;
+	}
+	if (modified)
+		ni_ifxml_node_set_migrated(migrate, TRUE);
+	return modified;
+}
+
+static xml_node_t *
+ni_ifconfig_create_l2_port(xml_document_array_t *docs,
+		const char *upper, const char *port,
+		ni_iftype_t type, const xml_node_t *data,
+		const char *origin, const char *owner,
+		ni_bool_t l2v6)
+{
+	xml_document_t *doc;
+	xml_node_t *config;
+
+	if (!(config = ni_ifconfig_create(port, origin, owner)))
+		goto failure;
+
+	if (!ni_ifconfig_control_set_mode(config, "hotplug"))
+		goto failure;
+
+	if (!ni_ifconfig_migrate_l2_port(config, upper, port, type, data, l2v6))
+		goto failure;
+
+	if (!ni_ifxml_node_set_migrated(config, TRUE))
+		goto failure;
+
+	if (!(doc = xml_document_create(NULL, config)))
+		goto failure;
+
+	if (xml_document_array_append(docs, doc))
+		return config;
+
+	xml_document_free(doc);
+	return NULL;
+
+failure:
+	xml_node_free(config);
+	return NULL;
+}
+
+static ni_bool_t
+ni_ifpolicy_create_l2_port(xml_document_array_t *docs,
+		const char *upper, const char *port,
+		ni_iftype_t type, const xml_node_t *data,
+		const char *origin, const char *owner,
+		ni_bool_t l2v6)
+{
+	xml_node_t *policy = NULL;
+	xml_node_t *config = NULL;
+	xml_document_t *doc;
+
+	if (!(policy = ni_ifpolicy_create(port, origin, owner, &config)))
+		goto failure;
+
+	if (!ni_ifconfig_control_set_mode(config, "hotplug"))
+		goto failure;
+
+	if (!ni_ifconfig_migrate_l2_port(config, upper, port, type, data, l2v6))
+		goto failure;
+
+	if (!ni_ifxml_node_set_migrated(policy, TRUE))
+		goto failure;
+
+	if (!(doc = xml_document_create(NULL, policy)))
+		goto failure;
+
+	if (xml_document_array_append(docs, doc))
+		return TRUE;
+
+	xml_document_free(doc);
+	return FALSE;
+
+failure:
+	xml_node_free(policy);
 	return FALSE;
 }
 
-ni_bool_t
-ni_ifconfig_migrate(xml_node_t *node)
+static ni_bool_t
+ni_ifxml_migrate_l2_port(xml_document_array_t *docs,
+		const char *upper, const char *port,
+		ni_iftype_t type, const xml_node_t *data,
+		const char *origin, const char *owner,
+		ni_bool_t l2v6, ni_bool_t policy)
 {
 	ni_bool_t modified = FALSE;
-	xml_node_t *child;
+	xml_node_t *config;
 
-	if (!node)
-		return FALSE;
+	if ((config = ni_ifxml_find_config_by_ifname(docs, port))) {
+		if (ni_ifconfig_migrate_l2_port(config, upper, port, type, data, l2v6))
+			modified = TRUE;
+	} else if (policy) {
+		if (ni_ifpolicy_create_l2_port(docs, upper, port, type, data, origin, owner, l2v6))
+			modified = TRUE;
+	} else {
+		if (ni_ifconfig_create_l2_port(docs, upper, port, type, data, origin, owner, l2v6))
+			modified = TRUE;
+	}
 
-	/* node itself is a config or policy node  */
-	if (ni_ifconfig_migrate_node(node, &modified))
+	return modified;
+}
+
+static ni_bool_t
+ni_ifpolicy_match_remove_child_ref(xml_node_t *policy, const char *name)
+{
+	xml_node_t *match, *or, *child, *next, *device;
+	ni_bool_t modified = FALSE;
+	const char *ns;
+
+	/*
+	 * A bond,team,[ovs-]bridge were referencing their ports via:
+	 * <or>
+	 *   <child><device>${portname}</device></or>
+	 *   […]
+	 * </or>
+	 * We remove the obsolete reference to the port inclusive of
+	 * the <or> and <child> nodes once they're empty.
+	 */
+	if (!policy || ni_string_empty(name))
 		return modified;
 
-	/* node is a document root with children   */
-	for (child = node->children; child; child = child->next)
-		ni_ifconfig_migrate_node(child, &modified);
+	if (!(match = xml_node_get_child(policy, NI_NANNY_IFPOLICY_MATCH)))
+		return modified;
+
+	if (!(or = xml_node_get_child(match, NI_NANNY_IFPOLICY_MATCH_COND_OR)))
+		return modified;
+
+	for (child = or->children; child; child = next) {
+		next = or->next;
+
+		if (!(device = xml_node_get_child(child, NI_NANNY_IFPOLICY_MATCH_DEV)))
+			continue;
+
+		ns = xml_node_get_attr(device, "namespace");
+		if (!ni_string_empty(ns))
+			continue;
+
+		if (!ni_string_eq(device->cdata, name))
+			continue;
+
+		if (xml_node_delete_child_node(child, device))
+			modified = TRUE;
+
+		if (xml_node_is_empty(child) && xml_node_delete_child_node(or, child))
+			modified = TRUE;
+
+		break; /* We don't expect to find it again */
+	}
+	if (xml_node_is_empty(or) && xml_node_delete_child_node(match, or))
+		modified = TRUE;
+
+	return modified;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_bond_node(xml_document_array_t *docs,
+		xml_node_t *config, xml_node_t *migrate)
+{
+	ni_bool_t   modified = FALSE;
+	xml_node_t *ports, *port;
+	xml_node_t *policy;
+	xml_node_t *device;
+	const char *primary = NULL;
+	const char *origin;
+	const char *owner;
+	const char *bond;
+
+	if (!(ports = xml_node_get_child(migrate, "slaves")))
+		return modified;
+
+	if (!(bond = ni_ifconfig_get_ifname(config)))
+		return modified;
+
+	policy = ni_ifconfig_is_config(config) ? NULL : config->parent;
+	origin = ni_ifpolicy_get_origin(policy ?: config);
+	owner = ni_ifpolicy_get_owner(policy ?: config);
+
+	for (port = ports->children; port; port = port->next) {
+		if (!ni_string_eq("slave", port->name))
+			continue;
+
+		if (!(device = xml_node_get_child(port, "device")))
+			continue;
+
+		if (xml_node_get_attr(device, "namespace") ||
+		    ni_string_empty(device->cdata))
+			continue;
+
+		if (!primary) {
+			ni_bool_t enabled;
+			const char *ptr;
+
+			ptr = xml_node_get_child_cdata(port, "primary");
+			if (ni_parse_boolean(ptr, &enabled) == 0 && enabled)
+				primary = device->cdata;
+		}
+
+		if (ni_ifxml_migrate_l2_port(docs,
+				bond, device->cdata,
+				NI_IFTYPE_BOND, NULL,
+				origin, owner, FALSE, !!policy))
+			modified = TRUE;
+
+		if (ni_ifpolicy_match_remove_child_ref(policy, device->cdata))
+			modified = TRUE;
+	}
+
+	if (primary && !xml_node_get_child_cdata(migrate, "primary")) {
+		if (xml_node_new_element("primary", migrate, primary))
+			modified = TRUE;
+	}
+
+	if (ports && xml_node_delete_child_node(migrate, ports))
+		modified = TRUE;
+
+	return modified;
+}
+
+static ni_bool_t
+ni_ifconfig_team_l2v6(const xml_node_t *team)
+{
+	const xml_node_t *link_watch, *watch;
+
+	if (!team || !(link_watch = xml_node_get_child(team, "link_watch")))
+		return FALSE;
+
+	for (watch = link_watch->children; watch; watch = watch->next) {
+		if (xml_node_get_attr(watch, "nsna_ping"))
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_team_node(xml_document_array_t *docs,
+		xml_node_t *config, xml_node_t *migrate)
+{
+	ni_bool_t   modified = FALSE;
+	xml_node_t *ports, *port;
+	xml_node_t *policy;
+	xml_node_t *device;
+	const char *origin;
+	const char *owner;
+	const char *team;
+	ni_bool_t   l2v6;
+
+	if (!(ports = xml_node_get_child(migrate, "ports")))
+		return modified;
+
+	if (!(team = ni_ifconfig_get_ifname(config)))
+		return modified;
+
+	policy = ni_ifconfig_is_config(config) ? NULL : config->parent;
+	origin = ni_ifpolicy_get_origin(policy ?: config);
+	owner = ni_ifpolicy_get_owner(policy ?: config);
+
+	l2v6 = ni_ifconfig_team_l2v6(migrate);
+	for (port = ports->children; port; port = port->next) {
+		if (!ni_string_eq("port", port->name))
+			continue;
+
+		if (!(device = xml_node_get_child(port, "device")))
+			continue;
+
+		if (xml_node_get_attr(device, "namespace") ||
+		    ni_string_empty(device->cdata))
+			continue;
+
+		if (ni_ifxml_migrate_l2_port(docs,
+				team, device->cdata,
+				NI_IFTYPE_TEAM, port,
+				origin, owner, l2v6, !!policy))
+			modified = TRUE;
+
+		if (ni_ifpolicy_match_remove_child_ref(policy, device->cdata))
+			modified = TRUE;
+	}
+
+	if (ports && xml_node_delete_child_node(migrate, ports))
+		modified = TRUE;
+
+	return modified;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_bridge_node(xml_document_array_t *docs,
+		xml_node_t *config, xml_node_t *migrate)
+{
+	ni_bool_t   modified = FALSE;
+	xml_node_t *ports, *port;
+	xml_node_t *policy;
+	xml_node_t *device;
+	const char *origin;
+	const char *owner;
+	const char *bridge;
+
+	if (!(ports = xml_node_get_child(migrate, "ports")))
+		return modified;
+
+	if (!(bridge = ni_ifconfig_get_ifname(config)))
+		return modified;
+
+	policy = ni_ifconfig_is_config(config) ? NULL : config->parent;
+	origin = ni_ifpolicy_get_origin(policy ?: config);
+	owner = ni_ifpolicy_get_owner(policy ?: config);
+
+	for (port = ports->children; port; port = port->next) {
+		if (!ni_string_eq("port", port->name))
+			continue;
+
+		if (!(device = xml_node_get_child(port, "device")))
+			continue;
+
+		if (xml_node_get_attr(device, "namespace") ||
+		    ni_string_empty(device->cdata))
+			continue;
+
+		if (ni_ifxml_migrate_l2_port(docs,
+				bridge, device->cdata,
+				NI_IFTYPE_BRIDGE, port,
+				origin, owner, FALSE, !!policy))
+			modified = TRUE;
+
+		if (ni_ifpolicy_match_remove_child_ref(policy, device->cdata))
+			modified = TRUE;
+	}
+
+	if (ports && xml_node_delete_child_node(migrate, ports))
+		modified = TRUE;
+
+	return modified;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_ovsbr_node(xml_document_array_t *docs,
+		xml_node_t *config, xml_node_t *migrate)
+{
+	ni_bool_t   modified = FALSE;
+	xml_node_t *ports, *port;
+	xml_node_t *policy;
+	xml_node_t *device;
+	const char *origin;
+	const char *owner;
+	const char *ovsbr;
+
+	if (!(ports = xml_node_get_child(migrate, "ports")))
+		return modified;
+
+	if (!(ovsbr = ni_ifconfig_get_ifname(config)))
+		return modified;
+
+	policy = ni_ifconfig_is_config(config) ? NULL : config->parent;
+	origin = ni_ifpolicy_get_origin(policy ?: config);
+	owner = ni_ifpolicy_get_owner(policy ?: config);
+
+	for (port = ports->children; port; port = port->next) {
+		if (!ni_string_eq("port", port->name))
+			continue;
+
+		if (!(device = xml_node_get_child(port, "device")))
+			continue;
+
+		if (xml_node_get_attr(device, "namespace") ||
+		    ni_string_empty(device->cdata))
+			continue;
+
+		if (ni_ifxml_migrate_l2_port(docs,
+				ovsbr, device->cdata,
+				NI_IFTYPE_OVS_BRIDGE, port,
+				origin, owner, FALSE, !!policy))
+			modified = TRUE;
+
+		if (ni_ifpolicy_match_remove_child_ref(policy, device->cdata))
+			modified = TRUE;
+	}
+
+	if (ports && xml_node_delete_child_node(migrate, ports))
+		modified = TRUE;
+
+	return modified;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_node(xml_document_array_t *docs,
+		ni_bool_t (*func)(xml_document_array_t *,
+				xml_node_t *, xml_node_t *),
+		const char *name, xml_node_t *config)
+{
+	xml_node_t *node;
+
+	if (!(node = xml_node_get_child(config, name)))
+		return FALSE;
+
+	if (!func(docs, config, node))
+		return FALSE;
+
+	ni_ifxml_node_set_migrated(config, TRUE);
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifpolicy_migrate_node(xml_document_array_t *docs,
+		ni_bool_t (*func)(xml_document_array_t *,
+				xml_node_t *, xml_node_t *),
+		const char *name, xml_node_t *policy)
+{
+	ni_bool_t modified = FALSE;
+	xml_node_t *config = NULL;
+
+	/* policy action contains the effective ifconfig data */
+	if ((config = xml_node_get_child(policy, NI_NANNY_IFPOLICY_MERGE))) {
+		if (ni_ifconfig_migrate_node(docs, func, name, config))
+			modified = TRUE;
+	}
+	if ((config = xml_node_get_child(policy, NI_NANNY_IFPOLICY_REPLACE))) {
+		if (ni_ifconfig_migrate_node(docs, func, name, config))
+			modified = TRUE;
+	}
+	if ((config = xml_node_get_child(policy, NI_NANNY_IFPOLICY_CREATE))) {
+		if (ni_ifconfig_migrate_node(docs, func, name, config))
+			modified = TRUE;
+	}
+
+	return modified;
+}
+
+static ni_bool_t
+ni_ifxml_migrate_ifconfig_node(xml_document_array_t *docs, const char *name,
+	ni_bool_t (*func)(xml_document_array_t *, xml_node_t *, xml_node_t *))
+{
+	ni_bool_t modified = FALSE;
+	xml_document_t *doc;
+	xml_node_t *root;
+	unsigned int i;
+
+	for (i = 0; i < docs->count; ++i) {
+		doc = docs->data[i];
+		root = xml_document_root(doc);
+
+		if (ni_ifconfig_is_config(root)) {
+			if (ni_ifconfig_migrate_node(docs, func, name, root))
+				modified = TRUE;
+			continue;
+		}
+
+		if (ni_ifconfig_is_policy(root)) {
+			if (ni_ifpolicy_migrate_node(docs, func, name, root))
+				modified = TRUE;
+			continue;
+		}
+	}
+
+	return modified;
+}
+
+static ni_bool_t
+ni_ifxml_migrate_nodes(xml_document_array_t *docs)
+{
+	struct migrate_node {
+		const char *name;
+		ni_bool_t (*func)(xml_document_array_t *, xml_node_t *, xml_node_t *);
+	} *migrate, map[] = {
+		{ "ethernet",	ni_ifconfig_migrate_ethernet_node	},
+		{ "wireless",	ni_ifconfig_migrate_wireless_node	},
+		{ "link",	ni_ifconfig_migrate_link_node		},
+		{ "bond",	ni_ifconfig_migrate_bond_node		},
+		{ "team",	ni_ifconfig_migrate_team_node		},
+		{ "bridge",	ni_ifconfig_migrate_bridge_node		},
+		{ "ovs-bridge",	ni_ifconfig_migrate_ovsbr_node		},
+
+		{ NULL }
+	};
+	ni_bool_t modified = FALSE;
+
+	for (migrate = map; migrate->name && migrate->func; ++migrate) {
+		if (ni_ifxml_migrate_ifconfig_node(docs,
+				migrate->name, migrate->func))
+			modified = TRUE;
+	}
+
+	return modified;
+}
+
+ni_bool_t
+ni_ifxml_migrate_docs(xml_document_array_t *docs)
+{
+	ni_bool_t modified = FALSE;
+	xml_document_t *doc;
+	xml_node_t *root;
+	ni_uuid_t uuid;
+	unsigned int i;
+
+	modified = ni_ifxml_migrate_nodes(docs);
+	for (i = 0; i < docs->count; ++i) {
+		doc = docs->data[i];
+		root = xml_document_root(doc);
+
+		if (!ni_ifxml_node_is_migrated(root))
+			continue;
+
+		/* calculate and update checksum uuid */
+		ni_ifconfig_generate_uuid(root, &uuid);
+		ni_ifpolicy_set_uuid(root, &uuid);
+	}
 
 	return modified;
 }
