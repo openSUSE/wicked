@@ -1864,7 +1864,10 @@ __ni_objectmodel_netdev_req_get_port(const ni_dbus_object_t *object, const ni_db
 
 	switch (req->port.type) {
 	case NI_IFTYPE_BOND:
-		break;
+		if (!(dict = ni_objectmodel_netdev_req_port_union_init(result, req->port.type)))
+			return FALSE;
+
+		return ni_objectmodel_get_bonding_port_config(req->port.bond, dict, error);
 
 	case NI_IFTYPE_TEAM:
 		if (!(dict = ni_objectmodel_netdev_req_port_union_init(result, req->port.type)))
@@ -1920,11 +1923,11 @@ __ni_objectmodel_netdev_req_set_port(ni_dbus_object_t *object, const ni_dbus_pro
 
 	ni_netdev_port_config_init(&req->port, ni_linktype_name_to_type(name));
 	switch (req->port.type) {
+	case NI_IFTYPE_BOND:
+		return ni_objectmodel_set_bonding_port_config(req->port.bond, dict, error);
+
 	case NI_IFTYPE_TEAM:
 		return ni_objectmodel_set_team_port_config(req->port.team, dict, error);
-
-	case NI_IFTYPE_BOND:
-		break;
 
 	case NI_IFTYPE_BRIDGE:
 		break;

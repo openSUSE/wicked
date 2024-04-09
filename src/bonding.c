@@ -1548,6 +1548,28 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	return FALSE;
 }
 
+/*
+ * Bonding port (link-request) configuration
+ */
+ni_bonding_port_config_t *
+ni_bonding_port_config_new(void)
+{
+	ni_bonding_port_config_t *conf;
+
+	if ((conf = malloc(sizeof(*conf))))
+		conf->queue_id = -1U;
+	return conf;
+}
+
+void
+ni_bonding_port_config_free(ni_bonding_port_config_t *conf)
+{
+	free(conf);
+}
+
+/*
+ * Bonding port interface info properties
+ */
 void
 ni_bonding_port_info_reset(ni_bonding_port_info_t *info)
 {

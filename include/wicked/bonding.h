@@ -79,6 +79,16 @@ enum {
 typedef struct ni_bonding_slave_array	ni_bonding_slave_array_t;
 typedef struct ni_bonding_slave		ni_bonding_slave_t;
 
+/*
+ * Bonding port (link-request) configuration
+ */
+struct ni_bonding_port_config {
+	unsigned int			queue_id;
+};
+
+/*
+ * Bonding port interface info properties
+ */
 struct ni_bonding_port_info {
 	unsigned int			state;
 	unsigned int			mii_status;
@@ -203,6 +213,10 @@ extern unsigned int		ni_bonding_slave_array_index_by_ifindex(ni_bonding_slave_ar
 extern ni_bonding_slave_t *	ni_bonding_slave_array_get(ni_bonding_slave_array_t *, unsigned int);
 extern ni_bonding_slave_t *	ni_bonding_slave_array_get_by_ifname(ni_bonding_slave_array_t *, const char *);
 extern ni_bonding_slave_t *	ni_bonding_slave_array_get_by_ifindex(ni_bonding_slave_array_t *, unsigned int);
+
+
+extern ni_bonding_port_config_t *	ni_bonding_port_config_new(void);
+extern void				ni_bonding_port_config_free(ni_bonding_port_config_t *);
 
 extern ni_bonding_port_info_t *		ni_bonding_port_info_new(void);
 extern void				ni_bonding_port_info_free(ni_bonding_port_info_t *);
