@@ -651,8 +651,6 @@ usage:
 			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
-	ni_fsm_pull_in_children(&ifmarked, fsm);
-
 	ni_fsm_print_system_hierarchy(fsm, NULL, NULL);
 	ni_fsm_print_config_hierarchy(fsm, &ifmarked, ni_info);
 

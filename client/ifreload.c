@@ -572,8 +572,6 @@ usage:
 		goto cleanup;
 	}
 
-	ni_fsm_pull_in_children(&up_marked, fsm);
-
 	/* anything to ifup? */
 	if (up_marked.count) {
 		if (!(monitor = ni_nanny_fsm_monitor_new(fsm))) {
