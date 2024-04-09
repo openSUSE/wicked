@@ -4735,10 +4735,29 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 			unsigned int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
 			const char *method;
 
+			/* Ignore if there is no check attribute */
+			if (!(attr = xml_node_get_attr(mchild, "check")))
+				continue;
+
+			/* Compatibility name for "netif-config-state" */
+			if (ni_string_eq(attr, "netif-child-state") ||
+			    ni_string_eq(attr, "netif-check-state")) {
+				ni_warn("%s: obsolete <meta:require check=\"%s\" …> in the schema",
+					xml_node_location(mchild), attr);
+				attr = "netif-config-state";
+			}
+
+			/* Ignore if check attribute value is wrong
+			 * or not applicable for config processing
+			 * like netif-system-state.
+			 */
+			if (!ni_string_eq(attr, "netif-config-state"))
+				continue;
+
 			if (!cw) {
 				if (!cwmeta) {
-					ni_error("%s: <meta:require check=netif-check-state> without reference type",
-							xml_node_location(mchild));
+					ni_error("%s: <meta:require check=\"netif-config-state\" …>"
+						" without reference", xml_node_location(mchild));
 					return FALSE;
 				}
 				if (xml_node_is_empty(node)) {
@@ -4754,18 +4773,6 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 					return FALSE;
 				}
 			}
-
-			/* Ignore if there is no check attribute */
-			if (!(attr = xml_node_get_attr(mchild, "check")))
-				continue;
-
-			/* Compatibility name "netif-child-state" */
-			if (ni_string_eq(attr, "netif-child-state"))
-				attr = "netif-check-state";
-
-			/* Ignore if check attribute value is wrong */
-			 if (!ni_string_eq(attr, "netif-check-state"))
-				continue;
 
 			if ((attr = xml_node_get_attr(mchild, "min-state")) != NULL) {
 				if (!ni_ifworker_state_from_name(attr, &min_state)) {
