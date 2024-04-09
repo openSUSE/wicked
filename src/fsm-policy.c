@@ -955,13 +955,16 @@ ni_fsm_template_input_free(ni_fsm_template_input_t *input)
 static void
 ni_fsm_policy_action_xml_lookup_next(xml_node_t *node, const char *name, xml_node_array_t *res)
 {
-	xml_node_t *child;
+	xml_node_t *child, *ref;
 	unsigned int found = 0;
 
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, name)) {
-			if (!child->final)
-				xml_node_array_append(res, child);
+			if (!child->final) {
+				ref = xml_node_clone_ref(child);
+				if (ref && !xml_node_array_append(res, ref))
+					xml_node_free(ref);
+			}
 			found++;
 		}
 	}
@@ -975,14 +978,21 @@ ni_fsm_policy_action_xml_lookup(xml_node_t *node, const char *path)
 {
 	xml_node_array_t *cur;
 	char *copy, *name;
+	xml_node_t *ref;
 
 	if (node->final) {
 		ni_error("%s: called with XML element that's marked final", __func__);
 		return NULL;
 	}
 
-	cur = xml_node_array_new();
-	xml_node_array_append(cur, node);
+	if (!(cur = xml_node_array_new()))
+		return NULL;
+
+	ref = xml_node_clone_ref(node);
+	if (ref && !xml_node_array_append(cur, ref)) {
+		xml_node_free(ref);
+		return NULL;
+	}
 
 	copy = strdup(path);
 	for (name = strtok(copy, "/"); name && cur->count; name = strtok(NULL, "/")) {

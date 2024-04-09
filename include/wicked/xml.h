@@ -25,17 +25,16 @@
 #include <stdio.h>
 #include <wicked/util.h>
 #include <wicked/types.h>
+#include <wicked/array.h>
 
 struct xml_document {
 	char *			dtd;
 	struct xml_node *	root;
 };
 
-struct xml_document_array {
-	unsigned int		count;
-	xml_document_t **	data;
-};
-#define XML_DOCUMENT_ARRAY_INIT	{ 0, NULL }
+ni_declare_ptr_array_struct(xml_document);
+
+#define XML_DOCUMENT_ARRAY_INIT	NI_ARRAY_INIT
 
 struct xml_location_shared {
 	unsigned int		refcount;
@@ -64,12 +63,9 @@ struct xml_node {
 	xml_location_t *	location;
 };
 
-typedef struct xml_node_array	xml_node_array_t;
-struct xml_node_array {
-	unsigned int		count;
-	xml_node_t **		data;
-};
-#define XML_NODE_ARRAY_INIT	{ 0, NULL }
+ni_declare_ptr_array_type(xml_node);
+
+#define XML_NODE_ARRAY_INIT	NI_ARRAY_INIT
 
 extern xml_document_t *	xml_document_read(const char *);
 extern xml_document_t *	xml_document_scan(FILE *, const char *location);
@@ -153,18 +149,6 @@ extern void		xml_node_location_set(xml_node_t *, xml_location_t *);
 extern void		xml_node_location_modify(xml_node_t *, const char *);
 extern void		xml_node_location_relocate(xml_node_t *, const char *);
 
-extern void		xml_document_array_init(xml_document_array_t *);
-extern void		xml_document_array_destroy(xml_document_array_t *);
-extern xml_document_array_t *		xml_document_array_new(void);
-extern void		xml_document_array_free(xml_document_array_t *);
-extern void		xml_document_array_append(xml_document_array_t *, xml_document_t *);
-
-extern void		xml_node_array_init(xml_node_array_t *);
-extern void		xml_node_array_destroy(xml_node_array_t *);
-extern void		xml_node_array_append(xml_node_array_t *, xml_node_t *);
-extern xml_node_array_t *xml_node_array_new(void);
-extern void		xml_node_array_free(xml_node_array_t *);
-
 extern xml_node_t*	xml_node_create(xml_node_t *, const char *);
 extern void		xml_node_dict_set(xml_node_t *, const char *, const char *);
 
@@ -182,5 +166,18 @@ xml_document_is_empty(const xml_document_t *doc)
 {
 	return (!doc || xml_node_is_empty(doc->root));
 }
+
+extern				ni_declare_ptr_array_init(xml_document);
+extern				ni_declare_ptr_array_destroy(xml_document);
+extern				ni_declare_ptr_array_append(xml_document);
+extern				ni_declare_ptr_array_insert(xml_document);
+extern				ni_declare_ptr_array_index(xml_document);
+
+extern				ni_declare_ptr_array_init(xml_node);
+extern				ni_declare_ptr_array_destroy(xml_node);
+extern				ni_declare_ptr_array_append(xml_node);
+
+extern xml_node_array_t *	xml_node_array_new(void);
+extern void			xml_node_array_free(xml_node_array_t *);
 
 #endif /* NI_WICKED_XML_H */
