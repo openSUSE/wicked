@@ -40,7 +40,7 @@ extern ni_bool_t	ni_sysconfig_get_integer_optional(const ni_sysconfig_t *, const
 extern ni_bool_t	ni_sysconfig_get_boolean_optional(const ni_sysconfig_t *, const char *, ni_bool_t *);
 extern ni_bool_t	ni_sysconfig_test_boolean(const ni_sysconfig_t *, const char *);
 
-extern int		ni_sysconfig_find_matching(const ni_sysconfig_t *, const char *,
+extern unsigned int	ni_sysconfig_find_matching(const ni_sysconfig_t *, const char *,
 				struct ni_string_array *);
 
 
