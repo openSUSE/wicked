@@ -48,288 +48,120 @@
 #include "ifreload.h"
 #include "ifstatus.h"
 
-static ni_bool_t
-ifreload_mark_add(ni_ifworker_array_t *marked, ni_ifworker_t *w)
+static void
+ifreload_match_down(ni_fsm_t *fsm, ni_ifworker_array_t *ifmarked, const char *ifname)
 {
-	if (ni_ifworker_array_index(marked, w) != -1)
-		return FALSE;
+	ni_ifmatcher_t ifmatch;
 
-	ni_ifworker_array_append(marked, w);
-	return TRUE;
-}
+	memset(&ifmatch, 0, sizeof(ifmatch));
+	ifmatch.allow_persistent = FALSE;
+	ifmatch.require_configured = TRUE;
+	ifmatch.require_config = FALSE;
+	ifmatch.ifreload = TRUE;
+	ifmatch.ifdown = TRUE;
+	ifmatch.name = ifname;
 
-static inline void
-ifreload_mark_down_lower_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *lower,
-				void (*logit)(const char *, ...) ni__printf(1, 2))
-{
-	ni_ifworker_t *w;
-	unsigned int i;
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+		"ifreload: matching %s for shutdown", ifname ?: "all");
 
-	/* we need to shutdown also all depending worker devices c
-	 * that can't exist without w device (c->lowerdev == w) */
-	for (i = 0; i < fsm->workers.count; ++i) {
-		w = fsm->workers.data[i];
-
-		if (!w || w->lowerdev != lower)
-			continue;
-
-		if (ni_ifcheck_device_is_persistent(w->device)) {
-			logit("skipping %s shutdown: persistent mode is on", w->name);
-			continue;
-		}
-
-		w->target_range.min = NI_FSM_STATE_NONE;
-		w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
-
-		if (!ifreload_mark_add(marked, w))
-			continue;
-
-		ni_debug_ifconfig("marked %s for shutdown (config: %s, device: %s, target state %s) as dependency",
-				w->name,
-				ni_ifcheck_worker_config_exists(w) ? "exists" :
-				ni_ifcheck_device_configured(w->device) ? "deleted" : "-",
-				ni_ifcheck_worker_device_exists(w) ? "exists" : "-",
-				ni_ifworker_state_name(w->target_range.max));
-	}
-}
-
-static ni_bool_t
-ifreload_mark_down(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *w,
-				void (*logit)(const char *, ...) ni__printf(1, 2),
-				unsigned int depth)
-{
-	/* ifdown is disabled when persistent mode is on (todo: add --force?) */
-	if (ni_ifcheck_device_is_persistent(w->device)) {
-		logit("skipping %s shutdown: persistent mode is on", w->name);
-		return FALSE;
-	}
-
-	/* initialize as if the config would have been modified */
-	if (ni_ifcheck_worker_config_exists(w)) {
-		w->target_range.min = NI_FSM_STATE_NONE;
-		w->target_range.max = NI_FSM_STATE_DEVICE_READY;
-
-		/* the config has been modified, but some changes require deletion */
-		if (w->iftype == NI_IFTYPE_TEAM || w->iftype == NI_IFTYPE_VLAN) {
-			/* examples:
-			 *   - the team runner (mode) changes require teamd restart
-			 *   - VlanID changed, the interface need to be recreated */
-			w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
-		} else
-		if (w->iftype != NI_IFTYPE_UNKNOWN) {
-			/* if type changed, e.g. device is bond with bridge config */
-			if (w->device && w->device->link.type != w->iftype)
-				w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
-		}
-	} else
-	if (ni_ifcheck_device_configured(w->device)) {
-		/* config has been removed, so just delete it if applicable (=virtual) */
-		w->target_range.min = NI_FSM_STATE_NONE;
-		w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
-		ni_client_state_config_reset(&w->config.meta);
-	} else
-	if (!ni_ifcheck_worker_device_exists(w)) {
-		/* when the device does not exists, delete policy in nanny (if any) */
-		w->target_range.min = NI_FSM_STATE_NONE;
-		w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
-	} else {
-		/* do not shut down devices we don't handle */
-		logit("skipping %s shutdown: device was not configured by wicked", w->name);
-		return FALSE;
-	}
-
-	if (depth && ni_ifcheck_worker_device_exists(w)) {
-		ni_ifworker_t *c;
-		unsigned int i;
-
-		for (i = 0; i < fsm->workers.count; ++i) {
-			c = fsm->workers.data[i];
-
-			if (!ni_ifcheck_worker_device_exists(c))
-				continue;
-
-			if (!ni_string_eq(c->device->link.masterdev.name, w->name))
-				continue;
-
-			if (!ni_ifcheck_worker_config_matches(c)) {
-				ni_trace("exec ifreload_mark_workers down: %s", c->name);
-				ifreload_mark_down(fsm, marked, c, logit, depth - 1);
-			}
-		}
-	}
-
-	/* shut down depending devices because this one is deleted */
-	if (w->target_range.max == NI_FSM_STATE_DEVICE_DOWN)
-		ifreload_mark_down_lower_deps(fsm, marked, w, logit);
-
-	if (!ifreload_mark_add(marked, w))
-		return FALSE;
-
-	ni_debug_ifconfig("marked %s for shutdown (config: %s, device: %s, target state %s)",
-			w->name,
-			ni_ifcheck_worker_config_exists(w) ? "exists" :
-			ni_ifcheck_device_configured(w->device) ? "deleted" : "-",
-			ni_ifcheck_worker_device_exists(w) ? "exists" : "-",
-			ni_ifworker_state_name(w->target_range.max));
-
-	return TRUE;
+	/* to shutdown if config changed + dependencies */
+	ni_fsm_get_matching_workers(fsm, &ifmatch, ifmarked);
 }
 
 static void
-ifreload_mark_up_slave_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *master,
-				void (*logit)(const char *, ...) ni__printf(1, 2))
+ifreload_match_up(ni_fsm_t *fsm, ni_ifworker_array_t *ifmarked, const char *ifname)
 {
-	ni_ifworker_t *w;
-	unsigned int i;
+	ni_ifmatcher_t ifmatch;
 
-	for (i = 0; i < fsm->workers.count; ++i) {
-		w = fsm->workers.data[i];
+	memset(&ifmatch, 0, sizeof(ifmatch));
+	ifmatch.allow_persistent = TRUE;
+	ifmatch.require_configured = FALSE;
+	ifmatch.require_config = TRUE;
+	ifmatch.ifreload = TRUE;
+	ifmatch.ifdown = FALSE;
+	ifmatch.name = ifname;
 
-		if (!w || w->masterdev != master)
-			continue;
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+		"ifreload: matching %s for setup", ifname ?: "all");
 
-		if (!ni_ifcheck_worker_config_exists(w)) {
-			logit("skipping %s set-up: no configuration available", w->name);
-			continue;
-		}
-
-		if (!ifreload_mark_add(marked, w))
-			continue;
-
-		ni_debug_ifconfig("marked %s for set-up (config: %s, device: %s, target state %s) as dependency",
-				w->name,
-				(ni_ifcheck_worker_config_exists(w) ?
-				 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
-				 (ni_ifcheck_device_configured(w->device) ? "deleted" : "-")),
-				(ni_ifcheck_worker_device_exists(w) ? "exists" : "-"),
-				ni_ifworker_state_name(w->target_range.max));
-	}
+	/* to set-up if config changed + dependencies */
+	ni_fsm_get_matching_workers(fsm, &ifmatch, ifmarked);
 }
 
 static void
-ifreload_mark_up_master(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *w,
-				void (*logit)(const char *, ...) ni__printf(1, 2))
+ifreload_match_workers(ni_fsm_t *fsm, ni_ifworker_array_t *down_marked,
+		ni_ifworker_array_t *up_marked, const char *ifname)
 {
+	ifreload_match_down(fsm, down_marked, ifname);
+	ifreload_match_up(fsm, up_marked, ifname);
+}
+
+static void
+ifreload_mark_worker_down(ni_fsm_t *fsm, ni_ifworker_array_t *down_marked, ni_ifworker_t *w)
+{
+	/* set default: try to go down without to delete it */
+	w->target_range.min = NI_FSM_STATE_NONE;
+	w->target_range.max = NI_FSM_STATE_DEVICE_READY;
+
+	/* when there is no config to apply, try to delete */
 	if (!ni_ifcheck_worker_config_exists(w)) {
-		logit("skipping %s set-up: no configuration available", w->name);
+		w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
 		return;
 	}
 
-	if (!ifreload_mark_add(marked, w))
+	/*
+	 * config and device type differs (e.g. bridge vs bond)
+	 */
+	if (w->iftype != NI_IFTYPE_UNKNOWN && w->device &&
+			w->device->link.type != w->iftype) {
+		w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
 		return;
+	}
 
-	ni_debug_ifconfig("marked %s for set-up (config %s, device %s, target state %s) as dependency",
-			w->name,
-			(ni_ifcheck_worker_config_exists(w) ?
-			 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
-			 (ni_ifcheck_device_configured(w->device) ? "deleted" : "-")),
-			(ni_ifcheck_worker_device_exists(w) ? "exists" : "-"),
-			ni_ifworker_state_name(w->target_range.max));
-}
-
-static void
-ifreload_mark_up_lower_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *lower,
-				void (*logit)(const char *, ...) ni__printf(1, 2))
-{
-	ni_ifworker_t *w;
-	unsigned int i;
-
-	for (i = 0; i < fsm->workers.count; ++i) {
-		w = fsm->workers.data[i];
-
-		if (!w || w->lowerdev != lower)
-			continue;
-
-		if (!ni_ifcheck_worker_config_exists(w)) {
-			logit("skipping %s set-up: no configuration available", w->name);
-			continue;
-		}
-
-		/* e.g. a vlan [w] can't exist without it's lowerdev [l]
-		 * and is deleted as dependency to deletion of lower [l].
-		 * for now, we need to trigger set-up of it's master [m]
-		 * (team0 [l] <-lower- team0.42 [w] -master-> [m] br42)
-		 * to ensure it gets (re-)enslaved into it.
+	/*
+	 * link config may have changed what may require deletion
+	 */
+	switch (w->iftype) {
+	case NI_IFTYPE_PPP:
+	case NI_IFTYPE_TEAM:
+	case NI_IFTYPE_VLAN:
+		/*
+		 * - ppp,team config file changes require service restart
+		 * - vlan id changed
 		 */
-		if (w->masterdev)
-			ifreload_mark_up_master(fsm, marked, w->masterdev, logit);
-
-		if (!ifreload_mark_add(marked, w))
-			continue;
-
-		ni_debug_ifconfig("marked %s for set-up (config %s, device %s, target state %s) as dependency",
-				w->name,
-				(ni_ifcheck_worker_config_exists(w) ?
-				 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
-				 (ni_ifcheck_device_configured(w->device) ? "deleted" : "-")),
-				(ni_ifcheck_worker_device_exists(w) ? "exists" : "-"),
-				ni_ifworker_state_name(w->target_range.max));
+		w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
+		return;
+	default:
+		break;
 	}
-}
-
-static ni_bool_t
-ifreload_mark_up(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *w,
-				void (*logit)(const char *, ...) ni__printf(1, 2))
-{
-	if (!ni_ifcheck_worker_config_exists(w)) {
-		logit("skipping %s set-up: no configuration available", w->name);
-		return FALSE;
-	}
-
-	/* trigger set-up for slaves to (re-)enslave them */
-	ifreload_mark_up_slave_deps(fsm, marked, w, logit);
-
-	/* trigger set-up for devices we're base / lower
-	 * for as they can't exists without their base */
-	ifreload_mark_up_lower_deps(fsm, marked, w, logit);
-
-	if (!ifreload_mark_add(marked, w))
-		return FALSE;
-
-	ni_debug_ifconfig("marked %s for set-up (config %s, device %s, target state %s)",
-			w->name,
-			(ni_ifcheck_worker_config_exists(w) ?
-			 (ni_ifcheck_worker_config_matches(w) ? "unchanged" : "modified") :
-			 (ni_ifcheck_device_configured(w->device) ? "deleted" : "-")),
-			(ni_ifcheck_worker_device_exists(w) ? "exists" : "-"),
-			ni_ifworker_state_name(w->target_range.max));
-
-	return TRUE;
 }
 
 static void
-ifreload_mark_workers(const ni_fsm_t *fsm, ni_ifworker_array_t *down_marked, ni_ifworker_array_t *up_marked, const char *ifname)
+ifreload_mark_workers_down(ni_fsm_t *fsm, ni_ifworker_array_t *ifmarked)
 {
-	void (*logit)(const char *, ...) ni__printf(1, 2) = ifname ? ni_note : ni_info;
 	ni_ifworker_t *w;
 	unsigned int i;
 
-	/* shutdown if config changed + dependencies */
-	for (i = 0; i < fsm->workers.count; ++i) {
-		w = fsm->workers.data[i];
-
+	/* init the shutdown / deletion targets */
+	for (i = 0; i < ifmarked->count; ++i) {
+		w = ifmarked->data[i];
 		if (w->type != NI_IFWORKER_TYPE_NETDEV)
 			continue;
 
-		if (ifname && !ni_string_eq(w->name, ifname))
-			continue;
-
-		if (!ni_ifcheck_worker_config_matches(w))
-			ifreload_mark_down(fsm, down_marked, w, logit, 1);
+		ifreload_mark_worker_down(fsm, ifmarked, w);
 	}
-
-	/* set-up if config changed + dependencies */
-	for (i = 0; i < fsm->workers.count; ++i) {
-		w = fsm->workers.data[i];
+	/* second pass: check lower changes */
+	for (i = 0; i < ifmarked->count; ++i) {
+		w = ifmarked->data[i];
 
 		if (w->type != NI_IFWORKER_TYPE_NETDEV)
 			continue;
 
-		if (ifname && !ni_string_eq(w->name, ifname))
+		if (!w->lowerdev)
 			continue;
 
-		if (!ni_ifcheck_worker_config_matches(w))
-			ifreload_mark_up(fsm, up_marked, w, logit);
+		if (w->lowerdev->target_range.max == NI_FSM_STATE_DEVICE_DOWN)
+			w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
 	}
 }
 
@@ -492,7 +324,7 @@ usage:
 
 	/* Build the up a config relations/hierarchy tree */
 	if (ni_fsm_build_hierarchy(fsm, FALSE) < 0) {
-		ni_error("ifreload: unable to build device config hierarchy");
+		ni_error("ifreload: unable to build interface hierarchy");
 		/* Severe error we always explicitly return */
 		status = NI_WICKED_RC_ERROR;
 		goto cleanup;
@@ -503,12 +335,14 @@ usage:
 		const char *ifname = argv[c];
 
 		if (ni_string_eq(ifname, "all") || ni_string_empty(ifname)) {
-			ifreload_mark_workers(fsm, &down_marked, &up_marked, NULL);
+			ifreload_match_workers(fsm, &down_marked, &up_marked, NULL);
 			break;
 		} else {
-			ifreload_mark_workers(fsm, &down_marked, &up_marked, ifname);
+			ifreload_match_workers(fsm, &down_marked, &up_marked, ifname);
 		}
 	}
+	ni_fsm_print_system_hierarchy(fsm, &down_marked, ni_note /* -> ni_info */);
+	ni_fsm_print_config_hierarchy(fsm, &up_marked, ni_note  /* -> ni_info */);
 
 	if (opt_persistent) {
 		for (i = 0; i < up_marked.count; ++i) {
@@ -534,6 +368,8 @@ usage:
 	if (down_marked.count) {
 		/* Run ifdown part of the reload */
 		ni_debug_application("Shutting down unneeded devices");
+
+		ifreload_mark_workers_down(fsm, &down_marked);
 
 		/* delete policies */
 		ni_ifdown_fire_nanny(&down_marked);
