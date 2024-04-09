@@ -2211,7 +2211,7 @@ static inline ni_ifworker_check_state_req_t *	ni_ifworker_check_state_req_cast(n
 }
 
 static inline ni_ifworker_check_state_req_check_t *
-ni_ifworker_check_state_req_check_new(ni_ifworker_t *cw, ni_ifworker_type_t cwtype,
+ni_ifworker_config_check_state_req_check_new(ni_ifworker_t *cw, ni_ifworker_type_t cwtype,
 					xml_node_t *cwnode, xml_node_t *cwmeta,
 					unsigned int min_state, unsigned int max_state)
 {
@@ -2371,7 +2371,7 @@ ni_ifworker_require_resolver_new(ni_ifworker_type_t type, xml_node_t *node, xml_
 }
 
 static ni_bool_t
-ni_ifworker_check_state_req_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
+ni_ifworker_config_check_state_req_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_require_t *req)
 {
 	ni_ifworker_check_state_req_check_t *check;
 	ni_ifworker_check_state_req_t *csr;
@@ -2484,34 +2484,34 @@ ni_ifworker_check_state_req_free(ni_fsm_require_t *req)
 }
 
 static ni_fsm_require_t *
-ni_ifworker_check_state_req_new(const char *method, ni_ifworker_t *cw,
-			ni_ifworker_type_t cwtype, xml_node_t *cwnode, xml_node_t *cwmeta,
-			unsigned int min_state, unsigned int max_state)
+ni_ifworker_check_state_req_new(ni_ifworker_check_state_req_check_t *check,
+		const char *method, ni_fsm_require_fn_t *test_fn)
 {
-	ni_ifworker_check_state_req_check_t *check;
 	ni_ifworker_check_state_req_t *csr;
 	ni_fsm_require_t *req;
+
+	if (!check || ni_string_empty(method))
+		return NULL;
 
 	csr = xcalloc(1, sizeof(*csr));
 	ni_string_dup(&csr->method, method);
 
-	check = ni_ifworker_check_state_req_check_new(cw, cwtype, cwnode, cwmeta, min_state, max_state);
 	ni_ifworker_check_state_req_check_list_append(csr, check);
 
-	req = ni_fsm_require_new(ni_ifworker_check_state_req_test, ni_ifworker_check_state_req_free);
+	req = ni_fsm_require_new(test_fn, ni_ifworker_check_state_req_free);
 	req->user_data = csr;
 	return req;
 }
 
 static void
-ni_ifworker_add_check_state_req(ni_ifworker_t *w, const char *method, ni_ifworker_t *cw,
+ni_ifworker_add_config_check_state_req(ni_ifworker_t *w, const char *method, ni_ifworker_t *cw,
 			ni_ifworker_type_t cwtype, xml_node_t *cwnode, xml_node_t *cwmeta,
 			unsigned int min_state, unsigned int max_state)
 {
+	ni_ifworker_check_state_req_check_t *check;
 	ni_fsm_require_t *req;
 
 	for (req = w->fsm.check_state_req_list; req; req = req->next) {
-		ni_ifworker_check_state_req_check_t *check;
 		ni_ifworker_check_state_req_t *csr;
 
 		if (!(csr = ni_ifworker_check_state_req_cast(req)))
@@ -2523,17 +2523,21 @@ ni_ifworker_add_check_state_req(ni_ifworker_t *w, const char *method, ni_ifworke
 		if (cw && ni_ifworker_check_state_req_check_find_worker(csr, cw))
 			continue; /* try to not add worker check twice */
 
-		check = ni_ifworker_check_state_req_check_new(cw, cwtype, cwnode, cwmeta, min_state, max_state);
+		check = ni_ifworker_config_check_state_req_check_new(cw,
+				cwtype, cwnode, cwmeta, min_state, max_state);
 		ni_ifworker_check_state_req_check_list_append(csr, check);
 		return;
 	}
 
-	req = ni_ifworker_check_state_req_new(method, cw, cwtype, cwnode, cwmeta, min_state, max_state);
+	check = ni_ifworker_config_check_state_req_check_new(cw,
+			cwtype, cwnode, cwmeta, min_state, max_state);
+	req = ni_ifworker_check_state_req_new(check, method,
+			ni_ifworker_config_check_state_req_test);
 	ni_fsm_require_list_insert(&w->fsm.check_state_req_list, req);
 }
 
 static void
-__ni_ifworker_get_check_state_reqs_for_method(ni_ifworker_t *w, ni_fsm_transition_t *action)
+ni_ifworker_get_check_state_reqs_for_method(ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
 	ni_fsm_require_t **list, *req;
 
@@ -2556,13 +2560,6 @@ __ni_ifworker_get_check_state_reqs_for_method(ni_ifworker_t *w, ni_fsm_transitio
 				w->name, csr->method, cw ? cw->name : "unresolved",
 				ni_ifworker_state_name(check->state.min),
 				ni_ifworker_state_name(check->state.max));
-
-#if 0			/* really? */
-			if (cw && check->state.min > cw->target_range.min)
-				cw->target_range.min = check->state.min;
-			if (cw && check->state.max < cw->target_range.max)
-				cw->target_range.max = check->state.max;
-#endif
 		}
 
 		/* Move this requirement to the action's req list */
@@ -3780,7 +3777,7 @@ ni_ifworker_get_check_state_req_for_methods(ni_ifworker_t *w)
 	 */
 	for (i = 0; i < at[i].next_state; ++i) {
 		ni_fsm_require_list_destroy(&at[i].require.list);
-		__ni_ifworker_get_check_state_reqs_for_method(w, &at[i]);
+		ni_ifworker_get_check_state_reqs_for_method(w, &at[i]);
 	}
 }
 
@@ -4461,7 +4458,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 			}
 
 			requires++;
-			ni_ifworker_add_check_state_req(w, method, cw, cwtype, cw ? NULL : node,
+			ni_ifworker_add_config_check_state_req(w, method, cw, cwtype, cw ? NULL : node,
 							cw ? NULL : cwmeta, min_state, max_state);
 		}
 	}
