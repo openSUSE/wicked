@@ -2,7 +2,7 @@
      Infiniband Service definition
   -->
 <service name="infiniband" interface="org.opensuse.Network.Infiniband" object-class="netif-infiniband">
-      
+
   <define name="configuration" class="dict" description="Infiniband interface configuration">
 
     <mode      type="builtin-infiniband-mode"
@@ -37,6 +37,8 @@
       <meta:netif-reference shared="true"/>
       <meta:require check="netif-check-state" op="newDevice" min-state="device-setup" />
       <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
+      <meta:require check="netif-system-state" op="linkDown" max-state="firewall-up" />
+      <meta:require check="netif-system-state" op="deleteDevice" max-state="device-down" />
     </device>
 
     <pkey type="uint16" description="Infiniband partition key"/>

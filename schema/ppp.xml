@@ -12,6 +12,8 @@
       <meta:require check="netif-check-state" op="newDevice" min-state="link-up" />
       <meta:require check="netif-check-state" op="login" min-state="link-authenticated" />
       <meta:require check="netif-check-state" op="linkUp" min-state="link-up" />
+      <meta:require check="netif-system-state" op="linkDown" max-state="firewall-up" />
+      <meta:require check="netif-system-state" op="deleteDevice" max-state="device-down" />
     </device>
   </define>
 
@@ -64,7 +66,7 @@
     <dns          type="dns-config"/>
     <defaultroute type="boolean"/>
 
-    <auth         type="auth-config"/>  
+    <auth         type="auth-config"/>
     <ipv4         type="ipv4-config"/>
     <ipv6         type="ipv6-config"/>
   </define>

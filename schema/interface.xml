@@ -147,7 +147,11 @@
  <txqlen type="uint32"/>
  <mtu type="uint32"/>
  <alias type="string"/>
- <master type="string"/>
+ <master type="string">
+   <meta:netif-reference subordinate="true" />
+   <meta:require check="netif-system-state" op="linkDown" max-state="firewall-up" />
+   <meta:require check="netif-system-state" op="deleteDevice" max-state="device-down" />
+ </master>
  <port class="union" switch="type">
    <bond       type="bond:port-info" />
    <team       type="team:port-info" />
