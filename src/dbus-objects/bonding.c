@@ -506,114 +506,6 @@ ni_objectmodel_set_bonding_port_info(ni_bonding_port_info_t *info,
 	return TRUE;
 }
 
-
-/*
- * Get/set the list of slaves
- */
-static dbus_bool_t
-__ni_objectmodel_bonding_get_slaves(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	const ni_bonding_t *bond;
-	unsigned int i;
-
-	if (!(bond = __ni_objectmodel_bonding_read_handle(object, error)))
-		return FALSE;
-
-	if (!bond->slaves.count)
-		return FALSE;
-
-	ni_dbus_dict_array_init(result);
-	for (i = 0; i < bond->slaves.count; ++i) {
-		const ni_bonding_slave_t *slave = bond->slaves.data[i];
-		const char *slave_name;
-		ni_dbus_variant_t *dict;
-
-		/* should not happen, but better safe than sorry */
-		if (!slave || ni_string_empty(slave->device.name))
-			continue;
-
-		slave_name = slave->device.name;
-		dict = ni_dbus_dict_array_add(result);
-
-		ni_dbus_dict_add_string(dict, "device", slave_name);
-		if (bond->primary_slave.name && ni_string_eq(bond->primary_slave.name, slave_name))
-			ni_dbus_dict_add_bool(dict, "primary", TRUE);
-		if (bond->active_slave.name && ni_string_eq(bond->active_slave.name, slave_name))
-			ni_dbus_dict_add_bool(dict, "active", TRUE);
-	}
-
-	return TRUE;
-}
-
-static dbus_bool_t
-__ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *result,
-				DBusError *error)
-{
-	ni_bonding_t *bond;
-	ni_dbus_variant_t *var;
-	unsigned int i;
-
-	if (!(bond = __ni_objectmodel_bonding_write_handle(object, error)))
-		return FALSE;
-
-	if (!ni_dbus_variant_is_dict_array(result)) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s.%s property - expected dict array",
-				object->path, property->name);
-		return FALSE;
-	}
-
-	ni_netdev_ref_destroy(&bond->primary_slave);
-	ni_netdev_ref_destroy(&bond->active_slave);
-	ni_bonding_slave_array_destroy(&bond->slaves);
-	for (i = 0, var = result->variant_array_value; i < result->array.len; ++i, ++var) {
-		dbus_bool_t is_primary = FALSE;
-		dbus_bool_t is_active = FALSE;
-		const char *slave_name;
-
-		if (!ni_dbus_dict_get_string(var, "device", &slave_name) ||
-				ni_string_empty(slave_name)) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-					"%s.%s property - missing device attribute",
-					object->path, property->name);
-			return FALSE;
-		}
-		if (ni_bonding_has_slave(bond, slave_name)) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s.%s property - duplicate slave device %s",
-				object->path, property->name, slave_name);
-			return FALSE;
-		}
-
-		if (ni_dbus_dict_get_bool(var, "primary", &is_primary) && is_primary) {
-			if (bond->primary_slave.name) {
-				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-					"%s.%s property - duplicate primary device",
-					object->path, property->name);
-				return FALSE;
-			}
-			ni_string_dup(&bond->primary_slave.name, slave_name);
-		}
-		if (ni_dbus_dict_get_bool(var, "active", &is_active) && is_active) {
-			if (bond->active_slave.name) {
-				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-					"%s.%s property - duplicate active device",
-					object->path, property->name);
-				return FALSE;
-			}
-			ni_string_dup(&bond->active_slave.name, slave_name);
-		}
-
-		ni_bonding_add_slave(bond, slave_name);
-	}
-	return TRUE;
-}
-
 static dbus_bool_t
 __ni_objectmodel_bonding_get_ad_actor_system(const ni_dbus_object_t *object,
 				const ni_dbus_property_t *property,
@@ -707,9 +599,6 @@ static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 	BONDING_BOOL_PROPERTY(tlb-dynamic-lb, tlb_dynamic_lb, RO),
 	BONDING_UINT_PROPERTY(lp-interval, lp_interval, RO),
 
-	__NI_DBUS_PROPERTY(
-			DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,
-			slaves, __ni_objectmodel_bonding, RO),
 	__NI_DBUS_PROPERTY(
 			NI_DBUS_DICT_SIGNATURE,
 			miimon, __ni_objectmodel_bonding, RO),
