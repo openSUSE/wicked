@@ -3421,7 +3421,7 @@ __ni_discover_bridge(ni_netdev_t *dev)
 		port = ni_bridge_port_new(bridge, ifname, index);
 
 		ni_sysfs_bridge_port_get_config(port->ifname, port);
-		ni_sysfs_bridge_port_get_status(port->ifname, &port->status);
+		ni_sysfs_bridge_port_get_info(port->ifname, &port->info);
 	}
 	ni_string_array_destroy(&ports);
 
