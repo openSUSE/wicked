@@ -457,10 +457,20 @@ xml_node_get_next_child(const xml_node_t *top, const char *name, const xml_node_
 	return NULL;
 }
 
-inline xml_node_t *
+xml_node_t *
 xml_node_get_child(const xml_node_t *node, const char *name)
 {
 	return xml_node_get_next_child(node, name, NULL);
+}
+
+const char *
+xml_node_get_child_cdata(const xml_node_t *node, const char *name)
+{
+	const xml_node_t *child;
+
+	if ((child = xml_node_get_child(node, name)))
+		return child->cdata;
+	return NULL;
 }
 
 /*

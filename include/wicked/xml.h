@@ -124,6 +124,7 @@ extern ni_bool_t	xml_node_get_attr_ulong(const xml_node_t *, const char *, unsig
 extern ni_bool_t	xml_node_get_attr_double(const xml_node_t *, const char *, double *);
 extern xml_node_t *	xml_node_get_child(const xml_node_t *, const char *);
 extern xml_node_t *	xml_node_get_next_child(const xml_node_t *, const char *, const xml_node_t *);
+extern const char *	xml_node_get_child_cdata(const xml_node_t *, const char *);
 extern xml_node_t *	xml_node_get_child_with_attrs(const xml_node_t *, const char *,
 					const ni_var_array_t *);
 extern ni_bool_t	xml_node_replace_child(xml_node_t *, xml_node_t *);
