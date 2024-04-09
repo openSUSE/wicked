@@ -65,8 +65,11 @@ static ni_bool_t		ni_ifworker_revert_state(ni_ifworker_t *, ni_event_t);
 static void			ni_fsm_clear_hierarchy(ni_ifworker_t *);
 
 static void			ni_ifworker_update_client_state_control(ni_ifworker_t *w);
-static inline void		ni_ifworker_update_client_state_config(ni_ifworker_t *w);
+static void			ni_ifworker_update_client_state_config(ni_ifworker_t *w);
 static void			ni_ifworker_update_client_state_scripts(ni_ifworker_t *w);
+static void			ni_ifworker_update_client_state(ni_ifworker_t *w);
+static void			ni_ifworker_reset_client_state(ni_ifworker_t *w);
+
 static void			ni_fsm_events_destroy(ni_fsm_event_t **);
 static void			ni_fsm_process_event(ni_fsm_t *, ni_fsm_event_t *);
 
@@ -1436,7 +1439,7 @@ ni_ifworker_update_client_state_control(ni_ifworker_t *w)
 	}
 }
 
-static inline void
+static void
 ni_ifworker_update_client_state_config(ni_ifworker_t *w)
 {
 	if (w && w->object && !w->readonly) {
@@ -1455,6 +1458,59 @@ ni_ifworker_update_client_state_scripts(ni_ifworker_t *w)
 			ni_call_set_client_state_scripts(w->object, &scripts);
 		}
 	}
+}
+
+static void
+ni_ifworker_update_client_state(ni_ifworker_t *w)
+{
+	ni_ifworker_update_client_state_control(w);
+	ni_ifworker_update_client_state_config(w);
+	ni_ifworker_update_client_state_scripts(w);
+}
+
+static inline void
+ni_ifworker_reset_client_state_control(ni_ifworker_t *w)
+{
+	ni_client_state_control_t ctrl;
+
+	if (w && w->object && !w->readonly) {
+		ni_client_state_control_init(&ctrl);
+		ni_call_set_client_state_control(w->object, &ctrl);
+		ni_client_state_control_debug(w->name, &ctrl, "remove");
+	}
+}
+
+static inline void
+ni_ifworker_reset_client_state_config(ni_ifworker_t *w)
+{
+	ni_client_state_config_t config;
+
+	if (w && w->object && !w->readonly) {
+		ni_client_state_config_init(&config);
+		ni_call_set_client_state_config(w->object, &config);
+		ni_client_state_config_debug(w->name, &config, "remove");
+	}
+}
+
+static inline void
+ni_ifworker_reset_client_state_scripts(ni_ifworker_t *w)
+{
+	ni_client_state_scripts_t scripts = { .node = NULL };
+
+	if (w && w->object && !w->readonly) {
+		ni_call_set_client_state_scripts(w->object, &scripts);
+		ni_debug_application("%s: %s <%s> %s", w->name,
+				"remove", NI_CLIENT_STATE_XML_NODE,
+				NI_CLIENT_STATE_XML_SCRIPTS_NODE);
+	}
+}
+
+static inline void
+ni_ifworker_reset_client_state(ni_ifworker_t *w)
+{
+	ni_ifworker_reset_client_state_control(w);
+	ni_ifworker_reset_client_state_config(w);
+	ni_ifworker_reset_client_state_scripts(w);
 }
 
 static inline ni_bool_t
@@ -1487,9 +1543,10 @@ ni_ifworker_set_state(ni_ifworker_t *w, unsigned int new_state)
 
 		if ((new_state == NI_FSM_STATE_DEVICE_READY) && w->object && !w->readonly) {
 			ni_call_clear_event_filters(w->object);
-			ni_ifworker_update_client_state_control(w);
-			ni_ifworker_update_client_state_scripts(w);
-			ni_ifworker_update_client_state_config(w);
+			if (prev_state > new_state)
+				ni_ifworker_reset_client_state(w);
+			else
+				ni_ifworker_update_client_state(w);
 		}
 
 		if (w->target_state == new_state)
@@ -3051,10 +3108,6 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 		ni_ifworker_t *w = marked->data[i];
 
 		w->target_range = marker->target_range;
-
-		/* Clean client-info origin and UUID on ifdown */
-		if (marker->target_range.max < NI_FSM_STATE_DEVICE_SETUP)
-			ni_client_state_config_reset(&w->config.meta);
 
 		if (marker->persistent)
 			ni_ifworker_control_set_persistent(w, TRUE);
