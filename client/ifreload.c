@@ -38,6 +38,7 @@
 #include <wicked/netinfo.h>
 #include <wicked/logging.h>
 #include <wicked/fsm.h>
+#include <wicked/compiler.h>
 
 #include "wicked-client.h"
 #include "appconfig.h"
@@ -59,7 +60,7 @@ ifreload_mark_add(ni_ifworker_array_t *marked, ni_ifworker_t *w)
 
 static inline void
 ifreload_mark_down_lower_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *lower,
-				void (*logit)(const char *, ...) __fmtattr)
+				void (*logit)(const char *, ...) ni__printf(1, 2))
 {
 	ni_ifworker_t *w;
 	unsigned int i;
@@ -94,7 +95,7 @@ ifreload_mark_down_lower_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, 
 
 static ni_bool_t
 ifreload_mark_down(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *w,
-				void (*logit)(const char *, ...) __fmtattr,
+				void (*logit)(const char *, ...) ni__printf(1, 2),
 				unsigned int depth)
 {
 	/* ifdown is disabled when persistent mode is on (todo: add --force?) */
@@ -176,7 +177,7 @@ ifreload_mark_down(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker
 
 static void
 ifreload_mark_up_slave_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *master,
-				void (*logit)(const char *, ...) __fmtattr)
+				void (*logit)(const char *, ...) ni__printf(1, 2))
 {
 	ni_ifworker_t *w;
 	unsigned int i;
@@ -207,7 +208,7 @@ ifreload_mark_up_slave_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni
 
 static void
 ifreload_mark_up_master(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *w,
-				void (*logit)(const char *, ...) __fmtattr)
+				void (*logit)(const char *, ...) ni__printf(1, 2))
 {
 	if (!ni_ifcheck_worker_config_exists(w)) {
 		logit("skipping %s set-up: no configuration available", w->name);
@@ -228,7 +229,7 @@ ifreload_mark_up_master(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifw
 
 static void
 ifreload_mark_up_lower_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *lower,
-				void (*logit)(const char *, ...) __fmtattr)
+				void (*logit)(const char *, ...) ni__printf(1, 2))
 {
 	ni_ifworker_t *w;
 	unsigned int i;
@@ -268,7 +269,7 @@ ifreload_mark_up_lower_deps(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni
 
 static ni_bool_t
 ifreload_mark_up(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t *w,
-				void (*logit)(const char *, ...) __fmtattr)
+				void (*logit)(const char *, ...) ni__printf(1, 2))
 {
 	if (!ni_ifcheck_worker_config_exists(w)) {
 		logit("skipping %s set-up: no configuration available", w->name);
@@ -299,7 +300,7 @@ ifreload_mark_up(const ni_fsm_t *fsm, ni_ifworker_array_t *marked, ni_ifworker_t
 static void
 ifreload_mark_workers(const ni_fsm_t *fsm, ni_ifworker_array_t *down_marked, ni_ifworker_array_t *up_marked, const char *ifname)
 {
-	void (*logit)(const char *, ...) __fmtattr = ifname ? ni_note : ni_info;
+	void (*logit)(const char *, ...) ni__printf(1, 2) = ifname ? ni_note : ni_info;
 	ni_ifworker_t *w;
 	unsigned int i;
 
