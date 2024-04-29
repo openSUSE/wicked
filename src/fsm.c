@@ -231,7 +231,7 @@ __ni_ifworker_new(ni_ifworker_type_t type, const char *name)
 	w->refcount = 1;
 
 	w->target_range.min = NI_FSM_STATE_NONE;
-	w->target_range.max = __NI_FSM_STATE_MAX;
+	w->target_range.max = NI_FSM_STATE_MAX;
 	w->readonly = FALSE;
 	w->args.release = NI_TRISTATE_DEFAULT;
 
@@ -413,7 +413,7 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	w->pending = FALSE;
 
 	w->target_range.min = NI_FSM_STATE_NONE;
-	w->target_range.max = __NI_FSM_STATE_MAX;
+	w->target_range.max = NI_FSM_STATE_MAX;
 }
 
 void
@@ -443,7 +443,7 @@ ni_ifworker_free(ni_ifworker_t *w)
 	w->pending = FALSE;
 
 	w->target_range.min = NI_FSM_STATE_NONE;
-	w->target_range.max = __NI_FSM_STATE_MAX;
+	w->target_range.max = NI_FSM_STATE_MAX;
 
 	ni_string_free(&w->object_path);
 	if (w->device)
@@ -785,7 +785,7 @@ static ni_intmap_t __state_names[] = {
 	{ "lldp-up",		NI_FSM_STATE_LLDP_UP		},
 	{ "addrconf-up",	NI_FSM_STATE_ADDRCONF_UP	},
 	{ "network-up",		NI_FSM_STATE_NETWORK_UP		},
-	{ "max",		__NI_FSM_STATE_MAX		},
+	{ "max",		NI_FSM_STATE_MAX		},
 
 	{ NULL }
 };
@@ -3776,7 +3776,7 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 			w->target_range = *target_range;
 		} else {
 			w->target_range.min = NI_FSM_STATE_NONE;
-			w->target_range.max = __NI_FSM_STATE_MAX;
+			w->target_range.max = NI_FSM_STATE_MAX;
 		}
 	}
 }
@@ -3835,7 +3835,7 @@ ni_ifworker_device_delete(ni_ifworker_t *w)
 		ni_ifworker_fail(w, "device has been deleted");
 
 	w->target_range.min = NI_FSM_STATE_NONE;
-	w->target_range.max = __NI_FSM_STATE_MAX;
+	w->target_range.max = NI_FSM_STATE_MAX;
 
 	ni_ifworker_destroy_action_table(w);
 	ni_ifworker_destroy_device_api(w);
@@ -3900,7 +3900,7 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 				ni_ifworker_state_name(min_state),
 				ni_ifworker_state_name(max_state));
 
-	if (max_state == __NI_FSM_STATE_MAX) {
+	if (max_state == NI_FSM_STATE_MAX) {
 		if (min_state == NI_FSM_STATE_NONE)
 			return 0;
 
@@ -3910,7 +3910,7 @@ ni_ifworker_start(ni_fsm_t *fsm, ni_ifworker_t *w, unsigned long timeout)
 			return rv;
 	} else if (min_state == NI_FSM_STATE_NONE) {
 		/* No lower bound; bring it down to max level */
-		rv = ni_fsm_schedule_init(fsm, w, __NI_FSM_STATE_MAX - 1, max_state);
+		rv = ni_fsm_schedule_init(fsm, w, NI_FSM_STATE_MAX - 1, max_state);
 		if (rv < 0)
 			return rv;
 	} else {
@@ -4226,7 +4226,7 @@ static ni_bool_t
 ni_ifworker_meta_add_system_netif_check_state_require(ni_ifworker_t *w,
 		ni_ifworker_t *cw, xml_node_t *meta)
 {
-	ni_uint_range_t range = { NI_FSM_STATE_NONE, __NI_FSM_STATE_MAX };
+	ni_uint_range_t range = { NI_FSM_STATE_NONE, NI_FSM_STATE_MAX };
 	const ni_fsm_transition_t *action;
 	const char *attr;
 
@@ -4732,7 +4732,7 @@ ni_ifworker_netif_resolve_cb(xml_node_t *node, const ni_xs_type_t *type, const x
 		} else
 #endif
 		if (ni_string_eq(mchild->name, "require")) {
-			unsigned int min_state = NI_FSM_STATE_NONE, max_state = __NI_FSM_STATE_MAX;
+			unsigned int min_state = NI_FSM_STATE_NONE, max_state = NI_FSM_STATE_MAX;
 			const char *method;
 
 			/* Ignore if there is no check attribute */
@@ -4858,7 +4858,7 @@ ni_fsm_refresh_state(ni_fsm_t *fsm)
 
 		/* Set initial state of existing devices */
 		if (w->object != NULL)
-			ni_ifworker_update_state(w, NI_FSM_STATE_DEVICE_EXISTS, __NI_FSM_STATE_MAX);
+			ni_ifworker_update_state(w, NI_FSM_STATE_DEVICE_EXISTS, NI_FSM_STATE_MAX);
 	}
 	ni_fsm_events_unblock(fsm);
 
@@ -5067,7 +5067,7 @@ ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 
 	/* Don't touch devices we're done with */
 	if (!found->done)
-		ni_ifworker_update_state(found, NI_FSM_STATE_DEVICE_EXISTS, __NI_FSM_STATE_MAX);
+		ni_ifworker_update_state(found, NI_FSM_STATE_DEVICE_EXISTS, NI_FSM_STATE_MAX);
 
 	return found;
 }

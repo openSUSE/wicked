@@ -34,7 +34,7 @@ typedef enum ni_fsm_state {
 	NI_FSM_STATE_ADDRCONF_UP,
 	NI_FSM_STATE_NETWORK_UP,
 
-	__NI_FSM_STATE_MAX
+	NI_FSM_STATE_MAX
 } ni_fsm_state_t;
 
 typedef enum ni_config_origin_prio {
@@ -512,7 +512,7 @@ static inline ni_bool_t
 ni_ifworker_is_valid_state(ni_fsm_state_t state)
 {
 	return  state > NI_FSM_STATE_NONE &&
-		state < __NI_FSM_STATE_MAX;
+		state < NI_FSM_STATE_MAX;
 }
 
 static inline ni_bool_t

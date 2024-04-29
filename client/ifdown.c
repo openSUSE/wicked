@@ -145,7 +145,7 @@ ni_do_ifdown(int argc, char **argv)
 
 	memset(&ifmarker, 0, sizeof(ifmarker));
 	ifmarker.target_range.min = NI_FSM_STATE_DEVICE_DOWN;
-	ifmarker.target_range.max = __NI_FSM_STATE_MAX - 2;
+	ifmarker.target_range.max = NI_FSM_STATE_MAX - 2;
 
 	optind = 1;
 	while ((c = getopt_long(argc, argv, "", ifdown_options, NULL)) != EOF) {

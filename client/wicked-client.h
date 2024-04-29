@@ -177,7 +177,7 @@ ni_client_get_state_strings(ni_stringbuf_t *sb, const ni_uint_range_t *range)
 		ni_fsm_state_t state;
 
 		for (state = (range ? range->min : NI_FSM_STATE_NONE);
-		     state <= (range ? range->max : __NI_FSM_STATE_MAX - 1);
+		     state <= (range ? range->max : NI_FSM_STATE_MAX - 1);
 		     state++) {
 			ni_stringbuf_printf(sb, "%s ", ni_ifworker_state_name(state));
 		}
