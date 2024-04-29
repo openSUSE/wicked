@@ -418,16 +418,6 @@ ni_netconfig_rules_drop_by_seq(ni_netconfig_t *nc, unsigned int seq)
 	}
 }
 
-static inline void
-__ni_refresh_bonding_master_bind(ni_netdev_t *master, ni_linkinfo_t *link, const char *ifname)
-{
-	const ni_netdev_ref_t ref = { .name = (char *)ifname, .index = link->ifindex };
-	ni_bonding_slave_t *slave;
-
-	slave = ni_bonding_bind_slave(master->bonding, &ref, master->name);
-	ni_bonding_slave_set_info(slave, link->slave.bond);
-}
-
 static void
 __ni_refresh_bind_master(ni_netconfig_t *nc, ni_netdev_t *dev)
 {
@@ -439,19 +429,6 @@ __ni_refresh_bind_master(ni_netconfig_t *nc, ni_netdev_t *dev)
 	if (!(master = ni_netdev_ref_bind_ifname(&dev->link.masterdev, nc))) {
 		ni_info("Interface %s references unknown master device (ifindex %u)",
 				dev->name, dev->link.masterdev.index);
-		return;
-	}
-
-	if (master->link.type != dev->link.slave.type)
-		return;
-
-	switch (dev->link.slave.type) {
-	case NI_IFTYPE_BOND:
-		__ni_refresh_bonding_master_bind(master, &dev->link, dev->name);
-		break;
-
-	default:
-		break;
 	}
 }
 
@@ -466,39 +443,6 @@ __ni_refresh_bind_lower(ni_netconfig_t *nc, ni_netdev_t *dev)
 			dev->name, dev->link.lowerdev.index);
 	}
 }
-
-static inline void
-__ni_refresh_bonding_master_unbind(ni_netdev_t *master, ni_linkinfo_t *link, const char *ifname)
-{
-	const ni_netdev_ref_t ref = { .name = (char *)ifname, .index = link->ifindex };
-
-	ni_bonding_unbind_slave(master->bonding, &ref, master->name);
-}
-
-static void
-__ni_refresh_unbind_master(ni_netconfig_t *nc, ni_netdev_t *dev)
-{
-	ni_netdev_t *master;
-
-	if (!dev->link.masterdev.index)
-		return;
-
-	if (!(master = ni_netdev_by_index(nc, dev->link.masterdev.index)))
-		return;
-
-	if (master->link.type != dev->link.slave.type)
-		return;
-
-	switch (dev->link.slave.type) {
-	case NI_IFTYPE_BOND:
-		__ni_refresh_bonding_master_unbind(master, &dev->link, dev->name);
-		break;
-
-	default:
-		break;
-	}
-}
-
 
 /*
  * Refresh all interfaces
@@ -633,7 +577,6 @@ __ni_system_refresh_all(ni_netconfig_t *nc, ni_netdev_t **del_list)
 		if (dev->seq != seqno) {
 			*tail = dev->next;
 			if (del_list == NULL) {
-				__ni_refresh_unbind_master(nc, dev);
 				ni_client_state_drop(dev->link.ifindex);
 				ni_netdev_put(dev);
 			} else {
@@ -1126,7 +1069,7 @@ __ni_process_ifinfomsg_linktype(ni_linkinfo_t *link, const char *ifname, ni_netc
 	const char *base;
 
 	/* Try to get linktype from kind string. */
-	if (!__ni_linkinfo_kind_to_type(link->kind, &tmp_link_type))
+	if (!ni_linkinfo_kind_to_type(link->kind, &tmp_link_type))
 		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG,
 				"%s: unknown link-info kind: %s", ifname, link->kind);
 
@@ -1255,36 +1198,17 @@ static inline void
 __ni_process_ifinfomsg_masterdev_unbind(ni_linkinfo_t *link, const char *ifname,
 					unsigned int oindex, ni_netconfig_t *nc)
 {
-	const ni_netdev_ref_t ref = { .name = (char *)ifname, .index = link->ifindex };
-	ni_netdev_t *master;
-
-	if ((master = ni_netdev_by_index(nc, oindex))) {
-		switch (master->link.type) {
-		case NI_IFTYPE_BOND:
-			ni_bonding_unbind_slave(master->bonding, &ref, master->name);
-			break;
-		default:
-			break;
-		}
-	}
 	ni_netdev_ref_destroy(&link->masterdev);
+	ni_netdev_port_info_destroy(&link->port);
 }
 
 static inline ni_netdev_t *
 __ni_process_ifinfomsg_masterdev_bind(ni_linkinfo_t *link, const char *ifname,
 				unsigned int mindex, ni_netconfig_t *nc)
 {
-	const ni_netdev_ref_t ref = { .name = (char *)ifname, .index = link->ifindex };
 	ni_netdev_t *master;
 
 	if ((master = ni_netdev_by_index(nc, mindex))) {
-		switch (master->link.type) {
-		case NI_IFTYPE_BOND:
-			ni_bonding_bind_slave(master->bonding, &ref, master->name);
-			break;
-		default:
-			break;
-		}
 		ni_netdev_ref_set(&link->masterdev, master->name, mindex);
 	} else {
 		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EVENTS,
@@ -1320,9 +1244,10 @@ __ni_process_ifinfomsg_masterdev(ni_linkinfo_t *link, const char *ifname,
 }
 
 static inline void
-__ni_process_ifinfomsg_bond_slave_data(ni_linkinfo_t *link, const char *ifname, struct nlattr *data)
+ni_rtnl_link_get_bond_port_info(const char *ifname, ni_linkinfo_t *link,
+		struct nlattr *data)
 {
-	/* static const */ struct nla_policy	__slave_policy[IFLA_BOND_SLAVE_MAX+1] = {
+	/* static const */ struct nla_policy	policy[IFLA_BOND_SLAVE_MAX+1] = {
 		[IFLA_BOND_SLAVE_STATE]			= { .type = NLA_U8      },
 		[IFLA_BOND_SLAVE_MII_STATUS]		= { .type = NLA_U8      },
 		[IFLA_BOND_SLAVE_LINK_FAILURE_COUNT]	= { .type = NLA_U32     },
@@ -1331,7 +1256,7 @@ __ni_process_ifinfomsg_bond_slave_data(ni_linkinfo_t *link, const char *ifname, 
 		[IFLA_BOND_SLAVE_AD_AGGREGATOR_ID]	= { .type = NLA_U16     },
 	};
 #define map_attr(attr)  [attr] = #attr
-	static const char *			__slave_attrs[IFLA_BOND_SLAVE_MAX+1] = {
+	static const char *			attrs[IFLA_BOND_SLAVE_MAX+1] = {
 		map_attr(IFLA_BOND_SLAVE_STATE),
 		map_attr(IFLA_BOND_SLAVE_MII_STATUS),
 		map_attr(IFLA_BOND_SLAVE_LINK_FAILURE_COUNT),
@@ -1341,34 +1266,37 @@ __ni_process_ifinfomsg_bond_slave_data(ni_linkinfo_t *link, const char *ifname, 
 	};
 #undef  map_attr
 	struct nlattr *tb[IFLA_BOND_SLAVE_MAX+1], *aptr;
-	ni_bonding_slave_info_t *info;
+	ni_bonding_port_info_t *info;
 	unsigned int attr, alen;
 	const char *mapped;
 	const char *name;
 
+	if (!ifname || !link || !link->port.bond || !data)
+		return;
+
 	memset(tb, 0, sizeof(tb));
-	if (nla_parse_nested(tb, IFLA_BOND_SLAVE_MAX, data, __slave_policy) < 0) {
+	if (nla_parse_nested(tb, IFLA_BOND_SLAVE_MAX, data, policy) < 0) {
 		ni_warn("%s: unable to parse bond slave data", ifname);
 		return;
 	}
 
-	info = link->slave.bond;
+	info = link->port.bond;
 	for (attr = IFLA_BOND_SLAVE_STATE; attr <= IFLA_BOND_SLAVE_MAX; ++attr) {
 		if (!(aptr = tb[attr]))
 			continue;
 
-		name = __slave_attrs[attr];
+		name = attrs[attr];
 		switch (attr) {
 		case IFLA_BOND_SLAVE_STATE:
 			info->state = nla_get_u8(aptr);
-			mapped = ni_bonding_slave_state_name(info->state);
+			mapped = ni_bonding_port_state_name(info->state);
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
 						"%s: get attr %s=%u (%s)", ifname, name,
 						info->state, mapped);
 			break;
 		case IFLA_BOND_SLAVE_MII_STATUS:
 			info->mii_status = nla_get_u8(aptr);
-			mapped = ni_bonding_slave_mii_status_name(info->mii_status);
+			mapped = ni_bonding_port_mii_status_name(info->mii_status);
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
 						"%s: get attr %s=%u (%s)", ifname, name,
 						info->mii_status, mapped);
@@ -1412,43 +1340,193 @@ __ni_process_ifinfomsg_bond_slave_data(ni_linkinfo_t *link, const char *ifname, 
 }
 
 static inline void
-__ni_process_ifinfomsg_slave_data(ni_linkinfo_t *link, const char *ifname,
-		ni_netdev_t *master, const char *kind, struct nlattr *data)
+ni_rtnl_link_get_bridge_port_info(const char *ifname, ni_linkinfo_t *link,
+		struct nlattr *data)
 {
-	ni_netdev_slaveinfo_destroy(&link->slave);
+	/* static const */ struct nla_policy	policy[IFLA_BRPORT_MAX+1] = {
+		/*
+		 * the constants are in the linux/if_link.h enum order, for
+		 * types see kernel br_port_info_size() + br_port_fill_attrs()
+		 */
+		[IFLA_BRPORT_STATE]			= { .type = NLA_U8	},
+		[IFLA_BRPORT_PRIORITY]			= { .type = NLA_U16	},
+		[IFLA_BRPORT_COST]			= { .type = NLA_U32	},
+		[IFLA_BRPORT_ID]			= { .type = NLA_U16	},
+		[IFLA_BRPORT_NO]			= { .type = NLA_U16	},
+	};
+#define map_attr(attr)[attr] = #attr
+	static const char *			attrs[IFLA_BRPORT_MAX+1] = {
+		map_attr(IFLA_BRPORT_STATE),
+		map_attr(IFLA_BRPORT_PRIORITY),
+		map_attr(IFLA_BRPORT_COST),
+		map_attr(IFLA_BRPORT_ID),
+		map_attr(IFLA_BRPORT_NO),
+	};
+#undef  map_attr
+	struct nlattr *tb[IFLA_BRPORT_MAX+1], *aptr;
+	ni_bridge_port_info_t *info;
+	unsigned int attr;
+	const char *name;
 
-	ni_string_dup(&link->slave.kind, kind);
-	if (!__ni_linkinfo_kind_to_type(kind, &link->slave.type))
-		link->slave.type = NI_IFTYPE_UNKNOWN;
+	if (!ifname || !link || !link->port.bridge || !data)
+		return;
 
-	switch (link->slave.type) {
-	case NI_IFTYPE_BOND:
-		if (master && master->link.type != link->slave.type) {
-			ni_warn("%s: master %s link type does not match slaveinfo kind type",
-					master->name, ifname);
-			return;
-		}
+	memset(tb, 0, sizeof(tb));
+	if (nla_parse_nested(tb, IFLA_BRPORT_MAX, data, policy) < 0) {
+		ni_warn("%s: unable to parse netlink bridge port info data",
+				ifname);
+		return;
+	}
 
-		if (!data) {
+	info = link->port.bridge;
+	for (attr = IFLA_BRPORT_STATE; attr <= IFLA_BRPORT_MAX; ++attr) {
+		if (!(aptr = tb[attr]))
+			continue;
+
+		name = attrs[attr];
+		switch (attr) {
+		case IFLA_BRPORT_STATE:
+			info->state = nla_get_u8(aptr);
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
-					"%s: slave info does not provide any data", ifname);
+					"%s: get attr %s=%u", ifname, name,
+					info->state);
+			break;
+
+		case IFLA_BRPORT_PRIORITY:
+			info->priority = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", ifname, name,
+					info->priority);
+			break;
+
+		case IFLA_BRPORT_COST:
+			info->path_cost = nla_get_u32(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", ifname, name,
+					info->path_cost);
+			break;
+
+		case IFLA_BRPORT_ID:
+			info->port_id = nla_get_u16(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", ifname, name,
+					info->port_id);
+			break;
+
+		case IFLA_BRPORT_NO:
+			info->port_no = nla_get_u16(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: get attr %s=%u", ifname, name,
+					info->port_no);
+			break;
+
+		default:
+			break;
+		}
+	}
+}
+
+static inline void
+ni_rtnl_link_get_port_info(const char *ifname, ni_linkinfo_t *link,
+		const char *kind, struct nlattr *data,
+		ni_netdev_t *master, ni_netconfig_t *nc)
+{
+	ni_iftype_t type;
+
+	if (!ni_string_eq(link->port.kind, kind)) {
+		ni_netdev_port_info_destroy(&link->port);
+		ni_netdev_port_info_init(&link->port, kind);
+	}
+
+	if (!ni_linkinfo_kind_to_type(kind, &type))
+		type = NI_IFTYPE_UNKNOWN;
+
+	switch (type) {
+	case NI_IFTYPE_BOND:
+		if (master && master->link.type != type) {
+			ni_warn("%s: %s port info type does not match %s link type %s",
+					ifname, ni_linktype_type_to_name(type),
+					master->name,
+					ni_linktype_type_to_name(master->link.type));
+			return;
+		}
+		if (!data) {
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EVENTS,
+					"%s: %s port info type without any data",
+					ifname, ni_linktype_type_to_name(type));
 			return;
 		}
 
-		if (master) {
-			ni_bonding_slave_t *slave;
+		ni_netdev_port_info_data_destroy(&link->port);
+		if (!ni_netdev_port_info_data_init(&link->port, type)) {
+			ni_warn("%s: unable to initialize/allocate %s port info",
+					ifname, ni_linktype_type_to_name(type));
+			return;
+		}
+		ni_rtnl_link_get_bond_port_info(ifname, link, data);
+		break;
 
-			slave = ni_bonding_slave_array_get_by_ifindex(&master->bonding->slaves,	link->ifindex);
-			link->slave.bond = ni_bonding_slave_info_ref(ni_bonding_slave_get_info(slave));
-		} else {
-			link->slave.bond = ni_bonding_slave_info_new();
+	case NI_IFTYPE_TEAM:
+		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN)) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: omitting external %s port info discovery",
+					ifname, ni_linktype_type_to_name(type));
+			return;
 		}
 
-		if (link->slave.bond)
-			__ni_process_ifinfomsg_bond_slave_data(link, ifname, data);
+		ni_netdev_port_info_data_destroy(&link->port);
+		if (!ni_netdev_port_info_data_init(&link->port, type)) {
+			ni_warn("%s: unable to initialize/allocate %s port info",
+					ifname, ni_linktype_type_to_name(type));
+			return;
+		}
+		ni_teamd_port_info_discover(&link->port, link->masterdev.name, ifname);
+		break;
+
+	case NI_IFTYPE_BRIDGE:
+		if (master && master->link.type != type) {
+			ni_warn("%s: %s port info type does not match %s link type %s",
+					ifname, ni_linktype_type_to_name(type),
+					master->name,
+					ni_linktype_type_to_name(master->link.type));
+			return;
+		}
+		if (!data) {
+			ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EVENTS,
+					"%s: %s port info type without any data",
+					ifname, ni_linktype_type_to_name(type));
+			return;
+		}
+
+		ni_netdev_port_info_data_destroy(&link->port);
+		if (!ni_netdev_port_info_data_init(&link->port, type)) {
+			ni_warn("%s: unable to initialize/allocate %s port info",
+					ifname, ni_linktype_type_to_name(type));
+			return;
+		}
+		ni_rtnl_link_get_bridge_port_info(ifname, link, data);
+		break;
+
+	case NI_IFTYPE_OVS_UNSPEC:
+		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN)) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+					"%s: omitting external %s port info discovery",
+					ifname, ni_linktype_type_to_name(type));
+			return;
+		}
+
+		ni_ovs_port_info_discover(&link->port, ifname, nc);
 		break;
 
 	default:
+		/*
+		 * actually unused / unhandled port info kind:
+		 * destroy old data if any and track kind only.
+		 */
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+				"%s: received %s port info kind %s data",
+				ifname, kind, data ? "with" : "without");
+		ni_netdev_port_info_data_destroy(&link->port);
 		break;
 	}
 }
@@ -1504,6 +1582,14 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 	if (tb[IFLA_QDISC])
 		ni_string_dup(&link->qdisc, nla_get_string(tb[IFLA_QDISC]));
 
+	if (tb[IFLA_OPERSTATE]) {
+		/* get the RFC 2863 operational status - IF_OPER_* */
+		link->oper_state = nla_get_u8(tb[IFLA_OPERSTATE]);
+	}
+
+	if (tb[IFLA_IFALIAS])
+		ni_string_dup(&link->alias, nla_get_string(tb[IFLA_IFALIAS]));
+
 	if (tb[IFLA_LINK]) {
 		link->lowerdev.index = nla_get_u32(tb[IFLA_LINK]);
 		if (!ni_netdev_ref_bind_ifname(&link->lowerdev, nc)) {
@@ -1521,47 +1607,6 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		master = __ni_process_ifinfomsg_masterdev(link, ifname, 0, nc);
 	} else {
 		master = NULL;
-	}
-
-	if (tb[IFLA_IFALIAS])
-		ni_string_dup(&link->alias, nla_get_string(tb[IFLA_IFALIAS]));
-	if (tb[IFLA_OPERSTATE]) {
-		/* get the RFC 2863 operational status - IF_OPER_* */
-		link->oper_state = nla_get_u8(tb[IFLA_OPERSTATE]);
-	}
-
-	if (tb[IFLA_STATS]) {
-		struct rtnl_link_stats *s = nla_data(tb[IFLA_STATS]);
-		ni_link_stats_t *n;
-
-		if (!link->stats)
-			link->stats = calloc(1, sizeof(*n));
-
-		if ((n = link->stats)) {
-			n->rx_packets = s->rx_packets;
-			n->tx_packets = s->tx_packets;
-			n->rx_bytes = s->rx_bytes;
-			n->tx_bytes = s->tx_bytes;
-			n->rx_errors = s->rx_errors;
-			n->tx_errors = s->tx_errors;
-			n->rx_dropped = s->rx_dropped;
-			n->tx_dropped = s->tx_dropped;
-			n->multicast = s->multicast;
-			n->collisions = s->collisions;
-			n->rx_length_errors = s->rx_length_errors;
-			n->rx_over_errors = s->rx_over_errors;
-			n->rx_crc_errors = s->rx_crc_errors;
-			n->rx_frame_errors = s->rx_frame_errors;
-			n->rx_fifo_errors = s->rx_fifo_errors;
-			n->rx_missed_errors = s->rx_missed_errors;
-			n->tx_aborted_errors = s->tx_aborted_errors;
-			n->tx_carrier_errors = s->tx_carrier_errors;
-			n->tx_fifo_errors = s->tx_fifo_errors;
-			n->tx_heartbeat_errors = s->tx_heartbeat_errors;
-			n->tx_window_errors = s->tx_window_errors;
-			n->rx_compressed = s->rx_compressed;
-			n->tx_compressed = s->tx_compressed;
-		}
 	}
 
 	/* Extended link info. Let's use it to try to determine link->type.
@@ -1603,9 +1648,9 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 		}
 
 		if (nl_linkinfo[IFLA_INFO_SLAVE_KIND]) {
-			__ni_process_ifinfomsg_slave_data(link, ifname, master,
+			ni_rtnl_link_get_port_info(ifname, link,
 					nla_get_string(nl_linkinfo[IFLA_INFO_SLAVE_KIND]),
-					nl_linkinfo[IFLA_INFO_SLAVE_DATA]);
+					nl_linkinfo[IFLA_INFO_SLAVE_DATA], master, nc);
 		}
 	}
 
@@ -3486,8 +3531,6 @@ static int
 __ni_discover_bridge(ni_netdev_t *dev)
 {
 	ni_bridge_t *bridge;
-	ni_string_array_t ports;
-	unsigned int i;
 
 	if (dev->link.type != NI_IFTYPE_BRIDGE)
 		return 0;
@@ -3496,28 +3539,6 @@ __ni_discover_bridge(ni_netdev_t *dev)
 
 	ni_sysfs_bridge_get_config(dev->name, bridge);
 	ni_sysfs_bridge_get_status(dev->name, &bridge->status);
-
-	ni_string_array_init(&ports);
-	ni_sysfs_bridge_get_port_names(dev->name, &ports);
-	ni_bridge_ports_destroy(bridge);
-
-	for (i = 0; i < ports.count; ++i) {
-		const char *ifname = ports.data[i];
-		unsigned int index;
-		ni_bridge_port_t *port;
-
-		if ((index = ni_netdev_name_to_index(ifname)) == 0) {
-			/* Looks like someone is renaming interfaces while we're
-			 * trying to discover them :-( */
-			ni_error("%s: port interface %s has index 0?!", __func__, ifname);
-			continue;
-		}
-		port = ni_bridge_port_new(bridge, ifname, index);
-
-		ni_sysfs_bridge_port_get_config(port->ifname, port);
-		ni_sysfs_bridge_port_get_status(port->ifname, &port->status);
-	}
-	ni_string_array_destroy(&ports);
 
 	return 0;
 }

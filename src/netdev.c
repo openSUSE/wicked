@@ -80,18 +80,88 @@ ni_netdev_clear_routes(ni_netdev_t *dev)
 	ni_route_tables_destroy(&dev->routes);
 }
 
-void
-ni_netdev_slaveinfo_destroy(ni_slaveinfo_t *slave)
+ni_bool_t
+ni_netdev_port_info_data_init(ni_netdev_port_info_t *info, ni_iftype_t type)
 {
-	switch (slave->type) {
-	case NI_IFTYPE_BOND:
-		ni_bonding_slave_info_free(slave->bond);
-		break;
-	default:
-		break;
+	if (info) {
+		switch (type) {
+		case NI_IFTYPE_BOND:
+			if (!(info->bond = ni_bonding_port_info_new()))
+				return FALSE;
+			break;
+
+		case NI_IFTYPE_TEAM:
+			if (!(info->team = ni_team_port_info_new()))
+				return FALSE;
+			break;
+
+		case NI_IFTYPE_BRIDGE:
+			if (!(info->bridge = ni_bridge_port_info_new()))
+				return FALSE;
+			break;
+
+		case NI_IFTYPE_OVS_BRIDGE:
+			if (!(info->ovsbr = ni_ovs_bridge_port_info_new()))
+				return FALSE;
+			break;
+
+		default:
+			info->bond = NULL; /* union ptr */
+			break;
+		}
+
+		info->type = type;
+		return TRUE;
 	}
-	free(slave->kind);
-	memset(slave, 0, sizeof(*slave));
+	return FALSE;
+}
+
+void
+ni_netdev_port_info_data_destroy(ni_netdev_port_info_t *info)
+{
+	if (info) {
+		switch (info->type) {
+		case NI_IFTYPE_BOND:
+			ni_bonding_port_info_free(info->bond);
+			break;
+
+		case NI_IFTYPE_TEAM:
+			ni_team_port_info_free(info->team);
+			break;
+
+		case NI_IFTYPE_BRIDGE:
+			ni_bridge_port_info_free(info->bridge);
+			break;
+
+		case NI_IFTYPE_OVS_BRIDGE:
+			ni_ovs_bridge_port_info_free(info->ovsbr);
+			break;
+
+		default:
+			break;
+		}
+		info->bond = NULL; /* union ptr */
+		info->type = NI_IFTYPE_UNKNOWN;
+	}
+}
+
+ni_bool_t
+ni_netdev_port_info_init(ni_netdev_port_info_t *info, const char *kind)
+{
+	if (info) {
+		ni_netdev_port_info_data_init(info, NI_IFTYPE_UNKNOWN);
+		return ni_string_dup(&info->kind, kind);
+	}
+	return FALSE;
+}
+
+void
+ni_netdev_port_info_destroy(ni_netdev_port_info_t *info)
+{
+	if (info) {
+		ni_netdev_port_info_data_destroy(info);
+		ni_string_free(&info->kind);
+	}
 }
 
 void
@@ -118,12 +188,11 @@ ni_netdev_reset(ni_netdev_t *dev)
 
 	ni_netdev_ref_destroy(&dev->link.lowerdev);
 	ni_netdev_ref_destroy(&dev->link.masterdev);
-	ni_netdev_slaveinfo_destroy(&dev->link.slave);
+	ni_netdev_port_info_destroy(&dev->link.port);
 
 	ni_string_free(&dev->link.qdisc);
 	ni_string_free(&dev->link.kind);
 
-	ni_netdev_set_link_stats(dev, NULL);
 	ni_netdev_set_client_state(dev, NULL);
 
 	ni_netdev_clear_addresses(dev);
@@ -213,29 +282,6 @@ ni_bool_t
 ni_netdev_device_is_ready(ni_netdev_t *dev)
 {
 	return dev ? dev->link.ifflags & NI_IFF_DEVICE_READY : FALSE;
-}
-
-ni_tristate_t
-ni_netdev_guess_link_required(const ni_netdev_t *dev)
-{
-	ni_tristate_t link_required = NI_TRISTATE_DEFAULT;
-
-	switch (dev->link.type) {
-	case NI_IFTYPE_OVS_SYSTEM:
-	case NI_IFTYPE_TUN:
-	case NI_IFTYPE_TAP:
-		ni_tristate_set(&link_required, FALSE);
-		break;
-
-	case NI_IFTYPE_BRIDGE:
-		if (dev->bridge && dev->bridge->stp && !dev->bridge->ports.count)
-			ni_tristate_set(&link_required, FALSE);
-		break;
-
-	default:
-		break;
-	}
-	return link_required;
 }
 
 /*
@@ -597,17 +643,6 @@ ni_netdev_set_dcb(ni_netdev_t *dev, ni_dcb_t *dcb)
 	if (dev->dcb)
 		ni_dcb_free(dev->dcb);
 	dev->dcb = dcb;
-}
-
-/*
- * Set the interface's link stats
- */
-void
-ni_netdev_set_link_stats(ni_netdev_t *dev, ni_link_stats_t *stats)
-{
-	if (dev->link.stats)
-		free(dev->link.stats);
-	dev->link.stats = stats;
 }
 
 /*

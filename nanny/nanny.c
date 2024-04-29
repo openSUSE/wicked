@@ -321,7 +321,7 @@ ni_nanny_create_managed_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr
 /*
  * Creates nanny policy and register managed policy interface.
  * Return:
- *     -1 - policy node does not exist or is errornous
+ *     -1 - policy node does not exist or is erroneous
  *      0 - policy already exists
  *      1 - policy created and registered
  */
@@ -331,29 +331,33 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, xml_do
 {
 	xml_node_t *root, *pnode = NULL;
 	ni_fsm_policy_t *policy = NULL;
+	char *location = NULL;
 	const char *pname;
 	int rv = -1;
 
 	if (!mgr || !mgr->fsm)
 		return -1;
 
-	if (!doc || xml_document_is_empty(doc)) {
+	if (!doc || !(root = xml_document_root(doc))) {
 		ni_error("Invalid policy document");
 		goto error;
 	}
 
-	root = xml_document_root(doc);
 	if (xml_node_is_empty(root->children)) {
 		ni_error("Policy document is empty");
 		goto error;
 	}
 
-	if (!xml_node_is_empty(root->children->next)) {
-		ni_error("Policy document contains more then one node");
-		goto error;
+	if (ni_string_empty(root->name)) {
+		if (!xml_node_is_empty(root->children->next)) {
+			ni_error("Policy document contains more then one node");
+			goto error;
+		}
+		pnode = root->children;
+	} else {
+		pnode = root;
 	}
 
-	pnode = root->children;
 	if (!ni_ifconfig_is_policy(pnode)) {
 		pname = pnode->name;
 		ni_error("Not a valid policy document node \"%s\"",
@@ -375,11 +379,13 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, xml_do
 		goto error;
 	}
 
-	if (ni_ifconfig_migrate(pnode))
-		ni_debug_nanny("Migrated policy \"%s\" to current schema", pname);
-
 	if (caller_uid)
 		ni_ifpolicy_set_owner_uid(pnode, *caller_uid);
+
+	if (ni_nanny_policy_location(&location, pname)) {
+		xml_node_location_relocate(pnode, location);
+		ni_string_free(&location);
+	}
 
 	if (!(policy = ni_fsm_policy_new(mgr->fsm, pname, pnode))) {
 		ni_error("Unable to create policy object for %s", pname);
@@ -801,8 +807,10 @@ ni_nanny_process_rename_event(ni_nanny_t *mgr, ni_ifworker_t *w)
 		rebuild = TRUE;
 	}
 
-	if (rebuild)
+	if (rebuild) {
 		ni_fsm_build_hierarchy(mgr->fsm, FALSE);
+		ni_fsm_print_config_hierarchy(mgr->fsm, NULL, NULL);
+	}
 }
 
 static void
@@ -948,23 +956,6 @@ ni_objectmodel_nanny_create_policy(ni_dbus_object_t *object, const ni_dbus_metho
 	}
 
 	return ni_dbus_message_append_object_path(reply, ni_dbus_object_get_path(policy_object));
-}
-
-ni_bool_t
-ni_nanny_policy_drop(const char *pname)
-{
-	char path[PATH_MAX] = {'\0'};
-
-	ni_managed_policy_filename(pname, path, sizeof(path));
-
-	if (unlink(path) < 0) {
-		if (errno == ENOENT)
-			return TRUE;
-
-		ni_error("Cannot remove policy file '%s': %m", path);
-		return FALSE;
-	}
-	return TRUE;
 }
 
 /*
@@ -1150,8 +1141,10 @@ ni_nanny_recheck_policies(ni_nanny_t *mgr, const ni_string_array_t *ifnames)
 		}
 	}
 
-	if (count)
+	if (count) {
 		ni_fsm_build_hierarchy(mgr->fsm, FALSE);
+		ni_fsm_print_config_hierarchy(mgr->fsm, NULL, NULL);
+	}
 }
 
 static dbus_bool_t

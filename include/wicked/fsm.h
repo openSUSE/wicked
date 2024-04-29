@@ -220,7 +220,6 @@ struct ni_ifworker {
 	ni_ifworker_t * 	lowerdev;
 
 	ni_ifworker_array_t	children;
-	ni_ifworker_array_t	lowerdev_for;
 };
 
 /*
@@ -285,6 +284,7 @@ typedef struct ni_ifmatcher {
 				allow_persistent   : 1,
 				ignore_startmode   : 1,
 				skip_active        : 1,
+				ifreload           : 1,
 				ifdown             : 1;
 } ni_ifmatcher_t;
 
@@ -342,8 +342,10 @@ extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, n
 extern unsigned int		ni_fsm_mark_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_ifmarker_t *);
 extern unsigned int		ni_fsm_start_matching_workers(ni_fsm_t *, ni_ifworker_array_t *);
 extern void			ni_fsm_reset_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_uint_range_t *, ni_bool_t);
-extern void			ni_fsm_print_config_hierarchy(const ni_fsm_t *);
-extern void			ni_fsm_print_system_hierarchy(const ni_fsm_t *);
+extern void			ni_fsm_print_config_hierarchy(const ni_fsm_t *,
+						const ni_ifworker_array_t *, ni_log_fn_t *);
+extern void			ni_fsm_print_system_hierarchy(const ni_fsm_t *,
+						const ni_ifworker_array_t *, ni_log_fn_t *);
 extern int			ni_fsm_build_hierarchy(ni_fsm_t *, ni_bool_t);
 extern ni_ifworker_t *		ni_fsm_worker_identify(ni_fsm_t *, const xml_node_t *, const char *,
 							ni_ifworker_type_t *, const char **);
@@ -360,7 +362,6 @@ extern ni_ifworker_t *		ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *o
 extern ni_ifworker_t *		ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path);
 extern ni_ifworker_t *		ni_fsm_ifworker_new(ni_fsm_t *, ni_ifworker_type_t, const char *);
 extern void			ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w);
-extern void			ni_fsm_pull_in_children(ni_ifworker_array_t *, ni_fsm_t *);
 extern void			ni_fsm_wait_tentative_addrs(ni_fsm_t *);
 
 extern ni_ifworker_type_t	ni_ifworker_type_from_string(const char *);

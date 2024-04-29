@@ -147,7 +147,17 @@
  <txqlen type="uint32"/>
  <mtu type="uint32"/>
  <alias type="string"/>
- <master type="string"/>
+ <master type="string">
+   <meta:netif-reference subordinate="true" />
+   <meta:require check="netif-system-state" op="linkDown" max-state="firewall-up" />
+   <meta:require check="netif-system-state" op="deleteDevice" max-state="device-down" />
+ </master>
+ <port class="union" switch="type">
+   <bond       type="bond:port-info" />
+   <team       type="team:port-info" />
+   <bridge     type="bridge:port-info" />
+   <ovs-bridge type="ovs-bridge:port-info" />
+ </port>
 
  <!-- General ipv4 and ipv6 specific settings -->
  <ipv4 type="af-info"/>
@@ -224,10 +234,12 @@
    <alias type="string"/>
    <master type="string">
      <meta:netif-reference subordinate="true" />
-     <meta:require check="netif-check-state" op="linkUp" min-state="firewall-up" />
+     <meta:require check="netif-config-state" op="linkUp" min-state="firewall-up" />
    </master>
    <port class="union" switch="type">
+     <bond       type="bond:port-config" />
      <team       type="team:port-config" />
+     <bridge     type="bridge:port-config" />
      <ovs-bridge type="ovs-bridge:port-config" />
    </port>
 

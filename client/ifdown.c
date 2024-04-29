@@ -107,7 +107,8 @@ int
 ni_do_ifdown(int argc, char **argv)
 {
 	enum  { OPT_HELP, OPT_FORCE, OPT_DELETE, OPT_NO_DELETE, OPT_TIMEOUT,
-		OPT_RELEASE, OPT_NO_RELEASE	};
+		OPT_RELEASE, OPT_NO_RELEASE, OPT_DRY_RUN,
+	};
 	static struct option ifdown_options[] = {
 		{ "help",	no_argument, NULL,		OPT_HELP },
 		{ "force",	required_argument, NULL,	OPT_FORCE },
@@ -116,6 +117,8 @@ ni_do_ifdown(int argc, char **argv)
 		{ "release",	no_argument, NULL,		OPT_RELEASE },
 		{ "no-release",	no_argument, NULL,		OPT_NO_RELEASE },
 		{ "timeout",	required_argument, NULL,	OPT_TIMEOUT },
+		{ "dry-run",	no_argument, NULL,		OPT_DRY_RUN },
+
 		{ NULL }
 	};
 	ni_ifmatcher_t ifmatch;
@@ -126,6 +129,7 @@ ni_do_ifdown(int argc, char **argv)
 	unsigned int seconds = 0;
 	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
 	ni_tristate_t opt_release = NI_TRISTATE_DEFAULT;
+	ni_log_fn_t *dry_run = NULL;
 	ni_fsm_t *fsm;
 	int c, status = NI_WICKED_RC_USAGE;
 
@@ -188,6 +192,10 @@ ni_do_ifdown(int argc, char **argv)
 			}
 			break;
 
+		case OPT_DRY_RUN:
+			dry_run = ni_note;
+			break;
+
 		default:
 		case OPT_HELP:
 usage:
@@ -207,8 +215,10 @@ usage:
 				"  --[no-]release\n"
 				"      Override active config to (not) release leases\n"
 				"  --timeout <sec>\n"
-				"      Timeout after <sec> seconds\n",
-				sb.string
+				"      Timeout after <sec> seconds\n"
+				"  --dry-run\n"
+				"      Show system interface hierarchy as notice with (-) markers and exit.\n"
+				, sb.string
 				);
 			ni_stringbuf_destroy(&sb);
 			return status;
@@ -243,11 +253,19 @@ usage:
 		return NI_WICKED_RC_ERROR;
 	}
 
+	if (ni_fsm_build_hierarchy(fsm, FALSE) < 0) {
+		ni_error("ifdown: unable to build interface hierarchy");
+		status = NI_WICKED_RC_ERROR;
+		goto cleanup;
+	}
+
 	/* Get workers that match given criteria */
+	status = NI_WICKED_RC_SUCCESS;
 	nmarked = 0;
 	while (optind < argc) {
 		ifmatch.name = argv[optind++];
 		ifmatch.ifdown = TRUE;
+
 		ni_fsm_get_matching_workers(fsm, &ifmatch, &ifmarked);
 
 		if (ni_string_eq(ifmatch.name, "all") ||
@@ -259,6 +277,10 @@ usage:
 		if (ni_string_array_index(&ifnames, ifmatch.name) == -1)
 			ni_string_array_append(&ifnames, ifmatch.name);
 	}
+
+	ni_fsm_print_system_hierarchy(fsm, &ifmarked, dry_run);
+	if (dry_run)
+		goto cleanup;
 
 	/* Mark and start selected workers */
 	if (ifmarked.count) {
@@ -290,6 +312,7 @@ usage:
 		status = ni_ifstatus_shutdown_result(fsm, &ifnames, &ifmarked);
 	}
 
+cleanup:
 	ni_string_array_destroy(&ifnames);
 	ni_ifworker_array_destroy(&ifmarked);
 	ni_fsm_free(fsm);

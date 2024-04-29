@@ -305,7 +305,7 @@ ni_nanny_addpolicy_node(const xml_node_t *pnode, const char *origin)
 int
 ni_nanny_addpolicy(xml_document_t *doc)
 {
-	xml_node_t *root, *pnode;
+	xml_node_t *root;
 	const char *origin;
 	int count = 0;
 
@@ -320,16 +320,7 @@ ni_nanny_addpolicy(xml_document_t *doc)
 			NI_CLIENT_IFCONFIG, origin, NI_NANNY_IFPOLICY);
 		return -1;
 	}
-
-	for (pnode = root->children; pnode; pnode = pnode->next) {
-		int rv = ni_nanny_addpolicy_node(pnode, origin);
-		if (rv < 0)
-			return rv;
-
-		count += rv;
-	}
-
-	return count;
+	return ni_nanny_addpolicy_node(xml_document_root(doc), origin);
 }
 
 /*
