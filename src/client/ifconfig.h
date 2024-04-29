@@ -63,7 +63,7 @@
 #define NI_NANNY_IFPOLICY_WEIGHT		"weight"
 #define NI_NANNY_IFPOLICY_NAME			"name"
 
-extern ni_bool_t		ni_ifpolicy_match_add_min_state(xml_node_t *, unsigned int);
+extern ni_bool_t		ni_ifpolicy_match_add_min_state(xml_node_t *, ni_fsm_state_t);
 extern ni_bool_t		ni_ifpolicy_match_add_link_type(xml_node_t *, unsigned int);
 extern xml_node_t *		ni_ifpolicy_generate_match(const ni_string_array_t *, const char *);
 extern ni_bool_t		ni_ifpolicy_name_is_valid(const char *);
