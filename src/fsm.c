@@ -949,19 +949,6 @@ ni_ifworker_array_remove(ni_ifworker_array_t *array, ni_ifworker_t *w)
 	return found;
 }
 
-void
-ni_ifworker_array_remove_with_children(ni_ifworker_array_t *array, ni_ifworker_t *w)
-{
-	if (ni_ifworker_array_index(array, w) != -1) {
-		unsigned int i;
-
-		for (i = 0; i < w->children.count; i++) {
-			ni_ifworker_array_remove_with_children(array, w->children.data[i]);
-		}
-		ni_ifworker_array_remove(array, w);
-	}
-}
-
 ni_ifworker_t *
 ni_fsm_ifworker_by_name(const ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
 {
