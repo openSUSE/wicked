@@ -290,6 +290,79 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
  * We want to wait for this signal and when it is >= device-up return TRUE.
  * After timeout we fail...
  */
+static ni_bool_t
+ni_nanny_fsm_monitor_wait_by_startmode(ni_ifworker_t *worker)
+{
+	/*
+	 * We don't need to wait for hotplug interfaces,
+	 * but only for "boot" and "manual" (started by
+	 * dedicated "ifup <name>" but not in "ifup all").
+	 */
+	if (ni_string_eq(worker->control.mode, "hotplug"))
+		return FALSE;
+	if (ni_string_eq(worker->control.mode, "ifplugd"))
+		return FALSE;
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_nanny_fsm_monitor_remove_port(ni_ifworker_array_t *workers, ni_ifworker_t *port)
+{
+	/*
+	 * A L2 master (bond,team,bridge,ovs-bridge) calculates it's
+	 * link-up (carrier/up & running) state from it's ports using
+	 * own logic (e.g. monitoring or stp) and usually requires one
+	 * port only to inherit carrier itself.
+	 *
+	 * While a bond/team are HA constructs ("cable redundancy" to
+	 * the same "peer" switch), bridge acts as switch and connects
+	 * multiple ports (the broadcast domains / switches behind the
+	 * "cable") with each other into one (broadcast domain[s] set).
+	 * Note: A bridge with disabled STP is often mocking carrier,
+	 * that is, it may report carrier even there is no port added.
+	 *
+	 * When master finished/reached it's target state, we can stop
+	 * monitoring setup of it's hotplug ports, which are allowed to
+	 * be missed completely, but in case a port is a non-hotplug one
+	 * (what makes sense for bridges), we should NOT remove it from
+	 * further monitoring.
+	 *
+	 * Both, hotplug and non-hotplug ports as well as the master
+	 * itself, may be also configured to not require link aka to
+	 * ignore carrier. In this case, the setup of the interface
+	 * will finish earlier, but we still need to wait until the
+	 * "up" run ignoring carrier finished for a non-hotplug port.
+	 */
+	if (ni_nanny_fsm_monitor_wait_by_startmode(port))
+		return FALSE;
+
+	return ni_ifworker_array_remove(workers, port);
+}
+
+static void
+ni_nanny_fsm_monitor_remove_ports(ni_ifworker_array_t *workers, ni_ifworker_t *worker)
+{
+	ni_ifworker_t *port;
+	unsigned int i;
+
+	for (i = 0; i < workers->count; ) {
+		port = workers->data[i];
+
+		if (port->masterdev == worker &&
+		    ni_nanny_fsm_monitor_remove_port(workers, port))
+			continue;
+		i++;
+	}
+}
+
+static void
+ni_nanny_fsm_monitor_remove_finished(ni_ifworker_array_t *workers, ni_ifworker_t *worker)
+{
+	ni_nanny_fsm_monitor_remove_ports(workers, worker);
+	ni_ifworker_array_remove(workers, worker);
+}
+
 static void
 ni_nanny_fsm_monitor_handler(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
 {
@@ -333,7 +406,7 @@ ni_nanny_fsm_monitor_handler(ni_dbus_connection_t *conn, ni_dbus_message_t *msg,
 		if (!ni_string_eq(w->name, ifname))
 			continue;
 
-		ni_ifworker_array_remove_with_children(monitor->marked, w);
+		ni_nanny_fsm_monitor_remove_finished(monitor->marked, w);
 		break;
 	}
 
