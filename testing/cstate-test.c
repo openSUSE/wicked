@@ -19,7 +19,7 @@ int main(int argc, char **argv)
 	ni_global.config = ni_config_new();
 	ni_enable_debug("all");
 
-	if (!(cs = ni_client_state_new(NI_FSM_STATE_DEVICE_UP)))
+	if (!(cs = ni_client_state_new()))
 		return 1;
 
 	ni_client_state_debug("Test0", cs, "print");

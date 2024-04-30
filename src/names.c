@@ -816,7 +816,7 @@ ni_lldp_system_capability_name_to_type(const char *name)
 }
 
 const char *
-ni_lldp_system_capability_type_to_name(unsigned int type)
+ni_lldp_system_capability_type_to_name(ni_lldp_destination_t type)
 {
 	return ni_format_uint_maybe_mapped(type, __ni_lldp_systemcap_names);
 }

@@ -34,7 +34,7 @@ typedef enum ni_fsm_state {
 	NI_FSM_STATE_ADDRCONF_UP,
 	NI_FSM_STATE_NETWORK_UP,
 
-	__NI_FSM_STATE_MAX
+	NI_FSM_STATE_MAX
 } ni_fsm_state_t;
 
 typedef enum ni_config_origin_prio {
@@ -367,7 +367,7 @@ extern void			ni_fsm_wait_tentative_addrs(ni_fsm_t *);
 extern ni_ifworker_type_t	ni_ifworker_type_from_string(const char *);
 extern const char *		ni_ifworker_type_to_string(ni_ifworker_type_t);
 extern ni_ifworker_type_t	ni_ifworker_type_from_object_path(const char *, const char **);
-extern ni_bool_t		ni_ifworker_state_in_range(const ni_uint_range_t *, const unsigned int);
+extern ni_bool_t		ni_ifworker_state_in_range(const ni_uint_range_t *, const ni_fsm_state_t);
 extern const char *		ni_ifworker_state_name(ni_fsm_state_t state);
 extern ni_bool_t		ni_ifworker_state_from_name(const char *, unsigned int *);
 extern ni_fsm_require_t *	ni_ifworker_reachability_check_new(xml_node_t *);
@@ -511,7 +511,7 @@ static inline ni_bool_t
 ni_ifworker_is_valid_state(ni_fsm_state_t state)
 {
 	return  state > NI_FSM_STATE_NONE &&
-		state < __NI_FSM_STATE_MAX;
+		state < NI_FSM_STATE_MAX;
 }
 
 static inline ni_bool_t

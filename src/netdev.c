@@ -679,7 +679,7 @@ ni_netdev_get_client_state(ni_netdev_t *dev)
 		return NULL;
 
 	if (!dev->client_state)
-		dev->client_state = ni_client_state_new(0);
+		dev->client_state = ni_client_state_new();
 
 	return dev->client_state;
 }
@@ -704,21 +704,12 @@ ni_netdev_load_client_state(ni_netdev_t *dev)
 void
 ni_netdev_discover_client_state(ni_netdev_t *dev)
 {
-	ni_fsm_state_t state = NI_FSM_STATE_DEVICE_EXISTS;
 	ni_client_state_t *cs;
 
 	if (!dev)
 		return;
 
-	if (ni_netdev_device_is_up(dev))
-		state = NI_FSM_STATE_DEVICE_UP;
-	if (ni_netdev_link_is_up(dev))
-		state = NI_FSM_STATE_LINK_UP;
-	if (ni_netdev_network_is_up(dev))
-		state = NI_FSM_STATE_LINK_UP;
-
-	cs = ni_client_state_new(state);
-
+	cs = ni_client_state_new();
 	ni_netdev_set_client_state(dev, cs);
 }
 
