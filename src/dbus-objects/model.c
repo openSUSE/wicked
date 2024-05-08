@@ -55,6 +55,18 @@ static ni_dbus_service_t	ni_objectmodel_netif_root_interface;
 ni_dbus_server_t *		__ni_objectmodel_server;
 ni_xs_scope_t *			__ni_objectmodel_schema;
 
+extern unsigned int
+ni_objectmodel_class_registry_count(void)
+{
+	return ni_objectmodel_class_registry.count;
+}
+
+extern unsigned int
+ni_objectmodel_service_registry_count(void)
+{
+	return ni_objectmodel_service_registry.count;
+}
+
 /*
  * Create the dbus service
  */

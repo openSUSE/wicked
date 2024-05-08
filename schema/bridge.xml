@@ -1,51 +1,36 @@
-
 <service name="bridge" interface="org.opensuse.Network.Bridge" object-class="netif-bridge">
 
-  <!-- This is the port-config containing the port configuration -->
   <define name="port-config" class="dict"
-	  description="Bridge port configuration properties">
-    <!-- The port interface.
-         It's marked as a netif-reference, meaning that the device name is
-         optionally resolved by wicked at run time. You can use "classic"
-         device names such as eth0, but you can also use and <identify>
-         element to use any of the supported netif naming services
-      -->
-    <device type="string">
-      <meta:netif-reference shared="false"/>
-      <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
-    </device>
+	        description="Bridge port (link-request) configuration">
 
     <priority type="uint32" constraint="range">
       <min value="0"/>
       <max value="63"/>
     </priority>
     <path-cost type="uint32" />
+
   </define>
 
-  <!-- This is the port-status returned in bridge interface reports -->
-  <define name="port-status" class="dict" extends="bridge:port-config"
-          description="Bridge port configuration and status properties">
-     <!-- The following fields contain status information only,
-          and should not appear in configuration files.
-          These values are ignored when creating a bridge port.
-     -->
+  <define name="port-info" class="dict"
+          description="Bridge port specific interface info properties">
 
-    <!-- FIXME: state is really asking for an enum -->
-    <state type="uint32" />
-    <port-no type="uint32" />
-    <port-id type="uint32" />
+    <state      type="builtin-bridge-port-state" />
+    <port-no    type="uint32" />
+    <port-id    type="uint32" />
+    <priority   type="uint32" />
+    <path-cost  type="uint32" />
+
   </define>
 
-  <!-- This is the bridge config without ports used to configure the bridge -->
   <define name="bridge-config" class="dict"
-          description="Bridge interface configuration properties">
+          description="Bridge specific interface configuration properties">
 
     <!-- STP protocol related settings -->
     <stp type="boolean"
-     description="Enables Spanning Tree Protocol to handle multiple hops and avoid cyclic routes"/>
+         description="Enables Spanning Tree Protocol to handle multiple hops and avoid cyclic routes"/>
 
     <priority type="uint32" constraint="range"
-      description="The bridge with the lowest priority will be elected as the 'central' root bridge in the spanning tree.">
+              description="The bridge with the lowest priority will be elected as the 'central' root bridge in the spanning tree.">
       <min value="0"/>
       <max value="65535"/>
     </priority>
@@ -58,17 +43,18 @@
     <gc-interval type="double"   description="Garbage collection interval for the bridge" />
   </define>
 
-  <!-- This are bridge configuration properties inclusive ports -->
   <define name="configuration" class="dict" extends="bridge:bridge-config"
-          description="Bridge and port configuration properties">
-    <ports class="array" element-type="bridge:port-config" element-name="port" />
+          description="Bridge interface (changeDevice) configuration">
+
+    <!-- additional configurables supported by a bridge changeDevice() -->
+
     <address  type="ethernet-address"/>
   </define>
 
-  <!-- This are all bridge properties returned in service interface reports -->
   <define name="properties" class="dict" extends="bridge:bridge-config"
-          description="Bridge configuration and status properties">
+          description="Bridge interface (service) state info properties">
 
+    <!-- actual stp state reported by the kernel driver -->
     <stp-state type="uint32" constraint="enum">
       <none          value="0" description="STP is disabled"/>
       <kernel-stp    value="1" description="Kernel built-in STP implementation"/>
@@ -77,7 +63,6 @@
 
     <!-- we may implement more status information properties here -->
 
-    <ports class="array" element-type="bridge:port-status" element-name="port" />
     <address  type="ethernet-address"/>
   </define>
 
@@ -90,7 +75,7 @@
            call to changeDevice() if that element isn't there.
         -->
       <config type="bridge:configuration">
-       <meta:mapping document-node="/bridge" skip-unless-present="true" />
+        <meta:mapping document-node="/bridge" skip-unless-present="true" />
       </config>
     </arguments>
   </method>
@@ -99,29 +84,18 @@
     <!-- no arguments, no return code -->
   </method>
 
-  <method name="addPort">
-    <arguments>
-      <port type="bridge:port-config"/>
-    </arguments>
-  </method>
-
-  <method name="removePort">
-    <arguments>
-      <port type="string"/>
-    </arguments>
-  </method>
 </service>
 
 <service name="bridge-factory" interface="org.opensuse.Network.Bridge.Factory" object-class="netif-list">
   <method name="newDevice">
     <arguments>
-     <name type="string"/>
-     <config type="bridge:configuration">
-      <meta:mapping document-node="/bridge"/>
-     </config>
+      <name type="string"/>
+      <config type="bridge:configuration">
+        <meta:mapping document-node="/bridge"/>
+      </config>
     </arguments>
     <return>
-     <string/>
+      <string/>
     </return>
   </method>
 </service>

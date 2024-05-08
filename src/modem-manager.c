@@ -533,7 +533,7 @@ ni_modem_get_client_state(ni_modem_t *dev)
 		return NULL;
 
 	if (!dev->client_state)
-		dev->client_state = ni_client_state_new(0);
+		dev->client_state = ni_client_state_new();
 
 	return dev->client_state;
 }
@@ -721,7 +721,7 @@ ni_modem_manager_signal(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void
 		if (!dbus_message_get_args(msg, &error, DBUS_TYPE_UINT32, &quality, DBUS_TYPE_INVALID))
 			goto bad_vibes;
 
-		ni_debug_modem("%s: quality changed %u -> %u", object_path, 
+		ni_debug_modem("%s: quality changed %u -> %u", object_path,
 				modem->gsm.signal_quality, quality);
 		modem->gsm.signal_quality = quality;
 	} else

@@ -1,7 +1,7 @@
 /*
- *	Team device support
+ *	Team network interface support
  *
- *	Copyright (C) 2015 SUSE Linux GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2015-2023 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,14 +13,8 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- *	Boston, MA 02110-1301 USA.
- *
- *	Authors:
- *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
- *		Marius Tomaschewski <mt@suse.de>
+ *	You should have received a copy of the GNU General Public License
+ *      along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #ifndef NI_WICKED_TEAM_H
 #define NI_WICKED_TEAM_H
@@ -133,9 +127,8 @@ typedef struct ni_team_runner {
 	};
 } ni_team_runner_t;
 
-
 /*
- * link watch
+ * link watch type
  */
 typedef enum {
 	NI_TEAM_LINK_WATCH_ETHTOOL = 0,
@@ -143,7 +136,6 @@ typedef enum {
 	NI_TEAM_LINK_WATCH_NSNA_PING,
 	NI_TEAM_LINK_WATCH_TIPC,
 } ni_team_link_watch_type_t;
-
 
 /*
  * link watch type structs
@@ -178,7 +170,6 @@ typedef struct ni_team_link_watch_ethtool {
 	unsigned int				delay_down;
 } ni_team_link_watch_ethtool_t;
 
-
 /*
  * link watch type union
  */
@@ -208,6 +199,9 @@ typedef struct ni_team_port_lacp {
 	unsigned int				key;
 } ni_team_port_lacp_t;
 
+/*
+ * team port (link-request) configuration
+ */
 struct ni_team_port_config {
 	unsigned int				queue_id;
 
@@ -216,18 +210,37 @@ struct ni_team_port_config {
 };
 
 /*
- * team port and array
+ * team port interface info properties
  */
-typedef struct ni_team_port {
-	ni_netdev_ref_t				device;
-	ni_team_port_config_t			config;
-} ni_team_port_t;
+typedef struct ni_team_port_runner_lacp_info	ni_team_port_runner_lacp_info_t;
+typedef struct ni_team_port_runner_info		ni_team_port_runner_info_t;
+typedef struct ni_team_port_link_watches_info	ni_team_port_link_watches_info_t;
 
-typedef struct ni_team_port_array {
-	unsigned int				count;
-	ni_team_port_t **			data;
-} ni_team_port_array_t;
+struct ni_team_port_runner_lacp_info {
+	struct {
+		unsigned int			id;
+	} aggregator;
+	ni_bool_t				selected;
+	char *					state;
+};
+struct ni_team_port_runner_info {
+	ni_team_runner_type_t			type;
+	union {
+		ni_team_port_runner_lacp_info_t	lacp;
+	};
+};
+struct ni_team_port_link_watches_info {
+	ni_bool_t				up;
+};
 
+struct ni_team_port_info {
+	ni_team_port_runner_info_t		runner;
+	ni_team_port_link_watches_info_t	watches;
+};
+
+/*
+ * team interface
+ */
 typedef enum {
 	NI_TEAM_LINK_WATCH_POLICY_ANY = 0U,
 	NI_TEAM_LINK_WATCH_POLICY_ALL = 1,
@@ -242,9 +255,7 @@ typedef struct ni_team_mcast_rejoin {
 	unsigned int				count;
 	unsigned int				interval;
 } ni_team_mcast_rejoin_t;
-/*
- * team device
- */
+
 struct ni_team {
 	unsigned int				debug_level;
 	ni_team_notify_peers_t			notify_peers;
@@ -252,9 +263,7 @@ struct ni_team {
 	ni_team_runner_t			runner;
 	ni_team_link_watch_policy_t		link_watch_policy;
 	ni_team_link_watch_array_t		link_watch;
-	ni_team_port_array_t			ports;
 };
-
 
 extern ni_team_t *				ni_team_new();
 extern void					ni_team_free(ni_team_t *);
@@ -267,36 +276,39 @@ extern ni_bool_t				ni_team_runner_name_to_type(const char *, ni_team_runner_typ
 
 extern const char *				ni_team_tx_hash_bit_to_name(ni_team_tx_hash_bit_t);
 extern ni_bool_t				ni_team_tx_hash_name_to_bit(const char *, ni_team_tx_hash_bit_t *);
-extern unsigned int				ni_team_tx_hash_get_bit_names(ni_team_tx_hash_bit_t, ni_string_array_t *);
+extern unsigned int				ni_team_tx_hash_get_bit_names(ni_team_tx_hash_bit_t,
+								ni_string_array_t *);
 extern const char *				ni_team_tx_balancer_type_to_name(ni_team_tx_balancer_type_t);
-extern ni_bool_t				ni_team_tx_balancer_name_to_type(const char *, ni_team_tx_balancer_type_t *);
+extern ni_bool_t				ni_team_tx_balancer_name_to_type(const char *,
+								ni_team_tx_balancer_type_t *);
 
 extern const char *				ni_team_lacp_select_policy_type_to_name(ni_team_lacp_select_policy_t);
-extern ni_bool_t				ni_team_lacp_select_policy_name_to_type(const char *, ni_team_lacp_select_policy_t *);
+extern ni_bool_t				ni_team_lacp_select_policy_name_to_type(const char *,
+								ni_team_lacp_select_policy_t *);
 
 extern const char *				ni_team_ab_hwaddr_policy_type_to_name(ni_team_ab_hwaddr_policy_t);
-extern ni_bool_t				ni_team_ab_hwaddr_policy_name_to_type(const char *, ni_team_ab_hwaddr_policy_t *);
+extern ni_bool_t				ni_team_ab_hwaddr_policy_name_to_type(const char *,
+								ni_team_ab_hwaddr_policy_t *);
 
 extern const char *				ni_team_link_watch_type_to_name(ni_team_link_watch_type_t);
-extern ni_bool_t				ni_team_link_watch_name_to_type(const char *, ni_team_link_watch_type_t *);
+extern ni_bool_t				ni_team_link_watch_name_to_type(const char *,
+								ni_team_link_watch_type_t *);
 
 extern const char *				ni_team_link_watch_policy_type_to_name(ni_team_link_watch_policy_t);
 extern ni_bool_t				ni_team_link_watch_policy_name_to_type(const char *,
-											ni_team_link_watch_policy_t *);
+								ni_team_link_watch_policy_t *);
 
 extern ni_team_link_watch_t *			ni_team_link_watch_new(ni_team_link_watch_type_t);
 extern void					ni_team_link_watch_free(ni_team_link_watch_t *);
 extern						ni_declare_ptr_array_append(ni_team_link_watch);
 extern						ni_declare_ptr_array_delete_at(ni_team_link_watch);
 
-extern ni_team_port_t *				ni_team_port_new(void);
-extern void					ni_team_port_free(ni_team_port_t *);
-extern						ni_declare_ptr_array_destroy(ni_team_port);
-extern						ni_declare_ptr_array_append(ni_team_port);
-extern						ni_declare_ptr_array_delete_at(ni_team_port);
-extern ni_team_port_t *				ni_team_port_array_find_by_name(ni_team_port_array_t *, const char *);
-
-extern void					ni_team_port_config_init(ni_team_port_config_t *);
+extern ni_team_port_config_t *			ni_team_port_config_new(void);
+extern ni_bool_t				ni_team_port_config_init(ni_team_port_config_t *);
 extern void					ni_team_port_config_destroy(ni_team_port_config_t *);
+extern void					ni_team_port_config_free(ni_team_port_config_t *);
+
+extern ni_team_port_info_t *			ni_team_port_info_new(void);
+extern void					ni_team_port_info_free(ni_team_port_info_t *);
 
 #endif /* NI_WICKED_TEAM_H */
