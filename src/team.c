@@ -1,7 +1,7 @@
 /*
- *	Team device support
+ *	Team network interface support
  *
- *	Copyright (C) 2015 SUSE Linux GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2015-2023 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,14 +13,8 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- *	Boston, MA 02110-1301 USA.
- *
- *	Authors:
- *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
- *		Marius Tomaschewski <mt@suse.de>
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -35,8 +29,6 @@
 #include "array_priv.h"
 
 #define NI_TEAM_LINK_WATCH_ARRAY_CHUNK		4
-#define NI_TEAM_PORT_ARRAY_CHUNK		4
-
 
 /*
  * Map teamd mode names to constants
@@ -223,6 +215,30 @@ ni_team_ab_hwaddr_policy_name_to_type(const char *name, ni_team_ab_hwaddr_policy
 	return TRUE;
 }
 
+void
+ni_team_runner_init(ni_team_runner_t *runner, ni_team_runner_type_t type)
+{
+	memset(runner, 0, sizeof(*runner));
+	runner->type = type;
+
+	/* apply non-zero type depending defaults here */
+	switch (runner->type) {
+	case NI_TEAM_RUNNER_ROUND_ROBIN:
+	case NI_TEAM_RUNNER_ACTIVE_BACKUP:
+	case NI_TEAM_RUNNER_LOAD_BALANCE:
+	case NI_TEAM_RUNNER_BROADCAST:
+	case NI_TEAM_RUNNER_RANDOM:
+	case NI_TEAM_RUNNER_LACP:
+	default:
+		break;
+	}
+}
+
+void
+ni_team_runner_destroy(ni_team_runner_t *runner)
+{
+}
+
 /*
  * Map teamd link watch names to constants
  */
@@ -346,61 +362,8 @@ extern ni_define_ptr_array_append(ni_team_link_watch);
 extern ni_define_ptr_array_delete_at(ni_team_link_watch);
 
 /*
- * team port
+ * team interface
  */
-ni_team_port_t *
-ni_team_port_new(void)
-{
-	ni_team_port_t *port;
-
-	port = xcalloc(1, sizeof(*port));
-	ni_team_port_config_init(&port->config);
-	return port;
-}
-
-void
-ni_team_port_free(ni_team_port_t *port)
-{
-	ni_netdev_ref_destroy(&port->device);
-	ni_team_port_config_destroy(&port->config);
-	free(port);
-}
-
-static ni_define_ptr_array_init(ni_team_port);
-extern ni_define_ptr_array_destroy(ni_team_port);
-static ni_define_ptr_array_realloc(ni_team_port, NI_TEAM_PORT_ARRAY_CHUNK);
-extern ni_define_ptr_array_append(ni_team_port);
-extern ni_define_ptr_array_delete_at(ni_team_port);
-
-extern ni_team_port_t *
-ni_team_port_array_find_by_name(ni_team_port_array_t *array, const char *name)
-{
-	unsigned int i;
-
-	if (!array || !name)
-		return NULL;
-
-	for (i = 0; i < array->count; ++i) {
-		ni_team_port_t *port = array->data[i];
-		if (ni_string_eq(name, port->device.name))
-			return port;
-	}
-	return NULL;
-}
-
-void
-ni_team_port_config_init(ni_team_port_config_t *pc)
-{
-	if (pc) {
-		pc->queue_id = -1U;
-	}
-}
-
-void
-ni_team_port_config_destroy(ni_team_port_config_t *pc)
-{
-}
-
 static void
 ni_team_init(ni_team_t *team)
 {
@@ -410,9 +373,6 @@ ni_team_init(ni_team_t *team)
 	team->mcast_rejoin.interval = -1U;
 }
 
-/*
- * team device
- */
 ni_team_t *
 ni_team_new(void)
 {
@@ -430,32 +390,101 @@ ni_team_free(ni_team_t *team)
 	if (team) {
 		ni_team_runner_destroy(&team->runner);
 		ni_team_link_watch_array_destroy(&team->link_watch);
-		ni_team_port_array_destroy(&team->ports);
 		free(team);
 	}
 }
 
-void
-ni_team_runner_init(ni_team_runner_t *runner, ni_team_runner_type_t type)
+/*
+ * team port link-request configuration
+ */
+ni_bool_t
+ni_team_port_config_init(ni_team_port_config_t *conf)
 {
-	memset(runner, 0, sizeof(*runner));
-	runner->type = type;
+	if (conf) {
+		memset(conf, 0, sizeof(*conf));
+		conf->queue_id = -1U;
+		return TRUE;
+	}
+	return FALSE;
+}
 
-	/* apply non-zero type depending defaults here */
+void
+ni_team_port_config_destroy(ni_team_port_config_t *conf)
+{
+	ni_team_port_config_init(conf);
+}
+
+ni_team_port_config_t *
+ni_team_port_config_new(void)
+{
+	ni_team_port_config_t *conf;
+
+	conf = malloc(sizeof(*conf));
+	if (ni_team_port_config_init(conf))
+		return conf;
+
+	free(conf);
+	return NULL;
+}
+
+void
+ni_team_port_config_free(ni_team_port_config_t *conf)
+{
+	ni_team_port_config_destroy(conf);
+	free(conf);
+}
+
+/*
+ * team port interface info properties
+ */
+static ni_bool_t
+ni_team_port_info_init(ni_team_port_info_t *info)
+{
+	if (info) {
+		memset(info, 0, sizeof(*info));
+		/* apply "not set" defaults */
+		info->runner.type = -1U;
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_team_port_info_t *
+ni_team_port_info_new(void)
+{
+	ni_team_port_info_t *info;
+
+	info = malloc(sizeof(*info));
+	if (ni_team_port_info_init(info))
+		return info;
+
+	free(info);
+	return NULL;
+}
+
+static inline void
+ni_team_port_runner_lacp_info_free(ni_team_port_runner_lacp_info_t *lacp)
+{
+	ni_string_free(&lacp->state);
+}
+
+static inline void
+ni_team_port_runner_info_free(ni_team_port_runner_info_t *runner)
+{
 	switch (runner->type) {
-	case NI_TEAM_RUNNER_ROUND_ROBIN:
-	case NI_TEAM_RUNNER_ACTIVE_BACKUP:
-	case NI_TEAM_RUNNER_LOAD_BALANCE:
-	case NI_TEAM_RUNNER_BROADCAST:
-	case NI_TEAM_RUNNER_RANDOM:
 	case NI_TEAM_RUNNER_LACP:
+		ni_team_port_runner_lacp_info_free(&runner->lacp);
+		break;
 	default:
 		break;
 	}
 }
 
 void
-ni_team_runner_destroy(ni_team_runner_t *runner)
+ni_team_port_info_free(ni_team_port_info_t *info)
 {
+	if (info) {
+		ni_team_port_runner_info_free(&info->runner);
+		free(info);
+	}
 }
-

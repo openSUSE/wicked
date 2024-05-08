@@ -51,7 +51,7 @@ typedef struct ni_client_state {
 	ni_client_state_scripts_t	scripts;
 } ni_client_state_t;
 
-extern ni_client_state_t *	ni_client_state_new(unsigned int);
+extern ni_client_state_t *	ni_client_state_new(void);
 extern ni_client_state_t *	ni_client_state_clone(ni_client_state_t *);
 extern void		ni_client_state_init(ni_client_state_t *);
 extern void		ni_client_state_reset(ni_client_state_t *);
