@@ -72,7 +72,7 @@ static int
 __ni_init_gcrypt(void)
 {
 /*
- * gcry_check_version checks for minmum version
+ * gcry_check_version checks for minimum version
  * we want consider sufficient and returns NULL
  * on failures.
  *
@@ -580,13 +580,15 @@ ni_netconfig_device_append(ni_netconfig_t *nc, ni_netdev_t *dev)
 }
 
 static inline void
-ni_netconfig_device_unbind_slave_index(ni_netconfig_t *nc, unsigned int master)
+ni_netconfig_device_unbind_ports(ni_netconfig_t *nc, unsigned int master)
 {
 	ni_netdev_t *dev;
 
 	for (dev = nc->interfaces; dev; dev = dev->next) {
-		if (dev->link.masterdev.index == master)
+		if (dev->link.masterdev.index == master) {
 			ni_netdev_ref_destroy(&dev->link.masterdev);
+			ni_netdev_port_info_destroy(&dev->link.port);
+		}
 	}
 }
 
@@ -598,7 +600,7 @@ ni_netconfig_device_remove(ni_netconfig_t *nc, ni_netdev_t *dev)
 	for (pos = &nc->interfaces; (cur = *pos) != NULL; pos = &cur->next) {
 		if (cur == dev) {
 			*pos = cur->next;
-			ni_netconfig_device_unbind_slave_index(nc, cur->link.ifindex);
+			ni_netconfig_device_unbind_ports(nc, cur->link.ifindex);
 			ni_netdev_put(cur);
 			return;
 		}
@@ -814,6 +816,9 @@ ni_netdev_by_name(ni_netconfig_t *nc, const char *name)
 {
 	ni_netdev_t *dev;
 
+	if (!nc && !(nc = ni_global_state_handle(0)))
+		return NULL;
+
 	for (dev = nc->interfaces; dev; dev = dev->next) {
 		if (dev->name && ni_string_eq(dev->name, name))
 			return dev;
@@ -829,6 +834,9 @@ ni_netdev_t *
 ni_netdev_by_index(ni_netconfig_t *nc, unsigned int ifindex)
 {
 	ni_netdev_t *dev;
+
+	if (!nc && !(nc = ni_global_state_handle(0)))
+		return NULL;
 
 	for (dev = nc->interfaces; dev; dev = dev->next) {
 		if (dev->link.ifindex == ifindex)
@@ -849,8 +857,30 @@ ni_netdev_by_hwaddr(ni_netconfig_t *nc, const ni_hwaddr_t *lla)
 	if (!lla || !lla->len)
 		return NULL;
 
+	if (!nc && !(nc = ni_global_state_handle(0)))
+		return NULL;
+
 	for (dev = nc->interfaces; dev; dev = dev->next) {
 		if (ni_link_address_equal(&dev->link.hwaddr, lla))
+			return dev;
+	}
+
+	return NULL;
+}
+
+/*
+ * Find network interface by iftype
+ */
+ni_netdev_t *
+ni_netdev_by_iftype(ni_netconfig_t *nc, ni_iftype_t iftype)
+{
+	ni_netdev_t *dev;
+
+	if (!nc && !(nc = ni_global_state_handle(0)))
+		return NULL;
+
+	for (dev = nc->interfaces; dev; dev = dev->next) {
+		if (dev->link.type == iftype)
 			return dev;
 	}
 
@@ -867,6 +897,10 @@ ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc, const char *parent_name, uint
 
 	if (!parent_name || !tag)
 		return NULL;
+
+	if (!nc && !(nc = ni_global_state_handle(0)))
+		return NULL;
+
 	for (dev = nc->interfaces; dev; dev = dev->next) {
 		if (dev->link.type == NI_IFTYPE_VLAN
 		 && dev->vlan
@@ -919,6 +953,113 @@ ni_netdev_make_name(ni_netconfig_t *nc, const char *stem, unsigned int first)
 		if (!ni_netdev_by_name(nc, namebuf))
 			return namebuf;
 	}
+
+	return NULL;
+}
+
+/*
+ * Get port count and optionally an array of port netdev
+ * references for the given netdev (index).
+ */
+static unsigned int
+ni_netdev_get_ovsbr_ports_by_index(unsigned int index, ni_netdev_ref_array_t *ports,
+		ni_netconfig_t *nc)
+{
+	unsigned int count = ports ? ports->count : 0;
+	ni_ovs_bridge_port_info_t *pinfo;
+	ni_netdev_t *dev;
+
+	if (!index || (!nc && !(nc = ni_global_state_handle(0))))
+		return count;
+
+	for (dev = nc->interfaces; dev; dev = dev->next) {
+		if (dev->link.port.type != NI_IFTYPE_OVS_BRIDGE)
+			continue;
+
+		if (!(pinfo = dev->link.port.ovsbr))
+			continue;
+
+		if (index != pinfo->bridge.index)
+			continue;
+
+		if (ports)
+			ni_netdev_ref_array_append(ports, dev->name,
+					dev->link.ifindex);
+		else
+			count++;
+	}
+
+	return ports ? ports->count - count : count;
+}
+
+static unsigned int
+ni_netdev_get_ports_by_index(unsigned int index, ni_netdev_ref_array_t *ports,
+		ni_netconfig_t *nc)
+{
+	unsigned int count = ports ? ports->count : 0;
+	ni_netdev_t *dev;
+
+	if (!index || (!nc && !(nc = ni_global_state_handle(0))))
+		return count;
+
+	for (dev = nc->interfaces; dev; dev = dev->next) {
+		if (dev->link.masterdev.index != index)
+			continue;
+
+		if (ports)
+			ni_netdev_ref_array_append(ports, dev->name,
+					dev->link.ifindex);
+		else
+			count++;
+	}
+
+	return ports ? ports->count - count : count;
+}
+
+extern unsigned int
+ni_netdev_get_ports(const ni_netdev_t *dev, ni_netdev_ref_array_t *ports,
+		ni_netconfig_t *nc)
+{
+	unsigned int index;
+
+	if (!dev)
+		return ports ? ports->count : 0;
+
+	index = dev->link.ifindex;
+	if (dev->link.type == NI_IFTYPE_OVS_BRIDGE)
+		return ni_netdev_get_ovsbr_ports_by_index(index, ports, nc);
+	else
+		return ni_netdev_get_ports_by_index(index, ports, nc);
+}
+
+/*
+ * Resolve port's master reference to netdev
+ */
+const ni_netdev_ref_t *
+ni_netdev_get_master_ref(const ni_netdev_t *dev)
+{
+	if (!dev)
+		return NULL;
+
+	if (dev->link.port.type == NI_IFTYPE_OVS_BRIDGE) {
+		ni_ovs_bridge_port_info_t *ovsbr;
+
+		if (!(ovsbr = dev->link.port.ovsbr))
+			return NULL;
+
+		return &ovsbr->bridge;
+	}
+
+	return &dev->link.masterdev;
+}
+
+ni_netdev_t *
+ni_netdev_resolve_master(const ni_netdev_t *dev, ni_netconfig_t *nc)
+{
+	const ni_netdev_ref_t *ref;
+
+	if ((ref = ni_netdev_get_master_ref(dev)))
+		return ni_netdev_ref_resolve(ref, nc);
 
 	return NULL;
 }
@@ -1134,63 +1275,68 @@ ni_netdev_ref_array_destroy(ni_netdev_ref_array_t *array)
 /*
  * Handle netdev request port config
  */
-static void
-ni_netdev_port_req_init(ni_netdev_port_req_t *port)
+ni_bool_t
+ni_netdev_port_config_init(ni_netdev_port_config_t *conf, ni_iftype_t type)
 {
-	switch (port->type) {
-        case NI_IFTYPE_TEAM:
-		ni_team_port_config_init(&port->team);
-		break;
+	if (conf) {
+		memset(conf, 0, sizeof(*conf));
 
-	case NI_IFTYPE_OVS_BRIDGE:
-		ni_ovs_bridge_port_config_init(&port->ovsbr);
-		break;
+		switch (type) {
+		case NI_IFTYPE_BOND:
+			if (!(conf->bond = ni_bonding_port_config_new()))
+				return FALSE;
+			break;
 
-	case NI_IFTYPE_BOND:
-	case NI_IFTYPE_BRIDGE:
-	default:
-		break;
-	}
-}
-
-ni_netdev_port_req_t *
-ni_netdev_port_req_new(ni_iftype_t master)
-{
-	ni_netdev_port_req_t *port;
-
-	switch (master) {
-	case NI_IFTYPE_TEAM:
-	case NI_IFTYPE_BOND:
-	case NI_IFTYPE_BRIDGE:
-	case NI_IFTYPE_OVS_BRIDGE:
-		port = xcalloc(1, sizeof(*port));
-		port->type = master;
-		ni_netdev_port_req_init(port);
-		return port;
-	default:
-		return NULL;
-	}
-}
-
-void
-ni_netdev_port_req_free(ni_netdev_port_req_t *port)
-{
-	if (port) {
-		switch (port->type) {
 		case NI_IFTYPE_TEAM:
-			ni_team_port_config_destroy(&port->team);
+			if (!(conf->team = ni_team_port_config_new()))
+				return FALSE;
+			break;
+
+		case NI_IFTYPE_BRIDGE:
+			if (!(conf->bridge = ni_bridge_port_config_new()))
+				return FALSE;
 			break;
 
 		case NI_IFTYPE_OVS_BRIDGE:
-			ni_ovs_bridge_port_config_destroy(&port->ovsbr);
+			if (!(conf->ovsbr = ni_ovs_bridge_port_config_new()))
+				return FALSE;
 			break;
 
-		case NI_IFTYPE_BOND:
-		case NI_IFTYPE_BRIDGE:
 		default:
 			break;
 		}
-		free(port);
+		conf->type = type;
+
+		return TRUE;
+	}
+	return FALSE;
+}
+void
+ni_netdev_port_config_destroy(ni_netdev_port_config_t *conf)
+{
+	if (conf) {
+		switch (conf->type) {
+		case NI_IFTYPE_BOND:
+			ni_bonding_port_config_free(conf->bond);
+			break;
+
+		case NI_IFTYPE_TEAM:
+			ni_team_port_config_free(conf->team);
+			break;
+
+		case NI_IFTYPE_BRIDGE:
+			ni_bridge_port_config_free(conf->bridge);
+			break;
+
+		case NI_IFTYPE_OVS_BRIDGE:
+			ni_ovs_bridge_port_config_free(conf->ovsbr);
+			break;
+
+		default:
+			break;
+		}
+
+		memset(conf, 0, sizeof(*conf));
 	}
 }
 
@@ -1211,7 +1357,7 @@ ni_netdev_req_free(ni_netdev_req_t *req)
 {
 	ni_string_free(&req->alias);
 	ni_netdev_ref_destroy(&req->master);
-	ni_netdev_port_req_free(req->port);
+	ni_netdev_port_config_destroy(&req->port);
 	free(req);
 }
 

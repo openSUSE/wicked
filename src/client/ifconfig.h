@@ -2,6 +2,7 @@
  *	wicked client ifconfig structures and objects
  *
  *	Copyright (C) 2010-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2014-2024 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,24 +14,20 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- *	Boston, MA 02110-1301 USA.
- *
- *	Authors:
- *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
- *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef   __WICKED_CLIENT_IFCONFIG_H__
-#define   __WICKED_CLIENT_IFCONFIG_H__
+#ifndef NI_WICKED_CLIENT_IFCONFIG_H
+#define NI_WICKED_CLIENT_IFCONFIG_H
 
 #define NI_CONFIG_ORIGIN			"origin"
+#define NI_CONFIG_OWNER				"owner"
 #define NI_CONFIG_UUID				"uuid"
 
 #define NI_CLIENT_IFCONFIG			"interface"
-#define NI_CLIENT_IFCONFIG_UUID			NI_CONFIG_UUID
 #define NI_CLIENT_IFCONFIG_ORIGIN		NI_CONFIG_ORIGIN
+#define NI_CLIENT_IFCONFIG_OWNER		NI_CONFIG_OWNER
+#define NI_CLIENT_IFCONFIG_UUID			NI_CONFIG_UUID
 #define NI_CLIENT_IFCONFIG_MATCH_NAME		"name"
 #define NI_CLIENT_IFCONFIG_CONTROL		"control"
 #define NI_CLIENT_IFCONFIG_MODE			"mode"
@@ -60,13 +57,13 @@
 #define NI_NANNY_IFPOLICY_REPLACE		"replace"
 #define NI_NANNY_IFPOLICY_CREATE		"create"
 
-#define NI_NANNY_IFPOLICY_UUID			NI_CONFIG_UUID
 #define NI_NANNY_IFPOLICY_ORIGIN		NI_CONFIG_ORIGIN
-#define NI_NANNY_IFPOLICY_NAME			"name"
-#define NI_NANNY_IFPOLICY_OWNER			"owner"
+#define NI_NANNY_IFPOLICY_OWNER			NI_CONFIG_OWNER
+#define NI_NANNY_IFPOLICY_UUID			NI_CONFIG_UUID
 #define NI_NANNY_IFPOLICY_WEIGHT		"weight"
+#define NI_NANNY_IFPOLICY_NAME			"name"
 
-extern ni_bool_t		ni_ifpolicy_match_add_min_state(xml_node_t *, unsigned int);
+extern ni_bool_t		ni_ifpolicy_match_add_min_state(xml_node_t *, ni_fsm_state_t);
 extern ni_bool_t		ni_ifpolicy_match_add_link_type(xml_node_t *, unsigned int);
 extern xml_node_t *		ni_ifpolicy_generate_match(const ni_string_array_t *, const char *);
 extern ni_bool_t		ni_ifpolicy_name_is_valid(const char *);
@@ -93,10 +90,12 @@ extern ni_bool_t		ni_nanny_call_add_secret(const ni_security_id_t *, const char 
 extern ni_bool_t		ni_nanny_call_recheck(const ni_string_array_t *);
 
 extern ni_bool_t		ni_ifconfig_generate_uuid(const xml_node_t *, ni_uuid_t *);
-extern ni_bool_t		ni_ifconfig_migrate(xml_node_t *);
+extern ni_bool_t		ni_ifxml_node_is_migrated(const xml_node_t *);
+extern ni_bool_t		ni_ifxml_node_set_migrated(xml_node_t *, ni_bool_t);
+extern ni_bool_t		ni_ifxml_migrate_docs(xml_document_array_t *);
 
 static inline ni_bool_t
-ni_ifconfig_is_config(xml_node_t *ifnode)
+ni_ifconfig_is_config(const xml_node_t *ifnode)
 {
 	return !xml_node_is_empty(ifnode) && ni_string_eq(ifnode->name, NI_CLIENT_IFCONFIG);
 }
@@ -166,4 +165,4 @@ ni_ifpolicy_is_valid(const xml_node_t *pnode)
 	return ni_ifpolicy_name_is_valid(ni_ifpolicy_get_name(pnode));
 }
 
-#endif /* __WICKED_CLIENT_IFCONFIG_H__ */
+#endif /* NI_WICKED_CLIENT_IFCONFIG_H */

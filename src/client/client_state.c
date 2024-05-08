@@ -289,7 +289,7 @@ ni_client_state_is_valid(const ni_client_state_t *client_state)
  * Exported functions
  */
 ni_client_state_t *
-ni_client_state_new(ni_fsm_state_t state)
+ni_client_state_new(void)
 {
 	ni_client_state_t *client_state;
 

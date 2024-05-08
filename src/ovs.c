@@ -1,7 +1,7 @@
 /*
  *	OVS (bridge) device support
  *
- *	Copyright (C) 2015 SUSE Linux GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2015-2023 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,13 +13,8 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- *	Boston, MA 02110-1301 USA.
- *
- *	Authors:
- *		Marius Tomaschewski <mt@suse.de>
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -35,7 +30,6 @@
 #include "util_priv.h"
 #include "array_priv.h"
 
-#define NI_OVS_BRIDGE_PORT_ARRAY_CHUNK		4
 
 ni_ovs_bridge_t *
 ni_ovs_bridge_new(void)
@@ -52,7 +46,6 @@ ni_ovs_bridge_free(ni_ovs_bridge_t *ovsbr)
 {
 	if (ovsbr) {
 		ni_ovs_bridge_config_destroy(&ovsbr->config);
-		ni_ovs_bridge_port_array_destroy(&ovsbr->ports);
 		free(ovsbr);
 	}
 }
@@ -70,83 +63,50 @@ ni_ovs_bridge_config_destroy(ni_ovs_bridge_config_t *conf)
 	ni_ovs_bridge_config_init(conf);
 }
 
-
-ni_ovs_bridge_port_t *
-ni_ovs_bridge_port_new(void)
-{
-	ni_ovs_bridge_port_t *port;
-
-	port = xcalloc(1, sizeof(*port));
-	return port;
-}
-
-void
-ni_ovs_bridge_port_free(ni_ovs_bridge_port_t *port)
-{
-	if (port) {
-		ni_netdev_ref_destroy(&port->device);
-		free(port);
-	}
-}
-
-extern ni_define_ptr_array_init(ni_ovs_bridge_port);
-extern ni_define_ptr_array_destroy(ni_ovs_bridge_port);
-static ni_define_ptr_array_realloc(ni_ovs_bridge_port, NI_OVS_BRIDGE_PORT_ARRAY_CHUNK);
-extern ni_define_ptr_array_append(ni_ovs_bridge_port);
-extern ni_define_ptr_array_delete_at(ni_ovs_bridge_port);
-
-ni_ovs_bridge_port_t *
-ni_ovs_bridge_port_array_add_new(ni_ovs_bridge_port_array_t *ports, const char *pname)
-{
-	ni_ovs_bridge_port_t *port;
-
-	if (!ports || ni_string_empty(pname))
-		return NULL;
-
-	if (ni_ovs_bridge_port_array_find_by_name(ports, pname))
-		return NULL;
-
-	if (!(port = ni_ovs_bridge_port_new()))
-		return NULL;
-
-	ni_netdev_ref_set_ifname(&port->device, pname);
-
-	if (ni_ovs_bridge_port_array_append(ports, port))
-		return port;
-
-	ni_ovs_bridge_port_free(port);
-	return NULL;
-}
-
-ni_ovs_bridge_port_t *
-ni_ovs_bridge_port_array_find_by_name(ni_ovs_bridge_port_array_t *array, const char *name)
-{
-	unsigned int i;
-
-	if (!array || !name)
-		return NULL;
-
-	for (i = 0; i < array->count; ++i) {
-		ni_ovs_bridge_port_t *port = array->data[i];
-		if (ni_string_eq(name, port->device.name))
-			return port;
-	}
-	return NULL;
-}
-
-void
+/*
+ * OVS bridge port config
+ */
+ni_bool_t
 ni_ovs_bridge_port_config_init(ni_ovs_bridge_port_config_t *conf)
 {
-	memset(conf, 0, sizeof(*conf));
+	if (conf) {
+		memset(conf, 0, sizeof(*conf));
+		return TRUE;
+	}
+	return FALSE;
+}
+
+ni_ovs_bridge_port_config_t *
+ni_ovs_bridge_port_config_new(void)
+{
+	ni_ovs_bridge_port_config_t *conf;
+
+	conf = malloc(sizeof(*conf));
+	if (ni_ovs_bridge_port_config_init(conf))
+		return conf;
+
+	free(conf);
+	return NULL;
 }
 
 void
 ni_ovs_bridge_port_config_destroy(ni_ovs_bridge_port_config_t *conf)
 {
-	ni_netdev_ref_destroy(&conf->bridge);
-	ni_ovs_bridge_port_config_init(conf);
+	if (conf) {
+		ni_var_array_destroy(&conf->args);
+		ni_ovs_bridge_port_config_init(conf);
+	}
 }
 
+/*
+ * OVS bridge port state info
+ */
+void
+ni_ovs_bridge_port_config_free(ni_ovs_bridge_port_config_t *conf)
+{
+	ni_ovs_bridge_port_config_destroy(conf);
+	free(conf);
+}
 
 static const char *
 ni_ovs_vsctl_tool_path(void)
@@ -320,7 +280,7 @@ failure:
 
 
 int /* process run codes (for now) */
-ni_ovs_vsctl_bridge_ports(const char *brname, ni_ovs_bridge_port_array_t *ports)
+ni_ovs_vsctl_bridge_ports(const char *brname, ni_netdev_ref_array_t *ports)
 {
 	ni_stringbuf_t pname = NI_STRINGBUF_INIT_DYNAMIC;
 	const char *ovs_vsctl;
@@ -364,7 +324,7 @@ ni_ovs_vsctl_bridge_ports(const char *brname, ni_ovs_bridge_port_array_t *ports)
 		if (cc == '\n') {
 			if (pname.string)
 				pname.string[strcspn(pname.string, "\n\r")] = '\0';
-			ni_ovs_bridge_port_array_add_new(ports, pname.string);
+			ni_netdev_ref_array_append(ports, pname.string, 0);
 			ni_stringbuf_destroy(&pname);
 		} else {
 			ni_stringbuf_putc(&pname, cc);
@@ -372,7 +332,7 @@ ni_ovs_vsctl_bridge_ports(const char *brname, ni_ovs_bridge_port_array_t *ports)
 	}
 	if (pname.string)
 		pname.string[strcspn(pname.string, "\n\r")] = '\0';
-	ni_ovs_bridge_port_array_add_new(ports, pname.string);
+	ni_netdev_ref_array_append(ports, pname.string, 0);
 	ni_stringbuf_destroy(&pname);
 
 failure:
@@ -476,14 +436,16 @@ failure:
 }
 
 int /* process run codes (for now) */
-ni_ovs_vsctl_bridge_port_add(const char *pname, const ni_ovs_bridge_port_config_t *pconf, ni_bool_t may_exist)
+ni_ovs_vsctl_bridge_port_add(const char *brname, const char *pname,
+		const ni_ovs_bridge_port_config_t *pconf,
+		ni_bool_t may_exist)
 {
 	const char *ovs_vsctl;
 	ni_shellcmd_t *cmd;
 	ni_process_t *pi;
 	int rv = NI_PROCESS_FAILURE;
 
-	if (ni_string_empty(pname) || !pconf || ni_string_empty(pconf->bridge.name))
+	if (ni_string_empty(brname) || ni_string_empty(pname) || !pconf)
 		return rv;
 
 	if (!(ovs_vsctl = ni_ovs_vsctl_tool_path()))
@@ -501,7 +463,7 @@ ni_ovs_vsctl_bridge_port_add(const char *pname, const ni_ovs_bridge_port_config_
 	if (!ni_shellcmd_add_arg(cmd, "add-port"))
 		goto failure;
 
-	if (!ni_shellcmd_add_arg(cmd, pconf->bridge.name))
+	if (!ni_shellcmd_add_arg(cmd, brname))
 		goto failure;
 
 	if (!ni_shellcmd_add_arg(cmd, pname))
@@ -598,7 +560,7 @@ ni_ovs_vsctl_bridge_port_to_bridge(const char *pname, char **brname)
 
 	rv = ni_process_run_and_capture_output(pi, &buf);
 	ni_process_free(pi);
-	if (rv) {
+	if (rv != NI_PROCESS_SUCCESS) {
 		ni_error("%s: unable to query port bridge", pname);
 		goto failure;
 	}
@@ -619,30 +581,69 @@ int
 ni_ovs_bridge_discover(ni_netdev_t *dev, ni_netconfig_t *nc)
 {
 	ni_ovs_bridge_t *ovsbr;
-	unsigned int i;
 
 	if (!dev || dev->link.type != NI_IFTYPE_OVS_BRIDGE)
 		return -1;
 
 	ovsbr = ni_ovs_bridge_new();
 	if (ni_ovs_vsctl_bridge_to_parent(dev->name, &ovsbr->config.vlan.parent.name) ||
-	    ni_ovs_vsctl_bridge_to_vlan(dev->name, &ovsbr->config.vlan.tag) ||
-	    ni_ovs_vsctl_bridge_ports(dev->name, &ovsbr->ports)) {
+	    ni_ovs_vsctl_bridge_to_vlan(dev->name, &ovsbr->config.vlan.tag)) {
 		ni_ovs_bridge_free(ovsbr);
 		return -1;
 	}
 
-	if (nc) {
-		if (ovsbr->config.vlan.parent.name)
-			ni_netdev_ref_bind_ifindex(&ovsbr->config.vlan.parent, nc);
+	if (ovsbr->config.vlan.parent.name)
+		ni_netdev_ref_bind_ifindex(&ovsbr->config.vlan.parent, nc);
 
-		for (i = 0; i < ovsbr->ports.count;  ++i) {
-			ni_ovs_bridge_port_t *port = ovsbr->ports.data[i];
-			if (port->device.name)
-				ni_netdev_ref_bind_ifindex(&port->device, nc);
-		}
-	}
 	ni_netdev_set_ovs_bridge(dev, ovsbr);
 	return 0;
+}
+
+int
+ni_ovs_port_info_discover(ni_netdev_port_info_t *port, const char *name,
+		ni_netconfig_t *nc)
+{
+	char *bridge = NULL;
+	int rv;
+
+	if (!port || ni_string_empty(name))
+		return -1;
+
+	rv = ni_ovs_vsctl_bridge_port_to_bridge(name, &bridge);
+	if (rv == NI_PROCESS_SUCCESS && !ni_string_empty(bridge)) {
+
+		ni_netdev_port_info_data_destroy(port);
+		if (!ni_netdev_port_info_data_init(port, NI_IFTYPE_OVS_BRIDGE))
+			goto failure;
+
+		ni_string_move(&port->ovsbr->bridge.name, &bridge);
+
+		/* we may not be able to find bridge index while
+		 * initial interface fetch at start/bootstrap. */
+		ni_netdev_ref_bind_ifindex(&port->ovsbr->bridge, nc);
+		return 0;
+	}
+
+failure:
+	ni_string_free(&bridge);
+	return -1;
+}
+
+ni_ovs_bridge_port_info_t *
+ni_ovs_bridge_port_info_new(void)
+{
+	ni_ovs_bridge_port_info_t *info;
+
+	info = calloc(1, sizeof(*info));
+	return info;
+}
+
+void
+ni_ovs_bridge_port_info_free(ni_ovs_bridge_port_info_t *info)
+{
+	if (info) {
+		ni_netdev_ref_destroy(&info->bridge);
+		free(info);
+	}
 }
 

@@ -53,110 +53,120 @@ struct ni_nanny_fsm_monitor {
 	ni_ifworker_array_t *	marked;
 };
 
-static xml_node_t *
-__ni_ifup_generate_match_dev(xml_node_t *node, ni_ifworker_t *w)
+static ni_bool_t
+ni_ifup_generate_match_device(xml_node_t *node, ni_ifworker_t *w)
 {
+	/*
+	 * Generate <device>${w->name}</device> match (self reference) node.
+	 */
 	if (!node || !w || ni_string_empty(w->name))
-		return NULL;
-	return xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, node, w->name);
+		return FALSE;
+
+	return !!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, node, w->name);
 }
 
 static ni_bool_t
-__ni_ifup_generate_match_link_port_ref(xml_node_t *match, xml_node_t *port)
-{
-	const char *type = xml_node_get_attr(port, NI_CLIENT_IFCONFIG_PORT_TYPE);
-	ni_iftype_t ptype = ni_linktype_name_to_type(type);
-	xml_node_t *ref, *ovsbr;
-
-	switch (ptype) {
-	case NI_IFTYPE_OVS_BRIDGE:
-		ovsbr = xml_node_get_child(port, NI_CLIENT_IFCONFIG_BRIDGE);
-		if (!ovsbr || ni_string_empty(ovsbr->cdata))
-			return FALSE;
-
-		if (!(ref = xml_node_new(NI_NANNY_IFPOLICY_MATCH_REF, match)))
-			return FALSE;
-
-		if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, ref, ovsbr->cdata)) {
-			xml_node_free(ref);
-			return FALSE;
-		}
-		break;
-
-	default:
-		/* other port types need master only */
-		break;
-	}
-	return TRUE;
-}
-
-static ni_bool_t
-__ni_ifup_generate_match_link_ref(xml_node_t *match, xml_node_t *link)
-{
-	xml_node_t *ref, *master, *port;
-
-	if (!(master = xml_node_get_child(link, NI_CLIENT_IFCONFIG_MASTER)))
-		return TRUE; /* <link> does not contain a <master> node */
-
-	if (ni_string_empty(master->cdata))
-		return FALSE;
-
-	if (ni_string_eq(master->cdata, ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM))) {
-		if ((port = xml_node_get_child(link, NI_CLIENT_IFCONFIG_LINK_PORT)))
-			return __ni_ifup_generate_match_link_port_ref(match, port);
-
-		return FALSE;
-	}
-
-	if (!(ref = xml_node_new(NI_NANNY_IFPOLICY_MATCH_REF, match)))
-		return FALSE;
-
-	if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, ref, master->cdata)) {
-		xml_node_free(ref);
-		return FALSE;
-	}
-
-	if ((port = xml_node_get_child(link, NI_CLIENT_IFCONFIG_LINK_PORT)))
-		return __ni_ifup_generate_match_link_port_ref(match, port);
-
-	return TRUE; /* master ref at least */
-}
-
-static ni_bool_t
-__ni_ifup_generate_match_master_ref(xml_node_t *match, ni_ifworker_t *master)
+ni_ifup_generate_match_device_ref(xml_node_t *match, const char *name)
 {
 	xml_node_t *ref;
 
-	if (!master || ni_string_empty(master->name))
+	/*
+	 * Generate <reference><device>${name}</device></reference>
+	 * match node to a related (lower, master, …) interface name.
+	 */
+	if (!match || ni_string_empty(name))
 		return FALSE;
 
 	if (!(ref = xml_node_new(NI_NANNY_IFPOLICY_MATCH_REF, match)))
 		return FALSE;
 
-	if (!xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, ref, master->name)) {
-		xml_node_free(ref);
-		return FALSE;
-	}
+	if (xml_node_new_element(NI_NANNY_IFPOLICY_MATCH_DEV, ref, name))
+		return TRUE;
 
-	return TRUE;
+	xml_node_detach(ref);
+	xml_node_free(ref);
+	return FALSE;
 }
 
 static ni_bool_t
-__ni_ifup_generate_match_refs(xml_node_t *match, ni_ifworker_t *w)
+ni_ifup_generate_match_lower_ref(xml_node_t *match, ni_ifworker_t *w)
 {
-	xml_node_t *link;
+	/*
+	 * If we have a lower/underlying interface (e.g. lower=bond0)
+	 * reference and our (e.g. vlan bond0.42) interface can't
+	 * be setup or even can't be created or exist without it,
+	 * e.g.:
+	 *     ip link add dev bond0.42 link bond0 type vlan id 42
+	 *
+	 * In the config, the lower reference does not have a fix
+	 * node name, but is provided by type specific nodes, e.g.
+	 * for vlan|macvlan:
+	 *     <vlan|macvlan|…>
+	 *       <device>${w->lowerdev}</device>
+	 *     </vlan|macvlan|…>
+	 * for ovs vlan (fake) bridge's parent bridge:
+	 *     <ovs-bridge>
+	 *       <vlan>
+	 *         <parent>${w->lowerdev}</device>
+	 *       </vlan>
+	 *     </ovs-bridge>
+	 *
+	 * The w->lowerdev points to the worker resolved from the
+	 * config by fsm while (config) hierarchy build, so we
+	 * don't need to "find it manually".
+	 */
+	if (!w->lowerdev)
+		return TRUE;
 
-	if (w->masterdev)
-		return __ni_ifup_generate_match_master_ref(match, w->masterdev);
+	return ni_ifup_generate_match_device_ref(match, w->lowerdev->name);
+}
 
-	if ((link = xml_node_get_child(w->config.node, NI_CLIENT_IFCONFIG_LINK)))
-		return __ni_ifup_generate_match_link_ref(match, link);
+static ni_bool_t
+ni_ifup_generate_match_master_ref(xml_node_t *match, ni_ifworker_t *w)
+{
+	/*
+	 * If we are a port (e.g. bond0.42 vlan) bound to a master
+	 * (e.g. br42 bridge) required for the link setup, e.g.:
+	 *     ip link set dev bond0.42 master br42
+	 *
+	 * The <link> node provides a typed port union:
+	 *   <link>
+	 *     <master>${w->masterdev}</master>
+	 *     <port type="${type-name}">${type-data}</port>
+	 *   </link>
+	 *
+	 * The port type is the type of the effective master and
+	 * its content is type specific port configuration node.
+	 *
+	 * The w->masterdev points to the worker resolved from the
+	 * config by fsm while (config) hierarchy build, so we
+	 * don't need to "find it manually".
+	 */
+	if (!w->masterdev)
+		return TRUE;
 
-	return TRUE; /* no refs is not an error */
+	return ni_ifup_generate_match_device_ref(match, w->masterdev->name);
+}
+
+static ni_bool_t
+ni_ifup_generate_match_refs(xml_node_t *match, ni_ifworker_t *w)
+{
+	/*
+	 * Some interface types may have a lower (underlying)
+	 * interface and (most) can be also bound as port to
+	 * an another master reference.
+	 */
+	if (!ni_ifup_generate_match_lower_ref(match, w))
+		return FALSE;
+
+	if (!ni_ifup_generate_match_master_ref(match, w))
+		return FALSE;
+
+	return TRUE; /* no refa is not an error */
 }
 
 static xml_node_t *
-__ni_ifup_generate_match(const char *name, ni_ifworker_t *w)
+ni_ifup_generate_match(const char *name, ni_ifworker_t *w)
 {
 	xml_node_t *match;
 
@@ -167,45 +177,25 @@ __ni_ifup_generate_match(const char *name, ni_ifworker_t *w)
 		"generate policy match for %s (type %s)", w->name,
 		ni_linktype_type_to_name(w->iftype));
 
-	if (!__ni_ifup_generate_match_dev(match, w))
-		goto error;
-
-	/* Ignore child dependency for following device types:
-	 *  - ovs-system: otherwise ovs-system would require all ports
-	 *    in all ovs-bridges and want to get at least one up ...
-	 *    this is not what we want :-)
-	 */
-	switch (w->iftype) {
-	case NI_IFTYPE_OVS_SYSTEM:
-		goto done;
-		break;
-	default:
-		if (ni_string_eq(w->name, ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM)))
-			goto done;
-		break;
-	}
-
-	if (!__ni_ifup_generate_match_refs(match, w)) {
-		ni_debug_application("%s: unable to generate policy match device references",
+	if (!ni_ifup_generate_match_device(match, w)) {
+		ni_error("%s: unable to generate policy device match",
 				w->name);
 		goto error;
 	}
 
-	if (w->children.count) {
-		xml_node_t *or;
-		unsigned int i;
+	/*
+	 * The ovs-system datapath does not have any
+	 * (should not have any) references to other
+	 * interfaces...
+	 */
+	if (w->iftype == NI_IFTYPE_OVS_SYSTEM ||
+	    ni_string_eq(w->name, ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM)))
+		goto done;
 
-		if (!(or = xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_OR, match)))
-			goto error;
-
-		for (i = 0; i < w->children.count; i++) {
-			ni_ifworker_t *child = w->children.data[i];
-			xml_node_t *cnode;
-
-			cnode = xml_node_new(NI_NANNY_IFPOLICY_MATCH_COND_CHILD, or);
-			if (!cnode || !__ni_ifup_generate_match_dev(cnode, child))
-				goto error;
-		}
+	if (!ni_ifup_generate_match_refs(match, w)) {
+		ni_error("%s: unable to generate policy device reference match",
+				w->name);
+		goto error;
 	}
 
 done:
@@ -227,7 +217,7 @@ ni_ifup_start_policy(ni_ifworker_t *w)
 
 	ni_debug_application("%s: hiring nanny", w->name);
 
-	match = __ni_ifup_generate_match(NI_NANNY_IFPOLICY_MATCH, w);
+	match = ni_ifup_generate_match(NI_NANNY_IFPOLICY_MATCH, w);
 	if (!match)
 		goto error;
 
@@ -300,6 +290,79 @@ ni_ifup_hire_nanny(ni_ifworker_array_t *array, ni_bool_t set_persistent)
  * We want to wait for this signal and when it is >= device-up return TRUE.
  * After timeout we fail...
  */
+static ni_bool_t
+ni_nanny_fsm_monitor_wait_by_startmode(ni_ifworker_t *worker)
+{
+	/*
+	 * We don't need to wait for hotplug interfaces,
+	 * but only for "boot" and "manual" (started by
+	 * dedicated "ifup <name>" but not in "ifup all").
+	 */
+	if (ni_string_eq(worker->control.mode, "hotplug"))
+		return FALSE;
+	if (ni_string_eq(worker->control.mode, "ifplugd"))
+		return FALSE;
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_nanny_fsm_monitor_remove_port(ni_ifworker_array_t *workers, ni_ifworker_t *port)
+{
+	/*
+	 * A L2 master (bond,team,bridge,ovs-bridge) calculates it's
+	 * link-up (carrier/up & running) state from it's ports using
+	 * own logic (e.g. monitoring or stp) and usually requires one
+	 * port only to inherit carrier itself.
+	 *
+	 * While a bond/team are HA constructs ("cable redundancy" to
+	 * the same "peer" switch), bridge acts as switch and connects
+	 * multiple ports (the broadcast domains / switches behind the
+	 * "cable") with each other into one (broadcast domain[s] set).
+	 * Note: A bridge with disabled STP is often mocking carrier,
+	 * that is, it may report carrier even there is no port added.
+	 *
+	 * When master finished/reached it's target state, we can stop
+	 * monitoring setup of it's hotplug ports, which are allowed to
+	 * be missed completely, but in case a port is a non-hotplug one
+	 * (what makes sense for bridges), we should NOT remove it from
+	 * further monitoring.
+	 *
+	 * Both, hotplug and non-hotplug ports as well as the master
+	 * itself, may be also configured to not require link aka to
+	 * ignore carrier. In this case, the setup of the interface
+	 * will finish earlier, but we still need to wait until the
+	 * "up" run ignoring carrier finished for a non-hotplug port.
+	 */
+	if (ni_nanny_fsm_monitor_wait_by_startmode(port))
+		return FALSE;
+
+	return ni_ifworker_array_remove(workers, port);
+}
+
+static void
+ni_nanny_fsm_monitor_remove_ports(ni_ifworker_array_t *workers, ni_ifworker_t *worker)
+{
+	ni_ifworker_t *port;
+	unsigned int i;
+
+	for (i = 0; i < workers->count; ) {
+		port = workers->data[i];
+
+		if (port->masterdev == worker &&
+		    ni_nanny_fsm_monitor_remove_port(workers, port))
+			continue;
+		i++;
+	}
+}
+
+static void
+ni_nanny_fsm_monitor_remove_finished(ni_ifworker_array_t *workers, ni_ifworker_t *worker)
+{
+	ni_nanny_fsm_monitor_remove_ports(workers, worker);
+	ni_ifworker_array_remove(workers, worker);
+}
+
 static void
 ni_nanny_fsm_monitor_handler(ni_dbus_connection_t *conn, ni_dbus_message_t *msg, void *user_data)
 {
@@ -343,7 +406,7 @@ ni_nanny_fsm_monitor_handler(ni_dbus_connection_t *conn, ni_dbus_message_t *msg,
 		if (!ni_string_eq(w->name, ifname))
 			continue;
 
-		ni_ifworker_array_remove_with_children(monitor->marked, w);
+		ni_nanny_fsm_monitor_remove_finished(monitor->marked, w);
 		break;
 	}
 
@@ -455,6 +518,7 @@ ni_do_ifup(int argc, char **argv)
 {
 	enum  { OPT_HELP, OPT_IFCONFIG, OPT_CONTROL_MODE, OPT_STAGE, OPT_TIMEOUT,
 		OPT_SKIP_ACTIVE, OPT_SKIP_ORIGIN, OPT_PERSISTENT, OPT_TRANSIENT,
+		OPT_DRY_RUN,
 #ifdef NI_TEST_HACKS
 		OPT_IGNORE_PRIO, OPT_IGNORE_STARTMODE,
 #endif
@@ -474,6 +538,7 @@ ni_do_ifup(int argc, char **argv)
 		{ "ignore-startmode",no_argument, NULL,	OPT_IGNORE_STARTMODE },
 #endif
 		{ "persistent",	no_argument, NULL,	OPT_PERSISTENT },
+		{ "dry-run",	no_argument, NULL,	OPT_DRY_RUN },
 		{ NULL }
 	};
 
@@ -484,6 +549,7 @@ ni_do_ifup(int argc, char **argv)
 	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
 	ni_bool_t check_prio = TRUE, set_persistent = FALSE;
 	ni_bool_t opt_transient = FALSE;
+	ni_log_fn_t *dry_run = NULL;
 	int c, status = NI_WICKED_RC_USAGE;
 	unsigned int seconds = 0;
 	ni_fsm_t *fsm;
@@ -538,12 +604,16 @@ ni_do_ifup(int argc, char **argv)
 			break;
 #endif
 
+		case OPT_TRANSIENT:
+			opt_transient = TRUE;
+			break;
+
 		case OPT_PERSISTENT:
 			set_persistent = TRUE;
 			break;
 
-		case OPT_TRANSIENT:
-			opt_transient = TRUE;
+		case OPT_DRY_RUN:
+			dry_run = ni_note;
 			break;
 
 		default:
@@ -578,6 +648,8 @@ usage:
 #endif
 				"  --persistent\n"
 				"      Set interface into persistent mode (no regular ifdown allowed)\n"
+				"  --dry-run\n"
+				"      Show interface hierarchies as notice with (+) markers and exit.\n"
 				);
 			goto cleanup;
 		}
@@ -633,15 +705,14 @@ usage:
 	ni_nanny_fsm_monitor_arm(monitor, fsm->worker_timeout);
 
 	if (ni_fsm_build_hierarchy(fsm, TRUE) < 0) {
-		ni_error("ifup: unable to build device hierarchy");
+		ni_error("ifup: unable to build interface hierarchy");
 		/* Severe error we always explicitly return */
 		status = NI_WICKED_RC_ERROR;
 		goto cleanup;
 	}
 
-	status = NI_WICKED_RC_SUCCESS;
-
 	/* Get workers that match given criteria */
+	status = NI_WICKED_RC_SUCCESS;
 	while (optind < argc) {
 		ifmatch.name = argv[optind++];
 
@@ -662,7 +733,10 @@ usage:
 			ni_string_array_append(&ifnames, ifmatch.name);
 	}
 
-	ni_fsm_pull_in_children(&ifmarked, fsm);
+	ni_fsm_print_system_hierarchy(fsm, NULL, dry_run);
+	ni_fsm_print_config_hierarchy(fsm, &ifmarked, dry_run);
+	if (dry_run)
+		goto cleanup;
 
 	if (!ni_ifup_hire_nanny(&ifmarked, set_persistent))
 		status = NI_WICKED_RC_NOT_CONFIGURED;

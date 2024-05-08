@@ -15,10 +15,8 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write 
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, 
- *	Boston, MA 02110-1301 USA.
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
 #ifdef HAVE_CONFIG_H
@@ -182,7 +180,7 @@ xml_node_sprint(const xml_node_t *node)
 }
 
 int
-xml_node_hash(const xml_node_t *node, unsigned int algo,
+xml_node_hash(const xml_node_t *node, ni_hashctx_algo_t algo,
 		void *md_buffer, size_t md_size)
 {
 	xml_writer_t writer;

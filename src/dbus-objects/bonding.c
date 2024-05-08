@@ -412,181 +412,97 @@ __ni_objectmodel_bonding_set_arpmon(ni_dbus_object_t *object,
 }
 
 /*
- * Helper for bond slave info
+ * Bonding port (link-request) configuration
  */
-static dbus_bool_t
-__ni_objectmodel_bonding_slave_info_to_dict(const ni_bonding_slave_t *slave, ni_dbus_variant_t *dict, DBusError *error)
+extern dbus_bool_t
+ni_objectmodel_get_bonding_port_config(const ni_bonding_port_config_t *conf,
+		ni_dbus_variant_t *dict, DBusError *error)
 {
-	if (!slave || !slave->info || !dict)
+	(void)error;
+
+	if (!conf || !dict)
 		return FALSE;
 
-	if (slave->info->state != -1U)
-		ni_dbus_dict_add_uint32(dict, "state", slave->info->state);
-
-	if (slave->info->mii_status != -1U)
-		ni_dbus_dict_add_uint32(dict, "mii-status", slave->info->mii_status);
-
-	if (slave->info->perm_hwaddr.type == ARPHRD_ETHER && slave->info->perm_hwaddr.len)
-		__ni_objectmodel_dict_add_hwaddr(dict, "perm-hwaddr", &slave->info->perm_hwaddr);
-
-	if (slave->info->link_failure_count)
-		ni_dbus_dict_add_uint32(dict, "link-failures", slave->info->link_failure_count);
-
-	if (slave->info->queue_id != -1U)
-		ni_dbus_dict_add_uint16(dict, "queue-id", slave->info->queue_id);
-
-	if (slave->info->ad_aggregator_id != -1U)
-		ni_dbus_dict_add_uint16(dict, "ad-aggregator-id", slave->info->ad_aggregator_id);
+	if (conf->queue_id != -1U)
+		ni_dbus_dict_add_uint16(dict, "queue-id", conf->queue_id);
 
 	return TRUE;
 }
-
-static dbus_bool_t
-__ni_objectmodel_bonding_slave_info_from_dict(ni_bonding_slave_t *slave, const ni_dbus_variant_t *dict, DBusError *error)
+extern dbus_bool_t
+ni_objectmodel_set_bonding_port_config(ni_bonding_port_config_t *conf,
+		const ni_dbus_variant_t *dict, DBusError *error)
 {
-	uint32_t u32;
 	uint16_t u16;
 
-	if (!slave || !dict)
+	(void)error;
+
+	if (!conf || !dict)
 		return FALSE;
-
-	if (dict->array.len == 0)
-		return TRUE;
-
-	if (slave->info)
-		ni_bonding_slave_info_reset(slave->info);
-	else if (!(slave->info = ni_bonding_slave_info_new()))
-		return FALSE;
-
-	if (ni_dbus_dict_get_uint32(dict, "state", &u32))
-		slave->info->state = u32;
-
-	if (ni_dbus_dict_get_uint32(dict, "mii-status", &u32))
-		slave->info->mii_status = u32;
-
-	if (__ni_objectmodel_dict_get_hwaddr(dict, "perm-hwaddr", &slave->info->perm_hwaddr)) {
-		if (slave->info->perm_hwaddr.len == ni_link_address_length(ARPHRD_ETHER))
-			slave->info->perm_hwaddr.type = ARPHRD_ETHER;
-	}
-
-	if (ni_dbus_dict_get_uint32(dict, "link-failures", &u32))
-		slave->info->link_failure_count = u32;
 
 	if (ni_dbus_dict_get_uint16(dict, "queue-id", &u16))
-		slave->info->queue_id = u16;
-
-	if (ni_dbus_dict_get_uint16(dict, "ad-aggregator-id", &u16))
-		slave->info->ad_aggregator_id = u16;
+		conf->queue_id = u16;
 
 	return TRUE;
 }
 
 /*
- * Get/set the list of slaves
+ * Bonding port interface info properties
  */
-static dbus_bool_t
-__ni_objectmodel_bonding_get_slaves(const ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result,
-				DBusError *error)
+extern dbus_bool_t
+ni_objectmodel_get_bonding_port_info(const ni_bonding_port_info_t *info,
+		ni_dbus_variant_t *dict, DBusError *error)
 {
-	const ni_bonding_t *bond;
-	unsigned int i;
+	(void)error;
 
-	if (!(bond = __ni_objectmodel_bonding_read_handle(object, error)))
+	if (!info || !dict)
 		return FALSE;
 
-	ni_dbus_dict_array_init(result);
-	for (i = 0; i < bond->slaves.count; ++i) {
-		const ni_bonding_slave_t *slave = bond->slaves.data[i];
-		const char *slave_name;
-		ni_dbus_variant_t *dict;
-
-		/* should not happen, but better safe than sorry */
-		if (!slave || ni_string_empty(slave->device.name))
-			continue;
-
-		slave_name = slave->device.name;
-		dict = ni_dbus_dict_array_add(result);
-
-		ni_dbus_dict_add_string(dict, "device", slave_name);
-		if (bond->primary_slave.name && ni_string_eq(bond->primary_slave.name, slave_name))
-			ni_dbus_dict_add_bool(dict, "primary", TRUE);
-		if (bond->active_slave.name && ni_string_eq(bond->active_slave.name, slave_name))
-			ni_dbus_dict_add_bool(dict, "active", TRUE);
-
-		__ni_objectmodel_bonding_slave_info_to_dict(slave, dict, error);
-	}
+	if (info->state != -1U)
+		ni_dbus_dict_add_uint32(dict, "state", info->state);
+	if (info->mii_status != -1U)
+		ni_dbus_dict_add_uint32(dict, "mii-status", info->mii_status);
+	if (info->queue_id != -1U)
+		ni_dbus_dict_add_uint16(dict, "queue-id", info->queue_id);
+	if (info->link_failure_count)
+		ni_dbus_dict_add_uint32(dict, "link-failures", info->link_failure_count);
+	if (info->perm_hwaddr.len)
+		__ni_objectmodel_dict_add_hwaddr(dict, "perm-hwaddr", &info->perm_hwaddr);
+	if (info->ad_aggregator_id != -1U)
+		ni_dbus_dict_add_uint16(dict, "ad-aggregator-id", info->ad_aggregator_id);
 
 	return TRUE;
 }
-
-static dbus_bool_t
-__ni_objectmodel_bonding_set_slaves(ni_dbus_object_t *object,
-				const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *result,
-				DBusError *error)
+extern dbus_bool_t
+ni_objectmodel_set_bonding_port_info(ni_bonding_port_info_t *info,
+		const ni_dbus_variant_t *dict, DBusError *error)
 {
-	ni_bonding_t *bond;
-	ni_dbus_variant_t *var;
-	unsigned int i;
+	uint32_t u32;
+	uint16_t u16;
 
-	if (!(bond = __ni_objectmodel_bonding_write_handle(object, error)))
+	(void)error;
+
+	if (!info || !dict)
 		return FALSE;
 
-	if (!ni_dbus_variant_is_dict_array(result)) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s.%s property - expected dict array",
-				object->path, property->name);
-		return FALSE;
+	if (ni_dbus_dict_get_uint32(dict, "state", &u32))
+		info->state = u32;
+	if (ni_dbus_dict_get_uint32(dict, "mii-status", &u32))
+		info->mii_status = u32;
+	if (ni_dbus_dict_get_uint32(dict, "link-failures", &u32))
+		info->link_failure_count = u32;
+	if (__ni_objectmodel_dict_get_hwaddr(dict, "perm-hwaddr", &info->perm_hwaddr)) {
+		if (info->perm_hwaddr.len == ni_link_address_length(ARPHRD_INFINIBAND))
+			info->perm_hwaddr.type = ARPHRD_INFINIBAND;
+		else if (info->perm_hwaddr.len == ni_link_address_length(ARPHRD_ETHER))
+			info->perm_hwaddr.type = ARPHRD_ETHER;
+		else
+			info->perm_hwaddr.type = ARPHRD_VOID;
 	}
+	if (ni_dbus_dict_get_uint16(dict, "queue-id", &u16))
+		info->queue_id = u16;
+	if (ni_dbus_dict_get_uint16(dict, "ad-aggregator-id", &u16))
+		info->ad_aggregator_id = u16;
 
-	ni_netdev_ref_destroy(&bond->primary_slave);
-	ni_netdev_ref_destroy(&bond->active_slave);
-	ni_bonding_slave_array_destroy(&bond->slaves);
-	for (i = 0, var = result->variant_array_value; i < result->array.len; ++i, ++var) {
-		dbus_bool_t is_primary = FALSE;
-		dbus_bool_t is_active = FALSE;
-		ni_bonding_slave_t *slave;
-		const char *slave_name;
-
-		if (!ni_dbus_dict_get_string(var, "device", &slave_name) ||
-				ni_string_empty(slave_name)) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-					"%s.%s property - missing device attribute",
-					object->path, property->name);
-			return FALSE;
-		}
-		if (ni_bonding_has_slave(bond, slave_name)) {
-			dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"%s.%s property - duplicate slave device %s",
-				object->path, property->name, slave_name);
-			return FALSE;
-		}
-
-		if (ni_dbus_dict_get_bool(var, "primary", &is_primary) && is_primary) {
-			if (bond->primary_slave.name) {
-				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-					"%s.%s property - duplicate primary device",
-					object->path, property->name);
-				return FALSE;
-			}
-			ni_string_dup(&bond->primary_slave.name, slave_name);
-		}
-		if (ni_dbus_dict_get_bool(var, "active", &is_active) && is_active) {
-			if (bond->active_slave.name) {
-				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-					"%s.%s property - duplicate active device",
-					object->path, property->name);
-				return FALSE;
-			}
-			ni_string_dup(&bond->active_slave.name, slave_name);
-		}
-
-		slave = ni_bonding_add_slave(bond, slave_name);
-		if (slave)
-			__ni_objectmodel_bonding_slave_info_from_dict(slave, var, error);
-	}
 	return TRUE;
 }
 
@@ -676,15 +592,13 @@ static ni_dbus_property_t	ni_objectmodel_bond_properties[] = {
 	BONDING_UINT_PROPERTY(num-grat-arp, num_grat_arp, RO),
 	BONDING_UINT_PROPERTY(num-unsol-na, num_unsol_na, RO),
 	BONDING_UINT_PROPERTY(fail-over-mac, fail_over_mac, RO),
+	BONDING_STRING_PROPERTY(primary, primary_slave.name, RO),
 	BONDING_UINT_PROPERTY(primary-reselect, primary_reselect, RO),
 	BONDING_BOOL_PROPERTY(all-slaves-active, all_slaves_active, RO),
 	BONDING_UINT_PROPERTY(packets-per-slave, packets_per_slave, RO),
 	BONDING_BOOL_PROPERTY(tlb-dynamic-lb, tlb_dynamic_lb, RO),
 	BONDING_UINT_PROPERTY(lp-interval, lp_interval, RO),
 
-	__NI_DBUS_PROPERTY(
-			DBUS_TYPE_ARRAY_AS_STRING NI_DBUS_DICT_SIGNATURE,
-			slaves, __ni_objectmodel_bonding, RO),
 	__NI_DBUS_PROPERTY(
 			NI_DBUS_DICT_SIGNATURE,
 			miimon, __ni_objectmodel_bonding, RO),

@@ -35,6 +35,8 @@ extern void			ni_objectmodel_register_service(const ni_dbus_service_t *);
 extern void			ni_objectmodel_register_class(const ni_dbus_class_t *);
 extern const ni_dbus_class_t *	ni_objectmodel_get_class(const char *);
 extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_class_t *);
+extern unsigned int		ni_objectmodel_class_registry_count(void);
+extern unsigned int		ni_objectmodel_service_registry_count(void);
 
 #define NI_OBJECTMODEL_NETIF_CLASS		"netif"
 #define NI_OBJECTMODEL_NETIF_LIST_CLASS		"netif-list"

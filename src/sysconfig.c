@@ -30,22 +30,27 @@ ni_sysconfig_new(const char *pathname)
 {
 	ni_sysconfig_t *sc;
 
-	sc = calloc(1, sizeof(ni_sysconfig_t));
-	sc->pathname = xstrdup(pathname);
+	if (!(sc = calloc(1, sizeof(ni_sysconfig_t))))
+		return NULL;
 
-	return sc;
+	if (ni_string_dup(&sc->pathname, pathname))
+		return sc;
+
+	ni_sysconfig_free(sc);
+	return NULL;
 }
 
 /*
- * Destroy the sysconfig object
- * FIXME: should be called ni_sysconfig_free
+ * free the sysconfig object
  */
 void
-ni_sysconfig_destroy(ni_sysconfig_t *sc)
+ni_sysconfig_free(ni_sysconfig_t *sc)
 {
-	ni_var_array_destroy(&sc->vars);
-	ni_string_free(&sc->pathname);
-	free(sc);
+	if (sc) {
+		ni_var_array_destroy(&sc->vars);
+		ni_string_free(&sc->pathname);
+		free(sc);
+	}
 }
 
 /*
@@ -61,11 +66,16 @@ __ni_sysconfig_read(const char *filename, const char **varnames)
 
 	ni_debug_readwrite("ni_sysconfig_read(%s)", filename);
 	if (!(fp = fopen(filename, "r"))) {
-		ni_error("unable to open %s: %m", filename);
+		ni_error("unable to open sysconfig file '%s': %m", filename);
 		return NULL;
 	}
 
-	sc = ni_sysconfig_new(filename);
+	if (!(sc = ni_sysconfig_new(filename))) {
+		ni_error("unable to allocate sysconfig struct for '%s': %m", filename);
+		fclose(fp);
+		return NULL;
+	}
+
 	while (fgets(linebuf, sizeof(linebuf), fp) != NULL) {
 		char *name, *value;
 		char *sp = linebuf;
@@ -362,40 +372,45 @@ quote(char *string)
 	return quoted;
 }
 
-void
+ni_bool_t
 ni_sysconfig_set(ni_sysconfig_t *sc, const char *name, const char *value)
 {
-	ni_var_array_set(&sc->vars, name, value);
+	return sc ? ni_var_array_set(&sc->vars, name, value) : FALSE;
 }
 
-void
+ni_bool_t
 ni_sysconfig_set_integer(ni_sysconfig_t *sc, const char *name, unsigned int value)
 {
 	char buffer[32];
 
 	snprintf(buffer, sizeof(buffer), "%u", value);
-	ni_sysconfig_set(sc, name, buffer);
+	return ni_sysconfig_set(sc, name, buffer);
 }
 
-void
+ni_bool_t
 ni_sysconfig_set_boolean(ni_sysconfig_t *sc, const char *name, int value)
 {
-	ni_sysconfig_set(sc, name, value? "yes" : "no");
+	return ni_sysconfig_set(sc, name, value ? "yes" : "no");
 }
 
 ni_var_t *
 ni_sysconfig_get(const ni_sysconfig_t *sc, const char *name)
 {
-	return ni_var_array_get(&sc->vars, name);
+	return sc ? ni_var_array_get(&sc->vars, name) : NULL;
 }
 
-int
+unsigned int
 ni_sysconfig_find_matching(const ni_sysconfig_t *sc, const char *prefix,
 		ni_string_array_t *res)
 {
-	unsigned int i, pfxlen;
+	unsigned int i, count;
+	size_t pfxlen;
 	ni_var_t *var;
 
+	if (!sc || !prefix || !res)
+		return 0;
+
+	count = res->count;
 	pfxlen = strlen(prefix);
 	for (i = 0, var = sc->vars.data; i < sc->vars.count; ++i, ++var) {
 		const char *value = var->value;
@@ -403,7 +418,7 @@ ni_sysconfig_find_matching(const ni_sysconfig_t *sc, const char *prefix,
 		if (value && *value && !strncmp(var->name, prefix, pfxlen))
 			ni_string_array_append(res, var->name);
 	}
-	return res->count;
+	return res->count - count;
 }
 
 const char *

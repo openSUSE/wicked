@@ -1,5 +1,5 @@
 /**
- *	Copyright (C) 2022 SUSE LLC
+ *	Copyright (C) 2024 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -511,7 +511,7 @@ TESTCASE(timeout_and_expire)
 	CHECK(ni_socket_wait(20000) == 0);
 	CHECK(poll_args.timeout == 20000);
 
-	CHECK(ni_socket_wait(INT_MAX + 1L) == 0);
+	CHECK(ni_socket_wait(INT_MAX + (ni_timeout_t)1) == 0);
 	CHECK(poll_args.timeout == INT_MAX);
 	/* If no socket has get_timeout(), the given timeout is simply taken */
 	sock = ni_socket_wrap(10, 0);
@@ -520,7 +520,7 @@ TESTCASE(timeout_and_expire)
 	CHECK(ni_socket_wait(NI_TIMEOUT_INFINITE) == 0);
 	CHECK(poll_args.timeout == -1);
 
-	CHECK(ni_socket_wait(INT_MAX + 1L) == 0);
+	CHECK(ni_socket_wait(INT_MAX + (ni_timeout_t)1) == 0);
 	CHECK(poll_args.timeout == INT_MAX);
 
 	CHECK(ni_socket_wait(1000) == 0);
