@@ -43,5 +43,5 @@ extern ni_bool_t	ni_ifcheck_worker_device_is_persistent(ni_ifworker_t *);
 extern ni_bool_t	ni_ifcheck_worker_config_exists(ni_ifworker_t *);
 extern ni_bool_t	ni_ifcheck_worker_config_matches(ni_ifworker_t *);
 
-extern ni_bool_t	ni_ifcheck_worker_not_in_state(ni_ifworker_t *, unsigned int);
+extern ni_bool_t	ni_ifcheck_worker_not_in_state(ni_ifworker_t *, ni_fsm_state_t);
 #endif /* __WICKED_CLIENT_IFCHECK_H__ */

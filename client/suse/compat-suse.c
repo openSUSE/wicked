@@ -28,20 +28,6 @@
 #include "config.h"
 #endif
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <limits.h>
-#include <ctype.h>
-#include <errno.h>
-#include <net/if_arp.h>
-#include <net/ethernet.h>
-#include <netlink/netlink.h>
-#include <sys/types.h>
-#include <sys/utsname.h>
-#include <pwd.h>
-#include <grp.h>
-
 #include <wicked/address.h>
 #include <wicked/util.h>
 #include <wicked/logging.h>
@@ -67,11 +53,13 @@
 #include <wicked/tuntap.h>
 #include <wicked/tunneling.h>
 #include <wicked/ethtool.h>
-
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
+#include <wicked/array.h>
+
 #include "appconfig.h"
 #include "util_priv.h"
+#include "array_priv.h"
 #include "duid.h"
 #include "dhcp.h"
 #include "dhcp6/options.h"
@@ -79,15 +67,63 @@
 #include "client/suse/ifsysctl.h"
 #include "client/wicked-client.h"
 
+#include <ctype.h>
+#include <errno.h>
+#include <linux/if_arp.h>
+#include <linux/if_addr.h>
+#include <netlink/netlink.h>
+#include <sys/utsname.h>
+#include <pwd.h>
+#include <grp.h>
+
+
+typedef struct ni_suse_ifcfg {
+	ni_sysconfig_t *		config;
+	ni_compat_netdev_t *		compat;
+	ni_bool_t			broken;
+	ni_bool_t			l2only;
+} ni_suse_ifcfg_t;
+
+#define NI_SUSE_IFCFG_ARRAY_INIT	NI_ARRAY_INIT
+#define NI_SUSE_IFCFG_ARRAY_CHUNK	8
+ni_declare_ptr_array_type(ni_suse_ifcfg);
+
+static ni_suse_ifcfg_t *		ni_suse_ifcfg_new(void);
+static void				ni_suse_ifcfg_free(ni_suse_ifcfg_t *);
+static ni_suse_ifcfg_t *		ni_suse_ifcfg_new_missing(ni_suse_ifcfg_t *,
+							const char *);
+static void				ni_suse_ifcfg_set_hotplug(ni_suse_ifcfg_t *);
+static void				ni_suse_ifcfg_set_l2_only(ni_suse_ifcfg_t *, ni_bool_t);
+static ni_suse_ifcfg_t *		ni_suse_ifcfg_add_l2_port(ni_suse_ifcfg_array_t *,
+							ni_suse_ifcfg_t *, const char *,
+							const char *, const char *,
+							ni_bool_t);
+static ni_suse_ifcfg_t *		ni_suse_ifcfg_add_lower(ni_suse_ifcfg_array_t *,
+							ni_suse_ifcfg_t *, const char *,
+							const char *);
+
+static ni_suse_ifcfg_t *		ni_suse_ifcfg_find_by_ifname(ni_suse_ifcfg_array_t *,
+							const char *);
+
+typedef ni_bool_t (*ifcfg_process_fn_t)(ni_suse_ifcfg_array_t *, ni_suse_ifcfg_t *,
+					const char *, const char *, const char *);
+
+static unsigned int			ni_suse_ifcfg_process_indexed(ni_suse_ifcfg_array_t *,
+							ni_suse_ifcfg_t *, const char *,
+							ifcfg_process_fn_t);
+
+static ni_bool_t			ni_suse_ifcfg_parse(ni_suse_ifcfg_array_t *);
+
+static					ni_declare_ptr_array_init(ni_suse_ifcfg);
+static					ni_declare_ptr_array_destroy(ni_suse_ifcfg);
+static					ni_declare_ptr_array_append(ni_suse_ifcfg);
+
+
 typedef ni_bool_t (*try_function_t)(const ni_sysconfig_t *, ni_netdev_t *, const char *);
 
-static ni_compat_netdev_t *	__ni_suse_read_interface(const char *, const char *);
 static ni_bool_t		__ni_suse_read_globals(const char *, const char *, const char *);
 static void			__ni_suse_free_globals(void);
 static void			__ni_suse_show_unapplied_routes(void);
-static void			__ni_suse_adjust_slaves(ni_compat_netdev_array_t *);
-static void			__ni_suse_adjust_ovs_system(ni_compat_netdev_t *);
-static ni_bool_t		__ni_suse_sysconfig_read(ni_sysconfig_t *, ni_compat_netdev_t *);
 static int			__process_indexed_variables(const ni_sysconfig_t *, ni_netdev_t *,
 							const char *, try_function_t);
 static ni_var_t *		__find_indexed_variable(const ni_sysconfig_t *, const char *, const char *);
@@ -147,7 +183,7 @@ static ni_bool_t		__ni_ipv6_disbled;
 #define __NI_WIRELESS_WPA_PSK_MIN_LEN	8
 
 static ni_bool_t
-__ni_suse_ifcfg_valid_suffix(const char *name, size_t pfxlen)
+ni_suse_ifcfg_valid_suffix(const char *name, size_t pfxlen)
 {
 	const char *blacklist[] = {
 		"~", ".old", ".bak", ".orig", ".scpmbackup",
@@ -173,51 +209,118 @@ __ni_suse_ifcfg_valid_suffix(const char *name, size_t pfxlen)
 }
 
 static ni_bool_t
-__ni_suse_ifcfg_valid_prefix(const char *basename, const char *prefix)
+ni_suse_ifcfg_valid_prefix(const char *basename, const char *prefix)
 {
-	size_t pfxlen;
-
 	if (!basename || !prefix)
 		return FALSE;
 
-	pfxlen = strlen(prefix);
-	if (strncmp(basename, prefix, pfxlen))
-		return FALSE;
-
-	return TRUE;
+	return ni_string_startswith(basename, prefix);
 }
 
+/*
+ * Read a single ifcfg file and init compat netdev
+ */
+static ni_suse_ifcfg_t *
+ni_suse_ifcfg_read_file(const char *filename)
+{
+	const char *basename = ni_basename(filename);
+	size_t pfxlen = sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1;
+	ni_suse_ifcfg_t *ifcfg = NULL;
+	const char *ifname;
+
+	/* Check in case ni_suse_ifcfg_read_file is used directly */
+	if (!ni_suse_ifcfg_valid_prefix(basename, __NI_SUSE_CONFIG_IFPREFIX)) {
+		ni_error("Rejecting file without '%s' prefix: %s",
+				__NI_SUSE_CONFIG_IFPREFIX, filename);
+		return NULL;
+	}
+	if (!ni_suse_ifcfg_valid_suffix(basename, pfxlen)) {
+		ni_error("Rejecting blacklisted %sfile suffix: %s",
+				__NI_SUSE_CONFIG_IFPREFIX, filename);
+		return NULL;
+	}
+
+	ifname = basename + pfxlen;
+	if (!ni_netdev_name_is_valid(ifname)) {
+		ni_error("Rejecting suspect interface name: %s", ifname);
+		return NULL;
+	}
+
+	if (!(ifcfg = ni_suse_ifcfg_new())) {
+		ni_error("Unable to allocate ifcfg structure for %sfile: %s",
+				__NI_SUSE_CONFIG_IFPREFIX, filename);
+		return NULL;
+	}
+
+	if (!(ifcfg->compat = ni_compat_netdev_new(ifname))) {
+		ni_error("Unable to allocate netdev structure for %sfile: %s",
+				__NI_SUSE_CONFIG_IFPREFIX, filename);
+		ni_suse_ifcfg_free(ifcfg);
+		return NULL;
+	}
+
+	if (!(ifcfg->config = ni_sysconfig_read(filename))) {
+		/* errors reported */
+		ni_suse_ifcfg_free(ifcfg);
+		return NULL;
+	}
+
+	return ifcfg;
+}
+
+/*
+ * Read ifcfg files in directory and init compat netdevs
+ */
 static int
-__ni_suse_ifcfg_scan_files(const char *dirname, ni_string_array_t *res)
+ni_suse_ifcfg_read_files(ni_suse_ifcfg_array_t *ifcfgs, const char *dirname)
 {
 	ni_string_array_t files = NI_STRING_ARRAY_INIT;
 	const char *pattern = __NI_SUSE_CONFIG_IFPREFIX"*";
 	size_t pfxlen = sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1;
-	unsigned int i, count = res->count;
+	unsigned int i, count = ifcfgs->count;
+	ni_suse_ifcfg_t *ifcfg;
+	char *filename = NULL;
+	const char *file;
 
-	if( !ni_scandir(dirname, pattern, &files))
+	if (!ni_scandir(dirname, pattern, &files))
 		return 0;
 
-	for(i = 0; i < files.count; ++i) {
-		const char *file = files.data[i];
+	for (i = 0; i < files.count; ++i) {
+		if (!(file = files.data[i]))
+			continue;
 
-		if (!__ni_suse_ifcfg_valid_suffix(file, pfxlen)) {
-			ni_debug_readwrite("Ignoring blacklisted %sfile: %s",
+		if (!ni_suse_ifcfg_valid_suffix(file, pfxlen)) {
+			/* e.g. .bak suffix created by firewalld */
+			ni_debug_readwrite("Ignoring blacklisted %sfile suffix: %s",
 					__NI_SUSE_CONFIG_IFPREFIX, file);
 			continue;
 		}
 
-		ni_string_array_append(res, file);
+		if (!ni_string_printf(&filename, "%s/%s", dirname, file)) {
+			ni_error("Failed to construct full path for %sfile %s: %m",
+					__NI_SUSE_CONFIG_IFPREFIX, file);
+			continue;
+		}
+
+		if (!(ifcfg = ni_suse_ifcfg_read_file(filename)))
+			continue;	/* errors reported */
+
+		if (!ni_suse_ifcfg_array_append(ifcfgs, ifcfg)) {
+			ni_error("Failed to add '%s' structure to array: %m", file);
+			ni_suse_ifcfg_free(ifcfg);
+		}
 	}
+
+	ni_string_free(&filename);
 	ni_string_array_destroy(&files);
 
-	return res->count - count;
+	return ifcfgs->count - count;
 }
 
 ni_bool_t
 __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t *result)
 {
-	ni_string_array_t files = NI_STRING_ARRAY_INIT;
+	ni_suse_ifcfg_array_t ifcfgs = NI_SUSE_IFCFG_ARRAY_INIT;
 	ni_bool_t success = FALSE;
 	char pathbuf[PATH_MAX];
 	char *pathname = NULL;
@@ -242,26 +345,14 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 		}
 	} else
 	if (ni_isdir(pathname)) {
+
 		if (!__ni_suse_read_globals(root, _path, pathname))
 			goto done;
 
-		if (!__ni_suse_ifcfg_scan_files(pathname, &files)) {
+		if (!ni_suse_ifcfg_read_files(&ifcfgs, pathname)) {
 			ni_debug_readwrite("No ifcfg files found in %s", pathname);
 			success = TRUE;
 			goto done;
-		}
-
-		for (i = 0; i < files.count; ++i) {
-			const char *filename = files.data[i];
-			const char *ifname = filename + (sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1);
-			ni_compat_netdev_t *compat;
-
-			snprintf(pathbuf, sizeof(pathbuf), "%s/%s", pathname, filename);
-			if (!(compat = __ni_suse_read_interface(pathbuf, ifname)))
-				continue;
-
-			ni_compat_netdev_set_origin(compat, result->schema, pathbuf);
-			ni_compat_netdev_array_append(&result->netdevs, compat);
 		}
 
 		if (__ni_suse_config_defaults) {
@@ -271,13 +362,28 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 						"WAIT_FOR_INTERFACES",
 						&ni_wait_for_interfaces);
 		}
+
+		ni_suse_ifcfg_parse(&ifcfgs);
 	} else {
 		ni_error("Cannot use '%s' to read suse ifcfg files -- not a directory",
 				pathname);
 		goto done;
 	}
 
-	__ni_suse_adjust_slaves(&result->netdevs);
+	for (i = 0; i < ifcfgs.count; ++i) {
+		ni_suse_ifcfg_t *ifcfg = ifcfgs.data[i];
+
+		if (ifcfg->broken)
+			continue;
+
+		ni_compat_netdev_set_origin(ifcfg->compat, result->schema,
+						ifcfg->config->pathname);
+		ni_compat_netdev_array_append(&result->netdevs, ifcfg->compat);
+		ifcfg->compat = NULL;
+		ni_sysconfig_free(ifcfg->config);
+		ifcfg->config = NULL;
+	}
+
 	__ni_suse_show_unapplied_routes();
 
 	success = TRUE;
@@ -285,7 +391,7 @@ __ni_suse_get_ifconfig(const char *root, const char *path, ni_compat_ifconfig_t 
 done:
 	ni_string_free(&pathname);
 	__ni_suse_free_globals();
-	ni_string_array_destroy(&files);
+	ni_suse_ifcfg_array_destroy(&ifcfgs);
 	return success;
 }
 
@@ -495,12 +601,12 @@ __ni_suse_free_globals(void)
 	ni_string_free(&__ni_suse_default_hostname);
 
 	if (__ni_suse_config_defaults) {
-		ni_sysconfig_destroy(__ni_suse_config_defaults);
+		ni_sysconfig_free(__ni_suse_config_defaults);
 		__ni_suse_config_defaults = NULL;
 	}
 
 	if (__ni_suse_dhcp_defaults) {
-		ni_sysconfig_destroy(__ni_suse_dhcp_defaults);
+		ni_sysconfig_free(__ni_suse_dhcp_defaults);
 		__ni_suse_dhcp_defaults = NULL;
 	}
 
@@ -1559,65 +1665,16 @@ error:
 	return FALSE;
 }
 
-
-/*
- * Read the configuration of a single interface from a sysconfig file
- */
-static ni_compat_netdev_t *
-__ni_suse_read_interface(const char *filename, const char *ifname)
-{
-	const char *basename = ni_basename(filename);
-	size_t pfxlen = sizeof(__NI_SUSE_CONFIG_IFPREFIX)-1;
-	ni_compat_netdev_t *compat = NULL;
-	ni_sysconfig_t *sc;
-
-	if (ni_string_len(ifname) == 0) {
-		if (!__ni_suse_ifcfg_valid_prefix(basename, __NI_SUSE_CONFIG_IFPREFIX)) {
-			ni_error("Rejecting file without '%s' prefix: %s",
-				__NI_SUSE_CONFIG_IFPREFIX, filename);
-			return NULL;
-		}
-		if (!__ni_suse_ifcfg_valid_suffix(basename, pfxlen)) {
-			ni_error("Rejecting blacklisted %sfile: %s",
-				__NI_SUSE_CONFIG_IFPREFIX, filename);
-			return NULL;
-		}
-		ifname = basename + pfxlen;
-	}
-
-	if (!ni_netdev_name_is_valid(ifname)) {
-		ni_error("Rejecting suspect interface name: %s", ifname);
-		return NULL;
-	}
-
-	if (!(sc = ni_sysconfig_read(filename)))
-		goto error;
-
-	compat = ni_compat_netdev_new(ifname);
-	if (!compat || !__ni_suse_sysconfig_read(sc, compat))
-		goto error;
-
-	ni_sysconfig_destroy(sc);
-	return compat;
-
-error:
-	if (sc)
-		ni_sysconfig_destroy(sc);
-	if (compat)
-		ni_compat_netdev_free(compat);
-	return NULL;
-}
-
 /*
  * Translate the SUSE startmodes to <control> element
  */
 static ni_ifworker_control_t *
-__ni_suse_startmode(const ni_sysconfig_t *sc)
+ni_suse_ifcfg_parse_startmode(const ni_sysconfig_t *sc)
 {
-	static const struct __ni_control_params {
+	static const struct ni_suse_control_params {
 		const char *		name;
 		ni_ifworker_control_t	control;
-	} __ni_suse_control_params[] = {
+	} control_params[] = {
 		/* manual is the default in ifcfg */
 		{ "manual",	{ "manual",	NULL,		FALSE,	FALSE,	NI_TRISTATE_DEFAULT,	0, 0 } },
 
@@ -1635,17 +1692,21 @@ __ni_suse_startmode(const ni_sysconfig_t *sc)
 
 		{ NULL }
 	};
-	const struct __ni_control_params *p, *params = NULL;
+	const struct ni_suse_control_params *p, *params = NULL;
 	ni_ifworker_control_t *control;
 	const char *mode, *value;
 
-	params = &__ni_suse_control_params[0];
-	if (sc && (mode = ni_sysconfig_get_value(sc, "STARTMODE"))) {
-		for (p = __ni_suse_control_params; p->name; ++p) {
+	params = &control_params[0];
+	if ((mode = ni_sysconfig_get_value(sc, "STARTMODE"))) {
+		for (p = control_params; p->name; ++p) {
 			if (ni_string_eq(p->name, mode)) {
 				params = p;
 				break;
 			}
+		}
+		if (!p->name) {
+			ni_warn("%s: ifcfg file with invalid STARTMODE='%s', assuming '%s'",
+					ni_basename(sc->pathname), mode, params->name);
 		}
 	}
 
@@ -1683,9 +1744,9 @@ __ni_suse_startmode(const ni_sysconfig_t *sc)
  * Try loopback interface
  */
 static int
-try_loopback(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_loopback(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 
 	/* Consider "lo" as a reserved name for loopback. */
 	if (strcmp(dev->name, "lo"))
@@ -1715,9 +1776,10 @@ __maybe_infiniband(const char *ifname)
 }
 
 static int
-try_infiniband(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_infiniband(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	const char *umcast;
 	const char *mode;
 	const char *pkey;
@@ -2210,25 +2272,27 @@ try_add_ethtool_vars(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 	return TRUE;
 }
 
-static int
-ni_suse_ifcfg_get_ethtool(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+static ni_bool_t
+ni_suse_ifcfg_parse_ethtool(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_compat_netdev_t *compat = ifcfg->compat;
 	ni_netdev_t *dev = compat->dev;
 
 	/* process ETHTOOL_OPTIONS[SUFFIX] array */
 	if (__process_indexed_variables(sc, dev, "ETHTOOL_OPTIONS",
 					try_add_ethtool_vars) < 0) {
-		ni_error("ifcfg-%s: Cannot parse ETHTOOL_OPTIONS variables",
+		ni_warn("ifcfg-%s: Cannot parse ETHTOOL_OPTIONS variables",
 				dev->name);
-		return -1;
 	}
-	return 0;
+	return TRUE;
 }
 
 static int
-try_ethernet(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_ethernet(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	const char *lladdr = NULL;
 
 	if (dev->link.type != NI_IFTYPE_UNKNOWN)
@@ -2257,26 +2321,27 @@ try_ethernet(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
  * Global bonding configuration is contained in BONDING_MODULE_OPTS
  */
 static ni_bool_t
-try_add_bonding_slave(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
+try_add_bonding_port(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg,
+		const char *port, const char *variable, const char *suffix)
 {
-	ni_bonding_t *bond;
-	ni_var_t *var;
+	ni_suse_ifcfg_t *pcfg;
+	ni_netdev_t *mdev;
+	const char *type;
 
-	var = __find_indexed_variable(sc, "BONDING_SLAVE", suffix);
-	if (!var || ni_string_empty(var->value))
+	mdev = ifcfg->compat->dev;
+	type = ni_linktype_type_to_name(mdev->link.type);
+	if (!(pcfg = ni_suse_ifcfg_add_l2_port(ifcfgs,
+			ifcfg, mdev->name, type, port, FALSE))) {
+		ni_error("ifcfg-%s: failed to add %s port %s='%s'",
+				mdev->name, type, variable, port);
 		return FALSE;
-
-	dev->link.type = NI_IFTYPE_BOND;
-
-	if ((bond = ni_netdev_get_bonding(dev)) == NULL)
-		return FALSE;
-
-	if (ni_bonding_has_slave(bond, var->value)) {
-		ni_warn("ifcfg-%s: Duplicate slave in BONDING_SLAVE%s=''%s'",
-				dev->name, suffix, var->value);
-		return TRUE; /* warn without to fail */
 	}
-	return ni_bonding_add_slave(bond, var->value) != NULL;
+
+	ni_netdev_port_config_destroy(&pcfg->compat->port);
+	ni_netdev_port_config_init(&pcfg->compat->port, mdev->link.type);
+	/* no bond port specific config variables implemented yet */
+
+	return TRUE;
 }
 
 static ni_bool_t
@@ -2318,9 +2383,10 @@ try_set_bonding_options(ni_netdev_t *dev, const char *options)
 }
 
 static int
-try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_bonding(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	const char *module_opts, *err;
 	const char *lladdr;
 	ni_bool_t enabled;
@@ -2336,10 +2402,6 @@ try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 
 	dev->link.type = NI_IFTYPE_BOND;
 	(void)ni_netdev_get_bonding(dev);
-
-	if (__process_indexed_variables(sc, dev, "BONDING_SLAVE",
-					try_add_bonding_slave) != 0)
-		return -1;
 
 	if ((module_opts = ni_sysconfig_get_value(sc, "BONDING_MODULE_OPTS")) != NULL) {
 		if (!try_set_bonding_options(dev, module_opts))
@@ -2359,6 +2421,13 @@ try_bonding(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 				dev->name, lladdr);
 			return -1;
 		}
+	}
+
+	if (!ni_suse_ifcfg_process_indexed(ifcfgs, ifcfg, "BONDING_SLAVE",
+			try_add_bonding_port)) {
+		ni_error("ifcfg-%s: invalid bonding without BONDING_SLAVEs",
+				dev->name);
+		return -1;
 	}
 
 	return 0;
@@ -2558,76 +2627,98 @@ failure:
 }
 
 static ni_bool_t
-try_add_team_port(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
+try_add_team_port_config(ni_team_port_config_t *pconf, const ni_sysconfig_t *sc,
+		const char *suffix, const char *file)
 {
-	ni_team_port_t *port;
-	ni_team_t *team;
+	ni_bool_t ret = TRUE;
 	ni_var_t *var;
 
-	if (!(team = ni_netdev_get_team(dev)))
-		return FALSE;
-
-	var = __find_indexed_variable(sc, "TEAM_PORT_DEVICE", suffix);
-	if (!var || ni_string_empty(var->value)) {
-		ni_error("ifcfg-%s: TEAM_PORT_DEVICE%s cannot be empty",
-			dev->name, suffix);
-		return FALSE;
-	}
-
-	port = ni_team_port_new();
-	ni_netdev_ref_set_ifname(&port->device, var->value);
-
 	if ((var = __find_indexed_variable(sc, "TEAM_PORT_QUEUE_ID", suffix))) {
-		if (ni_parse_uint(var->value, &port->config.queue_id, 10) < 0) {
-			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_QUEUE_ID%s='%s'",
-				dev->name, suffix, var->value);
-			ni_team_port_free(port);
-			return FALSE;
+		if (ni_parse_uint(var->value, &pconf->queue_id, 10) < 0) {
+			ni_warn("ifcfg-%s: Cannot parse TEAM_PORT_QUEUE_ID%s='%s'",
+				file, suffix, var->value);
+			ret = FALSE;
 		}
 	}
 
 	if ((var = __find_indexed_variable(sc, "TEAM_PORT_PRIO", suffix))) {
-		if (ni_parse_uint(var->value, &port->config.ab.prio, 10) < 0) {
-			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_PRIO%s='%s'",
-				dev->name, suffix, var->value);
-			ni_team_port_free(port);
-			return FALSE;
+		if (ni_parse_uint(var->value, &pconf->ab.prio, 10) < 0) {
+			ni_warn("ifcfg-%s: Cannot parse TEAM_PORT_PRIO%s='%s'",
+				file, suffix, var->value);
+			ret = FALSE;
 		}
 	}
+
 	if ((var = __find_indexed_variable(sc, "TEAM_PORT_STICKY", suffix))) {
-		if (ni_parse_boolean(var->value, &port->config.ab.sticky) < 0) {
-			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_STICKY%s='%s'",
-				dev->name, suffix, var->value);
-			ni_team_port_free(port);
-			return FALSE;
+		if (ni_parse_boolean(var->value, &pconf->ab.sticky) < 0) {
+			ni_warn("ifcfg-%s: Cannot parse TEAM_PORT_STICKY%s='%s'",
+				file, suffix, var->value);
+			ret = FALSE;
 		}
 	}
 
 	if ((var = __find_indexed_variable(sc, "TEAM_PORT_LACP_PRIO", suffix))) {
-		if (ni_parse_uint(var->value, &port->config.lacp.prio, 10) < 0) {
-			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_LACP_PRIO%s='%s'",
-				dev->name, suffix, var->value);
-			ni_team_port_free(port);
-			return FALSE;
+		if (ni_parse_uint(var->value, &pconf->lacp.prio, 10) < 0) {
+			ni_warn("ifcfg-%s: Cannot parse TEAM_PORT_LACP_PRIO%s='%s'",
+				file, suffix, var->value);
+			ret = FALSE;
 		}
 	}
 
 	if ((var = __find_indexed_variable(sc, "TEAM_PORT_LACP_KEY", suffix))) {
-		if (ni_parse_uint(var->value, &port->config.lacp.key, 10) < 0) {
-			ni_error("ifcfg-%s: Cannot parse TEAM_PORT_LACP_KEY%s='%s'",
-				dev->name, suffix, var->value);
-			ni_team_port_free(port);
-			return FALSE;
+		if (ni_parse_uint(var->value, &pconf->lacp.key, 10) < 0) {
+			ni_warn("ifcfg-%s: Cannot parse TEAM_PORT_LACP_KEY%s='%s'",
+				file, suffix, var->value);
+			ret = FALSE;
 		}
 	}
 
-	return ni_team_port_array_append(&team->ports, port);
+	return ret;
+}
+
+static ni_bool_t
+try_add_team_port(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg,
+		const char *port, const char *variable, const char *suffix)
+{
+	ni_suse_ifcfg_t *pcfg;
+	ni_netdev_t *mdev;
+	ni_team_t *team;
+	ni_bool_t l2v6 = FALSE;
+	const char *type;
+
+	mdev = ifcfg->compat->dev;
+	if ((team = ni_netdev_get_team(mdev))) {
+		ni_team_link_watch_t *lw;
+		unsigned int i;
+
+		for (i = 0; i < team->link_watch.count; i++) {
+			lw = team->link_watch.data[i];
+			if (lw->type == NI_TEAM_LINK_WATCH_NSNA_PING)
+				l2v6 = TRUE;
+		}
+	}
+	type = ni_linktype_type_to_name(mdev->link.type);
+	if (!(pcfg = ni_suse_ifcfg_add_l2_port(ifcfgs,
+			ifcfg, mdev->name, type, port, l2v6))) {
+		ni_error("ifcfg-%s: failed to add %s port %s='%s'",
+				mdev->name, type, variable, port);
+		return FALSE;
+	}
+
+	ni_netdev_port_config_destroy(&pcfg->compat->port);
+	if (ni_netdev_port_config_init(&pcfg->compat->port, NI_IFTYPE_TEAM)) {
+		try_add_team_port_config(pcfg->compat->port.team,
+				ifcfg->config, suffix, mdev->name);
+	}
+
+	return TRUE;
 }
 
 static int
-try_team(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_team(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	const char *value;
 	ni_team_runner_type_t type;
 	ni_team_t *team;
@@ -2866,10 +2957,6 @@ try_team(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 					try_add_team_link_watch) < 0)
 		return -1;
 
-	if (__process_indexed_variables(sc, dev, "TEAM_PORT_DEVICE",
-					try_add_team_port) < 0)
-		return -1;
-
 #if 0
 	if ((err = ni_team_validate(ni_netdev_get_team(dev))) != NULL) {
 		ni_error("ifcfg-%s: team validation: %s",
@@ -2878,41 +2965,55 @@ try_team(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 #endif
 
+	if (!ni_suse_ifcfg_process_indexed(ifcfgs, ifcfg, "TEAM_PORT_DEVICE",
+			try_add_team_port)) {
+		ni_error("ifcfg-%s: invalid bonding without TEAM_PORT_DEVICEs",
+				dev->name);
+		return -1;
+	}
+
 	return 0;
 }
 
 static ni_bool_t
-try_add_ovs_bridge_port(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suffix)
+try_add_ovs_bridge_port(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg,
+		const char *port, const char *variable, const char *suffix)
 {
-	const ni_var_t *var;
+	static const char *ovs_system = NULL;
+	ni_suse_ifcfg_t *pcfg;
+	ni_netdev_t *bdev;
+	const char *type;
 
-	if (!dev->ovsbr)
-		return FALSE;
+	if (!ovs_system)
+		ovs_system = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
 
-	var = __find_indexed_variable(sc, "OVS_BRIDGE_PORT_DEVICE", suffix);
-	if (!var || !ni_netdev_name_is_valid(var->value)) {
-		size_t len;
-		if (var && (len = ni_string_len(var->value))) {
-			ni_error("ifcfg-%s: Suspect device in OVS_BRIDGE_PORT_DEVICE%s='%s'",
-					dev->name, suffix, ni_print_suspect(var->value, len));
-		} else {
-			ni_error("ifcfg-%s: OVS_BRIDGE_PORT_DEVICE%s cannot be empty",
-					dev->name, suffix);
-		}
+	bdev = ifcfg->compat->dev;
+	if (ni_string_eq(ovs_system, port)) {
+		ni_error("ifcfg-%s: reserved ovs datapath in %s='%s'",
+				bdev->name, variable, port);
 		return FALSE;
 	}
 
-	if (!ni_ovs_bridge_port_array_add_new(&dev->ovsbr->ports, var->value)) {
-		ni_warn("ifcfg-%s: Cannot add OVS_BRIDGE_PORT_DEVICE%s='%s' or not unique, skipped",
-				dev->name, suffix, var->value);
+	type = ni_linktype_type_to_name(bdev->link.type);
+	if (!(pcfg = ni_suse_ifcfg_add_l2_port(ifcfgs,
+			ifcfg, bdev->name, type, port, FALSE))) {
+		ni_error("ifcfg-%s: failed to add %s port %s='%s'",
+				bdev->name, type, variable, port);
+		return FALSE;
 	}
+
+	ni_netdev_port_config_destroy(&pcfg->compat->port);
+	ni_netdev_port_config_init(&pcfg->compat->port, bdev->link.type);
+	/* no ovs bridge port specific config variables (any more) */
+
 	return TRUE;
 }
 
 static int
-try_ovs_bridge(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_ovs_bridge(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	ni_ovs_bridge_t *ovsbr;
 	ni_bool_t enabled;
 	const char *parent;
@@ -2929,14 +3030,25 @@ try_ovs_bridge(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	dev->link.type = NI_IFTYPE_OVS_BRIDGE;
-	ovsbr = ni_netdev_get_ovs_bridge(dev);
+	if (!(ovsbr = ni_netdev_get_ovs_bridge(dev))) {
+		ni_error("ifcfg-%s: unable to allocate ovs bridge structure",
+				dev->name);
+		return -1;
+	}
 
 	if ((parent = ni_sysconfig_get_value(sc, "OVS_BRIDGE_VLAN_PARENT"))) {
 		if (!ni_netdev_name_is_valid(parent)) {
 			ni_error("ifcfg-%s: Suspect device in OVS_BRIDGE_VLAN_PARENT='%s'",
-					dev->name, ni_print_suspect(parent, ni_string_len(parent)));
+					dev->name,
+					ni_print_suspect(parent, ni_string_len(parent)));
 			return -1;
 		}
+		if (!ni_suse_ifcfg_find_by_ifname(ifcfgs, parent)) {
+			ni_error("ifcfg-%s: Unable to find OVS vlan bridge parent config '%s'",
+					dev->name, parent);
+			return -1;
+		}
+
 		if (!(vlan = ni_sysconfig_get_value(sc, "OVS_BRIDGE_VLAN_TAG"))) {
 			ni_error("ifcfg-%s: OVS_BRIDGE_VLAN_TAG=... missed", dev->name);
 			return -1;
@@ -2951,39 +3063,47 @@ try_ovs_bridge(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 					dev->name, ovsbr->config.vlan.tag, __NI_VLAN_TAG_MAX);
 			return -1;
 		}
+
 		ni_netdev_ref_set_ifname(&ovsbr->config.vlan.parent, parent);
 		ovsbr->config.vlan.tag = tag;
 	}
 
-	if (__process_indexed_variables(sc, dev, "OVS_BRIDGE_PORT_DEVICE",
-					try_add_ovs_bridge_port) < 0)
-		return -1;
+	ni_suse_ifcfg_process_indexed(ifcfgs, ifcfg, "OVS_BRIDGE_PORT_DEVICE",
+			try_add_ovs_bridge_port);
 
 	return 0;
 }
 
 static int
-try_ovs_system(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_ovs_system(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	static const char *ovs_system = NULL;
-	ni_netdev_t *dev = compat->dev;
 
-	/* Consider ovs-system as a fixed/reserved master device for openvswitch */
+	/* Consider ovs-system as a fixed/reserved datapath name for openvswitch */
 	if (ovs_system == NULL)
 		ovs_system = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
 
-	if (strcmp(dev->name, ovs_system))
+	if (!ni_string_eq(dev->name, ovs_system))
 		return 1;
 
-	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+	switch (dev->link.type) {
+	case NI_IFTYPE_UNKNOWN:
+		dev->link.type = NI_IFTYPE_OVS_SYSTEM;
+		/*
+		 * This datapath device does not need any setup (not even link up),
+		 * but as it is actively used as master device for all ovs ports,
+		 * we have to consider it in order to resolve dependencies...
+		 */
+		ni_suse_ifcfg_set_l2_only(ifcfg, FALSE);
+		return 0;
+	case NI_IFTYPE_OVS_SYSTEM:
+		return 0;
+	default:
 		ni_error("ifcfg-%s: %s config is using reserved %s device name",
 			dev->name, ni_linktype_type_to_name(dev->link.type), ovs_system);
 		return -1;
 	}
-
-	dev->link.type = NI_IFTYPE_OVS_SYSTEM;
-	__ni_suse_adjust_ovs_system(compat);
-
 	return 0;
 }
 
@@ -2991,10 +3111,101 @@ try_ovs_system(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 /*
  * Bridge devices are recognized by BRIDGE=yes
  */
-static int
-try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+static ni_bool_t
+try_add_bridge_port_config(ni_bridge_port_config_t *pconf, const char *file,
+		const char *port, const char *prio, const char *cost)
 {
-	ni_netdev_t *dev = compat->dev;
+	unsigned int tmp;
+	const char *err;
+
+	if (ni_string_empty(prio) || ni_string_eq(prio, "-")) {
+		pconf->priority = NI_BRIDGE_VALUE_NOT_SET;
+	} else if (ni_parse_uint(prio, &tmp, 0) < 0) {
+		ni_warn("ifcfg-%s: unable to parse priority '%s' for port '%s'",
+				file, prio, port);
+	} else if ((err = ni_bridge_port_priority_validate(tmp))) {
+		ni_warn("ifcfg-%s: %s '%s' for port '%s'",
+				file, err, prio, port);
+	} else {
+		pconf->priority = tmp;
+	}
+
+	if (ni_string_empty(cost) || ni_string_eq(cost, "-")) {
+		pconf->path_cost = NI_BRIDGE_VALUE_NOT_SET;
+	} else if (ni_parse_uint(cost, &tmp, 0) < 0) {
+		ni_warn("ifcfg-%s: unable to parse path-cost '%s' for port '%s'",
+				file, cost, port);
+	} else if ((err = ni_bridge_port_path_cost_validate(tmp))) {
+		ni_warn("ifcfg-%s: %s '%s' for port '%s'",
+				file, err, cost, port);
+	} else {
+		pconf->path_cost = tmp;
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+try_add_bridge_port(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg,
+		const char *port, const char *prio, const char *cost)
+{
+	ni_suse_ifcfg_t *pcfg;
+	ni_netdev_t *mdev;
+	const char *type;
+
+	mdev = ifcfg->compat->dev;
+	type = ni_linktype_type_to_name(mdev->link.type);
+	if (!(pcfg = ni_suse_ifcfg_add_l2_port(ifcfgs,
+			ifcfg, mdev->name, type, port, FALSE))) {
+		ni_error("ifcfg-%s: failed to add %s port %s",
+				mdev->name, type, port);
+		return FALSE;
+	}
+
+	ni_netdev_port_config_destroy(&pcfg->compat->port);
+	if (ni_netdev_port_config_init(&pcfg->compat->port, mdev->link.type)) {
+		try_add_bridge_port_config(pcfg->compat->port.bridge,
+				mdev->name, port, prio, cost);
+	}
+
+	return TRUE;
+}
+
+static ni_bool_t
+try_add_bridge_ports(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
+{
+	ni_string_array_t ports = NI_STRING_ARRAY_INIT;
+	ni_string_array_t prios = NI_STRING_ARRAY_INIT;
+	ni_string_array_t costs = NI_STRING_ARRAY_INIT;
+	ni_bool_t ret = TRUE;
+	unsigned int i;
+
+	ni_string_split(&ports, ni_sysconfig_get_value(ifcfg->config,
+				"BRIDGE_PORTS"), " \t", 0);
+	ni_string_split(&prios, ni_sysconfig_get_value(ifcfg->config,
+				"BRIDGE_PORTPRIORITIES"), " \t", 0);
+	ni_string_split(&costs, ni_sysconfig_get_value(ifcfg->config,
+				"BRIDGE_PATHCOSTS"), " \t", 0);
+
+	for (i = 0; i < ports.count; ++i) {
+		if (!try_add_bridge_port(ifcfgs, ifcfg,
+				ni_string_array_at(&ports, i),
+				ni_string_array_at(&prios, i),
+				ni_string_array_at(&costs, i)))
+			ret = FALSE;
+	}
+
+	ni_string_array_destroy(&ports);
+	ni_string_array_destroy(&prios);
+	ni_string_array_destroy(&costs);
+	return ret;
+}
+
+static int
+try_bridge(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
+{
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	ni_bridge_t *bridge;
 	ni_bool_t enabled;
 	const char *value;
@@ -3063,77 +3274,6 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		}
 	}
 
-	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PORTS")) != NULL) {
-		char *portnames = NULL, *name_pos = NULL, *name = NULL;
-
-		ni_string_dup(&portnames, value);
-		for (name = strtok_r(portnames, " \t", &name_pos);
-		     name != NULL;
-		     name = strtok_r(NULL, " \t", &name_pos)) {
-
-			if (!ni_netdev_name_is_valid(name)) {
-				ni_error("ifcfg-%s: BRIDGE_PORTS='%s' "
-					 "rejecting suspect port name '%s'",
-					 dev->name, value, name);
-				free(portnames);
-				return -1;
-			}
-
-			ni_bridge_port_new(bridge, name, 0);
-		}
-		ni_string_free(&portnames);
-	}
-
-	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PORTPRIORITIES")) != NULL) {
-		char *portprios = NULL, *prio_pos = NULL, *prio = NULL;
-		unsigned int tmp, i = 0;
-
-		ni_string_dup(&portprios, value);
-		for (prio = strtok_r(portprios, " \t", &prio_pos);
-		     prio != NULL && i < bridge->ports.count;
-		     prio = strtok_r(NULL, " \t", &prio_pos), ++i) {
-			ni_bridge_port_t *port = bridge->ports.data[i];
-
-			if (!strcmp("-", prio))
-				continue;
-
-			if (ni_parse_uint(prio, &tmp, 0) < 0) {
-				ni_error("ifcfg-%s: BRIDGE_PORTPRIORITIES='%s' "
-					 "unable to parse port '%s' priority '%s'",
-					 dev->name, value, port->ifname, prio);
-				free(portprios);
-				return -1;
-			}
-			port->priority = tmp;
-		}
-		ni_string_free(&portprios);
-	}
-
-	if ((value = ni_sysconfig_get_value(sc, "BRIDGE_PATHCOSTS")) != NULL) {
-		char *portcosts = NULL, *cost_pos = NULL, *cost = NULL;
-		unsigned int tmp, i = 0;
-
-		ni_string_dup(&portcosts, value);
-		for (cost = strtok_r(portcosts, " \t", &cost_pos);
-		     cost != NULL && i < bridge->ports.count;
-		     cost = strtok_r(NULL, " \t", &cost_pos), ++i) {
-			ni_bridge_port_t *port = bridge->ports.data[i++];
-
-			if (!strcmp("-", cost))
-				continue;
-
-			if (ni_parse_uint(cost, &tmp, 0) < 0) {
-				ni_error("ifcfg-%s: BRIDGE_PATHCOSTS='%s' "
-					 "unable to parse port '%s' costs '%s'",
-					 dev->name, value, port->ifname, cost);
-				free(portcosts);
-				return -1;
-			}
-			port->path_cost = tmp;
-		}
-		ni_string_free(&portcosts);
-	}
-
 	if ((value = ni_bridge_validate(bridge)) != NULL) {
 		ni_error("ifcfg-%s: bridge validation: %s", dev->name, value);
 		return -1;
@@ -3147,6 +3287,8 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		}
 	}
 
+	try_add_bridge_ports(ifcfgs, ifcfg);
+
 	return 0;
 }
 
@@ -3154,9 +3296,10 @@ try_bridge(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
  * VLAN interfaces are recognized by their name (vlan<N>)
  */
 static int
-try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_vlan(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	ni_vlan_t *vlan;
 	const char *etherdev = NULL;
 	const char *vlanprot = NULL;
@@ -3165,7 +3308,8 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	unsigned int tag = 0;
 	size_t len;
 
-	if ((etherdev = ni_sysconfig_get_value(sc, "ETHERDEVICE")) == NULL)
+	etherdev = ni_sysconfig_get_value(sc, "ETHERDEVICE");
+	if (ni_string_empty(etherdev))
 		return 1;
 
 	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
@@ -3175,11 +3319,9 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	dev->link.type = NI_IFTYPE_VLAN;
-	vlan = ni_netdev_get_vlan(dev);
-
-	if (!strcmp(dev->name, etherdev)) {
-		ni_error("ifcfg-%s: ETHERDEVICE=\"%s\" self-reference",
-			dev->name, etherdev);
+	if (!(vlan = ni_netdev_get_vlan(dev))) {
+		ni_error("ifcfg-%s: unable to allocate ethernet vlan structure",
+				dev->name);
 		return -1;
 	}
 
@@ -3227,6 +3369,9 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		vlan->protocol = protocol;
 	}
 
+	if (!ni_suse_ifcfg_add_lower(ifcfgs, ifcfg, etherdev, "vlan ETHERDEVICE"))
+		return -1;
+
 	ni_string_dup(&dev->link.lowerdev.name, etherdev);
 	vlan->tag = tag;
 
@@ -3242,9 +3387,10 @@ try_vlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 }
 
 static int
-try_vxlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_vxlan(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	ni_vxlan_t *vxlan;
 	ni_bool_t enabled;
 	unsigned int val;
@@ -3271,11 +3417,9 @@ try_vxlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		}
 	}
 	if ((str = ni_sysconfig_get_value(sc, "VXLAN_DEVICE"))) {
-		if (!ni_netdev_name_is_valid(str) || ni_string_eq(str, dev->name)) {
-			ni_error("ifcfg-%s: Invalid name in VXLAN_DEVICE=\"%s\"",
-					dev->name, ni_print_suspect(str, 15));
+		if (!ni_suse_ifcfg_add_lower(ifcfgs, ifcfg, str, "VXLAN_DEVICE"))
 			return -1;
-		}
+
 		ni_string_dup(&dev->link.lowerdev.name, str);
 	}
 
@@ -3469,9 +3613,10 @@ try_vxlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
  * differ from the macvlan/tap device being created.
  */
 static int
-try_macvlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_macvlan(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	ni_macvlan_t *macvlan = NULL;
 	const char *macvlan_dev = NULL;
 	unsigned int macvlan_iftype = NI_IFTYPE_UNKNOWN;
@@ -3512,11 +3657,8 @@ try_macvlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		return -1;
 	}
 
-	if (!strcmp(dev->name, macvlan_dev)) {
-		ni_error("ifcfg-%s: %s=\"%s\" self-reference",
-			dev->name, syscfg_dev_key, macvlan_dev);
+	if (!ni_suse_ifcfg_add_lower(ifcfgs, ifcfg, macvlan_dev, syscfg_dev_key))
 		return -1;
-	}
 
 	macvlan->mode = NI_MACVLAN_MODE_VEPA;
         if ((macvlan_mode = ni_sysconfig_get_value(sc, syscfg_mode_key)) != NULL) {
@@ -3569,9 +3711,10 @@ try_macvlan(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
  * itself.
  */
 static int
-try_dummy(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_dummy(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	const char *iftype = NULL;
 	const char *lladdr = NULL;
 	const char *bootproto = NULL;
@@ -4361,9 +4504,10 @@ eap_failure:
 }
 
 static int
-try_wireless(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_wireless(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	ni_string_array_t vnames = NI_STRING_ARRAY_INIT;
 	ni_bool_t enabled = FALSE;
 	const char *value;
@@ -4415,20 +4559,17 @@ __ni_suse_read_provider(const char *sibling, const char *provider)
 }
 
 static int
-try_pppoe(const ni_sysconfig_t *sc, const ni_sysconfig_t *psc, const char *name, ni_ppp_mode_pppoe_t *pppoe)
+try_pppoe(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg,
+		ni_ppp_mode_pppoe_t *pppoe)
 {
+	const ni_sysconfig_t *sc = ifcfg->config;
 	const char *value;
 
-	if (!sc || !psc || !pppoe || ni_string_empty(name))
-		return -1;
-
 	value = ni_sysconfig_get_value(sc, "DEVICE");
-	if (ni_string_empty(value) || !ni_netdev_name_is_valid(value) ||
-	    !ni_netdev_ref_set_ifname(&pppoe->device, value)) {
-		ni_error("ifcfg-%s: PPPoE config without valid ethernet device name: '%s'", name, value ? value : "");
+	if (!ni_suse_ifcfg_add_lower(ifcfgs, ifcfg, value, "PPPoE ethernet device"))
 		return -1;
-	}
 
+	ni_netdev_ref_set_ifname(&pppoe->device, value);
 	return 0;
 }
 
@@ -4436,9 +4577,10 @@ try_pppoe(const ni_sysconfig_t *sc, const ni_sysconfig_t *psc, const char *name,
  * Handle all sorts of PPP
  */
 static int
-try_ppp(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_ppp(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	ni_sysconfig_t *psc = NULL;
 	const char *value;
 	ni_bool_t bval;
@@ -4586,7 +4728,7 @@ try_ppp(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ret = 0;
 	switch (ppp->mode.type) {
 	case NI_PPP_MODE_PPPOE:
-		ret = try_pppoe(sc, psc, dev->name, &ppp->mode.pppoe);
+		ret = try_pppoe(ifcfgs, ifcfg, &ppp->mode.pppoe);
 		break;
 	case NI_PPP_MODE_PPPOATM:
 		/* PPPoATM support is not implemented */
@@ -4607,8 +4749,7 @@ try_ppp(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 done:
-	if (psc)
-		ni_sysconfig_destroy(psc);
+	ni_sysconfig_free(psc);
 	return ret;
 }
 
@@ -4616,9 +4757,10 @@ done:
  * Handle Tunnel interfaces
  */
 static int
-__try_tunnel_tuntap(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_tunnel_tuntap(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	const char *value;
 	ni_tuntap_t *tuntap;
 
@@ -4662,24 +4804,18 @@ __try_tunnel_tuntap(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 }
 
 static int
-__try_tunnel_generic(const char *ifname, unsigned short arp_type,
-		ni_linkinfo_t *link, ni_tunnel_t *tunnel,
-		const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_tunnel_generic(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg,
+		const char *ifname, unsigned short arp_type,
+		ni_linkinfo_t *link, ni_tunnel_t *tunnel)
 {
+	const ni_sysconfig_t *sc = ifcfg->config;
 	const char *value = NULL;
 	unsigned int ui_value;
 
 	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_DEVICE"))) {
-		if (!ni_netdev_name_is_valid(value)) {
-			ni_error("ifcfg-%s: TUNNEL_DEVICE=\"%s\" suspect interface name",
-					ifname, value);
+		if (!ni_suse_ifcfg_add_lower(ifcfgs, ifcfg, value, "TUNNEL_DEVICE"))
 			return -1;
-		}
-		if (ni_string_eq(value, ifname)) {
-			ni_error("ifcfg-%s: TUNNEL_DEVICE=\"%s\" invalid self-reference",
-					ifname, value);
-			return -1;
-		}
+
 		ni_string_dup(&link->lowerdev.name, value);
 	}
 
@@ -4737,9 +4873,9 @@ __try_tunnel_generic(const char *ifname, unsigned short arp_type,
 }
 
 static int
-__try_tunnel_ipip(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_tunnel_ipip(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	ni_ipip_t *ipip = NULL;
 	int rv = 0;
 
@@ -4747,17 +4883,18 @@ __try_tunnel_ipip(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		return -1;
 
 	/* Populate generic tunneling data from config. */
-	rv = __try_tunnel_generic(dev->name, ARPHRD_TUNNEL, &dev->link,
-				&ipip->tunnel, sc, compat);
+	rv = try_tunnel_generic(ifcfgs, ifcfg, dev->name, ARPHRD_TUNNEL,
+				&dev->link, &ipip->tunnel);
 
 	return rv;
 }
 
 static int
-__try_tunnel_gre(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_tunnel_gre(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
 	ni_string_array_t flags = NI_STRING_ARRAY_INIT;
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	ni_gre_t *gre = NULL;
 	ni_sockaddr_t addr;
 	const char *value;
@@ -4768,8 +4905,8 @@ __try_tunnel_gre(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		return -1;
 
 	/* Populate generic tunneling data from config. */
-	rv = __try_tunnel_generic(dev->name, ARPHRD_IPGRE, &dev->link,
-				&gre->tunnel, sc, compat);
+	rv = try_tunnel_generic(ifcfgs, ifcfg, dev->name, ARPHRD_IPGRE,
+				&dev->link, &gre->tunnel);
 
 	if ((value = ni_sysconfig_get_value(sc, "TUNNEL_GRE_FLAGS"))) {
 		ni_string_split(&flags, value, " \t", 0);
@@ -4860,9 +4997,10 @@ __try_tunnel_gre(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 }
 
 static int
-__try_tunnel_sit(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_tunnel_sit(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	ni_sit_t *sit = NULL;
 	const char *value = NULL;
 	int rv = 0;
@@ -4871,8 +5009,8 @@ __try_tunnel_sit(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		return -1;
 
 	/* Populate generic tunneling data from config. */
-	rv = __try_tunnel_generic(dev->name, ARPHRD_SIT, &dev->link,
-				&sit->tunnel, sc, compat);
+	rv = try_tunnel_generic(ifcfgs, ifcfg, dev->name, ARPHRD_SIT,
+				&dev->link, &sit->tunnel);
 
 	if ((value = ni_sysconfig_get_value(sc, "SIT_ISATAP"))) {
 		if (ni_parse_boolean(value, &sit->isatap) < 0) {
@@ -4886,11 +5024,12 @@ __try_tunnel_sit(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 }
 
 static int
-try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+try_tunnel(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	const char *value;
-	static const ni_intmap_t __tunnel_types[] = {
+	static const ni_intmap_t tunnel_types[] = {
 		{ "tun",	NI_IFTYPE_TUN		},
 		{ "tap",	NI_IFTYPE_TAP		},
 		{ "sit",	NI_IFTYPE_SIT		},
@@ -4904,7 +5043,7 @@ try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	if ((value = ni_sysconfig_get_value(sc, "TUNNEL")) == NULL)
 		return 1;
 
-	for (map = __tunnel_types; map->name; ++map) {
+	for (map = tunnel_types; map->name; ++map) {
 		if (!strcmp(map->name, value))
 			break;
 	}
@@ -4924,16 +5063,16 @@ try_tunnel(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	switch (dev->link.type) {
 	case NI_IFTYPE_TUN:
 	case NI_IFTYPE_TAP:
-		return __try_tunnel_tuntap(sc, compat);
+		return try_tunnel_tuntap(ifcfgs, ifcfg);
 
 	case NI_IFTYPE_IPIP:
-		return __try_tunnel_ipip(sc, compat);
+		return try_tunnel_ipip(ifcfgs, ifcfg);
 
 	case NI_IFTYPE_GRE:
-		return __try_tunnel_gre(sc, compat);
+		return try_tunnel_gre(ifcfgs, ifcfg);
 
 	case NI_IFTYPE_SIT:
-		return __try_tunnel_sit(sc, compat);
+		return try_tunnel_sit(ifcfgs, ifcfg);
 
 	default:
 		ni_warn("ifcfg-%s: conversion of %s tunnels not yet supported",
@@ -5760,7 +5899,7 @@ __ni_suse_addrconf_dhcp4(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 	config = ni_config_dhcp4_find_device(dev->name);
 	if ((merged = ni_sysconfig_merge_defaults(sc, __ni_suse_dhcp_defaults))) {
 		__ni_suse_addrconf_dhcp4_options(merged, compat, config);
-		ni_sysconfig_destroy(merged);
+		ni_sysconfig_free(merged);
 	}
 
 	compat->dhcp4.enabled = TRUE;
@@ -5789,7 +5928,7 @@ __ni_suse_addrconf_dhcp6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat, n
 	config = ni_config_dhcp6_find_device(dev->name);
 	if ((merged = ni_sysconfig_merge_defaults(sc, __ni_suse_dhcp_defaults))) {
 		__ni_suse_addrconf_dhcp6_options(merged, compat, config);
-		ni_sysconfig_destroy(merged);
+		ni_sysconfig_free(merged);
 	}
 
 	compat->dhcp6.enabled = TRUE;
@@ -5874,7 +6013,7 @@ __ni_suse_addrconf_auto6(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 					dev->name, ni_print_suspect(value, ni_string_len(value)));
 			}
 		}
-		ni_sysconfig_destroy(merged);
+		ni_sysconfig_free(merged);
 	}
 	return TRUE;
 
@@ -5885,8 +6024,10 @@ ignored:
 
 
 static ni_bool_t
-__ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+ni_suse_ifcfg_parse_bootproto(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_compat_netdev_t *compat = ifcfg->compat;
 	ni_netdev_t *dev = compat->dev;
 	ni_bool_t primary;
 	const char *bootproto;
@@ -5895,7 +6036,21 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	ni_ipv4_devinfo_t *ipv4;
 	ni_ipv6_devinfo_t *ipv6;
 
+	/*
+	 * The L3 setup & boot protocols are disabled on L2 ports already.
+	 */
+	if (ifcfg->l2only)
+		return TRUE;
+
+	/*
+	 * The BOOTPROTO=none disables the L3 (IP) setup & boot protocols.
+	 */
 	bootproto = ni_sysconfig_get_value(sc, "BOOTPROTO");
+	if (ni_string_eq_nocase(bootproto, "none")) {
+		ni_suse_ifcfg_set_l2_only(ifcfg, FALSE);
+		return TRUE;
+	}
+
 	if (ni_string_empty(bootproto) || ni_string_eq(dev->name, "lo")) {
 		if (dev->link.type == NI_IFTYPE_PPP)
 			bootproto = "ppp";
@@ -5904,16 +6059,6 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	}
 
 	ipv4 = ni_netdev_get_ipv4(dev);
-	ipv6 = ni_netdev_get_ipv6(dev);
-
-	if (dev->link.masterdev.name || ni_string_eq_nocase(bootproto, "none")) {
-		if (ipv4)
-			ni_tristate_set(&ipv4->conf.enabled, FALSE);
-		if (ipv6)
-			ni_tristate_set(&ipv6->conf.enabled, FALSE);
-		return TRUE;
-	}
-
 	if (ipv4 && !ni_tristate_is_disabled(ipv4->conf.enabled)) {
 		if (__ni_suse_config_defaults) {
 			if ((value = ni_sysconfig_get_value(__ni_suse_config_defaults,
@@ -5935,16 +6080,12 @@ __ni_suse_bootproto(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		}
 	}
 
-	if (dev->link.type == NI_IFTYPE_PPP && dev->ppp && !ipv6->conf.enabled)
+	ipv6 = ni_netdev_get_ipv6(dev);
+	if (ipv6 && dev->link.type == NI_IFTYPE_PPP && dev->ppp && !ipv6->conf.enabled)
 		dev->ppp->config.ipv6.enabled = FALSE;
 
 	if (ni_string_eq_nocase(bootproto, "ppp"))
 		return TRUE;
-
-	/* Hmm... ignore this config completely -> ibft firmware */
-	if (ni_string_eq_nocase(bootproto, "ibft")) {
-		return TRUE;
-	}
 
 	if (ni_string_eq_nocase(bootproto, "6to4")) {
 		__ni_suse_addrconf_static(sc, compat);
@@ -6192,9 +6333,11 @@ __ni_suse_qualify_scripts(ni_compat_netdev_t *compat, const char *set, const cha
 	ni_string_array_destroy(&qualified);
 }
 
-static void
-__ni_suse_get_scripts(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+static ni_bool_t
+ni_suse_ifcfg_parse_scripts(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_compat_netdev_t *compat = ifcfg->compat;
 	const char *value;
 
 	value = ni_sysconfig_get_value(sc, "PRE_UP_SCRIPT");
@@ -6216,11 +6359,15 @@ __ni_suse_get_scripts(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 	if (!value && __ni_suse_config_defaults)
 		value = ni_sysconfig_get_value(__ni_suse_config_defaults, "POST_DOWN_SCRIPT");
 	__ni_suse_qualify_scripts(compat, "post-down", value);
+
+	return TRUE;
 }
 
-static void
-ni_suse_ifcfg_get_firewall(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+static ni_bool_t
+ni_suse_ifcfg_parse_firewall(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_compat_netdev_t *compat = ifcfg->compat;
 	ni_sysconfig_t *merged;
 	const char *value;
 
@@ -6232,10 +6379,10 @@ ni_suse_ifcfg_get_firewall(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 			if (!ni_string_empty(value))
 				ni_string_dup(&compat->firewall.zone, value);
 		}
-		ni_sysconfig_destroy(merged);
+		ni_sysconfig_free(merged);
 	}
+	return TRUE;
 }
-
 
 /*
  * Read ifsysctl file
@@ -6316,15 +6463,116 @@ __ifsysctl_get_tristate(ni_var_array_t *vars, const char *path, const char *ifna
 }
 
 static ni_bool_t
-__ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+ni_suse_ifcfg_parse_ifsysctl_ipv4(ni_suse_ifcfg_t *ifcfg, ni_var_array_t *ifsysctl)
+{
+	ni_netdev_t *dev = ifcfg->compat->dev;
+	ni_ipv4_devinfo_t *ipv4;
+
+	/*
+	 * On L2 ports, we've disabled L3 / IPv4 already.
+	 */
+	if (ifcfg->l2only)
+		return TRUE;
+
+	if (!(ipv4 = ni_netdev_get_ipv4(dev)))
+		return FALSE;
+
+	/* Note: no conf.enable and conf.arp-verify in sysctl */
+
+	__ifsysctl_get_tristate(ifsysctl, "net/ipv4/conf", dev->name,
+			"forwarding", &ipv4->conf.forwarding);
+	__ifsysctl_get_tristate(ifsysctl, "net/ipv4/conf", dev->name,
+			"arp_notify", &ipv4->conf.arp_notify);
+	__ifsysctl_get_tristate(ifsysctl, "net/ipv4/conf", dev->name,
+			"accept_redirects", &ipv4->conf.accept_redirects);
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_suse_ifcfg_parse_ifsysctl_ipv6(ni_suse_ifcfg_t *ifcfg, ni_var_array_t *ifsysctl)
+{
+	ni_tristate_t disable_ipv6 = NI_TRISTATE_DEFAULT;
+	ni_netdev_t *dev = ifcfg->compat->dev;
+	ni_ipv6_devinfo_t *ipv6;
+
+	if (!(ipv6 = ni_netdev_get_ipv6(dev)))
+		return FALSE;
+
+	/*
+	 * First, get sysctl's affecting also "IPv6 L2" aka
+	 * stable secret for the fe80 link-address assignment.
+	 */
+	__ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev->name,
+			"addr_gen_mode", &ipv6->conf.addr_gen_mode, 10);
+
+	__ifsysctl_get_ipv6(ifsysctl, "net/ipv6/conf", dev->name,
+			"stable_secret", &ipv6->conf.stable_secret);
+
+	/*
+	 * On L2 ports, we may need the ipv6 link e.g. for nsna
+	 * ping monitoring, but already disabled e.g accept_ra
+	 * to avoid RA processing affecting the IPv6 L3 autoconf
+	 * aka auto6 (SLAAC) & dhcp6 and don't parse static IPs.
+	 */
+	if (ifcfg->l2only)
+		return TRUE;
+
+	/*
+	 * When IPv6 is disabled via sysctl, we're done
+	 */
+	if (__ni_ipv6_disbled)
+		ni_tristate_set(&ipv6->conf.enabled, FALSE);
+	__ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev->name,
+			"disable_ipv6", &disable_ipv6);
+	if (ni_tristate_is_set(disable_ipv6))
+		ni_tristate_set(&ipv6->conf.enabled, !disable_ipv6);
+	if (ni_tristate_is_disabled(ipv6->conf.enabled))
+		return TRUE;
+
+	__ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev->name,
+			"forwarding", &ipv6->conf.forwarding);
+
+	__ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev->name,
+			"accept_ra", &ipv6->conf.accept_ra, 10);
+	if (ipv6->conf.accept_ra > NI_IPV6_ACCEPT_RA_ROUTER)
+		ipv6->conf.accept_ra = NI_IPV6_ACCEPT_RA_ROUTER;
+	else
+	if (ipv6->conf.accept_ra < NI_IPV6_ACCEPT_RA_DEFAULT)
+		ipv6->conf.accept_ra = NI_IPV6_ACCEPT_RA_DEFAULT;
+
+	__ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev->name,
+			"accept_dad", &ipv6->conf.accept_dad, 10);
+	if (ipv6->conf.accept_dad > NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL)
+		ipv6->conf.accept_dad = NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL;
+	else
+	if (ipv6->conf.accept_dad < NI_IPV6_ACCEPT_DAD_DEFAULT)
+		ipv6->conf.accept_dad = NI_IPV6_ACCEPT_DAD_DEFAULT;
+
+	__ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev->name,
+				"autoconf", &ipv6->conf.autoconf);
+
+	__ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev->name,
+				"use_tempaddr", &ipv6->conf.privacy, 10);
+	if (ipv6->conf.privacy > NI_IPV6_PRIVACY_PREFER_TEMPORARY)
+		ipv6->conf.privacy = NI_IPV6_PRIVACY_PREFER_TEMPORARY;
+	else if (ipv6->conf.privacy < NI_IPV6_PRIVACY_DEFAULT)
+		ipv6->conf.privacy = NI_IPV6_PRIVACY_DISABLED;
+
+	__ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev->name,
+			"accept_redirects", &ipv6->conf.accept_redirects);
+
+	return TRUE;
+}
+
+static ni_bool_t
+ni_suse_ifcfg_parse_ifsysctl(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
 	ni_var_array_t ifsysctl = NI_VAR_ARRAY_INIT;
-	ni_netdev_t *dev = compat->dev;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 	char pathbuf[PATH_MAX];
 	const char *dirname;
-	ni_ipv4_devinfo_t *ipv4;
-	ni_ipv6_devinfo_t *ipv6;
-	ni_tristate_t disable_ipv6 = NI_TRISTATE_DEFAULT;
 
 	dirname = ni_dirname(sc->pathname);
 	if (ni_string_empty(dirname))
@@ -6337,391 +6585,89 @@ __ni_suse_read_ifsysctl(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 		ni_ifsysctl_file_load(&ifsysctl, pathbuf);
 	}
 
-	ipv4 = ni_netdev_get_ipv4(dev);
-	ni_tristate_set(&ipv4->conf.enabled, TRUE);
-	/* no conf.enable and conf.arp-verify in sysctl */
-	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
-				"forwarding", &ipv4->conf.forwarding);
-	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
-				"arp_notify", &ipv4->conf.arp_notify);
-	__ifsysctl_get_tristate(&ifsysctl, "net/ipv4/conf", dev->name,
-				"accept_redirects", &ipv4->conf.accept_redirects);
-
-	ipv6 = ni_netdev_get_ipv6(dev);
-	ni_tristate_set(&ipv6->conf.enabled, !__ni_ipv6_disbled);
-	if (__ni_ipv6_disbled) {
-		ni_var_array_destroy(&ifsysctl);
-		return TRUE;
-	}
-	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
-				"disable_ipv6", &disable_ipv6);
-	if (ni_tristate_is_set(disable_ipv6))
-		ni_tristate_set(&ipv6->conf.enabled, !disable_ipv6);
-
-	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
-				"forwarding", &ipv6->conf.forwarding);
-
-	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
-				"accept_ra", &ipv6->conf.accept_ra, 10);
-	if (ipv6->conf.accept_ra > NI_IPV6_ACCEPT_RA_ROUTER)
-		ipv6->conf.accept_ra = NI_IPV6_ACCEPT_RA_ROUTER;
-	else
-	if (ipv6->conf.accept_ra < NI_IPV6_ACCEPT_RA_DEFAULT)
-		ipv6->conf.accept_ra = NI_IPV6_ACCEPT_RA_DEFAULT;
-
-	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
-				"accept_dad", &ipv6->conf.accept_dad, 10);
-	if (ipv6->conf.accept_dad > NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL)
-		ipv6->conf.accept_dad = NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL;
-	else
-	if (ipv6->conf.accept_dad < NI_IPV6_ACCEPT_DAD_DEFAULT)
-		ipv6->conf.accept_dad = NI_IPV6_ACCEPT_DAD_DEFAULT;
-
-	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
-				"autoconf", &ipv6->conf.autoconf);
-
-	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
-				"use_tempaddr", &ipv6->conf.privacy, 10);
-	if (ipv6->conf.privacy > NI_IPV6_PRIVACY_PREFER_TEMPORARY)
-		ipv6->conf.privacy = NI_IPV6_PRIVACY_PREFER_TEMPORARY;
-	else if (ipv6->conf.privacy < NI_IPV6_PRIVACY_DEFAULT)
-		ipv6->conf.privacy = NI_IPV6_PRIVACY_DISABLED;
-
-	__ifsysctl_get_tristate(&ifsysctl, "net/ipv6/conf", dev->name,
-				"accept_redirects", &ipv6->conf.accept_redirects);
-
-	__ifsysctl_get_int(&ifsysctl, "net/ipv6/conf", dev->name,
-				"addr_gen_mode", &ipv6->conf.addr_gen_mode, 10);
-
-	__ifsysctl_get_ipv6(&ifsysctl, "net/ipv6/conf", dev->name,
-				"stable_secret", &ipv6->conf.stable_secret);
-
+	ni_suse_ifcfg_parse_ifsysctl_ipv4(ifcfg, &ifsysctl);
+	ni_suse_ifcfg_parse_ifsysctl_ipv6(ifcfg, &ifsysctl);
 	ni_var_array_destroy(&ifsysctl);
 	return TRUE;
 }
 
-static ni_compat_netdev_t *
-__ni_suse_find_compat(ni_compat_netdev_array_t *netdevs, const char *name)
-{
-	ni_compat_netdev_t *compat;
-	unsigned int i;
-
-	for (i = 0; i < netdevs->count; ++i) {
-		compat = netdevs->data[i];
-		if (ni_string_eq(compat->dev->name, name))
-			return compat;
-	}
-	return NULL;
-}
-
-static ni_netdev_t *
-__ni_suse_find_compat_device(ni_compat_netdev_array_t *netdevs, const char *name)
-{
-	ni_compat_netdev_t *compat = __ni_suse_find_compat(netdevs, name);
-	return compat ? compat->dev : NULL;
-}
-
 static ni_bool_t
-__ni_suse_set_link_master(ni_netdev_t *dev, const char *master, const char *ifcfg)
+ni_suse_ifcfg_parse_linkinfo(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	ni_ipv4_devinfo_t *ipv4;
-	ni_ipv6_devinfo_t *ipv6;
-
-	if (ni_string_empty(dev->link.masterdev.name))
-		ni_netdev_ref_set_ifname(&dev->link.masterdev, master);
-	else
-	if (!ni_string_eq(master, dev->link.masterdev.name)) {
-		/*
-		 * The ifcfg device hierarchy _is_ broken. But it is quite hard
-		 * to fix it: the only possibilities are to remove the port/slave
-		 * from the 2nd master to keep the already assigned master intact
-		 * or to override the master.
-		 * But as we cannot judge which master config is correct and which
-		 * not, we let the upper layers decide how to handle this.
-		 */
-		ni_warn("ifcfg-%s: cannot enslave %s to %s, already enslaved by %s",
-				ifcfg, dev->name, master, dev->link.masterdev.name);
-		return FALSE;
-	}
-
-	if ((ipv4 = ni_netdev_get_ipv4(dev)))
-		ni_tristate_set(&ipv4->conf.enabled, FALSE);
-	if ((ipv6 = ni_netdev_get_ipv6(dev)))
-		ni_tristate_set(&ipv6->conf.enabled, FALSE);
-
-	return TRUE;
-}
-
-static ni_compat_netdev_t *
-__ni_suse_create_compat_slave(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master, const char *master_name, const char *slave)
-{
-	ni_ifworker_control_t control = { "hotplug", NULL, FALSE, FALSE, NI_TRISTATE_DEFAULT, 0, 0 };
-	ni_compat_netdev_t *compat;
-	ni_client_state_t *m_cs;
-	ni_client_state_t *s_cs;
-
-	compat = ni_compat_netdev_new(slave);
-	if (!compat)
-		return NULL;
-
-	if (master_name)
-		__ni_suse_set_link_master(compat->dev, master_name, master->dev->name);
-	else
-		__ni_suse_set_link_master(compat->dev, master->dev->name, master->dev->name);
-
-	/* apply control defaults  */
-	compat->control = ni_ifworker_control_clone(&control);
-
-	/* copy origin from master */
-	m_cs = ni_netdev_get_client_state(master->dev);
-	s_cs = ni_netdev_get_client_state(compat->dev);
-	ni_string_dup(&s_cs->config.origin, m_cs->config.origin);
-
-	ni_compat_netdev_array_append(netdevs, compat);
-
-	return compat;
-}
-
-static void
-__ni_suse_adjust_bond_slaves(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master)
-{
-	ni_bonding_t *bond = ni_netdev_get_bonding(master->dev);
-	ni_bonding_slave_t *slave;
-	const char *slave_name;
-	ni_netdev_t *dev;
-	unsigned int i;
-
-	for (i = 0; i < bond->slaves.count; ++i) {
-		slave = bond->slaves.data[i];
-		if (!slave || ni_string_empty(slave->device.name))
-			continue;
-		slave_name = slave->device.name;
-		dev = __ni_suse_find_compat_device(netdevs, slave_name);
-		if (dev) {
-			__ni_suse_set_link_master(dev, master->dev->name, master->dev->name);
-		} else {
-			__ni_suse_create_compat_slave(netdevs, master, master->dev->name, slave_name);
-		}
-	}
-}
-
-static void
-__ni_suse_adjust_team_ports(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master)
-{
-	ni_team_t *team = ni_netdev_get_team(master->dev);
-	const char *port;
-	ni_netdev_t *dev;
-	ni_compat_netdev_t *compat;
-	unsigned int i;
-	ni_bool_t nsna_enabled = FALSE;
-	ni_team_link_watch_t *lw;
-	ni_ipv6_devinfo_t *ipv6;
-
-	for (i = 0; i < team->link_watch.count; i++) {
-		lw = team->link_watch.data[i];
-		if (lw && lw->type == NI_TEAM_LINK_WATCH_NSNA_PING)
-			nsna_enabled = TRUE;
-	}
-
-	for (i = 0; i < team->ports.count; i++) {
-		if (!team->ports.data[i])
-			continue;
-		port = team->ports.data[i]->device.name;
-		compat = __ni_suse_find_compat(netdevs, port);
-		if (!compat)
-			compat = __ni_suse_create_compat_slave(netdevs, master, master->dev->name, port);
-
-		if (compat && (dev = compat->dev)) {
-			if (!__ni_suse_set_link_master(dev, master->dev->name, master->dev->name))
-				continue;
-			if (nsna_enabled && (ipv6 = ni_netdev_get_ipv6(dev)))
-				ni_tristate_set(&ipv6->conf.enabled, TRUE);
-
-			compat->port.type = NI_IFTYPE_TEAM;
-			compat->port.conf.team = team->ports.data[i]->config;
-		}
-	}
-}
-
-static void
-__ni_suse_adjust_bridge_ports(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master)
-{
-	ni_bridge_t *bridge = ni_netdev_get_bridge(master->dev);
-	const char *port;
-	ni_netdev_t *dev;
-	unsigned int i;
-
-	for (i = 0; i < bridge->ports.count; ++i) {
-		port = bridge->ports.data[i]->ifname;
-		dev = __ni_suse_find_compat_device(netdevs, port);
-		if (dev) {
-			__ni_suse_set_link_master(dev, master->dev->name, master->dev->name);
-		} else {
-			__ni_suse_create_compat_slave(netdevs, master, master->dev->name, port);
-		}
-	}
-}
-
-static void
-__ni_suse_adjust_ovs_system(ni_compat_netdev_t *compat)
-{
-	static const ni_ifworker_control_t control = {
-		"hotplug", NULL, FALSE, FALSE, NI_TRISTATE_DISABLE, 0, 0
-	};
-	ni_ipv4_devinfo_t *ipv4;
-	ni_ipv6_devinfo_t *ipv6;
-
-	/*
-	 * This datapath device does not need any setup (not even link up),
-	 * but as it is actively used as master device for all bridge ports
-	 * so we have to consider it... adjust it as good as we can.
-	 * We don't have any "do not set UP the link up" flag until now...
-	 */
-	compat->control = ni_ifworker_control_clone(&control);
-	if ((ipv4 = ni_netdev_get_ipv4(compat->dev)))
-		ni_tristate_set(&ipv4->conf.enabled, FALSE);
-	if ((ipv6 = ni_netdev_get_ipv6(compat->dev)))
-		ni_tristate_set(&ipv6->conf.enabled, FALSE);
-}
-
-static void
-__ni_suse_create_ovs_system(ni_compat_netdev_array_t *netdevs, const char *ovs_system, const char *origin)
-{
-	ni_compat_netdev_t *compat;
-	ni_client_state_t *cs;
-	const char *sibling;
-
-	if ((compat = __ni_suse_find_compat(netdevs, ovs_system)))
-		return;
-
-	compat = ni_compat_netdev_new(ovs_system);
-
-	__ni_suse_adjust_ovs_system(compat);
-	cs = ni_netdev_get_client_state(compat->dev);
-	/* fake it, otherwise it would depend on the trigger device names  */
-	sibling = ni_sibling_path_printf(origin, __NI_SUSE_CONFIG_IFPREFIX"%s", ovs_system);
-	ni_string_dup(&cs->config.origin, sibling);
-
-	ni_compat_netdev_array_append(netdevs, compat);
-}
-
-static void
-__ni_suse_adjust_ovs_bridge_ports(ni_compat_netdev_array_t *netdevs, ni_compat_netdev_t *master)
-{
-	ni_ovs_bridge_t *ovsbr = ni_netdev_get_ovs_bridge(master->dev);
-	static const char *ovs_system = NULL;
-	ni_compat_netdev_t *compat;
-	ni_ovs_bridge_port_t *p;
-	ni_client_state_t *cs;
-	const char *port;
-	unsigned int i;
-
-	if (ovs_system == NULL)
-		ovs_system = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
-
-	cs = ni_netdev_get_client_state(master->dev);
-	__ni_suse_create_ovs_system(netdevs, ovs_system, cs->config.origin);
-	for (i = 0; i < ovsbr->ports.count; ++i) {
-		p = ovsbr->ports.data[i];
-		port = p->device.name;
-		compat = __ni_suse_find_compat(netdevs, port);
-		if (compat) {
-			if (__ni_suse_set_link_master(compat->dev, ovs_system, master->dev->name)) {
-				compat->port.type = NI_IFTYPE_OVS_BRIDGE;
-				ni_netdev_ref_set_ifname(&compat->port.conf.ovsbr.bridge, master->dev->name);
-			}
-		} else
-		if ((compat = __ni_suse_create_compat_slave(netdevs, master, ovs_system, port))) {
-			compat->port.type = NI_IFTYPE_OVS_BRIDGE;
-			ni_netdev_ref_set_ifname(&compat->port.conf.ovsbr.bridge, master->dev->name);
-		}
-	}
-}
-
-static void
-__ni_suse_adjust_slaves(ni_compat_netdev_array_t *netdevs)
-{
-	ni_compat_netdev_t *compat;
-	ni_netdev_t *dev;
-	unsigned int i;
-
-	for (i = 0; i < netdevs->count; ++i) {
-		compat = netdevs->data[i];
-		dev = compat->dev;
-
-		switch (dev->link.type) {
-		case NI_IFTYPE_BOND:
-			__ni_suse_adjust_bond_slaves(netdevs, compat);
-			break;
-		case NI_IFTYPE_BRIDGE:
-			__ni_suse_adjust_bridge_ports(netdevs, compat);
-			break;
-		case NI_IFTYPE_OVS_BRIDGE:
-			__ni_suse_adjust_ovs_bridge_ports(netdevs, compat);
-			break;
-		case NI_IFTYPE_TEAM:
-			__ni_suse_adjust_team_ports(netdevs, compat);
-		default:
-			break;
-		}
-	}
-}
-
-static ni_bool_t
-__ni_suse_read_linkinfo(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
-{
-	ni_netdev_t *dev = compat->dev;
-	const char *master;
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
 
 	ni_sysconfig_get_integer(sc, "MTU", &dev->link.mtu);
 
-	if (!ni_string_empty(master = ni_sysconfig_get_value(sc, "MASTER_DEVICE"))) {
-		if (!__ni_suse_set_link_master(dev, master, dev->name))
-			return FALSE;
-	}
+	return TRUE;
+}
+
+static inline ni_bool_t
+ni_suse_ifcfg_parse_control(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
+{
+	if (!(ifcfg->compat->control = ni_suse_ifcfg_parse_startmode(ifcfg->config)))
+		return FALSE;
 
 	return TRUE;
 }
 
-/*
- * Read an ifcfg file
- */
-static ni_bool_t
-__ni_suse_sysconfig_read(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
+static inline ni_bool_t
+ni_suse_ifcfg_parse_iftypes(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
-	compat->control = __ni_suse_startmode(sc);
-
-	if (try_loopback(sc, compat)   < 0 ||
-	    try_ovs_system(sc, compat) < 0 ||
-	    try_ovs_bridge(sc, compat) < 0 ||
-	    try_bonding(sc, compat)    < 0 ||
-	    try_team(sc, compat)       < 0 ||
-	    try_bridge(sc, compat)     < 0 ||
-	    try_vlan(sc, compat)       < 0 ||
-	    try_vxlan(sc, compat)      < 0 ||
-	    try_macvlan(sc, compat)    < 0 ||
-	    try_dummy(sc, compat)      < 0 ||
-	    try_tunnel(sc, compat)     < 0 ||
-	    try_ppp(sc, compat)        < 0 ||
-	    try_wireless(sc, compat)   < 0 ||
-	    try_infiniband(sc, compat) < 0 ||
+	if (try_loopback(ifcfgs, ifcfg)   < 0 ||
+	    try_ovs_system(ifcfgs, ifcfg) < 0 ||
+	    try_ovs_bridge(ifcfgs, ifcfg) < 0 ||
+	    try_bonding(ifcfgs, ifcfg)    < 0 ||
+	    try_team(ifcfgs, ifcfg)       < 0 ||
+	    try_bridge(ifcfgs, ifcfg)     < 0 ||
+	    try_vlan(ifcfgs, ifcfg)       < 0 ||
+	    try_vxlan(ifcfgs, ifcfg)      < 0 ||
+	    try_macvlan(ifcfgs, ifcfg)    < 0 ||
+	    try_dummy(ifcfgs, ifcfg)      < 0 ||
+	    try_tunnel(ifcfgs, ifcfg)     < 0 ||
+	    try_ppp(ifcfgs, ifcfg)        < 0 ||
+	    try_wireless(ifcfgs, ifcfg)   < 0 ||
+	    try_infiniband(ifcfgs, ifcfg) < 0 ||
 	    /* keep ethernet the last one */
-	    try_ethernet(sc, compat)   < 0)
+	    try_ethernet(ifcfgs, ifcfg)   < 0)
 		return FALSE;
 
-	if (compat->dev->link.type == NI_IFTYPE_OVS_SYSTEM)
-		return TRUE;
+	return TRUE;
+}
 
-	__ni_suse_read_linkinfo(sc, compat);
-	__ni_suse_read_ifsysctl(sc, compat);
-	__ni_suse_bootproto(sc, compat);
-	__ni_suse_get_scripts(sc, compat);
-	ni_suse_ifcfg_get_firewall(sc, compat);
-	ni_suse_ifcfg_get_ethtool(sc, compat);
+static ni_bool_t
+ni_suse_ifcfg_parse_foreach(ni_suse_ifcfg_array_t *ifcfgs,
+		ni_bool_t (*parse)(ni_suse_ifcfg_array_t *, ni_suse_ifcfg_t *))
+{
+	ni_suse_ifcfg_t *ifcfg;
+	unsigned int i;
 
-	/* FIXME: What to do with these:
-		NAME
-	 */
+	if (!ifcfgs || !parse)
+		return FALSE;
+
+	for (i = 0; i < ifcfgs->count; ++i) {
+		ifcfg = ifcfgs->data[i];
+		if (ifcfg->broken)
+			continue;
+
+		if (!parse(ifcfgs, ifcfg))
+			ifcfg->broken = TRUE;
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+ni_suse_ifcfg_parse(ni_suse_ifcfg_array_t *ifcfgs)
+{
+	if (!ni_suse_ifcfg_parse_foreach(ifcfgs, ni_suse_ifcfg_parse_control)   ||
+	    !ni_suse_ifcfg_parse_foreach(ifcfgs, ni_suse_ifcfg_parse_iftypes)   ||
+	    !ni_suse_ifcfg_parse_foreach(ifcfgs, ni_suse_ifcfg_parse_linkinfo)  ||
+	    !ni_suse_ifcfg_parse_foreach(ifcfgs, ni_suse_ifcfg_parse_ifsysctl)  ||
+	    !ni_suse_ifcfg_parse_foreach(ifcfgs, ni_suse_ifcfg_parse_ethtool)	||
+	    !ni_suse_ifcfg_parse_foreach(ifcfgs, ni_suse_ifcfg_parse_firewall)  ||
+	    !ni_suse_ifcfg_parse_foreach(ifcfgs, ni_suse_ifcfg_parse_scripts)   ||
+	    !ni_suse_ifcfg_parse_foreach(ifcfgs, ni_suse_ifcfg_parse_bootproto))
+		return FALSE;
 
 	return TRUE;
 }
@@ -6770,3 +6716,227 @@ __find_indexed_variable(const ni_sysconfig_t *sc, const char *basename, const ch
 		res = NULL;
 	return res;
 }
+
+
+static ni_suse_ifcfg_t *
+ni_suse_ifcfg_new(void)
+{
+	ni_suse_ifcfg_t *ifcfg;
+
+	ifcfg = calloc(1, sizeof(*ifcfg));
+	return ifcfg;
+}
+
+static void
+ni_suse_ifcfg_free(ni_suse_ifcfg_t *ifcfg)
+{
+	if (ifcfg) {
+		if (ifcfg->config) {
+			ni_sysconfig_free(ifcfg->config);
+			ifcfg->config = NULL;
+		}
+		if (ifcfg->compat) {
+			ni_compat_netdev_free(ifcfg->compat);
+			ifcfg->compat = NULL;
+		}
+		free(ifcfg);
+	}
+}
+
+static ni_suse_ifcfg_t *
+ni_suse_ifcfg_new_missing(ni_suse_ifcfg_t *from, const char *ifname)
+{
+	ni_suse_ifcfg_t *ifcfg;
+
+	if (!from || !from->config || !ifname)
+		return NULL;
+
+	if (!(ifcfg = ni_suse_ifcfg_new()))
+		goto error;
+
+	if (!(ifcfg->config = ni_sysconfig_new(from->config->pathname)))
+		goto error;
+
+	if (!(ifcfg->compat = ni_compat_netdev_new(ifname)))
+		goto error;
+
+	return ifcfg;
+
+error:
+	ni_suse_ifcfg_free(ifcfg);
+	return NULL;
+}
+
+static void
+ni_suse_ifcfg_set_hotplug(ni_suse_ifcfg_t *ifcfg)
+{
+	static const ni_ifworker_control_t control = {
+		"hotplug", NULL, FALSE, FALSE, NI_TRISTATE_DEFAULT, 0, 0
+	};
+
+	if (ifcfg->compat->control)
+		ni_ifworker_control_free(ifcfg->compat->control);
+
+	/* apply STARTMODE=hotplug (missing Ok) control defaults */
+	ifcfg->compat->control = ni_ifworker_control_clone(&control);
+}
+
+static void
+ni_suse_ifcfg_set_l2_only(ni_suse_ifcfg_t *ifcfg, ni_bool_t l2v6)
+{
+	ni_ipv4_devinfo_t *ipv4;
+	ni_ipv6_devinfo_t *ipv6;
+
+	/* apply BOOTPROTO=none (no L3) defaults in L2 enslave;
+	 * link monitoring may need ipv6 (link layer address) */
+	if ((ipv4 = ni_netdev_get_ipv4(ifcfg->compat->dev)))
+		ni_tristate_set(&ipv4->conf.enabled, FALSE);
+	if ((ipv6 = ni_netdev_get_ipv6(ifcfg->compat->dev))) {
+		/* ipv6 link only without RA for L3 setup */
+		ni_tristate_set(&ipv6->conf.enabled, l2v6);
+		ni_tristate_set(&ipv6->conf.accept_ra, 0);
+	}
+	ifcfg->l2only = TRUE;
+}
+
+static ni_bool_t
+ni_suse_ifcfg_netdev_set_master(ni_netdev_t *pdev, ni_netdev_t *mdev,
+		const char *type, const char *file)
+{
+	if (ni_string_empty(pdev->link.masterdev.name))
+		return ni_netdev_ref_set_ifname(&pdev->link.masterdev, mdev->name);
+
+	if (ni_string_eq(pdev->link.masterdev.name, mdev->name)) {
+		ni_warn("ifcfg-%s: ignoring duplicate '%s' %s port '%s'",
+				file, mdev->name, type, pdev->name);
+		return TRUE;
+	}
+
+	/*
+	 * The ifcfg device hierarchy _is_ broken.
+	 *
+	 * As we cannot judge which config is correct and which not,
+	 * we keep the already assigned interface intact and let
+	 * further layers decide how to handle this condition.
+	 */
+	ni_error("ifcfg-%s: cannot add %s port '%s' to '%s', already in '%s'",
+			file, type, pdev->name, mdev->name,
+			pdev->link.masterdev.name);
+	return FALSE;
+}
+
+static ni_suse_ifcfg_t *
+ni_suse_ifcfg_add_l2_port(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *mcfg,
+		const char *file, const char *type, const char *port, ni_bool_t l2v6)
+{
+	ni_suse_ifcfg_t *pcfg;
+	ni_netdev_t *mdev;
+
+	mdev = mcfg->compat->dev;
+	if (!ni_netdev_name_is_valid(port) || ni_string_eq(mdev->name, port)) {
+		ni_error("ifcfg-%s: rejecting invalid '%s' %s port name '%s'",
+				mdev->name, file, type, port);
+		return NULL;
+	}
+
+	if (!(pcfg = ni_suse_ifcfg_find_by_ifname(ifcfgs, port))) {
+		pcfg = ni_suse_ifcfg_new_missing(mcfg, port);
+		if (!ni_suse_ifcfg_array_append(ifcfgs, pcfg)) {
+			ni_suse_ifcfg_free(pcfg);
+			ni_error("ifcfg-%s: failed to add %s port '%s' to '%s'",
+					file, type, port, mdev->name);
+			return NULL;
+		}
+		ni_suse_ifcfg_set_hotplug(pcfg);
+	}
+	ni_suse_ifcfg_set_l2_only(pcfg, l2v6);
+
+	if (ni_suse_ifcfg_netdev_set_master(pcfg->compat->dev, mdev, type, file))
+		return pcfg;
+
+	pcfg->broken = TRUE;
+	return NULL;
+}
+
+static ni_suse_ifcfg_t *
+ni_suse_ifcfg_add_lower(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg,
+		const char *lower, const char *info)
+{
+	ni_netdev_t *dev = ifcfg->compat->dev;
+	ni_suse_ifcfg_t *cfg;
+
+	if (!ni_netdev_name_is_valid(lower) || ni_string_eq(dev->name, lower)) {
+		ni_error("ifcfg-%s: rejecting invalid %s '%s' of '%s'",
+				dev->name, info ?: "lower interface",
+				lower, dev->name);
+		return NULL;
+	}
+
+	if (!(cfg = ni_suse_ifcfg_find_by_ifname(ifcfgs, lower))) {
+		cfg = ni_suse_ifcfg_new_missing(ifcfg, lower);
+		if (!ni_suse_ifcfg_array_append(ifcfgs, cfg)) {
+			ni_suse_ifcfg_free(cfg);
+			ni_error("ifcfg-%s: failed to add missing %s '%s' for '%s",
+					dev->name, info ?: "lower interface",
+					lower, dev->name);
+			return NULL;
+		}
+		ni_warn("ifcfg-%s: generated missing %s '%s' config for '%s'",
+			dev->name, info ?: "lower interface",
+			lower, dev->name);
+
+		/* Inherit from depending somehow? */
+		ni_suse_ifcfg_set_hotplug(cfg);
+	}
+	return cfg;
+}
+
+static ni_suse_ifcfg_t *
+ni_suse_ifcfg_find_by_ifname(ni_suse_ifcfg_array_t *ifcfgs, const char *ifname)
+{
+	ni_suse_ifcfg_t *ifcfg;
+	ni_netdev_t *dev;
+	unsigned int i;
+
+	if (!ifcfgs || !ifname)
+		return NULL;
+
+	for (i = 0; i < ifcfgs->count; ++i) {
+		ifcfg = ifcfgs->data[i];
+		dev = ifcfg->compat->dev;
+
+		if (ni_string_eq(dev->name, ifname))
+			return ifcfg;
+	}
+	return NULL;
+}
+
+static unsigned int
+ni_suse_ifcfg_process_indexed(ni_suse_ifcfg_array_t *ifcfgs,
+		ni_suse_ifcfg_t *ifcfg, const char *prefix,
+		ifcfg_process_fn_t process)
+{
+	const ni_var_t *var;
+	unsigned int cnt, i;
+	size_t pfxlen;
+
+	if (!ifcfgs || !ifcfg || !ifcfg->config || !process)
+		return 0;
+
+	pfxlen = ni_string_len(prefix);
+	for (cnt = 0, i = 0; i < ifcfg->config->vars.count; ++i) {
+		var = &ifcfg->config->vars.data[i];
+
+		if (!var->value || strncmp(var->name, prefix, pfxlen))
+			continue;
+
+		if (process(ifcfgs, ifcfg, var->value, var->name, var->name + pfxlen))
+			cnt++;
+	}
+	return cnt;
+}
+
+static ni_define_ptr_array_init(ni_suse_ifcfg);
+static ni_define_ptr_array_destroy(ni_suse_ifcfg);
+static ni_define_ptr_array_realloc(ni_suse_ifcfg, NI_SUSE_IFCFG_ARRAY_CHUNK);
+static ni_define_ptr_array_append(ni_suse_ifcfg);

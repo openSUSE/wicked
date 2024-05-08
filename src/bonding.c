@@ -1,7 +1,21 @@
 /*
- * Routines for handling bonding devices
+ *	Routines for bonding interface handling
  *
- * Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2023 SUSE LLC
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -18,11 +32,6 @@
 #include "util_priv.h"
 #include "sysfs.h"
 #include "modprobe.h"
-
-/*
- * Slave array (re)allocation chunk
- */
-#define NI_BONDING_SLAVE_ARRAY_CHUNK		4
 
 
 /*
@@ -135,19 +144,19 @@ static const ni_intmap_t	__map_user_carrier_detect[] = {
 };
 
 /*
- * Bonding slave state and mii_status maps
+ * Bonding port state and mii_status maps
  */
-static const ni_intmap_t	ni_bonding_slave_state_map[] = {
-	{ "active",		NI_BOND_SLAVE_STATE_ACTIVE	},
-	{ "backup",		NI_BOND_SLAVE_STATE_BACKUP	},
+static const ni_intmap_t	ni_bonding_port_state_map[] = {
+	{ "active",		NI_BOND_PORT_STATE_ACTIVE	},
+	{ "backup",		NI_BOND_PORT_STATE_BACKUP	},
 
 	{ NULL,			-1U				}
 };
-static const ni_intmap_t	ni_bonding_slave_mii_status_map[] = {
-	{ "up",			NI_BOND_SLAVE_LINK_UP		},
-	{ "fail",		NI_BOND_SLAVE_LINK_FAIL		},
-	{ "down",		NI_BOND_SLAVE_LINK_DOWN		},
-	{ "back",		NI_BOND_SLAVE_LINK_BACK		},
+static const ni_intmap_t	ni_bonding_port_mii_status_map[] = {
+	{ "up",			NI_BOND_PORT_LINK_UP		},
+	{ "fail",		NI_BOND_PORT_LINK_FAIL		},
+	{ "down",		NI_BOND_PORT_LINK_DOWN		},
+	{ "back",		NI_BOND_PORT_LINK_BACK		},
 
 	{ NULL,			-1U				}
 };
@@ -195,7 +204,6 @@ __ni_bonding_clear(ni_bonding_t *bonding)
 {
 	ni_netdev_ref_destroy(&bonding->primary_slave);
 	ni_netdev_ref_destroy(&bonding->active_slave);
-	ni_bonding_slave_array_destroy(&bonding->slaves);
 	ni_string_array_destroy(&bonding->arpmon.targets);
 	memset(bonding, 0, sizeof(*bonding));
 
@@ -220,7 +228,6 @@ ni_bonding_t *
 ni_bonding_clone(const ni_bonding_t *orig)
 {
 	ni_bonding_t *bond;
-	unsigned int i;
 
 	if (!orig || !(bond = ni_bonding_new()))
 		return NULL;
@@ -269,13 +276,6 @@ ni_bonding_clone(const ni_bonding_t *orig)
 	ni_netdev_ref_set(&bond->active_slave,  orig->active_slave.name,
 						orig->active_slave.index);
 
-	for (i = 0; i < orig->slaves.count; ++i) {
-		const ni_bonding_slave_t *o = orig->slaves.data[i];
-		ni_bonding_slave_t *s = ni_bonding_slave_new();
-		ni_netdev_ref_set(&s->device, o->device.name, o->device.index);
-		s->info = ni_bonding_slave_info_ref(o->info);
-		ni_bonding_slave_array_append(&bond->slaves, s);
-	}
 #undef C
 
 	return bond;
@@ -572,140 +572,6 @@ ni_bonding_is_valid_arp_ip_target(const char *target)
 }
 
 /*
- * Copy the slave names into the name array
- */
-void
-ni_bonding_get_slave_names(const ni_bonding_t *bonding, ni_string_array_t *array)
-{
-	unsigned int i;
-
-	if (!bonding || !array)
-		return;
-
-	ni_string_array_destroy(array);
-	for (i = 0; i < bonding->slaves.count; ++i) {
-		ni_bonding_slave_t *slave = bonding->slaves.data[i];
-
-		if (!slave || ni_string_empty(slave->device.name))
-			continue;
-
-		ni_string_array_append(array, slave->device.name);
-	}
-}
-
-/*
- * Report if the bond contains a slave device
- */
-ni_bool_t
-ni_bonding_has_slave(ni_bonding_t *bonding, const char *ifname)
-{
-	if (!bonding || ni_string_empty(ifname))
-		return FALSE;
-
-	return ni_bonding_slave_array_index_by_ifname(&bonding->slaves, ifname) != -1U;
-}
-
-/*
- * Add a slave device to the bond
- */
-ni_bonding_slave_t *
-ni_bonding_add_slave(ni_bonding_t *bonding, const char *ifname)
-{
-	ni_bonding_slave_t *slave;
-
-	if (!bonding || ni_string_empty(ifname))
-		return NULL;
-
-	if ((slave = ni_bonding_slave_new())) {
-
-		ni_netdev_ref_set_ifname(&slave->device, ifname);
-		if (ni_bonding_slave_array_append(&bonding->slaves, slave))
-			return slave;
-
-		ni_bonding_slave_free(slave);
-	}
-	return NULL;
-}
-
-ni_bonding_slave_t *
-ni_bonding_bind_slave(ni_bonding_t *bonding, const ni_netdev_ref_t *ref, const char *ifname)
-{
-	ni_bonding_slave_t *slave;
-
-	if (!bonding || !ref || !ref->index || ni_string_empty(ref->name)) {
-		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EVENTS,
-				"%s: bind of bonding slave %s[%u] skipped -- invalid args",
-				ifname, ref ? ref->name : NULL, ref ? ref->index : 0);
-		return NULL;
-	}
-
-	slave = ni_bonding_slave_array_get_by_ifindex(&bonding->slaves, ref->index);
-	if (slave) {
-		if (ni_string_eq(slave->device.name, ref->name)) {
-			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
-					"%s: bonding slave %s[%u] is up to date",
-					ifname, slave->device.name, slave->device.index);
-		} else {
-			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
-					"%s: rebind of bonding slave %s[%u] ifname to %s",
-					ifname, slave->device.name, slave->device.index, ref->name);
-
-			ni_netdev_ref_set_ifname(&slave->device, ref->name);
-		}
-		return slave;
-	}
-
-	slave = ni_bonding_slave_new();
-	if (slave) {
-		ni_netdev_ref_set(&slave->device, ref->name, ref->index);
-		if (ni_bonding_slave_array_append(&bonding->slaves, slave)) {
-			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
-					"%s: bound new bonding slave %s[%u]",
-					ifname, slave->device.name, slave->device.index);
-			return slave;
-		}
-
-		ni_bonding_slave_free(slave);
-	}
-
-	ni_error("%s: unable to bind new slave %s[%u]", ifname, ref->name, ref->index);
-	return NULL;
-}
-
-ni_bool_t
-ni_bonding_unbind_slave(ni_bonding_t *bonding, const ni_netdev_ref_t *ref, const char *ifname)
-{
-	const ni_bonding_slave_t *slave;
-	unsigned int pos;
-
-	if (!bonding || !ref || !ref->index) {
-		ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EVENTS,
-				"%s: unbind of bonding slave %s[%u] skipped -- invalid args",
-				ifname, ref ? ref->name : NULL, ref ? ref->index : 0);
-		return FALSE;
-	}
-
-	pos = ni_bonding_slave_array_index_by_ifindex(&bonding->slaves, ref->index);
-	if (pos != -1U) {
-		slave = ni_bonding_slave_array_get(&bonding->slaves, pos);
-
-		if (slave)
-			ref = &slave->device;
-
-		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
-				"%s: unbind of bonding slave %s[%u] by ifindex",
-				ifname, ref->name, ref->index);
-
-		return ni_bonding_slave_array_delete(&bonding->slaves, pos);
-	}
-
-	ni_debug_verbose(NI_LOG_DEBUG, NI_TRACE_EVENTS,
-			"%s: unbind of bonding slave %s[%u] skipped -- slave not found",
-			ifname, ref->name, ref->index);
-	return FALSE;
-}
-
-/*
  * Set the bonding mode, using the strings supported by the
  * module options
  */
@@ -951,15 +817,15 @@ ni_bonding_arp_validate_targets_to_type(const char *name)
 }
 
 const char *
-ni_bonding_slave_state_name(unsigned int mode)
+ni_bonding_port_state_name(unsigned int mode)
 {
-	return ni_format_uint_mapped(mode, ni_bonding_slave_state_map);
+	return ni_format_uint_mapped(mode, ni_bonding_port_state_map);
 }
 
 const char *
-ni_bonding_slave_mii_status_name(unsigned int mode)
+ni_bonding_port_mii_status_name(unsigned int mode)
 {
-	return ni_format_uint_mapped(mode, ni_bonding_slave_mii_status_map);
+	return ni_format_uint_mapped(mode, ni_bonding_port_mii_status_map);
 }
 
 /*
@@ -1193,16 +1059,10 @@ ni_bonding_parse_sysfs_attrs(const char *ifname, ni_bonding_t *bonding)
 		{ "lp_interval",	TRUE  },
 		{ NULL,			FALSE },
 	};
-	ni_string_array_t slave_names = NI_STRING_ARRAY_INIT;
 	char *attrval = NULL;
 	unsigned int i;
 
 	__ni_bonding_clear(bonding);
-	ni_sysfs_bonding_get_slaves(ifname, &slave_names);
-	for (i = 0; i < slave_names.count; ++i)
-		ni_bonding_add_slave(bonding, slave_names.data[i]);
-	ni_string_array_destroy(&slave_names);
-
 	for (i = 0; attrs[i].name; ++i) {
 		const char *attrname = attrs[i].name;
 		int rv;
@@ -1282,7 +1142,8 @@ ni_bonding_write_one_sysfs_attr(const char *ifname, const ni_bonding_t *bonding,
  * as well as in dependency of the bonding up/down state and slave count.
  */
 int
-ni_bonding_write_sysfs_attrs(const char *ifname, const ni_bonding_t *bonding, ni_bonding_t *current, ni_bool_t is_up, ni_bool_t has_slaves)
+ni_bonding_write_sysfs_attrs(const char *ifname, const ni_bonding_t *bonding,
+	ni_bonding_t *current, ni_bool_t is_up, ni_bool_t has_ports)
 {
 	/*
 	 * option		up/down	slaves		modes
@@ -1352,9 +1213,9 @@ ni_bonding_write_sysfs_attrs(const char *ifname, const ni_bonding_t *bonding, ni
 			continue;
 		if (attrs[i].bstate == 2 && !is_up)
 			continue;
-		if (attrs[i].slaves == 1 && has_slaves)
+		if (attrs[i].slaves == 1 && has_ports)
 			continue;
-		if (attrs[i].slaves == 2 && !has_slaves)
+		if (attrs[i].slaves == 2 && !has_ports)
 			continue;
 
 		if (attrs[i].islist) {
@@ -1627,8 +1488,30 @@ ni_bonding_set_option(ni_bonding_t *bond, const char *option, const char *value)
 	return FALSE;
 }
 
+/*
+ * Bonding port (link-request) configuration
+ */
+ni_bonding_port_config_t *
+ni_bonding_port_config_new(void)
+{
+	ni_bonding_port_config_t *conf;
+
+	if ((conf = malloc(sizeof(*conf))))
+		conf->queue_id = -1U;
+	return conf;
+}
+
 void
-ni_bonding_slave_info_reset(ni_bonding_slave_info_t *info)
+ni_bonding_port_config_free(ni_bonding_port_config_t *conf)
+{
+	free(conf);
+}
+
+/*
+ * Bonding port interface info properties
+ */
+void
+ni_bonding_port_info_reset(ni_bonding_port_info_t *info)
 {
 	info->state = -1U;
 	info->mii_status = -1U;
@@ -1637,211 +1520,19 @@ ni_bonding_slave_info_reset(ni_bonding_slave_info_t *info)
 	ni_link_address_init(&info->perm_hwaddr);
 }
 
-ni_bonding_slave_info_t *
-ni_bonding_slave_info_new(void)
+ni_bonding_port_info_t *
+ni_bonding_port_info_new(void)
 {
-	ni_bonding_slave_info_t *info;
+	ni_bonding_port_info_t *info;
 
-	info = xcalloc(1, sizeof(*info));
-	info->refcount = 1;
-	ni_bonding_slave_info_reset(info);
-	return info;
-}
-
-ni_bonding_slave_info_t *
-ni_bonding_slave_info_ref(ni_bonding_slave_info_t *info)
-{
-	if (info) {
-		ni_assert(info->refcount);
-		info->refcount++;
-	}
+	if ((info = malloc(sizeof(*info))))
+		ni_bonding_port_info_reset(info);
 	return info;
 }
 
 void
-ni_bonding_slave_info_free(ni_bonding_slave_info_t *info)
+ni_bonding_port_info_free(ni_bonding_port_info_t *info)
 {
-	if (info) {
-		ni_assert(info->refcount);
-		info->refcount--;
-
-		if (info->refcount == 0)
-			free(info);
-	}
-}
-
-ni_bonding_slave_t *
-ni_bonding_slave_new(void)
-{
-	ni_bonding_slave_t *slave;
-
-	slave = xcalloc(1, sizeof(*slave));
-	return slave;
-}
-
-void
-ni_bonding_slave_free(ni_bonding_slave_t *slave)
-{
-	if (slave) {
-		ni_netdev_ref_destroy(&slave->device);
-		ni_bonding_slave_info_free(slave->info);
-		free(slave);
-	}
-}
-
-ni_bonding_slave_info_t *
-ni_bonding_slave_get_info(ni_bonding_slave_t *slave)
-{
-	if (slave) {
-		if (!slave->info)
-			slave->info = ni_bonding_slave_info_new();
-		return slave->info;
-	}
-	return NULL;
-}
-
-void
-ni_bonding_slave_set_info(ni_bonding_slave_t *slave, ni_bonding_slave_info_t *info)
-{
-	if (slave) {
-		ni_bonding_slave_info_t *temp;
-
-		temp = ni_bonding_slave_info_ref(info);
-		ni_bonding_slave_info_free(slave->info);
-		slave->info = temp;
-	}
-}
-
-static inline void
-ni_bonding_slave_array_init(ni_bonding_slave_array_t *array)
-{
-	memset(array, 0, sizeof(*array));
-}
-
-static void
-ni_bonding_slave_array_realloc(ni_bonding_slave_array_t *array, unsigned int newsize)
-{
-	ni_bonding_slave_t **newdata;
-	unsigned int i;
-
-	newsize += NI_BONDING_SLAVE_ARRAY_CHUNK;
-	newdata = xrealloc(array->data, newsize * sizeof(ni_bonding_slave_t *));
-	array->data = newdata;
-	for (i = array->count; i < newsize; ++i)
-		array->data[i] = NULL;
-}
-
-ni_bool_t
-ni_bonding_slave_array_append(ni_bonding_slave_array_t *array, ni_bonding_slave_t *slave)
-{
-	if (!array || !slave)
-		return FALSE;
-
-	if ((array->count % NI_BONDING_SLAVE_ARRAY_CHUNK) == 0)
-		ni_bonding_slave_array_realloc(array, array->count);
-
-	array->data[array->count++] = slave;
-	return TRUE;
-}
-
-ni_bonding_slave_t *
-ni_bonding_slave_array_remove(ni_bonding_slave_array_t *array, unsigned int index)
-{
-	ni_bonding_slave_t *slave;
-
-	if (!array || index >= array->count)
-		return NULL;
-
-	slave = array->data[index];
-	array->count--;
-	if (index < array->count) {
-		memmove(&array->data[index], &array->data[index + 1],
-			(array->count - index) * sizeof(slave));
-	}
-	array->data[array->count] = NULL;
-	return slave;
-}
-
-ni_bool_t
-ni_bonding_slave_array_delete(ni_bonding_slave_array_t *array, unsigned int index)
-{
-	ni_bonding_slave_t *slave;
-
-	if (!(slave = ni_bonding_slave_array_remove(array, index)))
-		return FALSE;
-
-	ni_bonding_slave_free(slave);
-	return TRUE;
-}
-
-void
-ni_bonding_slave_array_destroy(ni_bonding_slave_array_t *array)
-{
-	if (array) {
-		while (array->count > 0)
-			ni_bonding_slave_free(array->data[--array->count]);
-		free(array->data);
-
-		ni_bonding_slave_array_init(array);
-	}
-}
-
-unsigned int
-ni_bonding_slave_array_index_by_ifname(ni_bonding_slave_array_t *array, const char *ifname)
-{
-	unsigned int i;
-
-	if (!array || !ifname)
-		return -1U;
-
-	for (i = 0; i < array->count; ++i) {
-		ni_bonding_slave_t *slave = array->data[i];
-
-		if (slave && ni_string_eq(ifname, slave->device.name))
-			return i;
-	}
-	return -1U;
-}
-
-unsigned int
-ni_bonding_slave_array_index_by_ifindex(ni_bonding_slave_array_t *array, unsigned int ifindex)
-{
-	unsigned int i;
-
-	if (!array || !ifindex)
-		return -1U;
-
-	for (i = 0; i < array->count; ++i) {
-		ni_bonding_slave_t *slave = array->data[i];
-
-		if (slave && ifindex == slave->device.index)
-			return i;
-	}
-	return -1U;
-}
-
-ni_bonding_slave_t *
-ni_bonding_slave_array_get(ni_bonding_slave_array_t *array, unsigned int index)
-{
-	if (!array || index >= array->count)
-		return NULL;
-
-	return array->data[index];
-}
-
-ni_bonding_slave_t *
-ni_bonding_slave_array_get_by_ifname(ni_bonding_slave_array_t *array, const char *ifname)
-{
-	unsigned int index = ni_bonding_slave_array_index_by_ifname(array, ifname);
-
-	return ni_bonding_slave_array_get(array, index);
-}
-
-ni_bonding_slave_t *
-ni_bonding_slave_array_get_by_ifindex(ni_bonding_slave_array_t *array, unsigned int ifindex)
-{
-	unsigned int index = ni_bonding_slave_array_index_by_ifindex(array, ifindex);
-
-	return ni_bonding_slave_array_get(array, index);
+	free(info);
 }
 

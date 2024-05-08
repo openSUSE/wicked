@@ -34,7 +34,7 @@ typedef enum ni_fsm_state {
 	NI_FSM_STATE_ADDRCONF_UP,
 	NI_FSM_STATE_NETWORK_UP,
 
-	__NI_FSM_STATE_MAX
+	NI_FSM_STATE_MAX
 } ni_fsm_state_t;
 
 typedef enum ni_config_origin_prio {
@@ -220,7 +220,6 @@ struct ni_ifworker {
 	ni_ifworker_t * 	lowerdev;
 
 	ni_ifworker_array_t	children;
-	ni_ifworker_array_t	lowerdev_for;
 };
 
 /*
@@ -285,6 +284,7 @@ typedef struct ni_ifmatcher {
 				allow_persistent   : 1,
 				ignore_startmode   : 1,
 				skip_active        : 1,
+				ifreload           : 1,
 				ifdown             : 1;
 } ni_ifmatcher_t;
 
@@ -342,8 +342,10 @@ extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, n
 extern unsigned int		ni_fsm_mark_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_ifmarker_t *);
 extern unsigned int		ni_fsm_start_matching_workers(ni_fsm_t *, ni_ifworker_array_t *);
 extern void			ni_fsm_reset_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_uint_range_t *, ni_bool_t);
-extern void			ni_fsm_print_config_hierarchy(const ni_fsm_t *);
-extern void			ni_fsm_print_system_hierarchy(const ni_fsm_t *);
+extern void			ni_fsm_print_config_hierarchy(const ni_fsm_t *,
+						const ni_ifworker_array_t *, ni_log_fn_t *);
+extern void			ni_fsm_print_system_hierarchy(const ni_fsm_t *,
+						const ni_ifworker_array_t *, ni_log_fn_t *);
 extern int			ni_fsm_build_hierarchy(ni_fsm_t *, ni_bool_t);
 extern ni_ifworker_t *		ni_fsm_worker_identify(ni_fsm_t *, const xml_node_t *, const char *,
 							ni_ifworker_type_t *, const char **);
@@ -360,13 +362,12 @@ extern ni_ifworker_t *		ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *o
 extern ni_ifworker_t *		ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path);
 extern ni_ifworker_t *		ni_fsm_ifworker_new(ni_fsm_t *, ni_ifworker_type_t, const char *);
 extern void			ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w);
-extern void			ni_fsm_pull_in_children(ni_ifworker_array_t *, ni_fsm_t *);
 extern void			ni_fsm_wait_tentative_addrs(ni_fsm_t *);
 
 extern ni_ifworker_type_t	ni_ifworker_type_from_string(const char *);
 extern const char *		ni_ifworker_type_to_string(ni_ifworker_type_t);
 extern ni_ifworker_type_t	ni_ifworker_type_from_object_path(const char *, const char **);
-extern ni_bool_t		ni_ifworker_state_in_range(const ni_uint_range_t *, const unsigned int);
+extern ni_bool_t		ni_ifworker_state_in_range(const ni_uint_range_t *, const ni_fsm_state_t);
 extern const char *		ni_ifworker_state_name(ni_fsm_state_t state);
 extern ni_bool_t		ni_ifworker_state_from_name(const char *, unsigned int *);
 extern ni_fsm_require_t *	ni_ifworker_reachability_check_new(xml_node_t *);
@@ -400,7 +401,6 @@ extern ni_ifworker_array_t *	ni_ifworker_array_clone(ni_ifworker_array_t *);
 extern void			ni_ifworker_array_append(ni_ifworker_array_t *, ni_ifworker_t *);
 extern ni_bool_t		ni_ifworker_array_remove_index(ni_ifworker_array_t *, unsigned int);
 extern ni_bool_t		ni_ifworker_array_remove(ni_ifworker_array_t *, ni_ifworker_t *);
-extern void			ni_ifworker_array_remove_with_children(ni_ifworker_array_t *, ni_ifworker_t *);
 extern int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
 extern void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 
@@ -511,7 +511,7 @@ static inline ni_bool_t
 ni_ifworker_is_valid_state(ni_fsm_state_t state)
 {
 	return  state > NI_FSM_STATE_NONE &&
-		state < __NI_FSM_STATE_MAX;
+		state < NI_FSM_STATE_MAX;
 }
 
 static inline ni_bool_t

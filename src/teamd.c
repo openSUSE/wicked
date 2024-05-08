@@ -1,7 +1,7 @@
 /*
  *	Interfacing with teamd through dbus interface
  *
- *	Copyright (C) 2015 SUSE Linux GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2015-2023 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -13,14 +13,8 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- *	Boston, MA 02110-1301 USA.
- *
- *	Authors:
- *		Pawel Wieczorkiewicz <pwieczorkiewicz@suse.de>
- *		Marius Tomaschewski <mt@suse.de>
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -69,6 +63,7 @@
 #define NI_TEAMD_CALL_PORT_ADD			"PortAdd"
 #define NI_TEAMD_CALL_PORT_REMOVE		"PortRemove"
 #define NI_TEAMD_CALL_PORT_CONFIG_UPDATE	"PortConfigUpdate"
+#define NI_TEAMD_CALL_PORT_CONFIG_DUMP		"PortConfigDump"
 
 
 typedef struct ni_teamd_client_ops {
@@ -80,6 +75,7 @@ typedef struct ni_teamd_client_ops {
 	int	(*ctl_port_add)(ni_teamd_client_t *, const char *);
 	int	(*ctl_port_remove)(ni_teamd_client_t *, const char *);
 	int	(*ctl_port_config_update)(ni_teamd_client_t *, const char *, const char *);
+	int	(*ctl_port_config_dump)(ni_teamd_client_t *, const char *, char **);
 } ni_teamd_client_ops_t;
 
 struct ni_teamd_client {
@@ -329,7 +325,7 @@ ni_teamd_dbus_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_na
 	int rv = 0;
 
 	if (ni_string_empty(port_name))
-		return FALSE;
+		return -NI_ERROR_INVALID_ARGS;
 
 	dbus_error_init(&error);
 	call = ni_dbus_object_call_new(tdc->proxy, NI_TEAMD_CALL_PORT_CONFIG_UPDATE, 0);
@@ -347,6 +343,27 @@ ni_teamd_dbus_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_na
 				ni_dbus_object_get_path(tdc->proxy), port_name, ni_strerror(rv));
 	}
 
+	return rv;
+}
+
+static int
+ni_teamd_dbus_ctl_port_config_dump(ni_teamd_client_t *tdc, const char *port_name, char **result)
+{
+	int rv = 0;
+
+	if (ni_string_empty(port_name))
+		return -NI_ERROR_INVALID_ARGS;
+
+	ni_string_free(result);
+	rv = ni_dbus_object_call_simple(tdc->proxy,
+		NI_TEAMD_INTERFACE, NI_TEAMD_CALL_PORT_CONFIG_DUMP,
+		DBUS_TYPE_STRING, &port_name,
+		DBUS_TYPE_STRING, result);
+
+	if (rv < 0) {
+		ni_debug_application("Call to %s."NI_TEAMD_CALL_PORT_CONFIG_DUMP"(%s) failed: %s",
+				ni_dbus_object_get_path(tdc->proxy), port_name, ni_strerror(rv));
+	}
 	return rv;
 }
 
@@ -408,7 +425,7 @@ ni_teamd_unix_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t actual, char **r
 	int rv;
 
 	if (!result)
-		return -1;
+		return -NI_ERROR_INVALID_ARGS;
 
 	ni_buffer_init_dynamic(&buf, 1024);
 	if (!(pi = ni_process_new(tdc->cmd)))
@@ -421,7 +438,7 @@ ni_teamd_unix_ctl_config_dump(ni_teamd_client_t *tdc, ni_bool_t actual, char **r
 
 	rv = ni_process_run_and_capture_output(pi, &buf);
 	ni_process_free(pi);
-	if (rv) {
+	if (rv != NI_PROCESS_SUCCESS) {
 		ni_error("%s: unable to dump team config", tdc->instance);
 		goto failure;
 	}
@@ -456,7 +473,7 @@ ni_teamd_unix_ctl_port_add(ni_teamd_client_t *tdc, const char *port_name)
 
 	rv = ni_process_run_and_wait(pi);
 	ni_process_free(pi);
-	if (rv) {
+	if (rv != NI_PROCESS_SUCCESS) {
 		ni_error("%s: unable to add team port %s", tdc->instance, port_name);
 		return -1;
 	}
@@ -481,7 +498,7 @@ ni_teamd_unix_ctl_port_remove(ni_teamd_client_t *tdc, const char *port_name)
 
 	rv = ni_process_run_and_wait(pi);
 	ni_process_free(pi);
-	if (rv) {
+	if (rv != NI_PROCESS_SUCCESS) {
 		ni_error("%s: unable to remove team port %s", tdc->instance, port_name);
 		return -1;
 	}
@@ -508,11 +525,49 @@ ni_teamd_unix_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_na
 
 	rv = ni_process_run_and_wait(pi);
 	ni_process_free(pi);
-	if (rv) {
+	if (rv != NI_PROCESS_SUCCESS) {
 		ni_error("%s: unable to update team port %s config", tdc->instance, port_name);
 		return -1;
 	}
 	return 0;
+}
+
+int
+ni_teamd_unix_ctl_port_config_dump(ni_teamd_client_t *tdc, const char *port_name, char **result)
+{
+	ni_process_t *pi;
+	ni_buffer_t buf;
+	int rv;
+
+	if (!tdc || ni_string_empty(port_name) || !result)
+		return -1;
+
+	ni_buffer_init_dynamic(&buf, 1024);
+	if (!(pi = ni_process_new(tdc->cmd)))
+		goto failure;
+
+	ni_string_array_append(&pi->argv, "port");
+	ni_string_array_append(&pi->argv, "config");
+	ni_string_array_append(&pi->argv, "dump");
+	ni_string_array_append(&pi->argv, port_name);
+
+	rv = ni_process_run_and_capture_output(pi, &buf);
+	ni_process_free(pi);
+	if (rv != NI_PROCESS_SUCCESS) {
+		ni_error("%s: unable to update team port %s config", tdc->instance, port_name);
+		goto failure;
+	}
+
+	ni_buffer_put(&buf, "\0", 1);
+	ni_string_free(result);
+	*result = (char *)buf.base;
+	buf.base = NULL;
+	ni_buffer_destroy(&buf);
+	return 0;
+
+failure:
+	ni_buffer_destroy(&buf);
+	return -1;
 }
 
 /*
@@ -527,6 +582,7 @@ static const ni_teamd_client_ops_t	teamd_dbus_ops = {
 	.ctl_port_add		= ni_teamd_dbus_ctl_port_add,
 	.ctl_port_remove	= ni_teamd_dbus_ctl_port_remove,
 	.ctl_port_config_update	= ni_teamd_dbus_ctl_port_config_update,
+	.ctl_port_config_dump	= ni_teamd_dbus_ctl_port_config_dump,
 };
 
 static const ni_teamd_client_ops_t	teamd_unix_ops = {
@@ -535,6 +591,7 @@ static const ni_teamd_client_ops_t	teamd_unix_ops = {
 	.ctl_port_add		= ni_teamd_unix_ctl_port_add,
 	.ctl_port_remove	= ni_teamd_unix_ctl_port_remove,
 	.ctl_port_config_update	= ni_teamd_unix_ctl_port_config_update,
+	.ctl_port_config_dump	= ni_teamd_unix_ctl_port_config_dump,
 };
 
 ni_bool_t
@@ -714,6 +771,14 @@ ni_teamd_ctl_port_config_update(ni_teamd_client_t *tdc, const char *port_name, c
 	return tdc->ops.ctl_port_config_update(tdc, port_name, port_conf);
 }
 
+int
+ni_teamd_ctl_port_config_dump(ni_teamd_client_t *tdc, const char *port_name, char **result)
+{
+	if (!tdc || !tdc->ops.ctl_port_config_dump)
+		return -1;
+	return tdc->ops.ctl_port_config_dump(tdc, port_name, result);
+}
+
 static ni_json_t *
 ni_teamd_port_config_json(const ni_team_port_config_t *config)
 {
@@ -792,9 +857,70 @@ failure:
 	return ret;
 }
 
+/*
+ * teamd port config discovery
+ */
+static inline int
+ni_teamd_port_config_parse_json(ni_team_port_config_t *conf, ni_json_t *object)
+{
+	int64_t i64;
+	ni_bool_t b;
+
+	if (!conf)
+		return -NI_ERROR_INVALID_ARGS;
+
+	if (!ni_json_is_object(object))
+		return 1; /* no/empty/null config from teamd */
+
+	if (ni_json_int64_get(ni_json_object_get_value(object, "queue_id"), &i64))
+		conf->queue_id = i64;
+
+	if (ni_json_int64_get(ni_json_object_get_value(object, "prio"), &i64))
+		conf->ab.prio = i64;
+	if (ni_json_bool_get(ni_json_object_get_value(object, "sticky"), &b))
+		conf->ab.sticky = b;
+
+	if (ni_json_int64_get(ni_json_object_get_value(object, "lacp_prio"), &i64))
+		conf->lacp.prio = i64;
+	if (ni_json_int64_get(ni_json_object_get_value(object, "lacp_key"), &i64))
+		conf->lacp.key = i64;
+
+	return 0;
+}
+
+extern int
+ni_teamd_port_config_discover(ni_team_port_config_t *conf,
+		const char *team, const char *name)
+{
+	ni_teamd_client_t *tdc = NULL;
+	ni_json_t *json = NULL;
+	char *jstr = NULL;
+	int rv = -1;
+
+	if (!conf || ni_string_empty(team) || ni_string_empty(name))
+		return -NI_ERROR_INVALID_ARGS;
+
+	if (!(tdc = ni_teamd_client_open(team)))
+		goto cleanup;
+
+	if (ni_teamd_ctl_port_config_dump(tdc, name, &jstr) < 0)
+		goto cleanup;
+
+	if (!(json = ni_json_parse_string(jstr)))
+		goto cleanup;
+
+	rv = ni_teamd_port_config_parse_json(conf, json);
+
+cleanup:
+	ni_teamd_client_free(tdc);
+	ni_string_free(&jstr);
+	ni_json_free(json);
+	return rv;
+}
 
 /*
- * teamd discovery
+ * team interface config discovery
+ * note: it's config, not state
  */
 static int
 ni_teamd_discover_runner(ni_team_t *team, ni_json_t *conf)
@@ -1048,76 +1174,6 @@ failure:
 	return -1;
 }
 
-static int
-ni_teamd_discover_port_details(ni_team_port_t *port, ni_json_t *details)
-{
-	int64_t i64;
-	ni_bool_t b;
-
-	if (!ni_json_is_object(details))
-		return 1;
-
-	if (ni_json_int64_get(ni_json_object_get_value(details, "queue_id"), &i64))
-		port->config.queue_id = i64;
-
-	if (ni_json_int64_get(ni_json_object_get_value(details, "prio"), &i64))
-		port->config.ab.prio = i64;
-	if (ni_json_bool_get(ni_json_object_get_value(details, "sticky"), &b))
-		port->config.ab.sticky = b;
-
-	if (ni_json_int64_get(ni_json_object_get_value(details, "lacp_prio"), &i64))
-		port->config.lacp.prio = i64;
-	if (ni_json_int64_get(ni_json_object_get_value(details, "lacp_key"), &i64))
-		port->config.lacp.key = i64;
-
-	return 0;
-}
-
-static int
-ni_teamd_discover_ports(ni_team_t *team, ni_json_t *conf)
-{
-	ni_team_port_t *port;
-	ni_json_t *ports;
-	unsigned int i, count;
-
-	if (!team || !conf)
-		return -1;
-
-	if (!(ports = ni_json_object_get_value(conf, "ports")))
-		return 0;
-
-	if (!ni_json_is_object(ports))
-		return 1;
-
-	count = ni_json_object_entries(ports);
-	for (i = 0; i < count; ++i) {
-		ni_json_pair_t *pair;
-		ni_json_t *details;
-		const char *name;
-
-		if (!(pair = ni_json_object_get_pair_at(ports, i)))
-			continue;
-
-		name = ni_json_pair_get_name(pair);
-		if (ni_string_empty(name))
-			continue;
-		port = ni_team_port_new();
-		ni_netdev_ref_set_ifname(&port->device, name);
-
-		details = ni_json_pair_get_value(pair);
-		if (ni_teamd_discover_port_details(port, details) < 0) {
-			ni_team_port_free(port);
-			continue;
-		}
-
-		if (!ni_team_port_array_append(&team->ports, port)) {
-			ni_team_port_free(port);
-			continue;
-		}
-	}
-	return 0;
-}
-
 static void
 ni_teamd_discover_notify_peers(ni_team_t *team, ni_json_t *conf)
 {
@@ -1190,9 +1246,6 @@ ni_teamd_discover(ni_netdev_t *dev)
 	if (ni_teamd_discover_link_watch(team, conf) < 0)
 		goto failure;
 
-	if (ni_teamd_discover_ports(team, conf) < 0)
-		goto failure;
-
 	ni_netdev_set_team(dev, team);
 	ni_teamd_client_free(tdc);
 	ni_json_free(conf);
@@ -1204,6 +1257,155 @@ failure:
 	ni_team_free(team);
 	ni_teamd_client_free(tdc);
 	ni_string_free(&val);
+	return -1;
+}
+
+/*
+ * Discover port info from teamd state
+ *
+ * The teamdctl (dbus, unix) API does not provide separate
+ * PortStateDump (port state dump), but only a "StateDump"
+ * (state dump) containing both, teamd interface state and
+ * state for all ports.
+ *
+ * Currently, we discover only the runner and the overall
+ * link watches up/down summary state.
+ */
+static ni_bool_t
+ni_teamd_state_get_runner_type(ni_json_t *state, ni_team_runner_type_t *type)
+{
+	ni_json_t *setup = ni_json_object_get_value(state, "setup");
+	ni_json_t *runner = ni_json_object_get_value(setup, "runner_name");
+	char *name = NULL;
+	ni_bool_t ret;
+
+	ni_json_string_get(runner, &name);
+	ret = ni_team_runner_name_to_type(name, type);
+	ni_string_free(&name);
+	return ret;
+}
+
+static ni_json_t *
+ni_teamd_state_get_port_info(ni_json_t *state, const char *name)
+{
+	ni_json_t *ports = ni_json_object_get_value(state, "ports");
+
+	return ni_json_object_get_value(ports, name);
+}
+
+static int
+ni_teamd_state_port_runner_lacp_discover(ni_team_port_info_t *info, ni_json_t *runner)
+{
+	ni_team_port_runner_lacp_info_t *lacp = &info->runner.lacp;
+	ni_json_t *aggregator;
+	int64_t i64;
+
+	/*
+	 * See "3.7 Configuring LACP for 802.3ad mode in a more secure way"
+	 * described in linux-<version>/Documentation/networking/bonding.rst.
+	 * Take care to not expose lacp system mac,key,prio "secrets", which
+	 * may be chosen randomly or administratively.
+	 * While a teamdctl "state dump" command contains all (json) details,
+	 * the "state view" command shows aggregator id,selected and state
+	 * info only, and omits the key and actor/partner lacpdu info too.
+	 */
+
+	/*
+	 * The aggregator id is an uint16_t (in bond rtnetlink), just json
+	 * has only one number type (parsed by _our_ json API to either an
+	 * int64_t or double C type).
+	 */
+	aggregator = ni_json_object_get_value(runner, "aggregator");
+	if (ni_json_int64_get(ni_json_object_get_value(aggregator, "id"), &i64))
+		lacp->aggregator.id = i64 >= 0 ? i64 : 0;
+
+	ni_json_bool_get(ni_json_object_get_value(runner, "selected"), &lacp->selected);
+	ni_json_string_get(ni_json_object_get_value(runner, "state"), &lacp->state);
+
+	return 0;
+}
+
+static int
+ni_teamd_state_port_runner_discover(ni_team_port_info_t *info, ni_json_t *port)
+{
+	ni_json_t *runner;
+
+	switch (info->runner.type) {
+	case NI_TEAM_RUNNER_LACP:
+		runner = ni_json_object_get_value(port, "runner");
+		ni_teamd_state_port_runner_lacp_discover(info, runner);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int
+ni_teamd_state_port_watches_discover(ni_team_port_info_t *info, ni_json_t *port)
+{
+	ni_json_t *watches;
+
+	watches = ni_json_object_get_value(port, "link_watches");
+
+	/*
+	 * Currently, we don't show link_watch instance info details,
+	 * but just their summary / resulting "up" state only.
+	 */
+	ni_json_bool_get(ni_json_object_get_value(watches, "up"), &info->watches.up);
+
+	return 0;
+}
+
+static int
+ni_teamd_state_port_info_discover(ni_team_port_info_t *info, const char *name, ni_json_t *state)
+{
+	ni_json_t *port;
+
+	if ((port = ni_teamd_state_get_port_info(state, name))) {
+		if (ni_teamd_state_get_runner_type(state, &info->runner.type))
+			ni_teamd_state_port_runner_discover(info, port);
+		ni_teamd_state_port_watches_discover(info, port);
+	}
+	return 0;
+}
+
+extern int
+ni_teamd_port_info_discover(ni_netdev_port_info_t *info, const char *team, const char *name)
+{
+	ni_teamd_client_t *tdc = NULL;
+	ni_json_t *state = NULL;
+	char *jstr = NULL;
+
+	if (!info || ni_string_empty(team) || ni_string_empty(name))
+		return -1;
+
+	if (info->type != NI_IFTYPE_TEAM || !info->team)
+		return -1;
+
+	if (!(tdc = ni_teamd_client_open(team)))
+		goto failure;
+
+	if (ni_teamd_ctl_state_dump(tdc, &jstr) < 0)
+		goto failure;
+
+	if (!(state = ni_json_parse_string(jstr)))
+		goto failure;
+
+	ni_string_free(&jstr);
+
+	if (ni_teamd_state_port_info_discover(info->team, name, state) < 0)
+		goto failure;
+
+	ni_json_free(state);
+	ni_teamd_client_free(tdc);
+	return 0;
+
+failure:
+	ni_json_free(state);
+	ni_string_free(&jstr);
+	ni_teamd_client_free(tdc);
 	return -1;
 }
 

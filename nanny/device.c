@@ -166,8 +166,8 @@ ni_factory_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
 	ni_assert(fsm && w);
 	memset(&ifmarker, 0, sizeof(ifmarker));
 
-	ifmarker.target_range.min = __NI_FSM_STATE_MAX - 1;
-	ifmarker.target_range.max = __NI_FSM_STATE_MAX;
+	ifmarker.target_range.min = NI_FSM_STATE_MAX - 1;
+	ifmarker.target_range.max = NI_FSM_STATE_MAX;
 	ifmarker.persistent = w->control.persistent;
 
 	ni_ifworker_array_append(&ifmarked, w);
@@ -350,7 +350,7 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 				ni_security_id_set_attr(&security_id, "essid", essid);
 		}
 
-		target_state = __NI_FSM_STATE_MAX - 1;
+		target_state = NI_FSM_STATE_MAX - 1;
 		break;
 
 	case NI_IFWORKER_TYPE_MODEM:
@@ -375,7 +375,7 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 	ni_ifworker_set_config(w, mdev->selected_config, origin);
 
 	ifmarker.target_range.min = target_state;
-	ifmarker.target_range.max = __NI_FSM_STATE_MAX;
+	ifmarker.target_range.max = NI_FSM_STATE_MAX;
 	ifmarker.persistent = w->control.persistent;
 
 	ni_ifworker_array_append(&ifmarked, w);

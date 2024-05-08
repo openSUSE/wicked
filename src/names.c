@@ -51,7 +51,7 @@ ni_tristate_by_name(const char *name, ni_tristate_t *tristate)
 /*
  * Map interface link layer types to strings and vice versa
  */
-static const ni_intmap_t	__linktype_names[] = {
+static const ni_intmap_t	ni_linktype_name_map[] = {
 	{ "unknown",		NI_IFTYPE_UNKNOWN },
 	{ "loopback",		NI_IFTYPE_LOOPBACK },
 	{ "ethernet",		NI_IFTYPE_ETHERNET },
@@ -89,7 +89,7 @@ ni_linktype_name_to_type(const char *name)
 {
 	unsigned int value;
 
-	if (ni_parse_uint_mapped(name, __linktype_names, &value) < 0)
+	if (ni_parse_uint_mapped(name, ni_linktype_name_map, &value) < 0)
 		return -1;
 	return value;
 }
@@ -97,15 +97,17 @@ ni_linktype_name_to_type(const char *name)
 const char *
 ni_linktype_type_to_name(unsigned int type)
 {
-	return ni_format_uint_mapped(type, __linktype_names);
+	return ni_format_uint_mapped(type, ni_linktype_name_map);
 }
 
 /*
- * Map kernel kind to type
+ * Map kernel kind to wicked iftype
  *
- * Note: this is an initial, incomplete, one-direction match!
+ * Note: the kind string is what the kernel is using,
+ *       but it's not yet / 1:1 the final wicked type,
+ *       see e.g. tun & tap or ovs kind and types.
  */
-static const ni_intmap_t	__linkinfo_kind_names[] = {
+static const ni_intmap_t	ni_linkinfo_kind_map[] = {
 	{ "bridge",		NI_IFTYPE_BRIDGE },
 	{ "bond",		NI_IFTYPE_BOND },
 	{ "team",		NI_IFTYPE_TEAM },
@@ -120,18 +122,25 @@ static const ni_intmap_t	__linkinfo_kind_names[] = {
 	{ "gre",		NI_IFTYPE_GRE },
 	{ "openvswitch",	NI_IFTYPE_OVS_UNSPEC }, /* new in 4.4 kernels */
 
-	{ NULL }
+	{ NULL,			NI_IFTYPE_UNKNOWN }
 };
 
 ni_bool_t
-__ni_linkinfo_kind_to_type(const char *name, ni_iftype_t *iftype)
+ni_linkinfo_kind_to_type(const char *kind, ni_iftype_t *type)
 {
 	unsigned int value;
 
-	if (!iftype || ni_parse_uint_mapped(name, __linkinfo_kind_names, &value) < 0)
+	if (!type || ni_parse_uint_mapped(kind, ni_linkinfo_kind_map, &value) < 0)
 		return FALSE;
-	*iftype = value;
+
+	*type = value;
 	return TRUE;
+}
+
+const char *
+ni_linkinfo_type_to_kind(ni_iftype_t type)
+{
+	return ni_format_uint_mapped(type, ni_linkinfo_kind_map);
 }
 
 /*
@@ -807,7 +816,7 @@ ni_lldp_system_capability_name_to_type(const char *name)
 }
 
 const char *
-ni_lldp_system_capability_type_to_name(unsigned int type)
+ni_lldp_system_capability_type_to_name(ni_lldp_destination_t type)
 {
 	return ni_format_uint_maybe_mapped(type, __ni_lldp_systemcap_names);
 }
