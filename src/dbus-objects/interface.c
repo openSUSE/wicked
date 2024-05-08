@@ -1498,7 +1498,7 @@ ni_objectmodel_netif_client_state_control_to_dict(const ni_client_state_control_
 
 	if (ni_tristate_is_set(ctrl->require_link)) {
 		if (!ni_dbus_dict_add_bool(var, NI_CLIENT_STATE_XML_REQUIRE_LINK_NODE,
-			(dbus_bool_t) ni_tristate_is_disabled(ctrl->require_link))) {
+			(dbus_bool_t) ni_tristate_is_enabled(ctrl->require_link))) {
 			return FALSE;
 		}
 	}
@@ -1683,12 +1683,159 @@ ni_objectmodel_netif_client_state_scripts_from_dict(ni_client_state_scripts_t *s
 	return TRUE;
 }
 
+static dbus_bool_t
+ni_objectmodel_netif_get_master(const ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		ni_dbus_variant_t *result,
+		DBusError *error)
+{
+	const ni_netdev_ref_t *ref;
+	const ni_netdev_t *dev;
+
+	if (!(dev = ni_dbus_object_get_handle(object)))
+		return FALSE;
+
+	ref = ni_netdev_get_master_ref(dev);
+	if (!ref || ni_string_empty(ref->name))
+		return FALSE;
+
+	ni_dbus_variant_set_string(result, ref->name);
+	return TRUE;
+}
+static dbus_bool_t
+ni_objectmodel_netif_set_master(ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument,
+		DBusError *error)
+{
+	const char *str = NULL;
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_dbus_object_get_handle(object)))
+		return FALSE;
+
+	if (ni_dbus_variant_get_string(argument, &str))
+		return ni_netdev_ref_set(&dev->link.masterdev, str, 0);
+
+	ni_netdev_ref_destroy(&dev->link.masterdev);
+	return TRUE;
+}
+
+static inline ni_dbus_variant_t *
+ni_objectmodel_netif_port_union_init(ni_dbus_variant_t *result, ni_iftype_t type)
+{
+	ni_dbus_variant_t *dict;
+	const char *name;
+
+	name = ni_linktype_type_to_name(type);
+	if (!result || !name)
+		return NULL;
+
+	ni_dbus_variant_init_struct(result);
+	ni_dbus_struct_add_string(result, name);
+	if ((dict = ni_dbus_struct_add(result)))
+		ni_dbus_variant_init_dict(dict);
+	return dict;
+}
+
+static dbus_bool_t
+ni_objectmodel_netif_get_port(const ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		ni_dbus_variant_t *result,
+		DBusError *error)
+{
+	ni_dbus_variant_t *dict;
+	ni_netdev_t *dev;
+
+	if (!(dev = ni_dbus_object_get_handle(object)))
+		return FALSE;
+
+	switch (dev->link.port.type) {
+	case NI_IFTYPE_BOND:
+		if (!(dict = ni_objectmodel_netif_port_union_init(result, dev->link.port.type)))
+			return FALSE;
+		return ni_objectmodel_get_bonding_port_info(dev->link.port.bond, dict, error);
+
+	case NI_IFTYPE_TEAM:
+		if (!(dict = ni_objectmodel_netif_port_union_init(result, dev->link.port.type)))
+			return FALSE;
+		return ni_objectmodel_get_team_port_info(dev->link.port.team, dict, error);
+
+	case NI_IFTYPE_BRIDGE:
+		if (!(dict = ni_objectmodel_netif_port_union_init(result, dev->link.port.type)))
+			return FALSE;
+		return ni_objectmodel_get_bridge_port_info(dev->link.port.bridge, dict, error);
+
+	case NI_IFTYPE_OVS_BRIDGE:
+		if (!(dict = ni_objectmodel_netif_port_union_init(result, dev->link.port.type)))
+			return FALSE;
+		return ni_objectmodel_get_ovs_bridge_port_info(dev->link.port.ovsbr, dict, error);
+
+	default:
+		return ni_dbus_error_property_not_present(error, object->path, property->name);
+	}
+}
+static dbus_bool_t
+ni_objectmodel_netif_set_port(ni_dbus_object_t *object,
+		const ni_dbus_property_t *property,
+		const ni_dbus_variant_t *argument,
+		DBusError *error)
+{
+	const ni_dbus_variant_t *dict;
+	ni_netdev_t *dev;
+	const char *name;
+
+	if (!(dev = ni_dbus_object_get_handle(object)))
+		return FALSE;
+
+	/* make sure we clear previously applied port info */
+	ni_netdev_port_info_destroy(&dev->link.port);
+
+	if (!ni_dbus_struct_get_string(argument, 0, &name) || ni_string_empty(name)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"missing union switch type in property %s.%s",
+				object->path, property->name);
+		return FALSE;
+	}
+	if (!(dict = ni_dbus_struct_get(argument, 1)) || !ni_dbus_variant_is_dict(dict)) {
+		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+				"missing %s union data dict in property %s.%s",
+				name, object->path, property->name);
+		return FALSE;
+	}
+
+	if (!ni_netdev_port_info_data_init(&dev->link.port, ni_linktype_name_to_type(name)))
+		return FALSE;
+
+	switch (dev->link.port.type) {
+	case NI_IFTYPE_BOND:
+		return ni_objectmodel_set_bonding_port_info(dev->link.port.bond, dict, error);
+
+	case NI_IFTYPE_TEAM:
+		return ni_objectmodel_set_team_port_info(dev->link.port.team, dict, error);
+
+	case NI_IFTYPE_BRIDGE:
+		return ni_objectmodel_set_bridge_port_info(dev->link.port.bridge, dict, error);
+
+	case NI_IFTYPE_OVS_BRIDGE:
+		return ni_objectmodel_set_ovs_bridge_port_info(dev->link.port.ovsbr, dict, error);
+
+	default:
+		return FALSE;
+	}
+}
 
 /*
  * Properties of an interface
  */
 #define NETIF_PROPERTY_SIGNATURE(signature, __name, rw) \
 	__NI_DBUS_PROPERTY(signature, __name, __ni_objectmodel_netif, rw)
+#define NETIF_MASTER_DEVICE_PROPERTY(dbus_name, type_name, rw) \
+	___NI_DBUS_PROPERTY(NI_DBUS_SIGNATURE(STRING), dbus_name, type_name, \
+				ni_objectmodel_netif, rw)
+#define NETIF_PORT_INFO_UNION_PROPERTY(dbus_name, type_name, rw) \
+	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE, dbus_name, type_name, \
+				ni_objectmodel_netif, rw)
 
 static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, name, name, RO),
@@ -1698,7 +1845,8 @@ static ni_dbus_property_t	ni_objectmodel_netif_properties[] = {
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, mtu, link.mtu, RO),
 	NI_DBUS_GENERIC_UINT_PROPERTY(netdev, txqlen, link.txqlen, RO),
 	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, alias, link.alias, RO),
-	NI_DBUS_GENERIC_STRING_PROPERTY(netdev, master, link.masterdev.name, RO),
+	NETIF_MASTER_DEVICE_PROPERTY(master, master, RO),
+	NETIF_PORT_INFO_UNION_PROPERTY(port, port, RO),
 
 	___NI_DBUS_PROPERTY(NI_DBUS_DICT_SIGNATURE,
 				client-state, client_state,
@@ -1728,59 +1876,63 @@ ni_objectmodel_get_netdev_req(const ni_dbus_object_t *object, ni_bool_t write_ac
 	return ni_dbus_object_get_handle(object);
 }
 
+static inline ni_dbus_variant_t *
+ni_objectmodel_netdev_req_port_union_init(ni_dbus_variant_t *result, ni_iftype_t type)
+{
+	ni_dbus_variant_t *dict;
+	const char *name;
+
+	name = ni_linktype_type_to_name(type);
+	if (!result || !name)
+		return NULL;
+
+	ni_dbus_variant_init_struct(result);
+	ni_dbus_struct_add_string(result, name);
+	if ((dict = ni_dbus_struct_add(result)))
+		ni_dbus_variant_init_dict(dict);
+	return dict;
+}
+
 static dbus_bool_t
 __ni_objectmodel_netdev_req_get_port(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 					ni_dbus_variant_t *result, DBusError *error)
 {
 	const ni_netdev_req_t *req;
 	ni_dbus_variant_t *dict;
-	const char *name;
 
 	if (!(req = ni_objectmodel_unwrap_netif_request(object, error)))
 		return FALSE;
-	if (!req->port)
-		return FALSE;
 
-	switch (req->port->type) {
+	switch (req->port.type) {
+	case NI_IFTYPE_BOND:
+		if (!(dict = ni_objectmodel_netdev_req_port_union_init(result, req->port.type)))
+			return FALSE;
+
+		return ni_objectmodel_get_bonding_port_config(req->port.bond, dict, error);
+
 	case NI_IFTYPE_TEAM:
-	case NI_IFTYPE_BOND:
+		if (!(dict = ni_objectmodel_netdev_req_port_union_init(result, req->port.type)))
+			return FALSE;
+
+		return ni_objectmodel_get_team_port_config(req->port.team, dict, error);
+
 	case NI_IFTYPE_BRIDGE:
+		if (!(dict = ni_objectmodel_netdev_req_port_union_init(result, req->port.type)))
+			return FALSE;
+
+		return ni_objectmodel_get_bridge_port_config(req->port.bridge, dict, error);
+
 	case NI_IFTYPE_OVS_BRIDGE:
-		if ((name = ni_linktype_type_to_name(req->port->type)))
-			break;
-		/* fall through */
-	default:
-		return ni_dbus_error_property_not_present(error, object->path, property->name);
-	}
+		if (!(dict = ni_objectmodel_netdev_req_port_union_init(result, req->port.type)))
+			return FALSE;
 
-	ni_dbus_variant_init_struct(result);
-	ni_dbus_struct_add_string(result, name);
-	dict = ni_dbus_struct_add(result);
-	ni_dbus_variant_init_dict(dict);
+		return ni_objectmodel_get_ovs_bridge_port_config(req->port.ovsbr, dict, error);
 
-	switch (req->port->type) {
-	case NI_IFTYPE_TEAM: {
-			const ni_team_port_config_t *pconf = &req->port->team;
-
-			if (!__ni_objectmodel_get_team_port_config(pconf, dict, error))
-				return FALSE;
-		}
-		break;
-
-	case NI_IFTYPE_OVS_BRIDGE: {
-			const ni_ovs_bridge_port_config_t *pconf = &req->port->ovsbr;
-
-			if (!__ni_objectmodel_get_ovs_bridge_port_config(pconf, dict, error))
-				return FALSE;
-		}
-		break;
-
-	case NI_IFTYPE_BOND:
-	case NI_IFTYPE_BRIDGE:
 	default:
 		break;
 	}
-	return TRUE;
+
+	return ni_dbus_error_property_not_present(error, object->path, property->name);
 }
 
 static dbus_bool_t
@@ -1790,70 +1942,51 @@ __ni_objectmodel_netdev_req_set_port(ni_dbus_object_t *object, const ni_dbus_pro
 	const ni_dbus_variant_t *dict;
 	ni_netdev_req_t *req;
 	const char *name;
-	ni_iftype_t type;
 
 	if (!(req = ni_objectmodel_unwrap_netif_request(object, error)))
 		return FALSE;
 
+	/*
+	 * this should not happen, but make sure we clear
+	 * previously applied netdev request port config
+	 */
+	ni_netdev_port_config_destroy(&req->port);
+
 	if (!ni_dbus_struct_get_string(argument, 0, &name)) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"bad value for property %s; missed type", property->name);
+				"missing union switch type in property %s.%s",
+				object->path, property->name);
 		return FALSE;
 	}
-
-	type = ni_linktype_name_to_type(name);
-	switch (type) {
-	case NI_IFTYPE_TEAM:
-	case NI_IFTYPE_BOND:
-	case NI_IFTYPE_BRIDGE:
-	case NI_IFTYPE_OVS_BRIDGE:
-		break;
-	default:
+	if (!(dict = ni_dbus_struct_get(argument, 1)) || !ni_dbus_variant_is_dict(dict)) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
-				"bad value for property %s; unsupported type %s", property->name, name);
+				"missing union data dict in property %s.%s",
+				object->path, property->name);
 		return FALSE;
 	}
 
-	if (!(dict = ni_dbus_struct_get(argument, 1))) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "missed netdev request port member dict");
-		return FALSE;
-	}
-	if (!ni_dbus_variant_is_dict(dict)) {
-		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS, "netdev request port data is not a dict");
-		return FALSE;
-	}
-
-	if (req->port)
-		ni_netdev_port_req_free(req->port);
-	if (!(req->port = ni_netdev_port_req_new(type))) {
-		dbus_set_error(error, DBUS_ERROR_FAILED, "unable to allocate netdev request %s port data", name);
-		return FALSE;
-	}
-
-	switch (req->port->type) {
-	case NI_IFTYPE_TEAM: {
-			ni_team_port_config_t *pconf = &req->port->team;
-
-			if (!__ni_objectmodel_set_team_port_config(pconf, dict, error))
-				return FALSE;
-		}
-		break;
-
-	case NI_IFTYPE_OVS_BRIDGE: {
-			ni_ovs_bridge_port_config_t *pconf = &req->port->ovsbr;
-
-			if (!__ni_objectmodel_set_ovs_bridge_port_config(pconf, dict, error))
-				return FALSE;
-		}
-		break;
-
+	ni_netdev_port_config_init(&req->port, ni_linktype_name_to_type(name));
+	switch (req->port.type) {
 	case NI_IFTYPE_BOND:
+		return ni_objectmodel_set_bonding_port_config(req->port.bond, dict, error);
+
+	case NI_IFTYPE_TEAM:
+		return ni_objectmodel_set_team_port_config(req->port.team, dict, error);
+
 	case NI_IFTYPE_BRIDGE:
+		return ni_objectmodel_set_bridge_port_config(req->port.bridge, dict, error);
+
+	case NI_IFTYPE_OVS_BRIDGE:
+		return ni_objectmodel_set_ovs_bridge_port_config(req->port.ovsbr, dict, error);
+
 	default:
-		dbus_set_error(error, DBUS_ERROR_FAILED, "unable to initialize netdev request %s port data", name);
-		return FALSE;
+		break;
 	}
-	return TRUE;
+
+	dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+			"unable to set netdev request %s port config from property %s.%s",
+			name, object->path, property->name);
+	return FALSE;
 }
 
 #define NETIF_REQUEST_UINT_PROPERTY(dbus_name, name, rw) \

@@ -50,8 +50,8 @@ static dbus_bool_t	ni_dbus_deserialize_xml_array(const ni_dbus_variant_t *, cons
 static dbus_bool_t	ni_dbus_deserialize_xml_dict(const ni_dbus_variant_t *, const ni_xs_type_t *, xml_node_t *);
 static char *		__ni_xs_type_to_dbus_signature(const ni_xs_type_t *, char *, size_t);
 static char *		ni_xs_type_to_dbus_signature(const ni_xs_type_t *);
-static ni_xs_service_t *ni_dbus_xml_get_service_schema(const ni_xs_scope_t *, const char *);
-static ni_xs_type_t *	ni_dbus_xml_get_properties_schema(const ni_xs_scope_t *, const ni_xs_service_t *);
+extern ni_xs_service_t *ni_dbus_xml_get_service_schema(const ni_xs_scope_t *, const char *);
+extern ni_xs_type_t *	ni_dbus_xml_get_properties_schema(const ni_xs_scope_t *, const ni_xs_service_t *);
 
 static ni_tempstate_t *	__ni_dbus_xml_global_temp_state;
 
@@ -1783,7 +1783,7 @@ ni_dbus_define_xml_notations(void)
 /*
  * Helper functions
  */
-static ni_xs_service_t *
+ni_xs_service_t *
 ni_dbus_xml_get_service_schema(const ni_xs_scope_t *scope, const char *interface_name)
 {
 	ni_xs_service_t *service;
@@ -1796,7 +1796,7 @@ ni_dbus_xml_get_service_schema(const ni_xs_scope_t *scope, const char *interface
 	return NULL;
 }
 
-static ni_xs_type_t *
+ni_xs_type_t *
 ni_dbus_xml_get_properties_schema(const ni_xs_scope_t *scope, const ni_xs_service_t *service)
 {
 	scope = ni_xs_scope_lookup_scope(scope, service->name);
@@ -1947,6 +1947,167 @@ ni_dbus_xml_get_method_metadata(const ni_dbus_method_t *method, const char *name
 	}
 
 	return count;
+}
+
+/*
+ * Traverse (system) property tree of the given service
+ * and process with user specified callback ...
+ */
+static dbus_bool_t	ni_dbus_xml_traverse(const ni_xs_type_t *, const char *,
+					const ni_dbus_xml_traverse_path_t *,
+					ni_dbus_xml_traverse_context_t *);
+
+static inline dbus_bool_t
+ni_dbus_xml_traverse_struct(const ni_xs_type_t *type, const char *name,
+		const ni_dbus_xml_traverse_path_t *path,
+		ni_dbus_xml_traverse_context_t *context)
+{
+	ni_error("%s: not implemented yet", __func__);
+	return FALSE;
+}
+
+static inline dbus_bool_t
+ni_dbus_xml_traverse_union(const ni_xs_type_t *type, const char *name,
+		const ni_dbus_xml_traverse_path_t *path,
+		ni_dbus_xml_traverse_context_t *context)
+{
+	const ni_xs_union_info_t *info;
+	unsigned int i;
+
+	info = ni_xs_union_info(type);
+	for (i = 0; i < info->children.count; ++i) {
+		const ni_xs_name_type_t *child = &info->children.data[i];
+
+		if (!child->type)
+			continue;
+
+		if (!ni_dbus_xml_traverse(child->type, child->name,
+				path, context))
+			return FALSE;
+	}
+	return TRUE;
+}
+
+static inline dbus_bool_t
+ni_dbus_xml_traverse_array(const ni_xs_type_t *type, const char *name,
+		const ni_dbus_xml_traverse_path_t *path,
+		ni_dbus_xml_traverse_context_t *context)
+{
+	const ni_xs_array_info_t *info;
+	const char *element_name;
+
+	info = ni_xs_array_info(type);
+	element_name = info->element_name ?: "e";
+	return ni_dbus_xml_traverse(info->element_type, element_name,
+			path, context);
+}
+
+static inline dbus_bool_t
+ni_dbus_xml_traverse_dict(const ni_xs_type_t *type, const char *name,
+		const ni_dbus_xml_traverse_path_t *path,
+		ni_dbus_xml_traverse_context_t *context)
+{
+	const ni_xs_dict_info_t *info;
+	unsigned int i;
+
+	info = ni_xs_dict_info(type);
+	for (i = 0; i < info->children.count; ++i) {
+		const ni_xs_name_type_t *child = &info->children.data[i];
+
+		if (!child->type) /* same as in validate … */
+			continue;
+
+		if (!ni_dbus_xml_traverse(child->type, child->name,
+				path, context))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+static dbus_bool_t
+ni_dbus_xml_traverse(const ni_xs_type_t *type, const char *name,
+		const ni_dbus_xml_traverse_path_t *prev,
+		ni_dbus_xml_traverse_context_t *context)
+{
+	const ni_dbus_xml_traverse_path_t path = { .prev = prev, .name = name };
+
+	if (!type || !name || !prev || !context || !context->process)
+		return FALSE;
+
+	if (!context->process(type, name, prev, context))
+		return FALSE;
+
+	switch (type->class) {
+	case NI_XS_TYPE_VOID:
+	case NI_XS_TYPE_SCALAR:
+		return TRUE;
+
+	case NI_XS_TYPE_STRUCT:
+		return ni_dbus_xml_traverse_struct(type, name, &path, context);
+
+	case NI_XS_TYPE_UNION:
+		return ni_dbus_xml_traverse_union(type, name, &path, context);
+
+	case NI_XS_TYPE_ARRAY:
+		return ni_dbus_xml_traverse_array(type, name, &path, context);
+
+	case NI_XS_TYPE_DICT:
+		return ni_dbus_xml_traverse_dict(type, name, &path, context);
+
+	default:
+		ni_error("unsupported xml type class %u", type->class);
+		return FALSE;
+	}
+	return TRUE;
+}
+
+const char *
+ni_dbus_xml_traverse_path_print(ni_stringbuf_t *buf,
+		const ni_dbus_xml_traverse_path_t *path)
+{
+	if (!buf || !path || !path->name)
+		return NULL;
+
+	if (path->prev)
+		ni_dbus_xml_traverse_path_print(buf, path->prev);
+
+	ni_stringbuf_puts(buf, "/");
+	ni_stringbuf_puts(buf, path->name);
+
+	return buf->string;
+}
+
+
+dbus_bool_t
+ni_dbus_xml_traverse_service_properties(const ni_dbus_service_t *service,
+		ni_dbus_xml_traverse_context_t *context)
+{
+	ni_dbus_xml_traverse_path_t path;
+	const ni_xs_service_t *xs_service;
+	const ni_xs_scope_t *xs_scope;
+	const ni_xs_type_t *xs_type;
+	const char *interface;
+
+	if (!service || !service->schema || !service->schema->interface)
+		return FALSE;
+
+	if (!(xs_scope = ni_objectmodel_init(NULL)))
+		return FALSE;
+
+	interface = service->schema->interface;
+	if (!(xs_service = ni_dbus_xml_get_service_schema(xs_scope, interface)))
+		return FALSE;
+
+	if (!(xs_type = ni_dbus_xml_get_properties_schema(xs_scope, xs_service)))
+		return FALSE;
+
+	/* xs service name as "root" path */
+	path.prev = NULL;
+	path.type = NULL;
+	path.name = service->schema->name;
+
+	return ni_dbus_xml_traverse(xs_type, "properties", &path, context);
 }
 
 /*

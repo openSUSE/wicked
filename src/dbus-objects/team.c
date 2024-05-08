@@ -279,14 +279,6 @@ __ni_objectmodel_team_read_handle(const ni_dbus_object_t *object, DBusError *err
 	return ni_objectmodel_get_team(object, FALSE, error);
 }
 
-#if 0
-static void *
-ni_objectmodel_get_team(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
-{
-	return __ni_objectmodel_team_handle(object, write_access, error);
-}
-#endif
-
 static dbus_bool_t
 __ni_objectmodel_team_get_address(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
 				ni_dbus_variant_t *result, DBusError *error)
@@ -823,158 +815,204 @@ __ni_objectmodel_team_set_link_watch(ni_dbus_object_t *object, const ni_dbus_pro
 /*
  * Helper function for team port config as dict
  */
-/* extern */ dbus_bool_t
-__ni_objectmodel_get_team_port_config(const ni_team_port_config_t *pconf, ni_dbus_variant_t *dict, DBusError *error)
+extern dbus_bool_t
+ni_objectmodel_get_team_port_config(const ni_team_port_config_t *conf,
+		ni_dbus_variant_t *dict, DBusError *error)
 {
 	(void)error;
 
-	if (!pconf || !dict)
+	if (!conf || !dict)
 		return FALSE;
 
-	if (pconf->queue_id != -1U)
-		ni_dbus_dict_add_uint32(dict, "queue_id", pconf->queue_id);
+	if (conf->queue_id != -1U)
+		ni_dbus_dict_add_uint32(dict, "queue_id", conf->queue_id);
 
-	if (pconf->ab.prio)
-		ni_dbus_dict_add_uint32(dict, "prio", pconf->ab.prio);
-	if (pconf->ab.sticky)
-		ni_dbus_dict_add_bool(dict, "sticky", pconf->ab.sticky);
+	if (conf->ab.prio)
+		ni_dbus_dict_add_uint32(dict, "prio", conf->ab.prio);
+	if (conf->ab.sticky)
+		ni_dbus_dict_add_bool(dict, "sticky", conf->ab.sticky);
 
-	if (pconf->lacp.prio)
-		ni_dbus_dict_add_uint32(dict, "lacp_prio", pconf->lacp.prio);
-	if (pconf->lacp.key)
-		ni_dbus_dict_add_uint32(dict, "lacp_key", pconf->lacp.key);
+	if (conf->lacp.prio)
+		ni_dbus_dict_add_uint32(dict, "lacp_prio", conf->lacp.prio);
+	if (conf->lacp.key)
+		ni_dbus_dict_add_uint32(dict, "lacp_key", conf->lacp.key);
 
 	return TRUE;
 }
 
-/* extern */ dbus_bool_t
-__ni_objectmodel_set_team_port_config(ni_team_port_config_t *pconf, const ni_dbus_variant_t *dict, DBusError *error)
+extern dbus_bool_t
+ni_objectmodel_set_team_port_config(ni_team_port_config_t *conf,
+		const ni_dbus_variant_t *dict, DBusError *error)
 {
 	dbus_bool_t b;
 	uint32_t u32;
 
 	(void)error;
 
-	if (!pconf || !dict)
+	if (!conf || !dict)
 		return FALSE;
 
 	if (ni_dbus_dict_get_uint32(dict, "queue_id", &u32))
-		pconf->queue_id = u32;
+		conf->queue_id = u32;
 
 	if (ni_dbus_dict_get_uint32(dict, "prio", &u32))
-		pconf->ab.prio = u32;
+		conf->ab.prio = u32;
 	if (ni_dbus_dict_get_bool(dict, "sticky", &b))
-		pconf->ab.sticky = b;
+		conf->ab.sticky = b;
 
 	if (ni_dbus_dict_get_uint32(dict, "lacp_prio", &u32))
-		pconf->lacp.prio = u32;
+		conf->lacp.prio = u32;
 
 	if (ni_dbus_dict_get_uint32(dict, "lacp_key", &u32))
-		pconf->lacp.key = u32;
+		conf->lacp.key = u32;
 
 	return TRUE;
 }
 
 /*
- * Helper function for team port device as dict
+ * team port interface info properties <-> dict
  */
-static dbus_bool_t
-__ni_objectmodel_team_port_to_dict(const ni_team_port_t *port, ni_dbus_variant_t *dict, DBusError *error)
+static inline dbus_bool_t
+ni_objectmodel_get_team_port_runner_lacp_info(const ni_team_port_runner_lacp_info_t *lacp,
+		ni_dbus_variant_t *dict)
 {
-	(void)error;
+	ni_dbus_dict_add_uint16(dict, "aggregator-id", lacp->aggregator.id);
+	ni_dbus_dict_add_bool(dict,   "selected",  lacp->selected);
+	ni_dbus_dict_add_string(dict, "state",  lacp->state);
 
-	if (!port || !dict || ni_string_empty(port->device.name))
-		return FALSE;
-
-	ni_dbus_dict_add_string(dict, "device", port->device.name);
-
-	return __ni_objectmodel_get_team_port_config(&port->config, dict, error);
-}
-
-static dbus_bool_t
-__ni_objectmodel_team_port_from_dict(ni_team_port_t *port, const ni_dbus_variant_t *dict, DBusError *error)
-{
-	const char *string;
-
-	(void)error;
-
-	if (!port || !dict)
-		return FALSE;
-
-	if (dict->array.len == 0)
-		return TRUE;
-
-	if (ni_dbus_dict_get_string(dict, "device", &string) && !ni_string_empty(string))
-		ni_netdev_ref_set_ifname(&port->device, string);
-	else
-		return FALSE;
-
-	ni_team_port_config_init(&port->config);
-	return __ni_objectmodel_set_team_port_config(&port->config, dict, error);
-}
-
-/*
- * Property ports (array)
- */
-static dbus_bool_t
-__ni_objectmodel_team_get_ports(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
-				ni_dbus_variant_t *result, DBusError *error)
-{
-	ni_dbus_variant_t *dict;
-	const ni_team_t *team;
-	unsigned int i;
-
-	if (!(team = __ni_objectmodel_team_read_handle(object, error)))
-		return FALSE;
-
-	ni_dbus_dict_array_init(result);
-	for (i = 0; i < team->ports.count; ++i) {
-		const ni_team_port_t *port = team->ports.data[i];
-
-		if (!(dict = ni_dbus_dict_array_add(result)))
-			return FALSE;
-
-		ni_dbus_variant_init_dict(dict);
-		if (!__ni_objectmodel_team_port_to_dict(port, dict, error))
-			return FALSE;
-	}
 	return TRUE;
 }
 
-static dbus_bool_t
-__ni_objectmodel_team_set_ports(ni_dbus_object_t *object, const ni_dbus_property_t *property,
-				const ni_dbus_variant_t *argument, DBusError *error)
+static inline dbus_bool_t
+ni_objectmodel_get_team_port_runner_info(const ni_team_port_runner_info_t *runner,
+		ni_dbus_variant_t *dict)
 {
-	const ni_dbus_variant_t *dict;
-	ni_team_t *team;
-	unsigned int i;
+	ni_dbus_variant_t *rdict;
+	ni_dbus_variant_t *ldict;
+	const char *name;
 
-	if (!(team = __ni_objectmodel_team_write_handle(object, error)))
+	if (!(name = ni_team_runner_type_to_name(runner->type)))
 		return FALSE;
 
-	if (!ni_dbus_variant_is_dict_array(argument))
+	if (!(rdict = ni_dbus_dict_add(dict, "runner")))
 		return FALSE;
 
-	/* note: property refresh may call it on a team that contains ports */
-	ni_team_port_array_destroy(&team->ports);
-	for (i = 0; i < argument->array.len; ++i) {
-		ni_team_port_t *port;
+	ni_dbus_variant_init_struct(rdict);
+	ni_dbus_struct_add_string(rdict, name);
+	if (!(ldict = ni_dbus_struct_add(rdict)))
+		return FALSE;
 
-		port = ni_team_port_new();
-		dict = &argument->variant_array_value[i];
-		if (!__ni_objectmodel_team_port_from_dict(port, dict, error)) {
-			ni_team_port_free(port);
-			return FALSE;
-		}
-		if (ni_team_port_array_find_by_name(&team->ports, port->device.name)) {
-			ni_team_port_free(port);
-			continue;
-		}
-		if (!ni_team_port_array_append(&team->ports, port)) {
-			ni_team_port_free(port);
-			return FALSE;
-		}
+	ni_dbus_variant_init_dict(ldict);
+	switch (runner->type) {
+	case NI_TEAM_RUNNER_LACP:
+		ni_objectmodel_get_team_port_runner_lacp_info(&runner->lacp, ldict);
+		break;
+	default:
+		/* other runner types don't have any port specific info */
+		break;
 	}
+	return TRUE;
+}
+static inline dbus_bool_t
+ni_objectmodel_get_team_port_link_watches_info(const ni_team_port_link_watches_info_t *watches,
+		ni_dbus_variant_t *dict)
+{
+	ni_dbus_variant_t *wdict;
+
+	if (!(wdict = ni_dbus_dict_add(dict, "link_watches")))
+		return FALSE;
+
+	ni_dbus_variant_init_dict(wdict);
+	ni_dbus_dict_add_bool(wdict, "up", watches->up);
+	return TRUE;
+}
+extern dbus_bool_t
+ni_objectmodel_get_team_port_info(const ni_team_port_info_t *info,
+		ni_dbus_variant_t *dict, DBusError *error)
+{
+	(void)error;
+
+	if (!info || !dict)
+		return FALSE;
+
+	ni_objectmodel_get_team_port_runner_info(&info->runner, dict);
+	ni_objectmodel_get_team_port_link_watches_info(&info->watches, dict);
+	return TRUE;
+}
+
+static inline dbus_bool_t
+ni_objectmodel_set_team_port_runner_lacp_info(ni_team_port_runner_lacp_info_t *lacp,
+		const ni_dbus_variant_t *dict)
+{
+	const char *str;
+	dbus_bool_t bv;
+	uint16_t u16;
+
+	if (ni_dbus_dict_get_uint16(dict, "aggregator-id", &u16))
+		lacp->aggregator.id = u16;
+
+	if (ni_dbus_dict_get_bool(dict,   "selected", &bv))
+		lacp->selected = bv;
+
+	if (ni_dbus_dict_get_string(dict, "state", &str))
+		ni_string_dup(&lacp->state, str);
+
+	return TRUE;
+}
+static inline dbus_bool_t
+ni_objectmodel_set_team_port_runner_info(ni_team_port_runner_info_t *runner,
+		const ni_dbus_variant_t *dict)
+{
+	const ni_dbus_variant_t *rdict;
+	const ni_dbus_variant_t *ldict;
+	const char *name;
+
+	if (!(rdict = ni_dbus_dict_get(dict, "runner")))
+		return FALSE;
+
+	if (!ni_dbus_struct_get_string(rdict, 0, &name))
+		return FALSE;
+
+	if (!ni_team_runner_name_to_type(name, &runner->type))
+		return FALSE;
+
+	switch (runner->type) {
+	case NI_TEAM_RUNNER_LACP:
+		if ((ldict = ni_dbus_struct_get(rdict, 1)))
+			ni_objectmodel_set_team_port_runner_lacp_info(&runner->lacp, ldict);
+		break;
+	default:
+		/* other runner types don't have any port specific info */
+		break;
+	}
+	return TRUE;
+}
+static inline dbus_bool_t
+ni_objectmodel_set_team_port_link_watches_info(ni_team_port_link_watches_info_t *watches,
+		const ni_dbus_variant_t *dict)
+{
+	const ni_dbus_variant_t *wdict;
+	dbus_bool_t bval;
+
+	if (!(wdict = ni_dbus_dict_get(dict, "link_watches")))
+		return FALSE;
+
+	if (ni_dbus_dict_get_bool(wdict, "up", &bval))
+		watches->up = bval;
+
+	return TRUE;
+}
+extern dbus_bool_t
+ni_objectmodel_set_team_port_info(ni_team_port_info_t *info,
+		const ni_dbus_variant_t *dict, DBusError *error)
+{
+	(void)error;
+
+	if (!info || !dict)
+		return FALSE;
+
+	ni_objectmodel_set_team_port_runner_info(&info->runner, dict);
+	ni_objectmodel_set_team_port_link_watches_info(&info->watches, dict);
 	return TRUE;
 }
 
@@ -998,7 +1036,7 @@ static ni_dbus_property_t	ni_objectmodel_team_properties[] = {
 	TEAM_DICT_PROPERTY(runner, runner, RO),
 	TEAM_UINT_PROPERTY(link_watch_policy, link_watch_policy, RO),
 	TEAM_DICT_PROPERTY(link_watch, link_watch, RO),
-	TEAM_DICT_ARRAY_PROPERTY(ports, ports, RO),
+
 	TEAM_HWADDR_PROPERTY(address, RO),
 
 	{ NULL }

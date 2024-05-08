@@ -15,6 +15,13 @@
 #include <wicked/secret.h>
 #include "appconfig.h"
 
+#ifndef NI_NANNY_POLICY_XML
+#define NI_NANNY_POLICY_XML	".xml"
+#endif
+#ifndef NI_NANNY_POLICY_BAK
+#define NI_NANNY_POLICY_BAK	".bak"
+#endif
+
 typedef struct ni_nanny		ni_nanny_t;
 typedef struct ni_managed_device ni_managed_device_t;
 typedef struct ni_managed_policy ni_managed_policy_t;
@@ -117,6 +124,11 @@ extern ni_nanny_t *		ni_nanny_new(void);
 extern void			ni_nanny_start(ni_nanny_t *);
 extern void			ni_nanny_free(ni_nanny_t *);
 extern const char *		ni_nanny_statedir(void);
+extern const char *		ni_nanny_policy_location(char **, const char *);
+extern const char *		ni_nanny_policy_file_name(char **, const char *);
+extern const char *		ni_nanny_policy_file_path(char **, const char *);
+extern ni_bool_t		ni_nanny_policy_drop(const char *);
+extern ni_bool_t		ni_nanny_policy_save(const xml_node_t *, const char *, const char *);
 extern void			ni_nanny_recheck_policies(ni_nanny_t *, const ni_string_array_t *);
 extern void			ni_nanny_schedule_recheck(ni_ifworker_array_t *, ni_ifworker_t *);
 extern void			ni_nanny_unschedule(ni_ifworker_array_t *, ni_ifworker_t *);

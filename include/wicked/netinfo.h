@@ -14,19 +14,22 @@
 
 #include "client/client_state.h"
 
-typedef struct ni_link_stats	ni_link_stats_t;
+typedef struct ni_netdev_port_info	ni_netdev_port_info_t;
 
-typedef struct ni_slaveinfo	ni_slaveinfo_t;
-struct ni_slaveinfo {
-	ni_iftype_t		type;
-	char *			kind;
+struct ni_netdev_port_info {
+	ni_iftype_t			type;
+	char *				kind;
 
 	union {
-	    ni_bonding_slave_info_t *	bond;
+		ni_bonding_port_info_t *	bond;
+		ni_team_port_info_t *		team;
+		ni_bridge_port_info_t *		bridge;
+		ni_ovs_bridge_port_info_t *	ovsbr;
 	};
 };
 
 typedef struct ni_linkinfo ni_linkinfo_t;
+
 struct ni_linkinfo {
 	ni_iftype_t		type;
 	unsigned int		ifindex;
@@ -40,14 +43,12 @@ struct ni_linkinfo {
 	unsigned int		txqlen;
 	ni_netdev_ref_t		lowerdev;
 	ni_netdev_ref_t		masterdev;
-	ni_slaveinfo_t		slave;
+	ni_netdev_port_info_t	port;
 	unsigned int		oper_state;
 	char *			qdisc;
 	char *			kind;
 
 	unsigned int		saved_mtu;
-
-	ni_link_stats_t *	stats;
 };
 
 struct ni_netdev {
@@ -101,7 +102,25 @@ struct ni_netdev {
 	ni_event_filter_t *	event_filter;
 };
 
-typedef struct ni_netdev_port_req	ni_netdev_port_req_t;
+/*
+ * netdev link-request port config
+ */
+typedef struct ni_netdev_port_config	ni_netdev_port_config_t;
+
+struct ni_netdev_port_config {
+	ni_iftype_t			type;
+
+	union {
+		ni_bonding_port_config_t *	bond;
+		ni_team_port_config_t *		team;
+		ni_bridge_port_config_t *	bridge;
+		ni_ovs_bridge_port_config_t *	ovsbr;
+	};
+};
+
+/*
+ * netdev link-request configuration
+ */
 struct ni_netdev_req {
 	unsigned int		ifflags;
 
@@ -112,7 +131,7 @@ struct ni_netdev_req {
 	char *			alias;
 
 	ni_netdev_ref_t		master;
-	ni_netdev_port_req_t *	port;
+	ni_netdev_port_config_t port;
 };
 
 extern ni_bool_t	ni_set_global_config_path(const char *);
@@ -171,6 +190,7 @@ extern ni_netconfig_t *	ni_global_state_handle(int);
 extern ni_netdev_t *	ni_netdev_by_name(ni_netconfig_t *nic, const char *name);
 extern ni_netdev_t *	ni_netdev_by_index(ni_netconfig_t *nic, unsigned int index);
 extern ni_netdev_t *	ni_netdev_by_hwaddr(ni_netconfig_t *nic, const ni_hwaddr_t *lla);
+extern ni_netdev_t *	ni_netdev_by_iftype(ni_netconfig_t *nic, ni_iftype_t);
 extern ni_netdev_t *	ni_netdev_by_vlan_name_and_tag(ni_netconfig_t *nc,
 				const char *physdev, uint16_t tag);
 extern unsigned int	ni_netdev_name_to_index(const char *);
@@ -219,7 +239,6 @@ extern void		ni_netdev_set_ovs_bridge(ni_netdev_t *, ni_ovs_bridge_t *);
 extern void		ni_netdev_set_ethtool(ni_netdev_t *, ni_ethtool_t *);
 extern void		ni_netdev_set_ethernet(ni_netdev_t *, ni_ethernet_t *);
 extern void		ni_netdev_set_infiniband(ni_netdev_t *, ni_infiniband_t *);
-extern void		ni_netdev_set_link_stats(ni_netdev_t *, ni_link_stats_t *);
 extern void		ni_netdev_set_wireless(ni_netdev_t *, ni_wireless_t *);
 extern void		ni_netdev_set_openvpn(ni_netdev_t *, ni_openvpn_t *);
 extern void		ni_netdev_set_tuntap(ni_netdev_t *, ni_tuntap_t *);
@@ -240,7 +259,6 @@ extern ni_bool_t	ni_netdev_supports_arp(ni_netdev_t *);
 extern void             ni_netdev_clear_addresses(ni_netdev_t *);
 extern void             ni_netdev_clear_routes(ni_netdev_t *);
 extern void		ni_netdev_clear_event_filters(ni_netdev_t *);
-extern void		ni_netdev_slaveinfo_destroy(ni_slaveinfo_t *);
 
 extern const ni_uuid_t *ni_netdev_add_event_filter(ni_netdev_t *, unsigned int mask);
 extern const ni_uuid_t *ni_netdev_get_event_uuid(ni_netdev_t *, ni_event_t);
@@ -302,8 +320,6 @@ extern ni_bool_t	ni_netdev_device_is_ready(ni_netdev_t *);
 extern ni_bool_t	ni_netdev_device_always_ready(ni_netdev_t *);
 extern ni_bool_t	ni_netdev_link_always_ready(ni_linkinfo_t *);
 
-extern ni_tristate_t	ni_netdev_guess_link_required(const ni_netdev_t *);
-
 static inline int
 ni_netdev_device_is_up(const ni_netdev_t *dev)
 {
@@ -321,5 +337,19 @@ ni_netdev_network_is_up(const ni_netdev_t *dev)
 {
 	return dev ? dev->link.ifflags & NI_IFF_NETWORK_UP : 0;
 }
+
+extern ni_bool_t		ni_netdev_port_info_data_init(ni_netdev_port_info_t *, ni_iftype_t);
+extern void			ni_netdev_port_info_data_destroy(ni_netdev_port_info_t *);
+extern ni_bool_t		ni_netdev_port_info_init(ni_netdev_port_info_t *, const char *);
+extern void			ni_netdev_port_info_destroy(ni_netdev_port_info_t *);
+
+extern ni_bool_t		ni_netdev_port_config_init(ni_netdev_port_config_t *, ni_iftype_t);
+extern void			ni_netdev_port_config_destroy(ni_netdev_port_config_t *);
+
+extern unsigned int		ni_netdev_get_ports(const ni_netdev_t *, ni_netdev_ref_array_t *,
+						ni_netconfig_t *);
+
+extern const ni_netdev_ref_t *	ni_netdev_get_master_ref(const ni_netdev_t *);
+extern ni_netdev_t *		ni_netdev_resolve_master(const ni_netdev_t *, ni_netconfig_t *);
 
 #endif /* NI_WICKED_NETINFO_H */
