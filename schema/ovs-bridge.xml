@@ -4,39 +4,42 @@
 
 <service name="ovs-bridge" interface="org.opensuse.Network.OVSBridge" object-class="netif-ovs-bridge">
 
-  <define name="port-config" class="dict">
-    <bridge type="string" >
-      <meta:netif-reference supplemental="true" subordinate="true" />
-      <meta:require check="netif-check-state" op="linkUp" min-state="firewall-up" />
-    </bridge>
+  <define name="port-config" class="dict"
+          description="OVS Bridge port specific configuration properties">
   </define>
 
-  <define name="port-device" class="dict">
-    <device type="string">
-      <meta:netif-reference supplemental="true" shared="false"/>
-      <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
-    </device>
+  <define name="port-info" class="dict"
+          description="OVS Bridge port specific interface info properties">
   </define>
 
-  <define name="bridge-config" class="dict">
+  <define name="bridge-config" class="dict"
+          description="OVS Bridge specific interface configuration properties">
+
     <vlan class="dict">
       <parent type="string">
-        <meta:netif-reference supplemental="true" shared="true" />
-        <meta:require check="netif-check-state" op="newDevice" min-state="device-up" />
-        <meta:require check="netif-check-state" op="linkUp" min-state="link-up" />
+        <meta:netif-reference shared="true" />
+        <meta:require check="netif-config-state" op="newDevice" min-state="device-up" />
+        <meta:require check="netif-config-state" op="linkUp" min-state="link-up" />
+        <meta:require check="netif-system-state" op="linkDown" max-state="firewall-up" />
+        <meta:require check="netif-system-state" op="deleteDevice" max-state="device-down" />
       </parent>
       <tag type="uint16" />
     </vlan>
-    <ports class="array" element-type="ovs-bridge:port-device" element-name="port" />
+
   </define>
 
-  <define name="configuration" class="dict" extends="ovs-bridge:bridge-config"/>
-  <define name="properties" class="dict" extends="ovs-bridge:bridge-config"/>
+  <define name="configuration" class="dict" extends="ovs-bridge:bridge-config"
+          description="OVS Bridge interface (changeDevice) configuration">
+  </define>
+
+  <define name="properties" class="dict" extends="ovs-bridge:bridge-config"
+          description="OVS Bridge interface (service) state info properties">
+  </define>
 
   <method name="changeDevice">
     <arguments>
       <config type="ovs-bridge:configuration">
-       <meta:mapping document-node="/ovs-bridge" skip-unless-present="true" />
+        <meta:mapping document-node="/ovs-bridge" skip-unless-present="true" />
       </config>
     </arguments>
   </method>

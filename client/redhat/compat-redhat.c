@@ -195,12 +195,11 @@ __ni_redhat_read_interface(const char *filename, const char *ifname, ni_compat_n
 		goto error;
 
 done:
-	ni_sysconfig_destroy(sc);
+	ni_sysconfig_free(sc);
 	return compat;
 
 error:
-	if (sc)
-		ni_sysconfig_destroy(sc);
+	ni_sysconfig_free(sc);
 	return NULL;
 }
 
@@ -287,7 +286,6 @@ try_bridge_port(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_compat_netdev
 {
 	ni_netdev_t *dev = compat->dev;
 	ni_compat_netdev_t *master;
-	ni_bridge_t *bridge;
 	const char *bridge_name;
 
 	if (!(bridge_name = ni_sysconfig_get_value(sc, "BRIDGE")))
@@ -298,16 +296,21 @@ try_bridge_port(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_compat_netdev
 		master = ni_compat_netdev_new(bridge_name);
 	if (master->dev->link.type == NI_IFTYPE_UNKNOWN) {
 		master->dev->link.type = NI_IFTYPE_BRIDGE;
+		ni_netdev_get_bridge(master->dev);
 	} else if (master->dev->link.type != NI_IFTYPE_BRIDGE) {
-		ni_error("%s: specifies BRIDGE=%s which is not a bonding device",
+		ni_error("%s: specifies BRIDGE=%s which is not a bridge device",
 				dev->name, bridge_name);
 		return FALSE;
 	}
 
-	bridge = ni_netdev_get_bridge(master->dev);
-	ni_bridge_port_new(bridge, dev->name, 0);
+	if (ni_string_empty(dev->link.masterdev.name))
+		return ni_netdev_ref_set_ifname(&dev->link.masterdev, bridge_name);
+	if (ni_string_eq(dev->link.masterdev.name, bridge_name))
+		return TRUE;
 
-	return TRUE;
+	ni_error("%s: specifies BRIDGE=%s which is already member of %s",
+			dev->name, bridge_name, dev->link.masterdev.name);
+	return FALSE;
 }
 
 /*
@@ -319,7 +322,6 @@ try_bonding_slave(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_compat_netd
 	ni_netdev_t *dev = compat->dev;
 	ni_compat_netdev_t *master;
 	ni_bool_t is_slave = 0;
-	ni_bonding_t *bonding;
 	const char *master_name;
 
 	if (!ni_sysconfig_get_boolean(sc, "SLAVE", &is_slave) || !is_slave)
@@ -331,18 +333,24 @@ try_bonding_slave(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, ni_compat_netd
 	}
 
 	master = ni_compat_netdev_by_name(known_devices, master_name);
-	if (master == NULL) {
+	if (master == NULL)
 		master = ni_compat_netdev_new(master_name);
+	if (master->dev->link.type == NI_IFTYPE_UNKNOWN) {
 		master->dev->link.type = NI_IFTYPE_BOND;
+		ni_netdev_get_bonding(master->dev);
 	} else if (master->dev->link.type != NI_IFTYPE_BOND) {
 		ni_error("%s: specifies MASTER=%s which is not a bonding device", dev->name, master_name);
 		return FALSE;
 	}
 
-	bonding = ni_netdev_get_bonding(master->dev);
-	if (ni_bonding_has_slave(bonding, dev->name))
+	if (ni_string_empty(dev->link.masterdev.name))
+		return ni_netdev_ref_set_ifname(&dev->link.masterdev, master_name);
+	if (ni_string_eq(dev->link.masterdev.name, master_name))
 		return TRUE;
-	return ni_bonding_add_slave(bonding, dev->name) != NULL;
+
+	ni_error("%s: specifies MASTER=%s which is already member of %s",
+			dev->name, master_name, dev->link.masterdev.name);
+	return FALSE;
 }
 
 
@@ -420,7 +428,7 @@ try_vlan(ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 /*
  * Given a suffix like "" or "_1", try to get the IP address and prefix length.
  * If successful, create a new ni_address, attach it to the interface object
- * and return it. 
+ * and return it.
  */
 static ni_bool_t
 __ni_redhat_addrconf_static(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, const char *label)

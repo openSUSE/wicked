@@ -113,6 +113,7 @@ extern void		ni_string_free(char **);
 extern void		ni_string_clear(char **);
 extern ni_bool_t	ni_string_dup(char **, const char *);
 extern ni_bool_t	ni_string_set(char **, const char *, size_t len);
+extern ni_bool_t	ni_string_move(char **, char **);
 extern const char *	ni_string_printf(char **, const char *, ...);
 
 extern void		ni_string_array_init(ni_string_array_t *);
