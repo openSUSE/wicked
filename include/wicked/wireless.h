@@ -422,7 +422,7 @@ extern const char *			ni_wireless_mode_to_name(ni_wireless_mode_t);
 extern ni_bool_t			ni_wireless_name_to_mode(const char *, unsigned int *);
 extern const ni_intmap_t *		ni_wireless_auth_proto_map(void);
 extern const char *			ni_wireless_auth_proto_to_name(ni_wireless_auth_proto_t);
-extern ni_bool_t			ni_wireless_name_to_auth_proto(const char *, unsigned int *);
+extern ni_bool_t			ni_wireless_name_to_auth_proto(const char *, ni_wireless_auth_proto_t *);
 extern const ni_intmap_t *		ni_wireless_auth_algo_map(void);
 extern const char *			ni_wireless_auth_algo_to_name(ni_wireless_auth_algo_t);
 extern ni_bool_t			ni_wireless_name_to_auth_algo(const char *, unsigned int *);

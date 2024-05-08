@@ -1,10 +1,9 @@
 <service name="team" interface="org.opensuse.Network.Team" object-class="netif-team">
- <description>
-   This link-layer service is provided by all team devices.
+  <description>
+    This link-layer service is provided by all team network interfaces.
 
-   Team devices can be created through the org.opensuse.Network.Team.Factory
-   factory interface.
- </description>
+    Team interfaces can be created through the org.opensuse.Network.Team.Factory.
+  </description>
 
   <define name="tx-balancer-type" class="dict">
     <name               type="builtin-team-tx-balancer-type" />
@@ -77,14 +76,30 @@
     <lacp_prio   type="uint32" />
   </define>
 
-  <define name="port-device" class="dict" extends="team:port-config">
-    <device type="string">
-      <meta:netif-reference shared="false" />
-      <meta:require check="netif-check-state" op="linkUp" min-state="device-up" />
-    </device>
+  <define name="port-info" class="dict"
+          description="Team port specific interface info properties">
+
+    <runner       class="union" switch="name">
+      <roundrobin    class="dict"/>
+      <activebackup  class="dict"/>
+      <loadbalance   class="dict"/>
+      <broadcast     class="dict"/>
+      <random        class="dict"/>
+      <lacp          class="dict">
+        <aggregator-id type="uint16"/>
+        <selected      type="boolean"/>
+        <state         type="string"/>
+      </lacp>
+    </runner>
+    <link_watches    class="dict">
+      <up              type="boolean" />
+    </link_watches>
+
   </define>
 
-  <define name="device-info" class="dict">
+  <define name="team-config" class="dict"
+          description="Team specific interface configuration properties">
+
     <debug_level  type="uint32"/>
     <notify_peers class="dict">
       <count        type="uint32"/>
@@ -112,16 +127,28 @@
       </watch>
     </link_watch>
 
-    <ports class="array" element-type="team:port-device" element-name="port" />
+  </define>
+
+  <define name="configuration" class="dict" extends="team:team-config"
+          description="Team interface (changeDevice) configuration">
+
+    <!-- additional non-team specific changeDevice() configuratio -->
 
     <address type="ethernet-address"/>
   </define>
 
-  <define name="properties" type="device-info"/>
+  <define name="properties" class="dict" extends="team:team-config"
+          description="Team interface (service) state info properties">
+
+    <!-- additional non-team specific team service properties -->
+
+    <address type="ethernet-address"/>
+  </define>
+
 
   <method name="changeDevice">
     <arguments>
-      <config type="team:device-info">
+      <config type="team:configuration">
         <meta:mapping document-node="/team"/>
       </config>
     </arguments>
@@ -130,15 +157,17 @@
 </service>
 
 <service name="team-factory" interface="org.opensuse.Network.Team.Factory" object-class="netif-list">
+
   <method name="newDevice">
     <arguments>
-     <name type="string"/>
-     <config type="team:device-info">
-      <meta:mapping document-node="/team"/>
-     </config>
+      <name type="string"/>
+      <config type="team:configuration">
+        <meta:mapping document-node="/team"/>
+      </config>
     </arguments>
     <return>
-     <string/>
+      <string/>
     </return>
   </method>
+
 </service>

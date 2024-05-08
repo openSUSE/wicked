@@ -11,6 +11,8 @@
 #include <wicked/compiler.h>
 
 
+typedef void		ni_log_fn_t(const char *, ...) ni__printf(1, 2);
+
 extern void		ni_info(const char *, ...) ni__printf(1, 2);
 extern void		ni_note(const char *, ...) ni__printf(1, 2);
 extern void		ni_warn(const char *, ...) ni__printf(1, 2);

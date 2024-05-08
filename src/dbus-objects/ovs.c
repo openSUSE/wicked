@@ -250,135 +250,52 @@ ni_objectmodel_get_ovs_bridge(const ni_dbus_object_t *object, ni_bool_t write_ac
 #endif
 
 /*
- * OVS Bridge port config helpers
+ * OVS Bridge interface info properties <-> dict
  */
-/* extern */ dbus_bool_t
-__ni_objectmodel_get_ovs_bridge_port_config(const ni_ovs_bridge_port_config_t *pconf, ni_dbus_variant_t *dict, DBusError *error)
+extern dbus_bool_t
+ni_objectmodel_get_ovs_bridge_port_info(const ni_ovs_bridge_port_info_t *info,
+		ni_dbus_variant_t *dict, DBusError *error)
 {
 	(void)error;
 
-	if (!pconf || !dict)
+	if (!info || !dict)
 		return FALSE;
-
-	if (!ni_string_empty(pconf->bridge.name))
-		ni_dbus_dict_add_string(dict, "bridge", pconf->bridge.name);
 
 	return TRUE;
 }
-
-/* extern */ dbus_bool_t
-__ni_objectmodel_set_ovs_bridge_port_config(ni_ovs_bridge_port_config_t *pconf, const ni_dbus_variant_t *dict, DBusError *error)
+extern dbus_bool_t
+ni_objectmodel_set_ovs_bridge_port_info(ni_ovs_bridge_port_info_t *info,
+		const ni_dbus_variant_t *dict, DBusError *error)
 {
-	const char *string;
+	(void)error;
 
-	if (!pconf || !dict)
+	if (!info || !dict)
 		return FALSE;
-
-	if (ni_dbus_dict_get_string(dict, "bridge", &string) && !ni_string_empty(string))
-		ni_netdev_ref_set_ifname(&pconf->bridge, string);
 
 	return TRUE;
 }
 
 /*
- * Property ports (array)
+ * OVS Bridge (link-request) port configuration <-> dict
  */
-static dbus_bool_t
-__ni_objectmodel_ovs_bridge_port_to_dict(const ni_ovs_bridge_port_t *port, ni_dbus_variant_t *dict, DBusError *error)
+extern dbus_bool_t
+ni_objectmodel_get_ovs_bridge_port_config(const ni_ovs_bridge_port_config_t *conf,
+		ni_dbus_variant_t *dict, DBusError *error)
 {
 	(void)error;
 
-	if (!port || !dict)
+	if (!conf || !dict)
 		return FALSE;
-
-	ni_dbus_dict_add_string(dict, "device", port->device.name);
 
 	return TRUE;
 }
-
-static dbus_bool_t
-__ni_objectmodel_ovs_bridge_get_ports(const ni_dbus_object_t *object, const ni_dbus_property_t *property,
-					ni_dbus_variant_t *result, DBusError *error)
+extern dbus_bool_t
+ni_objectmodel_set_ovs_bridge_port_config(ni_ovs_bridge_port_config_t *conf,
+		const ni_dbus_variant_t *dict, DBusError *error)
 {
-	ni_dbus_variant_t *dict;
-	const ni_ovs_bridge_t *ovsbr;
-	unsigned int i;
-
-	ni_dbus_dict_array_init(result);
-
-	if (!(ovsbr = __ni_objectmodel_ovs_bridge_read_handle(object, error)))
-		return ni_dbus_error_property_not_present(error, object->path, property->name);
-
-	for (i = 0; i < ovsbr->ports.count; ++i) {
-		const ni_ovs_bridge_port_t *port = ovsbr->ports.data[i];
-
-		if (!port || ni_string_empty(port->device.name))
-			continue;
-
-		if (!(dict = ni_dbus_dict_array_add(result)))
-			return FALSE;
-
-		ni_dbus_variant_init_dict(dict);
-		if (!__ni_objectmodel_ovs_bridge_port_to_dict(port, dict, error))
-			return FALSE;
-	}
-	return TRUE;
-}
-
-static dbus_bool_t
-__ni_objectmodel_ovs_bridge_port_from_dict(ni_ovs_bridge_port_t *port, const ni_dbus_variant_t *dict, DBusError *error)
-{
-	const char *string;
-
-	(void)error;
-
-	if (!port || !dict)
+	if (!conf || !dict)
 		return FALSE;
 
-	if (!ni_dbus_variant_is_dict(dict))
-		return FALSE;
-
-	if (!ni_dbus_dict_get_string(dict, "device", &string) || ni_string_empty(string))
-		return FALSE;
-
-	ni_netdev_ref_set_ifname(&port->device, string);
-	return TRUE;
-}
-
-static dbus_bool_t
-__ni_objectmodel_ovs_bridge_set_ports(ni_dbus_object_t *object, const ni_dbus_property_t *property,
-					const ni_dbus_variant_t *argument, DBusError *error)
-{
-	const ni_dbus_variant_t *dict;
-	ni_ovs_bridge_t *ovsbr;
-	unsigned  int i;
-
-	if (!ni_dbus_variant_is_dict_array(argument))
-		return FALSE;
-
-	if (!(ovsbr = __ni_objectmodel_ovs_bridge_write_handle(object, error)))
-		return FALSE;
-
-	/* note: property refresh may call it on a ovsbr that contains ports */
-	ni_ovs_bridge_port_array_destroy(&ovsbr->ports);
-	for (i = 0; i < argument->array.len; ++i) {
-		ni_ovs_bridge_port_t *port;
-
-		port = ni_ovs_bridge_port_new();
-		dict = &argument->variant_array_value[i];
-		if (!__ni_objectmodel_ovs_bridge_port_from_dict(port, dict, error)) {
-			ni_ovs_bridge_port_free(port);
-			return FALSE;
-		}
-		if (ni_ovs_bridge_port_array_find_by_name(&ovsbr->ports, port->device.name)) {
-			ni_ovs_bridge_port_free(port);
-			continue;
-		}
-		if (!ni_ovs_bridge_port_array_append(&ovsbr->ports, port)) {
-			ni_ovs_bridge_port_free(port);
-			return FALSE;
-		}
-	}
 	return TRUE;
 }
 
@@ -442,7 +359,7 @@ __ni_objectmodel_ovs_bridge_set_vlan(ni_dbus_object_t *object, const ni_dbus_pro
 
 static ni_dbus_property_t	ni_objectmodel_ovs_bridge_properties[] = {
 	OVS_BRIDGE_DICT_PROPERTY(vlan, vlan, RO),
-	OVS_BRIDGE_DICT_ARRAY_PROPERTY(ports, ports, RO),
+
 	{ NULL }
 };
 
