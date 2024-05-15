@@ -3140,13 +3140,13 @@ ni_fsm_ifmatch_pull_up_lower(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 		ni_log_fn_t *logit, ni_ifworker_t *w,
 		ni_bool_t master, ni_bool_t lower,
 		ni_bool_t ports, ni_bool_t links,
-		ni_bool_t changed)
+		ni_bool_t *changed)
 {
 	if (!w->lowerdev)
 		return TRUE; /* we don't have a lower */
 
 	if (!ni_fsm_ifmatch_pull_up(fsm, match, matching, guard, logit,
-			w->lowerdev, master, lower, ports, FALSE, changed)) {
+			w->lowerdev, master, lower, ports, FALSE, *changed)) {
 
 		logit("skipping '%s' %s: unable to setup lower %s '%s'",
 			w->name, ni_ifworker_type_to_string(w->type),
@@ -3154,6 +3154,10 @@ ni_fsm_ifmatch_pull_up_lower(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 			w->lowerdev->name);
 		return FALSE;
 	}
+
+	if (match->ifreload && ni_ifworker_array_index(matching, w->lowerdev) != -1)
+		*changed = TRUE;
+
 	return TRUE;
 }
 
@@ -3163,13 +3167,13 @@ ni_fsm_ifmatch_pull_up_master(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 		ni_log_fn_t *logit, ni_ifworker_t *w,
 		ni_bool_t master, ni_bool_t lower,
 		ni_bool_t ports, ni_bool_t links,
-		ni_bool_t changed)
+		ni_bool_t *changed)
 {
 	if (!w->masterdev)
 		return TRUE; /* we don't have a master */
 
 	if (!ni_fsm_ifmatch_pull_up(fsm, match, matching, guard, logit,
-			w->masterdev, master, lower, FALSE, links, changed)) {
+			w->masterdev, master, lower, FALSE, links, *changed)) {
 
 		logit("skipping '%s' %s: unable to setup master %s '%s'",
 			w->name, ni_ifworker_type_to_string(w->type),
@@ -3177,6 +3181,9 @@ ni_fsm_ifmatch_pull_up_master(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 			w->masterdev->name);
 		return FALSE;
 	}
+
+	if (match->ifreload && ni_ifworker_array_index(matching, w->masterdev) != -1)
+		*changed = TRUE;
 
 	return TRUE;
 }
@@ -3232,7 +3239,7 @@ ni_fsm_ifmatch_pull_up(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	ni_ifworker_array_append(guard, w);
 
 	if (lower && !ni_fsm_ifmatch_pull_up_lower(fsm, match, &pulled,
-			guard, logit, w, TRUE, TRUE, ports, FALSE, FALSE)) {
+			guard, logit, w, TRUE, TRUE, ports, FALSE, &changed)) {
 
 		ni_ifworker_array_destroy(&pulled);
 		ni_ifworker_array_remove(guard, w);
@@ -3240,7 +3247,7 @@ ni_fsm_ifmatch_pull_up(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	}
 
 	if (master && !ni_fsm_ifmatch_pull_up_master(fsm, match, &pulled,
-			guard, logit, w, TRUE, TRUE, FALSE, links, FALSE)) {
+			guard, logit, w, TRUE, TRUE, FALSE, links, &changed)) {
 
 		ni_ifworker_array_destroy(&pulled);
 		ni_ifworker_array_remove(guard, w);
