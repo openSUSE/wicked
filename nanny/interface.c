@@ -88,7 +88,7 @@ ni_managed_netdev_disable(ni_managed_device_t *mdev)
 
 	ni_nanny_schedule_recheck(&mgr->down, w);
 	ni_nanny_unschedule(&mgr->recheck, w);
-	ni_ifworker_rearm(w);
+	ni_ifworker_reset(w);
 
 	mdev->monitor = FALSE;
 	return TRUE;
