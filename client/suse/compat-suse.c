@@ -3752,6 +3752,17 @@ try_macvlan(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 	return 0;
 }
 
+
+static ni_bool_t
+maybe_dummy(const char *ifname)
+{
+	unsigned long result = 0;
+
+	if (!ni_string_startswith(ifname, "dummy"))
+		return FALSE;
+	return ni_parse_ulong(ifname + 5, &result, 10) == 0;
+}
+
 /*
  * A Dummy device is recognized by INTERFACETYPE and/or by the interface name
  * itself.
@@ -3761,15 +3772,23 @@ try_dummy(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
 	const ni_sysconfig_t *sc = ifcfg->config;
 	ni_netdev_t *dev = ifcfg->compat->dev;
+	ni_bool_t enabled;
 	const char *iftype = NULL;
 	const char *lladdr = NULL;
 	const char *bootproto = NULL;
 
-	iftype = ni_sysconfig_get_value(sc, "INTERFACETYPE");
+	if (!ni_sysconfig_get(sc, "DUMMY")) {
+		/* fallback to deprecated behavior - consider INTERFACETYPE or ifname */
+		iftype = ni_sysconfig_get_value(sc, "INTERFACETYPE");
+		if (iftype && !ni_string_eq_nocase(iftype, "dummy"))
+			return 1;
 
-	if (!ni_string_eq_nocase(iftype, "dummy") &&
-		!ni_string_startswith(dev->name, "dummy"))
-		return 1; /* This is not a dummy interface*/
+		if (dev->link.type != NI_IFTYPE_UNKNOWN || !maybe_dummy(dev->name))
+			return 1;
+	} else {
+		if (!ni_sysconfig_get_boolean(sc, "DUMMY", &enabled) || !enabled)
+			return 1;
+	}
 
 	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
 		ni_error("ifcfg-%s: %s config contains dummy variables",
@@ -6669,11 +6688,11 @@ ni_suse_ifcfg_parse_iftypes(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcf
 	    try_vlan(ifcfgs, ifcfg)       < 0 ||
 	    try_vxlan(ifcfgs, ifcfg)      < 0 ||
 	    try_macvlan(ifcfgs, ifcfg)    < 0 ||
-	    try_dummy(ifcfgs, ifcfg)      < 0 ||
 	    try_tunnel(ifcfgs, ifcfg)     < 0 ||
 	    try_ppp(ifcfgs, ifcfg)        < 0 ||
 	    try_wireless(ifcfgs, ifcfg)   < 0 ||
 	    try_infiniband(ifcfgs, ifcfg) < 0 ||
+	    try_dummy(ifcfgs, ifcfg)      < 0 ||
 	    /* keep ethernet the last one */
 	    try_ethernet(ifcfgs, ifcfg)   < 0)
 		return FALSE;
