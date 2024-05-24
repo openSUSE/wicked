@@ -332,6 +332,8 @@ fi
 %_mandir/man5/ifcfg-bonding.5*
 %_mandir/man5/ifcfg-bridge.5*
 %_mandir/man5/ifcfg-dummy.5*
+%_mandir/man5/ifcfg-infiniband.5*
+%_mandir/man5/ifcfg-ipoib.5*
 %_mandir/man5/ifcfg-macvlan.5*
 %_mandir/man5/ifcfg-macvtap.5*
 %_mandir/man5/ifcfg-ppp.5*

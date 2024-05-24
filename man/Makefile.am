@@ -23,6 +23,8 @@ generated			= \
 	ifcfg-bonding.5		\
 	ifcfg-bridge.5		\
 	ifcfg-dummy.5		\
+	ifcfg-ipoib.5		\
+	ifcfg-infiniband.5	\
 	ifcfg-macvlan.5		\
 	ifcfg-macvtap.5		\
 	ifcfg-ovs-bridge.5	\
