@@ -330,14 +330,6 @@ These are used to set up interface bonding. See
 .BR (5)
 manual page.
 .TP
-.B IPOIB_MODE
-is used to set the infiniband transport mode of an IB device to one of "connected"
-(CM - Connected Mode) or "datagram" (UD - Unreliable Datagram).
-.TP
-.B IPOIB_UMCAST
-is used to enable/disable user-multicast for an IB device by setting to "allowed"
-or "disallowed".
-.TP
 .B INTERFACETYPE
 In case ifup cannot determine the interface type properly, you may specify the
 correct type in this variable to override the behavior and force ifup to handle
@@ -489,4 +481,5 @@ Marius Tomaschewski
 .BR ifcfg-tunnel (5),
 .BR ifcfg-vlan (5),
 .BR ifcfg-wireless (5),
+.BR ifcfg-ipoib (5),
 .BR wicked (8).
