@@ -1766,12 +1766,24 @@ try_loopback(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
  * Handle infiniband devices
  */
 static ni_bool_t
-__maybe_infiniband(const char *ifname)
+maybe_infiniband(const char *ifname)
 {
-	if (ni_string_len(ifname) > 2 &&
-	    strncmp(ifname, "ib", 2) == 0 &&
-	    isdigit((unsigned char)ifname[2]))
+	char *end = NULL;
+	unsigned long tmp = 0;
+
+	if (!ni_string_startswith(ifname, "ib"))
+		return FALSE;
+
+	strtoul(ifname + 2, (char**) &end, 10);
+	if (end - ifname - 2 == 0)
+		return FALSE;
+
+	if (*end == '\0')
 		return TRUE;
+
+	if (*end == '.' && ni_parse_ulong(end + 1, &tmp, 16) == 0)
+		return TRUE;
+
 	return FALSE;
 }
 
@@ -1789,7 +1801,7 @@ try_infiniband(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 	mode   = ni_sysconfig_get_value(sc, "IPOIB_MODE");
 	umcast = ni_sysconfig_get_value(sc, "IPOIB_UMCAST");
 
-	if (!mode && !umcast && !__maybe_infiniband(dev->name))
+	if (!mode && !umcast && !(dev->link.type == NI_IFTYPE_UNKNOWN && maybe_infiniband(dev->name)))
 		return 1;
 
 	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
