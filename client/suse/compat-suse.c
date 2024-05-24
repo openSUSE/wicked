@@ -1792,49 +1792,83 @@ try_infiniband(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
 	const ni_sysconfig_t *sc = ifcfg->config;
 	ni_netdev_t *dev = ifcfg->compat->dev;
+	ni_bool_t enabled;
+	ni_bool_t ib_ifname = FALSE;
 	const char *umcast;
 	const char *mode;
 	const char *pkey;
 	const char *err;
+	const char *tmp;
+	char *device = NULL;
 	ni_infiniband_t *ib;
 
 	mode   = ni_sysconfig_get_value(sc, "IPOIB_MODE");
 	umcast = ni_sysconfig_get_value(sc, "IPOIB_UMCAST");
 
-	if (!mode && !umcast && !(dev->link.type == NI_IFTYPE_UNKNOWN && maybe_infiniband(dev->name)))
-		return 1;
+	ib_ifname = maybe_infiniband(dev->name);
+
+	if (!ni_sysconfig_get(sc, "IPOIB")) {
+		/* for backward compatibility, UMCAST, MODE or ifname =~ /^ib[0-9]+\.[a-fA-F0-9]+$/
+		 * are treated like IPOIB=yes */
+		if (!mode && !umcast && !(dev->link.type == NI_IFTYPE_UNKNOWN && ib_ifname))
+			return 1;
+	} else {
+		if (!ni_sysconfig_get_boolean(sc, "IPOIB", &enabled) || !enabled)
+			return 1;
+	}
 
 	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
-		ni_error("ifcfg-%s: %s config is using infiniband interface name",
-			dev->name, ni_linktype_type_to_name(dev->link.type));
+		ni_error("ifcfg-%s: %s config contains infiniband variables",
+				dev->name, ni_linktype_type_to_name(dev->link.type));
 		return -1;
 	}
 
 	dev->link.type = NI_IFTYPE_INFINIBAND;
 	ib = ni_netdev_get_infiniband(dev);
 
-	if ((pkey = strchr(dev->name, '.')) != NULL) {
-		dev->link.type = NI_IFTYPE_INFINIBAND_CHILD;
+	ni_string_dup(&device, ni_sysconfig_get_value(sc, "IPOIB_DEVICE"));
+	pkey = ni_sysconfig_get_value(sc, "IPOIB_PKEY");
+
+	if (ib_ifname && (tmp = strchr(dev->name, '.'))) {
+		if (!pkey)
+			pkey = tmp + 1;
+		if (!device)
+			ni_string_set(&device, dev->name, tmp - dev->name);
+	}
+
+	if (pkey || device) {
 		unsigned long tmp = ~0UL;
 
-		if (ni_parse_ulong(pkey + 1, &tmp, 16) < 0 || tmp > 0xffff) {
-			ni_error("ifcfg-%s: Cannot parse infiniband child key number",
-				dev->name);
+		if (ni_parse_ulong(pkey, &tmp, 16) < 0 || tmp > 0xffff) {
+			ni_error("ifcfg-%s: %s %s partition key (IPOIB_PKEY)", dev->name,
+					pkey ? "Cannot parse" : "Missing",
+					ni_linktype_type_to_name(NI_IFTYPE_INFINIBAND_CHILD));
+			ni_string_free(&device);
+			return -1;
+		}
+
+		if (!ni_netdev_name_is_valid(device)) {
+			ni_error("ifcfg-%s: %s %s parent device name (IPOIB_DEVICE)", dev->name,
+					device ? "Invalid" : "Missing",
+					ni_linktype_type_to_name(NI_IFTYPE_INFINIBAND_CHILD));
+			ni_string_free(&device);
 			return -1;
 		}
 
 		ib->pkey = tmp;
-		ni_string_set(&dev->link.lowerdev.name, dev->name, pkey - dev->name);
+		dev->link.type = NI_IFTYPE_INFINIBAND_CHILD;
+		ni_string_dup(&dev->link.lowerdev.name, device);
 	}
+	ni_string_free(&device);
 
 	if (mode && !ni_infiniband_get_mode_flag(mode, &ib->mode)) {
 		ni_error("ifcfg-%s: Cannot parse infiniband IPOIB_MODE=\"%s\"",
-			dev->name, mode);
+				dev->name, mode);
 		return -1;
 	}
 	if (umcast && !ni_infiniband_get_umcast_flag(umcast, &ib->umcast)) {
 		ni_error("ifcfg-%s: Cannot parse infiniband IPOIB_UMCAST=\"%s\"",
-			dev->name, umcast);
+				dev->name, umcast);
 		return -1;
 	}
 
