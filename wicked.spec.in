@@ -329,6 +329,7 @@ fi
 %dir %_datadir/wicked/schema
 %_datadir/wicked/schema/*.xml
 %_mandir/man5/wicked-config.5*
+%_mandir/man5/ifcfg-bond.5*
 %_mandir/man5/ifcfg-bonding.5*
 %_mandir/man5/ifcfg-bridge.5*
 %_mandir/man5/ifcfg-dummy.5*

@@ -19,6 +19,7 @@ man_MANS			= \
 	$(generated_in_man)
 
 generated_in_man		= \
+	ifcfg-bond.5		\
 	ifcfg-bonding.5		\
 	ifcfg-bridge.5		\
 	ifcfg-dhcp.5		\
