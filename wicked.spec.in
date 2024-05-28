@@ -64,6 +64,14 @@ Obsoletes:      libwicked-0-6 < %{version}
 %bcond_with     dhcp6_nis
 %endif
 
+# optional and disabled (not needed): enable man page
+# template rebuild from md sources using pandoc(-cli)
+%bcond_with	pandoc
+
+%if %{with pandoc}
+BuildRequires:  pandoc
+%endif
+
 %bcond_with     wicked_devel
 
 # Note: teamd is enabled by default
@@ -194,6 +202,9 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS -fPIC" LDFLAGS="-pie"
 	--with-systemd-unitdir=%{_unitdir} \
 	--without-dbus-servicedir	\
 	--with-dbus-configdir=%{dbus_config_base}/system.d \
+%if %{without pandoc}
+	--disable-pandoc		\
+%endif
 	--disable-static
 make %{?_smp_mflags}
 
