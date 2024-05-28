@@ -3,14 +3,10 @@ CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
 DISTCLEANFILES			= $(generated)
 BUILT_SOURCES			= $(generated)
-EXTRA_DIST			= $(templates) $(allstatic)
+EXTRA_DIST			= $(templates)
 
 man_MANS			= \
-	$(generated)		\
-	$(allstatic)
-
-allstatic			= \
-	routes.5
+	$(generated)
 
 generated			= \
 	wicked-config.5		\
@@ -20,6 +16,7 @@ generated			= \
 	wicked-ethtool.8	\
 	wicked-firmware.8	\
 	wicked-redfish.8	\
+	routes.5		\
 	ifcfg-bonding.5		\
 	ifcfg-bridge.5		\
 	ifcfg-dummy.5		\
@@ -59,13 +56,8 @@ substitute_vars			= \
 	-e "s|[@]wicked_extensionsdir[@]|$(wicked_extensionsdir)|g"\
 	-e "s|[@]PACKAGE_BUGREPORT[@]|$(PACKAGE_BUGREPORT)|g"
 
-wicked%: wicked%.in $(top_builddir)/config.status
-	@echo "substituting variables in $< > $@"
-	@rm -f $@ $@.tmp
-	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
-
-if%: if%.in $(top_builddir)/config.status
-	@echo "substituting variables in $< > $@"
+%: %.in $(top_builddir)/config.status
+	@if $(AM_V_P); then echo "substituting variables: $< > $@" ; fi
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
 
