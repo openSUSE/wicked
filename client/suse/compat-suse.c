@@ -1857,6 +1857,10 @@ try_infiniband(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 
 		ib->pkey = tmp;
 		dev->link.type = NI_IFTYPE_INFINIBAND_CHILD;
+
+		if (!ni_suse_ifcfg_add_lower(ifcfgs, ifcfg, device, "IPOIB_DEVICE"))
+			return -1;
+
 		ni_string_dup(&dev->link.lowerdev.name, device);
 	}
 	ni_string_free(&device);
