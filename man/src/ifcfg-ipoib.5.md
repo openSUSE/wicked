@@ -72,7 +72,7 @@ BOOTPROTO=dhcp
 Copyright (C) 2024 SUSE LLC
 
 # BUGS
-Please report bugs at <http://bugs.opensuse.org>
+Please report bugs as described at <%PACKAGE_BUGREPORT%>
 
 # SEE ALSO
 **`routes`** (5), **`ifcfg`** (5), **`wicked`** (8)

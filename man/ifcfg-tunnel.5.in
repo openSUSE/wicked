@@ -255,7 +255,7 @@ When not specified, the user space program has to run with UID 0.
 .SH COPYRIGHT
 Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
 .SH BUGS
-Please report bugs at <https://bugzilla.novell.com/index.cgi>
+Please report bugs as described at <@PACKAGE_BUGREPORT@>
 .SH AUTHORS
 .nf
 Michal Ludvig -- original tunnel man page

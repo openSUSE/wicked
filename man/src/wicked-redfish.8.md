@@ -216,7 +216,7 @@ Not yet implemented are:
 Copyright (C) 2022 SUSE LLC
 
 # BUGS
-Please report bugs as described at http://bugs.opensuse.org
+Please report bugs as described at <%PACKAGE_BUGREPORT%>
 
 # SEE ALSO
 **`wicked`**(8), **`wicked-config`**(5)

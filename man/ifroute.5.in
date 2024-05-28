@@ -48,8 +48,8 @@ interface field in the 4th column.
 
 Lines beginning with
 .B #
-and 
-.B blank lines 
+and
+.B blank lines
 are ignored. There are 5 columns with special meaning.
 Write a dash "-" if you want to omit an entry for a field. If all following
 fields in the line are empty too, you can even omit the dash.
@@ -236,6 +236,9 @@ Parts of the
 ip
 reference by Alexey Kuznetsov and ip-route man page by Michail Litvak
 and others were also used.
+.SH BUGS
+.PP
+Please report bugs as described at <@PACKAGE_BUGREPORT@>
 .SH SEE ALSO
 .BR ifcfg (5),
 .BR ip-route (8)
