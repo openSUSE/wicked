@@ -57,6 +57,7 @@ struct arp_ops;
 #define ARP_PING_COUNT		-1U
 #define ARP_PING_INTERVAL_MIN	1000
 #define ARP_PING_INTERVAL_MAX	1000
+#define ARP_USER_INTERVAL_MIN	100
 
 struct arp_handle {
 	ni_bool_t		verbose;
@@ -109,10 +110,10 @@ do_parse_interval(ni_uint_range_t *range, const char *arg)
 		smax += ni_string_len(needle);
 		ret = !ni_parse_uint(smin, &range->min, 10) &&
 			!ni_parse_uint(smax, &range->max, 10) &&
-			range->min >= 100 && range->max >= range->min;
+			range->min >= ARP_USER_INTERVAL_MIN && range->max >= range->min;
 	} else {
 		ret = !ni_parse_uint(smin, &range->min, 10) &&
-			(range->max = range->min) >= 100;
+			(range->max = range->min) >= ARP_USER_INTERVAL_MIN;
 	}
 	ni_string_free(&smin);
 	return ret;
