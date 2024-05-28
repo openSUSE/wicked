@@ -367,10 +367,11 @@ do_arp_verify_run(struct arp_handle *handle, const char *caller, int argc, char 
 				"      (default: %u). Returns 4 when address is in use.\n"
 				"  --interval <msec[..msec]>\n"
 				"      DAD probing packet sending interval in msec\n"
-				"      (default: %u..%u).\n"
+				"      (default: %u..%u, min: %u).\n"
 				, argv[0]
 				, ARP_VERIFY_COUNT
 				, ARP_VERIFY_INTERVAL_MIN, ARP_VERIFY_INTERVAL_MAX
+				, ARP_USER_INTERVAL_MIN
 			);
 			goto cleanup;
 
@@ -639,10 +640,10 @@ do_arp_notify_run(struct arp_handle *handle, const char *caller, int argc, char 
 				"      (default: %u).\n"
 				"  --interval <msec[..msec]>\n"
 				"      Announcement packet sending interval in msec\n"
-				"      (default: %u).\n"
+				"      (default: %u, min: %u).\n"
 				, argv[0]
 				, ARP_NOTIFY_COUNT
-				, ARP_NOTIFY_INTERVAL_MIN
+				, ARP_NOTIFY_INTERVAL_MIN, ARP_USER_INTERVAL_MIN
 			);
 			goto cleanup;
 
@@ -840,7 +841,7 @@ do_arp_ping_run(struct arp_handle *handle, const char *caller, int argc, char **
 				"      (default: infinite).\n"
 				"  --interval <msec[..msec]>\n"
 				"      Packet sending interval in msec\n"
-				"      (default: %u).\n"
+				"      (default: %u, min: %u).\n"
 				"  --replies <count>\n"
 				"      Wait unitil specified number of ping replies\n"
 				"  --timeout <msec>\n"
@@ -848,7 +849,7 @@ do_arp_ping_run(struct arp_handle *handle, const char *caller, int argc, char **
 				"  --from-ip <source ip>\n"
 				"      Use specified IP address as the ping source\n"
 				, argv[0]
-				, ARP_PING_INTERVAL_MIN
+				, ARP_PING_INTERVAL_MIN, ARP_USER_INTERVAL_MIN
 			);
 			goto cleanup;
 
@@ -1214,7 +1215,7 @@ ni_do_arp(const char *caller, int argc, char **argv)
 				"  --notify <count>\n"
 				"      Notify about IP address use (gratuitous ARP)\n"
 				"  --interval <msec[..msec]>\n"
-				"      Packet sending interval in msec\n"
+				"      Packet sending interval in msec (min: %u)\n"
 				"\n"
 				"Actions:\n"
 				"  verify [options] <ifname> <IP address>\n"
@@ -1227,6 +1228,7 @@ ni_do_arp(const char *caller, int argc, char **argv)
 				"        ARP ping the specified neighbour\n"
 				"\n"
 				, argv[0]
+				, ARP_USER_INTERVAL_MIN
 			);
 			goto cleanup;
 
