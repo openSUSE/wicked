@@ -419,9 +419,9 @@ ni_nanny_fsm_monitor_timeout(void *user_data, const ni_timer_t *timer)
 	ni_nanny_fsm_monitor_t *monitor = user_data;
 
 	if (monitor && timer == monitor->timer) {
+		ni_warn("Interface wait time (%us) reached", NI_TIMEOUT_SEC(monitor->timeout));
 		monitor->timer = NULL;
 		monitor->timeout = 0;
-		ni_info("Interface wait time reached");
 	}
 }
 
