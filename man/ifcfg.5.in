@@ -53,7 +53,7 @@ are aliases for
 .B hotplug
 .br
 Interface will be activated when it is available. Use instead of auto for
-devices which may be missed, such as bonding slaves, usb or other plugable
+devices which may be missed, such as bonding slaves, usb or other pluggable
 hardware.
 .\"TODO: rewrite ifplugd when nanny handles it correctly.
 .\".TP
@@ -263,7 +263,7 @@ or wait infinitely when link is required, so nanny can continue
 with the setup when the cable gets connected to the network card
 after a while.
 Note, that an ifup call has it's own, independent timeout, which
-is limitting the maximal time ifup waits before it has to report
+is limiting the maximal time ifup waits before it has to report
 (see global network/config \fBWAIT_FOR_INTERFACES\fR variable).
 .TP
 .B ETHTOOL_OPTIONS [ \fIsuffix\fR ]
@@ -362,7 +362,7 @@ See also man \fBsystemd.unit(5)\fR.
 - \fIwicked:<script>\fR scheme:
 .in +4n
 Permits to specify a script or script directory either as an absolute
-path or relative to the /etc/wicked/scripts directory, e.g.:
+path or relative to the @wicked_configdir@/scripts directory, e.g.:
 
 .br
 	POST_UP_SCRIPT="wicked:post-up"
@@ -462,7 +462,7 @@ Example:
 .SH COPYRIGHT
 Copyright (C) 2004-2015 SUSE LINUX GmbH, Nuernberg, Germany.
 .SH BUGS
-Please report bugs at <@PACKAGE_BUGREPORT@>
+Please report bugs as described at <@PACKAGE_BUGREPORT@>
 .SH AUTHOR
 .nf
 Michal Ludvig

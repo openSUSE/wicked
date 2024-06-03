@@ -103,7 +103,7 @@ Sets up \fIlan1\fR vlan interface with ID \fB42\fR on top of \fBeth0\fR:
 .fi
 
 .SH BUGS
-Please report bugs at <http://www.suse.de/feedback>
+Please report bugs as described at <@PACKAGE_BUGREPORT@>
 .SH AUTHOR
 .nf
 Mads Martin Joergensen <mmj@suse.de>

@@ -12,7 +12,7 @@ ifcfg-dummy - Dummy interface configuration
 # Dummy Interfaces
 
 To setup a dummy interface you either need a configuration file with the `DUMMY=yes`
-variable set or one using a basename **ifcfg-dummyX** (e.g. ifcfg-dummy0).
+variable set or one using a config file name **ifcfg-dummyX** (e.g. ifcfg-dummy0).
 
 `DUMMY <yes|no>`
 :   This option must be set to **yes** to identify this configuration type
@@ -38,7 +38,7 @@ IPADDR=10.0.0.100/24
 Copyright (C) 2024 SUSE LLC
 
 # BUGS
-Please report bugs at <http://bugs.opensuse.org>
+Please report bugs as described at <%PACKAGE_BUGREPORT%>
 
 # SEE ALSO
 **`routes`** (5), **`ifcfg`** (5), **`wicked`** (8)

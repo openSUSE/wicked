@@ -97,7 +97,7 @@ global to the interface. The description of the variable points this out.
 `WIRELESS_AP <address>`
 :   In environments with multiple Access points you may want to define the one
     to connect to by entering its MAC address. Format is 6x2 hex digits,
-    separated by colons, eg 01:02:03:04:05:06.
+    separated by colons, e.g. 01:02:03:04:05:06.
 
 `WIRELESS_PRIORITY <num>`
 :   This variable only makes sense used in conjunction with multiple networks.
@@ -119,7 +119,7 @@ global to the interface. The description of the variable points this out.
     Or you can specify the key in hex digits.
 
     Note: for backward compatibility a prefix "h:" or characters like "-" or
-    ":" get removed from the hexstring.
+    ":" get removed from the hex-string.
 
     Examples:
 ```
@@ -191,7 +191,7 @@ global to the interface. The description of the variable points this out.
     where a client certificate/private key is used for authentication (EAP-TLS).
 
 `WIRELESS_CLIENT_KEY <string>`
-:   File path to client private key file (PEM/DER/PFX). If the key is encryped,
+:   File path to client private key file (PEM/DER/PFX). If the key is encrypted,
     specify the **WIRELESS_CLIENT_KEY_PASSWORD**.
 
 `WIRELESS_HIDDEN_SSID <NO|YES>`
@@ -353,7 +353,7 @@ Some examples of different configuration types supported at the moment:
 Copyright (C) 2014-2022 SUSE LLC
 
 # BUGS
-Please report bugs as described at http://bugs.opensuse.org
+Please report bugs as described at <%PACKAGE_BUGREPORT%>
 
 # SEE ALSO
 **`routes`**(5), **`ifcfg`**(5), **`wicked`**(8)

@@ -73,8 +73,8 @@ wicked firmware - manage netif-firmware-discovery extensions
     # wicked firmware extensions -F xml -E ibft
     <config>
       <netif-firmware-discovery name="ibft">
-        <script name="show-config" command="/etc/wicked/extensions/ibft"/>
-        <script name="list-ifnames" command="/etc/wicked/extensions/ibft -l"/>
+        <script name="show-config" command="%wicked_extensionsdir%/ibft"/>
+        <script name="list-ifnames" command="%wicked_extensionsdir%/ibft -l"/>
       </netif-firmware-discovery>
     </config>
     ```
@@ -82,9 +82,9 @@ wicked firmware - manage netif-firmware-discovery extensions
 `disable [options] <firmware name… |all>`
 :   Disables the specified firmware extension(s)
 
-    Creates an xml override in the `/etc/wicked/client-firmware.xml` file
-    disabling the specified firmware extension(s) defined in the `client.xml`
-    or it's includes.
+    Creates an xml override in the `%wicked_configdir%/client-firmware.xml`
+    file disabling the specified firmware extension(s) defined in the
+    `%wicked_configdir%/client.xml` file or it's includes.
 
     Options:
 
@@ -97,9 +97,9 @@ wicked firmware - manage netif-firmware-discovery extensions
 `enable [options] <firmware name… |all>`
 :   Enables the specified firmware extension(s)
 
-    Creates an xml override in the `/etc/wicked/client-firmware.xml` file
-    enabling the specified firmware extension(s) defined in the `client.xml`
-    or it's includes.
+    Creates an xml override in the `%wicked_configdir%/client-firmware.xml`
+    file enabling the specified firmware extension(s) defined in the
+    `%wicked_configdir%/client.xml` file or it's includes.
 
     Options:
 
@@ -112,9 +112,10 @@ wicked firmware - manage netif-firmware-discovery extensions
 `revert [options] <firmware name… |all>`
 :   Reverts the enable-state override for specified firmware extension(s).
 
-    Reverts the enabled/disabled status to it's default defined in `client.xml`
-    or it's includes by removing the specified firmware extension from the
-    `/etc/wicked/client-firmware.xml` config file.
+    Reverts the enabled/disabled status to it's default defined in the
+    `%wicked_configdir%/client.xml` file or it's includes by removing
+    the specified firmware extension override from the
+    `%wicked_configdir%/client-firmware.xml` config file.
 
     Options:
 
@@ -129,7 +130,7 @@ wicked firmware - manage netif-firmware-discovery extensions
 Copyright (C) 2023 SUSE LLC
 
 # BUGS
-Please report bugs as described at http://bugs.opensuse.org
+Please report bugs as described at <%PACKAGE_BUGREPORT%>
 
 # SEE ALSO
 **`wicked`**(8), **`wicked-redfish`**(8), **`wicked-config`**(5)
