@@ -20,7 +20,6 @@ man_MANS			= \
 
 generated_in_man		= \
 	ifcfg-bond.5		\
-	ifcfg-bonding.5		\
 	ifcfg-bridge.5		\
 	ifcfg-dhcp.5		\
 	ifcfg-infiniband.5	\
@@ -47,6 +46,7 @@ generated_in_man		= \
 	wickedd.8
 
 generated_md_man		= \
+	ifcfg-bonding.5		\
 	ifcfg-dummy.5		\
 	ifcfg-ipoib.5		\
 	ifcfg-team.5		\
