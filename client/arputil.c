@@ -46,7 +46,7 @@
 
 struct arp_ops;
 
-#define NI_ARPUTIL_MAX_SEND_ERR  10
+#define NI_ARPUTIL_MAX_SEND_ERR  16
 
 #define ARP_VERIFY_COUNT	3
 #define	ARP_VERIFY_INTERVAL_MIN	1000
