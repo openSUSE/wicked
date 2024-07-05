@@ -36,11 +36,14 @@ ni_autoip_device_new(const char *ifname, const ni_linkinfo_t *link)
 	for (pos = &ni_autoip_active; (dev = *pos) != NULL; pos = &dev->next)
 		;
 
-	dev = calloc(1, sizeof(*dev));
-	ni_string_dup(&dev->ifname, ifname);
-	dev->link.ifindex = link->ifindex;
+	if (!(dev = calloc(1, sizeof(*dev))))
+		return NULL;
+
 	dev->users = 1;
 	dev->fsm.state = NI_AUTOIP_STATE_INIT;
+
+	dev->link.ifindex = link->ifindex;
+	ni_string_dup(&dev->ifname, ifname);
 
 	if (ni_capture_devinfo_init(&dev->devinfo, ifname, link) < 0) {
 		ni_autoip_device_put(dev);
@@ -138,7 +141,6 @@ ni_autoip_device_free(ni_autoip_device_t *dev)
 
 	ni_string_free(&dev->devinfo.ifname);
 	ni_string_free(&dev->ifname);
-	dev->link.ifindex = 0;
 
 	for (pos = &ni_autoip_active; *pos; pos = &(*pos)->next) {
 		if (*pos == dev) {
@@ -173,17 +175,19 @@ int
 ni_autoip_device_refresh(ni_autoip_device_t *dev)
 {
 	ni_netconfig_t *nih = ni_global_state_handle(0);
-	int rv;
+	ni_netdev_t *ifp;
+	int rv = -1;
 
 	/* Go back to INIT state to force a reclaim */
 	dev->fsm.state = NI_AUTOIP_STATE_INIT;
 
-	if ((rv = __ni_device_refresh_link_info(nih, &dev->link)) < 0) {
-		ni_error("%s: cannot refresh interface: %s", __func__, ni_strerror(rv));
+	ifp = nih ? ni_netdev_by_index(nih, dev->link.ifindex) : NULL;
+	if (!ifp || (rv = __ni_device_refresh_link_info(nih, &ifp->link)) < 0) {
+		ni_error("%s: cannot refresh interface: %s", dev->ifname, ni_strerror(rv));
 		return rv;
 	}
 
-	return ni_capture_devinfo_refresh(&dev->devinfo, dev->ifname, &dev->link);
+	return ni_capture_devinfo_refresh(&dev->devinfo, dev->ifname, &ifp->link);
 }
 
 int
