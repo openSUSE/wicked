@@ -427,7 +427,7 @@ __ni_refresh_bind_master(ni_netconfig_t *nc, ni_netdev_t *dev)
 		return;
 
 	if (!(master = ni_netdev_ref_bind_ifname(&dev->link.masterdev, nc))) {
-		ni_info("Interface %s references unknown master device (ifindex %u)",
+		ni_debug_ifconfig("%s: interface references unknown master device (ifindex %u)",
 				dev->name, dev->link.masterdev.index);
 	}
 }
@@ -439,7 +439,7 @@ __ni_refresh_bind_lower(ni_netconfig_t *nc, ni_netdev_t *dev)
 		return;
 
 	if (!ni_netdev_ref_bind_ifname(&dev->link.lowerdev, nc)) {
-		ni_info("Interface %s references unknown lower device (ifindex %u)",
+		ni_debug_ifconfig("%s: interface references unknown lower device (ifindex %u)",
 			dev->name, dev->link.lowerdev.index);
 	}
 }
@@ -1590,14 +1590,18 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 	if (tb[IFLA_IFALIAS])
 		ni_string_dup(&link->alias, nla_get_string(tb[IFLA_IFALIAS]));
 
+	if (tb[IFLA_LINK_NETNSID])
+		ni_netdev_ref_set_netnsid(&link->lowerdev, nla_get_u32(tb[IFLA_LINK_NETNSID]));
+	else
+		ni_netdev_ref_set_netnsid(&link->lowerdev, NI_NETNSID_DEFAULT);
 	if (tb[IFLA_LINK]) {
-		link->lowerdev.index = nla_get_u32(tb[IFLA_LINK]);
+		ni_netdev_ref_set_ifindex(&link->lowerdev, nla_get_u32(tb[IFLA_LINK]));
 		if (!ni_netdev_ref_bind_ifname(&link->lowerdev, nc)) {
 			/* Drop old ifname, we will try it again later */
 			ni_string_free(&link->lowerdev.name);
 		}
 	} else if (link->lowerdev.index) {
-		ni_netdev_ref_destroy(&link->lowerdev);
+		ni_netdev_ref_set(&link->lowerdev, NULL, 0);
 	}
 
 	if (tb[IFLA_MASTER]) {
