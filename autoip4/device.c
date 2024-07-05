@@ -139,7 +139,8 @@ ni_autoip_device_free(ni_autoip_device_t *dev)
 	ni_autoip_device_drop_lease(dev);
 	ni_autoip_device_close(dev);
 
-	ni_string_free(&dev->devinfo.ifname);
+	ni_capture_devinfo_destroy(&dev->devinfo);
+
 	ni_string_free(&dev->ifname);
 
 	for (pos = &ni_autoip_active; *pos; pos = &(*pos)->next) {
