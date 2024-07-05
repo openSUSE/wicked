@@ -186,6 +186,8 @@ extern ni_modem_t *	ni_netconfig_modem_list(ni_netconfig_t *);
 
 extern ni_netconfig_t *	ni_global_state_handle(int);
 
+extern ni_bool_t	ni_linkinfo_init(ni_linkinfo_t *);
+extern void		ni_linkinfo_destroy(ni_linkinfo_t *);
 
 extern ni_netdev_t *	ni_netdev_by_name(ni_netconfig_t *nic, const char *name);
 extern ni_netdev_t *	ni_netdev_by_index(ni_netconfig_t *nic, unsigned int index);

@@ -44,6 +44,39 @@
  * Constructor for network interface.
  * Takes interface name and ifindex.
  */
+ni_bool_t
+ni_linkinfo_init(ni_linkinfo_t *link)
+{
+	if (link) {
+		memset(link, 0, sizeof(*link));
+
+		ni_link_address_init(&link->hwaddr);
+		ni_link_address_init(&link->hwpeer);
+
+		ni_netdev_ref_init(&link->lowerdev);
+		ni_netdev_ref_init(&link->masterdev);
+
+		return TRUE;
+	}
+	return FALSE;
+}
+
+void
+ni_linkinfo_destroy(ni_linkinfo_t *link)
+{
+	if (link) {
+		ni_string_free(&link->kind);
+		ni_string_free(&link->alias);
+		ni_string_free(&link->qdisc);
+
+		ni_netdev_ref_destroy(&link->lowerdev);
+		ni_netdev_ref_destroy(&link->masterdev);
+		ni_netdev_port_info_destroy(&link->port);
+
+		ni_linkinfo_init(link);
+	}
+}
+
 ni_netdev_t *
 ni_netdev_new(const char *name, unsigned int index)
 {
@@ -54,16 +87,11 @@ ni_netdev_new(const char *name, unsigned int index)
 		return NULL;
 
 	dev->users = 1;
-	dev->link.type = NI_IFTYPE_UNKNOWN;
+
+	ni_linkinfo_init(&dev->link);
 
 	dev->link.ifindex = index;
 	ni_string_dup(&dev->name, name);
-
-	ni_link_address_init(&dev->link.hwaddr);
-	ni_link_address_init(&dev->link.hwpeer);
-
-	ni_netdev_ref_init(&dev->link.lowerdev);
-	ni_netdev_ref_init(&dev->link.masterdev);
 
 	return dev;
 }
@@ -176,25 +204,7 @@ ni_netdev_reset(ni_netdev_t *dev)
 	/* Clear and Reset all (kernel) property data,
 	 * except of list, ref counter & marker flags */
 	ni_string_free(&dev->name);
-	dev->link.type = NI_IFTYPE_UNKNOWN;
-	dev->link.ifindex = 0;
-	dev->link.ifflags = 0;
-
-	ni_link_address_init(&dev->link.hwaddr);
-	ni_link_address_init(&dev->link.hwpeer);
-	ni_string_free(&dev->link.alias);
-
-	dev->link.mtu = 0;
-	dev->link.metric = 0;
-	dev->link.txqlen = 0;
-	dev->link.oper_state = 0;
-
-	ni_netdev_ref_destroy(&dev->link.lowerdev);
-	ni_netdev_ref_destroy(&dev->link.masterdev);
-	ni_netdev_port_info_destroy(&dev->link.port);
-
-	ni_string_free(&dev->link.qdisc);
-	ni_string_free(&dev->link.kind);
+	ni_linkinfo_destroy(&dev->link);
 
 	ni_netdev_set_client_state(dev, NULL);
 
