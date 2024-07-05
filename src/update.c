@@ -161,6 +161,7 @@ ni_updater_source_new(void)
 	src = xcalloc(1, sizeof(*src));
 	if (src) {
 		src->refcount = 1;
+		ni_netdev_ref_init(&src->device);
 	}
 	return src;
 }
@@ -387,6 +388,7 @@ ni_updater_job_new(ni_updater_job_t **list, const ni_addrconf_lease_t *lease,
 
 	job->nr = job_nr++; /* for debugging purposes only */
 	job->refcount = 1;
+	ni_netdev_ref_init(&job->device);
 	if (!ni_netdev_ref_set(&job->device, ifname, ifindex)) {
 		free(job);
 		return NULL;

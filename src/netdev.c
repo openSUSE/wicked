@@ -55,12 +55,15 @@ ni_netdev_new(const char *name, unsigned int index)
 
 	dev->users = 1;
 	dev->link.type = NI_IFTYPE_UNKNOWN;
-	dev->link.hwaddr.type = ARPHRD_VOID;
-	dev->link.hwpeer.type = ARPHRD_VOID;
-	dev->link.ifindex = index;
 
-	if (name)
-		dev->name = xstrdup(name);
+	dev->link.ifindex = index;
+	ni_string_dup(&dev->name, name);
+
+	ni_link_address_init(&dev->link.hwaddr);
+	ni_link_address_init(&dev->link.hwpeer);
+
+	ni_netdev_ref_init(&dev->link.lowerdev);
+	ni_netdev_ref_init(&dev->link.masterdev);
 
 	return dev;
 }
