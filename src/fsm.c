@@ -4488,8 +4488,10 @@ ni_fsm_config_hierarchy_mark(const ni_ifworker_array_t *marked,
 
 static void
 ni_fsm_print_config_device_worker_hierarchy(const ni_fsm_t *fsm,
-		const ni_ifworker_t *w, unsigned int depth,
-		const ni_ifworker_array_t *marked, ni_log_fn_t *logfn)
+		ni_ifworker_t *w, ni_ifworker_array_t *guard,
+		unsigned int depth, const char *arrow,
+		const ni_ifworker_array_t *marked,
+		ni_log_fn_t *logfn)
 {
 	ni_stringbuf_t info = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned int i;
@@ -4497,12 +4499,22 @@ ni_fsm_print_config_device_worker_hierarchy(const ni_fsm_t *fsm,
 	if (!w)
 		return;
 
-	if (!depth) {
-		ni_fsm_print_hierarchy(logfn, "%s%s",
-			ni_fsm_config_hierarchy_mark(marked, w),
-			ni_fsm_print_worker_name_info(&info, w));
-		ni_stringbuf_destroy(&info);
+	if (ni_ifworker_array_index(guard, w) != -1) {
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+		ni_ifworker_guard_print(&buf, guard, " -> ");
+		ni_error("reference loop in config device hierarchy: %s -> %s",
+				buf.string, w->name);
+		ni_stringbuf_destroy(&buf);
+		return;
 	}
+	ni_ifworker_array_append(guard, w);
+
+	ni_fsm_print_hierarchy(logfn, "%s%*s%s",
+		ni_fsm_config_hierarchy_mark(marked, w),
+		depth, depth ? arrow : "",
+		ni_fsm_print_worker_name_info(&info, w));
+	ni_stringbuf_destroy(&info);
 
 	depth += 4;
 	for (i = 0; i < fsm->workers.count; ++i) {
@@ -4512,35 +4524,26 @@ ni_fsm_print_config_device_worker_hierarchy(const ni_fsm_t *fsm,
 			continue;
 
 		if (w->lowerdev == c) {
-
-			ni_fsm_print_hierarchy(logfn, "%s%*s %s",
-					ni_fsm_config_hierarchy_mark(marked, c),
-					depth, "+--",
-					ni_fsm_print_worker_name_info(&info, c));
-			ni_stringbuf_destroy(&info);
-
 			ni_fsm_print_config_device_worker_hierarchy(fsm, c,
-					depth + 1, marked, logfn);
+					guard, depth, "+-- ", marked, logfn);
 			continue;
 		}
+
 		if (c->masterdev == w) {
-
-			ni_fsm_print_hierarchy(logfn, "%s%*s %s",
-					ni_fsm_config_hierarchy_mark(marked, c),
-					depth, "*--",
-					ni_fsm_print_worker_name_info(&info, c));
-			ni_stringbuf_destroy(&info);
-
 			ni_fsm_print_config_device_worker_hierarchy(fsm, c,
-					depth + 1, marked, logfn);
+					guard, depth, "*-- ", marked, logfn);
+			continue;
 		}
 	}
+
+	ni_ifworker_array_remove(guard, w);
 }
 
 void
 ni_fsm_print_config_hierarchy(const ni_fsm_t *fsm,
 		const ni_ifworker_array_t *marked, ni_log_fn_t *logfn)
 {
+	ni_ifworker_array_t guard = NI_IFWORKER_ARRAY_INIT;
 	unsigned int i;
 
 	if (!fsm)
@@ -4553,8 +4556,9 @@ ni_fsm_print_config_hierarchy(const ni_fsm_t *fsm,
 
 		if (w && w->type == NI_IFWORKER_TYPE_NETDEV && !w->masterdev)
 			ni_fsm_print_config_device_worker_hierarchy(fsm, w,
-					0, marked, logfn);
+					&guard, 0, "", marked, logfn);
 	}
+	ni_ifworker_array_destroy(&guard);
 }
 
 static const char *
@@ -4580,8 +4584,10 @@ ni_fsm_system_hierarchy_mark(const ni_ifworker_array_t *marked,
 
 static void
 ni_fsm_print_system_device_worker_hierarchy(const ni_fsm_t *fsm,
-		const ni_ifworker_t *w, unsigned int depth,
-		const ni_ifworker_array_t *marked, ni_log_fn_t *logfn)
+		ni_ifworker_t *w, ni_ifworker_array_t *guard,
+		unsigned int depth, const char *arrow,
+		const ni_ifworker_array_t *marked,
+		ni_log_fn_t *logfn)
 {
 	ni_stringbuf_t info = NI_STRINGBUF_INIT_DYNAMIC;
 	unsigned int i;
@@ -4589,12 +4595,22 @@ ni_fsm_print_system_device_worker_hierarchy(const ni_fsm_t *fsm,
 	if (!w || !w->device)
 		return;
 
-	if (!depth) {
-		ni_fsm_print_hierarchy(logfn, "%s%s",
-				ni_fsm_system_hierarchy_mark(marked, w),
-				ni_fsm_print_device_name_info(&info, w));
-		ni_stringbuf_destroy(&info);
+	if (ni_ifworker_array_index(guard, w) != -1) {
+		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+		ni_ifworker_guard_print(&buf, guard, " -> ");
+		ni_error("reference loop in system device hierarchy: %s -> %s",
+				buf.string, w->name);
+		ni_stringbuf_destroy(&buf);
+		return;
 	}
+	ni_ifworker_array_append(guard, w);
+
+	ni_fsm_print_hierarchy(logfn, "%s%*s%s",
+			ni_fsm_system_hierarchy_mark(marked, w),
+			depth, depth ? arrow : "",
+			ni_fsm_print_device_name_info(&info, w));
+	ni_stringbuf_destroy(&info);
 
 	depth += 4;
 	for (i = 0; i < fsm->workers.count; ++i) {
@@ -4604,35 +4620,26 @@ ni_fsm_print_system_device_worker_hierarchy(const ni_fsm_t *fsm,
 			continue;
 
 		if (ni_string_eq(w->device->link.lowerdev.name, c->name)) {
-
-			ni_fsm_print_hierarchy(logfn, "%s%*s %s",
-					ni_fsm_system_hierarchy_mark(marked, c),
-					depth, "+--",
-					ni_fsm_print_device_name_info(&info, c));
-			ni_stringbuf_destroy(&info);
-
 			ni_fsm_print_system_device_worker_hierarchy(fsm, c,
-					depth + 1, marked, logfn);
+					guard, depth, "+-- ", marked, logfn);
 			continue;
 		}
+
 		if (ni_string_eq(c->device->link.masterdev.name, w->name)) {
-
-			ni_fsm_print_hierarchy(logfn, "%s%*s %s",
-					ni_fsm_system_hierarchy_mark(marked, c),
-					depth, "*--",
-					ni_fsm_print_device_name_info(&info, c));
-			ni_stringbuf_destroy(&info);
-
 			ni_fsm_print_system_device_worker_hierarchy(fsm, c,
-					depth + 1, marked,  logfn);
+					guard, depth, "*-- ", marked,  logfn);
+			continue;
 		}
 	}
+
+	ni_ifworker_array_remove(guard, w);
 }
 
 void
 ni_fsm_print_system_hierarchy(const ni_fsm_t *fsm,
 		const ni_ifworker_array_t *marked, ni_log_fn_t *logfn)
 {
+	ni_ifworker_array_t guard = NI_IFWORKER_ARRAY_INIT;
 	ni_ifworker_t *w;
 	unsigned int i;
 
@@ -4650,9 +4657,10 @@ ni_fsm_print_system_hierarchy(const ni_fsm_t *fsm,
 		if (!ni_string_empty(w->device->link.masterdev.name))
 			continue;
 
-		ni_fsm_print_system_device_worker_hierarchy(fsm, w, 0,
-				marked, logfn);
+		ni_fsm_print_system_device_worker_hierarchy(fsm, w,
+				&guard, 0, "", marked, logfn);
 	}
+	ni_ifworker_array_destroy(&guard);
 }
 
 int
