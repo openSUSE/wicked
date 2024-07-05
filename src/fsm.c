@@ -4525,13 +4525,13 @@ ni_fsm_print_config_device_worker_hierarchy(const ni_fsm_t *fsm,
 
 		if (w->lowerdev == c) {
 			ni_fsm_print_config_device_worker_hierarchy(fsm, c,
-					guard, depth, "+-- ", marked, logfn);
+					guard, depth, "--> ", marked, logfn);
 			continue;
 		}
 
 		if (c->masterdev == w) {
 			ni_fsm_print_config_device_worker_hierarchy(fsm, c,
-					guard, depth, "*-- ", marked, logfn);
+					guard, depth, "^-- ", marked, logfn);
 			continue;
 		}
 	}
@@ -4621,13 +4621,13 @@ ni_fsm_print_system_device_worker_hierarchy(const ni_fsm_t *fsm,
 
 		if (ni_string_eq(w->device->link.lowerdev.name, c->name)) {
 			ni_fsm_print_system_device_worker_hierarchy(fsm, c,
-					guard, depth, "+-- ", marked, logfn);
+					guard, depth, "--> ", marked, logfn);
 			continue;
 		}
 
 		if (ni_string_eq(c->device->link.masterdev.name, w->name)) {
 			ni_fsm_print_system_device_worker_hierarchy(fsm, c,
-					guard, depth, "*-- ", marked,  logfn);
+					guard, depth, "^-- ", marked,  logfn);
 			continue;
 		}
 	}
