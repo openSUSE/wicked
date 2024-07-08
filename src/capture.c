@@ -613,6 +613,7 @@ ni_capture_devinfo_destroy(ni_capture_devinfo_t *devinfo)
 	if (devinfo) {
 		ni_string_free(&devinfo->ifname);
 		memset(devinfo, 0, sizeof(*devinfo));
+		ni_link_address_init(&devinfo->hwaddr);
 	}
 }
 
