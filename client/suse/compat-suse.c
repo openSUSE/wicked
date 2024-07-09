@@ -4672,6 +4672,8 @@ try_ppp(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 		goto done;
 	}
 
+	ni_ppp_mode_init(&ppp->mode, ppp->mode.type);
+
 	if (ni_sysconfig_get_boolean(sc, "PPPDEBUG", &bval))
 		ppp->config.debug = bval;
 

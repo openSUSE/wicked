@@ -111,7 +111,8 @@ ni_icmpv6_ra_socket_new(const ni_netdev_ref_t *ref, const ni_hwaddr_t *hwa)
 	if (!(ras = calloc(1, sizeof(*ras))))
 		return NULL;
 
-	ni_netdev_ref_init(&ras->dev, ref->name, ref->index);
+	ni_netdev_ref_init(&ras->dev);
+	ni_netdev_ref_set(&ras->dev, ref->name, ref->index);
 
 	ni_link_address_init(&ras->hwa);
 	if (hwa && hwa->len) {

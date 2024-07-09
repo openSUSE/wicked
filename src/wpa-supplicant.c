@@ -765,6 +765,8 @@ static ni_bool_t
 ni_wpa_nif_init(ni_wpa_nif_t *wif, const char *ifname, unsigned int ifindex)
 {
 	memset(wif, 0, sizeof(*wif));
+
+	ni_netdev_ref_init(&wif->device);
 	ni_netdev_ref_set(&wif->device, ifname, ifindex);
 
 	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_WPA,

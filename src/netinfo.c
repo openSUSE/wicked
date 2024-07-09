@@ -1068,16 +1068,30 @@ ni_netdev_resolve_master(const ni_netdev_t *dev, ni_netconfig_t *nc)
  * netdev reference
  */
 ni_bool_t
-ni_netdev_ref_init(ni_netdev_ref_t *ref, const char *ifname, unsigned int ifindex)
+ni_netdev_ref_init(ni_netdev_ref_t *ref)
 {
 	if (ref) {
 		memset(ref, 0, sizeof(*ref));
-		ni_string_dup(&ref->name, ifname);
-		ref->index = ifindex;
+		ref->ns_id = NI_NETNSID_DEFAULT;
 		return TRUE;
 	}
 	return FALSE;
 }
+
+ni_bool_t
+ni_netdev_ref_copy(ni_netdev_ref_t *dst, const ni_netdev_ref_t *src)
+{
+	if (dst && src) {
+		ni_netdev_ref_destroy(dst);
+		if (ni_string_dup(&dst->name, src->name)) {
+			dst->index = src->index;
+			dst->ns_id = src->ns_id;
+		}
+		return TRUE;
+	}
+	return FALSE;
+}
+
 
 ni_bool_t
 ni_netdev_ref_set(ni_netdev_ref_t *ref, const char *ifname, unsigned int ifindex)
@@ -1105,12 +1119,25 @@ ni_netdev_ref_set_ifindex(ni_netdev_ref_t *ref, unsigned int ifindex)
 	return FALSE;
 }
 
+ni_bool_t
+ni_netdev_ref_set_netnsid(ni_netdev_ref_t *ref, unsigned int ns_id)
+{
+	if (ref) {
+		ref->ns_id = ns_id;
+		return TRUE;
+	}
+	return FALSE;
+}
+
 ni_netdev_t *
 ni_netdev_ref_resolve(const ni_netdev_ref_t *ref, ni_netconfig_t *nc)
 {
 	ni_netdev_t *dev = NULL;
 
 	if (!ref || (!nc && !(nc = ni_global_state_handle(0))))
+		return NULL;
+
+	if (ref->ns_id != NI_NETNSID_DEFAULT)
 		return NULL;
 
 	if (ref->index && (dev = ni_netdev_by_index(nc, ref->index)))
@@ -1130,6 +1157,9 @@ ni_netdev_ref_bind_ifname(ni_netdev_ref_t *ref, ni_netconfig_t *nc)
 	if (!ref || (!nc && !(nc = ni_global_state_handle(0))))
 		return NULL;
 
+	if (ref->ns_id != NI_NETNSID_DEFAULT)
+		return NULL;
+
 	dev = ni_netdev_by_index(nc, ref->index);
 	if (dev == NULL)
 		return NULL;
@@ -1147,6 +1177,9 @@ ni_netdev_ref_bind_ifindex(ni_netdev_ref_t *ref, ni_netconfig_t *nc)
 	if (!ref || (!nc && !(nc = ni_global_state_handle(0))))
 		return NULL;
 
+	if (ref->ns_id != NI_NETNSID_DEFAULT)
+		return NULL;
+
 	dev = ni_netdev_by_name(nc, ref->name);
 	if (dev == NULL)
 		return NULL;
@@ -1159,6 +1192,7 @@ void
 ni_netdev_ref_destroy(ni_netdev_ref_t *ref)
 {
 	if (ref) {
+		ref->ns_id = NI_NETNSID_DEFAULT;
 		ref->index = 0;
 		ni_string_free(&ref->name);
 	}
@@ -1235,10 +1269,8 @@ ni_netdev_ref_array_realloc(ni_netdev_ref_array_t *array, unsigned int count)
 		return FALSE;
 
 	array->data = newdata;
-	for (i = array->count; i < newsize; ++i) {
-		array->data[i].index = 0;
-		array->data[i].name = NULL;
-	}
+	for (i = array->count; i < newsize; ++i)
+		ni_netdev_ref_init(&array->data[i]);
 	return TRUE;
 }
 
@@ -1349,6 +1381,8 @@ ni_netdev_req_new(void)
 	ni_netdev_req_t *req;
 
 	req = xcalloc(1, sizeof(*req));
+	if (req)
+		ni_netdev_ref_init(&req->master);
 	return req;
 }
 

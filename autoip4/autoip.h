@@ -24,7 +24,9 @@ struct ni_autoip_device {
 	unsigned int		users;
 
 	char *			ifname;
-	ni_linkinfo_t		link;
+	struct ni_autoip_link {
+		unsigned int	ifindex;
+	} link;
 
 	ni_arp_socket_t *	arp_socket;
 	ni_capture_devinfo_t	devinfo;

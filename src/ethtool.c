@@ -3731,7 +3731,7 @@ static ni_bool_t
 ni_ethtool_refresh(ni_netdev_t *dev)
 {
 	ni_ethtool_t *ethtool;
-	ni_netdev_ref_t ref;
+	ni_netdev_ref_t ref = NI_NETDEV_REF_INIT;
 
 	if (!dev || !(ethtool = ni_netdev_get_ethtool(dev)))
 		return FALSE;
@@ -3766,7 +3766,7 @@ ni_system_ethtool_refresh(ni_netdev_t *dev)
 int
 ni_system_ethtool_setup(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
 {
-	ni_netdev_ref_t ref;
+	ni_netdev_ref_t ref = NI_NETDEV_REF_INIT;
 
 	if (!ni_netdev_device_is_ready(dev) || !dev->link.ifindex)
 		return -1;
