@@ -679,7 +679,7 @@ usage:
 		}
 	}
 
-	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, check_prio, TRUE)) {
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, check_prio)) {
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 		goto cleanup;
 	}
