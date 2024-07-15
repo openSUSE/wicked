@@ -283,9 +283,13 @@ ni_convert_cfg_into_policy_node(const xml_node_t *ifcfg, xml_node_t *match, cons
 	node = xml_node_clone(ifcfg, ifpolicy);
 	ni_string_dup(&node->name, NI_NANNY_IFPOLICY_MERGE);
 
+	/* apply name and origin to the policy node itself … */
 	ni_var_array_destroy(&ifpolicy->attrs);
 	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_NAME, name);
 	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_ORIGIN, origin);
+
+	/* … and remove origin, uuid, ... from policy action */
+	ni_var_array_destroy(&node->attrs);
 
 	/* calculate an UUIDv5 (sha1 checksum) of the policy content */
 	ni_ifconfig_generate_uuid(ifpolicy, &uuid);
