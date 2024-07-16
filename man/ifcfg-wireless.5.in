@@ -219,6 +219,26 @@ to get the total number of channels and list the available frequencies.
 Depending on regulations, some frequencies/channels may not be
 available.
 .TP
+\f[CR]WIRELESS_FREQUENCY_LIST <num|frequency\-set>\f[R]
+In station mode, this space\-separated list restricts the frequencies
+(in MHz) to search for the BSS (Access\-Point with ESSID).
+Additionally, the following predefined frequency set names can be used
+to specify frequency ranges:
+.RS
+.IP \[bu] 2
+\f[B]2.4Ghz\f[R]: 2412\-2484 Mhz
+.PD 0
+.P
+.PD
+.IP \[bu] 2
+\f[B]5Ghz\f[R]: 4920\-5885 Mhz
+.PD 0
+.P
+.PD
+.IP \[bu] 2
+\f[B]6Ghz\f[R]: 5935\-7115 Mhz
+.RE
+.TP
 \f[CR]WIRELESS_KEY_[0123] <string|hex>\f[R]
 You can define up to 4 WEP encryption keys.
 You can use WEP with open and sharedkey authentication.
