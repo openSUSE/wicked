@@ -16,6 +16,7 @@
     <mode type="builtin-wireless-mode"/>
     <access-point type="ethernet-address" description="Address of AP to connect to"/>
     <channel type="uint32"/>
+    <frequency-list type="string"/>
     <fragment-size type="uint32"/>
     <frequency type="double"/>
     <key-management type="builtin-wireless-key-mgmt-mask"/>

@@ -161,6 +161,11 @@ typedef enum ni_wireless_frequency_set {
 	NI_WIRELESS_FREQUENCY_SET_6GHz,
 } ni_wireless_frequency_set_t;
 
+
+/* The frequency must be equal or greater then NI_WIRELESS_FREQUENCY_MIN, otherwise
+ * it is very likely to be a channel number.*/
+#define NI_WIRELESS_FREQUENCY_MIN		250
+
 #define NI_WIRELESS_PAIRWISE_CIPHERS_MAX	4
 
 typedef struct ni_wireless_auth_info {
@@ -218,6 +223,7 @@ struct ni_wireless_network {
 	ni_hwaddr_t			access_point;
 	ni_wireless_mode_t		mode;
 	unsigned int			channel;
+	ni_string_array_t		frequency_list;
 	unsigned int			fragment_size;		/* used with EAP */
 
 	unsigned int			auth_proto;
@@ -465,5 +471,10 @@ extern					ni_declare_refcounted_ref(ni_wireless_network);
 
 extern const char *			ni_wireless_frequency_set_name(ni_wireless_frequency_set_t);
 extern ni_bool_t			ni_wireless_frequency_set_type(const char *, ni_wireless_frequency_set_t *);
+
+extern ni_bool_t			ni_wireless_frequency_list_parse_string(const char *, ni_string_array_t *,
+										ni_string_array_t *);
+extern ni_bool_t			ni_wireless_frequency_list_expand(ni_uint_array_t *,
+									const ni_string_array_t *, ni_string_array_t *);
 
 #endif /* NI_WICKED_WIRELESS_H */

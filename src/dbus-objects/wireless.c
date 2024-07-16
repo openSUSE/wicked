@@ -343,7 +343,7 @@ ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_
 				const ni_dbus_variant_t *var, DBusError *error)
 {
 	const ni_dbus_variant_t *child;
-	const char *string;
+	const char *string = NULL;
 	uint32_t value;
 	dbus_bool_t boolean;
 
@@ -390,6 +390,23 @@ ni_objectmodel_get_wireless_request_net(const char *ifname, ni_wireless_network_
 
 	if (ni_dbus_dict_get_uint32(var, "channel", &value))
 		net->channel = value;
+
+	if (ni_dbus_dict_get_string(var, "frequency-list", &string)) {
+		ni_string_array_t errors = NI_STRING_ARRAY_INIT;
+		ni_stringbuf_t tmp = NI_STRINGBUF_INIT_DYNAMIC;
+
+		if (!ni_wireless_frequency_list_parse_string(string, &net->frequency_list, &errors)) {
+			if (!dbus_error_is_set(error))
+				dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
+						"%s: invalid frequency-list: '%s'",
+						ifname,
+						ni_stringbuf_join(&tmp, &errors, " ")),
+
+			ni_string_array_destroy(&errors);
+			ni_stringbuf_destroy(&tmp);
+			return FALSE;
+		}
+	}
 
 	if (ni_dbus_dict_get_uint32(var, "fragment-size", &value))
 		net->fragment_size = value;
