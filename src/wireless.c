@@ -1722,6 +1722,27 @@ ni_wireless_name_to_pmf(const char *val, ni_wireless_pmf_t *out)
 	return ni_parse_uint_mapped(val, __ni_wireless_pmf_names, out) == 0;
 }
 
+static const ni_intmap_t	ni_wireless_frequency_set_names[] = {
+	{ "2.4GHz",		NI_WIRELESS_FREQUENCY_SET_2_4GHz	},
+	{ "2,4GHz",		NI_WIRELESS_FREQUENCY_SET_2_4GHz	},
+	{ "5GHz",		NI_WIRELESS_FREQUENCY_SET_5GHz		},
+	{ "6GHz",		NI_WIRELESS_FREQUENCY_SET_6GHz		},
+
+	{ NULL,			NI_WIRELESS_FREQUENCY_SET_NONE		}
+};
+
+const char *
+ni_wireless_frequency_set_name(ni_wireless_frequency_set_t set)
+{
+	return ni_format_uint_mapped(set, ni_wireless_frequency_set_names);
+}
+
+ni_bool_t
+ni_wireless_frequency_set_type(const char *name, ni_wireless_frequency_set_t *set)
+{
+	return ni_parse_uint_mapped(name, ni_wireless_frequency_set_names, set) == 0;
+}
+
 /*
  * Wireless interface config
  */

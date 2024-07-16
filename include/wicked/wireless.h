@@ -154,6 +154,13 @@ typedef enum ni_wireless_pmf {
     NI_WIRELESS_PMF_REQUIRED,
 } ni_wireless_pmf_t;
 
+typedef enum ni_wireless_frequency_set {
+	NI_WIRELESS_FREQUENCY_SET_NONE = 0U,
+	NI_WIRELESS_FREQUENCY_SET_2_4GHz,
+	NI_WIRELESS_FREQUENCY_SET_5GHz,
+	NI_WIRELESS_FREQUENCY_SET_6GHz,
+} ni_wireless_frequency_set_t;
+
 #define NI_WIRELESS_PAIRWISE_CIPHERS_MAX	4
 
 typedef struct ni_wireless_auth_info {
@@ -455,5 +462,8 @@ extern const char *			ni_rfkill_type_string(ni_rfkill_type_t type);
 extern					ni_declare_refcounted_new(ni_wireless_network);
 extern					ni_declare_refcounted_drop(ni_wireless_network);
 extern					ni_declare_refcounted_ref(ni_wireless_network);
+
+extern const char *			ni_wireless_frequency_set_name(ni_wireless_frequency_set_t);
+extern ni_bool_t			ni_wireless_frequency_set_type(const char *, ni_wireless_frequency_set_t *);
 
 #endif /* NI_WICKED_WIRELESS_H */
