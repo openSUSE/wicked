@@ -851,6 +851,42 @@ ni_wireless_wpa_map_pmf(ni_wireless_pmf_t p, int *ret)
 }
 
 static ni_bool_t
+ni_wireless_wpa_net_format_freq_list(ni_wpa_net_properties_t *properties, const ni_string_array_t *freq_list)
+{
+	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_string_array_t errors = NI_STRING_ARRAY_INIT;
+	ni_uint_array_t frequencies = NI_UINT_ARRAY_INIT;
+	ni_bool_t ret = FALSE;
+	const char *name;
+
+	if (!properties || !freq_list)
+		return FALSE;
+
+	if (freq_list->count == 0)
+		return TRUE;
+
+	if (!ni_wireless_frequency_list_expand(&frequencies, freq_list, &errors)) {
+		ni_error("Invalid frequency-list: '%s'", ni_stringbuf_join(&sb, &errors, " "));
+		goto out;
+	}
+
+	if (!(name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_FREQ_LIST)))
+		goto out;
+
+	if (!ni_dbus_dict_add_string(properties, name, ni_stringbuf_join_uint(&sb, &frequencies, " ")))
+		goto out;
+
+	ret = TRUE;
+
+out:
+	ni_stringbuf_destroy(&sb);
+	ni_string_array_destroy(&errors);
+	ni_uint_array_destroy(&frequencies);
+
+	return ret;
+}
+
+static ni_bool_t
 ni_wireless_wpa_net_format(ni_wpa_net_properties_t *properties, const ni_wireless_network_t *net)
 {
 	const char *name;
@@ -895,6 +931,9 @@ ni_wireless_wpa_net_format(ni_wpa_net_properties_t *properties, const ni_wireles
 	}
 
 	/* XXX skip net->channel for now, as it is only used by infrastructure mode */
+
+	if (!ni_wireless_wpa_net_format_freq_list(properties, &net->frequency_list))
+		return FALSE;
 
 	if (net->fragment_size > 0){
 		name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_FRAGMENT_SIZE);
