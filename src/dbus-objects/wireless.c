@@ -637,6 +637,8 @@ ni_objectmodel_bss_to_dict(ni_wireless_bss_t *bss, ni_dbus_variant_t *dict, time
 		return FALSE;
 	if (!ni_dbus_dict_add_uint32(dict, "channel", bss->channel))
 		return FALSE;
+	if (!ni_dbus_dict_add_uint32(dict, "frequency", bss->frequency))
+		return FALSE;
 	if (!ni_dbus_dict_add_uint32(dict, "rate-max", bss->rate_max))
 		return FALSE;
 	if (!ni_dbus_dict_add_int16(dict, "signal", bss->signal))
@@ -752,6 +754,8 @@ ni_objectmodel_bss_from_dict(ni_wireless_bss_t *bss, const ni_dbus_variant_t *di
 		return FALSE;
 	if (!ni_dbus_dict_get_uint32(dict, "channel", &bss->channel))
 		return FALSE;
+	if (!ni_dbus_dict_get_uint32(dict, "frequency", &bss->frequency))
+		return FALSE;
 	if (!ni_dbus_dict_get_uint32(dict, "rate-max", &bss->rate_max))
 		return FALSE;
 	if (!ni_dbus_dict_get_int16(dict, "signal", &bss->signal))
@@ -824,6 +828,9 @@ ni_objectmodel_wireless_get_current_connection(const ni_dbus_object_t *object,
 		if (!ni_dbus_dict_add_int16(result, "signal", wlan->assoc.signal))
 			return FALSE;
 
+		if (!ni_dbus_dict_add_uint32(result, "frequency", wlan->assoc.frequency))
+			return FALSE;
+
 		if (ni_timer_get_time(&now) == 0)
 			if (!ni_dbus_dict_add_uint32(result, "duration", now.tv_sec - wlan->assoc.established_time.tv_sec))
 				return FALSE;
@@ -867,6 +874,9 @@ ni_objectmodel_wireless_set_current_connection(ni_dbus_object_t *object,
 				return FALSE;
 
 		if (!ni_dbus_dict_get_int16(argument, "signal", &wlan->assoc.signal))
+			return FALSE;
+
+		if (!ni_dbus_dict_get_uint32(argument, "frequency", &wlan->assoc.frequency))
 			return FALSE;
 
 		if (ni_dbus_dict_get_uint32(argument, "duration", &duration) &&

@@ -310,10 +310,10 @@ ni_wireless_on_scan_done(ni_wpa_nif_t *wif, const ni_wpa_bss_t *bss_list)
 
 	ni_debug_wireless("Scan done on interface `%s`", device->name);
 	for(bss = wlan->scan.bsss; bss; bss = bss->next){
-		ni_debug_wireless("Found ssid:`%s` bssid:%s Signal:%d Age:%d",
+		ni_debug_wireless("Found ssid:`%s` bssid:%s Signal:%d Age:%d Channel:%u (%uMHz)",
 				ni_wireless_ssid_print(&bss->ssid, &sbuf),
 				ni_link_address_print(&bss->bssid),
-				bss->signal, bss->age);
+				bss->signal, bss->age, bss->channel, bss->frequency);
 		ni_stringbuf_destroy(&sbuf);
 	}
 	__ni_netdev_event(NULL, dev, NI_EVENT_LINK_SCAN_UPDATED);
@@ -407,16 +407,19 @@ ni_wireless_scan_add_bss(ni_wireless_scan_t *scan, ni_wireless_bss_t *bss)
 	*next = bss;
 }
 
-static uint32_t
-ni_wireless_frequency_to_channel(uint16_t frequency)
+unsigned int
+ni_wireless_frequency_to_channel(unsigned int frequency)
 {
-	if (frequency > 5000){
+	if (frequency >= 5950) {
+		return (frequency - 5950) / 5;
+
+	} else if (frequency > 5000) {
 		return (frequency - 5000) / 5;
 
-	} else if (frequency >= 4915){
+	} else if (frequency >= 4915) {
 		return (frequency - 4915) / 5 + 183;
 
-	} else if (frequency == 2484){
+	} else if (frequency == 2484) {
 		return 14;
 
 	} else {
@@ -1529,11 +1532,13 @@ ni_wireless_sync_assoc_with_current_bss(ni_wireless_t *wlan, ni_wpa_nif_t *wif)
 		}
 
 		wlan->assoc.signal = bss->properties.signal;
+		wlan->assoc.frequency = bss->properties.frequency;
 		ni_wpa_bss_drop(&bss);
 
 	} else {
 		ni_link_address_init(&wlan->assoc.bssid);
 		wlan->assoc.signal = 0;
+		wlan->assoc.frequency = 0;
 		wlan->assoc.ssid.len = 0;
 		ni_string_free(&wlan->assoc.auth_mode);
 	}
@@ -2045,6 +2050,7 @@ ni_wireless_bss_set(ni_wireless_bss_t *wireless_bss, const ni_wpa_bss_t *bss)
 	wireless_bss->privacy = props->privacy;
 
 	ni_wireless_name_to_mode(props->mode, &wireless_bss->wireless_mode);
+	wireless_bss->frequency = props->frequency;
 	wireless_bss->channel = ni_wireless_frequency_to_channel(props->frequency);
 	wireless_bss->rate_max = props->rate_max;
 	wireless_bss->signal = props->signal;

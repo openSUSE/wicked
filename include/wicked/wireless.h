@@ -291,6 +291,7 @@ struct ni_wireless_bss {
 	ni_bool_t		privacy;
 	ni_wireless_mode_t	wireless_mode;
 	uint32_t		channel;
+	uint32_t		frequency;
 	uint32_t		rate_max;
 	int16_t			signal;
 	uint32_t		age;
@@ -349,6 +350,7 @@ struct ni_wireless {
 		ni_hwaddr_t			bssid;
 		int16_t				signal;
 		char *				auth_mode;
+		uint32_t			frequency;
 	} assoc;
 };
 
@@ -468,6 +470,8 @@ extern const char *			ni_rfkill_type_string(ni_rfkill_type_t type);
 extern					ni_declare_refcounted_new(ni_wireless_network);
 extern					ni_declare_refcounted_drop(ni_wireless_network);
 extern					ni_declare_refcounted_ref(ni_wireless_network);
+
+extern unsigned int			ni_wireless_frequency_to_channel(unsigned int);
 
 extern const char *			ni_wireless_frequency_set_name(ni_wireless_frequency_set_t);
 extern ni_bool_t			ni_wireless_frequency_set_type(const char *, ni_wireless_frequency_set_t *);
