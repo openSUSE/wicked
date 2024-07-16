@@ -18,7 +18,6 @@
     <channel type="uint32"/>
     <frequency-list type="string"/>
     <fragment-size type="uint32"/>
-    <frequency type="double"/>
     <key-management type="builtin-wireless-key-mgmt-mask"/>
 
     <wep class="dict">
