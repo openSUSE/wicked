@@ -4058,6 +4058,22 @@ try_add_wireless_net(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 		}
 	}
 
+	if (net->mode == NI_WIRELESS_MODE_MANAGED &&
+	    (var = __find_indexed_variable(sc, "WIRELESS_FREQUENCY_LIST", suffix))) {
+
+		ni_string_array_t errors = NI_STRING_ARRAY_INIT;
+		ni_stringbuf_t tmp = NI_STRINGBUF_INIT_DYNAMIC;
+
+		if (!ni_wireless_frequency_list_parse_string(var->value, &net->frequency_list, &errors)) {
+			ni_warn("ifcfg-%s: invalid WIRELESS_FREQUENCY_LIST%s: '%s'",
+					dev->name, suffix,
+					ni_stringbuf_join(&tmp, &errors, " "));
+
+			ni_string_array_destroy(&errors);
+			ni_stringbuf_destroy(&tmp);
+		}
+	}
+
 	/* Default is unset */
 	if ((var = __find_indexed_variable(sc, "WIRELESS_FRAG", suffix))) {
 		if (ni_string_eq_nocase(var->value, "auto") ||

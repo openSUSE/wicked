@@ -513,9 +513,10 @@ ni_ifstatus_show_wireless(const ni_netdev_t *dev, ni_bool_t verbose)
 		else
 			duration = 0;
 
-		if_printf("", "wireless:", "bssid %s, signal %d, duration %us\n",
+		if_printf("", "wireless:", "bssid %s, signal %d, channel %u (%uMHz), duration %us\n",
 			ni_link_address_print(&wlan->assoc.bssid),
-			wlan->assoc.signal, duration);
+			wlan->assoc.signal, ni_wireless_frequency_to_channel(wlan->assoc.frequency),
+			wlan->assoc.frequency, duration);
 
 	}
 }

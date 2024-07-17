@@ -1420,6 +1420,12 @@ __ni_compat_generate_wireless_network(xml_node_t *parent, ni_wireless_network_t 
 		ni_string_free(&tmp);
 	}
 
+	if (net->frequency_list.count > 0) {
+		xml_node_new_element("frequency-list", network,
+				ni_stringbuf_join(&buf, &net->frequency_list, " "));
+		ni_stringbuf_destroy(&buf);
+	}
+
 	if (net->fragment_size > 0 &&
 			ni_string_printf(&tmp, "%u", net->fragment_size)) {
 		xml_node_new_element("fragment-size", network, tmp);
