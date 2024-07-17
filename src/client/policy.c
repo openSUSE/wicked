@@ -283,9 +283,13 @@ ni_convert_cfg_into_policy_node(const xml_node_t *ifcfg, xml_node_t *match, cons
 	node = xml_node_clone(ifcfg, ifpolicy);
 	ni_string_dup(&node->name, NI_NANNY_IFPOLICY_MERGE);
 
+	/* apply name and origin to the policy node itself … */
 	ni_var_array_destroy(&ifpolicy->attrs);
 	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_NAME, name);
 	xml_node_add_attr(ifpolicy, NI_NANNY_IFPOLICY_ORIGIN, origin);
+
+	/* … and remove origin, uuid, ... from policy action */
+	ni_var_array_destroy(&node->attrs);
 
 	/* calculate an UUIDv5 (sha1 checksum) of the policy content */
 	ni_ifconfig_generate_uuid(ifpolicy, &uuid);
@@ -300,15 +304,15 @@ ni_convert_cfg_into_policy_doc(xml_document_t *doc)
 	xml_node_t *root, *match, *policy;
 	const char *origin;
 	const char *ifname;
+	char *name = NULL;
 
-	if (xml_document_is_empty(doc))
+	if (!(root = xml_document_root(doc)))
 		return NULL;
 
-	root = xml_document_root(doc);
-	if (ni_string_empty(root->name))
+	if (ni_string_empty(root->name) || !root->children)
 		return NULL;
 
-	origin = xml_node_location_filename(root);
+	origin = ni_ifconfig_get_origin(root);
 	if (ni_string_empty(origin))
 		return NULL;
 
@@ -325,8 +329,8 @@ ni_convert_cfg_into_policy_doc(xml_document_t *doc)
 	}
 
 	if (!ni_ifconfig_is_config(root)) {
-		ni_error("Invalid object found in file %s: neither an %s nor %s",
-			origin, NI_CLIENT_IFCONFIG, NI_NANNY_IFPOLICY);
+		ni_error("Unknown document node '%s' found in file %s: neither an %s nor %s",
+				root->name, origin, NI_CLIENT_IFCONFIG, NI_NANNY_IFPOLICY);
 		return NULL;
 	}
 
@@ -342,7 +346,9 @@ ni_convert_cfg_into_policy_doc(xml_document_t *doc)
 		return NULL;
 	}
 
-	policy = ni_convert_cfg_into_policy_node(root, match, ifname, origin);
+	name = ni_ifpolicy_name_from_ifname(ifname);
+	policy = ni_convert_cfg_into_policy_node(root, match, name, origin);
+	ni_string_free(&name);
 	if (policy) {
 		xml_node_location_relocate(policy, origin);
 		xml_document_set_root(doc, policy);
