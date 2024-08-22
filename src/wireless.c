@@ -2247,64 +2247,6 @@ ni_wireless_network_array_copy(ni_wireless_network_array_t *dst, ni_wireless_net
 }
 
 /*
- * Wireless auth info
- */
-ni_wireless_auth_info_t *
-ni_wireless_auth_info_new(ni_wireless_auth_proto_t proto, unsigned int version)
-{
-	ni_wireless_auth_info_t *auth;
-
-	auth = xcalloc(1, sizeof(*auth));
-	auth->proto = proto;
-	auth->version = version;
-	auth->group_cipher = NI_WIRELESS_CIPHER_TKIP;
-	auth->pairwise_ciphers = (1 << NI_WIRELESS_CIPHER_TKIP);
-
-	return auth;
-}
-
-void
-ni_wireless_auth_info_add_pairwise_cipher(ni_wireless_auth_info_t *auth, ni_wireless_cipher_t cipher)
-{
-	auth->pairwise_ciphers |= (1 << cipher);
-}
-
-void
-ni_wireless_auth_info_add_key_management(ni_wireless_auth_info_t *auth, ni_wireless_key_mgmt_t algo)
-{
-	auth->keymgmt_algos |= 1 << algo;
-}
-
-void
-ni_wireless_auth_info_free(ni_wireless_auth_info_t *auth)
-{
-	free(auth);
-}
-
-void
-ni_wireless_auth_info_array_init(ni_wireless_auth_info_array_t *array)
-{
-	memset(array, 0, sizeof(*array));
-}
-
-void
-ni_wireless_auth_info_array_append(ni_wireless_auth_info_array_t *array, ni_wireless_auth_info_t *auth)
-{
-	array->data = realloc(array->data, (array->count + 1) * sizeof(auth));
-	array->data[array->count++] = auth;
-}
-
-void
-ni_wireless_auth_info_array_destroy(ni_wireless_auth_info_array_t *array)
-{
-	unsigned int i;
-
-	for (i = 0; i < array->count; ++i)
-		ni_wireless_auth_info_free(array->data[i]);
-	memset(array, 0, sizeof(*array));
-}
-
-/*
  * Helper function to print and parse an SSID
  * Non-printable characters and anything fishy is represented
  * as \\xXX hex escape characters as formatted by the iwlist
