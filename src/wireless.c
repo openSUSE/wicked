@@ -345,9 +345,8 @@ ni_wireless_interface_refresh(ni_netdev_t *dev)
 	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
 		return -NI_ERROR_RADIO_DISABLED;
 
-	if ((wlan = dev->wireless) == NULL) {
-		dev->wireless = wlan = ni_wireless_new(dev);
-	}
+	if (!dev || !(wlan = ni_netdev_get_wireless(dev)))
+		return -NI_ERROR_GENERAL_FAILURE;
 
 	if (!wlan->scan.timer && wlan->scan.interval > 0)
 		__ni_wireless_scan_timer_arm(&wlan->scan, dev, 1);
@@ -2002,15 +2001,16 @@ ni_wireless_config_has_essid(ni_wireless_config_t *conf, ni_wireless_ssid_t *ess
 }
 
 ni_wireless_t *
-ni_wireless_new(ni_netdev_t *dev)
+ni_wireless_new(void)
 {
 	ni_wireless_t *wlan;
 
-	ni_assert(dev && !dev->wireless);
-	wlan = xcalloc(1, sizeof(ni_wireless_t));
-	if (wlan) {
-		ni_wireless_scan_set_defaults(&wlan->scan);
+	if (!(wlan = calloc(1, sizeof(ni_wireless_t)))) {
+		ni_error("Out of memory - %s", __func__);
+		return NULL;
 	}
+
+	ni_wireless_scan_set_defaults(&wlan->scan);
 	return wlan;
 }
 

@@ -377,7 +377,7 @@ struct ni_wireless {
 						NI_BIT(NI_WIRELESS_KEY_MGMT_OWE)		\
 						)
 
-extern ni_wireless_t *			ni_wireless_new(ni_netdev_t *);
+extern ni_wireless_t *			ni_wireless_new(void);
 extern void				ni_wireless_free(ni_wireless_t *);
 extern int				ni_wireless_setup(ni_netdev_t *, ni_wireless_config_t *);
 extern int				ni_wireless_shutdown(ni_netdev_t *);
