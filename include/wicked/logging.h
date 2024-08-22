@@ -81,6 +81,9 @@ extern unsigned int	ni_log_level;
 #define ni_log_level_at(level)			(ni_log_level >= (level))
 #define ni_log_facility(facility)		(ni_debug & (facility))
 
+#define ni_error_oom()				ni_error("[%s:%d] %s(): Out of Memory", \
+							 __FILE__, __LINE__, __func__)
+
 #define ni_debug_guard(level, facility) \
 	(ni_log_level_at(level) && ni_log_facility(facility))
 
