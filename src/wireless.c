@@ -1916,9 +1916,8 @@ ni_wireless_config_new()
 {
 	ni_wireless_config_t *conf;
 
-	conf = calloc(1, sizeof(ni_wireless_config_t));
-	if (!conf) {
-		ni_error("Unable to create wireless config -- out of memory");
+	if (!(conf = calloc(1, sizeof(ni_wireless_config_t)))) {
+		ni_error_oom();
 		return NULL;
 	}
 	ni_wireless_config_set_defaults(conf);
@@ -2006,7 +2005,7 @@ ni_wireless_new(void)
 	ni_wireless_t *wlan;
 
 	if (!(wlan = calloc(1, sizeof(ni_wireless_t)))) {
-		ni_error("Out of memory - %s", __func__);
+		ni_error_oom();
 		return NULL;
 	}
 
@@ -2060,7 +2059,13 @@ ni_wireless_bss_set(ni_wireless_bss_t *wireless_bss, const ni_wpa_bss_t *bss)
 ni_wireless_bss_t *
 ni_wireless_bss_new()
 {
-	return calloc(1, sizeof(ni_wireless_bss_t));
+	ni_wireless_bss_t *bss;
+
+	if (!(bss = calloc(1, sizeof(ni_wireless_bss_t)))) {
+		ni_error_oom();
+		return NULL;
+	}
+	return bss;
 }
 
 void
@@ -2145,8 +2150,10 @@ ni_wireless_blob_new_from_str(const char *str)
 {
 	ni_wireless_blob_t *blob;
 
-	if (!(blob = calloc(1, sizeof(ni_wireless_blob_t))))
+	if (!(blob = calloc(1, sizeof(ni_wireless_blob_t)))) {
+		ni_error_oom();
 		return NULL;
+	}
 
 	blob->is_string = TRUE;
 	if (!ni_string_dup(&blob->str, str)){
