@@ -392,6 +392,19 @@ lease time to one hour:
 .PP
 
 .TP
+.B ignore-rfc3927-1-6
+The 169.254.0.0/16 prefix is reserved for dynamic configuration of IPv4 link-local
+addresses, prohibited for other purposes by RFC3927 Section 1.6 and wickedd-dhcp4
+supplicant rejects to request them in offers provided by DHCP servers.
+Administrators should use the RFC1918 prefixes (192.168.0.0/16, 172.16.0.0/12,
+10.0.0.0/8) in their DHCP servers instead.
+
+Enabling this option causes to ignore the RFC3927 Section 1.6 Alternate Use Prohibition:
+.IP
+.B "  <ignore-rfc3927-1-6>true</ignore-rfc3927-1-6>
+.PP
+
+.TP
 .B ignore-server
 Using the \fBip\fB attribute of this element, you can specify the
 IP or HW address (currently ethernet devices only) of a faulty DHCP
