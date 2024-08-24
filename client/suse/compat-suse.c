@@ -3787,7 +3787,7 @@ try_dummy(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 		if (iftype && !ni_string_eq_nocase(iftype, "dummy"))
 			return 1;
 
-		if (dev->link.type != NI_IFTYPE_UNKNOWN || !maybe_dummy(dev->name))
+		if (dev->link.type != NI_IFTYPE_UNKNOWN || (!iftype && !maybe_dummy(dev->name)))
 			return 1;
 	} else {
 		if (!ni_sysconfig_get_boolean(sc, "DUMMY", &enabled) || !enabled)
