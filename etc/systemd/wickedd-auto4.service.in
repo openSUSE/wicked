@@ -1,10 +1,9 @@
 [Unit]
 Description=wicked AutoIPv4 supplicant service
-Requisite=dbus.service
+BindTo=dbus.service
 After=local-fs.target dbus.service network-pre.target SuSEfirewall2_init.service
 Before=wickedd.service wicked.service network.target
 PartOf=wickedd.service
-BindsTo=dbus.service
 
 [Service]
 Type=notify
