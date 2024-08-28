@@ -1,6 +1,6 @@
 [Unit]
 Description=wicked DHCPv4 supplicant service
-BindTo=dbus.service
+BindsTo=dbus.service
 After=local-fs.target dbus.service network-pre.target SuSEfirewall2_init.service
 Before=wickedd.service wicked.service network.target
 PartOf=wickedd.service

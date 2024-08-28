@@ -1,6 +1,6 @@
 [Unit]
 Description=wicked network nanny service
-BindTo=dbus.service
+BindsTo=dbus.service
 After=local-fs.target dbus.service network-pre.target SuSEfirewall2_init.service wickedd.service
 Before=wicked.service network.target
 PartOf=wickedd.service
