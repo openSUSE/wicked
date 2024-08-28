@@ -1,6 +1,6 @@
 [Unit]
 Description=wicked network management service daemon
-Requisite=dbus.service
+BindTo=dbus.service
 Wants=wickedd-nanny.service wickedd-dhcp6.service wickedd-dhcp4.service wickedd-auto4.service 
 After=local-fs.target dbus.service isdn.service rdma.service network-pre.target SuSEfirewall2_init.service openvswitch.service
 Before=wickedd-nanny.service wicked.service network.target
