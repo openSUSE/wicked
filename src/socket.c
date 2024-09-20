@@ -107,8 +107,13 @@ __ni_default_hangup_handler(ni_socket_t *sock)
 int
 ni_socket_array_wait(ni_socket_array_t *array, ni_timeout_t timeout)
 {
-	struct pollfd pfd[array->count];
-	ni_socket_t *sock_array[array->count];
+	/*
+	 * Ensure array sizes are > 0 to avoid compiler and ubsan complaints
+	 * "variable length array bound evaluates to non-positive value 0"
+	 * or pedantic "ISO C forbids zero-size array".
+	 */
+	struct pollfd pfd[array->count + 1];
+	ni_socket_t *sock_array[array->count + 1];
 	struct timeval now, expires;
 	unsigned int i, socket_count = 0;
 	int ptimeout = -1;
