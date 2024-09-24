@@ -819,14 +819,22 @@ __ni_compat_generate_team_link_watch(xml_node_t *tnode, const ni_team_link_watch
 			if (!ni_string_empty(arp->target_host))
 				xml_node_new_element("target_host", watch, arp->target_host);
 
-			xml_node_new_element("interval", watch, ni_sprint_uint(arp->interval));
-			xml_node_new_element("init_wait", watch, ni_sprint_uint(arp->init_wait));
+			if (arp->interval)
+				xml_node_new_element("interval", watch, ni_sprint_uint(arp->interval));
+			if (arp->init_wait)
+				xml_node_new_element("init_wait", watch, ni_sprint_uint(arp->init_wait));
 
-			xml_node_new_element("validate_active", watch, ni_format_boolean(arp->validate_active));
-			xml_node_new_element("validate_inactive", watch, ni_format_boolean(arp->validate_inactive));
-			xml_node_new_element("send_always", watch, ni_format_boolean(arp->send_always));
+			if (arp->validate_active)
+				xml_node_new_element("validate_active", watch,
+							ni_format_boolean(arp->validate_active));
+			if (arp->validate_inactive)
+				xml_node_new_element("validate_inactive", watch,
+							ni_format_boolean(arp->validate_inactive));
+			if (arp->send_always)
+				xml_node_new_element("send_always", watch, ni_format_boolean(arp->send_always));
 
-			xml_node_new_element("missed_max", watch, ni_sprint_uint(arp->missed_max));
+			if (arp->missed_max)
+				xml_node_new_element("missed_max", watch, ni_sprint_uint(arp->missed_max));
 
 			if (arp->vlanid != UINT16_MAX)
 				xml_node_new_element("vlanid", watch, ni_sprint_uint(arp->vlanid));
@@ -839,9 +847,12 @@ __ni_compat_generate_team_link_watch(xml_node_t *tnode, const ni_team_link_watch
 			if (!ni_string_empty(nsna->target_host))
 				xml_node_new_element("target_host", watch, nsna->target_host);
 
-			xml_node_new_element("interval", watch, ni_sprint_uint(nsna->interval));
-			xml_node_new_element("init_wait", watch, ni_sprint_uint(nsna->init_wait));
-			xml_node_new_element("missed_max", watch, ni_sprint_uint(nsna->missed_max));
+			if (nsna->interval)
+				xml_node_new_element("interval", watch, ni_sprint_uint(nsna->interval));
+			if (nsna->init_wait)
+				xml_node_new_element("init_wait", watch, ni_sprint_uint(nsna->init_wait));
+			if (nsna->missed_max)
+				xml_node_new_element("missed_max", watch, ni_sprint_uint(nsna->missed_max));
 		}
 		break;
 

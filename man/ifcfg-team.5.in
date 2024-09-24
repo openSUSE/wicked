@@ -262,6 +262,10 @@ Hostname or IP address used in ARP request as destination address.
 .TP
 \f[CR]TEAM_LW_ARP_PING_INTERVAL[SUFFIX]\f[R]
 Interval between ARP requests being sent (in milliseconds).
+.RS
+.PP
+Default: \f[B]1000\f[R]
+.RE
 .TP
 \f[CR]TEAM_LW_ARP_PING_INIT_WAIT[SUFFIX]\f[R]
 Delay between link watch initialization and the first ARP request being
@@ -313,6 +317,10 @@ Hostname or IPv6 address used in NS packet as target address.
 .TP
 \f[CR]TEAM_LW_NSNA_PING_INTERVAL[SUFFIX]\f[R]
 Interval between sending NS packets (in milliseconds).
+.RS
+.PP
+Default: \f[B]1000\f[R]
+.RE
 .TP
 \f[CR]TEAM_LW_NSNA_PING_INIT_WAIT[SUFFIX]\f[R]
 Delay between link watch initialization and the first NS packet being
