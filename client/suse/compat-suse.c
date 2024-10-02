@@ -6471,45 +6471,52 @@ ni_suse_ifcfg_parse_firewall(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifc
 	return TRUE;
 }
 
-/*
- * Read ifsysctl file
- */
 static const ni_var_t *
-__ifsysctl_get_var(ni_var_array_t *vars, const char *path, const char *ifname, const char *attr)
+ni_suse_ifsysctl_get_var(ni_var_array_t *vars, const char *path, ni_netdev_t *dev,
+			      const char *attr)
 {
-	const char *def_names[] = { "all", "default", ifname, NULL };
-	const char *lo_names[] = { ifname, NULL };
-	const char **names = ni_string_eq(ifname, "lo") ? lo_names : def_names;
-	const char **name;
-	const ni_var_t *ret = NULL;
+	const char *all[] = { dev->name, "default", "all", NULL };
+	const char *ifc_only[] = { dev->name, NULL };
+	const char **names = all;
+	const char **name = NULL;
 	const ni_var_t *var;
+
+	if (ni_string_eq(attr, "accept_redirects") ||
+	    ni_string_eq(attr, "use_tempaddr")) {
+		if (dev->link.type == NI_IFTYPE_LOOPBACK)
+			return NULL;
+	}
+
+	if (ni_string_eq(attr, "accept_redirects"))
+		names = ifc_only;
 
 	for (name = names; *name; name++) {
 		var = ni_ifsysctl_vars_get(vars, "%s/%s/%s", path, *name, attr);
 		if (!var || ni_string_empty(var->value))
 			continue;
-		ret = var;
+		return var;
 	}
-	return ret;
+
+	return NULL;
 }
 
 static const char *
-__ifsysctl_get_str(ni_var_array_t *vars, const char *path, const char *ifname, const char *attr)
+ni_suse_ifsysctl_get_str(ni_var_array_t *vars, const char *path, ni_netdev_t *dev, const char *attr)
 {
 	const ni_var_t *var;
 
-	if ((var = __ifsysctl_get_var(vars, path, ifname, attr)))
+	if ((var = ni_suse_ifsysctl_get_var(vars, path, dev, attr)))
 		return var->value;
 	return NULL;
 }
 
 static ni_bool_t
-__ifsysctl_get_int(ni_var_array_t *vars, const char *path, const char *ifname,
+ni_suse_ifsysctl_get_int(ni_var_array_t *vars, const char *path, ni_netdev_t *dev,
 					const char *attr, int *value, int base)
 {
 	const ni_var_t *var;
 
-	if (!(var = __ifsysctl_get_var(vars, path, ifname, attr)))
+	if (!(var = ni_suse_ifsysctl_get_var(vars, path, dev, attr)))
 		return FALSE;
 
 	if (ni_parse_int(var->value, value, base) < 0) {
@@ -6524,13 +6531,13 @@ __ifsysctl_get_int(ni_var_array_t *vars, const char *path, const char *ifname,
 }
 
 static ni_bool_t
-__ifsysctl_get_ipv6(ni_var_array_t *vars, const char *path, const char *ifname,
+ni_suse_ifsysctl_get_ipv6(ni_var_array_t *vars, const char *path, ni_netdev_t *dev,
 					const char *attr, struct in6_addr *ipv6)
 {
 	ni_sockaddr_t addr;
 	const char *str;
 
-	str = __ifsysctl_get_str(vars, path, ifname, attr);
+	str = ni_suse_ifsysctl_get_str(vars, path, dev, attr);
 	if (!str || ni_sockaddr_parse(&addr, str, AF_INET6) < 0)
 		return FALSE;
 
@@ -6539,12 +6546,12 @@ __ifsysctl_get_ipv6(ni_var_array_t *vars, const char *path, const char *ifname,
 }
 
 static void
-__ifsysctl_get_tristate(ni_var_array_t *vars, const char *path, const char *ifname,
+ni_suse_ifsysctl_get_tristate(ni_var_array_t *vars, const char *path, ni_netdev_t *dev,
 			const char *attr, ni_tristate_t *tristate)
 {
 	int value = NI_TRISTATE_DEFAULT;
 
-	__ifsysctl_get_int(vars, path, ifname, attr, &value, 10);
+	ni_suse_ifsysctl_get_int(vars, path, dev, attr, &value, 10);
 	if (ni_tristate_is_set(value))
 		ni_tristate_set(tristate, value);
 }
@@ -6570,12 +6577,12 @@ ni_suse_ifcfg_parse_ifsysctl_ipv4(ni_suse_ifcfg_t *ifcfg, ni_var_array_t *ifsysc
 
 	/* Note: No conf.arp-verify in sysctl, can be set with CHECK_DUPLICATE_IP */
 
-	__ifsysctl_get_tristate(ifsysctl, "net/ipv4/conf", dev->name,
+	ni_suse_ifsysctl_get_tristate(ifsysctl, "net/ipv4/conf", dev,
 			"forwarding", &ipv4->conf.forwarding);
 	/* Note: arp_notify is also set with SEND_GRATUITOUS_ARP */
-	__ifsysctl_get_tristate(ifsysctl, "net/ipv4/conf", dev->name,
+	ni_suse_ifsysctl_get_tristate(ifsysctl, "net/ipv4/conf", dev,
 			"arp_notify", &ipv4->conf.arp_notify);
-	__ifsysctl_get_tristate(ifsysctl, "net/ipv4/conf", dev->name,
+	ni_suse_ifsysctl_get_tristate(ifsysctl, "net/ipv4/conf", dev,
 			"accept_redirects", &ipv4->conf.accept_redirects);
 
 	return TRUE;
@@ -6595,10 +6602,10 @@ ni_suse_ifcfg_parse_ifsysctl_ipv6(ni_suse_ifcfg_t *ifcfg, ni_var_array_t *ifsysc
 	 * First, get sysctl's affecting also "IPv6 L2" aka
 	 * stable secret for the fe80 link-address assignment.
 	 */
-	__ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev->name,
+	ni_suse_ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev,
 			"addr_gen_mode", &ipv6->conf.addr_gen_mode, 10);
 
-	__ifsysctl_get_ipv6(ifsysctl, "net/ipv6/conf", dev->name,
+	ni_suse_ifsysctl_get_ipv6(ifsysctl, "net/ipv6/conf", dev,
 			"stable_secret", &ipv6->conf.stable_secret);
 
 	/*
@@ -6627,17 +6634,17 @@ ni_suse_ifcfg_parse_ifsysctl_ipv6(ni_suse_ifcfg_t *ifcfg, ni_var_array_t *ifsysc
 	/*
 	 * When IPv6 is disabled via sysctl, we're done
 	 */
-	__ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev->name,
+	ni_suse_ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev,
 			"disable_ipv6", &disable_ipv6);
 	if (ni_tristate_is_set(disable_ipv6))
 		ni_tristate_set(&ipv6->conf.enabled, !disable_ipv6);
 	if (ni_tristate_is_disabled(ipv6->conf.enabled))
 		return TRUE;
 
-	__ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev->name,
+	ni_suse_ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev,
 			"forwarding", &ipv6->conf.forwarding);
 
-	__ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev->name,
+	ni_suse_ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev,
 			"accept_ra", &ipv6->conf.accept_ra, 10);
 	if (ipv6->conf.accept_ra > NI_IPV6_ACCEPT_RA_ROUTER)
 		ipv6->conf.accept_ra = NI_IPV6_ACCEPT_RA_ROUTER;
@@ -6645,7 +6652,7 @@ ni_suse_ifcfg_parse_ifsysctl_ipv6(ni_suse_ifcfg_t *ifcfg, ni_var_array_t *ifsysc
 	if (ipv6->conf.accept_ra < NI_IPV6_ACCEPT_RA_DEFAULT)
 		ipv6->conf.accept_ra = NI_IPV6_ACCEPT_RA_DEFAULT;
 
-	__ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev->name,
+	ni_suse_ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev,
 			"accept_dad", &ipv6->conf.accept_dad, 10);
 	if (ipv6->conf.accept_dad > NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL)
 		ipv6->conf.accept_dad = NI_IPV6_ACCEPT_DAD_FAIL_PROTOCOL;
@@ -6653,17 +6660,17 @@ ni_suse_ifcfg_parse_ifsysctl_ipv6(ni_suse_ifcfg_t *ifcfg, ni_var_array_t *ifsysc
 	if (ipv6->conf.accept_dad < NI_IPV6_ACCEPT_DAD_DEFAULT)
 		ipv6->conf.accept_dad = NI_IPV6_ACCEPT_DAD_DEFAULT;
 
-	__ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev->name,
+	ni_suse_ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev,
 				"autoconf", &ipv6->conf.autoconf);
 
-	__ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev->name,
+	ni_suse_ifsysctl_get_int(ifsysctl, "net/ipv6/conf", dev,
 				"use_tempaddr", &ipv6->conf.privacy, 10);
 	if (ipv6->conf.privacy > NI_IPV6_PRIVACY_PREFER_TEMPORARY)
 		ipv6->conf.privacy = NI_IPV6_PRIVACY_PREFER_TEMPORARY;
 	else if (ipv6->conf.privacy < NI_IPV6_PRIVACY_DEFAULT)
 		ipv6->conf.privacy = NI_IPV6_PRIVACY_DISABLED;
 
-	__ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev->name,
+	ni_suse_ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev,
 			"accept_redirects", &ipv6->conf.accept_redirects);
 
 	return TRUE;
