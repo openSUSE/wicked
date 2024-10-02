@@ -6605,16 +6605,19 @@ ni_suse_ifcfg_parse_ifsysctl_ipv6(ni_suse_ifcfg_t *ifcfg, ni_var_array_t *ifsysc
 	if (ifcfg->l2only)
 		return TRUE;
 
+	/* Set default ipv6 enabled state. without this, we
+	 * miss the <ipv6><enabled> node */
+	ni_tristate_set(&ipv6->conf.enabled, !__ni_ipv6_disbled);
+
 	/*
 	 * When IPv6 is disabled via kernel cmdline, we're done
 	 * TODO: it's wrong to mix kernel cmdline overrides into
 	 * config parsing and we've to remove this and handle
 	 * later at runtime while applying the config.
 	 */
-	if (__ni_ipv6_disbled) {
-		ni_tristate_set(&ipv6->conf.enabled, FALSE);
+	if (__ni_ipv6_disbled)
 		return TRUE;
-	}
+
 
 	/*
 	 * When IPv6 is disabled via sysctl, we're done
