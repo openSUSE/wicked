@@ -1877,19 +1877,6 @@ __ni_process_ifinfomsg_af_spec(ni_netdev_t *dev, struct nlattr *ifla_af_spec, ni
 		}
 	}
 
-		return 0;
-
-	/* don't read sysfs when device (name) is not ready */
-	if (ni_netdev_device_is_ready(dev) &&
-	    ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN)) {
-		if (!ipv4_conf) {
-			ni_system_ipv4_devinfo_get(dev, NULL);
-		}
-		if (!ipv6_conf) {
-			ni_system_ipv6_devinfo_get(dev, NULL);
-		}
-	}
-
 	return 0;
 }
 
