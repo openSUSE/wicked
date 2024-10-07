@@ -12,33 +12,47 @@ wicked-config.xml \- wicked configuration file
 .br
 .SH DESCRIPTION
 These files contain the global configuration options for the \fBwicked\fP
-network management service. All files follow the same XML schema.
+network management service components. All files follow the same XML schema.
+
+.B Note: Make sure to restart the \fIwickedd\fB service to apply changes.
+
 .PP
-\fBcommon.xml\fP contains common definitions that should be used by all applications.
-It is sourced by the other configuration files. It can be used to enable
-debugging across all \fBwicked\fP components, for instance.
+.TP
+.B common.xml
+This configuration file contains definitions common to all wicked network management
+service components.
+.TP
+.B local.xml
+This configuration file (if present) is included by the \fBcommon.xml\fP and
+intended for common \fBcustom definitions\fP that will not be overwritten by
+a wicked update.
+
 .PP
-Different components of \fBwicked\fP will load different files on startup; for
-instance, the \fBwickedd\fP server process will try to load \fBserver.xml\fP. If
-that file does not exist, it will fall back to \fBcommon.xml\fP and try to read that
-directly.
+Wicked components will load different component specific config files at start;
+for instance, the \fBwickedd\fP server process will try to load \fBserver.xml\fP
+which includes \fBcommon.xml\fP and specific custom \fBserver-local.xml\fP
+(if present). If the \fBserver.xml\fP file does not exits, it will fall back to
+load the \fBcommon.xml\fP file directly.
+
 .PP
-The following table shows which \fBwicked\fP commands use which configuration file:
+The following table shows which \fBwicked\fP components use which configuration file:
 .PP
 .TS
 box;
-l|l
-lb|lb.
-Application	Filename
+l|l|l
+lb|lb|lb.
+Component	Load-Config	Custom-Config
 =
-wicked	client.xml
-wickedd	server.xml
-wickedd-nanny	nanny.xml
-wickedd-auto4	auto4.xml
-wickedd-dhcp4	dhcp4.xml
-wickedd-dhcp6	dhcp6.xml
+wicked	client.xml	client-local.xml
+wickedd	server.xml	server-local.xml
+wickedd-nanny	nanny.xml	nanny-local.xml
+(common)	common.xml	local.xml
 .TE
 .PP
+We do not ship specific configurations for the dhcp6, dhcp4 and auto4 supplicants.
+Custom settings for these supplicants should be placed in \fBlocal.xml\fP file.
+.PP
+
 .\" --------------------------------------------------------
 .SH GENERAL OPTIONS
 .\" --------------------------------------------------------
@@ -274,8 +288,6 @@ the settings apply to STATIC only. To change the ARP settings for AUTO4 or
 DHCP4, add the \fB<arp>\fR node as child of the corresponding
 \fB<config><addrconf><auto4>\fR or \fB<config><addrconf><dhcp4>\fR node.
 
-It is recommended to set this settings in \fB@wicked_configdir@/common-local.xml\fR,
-as this config file is used by wickedd, wickedd-dhcp4 and wickedd-auto4.
 .PP
 .nf
 .B "  <arp>
@@ -594,7 +606,6 @@ The \fBwickedd\fP daemons store the generated DUIDs in \fB@wicked_statedir@/duid
 file. The \fBwicked duid\fR utility command permits to review and modify the duid as
 needed.
 
-.B Note: When you change the DUID, make sure to restart the \fIwickedd\fB service.
 .PP
 .\"
 .\" Not documented, not fully working:
