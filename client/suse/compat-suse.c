@@ -6564,10 +6564,15 @@ ni_suse_ifcfg_parse_ifsysctl_ipv4(ni_suse_ifcfg_t *ifcfg, ni_var_array_t *ifsysc
 	if (!(ipv4 = ni_netdev_get_ipv4(dev)))
 		return FALSE;
 
-	/* Note: no conf.enable and conf.arp-verify in sysctl */
+	/* There is no conf.enabled in sysctl, let's assume TRUE as default.
+	 * This also gives us the <interface><ipv4><enabled> node always. */
+	ni_tristate_set(&ipv4->conf.enabled, TRUE);
+
+	/* Note: No conf.arp-verify in sysctl, can be set with CHECK_DUPLICATE_IP */
 
 	__ifsysctl_get_tristate(ifsysctl, "net/ipv4/conf", dev->name,
 			"forwarding", &ipv4->conf.forwarding);
+	/* Note: arp_notify is also set with SEND_GRATUITOUS_ARP */
 	__ifsysctl_get_tristate(ifsysctl, "net/ipv4/conf", dev->name,
 			"arp_notify", &ipv4->conf.arp_notify);
 	__ifsysctl_get_tristate(ifsysctl, "net/ipv4/conf", dev->name,
