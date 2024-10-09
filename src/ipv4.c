@@ -142,47 +142,6 @@ ni_ipv4_devinfo_free(ni_ipv4_devinfo_t *ipv4)
 }
 
 /*
- * Discover current IPv4 device settings
- */
-int
-ni_system_ipv4_devinfo_get(ni_netdev_t *dev, ni_ipv4_devinfo_t *ipv4)
-{
-	ni_bool_t can_arp;
-
-	if (ipv4 == NULL)
-		ipv4 = ni_netdev_get_ipv4(dev);
-
-	if (!ni_tristate_is_set(ipv4->conf.enabled))
-		ipv4->conf.enabled = NI_TRISTATE_ENABLE;
-
-	can_arp = ni_netdev_supports_arp(dev);
-	if (!ni_tristate_is_set(ipv4->conf.arp_verify)) {
-		ipv4->conf.arp_verify = can_arp ?
-			NI_TRISTATE_ENABLE : NI_TRISTATE_DISABLE;
-	}
-
-	if (ni_sysctl_ipv4_ifconfig_is_present(dev->name)) {
-		int val;
-
-		if (ni_sysctl_ipv4_ifconfig_get_int(dev->name, "forwarding", &val) >= 0)
-			ni_tristate_set(&ipv4->conf.forwarding, val);
-
-		if (can_arp && ni_sysctl_ipv4_ifconfig_get_int(dev->name, "arp_notify", &val) >= 0)
-			ni_tristate_set(&ipv4->conf.arp_notify, val);
-
-		if (ni_sysctl_ipv4_ifconfig_get_int(dev->name, "accept_redirects", &val) >= 0)
-			ni_tristate_set(&ipv4->conf.accept_redirects, val);
-	} else {
-		ni_warn("%s: cannot get ipv4 device attributes", dev->name);
-
-		/* Reset to defaults */
-		__ni_ipv4_devconf_reset(&ipv4->conf);
-	}
-
-	return 0;
-}
-
-/*
  * Update the device's IPv4 settings
  */
 static inline int
