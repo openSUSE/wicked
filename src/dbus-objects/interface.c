@@ -1424,7 +1424,7 @@ __ni_objectmodel_netif_get_routes(const ni_dbus_object_t *object,
 	ni_netdev_t *ifp = ni_dbus_object_get_handle(object);
 
 	ni_dbus_dict_array_init(result);
-	return __ni_objectmodel_get_route_list(ifp->routes, result, error);
+	return __ni_objectmodel_get_route_list(ifp->routes, AF_UNSPEC, result, error);
 }
 
 static dbus_bool_t
@@ -1435,7 +1435,7 @@ __ni_objectmodel_netif_set_routes(ni_dbus_object_t *object,
 {
 	ni_netdev_t *ifp = ni_dbus_object_get_handle(object);
 
-	return __ni_objectmodel_set_route_list(&ifp->routes, argument, error);
+	return __ni_objectmodel_set_route_list(&ifp->routes, AF_UNSPEC, argument, error);
 }
 
 /*
