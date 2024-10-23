@@ -1932,12 +1932,18 @@ __ni_compat_generate_static_route(xml_node_t *aconf, const ni_route_t *rp, const
 	char *tmp = NULL;
 	const char *ptr;
 
+	/*
+	 * Each route must have a destination family,
+	 * even address and prefixlen are unspecified
+	 * (default destination 0.0.0.0/0 or ::/0).
+	 */
+	if (rp->destination.ss_family == AF_UNSPEC)
+		return;
+
 	rnode = xml_node_new("route", aconf);
 
-	if (rp->destination.ss_family != AF_UNSPEC && rp->prefixlen != 0) {
-		xml_node_new_element("destination", rnode,
-			ni_sockaddr_prefix_print(&rp->destination, rp->prefixlen));
-	}
+	xml_node_new_element("destination", rnode,
+		ni_sockaddr_prefix_print(&rp->destination, rp->prefixlen));
 
 	__ni_compat_generate_static_route_hops(rnode, &rp->nh, ifname);
 
