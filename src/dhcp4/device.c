@@ -87,7 +87,9 @@ ni_dhcp4_device_free(ni_dhcp4_device_t *dev)
 	ni_dhcp4_device_drop_lease(dev);
 	ni_dhcp4_device_drop_best_offer(dev);
 	ni_dhcp4_device_stop(dev);
-	ni_string_free(&dev->system.ifname);
+
+	ni_capture_devinfo_destroy(&dev->system);
+
 	ni_string_free(&dev->ifname);
 
 	for (pos = &ni_dhcp4_active; *pos; pos = &(*pos)->next) {

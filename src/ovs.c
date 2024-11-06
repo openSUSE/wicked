@@ -37,7 +37,8 @@ ni_ovs_bridge_new(void)
 	ni_ovs_bridge_t *ovsbr;
 
 	ovsbr = xcalloc(1, sizeof(*ovsbr));
-	/* ni_ovs_bridge_config_init(&ovsbr->conf); */
+	if (ovsbr)
+		ni_ovs_bridge_config_init(&ovsbr->config);
 	return ovsbr;
 }
 
@@ -53,7 +54,10 @@ ni_ovs_bridge_free(ni_ovs_bridge_t *ovsbr)
 void
 ni_ovs_bridge_config_init(ni_ovs_bridge_config_t *conf)
 {
-	memset(conf, 0, sizeof(*conf));
+	if (conf) {
+		memset(conf, 0, sizeof(*conf));
+		ni_netdev_ref_init(&conf->vlan.parent);
+	}
 }
 
 void
@@ -635,6 +639,8 @@ ni_ovs_bridge_port_info_new(void)
 	ni_ovs_bridge_port_info_t *info;
 
 	info = calloc(1, sizeof(*info));
+	if (info)
+		ni_netdev_ref_init(&info->bridge);
 	return info;
 }
 

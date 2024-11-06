@@ -477,6 +477,7 @@ ni_addrconf_updater_new(const ni_addrconf_action_static_t *table, const ni_netde
 		}
 		updater->event  = event;
 		ni_timer_get_time(&updater->started);
+		ni_netdev_ref_init(&updater->device);
 		if (dev)
 			ni_netdev_ref_set(&updater->device, dev->name, dev->link.ifindex);
 	}

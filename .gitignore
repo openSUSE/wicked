@@ -35,8 +35,7 @@ Makefile.in
 /wicked.pc
 /wicked.spec
 !wicked-rpmlintrc
-/man/wicked*.[0-9]
-/man/if*.[0-9]
+/man/*.[0-9]
 /doc/schema/
 /doc/schema.xml
 /etc/common.xml

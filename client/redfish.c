@@ -2102,6 +2102,7 @@ ni_mchi_net_dev_new(ni_mchi_net_dev_type_t type)
 	if (dev) {
 		dev->refcount = 1;
 		dev->type = type;
+		ni_netdev_ref_init(&dev->device);
 		ni_mchi_net_dev_usb_init(&dev->usb);
 		ni_mchi_net_dev_pci_init(&dev->pci);
 	}
