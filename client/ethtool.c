@@ -1230,7 +1230,7 @@ ni_do_ethtool(const char *caller, int argc, char **argv)
 	};
 	int c, n, status = NI_WICKED_RC_USAGE;
 	const struct ethtool_opt *opt;
-	ni_netdev_ref_t ref = { 0, NULL };
+	ni_netdev_ref_t ref = NI_NETDEV_REF_INIT;
 	ni_ethtool_t *ethtool = NULL;
 
 	optind = 1;
@@ -1267,7 +1267,7 @@ ni_do_ethtool(const char *caller, int argc, char **argv)
 	}
 
 	status = NI_WICKED_RC_ERROR;
-	ni_netdev_ref_init(&ref, argv[optind], ni_netdev_name_to_index(argv[optind]));
+	ni_netdev_ref_set(&ref, argv[optind], ni_netdev_name_to_index(argv[optind]));
 	if (!ref.index) {
 		fprintf(stderr, "%s: cannot find interface with name '%s'\n", argv[0], argv[optind]);
 		goto cleanup;

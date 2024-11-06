@@ -148,7 +148,7 @@ Sets up \fIvxlan0\fR vxlan interface with an ID/VNI 1 and linked to the \fBeth0\
 .SH COPYRIGHT
 Copyright (C) 2017 SUSE LINUX, Nuernberg, Germany.
 .SH BUGS
-Please report bugs at <https://bugzilla.novell.com/index.cgi>
+Please report bugs as described at <@PACKAGE_BUGREPORT@>
 .SH AUTHORS
 .nf
 Marius Tomaschewski

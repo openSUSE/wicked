@@ -613,6 +613,7 @@ ni_capture_devinfo_destroy(ni_capture_devinfo_t *devinfo)
 	if (devinfo) {
 		ni_string_free(&devinfo->ifname);
 		memset(devinfo, 0, sizeof(*devinfo));
+		ni_link_address_init(&devinfo->hwaddr);
 	}
 }
 
@@ -818,7 +819,7 @@ ni_capture_send_buf(const ni_capture_t *capture, const ni_buffer_t *buf)
 	rv = sendto(capture->sock->__fd, ni_buffer_head(buf), ni_buffer_count(buf), 0,
 			&capture->addr.sa, sizeof(capture->addr));
 	if (rv < 0)
-		ni_error("%s: unable to send %s%spacket: %m", capture->ifname,
+		ni_debug_socket("%s: unable to send %s%spacket: %m", capture->ifname,
 				capture->desc ?: "", capture->desc ? " " : "");
 
 	return rv;
@@ -828,8 +829,10 @@ ssize_t
 ni_capture_send(ni_capture_t *capture, const ni_buffer_t *buf, const ni_timeout_param_t *tmo)
 {
 	ssize_t rv;
+	int err;
 
 	rv = ni_capture_send_buf(capture, buf);
+	err = errno;
 	if (tmo) {
 		capture->retrans.buffer = buf;
 		capture->retrans.timeout = *tmo;
@@ -837,6 +840,7 @@ ni_capture_send(ni_capture_t *capture, const ni_buffer_t *buf, const ni_timeout_
 	} else {
 		ni_capture_disarm_retransmit(capture);
 	}
+	errno = err;
 	return rv;
 }
 

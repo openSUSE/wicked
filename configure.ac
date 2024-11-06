@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.63])
 AC_INIT([wicked], esyscmd([tr -d '\n' < VERSION]),
-	[http://bugs.opensuse.org], [wicked],
+	[https://bugs.opensuse.org], [wicked],
 	[https://github.com/openSUSE/wicked])
 AM_INIT_AUTOMAKE([foreign dist-bzip2 no-dist-gzip subdir-objects])
 
@@ -222,6 +222,12 @@ AC_ARG_ENABLE([relro], [AS_HELP_STRING([--disable-relro],
 	     fi],
 	    [AC_SUBST(LDFLAGS,	["-Wl,-z,relro,-z,now $LDFLAGS"])])
 
+# Whether to enable man page rebuild using pandoc (>= SLE-15-SP5)
+AC_ARG_ENABLE([pandoc],
+	[AS_HELP_STRING([--disable-pandoc],
+		[disable man page rebuild from pandoc md sources])],,
+	[enable_pandoc=yes])
+
 # Enable system extensions (e.g. _GNU_SOURCE)
 AC_USE_SYSTEM_EXTENSIONS
 
@@ -240,6 +246,8 @@ AC_PROG_MKDIR_P
 AC_PROG_LIBTOOL
 AC_PATH_PROG(JQ, jq)
 AM_CONDITIONAL([nbft_test], [test "x$enable_nbft" = "xyes" -a "x$JQ" != "x"])
+AC_PATH_PROG(PANDOC, [pandoc])
+AM_CONDITIONAL([pandoc], [test "x$enable_pandoc" = "xyes" -a "x$PANDOC" != "x"])
 
 # Checks for libraries.
 AC_CHECK_LIB([dl], [dlopen], [LIBDL_LIBS="-ldl"],[

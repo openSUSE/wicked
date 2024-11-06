@@ -267,18 +267,22 @@ static const ni_ifconfig_type_t		ni_ifconfig_types[] = {
 };
 
 ni_bool_t
-ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *opt_ifconfig, ni_bool_t check_prio, ni_bool_t raw)
+ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *sources, ni_bool_t check_prio)
 {
 	xml_document_array_t docs = XML_DOCUMENT_ARRAY_INIT;
 	ni_ifconfig_kind_t kind = NI_IFCONFIG_KIND_CONFIG; /* load into fsm */
 	unsigned int i;
 
-	for (i = 0; i < opt_ifconfig->count; ++i) {
-		if (!ni_ifconfig_read(&docs, root, opt_ifconfig->data[i], kind, check_prio, raw)) {
-			xml_document_array_destroy(&docs);
-			return FALSE;
-		}
+	for (i = 0; i < sources->count; ++i) {
+		const char *source = sources->data[i];
+
+		if (ni_ifconfig_read(&docs, root, source, kind, check_prio, FALSE))
+			continue;
+
+		xml_document_array_destroy(&docs);
+		return FALSE;
 	}
+
 	if (ni_ifxml_migrate_docs(&docs))
 		ni_debug_readwrite("Migrated configuration to current schema");
 
@@ -287,7 +291,7 @@ ni_ifconfig_load(ni_fsm_t *fsm, const char *root, ni_string_array_t *opt_ifconfi
 		const char *origin;
 
 		root = xml_document_root(docs.data[i]);
-		origin = xml_node_location_filename(root);
+		origin = ni_ifconfig_get_origin(root);
 		/* We do not fail when unable to generate ifworker */
 		ni_fsm_workers_from_xml(fsm, root, origin);
 	}

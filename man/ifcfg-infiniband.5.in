@@ -1,0 +1,2 @@
+.\" ifcfg-infiniband to ifcfg-ipoib manual page reference
+.so man5/ifcfg-ipoib.5

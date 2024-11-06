@@ -64,7 +64,7 @@ provided at
 .SH COPYRIGHT
 Copyright (C) 2012 SUSE Linux GmbH, Nuernberg, Germany.
 .SH BUGS
-Please report bugs at <@PACKAGE_BUGREPORT@>
+Please report bugs as described at <@PACKAGE_BUGREPORT@>
 .SH AUTHOR
 .nf
 Marius Tomaschewski
