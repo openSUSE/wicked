@@ -16,8 +16,8 @@
     <mode type="builtin-wireless-mode"/>
     <access-point type="ethernet-address" description="Address of AP to connect to"/>
     <channel type="uint32"/>
+    <frequency-list type="string"/>
     <fragment-size type="uint32"/>
-    <frequency type="double"/>
     <key-management type="builtin-wireless-key-mgmt-mask"/>
 
     <wep class="dict">
@@ -104,6 +104,7 @@
     <privacy type="boolean"/>
     <mode type="builtin-wireless-mode"/>
     <channel type="uint32"/>
+    <frequency type="uint32"/>
     <rate-max type="uint32"/>
     <signal type="int16"/>
     <age type="uint32"/>
@@ -126,6 +127,7 @@
       <ssid type="string"/>
       <bssid type="ethernet-address"/>
       <signal type="int16"/>
+      <frequency type="uint32"/>
       <duration type="uint32"/>
       <authmode type="string"/>
     </current-connection>

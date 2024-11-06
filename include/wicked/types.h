@@ -77,12 +77,15 @@ typedef struct ni_event_filter			ni_event_filter_t;
 typedef struct ni_modem				ni_modem_t;
 typedef struct ni_pci_dev			ni_pci_dev_t;
 
+#define NI_NETNSID_DEFAULT			-1U
+
 typedef struct ni_netdev_ref {
+	unsigned int				ns_id;	/* in netnsid */
 	unsigned int				index;	/* by ifindex */
 	char *					name;	/* by ifname  */
 } ni_netdev_ref_t;
 
-#define NI_NETDEV_REF_INIT			{ .index = 0, .name = NULL }
+#define NI_NETDEV_REF_INIT			{ .ns_id = NI_NETNSID_DEFAULT }
 
 typedef struct ni_netdev_ref_array {
 	unsigned int				count;

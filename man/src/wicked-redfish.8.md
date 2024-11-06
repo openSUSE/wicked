@@ -53,25 +53,23 @@ enabled '`wicked.service`') will consider the Redfish Network Host Interfaces.
 `enable`
 :   Enables the redfish network host interface setup.
 
-    Creates an `/etc/wicked/client-redfish.xml` configuration file adding the
-    '`redfish-config`' extension to the "firmware:" (netif-firmware-discovery)
-    configuration source set, to decode SMBIOS as a "firmware:redfish" wicked
-    interface configuration requested by/during e.g. '`wicked ifup all`' run.
+    Alias to the `wicked firmware enable redfish` command, enabling the
+    redfish extension decoding SMBIOS as a `"firmware:redfish"` wicked
+    interface configuration requested during e.g. `wicked ifup all` run.
 
 `disable`
 :   Disables the redfish network host interface setup.
 
-    Deletes the `/etc/wicked/client-redfish.xml` configuration file.
+    Alias to the `wicked firmware disable redfish` command, disabling the
+    redfish extension decoding SMBIOS as a `"firmware:redfish"` wicked
+    interface configuration requested during e.g. `wicked ifup all` run.
 
 ## Utility actions
 
 `show-config`
 :   Decodes the SMBIOS structures with the Network Host Interface reference
-    and "Redfish over IP" protocol settings as a wicked "firmware:redfish"
-    configuration.
-
-    An underlying command used by an (enabled) '`redfish-config`' extension
-    providing configuration to '`wicked ifup`' and related commands.
+    and "Redfish over IP" protocol settings and shows the "firmware:redfish"
+    wicked interface configuration used by the underlying extension.
 
 `list-ifnames`
 :   Decodes the SMBIOS structures and shows the referenced network host and
@@ -218,7 +216,7 @@ Not yet implemented are:
 Copyright (C) 2022 SUSE LLC
 
 # BUGS
-Please report bugs as described at http://bugs.opensuse.org
+Please report bugs as described at <%PACKAGE_BUGREPORT%>
 
 # SEE ALSO
 **`wicked`**(8), **`wicked-config`**(5)

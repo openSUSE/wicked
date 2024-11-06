@@ -149,8 +149,7 @@ extern unsigned int		ni_compat_generate_interfaces(xml_document_array_t *, ni_co
 extern unsigned int		ni_compat_generate_policies(xml_document_array_t *, ni_compat_ifconfig_t *, ni_bool_t, ni_bool_t);
 extern void			ni_compat_netdev_set_origin(ni_compat_netdev_t *, const char *, const char *);
 
-extern ni_bool_t		ni_ifconfig_load(ni_fsm_t *, const char *, ni_string_array_t *,
-						ni_bool_t, ni_bool_t);
+extern ni_bool_t		ni_ifconfig_load(ni_fsm_t *, const char *, ni_string_array_t *, ni_bool_t);
 
 extern const ni_string_array_t *ni_config_sources(const char *);
 

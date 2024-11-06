@@ -310,10 +310,10 @@ ni_wireless_on_scan_done(ni_wpa_nif_t *wif, const ni_wpa_bss_t *bss_list)
 
 	ni_debug_wireless("Scan done on interface `%s`", device->name);
 	for(bss = wlan->scan.bsss; bss; bss = bss->next){
-		ni_debug_wireless("Found ssid:`%s` bssid:%s Signal:%d Age:%d",
+		ni_debug_wireless("Found ssid:`%s` bssid:%s Signal:%d Age:%d Channel:%u (%uMHz)",
 				ni_wireless_ssid_print(&bss->ssid, &sbuf),
 				ni_link_address_print(&bss->bssid),
-				bss->signal, bss->age);
+				bss->signal, bss->age, bss->channel, bss->frequency);
 		ni_stringbuf_destroy(&sbuf);
 	}
 	__ni_netdev_event(NULL, dev, NI_EVENT_LINK_SCAN_UPDATED);
@@ -407,21 +407,139 @@ ni_wireless_scan_add_bss(ni_wireless_scan_t *scan, ni_wireless_bss_t *bss)
 	*next = bss;
 }
 
-static uint32_t
-ni_wireless_frequency_to_channel(uint16_t frequency)
+unsigned int
+ni_wireless_frequency_to_channel(unsigned int frequency)
 {
-	if (frequency > 5000){
+	if (frequency >= 5950) {
+		return (frequency - 5950) / 5;
+
+	} else if (frequency > 5000) {
 		return (frequency - 5000) / 5;
 
-	} else if (frequency >= 4915){
+	} else if (frequency >= 4915) {
 		return (frequency - 4915) / 5 + 183;
 
-	} else if (frequency == 2484){
+	} else if (frequency == 2484) {
 		return 14;
 
 	} else {
 		return (frequency - 2407) / 5;
 	}
+}
+
+static ni_bool_t
+ni_wireless_band2freq_list(ni_uint_array_t *array, const char *value)
+{
+	static const unsigned int freq_set_2_4ghz[] = {
+		2412, 2417, 2422, 2427, 2432, 2437, 2442,
+		2447, 2452, 2457, 2462, 2467, 2472, 2484,
+		0
+	};
+	static const unsigned int freq_set_5ghz[] = {
+		4920, 4940, 4960, 4980, 4955, 4975, 5040, 5060, 5080,
+		5160, 5180, 5200, 5220, 5240, 5260, 5280, 5300, 5320, 5340,
+		5480, 5500, 5520, 5540, 5560, 5580, 5600, 5620, 5640, 5660, 5680, 5700, 5720,
+		5745, 5765, 5785, 5805, 5825, 5845, 5865, 5885,
+		5860, 5870, 5880, 5890, 5900, 5910, 5920, 5935, 5940, 5945, 5960, 5980,
+		0
+	};
+	static const unsigned int freq_set_6ghz[] = {
+		5935, 5955, 5975, 5995, 6015, 6035, 6055, 6075, 6095, 6115, 6135, 6155, 6175,
+		6195, 6215, 6235, 6255, 6275, 6295, 6315, 6335, 6355, 6375, 6395, 6415, 6435,
+		6455, 6475, 6495, 6515, 6535, 6555, 6575, 6595, 6615, 6635, 6655, 6675, 6695,
+		6715, 6735, 6755, 6775, 6795, 6815, 6835, 6855, 6875, 6895, 6915, 6935, 6955,
+		6975, 6995, 7015, 7035, 7055, 7075, 7095, 7115,
+		0
+	};
+
+	static const struct ni_wireless_freq_set_data {
+		ni_wireless_frequency_set_t	set;
+		const unsigned int *		freqs;
+	} freq_sets[] = {
+		{ NI_WIRELESS_FREQUENCY_SET_2_4GHz,	freq_set_2_4ghz},
+		{ NI_WIRELESS_FREQUENCY_SET_5GHz,	freq_set_5ghz},
+		{ NI_WIRELESS_FREQUENCY_SET_6GHz,	freq_set_6ghz},
+
+		{ NI_WIRELESS_FREQUENCY_SET_NONE,	NULL }
+	}, *ptr;
+	ni_wireless_frequency_set_t set;
+	const unsigned int *freq;
+
+	if (!ni_wireless_frequency_set_type(value, &set))
+		return FALSE;
+
+	for (ptr = freq_sets; ptr->freqs; ptr++) {
+		if (ptr->set != set)
+			continue;
+
+		for (freq = ptr->freqs; *freq; freq++) {
+			if (ni_uint_array_index(array, *freq) == -1U)
+				if (!ni_uint_array_append(array, *freq))
+					return FALSE;
+		}
+	}
+
+	return TRUE;
+}
+
+ni_bool_t
+ni_wireless_frequency_list_parse_string(const char *value, ni_string_array_t *array,
+		ni_string_array_t *errors)
+{
+	ni_string_array_t tmp = NI_STRING_ARRAY_INIT;
+	ni_wireless_frequency_set_t freq_set;
+	unsigned int i, num, old_errors;
+	const char *tmp_str = NULL;
+
+	if (!array || !value || !errors)
+		return FALSE;
+
+	old_errors = errors->count;
+
+	ni_string_split(&tmp, value, " \t", 0);
+
+	for (i = 0; i < tmp.count; i++) {
+		if (ni_wireless_frequency_set_type(tmp.data[i], &freq_set)) {
+			tmp_str = ni_wireless_frequency_set_name(freq_set);
+			if (ni_string_array_index(array, tmp_str) == -1)
+				ni_string_array_append(array, tmp_str);
+		} else if (!ni_parse_uint(tmp.data[i], &num, 10) && num >= NI_WIRELESS_FREQUENCY_MIN) {
+			if (ni_string_array_index(array, tmp.data[i]) == -1)
+				ni_string_array_append(array, tmp.data[i]);
+		} else {
+			ni_string_array_append(errors, tmp.data[i]);
+		}
+	}
+
+	ni_string_array_destroy(&tmp);
+
+	return old_errors == errors->count;
+}
+
+ni_bool_t
+ni_wireless_frequency_list_expand(ni_uint_array_t *expanded_freq, const ni_string_array_t *values,
+		ni_string_array_t *errors)
+{
+	unsigned int i;
+	ni_bool_t ret = TRUE;
+	unsigned int tmp;
+
+	if (!values || !errors)
+		return FALSE;
+
+	for (i = 0; i < values->count; i++) {
+		if (ni_wireless_band2freq_list(expanded_freq, values->data[i])) {
+			continue;
+		} else if (!ni_parse_uint(values->data[i], &tmp, 10) &&
+				tmp >= NI_WIRELESS_FREQUENCY_MIN) {
+			if (ni_uint_array_index(expanded_freq, tmp) == -1U)
+				ni_uint_array_append(expanded_freq, tmp);
+		} else {
+			ret = FALSE;
+			ni_string_array_append(errors, values->data[i]);
+		}
+	}
+	return ret;
 }
 
 static int
@@ -736,6 +854,42 @@ ni_wireless_wpa_map_pmf(ni_wireless_pmf_t p, int *ret)
 }
 
 static ni_bool_t
+ni_wireless_wpa_net_format_freq_list(ni_wpa_net_properties_t *properties, const ni_string_array_t *freq_list)
+{
+	ni_stringbuf_t sb = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_string_array_t errors = NI_STRING_ARRAY_INIT;
+	ni_uint_array_t frequencies = NI_UINT_ARRAY_INIT;
+	ni_bool_t ret = FALSE;
+	const char *name;
+
+	if (!properties || !freq_list)
+		return FALSE;
+
+	if (freq_list->count == 0)
+		return TRUE;
+
+	if (!ni_wireless_frequency_list_expand(&frequencies, freq_list, &errors)) {
+		ni_error("Invalid frequency-list: '%s'", ni_stringbuf_join(&sb, &errors, " "));
+		goto out;
+	}
+
+	if (!(name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_FREQ_LIST)))
+		goto out;
+
+	if (!ni_dbus_dict_add_string(properties, name, ni_stringbuf_join_uint(&sb, &frequencies, " ")))
+		goto out;
+
+	ret = TRUE;
+
+out:
+	ni_stringbuf_destroy(&sb);
+	ni_string_array_destroy(&errors);
+	ni_uint_array_destroy(&frequencies);
+
+	return ret;
+}
+
+static ni_bool_t
 ni_wireless_wpa_net_format(ni_wpa_net_properties_t *properties, const ni_wireless_network_t *net)
 {
 	const char *name;
@@ -780,6 +934,9 @@ ni_wireless_wpa_net_format(ni_wpa_net_properties_t *properties, const ni_wireles
 	}
 
 	/* XXX skip net->channel for now, as it is only used by infrastructure mode */
+
+	if (!ni_wireless_wpa_net_format_freq_list(properties, &net->frequency_list))
+		return FALSE;
 
 	if (net->fragment_size > 0){
 		name = ni_wpa_net_property_name(NI_WPA_NET_PROPERTY_FRAGMENT_SIZE);
@@ -1375,11 +1532,13 @@ ni_wireless_sync_assoc_with_current_bss(ni_wireless_t *wlan, ni_wpa_nif_t *wif)
 		}
 
 		wlan->assoc.signal = bss->properties.signal;
+		wlan->assoc.frequency = bss->properties.frequency;
 		ni_wpa_bss_drop(&bss);
 
 	} else {
 		ni_link_address_init(&wlan->assoc.bssid);
 		wlan->assoc.signal = 0;
+		wlan->assoc.frequency = 0;
 		wlan->assoc.ssid.len = 0;
 		ni_string_free(&wlan->assoc.auth_mode);
 	}
@@ -1722,6 +1881,27 @@ ni_wireless_name_to_pmf(const char *val, ni_wireless_pmf_t *out)
 	return ni_parse_uint_mapped(val, __ni_wireless_pmf_names, out) == 0;
 }
 
+static const ni_intmap_t	ni_wireless_frequency_set_names[] = {
+	{ "2.4GHz",		NI_WIRELESS_FREQUENCY_SET_2_4GHz	},
+	{ "2,4GHz",		NI_WIRELESS_FREQUENCY_SET_2_4GHz	},
+	{ "5GHz",		NI_WIRELESS_FREQUENCY_SET_5GHz		},
+	{ "6GHz",		NI_WIRELESS_FREQUENCY_SET_6GHz		},
+
+	{ NULL,			NI_WIRELESS_FREQUENCY_SET_NONE		}
+};
+
+const char *
+ni_wireless_frequency_set_name(ni_wireless_frequency_set_t set)
+{
+	return ni_format_uint_mapped(set, ni_wireless_frequency_set_names);
+}
+
+ni_bool_t
+ni_wireless_frequency_set_type(const char *name, ni_wireless_frequency_set_t *set)
+{
+	return ni_parse_uint_mapped(name, ni_wireless_frequency_set_names, set) == 0;
+}
+
 /*
  * Wireless interface config
  */
@@ -1870,6 +2050,7 @@ ni_wireless_bss_set(ni_wireless_bss_t *wireless_bss, const ni_wpa_bss_t *bss)
 	wireless_bss->privacy = props->privacy;
 
 	ni_wireless_name_to_mode(props->mode, &wireless_bss->wireless_mode);
+	wireless_bss->frequency = props->frequency;
 	wireless_bss->channel = ni_wireless_frequency_to_channel(props->frequency);
 	wireless_bss->rate_max = props->rate_max;
 	wireless_bss->signal = props->signal;
@@ -2019,6 +2200,7 @@ ni_wireless_network_destroy(ni_wireless_network_t *net)
 	ni_wireless_blob_free(&net->wpa_eap.tls.ca_cert);
 	ni_wireless_blob_free(&net->wpa_eap.tls.client_cert);
 	ni_wireless_blob_free(&net->wpa_eap.tls.client_key);
+	ni_string_array_destroy(&net->frequency_list);
 
 	memset(net, 0, sizeof(*net));
 }
