@@ -140,9 +140,11 @@ extern dbus_bool_t		__ni_objectmodel_set_address_list(ni_address_t **list,
 						const ni_dbus_variant_t *argument,
 						DBusError *error);
 extern dbus_bool_t		__ni_objectmodel_get_route_list(ni_route_table_t *list,
+						unsigned int family,
 						ni_dbus_variant_t *result,
 						DBusError *error);
 extern dbus_bool_t		__ni_objectmodel_set_route_list(ni_route_table_t **list,
+						unsigned int family,
 						const ni_dbus_variant_t *result,
 						DBusError *error);
 extern dbus_bool_t		__ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
@@ -173,12 +175,10 @@ extern dbus_bool_t		__ni_objectmodel_set_address_dict(ni_address_t **list, const
 extern dbus_bool_t		__ni_objectmodel_address_to_dict(const ni_address_t *, ni_dbus_variant_t *);
 extern ni_address_t *		__ni_objectmodel_address_from_dict(ni_address_t **, const ni_dbus_variant_t *);
 
-extern dbus_bool_t		__ni_objectmodel_get_route_dict(ni_route_table_t *list,
-						ni_dbus_variant_t *result,
-						DBusError *error);
-extern dbus_bool_t		__ni_objectmodel_set_route_dict(ni_route_table_t **list,
-						const ni_dbus_variant_t *dict,
-						DBusError *error);
+extern dbus_bool_t		__ni_objectmodel_get_route_dict(ni_route_table_t *list, unsigned int family,
+						ni_dbus_variant_t *result, DBusError *error);
+extern dbus_bool_t		__ni_objectmodel_set_route_dict(ni_route_table_t **list, unsigned int family,
+						const ni_dbus_variant_t *dict, DBusError *error);
 extern dbus_bool_t		__ni_objectmodel_get_rule_dict(ni_rule_array_t *rules, unsigned int family,
 						ni_dbus_variant_t *result, DBusError *error);
 extern dbus_bool_t		__ni_objectmodel_set_rule_dict(ni_rule_array_t **rules, unsigned int family,
