@@ -35,8 +35,8 @@
 #include "dhcp6/options.h"
 
 static dbus_bool_t		__ni_objectmodel_callback_info_to_dict(const ni_objectmodel_callback_info_t *, ni_dbus_variant_t *);
-static dbus_bool_t		__ni_objectmodel_route_to_dict(const ni_route_t *, ni_dbus_variant_t *);
-static ni_route_t *		__ni_objectmodel_route_from_dict(ni_route_table_t **, const ni_dbus_variant_t *);
+static dbus_bool_t		ni_objectmodel_route_to_dict(const ni_route_t *, ni_dbus_variant_t *);
+static dbus_bool_t		ni_objectmodel_route_from_dict(ni_route_t *, const ni_dbus_variant_t *);
 static dbus_bool_t		ni_objectmodel_rule_to_dict(const ni_rule_t *, ni_dbus_variant_t *);
 static dbus_bool_t		ni_objectmodel_rule_from_dict(ni_rule_t *, const ni_dbus_variant_t *);
 
@@ -679,7 +679,7 @@ __ni_objectmodel_address_from_dict(ni_address_t **list, const ni_dbus_variant_t 
  *  </array>
  */
 dbus_bool_t
-__ni_objectmodel_get_route_list(ni_route_table_t *list,
+__ni_objectmodel_get_route_list(ni_route_table_t *list, unsigned int family,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
@@ -695,6 +695,8 @@ __ni_objectmodel_get_route_list(ni_route_table_t *list,
 			if ((rp = tab->routes.data[i]) == NULL)
 				continue;
 
+			if (family != AF_UNSPEC && family != rp->family)
+				continue;
 			if (rp->family != rp->destination.ss_family)
 				continue;
 
@@ -703,7 +705,7 @@ __ni_objectmodel_get_route_list(ni_route_table_t *list,
 				return FALSE;
 			ni_dbus_variant_init_dict(dict);
 
-			rv = __ni_objectmodel_route_to_dict(rp, dict);
+			rv = ni_objectmodel_route_to_dict(rp, dict);
 		}
 	}
 
@@ -747,10 +749,11 @@ __ni_objectmodel_get_rule_list(ni_rule_array_t *rules, unsigned int family,
  * Build a route list from a dbus dict
  */
 dbus_bool_t
-__ni_objectmodel_set_route_list(ni_route_table_t **list,
+__ni_objectmodel_set_route_list(ni_route_table_t **list, unsigned int family,
 				const ni_dbus_variant_t *argument,
 				DBusError *error)
 {
+	ni_route_t *route;
 	unsigned int i;
 
 	if (!ni_dbus_variant_is_dict_array(argument)) {
@@ -764,7 +767,16 @@ __ni_objectmodel_set_route_list(ni_route_table_t **list,
 	for (i = 0; i < argument->array.len; ++i) {
 		ni_dbus_variant_t *dict = &argument->variant_array_value[i];
 
-		(void) __ni_objectmodel_route_from_dict(list, dict);
+		if (!(route = ni_route_new())) {
+			ni_error("%s: unable to allocate route structure", __func__);
+			return FALSE;
+		}
+
+		route->family = family;
+		if (!ni_objectmodel_route_from_dict(route, dict))
+			ni_route_free(route);
+		else if (!ni_route_tables_add_route(list, route))
+			ni_route_free(route);
 	}
 	return TRUE;
 }
@@ -822,7 +834,7 @@ __ni_objectmodel_set_rule_list(ni_rule_array_t **rules, unsigned int family,
  *   </dict>
  */
 dbus_bool_t
-__ni_objectmodel_get_route_dict(ni_route_table_t *list,
+__ni_objectmodel_get_route_dict(ni_route_table_t *list, unsigned int family,
 				ni_dbus_variant_t *result,
 				DBusError *error)
 {
@@ -838,6 +850,8 @@ __ni_objectmodel_get_route_dict(ni_route_table_t *list,
 			if ((rp = tab->routes.data[i]) == NULL)
 				continue;
 
+			if (family != AF_UNSPEC && family != rp->family)
+				continue;
 			if (rp->family != rp->destination.ss_family)
 				continue;
 
@@ -845,7 +859,7 @@ __ni_objectmodel_get_route_dict(ni_route_table_t *list,
 			dict = ni_dbus_dict_add(result, "route");
 			ni_dbus_variant_init_dict(dict);
 
-			rv = __ni_objectmodel_route_to_dict(rp, dict);
+			rv = ni_objectmodel_route_to_dict(rp, dict);
 		}
 	}
 
@@ -853,11 +867,11 @@ __ni_objectmodel_get_route_dict(ni_route_table_t *list,
 }
 
 dbus_bool_t
-__ni_objectmodel_set_route_dict(ni_route_table_t **list,
-				const ni_dbus_variant_t *dict,
-				DBusError *error)
+__ni_objectmodel_set_route_dict(ni_route_table_t **list, unsigned int family,
+				const ni_dbus_variant_t *dict, DBusError *error)
 {
 	ni_dbus_variant_t *var;
+	ni_route_t *route;
 
 	if (!list || !ni_dbus_variant_is_dict(dict)) {
 		if (error) {
@@ -873,7 +887,17 @@ __ni_objectmodel_set_route_dict(ni_route_table_t **list,
 	while ((var = ni_dbus_dict_get_next(dict, "route", var)) != NULL) {
 		if (!ni_dbus_variant_is_dict(var))
 			return FALSE;
-		(void) __ni_objectmodel_route_from_dict(list, var);
+
+		if (!(route = ni_route_new())) {
+			ni_error("%s: unable to allocate route structure", __func__);
+			return FALSE;
+		}
+
+		route->family = family;
+		if (!ni_objectmodel_route_from_dict(route, var))
+			ni_route_free(route);
+		else if (!ni_route_tables_add_route(list, route))
+			ni_route_free(route);
 	}
 	return TRUE;
 }
@@ -952,7 +976,7 @@ __ni_objectmodel_set_rule_dict(ni_rule_array_t **rules, unsigned int family,
  * Common functions to represent an assigned route as a dict
  */
 static dbus_bool_t
-__ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
+ni_objectmodel_route_to_dict(const ni_route_t *rp, ni_dbus_variant_t *dict)
 {
 	const ni_route_nexthop_t *nh;
 	ni_dbus_variant_t *child;
@@ -1123,18 +1147,17 @@ __ni_objectmodel_route_kern_from_dict(ni_route_t *rp, const ni_dbus_variant_t *r
 	return TRUE;
 }
 
-static ni_route_t *
-__ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_t *dict)
+static dbus_bool_t
+ni_objectmodel_route_from_dict(ni_route_t *rp, const ni_dbus_variant_t *dict)
 {
 	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	const ni_dbus_variant_t *nhdict, *child;
-	ni_route_t *rp = NULL;
 	uint32_t value;
 	ni_bool_t scope_ok = FALSE;
 	ni_bool_t table_ok = FALSE;
 
-	if (!(rp = ni_route_new()))
-		goto failure;
+	if (!rp || !dict)
+		return FALSE;
 
 	rp->type = RTN_UNICAST;
 	rp->table = RT_TABLE_MAIN;
@@ -1182,24 +1205,29 @@ __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_
 
 	if (!__ni_objectmodel_dict_get_sockaddr_prefix(dict, "destination",
 				&rp->destination, &rp->prefixlen)) {
-		/* omitted destination just means it is a default route */
-		rp->destination.ss_family = rp->nh.gateway.ss_family;
+		/*
+		 * Omitted/missing destination means it is a default route.
+		 * Try rp->family (pre-)initialized family from selector as
+		 * the lease->family, otherwise we require destination.
+		 */
+		rp->destination.ss_family = rp->family;
 		rp->prefixlen = 0;
-	}
+	} else if (rp->family == AF_UNSPEC)
+		rp->family = rp->destination.ss_family;
 
-	/*
-	 * Hmm... check device default route / default route without a gateway?
-	 */
 	if (rp->destination.ss_family == AF_UNSPEC) {
 		ni_debug_dbus("%s: unknown route destination family", __func__);
 		goto failure;
-	} else
+	}
+	if (rp->family != rp->destination.ss_family) {
+		ni_debug_dbus("%s: unknown route family and destination family mix", __func__);
+		goto failure;
+	}
 	if (rp->nh.gateway.ss_family != AF_UNSPEC &&
 	    rp->nh.gateway.ss_family != rp->destination.ss_family) {
 		ni_debug_dbus("%s: unknown route with destination/gateway family mix", __func__);
 		goto failure;
 	}
-	rp->family = rp->destination.ss_family;
 
 	__ni_objectmodel_dict_get_sockaddr(dict, "pref-source", &rp->pref_src);
 	if (ni_dbus_dict_get_uint32(dict, "priority", &value))
@@ -1249,17 +1277,13 @@ __ni_objectmodel_route_from_dict(ni_route_table_t **list, const ni_dbus_variant_
 			rp->owner = NI_ADDRCONF_NONE;
 	}
 
-	if (ni_route_tables_add_route(list, rp))
-		return rp;
+	return TRUE;
 
 failure:
 	ni_debug_dbus("%s: Cannot get complete route from dbus dict (%s)",
 			__func__, ni_route_print(&buf, rp));
 	ni_stringbuf_destroy(&buf);
-	if (rp) {
-		ni_route_free(rp);
-	}
-	return NULL;
+	return FALSE;
 }
 
 static dbus_bool_t
@@ -1878,7 +1902,7 @@ __ni_objectmodel_get_addrconf_lease(const ni_addrconf_lease_t *lease,
 	if (lease->routes) {
 		child = ni_dbus_dict_add(result, "routes");
 		ni_dbus_dict_array_init(child);
-		if (!__ni_objectmodel_get_route_list(lease->routes, child, error))
+		if (!__ni_objectmodel_get_route_list(lease->routes, lease->family, child, error))
 			return FALSE;
 	}
 	if (lease->rules && lease->rules->count) {
@@ -2324,7 +2348,7 @@ __ni_objectmodel_set_addrconf_lease(ni_addrconf_lease_t *lease,
 		return FALSE;
 
 	if ((child = ni_dbus_dict_get(argument, "routes")) != NULL
-	 && !__ni_objectmodel_set_route_list(&lease->routes, child, error))
+	 && !__ni_objectmodel_set_route_list(&lease->routes, lease->family, child, error))
 		return FALSE;
 
 	if ((child = ni_dbus_dict_get(argument, "rules")) != NULL

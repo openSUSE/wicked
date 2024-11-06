@@ -226,6 +226,8 @@ the usual network settings. But you must add additional variables
 `TEAM_LW_ARP_PING_INTERVAL[SUFFIX]`
 :   Interval between ARP requests being sent (in milliseconds).
 
+    Default: **1000**
+
 `TEAM_LW_ARP_PING_INIT_WAIT[SUFFIX]`
 :   Delay between link watch initialization and the first ARP request being
     sent (in milliseconds).
@@ -267,6 +269,8 @@ the usual network settings. But you must add additional variables
 
 `TEAM_LW_NSNA_PING_INTERVAL[SUFFIX]`
 :   Interval between sending NS packets (in milliseconds).
+
+    Default: **1000**
 
 `TEAM_LW_NSNA_PING_INIT_WAIT[SUFFIX]`
 :   Delay between link watch initialization and the first NS packet being sent

@@ -1069,6 +1069,14 @@ ni_dhcp4_config_max_lease_time(const char *ifname)
 	return dhconf && dhconf->lease_time ? dhconf->lease_time : NI_SECONDS_INFINITE;
 }
 
+ni_bool_t
+ni_dhcp4_config_ignore_rfc3927_1_6(const char *ifname)
+{
+	const ni_config_dhcp4_t *dhconf = ni_config_dhcp4_find_device(ifname);
+
+	return dhconf && dhconf->ignore_rfc3927_1_6;
+}
+
 static void
 ni_dhcp4_config_set_request_options(const char *ifname, ni_uint_array_t *cfg, const ni_string_array_t *req)
 {

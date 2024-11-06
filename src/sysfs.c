@@ -555,56 +555,6 @@ __ni_sysctl_ipv4_ifconfig_path(const char *ifname, const char *ctl_name)
 }
 
 int
-ni_sysctl_ipv4_ifconfig_is_present(const char *ifname)
-{
-	const char *pathname = __ni_sysctl_ipv4_ifconfig_path(ifname, NULL);
-
-	return access(pathname, F_OK) == 0;
-}
-
-int
-ni_sysctl_ipv4_ifconfig_get(const char *ifname, const char *ctl_name, char **result)
-{
-	const char *pathname = __ni_sysctl_ipv4_ifconfig_path(ifname, ctl_name);
-
-	if (!result || __ni_sysfs_read_string(pathname, result) < 0 || !*result) {
-		ni_error("%s: unable to read file: %m", pathname);
-		return -1;
-	}
-	return 0;
-}
-
-int
-ni_sysctl_ipv4_ifconfig_get_int(const char *ifname, const char *ctl_name, int *value)
-{
-	char *result = NULL;
-	int ret;
-
-	*value = 0;
-	if (ni_sysctl_ipv4_ifconfig_get(ifname, ctl_name, &result) < 0)
-		return -1;
-
-	ret = ni_parse_int(result, value, 0);
-	ni_string_free(&result);
-	return ret;
-}
-
-int
-ni_sysctl_ipv4_ifconfig_get_uint(const char *ifname, const char *ctl_name, unsigned int *value)
-{
-	char *result = NULL;
-	int ret;
-
-	*value = 0;
-	if (ni_sysctl_ipv4_ifconfig_get(ifname, ctl_name, &result) < 0)
-		return -1;
-
-	ret = ni_parse_uint(result, value, 0);
-	ni_string_free(&result);
-	return ret;
-}
-
-int
 ni_sysctl_ipv4_ifconfig_set(const char *ifname, const char *ctl_name, const char *newval)
 {
 	return __ni_sysfs_printf(__ni_sysctl_ipv4_ifconfig_path(ifname, ctl_name), "%s", newval ? newval : "");
@@ -655,36 +605,6 @@ ni_sysctl_ipv6_ifconfig_get(const char *ifname, const char *ctl_name, char **res
 		return -1;
 	}
 	return 0;
-}
-
-int
-ni_sysctl_ipv6_ifconfig_get_int(const char *ifname, const char *ctl_name, int *value)
-{
-	char *result = NULL;
-	int ret;
-
-	*value = 0;
-	if (ni_sysctl_ipv6_ifconfig_get(ifname, ctl_name, &result) < 0)
-		return -1;
-
-	ret = ni_parse_int(result, value, 0);
-	ni_string_free(&result);
-	return ret;
-}
-
-int
-ni_sysctl_ipv6_ifconfig_get_uint(const char *ifname, const char *ctl_name, unsigned int *value)
-{
-	char *result = NULL;
-	int ret;
-
-	*value = 0;
-	if (ni_sysctl_ipv6_ifconfig_get(ifname, ctl_name, &result) < 0)
-		return -1;
-
-	ret = ni_parse_uint(result, value, 0);
-	ni_string_free(&result);
-	return ret;
 }
 
 int

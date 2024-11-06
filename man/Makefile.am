@@ -36,7 +36,6 @@ generated_in_man		= \
 	ifroute.5		\
 	ifrule.5		\
 	ifstatus.8		\
-	ifsysctl.5		\
 	ifup.8			\
 	routes.5		\
 	wicked-config.5		\
@@ -51,6 +50,7 @@ generated_md_man		= \
 	ifcfg-ipoib.5		\
 	ifcfg-team.5		\
 	ifcfg-wireless.5	\
+	ifsysctl.5		\
 	wicked-firmware.8	\
 	wicked-redfish.8
 
