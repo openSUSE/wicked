@@ -274,7 +274,7 @@ the settings apply to STATIC only. To change the ARP settings for AUTO4 or
 DHCP4, add the \fB<arp>\fR node as child of the corresponding
 \fB<config><addrconf><auto4>\fR or \fB<config><addrconf><dhcp4>\fR node.
 
-It is recommended to set this settings in \fB/etc/wicked/common-local.xml\fR,
+It is recommended to set this settings in \fB@wicked_configdir@/common-local.xml\fR,
 as this config file is used by wickedd, wickedd-dhcp4 and wickedd-auto4.
 .PP
 .nf
@@ -938,7 +938,7 @@ to enable/disable the execution of the firmware-discovery scripts.
 .SH COPYRIGHT
 Copyright (C) 2014-2023 SUSE LLC
 .SH BUGS
-Please report bugs at <https://bugzilla.suse.com/>
+Please report bugs as described at <@PACKAGE_BUGREPORT@>
 .SH AUTHORS
 Olaf Kirch
 Karol Mroz

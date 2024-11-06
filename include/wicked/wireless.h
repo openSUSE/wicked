@@ -154,6 +154,18 @@ typedef enum ni_wireless_pmf {
     NI_WIRELESS_PMF_REQUIRED,
 } ni_wireless_pmf_t;
 
+typedef enum ni_wireless_frequency_set {
+	NI_WIRELESS_FREQUENCY_SET_NONE = 0U,
+	NI_WIRELESS_FREQUENCY_SET_2_4GHz,
+	NI_WIRELESS_FREQUENCY_SET_5GHz,
+	NI_WIRELESS_FREQUENCY_SET_6GHz,
+} ni_wireless_frequency_set_t;
+
+
+/* The frequency must be equal or greater then NI_WIRELESS_FREQUENCY_MIN, otherwise
+ * it is very likely to be a channel number.*/
+#define NI_WIRELESS_FREQUENCY_MIN		250
+
 #define NI_WIRELESS_PAIRWISE_CIPHERS_MAX	4
 
 typedef struct ni_wireless_auth_info {
@@ -211,6 +223,7 @@ struct ni_wireless_network {
 	ni_hwaddr_t			access_point;
 	ni_wireless_mode_t		mode;
 	unsigned int			channel;
+	ni_string_array_t		frequency_list;
 	unsigned int			fragment_size;		/* used with EAP */
 
 	unsigned int			auth_proto;
@@ -278,6 +291,7 @@ struct ni_wireless_bss {
 	ni_bool_t		privacy;
 	ni_wireless_mode_t	wireless_mode;
 	uint32_t		channel;
+	uint32_t		frequency;
 	uint32_t		rate_max;
 	int16_t			signal;
 	uint32_t		age;
@@ -336,6 +350,7 @@ struct ni_wireless {
 		ni_hwaddr_t			bssid;
 		int16_t				signal;
 		char *				auth_mode;
+		uint32_t			frequency;
 	} assoc;
 };
 
@@ -455,5 +470,15 @@ extern const char *			ni_rfkill_type_string(ni_rfkill_type_t type);
 extern					ni_declare_refcounted_new(ni_wireless_network);
 extern					ni_declare_refcounted_drop(ni_wireless_network);
 extern					ni_declare_refcounted_ref(ni_wireless_network);
+
+extern unsigned int			ni_wireless_frequency_to_channel(unsigned int);
+
+extern const char *			ni_wireless_frequency_set_name(ni_wireless_frequency_set_t);
+extern ni_bool_t			ni_wireless_frequency_set_type(const char *, ni_wireless_frequency_set_t *);
+
+extern ni_bool_t			ni_wireless_frequency_list_parse_string(const char *, ni_string_array_t *,
+										ni_string_array_t *);
+extern ni_bool_t			ni_wireless_frequency_list_expand(ni_uint_array_t *,
+									const ni_string_array_t *, ni_string_array_t *);
 
 #endif /* NI_WICKED_WIRELESS_H */

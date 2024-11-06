@@ -1766,12 +1766,24 @@ try_loopback(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
  * Handle infiniband devices
  */
 static ni_bool_t
-__maybe_infiniband(const char *ifname)
+maybe_infiniband(const char *ifname)
 {
-	if (ni_string_len(ifname) > 2 &&
-	    strncmp(ifname, "ib", 2) == 0 &&
-	    isdigit((unsigned char)ifname[2]))
+	char *end = NULL;
+	unsigned long tmp = 0;
+
+	if (!ni_string_startswith(ifname, "ib"))
+		return FALSE;
+
+	strtoul(ifname + 2, (char**) &end, 10);
+	if (end - ifname - 2 == 0)
+		return FALSE;
+
+	if (*end == '\0')
 		return TRUE;
+
+	if (*end == '.' && ni_parse_ulong(end + 1, &tmp, 16) == 0)
+		return TRUE;
+
 	return FALSE;
 }
 
@@ -1780,49 +1792,87 @@ try_infiniband(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
 	const ni_sysconfig_t *sc = ifcfg->config;
 	ni_netdev_t *dev = ifcfg->compat->dev;
+	ni_bool_t enabled;
+	ni_bool_t ib_ifname = FALSE;
 	const char *umcast;
 	const char *mode;
 	const char *pkey;
 	const char *err;
+	const char *tmp;
+	char *device = NULL;
 	ni_infiniband_t *ib;
 
 	mode   = ni_sysconfig_get_value(sc, "IPOIB_MODE");
 	umcast = ni_sysconfig_get_value(sc, "IPOIB_UMCAST");
 
-	if (!mode && !umcast && !__maybe_infiniband(dev->name))
-		return 1;
+	ib_ifname = maybe_infiniband(dev->name);
+
+	if (!ni_sysconfig_get(sc, "IPOIB")) {
+		/* for backward compatibility, UMCAST, MODE or ifname =~ /^ib[0-9]+\.[a-fA-F0-9]+$/
+		 * are treated like IPOIB=yes */
+		if (!mode && !umcast && !(dev->link.type == NI_IFTYPE_UNKNOWN && ib_ifname))
+			return 1;
+	} else {
+		if (!ni_sysconfig_get_boolean(sc, "IPOIB", &enabled) || !enabled)
+			return 1;
+	}
 
 	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
-		ni_error("ifcfg-%s: %s config is using infiniband interface name",
-			dev->name, ni_linktype_type_to_name(dev->link.type));
+		ni_error("ifcfg-%s: %s config contains infiniband variables",
+				dev->name, ni_linktype_type_to_name(dev->link.type));
 		return -1;
 	}
 
 	dev->link.type = NI_IFTYPE_INFINIBAND;
 	ib = ni_netdev_get_infiniband(dev);
 
-	if ((pkey = strchr(dev->name, '.')) != NULL) {
-		dev->link.type = NI_IFTYPE_INFINIBAND_CHILD;
+	ni_string_dup(&device, ni_sysconfig_get_value(sc, "IPOIB_DEVICE"));
+	pkey = ni_sysconfig_get_value(sc, "IPOIB_PKEY");
+
+	if (ib_ifname && (tmp = strchr(dev->name, '.'))) {
+		if (!pkey)
+			pkey = tmp + 1;
+		if (!device)
+			ni_string_set(&device, dev->name, tmp - dev->name);
+	}
+
+	if (pkey || device) {
 		unsigned long tmp = ~0UL;
 
-		if (ni_parse_ulong(pkey + 1, &tmp, 16) < 0 || tmp > 0xffff) {
-			ni_error("ifcfg-%s: Cannot parse infiniband child key number",
-				dev->name);
+		if (ni_parse_ulong(pkey, &tmp, 16) < 0 || tmp > 0xffff) {
+			ni_error("ifcfg-%s: %s %s partition key (IPOIB_PKEY)", dev->name,
+					pkey ? "Cannot parse" : "Missing",
+					ni_linktype_type_to_name(NI_IFTYPE_INFINIBAND_CHILD));
+			ni_string_free(&device);
+			return -1;
+		}
+
+		if (!ni_netdev_name_is_valid(device)) {
+			ni_error("ifcfg-%s: %s %s parent device name (IPOIB_DEVICE)", dev->name,
+					device ? "Invalid" : "Missing",
+					ni_linktype_type_to_name(NI_IFTYPE_INFINIBAND_CHILD));
+			ni_string_free(&device);
 			return -1;
 		}
 
 		ib->pkey = tmp;
-		ni_string_set(&dev->link.lowerdev.name, dev->name, pkey - dev->name);
+		dev->link.type = NI_IFTYPE_INFINIBAND_CHILD;
+
+		if (!ni_suse_ifcfg_add_lower(ifcfgs, ifcfg, device, "IPOIB_DEVICE"))
+			return -1;
+
+		ni_string_dup(&dev->link.lowerdev.name, device);
 	}
+	ni_string_free(&device);
 
 	if (mode && !ni_infiniband_get_mode_flag(mode, &ib->mode)) {
 		ni_error("ifcfg-%s: Cannot parse infiniband IPOIB_MODE=\"%s\"",
-			dev->name, mode);
+				dev->name, mode);
 		return -1;
 	}
 	if (umcast && !ni_infiniband_get_umcast_flag(umcast, &ib->umcast)) {
 		ni_error("ifcfg-%s: Cannot parse infiniband IPOIB_UMCAST=\"%s\"",
-			dev->name, umcast);
+				dev->name, umcast);
 		return -1;
 	}
 
@@ -3706,6 +3756,17 @@ try_macvlan(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 	return 0;
 }
 
+
+static ni_bool_t
+maybe_dummy(const char *ifname)
+{
+	unsigned long result = 0;
+
+	if (!ni_string_startswith(ifname, "dummy"))
+		return FALSE;
+	return ni_parse_ulong(ifname + 5, &result, 10) == 0;
+}
+
 /*
  * A Dummy device is recognized by INTERFACETYPE and/or by the interface name
  * itself.
@@ -3715,15 +3776,23 @@ try_dummy(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 {
 	const ni_sysconfig_t *sc = ifcfg->config;
 	ni_netdev_t *dev = ifcfg->compat->dev;
+	ni_bool_t enabled;
 	const char *iftype = NULL;
 	const char *lladdr = NULL;
 	const char *bootproto = NULL;
 
-	iftype = ni_sysconfig_get_value(sc, "INTERFACETYPE");
+	if (!ni_sysconfig_get(sc, "DUMMY")) {
+		/* fallback to deprecated behavior - consider INTERFACETYPE or ifname */
+		iftype = ni_sysconfig_get_value(sc, "INTERFACETYPE");
+		if (iftype && !ni_string_eq_nocase(iftype, "dummy"))
+			return 1;
 
-	if (!ni_string_eq_nocase(iftype, "dummy") &&
-		!ni_string_startswith(dev->name, "dummy"))
-		return 1; /* This is not a dummy interface*/
+		if (dev->link.type != NI_IFTYPE_UNKNOWN || !maybe_dummy(dev->name))
+			return 1;
+	} else {
+		if (!ni_sysconfig_get_boolean(sc, "DUMMY", &enabled) || !enabled)
+			return 1;
+	}
 
 	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
 		ni_error("ifcfg-%s: %s config contains dummy variables",
@@ -3990,6 +4059,22 @@ try_add_wireless_net(const ni_sysconfig_t *sc, ni_netdev_t *dev, const char *suf
 					dev->name, suffix);
 				goto failure;
 			}
+		}
+	}
+
+	if (net->mode == NI_WIRELESS_MODE_MANAGED &&
+	    (var = __find_indexed_variable(sc, "WIRELESS_FREQUENCY_LIST", suffix))) {
+
+		ni_string_array_t errors = NI_STRING_ARRAY_INIT;
+		ni_stringbuf_t tmp = NI_STRINGBUF_INIT_DYNAMIC;
+
+		if (!ni_wireless_frequency_list_parse_string(var->value, &net->frequency_list, &errors)) {
+			ni_warn("ifcfg-%s: invalid WIRELESS_FREQUENCY_LIST%s: '%s'",
+					dev->name, suffix,
+					ni_stringbuf_join(&tmp, &errors, " "));
+
+			ni_string_array_destroy(&errors);
+			ni_stringbuf_destroy(&tmp);
 		}
 	}
 
@@ -4606,6 +4691,8 @@ try_ppp(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 		ni_error("ifcfg-%s: unsupported ppp mode '%s'", dev->name, value);
 		goto done;
 	}
+
+	ni_ppp_mode_init(&ppp->mode, ppp->mode.type);
 
 	if (ni_sysconfig_get_boolean(sc, "PPPDEBUG", &bval))
 		ppp->config.debug = bval;
@@ -6519,10 +6606,19 @@ ni_suse_ifcfg_parse_ifsysctl_ipv6(ni_suse_ifcfg_t *ifcfg, ni_var_array_t *ifsysc
 		return TRUE;
 
 	/*
+	 * When IPv6 is disabled via kernel cmdline, we're done
+	 * TODO: it's wrong to mix kernel cmdline overrides into
+	 * config parsing and we've to remove this and handle
+	 * later at runtime while applying the config.
+	 */
+	if (__ni_ipv6_disbled) {
+		ni_tristate_set(&ipv6->conf.enabled, FALSE);
+		return TRUE;
+	}
+
+	/*
 	 * When IPv6 is disabled via sysctl, we're done
 	 */
-	if (__ni_ipv6_disbled)
-		ni_tristate_set(&ipv6->conf.enabled, FALSE);
 	__ifsysctl_get_tristate(ifsysctl, "net/ipv6/conf", dev->name,
 			"disable_ipv6", &disable_ipv6);
 	if (ni_tristate_is_set(disable_ipv6))
@@ -6623,11 +6719,11 @@ ni_suse_ifcfg_parse_iftypes(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcf
 	    try_vlan(ifcfgs, ifcfg)       < 0 ||
 	    try_vxlan(ifcfgs, ifcfg)      < 0 ||
 	    try_macvlan(ifcfgs, ifcfg)    < 0 ||
-	    try_dummy(ifcfgs, ifcfg)      < 0 ||
 	    try_tunnel(ifcfgs, ifcfg)     < 0 ||
 	    try_ppp(ifcfgs, ifcfg)        < 0 ||
 	    try_wireless(ifcfgs, ifcfg)   < 0 ||
 	    try_infiniband(ifcfgs, ifcfg) < 0 ||
+	    try_dummy(ifcfgs, ifcfg)      < 0 ||
 	    /* keep ethernet the last one */
 	    try_ethernet(ifcfgs, ifcfg)   < 0)
 		return FALSE;

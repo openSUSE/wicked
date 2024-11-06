@@ -67,6 +67,9 @@ Note: \fInat\fR rules are not supported by current kernels (>2.6) any more.
 .nf
 Marius Tomaschewski
 .fi
+.SH BUGS
+.PP
+Please report bugs as described at <@PACKAGE_BUGREPORT@>
 .SH SEE ALSO
 .BR ip-rule (8)
 .BR /etc/iproute2/rt_tables

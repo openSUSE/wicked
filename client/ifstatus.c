@@ -513,9 +513,10 @@ ni_ifstatus_show_wireless(const ni_netdev_t *dev, ni_bool_t verbose)
 		else
 			duration = 0;
 
-		if_printf("", "wireless:", "bssid %s, signal %d, duration %us\n",
+		if_printf("", "wireless:", "bssid %s, signal %d, channel %u (%uMHz), duration %us\n",
 			ni_link_address_print(&wlan->assoc.bssid),
-			wlan->assoc.signal, duration);
+			wlan->assoc.signal, ni_wireless_frequency_to_channel(wlan->assoc.frequency),
+			wlan->assoc.frequency, duration);
 
 	}
 }
@@ -844,7 +845,7 @@ ni_do_ifstatus(int argc, char **argv)
 			ni_string_array_copy(&opt_ifconfig, sources);
 	}
 
-	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE, TRUE)) {
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, TRUE)) {
 		status = NI_WICKED_ST_ERROR;
 		goto cleanup;
 	}

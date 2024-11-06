@@ -58,7 +58,7 @@ __ni_system_ethernet_refresh(ni_netdev_t *dev)
 	ethernet = ni_ethernet_new();
 	ethernet->permanent_address.type = dev->link.hwaddr.type;
 	if ((ethtool = ni_netdev_get_ethtool(dev))) {
-		ni_netdev_ref_t ref;
+		ni_netdev_ref_t ref = NI_NETDEV_REF_INIT;
 
 		ref.name = dev->name;
 		ref.index = dev->link.ifindex;

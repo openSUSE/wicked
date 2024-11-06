@@ -221,6 +221,7 @@ extern void		ni_stringbuf_trim_tail(ni_stringbuf_t *, const char *);
 extern void		ni_stringbuf_trim_empty_lines(ni_stringbuf_t *);
 extern ni_bool_t	ni_stringbuf_empty(const ni_stringbuf_t *);
 extern const char *	ni_stringbuf_join(ni_stringbuf_t *, const ni_string_array_t *, const char *);
+extern const char *	ni_stringbuf_join_uint(ni_stringbuf_t *, const ni_uint_array_t *, const char *);
 
 extern ni_bool_t	ni_file_exists(const char *);
 extern ni_bool_t	ni_file_executable(const char *);
