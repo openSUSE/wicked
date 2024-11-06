@@ -122,7 +122,6 @@ extern ni_bool_t		ni_ipv6_devinfo_is_ready(const ni_ipv6_devinfo_t *);
 extern ni_bool_t		ni_ipv6_devinfo_ra_received(const ni_ipv6_devinfo_t *);
 extern ni_bool_t		ni_ipv6_devinfo_ra_requested(const ni_ipv6_devinfo_t *);
 
-extern int			ni_system_ipv6_devinfo_get(ni_netdev_t *, ni_ipv6_devinfo_t *);
 extern int			ni_system_ipv6_devinfo_set(ni_netdev_t *, const ni_ipv6_devconf_t *);
 
 extern const char *		ni_ipv6_devconf_privacy_to_name(int privacy);

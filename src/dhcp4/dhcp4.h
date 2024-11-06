@@ -309,6 +309,7 @@ extern int		ni_dhcp4_config_ignore_server(const char *);
 extern int		ni_dhcp4_config_have_server_preference(void);
 extern int		ni_dhcp4_config_server_preference_ipaddr(struct in_addr);
 extern int		ni_dhcp4_config_server_preference_hwaddr(const ni_hwaddr_t *);
+extern ni_bool_t	ni_dhcp4_config_ignore_rfc3927_1_6(const char *);
 extern unsigned int	ni_dhcp4_config_max_lease_time(const char *);
 extern void		ni_dhcp4_config_free(ni_dhcp4_config_t *);
 

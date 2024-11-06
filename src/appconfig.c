@@ -133,6 +133,7 @@ ni_config_dhcp4_clone(const ni_config_dhcp4_t *src, const char *device)
 	dst->arp = src->arp;
 	ni_string_dup(&dst->vendor_class, src->vendor_class);
 	dst->lease_time = src->lease_time;
+	dst->ignore_rfc3927_1_6 = src->ignore_rfc3927_1_6;
 	ni_string_array_copy(&dst->ignore_servers, &src->ignore_servers);
 	memcpy(&dst->preferred_server, &src->preferred_server, sizeof(dst->preferred_server));
 	ni_dhcp_option_decl_list_copy(&dst->custom_options, src->custom_options);
@@ -566,6 +567,9 @@ ni_config_parse_addrconf_dhcp4_nodes(ni_config_dhcp4_t *dhcp4, xml_node_t *node)
 		else
 		if (!strcmp(child->name, "lease-time") && child->cdata)
 			ni_parse_uint(child->cdata, &dhcp4->lease_time, 0);
+		else
+		if (!strcmp(child->name, "ignore-rfc3927-1-6") && child->cdata)
+			ni_parse_boolean(child->cdata, &dhcp4->ignore_rfc3927_1_6);
 		else
 		if (!strcmp(child->name, "ignore-server")) {
 			if ((attrval = xml_node_get_attr(child, "ip")) != NULL)

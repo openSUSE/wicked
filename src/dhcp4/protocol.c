@@ -1256,8 +1256,12 @@ ni_dhcp4_build_message(const ni_dhcp4_device_t *dev, unsigned int msg_code,
 		return -1;
 	}
 
-	if (IN_LINKLOCAL(ntohl(lease->dhcp4.address.s_addr))) {
-		ni_error("%s: cannot request a link local address", dev->ifname);
+	if (IN_LINKLOCAL(ntohl(lease->dhcp4.address.s_addr)) &&
+			!ni_dhcp4_config_ignore_rfc3927_1_6(dev->ifname)) {
+		ni_error("%s: Rejecting to request link local address offer prohibited by RFC3927 Section 1.6",
+				dev->ifname);
+		ni_error("%s: Fix the dhcp-server config or set `ignore-rfc3927-1-6` see `man 5 wicked-config`",
+				dev->ifname);
 		goto failed;
 	}
 
