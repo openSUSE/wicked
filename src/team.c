@@ -1,7 +1,7 @@
 /*
  *	Team network interface support
  *
- *	Copyright (C) 2015-2023 SUSE LLC
+ *	Copyright (C) 2015-2024 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@
 #include "util_priv.h"
 #include "array_priv.h"
 
+#define NI_TEAM_LW_PING_INTERVAL_DEFAULT	1000
 #define NI_TEAM_LINK_WATCH_ARRAY_CHUNK		4
 
 /*
@@ -280,8 +281,10 @@ ni_team_link_watch_init(ni_team_link_watch_t *lw)
 		break;
 	case NI_TEAM_LINK_WATCH_ARP_PING:
 		lw->arp.vlanid = UINT16_MAX;
+		lw->arp.interval = NI_TEAM_LW_PING_INTERVAL_DEFAULT;
 		break;
 	case NI_TEAM_LINK_WATCH_NSNA_PING:
+		lw->nsna.interval = NI_TEAM_LW_PING_INTERVAL_DEFAULT;
 		break;
 	case NI_TEAM_LINK_WATCH_TIPC:
 		break;

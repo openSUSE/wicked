@@ -602,7 +602,8 @@ __ni_dbus_array_grow(ni_dbus_variant_t *var, size_t element_size, unsigned int g
 			ni_fatal("%s: out of memory try to grow array to %u elements",
 					__FUNCTION__, len + grow_by);
 
-		memcpy(new_data, var->byte_array_value, len * element_size);
+		if (len && var->byte_array_value)
+			memcpy(new_data, var->byte_array_value, len * element_size);
 		free(var->byte_array_value);
 		var->byte_array_value = new_data;
 	}

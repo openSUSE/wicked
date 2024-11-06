@@ -138,6 +138,7 @@ typedef struct ni_config_dhcp4 {
 	unsigned int		routes_opts;
 	char *			vendor_class;
 	unsigned int		lease_time;
+	ni_bool_t		ignore_rfc3927_1_6;
 	ni_string_array_t	ignore_servers;
 	ni_config_arp_t		arp;
 
