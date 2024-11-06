@@ -136,7 +136,6 @@ ni_arp_send_grat_request(ni_arp_socket_t *arph, struct in_addr sip)
 	packet.sip = sip;
 	packet.sha = arph->dev_info.hwaddr;
 	packet.tip = sip;
-	ni_link_address_get_broadcast(arph->dev_info.hwaddr.type, &packet.tha);
 	return ni_arp_send(arph, &packet);
 }
 

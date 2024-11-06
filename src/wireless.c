@@ -345,9 +345,8 @@ ni_wireless_interface_refresh(ni_netdev_t *dev)
 	if (ni_rfkill_disabled(NI_RFKILL_TYPE_WIRELESS))
 		return -NI_ERROR_RADIO_DISABLED;
 
-	if ((wlan = dev->wireless) == NULL) {
-		dev->wireless = wlan = ni_wireless_new(dev);
-	}
+	if (!dev || !(wlan = ni_netdev_get_wireless(dev)))
+		return -NI_ERROR_GENERAL_FAILURE;
 
 	if (!wlan->scan.timer && wlan->scan.interval > 0)
 		__ni_wireless_scan_timer_arm(&wlan->scan, dev, 1);
@@ -1917,9 +1916,8 @@ ni_wireless_config_new()
 {
 	ni_wireless_config_t *conf;
 
-	conf = calloc(1, sizeof(ni_wireless_config_t));
-	if (!conf) {
-		ni_error("Unable to create wireless config -- out of memory");
+	if (!(conf = calloc(1, sizeof(ni_wireless_config_t)))) {
+		ni_error_oom();
 		return NULL;
 	}
 	ni_wireless_config_set_defaults(conf);
@@ -2002,15 +2000,16 @@ ni_wireless_config_has_essid(ni_wireless_config_t *conf, ni_wireless_ssid_t *ess
 }
 
 ni_wireless_t *
-ni_wireless_new(ni_netdev_t *dev)
+ni_wireless_new(void)
 {
 	ni_wireless_t *wlan;
 
-	ni_assert(dev && !dev->wireless);
-	wlan = xcalloc(1, sizeof(ni_wireless_t));
-	if (wlan) {
-		ni_wireless_scan_set_defaults(&wlan->scan);
+	if (!(wlan = calloc(1, sizeof(ni_wireless_t)))) {
+		ni_error_oom();
+		return NULL;
 	}
+
+	ni_wireless_scan_set_defaults(&wlan->scan);
 	return wlan;
 }
 
@@ -2060,7 +2059,13 @@ ni_wireless_bss_set(ni_wireless_bss_t *wireless_bss, const ni_wpa_bss_t *bss)
 ni_wireless_bss_t *
 ni_wireless_bss_new()
 {
-	return calloc(1, sizeof(ni_wireless_bss_t));
+	ni_wireless_bss_t *bss;
+
+	if (!(bss = calloc(1, sizeof(ni_wireless_bss_t)))) {
+		ni_error_oom();
+		return NULL;
+	}
+	return bss;
 }
 
 void
@@ -2145,8 +2150,10 @@ ni_wireless_blob_new_from_str(const char *str)
 {
 	ni_wireless_blob_t *blob;
 
-	if (!(blob = calloc(1, sizeof(ni_wireless_blob_t))))
+	if (!(blob = calloc(1, sizeof(ni_wireless_blob_t)))) {
+		ni_error_oom();
 		return NULL;
+	}
 
 	blob->is_string = TRUE;
 	if (!ni_string_dup(&blob->str, str)){
@@ -2244,64 +2251,6 @@ ni_wireless_network_array_copy(ni_wireless_network_array_t *dst, ni_wireless_net
 		}
 	}
 	return TRUE;
-}
-
-/*
- * Wireless auth info
- */
-ni_wireless_auth_info_t *
-ni_wireless_auth_info_new(ni_wireless_auth_proto_t proto, unsigned int version)
-{
-	ni_wireless_auth_info_t *auth;
-
-	auth = xcalloc(1, sizeof(*auth));
-	auth->proto = proto;
-	auth->version = version;
-	auth->group_cipher = NI_WIRELESS_CIPHER_TKIP;
-	auth->pairwise_ciphers = (1 << NI_WIRELESS_CIPHER_TKIP);
-
-	return auth;
-}
-
-void
-ni_wireless_auth_info_add_pairwise_cipher(ni_wireless_auth_info_t *auth, ni_wireless_cipher_t cipher)
-{
-	auth->pairwise_ciphers |= (1 << cipher);
-}
-
-void
-ni_wireless_auth_info_add_key_management(ni_wireless_auth_info_t *auth, ni_wireless_key_mgmt_t algo)
-{
-	auth->keymgmt_algos |= 1 << algo;
-}
-
-void
-ni_wireless_auth_info_free(ni_wireless_auth_info_t *auth)
-{
-	free(auth);
-}
-
-void
-ni_wireless_auth_info_array_init(ni_wireless_auth_info_array_t *array)
-{
-	memset(array, 0, sizeof(*array));
-}
-
-void
-ni_wireless_auth_info_array_append(ni_wireless_auth_info_array_t *array, ni_wireless_auth_info_t *auth)
-{
-	array->data = realloc(array->data, (array->count + 1) * sizeof(auth));
-	array->data[array->count++] = auth;
-}
-
-void
-ni_wireless_auth_info_array_destroy(ni_wireless_auth_info_array_t *array)
-{
-	unsigned int i;
-
-	for (i = 0; i < array->count; ++i)
-		ni_wireless_auth_info_free(array->data[i]);
-	memset(array, 0, sizeof(*array));
 }
 
 /*
