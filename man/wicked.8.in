@@ -145,8 +145,8 @@ it will bring up the interface using the stored system configuration:
 This invocation makes \fBwicked\fP:
 .nf
 1. Run the ibft extension to get all firmware type configurations
-2. Read all sysconfig network configuration files from \fB/etc/sysconfig/network\fP 
-3. Read all XML network configuration files from \fB/etc/wicked/ifconfig\fP 
+2. Read all sysconfig network configuration files from \fB/etc/sysconfig/network\fP
+3. Read all XML network configuration files from \fB@wicked_configdir@/ifconfig\fP
 .fi
 
 For each interface to be configured, wicked will generate a policy and pass
@@ -172,7 +172,7 @@ to bring up all interfaces described in the file:
 .\".B "    # wicked ifup --ifconfig bridgecfg.xml all
 .B "    # wicked ifup --ifconfig compat:/etc/sysconfig/network all
 .B "    # wicked ifup --ifconfig firmware:ibft:ethernet0 all
-.\".B "    # wicked ifup --ifconfig wicked:xml:/etc/wicked/ifconfig all
+.\".B "    # wicked ifup --ifconfig wicked:xml:@wicked_configdir@/ifconfig all
 .fi
 .PP
 Note that \fBwicked\fP attempts to bring up interfaces in a "reasonable
@@ -313,7 +313,7 @@ There are 4 potential ifreload use cases:
 .BI "1. Configuration unchanged
     ifreload does not touch specified interfaces.
 .BI "2. Configuration changed
-    performs ifdown followed by ifup with the new configuration on the 
+    performs ifdown followed by ifup with the new configuration on the
     specified interfaces.
 .BI "3. Configuration deleted
     performs ifdown in order to shut down the specified interfaces.
@@ -722,7 +722,7 @@ strings).
 .BR "\-\-file " filename
 The file containing the XML document to operate on.
 .PP
-This manual page cannot give a full overview of xpath, of course, 
+This manual page cannot give a full overview of xpath, of course,
 however consider the following examples (which assume the input is
 an XML interface description):
 .PP
@@ -730,7 +730,7 @@ an XML interface description):
 .B "# wicked xpath \(dqvlan_tag=%{/interface/vlan/tag}\(dq"
 .fi
 .PP
-Given a VLAN interface definition, this will expand to the contents 
+Given a VLAN interface definition, this will expand to the contents
 of the \fB<tag>\fP element of the VLAN definition. The "path-like"
 syntax specifies how to traverse the XML tree to find the desired node.
 Assuming the tag is 42, the above command will print \fBvlan_tag=42\fP.
@@ -780,7 +780,7 @@ the \fBpriority\fP term, marking the field as optional.
 .SH COPYRIGHT
 Copyright (C) 2018 SUSE LINUX GmbH, Nuernberg, Germany.
 .SH BUGS
-Please report bugs as described at <http://bugs.opensuse.org>
+Please report bugs as described at <@PACKAGE_BUGREPORT@>
 .SH AUTHORS
 Olaf Kirch
 Pawel Wieczorkiewicz

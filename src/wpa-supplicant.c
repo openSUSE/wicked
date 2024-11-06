@@ -765,6 +765,8 @@ static ni_bool_t
 ni_wpa_nif_init(ni_wpa_nif_t *wif, const char *ifname, unsigned int ifindex)
 {
 	memset(wif, 0, sizeof(*wif));
+
+	ni_netdev_ref_init(&wif->device);
 	ni_netdev_ref_set(&wif->device, ifname, ifindex);
 
 	ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_WPA,
@@ -1263,7 +1265,7 @@ ni_debug_wpa_print_network_properties(const char *devname, const ni_wpa_net_prop
 		else if (ni_debug_escape_net_property(e->key))
 			value = escape_string;
 		else
-			value = ni_dbus_variant_sprint(&e->datum);
+			value = ni_dbus_variant_print(&sbuf, &e->datum);
 
 		ni_debug_wpa("%s:     %-10s: %s", devname, e->key, value);
 		ni_stringbuf_destroy(&sbuf);

@@ -572,7 +572,7 @@ ni_pppd_config_file_read(const char *instance, ni_ppp_t *ppp)
 				goto done;
 
 			if (nc && (dev = ni_netdev_by_name(nc, var->name)))
-				ni_netdev_ref_init(&ppp->mode.pppoe.device,
+				ni_netdev_ref_set(&ppp->mode.pppoe.device,
 						dev->name, dev->link.ifindex);
 		}
 	}

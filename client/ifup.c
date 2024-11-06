@@ -419,9 +419,9 @@ ni_nanny_fsm_monitor_timeout(void *user_data, const ni_timer_t *timer)
 	ni_nanny_fsm_monitor_t *monitor = user_data;
 
 	if (monitor && timer == monitor->timer) {
+		ni_warn("Interface wait time (%us) reached", NI_TIMEOUT_SEC(monitor->timeout));
 		monitor->timer = NULL;
 		monitor->timeout = 0;
-		ni_info("Interface wait time reached");
 	}
 }
 
@@ -679,7 +679,7 @@ usage:
 		}
 	}
 
-	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, check_prio, TRUE)) {
+	if (!ni_ifconfig_load(fsm, opt_global_rootdir, &opt_ifconfig, check_prio)) {
 		status = NI_WICKED_RC_NOT_CONFIGURED;
 		goto cleanup;
 	}

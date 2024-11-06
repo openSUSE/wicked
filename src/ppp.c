@@ -169,6 +169,13 @@ ni_ppp_mode_init(ni_ppp_mode_t *mode, ni_ppp_mode_type_t type)
 {
 	memset(mode, 0, sizeof(*mode));
 	mode->type = type;
+	switch (mode->type) {
+	case NI_PPP_MODE_PPPOE:
+		ni_netdev_ref_init(&mode->pppoe.device);
+		break;
+	default:
+		break;
+	}
 }
 
 
@@ -177,7 +184,6 @@ ni_ppp_mode_copy(ni_ppp_mode_t *new_mode, ni_ppp_mode_t *old_mode)
 {
 	ni_ppp_mode_pppoe_t *new_pppoe;
 	ni_ppp_mode_pppoe_t *old_pppoe;
-	ni_netdev_ref_t *old_device;
 
 	if (!new_mode || !old_mode)
 		return;
@@ -187,8 +193,7 @@ ni_ppp_mode_copy(ni_ppp_mode_t *new_mode, ni_ppp_mode_t *old_mode)
 	case NI_PPP_MODE_PPPOE:
 		new_pppoe = &new_mode->pppoe;
 		old_pppoe = &old_mode->pppoe;
-		old_device = &old_pppoe->device;
-		ni_netdev_ref_init(&new_pppoe->device, old_device->name, old_device->index);
+		ni_netdev_ref_copy(&new_pppoe->device, &old_pppoe->device);
 		break;
 	default:
 		break;

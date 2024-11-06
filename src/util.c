@@ -2565,6 +2565,24 @@ ni_stringbuf_join(ni_stringbuf_t *buf, const ni_string_array_t *nsa, const char 
 	return buf->string ? buf->string + len : NULL;
 }
 
+const char *
+ni_stringbuf_join_uint(ni_stringbuf_t *buf, const ni_uint_array_t *nsa, const char *sep)
+{
+	unsigned int i;
+	size_t len;
+
+	if (!buf || !nsa)
+		return NULL;
+
+	len = buf->len;
+	for (i = 0; i < nsa->count; ++i) {
+		if (sep && buf->len)
+			ni_stringbuf_puts(buf, sep);
+		ni_stringbuf_printf(buf, "%u", nsa->data[i]);
+	}
+	return buf->string ? buf->string + len : NULL;
+}
+
 inline static size_t
 __ni_stringbuf_size(ni_stringbuf_t *sb, size_t len)
 {

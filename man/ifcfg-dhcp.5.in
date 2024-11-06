@@ -66,7 +66,7 @@ cause that a DHCP server ignores the fqdn option requests completely.
 .BR DHCLIENT_SET_DEFAULT_ROUTE\  { yes* | no }
 Should the DHCP client set a default route (default Gateway)?
 When multiple copies of DHCP clients run, it would make sense that only
-one of them does it. 
+one of them does it.
 .TP
 .BR DHCLIENT_ROUTE_PRIORITY
 This option allows to set a metric/priority for DHCPv4 routes. Default is 0.
@@ -164,7 +164,7 @@ or the MTU option have higher precedence.
 Request broadcast responses from dhcp-server.
 
 The default behaviour is to not request broadcast responses for any type
-of devices except of Infiniband, where it is enabled by default and not 
+of devices except of Infiniband, where it is enabled by default and not
 possible to disable.
 
 .SH DHCPv6 Specific Variables
@@ -250,7 +250,7 @@ When disabled, the DHCP server may append it's update domain the host-
 name (e.g. 'foo.bar' -> 'foo.bar.example.net').
 .TP
 .BR DHCLIENT6_CLIENT_ID
-This option allows to manually specify a client identifier (DUID) as a colon 
+This option allows to manually specify a client identifier (DUID) as a colon
 separated hex byte string for DHCPv6. It disables the default behavior to
 maintain the client-id automatically, see wicked-config(5) and `wicked duid --help`
 for more details.
@@ -333,7 +333,7 @@ The more specific variable DHCLIENT6_SET_HOSTNAME has higher precedence.
 .SH COPYRIGHT
 Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
 .SH BUGS
-Please report bugs at <https://bugzilla.novell.com/index.cgi>
+Please report bugs as described at <@PACKAGE_BUGREPORT@>
 .SH AUTHOR
 .nf
 Marius Tomaschewski -- wicked

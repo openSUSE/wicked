@@ -92,7 +92,7 @@ For additional and more general information have a look into
 .SH COPYRIGHT
 Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
 .SH BUGS
-Please report bugs at <https://bugzilla.novell.com/index.cgi>
+Please report bugs as described at <@PACKAGE_BUGREPORT@>
 .SH AUTHOR
 .nf
 Stefan Scheler -- original bridge man page
