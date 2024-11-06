@@ -46,7 +46,7 @@
 
 struct arp_ops;
 
-#define NI_ARPUTIL_MAX_SEND_ERR  3
+#define NI_ARPUTIL_MAX_SEND_ERR  16
 
 #define ARP_VERIFY_COUNT	3
 #define	ARP_VERIFY_INTERVAL_MIN	1000
@@ -57,6 +57,7 @@ struct arp_ops;
 #define ARP_PING_COUNT		-1U
 #define ARP_PING_INTERVAL_MIN	1000
 #define ARP_PING_INTERVAL_MAX	1000
+#define ARP_USER_INTERVAL_MIN	100
 
 struct arp_handle {
 	ni_bool_t		verbose;
@@ -109,10 +110,10 @@ do_parse_interval(ni_uint_range_t *range, const char *arg)
 		smax += ni_string_len(needle);
 		ret = !ni_parse_uint(smin, &range->min, 10) &&
 			!ni_parse_uint(smax, &range->max, 10) &&
-			range->min >= 100 && range->max >= range->min;
+			range->min >= ARP_USER_INTERVAL_MIN && range->max >= range->min;
 	} else {
 		ret = !ni_parse_uint(smin, &range->min, 10) &&
-			(range->max = range->min) >= 100;
+			(range->max = range->min) >= ARP_USER_INTERVAL_MIN;
 	}
 	ni_string_free(&smin);
 	return ret;
@@ -366,10 +367,11 @@ do_arp_verify_run(struct arp_handle *handle, const char *caller, int argc, char 
 				"      (default: %u). Returns 4 when address is in use.\n"
 				"  --interval <msec[..msec]>\n"
 				"      DAD probing packet sending interval in msec\n"
-				"      (default: %u..%u).\n"
+				"      (default: %u..%u, min: %u).\n"
 				, argv[0]
 				, ARP_VERIFY_COUNT
 				, ARP_VERIFY_INTERVAL_MIN, ARP_VERIFY_INTERVAL_MAX
+				, ARP_USER_INTERVAL_MIN
 			);
 			goto cleanup;
 
@@ -638,10 +640,10 @@ do_arp_notify_run(struct arp_handle *handle, const char *caller, int argc, char 
 				"      (default: %u).\n"
 				"  --interval <msec[..msec]>\n"
 				"      Announcement packet sending interval in msec\n"
-				"      (default: %u).\n"
+				"      (default: %u, min: %u).\n"
 				, argv[0]
 				, ARP_NOTIFY_COUNT
-				, ARP_NOTIFY_INTERVAL_MIN
+				, ARP_NOTIFY_INTERVAL_MIN, ARP_USER_INTERVAL_MIN
 			);
 			goto cleanup;
 
@@ -839,7 +841,7 @@ do_arp_ping_run(struct arp_handle *handle, const char *caller, int argc, char **
 				"      (default: infinite).\n"
 				"  --interval <msec[..msec]>\n"
 				"      Packet sending interval in msec\n"
-				"      (default: %u).\n"
+				"      (default: %u, min: %u).\n"
 				"  --replies <count>\n"
 				"      Wait unitil specified number of ping replies\n"
 				"  --timeout <msec>\n"
@@ -847,7 +849,7 @@ do_arp_ping_run(struct arp_handle *handle, const char *caller, int argc, char **
 				"  --from-ip <source ip>\n"
 				"      Use specified IP address as the ping source\n"
 				, argv[0]
-				, ARP_PING_INTERVAL_MIN
+				, ARP_PING_INTERVAL_MIN, ARP_USER_INTERVAL_MIN
 			);
 			goto cleanup;
 
@@ -1213,7 +1215,7 @@ ni_do_arp(const char *caller, int argc, char **argv)
 				"  --notify <count>\n"
 				"      Notify about IP address use (gratuitous ARP)\n"
 				"  --interval <msec[..msec]>\n"
-				"      Packet sending interval in msec\n"
+				"      Packet sending interval in msec (min: %u)\n"
 				"\n"
 				"Actions:\n"
 				"  verify [options] <ifname> <IP address>\n"
@@ -1226,6 +1228,7 @@ ni_do_arp(const char *caller, int argc, char **argv)
 				"        ARP ping the specified neighbour\n"
 				"\n"
 				, argv[0]
+				, ARP_USER_INTERVAL_MIN
 			);
 			goto cleanup;
 

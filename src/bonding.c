@@ -194,6 +194,8 @@ __ni_bonding_init(ni_bonding_t *bonding)
 	bonding->lp_interval = 1;
 	bonding->ad_actor_sys_prio = 65535;
 	ni_link_address_init(&bonding->ad_actor_system);
+	ni_netdev_ref_init(&bonding->primary_slave);
+	ni_netdev_ref_init(&bonding->active_slave);
 }
 
 /*

@@ -96,21 +96,53 @@ do_nanny_addpolicy(int argc, char **argv)
 
 	while (optind < argc) {
 		const char *path = argv[optind++];
+		/*
+		 * The `wicked:xml` is the default schema. When not specified
+		 * differently in <$path>, ni_ifconfig_read will automatically
+		 * qualify <$path> to the 'wicked:xml:<$path>' config origin.
+		 */
 		if (!ni_ifconfig_read(&docs, opt_global_rootdir, path,
-					NI_IFCONFIG_KIND_POLICY, TRUE, TRUE)) {
+					NI_IFCONFIG_KIND_POLICY, TRUE, FALSE)) {
 			ni_error("Unable to read config source '%s'", path);
 			xml_document_array_destroy(&docs);
 			return NI_WICKED_RC_ERROR;
 		}
 	}
 
-	for (i = 0; i < docs.count; i++) {
-		rv = ni_nanny_addpolicy(docs.data[i]);
-		if (rv < 1) {
-			xml_node_t *root = xml_document_root(docs.data[i]);
+	/*
+	 * Do not apply attic configurations to nanny, migrate them.
+	 */
+	if (ni_ifxml_migrate_docs(&docs))
+		ni_debug_readwrite("Migrated %s to current schema",
+			docs.count == 1 ? "policy" : "policies");
 
-			ni_error("Unable to add policies from %s file",
-				xml_node_location_filename(root));
+	for (i = 0; i < docs.count; i++) {
+		xml_document_t *doc = docs.data[i];
+		xml_node_t *root = xml_document_root(doc);
+		const char *name = NULL;
+
+		/*
+		 * just empty or backend options documents
+		 */
+		if (!ni_ifconfig_is_policy(root) && !ni_ifconfig_is_config(root))
+			continue;
+
+		rv = ni_nanny_addpolicy(doc);
+
+		/*
+		 * document content has been converted
+		 * from <interface> to <policy> root ...
+		 */
+		root = xml_document_root(doc);
+		name = ni_ifpolicy_get_name(root);
+		if (rv < 1) {
+			ni_error("Unable to add '%s' %s from '%s' to nanny",
+					name ? name : "<unnamed>",
+					root->name, ni_ifpolicy_get_origin(root));
+		} else {
+			ni_note("Applied '%s' %s from '%s' to nanny",
+					name ? name : "<unnamed>",
+					root->name, ni_ifpolicy_get_origin(root));
 		}
 	}
 
@@ -305,22 +337,18 @@ ni_nanny_addpolicy_node(const xml_node_t *pnode, const char *origin)
 int
 ni_nanny_addpolicy(xml_document_t *doc)
 {
-	xml_node_t *root;
-	const char *origin;
-	int count = 0;
-
 	if (xml_document_is_empty(doc))
-		return count;
-
-	root = xml_document_root(doc);
-	origin = xml_node_location_filename(root);
+		return 0;
 
 	if (!ni_convert_cfg_into_policy_doc(doc)) {
-		ni_debug_ifconfig("Unable to convert %s from %s to %s",
-			NI_CLIENT_IFCONFIG, origin, NI_NANNY_IFPOLICY);
+		xml_node_t *root = xml_document_root(doc);
+		const char *origin = ni_ifconfig_get_origin(root);
+
+		ni_debug_ifconfig("Unable to convert '%s' from '%s' to %s",
+			root->name, origin, NI_NANNY_IFPOLICY);
 		return -1;
 	}
-	return ni_nanny_addpolicy_node(xml_document_root(doc), origin);
+	return ni_nanny_addpolicy_node(xml_document_root(doc), NULL);
 }
 
 /*

@@ -97,7 +97,7 @@ global to the interface. The description of the variable points this out.
 `WIRELESS_AP <address>`
 :   In environments with multiple Access points you may want to define the one
     to connect to by entering its MAC address. Format is 6x2 hex digits,
-    separated by colons, eg 01:02:03:04:05:06.
+    separated by colons, e.g. 01:02:03:04:05:06.
 
 `WIRELESS_PRIORITY <num>`
 :   This variable only makes sense used in conjunction with multiple networks.
@@ -112,6 +112,16 @@ global to the interface. The description of the variable points this out.
     channels and list the available frequencies. Depending on regulations, some
     frequencies/channels may not be available.
 
+`WIRELESS_FREQUENCY_LIST <num|frequency-set>`
+:   In station mode, this space-separated list restricts the frequencies (in MHz) to
+    search for the BSS (Access-Point with ESSID).
+    Additionally, the following predefined frequency set names can be used to specify
+    frequency ranges:
+
+       - **2.4Ghz**: 2412-2484 Mhz\
+       - **5Ghz**: 4920-5885 Mhz\
+       - **6Ghz**: 5935-7115 Mhz
+
 `WIRELESS_KEY_[0123] <string|hex>`
 :   You can define up to 4 WEP encryption keys. You can use WEP with open and
     sharedkey authentication. The key can be entered in as ASCII string, where
@@ -119,7 +129,7 @@ global to the interface. The description of the variable points this out.
     Or you can specify the key in hex digits.
 
     Note: for backward compatibility a prefix "h:" or characters like "-" or
-    ":" get removed from the hexstring.
+    ":" get removed from the hex-string.
 
     Examples:
 ```
@@ -191,7 +201,7 @@ global to the interface. The description of the variable points this out.
     where a client certificate/private key is used for authentication (EAP-TLS).
 
 `WIRELESS_CLIENT_KEY <string>`
-:   File path to client private key file (PEM/DER/PFX). If the key is encryped,
+:   File path to client private key file (PEM/DER/PFX). If the key is encrypted,
     specify the **WIRELESS_CLIENT_KEY_PASSWORD**.
 
 `WIRELESS_HIDDEN_SSID <NO|YES>`
@@ -353,7 +363,7 @@ Some examples of different configuration types supported at the moment:
 Copyright (C) 2014-2022 SUSE LLC
 
 # BUGS
-Please report bugs as described at http://bugs.opensuse.org
+Please report bugs as described at <%PACKAGE_BUGREPORT%>
 
 # SEE ALSO
 **`routes`**(5), **`ifcfg`**(5), **`wicked`**(8)

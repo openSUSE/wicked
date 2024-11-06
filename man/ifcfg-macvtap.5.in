@@ -53,7 +53,7 @@ Sets up \fImacvtap0\fR macvtap interface on top of \fBeth0\fR:
 .SH COPYRIGHT
 Copyright (C) 2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
 .SH BUGS
-Please report bugs at <https://bugzilla.novell.com/index.cgi>
+Please report bugs as described at <@PACKAGE_BUGREPORT@>
 .SH AUTHORS
 .nf
 Marius Tomaschewski
