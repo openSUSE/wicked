@@ -3808,6 +3808,7 @@ ni_ethtool_free(ni_ethtool_t *ethtool)
 		ni_ethtool_ring_free(ethtool->ring);
 		ni_ethtool_channels_free(ethtool->channels);
 		ni_ethtool_coalesce_free(ethtool->coalesce);
+		ni_ethtool_pause_free(ethtool->pause);
 		free(ethtool);
 	}
 }
