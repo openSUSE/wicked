@@ -66,18 +66,12 @@ extern ni_pci_dev_t *ni_sysfs_netdev_get_pci(const char *ifname);
 extern int	ni_sysctl_ipv6_ifconfig_is_present(const char *ifname);
 extern int	ni_sysctl_ipv6_ifconfig_get(const char *, const char *, char **);
 extern int	ni_sysctl_ipv6_ifconfig_set(const char *, const char *, const char *);
-extern int	ni_sysctl_ipv6_ifconfig_get_int(const char *, const char *, int *);
-extern int	ni_sysctl_ipv6_ifconfig_get_uint(const char *, const char *, unsigned int *);
 extern int	ni_sysctl_ipv6_ifconfig_set_int(const char *, const char *, int);
 extern int	ni_sysctl_ipv6_ifconfig_set_uint(const char *, const char *, unsigned int);
 extern int	ni_sysctl_ipv6_ifconfig_get_ipv6(const char *, const char *, struct in6_addr *);
 extern int	ni_sysctl_ipv6_ifconfig_set_ipv6(const char *, const char *, const struct in6_addr);
 
-extern int	ni_sysctl_ipv4_ifconfig_is_present(const char *ifname);
-extern int	ni_sysctl_ipv4_ifconfig_get(const char *, const char *, char **);
 extern int	ni_sysctl_ipv4_ifconfig_set(const char *, const char *, const char *);
-extern int	ni_sysctl_ipv4_ifconfig_get_int(const char *, const char *, int *);
-extern int	ni_sysctl_ipv4_ifconfig_get_uint(const char *, const char *, unsigned int *);
 extern int	ni_sysctl_ipv4_ifconfig_set_int(const char *, const char *, int);
 extern int	ni_sysctl_ipv4_ifconfig_set_uint(const char *, const char *, unsigned int);
 

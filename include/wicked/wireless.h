@@ -168,19 +168,6 @@ typedef enum ni_wireless_frequency_set {
 
 #define NI_WIRELESS_PAIRWISE_CIPHERS_MAX	4
 
-typedef struct ni_wireless_auth_info {
-	ni_wireless_auth_proto_t	proto;
-	unsigned int			version;
-	ni_wireless_cipher_t		group_cipher;
-	unsigned int			pairwise_ciphers;
-	unsigned int			keymgmt_algos;
-} ni_wireless_auth_info_t;
-
-typedef struct ni_wireless_auth_info_array {
-	unsigned int			count;
-	ni_wireless_auth_info_t **	data;
-} ni_wireless_auth_info_array_t;
-
 typedef struct ni_wireless_network ni_wireless_network_t;
 
 #define NI_WIRELESS_ESSID_MAX_LEN	32
@@ -377,7 +364,7 @@ struct ni_wireless {
 						NI_BIT(NI_WIRELESS_KEY_MGMT_OWE)		\
 						)
 
-extern ni_wireless_t *			ni_wireless_new(ni_netdev_t *);
+extern ni_wireless_t *			ni_wireless_new(void);
 extern void				ni_wireless_free(ni_wireless_t *);
 extern int				ni_wireless_setup(ni_netdev_t *, ni_wireless_config_t *);
 extern int				ni_wireless_shutdown(ni_netdev_t *);
@@ -415,14 +402,6 @@ extern void				ni_wireless_bss_free_all(ni_wireless_bss_t **bss);
 extern ni_wireless_bss_t *		ni_wireless_bss_list_find_by_bssid(ni_wireless_bss_t * const *, const ni_hwaddr_t *);
 extern ni_bool_t			ni_wireless_bss_list_append(ni_wireless_bss_t **, ni_wireless_bss_t *);
 extern void				ni_wireless_bss_list_destroy(ni_wireless_bss_t **);
-
-extern ni_wireless_auth_info_t *	ni_wireless_auth_info_new(ni_wireless_auth_proto_t, unsigned int version);
-extern void				ni_wireless_auth_info_add_pairwise_cipher(ni_wireless_auth_info_t *, ni_wireless_cipher_t);
-extern void				ni_wireless_auth_info_add_key_management(ni_wireless_auth_info_t *, ni_wireless_key_mgmt_t);
-extern void				ni_wireless_auth_info_free(ni_wireless_auth_info_t *);
-extern void				ni_wireless_auth_info_array_init(ni_wireless_auth_info_array_t *);
-extern void				ni_wireless_auth_info_array_append(ni_wireless_auth_info_array_t *, ni_wireless_auth_info_t *);
-extern void				ni_wireless_auth_info_array_destroy(ni_wireless_auth_info_array_t *);
 
 extern void				ni_wireless_wep_key_array_destroy(char **);
 extern ni_bool_t			ni_wireless_wep_key_parse(char **out, const char *key);
