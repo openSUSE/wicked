@@ -164,6 +164,7 @@ ni_route_init(ni_route_t *route)
 {
 	if (route) {
 		memset(route, 0, sizeof(*route));
+		ni_netdev_ref_init(&route->nh.device);
 		return TRUE;
 	}
 	return FALSE;
@@ -1263,7 +1264,12 @@ ni_route_via_gateway(const ni_route_t *rp)
 ni_route_nexthop_t *
 ni_route_nexthop_new(void)
 {
-	return xcalloc(1, sizeof(ni_route_nexthop_t));
+	ni_route_nexthop_t *hop;
+
+	hop = calloc(1, sizeof(ni_route_nexthop_t));
+	if (hop)
+		ni_netdev_ref_init(&hop->device);
+	return hop;
 }
 
 void
@@ -1272,6 +1278,7 @@ ni_route_nexthop_destroy(ni_route_nexthop_t *hop)
 	if (hop) {
 		ni_netdev_ref_destroy(&hop->device);
 		memset(hop, 0, sizeof(*hop));
+		ni_netdev_ref_init(&hop->device);
 	}
 }
 
@@ -1292,8 +1299,7 @@ ni_route_nexthop_copy(ni_route_nexthop_t *dst, const ni_route_nexthop_t *src)
 		dst->weight  = src->weight;
 		dst->flags   = src->flags;
 		dst->realm   = src->realm;
-		dst->device.index = src->device.index;
-		return ni_string_dup(&dst->device.name, src->device.name);
+		return ni_netdev_ref_copy(&dst->device, &src->device);
 	}
 	return FALSE;
 }
@@ -1771,6 +1777,8 @@ ni_rule_init(ni_rule_t *rule)
 		memset(rule, 0, sizeof(*rule));
 		rule->suppress_prefixlen = -1U;
 		rule->suppress_ifgroup = -1U;
+		ni_netdev_ref_init(&rule->iif);
+		ni_netdev_ref_init(&rule->oif);
 		return TRUE;
 	}
 	return FALSE;
@@ -1816,12 +1824,10 @@ ni_rule_copy(ni_rule_t *dst, const ni_rule_t *src)
 	C(fwmask);
 	C(suppress_prefixlen);
 	C(suppress_ifgroup);
-	C(iif.index);
-	C(oif.index);
 #undef C
-	if (!ni_string_dup(&dst->iif.name, src->iif.name))
+	if (!ni_netdev_ref_copy(&dst->iif, &src->iif))
 		return FALSE;
-	if (!ni_string_dup(&dst->oif.name, src->oif.name))
+	if (!ni_netdev_ref_copy(&dst->oif, &src->oif))
 		return FALSE;
 	return TRUE;
 }

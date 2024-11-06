@@ -101,6 +101,7 @@ ni_auto6_new(const ni_netdev_t *dev)
 	if (auto6) {
 		auto6->enabled = TRUE;
 		auto6->update = NI_TRISTATE_DEFAULT;
+		ni_netdev_ref_init(&auto6->device);
 		ni_netdev_ref_set(&auto6->device, dev->name, dev->link.ifindex);
 	}
 	return auto6;

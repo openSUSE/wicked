@@ -27,11 +27,11 @@ rpmbuild: dist-bzip2
 	rpmbuild $(rpmbuild_opts) $(distdir).tar.bz2
 
 # Build source package with all checks enabled (unlike 'make dist')
-package: all check distcheck show-commit-state
+package: all check distcheck show-commit-state warn-pre-built-man
 
-# Build rpm test package with all checks enabled
-rpmpackage: package
-	rpmbuild $(rpmbuild_opts) $(distdir).tar.bz2
+# Build test RPM and source package with all dist checks enabled
+rpmpackage: all check distcheck rpmbuild show-commit-state warn-pre-built-man
+
 
 dist-hook: VERSION $(distdir)/wicked.spec $(distdir)/ChangeLog
 
@@ -43,12 +43,20 @@ $(distdir)/ChangeLog: check-git-tool
 	  LANG=C git log -- $(top_srcdir) > $(distdir)/ChangeLog ; \
 	fi
 
+warn-pre-built-man:
+if !pandoc
+	@echo '##' >&2
+	@echo '## *** WARN: pandoc not available: cannot rebuild manual pages' >&2
+	@echo '##           from .md sources -- make sure they are up-to-date' >&2
+	@echo '##' >&2
+endif
+
 show-commit-state: check-git-tool
 	@if  [ -d $(top_srcdir)/.git ]; then \
 	  cd $(top_srcdir) && \
 	  LC_ALL=C git status 2>&1 | \
 	  grep -qsE 'Untracked|to be committed|not staged for commit' && { \
-	    echo -e "##\n## *** NOTE: There are uncommitted changes:\n##" ; \
+	    echo -e "##\n## *** WARN: There are uncommitted changes:\n##" ; \
 	    git status 2>&1 || : ; \
 	  } || : ; \
 	fi

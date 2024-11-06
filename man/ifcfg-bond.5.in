@@ -1,0 +1,2 @@
+.\" ifcfg-bond to ifcfg-bonding manual page reference
+.so man5/ifcfg-bonding.5
