@@ -18,6 +18,7 @@
  *
  *	Authors:
  *		Clemens Famulla-Conrad
+ *		Marius Tomaschewski
  */
 #ifndef NI_WICKED_ARRAY_H
 #define NI_WICKED_ARRAY_H
@@ -68,5 +69,15 @@
 #define			ni_declare_ptr_array_qsort(prefix)				\
 	void		prefix##_array_qsort(prefix##_array_t *, prefix##_array_cmp_fn)
 
+
+/*
+ * Utilities for reference counted entries
+ */
+#define			ni_declare_ptr_array_append_ref(prefix)				\
+	ni_bool_t	prefix##_array_append_ref(prefix##_array_t *, prefix##_t *)
+
+#define			ni_declare_ptr_array_insert_ref(prefix)				\
+	ni_bool_t	prefix##_array_insert_ref(prefix##_array_t *, unsigned int,	\
+					prefix##_t *)
 
 #endif /* NI_WICKED_ARRAY_H */

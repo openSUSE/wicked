@@ -18,6 +18,7 @@
  *
  *	Authors:
  *		Clemens Famulla-Conrad
+ *		Marius Tomaschewski
  */
 
 #ifndef NI_WICKED_ARRAY_PRIV_H
@@ -190,6 +191,47 @@
 	{										\
 		qsort_r(arr->data, arr->count, sizeof(arr->data[0]),			\
 				prefix##_array_qsort_cmp_fn, cmpfn);			\
+	}
+
+/*
+ * Utilities for reference counted entries
+ */
+#define			ni_define_ptr_array_append_ref(prefix)				\
+	ni_bool_t									\
+	prefix##_array_append_ref(prefix##_array_t *arr, prefix##_t *ent)		\
+	{										\
+		prefix##_t *ref = prefix##_ref(ent);					\
+											\
+		if (!ref || !prefix##_array_realloc(arr)) {				\
+			prefix##_free(ref);						\
+			return FALSE;							\
+		}									\
+											\
+		arr->data[arr->count++] = ref;						\
+		return TRUE;								\
+	}
+
+#define			ni_define_ptr_array_insert_ref(prefix)				\
+	ni_bool_t									\
+	prefix##_array_insert_ref(prefix##_array_t *arr, unsigned int pos,		\
+			prefix##_t *ent)						\
+	{										\
+		prefix##_t *ref = prefix##_ref(ent);					\
+											\
+		if (!ref || !prefix##_array_realloc(arr)) {				\
+			prefix##_free(ref);						\
+			return FALSE;							\
+		}									\
+											\
+		if (pos >= arr->count) {						\
+			arr->data[arr->count++] = ref;					\
+		} else {								\
+			memmove(&arr->data[pos + 1], &arr->data[pos],			\
+					(arr->count - pos) * sizeof(ent));		\
+			arr->data[pos] = ref;						\
+			arr->count++;							\
+		}									\
+		return TRUE;								\
 	}
 
 #endif /* NI_WICKED_ARRAY_PRIV_H */
