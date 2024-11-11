@@ -150,7 +150,7 @@
 
 #define			ni_define_ptr_array_at(prefix)					\
 	prefix##_t *									\
-	prefix##_array_at(prefix##_array_t *arr, unsigned int idx)			\
+	prefix##_array_at(const prefix##_array_t *arr, unsigned int idx)		\
 	{										\
 		if (!arr || idx >= arr->count)						\
 			return NULL;							\
@@ -160,7 +160,7 @@
 
 #define			ni_define_ptr_array_index(prefix)				\
 	unsigned int									\
-	prefix##_array_index(prefix##_array_t *arr, const prefix##_t *needle)		\
+	prefix##_array_index(const prefix##_array_t *arr, const prefix##_t *needle)	\
 	{										\
 		unsigned int i;								\
 											\

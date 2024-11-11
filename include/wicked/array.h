@@ -61,10 +61,10 @@
 	prefix##_t *	prefix##_array_remove_at(prefix##_array_t *, unsigned int)
 
 #define			ni_declare_ptr_array_at(prefix)					\
-	prefix##_t *	prefix##_array_at(prefix##_array_t *, unsigned int)
+	prefix##_t *	prefix##_array_at(const prefix##_array_t *, unsigned int)
 
 #define			ni_declare_ptr_array_index(prefix)				\
-	unsigned int	prefix##_array_index(prefix##_array_t *, const prefix##_t *)
+	unsigned int	prefix##_array_index(const prefix##_array_t *, const prefix##_t *)
 
 #define			ni_declare_ptr_array_qsort(prefix)				\
 	void		prefix##_array_qsort(prefix##_array_t *, prefix##_array_cmp_fn)
