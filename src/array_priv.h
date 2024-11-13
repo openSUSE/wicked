@@ -65,7 +65,7 @@
 		if ((UINT_MAX - arr->count) <= chunk_size)				\
 			return FALSE;							\
 											\
-		newcount = arr->count + chunk_size;					\
+		newcount = arr->count + chunk_size + 1;					\
 		if (SIZE_MAX / entsize < newcount)					\
 			return FALSE;							\
 											\
