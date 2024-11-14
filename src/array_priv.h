@@ -129,7 +129,7 @@
 	}
 
 #define			ni_define_ptr_array_remove_at(prefix)				\
-	prefix##_t*									\
+	prefix##_t *									\
 	prefix##_array_remove_at(prefix##_array_t *arr, unsigned int idx)		\
 	{										\
 		prefix##_t *ent;							\
@@ -172,6 +172,20 @@
 				return i;						\
 		}									\
 		return -1U;								\
+	}
+
+#define			ni_define_ptr_array_delete(prefix)				\
+	ni_bool_t									\
+	prefix##_array_delete(prefix##_array_t *arr, const prefix##_t *ent)		\
+	{										\
+		return prefix##_array_delete_at(arr, prefix##_array_index(arr, ent));	\
+	}
+
+#define			ni_define_ptr_array_remove(prefix)				\
+	prefix##_t *									\
+	prefix##_array_remove(prefix##_array_t *arr, const prefix##_t *ent)		\
+	{										\
+		return prefix##_array_remove_at(arr, prefix##_array_index(arr, ent));	\
 	}
 
 #define			ni_define_ptr_array_qsort_cmp_fn(prefix)			\

@@ -66,6 +66,12 @@
 #define			ni_declare_ptr_array_index(prefix)				\
 	unsigned int	prefix##_array_index(const prefix##_array_t *, const prefix##_t *)
 
+#define			ni_declare_ptr_array_delete(prefix)				\
+	ni_bool_t	prefix##_array_delete(prefix##_array_t *, const prefix##_t *)
+
+#define			ni_declare_ptr_array_remove(prefix)				\
+	prefix##_t *	prefix##_array_remove(prefix##_array_t *, const prefix##_t *)
+
 #define			ni_declare_ptr_array_qsort(prefix)				\
 	void		prefix##_array_qsort(prefix##_array_t *, prefix##_array_cmp_fn)
 
