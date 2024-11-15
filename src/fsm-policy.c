@@ -16,6 +16,7 @@
 
 #include "client/ifconfig.h"
 #include "util_priv.h"
+#include "refcount_priv.h"
 
 #define NI_FSM_POLICY_ARRAY_CHUNK	2
 
@@ -101,7 +102,8 @@ typedef enum {
 } ni_fsm_policy_type_t;
 
 struct ni_fsm_policy {
-	unsigned int			refcount;
+	ni_refcount_t			refcount;
+
 	ni_fsm_policy_t **		pprev;
 	ni_fsm_policy_t *		next;
 
@@ -121,8 +123,6 @@ struct ni_fsm_policy {
 };
 
 
-static void			ni_fsm_policy_reset(ni_fsm_policy_t *);
-static void			ni_fsm_policy_destroy(ni_fsm_policy_t *);
 static ni_ifcondition_t *	ni_fsm_policy_conditions_from_xml(xml_node_t *);
 static ni_bool_t		ni_ifcondition_check(const ni_ifcondition_t *, const ni_fsm_t *, ni_ifworker_t *);
 static ni_ifcondition_t *	ni_ifcondition_from_xml(xml_node_t *);
@@ -164,32 +164,10 @@ ni_fsm_policy_list_unlink(ni_fsm_policy_t *policy)
 	policy->next = NULL;
 }
 
+
 /*
  * Destructor for policy objects
  */
-void
-ni_fsm_policy_free(ni_fsm_policy_t *policy)
-{
-	if (policy) {
-		ni_assert(policy->refcount);
-		policy->refcount--;
-		if (policy->refcount == 0) {
-			ni_fsm_policy_list_unlink(policy);
-			ni_fsm_policy_destroy(policy);
-			free(policy);
-		}
-	}
-}
-
-static void
-ni_fsm_policy_destroy(ni_fsm_policy_t *policy)
-{
-	ni_fsm_policy_reset(policy);
-	ni_string_free(&policy->name);
-	xml_node_free(policy->node);
-	memset(policy, 0, sizeof(*policy));
-}
-
 static void
 ni_fsm_policy_reset(ni_fsm_policy_t *policy)
 {
@@ -207,6 +185,16 @@ ni_fsm_policy_reset(ni_fsm_policy_t *policy)
 		ni_fsm_policy_action_free(policy->create_action);
 		policy->create_action = NULL;
 	}
+}
+
+static void
+ni_fsm_policy_destroy(ni_fsm_policy_t *policy)
+{
+	ni_fsm_policy_list_unlink(policy);
+	ni_fsm_policy_reset(policy);
+	ni_string_free(&policy->name);
+	xml_node_free(policy->node);
+	memset(policy, 0, sizeof(*policy));
 }
 
 /*
@@ -406,40 +394,34 @@ ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 	return TRUE;
 }
 
-ni_fsm_policy_t *
-ni_fsm_policy_new(ni_fsm_t *fsm, const char *name, xml_node_t *node)
+static ni_bool_t
+ni_fsm_policy_init(ni_fsm_policy_t *policy, ni_fsm_t *fsm, const char *name, xml_node_t *node)
 {
-	ni_fsm_policy_t *policy;
-
-	if (!fsm || xml_node_is_empty(node))
-		return NULL;
+	if (!policy || !fsm || xml_node_is_empty(node))
+		return FALSE;
 
 	if (ni_string_empty(name) && !(name = ni_ifpolicy_get_name(node)))
-		return NULL;
+		return FALSE;
 
-	policy = xcalloc(1, sizeof(*policy));
-	policy->refcount = 1;
+	memset(policy, 0, sizeof(*policy));
+
 	policy->owner = -1U;
-
 	if (!ni_string_dup(&policy->name, name) ||
 	    !ni_fsm_policy_from_xml(policy, node)) {
-		ni_fsm_policy_free(policy);
-		return NULL;
+		ni_fsm_policy_destroy(policy);
+		return FALSE;
 	}
 
 	ni_fsm_policy_list_insert(&fsm->policies, policy);
-	return policy;
+	return TRUE;
 }
 
-ni_fsm_policy_t *
-ni_fsm_policy_ref(ni_fsm_policy_t *policy)
-{
-	if (policy) {
-		ni_assert(policy->refcount);
-		policy->refcount++;
-	}
-	return policy;
-}
+extern ni_define_refcounted_new(ni_fsm_policy, ni_fsm_t *, const char *, xml_node_t *);
+extern ni_define_refcounted_ref(ni_fsm_policy);
+extern ni_define_refcounted_free(ni_fsm_policy);
+extern ni_define_refcounted_hold(ni_fsm_policy);
+extern ni_define_refcounted_drop(ni_fsm_policy);
+extern ni_define_refcounted_move(ni_fsm_policy);
 
 ni_bool_t
 ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
