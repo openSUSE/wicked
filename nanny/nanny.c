@@ -792,7 +792,7 @@ ni_nanny_process_rename_event(ni_nanny_t *mgr, ni_ifworker_t *w)
 				ni_nanny_unregister_device(mgr, c);
 
 			rebuild = TRUE;
-			if (ni_ifworker_array_remove_index(&mgr->fsm->workers, i))
+			if (ni_ifworker_array_delete_at(&mgr->fsm->workers, i))
 				continue;
 		}
 		i++;

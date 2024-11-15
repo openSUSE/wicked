@@ -925,7 +925,7 @@ ni_ifworker_array_clone(ni_ifworker_array_t *array)
 }
 
 ni_bool_t
-ni_ifworker_array_remove_index(ni_ifworker_array_t *array, unsigned int index)
+ni_ifworker_array_delete_at(ni_ifworker_array_t *array, unsigned int index)
 {
 	unsigned int i;
 
@@ -951,7 +951,7 @@ ni_ifworker_array_remove(ni_ifworker_array_t *array, ni_ifworker_t *w)
 
 	for (i = 0; i < array->count; ) {
 		if (w == array->data[i]) {
-			found = ni_ifworker_array_remove_index(array, i);
+			found = ni_ifworker_array_delete_at(array, i);
 		} else {
 			++i;
 		}
