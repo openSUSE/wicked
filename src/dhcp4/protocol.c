@@ -1469,7 +1469,7 @@ ni_dhcp4_decode_csr(ni_buffer_t *bp, ni_route_array_t *routes)
 		if (ni_dhcp4_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
-		rp = ni_route_create(prefix_len, &destination, &gateway, 0, NULL);
+		rp = ni_route_create(prefix_len, &destination, &gateway, 0);
 		ni_route_array_append_ref(routes, rp);
 		ni_route_free(rp);
 	}
@@ -1612,7 +1612,7 @@ ni_dhcp4_decode_static_routes(ni_buffer_t *bp, ni_route_array_t *routes)
 		rp = ni_route_create(guess_prefix_len_sockaddr(&destination),
 				&destination,
 				&gateway,
-				0, NULL);
+				0);
 		ni_route_array_append_ref(routes, rp);
 		ni_route_free(rp);
 	}
@@ -1646,7 +1646,7 @@ ni_dhcp4_decode_routers(ni_buffer_t *bp, ni_route_array_t *routes)
 		if (!ni_sockaddr_is_specified(&gateway))
 			continue;
 
-		rp = ni_route_create(0, NULL, &gateway, 0, NULL);
+		rp = ni_route_create(0, NULL, &gateway, 0);
 		ni_route_array_append_ref(routes, rp);
 		ni_route_free(rp);
 	}
@@ -1896,7 +1896,7 @@ ni_dhcp4_apply_routes(ni_addrconf_lease_t *lease, ni_route_array_t *routes)
 			unsigned int plen = ni_af_address_prefixlen(rp->family);
 
 			if (plen) {
-				r = ni_route_create(plen, &rp->nh.gateway, NULL, 0, NULL);
+				r = ni_route_create(plen, &rp->nh.gateway, NULL, 0);
 				ni_route_array_append_ref(&temp, r);
 				ni_route_free(r);
 			}

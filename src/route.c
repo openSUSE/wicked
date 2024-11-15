@@ -187,8 +187,7 @@ extern ni_define_refcounted_move(ni_route);
 
 ni_route_t *
 ni_route_create(unsigned int prefixlen, const ni_sockaddr_t *dest,
-		const ni_sockaddr_t *gw, unsigned int table,
-		ni_route_table_t **list)
+		const ni_sockaddr_t *gw, unsigned int table)
 {
 	static const ni_sockaddr_t null_addr;
 	ni_route_t *rp;
@@ -242,12 +241,6 @@ ni_route_create(unsigned int prefixlen, const ni_sockaddr_t *dest,
 	else
 		rp->table = ni_route_guess_table(rp);
 
-	if (list) {
-		if (ni_route_tables_add_route(list, rp))
-			ni_route_free(rp);
-		else
-			ni_route_drop(&rp);
-	}
 	return rp;
 }
 

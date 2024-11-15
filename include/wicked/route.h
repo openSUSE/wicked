@@ -163,8 +163,7 @@ extern				ni_declare_refcounted_move(ni_route);
 extern ni_route_t *		ni_route_create(unsigned int prefix_len,
 						const ni_sockaddr_t *dest,
 						const ni_sockaddr_t *gw,
-						unsigned int table,
-						ni_route_table_t **list);
+						unsigned int table);
 extern ni_route_t *		ni_route_clone(const ni_route_t *);
 extern ni_bool_t		ni_route_copy(ni_route_t *, const ni_route_t *);
 extern ni_bool_t		ni_route_equal(const ni_route_t *, const ni_route_t *);
