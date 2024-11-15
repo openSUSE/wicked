@@ -9,6 +9,7 @@
 #define __CLIENT_FSM_H__
 
 #include <wicked/time.h>
+#include <wicked/array.h>
 #include <wicked/secret.h>
 #include <wicked/refcount.h>
 #include <wicked/objectmodel.h>
@@ -54,14 +55,9 @@ typedef struct ni_ifworker		ni_ifworker_t;
 typedef struct ni_fsm_event		ni_fsm_event_t;
 typedef struct ni_fsm_require		ni_fsm_require_t;
 typedef struct ni_fsm_policy		ni_fsm_policy_t;
-typedef int				ni_fsm_policy_compare_fn_t(const ni_fsm_policy_t *, const ni_fsm_policy_t *);
 
-typedef struct ni_fsm_policy_array {
-	unsigned int			count;
-	ni_fsm_policy_t **		data;
-} ni_fsm_policy_array_t;
-
-#define NI_FSM_POLICY_ARRAY_INIT	{ .count = 0, .data = NULL }
+ni_declare_ptr_array_type(ni_fsm_policy);
+ni_declare_ptr_array_cmp_fn(ni_fsm_policy);
 
 ni_declare_ptr_array_type(ni_ifworker);
 
@@ -323,17 +319,15 @@ extern const char *		ni_fsm_policy_origin(const ni_fsm_policy_t *);
 extern unsigned int		ni_fsm_policy_weight(const ni_fsm_policy_t *);
 extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *tstamp);
 
-extern void			ni_fsm_policy_array_init(ni_fsm_policy_array_t *);
-extern void			ni_fsm_policy_array_destroy(ni_fsm_policy_array_t *);
-extern void			ni_fsm_policy_array_sort(ni_fsm_policy_array_t *, ni_fsm_policy_compare_fn_t *);
-extern ni_bool_t		ni_fsm_policy_array_move(ni_fsm_policy_array_t *, ni_fsm_policy_array_t *);
-extern ni_bool_t		ni_fsm_policy_array_append(ni_fsm_policy_array_t *, ni_fsm_policy_t *);
-extern ni_bool_t		ni_fsm_policy_array_insert(ni_fsm_policy_array_t *, unsigned int, ni_fsm_policy_t *);
-extern ni_bool_t		ni_fsm_policy_array_delete(ni_fsm_policy_array_t *, unsigned int);
-extern ni_fsm_policy_t *	ni_fsm_policy_array_remove(ni_fsm_policy_array_t *, unsigned int);
-extern ni_fsm_policy_t *	ni_fsm_policy_array_get(ni_fsm_policy_array_t *, unsigned int);
-extern ni_fsm_policy_t *	ni_fsm_policy_array_ref(ni_fsm_policy_array_t *, unsigned int);
-extern unsigned int		ni_fsm_policy_array_index(const ni_fsm_policy_array_t *, const ni_fsm_policy_t *);
+extern				ni_declare_ptr_array_init(ni_fsm_policy);
+extern				ni_declare_ptr_array_destroy(ni_fsm_policy);
+extern				ni_declare_ptr_array_append_ref(ni_fsm_policy);
+extern				ni_declare_ptr_array_insert_ref(ni_fsm_policy);
+extern				ni_declare_ptr_array_remove_at(ni_fsm_policy);
+extern				ni_declare_ptr_array_delete_at(ni_fsm_policy);
+extern				ni_declare_ptr_array_index(ni_fsm_policy);
+extern				ni_declare_ptr_array_at(ni_fsm_policy);
+extern				ni_declare_ptr_array_qsort(ni_fsm_policy);
 
 extern ni_dbus_client_t *	ni_fsm_create_client(ni_fsm_t *);
 extern ni_bool_t		ni_fsm_refresh_state(ni_fsm_t *);
