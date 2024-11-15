@@ -10,6 +10,7 @@
 
 #include <wicked/time.h>
 #include <wicked/secret.h>
+#include <wicked/refcount.h>
 #include <wicked/objectmodel.h>
 #include <wicked/dbus.h>
 #include <wicked/xml.h>
@@ -129,7 +130,7 @@ typedef struct ni_ifworker_control {
 } ni_ifworker_control_t;
 
 struct ni_ifworker {
-	unsigned int		refcount;
+	ni_refcount_t		refcount;
 
 	char *			name;
 	char *			old_name;
@@ -382,12 +383,16 @@ extern void			ni_ifworker_success(ni_ifworker_t *);
 extern void			ni_ifworker_set_progress_callback(ni_ifworker_t *, void (*)(ni_ifworker_t *, ni_fsm_state_t), void *);
 extern void			ni_ifworker_set_completion_callback(ni_ifworker_t *, void (*)(ni_ifworker_t *), void *);
 extern ni_rfkill_type_t		ni_ifworker_get_rfkill_type(const ni_ifworker_t *);
-extern ni_ifworker_t *		ni_ifworker_set_ref(ni_ifworker_t **, ni_ifworker_t *);
-extern void			ni_ifworker_free(ni_ifworker_t *);
 
 extern ni_ifworker_control_t *	ni_ifworker_control_new(void);
 extern ni_ifworker_control_t *	ni_ifworker_control_clone(const ni_ifworker_control_t *);
 extern void			ni_ifworker_control_free(ni_ifworker_control_t *);
+
+extern				ni_declare_refcounted_ref(ni_ifworker);
+extern				ni_declare_refcounted_free(ni_ifworker);
+extern				ni_declare_refcounted_hold(ni_ifworker);
+extern				ni_declare_refcounted_drop(ni_ifworker);
+extern				ni_declare_refcounted_move(ni_ifworker);
 
 extern ni_ifworker_array_t *	ni_ifworker_array_new(void);
 extern void			ni_ifworker_array_free(ni_ifworker_array_t *);
@@ -423,32 +428,6 @@ extern void			ni_fsm_set_user_prompt_fn(ni_fsm_t *, ni_fsm_user_prompt_fn_t *, v
 /*
  * Various simple inline helpers
  */
-static inline ni_ifworker_t *
-ni_ifworker_get(ni_ifworker_t *w)
-{
-	if (w) {
-		ni_assert(w->refcount);
-		w->refcount++;
-	}
-	return w;
-}
-
-static inline unsigned int
-ni_ifworker_release(ni_ifworker_t *w)
-{
-	if (w) {
-		ni_assert(w->refcount);
-		w->refcount--;
-
-		if (w->refcount == 0) {
-			ni_ifworker_free(w);
-		} else {
-			return w->refcount;
-		}
-	}
-	return 0;
-}
-
 static inline ni_bool_t
 ni_ifworker_device_bound(const ni_ifworker_t *w)
 {
