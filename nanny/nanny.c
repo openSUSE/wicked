@@ -149,7 +149,7 @@ void
 ni_nanny_schedule_recheck(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
 	if (ni_ifworker_array_index(array, w) < 0)
-		ni_ifworker_array_append(array, w);
+		ni_ifworker_array_append_ref(array, w);
 }
 
 void

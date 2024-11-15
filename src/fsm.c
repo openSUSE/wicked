@@ -257,7 +257,7 @@ ni_ifworker_new(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char 
 	ni_ifworker_t *worker;
 
 	worker = __ni_ifworker_new(type, name);
-	ni_ifworker_array_append(array, worker);
+	ni_ifworker_array_append_ref(array, worker);
 	if (ni_ifworker_release(worker))
 		return worker;
 	else
@@ -825,7 +825,7 @@ ni_ifworker_array_new(void)
 }
 
 ni_bool_t
-ni_ifworker_array_append(ni_ifworker_array_t *array, ni_ifworker_t *w)
+ni_ifworker_array_append_ref(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
 	ni_ifworker_t **data;
 	ni_ifworker_t *ref;
@@ -919,7 +919,7 @@ ni_ifworker_array_clone(ni_ifworker_array_t *array)
 
 	clone = ni_ifworker_array_new();
 	for (i = 0; i < array->count; ++i)
-		ni_ifworker_array_append(clone, array->data[i]);
+		ni_ifworker_array_append_ref(clone, array->data[i]);
 
 	return clone;
 }
@@ -1323,7 +1323,7 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 		if (parent->children.data[i] == child)
 			return TRUE;
 	}
-	ni_ifworker_array_append(&parent->children, child);
+	ni_ifworker_array_append_ref(&parent->children, child);
 	return TRUE;
 }
 
@@ -3249,7 +3249,7 @@ ni_fsm_ifmatch_pull_up(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	if (!ni_ifworker_references_ok(guard, w))
 		return FALSE;
 
-	ni_ifworker_array_append(guard, w);
+	ni_ifworker_array_append_ref(guard, w);
 
 	if (lower && !ni_fsm_ifmatch_pull_up_lower(fsm, match, &pulled,
 			guard, logit, w, TRUE, TRUE, ports, FALSE, &changed)) {
@@ -3294,7 +3294,7 @@ ni_fsm_ifmatch_pull_up(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 		ni_ifworker_t *dep = pulled.data[i];
 
 		if (ni_ifworker_array_index(matching, dep) == -1)
-			ni_ifworker_array_append(matching, dep);
+			ni_ifworker_array_append_ref(matching, dep);
 	}
 	ni_ifworker_array_destroy(&pulled);
 
@@ -3302,7 +3302,7 @@ ni_fsm_ifmatch_pull_up(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 		return TRUE; /* skip unchanged */
 
 	if (ni_ifworker_array_index(matching, w) == -1)
-		ni_ifworker_array_append(matching, w);
+		ni_ifworker_array_append_ref(matching, w);
 
 	return TRUE;
 }
@@ -3461,7 +3461,7 @@ ni_fsm_ifmatch_pull_down(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	if (!ni_ifworker_references_ok(guard, w))
 		return FALSE;
 
-	ni_ifworker_array_append(guard, w);
+	ni_ifworker_array_append_ref(guard, w);
 
 	/*
 	 * There is no reason to trigger master or lower shutdown
@@ -3503,7 +3503,7 @@ ni_fsm_ifmatch_pull_down(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 		ni_ifworker_t *dep = pulled.data[i];
 
 		if (ni_ifworker_array_index(matching, dep) == -1)
-			ni_ifworker_array_append(matching, dep);
+			ni_ifworker_array_append_ref(matching, dep);
 	}
 	ni_ifworker_array_destroy(&pulled);
 
@@ -3511,7 +3511,7 @@ ni_fsm_ifmatch_pull_down(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 		return TRUE; /* skip unchanged */
 
 	if (ni_ifworker_array_index(matching, w) == -1)
-		ni_ifworker_array_append(matching, w);
+		ni_ifworker_array_append_ref(matching, w);
 
 	return TRUE;
 }
@@ -3667,7 +3667,7 @@ ni_ifworker_break_loops(ni_ifworker_array_t *guard, ni_ifworker_t *w, unsigned i
 
 	if (!ni_ifworker_references_ok(guard, w))
 		return FALSE;
-	ni_ifworker_array_append(guard, w);
+	ni_ifworker_array_append_ref(guard, w);
 
 	for (i = 0; i < w->children.count; i++) {
 		ni_ifworker_t *c = w->children.data[i];
@@ -4528,7 +4528,7 @@ ni_fsm_print_config_device_worker_hierarchy(const ni_fsm_t *fsm,
 		ni_stringbuf_destroy(&buf);
 		return;
 	}
-	ni_ifworker_array_append(guard, w);
+	ni_ifworker_array_append_ref(guard, w);
 
 	ni_fsm_print_hierarchy(logfn, "%s%*s%s",
 		ni_fsm_config_hierarchy_mark(marked, w),
@@ -4624,7 +4624,7 @@ ni_fsm_print_system_device_worker_hierarchy(const ni_fsm_t *fsm,
 		ni_stringbuf_destroy(&buf);
 		return;
 	}
-	ni_ifworker_array_append(guard, w);
+	ni_ifworker_array_append_ref(guard, w);
 
 	ni_fsm_print_hierarchy(logfn, "%s%*s%s",
 			ni_fsm_system_hierarchy_mark(marked, w),
@@ -5894,7 +5894,7 @@ ni_ifworker_get_ports_by_name(ni_fsm_t *fsm, const char *name, ni_ifworker_array
 			continue;
 
 		if (ports)
-			ni_ifworker_array_append(ports, w);
+			ni_ifworker_array_append_ref(ports, w);
 		else
 			count++;
 	}
