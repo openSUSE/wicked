@@ -1594,13 +1594,16 @@ ni_suse_parse_rule_line(ni_rule_array_t *rules, char *buffer, const char *ifname
 	if (!(rule = ni_rule_new())) {
 		ni_error("%s[%u]: Unable to allocate routing rule structure",
 				filename, line);
+		ni_string_array_destroy(&opts);
 		return -1;
 	}
 
 	if ((ret = ni_suse_parse_rule(rule, &opts, filename, line))) {
+		ni_string_array_destroy(&opts);
 		ni_rule_free(rule);
 		return ret;
 	}
+	ni_string_array_destroy(&opts);
 
 	if (!ni_rule_array_append_ref(rules, rule)) {
 		ni_rule_free(rule);
