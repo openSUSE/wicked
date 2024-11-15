@@ -337,7 +337,7 @@ ni_nanny_fsm_monitor_remove_port(ni_ifworker_array_t *workers, ni_ifworker_t *po
 	if (ni_nanny_fsm_monitor_wait_by_startmode(port))
 		return FALSE;
 
-	return ni_ifworker_array_remove(workers, port);
+	return ni_ifworker_array_delete(workers, port);
 }
 
 static void
@@ -360,7 +360,7 @@ static void
 ni_nanny_fsm_monitor_remove_finished(ni_ifworker_array_t *workers, ni_ifworker_t *worker)
 {
 	ni_nanny_fsm_monitor_remove_ports(workers, worker);
-	ni_ifworker_array_remove(workers, worker);
+	ni_ifworker_array_delete(workers, worker);
 }
 
 static void
