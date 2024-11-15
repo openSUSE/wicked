@@ -73,6 +73,16 @@ static void			ni_ifworker_reset_client_state(ni_ifworker_t *w);
 static void			ni_fsm_events_destroy(ni_fsm_event_t **);
 static void			ni_fsm_process_event(ni_fsm_t *, ni_fsm_event_t *);
 
+static ni_ifworker_t *			ni_fsm_recv_new_netif(ni_fsm_t *, ni_dbus_object_t *object, ni_bool_t);
+static ni_ifworker_t *			ni_fsm_recv_new_netif_path(ni_fsm_t *, const char *);
+#ifdef MODEM
+static ni_ifworker_t *			ni_fsm_recv_new_modem(ni_fsm_t *, ni_dbus_object_t *object, ni_bool_t);
+static ni_ifworker_t *			ni_fsm_recv_new_modem_path(ni_fsm_t *, const char *);
+#endif
+static ni_ifworker_t *			ni_fsm_recv_new_worker_path(ni_fsm_t *, ni_ifworker_type_t, const char *);
+
+static void				ni_fsm_delete_worker(ni_fsm_t *, ni_ifworker_t *);
+
 static const ni_fsm_transition_t *	ni_fsm_transition_first(void);
 static const ni_fsm_transition_t *	ni_fsm_transition_next(const ni_fsm_transition_t *);
 static const ni_fsm_transition_t *	ni_fsm_transition_find_method(const char *);
@@ -252,15 +262,6 @@ ni_ifworker_new(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char 
 		return worker;
 	else
 		return NULL;
-}
-
-ni_ifworker_t *
-ni_fsm_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
-{
-	if (!fsm || ni_string_empty(name) || ni_fsm_ifworker_by_name(fsm, type, name))
-		return NULL;
-
-	return ni_ifworker_new(&fsm->workers, type, name);
 }
 
 ni_ifworker_t *
@@ -1024,6 +1025,7 @@ ni_fsm_ifworker_by_netdev(ni_fsm_t *fsm, const ni_netdev_t *dev)
 	return NULL;
 }
 
+#ifdef MODEM
 static ni_ifworker_t *
 ni_ifworker_by_modem(ni_fsm_t *fsm, const ni_modem_t *dev)
 {
@@ -1043,6 +1045,7 @@ ni_ifworker_by_modem(ni_fsm_t *fsm, const ni_modem_t *dev)
 
 	return NULL;
 }
+#endif
 
 ni_bool_t
 ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
@@ -3749,7 +3752,7 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 
 		if ((w->done || w->failed) &&
 		    (w->target_range.max == NI_FSM_STATE_DEVICE_DOWN)) {
-			ni_fsm_destroy_worker(fsm, w);
+			ni_fsm_delete_worker(fsm, w);
 			if (ni_ifworker_array_remove(marked, w))
 				--i;
 			continue;
@@ -3839,8 +3842,8 @@ ni_ifworker_device_delete(ni_ifworker_t *w)
 	ni_ifworker_release(w);
 }
 
-void
-ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
+static void
+ni_fsm_delete_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_ifworker_get(w);
 
@@ -4686,7 +4689,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 
 		if ((rv = ni_ifworker_bind_early(w, fsm, FALSE)) < 0) {
 			if (destructive) {
-				ni_fsm_destroy_worker(fsm, w);
+				ni_fsm_delete_worker(fsm, w);
 				i--;
 			}
 			continue;
@@ -4889,7 +4892,7 @@ ni_fsm_refresh_netdevs_state(ni_fsm_t *fsm)
 	return TRUE;
 }
 
-ni_ifworker_t *
+static ni_ifworker_t *
 ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh)
 {
 	ni_netdev_t *dev = ni_objectmodel_unwrap_netif(object, NULL);
@@ -4988,7 +4991,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	return found;
 }
 
-ni_ifworker_t *
+static ni_ifworker_t *
 ni_fsm_recv_new_netif_path(ni_fsm_t *fsm, const char *path)
 {
 	static ni_dbus_object_t *list_object = NULL;
@@ -5026,9 +5029,8 @@ ni_fsm_refresh_modems_state(ni_fsm_t *fsm)
 	}
 	return TRUE;
 }
-#endif
 
-ni_ifworker_t *
+static ni_ifworker_t *
 ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh)
 {
 	ni_ifworker_t *found = NULL;
@@ -5074,7 +5076,7 @@ ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	return found;
 }
 
-ni_ifworker_t *
+static ni_ifworker_t *
 ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path)
 {
 	static ni_dbus_object_t *list_object = NULL;
@@ -5085,6 +5087,24 @@ ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path)
 
 	object = ni_dbus_object_create(list_object, path, NULL, NULL);
 	return ni_fsm_recv_new_modem(fsm, object, TRUE);
+}
+#endif
+
+static ni_ifworker_t *
+ni_fsm_recv_new_worker_path(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *path)
+{
+	switch (type) {
+	case NI_IFWORKER_TYPE_NETDEV:
+		return ni_fsm_recv_new_netif_path(fsm, path);
+
+#ifdef MODEM
+	case NI_IFWORKER_TYPE_MODEM:
+		return ni_fsm_recv_new_modem_path(fsm, path);
+#endif
+
+	default:
+		return NULL;
+	}
 }
 
 /*
@@ -6770,7 +6790,7 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 		if (ni_ifworker_is_factory_device(w))
 			ni_ifworker_device_delete(w);
 		else
-			ni_fsm_destroy_worker(fsm, w);
+			ni_fsm_delete_worker(fsm, w);
 	}
 
 done: ;
@@ -6779,10 +6799,11 @@ done: ;
 static ni_ifworker_t *
 ni_fsm_process_rename_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 {
+	const char *wtype = ni_ifworker_type_to_string(ev->worker_type);
 	ni_ifworker_t *w;
 
-	if ((w = ni_fsm_recv_new_netif_path(fsm, ev->object_path)))
-		ni_debug_events("%s: device renamed to %s", w->old_name, w->name);
+	if ((w = ni_fsm_recv_new_worker_path(fsm, ev->worker_type, ev->object_path)))
+		ni_debug_events("%s: %s renamed to %s", w->old_name, wtype, w->name);
 
 	return w;
 }
@@ -6901,7 +6922,7 @@ ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 		/* fetch netif object properties and assign device to
 		 * the pending fsm worker set or to config/ready worker.
 		 */
-		if (!ni_fsm_recv_new_netif_path(fsm, ev->object_path)) {
+		if (!ni_fsm_recv_new_worker_path(fsm, ev->worker_type, ev->object_path)) {
 			ni_debug_application("%s: refresh failed, cannot process %s worker %s event",
 					__func__, ev->object_path, ni_objectmodel_event_to_signal(ev->event_type));
 			return;
