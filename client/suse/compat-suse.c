@@ -1221,6 +1221,7 @@ __ni_suse_route_parse(ni_route_table_t **routes, char *buffer, const char *ifnam
 	if (ni_route_tables_find_match(*routes, rp, ni_route_equal_destination)) {
 		ni_debug_readwrite("Skipping route -- duplicate destination: %s/%u",
 				ni_sockaddr_print(&rp->destination), rp->prefixlen);
+		ni_route_free(rp);
 		return 1;
 	}
 
