@@ -824,14 +824,24 @@ ni_ifworker_array_new(void)
 	return array;
 }
 
-void
+ni_bool_t
 ni_ifworker_array_append(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
-	if (!array || !w)
-		return;
+	ni_ifworker_t **data;
+	ni_ifworker_t *ref;
 
-	array->data = realloc(array->data, (array->count + 1) * sizeof(array->data[0]));
-	array->data[array->count++] = ni_ifworker_get(w);
+	if (!array || !(ref = ni_ifworker_get(w)))
+		return FALSE;
+
+	data = realloc(array->data, (array->count + 1) * sizeof(array->data[0]));
+	if (!data) {
+		ni_ifworker_release(ref);
+		return FALSE;
+	}
+
+	array->data = data;
+	array->data[array->count++] = ref;
+	return TRUE;
 }
 
 int
