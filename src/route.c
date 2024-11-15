@@ -242,9 +242,12 @@ ni_route_create(unsigned int prefixlen, const ni_sockaddr_t *dest,
 	else
 		rp->table = ni_route_guess_table(rp);
 
-	if (list && !ni_route_tables_add_route(list, rp))
-		ni_route_drop(&rp);
-
+	if (list) {
+		if (ni_route_tables_add_route(list, rp))
+			ni_route_free(rp);
+		else
+			ni_route_drop(&rp);
+	}
 	return rp;
 }
 
@@ -449,10 +452,12 @@ ni_route_expand_hops(ni_route_array_t *routes, const ni_route_t *rp)
 
 		if (ni_route_copy_options(r, rp) &&
 		    ni_route_nexthop_copy(&r->nh, nh) &&
-		    ni_route_array_append(routes, r))
+		    ni_route_array_append_ref(routes, r)) {
+			ni_route_free(r);
 			continue;
-
+		}
 		ni_route_free(r);
+
 		while (routes->count > count) {
 			if (!ni_route_array_delete_at(routes, routes->count - 1))
 				break;
@@ -1474,45 +1479,15 @@ ni_route_array_free(ni_route_array_t *nra)
 extern				ni_define_ptr_array_init(ni_route);
 extern				ni_define_ptr_array_destroy(ni_route);
 static				ni_define_ptr_array_realloc(ni_route, NI_ROUTE_ARRAY_CHUNK);
-extern				ni_define_ptr_array_append(ni_route);
+extern				ni_define_ptr_array_append_ref(ni_route);
 extern				ni_define_ptr_array_delete_at(ni_route);
 extern				ni_define_ptr_array_remove_at(ni_route);
 extern				ni_define_ptr_array_at(ni_route);
+extern				ni_define_ptr_array_index(ni_route);
+extern				ni_define_ptr_array_delete(ni_route);
+extern				ni_define_ptr_array_remove(ni_route);
 static				ni_define_ptr_array_qsort_cmp_fn(ni_route);
 extern				ni_define_ptr_array_qsort(ni_route);
-
-ni_route_t *
-ni_route_array_remove_ref(ni_route_array_t *nra, const ni_route_t *rp)
-{
-	unsigned int i;
-
-	if (!nra || !rp)
-		return NULL;
-
-	for (i = 0; i < nra->count; i++) {
-		if (rp == nra->data[i])
-			return ni_route_array_remove_at(nra, i);
-	}
-	return NULL;
-}
-
-ni_bool_t
-ni_route_array_delete_ref(ni_route_array_t *nra, const ni_route_t *rp)
-{
-	ni_route_t *r;
-
-	if ((r = ni_route_array_remove_ref(nra, rp))) {
-		ni_route_free(r);
-		return TRUE;
-	}
-	return FALSE;
-}
-
-ni_route_t *
-ni_route_array_ref(ni_route_array_t *nra, unsigned int index)
-{
-	return ni_route_ref(ni_route_array_at(nra, index));
-}
 
 ni_route_t *
 ni_route_array_find_match(ni_route_array_t *nra, const ni_route_t *rp,
@@ -1556,7 +1531,7 @@ ni_route_array_find_matches(ni_route_array_t *nra, const ni_route_t *rp,
 
 		/* do not add same route (another ref) multiple times */
 		if (!ni_route_array_find_match(matches, r, ni_route_equal_ref))
-			ni_route_array_append(matches, ni_route_ref(r));
+			ni_route_array_append_ref(matches, r);
 	}
 	return matches->count - count;
 }
@@ -1639,8 +1614,8 @@ ni_route_tables_copy(ni_route_table_t **dst,  const ni_route_table_t *src)
 				continue;
 
 			rp = ni_route_clone(srp);
-			if (!ni_route_tables_add_route(dst, rp))
-				ni_route_free(rp);
+			ni_route_tables_add_route(dst, rp);
+			ni_route_free(rp);
 		}
 	}
 }
@@ -1651,7 +1626,7 @@ ni_route_tables_add_route(ni_route_table_t **list, ni_route_t *rp)
 	ni_route_table_t *tab;
 
 	if (rp && (tab = ni_route_tables_get(list, rp->table)))
-		return ni_route_array_append(&tab->routes, rp);
+		return ni_route_array_append_ref(&tab->routes, rp);
 	return FALSE;
 }
 
@@ -1664,7 +1639,7 @@ ni_route_tables_add_routes(ni_route_table_t **list, ni_route_array_t *routes)
 	if (!list || !routes)
 		return FALSE;
 
-	for (i = 0; (rp = ni_route_array_ref(routes, i)); ++i) {
+	for (i = 0; (rp = ni_route_array_at(routes, i)); ++i) {
 		if (!ni_route_tables_add_route(list, rp))
 			return FALSE;
 	}
@@ -1679,7 +1654,7 @@ ni_route_tables_del_route(ni_route_table_t *list, ni_route_t *rp)
 	if (!rp || !(tab = ni_route_tables_find(list, rp->table)))
 		return FALSE;
 
-	return ni_route_array_delete_ref(&tab->routes, rp);
+	return ni_route_array_delete(&tab->routes, rp);
 }
 
 ni_route_t *
@@ -2209,21 +2184,25 @@ ni_rule_array_clone(const ni_rule_array_t *orig)
 void
 ni_rule_array_copy(ni_rule_array_t *dst, const ni_rule_array_t *src)
 {
+	ni_rule_t *rule;
 	unsigned int i;
 
 	if (!src || !dst)
 		return;
 
-	for (i = 0; i < src->count; ++i)
-		ni_rule_array_append(dst, ni_rule_clone(src->data[i]));
+	for (i = 0; i < src->count; ++i) {
+		rule = ni_rule_clone(src->data[i]);
+		ni_rule_array_append_ref(dst, rule);
+		ni_rule_free(rule);
+	}
 }
 
 extern ni_define_ptr_array_init(ni_rule);
 extern ni_define_ptr_array_destroy(ni_rule);
 extern ni_define_ptr_array_index(ni_rule);
 static ni_define_ptr_array_realloc(ni_rule, NI_RULE_ARRAY_CHUNK);
-extern ni_define_ptr_array_append(ni_rule);
-extern ni_define_ptr_array_insert(ni_rule);
+extern ni_define_ptr_array_append_ref(ni_rule);
+extern ni_define_ptr_array_insert_ref(ni_rule);
 extern ni_define_ptr_array_delete_at(ni_rule);
 extern ni_define_ptr_array_remove_at(ni_rule);
 extern ni_define_ptr_array_at(ni_rule);
@@ -2266,7 +2245,7 @@ ni_rule_array_find_matches(const ni_rule_array_t *rules, const ni_rule_t *rule,
 		if (ni_rule_array_index(matches, r) != -1U)
 			continue;
 
-		if (ni_rule_array_append(matches, ni_rule_ref(r)))
+		if (ni_rule_array_append_ref(matches, r))
 			count++;
 	}
 

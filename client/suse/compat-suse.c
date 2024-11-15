@@ -1224,14 +1224,14 @@ __ni_suse_route_parse(ni_route_table_t **routes, char *buffer, const char *ifnam
 		return 1;
 	}
 
-	if (ni_route_tables_add_route(routes, rp))
+	if (ni_route_tables_add_route(routes, rp)) {
+		ni_route_free(rp);
 		return 0;
+	}
 
 failure:
 	ni_string_array_destroy(&opts);
-	if (rp) {
-		ni_route_free(rp);
-	}
+	ni_route_free(rp);
 	return -1;
 }
 
@@ -1602,9 +1602,15 @@ ni_suse_parse_rule_line(ni_rule_array_t *rules, char *buffer, const char *ifname
 		return ret;
 	}
 
+	if (!ni_rule_array_append_ref(rules, rule)) {
+		ni_rule_free(rule);
+		return -1;
+	}
+
 	ni_debug_readwrite("Parsed routing rule: %s", ni_rule_print(&out, rule));
 	ni_stringbuf_destroy(&out);
-	return ni_rule_array_append(rules, rule);
+	ni_rule_free(rule);
+	return 0;
 }
 
 ni_bool_t
@@ -5523,11 +5529,11 @@ __ni_suse_addrconf_static(const ni_sysconfig_t *sc, ni_compat_netdev_t *compat)
 						}
 					}
 
-					ni_debug_readwrite("Assigned route to %s: %s",
-							dev->name, ni_route_print(&out, rp));
-					ni_stringbuf_destroy(&out);
-
-					ni_route_tables_add_route(&dev->routes, ni_route_ref(rp));
+					if (ni_route_tables_add_route(&dev->routes, rp)) {
+						ni_debug_readwrite("Assigned route to %s: %s",
+								dev->name, ni_route_print(&out, rp));
+						ni_stringbuf_destroy(&out);
+					}
 				}
 			}
 		}
