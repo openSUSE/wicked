@@ -395,7 +395,7 @@ extern ni_ifworker_array_t *	ni_ifworker_array_clone(ni_ifworker_array_t *);
 extern ni_bool_t		ni_ifworker_array_append_ref(ni_ifworker_array_t *, ni_ifworker_t *);
 extern ni_bool_t		ni_ifworker_array_remove_index(ni_ifworker_array_t *, unsigned int);
 extern ni_bool_t		ni_ifworker_array_remove(ni_ifworker_array_t *, ni_ifworker_t *);
-extern int			ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
+extern unsigned int		ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
 extern void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
 
 extern ni_timeout_t		ni_fsm_find_max_timeout(ni_fsm_t *, ni_timeout_t);

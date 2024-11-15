@@ -844,7 +844,7 @@ ni_ifworker_array_append_ref(ni_ifworker_array_t *array, ni_ifworker_t *w)
 	return TRUE;
 }
 
-int
+unsigned int
 ni_ifworker_array_index(const ni_ifworker_array_t *array, const ni_ifworker_t *w)
 {
 	unsigned int i;
@@ -853,7 +853,7 @@ ni_ifworker_array_index(const ni_ifworker_array_t *array, const ni_ifworker_t *w
 		if (array->data[i] == w)
 			return i;
 	}
-	return -1;
+	return -1U;
 }
 
 void
@@ -3168,7 +3168,7 @@ ni_fsm_ifmatch_pull_up_lower(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 		return FALSE;
 	}
 
-	if (match->ifreload && ni_ifworker_array_index(matching, w->lowerdev) != -1)
+	if (match->ifreload && ni_ifworker_array_index(matching, w->lowerdev) != -1U)
 		*changed = TRUE;
 
 	return TRUE;
@@ -3195,7 +3195,7 @@ ni_fsm_ifmatch_pull_up_master(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 		return FALSE;
 	}
 
-	if (match->ifreload && ni_ifworker_array_index(matching, w->masterdev) != -1)
+	if (match->ifreload && ni_ifworker_array_index(matching, w->masterdev) != -1U)
 		*changed = TRUE;
 
 	return TRUE;
@@ -3231,7 +3231,7 @@ ni_fsm_ifmatch_pull_up(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	ni_ifworker_array_t pulled = NI_IFWORKER_ARRAY_INIT;
 	unsigned int i;
 
-	if (ni_ifworker_array_index(matching, w) != -1)
+	if (ni_ifworker_array_index(matching, w) != -1U)
 		return TRUE;
 
 	/*
@@ -3293,7 +3293,7 @@ ni_fsm_ifmatch_pull_up(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	for (i = 0; i < pulled.count; ++i) {
 		ni_ifworker_t *dep = pulled.data[i];
 
-		if (ni_ifworker_array_index(matching, dep) == -1)
+		if (ni_ifworker_array_index(matching, dep) == -1U)
 			ni_ifworker_array_append_ref(matching, dep);
 	}
 	ni_ifworker_array_destroy(&pulled);
@@ -3301,7 +3301,7 @@ ni_fsm_ifmatch_pull_up(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	if (match->ifreload && !changed)
 		return TRUE; /* skip unchanged */
 
-	if (ni_ifworker_array_index(matching, w) == -1)
+	if (ni_ifworker_array_index(matching, w) == -1U)
 		ni_ifworker_array_append_ref(matching, w);
 
 	return TRUE;
@@ -3436,7 +3436,7 @@ ni_fsm_ifmatch_pull_down(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	if (!(device = w->device))
 		return TRUE;
 
-	if (ni_ifworker_array_index(matching, w) != -1)
+	if (ni_ifworker_array_index(matching, w) != -1U)
 		return TRUE;
 
 	/*
@@ -3502,7 +3502,7 @@ ni_fsm_ifmatch_pull_down(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	for (i = 0; i < pulled.count; ++i) {
 		ni_ifworker_t *dep = pulled.data[i];
 
-		if (ni_ifworker_array_index(matching, dep) == -1)
+		if (ni_ifworker_array_index(matching, dep) == -1U)
 			ni_ifworker_array_append_ref(matching, dep);
 	}
 	ni_ifworker_array_destroy(&pulled);
@@ -3510,7 +3510,7 @@ ni_fsm_ifmatch_pull_down(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	if (match->ifreload && !changed)
 		return TRUE; /* skip unchanged */
 
-	if (ni_ifworker_array_index(matching, w) == -1)
+	if (ni_ifworker_array_index(matching, w) == -1U)
 		ni_ifworker_array_append_ref(matching, w);
 
 	return TRUE;
@@ -3636,7 +3636,7 @@ ni_ifworker_references_ok(const ni_ifworker_array_t *guard, ni_ifworker_t *w)
 		return FALSE;
 	}
 
-	if (ni_ifworker_array_index(guard, w) != -1) {
+	if (ni_ifworker_array_index(guard, w) != -1U) {
 		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
 		ni_ifworker_guard_print(&buf, guard, " -> ");
@@ -4500,7 +4500,7 @@ static const char *
 ni_fsm_config_hierarchy_mark(const ni_ifworker_array_t *marked,
 	const ni_ifworker_t *w)
 {
-	if (w && marked && ni_ifworker_array_index(marked, w) != -1)
+	if (w && marked && ni_ifworker_array_index(marked, w) != -1U)
 		return "+ ";
 	else
 		return "  ";
@@ -4519,7 +4519,7 @@ ni_fsm_print_config_device_worker_hierarchy(const ni_fsm_t *fsm,
 	if (!w)
 		return;
 
-	if (ni_ifworker_array_index(guard, w) != -1) {
+	if (ni_ifworker_array_index(guard, w) != -1U) {
 		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
 		ni_ifworker_guard_print(&buf, guard, " -> ");
@@ -4596,7 +4596,7 @@ static const char *
 ni_fsm_system_hierarchy_mark(const ni_ifworker_array_t *marked,
 		const ni_ifworker_t *w)
 {
-	if (w && marked && ni_ifworker_array_index(marked, w) != -1)
+	if (w && marked && ni_ifworker_array_index(marked, w) != -1U)
 		return "- ";
 	else
 		return "  ";
@@ -4615,7 +4615,7 @@ ni_fsm_print_system_device_worker_hierarchy(const ni_fsm_t *fsm,
 	if (!w || !w->device)
 		return;
 
-	if (ni_ifworker_array_index(guard, w) != -1) {
+	if (ni_ifworker_array_index(guard, w) != -1U) {
 		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
 		ni_ifworker_guard_print(&buf, guard, " -> ");

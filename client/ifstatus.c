@@ -972,7 +972,7 @@ ni_ifstatus_shutdown_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_ifworker
 		if (!w->kickstarted)
 			continue;
 
-		if (marked && ni_ifworker_array_index(marked, w) < 0)
+		if (marked && ni_ifworker_array_index(marked, w) == -1U)
 			continue;
 
 		if (names && names->count != 0 &&
@@ -1022,7 +1022,7 @@ ni_ifstatus_display_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_ifworker_
 		if (!w || ni_string_empty(w->name))
 			continue;
 
-		if (marked && ni_ifworker_array_index(marked, w) < 0)
+		if (marked && ni_ifworker_array_index(marked, w) == -1U)
 			continue;
 
 		if (names && names->count != 0 &&
