@@ -33,7 +33,10 @@
 #include "client/ifconfig.h"
 #include "appconfig.h"
 #include "refcount_priv.h"
+#include "array_priv.h"
 #include "util_priv.h"
+
+#define NI_IFWORKER_ARRAY_CHUNK	8
 
 static ni_fsm_user_prompt_fn_t *ni_fsm_user_prompt_fn;
 static void *			ni_fsm_user_prompt_data;
@@ -822,55 +825,39 @@ ni_ifworker_array_new(void)
 	return array;
 }
 
-ni_bool_t
-ni_ifworker_array_append_ref(ni_ifworker_array_t *array, ni_ifworker_t *w)
-{
-	ni_ifworker_t **data;
-	ni_ifworker_t *ref;
-
-	if (!array || !(ref = ni_ifworker_ref(w)))
-		return FALSE;
-
-	data = realloc(array->data, (array->count + 1) * sizeof(array->data[0]));
-	if (!data) {
-		ni_ifworker_free(ref);
-		return FALSE;
-	}
-
-	array->data = data;
-	array->data[array->count++] = ref;
-	return TRUE;
-}
-
-unsigned int
-ni_ifworker_array_index(const ni_ifworker_array_t *array, const ni_ifworker_t *w)
+ni_ifworker_array_t *
+ni_ifworker_array_clone(ni_ifworker_array_t *array)
 {
 	unsigned int i;
+	ni_ifworker_array_t *clone;
 
-	for (i = 0; i < array->count; ++i) {
-		if (array->data[i] == w)
-			return i;
-	}
-	return -1U;
-}
+	if (!array)
+		return NULL;
 
-void
-ni_ifworker_array_destroy(ni_ifworker_array_t *array)
-{
-	if (array) {
-		while (array->count)
-			ni_ifworker_free(array->data[--(array->count)]);
-		free(array->data);
-		array->data = NULL;
-	}
+	clone = ni_ifworker_array_new();
+	for (i = 0; i < array->count; ++i)
+		ni_ifworker_array_append_ref(clone, array->data[i]);
+
+	return clone;
 }
 
 void
 ni_ifworker_array_free(ni_ifworker_array_t *array)
 {
-	ni_ifworker_array_destroy(array);
-	free(array);
+	if (array) {
+		ni_ifworker_array_destroy(array);
+		free(array);
+	}
 }
+
+extern ni_define_ptr_array_init(ni_ifworker);
+extern ni_define_ptr_array_destroy(ni_ifworker);
+static ni_define_ptr_array_realloc(ni_ifworker, NI_IFWORKER_ARRAY_CHUNK);
+extern ni_define_ptr_array_append_ref(ni_ifworker);
+extern ni_define_ptr_array_delete_at(ni_ifworker);
+extern ni_define_ptr_array_delete(ni_ifworker);
+extern ni_define_ptr_array_index(ni_ifworker);
+extern ni_define_ptr_array_at(ni_ifworker);
 
 static ni_ifworker_t *
 ni_ifworker_array_find_by_objectpath(ni_ifworker_array_t *array, const char *object_path)
@@ -904,47 +891,6 @@ ni_ifworker_array_find_by_name(const ni_ifworker_array_t *array, ni_ifworker_typ
 			return worker;
 	}
 	return NULL;
-}
-
-ni_ifworker_array_t *
-ni_ifworker_array_clone(ni_ifworker_array_t *array)
-{
-	unsigned int i;
-	ni_ifworker_array_t *clone;
-
-	if (!array)
-		return NULL;
-
-	clone = ni_ifworker_array_new();
-	for (i = 0; i < array->count; ++i)
-		ni_ifworker_array_append_ref(clone, array->data[i]);
-
-	return clone;
-}
-
-ni_bool_t
-ni_ifworker_array_delete_at(ni_ifworker_array_t *array, unsigned int index)
-{
-	unsigned int i;
-
-	if (!array || index >= array->count)
-		return FALSE;
-
-	if (array->data[index])
-		ni_ifworker_free(array->data[index]);
-
-	array->count--;
-	for (i = index; i < array->count; ++i)
-		array->data[i] = array->data[i + 1];
-	array->data[array->count] = NULL;
-
-	return TRUE;
-}
-
-ni_bool_t
-ni_ifworker_array_delete(ni_ifworker_array_t *array, ni_ifworker_t *w)
-{
-	return ni_ifworker_array_delete_at(array, ni_ifworker_array_index(array, w));
 }
 
 ni_ifworker_t *

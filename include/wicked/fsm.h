@@ -63,12 +63,9 @@ typedef struct ni_fsm_policy_array {
 
 #define NI_FSM_POLICY_ARRAY_INIT	{ .count = 0, .data = NULL }
 
-typedef struct ni_ifworker_array {
-	unsigned int			count;
-	ni_ifworker_t **		data;
-} ni_ifworker_array_t;
+ni_declare_ptr_array_type(ni_ifworker);
 
-#define NI_IFWORKER_ARRAY_INIT		{ .count = 0, .data = NULL }
+#define NI_IFWORKER_ARRAY_INIT		NI_ARRAY_INIT
 
 typedef struct ni_fsm_timer_ctx	ni_fsm_timer_ctx_t;
 typedef void			ni_fsm_timer_fn_t(const ni_timer_t *, ni_fsm_timer_ctx_t *);
@@ -397,11 +394,14 @@ extern				ni_declare_refcounted_move(ni_ifworker);
 extern ni_ifworker_array_t *	ni_ifworker_array_new(void);
 extern void			ni_ifworker_array_free(ni_ifworker_array_t *);
 extern ni_ifworker_array_t *	ni_ifworker_array_clone(ni_ifworker_array_t *);
-extern ni_bool_t		ni_ifworker_array_append_ref(ni_ifworker_array_t *, ni_ifworker_t *);
-extern ni_bool_t		ni_ifworker_array_delete_at(ni_ifworker_array_t *, unsigned int);
-extern ni_bool_t		ni_ifworker_array_delete(ni_ifworker_array_t *, ni_ifworker_t *);
-extern unsigned int		ni_ifworker_array_index(const ni_ifworker_array_t *, const ni_ifworker_t *);
-extern void			ni_ifworker_array_destroy(ni_ifworker_array_t *);
+
+extern				ni_declare_ptr_array_init(ni_ifworker);
+extern				ni_declare_ptr_array_destroy(ni_ifworker);
+extern				ni_declare_ptr_array_append_ref(ni_ifworker);
+extern				ni_declare_ptr_array_delete_at(ni_ifworker);
+extern				ni_declare_ptr_array_delete(ni_ifworker);
+extern				ni_declare_ptr_array_index(ni_ifworker);
+extern				ni_declare_ptr_array_at(ni_ifworker);
 
 extern ni_timeout_t		ni_fsm_find_max_timeout(ni_fsm_t *, ni_timeout_t);
 extern void			ni_fsm_require_register_type(const char *, ni_fsm_require_ctor_t *);
