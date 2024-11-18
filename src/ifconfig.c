@@ -5594,7 +5594,7 @@ __ni_netdev_update_rules(ni_netconfig_t *nc, ni_netdev_t *dev,
 			ni_stringbuf_destroy(&out);
 
 			rule->seq = r ? __ni_global_seqno : 0;
-			ni_rule_array_append(&mod_rules, ni_rule_ref(rule));
+			ni_rule_array_append_ref(&mod_rules, rule);
 		}
 	} else {
 		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
@@ -5623,7 +5623,7 @@ __ni_netdev_update_rules(ni_netconfig_t *nc, ni_netdev_t *dev,
 					dev->name, ni_rule_print(&out, rule));
 			ni_stringbuf_destroy(&out);
 
-			ni_rule_array_append(&del_rules, ni_rule_ref(rule));
+			ni_rule_array_append_ref(&del_rules, rule);
 		}
 	} else {
 		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_IFCONFIG|NI_TRACE_ROUTE,
