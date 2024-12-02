@@ -359,6 +359,9 @@ ni_convert_cfg_into_policy_doc(xml_document_t *doc)
 	return NULL;
 }
 
+/*
+ * ifxml migration utilities
+ */
 ni_bool_t
 ni_ifxml_node_is_migrated(const xml_node_t *node)
 {
@@ -389,255 +392,6 @@ ni_ifxml_node_set_migrated(xml_node_t *node, ni_bool_t migrated)
 
 	value = ni_format_boolean(TRUE);
 	return xml_node_add_attr(node, "migrated", value);
-}
-
-static ni_bool_t
-ni_ifconfig_migrate_ethtool_link_settings_add(xml_node_t *ethtool, const char *name, const char *value)
-{
-	xml_node_t *link;
-
-	if ((link = xml_node_get_child(ethtool, "link-settings")))
-		return xml_node_new_element(name, link, value) != NULL;
-	else
-	if ((link = xml_node_new("link-settings", ethtool)))
-		return xml_node_new_element(name, link, value) != NULL;
-
-	return FALSE;
-}
-
-static ni_bool_t
-ni_ifconfig_migrate_ethtool_eee(xml_node_t *ethtool, const xml_node_t *orig)
-{
-	const xml_node_t *entry;
-	xml_node_t *eee, *adv;
-
-	if (!(eee = xml_node_new("eee", NULL)))
-		return FALSE;
-
-	for (entry = orig->children; entry; entry = entry->next) {
-		if (ni_string_eq(entry->name, "advertise")) {
-			if ((adv = xml_node_new(entry->name, eee)))
-				xml_node_new_element("mode", adv, entry->cdata);
-		} else {
-			xml_node_new_element(entry->name, eee, entry->cdata);
-		}
-	}
-	if (eee->children)
-		xml_node_add_child(ethtool, eee);
-	else
-		xml_node_free(eee);
-	return TRUE;
-}
-
-static ni_bool_t
-ni_ifconfig_migrate_ethtool_features(xml_node_t *ethtool, const xml_node_t *offloads)
-{
-	xml_node_t *features, *feature;
-	const xml_node_t *offload;
-	ni_bool_t enabled;
-
-	if (!(features = xml_node_new("features", NULL)))
-		return FALSE;
-
-	for (offload = offloads->children; offload; offload = offload->next) {
-		/* it's a tristate, but we omit the non-boolean values */
-		if (ni_parse_boolean(offload->cdata, &enabled))
-			continue;
-
-		if ((feature = xml_node_new("feature", features))) {
-			xml_node_new_element("name", feature, offload->name);
-			xml_node_new_element("enabled", feature, ni_format_boolean(enabled));
-		}
-	}
-	if (features->children)
-		xml_node_add_child(ethtool, features);
-	else
-		xml_node_free(features);
-	return TRUE;
-}
-
-static ni_bool_t
-ni_ifconfig_migrate_ethtool(xml_node_t *ethernet, xml_node_t *ethtool)
-{
-	ni_bool_t modified = FALSE;
-	xml_node_t *orig;
-
-	if ((orig = xml_node_get_child(ethernet, "autoneg-enable"))) {
-		ni_ifconfig_migrate_ethtool_link_settings_add(ethtool, "autoneg", orig->cdata);
-		xml_node_delete_child_node(ethernet, orig);
-		modified = TRUE;
-	}
-	if ((orig = xml_node_get_child(ethernet, "link-speed"))) {
-		ni_ifconfig_migrate_ethtool_link_settings_add(ethtool, "speed", orig->cdata);
-		xml_node_delete_child_node(ethernet, orig);
-		modified = TRUE;
-	}
-	if ((orig = xml_node_get_child(ethernet, "port-type"))) {
-		ni_ifconfig_migrate_ethtool_link_settings_add(ethtool, "port", orig->cdata);
-		xml_node_delete_child_node(ethernet, orig);
-		modified = TRUE;
-	}
-	if ((orig = xml_node_get_child(ethernet, "duplex"))) {
-		ni_ifconfig_migrate_ethtool_link_settings_add(ethtool, "duplex", orig->cdata);
-		xml_node_delete_child_node(ethernet, orig);
-		modified = TRUE;
-	}
-	if ((orig = xml_node_get_child(ethernet, "wake-on-lan"))) {
-		xml_node_reparent(ethtool, orig);
-		modified = TRUE;
-	}
-	if ((orig = xml_node_get_child(ethernet, "eee"))) {
-		ni_ifconfig_migrate_ethtool_eee(ethtool, orig);
-		xml_node_delete_child_node(ethernet, orig);
-		modified = TRUE;
-	}
-	if ((orig = xml_node_get_child(ethernet, "ring"))) {
-		xml_node_reparent(ethtool, orig);
-		modified = TRUE;
-	}
-	if ((orig = xml_node_get_child(ethernet, "offload"))) {
-		ni_ifconfig_migrate_ethtool_features(ethtool, orig);
-		xml_node_delete_child_node(ethernet, orig);
-		modified = TRUE;
-	}
-	if ((orig = xml_node_get_child(ethernet, "channels"))) {
-		xml_node_reparent(ethtool, orig);
-		modified = TRUE;
-	}
-	if ((orig = xml_node_get_child(ethernet, "coalesce"))) {
-		xml_node_reparent(ethtool, orig);
-		modified = TRUE;
-	}
-	return modified;
-}
-
-static ni_bool_t
-ni_ifconfig_migrate_ethernet_node(xml_document_array_t *docs,
-		xml_node_t *config, xml_node_t *ethernet)
-{
-	ni_bool_t modified = FALSE;
-	xml_node_t *ethtool;
-
-	/* Do we need to cleanup old "ethernet" even the config
-	 * already contains "ethtool" node? IMO not needed... */
-	if (xml_node_get_child(config, "ethtool"))
-		return modified;
-
-	if (!(ethtool = xml_node_new("ethtool", NULL)))
-		return modified;
-
-	modified = ni_ifconfig_migrate_ethtool(ethernet, ethtool);
-	if (ethtool->children)
-		xml_node_add_child(config, ethtool);
-	else
-		xml_node_free(ethtool);
-
-	/* keep the (maybe empty) ethernet node,
-	 * because it is an iftype giving one */
-	return modified;
-}
-
-static ni_bool_t
-ni_ifconfig_migrate_wireless_network(xml_node_t *network)
-{
-	/* migrate content inside the network dict if needed */
-	return FALSE;
-}
-
-static ni_bool_t
-ni_ifconfig_migrate_wireless_node(xml_document_array_t *docs,
-		xml_node_t *config, xml_node_t *wireless)
-{
-	ni_bool_t modified = FALSE;
-	xml_node_t *networks;
-	xml_node_t *network;
-
-	if (xml_node_get_child(wireless, "networks"))
-		return modified;
-
-	if (!(networks = xml_node_new("networks", wireless)))
-		return modified;
-
-	while ((network = xml_node_get_child(wireless, "network"))) {
-		xml_node_reparent(networks, network);
-		ni_ifconfig_migrate_wireless_network(network);
-		modified = TRUE;
-	}
-	return modified;
-}
-
-static ni_bool_t
-ni_ifconfig_migrate_link_ovsbr_port(xml_node_t *link, xml_node_t *port)
-{
-	xml_node_t *bnode;
-	xml_node_t *mnode;
-	const char *mtype;
-
-	/*
-	 * Rewrite link node containing port with type=ovs-bridge from:
-	 *   <link>
-	 *     <master>ovs-system</master>
-	 *     <port type="ovs-bridge">
-	 *       <bridge>ovsbrX</bridge>
-	 *     </port>
-	 *   </link>
-	 * into resolved link node with ovs-bridge in master reference:
-	 *   <link>
-	 *     <master>ovsbrX</master>
-	 *     <port type="ovs-bridge"/>
-	 *   </link>
-	 * by moving the bridge name from port into master node cdata.
-	 */
-	bnode = xml_node_get_child(port, NI_CLIENT_IFCONFIG_BRIDGE);
-	if (!bnode || ni_string_empty(bnode->cdata))
-		return FALSE;
-
-	if ((mnode = xml_node_get_child(link, NI_CLIENT_IFCONFIG_MASTER))) {
-		mtype = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
-
-		/* if master is empty, ovs-system or same bridge */
-		if (!ni_string_empty(mnode->cdata) &&
-		    !ni_string_eq(mnode->cdata, mtype) &&
-		    !ni_string_eq(mnode->cdata, bnode->cdata))
-			return FALSE;
-
-	} else if (!(mnode = xml_node_new(NI_CLIENT_IFCONFIG_MASTER, link)))
-		return FALSE;
-
-	xml_node_set_cdata(mnode, bnode->cdata);
-	/* we've set the bridge in master and can remove the
-	 * obsolete bridge node from bridge-port config now. */
-	xml_node_detach(bnode);
-	xml_node_free(bnode);
-
-	/* mark the port migrated, may be triggered by master */
-	ni_ifxml_node_set_migrated(link, TRUE);
-	return TRUE;
-}
-
-static ni_bool_t
-ni_ifconfig_migrate_link_config(xml_node_t *link)
-{
-	xml_node_t *port;
-	const char *type;
-
-	if (!(port = xml_node_get_child(link, NI_CLIENT_IFCONFIG_LINK_PORT)))
-		return FALSE;
-
-	type = xml_node_get_attr(port, NI_CLIENT_IFCONFIG_PORT_TYPE);
-	switch ((ni_iftype_t)ni_linktype_name_to_type(type)) {
-	case NI_IFTYPE_OVS_BRIDGE:
-		return ni_ifconfig_migrate_link_ovsbr_port(link, port);
-	default:
-		return FALSE;
-	}
-}
-
-static ni_bool_t
-ni_ifconfig_migrate_link_node(xml_document_array_t *docs,
-		xml_node_t *config, xml_node_t *migrate)
-{
-	return ni_ifconfig_migrate_link_config(migrate);
 }
 
 static ni_bool_t
@@ -882,6 +636,310 @@ ni_ifxml_find_config_by_ifname(xml_document_array_t *docs, const char *ifname)
 			return config;
 	}
 	return NULL;
+}
+
+static ni_bool_t
+ni_ifpolicy_match_remove_child_ref(xml_node_t *policy, const char *name)
+{
+	xml_node_t *match, *or, *child, *next, *device;
+	ni_bool_t modified = FALSE;
+	const char *ns;
+
+	/*
+	 * A bond,team,[ovs-]bridge were referencing their ports via:
+	 * <or>
+	 *   <child><device>${portname}</device></or>
+	 *   […]
+	 * </or>
+	 * We remove the obsolete reference to the port inclusive of
+	 * the <or> and <child> nodes once they're empty.
+	 */
+	if (!policy || ni_string_empty(name))
+		return modified;
+
+	if (!(match = xml_node_get_child(policy, NI_NANNY_IFPOLICY_MATCH)))
+		return modified;
+
+	if (!(or = xml_node_get_child(match, NI_NANNY_IFPOLICY_MATCH_COND_OR)))
+		return modified;
+
+	for (child = or->children; child; child = next) {
+		next = or->next;
+
+		if (!(device = xml_node_get_child(child, NI_NANNY_IFPOLICY_MATCH_DEV)))
+			continue;
+
+		ns = xml_node_get_attr(device, "namespace");
+		if (!ni_string_empty(ns))
+			continue;
+
+		if (!ni_string_eq(device->cdata, name))
+			continue;
+
+		if (xml_node_delete_child_node(child, device))
+			modified = TRUE;
+
+		if (xml_node_is_empty(child) && xml_node_delete_child_node(or, child))
+			modified = TRUE;
+
+		break; /* We don't expect to find it again */
+	}
+	if (xml_node_is_empty(or) && xml_node_delete_child_node(match, or))
+		modified = TRUE;
+
+	return modified;
+}
+
+/*
+ * ifxml node migration functions
+ */
+static ni_bool_t
+ni_ifconfig_migrate_ethtool_link_settings_add(xml_node_t *ethtool, const char *name, const char *value)
+{
+	xml_node_t *link;
+
+	if ((link = xml_node_get_child(ethtool, "link-settings")))
+		return xml_node_new_element(name, link, value) != NULL;
+
+	if ((link = xml_node_new("link-settings", ethtool)))
+		return xml_node_new_element(name, link, value) != NULL;
+
+	return FALSE;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_ethtool_eee(xml_node_t *ethtool, const xml_node_t *orig)
+{
+	const xml_node_t *entry;
+	xml_node_t *eee, *adv;
+
+	if (!(eee = xml_node_new("eee", NULL)))
+		return FALSE;
+
+	for (entry = orig->children; entry; entry = entry->next) {
+		if (ni_string_eq(entry->name, "advertise")) {
+			if ((adv = xml_node_new(entry->name, eee)))
+				xml_node_new_element("mode", adv, entry->cdata);
+		} else {
+			xml_node_new_element(entry->name, eee, entry->cdata);
+		}
+	}
+	if (eee->children)
+		xml_node_add_child(ethtool, eee);
+	else
+		xml_node_free(eee);
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_ethtool_features(xml_node_t *ethtool, const xml_node_t *offloads)
+{
+	xml_node_t *features, *feature;
+	const xml_node_t *offload;
+	ni_bool_t enabled;
+
+	if (!(features = xml_node_new("features", NULL)))
+		return FALSE;
+
+	for (offload = offloads->children; offload; offload = offload->next) {
+		/* it's a tristate, but we omit the non-boolean values */
+		if (ni_parse_boolean(offload->cdata, &enabled))
+			continue;
+
+		if ((feature = xml_node_new("feature", features))) {
+			xml_node_new_element("name", feature, offload->name);
+			xml_node_new_element("enabled", feature, ni_format_boolean(enabled));
+		}
+	}
+	if (features->children)
+		xml_node_add_child(ethtool, features);
+	else
+		xml_node_free(features);
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_ethtool(xml_node_t *ethernet, xml_node_t *ethtool)
+{
+	ni_bool_t modified = FALSE;
+	xml_node_t *orig;
+
+	if ((orig = xml_node_get_child(ethernet, "autoneg-enable"))) {
+		ni_ifconfig_migrate_ethtool_link_settings_add(ethtool, "autoneg", orig->cdata);
+		xml_node_delete_child_node(ethernet, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "link-speed"))) {
+		ni_ifconfig_migrate_ethtool_link_settings_add(ethtool, "speed", orig->cdata);
+		xml_node_delete_child_node(ethernet, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "port-type"))) {
+		ni_ifconfig_migrate_ethtool_link_settings_add(ethtool, "port", orig->cdata);
+		xml_node_delete_child_node(ethernet, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "duplex"))) {
+		ni_ifconfig_migrate_ethtool_link_settings_add(ethtool, "duplex", orig->cdata);
+		xml_node_delete_child_node(ethernet, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "wake-on-lan"))) {
+		xml_node_reparent(ethtool, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "eee"))) {
+		ni_ifconfig_migrate_ethtool_eee(ethtool, orig);
+		xml_node_delete_child_node(ethernet, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "ring"))) {
+		xml_node_reparent(ethtool, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "offload"))) {
+		ni_ifconfig_migrate_ethtool_features(ethtool, orig);
+		xml_node_delete_child_node(ethernet, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "channels"))) {
+		xml_node_reparent(ethtool, orig);
+		modified = TRUE;
+	}
+	if ((orig = xml_node_get_child(ethernet, "coalesce"))) {
+		xml_node_reparent(ethtool, orig);
+		modified = TRUE;
+	}
+	return modified;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_ethernet_node(xml_document_array_t *docs,
+		xml_node_t *config, xml_node_t *ethernet)
+{
+	ni_bool_t modified = FALSE;
+	xml_node_t *ethtool;
+
+	/* Do we need to cleanup old "ethernet" even the config
+	 * already contains "ethtool" node? IMO not needed... */
+	if (xml_node_get_child(config, "ethtool"))
+		return modified;
+
+	if (!(ethtool = xml_node_new("ethtool", NULL)))
+		return modified;
+
+	modified = ni_ifconfig_migrate_ethtool(ethernet, ethtool);
+	if (ethtool->children)
+		xml_node_add_child(config, ethtool);
+	else
+		xml_node_free(ethtool);
+
+	/* keep the (maybe empty) ethernet node,
+	 * because it is an iftype giving one */
+	return modified;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_wireless_network(xml_node_t *network)
+{
+	/* migrate content inside the network dict if needed */
+	return FALSE;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_wireless_node(xml_document_array_t *docs,
+		xml_node_t *config, xml_node_t *wireless)
+{
+	ni_bool_t modified = FALSE;
+	xml_node_t *networks;
+	xml_node_t *network;
+
+	if (xml_node_get_child(wireless, "networks"))
+		return modified;
+
+	if (!(networks = xml_node_new("networks", wireless)))
+		return modified;
+
+	while ((network = xml_node_get_child(wireless, "network"))) {
+		xml_node_reparent(networks, network);
+		ni_ifconfig_migrate_wireless_network(network);
+		modified = TRUE;
+	}
+	return modified;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_link_ovsbr_port(xml_node_t *link, xml_node_t *port)
+{
+	xml_node_t *bnode;
+	xml_node_t *mnode;
+	const char *mtype;
+
+	/*
+	 * Rewrite link node containing port with type=ovs-bridge from:
+	 *   <link>
+	 *     <master>ovs-system</master>
+	 *     <port type="ovs-bridge">
+	 *       <bridge>ovsbrX</bridge>
+	 *     </port>
+	 *   </link>
+	 * into resolved link node with ovs-bridge in master reference:
+	 *   <link>
+	 *     <master>ovsbrX</master>
+	 *     <port type="ovs-bridge"/>
+	 *   </link>
+	 * by moving the bridge name from port into master node cdata.
+	 */
+	bnode = xml_node_get_child(port, NI_CLIENT_IFCONFIG_BRIDGE);
+	if (!bnode || ni_string_empty(bnode->cdata))
+		return FALSE;
+
+	if ((mnode = xml_node_get_child(link, NI_CLIENT_IFCONFIG_MASTER))) {
+		mtype = ni_linktype_type_to_name(NI_IFTYPE_OVS_SYSTEM);
+
+		/* if master is empty, ovs-system or same bridge */
+		if (!ni_string_empty(mnode->cdata) &&
+		    !ni_string_eq(mnode->cdata, mtype) &&
+		    !ni_string_eq(mnode->cdata, bnode->cdata))
+			return FALSE;
+
+	} else if (!(mnode = xml_node_new(NI_CLIENT_IFCONFIG_MASTER, link)))
+		return FALSE;
+
+	xml_node_set_cdata(mnode, bnode->cdata);
+	/* we've set the bridge in master and can remove the
+	 * obsolete bridge node from bridge-port config now. */
+	xml_node_detach(bnode);
+	xml_node_free(bnode);
+
+	/* mark the port migrated, may be triggered by master */
+	ni_ifxml_node_set_migrated(link, TRUE);
+	return TRUE;
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_link_config(xml_node_t *link)
+{
+	xml_node_t *port;
+	const char *type;
+
+	if (!(port = xml_node_get_child(link, NI_CLIENT_IFCONFIG_LINK_PORT)))
+		return FALSE;
+
+	type = xml_node_get_attr(port, NI_CLIENT_IFCONFIG_PORT_TYPE);
+	switch ((ni_iftype_t)ni_linktype_name_to_type(type)) {
+	case NI_IFTYPE_OVS_BRIDGE:
+		return ni_ifconfig_migrate_link_ovsbr_port(link, port);
+	default:
+		return FALSE;
+	}
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_link_node(xml_document_array_t *docs,
+		xml_node_t *config, xml_node_t *migrate)
+{
+	return ni_ifconfig_migrate_link_config(migrate);
 }
 
 static int
@@ -1290,58 +1348,6 @@ ni_ifxml_migrate_l2_port(xml_document_array_t *docs,
 		if (ni_ifconfig_create_l2_port(docs, upper, port, type, data, origin, owner, l2v6))
 			modified = TRUE;
 	}
-
-	return modified;
-}
-
-static ni_bool_t
-ni_ifpolicy_match_remove_child_ref(xml_node_t *policy, const char *name)
-{
-	xml_node_t *match, *or, *child, *next, *device;
-	ni_bool_t modified = FALSE;
-	const char *ns;
-
-	/*
-	 * A bond,team,[ovs-]bridge were referencing their ports via:
-	 * <or>
-	 *   <child><device>${portname}</device></or>
-	 *   […]
-	 * </or>
-	 * We remove the obsolete reference to the port inclusive of
-	 * the <or> and <child> nodes once they're empty.
-	 */
-	if (!policy || ni_string_empty(name))
-		return modified;
-
-	if (!(match = xml_node_get_child(policy, NI_NANNY_IFPOLICY_MATCH)))
-		return modified;
-
-	if (!(or = xml_node_get_child(match, NI_NANNY_IFPOLICY_MATCH_COND_OR)))
-		return modified;
-
-	for (child = or->children; child; child = next) {
-		next = or->next;
-
-		if (!(device = xml_node_get_child(child, NI_NANNY_IFPOLICY_MATCH_DEV)))
-			continue;
-
-		ns = xml_node_get_attr(device, "namespace");
-		if (!ni_string_empty(ns))
-			continue;
-
-		if (!ni_string_eq(device->cdata, name))
-			continue;
-
-		if (xml_node_delete_child_node(child, device))
-			modified = TRUE;
-
-		if (xml_node_is_empty(child) && xml_node_delete_child_node(or, child))
-			modified = TRUE;
-
-		break; /* We don't expect to find it again */
-	}
-	if (xml_node_is_empty(or) && xml_node_delete_child_node(match, or))
-		modified = TRUE;
 
 	return modified;
 }
