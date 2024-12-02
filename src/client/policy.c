@@ -1311,7 +1311,7 @@ ni_ifconfig_migrate_l2_port(xml_node_t *migrate,
 	return modified;
 }
 
-static xml_node_t *
+static ni_bool_t
 ni_ifconfig_create_l2_port(xml_document_array_t *docs,
 		const char *master, const char *port,
 		ni_iftype_t type, const xml_node_t *data,
@@ -1336,15 +1336,23 @@ ni_ifconfig_create_l2_port(xml_document_array_t *docs,
 	if (!(doc = xml_document_create(NULL, config)))
 		goto failure;
 
-	if (xml_document_array_append(docs, doc))
-		return config;
+	config = NULL;
 
-	xml_document_free(doc);
-	return NULL;
+	if (!xml_document_array_append(docs, doc)) {
+		xml_document_free(doc);
+		goto failure;
+	}
+
+	ni_warn("generated missing config for port '%s' referenced by %s '%s' (%s)",
+			port, ni_linktype_type_to_name(type), master,
+			xml_node_location(data));
+	return TRUE;
 
 failure:
+	ni_error("failed to generate missing config for port '%s' referenced by %s '%s' (%s)",
+			port, ni_linktype_type_to_name(type), master, xml_node_location(data));
 	xml_node_free(config);
-	return NULL;
+	return FALSE;
 }
 
 static ni_bool_t
@@ -1376,13 +1384,21 @@ ni_ifpolicy_create_l2_port(xml_document_array_t *docs,
 	if (!(doc = xml_document_create(NULL, policy)))
 		goto failure;
 
-	if (xml_document_array_append(docs, doc))
-		return TRUE;
+	policy = NULL;
 
-	xml_document_free(doc);
-	return FALSE;
+	if (!xml_document_array_append(docs, doc)) {
+		xml_document_free(doc);
+		goto failure;
+	}
+
+	ni_warn("generated missing policy for port '%s' referenced by %s '%s' (%s)",
+			port, ni_linktype_type_to_name(type), master,
+			xml_node_location(data));
+	return TRUE;
 
 failure:
+	ni_error("failed to generate missing policy for port '%s' referenced by %s '%s' (%s)",
+			port, ni_linktype_type_to_name(type), master, xml_node_location(data));
 	xml_node_free(policy);
 	return FALSE;
 }
