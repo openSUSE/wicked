@@ -1022,7 +1022,7 @@ ni_ifconfig_migrate_l2_port_ipv6(xml_node_t *migrate, ni_bool_t l2v6)
 
 static ni_bool_t
 ni_ifconfig_migrate_bond_port(xml_node_t *migrate,
-		const char *upper, const char *port,
+		const char *bond, const char *port,
 		ni_iftype_t type, const xml_node_t *data,
 		ni_bool_t l2v6)
 {
@@ -1032,7 +1032,7 @@ ni_ifconfig_migrate_bond_port(xml_node_t *migrate,
 	xml_node_t *nconf;
 	int ret;
 
-	if ((ret = ni_ifconfig_migrate_port_master(migrate, port, ptype, upper)) < 0)
+	if ((ret = ni_ifconfig_migrate_port_master(migrate, port, ptype, bond)) < 0)
 		return FALSE;
 
 	if ((otype = ni_ifconfig_link_get_port_config(migrate, &oconf))) {
@@ -1066,7 +1066,7 @@ ni_ifconfig_migrate_bond_port(xml_node_t *migrate,
 
 static ni_bool_t
 ni_ifconfig_migrate_team_port(xml_node_t *migrate,
-		const char *upper, const char *port,
+		const char *team, const char *port,
 		ni_iftype_t type, const xml_node_t *data,
 		ni_bool_t l2v6)
 {
@@ -1076,7 +1076,7 @@ ni_ifconfig_migrate_team_port(xml_node_t *migrate,
 	xml_node_t *nconf;
 	int ret;
 
-	if ((ret = ni_ifconfig_migrate_port_master(migrate, port, ptype, upper)) < 0)
+	if ((ret = ni_ifconfig_migrate_port_master(migrate, port, ptype, team)) < 0)
 		return FALSE;
 
 	if ((otype = ni_ifconfig_link_get_port_config(migrate, &oconf))) {
@@ -1117,7 +1117,7 @@ ni_ifconfig_migrate_team_port(xml_node_t *migrate,
 
 static ni_bool_t
 ni_ifconfig_migrate_bridge_port(xml_node_t *migrate,
-		const char *upper, const char *port,
+		const char *bridge, const char *port,
 		ni_iftype_t type, const xml_node_t *data,
 		ni_bool_t l2v6)
 {
@@ -1127,7 +1127,7 @@ ni_ifconfig_migrate_bridge_port(xml_node_t *migrate,
 	xml_node_t *nconf;
 	int ret;
 
-	if ((ret = ni_ifconfig_migrate_port_master(migrate, port, ptype, upper)) < 0)
+	if ((ret = ni_ifconfig_migrate_port_master(migrate, port, ptype, bridge)) < 0)
 		return FALSE;
 
 	if ((otype = ni_ifconfig_link_get_port_config(migrate, &oconf))) {
@@ -1223,7 +1223,7 @@ ni_ifconfig_migrate_ovsbr_port(xml_node_t *migrate,
 
 static ni_bool_t
 ni_ifconfig_migrate_l2_port(xml_node_t *migrate,
-		const char *upper, const char *port,
+		const char *master, const char *port,
 		ni_iftype_t type, const xml_node_t *data,
 		ni_bool_t l2v6)
 {
@@ -1232,19 +1232,19 @@ ni_ifconfig_migrate_l2_port(xml_node_t *migrate,
 	switch (type) {
 	case NI_IFTYPE_BOND:
 		modified = ni_ifconfig_migrate_bond_port(migrate,
-				upper, port, type, data, l2v6);
+				master, port, type, data, l2v6);
 		break;
 	case NI_IFTYPE_TEAM:
 		modified = ni_ifconfig_migrate_team_port(migrate,
-				upper, port, type, data, l2v6);
+				master, port, type, data, l2v6);
 		break;
 	case NI_IFTYPE_BRIDGE:
 		modified = ni_ifconfig_migrate_bridge_port(migrate,
-				upper, port, type, data, l2v6);
+				master, port, type, data, l2v6);
 		break;
 	case NI_IFTYPE_OVS_BRIDGE:
 		modified = ni_ifconfig_migrate_ovsbr_port(migrate,
-				upper, port, type, data, l2v6);
+				master, port, type, data, l2v6);
 		break;
 	default:
 		modified = FALSE;
@@ -1257,7 +1257,7 @@ ni_ifconfig_migrate_l2_port(xml_node_t *migrate,
 
 static xml_node_t *
 ni_ifconfig_create_l2_port(xml_document_array_t *docs,
-		const char *upper, const char *port,
+		const char *master, const char *port,
 		ni_iftype_t type, const xml_node_t *data,
 		const char *origin, const char *owner,
 		ni_bool_t l2v6)
@@ -1271,7 +1271,7 @@ ni_ifconfig_create_l2_port(xml_document_array_t *docs,
 	if (!ni_ifconfig_control_set_mode(config, "hotplug"))
 		goto failure;
 
-	if (!ni_ifconfig_migrate_l2_port(config, upper, port, type, data, l2v6))
+	if (!ni_ifconfig_migrate_l2_port(config, master, port, type, data, l2v6))
 		goto failure;
 
 	if (!ni_ifxml_node_set_migrated(config, TRUE))
@@ -1293,7 +1293,7 @@ failure:
 
 static ni_bool_t
 ni_ifpolicy_create_l2_port(xml_document_array_t *docs,
-		const char *upper, const char *port,
+		const char *master, const char *port,
 		ni_iftype_t type, const xml_node_t *data,
 		const char *origin, const char *owner,
 		ni_bool_t l2v6)
@@ -1308,7 +1308,7 @@ ni_ifpolicy_create_l2_port(xml_document_array_t *docs,
 	if (!ni_ifconfig_control_set_mode(config, "hotplug"))
 		goto failure;
 
-	if (!ni_ifconfig_migrate_l2_port(config, upper, port, type, data, l2v6))
+	if (!ni_ifconfig_migrate_l2_port(config, master, port, type, data, l2v6))
 		goto failure;
 
 	if (!ni_ifxml_node_set_migrated(policy, TRUE))
@@ -1330,7 +1330,7 @@ failure:
 
 static ni_bool_t
 ni_ifxml_migrate_l2_port(xml_document_array_t *docs,
-		const char *upper, const char *port,
+		const char *master, const char *port,
 		ni_iftype_t type, const xml_node_t *data,
 		const char *origin, const char *owner,
 		ni_bool_t l2v6, ni_bool_t policy)
@@ -1339,13 +1339,13 @@ ni_ifxml_migrate_l2_port(xml_document_array_t *docs,
 	xml_node_t *config;
 
 	if ((config = ni_ifxml_find_config_by_ifname(docs, port))) {
-		if (ni_ifconfig_migrate_l2_port(config, upper, port, type, data, l2v6))
+		if (ni_ifconfig_migrate_l2_port(config, master, port, type, data, l2v6))
 			modified = TRUE;
 	} else if (policy) {
-		if (ni_ifpolicy_create_l2_port(docs, upper, port, type, data, origin, owner, l2v6))
+		if (ni_ifpolicy_create_l2_port(docs, master, port, type, data, origin, owner, l2v6))
 			modified = TRUE;
 	} else {
-		if (ni_ifconfig_create_l2_port(docs, upper, port, type, data, origin, owner, l2v6))
+		if (ni_ifconfig_create_l2_port(docs, master, port, type, data, origin, owner, l2v6))
 			modified = TRUE;
 	}
 
