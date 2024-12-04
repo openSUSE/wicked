@@ -394,6 +394,17 @@ ni_ifxml_node_set_migrated(xml_node_t *node, ni_bool_t migrated)
 	return xml_node_add_attr(node, "migrated", value);
 }
 
+static const char *
+ni_ifconfig_control_get_mode(xml_node_t *config)
+{
+	xml_node_t *ctrl;
+
+	if (!(ctrl = xml_node_create(config, NI_CLIENT_IFCONFIG_CONTROL)))
+		return NULL;
+
+	return xml_node_get_child_cdata(ctrl, NI_CLIENT_IFCONFIG_MODE);
+}
+
 static ni_bool_t
 ni_ifconfig_control_set_mode(xml_node_t *config, const char *mode)
 {
@@ -710,7 +721,8 @@ ni_ifxml_find_ifname_by_ifindex(xml_document_array_t *docs, const char *ifindex)
 }
 
 static const char *
-ni_ifxml_resolve_ifname_node(xml_document_array_t *docs, xml_node_t *device)
+ni_ifxml_resolve_ifname_node(xml_document_array_t *docs, xml_node_t *device,
+		const char **ifindex)
 {
 	const char *attr;
 
@@ -720,8 +732,11 @@ ni_ifxml_resolve_ifname_node(xml_document_array_t *docs, xml_node_t *device)
 	if (!(attr = xml_node_get_attr(device, "namespace")))
 		return device->cdata;
 
-	if (ni_string_eq(attr, "ifindex"))
+	if (ni_string_eq(attr, "ifindex")) {
+		if (ifindex)
+			*ifindex = device->cdata;
 		return ni_ifxml_find_ifname_by_ifindex(docs, device->cdata);
+	}
 
 	return NULL;
 }
@@ -1774,6 +1789,65 @@ ni_ifconfig_migrate_ovsbr_node(xml_document_array_t *docs,
 }
 
 static ni_bool_t
+ni_ifxml_add_missing_lower(xml_document_array_t *docs,
+		const xml_node_t *from, const char *iftype,
+		const char *lower, const char *upper,
+		const char *startmode, const char *origin,
+		const char *owner, ni_bool_t policy)
+{
+	xml_document_t *doc = NULL;
+	xml_node_t *config = NULL;
+
+	if (!lower || !upper)
+		return FALSE;
+
+	if ((config = ni_ifxml_find_config_by_ifname(docs, lower)))
+		return FALSE;
+
+	if (policy) {
+		xml_node_t *root;
+
+		if (!(root = ni_ifpolicy_create(lower, origin, owner, &config)))
+			goto failure;
+
+		if (!config || !(doc = xml_document_create(NULL, root))) {
+			xml_node_free(root);
+			goto failure;
+		}
+	} else {
+		if (!(config = ni_ifconfig_create(lower, origin, owner)))
+			goto failure;
+
+		if (!(doc = xml_document_create(NULL, config))) {
+			xml_node_free(config);
+			goto failure;
+		}
+	}
+
+	if (!ni_ifxml_node_set_migrated(doc->root, TRUE))
+		goto failure;
+
+	if (!ni_ifconfig_control_set_mode(config, startmode ?: "hotplug"))
+		goto failure;
+
+	if (!xml_document_array_append(docs, doc))
+		goto failure;
+
+	ni_warn("generated missing %s for '%s' referenced by %s '%s' (%s)",
+			policy ? "policy" : "config", lower, iftype, upper,
+			xml_node_location(from));
+	return TRUE;
+
+failure:
+	xml_document_free(doc);
+	ni_error("failed to generate missing %s for '%s' referenced by %s in '%s' (%s)",
+			policy ? "policy" : "config", lower, iftype, upper,
+			xml_node_location(from));
+
+	return FALSE;
+}
+
+static ni_bool_t
 ni_ifxml_migrate_lower_device(xml_document_array_t *docs,
 		xml_node_t *config, xml_node_t *migrate,
 		const char *ifnode, const char *iftype)
@@ -1781,10 +1855,16 @@ ni_ifxml_migrate_lower_device(xml_document_array_t *docs,
 	ni_bool_t modified = FALSE;
 	xml_node_t *policy;
 	xml_node_t *device;
+	const char *ifname;
+	const char *origin;
 	const char *lower;
+	const char *index;
+	const char *owner;
+	const char *mode;
 
 	device = xml_node_get_child(migrate, ifnode);
-	if (!(lower = ni_ifxml_resolve_ifname_node(docs, device)))
+	index = NULL;
+	if (!(lower = ni_ifxml_resolve_ifname_node(docs, device, &index)))
 		return modified;
 
 	policy = ni_ifconfig_is_config(config) ? NULL : config->parent;
@@ -1793,6 +1873,28 @@ ni_ifxml_migrate_lower_device(xml_document_array_t *docs,
 
 	if (ni_ifpolicy_add_match_device_ref(policy, lower))
 		modified = TRUE;
+
+	/*
+	 * When ni_ifxml_resolve_ifname_node provides an index,
+	 * there already is a lower config (using lower index),
+	 * thus do not try to create one (using lower ifname).
+	 */
+	if (index)
+		return modified;
+
+	/*
+	 * Creating missing lower link config/policy does not
+	 * modify and set migrated mark on this config/policy,
+	 * but creates a missing config for the lower (which
+	 * is marked migrated itself).
+	 */
+	ifname = ni_ifconfig_get_ifname(config);
+	origin = ni_ifconfig_get_origin(policy ?: config);
+	owner  = ni_ifpolicy_get_owner(policy ?: config);
+	mode   = ni_ifconfig_control_get_mode(config);
+
+	ni_ifxml_add_missing_lower(docs, migrate, iftype, lower,
+			ifname, mode, origin, owner, !!policy);
 
 	return modified;
 }
