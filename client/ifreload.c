@@ -395,7 +395,7 @@ usage:
 			if (ni_ifcheck_device_configured(w->device))
 				continue;
 
-			if (ni_ifworker_array_remove(&down_marked, w))
+			if (ni_ifworker_array_delete(&down_marked, w))
 				--i;
 		}
 

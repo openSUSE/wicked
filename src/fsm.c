@@ -32,7 +32,11 @@
 #include "dbus-objects/model.h"
 #include "client/ifconfig.h"
 #include "appconfig.h"
+#include "refcount_priv.h"
+#include "array_priv.h"
 #include "util_priv.h"
+
+#define NI_IFWORKER_ARRAY_CHUNK	8
 
 static ni_fsm_user_prompt_fn_t *ni_fsm_user_prompt_fn;
 static void *			ni_fsm_user_prompt_data;
@@ -72,6 +76,16 @@ static void			ni_ifworker_reset_client_state(ni_ifworker_t *w);
 
 static void			ni_fsm_events_destroy(ni_fsm_event_t **);
 static void			ni_fsm_process_event(ni_fsm_t *, ni_fsm_event_t *);
+
+static ni_ifworker_t *			ni_fsm_recv_new_netif(ni_fsm_t *, ni_dbus_object_t *object, ni_bool_t);
+static ni_ifworker_t *			ni_fsm_recv_new_netif_path(ni_fsm_t *, const char *);
+#ifdef MODEM
+static ni_ifworker_t *			ni_fsm_recv_new_modem(ni_fsm_t *, ni_dbus_object_t *object, ni_bool_t);
+static ni_ifworker_t *			ni_fsm_recv_new_modem_path(ni_fsm_t *, const char *);
+#endif
+static ni_ifworker_t *			ni_fsm_recv_new_worker_path(ni_fsm_t *, ni_ifworker_type_t, const char *);
+
+static void				ni_fsm_delete_worker(ni_fsm_t *, ni_ifworker_t *);
 
 static const ni_fsm_transition_t *	ni_fsm_transition_first(void);
 static const ni_fsm_transition_t *	ni_fsm_transition_next(const ni_fsm_transition_t *);
@@ -220,67 +234,6 @@ ni_fsm_fail_count(ni_fsm_t *fsm)
 	return nfailed;
 }
 
-static inline ni_ifworker_t *
-__ni_ifworker_new(ni_ifworker_type_t type, const char *name)
-{
-	ni_ifworker_t *w;
-
-	w = xcalloc(1, sizeof(*w));
-	ni_string_dup(&w->name, name);
-	w->type = type;
-	w->refcount = 1;
-
-	w->target_range.min = NI_FSM_STATE_NONE;
-	w->target_range.max = NI_FSM_STATE_MAX;
-	w->readonly = FALSE;
-	w->args.release = NI_TRISTATE_DEFAULT;
-
-	ni_ifworker_control_init(&w->control);
-	ni_client_state_config_init(&w->config.meta);
-
-	return w;
-}
-
-static ni_ifworker_t *
-ni_ifworker_new(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char *name)
-{
-	ni_ifworker_t *worker;
-
-	worker = __ni_ifworker_new(type, name);
-	ni_ifworker_array_append(array, worker);
-	if (ni_ifworker_release(worker))
-		return worker;
-	else
-		return NULL;
-}
-
-ni_ifworker_t *
-ni_fsm_ifworker_new(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
-{
-	if (!fsm || ni_string_empty(name) || ni_fsm_ifworker_by_name(fsm, type, name))
-		return NULL;
-
-	return ni_ifworker_new(&fsm->workers, type, name);
-}
-
-ni_ifworker_t *
-ni_ifworker_set_ref(ni_ifworker_t **ref, ni_ifworker_t *n)
-{
-	ni_ifworker_t *o;
-
-	if (!ref)
-		return NULL;
-
-	o = *ref;
-	if (n)
-		*ref = ni_ifworker_get(n);
-	else
-		*ref = NULL;
-	if (o)
-		ni_ifworker_release(o);
-	return n;
-}
-
 static void
 ni_fsm_transition_bind_reset(ni_fsm_transition_bind_t *bind)
 {
@@ -416,8 +369,8 @@ ni_ifworker_reset(ni_ifworker_t *w)
 	w->target_range.max = NI_FSM_STATE_MAX;
 }
 
-void
-ni_ifworker_free(ni_ifworker_t *w)
+static inline void
+ni_ifworker_destroy(ni_ifworker_t *w)
 {
 	/* Destroy applied policy references */
 	ni_fsm_policy_array_destroy(&w->policies);
@@ -453,8 +406,57 @@ ni_ifworker_free(ni_ifworker_t *w)
 
 	ni_string_free(&w->name);
 	ni_string_free(&w->old_name);
-	free(w);
 }
+
+static inline ni_bool_t
+ni_ifworker_init(ni_ifworker_t *w, ni_ifworker_type_t type, const char *name)
+{
+	memset(w, 0, sizeof(*w));
+
+	switch (type) {
+	case NI_IFWORKER_TYPE_NETDEV:
+	case NI_IFWORKER_TYPE_MODEM:
+		break;
+	default:
+		return FALSE;
+	}
+
+	if (!ni_string_dup(&w->name, name))
+		return FALSE;
+
+	w->type = type;
+	w->target_range.min = NI_FSM_STATE_NONE;
+	w->target_range.max = NI_FSM_STATE_MAX;
+	w->args.release = NI_TRISTATE_DEFAULT;
+
+	ni_ifworker_control_init(&w->control);
+	ni_client_state_config_init(&w->config.meta);
+
+	return TRUE;
+}
+
+static ni_define_refcounted_new(ni_ifworker, ni_ifworker_type_t, const char *);
+extern ni_define_refcounted_ref(ni_ifworker);
+extern ni_define_refcounted_free(ni_ifworker);
+extern ni_define_refcounted_hold(ni_ifworker);
+extern ni_define_refcounted_drop(ni_ifworker);
+extern ni_define_refcounted_move(ni_ifworker);
+
+static ni_ifworker_t *
+ni_fsm_create_worker(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char *name)
+{
+	ni_ifworker_t *worker;
+
+	worker = ni_ifworker_new(type, name);
+	if (ni_ifworker_array_append_ref(array, worker))
+		ni_ifworker_free(worker);
+	else
+		ni_ifworker_drop(&worker);
+
+	/* worker reference owned by array or NULL */
+	return worker;
+}
+
 
 /*
  * Register dependency types
@@ -823,45 +825,39 @@ ni_ifworker_array_new(void)
 	return array;
 }
 
-void
-ni_ifworker_array_append(ni_ifworker_array_t *array, ni_ifworker_t *w)
-{
-	if (!array || !w)
-		return;
-
-	array->data = realloc(array->data, (array->count + 1) * sizeof(array->data[0]));
-	array->data[array->count++] = ni_ifworker_get(w);
-}
-
-int
-ni_ifworker_array_index(const ni_ifworker_array_t *array, const ni_ifworker_t *w)
+ni_ifworker_array_t *
+ni_ifworker_array_clone(ni_ifworker_array_t *array)
 {
 	unsigned int i;
+	ni_ifworker_array_t *clone;
 
-	for (i = 0; i < array->count; ++i) {
-		if (array->data[i] == w)
-			return i;
-	}
-	return -1;
-}
+	if (!array)
+		return NULL;
 
-void
-ni_ifworker_array_destroy(ni_ifworker_array_t *array)
-{
-	if (array) {
-		while (array->count)
-			ni_ifworker_release(array->data[--(array->count)]);
-		free(array->data);
-		array->data = NULL;
-	}
+	clone = ni_ifworker_array_new();
+	for (i = 0; i < array->count; ++i)
+		ni_ifworker_array_append_ref(clone, array->data[i]);
+
+	return clone;
 }
 
 void
 ni_ifworker_array_free(ni_ifworker_array_t *array)
 {
-	ni_ifworker_array_destroy(array);
-	free(array);
+	if (array) {
+		ni_ifworker_array_destroy(array);
+		free(array);
+	}
 }
+
+extern ni_define_ptr_array_init(ni_ifworker);
+extern ni_define_ptr_array_destroy(ni_ifworker);
+static ni_define_ptr_array_realloc(ni_ifworker, NI_IFWORKER_ARRAY_CHUNK);
+extern ni_define_ptr_array_append_ref(ni_ifworker);
+extern ni_define_ptr_array_delete_at(ni_ifworker);
+extern ni_define_ptr_array_delete(ni_ifworker);
+extern ni_define_ptr_array_index(ni_ifworker);
+extern ni_define_ptr_array_at(ni_ifworker);
 
 static ni_ifworker_t *
 ni_ifworker_array_find_by_objectpath(ni_ifworker_array_t *array, const char *object_path)
@@ -895,58 +891,6 @@ ni_ifworker_array_find_by_name(const ni_ifworker_array_t *array, ni_ifworker_typ
 			return worker;
 	}
 	return NULL;
-}
-
-ni_ifworker_array_t *
-ni_ifworker_array_clone(ni_ifworker_array_t *array)
-{
-	unsigned int i;
-	ni_ifworker_array_t *clone;
-
-	if (!array)
-		return NULL;
-
-	clone = ni_ifworker_array_new();
-	for (i = 0; i < array->count; ++i)
-		ni_ifworker_array_append(clone, array->data[i]);
-
-	return clone;
-}
-
-ni_bool_t
-ni_ifworker_array_remove_index(ni_ifworker_array_t *array, unsigned int index)
-{
-	unsigned int i;
-
-	if (!array || index >= array->count)
-		return FALSE;
-
-	if (array->data[index])
-		ni_ifworker_release(array->data[index]);
-
-	array->count--;
-	for (i = index; i < array->count; ++i)
-		array->data[i] = array->data[i + 1];
-	array->data[array->count] = NULL;
-
-	return TRUE;
-}
-
-ni_bool_t
-ni_ifworker_array_remove(ni_ifworker_array_t *array, ni_ifworker_t *w)
-{
-	unsigned int i;
-	ni_bool_t found = FALSE;
-
-	for (i = 0; i < array->count; ) {
-		if (w == array->data[i]) {
-			found = ni_ifworker_array_remove_index(array, i);
-		} else {
-			++i;
-		}
-	}
-
-	return found;
 }
 
 ni_ifworker_t *
@@ -1024,6 +968,7 @@ ni_fsm_ifworker_by_netdev(ni_fsm_t *fsm, const ni_netdev_t *dev)
 	return NULL;
 }
 
+#ifdef MODEM
 static ni_ifworker_t *
 ni_ifworker_by_modem(ni_fsm_t *fsm, const ni_modem_t *dev)
 {
@@ -1043,6 +988,7 @@ ni_ifworker_by_modem(ni_fsm_t *fsm, const ni_modem_t *dev)
 
 	return NULL;
 }
+#endif
 
 ni_bool_t
 ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
@@ -1310,7 +1256,7 @@ ni_ifworker_add_child(ni_ifworker_t *parent, ni_ifworker_t *child, xml_node_t *d
 		if (parent->children.data[i] == child)
 			return TRUE;
 	}
-	ni_ifworker_array_append(&parent->children, child);
+	ni_ifworker_array_append_ref(&parent->children, child);
 	return TRUE;
 }
 
@@ -2044,7 +1990,7 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_node_t *node, const char *origin)
 				xml_node_location(node), node->name);
 			return NULL;
 		}
-		if (!(w = ni_ifworker_new(&fsm->workers, type, ifname))) {
+		if (!(w = ni_fsm_create_worker(&fsm->workers, type, ifname))) {
 			ni_error("%s: cannot allocate worker for '%s' configuration",
 				xml_node_location(node), node->name);
 			return NULL;
@@ -2206,7 +2152,7 @@ ni_ifworker_config_check_state_req_check_new(ni_ifworker_t *cw, ni_ifworker_type
 	ni_ifworker_check_state_req_check_t *check;
 
 	check = xcalloc(1, sizeof(*check));
-	check->worker = cw ?  ni_ifworker_get(cw) : NULL;
+	check->worker = cw ?  ni_ifworker_ref(cw) : NULL;
 	check->resolver = ni_ifworker_require_resolver_new(cwtype, cwnode, cwmeta);
 	check->state.min = min_state;
 	check->state.max = max_state;
@@ -2220,7 +2166,7 @@ ni_ifworker_system_check_state_req_check_new(ni_ifworker_t *cw,
 	ni_ifworker_check_state_req_check_t *check;
 
 	check = xcalloc(1, sizeof(*check));
-	check->worker = cw ?  ni_ifworker_get(cw) : NULL;
+	check->worker = cw ?  ni_ifworker_ref(cw) : NULL;
 	check->resolver = NULL;
 	check->state.min = min_state;
 	check->state.max = max_state;
@@ -2236,7 +2182,7 @@ ni_ifworker_check_state_req_check_free(ni_ifworker_check_state_req_check_t *chec
 			check->resolver = NULL;
 		}
 		if (check->worker) {
-			ni_ifworker_release(check->worker);
+			ni_ifworker_free(check->worker);
 			check->worker = NULL;
 		}
 		free(check);
@@ -2392,7 +2338,7 @@ ni_ifworker_config_check_state_req_test(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_
 				check->resolver->cwnode,  check->resolver->cwmeta);
 		if (cw) {
 			/* switch over to the worker */
-			check->worker = ni_ifworker_get(cw);
+			check->worker = ni_ifworker_ref(cw);
 			ni_ifworker_require_resolver_free(check->resolver);
 			check->resolver = NULL;
 		}
@@ -3155,7 +3101,7 @@ ni_fsm_ifmatch_pull_up_lower(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 		return FALSE;
 	}
 
-	if (match->ifreload && ni_ifworker_array_index(matching, w->lowerdev) != -1)
+	if (match->ifreload && ni_ifworker_array_index(matching, w->lowerdev) != -1U)
 		*changed = TRUE;
 
 	return TRUE;
@@ -3182,7 +3128,7 @@ ni_fsm_ifmatch_pull_up_master(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 		return FALSE;
 	}
 
-	if (match->ifreload && ni_ifworker_array_index(matching, w->masterdev) != -1)
+	if (match->ifreload && ni_ifworker_array_index(matching, w->masterdev) != -1U)
 		*changed = TRUE;
 
 	return TRUE;
@@ -3218,7 +3164,7 @@ ni_fsm_ifmatch_pull_up(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	ni_ifworker_array_t pulled = NI_IFWORKER_ARRAY_INIT;
 	unsigned int i;
 
-	if (ni_ifworker_array_index(matching, w) != -1)
+	if (ni_ifworker_array_index(matching, w) != -1U)
 		return TRUE;
 
 	/*
@@ -3236,13 +3182,13 @@ ni_fsm_ifmatch_pull_up(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	if (!ni_ifworker_references_ok(guard, w))
 		return FALSE;
 
-	ni_ifworker_array_append(guard, w);
+	ni_ifworker_array_append_ref(guard, w);
 
 	if (lower && !ni_fsm_ifmatch_pull_up_lower(fsm, match, &pulled,
 			guard, logit, w, TRUE, TRUE, ports, FALSE, &changed)) {
 
 		ni_ifworker_array_destroy(&pulled);
-		ni_ifworker_array_remove(guard, w);
+		ni_ifworker_array_delete(guard, w);
 		return FALSE;
 	}
 
@@ -3250,7 +3196,7 @@ ni_fsm_ifmatch_pull_up(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 			guard, logit, w, TRUE, TRUE, FALSE, links, &changed)) {
 
 		ni_ifworker_array_destroy(&pulled);
-		ni_ifworker_array_remove(guard, w);
+		ni_ifworker_array_delete(guard, w);
 		return FALSE;
 	}
 
@@ -3258,7 +3204,7 @@ ni_fsm_ifmatch_pull_up(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 			guard, logit, w, TRUE, FALSE, changed)) {
 
 		ni_ifworker_array_destroy(&pulled);
-		ni_ifworker_array_remove(guard, w);
+		ni_ifworker_array_delete(guard, w);
 		return FALSE;
 	}
 
@@ -3266,11 +3212,11 @@ ni_fsm_ifmatch_pull_up(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 			guard, logit, w, FALSE, TRUE, changed)) {
 
 		ni_ifworker_array_destroy(&pulled);
-		ni_ifworker_array_remove(guard, w);
+		ni_ifworker_array_delete(guard, w);
 		return FALSE;
 	}
 
-	ni_ifworker_array_remove(guard, w);
+	ni_ifworker_array_delete(guard, w);
 
 	if (!ni_fsm_ifmatch_conditions(match, w, logit)) {
 		ni_ifworker_array_destroy(&pulled);
@@ -3280,16 +3226,16 @@ ni_fsm_ifmatch_pull_up(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	for (i = 0; i < pulled.count; ++i) {
 		ni_ifworker_t *dep = pulled.data[i];
 
-		if (ni_ifworker_array_index(matching, dep) == -1)
-			ni_ifworker_array_append(matching, dep);
+		if (ni_ifworker_array_index(matching, dep) == -1U)
+			ni_ifworker_array_append_ref(matching, dep);
 	}
 	ni_ifworker_array_destroy(&pulled);
 
 	if (match->ifreload && !changed)
 		return TRUE; /* skip unchanged */
 
-	if (ni_ifworker_array_index(matching, w) == -1)
-		ni_ifworker_array_append(matching, w);
+	if (ni_ifworker_array_index(matching, w) == -1U)
+		ni_ifworker_array_append_ref(matching, w);
 
 	return TRUE;
 }
@@ -3423,7 +3369,7 @@ ni_fsm_ifmatch_pull_down(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	if (!(device = w->device))
 		return TRUE;
 
-	if (ni_ifworker_array_index(matching, w) != -1)
+	if (ni_ifworker_array_index(matching, w) != -1U)
 		return TRUE;
 
 	/*
@@ -3448,7 +3394,7 @@ ni_fsm_ifmatch_pull_down(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	if (!ni_ifworker_references_ok(guard, w))
 		return FALSE;
 
-	ni_ifworker_array_append(guard, w);
+	ni_ifworker_array_append_ref(guard, w);
 
 	/*
 	 * There is no reason to trigger master or lower shutdown
@@ -3464,7 +3410,7 @@ ni_fsm_ifmatch_pull_down(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 			device->name, ni_ifworker_type_to_string(w->type));
 
 		ni_ifworker_array_destroy(&pulled);
-		ni_ifworker_array_remove(guard, w);
+		ni_ifworker_array_delete(guard, w);
 		return FALSE;
 	}
 
@@ -3475,11 +3421,11 @@ ni_fsm_ifmatch_pull_down(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 			device->name, ni_ifworker_type_to_string(w->type));
 
 		ni_ifworker_array_destroy(&pulled);
-		ni_ifworker_array_remove(guard, w);
+		ni_ifworker_array_delete(guard, w);
 		return FALSE;
 	}
 
-	ni_ifworker_array_remove(guard, w);
+	ni_ifworker_array_delete(guard, w);
 
 	if (!ni_fsm_ifmatch_conditions(match, w, logit)) {
 		ni_ifworker_array_destroy(&pulled);
@@ -3489,16 +3435,16 @@ ni_fsm_ifmatch_pull_down(ni_fsm_t *fsm, ni_ifmatcher_t *match,
 	for (i = 0; i < pulled.count; ++i) {
 		ni_ifworker_t *dep = pulled.data[i];
 
-		if (ni_ifworker_array_index(matching, dep) == -1)
-			ni_ifworker_array_append(matching, dep);
+		if (ni_ifworker_array_index(matching, dep) == -1U)
+			ni_ifworker_array_append_ref(matching, dep);
 	}
 	ni_ifworker_array_destroy(&pulled);
 
 	if (match->ifreload && !changed)
 		return TRUE; /* skip unchanged */
 
-	if (ni_ifworker_array_index(matching, w) == -1)
-		ni_ifworker_array_append(matching, w);
+	if (ni_ifworker_array_index(matching, w) == -1U)
+		ni_ifworker_array_append_ref(matching, w);
 
 	return TRUE;
 }
@@ -3604,26 +3550,26 @@ ni_ifworker_references_ok(const ni_ifworker_array_t *guard, ni_ifworker_t *w)
 	    ni_string_eq(w->masterdev->name, w->lowerdev->name))) {
 		ni_ifworker_fail(w, "references %s as master and as lower device",
 				w->masterdev->name);
-		ni_ifworker_array_remove(&w->masterdev->children, w);
-		ni_ifworker_set_ref(&w->lowerdev, NULL);
-		ni_ifworker_set_ref(&w->masterdev, NULL);
+		ni_ifworker_array_delete(&w->masterdev->children, w);
+		ni_ifworker_drop(&w->lowerdev);
+		ni_ifworker_drop(&w->masterdev);
 		return FALSE;
 	}
 
 	if (w == w->lowerdev || (w->lowerdev && ni_string_eq(w->name, w->lowerdev->name))) {
 		ni_ifworker_fail(w, "references itself as lower device");
-		ni_ifworker_set_ref(&w->lowerdev, NULL);
+		ni_ifworker_drop(&w->lowerdev);
 		return FALSE;
 	}
 
 	if (w == w->masterdev || (w->masterdev && ni_string_eq(w->name, w->masterdev->name))) {
 		ni_ifworker_fail(w, "references itself as master device");
-		ni_ifworker_array_remove(&w->masterdev->children, w);
-		ni_ifworker_set_ref(&w->masterdev, NULL);
+		ni_ifworker_array_delete(&w->masterdev->children, w);
+		ni_ifworker_drop(&w->masterdev);
 		return FALSE;
 	}
 
-	if (ni_ifworker_array_index(guard, w) != -1) {
+	if (ni_ifworker_array_index(guard, w) != -1U) {
 		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
 		ni_ifworker_guard_print(&buf, guard, " -> ");
@@ -3654,16 +3600,16 @@ ni_ifworker_break_loops(ni_ifworker_array_t *guard, ni_ifworker_t *w, unsigned i
 
 	if (!ni_ifworker_references_ok(guard, w))
 		return FALSE;
-	ni_ifworker_array_append(guard, w);
+	ni_ifworker_array_append_ref(guard, w);
 
 	for (i = 0; i < w->children.count; i++) {
 		ni_ifworker_t *c = w->children.data[i];
 
 		if (!ni_ifworker_break_loops(guard, c, lvl + 4)) {
-			ni_ifworker_array_remove(&w->children, c);
+			ni_ifworker_array_delete(&w->children, c);
 			return FALSE;
 		}
-		ni_ifworker_array_remove(guard, c);
+		ni_ifworker_array_delete(guard, c);
 	}
 	return TRUE;
 }
@@ -3749,8 +3695,8 @@ ni_fsm_reset_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked,
 
 		if ((w->done || w->failed) &&
 		    (w->target_range.max == NI_FSM_STATE_DEVICE_DOWN)) {
-			ni_fsm_destroy_worker(fsm, w);
-			if (ni_ifworker_array_remove(marked, w))
+			ni_fsm_delete_worker(fsm, w);
+			if (ni_ifworker_array_delete(marked, w))
 				--i;
 			continue;
 		}
@@ -3781,7 +3727,7 @@ ni_fsm_clear_hierarchy(ni_ifworker_t *w)
 	unsigned int i;
 
 	if (w->masterdev) {
-		ni_ifworker_array_remove(&w->masterdev->children, w);
+		ni_ifworker_array_delete(&w->masterdev->children, w);
 		w->masterdev = NULL;
 	}
 
@@ -3807,7 +3753,7 @@ ni_fsm_clear_hierarchy(ni_ifworker_t *w)
 static void
 ni_ifworker_device_delete(ni_ifworker_t *w)
 {
-	ni_ifworker_get(w);
+	ni_ifworker_ref(w);
 	ni_debug_application("%s(%s)", __func__, w->name);
 
 	w->ifindex = 0;
@@ -3836,23 +3782,23 @@ ni_ifworker_device_delete(ni_ifworker_t *w)
 	ni_ifworker_rearm(w);
 	ni_fsm_clear_hierarchy(w);
 
-	ni_ifworker_release(w);
+	ni_ifworker_free(w);
 }
 
-void
-ni_fsm_destroy_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
+static void
+ni_fsm_delete_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
-	ni_ifworker_get(w);
+	ni_ifworker_ref(w);
 
 	ni_debug_application("%s(%s)", __func__, w->name);
-	if (!ni_ifworker_array_remove(&fsm->workers, w)) {
-		ni_ifworker_release(w);
+	if (!ni_ifworker_array_delete(&fsm->workers, w)) {
+		ni_ifworker_free(w);
 		return;
 	}
 
 	ni_ifworker_device_delete(w);
 
-	ni_ifworker_release(w);
+	ni_ifworker_free(w);
 }
 
 static void
@@ -4487,7 +4433,7 @@ static const char *
 ni_fsm_config_hierarchy_mark(const ni_ifworker_array_t *marked,
 	const ni_ifworker_t *w)
 {
-	if (w && marked && ni_ifworker_array_index(marked, w) != -1)
+	if (w && marked && ni_ifworker_array_index(marked, w) != -1U)
 		return "+ ";
 	else
 		return "  ";
@@ -4506,7 +4452,7 @@ ni_fsm_print_config_device_worker_hierarchy(const ni_fsm_t *fsm,
 	if (!w)
 		return;
 
-	if (ni_ifworker_array_index(guard, w) != -1) {
+	if (ni_ifworker_array_index(guard, w) != -1U) {
 		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
 		ni_ifworker_guard_print(&buf, guard, " -> ");
@@ -4515,7 +4461,7 @@ ni_fsm_print_config_device_worker_hierarchy(const ni_fsm_t *fsm,
 		ni_stringbuf_destroy(&buf);
 		return;
 	}
-	ni_ifworker_array_append(guard, w);
+	ni_ifworker_array_append_ref(guard, w);
 
 	ni_fsm_print_hierarchy(logfn, "%s%*s%s",
 		ni_fsm_config_hierarchy_mark(marked, w),
@@ -4543,7 +4489,7 @@ ni_fsm_print_config_device_worker_hierarchy(const ni_fsm_t *fsm,
 		}
 	}
 
-	ni_ifworker_array_remove(guard, w);
+	ni_ifworker_array_delete(guard, w);
 }
 
 void
@@ -4583,7 +4529,7 @@ static const char *
 ni_fsm_system_hierarchy_mark(const ni_ifworker_array_t *marked,
 		const ni_ifworker_t *w)
 {
-	if (w && marked && ni_ifworker_array_index(marked, w) != -1)
+	if (w && marked && ni_ifworker_array_index(marked, w) != -1U)
 		return "- ";
 	else
 		return "  ";
@@ -4602,7 +4548,7 @@ ni_fsm_print_system_device_worker_hierarchy(const ni_fsm_t *fsm,
 	if (!w || !w->device)
 		return;
 
-	if (ni_ifworker_array_index(guard, w) != -1) {
+	if (ni_ifworker_array_index(guard, w) != -1U) {
 		ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 
 		ni_ifworker_guard_print(&buf, guard, " -> ");
@@ -4611,7 +4557,7 @@ ni_fsm_print_system_device_worker_hierarchy(const ni_fsm_t *fsm,
 		ni_stringbuf_destroy(&buf);
 		return;
 	}
-	ni_ifworker_array_append(guard, w);
+	ni_ifworker_array_append_ref(guard, w);
 
 	ni_fsm_print_hierarchy(logfn, "%s%*s%s",
 			ni_fsm_system_hierarchy_mark(marked, w),
@@ -4639,7 +4585,7 @@ ni_fsm_print_system_device_worker_hierarchy(const ni_fsm_t *fsm,
 		}
 	}
 
-	ni_ifworker_array_remove(guard, w);
+	ni_ifworker_array_delete(guard, w);
 }
 
 void
@@ -4686,7 +4632,7 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 
 		if ((rv = ni_ifworker_bind_early(w, fsm, FALSE)) < 0) {
 			if (destructive) {
-				ni_fsm_destroy_worker(fsm, w);
+				ni_fsm_delete_worker(fsm, w);
 				i--;
 			}
 			continue;
@@ -4889,7 +4835,7 @@ ni_fsm_refresh_netdevs_state(ni_fsm_t *fsm)
 	return TRUE;
 }
 
-ni_ifworker_t *
+static ni_ifworker_t *
 ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh)
 {
 	ni_netdev_t *dev = ni_objectmodel_unwrap_netif(object, NULL);
@@ -4918,7 +4864,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		 * if tracked as pending worker, it's over now -- device is ready
 		 */
 		if ((found = ni_ifworker_array_find_by_objectpath(&fsm->pending, object->path)))
-			ni_ifworker_array_remove(&fsm->pending, found);
+			ni_ifworker_array_delete(&fsm->pending, found);
 
 		/* lookup worker by object path (ifindex) first, then by name */
 		found = ni_ifworker_array_find_by_objectpath(&fsm->workers, object->path);
@@ -4927,7 +4873,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		if (!found) {
 			ni_debug_application("received new ready device %s (%s)",
 						dev->name, object->path);
-			found = ni_ifworker_new(&fsm->workers, NI_IFWORKER_TYPE_NETDEV, dev->name);
+			found = ni_fsm_create_worker(&fsm->workers, NI_IFWORKER_TYPE_NETDEV, dev->name);
 			if (found)
 				found->readonly = fsm->readonly;
 		} else {
@@ -4950,7 +4896,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		if (!(found = ni_ifworker_array_find_by_objectpath(&fsm->pending, object->path))) {
 			ni_debug_application("received new non-ready device %s (%s)",
 					dev->name, object->path);
-			found = ni_ifworker_new(&fsm->pending, NI_IFWORKER_TYPE_NETDEV, dev->name);
+			found = ni_fsm_create_worker(&fsm->pending, NI_IFWORKER_TYPE_NETDEV, dev->name);
 			if (found)
 				found->readonly = fsm->readonly;
 		} else {
@@ -4988,7 +4934,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	return found;
 }
 
-ni_ifworker_t *
+static ni_ifworker_t *
 ni_fsm_recv_new_netif_path(ni_fsm_t *fsm, const char *path)
 {
 	static ni_dbus_object_t *list_object = NULL;
@@ -5026,9 +4972,8 @@ ni_fsm_refresh_modems_state(ni_fsm_t *fsm)
 	}
 	return TRUE;
 }
-#endif
 
-ni_ifworker_t *
+static ni_ifworker_t *
 ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh)
 {
 	ni_ifworker_t *found = NULL;
@@ -5055,7 +5000,7 @@ ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		found = ni_fsm_ifworker_by_object_path(fsm, object->path);
 	if (!found) {
 		ni_debug_application("received new modem %s (%s)", modem->device, object->path);
-		found = ni_ifworker_new(&fsm->workers, NI_IFWORKER_TYPE_MODEM, modem->device);
+		found = ni_fsm_create_worker(&fsm->workers, NI_IFWORKER_TYPE_MODEM, modem->device);
 	}
 
 	if (!found)
@@ -5074,7 +5019,7 @@ ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 	return found;
 }
 
-ni_ifworker_t *
+static ni_ifworker_t *
 ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path)
 {
 	static ni_dbus_object_t *list_object = NULL;
@@ -5085,6 +5030,24 @@ ni_fsm_recv_new_modem_path(ni_fsm_t *fsm, const char *path)
 
 	object = ni_dbus_object_create(list_object, path, NULL, NULL);
 	return ni_fsm_recv_new_modem(fsm, object, TRUE);
+}
+#endif
+
+static ni_ifworker_t *
+ni_fsm_recv_new_worker_path(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *path)
+{
+	switch (type) {
+	case NI_IFWORKER_TYPE_NETDEV:
+		return ni_fsm_recv_new_netif_path(fsm, path);
+
+#ifdef MODEM
+	case NI_IFWORKER_TYPE_MODEM:
+		return ni_fsm_recv_new_modem_path(fsm, path);
+#endif
+
+	default:
+		return NULL;
+	}
 }
 
 /*
@@ -5864,7 +5827,7 @@ ni_ifworker_get_ports_by_name(ni_fsm_t *fsm, const char *name, ni_ifworker_array
 			continue;
 
 		if (ports)
-			ni_ifworker_array_append(ports, w);
+			ni_ifworker_array_append_ref(ports, w);
 		else
 			count++;
 	}
@@ -6357,7 +6320,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			unsigned int prev_state;
 			int rv;
 
-			ni_ifworker_get(w);
+			ni_ifworker_ref(w);
 
 			if (w->pending)
 				goto release;
@@ -6441,7 +6404,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			ni_fsm_process_events(fsm);
 			ni_fsm_events_unblock(fsm);
 release:
-			ni_ifworker_release(w);
+			ni_ifworker_free(w);
 
 			ni_dbus_objects_garbage_collect();
 		}
@@ -6770,7 +6733,7 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 		if (ni_ifworker_is_factory_device(w))
 			ni_ifworker_device_delete(w);
 		else
-			ni_fsm_destroy_worker(fsm, w);
+			ni_fsm_delete_worker(fsm, w);
 	}
 
 done: ;
@@ -6779,10 +6742,11 @@ done: ;
 static ni_ifworker_t *
 ni_fsm_process_rename_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 {
+	const char *wtype = ni_ifworker_type_to_string(ev->worker_type);
 	ni_ifworker_t *w;
 
-	if ((w = ni_fsm_recv_new_netif_path(fsm, ev->object_path)))
-		ni_debug_events("%s: device renamed to %s", w->old_name, w->name);
+	if ((w = ni_fsm_recv_new_worker_path(fsm, ev->worker_type, ev->object_path)))
+		ni_debug_events("%s: %s renamed to %s", w->old_name, wtype, w->name);
 
 	return w;
 }
@@ -6795,9 +6759,9 @@ ni_fsm_process_device_delete_event(ni_fsm_t *fsm, ni_fsm_event_t *ev, ni_ifworke
 
 	/* device-ready worker exist and is possibly also active */
 	if (w) {
-		ni_ifworker_get(w);
+		ni_ifworker_ref(w);
 		ni_fsm_process_worker_event(fsm, w, ev);
-		ni_ifworker_release(w);
+		ni_ifworker_free(w);
 		ni_debug_application("deleted worker device with object path %s",
 					ev->object_path);
 	}
@@ -6805,9 +6769,9 @@ ni_fsm_process_device_delete_event(ni_fsm_t *fsm, ni_fsm_event_t *ev, ni_ifworke
 	/* we may have a created but not yet ready/pending worker */
 	w = ni_ifworker_array_find_by_objectpath(&fsm->pending, ev->object_path);
 	if (w) {
-		ni_ifworker_get(w);
-		ni_ifworker_array_remove(&fsm->pending, w);
-		ni_ifworker_release(w);
+		ni_ifworker_ref(w);
+		ni_ifworker_array_delete(&fsm->pending, w);
+		ni_ifworker_free(w);
 		ni_debug_application("deleted pending device worker with object path %s",
 					ev->object_path);
 	}
@@ -6901,7 +6865,7 @@ ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 		/* fetch netif object properties and assign device to
 		 * the pending fsm worker set or to config/ready worker.
 		 */
-		if (!ni_fsm_recv_new_netif_path(fsm, ev->object_path)) {
+		if (!ni_fsm_recv_new_worker_path(fsm, ev->worker_type, ev->object_path)) {
 			ni_debug_application("%s: refresh failed, cannot process %s worker %s event",
 					__func__, ev->object_path, ni_objectmodel_event_to_signal(ev->event_type));
 			return;
@@ -6914,10 +6878,10 @@ ni_fsm_process_event(ni_fsm_t *fsm, ni_fsm_event_t *ev)
 		}
 	}
 
-	ni_ifworker_get(w);
+	ni_ifworker_ref(w);
 	/* process non-pending/ready or factory worker events */
 	ni_fsm_process_worker_event(fsm, w, ev);
-	ni_ifworker_release(w);
+	ni_ifworker_free(w);
 }
 
 static void

@@ -16,6 +16,8 @@
 
 #include "client/ifconfig.h"
 #include "util_priv.h"
+#include "refcount_priv.h"
+#include "array_priv.h"
 
 #define NI_FSM_POLICY_ARRAY_CHUNK	2
 
@@ -101,7 +103,8 @@ typedef enum {
 } ni_fsm_policy_type_t;
 
 struct ni_fsm_policy {
-	unsigned int			refcount;
+	ni_refcount_t			refcount;
+
 	ni_fsm_policy_t **		pprev;
 	ni_fsm_policy_t *		next;
 
@@ -121,8 +124,6 @@ struct ni_fsm_policy {
 };
 
 
-static void			ni_fsm_policy_reset(ni_fsm_policy_t *);
-static void			ni_fsm_policy_destroy(ni_fsm_policy_t *);
 static ni_ifcondition_t *	ni_fsm_policy_conditions_from_xml(xml_node_t *);
 static ni_bool_t		ni_ifcondition_check(const ni_ifcondition_t *, const ni_fsm_t *, ni_ifworker_t *);
 static ni_ifcondition_t *	ni_ifcondition_from_xml(xml_node_t *);
@@ -164,32 +165,10 @@ ni_fsm_policy_list_unlink(ni_fsm_policy_t *policy)
 	policy->next = NULL;
 }
 
+
 /*
  * Destructor for policy objects
  */
-void
-ni_fsm_policy_free(ni_fsm_policy_t *policy)
-{
-	if (policy) {
-		ni_assert(policy->refcount);
-		policy->refcount--;
-		if (policy->refcount == 0) {
-			ni_fsm_policy_list_unlink(policy);
-			ni_fsm_policy_destroy(policy);
-			free(policy);
-		}
-	}
-}
-
-static void
-ni_fsm_policy_destroy(ni_fsm_policy_t *policy)
-{
-	ni_fsm_policy_reset(policy);
-	ni_string_free(&policy->name);
-	xml_node_free(policy->node);
-	memset(policy, 0, sizeof(*policy));
-}
-
 static void
 ni_fsm_policy_reset(ni_fsm_policy_t *policy)
 {
@@ -207,6 +186,16 @@ ni_fsm_policy_reset(ni_fsm_policy_t *policy)
 		ni_fsm_policy_action_free(policy->create_action);
 		policy->create_action = NULL;
 	}
+}
+
+static void
+ni_fsm_policy_destroy(ni_fsm_policy_t *policy)
+{
+	ni_fsm_policy_list_unlink(policy);
+	ni_fsm_policy_reset(policy);
+	ni_string_free(&policy->name);
+	xml_node_free(policy->node);
+	memset(policy, 0, sizeof(*policy));
 }
 
 /*
@@ -406,40 +395,34 @@ ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 	return TRUE;
 }
 
-ni_fsm_policy_t *
-ni_fsm_policy_new(ni_fsm_t *fsm, const char *name, xml_node_t *node)
+static ni_bool_t
+ni_fsm_policy_init(ni_fsm_policy_t *policy, ni_fsm_t *fsm, const char *name, xml_node_t *node)
 {
-	ni_fsm_policy_t *policy;
-
-	if (!fsm || xml_node_is_empty(node))
-		return NULL;
+	if (!policy || !fsm || xml_node_is_empty(node))
+		return FALSE;
 
 	if (ni_string_empty(name) && !(name = ni_ifpolicy_get_name(node)))
-		return NULL;
+		return FALSE;
 
-	policy = xcalloc(1, sizeof(*policy));
-	policy->refcount = 1;
+	memset(policy, 0, sizeof(*policy));
+
 	policy->owner = -1U;
-
 	if (!ni_string_dup(&policy->name, name) ||
 	    !ni_fsm_policy_from_xml(policy, node)) {
-		ni_fsm_policy_free(policy);
-		return NULL;
+		ni_fsm_policy_destroy(policy);
+		return FALSE;
 	}
 
 	ni_fsm_policy_list_insert(&fsm->policies, policy);
-	return policy;
+	return TRUE;
 }
 
-ni_fsm_policy_t *
-ni_fsm_policy_ref(ni_fsm_policy_t *policy)
-{
-	if (policy) {
-		ni_assert(policy->refcount);
-		policy->refcount++;
-	}
-	return policy;
-}
+extern ni_define_refcounted_new(ni_fsm_policy, ni_fsm_t *, const char *, xml_node_t *);
+extern ni_define_refcounted_ref(ni_fsm_policy);
+extern ni_define_refcounted_free(ni_fsm_policy);
+extern ni_define_refcounted_hold(ni_fsm_policy);
+extern ni_define_refcounted_drop(ni_fsm_policy);
+extern ni_define_refcounted_move(ni_fsm_policy);
 
 ni_bool_t
 ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
@@ -2161,168 +2144,15 @@ ni_fsm_policy_conditions_from_xml(xml_node_t *node)
 	return ni_ifcondition_and(node);
 }
 
-void
-ni_fsm_policy_array_init(ni_fsm_policy_array_t *array)
-{
-	ni_assert(array);
-	memset(array, 0, sizeof(*array));
-}
+extern ni_define_ptr_array_init(ni_fsm_policy);
+extern ni_define_ptr_array_destroy(ni_fsm_policy);
+static ni_define_ptr_array_realloc(ni_fsm_policy, NI_FSM_POLICY_ARRAY_CHUNK);
+extern ni_define_ptr_array_append_ref(ni_fsm_policy);
+extern ni_define_ptr_array_insert_ref(ni_fsm_policy);
+extern ni_define_ptr_array_remove_at(ni_fsm_policy);
+extern ni_define_ptr_array_delete_at(ni_fsm_policy);
+extern ni_define_ptr_array_at(ni_fsm_policy);
+extern ni_define_ptr_array_index(ni_fsm_policy);
+static ni_define_ptr_array_qsort_cmp_fn(ni_fsm_policy);
+extern ni_define_ptr_array_qsort(ni_fsm_policy);
 
-void
-ni_fsm_policy_array_destroy(ni_fsm_policy_array_t *array)
-{
-	if (array) {
-		while (array->count) {
-			array->count--;
-			ni_fsm_policy_free(array->data[array->count]);
-			array->data[array->count] = NULL;
-		}
-		free(array->data);
-		array->data = NULL;
-	}
-}
-
-static int
-ni_fsm_policy_array_qsort_r_cmp(const void *p1, const void *p2, void *arg)
-{
-	/* cast + dereference the pointers to policy pointer arguments */
-	const ni_fsm_policy_t *policy1 = *(const ni_fsm_policy_t **)p1;
-	const ni_fsm_policy_t *policy2 = *(const ni_fsm_policy_t **)p2;
-	ni_fsm_policy_compare_fn_t *cmp_fn = (ni_fsm_policy_compare_fn_t *)arg;
-	return cmp_fn(policy1, policy2);
-}
-
-void
-ni_fsm_policy_array_sort(ni_fsm_policy_array_t *array, ni_fsm_policy_compare_fn_t *cmp_fn)
-{
-	if (!array || !array->count || !cmp_fn)
-		return;
-
-	qsort_r(&array->data[0], array->count, sizeof(array->data[0]),
-			ni_fsm_policy_array_qsort_r_cmp, cmp_fn);
-}
-
-ni_bool_t
-ni_fsm_policy_array_move(ni_fsm_policy_array_t *dst, ni_fsm_policy_array_t *src)
-{
-	if (dst && src && dst != src) {
-		ni_fsm_policy_array_destroy(dst);
-		*dst = *src;
-		memset(src, 0, sizeof(*src));
-		return TRUE;
-	}
-	return FALSE;
-}
-
-static ni_bool_t
-ni_fsm_policy_array_realloc(ni_fsm_policy_array_t *array, unsigned int newsize)
-{
-	ni_fsm_policy_t **newdata;
-	unsigned int i;
-
-	if (!array || (UINT_MAX - NI_FSM_POLICY_ARRAY_CHUNK) <= newsize)
-		return FALSE;
-
-	newsize = newsize + NI_FSM_POLICY_ARRAY_CHUNK;
-	newdata	= realloc(array->data, (size_t)newsize * sizeof(*newdata));
-	if (!newdata)
-		return FALSE;
-
-	array->data = newdata;
-	for (i = array->count; i < newsize; ++i)
-		array->data[i] = NULL;
-
-	return TRUE;
-}
-
-ni_bool_t
-ni_fsm_policy_array_append(ni_fsm_policy_array_t *array, ni_fsm_policy_t *policy)
-{
-	return ni_fsm_policy_array_insert(array, -1U, policy);
-}
-
-ni_bool_t
-ni_fsm_policy_array_insert(ni_fsm_policy_array_t *array, unsigned int index, ni_fsm_policy_t *policy)
-{
-	ni_fsm_policy_t *ref;
-
-	if (!array || !policy || !(ref = ni_fsm_policy_ref(policy)))
-		return FALSE;
-
-	if ((array->count % NI_FSM_POLICY_ARRAY_CHUNK) == 0 &&
-	    !ni_fsm_policy_array_realloc(array, array->count)) {
-		ni_fsm_policy_free(ref);
-		return FALSE;
-	}
-
-	if (index >= array->count) {
-		index = array->count;
-	} else {
-		memmove(&array->data[index + 1], &array->data[index],
-			(array->count - index) * sizeof(policy));
-	}
-	array->data[index] = ref;
-	array->count++;
-	return TRUE;
-}
-
-ni_bool_t
-ni_fsm_policy_array_delete(ni_fsm_policy_array_t *array, unsigned int index)
-{
-	ni_fsm_policy_t *policy;
-
-	policy = ni_fsm_policy_array_remove(array, index);
-	if (policy) {
-		ni_fsm_policy_free(policy);
-		return TRUE;
-	}
-	return FALSE;
-}
-
-ni_fsm_policy_t *
-ni_fsm_policy_array_remove(ni_fsm_policy_array_t *array, unsigned int index)
-{
-	ni_fsm_policy_t *policy;
-
-	if (!array || index >= array->count)
-		return NULL;
-
-	policy = array->data[index];
-	array->count--;
-	if (index < array->count) {
-		memmove(&array->data[index], &array->data[index + 1],
-			(array->count - index) * sizeof(policy));
-	}
-	array->data[array->count] = NULL;
-	return policy;
-}
-
-ni_fsm_policy_t *
-ni_fsm_policy_array_get(ni_fsm_policy_array_t *array, unsigned int index)
-{
-	if (!array || index >= array->count)
-		return NULL;
-
-	return array->data[index];
-}
-
-ni_fsm_policy_t *
-ni_fsm_policy_array_ref(ni_fsm_policy_array_t *array, unsigned int index)
-{
-	return ni_fsm_policy_ref(ni_fsm_policy_array_get(array, index));
-}
-
-unsigned int
-ni_fsm_policy_array_index(const ni_fsm_policy_array_t *array, const ni_fsm_policy_t *policy)
-{
-	unsigned int i;
-
-	if (!array || !policy)
-		return -1U;
-
-	for (i = 0; i < array->count; ++i) {
-		if (array->data[i] == policy)
-			return i;
-	}
-	return -1U;
-}
