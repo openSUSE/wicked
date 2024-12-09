@@ -1726,8 +1726,6 @@ ni_ifworker_control_free(ni_ifworker_control_t *control)
 ni_bool_t
 ni_ifworker_control_set_usercontrol(ni_ifworker_t *w, ni_bool_t value)
 {
-	unsigned int i;
-
 	if (!w || w->failed)
 		return FALSE;
 
@@ -1747,11 +1745,6 @@ ni_ifworker_control_set_usercontrol(ni_ifworker_t *w, ni_bool_t value)
 	}
 
 	w->control.usercontrol = value;
-	for (i = 0; i < w->children.count; i++) {
-		ni_ifworker_t *child = w->children.data[i];
-		if (!ni_ifworker_control_set_usercontrol(child, value))
-			return FALSE;
-	}
 
 	return TRUE;
 }
@@ -1762,8 +1755,6 @@ ni_ifworker_control_set_usercontrol(ni_ifworker_t *w, ni_bool_t value)
 ni_bool_t
 ni_ifworker_control_set_persistent(ni_ifworker_t *w, ni_bool_t value)
 {
-	unsigned int i;
-
 	if (!w || w->failed)
 		return FALSE;
 
@@ -1785,13 +1776,6 @@ ni_ifworker_control_set_persistent(ni_ifworker_t *w, ni_bool_t value)
 
 	/* When persistent is set disallow user control */
 	ni_ifworker_control_set_usercontrol(w, FALSE);
-
-	/* Set persistent and usercontrol in each child worker */
-	for (i = 0; i < w->children.count; i++) {
-		ni_ifworker_t *child = w->children.data[i];
-		if (!ni_ifworker_control_set_persistent(child, TRUE))
-			return FALSE;
-	}
 
 	return TRUE;
 }
@@ -1848,6 +1832,119 @@ ni_ifworker_control_from_xml(ni_ifworker_t *w, xml_node_t *ctrlnode)
 			if (ni_string_eq(np->cdata, "false"))
 				 ni_tristate_set(&control->link_required, FALSE);
 		}
+	}
+}
+
+static void
+ni_fsm_recurse_worker_control_set_persistent(ni_fsm_t *fsm, ni_ifworker_t *w,
+		ni_ifworker_array_t *guard)
+{
+	ni_ifworker_t *o;
+	unsigned int i;
+
+	if (ni_ifworker_array_index(guard, w) != -1U)
+		return;
+
+	ni_ifworker_array_append_ref(guard, w);
+
+	for (i = 0; i < fsm->workers.count; ++i) {
+		if ((o = fsm->workers.data[i]) == w)
+			continue;
+
+		/*
+		 * If w is marked persistent to prevent it's ifdown and
+		 * keep it up-and-running while system shutdown, e.g.
+		 * because remote-fs (remote root) is using it.
+		 *
+		 * Mark it's dependencies persistent as well:
+		 * - lower device  (w is e.g. vlan on top of lower eth)
+		 * - master device (w is e.g. bridge port)
+		 * - port devices  (w is e.g. bridge)
+		 * to not either break the connectivity of w or even
+		 * trigger to delete w completely.
+		 */
+		if (w->lowerdev != o && w->masterdev != o && o->masterdev != w)
+			continue;
+
+		ni_fsm_recurse_worker_control_set_persistent(fsm, o, guard);
+	}
+
+	if (!w->control.persistent)
+		ni_ifworker_control_set_persistent(w, TRUE);
+
+	ni_ifworker_array_delete(guard, w);
+}
+
+static void
+ni_fsm_inherit_worker_control_set_persistent(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	ni_ifworker_array_t guard = NI_IFWORKER_ARRAY_INIT;
+
+	ni_fsm_recurse_worker_control_set_persistent(fsm, w, &guard);
+
+	ni_ifworker_array_destroy(&guard);
+}
+
+static void
+ni_fsm_recurse_worker_control_set_usercontrol(ni_fsm_t *fsm, ni_ifworker_t *w,
+		ni_ifworker_array_t *guard)
+{
+	ni_ifworker_t *o;
+	unsigned int i;
+
+	if (ni_ifworker_array_index(guard, w) != -1U)
+		return;
+
+	ni_ifworker_array_append_ref(guard, w);
+
+	for (i = 0; i < fsm->workers.count; ++i) {
+		if ((o = fsm->workers.data[i]) == w)
+			continue;
+
+		if (w->masterdev != o && o->masterdev != w)
+			continue;
+
+		ni_fsm_recurse_worker_control_set_usercontrol(fsm, o, guard);
+	}
+
+	if (!w->control.usercontrol && !w->control.persistent)
+		ni_ifworker_control_set_usercontrol(w, TRUE);
+
+	ni_ifworker_array_delete(guard, w);
+}
+
+static void
+ni_fsm_inherit_worker_control_set_usercontrol(ni_fsm_t *fsm, ni_ifworker_t *w)
+{
+	ni_ifworker_array_t guard = NI_IFWORKER_ARRAY_INIT;
+
+	ni_fsm_recurse_worker_control_set_usercontrol(fsm, w, &guard);
+
+	ni_ifworker_array_destroy(&guard);
+}
+
+static void
+ni_fsm_inherit_worker_control(ni_fsm_t *fsm)
+{
+
+	ni_ifworker_t *w;
+	unsigned int i;
+
+	for (i = 0; i < fsm->workers.count; ++i) {
+		w = fsm->workers.data[i];
+
+		if (!w->control.persistent)
+			continue;
+
+		ni_fsm_inherit_worker_control_set_persistent(fsm, w);
+	}
+	for (i = 0; i < fsm->workers.count; ++i) {
+		w = fsm->workers.data[i];
+
+		if (!w->control.usercontrol)
+			continue;
+
+		ni_fsm_inherit_worker_control_set_usercontrol(fsm, w);
 	}
 }
 
@@ -3649,7 +3746,7 @@ ni_fsm_mark_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked, const n
 		w->target_range = marker->target_range;
 
 		if (marker->persistent)
-			ni_ifworker_control_set_persistent(w, TRUE);
+			ni_fsm_inherit_worker_control_set_persistent(fsm, w);
 	}
 
 	count = ni_fsm_start_matching_workers(fsm, marked);
@@ -4643,6 +4740,8 @@ ni_fsm_build_hierarchy(ni_fsm_t *fsm, ni_bool_t destructive)
 	}
 
 	ni_ifworkers_break_loops(fsm);
+	ni_fsm_inherit_worker_control(fsm);
+
 	ni_fsm_events_unblock(fsm);
 
 	return NI_SUCCESS;
