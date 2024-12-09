@@ -3582,7 +3582,7 @@ ni_ifworker_references_ok(const ni_ifworker_array_t *guard, ni_ifworker_t *w)
 }
 
 static ni_bool_t
-ni_ifworker_break_loops(ni_ifworker_array_t *guard, ni_ifworker_t *w, unsigned int lvl)
+ni_ifworker_break_loops(ni_fsm_t * fsm, ni_ifworker_array_t *guard, ni_ifworker_t *w, unsigned int lvl)
 {
 	unsigned int i;
 
@@ -3602,10 +3602,13 @@ ni_ifworker_break_loops(ni_ifworker_array_t *guard, ni_ifworker_t *w, unsigned i
 		return FALSE;
 	ni_ifworker_array_append_ref(guard, w);
 
-	for (i = 0; i < w->children.count; i++) {
-		ni_ifworker_t *c = w->children.data[i];
+	for (i = 0; i < fsm->workers.count; i++) {
+		ni_ifworker_t *c = fsm->workers.data[i];
 
-		if (!ni_ifworker_break_loops(guard, c, lvl + 4)) {
+		if (w->lowerdev != c && c->masterdev != w)
+			continue;
+
+		if (!ni_ifworker_break_loops(fsm, guard, c, lvl + 4)) {
 			ni_ifworker_array_delete(&w->children, c);
 			return FALSE;
 		}
@@ -3623,7 +3626,7 @@ ni_ifworkers_break_loops(ni_fsm_t *fsm)
 
 	for (i = 0; i < fsm->workers.count; ++i) {
 		w = fsm->workers.data[i];
-		ni_ifworker_break_loops(&guard, w, 0);
+		ni_ifworker_break_loops(fsm, &guard, w, 0);
 		ni_ifworker_array_destroy(&guard);
 	}
 	return TRUE;
