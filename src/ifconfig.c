@@ -23,6 +23,7 @@
 #include <wicked/vlan.h>
 #include <wicked/vxlan.h>
 #include <wicked/macvlan.h>
+#include <wicked/ipvlan.h>
 #include <wicked/system.h>
 #include <wicked/wireless.h>
 #include <wicked/infiniband.h>
@@ -1183,6 +1184,64 @@ ni_system_macvlan_delete(ni_netdev_t *dev)
 {
 	if (__ni_rtnl_link_delete(dev)) {
 		ni_error("could not destroy macvlan interface %s", dev->name);
+		return -1;
+	}
+	return 0;
+}
+
+/*
+ * Create a ipvlan interface
+ */
+int
+ni_system_ipvlan_create(ni_netconfig_t *nc, const ni_netdev_t *cfg,
+						ni_netdev_t **dev_ret)
+{
+	ni_netdev_t *dev;
+
+	if (!nc || !dev_ret || !cfg || !cfg->name || !cfg->ipvlan ||
+		!cfg->link.lowerdev.name || !cfg->link.lowerdev.index)
+		return -1;
+
+	*dev_ret = NULL;
+
+	dev = ni_netdev_by_name(nc, cfg->name);
+	if (dev != NULL) {
+		const char *dev_iftype = ni_linktype_type_to_name(dev->link.type);
+		/* This is not necessarily an error */
+		if (dev->link.type == cfg->link.type) {
+			ni_debug_ifconfig("A %s interface %s already exists",
+					dev_iftype, dev->name);
+			*dev_ret = dev;
+		} else {
+			ni_error("A %s interface with the name %s already exists",
+				dev_iftype, dev->name);
+		}
+		return -NI_ERROR_DEVICE_EXISTS;
+	}
+
+	if (__ni_rtnl_link_create(nc, cfg)) {
+		ni_error("unable to create %s interface %s",
+			ni_linktype_type_to_name(cfg->link.type), cfg->name);
+		return -1;
+	}
+
+	return __ni_system_netdev_create(nc, cfg->name, 0, cfg->link.type, dev_ret);
+}
+
+int
+ni_system_ipvlan_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *cfg)
+{
+	return __ni_rtnl_link_change(nc, dev, cfg);
+}
+
+/*
+ * Delete a ipvlan interface
+ */
+int
+ni_system_ipvlan_delete(ni_netdev_t *dev)
+{
+	if (__ni_rtnl_link_delete(dev)) {
+		ni_error("could not destroy ipvlan interface %s", dev->name);
 		return -1;
 	}
 	return 0;

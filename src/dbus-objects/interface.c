@@ -111,6 +111,8 @@ ni_objectmodel_register_netif_services(void)
 	ni_objectmodel_register_netif_service(NI_IFTYPE_VXLAN, &ni_objectmodel_vxlan_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_MACVLAN, &ni_objectmodel_macvlan_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_MACVTAP, &ni_objectmodel_macvtap_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_IPVLAN, &ni_objectmodel_ipvlan_service);
+	ni_objectmodel_register_netif_service(NI_IFTYPE_IPVTAP, &ni_objectmodel_ipvtap_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_DUMMY, &ni_objectmodel_dummy_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_BOND, &ni_objectmodel_bond_service);
 	ni_objectmodel_register_netif_service(NI_IFTYPE_TEAM, &ni_objectmodel_team_service);
@@ -135,6 +137,8 @@ ni_objectmodel_register_netif_services(void)
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_vxlan_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_macvlan_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_macvtap_factory_service);
+	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_ipvlan_factory_service);
+	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_ipvtap_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_dummy_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_tun_factory_service);
 	ni_objectmodel_register_netif_factory_service(&ni_objectmodel_tap_factory_service);
