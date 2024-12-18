@@ -1391,8 +1391,11 @@ ni_fsm_policy_match_and_children_check(const ni_ifcondition_t *cond, const ni_fs
 	unsigned int i;
 	ni_bool_t rv = FALSE;
 
-	for (i = 0; i < w->children.count; i++) {
-		ni_ifworker_t *child = w->children.data[i];
+	for (i = 0; i < fsm->workers.count; i++) {
+		ni_ifworker_t *child = fsm->workers.data[i];
+
+		if (w->lowerdev != child && child->masterdev != w)
+			continue;
 
 		if (ni_ifworker_is_device_created(child)) {
 			if (!ni_netdev_device_is_ready(child->device))

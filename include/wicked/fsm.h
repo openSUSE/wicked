@@ -212,8 +212,6 @@ struct ni_ifworker {
 
 	ni_ifworker_t *		masterdev;
 	ni_ifworker_t * 	lowerdev;
-
-	ni_ifworker_array_t	children;
 };
 
 /*
@@ -339,6 +337,7 @@ extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, n
 extern unsigned int		ni_fsm_mark_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_ifmarker_t *);
 extern unsigned int		ni_fsm_start_matching_workers(ni_fsm_t *, ni_ifworker_array_t *);
 extern void			ni_fsm_reset_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_uint_range_t *, ni_bool_t);
+extern void			ni_fsm_reset_worker(ni_fsm_t *, ni_ifworker_t *);
 extern void			ni_fsm_print_config_hierarchy(const ni_fsm_t *,
 						const ni_ifworker_array_t *, ni_log_fn_t *);
 extern void			ni_fsm_print_system_hierarchy(const ni_fsm_t *,
