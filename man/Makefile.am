@@ -47,6 +47,7 @@ generated_in_man		= \
 generated_md_man		= \
 	ifcfg-bonding.5		\
 	ifcfg-dummy.5		\
+	ifcfg-ipvlan.5		\
 	ifcfg-ipoib.5		\
 	ifcfg-team.5		\
 	ifcfg-wireless.5	\
