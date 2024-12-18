@@ -75,6 +75,7 @@ libwicked_la_SOURCES		= \
 	infiniband.c		\
 	ipv4.c			\
 	ipv6.c			\
+	ipvlan.c		\
 	json.c			\
 	kernel.c		\
 	leasefile.c		\
