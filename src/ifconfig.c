@@ -3195,6 +3195,40 @@ nla_put_failure:
 }
 
 static int
+__ni_rtnl_link_put_ipvlan(struct nl_msg *msg, const ni_netdev_t *cfg)
+{
+	struct nlattr *linkinfo;
+	struct nlattr *infodata;
+	ni_ipvlan_t *ipvlan = NULL;
+
+	if (!(ipvlan = cfg->ipvlan))
+		goto nla_put_failure;
+
+	if (!(linkinfo = nla_nest_start(msg, IFLA_LINKINFO)))
+		goto nla_put_failure;
+
+	NLA_PUT_STRING(msg, IFLA_INFO_KIND, ni_linktype_type_to_name(cfg->link.type));
+
+	if (!(infodata = nla_nest_start(msg, IFLA_INFO_DATA)))
+		goto nla_put_failure;
+
+	NLA_PUT_U16(msg, IFLA_IPVLAN_MODE, ipvlan->mode);
+	NLA_PUT_U16(msg, IFLA_IPVLAN_FLAGS, ipvlan->flags);
+
+	nla_nest_end(msg, infodata);
+	nla_nest_end(msg, linkinfo);
+
+	/* note, ifla_link must be outside of ifla_linkinfo */
+	NLA_PUT_U32(msg, IFLA_LINK, cfg->link.lowerdev.index);
+
+	return 0;
+
+nla_put_failure:
+	return -1;
+}
+
+
+static int
 __ni_rtnl_link_put_dummy(struct nl_msg *msg, const ni_netdev_t *cfg)
 {
 	struct nlattr *linkinfo;
@@ -3460,6 +3494,13 @@ __ni_rtnl_link_create(ni_netconfig_t *nc, const ni_netdev_t *cfg)
 
 		break;
 
+	case NI_IFTYPE_IPVLAN:
+	case NI_IFTYPE_IPVTAP:
+		if (__ni_rtnl_link_put_ipvlan(msg, cfg) < 0)
+			goto nla_put_failure;
+
+		break;
+
 	case NI_IFTYPE_DUMMY:
 		if (__ni_rtnl_link_put_dummy(msg, cfg) < 0)
 			goto nla_put_failure;
@@ -3556,6 +3597,12 @@ __ni_rtnl_link_change(ni_netconfig_t *nc, ni_netdev_t *dev, const ni_netdev_t *c
 	case NI_IFTYPE_MACVLAN:
 	case NI_IFTYPE_MACVTAP:
 		if (__ni_rtnl_link_put_macvlan(msg, cfg) < 0)
+			goto nla_put_failure;
+		break;
+
+	case NI_IFTYPE_IPVLAN:
+	case NI_IFTYPE_IPVTAP:
+		if (__ni_rtnl_link_put_ipvlan(msg, cfg) < 0)
 			goto nla_put_failure;
 		break;
 
