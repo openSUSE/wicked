@@ -347,6 +347,7 @@ fi
 %_mandir/man5/ifcfg-infiniband.5*
 %_mandir/man5/ifcfg-ipoib.5*
 %_mandir/man5/ifcfg-ipvlan.5*
+%_mandir/man5/ifcfg-ipvtap.5*
 %_mandir/man5/ifcfg-macvlan.5*
 %_mandir/man5/ifcfg-macvtap.5*
 %_mandir/man5/ifcfg-ppp.5*
