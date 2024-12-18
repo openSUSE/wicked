@@ -125,6 +125,8 @@ ifreload_mark_worker_down(ni_fsm_t *fsm, ni_ifworker_array_t *down_marked, ni_if
 	case NI_IFTYPE_PPP:
 	case NI_IFTYPE_TEAM:
 	case NI_IFTYPE_VLAN:
+	case NI_IFTYPE_IPVLAN:
+	case NI_IFTYPE_IPVTAP:
 		/*
 		 * - ppp,team config file changes require service restart
 		 * - vlan id changed
