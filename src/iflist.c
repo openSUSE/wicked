@@ -18,6 +18,7 @@
 #include <wicked/vlan.h>
 #include <wicked/vxlan.h>
 #include <wicked/macvlan.h>
+#include <wicked/ipvlan.h>
 #include <wicked/wireless.h>
 #include <wicked/infiniband.h>
 #include <wicked/ppp.h>
@@ -75,6 +76,7 @@ static int		__ni_discover_sit(ni_netdev_t *, struct nlattr **, struct nlattr**);
 static int		__ni_discover_ipip(ni_netdev_t *, struct nlattr **, struct nlattr**);
 static int		__ni_discover_gre(ni_netdev_t *, struct nlattr **, struct nlattr**);
 static int		ni_discover_vxlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
+static int		ni_discover_ipvlan(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 
 struct ni_rtnl_info {
 	struct ni_nlmsg_list	nlmsg_list;
@@ -1968,6 +1970,11 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 		__ni_discover_macvlan(dev, tb, nc);
 		break;
 
+	case NI_IFTYPE_IPVLAN:
+	case NI_IFTYPE_IPVTAP:
+		ni_discover_ipvlan(dev, tb, nc);
+		break;
+
 	case NI_IFTYPE_PPP:
 		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
 			break;
@@ -2403,6 +2410,80 @@ __ni_discover_macvlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
 	if (info_data[IFLA_MACVLAN_FLAGS])
 		macvlan->flags = nla_get_u16(info_data[IFLA_MACVLAN_FLAGS]);
 
+	return 0;
+}
+
+int
+ni_discover_ipvlan(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
+{
+	struct nla_policy info_policy[IFLA_INFO_MAX + 1] = {
+		[IFLA_INFO_KIND]        = { .type = NLA_STRING  },
+		[IFLA_INFO_DATA]        = { .type = NLA_NESTED  },
+	};
+	struct nla_policy ipvlan_policy[IFLA_IPVLAN_MAX + 1] = {
+		[IFLA_IPVLAN_MODE]      = { .type = NLA_U16  },
+		[IFLA_IPVLAN_FLAGS]     = { .type = NLA_U16  },
+	};
+#define map_attr(attr)  [attr] = #attr
+	static const char * ipvlan_attr_names[IFLA_IPVLAN_MAX + 1] = {
+		map_attr(IFLA_IPVLAN_MODE),
+		map_attr(IFLA_IPVLAN_FLAGS),
+	};
+	struct nlattr *info[IFLA_INFO_MAX+1];
+	struct nlattr *data[IFLA_IPVLAN_MAX+1];
+	struct nlattr *aptr;
+	unsigned int attr;
+	ni_ipvlan_t *ipvlan;
+	const char *name;
+	const char *type_kind;
+
+	type_kind = ni_linkinfo_type_to_kind(dev->link.type);
+
+	if (!nc || !dev || !tb || !tb[IFLA_LINKINFO])
+		return -1;
+
+	if (!(ipvlan = ni_netdev_get_ipvlan(dev))) {
+		ni_error("%s: Unable to allocate %s interface structure", dev->name, type_kind);
+		return -1;
+	}
+
+	if (nla_parse_nested(info, IFLA_INFO_MAX, tb[IFLA_LINKINFO], info_policy) < 0 ||
+	    !info[IFLA_INFO_KIND] ||
+	    !ni_string_eq(type_kind, nla_get_string(info[IFLA_INFO_KIND]))) {
+		ni_error("%s: Unable to parse %s IFLA_LINKINFO newlink attribute",
+			  dev->name, type_kind);
+		return -1;
+	}
+
+	if (!info[IFLA_INFO_DATA] ||
+	    nla_parse_nested(data, IFLA_IPVLAN_MAX, info[IFLA_INFO_DATA], ipvlan_policy) < 0) {
+		ni_error("%s: Unable to parse %s info data newlink attribute",
+			  dev->name, type_kind);
+		return -1;
+	}
+
+	for (attr = IFLA_IPVLAN_MODE; attr <= IFLA_IPVLAN_MAX; ++attr) {
+		if (!(aptr = data[attr]))
+			continue;
+
+		name = ipvlan_attr_names[attr];
+		switch (attr) {
+		case IFLA_IPVLAN_MODE:
+			ipvlan->mode = nla_get_u16(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+				"%s: get attr %s=%hu", dev->name, name, ipvlan->mode);
+			break;
+		case IFLA_IPVLAN_FLAGS:
+			ipvlan->flags = nla_get_u16(aptr);
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EVENTS,
+				"%s: get attr %s=%hu", dev->name, name, ipvlan->mode);
+			break;
+		default:
+			ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EVENTS,
+				"%s: get attr #%u (unknown)", dev->name, attr);
+			break;
+		}
+	}
 	return 0;
 }
 
