@@ -45,6 +45,7 @@
 #include <wicked/bonding.h>
 #include <wicked/bridge.h>
 #include <wicked/vlan.h>
+#include <wicked/ipvlan.h>
 #include <wicked/fsm.h>
 #include <wicked/wireless.h>
 
@@ -449,6 +450,18 @@ ni_ifstatus_show_iftype(const ni_netdev_t *dev, ni_bool_t verbose)
 			if (dev->vlan->protocol != NI_VLAN_PROTOCOL_8021Q)
 				printf(", protocol %s",
 					ni_vlan_protocol_to_name(dev->vlan->protocol));
+		}
+		break;
+
+	case NI_IFTYPE_IPVLAN:
+	case NI_IFTYPE_IPVTAP:
+		if (dev->ipvlan) {
+			ni_stringbuf_t tmp = NI_STRINGBUF_INIT_DYNAMIC;
+
+			printf(" %s, mode %s %s", dev->link.lowerdev.name,
+				ni_ipvlan_mode_to_name(dev->ipvlan->mode),
+				ni_ipvlan_format_flags(dev->ipvlan->flags, &tmp) ?: "bridge");
+			ni_stringbuf_destroy(&tmp);
 		}
 		break;
 
