@@ -46,6 +46,7 @@
 #include <wicked/vlan.h>
 #include <wicked/vxlan.h>
 #include <wicked/macvlan.h>
+#include <wicked/ipvlan.h>
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
 #include <wicked/ipv4.h>
@@ -3756,6 +3757,107 @@ try_macvlan(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 	return 0;
 }
 
+typedef struct ni_ipvlantap_vars {
+	ni_iftype_t	type;
+	const char *	name;
+	const char *	device;
+	const char *	mode;
+	const char *	flags;
+} ni_ipvlantab_vars_t;
+
+static int
+try_ipvlantap(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg, const ni_ipvlantab_vars_t *vars)
+{
+	const ni_sysconfig_t *sc = ifcfg->config;
+	ni_netdev_t *dev = ifcfg->compat->dev;
+	ni_ipvlan_t *ipvlan = NULL;
+	ni_bool_t enabled;
+	unsigned int tmp;
+	const char *value = NULL;
+
+	if (!vars || vars->type == NI_IFTYPE_UNKNOWN)
+		return 1;
+
+	if (!ni_sysconfig_get_boolean(sc, vars->name, &enabled) || !enabled)
+		return 1;
+
+	if (dev->link.type != NI_IFTYPE_UNKNOWN) {
+		ni_error("ifcfg-%s: %s config contains %s variables",
+				dev->name, ni_linktype_type_to_name(dev->link.type),
+				ni_linktype_type_to_name(vars->type));
+		return -1;
+	}
+
+	dev->link.type = vars->type;
+	if (!(ipvlan = ni_netdev_get_ipvlan(dev))) {
+		ni_error("ifcfg-%s: failed to get device specific data. Not a %s device.",
+				dev->name, ni_linktype_type_to_name(dev->link.type));
+		return -1;
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, vars->device))) {
+		if (!ni_suse_ifcfg_add_lower(ifcfgs, ifcfg, value, vars->device))
+			return -1;
+
+		ni_string_dup(&dev->link.lowerdev.name, value);
+	} else {
+		ni_error("ifcfg-%s: Missing mandatory setting %s", dev->name, vars->device);
+		return -1;
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, vars->mode)) != NULL) {
+		if (!ni_ipvlan_name_to_mode(value, &tmp)) {
+			ni_error("ifcfg-%s: Unsupported %s=\"%s\"",
+					dev->name, vars->mode, value);
+			return -1;
+		}
+
+		ipvlan->mode = tmp;
+	}
+
+	if ((value = ni_sysconfig_get_value(sc, vars->flags))) {
+		if (!ni_ipvlan_parse_flags(value, &tmp) || !ni_ipvlan_valid_flags(tmp)) {
+			ni_error("ifcfg-%s: Unsupported %s=\"%s\"",
+					dev->name, vars->flags, value);
+			return -1;
+		}
+
+		ipvlan->flags = tmp;
+	}
+
+	if ((value = ni_ipvlan_validate(ipvlan))) {
+		ni_error("ifcfg-%s: %s", dev->name, value);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int
+try_ipvlan(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
+{
+	static const ni_ipvlantab_vars_t vars = {
+		.type	= NI_IFTYPE_IPVLAN,
+		.name	= "IPVLAN",
+		.device	= "IPVLAN_DEVICE",
+		.mode	= "IPVLAN_MODE",
+		.flags	= "IPVLAN_FLAGS",
+	};
+	return try_ipvlantap(ifcfgs, ifcfg, &vars);
+}
+
+static int
+try_ipvtap(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
+{
+	static const ni_ipvlantab_vars_t vars = {
+		.type	= NI_IFTYPE_IPVTAP,
+		.name	= "IPVTAP",
+		.device	= "IPVTAP_DEVICE",
+		.mode	= "IPVTAP_MODE",
+		.flags	= "IPVTAP_FLAGS",
+	};
+	return try_ipvlantap(ifcfgs, ifcfg, &vars);
+}
 
 static ni_bool_t
 maybe_dummy(const char *ifname)
@@ -6734,6 +6836,8 @@ ni_suse_ifcfg_parse_iftypes(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcf
 	    try_vlan(ifcfgs, ifcfg)       < 0 ||
 	    try_vxlan(ifcfgs, ifcfg)      < 0 ||
 	    try_macvlan(ifcfgs, ifcfg)    < 0 ||
+	    try_ipvlan(ifcfgs, ifcfg)     < 0 ||
+	    try_ipvtap(ifcfgs, ifcfg)     < 0 ||
 	    try_tunnel(ifcfgs, ifcfg)     < 0 ||
 	    try_ppp(ifcfgs, ifcfg)        < 0 ||
 	    try_wireless(ifcfgs, ifcfg)   < 0 ||
