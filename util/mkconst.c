@@ -28,6 +28,7 @@
 #include <wicked/infiniband.h>
 #include <wicked/tunneling.h>
 #include <wicked/macvlan.h>
+#include <wicked/ipvlan.h>
 #include <wicked/vlan.h>
 #include <wicked/lldp.h>
 
@@ -96,6 +97,8 @@ static struct generic_map	generic_maps[] = {
 	MAP(LLDP_SYSTEM_CAPABILITY, ni_lldp_system_capability_type_to_name),
 	MAP(MACVLAN_MODE, ni_macvlan_mode_to_name),
 	MAP(MACVLAN_FLAG, ni_macvlan_flag_bit_name),
+	MAP(IPVLAN_MODE, ni_ipvlan_mode_to_name),
+	GETMAP(IPVLAN_FLAG, ni_ipvlan_flags_bitmap),
 	MAP(TEAM_TX_HASH_BIT, ni_team_tx_hash_bit_to_name),
 	MAP(TEAM_TX_BALANCER, ni_team_tx_balancer_type_to_name),
 	MAP(TEAM_AB_HWADDR_POLICY, ni_team_ab_hwaddr_policy_type_to_name),
