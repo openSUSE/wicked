@@ -1921,6 +1921,20 @@ ni_ifconfig_migrate_macvtap_node(xml_document_array_t *docs,
 }
 
 static ni_bool_t
+ni_ifconfig_migrate_ipvlan_node(xml_document_array_t *docs,
+		xml_node_t *config, xml_node_t *migrate)
+{
+	return ni_ifxml_migrate_lower_device(docs, config, migrate, "device", migrate->name);
+}
+
+static ni_bool_t
+ni_ifconfig_migrate_ipvtap_node(xml_document_array_t *docs,
+		xml_node_t *config, xml_node_t *migrate)
+{
+	return ni_ifxml_migrate_lower_device(docs, config, migrate, "device", migrate->name);
+}
+
+static ni_bool_t
 ni_ifconfig_migrate_vxlan_node(xml_document_array_t *docs,
 		xml_node_t *config, xml_node_t *migrate)
 {
@@ -2077,6 +2091,8 @@ ni_ifxml_migrate_nodes(xml_document_array_t *docs)
 		{ "infiniband-child",	ni_ifconfig_migrate_ibchild_node	},
 		{ "macvlan",		ni_ifconfig_migrate_macvlan_node	},
 		{ "macvtap",		ni_ifconfig_migrate_macvtap_node	},
+		{ "ipvlan",		ni_ifconfig_migrate_ipvlan_node		},
+		{ "ipvtap",		ni_ifconfig_migrate_ipvtap_node		},
 		{ "vxlan",		ni_ifconfig_migrate_vxlan_node		},
 		{ "vlan",		ni_ifconfig_migrate_vlan_node		},
 		{ "ipip",		ni_ifconfig_migrate_ipip_node		},
