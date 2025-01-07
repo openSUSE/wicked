@@ -1,6 +1,6 @@
 % IFCFG-WIRELESS(5) Wicked User Manual
 % Joachim Gleissner -- original wireless man page, Pawel Wieczorkiewicz, Clemens Famulla-Conrad
-% Jun 15, 2022
+% Jan 7, 2025
 
 # NAME
 ifcfg-wireless - wireless LAN network interface configuration
@@ -134,7 +134,7 @@ global to the interface. The description of the variable points this out.
     Examples:
 ```
     WIRELESS_KEY_0="01020304ff"
-    WIRELESS_KEY_0-"s:hello"
+    WIRELESS_KEY_0="s:hello"
 ```
 
 `WIRELESS_DEFAULT_KEY <num>`
@@ -326,6 +326,7 @@ Some examples of different configuration types supported at the moment:
     WIRELESS_EAP_MODE='TLS'
     WIRELESS_WPA_IDENTITY='bob'
     WIRELESS_CLIENT_CERT='/path/to/my/client.crt'
+    WIRELESS_CLIENT_KEY='/path/to/my/client.key'
     WIRELESS_CA_CERT='/path/to/my/ca_cert.pem'
 ```
 
