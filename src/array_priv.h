@@ -128,17 +128,19 @@
 	ni_bool_t									\
 	prefix##_array_delete_at(prefix##_array_t *arr, unsigned int idx)		\
 	{										\
+		prefix##_t *ent;							\
+											\
 		if (!arr || idx >= arr->count)						\
 			return FALSE;							\
 											\
-		prefix##_free(arr->data[idx]);						\
-											\
+		ent = arr->data[idx];							\
 		arr->count--;								\
 		if (idx < arr->count) {							\
 			memmove(&arr->data[idx], &arr->data[idx + 1],			\
 				(arr->count - idx) * sizeof(*arr->data));		\
 		}									\
 		arr->data[arr->count] = NULL;						\
+		prefix##_free(ent);							\
 											\
 		return TRUE;								\
 	}
