@@ -39,7 +39,10 @@
 	typedef int (*prefix##_array_cmp_fn)(const prefix##_t *, const prefix##_t *)
 
 #define			ni_declare_ptr_array_init(prefix)				\
-	void		prefix##_array_init(prefix##_array_t *)
+	ni_bool_t	prefix##_array_init(prefix##_array_t *)
+
+#define			ni_declare_ptr_array_move(prefix)				\
+	ni_bool_t	prefix##_array_move(prefix##_array_t *, prefix##_array_t *)
 
 #define			ni_declare_ptr_array_destroy(prefix)				\
 	void		prefix##_array_destroy(prefix##_array_t *)

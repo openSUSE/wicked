@@ -28,11 +28,26 @@
 #include <stdlib.h>
 
 #define			ni_define_ptr_array_init(prefix)				\
-	void										\
+	ni_bool_t									\
 	prefix##_array_init(prefix##_array_t *arr)					\
 	{										\
-		if (arr)								\
+		if (arr) {								\
 			memset(arr, 0, sizeof(*arr));					\
+			return TRUE;							\
+		}									\
+		return FALSE;								\
+	}
+
+#define			ni_define_ptr_array_move(prefix)				\
+	ni_bool_t									\
+	prefix##_array_move(prefix##_array_t *dst, prefix##_array_t *src)		\
+	{										\
+		if (dst && src) {							\
+			prefix##_array_destroy(dst);					\
+			*dst = *src;							\
+			return prefix##_array_init(src);				\
+		}									\
+		return FALSE;								\
 	}
 
 #define			ni_define_ptr_array_destroy(prefix)				\
