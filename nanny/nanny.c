@@ -284,7 +284,7 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 				/* Re-enable scanning */
 				ni_debug_nanny("%s: radio re-enabled, resume monitoring", w->name);
 				if (mdev->monitor)
-					ni_managed_netdev_enable(mdev);
+					ni_managed_netif_enable(mdev);
 			}
 		}
 	}
@@ -482,7 +482,7 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 		return;
 
 	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
-		if ((mdev->object = ni_objectmodel_register_managed_netdev(mgr->server, mdev)))
+		if ((mdev->object = ni_objectmodel_register_managed_netif(mgr->server, mdev)))
 			dev_class = ni_objectmodel_link_class(w->device->link.type);
 	} else
 	if (w->type == NI_IFWORKER_TYPE_MODEM) {

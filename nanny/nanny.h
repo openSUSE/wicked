@@ -111,11 +111,11 @@ struct ni_nanny {
 	ni_nanny_devmatch_t *	enable;
 };
 
-extern ni_dbus_class_t		ni_objectmodel_managed_netdev_class;
+extern ni_dbus_class_t		ni_objectmodel_managed_netif_class;
 extern ni_dbus_class_t		ni_objectmodel_managed_modem_class;
 extern ni_dbus_class_t		ni_objectmodel_managed_policy_class;
 extern ni_dbus_class_t		ni_objectmodel_nanny_class;
-extern ni_dbus_service_t	ni_objectmodel_managed_netdev_service;
+extern ni_dbus_service_t	ni_objectmodel_managed_netif_service;
 extern ni_dbus_service_t	ni_objectmodel_managed_modem_service;
 extern ni_dbus_service_t	ni_objectmodel_managed_policy_service;
 extern ni_dbus_service_t	ni_objectmodel_nanny_service;
@@ -148,9 +148,9 @@ extern void			ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_b
 extern int			ni_nanny_create_policy(ni_dbus_object_t **, ni_nanny_t *, xml_document_t *, const uid_t *, ni_bool_t);
 extern ni_bool_t		ni_nanny_policy_drop(const char *);
 
-extern ni_bool_t		ni_managed_netdev_enable(ni_managed_device_t *);
-extern void			ni_managed_netdev_apply_policy(ni_managed_device_t *, ni_managed_policy_t *, ni_fsm_t *);
-extern void			ni_managed_netdev_up(ni_managed_device_t *, unsigned int);
+extern ni_bool_t		ni_managed_netif_enable(ni_managed_device_t *);
+extern void			ni_managed_netif_apply_policy(ni_managed_device_t *, ni_managed_policy_t *, ni_fsm_t *);
+extern void			ni_managed_netif_up(ni_managed_device_t *, unsigned int);
 
 extern void			ni_managed_modem_apply_policy(ni_managed_device_t *, ni_managed_policy_t *, ni_fsm_t *);
 extern void			ni_managed_modem_up(ni_managed_device_t *, unsigned int);
@@ -173,7 +173,7 @@ extern uid_t			ni_managed_policy_owner(const ni_managed_policy_t *);
 
 extern const char *		ni_managed_state_to_string(ni_managed_state_t);
 
-extern ni_dbus_object_t *	ni_objectmodel_register_managed_netdev(ni_dbus_server_t *, ni_managed_device_t *);
+extern ni_dbus_object_t *	ni_objectmodel_register_managed_netif(ni_dbus_server_t *, ni_managed_device_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_modem(ni_dbus_server_t *, ni_managed_device_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_policy(ni_dbus_server_t *, ni_managed_policy_t *);
 extern ni_bool_t		ni_objectmodel_managed_policy_save(ni_dbus_object_t *);
