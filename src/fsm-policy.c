@@ -275,8 +275,7 @@ ni_fsm_policy_uuid_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 				xml_node_location(node),
 				NI_NANNY_IFPOLICY_UUID, old, new);
 
-		ni_ifpolicy_set_uuid(node, &policy->uuid);
-		return FALSE;
+		return ni_ifpolicy_set_uuid(node, &policy->uuid);
 	}
 
 	if (!ni_uuid_equal(&policy->uuid, &uuid)) {
@@ -285,8 +284,7 @@ ni_fsm_policy_uuid_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 				xml_node_location(node),
 				NI_NANNY_IFPOLICY_UUID, old, new);
 
-		ni_ifpolicy_set_uuid(node, &policy->uuid);
-		return FALSE;
+		return ni_ifpolicy_set_uuid(node, &policy->uuid);
 	}
 
 	return TRUE;
@@ -313,7 +311,8 @@ ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 	if (!ni_fsm_policy_weight_from_xml(policy, node))
 		return FALSE;
 
-	(void)ni_fsm_policy_uuid_from_xml(policy, node);
+	if (!ni_fsm_policy_uuid_from_xml(policy, node))
+		return FALSE;
 
 	for (item = node->children; item; item = item->next) {
 		ni_fsm_policy_action_t *action = NULL;
