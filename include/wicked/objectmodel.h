@@ -31,8 +31,8 @@ extern dbus_bool_t		ni_objectmodel_unregister_netif(ni_dbus_server_t *, ni_netde
 extern ni_dbus_object_t *	ni_objectmodel_register_modem(ni_dbus_server_t *, ni_modem_t *);
 extern dbus_bool_t		ni_objectmodel_unregister_modem(ni_dbus_server_t *, ni_modem_t *);
 extern int			ni_objectmodel_bind_extensions(void);
-extern void			ni_objectmodel_register_service(const ni_dbus_service_t *);
-extern void			ni_objectmodel_register_class(const ni_dbus_class_t *);
+extern ni_bool_t		ni_objectmodel_register_service(const ni_dbus_service_t *);
+extern ni_bool_t		ni_objectmodel_register_class(const ni_dbus_class_t *);
 extern const ni_dbus_class_t *	ni_objectmodel_get_class(const char *);
 extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_class_t *);
 extern unsigned int		ni_objectmodel_class_registry_count(void);
