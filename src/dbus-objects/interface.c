@@ -470,7 +470,7 @@ static ni_dbus_method_t		ni_objectmodel_netif_list_methods[] = {
 };
 
 static ni_dbus_service_t	ni_objectmodel_netif_list_service = {
-	.name		= NI_OBJECTMODEL_NETIFLIST_INTERFACE,
+	.name		= NI_OBJECTMODEL_NETIF_LIST_INTERFACE,
 	.compatible	= &ni_objectmodel_netif_list_class,
 	.methods	= ni_objectmodel_netif_list_methods,
 };
