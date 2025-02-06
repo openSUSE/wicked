@@ -358,7 +358,7 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, xml_do
 		pnode = root;
 	}
 
-	if (!ni_ifconfig_is_policy(pnode)) {
+	if (!ni_ifxml_is_policy(pnode)) {
 		pname = pnode->name;
 		ni_error("Not a valid policy document node \"%s\"",
 				ni_print_suspect(pname, ni_string_len(pname)));

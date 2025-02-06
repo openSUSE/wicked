@@ -426,7 +426,7 @@ ni_ifconfig_validate_adding_doc(xml_document_t *config_doc, ni_bool_t check_prio
 	for ( ; src_child; src_child = src_child->next) {
 		int rv;
 
-		if (ni_ifconfig_is_policy(src_child)) {
+		if (ni_ifxml_is_policy(src_child)) {
 			ni_debug_ifconfig("ignoring validation on policy nodes");
 			continue;
 		}

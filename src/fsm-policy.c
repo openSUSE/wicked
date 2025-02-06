@@ -398,7 +398,7 @@ ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 static ni_bool_t
 ni_fsm_policy_init(ni_fsm_policy_t *policy, ni_fsm_t *fsm, const char *name, xml_node_t *node)
 {
-	if (!policy || !fsm || xml_node_is_empty(node))
+	if (!policy || !fsm || !ni_ifxml_is_policy(node))
 		return FALSE;
 
 	if (ni_string_empty(name) && !(name = ni_ifpolicy_get_name(node)))
@@ -429,7 +429,7 @@ ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 {
 	ni_fsm_policy_t temp;
 
-	if (!policy || !ni_ifconfig_is_policy(node)
+	if (!policy || !ni_ifxml_is_policy(node)
 	||  !ni_string_eq(ni_ifpolicy_get_name(node), policy->name))
 		return FALSE;
 

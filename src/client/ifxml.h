@@ -94,11 +94,8 @@ extern ni_bool_t		ni_ifxml_node_is_migrated(const xml_node_t *);
 extern ni_bool_t		ni_ifxml_node_set_migrated(xml_node_t *, ni_bool_t);
 extern ni_bool_t		ni_ifxml_migrate_docs(xml_document_array_t *);
 
-static inline ni_bool_t
-ni_ifconfig_is_config(const xml_node_t *ifnode)
-{
-	return !xml_node_is_empty(ifnode) && ni_string_eq(ifnode->name, NI_CLIENT_IFCONFIG);
-}
+extern ni_bool_t		ni_ifxml_is_config(const xml_node_t *);
+extern ni_bool_t		ni_ifxml_is_policy(const xml_node_t *);
 
 static inline const char *
 ni_ifconfig_get_uuid(const xml_node_t *ifnode)
@@ -110,20 +107,6 @@ static inline const char *
 ni_ifconfig_get_origin(const xml_node_t *ifnode)
 {
 	return xml_node_get_attr(ifnode, NI_CLIENT_IFCONFIG_ORIGIN);
-}
-
-static inline ni_bool_t
-ni_ifconfig_is_policy(const xml_node_t *pnode)
-{
-	return !xml_node_is_empty(pnode) &&
-		(ni_string_eq(pnode->name, NI_NANNY_IFPOLICY) ||
-		 ni_string_eq(pnode->name, NI_NANNY_IFTEMPLATE));
-}
-
-static inline ni_bool_t
-ni_ifconfig_is_template(const xml_node_t *pnode)
-{
-	return !xml_node_is_empty(pnode) && ni_string_eq(pnode->name, NI_NANNY_IFTEMPLATE);
 }
 
 static inline const char *
@@ -159,7 +142,7 @@ ni_ifpolicy_get_weight(const xml_node_t *pnode)
 static inline ni_bool_t
 ni_ifpolicy_is_valid(const xml_node_t *pnode)
 {
-	if (!ni_ifconfig_is_policy(pnode))
+	if (!ni_ifxml_is_policy(pnode))
 		return FALSE;
 
 	return ni_ifpolicy_name_is_valid(ni_ifpolicy_get_name(pnode));

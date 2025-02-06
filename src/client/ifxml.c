@@ -319,13 +319,14 @@ ni_convert_cfg_into_policy_doc(xml_document_t *doc)
 		ni_debug_ifconfig("Ignoring already existing %s named %s from %s",
 				NI_NANNY_IFPOLICY, name, origin);
 		return doc;
-	} else if (ni_ifconfig_is_policy(root)) {
+	}
+	if (ni_ifxml_is_policy(root)) {
 		ni_debug_ifconfig("Ignoring already existing, noname %s from %s",
 				NI_NANNY_IFPOLICY, origin);
 		return doc;
 	}
 
-	if (!ni_ifconfig_is_config(root)) {
+	if (!ni_ifxml_is_config(root)) {
 		ni_error("Unknown document node '%s' found in file %s: neither an %s nor %s",
 				root->name, origin, NI_CLIENT_IFCONFIG, NI_NANNY_IFPOLICY);
 		return NULL;
@@ -354,6 +355,27 @@ ni_convert_cfg_into_policy_doc(xml_document_t *doc)
 	}
 	xml_node_free(match);
 	return NULL;
+}
+
+/*
+ * ifxml utilities
+ */
+ni_bool_t
+ni_ifxml_is_config(const xml_node_t *node)
+{
+	return node && node->children && ni_string_eq(node->name, NI_CLIENT_IFCONFIG);
+}
+
+ni_bool_t
+ni_ifxml_is_policy(const xml_node_t *node)
+{
+	if (node && node->children) {
+		if (ni_string_eq(node->name, NI_NANNY_IFPOLICY))
+			return TRUE;
+		if (ni_string_eq(node->name, NI_NANNY_IFTEMPLATE))
+			return TRUE;
+	}
+	return FALSE;
 }
 
 /*
@@ -625,10 +647,10 @@ ni_ifxml_get_ifconfig_node(xml_document_t *doc)
 	if (!(root = xml_document_root(doc)))
 		return NULL;
 
-	if (ni_ifconfig_is_config(root))
+	if (ni_ifxml_is_config(root))
 		return root;
 
-	if (ni_ifconfig_is_policy(root)) {
+	if (ni_ifxml_is_policy(root)) {
 		if ((node = xml_node_get_child(root, NI_NANNY_IFPOLICY_MERGE)))
 			return node;
 		if ((node = xml_node_get_child(root, NI_NANNY_IFPOLICY_REPLACE)))
@@ -705,7 +727,7 @@ ni_ifxml_find_ifname_by_ifindex(xml_document_array_t *docs, const char *ifindex)
 	if (!(config = ni_ifxml_find_config_by_ifindex(docs, ifindex)))
 		return NULL;
 
-	if (!(policy = ni_ifconfig_is_config(config) ? NULL : config->parent))
+	if (!(policy = ni_ifxml_is_config(config) ? NULL : config->parent))
 		return NULL;
 
 	if (!(match = xml_node_get_child(policy, NI_NANNY_IFPOLICY_MATCH)))
@@ -754,7 +776,7 @@ ni_ifpolicy_match_remove_child_ref(xml_node_t *policy, const char *name)
 	 * We remove the obsolete reference to the port inclusive of
 	 * the <or> and <child> nodes once they're empty.
 	 */
-	if (!ni_ifconfig_is_policy(policy) || ni_string_empty(name))
+	if (!ni_ifxml_is_policy(policy) || ni_string_empty(name))
 		return modified;
 
 	if (!(match = xml_node_get_child(policy, NI_NANNY_IFPOLICY_MATCH)))
@@ -796,7 +818,7 @@ ni_ifpolicy_add_match_device_ref(xml_node_t *policy, const char *device)
 	ni_bool_t modified = FALSE;
 	xml_node_t *match, *ref, *dev;
 
-	if (!ni_ifconfig_is_policy(policy) || ni_string_empty(device))
+	if (!ni_ifxml_is_policy(policy) || ni_string_empty(device))
 		return modified;
 
 	if (!(match = xml_node_create(policy, NI_NANNY_IFPOLICY_MATCH)))
@@ -1085,7 +1107,7 @@ ni_ifconfig_migrate_link_node(xml_document_array_t *docs,
 	if (ni_ifconfig_migrate_link_port(migrate))
 		modified = TRUE;
 
-	policy = ni_ifconfig_is_config(config) ? NULL : config->parent;
+	policy = ni_ifxml_is_config(config) ? NULL : config->parent;
 	if (!policy || !(master = xml_node_get_child_cdata(migrate, "master")))
 		return modified;
 
@@ -1548,7 +1570,7 @@ ni_ifconfig_migrate_bond_node(xml_document_array_t *docs,
 	if (!(bond = ni_ifconfig_get_ifname(config)))
 		return modified;
 
-	policy = ni_ifconfig_is_config(config) ? NULL : config->parent;
+	policy = ni_ifxml_is_config(config) ? NULL : config->parent;
 	origin = ni_ifpolicy_get_origin(policy ?: config);
 	owner = ni_ifpolicy_get_owner(policy ?: config);
 
@@ -1628,7 +1650,7 @@ ni_ifconfig_migrate_team_node(xml_document_array_t *docs,
 	if (!(team = ni_ifconfig_get_ifname(config)))
 		return modified;
 
-	policy = ni_ifconfig_is_config(config) ? NULL : config->parent;
+	policy = ni_ifxml_is_config(config) ? NULL : config->parent;
 	origin = ni_ifpolicy_get_origin(policy ?: config);
 	owner = ni_ifpolicy_get_owner(policy ?: config);
 
@@ -1678,7 +1700,7 @@ ni_ifconfig_migrate_bridge_node(xml_document_array_t *docs,
 	if (!(bridge = ni_ifconfig_get_ifname(config)))
 		return modified;
 
-	policy = ni_ifconfig_is_config(config) ? NULL : config->parent;
+	policy = ni_ifxml_is_config(config) ? NULL : config->parent;
 	origin = ni_ifpolicy_get_origin(policy ?: config);
 	owner = ni_ifpolicy_get_owner(policy ?: config);
 
@@ -1745,7 +1767,7 @@ ni_ifconfig_migrate_ovsbr_node(xml_document_array_t *docs,
 	const char *owner;
 	const char *ovsbr;
 
-	policy = ni_ifconfig_is_config(config) ? NULL : config->parent;
+	policy = ni_ifxml_is_config(config) ? NULL : config->parent;
 	origin = ni_ifpolicy_get_origin(policy ?: config);
 	owner = ni_ifpolicy_get_owner(policy ?: config);
 
@@ -1864,7 +1886,7 @@ ni_ifxml_migrate_lower_device(xml_document_array_t *docs,
 	if (!(lower = ni_ifxml_resolve_ifname_node(docs, device, &index)))
 		return modified;
 
-	policy = ni_ifconfig_is_config(config) ? NULL : config->parent;
+	policy = ni_ifxml_is_config(config) ? NULL : config->parent;
 	if (ni_ifpolicy_match_remove_child_ref(policy, lower))
 		modified = TRUE;
 
@@ -2055,13 +2077,13 @@ ni_ifxml_migrate_ifconfig_node(xml_document_array_t *docs, const char *name,
 		doc = docs->data[i];
 		root = xml_document_root(doc);
 
-		if (ni_ifconfig_is_config(root)) {
+		if (ni_ifxml_is_config(root)) {
 			if (ni_ifconfig_migrate_node(docs, func, name, root))
 				modified = TRUE;
 			continue;
 		}
 
-		if (ni_ifconfig_is_policy(root)) {
+		if (ni_ifxml_is_policy(root)) {
 			if (ni_ifpolicy_migrate_node(docs, func, name, root))
 				modified = TRUE;
 			continue;

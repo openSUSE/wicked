@@ -81,7 +81,7 @@ ni_wicked_convert_match(xml_node_t *node, ni_string_array_t *filter)
 	const char *match;
 	unsigned int i;
 
-	if (ni_ifconfig_is_config(node)) {
+	if (ni_ifxml_is_config(node)) {
 		if (!filter || !filter->count)
 			return TRUE;
 
@@ -90,8 +90,10 @@ ni_wicked_convert_match(xml_node_t *node, ni_string_array_t *filter)
 			if (ni_wicked_convert_match_config(node, match))
 				return TRUE;
 		}
-	} else
-	if (ni_ifconfig_is_policy(node)) {
+		return FALSE;
+	}
+
+	if (ni_ifxml_is_policy(node)) {
 		if (!filter || !filter->count)
 			return TRUE;
 
@@ -100,9 +102,10 @@ ni_wicked_convert_match(xml_node_t *node, ni_string_array_t *filter)
 			if (ni_wicked_convert_match_policy(node, match))
 				return TRUE;
 		}
+		return FALSE;
 	}
 
-	return FALSE; /* omit any non-ifconfig nodes */
+	return FALSE; /* omit any non-ifxml nodes */
 }
 
 static ni_bool_t
@@ -138,13 +141,13 @@ ni_wicked_convert_config_filename(char **filename, xml_node_t *node, const char 
 static ni_bool_t
 ni_wicked_convert_node_filename(char **filename, xml_node_t *node, const char *dirname)
 {
-	if (ni_ifconfig_is_config(node))
+	if (ni_ifxml_is_config(node))
 		return ni_wicked_convert_config_filename(filename, node, dirname);
-	else
-	if (ni_ifconfig_is_policy(node))
+
+	if (ni_ifxml_is_policy(node))
 		return ni_wicked_convert_policy_filename(filename, node, dirname);
-	else
-		return FALSE;
+
+	return FALSE;
 }
 
 static ni_bool_t
