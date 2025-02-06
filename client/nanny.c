@@ -48,7 +48,7 @@
 
 #include "read-config.h"
 #include "wicked-client.h"
-#include "client/ifconfig.h"
+#include "client/ifxml.h"
 
 /*
  * Enable the given user interface

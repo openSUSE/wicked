@@ -41,7 +41,7 @@
 #include "appconfig.h"
 #include "read-config.h"
 #include "wicked-client.h"
-#include "client/ifconfig.h"
+#include "client/ifxml.h"
 
 
 static ni_bool_t

@@ -56,7 +56,7 @@
 #include <sys/param.h>
 #include <arpa/inet.h>
 
-#include "client/ifconfig.h"
+#include "client/ifxml.h"
 #include "client/client_state.h"
 #include "appconfig.h"
 #include "util_priv.h"

@@ -14,7 +14,7 @@
 #include <wicked/fsm.h>
 #include <limits.h>
 
-#include "client/ifconfig.h"
+#include "client/ifxml.h"
 #include "util_priv.h"
 #include "refcount_priv.h"
 #include "array_priv.h"

@@ -44,7 +44,7 @@
 
 #include "appconfig.h"
 #include "wicked-client.h"
-#include "client/ifconfig.h"
+#include "client/ifxml.h"
 #include "client/read-config.h"
 #include "dracut/dracut.h"
 #include "firmware.h"

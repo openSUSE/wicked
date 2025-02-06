@@ -30,7 +30,7 @@
 #include <xml-schema.h>
 
 #include "dbus-objects/model.h"
-#include "client/ifconfig.h"
+#include "client/ifxml.h"
 #include "appconfig.h"
 #include "refcount_priv.h"
 #include "array_priv.h"

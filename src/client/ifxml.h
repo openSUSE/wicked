@@ -1,8 +1,8 @@
 /*
- *	wicked client ifconfig structures and objects
+ *	wicked xml interface config and policy utilities
  *
  *	Copyright (C) 2010-2014 SUSE LINUX Products GmbH, Nuernberg, Germany.
- *	Copyright (C) 2014-2024 SUSE LLC
+ *	Copyright (C) 2014-2025 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
