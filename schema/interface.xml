@@ -529,12 +529,3 @@
   </signal>
 </service>
 
-<object-class name="managed-netif" base-class="netif"/>
-
-<service name="managed-interface" interface="org.opensuse.Network.ManagedInterface" object-class="managed-netif">
-  <signal name="progressInfo">
-    <description>
-      Emitted whenever an addrconf service failed to renew a previously acquired lease.
-    </description>
-  </signal>
-</service>
