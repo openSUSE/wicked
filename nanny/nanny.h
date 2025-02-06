@@ -111,14 +111,14 @@ struct ni_nanny {
 	ni_nanny_devmatch_t *	enable;
 };
 
-extern ni_dbus_class_t		ni_objectmodel_managed_netif_class;
-extern ni_dbus_class_t		ni_objectmodel_managed_modem_class;
-extern ni_dbus_class_t		ni_objectmodel_managed_policy_class;
-extern ni_dbus_class_t		ni_objectmodel_nanny_class;
-extern ni_dbus_service_t	ni_objectmodel_managed_netif_service;
-extern ni_dbus_service_t	ni_objectmodel_managed_modem_service;
-extern ni_dbus_service_t	ni_objectmodel_managed_policy_service;
-extern ni_dbus_service_t	ni_objectmodel_nanny_service;
+extern const ni_dbus_class_t	ni_objectmodel_managed_netif_class;
+extern const ni_dbus_class_t	ni_objectmodel_managed_modem_class;
+extern const ni_dbus_class_t	ni_objectmodel_managed_policy_class;
+extern const ni_dbus_class_t	ni_objectmodel_nanny_class;
+extern const ni_dbus_service_t	ni_objectmodel_managed_netif_service;
+extern const ni_dbus_service_t	ni_objectmodel_managed_modem_service;
+extern const ni_dbus_service_t	ni_objectmodel_managed_policy_service;
+extern const ni_dbus_service_t	ni_objectmodel_nanny_service;
 
 extern ni_nanny_t *		ni_nanny_new(void);
 extern void			ni_nanny_start(ni_nanny_t *);

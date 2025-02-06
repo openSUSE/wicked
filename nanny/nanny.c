@@ -1186,7 +1186,7 @@ ni_objectmodel_nanny_recheck(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	return TRUE;
 }
 
-static ni_dbus_method_t		ni_objectmodel_nanny_methods[] = {
+static const ni_dbus_method_t	ni_objectmodel_nanny_methods[] = {
 	{ "getDevice",		"s",		.handler = ni_objectmodel_nanny_get_device	 },
 	{ "createPolicy",	"s",		.handler_ex = ni_objectmodel_nanny_create_policy },
 	{ "deletePolicy",	"s",		.handler_ex = ni_objectmodel_nanny_delete_policy },
@@ -1195,12 +1195,12 @@ static ni_dbus_method_t		ni_objectmodel_nanny_methods[] = {
 	{ NULL }
 };
 
-ni_dbus_class_t			ni_objectmodel_nanny_class = {
-	.name		= NI_OBJECTMODEL_NANNY_CLASS,
+const ni_dbus_class_t		ni_objectmodel_nanny_class = {
+	.name			= NI_OBJECTMODEL_NANNY_CLASS,
 };
 
-ni_dbus_service_t		ni_objectmodel_nanny_service = {
-	.name		= NI_OBJECTMODEL_NANNY_INTERFACE,
-	.compatible	= &ni_objectmodel_nanny_class,
-	.methods	= ni_objectmodel_nanny_methods
+const ni_dbus_service_t		ni_objectmodel_nanny_service = {
+	.name			= NI_OBJECTMODEL_NANNY_INTERFACE,
+	.compatible		= &ni_objectmodel_nanny_class,
+	.methods		= ni_objectmodel_nanny_methods
 };

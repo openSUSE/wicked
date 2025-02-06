@@ -157,10 +157,10 @@ ni_objectmodel_managed_netif_destroy(ni_dbus_object_t *object)
 	ni_managed_device_free(mdev);
 }
 
-ni_dbus_class_t			ni_objectmodel_managed_netif_class = {
-	.name		= NI_OBJECTMODEL_MANAGED_NETIF_CLASS,
-	.initialize	= ni_objectmodel_managed_netif_initialize,
-	.destroy	= ni_objectmodel_managed_netif_destroy,
+const ni_dbus_class_t		ni_objectmodel_managed_netif_class = {
+	.name			= NI_OBJECTMODEL_MANAGED_NETIF_CLASS,
+	.initialize		= ni_objectmodel_managed_netif_initialize,
+	.destroy		= ni_objectmodel_managed_netif_destroy,
 };
 
 /*
@@ -229,7 +229,7 @@ ni_objectmodel_managed_netif_disable(ni_dbus_object_t *object, const ni_dbus_met
 	return TRUE;
 }
 
-static ni_dbus_method_t		ni_objectmodel_managed_netif_methods[] = {
+static const ni_dbus_method_t	ni_objectmodel_managed_netif_methods[] = {
 	{ "enable",		"",		.handler_ex = ni_objectmodel_managed_netif_enable	},
 	{ "disable",		"",		.handler_ex = ni_objectmodel_managed_netif_disable	},
 	{ NULL }
@@ -249,16 +249,17 @@ ni_objectmodel_get_managed_device(const ni_dbus_object_t *object, ni_bool_t writ
 #define MANAGED_NETIF_BOOL_PROPERTY(dbus_name, name, rw) \
 	NI_DBUS_GENERIC_BOOL_PROPERTY(managed_device, dbus_name, name, rw)
 
-static ni_dbus_property_t	ni_objectmodel_managed_netif_properties[] = {
+static const ni_dbus_property_t	ni_objectmodel_managed_netif_properties[] = {
+	/* nanny managed flags / state */
 	MANAGED_NETIF_BOOL_PROPERTY(allowed, allowed, RW),
 	MANAGED_NETIF_BOOL_PROPERTY(monitor, monitor, RW),
 	MANAGED_NETIF_UINT_PROPERTY(state, state, RO),
 	{ NULL }
 };
 
-ni_dbus_service_t		ni_objectmodel_managed_netif_service = {
-	.name		= NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE,
-	.compatible	= &ni_objectmodel_managed_netif_class,
-	.methods	= ni_objectmodel_managed_netif_methods,
-	.properties	= ni_objectmodel_managed_netif_properties,
+const ni_dbus_service_t		ni_objectmodel_managed_netif_service = {
+	.name			= NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE,
+	.compatible		= &ni_objectmodel_managed_netif_class,
+	.methods		= ni_objectmodel_managed_netif_methods,
+	.properties		= ni_objectmodel_managed_netif_properties,
 };
