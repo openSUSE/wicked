@@ -158,7 +158,7 @@ ni_objectmodel_managed_netif_destroy(ni_dbus_object_t *object)
 }
 
 ni_dbus_class_t			ni_objectmodel_managed_netif_class = {
-	.name		= "managed-netif",
+	.name		= NI_OBJECTMODEL_MANAGED_NETIF_CLASS,
 	.initialize	= ni_objectmodel_managed_netif_initialize,
 	.destroy	= ni_objectmodel_managed_netif_destroy,
 };

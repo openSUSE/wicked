@@ -435,7 +435,7 @@ ni_managed_policy_destroy(ni_dbus_object_t *object)
 }
 
 ni_dbus_class_t			ni_objectmodel_managed_policy_class = {
-	.name		= "managed-policy",
+	.name		= NI_OBJECTMODEL_MANAGED_POLICY_CLASS,
 	.initialize	= ni_managed_policy_initialize,
 	.destroy	= ni_managed_policy_destroy,
 };

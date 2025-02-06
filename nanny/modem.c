@@ -108,7 +108,7 @@ ni_managed_modem_destroy(ni_dbus_object_t *object)
 }
 
 ni_dbus_class_t			ni_objectmodel_managed_modem_class = {
-	.name		= "managed-modem",
+	.name		= NI_OBJECTMODEL_MANAGED_MODEM_CLASS,
 	.initialize	= ni_managed_modem_initialize,
 	.destroy	= ni_managed_modem_destroy,
 };

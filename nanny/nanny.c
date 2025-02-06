@@ -1196,7 +1196,7 @@ static ni_dbus_method_t		ni_objectmodel_nanny_methods[] = {
 };
 
 ni_dbus_class_t			ni_objectmodel_nanny_class = {
-	.name		= "nanny",
+	.name		= NI_OBJECTMODEL_NANNY_CLASS,
 };
 
 ni_dbus_service_t		ni_objectmodel_nanny_service = {
