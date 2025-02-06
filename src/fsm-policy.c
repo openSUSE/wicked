@@ -311,11 +311,8 @@ ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 	static unsigned int policy_seq = 1;
 	xml_node_t *item;
 
-	if (!policy)
+	if (!policy || !node)
 		return FALSE;
-
-	if (!node)
-		return TRUE;
 
 	if (!ni_fsm_policy_type_from_xml(policy, node))
 		return FALSE;
@@ -339,23 +336,21 @@ ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 			if (policy->type == NI_FSM_POLICY_TYPE_TEMPLATE) {
 				ni_error("%s: <%s> elements not permitted in %s",
 						xml_node_location(item),
-						NI_NANNY_IFPOLICY_MATCH,
-						NI_NANNY_IFTEMPLATE);
+						item->name, node->name);
 				return FALSE;
 			}
 
 			if (policy->match) {
 				ni_error("%s: %s specifies multiple <%s> elements",
 						xml_node_location(item),
-						NI_NANNY_IFPOLICY,
-						NI_NANNY_IFPOLICY_MATCH);
+						node->name, item->name);
 				return FALSE;
 			}
 
 			if (!(policy->match = ni_fsm_policy_conditions_from_xml(item))) {
-				ni_error("%s: trouble parsing %s conditions",
+				ni_error("%s: trouble parsing <%s> conditions in %s",
 						xml_node_location(item),
-						NI_NANNY_IFPOLICY);
+						item->name, node->name);
 				return FALSE;
 			}
 			continue;
@@ -370,16 +365,14 @@ ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 			if (policy->type != NI_FSM_POLICY_TYPE_TEMPLATE) {
 				ni_error("%s: <%s> elements not permitted in %s",
 						xml_node_location(item),
-						NI_NANNY_IFPOLICY_CREATE,
-						NI_NANNY_IFPOLICY);
+						item->name, node->name);
 				return FALSE;
 			}
 
 			if (policy->create_action) {
 				ni_error("%s: %s specifies more than one <%s> action",
 						xml_node_location(item),
-						NI_NANNY_IFTEMPLATE,
-						NI_NANNY_IFPOLICY_CREATE);
+						node->name, item->name);
 				return FALSE;
 			}
 
@@ -391,19 +384,38 @@ ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 			return FALSE;
 		}
 
-		if (action == NULL) {
-			ni_error("%s: unable to process <%s> action",
-					xml_node_location(item), item->name);
+		if (!action && !policy->create_action) {
+			ni_error("%s: unable to parse <%s> action in %s",
+					xml_node_location(item),
+					item->name, node->name);
 			return FALSE;
 		}
 	}
 
+	/* if we have a config policy, make sure it provides a <match> expression */
+	if (policy->type == NI_FSM_POLICY_TYPE_CONFIG && !policy->match) {
+		ni_error("%s: %s does not specify any <%s> expression",
+				xml_node_location(node), node->name,
+				NI_NANNY_IFPOLICY_MATCH);
+		return FALSE;
+	}
+
 	/* if we have a template, make sure it has exactly one <create> element */
 	if (policy->type == NI_FSM_POLICY_TYPE_TEMPLATE && !policy->create_action) {
-		ni_error("%s: %s does not specify a <%s> element",
-				xml_node_location(node),
-				NI_NANNY_IFTEMPLATE,
+		ni_error("%s: %s does not specify a <%s> action",
+				xml_node_location(node), node->name,
 				NI_NANNY_IFPOLICY_CREATE);
+		return FALSE;
+	}
+
+	/*
+	 * Both policy types provide <merge>|<replace> action(s) constructing
+	 * the effective configuration and is useless without any action.
+	 */
+	if (!policy->actions) {
+		ni_error("%s: %s does not specify any <%s> or <%s> action",
+			xml_node_location(node), node->name,
+			NI_NANNY_IFPOLICY_MERGE, NI_NANNY_IFPOLICY_REPLACE);
 		return FALSE;
 	}
 
