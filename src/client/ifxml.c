@@ -183,8 +183,7 @@ ni_ifpolicy_set_owner_uid(xml_node_t *node, uid_t uid)
 	while (xml_node_del_attr(node, NI_NANNY_IFPOLICY_OWNER))
 		;
 
-	xml_node_add_attr_uint(node, NI_NANNY_IFPOLICY_OWNER, uid);
-	return TRUE;
+	return xml_node_add_attr_uint(node, NI_NANNY_IFPOLICY_OWNER, uid);
 }
 
 ni_bool_t
@@ -203,16 +202,14 @@ ni_ifpolicy_set_uuid(xml_node_t *node, const ni_uuid_t *uuid)
 {
 	const char *ptr;
 
-	if (!node)
+	ptr = ni_uuid_print(uuid);
+	if (!node || ni_string_empty(ptr))
 		return FALSE;
 
 	while (xml_node_del_attr(node, NI_NANNY_IFPOLICY_UUID))
 		;
 
-	ptr = ni_uuid_print(uuid);
-	if (!ni_string_empty(ptr))
-		xml_node_add_attr(node, NI_NANNY_IFPOLICY_UUID, ptr);
-	return TRUE;
+	return xml_node_add_attr(node, NI_NANNY_IFPOLICY_UUID, ptr);
 }
 
 /*
