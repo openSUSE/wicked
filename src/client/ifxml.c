@@ -372,8 +372,10 @@ ni_ifxml_is_policy(const xml_node_t *node)
 	if (node && node->children) {
 		if (ni_string_eq(node->name, NI_NANNY_IFPOLICY))
 			return TRUE;
+#ifdef NI_ENABLE_NANNY_TEMPLATE
 		if (ni_string_eq(node->name, NI_NANNY_IFTEMPLATE))
 			return TRUE;
+#endif
 	}
 	return FALSE;
 }

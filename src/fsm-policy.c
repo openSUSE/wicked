@@ -206,17 +206,18 @@ ni_fsm_policy_type_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 {
 	if (ni_string_eq(node->name, NI_NANNY_IFPOLICY)) {
 		policy->type = NI_IFPOLICY_TYPE_CONFIG;
-	} else
+		return TRUE;
+	}
+#ifdef NI_ENABLE_NANNY_TEMPLATE
 	if (ni_string_eq(node->name, NI_NANNY_IFTEMPLATE)) {
 		policy->type = NI_IFPOLICY_TYPE_TEMPLATE;
-	} else {
-		ni_error("%s: invalid policy, node must be either <%s> or <%s>",
-				xml_node_location(node),
-				NI_NANNY_IFPOLICY,
-				NI_NANNY_IFTEMPLATE);
-		return FALSE;
+		return TRUE;
 	}
-	return TRUE;
+#endif
+	ni_error("%s: invalid policy, node must be either <%s> or <%s>",
+			xml_node_location(node),
+			NI_NANNY_IFPOLICY, NI_NANNY_IFTEMPLATE);
+	return FALSE;
 }
 
 static ni_bool_t
