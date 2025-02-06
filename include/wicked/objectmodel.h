@@ -34,6 +34,8 @@ extern int			ni_objectmodel_bind_extensions(void);
 extern ni_bool_t		ni_objectmodel_register_service(const ni_dbus_service_t *);
 extern ni_bool_t		ni_objectmodel_register_class(const ni_dbus_class_t *);
 extern const ni_dbus_class_t *	ni_objectmodel_get_class(const char *);
+extern const ni_dbus_class_t *	ni_objectmodel_get_netif_class(void);
+extern const ni_dbus_class_t *	ni_objectmodel_get_modem_class(void);
 extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_class_t *);
 extern unsigned int		ni_objectmodel_class_registry_count(void);
 extern unsigned int		ni_objectmodel_service_registry_count(void);
