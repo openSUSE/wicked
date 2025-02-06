@@ -236,7 +236,17 @@ static const ni_dbus_method_t	ni_objectmodel_managed_netif_methods[] = {
 };
 
 /*
- * Handle object properties
+ * ManagedInterface signal declarations
+ * No handler, we're emitting it (see ni_managed_device_progress in nanny.c).
+ */
+static const ni_dbus_method_t	ni_objectmodel_managed_netif_signals[] = {
+	{ "progressInfo",	"",		.handler = NULL		},
+
+	{ NULL }
+};
+
+/*
+ * Generic property object handle
  */
 static void *
 ni_objectmodel_get_managed_device(const ni_dbus_object_t *object, ni_bool_t write_access, DBusError *error)
@@ -261,5 +271,6 @@ const ni_dbus_service_t		ni_objectmodel_managed_netif_service = {
 	.name			= NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE,
 	.compatible		= &ni_objectmodel_managed_netif_class,
 	.methods		= ni_objectmodel_managed_netif_methods,
+	.signals		= ni_objectmodel_managed_netif_signals,
 	.properties		= ni_objectmodel_managed_netif_properties,
 };
