@@ -221,6 +221,21 @@ ni_fsm_policy_type_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 }
 
 static ni_bool_t
+ni_fsm_policy_name_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
+{
+	const char *name = ni_ifpolicy_get_name(node);
+
+	if (!ni_ifpolicy_name_is_valid(name)) {
+		ni_error("%s: invalid %s name \"%s\"",
+				xml_node_location(node), node->name,
+				ni_print_suspect(name, ni_string_len(name)));
+		return FALSE;
+	}
+
+	return ni_string_dup(&policy->name, name);
+}
+
+static ni_bool_t
 ni_fsm_policy_owner_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 {
 	const char *attr;
@@ -303,6 +318,9 @@ ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 		return TRUE;
 
 	if (!ni_fsm_policy_type_from_xml(policy, node))
+		return FALSE;
+
+	if (!ni_fsm_policy_name_from_xml(policy, node))
 		return FALSE;
 
 	if (!ni_fsm_policy_owner_from_xml(policy, node))
