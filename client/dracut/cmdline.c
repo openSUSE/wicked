@@ -48,7 +48,7 @@
 
 #include "client/wicked-client.h"
 #include "client/read-config.h"
-#include "client/ifconfig.h"
+#include "client/ifxml.h"
 #include "client/dracut/cmdline.h"
 #include "buffer.h"
 

@@ -48,7 +48,7 @@
 
 #include "read-config.h"
 #include "wicked-client.h"
-#include "client/ifconfig.h"
+#include "client/ifxml.h"
 
 /*
  * Enable the given user interface
@@ -124,7 +124,7 @@ do_nanny_addpolicy(int argc, char **argv)
 		/*
 		 * just empty or backend options documents
 		 */
-		if (!ni_ifconfig_is_policy(root) && !ni_ifconfig_is_config(root))
+		if (!ni_ifxml_is_policy(root) && !ni_ifxml_is_config(root))
 			continue;
 
 		rv = ni_nanny_addpolicy(doc);
@@ -305,7 +305,7 @@ ni_nanny_addpolicy_node(const xml_node_t *pnode, const char *origin)
 	if (ni_string_empty(origin))
 		origin = ni_ifpolicy_get_origin(pnode);
 
-	if (!ni_ifconfig_is_policy(pnode)) {
+	if (!ni_ifxml_is_policy(pnode)) {
 		ni_debug_ifconfig("Rejecting to add invalid policy from %s",
 			ni_string_empty(origin) ? "unspecified origin" : origin);
 		return -1;

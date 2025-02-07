@@ -20,7 +20,7 @@
 
 #include "nanny.h"
 #include "util_priv.h"
-#include "client/ifconfig.h"
+#include "client/ifxml.h"
 
 #include <stdio.h>
 #include <errno.h>

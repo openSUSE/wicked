@@ -177,7 +177,7 @@ libwicked_dhcp6_la_SOURCES		= \
 libwicked_client_la_CFLAGS		= $(libwicked_la_CFLAGS)
 libwicked_client_la_SOURCES		= \
 	client/client_state.c	\
-	client/policy.c
+	client/ifxml.c
 
 noinst_HEADERS			= \
 	$(wicked_headers)	\
@@ -196,7 +196,7 @@ wicked_headers			= \
 	array_priv.h		\
 	buffer.h		\
 	client/client_state.h	\
-	client/ifconfig.h	\
+	client/ifxml.h		\
 	dbus-common.h		\
 	dbus-connection.h	\
 	dbus-dict.h		\

@@ -31,7 +31,7 @@
 #include <wicked/wireless.h>
 #include <wicked/fsm.h>
 
-#include "client/ifconfig.h"
+#include "client/ifxml.h"
 #include "util_priv.h"
 #include "nanny.h"
 

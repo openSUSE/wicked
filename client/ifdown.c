@@ -35,7 +35,7 @@
 #include <wicked/logging.h>
 #include <wicked/fsm.h>
 
-#include "client/ifconfig.h"
+#include "client/ifxml.h"
 
 #include "wicked-client.h"
 #include "appconfig.h"
