@@ -31,9 +31,11 @@ extern dbus_bool_t		ni_objectmodel_unregister_netif(ni_dbus_server_t *, ni_netde
 extern ni_dbus_object_t *	ni_objectmodel_register_modem(ni_dbus_server_t *, ni_modem_t *);
 extern dbus_bool_t		ni_objectmodel_unregister_modem(ni_dbus_server_t *, ni_modem_t *);
 extern int			ni_objectmodel_bind_extensions(void);
-extern void			ni_objectmodel_register_service(const ni_dbus_service_t *);
-extern void			ni_objectmodel_register_class(const ni_dbus_class_t *);
+extern ni_bool_t		ni_objectmodel_register_service(const ni_dbus_service_t *);
+extern ni_bool_t		ni_objectmodel_register_class(const ni_dbus_class_t *);
 extern const ni_dbus_class_t *	ni_objectmodel_get_class(const char *);
+extern const ni_dbus_class_t *	ni_objectmodel_get_netif_class(void);
+extern const ni_dbus_class_t *	ni_objectmodel_get_modem_class(void);
 extern ni_dbus_class_t *	ni_objectmodel_class_new(const char *, const ni_dbus_class_t *);
 extern unsigned int		ni_objectmodel_class_registry_count(void);
 extern unsigned int		ni_objectmodel_service_registry_count(void);
@@ -63,14 +65,9 @@ extern unsigned int		ni_objectmodel_service_registry_count(void);
 #define NI_OBJECTMODEL_OBJECT_PATH		NI_OBJECTMODEL_OBJECT_ROOT
 #define NI_OBJECTMODEL_NETIF_LIST_PATH		NI_OBJECTMODEL_OBJECT_ROOT "/Interface"
 #define NI_OBJECTMODEL_MODEM_LIST_PATH		NI_OBJECTMODEL_OBJECT_ROOT "/Modem"
-/* The following live in wickedd-nanny */
-#define NI_OBJECTMODEL_NANNY_PATH		NI_OBJECTMODEL_OBJECT_ROOT "/Nanny"
-#define NI_OBJECTMODEL_MANAGED_NETIF_LIST_PATH	NI_OBJECTMODEL_OBJECT_ROOT "/Nanny/Interface"
-#define NI_OBJECTMODEL_MANAGED_MODEM_LIST_PATH	NI_OBJECTMODEL_OBJECT_ROOT "/Nanny/Modem"
-#define NI_OBJECTMODEL_MANAGED_POLICY_LIST_PATH	NI_OBJECTMODEL_OBJECT_ROOT "/Nanny/Policy"
 
 #define NI_OBJECTMODEL_INTERFACE		NI_OBJECTMODEL_NAMESPACE
-#define NI_OBJECTMODEL_NETIFLIST_INTERFACE	NI_OBJECTMODEL_INTERFACE ".InterfaceList"
+#define NI_OBJECTMODEL_NETIF_LIST_INTERFACE	NI_OBJECTMODEL_INTERFACE ".InterfaceList"
 #define NI_OBJECTMODEL_NETIF_INTERFACE		NI_OBJECTMODEL_INTERFACE ".Interface"
 #define NI_OBJECTMODEL_ETHTOOL_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Ethtool"
 #define NI_OBJECTMODEL_ETHERNET_INTERFACE	NI_OBJECTMODEL_INTERFACE ".Ethernet"
@@ -103,10 +100,33 @@ extern unsigned int		ni_objectmodel_service_registry_count(void);
 #define NI_OBJECTMODEL_AUTO4_INTERFACE		NI_OBJECTMODEL_INTERFACE ".AUTO4"
 #define NI_OBJECTMODEL_MODEM_LIST_INTERFACE	NI_OBJECTMODEL_INTERFACE ".ModemList"
 #define NI_OBJECTMODEL_MODEM_INTERFACE		NI_OBJECTMODEL_INTERFACE ".Modem"
-#define NI_OBJECTMODEL_NANNY_INTERFACE		NI_OBJECTMODEL_INTERFACE ".Nanny"
-#define NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE	NI_OBJECTMODEL_INTERFACE ".ManagedInterface"
-#define NI_OBJECTMODEL_MANAGED_MODEM_INTERFACE	NI_OBJECTMODEL_INTERFACE ".ManagedModem"
-#define NI_OBJECTMODEL_MANAGED_POLICY_INTERFACE	NI_OBJECTMODEL_INTERFACE ".ManagedPolicy"
+
+/*
+ * Nanny managed classes, paths and service interfaces
+ */
+#define NI_OBJECTMODEL_NANNY_CLASS			"nanny"
+
+#define NI_OBJECTMODEL_MANAGED_NETIF_CLASS		"managed-netif"
+#define NI_OBJECTMODEL_MANAGED_MODEM_CLASS		"managed-modem"
+#define NI_OBJECTMODEL_MANAGED_POLICY_CLASS		"managed-policy"
+
+#define NI_OBJECTMODEL_MANAGED_NETIF_LIST_CLASS		"managed-netif-list"
+#define NI_OBJECTMODEL_MANAGED_MODEM_LIST_CLASS		"managed-modem-list"
+#define NI_OBJECTMODEL_MANAGED_POLICY_LIST_CLASS	"managed-policy-list"
+
+#define NI_OBJECTMODEL_NANNY_PATH			NI_OBJECTMODEL_OBJECT_ROOT "/Nanny"
+#define NI_OBJECTMODEL_MANAGED_NETIF_LIST_PATH		NI_OBJECTMODEL_OBJECT_ROOT "/Nanny/Interface"
+#define NI_OBJECTMODEL_MANAGED_MODEM_LIST_PATH		NI_OBJECTMODEL_OBJECT_ROOT "/Nanny/Modem"
+#define NI_OBJECTMODEL_MANAGED_POLICY_LIST_PATH		NI_OBJECTMODEL_OBJECT_ROOT "/Nanny/Policy"
+
+#define NI_OBJECTMODEL_NANNY_INTERFACE			NI_OBJECTMODEL_INTERFACE   ".Nanny"
+#define NI_OBJECTMODEL_MANAGED_NETIF_INTERFACE		NI_OBJECTMODEL_INTERFACE   ".ManagedInterface"
+#define NI_OBJECTMODEL_MANAGED_MODEM_INTERFACE		NI_OBJECTMODEL_INTERFACE   ".ManagedModem"
+#define NI_OBJECTMODEL_MANAGED_POLICY_INTERFACE		NI_OBJECTMODEL_INTERFACE   ".ManagedPolicy"
+
+#define NI_OBJECTMODEL_MANAGED_NETIF_LIST_INTERFACE	NI_OBJECTMODEL_INTERFACE   ".ManagedInterfaceList"
+#define NI_OBJECTMODEL_MANAGED_MODEM_LIST_INTERFACE	NI_OBJECTMODEL_INTERFACE   ".ManagedModemList"
+#define NI_OBJECTMODEL_MANAGED_POLICY_LIST_INTERFACE	NI_OBJECTMODEL_INTERFACE   ".ManagedPolicyList"
 
 /*
  * Signals emitted by addrconf services

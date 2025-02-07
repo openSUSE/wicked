@@ -107,13 +107,13 @@ ni_managed_modem_destroy(ni_dbus_object_t *object)
 	ni_managed_device_free(mdev);
 }
 
-ni_dbus_class_t			ni_objectmodel_managed_modem_class = {
-	.name		= "managed-modem",
-	.initialize	= ni_managed_modem_initialize,
-	.destroy	= ni_managed_modem_destroy,
+const ni_dbus_class_t		ni_objectmodel_managed_modem_class = {
+	.name			= NI_OBJECTMODEL_MANAGED_MODEM_CLASS,
+	.initialize		= ni_managed_modem_initialize,
+	.destroy		= ni_managed_modem_destroy,
 };
 
-static ni_dbus_method_t		ni_objectmodel_managed_modem_methods[] = {
+static const ni_dbus_method_t	ni_objectmodel_managed_modem_methods[] = {
 	{ NULL }
 };
 
@@ -131,17 +131,17 @@ ni_objectmodel_get_managed_device(const ni_dbus_object_t *object, ni_bool_t writ
 #define MANAGED_MODEM_BOOL_PROPERTY(dbus_name, name, rw) \
 	NI_DBUS_GENERIC_BOOL_PROPERTY(managed_device, dbus_name, name, rw)
 
-static ni_dbus_property_t	ni_objectmodel_managed_modem_properties[] = {
+static const ni_dbus_property_t	ni_objectmodel_managed_modem_properties[] = {
 	MANAGED_MODEM_BOOL_PROPERTY(allowed, allowed, RW),
 	MANAGED_MODEM_BOOL_PROPERTY(monitor, monitor, RW),
 	MANAGED_MODEM_UINT_PROPERTY(state, state, RO),
 	{ NULL }
 };
 
-ni_dbus_service_t		ni_objectmodel_managed_modem_service = {
-	.name		= NI_OBJECTMODEL_MANAGED_MODEM_INTERFACE,
-	.compatible	= &ni_objectmodel_managed_modem_class,
-	.methods	= ni_objectmodel_managed_modem_methods,
-	.properties	= ni_objectmodel_managed_modem_properties,
+const ni_dbus_service_t		ni_objectmodel_managed_modem_service = {
+	.name			= NI_OBJECTMODEL_MANAGED_MODEM_INTERFACE,
+	.compatible		= &ni_objectmodel_managed_modem_class,
+	.methods		= ni_objectmodel_managed_modem_methods,
+	.properties		= ni_objectmodel_managed_modem_properties,
 };
 

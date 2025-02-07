@@ -57,6 +57,17 @@ static ni_dbus_service_t	ni_objectmodel_modem_list_service;
 static ni_dbus_service_t	ni_objectmodel_modem_service;
 
 /*
+ * Shortcut to return the (cached) registered modem base-class or NULL
+ */
+const ni_dbus_class_t *
+ni_objectmodel_get_modem_class(void)
+{
+	static const ni_dbus_class_t *class = NULL;
+
+	return class ?: (class = ni_objectmodel_get_class(NI_OBJECTMODEL_MODEM_CLASS));
+}
+
+/*
  * For all link layer types, create a dbus object class named "modem-$linktype".
  * This allows to define extensions and interface for specific link layers.
  */

@@ -99,7 +99,7 @@ ni_call_get_netif_list_service(void)
 	if (list_service)
 	       return list_service;
 
-	list_service = ni_objectmodel_service_by_name(NI_OBJECTMODEL_NETIFLIST_INTERFACE);
+	list_service = ni_objectmodel_service_by_name(NI_OBJECTMODEL_NETIF_LIST_INTERFACE);
 	return list_service;
 }
 

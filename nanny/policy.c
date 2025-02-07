@@ -409,7 +409,7 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 	return TRUE;
 }
 
-static ni_dbus_method_t		ni_objectmodel_managed_policy_methods[] = {
+static const ni_dbus_method_t	ni_objectmodel_managed_policy_methods[] = {
 	{ "update",		"s",		.handler_ex = ni_objectmodel_managed_policy_update	},
 	{ NULL }
 };
@@ -434,15 +434,15 @@ ni_managed_policy_destroy(ni_dbus_object_t *object)
 	ni_managed_policy_free(policy);
 }
 
-ni_dbus_class_t			ni_objectmodel_managed_policy_class = {
-	.name		= "managed-policy",
-	.initialize	= ni_managed_policy_initialize,
-	.destroy	= ni_managed_policy_destroy,
+const ni_dbus_class_t		ni_objectmodel_managed_policy_class = {
+	.name			= NI_OBJECTMODEL_MANAGED_POLICY_CLASS,
+	.initialize		= ni_managed_policy_initialize,
+	.destroy		= ni_managed_policy_destroy,
 };
 
-ni_dbus_service_t		ni_objectmodel_managed_policy_service = {
-	.name		= NI_OBJECTMODEL_MANAGED_POLICY_INTERFACE,
-	.compatible	= &ni_objectmodel_managed_policy_class,
-	.methods	= ni_objectmodel_managed_policy_methods,
+const ni_dbus_service_t		ni_objectmodel_managed_policy_service = {
+	.name			= NI_OBJECTMODEL_MANAGED_POLICY_INTERFACE,
+	.compatible		= &ni_objectmodel_managed_policy_class,
+	.methods		= ni_objectmodel_managed_policy_methods,
 };
 

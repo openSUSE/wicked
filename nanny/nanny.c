@@ -284,7 +284,7 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 				/* Re-enable scanning */
 				ni_debug_nanny("%s: radio re-enabled, resume monitoring", w->name);
 				if (mdev->monitor)
-					ni_managed_netdev_enable(mdev);
+					ni_managed_netif_enable(mdev);
 			}
 		}
 	}
@@ -482,7 +482,7 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 		return;
 
 	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
-		if ((mdev->object = ni_objectmodel_register_managed_netdev(mgr->server, mdev)))
+		if ((mdev->object = ni_objectmodel_register_managed_netif(mgr->server, mdev)))
 			dev_class = ni_objectmodel_link_class(w->device->link.type);
 	} else
 	if (w->type == NI_IFWORKER_TYPE_MODEM) {
@@ -1186,7 +1186,7 @@ ni_objectmodel_nanny_recheck(ni_dbus_object_t *object, const ni_dbus_method_t *m
 	return TRUE;
 }
 
-static ni_dbus_method_t		ni_objectmodel_nanny_methods[] = {
+static const ni_dbus_method_t	ni_objectmodel_nanny_methods[] = {
 	{ "getDevice",		"s",		.handler = ni_objectmodel_nanny_get_device	 },
 	{ "createPolicy",	"s",		.handler_ex = ni_objectmodel_nanny_create_policy },
 	{ "deletePolicy",	"s",		.handler_ex = ni_objectmodel_nanny_delete_policy },
@@ -1195,12 +1195,12 @@ static ni_dbus_method_t		ni_objectmodel_nanny_methods[] = {
 	{ NULL }
 };
 
-ni_dbus_class_t			ni_objectmodel_nanny_class = {
-	.name		= "nanny",
+const ni_dbus_class_t		ni_objectmodel_nanny_class = {
+	.name			= NI_OBJECTMODEL_NANNY_CLASS,
 };
 
-ni_dbus_service_t		ni_objectmodel_nanny_service = {
-	.name		= NI_OBJECTMODEL_NANNY_INTERFACE,
-	.compatible	= &ni_objectmodel_nanny_class,
-	.methods	= ni_objectmodel_nanny_methods
+const ni_dbus_service_t		ni_objectmodel_nanny_service = {
+	.name			= NI_OBJECTMODEL_NANNY_INTERFACE,
+	.compatible		= &ni_objectmodel_nanny_class,
+	.methods		= ni_objectmodel_nanny_methods
 };

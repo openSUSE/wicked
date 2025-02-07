@@ -463,7 +463,7 @@ ni_managed_device_down_done(ni_ifworker_t *w)
 
 	if (mdev->monitor && w->type == NI_IFWORKER_TYPE_NETDEV) {
 		/* Re-enable wireless scanning and ethernet link status monitoring */
-		ni_managed_netdev_enable(mdev);
+		ni_managed_netif_enable(mdev);
 	}
 }
 

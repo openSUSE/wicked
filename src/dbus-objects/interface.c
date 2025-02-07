@@ -57,6 +57,17 @@ extern ni_dbus_service_t	ni_objectmodel_wireless_service;
 static ni_dbus_property_t	ni_objectmodel_netif_request_properties[];
 
 /*
+ * Shortcut to return the (cached) registered netif base-class or NULL
+ */
+const ni_dbus_class_t *
+ni_objectmodel_get_netif_class(void)
+{
+	static const ni_dbus_class_t *class = NULL;
+
+	return class ?: (class = ni_objectmodel_get_class(NI_OBJECTMODEL_NETIF_CLASS));
+}
+
+/*
  * For all link layer types, create a dbus object class named "netif-$linktype".
  * This allows to define extensions and interface for specific link layers.
  */
@@ -470,7 +481,7 @@ static ni_dbus_method_t		ni_objectmodel_netif_list_methods[] = {
 };
 
 static ni_dbus_service_t	ni_objectmodel_netif_list_service = {
-	.name		= NI_OBJECTMODEL_NETIFLIST_INTERFACE,
+	.name		= NI_OBJECTMODEL_NETIF_LIST_INTERFACE,
 	.compatible	= &ni_objectmodel_netif_list_class,
 	.methods	= ni_objectmodel_netif_list_methods,
 };

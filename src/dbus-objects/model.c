@@ -204,15 +204,27 @@ ni_objectmodel_compatible_services_for_class(const ni_dbus_class_t *query_class,
 /*
  * objectmodel service registry
  */
-void
+ni_bool_t
 ni_objectmodel_register_service(const ni_dbus_service_t *service)
 {
 	unsigned int index = ni_objectmodel_service_registry.count;
+	const ni_dbus_service_t *found;
 
+	ni_assert(service->name);
 	ni_assert(index < NI_DBUS_SERVICES_MAX);
+
+	if ((found = ni_objectmodel_service_by_name(service->name))) {
+		if (found == service)
+			return TRUE;
+
+		ni_error("attempt to redefine objectmodel service '%s'",
+				found->name);
+		return FALSE;
+	}
 
 	ni_objectmodel_service_registry.services[index++] = service;
 	ni_objectmodel_service_registry.count = index;
+	return TRUE;
 }
 
 const ni_dbus_service_t *
@@ -317,16 +329,27 @@ ni_objectmodel_auth_service(const ni_dbus_service_t *service)
  * This is mostly needed for doing proper type checking when binding
  * extensions
  */
-void
+ni_bool_t
 ni_objectmodel_register_class(const ni_dbus_class_t *class)
 {
 	unsigned int index = ni_objectmodel_class_registry.count;
+	const ni_dbus_class_t *found;
 
 	ni_assert(class->name);
 	ni_assert(index < NI_DBUS_CLASSES_MAX);
 
+	if ((found = ni_objectmodel_get_class(class->name))) {
+		if (found == class)
+			return TRUE;
+
+		ni_error("attempt to redefine objectmodel class '%s'",
+				found->name);
+		return FALSE;
+	}
+
 	ni_objectmodel_class_registry.class[index++] = class;
 	ni_objectmodel_class_registry.count = index;
+	return TRUE;
 }
 
 const ni_dbus_class_t *
