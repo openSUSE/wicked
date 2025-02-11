@@ -420,7 +420,7 @@ ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 	}
 
 	xml_node_free(policy->node);
-	policy->node = xml_node_clone_ref(node);
+	policy->node = xml_node_ref(node);
 	policy->seq = policy_seq++;
 	return TRUE;
 }
@@ -973,7 +973,7 @@ ni_fsm_policy_action_xml_lookup_next(xml_node_t *node, const char *name, xml_nod
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, name)) {
 			if (!child->final) {
-				ref = xml_node_clone_ref(child);
+				ref = xml_node_ref(child);
 				if (ref && !xml_node_array_append(res, ref))
 					xml_node_free(ref);
 			}
@@ -1000,7 +1000,7 @@ ni_fsm_policy_action_xml_lookup(xml_node_t *node, const char *path)
 	if (!(cur = xml_node_array_new()))
 		return NULL;
 
-	ref = xml_node_clone_ref(node);
+	ref = xml_node_ref(node);
 	if (ref && !xml_node_array_append(cur, ref)) {
 		xml_node_free(ref);
 		return NULL;
@@ -1089,7 +1089,7 @@ ni_fsm_policy_action_xml_replace(const ni_fsm_policy_action_t *action, xml_node_
 
 	if (action->xpath == NULL) {
 		xml_node_free(node);
-		return xml_node_clone_ref(action->data);
+		return xml_node_ref(action->data);
 	}
 
 	nodes = ni_fsm_policy_action_xml_lookup(node, action->xpath);

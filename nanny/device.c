@@ -111,7 +111,7 @@ void
 ni_managed_device_set_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy, xml_node_t *config)
 {
 	xml_node_free(mdev->selected_config);
-	mdev->selected_config = xml_node_clone_ref(config);
+	mdev->selected_config = xml_node_ref(config);
 
 	ni_managed_policy_free(mdev->selected_policy);
 	mdev->selected_policy = ni_managed_policy_ref(mpolicy);

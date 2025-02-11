@@ -23,6 +23,7 @@
 
 #include <wicked/xml.h>
 #include <wicked/logging.h>
+#include "refcount_priv.h"
 #include "array_priv.h"
 #include "util_priv.h"
 #include "slist_priv.h"
@@ -196,21 +197,64 @@ xml_node_add_child(xml_node_t *parent, xml_node_t *child)
 	__xml_node_list_insert(tail, child, parent);
 }
 
+static inline ni_bool_t
+xml_node_init(xml_node_t *node, const char *ident, xml_node_t *parent)
+{
+	memset(node, 0, sizeof(*node));
+
+	if (!ni_string_dup(&node->name, ident))
+		return FALSE;
+
+	if (parent)
+		xml_node_add_child(parent, node);
+
+	return TRUE;
+}
+
+static inline void
+xml_node_destroy(xml_node_t *node)
+{
+	xml_node_t *child;
+
+	while ((child = node->children) != NULL) {
+		node->children = child->next;
+		child->parent = NULL;
+		xml_node_free(child);
+	}
+
+	if (node->location)
+		xml_location_free(node->location);
+
+	ni_var_array_destroy(&node->attrs);
+	free(node->cdata);
+	free(node->name);
+}
+
 xml_node_t *
 xml_node_new(const char *ident, xml_node_t *parent)
 {
 	xml_node_t *node;
 
-	node = xcalloc(1, sizeof(xml_node_t));
-	if (ident)
-		node->name = xstrdup(ident);
-
-	if (parent)
-		xml_node_add_child(parent, node);
-	node->refcount = 1;
-
+	node = xmalloc(sizeof(*node));
+	if (node) {
+		if (!xml_node_init(node, ident, parent)) {
+			free(node);
+			return NULL;
+		}
+		if (!ni_refcount_init(&node->refcount)) {
+			xml_node_destroy(node);
+			free(node);
+			return NULL;
+		}
+	}
 	return node;
 }
+
+extern ni_define_refcounted_ref(xml_node);
+extern ni_define_refcounted_free(xml_node);
+extern ni_define_refcounted_hold(xml_node);
+extern ni_define_refcounted_drop(xml_node);
+extern ni_define_refcounted_move(xml_node);
 
 xml_node_t *
 xml_node_new_element(const char *ident, xml_node_t *parent, const char *cdata)
@@ -283,7 +327,9 @@ xml_node_clone(const xml_node_t *src, xml_node_t *parent)
 	if (!src)
 		return NULL;
 
-	dst = xml_node_new(src->name, parent);
+	if (!(dst = xml_node_new(src->name, parent)))
+		return NULL;
+
 	ni_string_dup(&dst->cdata, src->cdata);
 
 	for (i = 0, attr = src->attrs.data; i < src->attrs.count; ++i, ++attr)
@@ -294,20 +340,6 @@ xml_node_clone(const xml_node_t *src, xml_node_t *parent)
 
 	dst->location = xml_location_clone(src->location);
 	return dst;
-}
-
-/*
- * "Clone" an XML node by incrementing its refcount
- */
-xml_node_t *
-xml_node_clone_ref(xml_node_t *src)
-{
-	if (!src)
-		return NULL;
-
-	ni_assert(src->refcount);
-	src->refcount++;
-	return src;
 }
 
 /*
@@ -333,42 +365,10 @@ dont_merge: ;
 	}
 }
 
-
-
-/*
- * Free an XML node
- */
-void
-xml_node_free(xml_node_t *node)
-{
-	xml_node_t *child;
-
-	if (!node)
-		return;
-
-	ni_assert(node->refcount);
-	if (--(node->refcount) != 0)
-		return;
-
-	while ((child = node->children) != NULL) {
-		node->children = child->next;
-		child->parent = NULL;
-		xml_node_free(child);
-	}
-
-	if (node->location)
-		xml_location_free(node->location);
-
-	ni_var_array_destroy(&node->attrs);
-	free(node->cdata);
-	free(node->name);
-	free(node);
-}
-
 ni_bool_t
 xml_node_set_cdata(xml_node_t *node, const char *cdata)
 {
-	return ni_string_dup(&node->cdata, cdata);
+	return node && ni_string_dup(&node->cdata, cdata);
 }
 
 ni_bool_t
