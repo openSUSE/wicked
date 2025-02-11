@@ -3,7 +3,8 @@
  *	This basically parses tags, attributes and CDATA, and that's
  *	just about it.
  *
- *	Copyright (C) 2009-2012  Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2025 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -15,10 +16,8 @@
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
  *
- *	You should have received a copy of the GNU General Public License along
- *	with this program; if not, see <http://www.gnu.org/licenses/> or write 
- *	to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, 
- *	Boston, MA 02110-1301 USA.
+ *	You should have received a copy of the GNU General Public License
+ *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
 #ifdef HAVE_CONFIG_H
@@ -238,7 +237,7 @@ xml_process_pi_node(xml_reader_t *xr, xml_node_t *pi)
 			   and make sure we process all input that way. */
 		}
 	}
-		
+
 }
 
 ni_bool_t
@@ -558,7 +557,7 @@ restart:
 		return LeftAngle;
 	}
 
-	// Looks like CDATA. 
+	// Looks like CDATA.
 	// Ignore initial newline, then scan to next <
 	do {
 		if (cc == '<') {

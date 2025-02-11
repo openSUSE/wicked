@@ -3,7 +3,8 @@
  *	This basically parses tags, attributes and CDATA, and that's
  *	just about it.
  *
- *	Copyright (C) 2009-2012  Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2012 Olaf Kirch <okir@suse.de>
+ *	Copyright (C) 2009-2025 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
