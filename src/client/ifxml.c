@@ -272,7 +272,7 @@ ni_convert_cfg_into_policy_node(const xml_node_t *ifcfg, xml_node_t *match, cons
 	ifpolicy = xml_node_new(NI_NANNY_IFPOLICY, NULL);
 
 	/* add match node as counted reference to the policy */
-	xml_node_reparent(ifpolicy, xml_node_clone_ref(match));
+	xml_node_reparent(ifpolicy, xml_node_ref(match));
 
 	/* clone <interface> into policy and rename to <merge>
 	 * TODO: ahm... add action parameter to this function.

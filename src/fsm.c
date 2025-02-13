@@ -1985,7 +1985,7 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 	if (xml_node_is_empty(ifnode))
 		return TRUE;
 
-	if (!(w->config.node = xml_node_clone_ref(ifnode)))
+	if (!(w->config.node = xml_node_ref(ifnode)))
 		return FALSE;
 
 	if ((child = xml_node_get_child(ifnode, NI_CLIENT_STATE_XML_NODE))) {
@@ -2382,8 +2382,8 @@ ni_ifworker_require_resolver_new(ni_ifworker_type_t type, xml_node_t *node, xml_
 	resolver = xcalloc(1, sizeof(*resolver));
 	if (resolver) {
 		resolver->cwtype = type;
-		resolver->cwnode = xml_node_clone_ref(node);
-		resolver->cwmeta = xml_node_clone_ref(meta);
+		resolver->cwnode = xml_node_ref(node);
+		resolver->cwmeta = xml_node_ref(meta);
 	}
 	return resolver;
 }
@@ -5671,7 +5671,7 @@ ni_ifworker_do_common_bind(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 		/*
 		 * Get reference to the mapped argument (child-)node and free the (outer) config clone
 		 */
-		bind->config = xml_node_clone_ref(bind->config);
+		bind->config = xml_node_ref(bind->config);
 		xml_node_free(config);
 		config = NULL;
 

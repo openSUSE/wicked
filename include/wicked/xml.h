@@ -26,6 +26,7 @@
 #include <wicked/util.h>
 #include <wicked/types.h>
 #include <wicked/array.h>
+#include <wicked/refcount.h>
 
 struct xml_document {
 	char *			dtd;
@@ -48,7 +49,7 @@ struct xml_location {
 
 struct xml_node {
 	struct xml_node *	next;
-	uint16_t		refcount;
+	ni_refcount_t		refcount;
 	uint16_t		final : 1;
 
 	char *			name;
@@ -86,7 +87,13 @@ extern void		xml_document_free(xml_document_t *);
 extern xml_document_t *	xml_document_create(const char *, xml_node_t *);
 extern ni_bool_t	xml_document_expand(xml_document_array_t *, xml_document_t *);
 
-extern xml_node_t *	xml_node_new(const char *ident, xml_node_t *);
+extern xml_node_t *	xml_node_new(const char *, xml_node_t *);
+extern			ni_declare_refcounted_ref(xml_node);
+extern			ni_declare_refcounted_free(xml_node);
+extern			ni_declare_refcounted_hold(xml_node);
+extern			ni_declare_refcounted_drop(xml_node);
+extern			ni_declare_refcounted_move(xml_node);
+
 extern xml_node_t *	xml_node_new_element(const char *ident, xml_node_t *, const char *cdata);
 extern xml_node_t *	xml_node_new_element_int(const char *ident, xml_node_t *, int);
 extern xml_node_t *	xml_node_new_element_int64(const char *ident, xml_node_t *, int64_t);
@@ -94,9 +101,7 @@ extern xml_node_t *	xml_node_new_element_uint(const char *ident, xml_node_t *, u
 extern xml_node_t *	xml_node_new_element_uint64(const char *ident, xml_node_t *, uint64_t);
 extern xml_node_t *	xml_node_new_element_unique(const char *ident, xml_node_t *, const char *cdata);
 extern xml_node_t *	xml_node_clone(const xml_node_t *src, xml_node_t *parent);
-extern xml_node_t *	xml_node_clone_ref(xml_node_t *src);
 extern void		xml_node_merge(xml_node_t *, const xml_node_t *);
-extern void		xml_node_free(xml_node_t *);
 extern int		xml_node_print(const xml_node_t *, FILE *fp);
 extern char *		xml_node_sprint(const xml_node_t *);
 extern int		xml_node_hash(const xml_node_t *, ni_hashctx_algo_t, void *md_buffer, size_t md_bufsz);
