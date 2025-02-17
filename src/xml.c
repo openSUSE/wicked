@@ -787,6 +787,7 @@ extern ni_define_ptr_array_init(xml_node);
 extern ni_define_ptr_array_destroy(xml_node);
 static ni_define_ptr_array_realloc(xml_node, XML_NODE_ARRAY_CHUNK)
 extern ni_define_ptr_array_append(xml_node);
+extern ni_define_ptr_array_append_ref(xml_node);
 
 xml_node_array_t *
 xml_node_array_new(void)
