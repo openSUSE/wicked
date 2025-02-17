@@ -790,38 +790,68 @@ ni_fsm_exists_applicable_policy(const ni_fsm_t *fsm, ni_fsm_policy_t *list, ni_i
  *	changes made by a policy with lower weight.
  */
 xml_node_t *
-ni_fsm_policy_transform_document(xml_node_t *node, ni_fsm_policy_t * const *policies, unsigned int count)
+ni_fsm_policy_transform_document(xml_node_t *config, ni_fsm_policy_t * const *policies, unsigned int count)
 {
-	unsigned int i = 0;
+	unsigned int i;
+
+	if (!config || !policies || !count)
+		return NULL;
 
 	/*
 	 * Apply policies in order of increasing weight,
 	 * see e) in the transform description above.
 	 */
-	for (i = 0; i < count; ++i) {
+	for (i = 0; !config->final && i < count; ++i) {
 		const ni_fsm_policy_t *policy = policies[i];
 		ni_fsm_policy_action_t *action;
 
 		if (!policy)
 			continue;
 
-		for (action = policy->actions; action && node; action = action->next) {
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_WICKED_XML,
+				"transforming policy '%s' into config",
+				policy->name);
+
+		for (action = policy->actions; action; action = action->next) {
 			switch (action->type) {
 			case NI_FSM_POLICY_ACTION_MERGE:
-				node = ni_fsm_policy_action_xml_merge(action, node);
+				if (ni_fsm_policy_action_xml_merge(action, config))
+					ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_WICKED_XML,
+							"policy '%s' merge action applied",
+							policy->name);
+				else
+					ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_WICKED_XML,
+							"policy '%s' merge action failed",
+							policy->name);
 				break;
 
 			case NI_FSM_POLICY_ACTION_REPLACE:
-				node = ni_fsm_policy_action_xml_replace(action, node);
+				if (ni_fsm_policy_action_xml_replace(action, config))
+					ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_WICKED_XML,
+							"policy '%s' replace action applied",
+							policy->name);
+				else
+					ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_WICKED_XML,
+							"policy '%s' replace action failed",
+							policy->name);
 				break;
 
 			default:
 				continue;
 			}
+
+			if (config->final || !(action->next || i + 1 < count)) {
+				ni_debug_config_xml(config, NI_LOG_DEBUG3,
+						"resulting config (final):");
+				break;
+			}
+
+			ni_debug_config_xml(config, NI_LOG_DEBUG3,
+					"resulting config (transient):");
 		}
 	}
 
-	return node;
+	return config;
 }
 
 /*
