@@ -1071,8 +1071,8 @@ ni_nanny_recheck_policy(ni_nanny_t *mgr, ni_fsm_policy_t *policy)
 		const char *origin = ni_fsm_policy_origin(policy);
 
 		config = xml_node_new(NI_CLIENT_IFCONFIG, NULL);
-		config = ni_fsm_policy_transform_document(config, &policy, 1);
-		if (!config) {
+		if (!ni_fsm_transform_policies_to_config(config, &policy, 1)) {
+			xml_node_free(config);
 			ni_error("Unable to transform policy %s into config [%s]",
 					ni_fsm_policy_name(policy), origin);
 			return FALSE;

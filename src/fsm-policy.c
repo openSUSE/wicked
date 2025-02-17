@@ -789,13 +789,14 @@ ni_fsm_exists_applicable_policy(const ni_fsm_t *fsm, ni_fsm_policy_t *list, ni_i
  *	policy with a greater "weight" attribute potentially overwrites
  *	changes made by a policy with lower weight.
  */
-xml_node_t *
-ni_fsm_policy_transform_document(xml_node_t *config, ni_fsm_policy_t * const *policies, unsigned int count)
+ni_bool_t
+ni_fsm_transform_policies_to_config(xml_node_t *config, ni_fsm_policy_t * const *policies, unsigned int count)
 {
+	ni_bool_t applied = FALSE;
 	unsigned int i;
 
 	if (!config || !policies || !count)
-		return NULL;
+		return applied;
 
 	/*
 	 * Apply policies in order of increasing weight,
@@ -815,25 +816,29 @@ ni_fsm_policy_transform_document(xml_node_t *config, ni_fsm_policy_t * const *po
 		for (action = policy->actions; action; action = action->next) {
 			switch (action->type) {
 			case NI_FSM_POLICY_ACTION_MERGE:
-				if (ni_fsm_policy_action_xml_merge(action, config))
+				if (ni_fsm_policy_action_xml_merge(action, config)) {
+					applied = TRUE;
 					ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_WICKED_XML,
 							"policy '%s' merge action applied",
 							policy->name);
-				else
+				} else {
 					ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_WICKED_XML,
 							"policy '%s' merge action failed",
 							policy->name);
+				}
 				break;
 
 			case NI_FSM_POLICY_ACTION_REPLACE:
-				if (ni_fsm_policy_action_xml_replace(action, config))
+				if (ni_fsm_policy_action_xml_replace(action, config)) {
+					applied = TRUE;
 					ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_WICKED_XML,
 							"policy '%s' replace action applied",
 							policy->name);
-				else
+				} else {
 					ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_WICKED_XML,
 							"policy '%s' replace action failed",
 							policy->name);
+				}
 				break;
 
 			default:
@@ -851,7 +856,7 @@ ni_fsm_policy_transform_document(xml_node_t *config, ni_fsm_policy_t * const *po
 		}
 	}
 
-	return config;
+	return applied;
 }
 
 /*
