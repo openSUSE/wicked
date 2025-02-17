@@ -387,7 +387,7 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, xml_do
 		ni_string_free(&location);
 	}
 
-	if (!(policy = ni_fsm_policy_new(mgr->fsm, pname, pnode))) {
+	if (!(policy = ni_fsm_policy_new(mgr->fsm, pnode))) {
 		ni_error("Unable to create policy object for %s", pname);
 		goto error;
 	}

@@ -292,8 +292,7 @@ extern void			ni_fsm_events_block(ni_fsm_t *);
 extern void			ni_fsm_process_events(ni_fsm_t *);
 extern void			ni_fsm_events_unblock(ni_fsm_t *);
 
-extern				ni_declare_refcounted_new(ni_fsm_policy,
-						ni_fsm_t *, const char *, xml_node_t *);
+extern				ni_declare_refcounted_new(ni_fsm_policy, ni_fsm_t *, xml_node_t *);
 extern				ni_declare_refcounted_ref(ni_fsm_policy);
 extern				ni_declare_refcounted_free(ni_fsm_policy);
 extern				ni_declare_refcounted_hold(ni_fsm_policy);
