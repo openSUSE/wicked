@@ -117,6 +117,11 @@ struct ni_fsm_policy {
 	uid_t				owner;
 	unsigned int			weight;
 
+	struct {
+		ni_ifworker_type_t	type;
+		const ni_dbus_class_t *	class;
+	} config;
+
 	ni_ifcondition_t *		match;
 
 	ni_fsm_policy_action_t *	create_action;
@@ -236,6 +241,60 @@ ni_fsm_policy_name_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 }
 
 static ni_bool_t
+ni_fsm_policy_class_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
+{
+	/*
+	 * Without a worker, we cannot match if the policy is applicable
+	 * as the match expression matches properties of the worker and/or
+	 * the netif device/modem inside the worker.
+	 *
+	 * We need to know the worker type a policy configures to create
+	 * a worker from the policy config for (virtual) interfaces that
+	 * do not exist yet (in the kernel/wickedd).
+	 *
+	 * The content of the policy <merge/> and/or <replace/> nodes is
+	 * transformed into the effective (wickedd) config and we need
+	 * to know if to use an <interface/> or <modem/> node for it.
+	 *
+	 * Once the worker exist, we can bind factory to create the
+	 * virtual interface or wait until it the expected interface
+	 * (or modem) has been detected, match it and start the setup.
+	 */
+	const ni_dbus_class_t *class;
+	const char *name;
+
+	name = ni_ifpolicy_get_class(node);
+#ifndef MODEM
+	if (ni_string_empty(name)) {
+		name = NI_OBJECTMODEL_NETIF_CLASS;
+		ni_debug_xml("%s: policy without class declaration,"
+				" assuming class=\"%s\"",
+				xml_node_location(node), name);
+	}
+#endif
+
+	class = ni_objectmodel_get_netif_class();
+	if (class && ni_string_eq(name, class->name)) {
+		policy->config.type = NI_IFWORKER_TYPE_NETDEV;
+		policy->config.class = class;
+		return TRUE;
+	}
+
+#ifdef MODEM
+	class = ni_objectmodel_get_modem_class();
+	if (class && ni_string_eq(name, class->name)) {
+		policy->config.type = NI_IFWORKER_TYPE_MODEM;
+		policy->config.class = class;
+		return TRUE;
+	}
+#endif
+
+	ni_error("%s: policy class=\"%s\" is unknown/not supported",
+			xml_node_location(node), name);
+	return FALSE;
+}
+
+static ni_bool_t
 ni_fsm_policy_owner_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 {
 	const char *attr;
@@ -318,6 +377,9 @@ ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 		return FALSE;
 
 	if (!ni_fsm_policy_name_from_xml(policy, node))
+		return FALSE;
+
+	if (!ni_fsm_policy_class_from_xml(policy, node))
 		return FALSE;
 
 	if (!ni_fsm_policy_owner_from_xml(policy, node))
@@ -606,6 +668,18 @@ unsigned int
 ni_fsm_policy_weight(const ni_fsm_policy_t *policy)
 {
 	return policy ? policy->weight : -1U;
+}
+
+ni_ifworker_type_t
+ni_fsm_policy_config_type(const ni_fsm_policy_t *policy)
+{
+	return policy ? policy->config.type : NI_IFWORKER_TYPE_NONE;
+}
+
+const ni_dbus_class_t *
+ni_fsm_policy_config_class(const ni_fsm_policy_t *policy)
+{
+	return policy ? policy->config.class : NULL;
 }
 
 /*

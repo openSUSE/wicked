@@ -61,6 +61,7 @@
 #define NI_NANNY_IFPOLICY_OWNER			NI_CONFIG_OWNER
 #define NI_NANNY_IFPOLICY_UUID			NI_CONFIG_UUID
 #define NI_NANNY_IFPOLICY_WEIGHT		"weight"
+#define NI_NANNY_IFPOLICY_CLASS			"class"
 #define NI_NANNY_IFPOLICY_NAME			"name"
 
 extern ni_bool_t		ni_ifpolicy_match_add_min_state(xml_node_t *, ni_fsm_state_t);
@@ -107,6 +108,12 @@ static inline const char *
 ni_ifconfig_get_origin(const xml_node_t *ifnode)
 {
 	return xml_node_get_attr(ifnode, NI_CLIENT_IFCONFIG_ORIGIN);
+}
+
+static inline const char *
+ni_ifpolicy_get_class(const xml_node_t *pnode)
+{
+	return xml_node_get_attr(pnode, NI_NANNY_IFPOLICY_CLASS);
 }
 
 static inline const char *

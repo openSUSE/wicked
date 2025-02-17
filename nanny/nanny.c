@@ -1062,16 +1062,21 @@ static ni_bool_t
 ni_nanny_recheck_policy(ni_nanny_t *mgr, ni_fsm_policy_t *policy)
 {
 	ni_managed_device_t *mdev;
-	xml_node_t *config;
+	xml_node_t *config = NULL;
 	ni_ifworker_t *w;
 
 	w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV,
 							ni_fsm_policy_name(policy));
 	if (w == NULL || !w->config.node) {
 		const char *origin = ni_fsm_policy_origin(policy);
+		const char *type_name;
 
-		config = xml_node_new(NI_CLIENT_IFCONFIG, NULL);
-		if (!ni_fsm_transform_policies_to_config(config, &policy, 1)) {
+		type_name = ni_ifworker_type_to_string(ni_fsm_policy_config_type(policy));
+
+		if (type_name && (config = xml_node_new(type_name, NULL)))
+			xml_node_location_relocate(config, ni_fsm_policy_name(policy));
+
+		if (!config || !ni_fsm_transform_policies_to_config(config, &policy, 1)) {
 			xml_node_free(config);
 			ni_error("Unable to transform policy %s into config [%s]",
 					ni_fsm_policy_name(policy), origin);

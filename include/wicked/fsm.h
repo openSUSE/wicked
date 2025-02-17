@@ -316,6 +316,9 @@ extern const ni_uuid_t *	ni_fsm_policy_uuid(const ni_fsm_policy_t *);
 extern uid_t			ni_fsm_policy_owner(const ni_fsm_policy_t *);
 extern const char *		ni_fsm_policy_origin(const ni_fsm_policy_t *);
 extern unsigned int		ni_fsm_policy_weight(const ni_fsm_policy_t *);
+extern ni_ifworker_type_t	ni_fsm_policy_config_type(const ni_fsm_policy_t *);
+extern const ni_dbus_class_t *	ni_fsm_policy_config_class(const ni_fsm_policy_t *);
+
 extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *tstamp);
 
 extern				ni_declare_ptr_array_init(ni_fsm_policy);
