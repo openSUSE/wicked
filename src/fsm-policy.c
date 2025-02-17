@@ -967,22 +967,24 @@ ni_fsm_template_input_free(ni_fsm_template_input_t *input)
 static void
 ni_fsm_policy_action_xml_lookup_next(xml_node_t *node, const char *name, xml_node_array_t *res)
 {
-	xml_node_t *child, *ref;
+	xml_node_t *child;
 	unsigned int found = 0;
 
 	for (child = node->children; child; child = child->next) {
 		if (ni_string_eq(child->name, name)) {
-			if (!child->final) {
-				ref = xml_node_ref(child);
-				if (ref && !xml_node_array_append(res, ref))
-					xml_node_free(ref);
-			}
+			if (!child->final)
+				xml_node_array_append_ref(res, child);
 			found++;
 		}
 	}
 
-	if (!found)
-		xml_node_array_append(res, xml_node_new(name, node));
+	if (!found) {
+		child = xml_node_new(name, NULL);
+		if (xml_node_array_append_ref(res, child))
+			xml_node_add_child(node, child);
+		else
+			xml_node_free(child);
+	}
 }
 
 static xml_node_array_t *
@@ -990,7 +992,6 @@ ni_fsm_policy_action_xml_lookup(xml_node_t *node, const char *path)
 {
 	xml_node_array_t *cur;
 	char *copy, *name;
-	xml_node_t *ref;
 
 	if (node->final) {
 		ni_error("%s: called with XML element that's marked final", __func__);
@@ -1000,9 +1001,8 @@ ni_fsm_policy_action_xml_lookup(xml_node_t *node, const char *path)
 	if (!(cur = xml_node_array_new()))
 		return NULL;
 
-	ref = xml_node_ref(node);
-	if (ref && !xml_node_array_append(cur, ref)) {
-		xml_node_free(ref);
+	if (!xml_node_array_append_ref(cur, node)) {
+		xml_node_array_free(cur);
 		return NULL;
 	}
 
@@ -1011,7 +1011,12 @@ ni_fsm_policy_action_xml_lookup(xml_node_t *node, const char *path)
 		xml_node_array_t *next;
 		unsigned int i;
 
-		next = xml_node_array_new();
+		if (!(next = xml_node_array_new())) {
+			xml_node_array_free(cur);
+			free(copy);
+			return NULL;
+		}
+
 		for (i = 0; i < cur->count; ++i) {
 			xml_node_t *np = cur->data[i];
 
