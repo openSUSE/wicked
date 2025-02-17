@@ -1073,16 +1073,47 @@ ni_fsm_policy_action_xml_merge(const ni_fsm_policy_action_t *action, xml_node_t 
 }
 
 /*
- * ifpolicy replace action
+ * See d) in the transform description.
+ *
+ * The policy replace action:
  *   <replace path="/foo">
  *    <bar/> <baz/>
  *   </replace>
- * This will look up the <foo> element inside the given document, remove all of
- * its children and replace them with <bar> and <baz>.
+ * will look up the <foo> element inside the given document, remove all of its
+ * children and replace them with <bar> and <baz>.
  *
- * If the path attribute is not given, this transformation replaces the
- * top-level xml node (which is usually an <interface> or <modem> element).
+ * If the path attribute is not given, this transformation replaces the children
+ * in the top-level xml node (which is usually an <interface> or <modem> config),
+ * except when a child to replace is marked final.
  */
+static inline ni_bool_t
+ni_fsm_policy_action_xml_replace_children(xml_node_t *node, xml_node_t *from)
+{
+	xml_node_t *nchild, *next;
+	xml_node_t *fchild;
+
+	if (!node || !from)
+		return FALSE;
+
+	for (nchild = node->children; nchild; nchild = next) {
+		next = nchild->next;
+
+		if (nchild->final)
+			continue;
+
+		xml_node_delete_child_node(node, nchild);
+	}
+
+	for (fchild = from->children; fchild; fchild = fchild->next) {
+		if (xml_node_get_child(node, fchild->name))
+			continue;
+
+		xml_node_clone(fchild, node);
+	}
+
+	return TRUE;
+}
+
 xml_node_t *
 ni_fsm_policy_action_xml_replace(const ni_fsm_policy_action_t *action, xml_node_t *node)
 {
@@ -1093,8 +1124,10 @@ ni_fsm_policy_action_xml_replace(const ni_fsm_policy_action_t *action, xml_node_
 		return node;
 
 	if (action->xpath == NULL) {
-		xml_node_free(node);
-		return xml_node_ref(action->data);
+		if (ni_fsm_policy_action_xml_replace_children(node, action->data))
+			node->final = action->final;
+
+		return node;
 	}
 
 	nodes = ni_fsm_policy_action_xml_lookup(node, action->xpath);
@@ -1103,17 +1136,9 @@ ni_fsm_policy_action_xml_replace(const ni_fsm_policy_action_t *action, xml_node_
 
 	for (i = 0; i < nodes->count; ++i) {
 		xml_node_t *np = nodes->data[i];
-		xml_node_t *child;
 
-		/* Remove all children of the node we found. */
-		while ((child = np->children) != NULL)
-			xml_node_delete_child_node(np, child);
-
-		/* Add all children of the <replace> action to it. */
-		for (child = action->data->children; child; child = child->next)
-			xml_node_clone(child, np);
-
-		np->final = action->final;
+		if (ni_fsm_policy_action_xml_replace_children(np, action->data))
+			np->final = action->final;
 	}
 
 	xml_node_array_free(nodes);
