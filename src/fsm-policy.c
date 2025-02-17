@@ -794,8 +794,11 @@ ni_fsm_policy_transform_document(xml_node_t *node, ni_fsm_policy_t * const *poli
 {
 	unsigned int i = 0;
 
-	/* Apply policies in order of decreasing weight */
-	for (i = count; i--; ) {
+	/*
+	 * Apply policies in order of increasing weight,
+	 * see e) in the transform description above.
+	 */
+	for (i = 0; i < count; ++i) {
 		const ni_fsm_policy_t *policy = policies[i];
 		ni_fsm_policy_action_t *action;
 
