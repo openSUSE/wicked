@@ -183,7 +183,6 @@ extern				ni_declare_ptr_array_index(xml_document);
 
 extern				ni_declare_ptr_array_init(xml_node);
 extern				ni_declare_ptr_array_destroy(xml_node);
-extern				ni_declare_ptr_array_append(xml_node);
 extern				ni_declare_ptr_array_append_ref(xml_node);
 
 extern xml_node_array_t *	xml_node_array_new(void);
