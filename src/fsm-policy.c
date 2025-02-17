@@ -488,9 +488,9 @@ ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 }
 
 static ni_bool_t
-ni_fsm_policy_init(ni_fsm_policy_t *policy, ni_fsm_t *fsm, xml_node_t *node)
+ni_fsm_policy_init(ni_fsm_policy_t *policy, xml_node_t *node)
 {
-	if (!policy || !fsm || !node || !node->children)
+	if (!policy || !node || !node->children)
 		return FALSE;
 
 	memset(policy, 0, sizeof(*policy));
@@ -501,16 +501,27 @@ ni_fsm_policy_init(ni_fsm_policy_t *policy, ni_fsm_t *fsm, xml_node_t *node)
 		return FALSE;
 	}
 
-	ni_fsm_policy_list_insert(&fsm->policies, policy);
 	return TRUE;
 }
 
-extern ni_define_refcounted_new(ni_fsm_policy, ni_fsm_t *, xml_node_t *);
+static ni_define_refcounted_new(ni_fsm_policy, xml_node_t *);
 extern ni_define_refcounted_ref(ni_fsm_policy);
 extern ni_define_refcounted_free(ni_fsm_policy);
 extern ni_define_refcounted_hold(ni_fsm_policy);
 extern ni_define_refcounted_drop(ni_fsm_policy);
 extern ni_define_refcounted_move(ni_fsm_policy);
+
+ni_fsm_policy_t *
+ni_fsm_create_policy(ni_fsm_t *fsm, xml_node_t *node)
+{
+	ni_fsm_policy_t *policy;
+
+	if (!fsm || !(policy = ni_fsm_policy_new(node)))
+		return NULL;
+
+	ni_fsm_policy_list_insert(&fsm->policies, policy);
+	return policy;
+}
 
 ni_bool_t
 ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
