@@ -594,12 +594,30 @@ ni_fsm_policies_changed_since(const ni_fsm_t *fsm, unsigned int *tstamp)
 }
 
 ni_fsm_policy_t *
-ni_fsm_policy_by_name(const ni_fsm_t *fsm, const char *name)
+ni_fsm_get_policy_by_ref(const ni_fsm_t *fsm, const ni_fsm_policy_t *ref)
 {
 	ni_fsm_policy_t *policy;
 
+	if (!fsm || !ref)
+		return NULL;
+
 	for (policy = fsm->policies; policy; policy = policy->next) {
-		if (policy->name && ni_string_eq(policy->name, name))
+		if (policy == ref)
+			return policy;
+	}
+	return NULL;
+}
+
+ni_fsm_policy_t *
+ni_fsm_get_policy_by_name(const ni_fsm_t *fsm, const char *name)
+{
+	ni_fsm_policy_t *policy;
+
+	if (!fsm || ni_string_empty(name))
+		return NULL;
+
+	for (policy = fsm->policies; policy; policy = policy->next) {
+		if (ni_string_eq(policy->name, name))
 			return policy;
 	}
 	return NULL;

@@ -372,7 +372,7 @@ ni_nanny_create_policy(ni_dbus_object_t **policy_object, ni_nanny_t *mgr, xml_do
 		goto error;
 	}
 
-	policy = ni_fsm_policy_by_name(mgr->fsm, pname);
+	policy = ni_fsm_get_policy_by_name(mgr->fsm, pname);
 	if (policy) {
 		ni_debug_nanny("Policy \"%s\" already exists", pname);
 		rv = 0;
@@ -985,7 +985,7 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 	ni_debug_nanny("Attempting to delete policy %s", name);
 
 	/* Unregistering Policy dbus object */
-	if ((policy = ni_fsm_policy_by_name(mgr->fsm, name))) {
+	if ((policy = ni_fsm_get_policy_by_name(mgr->fsm, name))) {
 		ni_managed_policy_t *mpolicy;
 
 		if ((mpolicy = ni_nanny_get_policy(mgr, policy))) {
@@ -1134,7 +1134,7 @@ ni_nanny_recheck_policies(ni_nanny_t *mgr, const ni_string_array_t *ifnames)
 			char *name = ni_ifpolicy_name_from_ifname(ifname);
 
 			/* TODO: get rid of this using a policy applicable match */
-			if (!name || !(policy = ni_fsm_policy_by_name(mgr->fsm, name))) {
+			if (!name || !(policy = ni_fsm_get_policy_by_name(mgr->fsm, name))) {
 				ni_string_free(&name);
 				ni_debug_application("Not scheduled any recheck for %s: no policy", ifname);
 				continue;
