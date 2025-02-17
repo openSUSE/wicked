@@ -556,7 +556,7 @@ ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 }
 
 ni_bool_t
-ni_fsm_policy_remove(ni_fsm_t *fsm, ni_fsm_policy_t *policy)
+ni_fsm_delete_policy(ni_fsm_t *fsm, ni_fsm_policy_t *policy)
 {
 	ni_fsm_policy_t *cur;
 

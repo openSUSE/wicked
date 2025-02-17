@@ -992,7 +992,7 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 			ni_dbus_server_t *server;
 			ni_ifworker_t *w = NULL;
 
-			if (!ni_fsm_policy_remove(mgr->fsm, policy))
+			if (!ni_fsm_delete_policy(mgr->fsm, policy))
 				return FALSE;
 
 			ni_nanny_policy_drop(name);

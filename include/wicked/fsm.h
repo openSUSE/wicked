@@ -293,6 +293,7 @@ extern void			ni_fsm_process_events(ni_fsm_t *);
 extern void			ni_fsm_events_unblock(ni_fsm_t *);
 
 extern ni_fsm_policy_t *	ni_fsm_create_policy(ni_fsm_t *, xml_node_t *);
+extern ni_bool_t		ni_fsm_delete_policy(ni_fsm_t *, ni_fsm_policy_t *);
 
 extern				ni_declare_refcounted_ref(ni_fsm_policy);
 extern				ni_declare_refcounted_free(ni_fsm_policy);
@@ -301,7 +302,6 @@ extern				ni_declare_refcounted_drop(ni_fsm_policy);
 extern				ni_declare_refcounted_move(ni_fsm_policy);
 
 extern ni_bool_t		ni_fsm_policy_update(ni_fsm_policy_t *, xml_node_t *);
-extern ni_bool_t		ni_fsm_policy_remove(ni_fsm_t *, ni_fsm_policy_t *);
 extern ni_fsm_policy_t *	ni_fsm_policy_by_name(const ni_fsm_t *, const char *);
 extern int			ni_fsm_policy_compare_weight(const ni_fsm_policy_t *, const ni_fsm_policy_t *);
 extern unsigned int		ni_fsm_policy_get_applicable_policies(const ni_fsm_t *, ni_ifworker_t *,
