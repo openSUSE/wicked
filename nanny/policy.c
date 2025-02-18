@@ -356,6 +356,8 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 					ni_dbus_message_t *reply, DBusError *error)
 {
 	ni_managed_policy_t *mpolicy;
+	ni_fsm_policy_t *update;
+	char *location = NULL;
 	xml_document_t *doc;
 	const char *ifxml;
 	xml_node_t *node;
@@ -390,13 +392,18 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 	}
 
 	ni_ifpolicy_set_owner_uid(node, caller_uid);
-	if (!ni_fsm_policy_update(mpolicy->fsm_policy, node)) {
+	if (ni_nanny_policy_location(&location, object->name)) {
+		xml_node_location_relocate(node, location);
+		ni_string_free(&location);
+	}
+	if (!(update = ni_fsm_replace_policy(mpolicy->fsm_policy, node))) {
 		dbus_set_error(error, DBUS_ERROR_INVALID_ARGS,
 				"Incorrect/incomplete policy in call to %s.%s",
 				ni_dbus_object_get_path(object), method->name);
 		xml_document_free(doc);
 		return FALSE;
 	}
+	ni_fsm_policy_hold(&mpolicy->fsm_policy, update);
 	xml_document_free(doc);
 
 	mpolicy->seqno++;
