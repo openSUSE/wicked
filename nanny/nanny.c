@@ -165,7 +165,7 @@ static unsigned int
 ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 {
 	static const unsigned int MAX_POLICIES = 20;
-	const ni_fsm_policy_t *policies[MAX_POLICIES];
+	ni_fsm_policy_array_t policies = NI_ARRAY_INIT;
 	const ni_fsm_policy_t *policy;
 	ni_managed_device_t *mdev;
 	ni_managed_policy_t *mpolicy;
@@ -195,18 +195,20 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 
 	ni_debug_nanny("%s(%s[%u], %s)", __func__, w->name, w->ifindex,
 					mdev ? "managed" : "unmanaged");
-	if ((count = ni_fsm_policy_get_applicable_policies(mgr->fsm, w, policies, MAX_POLICIES)) == 0) {
+	if ((count = ni_fsm_get_applicable_policies(mgr->fsm, w, &policies, MAX_POLICIES)) == 0) {
 		ni_debug_nanny("%s: no applicable policies", w->name);
 		return count;
 	}
 
-	policy = policies[count-1];
+	policy = policies.data[policies.count - 1];
 	mpolicy = ni_nanny_get_policy(mgr, policy);
 
 	if (factory_device)
 		count += ni_factory_device_apply_policy(mgr->fsm, w, mpolicy);
 	else
 		count += ni_managed_device_apply_policy(mdev, mpolicy);
+
+	ni_fsm_policy_array_destroy(&policies);
 
 	return count;
 }

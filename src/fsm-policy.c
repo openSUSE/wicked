@@ -758,70 +758,65 @@ ni_fsm_policy_applicable(const ni_fsm_t *fsm, ni_fsm_policy_t *policy, ni_ifwork
 }
 
 /*
- * Compare the weight of two policies.
+ * Compare two applicable policies to sort them by owner and weight.
+ * The sort order of equal policies is undefined, so when the owner
+ * and weight are equal, compare policy name to keep it predictable.
+ *
  * Returns < 0 if a's weight is smaller than that of b, etc.
  */
-int
-ni_fsm_policy_compare_weight(const ni_fsm_policy_t *a, const ni_fsm_policy_t *b)
+static int
+ni_fsm_policy_compare_applicable(const ni_fsm_policy_t *a, const ni_fsm_policy_t *b)
 {
 #define num_cmp(a, b)	(a < b ? -1 : a > b ? 1 : 0)
+	int ret;
 
-	if (!a || !b)
+	if (!a || !b || a == b)
 		return num_cmp(a, b);
 
-	return num_cmp(a->weight, b->weight);
+	if ((ret = num_cmp(a->owner, b->owner)))
+		return ret;
 
+	if ((ret = num_cmp(a->weight, b->weight)))
+		return ret;
+
+	return ni_string_cmp(a->name, b->name);
 #undef	num_cmp
-}
-
-static int
-ni_fsm_policy_compare(const void *a, const void *b)
-{
-	const ni_fsm_policy_t *pa = a;
-	const ni_fsm_policy_t *pb = b;
-
-	return ((int) pa->weight) - ((int) pb->weight);
 }
 
 /*
  * Obtain the list of applicable policies
  */
 unsigned int
-ni_fsm_policy_get_applicable_policies(const ni_fsm_t *fsm, ni_ifworker_t *w,
-			const ni_fsm_policy_t **result, unsigned int max)
+ni_fsm_get_applicable_policies(const ni_fsm_t *fsm, ni_ifworker_t *w,
+			ni_fsm_policy_array_t *result, unsigned int max)
 {
-	unsigned int count = 0;
 	ni_fsm_policy_t *policy;
+	unsigned int count;
 
-	if (!w) {
-		ni_error("unable to get applicable policy for non-existing device");
+	if (!fsm || !w || !result || !max) {
+		ni_error("unable to get applicable policy: invalid arguments");
 		return 0;
 	}
 
+	count = result->count;
 	for (policy = fsm->policies; policy; policy = policy->next) {
-		if (!ni_ifpolicy_name_is_valid(policy->name)) {
-			ni_error("policy with invalid name %s", policy->name);
-			continue;
-		}
+		if (result->count >= max)
+			break;
 
-		if (policy->type != NI_FSM_POLICY_TYPE_CONFIG) {
-			ni_error("policy %s: wrong type %d", policy->name, policy->type);
-			continue;
-		}
+		if (policy->type == NI_FSM_POLICY_TYPE_CONFIG) {
 
-		if (!policy->match) {
-			ni_error("policy %s: no valid <match>", policy->name);
-			continue;
-		}
+			if (policy->config.type != w->type)
+				continue;
 
-		if (ni_fsm_policy_applicable(fsm, policy, w)) {
-			if (count < max)
-				result[count++] = policy;
+			if (ni_fsm_policy_applicable(fsm, policy, w))
+				ni_fsm_policy_array_append_ref(result, policy);
 		}
 	}
 
-	qsort(result, count, sizeof(result[0]), ni_fsm_policy_compare);
-	return count;
+	if (result->count > 1)
+		ni_fsm_policy_array_qsort(result, ni_fsm_policy_compare_applicable);
+
+	return result->count - count;
 }
 
 ni_bool_t
