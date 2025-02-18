@@ -293,6 +293,7 @@ extern void			ni_fsm_process_events(ni_fsm_t *);
 extern void			ni_fsm_events_unblock(ni_fsm_t *);
 
 extern ni_fsm_policy_t *	ni_fsm_create_policy(ni_fsm_t *, xml_node_t *);
+extern ni_fsm_policy_t *	ni_fsm_replace_policy(ni_fsm_policy_t *, xml_node_t *);
 extern ni_bool_t		ni_fsm_delete_policy(ni_fsm_t *, ni_fsm_policy_t *);
 extern ni_fsm_policy_t *	ni_fsm_get_policy_by_ref(const ni_fsm_t *, const ni_fsm_policy_t *);
 extern ni_fsm_policy_t *	ni_fsm_get_policy_by_name(const ni_fsm_t *, const char *);

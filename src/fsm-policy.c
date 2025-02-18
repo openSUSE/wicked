@@ -523,6 +523,30 @@ ni_fsm_create_policy(ni_fsm_t *fsm, xml_node_t *node)
 	return policy;
 }
 
+ni_fsm_policy_t *
+ni_fsm_replace_policy(ni_fsm_policy_t *policy, xml_node_t *node)
+{
+	ni_fsm_policy_t *update;
+
+	if (!policy || !policy->pprev)
+		return NULL;
+
+	if (!(update = ni_fsm_policy_new(node)))
+		return NULL;
+
+	if (!ni_string_eq(policy->name, update->name)) {
+		ni_error("Cannot replace policy '%s' with policy '%s'",
+				policy->name, update->name);
+		ni_fsm_policy_free(update);
+		return NULL;
+	}
+
+	ni_fsm_policy_list_insert(&policy->next, update);
+	ni_fsm_policy_list_unlink(policy);
+	ni_fsm_policy_free(policy);
+	return update;
+}
+
 ni_bool_t
 ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
 {
