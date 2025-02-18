@@ -825,16 +825,22 @@ ni_fsm_policy_get_applicable_policies(const ni_fsm_t *fsm, ni_ifworker_t *w,
 }
 
 ni_bool_t
-ni_fsm_exists_applicable_policy(const ni_fsm_t *fsm, ni_fsm_policy_t *list, ni_ifworker_t *w)
+ni_fsm_exists_applicable_policy(const ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_fsm_policy_t *policy;
 
-	if (!list || !w)
+	if (!fsm || !w)
 		return FALSE;
 
-	for (policy = list; policy; policy = policy->next) {
-		if (ni_fsm_policy_applicable(fsm, policy, w))
-			return TRUE;
+	for (policy = fsm->policies; policy; policy = policy->next) {
+		if (policy->type == NI_FSM_POLICY_TYPE_CONFIG) {
+
+			if (policy->config.type != w->type)
+				continue;
+
+			if (ni_fsm_policy_applicable(fsm, policy, w))
+				return TRUE;
+		}
 	}
 
 	return FALSE;
