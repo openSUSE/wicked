@@ -548,38 +548,6 @@ ni_fsm_replace_policy(ni_fsm_policy_t *policy, xml_node_t *node)
 }
 
 ni_bool_t
-ni_fsm_policy_update(ni_fsm_policy_t *policy, xml_node_t *node)
-{
-	ni_fsm_policy_t temp;
-
-	if (!policy || !ni_ifxml_is_policy(node)
-	||  !ni_string_eq(ni_ifpolicy_get_name(node), policy->name))
-		return FALSE;
-
-	memset(&temp, 0, sizeof(temp));
-	temp.owner = -1U;
-
-	if (!ni_fsm_policy_from_xml(&temp, node)) {
-		ni_fsm_policy_destroy(&temp);
-		return FALSE;
-	}
-
-	ni_fsm_policy_reset(policy);
-	policy->type = temp.type;
-	policy->seq = temp.seq;
-	policy->uuid = temp.uuid;
-	policy->owner = temp.owner;
-	policy->weight = temp.weight;
-	policy->create_action = temp.create_action;
-	policy->actions = temp.actions;
-	policy->match = temp.match;
-
-	xml_node_free(policy->node);
-	policy->node = temp.node;
-	return TRUE;
-}
-
-ni_bool_t
 ni_fsm_delete_policy(ni_fsm_t *fsm, ni_fsm_policy_t *policy)
 {
 	ni_fsm_policy_t *cur;

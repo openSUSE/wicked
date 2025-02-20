@@ -310,7 +310,6 @@ extern				ni_declare_refcounted_hold(ni_fsm_policy);
 extern				ni_declare_refcounted_drop(ni_fsm_policy);
 extern				ni_declare_refcounted_move(ni_fsm_policy);
 
-extern ni_bool_t		ni_fsm_policy_update(ni_fsm_policy_t *, xml_node_t *);
 extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
 extern const xml_node_t *	ni_fsm_policy_node(const ni_fsm_policy_t *);
 extern const xml_location_t *	ni_fsm_policy_location(const ni_fsm_policy_t *);
