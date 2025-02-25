@@ -292,22 +292,24 @@ extern void			ni_fsm_events_block(ni_fsm_t *);
 extern void			ni_fsm_process_events(ni_fsm_t *);
 extern void			ni_fsm_events_unblock(ni_fsm_t *);
 
-extern				ni_declare_refcounted_new(ni_fsm_policy,
-						ni_fsm_t *, const char *, xml_node_t *);
+extern ni_fsm_policy_t *	ni_fsm_create_policy(ni_fsm_t *, xml_node_t *);
+extern ni_fsm_policy_t *	ni_fsm_replace_policy(ni_fsm_policy_t *, xml_node_t *);
+extern ni_bool_t		ni_fsm_delete_policy(ni_fsm_t *, ni_fsm_policy_t *);
+extern ni_fsm_policy_t *	ni_fsm_get_policy_by_ref(const ni_fsm_t *, const ni_fsm_policy_t *);
+extern ni_fsm_policy_t *	ni_fsm_get_policy_by_name(const ni_fsm_t *, const char *);
+
+extern unsigned int		ni_fsm_get_applicable_policies(const ni_fsm_t *, ni_ifworker_t *,
+						ni_fsm_policy_array_t *, unsigned int);
+extern ni_bool_t		ni_fsm_exists_applicable_policy(const ni_fsm_t *, ni_ifworker_t *);
+extern ni_bool_t		ni_fsm_transform_policies_to_config(xml_node_t *,
+						ni_fsm_policy_t * const *, unsigned int);
+
 extern				ni_declare_refcounted_ref(ni_fsm_policy);
 extern				ni_declare_refcounted_free(ni_fsm_policy);
 extern				ni_declare_refcounted_hold(ni_fsm_policy);
 extern				ni_declare_refcounted_drop(ni_fsm_policy);
 extern				ni_declare_refcounted_move(ni_fsm_policy);
 
-extern ni_bool_t		ni_fsm_policy_update(ni_fsm_policy_t *, xml_node_t *);
-extern ni_bool_t		ni_fsm_policy_remove(ni_fsm_t *, ni_fsm_policy_t *);
-extern ni_fsm_policy_t *	ni_fsm_policy_by_name(const ni_fsm_t *, const char *);
-extern int			ni_fsm_policy_compare_weight(const ni_fsm_policy_t *, const ni_fsm_policy_t *);
-extern unsigned int		ni_fsm_policy_get_applicable_policies(const ni_fsm_t *, ni_ifworker_t *,
-						const ni_fsm_policy_t **, unsigned int);
-extern ni_bool_t		ni_fsm_exists_applicable_policy(const ni_fsm_t *, ni_fsm_policy_t *, ni_ifworker_t *);
-extern xml_node_t *		ni_fsm_policy_transform_document(xml_node_t *, ni_fsm_policy_t * const *, unsigned int);
 extern const char *		ni_fsm_policy_name(const ni_fsm_policy_t *);
 extern const xml_node_t *	ni_fsm_policy_node(const ni_fsm_policy_t *);
 extern const xml_location_t *	ni_fsm_policy_location(const ni_fsm_policy_t *);
@@ -315,6 +317,9 @@ extern const ni_uuid_t *	ni_fsm_policy_uuid(const ni_fsm_policy_t *);
 extern uid_t			ni_fsm_policy_owner(const ni_fsm_policy_t *);
 extern const char *		ni_fsm_policy_origin(const ni_fsm_policy_t *);
 extern unsigned int		ni_fsm_policy_weight(const ni_fsm_policy_t *);
+extern ni_ifworker_type_t	ni_fsm_policy_config_type(const ni_fsm_policy_t *);
+extern const ni_dbus_class_t *	ni_fsm_policy_config_class(const ni_fsm_policy_t *);
+
 extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *tstamp);
 
 extern				ni_declare_ptr_array_init(ni_fsm_policy);
