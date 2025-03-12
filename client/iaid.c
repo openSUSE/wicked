@@ -29,6 +29,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <endian.h>
 #include <getopt.h>
 #include <net/if_arp.h>
 
@@ -37,22 +38,44 @@
 #include <wicked/netinfo.h>
 #include "iaid.h"
 
+typedef enum {
+	OPT_IAID_FMT_DEC,
+	OPT_IAID_FMT_HEX,
+	OPT_IAID_FMT_MAC,
+} ni_iaid_fmt_t;
+
+static const ni_intmap_t	ni_iaid_fmt_map[] = {
+	{ "dec",		OPT_IAID_FMT_DEC	},
+	{ "hex",		OPT_IAID_FMT_HEX	},
+	{ "mac",		OPT_IAID_FMT_MAC	},
+	{ NULL,			-1U			}
+};
+
 static int
 ni_do_iaid_dump(int argc, char **argv)
 {
-	enum {	OPT_HELP = 'h' };
+	enum {	OPT_HELP = 'h', OPT_IAID_FMT = 1 };
 	static struct option    options[] = {
-		{ "help",	no_argument,		NULL,	OPT_HELP	},
-		{ NULL,		no_argument,		NULL,	0		}
+		{ "help",		no_argument,		NULL,	OPT_HELP	},
+		{ "iaid-format",	required_argument,	NULL,	OPT_IAID_FMT	},
+		{ NULL,			no_argument,		NULL,	0		}
 	};
 	int opt = 0, status = NI_WICKED_RC_USAGE;
 	ni_var_array_t vars = NI_VAR_ARRAY_INIT;
 	ni_iaid_map_t *map = NULL;
 	const ni_var_t *var;
+	ni_iaid_fmt_t opt_iaid_fmt = OPT_IAID_FMT_DEC;
 
 	optind = 1;
 	while ((opt = getopt_long(argc, argv, "+h", options, NULL)) != EOF) {
 		switch (opt) {
+		case OPT_IAID_FMT:
+			if (ni_parse_uint_mapped(optarg, ni_iaid_fmt_map, &opt_iaid_fmt)) {
+				fprintf(stderr, "%s: invalid --iaid-format '%s' argument\n\n",
+						argv[0], optarg);
+				goto usage;
+			}
+			break;
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
 			/* fall through */
@@ -63,6 +86,9 @@ ni_do_iaid_dump(int argc, char **argv)
 					"\n"
 					"Options:\n"
 					"  --help, -h           show this help text and exit.\n"
+					"  --iaid-format <dec,hex,mac>\n"
+					"                       format iaid as decimal (default), 0x<hex> number or\n"
+					"                       as mac-like xx:xx:xx:xx colon separated hex string\n"
 					"\n", argv[0]);
 			goto cleanup;
 		}
@@ -79,7 +105,41 @@ ni_do_iaid_dump(int argc, char **argv)
 		unsigned int i;
 
 		for (i = 0, var = vars.data; i < vars.count; ++i, ++var) {
-			printf("%s\t%s\n", var->name, var->value);
+			const char *value = NULL;
+			char buf[64] = {'\0'};
+			unsigned int iaid;
+			uint32_t u32;
+
+			switch (opt_iaid_fmt) {
+			case OPT_IAID_FMT_MAC:
+				if (ni_parse_uint(var->value, &iaid, 10)) {
+					fprintf(stderr, "%s: unable to parse iaid map value '%s'\n",
+							argv[0], var->value);
+				} else {
+					u32 = htobe32(iaid);
+					value = ni_format_hex((unsigned char *)&u32, sizeof(u32),
+								buf, sizeof(buf));
+				}
+				break;
+
+			case OPT_IAID_FMT_HEX:
+				if (ni_parse_uint(var->value, &iaid, 10)) {
+					fprintf(stderr, "%s: unable to parse iaid map value '%s'\n",
+							argv[0], var->value);
+				} else {
+					if (snprintf(buf, sizeof(buf), "0x%08x", iaid) == 10)
+						value = buf;
+				}
+				break;
+
+			case OPT_IAID_FMT_DEC:
+			default:
+				value = var->value;
+				break;
+			}
+
+			if (value)
+				printf("%s\t%s\n", var->name, value);
 		}
 	}
 	ni_var_array_destroy(&vars);
@@ -92,19 +152,28 @@ cleanup:
 static int
 ni_do_iaid_get(int argc, char **argv)
 {
-	enum {	OPT_HELP = 'h' };
+	enum {	OPT_HELP = 'h', OPT_IAID_FMT = 1 };
 	static struct option    options[] = {
-		{ "help",	no_argument,		NULL,	OPT_HELP	},
-		{ NULL,		no_argument,		NULL,	0		}
+		{ "help",		no_argument,		NULL,	OPT_HELP	},
+		{ "iaid-format",	required_argument,	NULL,	OPT_IAID_FMT	},
+		{ NULL,			no_argument,		NULL,	0		}
 	};
 	int opt = 0, status = NI_WICKED_RC_USAGE;
 	ni_iaid_map_t *map = NULL;
 	const char *ifname = NULL;
 	unsigned int iaid;
+	ni_iaid_fmt_t opt_iaid_fmt = OPT_IAID_FMT_DEC;
 
 	optind = 1;
-	while ((opt = getopt_long(argc, argv, "+h", options, NULL)) != EOF) {
+	while ((opt = getopt_long(argc, argv, "+hx", options, NULL)) != EOF) {
 		switch (opt) {
+		case OPT_IAID_FMT:
+			if (ni_parse_uint_mapped(optarg, ni_iaid_fmt_map, &opt_iaid_fmt)) {
+				fprintf(stderr, "%s: invalid --iaid-format '%s' argument\n\n",
+						argv[0], optarg);
+				goto usage;
+			}
+			break;
 		case OPT_HELP:
 			status = NI_WICKED_RC_SUCCESS;
 			/* fall through */
@@ -115,6 +184,9 @@ ni_do_iaid_get(int argc, char **argv)
 					"\n"
 					"Options:\n"
 					"  --help, -h           show this help text and exit.\n"
+					"  --iaid-format <dec,hex,mac>\n"
+					"                       format iaid as decimal (default), 0x<hex> number or\n"
+					"                       as mac-like xx:xx:xx:xx colon separated hex string\n"
 					"\n", argv[0]);
 			goto cleanup;
 		}
@@ -140,8 +212,31 @@ ni_do_iaid_get(int argc, char **argv)
 
 	status = NI_WICKED_RC_NO_DEVICE;
 	if (ni_iaid_map_get_iaid(map, ifname, &iaid)) {
-		printf("%s\t%u\n", ifname, iaid);
-		status = NI_WICKED_RC_SUCCESS;
+		const char *value = NULL;
+		char buf[64] = {'\0'};
+		uint32_t u32;
+
+		switch (opt_iaid_fmt) {
+		case OPT_IAID_FMT_MAC:
+			u32 = htobe32(iaid);
+			value = ni_format_hex((unsigned char *)&u32, sizeof(u32), buf, sizeof(buf));
+			break;
+
+		case OPT_IAID_FMT_HEX:
+			if (snprintf(buf, sizeof(buf), "0x%08x", iaid) == 10)
+				value = buf;
+			break;
+
+		case OPT_IAID_FMT_DEC:
+		default:
+			value = ni_sprint_uint(iaid);
+			break;
+		}
+
+		if (value) {
+			printf("%s\t%s\n", ifname, value);
+			status = NI_WICKED_RC_SUCCESS;
+		}
 	}
 
 cleanup:
@@ -262,7 +357,16 @@ ni_do_iaid_set(int argc, char **argv)
 		goto cleanup;
 	}
 
-	if (ni_parse_uint(ifiaid, &iaid, 0) != 0) {
+	if (ni_string_contains(ifiaid, ":")) {
+		if (ni_parse_hex(ifiaid, (unsigned char *)&iaid, sizeof(iaid)) != 4) {
+			fprintf(stderr, "%s: unable to parse iaid argument '%s'\n", argv[0],
+					ni_print_suspect(ifiaid, ni_string_len(ifiaid)));
+			status = NI_WICKED_RC_ERROR;
+			goto cleanup;
+		}
+		iaid = be32toh(iaid);
+		status = NI_WICKED_RC_ERROR;
+	} else if (ni_parse_uint(ifiaid, &iaid, 0) != 0) {
 		fprintf(stderr, "%s: unable to parse iaid argument '%s'\n", argv[0],
 				ni_print_suspect(ifiaid, ni_string_len(ifiaid)));
 		status = NI_WICKED_RC_ERROR;
