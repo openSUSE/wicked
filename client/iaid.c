@@ -1,7 +1,7 @@
 /*
  *	wicked client iaid commands
  *
- *	Copyright (C) 2017 SUSE LINUX GmbH, Nuernberg, Germany.
+ *	Copyright (C) 2017-2025 SUSE LLC
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -17,9 +17,8 @@
  *	along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *      Authors:
- *              Marius Tomaschewski <mt@suse.de>
- *              Nirmoy Das <ndas@suse.de>
- *
+ *              Marius Tomaschewski
+ *              Nirmoy Das
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
