@@ -73,13 +73,18 @@ ni_managed_device_list_unlink(ni_managed_device_t *mdev)
  * create a new managed_device object
  */
 ni_managed_device_t *
-ni_managed_device_new(ni_nanny_t *mgr, unsigned int ifindex, ni_managed_device_t **list)
+ni_managed_device_new(ni_nanny_t *mgr, ni_ifworker_t *w, ni_managed_device_t **list)
 {
 	ni_managed_device_t *mdev;
 
-	mdev = xcalloc(1, sizeof(*mdev));
+	if (!mgr || !w)
+		return NULL;
+
+	if (!(mdev = calloc(1, sizeof(*mdev))))
+		return NULL;
+
 	mdev->nanny = mgr;
-	mdev->ifindex = ifindex;
+	mdev->worker = ni_ifworker_ref(w);
 
 	if (list)
 		ni_managed_device_list_append(list, mdev);
@@ -90,10 +95,15 @@ ni_managed_device_new(ni_nanny_t *mgr, unsigned int ifindex, ni_managed_device_t
 void
 ni_managed_device_free(ni_managed_device_t *mdev)
 {
-	ni_ifworker_t *w = ni_managed_device_get_worker(mdev);
+	ni_assert(mdev);
 
-	ni_debug_nanny("%s(%s): obj=%p", __func__, w ? w->name : "anon", mdev->object);
+	ni_debug_nanny("%s(%p): object=%p/%s, worker=%p/%s", __func__, mdev,
+			mdev->object, mdev->object ? mdev->object->path : NULL,
+			mdev->worker, mdev->worker ? mdev->worker->name : NULL);
+
 	ni_assert(mdev->object == NULL);
+
+	ni_ifworker_drop(&mdev->worker);
 
 	ni_secret_array_destroy(&mdev->secrets);
 	free(mdev);
@@ -134,16 +144,7 @@ ni_managed_device_set_security_id(ni_managed_device_t *mdev, const ni_security_i
 ni_ifworker_t *
 ni_managed_device_get_worker(const ni_managed_device_t *mdev)
 {
-	ni_fsm_t *fsm;
-	ni_ifworker_t *w;
-
-	if (!mdev || !mdev->nanny || !(fsm = mdev->nanny->fsm))
-		return NULL;
-
-	if (!(w = ni_fsm_ifworker_by_ifindex(fsm, mdev->ifindex)))
-		ni_debug_nanny("%s: no corresponding worker for ifindex %d", __func__, mdev->ifindex);
-
-	return w;
+	return mdev ? mdev->worker : NULL;
 }
 
 char *
@@ -522,15 +523,15 @@ ni_managed_state_to_string(ni_managed_state_t state)
 }
 
 /*
- * Look up managed device for a given ifindex
+ * Look up managed device for a given worker
  */
 ni_managed_device_t *
-ni_nanny_get_device_by_ifindex(ni_nanny_t *mgr, unsigned int ifindex)
+ni_nanny_get_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 {
 	ni_managed_device_t *mdev;
 
 	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
-		if (mdev->ifindex == ifindex)
+		if (mdev->worker == w)
 			return mdev;
 	}
 

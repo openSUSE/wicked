@@ -480,7 +480,7 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	if (ni_nanny_get_device(mgr, w) != NULL)
 		return;
 
-	if (!(mdev = ni_managed_device_new(mgr, w->ifindex, &mgr->device_list)))
+	if (!(mdev = ni_managed_device_new(mgr, w, &mgr->device_list)))
 		return;
 
 	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
