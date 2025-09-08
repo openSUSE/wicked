@@ -216,6 +216,15 @@ ni_team_ab_hwaddr_policy_name_to_type(const char *name, ni_team_ab_hwaddr_policy
 	return TRUE;
 }
 
+static void
+ni_team_runner_lacp_init(ni_team_runner_lacp_t *lacp)
+{
+	lacp->config.active = TRUE;
+	lacp->config.sys_prio = 255;
+	lacp->config.tx_hash = NI_TEAM_TX_HASH_NONE;
+	lacp->config.tx_balancer.interval = 50;
+}
+
 void
 ni_team_runner_init(ni_team_runner_t *runner, ni_team_runner_type_t type)
 {
@@ -229,7 +238,10 @@ ni_team_runner_init(ni_team_runner_t *runner, ni_team_runner_type_t type)
 	case NI_TEAM_RUNNER_LOAD_BALANCE:
 	case NI_TEAM_RUNNER_BROADCAST:
 	case NI_TEAM_RUNNER_RANDOM:
+		break;
 	case NI_TEAM_RUNNER_LACP:
+		ni_team_runner_lacp_init(&runner->lacp);
+		break;
 	default:
 		break;
 	}
