@@ -131,7 +131,7 @@ the usual network settings. But you must add additional variables
 :   Fast rate asks link partner to transmit LACPDU frames once per second.
     Otherwise they are sent every 30 seconds.
 
-    Default: **true**
+    Default: **false**
 
 `TEAM_LACP_MIN_PORTS`
 :   Minimum number of active ports required to assert carrier in master device.

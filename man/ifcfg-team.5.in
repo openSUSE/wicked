@@ -148,7 +148,7 @@ Fast rate asks link partner to transmit LACPDU frames once per second.
 Otherwise they are sent every 30 seconds.
 .RS
 .PP
-Default: \f[B]true\f[R]
+Default: \f[B]false\f[R]
 .RE
 .TP
 \f[CR]TEAM_LACP_MIN_PORTS\f[R]
