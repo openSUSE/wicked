@@ -2881,7 +2881,6 @@ try_team(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 				}
 			}
 
-			lacp->config.sys_prio = 255;
 			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_SYS_PRIO")) != NULL) {
 				if (ni_parse_uint(value, &lacp->config.sys_prio, 0) < 0) {
 					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_SYS_PRIO='%s'",
@@ -2914,7 +2913,6 @@ try_team(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 				}
 			}
 
-			lacp->config.tx_hash = NI_TEAM_TX_HASH_NONE;
 			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_TX_HASH")) != NULL) {
 				ni_string_array_t flags = NI_STRING_ARRAY_INIT;
 				unsigned int i;
@@ -2943,7 +2941,6 @@ try_team(ni_suse_ifcfg_array_t *ifcfgs, ni_suse_ifcfg_t *ifcfg)
 				}
 			}
 
-			lacp->config.tx_balancer.interval = 50;
 			if ((value = ni_sysconfig_get_value(sc, "TEAM_LACP_TX_BALANCER_INTERVAL")) != NULL) {
 				if (ni_parse_uint(value, &lacp->config.tx_balancer.interval, 0) < 0) {
 					ni_error("ifcfg-%s: Cannot parse TEAM_LACP_TX_BALANCER_INTERVAL='%s'",
