@@ -202,7 +202,7 @@ ni_ovs_vsctl_bridge_to_vlan(const char *brname, uint16_t *vlan)
 	rv = ni_process_run_and_capture_output(pi, &buf);
 	ni_process_free(pi);
 	if (rv) {
-		ni_error("%s: unable to query bridge vlan", brname);
+		ni_warn("%s: unable to query bridge vlan", brname);
 		goto failure;
 	}
 
@@ -264,7 +264,7 @@ ni_ovs_vsctl_bridge_to_parent(const char *brname, char **parent)
 	rv = ni_process_run_and_capture_output(pi, &buf);
 	ni_process_free(pi);
 	if (rv) {
-		ni_error("%s: unable to query bridge parent", brname);
+		ni_warn("%s: unable to query bridge parent", brname);
 		goto failure;
 	}
 
@@ -320,7 +320,7 @@ ni_ovs_vsctl_bridge_ports(const char *brname, ni_netdev_ref_array_t *ports)
 	rv = ni_process_run_and_capture_output(pi, &buf);
 	ni_process_free(pi);
 	if (rv) {
-		ni_error("%s: unable to query bridge ports", brname);
+		ni_warn("%s: unable to query bridge ports", brname);
 		goto failure;
 	}
 
@@ -565,7 +565,7 @@ ni_ovs_vsctl_bridge_port_to_bridge(const char *pname, char **brname)
 	rv = ni_process_run_and_capture_output(pi, &buf);
 	ni_process_free(pi);
 	if (rv != NI_PROCESS_SUCCESS) {
-		ni_error("%s: unable to query port bridge", pname);
+		ni_warn("%s: unable to query port bridge", pname);
 		goto failure;
 	}
 
