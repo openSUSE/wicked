@@ -64,6 +64,12 @@ Obsoletes:      libwicked-0-6 < %{version}
 %bcond_with     dhcp6_nis
 %endif
 
+%if 0%{?suse_version} >= 1600
+%bcond_with     rclinks
+%else
+%bcond_without  rclinks
+%endif
+
 # optional and disabled (not needed): enable man page
 # template rebuild from md sources using pandoc(-cli)
 %bcond_with	pandoc
@@ -226,12 +232,14 @@ done
 %__rm -f ${RPM_BUILD_ROOT}%_libdir/libwicked*.*a
 # create reboot-persistent (leases) store directory
 %__mkdir_p -m 0750 ${RPM_BUILD_ROOT}%{wicked_storedir}
+%if %{with rclinks}
 ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwicked
 ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd
 ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-nanny
 ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-dhcp6
 ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-dhcp4
 ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-auto4
+%endif
 
 %if %{without wicked_devel}
 pushd $RPM_BUILD_ROOT
@@ -406,12 +414,14 @@ fi
 %_sbindir/ifstatus
 %_sbindir/ifprobe
 %endif
+%if %{with rclinks}
 %_sbindir/rcwickedd-nanny
 %_sbindir/rcwickedd-dhcp6
 %_sbindir/rcwickedd-dhcp4
 %_sbindir/rcwickedd-auto4
 %_sbindir/rcwickedd
 %_sbindir/rcwicked
+%endif
 
 %if %{with wicked_devel}
 %files devel
