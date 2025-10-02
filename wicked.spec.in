@@ -48,10 +48,16 @@ Provides:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}-%{release}
 Provides:       libwicked-0-6 = %{version}
 Obsoletes:      libwicked-0-6 < %{version}
 
-%if 0%{?suse_version} > 1500 || 0%{?sle_version} >= 150500
+%if 0%{?suse_version} > 1500
+%bcond_without  nbft
+%else
+# boo#1238724: guard the sle_version check inside a suse_version block as
+#              workaround for broken recursive sle_version on leap-16.0 …
+%if 0%{?sle_version} >= 150500
 %bcond_without  nbft
 %else
 %bcond_with     nbft
+%endif
 %endif
 %if 0%{?suse_version} >= 1500
 %bcond_without  rfc4361_cid
