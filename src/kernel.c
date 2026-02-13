@@ -22,10 +22,6 @@
 #define aligned_u64 uint64_t
 #include <linux/if_ppp.h>
 #include <netlink/msg.h>
-#include <netlink/route/rtnl.h>
-#include <netlink/genl/genl.h>
-#include <netlink/genl/ctrl.h>
-#include <netlink/genl/family.h>
 
 #include "netinfo_priv.h"
 #include "util_priv.h"
@@ -482,6 +478,9 @@ ni_nl_dump_store(int af, int type, struct ni_nlmsg_list *list)
 		.msg_type = -1,
 		.list = list,
 	};
+	struct rtgenmsg gmsg = {
+		.rtgen_family = af,
+	};
 	struct nl_cb *cb;
 	const char *name;
 	int rv;
@@ -492,7 +491,7 @@ ni_nl_dump_store(int af, int type, struct ni_nlmsg_list *list)
 		return -NLE_BAD_SOCK;
 	}
 
-	if ((rv = nl_rtgen_request(nl_sock, type, af, NLM_F_DUMP)) < 0) {
+	if ((rv = nl_send_simple(nl_sock, type, NLM_F_DUMP, &gmsg, sizeof(gmsg))) < 0) {
 		ni_error("%s: failed to send request", name);
 		return rv;
 	}

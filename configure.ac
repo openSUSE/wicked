@@ -268,7 +268,7 @@ AM_PATH_LIBGCRYPT([$REQUIRE_LIBGCRYPT],,[
 AC_SUBST(REQUIRE_LIBGCRYPT)
 
 # Checks for pkg-config modules.
-PKG_CHECK_MODULES(LIBNL, [libnl-3.0 libnl-route-3.0])
+PKG_CHECK_MODULES(LIBNL, [libnl-3.0])
 PKG_CHECK_MODULES(LIBDBUS, [dbus-1])
 
 # Check for systemd modules.
