@@ -22,10 +22,6 @@
 #define aligned_u64 uint64_t
 #include <linux/if_ppp.h>
 #include <netlink/msg.h>
-#include <netlink/route/rtnl.h>
-#include <netlink/genl/genl.h>
-#include <netlink/genl/ctrl.h>
-#include <netlink/genl/family.h>
 
 #include "netinfo_priv.h"
 #include "util_priv.h"
