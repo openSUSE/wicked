@@ -47,22 +47,38 @@ ni_objectmodel_managed_modem_init(ni_dbus_server_t *server)
 #endif
 
 /*
+ * Create a dbus object path representing the managed modem
+ */
+const char *
+ni_objectmodel_create_managed_modem_path(const ni_managed_device_t *mdev, char **path)
+{
+	const char *list = NI_OBJECTMODEL_MANAGED_MODEM_LIST_PATH;
+	ni_ifworker_t *w = ni_managed_device_get_worker(mdev);
+	ni_modem_t *modem;
+
+	if (!path || !w || w->type != NI_IFWORKER_TYPE_MODEM)
+		return NULL;
+
+	if (!(modem = ni_ifworker_get_modem(w)))
+		return NULL;
+
+	return ni_string_printf(path, "%s/%s", list, modem->device);
+}
+
+/*
  * Create a dbus object representing the managed modem
  */
 ni_dbus_object_t *
 ni_objectmodel_register_managed_modem(ni_dbus_server_t *server, ni_managed_device_t *mdev)
 {
-	ni_modem_t *modem;
-	char relative_path[128];
 	ni_dbus_object_t *object;
-	ni_ifworker_t *w;
+	char *path = NULL;
 
-	if (!(w = ni_managed_device_get_worker(mdev)))
+	if (!ni_objectmodel_create_managed_modem_path(mdev, &path))
 		return NULL;
 
-	modem = ni_ifworker_get_modem(w);
-	snprintf(relative_path, sizeof(relative_path), "Modem/%s", modem->device);
-	object = ni_dbus_server_register_object(server, relative_path, &ni_objectmodel_managed_modem_class, mdev);
+	object = ni_dbus_server_register_object(server, path, &ni_objectmodel_managed_modem_class, mdev);
+	ni_string_free(&path);
 
 	if (object)
 		ni_objectmodel_bind_compatible_interfaces(object);
