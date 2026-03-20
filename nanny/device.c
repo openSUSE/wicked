@@ -85,6 +85,7 @@ ni_managed_device_new(ni_nanny_t *mgr, ni_ifworker_t *w, ni_managed_device_t **l
 
 	mdev->nanny = mgr;
 	mdev->worker = ni_ifworker_ref(w);
+	ni_uuid_generate(&mdev->uuid);
 
 	if (list)
 		ni_managed_device_list_append(list, mdev);

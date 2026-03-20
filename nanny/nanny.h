@@ -43,6 +43,7 @@ struct ni_managed_device {
 	ni_nanny_t *		nanny;		// back pointer at mgr
 	ni_dbus_object_t *	object;		// server object
 
+	ni_uuid_t		uuid;		// opaque dbus object id stored in uuid
 	ni_ifworker_t *		worker;		// managed worker (we have config for)
 
 	ni_bool_t		allowed;	// true iff user is allowed to enable it
@@ -174,6 +175,7 @@ extern uid_t			ni_managed_policy_owner(const ni_managed_policy_t *);
 
 extern const char *		ni_managed_state_to_string(ni_managed_state_t);
 
+extern const char *		ni_objectmodel_create_managed_netif_path(const ni_managed_device_t *, char **);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_netif(ni_dbus_server_t *, ni_managed_device_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_modem(ni_dbus_server_t *, ni_managed_device_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_policy(ni_dbus_server_t *, ni_managed_policy_t *);

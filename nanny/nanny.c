@@ -876,7 +876,8 @@ ni_objectmodel_nanny_get_device(ni_dbus_object_t *object, const ni_dbus_method_t
 	ni_nanny_t *mgr;
 	const char *ifname;
 	ni_ifworker_t *w;
-	ni_managed_device_t *mdev = NULL;
+	ni_managed_device_t *mdev;
+	char *path = NULL;
 
 	if ((mgr = ni_objectmodel_nanny_unwrap(object, error)) == NULL)
 		return FALSE;
@@ -887,22 +888,20 @@ ni_objectmodel_nanny_get_device(ni_dbus_object_t *object, const ni_dbus_method_t
 	/* XXX: scalability. Use ni_call_identify_device() */
 	w = ni_fsm_ifworker_by_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, ifname);
 
-	if (w)
-		mdev = ni_nanny_get_device(mgr, w);
-
-	if (mdev == NULL) {
+	mdev = ni_nanny_get_device(mgr, w);
+	if (!w || !mdev) {
 		dbus_set_error(error, NI_DBUS_ERROR_DEVICE_NOT_KNOWN, "No such device: %s", ifname);
 		return FALSE;
-	} else {
-		ni_netdev_t *dev = ni_ifworker_get_netdev(w);
-		char object_path[128];
-
-		snprintf(object_path, sizeof(object_path),
-				NI_OBJECTMODEL_MANAGED_NETIF_LIST_PATH "/%u",
-				dev->link.ifindex);
-
-		ni_dbus_message_append_object_path(reply, object_path);
 	}
+
+	if (!ni_objectmodel_create_managed_netif_path(mdev, &path)) {
+		dbus_set_error(error, DBUS_ERROR_FAILED, "Unable to create path for %s", ifname);
+		return FALSE;
+	}
+
+	ni_dbus_message_append_object_path(reply, path);
+	ni_string_free(&path);
+
 	return TRUE;
 }
 
