@@ -177,6 +177,7 @@ extern const char *		ni_managed_state_to_string(ni_managed_state_t);
 
 extern const char *		ni_objectmodel_create_managed_netif_path(const ni_managed_device_t *, char **);
 extern const char *		ni_objectmodel_create_managed_modem_path(const ni_managed_device_t *, char **);
+extern const char *		ni_objectmodel_create_managed_policy_path(const ni_managed_policy_t *, char **);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_netif(ni_dbus_server_t *, ni_managed_device_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_modem(ni_dbus_server_t *, ni_managed_device_t *);
 extern ni_dbus_object_t *	ni_objectmodel_register_managed_policy(ni_dbus_server_t *, ni_managed_policy_t *);
