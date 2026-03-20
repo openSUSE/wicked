@@ -135,7 +135,7 @@ extern void			ni_nanny_schedule_recheck(ni_ifworker_array_t *, ni_ifworker_t *);
 extern void			ni_nanny_unschedule(ni_ifworker_array_t *, ni_ifworker_t *);
 extern unsigned int		ni_nanny_recheck_do(ni_nanny_t *mgr);
 extern unsigned int		ni_nanny_down_do(ni_nanny_t *mgr);
-extern void			ni_nanny_register_device(ni_nanny_t *, ni_ifworker_t *);
+extern ni_managed_device_t *	ni_nanny_register_device(ni_nanny_t *, ni_ifworker_t *);
 extern void			ni_nanny_unregister_device(ni_nanny_t *, ni_ifworker_t *);
 extern ni_managed_device_t *	ni_nanny_get_device(ni_nanny_t *, ni_ifworker_t *);
 extern void			ni_nanny_remove_device(ni_nanny_t *, ni_managed_device_t *);

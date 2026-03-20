@@ -470,29 +470,32 @@ ni_managed_device_progress(ni_ifworker_t *w, ni_fsm_state_t new_state)
 /*
  * Register a device
  */
-void
+ni_managed_device_t *
 ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 {
 	ni_managed_device_t *mdev;
 	const ni_dbus_class_t *dev_class = NULL;
 	ni_nanny_devmatch_t *match;
 
-	if (ni_nanny_get_device(mgr, w) != NULL)
-		return;
+	if ((mdev = ni_nanny_get_device(mgr, w)))
+		return mdev;
 
 	if (!(mdev = ni_managed_device_new(mgr, w, &mgr->device_list)))
-		return;
+		return NULL;
 
 	if (w->type == NI_IFWORKER_TYPE_NETDEV) {
 		if ((mdev->object = ni_objectmodel_register_managed_netif(mgr->server, mdev)))
-			dev_class = ni_objectmodel_link_class(w->device->link.type);
+			dev_class = w->device ? ni_objectmodel_link_class(w->device->link.type) : NULL;
 	} else
 	if (w->type == NI_IFWORKER_TYPE_MODEM) {
 		if ((mdev->object = ni_objectmodel_register_managed_modem(mgr->server, mdev)))
-			dev_class = ni_objectmodel_modem_get_class(w->modem->type);
+			dev_class = w->modem ? ni_objectmodel_modem_get_class(w->modem->type) : NULL;
 	}
-	if (!mdev->object || !dev_class)
-		return;
+	if (!mdev->object) {
+		ni_nanny_remove_device(mgr, mdev);
+		ni_managed_device_free(mdev);
+		return NULL;
+	}
 
 	for (match = mgr->enable; match; match = match->next) {
 		switch (match->type) {
@@ -523,6 +526,7 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 		ni_nanny_schedule_recheck(&mgr->recheck, w);
 
 	ni_ifworker_set_progress_callback(w, ni_managed_device_progress, mdev);
+	return mdev;
 }
 
 /*
