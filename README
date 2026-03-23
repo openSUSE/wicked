@@ -337,13 +337,13 @@ is still the most natural thing to do.
 For that reason, wicked is designed to be extensible via shell scripts.
 These extensions can be defined in the config.xml file.
 
-Currently, several diffent classes of extensions are supported:
+Currently, several different classes of extensions are supported:
 
  *      link configuration: these are scripts responsible for setting
         up a device's link layer according to the configuration
         provided by the client, and for tearing it down again.
 
- *      address configruation: these are scripts responsible for
+ *      address configuration: these are scripts responsible for
         managing a device's address configuration.
         Usually address configuration and DHCP are managed by wicked
         itself, but can be implemented via extensions.
