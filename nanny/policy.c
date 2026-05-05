@@ -269,17 +269,42 @@ ni_managed_policy_register(ni_nanny_t *mgr, ni_fsm_policy_t *policy)
 }
 
 /*
- * Create a dbus object representing the managed netdev
+ * Create a dbus object path representing the managed policy
+ */
+const char *
+ni_objectmodel_create_managed_policy_path(const ni_managed_policy_t *mpolicy, char **path)
+{
+	const char *list = NI_OBJECTMODEL_MANAGED_POLICY_LIST_PATH;
+	const char *name;
+
+	if (!mpolicy || !mpolicy->fsm_policy || !path)
+		return NULL;
+
+	/*
+	 * Note: **currently**, the name is already encoded for dbus path;
+	 *       -> we should add e.g. a ni_fsm_policy_path function ...
+	 */
+	if (!(name = ni_fsm_policy_name(mpolicy->fsm_policy)))
+		return NULL;
+
+	return ni_string_printf(path, "%s/%s", list, name);
+}
+
+/*
+ * Create a dbus object representing the managed policy
  */
 ni_dbus_object_t *
 ni_objectmodel_register_managed_policy(ni_dbus_server_t *server, ni_managed_policy_t *mpolicy)
 {
-	char relative_path[128];
 	ni_dbus_object_t *object;
+	char *path = NULL;
 
-	snprintf(relative_path, sizeof(relative_path), "Policy/%s",
-					ni_fsm_policy_name(mpolicy->fsm_policy));
-	object = ni_dbus_server_register_object(server, relative_path, &ni_objectmodel_managed_policy_class, mpolicy);
+	if (!ni_objectmodel_create_managed_policy_path(mpolicy, &path))
+		return NULL;
+
+	object = ni_dbus_server_register_object(server, path, &ni_objectmodel_managed_policy_class, mpolicy);
+	ni_string_free(&path);
+
 	if (object)
 		ni_objectmodel_bind_compatible_interfaces(object);
 	return object;
