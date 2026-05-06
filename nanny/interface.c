@@ -93,6 +93,26 @@ ni_managed_netif_disable(ni_managed_device_t *mdev)
 	mdev->monitor = FALSE;
 	return TRUE;
 }
+/*
+ * Create a dbus object path representing the managed netif.
+ */
+const char *
+ni_objectmodel_create_managed_netif_path(const ni_managed_device_t *mdev, char **path)
+{
+	const char *list = NI_OBJECTMODEL_MANAGED_NETIF_LIST_PATH;
+	ni_ifworker_t *w = ni_managed_device_get_worker(mdev);
+	char uuid[64] = {'\0'};
+
+	if (!path || !w || w->type != NI_IFWORKER_TYPE_NETDEV)
+		return NULL;
+
+	/* dbus path does not support '-' characters used in uuid string */
+	if (ni_format_hex_data(&mdev->uuid.octets[0], sizeof(mdev->uuid),
+			uuid, sizeof(uuid), "", FALSE) != 0)
+		return NULL;
+
+	return ni_string_printf(path, "%s/%s", list, uuid);
+}
 
 /*
  * Create a dbus object representing the managed netdev
@@ -100,19 +120,14 @@ ni_managed_netif_disable(ni_managed_device_t *mdev)
 ni_dbus_object_t *
 ni_objectmodel_register_managed_netif(ni_dbus_server_t *server, ni_managed_device_t *mdev)
 {
-	ni_netdev_t *dev;
-	char relative_path[128];
 	ni_dbus_object_t *object;
-	ni_ifworker_t *w;
+	char *path = NULL;
 
-	if (!(w = ni_managed_device_get_worker(mdev)))
+	if (!ni_objectmodel_create_managed_netif_path(mdev, &path))
 		return NULL;
 
-	if (!(dev = ni_ifworker_get_netdev(w)))
-		return NULL;
-
-	snprintf(relative_path, sizeof(relative_path), "Interface/%u", dev->link.ifindex);
-	object = ni_dbus_server_register_object(server, relative_path, &ni_objectmodel_managed_netif_class, mdev);
+	object = ni_dbus_server_register_object(server, path, &ni_objectmodel_managed_netif_class, mdev);
+	ni_string_free(&path);
 
 	if (object)
 		ni_objectmodel_bind_compatible_interfaces(object);
