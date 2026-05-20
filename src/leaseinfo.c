@@ -787,8 +787,17 @@ __ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 					&lease->nds_servers, " ", 0);
 
 	/* NDS Context */
-	__ni_leaseinfo_print_string_array(out, prefix, "NDSCONTEXT",
-					&lease->nds_context, " ", 0);
+	/*
+	 * Note: There is a single nds context string option in dhcp4,
+	 *       but the lease is using a string array to store it.
+	 *       If there are multiple, use indexed NDSCONTEXT[_X] key,
+	 *       the 1st one without: NDSCONTEXT='…', NDSCONTEXT_1='…'.
+	 */
+	for (i = 0; i < lease->nds_context.count; ++i) {
+		const char *ctx = lease->nds_context.data[i];
+
+		__ni_leaseinfo_print_string(out, prefix, "NDSCONTEXT", ctx, NULL, i);
+	}
 
 	/* NDS Tree */
 	__ni_leaseinfo_print_string(out, prefix, "NDSTREE", lease->nds_tree,
