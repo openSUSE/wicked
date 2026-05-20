@@ -2120,6 +2120,12 @@ parse_more:
 			ni_dhcp4_decode_address_list(&buf, &lease->nds_servers);
 			break;
 		case DHCP4_NDS_CTX:
+			/*
+			 * Note: Multiple instances of the same option are concatenated
+			 *       already, so there is one context string --> this case
+			 *       is called once, see also RFC 2241 Section 4.
+			 *       Just the lease is using a string array for storage.
+			 */
 			if (!ni_dhcp4_option_get_printable(&buf, &tmp, "nds-context"))
 				ni_string_array_append(&lease->nds_context, tmp);
 			ni_string_free(&tmp);
