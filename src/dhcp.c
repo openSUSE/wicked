@@ -1867,6 +1867,29 @@ ni_dhcp_fqdn_init(ni_dhcp_fqdn_t *fqdn)
 	}
 }
 
+static int
+ni_dhcp_valid_in_printable_string(int c)
+{
+	/*
+	 * A printable character including space and tab,
+	 * but NOT a single quote.
+	 */
+	switch (c) {
+	case '\'':
+		return 0;
+	case '\t':
+		return 1;
+	default:
+		return isprint(c);
+	}
+}
+
+ni_bool_t
+ni_dhcp_check_printable_string(const char *str, size_t len)
+{
+	return ni_check_string_characters(str, len, ni_dhcp_valid_in_printable_string);
+}
+
 ni_bool_t
 ni_dhcp_check_user_class_id(const char *id, size_t len)
 {
