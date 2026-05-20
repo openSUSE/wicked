@@ -383,7 +383,7 @@ ni_dhcp_option_type_opt_to_str_string(const ni_dhcp_option_decl_t *decl, ni_buff
 			return FALSE;
 
 		len = ni_string_len(*str);
-		if (len && !ni_check_printable(*str, len)) {
+		if (len && !ni_dhcp_check_printable_string(*str, len)) {
 			ni_string_free(str);
 			return FALSE;
 		}

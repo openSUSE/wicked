@@ -1801,7 +1801,7 @@ ni_dhcp4_option_get_printable(ni_buffer_t *bp, char **var, const char *what)
 	if (ni_dhcp4_option_get_string(bp, &tmp, &len) < 0)
 		return -1;
 
-	if (!ni_check_printable(tmp, len)) {
+	if (!ni_dhcp_check_printable_string(tmp, len)) {
 		ni_warn("Discarded non-printable %s: '%s'", what,
 			ni_print_suspect(tmp, len));
 		free(tmp);

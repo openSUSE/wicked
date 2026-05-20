@@ -982,7 +982,7 @@ ni_dhcp6_option_get_printable_array(ni_buffer_t *bp, ni_string_array_t *result,
 		if (ni_dhcp6_option_gets(&pbuff, &param) < 0)
 			goto failure;
 
-		if (ni_check_printable(param, len)) {
+		if (ni_dhcp_check_printable_string(param, len)) {
 			ni_string_array_append(&temp, param);
 		} else {
 			ni_warn("Discarded suspect %s[%u]: '%s'",
@@ -2301,7 +2301,7 @@ ni_dhcp6_option_parse_ia_address(ni_buffer_t *bp, ni_dhcp6_ia_t *ia, uint16_t ad
 			} else {
 				size_t len = ni_string_len(iadr->status.message);
 
-				if (len && !ni_check_printable(iadr->status.message, len)) {
+				if (len && !ni_dhcp_check_printable_string(iadr->status.message, len)) {
 					ni_debug_dhcp("%s.%s.%s: discarded non-printable"
 							" status message: %s",
 						ni_dhcp6_option_name(ia->type),
@@ -2406,7 +2406,7 @@ __ni_dhcp6_option_parse_ia_options(ni_buffer_t *bp,  ni_dhcp6_ia_t *ia)
 			} else {
 				size_t len = ni_string_len(ia->status.message);
 
-				if (len && !ni_check_printable(ia->status.message, len)) {
+				if (len && !ni_dhcp_check_printable_string(ia->status.message, len)) {
 					ni_debug_dhcp("%s.%s: discarded non-printable"
 							" status message: %s",
 						ni_dhcp6_option_name(ia->type),
@@ -2888,7 +2888,7 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, n
 			if (ni_dhcp6_option_get_status(&optbuf, lease->dhcp6.status) == 0) {
 				size_t len = ni_string_len(lease->dhcp6.status->message);
 
-				if (len && !ni_check_printable(lease->dhcp6.status->message, len)) {
+				if (len && !ni_dhcp_check_printable_string(lease->dhcp6.status->message, len)) {
 					ni_debug_dhcp("%s: discarded non-printable"
 							" status message: %s",
 						ni_dhcp6_option_name(option),
@@ -3024,7 +3024,7 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, n
 		case NI_DHCP6_OPTION_POSIX_TZ_STRING:
 			if (ni_dhcp6_option_gets(&optbuf, &str) == 0) {
 				size_t len = ni_string_len(str);
-				if (ni_check_printable(str, len)) {
+				if (ni_dhcp_check_printable_string(str, len)) {
 					ni_string_dup(&lease->posix_tz_string, str);
 					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option), str);
 				} else {
