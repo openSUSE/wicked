@@ -1890,6 +1890,74 @@ ni_dhcp_check_printable_string(const char *str, size_t len)
 	return ni_check_string_characters(str, len, ni_dhcp_valid_in_printable_string);
 }
 
+static int
+ni_dhcp_valid_in_posix_tzdbname(int c)
+{
+	/*
+	 * Geographical timezones (Area/Location) as in IANA timezone database
+	 *
+	 * See https://datatracker.ietf.org/doc/html/rfc4833#section-4,
+	 * The Open Group Base Specifications Issue 8 IEEE Std 1003.1-2024,
+	 * Base Definitions, Environment Variables, 8.3 Other Environment
+	 * Variables, TZ at https://pubs.opengroup.org/onlinepubs/9799919799/
+	 */
+	switch (c) {
+	case '+':
+	case '-':
+	case '_':
+	case '/':
+		return 1;
+	default:
+		return isalnum(c);
+	}
+}
+
+ni_bool_t
+ni_dhcp_check_posix_tzdbname(const char *str, size_t len)
+{
+	return ni_check_string_characters(str, len, ni_dhcp_valid_in_posix_tzdbname);
+}
+
+static int
+ni_dhcp_valid_in_posix_tzstring(int c)
+{
+	/*
+	 * The expanded form of the TZ format like:
+	 *   stdoffset[dst[offset][,start[/time],end[/time]]]
+	 *
+	 * See https://datatracker.ietf.org/doc/html/rfc4833#section-4,
+	 * The Open Group Base Specifications Issue 8 IEEE Std 1003.1-2024,
+	 * Base Definitions, Environment Variables, 8.3 Other Environment
+	 * Variables, TZ at https://pubs.opengroup.org/onlinepubs/9799919799/
+	 */
+	switch (c) {
+	case '<':
+	case '>':
+	case '+':
+	case '-':
+	case '/':
+	case ':':
+	case '.':
+	case ',':
+		return 1;
+	default:
+		return isalnum(c);
+	}
+}
+
+ni_bool_t
+ni_dhcp_check_posix_tzstring(const char *str, size_t len)
+{
+	if (!str || len == 0)
+		return FALSE;
+
+	/* When it starts with a ':', the following string is implementation specific */
+	if (*str == ':')
+		return ni_check_string_characters(str, len, ni_dhcp_valid_in_printable_string);
+	else
+		return ni_check_string_characters(str, len, ni_dhcp_valid_in_posix_tzstring);
+}
+
 ni_bool_t
 ni_dhcp_check_user_class_id(const char *id, size_t len)
 {

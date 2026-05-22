@@ -144,6 +144,8 @@ extern ni_bool_t			ni_dhcp_domain_encode(ni_buffer_t *, const char *, ni_bool_t)
 extern ni_bool_t			ni_dhcp_domain_decode(ni_buffer_t *, char **);
 
 extern ni_bool_t			ni_dhcp_check_printable_string(const char *, size_t);
+extern ni_bool_t			ni_dhcp_check_posix_tzdbname(const char *, size_t);
+extern ni_bool_t			ni_dhcp_check_posix_tzstring(const char *, size_t);
 extern ni_bool_t			ni_dhcp_check_user_class_id(const char *, size_t);
 
 #endif /* WICKED_DHCP_H */
