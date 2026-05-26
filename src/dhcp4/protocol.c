@@ -1815,6 +1815,50 @@ ni_dhcp4_option_get_printable(ni_buffer_t *bp, char **var, const char *what)
 }
 
 static int
+ni_dhcp4_option_get_tzdbname(ni_buffer_t *bp, char **var, const char *what)
+{
+	unsigned int len;
+	char *tmp = NULL;
+
+	if (ni_dhcp4_option_get_string(bp, &tmp, &len) < 0)
+		return -1;
+
+	if (!ni_dhcp_check_posix_tzdbname(tmp, len)) {
+		ni_warn("Discarded suspect %s: '%s'", what,
+			ni_print_suspect(tmp, len));
+		free(tmp);
+		return -1;
+	}
+
+	if (*var)
+		free(*var);
+	*var = tmp;
+	return 0;
+}
+
+static int
+ni_dhcp4_option_get_tzstring(ni_buffer_t *bp, char **var, const char *what)
+{
+	unsigned int len;
+	char *tmp = NULL;
+
+	if (ni_dhcp4_option_get_string(bp, &tmp, &len) < 0)
+		return -1;
+
+	if (!ni_dhcp_check_posix_tzstring(tmp, len)) {
+		ni_warn("Discarded suspect %s: '%s'", what,
+			ni_print_suspect(tmp, len));
+		free(tmp);
+		return -1;
+	}
+
+	if (*var)
+		free(*var);
+	*var = tmp;
+	return 0;
+}
+
+static int
 ni_dhcp4_option_get_netbios_type(ni_buffer_t *bp, unsigned int *type)
 {
 	unsigned int len = ni_buffer_count(bp);
@@ -2156,12 +2200,12 @@ parse_more:
 			break;
 
 		case DHCP4_POSIX_TZ_STRING:
-			ni_dhcp4_option_get_printable(&buf, &lease->posix_tz_string,
+			ni_dhcp4_option_get_tzstring(&buf, &lease->posix_tz_string,
 							"posix-tz-string");
 			break;
 
 		case DHCP4_POSIX_TZ_DBNAME:
-			ni_dhcp4_option_get_printable(&buf, &lease->posix_tz_dbname,
+			ni_dhcp4_option_get_tzdbname(&buf, &lease->posix_tz_dbname,
 							"posix-tz-dbname");
 			break;
 

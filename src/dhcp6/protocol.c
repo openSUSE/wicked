@@ -3024,7 +3024,7 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, n
 		case NI_DHCP6_OPTION_POSIX_TZ_STRING:
 			if (ni_dhcp6_option_gets(&optbuf, &str) == 0) {
 				size_t len = ni_string_len(str);
-				if (ni_dhcp_check_printable_string(str, len)) {
+				if (ni_dhcp_check_posix_tzstring(str, len)) {
 					ni_string_dup(&lease->posix_tz_string, str);
 					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option), str);
 				} else {
@@ -3038,7 +3038,7 @@ ni_dhcp6_parse_client_options(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, n
 		case NI_DHCP6_OPTION_POSIX_TZ_DBNAME:
 			if (ni_dhcp6_option_gets(&optbuf, &str) == 0) {
 				size_t len = ni_string_len(str);
-				if (ni_check_pathname(str, len)) {
+				if (ni_dhcp_check_posix_tzdbname(str, len)) {
 					ni_string_dup(&lease->posix_tz_dbname, str);
 					ni_debug_dhcp("%s: %s", ni_dhcp6_option_name(option), str);
 				} else {
