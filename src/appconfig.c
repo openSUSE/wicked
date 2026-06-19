@@ -17,6 +17,7 @@
 
 #include <wicked/util.h>
 #include <wicked/wicked.h>
+#include <wicked/logging.h>
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/address.h>
@@ -30,6 +31,15 @@
 #include "process.h"
 #include "dhcp.h"
 #include "duid.h"
+
+#define NI_CONFIG_INCLUDE_DEPTH_MAX	10
+
+typedef struct ni_config_parse_guard	ni_config_parse_guard_t;
+
+struct ni_config_parse_guard {
+	ni_config_parse_guard_t *	parent;
+	const char *			filename;
+};
 
 static const char *__ni_ifconfig_source_types[] = {
 	"firmware:",
@@ -54,8 +64,9 @@ static ni_bool_t	ni_config_parse_sources(ni_config_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_rtnl_event(ni_config_rtnl_event_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_bonding(ni_config_bonding_t *, const xml_node_t *);
 static ni_bool_t	ni_config_parse_teamd(ni_config_teamd_t *, const xml_node_t *);
-static ni_bool_t	ni_config_include_file(ni_config_t *, const char *, const char *,
-					ni_bool_t, ni_init_appdata_callback_t *, void *);
+static ni_bool_t	ni_config_include_file(ni_config_parse_guard_t *, ni_config_t *,
+					const char *, const char *, ni_bool_t,
+					ni_init_appdata_callback_t *, void *);
 static unsigned int	ni_config_addrconf_update_mask_all(void);
 static unsigned int	ni_config_addrconf_update_mask_dhcp4(void);
 static unsigned int	ni_config_addrconf_update_mask_dhcp6(void);
@@ -278,11 +289,42 @@ ni_config_free(ni_config_t *conf)
 	free(conf);
 }
 
-ni_bool_t
-__ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callback_t *cb, void *appdata)
+static ni_bool_t
+ni_config_parse_guard_check(ni_config_parse_guard_t *guard, ni_config_parse_guard_t *parent,
+		const char *filename)
 {
+	ni_config_parse_guard_t *curr;
+	unsigned int depth = 0;
+
+	for (curr = parent; curr; curr = curr->parent) {
+		if (ni_string_eq(curr->filename, filename)) {
+			ni_error("Circular include detected: file '%s' already parsed!",
+					filename);
+			return FALSE;
+		}
+		if (++depth >= NI_CONFIG_INCLUDE_DEPTH_MAX) {
+			ni_error("Inclusion depth of %u reached at '%s'",
+				 NI_CONFIG_INCLUDE_DEPTH_MAX, filename);
+			return FALSE;
+		}
+	}
+
+	ni_assert(guard);
+	guard->parent = parent;
+	guard->filename = filename;
+	return TRUE;
+}
+
+ni_bool_t
+__ni_config_parse(ni_config_parse_guard_t *parent_guard, ni_config_t *conf,
+		const char *filename, ni_init_appdata_callback_t *cb, void *appdata)
+{
+	ni_config_parse_guard_t guard;
 	xml_document_t *doc;
 	xml_node_t *node, *child;
+
+	if (!ni_config_parse_guard_check(&guard, parent_guard, filename))
+		return FALSE;
 
 	ni_debug_wicked("Reading config file %s", filename);
 	doc = xml_document_read(filename);
@@ -312,7 +354,7 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 			}
 
 			if ((attrval = xml_node_get_attr(child, "name")) != NULL) {
-				if (!ni_config_include_file(conf, filename, attrval, optional, cb, appdata)) {
+				if (!ni_config_include_file(&guard, conf, filename, attrval, optional, cb, appdata)) {
 					ni_error("[%s] unable to include file name '%s'",
 							xml_node_location(child), attrval);
 					goto failed;
@@ -474,7 +516,7 @@ ni_config_parse(const char *filename, ni_init_appdata_callback_t *cb, void *appd
 	ni_config_t *conf;
 
 	conf = ni_config_new();
-	if (!__ni_config_parse(conf, filename, cb, appdata)) {
+	if (!__ni_config_parse(NULL, conf, filename, cb, appdata)) {
 		ni_config_free(conf);
 		return NULL;
 	}
@@ -2727,8 +2769,9 @@ ni_config_load(const char *appname, ni_init_appdata_callback_t *cb, void *appdat
 }
 
 static ni_bool_t
-ni_config_include_file(ni_config_t *conf, const char *origin, const char *include,
-		ni_bool_t optional, ni_init_appdata_callback_t *cb, void *appdata)
+ni_config_include_file(ni_config_parse_guard_t *guard, ni_config_t *conf,
+		const char *origin, const char *include, ni_bool_t optional,
+		ni_init_appdata_callback_t *cb, void *appdata)
 {
 	char *filename = NULL;
 	const char *dir;
@@ -2782,7 +2825,7 @@ ni_config_include_file(ni_config_t *conf, const char *origin, const char *includ
 			return TRUE;
 	}
 
-	ret = __ni_config_parse(conf, filename, cb, appdata);
+	ret = __ni_config_parse(guard, conf, filename, cb, appdata);
 	ni_string_free(&filename);
 	return ret;
 }
