@@ -54,7 +54,8 @@ static ni_bool_t	ni_config_parse_sources(ni_config_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_rtnl_event(ni_config_rtnl_event_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_bonding(ni_config_bonding_t *, const xml_node_t *);
 static ni_bool_t	ni_config_parse_teamd(ni_config_teamd_t *, const xml_node_t *);
-static const char *	ni_config_build_include(char *, size_t, const char *, const char *);
+static ni_bool_t	ni_config_include_file(ni_config_t *, const char *, const char *,
+					ni_bool_t, ni_init_appdata_callback_t *, void *);
 static unsigned int	ni_config_addrconf_update_mask_all(void);
 static unsigned int	ni_config_addrconf_update_mask_dhcp4(void);
 static unsigned int	ni_config_addrconf_update_mask_dhcp6(void);
@@ -299,29 +300,28 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 	/* Loop over all elements in the config file */
 	for (child = node->children; child; child = child->next) {
 		if (strcmp(child->name, "include") == 0) {
-			char fullname[PATH_MAX + 1] = {'\0'};
-			const char *attrval, *path;
 			ni_bool_t optional = FALSE;
+			const char *attrval;
 
 			if ((attrval = xml_node_get_attr(child, "optional")) != NULL) {
 				if (ni_parse_boolean(attrval, &optional)) {
-					ni_error("%s: invalid <%s optional='%s>...</%s> element value",
-						filename, child->name, attrval, child->name);
+					ni_error("[%s] invalid <%s optional='%s>...</%s> element value",
+						xml_node_location(child), child->name, attrval, child->name);
 					goto failed;
 				}
 			}
-			if ((attrval = xml_node_get_attr(child, "name")) == NULL) {
-				ni_error("%s: <include> element lacks filename", xml_node_location(child));
+
+			if ((attrval = xml_node_get_attr(child, "name")) != NULL) {
+				if (!ni_config_include_file(conf, filename, attrval, optional, cb, appdata)) {
+					ni_error("[%s] unable to include file name '%s'",
+							xml_node_location(child), attrval);
+					goto failed;
+				}
+			} else {
+				ni_error("[%s] <include> element lacks name attribute",
+						xml_node_location(child));
 				goto failed;
 			}
-			if (!(path = ni_config_build_include(fullname, sizeof(fullname), filename, attrval)))
-				goto failed;
-			/* If the file is marked as optional, but does not exist, silently
-			 * skip it */
-			if (optional && !ni_file_exists(path))
-				continue;
-			if (!__ni_config_parse(conf, path, cb, appdata))
-				goto failed;
 		} else
 		if (strcmp(child->name, "use-nanny") == 0) {
 			ni_bool_t use_nanny = TRUE;
@@ -480,37 +480,6 @@ ni_config_parse(const char *filename, ni_init_appdata_callback_t *cb, void *appd
 	}
 
 	return conf;
-}
-
-const char *
-ni_config_build_include(char *fullname, size_t size,
-		const char *parent_filename, const char *incl_filename)
-{
-	if (parent_filename && incl_filename && incl_filename[0] != '/') {
-		size_t i;
-
-		i = strlen(parent_filename);
-		if (i >= size)
-			goto too_long;
-
-		strncpy(fullname, parent_filename, size - 1);
-		fullname[size - 1] = '\0';
-
-		while (i && fullname[i - 1] != '/')
-			--i;
-		fullname[i] = '\0';
-
-		if (i + strlen(incl_filename) >= size)
-			goto too_long;
-
-		strncat(fullname, incl_filename, size - i - 1);
-		incl_filename = fullname;
-	}
-	return incl_filename;
-
-too_long:
-	ni_error("unable to include \"%s\" - path too long", incl_filename);
-	return NULL;
 }
 
 static ni_bool_t
@@ -2755,4 +2724,65 @@ ni_config_load(const char *appname, ni_init_appdata_callback_t *cb, void *appdat
 	}
 
 	return config;
+}
+
+static ni_bool_t
+ni_config_include_file(ni_config_t *conf, const char *origin, const char *include,
+		ni_bool_t optional, ni_init_appdata_callback_t *cb, void *appdata)
+{
+	char *filename = NULL;
+	const char *dir;
+	ni_bool_t ret;
+
+	if (!conf || ni_string_empty(origin) || ni_string_empty(include))
+		return FALSE;
+
+	if (include[0] == '/') {
+
+		/* absolute include file: just take it as it is */
+		if (!ni_string_dup(&filename, include))
+			return FALSE;
+
+		/* optional file does not exist */
+		if (optional && !ni_file_exists(filename))
+			return TRUE;
+
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+				"config: absolute include '%s' (from '%s') -> found",
+				filename, origin);
+
+	} else if (strchr(include, '/')) {
+
+		/* relative include file: to directory of origin */
+		dir = ni_dirname(origin);
+		if (!dir || !ni_string_printf(&filename, "%s/%s", dir, include))
+			return FALSE;
+
+		/* optional file does not exist */
+		if (optional && !ni_file_exists(filename))
+			return TRUE;
+
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+				"config: relative include '%s' (from '%s') -> found",
+				filename, origin);
+	} else {
+		int rv;
+
+		if (strcmp(include, ".") == 0 || strcmp(include, "..") == 0) {
+			ni_error("Invalid include file name '%s'", include);
+			return FALSE;
+		}
+
+		/* basename include file: lookup in search path */
+		if ((rv = ni_config_path_lookup(&filename, include, NULL)) < 0)
+			return FALSE;
+
+		/* optional file does not exist */
+		if (optional && rv)
+			return TRUE;
+	}
+
+	ret = __ni_config_parse(conf, filename, cb, appdata);
+	ni_string_free(&filename);
+	return ret;
 }
