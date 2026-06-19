@@ -1595,6 +1595,7 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 			const char *name, *command, *attr;
 			ni_bool_t enabled = TRUE;
 			ni_script_action_t *old;
+			const char *relative;
 
 			name = xml_node_get_attr(child, "name");
 			if (!ni_check_domain_name(name, ni_string_len(name), -1)) {
@@ -1614,8 +1615,18 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 						xml_node_location(child));
 			}
 
+			/* Remove well-known extension search path from command if absolute */
+			if ((relative = ni_extension_script_search_path_remove(command))) {
+				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+						"%s: migrated extension script command to '%s'",
+						name, relative);
+				script = ni_script_action_new(name, relative);
+			} else {
+				script = ni_script_action_new(name, command);
+			}
+
 			old = ni_script_action_list_find(ex->actions, name);
-			if ((script = ni_script_action_new(name, command))) {
+			if (script) {
 				script->enabled = enabled;
 				ni_config_parse_extension_script_env(script, child, old);
 			}

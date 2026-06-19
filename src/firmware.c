@@ -46,14 +46,25 @@
 ni_bool_t
 ni_netif_firmware_extension_script_usable(const ni_script_action_t *script)
 {
+	char *tmp = NULL;
+	const char *cmd;
+
 	if (!script || !script->enabled || ni_string_empty(script->name))
 		return FALSE;
 
 	if (!script->process || ni_string_empty(script->process->command))
 		return FALSE;
 
-	if (!script->process->argv.count || !ni_file_executable(script->process->argv.data[0]))
+	if (!script->process->argv.count)
 		return FALSE;
+
+	/* Lookup executable process->argv[0] in extension search path if relative */
+	cmd = ni_extension_script_search_path_lookup(&tmp, script->process->argv.data[0]);
+	if (!ni_file_executable(cmd ?: script->process->argv.data[0])) {
+		ni_string_free(&tmp);
+		return FALSE;
+	}
+	ni_string_free(&tmp);
 
 	return TRUE;
 }
@@ -79,6 +90,8 @@ ni_netif_firmware_discovery_script_call(ni_buffer_t *buf, ni_script_action_t *sc
 		const char *path)
 {
 	ni_process_t *pi;
+	char *tmp = NULL;
+	const char *cmd;
 	int status;
 
 	ni_assert(buf && script);
@@ -89,6 +102,23 @@ ni_netif_firmware_discovery_script_call(ni_buffer_t *buf, ni_script_action_t *sc
 	if (!(pi = ni_process_new(script->process))) {
 		ni_error("%s discovery process allocation failure: %m", type);
 		return NI_PROCESS_FAILURE;
+	}
+	if (!pi->argv.count) {
+		ni_error("%s discovery process allocation failure: %m", type);
+		ni_process_free(pi);
+		return NI_PROCESS_FAILURE;
+	}
+
+	/* Lookup executable process->argv[0] in extension search path if relative */
+	cmd = ni_extension_script_search_path_lookup(&tmp, pi->argv.data[0]);
+	if (cmd) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EXTENSION,
+				"resolved %s discovery script to \"%s\"", type, cmd);
+		if (!ni_string_move(&pi->argv.data[0], &tmp)) {
+			ni_string_free(&tmp);
+			ni_process_free(pi);
+			return NI_PROCESS_FAILURE;
+		}
 	}
 
 	/* Add root directory argument if given */

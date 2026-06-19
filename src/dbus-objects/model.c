@@ -558,9 +558,10 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 	const char *interface = dbus_message_get_interface(call);
 	ni_tempstate_t *temp_state = NULL;
 	ni_extension_t *extension;
-	ni_shellcmd_t *command;
+	ni_shellcmd_t *shellcmd;
 	ni_process_t *process;
 	char *tempname = NULL;
+	const char *script;
 
 	NI_TRACE_ENTER_ARGS("object=%s, interface=%s, method=%s", object->path, interface, method->name);
 
@@ -572,17 +573,31 @@ ni_objectmodel_extension_call(ni_dbus_connection_t *connection,
 		return FALSE;
 	}
 
-	if ((command = ni_extension_find_script(extension, method->name)) == NULL) {
+	if ((shellcmd = ni_extension_find_script(extension, method->name)) == NULL) {
 		dbus_set_error(&error, DBUS_ERROR_FAILED, "%s: no/unknown extension method %s",
 				__func__, method->name);
 		ni_dbus_connection_send_error(connection, call, &error);
 		return FALSE;
 	}
 
-	ni_debug_extension("preparing to run extension script \"%s\"", command->command);
+	ni_debug_extension("preparing to run script extension command \"%s\"", shellcmd->command);
 
-	/* Create an instance of this command */
-	process = ni_process_new(command);
+	/* Create an instance of this shellcmd (command + env) */
+	process = ni_process_new(shellcmd);
+	if (!process || !process->argv.count)
+		goto general_failure;
+
+	/* Lookup executable process->argv[0] in extension search path if relative */
+	script = ni_extension_script_search_path_lookup(&tempname, process->argv.data[0]);
+	if (script) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EXTENSION,
+				"resolved %s extension script to \"%s\"",
+				method->name, script);
+		if (!ni_string_move(&process->argv.data[0], &tempname)) {
+			ni_string_free(&tempname);
+			goto general_failure;
+		}
+	}
 
 	ni_objectmodel_expand_environment(object, &extension->environment, process);
 	temp_state = ni_process_tempstate(process);

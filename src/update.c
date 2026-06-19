@@ -708,6 +708,8 @@ static int
 ni_system_updater_run(ni_updater_job_t *job, ni_shellcmd_t *shellcmd, ni_string_array_t *args)
 {
 	ni_process_t *pi;
+	char *tmp = NULL;
+	const char *cmd;
 	int rv;
 
 	if (!job || job->process || !shellcmd)
@@ -715,6 +717,25 @@ ni_system_updater_run(ni_updater_job_t *job, ni_shellcmd_t *shellcmd, ni_string_
 
 	if (!(pi = ni_process_new(shellcmd)))
 		return NI_PROCESS_FAILURE;
+
+	if (!pi->argv.count) {
+		ni_process_free(pi);
+		return NI_PROCESS_FAILURE;
+	}
+
+	/* Lookup executable process->argv[0] in extension search path if relative */
+	cmd = ni_extension_script_search_path_lookup(&tmp, pi->argv.data[0]);
+	if (cmd) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EXTENSION,
+				"resolved %s updater (%s) script to \"%s\"",
+				ni_updater_name(job->kind),
+				ni_basename(pi->process->command), cmd);
+		if (!ni_string_move(&pi->argv.data[0], &tmp)) {
+			ni_string_free(&tmp);
+			ni_process_free(pi);
+			return NI_PROCESS_FAILURE;
+		}
+	}
 
 	if (args) {
 		unsigned int i;
@@ -1023,6 +1044,8 @@ ni_system_updater_generic_batch_create(ni_updater_t *updater, char **filename, F
 {
 	ni_process_t *pi = NULL;
 	const char *statedir;
+	char *tmp = NULL;
+	const char *cmd;
 	FILE *fp = NULL;
 	int fd;
 
@@ -1036,7 +1059,21 @@ ni_system_updater_generic_batch_create(ni_updater_t *updater, char **filename, F
 	if (!(pi = ni_process_new(updater->proc_batch)))
 		goto cleanup;
 
-	if (!pi->argv.count || !ni_file_executable(pi->argv.data[0]))
+	if (!pi->argv.count)
+		goto cleanup;
+
+	/* Lookup executable process->argv[0] in extension search path if relative */
+	cmd = ni_extension_script_search_path_lookup(&tmp, pi->argv.data[0]);
+	if (cmd) {
+		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_EXTENSION,
+				"resolved %s updater (%s) script to \"%s\"",
+				ni_updater_name(updater->kind),
+				ni_basename(pi->process->command), cmd);
+		if (!ni_string_move(&pi->argv.data[0], &tmp)) {
+			ni_string_free(&tmp);
+			goto cleanup;
+		}
+	} else if (!ni_file_executable(pi->argv.data[0]))
 		goto cleanup;
 
 	if (!(pi->temp_state = ni_tempstate_new("batch")))
