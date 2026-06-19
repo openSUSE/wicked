@@ -178,6 +178,26 @@ AC_ARG_WITH([schemadir], [AS_HELP_STRING([--with-schemadir@<:@=DIR@:>@],
 	    [with_schemadir="${datadir}/${PACKAGE_NAME}/schema"])
 AC_SUBST(wicked_schemadir,	"$with_schemadir")
 
+# Handle wicked (dist) vs system (user) vs compat (lib[exec]) pre/post scripts
+AC_ARG_WITH([scriptsdir], [AS_HELP_STRING([--with-scriptsdir@<:@=DIR@:>@],
+	    [wicked pre/post scripts directory [${sysconfdir}/wicked/scripts]])],,
+	    [with_scriptsdir="${sysconfdir}/wicked/scripts"])
+AC_SUBST(wicked_scriptsdir, "$with_scriptsdir")
+
+system_scriptsdir="${sysconfdir}/wicked/scripts"
+AS_CASE([${with_scriptsdir}],
+	[[yes|no]], [AC_MSG_ERROR(Please specify an scriptsdir directory)],
+	["${system_scriptsdir}"],         [AS_UNSET(system_scriptsdir)],
+	["${compat_libexecdir}/scripts"], [
+		compat_scriptsdir="${wicked_libexecdir}/scripts"
+	],
+	["${wicked_libexecdir}/scripts"], [
+		compat_scriptsdir="${compat_libexecdir}/scripts"
+	]
+)
+AC_SUBST(system_scriptsdir, "$system_scriptsdir")
+AC_SUBST(compat_scriptsdir, "$compat_scriptsdir")
+
 # Handle wicked (dist) vs system (user) vs compat (lib[exec]) extension scripts
 AC_ARG_WITH([extensionsdir], [AS_HELP_STRING([--with-extensionsdir@<:@=DIR@:>@],
 	    [wicked extensions directory [${sysconfdir}/wicked/extensions]])],,

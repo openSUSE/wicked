@@ -4,8 +4,6 @@ MAINTAINERCLEANFILES		= Makefile.in
 DISTCLEANFILES			= $(BUILT_SOURCES)
 EXTRA_DIST			= $(dbus_config_DATA) $(templates)
 
-wicked_scriptsdir		= $(wicked_configdir)/scripts
-
 BUILT_SOURCES			= \
 	$(wicked_config_DATA)	\
 	$(dbus_service_DATA)	\
