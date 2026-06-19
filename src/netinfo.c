@@ -184,7 +184,7 @@ const char *
 ni_get_global_config_dir(void)
 {
 	if (ni_global.config_dir == NULL)
-		return WICKED_CONFIGDIR;
+		return NI_WICKED_CONFIGDIR;
 	else
 		return ni_global.config_dir;
 }
@@ -214,7 +214,7 @@ ni_set_global_config_dir(const char *pathname)
 			pathname = real;
 		}
 
-		if (ni_string_eq(WICKED_CONFIGDIR, pathname))
+		if (ni_string_eq(NI_WICKED_CONFIGDIR, pathname))
 			pathname = NULL;
 
 		ni_string_dup(&ni_global.config_dir, pathname);

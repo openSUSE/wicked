@@ -99,9 +99,9 @@ ni_config_new()
 	conf->addrconf.dhcp6.release_nretries = -1U;
 	conf->addrconf.dhcp6.info_refresh.range.max = NI_LIFETIME_INFINITE;
 
-	ni_config_fslocation_init(&conf->piddir,   WICKED_PIDDIR,   0755);
-	ni_config_fslocation_init(&conf->statedir, WICKED_STATEDIR, 0755);
-	ni_config_fslocation_init(&conf->storedir, WICKED_STOREDIR, 0755);
+	ni_config_fslocation_init(&conf->piddir,   NI_WICKED_PIDDIR,   0755);
+	ni_config_fslocation_init(&conf->statedir, NI_WICKED_STATEDIR, 0755);
+	ni_config_fslocation_init(&conf->storedir, NI_WICKED_STOREDIR, 0755);
 
 	conf->rtnl_event.recv_buff_length = 1024 * 1024;
 	conf->rtnl_event.mesg_buff_length = 0;
