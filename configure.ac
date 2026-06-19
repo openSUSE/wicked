@@ -152,6 +152,19 @@ AC_SUBST(wicked_docdir,		"${docdir}")
 AC_SUBST(wicked_libdir,		"${libdir}")
 AC_SUBST(wicked_sbindir,	"${sbindir}")
 AC_SUBST(wicked_includedir,	"${includedir}/wicked")
+AC_SUBST(wicked_libexecdir,	"${libexecdir}/wicked")
+
+# Attempt to catch libexecdir (/usr/local/libexec in autoconf)
+# the system may define via rpm %_configure and %_libexecdir
+# differently:
+# - /usr/libexec on TW|SLES|LEAP >= 16.0
+# - /usr/lib     on SLES|LEAP <= 15
+libexecbasedir="${libexecdir##*/}"
+compat_libexecdir=""
+AS_CASE([${libexecbasedir}],
+	[[libexec]], [compat_libexecdir="${libexecdir%exec}/wicked"],
+	[[lib]],     [compat_libexecdir="${libexecdir}exec/wicked"],
+)
 
 # Is there any need to change this?
 AC_ARG_WITH([configdir], [AS_HELP_STRING([--with-configdir@<:@=DIR@:>@],
@@ -165,11 +178,27 @@ AC_ARG_WITH([schemadir], [AS_HELP_STRING([--with-schemadir@<:@=DIR@:>@],
 	    [with_schemadir="${datadir}/${PACKAGE_NAME}/schema"])
 AC_SUBST(wicked_schemadir,	"$with_schemadir")
 
-# User editable extension scripts -> config seems OK
+# Handle wicked (dist) vs system (user) vs compat (lib[exec]) extension scripts
 AC_ARG_WITH([extensionsdir], [AS_HELP_STRING([--with-extensionsdir@<:@=DIR@:>@],
-	    [wicked extensions directory [${wicked_configdir}/extensions]])],,
-	    [with_extensionsdir="${wicked_configdir}/extensions"])
-AC_SUBST(wicked_extensionsdir,	"$with_extensionsdir")
+	    [wicked extensions directory [${sysconfdir}/wicked/extensions]])],,
+	    [with_extensionsdir="${sysconfdir}/wicked/extensions"])
+AC_SUBST(wicked_extensionsdir, "$with_extensionsdir")
+
+system_extensionsdir="${sysconfdir}/wicked/extensions"
+AS_CASE([${with_extensionsdir}],
+	[[yes|no]], [AC_MSG_ERROR(Please specify an extensionsdir directory)],
+	["${system_extensionsdir}"],         [AS_UNSET(system_extensionsdir)],
+	["${compat_libexecdir}/extensions"], [
+		compat_extensionsdir="${wicked_libexecdir}/extensions"
+	],
+	["${wicked_libexecdir}/extensions"], [
+		compat_extensionsdir="${compat_libexecdir}/extensions"
+	]
+)
+AC_SUBST(system_extensionsdir, "$system_extensionsdir")
+AC_SUBST(compat_extensionsdir, "$compat_extensionsdir")
+AM_CONDITIONAL([system_extensions],	[test "X$system_extensionsdir" != "X"])
+AM_CONDITIONAL([compat_extensions],	[test "X$compat_extensionsdir" != "X"])
 
 AC_ARG_WITH([storedir], [AS_HELP_STRING([--with-storedir@<:@=DIR@:>@],
 	    [wicked persistent store directory [${localstatedir}/lib/wicked]])],,
@@ -359,3 +388,4 @@ AC_CONFIG_FILES([
 	wicked.spec
 ])
 AC_OUTPUT
+
