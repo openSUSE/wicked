@@ -183,10 +183,24 @@ ni_global_assert_initialized(void)
 const char *
 ni_get_global_config_dir(void)
 {
-	if (ni_global.config_dir == NULL)
-		return NI_WICKED_CONFIGDIR;
-	else
+	/*
+	 * Return the global custom config override when specified using
+	 * the global `wicked --config <dir|file>` parameter or builtin:
+	 * - When both, NI_SYSTEM_CONFIGDIR and NI_WICKED_CONFIGDIR are
+	 *   defined, return the writable system configuration directory
+	 *   NI_SYSTEM_CONFIGDIR (NI_WICKED_CONFIGDIR is read-only).
+	 * - Otherwise, return the NI_WICKED_CONFIGDIR used for both.
+	 */
+	if (ni_global.config_dir)
 		return ni_global.config_dir;
+	else
+#if defined(NI_SYSTEM_CONFIGDIR)
+		return NI_SYSTEM_CONFIGDIR;
+#elif defined(NI_WICKED_CONFIGDIR)
+		return NI_WICKED_CONFIGDIR;
+#else
+		return NULL; /* error */
+#endif
 }
 
 const char *

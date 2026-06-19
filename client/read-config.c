@@ -560,9 +560,9 @@ ni_ifconfig_read_wicked_xml(xml_document_array_t *array,
 	ni_bool_t rv = FALSE;
 
 	if (ni_string_empty(path)) {
-		ni_string_printf(&ifconfig_dir, "%s/%s", ni_get_global_config_dir(), "ifconfig");
-		path = ifconfig_dir;
-		rv = TRUE; /* do not fail if default path does not exist */
+		rv = TRUE; /* do not fail if default path does not exist / can't be constructed */
+		if (!(path = ni_ifxml_system_config_dir(&ifconfig_dir, NI_CLIENT_IFCONFIG_SUBDIR)))
+			return rv;
 	}
 
 	if (ni_string_empty(root)) {
@@ -571,11 +571,12 @@ ni_ifconfig_read_wicked_xml(xml_document_array_t *array,
 		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", root, path);
 	}
 
-	/* At the moment only XML is supported */
 	if (ni_isreg(pathbuf))
 		rv = ni_ifconfig_read_wicked_xml_file(array, type, root, path, kind, check_prio, raw);
 	else if (ni_isdir(pathbuf))
 		rv = ni_ifconfig_read_wicked_xml_dir(array, type, root, path, kind, check_prio, raw);
+	else
+		ni_debug_ifconfig("No valid configuration files found at %s", pathbuf);
 
 	ni_string_free(&ifconfig_dir);
 	return rv;

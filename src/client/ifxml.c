@@ -2160,3 +2160,17 @@ ni_ifxml_migrate_docs(xml_document_array_t *docs)
 
 	return modified;
 }
+
+const char *
+ni_ifxml_system_config_dir(char **dir, const char *subdir)
+{
+	const char *systemdir = ni_get_global_config_dir();
+
+	if (ni_string_empty(systemdir))
+		return NULL;
+
+	if (ni_string_empty(subdir))
+		return ni_string_printf(dir, "%s", systemdir);
+	else
+		return ni_string_printf(dir, "%s/%s", systemdir, subdir);
+}
