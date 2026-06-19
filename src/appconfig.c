@@ -12,6 +12,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <limits.h>
+#include <errno.h>
 #include <netinet/if_ether.h>
 
 #include <wicked/util.h>
@@ -2640,4 +2641,118 @@ ni_config_addrconf_arp(ni_addrconf_mode_t owner, const char *ifname)
 	default:
 		return &conf->addrconf.arp;
 	}
+}
+
+static const char *
+ni_config_search_paths[] = {
+#ifdef	NI_SYSTEM_CONFIGDIR
+	NI_SYSTEM_CONFIGDIR,
+#endif
+#ifdef	NI_WICKED_CONFIGDIR
+	NI_WICKED_CONFIGDIR,
+#endif
+	NULL
+};
+
+static int
+ni_config_search_path_lookup(char **absolute, const char *relative,
+		const char *extension, const char **paths)
+{
+	const char **path;
+
+	/*
+	 * Construct an absolute path if a relative name is located below
+	 * the search path, and return a pointer to it, or NULL if the
+	 * name is already absolute does not exist below search paths.
+	 */
+	if (!paths || !absolute || ni_string_empty(relative) || *relative == '/')
+		return -EINVAL;
+
+	for (path = paths; *path; ++path) {
+		if (!ni_string_printf(absolute, "%s/%s%s", *path, relative, extension ?: ""))
+			return -ENOMEM;
+
+		if (ni_file_exists(*absolute)) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+					"config: lookup '%s%s' in '%s' -> found",
+					relative, extension ?: "", *path);
+			return 0;
+		}
+
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+				"config: lookup '%s%s' in '%s' -> missing",
+				relative, extension ?: "", *path);
+
+		ni_string_free(absolute);
+	}
+
+	return 1; /* relative name does not exist in search path */
+}
+
+static int
+ni_config_path_lookup(char **absolute, const char *relative, const char *extension)
+{
+	const char * ni_config_custom_paths[2];
+	const char **paths;
+
+	/*
+	 * The ni_global.config_dir is set only, when the common
+	 * --config <dir|file> command line option has been applied
+	 * and overrides the default config paths with a custom one.
+	 */
+	if (ni_global.config_dir) {
+		ni_config_custom_paths[0] = ni_global.config_dir;
+		ni_config_custom_paths[1] = NULL;
+		paths = ni_config_custom_paths;
+	} else {
+		paths = ni_config_search_paths;
+	}
+
+	return ni_config_search_path_lookup(absolute, relative, extension, paths);
+}
+
+ni_config_t *
+ni_config_load(const char *appname, ni_init_appdata_callback_t *cb, void *appdata)
+{
+	ni_config_t *config = NULL;
+
+	if (ni_string_empty(ni_global.config_path)) {
+		/*
+		 * Backward compatible - for now, try to load config.xml instead.
+		 */
+		if (ni_string_empty(appname))
+			appname = "config";
+
+		/*
+		 * If the application-specific <appname>.xml config (or config.xml)
+		 * do not exist, fall back to load the common.xml…
+		 */
+		if (ni_config_path_lookup(&ni_global.config_path, appname, ".xml") != 0)
+			ni_config_path_lookup(&ni_global.config_path, "common", ".xml");
+
+	} else if (!ni_file_exists(ni_global.config_path)) {
+		/*
+		 * A custom config specified via --config <file> command line option.
+		 */
+		ni_error("Configuration file '%s' does not exist", ni_global.config_path);
+		return NULL;
+	}
+
+	if (!ni_string_empty(ni_global.config_path)) {
+		config = ni_config_parse(ni_global.config_path, cb, appdata);
+		if (!config) {
+			ni_error("Unable to parse '%s' configuration file",
+					ni_global.config_path);
+			return NULL;
+		}
+	} else {
+		/* Create empty default configuration */
+		config = ni_config_new();
+		if (!config) {
+			ni_error("Unable to initialize default configuration");
+			return NULL;
+		}
+	}
+
+	return config;
 }
