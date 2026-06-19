@@ -18,11 +18,13 @@
        like iBFT (ACPI BIOS extension) as `firmware:<name>` config.
     -->
   <netif-firmware-discovery name="ibft">
-    <script name="show-config"  command="@wicked_extensionsdir@/ibft" />
-    <script name="list-ifnames" command="@wicked_extensionsdir@/ibft -l" />
+    <script name="show-config"  command="ibft" />
+    <script name="list-ifnames" command="ibft -l" />
   </netif-firmware-discovery>
+
   <!-- include nbft extension provided by wicked-nbft package -->
   <include name="client-nbft.xml" optional="true" />
+
   <netif-firmware-discovery name="redfish" enabled="false">
     <script name="show-config"  command="@wicked_sbindir@/wicked redfish show-config" />
     <script name="list-ifnames" command="@wicked_sbindir@/wicked redfish list-ifnames" />
