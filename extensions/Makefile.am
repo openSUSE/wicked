@@ -7,7 +7,6 @@ EXTRA_DIST			= $(scripts) $(templates)
 wicked_extensions_SCRIPTS	= $(scripts) $(BUILT_SOURCES)
 
 scripts				= \
-	dispatch		\
 	ibft			\
 	netconfig		\
 	redfish-config
@@ -19,6 +18,7 @@ EXTRA_DIST			+= nbft
 endif
 
 BUILT_SOURCES			= \
+	dispatch		\
 	firewall		\
 	hostname
 
