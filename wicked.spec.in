@@ -1,7 +1,7 @@
 #
 # spec file for package wicked
 #
-# Copyright (c) 2024 SUSE LLC
+# Copyright (c) 2026 SUSE LLC and contributors
 #
 # All modifications and additions to the file contributed by third parties
 # remain the property of their copyright owners, unless otherwise agreed
@@ -97,6 +97,7 @@ Requires(pre):       util-linux
 BuildRequires:  systemd-rpm-macros
 BuildRequires:  pkgconfig(libsystemd)
 %{?systemd_requires}
+%{?regenerate_initrd_requires}
 %if 0%{?suse_version:1}
 Requires(pre):  %fillup_prereq
 Requires:       sysconfig-netconfig
@@ -269,6 +270,15 @@ esac
 # restart wickedd after upgrade
 %{service_del_postun wickedd.service}
 
+%pre
+version=$(wicked --version 2>/dev/null)
+version="${version#* }"
+version="9${version//./}"
+# regenereate initrd in case wicked is used in it (bsc#1265221)
+if test $(($version)) -le 90678 ; then
+	%__mkdir_p -m 0755 "%{wicked_statedir}/regenerate-initrd" || :
+fi
+
 %post
 /sbin/ldconfig
 %{fillup_only -dns config wicked network}
@@ -282,6 +292,16 @@ if test -f %_sysconfdir/wicked/client-redfish.xml -a \
 		 %_sysconfdir/wicked/client-firmware.xml || :
 fi
 rm -f -- %_sysconfdir/wicked/client-redfish.xml || :
+if test -d "%{wicked_statedir}/regenerate-initrd" ; then
+	%{?regenerate_initrd_post}
+	:
+fi
+
+%posttrans
+if test -d "%{wicked_statedir}/regenerate-initrd" ; then
+	%{?regenerate_initrd_posttrans}
+	:
+fi
 
 %postun
 /sbin/ldconfig
