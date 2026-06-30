@@ -96,23 +96,72 @@ __ni_keyword_format(char **key, const char *prefix,
 		return ni_string_printf(key, "%s%s", prefix, var);
 }
 
+static const char *
+ni_leaseinfo_quote_string_value(ni_stringbuf_t *buf, const char *str)
+{
+	const unsigned char *ptr = (const unsigned char *)str;
+	int quoted = 0;
+
+	if (!buf)
+		return NULL;
+
+	ni_stringbuf_destroy(buf);
+	if (ni_string_empty(str)) {
+		ni_stringbuf_puts(buf, "''");
+		return buf->string;
+	}
+
+	/*
+	 * We're using single quotes to avoid expansions
+	 * (also for foo -> 'foo' that does not need it).
+	 * It's checked printable, but let's do it again.
+	 * There is no need for any control characters,
+	 * just to \-escape the single quotes … if any,
+	 * outside of the single quoted string value.
+	 */
+	if (!ni_check_printable(str, ni_string_len(str)))
+		return NULL;
+
+	for ( ; *ptr; ptr++) {
+		if (*ptr == '\'') {
+			if (quoted) {
+				ni_stringbuf_putc(buf, '\'');
+				quoted = 0;
+			}
+			ni_stringbuf_puts(buf, "\\'");
+		} else {
+			if (!quoted) {
+				ni_stringbuf_putc(buf, '\'');
+				quoted = 1;
+			}
+			ni_stringbuf_putc(buf, *ptr);
+		}
+	}
+
+	if (quoted)
+		ni_stringbuf_putc(buf, '\'');
+
+	return buf->string;
+}
+
 static void
 __ni_leaseinfo_print_string(FILE *out, const char *prefix, const char *name,
 			const char *val, const char *default_val,
 			unsigned int index)
 {
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
 	char *key = NULL;
-	const char *val_to_print = NULL;
 
 	if (ni_string_empty(val) && !default_val)
 		return;
 
-	val_to_print = val ? val : default_val;
+	if (!__ni_keyword_format(&key, prefix, name, index))
+		return;
 
-	fprintf(out, "%s='%s'\n", __ni_keyword_format
-		(&key, prefix, name, index),
-		val_to_print);
+	if (ni_leaseinfo_quote_string_value(&buf, val ?: default_val))
+		fprintf(out, "%s=%s\n", key, buf.string);
 
+	ni_stringbuf_destroy(&buf);
 	ni_string_free(&key);
 }
 
@@ -121,23 +170,29 @@ __ni_leaseinfo_print_string_array(FILE *out, const char *prefix, const char *nam
 				const ni_string_array_t *str_arr, const char *sep,
 				unsigned int index)
 {
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+	ni_stringbuf_t val = NI_STRINGBUF_INIT_DYNAMIC;
 	char *key = NULL;
-	unsigned int i;
 
 	if (!str_arr || str_arr->count == 0)
 		return;
 
-	if (!sep)
-		sep = " ";
+	if (!__ni_keyword_format(&key, prefix, name, index))
+		return;
 
-	fprintf(out, "%s='", __ni_keyword_format
-		(&key, prefix, name, index));
-
-	for (i = 0; i < str_arr->count; ++i) {
-		fprintf(out, "%s%s", i ? sep : "", str_arr->data[i]);
+	/*
+	 * Note: it's an array of (server) ip-addresses as strings
+	 * or domains without spaces/quotes, stored/converted into
+	 * a string array and separated by a simple space here and
+	 * the list is quoted using single quote.
+	 */
+	if (ni_stringbuf_join(&val, str_arr, sep ?: " ")) {
+		if (ni_leaseinfo_quote_string_value(&buf, val.string))
+			fprintf(out, "%s=%s\n", key, buf.string);
 	}
-	fprintf(out, "'\n");
 
+	ni_stringbuf_destroy(&buf);
+	ni_stringbuf_destroy(&val);
 	ni_string_free(&key);
 }
 
@@ -732,8 +787,17 @@ __ni_leaseinfo_dump(FILE *out, const ni_addrconf_lease_t *lease,
 					&lease->nds_servers, " ", 0);
 
 	/* NDS Context */
-	__ni_leaseinfo_print_string_array(out, prefix, "NDSCONTEXT",
-					&lease->nds_context, " ", 0);
+	/*
+	 * Note: There is a single nds context string option in dhcp4,
+	 *       but the lease is using a string array to store it.
+	 *       If there are multiple, use indexed NDSCONTEXT[_X] key,
+	 *       the 1st one without: NDSCONTEXT='…', NDSCONTEXT_1='…'.
+	 */
+	for (i = 0; i < lease->nds_context.count; ++i) {
+		const char *ctx = lease->nds_context.data[i];
+
+		__ni_leaseinfo_print_string(out, prefix, "NDSCONTEXT", ctx, NULL, i);
+	}
 
 	/* NDS Tree */
 	__ni_leaseinfo_print_string(out, prefix, "NDSTREE", lease->nds_tree,
