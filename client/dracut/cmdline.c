@@ -646,6 +646,7 @@ parse_ip3(ni_compat_netdev_array_t *nda, char *val, const char *client_ip)
 	unsigned int peer_prefixlen = ~0U;
 	unsigned int client_prefixlen = ~0U;
 	ni_hwaddr_t lladdr;
+	ni_route_t *rp;
 
 	if (ni_string_empty(val))
 		return FALSE;
@@ -715,9 +716,13 @@ parse_ip3(ni_compat_netdev_array_t *nda, char *val, const char *client_ip)
 	}
 	ni_address_create(client_addr.ss_family, client_prefixlen, &client_addr, &nd->dev->addrs);
 
-	// Add the default gw
-	if (!ni_route_create(0, NULL, &gateway_addr, RT_TABLE_MAIN, &nd->dev->routes))
+	// Add the default gw route
+	rp = ni_route_create(0, NULL, &gateway_addr, RT_TABLE_MAIN);
+	if (!ni_route_tables_add_route(&nd->dev->routes, rp)) {
+		ni_route_free(rp);
 		return FALSE;
+	}
+	ni_route_free(rp);
 
 	return TRUE;
 }

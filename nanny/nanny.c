@@ -148,14 +148,14 @@ ni_nanny_free(ni_nanny_t *mgr)
 void
 ni_nanny_schedule_recheck(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
-	if (ni_ifworker_array_index(array, w) < 0)
-		ni_ifworker_array_append(array, w);
+	if (ni_ifworker_array_index(array, w) == -1U)
+		ni_ifworker_array_append_ref(array, w);
 }
 
 void
 ni_nanny_unschedule(ni_ifworker_array_t *array, ni_ifworker_t *w)
 {
-	ni_ifworker_array_remove(array, w);
+	ni_ifworker_array_delete(array, w);
 }
 
 /*
@@ -792,7 +792,7 @@ ni_nanny_process_rename_event(ni_nanny_t *mgr, ni_ifworker_t *w)
 				ni_nanny_unregister_device(mgr, c);
 
 			rebuild = TRUE;
-			if (ni_ifworker_array_remove_index(&mgr->fsm->workers, i))
+			if (ni_ifworker_array_delete_at(&mgr->fsm->workers, i))
 				continue;
 		}
 		i++;

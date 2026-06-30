@@ -37,6 +37,7 @@ typedef struct ni_rule_array			ni_rule_array_t;
 typedef struct ni_vlan				ni_vlan_t;
 typedef struct ni_vxlan				ni_vxlan_t;
 typedef struct ni_macvlan			ni_macvlan_t;
+typedef struct ni_ipvlan			ni_ipvlan_t;
 typedef struct ni_bridge			ni_bridge_t;
 typedef struct ni_bridge_port			ni_bridge_port_t;
 typedef struct ni_bridge_port_info		ni_bridge_port_info_t;
