@@ -203,6 +203,14 @@
   <@@MACVLAN_FLAG_NAME@@ bit="@@MACVLAN_FLAG_VALUE@@"/>
 </define>
 
+<!-- Built-in ipvlan mode and flag bit names -->
+<define name="builtin-ipvlan-mode" type="uint16" constraint="enum">
+  <@@IPVLAN_MODE_NAME@@ value="@@IPVLAN_MODE_VALUE@@"/>
+</define>
+<define name="builtin-ipvlan-flag-bits" type="uint16" constraint="bitmap">
+  <@@IPVLAN_FLAG_NAME@@ bit="@@IPVLAN_FLAG_VALUE@@"/>
+</define>
+
 <!-- Built-in team constants -->
 <define name="builtin-team-tx-hash-mask" type="uint32" constraint="bitmap">
   <@@TEAM_TX_HASH_BIT_NAME@@ bit="@@TEAM_TX_HASH_BIT_VALUE@@"/>

@@ -13,6 +13,7 @@
 <include name="vlan.xml"/>
 <include name="vxlan.xml"/>
 <include name="macvlan.xml"/>
+<include name="ipvlan.xml"/>
 <include name="dummy.xml"/>
 <include name="team.xml"/>
 <include name="bond.xml"/>
