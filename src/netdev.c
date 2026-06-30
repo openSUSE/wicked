@@ -23,6 +23,7 @@
 #include <wicked/vlan.h>
 #include <wicked/vxlan.h>
 #include <wicked/macvlan.h>
+#include <wicked/ipvlan.h>
 #include <wicked/openvpn.h>
 #include <wicked/ppp.h>
 #include <wicked/tuntap.h>
@@ -225,6 +226,7 @@ ni_netdev_reset(ni_netdev_t *dev)
 	ni_netdev_set_infiniband(dev, NULL);
 	ni_netdev_set_vlan(dev, NULL);
 	ni_netdev_set_vxlan(dev, NULL);
+	ni_netdev_set_ipvlan(dev, NULL);
 	ni_netdev_set_macvlan(dev, NULL);
 	ni_netdev_set_wireless(dev, NULL);
 	ni_netdev_set_openvpn(dev, NULL);
@@ -451,6 +453,29 @@ ni_netdev_set_macvlan(ni_netdev_t *dev, ni_macvlan_t *macvlan)
 	if (dev->macvlan)
 		ni_macvlan_free(dev->macvlan);
 	dev->macvlan = macvlan;
+}
+
+/*
+ * Get the IPVLAN/IPVTAP information
+ */
+ni_ipvlan_t *
+ni_netdev_get_ipvlan(ni_netdev_t *dev)
+{
+	if (dev->link.type != NI_IFTYPE_IPVLAN &&
+		dev->link.type != NI_IFTYPE_IPVTAP)
+		return NULL;
+
+	if (!dev->ipvlan)
+		dev->ipvlan = ni_ipvlan_new();
+	return dev->ipvlan;
+}
+
+void
+ni_netdev_set_ipvlan(ni_netdev_t *dev, ni_ipvlan_t *ipvlan)
+{
+	if (dev->ipvlan && dev->ipvlan != ipvlan)
+		ni_ipvlan_free(dev->ipvlan);
+	dev->ipvlan = ipvlan;
 }
 
 /*
