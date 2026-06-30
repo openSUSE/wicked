@@ -1,0 +1,99 @@
+<!--
+  -- ipvlan service definition
+  -->
+
+<service name="ipvlan" interface="org.opensuse.Network.IPVLAN"
+			object-class="netif-ipvlan">
+ <description>
+   ipvlan devices can be created through the org.opensuse.Network.IPVLAN.Factory
+   factory interface.
+ </description>
+
+ <!-- This are the properties used to configure the ipvlan -->
+ <define name="configuration" class="dict">
+  <device type="string">
+    <meta:netif-reference shared="true"/>
+    <meta:require check="netif-config-state" op="newDevice" min-state="device-up" />
+    <meta:require check="netif-config-state" op="linkUp" min-state="link-up" />
+    <meta:require check="netif-config-state" op="login" min-state="link-authenticated" />
+    <meta:require check="netif-system-state" op="linkDown" max-state="firewall-up" />
+    <meta:require check="netif-system-state" op="deleteDevice" max-state="device-down" />
+  </device>
+  <mode type="builtin-ipvlan-mode"/>
+  <flags type="builtin-ipvlan-flag-bits"/>
+ </define>
+
+ <!-- The same properties are returned in interface state reports -->
+ <define name="properties" type="ipvlan:configuration"/>
+
+ <method name="changeDevice">
+  <arguments>
+   <config type="ipvlan:configuration">
+    <meta:mapping document-node="/ipvlan" skip-unless-present="true" />
+   </config>
+  </arguments>
+ </method>
+
+ <method name="deleteDevice">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="ipvlan-factory" interface="org.opensuse.Network.IPVLAN.Factory"
+				object-class="netif-list">
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <config type="ipvlan:configuration">
+    <meta:mapping document-node="/ipvlan"/>
+   </config>
+  </arguments>
+  <return>
+   <!-- this is really an object handle -->
+   <string/>
+  </return>
+ </method>
+</service>
+
+<!--
+  -- ipvtap service definition
+  -->
+
+<service name="ipvtap" interface="org.opensuse.Network.IPVTAP"
+			object-class="netif-ipvtap">
+ <description>
+   ipvtap devices can be created through the org.opensuse.Network.IPVTAP.Factory
+   factory interface.
+ </description>
+
+ <!-- The same properties are returned in interface state reports -->
+ <define name="properties" type="ipvlan:configuration"/>
+
+ <method name="changeDevice">
+  <arguments>
+   <config type="ipvlan:configuration">
+    <meta:mapping document-node="/ipvtap" skip-unless-present="true" />
+   </config>
+  </arguments>
+ </method>
+
+ <method name="deleteDevice">
+   <!-- no arguments, no return code -->
+ </method>
+</service>
+
+<service name="ipvtap-factory" interface="org.opensuse.Network.IPVTAP.Factory"
+				object-class="netif-list">
+ <method name="newDevice">
+  <arguments>
+   <name type="string"/>
+   <config type="ipvlan:configuration">
+    <meta:mapping document-node="/ipvtap"/>
+   </config>
+  </arguments>
+  <return>
+   <!-- this is really an object handle -->
+   <string/>
+  </return>
+ </method>
+</service>
