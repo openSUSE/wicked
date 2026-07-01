@@ -82,7 +82,7 @@ static xpath_result_t *	__xpath_build_boolean(int);
 
 static xpath_enode_t *	__xpath_build_expr(const char **, char, int infixprio);
 static int		__xpath_enode_assert_element(xpath_enode_t **);
-static char *		__xpath_next_identifier(const char **);
+static const char *	__xpath_next_identifier(const char **);
 static void		__xpath_skipws(const char **);
 
 static xpath_enode_t *	xpath_enode_new(const xpath_operator_t *);
@@ -218,7 +218,6 @@ __xpath_build_expr(const char **pp, char terminator, int infixprio)
 		token_begin = pos;
 		if (pos[0] == '/') {
 			char *colons;
-			char *nident;
 
 			/* Skip over first slash */
 			++pos;
@@ -238,11 +237,10 @@ handle_atsign:
 			}
 
 			/* path/Name */
-			if (!(nident = __xpath_next_identifier(&pos))) {
+			if (!(ident = __xpath_next_identifier(&pos))) {
 				ni_error("XPATH: expected identifier at \"%s\"", pos);
 				goto failed;
 			}
-			ident = nident;
 
 handle_name_or_axis:
 			if (!__xpath_enode_assert_element(&current))
@@ -250,7 +248,7 @@ handle_name_or_axis:
 
 			if (ops != NULL) {
 				/* Okay, we've been using a shorthand identifier */;
-			} else if ((colons = strstr(nident, "::")) != NULL) {
+			} else if ((colons = strstr(ident, "::")) != NULL) {
 				*colons = '\0';
 				ops = xpath_get_axis_ops(ident);
 				if (!ops) {
@@ -465,7 +463,7 @@ __xpath_enode_assert_element(xpath_enode_t **epp)
 }
 
 
-char *
+const char *
 __xpath_next_identifier(const char **pp)
 {
 	static char identbuf[1024 + 1];
