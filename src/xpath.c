@@ -248,7 +248,11 @@ handle_name_or_axis:
 
 			if (ops != NULL) {
 				/* Okay, we've been using a shorthand identifier */;
-			} else if ((colons = strstr(ident, "::")) != NULL) {
+			} else if ((colons = (char *)strstr(ident, "::")) != NULL) {
+				/*
+				 * Note: colons points directly into the writable
+				 *       static char identbuf[...] passed via ident.
+				 */
 				*colons = '\0';
 				ops = xpath_get_axis_ops(ident);
 				if (!ops) {
