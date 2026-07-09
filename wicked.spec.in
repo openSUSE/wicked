@@ -72,8 +72,10 @@ Obsoletes:      libwicked-0-6 < %{version}
 
 %if 0%{?suse_version} >= 1600
 %bcond_with     rclinks
+%bcond_without  tmpfiles
 %else
 %bcond_without  rclinks
+%bcond_with     tmpfiles
 %endif
 
 # optional and disabled (not needed): enable man page
@@ -221,8 +223,17 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS -fPIC" LDFLAGS="-pie"
 	--disable-static
 make %{?_smp_mflags}
 
+%if %{with tmpfiles}
+# Create tmpfiles.d config
+cat >  tmpfiles.conf << __EOF__
+# reboot-persistent (duid,iaid and leases) store
+d %{wicked_storedir}                        0750 root root
+__EOF__
+%endif
+
 %install
 make install DESTDIR=${RPM_BUILD_ROOT}
+
 %if 0%{?suse_version} < 1550
 # install /sbin/{ifup,ifown,ifstatus,ifprobe} links
 %__mkdir_p -m 0755 ${RPM_BUILD_ROOT}/sbin
@@ -235,10 +246,7 @@ for i in ifdown ifstatus ifprobe; do
 %__ln_s ifup ${RPM_BUILD_ROOT}%{_sbindir}/$i
 %endif
 done
-# remove libwicked.a and la
-%__rm -f ${RPM_BUILD_ROOT}%_libdir/libwicked*.*a
-# create reboot-persistent (leases) store directory
-%__mkdir_p -m 0750 ${RPM_BUILD_ROOT}%{wicked_storedir}
+
 %if %{with rclinks}
 ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwicked
 ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd
@@ -247,6 +255,17 @@ ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-dhcp6
 ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-dhcp4
 ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-auto4
 %endif
+
+%if %{with tmpfiles}
+# Install tmpfiles.d config
+install -D -m 0644 tmpfiles.conf %{buildroot}/%{_tmpfilesdir}/%{name}.conf
+%else
+# create reboot-persistent (leases) store directory
+%__mkdir_p -m 0750 ${RPM_BUILD_ROOT}%{wicked_storedir}
+%endif
+
+# Remove libwicked.a and la
+%__rm -f ${RPM_BUILD_ROOT}%_libdir/libwicked*.*a
 
 %if %{without wicked_devel}
 pushd $RPM_BUILD_ROOT
@@ -295,6 +314,9 @@ fi
 
 %post
 /sbin/ldconfig
+%if %{with tmpfiles}
+%tmpfiles_create %{_tmpfilesdir}/%{name}.conf || :
+%endif
 %{fillup_only -dns config wicked network}
 %{fillup_only -dns dhcp wicked network}
 # reload dbus after install or upgrade to apply new policies
@@ -408,7 +430,13 @@ fi
 %_mandir/man8/ifup.8*
 %_fillupdir/sysconfig.config-wicked
 %_fillupdir/sysconfig.dhcp-wicked
+%if %{with tmpfiles}
+%dir %{_tmpfilesdir}
+%{_tmpfilesdir}/%{name}.conf
+%dir %attr(0750,root,root) %ghost %wicked_storedir
+%else
 %attr(0750,root,root) %dir        %wicked_storedir
+%endif
 
 %if %{with nbft}
 
