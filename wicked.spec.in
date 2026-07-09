@@ -79,6 +79,11 @@ Obsoletes:      libwicked-0-6 < %{version}
 %bcond_with     tmpfiles
 %bcond_with     dist_scripts
 %endif
+%if %{defined _distconfdir}
+%bcond_without  dist_config
+%else
+%bcond_with     dist_config
+%endif
 
 # optional and disabled (not needed): enable man page
 # template rebuild from md sources using pandoc(-cli)
@@ -133,6 +138,12 @@ Requires:       %{name}-service = %{version}
 %else
 %define		dbus_config_base %_sysconfdir/dbus-1
 %define		dbus_config_tag	 %config
+%endif
+%if %{with dist_config}
+%define         system_configdir %_sysconfdir/%{name}
+%define         wicked_configdir %_distconfdir/%{name}
+%else
+%define         wicked_configdir %_sysconfdir/%{name}
 %endif
 %if %{with dist_scripts}
 %define         system_scriptdir %_sysconfdir/%{name}/scripts
@@ -210,6 +221,7 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS -fPIC" LDFLAGS="-pie"
 	--with-piddir=%{wicked_piddir}	\
 	--with-statedir=%{wicked_statedir}\
 	--with-storedir=%{wicked_storedir}\
+	--with-configdir=%{wicked_configdir} \
 	--with-scriptsdir=%{wicked_scriptdir} \
 	--with-extensionsdir=%{wicked_extcmddir} \
 	--with-compat=suse		\
@@ -317,6 +329,12 @@ esac
 %{service_del_postun wickedd.service}
 
 %pre
+%if %{with dist_config}
+# Move config(noreplace) config files to /usr/etc (distconfdir): save any old .rpmsave
+for c in common.xml client.xml server.xml nanny.xml ; do
+	test -f "%system_configdir/${c}.rpmsave" && %__mv -v "%system_configdir/${c}.rpmsave" "%system_configdir/${c}.rpmsave.old" || :
+done
+%endif
 %if %{with dist_scripts}
 # Move config(noreplace) pre/post scripts to /usr/lib[exec]: save any old .rpmsave
 for s in redfish-update ; do
@@ -357,6 +375,12 @@ if test -d "%{wicked_statedir}/regenerate-initrd" ; then
 fi
 
 %posttrans
+%if %{with dist_config}
+# Move config(noreplace) config files to /usr/etc (distconfdir): save any old .rpmsave
+for c in common.xml client.xml server.xml nanny.xml ; do
+	test -f "%system_configdir/${c}.rpmsave" && %__mv -v "%system_configdir/${c}.rpmsave" "%system_configdir/${c}" || :
+done
+%endif
 %if %{with dist_scripts}
 # Move config(noreplace) pre/post scripts to /usr/lib[exec]: restore just created .rpmsave
 for s in redfish-update ; do
@@ -382,12 +406,24 @@ fi
 %if %{with nbft}
 
 %pre nbft
+%if %{with dist_config}
+# Move config(noreplace) config files to /usr/etc (distconfdir): save any old .rpmsave
+for c in client-nbft.xml ; do
+	test -f "%system_configdir/${c}.rpmsave" && %__mv -v "%system_configdir/${c}.rpmsave" "%system_configdir/${c}.rpmsave.old" || :
+done
+%endif
 %if %{with dist_scripts}
 # Move config(noreplace) extension script to /usr/lib[exec]: save any old .rpmsave
 test -f "%system_extcmddir/nbft.rpmsave" && %__mv -v "%system_extcmddir/nbft.rpmsave" "%system_extcmddir/nbft.rpmsave.old" || :
 %endif
 
 %posttrans nbft
+%if %{with dist_config}
+# Move config(noreplace) config files to /usr/etc (distconfdir): save any old .rpmsave
+for c in client-nbft.xml ; do
+	test -f "%system_configdir/${c}.rpmsave" && %__mv -v "%system_configdir/${c}.rpmsave" "%system_configdir/${c}" || :
+done
+%endif
 %if %{with dist_scripts}
 # Move config(noreplace) extension script to /usr/lib[exec]: restore just created .rpmsave
 test -f "%system_extcmddir/nbft.rpmsave" && %__mv -v "%system_extcmddir/nbft.rpmsave" "%system_extcmddir/nbft" || :
@@ -414,11 +450,19 @@ fi
 %_libexecdir/%{name}/bin/wickedd-auto4
 %_libexecdir/%{name}/bin/wickedd-dhcp4
 %_libexecdir/%{name}/bin/wickedd-dhcp6
-%dir %_sysconfdir/wicked
-%config(noreplace) %_sysconfdir/wicked/common.xml
-%config(noreplace) %_sysconfdir/wicked/client.xml
-%config(noreplace) %_sysconfdir/wicked/server.xml
-%config(noreplace) %_sysconfdir/wicked/nanny.xml
+%dir %wicked_configdir
+%if %{with dist_config}
+%wicked_configdir/common.xml
+%wicked_configdir/client.xml
+%wicked_configdir/server.xml
+%wicked_configdir/nanny.xml
+%else
+%config(noreplace) %wicked_configdir/common.xml
+%config(noreplace) %wicked_configdir/client.xml
+%config(noreplace) %wicked_configdir/server.xml
+%config(noreplace) %wicked_configdir/nanny.xml
+%dir %attr(0755,root,root) %wicked_configdir/ifconfig
+%endif
 %dir %wicked_extcmddir
 %dir %wicked_scriptdir
 %if %{with dist_scripts}
@@ -438,7 +482,6 @@ fi
 %config(noreplace) %wicked_extcmddir/redfish-config
 %config(noreplace) %wicked_scriptdir/redfish-update
 %endif
-%dir %_sysconfdir/wicked/ifconfig
 %dir %{dbus_config_base}
 %dir %{dbus_config_base}/system.d
 # mark the policies as config to keep backup, but replace on upgrade
@@ -497,7 +540,11 @@ fi
 
 %files nbft
 %defattr (-,root,root)
-%config(noreplace) %_sysconfdir/wicked/client-nbft.xml
+%if %{with dist_config}
+%wicked_configdir/client-nbft.xml
+%else
+%config(noreplace) %wicked_configdir/client-nbft.xml
+%endif
 %if %{with dist_scripts}
 %wicked_extcmddir/nbft
 %else
