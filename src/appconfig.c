@@ -41,7 +41,8 @@ struct ni_config_parse_guard {
 	const char *			filename;
 };
 
-static const char *__ni_ifconfig_source_types[] = {
+static const char *
+ni_ifconfig_source_types[] = {
 	"firmware:",
 	"compat:",
 	"wicked:",
@@ -318,8 +319,8 @@ ni_config_parse_guard_check(ni_config_parse_guard_t *guard, ni_config_parse_guar
 	return TRUE;
 }
 
-ni_bool_t
-__ni_config_parse(ni_config_parse_guard_t *parent_guard, ni_config_t *conf,
+static ni_bool_t
+ni_config_parse_file(ni_config_parse_guard_t *parent_guard, ni_config_t *conf,
 		const char *filename, ni_init_appdata_callback_t *cb, void *appdata)
 {
 	ni_config_parse_guard_t guard;
@@ -525,7 +526,7 @@ ni_config_parse(const char *filename, ni_init_appdata_callback_t *cb, void *appd
 	ni_config_t *conf;
 
 	conf = ni_config_new();
-	if (!__ni_config_parse(NULL, conf, filename, cb, appdata)) {
+	if (!ni_config_parse_file(NULL, conf, filename, cb, appdata)) {
 		ni_config_free(conf);
 		return NULL;
 	}
@@ -711,7 +712,7 @@ ni_config_parse_addrconf_dhcp4(ni_config_t *conf, xml_node_t *node)
 
 
 static int
-__ni_config_parse_dhcp6_class_data(xml_node_t *node, ni_string_array_t *data, const char *parent)
+ni_config_parse_dhcp6_class_data(xml_node_t *node, ni_string_array_t *data, const char *parent)
 {
 	const char *attrval;
 	enum {
@@ -777,19 +778,19 @@ __ni_config_parse_dhcp6_class_data(xml_node_t *node, ni_string_array_t *data, co
 }
 
 static int
-__ni_config_parse_dhcp6_class_data_nodes(xml_node_t *node, ni_string_array_t *data)
+ni_config_parse_dhcp6_class_data_nodes(xml_node_t *node, ni_string_array_t *data)
 {
 	xml_node_t *child;
 
 	for (child = node->children; child; child = child->next) {
-		if (__ni_config_parse_dhcp6_class_data(child, data, node->name) < 0)
+		if (ni_config_parse_dhcp6_class_data(child, data, node->name) < 0)
 			return -1;
 	}
 	return 0;
 }
 
 static int
-__ni_config_parse_dhcp6_vendor_opt_node(xml_node_t *node, ni_var_array_t *opts, const char *parent)
+ni_config_parse_dhcp6_vendor_opt_node(xml_node_t *node, ni_var_array_t *opts, const char *parent)
 {
 	const char *attrval;
 	const char *code = NULL;
@@ -871,11 +872,11 @@ __ni_config_parse_dhcp6_vendor_opt_node(xml_node_t *node, ni_var_array_t *opts, 
 }
 
 static int
-__ni_config_parse_dhcp6_vendor_opts_nodes(xml_node_t *node, ni_var_array_t *opts)
+ni_config_parse_dhcp6_vendor_opts_nodes(xml_node_t *node, ni_var_array_t *opts)
 {
 	xml_node_t *child;
 	for (child = node->children; child; child = child->next) {
-		if (__ni_config_parse_dhcp6_vendor_opt_node(child, opts, node->name) < 0)
+		if (ni_config_parse_dhcp6_vendor_opt_node(child, opts, node->name) < 0)
 			return -1;
 	}
 	return 0;
@@ -1079,7 +1080,7 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 		if (!strcmp(child->name, "user-class")) {
 			ni_string_array_destroy(&dhcp6->user_class_data);
 
-			if (__ni_config_parse_dhcp6_class_data_nodes(child, &dhcp6->user_class_data) < 0) {
+			if (ni_config_parse_dhcp6_class_data_nodes(child, &dhcp6->user_class_data) < 0) {
 				ni_string_array_destroy(&dhcp6->user_class_data);
 				return FALSE;
 			}
@@ -1099,7 +1100,7 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 			}
 
 			ni_string_array_destroy(&dhcp6->vendor_class_data);
-			if (__ni_config_parse_dhcp6_class_data_nodes(child, &dhcp6->vendor_class_data) < 0) {
+			if (ni_config_parse_dhcp6_class_data_nodes(child, &dhcp6->vendor_class_data) < 0) {
 				ni_string_array_destroy(&dhcp6->vendor_class_data);
 				return FALSE;
 			}
@@ -1121,7 +1122,7 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 			}
 
 			ni_var_array_destroy(&dhcp6->vendor_opts_data);
-			if (__ni_config_parse_dhcp6_vendor_opts_nodes(child, &dhcp6->vendor_opts_data) < 0) {
+			if (ni_config_parse_dhcp6_vendor_opts_nodes(child, &dhcp6->vendor_opts_data) < 0) {
 				ni_var_array_destroy(&dhcp6->vendor_opts_data);
 			}
 
@@ -1283,7 +1284,7 @@ ni_config_parse_addrconf_dhcp6(ni_config_t *conf, xml_node_t *node)
 	return TRUE;
 }
 
-ni_bool_t
+static ni_bool_t
 ni_config_parse_addrconf_auto4(ni_config_auto4_t *auto4, xml_node_t *node)
 {
 	xml_node_t *child;
@@ -1297,7 +1298,7 @@ ni_config_parse_addrconf_auto4(ni_config_auto4_t *auto4, xml_node_t *node)
 	return TRUE;
 }
 
-ni_bool_t
+static ni_bool_t
 ni_config_parse_addrconf_auto6(ni_config_auto6_t *auto6, xml_node_t *node)
 {
 	xml_node_t *child;
@@ -1492,7 +1493,7 @@ ni_config_parse_addrconf_arp(ni_config_arp_t *arpcfg, const xml_node_t *node)
 	return TRUE;
 }
 
-void
+static void
 ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node)
 {
 	ni_string_array_t targets = NI_STRING_ARRAY_INIT;
@@ -1515,7 +1516,7 @@ ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node
 	ni_string_array_destroy(&targets);
 }
 
-void
+static void
 ni_config_parse_update_dhcp4_routes(unsigned int *routes_opts, const xml_node_t *node)
 {
 	ni_string_array_t tags = NI_STRING_ARRAY_INIT;
@@ -1549,7 +1550,7 @@ ni_config_parse_update_dhcp4_routes(unsigned int *routes_opts, const xml_node_t 
 	ni_string_array_destroy(&tags);
 }
 
-void
+static void
 ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, xml_node_t *node)
 {
 	const char *attrval;
@@ -2147,13 +2148,13 @@ ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
  *
  */
 static ni_bool_t
-__ni_config_parse_ifconfig_source(ni_string_array_t *sources, xml_node_t *node)
+ni_config_parse_ifconfig_source(ni_string_array_t *sources, xml_node_t *node)
 {
 	const char *attrval = NULL;
 	unsigned int i;
 
 	if ((attrval = xml_node_get_attr(node, "location")) != NULL && *attrval) {
-		const char **p = __ni_ifconfig_source_types;
+		const char **p = ni_ifconfig_source_types;
 		for (i = 0; p[i]; i++) {
 			if (!strncasecmp(attrval, p[i], ni_string_len(p[i]))) {
 				ni_debug_readwrite("%s: Adding ifconfig %s", __func__, attrval);
@@ -2166,14 +2167,15 @@ __ni_config_parse_ifconfig_source(ni_string_array_t *sources, xml_node_t *node)
 	ni_error("Unknown ifconfig location: %s", attrval);
 	return FALSE;
 }
-ni_bool_t
+
+static ni_bool_t
 ni_config_parse_sources(ni_config_t *conf, xml_node_t *sources)
 {
 	xml_node_t *child;
 
 	for (child = sources->children; child && child->name; child = child->next) {
 		if (!strcmp(child->name, "ifconfig")) {
-			 if (!__ni_config_parse_ifconfig_source(&conf->sources.ifconfig, child))
+			if (!ni_config_parse_ifconfig_source(&conf->sources.ifconfig, child))
 				return FALSE;
 		}
 	}
@@ -2190,14 +2192,14 @@ ni_config_sources(const char *type)
 	if (ni_string_eq(type, "ifconfig")) {
 		retval = &ni_global.config->sources.ifconfig;
 		if (retval->count == 0) {
-			for (i = 0; __ni_ifconfig_source_types[i]; i++)
-				ni_string_array_append(retval, __ni_ifconfig_source_types[i]);
+			for (i = 0; ni_ifconfig_source_types[i]; i++)
+				ni_string_array_append(retval, ni_ifconfig_source_types[i]);
 		}
 	}
 	return retval;
 }
 
-ni_bool_t
+static ni_bool_t
 ni_config_parse_rtnl_event(ni_config_rtnl_event_t *conf, xml_node_t *node)
 {
 	xml_node_t *child;
@@ -2834,7 +2836,7 @@ ni_config_include_file(ni_config_parse_guard_t *guard, ni_config_t *conf,
 			return TRUE;
 	}
 
-	ret = __ni_config_parse(guard, conf, filename, cb, appdata);
+	ret = ni_config_parse_file(guard, conf, filename, cb, appdata);
 	ni_string_free(&filename);
 	return ret;
 }
@@ -2972,7 +2974,7 @@ ni_config_include_dir(ni_config_parse_guard_t *guard, ni_config_t *conf,
 	for (i = 0; i < includes.count; ++i) {
 		const char *include = includes.data[i];
 
-		if (!__ni_config_parse(guard, conf, include, cb, appdata)) {
+		if (!ni_config_parse_file(guard, conf, include, cb, appdata)) {
 			ni_string_array_destroy(&includes);
 			return FALSE;
 		}
