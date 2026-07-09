@@ -73,9 +73,11 @@ Obsoletes:      libwicked-0-6 < %{version}
 %if 0%{?suse_version} >= 1600
 %bcond_with     rclinks
 %bcond_without  tmpfiles
+%bcond_without  dist_scripts
 %else
 %bcond_without  rclinks
 %bcond_with     tmpfiles
+%bcond_with     dist_scripts
 %endif
 
 # optional and disabled (not needed): enable man page
@@ -131,6 +133,12 @@ Requires:       %{name}-service = %{version}
 %else
 %define		dbus_config_base %_sysconfdir/dbus-1
 %define		dbus_config_tag	 %config
+%endif
+%if %{with dist_scripts}
+%define         system_extcmddir %_sysconfdir/%{name}/extensions
+%define         wicked_extcmddir %_libexecdir/%{name}/extensions
+%else
+%define         wicked_extcmddir %_sysconfdir/%{name}/extensions
 %endif
 
 %description
@@ -199,6 +207,7 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS -fPIC" LDFLAGS="-pie"
 	--with-piddir=%{wicked_piddir}	\
 	--with-statedir=%{wicked_statedir}\
 	--with-storedir=%{wicked_storedir}\
+	--with-extensionsdir=%{wicked_extcmddir} \
 	--with-compat=suse		\
 	--with-fillup-templatesdir=%{_fillupdir}\
 %if %{without dhcp6_nis}
@@ -304,6 +313,12 @@ esac
 %{service_del_postun wickedd.service}
 
 %pre
+%if %{with dist_scripts}
+# Move config(noreplace) extension scripts to /usr/lib[exec]: save any old .rpmsave
+for s in dispatch firewall hostname netconfig ibft redfish-config ; do
+	test -f "%system_extcmddir/${s}.rpmsave" && %__mv -v "%system_extcmddir/${s}.rpmsave" "%system_extcmddir/${s}.rpmsave.old" || :
+done
+%endif
 version=$(wicked --version 2>/dev/null)
 version="${version#* }"
 version="9${version//./}"
@@ -334,6 +349,12 @@ if test -d "%{wicked_statedir}/regenerate-initrd" ; then
 fi
 
 %posttrans
+%if %{with dist_scripts}
+# Move config(noreplace) extension scripts to /usr/lib[exec]: restore just created .rpmsave
+for s in dispatch firewall hostname netconfig ibft redfish-config ; do
+	test -f "%system_extcmddir/${s}.rpmsave" && %__mv -v "%system_extcmddir/${s}.rpmsave" "%system_extcmddir/${s}" || :
+done
+%endif
 if test -d "%{wicked_statedir}/regenerate-initrd" ; then
 	%{?regenerate_initrd_posttrans}
 	:
@@ -347,6 +368,18 @@ if [ ${FIRST_ARG:-$1} -eq 0 ]; then
 fi
 
 %if %{with nbft}
+
+%pre nbft
+%if %{with dist_scripts}
+# Move config(noreplace) extension script to /usr/lib[exec]: save any old .rpmsave
+test -f "%system_extcmddir/nbft.rpmsave" && %__mv -v "%system_extcmddir/nbft.rpmsave" "%system_extcmddir/nbft.rpmsave.old" || :
+%endif
+
+%posttrans nbft
+%if %{with dist_scripts}
+# Move config(noreplace) extension script to /usr/lib[exec]: restore just created .rpmsave
+test -f "%system_extcmddir/nbft.rpmsave" && %__mv -v "%system_extcmddir/nbft.rpmsave" "%system_extcmddir/nbft" || :
+%endif
 
 %postun nbft
 # revert nbft override in client-firmware.xml config
@@ -376,13 +409,22 @@ fi
 %config(noreplace) %_sysconfdir/wicked/nanny.xml
 %dir %_sysconfdir/wicked/scripts
 %config(noreplace) %_sysconfdir/wicked/scripts/*
-%dir %_sysconfdir/wicked/extensions
-%config(noreplace) %_sysconfdir/wicked/extensions/dispatch
-%config(noreplace) %_sysconfdir/wicked/extensions/firewall
-%config(noreplace) %_sysconfdir/wicked/extensions/hostname
-%config(noreplace) %_sysconfdir/wicked/extensions/ibft
-%config(noreplace) %_sysconfdir/wicked/extensions/netconfig
-%config(noreplace) %_sysconfdir/wicked/extensions/redfish-config
+%dir %wicked_extcmddir
+%if %{with dist_scripts}
+%wicked_extcmddir/dispatch
+%wicked_extcmddir/firewall
+%wicked_extcmddir/hostname
+%wicked_extcmddir/ibft
+%wicked_extcmddir/netconfig
+%wicked_extcmddir/redfish-config
+%else
+%config(noreplace) %wicked_extcmddir/dispatch
+%config(noreplace) %wicked_extcmddir/firewall
+%config(noreplace) %wicked_extcmddir/hostname
+%config(noreplace) %wicked_extcmddir/ibft
+%config(noreplace) %wicked_extcmddir/netconfig
+%config(noreplace) %wicked_extcmddir/redfish-config
+%endif
 %dir %_sysconfdir/wicked/ifconfig
 %dir %{dbus_config_base}
 %dir %{dbus_config_base}/system.d
@@ -441,8 +483,13 @@ fi
 %if %{with nbft}
 
 %files nbft
+%defattr (-,root,root)
 %config(noreplace) %_sysconfdir/wicked/client-nbft.xml
-%config(noreplace) %_sysconfdir/wicked/extensions/nbft
+%if %{with dist_scripts}
+%wicked_extcmddir/nbft
+%else
+%config(noreplace) %wicked_extcmddir/nbft
+%endif
 
 %endif
 
