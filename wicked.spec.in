@@ -135,9 +135,12 @@ Requires:       %{name}-service = %{version}
 %define		dbus_config_tag	 %config
 %endif
 %if %{with dist_scripts}
+%define         system_scriptdir %_sysconfdir/%{name}/scripts
 %define         system_extcmddir %_sysconfdir/%{name}/extensions
+%define         wicked_scriptdir %_libexecdir/%{name}/scripts
 %define         wicked_extcmddir %_libexecdir/%{name}/extensions
 %else
+%define         wicked_scriptdir %_sysconfdir/%{name}/scripts
 %define         wicked_extcmddir %_sysconfdir/%{name}/extensions
 %endif
 
@@ -207,6 +210,7 @@ export CFLAGS="-std=gnu89 $RPM_OPT_FLAGS -fPIC" LDFLAGS="-pie"
 	--with-piddir=%{wicked_piddir}	\
 	--with-statedir=%{wicked_statedir}\
 	--with-storedir=%{wicked_storedir}\
+	--with-scriptsdir=%{wicked_scriptdir} \
 	--with-extensionsdir=%{wicked_extcmddir} \
 	--with-compat=suse		\
 	--with-fillup-templatesdir=%{_fillupdir}\
@@ -314,6 +318,10 @@ esac
 
 %pre
 %if %{with dist_scripts}
+# Move config(noreplace) pre/post scripts to /usr/lib[exec]: save any old .rpmsave
+for s in redfish-update ; do
+	test -f "%system_scriptdir/${s}.rpmsave" && %__mv -v "%system_scriptdir/${s}.rpmsave" "%system_scriptdir/${s}.rpmsave.old" || :
+done
 # Move config(noreplace) extension scripts to /usr/lib[exec]: save any old .rpmsave
 for s in dispatch firewall hostname netconfig ibft redfish-config ; do
 	test -f "%system_extcmddir/${s}.rpmsave" && %__mv -v "%system_extcmddir/${s}.rpmsave" "%system_extcmddir/${s}.rpmsave.old" || :
@@ -350,6 +358,10 @@ fi
 
 %posttrans
 %if %{with dist_scripts}
+# Move config(noreplace) pre/post scripts to /usr/lib[exec]: restore just created .rpmsave
+for s in redfish-update ; do
+	test -f "%system_scriptdir/${s}.rpmsave" && %__mv -v "%system_scriptdir/${s}.rpmsave" "%system_scriptdir/${s}" || :
+done
 # Move config(noreplace) extension scripts to /usr/lib[exec]: restore just created .rpmsave
 for s in dispatch firewall hostname netconfig ibft redfish-config ; do
 	test -f "%system_extcmddir/${s}.rpmsave" && %__mv -v "%system_extcmddir/${s}.rpmsave" "%system_extcmddir/${s}" || :
@@ -407,9 +419,8 @@ fi
 %config(noreplace) %_sysconfdir/wicked/client.xml
 %config(noreplace) %_sysconfdir/wicked/server.xml
 %config(noreplace) %_sysconfdir/wicked/nanny.xml
-%dir %_sysconfdir/wicked/scripts
-%config(noreplace) %_sysconfdir/wicked/scripts/*
 %dir %wicked_extcmddir
+%dir %wicked_scriptdir
 %if %{with dist_scripts}
 %wicked_extcmddir/dispatch
 %wicked_extcmddir/firewall
@@ -417,6 +428,7 @@ fi
 %wicked_extcmddir/ibft
 %wicked_extcmddir/netconfig
 %wicked_extcmddir/redfish-config
+%wicked_scriptdir/redfish-update
 %else
 %config(noreplace) %wicked_extcmddir/dispatch
 %config(noreplace) %wicked_extcmddir/firewall
@@ -424,6 +436,7 @@ fi
 %config(noreplace) %wicked_extcmddir/ibft
 %config(noreplace) %wicked_extcmddir/netconfig
 %config(noreplace) %wicked_extcmddir/redfish-config
+%config(noreplace) %wicked_scriptdir/redfish-update
 %endif
 %dir %_sysconfdir/wicked/ifconfig
 %dir %{dbus_config_base}
