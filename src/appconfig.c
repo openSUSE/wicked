@@ -67,6 +67,9 @@ static ni_bool_t	ni_config_parse_teamd(ni_config_teamd_t *, const xml_node_t *);
 static ni_bool_t	ni_config_include_file(ni_config_parse_guard_t *, ni_config_t *,
 					const char *, const char *, ni_bool_t,
 					ni_init_appdata_callback_t *, void *);
+static ni_bool_t	ni_config_include_dir(ni_config_parse_guard_t *, ni_config_t *,
+					const char *, const char *, ni_bool_t,
+					ni_init_appdata_callback_t *, void *);
 static unsigned int	ni_config_addrconf_update_mask_all(void);
 static unsigned int	ni_config_addrconf_update_mask_dhcp4(void);
 static unsigned int	ni_config_addrconf_update_mask_dhcp6(void);
@@ -356,6 +359,12 @@ __ni_config_parse(ni_config_parse_guard_t *parent_guard, ni_config_t *conf,
 			if ((attrval = xml_node_get_attr(child, "name")) != NULL) {
 				if (!ni_config_include_file(&guard, conf, filename, attrval, optional, cb, appdata)) {
 					ni_error("[%s] unable to include file name '%s'",
+							xml_node_location(child), attrval);
+					goto failed;
+				}
+			} else if ((attrval = xml_node_get_attr(child, "dir")) != NULL) {
+				if (!ni_config_include_dir(&guard, conf, filename, attrval, optional, cb, appdata)) {
+					ni_error("[%s] unable to include directory files from '%s'",
 							xml_node_location(child), attrval);
 					goto failed;
 				}
@@ -2828,4 +2837,147 @@ ni_config_include_file(ni_config_parse_guard_t *guard, ni_config_t *conf,
 	ret = __ni_config_parse(guard, conf, filename, cb, appdata);
 	ni_string_free(&filename);
 	return ret;
+}
+
+static int
+ni_config_search_path_scandir(ni_string_array_t *includes, const char *subdir,
+		const char **paths)
+{
+	ni_string_array_t names = NI_STRING_ARRAY_INIT;
+	ni_var_array_t vars = NI_VAR_ARRAY_INIT;
+	unsigned int dirs = 0;
+	const ni_var_t *var;
+	const char **path;
+	const char *name;
+	char *file = NULL;
+	char *dir = NULL;
+	unsigned int i;
+	int found;
+
+	if (!paths || !includes || ni_string_empty(subdir))
+		return -EINVAL;
+
+	for (path = paths; *path; ++path) {
+		if (!ni_string_printf(&dir, "%s/%s", *path, subdir))
+			goto failure;
+
+		if (!ni_isdir(dir)) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+					"config: drop-in directory '%s' -> missing", dir);
+			continue;
+		}
+
+		dirs++;
+
+		found = ni_scandir(dir, "*.xml", &names);
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+				"config: drop-in directory '%s' -> found (%d files)",
+				dir, found);
+		if (found) {
+
+			for (i = 0; i < names.count; ++i) {
+				name = names.data[i];
+
+				if (ni_var_array_get(&vars, name))
+					continue;
+
+				if (!ni_string_printf(&file, "%s/%s", dir, name))
+					goto failure;
+
+				if (!ni_var_array_set(&vars, name, file))
+					goto failure;
+
+				ni_string_free(&file);
+			}
+		}
+		ni_string_array_destroy(&names);
+		ni_string_free(&dir);
+	}
+
+	ni_var_array_sort_by_name(&vars);
+	for (i = 0; i < vars.count; ++i) {
+		var = &vars.data[i];
+
+		if (ni_string_array_append(includes, var->value) < 0)
+			goto failure;
+	}
+	ni_var_array_destroy(&vars);
+
+	return !dirs; /* return 0 if at least one dir exists */
+
+failure:
+	ni_string_array_destroy(includes);
+	ni_string_array_destroy(&names);
+	ni_var_array_destroy(&vars);
+	ni_string_free(&file);
+	ni_string_free(&dir);
+	return -ENOMEM;
+}
+
+static int
+ni_config_path_scandir(ni_string_array_t *includes, const char *subdir)
+{
+	const char * ni_config_custom_paths[2];
+	const char **paths;
+
+	/*
+	 * The ni_global.config_dir is set only, when the common
+	 * --config <dir|file> command line option has been applied
+	 * and overrides the default config paths with a custom one.
+	 */
+	if (ni_global.config_dir) {
+		ni_config_custom_paths[0] = ni_global.config_dir;
+		ni_config_custom_paths[1] = NULL;
+		paths = ni_config_custom_paths;
+	} else {
+		paths = ni_config_search_paths;
+	}
+
+	return ni_config_search_path_scandir(includes, subdir, paths);
+}
+
+static ni_bool_t
+ni_config_include_dir(ni_config_parse_guard_t *guard, ni_config_t *conf,
+		const char *origin, const char *subdir, ni_bool_t optional,
+		ni_init_appdata_callback_t *cb, void *appdata)
+{
+	ni_string_array_t includes = NI_STRING_ARRAY_INIT;
+	unsigned int i;
+	int rv;
+
+	if (!conf || ni_string_empty(origin) || ni_string_empty(subdir))
+		return FALSE;
+
+	if (strchr(subdir, '/') || strcmp(subdir, ".") == 0 || strcmp(subdir, "..") == 0) {
+		ni_error("Invalid drop-in directory name '%s' - paths are not allowed",
+				subdir);
+		return FALSE;
+	}
+
+	if ((rv = ni_config_path_scandir(&includes, subdir)) < 0) {
+		/* needed? */
+		ni_string_array_destroy(&includes);
+		return FALSE;
+	}
+
+	/*
+	 * Return FALSE if a non-optional directory is missing
+	 * or contains no configuration files.
+	 */
+	if (rv || !includes.count) {
+		ni_string_array_destroy(&includes);
+		return optional;
+	}
+
+	for (i = 0; i < includes.count; ++i) {
+		const char *include = includes.data[i];
+
+		if (!__ni_config_parse(guard, conf, include, cb, appdata)) {
+			ni_string_array_destroy(&includes);
+			return FALSE;
+		}
+	}
+
+	ni_string_array_destroy(&includes);
+	return TRUE;
 }
