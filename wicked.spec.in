@@ -154,6 +154,9 @@ Requires:       %{name}-service = %{version}
 %define         wicked_scriptdir %_sysconfdir/%{name}/scripts
 %define         wicked_extcmddir %_sysconfdir/%{name}/extensions
 %endif
+%if %{with tmpfiles}
+%define         ifcfgdir_factory %{_datadir}/factory%{_sysconfdir}/sysconfig/network
+%endif
 
 %description
 Wicked is a network configuration infrastructure incorporating a number
@@ -253,7 +256,33 @@ make %{?_smp_mflags}
 cat >  tmpfiles.conf << __EOF__
 # reboot-persistent (duid,iaid and leases) store
 d %{wicked_storedir}                        0750 root root
+# ifcfg config directory and default ifcfg-lo file
+d %{_sysconfdir}/sysconfig/network          0755 root root
+C %{_sysconfdir}/sysconfig/network/ifcfg-lo 0600 root root
 __EOF__
+
+%if %{with dist_config} || %{with dist_scripts}
+cat >> tmpfiles.conf << __EOF__
+# local system configuration directory
+d %{system_configdir}                       0755 root root
+__EOF__
+%endif
+
+%if %{with dist_config}
+cat >> tmpfiles.conf << __EOF__
+# wicked:xml system interface configurations
+d %{system_configdir}/ifconfig              0755 root root
+__EOF__
+%endif
+
+%if %{with dist_scripts}
+cat >> tmpfiles.conf << __EOF__
+# local system config hook scripts and extensions
+d %{system_configdir}/scripts               0755 root root
+d %{system_configdir}/extensions	    0755 root root
+__EOF__
+%endif
+
 %endif
 
 %install
@@ -282,11 +311,27 @@ ln -sf service ${RPM_BUILD_ROOT}%_sbindir/rcwickedd-auto4
 %endif
 
 %if %{with tmpfiles}
+
+# Move ifcfg-lo installed by make install from /etc to factory
+%__install -d -m 0755 %{buildroot}%{ifcfgdir_factory}
+%__mv %{buildroot}%{_sysconfdir}/sysconfig/network/ifcfg-lo %{buildroot}%{ifcfgdir_factory}/
+
 # Install tmpfiles.d config
-install -D -m 0644 tmpfiles.conf %{buildroot}/%{_tmpfilesdir}/%{name}.conf
+%__install -D -m 0644 tmpfiles.conf %{buildroot}/%{_tmpfilesdir}/%{name}.conf
+
 %else
+
 # create reboot-persistent (leases) store directory
-%__mkdir_p -m 0750 ${RPM_BUILD_ROOT}%{wicked_storedir}
+%__install -d -m 0750 %{buildroot}%{wicked_storedir}
+
+%if %{with dist_config}
+%__install -d -m 0755 %{buildroot}%{system_configdir}/ifconfig
+%endif
+%if %{with dist_scripts}
+%__install -d -m 0755 %{buildroot}%{system_configdir}/scripts
+%__install -d -m 0755 %{buildroot}%{system_configdir}/extensions
+%endif
+
 %endif
 
 # Remove libwicked.a and la
@@ -450,6 +495,29 @@ fi
 %_libexecdir/%{name}/bin/wickedd-auto4
 %_libexecdir/%{name}/bin/wickedd-dhcp4
 %_libexecdir/%{name}/bin/wickedd-dhcp6
+%if %{with tmpfiles}
+%if %{with dist_config} || %{with dist_scripts}
+%dir %attr(0755,root,root) %ghost %system_configdir
+%endif
+%if %{with dist_config}
+%dir %attr(0755,root,root) %ghost %system_configdir/ifconfig
+%endif
+%if %{with dist_scripts}
+%dir %attr(0755,root,root) %ghost %system_configdir/scripts
+%dir %attr(0755,root,root) %ghost %system_configdir/extensions
+%endif
+%else
+%if %{with dist_config} || %{with dist_scripts}
+%dir %attr(0755,root,root) %system_configdir
+%endif
+%if %{with dist_config}
+%dir %attr(0755,root,root) %system_configdir/ifconfig
+%endif
+%if %{with dist_scripts}
+%dir %attr(0755,root,root) %system_configdir/scripts
+%dir %attr(0755,root,root) %system_configdir/extensions
+%endif
+%endif
 %dir %wicked_configdir
 %if %{with dist_config}
 %wicked_configdir/common.xml
@@ -562,8 +630,18 @@ fi
 %_unitdir/wickedd.service
 %_unitdir/wicked.service
 %_unitdir/wickedd-pppd@.service
+%if %{with tmpfiles}
+%dir %{_datadir}/factory
+%dir %{_datadir}/factory%{_sysconfdir}
+%dir %{_datadir}/factory%{_sysconfdir}/sysconfig
+%dir %{ifcfgdir_factory}
+%{ifcfgdir_factory}/ifcfg-lo
+%dir %attr(0755,root,root) %ghost /etc/sysconfig/network
+%attr(0600,root,root) %ghost /etc/sysconfig/network/ifcfg-lo
+%else
 %dir /etc/sysconfig/network
 %attr(0600,root,root) %config /etc/sysconfig/network/ifcfg-lo
+%endif
 %_sbindir/ifup
 %if 0%{?suse_version} < 1550
 /sbin/ifup
