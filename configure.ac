@@ -166,11 +166,27 @@ AS_CASE([${libexecbasedir}],
 	[[lib]],     [compat_libexecdir="${libexecdir}exec/wicked"],
 )
 
-# Is there any need to change this?
+#
+# Handle wicked (dist) vs system (user) system config split.
+# Define $wicked_configdir for distribution ({common,server,client}.xml)
+# appconfig files, keeping ${sysconfdir}/wicked as the default path.
+# When set to e.g. %_distconfdir/wicked (/usr/etc/wicked), we prioritize
+# ${sysconfdir}/wicked with local user configurations.
+# The system interface ifxml configs (--ifconfig wicked:xml:/path)
+# remain under ${sysconfdir}/wicked/ifconfig.
+#
 AC_ARG_WITH([configdir], [AS_HELP_STRING([--with-configdir@<:@=DIR@:>@],
 	    [wicked config file directory [${sysconfdir}/wicked]])],,
 	    [with_configdir="${sysconfdir}/wicked"])
 AC_SUBST(wicked_configdir,	"$with_configdir")
+
+system_configdir="${sysconfdir}/wicked"
+AS_CASE([${with_configdir}],
+	[[yes|no]], [AC_MSG_ERROR(Please specify a configdir directory)],
+	["${system_configdir}"],        [AS_UNSET(system_configdir)]
+)
+AC_SUBST(system_configdir,     "$system_configdir")
+AM_CONDITIONAL([system_config],        [test "X$system_configdir" != "X"])
 
 # Schema files are read-only
 AC_ARG_WITH([schemadir], [AS_HELP_STRING([--with-schemadir@<:@=DIR@:>@],

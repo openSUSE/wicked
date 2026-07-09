@@ -13,6 +13,9 @@ libwicked_la_CPPFLAGS		= -DNI_WICKED_CONFIGDIR=\"$(wicked_configdir)\" \
 				  -DNI_WICKED_STATEDIR=\"$(wicked_statedir)\" \
 				  -DNI_WICKED_PIDDIR=\"$(wicked_piddir)\" \
 				  -DREQUIRE_LIBGCRYPT=\"$(REQUIRE_LIBGCRYPT)\"
+if system_config
+libwicked_la_CPPFLAGS		+= -DNI_SYSTEM_CONFIGDIR=\"$(system_configdir)\"
+endif
 if system_extensions
 libwicked_la_CPPFLAGS		+= -DNI_SYSTEM_EXTSCRIPTDIR=\"$(system_extensionsdir)\"
 endif
