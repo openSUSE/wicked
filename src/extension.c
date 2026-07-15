@@ -251,3 +251,79 @@ ni_extension_find_c_binding(const ni_extension_t *ex, const char *name)
 		return binding->enabled ? binding : NULL;
 	return NULL;
 }
+
+static const char *
+ni_extension_script_search_paths[] = {
+#ifdef	NI_SYSTEM_EXTSCRIPTDIR
+	NI_SYSTEM_EXTSCRIPTDIR,
+#endif
+#ifdef	NI_COMPAT_EXTSCRIPTDIR
+	NI_COMPAT_EXTSCRIPTDIR,
+#endif
+#ifdef	NI_WICKED_EXTSCRIPTDIR
+	NI_WICKED_EXTSCRIPTDIR,
+#endif
+	NULL
+};
+
+static const char *
+ni_extension_search_path_remove(const char *absolute, const char **paths)
+{
+	const char *relative;
+	const char **path;
+
+	/*
+	 * Return the relative part of the path if it is below the search
+	 * path, or NULL if it's relative or not below the search path.
+	 */
+	if (!paths || ni_string_empty(absolute) || *absolute != '/')
+		return NULL;
+
+	for (path = paths; *path; ++path) {
+		if (!ni_string_startswith(absolute, *path))
+			continue;
+
+		relative = absolute + ni_string_len(*path);
+		if (*relative == '/' && !ni_string_empty(++relative))
+			return relative;
+	}
+	return NULL;
+}
+
+extern const char *
+ni_extension_script_search_path_remove(const char *script)
+{
+	return ni_extension_search_path_remove(script, ni_extension_script_search_paths);
+}
+
+static const char *
+ni_extension_search_path_lookup(char **absolute, const char *relative, const char **paths)
+{
+	const char **path;
+
+	/*
+	 * Construct an absolute path if a relative script is located below
+	 * the search path, and return a pointer to it, or NULL if the path
+	 * is already absolute or no executable script was found.
+	 */
+	if (!paths || !absolute || ni_string_empty(relative) || *relative == '/')
+		return NULL;
+
+	for (path = paths; *path; ++path) {
+		if (!ni_string_printf(absolute, "%s/%s", *path, relative))
+			return NULL;
+
+		if (ni_file_executable(*absolute))
+			return *absolute;
+
+		ni_string_free(absolute);
+	}
+	return NULL; /* relative does not exist in search path */
+}
+
+extern const char *
+ni_extension_script_search_path_lookup(char **absolute, const char *relative)
+{
+	return ni_extension_search_path_lookup(absolute, relative, ni_extension_script_search_paths);
+}
+

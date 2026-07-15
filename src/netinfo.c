@@ -69,7 +69,7 @@ ni_init(const char *appname)
 }
 
 static int
-__ni_init_gcrypt(void)
+ni_init_gcrypt(void)
 {
 /*
  * gcry_check_version checks for minimum version
@@ -109,67 +109,24 @@ __ni_init_gcrypt(void)
 int
 ni_init_ex(const char *appname, ni_init_appdata_callback_t *cb, void *appdata)
 {
-	int explicit_config = 1;
-
 	if (ni_global.initialized) {
 		ni_error("ni_init called twice");
 		return -1;
 	}
+	ni_global.initialized = 1;
 
 	/* We're using randomized timeouts. Seed the RNG */
 	ni_srandom();
 
-	if (__ni_init_gcrypt() < 0)
+	if (ni_init_gcrypt() < 0)
 		return -1;
 
-	if (ni_global.config_path == NULL) {
-		if (appname == NULL) {
-			/* Backward compatible - for now.
-			 * The server will load config.xml
-			 */
-			appname = "config";
-		}
-
-		if (asprintf(&ni_global.config_path, "%s/%s.xml",
-					ni_get_global_config_dir(), appname) < 0) {
-			ni_global.config_path = NULL;
-			return -1;
-		}
-
-		/* If the application-specific config file does not exist, fall
-		 * back to common.xml */
-		if (!ni_file_exists(ni_global.config_path)) {
-			ni_string_free(&ni_global.config_path);
-			if (asprintf(&ni_global.config_path, "%s/common.xml",
-						ni_get_global_config_dir()) < 0) {
-				ni_global.config_path = NULL;
-				return -1;
-			}
-		}
-
-		explicit_config = 0;
-	}
-
-	if (ni_file_exists(ni_global.config_path)) {
-		ni_global.config = ni_config_parse(ni_global.config_path, cb, appdata);
-		if (!ni_global.config) {
-			ni_error("Unable to parse netinfo configuration file");
-			return -1;
-		}
-	} else {
-		if (explicit_config) {
-			ni_error("Configuration file %s does not exist",
-					ni_global.config_path);
-			return -1;
-		}
-		/* Create empty default configuration */
-		ni_global.config = ni_config_new();
-	}
+	if (!(ni_global.config = ni_config_load(appname, cb, appdata)))
+		return -1;
 
 	/* Our socket code relies on us ignoring this */
 	signal(SIGPIPE, SIG_IGN);
 
-	ni_global.initialized = 1;
 	return 0;
 }
 
@@ -183,10 +140,24 @@ ni_global_assert_initialized(void)
 const char *
 ni_get_global_config_dir(void)
 {
-	if (ni_global.config_dir == NULL)
-		return WICKED_CONFIGDIR;
-	else
+	/*
+	 * Return the global custom config override when specified using
+	 * the global `wicked --config <dir|file>` parameter or builtin:
+	 * - When both, NI_SYSTEM_CONFIGDIR and NI_WICKED_CONFIGDIR are
+	 *   defined, return the writable system configuration directory
+	 *   NI_SYSTEM_CONFIGDIR (NI_WICKED_CONFIGDIR is read-only).
+	 * - Otherwise, return the NI_WICKED_CONFIGDIR used for both.
+	 */
+	if (ni_global.config_dir)
 		return ni_global.config_dir;
+	else
+#if defined(NI_SYSTEM_CONFIGDIR)
+		return NI_SYSTEM_CONFIGDIR;
+#elif defined(NI_WICKED_CONFIGDIR)
+		return NI_WICKED_CONFIGDIR;
+#else
+		return NULL; /* error */
+#endif
 }
 
 const char *
@@ -198,7 +169,7 @@ ni_get_global_config_path(void)
 static ni_bool_t
 ni_set_global_config_dir(const char *pathname)
 {
-	if (pathname == NULL) {
+	if (ni_string_empty(pathname)) {
 		ni_string_free(&ni_global.config_dir);
 		ni_string_free(&ni_global.config_path);
 		return TRUE;
@@ -214,8 +185,14 @@ ni_set_global_config_dir(const char *pathname)
 			pathname = real;
 		}
 
-		if (ni_string_eq(WICKED_CONFIGDIR, pathname))
+#ifdef NI_SYSTEM_CONFIGDIR
+		if (ni_string_eq(NI_SYSTEM_CONFIGDIR, pathname) ||
+		    ni_string_eq(NI_WICKED_CONFIGDIR, pathname))
 			pathname = NULL;
+#else
+		if (ni_string_eq(NI_WICKED_CONFIGDIR, pathname))
+			pathname = NULL;
+#endif
 
 		ni_string_dup(&ni_global.config_dir, pathname);
 		ni_string_free(&real);

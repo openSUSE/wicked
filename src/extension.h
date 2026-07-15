@@ -60,5 +60,7 @@ extern ni_extension_t *		ni_extension_list_find(ni_extension_t *, const char *);
 
 extern ni_shellcmd_t *		ni_extension_find_script(ni_extension_t *, const char *);
 extern const ni_c_binding_t *	ni_extension_find_c_binding(const ni_extension_t *, const char *);
+extern const char *		ni_extension_script_search_path_remove(const char *);
+extern const char *		ni_extension_script_search_path_lookup(char **, const char *);
 
 #endif /* NI_WICKED_EXTENSIONS_H */
