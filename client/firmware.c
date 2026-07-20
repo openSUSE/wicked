@@ -195,9 +195,10 @@ ni_netif_firmware_discovery_config_migrate(xml_node_t **result, xml_node_t *root
 		name = xml_node_get_attr(fdnode, "name");
 		if (!ni_string_empty(name)) {
 			/*
-			 * Current firmware discovery extension _override_ definition
-			 * in /etc/wicked/client-firmware.xml file contains only the
-			 * firmware name and enabled attributes, e.g.:
+			 * Current firmware discovery extension _override_
+			 * definition in the /etc/wicked/client-firmware.xml file,
+			 * created via "wicked firmware enable|disable", contains
+			 * only the firmware name and enabled attributes, e.g.:
 			 *
 			 *  <netif-firmware-discovery name="ibft" enabled="false" />
 			 *
