@@ -24,7 +24,7 @@
 
 #include <wicked/util.h>
 #include <wicked/logging.h>
-#include <wicked/netinfo.h> /* only for CONFIG_WICKED_STATEDIR */
+#include <wicked/netinfo.h> /* for ni_config_statedir() */
 #include <wicked/fsm.h> /* for NI_IFWORKER_INFINITE_TIMEOUT */
 #include "slist_priv.h"
 #include "util_priv.h"

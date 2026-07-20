@@ -24,6 +24,8 @@
 #define NI_CONFIG_OWNER				"owner"
 #define NI_CONFIG_UUID				"uuid"
 
+#define NI_CLIENT_IFCONFIG_SUBDIR		"ifconfig"
+
 #define NI_CLIENT_IFCONFIG			"interface"
 #define NI_CLIENT_IFCONFIG_ORIGIN		NI_CONFIG_ORIGIN
 #define NI_CLIENT_IFCONFIG_OWNER		NI_CONFIG_OWNER
@@ -97,6 +99,8 @@ extern ni_bool_t		ni_ifxml_migrate_docs(xml_document_array_t *);
 
 extern ni_bool_t		ni_ifxml_is_config(const xml_node_t *);
 extern ni_bool_t		ni_ifxml_is_policy(const xml_node_t *);
+
+extern const char *		ni_ifxml_system_config_dir(char **, const char *);
 
 static inline const char *
 ni_ifconfig_get_uuid(const xml_node_t *ifnode)

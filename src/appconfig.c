@@ -12,10 +12,12 @@
 #include <assert.h>
 #include <ctype.h>
 #include <limits.h>
+#include <errno.h>
 #include <netinet/if_ether.h>
 
 #include <wicked/util.h>
 #include <wicked/wicked.h>
+#include <wicked/logging.h>
 #include <wicked/netinfo.h>
 #include <wicked/addrconf.h>
 #include <wicked/address.h>
@@ -30,7 +32,17 @@
 #include "dhcp.h"
 #include "duid.h"
 
-static const char *__ni_ifconfig_source_types[] = {
+#define NI_CONFIG_INCLUDE_DEPTH_MAX	10
+
+typedef struct ni_config_parse_guard	ni_config_parse_guard_t;
+
+struct ni_config_parse_guard {
+	ni_config_parse_guard_t *	parent;
+	const char *			filename;
+};
+
+static const char *
+ni_ifconfig_source_types[] = {
 	"firmware:",
 	"compat:",
 	"wicked:",
@@ -53,7 +65,12 @@ static ni_bool_t	ni_config_parse_sources(ni_config_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_rtnl_event(ni_config_rtnl_event_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_bonding(ni_config_bonding_t *, const xml_node_t *);
 static ni_bool_t	ni_config_parse_teamd(ni_config_teamd_t *, const xml_node_t *);
-static const char *	ni_config_build_include(char *, size_t, const char *, const char *);
+static ni_bool_t	ni_config_include_file(ni_config_parse_guard_t *, ni_config_t *,
+					const char *, const char *, ni_bool_t,
+					ni_init_appdata_callback_t *, void *);
+static ni_bool_t	ni_config_include_dir(ni_config_parse_guard_t *, ni_config_t *,
+					const char *, const char *, ni_bool_t,
+					ni_init_appdata_callback_t *, void *);
 static unsigned int	ni_config_addrconf_update_mask_all(void);
 static unsigned int	ni_config_addrconf_update_mask_dhcp4(void);
 static unsigned int	ni_config_addrconf_update_mask_dhcp6(void);
@@ -99,9 +116,9 @@ ni_config_new()
 	conf->addrconf.dhcp6.release_nretries = -1U;
 	conf->addrconf.dhcp6.info_refresh.range.max = NI_LIFETIME_INFINITE;
 
-	ni_config_fslocation_init(&conf->piddir,   WICKED_PIDDIR,   0755);
-	ni_config_fslocation_init(&conf->statedir, WICKED_STATEDIR, 0755);
-	ni_config_fslocation_init(&conf->storedir, WICKED_STOREDIR, 0755);
+	ni_config_fslocation_init(&conf->piddir,   NI_WICKED_PIDDIR,   0755);
+	ni_config_fslocation_init(&conf->statedir, NI_WICKED_STATEDIR, 0755);
+	ni_config_fslocation_init(&conf->storedir, NI_WICKED_STOREDIR, 0755);
 
 	conf->rtnl_event.recv_buff_length = 1024 * 1024;
 	conf->rtnl_event.mesg_buff_length = 0;
@@ -276,11 +293,42 @@ ni_config_free(ni_config_t *conf)
 	free(conf);
 }
 
-ni_bool_t
-__ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callback_t *cb, void *appdata)
+static ni_bool_t
+ni_config_parse_guard_check(ni_config_parse_guard_t *guard, ni_config_parse_guard_t *parent,
+		const char *filename)
 {
+	ni_config_parse_guard_t *curr;
+	unsigned int depth = 0;
+
+	for (curr = parent; curr; curr = curr->parent) {
+		if (ni_string_eq(curr->filename, filename)) {
+			ni_error("Circular include detected: file '%s' already parsed!",
+					filename);
+			return FALSE;
+		}
+		if (++depth >= NI_CONFIG_INCLUDE_DEPTH_MAX) {
+			ni_error("Inclusion depth of %u reached at '%s'",
+				 NI_CONFIG_INCLUDE_DEPTH_MAX, filename);
+			return FALSE;
+		}
+	}
+
+	ni_assert(guard);
+	guard->parent = parent;
+	guard->filename = filename;
+	return TRUE;
+}
+
+static ni_bool_t
+ni_config_parse_file(ni_config_parse_guard_t *parent_guard, ni_config_t *conf,
+		const char *filename, ni_init_appdata_callback_t *cb, void *appdata)
+{
+	ni_config_parse_guard_t guard;
 	xml_document_t *doc;
 	xml_node_t *node, *child;
+
+	if (!ni_config_parse_guard_check(&guard, parent_guard, filename))
+		return FALSE;
 
 	ni_debug_wicked("Reading config file %s", filename);
 	doc = xml_document_read(filename);
@@ -298,29 +346,34 @@ __ni_config_parse(ni_config_t *conf, const char *filename, ni_init_appdata_callb
 	/* Loop over all elements in the config file */
 	for (child = node->children; child; child = child->next) {
 		if (strcmp(child->name, "include") == 0) {
-			char fullname[PATH_MAX + 1] = {'\0'};
-			const char *attrval, *path;
 			ni_bool_t optional = FALSE;
+			const char *attrval;
 
 			if ((attrval = xml_node_get_attr(child, "optional")) != NULL) {
 				if (ni_parse_boolean(attrval, &optional)) {
-					ni_error("%s: invalid <%s optional='%s>...</%s> element value",
-						filename, child->name, attrval, child->name);
+					ni_error("[%s] invalid <%s optional='%s>...</%s> element value",
+						xml_node_location(child), child->name, attrval, child->name);
 					goto failed;
 				}
 			}
-			if ((attrval = xml_node_get_attr(child, "name")) == NULL) {
-				ni_error("%s: <include> element lacks filename", xml_node_location(child));
+
+			if ((attrval = xml_node_get_attr(child, "name")) != NULL) {
+				if (!ni_config_include_file(&guard, conf, filename, attrval, optional, cb, appdata)) {
+					ni_error("[%s] unable to include file name '%s'",
+							xml_node_location(child), attrval);
+					goto failed;
+				}
+			} else if ((attrval = xml_node_get_attr(child, "dir")) != NULL) {
+				if (!ni_config_include_dir(&guard, conf, filename, attrval, optional, cb, appdata)) {
+					ni_error("[%s] unable to include directory files from '%s'",
+							xml_node_location(child), attrval);
+					goto failed;
+				}
+			} else {
+				ni_error("[%s] <include> element lacks name attribute",
+						xml_node_location(child));
 				goto failed;
 			}
-			if (!(path = ni_config_build_include(fullname, sizeof(fullname), filename, attrval)))
-				goto failed;
-			/* If the file is marked as optional, but does not exist, silently
-			 * skip it */
-			if (optional && !ni_file_exists(path))
-				continue;
-			if (!__ni_config_parse(conf, path, cb, appdata))
-				goto failed;
 		} else
 		if (strcmp(child->name, "use-nanny") == 0) {
 			ni_bool_t use_nanny = TRUE;
@@ -473,43 +526,12 @@ ni_config_parse(const char *filename, ni_init_appdata_callback_t *cb, void *appd
 	ni_config_t *conf;
 
 	conf = ni_config_new();
-	if (!__ni_config_parse(conf, filename, cb, appdata)) {
+	if (!ni_config_parse_file(NULL, conf, filename, cb, appdata)) {
 		ni_config_free(conf);
 		return NULL;
 	}
 
 	return conf;
-}
-
-const char *
-ni_config_build_include(char *fullname, size_t size,
-		const char *parent_filename, const char *incl_filename)
-{
-	if (parent_filename && incl_filename && incl_filename[0] != '/') {
-		size_t i;
-
-		i = strlen(parent_filename);
-		if (i >= size)
-			goto too_long;
-
-		strncpy(fullname, parent_filename, size - 1);
-		fullname[size - 1] = '\0';
-
-		while (i && fullname[i - 1] != '/')
-			--i;
-		fullname[i] = '\0';
-
-		if (i + strlen(incl_filename) >= size)
-			goto too_long;
-
-		strncat(fullname, incl_filename, size - i - 1);
-		incl_filename = fullname;
-	}
-	return incl_filename;
-
-too_long:
-	ni_error("unable to include \"%s\" - path too long", incl_filename);
-	return NULL;
 }
 
 static ni_bool_t
@@ -690,7 +712,7 @@ ni_config_parse_addrconf_dhcp4(ni_config_t *conf, xml_node_t *node)
 
 
 static int
-__ni_config_parse_dhcp6_class_data(xml_node_t *node, ni_string_array_t *data, const char *parent)
+ni_config_parse_dhcp6_class_data(xml_node_t *node, ni_string_array_t *data, const char *parent)
 {
 	const char *attrval;
 	enum {
@@ -756,19 +778,19 @@ __ni_config_parse_dhcp6_class_data(xml_node_t *node, ni_string_array_t *data, co
 }
 
 static int
-__ni_config_parse_dhcp6_class_data_nodes(xml_node_t *node, ni_string_array_t *data)
+ni_config_parse_dhcp6_class_data_nodes(xml_node_t *node, ni_string_array_t *data)
 {
 	xml_node_t *child;
 
 	for (child = node->children; child; child = child->next) {
-		if (__ni_config_parse_dhcp6_class_data(child, data, node->name) < 0)
+		if (ni_config_parse_dhcp6_class_data(child, data, node->name) < 0)
 			return -1;
 	}
 	return 0;
 }
 
 static int
-__ni_config_parse_dhcp6_vendor_opt_node(xml_node_t *node, ni_var_array_t *opts, const char *parent)
+ni_config_parse_dhcp6_vendor_opt_node(xml_node_t *node, ni_var_array_t *opts, const char *parent)
 {
 	const char *attrval;
 	const char *code = NULL;
@@ -850,11 +872,11 @@ __ni_config_parse_dhcp6_vendor_opt_node(xml_node_t *node, ni_var_array_t *opts, 
 }
 
 static int
-__ni_config_parse_dhcp6_vendor_opts_nodes(xml_node_t *node, ni_var_array_t *opts)
+ni_config_parse_dhcp6_vendor_opts_nodes(xml_node_t *node, ni_var_array_t *opts)
 {
 	xml_node_t *child;
 	for (child = node->children; child; child = child->next) {
-		if (__ni_config_parse_dhcp6_vendor_opt_node(child, opts, node->name) < 0)
+		if (ni_config_parse_dhcp6_vendor_opt_node(child, opts, node->name) < 0)
 			return -1;
 	}
 	return 0;
@@ -1058,7 +1080,7 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 		if (!strcmp(child->name, "user-class")) {
 			ni_string_array_destroy(&dhcp6->user_class_data);
 
-			if (__ni_config_parse_dhcp6_class_data_nodes(child, &dhcp6->user_class_data) < 0) {
+			if (ni_config_parse_dhcp6_class_data_nodes(child, &dhcp6->user_class_data) < 0) {
 				ni_string_array_destroy(&dhcp6->user_class_data);
 				return FALSE;
 			}
@@ -1078,7 +1100,7 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 			}
 
 			ni_string_array_destroy(&dhcp6->vendor_class_data);
-			if (__ni_config_parse_dhcp6_class_data_nodes(child, &dhcp6->vendor_class_data) < 0) {
+			if (ni_config_parse_dhcp6_class_data_nodes(child, &dhcp6->vendor_class_data) < 0) {
 				ni_string_array_destroy(&dhcp6->vendor_class_data);
 				return FALSE;
 			}
@@ -1100,7 +1122,7 @@ ni_config_parse_addrconf_dhcp6_nodes(ni_config_dhcp6_t *dhcp6, xml_node_t *node)
 			}
 
 			ni_var_array_destroy(&dhcp6->vendor_opts_data);
-			if (__ni_config_parse_dhcp6_vendor_opts_nodes(child, &dhcp6->vendor_opts_data) < 0) {
+			if (ni_config_parse_dhcp6_vendor_opts_nodes(child, &dhcp6->vendor_opts_data) < 0) {
 				ni_var_array_destroy(&dhcp6->vendor_opts_data);
 			}
 
@@ -1262,7 +1284,7 @@ ni_config_parse_addrconf_dhcp6(ni_config_t *conf, xml_node_t *node)
 	return TRUE;
 }
 
-ni_bool_t
+static ni_bool_t
 ni_config_parse_addrconf_auto4(ni_config_auto4_t *auto4, xml_node_t *node)
 {
 	xml_node_t *child;
@@ -1276,7 +1298,7 @@ ni_config_parse_addrconf_auto4(ni_config_auto4_t *auto4, xml_node_t *node)
 	return TRUE;
 }
 
-ni_bool_t
+static ni_bool_t
 ni_config_parse_addrconf_auto6(ni_config_auto6_t *auto6, xml_node_t *node)
 {
 	xml_node_t *child;
@@ -1471,7 +1493,7 @@ ni_config_parse_addrconf_arp(ni_config_arp_t *arpcfg, const xml_node_t *node)
 	return TRUE;
 }
 
-void
+static void
 ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node)
 {
 	ni_string_array_t targets = NI_STRING_ARRAY_INIT;
@@ -1494,7 +1516,7 @@ ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node
 	ni_string_array_destroy(&targets);
 }
 
-void
+static void
 ni_config_parse_update_dhcp4_routes(unsigned int *routes_opts, const xml_node_t *node)
 {
 	ni_string_array_t tags = NI_STRING_ARRAY_INIT;
@@ -1528,7 +1550,7 @@ ni_config_parse_update_dhcp4_routes(unsigned int *routes_opts, const xml_node_t 
 	ni_string_array_destroy(&tags);
 }
 
-void
+static void
 ni_config_parse_fslocation(ni_config_fslocation_t *fsloc, xml_node_t *node)
 {
 	const char *attrval;
@@ -1595,6 +1617,7 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 			const char *name, *command, *attr;
 			ni_bool_t enabled = TRUE;
 			ni_script_action_t *old;
+			const char *relative;
 
 			name = xml_node_get_attr(child, "name");
 			if (!ni_check_domain_name(name, ni_string_len(name), -1)) {
@@ -1614,8 +1637,18 @@ ni_config_parse_extension(ni_extension_t *ex, xml_node_t *node)
 						xml_node_location(child));
 			}
 
+			/* Remove well-known extension search path from command if absolute */
+			if ((relative = ni_extension_script_search_path_remove(command))) {
+				ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
+						"%s: migrated extension script command to '%s'",
+						name, relative);
+				script = ni_script_action_new(name, relative);
+			} else {
+				script = ni_script_action_new(name, command);
+			}
+
 			old = ni_script_action_list_find(ex->actions, name);
-			if ((script = ni_script_action_new(name, command))) {
+			if (script) {
 				script->enabled = enabled;
 				ni_config_parse_extension_script_env(script, child, old);
 			}
@@ -2115,13 +2148,13 @@ ni_config_parse_system_updater(ni_extension_t **list, xml_node_t *node)
  *
  */
 static ni_bool_t
-__ni_config_parse_ifconfig_source(ni_string_array_t *sources, xml_node_t *node)
+ni_config_parse_ifconfig_source(ni_string_array_t *sources, xml_node_t *node)
 {
 	const char *attrval = NULL;
 	unsigned int i;
 
 	if ((attrval = xml_node_get_attr(node, "location")) != NULL && *attrval) {
-		const char **p = __ni_ifconfig_source_types;
+		const char **p = ni_ifconfig_source_types;
 		for (i = 0; p[i]; i++) {
 			if (!strncasecmp(attrval, p[i], ni_string_len(p[i]))) {
 				ni_debug_readwrite("%s: Adding ifconfig %s", __func__, attrval);
@@ -2134,14 +2167,15 @@ __ni_config_parse_ifconfig_source(ni_string_array_t *sources, xml_node_t *node)
 	ni_error("Unknown ifconfig location: %s", attrval);
 	return FALSE;
 }
-ni_bool_t
+
+static ni_bool_t
 ni_config_parse_sources(ni_config_t *conf, xml_node_t *sources)
 {
 	xml_node_t *child;
 
 	for (child = sources->children; child && child->name; child = child->next) {
 		if (!strcmp(child->name, "ifconfig")) {
-			 if (!__ni_config_parse_ifconfig_source(&conf->sources.ifconfig, child))
+			if (!ni_config_parse_ifconfig_source(&conf->sources.ifconfig, child))
 				return FALSE;
 		}
 	}
@@ -2158,14 +2192,14 @@ ni_config_sources(const char *type)
 	if (ni_string_eq(type, "ifconfig")) {
 		retval = &ni_global.config->sources.ifconfig;
 		if (retval->count == 0) {
-			for (i = 0; __ni_ifconfig_source_types[i]; i++)
-				ni_string_array_append(retval, __ni_ifconfig_source_types[i]);
+			for (i = 0; ni_ifconfig_source_types[i]; i++)
+				ni_string_array_append(retval, ni_ifconfig_source_types[i]);
 		}
 	}
 	return retval;
 }
 
-ni_bool_t
+static ni_bool_t
 ni_config_parse_rtnl_event(ni_config_rtnl_event_t *conf, xml_node_t *node)
 {
 	xml_node_t *child;
@@ -2629,4 +2663,323 @@ ni_config_addrconf_arp(ni_addrconf_mode_t owner, const char *ifname)
 	default:
 		return &conf->addrconf.arp;
 	}
+}
+
+static const char *
+ni_config_search_paths[] = {
+#ifdef	NI_SYSTEM_CONFIGDIR
+	NI_SYSTEM_CONFIGDIR,
+#endif
+#ifdef	NI_WICKED_CONFIGDIR
+	NI_WICKED_CONFIGDIR,
+#endif
+	NULL
+};
+
+static int
+ni_config_search_path_lookup(char **absolute, const char *relative,
+		const char *extension, const char **paths)
+{
+	const char **path;
+
+	/*
+	 * Construct an absolute path if a relative name is located below
+	 * the search path, and return a pointer to it, or NULL if the
+	 * name is already absolute does not exist below search paths.
+	 */
+	if (!paths || !absolute || ni_string_empty(relative) || *relative == '/')
+		return -EINVAL;
+
+	for (path = paths; *path; ++path) {
+		if (!ni_string_printf(absolute, "%s/%s%s", *path, relative, extension ?: ""))
+			return -ENOMEM;
+
+		if (ni_file_exists(*absolute)) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+					"config: lookup '%s%s' in '%s' -> found",
+					relative, extension ?: "", *path);
+			return 0;
+		}
+
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+				"config: lookup '%s%s' in '%s' -> missing",
+				relative, extension ?: "", *path);
+
+		ni_string_free(absolute);
+	}
+
+	return 1; /* relative name does not exist in search path */
+}
+
+static int
+ni_config_path_lookup(char **absolute, const char *relative, const char *extension)
+{
+	const char * ni_config_custom_paths[2];
+	const char **paths;
+
+	/*
+	 * The ni_global.config_dir is set only, when the common
+	 * --config <dir|file> command line option has been applied
+	 * and overrides the default config paths with a custom one.
+	 */
+	if (ni_global.config_dir) {
+		ni_config_custom_paths[0] = ni_global.config_dir;
+		ni_config_custom_paths[1] = NULL;
+		paths = ni_config_custom_paths;
+	} else {
+		paths = ni_config_search_paths;
+	}
+
+	return ni_config_search_path_lookup(absolute, relative, extension, paths);
+}
+
+ni_config_t *
+ni_config_load(const char *appname, ni_init_appdata_callback_t *cb, void *appdata)
+{
+	ni_config_t *config = NULL;
+
+	if (ni_string_empty(ni_global.config_path)) {
+		/*
+		 * Backward compatible - for now, try to load config.xml instead.
+		 */
+		if (ni_string_empty(appname))
+			appname = "config";
+
+		/*
+		 * If the application-specific <appname>.xml config (or config.xml)
+		 * do not exist, fall back to load the common.xml…
+		 */
+		if (ni_config_path_lookup(&ni_global.config_path, appname, ".xml") != 0)
+			ni_config_path_lookup(&ni_global.config_path, "common", ".xml");
+
+	} else if (!ni_file_exists(ni_global.config_path)) {
+		/*
+		 * A custom config specified via --config <file> command line option.
+		 */
+		ni_error("Configuration file '%s' does not exist", ni_global.config_path);
+		return NULL;
+	}
+
+	if (!ni_string_empty(ni_global.config_path)) {
+		config = ni_config_parse(ni_global.config_path, cb, appdata);
+		if (!config) {
+			ni_error("Unable to parse '%s' configuration file",
+					ni_global.config_path);
+			return NULL;
+		}
+	} else {
+		/* Create empty default configuration */
+		config = ni_config_new();
+		if (!config) {
+			ni_error("Unable to initialize default configuration");
+			return NULL;
+		}
+	}
+
+	return config;
+}
+
+static ni_bool_t
+ni_config_include_file(ni_config_parse_guard_t *guard, ni_config_t *conf,
+		const char *origin, const char *include, ni_bool_t optional,
+		ni_init_appdata_callback_t *cb, void *appdata)
+{
+	char *filename = NULL;
+	const char *dir;
+	ni_bool_t ret;
+
+	if (!conf || ni_string_empty(origin) || ni_string_empty(include))
+		return FALSE;
+
+	if (include[0] == '/') {
+
+		/* absolute include file: just take it as it is */
+		if (!ni_string_dup(&filename, include))
+			return FALSE;
+
+		/* optional file does not exist */
+		if (optional && !ni_file_exists(filename))
+			return TRUE;
+
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+				"config: absolute include '%s' (from '%s') -> found",
+				filename, origin);
+
+	} else if (strchr(include, '/')) {
+
+		/* relative include file: to directory of origin */
+		dir = ni_dirname(origin);
+		if (!dir || !ni_string_printf(&filename, "%s/%s", dir, include))
+			return FALSE;
+
+		/* optional file does not exist */
+		if (optional && !ni_file_exists(filename))
+			return TRUE;
+
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+				"config: relative include '%s' (from '%s') -> found",
+				filename, origin);
+	} else {
+		int rv;
+
+		if (strcmp(include, ".") == 0 || strcmp(include, "..") == 0) {
+			ni_error("Invalid include file name '%s'", include);
+			return FALSE;
+		}
+
+		/* basename include file: lookup in search path */
+		if ((rv = ni_config_path_lookup(&filename, include, NULL)) < 0)
+			return FALSE;
+
+		/* optional file does not exist */
+		if (optional && rv)
+			return TRUE;
+	}
+
+	ret = ni_config_parse_file(guard, conf, filename, cb, appdata);
+	ni_string_free(&filename);
+	return ret;
+}
+
+static int
+ni_config_search_path_scandir(ni_string_array_t *includes, const char *subdir,
+		const char **paths)
+{
+	ni_string_array_t names = NI_STRING_ARRAY_INIT;
+	ni_var_array_t vars = NI_VAR_ARRAY_INIT;
+	unsigned int dirs = 0;
+	const ni_var_t *var;
+	const char **path;
+	const char *name;
+	char *file = NULL;
+	char *dir = NULL;
+	unsigned int i;
+	int found;
+
+	if (!paths || !includes || ni_string_empty(subdir))
+		return -EINVAL;
+
+	for (path = paths; *path; ++path) {
+		if (!ni_string_printf(&dir, "%s/%s", *path, subdir))
+			goto failure;
+
+		if (!ni_isdir(dir)) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+					"config: drop-in directory '%s' -> missing", dir);
+			continue;
+		}
+
+		dirs++;
+
+		found = ni_scandir(dir, "*.xml", &names);
+		ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+				"config: drop-in directory '%s' -> found (%d files)",
+				dir, found);
+		if (found) {
+
+			for (i = 0; i < names.count; ++i) {
+				name = names.data[i];
+
+				if (ni_var_array_get(&vars, name))
+					continue;
+
+				if (!ni_string_printf(&file, "%s/%s", dir, name))
+					goto failure;
+
+				if (!ni_var_array_set(&vars, name, file))
+					goto failure;
+
+				ni_string_free(&file);
+			}
+		}
+		ni_string_array_destroy(&names);
+		ni_string_free(&dir);
+	}
+
+	ni_var_array_sort_by_name(&vars);
+	for (i = 0; i < vars.count; ++i) {
+		var = &vars.data[i];
+
+		if (ni_string_array_append(includes, var->value) < 0)
+			goto failure;
+	}
+	ni_var_array_destroy(&vars);
+
+	return !dirs; /* return 0 if at least one dir exists */
+
+failure:
+	ni_string_array_destroy(includes);
+	ni_string_array_destroy(&names);
+	ni_var_array_destroy(&vars);
+	ni_string_free(&file);
+	ni_string_free(&dir);
+	return -ENOMEM;
+}
+
+static int
+ni_config_path_scandir(ni_string_array_t *includes, const char *subdir)
+{
+	const char * ni_config_custom_paths[2];
+	const char **paths;
+
+	/*
+	 * The ni_global.config_dir is set only, when the common
+	 * --config <dir|file> command line option has been applied
+	 * and overrides the default config paths with a custom one.
+	 */
+	if (ni_global.config_dir) {
+		ni_config_custom_paths[0] = ni_global.config_dir;
+		ni_config_custom_paths[1] = NULL;
+		paths = ni_config_custom_paths;
+	} else {
+		paths = ni_config_search_paths;
+	}
+
+	return ni_config_search_path_scandir(includes, subdir, paths);
+}
+
+static ni_bool_t
+ni_config_include_dir(ni_config_parse_guard_t *guard, ni_config_t *conf,
+		const char *origin, const char *subdir, ni_bool_t optional,
+		ni_init_appdata_callback_t *cb, void *appdata)
+{
+	ni_string_array_t includes = NI_STRING_ARRAY_INIT;
+	unsigned int i;
+	int rv;
+
+	if (!conf || ni_string_empty(origin) || ni_string_empty(subdir))
+		return FALSE;
+
+	if (strchr(subdir, '/') || strcmp(subdir, ".") == 0 || strcmp(subdir, "..") == 0) {
+		ni_error("Invalid drop-in directory name '%s' - paths are not allowed",
+				subdir);
+		return FALSE;
+	}
+
+	if ((rv = ni_config_path_scandir(&includes, subdir)) < 0) {
+		/* needed? */
+		ni_string_array_destroy(&includes);
+		return FALSE;
+	}
+
+	/*
+	 * Return FALSE if a non-optional directory is missing
+	 * or contains no configuration files.
+	 */
+	if (rv || !includes.count) {
+		ni_string_array_destroy(&includes);
+		return optional;
+	}
+
+	for (i = 0; i < includes.count; ++i) {
+		const char *include = includes.data[i];
+
+		if (!ni_config_parse_file(guard, conf, include, cb, appdata)) {
+			ni_string_array_destroy(&includes);
+			return FALSE;
+		}
+	}
+
+	ni_string_array_destroy(&includes);
+	return TRUE;
 }

@@ -7,7 +7,6 @@ EXTRA_DIST			= $(scripts) $(templates)
 wicked_extensions_SCRIPTS	= $(scripts) $(BUILT_SOURCES)
 
 scripts				= \
-	dispatch		\
 	ibft			\
 	netconfig		\
 	redfish-config
@@ -19,6 +18,7 @@ EXTRA_DIST			+= nbft
 endif
 
 BUILT_SOURCES			= \
+	dispatch		\
 	firewall		\
 	hostname
 
@@ -28,7 +28,10 @@ templates			= \
 substitute_vars			= \
 	$(AM_V_GEN)sed							\
 	-e "s|[@]wicked_sbindir[@]|$(wicked_sbindir)|g"			\
-	-e "s|[@]wicked_statedir[@]|$(wicked_statedir)|g"
+	-e "s|[@]wicked_statedir[@]|$(wicked_statedir)|g"		\
+	-e "s|[@]wicked_scriptsdir[@]|$(wicked_scriptsdir)|g"		\
+	-e "s|[@]compat_scriptsdir[@]|$(compat_scriptsdir)|g"		\
+	-e "s|[@]system_scriptsdir[@]|$(system_scriptsdir)|g"
 
 %: %.sh $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"

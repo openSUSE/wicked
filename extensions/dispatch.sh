@@ -2,7 +2,7 @@
 #
 #	Dispatch custom script hook actions.
 #
-#	Copyright (C) 2015 SUSE LINUX GmbH, Nuernberg, Germany.
+#	Copyright (C) 2015-2026 SUSE LLC
 #
 #	This program is free software; you can redistribute it and/or modify
 #	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 #	with this program; if not, see <http://www.gnu.org/licenses/>.
 #
 #	Authors:
-#		Marius Tomaschewski <mt@suse.de>
+#		Marius Tomaschewski
 ###
 
 ###
@@ -53,6 +53,7 @@ prepend_dir()
 	"")     ;;
 	/*)	test -x "$X" && S=$X ;;
 	*)	for D in "$@" ; do
+			test "x$D" = "x" && continue
 			if test -x "$D/$X" ; then
 				S="$D/$X"
 				break
@@ -136,10 +137,14 @@ call_wicked_scripts()
 	local IFNAME=$1 ; shift
 	local ACTION=$1 ; shift
 	local SCRIPT=$1 ; shift
-	local DIR=/etc/wicked
+	local DIRS=(
+		"@system_scriptsdir@"
+		"@compat_scriptsdir@"
+		"@wicked_scriptsdir@"
+	)
 	local D S
 
-	SCRIPT=`prepend_dir "$SCRIPT" "$DIR/scripts"`
+	SCRIPT=`prepend_dir "$SCRIPT" "${DIRS[@]}"`
 	if test "X$SCRIPT" = X ; then
 		return 1
 	elif test -d "$SCRIPT" ; then
