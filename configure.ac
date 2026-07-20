@@ -304,6 +304,7 @@ AC_LANG([C])
 AC_PROG_CC
 AC_PROG_CPP
 AC_PROG_AWK
+AS_CASE([${AWK}], [*gawk*], [], [AC_MSG_ERROR([gawk features required])])
 AC_PATH_PROG(INSTALL, install)
 AC_PROG_LN_S
 AC_PROG_MAKE_SET

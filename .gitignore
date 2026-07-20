@@ -61,6 +61,7 @@ Makefile.in
 /server/wickedd
 /util/mkconst
 /util/schema2html
+/util/*.[0-9]
 /testing/*-test
 testing/*.log
 testing/*.trs
