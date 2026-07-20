@@ -78,8 +78,33 @@ substitute_vars			= \
 	-V wicked_schemadir='$(wicked_schemadir)'		\
 	-V wicked_configdir='$(wicked_configdir)'		\
 	-V wicked_supplicantdir='$(wicked_supplicantdir)'	\
+	-V wicked_scriptsdir='$(wicked_scriptsdir)'		\
 	-V wicked_extensionsdir='$(wicked_extensionsdir)'	\
 	-V PACKAGE_BUGREPORT='$(PACKAGE_BUGREPORT)'
+
+# The #if system_* markers follow the distribution (/usr) vs. system (/etc)
+# split of the respective configure --with-* option; the -C flag is left out
+# (evaluates to false) when no separate system directory is configured.
+# The system_configdir is also referenced unconditionally (ifconfig default,
+# client-firmware.xml) and thus falls back to the distribution config dir.
+if system_config
+substitute_vars			+= \
+	-C system_config					\
+	-V system_configdir='$(system_configdir)'
+else
+substitute_vars			+= \
+	-V system_configdir='$(wicked_configdir)'
+endif
+if system_scripts
+substitute_vars			+= \
+	-C system_scripts					\
+	-V system_scriptsdir='$(system_scriptsdir)'
+endif
+if system_extensions
+substitute_vars			+= \
+	-C system_extensions					\
+	-V system_extensionsdir='$(system_extensionsdir)'
+endif
 
 %: %.in $(top_builddir)/config.status
 	@if $(AM_V_P); then echo "substituting variables: $< > $@" ; fi
