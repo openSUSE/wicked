@@ -61,37 +61,30 @@ templates_md_src		= $(addprefix src/,$(generated_md_man:=.md))
 templates_md_in			= $(generated_md_man:=.in)
 templates_in			= $(generated_in_man:=.in)
 
+templatepp			= $(top_srcdir)/util/templatepp.gawk
+
 # pandoc would write @VAR@ as [at]VAR[at] to .in:
 #   .md sources are using %VAR% variables, while
 #   .in templates are using common autoconf @VAR@
 substitute_md_vars		= \
-	$(AM_V_GEN)sed -E			\
-	-e "s|%(wicked_piddir)%|@\1@|g"		\
-	-e "s|%(wicked_sbindir)%|@\1@|g"	\
-	-e "s|%(wicked_statedir)%|@\1@|g"	\
-	-e "s|%(wicked_storedir)%|@\1@|g"	\
-	-e "s|%(wicked_schemadir)%|@\1@|g"	\
-	-e "s|%(wicked_configdir)%|@\1@|g"	\
-	-e "s|%(wicked_supplicantdir)%|@\1@|g"	\
-	-e "s|%(wicked_extensionsdir)%|@\1@|g"	\
-	-e "s|%(PACKAGE_BUGREPORT)%|@\1@|g"
+	$(AM_V_GEN)sed -E -e 's|%([[:alnum:]_]+)%|@\1@|g'
 
 substitute_vars			= \
-	$(AM_V_GEN)sed		\
-	-e "s|[@]wicked_piddir[@]|$(wicked_piddir)|g"			\
-	-e "s|[@]wicked_sbindir[@]|$(wicked_sbindir)|g"			\
-	-e "s|[@]wicked_statedir[@]|$(wicked_statedir)|g"		\
-	-e "s|[@]wicked_storedir[@]|$(wicked_storedir)|g"		\
-	-e "s|[@]wicked_schemadir[@]|$(wicked_schemadir)|g"		\
-	-e "s|[@]wicked_configdir[@]|$(wicked_configdir)|g"		\
-	-e "s|[@]wicked_supplicantdir[@]|$(wicked_supplicantdir)|g"	\
-	-e "s|[@]wicked_extensionsdir[@]|$(wicked_extensionsdir)|g"	\
-	-e "s|[@]PACKAGE_BUGREPORT[@]|$(PACKAGE_BUGREPORT)|g"
+	$(AM_V_GEN)$(AWK) -f $(templatepp) --			\
+	-V wicked_piddir='$(wicked_piddir)'			\
+	-V wicked_sbindir='$(wicked_sbindir)'			\
+	-V wicked_statedir='$(wicked_statedir)'			\
+	-V wicked_storedir='$(wicked_storedir)'			\
+	-V wicked_schemadir='$(wicked_schemadir)'		\
+	-V wicked_configdir='$(wicked_configdir)'		\
+	-V wicked_supplicantdir='$(wicked_supplicantdir)'	\
+	-V wicked_extensionsdir='$(wicked_extensionsdir)'	\
+	-V PACKAGE_BUGREPORT='$(PACKAGE_BUGREPORT)'
 
 %: %.in $(top_builddir)/config.status
 	@if $(AM_V_P); then echo "substituting variables: $< > $@" ; fi
 	@rm -f $@ $@.tmp
-	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+	@$(substitute_vars) -i $< -o $@.tmp && mv $@.tmp $@
 
 if pandoc
 # Strip the pandoc version from the generated template so regenerating
