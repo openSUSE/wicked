@@ -49,8 +49,8 @@ scripts/ifup: scripts/ifup.in $(top_builddir)/config.status
 	@rm -f $@ $@.tmp
 	@$(substitute_vars) -i $< -o $@.tmp && mv $@.tmp $@
 
-install-data-local:
-	-chmod 0600 "$(DESTDIR)$(suse_configdir)/ifcfg-lo"
+install-data-hook:
+	chmod 0600 "$(DESTDIR)$(suse_configdir)/ifcfg-lo"
 
 check-local:
 	@for i in $(suse_sbin_SCRIPTS) ; \
