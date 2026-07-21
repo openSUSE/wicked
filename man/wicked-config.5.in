@@ -115,6 +115,23 @@ The directory name is resolved relative to the configuration directory
 .IP
 The boolean \fBoptional\fP attribute permits to silently ignore a
 missing file or directory if set to \fBtrue\fP (default \fBfalse\fP).
+.IP
+Custom config include example, \fB@system_configdir@/local.xml\fP:
+.IP
+.nf
+.B "  <config>
+.B "    <addrconf>
+.B "      <dhcp4>
+.B "        <create-cid>rfc2132</create-cid>
+.B "      </dhcp4>
+.B "      <dhcp6>
+.B "        <default-duid per-device=\(dqtrue\(dq/>
+.B "      </dhcp6>
+.B "    </addrconf>
+.B "    <include name=\(dqcustom-dhcp-options.xml\(dq optional=\(dqtrue\(dq/>
+.B "    <include dir=\(dqlocal\(dq optional=\(dqtrue\(dq/>
+.B "  </config>
+.fi
 .\" --------------------------------------------------------
 .SS Common pathnames
 .TP
@@ -1009,6 +1026,8 @@ to enable/disable the execution of the firmware-discovery scripts.
 .BR wicked-firmware (8),
 .BR netconfig (8),
 .BR RFC3942
+.PP
+wicked FAQ: \fBhttps://github.com/openSUSE/wicked/wiki/FAQ\fR
 .SH COPYRIGHT
 Copyright (C) 2014-2023 SUSE LLC
 .SH BUGS
