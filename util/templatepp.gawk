@@ -21,6 +21,7 @@ function usage(out) {
 
 # fail with a usage error (exit code 2)
 function fail(msg) {
+	depth = 0
 	printf "templatepp.gawk: %s\n", msg > "/dev/stderr"
 	usage("/dev/stderr")
 	exit 2
@@ -28,6 +29,7 @@ function fail(msg) {
 
 # fail with a runtime error (exit code 1)
 function die(msg) {
+	depth = 0
 	printf "templatepp.gawk: %s\n", msg > "/dev/stderr"
 	exit 1
 }
@@ -155,15 +157,17 @@ BEGIN {
 
 # #else -- invert the current block unless a parent is suppressing it
 /^[ \t]*#else([ \t]|$)/ {
-	if (depth > 0)
-		skip[depth] = skip[depth - 1] ? 1 : !skip[depth]
+	if (depth == 0)
+		die(FILENAME ":" FNR ": unmatched #else")
+	skip[depth] = skip[depth - 1] ? 1 : !skip[depth]
 	next
 }
 
 # #endif -- leave the current conditional block
 /^[ \t]*#endif([ \t]|$)/ {
-	if (depth > 0)
-		depth--
+	if (depth == 0)
+		die(FILENAME ":" FNR ": unmatched #endif")
+	depth--
 	next
 }
 
@@ -171,4 +175,9 @@ BEGIN {
 {
 	if (!skip[depth])
 		emit(expand($0))
+}
+
+END {
+	if (depth > 0)
+		die(FILENAME ":" FNR ": unclosed #if block at end of file")
 }
