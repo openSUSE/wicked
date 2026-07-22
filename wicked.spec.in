@@ -40,6 +40,7 @@ BuildRequires:  autoconf
 BuildRequires:  automake
 BuildRequires:  libtool
 BuildRequires:  make
+BuildRequires:  gawk
 %if %{with wicked_devel}
 # libwicked-%%{version}.so shlib package compatible match for wicked-devel
 Provides:       libwicked@LIBWICKED_PACKAGE_SUFFIX@ = %{version}-%{release}

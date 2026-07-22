@@ -213,6 +213,7 @@ AS_CASE([${with_scriptsdir}],
 )
 AC_SUBST(system_scriptsdir, "$system_scriptsdir")
 AC_SUBST(compat_scriptsdir, "$compat_scriptsdir")
+AM_CONDITIONAL([system_scripts],	[test "X$system_scriptsdir" != "X"])
 
 # Handle wicked (dist) vs system (user) vs compat (lib[exec]) extension scripts
 AC_ARG_WITH([extensionsdir], [AS_HELP_STRING([--with-extensionsdir@<:@=DIR@:>@],
@@ -304,6 +305,7 @@ AC_LANG([C])
 AC_PROG_CC
 AC_PROG_CPP
 AC_PROG_AWK
+AS_CASE([${AWK}], [*gawk*], [], [AC_MSG_ERROR([gawk features required])])
 AC_PATH_PROG(INSTALL, install)
 AC_PROG_LN_S
 AC_PROG_MAKE_SET

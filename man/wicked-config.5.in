@@ -35,6 +35,19 @@ which includes \fBcommon.xml\fP and specific custom \fBserver-local.xml\fP
 load the \fBcommon.xml\fP file directly.
 
 .PP
+#if system_config
+Wicked searches these configuration files and their includes first in the
+system configuration directory \fB@system_configdir@\fP, intended for
+locally provided files, and then in the distribution configuration
+directory \fB@wicked_configdir@\fP. A file found in the system directory
+takes precedence over a file with the same name in the distribution
+directory.
+#else
+Wicked reads these configuration files and their includes from the
+configuration directory \fB@wicked_configdir@\fP.
+#endif
+
+.PP
 The following table shows which \fBwicked\fP components use which configuration file:
 .PP
 .TS
@@ -71,6 +84,54 @@ Note that the contents of the file will not be \(dqincluded\(dq in the
 way you would expect this from e.g. a macro preprocessor. Instead, the
 referenced file must be a proper XML document, and its top node must also
 be a \fBconfig\fP element.
+.IP
+The file or directory to include is selected with one of the following
+attributes:
+.RS
+.TP
+.B name
+Includes a single file.
+#if system_config
+The file name is looked up in the configuration search path, that is the
+system directory \fB@system_configdir@\fP first and then the distribution
+directory \fB@wicked_configdir@\fP.
+#else
+The file name is looked up in the configuration directory
+\fB@wicked_configdir@\fP.
+#endif
+.TP
+.B dir
+Includes all \fB*.xml\fP files found in the given directory, in
+alphabetical order.
+#if system_config
+The directory name is resolved in the configuration search path and the
+contents of all matching directories are merged; a file name found in the
+system directory masks the same file name in the distribution directory.
+#else
+The directory name is resolved relative to the configuration directory
+\fB@wicked_configdir@\fP.
+#endif
+.RE
+.IP
+The boolean \fBoptional\fP attribute permits to silently ignore a
+missing file or directory if set to \fBtrue\fP (default \fBfalse\fP).
+.IP
+Custom config include example, \fB@system_configdir@/local.xml\fP:
+.IP
+.nf
+.B "  <config>
+.B "    <addrconf>
+.B "      <dhcp4>
+.B "        <create-cid>rfc2132</create-cid>
+.B "      </dhcp4>
+.B "      <dhcp6>
+.B "        <default-duid per-device=\(dqtrue\(dq/>
+.B "      </dhcp6>
+.B "    </addrconf>
+.B "    <include name=\(dqcustom-dhcp-options.xml\(dq optional=\(dqtrue\(dq/>
+.B "    <include dir=\(dqlocal\(dq optional=\(dqtrue\(dq/>
+.B "  </config>
+.fi
 .\" --------------------------------------------------------
 .SS Common pathnames
 .TP
@@ -185,7 +246,7 @@ wicked	Load interface description using native wicked XML
 The \fBfirmware\fP type takes no additional \fIstring\fP parameter.
 When specifying either \fBwicked\fP, you can optionally specify a
 directory where to look for XML interface configurations. If no
-directory is given, the path defaults to \fB@wicked_configdir@/ifconfig\fP.
+directory is given, the path defaults to \fB@system_configdir@/ifconfig\fP.
 When specifying either \fBcompat\fP, you can optionally specify the
 ifcfg flavor, which can be either \fBsuse\fP or \fBredhat\fP. If no
 flavor is specified, the result is implementation dependent - but
@@ -465,7 +526,7 @@ Specify a space separated list of routing options to request from dhcp4 server.
 box;
 l|l|l
 lb|lb|lb.
-Name		Alias	Description
+Name	Alias	Description
 =
 classless	csr	RFC 3442 classless static route option 121
 ms-classless	mscsr	MS classless static route option code 249 (pre RFC 3442)
@@ -490,8 +551,6 @@ code range 224 to 254, see \fBRFC3942\fR (section 4), \fBRFC 2939\fR and
 \fBwww.iana.org/assignments/bootp-dhcp-parameters\fR to avoid conflicts with
 options that are or may be defined and implemented later.
 
-To request support for a specific standard option, issue a feature request
-at https://fate.suse.com/ or https://features.opensuse.org/ (hermes).
 See \fBCUSTOM DHCP OPTIONS\fR section for more details.
 
 .TP
@@ -713,8 +772,6 @@ The dhcp6 option codes are 16-bit (1..65534) integers.
 
 See \fBhttp://www.iana.org/assignments/dhcpv6-parameters\fR and \fBRFC7227\fR.
 
-To request support for a specific standard option, issue a feature request
-at https://fate.suse.com/ or https://features.opensuse.org/ (hermes).
 See \fBCUSTOM DHCP OPTIONS\fR section for more details.
 
 .TP
@@ -890,8 +947,18 @@ An example would look like this:
 .IP
 .nf
 .B "  <script name=\(dqinstall\(dq
-.B "          command=\(dq@wicked_extensionsdir@/hostname install\(dq/>
+.B "          command=\(dqhostname install\(dq/>
 .fi
+.IP
+The command is looked up in the extensions search path:
+#if system_extensions
+the system extensions directory \fB@system_extensionsdir@\fP, and then
+the distribution extensions directory \fB@wicked_extensionsdir@\fP.
+#else
+the extensions directory \fB@wicked_extensionsdir@\fP.
+#endif
+An absolute command path that points into this search path is migrated to
+a plain relative reference while the configuration is parsed.
 .IP
 When defining script extensions, it is possible to define additional environment
 variables that get passed to the script. This mechanism is explained in more
@@ -911,10 +978,10 @@ The configuration for the hostname updater might look like this:
 .PP
 .nf
 .B "  <system-updater name="hostname">
-.B "    <script name=\(dqbackup\(dq command=\(dq@wicked_extensionsdir@/hostname backup\(dq/>
-.B "    <script name=\(dqrestore\(dq command=\(dq@wicked_extensionsdir@/hostname restore\(dq/>
-.B "    <script name=\(dqinstall\(dq command=\(dq@wicked_extensionsdir@/hostname install\(dq/>
-.B "    <script name=\(dqinstall\(dq command=\(dq@wicked_extensionsdir@/hostname remove\(dq/>
+.B "    <script name=\(dqbackup\(dq command=\(dqhostname backup\(dq/>
+.B "    <script name=\(dqrestore\(dq command=\(dqhostname restore\(dq/>
+.B "    <script name=\(dqinstall\(dq command=\(dqhostname install\(dq/>
+.B "    <script name=\(dqinstall\(dq command=\(dqhostname remove\(dq/>
 .B "  </system-updater>
 .fi
 .PP
@@ -932,8 +999,8 @@ configuration from a firmware.
 .PP
 .nf
 .B "  <netif-firmware-discovery name="ibft">
-.B "    <script name="show-config"  command="@wicked_extensionsdir@/ibft" />
-.B "    <script name="list-ifnames" command="@wicked_extensionsdir@/ibft -l" />
+.B "    <script name="show-config"  command="ibft" />
+.B "    <script name="list-ifnames" command="ibft -l" />
 .B "  </netif-firmware-discovery>
 .fi
 .PP
@@ -959,6 +1026,8 @@ to enable/disable the execution of the firmware-discovery scripts.
 .BR wicked-firmware (8),
 .BR netconfig (8),
 .BR RFC3942
+.PP
+wicked FAQ: \fBhttps://github.com/openSUSE/wicked/wiki/FAQ\fR
 .SH COPYRIGHT
 Copyright (C) 2014-2023 SUSE LLC
 .SH BUGS

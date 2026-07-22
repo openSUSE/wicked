@@ -38,18 +38,19 @@ suse_sbindir					= $(wicked_sbindir)
 suse_sbin_SCRIPTS				= scripts/ifup
 
 
-substitute_vars					= \
-	$(AM_V_GEN)sed				\
-	-e "s|[@]wicked_sbindir[@]|$(wicked_sbindir)|g"
+templatepp			= $(top_srcdir)/util/templatepp.gawk
+substitute_vars			= \
+	$(AM_V_GEN)$(AWK) -f $(templatepp) --			\
+	-V wicked_sbindir='$(wicked_sbindir)'
 
 scripts/ifup: scripts/ifup.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@test -d $(@D) || $(MKDIR_P) $(@D)
 	@rm -f $@ $@.tmp
-	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+	@$(substitute_vars) -i $< -o $@.tmp && mv $@.tmp $@
 
-install-data-local:
-	-chmod 0600 "$(DESTDIR)$(suse_configdir)/ifcfg-lo"
+install-data-hook:
+	chmod 0600 "$(DESTDIR)$(suse_configdir)/ifcfg-lo"
 
 check-local:
 	@for i in $(suse_sbin_SCRIPTS) ; \

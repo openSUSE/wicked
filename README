@@ -148,7 +148,7 @@ project automatically.
 
 To build wicked from sources, try following commands:
 
-	zypper in git-core rpm-build gcc make pkg-config \
+	zypper in git-core rpm-build gcc make gawk pkg-config \
 		autoconf automake libtool systemd-devel \
 		libnl3-devel dbus-1-devel libgcrypt-devel \
 		pandoc

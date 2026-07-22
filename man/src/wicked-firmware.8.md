@@ -73,8 +73,8 @@ wicked firmware - manage netif-firmware-discovery extensions
     # wicked firmware extensions -F xml -E ibft
     <config>
       <netif-firmware-discovery name="ibft">
-        <script name="show-config" command="%wicked_extensionsdir%/ibft"/>
-        <script name="list-ifnames" command="%wicked_extensionsdir%/ibft -l"/>
+        <script name="show-config" command="ibft"/>
+        <script name="list-ifnames" command="ibft -l"/>
       </netif-firmware-discovery>
     </config>
     ```
@@ -82,7 +82,7 @@ wicked firmware - manage netif-firmware-discovery extensions
 `disable [options] <firmware name… |all>`
 :   Disables the specified firmware extension(s)
 
-    Creates an xml override in the `%wicked_configdir%/client-firmware.xml`
+    Creates an xml override in the `%system_configdir%/client-firmware.xml`
     file disabling the specified firmware extension(s) defined in the
     `%wicked_configdir%/client.xml` file or it's includes.
 
@@ -97,7 +97,7 @@ wicked firmware - manage netif-firmware-discovery extensions
 `enable [options] <firmware name… |all>`
 :   Enables the specified firmware extension(s)
 
-    Creates an xml override in the `%wicked_configdir%/client-firmware.xml`
+    Creates an xml override in the `%system_configdir%/client-firmware.xml`
     file enabling the specified firmware extension(s) defined in the
     `%wicked_configdir%/client.xml` file or it's includes.
 
@@ -115,7 +115,7 @@ wicked firmware - manage netif-firmware-discovery extensions
     Reverts the enabled/disabled status to it's default defined in the
     `%wicked_configdir%/client.xml` file or it's includes by removing
     the specified firmware extension override from the
-    `%wicked_configdir%/client-firmware.xml` config file.
+    `%system_configdir%/client-firmware.xml` config file.
 
     Options:
 
