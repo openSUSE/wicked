@@ -16,13 +16,14 @@ $(top_builddir)/schema/constants.xml:
 $(top_builddir)/util/schema2html: $(top_builddir)/src/libwicked.la
 	cd $(top_builddir)/util && $(MAKE) schema2html
 
-substitute_vars		=	\
-	$(AM_V_GEN)sed		\
-	-e "s|[@]schemadir[@]|$(top_builddir)/schema|g"
+templatepp		= $(top_srcdir)/util/templatepp.gawk
+substitute_vars		= \
+	$(AM_V_GEN)$(AWK) -f $(templatepp) --	\
+	-V schemadir='$(top_builddir)/schema'
 
 schema.xml: schema.xml.in
 	@rm -f $@ $@.tmp
-	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+	@$(substitute_vars) -i $< -o $@.tmp && mv $@.tmp $@
 
 wicked_doc_data	= \
 	WhyWicked.txt

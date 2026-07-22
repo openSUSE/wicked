@@ -25,18 +25,19 @@ BUILT_SOURCES			= \
 templates			= \
 	$(BUILT_SOURCES:=.sh)
 
+templatepp			= $(top_srcdir)/util/templatepp.gawk
 substitute_vars			= \
-	$(AM_V_GEN)sed							\
-	-e "s|[@]wicked_sbindir[@]|$(wicked_sbindir)|g"			\
-	-e "s|[@]wicked_statedir[@]|$(wicked_statedir)|g"		\
-	-e "s|[@]wicked_scriptsdir[@]|$(wicked_scriptsdir)|g"		\
-	-e "s|[@]compat_scriptsdir[@]|$(compat_scriptsdir)|g"		\
-	-e "s|[@]system_scriptsdir[@]|$(system_scriptsdir)|g"
+	$(AM_V_GEN)$(AWK) -f $(templatepp) --			\
+	-V wicked_sbindir='$(wicked_sbindir)'			\
+	-V wicked_statedir='$(wicked_statedir)'			\
+	-V wicked_scriptsdir='$(wicked_scriptsdir)'		\
+	-V compat_scriptsdir='$(compat_scriptsdir)'		\
+	-V system_scriptsdir='$(system_scriptsdir)'
 
 %: %.sh $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@rm -f $@ $@.tmp
-	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@ && chmod +x $@
+	@$(substitute_vars) -i $< -o $@.tmp && mv $@.tmp $@ && chmod +x $@
 
 check-local: $(wicked_extensions_SCRIPTS)
 	@for i in $(scripts) ; \

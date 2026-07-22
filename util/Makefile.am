@@ -1,6 +1,21 @@
 
 CLEANFILES			= *~
 MAINTAINERCLEANFILES		= Makefile.in
+EXTRA_DIST			= templatepp.gawk.1.md
+
+dist_noinst_SCRIPTS		= templatepp.gawk
+
+if pandoc
+noinst_DATA			= templatepp.gawk.1
+CLEANFILES			+= templatepp.gawk.1
+templatepp.gawk.1: templatepp.gawk.1.md templatepp.gawk
+	@rm -f $@ $@.tmp
+	$(AM_V_GEN)$(AWK) -f $(srcdir)/templatepp.gawk --		\
+		-V PACKAGE_BUGREPORT='$(PACKAGE_BUGREPORT)'		\
+		-i $< -o $@.tmp
+	$(AM_V_at)$(PANDOC) -s -f markdown -t man $@.tmp -o $@
+	@rm -f $@.tmp
+endif
 
 noinst_PROGRAMS			= mkconst schema2html
 

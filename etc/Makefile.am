@@ -85,52 +85,53 @@ templates			= \
 	$(systemv_init_files:=.in)	\
 	$(wicked_scripts_SCRIPTS:=.in)
 
+templatepp			= $(top_srcdir)/util/templatepp.gawk
 substitute_vars			= \
-	$(AM_V_GEN)sed						\
-	-e "s|[@]wicked_piddir[@]|$(wicked_piddir)|g"		\
-	-e "s|[@]wicked_sbindir[@]|$(wicked_sbindir)|g"		\
-	-e "s|[@]wicked_statedir[@]|$(wicked_statedir)|g"	\
-	-e "s|[@]wicked_storedir[@]|$(wicked_storedir)|g"	\
-	-e "s|[@]wicked_schemadir[@]|$(wicked_schemadir)|g"	\
-	-e "s|[@]wicked_configdir[@]|$(wicked_configdir)|g"	\
-	-e "s|[@]wicked_supplicantdir[@]|$(wicked_supplicantdir)|g"\
-	-e "s|[@]wicked_extensionsdir[@]|$(wicked_extensionsdir)|g"\
-	-e "s|[@]use_teamd[@]|$(use_teamd)|g"
+	$(AM_V_GEN)$(AWK) -f $(templatepp) --			\
+	-V wicked_piddir='$(wicked_piddir)'			\
+	-V wicked_sbindir='$(wicked_sbindir)'			\
+	-V wicked_statedir='$(wicked_statedir)'			\
+	-V wicked_storedir='$(wicked_storedir)'			\
+	-V wicked_schemadir='$(wicked_schemadir)'		\
+	-V wicked_configdir='$(wicked_configdir)'		\
+	-V wicked_supplicantdir='$(wicked_supplicantdir)'	\
+	-V wicked_extensionsdir='$(wicked_extensionsdir)'	\
+	-V use_teamd='$(use_teamd)'
 
 %.xml: %.xml.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@rm -f $@ $@.tmp
-	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+	@$(substitute_vars) -i $< -o $@.tmp && mv $@.tmp $@
 
 systemd/%.service: systemd/%.service.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@test -d $(@D) || $(MKDIR_P) $(@D)
 	@rm -f $@ $@.tmp
-	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+	@$(substitute_vars) -i $< -o $@.tmp && mv $@.tmp $@
 
 systemv/%.service: systemv/%.service.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@test -d $(@D) || $(MKDIR_P) $(@D)
 	@rm -f $@ $@.tmp
-	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+	@$(substitute_vars) -i $< -o $@.tmp && mv $@.tmp $@
 
 systemv/wickedd: systemv/wickedd.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@test -d $(@D) || $(MKDIR_P) $(@D)
 	@rm -f $@ $@.tmp
-	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+	@$(substitute_vars) -i $< -o $@.tmp && mv $@.tmp $@
 
 systemv/network: systemv/network.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@test -d $(@D) || $(MKDIR_P) $(@D)
 	@rm -f $@ $@.tmp
-	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+	@$(substitute_vars) -i $< -o $@.tmp && mv $@.tmp $@
 
 scripts/%: scripts/%.in $(top_builddir)/config.status
 	@echo "substituting variables in $< > $@"
 	@test -d $(@D) || $(MKDIR_P) $(@D)
 	@rm -f $@ $@.tmp
-	@$(substitute_vars) < $< > $@.tmp && mv $@.tmp $@
+	@$(substitute_vars) -i $< -o $@.tmp && mv $@.tmp $@
 
 check-local:
 	@for i in $(systemv_init_SCRIPTS) $(wicked_scripts_SCRIPTS) ; \

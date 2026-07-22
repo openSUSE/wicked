@@ -362,7 +362,13 @@ See also man \fBsystemd.unit(5)\fR.
 - \fIwicked:<script>\fR scheme:
 .in +4n
 Permits to specify a script or script directory either as an absolute
-path or relative to the @wicked_configdir@/scripts directory, e.g.:
+path or relative to the
+#if system_scripts
+system (\fB@system_scriptsdir@\fP) and then distribution
+(\fB@wicked_scriptsdir@\fP) search path, e.g.:
+#else
+system (\fB@wicked_scriptsdir@\fP) script path, e.g.:
+#endif
 
 .br
 	POST_UP_SCRIPT="wicked:post-up"
