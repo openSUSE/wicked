@@ -1474,7 +1474,6 @@ do_check(int argc, char **argv)
 	if (ni_string_eq(opt_cmd, "resolve") || ni_string_eq(opt_cmd, "route")) {
 		ni_sockaddr_t *address;
 		unsigned int i, nreqs;
-		int failed = 0;
 
 		nreqs = argc - optind;
 		if (nreqs == 0)
@@ -1492,7 +1491,6 @@ do_check(int argc, char **argv)
 			ni_sockaddr_t *addr = &address[i];
 
 			if (addr->ss_family == AF_UNSPEC) {
-				failed++;
 				if (opt_dbus_error_file) {
 					write_dbus_error(opt_dbus_error_file,
 							NI_DBUS_ERROR_UNRESOLVABLE_HOSTNAME,
@@ -1526,7 +1524,6 @@ do_check(int argc, char **argv)
 
 				default:
 					ni_error("%s %s not reached", hostname, ni_sockaddr_print(addr));
-					failed++;
 				}
 
 				continue;
