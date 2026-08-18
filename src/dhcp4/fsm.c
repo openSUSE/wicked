@@ -465,6 +465,22 @@ ni_dhcp4_fsm_set_lease_expire_timeout(ni_dhcp4_device_t *dev)
 	return TRUE;
 }
 
+/*
+ * Remove an expired lease from the interface without an error
+ * and restart the fsm to acquire a replacement.
+ */
+static void
+ni_dhcp4_fsm_drop_expired_lease(ni_dhcp4_device_t *dev)
+{
+	if (!dev->lease)
+		return;
+
+	ni_debug_dhcp("%s: dropping expired lease in state %s",
+			dev->ifname, ni_dhcp4_fsm_state_name(dev->fsm.state));
+
+	ni_dhcp4_fsm_commit_lease(dev, NULL);
+}
+
 unsigned int
 ni_dhcp4_fsm_start_delay(unsigned int start_delay)
 {
@@ -1002,17 +1018,9 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		break;
 
 	case NI_DHCP4_STATE_DOWN:
-		/* lease expired while the link is down, remove lease from the
-		 * interface and wait until [nanny] (re-)acquire request .. */
-		if (!dev->lease)
-			break;
-
-		ni_debug_dhcp("%s: dropping expired lease in state %s",
-				dev->ifname,
-				ni_dhcp4_fsm_state_name(dev->fsm.state));
-
-		ni_dhcp4_device_drop_lease(dev);
-		ni_dhcp4_send_event(NI_DHCP4_EVENT_LOST, dev, NULL);
+		/* the lease expired while the link is down, remove it from
+		 * the interface and restart to acquire a new one .. */
+		ni_dhcp4_fsm_drop_expired_lease(dev);
 		break;
 
 	case __NI_DHCP4_STATE_MAX:
@@ -1102,7 +1110,8 @@ ni_dhcp4_fsm_link_down(ni_dhcp4_device_t *dev)
 		ni_dhcp4_socket_close(dev);
 
 		dev->fsm.state = NI_DHCP4_STATE_DOWN;
-		ni_dhcp4_fsm_set_lease_expire_timeout(dev);
+		if (!ni_dhcp4_fsm_set_lease_expire_timeout(dev))
+			ni_dhcp4_fsm_drop_expired_lease(dev);
 		break;
 	case NI_DHCP4_STATE_DOWN:
 	case __NI_DHCP4_STATE_MAX:
