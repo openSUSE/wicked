@@ -447,6 +447,24 @@ ni_dhcp4_fsm_set_timeout_sec(ni_dhcp4_device_t *dev, unsigned int seconds)
 	ni_dhcp4_fsm_set_timeout_msec(dev, NI_TIMEOUT_FROM_SEC(seconds));
 }
 
+/*
+ * Arm the fsm timer to fire when the lease expires, e.g. while the
+ * link is down. Returns FALSE when the lease already expired.
+ */
+static ni_bool_t
+ni_dhcp4_fsm_set_lease_expire_timeout(ni_dhcp4_device_t *dev)
+{
+	unsigned int lft = ni_dhcp4_lease_lifetime(dev->lease, NULL);
+
+	if (lft == NI_LIFETIME_EXPIRED)
+		return FALSE;
+
+	if (lft != NI_LIFETIME_INFINITE)
+		ni_dhcp4_fsm_set_timeout_sec(dev, lft);
+
+	return TRUE;
+}
+
 unsigned int
 ni_dhcp4_fsm_start_delay(unsigned int start_delay)
 {
@@ -1059,8 +1077,6 @@ ni_dhcp4_fsm_link_up(ni_dhcp4_device_t *dev)
 void
 ni_dhcp4_fsm_link_down(ni_dhcp4_device_t *dev)
 {
-	unsigned int lft;
-
 	if (dev->config == NULL)
 		return;
 
@@ -1086,10 +1102,7 @@ ni_dhcp4_fsm_link_down(ni_dhcp4_device_t *dev)
 		ni_dhcp4_socket_close(dev);
 
 		dev->fsm.state = NI_DHCP4_STATE_DOWN;
-		lft = ni_dhcp4_lease_lifetime(dev->lease, NULL);
-		if (lft != NI_LIFETIME_EXPIRED ||
-		    lft != NI_LIFETIME_INFINITE)
-			ni_dhcp4_fsm_set_timeout_sec(dev, lft);
+		ni_dhcp4_fsm_set_lease_expire_timeout(dev);
 		break;
 	case NI_DHCP4_STATE_DOWN:
 	case __NI_DHCP4_STATE_MAX:
