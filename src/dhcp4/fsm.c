@@ -34,7 +34,7 @@ static int			ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *);
 static int			ni_dhcp4_process_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
 static int			ni_dhcp4_process_ack(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
 static int			ni_dhcp4_process_nak(ni_dhcp4_device_t *);
-static void			ni_dhcp4_fsm_fail_lease(ni_dhcp4_device_t *);
+static void			ni_dhcp4_fsm_drop_lease(ni_dhcp4_device_t *);
 static int			ni_dhcp4_fsm_validate_lease(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
 
 static void			ni_dhcp4_send_event(enum ni_dhcp4_event, ni_dhcp4_device_t *, ni_addrconf_lease_t *);
@@ -465,22 +465,6 @@ ni_dhcp4_fsm_set_lease_expire_timeout(ni_dhcp4_device_t *dev)
 	return TRUE;
 }
 
-/*
- * Remove an expired lease from the interface without an error
- * and restart the fsm to acquire a replacement.
- */
-static void
-ni_dhcp4_fsm_drop_expired_lease(ni_dhcp4_device_t *dev)
-{
-	if (!dev->lease)
-		return;
-
-	ni_debug_dhcp("%s: dropping expired lease in state %s",
-			dev->ifname, ni_dhcp4_fsm_state_name(dev->fsm.state));
-
-	ni_dhcp4_fsm_commit_lease(dev, NULL);
-}
-
 unsigned int
 ni_dhcp4_fsm_start_delay(unsigned int start_delay)
 {
@@ -757,11 +741,8 @@ ni_dhcp4_fsm_reboot_dad_success(ni_dhcp4_device_t *dev)
 static void
 ni_dhcp4_fsm_reboot_dad_failure(ni_dhcp4_device_t *dev)
 {
-	if (dev->lease) {
-		ni_addrconf_lease_file_remove(dev->ifname,
-				dev->lease->type, dev->lease->family);
-		ni_dhcp4_fsm_fail_lease(dev);
-	}
+	if (dev->lease)
+		ni_dhcp4_fsm_drop_lease(dev);
 	ni_dhcp4_fsm_discover(dev);
 }
 
@@ -975,7 +956,7 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		if (ni_dhcp4_fsm_rebind(dev))
 			return;
 
-		ni_dhcp4_fsm_fail_lease(dev);
+		ni_dhcp4_fsm_drop_lease(dev);
 		ni_dhcp4_fsm_set_timeout_sec(dev, ni_dhcp4_fsm_start_delay(conf->start_delay));
 		break;
 
@@ -992,7 +973,7 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		ni_warn("%s: unable to init lease rebind; restarting to discover new",
 				dev->ifname);
 
-		ni_dhcp4_fsm_fail_lease(dev);
+		ni_dhcp4_fsm_drop_lease(dev);
 		ni_dhcp4_fsm_set_timeout_sec(dev, ni_dhcp4_fsm_start_delay(conf->start_delay));
 		break;
 
@@ -1000,7 +981,7 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		ni_warn("%s: unable to rebind lease; restarting to discover new",
 				dev->ifname);
 
-		ni_dhcp4_fsm_fail_lease(dev);
+		ni_dhcp4_fsm_drop_lease(dev);
 		ni_dhcp4_fsm_set_timeout_sec(dev, ni_dhcp4_fsm_start_delay(conf->start_delay));
 		break;
 
@@ -1033,7 +1014,7 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 
 		/* the lease expired while the link is down, remove it from
 		 * the interface and restart to acquire a new one .. */
-		ni_dhcp4_fsm_drop_expired_lease(dev);
+		ni_dhcp4_fsm_drop_lease(dev);
 		break;
 
 	case __NI_DHCP4_STATE_MAX:
@@ -1128,7 +1109,7 @@ ni_dhcp4_fsm_link_down(ni_dhcp4_device_t *dev)
 
 		dev->fsm.state = NI_DHCP4_STATE_DOWN;
 		if (!ni_dhcp4_fsm_set_lease_expire_timeout(dev))
-			ni_dhcp4_fsm_drop_expired_lease(dev);
+			ni_dhcp4_fsm_drop_lease(dev);
 		break;
 	case NI_DHCP4_STATE_DOWN:
 	case __NI_DHCP4_STATE_MAX:
@@ -1506,7 +1487,7 @@ ni_dhcp4_recover_lease(ni_dhcp4_device_t *dev)
 		if (!ni_dhcp4_verify_lease(dev, lease)) {
 			ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
 
-			ni_dhcp4_fsm_fail_lease(dev);
+			ni_dhcp4_fsm_drop_lease(dev);
 			return -1;
 		}
 	} else {
@@ -1530,17 +1511,20 @@ ni_dhcp4_recover_lease(ni_dhcp4_device_t *dev)
 	return 0;
 }
 
+/*
+ * The lease is not usable any more (expired, nak'ed, arp conflict, ...),
+ * which is not a failure: remove it from the interface and restart the
+ * fsm to acquire a replacement.
+ */
 void
-ni_dhcp4_fsm_fail_lease(ni_dhcp4_device_t *dev)
+ni_dhcp4_fsm_drop_lease(ni_dhcp4_device_t *dev)
 {
-	ni_debug_dhcp("%s: failing lease in state %s", dev->ifname,
+	ni_debug_dhcp("%s: dropping lease in state %s", dev->ifname,
 			ni_dhcp4_fsm_state_name(dev->fsm.state));
 
-	ni_dhcp4_fsm_restart(dev);
+	ni_dhcp4_fsm_commit_lease(dev, NULL);	/* restarts the fsm */
 	ni_capture_free(dev->capture);
 	dev->capture = NULL;
-
-	ni_dhcp4_send_event(NI_DHCP4_EVENT_LOST, dev, NULL);
 }
 
 static ni_bool_t
