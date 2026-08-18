@@ -1018,6 +1018,19 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		break;
 
 	case NI_DHCP4_STATE_DOWN:
+		if (ni_dhcp4_device_link_is_up(dev)) {
+			/* the grace period for nanny to reissue an acquire
+			 * request elapsed, resume as we do from reboot .. */
+			if (!ni_dhcp4_fsm_reboot(dev))
+				ni_dhcp4_fsm_discover(dev);
+			break;
+		}
+
+		/* the link went down again within the grace period, wait
+		 * for the lease to expire meanwhile .. */
+		if (ni_dhcp4_fsm_set_lease_expire_timeout(dev))
+			break;
+
 		/* the lease expired while the link is down, remove it from
 		 * the interface and restart to acquire a new one .. */
 		ni_dhcp4_fsm_drop_expired_lease(dev);
@@ -1077,6 +1090,10 @@ ni_dhcp4_fsm_link_up(ni_dhcp4_device_t *dev)
 	case NI_DHCP4_STATE_REBINDING:
 		break;
 	case NI_DHCP4_STATE_DOWN:
+		/* grant nanny a grace period to reissue its acquire request
+		 * before we resume the fsm in ni_dhcp4_fsm_timeout() .. */
+		ni_dhcp4_fsm_set_timeout_sec(dev, NI_DHCP4_DOWN_GRACE_TIMEOUT);
+		break;
 	case __NI_DHCP4_STATE_MAX:
 		break;
 	}

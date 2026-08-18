@@ -149,7 +149,7 @@ ni_dhcp4_device_netdev(const ni_dhcp4_device_t *dev)
 	return ifp;
 }
 
-static ni_bool_t
+ni_bool_t
 ni_dhcp4_device_link_is_up(const ni_dhcp4_device_t *dev)
 {
 	const ni_netdev_t *ifp;
