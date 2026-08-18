@@ -1179,30 +1179,24 @@ ni_dhcp4_process_ack(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 		}
 		if (lease->dhcp4.renewal_time > lease->dhcp4.rebind_time) {
 			lft = (unsigned long long)lease->dhcp4.rebind_time * 8 / 14;
-			ni_debug_dhcp("%s: adjusting renewal time (T1) %u greater"
-					" than rebind time (T2) %u to %u",
-					dev->ifname, lease->dhcp4.renewal_time,
-					lease->dhcp4.rebind_time, lft);
+			ni_debug_dhcp("%s: adjusting renewal time (T1) from %u to %u",
+					dev->ifname, lease->dhcp4.renewal_time, lft);
 			lease->dhcp4.renewal_time = lft;
 		}
 	} else {
 		if (!lease->dhcp4.rebind_time ||
 		     lease->dhcp4.rebind_time > lease->dhcp4.lease_time) {
 			lft = (unsigned long long)lease->dhcp4.lease_time * 7 / 8;
-			ni_debug_dhcp("%s: adjusting rebind time (T2) %u greater"
-					" than lease time %u to %u",
-					dev->ifname, lease->dhcp4.renewal_time,
-					lease->dhcp4.rebind_time, lft);
+			ni_debug_dhcp("%s: adjusting rebind time (T2) from %u to %u",
+					dev->ifname, lease->dhcp4.rebind_time, lft);
 			lease->dhcp4.rebind_time = lft;
 		}
 
 		if (!lease->dhcp4.renewal_time ||
 		     lease->dhcp4.renewal_time > lease->dhcp4.rebind_time) {
 			lft = (unsigned long long)lease->dhcp4.rebind_time * 8 / 14;
-			ni_debug_dhcp("%s: adjusting renewal time (T1) %u greater"
-					" than rebind time (T2) %u to %u",
-					dev->ifname, lease->dhcp4.renewal_time,
-					lease->dhcp4.rebind_time, lft);
+			ni_debug_dhcp("%s: adjusting renewal time (T1) from %u to %u",
+					dev->ifname, lease->dhcp4.renewal_time, lft);
 			lease->dhcp4.renewal_time = lft;
 		}
 	}
