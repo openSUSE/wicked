@@ -634,6 +634,14 @@ ni_dhcp4_device_event(ni_dhcp4_device_t *dev, ni_netdev_t *ifp, ni_event_t event
 		ni_dhcp4_device_refresh(dev);
 		break;
 
+	case NI_EVENT_DEVICE_DOWN:
+		/* someone set the device down behind our back, that is
+		 * without an ifdown dropping the lease before .. */
+		ni_debug_dhcp("%s: device went down in state %s", dev->ifname,
+				ni_dhcp4_fsm_state_name(dev->fsm.state));
+		ni_dhcp4_fsm_link_down(dev);
+		break;
+
 	case NI_EVENT_LINK_DOWN:
 		ni_debug_dhcp("%s: link went down in state %s", dev->ifname,
 				ni_dhcp4_fsm_state_name(dev->fsm.state));
