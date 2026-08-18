@@ -1701,8 +1701,7 @@ ni_dhcp4_process_nak(ni_dhcp4_device_t *dev)
 	case NI_DHCP4_STATE_RENEWING:
 	case NI_DHCP4_STATE_REBINDING:
 	case NI_DHCP4_STATE_REBOOT:
-		/* FIXME: how do we handle a NAK response to an INFORM? */
-		ni_dhcp4_device_drop_lease(dev);
+		ni_dhcp4_fsm_drop_lease(dev);
 		break;
 	case NI_DHCP4_STATE_DOWN:
 	case __NI_DHCP4_STATE_MAX:
