@@ -501,6 +501,7 @@ extern void		ni_hashctx_puts(ni_hashctx_t *, const char *);
 extern ni_bool_t	ni_check_domain_name(const char *, size_t, int);
 extern ni_bool_t	ni_check_pathname(const char *, size_t);
 extern ni_bool_t	ni_check_printable(const char *, size_t);
+extern ni_bool_t	ni_check_string_characters(const char *, size_t, int (*)(int));
 extern const char *	ni_print_suspect(const char *, size_t);
 
 #endif /* __WICKED_UTIL_H__ */

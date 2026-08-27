@@ -18,6 +18,7 @@
  *
  *	Authors:
  *		Clemens Famulla-Conrad
+ *		Marius Tomaschewski
  */
 
 #ifndef NI_WICKED_ARRAY_PRIV_H
@@ -64,7 +65,7 @@
 		if ((UINT_MAX - arr->count) <= chunk_size)				\
 			return FALSE;							\
 											\
-		newcount = arr->count + chunk_size;					\
+		newcount = arr->count + chunk_size + 1;					\
 		if (SIZE_MAX / entsize < newcount)					\
 			return FALSE;							\
 											\
@@ -128,7 +129,7 @@
 	}
 
 #define			ni_define_ptr_array_remove_at(prefix)				\
-	prefix##_t*									\
+	prefix##_t *									\
 	prefix##_array_remove_at(prefix##_array_t *arr, unsigned int idx)		\
 	{										\
 		prefix##_t *ent;							\
@@ -149,7 +150,7 @@
 
 #define			ni_define_ptr_array_at(prefix)					\
 	prefix##_t *									\
-	prefix##_array_at(prefix##_array_t *arr, unsigned int idx)			\
+	prefix##_array_at(const prefix##_array_t *arr, unsigned int idx)		\
 	{										\
 		if (!arr || idx >= arr->count)						\
 			return NULL;							\
@@ -159,7 +160,7 @@
 
 #define			ni_define_ptr_array_index(prefix)				\
 	unsigned int									\
-	prefix##_array_index(prefix##_array_t *arr, const prefix##_t *needle)		\
+	prefix##_array_index(const prefix##_array_t *arr, const prefix##_t *needle)	\
 	{										\
 		unsigned int i;								\
 											\
@@ -171,6 +172,20 @@
 				return i;						\
 		}									\
 		return -1U;								\
+	}
+
+#define			ni_define_ptr_array_delete(prefix)				\
+	ni_bool_t									\
+	prefix##_array_delete(prefix##_array_t *arr, const prefix##_t *ent)		\
+	{										\
+		return prefix##_array_delete_at(arr, prefix##_array_index(arr, ent));	\
+	}
+
+#define			ni_define_ptr_array_remove(prefix)				\
+	prefix##_t *									\
+	prefix##_array_remove(prefix##_array_t *arr, const prefix##_t *ent)		\
+	{										\
+		return prefix##_array_remove_at(arr, prefix##_array_index(arr, ent));	\
 	}
 
 #define			ni_define_ptr_array_qsort_cmp_fn(prefix)			\
@@ -190,6 +205,47 @@
 	{										\
 		qsort_r(arr->data, arr->count, sizeof(arr->data[0]),			\
 				prefix##_array_qsort_cmp_fn, cmpfn);			\
+	}
+
+/*
+ * Utilities for reference counted entries
+ */
+#define			ni_define_ptr_array_append_ref(prefix)				\
+	ni_bool_t									\
+	prefix##_array_append_ref(prefix##_array_t *arr, prefix##_t *ent)		\
+	{										\
+		prefix##_t *ref = prefix##_ref(ent);					\
+											\
+		if (!ref || !prefix##_array_realloc(arr)) {				\
+			prefix##_free(ref);						\
+			return FALSE;							\
+		}									\
+											\
+		arr->data[arr->count++] = ref;						\
+		return TRUE;								\
+	}
+
+#define			ni_define_ptr_array_insert_ref(prefix)				\
+	ni_bool_t									\
+	prefix##_array_insert_ref(prefix##_array_t *arr, unsigned int pos,		\
+			prefix##_t *ent)						\
+	{										\
+		prefix##_t *ref = prefix##_ref(ent);					\
+											\
+		if (!ref || !prefix##_array_realloc(arr)) {				\
+			prefix##_free(ref);						\
+			return FALSE;							\
+		}									\
+											\
+		if (pos >= arr->count) {						\
+			arr->data[arr->count++] = ref;					\
+		} else {								\
+			memmove(&arr->data[pos + 1], &arr->data[pos],			\
+					(arr->count - pos) * sizeof(ent));		\
+			arr->data[pos] = ref;						\
+			arr->count++;							\
+		}									\
+		return TRUE;								\
 	}
 
 #endif /* NI_WICKED_ARRAY_PRIV_H */

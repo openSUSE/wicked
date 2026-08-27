@@ -21,6 +21,7 @@ wicked_include_HEADERS		= \
 	wicked/infiniband.h	\
 	wicked/ipv4.h		\
 	wicked/ipv6.h		\
+	wicked/ipvlan.h		\
 	wicked/leaseinfo.h	\
 	wicked/linkstats.h	\
 	wicked/lldp.h		\

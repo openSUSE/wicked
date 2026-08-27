@@ -3832,6 +3832,21 @@ ni_check_printable(const char *str, size_t len)
 	return TRUE;
 }
 
+ni_bool_t
+ni_check_string_characters(const char *str, size_t len, int (*valid)(int))
+{
+	const unsigned char *ptr = (const unsigned char *)str;
+
+	if (!str || len == 0)
+		return FALSE;
+
+	for ( ; *ptr && len-- > 0; ++ptr) {
+		if (!valid(*ptr))
+			return FALSE;
+	}
+	return TRUE;
+}
+
 const char *
 ni_print_suspect(const char *str, size_t len)
 {

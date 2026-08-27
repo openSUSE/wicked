@@ -773,10 +773,9 @@ __ni_objectmodel_set_route_list(ni_route_table_t **list, unsigned int family,
 		}
 
 		route->family = family;
-		if (!ni_objectmodel_route_from_dict(route, dict))
-			ni_route_free(route);
-		else if (!ni_route_tables_add_route(list, route))
-			ni_route_free(route);
+		if (ni_objectmodel_route_from_dict(route, dict))
+			ni_route_tables_add_route(list, route);
+		ni_route_free(route);
 	}
 	return TRUE;
 }
@@ -811,11 +810,9 @@ __ni_objectmodel_set_rule_list(ni_rule_array_t **rules, unsigned int family,
 		}
 
 		rule->family = family;
-		if (!ni_objectmodel_rule_from_dict(rule, dict))
-			ni_rule_free(rule);
-		else
-		if (!ni_rule_array_append(*rules, rule))
-			ni_rule_free(rule);
+		if (ni_objectmodel_rule_from_dict(rule, dict))
+			ni_rule_array_append_ref(*rules, rule);
+		ni_rule_free(rule);
 	}
 	return TRUE;
 }
@@ -894,10 +891,9 @@ __ni_objectmodel_set_route_dict(ni_route_table_t **list, unsigned int family,
 		}
 
 		route->family = family;
-		if (!ni_objectmodel_route_from_dict(route, var))
-			ni_route_free(route);
-		else if (!ni_route_tables_add_route(list, route))
-			ni_route_free(route);
+		if (ni_objectmodel_route_from_dict(route, var))
+			ni_route_tables_add_route(list, route);
+		ni_route_free(route);
 	}
 	return TRUE;
 }
@@ -963,11 +959,9 @@ __ni_objectmodel_set_rule_dict(ni_rule_array_t **rules, unsigned int family,
 			return FALSE;
 
 		rule->family = family;
-		if (!ni_objectmodel_rule_from_dict(rule, var))
-			ni_rule_free(rule);
-		else
-		if (!ni_rule_array_append(*rules, rule))
-			ni_rule_free(rule);
+		if (ni_objectmodel_rule_from_dict(rule, var))
+			ni_rule_array_append_ref(*rules, rule);
+		ni_rule_free(rule);
 	}
 	return TRUE;
 }

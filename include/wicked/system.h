@@ -46,6 +46,11 @@ extern int		ni_system_macvlan_create(ni_netconfig_t *,
 extern int		ni_system_macvlan_change(ni_netconfig_t *, ni_netdev_t *,
 				const ni_netdev_t *);
 extern int		ni_system_macvlan_delete(ni_netdev_t *);
+extern int		ni_system_ipvlan_create(ni_netconfig_t *,
+				const ni_netdev_t *, ni_netdev_t **);
+extern int		ni_system_ipvlan_change(ni_netconfig_t *, ni_netdev_t *,
+				const ni_netdev_t *);
+extern int		ni_system_ipvlan_delete(ni_netdev_t *);
 extern int		ni_system_dummy_create(ni_netconfig_t *,
 				const ni_netdev_t *, ni_netdev_t **);
 extern int		ni_system_dummy_change(ni_netconfig_t *, ni_netdev_t *,

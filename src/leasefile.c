@@ -904,11 +904,13 @@ ni_addrconf_lease_routes_data_from_xml(ni_addrconf_lease_t *lease, const xml_nod
 			rp->destination.ss_family = lease->family;
 			if (__ni_addrconf_lease_route_from_xml(rp, child) != 0) {
 				ni_route_free(rp);
-			} else
+				continue;
+			}
 			if (!ni_route_tables_add_route(&lease->routes, rp)) {
 				ni_route_free(rp);
 				return -1;
 			}
+			ni_route_free(rp);
 		}
 	}
 	return 0;

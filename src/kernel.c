@@ -644,9 +644,11 @@ static const char *	ni_rtnl_msg_type_names[RTM_MAX] = {
 const char *
 ni_rtnl_msg_type_to_name(unsigned int type, const char *unknown)
 {
-	if (type > RTM_BASE && type < RTM_MAX)
-		return ni_rtnl_msg_type_names[type];
-	else
-		return unknown;
+	const char *name = NULL;
+
+	if (type >= RTM_BASE && type < RTM_MAX)
+		name = ni_rtnl_msg_type_names[type];
+
+	return name ?: unknown;
 }
 

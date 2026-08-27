@@ -41,6 +41,7 @@
 #include <wicked/vlan.h>
 #include <wicked/vxlan.h>
 #include <wicked/macvlan.h>
+#include <wicked/ipvlan.h>
 #include <wicked/tuntap.h>
 #include <wicked/tunneling.h>
 #include <wicked/wireless.h>
@@ -1338,6 +1339,29 @@ __ni_compat_generate_macvlan(xml_node_t *ifnode, const ni_compat_netdev_t *compa
 		ni_string_array_destroy(&names);
 	}
 
+	return TRUE;
+}
+
+static ni_bool_t
+ni_compat_generate_ipvlan(xml_node_t *ifnode, const ni_compat_netdev_t *compat)
+{
+	ni_ipvlan_t *ipvlan;
+	xml_node_t *child;
+	ni_stringbuf_t buf = NI_STRINGBUF_INIT_DYNAMIC;
+
+	ipvlan = ni_netdev_get_ipvlan(compat->dev);
+
+	/* this can be ipvlan **or** ipvtap */
+	child = xml_node_create(ifnode, ni_linktype_type_to_name(compat->dev->link.type));
+
+	xml_node_new_element("device", child, compat->dev->link.lowerdev.name);
+	xml_node_new_element("mode", child, ni_ipvlan_mode_to_name(ipvlan->mode));
+
+	if (ni_ipvlan_format_flags(ipvlan->flags, &buf)) {
+		xml_node_new_element("flags", child, buf.string);
+	}
+
+	ni_stringbuf_destroy(&buf);
 	return TRUE;
 }
 
@@ -2925,6 +2949,11 @@ ni_compat_generate_ifnode_content(xml_node_t *ifnode, const ni_compat_netdev_t *
 	case NI_IFTYPE_MACVLAN:
 	case NI_IFTYPE_MACVTAP:
 		__ni_compat_generate_macvlan(ifnode, compat);
+		break;
+
+	case NI_IFTYPE_IPVLAN:
+	case NI_IFTYPE_IPVTAP:
+		ni_compat_generate_ipvlan(ifnode, compat);
 		break;
 
 	case NI_IFTYPE_DUMMY:

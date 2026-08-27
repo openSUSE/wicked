@@ -75,6 +75,7 @@ libwicked_la_SOURCES		= \
 	infiniband.c		\
 	ipv4.c			\
 	ipv6.c			\
+	ipvlan.c		\
 	json.c			\
 	kernel.c		\
 	leasefile.c		\
@@ -135,6 +136,7 @@ libwicked_dbus_objects_la_SOURCES	= \
 	dbus-objects/interface.c\
 	dbus-objects/ipv4.c	\
 	dbus-objects/ipv6.c	\
+	dbus-objects/ipvlan.c	\
 	dbus-objects/lldp.c	\
 	dbus-objects/macvlan.c	\
 	dbus-objects/dummy.c	\

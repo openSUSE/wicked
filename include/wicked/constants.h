@@ -75,6 +75,8 @@ typedef enum ni_iftype {
 	NI_IFTYPE_OVS_BRIDGE,
 	NI_IFTYPE_OVS_UNSPEC,
 	NI_IFTYPE_VXLAN,
+	NI_IFTYPE_IPVLAN,
+	NI_IFTYPE_IPVTAP,
 
 	__NI_IFTYPE_MAX
 } ni_iftype_t;

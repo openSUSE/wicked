@@ -466,11 +466,17 @@ __ni_redhat_addrconf_static(ni_sysconfig_t *sc, ni_compat_netdev_t *compat, cons
 
 	if ((value = ni_sysconfig_get_value(sc, "GATEWAY")) != NULL) {
 		ni_sockaddr_t gateway;
+		ni_route_t *rp;
 
 		if (ni_sockaddr_parse(&gateway, value, AF_INET) < 0)
 			return FALSE;
-		if (ni_route_create(0, NULL, &gateway, 0, &dev->routes) == NULL)
+
+		rp = ni_route_create(0, NULL, &gateway, 0);
+		if (!ni_route_tables_add_route(&dev->routes, rp)) {
+			ni_route_free(rp);
 			return FALSE;
+		}
+		ni_route_free(rp);
 	}
 
 	return TRUE;

@@ -661,7 +661,7 @@ ni_netconfig_route_add(ni_netconfig_t *nc, ni_route_t *rp, ni_netdev_t *dev)
 			ret = -1;
 		} else
 		if (!ni_route_tables_find_match(dev->routes, rp, ni_route_equal_ref) &&
-		    !ni_route_tables_add_route(&dev->routes, ni_route_ref(rp))) {
+		    !ni_route_tables_add_route(&dev->routes, rp)) {
 			ni_warn("Unable to record route for device %s[%u]: %s",
 				dev->name, dev->link.ifindex, ni_route_print(&buf, rp));
 			ni_stringbuf_destroy(&buf);
@@ -748,7 +748,7 @@ ni_netconfig_rule_add(ni_netconfig_t *nc, ni_rule_t *rule)
 		last = i + 1;
 	}
 
-	if (!ni_rule_array_insert(rules, last, ni_rule_ref(rule))) {
+	if (!ni_rule_array_insert_ref(rules, last, rule)) {
 		ni_error("%s: unable to insert routing policy rule", __func__);
 		return -1;
 	}

@@ -1469,8 +1469,9 @@ ni_dhcp4_decode_csr(ni_buffer_t *bp, ni_route_array_t *routes)
 		if (ni_dhcp4_option_get_sockaddr(bp, &gateway) < 0)
 			return -1;
 
-		rp = ni_route_create(prefix_len, &destination, &gateway, 0, NULL);
-		ni_route_array_append(routes, rp);
+		rp = ni_route_create(prefix_len, &destination, &gateway, 0);
+		ni_route_array_append_ref(routes, rp);
+		ni_route_free(rp);
 	}
 
 	if (bp->underflow)
@@ -1611,8 +1612,9 @@ ni_dhcp4_decode_static_routes(ni_buffer_t *bp, ni_route_array_t *routes)
 		rp = ni_route_create(guess_prefix_len_sockaddr(&destination),
 				&destination,
 				&gateway,
-				0, NULL);
-		ni_route_array_append(routes, rp);
+				0);
+		ni_route_array_append_ref(routes, rp);
+		ni_route_free(rp);
 	}
 
 	if (bp->underflow)
@@ -1644,8 +1646,9 @@ ni_dhcp4_decode_routers(ni_buffer_t *bp, ni_route_array_t *routes)
 		if (!ni_sockaddr_is_specified(&gateway))
 			continue;
 
-		if ((rp = ni_route_create(0, NULL, &gateway, 0, NULL)))
-			ni_route_array_append(routes, rp);
+		rp = ni_route_create(0, NULL, &gateway, 0);
+		ni_route_array_append_ref(routes, rp);
+		ni_route_free(rp);
 	}
 
 	if (bp->underflow)
@@ -1801,8 +1804,52 @@ ni_dhcp4_option_get_printable(ni_buffer_t *bp, char **var, const char *what)
 	if (ni_dhcp4_option_get_string(bp, &tmp, &len) < 0)
 		return -1;
 
-	if (!ni_check_printable(tmp, len)) {
+	if (!ni_dhcp_check_printable_string(tmp, len)) {
 		ni_warn("Discarded non-printable %s: '%s'", what,
+			ni_print_suspect(tmp, len));
+		free(tmp);
+		return -1;
+	}
+
+	if (*var)
+		free(*var);
+	*var = tmp;
+	return 0;
+}
+
+static int
+ni_dhcp4_option_get_tzdbname(ni_buffer_t *bp, char **var, const char *what)
+{
+	unsigned int len;
+	char *tmp = NULL;
+
+	if (ni_dhcp4_option_get_string(bp, &tmp, &len) < 0)
+		return -1;
+
+	if (!ni_dhcp_check_posix_tzdbname(tmp, len)) {
+		ni_warn("Discarded suspect %s: '%s'", what,
+			ni_print_suspect(tmp, len));
+		free(tmp);
+		return -1;
+	}
+
+	if (*var)
+		free(*var);
+	*var = tmp;
+	return 0;
+}
+
+static int
+ni_dhcp4_option_get_tzstring(ni_buffer_t *bp, char **var, const char *what)
+{
+	unsigned int len;
+	char *tmp = NULL;
+
+	if (ni_dhcp4_option_get_string(bp, &tmp, &len) < 0)
+		return -1;
+
+	if (!ni_dhcp_check_posix_tzstring(tmp, len)) {
+		ni_warn("Discarded suspect %s: '%s'", what,
 			ni_print_suspect(tmp, len));
 		free(tmp);
 		return -1;
@@ -1853,7 +1900,7 @@ ni_dhcp4_apply_routes(ni_addrconf_lease_t *lease, ni_route_array_t *routes)
 			continue;
 		if (ni_sockaddr_is_specified(&rp->nh.gateway))
 			continue;
-		ni_route_array_append(&temp, ni_route_ref(rp));
+		ni_route_array_append_ref(&temp, rp);
 	}
 
 	/* now the routes with a gateway - add a
@@ -1870,8 +1917,8 @@ ni_dhcp4_apply_routes(ni_addrconf_lease_t *lease, ni_route_array_t *routes)
 		for (ap = lease->addrs; !added && ap; ap = ap->next) {
 			if (!ni_address_can_reach(ap, &rp->nh.gateway))
 				continue;
-			ni_route_array_append(&temp, ni_route_ref(rp));
-			added = TRUE;
+			if (ni_route_array_append_ref(&temp, rp))
+				added = TRUE;
 		}
 		/* or there is a device route allowing to reach it */
 		for (j = 0; !added && j < temp.count; ++j) {
@@ -1884,16 +1931,20 @@ ni_dhcp4_apply_routes(ni_addrconf_lease_t *lease, ni_route_array_t *routes)
 						&r->destination,
 						&rp->nh.gateway))
 				continue;
-			ni_route_array_append(&temp, ni_route_ref(rp));
-			added = TRUE;
+			if (ni_route_array_append_ref(&temp, rp))
+				added = TRUE;
 		}
 
 		/* otherwise, automatically prepend a device route */
 		if (!added) {
-			unsigned int len = ni_af_address_length(rp->family);
-			r = ni_route_create(len * 8, &rp->nh.gateway, NULL, 0, NULL);
-			ni_route_array_append(&temp, r);
-			ni_route_array_append(&temp, ni_route_ref(rp));
+			unsigned int plen = ni_af_address_prefixlen(rp->family);
+
+			if (plen) {
+				r = ni_route_create(plen, &rp->nh.gateway, NULL, 0);
+				ni_route_array_append_ref(&temp, r);
+				ni_route_free(r);
+			}
+			ni_route_array_append_ref(&temp, rp);
 		}
 	}
 	ni_route_tables_add_routes(&lease->routes, &temp);
@@ -2120,6 +2171,12 @@ parse_more:
 			ni_dhcp4_decode_address_list(&buf, &lease->nds_servers);
 			break;
 		case DHCP4_NDS_CTX:
+			/*
+			 * Note: Multiple instances of the same option are concatenated
+			 *       already, so there is one context string --> this case
+			 *       is called once, see also RFC 2241 Section 4.
+			 *       Just the lease is using a string array for storage.
+			 */
 			if (!ni_dhcp4_option_get_printable(&buf, &tmp, "nds-context"))
 				ni_string_array_append(&lease->nds_context, tmp);
 			ni_string_free(&tmp);
@@ -2150,12 +2207,12 @@ parse_more:
 			break;
 
 		case DHCP4_POSIX_TZ_STRING:
-			ni_dhcp4_option_get_printable(&buf, &lease->posix_tz_string,
+			ni_dhcp4_option_get_tzstring(&buf, &lease->posix_tz_string,
 							"posix-tz-string");
 			break;
 
 		case DHCP4_POSIX_TZ_DBNAME:
-			ni_dhcp4_option_get_printable(&buf, &lease->posix_tz_dbname,
+			ni_dhcp4_option_get_tzdbname(&buf, &lease->posix_tz_dbname,
 							"posix-tz-dbname");
 			break;
 
