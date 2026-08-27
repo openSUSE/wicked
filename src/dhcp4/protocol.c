@@ -223,11 +223,13 @@ ni_dhcp4_option_next(ni_buffer_t *bp, ni_buffer_t *optbuf)
 		return -1;
 	if (bp->head == bp->tail)
 		return DHCP4_END;
-	if (bp->tail - bp->head < 2)
+	if (!(bp->tail > bp->head))
 		goto underflow;
 
 	code = bp->base[bp->head++];
 	if (code != DHCP4_PAD && code != DHCP4_END) {
+		if (!(bp->tail > bp->head))
+			goto underflow;
 		count = bp->base[bp->head++];
 		if (bp->tail - bp->head < count)
 			goto underflow;
