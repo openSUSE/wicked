@@ -34,7 +34,7 @@ static int			ni_dhcp4_fsm_arp_validate(ni_dhcp4_device_t *);
 static int			ni_dhcp4_process_offer(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
 static int			ni_dhcp4_process_ack(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
 static int			ni_dhcp4_process_nak(ni_dhcp4_device_t *);
-static void			ni_dhcp4_fsm_fail_lease(ni_dhcp4_device_t *);
+static void			ni_dhcp4_fsm_drop_lease(ni_dhcp4_device_t *);
 static int			ni_dhcp4_fsm_validate_lease(ni_dhcp4_device_t *, ni_addrconf_lease_t *);
 
 static void			ni_dhcp4_send_event(enum ni_dhcp4_event, ni_dhcp4_device_t *, ni_addrconf_lease_t *);
@@ -447,6 +447,24 @@ ni_dhcp4_fsm_set_timeout_sec(ni_dhcp4_device_t *dev, unsigned int seconds)
 	ni_dhcp4_fsm_set_timeout_msec(dev, NI_TIMEOUT_FROM_SEC(seconds));
 }
 
+/*
+ * Arm the fsm timer to fire when the lease expires, e.g. while the
+ * link is down. Returns FALSE when the lease already expired.
+ */
+static ni_bool_t
+ni_dhcp4_fsm_set_lease_expire_timeout(ni_dhcp4_device_t *dev)
+{
+	unsigned int lft = ni_dhcp4_lease_lifetime(dev->lease, NULL);
+
+	if (lft == NI_LIFETIME_EXPIRED)
+		return FALSE;
+
+	if (lft != NI_LIFETIME_INFINITE)
+		ni_dhcp4_fsm_set_timeout_sec(dev, lft);
+
+	return TRUE;
+}
+
 unsigned int
 ni_dhcp4_fsm_start_delay(unsigned int start_delay)
 {
@@ -723,11 +741,8 @@ ni_dhcp4_fsm_reboot_dad_success(ni_dhcp4_device_t *dev)
 static void
 ni_dhcp4_fsm_reboot_dad_failure(ni_dhcp4_device_t *dev)
 {
-	if (dev->lease) {
-		ni_addrconf_lease_file_remove(dev->ifname,
-				dev->lease->type, dev->lease->family);
-		ni_dhcp4_fsm_fail_lease(dev);
-	}
+	if (dev->lease)
+		ni_dhcp4_fsm_drop_lease(dev);
 	ni_dhcp4_fsm_discover(dev);
 }
 
@@ -941,7 +956,7 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		if (ni_dhcp4_fsm_rebind(dev))
 			return;
 
-		ni_dhcp4_fsm_fail_lease(dev);
+		ni_dhcp4_fsm_drop_lease(dev);
 		ni_dhcp4_fsm_set_timeout_sec(dev, ni_dhcp4_fsm_start_delay(conf->start_delay));
 		break;
 
@@ -958,7 +973,7 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		ni_warn("%s: unable to init lease rebind; restarting to discover new",
 				dev->ifname);
 
-		ni_dhcp4_fsm_fail_lease(dev);
+		ni_dhcp4_fsm_drop_lease(dev);
 		ni_dhcp4_fsm_set_timeout_sec(dev, ni_dhcp4_fsm_start_delay(conf->start_delay));
 		break;
 
@@ -966,7 +981,7 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		ni_warn("%s: unable to rebind lease; restarting to discover new",
 				dev->ifname);
 
-		ni_dhcp4_fsm_fail_lease(dev);
+		ni_dhcp4_fsm_drop_lease(dev);
 		ni_dhcp4_fsm_set_timeout_sec(dev, ni_dhcp4_fsm_start_delay(conf->start_delay));
 		break;
 
@@ -984,17 +999,22 @@ ni_dhcp4_fsm_timeout(ni_dhcp4_device_t *dev)
 		break;
 
 	case NI_DHCP4_STATE_DOWN:
-		/* lease expired while the link is down, remove lease from the
-		 * interface and wait until [nanny] (re-)acquire request .. */
-		if (!dev->lease)
+		if (ni_dhcp4_device_link_is_up(dev)) {
+			/* the grace period for nanny to reissue an acquire
+			 * request elapsed, resume as we do from reboot .. */
+			if (!ni_dhcp4_fsm_reboot(dev))
+				ni_dhcp4_fsm_discover(dev);
+			break;
+		}
+
+		/* the link went down again within the grace period, wait
+		 * for the lease to expire meanwhile .. */
+		if (ni_dhcp4_fsm_set_lease_expire_timeout(dev))
 			break;
 
-		ni_debug_dhcp("%s: dropping expired lease in state %s",
-				dev->ifname,
-				ni_dhcp4_fsm_state_name(dev->fsm.state));
-
-		ni_dhcp4_device_drop_lease(dev);
-		ni_dhcp4_send_event(NI_DHCP4_EVENT_LOST, dev, NULL);
+		/* the lease expired while the link is down, remove it from
+		 * the interface and restart to acquire a new one .. */
+		ni_dhcp4_fsm_drop_lease(dev);
 		break;
 
 	case __NI_DHCP4_STATE_MAX:
@@ -1051,6 +1071,10 @@ ni_dhcp4_fsm_link_up(ni_dhcp4_device_t *dev)
 	case NI_DHCP4_STATE_REBINDING:
 		break;
 	case NI_DHCP4_STATE_DOWN:
+		/* grant nanny a grace period to reissue its acquire request
+		 * before we resume the fsm in ni_dhcp4_fsm_timeout() .. */
+		ni_dhcp4_fsm_set_timeout_sec(dev, NI_DHCP4_DOWN_GRACE_TIMEOUT);
+		break;
 	case __NI_DHCP4_STATE_MAX:
 		break;
 	}
@@ -1059,8 +1083,6 @@ ni_dhcp4_fsm_link_up(ni_dhcp4_device_t *dev)
 void
 ni_dhcp4_fsm_link_down(ni_dhcp4_device_t *dev)
 {
-	unsigned int lft;
-
 	if (dev->config == NULL)
 		return;
 
@@ -1086,10 +1108,8 @@ ni_dhcp4_fsm_link_down(ni_dhcp4_device_t *dev)
 		ni_dhcp4_socket_close(dev);
 
 		dev->fsm.state = NI_DHCP4_STATE_DOWN;
-		lft = ni_dhcp4_lease_lifetime(dev->lease, NULL);
-		if (lft != NI_LIFETIME_EXPIRED ||
-		    lft != NI_LIFETIME_INFINITE)
-			ni_dhcp4_fsm_set_timeout_sec(dev, lft);
+		if (!ni_dhcp4_fsm_set_lease_expire_timeout(dev))
+			ni_dhcp4_fsm_drop_lease(dev);
 		break;
 	case NI_DHCP4_STATE_DOWN:
 	case __NI_DHCP4_STATE_MAX:
@@ -1159,30 +1179,24 @@ ni_dhcp4_process_ack(ni_dhcp4_device_t *dev, ni_addrconf_lease_t *lease)
 		}
 		if (lease->dhcp4.renewal_time > lease->dhcp4.rebind_time) {
 			lft = (unsigned long long)lease->dhcp4.rebind_time * 8 / 14;
-			ni_debug_dhcp("%s: adjusting renewal time (T1) %u greater"
-					" than rebind time (T2) %u to %u",
-					dev->ifname, lease->dhcp4.renewal_time,
-					lease->dhcp4.rebind_time, lft);
+			ni_debug_dhcp("%s: adjusting renewal time (T1) from %u to %u",
+					dev->ifname, lease->dhcp4.renewal_time, lft);
 			lease->dhcp4.renewal_time = lft;
 		}
 	} else {
 		if (!lease->dhcp4.rebind_time ||
 		     lease->dhcp4.rebind_time > lease->dhcp4.lease_time) {
 			lft = (unsigned long long)lease->dhcp4.lease_time * 7 / 8;
-			ni_debug_dhcp("%s: adjusting rebind time (T2) %u greater"
-					" than lease time %u to %u",
-					dev->ifname, lease->dhcp4.renewal_time,
-					lease->dhcp4.rebind_time, lft);
+			ni_debug_dhcp("%s: adjusting rebind time (T2) from %u to %u",
+					dev->ifname, lease->dhcp4.rebind_time, lft);
 			lease->dhcp4.rebind_time = lft;
 		}
 
 		if (!lease->dhcp4.renewal_time ||
 		     lease->dhcp4.renewal_time > lease->dhcp4.rebind_time) {
 			lft = (unsigned long long)lease->dhcp4.rebind_time * 8 / 14;
-			ni_debug_dhcp("%s: adjusting renewal time (T1) %u greater"
-					" than rebind time (T2) %u to %u",
-					dev->ifname, lease->dhcp4.renewal_time,
-					lease->dhcp4.rebind_time, lft);
+			ni_debug_dhcp("%s: adjusting renewal time (T1) from %u to %u",
+					dev->ifname, lease->dhcp4.renewal_time, lft);
 			lease->dhcp4.renewal_time = lft;
 		}
 	}
@@ -1467,7 +1481,7 @@ ni_dhcp4_recover_lease(ni_dhcp4_device_t *dev)
 		if (!ni_dhcp4_verify_lease(dev, lease)) {
 			ni_addrconf_lease_file_remove(dev->ifname, lease->type, lease->family);
 
-			ni_dhcp4_fsm_fail_lease(dev);
+			ni_dhcp4_fsm_drop_lease(dev);
 			return -1;
 		}
 	} else {
@@ -1491,17 +1505,20 @@ ni_dhcp4_recover_lease(ni_dhcp4_device_t *dev)
 	return 0;
 }
 
+/*
+ * The lease is not usable any more (expired, nak'ed, arp conflict, ...),
+ * which is not a failure: remove it from the interface and restart the
+ * fsm to acquire a replacement.
+ */
 void
-ni_dhcp4_fsm_fail_lease(ni_dhcp4_device_t *dev)
+ni_dhcp4_fsm_drop_lease(ni_dhcp4_device_t *dev)
 {
-	ni_debug_dhcp("%s: failing lease in state %s", dev->ifname,
+	ni_debug_dhcp("%s: dropping lease in state %s", dev->ifname,
 			ni_dhcp4_fsm_state_name(dev->fsm.state));
 
-	ni_dhcp4_fsm_restart(dev);
+	ni_dhcp4_fsm_commit_lease(dev, NULL);	/* restarts the fsm */
 	ni_capture_free(dev->capture);
 	dev->capture = NULL;
-
-	ni_dhcp4_send_event(NI_DHCP4_EVENT_LOST, dev, NULL);
 }
 
 static ni_bool_t
@@ -1678,8 +1695,7 @@ ni_dhcp4_process_nak(ni_dhcp4_device_t *dev)
 	case NI_DHCP4_STATE_RENEWING:
 	case NI_DHCP4_STATE_REBINDING:
 	case NI_DHCP4_STATE_REBOOT:
-		/* FIXME: how do we handle a NAK response to an INFORM? */
-		ni_dhcp4_device_drop_lease(dev);
+		ni_dhcp4_fsm_drop_lease(dev);
 		break;
 	case NI_DHCP4_STATE_DOWN:
 	case __NI_DHCP4_STATE_MAX:

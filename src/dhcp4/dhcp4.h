@@ -106,6 +106,7 @@ struct ni_dhcp4_device {
 #define NI_DHCP4_REBOOT_TIMEOUT		NI_DHCP4_REQUEST_TIMEOUT
 #define NI_DHCP4_DECLINE_BACKOFF	10	/* seconds */
 #define NI_DHCP4_NAK_BACKOFF_MAX	60	/* seconds */
+#define NI_DHCP4_DOWN_GRACE_TIMEOUT	1	/* seconds */
 
 /*
  * common NI_ADDRCONF_UPDATE_* + dhcp4 specific options
@@ -295,6 +296,7 @@ extern void		ni_dhcp4_device_disarm_retransmit(ni_dhcp4_device_t *dev);
 extern void		ni_dhcp4_device_retransmit(ni_dhcp4_device_t *);
 extern void		ni_dhcp4_device_force_retransmit(ni_dhcp4_device_t *, unsigned int);
 extern void		ni_dhcp4_device_arp_close(ni_dhcp4_device_t *);
+extern ni_bool_t	ni_dhcp4_device_link_is_up(const ni_dhcp4_device_t *);
 extern ni_bool_t	ni_dhcp4_parse_client_id(ni_opaque_t *, unsigned short, const char *);
 extern ni_bool_t	ni_dhcp4_set_config_client_id(ni_opaque_t *, const ni_dhcp4_device_t *, unsigned int);
 extern void		ni_dhcp4_new_xid(ni_dhcp4_device_t *);
