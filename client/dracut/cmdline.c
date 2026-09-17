@@ -469,7 +469,6 @@ static ni_compat_netdev_t *
 ni_dracut_cmdline_add_bridge(ni_compat_netdev_array_t *nda, const char *brname, char *ports)
 {
 	ni_compat_netdev_t *nd;
-	unsigned int cnt;
 	char *name;
 
 	if (!ni_netdev_name_is_valid(brname)) {
@@ -485,10 +484,9 @@ ni_dracut_cmdline_add_bridge(ni_compat_netdev_array_t *nda, const char *brname, 
 		return NULL;
 	}
 
-	for (cnt = 0, name = ports; name; name = ports) {
+	for (name = ports; name; name = ports) {
 		ports = token_next(ports, ',');
-		if (ni_dracut_cmdline_add_bridge_port(nda, nd->dev, name))
-			cnt++;
+		ni_dracut_cmdline_add_bridge_port(nda, nd->dev, name);
 	}
 
 	return nd;
