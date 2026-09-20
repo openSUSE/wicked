@@ -317,14 +317,12 @@ AC_PATH_PROG(PANDOC, [pandoc])
 AM_CONDITIONAL([pandoc], [test "x$enable_pandoc" = "xyes" -a "x$PANDOC" != "x"])
 
 # Checks for libraries.
-AC_CHECK_LIB([dl], [dlopen], [LIBDL_LIBS="-ldl"],[
-	AC_MSG_ERROR(["Unable to find libdl"])
+AC_SEARCH_LIBS([dlopen], [dl], [], [
+	AC_MSG_ERROR(["Unable to find dlopen()"])
 ])
-AC_SUBST(LIBDL_LIBS)
-AC_CHECK_LIB([anl], [getaddrinfo_a], [LIBANL_LIBS="-lanl"],[
-	AC_MSG_ERROR(["Unable to find libanl"])
+AC_SEARCH_LIBS([getaddrinfo_a], [anl], [], [
+	AC_MSG_ERROR(["Unable to find getaddrinfo_a()"])
 ])
-AC_SUBST(LIBANL_LIBS)
 
 # Checks for libgcrypt and it's minimal version;
 # libgcrypt-1.5.0 as on SLE-11-SP3 is sufficient.
