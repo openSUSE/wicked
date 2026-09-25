@@ -1939,9 +1939,6 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 
 	switch (dev->link.type) {
 	case NI_IFTYPE_ETHERNET:
-		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
-			break;
-
 		__ni_system_ethernet_refresh(dev);
 		break;
 
