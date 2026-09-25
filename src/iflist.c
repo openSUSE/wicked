@@ -54,6 +54,26 @@
 #include <linux/if_tunnel.h>
 #include <linux/fib_rules.h>
 
+#define ni_rtnl_link_set_hwaddr(hwaddr, hwtype, attr, name, ifname)	\
+	do {								\
+		unsigned int alen;					\
+									\
+		if (!(hwaddr) || !(attr) || !(name) || !(ifname))	\
+			break;						\
+									\
+		alen = nla_len(attr);					\
+		if (alen > NI_MAXHWADDRLEN) {				\
+			ni_warn_once("%s: %s is too long (len = %u)",	\
+					ifname, name, alen);		\
+			alen = NI_MAXHWADDRLEN;				\
+		}							\
+		ni_link_address_set((hwaddr), (hwtype),			\
+				nla_data(attr), alen);			\
+		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,	\
+				"%s: %s: %s", ifname, name,		\
+				ni_link_address_print(hwaddr));		\
+	} while (0)
+
 static int		__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 					struct ifinfomsg *ifi, ni_netconfig_t *);
 static int		__ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h,
@@ -1549,31 +1569,10 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 	if (ni_netdev_link_always_ready(link))
 		link->ifflags |= NI_IFF_DEVICE_READY;
 
-	if (tb[IFLA_ADDRESS]) {
-		unsigned int alen = nla_len(tb[IFLA_ADDRESS]);
-		void *data = nla_data(tb[IFLA_ADDRESS]);
-
-		if (alen > sizeof(link->hwaddr.data))
-			alen = sizeof(link->hwaddr.data);
-
-		memcpy(link->hwaddr.data, data, alen);
-		link->hwaddr.len = alen;
-		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
-				"IFLA_ADDRESS: %s",
-				ni_link_address_print(&link->hwaddr));
-	}
-	if (tb[IFLA_BROADCAST]) {
-		unsigned int alen = nla_len(tb[IFLA_BROADCAST]);
-		void *data = nla_data(tb[IFLA_BROADCAST]);
-
-		if (alen > sizeof(link->hwpeer.data))
-			alen = sizeof(link->hwpeer.data);
-		memcpy(link->hwpeer.data, data, alen);
-		link->hwpeer.len = alen;
-		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
-				"IFLA_BROADCAST: %s",
-				ni_link_address_print(&link->hwpeer));
-	}
+	ni_rtnl_link_set_hwaddr(&link->hwaddr, ifi->ifi_type, tb[IFLA_ADDRESS],
+			ni_stringify(IFLA_ADDRESS), ifname);
+	ni_rtnl_link_set_hwaddr(&link->hwpeer, ifi->ifi_type, tb[IFLA_BROADCAST],
+			ni_stringify(IFLA_BROADCAST), ifname);
 
 	if (tb[IFLA_MTU])
 		link->mtu = nla_get_u32(tb[IFLA_MTU]);
