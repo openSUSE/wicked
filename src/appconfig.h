@@ -78,6 +78,33 @@ typedef struct ni_config_rtnl_event {
 } ni_config_rtnl_event_t;
 
 typedef enum {
+	/*
+	 * ethtool ctl-name identifiers. What a monitor filter mask covers
+	 * as "all"/"default" differs per ctl-type.
+	 */
+	NI_CONFIG_ETHTOOL_CTL_DRIVER_INFO,
+	NI_CONFIG_ETHTOOL_CTL_PERM_HWADDR,
+	NI_CONFIG_ETHTOOL_CTL_PRIV_FLAGS,
+	NI_CONFIG_ETHTOOL_CTL_LINK_DETECTED,
+	NI_CONFIG_ETHTOOL_CTL_LINK_SETTINGS,
+	NI_CONFIG_ETHTOOL_CTL_WAKE_ON_LAN,
+	NI_CONFIG_ETHTOOL_CTL_FEATURES,
+	NI_CONFIG_ETHTOOL_CTL_EEE,
+	NI_CONFIG_ETHTOOL_CTL_RING,
+	NI_CONFIG_ETHTOOL_CTL_CHANNELS,
+	NI_CONFIG_ETHTOOL_CTL_COALESCE,
+	NI_CONFIG_ETHTOOL_CTL_PAUSE,
+} ni_config_ethtool_ctl_flag_t;
+
+typedef struct ni_config_ethtool_ioctl {
+	ni_bitfield_t	monitor_filter;
+} ni_config_ethtool_ioctl_t;
+
+typedef struct ni_config_ethtool {
+	ni_config_ethtool_ioctl_t	ioctl;
+} ni_config_ethtool_t;
+
+typedef enum {
 	NI_CONFIG_BONDING_CTL_NETLINK = 0,
 	NI_CONFIG_BONDING_CTL_SYSFS,
 } ni_config_bonding_ctl_t;
@@ -218,6 +245,7 @@ typedef struct ni_config {
 	char *			dbus_type;
 
 	ni_config_rtnl_event_t	rtnl_event;
+	ni_config_ethtool_t	ethtool;
 
 	ni_config_bonding_t	bonding;
 	ni_config_teamd_t	teamd;
@@ -237,6 +265,8 @@ extern const ni_config_dhcp4_t *ni_config_dhcp4_find_device(const char *);
 extern const char *		ni_config_dhcp4_cid_type_format(ni_config_dhcp4_cid_type_t);
 extern ni_bool_t		ni_config_dhcp4_cid_type_parse(ni_config_dhcp4_cid_type_t *, const char *);
 extern const ni_config_dhcp6_t *ni_config_dhcp6_find_device(const char *);
+
+extern const ni_bitfield_t *	ni_config_ethtool_ioctl_monitor_mask(void);
 
 extern ni_config_bonding_ctl_t	ni_config_bonding_ctl(void);
 
