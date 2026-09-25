@@ -2965,10 +2965,10 @@ __ni_rtnl_parse_newaddr(const char *ifname, unsigned int ifflags, struct nlmsghd
 		ni_trace("%s: newaddr(%s): family %d, prefixlen %u, scope %u, flags %u",
 			ifname, (ifflags & NI_IFF_POINT_TO_POINT) ? "ptp" : "brd",
 			ap->family, ap->prefixlen, ap->scope, ap->flags);
-		__newaddr_trace(ifname, ifa->ifa_family, __ni_string(IFA_LOCAL), tb[IFA_LOCAL]);
-		__newaddr_trace(ifname, ifa->ifa_family, __ni_string(IFA_ADDRESS), tb[IFA_ADDRESS]);
-		__newaddr_trace(ifname, ifa->ifa_family, __ni_string(IFA_BROADCAST), tb[IFA_BROADCAST]);
-		__newaddr_trace(ifname, ifa->ifa_family, __ni_string(IFA_ANYCAST), tb[IFA_ANYCAST]);
+		__newaddr_trace(ifname, ifa->ifa_family, ni_stringify(IFA_LOCAL), tb[IFA_LOCAL]);
+		__newaddr_trace(ifname, ifa->ifa_family, ni_stringify(IFA_ADDRESS), tb[IFA_ADDRESS]);
+		__newaddr_trace(ifname, ifa->ifa_family, ni_stringify(IFA_BROADCAST), tb[IFA_BROADCAST]);
+		__newaddr_trace(ifname, ifa->ifa_family, ni_stringify(IFA_ANYCAST), tb[IFA_ANYCAST]);
 	}
 
 	/*
