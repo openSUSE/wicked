@@ -31,6 +31,7 @@
 
 #include <wicked/util.h>
 #include <wicked/ethtool.h>
+#include "appconfig.h"
 #include "netinfo_priv.h"
 #include "util_priv.h"
 #include "kernel.h"
@@ -3732,24 +3733,39 @@ ni_ethtool_refresh(ni_netdev_t *dev)
 {
 	ni_ethtool_t *ethtool;
 	ni_netdev_ref_t ref = NI_NETDEV_REF_INIT;
+	const ni_bitfield_t *mask;
 
 	if (!dev || !(ethtool = ni_netdev_get_ethtool(dev)))
 		return FALSE;
 
 	ref.name = dev->name;
 	ref.index = dev->link.ifindex;
-	if (!ethtool->driver_info)
-		ni_ethtool_get_driver_info(&ref, ethtool);
-	ni_ethtool_get_priv_flags(&ref, ethtool);
-	ni_ethtool_get_link_detected(&ref, ethtool);
-	ni_ethtool_get_link_settings(&ref, ethtool);
-	ni_ethtool_get_wake_on_lan(&ref, ethtool);
-	ni_ethtool_get_features(&ref, ethtool, FALSE);
-	ni_ethtool_get_eee(&ref, ethtool);
-	ni_ethtool_get_ring(&ref, ethtool);
-	ni_ethtool_get_channels(&ref, ethtool);
-	ni_ethtool_get_coalesce(&ref, ethtool);
-	ni_ethtool_get_pause(&ref, ethtool);
+	mask = ni_config_ethtool_ioctl_monitor_mask();
+
+	if (ni_bitfield_testbit(mask, NI_CONFIG_ETHTOOL_CTL_DRIVER_INFO)) {
+		if (!ethtool->driver_info)
+			ni_ethtool_get_driver_info(&ref, ethtool);
+	}
+	if (ni_bitfield_testbit(mask, NI_CONFIG_ETHTOOL_CTL_PRIV_FLAGS))
+		ni_ethtool_get_priv_flags(&ref, ethtool);
+	if (ni_bitfield_testbit(mask, NI_CONFIG_ETHTOOL_CTL_LINK_DETECTED))
+		ni_ethtool_get_link_detected(&ref, ethtool);
+	if (ni_bitfield_testbit(mask, NI_CONFIG_ETHTOOL_CTL_LINK_SETTINGS))
+		ni_ethtool_get_link_settings(&ref, ethtool);
+	if (ni_bitfield_testbit(mask, NI_CONFIG_ETHTOOL_CTL_WAKE_ON_LAN))
+		ni_ethtool_get_wake_on_lan(&ref, ethtool);
+	if (ni_bitfield_testbit(mask, NI_CONFIG_ETHTOOL_CTL_FEATURES))
+		ni_ethtool_get_features(&ref, ethtool, FALSE);
+	if (ni_bitfield_testbit(mask, NI_CONFIG_ETHTOOL_CTL_EEE))
+		ni_ethtool_get_eee(&ref, ethtool);
+	if (ni_bitfield_testbit(mask, NI_CONFIG_ETHTOOL_CTL_RING))
+		ni_ethtool_get_ring(&ref, ethtool);
+	if (ni_bitfield_testbit(mask, NI_CONFIG_ETHTOOL_CTL_CHANNELS))
+		ni_ethtool_get_channels(&ref, ethtool);
+	if (ni_bitfield_testbit(mask, NI_CONFIG_ETHTOOL_CTL_COALESCE))
+		ni_ethtool_get_coalesce(&ref, ethtool);
+	if (ni_bitfield_testbit(mask, NI_CONFIG_ETHTOOL_CTL_PAUSE))
+		ni_ethtool_get_pause(&ref, ethtool);
 
 	return TRUE;
 }

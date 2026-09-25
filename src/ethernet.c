@@ -14,6 +14,7 @@
 #include <wicked/ethtool.h>
 #include "netinfo_priv.h"
 #include "util_priv.h"
+#include "appconfig.h"
 #include "kernel.h"
 
 
@@ -66,7 +67,9 @@ __ni_system_ethernet_refresh(ni_netdev_t *dev)
 		return;
 
 	ethernet->permanent_address.type = dev->link.hwaddr.type;
-	if ((ethtool = ni_netdev_get_ethtool(dev))) {
+	if (ni_bitfield_testbit(ni_config_ethtool_ioctl_monitor_mask(),
+				NI_CONFIG_ETHTOOL_CTL_PERM_HWADDR) &&
+	    (ethtool = ni_netdev_get_ethtool(dev))) {
 		ni_netdev_ref_t ref = NI_NETDEV_REF_INIT;
 
 		ref.name = dev->name;
