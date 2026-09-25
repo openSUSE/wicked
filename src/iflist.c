@@ -20,6 +20,7 @@
 #include <wicked/macvlan.h>
 #include <wicked/ipvlan.h>
 #include <wicked/wireless.h>
+#include <wicked/ethernet.h>
 #include <wicked/infiniband.h>
 #include <wicked/ppp.h>
 #include <wicked/tuntap.h>
@@ -82,6 +83,7 @@ static int		__ni_netdev_process_newroute(ni_netdev_t *, struct nlmsghdr *,
 					struct rtmsg *, ni_netconfig_t *);
 static int		__ni_netdev_process_newrule(struct nlmsghdr *, struct fib_rule_hdr *,
 					ni_netconfig_t *);
+static int		ni_discover_ethernet(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static int		__ni_discover_bridge(ni_netdev_t *);
 static int		__ni_discover_bond(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static int		__ni_discover_addrconf(ni_netdev_t *);
@@ -1938,7 +1940,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 
 	switch (dev->link.type) {
 	case NI_IFTYPE_ETHERNET:
-		__ni_system_ethernet_refresh(dev);
+		ni_discover_ethernet(dev, tb, nc);
 		break;
 
 	case NI_IFTYPE_INFINIBAND:
@@ -3591,6 +3593,34 @@ failure:
 	return ret;
 }
 
+
+/*
+ * Discover ethernet specific settings
+ */
+static int
+ni_discover_ethernet(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
+{
+	static int ni_rtnl_link_permaddr_supported = 0;
+	ni_ethernet_t *eth;
+
+	if (!dev || dev->link.type != NI_IFTYPE_ETHERNET || !tb)
+		return 0;
+
+	if (!(eth = ni_netdev_get_ethernet(dev)))
+		return -1;
+
+	if (tb[IFLA_PERM_ADDRESS]) {
+		ni_rtnl_link_permaddr_supported = 1;
+
+		ni_rtnl_link_set_hwaddr(&eth->permanent_address,
+				dev->link.hwaddr.type, tb[IFLA_PERM_ADDRESS],
+				ni_stringify(IFLA_PERM_ADDRESS), dev->name);
+	} else if (!ni_rtnl_link_permaddr_supported) {
+		__ni_system_ethernet_refresh(dev);
+	}
+
+	return 0;
+}
 
 /*
  * Discover bridge topology
