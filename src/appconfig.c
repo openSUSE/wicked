@@ -1513,7 +1513,7 @@ ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node
 		for (child = node->children; child; child = child->next)
 			ni_string_array_append(&targets, child->name);
 	} else {
-		ni_string_split(&targets, node->cdata, " \t,|", 0);
+		ni_string_split(&targets, node->cdata, " ,|\t\n", 0);
 	}
 
 	mask = *update_mask;
@@ -1537,7 +1537,7 @@ ni_config_parse_update_dhcp4_routes(unsigned int *routes_opts, const xml_node_t 
 		for (child = node->children; child; child = child->next)
 			ni_string_array_append(&tags, child->name);
 	} else {
-		ni_string_split(&tags, node->cdata, " \t,|", 0);
+		ni_string_split(&tags, node->cdata, " ,|\t\n", 0);
 	}
 
 	*routes_opts = 0;
