@@ -968,6 +968,12 @@ ni_fsm_policies_create_config(ni_fsm_policy_t * const *policies, unsigned int co
 	return config;
 }
 
+xml_node_t *
+ni_fsm_policy_create_config(ni_fsm_policy_t *policy)
+{
+	return ni_fsm_policies_create_config(&policy, 1);
+}
+
 /*
  * Policy actions
  */

@@ -962,8 +962,19 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 		ni_managed_policy_t *mpolicy;
 
 		if ((mpolicy = ni_nanny_get_policy(mgr, policy))) {
+			ni_ifworker_type_t type = NI_IFWORKER_TYPE_NONE;
+			const char *origin = ni_fsm_policy_origin(policy);
+			const char *ifname = NULL;
 			ni_dbus_server_t *server;
 			ni_ifworker_t *w = NULL;
+			xml_node_t *config;
+
+			/* identify the worker of the policy before we delete it */
+			if ((config = ni_fsm_policy_create_config(policy))) {
+				w = ni_fsm_worker_identify(mgr->fsm, config, origin,
+								&type, &ifname);
+				xml_node_free(config);
+			}
 
 			if (!ni_fsm_delete_policy(mgr->fsm, policy))
 				return FALSE;
@@ -971,7 +982,6 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 			ni_nanny_policy_drop(name);
 			ni_debug_nanny("Removed FSM policy %s", name);
 
-			w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, name);
 			if (w != NULL) {
 				ni_managed_device_t *mdev = ni_nanny_get_device(mgr, w);
 				if (mdev != NULL)
@@ -1031,44 +1041,54 @@ ni_objectmodel_nanny_set_secret(ni_dbus_object_t *object, const ni_dbus_method_t
 	return TRUE;
 }
 
+/*
+ * Schedule a recheck of the worker the config of the policy applies to
+ * and instantiate a worker from the config first, if it does not exist,
+ * e.g. because it is a virtual interface we've to create.
+ *
+ * When an ifname filter is given, policies applying to another worker
+ * are skipped -- before any worker gets instantiated for them.
+ */
 static ni_bool_t
-ni_nanny_recheck_policy(ni_nanny_t *mgr, ni_fsm_policy_t *policy)
+ni_nanny_recheck_policy(ni_nanny_t *mgr, ni_fsm_policy_t *policy,
+			const ni_string_array_t *ifnames)
 {
+	const char *origin = ni_fsm_policy_origin(policy);
+	ni_ifworker_type_t type = NI_IFWORKER_TYPE_NONE;
 	ni_managed_device_t *mdev;
-	xml_node_t *config = NULL;
+	const char *ifname = NULL;
+	xml_node_t *config;
 	ni_ifworker_t *w;
 
-	w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV,
-							ni_fsm_policy_name(policy));
-	if (w == NULL || !w->config.node) {
-		const char *origin = ni_fsm_policy_origin(policy);
-		const char *type_name;
+	if (!(config = ni_fsm_policy_create_config(policy))) {
+		ni_error("Unable to transform policy %s into config [%s]",
+				ni_fsm_policy_name(policy), origin);
+		return FALSE;
+	}
 
-		type_name = ni_ifworker_type_to_string(ni_fsm_policy_config_type(policy));
+	w = ni_fsm_worker_identify(mgr->fsm, config, origin, &type, &ifname);
+	if (!w && !ifname) {
+		xml_node_free(config);
+		ni_debug_nanny("%s: policy does not refer to an interface [%s]",
+				ni_fsm_policy_name(policy), origin);
+		return FALSE;
+	}
 
-		if (type_name && (config = xml_node_new(type_name, NULL)))
-			xml_node_location_relocate(config, ni_fsm_policy_name(policy));
+	if (ifnames && ifnames->count &&
+	    ni_string_array_index(ifnames, w ? w->name : ifname) == -1) {
+		xml_node_free(config);
+		return FALSE;
+	}
 
-		if (!config || !ni_fsm_transform_policies_to_config(config, &policy, 1)) {
-			xml_node_free(config);
-			ni_error("Unable to transform policy %s into config [%s]",
-					ni_fsm_policy_name(policy), origin);
-			return FALSE;
-		}
-		if (!ni_fsm_workers_from_xml(mgr->fsm, config, origin)) {
+	if (!w || !w->config.node) {
+		if (!(w = ni_fsm_workers_from_xml(mgr->fsm, config, origin))) {
 			xml_node_free(config);
 			ni_error("Unable to update workers from policy %s [%s]",
 					ni_fsm_policy_name(policy), origin);
 			return FALSE;
 		}
-		xml_node_free(config);
 	}
-	if (w == NULL) {
-		w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV,
-							ni_fsm_policy_name(policy));
-		if (w == NULL)
-			return FALSE;
-	}
+	xml_node_free(config);
 
 	ni_debug_application("Scheduled recheck for %s", w->name);
 	ni_nanny_schedule_recheck(&mgr->recheck, w);
@@ -1087,35 +1107,26 @@ ni_nanny_recheck_policy(ni_nanny_t *mgr, ni_fsm_policy_t *policy)
 void
 ni_nanny_recheck_policies(ni_nanny_t *mgr, const ni_string_array_t *ifnames)
 {
-	ni_fsm_policy_t *policy = NULL;
+	ni_managed_policy_t *mpolicy;
 	unsigned int i, count = 0;
 
-	if (!ifnames || ifnames->count == 0) {
-		ni_managed_policy_t *mpolicy;
+	for (mpolicy = mgr->policy_list; mpolicy; mpolicy = mpolicy->next) {
+		ni_fsm_policy_t *policy;
 
-		for (mpolicy = mgr->policy_list; mpolicy; mpolicy = mpolicy->next) {
-			if (!(policy = mpolicy->fsm_policy)) /* huh? */
-				continue;
+		if (!(policy = mpolicy->fsm_policy)) /* huh? */
+			continue;
 
-			if (ni_nanny_recheck_policy(mgr, policy))
-				count++;
-		}
-	} else {
-		for (i = 0; i < ifnames->count; ++i) {
-			const char *ifname = ifnames->data[i];
-			char *name = ni_ifpolicy_name_from_ifname(ifname);
+		if (ni_nanny_recheck_policy(mgr, policy, ifnames))
+			count++;
+	}
 
-			/* TODO: get rid of this using a policy applicable match */
-			if (!name || !(policy = ni_fsm_get_policy_by_name(mgr->fsm, name))) {
-				ni_string_free(&name);
-				ni_debug_application("Not scheduled any recheck for %s: no policy", ifname);
-				continue;
-			}
-			ni_string_free(&name);
+	for (i = 0; ifnames && i < ifnames->count; ++i) {
+		const char *ifname = ifnames->data[i];
+		ni_ifworker_t *w;
 
-			if (ni_nanny_recheck_policy(mgr, policy))
-				count++;
-		}
+		w = ni_fsm_ifworker_by_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV, ifname);
+		if (!w || !w->config.node)
+			ni_debug_application("Not scheduled any recheck for %s: no policy", ifname);
 	}
 
 	if (count) {

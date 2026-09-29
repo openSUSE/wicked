@@ -303,6 +303,7 @@ extern unsigned int		ni_fsm_get_applicable_policies(const ni_fsm_t *, ni_ifworke
 extern ni_bool_t		ni_fsm_exists_applicable_policy(const ni_fsm_t *, ni_ifworker_t *);
 extern ni_bool_t		ni_fsm_transform_policies_to_config(xml_node_t *,
 						ni_fsm_policy_t * const *, unsigned int);
+extern xml_node_t *		ni_fsm_policy_create_config(ni_fsm_policy_t *);
 extern xml_node_t *		ni_fsm_policies_create_config(ni_fsm_policy_t * const *, unsigned int);
 
 extern				ni_declare_refcounted_ref(ni_fsm_policy);
@@ -357,7 +358,6 @@ extern ni_ifworker_t *		ni_fsm_ifworker_by_object_path(ni_fsm_t *, const char *)
 extern ni_ifworker_t *		ni_fsm_ifworker_by_ifindex(ni_fsm_t *, unsigned int);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_netdev(ni_fsm_t *, const ni_netdev_t *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_name(const ni_fsm_t *, ni_ifworker_type_t, const char *);
-extern ni_ifworker_t *		ni_fsm_ifworker_by_policy_name(ni_fsm_t *, ni_ifworker_type_t, const char *);
 extern void			ni_fsm_wait_tentative_addrs(ni_fsm_t *);
 
 extern ni_ifworker_type_t	ni_ifworker_type_from_string(const char *);
