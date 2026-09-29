@@ -440,67 +440,6 @@ ni_managed_device_get_essid(xml_node_t *config)
 }
 
 /*
- * Completion callback for shutdown
- */
-static void
-ni_managed_device_down_done(ni_ifworker_t *w)
-{
-	ni_nanny_t *mgr = w->completion.user_data;
-	ni_managed_device_t *mdev;
-
-	if ((mdev = ni_nanny_get_device(mgr, w)) == NULL) {
-		ni_error("%s: no managed device for worker %s", __func__, w->name);
-		return;
-	}
-
-	if (w->failed) {
-		mdev->fail_count++;
-		if (w->dead) {
-			/* Quietly ignore the problem */
-			ni_debug_nanny("%s: failed to shut down device, device about to be removed", w->name);
-		} else {
-			ni_error("%s: failed to shut down device", w->name);
-			mdev->state = NI_MANAGED_STATE_FAILED;
-		}
-	} else {
-		mdev->state = NI_MANAGED_STATE_STOPPED;
-	}
-	ni_managed_device_set_policy(mdev, NULL, NULL);
-
-	if (mdev->monitor && w->type == NI_IFWORKER_TYPE_NETDEV) {
-		/* Re-enable wireless scanning and ethernet link status monitoring */
-		ni_managed_netif_enable(mdev);
-	}
-}
-
-/*
- * Bring up the device
- */
-void
-ni_managed_device_down(ni_managed_device_t *mdev)
-{
-	ni_fsm_t *fsm = mdev->nanny->fsm;
-	ni_ifworker_t *w;
-	int rv;
-
-	if (!(w = ni_managed_device_get_worker(mdev)))
-		return;
-
-	ni_ifworker_set_completion_callback(w, ni_managed_device_down_done, mdev->nanny);
-
-	ni_ifworker_set_config(w, mdev->selected_config, w->config.meta.origin);
-	w->target_range.min = NI_FSM_STATE_NONE;
-	w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
-
-	if ((rv = ni_ifworker_start(fsm, w, fsm->worker_timeout)) >= 0) {
-		mdev->state = NI_MANAGED_STATE_STOPPING;
-	} else {
-		ni_error("%s: cannot stop device: %s", w->name, ni_strerror(rv));
-		mdev->state = NI_MANAGED_STATE_FAILED;
-	}
-}
-
-/*
  * Print managed_state names
  */
 static ni_intmap_t	__managed_state_names[] = {

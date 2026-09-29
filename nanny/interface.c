@@ -51,25 +51,8 @@ ni_objectmodel_managed_netif_init(ni_dbus_server_t *server)
 ni_bool_t
 ni_managed_netif_enable(ni_managed_device_t *mdev)
 {
-	ni_nanny_t *mgr = mdev->nanny;
-	ni_ifworker_t *w;
-
-	if (!(w = ni_managed_device_get_worker(mdev)))
+	if (!ni_managed_device_get_worker(mdev))
 		return FALSE;
-
-	if (mdev->rfkill_blocked) {
-		ni_debug_nanny("%s: radio disabled, will enable scanning later",
-			w->name);
-		mdev->monitor = TRUE;
-		return TRUE;
-	}
-
-	if (ni_netdev_device_is_ready(w->device))
-		ni_nanny_schedule_recheck(&mgr->recheck, w);
-	ni_nanny_unschedule(&mgr->down, w);
-	ni_ifworker_rearm(w);
-
-	mdev->monitor = TRUE;
 
 	return TRUE;
 }
@@ -80,17 +63,9 @@ ni_managed_netif_enable(ni_managed_device_t *mdev)
 ni_bool_t
 ni_managed_netif_disable(ni_managed_device_t *mdev)
 {
-	ni_nanny_t *mgr = mdev->nanny;
-	ni_ifworker_t *w;
-
-	if (!(w = ni_managed_device_get_worker(mdev)))
+	if (!ni_managed_device_get_worker(mdev))
 		return FALSE;
 
-	ni_nanny_schedule_recheck(&mgr->down, w);
-	ni_nanny_unschedule(&mgr->recheck, w);
-	ni_fsm_reset_worker(mgr->fsm, w);
-
-	mdev->monitor = FALSE;
 	return TRUE;
 }
 /*
@@ -200,10 +175,6 @@ ni_objectmodel_managed_netif_enable(ni_dbus_object_t *object, const ni_dbus_meth
 
 	if (argc != 0)
 		return ni_dbus_error_invalid_args(error, ni_dbus_object_get_path(object), method->name);
-
-	/* When calling enable on a failed device, implicitly clear the error state */
-	if (mdev->state == NI_MANAGED_STATE_FAILED)
-		mdev->state = NI_MANAGED_STATE_LIMBO;
 
 	if (!ni_managed_netif_enable(mdev)) {
 		dbus_set_error(error, DBUS_ERROR_FAILED, "failed to enable device");

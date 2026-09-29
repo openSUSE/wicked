@@ -57,17 +57,6 @@ ni_ifdown_stop_policy(const char *policy_name)
 	return TRUE;
 }
 
-static ni_bool_t
-ni_ifdown_stop_device(const char *device_name)
-{
-	if (!ni_nanny_call_device_disable(device_name)) {
-		ni_debug_application("Unable to disable device named %s", device_name);
-		return FALSE;
-	}
-
-	return TRUE;
-}
-
 ni_bool_t
 ni_ifdown_fire_nanny(ni_ifworker_array_t *array)
 {
@@ -83,21 +72,6 @@ ni_ifdown_fire_nanny(ni_ifworker_array_t *array)
 			/* We ignore errors for now */;
 		}
 		ni_string_free(&policy_name);
-	}
-
-	/* Disabling all requested devices */
-	for (i = 0; i < array->count; i++) {
-		ni_ifworker_t *w = array->data[i];
-		ni_netdev_t *dev = w ? w->device : NULL;
-
-		/* Ignore non-existing device */
-		if (!dev || !ni_netdev_device_is_ready(dev)) {
-			continue;
-		}
-
-		if (!ni_ifdown_stop_device(w->name)) {
-			/* We ignore errors for now */;
-		}
 	}
 
 	return TRUE;
