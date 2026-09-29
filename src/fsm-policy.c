@@ -701,36 +701,18 @@ ni_fsm_policy_config_class(const ni_fsm_policy_t *policy)
 
 /*
  * Check whether policy applies to this ifworker
+ *
+ * Which interface a policy applies to is specified by its <match>
+ * condition, e.g. a <device>eth1.48</device> refers to the worker
+ * by name -- the name of the policy itself is not a match criteria.
  */
 static ni_bool_t
 ni_fsm_policy_applicable(const ni_fsm_t *fsm, ni_fsm_policy_t *policy, ni_ifworker_t *w)
 {
-	xml_node_t *node;
-	char *pname;
-
 	if (!policy || !w)
 		return FALSE;
 
-	/* 1st match check -ifworker to policy name comparison */
-	pname = ni_ifpolicy_name_from_ifname(w->name);
-	if (!ni_string_eq(policy->name, pname)) {
-		ni_string_free(&pname);
-		return FALSE;
-	}
-	ni_string_free(&pname);
-
-	/* 2nd match check - ifworker  to config name comparison */
-	if (!xml_node_is_empty(w->config.node) &&
-	    (node = xml_node_get_child(w->config.node, "name"))) {
-		const char *namespace = xml_node_get_attr(node, "namespace");
-		if (!namespace && !ni_string_eq(node->cdata, w->name)) {
-			ni_error("%s: config name does not match policy name",
-					policy->name);
-			return FALSE;
-		}
-	}
-
-	/* 3rd match check - physical worker must be ready  */
+	/* 1st match check - device must be ready or we've to create it */
 	if (ni_ifworker_is_device_created(w)) {
 		if (!ni_netdev_device_is_ready(w->device))
 			return FALSE;
@@ -738,7 +720,7 @@ ni_fsm_policy_applicable(const ni_fsm_t *fsm, ni_fsm_policy_t *policy, ni_ifwork
 	else if (!ni_ifworker_can_create_device(w))
 		return FALSE;
 
-	/* 4th match check - <match> condition must be fulfilled */
+	/* 2nd match check - <match> condition must be fulfilled */
 	if (!ni_ifcondition_check(policy->match, fsm, w)) {
 		ni_debug_nanny("%s: policy <match> condition is not met for worker %s",
 			policy->name, w->name);
