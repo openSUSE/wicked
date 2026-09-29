@@ -212,6 +212,7 @@ ni_managed_policy_new(ni_nanny_t *mgr, ni_fsm_policy_t *policy)
 
 	mpolicy = xcalloc(1, sizeof(*mpolicy));
 	mpolicy->refcount = 1;
+	mpolicy->nanny = mgr;
 	mpolicy->fsm_policy = ni_fsm_policy_ref(policy);
 
 	__ni_managed_policy_list_insert(&mgr->policy_list, mpolicy);
@@ -371,6 +372,28 @@ ni_objectmodel_managed_policy_save(ni_dbus_object_t *object)
 	return ni_managed_policy_save(mpolicy);
 }
 
+static void
+ni_managed_policy_reset_devices(ni_managed_policy_t *mpolicy)
+{
+	ni_nanny_t *mgr = mpolicy->nanny;
+	ni_managed_device_t *mdev;
+	ni_ifworker_t *w;
+
+	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
+		if (!(w = ni_managed_device_get_worker(mdev)))
+			continue;
+		if (ni_fsm_policy_array_index(&w->policies, mpolicy->fsm_policy) == -1U)
+			continue;
+
+		ni_debug_nanny("%s: policy %s updated, reset device", w->name,
+				ni_fsm_policy_name(mpolicy->fsm_policy));
+		ni_fsm_policy_array_destroy(&w->policies);
+		mdev->state = NI_MANAGED_STATE_STOPPED;
+		ni_nanny_schedule_recheck(&mgr->recheck, w);
+		ni_ifworker_rearm(w);
+	}
+}
+
 /*
  * ManagedPolicy.update(s)
  */
@@ -428,6 +451,7 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 		xml_document_free(doc);
 		return FALSE;
 	}
+	ni_managed_policy_reset_devices(mpolicy);
 	ni_fsm_policy_hold(&mpolicy->fsm_policy, update);
 	xml_document_free(doc);
 

@@ -1116,7 +1116,7 @@ ni_nanny_recheck_policy(ni_nanny_t *mgr, ni_fsm_policy_t *policy,
 	ni_ifworker_rearm(w);
 
 	mdev = ni_nanny_get_device(mgr, w);
-	if (mdev && mdev->state == NI_MANAGED_STATE_FAILED)
+	if (mdev && mdev->state != NI_MANAGED_STATE_STOPPED)
 		mdev->state = NI_MANAGED_STATE_LIMBO;
 
 	return TRUE;

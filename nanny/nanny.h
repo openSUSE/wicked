@@ -73,6 +73,7 @@ struct ni_managed_policy {
 	ni_managed_policy_t **	pprev;
 	ni_managed_policy_t *	next;
 
+	ni_nanny_t *		nanny;
 	ni_fsm_policy_t *	fsm_policy;
 };
 
