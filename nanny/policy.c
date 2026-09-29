@@ -431,8 +431,6 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 	ni_fsm_policy_hold(&mpolicy->fsm_policy, update);
 	xml_document_free(doc);
 
-	mpolicy->seqno++;
-
 	if (!ni_managed_policy_save(mpolicy)) {
 		ni_warn("Unable to save updated managed nanny policy %s",
 			ni_dbus_object_get_path(object));

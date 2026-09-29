@@ -166,13 +166,11 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 {
 	static const unsigned int MAX_POLICIES = 20;
 	ni_fsm_policy_array_t policies = NI_ARRAY_INIT;
-	const ni_fsm_policy_t *policy;
 	ni_managed_device_t *mdev;
-	ni_managed_policy_t *mpolicy;
 	unsigned int count = 0;
 
 	/* Note, we also check devices in state FAILED.
-	 * ni_managed_device_apply_policy() will then check if the policy
+	 * ni_managed_device_apply_policies() will then check if the config
 	 * changed. If it did, then we give it another try.
 	 */
 	mdev = ni_nanny_get_device(mgr, w);
@@ -191,11 +189,8 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 		return count;
 	}
 
-	policy = policies.data[policies.count - 1];
-	mpolicy = ni_nanny_get_policy(mgr, policy);
-
 	/* count the workers we've started, that is, the fsm has to run */
-	if (ni_managed_device_apply_policy(mdev, mpolicy) == 0)
+	if (ni_managed_device_apply_policies(mdev, &policies) == 0)
 		count++;
 
 	ni_fsm_policy_array_destroy(&policies);
@@ -533,8 +528,10 @@ ni_nanny_identify_node_owner(ni_nanny_t *mgr, xml_node_t *node, ni_stringbuf_t *
 		return NULL;
 
 	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
-		if (mdev->selected_config == node) {
-			w = ni_managed_device_get_worker(mdev);
+		ni_ifworker_t *dev_worker = ni_managed_device_get_worker(mdev);
+
+		if (dev_worker && dev_worker->config.node == node) {
+			w = dev_worker;
 			goto found;
 		}
 	}
@@ -582,12 +579,12 @@ ni_nanny_prompt(const ni_fsm_prompt_t *p, xml_node_t *node, void *user_data)
 		goto done;
 	}
 
-	if (mdev->selected_policy == NULL) {
+	if (w->policies.count == 0) {
 		ni_error("%s: no policy set, cannot handle prompt for \"%s\"",
 				w->name, path_buf.string);
 		goto done;
 	}
-	if (!(user = ni_nanny_get_user(mgr, ni_managed_policy_owner(mdev->selected_policy)))) {
+	if (!(user = ni_nanny_get_user(mgr, ni_fsm_policy_owner(w->policies.data[0])))) {
 		ni_error("%s: policy not owned by anyone?!", w->name);
 		goto done;
 	}
@@ -824,7 +821,7 @@ ni_nanny_process_fsm_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 		ni_debug_nanny("%s: processed event %s; state=%s, policy=%s%s%s",
 			w->name, ev->signal_name,
 			ni_managed_state_to_string(mdev->state),
-			mdev->selected_policy? ni_fsm_policy_name(mdev->selected_policy->fsm_policy): "<none>",
+			w->policies.count ? ni_fsm_policy_name(w->policies.data[0]) : "<none>",
 			mdev->allowed? ", user control allowed" : "",
 			mdev->monitor? ", monitored" : "");
 	} else {
@@ -983,13 +980,15 @@ ni_objectmodel_nanny_delete_policy(ni_dbus_object_t *object, const ni_dbus_metho
 			ni_debug_nanny("Removed FSM policy %s", name);
 
 			if (w != NULL) {
-				ni_managed_device_t *mdev = ni_nanny_get_device(mgr, w);
-				if (mdev != NULL)
-					ni_managed_device_set_policy(mdev, NULL, NULL);
-
-				ni_ifworker_set_config(w, NULL, NULL);
-
+				ni_ifworker_clear_policies(w);
 				ni_nanny_unschedule(&mgr->recheck, w);
+
+				/* we manage the device as long as a policy
+				 * provides a config for it */
+				if (ni_fsm_exists_applicable_policy(mgr->fsm, w))
+					ni_nanny_schedule_recheck(&mgr->recheck, w);
+				else
+					ni_nanny_unregister_device(mgr, w);
 			}
 
 			server = ni_dbus_object_get_server(object);

@@ -57,10 +57,6 @@ struct ni_managed_device {
 	unsigned int		fail_count;
 	unsigned int		max_fail_count;
 
-	ni_managed_policy_t *	selected_policy;
-	unsigned int		selected_policy_seq;
-	xml_node_t *		selected_config;
-
 	ni_secret_array_t	secrets;
 };
 
@@ -77,7 +73,6 @@ struct ni_managed_policy {
 	ni_managed_policy_t **	pprev;
 	ni_managed_policy_t *	next;
 
-	unsigned int		seqno;
 	ni_fsm_policy_t *	fsm_policy;
 };
 
@@ -104,7 +99,6 @@ struct ni_nanny {
 	ni_managed_device_t *	device_list;
 	ni_managed_policy_t *	policy_list;
 
-	unsigned int		last_policy_seq;
 	ni_ifworker_array_t	recheck;
 
 	ni_nanny_user_t *	users;
@@ -160,8 +154,8 @@ extern ni_managed_device_t *	ni_managed_device_new(ni_nanny_t *,  ni_ifworker_t 
 extern void			ni_managed_device_free(ni_managed_device_t *);
 extern ni_ifworker_t *		ni_managed_device_get_worker(const ni_managed_device_t *);
 extern char *			ni_managed_device_get_name(ni_managed_device_t *);
-extern int			ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy);
-extern void			ni_managed_device_set_policy(ni_managed_device_t *, ni_managed_policy_t *, xml_node_t *);
+extern int			ni_managed_device_apply_policies(ni_managed_device_t *,
+							const ni_fsm_policy_array_t *);
 extern ni_bool_t		ni_managed_policy_filename(const char *, char *, size_t);
 
 extern ni_dbus_object_t *	ni_managed_policy_register(ni_nanny_t *, ni_fsm_policy_t *);
