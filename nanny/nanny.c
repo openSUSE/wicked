@@ -169,39 +169,23 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	const ni_fsm_policy_t *policy;
 	ni_managed_device_t *mdev;
 	ni_managed_policy_t *mpolicy;
-	unsigned int count;
-	ni_bool_t factory_device = FALSE;
-
-	mdev = ni_nanny_get_device(mgr, w);
-	if (!mdev) {
-		if (!ni_ifworker_is_device_created(w)) {
-			/* We have an ifworker for factory device - follow factory device path */
-			if (ni_ifworker_is_factory_device(w))
-				factory_device = TRUE;
-			else if (w->pending) {
-				ni_error("%s: Unable to recheck non-factory worker - "
-					"device is not present (pending=%s, device=%s)",
-					w->name, ni_format_boolean(w->pending),
-					ni_format_boolean(!!w->device));
-				return -1;
-			}
-		}
-	}
+	unsigned int count = 0;
 
 	/* Note, we also check devices in state FAILED.
 	 * ni_managed_device_apply_policy() will then check if the policy
 	 * changed. If it did, then we give it another try.
 	 */
-
+	mdev = ni_nanny_get_device(mgr, w);
 	ni_debug_nanny("%s(%s[%u], %s)", __func__, w->name, w->ifindex,
 					mdev ? "managed" : "unmanaged");
-	if ((count = ni_fsm_get_applicable_policies(mgr->fsm, w, &policies, MAX_POLICIES)) == 0) {
+
+	if (!ni_fsm_get_applicable_policies(mgr->fsm, w, &policies, MAX_POLICIES)) {
 		ni_debug_nanny("%s: no applicable policies", w->name);
 		return count;
 	}
 
 	/* a device we have a config for is a device we manage */
-	if (!mdev && !factory_device && !(mdev = ni_nanny_register_device(mgr, w))) {
+	if (!mdev && !(mdev = ni_nanny_register_device(mgr, w))) {
 		ni_error("%s: unable to register managed device", w->name);
 		ni_fsm_policy_array_destroy(&policies);
 		return count;
@@ -210,10 +194,9 @@ ni_nanny_recheck(ni_nanny_t *mgr, ni_ifworker_t *w)
 	policy = policies.data[policies.count - 1];
 	mpolicy = ni_nanny_get_policy(mgr, policy);
 
-	if (factory_device)
-		count += ni_factory_device_apply_policy(mgr->fsm, w, mpolicy);
-	else
-		count += ni_managed_device_apply_policy(mdev, mpolicy);
+	/* count the workers we've started, that is, the fsm has to run */
+	if (ni_managed_device_apply_policy(mdev, mpolicy) == 0)
+		count++;
 
 	ni_fsm_policy_array_destroy(&policies);
 

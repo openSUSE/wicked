@@ -36,7 +36,6 @@
 static const char *	ni_managed_device_get_essid(xml_node_t *);
 
 static int		ni_managed_device_up(ni_managed_device_t *, const char *);
-static int		ni_factory_device_up(ni_fsm_t *, ni_ifworker_t *);
 
 /*
  * List handling functions
@@ -159,66 +158,6 @@ ni_managed_device_get_name(ni_managed_device_t *mdev)
 	return w->name;
 }
 
-static int
-ni_factory_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
-{
-	ni_ifworker_array_t ifmarked = NI_IFWORKER_ARRAY_INIT;
-	ni_ifmarker_t ifmarker;
-
-	ni_assert(fsm && w);
-	memset(&ifmarker, 0, sizeof(ifmarker));
-
-	ifmarker.target_range.min = NI_FSM_STATE_MAX - 1;
-	ifmarker.target_range.max = NI_FSM_STATE_MAX;
-	ifmarker.persistent = w->control.persistent;
-
-	ni_ifworker_array_append_ref(&ifmarked, w);
-	ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
-	ni_ifworker_array_destroy(&ifmarked);
-
-	return 0;
-}
-
-/*
- * Apply policy to a virtual (factory) device
- */
-int
-ni_factory_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_policy_t *mpolicy)
-{
-	const char *type_name;
-	ni_fsm_policy_t *policy = mpolicy->fsm_policy;
-	xml_node_t *config = NULL;
-
-	if (!policy)
-		return -1;
-
-	ni_debug_nanny("%s: configuring factory device using policy %s",
-		w->name, ni_fsm_policy_name(policy));
-
-	/* This returns "modem" or "interface" */
-	type_name = ni_ifworker_type_to_string(w->type);
-
-	if (type_name && (config = xml_node_new(type_name, NULL)))
-		xml_node_new_element("name", config, w->name);
-
-	if (!ni_fsm_transform_policies_to_config(config, &policy, 1)) {
-		xml_node_free(config);
-		ni_error("%s: unable to transform policy %s into config [%s]",
-				w->name, ni_fsm_policy_name(policy),
-				ni_fsm_policy_origin(policy));
-		return -1;
-	}
-
-	ni_debug_config_xml(config, NI_LOG_DEBUG, "%s: using device config", w->name);
-
-	ni_ifworker_set_config(w, config, ni_fsm_policy_origin(policy));
-	xml_node_free(config);
-
-	/* Now do the fandango */
-	return ni_factory_device_up(fsm, w);
-}
-
-
 /*
  * Apply policy to a device
  */
@@ -279,6 +218,13 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 
 	ni_managed_device_set_policy(mdev, mpolicy, config);
 	xml_node_free(config);
+
+	/* We can start a device that exists or that we are able to create;
+	 * otherwise we have to wait until the device shows up. */
+	if (!ni_ifworker_is_device_created(w) && !ni_ifworker_can_create_device(w)) {
+		ni_debug_nanny("%s: waiting for the device to appear", w->name);
+		return -1;
+	}
 
 	/* Now do the fandango */
 	return ni_managed_device_up(mdev, ni_fsm_policy_origin(policy));
@@ -348,7 +294,7 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 	switch (w->type) {
 	case NI_IFWORKER_TYPE_NETDEV:
 		mdev->max_fail_count = 3;
-		if (w->device->link.type == NI_IFTYPE_WIRELESS) {
+		if (w->device && w->device->link.type == NI_IFTYPE_WIRELESS) {
 			const char *essid;
 
 			ni_security_id_init(&security_id, "wireless");

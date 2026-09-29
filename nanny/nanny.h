@@ -160,7 +160,6 @@ extern ni_managed_device_t *	ni_managed_device_new(ni_nanny_t *,  ni_ifworker_t 
 extern void			ni_managed_device_free(ni_managed_device_t *);
 extern ni_ifworker_t *		ni_managed_device_get_worker(const ni_managed_device_t *);
 extern char *			ni_managed_device_get_name(ni_managed_device_t *);
-extern int			ni_factory_device_apply_policy(ni_fsm_t *, ni_ifworker_t *, ni_managed_policy_t *);
 extern int			ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy);
 extern void			ni_managed_device_set_policy(ni_managed_device_t *, ni_managed_policy_t *, xml_node_t *);
 extern ni_bool_t		ni_managed_policy_filename(const char *, char *, size_t);
