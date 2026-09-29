@@ -509,10 +509,32 @@ ni_nanny_unregister_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 	ni_ifworker_set_progress_callback(w, NULL, NULL);
 	ni_ifworker_set_completion_callback(w, NULL, NULL);
 
-	if (!ni_ifworker_is_factory_device(w) ||
-	    !ni_fsm_exists_applicable_policy(mgr->fsm, w)) {
-		ni_nanny_unschedule(&mgr->recheck, w);
-	}
+	ni_nanny_unschedule(&mgr->recheck, w);
+}
+
+/*
+ * Reset the managed device when its device disappeared from the kernel,
+ * e.g. on a driver unbind or a link delete. We manage it as long as there
+ * is a policy providing a config for it -- the fsm keeps the worker with
+ * the config, so we just schedule a recheck bringing the device up again
+ * as soon as it (and its dependencies, e.g. a lower device) reappears.
+ */
+static void
+ni_nanny_reset_device(ni_nanny_t *mgr, ni_ifworker_t *w)
+{
+	ni_managed_device_t *mdev;
+
+	if (!(mdev = ni_nanny_get_device(mgr, w)))
+		return;
+
+	ni_debug_nanny("%s: reset managed device in state %s", w->name,
+			ni_managed_state_to_string(mdev->state));
+
+	mdev->state = NI_MANAGED_STATE_STOPPED;
+	mdev->fail_count = 0;
+	ni_secret_array_destroy(&mdev->secrets);
+
+	ni_nanny_schedule_recheck(&mgr->recheck, w);
 }
 
 /*
@@ -801,7 +823,7 @@ ni_nanny_process_fsm_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 		break;
 
 	case NI_EVENT_DEVICE_DELETE:
-		ni_nanny_unregister_device(mgr, w);
+		ni_nanny_reset_device(mgr, w);
 		break;
 
 	case NI_EVENT_DEVICE_DOWN:
