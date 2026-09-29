@@ -1971,6 +1971,48 @@ ni_ifworker_iftype_from_xml(xml_node_t *config)
 	return NI_IFTYPE_UNKNOWN;
 }
 
+/*
+ * Whether wicked is able to create the interface, that is, the link type
+ * of the config provides a factory service with a newDevice method.
+ *
+ * This is a property of the config (a virtual interface as vlan, bridge,
+ * ... vs. a physical interface we have to wait for), not of the device
+ * or of a previous device factory call, which is why we can also use it
+ * when the device does not exist (yet) or does not exist any more.
+ */
+ni_bool_t
+ni_ifworker_config_can_create_device(xml_node_t *config)
+{
+	const ni_dbus_service_t *service, *factory;
+	const ni_dbus_class_t *class;
+	ni_iftype_t iftype;
+
+	if (xml_node_is_empty(config))
+		return FALSE;
+
+	iftype = ni_ifworker_iftype_from_xml(config);
+
+	if (iftype == NI_IFTYPE_UNKNOWN)
+		return FALSE;
+
+	if (!(class = ni_objectmodel_link_class(iftype)))
+		return FALSE;
+
+	if (!(service = ni_objectmodel_service_by_class(class)))
+		return FALSE;
+
+	if (!(factory = ni_objectmodel_factory_service(service)))
+		return FALSE;
+
+	return ni_dbus_service_get_method(factory, "newDevice") != NULL;
+}
+
+ni_bool_t
+ni_ifworker_can_create_device(const ni_ifworker_t *w)
+{
+	return w ? ni_ifworker_config_can_create_device(w->config.node) : FALSE;
+}
+
 ni_bool_t
 ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_origin)
 {
@@ -3735,7 +3777,8 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 		if (w->failed)
 			continue;
 
-		if (!ni_ifworker_is_device_created(w) && !ni_ifworker_is_factory_device(w)) {
+		/* a device we can't create ourselves, we've to wait for it */
+		if (!ni_ifworker_is_device_created(w) && !ni_ifworker_can_create_device(w)) {
 			w->pending = TRUE;
 			ni_ifworker_set_timeout(fsm, w, fsm->worker_timeout);
 			count++;

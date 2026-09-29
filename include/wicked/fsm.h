@@ -371,6 +371,8 @@ extern ni_bool_t		ni_ifworker_match_netdev_alias(const ni_ifworker_t *, const ch
 extern ni_bool_t		ni_ifworker_match_netdev_ifindex(const ni_ifworker_t *, unsigned int);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *, const char *);
 extern ni_iftype_t		ni_ifworker_iftype_from_xml(xml_node_t *);
+extern ni_bool_t		ni_ifworker_config_can_create_device(xml_node_t *);
+extern ni_bool_t		ni_ifworker_can_create_device(const ni_ifworker_t *);
 extern ni_bool_t		ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
 extern ni_bool_t		ni_ifworker_control_set_usercontrol(ni_ifworker_t *, ni_bool_t);
 extern ni_bool_t		ni_ifworker_control_set_persistent(ni_ifworker_t *, ni_bool_t);

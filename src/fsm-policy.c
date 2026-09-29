@@ -735,7 +735,7 @@ ni_fsm_policy_applicable(const ni_fsm_t *fsm, ni_fsm_policy_t *policy, ni_ifwork
 		if (!ni_netdev_device_is_ready(w->device))
 			return FALSE;
 	}
-	else if (!ni_ifworker_is_factory_device(w))
+	else if (!ni_ifworker_can_create_device(w))
 		return FALSE;
 
 	/* 4th match check - <match> condition must be fulfilled */
@@ -1590,7 +1590,7 @@ ni_fsm_policy_match_and_children_check(const ni_ifcondition_t *cond, const ni_fs
 			if (!ni_netdev_device_is_ready(child->device))
 				continue;
 		}
-		else if (!ni_ifworker_is_factory_device(child))
+		else if (!ni_ifworker_can_create_device(child))
 			continue;
 
 		rv = ni_ifcondition_check(cond->args.terms.left, fsm, child);
