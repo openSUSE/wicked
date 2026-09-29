@@ -970,33 +970,50 @@ cleanup:
 	return status;
 }
 
+static void
+ni_ifstatus_shutdown_result_of_worker(const ni_ifworker_t *w, const ni_string_array_t *names)
+{
+	if (!w || ni_string_empty(w->name))
+		return;
+
+	if (names && names->count != 0 &&
+	    ni_string_array_index(names, w->name) < 0) {
+		return;
+	}
+
+	if (!ni_ifworker_is_device_created(w)) {
+		if_printf(w->name, "", "%s\n",
+				ni_ifstatus_code_name(NI_WICKED_ST_NO_DEVICE));
+	} else if (ni_ifworker_is_valid_state(w->fsm.state)) {
+		if_printf(w->name, "", "%s\n",
+				ni_ifworker_state_name(w->fsm.state));
+	}
+}
+
 int
 ni_ifstatus_shutdown_result(ni_fsm_t *fsm, ni_string_array_t *names, ni_ifworker_array_t *marked)
 {
 	unsigned int i;
 
 	ni_assert(fsm);
-	for (i = 0; i < fsm->workers.count; i++) {
-		const ni_ifworker_t *w = fsm->workers.data[i];
+	if (marked) {
+		/*
+		 * The marked workers are the ones we've shut down; report them
+		 * even when the device delete removed them from fsm->workers,
+		 * as the array still holds a reference to them.
+		 */
+		for (i = 0; i < marked->count; i++)
+			ni_ifstatus_shutdown_result_of_worker(marked->data[i], names);
+	} else {
+		for (i = 0; i < fsm->workers.count; i++) {
+			const ni_ifworker_t *w = fsm->workers.data[i];
 
-		if (!w || ni_string_empty(w->name))
-			continue;
+			/* deleting the device rearms the worker, clearing kickstarted */
+			if (w && !w->kickstarted && ni_ifworker_is_device_created(w))
+				continue;
 
-		if (!w->kickstarted)
-			continue;
-
-		if (marked && ni_ifworker_array_index(marked, w) == -1U)
-			continue;
-
-		if (names && names->count != 0 &&
-		    ni_string_array_index(names, w->name) < 0) {
-			continue;
+			ni_ifstatus_shutdown_result_of_worker(w, names);
 		}
-
-		if (!ni_ifworker_is_valid_state(w->fsm.state))
-			continue;
-
-		if_printf(w->name, "", "%s\n", ni_ifworker_state_name(w->fsm.state));
 	}
 
 	if (ni_fsm_fail_count(fsm))
