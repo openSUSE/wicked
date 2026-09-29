@@ -303,6 +303,7 @@ extern unsigned int		ni_fsm_get_applicable_policies(const ni_fsm_t *, ni_ifworke
 extern ni_bool_t		ni_fsm_exists_applicable_policy(const ni_fsm_t *, ni_ifworker_t *);
 extern ni_bool_t		ni_fsm_transform_policies_to_config(xml_node_t *,
 						ni_fsm_policy_t * const *, unsigned int);
+extern xml_node_t *		ni_fsm_policies_create_config(ni_fsm_policy_t * const *, unsigned int);
 
 extern				ni_declare_refcounted_ref(ni_fsm_policy);
 extern				ni_declare_refcounted_free(ni_fsm_policy);
@@ -374,6 +375,8 @@ extern ni_iftype_t		ni_ifworker_iftype_from_xml(xml_node_t *);
 extern ni_bool_t		ni_ifworker_config_can_create_device(xml_node_t *);
 extern ni_bool_t		ni_ifworker_can_create_device(const ni_ifworker_t *);
 extern ni_bool_t		ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
+extern ni_bool_t		ni_ifworker_apply_policies(ni_ifworker_t *, const ni_fsm_policy_array_t *);
+extern void			ni_ifworker_clear_policies(ni_ifworker_t *);
 extern ni_bool_t		ni_ifworker_control_set_usercontrol(ni_ifworker_t *, ni_bool_t);
 extern ni_bool_t		ni_ifworker_control_set_persistent(ni_ifworker_t *, ni_bool_t);
 extern  void			ni_ifworker_rearm(ni_ifworker_t *);

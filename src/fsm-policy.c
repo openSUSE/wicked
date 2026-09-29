@@ -934,6 +934,41 @@ ni_fsm_transform_policies_to_config(xml_node_t *config, ni_fsm_policy_t * const 
 }
 
 /*
+ * Construct the effective config of the policies, which have to apply
+ * to the same interface and to be sorted by increasing weight.
+ *
+ * The config specifies the interface it applies to in its <name>
+ * element and permits to identify (ni_fsm_worker_identify) or to
+ * instantiate (ni_fsm_workers_from_xml) the worker of interfaces
+ * that do not exist (yet), that is, before wicked creates them.
+ */
+xml_node_t *
+ni_fsm_policies_create_config(ni_fsm_policy_t * const *policies, unsigned int count)
+{
+	const char *type_name;
+	xml_node_t *config;
+
+	if (!policies || !count || !policies[0])
+		return NULL;
+
+	type_name = ni_ifworker_type_to_string(ni_fsm_policy_config_type(policies[0]));
+	if (ni_string_empty(type_name))
+		return NULL;
+
+	if (!(config = xml_node_new(type_name, NULL)))
+		return NULL;
+
+	xml_node_location_relocate(config, ni_fsm_policy_name(policies[0]));
+
+	if (!ni_fsm_transform_policies_to_config(config, policies, count)) {
+		xml_node_free(config);
+		return NULL;
+	}
+
+	return config;
+}
+
+/*
  * Policy actions
  */
 ni_fsm_policy_action_t *
