@@ -1988,6 +1988,31 @@ ni_ifworker_can_create_device(const ni_ifworker_t *w)
 	return w ? ni_ifworker_config_can_create_device(w->config.node) : FALSE;
 }
 
+/*
+ * A worker is configured as long as there is a config to apply to it,
+ * that is an ifconfig in the client and a policy providing it in nanny,
+ * or the device has been set up by us in the past (client-state origin),
+ * which is what a plain `wicked ifdown` (loading no ifconfig) sees.
+ *
+ * Unconfigured workers are just a view of a device we've discovered,
+ * e.g. one of the tap devices some container engine creates and deletes
+ * at a high rate, so there is no point in keeping them around.
+ */
+ni_bool_t
+ni_ifworker_has_config(const ni_ifworker_t *w)
+{
+	const ni_client_state_t *cs;
+
+	if (!w)
+		return FALSE;
+
+	if (!xml_node_is_empty(w->config.node))
+		return TRUE;
+
+	cs = w->device ? w->device->client_state : NULL;
+	return cs && !ni_string_empty(cs->config.origin);
+}
+
 ni_bool_t
 ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_origin)
 {
@@ -6868,7 +6893,10 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 	ni_ifworker_advance_state(w, event_type);
 
 	if (event_type == NI_EVENT_DEVICE_DELETE) {
-		if (ni_ifworker_is_factory_device(w))
+		/* a configured device is gone, but the worker isn't: it may
+		 * reappear at any time, e.g. on a driver rebind, and we may
+		 * have to report or create it again. */
+		if (ni_ifworker_has_config(w))
 			ni_ifworker_device_delete(w);
 		else
 			ni_fsm_delete_worker(fsm, w);
