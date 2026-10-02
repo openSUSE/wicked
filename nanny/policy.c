@@ -388,9 +388,8 @@ ni_managed_policy_reset_devices(ni_managed_policy_t *mpolicy)
 		ni_debug_nanny("%s: policy %s updated, reset device", w->name,
 				ni_fsm_policy_name(mpolicy->fsm_policy));
 		ni_fsm_policy_array_destroy(&w->policies);
-		mdev->state = NI_MANAGED_STATE_STOPPED;
+		ni_nanny_policy_reset_device(mgr, mdev);
 		ni_nanny_schedule_recheck(&mgr->recheck, w);
-		ni_ifworker_rearm(w);
 	}
 }
 
