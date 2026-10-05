@@ -14,6 +14,7 @@
 #include <wicked/ethtool.h>
 #include "netinfo_priv.h"
 #include "util_priv.h"
+#include "appconfig.h"
 #include "kernel.h"
 
 
@@ -48,6 +49,10 @@ __ni_system_ethernet_refresh(ni_netdev_t *dev)
 	if (!ni_netdev_device_is_ready(dev) || !dev->link.ifindex)
 		return;
 
+	if (ni_netconfig_discover_filtered(ni_global_state_handle(0),
+					NI_NETCONFIG_DISCOVER_LINK_EXTERN))
+		return;
+
 	/* A permanent address is not strictly ethernet specific,
 	 * we just don't query it along with ethtool options as
 	 * most (virtual) devices provide all-zeroes hw-address.
@@ -55,9 +60,16 @@ __ni_system_ethernet_refresh(ni_netdev_t *dev)
 	 * As infiniband does not permit to change hw-address,
 	 * it never differs from the normal dev->link.hwaddr.
 	 */
-	ethernet = ni_ethernet_new();
+	if (!(ethernet = ni_netdev_get_ethernet(dev)))
+		return;
+
+	if (ethernet->permanent_address.len)
+		return;
+
 	ethernet->permanent_address.type = dev->link.hwaddr.type;
-	if ((ethtool = ni_netdev_get_ethtool(dev))) {
+	if (ni_bitfield_testbit(ni_config_ethtool_ioctl_monitor_mask(),
+				NI_CONFIG_ETHTOOL_CTL_PERM_HWADDR) &&
+	    (ethtool = ni_netdev_get_ethtool(dev))) {
 		ni_netdev_ref_t ref = NI_NETDEV_REF_INIT;
 
 		ref.name = dev->name;
@@ -65,7 +77,6 @@ __ni_system_ethernet_refresh(ni_netdev_t *dev)
 		ni_ethtool_get_permanent_address(&ref, ethtool,
 				&ethernet->permanent_address);
 	}
-	ni_netdev_set_ethernet(dev, ethernet);
 }
 
 
@@ -76,5 +87,4 @@ void
 __ni_system_ethernet_update(ni_netdev_t *dev, ni_ethernet_t *ethernet)
 {
 	/* currently nothing ethernet specific to apply */
-	__ni_system_ethernet_refresh(dev);
 }

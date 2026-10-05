@@ -133,7 +133,7 @@ extern unsigned int	ni_log_level;
 #define ni_debug_verbose(level, facility, fmt, args...) \
 		__ni_debug(level, facility, fmt, ##args)
 
-#define __ni_string(x) #x
+#define ni_stringify(x) #x
 
 #include <stdlib.h>
 
@@ -141,7 +141,7 @@ extern unsigned int	ni_log_level;
 	do { \
 		if (!(stmt)) { \
 			ni_error("Assertion failed: %s, line %u: %s", \
-					__FILE__, __LINE__, __ni_string(stmt)); \
+					__FILE__, __LINE__, ni_stringify(stmt)); \
 			abort(); \
 		} \
 	} while(0)

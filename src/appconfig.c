@@ -63,6 +63,8 @@ static ni_bool_t	ni_config_parse_objectmodel_firmware_discovery(ni_extension_t *
 static ni_bool_t	ni_config_parse_system_updater(ni_extension_t **, xml_node_t *);
 static ni_bool_t	ni_config_parse_sources(ni_config_t *, xml_node_t *);
 static ni_bool_t	ni_config_parse_rtnl_event(ni_config_rtnl_event_t *, xml_node_t *);
+static ni_bool_t	ni_config_parse_ethtool(ni_config_ethtool_t *, const xml_node_t *);
+static void		ni_config_ethtool_init(ni_config_ethtool_t *);
 static ni_bool_t	ni_config_parse_bonding(ni_config_bonding_t *, const xml_node_t *);
 static ni_bool_t	ni_config_parse_teamd(ni_config_teamd_t *, const xml_node_t *);
 static ni_bool_t	ni_config_include_file(ni_config_parse_guard_t *, ni_config_t *,
@@ -122,6 +124,8 @@ ni_config_new()
 
 	conf->rtnl_event.recv_buff_length = 1024 * 1024;
 	conf->rtnl_event.mesg_buff_length = 0;
+
+	ni_config_ethtool_init(&conf->ethtool);
 
 	/* we enable it explicitly in wickedd only */
 	conf->teamd.enabled = FALSE;
@@ -489,8 +493,10 @@ ni_config_parse_file(ni_config_parse_guard_t *parent_guard, ni_config_t *conf,
 		if (strcmp(child->name, "netlink-events") == 0) {
 			if (!ni_config_parse_rtnl_event(&conf->rtnl_event, child))
 				goto failed;
-		} else
-		if (strcmp(child->name, "bonding") == 0) {
+		} else if (strcmp(child->name, "ethtool") == 0) {
+			if (!ni_config_parse_ethtool(&conf->ethtool, child))
+				goto failed;
+		} else if (strcmp(child->name, "bonding") == 0) {
 			if (!ni_config_parse_bonding(&conf->bonding, child))
 				goto failed;
 		} else
@@ -1507,7 +1513,7 @@ ni_config_parse_update_targets(unsigned int *update_mask, const xml_node_t *node
 		for (child = node->children; child; child = child->next)
 			ni_string_array_append(&targets, child->name);
 	} else {
-		ni_string_split(&targets, node->cdata, " \t,|", 0);
+		ni_string_split(&targets, node->cdata, " ,|\t\n", 0);
 	}
 
 	mask = *update_mask;
@@ -1531,7 +1537,7 @@ ni_config_parse_update_dhcp4_routes(unsigned int *routes_opts, const xml_node_t 
 		for (child = node->children; child; child = child->next)
 			ni_string_array_append(&tags, child->name);
 	} else {
-		ni_string_split(&tags, node->cdata, " \t,|", 0);
+		ni_string_split(&tags, node->cdata, " ,|\t\n", 0);
 	}
 
 	*routes_opts = 0;
@@ -2218,6 +2224,224 @@ ni_config_parse_rtnl_event(ni_config_rtnl_event_t *conf, xml_node_t *node)
 		}
 	}
 	return TRUE;
+}
+
+/*
+ * ethtool support config options
+ *
+ * - ioctl monitor filter mask, omits ctl calls in the NEWLINK refresh
+ *   exposed via dbus as <ethtool/> node (`wicked show-xml`):
+ *
+ *   <config>
+ *     <ethtool>
+ *       <ioctl>
+ *         <monitor-filter>all,-eee</monitor-filter>
+ *       </ioctl>
+ *     </ethtool>
+ *   </config>
+ *
+ *   eee is omitted by default because the ioctl cannot pass link modes
+ *   beyond bit 32: on 2.5G and 5G interfaces the kernel warns on every
+ *   refresh and reports an incomplete mode list.
+ */
+static const ni_intmap_t	config_ethtool_ctl_map[] = {
+	{ "driver-info",	NI_CONFIG_ETHTOOL_CTL_DRIVER_INFO		},
+	{ "perm-hwaddr",	NI_CONFIG_ETHTOOL_CTL_PERM_HWADDR		},
+	{ "private-flags",	NI_CONFIG_ETHTOOL_CTL_PRIV_FLAGS		},
+	{ "link-detected",	NI_CONFIG_ETHTOOL_CTL_LINK_DETECTED		},
+	{ "link-settings",	NI_CONFIG_ETHTOOL_CTL_LINK_SETTINGS		},
+	{ "wake-on-lan",	NI_CONFIG_ETHTOOL_CTL_WAKE_ON_LAN		},
+	{ "features",		NI_CONFIG_ETHTOOL_CTL_FEATURES			},
+	{ "eee",		NI_CONFIG_ETHTOOL_CTL_EEE			},
+	{ "ring",		NI_CONFIG_ETHTOOL_CTL_RING			},
+	{ "channels",		NI_CONFIG_ETHTOOL_CTL_CHANNELS			},
+	{ "coalesce",		NI_CONFIG_ETHTOOL_CTL_COALESCE			},
+	{ "pause",		NI_CONFIG_ETHTOOL_CTL_PAUSE			},
+	{ NULL,			-1U						}
+};
+
+static const unsigned int	config_ethtool_ioctl_monitor_all[] = {
+	NI_CONFIG_ETHTOOL_CTL_DRIVER_INFO,
+	NI_CONFIG_ETHTOOL_CTL_PERM_HWADDR,
+	NI_CONFIG_ETHTOOL_CTL_PRIV_FLAGS,
+	NI_CONFIG_ETHTOOL_CTL_LINK_DETECTED,
+	NI_CONFIG_ETHTOOL_CTL_LINK_SETTINGS,
+	NI_CONFIG_ETHTOOL_CTL_WAKE_ON_LAN,
+	NI_CONFIG_ETHTOOL_CTL_FEATURES,
+	NI_CONFIG_ETHTOOL_CTL_EEE,
+	NI_CONFIG_ETHTOOL_CTL_RING,
+	NI_CONFIG_ETHTOOL_CTL_CHANNELS,
+	NI_CONFIG_ETHTOOL_CTL_COALESCE,
+	NI_CONFIG_ETHTOOL_CTL_PAUSE,
+	-1U
+};
+
+static const unsigned int	config_ethtool_ioctl_monitor_default[] = {
+	NI_CONFIG_ETHTOOL_CTL_DRIVER_INFO,
+	NI_CONFIG_ETHTOOL_CTL_PERM_HWADDR,
+	NI_CONFIG_ETHTOOL_CTL_PRIV_FLAGS,
+	NI_CONFIG_ETHTOOL_CTL_LINK_DETECTED,
+	NI_CONFIG_ETHTOOL_CTL_LINK_SETTINGS,
+	NI_CONFIG_ETHTOOL_CTL_WAKE_ON_LAN,
+	NI_CONFIG_ETHTOOL_CTL_FEATURES,
+	NI_CONFIG_ETHTOOL_CTL_RING,
+	NI_CONFIG_ETHTOOL_CTL_CHANNELS,
+	NI_CONFIG_ETHTOOL_CTL_COALESCE,
+	NI_CONFIG_ETHTOOL_CTL_PAUSE,
+	-1U
+};
+
+static const unsigned int	config_ethtool_monitor_none[] = {
+	-1U
+};
+
+static void
+ni_config_ethtool_monitor_apply_flags(ni_bitfield_t *mask, const unsigned int *flags,
+		ni_bool_t enable)
+{
+	unsigned int i;
+
+	for (i = 0; flags && flags[i] != -1U; ++i)
+		ni_bitfield_turnbit(mask, flags[i], enable);
+}
+
+static void
+ni_config_ethtool_monitor_init_mask(ni_bitfield_t *mask, const unsigned int *flags)
+{
+	ni_bitfield_destroy(mask);
+	ni_config_ethtool_monitor_apply_flags(mask, flags, TRUE);
+}
+
+static void
+ni_config_ethtool_ioctl_monitor_init_default(ni_bitfield_t *mask)
+{
+	ni_config_ethtool_monitor_init_mask(mask, config_ethtool_ioctl_monitor_default);
+}
+
+static void
+ni_config_ethtool_ioctl_init(ni_config_ethtool_ioctl_t *ioctl)
+{
+	ni_config_ethtool_ioctl_monitor_init_default(&ioctl->monitor_filter);
+}
+
+static void
+ni_config_ethtool_init(ni_config_ethtool_t *ethtool)
+{
+	ni_config_ethtool_ioctl_init(&ethtool->ioctl);
+}
+
+/*
+ * Comma separated ctl-names or "all", "default", "none" sets; a leading
+ * '-' removes it. An unusable name applies the default.
+ */
+static ni_bool_t
+ni_config_parse_ethtool_monitor_mask(ni_bitfield_t *mask, const xml_node_t *node,
+		const unsigned int *flags_default, const unsigned int *flags_all)
+{
+	ni_string_array_t names = NI_STRING_ARRAY_INIT;
+	ni_bool_t usable = TRUE;
+	unsigned int flag;
+	unsigned int i;
+
+	if (!mask || !node)
+		return FALSE;
+
+	ni_bitfield_destroy(mask); /* empty <monitor-filter/> node -> none */
+
+	ni_string_split(&names, node->cdata, " ,|\t\n", 0);
+	for (i = 0; i < names.count; ++i) {
+		const unsigned int *flags = NULL;
+		const char *name = names.data[i];
+		ni_bool_t enable = TRUE;
+
+		if (*name == '-') {
+			enable = FALSE;
+			name++;
+		}
+
+		if (ni_string_eq(name, "all"))
+			flags = flags_all;
+		else if (ni_string_eq(name, "default"))
+			flags = flags_default;
+		else if (ni_string_eq(name, "none"))
+			flags = config_ethtool_monitor_none;
+
+		if (flags) {
+			ni_config_ethtool_monitor_apply_flags(mask, flags, enable);
+			continue;
+		}
+
+		if (ni_parse_uint_mapped(name, config_ethtool_ctl_map, &flag)) {
+			ni_warn("%s: unknown ethtool ctl-name '%s' in <monitor-filter/>",
+					xml_node_location(node), names.data[i]);
+			usable = FALSE;
+			continue;
+		}
+		ni_bitfield_turnbit(mask, flag, enable);
+	}
+	ni_string_array_destroy(&names);
+
+	if (!usable) {
+		ni_warn("%s: applying the default ethtool ctl-name monitor filter",
+				xml_node_location(node));
+		ni_config_ethtool_monitor_init_mask(mask, flags_default);
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+ni_config_parse_ethtool_ioctl_monitor_filter(ni_bitfield_t *mask, const xml_node_t *node)
+{
+	return ni_config_parse_ethtool_monitor_mask(mask, node,
+			config_ethtool_ioctl_monitor_default,
+			config_ethtool_ioctl_monitor_all);
+}
+
+static ni_bool_t
+ni_config_parse_ethtool_ioctl(ni_config_ethtool_ioctl_t *conf, const xml_node_t *node)
+{
+	const xml_node_t *child;
+
+	if (!conf || !node)
+		return FALSE;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "monitor-filter")) {
+			if (!ni_config_parse_ethtool_ioctl_monitor_filter(&conf->monitor_filter, child))
+				return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+static ni_bool_t
+ni_config_parse_ethtool(ni_config_ethtool_t *conf, const xml_node_t *node)
+{
+	const xml_node_t *child;
+
+	if (!conf || !node)
+		return FALSE;
+
+	for (child = node->children; child; child = child->next) {
+		if (ni_string_eq(child->name, "ioctl")) {
+			if (!ni_config_parse_ethtool_ioctl(&conf->ioctl, child))
+				return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+const ni_bitfield_t *
+ni_config_ethtool_ioctl_monitor_mask(void)
+{
+	static ni_config_ethtool_ioctl_t default_ioctl;
+
+	if (ni_global.config)
+		return &ni_global.config->ethtool.ioctl.monitor_filter;
+
+	if (!ni_bitfield_words(&default_ioctl.monitor_filter))
+		ni_config_ethtool_ioctl_init(&default_ioctl);
+	return &default_ioctl.monitor_filter;
 }
 
 /*

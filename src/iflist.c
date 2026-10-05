@@ -20,6 +20,7 @@
 #include <wicked/macvlan.h>
 #include <wicked/ipvlan.h>
 #include <wicked/wireless.h>
+#include <wicked/ethernet.h>
 #include <wicked/infiniband.h>
 #include <wicked/ppp.h>
 #include <wicked/tuntap.h>
@@ -54,6 +55,26 @@
 #include <linux/if_tunnel.h>
 #include <linux/fib_rules.h>
 
+#define ni_rtnl_link_set_hwaddr(hwaddr, hwtype, attr, name, ifname)	\
+	do {								\
+		unsigned int alen;					\
+									\
+		if (!(hwaddr) || !(attr) || !(name) || !(ifname))	\
+			break;						\
+									\
+		alen = nla_len(attr);					\
+		if (alen > NI_MAXHWADDRLEN) {				\
+			ni_warn_once("%s: %s is too long (len = %u)",	\
+					ifname, name, alen);		\
+			alen = NI_MAXHWADDRLEN;				\
+		}							\
+		ni_link_address_set((hwaddr), (hwtype),			\
+				nla_data(attr), alen);			\
+		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,	\
+				"%s: %s: %s", ifname, name,		\
+				ni_link_address_print(hwaddr));		\
+	} while (0)
+
 static int		__ni_process_ifinfomsg(ni_linkinfo_t *link, struct nlmsghdr *h,
 					struct ifinfomsg *ifi, ni_netconfig_t *);
 static int		__ni_netdev_process_newaddr(ni_netdev_t *dev, struct nlmsghdr *h,
@@ -62,6 +83,7 @@ static int		__ni_netdev_process_newroute(ni_netdev_t *, struct nlmsghdr *,
 					struct rtmsg *, ni_netconfig_t *);
 static int		__ni_netdev_process_newrule(struct nlmsghdr *, struct fib_rule_hdr *,
 					ni_netconfig_t *);
+static int		ni_discover_ethernet(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static int		__ni_discover_bridge(ni_netdev_t *);
 static int		__ni_discover_bond(ni_netdev_t *, struct nlattr **, ni_netconfig_t *);
 static int		__ni_discover_addrconf(ni_netdev_t *);
@@ -1549,31 +1571,10 @@ __ni_process_ifinfomsg_linkinfo(ni_linkinfo_t *link, const char *ifname,
 	if (ni_netdev_link_always_ready(link))
 		link->ifflags |= NI_IFF_DEVICE_READY;
 
-	if (tb[IFLA_ADDRESS]) {
-		unsigned int alen = nla_len(tb[IFLA_ADDRESS]);
-		void *data = nla_data(tb[IFLA_ADDRESS]);
-
-		if (alen > sizeof(link->hwaddr.data))
-			alen = sizeof(link->hwaddr.data);
-
-		memcpy(link->hwaddr.data, data, alen);
-		link->hwaddr.len = alen;
-		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
-				"IFLA_ADDRESS: %s",
-				ni_link_address_print(&link->hwaddr));
-	}
-	if (tb[IFLA_BROADCAST]) {
-		unsigned int alen = nla_len(tb[IFLA_BROADCAST]);
-		void *data = nla_data(tb[IFLA_BROADCAST]);
-
-		if (alen > sizeof(link->hwpeer.data))
-			alen = sizeof(link->hwpeer.data);
-		memcpy(link->hwpeer.data, data, alen);
-		link->hwpeer.len = alen;
-		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_EVENTS,
-				"IFLA_BROADCAST: %s",
-				ni_link_address_print(&link->hwpeer));
-	}
+	ni_rtnl_link_set_hwaddr(&link->hwaddr, ifi->ifi_type, tb[IFLA_ADDRESS],
+			ni_stringify(IFLA_ADDRESS), ifname);
+	ni_rtnl_link_set_hwaddr(&link->hwpeer, ifi->ifi_type, tb[IFLA_BROADCAST],
+			ni_stringify(IFLA_BROADCAST), ifname);
 
 	if (tb[IFLA_MTU])
 		link->mtu = nla_get_u32(tb[IFLA_MTU]);
@@ -1939,10 +1940,7 @@ __ni_netdev_process_newlink(ni_netdev_t *dev, struct nlmsghdr *h,
 
 	switch (dev->link.type) {
 	case NI_IFTYPE_ETHERNET:
-		if (ni_netconfig_discover_filtered(nc, NI_NETCONFIG_DISCOVER_LINK_EXTERN))
-			break;
-
-		__ni_system_ethernet_refresh(dev);
+		ni_discover_ethernet(dev, tb, nc);
 		break;
 
 	case NI_IFTYPE_INFINIBAND:
@@ -2968,10 +2966,10 @@ __ni_rtnl_parse_newaddr(const char *ifname, unsigned int ifflags, struct nlmsghd
 		ni_trace("%s: newaddr(%s): family %d, prefixlen %u, scope %u, flags %u",
 			ifname, (ifflags & NI_IFF_POINT_TO_POINT) ? "ptp" : "brd",
 			ap->family, ap->prefixlen, ap->scope, ap->flags);
-		__newaddr_trace(ifname, ifa->ifa_family, __ni_string(IFA_LOCAL), tb[IFA_LOCAL]);
-		__newaddr_trace(ifname, ifa->ifa_family, __ni_string(IFA_ADDRESS), tb[IFA_ADDRESS]);
-		__newaddr_trace(ifname, ifa->ifa_family, __ni_string(IFA_BROADCAST), tb[IFA_BROADCAST]);
-		__newaddr_trace(ifname, ifa->ifa_family, __ni_string(IFA_ANYCAST), tb[IFA_ANYCAST]);
+		__newaddr_trace(ifname, ifa->ifa_family, ni_stringify(IFA_LOCAL), tb[IFA_LOCAL]);
+		__newaddr_trace(ifname, ifa->ifa_family, ni_stringify(IFA_ADDRESS), tb[IFA_ADDRESS]);
+		__newaddr_trace(ifname, ifa->ifa_family, ni_stringify(IFA_BROADCAST), tb[IFA_BROADCAST]);
+		__newaddr_trace(ifname, ifa->ifa_family, ni_stringify(IFA_ANYCAST), tb[IFA_ANYCAST]);
 	}
 
 	/*
@@ -3595,6 +3593,34 @@ failure:
 	return ret;
 }
 
+
+/*
+ * Discover ethernet specific settings
+ */
+static int
+ni_discover_ethernet(ni_netdev_t *dev, struct nlattr **tb, ni_netconfig_t *nc)
+{
+	static int ni_rtnl_link_permaddr_supported = 0;
+	ni_ethernet_t *eth;
+
+	if (!dev || dev->link.type != NI_IFTYPE_ETHERNET || !tb)
+		return 0;
+
+	if (!(eth = ni_netdev_get_ethernet(dev)))
+		return -1;
+
+	if (tb[IFLA_PERM_ADDRESS]) {
+		ni_rtnl_link_permaddr_supported = 1;
+
+		ni_rtnl_link_set_hwaddr(&eth->permanent_address,
+				dev->link.hwaddr.type, tb[IFLA_PERM_ADDRESS],
+				ni_stringify(IFLA_PERM_ADDRESS), dev->name);
+	} else if (!ni_rtnl_link_permaddr_supported) {
+		__ni_system_ethernet_refresh(dev);
+	}
+
+	return 0;
+}
 
 /*
  * Discover bridge topology
