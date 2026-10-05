@@ -31,9 +31,7 @@ libwicked_la_CFLAGS		= -I$(top_srcdir)		\
 				  $(LIBGCRYPT_CFLAGS)
 
 libwicked_la_LDFLAGS		= -lm			\
-				  $(LIBDL_LIBS)		\
 				  $(LIBNL_LIBS)		\
-				  $(LIBANL_LIBS)	\
 				  $(LIBDBUS_LIBS)	\
 				  $(LIBGCRYPT_LIBS)	\
 				  $(LIBWICKED_LTLINK_VERSION)
