@@ -353,6 +353,7 @@ popd
 
 %post service
 %{service_add_post wicked.service}
+%if 0%{?suse_version} < 1600
 # See bnc#843526: presets do not apply for upgrade / are not sufficient
 #                 to handle sysconfig-network|wicked -> wicked migration
 _id=`readlink /etc/systemd/system/network.service 2>/dev/null` || :
@@ -362,6 +363,7 @@ case "${_id##*/}" in
 	/usr/bin/systemctl --force enable wicked.service || :
 ;;
 esac
+%endif
 
 %preun service
 # stop the daemons on removal
