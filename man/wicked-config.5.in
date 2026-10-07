@@ -929,6 +929,34 @@ netlink	configure bonding via netlink (default)
 sysfs	configure bonding via sysfs (the old way)
 .TE
 .PP
+.TP
+.B ethtool
+.IP
+The \fB<ethtool><ioctl><monitor-filter>\fP permits to enable/disable
+ioctls, which read the settings shown by \(dqwicked show-xml\(dq on
+a \fBNEWLINK\fP event/query:
+.IP
+.nf
+.B "  <ethtool>
+.B "    <ioctl>
+.B "      <monitor-filter>all,-eee</monitor-filter>
+.B "    </ioctl>
+.B "  </ethtool>
+.fi
+.IP
+The value is a comma separated list of ctl-names, optionally prefixed
+with \fB-\fP to remove them again, or one of the special values
+\fBall\fP (every ctl-name), \fBnone\fP or \fBdefault\fP (the built-in
+equivalent to \fBall,-eee\fP).
+.IP
+Currently implemented ctl-names are \fBdriver-info\fP, \fBperm-hwaddr\fP,
+\fBprivate-flags\fP, \fBlink-detected\fP, \fBlink-settings\fP, \fBpause\fP,
+\fBwake-on-lan\fP, \fBfeatures\fP, \fBeee\fP, \fBchannels\fP, \fBcoalesce\fP
+and \fBring\fP.
+.IP
+The \fBeee\fP ioctl is excluded by default to avoid \(dqEEE linkmodes
+beyond bit 32\(dq kernel warnings on e.g. 2.5G and 5G interfaces.
+.PP
 .\" --------------------------------------------------------
 .SH EXTENSIONS
 The functionality of \fBwickedd\fP can be extended through
