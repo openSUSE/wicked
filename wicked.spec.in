@@ -185,6 +185,7 @@ Specification 1.0 and convert it to wicked configuration.
 Summary:        Network configuration infrastructure - systemd service
 Group:          System/Management
 Requires(pre):  %name = %{version}
+Requires(preun): %name = %{version}
 Requires:       sysconfig >= 0.81.0
 Provides:       /sbin/ifup
 Provides:       service(network)
