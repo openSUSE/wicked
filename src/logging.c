@@ -654,7 +654,7 @@ ni_debug_verbose_config_xml(const xml_node_t *node,
 	if (!ni_log_syslog)
 		__ni_log_stderr("::: ", fmt, ap, "");
 	else
-		vsyslog(level, fmt, ap);
+		vsyslog(LOG_DEBUG, fmt, ap);
 
 	va_end(ap);
 
