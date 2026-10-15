@@ -29,7 +29,8 @@ probe()
 
 call_probe()
 {
-	set -- $(IFS="-"; echo $"1")
+	local IFS=-
+	set -- $1
 	probe "$@" || {
 		echo "Unable to probe $@"
 		return 1
@@ -37,10 +38,27 @@ call_probe()
 	return 0
 }
 
+usage()
+{
+	[ $# -gt 0 ] && { echo "Error: $0: $*" ; }				1>&2
+	echo "Usage: $0 [--settle] unbind|down|del <ifname>..."		1>&2
+	echo "       $0 [--settle] bind|up|add     <ifname>..."		1>&2
+	echo "       $0 probe bus-pci-<id>..."				1>&2
+	[ $# -gt 0 ] && exit 2 || exit 0
+}
+
 settle=0
-case $1 in
---settle)	settle=1 ;;
-esac
+while [ $# -gt 0 ] ; do
+	case $1 in
+	-h|--help)	usage				;;
+	--settle)	settle=1			;;
+	-*)		usage "unknown option '$1'"	;;
+	*)		break				;;
+	esac
+	shift
+done
+
+[ $# -gt 0 ] || usage "missing action"
 
 status=0
 action=$1 ; shift
@@ -66,9 +84,9 @@ bind|up|add)
 		echo -n add > "$DEVPATH/uevent"
 		test $settle -ne 0 && udevadm settle
 
-		if [ ! -d $DEVPATH/driver -a -d "$DRVPATH" ] ; then
+		if [ ! -d "$DEVPATH/driver" -a -d "$DRVPATH" ] ; then
 			echo "$DEVICE > $DRVPATH/bind"
-			echo -n "$DEVICE" > $DRVPATH/bind
+			echo -n "$DEVICE" > "$DRVPATH/bind"
 		fi
 		test $settle -ne 0 && udevadm settle
 	done
@@ -78,9 +96,9 @@ unbind|down|del)
 		name=$1 ; shift
 		test -d "/sys/class/net/$name" || { status=1 ; continue; }
 
-		DEVPATH=$(cd -P "/sys/class/net/$name/device" 2>/dev/null ; echo "$PWD")
+		DEVPATH=$(cd -P "/sys/class/net/$name/device" 2>/dev/null && echo "$PWD")
 		test -n "$DEVPATH" || { status=1 ; continue; }
-		DRVPATH=$(cd -P "$DEVPATH/driver" 2>/dev/null ; echo "$PWD")
+		DRVPATH=$(cd -P "$DEVPATH/driver" 2>/dev/null && echo "$PWD")
 		test -n "$DRVPATH" || { status=1 ; continue; }
 		DEVICE=${DEVPATH##*/}
 		test -n "$DEVICE"  || { status=1 ; continue; }
@@ -97,9 +115,7 @@ unbind|down|del)
 	done
 ;;
 *)
-	echo "Usage: $0 unbind <ifname>..."
-	echo "       $0 bind   <ifname>..."
-	echo "or     $0 probe  bus-pci-<id>..."
+	usage "unknown action '$action'"
 ;;
 esac
 exit $status
