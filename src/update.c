@@ -1905,6 +1905,8 @@ ni_system_update_from_lease(const ni_addrconf_lease_t *lease, const unsigned int
 	do {
 		if ((found = ni_updater_job_list_find_running(&job_list))) {
 			if (ni_updater_job_execute(found) == 1) {
+				if (ni_updater_job_finished(job))
+					break;
 				ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EXTENSION,
 						"deferred by %s",
 						ni_updater_job_info(&out, found));
@@ -1914,6 +1916,8 @@ ni_system_update_from_lease(const ni_addrconf_lease_t *lease, const unsigned int
 		}
 		if ((found = ni_updater_job_list_find_pending(&job_list))) {
 			if (ni_updater_job_execute(found) == 1) {
+				if (ni_updater_job_finished(job))
+					break;
 				ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_EXTENSION,
 						"deferred by %s",
 						ni_updater_job_info(&out, found));
