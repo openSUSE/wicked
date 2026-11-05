@@ -3821,7 +3821,7 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 		if (w->failed)
 			continue;
 
-		if (!ni_ifworker_is_device_created(w) && !ni_ifworker_is_factory_device(w)) {
+		if (!ni_ifworker_is_device_created(w) && !ni_ifworker_config_is_factory(w)) {
 			w->pending = TRUE;
 			ni_ifworker_set_timeout(fsm, w, fsm->worker_timeout);
 			count++;
