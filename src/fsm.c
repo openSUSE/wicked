@@ -3886,6 +3886,10 @@ ni_ifworker_device_delete(ni_ifworker_t *w)
 		ni_netdev_put(w->device);
 		w->device = NULL;
 	}
+	if (w->modem) {
+		ni_modem_release(w->modem);
+		w->modem = NULL;
+	}
 	if (w->object) {
 		ni_dbus_object_free(w->object);
 		w->object = NULL;
@@ -3905,9 +3909,6 @@ ni_ifworker_device_delete(ni_ifworker_t *w)
 	ni_ifworker_destroy_action_table(w);
 	ni_ifworker_destroy_device_api(w);
 	ni_ifworker_rearm(w);
-
-	ni_ifworker_drop(&w->lowerdev);
-	ni_ifworker_drop(&w->masterdev);
 
 	ni_ifworker_free(ref);
 }
