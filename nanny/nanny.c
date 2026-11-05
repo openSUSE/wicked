@@ -320,30 +320,6 @@ ni_nanny_recheck_do(ni_nanny_t *mgr)
 	return count;
 }
 
-/*
- * Taking down an interface
- */
-unsigned int
-ni_nanny_down_do(ni_nanny_t *mgr)
-{
-	unsigned int i, count = 0;
-
-	for (i = 0; i < mgr->down.count; ++i) {
-		ni_ifworker_t *w = mgr->down.data[i];
-		ni_managed_device_t *mdev;
-
-		if ((mdev = ni_nanny_get_device(mgr, w)) != NULL) {
-			ni_managed_device_down(mdev);
-			count++;
-		}
-	}
-
-	if (i > 0)
-		ni_ifworker_array_destroy(&mgr->down);
-
-	return count;
-}
-
 ni_managed_policy_t *
 ni_nanny_get_policy(ni_nanny_t *mgr, const ni_fsm_policy_t *policy)
 {
@@ -369,14 +345,10 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 		ni_ifworker_t *w = ni_managed_device_get_worker(mdev);
 
 		if (w && ni_ifworker_get_rfkill_type(w) == type) {
-			mdev->rfkill_blocked = blocked;
 			if (blocked) {
 				ni_debug_nanny("%s: radio disabled", w->name);
 			} else {
-				/* Re-enable scanning */
-				ni_debug_nanny("%s: radio re-enabled, resume monitoring", w->name);
-				if (mdev->monitor)
-					ni_managed_netif_enable(mdev);
+				ni_debug_nanny("%s: radio re-enabled", w->name);
 			}
 		}
 	}
@@ -1326,7 +1298,6 @@ ni_nanny_recheck_policy(ni_nanny_t *mgr, ni_fsm_policy_t *policy,
 
 	ni_debug_application("Scheduled recheck for %s", w->name);
 	ni_nanny_schedule_recheck(&mgr->request, w);
-	ni_nanny_unschedule(&mgr->down, w);
 
 	mdev->fail_count = 0;
 	mdev->state = NI_MANAGED_STATE_RECHECK;
