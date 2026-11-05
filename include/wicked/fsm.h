@@ -143,7 +143,8 @@ struct ni_ifworker {
 				done		: 1,
 				kickstarted	: 1,
 				pending		: 1,
-				readonly	: 1;
+				readonly	: 1,
+				managed		: 1;
 
 	ni_fsm_policy_array_t	policies;
 

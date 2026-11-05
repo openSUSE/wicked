@@ -585,6 +585,7 @@ ni_nanny_register_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 			mdev->monitor? ", monitored (auto-enabled)" : "");
 
 	ni_ifworker_set_progress_callback(w, ni_managed_device_progress, mdev);
+	w->managed = TRUE;
 	return mdev;
 }
 
@@ -604,6 +605,7 @@ ni_nanny_unregister_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 
 	ni_ifworker_set_progress_callback(w, NULL, NULL);
 	ni_ifworker_set_completion_callback(w, NULL, NULL);
+	w->managed = FALSE;
 
 	ni_nanny_unschedule(&mgr->recheck, w);
 	ni_nanny_unschedule(&mgr->request, w);
