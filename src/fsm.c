@@ -861,6 +861,7 @@ ni_ifworker_array_free(ni_ifworker_array_t *array)
 
 extern ni_define_ptr_array_init(ni_ifworker);
 extern ni_define_ptr_array_destroy(ni_ifworker);
+extern ni_define_ptr_array_move(ni_ifworker);
 static ni_define_ptr_array_realloc(ni_ifworker, NI_IFWORKER_ARRAY_CHUNK);
 extern ni_define_ptr_array_append_ref(ni_ifworker);
 extern ni_define_ptr_array_delete_at(ni_ifworker);

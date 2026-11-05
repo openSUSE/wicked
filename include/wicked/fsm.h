@@ -412,6 +412,7 @@ extern ni_ifworker_array_t *	ni_ifworker_array_clone(ni_ifworker_array_t *);
 
 extern				ni_declare_ptr_array_init(ni_ifworker);
 extern				ni_declare_ptr_array_destroy(ni_ifworker);
+extern				ni_declare_ptr_array_move(ni_ifworker);
 extern				ni_declare_ptr_array_append_ref(ni_ifworker);
 extern				ni_declare_ptr_array_delete_at(ni_ifworker);
 extern				ni_declare_ptr_array_delete(ni_ifworker);
