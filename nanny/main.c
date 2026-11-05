@@ -344,28 +344,14 @@ babysit(void)
 }
 
 /*
- * At startup, discover current configuration.
- * If we have any live leases, restart address configuration for them.
- * This allows a daemon restart without losing lease state.
+ * Create workers for the existing devices without managing them
  */
 static void
 ni_nanny_discover_state(ni_nanny_t *mgr)
 {
-	ni_fsm_t *fsm;
-	unsigned int i;
-
 	ni_assert(mgr && mgr->fsm);
 
-	fsm = mgr->fsm;
-	ni_fsm_refresh_state(fsm);
-
-	/* Register devices that exist */
-	for (i = 0; i < fsm->workers.count; ++i) {
-		ni_ifworker_t *w = fsm->workers.data[i];
-
-		if (ni_netdev_device_is_ready(w->device))
-			ni_nanny_register_device(mgr, w);
-	}
+	ni_fsm_refresh_state(mgr->fsm);
 }
 
 static void
