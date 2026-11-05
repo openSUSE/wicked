@@ -446,7 +446,7 @@ extern ni_define_refcounted_drop(ni_ifworker);
 extern ni_define_refcounted_move(ni_ifworker);
 
 static ni_ifworker_t *
-ni_fsm_create_worker(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char *name)
+ni_ifworker_array_create_worker(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char *name)
 {
 	ni_ifworker_t *worker;
 
@@ -458,6 +458,12 @@ ni_fsm_create_worker(ni_ifworker_array_t *array, ni_ifworker_type_t type, const 
 
 	/* worker reference owned by array or NULL */
 	return worker;
+}
+
+ni_ifworker_t *
+ni_fsm_create_worker(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
+{
+	return fsm ? ni_ifworker_array_create_worker(&fsm->workers, type, name) : NULL;
 }
 
 
@@ -2133,7 +2139,7 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_node_t *node, const char *origin)
 				xml_node_location(node), node->name);
 			return NULL;
 		}
-		if (!(w = ni_fsm_create_worker(&fsm->workers, type, ifname))) {
+		if (!(w = ni_fsm_create_worker(fsm, type, ifname))) {
 			ni_error("%s: cannot allocate worker for '%s' configuration",
 				xml_node_location(node), node->name);
 			return NULL;
@@ -5020,7 +5026,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		if (!found) {
 			ni_debug_application("received new ready device %s (%s)",
 						dev->name, object->path);
-			found = ni_fsm_create_worker(&fsm->workers, NI_IFWORKER_TYPE_NETDEV, dev->name);
+			found = ni_fsm_create_worker(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
 			if (found)
 				found->readonly = fsm->readonly;
 		} else {
@@ -5043,7 +5049,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		if (!(found = ni_ifworker_array_find_by_objectpath(&fsm->pending, object->path))) {
 			ni_debug_application("received new non-ready device %s (%s)",
 					dev->name, object->path);
-			found = ni_fsm_create_worker(&fsm->pending, NI_IFWORKER_TYPE_NETDEV, dev->name);
+			found = ni_ifworker_array_create_worker(&fsm->pending, NI_IFWORKER_TYPE_NETDEV, dev->name);
 			if (found)
 				found->readonly = fsm->readonly;
 		} else {
@@ -5147,7 +5153,7 @@ ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		found = ni_fsm_ifworker_by_object_path(fsm, object->path);
 	if (!found) {
 		ni_debug_application("received new modem %s (%s)", modem->device, object->path);
-		found = ni_fsm_create_worker(&fsm->workers, NI_IFWORKER_TYPE_MODEM, modem->device);
+		found = ni_fsm_create_worker(fsm, NI_IFWORKER_TYPE_MODEM, modem->device);
 	}
 
 	if (!found)
