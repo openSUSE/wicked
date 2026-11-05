@@ -305,6 +305,7 @@ extern ni_bool_t		ni_fsm_policy_match_worker(const ni_fsm_t *, const ni_fsm_poli
 extern ni_bool_t		ni_fsm_transform_policies_to_config(xml_node_t *,
 						ni_fsm_policy_t * const *, unsigned int);
 extern xml_node_t *		ni_fsm_policies_create_config(ni_fsm_policy_t * const *, unsigned int);
+extern ni_iftype_t		ni_fsm_policies_config_iftype(const ni_fsm_policy_array_t *);
 
 extern				ni_declare_refcounted_ref(ni_fsm_policy);
 extern				ni_declare_refcounted_free(ni_fsm_policy);
@@ -321,6 +322,10 @@ extern const char *		ni_fsm_policy_origin(const ni_fsm_policy_t *);
 extern unsigned int		ni_fsm_policy_weight(const ni_fsm_policy_t *);
 extern ni_ifworker_type_t	ni_fsm_policy_config_type(const ni_fsm_policy_t *);
 extern const ni_dbus_class_t *	ni_fsm_policy_config_class(const ni_fsm_policy_t *);
+extern const xml_node_t *	ni_fsm_policy_config_name(const ni_fsm_policy_t *);
+extern ni_iftype_t		ni_fsm_policy_config_iftype(const ni_fsm_policy_t *);
+extern ni_ifworker_t *		ni_fsm_policy_identify_worker(ni_fsm_t *, const ni_fsm_policy_t *,
+							const char **);
 
 extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *tstamp);
 
@@ -352,6 +357,8 @@ extern void			ni_fsm_print_system_hierarchy(const ni_fsm_t *,
 extern int			ni_fsm_build_hierarchy(ni_fsm_t *, ni_bool_t);
 extern ni_ifworker_t *		ni_fsm_worker_identify(ni_fsm_t *, const xml_node_t *, const char *,
 							ni_ifworker_type_t *, const char **);
+extern ni_ifworker_t *		ni_fsm_worker_identify_by_name(ni_fsm_t *, ni_ifworker_type_t,
+							const xml_node_t *, const char *, const char **);
 extern ni_ifworker_t *		ni_fsm_workers_from_xml(ni_fsm_t *, xml_node_t *, const char *);
 extern unsigned int		ni_fsm_fail_count(ni_fsm_t *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_object_path(ni_fsm_t *, const char *);

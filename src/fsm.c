@@ -42,7 +42,8 @@ static ni_fsm_user_prompt_fn_t *ni_fsm_user_prompt_fn;
 static void *			ni_fsm_user_prompt_data;
 
 static ni_ifworker_t *		ni_ifworker_identify_device(ni_fsm_t *, const xml_node_t *, ni_ifworker_type_t, const char *);
-static ni_ifworker_t *		__ni_ifworker_identify_device(ni_fsm_t *, const char *, const xml_node_t *, ni_ifworker_type_t, const char *);
+static ni_ifworker_t *		ni_ifworker_identify_device_by_namespace(ni_fsm_t *, const char *,
+						const xml_node_t *, ni_ifworker_type_t, const char *);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static int			ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *, unsigned int, unsigned int);
 static int			ni_fsm_schedule_bind_methods(ni_fsm_t *, ni_ifworker_t *);
@@ -1148,7 +1149,7 @@ ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_ty
 
 		namespace = xml_node_get_attr(devnode, "namespace");
 		if (namespace != NULL) {
-			child = __ni_ifworker_identify_device(fsm, namespace, devnode, type, origin);
+			child = ni_ifworker_identify_device_by_namespace(fsm, namespace, devnode, type, origin);
 		} else if (devnode->cdata) {
 			const char *slave_name = devnode->cdata;
 			child = ni_fsm_ifworker_by_name(fsm, type, slave_name);
@@ -2052,7 +2053,6 @@ ni_ifworker_t *
 ni_fsm_worker_identify(ni_fsm_t *fsm, const xml_node_t *node, const char *origin,
 			ni_ifworker_type_t *type, const char **ifname)
 {
-	const char *namespace;
 	xml_node_t *name;
 
 	if (!fsm || !type || xml_node_is_empty(node))
@@ -2065,15 +2065,27 @@ ni_fsm_worker_identify(ni_fsm_t *fsm, const xml_node_t *node, const char *origin
 	if (!(name = xml_node_get_child(node, "name")))
 		return NULL;
 
+	return ni_fsm_worker_identify_by_name(fsm, *type, name, origin, ifname);
+}
+
+ni_ifworker_t *
+ni_fsm_worker_identify_by_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const xml_node_t *name,
+			const char *origin, const char **ifname)
+{
+	const char *namespace;
+
+	if (!fsm || !name)
+		return NULL;
+
 	if ((namespace = xml_node_get_attr(name, "namespace"))) {
 		if (ifname)
 			*ifname = NULL;
-		return __ni_ifworker_identify_device(fsm, namespace, name, *type, origin);
+		return ni_ifworker_identify_device_by_namespace(fsm, namespace, name, type, origin);
 	} else
 	if (!ni_string_empty(name->cdata)) {
 		if (ifname)
 			*ifname = name->cdata;
-		return ni_fsm_ifworker_by_name(fsm, *type, name->cdata);
+		return ni_fsm_ifworker_by_name(fsm, type, name->cdata);
 	}
 
 	return NULL;
@@ -2745,7 +2757,8 @@ ni_ifworker_check_dependencies(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transitio
  * System z etc.
  */
 static ni_ifworker_t *
-__ni_ifworker_identify_device(ni_fsm_t *fsm, const char *namespace, const xml_node_t *devnode, ni_ifworker_type_t type, const char *origin)
+ni_ifworker_identify_device_by_namespace(ni_fsm_t *fsm, const char *namespace,
+			const xml_node_t *devnode, ni_ifworker_type_t type, const char *origin)
 {
 	ni_ifworker_t *found = NULL;
 	char *object_path = NULL;
@@ -2818,7 +2831,7 @@ ni_ifworker_identify_device(ni_fsm_t *fsm, const xml_node_t *devnode, ni_ifworke
 			free(namespace);
 		}
 
-		found = __ni_ifworker_identify_device(fsm, query->name, query, type, origin);
+		found = ni_ifworker_identify_device_by_namespace(fsm, query->name, query, type, origin);
 		if (query != attr)
 			xml_node_free(query);
 		if (found != NULL) {

@@ -120,6 +120,8 @@ struct ni_fsm_policy {
 	struct {
 		ni_ifworker_type_t	type;
 		const ni_dbus_class_t *	class;
+		xml_node_t *		name;
+		ni_iftype_t		iftype;
 	} config;
 
 	ni_ifcondition_t *		match;
@@ -191,6 +193,9 @@ ni_fsm_policy_reset(ni_fsm_policy_t *policy)
 		ni_fsm_policy_action_free(policy->create_action);
 		policy->create_action = NULL;
 	}
+	xml_node_free(policy->config.name);
+	policy->config.name = NULL;
+	policy->config.iftype = NI_IFTYPE_UNKNOWN;
 }
 
 static void
@@ -364,6 +369,24 @@ ni_fsm_policy_uuid_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 	return TRUE;
 }
 
+static void
+ni_fsm_policy_config_from_actions(ni_fsm_policy_t *policy)
+{
+	xml_node_t *config, *name;
+
+	if (policy->type != NI_FSM_POLICY_TYPE_CONFIG)
+		return;
+
+	if (!(config = ni_fsm_policies_create_config(&policy, 1)))
+		return;
+
+	if ((name = xml_node_get_child(config, "name")))
+		policy->config.name = xml_node_clone(name, NULL);
+
+	policy->config.iftype = ni_ifworker_iftype_from_xml(config);
+	xml_node_free(config);
+}
+
 static ni_bool_t
 ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 {
@@ -484,6 +507,8 @@ ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 	xml_node_free(policy->node);
 	policy->node = xml_node_ref(node);
 	policy->seq = policy_seq++;
+
+	ni_fsm_policy_config_from_actions(policy);
 	return TRUE;
 }
 
@@ -697,6 +722,28 @@ const ni_dbus_class_t *
 ni_fsm_policy_config_class(const ni_fsm_policy_t *policy)
 {
 	return policy ? policy->config.class : NULL;
+}
+
+const xml_node_t *
+ni_fsm_policy_config_name(const ni_fsm_policy_t *policy)
+{
+	return policy ? policy->config.name : NULL;
+}
+
+ni_iftype_t
+ni_fsm_policy_config_iftype(const ni_fsm_policy_t *policy)
+{
+	return policy ? policy->config.iftype : NI_IFTYPE_UNKNOWN;
+}
+
+ni_ifworker_t *
+ni_fsm_policy_identify_worker(ni_fsm_t *fsm, const ni_fsm_policy_t *policy, const char **ifname)
+{
+	if (!fsm || !policy || !policy->config.name)
+		return NULL;
+
+	return ni_fsm_worker_identify_by_name(fsm, policy->config.type,
+			policy->config.name, ni_fsm_policy_origin(policy), ifname);
 }
 
 ni_bool_t
@@ -1011,6 +1058,35 @@ ni_fsm_policies_create_config(ni_fsm_policy_t * const *policies, unsigned int co
 	}
 
 	return config;
+}
+
+ni_iftype_t
+ni_fsm_policies_config_iftype(const ni_fsm_policy_array_t *policies)
+{
+	ni_fsm_policy_array_t sorted = NI_ARRAY_INIT;
+	ni_iftype_t iftype = NI_IFTYPE_UNKNOWN;
+	xml_node_t *config;
+	unsigned int i;
+
+	if (!policies || !policies->count)
+		return iftype;
+
+	if (policies->count == 1)
+		return ni_fsm_policy_config_iftype(policies->data[0]);
+
+	for (i = 0; i < policies->count; ++i)
+		ni_fsm_policy_array_append_ref(&sorted, policies->data[i]);
+
+	if (sorted.count > 1)
+		ni_fsm_policy_array_qsort(&sorted, ni_fsm_policy_compare_applicable);
+
+	if ((config = ni_fsm_policies_create_config(sorted.data, sorted.count))) {
+		iftype = ni_ifworker_iftype_from_xml(config);
+		xml_node_free(config);
+	}
+
+	ni_fsm_policy_array_destroy(&sorted);
+	return iftype;
 }
 
 /*
