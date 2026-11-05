@@ -1539,31 +1539,9 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 }
 
 static ni_bool_t
-ni_ifworker_revert_state(ni_ifworker_t *w, ni_event_t event)
+ni_ifworker_revert_to_state(ni_ifworker_t *w, ni_fsm_state_t state, ni_event_t event, ni_bool_t redo)
 {
 	ni_fsm_transition_t *action;
-	ni_fsm_state_t state;
-	ni_bool_t redo = FALSE;
-
-	switch (event) {
-	case NI_EVENT_DEVICE_DOWN:
-		/* until administrative DOWN is reverted */
-		state = NI_FSM_STATE_DEVICE_UP;
-		event = NI_EVENT_DEVICE_UP;
-		/* or it is a slave which has to enslave */
-		redo = w->masterdev != NULL;
-		break;
-
-	case NI_EVENT_LINK_DOWN:
-		/* until the link (carrier) is UP again */
-		state = NI_FSM_STATE_LINK_UP;
-		event = NI_EVENT_LINK_UP;
-		redo = TRUE;
-		break;
-
-	default:
-		return FALSE;
-	}
 
 	/* target is initialized, state more advanced, worker is started */
 	if (!w->target_state || state > w->fsm.state || !w->kickstarted)
@@ -1604,6 +1582,35 @@ ni_ifworker_revert_state(ni_ifworker_t *w, ni_event_t event)
 			ni_event_type_to_name(event));
 	}
 	return TRUE;
+}
+
+static ni_bool_t
+ni_ifworker_revert_state(ni_ifworker_t *w, ni_event_t event)
+{
+	ni_fsm_state_t state;
+	ni_bool_t redo = FALSE;
+
+	switch (event) {
+	case NI_EVENT_DEVICE_DOWN:
+		/* until administrative DOWN is reverted */
+		state = NI_FSM_STATE_DEVICE_UP;
+		event = NI_EVENT_DEVICE_UP;
+		/* or it is a slave which has to enslave */
+		redo = w->masterdev != NULL;
+		break;
+
+	case NI_EVENT_LINK_DOWN:
+		/* until the link (carrier) is UP again */
+		state = NI_FSM_STATE_LINK_UP;
+		event = NI_EVENT_LINK_UP;
+		redo = TRUE;
+		break;
+
+	default:
+		return FALSE;
+	}
+
+	return ni_ifworker_revert_to_state(w, state, event, redo);
 }
 
 static void
