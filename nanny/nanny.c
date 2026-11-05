@@ -158,6 +158,20 @@ ni_nanny_unschedule(ni_ifworker_array_t *array, ni_ifworker_t *w)
 }
 
 /*
+ * Check whether the device is available:
+ * - its lower device (if any) exists
+ * - the device exists or wicked can create it
+ */
+ni_bool_t
+ni_nanny_device_available(const ni_ifworker_t *w)
+{
+	if (w->lowerdev && !ni_ifworker_is_device_created(w->lowerdev))
+		return FALSE;
+
+	return ni_ifworker_is_device_created(w) || ni_ifworker_config_is_factory(w);
+}
+
+/*
  * Recheck a managed worker
  */
 static unsigned int
@@ -168,12 +182,26 @@ ni_nanny_recheck_managed(ni_nanny_t *mgr, ni_managed_device_t *mdev, ni_ifworker
 	ni_fsm_policy_array_t policies = NI_ARRAY_INIT;
 	unsigned int count = 0;
 
-	/* wait for a recheck request */
+	/* wait for the device or a recheck request */
 	switch (mdev->state) {
+	case NI_MANAGED_STATE_WAITING:
+		if (!ni_nanny_device_available(w)) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+					"%s: waiting for the device", w->name);
+			return count;
+		}
+		break;
+
 	case NI_MANAGED_STATE_RECHECK:
 		if (!requested) {
 			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
 					"%s: waiting for a recheck request", w->name);
+			return count;
+		}
+		if (!ni_nanny_device_available(w)) {
+			ni_debug_nanny("%s: waiting for the device in state %s", w->name,
+					ni_managed_state_to_string(mdev->state));
+			mdev->state = NI_MANAGED_STATE_WAITING;
 			return count;
 		}
 		break;
@@ -616,6 +644,45 @@ ni_nanny_unregister_device(ni_nanny_t *mgr, ni_ifworker_t *w)
 }
 
 /*
+ * Wait for a managed device whose network interface disappeared
+ */
+static void
+ni_nanny_device_wait(ni_nanny_t *mgr, ni_ifworker_t *w)
+{
+	ni_managed_device_t *mdev;
+
+	if (!(mdev = ni_nanny_get_device(mgr, w)))
+		return;
+
+	ni_debug_nanny("%s: waiting for the device in state %s", w->name,
+			ni_managed_state_to_string(mdev->state));
+
+	if (mdev->state != NI_MANAGED_STATE_RECHECK) {
+		mdev->state = NI_MANAGED_STATE_WAITING;
+		mdev->fail_count = 0;
+		ni_secret_array_destroy(&mdev->secrets);
+	}
+}
+
+static void
+ni_nanny_recheck_upper_devices(ni_nanny_t *mgr, ni_ifworker_t *lower)
+{
+	ni_managed_device_t *mdev;
+	ni_ifworker_t *w;
+
+	if (lower->type != NI_IFWORKER_TYPE_NETDEV)
+		return;
+
+	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
+		if (!(w = ni_managed_device_get_worker(mdev)) || w->lowerdev != lower)
+			continue;
+
+		if (mdev->state == NI_MANAGED_STATE_WAITING)
+			ni_nanny_schedule_recheck(&mgr->recheck, w);
+	}
+}
+
+/*
  * Reset a managed device and its worker config:
  * - clear the fail count and secrets, unschedule it
  * - reset the worker, keep the references of other workers to it
@@ -961,6 +1028,7 @@ ni_objectmodel_nanny_unwrap(const ni_dbus_object_t *object, DBusError *error)
 static void
 ni_nanny_process_rename_event(ni_nanny_t *mgr, ni_ifworker_t *w)
 {
+	ni_managed_device_t *mdev;
 	ni_ifworker_t *c;
 	unsigned int i;
 	ni_bool_t rebuild = FALSE;
@@ -988,8 +1056,21 @@ ni_nanny_process_rename_event(ni_nanny_t *mgr, ni_ifworker_t *w)
 		i++;
 	}
 
-	/* apply matching policies and rearm */
-	if (ni_fsm_exists_applicable_policy(mgr->fsm, w)) {
+	if ((mdev = ni_nanny_get_device(mgr, w))) {
+		/*
+		 * reset a renamed device and drop the references to it,
+		 * recheck may apply new policies
+		 */
+		ni_debug_application("%s: request recheck for renamed device (%s)",
+				w->name, w->old_name);
+		ni_fsm_policy_array_destroy(&w->policies);
+		ni_fsm_reset_worker(mgr->fsm, w);
+		ni_nanny_device_reset_config(mgr, mdev, w);
+		mdev->state = NI_MANAGED_STATE_RECHECK;
+		ni_nanny_schedule_recheck(&mgr->request, w);
+		rebuild = TRUE;
+	} else if (ni_fsm_exists_applicable_policy(mgr->fsm, w)) {
+		/* recheck the matching policies and rearm */
 		ni_debug_application("%s: schedule recheck for renamed device (%s)",
 				w->name, w->old_name);
 		ni_nanny_schedule_recheck(&mgr->recheck, w);
@@ -1000,6 +1081,7 @@ ni_nanny_process_rename_event(ni_nanny_t *mgr, ni_ifworker_t *w)
 	if (rebuild) {
 		ni_fsm_build_hierarchy(mgr->fsm, FALSE);
 		ni_fsm_print_config_hierarchy(mgr->fsm, NULL, NULL);
+		ni_nanny_recheck_upper_devices(mgr, w);
 	}
 }
 
@@ -1019,10 +1101,13 @@ ni_nanny_process_fsm_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 		/* the recheck registers a managed device once a policy applies */
 		if (ni_fsm_exists_applicable_policy(mgr->fsm, w))
 			ni_nanny_schedule_recheck(&mgr->recheck, w);
+
+		if (ev->event_type == NI_EVENT_DEVICE_READY && ni_nanny_get_device(mgr, w))
+			ni_nanny_recheck_upper_devices(mgr, w);
 		break;
 
 	case NI_EVENT_DEVICE_DELETE:
-		ni_nanny_unregister_device(mgr, w);
+		ni_nanny_device_wait(mgr, w);
 		break;
 
 	case NI_EVENT_DEVICE_DOWN:

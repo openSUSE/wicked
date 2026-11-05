@@ -210,6 +210,12 @@ ni_managed_device_start(ni_managed_device_t *mdev)
 	if (!(w = ni_managed_device_get_worker(mdev)) || !w->config.node)
 		return -1;
 
+	if (!ni_nanny_device_available(w)) {
+		ni_debug_nanny("%s: waiting for the device", w->name);
+		mdev->state = NI_MANAGED_STATE_WAITING;
+		return -1;
+	}
+
 	/* Now do the fandango */
 	return ni_managed_device_up(mdev);
 }
@@ -229,6 +235,7 @@ ni_managed_device_up_done(ni_ifworker_t *w)
 	}
 
 	switch (mdev->state) {
+	case NI_MANAGED_STATE_WAITING:
 	case NI_MANAGED_STATE_RECHECK:
 		return;
 	default:

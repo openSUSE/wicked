@@ -144,6 +144,7 @@ extern void			ni_nanny_clear_secrets(ni_nanny_t *mgr,
 						const ni_security_id_t *security_id, const char *path);
 extern ni_secret_t *		ni_nanny_get_secret(ni_nanny_t *, uid_t, const ni_security_id_t *, const char *);
 extern void			ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked);
+extern ni_bool_t		ni_nanny_device_available(const ni_ifworker_t *);
 extern int			ni_nanny_create_policy(ni_dbus_object_t **, ni_nanny_t *, xml_document_t *, const uid_t *, ni_bool_t);
 extern ni_bool_t		ni_nanny_policy_drop(const char *);
 
