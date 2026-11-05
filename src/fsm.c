@@ -909,31 +909,6 @@ ni_fsm_ifworker_by_name(const ni_fsm_t *fsm, ni_ifworker_type_t type, const char
 }
 
 ni_ifworker_t *
-ni_fsm_ifworker_by_policy_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *policy_name)
-{
-	unsigned int i;
-	ni_ifworker_t *w;
-	char *n;
-
-	if (!fsm || !policy_name)
-		return NULL;
-
-	for (i = 0; i < fsm->workers.count ; ++i) {
-		w = fsm->workers.data[i];
-		if (w && w->type == type) {
-			n = ni_ifpolicy_name_from_ifname(w->name);
-			if (n && ni_string_eq(n, policy_name)) {
-				ni_string_free(&n);
-				return w;
-			}
-			ni_string_free(&n);
-		}
-	}
-
-	return NULL;
-}
-
-ni_ifworker_t *
 ni_fsm_ifworker_by_object_path(ni_fsm_t *fsm, const char *object_path)
 {
 	return ni_ifworker_array_find_by_objectpath(&fsm->workers, object_path);
@@ -1005,12 +980,7 @@ ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
 	if (!w || ni_string_empty(ifname))
 		return FALSE;
 
-	if (ni_string_eq(w->name, ifname))
-		return TRUE;
-
-	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
-			"device %s requested via match is not present", ifname);
-	return FALSE;
+	return ni_string_eq(w->name, ifname);
 }
 
 static ni_bool_t

@@ -367,7 +367,6 @@ extern ni_ifworker_t *		ni_fsm_ifworker_by_object_path(ni_fsm_t *, const char *)
 extern ni_ifworker_t *		ni_fsm_ifworker_by_ifindex(ni_fsm_t *, unsigned int);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_netdev(ni_fsm_t *, const ni_netdev_t *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_name(const ni_fsm_t *, ni_ifworker_type_t, const char *);
-extern ni_ifworker_t *		ni_fsm_ifworker_by_policy_name(ni_fsm_t *, ni_ifworker_type_t, const char *);
 extern void			ni_fsm_wait_tentative_addrs(ni_fsm_t *);
 
 extern ni_ifworker_type_t	ni_ifworker_type_from_string(const char *);

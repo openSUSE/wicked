@@ -761,32 +761,10 @@ ni_fsm_policy_match_worker(const ni_fsm_t *fsm, const ni_fsm_policy_t *policy, n
 static ni_bool_t
 ni_fsm_policy_applicable(const ni_fsm_t *fsm, ni_fsm_policy_t *policy, ni_ifworker_t *w)
 {
-	xml_node_t *node;
-	char *pname;
-
 	if (!policy || !w)
 		return FALSE;
 
-	/* 1st match check -ifworker to policy name comparison */
-	pname = ni_ifpolicy_name_from_ifname(w->name);
-	if (!ni_string_eq(policy->name, pname)) {
-		ni_string_free(&pname);
-		return FALSE;
-	}
-	ni_string_free(&pname);
-
-	/* 2nd match check - ifworker  to config name comparison */
-	if (!xml_node_is_empty(w->config.node) &&
-	    (node = xml_node_get_child(w->config.node, "name"))) {
-		const char *namespace = xml_node_get_attr(node, "namespace");
-		if (!namespace && !ni_string_eq(node->cdata, w->name)) {
-			ni_error("%s: config name does not match policy name",
-					policy->name);
-			return FALSE;
-		}
-	}
-
-	/* 3rd match check - physical worker must be ready  */
+	/* 1st match check - device must be ready or wicked creates it */
 	if (ni_ifworker_is_device_created(w)) {
 		if (!ni_netdev_device_is_ready(w->device))
 			return FALSE;
@@ -794,14 +772,16 @@ ni_fsm_policy_applicable(const ni_fsm_t *fsm, ni_fsm_policy_t *policy, ni_ifwork
 	else if (!ni_ifworker_config_is_factory(w))
 		return FALSE;
 
-	/* 4th match check - <match> condition must be fulfilled */
+	/* 2nd match check - <match> condition must be fulfilled */
 	if (!ni_fsm_policy_match_worker(fsm, policy, w)) {
-		ni_debug_nanny("%s: policy <match> condition is not met for worker %s",
+		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_APPLICATION,
+			"%s: policy <match> condition is not met for worker %s",
 			policy->name, w->name);
 		return FALSE;
 	}
 
-	ni_debug_nanny("%s: found applicable policy: %s", w->name, policy->name);
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+			"%s: found applicable policy: %s", w->name, policy->name);
 	return TRUE;
 }
 
@@ -993,11 +973,8 @@ ni_fsm_transform_policies_to_config(xml_node_t *config, ni_fsm_policy_t * const 
 				continue;
 			}
 
-			if (config->final || !(action->next || i + 1 < count)) {
-				ni_debug_config_xml(config, NI_LOG_DEBUG3,
-						"resulting config (final):");
+			if (config->final || !(action->next || i + 1 < count))
 				break;
-			}
 
 			ni_debug_config_xml(config, NI_LOG_DEBUG3,
 					"resulting config (transient):");
@@ -1704,7 +1681,7 @@ ni_fsm_policy_match_and_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm,
 	rv = ni_ifcondition_check(cond->args.terms.left, fsm, w)
 	    && ni_ifcondition_check(cond->args.terms.right, fsm, w);
 
-	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+	if (ni_debug_guard(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG)) {
 		ni_trace("%s: %s condition is %s",
 			w->name, __func__, ni_format_boolean(rv));
 	}
@@ -1736,7 +1713,7 @@ ni_fsm_policy_match_and_children_check(const ni_ifcondition_t *cond, const ni_fs
 			break;
 	}
 
-	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+	if (ni_debug_guard(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG)) {
 		ni_trace("%s: %s condition is %s",
 			w->name, __func__, ni_format_boolean(rv));
 	}
@@ -1787,7 +1764,7 @@ ni_fsm_policy_match_or_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, 
 	rv = ni_ifcondition_check(cond->args.terms.left, fsm, w)
 	    || ni_ifcondition_check(cond->args.terms.right, fsm, w);
 
-	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+	if (ni_debug_guard(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG)) {
 		ni_trace("%s: %s condition is %s",
 			w->name, __func__, ni_format_boolean(rv));
 	}
@@ -1867,7 +1844,7 @@ ni_fsm_policy_match_class_check(const ni_ifcondition_t *cond, const ni_fsm_t *fs
 	rv = w->object &&
 		ni_dbus_class_is_subclass(cond->args.class, w->object->class);
 
-	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+	if (ni_debug_guard(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG)) {
 		ni_trace("%s: %s condition is %s",
 			w->name, __func__, ni_format_boolean(rv));
 	}
@@ -1882,7 +1859,7 @@ ni_fsm_policy_match_linktype_check(const ni_ifcondition_t *cond, const ni_fsm_t 
 
 	rv = (iftype == w->iftype);
 
-	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+	if (ni_debug_guard(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG)) {
 		ni_trace("%s: %s condition is %s",
 			w->name, __func__, ni_format_boolean(rv));
 	}
@@ -1991,7 +1968,7 @@ ni_fsm_policy_match_device_name_check(const ni_ifcondition_t *cond, const ni_fsm
 
 	rv = ni_ifworker_match_netdev_name(w, cond->args.string);
 
-	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+	if (ni_debug_guard(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG)) {
 		ni_trace("%s: %s condition is %s",
 			w->name, __func__, ni_format_boolean(rv));
 	}
@@ -2324,7 +2301,7 @@ ni_fsm_policy_match_wireless_essid_check(const ni_ifcondition_t *cond, const ni_
 		if (!ni_wireless_ssid_eq(&ssid, &bss->ssid))
 			continue;
 
-		if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		if (ni_debug_guard(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG)) {
 			ni_trace("%s - ssid `%s` MATCH - bssid:%s age:%u signal:%hd",
 					__func__, ni_wireless_ssid_print(&ssid, &sbuf),
 					ni_link_address_print(&bss->bssid),
