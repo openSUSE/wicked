@@ -86,7 +86,6 @@ static ni_ifworker_t *			ni_fsm_recv_new_modem_path(ni_fsm_t *, const char *);
 static ni_ifworker_t *			ni_fsm_recv_new_worker_path(ni_fsm_t *, ni_ifworker_type_t, const char *);
 
 static void				ni_fsm_detach_worker(ni_fsm_t *, ni_ifworker_t *);
-static void				ni_fsm_delete_worker(ni_fsm_t *, ni_ifworker_t *);
 
 static const ni_fsm_transition_t *	ni_fsm_transition_first(void);
 static const ni_fsm_transition_t *	ni_fsm_transition_next(const ni_fsm_transition_t *);
@@ -3943,7 +3942,7 @@ ni_ifworker_device_delete(ni_ifworker_t *w)
 	ni_ifworker_free(ref);
 }
 
-static void
+void
 ni_fsm_delete_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_ifworker_t *ref = ni_ifworker_ref(w);

@@ -228,6 +228,13 @@ ni_managed_device_up_done(ni_ifworker_t *w)
 		return;
 	}
 
+	switch (mdev->state) {
+	case NI_MANAGED_STATE_RECHECK:
+		return;
+	default:
+		break;
+	}
+
 	if (w->failed) {
 		mdev->fail_count++;
 		if (w->dead) {

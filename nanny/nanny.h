@@ -75,6 +75,7 @@ struct ni_managed_policy {
 	ni_managed_policy_t **	pprev;
 	ni_managed_policy_t *	next;
 
+	ni_nanny_t *		nanny;
 	ni_fsm_policy_t *	fsm_policy;
 };
 
@@ -135,6 +136,8 @@ extern unsigned int		ni_nanny_recheck_do(ni_nanny_t *mgr);
 extern unsigned int		ni_nanny_down_do(ni_nanny_t *mgr);
 extern ni_managed_device_t *	ni_nanny_register_device(ni_nanny_t *, ni_ifworker_t *);
 extern void			ni_nanny_unregister_device(ni_nanny_t *, ni_ifworker_t *);
+extern void			ni_nanny_device_policy_changed(ni_nanny_t *, ni_managed_device_t *);
+extern void			ni_nanny_device_policy_updated(ni_nanny_t *, ni_managed_device_t *);
 extern ni_managed_device_t *	ni_nanny_get_device(ni_nanny_t *, ni_ifworker_t *);
 extern void			ni_nanny_remove_device(ni_nanny_t *, ni_managed_device_t *);
 extern ni_managed_policy_t *	ni_nanny_get_policy(ni_nanny_t *, const ni_fsm_policy_t *);

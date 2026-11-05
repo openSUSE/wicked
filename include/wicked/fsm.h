@@ -351,6 +351,7 @@ extern unsigned int		ni_fsm_start_matching_workers(ni_fsm_t *, ni_ifworker_array
 extern void			ni_fsm_reset_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_uint_range_t *, ni_bool_t);
 extern ni_ifworker_t *		ni_fsm_create_worker(ni_fsm_t *, ni_ifworker_type_t, const char *);
 extern void			ni_fsm_reset_worker(ni_fsm_t *, ni_ifworker_t *);
+extern void			ni_fsm_delete_worker(ni_fsm_t *, ni_ifworker_t *);
 extern void			ni_fsm_print_config_hierarchy(const ni_fsm_t *,
 						const ni_ifworker_array_t *, ni_log_fn_t *);
 extern void			ni_fsm_print_system_hierarchy(const ni_fsm_t *,
