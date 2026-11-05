@@ -1063,98 +1063,81 @@ ni_objectmodel_nanny_set_secret(ni_dbus_object_t *object, const ni_dbus_method_t
 	return TRUE;
 }
 
-static ni_bool_t
-ni_nanny_recheck_policy(ni_nanny_t *mgr, ni_fsm_policy_t *policy)
+/*
+ * Schedule a recheck for the worker named by the policy config:
+ * - skip a worker missing in the names filter (if any)
+ * - create a missing worker, e.g. for a virtual device
+ * - register it as managed device referencing the policy
+ */
+static ni_ifworker_t *
+ni_nanny_recheck_policy(ni_nanny_t *mgr, ni_fsm_policy_t *policy,
+			const ni_string_array_t *names)
 {
+	ni_ifworker_type_t type = ni_fsm_policy_config_type(policy);
 	ni_managed_device_t *mdev;
-	xml_node_t *config = NULL;
+	const char *name = NULL;
 	ni_ifworker_t *w;
 
-	w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV,
-							ni_fsm_policy_name(policy));
-	if (w == NULL || !w->config.node) {
-		const char *origin = ni_fsm_policy_origin(policy);
-		const char *type_name;
+	w = ni_fsm_policy_identify_worker(mgr->fsm, policy, &name);
+	if (!w && !name)
+		return NULL;
 
-		type_name = ni_ifworker_type_to_string(ni_fsm_policy_config_type(policy));
+	if (names && names->count &&
+	    ni_string_array_index(names, w ? w->name : name) == -1)
+		return NULL;
 
-		if (type_name && (config = xml_node_new(type_name, NULL)))
-			xml_node_location_relocate(config, ni_fsm_policy_name(policy));
-
-		if (!config || !ni_fsm_transform_policies_to_config(config, &policy, 1)) {
-			xml_node_free(config);
-			ni_error("Unable to transform policy %s into config [%s]",
-					ni_fsm_policy_name(policy), origin);
-			return FALSE;
-		}
-		if (!ni_fsm_workers_from_xml(mgr->fsm, config, origin)) {
-			xml_node_free(config);
-			ni_error("Unable to update workers from policy %s [%s]",
-					ni_fsm_policy_name(policy), origin);
-			return FALSE;
-		}
-		xml_node_free(config);
+	if (!w && !(w = ni_fsm_create_worker(mgr->fsm, type, name))) {
+		ni_error("Unable to create worker from policy %s [%s]",
+				ni_fsm_policy_name(policy), ni_fsm_policy_origin(policy));
+		return NULL;
 	}
-	if (w == NULL) {
-		w = ni_fsm_ifworker_by_policy_name(mgr->fsm, NI_IFWORKER_TYPE_NETDEV,
-							ni_fsm_policy_name(policy));
-		if (w == NULL)
-			return FALSE;
+
+	if (!(mdev = ni_nanny_register_device(mgr, w))) {
+		ni_error("%s: unable to register managed device", w->name);
+		return NULL;
 	}
+
+	if (ni_fsm_policy_array_index(&w->policies, policy) == -1U)
+		ni_fsm_policy_array_append_ref(&w->policies, policy);
+
+	if (!w->config.node)
+		w->iftype = ni_fsm_policies_config_iftype(&w->policies);
 
 	ni_debug_application("Scheduled recheck for %s", w->name);
 	ni_nanny_schedule_recheck(&mgr->recheck, w);
 	ni_nanny_unschedule(&mgr->down, w);
-	ni_ifworker_rearm(w);
 
-	mdev = ni_nanny_get_device(mgr, w);
-	if (mdev && mdev->state == NI_MANAGED_STATE_FAILED)
-		mdev->state = NI_MANAGED_STATE_LIMBO;
+	mdev->fail_count = 0;
+	mdev->state = NI_MANAGED_STATE_RECHECK;
 
-	return TRUE;
+	return w;
 }
 
 /*
- * recheck policies matching a worker ifname filter (if any)
+ * recheck policies matching a worker name filter (if any)
  */
 void
-ni_nanny_recheck_policies(ni_nanny_t *mgr, const ni_string_array_t *ifnames)
+ni_nanny_recheck_policies(ni_nanny_t *mgr, const ni_string_array_t *names)
 {
-	ni_fsm_policy_t *policy = NULL;
-	unsigned int i, count = 0;
+	ni_string_array_t todo = NI_STRING_ARRAY_INIT;
+	ni_managed_policy_t *mpolicy;
+	unsigned int i;
 
-	if (!ifnames || ifnames->count == 0) {
-		ni_managed_policy_t *mpolicy;
+	if (names)
+		ni_string_array_copy(&todo, names);
 
-		for (mpolicy = mgr->policy_list; mpolicy; mpolicy = mpolicy->next) {
-			if (!(policy = mpolicy->fsm_policy)) /* huh? */
-				continue;
+	for (mpolicy = mgr->policy_list; mpolicy; mpolicy = mpolicy->next) {
+		ni_fsm_policy_t *policy = mpolicy->fsm_policy;
+		ni_ifworker_t *w;
 
-			if (ni_nanny_recheck_policy(mgr, policy))
-				count++;
-		}
-	} else {
-		for (i = 0; i < ifnames->count; ++i) {
-			const char *ifname = ifnames->data[i];
-			char *name = ni_ifpolicy_name_from_ifname(ifname);
-
-			/* TODO: get rid of this using a policy applicable match */
-			if (!name || !(policy = ni_fsm_get_policy_by_name(mgr->fsm, name))) {
-				ni_string_free(&name);
-				ni_debug_application("Not scheduled any recheck for %s: no policy", ifname);
-				continue;
-			}
-			ni_string_free(&name);
-
-			if (ni_nanny_recheck_policy(mgr, policy))
-				count++;
-		}
+		if ((w = ni_nanny_recheck_policy(mgr, policy, names)))
+			ni_string_array_remove_match(&todo, w->name, 0);
 	}
 
-	if (count) {
-		ni_fsm_build_hierarchy(mgr->fsm, FALSE);
-		ni_fsm_print_config_hierarchy(mgr->fsm, NULL, NULL);
-	}
+	for (i = 0; i < todo.count; ++i)
+		ni_debug_application("Not scheduled any recheck for %s: no policy", todo.data[i]);
+
+	ni_string_array_destroy(&todo);
 }
 
 static dbus_bool_t
@@ -1163,7 +1146,7 @@ ni_objectmodel_nanny_recheck(ni_dbus_object_t *object, const ni_dbus_method_t *m
 					uid_t caller_uid,
 					ni_dbus_message_t *reply, DBusError *error)
 {
-	ni_string_array_t ifnames = NI_STRING_ARRAY_INIT;
+	ni_string_array_t names = NI_STRING_ARRAY_INIT;
 	ni_nanny_t *mgr;
 	unsigned int i;
 
@@ -1181,18 +1164,18 @@ ni_objectmodel_nanny_recheck(ni_dbus_object_t *object, const ni_dbus_method_t *m
 
 	/* extract the provided filter if any */
 	for (i = 0; i < argv[0].array.len; ++i) {
-		const char *ifname = argv[0].string_array_value[i];
+		const char *name = argv[0].string_array_value[i];
 
-		if (ni_netdev_name_is_valid(ifname) && ni_string_array_append(&ifnames, ifname) == 0)
+		if (ni_netdev_name_is_valid(name) && ni_string_array_append(&names, name) == 0)
 			continue;
 
-		ni_string_array_destroy(&ifnames);
+		ni_string_array_destroy(&names);
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
 	}
 
-	ni_nanny_recheck_policies(mgr, &ifnames);
+	ni_nanny_recheck_policies(mgr, &names);
 
-	ni_string_array_destroy(&ifnames);
+	ni_string_array_destroy(&names);
 	return TRUE;
 }
 
