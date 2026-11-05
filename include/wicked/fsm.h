@@ -301,6 +301,7 @@ extern ni_fsm_policy_t *	ni_fsm_get_policy_by_name(const ni_fsm_t *, const char 
 extern unsigned int		ni_fsm_get_applicable_policies(const ni_fsm_t *, ni_ifworker_t *,
 						ni_fsm_policy_array_t *, unsigned int);
 extern ni_bool_t		ni_fsm_exists_applicable_policy(const ni_fsm_t *, ni_ifworker_t *);
+extern ni_bool_t		ni_fsm_policy_match_worker(const ni_fsm_t *, const ni_fsm_policy_t *, ni_ifworker_t *);
 extern ni_bool_t		ni_fsm_transform_policies_to_config(xml_node_t *,
 						ni_fsm_policy_t * const *, unsigned int);
 extern xml_node_t *		ni_fsm_policies_create_config(ni_fsm_policy_t * const *, unsigned int);

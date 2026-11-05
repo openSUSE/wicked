@@ -699,6 +699,15 @@ ni_fsm_policy_config_class(const ni_fsm_policy_t *policy)
 	return policy ? policy->config.class : NULL;
 }
 
+ni_bool_t
+ni_fsm_policy_match_worker(const ni_fsm_t *fsm, const ni_fsm_policy_t *policy, ni_ifworker_t *w)
+{
+	if (!policy || !policy->match || !w)
+		return FALSE;
+
+	return ni_ifcondition_check(policy->match, fsm, w);
+}
+
 /*
  * Check whether policy applies to this ifworker
  */
@@ -739,7 +748,7 @@ ni_fsm_policy_applicable(const ni_fsm_t *fsm, ni_fsm_policy_t *policy, ni_ifwork
 		return FALSE;
 
 	/* 4th match check - <match> condition must be fulfilled */
-	if (!ni_ifcondition_check(policy->match, fsm, w)) {
+	if (!ni_fsm_policy_match_worker(fsm, policy, w)) {
 		ni_debug_nanny("%s: policy <match> condition is not met for worker %s",
 			policy->name, w->name);
 		return FALSE;
