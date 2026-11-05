@@ -3900,8 +3900,12 @@ ni_ifworker_device_delete(ni_ifworker_t *w)
 	ni_ifworker_cancel_secondary_timeout(w);
 	ni_ifworker_cancel_timeout(w);
 
-	if (ni_ifworker_is_running(w))
-		ni_ifworker_fail(w, "device has been deleted");
+	if (ni_ifworker_is_running(w)) {
+		if (w->managed)
+			ni_debug_application("%s: device has been deleted, reset", w->name);
+		else
+			ni_ifworker_fail(w, "device has been deleted");
+	}
 
 	w->target_range.min = NI_FSM_STATE_NONE;
 	w->target_range.max = NI_FSM_STATE_MAX;
