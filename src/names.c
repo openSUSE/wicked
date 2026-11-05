@@ -66,6 +66,7 @@ static const ni_intmap_t	ni_linktype_name_map[] = {
 	{ "wireless",		NI_IFTYPE_WIRELESS },
 	{ "infiniband",		NI_IFTYPE_INFINIBAND },
 	{ "infiniband-child",	NI_IFTYPE_INFINIBAND_CHILD },
+	{ "infiniband:child",	NI_IFTYPE_INFINIBAND_CHILD },
 	{ "ppp",		NI_IFTYPE_PPP },
 	{ "slip",		NI_IFTYPE_SLIP },
 	{ "sit",		NI_IFTYPE_SIT },
