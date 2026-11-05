@@ -449,6 +449,12 @@ ni_ifworker_device_bound(const ni_ifworker_t *w)
 	}
 }
 
+static inline ni_bool_t
+ni_ifworker_del_config(ni_ifworker_t *w)
+{
+	return ni_ifworker_set_config(w, NULL, NULL);
+}
+
 static inline ni_netdev_t *
 ni_ifworker_get_netdev(const ni_ifworker_t *w)
 {
