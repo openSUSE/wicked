@@ -1253,6 +1253,38 @@ ni_objectmodel_nanny_set_secret(ni_dbus_object_t *object, const ni_dbus_method_t
 }
 
 /*
+ * Request a recheck for workers matching a policy
+ * without a <name/> in the config.
+ */
+static void
+ni_nanny_recheck_matching_workers(ni_nanny_t *mgr, ni_fsm_policy_t *policy,
+			const ni_string_array_t *names, ni_string_array_t *todo)
+{
+	ni_managed_device_t *mdev;
+	unsigned int i;
+
+	for (i = 0; i < mgr->fsm->workers.count; ++i) {
+		ni_ifworker_t *w = mgr->fsm->workers.data[i];
+
+		if (names && names->count && ni_string_array_index(names, w->name) == -1)
+			continue;
+
+		if (!ni_fsm_policy_match_worker(mgr->fsm, policy, w))
+			continue;
+
+		ni_debug_application("Scheduled recheck for %s", w->name);
+		ni_nanny_schedule_recheck(&mgr->request, w);
+
+		if ((mdev = ni_nanny_get_device(mgr, w))) {
+			mdev->fail_count = 0;
+			mdev->state = NI_MANAGED_STATE_RECHECK;
+		}
+
+		ni_string_array_remove_match(todo, w->name, 0);
+	}
+}
+
+/*
  * Schedule a recheck for the worker named by the policy config:
  * - skip a worker missing in the names filter (if any)
  * - create a missing worker, e.g. for a virtual device
@@ -1321,8 +1353,19 @@ ni_nanny_recheck_policies(ni_nanny_t *mgr, const ni_string_array_t *names)
 		ni_fsm_policy_t *policy = mpolicy->fsm_policy;
 		ni_ifworker_t *w;
 
+		if (!ni_fsm_policy_config_name(policy))
+			continue;
+
 		if ((w = ni_nanny_recheck_policy(mgr, policy, names)))
 			ni_string_array_remove_match(&todo, w->name, 0);
+	}
+
+	/* request a recheck for workers matching a policy without a <name/> */
+	for (mpolicy = mgr->policy_list; mpolicy; mpolicy = mpolicy->next) {
+		ni_fsm_policy_t *policy = mpolicy->fsm_policy;
+
+		if (!ni_fsm_policy_config_name(policy))
+			ni_nanny_recheck_matching_workers(mgr, policy, names, &todo);
 	}
 
 	for (i = 0; i < todo.count; ++i)
