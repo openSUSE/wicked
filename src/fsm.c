@@ -2012,6 +2012,41 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 	return TRUE;
 }
 
+/*
+ * Apply a set of policies sorted by owner, weight and name to a worker:
+ * - create the effective config from the policies
+ * - set it as worker config, the first policy provides the origin
+ * - reference the policies in the worker
+ */
+ni_bool_t
+ni_ifworker_apply_policies(ni_ifworker_t *w, const ni_fsm_policy_array_t *policies)
+{
+	xml_node_t *config;
+	unsigned int i;
+	ni_bool_t ret;
+
+	if (!w || !policies || !policies->count)
+		return FALSE;
+
+	if (!(config = ni_fsm_policies_create_config(policies->data, policies->count)))
+		return FALSE;
+
+	/* a policy matching a device does not have to provide a name */
+	if (!xml_node_get_child(config, "name"))
+		xml_node_new_element("name", config, w->name);
+
+	ret = ni_ifworker_set_config(w, config, ni_fsm_policy_origin(policies->data[0]));
+	xml_node_free(config);
+	if (!ret)
+		return FALSE;
+
+	ni_fsm_policy_array_destroy(&w->policies);
+	for (i = 0; i < policies->count; ++i)
+		ni_fsm_policy_array_append_ref(&w->policies, policies->data[i]);
+
+	return TRUE;
+}
+
 ni_ifworker_t *
 ni_fsm_worker_identify(ni_fsm_t *fsm, const xml_node_t *node, const char *origin,
 			ni_ifworker_type_t *type, const char **ifname)

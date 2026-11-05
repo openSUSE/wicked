@@ -951,6 +951,59 @@ ni_fsm_transform_policies_to_config(xml_node_t *config, ni_fsm_policy_t * const 
 	return applied;
 }
 
+static ni_ifworker_type_t
+ni_fsm_policies_config_type(ni_fsm_policy_t * const *policies, unsigned int count)
+{
+	ni_ifworker_type_t type;
+	unsigned int i;
+
+	if (!policies || !count || !policies[0])
+		return NI_IFWORKER_TYPE_NONE;
+
+	/* check if the 1st and the further policy types are the same */
+	type = ni_fsm_policy_config_type(policies[0]);
+	for (i = 1; i < count; ++i) {
+		const ni_fsm_policy_t *policy = policies[i];
+
+		if (ni_fsm_policy_config_type(policy) == type)
+			continue;
+
+		ni_error("inconsistent types in policies %s and %s",
+				ni_fsm_policy_name(policies[0]),
+				ni_fsm_policy_name(policy));
+		return NI_IFWORKER_TYPE_NONE;
+	}
+
+	return type;
+}
+
+/*
+ * Construct the effective config from an applicable policy set of the same type.
+ */
+xml_node_t *
+ni_fsm_policies_create_config(ni_fsm_policy_t * const *policies, unsigned int count)
+{
+	ni_ifworker_type_t type;
+	const char *type_name;
+	xml_node_t *config;
+
+	type = ni_fsm_policies_config_type(policies, count);
+	if (!(type_name = ni_ifworker_type_to_string(type)))
+		return NULL;
+
+	if (!(config = xml_node_new(type_name, NULL)))
+		return NULL;
+
+	xml_node_location_relocate(config, ni_fsm_policy_name(policies[0]));
+
+	if (!ni_fsm_transform_policies_to_config(config, policies, count)) {
+		xml_node_free(config);
+		return NULL;
+	}
+
+	return config;
+}
+
 /*
  * Policy actions
  */
