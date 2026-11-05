@@ -239,6 +239,8 @@ ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *m
 	case NI_MANAGED_STATE_STOPPING:
 	case NI_MANAGED_STATE_STOPPED:
 	case NI_MANAGED_STATE_LIMBO:
+	case NI_MANAGED_STATE_WAITING:
+	case NI_MANAGED_STATE_RECHECK:
 		/* Just install the new policy and reconfigure. */
 		break;
 
@@ -503,13 +505,15 @@ ni_managed_device_down(ni_managed_device_t *mdev)
 /*
  * Print managed_state names
  */
-static ni_intmap_t	__managed_state_names[] = {
+static ni_intmap_t	ni_managed_state_names[] = {
 	{ "stopped",	NI_MANAGED_STATE_STOPPED	},
 	{ "starting",	NI_MANAGED_STATE_STARTING	},
 	{ "running",	NI_MANAGED_STATE_RUNNING	},
 	{ "stopping",	NI_MANAGED_STATE_STOPPING	},
 	{ "limbo",	NI_MANAGED_STATE_LIMBO		},
 	{ "failed",	NI_MANAGED_STATE_FAILED		},
+	{ "waiting",	NI_MANAGED_STATE_WAITING	},
+	{ "recheck",	NI_MANAGED_STATE_RECHECK	},
 	{ NULL }
 };
 
@@ -518,7 +522,7 @@ ni_managed_state_to_string(ni_managed_state_t state)
 {
 	const char *name;
 
-	if ((name = ni_format_uint_mapped(state, __managed_state_names)) == NULL)
+	if ((name = ni_format_uint_mapped(state, ni_managed_state_names)) == NULL)
 		name = "unknown";
 	return name;
 }

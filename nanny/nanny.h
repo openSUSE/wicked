@@ -34,6 +34,8 @@ typedef enum ni_managed_state {
 	NI_MANAGED_STATE_STOPPING,
 	NI_MANAGED_STATE_LIMBO,
 	NI_MANAGED_STATE_FAILED,
+	NI_MANAGED_STATE_WAITING,
+	NI_MANAGED_STATE_RECHECK,
 } ni_managed_state_t;
 
 struct ni_managed_device {
