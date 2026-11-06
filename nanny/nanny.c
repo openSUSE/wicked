@@ -25,6 +25,7 @@
 #include <wicked/socket.h>
 #include <wicked/objectmodel.h>
 #include <wicked/modem.h>
+#include <wicked/wireless.h>
 #include <wicked/dbus-service.h>
 #include <wicked/dbus-errors.h>
 #include <wicked/fsm.h>
@@ -158,13 +159,31 @@ ni_nanny_unschedule(ni_ifworker_array_t *array, ni_ifworker_t *w)
 }
 
 /*
+ * Check whether the radio of the device is blocked by rfkill
+ */
+static ni_bool_t
+ni_nanny_device_rfkill_blocked(const ni_ifworker_t *w)
+{
+	int type;
+
+	if ((type = ni_ifworker_get_rfkill_type(w)) < 0)
+		return FALSE;
+
+	return ni_rfkill_disabled(type);
+}
+
+/*
  * Check whether the device is available:
+ * - its radio is not blocked by rfkill
  * - its lower device (if any) exists
  * - the device exists or wicked can create it
  */
 ni_bool_t
 ni_nanny_device_available(const ni_ifworker_t *w)
 {
+	if (ni_nanny_device_rfkill_blocked(w))
+		return FALSE;
+
 	if (w->lowerdev && !ni_ifworker_is_device_created(w->lowerdev))
 		return FALSE;
 
@@ -362,6 +381,26 @@ ni_nanny_get_policy(ni_nanny_t *mgr, const ni_fsm_policy_t *policy)
 }
 
 /*
+ * Put a starting, running, limbo or failed managed device into WAITING
+ */
+static ni_bool_t
+ni_nanny_device_set_waiting(ni_managed_device_t *mdev, ni_ifworker_t *w)
+{
+	switch (mdev->state) {
+	case NI_MANAGED_STATE_STARTING:
+	case NI_MANAGED_STATE_RUNNING:
+	case NI_MANAGED_STATE_LIMBO:
+	case NI_MANAGED_STATE_FAILED:
+		mdev->state = NI_MANAGED_STATE_WAITING;
+		mdev->fail_count = 0;
+		ni_ifworker_rearm(w);
+		return TRUE;
+	default:
+		return FALSE;
+	}
+}
+
+/*
  * Handle events from an rfkill switch
  */
 void
@@ -375,8 +414,11 @@ ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked)
 		if (w && ni_ifworker_get_rfkill_type(w) == type) {
 			if (blocked) {
 				ni_debug_nanny("%s: radio disabled", w->name);
+				ni_nanny_device_set_waiting(mdev, w);
 			} else {
 				ni_debug_nanny("%s: radio re-enabled", w->name);
+				if (mdev->state == NI_MANAGED_STATE_WAITING)
+					ni_nanny_schedule_recheck(&mgr->recheck, w);
 			}
 		}
 	}
