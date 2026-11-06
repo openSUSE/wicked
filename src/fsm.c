@@ -1086,7 +1086,7 @@ ni_rfkill_type_t
 ni_ifworker_get_rfkill_type(const ni_ifworker_t *w)
 {
 	if (w->object == NULL)
-		return FALSE;
+		return -1;
 
 	switch (w->type) {
 	case NI_IFWORKER_TYPE_MODEM:
