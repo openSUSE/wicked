@@ -706,6 +706,17 @@ ni_nanny_device_wait(ni_nanny_t *mgr, ni_ifworker_t *w)
 		mdev->fail_count = 0;
 		ni_secret_array_destroy(&mdev->secrets);
 	}
+
+	/* let the upper devices wait too */
+	for (mdev = mgr->device_list; mdev; mdev = mdev->next) {
+		ni_ifworker_t *upper = ni_managed_device_get_worker(mdev);
+
+		if (!upper || upper->lowerdev != w)
+			continue;
+
+		if (ni_nanny_device_set_waiting(mdev, upper))
+			ni_debug_nanny("%s: waiting for the lower device %s", upper->name, w->name);
+	}
 }
 
 static void
