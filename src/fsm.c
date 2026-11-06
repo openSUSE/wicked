@@ -4089,6 +4089,7 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 				ni_ifworker_fail(w, "ambiguous device configuration - found services %s and %s. "
 						    "Please use link-type attribute to disambiguate.",
 						service->name, w->device_api.factory_service->name);
+				ni_ifworker_destroy_device_api(w);
 				return -1;
 			}
 			w->device_api.factory_service = service;
