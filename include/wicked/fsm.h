@@ -181,8 +181,6 @@ struct ni_ifworker {
 	ni_modem_t *		modem;
 
 	struct {
-		const ni_dbus_service_t *service;
-		const ni_dbus_method_t *method;
 		const ni_dbus_service_t *factory_service;
 		const ni_dbus_method_t *factory_method;
 		xml_node_t *	config;
