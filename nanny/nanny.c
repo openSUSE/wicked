@@ -960,8 +960,7 @@ done:
 }
 
 /*
- * Update a secret. If there's a device that has been waiting for this
- * update, recheck it now.
+ * Update a secret and log the devices waiting for it
  */
 void
 ni_nanny_add_secret(ni_nanny_t *mgr, uid_t caller_uid,
@@ -994,7 +993,7 @@ ni_nanny_add_secret(ni_nanny_t *mgr, uid_t caller_uid,
 				continue;
 			}
 
-			ni_debug_nanny("%s: secret for %s updated, rechecking", name ? name : "anon", path);
+			ni_debug_nanny("%s: secret for %s updated", name ? name : "anon", path);
 		}
 	}
 }
@@ -1168,10 +1167,6 @@ ni_nanny_process_fsm_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 	case NI_EVENT_DEVICE_DOWN:
 	case NI_EVENT_LINK_DOWN:
 		/* on down events in ifup run, fsm reverts state itself */
-		break;
-
-	case NI_EVENT_LINK_UP:
-		/* once we use multiple policies, we've to recheck them */
 		break;
 
 	default:
