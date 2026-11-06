@@ -1519,8 +1519,13 @@ ni_ifworker_revert_to_state(ni_ifworker_t *w, ni_fsm_state_t state, ni_event_t e
 {
 	ni_fsm_transition_t *action;
 
-	/* target is initialized, state more advanced, worker is started */
-	if (!w->target_state || state > w->fsm.state || !w->kickstarted)
+	/* target is initialized, worker is started */
+	if (!w->target_state || !w->kickstarted)
+		return FALSE;
+
+	/* state more advanced or a port waiting for device-up to enslave again */
+	if (state > w->fsm.state && !(redo && event == NI_EVENT_DEVICE_UP &&
+	    w->fsm.wait_for && w->fsm.wait_for->next_state == state))
 		return FALSE;
 
 	/* fsm actions are initialized to UP transitions */
@@ -5802,6 +5807,18 @@ ni_ifworker_update_from_request(ni_ifworker_t *w, const char *service, const cha
 	}
 }
 
+static ni_bool_t
+ni_ifworker_device_call_wait(ni_ifworker_t *w, ni_fsm_transition_t *action, int rv)
+{
+	if (rv != -NI_ERROR_DEVICE_NOT_UP && rv != -NI_ERROR_METHOD_NOT_SUPPORTED)
+		return FALSE;
+
+	if (action->next_state == NI_FSM_STATE_DEVICE_UP)
+		return TRUE;
+
+	return ni_ifworker_revert_to_state(w, NI_FSM_STATE_DEVICE_UP, NI_EVENT_DEVICE_UP, FALSE);
+}
+
 static int
 ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
@@ -5832,6 +5849,13 @@ ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 				&callback_list, ni_ifworker_error_handler);
 		ni_ifworker_update_from_request(w, service, method, rv, callback_list);
 		if (rv < 0) {
+			if (action->common.device_wait && ni_ifworker_device_call_wait(w, action, rv)) {
+				ni_debug_application("%s: call to %s.%s() failed: %s, waiting for device-up",
+						w->name, service, method, ni_strerror(rv));
+				ni_string_free(&service);
+				ni_string_free(&method);
+				return 0;
+			}
 			if (action->common.may_fail) {
 				ni_error("[ignored] %s: call to %s.%s() failed: %s", w->name,
 						service, method, ni_strerror(rv));
@@ -5998,7 +6022,7 @@ ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 			ni_ifworker_update_client_state_control(w);
 	}
 
-	if (ret >= 0 && w->fsm.wait_for) {
+	if (ret >= 0 && w->fsm.wait_for == action) {
 		if (w->control.link_timeout != NI_IFWORKER_INFINITE_SECONDS) {
 			ni_ifworker_set_secondary_timeout(fsm, w,
 					NI_TIMEOUT_FROM_SEC(w->control.link_timeout),
@@ -6192,12 +6216,12 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	 * link negotiation / detection in the kernel.
 	 */
 	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_UP, "linkUp",
-			.call_overloading = TRUE),
+			.call_overloading = TRUE, .device_wait = TRUE),
 
 	/* This state causes to wait unlit the link negotiation / detection finished
 	 * and we can start using it, that is authenticate ... request IP setup. */
 	TIMED_TRANSITION_UP_TO(NI_FSM_STATE_LINK_UP, link_detection, "waitLinkUp",
-			.call_overloading = TRUE),
+			.call_overloading = TRUE, .device_wait = TRUE),
 
 	/* If the link requires authentication, this information can be provided
 	 * here; for instance ethernet 802.1x, wireless WPA, or PPP chap/pap.
@@ -6457,7 +6481,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			ni_fsm_events_block(fsm);
 
 			rv = action->call_func(fsm, w, action);
-			if (w->fsm.next_action)
+			if (w->fsm.next_action == action)
 				w->fsm.next_action++;
 
 			if (rv >= 0) {

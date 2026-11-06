@@ -91,6 +91,7 @@ struct ni_fsm_transition {
 
 		ni_bool_t		call_overloading;
 		ni_bool_t		may_fail;
+		ni_bool_t		device_wait;
 	} common;
 
 #define NI_IFTRANSITION_BINDINGS_MAX	32
