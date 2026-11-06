@@ -216,6 +216,9 @@ ni_managed_device_start(ni_managed_device_t *mdev)
 		return -1;
 	}
 
+	if (w->done || w->failed)
+		ni_ifworker_rearm(w);
+
 	/* Now do the fandango */
 	return ni_managed_device_up(mdev);
 }
