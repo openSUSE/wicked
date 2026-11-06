@@ -1457,6 +1457,7 @@ static void
 ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 {
 	unsigned int new_state = NI_FSM_STATE_NONE;
+	ni_bool_t down = FALSE;
 
 	if (!w->fsm.wait_for)
 		return;
@@ -1464,9 +1465,11 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 	switch (event_type) {
 	case NI_EVENT_DEVICE_DELETE:
 		new_state = NI_FSM_STATE_DEVICE_EXISTS - 1;
+		down = TRUE;
 		break;
 	case NI_EVENT_DEVICE_DOWN:
 		new_state = NI_FSM_STATE_DEVICE_UP - 1;
+		down = TRUE;
 		break;
 	case NI_EVENT_DEVICE_CREATE:
 		new_state = NI_FSM_STATE_DEVICE_EXISTS;
@@ -1482,16 +1485,21 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 		break;
 	case NI_EVENT_LINK_DOWN:
 		new_state = NI_FSM_STATE_LINK_UP - 1;
+		down = TRUE;
 		break;
 	case NI_EVENT_ADDRESS_ACQUIRED:
 		new_state = NI_FSM_STATE_ADDRCONF_UP;
 		break;
 	case NI_EVENT_ADDRESS_RELEASED:
 		new_state = NI_FSM_STATE_ADDRCONF_UP - 1;
+		down = TRUE;
 		break;
 	default:
 		return;
 	}
+
+	if (down != ni_fsm_transition_is_down(w->fsm.wait_for))
+		return;
 
 	if (new_state == w->fsm.wait_for->next_state) {
 		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
