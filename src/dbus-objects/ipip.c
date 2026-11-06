@@ -191,16 +191,25 @@ ni_objectmodel_ipip_change(ni_dbus_object_t *object, const ni_dbus_method_t *met
 	if (ni_string_empty(cfg->name))
 		ni_string_dup(&cfg->name, dev->name);
 
-	if (ni_netdev_device_is_up(dev)) {
+	if (!ni_string_empty(cfg->link.lowerdev.name) &&
+	    !ni_objectmodel_bind_netdev_ref_index(cfg->name, "ipip tunnel",
+					&cfg->link.lowerdev, nc, error)) {
+		if (!ni_netdev_device_is_up(dev))
+			return FALSE;
+
+		dbus_error_free(error);
+		ni_debug_objectmodel("Skipping ipip changeDevice call on %s: "
+				"device is up, lower device %s missing",
+				dev->name, cfg->link.lowerdev.name);
+		return TRUE;
+	}
+
+	if (ni_netdev_device_is_up(dev) &&
+	    cfg->link.lowerdev.index == dev->link.lowerdev.index) {
 		ni_debug_objectmodel("Skipping ipip changeDevice call on %s: "
 				"device is up", dev->name);
 		return TRUE;
 	}
-
-	if (!ni_string_empty(cfg->link.lowerdev.name) &&
-	    !ni_objectmodel_bind_netdev_ref_index(cfg->name, "ipip tunnel",
-					&cfg->link.lowerdev, nc, error))
-		return TRUE;
 
 	if (ni_system_tunnel_change(nc, dev, cfg) < 0) {
 		dbus_set_error(error,
