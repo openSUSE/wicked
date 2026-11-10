@@ -39,7 +39,7 @@ $(distdir)/wicked.spec: wicked.spec
 	@cp $< $@
 
 $(distdir)/ChangeLog: check-git-tool
-	@if  [ -d $(top_srcdir)/.git ]; then \
+	@if  [ -e $(top_srcdir)/.git ]; then \
 	  LANG=C git log -- $(top_srcdir) > $(distdir)/ChangeLog ; \
 	fi
 
@@ -52,7 +52,7 @@ if !pandoc
 endif
 
 show-commit-state: check-git-tool
-	@if  [ -d $(top_srcdir)/.git ]; then \
+	@if  [ -e $(top_srcdir)/.git ]; then \
 	  cd $(top_srcdir) && \
 	  LC_ALL=C git status 2>&1 | \
 	  grep -qsE 'Untracked|to be committed|not staged for commit' && { \
