@@ -19,7 +19,15 @@ EXTRA_DIST			= VERSION wicked.pc.in wicked-rpmlintrc	\
 				  $(wicked_doc_data)
 
 custom_rpmbuild_opts		= $(CUSTOM_RPMBUILD_OPTS)
-rpmbuild_opts			= $(custom_rpmbuild_opts) -ta --define "snapshot $$(date +%Y%m%d%H%M%S)"
+rpmbuild_snapshot_date		= $$(date -u "+%Y%m%d%H%M%S")
+rpmbuild_snapshot_commit	= \
+	$$(if test -e $(top_srcdir)/.git ; then				\
+		git -C $(top_srcdir) rev-parse --short HEAD ;		\
+	else								\
+		echo 0 ;						\
+	fi)
+rpmbuild_snapshot		= $(rpmbuild_snapshot_date).$(rpmbuild_snapshot_commit)
+rpmbuild_opts			= $(custom_rpmbuild_opts) -ta --define "snapshot $(rpmbuild_snapshot)"
 
 
 # Build test RPMs, no checks
@@ -39,7 +47,7 @@ $(distdir)/wicked.spec: wicked.spec
 	@cp $< $@
 
 $(distdir)/ChangeLog: check-git-tool
-	@if  [ -d $(top_srcdir)/.git ]; then \
+	@if  [ -e $(top_srcdir)/.git ]; then \
 	  LANG=C git log -- $(top_srcdir) > $(distdir)/ChangeLog ; \
 	fi
 
@@ -52,7 +60,7 @@ if !pandoc
 endif
 
 show-commit-state: check-git-tool
-	@if  [ -d $(top_srcdir)/.git ]; then \
+	@if  [ -e $(top_srcdir)/.git ]; then \
 	  cd $(top_srcdir) && \
 	  LC_ALL=C git status 2>&1 | \
 	  grep -qsE 'Untracked|to be committed|not staged for commit' && { \
