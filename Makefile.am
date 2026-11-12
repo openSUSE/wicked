@@ -19,7 +19,7 @@ EXTRA_DIST			= VERSION wicked.pc.in wicked-rpmlintrc	\
 				  $(wicked_doc_data)
 
 custom_rpmbuild_opts		= $(CUSTOM_RPMBUILD_OPTS)
-rpmbuild_snapshot_date		= $$(date +%Y%m%d%H%M%S)
+rpmbuild_snapshot_date		= $$(date -u "+%Y%m%d%H%M%S")
 rpmbuild_snapshot_commit	= \
 	$$(if test -e $(top_srcdir)/.git ; then				\
 		git -C $(top_srcdir) rev-parse --short HEAD ;		\
