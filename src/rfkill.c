@@ -40,7 +40,7 @@ static ni_rfkill_switch_t *	ni_rfkill_switches;
 
 static ni_bool_t		ni_rfkill_state[__NI_RFKILL_TYPE_MAX];
 
-static void			__ni_rfkill_recv(ni_socket_t *);
+static void			ni_rfkill_recv(ni_socket_t *);
 
 int
 ni_rfkill_open(ni_rfkill_event_handler_t *callback, void *user_data)
@@ -62,11 +62,14 @@ ni_rfkill_open(ni_rfkill_event_handler_t *callback, void *user_data)
 		return -1;
 	}
 
-	ni_rfkill_socket->receive = __ni_rfkill_recv;
+	ni_rfkill_socket->receive = ni_rfkill_recv;
 
 	ni_socket_activate(ni_rfkill_socket);
 	ni_rfkill_callback = callback;
 	ni_rfkill_callback_data = user_data;
+
+	/* read the initial state of the switches */
+	ni_rfkill_recv(ni_rfkill_socket);
 	return 0;
 }
 
@@ -79,8 +82,8 @@ ni_rfkill_close(void)
 	}
 }
 
-void
-__ni_rfkill_recv(ni_socket_t *sock)
+static void
+ni_rfkill_recv(ni_socket_t *sock)
 {
 	struct rfkill_event ev;
 	ni_rfkill_switch_t *sw;

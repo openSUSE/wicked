@@ -212,6 +212,7 @@ ni_managed_policy_new(ni_nanny_t *mgr, ni_fsm_policy_t *policy)
 
 	mpolicy = xcalloc(1, sizeof(*mpolicy));
 	mpolicy->refcount = 1;
+	mpolicy->nanny = mgr;
 	mpolicy->fsm_policy = ni_fsm_policy_ref(policy);
 
 	__ni_managed_policy_list_insert(&mgr->policy_list, mpolicy);
@@ -371,6 +372,32 @@ ni_objectmodel_managed_policy_save(ni_dbus_object_t *object)
 	return ni_managed_policy_save(mpolicy);
 }
 
+static void
+ni_managed_policy_update_devices(ni_managed_policy_t *mpolicy, ni_fsm_policy_t *update)
+{
+	ni_fsm_policy_t *policy = mpolicy->fsm_policy;
+	ni_nanny_t *mgr = mpolicy->nanny;
+	ni_managed_device_t *mdev, *next;
+	unsigned int pos;
+	ni_ifworker_t *w;
+
+	for (mdev = mgr->device_list; mdev; mdev = next) {
+		next = mdev->next;
+
+		if (!(w = ni_managed_device_get_worker(mdev)))
+			continue;
+
+		if ((pos = ni_fsm_policy_array_index(&w->policies, policy)) == -1U)
+			continue;
+
+		ni_debug_nanny("%s: policy %s updated, reset for a recheck", w->name,
+				ni_fsm_policy_name(update));
+
+		ni_fsm_policy_array_delete_at(&w->policies, pos);
+		ni_nanny_device_policy_updated(mgr, mdev);
+	}
+}
+
 /*
  * ManagedPolicy.update(s)
  */
@@ -428,10 +455,9 @@ ni_objectmodel_managed_policy_update(ni_dbus_object_t *object, const ni_dbus_met
 		xml_document_free(doc);
 		return FALSE;
 	}
+	ni_managed_policy_update_devices(mpolicy, update);
 	ni_fsm_policy_hold(&mpolicy->fsm_policy, update);
 	xml_document_free(doc);
-
-	mpolicy->seqno++;
 
 	if (!ni_managed_policy_save(mpolicy)) {
 		ni_warn("Unable to save updated managed nanny policy %s",

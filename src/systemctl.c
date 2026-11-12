@@ -47,8 +47,8 @@ ni_systemctl_tool_path(void)
 /*
  * systemd instance service methods
  */
-int
-ni_systemctl_service_start(const char *service)
+static int
+ni_systemctl_service_call(const char *action, const char *service)
 {
 	const char *systemctl;
 	ni_shellcmd_t *cmd;
@@ -67,7 +67,7 @@ ni_systemctl_service_start(const char *service)
 	if (!ni_shellcmd_add_arg(cmd, systemctl))
 		goto failure;
 
-	if (!ni_shellcmd_add_arg(cmd, "start"))
+	if (!ni_shellcmd_add_arg(cmd, action))
 		goto failure;
 
 	if (!ni_shellcmd_add_arg(cmd, service))
@@ -83,50 +83,26 @@ ni_systemctl_service_start(const char *service)
 	return rv;
 
 failure:
-	if (cmd)
-		ni_shellcmd_release(cmd);
+	ni_shellcmd_release(cmd);
 	return -1;
+}
+
+int
+ni_systemctl_service_start(const char *service)
+{
+	return ni_systemctl_service_call("start", service);
+}
+
+int
+ni_systemctl_service_restart(const char *service)
+{
+	return ni_systemctl_service_call("restart", service);
 }
 
 int
 ni_systemctl_service_stop(const char *service)
 {
-	const char *systemctl;
-	ni_shellcmd_t *cmd;
-	ni_process_t *pi;
-	int rv;
-
-	if (ni_string_empty(service))
-		return -1;
-
-	if (!(cmd = ni_shellcmd_new(NULL)))
-		return -1;
-
-	if (!(systemctl = ni_systemctl_tool_path()))
-		return -1;
-
-	if (!ni_shellcmd_add_arg(cmd, systemctl))
-		goto failure;
-
-	if (!ni_shellcmd_add_arg(cmd, "stop"))
-		goto failure;
-
-	if (!ni_shellcmd_add_arg(cmd, service))
-		goto failure;
-
-	if (!(pi = ni_process_new(cmd)))
-		goto failure;
-	ni_shellcmd_release(cmd);
-
-	rv = ni_process_run_and_wait(pi);
-	ni_process_free(pi);
-
-	return rv;
-
-failure:
-	if (cmd)
-		ni_shellcmd_release(cmd);
-	return -1;
+	return ni_systemctl_service_call("stop", service);
 }
 
 const char *

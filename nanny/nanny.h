@@ -34,6 +34,8 @@ typedef enum ni_managed_state {
 	NI_MANAGED_STATE_STOPPING,
 	NI_MANAGED_STATE_LIMBO,
 	NI_MANAGED_STATE_FAILED,
+	NI_MANAGED_STATE_WAITING,
+	NI_MANAGED_STATE_RECHECK,
 } ni_managed_state_t;
 
 struct ni_managed_device {
@@ -49,17 +51,12 @@ struct ni_managed_device {
 	ni_bool_t		allowed;	// true iff user is allowed to enable it
 	ni_bool_t		monitor;	// true iff we're monitoring it
 
-	ni_bool_t		rfkill_blocked;
 	ni_bool_t		missing_secrets;
 
 	ni_managed_state_t	state;
 
 	unsigned int		fail_count;
 	unsigned int		max_fail_count;
-
-	ni_managed_policy_t *	selected_policy;
-	unsigned int		selected_policy_seq;
-	xml_node_t *		selected_config;
 
 	ni_secret_array_t	secrets;
 };
@@ -77,7 +74,7 @@ struct ni_managed_policy {
 	ni_managed_policy_t **	pprev;
 	ni_managed_policy_t *	next;
 
-	unsigned int		seqno;
+	ni_nanny_t *		nanny;
 	ni_fsm_policy_t *	fsm_policy;
 };
 
@@ -104,9 +101,8 @@ struct ni_nanny {
 	ni_managed_device_t *	device_list;
 	ni_managed_policy_t *	policy_list;
 
-	unsigned int		last_policy_seq;
+	ni_ifworker_array_t	request;
 	ni_ifworker_array_t	recheck;
-	ni_ifworker_array_t	down;
 
 	ni_nanny_user_t *	users;
 
@@ -135,9 +131,10 @@ extern void			ni_nanny_recheck_policies(ni_nanny_t *, const ni_string_array_t *)
 extern void			ni_nanny_schedule_recheck(ni_ifworker_array_t *, ni_ifworker_t *);
 extern void			ni_nanny_unschedule(ni_ifworker_array_t *, ni_ifworker_t *);
 extern unsigned int		ni_nanny_recheck_do(ni_nanny_t *mgr);
-extern unsigned int		ni_nanny_down_do(ni_nanny_t *mgr);
 extern ni_managed_device_t *	ni_nanny_register_device(ni_nanny_t *, ni_ifworker_t *);
 extern void			ni_nanny_unregister_device(ni_nanny_t *, ni_ifworker_t *);
+extern void			ni_nanny_device_policy_changed(ni_nanny_t *, ni_managed_device_t *);
+extern void			ni_nanny_device_policy_updated(ni_nanny_t *, ni_managed_device_t *);
 extern ni_managed_device_t *	ni_nanny_get_device(ni_nanny_t *, ni_ifworker_t *);
 extern void			ni_nanny_remove_device(ni_nanny_t *, ni_managed_device_t *);
 extern ni_managed_policy_t *	ni_nanny_get_policy(ni_nanny_t *, const ni_fsm_policy_t *);
@@ -147,10 +144,12 @@ extern void			ni_nanny_clear_secrets(ni_nanny_t *mgr,
 						const ni_security_id_t *security_id, const char *path);
 extern ni_secret_t *		ni_nanny_get_secret(ni_nanny_t *, uid_t, const ni_security_id_t *, const char *);
 extern void			ni_nanny_rfkill_event(ni_nanny_t *mgr, ni_rfkill_type_t type, ni_bool_t blocked);
+extern ni_bool_t		ni_nanny_device_available(const ni_ifworker_t *);
 extern int			ni_nanny_create_policy(ni_dbus_object_t **, ni_nanny_t *, xml_document_t *, const uid_t *, ni_bool_t);
 extern ni_bool_t		ni_nanny_policy_drop(const char *);
 
 extern ni_bool_t		ni_managed_netif_enable(ni_managed_device_t *);
+extern ni_bool_t		ni_managed_netif_disable(ni_managed_device_t *);
 extern void			ni_managed_netif_apply_policy(ni_managed_device_t *, ni_managed_policy_t *, ni_fsm_t *);
 extern void			ni_managed_netif_up(ni_managed_device_t *, unsigned int);
 
@@ -161,10 +160,9 @@ extern ni_managed_device_t *	ni_managed_device_new(ni_nanny_t *,  ni_ifworker_t 
 extern void			ni_managed_device_free(ni_managed_device_t *);
 extern ni_ifworker_t *		ni_managed_device_get_worker(const ni_managed_device_t *);
 extern char *			ni_managed_device_get_name(ni_managed_device_t *);
-extern int			ni_factory_device_apply_policy(ni_fsm_t *, ni_ifworker_t *, ni_managed_policy_t *);
-extern int			ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy);
-extern void			ni_managed_device_set_policy(ni_managed_device_t *, ni_managed_policy_t *, xml_node_t *);
-extern void			ni_managed_device_down(ni_managed_device_t *mdev);
+extern int			ni_managed_device_apply_policies(ni_managed_device_t *,
+							const ni_fsm_policy_array_t *);
+extern int			ni_managed_device_start(ni_managed_device_t *);
 extern ni_bool_t		ni_managed_policy_filename(const char *, char *, size_t);
 
 extern ni_dbus_object_t *	ni_managed_policy_register(ni_nanny_t *, ni_fsm_policy_t *);
