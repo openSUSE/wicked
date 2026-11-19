@@ -120,6 +120,8 @@ struct ni_fsm_policy {
 	struct {
 		ni_ifworker_type_t	type;
 		const ni_dbus_class_t *	class;
+		xml_node_t *		name;
+		ni_iftype_t		iftype;
 	} config;
 
 	ni_ifcondition_t *		match;
@@ -191,6 +193,9 @@ ni_fsm_policy_reset(ni_fsm_policy_t *policy)
 		ni_fsm_policy_action_free(policy->create_action);
 		policy->create_action = NULL;
 	}
+	xml_node_free(policy->config.name);
+	policy->config.name = NULL;
+	policy->config.iftype = NI_IFTYPE_UNKNOWN;
 }
 
 static void
@@ -364,6 +369,24 @@ ni_fsm_policy_uuid_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 	return TRUE;
 }
 
+static void
+ni_fsm_policy_config_from_actions(ni_fsm_policy_t *policy)
+{
+	xml_node_t *config, *name;
+
+	if (policy->type != NI_FSM_POLICY_TYPE_CONFIG)
+		return;
+
+	if (!(config = ni_fsm_policies_create_config(&policy, 1)))
+		return;
+
+	if ((name = xml_node_get_child(config, "name")))
+		policy->config.name = xml_node_clone(name, NULL);
+
+	policy->config.iftype = ni_ifworker_iftype_from_xml(config);
+	xml_node_free(config);
+}
+
 static ni_bool_t
 ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 {
@@ -484,6 +507,8 @@ ni_fsm_policy_from_xml(ni_fsm_policy_t *policy, xml_node_t *node)
 	xml_node_free(policy->node);
 	policy->node = xml_node_ref(node);
 	policy->seq = policy_seq++;
+
+	ni_fsm_policy_config_from_actions(policy);
 	return TRUE;
 }
 
@@ -699,53 +724,64 @@ ni_fsm_policy_config_class(const ni_fsm_policy_t *policy)
 	return policy ? policy->config.class : NULL;
 }
 
+const xml_node_t *
+ni_fsm_policy_config_name(const ni_fsm_policy_t *policy)
+{
+	return policy ? policy->config.name : NULL;
+}
+
+ni_iftype_t
+ni_fsm_policy_config_iftype(const ni_fsm_policy_t *policy)
+{
+	return policy ? policy->config.iftype : NI_IFTYPE_UNKNOWN;
+}
+
+ni_ifworker_t *
+ni_fsm_policy_identify_worker(ni_fsm_t *fsm, const ni_fsm_policy_t *policy, const char **ifname)
+{
+	if (!fsm || !policy || !policy->config.name)
+		return NULL;
+
+	return ni_fsm_worker_identify_by_name(fsm, policy->config.type,
+			policy->config.name, ni_fsm_policy_origin(policy), ifname);
+}
+
+ni_bool_t
+ni_fsm_policy_match_worker(const ni_fsm_t *fsm, const ni_fsm_policy_t *policy, ni_ifworker_t *w)
+{
+	if (!policy || !policy->match || !w)
+		return FALSE;
+
+	return ni_ifcondition_check(policy->match, fsm, w);
+}
+
 /*
  * Check whether policy applies to this ifworker
  */
 static ni_bool_t
 ni_fsm_policy_applicable(const ni_fsm_t *fsm, ni_fsm_policy_t *policy, ni_ifworker_t *w)
 {
-	xml_node_t *node;
-	char *pname;
-
 	if (!policy || !w)
 		return FALSE;
 
-	/* 1st match check -ifworker to policy name comparison */
-	pname = ni_ifpolicy_name_from_ifname(w->name);
-	if (!ni_string_eq(policy->name, pname)) {
-		ni_string_free(&pname);
-		return FALSE;
-	}
-	ni_string_free(&pname);
-
-	/* 2nd match check - ifworker  to config name comparison */
-	if (!xml_node_is_empty(w->config.node) &&
-	    (node = xml_node_get_child(w->config.node, "name"))) {
-		const char *namespace = xml_node_get_attr(node, "namespace");
-		if (!namespace && !ni_string_eq(node->cdata, w->name)) {
-			ni_error("%s: config name does not match policy name",
-					policy->name);
-			return FALSE;
-		}
-	}
-
-	/* 3rd match check - physical worker must be ready  */
+	/* 1st match check - device must be ready or wicked creates it */
 	if (ni_ifworker_is_device_created(w)) {
 		if (!ni_netdev_device_is_ready(w->device))
 			return FALSE;
 	}
-	else if (!ni_ifworker_is_factory_device(w))
+	else if (!ni_ifworker_config_is_factory(w))
 		return FALSE;
 
-	/* 4th match check - <match> condition must be fulfilled */
-	if (!ni_ifcondition_check(policy->match, fsm, w)) {
-		ni_debug_nanny("%s: policy <match> condition is not met for worker %s",
+	/* 2nd match check - <match> condition must be fulfilled */
+	if (!ni_fsm_policy_match_worker(fsm, policy, w)) {
+		ni_debug_verbose(NI_LOG_DEBUG3, NI_TRACE_APPLICATION,
+			"%s: policy <match> condition is not met for worker %s",
 			policy->name, w->name);
 		return FALSE;
 	}
 
-	ni_debug_nanny("%s: found applicable policy: %s", w->name, policy->name);
+	ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+			"%s: found applicable policy: %s", w->name, policy->name);
 	return TRUE;
 }
 
@@ -937,11 +973,8 @@ ni_fsm_transform_policies_to_config(xml_node_t *config, ni_fsm_policy_t * const 
 				continue;
 			}
 
-			if (config->final || !(action->next || i + 1 < count)) {
-				ni_debug_config_xml(config, NI_LOG_DEBUG3,
-						"resulting config (final):");
+			if (config->final || !(action->next || i + 1 < count))
 				break;
-			}
 
 			ni_debug_config_xml(config, NI_LOG_DEBUG3,
 					"resulting config (transient):");
@@ -949,6 +982,88 @@ ni_fsm_transform_policies_to_config(xml_node_t *config, ni_fsm_policy_t * const 
 	}
 
 	return applied;
+}
+
+static ni_ifworker_type_t
+ni_fsm_policies_config_type(ni_fsm_policy_t * const *policies, unsigned int count)
+{
+	ni_ifworker_type_t type;
+	unsigned int i;
+
+	if (!policies || !count || !policies[0])
+		return NI_IFWORKER_TYPE_NONE;
+
+	/* check if the 1st and the further policy types are the same */
+	type = ni_fsm_policy_config_type(policies[0]);
+	for (i = 1; i < count; ++i) {
+		const ni_fsm_policy_t *policy = policies[i];
+
+		if (ni_fsm_policy_config_type(policy) == type)
+			continue;
+
+		ni_error("inconsistent types in policies %s and %s",
+				ni_fsm_policy_name(policies[0]),
+				ni_fsm_policy_name(policy));
+		return NI_IFWORKER_TYPE_NONE;
+	}
+
+	return type;
+}
+
+/*
+ * Construct the effective config from an applicable policy set of the same type.
+ */
+xml_node_t *
+ni_fsm_policies_create_config(ni_fsm_policy_t * const *policies, unsigned int count)
+{
+	ni_ifworker_type_t type;
+	const char *type_name;
+	xml_node_t *config;
+
+	type = ni_fsm_policies_config_type(policies, count);
+	if (!(type_name = ni_ifworker_type_to_string(type)))
+		return NULL;
+
+	if (!(config = xml_node_new(type_name, NULL)))
+		return NULL;
+
+	xml_node_location_relocate(config, ni_fsm_policy_name(policies[0]));
+
+	if (!ni_fsm_transform_policies_to_config(config, policies, count)) {
+		xml_node_free(config);
+		return NULL;
+	}
+
+	return config;
+}
+
+ni_iftype_t
+ni_fsm_policies_config_iftype(const ni_fsm_policy_array_t *policies)
+{
+	ni_fsm_policy_array_t sorted = NI_ARRAY_INIT;
+	ni_iftype_t iftype = NI_IFTYPE_UNKNOWN;
+	xml_node_t *config;
+	unsigned int i;
+
+	if (!policies || !policies->count)
+		return iftype;
+
+	if (policies->count == 1)
+		return ni_fsm_policy_config_iftype(policies->data[0]);
+
+	for (i = 0; i < policies->count; ++i)
+		ni_fsm_policy_array_append_ref(&sorted, policies->data[i]);
+
+	if (sorted.count > 1)
+		ni_fsm_policy_array_qsort(&sorted, ni_fsm_policy_compare_applicable);
+
+	if ((config = ni_fsm_policies_create_config(sorted.data, sorted.count))) {
+		iftype = ni_ifworker_iftype_from_xml(config);
+		xml_node_free(config);
+	}
+
+	ni_fsm_policy_array_destroy(&sorted);
+	return iftype;
 }
 
 /*
@@ -1566,7 +1681,7 @@ ni_fsm_policy_match_and_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm,
 	rv = ni_ifcondition_check(cond->args.terms.left, fsm, w)
 	    && ni_ifcondition_check(cond->args.terms.right, fsm, w);
 
-	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+	if (ni_debug_guard(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG)) {
 		ni_trace("%s: %s condition is %s",
 			w->name, __func__, ni_format_boolean(rv));
 	}
@@ -1590,7 +1705,7 @@ ni_fsm_policy_match_and_children_check(const ni_ifcondition_t *cond, const ni_fs
 			if (!ni_netdev_device_is_ready(child->device))
 				continue;
 		}
-		else if (!ni_ifworker_is_factory_device(child))
+		else if (!ni_ifworker_config_is_factory(child))
 			continue;
 
 		rv = ni_ifcondition_check(cond->args.terms.left, fsm, child);
@@ -1598,7 +1713,7 @@ ni_fsm_policy_match_and_children_check(const ni_ifcondition_t *cond, const ni_fs
 			break;
 	}
 
-	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+	if (ni_debug_guard(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG)) {
 		ni_trace("%s: %s condition is %s",
 			w->name, __func__, ni_format_boolean(rv));
 	}
@@ -1649,7 +1764,7 @@ ni_fsm_policy_match_or_check(const ni_ifcondition_t *cond, const ni_fsm_t *fsm, 
 	rv = ni_ifcondition_check(cond->args.terms.left, fsm, w)
 	    || ni_ifcondition_check(cond->args.terms.right, fsm, w);
 
-	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+	if (ni_debug_guard(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG)) {
 		ni_trace("%s: %s condition is %s",
 			w->name, __func__, ni_format_boolean(rv));
 	}
@@ -1729,7 +1844,7 @@ ni_fsm_policy_match_class_check(const ni_ifcondition_t *cond, const ni_fsm_t *fs
 	rv = w->object &&
 		ni_dbus_class_is_subclass(cond->args.class, w->object->class);
 
-	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+	if (ni_debug_guard(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG)) {
 		ni_trace("%s: %s condition is %s",
 			w->name, __func__, ni_format_boolean(rv));
 	}
@@ -1744,7 +1859,7 @@ ni_fsm_policy_match_linktype_check(const ni_ifcondition_t *cond, const ni_fsm_t 
 
 	rv = (iftype == w->iftype);
 
-	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+	if (ni_debug_guard(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG)) {
 		ni_trace("%s: %s condition is %s",
 			w->name, __func__, ni_format_boolean(rv));
 	}
@@ -1853,7 +1968,7 @@ ni_fsm_policy_match_device_name_check(const ni_ifcondition_t *cond, const ni_fsm
 
 	rv = ni_ifworker_match_netdev_name(w, cond->args.string);
 
-	if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+	if (ni_debug_guard(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG)) {
 		ni_trace("%s: %s condition is %s",
 			w->name, __func__, ni_format_boolean(rv));
 	}
@@ -2186,7 +2301,7 @@ ni_fsm_policy_match_wireless_essid_check(const ni_ifcondition_t *cond, const ni_
 		if (!ni_wireless_ssid_eq(&ssid, &bss->ssid))
 			continue;
 
-		if (ni_debug_guard(NI_LOG_DEBUG2, NI_TRACE_IFCONFIG)) {
+		if (ni_debug_guard(NI_LOG_DEBUG3, NI_TRACE_IFCONFIG)) {
 			ni_trace("%s - ssid `%s` MATCH - bssid:%s age:%u signal:%hd",
 					__func__, ni_wireless_ssid_print(&ssid, &sbuf),
 					ni_link_address_print(&bss->bssid),

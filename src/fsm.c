@@ -42,7 +42,8 @@ static ni_fsm_user_prompt_fn_t *ni_fsm_user_prompt_fn;
 static void *			ni_fsm_user_prompt_data;
 
 static ni_ifworker_t *		ni_ifworker_identify_device(ni_fsm_t *, const xml_node_t *, ni_ifworker_type_t, const char *);
-static ni_ifworker_t *		__ni_ifworker_identify_device(ni_fsm_t *, const char *, const xml_node_t *, ni_ifworker_type_t, const char *);
+static ni_ifworker_t *		ni_ifworker_identify_device_by_namespace(ni_fsm_t *, const char *,
+						const xml_node_t *, ni_ifworker_type_t, const char *);
 static void			ni_ifworker_set_dependencies_xml(ni_ifworker_t *, xml_node_t *);
 static int			ni_fsm_schedule_init(ni_fsm_t *fsm, ni_ifworker_t *, unsigned int, unsigned int);
 static int			ni_fsm_schedule_bind_methods(ni_fsm_t *, ni_ifworker_t *);
@@ -50,7 +51,6 @@ static ni_fsm_require_t *	ni_ifworker_netif_resolver_new(xml_node_t *);
 static ni_fsm_require_t *	ni_ifworker_modem_resolver_new(xml_node_t *);
 static void			ni_fsm_require_list_destroy(ni_fsm_require_t **);
 static void			ni_fsm_require_free(ni_fsm_require_t *);
-static int			ni_ifworker_bind_device_apis(ni_ifworker_t *, const ni_dbus_service_t *);
 static void			ni_ifworker_control_init(ni_ifworker_control_t *);
 static void			ni_ifworker_control_destroy(ni_ifworker_control_t *);
 static ni_bool_t		ni_fsm_refresh_netdevs_state(ni_fsm_t *);
@@ -85,7 +85,6 @@ static ni_ifworker_t *			ni_fsm_recv_new_modem_path(ni_fsm_t *, const char *);
 static ni_ifworker_t *			ni_fsm_recv_new_worker_path(ni_fsm_t *, ni_ifworker_type_t, const char *);
 
 static void				ni_fsm_detach_worker(ni_fsm_t *, ni_ifworker_t *);
-static void				ni_fsm_delete_worker(ni_fsm_t *, ni_ifworker_t *);
 
 static const ni_fsm_transition_t *	ni_fsm_transition_first(void);
 static const ni_fsm_transition_t *	ni_fsm_transition_next(const ni_fsm_transition_t *);
@@ -445,7 +444,7 @@ extern ni_define_refcounted_drop(ni_ifworker);
 extern ni_define_refcounted_move(ni_ifworker);
 
 static ni_ifworker_t *
-ni_fsm_create_worker(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char *name)
+ni_ifworker_array_create_worker(ni_ifworker_array_t *array, ni_ifworker_type_t type, const char *name)
 {
 	ni_ifworker_t *worker;
 
@@ -457,6 +456,12 @@ ni_fsm_create_worker(ni_ifworker_array_t *array, ni_ifworker_type_t type, const 
 
 	/* worker reference owned by array or NULL */
 	return worker;
+}
+
+ni_ifworker_t *
+ni_fsm_create_worker(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
+{
+	return fsm ? ni_ifworker_array_create_worker(&fsm->workers, type, name) : NULL;
 }
 
 
@@ -854,6 +859,7 @@ ni_ifworker_array_free(ni_ifworker_array_t *array)
 
 extern ni_define_ptr_array_init(ni_ifworker);
 extern ni_define_ptr_array_destroy(ni_ifworker);
+extern ni_define_ptr_array_move(ni_ifworker);
 static ni_define_ptr_array_realloc(ni_ifworker, NI_IFWORKER_ARRAY_CHUNK);
 extern ni_define_ptr_array_append_ref(ni_ifworker);
 extern ni_define_ptr_array_delete_at(ni_ifworker);
@@ -899,31 +905,6 @@ ni_ifworker_t *
 ni_fsm_ifworker_by_name(const ni_fsm_t *fsm, ni_ifworker_type_t type, const char *name)
 {
 	return ni_ifworker_array_find_by_name(&fsm->workers, type, name);
-}
-
-ni_ifworker_t *
-ni_fsm_ifworker_by_policy_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const char *policy_name)
-{
-	unsigned int i;
-	ni_ifworker_t *w;
-	char *n;
-
-	if (!fsm || !policy_name)
-		return NULL;
-
-	for (i = 0; i < fsm->workers.count ; ++i) {
-		w = fsm->workers.data[i];
-		if (w && w->type == type) {
-			n = ni_ifpolicy_name_from_ifname(w->name);
-			if (n && ni_string_eq(n, policy_name)) {
-				ni_string_free(&n);
-				return w;
-			}
-			ni_string_free(&n);
-		}
-	}
-
-	return NULL;
 }
 
 ni_ifworker_t *
@@ -998,12 +979,7 @@ ni_ifworker_match_netdev_name(const ni_ifworker_t *w, const char *ifname)
 	if (!w || ni_string_empty(ifname))
 		return FALSE;
 
-	if (ni_string_eq(w->name, ifname))
-		return TRUE;
-
-	ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
-			"device %s requested via match is not present", ifname);
-	return FALSE;
+	return ni_string_eq(w->name, ifname);
 }
 
 static ni_bool_t
@@ -1109,7 +1085,7 @@ ni_rfkill_type_t
 ni_ifworker_get_rfkill_type(const ni_ifworker_t *w)
 {
 	if (w->object == NULL)
-		return FALSE;
+		return -1;
 
 	switch (w->type) {
 	case NI_IFWORKER_TYPE_MODEM:
@@ -1148,7 +1124,7 @@ ni_ifworker_resolve_reference(ni_fsm_t *fsm, xml_node_t *devnode, ni_ifworker_ty
 
 		namespace = xml_node_get_attr(devnode, "namespace");
 		if (namespace != NULL) {
-			child = __ni_ifworker_identify_device(fsm, namespace, devnode, type, origin);
+			child = ni_ifworker_identify_device_by_namespace(fsm, namespace, devnode, type, origin);
 		} else if (devnode->cdata) {
 			const char *slave_name = devnode->cdata;
 			child = ni_fsm_ifworker_by_name(fsm, type, slave_name);
@@ -1481,6 +1457,7 @@ static void
 ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 {
 	unsigned int new_state = NI_FSM_STATE_NONE;
+	ni_bool_t down = FALSE;
 
 	if (!w->fsm.wait_for)
 		return;
@@ -1488,9 +1465,11 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 	switch (event_type) {
 	case NI_EVENT_DEVICE_DELETE:
 		new_state = NI_FSM_STATE_DEVICE_EXISTS - 1;
+		down = TRUE;
 		break;
 	case NI_EVENT_DEVICE_DOWN:
 		new_state = NI_FSM_STATE_DEVICE_UP - 1;
+		down = TRUE;
 		break;
 	case NI_EVENT_DEVICE_CREATE:
 		new_state = NI_FSM_STATE_DEVICE_EXISTS;
@@ -1506,16 +1485,21 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 		break;
 	case NI_EVENT_LINK_DOWN:
 		new_state = NI_FSM_STATE_LINK_UP - 1;
+		down = TRUE;
 		break;
 	case NI_EVENT_ADDRESS_ACQUIRED:
 		new_state = NI_FSM_STATE_ADDRCONF_UP;
 		break;
 	case NI_EVENT_ADDRESS_RELEASED:
 		new_state = NI_FSM_STATE_ADDRCONF_UP - 1;
+		down = TRUE;
 		break;
 	default:
 		return;
 	}
+
+	if (down != ni_fsm_transition_is_down(w->fsm.wait_for))
+		return;
 
 	if (new_state == w->fsm.wait_for->next_state) {
 		ni_debug_verbose(NI_LOG_DEBUG1, NI_TRACE_APPLICATION,
@@ -1531,34 +1515,17 @@ ni_ifworker_advance_state(ni_ifworker_t *w, ni_event_t event_type)
 }
 
 static ni_bool_t
-ni_ifworker_revert_state(ni_ifworker_t *w, ni_event_t event)
+ni_ifworker_revert_to_state(ni_ifworker_t *w, ni_fsm_state_t state, ni_event_t event, ni_bool_t redo)
 {
 	ni_fsm_transition_t *action;
-	ni_fsm_state_t state;
-	ni_bool_t redo = FALSE;
 
-	switch (event) {
-	case NI_EVENT_DEVICE_DOWN:
-		/* until administrative DOWN is reverted */
-		state = NI_FSM_STATE_DEVICE_UP;
-		event = NI_EVENT_DEVICE_UP;
-		/* or it is a slave which has to enslave */
-		redo = w->masterdev != NULL;
-		break;
-
-	case NI_EVENT_LINK_DOWN:
-		/* until the link (carrier) is UP again */
-		state = NI_FSM_STATE_LINK_UP;
-		event = NI_EVENT_LINK_UP;
-		redo = TRUE;
-		break;
-
-	default:
+	/* target is initialized, worker is started */
+	if (!w->target_state || !w->kickstarted)
 		return FALSE;
-	}
 
-	/* target is initialized, state more advanced, worker is started */
-	if (!w->target_state || state > w->fsm.state || !w->kickstarted)
+	/* state more advanced or a port waiting for device-up to enslave again */
+	if (state > w->fsm.state && !(redo && event == NI_EVENT_DEVICE_UP &&
+	    w->fsm.wait_for && w->fsm.wait_for->next_state == state))
 		return FALSE;
 
 	/* fsm actions are initialized to UP transitions */
@@ -1596,6 +1563,35 @@ ni_ifworker_revert_state(ni_ifworker_t *w, ni_event_t event)
 			ni_event_type_to_name(event));
 	}
 	return TRUE;
+}
+
+static ni_bool_t
+ni_ifworker_revert_state(ni_ifworker_t *w, ni_event_t event)
+{
+	ni_fsm_state_t state;
+	ni_bool_t redo = FALSE;
+
+	switch (event) {
+	case NI_EVENT_DEVICE_DOWN:
+		/* until administrative DOWN is reverted */
+		state = NI_FSM_STATE_DEVICE_UP;
+		event = NI_EVENT_DEVICE_UP;
+		/* or it is a slave which has to enslave */
+		redo = w->masterdev != NULL;
+		break;
+
+	case NI_EVENT_LINK_DOWN:
+		/* until the link (carrier) is UP again */
+		state = NI_FSM_STATE_LINK_UP;
+		event = NI_EVENT_LINK_UP;
+		redo = TRUE;
+		break;
+
+	default:
+		return FALSE;
+	}
+
+	return ni_ifworker_revert_to_state(w, state, event, redo);
 }
 
 static void
@@ -1954,21 +1950,44 @@ ni_ifworker_extra_waittime_from_xml(ni_ifworker_t *w)
 ni_iftype_t
 ni_ifworker_iftype_from_xml(xml_node_t *config)
 {
-	ni_iftype_t iftype;
+	xml_node_t *child;
+	int type;
 
-	if (!xml_node_is_empty(config)) {
-		for (iftype = 0; iftype < __NI_IFTYPE_MAX; iftype++) {
-			const char *iftype_name = ni_linktype_type_to_name(iftype);
+	if (xml_node_is_empty(config))
+		return NI_IFTYPE_UNKNOWN;
 
-			if (ni_string_empty(iftype_name))
-				continue;
-
-			if (xml_node_get_child(config, iftype_name))
-				return iftype;
-		}
+	for (child = config->children; child; child = child->next) {
+		type = ni_linktype_name_to_type(child->name);
+		if (type > NI_IFTYPE_UNKNOWN && type < __NI_IFTYPE_MAX)
+			return (ni_iftype_t)type;
 	}
 
 	return NI_IFTYPE_UNKNOWN;
+}
+
+/*
+ * Whether the config link type of the worker (w->iftype) has a factory
+ * service with a newDevice method, that is, wicked supports creating it.
+ */
+ni_bool_t
+ni_ifworker_config_is_factory(const ni_ifworker_t *w)
+{
+	const ni_dbus_service_t *service, *factory;
+	const ni_dbus_class_t *class;
+
+	if (!w || w->iftype == NI_IFTYPE_UNKNOWN)
+		return FALSE;
+
+	if (!(class = ni_objectmodel_link_class(w->iftype)))
+		return FALSE;
+
+	if (!(service = ni_objectmodel_service_by_class(class)))
+		return FALSE;
+
+	if (!(factory = ni_objectmodel_factory_service(service)))
+		return FALSE;
+
+	return ni_dbus_service_get_method(factory, "newDevice") != NULL;
 }
 
 ni_bool_t
@@ -1982,6 +2001,7 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 	xml_node_free(w->config.node);
 	w->config.node = NULL;
 	ni_client_state_config_reset(&w->config.meta);
+	w->iftype = NI_IFTYPE_UNKNOWN;
 	if (xml_node_is_empty(ifnode))
 		return TRUE;
 
@@ -2012,11 +2032,45 @@ ni_ifworker_set_config(ni_ifworker_t *w, xml_node_t *ifnode, const char *config_
 	return TRUE;
 }
 
+/*
+ * Apply a set of policies sorted by owner, weight and name to a worker:
+ * - create the effective config from the policies
+ * - set it as worker config, the first policy provides the origin
+ * - reference the policies in the worker
+ */
+ni_bool_t
+ni_ifworker_apply_policies(ni_ifworker_t *w, const ni_fsm_policy_array_t *policies)
+{
+	xml_node_t *config;
+	unsigned int i;
+	ni_bool_t ret;
+
+	if (!w || !policies || !policies->count)
+		return FALSE;
+
+	if (!(config = ni_fsm_policies_create_config(policies->data, policies->count)))
+		return FALSE;
+
+	/* a policy matching a device does not have to provide a name */
+	if (!xml_node_get_child(config, "name"))
+		xml_node_new_element("name", config, w->name);
+
+	ret = ni_ifworker_set_config(w, config, ni_fsm_policy_origin(policies->data[0]));
+	xml_node_free(config);
+	if (!ret)
+		return FALSE;
+
+	ni_fsm_policy_array_destroy(&w->policies);
+	for (i = 0; i < policies->count; ++i)
+		ni_fsm_policy_array_append_ref(&w->policies, policies->data[i]);
+
+	return TRUE;
+}
+
 ni_ifworker_t *
 ni_fsm_worker_identify(ni_fsm_t *fsm, const xml_node_t *node, const char *origin,
 			ni_ifworker_type_t *type, const char **ifname)
 {
-	const char *namespace;
 	xml_node_t *name;
 
 	if (!fsm || !type || xml_node_is_empty(node))
@@ -2029,15 +2083,27 @@ ni_fsm_worker_identify(ni_fsm_t *fsm, const xml_node_t *node, const char *origin
 	if (!(name = xml_node_get_child(node, "name")))
 		return NULL;
 
+	return ni_fsm_worker_identify_by_name(fsm, *type, name, origin, ifname);
+}
+
+ni_ifworker_t *
+ni_fsm_worker_identify_by_name(ni_fsm_t *fsm, ni_ifworker_type_t type, const xml_node_t *name,
+			const char *origin, const char **ifname)
+{
+	const char *namespace;
+
+	if (!fsm || !name)
+		return NULL;
+
 	if ((namespace = xml_node_get_attr(name, "namespace"))) {
 		if (ifname)
 			*ifname = NULL;
-		return __ni_ifworker_identify_device(fsm, namespace, name, *type, origin);
+		return ni_ifworker_identify_device_by_namespace(fsm, namespace, name, type, origin);
 	} else
 	if (!ni_string_empty(name->cdata)) {
 		if (ifname)
 			*ifname = name->cdata;
-		return ni_fsm_ifworker_by_name(fsm, *type, name->cdata);
+		return ni_fsm_ifworker_by_name(fsm, type, name->cdata);
 	}
 
 	return NULL;
@@ -2062,7 +2128,7 @@ ni_fsm_workers_from_xml(ni_fsm_t *fsm, xml_node_t *node, const char *origin)
 				xml_node_location(node), node->name);
 			return NULL;
 		}
-		if (!(w = ni_fsm_create_worker(&fsm->workers, type, ifname))) {
+		if (!(w = ni_fsm_create_worker(fsm, type, ifname))) {
 			ni_error("%s: cannot allocate worker for '%s' configuration",
 				xml_node_location(node), node->name);
 			return NULL;
@@ -2709,7 +2775,8 @@ ni_ifworker_check_dependencies(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transitio
  * System z etc.
  */
 static ni_ifworker_t *
-__ni_ifworker_identify_device(ni_fsm_t *fsm, const char *namespace, const xml_node_t *devnode, ni_ifworker_type_t type, const char *origin)
+ni_ifworker_identify_device_by_namespace(ni_fsm_t *fsm, const char *namespace,
+			const xml_node_t *devnode, ni_ifworker_type_t type, const char *origin)
 {
 	ni_ifworker_t *found = NULL;
 	char *object_path = NULL;
@@ -2782,7 +2849,7 @@ ni_ifworker_identify_device(ni_fsm_t *fsm, const xml_node_t *devnode, ni_ifworke
 			free(namespace);
 		}
 
-		found = __ni_ifworker_identify_device(fsm, query->name, query, type, origin);
+		found = ni_ifworker_identify_device_by_namespace(fsm, query->name, query, type, origin);
 		if (query != attr)
 			xml_node_free(query);
 		if (found != NULL) {
@@ -3735,7 +3802,7 @@ ni_fsm_start_matching_workers(ni_fsm_t *fsm, ni_ifworker_array_t *marked)
 		if (w->failed)
 			continue;
 
-		if (!ni_ifworker_is_device_created(w) && !ni_ifworker_is_factory_device(w)) {
+		if (!ni_ifworker_is_device_created(w) && !ni_ifworker_config_is_factory(w)) {
 			w->pending = TRUE;
 			ni_ifworker_set_timeout(fsm, w, fsm->worker_timeout);
 			count++;
@@ -3831,6 +3898,10 @@ ni_ifworker_device_delete(ni_ifworker_t *w)
 		ni_netdev_put(w->device);
 		w->device = NULL;
 	}
+	if (w->modem) {
+		ni_modem_release(w->modem);
+		w->modem = NULL;
+	}
 	if (w->object) {
 		ni_dbus_object_free(w->object);
 		w->object = NULL;
@@ -3841,8 +3912,12 @@ ni_ifworker_device_delete(ni_ifworker_t *w)
 	ni_ifworker_cancel_secondary_timeout(w);
 	ni_ifworker_cancel_timeout(w);
 
-	if (ni_ifworker_is_running(w))
-		ni_ifworker_fail(w, "device has been deleted");
+	if (ni_ifworker_is_running(w)) {
+		if (w->managed)
+			ni_debug_application("%s: device has been deleted, reset", w->name);
+		else
+			ni_ifworker_fail(w, "device has been deleted");
+	}
 
 	w->target_range.min = NI_FSM_STATE_NONE;
 	w->target_range.max = NI_FSM_STATE_MAX;
@@ -3851,13 +3926,10 @@ ni_ifworker_device_delete(ni_ifworker_t *w)
 	ni_ifworker_destroy_device_api(w);
 	ni_ifworker_rearm(w);
 
-	ni_ifworker_drop(&w->lowerdev);
-	ni_ifworker_drop(&w->masterdev);
-
 	ni_ifworker_free(ref);
 }
 
-static void
+void
 ni_fsm_delete_worker(ni_fsm_t *fsm, ni_ifworker_t *w)
 {
 	ni_ifworker_t *ref = ni_ifworker_ref(w);
@@ -3964,52 +4036,20 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 {
 	const unsigned int services_max = ni_objectmodel_service_registry_count();
 	const ni_dbus_service_t *list_services[services_max];
+	const ni_dbus_class_t *netif_list_class;
 	const ni_dbus_method_t *method;
-	const char *link_type;
 	unsigned int i, count;
 	int rv;
 
 	if (xml_node_is_empty(w->config.node) || w->device_api.factory_service)
 		return 0;
 
-	/* Allow the configuration to explicitly specify a link-type. */
-	link_type = xml_node_get_attr(w->config.node, "link-type");
-	if (link_type != NULL) {
-		const ni_dbus_service_t *service, *factory_service;
-		const ni_dbus_class_t *class;
-		char classname[128];
-
-		snprintf(classname, sizeof(classname), "netif-%s", link_type);
-		if (!(class = ni_objectmodel_get_class(classname))) {
-			ni_error("%s: unknown device class \"%s\" in link-type attribute",
-					xml_node_location(w->config.node), link_type);
-			ni_ifworker_fail(w, "cannot create interface: xml document error");
-			return -NI_ERROR_DOCUMENT_ERROR;
-		}
-
-		/* Look up the DBus service for this class, and then the factory
-		 * service for that */
-		if (!(service = ni_objectmodel_service_by_class(class))
-		 || !(factory_service = ni_objectmodel_factory_service(service))) {
-			ni_error("%s: unsupported device class \"%s\" in link-type attribute",
-					xml_node_location(w->config.node), link_type);
-			ni_ifworker_fail(w, "cannot create interface: device class not supported");
-			return -NI_ERROR_DEVICE_NOT_COMPATIBLE;
-		}
-
-		if ((rv = ni_ifworker_bind_device_apis(w, service)) < 0)
-			return rv;
-
-		list_services[0] = factory_service;
-		count = 1;
-	} else {
-		const ni_dbus_class_t *netif_list_class;
-
-		/* We try to locate the factory service by looping over all services compatible
-		 * with netif-list */
-		netif_list_class = ni_objectmodel_get_class(NI_OBJECTMODEL_NETIF_LIST_CLASS);
-		count = ni_objectmodel_compatible_services_for_class(netif_list_class, list_services, services_max);
-	}
+	/*
+	 * Locate the factory service by looping over all services
+	 * compatible with netif-list.
+	 */
+	netif_list_class = ni_objectmodel_get_class(NI_OBJECTMODEL_NETIF_LIST_CLASS);
+	count = ni_objectmodel_compatible_services_for_class(netif_list_class, list_services, services_max);
 
 	for (i = 0; i < count; ++i) {
 		const ni_dbus_service_t *service = list_services[i];
@@ -4026,9 +4066,9 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 
 		if (config != NULL) {
 			if (w->device_api.factory_service != NULL) {
-				ni_ifworker_fail(w, "ambiguous device configuration - found services %s and %s. "
-						    "Please use link-type attribute to disambiguate.",
+				ni_ifworker_fail(w, "ambiguous device configuration - found services %s and %s",
 						service->name, w->device_api.factory_service->name);
+				ni_ifworker_destroy_device_api(w);
 				return -1;
 			}
 			w->device_api.factory_service = service;
@@ -4039,45 +4079,6 @@ ni_ifworker_bind_device_factory_api(ni_ifworker_t *w)
 	}
 
 	return 0;
-}
-
-/*
- * Given an XML interface description, find the device layer information.
- * By convention, a DBus device service must provide a changeDevice function.
- * The metadata of this function specifies which element of an <interface>
- * declaration it pertains to.
- */
-static int
-ni_ifworker_bind_device_apis(ni_ifworker_t *w, const ni_dbus_service_t *service)
-{
-	const ni_dbus_method_t *method;
-	xml_node_t *config = NULL;
-
-	if (w->device_api.service)
-		return 1;
-
-	if (xml_node_is_empty(w->config.node))
-		return 0;
-
-	if (w->object == NULL)
-		return 0;
-
-	/* FIXME: look up the device service based on the object class */
-
-	if (service == NULL)
-		service = ni_dbus_object_get_service_for_method(w->object, "changeDevice");
-	if (service == NULL)
-		return 0;
-
-	method = ni_dbus_service_get_method(service, "changeDevice");
-	if (method && ni_dbus_xml_map_method_argument(method, 0, w->config.node, &config, NULL) < 0)
-		return -NI_ERROR_DOCUMENT_ERROR;
-
-	w->device_api.service = service;
-	w->device_api.method = method;
-	xml_node_free(w->device_api.config);
-	w->device_api.config = xml_node_clone(config, NULL);
-	return 1;
 }
 
 /*
@@ -4948,7 +4949,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		if (!found) {
 			ni_debug_application("received new ready device %s (%s)",
 						dev->name, object->path);
-			found = ni_fsm_create_worker(&fsm->workers, NI_IFWORKER_TYPE_NETDEV, dev->name);
+			found = ni_fsm_create_worker(fsm, NI_IFWORKER_TYPE_NETDEV, dev->name);
 			if (found)
 				found->readonly = fsm->readonly;
 		} else {
@@ -4971,7 +4972,7 @@ ni_fsm_recv_new_netif(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		if (!(found = ni_ifworker_array_find_by_objectpath(&fsm->pending, object->path))) {
 			ni_debug_application("received new non-ready device %s (%s)",
 					dev->name, object->path);
-			found = ni_fsm_create_worker(&fsm->pending, NI_IFWORKER_TYPE_NETDEV, dev->name);
+			found = ni_ifworker_array_create_worker(&fsm->pending, NI_IFWORKER_TYPE_NETDEV, dev->name);
 			if (found)
 				found->readonly = fsm->readonly;
 		} else {
@@ -5075,7 +5076,7 @@ ni_fsm_recv_new_modem(ni_fsm_t *fsm, ni_dbus_object_t *object, ni_bool_t refresh
 		found = ni_fsm_ifworker_by_object_path(fsm, object->path);
 	if (!found) {
 		ni_debug_application("received new modem %s (%s)", modem->device, object->path);
-		found = ni_fsm_create_worker(&fsm->workers, NI_IFWORKER_TYPE_MODEM, modem->device);
+		found = ni_fsm_create_worker(fsm, NI_IFWORKER_TYPE_MODEM, modem->device);
 	}
 
 	if (!found)
@@ -5806,6 +5807,18 @@ ni_ifworker_update_from_request(ni_ifworker_t *w, const char *service, const cha
 	}
 }
 
+static ni_bool_t
+ni_ifworker_device_call_wait(ni_ifworker_t *w, ni_fsm_transition_t *action, int rv)
+{
+	if (rv != -NI_ERROR_DEVICE_NOT_UP && rv != -NI_ERROR_METHOD_NOT_SUPPORTED)
+		return FALSE;
+
+	if (action->next_state == NI_FSM_STATE_DEVICE_UP)
+		return TRUE;
+
+	return ni_ifworker_revert_to_state(w, NI_FSM_STATE_DEVICE_UP, NI_EVENT_DEVICE_UP, FALSE);
+}
+
 static int
 ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t *action)
 {
@@ -5836,6 +5849,13 @@ ni_ifworker_do_common_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transition_t 
 				&callback_list, ni_ifworker_error_handler);
 		ni_ifworker_update_from_request(w, service, method, rv, callback_list);
 		if (rv < 0) {
+			if (action->common.device_wait && ni_ifworker_device_call_wait(w, action, rv)) {
+				ni_debug_application("%s: call to %s.%s() failed: %s, waiting for device-up",
+						w->name, service, method, ni_strerror(rv));
+				ni_string_free(&service);
+				ni_string_free(&method);
+				return 0;
+			}
 			if (action->common.may_fail) {
 				ni_error("[ignored] %s: call to %s.%s() failed: %s", w->name,
 						service, method, ni_strerror(rv));
@@ -6002,7 +6022,7 @@ ni_ifworker_link_detection_call(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_transiti
 			ni_ifworker_update_client_state_control(w);
 	}
 
-	if (ret >= 0 && w->fsm.wait_for) {
+	if (ret >= 0 && w->fsm.wait_for == action) {
 		if (w->control.link_timeout != NI_IFWORKER_INFINITE_SECONDS) {
 			ni_ifworker_set_secondary_timeout(fsm, w,
 					NI_TIMEOUT_FROM_SEC(w->control.link_timeout),
@@ -6181,7 +6201,8 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	},
 
 	/* This sets any device attributes, such as a MAC address */
-	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_SETUP, "changeDevice", .call_overloading = FALSE),
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_SETUP, "changeDevice",
+			.call_overloading = FALSE),
 
 	/* This sets the per-interface protocol attributes, such as forwarding */
 	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_PROTOCOLS_UP, "changeProtocol"),
@@ -6194,20 +6215,24 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	 * queue length etc., sets the link administratively UP what triggers a
 	 * link negotiation / detection in the kernel.
 	 */
-	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_UP, "linkUp", .call_overloading = TRUE),
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_DEVICE_UP, "linkUp",
+			.call_overloading = TRUE, .device_wait = TRUE),
 
 	/* This state causes to wait unlit the link negotiation / detection finished
 	 * and we can start using it, that is authenticate ... request IP setup. */
-	TIMED_TRANSITION_UP_TO(NI_FSM_STATE_LINK_UP, link_detection, "waitLinkUp", .call_overloading = TRUE),
+	TIMED_TRANSITION_UP_TO(NI_FSM_STATE_LINK_UP, link_detection, "waitLinkUp",
+			.call_overloading = TRUE, .device_wait = TRUE),
 
 	/* If the link requires authentication, this information can be provided
 	 * here; for instance ethernet 802.1x, wireless WPA, or PPP chap/pap.
 	 * NOTE: This may not be the right place; we may have to fold this into
 	 * the link_up step, or even do it prior to that. */
-	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_LINK_AUTHENTICATED, "login", .call_overloading = TRUE),
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_LINK_AUTHENTICATED, "login",
+			.call_overloading = TRUE),
 
 	/* This brings up LLDP sender and configures it */
-	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_LLDP_UP, "lldpUp", .call_overloading = TRUE, .may_fail = TRUE),
+	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_LLDP_UP, "lldpUp",
+			.call_overloading = TRUE, .may_fail = TRUE),
 
 	/* Configure all assigned addresses and bring up the network */
 	COMMON_TRANSITION_UP_TO(NI_FSM_STATE_ADDRCONF_UP, "requestLease"),
@@ -6225,19 +6250,23 @@ static ni_fsm_transition_t	ni_iftransitions[] = {
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_ADDRCONF_UP, "dropLease"),
 
 	/* Shut down the LLDP sender */
-	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_LLDP_UP, "lldpDown", .call_overloading = TRUE, .may_fail = TRUE),
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_LLDP_UP, "lldpDown",
+			.call_overloading = TRUE, .may_fail = TRUE),
 
 	/* Shut down the link */
-	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_UP, "linkDown", .call_overloading = TRUE),
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_UP, "linkDown",
+			.call_overloading = TRUE),
 
 	/* Shut down the firewall */
 	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_FIREWALL_UP, "firewallDown"),
 
 	/* Shutdown the device */
-	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_SETUP, "shutdownDevice", .call_overloading = TRUE),
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_SETUP, "shutdownDevice",
+			.call_overloading = TRUE),
 
 	/* Delete the device */
-	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_EXISTS, "deleteDevice", .call_overloading = TRUE, .may_fail = TRUE),
+	COMMON_TRANSITION_DOWN_FROM(NI_FSM_STATE_DEVICE_EXISTS, "deleteDevice",
+			.call_overloading = TRUE, .may_fail = TRUE),
 
 	{ .from_state = NI_FSM_STATE_NONE, .next_state = NI_FSM_STATE_NONE, .call_func = NULL }
 };
@@ -6452,7 +6481,7 @@ ni_fsm_schedule(ni_fsm_t *fsm)
 			ni_fsm_events_block(fsm);
 
 			rv = action->call_func(fsm, w, action);
-			if (w->fsm.next_action)
+			if (w->fsm.next_action == action)
 				w->fsm.next_action++;
 
 			if (rv >= 0) {
@@ -6805,7 +6834,12 @@ ni_fsm_process_worker_event(ni_fsm_t *fsm, ni_ifworker_t *w, ni_fsm_event_t *ev)
 	ni_ifworker_advance_state(w, event_type);
 
 	if (event_type == NI_EVENT_DEVICE_DELETE) {
-		if (ni_ifworker_is_factory_device(w))
+		/*
+		 * Keep a managed or configured worker when its device is deleted:
+		 * the device may reappear, e.g. on a driver rebind, or wicked
+		 * creates it again.
+		 */
+		if (w->managed || w->config.node)
 			ni_ifworker_device_delete(w);
 		else
 			ni_fsm_delete_worker(fsm, w);

@@ -35,8 +35,7 @@
 
 static const char *	ni_managed_device_get_essid(xml_node_t *);
 
-static int		ni_managed_device_up(ni_managed_device_t *, const char *);
-static int		ni_factory_device_up(ni_fsm_t *, ni_ifworker_t *);
+static int		ni_managed_device_up(ni_managed_device_t *);
 
 /*
  * List handling functions
@@ -119,18 +118,6 @@ ni_managed_device_type(const ni_managed_device_t *mdev)
 }
 
 void
-ni_managed_device_set_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy, xml_node_t *config)
-{
-	xml_node_free(mdev->selected_config);
-	mdev->selected_config = xml_node_ref(config);
-
-	ni_managed_policy_free(mdev->selected_policy);
-	mdev->selected_policy = ni_managed_policy_ref(mpolicy);
-
-	mdev->selected_policy_seq = mpolicy ? mpolicy->seqno : 0;
-}
-
-void
 ni_managed_device_set_security_id(ni_managed_device_t *mdev, const ni_security_id_t *security_id)
 {
 	ni_ifworker_t *w;
@@ -159,129 +146,81 @@ ni_managed_device_get_name(ni_managed_device_t *mdev)
 	return w->name;
 }
 
-static int
-ni_factory_device_up(ni_fsm_t *fsm, ni_ifworker_t *w)
-{
-	ni_ifworker_array_t ifmarked = NI_IFWORKER_ARRAY_INIT;
-	ni_ifmarker_t ifmarker;
-
-	ni_assert(fsm && w);
-	memset(&ifmarker, 0, sizeof(ifmarker));
-
-	ifmarker.target_range.min = NI_FSM_STATE_MAX - 1;
-	ifmarker.target_range.max = NI_FSM_STATE_MAX;
-	ifmarker.persistent = w->control.persistent;
-
-	ni_ifworker_array_append_ref(&ifmarked, w);
-	ni_fsm_mark_matching_workers(fsm, &ifmarked, &ifmarker);
-	ni_ifworker_array_destroy(&ifmarked);
-
-	return 0;
-}
-
 /*
- * Apply policy to a virtual (factory) device
+ * Apply policies to a device
  */
 int
-ni_factory_device_apply_policy(ni_fsm_t *fsm, ni_ifworker_t *w, ni_managed_policy_t *mpolicy)
+ni_managed_device_apply_policies(ni_managed_device_t *mdev, const ni_fsm_policy_array_t *policies)
 {
-	const char *type_name;
-	ni_fsm_policy_t *policy = mpolicy->fsm_policy;
-	xml_node_t *config = NULL;
-
-	if (!policy)
-		return -1;
-
-	ni_debug_nanny("%s: configuring factory device using policy %s",
-		w->name, ni_fsm_policy_name(policy));
-
-	/* This returns "modem" or "interface" */
-	type_name = ni_ifworker_type_to_string(w->type);
-
-	if (type_name && (config = xml_node_new(type_name, NULL)))
-		xml_node_new_element("name", config, w->name);
-
-	if (!ni_fsm_transform_policies_to_config(config, &policy, 1)) {
-		xml_node_free(config);
-		ni_error("%s: unable to transform policy %s into config [%s]",
-				w->name, ni_fsm_policy_name(policy),
-				ni_fsm_policy_origin(policy));
-		return -1;
-	}
-
-	ni_debug_config_xml(config, NI_LOG_DEBUG, "%s: using device config", w->name);
-
-	ni_ifworker_set_config(w, config, ni_fsm_policy_origin(policy));
-	xml_node_free(config);
-
-	/* Now do the fandango */
-	return ni_factory_device_up(fsm, w);
-}
-
-
-/*
- * Apply policy to a device
- */
-int
-ni_managed_device_apply_policy(ni_managed_device_t *mdev, ni_managed_policy_t *mpolicy)
-{
+	ni_uuid_t uuid = NI_UUID_INIT;
 	ni_ifworker_t *w;
-	const char *type_name;
-	ni_fsm_policy_t *policy = mpolicy->fsm_policy;
-	xml_node_t *config = NULL;
 
-	if (!policy || !(w = ni_managed_device_get_worker(mdev)))
+	if (!policies || !policies->count || !(w = ni_managed_device_get_worker(mdev)))
 		return -1;
 
-	/* If the device is up and running, do not reconfigure unless the policy
-	 * has really changed */
-	switch (mdev->state) {
-	case NI_MANAGED_STATE_STOPPING:
-	case NI_MANAGED_STATE_STOPPED:
-	case NI_MANAGED_STATE_LIMBO:
-		/* Just install the new policy and reconfigure. */
-		break;
-
-	case NI_MANAGED_STATE_STARTING:
-	case NI_MANAGED_STATE_RUNNING:
-	case NI_MANAGED_STATE_FAILED:
-		if (mdev->selected_policy == mpolicy && mdev->selected_policy_seq == mpolicy->seqno) {
-			ni_debug_nanny("%s: keep using policy %s", w->name, ni_fsm_policy_name(policy));
-			return -1;
-		}
-
-		/* Just install the new policy and reconfigure. */
-		break;
-
-	case NI_MANAGED_STATE_BINDING:
+	if (mdev->state == NI_MANAGED_STATE_BINDING) {
 		ni_error("%s(%s): should not get here in state %s",
 				__func__, w->name, ni_managed_state_to_string(mdev->state));
 		return -1;
 	}
 
-	ni_debug_nanny("%s: using policy %s", w->name, ni_fsm_policy_name(policy));
+	/* remember the checksum of the config we're using (if any) */
+	uuid = w->config.meta.uuid;
 
-	/* This returns "modem" or "interface" */
-	type_name = ni_ifworker_type_to_string(w->type);
-
-	if (type_name && (config = xml_node_new(type_name, NULL)))
-		xml_node_new_element("name", config, w->name);
-
-	if (!ni_fsm_transform_policies_to_config(config, &policy, 1)) {
-		xml_node_free(config);
-		ni_error("%s: unable to transform policy %s into config [%s]",
-				w->name, ni_fsm_policy_name(policy),
-				ni_fsm_policy_origin(policy));
+	if (!ni_ifworker_apply_policies(w, policies)) {
+		ni_error("%s: unable to transform policies into config", w->name);
 		return -1;
 	}
 
-	ni_debug_config_xml(config, NI_LOG_DEBUG, "%s: using device config", w->name);
+	/* keep a running device unless its effective config changed */
+	switch (mdev->state) {
+	case NI_MANAGED_STATE_STARTING:
+	case NI_MANAGED_STATE_RUNNING:
+	case NI_MANAGED_STATE_FAILED:
+		if (ni_uuid_equal(&uuid, &w->config.meta.uuid)) {
+			ni_debug_verbose(NI_LOG_DEBUG2, NI_TRACE_APPLICATION,
+					"%s[#%u]: keep using device config uuid: %s (managed %s, fsm %s)",
+					w->name, w->ifindex, ni_uuid_print(&w->config.meta.uuid),
+					ni_managed_state_to_string(mdev->state),
+					ni_ifworker_state_name(w->fsm.state));
+			return -1;
+		}
+		break;
 
-	ni_managed_device_set_policy(mdev, mpolicy, config);
-	xml_node_free(config);
+	default:
+		break;
+	}
+
+	ni_debug_config_xml(w->config.node, NI_LOG_DEBUG,
+			"%s[#%u]: using device config uuid: %s (managed %s, fsm %s)",
+			w->name, w->ifindex, ni_uuid_print(&w->config.meta.uuid),
+			ni_managed_state_to_string(mdev->state),
+			ni_ifworker_state_name(w->fsm.state));
+	return 0;
+}
+
+/*
+ * Start a device with a config applied, or wait for the device
+ */
+int
+ni_managed_device_start(ni_managed_device_t *mdev)
+{
+	ni_ifworker_t *w;
+
+	if (!(w = ni_managed_device_get_worker(mdev)) || !w->config.node)
+		return -1;
+
+	if (!ni_nanny_device_available(w)) {
+		ni_debug_nanny("%s: waiting for the device", w->name);
+		mdev->state = NI_MANAGED_STATE_WAITING;
+		return -1;
+	}
+
+	if (w->done || w->failed)
+		ni_ifworker_rearm(w);
 
 	/* Now do the fandango */
-	return ni_managed_device_up(mdev, ni_fsm_policy_origin(policy));
+	return ni_managed_device_up(mdev);
 }
 
 /*
@@ -296,6 +235,14 @@ ni_managed_device_up_done(ni_ifworker_t *w)
 	if ((mdev = ni_nanny_get_device(mgr, w)) == NULL) {
 		ni_error("%s: no managed device for worker %s", __func__, w->name);
 		return;
+	}
+
+	switch (mdev->state) {
+	case NI_MANAGED_STATE_WAITING:
+	case NI_MANAGED_STATE_RECHECK:
+		return;
+	default:
+		break;
 	}
 
 	if (w->failed) {
@@ -329,7 +276,7 @@ ni_managed_device_up_done(ni_ifworker_t *w)
  * Bring up the device
  */
 static int
-ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
+ni_managed_device_up(ni_managed_device_t *mdev)
 {
 	ni_fsm_t *fsm = mdev->nanny->fsm;
 	ni_ifworker_t *w;
@@ -348,11 +295,11 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 	switch (w->type) {
 	case NI_IFWORKER_TYPE_NETDEV:
 		mdev->max_fail_count = 3;
-		if (w->device->link.type == NI_IFTYPE_WIRELESS) {
+		if (w->device && w->device->link.type == NI_IFTYPE_WIRELESS) {
 			const char *essid;
 
 			ni_security_id_init(&security_id, "wireless");
-			if ((essid = ni_managed_device_get_essid(mdev->selected_config)) != NULL)
+			if ((essid = ni_managed_device_get_essid(w->config.node)) != NULL)
 				ni_security_id_set_attr(&security_id, "essid", essid);
 		}
 
@@ -377,8 +324,6 @@ ni_managed_device_up(ni_managed_device_t *mdev, const char *origin)
 		ni_managed_device_set_security_id(mdev, &security_id);
 
 	ni_ifworker_set_completion_callback(w, ni_managed_device_up_done, mdev->nanny);
-
-	ni_ifworker_set_config(w, mdev->selected_config, origin);
 
 	ifmarker.target_range.min = target_state;
 	ifmarker.target_range.max = NI_FSM_STATE_MAX;
@@ -440,76 +385,17 @@ ni_managed_device_get_essid(xml_node_t *config)
 }
 
 /*
- * Completion callback for shutdown
- */
-static void
-ni_managed_device_down_done(ni_ifworker_t *w)
-{
-	ni_nanny_t *mgr = w->completion.user_data;
-	ni_managed_device_t *mdev;
-
-	if ((mdev = ni_nanny_get_device(mgr, w)) == NULL) {
-		ni_error("%s: no managed device for worker %s", __func__, w->name);
-		return;
-	}
-
-	if (w->failed) {
-		mdev->fail_count++;
-		if (w->dead) {
-			/* Quietly ignore the problem */
-			ni_debug_nanny("%s: failed to shut down device, device about to be removed", w->name);
-		} else {
-			ni_error("%s: failed to shut down device", w->name);
-			mdev->state = NI_MANAGED_STATE_FAILED;
-		}
-	} else {
-		mdev->state = NI_MANAGED_STATE_STOPPED;
-	}
-	ni_managed_device_set_policy(mdev, NULL, NULL);
-
-	if (mdev->monitor && w->type == NI_IFWORKER_TYPE_NETDEV) {
-		/* Re-enable wireless scanning and ethernet link status monitoring */
-		ni_managed_netif_enable(mdev);
-	}
-}
-
-/*
- * Bring up the device
- */
-void
-ni_managed_device_down(ni_managed_device_t *mdev)
-{
-	ni_fsm_t *fsm = mdev->nanny->fsm;
-	ni_ifworker_t *w;
-	int rv;
-
-	if (!(w = ni_managed_device_get_worker(mdev)))
-		return;
-
-	ni_ifworker_set_completion_callback(w, ni_managed_device_down_done, mdev->nanny);
-
-	ni_ifworker_set_config(w, mdev->selected_config, w->config.meta.origin);
-	w->target_range.min = NI_FSM_STATE_NONE;
-	w->target_range.max = NI_FSM_STATE_DEVICE_DOWN;
-
-	if ((rv = ni_ifworker_start(fsm, w, fsm->worker_timeout)) >= 0) {
-		mdev->state = NI_MANAGED_STATE_STOPPING;
-	} else {
-		ni_error("%s: cannot stop device: %s", w->name, ni_strerror(rv));
-		mdev->state = NI_MANAGED_STATE_FAILED;
-	}
-}
-
-/*
  * Print managed_state names
  */
-static ni_intmap_t	__managed_state_names[] = {
+static ni_intmap_t	ni_managed_state_names[] = {
 	{ "stopped",	NI_MANAGED_STATE_STOPPED	},
 	{ "starting",	NI_MANAGED_STATE_STARTING	},
 	{ "running",	NI_MANAGED_STATE_RUNNING	},
 	{ "stopping",	NI_MANAGED_STATE_STOPPING	},
 	{ "limbo",	NI_MANAGED_STATE_LIMBO		},
 	{ "failed",	NI_MANAGED_STATE_FAILED		},
+	{ "waiting",	NI_MANAGED_STATE_WAITING	},
+	{ "recheck",	NI_MANAGED_STATE_RECHECK	},
 	{ NULL }
 };
 
@@ -518,7 +404,7 @@ ni_managed_state_to_string(ni_managed_state_t state)
 {
 	const char *name;
 
-	if ((name = ni_format_uint_mapped(state, __managed_state_names)) == NULL)
+	if ((name = ni_format_uint_mapped(state, ni_managed_state_names)) == NULL)
 		name = "unknown";
 	return name;
 }
