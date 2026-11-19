@@ -389,6 +389,7 @@ ni_managed_device_get_essid(xml_node_t *config)
  */
 static ni_intmap_t	ni_managed_state_names[] = {
 	{ "stopped",	NI_MANAGED_STATE_STOPPED	},
+	{ "binding",	NI_MANAGED_STATE_BINDING	},
 	{ "starting",	NI_MANAGED_STATE_STARTING	},
 	{ "running",	NI_MANAGED_STATE_RUNNING	},
 	{ "stopping",	NI_MANAGED_STATE_STOPPING	},
