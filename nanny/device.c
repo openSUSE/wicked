@@ -505,6 +505,7 @@ ni_managed_device_down(ni_managed_device_t *mdev)
  */
 static ni_intmap_t	__managed_state_names[] = {
 	{ "stopped",	NI_MANAGED_STATE_STOPPED	},
+	{ "binding",	NI_MANAGED_STATE_BINDING	},
 	{ "starting",	NI_MANAGED_STATE_STARTING	},
 	{ "running",	NI_MANAGED_STATE_RUNNING	},
 	{ "stopping",	NI_MANAGED_STATE_STOPPING	},
