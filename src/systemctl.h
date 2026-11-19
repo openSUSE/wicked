@@ -27,6 +27,7 @@
  * Systemd helpers
  */
 extern int		ni_systemctl_service_start(const char *);
+extern int		ni_systemctl_service_restart(const char *);
 extern int		ni_systemctl_service_stop(const char *);
 
 extern const char *	ni_systemctl_service_show_property(const char *, const char *, char **);

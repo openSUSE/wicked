@@ -996,8 +996,11 @@ ni_objectmodel_netif_wait_link_up(ni_dbus_object_t *object, const ni_dbus_method
 	if (argc != 0)
 		return ni_dbus_error_invalid_args(error, object->path, method->name);
 
-	if (!ni_netdev_device_is_up(dev))
+	if (!ni_netdev_device_is_up(dev)) {
+		ni_dbus_set_error_from_code(error, -NI_ERROR_DEVICE_NOT_UP,
+				"device %s is not up", dev->name);
 		return FALSE;
+	}
 
 	if (ni_netdev_link_is_up(dev))
 		return TRUE;

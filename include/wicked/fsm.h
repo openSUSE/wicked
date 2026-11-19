@@ -91,6 +91,7 @@ struct ni_fsm_transition {
 
 		ni_bool_t		call_overloading;
 		ni_bool_t		may_fail;
+		ni_bool_t		device_wait;
 	} common;
 
 #define NI_IFTRANSITION_BINDINGS_MAX	32
@@ -143,7 +144,8 @@ struct ni_ifworker {
 				done		: 1,
 				kickstarted	: 1,
 				pending		: 1,
-				readonly	: 1;
+				readonly	: 1,
+				managed		: 1;
 
 	ni_fsm_policy_array_t	policies;
 
@@ -180,8 +182,6 @@ struct ni_ifworker {
 	ni_modem_t *		modem;
 
 	struct {
-		const ni_dbus_service_t *service;
-		const ni_dbus_method_t *method;
 		const ni_dbus_service_t *factory_service;
 		const ni_dbus_method_t *factory_method;
 		xml_node_t *	config;
@@ -301,8 +301,11 @@ extern ni_fsm_policy_t *	ni_fsm_get_policy_by_name(const ni_fsm_t *, const char 
 extern unsigned int		ni_fsm_get_applicable_policies(const ni_fsm_t *, ni_ifworker_t *,
 						ni_fsm_policy_array_t *, unsigned int);
 extern ni_bool_t		ni_fsm_exists_applicable_policy(const ni_fsm_t *, ni_ifworker_t *);
+extern ni_bool_t		ni_fsm_policy_match_worker(const ni_fsm_t *, const ni_fsm_policy_t *, ni_ifworker_t *);
 extern ni_bool_t		ni_fsm_transform_policies_to_config(xml_node_t *,
 						ni_fsm_policy_t * const *, unsigned int);
+extern xml_node_t *		ni_fsm_policies_create_config(ni_fsm_policy_t * const *, unsigned int);
+extern ni_iftype_t		ni_fsm_policies_config_iftype(const ni_fsm_policy_array_t *);
 
 extern				ni_declare_refcounted_ref(ni_fsm_policy);
 extern				ni_declare_refcounted_free(ni_fsm_policy);
@@ -319,6 +322,10 @@ extern const char *		ni_fsm_policy_origin(const ni_fsm_policy_t *);
 extern unsigned int		ni_fsm_policy_weight(const ni_fsm_policy_t *);
 extern ni_ifworker_type_t	ni_fsm_policy_config_type(const ni_fsm_policy_t *);
 extern const ni_dbus_class_t *	ni_fsm_policy_config_class(const ni_fsm_policy_t *);
+extern const xml_node_t *	ni_fsm_policy_config_name(const ni_fsm_policy_t *);
+extern ni_iftype_t		ni_fsm_policy_config_iftype(const ni_fsm_policy_t *);
+extern ni_ifworker_t *		ni_fsm_policy_identify_worker(ni_fsm_t *, const ni_fsm_policy_t *,
+							const char **);
 
 extern ni_bool_t		ni_fsm_policies_changed_since(const ni_fsm_t *, unsigned int *tstamp);
 
@@ -342,7 +349,9 @@ extern unsigned int		ni_fsm_get_matching_workers(ni_fsm_t *, ni_ifmatcher_t *, n
 extern unsigned int		ni_fsm_mark_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_ifmarker_t *);
 extern unsigned int		ni_fsm_start_matching_workers(ni_fsm_t *, ni_ifworker_array_t *);
 extern void			ni_fsm_reset_matching_workers(ni_fsm_t *, ni_ifworker_array_t *, const ni_uint_range_t *, ni_bool_t);
+extern ni_ifworker_t *		ni_fsm_create_worker(ni_fsm_t *, ni_ifworker_type_t, const char *);
 extern void			ni_fsm_reset_worker(ni_fsm_t *, ni_ifworker_t *);
+extern void			ni_fsm_delete_worker(ni_fsm_t *, ni_ifworker_t *);
 extern void			ni_fsm_print_config_hierarchy(const ni_fsm_t *,
 						const ni_ifworker_array_t *, ni_log_fn_t *);
 extern void			ni_fsm_print_system_hierarchy(const ni_fsm_t *,
@@ -350,13 +359,14 @@ extern void			ni_fsm_print_system_hierarchy(const ni_fsm_t *,
 extern int			ni_fsm_build_hierarchy(ni_fsm_t *, ni_bool_t);
 extern ni_ifworker_t *		ni_fsm_worker_identify(ni_fsm_t *, const xml_node_t *, const char *,
 							ni_ifworker_type_t *, const char **);
+extern ni_ifworker_t *		ni_fsm_worker_identify_by_name(ni_fsm_t *, ni_ifworker_type_t,
+							const xml_node_t *, const char *, const char **);
 extern ni_ifworker_t *		ni_fsm_workers_from_xml(ni_fsm_t *, xml_node_t *, const char *);
 extern unsigned int		ni_fsm_fail_count(ni_fsm_t *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_object_path(ni_fsm_t *, const char *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_ifindex(ni_fsm_t *, unsigned int);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_netdev(ni_fsm_t *, const ni_netdev_t *);
 extern ni_ifworker_t *		ni_fsm_ifworker_by_name(const ni_fsm_t *, ni_ifworker_type_t, const char *);
-extern ni_ifworker_t *		ni_fsm_ifworker_by_policy_name(ni_fsm_t *, ni_ifworker_type_t, const char *);
 extern void			ni_fsm_wait_tentative_addrs(ni_fsm_t *);
 
 extern ni_ifworker_type_t	ni_ifworker_type_from_string(const char *);
@@ -371,7 +381,9 @@ extern ni_bool_t		ni_ifworker_match_netdev_alias(const ni_ifworker_t *, const ch
 extern ni_bool_t		ni_ifworker_match_netdev_ifindex(const ni_ifworker_t *, unsigned int);
 extern ni_bool_t		ni_ifworker_match_alias(const ni_ifworker_t *, const char *);
 extern ni_iftype_t		ni_ifworker_iftype_from_xml(xml_node_t *);
+extern ni_bool_t		ni_ifworker_config_is_factory(const ni_ifworker_t *);
 extern ni_bool_t		ni_ifworker_set_config(ni_ifworker_t *, xml_node_t *, const char *);
+extern ni_bool_t		ni_ifworker_apply_policies(ni_ifworker_t *, const ni_fsm_policy_array_t *);
 extern ni_bool_t		ni_ifworker_control_set_usercontrol(ni_ifworker_t *, ni_bool_t);
 extern ni_bool_t		ni_ifworker_control_set_persistent(ni_ifworker_t *, ni_bool_t);
 extern  void			ni_ifworker_rearm(ni_ifworker_t *);
@@ -400,6 +412,7 @@ extern ni_ifworker_array_t *	ni_ifworker_array_clone(ni_ifworker_array_t *);
 
 extern				ni_declare_ptr_array_init(ni_ifworker);
 extern				ni_declare_ptr_array_destroy(ni_ifworker);
+extern				ni_declare_ptr_array_move(ni_ifworker);
 extern				ni_declare_ptr_array_append_ref(ni_ifworker);
 extern				ni_declare_ptr_array_delete_at(ni_ifworker);
 extern				ni_declare_ptr_array_delete(ni_ifworker);
@@ -444,6 +457,12 @@ ni_ifworker_device_bound(const ni_ifworker_t *w)
 	default:
 		return FALSE;
 	}
+}
+
+static inline ni_bool_t
+ni_ifworker_del_config(ni_ifworker_t *w)
+{
+	return ni_ifworker_set_config(w, NULL, NULL);
 }
 
 static inline ni_netdev_t *
