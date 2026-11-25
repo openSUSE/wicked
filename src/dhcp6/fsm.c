@@ -78,6 +78,14 @@ static int			ni_dhcp6_fsm_parse_client_options(ni_dhcp6_device_t *, ni_dhcp6_mes
  */
 #define NI_DHCP6_WAIT_IAADDR_READY		2000
 
+/*
+ * Minimal lifetime left in seconds to continue using a confirmed
+ * lease: time to wait until the address is ready plus one rebind
+ * retransmission timeout.
+ */
+#define NI_DHCP6_CONFIRM_MIN_LFT		((NI_DHCP6_WAIT_IAADDR_READY + \
+						  NI_DHCP6_REB_TIMEOUT) / 1000)
+
 
 /*
  * Global fsm handler
@@ -627,7 +635,11 @@ ni_dhcp6_fsm_timeout(ni_dhcp6_device_t *dev)
 		 * other previously obtained configuration parameters.
 		 * [...]"
 		 */
-		if (dev->lease) {
+		if (dev->lease && ni_dhcp6_fsm_get_expire_timeout(dev) < NI_DHCP6_CONFIRM_MIN_LFT) {
+			/* expires too soon to continue using it */
+			ni_dhcp6_fsm_reset(dev);
+			ni_dhcp6_fsm_solicit(dev);
+		} else if (dev->lease) {
 			/*
 			 * Commit current lease to continue using it.
 			 * A confirm is not extending any lifetimes.
@@ -1113,10 +1125,11 @@ ni_dhcp6_fsm_confirm_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg
 			/* Any another failures do not signal link change (NotOnLink) */
 			ni_dhcp6_fsm_reset(dev);
 			ni_address_list_destroy(&dev->lease->addrs);
-			if (ni_dhcp6_ia_copy_to_lease_addrs(dev, dev->lease)) {
+			if (ni_dhcp6_ia_copy_to_lease_addrs(dev, dev->lease) &&
+			    ni_dhcp6_fsm_get_expire_timeout(dev) >= NI_DHCP6_CONFIRM_MIN_LFT) {
 				ni_dhcp6_fsm_commit_lease(dev, dev->lease);
 			} else {
-				/* expired in the meantime */
+				/* expired or expires too soon in the meantime */
 				ni_dhcp6_fsm_solicit(dev);
 			}
 			rv = 0;
@@ -1996,6 +2009,10 @@ ni_dhcp6_fsm_renew(ni_dhcp6_device_t *dev)
 		return -1;
 
 	if (dev->retrans.count == 0) {
+		duration = ni_dhcp6_fsm_get_rebind_timeout(dev);
+		if (!duration)
+			return ni_dhcp6_fsm_rebind(dev);
+
 		if (ni_dhcp6_fsm_mark_renew_ia(dev) == 0) {
 			/* TODO: apply >0 jitter ? */
 			ni_warn("Unable to find any IA requiring a renew");
@@ -2004,7 +2021,6 @@ ni_dhcp6_fsm_renew(ni_dhcp6_device_t *dev)
 			return 1;
 		}
 
-		duration = ni_dhcp6_fsm_get_rebind_timeout(dev);
 		ni_info("%s: Initiating renewal of DHCPv6 lease, duration %usec",
 				dev->ifname, duration);
 
@@ -2040,6 +2056,12 @@ ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *dev)
 		return -1;
 
 	if (dev->retrans.count == 0) {
+		duration = ni_dhcp6_fsm_get_expire_timeout(dev);
+		if (!duration) {
+			ni_dhcp6_device_drop_lease(dev);
+			return ni_dhcp6_fsm_restart(dev);
+		}
+
 		/* TODO: this function has to return count
 		 *       of all IA's marked for REBIND...
 		 *
@@ -2054,8 +2076,6 @@ ni_dhcp6_fsm_rebind(ni_dhcp6_device_t *dev)
 			dev->fsm.fail_on_timeout = 1;
 			return 1;
 		}
-
-		duration = ni_dhcp6_fsm_get_expire_timeout(dev);
 
 		ni_info("%s: Initiating rebind of DHCPv6 lease, duration %usec",
 			dev->ifname, duration);
@@ -2492,6 +2512,8 @@ __ni_dhcp6_fsm_get_timeout(ni_dhcp6_device_t *dev, unsigned int (*get_ia_time)(n
 			timersub(&now, &ia->acquired, &dif);
 			if ((unsigned long)lt > (unsigned long)dif.tv_sec)
 				lt -= dif.tv_sec;
+			else
+				lt = 0;
 		}
 	}
 	return lt;
@@ -2547,6 +2569,8 @@ ni_dhcp6_fsm_get_expire_timeout(ni_dhcp6_device_t *dev)
 			timersub(&now, &ia->acquired, &dif);
 			if ((unsigned long)lt > (unsigned long)dif.tv_sec)
 				lt -= dif.tv_sec;
+			else
+				lt = 0;
 		}
 	}
 	return lt;
