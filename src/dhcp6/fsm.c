@@ -932,8 +932,7 @@ ni_dhcp6_fsm_request_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg
 		 * best offer points to the lease we've requested -- check that the
 		 * server in the reply matches the server we request the lease from.
 		 */
-		if (!IN6_ARE_ADDR_EQUAL(&dev->best_offer.lease->dhcp6.server_addr, &msg->lease->dhcp6.server_addr) ||
-		    !ni_opaque_eq(&dev->best_offer.lease->dhcp6.server_id, &msg->lease->dhcp6.server_id)) {
+		if (!ni_opaque_eq(&dev->best_offer.lease->dhcp6.server_id, &msg->lease->dhcp6.server_id)) {
 			ni_string_printf(hint, "lease request reply from another server");
 			goto cleanup;
 		}
@@ -1170,8 +1169,7 @@ ni_dhcp6_fsm_renew_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg, 
 		/*
 		 * check that the server in the reply matches the server we request the renew from.
 		 */
-		if (!IN6_ARE_ADDR_EQUAL(&dev->lease->dhcp6.server_addr, &msg->lease->dhcp6.server_addr) ||
-		    !ni_opaque_eq(&dev->lease->dhcp6.server_id, &msg->lease->dhcp6.server_id)) {
+		if (!ni_opaque_eq(&dev->lease->dhcp6.server_id, &msg->lease->dhcp6.server_id)) {
 			ni_string_printf(hint, "renew reply from another server");
 			goto cleanup;
 		}
@@ -1228,8 +1226,7 @@ ni_dhcp6_fsm_rebind_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg,
 		 * FIXME: Well... this wrong. We rebind here. handle as offer.
 		 */
 #if 1
-		if (!IN6_ARE_ADDR_EQUAL(&dev->lease->dhcp6.server_addr, &msg->lease->dhcp6.server_addr) ||
-		    !ni_opaque_eq(&dev->lease->dhcp6.server_id, &msg->lease->dhcp6.server_id)) {
+		if (!ni_opaque_eq(&dev->lease->dhcp6.server_id, &msg->lease->dhcp6.server_id)) {
 			ni_string_printf(hint, "rebind reply from another server");
 			goto cleanup;
 		}
@@ -1420,8 +1417,7 @@ ni_dhcp6_fsm_release_process_msg(ni_dhcp6_device_t *dev, ni_dhcp6_message_t *msg
 		/*
 		 * check that the server in the reply matches the server we request the renew from.
 		 */
-		if (!IN6_ARE_ADDR_EQUAL(&dev->lease->dhcp6.server_addr, &msg->lease->dhcp6.server_addr) ||
-		    !ni_opaque_eq(&dev->lease->dhcp6.server_id, &msg->lease->dhcp6.server_id)) {
+		if (!ni_opaque_eq(&dev->lease->dhcp6.server_id, &msg->lease->dhcp6.server_id)) {
 			ni_string_printf(hint, "release reply from another server");
 			goto cleanup;
 		}
