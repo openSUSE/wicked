@@ -332,18 +332,23 @@ ni_dhcp6_socket_recv(ni_socket_t *sock)
 			dev->ifname, pinfo->ipi6_ifindex, dev->link.ifindex);
 		return;
 	}
+	if (msg.msg_namelen < sizeof(saddr.six) || saddr.ss_family != AF_INET6) {
+		ni_error("%s: discarding packet without sender address on socket %d",
+			dev->ifname, sock->__fd);
+		return;
+	}
 
 	ni_buffer_push_tail(rbuf, bytes);
 #ifdef	NI_DHCP6_HEXDUMP_LEVEL
 	ni_debug_verbose(NI_DHCP6_HEXDUMP_LEVEL, NI_TRACE_SOCKET,
 			"%s: received %zd byte packet from %s: %s",
 			dev->ifname, bytes,
-			ni_dhcp6_address_print(&pinfo->ipi6_addr),
+			ni_dhcp6_address_print(&saddr.six.sin6_addr),
 			__ni_dhcp6_hexdump(&hexbuf, rbuf));
 	ni_stringbuf_destroy(&hexbuf);
 #endif
 
-	ni_dhcp6_process_packet(dev, rbuf, &pinfo->ipi6_addr);
+	ni_dhcp6_process_packet(dev, rbuf, &saddr.six.sin6_addr);
 	ni_buffer_reset(rbuf);
 }
 
